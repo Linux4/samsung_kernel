@@ -201,6 +201,36 @@ static int dsim_phy_power_off(struct dsim_device *dsim)
 	return 0;
 }
 
+static void _dsim_init(struct dsim_device *dsim, bool ulps)
+{
+	struct exynos_drm_crtc *exynos_crtc = dsim_get_exynos_crtc(dsim);
+
+#if defined(CONFIG_CPU_IDLE)
+	exynos_update_ip_idle_status(dsim->idle_ip_index, 0);
+#endif
+	dsim_phy_power_on(dsim);
+
+	dsim_reg_init(dsim->id, &dsim->config, &dsim->clk_param, !ulps);
+	DPU_EVENT_LOG("DSIM_INIT", exynos_crtc, 0, NULL);
+}
+
+static void _dsim_start(struct dsim_device *dsim, bool ulps)
+{
+	struct exynos_drm_crtc *exynos_crtc = dsim_get_exynos_crtc(dsim);
+
+	bool irq_enabled = dsim->state == DSIM_STATE_INIT;
+
+	if (!ulps)
+		dsim_reg_start(dsim->id);
+	else
+		dsim_reg_exit_ulps_and_start(dsim->id, 0, 0x1F);
+
+	dsim->state = DSIM_STATE_HSCLKEN;
+	if (!irq_enabled)
+		enable_irq(dsim->irq);
+	DPU_EVENT_LOG("DSIM_START", exynos_crtc, 0, NULL);
+}
+
 void dsim_exit_ulps(struct dsim_device *dsim)
 {
 	dsim_debug(dsim, "+\n");
@@ -210,17 +240,10 @@ void dsim_exit_ulps(struct dsim_device *dsim)
 		goto out;
 
 	pm_runtime_get_sync(dsim->dev);
-#if defined(CONFIG_CPU_IDLE)
-	exynos_update_ip_idle_status(dsim->idle_ip_index, 0);
-#endif
 
-	dsim_phy_power_on(dsim);
+	_dsim_init(dsim, true);
+	_dsim_start(dsim, true);
 
-	dsim_reg_init(dsim->id, &dsim->config, &dsim->clk_param, false);
-	dsim_reg_exit_ulps_and_start(dsim->id, 0, 0x1F);
-
-	dsim->state = DSIM_STATE_HSCLKEN;
-	enable_irq(dsim->irq);
 out:
 	mutex_unlock(&dsim->cmd_lock);
 
@@ -231,7 +254,6 @@ static void dsim_enable_locked(struct drm_encoder *encoder)
 {
 	struct dsim_device *dsim = encoder_to_dsim(encoder);
 	struct exynos_drm_crtc *exynos_crtc = dsim_get_exynos_crtc(dsim);
-	bool irq_enabled = dsim->state == DSIM_STATE_INIT;
 
 	if (!mutex_is_locked(&dsim->cmd_lock)) {
 		dsim_err(dsim, "is called w/o lock from %ps\n",
@@ -250,24 +272,13 @@ static void dsim_enable_locked(struct drm_encoder *encoder)
 			dsim->dev->power.wakeup->active_count,
 			dsim->dev->power.wakeup->relax_count);
 
-#if defined(CONFIG_CPU_IDLE)
-	exynos_update_ip_idle_status(dsim->idle_ip_index, 0);
-#endif
-
-	dsim_phy_power_on(dsim);
-
-	dsim_reg_init(dsim->id, &dsim->config, &dsim->clk_param, true);
-	dsim_reg_start(dsim->id);
-
-	dsim->state = DSIM_STATE_HSCLKEN;
-	if (!irq_enabled)
-		enable_irq(dsim->irq);
-
+	_dsim_init(dsim, false);
+	if (!dsim->lp11_reset)
+		_dsim_start(dsim, false);
 #if defined(DSIM_BIST)
 	dsim_reg_set_bist(dsim->id, true, DSIM_GRAY_GRADATION);
 	dsim_dump(dsim);
 #endif
-
 	DPU_EVENT_LOG("DSIM_ENABLED", exynos_crtc, 0, NULL);
 
 	dsim_info(dsim, "-\n");
@@ -299,6 +310,20 @@ static void dsim_atomic_enable(struct drm_encoder *encoder,
 
 	dsim_info(dsim, "-\n");
 }
+
+void dsim_atomic_activate(struct drm_encoder *encoder)
+{
+	struct dsim_device *dsim = encoder_to_dsim(encoder);
+
+	dsim_info(dsim, "+\n");
+
+	mutex_lock(&dsim->cmd_lock);
+	_dsim_start(dsim, false);
+	mutex_unlock(&dsim->cmd_lock);
+
+	dsim_info(dsim, "-\n");
+};
+EXPORT_SYMBOL(dsim_atomic_activate);
 
 void dsim_enter_ulps(struct dsim_device *dsim)
 {

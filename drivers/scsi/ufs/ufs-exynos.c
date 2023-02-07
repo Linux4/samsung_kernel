@@ -1765,13 +1765,6 @@ static int exynos_ufs_sysfs_mon_store(struct exynos_ufs *ufs, u32 value,
 {
 	struct ufs_vs_handle *handle = &ufs->handle;
 	u32 reg;
-	struct ufshcd_lrb *lrbp;
-	struct ufs_hba *hba;
-	struct scsi_cmnd *scmd;
-	struct Scsi_Host *shost;
-	int tag;
-	LIST_HEAD(eh_work_q);
-	LIST_HEAD(eh_done_q);
 
 	if (value & UFS_S_MON_LV1) {
 		/* Trigger HCI error */
@@ -1786,40 +1779,6 @@ static int exynos_ufs_sysfs_mon_store(struct exynos_ufs *ufs, u32 value,
 
 		reg = std_readl(handle, REG_INTERRUPT_ENABLE);
 		std_writel(handle, (reg & ~UTP_TRANSFER_REQ_COMPL), REG_INTERRUPT_ENABLE);
-
-		hba = ufs->hba;
-		if (!hba) {
-			dev_err(ufs->dev, "Device Error: hba is NULL!\n");
-			std_writel(handle, reg, REG_INTERRUPT_ENABLE);
-			return -1;
-		}
-
-		msleep(10000);
-		/*
-		   find offset of first set bit of integer (least one)
-		   returns 1~32 when success,
-		   returns 0 when couldn't find any set bit.
-		 */
-		tag = ffs(hba->outstanding_reqs) - 1;
-
-		dev_info(hba->dev, "Device Error: outstanding_reqs = 0x%08X, tag = %d\n", hba->outstanding_reqs, tag);
-		if (tag < 0) {
-			dev_err(hba->dev, "Device Error: No pending request.. Please try again.\n");
-			std_writel(handle, reg, REG_INTERRUPT_ENABLE);
-			return -1;
-		}
-
-		shost = hba->host;
-		lrbp = &(hba->lrb[tag]);
-		if(!shost || !lrbp || !lrbp->cmd) {
-			dev_err(hba->dev, "Device Error Failed: shost=0x%08X, lrbp=0x%08X\n", shost, lrbp);
-			std_writel(handle, reg, REG_INTERRUPT_ENABLE);
-			return -1;
-		}
-
-		scmd = lrbp->cmd;
-		list_add_tail(&scmd->eh_entry, &eh_work_q);
-		scsi_eh_ready_devs(shost, &eh_work_q, &eh_done_q);
 	} else {
 		dev_err(ufs->dev, "Undefined level\n");
 		return -EINVAL;

@@ -3376,12 +3376,15 @@ void slsi_rx_disconnected_ind(struct slsi_dev *sdev, struct net_device *dev, str
 		      fapi_get_vif(skb),
 		      fapi_get_u16(skb, u.mlme_disconnected_ind.reason_code),
 		      fapi_get_buff(skb, u.mlme_disconnected_ind.peer_sta_address));
-
 #if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 	scsc_log_collector_schedule_collection(SCSC_LOG_HOST_WLAN, SCSC_LOG_HOST_WLAN_REASON_DISCONNECTED_IND);
 #else
 #ifndef SLSI_TEST_DEV
+#if IS_ENABLED(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
+	SLSI_NET_INFO(dev, "SCSC_LOG_COLLECTION not enabled. Sable will not be triggered\n");
+#else
 	mx140_log_dump();
+#endif
 #endif
 #endif
 	if (reason <= 0xFF) {

@@ -22,142 +22,6 @@
 #include <dt-bindings/soc/samsung/ems.h>
 
 /******************************************************************************
- * simple mode level list management based on prio                            *
- ******************************************************************************/
-/**
- * MLLIST_HEAD_INIT - static struct mllist_head initializer
- * @head:	struct mllist_head variable name
- */
-#define MLLIST_HEAD_INIT(head)				\
-{							\
-	.node_list = LIST_HEAD_INIT((head).node_list)	\
-}
-
-/**
- * mllist_node_init - Dynamic struct mllist_node initializer
- * @node:	&struct mllist_node pointer
- * @prio:	initial node priority
- */
-static inline void mllist_node_init(struct mllist_node *node, int prio)
-{
-	node->prio = prio;
-	INIT_LIST_HEAD(&node->prio_list);
-	INIT_LIST_HEAD(&node->node_list);
-}
-
-/**
- * mllist_head_empty - return !0 if a mllist_head is empty
- * @head:	&struct mllist_head pointer
- */
-static inline int mllist_head_empty(const struct mllist_head *head)
-{
-	return list_empty(&head->node_list);
-}
-
-/**
- * mllist_node_empty - return !0 if mllist_node is not on a list
- * @node:	&struct mllist_node pointer
- */
-static inline int mllist_node_empty(const struct mllist_node *node)
-{
-	return list_empty(&node->node_list);
-}
-
-/**
- * mllist_last - return the last node (and thus, lowest priority)
- * @head:	the &struct mllist_head pointer
- *
- * Assumes the mllist is _not_ empty.
- */
-static inline struct mllist_node *mllist_last(const struct mllist_head *head)
-{
-	return list_entry(head->node_list.prev,
-			  struct mllist_node, node_list);
-}
-
-/**
- * mllist_first - return the first node (and thus, highest priority)
- * @head:	the &struct mllist_head pointer
- *
- * Assumes the mllist is _not_ empty.
- */
-static inline struct mllist_node *mllist_first(const struct mllist_head *head)
-{
-	return list_entry(head->node_list.next,
-			  struct mllist_node, node_list);
-}
-
-/**
- * mllist_add - add @node to @head
- *
- * @node:	&struct mllist_node pointer
- * @head:	&struct mllist_head pointer
- */
-static void mllist_add(struct mllist_node *node, struct mllist_head *head)
-{
-	struct mllist_node *first, *iter, *prev = NULL;
-	struct list_head *node_next = &head->node_list;
-
-	WARN_ON(!mllist_node_empty(node));
-	WARN_ON(!list_empty(&node->prio_list));
-
-	if (mllist_head_empty(head))
-		goto ins_node;
-
-	first = iter = mllist_first(head);
-
-	do {
-		if (node->prio < iter->prio) {
-			node_next = &iter->node_list;
-			break;
-		}
-
-		prev = iter;
-		iter = list_entry(iter->prio_list.next,
-				struct mllist_node, prio_list);
-	} while (iter != first);
-
-	if (!prev || prev->prio != node->prio)
-		list_add_tail(&node->prio_list, &iter->prio_list);
-ins_node:
-	list_add_tail(&node->node_list, node_next);
-}
-
-/**
- * mllist_del - Remove a @node from mllist.
- *
- * @node:	&struct mllist_node pointer - entry to be removed
- * @head:	&struct mllist_head pointer - list head
- */
-static void mllist_del(struct mllist_node *node, struct mllist_head *head)
-{
-	if (!list_empty(&node->prio_list)) {
-		if (node->node_list.next != &head->node_list) {
-			struct mllist_node *next;
-
-			next = list_entry(node->node_list.next,
-					struct mllist_node, node_list);
-
-			/* add the next mllist_node into prio_list */
-			if (list_empty(&next->prio_list))
-				list_add(&next->prio_list, &node->prio_list);
-		}
-		list_del_init(&node->prio_list);
-	}
-
-	list_del_init(&node->node_list);
-}
-
-/**
- * mllist_for_each_entry - iterate over list of given type
- * @pos:	the type * to use as a loop counter
- * @head:	the head for your list
- * @mem:	the name of the list_head within the struct
- */
-#define mllist_for_each_entry(pos, head, mem)	\
-	 list_for_each_entry(pos, &(head)->node_list, mem.node_list)
-
-/******************************************************************************
  * emstune mode/level/set management                                          *
  ******************************************************************************/
 struct {
@@ -177,6 +41,10 @@ struct {
 		struct emstune_set set;
 		struct delayed_work work;
 	} boot;
+
+	struct device			*ems_dev;
+	struct notifier_block		nb;
+	struct emstune_mode_request	level_req;
 } emstune;
 
 static inline struct emstune_set *emstune_cur_set(void)
@@ -244,122 +112,42 @@ static void emstune_reset(int mode, int level)
 /******************************************************************************
  * emstune level request                                                      *
  ******************************************************************************/
-static struct mllist_head emstune_req_list = MLLIST_HEAD_INIT(emstune_req_list);
-
-enum emstune_req_type {
-	REQ_ADD,
-	REQ_UPDATE,
-	REQ_REMOVE
-};
-
-static DEFINE_SPINLOCK(emstune_req_lock);
-
-static void
-__emstune_update_request(struct emstune_mode_request *req,
-			enum emstune_req_type type, s32 new_level)
+static int emstune_pm_qos_notifier(struct notifier_block *nb,
+				unsigned long level, void *data)
 {
-	unsigned long flags;
+	emstune_level_change(level);
 
-	spin_lock_irqsave(&emstune_req_lock, flags);
-
-	switch (type) {
-	case REQ_REMOVE:
-		mllist_del(&req->node, &emstune_req_list);
-		req->active = 0;
-		break;
-	case REQ_UPDATE:
-		mllist_del(&req->node, &emstune_req_list);
-	case REQ_ADD:
-		mllist_node_init(&req->node, new_level);
-		mllist_add(&req->node, &emstune_req_list);
-		req->active = 1;
-		break;
-	default:
-		;
-	}
-
-	new_level = 0;
-	if (!mllist_head_empty(&emstune_req_list))
-		new_level = mllist_last(&emstune_req_list)->prio;
-
-	spin_unlock_irqrestore(&emstune_req_lock, flags);
-
-	emstune_level_change(new_level);
+	return 0;
 }
 
 #define DEFAULT_LEVEL	(0)
-static void emstune_work_fn(struct work_struct *work)
+void __emstune_add_request(struct emstune_mode_request *req,
+					char *func, unsigned int line)
 {
-	struct emstune_mode_request *req = container_of(to_delayed_work(work),
-						  struct emstune_mode_request,
-						  work);
-
-	emstune_update_request(req, DEFAULT_LEVEL);
-}
-
-static inline int emstune_request_active(struct emstune_mode_request *req)
-{
-	unsigned long flags;
-	int active;
-
-	spin_lock_irqsave(&emstune_req_lock, flags);
-	active = req->active;
-	spin_unlock_irqrestore(&emstune_req_lock, flags);
-
-	return active;
-}
-
-void __emstune_add_request(struct emstune_mode_request *req, char *func, unsigned int line)
-{
-	if (emstune_request_active(req))
+	if (dev_pm_qos_add_request(emstune.ems_dev, &req->dev_req,
+			DEV_PM_QOS_MIN_FREQUENCY, DEFAULT_LEVEL))
 		return;
 
-	INIT_DELAYED_WORK(&req->work, emstune_work_fn);
 	req->func = func;
 	req->line = line;
-
-	__emstune_update_request(req, REQ_ADD, DEFAULT_LEVEL);
 }
 EXPORT_SYMBOL_GPL(__emstune_add_request);
 
 void emstune_remove_request(struct emstune_mode_request *req)
 {
-	if (!emstune_request_active(req))
-		return;
-
-	if (delayed_work_pending(&req->work))
-		cancel_delayed_work_sync(&req->work);
-	destroy_delayed_work_on_stack(&req->work);
-
-	__emstune_update_request(req, REQ_REMOVE, DEFAULT_LEVEL);
+	dev_pm_qos_remove_request(&req->dev_req);
 }
 EXPORT_SYMBOL_GPL(emstune_remove_request);
 
 void emstune_update_request(struct emstune_mode_request *req, s32 new_level)
 {
-	/* ignore if the request is not active */
-	if (!emstune_request_active(req))
-		return;
-
 	/* ignore if the value is out of range except boost level */
-	if ((new_level < 0 || new_level > emstune.level_count))
+	if ((new_level < 0 || new_level >= emstune.level_count))
 		return;
 
-	__emstune_update_request(req, REQ_UPDATE, new_level);
+	dev_pm_qos_update_request(&req->dev_req, new_level);
 }
 EXPORT_SYMBOL_GPL(emstune_update_request);
-
-void emstune_update_request_timeout(struct emstune_mode_request *req, s32 new_value,
-				unsigned long timeout_ms)
-{
-	if (delayed_work_pending(&req->work))
-		cancel_delayed_work_sync(&req->work);
-
-	emstune_update_request(req, new_value);
-
-	schedule_delayed_work(&req->work, msecs_to_jiffies(timeout_ms));
-}
-EXPORT_SYMBOL_GPL(emstune_update_request_timeout);
 
 void emstune_boost(struct emstune_mode_request *req, int enable)
 {
@@ -369,12 +157,6 @@ void emstune_boost(struct emstune_mode_request *req, int enable)
 		emstune_update_request(req, 0);
 }
 EXPORT_SYMBOL_GPL(emstune_boost);
-
-void emstune_boost_timeout(struct emstune_mode_request *req, unsigned long timeout_ms)
-{
-	emstune_update_request_timeout(req, emstune.boost_level, timeout_ms);
-}
-EXPORT_SYMBOL_GPL(emstune_boost_timeout);
 
 int emstune_get_cur_mode(void)
 {
@@ -541,25 +323,11 @@ static void parse_freqboost(struct device_node *dn,
 	parse_cgroup_coregroup_field(dn, freqboost->ratio, 0);
 }
 
-/* wakeboost */
-static void parse_wakeboost(struct device_node *dn,
-			struct emstune_wakeboost *wakeboost)
-{
-	parse_cgroup_coregroup_field(dn, wakeboost->ratio, 0);
-}
-
-/* energy step governor */
-static void parse_esg(struct device_node *dn, struct emstune_esg *esg)
-{
-	parse_coregroup_field(dn, "step", esg->step, 0);
-	parse_coregroup_field(dn, "pelt-margin", esg->pelt_margin, 25);
-}
-
 /* cpufreq governor parameters */
 static void parse_cpufreq_gov(struct device_node *dn,
 			      struct emstune_cpufreq_gov *cpufreq_gov)
 {
-	parse_coregroup_field(dn, "patient-mode", cpufreq_gov->patient_mode, 0);
+	parse_coregroup_field(dn, "htask-boost", cpufreq_gov->htask_boost, 100);
 	parse_coregroup_field(dn, "pelt-boost", cpufreq_gov->pelt_boost, 0);
 
 	parse_coregroup_field(dn, "pelt-margin",
@@ -580,12 +348,10 @@ static void parse_cpufreq_gov(struct device_node *dn,
 	parse_coregroup_field(dn, "dis-buck-share", cpufreq_gov->dis_buck_share, 0);
 }
 
-/* stt */
-static void parse_stt(struct device_node *dn, struct emstune_stt *stt)
+static void parse_cpuidle_gov(struct device_node *dn,
+			      struct emstune_cpuidle_gov *cpuidle_gov)
 {
-	parse_cgroup_field(dn, stt->htask_enable, 0);
-	of_property_read_u32(dn, "boost-step", &stt->boost_step);
-	of_property_read_u32(dn, "htask-cnt", &stt->htask_cnt);
+	parse_coregroup_field(dn, "expired-ratio", cpuidle_gov->expired_ratio, 100);
 }
 
 /* ontime migration */
@@ -718,20 +484,9 @@ static void parse_cpus_binding(struct device_node *dn,
 /* task express */
 static void parse_tex(struct device_node *dn, struct emstune_tex *tex)
 {
-	const char *buf;
-
 	parse_cgroup_field(dn, tex->enabled, 0);
 
-	if (!of_property_read_string(dn, "pinning-mask", &buf))
-		cpulist_parse(buf, &tex->mask);
-	else
-		cpumask_clear(&tex->mask);
-
-	of_property_read_u32(dn, "qjump", &tex->qjump);
-
 	of_property_read_u32(dn, "prio", &tex->prio);
-
-	of_property_read_u32(dn, "suppress", &tex->suppress);
 }
 
 /* Fluid RT scheduling */
@@ -783,24 +538,9 @@ static void parse_ecs(struct device_node *dn, struct emstune_ecs *ecs)
 	init_ecs_domain_list(dn, &ecs->domain_list);
 }
 
-/* prefer cpu */
-static void parse_prefer_cpu(struct device_node *dn,
-			struct emstune_prefer_cpu *prefer_cpu)
+static void parse_ecs_dynamic(struct device_node *dn, struct emstune_ecs_dynamic *dynamic)
 {
-	const char *buf;
-
-	parse_cgroup_field_mask(dn, prefer_cpu->mask);
-
-	if (of_property_read_u32(dn, "small-task-threshold",
-			(u32 *)&prefer_cpu->small_task_threshold))
-		prefer_cpu->small_task_threshold = 0;
-
-	if (!of_property_read_string(dn, "small-task-mask", &buf))
-		cpulist_parse(buf, &prefer_cpu->small_task_mask);
-	else {
-		/* if it failed to parse mask, set mask all */
-		cpumask_copy(&prefer_cpu->small_task_mask, cpu_possible_mask);
-	}
+	parse_coregroup_field(dn, "dynamic-busy-ratio", dynamic->dynamic_busy_ratio, 0);
 }
 
 /* Margin applied to newly created task's utilization */
@@ -825,11 +565,32 @@ static void parse_fclamp(struct device_node *dn, struct emstune_fclamp *fclamp)
 						fclamp->monitor_group, 0);
 }
 
-/* sync */
-static void parse_sync(struct device_node *dn, struct emstune_sync *sync)
+/* support uclamp */
+static void parse_support_uclamp(struct device_node *dn,
+		struct emstune_support_uclamp *su)
 {
-	if (of_property_read_u32(dn, "apply", &sync->apply))
-		sync->apply = 1;
+	if (of_property_read_u32(dn, "enabled", &su->enabled))
+		su->enabled = 1;
+}
+
+/* gsc */
+static void parse_gsc(struct device_node *dn,
+		struct emstune_gsc *gsc)
+{
+	if (of_property_read_u32(dn, "up_threshold", &gsc->up_threshold))
+		gsc->up_threshold = 1024;
+	if (of_property_read_u32(dn, "down_threshold", &gsc->down_threshold))
+		gsc->down_threshold = 1024;
+
+	parse_cgroup_field(of_get_child_by_name(dn, "monitor-group"), gsc->enabled, 0);
+}
+
+/* should spread */
+static void parse_should_spread(struct device_node *dn,
+		struct emstune_should_spread *ss)
+{
+	if (of_property_read_u32(dn, "enabled", &ss->enabled))
+		ss->enabled = 0;
 }
 
 /******************************************************************************
@@ -840,6 +601,20 @@ static int sched_boost;
 int emstune_sched_boost(void)
 {
 	return sched_boost;
+}
+
+int emstune_support_uclamp(void)
+{
+	struct emstune_set *cur_set = emstune_cur_set();
+
+	return cur_set->support_uclamp.enabled;
+}
+
+int emstune_should_spread(void)
+{
+	struct emstune_set *cur_set = emstune_cur_set();
+
+	return cur_set->should_spread.enabled;
 }
 
 /******************************************************************************
@@ -868,37 +643,6 @@ static ssize_t sched_boost_store(struct device *dev,
 	return count;
 }
 DEVICE_ATTR_RW(sched_boost);
-
-static int task_boost;
-
-int emstune_task_boost(void)
-{
-	return task_boost;
-}
-
-static ssize_t task_boost_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%d\n", task_boost);
-}
-
-static ssize_t task_boost_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	int boost;
-
-	if (sscanf(buf, "%d", &boost) != 1)
-		return -EINVAL;
-
-	/* ignore if requested mode is out of range */
-	if (boost < 0 || boost >= 32768)
-		return -EINVAL;
-
-	task_boost = boost;
-
-	return count;
-}
-DEVICE_ATTR_RW(task_boost);
 
 static ssize_t status_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -1015,11 +759,38 @@ static ssize_t req_level_store(struct device *dev,
 	if (level < 0 || level >= emstune.level_count)
 		return -EINVAL;
 
-	emstune_level_change(level);
+	emstune_update_request(&emstune.level_req, level);
 
 	return count;
 }
 DEVICE_ATTR_RW(req_level);
+
+static ssize_t req_level_debug_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int ret = 0, count = 0;
+	struct plist_node *pos;
+
+	plist_for_each(pos, &dev->power.qos->freq.min_freq.list) {
+		struct freq_qos_request *f_req;
+		struct dev_pm_qos_request *d_req;
+		struct emstune_mode_request *req;
+
+		f_req = container_of(pos, struct freq_qos_request, pnode);
+		d_req = container_of(f_req, struct dev_pm_qos_request,
+							data.freq);
+		req = container_of(d_req, struct emstune_mode_request,
+							dev_req);
+
+		count++;
+		ret += snprintf(buf + ret, PAGE_SIZE, "%d: %d (%s:%d)\n",
+					count, f_req->pnode.prio,
+					req->func, req->line);
+	}
+
+	return ret;
+}
+DEVICE_ATTR_RO(req_level_debug);
 
 static ssize_t reset_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -1045,173 +816,136 @@ static ssize_t reset_store(struct device *dev,
 }
 DEVICE_ATTR_RW(reset);
 
-enum {
-	sched_policy,
-	active_weight,
-	idle_weight,
-	freqboost,
-	wakeboost,
-	esg_step,
-	cpufreq_gov_pelt_margin,
-	cpufreq_gov_pelt_boost,
-	cpufreq_gov_patient_mode,
-	cpufreq_gov_rate_limit,
-	cpufreq_gov_rapid_scale,
-	ontime_en,
-	ontime_boundary,
-	cpus_binding_tsc,
-	cpus_binding_cpumask,
-	tex_en,
-	tex_mask,
-	tex_qjump,
-	tex_prio,
-	frt_active_ratio,
-	ecs_threshold_ratio,
-	prefer_cpu,
-	ntu_ratio,
-	stt_htask_boost_en,
-	stt_htask_cnt,
-	stt_htask_boost_step,
-	fclamp_freq,
-	fclamp_period,
-	fclamp_ratio,
-	fclamp_monitor_group,
-	cpufreq_gov_pelt_margin_freq,
-	cpufreq_gov_rate_limit_freq,
-	cpufreq_gov_dis_buck_share,
-	prefer_cpu_small_task_threshold,
-	prefer_cpu_small_task_mask,
-	sync,
-	tex_suppress,
-	field_count,
+enum aio_tuner_item_type {
+	TYPE1,		/* cpu */
+	TYPE2,		/* group */
+	TYPE3,		/* cpu,group */
+	TYPE4,		/* cpu,option */
+	TYPE5,		/* option */
+	TYPE6,		/* nop */
 };
+
+#define	I(x, type, comm)	x,
+#define ITEM_LIST							\
+	I(sched_policy,			TYPE2,	"")			\
+	I(active_weight,		TYPE3,	"")			\
+	I(idle_weight,			TYPE3,	"")			\
+	I(freqboost,			TYPE3,	"")			\
+	I(cpufreq_gov_pelt_boost,	TYPE1,	"")			\
+	I(cpufreq_gov_htask_boost,	TYPE1,	"")			\
+	I(cpufreq_gov_dis_buck_share,	TYPE1,	"")			\
+	I(cpufreq_gov_pelt_margin,	TYPE1,	"")			\
+	I(cpufreq_gov_pelt_margin_freq,	TYPE1,	"")			\
+	I(cpufreq_gov_rate_limit,	TYPE1,	"")			\
+	I(cpufreq_gov_rate_limit_freq,	TYPE1,	"")			\
+	I(fclamp_freq,			TYPE4,	"option:min=0,max=1")	\
+	I(fclamp_period,		TYPE4,	"option:min=0,max=1")	\
+	I(fclamp_ratio,			TYPE4,	"option:min=0,max=1")	\
+	I(fclamp_monitor_group,		TYPE2,	"")			\
+	I(ontime_en,			TYPE2,	"")			\
+	I(ontime_boundary,		TYPE4,	"option:up=0,lo=1")	\
+	I(cpus_binding_tsc,		TYPE6,	"val:mask")		\
+	I(cpus_binding_cpumask,		TYPE2,	"val:mask")		\
+	I(tex_en,			TYPE2,	"")			\
+	I(tex_prio,			TYPE6,	"")			\
+	I(ecs_threshold_ratio,		TYPE5,	"option:stage_id")	\
+	I(ecs_dynamic_busy_ratio,	TYPE1,	"")			\
+	I(ntu_ratio,			TYPE2,	"")			\
+	I(frt_active_ratio,		TYPE1,	"")			\
+	I(cpuidle_gov_expired_ratio,	TYPE1,	"")	\
+	I(support_uclamp,           TYPE6,  "")	\
+	I(gsc_en,			TYPE2,	"")			\
+	I(gsc_up_threshold,           TYPE6,  "")	\
+	I(gsc_down_threshold,           TYPE6,  "")	\
+	I(should_spread,           TYPE6,  "")
+
+enum { ITEM_LIST field_count };
+
+struct aio_tuner_item {
+	int		id;
+	const char	*name;
+	int		param_type;
+	const char	*comment;
+} aio_tuner_items[field_count];
+
+static void aio_tuner_items_init(void)
+{
+	int i;
+
+#undef	I
+#define	I(x, type, comm) #x,
+	const char * const item_name[] = { ITEM_LIST };
+
+#undef	I
+#define	I(x, type, comm) type,
+	const int item_type[] = { ITEM_LIST };
+
+#undef	I
+#define	I(x, type, comm) comm,
+	const char * const item_comm[] = { ITEM_LIST };
+
+	for (i = 0; i < field_count; i++) {
+		aio_tuner_items[i].id = i;
+		aio_tuner_items[i].name = item_name[i];
+		aio_tuner_items[i].param_type = item_type[i];
+		aio_tuner_items[i].comment = item_comm[i];
+	}
+}
+
+static ssize_t func_list_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int ret = 0, i;
+
+	for (i = 0; i < field_count; i++) {
+		ret += sprintf(buf + ret, "%d:%s\n",
+			aio_tuner_items[i].id, aio_tuner_items[i].name);
+	}
+
+	return ret;
+}
+DEVICE_ATTR_RO(func_list);
 
 static ssize_t aio_tuner_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	int ret = 0;
+	int ret = 0, i;
 
 	ret = sprintf(buf + ret, "\n");
 	ret += sprintf(buf + ret, "echo <func,mode,level,...> <value> > aio_tuner\n");
 	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] sched policy\n", sched_policy);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,group> <policy> > aio_tuner\n", sched_policy);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] active weight\n", active_weight);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,cpu,group> <ratio> > aio_tuner\n", active_weight);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] idle weight\n", idle_weight);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,cpu,group> <ratio> > aio_tuner\n", idle_weight);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] freq boost\n", freqboost);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,cpu,group> <ratio> > aio_tuner\n", freqboost);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] wakeup boost\n", wakeboost);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,cpu,group> <ratio> > aio_tuner\n", wakeboost);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "<--- skip --->\n");
-	ret += sprintf(buf + ret, "[%d] cpufreq gov - pelt margin\n", cpufreq_gov_pelt_margin);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,cpu> <margin> > aio_tuner\n",
-				  cpufreq_gov_pelt_margin);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] cpufreq gov - pelt boost\n", cpufreq_gov_pelt_boost);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,cpu> <ratio> > aio_tuner\n", cpufreq_gov_pelt_boost);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] cpufreq gov - patient_mode\n", cpufreq_gov_patient_mode);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,cpu> <tick_count> > aio_tuner\n",
-				  cpufreq_gov_patient_mode);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] cpufreq gov - rate limit\n", cpufreq_gov_rate_limit);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,cpu> <ms> > aio_tuner\n", cpufreq_gov_rate_limit);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] cpufreq gov - rapid scale\n", cpufreq_gov_rapid_scale);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,up/down> <en> > aio_tuner\n", cpufreq_gov_rapid_scale);
-	ret += sprintf(buf + ret, "	(up=0 down=1)\n");
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] ontime - enable\n", ontime_en);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,group> <en> > aio_tuner\n", ontime_en);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] ontime - boundary\n", ontime_boundary);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,cpu,up/lo> <boundary> > aio_tuner\n", ontime_boundary);
-	ret += sprintf(buf + ret, "     (up=0 lo=1)\n");
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] cpus_binding - target sched class\n", cpus_binding_tsc);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level> <mask> > aio_tuner\n", cpus_binding_tsc);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] cpus_binding - cpumask\n", cpus_binding_cpumask);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,group> <mask> > aio_tuner\n", cpus_binding_cpumask);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] tex - enable\n", tex_en);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,group> <enable> > aio_tuner\n", tex_en);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] tex - mask\n", tex_mask);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level> <mask> > aio_tuner\n", tex_mask);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] tex - qjump\n", tex_qjump);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level> <en> > aio_tuner\n", tex_qjump);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] tex - priority\n", tex_prio);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level> <prio> > aio_tuner\n", tex_prio);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] frt - active_ratio\n", frt_active_ratio);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,cpu> <ratio> > aio_tuner\n", frt_active_ratio);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] ecs - threshold_ratio\n", ecs_threshold_ratio);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,id> <ratio> > aio_tuner\n", ecs_threshold_ratio);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] prefer cpu - mask\n", prefer_cpu);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,group> <mask> > aio_tuner\n", prefer_cpu);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] new task util - ratio\n", ntu_ratio);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,group> <ratio> > aio_tuner\n", ntu_ratio);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] htask_boost - enable\n", stt_htask_boost_en);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,group> <en> > aio_tuner\n", stt_htask_boost_en);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] htask_boost - htask_cnt\n", stt_htask_cnt);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level> <cnt> > aio_tuner\n", stt_htask_cnt);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] htask_boost - step\n", stt_htask_boost_step);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level> <step> > aio_tuner\n", stt_htask_boost_step);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] fclamp - freq\n", fclamp_freq);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,cpu,min/max> <freq> > aio_tuner\n", fclamp_freq);
-	ret += sprintf(buf + ret, "     (min=0 max=1)\n");
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] fclamp - target period\n", fclamp_period);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,cpu,min/max> <period> > aio_tuner\n", fclamp_period);
-	ret += sprintf(buf + ret, "     (min=0 max=1)\n");
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] fclamp - target ratio\n", fclamp_ratio);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,cpu,min/max> <ratio> > aio_tuner\n", fclamp_ratio);
-	ret += sprintf(buf + ret, "     (min=0 max=1)\n");
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] fclamp - monitor group\n", fclamp_monitor_group);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,group> <en> > aio_tuner\n", fclamp_monitor_group);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] cpufreq gov - pelt margin freq\n", cpufreq_gov_pelt_margin_freq);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,cpu> <freq> > aio_tuner\n",
-					cpufreq_gov_pelt_margin_freq);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] cpufreq gov - rate limit freq\n", cpufreq_gov_rate_limit_freq);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,cpu> <freq> > aio_tuner\n",
-					cpufreq_gov_rate_limit_freq);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] cpufreq gov - dis buck share\n", cpufreq_gov_dis_buck_share);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level,cpu> <val> > aio_tuner\n", cpufreq_gov_dis_buck_share);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] prefer cpu - small task threshold\n", prefer_cpu_small_task_threshold);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level> <threshold> > aio_tuner\n", prefer_cpu_small_task_threshold);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] prefer cpu - small task mask\n", prefer_cpu_small_task_mask);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level> <mask> > aio_tuner\n", prefer_cpu_small_task_mask);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] sync - apply\n", sync);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level> <apply> > aio_tuner\n", sync);
-	ret += sprintf(buf + ret, "\n");
-	ret += sprintf(buf + ret, "[%d] tex - suppress enabled\n", tex_suppress);
-	ret += sprintf(buf + ret, "	# echo <%d,mode,level> <en> > aio_tuner\n", tex_suppress);
-	ret += sprintf(buf + ret, "\n");
+
+	for (i = 0; i < field_count; i++) {
+		struct aio_tuner_item *item = &aio_tuner_items[i];
+		char key[20] = { 0 };
+
+		switch (item->param_type) {
+		case TYPE1:
+			strcpy(key, ",cpu");
+			break;
+		case TYPE2:
+			strcpy(key, ",group");
+			break;
+		case TYPE3:
+			strcpy(key, ",cpu,group");
+			break;
+		case TYPE4:
+			strcpy(key, ",cpu,option");
+			break;
+		case TYPE5:
+			strcpy(key, ",option");
+			break;
+		case TYPE6:
+			break;
+		};
+
+		ret += sprintf(buf + ret, "[%d] %s\n", item->id, item->name);
+		ret += sprintf(buf + ret, "	# echo {%d,mode,level%s} {val} > aio_tuner\n",
+									item->id, key);
+		if (strlen(item->comment))
+			ret += sprintf(buf + ret, "	(%s)\n", item->comment);
+		ret += sprintf(buf + ret, "\n");
+	}
 
 	return ret;
 }
@@ -1310,7 +1044,7 @@ set_value_single(int *field, char *v, enum val_type type, int limit)
 {
 	int value;
 
-	if (sanity_check_convert_value(v, VAL_TYPE_LEVEL, 1000, &value))
+	if (sanity_check_convert_value(v, VAL_TYPE_LEVEL, limit, &value))
 		return;
 
 	*field = value;
@@ -1445,22 +1179,13 @@ static ssize_t aio_tuner_store(struct device *dev,
 					keys[3], keys[4], arg1,
 					VAL_TYPE_RATIO_NEGATIVE, MAX_RATIO);
 		break;
-	case wakeboost:
-		set_value_cgroup_coregroup(set->wakeboost.ratio,
-					keys[3], keys[4], arg1,
-					VAL_TYPE_RATIO_NEGATIVE, MAX_RATIO);
-		break;
-	case esg_step:
-		set_value_coregroup(set->esg.step, keys[3], arg1,
-					VAL_TYPE_LEVEL, MAX_ESG_STEP);
-		break;
 	case cpufreq_gov_pelt_margin:
 		set_value_coregroup(set->cpufreq_gov.split_pelt_margin, keys[3], arg1,
 					VAL_TYPE_RATIO_NEGATIVE, MAX_RATIO);
 		break;
-	case cpufreq_gov_patient_mode:
-		set_value_coregroup(set->cpufreq_gov.patient_mode, keys[3], arg1,
-					VAL_TYPE_LEVEL, MAX_PATIENT_TICK);
+	case cpufreq_gov_htask_boost:
+		set_value_coregroup(set->cpufreq_gov.htask_boost, keys[3], arg1,
+					VAL_TYPE_RATIO_NEGATIVE, MAX_RATIO);
 		break;
 	case cpufreq_gov_pelt_boost:
 		set_value_coregroup(set->cpufreq_gov.pelt_boost, keys[3], arg1,
@@ -1470,14 +1195,9 @@ static ssize_t aio_tuner_store(struct device *dev,
 		set_value_coregroup(set->cpufreq_gov.split_up_rate_limit, keys[3], arg1,
 					VAL_TYPE_LEVEL, INT_MAX);
 		break;
-	case cpufreq_gov_rapid_scale:
-		type = !!keys[3];
-		if (type)
-			set_value_single(&set->cpufreq_gov.rapid_scale_down, arg1,
-					VAL_TYPE_ONOFF, 0);
-		else
-			set_value_single(&set->cpufreq_gov.rapid_scale_up, arg1,
-					VAL_TYPE_ONOFF, 0);
+	case cpuidle_gov_expired_ratio:
+		set_value_coregroup(set->cpuidle_gov.expired_ratio, keys[3], arg1,
+					VAL_TYPE_RATIO, MAX_RATIO);
 		break;
 	case ontime_en:
 		set_value_cgroup(set->ontime.enabled, keys[3], arg1,
@@ -1513,15 +1233,6 @@ static ssize_t aio_tuner_store(struct device *dev,
 		set_value_cgroup(set->tex.enabled, keys[3], arg1,
 					VAL_TYPE_ONOFF, 0);
 		break;
-	case tex_mask:
-		if (sanity_check_convert_value(arg1, VAL_TYPE_MASK, 0, &mask))
-			return -EINVAL;
-		cpumask_copy(&set->tex.mask, &mask);
-		break;
-	case tex_qjump:
-		set_value_single(&set->tex.qjump, arg1,
-					VAL_TYPE_ONOFF, 1);
-		break;
 	case tex_prio:
 		set_value_single(&set->tex.prio, arg1,
 					VAL_TYPE_LEVEL, MAX_PRIO);
@@ -1536,29 +1247,13 @@ static ssize_t aio_tuner_store(struct device *dev,
 			return -EINVAL;
 		update_ecs_threshold_ratio(&set->ecs.domain_list, i, v);
 		break;
-	case prefer_cpu:
-		group = keys[3];
-		if (sanity_check_option(0, group, 0))
-			return -EINVAL;
-		if (sanity_check_convert_value(arg1, VAL_TYPE_MASK, 0, &mask))
-			return -EINVAL;
-		cpumask_copy(&set->prefer_cpu.mask[group], &mask);
+	case ecs_dynamic_busy_ratio:
+		set_value_coregroup(set->ecs_dynamic.dynamic_busy_ratio, keys[3], arg1,
+				VAL_TYPE_RATIO, MAX_RATIO);
 		break;
 	case ntu_ratio:
 		set_value_cgroup(set->ntu.ratio, keys[3], arg1,
 					VAL_TYPE_RATIO_NEGATIVE, 100);
-		break;
-	case stt_htask_boost_en:
-		set_value_cgroup(set->stt.htask_enable, keys[3], arg1,
-					VAL_TYPE_ONOFF, 0);
-		break;
-	case stt_htask_cnt:
-		set_value_single(&set->stt.htask_cnt, arg1,
-					VAL_TYPE_RATIO, 100);
-		break;
-	case stt_htask_boost_step:
-		set_value_single(&set->stt.boost_step, arg1,
-					VAL_TYPE_RATIO, 100);
 		break;
 	case fclamp_freq:
 		type = !!keys[4];
@@ -1603,21 +1298,20 @@ static ssize_t aio_tuner_store(struct device *dev,
 		set_value_coregroup(set->cpufreq_gov.dis_buck_share, keys[3], arg1,
 					VAL_TYPE_LEVEL, 100);
 		break;
-	case prefer_cpu_small_task_threshold:
-		if (sanity_check_convert_value(arg1, VAL_TYPE_LEVEL, 1024, &v))
-			return -EINVAL;
-		set->prefer_cpu.small_task_threshold = v;
+	case support_uclamp:
+		set_value_single(&set->support_uclamp.enabled, arg1, VAL_TYPE_ONOFF, 1);
 		break;
-	case prefer_cpu_small_task_mask:
-		if (sanity_check_convert_value(arg1, VAL_TYPE_MASK, 0, &mask))
-			return -EINVAL;
-		cpumask_copy(&set->prefer_cpu.small_task_mask, &mask);
+	case gsc_en:
+		set_value_cgroup(set->gsc.enabled, keys[3], arg1, VAL_TYPE_ONOFF, 0);
 		break;
-	case sync:
-		set_value_single(&set->sync.apply, arg1, VAL_TYPE_ONOFF, 1);
+	case gsc_up_threshold:
+		set_value_single(&set->gsc.up_threshold, arg1, VAL_TYPE_LEVEL, 1024);
 		break;
-	case tex_suppress:
-		set_value_single(&set->tex.suppress, arg1, VAL_TYPE_ONOFF, 1);
+	case gsc_down_threshold:
+		set_value_single(&set->gsc.down_threshold, arg1, VAL_TYPE_LEVEL, 1024);
+		break;
+	case should_spread:
+		set_value_single(&set->should_spread.enabled, arg1, VAL_TYPE_ONOFF, 1);
 		break;
 	}
 
@@ -1675,11 +1369,14 @@ static ssize_t cur_set_read(struct file *file, struct kobject *kobj,
 {
 	struct emstune_set *cur_set = emstune_cur_set();
 	int cpu, group, class;
-	char msg[MSG_SIZE];
+	char *msg = kcalloc(MSG_SIZE, sizeof(char), GFP_KERNEL);
 	ssize_t count = 0, msg_size;
 
 	/* mode/level info */
-	count += sprintf(msg + count, "%s mode : level%d [mode=%d level=%d]\n",
+	if (emstune.boot.ongoing)
+		count += sprintf(msg + count, "Booting exclusive mode\n");
+	else
+		count += sprintf(msg + count, "%s mode : level%d [mode=%d level=%d]\n",
 				emstune.modes[emstune.cur_mode].desc,
 				emstune.cur_level,
 				get_type_pending_bit(EMSTUNE_MODE_TYPE(cur_set->type)),
@@ -1740,55 +1437,44 @@ static ssize_t cur_set_read(struct file *file, struct kobject *kobj,
 	}
 	count += sprintf(msg + count, "\n");
 
-	/* wakeup boost */
-	count += sprintf(msg + count, "[wakeup-boost]\n");
-	count += sprintf(msg + count, "     ");
-	for (group = 0; group < CGROUP_COUNT; group++)
-		count += sprintf(msg + count, "%4s", task_cgroup_simple_name[group]);
-	count += sprintf(msg + count, "\n");
+	/* cpufreq gov */
+	count += sprintf(msg + count, "[cpufreq gov]\n");
+	count += sprintf(msg + count, "                    |-pelt margin--||-rate limit--|\n");
+	count += sprintf(msg + count, "       pb   hb  dbs  margin    freq   rate    freq\n");
 	for_each_possible_cpu(cpu) {
-		count += sprintf(msg + count, "cpu%d:", cpu);
-		for (group = 0; group < CGROUP_COUNT; group++)
-			count += sprintf(msg + count, "%4d",
-					cur_set->wakeboost.ratio[group][cpu]);
-		count += sprintf(msg + count, "\n");
+		count += sprintf(msg + count, "cpu%d: %3d  %3d %4d", cpu,
+				cur_set->cpufreq_gov.pelt_boost[cpu],
+				cur_set->cpufreq_gov.htask_boost[cpu],
+				cur_set->cpufreq_gov.dis_buck_share[cpu]);
+
+		if (cur_set->cpufreq_gov.split_pelt_margin_freq[cpu] == INT_MAX)
+			count += sprintf(msg + count, "    %4d %7s",
+				cur_set->cpufreq_gov.split_pelt_margin[cpu],
+				"INF");
+		else
+			count += sprintf(msg + count, "    %4d %7u",
+				cur_set->cpufreq_gov.split_pelt_margin[cpu],
+				cur_set->cpufreq_gov.split_pelt_margin_freq[cpu]);
+
+		if (cur_set->cpufreq_gov.split_up_rate_limit_freq[cpu] == INT_MAX)
+			count += sprintf(msg + count, "   %4d %7s\n",
+				cur_set->cpufreq_gov.split_up_rate_limit[cpu],
+				"INF");
+		else
+			count += sprintf(msg + count, "   %4d %7u\n",
+				cur_set->cpufreq_gov.split_up_rate_limit[cpu],
+				cur_set->cpufreq_gov.split_up_rate_limit_freq[cpu]);
 	}
 	count += sprintf(msg + count, "\n");
 
-	/* cpufreq gov */
-	count += sprintf(msg + count, "[cpufreq gov]\n");
-	count += sprintf(msg + count, "pelt boost\n");
-	count += sprintf(msg + count, "      dbs  boost\n");
+	/* cpuidle gov */
+	count += sprintf(msg + count, "[cpuidle gov]\n");
+	count += sprintf(msg + count, "expired ratio\n");
 	for_each_possible_cpu(cpu) {
-		count += sprintf(msg + count, "cpu%d:%4d %6d\n", cpu,
-				cur_set->cpufreq_gov.dis_buck_share[cpu],
-				cur_set->cpufreq_gov.pelt_boost[cpu]);
-	}
-	count += sprintf(msg + count, "\n");
-	count += sprintf(msg + count, "pelt margin\n");
-	count += sprintf(msg + count, "     margin    freq\n");
-	for_each_possible_cpu(cpu) {
-		if (cur_set->cpufreq_gov.split_pelt_margin_freq[cpu] == INT_MAX)
-			count += sprintf(msg + count, "cpu%d:  %4d %7s\n",
-				cpu, cur_set->cpufreq_gov.split_pelt_margin[cpu],
-				"INF");
-		else
-			count += sprintf(msg + count, "cpu%d:%4d %7u\n",
-				cpu, cur_set->cpufreq_gov.split_pelt_margin[cpu],
-				cur_set->cpufreq_gov.split_pelt_margin_freq[cpu]);
-	}
-	count += sprintf(msg + count, "\n");
-	count += sprintf(msg + count, "up rate limit\n");
-	count += sprintf(msg + count, "     rate    freq\n");
-	for_each_possible_cpu(cpu) {
-		if (cur_set->cpufreq_gov.split_up_rate_limit_freq[cpu] == INT_MAX)
-			count += sprintf(msg + count, "cpu%d:%4d %7s\n",
-				cpu, cur_set->cpufreq_gov.split_up_rate_limit[cpu],
-				"INF");
-		else
-			count += sprintf(msg + count, "cpu%d:%4d %7u\n",
-				cpu, cur_set->cpufreq_gov.split_up_rate_limit[cpu],
-				cur_set->cpufreq_gov.split_up_rate_limit_freq[cpu]);
+		if (cpu != cpumask_first(cpu_coregroup_mask(cpu)))
+			continue;
+		count += sprintf(msg + count, "cpu%d: %4d\n", cpu,
+				cur_set->cpuidle_gov.expired_ratio[cpu]);
 	}
 	count += sprintf(msg + count, "\n");
 
@@ -1840,11 +1526,7 @@ static ssize_t cur_set_read(struct file *file, struct kobject *kobj,
 
 	/* tex */
 	count += sprintf(msg + count, "[tex]\n");
-	count += sprintf(msg + count, "mask : %#x\n",
-			*(unsigned int *)cpumask_bits(&cur_set->tex.mask));
-	count += sprintf(msg + count, "qjump: %d\n", cur_set->tex.qjump);
 	count += sprintf(msg + count, "prio : %d\n", cur_set->tex.prio);
-	count += sprintf(msg + count, "suppress : %d\n", cur_set->tex.suppress);
 	count += sprintf(msg + count, "\n");
 	for (group = 0; group < CGROUP_COUNT; group++)
 		count += sprintf(msg + count, "%4s", task_cgroup_simple_name[group]);
@@ -1881,21 +1563,11 @@ static ssize_t cur_set_read(struct file *file, struct kobject *kobj,
 			count += sprintf(msg + count, "-------------------------\n");
 		}
 	}
-	count += sprintf(msg + count, "\n");
-
-	/* prefer cpu */
-	count += sprintf(msg + count, "[prefer cpu]\n");
-	for (group = 0; group < CGROUP_COUNT; group++)
-		count += sprintf(msg + count, "%4s", task_cgroup_simple_name[group]);
-	count += sprintf(msg + count, "\n");
-	for (group = 0; group < CGROUP_COUNT; group++)
-		count += sprintf(msg + count, "%4x",
-			*(unsigned int *)cpumask_bits(&cur_set->prefer_cpu.mask[group]));
-	count += sprintf(msg + count, "\n\n");
-	count += sprintf(msg + count, "small task threshold : %lu\n",
-				cur_set->prefer_cpu.small_task_threshold);
-	count += sprintf(msg + count, "small task mask : %#x\n",
-		*(unsigned int *)cpumask_bits(&cur_set->prefer_cpu.small_task_mask));
+	count += sprintf(msg + count, "     busy_ratio\n");
+	for_each_possible_cpu(cpu)
+		count += sprintf(msg + count, "cpu%d: %4d%%\n",
+				cpu,
+				cur_set->ecs_dynamic.dynamic_busy_ratio[cpu]);
 	count += sprintf(msg + count, "\n");
 
 	/* new task util ratio */
@@ -1905,17 +1577,6 @@ static ssize_t cur_set_read(struct file *file, struct kobject *kobj,
 	count += sprintf(msg + count, "\n");
 	for (group = 0; group < CGROUP_COUNT; group++)
 		count += sprintf(msg + count, "%4d", cur_set->ntu.ratio[group]);
-	count += sprintf(msg + count, "\n\n");
-
-	/* htask boost */
-	count += sprintf(msg + count, "[htask_boost]\n");
-	count += sprintf(msg + count, "boost_step: %d\n", cur_set->stt.boost_step);
-	count += sprintf(msg + count, "htask_cnt: %d\n", cur_set->stt.htask_cnt);
-	for (group = 0; group < CGROUP_COUNT; group++)
-		count += sprintf(msg + count, "%4s", task_cgroup_simple_name[group]);
-	count += sprintf(msg + count, "\n");
-	for (group = 0; group < CGROUP_COUNT; group++)
-		count += sprintf(msg + count, "%4d", cur_set->stt.htask_enable[group]);
 	count += sprintf(msg + count, "\n\n");
 
 	/* fclamp */
@@ -1939,21 +1600,136 @@ static ssize_t cur_set_read(struct file *file, struct kobject *kobj,
 	}
 	count += sprintf(msg + count, "\n");
 
+	/* support uclamp */
+	count += sprintf(msg + count, "[support uclamp]\n");
+	count += sprintf(msg + count, "enabled : %d\n", cur_set->support_uclamp.enabled);
+	count += sprintf(msg + count, "\n");
+
+	/* gsc */
+	count += sprintf(msg + count, "[gsc]\n");
+	count += sprintf(msg + count, "up_threshold : %d\n", cur_set->gsc.up_threshold);
+	count += sprintf(msg + count, "down_threshold : %d\n", cur_set->gsc.down_threshold);
+	count += sprintf(msg + count, "\n");
+	for (group = 0; group < CGROUP_COUNT; group++)
+		count += sprintf(msg + count, "%4s", task_cgroup_simple_name[group]);
+	count += sprintf(msg + count, "\n");
+	for (group = 0; group < CGROUP_COUNT; group++)
+		count += sprintf(msg + count, "%4d", cur_set->gsc.enabled[group]);
+	count += sprintf(msg + count, "\n\n");
+
+	/* should spread */
+	count += sprintf(msg + count, "[should spread]\n");
+	count += sprintf(msg + count, "enabled : %d\n", cur_set->should_spread.enabled);
+	count += sprintf(msg + count, "\n");
+
 	msg_size = min_t(ssize_t, count, MSG_SIZE);
 	msg_size = memory_read_from_buffer(buf, size, &offset, msg, msg_size);
+
+	kfree(msg);
 
 	return msg_size;
 }
 static BIN_ATTR(cur_set, 0440, cur_set_read, NULL, 0);
 
+static DEFINE_MUTEX(task_boost_mutex);
+static int task_boost = 0;
+
+static ssize_t task_boost_show(struct device *dev,
+                struct device_attribute *attr, char *buf)
+{
+	int ret = 0;
+
+	mutex_lock(&task_boost_mutex);
+
+	ret = sprintf(buf, "%d\n", task_boost);
+
+	mutex_unlock(&task_boost_mutex);
+	return ret;
+}
+
+static ssize_t task_boost_store(struct device *dev,
+                struct device_attribute *attr, const char *buf, size_t count)
+{
+	int tid;
+	struct task_struct *task;
+
+	mutex_lock(&task_boost_mutex);
+
+	if (sscanf(buf, "%d", &tid) != 1) {
+		mutex_unlock(&task_boost_mutex);
+		return -EINVAL;
+	}
+
+	/* clear prev task_boost */
+	if (task_boost != 0) {
+		task = get_pid_task(find_vpid(task_boost), PIDTYPE_PID);
+		if (task) {
+			ems_boosted_tex(task) = 0;
+			put_task_struct(task);
+		}
+	}
+
+	/* set task_boost */
+	task = get_pid_task(find_vpid(tid), PIDTYPE_PID);
+	if (task) {
+		ems_boosted_tex(task) = 1;
+		put_task_struct(task);
+	}
+
+	task_boost = tid;
+
+	mutex_unlock(&task_boost_mutex);
+	return count;
+}
+DEVICE_ATTR_RW(task_boost);
+
+static ssize_t task_boost_del_show(struct device *dev,
+                struct device_attribute *attr, char *buf)
+{
+	int ret = 0;
+
+	return ret;
+}
+
+static ssize_t task_boost_del_store(struct device *dev,
+                struct device_attribute *attr, const char *buf, size_t count)
+{
+	int tid;
+	struct task_struct *task;
+
+	mutex_lock(&task_boost_mutex);
+
+	if (sscanf(buf, "%d", &tid) != 1) {
+		mutex_unlock(&task_boost_mutex);
+		return -EINVAL;
+	}
+
+	task = get_pid_task(find_vpid(tid), PIDTYPE_PID);
+	if (task) {
+		ems_boosted_tex(task) = 0;
+		put_task_struct(task);
+	}
+
+	/* clear task_boost at last task_boost_del */
+	if (task_boost == tid)
+		task_boost = 0;
+
+	mutex_unlock(&task_boost_mutex);
+	return count;
+}
+DEVICE_ATTR_RW(task_boost_del);
+
 static struct attribute *emstune_attrs[] = {
 	&dev_attr_sched_boost.attr,
-	&dev_attr_task_boost.attr,
 	&dev_attr_status.attr,
 	&dev_attr_req_mode.attr,
 	&dev_attr_req_level.attr,
+	&dev_attr_req_level_debug.attr,
 	&dev_attr_reset.attr,
 	&dev_attr_aio_tuner.attr,
+	&dev_attr_func_list.attr,
+	&dev_attr_task_boost.attr,
+	&dev_attr_task_boost_del.attr,
 	NULL,
 };
 
@@ -1971,13 +1747,6 @@ static struct attribute_group emstune_attr_group = {
 /******************************************************************************
  * initialization                                                             *
  ******************************************************************************/
-#define parse(_name)							\
-	child = of_get_child_by_name(set_node, #_name);			\
-	if (!child)							\
-		child = of_get_child_by_name(base_node, #_name);	\
-	parse_##_name(child, &set->_name);				\
-	of_node_put(child)
-
 static int emstune_mode_backup(void)
 {
 	int i;
@@ -2015,13 +1784,35 @@ emstune_set_type_init(struct emstune_set *set, int mode, int level)
 	set->type |= (1 << (BEGIN_OF_MODE_TYPE + mode));
 }
 
-int emstune_get_set_type(void *_set)
+int emstune_cpu_dsu_table_index(void *_set)
 {
 	struct emstune_set *set = (struct emstune_set *)_set;
 
-	return set->type;
+	return set->cpu_dsu_table_index;
 }
-EXPORT_SYMBOL_GPL(emstune_get_set_type);
+EXPORT_SYMBOL_GPL(emstune_cpu_dsu_table_index);
+
+static void emstune_perf_table_init(struct emstune_set *set,
+					struct device_node *base_node,
+					struct device_node *set_node)
+{
+	if (!of_property_read_u32(set_node, "cpu-dsu-table-index",
+				&set->cpu_dsu_table_index))
+		return;
+
+	if (!of_property_read_u32(base_node, "cpu-dsu-table-index",
+				&set->cpu_dsu_table_index))
+		return;
+
+	set->cpu_dsu_table_index = 0;	/* 0 = default index */
+}
+
+#define parse(_name)							\
+	child = of_get_child_by_name(set_node, #_name);			\
+	if (!child)							\
+		child = of_get_child_by_name(base_node, #_name);	\
+	parse_##_name(child, &set->_name);				\
+	of_node_put(child)
 
 static int emstune_set_init(struct device_node *base_node,
 				struct device_node *set_node,
@@ -2030,25 +1821,26 @@ static int emstune_set_init(struct device_node *base_node,
 	struct device_node *child;
 
 	emstune_set_type_init(set, mode, level);
+	emstune_perf_table_init(set, base_node, set_node);
 
 	parse(specific_energy_table);
 	parse(sched_policy);
 	parse(active_weight);
 	parse(idle_weight);
 	parse(freqboost);
-	parse(wakeboost);
-	parse(esg);
 	parse(cpufreq_gov);
+	parse(cpuidle_gov);
 	parse(ontime);
 	parse(cpus_binding);
 	parse(tex);
 	parse(frt);
 	parse(ecs);
-	parse(prefer_cpu);
+	parse(ecs_dynamic);
 	parse(ntu);
-	parse(stt);
 	parse(fclamp);
-	parse(sync);
+	parse(support_uclamp);
+	parse(gsc);
+	parse(should_spread);
 
 	return 0;
 }
@@ -2186,7 +1978,27 @@ fail:
 	return ret;
 }
 
-int emstune_init(struct kobject *ems_kobj, struct device_node *dn)
+static int emstune_pm_qos_init(struct device *dev)
+{
+	int ret;
+
+	emstune.nb.notifier_call = emstune_pm_qos_notifier;
+	ret = dev_pm_qos_add_notifier(dev, &emstune.nb,
+					DEV_PM_QOS_MIN_FREQUENCY);
+	if (ret) {
+		pr_err("Failed to register emstume qos notifier\n");
+		return ret;
+	}
+
+	emstune.ems_dev = dev;
+
+	emstune_add_request(&emstune.level_req);
+
+	return 0;
+}
+
+int emstune_init(struct kobject *ems_kobj, struct device_node *dn,
+						struct device *dev)
 {
 	int ret;
 
@@ -2196,8 +2008,16 @@ int emstune_init(struct kobject *ems_kobj, struct device_node *dn)
 		return ret;
 	}
 
+	ret = emstune_pm_qos_init(dev);
+	if (ret) {
+		pr_err("Failed to initialize emstune PM QoS\n");
+		return ret;
+	}
+
 	if (sysfs_create_group(ems_kobj, &emstune_attr_group))
 		pr_err("failed to initialize emstune sysfs\n");
+
+	aio_tuner_items_init();
 
 	return 0;
 }

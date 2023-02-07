@@ -43,12 +43,6 @@ static bool exin_ready;
 static struct sec_debug_shared_buffer *sh_buf;
 static void *slot_end_addr;
 
-static char *ftype_items[MAX_ITEM_VAL_LEN] = {
-	"UNDF", "BAD", "WATCH", "KERN", "MEM",
-	"SPPC", "PAGE", "AUF", "EUF", "AUOF",
-	"BUG", "SERR", "SEA", "FPAC",
-};
-
 static long __read_mostly rr_pwrsrc;
 module_param(rr_pwrsrc, long, 0440);
 
@@ -260,7 +254,7 @@ static int is_ocp;
 static int is_key_in_blocklist(const char *key)
 {
 	char blkey[][MAX_ITEM_KEY_LEN] = {
-		"KTIME", "BAT", "FTYPE", "ODR", "DDRID",
+		"KTIME", "BAT", "ODR", "DDRID",
 		"PSITE", "ASB", "ASV", "IDS",
 	};
 
@@ -366,7 +360,7 @@ static void set_item_val(const char *key, const char *fmt, ...)
 	v = get_item_val(p);
 	if (!get_val_len(v)) {
 		va_start(args, fmt);
-		vsnprintf(v, max, fmt, args);
+		vsnprintf(v, max - MAX_ITEM_KEY_LEN, fmt, args);
 		va_end(args);
 
 		set_key_order(key);
@@ -1102,9 +1096,6 @@ static void secdbg_exin_set_fault(enum secdbg_exin_fault_type type,
 	else
 		lr = regs->regs[30];
 
-	pr_crit("%s = %s / 0x%lx\n", __func__, ftype_items[type], addr);
-
-	set_item_val("FTYPE", "%s", ftype_items[type]);
 	set_item_val("FAULT", "0x%lx", addr);
 	set_item_val("PC", "%pS", regs->pc);
 	set_item_val("LR", "%pS",

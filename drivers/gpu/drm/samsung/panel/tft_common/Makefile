@@ -13,6 +13,4 @@ subdir-ccflags-$(CONFIG_SEC_KUNIT) += \
 	-Wno-format
 
 mcd-panel-tft-common-y := tft_common.o
-
 obj-$(CONFIG_EXYNOS_DECON_LCD_TFT_COMMON) += mcd-panel-tft-common.o
-

@@ -1672,6 +1672,8 @@ static int goodix_ts_input_open(struct input_dev *dev)
 
 	cancel_delayed_work_sync(&core_data->work_read_info);
 
+	mutex_lock(&core_data->modechange_mutex);
+
 	ts_info("called");
 	core_data->plat_data->enabled = true;
 	core_data->plat_data->prox_power_off = 0;
@@ -1680,6 +1682,9 @@ static int goodix_ts_input_open(struct input_dev *dev)
 	cancel_delayed_work(&core_data->work_print_info);
 	core_data->plat_data->print_info_cnt_open = 0;
 	core_data->plat_data->print_info_cnt_release = 0;
+
+	mutex_unlock(&core_data->modechange_mutex);
+
 	if (!core_data->plat_data->shutdown_called)
 		schedule_work(&core_data->work_print_info.work);
 
@@ -1700,6 +1705,8 @@ static void goodix_ts_input_close(struct input_dev *dev)
 		return;
 	}
 
+	mutex_lock(&core_data->modechange_mutex);
+
 	ts_info("called");
 	core_data->plat_data->enabled = false;
 
@@ -1710,6 +1717,8 @@ static void goodix_ts_input_close(struct input_dev *dev)
 	sec_input_print_info(core_data->bus->dev, NULL);
 
 	goodix_ts_suspend(core_data);
+
+	mutex_unlock(&core_data->modechange_mutex);
 }
 
 #ifdef CONFIG_PM

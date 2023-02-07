@@ -170,7 +170,9 @@ struct npu_log {
 	/* memlog for Unified Logging System*/
 	struct memlog *memlog_desc_log;
 	struct memlog *memlog_desc_array;
+	struct memlog *memlog_desc_dump;
 	struct memlog_obj *npu_memlog_obj;
+	struct memlog_obj *npu_dumplog_obj;
 	struct memlog_obj *npu_memfile_obj;
 	struct memlog_obj *npu_dvfs_array_obj;
 	struct memlog_obj *npu_scheduler_array_obj;
@@ -242,6 +244,7 @@ void npu_fw_profile_init(char *buf_addr, const size_t size);
 void npu_fw_profile_deinit(void);
 
 void npu_memlog_store(npu_log_level_e loglevel, const char *fmt, ...);
+void npu_dumplog_store(npu_log_level_e loglevel, const char *fmt, ...);
 bool npu_log_is_kpi_silent(void);
 
 
@@ -282,6 +285,8 @@ inline void npu_log_ipc_set_date(int h2fctrl, int wptr, int rptr);
 #define npu_log_on_lv_target(LV, fmt, ...)	\
 				((console_printk[0] > LV) ? npu_memlog_store(LV, "[%d: %15s:%5d]" fmt, __smp_processor_id(), current->comm, \
 					current->pid,##__VA_ARGS__) : 0)
+#define npu_dump_on_lv_target(LV, fmt, ...)	\
+				npu_dumplog_store(LV, "[%d: %15s:%5d]" fmt, smp_processor_id(), current->comm, current->pid, ##__VA_ARGS__)
 #else
 #define npu_log_on_lv_target(LV, DEV_FUNC, fmt, ...)		\
 	do {	\
@@ -305,6 +310,7 @@ inline void npu_log_ipc_set_date(int h2fctrl, int wptr, int rptr);
 #define npu_notice_target(fmt, ...)	npu_log_on_lv_target(MEMLOG_LEVEL_CAUTION, fmt, ##__VA_ARGS__)
 #define npu_dbg_target(fmt, ...)	npu_log_on_lv_target(MEMLOG_LEVEL_INFO, fmt, ##__VA_ARGS__)  // debug
 #define npu_trace_target(fmt, ...)	npu_log_on_lv_target(MEMLOG_LEVEL_NOTICE, fmt, ##__VA_ARGS__)  // performance
+#define npu_dump_target(fmt, ...)	npu_dump_on_lv_target(MEMLOG_LEVEL_ERR, fmt, ##__VA_ARGS__)  // dump
 #else
 #define npu_err_target(fmt, ...)	\
 	do {	\
@@ -369,6 +375,9 @@ inline void npu_log_ipc_set_date(int h2fctrl, int wptr, int rptr);
 
 #define npu_trace(fmt, args...) \
 	npu_trace_target("NPU:[T][" NPU_LOG_TAG "]%s(%d):" fmt, __func__, __LINE__, ##args)
+
+#define npu_dump(fmt, args...) \
+	npu_dump_target("NPU:[T][" NPU_LOG_TAG "]%s(%d):" fmt, __func__, __LINE__, ##args)
 
 /* Printout context ID */
 #define npu_ierr(fmt, vctx, args...) \

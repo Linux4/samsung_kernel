@@ -11,6 +11,11 @@
 #include <trace/events/ems.h>
 #include <trace/events/ems_debug.h>
 
+enum sysbusy_type {
+	SYSBUSY_CPN = 0,
+	SYSBUSY_FAST2_SLOW6,
+};
+
 struct sysbusy {
 	raw_spinlock_t lock;
 	u64 last_update_time;
@@ -19,14 +24,13 @@ struct sysbusy {
 	enum sysbusy_state state;
 	struct work_struct work;
 	int enabled;
+	enum sysbusy_type type;
 } sysbusy;
 
 struct somac_env {
 	struct rq		*dst_rq;
-	int			dst_cpu;
-	struct rq		*src_rq;
-	int			src_cpu;
 	struct task_struct	*target_task;
+	unsigned long		time;
 };
 static struct somac_env __percpu *somac_env;
 
@@ -36,12 +40,7 @@ struct sysbusy_stat {
 	u64 time_in_state;
 } sysbusy_stats[NUM_OF_SYSBUSY_STATE];
 
-struct somac_ready {
-	int run;
-	struct task_struct *p;
-	struct cpumask cpus;
-} somac_ready;
-
+static cpn_next_cpu[VENDOR_NR_CPUS] = { [0 ... VENDOR_NR_CPUS - 1] = -1 };
 /******************************************************************************
  * sysbusy notify                                                             *
  ******************************************************************************/
@@ -71,44 +70,6 @@ EXPORT_SYMBOL_GPL(sysbusy_unregister_notifier);
 /******************************************************************************
  *			            SOMAC			              *
  ******************************************************************************/
-static DEFINE_SPINLOCK(somac_ready_lock);
-
-int is_somac_ready(struct tp_env *env)
-{
-	struct cpumask mask;
-
-	if (env->p != somac_ready.p)
-		return 0;
-
-	cpumask_clear(&mask);
-
-	cpumask_and(&env->cpus_allowed, cpu_active_mask, &somac_ready.cpus);
-	if (cpumask_empty(&env->cpus_allowed))
-		return 0;
-
-	cpumask_set_cpu(cpumask_last(&env->cpus_allowed), &mask);
-	cpumask_and(&env->cpus_allowed, &env->cpus_allowed, &mask);
-
-	return 1;
-}
-
-static void update_somac_ready(struct tp_env *env)
-{
-	unsigned long flags;
-
-	if (!somac_ready.run)
-		return;
-
-	if (env->cgroup_idx != CGROUP_TOPAPP ||
-		env->p->wake_q_count != VENDOR_NR_CPUS)
-		return;
-
-	spin_lock_irqsave(&somac_ready_lock, flags);
-	if (!somac_ready.p || env->p->pid < somac_ready.p->pid)
-		somac_ready.p = env->p;
-	spin_unlock_irqrestore(&somac_ready_lock, flags);
-}
-
 int sysbusy_on_somac(void)
 {
 	return sysbusy.state == SYSBUSY_SOMAC;
@@ -116,9 +77,6 @@ int sysbusy_on_somac(void)
 
 static int decision_somac_task(struct task_struct *p)
 {
-	if (p == somac_ready.p)
-		return 0;
-
 	return cpuctl_task_group_idx(p) == CGROUP_TOPAPP;
 }
 
@@ -144,209 +102,208 @@ static struct task_struct *pick_somac_task(struct rq *rq)
 	return heaviest_task;
 }
 
-static bool can_move_task(struct task_struct *p, struct somac_env *env)
-{
-	struct rq *src_rq = env->src_rq;
-	int src_cpu = env->src_cpu;
-
-	if (p->exit_state)
-		return false;
-
-	if (unlikely(src_rq != task_rq(p)))
-		return false;
-
-	if (unlikely(src_cpu != smp_processor_id()))
-		return false;
-
-	if (src_rq->nr_running <= 1)
-		return false;
-
-	if (!cpumask_test_cpu(env->dst_cpu, p->cpus_ptr))
-		return false;
-
-	if (task_running(env->src_rq, p))
-		return false;
-
-	return true;
-}
-
-static int
-move_somac_task(struct task_struct *target, struct somac_env *env)
-{
-	struct list_head *tasks = &env->src_rq->cfs_tasks;
-	struct task_struct *p, *n;
-
-	list_for_each_entry_safe(p, n, tasks, se.group_node) {
-		if (p != target)
-			continue;
-
-		p->on_rq = TASK_ON_RQ_MIGRATING;
-		deactivate_task(env->src_rq, p, 0);
-		set_task_cpu(p, env->dst_cpu);
-
-		activate_task(env->dst_rq, p, 0);
-		p->on_rq = TASK_ON_RQ_QUEUED;
-		check_preempt_curr(env->dst_rq, p, 0);
-
-		return 1;
-	}
-
-	return 0;
-}
-
 static int somac_cpu_stop(void *data)
 {
 	struct somac_env *env = data;
-	struct rq *src_rq, *dst_rq;
-	struct task_struct *p;
-	int src_cpu, dst_cpu;
+	struct rq *src_rq = this_rq(), *dst_rq = env->dst_rq;
+	struct task_struct *p = env->target_task;
+	struct rq_flags rf;
+	int ret;
 
-	/* Initialize environment data */
-	src_rq = env->src_rq;
-	dst_rq = env->dst_rq = cpu_rq(env->dst_cpu);
-	src_cpu = env->src_cpu = env->src_rq->cpu;
-	dst_cpu = env->dst_cpu;
-	p = env->target_task;
-
-	if (!cpumask_test_cpu(src_cpu, cpu_active_mask) ||
-	    !cpumask_test_cpu(dst_cpu, cpu_active_mask))
-		return -1;
-
-	raw_spin_lock_irq(&src_rq->lock);
-
-	/* Check task can be migrated */
-	if (!can_move_task(p, env))
-		goto out_unlock;
-
-	BUG_ON(src_rq == dst_rq);
-
-	/* Move task from source to destination */
-	double_lock_balance(src_rq, dst_rq);
-	if (move_somac_task(p, env)) {
-		trace_sysbusy_somac(p, ml_task_util(p), src_cpu, dst_cpu);
-	}
-	double_unlock_balance(src_rq, dst_rq);
-
-out_unlock:
-
+	rq_lock_irq(src_rq, &rf);
+	ret = detach_one_task(src_rq, dst_rq, p);
 	src_rq->active_balance = 0;
+	rq_unlock(src_rq, &rf);
 
-	raw_spin_unlock_irq(&src_rq->lock);
-	put_task_struct(p);
+	if (ret) {
+		attach_one_task(dst_rq, p);
+		ems_somac_dequeued(src_rq) = env->time;
+		trace_sysbusy_somac(p, ml_task_util(p),
+			src_rq->cpu, dst_rq->cpu, env->time);
+	}
+
+	local_irq_enable();
 
 	return 0;
 }
 
-static unsigned long last_somac;
-static int somac_interval = 1; /* 1tick = 4ms */
 static DEFINE_SPINLOCK(somac_lock);
 static struct cpu_stop_work __percpu *somac_work;
 
-static int __somac_tasks(int src_cpu, int dst_cpu,
-				struct rq *src_rq, struct rq *dst_rq)
+static bool __somac_tasks(int src_cpu, int dst_cpu, unsigned long time)
 {
 	struct somac_env *env = per_cpu_ptr(somac_env, src_cpu);
+	struct task_struct *p = NULL;
+	struct rq *src_rq = cpu_rq(src_cpu);
 	unsigned long flags;
-	struct task_struct *p;
 
-	if (!cpumask_test_cpu(src_cpu, cpu_active_mask) ||
-	    !cpumask_test_cpu(dst_cpu, cpu_active_mask))
-		return -1;
-
-	raw_spin_lock_irqsave(&src_rq->lock, flags);
-	if (src_rq->active_balance) {
-		raw_spin_unlock_irqrestore(&src_rq->lock, flags);
-		return -1;
+	if (!cpu_active(src_cpu) || !cpu_active(dst_cpu)) {
+		trace_sysbusy_mv_somac_task(src_cpu, "not-acitve-cpu");
+		return false;
 	}
 
-	if (!src_rq->cfs.curr) {
-		raw_spin_unlock_irqrestore(&src_rq->lock, flags);
-		return -1;
+	raw_spin_rq_lock_irqsave(src_rq, flags);
+	if (src_rq->active_balance) {
+		raw_spin_rq_unlock_irqrestore(src_rq, flags);
+		trace_sysbusy_mv_somac_task(src_cpu, "under-active-balancing");
+		return false;
+	}
+
+	if (!src_rq->cfs.nr_running) {
+		raw_spin_rq_unlock_irqrestore(src_rq, flags);
+		trace_sysbusy_mv_somac_task(src_cpu, "no-cfs-tasks");
+		return false;
+	}
+
+	if (ems_somac_dequeued(src_rq) == time) {
+		raw_spin_rq_unlock_irqrestore(src_rq, flags);
+		trace_sysbusy_mv_somac_task(src_cpu, "already-dequeued");
+		return false;
 	}
 
 	p = pick_somac_task(src_rq);
 	if (!p) {
-		raw_spin_unlock_irqrestore(&src_rq->lock, flags);
-		return -1;
+		raw_spin_rq_unlock_irqrestore(src_rq, flags);
+		trace_sysbusy_mv_somac_task(src_cpu, "no-somac");
+		return false;
 	}
 
-	get_task_struct(p);
-
-	env->dst_cpu = dst_cpu;
-	env->src_rq = src_rq;
+	env->dst_rq = cpu_rq(dst_cpu);
 	env->target_task = p;
+	env->time = time;
 
 	src_rq->active_balance = 1;
 
-	raw_spin_unlock_irqrestore(&src_rq->lock, flags);
+	raw_spin_rq_unlock_irqrestore(src_rq, flags);
 
-	stop_one_cpu_nowait(src_cpu, somac_cpu_stop, env,
-			per_cpu_ptr(somac_work, src_cpu));
+	stop_one_cpu_nowait(src_cpu, somac_cpu_stop, env, per_cpu_ptr(somac_work, src_cpu));
 
-	return 0;
+	return true;
 }
+
+static int somac_interval = 1; /* 1tick = 4ms */
+static int somac_turn = 0;
 
 void somac_tasks(void)
 {
-	int slow_cpu, fast_cpu, cpu;
+	static unsigned long last_somac_time;
+	bool somac_finished[VENDOR_NR_CPUS] = { 0 };
 	unsigned long now = jiffies;
-	struct rq *slow_rq, *fast_rq;
-	int busy_cpu = -1, idle_cpu = -1;
 	unsigned long flags;
+	int busy_cpu = -1, idle_cpu = -1;
+	int cpu;
+	int ret;
 
 	if (!spin_trylock_irqsave(&somac_lock, flags))
 		return;
 
+	if (!sysbusy.enabled)
+		goto unlock;
+
 	raw_spin_lock(&sysbusy.lock);
-	if (!sysbusy.enabled || !sysbusy_on_somac()) {
-		raw_spin_unlock(&sysbusy.lock);
-		goto unlock;
-	}
+	ret = sysbusy_on_somac();
 	raw_spin_unlock(&sysbusy.lock);
-
-	if (now < last_somac + somac_interval)
+	if (!ret)
 		goto unlock;
 
-	if (cpumask_weight(cpu_active_mask) != VENDOR_NR_CPUS ||
-	    cpumask_weight(ecs_cpus_allowed(NULL)) != VENDOR_NR_CPUS)
+	if (now < last_somac_time + somac_interval)
+		goto unlock;
+
+	if (num_active_cpus() != VENDOR_NR_CPUS ||
+			cpumask_weight(ecs_cpus_allowed(NULL)) != VENDOR_NR_CPUS)
 		goto unlock;
 
 	for_each_online_cpu(cpu) {
-		if (cpu_rq(cpu)->nr_running > 1)
+		int nr_running = cpu_rq(cpu)->nr_running;
+
+		if (nr_running > 1)
 			busy_cpu = cpu;
-		if (!cpu_rq(cpu)->nr_running)
+		else if (nr_running == 0)
 			idle_cpu = cpu;
 	}
 
 	if (busy_cpu >= 0 && idle_cpu >= 0) {
-		slow_rq = cpu_rq(busy_cpu);
-		fast_rq = cpu_rq(idle_cpu);
-
-		/* MIGRATE TASK BUSY -> IDLE */
-		__somac_tasks(busy_cpu, idle_cpu, slow_rq, fast_rq);
+		if (__somac_tasks(busy_cpu, idle_cpu, now))
+			trace_sysbusy_somac_reason(busy_cpu, idle_cpu, "BUSY -> IDLE");
 		goto out;
 	}
 
-	for_each_cpu(cpu, cpu_coregroup_mask(0)) {
-		slow_cpu = cpu;
-		fast_cpu = cpu + 4;
+	if (sysbusy.type == SYSBUSY_CPN) {
+		for_each_cpu(cpu, cpu_slowest_mask()) {
+			int src_cpu, dst_cpu;
 
-		slow_rq = cpu_rq(slow_cpu);
-		fast_rq = cpu_rq(fast_cpu);
+			if (somac_finished[cpu])
+				continue;
 
-		/* MIGRATE TASK SLOW -> FAST */
-		if (__somac_tasks(slow_cpu, fast_cpu, slow_rq, fast_rq))
-			continue;
+			src_cpu = cpu;
+			dst_cpu = cpn_next_cpu[src_cpu];
 
-		slow_cpu = (fast_cpu - 1) % 4;
-		slow_rq = cpu_rq(slow_cpu);
+			do {
+				if (src_cpu == -1 || dst_cpu == -1)
+					break;
 
-		/* MIGRATE TASK FAST -> SLOW */
-		__somac_tasks(fast_cpu, slow_cpu, fast_rq, slow_rq);
+				if (__somac_tasks(src_cpu, dst_cpu, now)) {
+					somac_finished[src_cpu] = true;
+					trace_sysbusy_somac_reason(src_cpu, dst_cpu, "ROTATION");
+				} else {
+					somac_finished[src_cpu] = true;
+					somac_finished[dst_cpu] = true;
+					trace_sysbusy_somac_reason(src_cpu, dst_cpu, "SKIP");
+					break;
+				}
+
+				src_cpu = dst_cpu;
+				dst_cpu = cpn_next_cpu[src_cpu];
+			} while (src_cpu != cpu);
+		}
+	} else if (sysbusy.type == SYSBUSY_FAST2_SLOW6) {
+		for_each_cpu(cpu, cpu_slowest_mask()) {
+			int src_cpu, dst_cpu;
+
+			if (somac_finished[cpu])
+				continue;
+
+			if (cpu == somac_turn * 2) {
+				src_cpu = cpu;
+				dst_cpu = 6;
+			} else if (cpu == ((somac_turn * 2) + 1)) {
+				src_cpu = cpu;
+				dst_cpu = 7;
+			} else {
+				continue;
+			}
+
+			/* big 2 + little 6
+			 * For reduce migration cost, little workload keep 3 turn
+			 * (1st) 0/1 <-> 6/7, (2nd) 2/3 <-> 6/7, (3rd) 4/5 <-> 6/7, ...
+			 */
+			if (__somac_tasks(src_cpu, dst_cpu, now)) {
+				somac_finished[src_cpu] = true;
+				trace_sysbusy_somac_reason(src_cpu, dst_cpu, "ROTATION");
+			} else {
+				somac_finished[src_cpu] = true;
+				somac_finished[dst_cpu] = true;
+				trace_sysbusy_somac_reason(src_cpu, dst_cpu, "SKIP");
+				continue;
+			}
+
+			if (__somac_tasks(dst_cpu, src_cpu, now)) {
+				somac_finished[dst_cpu] = true;
+				trace_sysbusy_somac_reason(dst_cpu, src_cpu, "ROTATION");
+			} else {
+				somac_finished[src_cpu] = true;
+				somac_finished[dst_cpu] = true;
+				trace_sysbusy_somac_reason(dst_cpu, src_cpu, "SKIP");
+				continue;
+			}
+		}
+
+		somac_turn++;
+		if (somac_turn > 2)
+			somac_turn = 0;
 	}
-
 out:
-	last_somac = now;
+	last_somac_time = now;
 unlock:
 	spin_unlock_irqrestore(&somac_lock, flags);
 }
@@ -370,7 +327,7 @@ get_remained_task_util(int cpu, struct tp_env *env)
 	int need_rq_lock = !excluded->on_rq || cpu != task_cpu(excluded);
 
 	if (need_rq_lock)
-		raw_spin_lock_irqsave(&rq->lock, flags);
+		raw_spin_rq_lock_irqsave(rq, flags);
 
 	if (!rq->cfs.curr) {
 		util = 0;
@@ -390,7 +347,7 @@ get_remained_task_util(int cpu, struct tp_env *env)
 
 unlock:
 	if (need_rq_lock)
-		raw_spin_unlock_irqrestore(&rq->lock, flags);
+		raw_spin_rq_unlock_irqrestore(rq, flags);
 
 	return min_t(unsigned long, util_sum, capacity_cpu_orig(cpu));
 }
@@ -398,6 +355,7 @@ unlock:
 static int sysbusy_find_fastest_cpu(struct tp_env *env)
 {
 	struct cpumask mask;
+	unsigned long cpu_util;
 	int cpu;
 
 	cpumask_and(&mask, cpu_fastest_mask(), &env->cpus_allowed);
@@ -409,22 +367,38 @@ static int sysbusy_find_fastest_cpu(struct tp_env *env)
 	if (!cpu_rq(cpu)->nr_running)
 		return cpu;
 
-	return check_busy(env->cpu_stat[cpu].util_wo,
-				capacity_cpu(cpu)) ? -1 : cpu;
+	cpu_util = ml_cpu_util_without(cpu, env->p) + cpu_util_rt(cpu_rq(cpu)) + cpu_util_dl(cpu_rq(cpu));
+	cpu_util = min(cpu_util, capacity_cpu_orig(cpu));
+
+	return check_busy(cpu_util, capacity_cpu(cpu)) ? -1 : cpu;
 }
 
 static int sysbusy_find_min_util_cpu(struct tp_env *env)
 {
-	int cpu, min_cpu = -1;
-	unsigned long min_util = INT_MAX;
+	int cpu, min_cpu = -1, min_idle_cpu = -1;
+	unsigned long min_util = INT_MAX, min_idle_util = INT_MAX;
 
 	for_each_cpu(cpu, &env->cpus_allowed) {
 		unsigned long cpu_util;
 
-		cpu_util = env->cpu_stat[cpu].util_wo;
+		if (ems_rq_migrated(cpu_rq(cpu)))
+			continue;
+
+		cpu_util = ml_cpu_util_without(cpu, env->p);
+		cpu_util = min(cpu_util, capacity_cpu_orig(cpu));
 
 		if (cpu == task_cpu(env->p) && !cpu_util)
 			cpu_util = get_remained_task_util(cpu, env);
+
+		cpu_util = min(cpu_util, capacity_cpu_orig(cpu));
+
+		if (available_idle_cpu(cpu)) {
+			if (cpu_util <= min_idle_util) {
+				min_idle_cpu = cpu;
+				min_idle_util = cpu_util;
+			}
+			continue;
+		}
 
 		/* find min util cpu with rt util */
 		if (cpu_util <= min_util) {
@@ -433,10 +407,31 @@ static int sysbusy_find_min_util_cpu(struct tp_env *env)
 		}
 	}
 
+	min_cpu = (min_idle_cpu >= 0) ? min_idle_cpu : min_cpu;
+
 	return min_cpu;
 }
 
 #define CPU_CAPACITY_SUM	(SCHED_CAPACITY_SCALE * VENDOR_NR_CPUS)
+#define ED_MIN_AR_RATIO		(SCHED_CAPACITY_SCALE / 10)
+#define PD_BUSY_AR_RATIO	(SCHED_CAPACITY_SCALE * 75 / 100)
+
+static bool is_busy_perf_domain(struct system_profile_data *sd)
+{
+	if (emstune_get_cur_level())
+		return false;
+
+	if (sd->ed_ar_avg > ED_MIN_AR_RATIO)
+		return false;
+
+	if (sd->pd_ar_avg < PD_BUSY_AR_RATIO)
+		return false;
+
+	if (sd->pd_nr_running < VENDOR_NR_CPUS)
+		return false;
+
+	return true;
+}
 
 static enum sysbusy_state determine_sysbusy_state(void)
 {
@@ -453,10 +448,14 @@ static enum sysbusy_state determine_sysbusy_state(void)
 	}
 
 	/* Determine STATE2 or STATE3 */
-	if (check_busy(system_data.heavy_task_util_sum, CPU_CAPACITY_SUM)) {
+	if (check_busy(system_data.heavy_task_util_sum, CPU_CAPACITY_SUM)
+		|| is_busy_perf_domain(&system_data)) {
 		bool is_somac;
 
 		is_somac = system_data.misfit_task_count > (VENDOR_NR_CPUS / 2);
+		if (system_data.heavy_task_count > 10)
+			is_somac = false;
+
 		if (!is_somac)
 			return SYSBUSY_STATE2;
 
@@ -481,7 +480,6 @@ static void change_sysbusy_state(int next_state, unsigned long now)
 {
 	int old_state = sysbusy.state;
 	struct sysbusy_param *param;
-	unsigned long flags;
 
 	if (old_state == next_state) {
 		sysbusy.release_start_time = 0;
@@ -499,10 +497,6 @@ static void change_sysbusy_state(int next_state, unsigned long now)
 
 		if (now < sysbusy.release_start_time + param->release_duration)
 			return;
-
-		spin_lock_irqsave(&somac_ready_lock, flags);
-		somac_ready.p = NULL;
-		spin_unlock_irqrestore(&somac_ready_lock, flags);
 	}
 
 	sysbusy.monitor_interval = sysbusy_params[next_state].monitor_interval;
@@ -512,6 +506,19 @@ static void change_sysbusy_state(int next_state, unsigned long now)
 	schedule_work(&sysbusy.work);
 	update_sysbusy_stat(old_state, next_state, now);
 	trace_sysbusy_state(old_state, next_state);
+}
+
+int sysbusy_boost_task(struct task_struct *p)
+{
+	int grp_idx = cpuctl_task_group_idx(p);
+
+	if (sysbusy.state != SYSBUSY_STATE1)
+		return 0;
+
+	if (grp_idx != CGROUP_TOPAPP)
+		return 0;
+
+	return is_heavy_task_util(ml_task_util_est(p));
 }
 
 void monitor_sysbusy(void)
@@ -554,18 +561,17 @@ int sysbusy_schedule(struct tp_env *env)
 		target_cpu = sysbusy_find_min_util_cpu(env);
 		break;
 	case SYSBUSY_STATE3:
-		if (is_heavy_task_util(env->task_util)) {
+		if (is_heavy_task_util(env->task_util) && decision_somac_task(env->p)) {
 			if (cpumask_test_cpu(task_cpu(env->p), &env->cpus_allowed))
 				target_cpu = task_cpu(env->p);
 		}
-		else
+		else {
 			target_cpu = sysbusy_find_min_util_cpu(env);
-
-		update_somac_ready(env);
+		}
 		break;
 	case SYSBUSY_STATE0:
 	default:
-		;
+		break;
 	}
 
 	trace_sysbusy_schedule(env->p, sysbusy.state, target_cpu);
@@ -616,54 +622,6 @@ static ssize_t show_sysbusy_stat(struct kobject *kobj,
 
 static struct kobj_attribute sysbusy_stat_attr =
 __ATTR(sysbusy_stat, 0644, show_sysbusy_stat, NULL);
-
-static ssize_t show_somac_ready_run(struct kobject *kobj,
-		struct kobj_attribute *attr, char *buf)
-{
-	return snprintf(buf, 10, "%d\n", somac_ready.run);
-}
-
-static ssize_t store_somac_ready_run(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	int input;
-
-	if (sscanf(buf, "%d", &input) != 1)
-		return -EINVAL;
-
-	somac_ready.run = input;
-
-	return count;
-}
-
-static struct kobj_attribute somac_ready_run_attr =
-__ATTR(somac_ready_run, 0644, show_somac_ready_run, store_somac_ready_run);
-
-static ssize_t show_somac_ready_cpus(struct kobject *kobj,
-		struct kobj_attribute *attr, char *buf)
-{
-	return snprintf(buf, 10, "%*pbl\n", cpumask_pr_args(&somac_ready.cpus));
-}
-
-#define STR_LEN (6)
-static ssize_t store_somac_ready_cpus(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	char str[STR_LEN];
-
-	if (strlen(buf) >= STR_LEN)
-		return -EINVAL;
-
-	if (!sscanf(buf, "%s", str))
-		return -EINVAL;
-
-	cpulist_parse(buf, &somac_ready.cpus);
-
-	return count;
-}
-
-static struct kobj_attribute somac_ready_cpus_attr =
-__ATTR(somac_ready_cpus, 0644, show_somac_ready_cpus, store_somac_ready_cpus);
 
 static ssize_t show_sysbusy_control(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
@@ -722,14 +680,6 @@ static int sysbusy_sysfs_init(struct kobject *ems_kobj)
 	if (ret)
 		pr_warn("%s: failed to create somac sysfs\n", __func__);
 
-	ret = sysfs_create_file(sysbusy_kobj, &somac_ready_run_attr.attr);
-	if (ret)
-		pr_warn("%s: failed to create somac sysfs\n", __func__);
-
-	ret = sysfs_create_file(sysbusy_kobj, &somac_ready_cpus_attr.attr);
-	if (ret)
-		pr_warn("%s: failed to create somac sysfs\n", __func__);
-
 	ret = sysfs_create_file(sysbusy_kobj, &sysbusy_control_attr.attr);
 	if (ret)
 		pr_warn("%s: failed to create sysbusy sysfs\n", __func__);
@@ -761,17 +711,154 @@ static void sysbusy_boost_fn(struct work_struct *work)
 	sysbusy_notify(cur_state, SYSBUSY_STATE_CHANGE);
 }
 
-static int sysbusy_parse_dt(struct device_node *dn)
+#define MAX_CPN			(30)
+#define MAX_NR_CLUSTERS		(3)
+
+static int get_cpn_candidates(int *candidates)
 {
-	const char *buf;
+	bool invalid[MAX_CPN] = { 0 };
+	int size = 0;
+	int i, j;
 
-	if (of_property_read_u32(dn, "somac-ready-run", &somac_ready.run))
-		return -ENODATA;
+	for (i = 2; i < MAX_CPN; i++) {
+		if (invalid[i])
+			continue;
 
-	if (of_property_read_string(dn, "somac-ready-cpus", &buf))
-		return -ENODATA;
+		candidates[size++] = i;
 
-	cpulist_parse(buf, &somac_ready.cpus);
+		for (j = i + i; j < MAX_CPN; j += i)
+			invalid[j] = true;
+	}
+
+	return size;
+}
+
+static bool check_cpn_candidate(int num, int *slow_to_slow, int *slow_to_fast)
+{
+	bool visited_cpus[VENDOR_NR_CPUS] = { 0 };
+	bool visited_clusters[MAX_NR_CLUSTERS] = { 0 };
+	int visited_clusters_cnt = 0;
+	int start_cpu;
+	int nr_clusters;
+
+	*slow_to_slow = 0;
+	*slow_to_fast = 0;
+	nr_clusters = topology_physical_package_id(cpumask_any(cpu_fastest_mask())) + 1;
+
+	for_each_cpu(start_cpu, cpu_slowest_mask()) {
+		int src_cpu, dsu_cpu;
+		int cycle;
+
+		if (visited_cpus[start_cpu])
+			continue;
+
+		cycle = 2;
+		src_cpu = start_cpu;
+		dsu_cpu = (src_cpu + num) % VENDOR_NR_CPUS;
+
+		while (cycle) {
+			int cluster_id = topology_physical_package_id(src_cpu);
+
+			if (!visited_clusters[cluster_id]) {
+				visited_clusters[cluster_id] = true;
+				visited_clusters_cnt++;
+			}
+			visited_cpus[src_cpu] = true;
+
+			if (cpumask_test_cpu(src_cpu, cpu_slowest_mask())) {
+				if (cpumask_test_cpu(dsu_cpu, cpu_slowest_mask()))
+					*slow_to_slow += 1;
+				else if (cpumask_test_cpu(dsu_cpu, cpu_fastest_mask()))
+					*slow_to_fast += 1;
+			}
+
+			if (dsu_cpu == start_cpu) {
+				if (visited_clusters_cnt != nr_clusters)
+					return false;
+
+				cycle--;
+			}
+
+			src_cpu = dsu_cpu;
+			dsu_cpu = (src_cpu + num) % VENDOR_NR_CPUS;
+		}
+	}
+
+	return true;
+}
+
+static bool sysbusy_check_roundrobin(void)
+{
+	int cpu = 0;
+	int slow_cpus = 0;
+	int fast_cpus = 0;
+	int i;
+
+	for_each_cpu(cpu, cpu_possible_mask) {
+		if (cpumask_test_cpu(cpu, cpu_slowest_mask()))
+			slow_cpus++;
+		else
+			fast_cpus++;
+	}
+
+	/* use round robin */
+	if (slow_cpus == fast_cpus) {
+		for (i = 0; i < VENDOR_NR_CPUS; i++) {
+			if (cpumask_test_cpu(i, cpu_slowest_mask()))
+				cpn_next_cpu[i] = i + slow_cpus;
+			else
+				cpn_next_cpu[i] = (i - 1) % slow_cpus;
+		}
+
+		return true;
+	} else if (slow_cpus == 6 && fast_cpus == 2) {
+		sysbusy.type = SYSBUSY_FAST2_SLOW6;
+
+		return true;
+	}
+
+	return false;
+}
+
+static int sysbusy_calculate_cpn(void)
+{
+	int candidates[MAX_CPN];
+	int best_slow_to_slow = INT_MAX;
+	int best_slow_to_fast = -1;
+	int best = 0;
+	int i, size;
+
+	sysbusy.type = SYSBUSY_CPN;
+
+	if (sysbusy_check_roundrobin())
+		return 0;
+
+	size = get_cpn_candidates(candidates);
+
+	for (i = 0; i < size; i++) {
+		int slow_to_slow, slow_to_fast;
+		int cand = candidates[i];
+
+		if (!check_cpn_candidate(cand, &slow_to_slow, &slow_to_fast))
+			continue;
+
+		if (slow_to_slow < best_slow_to_slow) {
+			best_slow_to_slow = slow_to_slow;
+			best_slow_to_fast = slow_to_fast;
+			best = cand;
+		} else if (slow_to_slow == best_slow_to_slow) {
+			if (slow_to_fast > best_slow_to_fast) {
+				best_slow_to_fast = slow_to_fast;
+				best = cand;
+			}
+		}
+	}
+
+	if (!best)
+		return -EINVAL;
+
+	for (i = 0; i < VENDOR_NR_CPUS; i++)
+		cpn_next_cpu[i] = (i + best) % VENDOR_NR_CPUS;
 
 	return 0;
 }
@@ -779,7 +866,6 @@ static int sysbusy_parse_dt(struct device_node *dn)
 int sysbusy_init(struct kobject *ems_kobj)
 {
 	int ret;
-	struct device_node *dn;
 
 	somac_env = alloc_percpu(struct somac_env);
 	if (!somac_env) {
@@ -801,17 +887,12 @@ int sysbusy_init(struct kobject *ems_kobj)
 	if (ret)
 		pr_err("failed to init sysfs for sysbusy\n");
 
-	sysbusy.enabled = 1;
-
-	dn = of_find_node_by_path("/ems/sysbusy");
-	if (!dn) {
-		pr_err("failed to find device node for sysbusy\n");
-		return -EINVAL;
-	}
-
-	ret = sysbusy_parse_dt(dn);
+	ret = sysbusy_calculate_cpn();
 	if (ret)
-		pr_err("failed to parse from dt for sysbusy\n");
+		pr_err("failed to calcaulate cpn\n");
+
+	if (!ret)
+		sysbusy.enabled = 1;
 
 	return ret;
 }

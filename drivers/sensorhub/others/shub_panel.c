@@ -88,7 +88,7 @@ int save_panel_lcd_type(void)
 	return ret;
 }
 
-inline bool is_lcd_changed(void)
+bool is_lcd_changed(void)
 {
 	int ret = 0;
 	u8 curr_lcd_type_flag = 0;

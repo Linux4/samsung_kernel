@@ -116,6 +116,7 @@ struct dsim_device {
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
 	struct mcd_dsim_device mcd_dsim;
 #endif
+	bool lp11_reset;
 };
 
 extern struct dsim_device *dsim_drvdata[MAX_DSI_CNT];
@@ -164,4 +165,5 @@ void dsim_exit_ulps(struct dsim_device *dsim);
 void dsim_wait_pending_vblank(struct dsim_device *dsim);
 void dsim_dump(struct dsim_device *dsim);
 int dsim_free_fb_resource(struct dsim_device *dsim);
+void dsim_atomic_activate(struct drm_encoder *encoder);
 #endif /* __EXYNOS_DRM_DSI_H__ */

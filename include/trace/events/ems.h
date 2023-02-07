@@ -61,9 +61,9 @@ TRACE_EVENT(ems_find_cpus_allowed,
  */
 TRACE_EVENT(ems_find_fit_cpus,
 
-	TP_PROTO(struct tp_env *env, struct cpumask *mask),
+	TP_PROTO(struct tp_env *env),
 
-	TP_ARGS(env, mask),
+	TP_ARGS(env),
 
 	TP_STRUCT__entry(
 		__array(	char,		comm,	TASK_COMM_LEN	)
@@ -73,13 +73,14 @@ TRACE_EVENT(ems_find_fit_cpus,
 		__field(	int,		sync			)
 		__field(	unsigned long,	task_util		)
 		__field(	unsigned long,	task_util_clamped	)
-		__field(	unsigned int,	fit_cpus		)
+		__field(	int,		task_class		)
+		__field(	int,		sched_policy		)
+		__field(	int,		init_index		)
 		__field(	unsigned int,	cpus_allowed		)
+		__field(	unsigned int,	fit_cpus		)
 		__field(	unsigned int,	overcap_cpus		)
-		__field(	unsigned int,	tex_pinning_cpus	)
-		__field(	unsigned int,	ontime_fit_cpus		)
-		__field(	unsigned int,	prefer_cpu		)
-		__field(	unsigned int,	busy_cpu		)
+		__field(	unsigned int,	migrating_cpus		)
+
 	),
 
 	TP_fast_assign(
@@ -90,22 +91,24 @@ TRACE_EVENT(ems_find_fit_cpus,
 		__entry->sync			= env->sync;
 		__entry->task_util		= env->task_util;
 		__entry->task_util_clamped	= env->task_util_clamped;
-		__entry->fit_cpus		= *(unsigned int *)cpumask_bits(&env->fit_cpus);
+		__entry->task_class		= env->task_class;
+		__entry->sched_policy		= env->sched_policy;
+		__entry->init_index		= env->init_index;
 		__entry->cpus_allowed		= *(unsigned int *)cpumask_bits(&env->cpus_allowed);
-		__entry->overcap_cpus		= *(unsigned int *)cpumask_bits(&mask[0]);
-		__entry->tex_pinning_cpus	= *(unsigned int *)cpumask_bits(&mask[1]);
-		__entry->ontime_fit_cpus	= *(unsigned int *)cpumask_bits(&mask[2]);
-		__entry->prefer_cpu		= *(unsigned int *)cpumask_bits(&mask[3]);
-		__entry->busy_cpu		= *(unsigned int *)cpumask_bits(&mask[4]);
+		__entry->fit_cpus		= *(unsigned int *)cpumask_bits(&env->fit_cpus);
+		__entry->overcap_cpus		= *(unsigned int *)cpumask_bits(&env->overcap_cpus);
+		__entry->migrating_cpus		= *(unsigned int *)cpumask_bits(&env->migrating_cpus);
 	),
 
-	TP_printk("comm=%s pid=%d prev_cpu=%d cl_sync=%d sync=%d task_util=%lu task_util_clamped=%lu "
-		  "fit_cpus=%#x cpus_allowed=%#x overcap_cpus=%#x tex_pinning_cpus=%#x ontime_fit_cpus=%#x "
-		  "prefer_cpu=%#x busy_cpu=%#x",
+	TP_printk("comm=%s pid=%d prev_cpu=%d cl_sync=%d sync=%d "
+		  "task_util=%lu task_util_clamped=%lu "
+		  "task_class=%d, sched_policy=%d, init_index=%d "
+		  "fit_cpus=%#x cpus_allowed=%#x overcap_cpus=%#x "
+		  "migrating_cpus=%#x",
 		  __entry->comm, __entry->pid, __entry->prev_cpu, __entry->cl_sync, __entry->sync,
-		  __entry->task_util, __entry->task_util_clamped, __entry->fit_cpus, __entry->cpus_allowed,
-		  __entry->overcap_cpus, __entry->tex_pinning_cpus, __entry->ontime_fit_cpus,
-		  __entry->prefer_cpu, __entry->busy_cpu)
+		  __entry->task_util, __entry->task_util_clamped,
+		  __entry->task_class, __entry->sched_policy, __entry->init_index,
+		  __entry->fit_cpus, __entry->cpus_allowed, __entry->overcap_cpus, __entry->migrating_cpus)
 );
 
 /*
@@ -123,6 +126,8 @@ TRACE_EVENT(ems_select_task_rq,
 		__field(	int,		cgroup_idx		)
 		__field(	int,		target_cpu		)
 		__field(	int,		wakeup			)
+		__field(	u64,		task_util		)
+		__field(	u32,		nr_running		)
 		__array(	char,		state,		30	)
 	),
 
@@ -131,97 +136,16 @@ TRACE_EVENT(ems_select_task_rq,
 		__entry->pid		= env->p->pid;
 		__entry->cgroup_idx	= env->cgroup_idx;
 		__entry->wakeup		= !env->p->on_rq;
+		__entry->task_util	= env->task_util;
 		__entry->target_cpu	= target_cpu;
+		__entry->nr_running	= cpu_rq(target_cpu)->nr_running;
 		memcpy(__entry->state, state, 30);
 	),
 
-	TP_printk("comm=%s pid=%d cgroup_idx=%d wakeup=%d target_cpu=%d state=%s",
+	TP_printk("comm=%s pid=%d cgrp_idx=%d wakeup=%d util=%lld target_cpu=%d nr_run=%u state=%s",
 		  __entry->comm, __entry->pid, __entry->cgroup_idx,
-		  __entry->wakeup, __entry->target_cpu, __entry->state)
-);
-
-/*
- * Tracepoint for task migration control
- */
-TRACE_EVENT(ems_can_migrate_task,
-
-	TP_PROTO(struct task_struct *tsk, int dst_cpu, int migrate, char *label),
-
-	TP_ARGS(tsk, dst_cpu, migrate, label),
-
-	TP_STRUCT__entry(
-		__array( char,		comm,	TASK_COMM_LEN	)
-		__field( pid_t,		pid			)
-		__field( int,		src_cpu			)
-		__field( int,		dst_cpu			)
-		__field( int,		migrate			)
-		__array( char,		label,	64		)
-	),
-
-	TP_fast_assign(
-		memcpy(__entry->comm, tsk->comm, TASK_COMM_LEN);
-		__entry->pid			= tsk->pid;
-		__entry->src_cpu		= task_cpu(tsk);
-		__entry->dst_cpu		= dst_cpu;
-		__entry->migrate		= migrate;
-		strncpy(__entry->label, label, 63);
-	),
-
-	TP_printk("comm=%s pid=%d src_cpu=%d dst_cpu=%d migrate=%d reason=%s",
-		__entry->comm, __entry->pid, __entry->src_cpu, __entry->dst_cpu,
-		__entry->migrate, __entry->label)
-);
-
-/*
- * Tracepoint for policy/PM QoS update in ESG
- */
-TRACE_EVENT(esg_update_limit,
-
-	TP_PROTO(int cpu, int min, int max),
-
-	TP_ARGS(cpu, min, max),
-
-	TP_STRUCT__entry(
-		__field( int,		cpu				)
-		__field( int,		min				)
-		__field( int,		max				)
-	),
-
-	TP_fast_assign(
-		__entry->cpu			= cpu;
-		__entry->min			= min;
-		__entry->max			= max;
-	),
-
-	TP_printk("cpu=%d min_cap=%d, max_cap=%d",
-		__entry->cpu, __entry->min, __entry->max)
-);
-
-/*
- * Tracepoint for frequency request in ESG
- */
-TRACE_EVENT(esg_req_freq,
-
-	TP_PROTO(int cpu, int util, int freq, int rapid_scale),
-
-	TP_ARGS(cpu, util, freq, rapid_scale),
-
-	TP_STRUCT__entry(
-		__field( int,		cpu				)
-		__field( int,		util				)
-		__field( int,		freq				)
-		__field( int,		rapid_scale			)
-	),
-
-	TP_fast_assign(
-		__entry->cpu			= cpu;
-		__entry->util			= util;
-		__entry->freq			= freq;
-		__entry->rapid_scale		= rapid_scale;
-	),
-
-	TP_printk("cpu=%d util=%d freq=%d rapid_scale=%d",
-		__entry->cpu, __entry->util, __entry->freq, __entry->rapid_scale)
+		  __entry->wakeup, __entry->task_util,
+		 __entry->target_cpu, __entry->nr_running, __entry->state)
 );
 
 /*
@@ -262,41 +186,6 @@ TRACE_EVENT(ego_req_freq,
 		__entry->cpu, __entry->target_freq, __entry->min_freq,
 		__entry->max_freq, __entry->org_freq, __entry->eng_freq,
 		__entry->util, __entry->max)
-);
-
-TRACE_EVENT(ego_cpu_eng,
-
-	TP_PROTO(int cpu, unsigned long cap, unsigned int dyn,
-		unsigned long sta, unsigned long idle_sum,
-		unsigned long active_eng, unsigned long idle_eng),
-
-	TP_ARGS(cpu, cap, dyn, sta, idle_sum, active_eng, idle_eng),
-
-	TP_STRUCT__entry(
-		__field( int,		cpu				)
-		__field( unsigned long,	cap				)
-		__field( unsigned long,	dyn				)
-		__field( unsigned long,	sta				)
-		__field( unsigned long,	idle_sum			)
-		__field( unsigned long,	active_eng			)
-		__field( unsigned long,	idle_eng			)
-	),
-
-	TP_fast_assign(
-		__entry->cpu			= cpu;
-		__entry->cap			= cap;
-		__entry->dyn			= dyn;
-		__entry->sta			= sta;
-		__entry->idle_sum		= idle_sum;
-		__entry->active_eng		= active_eng;
-		__entry->idle_eng		= idle_eng;
-	),
-
-	TP_printk("cpu=%d cap=%lu dyn=%lu sta=%lu isum=%lu aeng=%lu ieng=%lu eng=%lu",
-		__entry->cpu, __entry->cap, __entry->dyn,
-		__entry->sta, __entry->idle_sum,
-		__entry->active_eng, __entry->idle_eng,
-		(__entry->active_eng + __entry->idle_eng))
 );
 
 /*
@@ -439,6 +328,177 @@ TRACE_EVENT(sysbusy_state,
 	TP_printk("old_state=%d next_state=%d",
 		__entry->old_state, __entry->next_state)
 );
+
+/* CPUIDLE Governor */
+TRACE_EVENT(halo_select,
+
+	TP_PROTO(u32 waker, u32 selector, s64 resi, s64 lat, s64 tick, s64 timer, s64 vsync, s64 det, s64 pred, s64 expired, u32 idx),
+
+	TP_ARGS(waker, selector, resi, lat, tick, timer, vsync, det, pred, expired, idx),
+
+	TP_STRUCT__entry(
+		__field(u32, waker)
+		__field(u32, selector)
+		__field(s64, resi)
+		__field(s64, lat)
+		__field(s64, tick)
+		__field(s64, timer)
+		__field(s64, vsync)
+		__field(s64, det)
+		__field(s64, pred)
+		__field(s64, expired)
+		__field(u32, idx)
+	),
+
+	TP_fast_assign(
+		__entry->waker = waker;
+		__entry->selector = selector;
+		__entry->resi = resi;
+		__entry->lat = lat;
+		__entry->tick = tick;
+		__entry->timer = timer;
+		__entry->vsync = vsync;
+		__entry->det = det;
+		__entry->pred = pred;
+		__entry->expired = expired;
+		__entry->idx = idx;
+	),
+
+	TP_printk("waker=%d sel=%d resi=%lld lat=%lld tick=%lld timer=%lld vsync=%lld det=%lld pred=%lld expired=%lld idx=%u",
+		 __entry->waker,  __entry->selector, __entry->resi, __entry->lat, __entry->tick, __entry->timer,
+		__entry->vsync, __entry->det, __entry->pred, __entry->expired, __entry->idx)
+);
+
+/*
+ * Tracepoint for active load balance
+ */
+TRACE_EVENT(lb_active_migration,
+
+	TP_PROTO(struct task_struct *p, int prev_cpu, int new_cpu, char *label),
+
+	TP_ARGS(p, prev_cpu, new_cpu, label),
+
+	TP_STRUCT__entry(
+		__array( char,		comm,	TASK_COMM_LEN	)
+		__field( pid_t,		pid			)
+		__field( u64,		misfit			)
+		__field( u64,		util			)
+		__field( int,		prev_cpu			)
+		__field( int,		new_cpu		)
+		__array( char,		label,	64		)
+	),
+
+	TP_fast_assign(
+		memcpy(__entry->comm, p->comm, TASK_COMM_LEN);
+		__entry->pid		= p->pid;
+		__entry->misfit			= ems_task_misfited(p);
+		__entry->util			= ml_uclamp_task_util(p);
+		__entry->prev_cpu		= prev_cpu;
+		__entry->new_cpu		= new_cpu;
+		strncpy(__entry->label, label, 63);
+	),
+
+	TP_printk("comm=%s pid=%d misfit=%llu util=%llu prev_cpu=%d new_cpu=%d reason=%s",
+		__entry->comm, __entry->pid, __entry->misfit, __entry->util,
+		 __entry->prev_cpu, __entry->new_cpu, __entry->label)
+);
+
+/*
+ * Tracepoint for find busiest queue
+ */
+TRACE_EVENT(lb_find_busiest_queue,
+
+	TP_PROTO(int dst_cpu, int busiest_cpu, struct cpumask *src_cpus),
+
+	TP_ARGS(dst_cpu, busiest_cpu, src_cpus),
+
+	TP_STRUCT__entry(
+		__field( int,		dst_cpu			)
+		__field( int,		busiest_cpu		)
+		__field( unsigned int, src_cpus)
+	),
+
+	TP_fast_assign(
+		__entry->dst_cpu = dst_cpu;
+		__entry->busiest_cpu = busiest_cpu;
+		__entry->src_cpus = *(unsigned int *)cpumask_bits(src_cpus);
+	),
+
+	TP_printk("dst_cpu=%d busiest_cpu=%d src_cpus=%#x",
+		__entry->dst_cpu, __entry->busiest_cpu, __entry->src_cpus)
+);
+
+/*
+ * Tracepoint for ems newidle balance
+ */
+TRACE_EVENT(lb_newidle_balance,
+
+	TP_PROTO(int this_cpu, int busy_cpu, int pulled, int range, bool short_idle),
+
+	TP_ARGS(this_cpu, busy_cpu, pulled, range, short_idle),
+
+	TP_STRUCT__entry(
+		__field(int, cpu)
+		__field(int, busy_cpu)
+		__field(int, pulled)
+		__field(unsigned int, nr_running)
+		__field(unsigned int, rt_nr_running)
+		__field(int, nr_iowait)
+		__field(int, range)
+		__field(u64, avg_idle)
+		__field(bool, short_idle)
+		__field(int, overload)
+	),
+
+	TP_fast_assign(
+		__entry->cpu        = this_cpu;
+		__entry->busy_cpu   = busy_cpu;
+		__entry->pulled     = pulled;
+		__entry->nr_running = cpu_rq(this_cpu)->nr_running;
+		__entry->rt_nr_running = cpu_rq(this_cpu)->rt.rt_nr_running;
+		__entry->nr_iowait  = atomic_read(&(cpu_rq(this_cpu)->nr_iowait));
+		__entry->range	    = range;
+		__entry->avg_idle   = cpu_rq(this_cpu)->avg_idle;
+		__entry->short_idle = short_idle;
+		__entry->overload   = cpu_rq(this_cpu)->rd->overload;
+	),
+
+	TP_printk("cpu=%d busy_cpu=%d pulled=%d nr_run=%u rt_nr_run=%u nr_iowait=%d range=%d avg_idle=%llu short_idle=%d overload=%d",
+		__entry->cpu, __entry->busy_cpu, __entry->pulled,
+		__entry->nr_running, __entry->rt_nr_running,
+		__entry->nr_iowait, __entry->range,
+		__entry->avg_idle, __entry->short_idle,
+		__entry->overload)
+);
+
+
+TRACE_EVENT(mlt_nr_run_update,
+
+	TP_PROTO(int cpu, u64 delta, u64 cntr, int nr_run, int avg_nr_run),
+
+	TP_ARGS(cpu, delta, cntr, nr_run, avg_nr_run),
+
+	TP_STRUCT__entry(
+		__field( int,	cpu			)
+		__field( u64,	delta			)
+		__field( u64,	cntr			)
+		__field( int,	nr_run			)
+		__field( int,	avg_nr_run		)
+	),
+
+	TP_fast_assign(
+		__entry->cpu = cpu;
+		__entry->delta = delta;
+		__entry->cntr = cntr;
+		__entry->nr_run = nr_run;
+		__entry->avg_nr_run = avg_nr_run;
+	),
+
+	TP_printk("cpu=%d delta=%llu cntr=%lld nr_run=%d avg_nr_run=%d",
+		__entry->cpu, __entry->delta, __entry->cntr,
+		__entry->nr_run, __entry->avg_nr_run)
+);
+
 #endif /* _TRACE_EMS_H */
 
 /* This part must be outside protection */

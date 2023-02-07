@@ -235,3 +235,8 @@ config MCD_PANEL_BLIC
 	depends on MCD_PANEL
 	default n
 
+config UNSUPPORT_INIT_READ
+	bool "Support unsupport init read"
+	depends on MCD_PANEL
+	default n
+

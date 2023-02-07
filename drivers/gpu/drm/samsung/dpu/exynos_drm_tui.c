@@ -69,6 +69,7 @@ int exynos_drm_atomic_check_tui(struct drm_atomic_state *state)
 		}
 
 		if (old_exynos_crtc_state->tui_changed &&
+         !new_exynos_crtc_state->tui_changed &&
 				(new_crtc_state->plane_mask == 0)) {
 			DRM_ERROR("reject clear display commit(%pK)\n", state);
 			return -EPERM;

@@ -19,17 +19,15 @@
 #include <crypto/authenc.h>
 #include <crypto/fmp.h>
 
-#ifdef CONFIG_EXYNOS_FMP_FIPS_FUNC_TEST
-#include "fmp_fips_func_test.h"
-#endif
 #include "fmp_fips_main.h"
-#include "fmp_fips_fops.h"
 #include "fmp_fips_selftest.h"
 #include "fmp_fips_integrity.h"
 #include "fmp_test.h"
 
 static const char pass[] = "passed";
 static const char fail[] = "failed";
+static const char error[] = "error";
+static const char approved[] = "approved";
 
 enum fips_state {
 	FMP_FIPS_INIT_STATE,
@@ -100,6 +98,15 @@ static ssize_t integrity_status_show(struct device *dev,
 	return snprintf(buf, sizeof(pass), "%s\n", fmp->result.integrity ? pass : fail);
 }
 
+static ssize_t fmp_fips_err_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	if (in_fmp_fips_err())
+		return snprintf(buf, sizeof(error), "%s\n", error);
+
+	return snprintf(buf, sizeof(approved), "%s\n", approved);
+}
+
 static ssize_t fmp_fips_run_store(struct device *dev, struct device_attribute *attr,
 			 const char *buf, size_t count)
 {
@@ -118,6 +125,7 @@ static DEVICE_ATTR_RO(aes_xts_status);
 static DEVICE_ATTR_RO(sha256_status);
 static DEVICE_ATTR_RO(hmac_status);
 static DEVICE_ATTR_RO(integrity_status);
+static DEVICE_ATTR_RO(fmp_fips_err);
 static DEVICE_ATTR_WO(fmp_fips_run);
 
 static struct attribute *fmp_fips_attr[] = {
@@ -126,6 +134,7 @@ static struct attribute *fmp_fips_attr[] = {
 	&dev_attr_sha256_status.attr,
 	&dev_attr_hmac_status.attr,
 	&dev_attr_integrity_status.attr,
+	&dev_attr_fmp_fips_err.attr,
 	&dev_attr_fmp_fips_run.attr,
 	NULL,
 };
@@ -133,16 +142,6 @@ static struct attribute *fmp_fips_attr[] = {
 static struct attribute_group fmp_fips_attr_group = {
 	.name	= "fmp-fips",
 	.attrs	= fmp_fips_attr,
-};
-
-static const struct file_operations fmp_fips_fops = {
-	.owner		= THIS_MODULE,
-	.open		= fmp_fips_open,
-	.release	= fmp_fips_release,
-	.unlocked_ioctl = fmp_fips_ioctl,
-#ifdef CONFIG_COMPAT
-	.compat_ioctl	= fmp_fips_compat_ioctl,
-#endif
 };
 
 int exynos_fmp_fips_register(struct exynos_fmp *fmp)
@@ -156,43 +155,26 @@ int exynos_fmp_fips_register(struct exynos_fmp *fmp)
 
 	set_fmp_fips_state(FMP_FIPS_INIT_STATE);
 
-#ifdef CONFIG_EXYNOS_FMP_ACVP_TEST
-	fmp->miscdev.minor = MISC_DYNAMIC_MINOR;
-	fmp->miscdev.name = "fmp";
-	fmp->miscdev.fops = &fmp_fips_fops;
-	ret = misc_register(&fmp->miscdev);
-	if (ret) {
-		dev_err(fmp->dev, "%s: Fail to register misc device. ret(%d)\n",
-				__func__, ret);
-		goto err;
-	}
-#endif
 	ret = sysfs_create_group(&fmp->dev->kobj, &fmp_fips_attr_group);
 	if (ret) {
 		dev_err(fmp->dev, "%s: Fail to create sysfs. ret(%d)\n",
 				__func__, ret);
-		goto err_misc;
+		goto err;
 	}
 
 	dev_info(fmp->dev, "%s: FMP register misc device. ret(%d)\n",
 			__func__, ret);
 	return 0;
 
-err_misc:
-#ifdef CONFIG_EXYNOS_FMP_ACVP_TEST
-	misc_deregister(&fmp->miscdev);
-#endif
 err:
 	return -EINVAL;
 }
 
 void exynos_fmp_fips_test(struct exynos_fmp *fmp)
 {
-#if defined(CONFIG_EXYNOS_FMP_FIPS_FUNC_TEST)
-	exynos_fmp_func_test_KAT_case(fmp);
-#endif
 	exynos_fmp_fips_init(fmp);
 }
+EXPORT_SYMBOL(exynos_fmp_fips_test);
 
 int exynos_fmp_fips_init(struct exynos_fmp *fmp)
 {
@@ -288,21 +270,7 @@ err_data:
 #endif
 
 #else
-	// return 0 if KAT function test mode
-	if (fmp->test_vops) {
-		set_fmp_fips_state(FMP_FIPS_ERR_STATE);
-		fmp->result.overall = 0;
-		fmp_test_exit(fmp->test_data);
-		ret = 0;
-#ifndef CONFIG_KEYS_IN_PRDT
-		goto recover_kwmode;
-#else
-		goto out;
-#endif
-	}
-	else {
-		panic("%s: Panic due to FMP self test for FIPS KAT", __func__);
-	}
+	panic("%s: Panic due to FMP self test for FIPS KAT", __func__);
 #endif
 #ifndef CONFIG_KEYS_IN_PRDT
 recover_kwmode:
@@ -327,7 +295,4 @@ out:
 void exynos_fmp_fips_deregister(struct exynos_fmp *fmp)
 {
 	sysfs_remove_group(&fmp->dev->kobj, &fmp_fips_attr_group);
-#ifdef CONFIG_EXYNOS_FMP_ACVP_TEST
-	misc_deregister(&fmp->miscdev);
-#endif
 }

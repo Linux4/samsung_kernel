@@ -4948,6 +4948,10 @@
 		dun-swap = [00];
 	};
 
+	fmp-simulator {
+		compatible = "samsung,exynos-fmp-simulator";
+	};
+
 	cryptomanager {
 		compatible = "samsung,exynos-cm";
 		sysreg_addr = <0x12821508>;
@@ -6438,42 +6442,6 @@
 	boot_set {
 		phandle = <0xdb>;
 
-		sched_policy {
-			root = <0x05>;
-			foreground = <0x05>;
-			background = <0x05>;
-			top-app = <0x05>;
-			rt = <0x05>;
-			system = <0x05>;
-			system-background = <0x05>;
-			nnapi-hal = <0x05>;
-			camera-daemon = <0x05>;
-		};
-
-		active_weight {
-			root = <0x41 0x64>;
-			foreground = <0x41 0x64>;
-			background = <0x41 0x64>;
-			top-app = <0x41 0x64>;
-			rt = <0x41 0x64>;
-			system = <0x41 0x64>;
-			system-background = <0x41 0x64>;
-			nnapi-hal = <0x41 0x64>;
-			camera-daemon = <0x41 0x64>;
-		};
-
-		idle_weight {
-			root = <0x82 0xc8>;
-			foreground = <0x82 0xc8>;
-			background = <0x82 0xc8>;
-			top-app = <0x82 0xc8>;
-			rt = <0x82 0xc8>;
-			system = <0x82 0xc8>;
-			system-background = <0x82 0xc8>;
-			nnapi-hal = <0x82 0xc8>;
-			camera-daemon = <0x82 0xc8>;
-		};
-
 		freqboost {
 			top-app = <0x05 0x05>;
 		};
@@ -6483,8 +6451,8 @@
 		};
 
 		ontime {
-			top-app = <0x01>;
 			foreground = <0x01>;
+			top-app = <0x01>;
 
 			domain0 {
 				cpus = "0-5";
@@ -6502,18 +6470,7 @@
 		ecs {
 		};
 
-		tex {
-			top-app = <0x01>;
-			prio = <0x6e>;
-			pinning-mask = "6-7";
-			qjump = <0x00>;
-		};
-
-		stt {
-			boost-step = <0x14>;
-			htask-cnt = <0x02>;
-			top-app = <0x01>;
-			foreground = <0x01>;
+		ecs_dynamic {
 		};
 
 		fclamp {
@@ -6527,48 +6484,8 @@
 	set@0000 {
 		phandle = <0xdc>;
 
-		sched_policy {
-			root = <0x00>;
-			foreground = <0x00>;
-			background = <0x00>;
-			top-app = <0x00>;
-			rt = <0x00>;
-			system = <0x00>;
-			system-background = <0x00>;
-			nnapi-hal = <0x00>;
-			camera-daemon = <0x00>;
-		};
-
-		active_weight {
-			root = <0x64 0x64>;
-			foreground = <0x64 0x64>;
-			background = <0x64 0x64>;
-			top-app = <0x64 0x64>;
-			rt = <0x64 0x64>;
-			system = <0x64 0x64>;
-			system-background = <0x64 0x64>;
-			nnapi-hal = <0x64 0x64>;
-			camera-daemon = <0x64 0x64>;
-		};
-
-		idle_weight {
-			root = <0x64 0x64>;
-			foreground = <0x64 0x64>;
-			background = <0x64 0x64>;
-			top-app = <0x64 0x64>;
-			rt = <0x64 0x64>;
-			system = <0x64 0x64>;
-			system-background = <0x64 0x64>;
-			nnapi-hal = <0x64 0x64>;
-			camera-daemon = <0x64 0x64>;
-		};
-
 		freqboost {
 			top-app = <0x05 0x05>;
-		};
-
-		wakeboost {
-			top-app = <0x00 0x00>;
 		};
 
 		frt {
@@ -6595,11 +6512,8 @@
 		ecs {
 		};
 
-		stt {
-			boost-step = <0x14>;
-			htask-cnt = <0x02>;
-			top-app = <0x01>;
-			foreground = <0x01>;
+		ecs_dynamic {
+			dynamic-busy-ratio = <0x46 0x46>;
 		};
 
 		fclamp {
@@ -6609,116 +6523,83 @@
 			};
 		};
 
-		sync {
-			apply = <0x00>;
+		cpufreq_gov {
+			htask-boost = <0x96 0x96>;
 		};
 	};
 
 	set@0001 {
 		phandle = <0xdd>;
 
-		sched_policy {
-			root = <0x00>;
-			foreground = <0x00>;
-			background = <0x00>;
-			top-app = <0x04>;
-			rt = <0x00>;
-			system = <0x00>;
-			system-background = <0x00>;
-			nnapi-hal = <0x00>;
-			camera-daemon = <0x00>;
-		};
-
-		active_weight {
-			root = <0x64 0x64>;
-			foreground = <0x64 0x64>;
-			background = <0x64 0x64>;
-			top-app = <0x64 0x64>;
-			rt = <0x64 0x64>;
-			system = <0x64 0x64>;
-			system-background = <0x64 0x64>;
-			nnapi-hal = <0x64 0x64>;
-			camera-daemon = <0x64 0x64>;
-		};
-
-		idle_weight {
-			root = <0x64 0x64>;
-			foreground = <0x64 0x64>;
-			background = <0x64 0x64>;
-			top-app = <0x64 0x64>;
-			rt = <0x64 0x64>;
-			system = <0x64 0x64>;
-			system-background = <0x64 0x64>;
-			nnapi-hal = <0x64 0x64>;
-			camera-daemon = <0x64 0x64>;
+		freqboost {
+			top-app = <0x05 0x05>;
 		};
 
 		frt {
 			active-ratio = <0x19 0x05>;
 		};
 
-		freqboost {
-			top-app = <0x1e 0x05>;
-		};
-
 		ecs {
 		};
 
-		ontime {
-			top-app = <0x01>;
-			foreground = <0x00>;
-
-			domain0 {
-				cpus = "0-5";
-				lower-boundary = <0x00>;
-				upper-boundary = <0x5a>;
-			};
-
-			domain1 {
-				cpus = "6-7";
-				lower-boundary = <0x14>;
-				upper-boundary = <0x64>;
-			};
-		};
-
-		prefer_cpu {
-			top-app = "0-7";
-			small-task-threshold = <0x32>;
-			small-task-mask = "0-5";
+		ecs_dynamic {
+			dynamic-busy-ratio = <0x32 0x32>;
 		};
 
 		tex {
-			suppress = <0x01>;
+			top-app = <0x01>;
+			prio = <0x77>;
 		};
 	};
 
 	set@0002 {
 		phandle = <0xde>;
 
-		sched_policy {
-			root = <0x00>;
-			foreground = <0x04>;
-			background = <0x00>;
-			top-app = <0x04>;
-			rt = <0x00>;
-			system = <0x00>;
-			system-background = <0x00>;
-			nnapi-hal = <0x00>;
-			camera-daemon = <0x00>;
-		};
-
 		frt {
 			active-ratio = <0x19 0x05>;
+		};
+
+		ontime {
+
+			domain0 {
+				cpus = "0-5";
+				lower-boundary = <0x00>;
+				upper-boundary = <0x15>;
+			};
+
+			domain1 {
+				cpus = "6-7";
+				lower-boundary = <0x08>;
+				upper-boundary = <0x42>;
+			};
 		};
 
 		ecs {
 		};
 
+		ecs_dynamic {
+		};
+
 		tex {
 			top-app = <0x01>;
 			prio = <0x6e>;
-			pinning-mask = "6-7";
-			qjump = <0x01>;
+		};
+
+		gsc {
+			up_threshold = <0x00>;
+
+			monitor-group {
+				top-app = <0x01>;
+				foreground = <0x01>;
+			};
+		};
+
+		should_spread {
+			enabled = <0x01>;
+		};
+
+		cpuidle_gov {
+			expired-ratio = <0x32 0x32>;
 		};
 
 		ntu {
@@ -6732,50 +6613,10 @@
 			nnapi-hal = <0x00>;
 			camera-daemon = <0x00>;
 		};
-
-		sync {
-			apply = <0x01>;
-		};
 	};
 
 	set@0100 {
 		phandle = <0xdf>;
-
-		sched_policy {
-			root = <0x00>;
-			foreground = <0x00>;
-			background = <0x00>;
-			top-app = <0x00>;
-			rt = <0x00>;
-			system = <0x00>;
-			system-background = <0x00>;
-			nnapi-hal = <0x00>;
-			camera-daemon = <0x00>;
-		};
-
-		active_weight {
-			root = <0x500 0x19>;
-			foreground = <0x500 0x19>;
-			background = <0x500 0x19>;
-			top-app = <0x500 0x19>;
-			rt = <0x500 0x19>;
-			system = <0x500 0x19>;
-			system-background = <0x500 0x19>;
-			nnapi-hal = <0x500 0x19>;
-			camera-daemon = <0x500 0x19>;
-		};
-
-		idle_weight {
-			root = <0xa00 0x32>;
-			foreground = <0xa00 0x32>;
-			background = <0xa00 0x32>;
-			top-app = <0xa00 0x32>;
-			rt = <0xa00 0x32>;
-			system = <0xa00 0x32>;
-			system-background = <0xa00 0x32>;
-			nnapi-hal = <0xa00 0x32>;
-			camera-daemon = <0xa00 0x32>;
-		};
 
 		frt {
 			active-ratio = <0x5a 0x64>;
@@ -6798,10 +6639,8 @@
 			};
 		};
 
-		stt {
-			boost-step = <0x0a>;
-			htask-cnt = <0x04>;
-			top-app = <0x01>;
+		ecs_dynamic {
+			dynamic-busy-ratio = <0x46 0x46>;
 		};
 
 		fclamp {
@@ -6811,170 +6650,57 @@
 			};
 		};
 
-		sync {
-			apply = <0x00>;
+		cpufreq_gov {
+			htask-boost = <0x00 0x00>;
 		};
 	};
 
 	set@0101 {
 		phandle = <0xe0>;
 
-		sched_policy {
-			root = <0x01>;
-			foreground = <0x01>;
-			background = <0x00>;
-			top-app = <0x01>;
-			rt = <0x01>;
-			system = <0x01>;
-			system-background = <0x01>;
-			nnapi-hal = <0x01>;
-			camera-daemon = <0x01>;
-		};
-
-		active_weight {
-			root = <0x500 0x19>;
-			foreground = <0x64 0x64>;
-			background = <0x500 0x19>;
-			top-app = <0x64 0x64>;
-			rt = <0x500 0x19>;
-			system = <0x500 0x19>;
-			system-background = <0x500 0x19>;
-			nnapi-hal = <0x500 0x19>;
-			camera-daemon = <0x500 0x19>;
-		};
-
-		idle_weight {
-			root = <0xa00 0x32>;
-			foreground = <0xfa 0x3e8>;
-			background = <0xa00 0x32>;
-			top-app = <0xfa 0x3e8>;
-			rt = <0xa00 0x32>;
-			system = <0xa00 0x32>;
-			system-background = <0xa00 0x32>;
-			nnapi-hal = <0xa00 0x32>;
-			camera-daemon = <0xa00 0x32>;
-		};
-
 		frt {
 			active-ratio = <0x19 0x05>;
+		};
+
+		ecs_dynamic {
+			dynamic-busy-ratio = <0x32 0x32>;
 		};
 	};
 
 	set@0102 {
 		phandle = <0xe1>;
 
-		sched_policy {
-			root = <0x00>;
-			foreground = <0x04>;
-			background = <0x00>;
-			top-app = <0x04>;
-			rt = <0x00>;
-			system = <0x00>;
-			system-background = <0x00>;
-			nnapi-hal = <0x00>;
-			camera-daemon = <0x00>;
-		};
-
-		active_weight {
-			root = <0x64 0x64>;
-			foreground = <0x64 0x64>;
-			background = <0x64 0x64>;
-			top-app = <0x64 0x64>;
-			rt = <0x64 0x64>;
-			system = <0x64 0x64>;
-			system-background = <0x64 0x64>;
-			nnapi-hal = <0x64 0x64>;
-			camera-daemon = <0x64 0x64>;
-		};
-
-		idle_weight {
-			root = <0x64 0x64>;
-			foreground = <0x64 0x64>;
-			background = <0x64 0x64>;
-			top-app = <0x64 0x64>;
-			rt = <0x64 0x64>;
-			system = <0x64 0x64>;
-			system-background = <0x64 0x64>;
-			nnapi-hal = <0x64 0x64>;
-			camera-daemon = <0x64 0x64>;
-		};
-
 		frt {
 			active-ratio = <0x19 0x05>;
-		};
-
-		ecs {
 		};
 
 		tex {
 			top-app = <0x01>;
 			prio = <0x6e>;
-			pinning-mask = "6-7";
-			qjump = <0x01>;
 		};
 
-		ntu {
-			root = <0x00>;
-			foreground = <0x00>;
-			background = <0x00>;
-			top-app = <0x00>;
-			rt = <0x00>;
-			system = <0x00>;
-			system-background = <0x00>;
-			nnapi-hal = <0x00>;
-			camera-daemon = <0x00>;
+		gsc {
+			up_threshold = <0x00>;
+
+			monitor-group {
+				top-app = <0x01>;
+				foreground = <0x01>;
+			};
 		};
 
-		sync {
-			apply = <0x01>;
+		should_spread {
+			enabled = <0x01>;
+		};
+
+		ecs_dynamic {
 		};
 	};
 
 	set@0200 {
 		phandle = <0xe2>;
 
-		sched_policy {
-			root = <0x01>;
-			foreground = <0x01>;
-			background = <0x01>;
-			top-app = <0x01>;
-			rt = <0x01>;
-			system = <0x01>;
-			system-background = <0x01>;
-			nnapi-hal = <0x01>;
-			camera-daemon = <0x01>;
-		};
-
-		active_weight {
-			root = <0x64 0x64>;
-			foreground = <0x64 0x64>;
-			background = <0x64 0x64>;
-			top-app = <0x64 0x64>;
-			rt = <0x64 0x64>;
-			system = <0x64 0x64>;
-			system-background = <0x64 0x64>;
-			nnapi-hal = <0x64 0x64>;
-			camera-daemon = <0x64 0x64>;
-		};
-
-		idle_weight {
-			root = <0xc8 0xc8>;
-			foreground = <0xc8 0xc8>;
-			background = <0xc8 0xc8>;
-			top-app = <0xc8 0xc8>;
-			rt = <0xc8 0xc8>;
-			system = <0xc8 0xc8>;
-			system-background = <0xc8 0xc8>;
-			nnapi-hal = <0xc8 0xc8>;
-			camera-daemon = <0xc8 0xc8>;
-		};
-
 		freqboost {
 			top-app = <0x05 0x05>;
-		};
-
-		wakeboost {
-			top-app = <0x4b 0x4b>;
 		};
 
 		frt {
@@ -6998,13 +6724,6 @@
 			};
 		};
 
-		stt {
-			boost-step = <0x19>;
-			htask-cnt = <0x02>;
-			top-app = <0x01>;
-			foreground = <0x01>;
-		};
-
 		fclamp {
 
 			monitor-group {
@@ -7012,151 +6731,43 @@
 			};
 		};
 
-		sync {
-			apply = <0x00>;
+		cpufreq_gov {
+			htask-boost = <0x96 0x96>;
 		};
 	};
 
 	set@0201 {
 		phandle = <0xe3>;
-
-		active_weight {
-			root = <0x64 0x64>;
-			foreground = <0x64 0x64>;
-			background = <0x64 0x64>;
-			top-app = <0x64 0x64>;
-			rt = <0x64 0x64>;
-			system = <0x64 0x64>;
-			system-background = <0x64 0x64>;
-			nnapi-hal = <0x64 0x64>;
-			camera-daemon = <0x64 0x64>;
-		};
-
-		idle_weight {
-			root = <0xc8 0xc8>;
-			foreground = <0xfa 0x3e8>;
-			background = <0xc8 0xc8>;
-			top-app = <0xfa 0x3e8>;
-			rt = <0xc8 0xc8>;
-			system = <0xc8 0xc8>;
-			system-background = <0xc8 0xc8>;
-			nnapi-hal = <0xc8 0xc8>;
-			camera-daemon = <0xc8 0xc8>;
-		};
-
-		wakeboost {
-			top-app = <0x28 0x28>;
-		};
 	};
 
 	set@0202 {
 		phandle = <0xe4>;
 
-		sched_policy {
-			root = <0x00>;
-			foreground = <0x04>;
-			background = <0x00>;
-			top-app = <0x04>;
-			rt = <0x00>;
-			system = <0x00>;
-			system-background = <0x00>;
-			nnapi-hal = <0x00>;
-			camera-daemon = <0x00>;
-		};
-
-		active_weight {
-			root = <0x64 0x64>;
-			foreground = <0x64 0x64>;
-			background = <0x64 0x64>;
-			top-app = <0x64 0x64>;
-			rt = <0x64 0x64>;
-			system = <0x64 0x64>;
-			system-background = <0x64 0x64>;
-			nnapi-hal = <0x64 0x64>;
-			camera-daemon = <0x64 0x64>;
-		};
-
-		idle_weight {
-			root = <0x64 0x64>;
-			foreground = <0x64 0x64>;
-			background = <0x64 0x64>;
-			top-app = <0x64 0x64>;
-			rt = <0x64 0x64>;
-			system = <0x64 0x64>;
-			system-background = <0x64 0x64>;
-			nnapi-hal = <0x64 0x64>;
-			camera-daemon = <0x64 0x64>;
-		};
-
 		frt {
 			active-ratio = <0x19 0x05>;
-		};
-
-		ecs {
 		};
 
 		tex {
 			top-app = <0x01>;
 			prio = <0x6e>;
-			pinning-mask = "6-7";
-			qjump = <0x01>;
 		};
 
-		ntu {
-			root = <0x00>;
-			foreground = <0x00>;
-			background = <0x00>;
-			top-app = <0x00>;
-			rt = <0x00>;
-			system = <0x00>;
-			system-background = <0x00>;
-			nnapi-hal = <0x00>;
-			camera-daemon = <0x00>;
+		gsc {
+			up_threshold = <0x00>;
+
+			monitor-group {
+				top-app = <0x01>;
+				foreground = <0x01>;
+			};
 		};
 
-		sync {
-			apply = <0x01>;
+		should_spread {
+			enabled = <0x01>;
 		};
 	};
 
 	set@0300 {
 		phandle = <0xe5>;
-
-		sched_policy {
-			root = <0x00>;
-			foreground = <0x00>;
-			background = <0x00>;
-			top-app = <0x00>;
-			rt = <0x00>;
-			system = <0x00>;
-			system-background = <0x00>;
-			nnapi-hal = <0x00>;
-			camera-daemon = <0x00>;
-		};
-
-		active_weight {
-			root = <0x64 0x64>;
-			foreground = <0x64 0x64>;
-			background = <0x64 0x64>;
-			top-app = <0x64 0x64>;
-			rt = <0x64 0x64>;
-			system = <0x64 0x64>;
-			system-background = <0x64 0x64>;
-			nnapi-hal = <0x64 0x64>;
-			camera-daemon = <0x64 0x64>;
-		};
-
-		idle_weight {
-			root = <0x64 0x64>;
-			foreground = <0x64 0x64>;
-			background = <0x64 0x64>;
-			top-app = <0x64 0x64>;
-			rt = <0x64 0x64>;
-			system = <0x64 0x64>;
-			system-background = <0x64 0x64>;
-			nnapi-hal = <0x64 0x64>;
-			camera-daemon = <0x64 0x64>;
-		};
 
 		frt {
 			active-ratio = <0x32 0x64>;
@@ -7182,15 +6793,12 @@
 		ecs {
 		};
 
+		ecs_dynamic {
+		};
+
 		cpus_binding {
 			target-sched-class = <0x08>;
 			background = "0-5";
-		};
-
-		stt {
-			boost-step = <0x0a>;
-			htask-cnt = <0x04>;
-			top-app = <0x01>;
 		};
 
 		fclamp {
@@ -7200,8 +6808,8 @@
 			};
 		};
 
-		sync {
-			apply = <0x00>;
+		cpufreq_gov {
+			htask-boost = <0x32 0x32>;
 		};
 	};
 
@@ -7212,94 +6820,34 @@
 	set@0302 {
 		phandle = <0xe7>;
 
-		sched_policy {
-			root = <0x00>;
-			foreground = <0x04>;
-			background = <0x00>;
-			top-app = <0x04>;
-			rt = <0x00>;
-			system = <0x00>;
-			system-background = <0x00>;
-			nnapi-hal = <0x00>;
-			camera-daemon = <0x00>;
-		};
-
 		frt {
 			active-ratio = <0x19 0x05>;
-		};
-
-		ecs {
 		};
 
 		tex {
 			top-app = <0x01>;
 			prio = <0x6e>;
-			pinning-mask = "6-7";
-			qjump = <0x01>;
 		};
 
-		ntu {
-			root = <0x00>;
-			foreground = <0x00>;
-			background = <0x00>;
-			top-app = <0x00>;
-			rt = <0x00>;
-			system = <0x00>;
-			system-background = <0x00>;
-			nnapi-hal = <0x00>;
-			camera-daemon = <0x00>;
+		gsc {
+			up_threshold = <0x00>;
+
+			monitor-group {
+				top-app = <0x01>;
+				foreground = <0x01>;
+			};
 		};
 
-		sync {
-			apply = <0x01>;
+		should_spread {
+			enabled = <0x01>;
 		};
 	};
 
 	set@0400 {
 		phandle = <0xe8>;
 
-		sched_policy {
-			root = <0x00>;
-			foreground = <0x00>;
-			background = <0x00>;
-			top-app = <0x00>;
-			rt = <0x00>;
-			system = <0x00>;
-			system-background = <0x00>;
-			nnapi-hal = <0x00>;
-			camera-daemon = <0x00>;
-		};
-
-		active_weight {
-			root = <0x64 0x64>;
-			foreground = <0x64 0x64>;
-			background = <0x64 0x64>;
-			top-app = <0x64 0x64>;
-			rt = <0x64 0x64>;
-			system = <0x64 0x64>;
-			system-background = <0x64 0x64>;
-			nnapi-hal = <0x64 0x64>;
-			camera-daemon = <0x64 0x64>;
-		};
-
-		idle_weight {
-			root = <0x64 0x64>;
-			foreground = <0x64 0x64>;
-			background = <0x64 0x64>;
-			top-app = <0x64 0x64>;
-			rt = <0x64 0x64>;
-			system = <0x64 0x64>;
-			system-background = <0x64 0x64>;
-			nnapi-hal = <0x64 0x64>;
-			camera-daemon = <0x64 0x64>;
-		};
-
 		freqboost {
 			top-app = <0x05 0x05>;
-		};
-
-		wakeboost {
-			top-app = <0x00 0x00>;
 		};
 
 		frt {
@@ -7326,11 +6874,8 @@
 		ecs {
 		};
 
-		stt {
-			boost-step = <0x00>;
-			htask-cnt = <0x02>;
-			top-app = <0x01>;
-			foreground = <0x01>;
+		ecs_dynamic {
+			dynamic-busy-ratio = <0x46 0x46>;
 		};
 
 		fclamp {
@@ -7344,48 +6889,16 @@
 			};
 		};
 
-		sync {
-			apply = <0x00>;
+		cpufreq_gov {
+			htask-boost = <0x00 0x00>;
 		};
 	};
 
 	set@0401 {
 		phandle = <0xe9>;
 
-		sched_policy {
-			root = <0x00>;
-			foreground = <0x00>;
-			background = <0x00>;
-			top-app = <0x05>;
-			rt = <0x00>;
-			system = <0x00>;
-			system-background = <0x00>;
-			nnapi-hal = <0x00>;
-			camera-daemon = <0x00>;
-		};
-
-		active_weight {
-			root = <0x64 0x64>;
-			foreground = <0x64 0x64>;
-			background = <0x64 0x64>;
-			top-app = <0x64 0x64>;
-			rt = <0x64 0x64>;
-			system = <0x64 0x64>;
-			system-background = <0x64 0x64>;
-			nnapi-hal = <0x64 0x64>;
-			camera-daemon = <0x64 0x64>;
-		};
-
-		idle_weight {
-			root = <0x64 0x64>;
-			foreground = <0x64 0x64>;
-			background = <0x64 0x64>;
-			top-app = <0x64 0x64>;
-			rt = <0x64 0x64>;
-			system = <0x64 0x64>;
-			system-background = <0x64 0x64>;
-			nnapi-hal = <0x64 0x64>;
-			camera-daemon = <0x64 0x64>;
+		freqboost {
+			top-app = <0x05 0x05>;
 		};
 
 		frt {
@@ -7393,125 +6906,69 @@
 		};
 
 		ecs {
+		};
+
+		ecs_dynamic {
+			dynamic-busy-ratio = <0x32 0x32>;
+		};
+
+		tex {
+			top-app = <0x01>;
+			prio = <0x77>;
 		};
 	};
 
 	set@0402 {
 		phandle = <0xea>;
 
-		sched_policy {
-			root = <0x00>;
-			foreground = <0x04>;
-			background = <0x00>;
-			top-app = <0x04>;
-			rt = <0x00>;
-			system = <0x00>;
-			system-background = <0x00>;
-			nnapi-hal = <0x00>;
-			camera-daemon = <0x00>;
-		};
-
 		frt {
 			active-ratio = <0x19 0x05>;
 		};
 
 		ontime {
-			top-app = <0x01>;
 			foreground = <0x01>;
+			top-app = <0x01>;
 
 			domain0 {
 				cpus = "0-5";
 				lower-boundary = <0x00>;
-				upper-boundary = <0x24>;
+				upper-boundary = <0x15>;
 			};
 
 			domain1 {
 				cpus = "6-7";
-				lower-boundary = <0x06>;
-				upper-boundary = <0x64>;
+				lower-boundary = <0x08>;
+				upper-boundary = <0x42>;
 			};
-		};
-
-		ecs {
 		};
 
 		tex {
 			top-app = <0x01>;
 			prio = <0x6e>;
-			pinning-mask = "6-7";
-			qjump = <0x01>;
 		};
 
-		ntu {
-			root = <0x00>;
-			foreground = <0x00>;
-			background = <0x00>;
-			top-app = <0x00>;
-			rt = <0x00>;
-			system = <0x00>;
-			system-background = <0x00>;
-			nnapi-hal = <0x00>;
-			camera-daemon = <0x00>;
+		gsc {
+			up_threshold = <0x00>;
+
+			monitor-group {
+				top-app = <0x01>;
+				foreground = <0x01>;
+			};
 		};
 
-		sync {
-			apply = <0x01>;
+		should_spread {
+			enabled = <0x01>;
+		};
+
+		ecs_dynamic {
 		};
 	};
 
 	set@0500 {
 		phandle = <0xeb>;
 
-		sched_policy {
-			root = <0x00>;
-			foreground = <0x00>;
-			background = <0x00>;
-			top-app = <0x00>;
-			rt = <0x00>;
-			system = <0x00>;
-			system-background = <0x00>;
-			nnapi-hal = <0x00>;
-			camera-daemon = <0x00>;
-		};
-
-		active_weight {
-			root = <0x64 0x64>;
-			foreground = <0x64 0x64>;
-			background = <0x64 0x64>;
-			top-app = <0x64 0x64>;
-			rt = <0x64 0x64>;
-			system = <0x64 0x64>;
-			system-background = <0x64 0x64>;
-			nnapi-hal = <0x64 0x64>;
-			camera-daemon = <0x64 0x64>;
-		};
-
-		idle_weight {
-			root = <0x64 0x64>;
-			foreground = <0x64 0x64>;
-			background = <0x64 0x64>;
-			top-app = <0x64 0x64>;
-			rt = <0x64 0x64>;
-			system = <0x64 0x64>;
-			system-background = <0x64 0x64>;
-			nnapi-hal = <0x64 0x64>;
-			camera-daemon = <0x64 0x64>;
-		};
-
 		freqboost {
 			top-app = <0x05 0x05>;
-		};
-
-		wakeboost {
-			top-app = <0x00 0x00>;
-		};
-
-		esg {
-			step = <0x04 0x08>;
-			pelt-margin = <0x19 0x19>;
-			up-rate-limit-ms = <0x04>;
-			down-rate-limit-ms = <0x08>;
-			rapid-scale-up = <0x01>;
 		};
 
 		frt {
@@ -7536,193 +6993,125 @@
 		};
 
 		ecs {
-
-			domain0 {
-				busy-threshold-ratio = <0x32>;
-			};
-
-			domain1 {
-				busy-threshold-ratio = <0x32>;
-			};
 		};
 
-		stt {
-			boost-step = <0x14>;
-			htask-cnt = <0x02>;
-			top-app = <0x01>;
-			foreground = <0x01>;
+		ecs_dynamic {
+			dynamic-busy-ratio = <0x46 0x46>;
+		};
+
+		fclamp {
+
+			monitor-group {
+				top-app = <0x01>;
+			};
 		};
 
 		cpufreq_gov {
-			pelt-margin = <0x05 0x19>;
+			htask-boost = <0x96 0x96>;
 		};
 	};
 
 	set@0501 {
 		phandle = <0xec>;
 
-		sched_policy {
-			root = <0x00>;
-			foreground = <0x00>;
-			background = <0x00>;
-			top-app = <0x05>;
-			rt = <0x00>;
-			system = <0x00>;
-			system-background = <0x00>;
-			nnapi-hal = <0x00>;
-			camera-daemon = <0x00>;
-		};
-
-		active_weight {
-			root = <0x64 0x12c>;
-			foreground = <0x64 0x12c>;
-			background = <0x64 0x12c>;
-			top-app = <0x64 0x12c>;
-			rt = <0x64 0x12c>;
-			system = <0x64 0x12c>;
-			system-background = <0x64 0x12c>;
-			nnapi-hal = <0x64 0x12c>;
-			camera-daemon = <0x64 0x12c>;
-		};
-
-		idle_weight {
-			root = <0x64 0x64>;
-			foreground = <0x64 0x64>;
-			background = <0x64 0x64>;
-			top-app = <0x64 0x64>;
-			rt = <0x64 0x64>;
-			system = <0x64 0x64>;
-			system-background = <0x64 0x64>;
-			nnapi-hal = <0x64 0x64>;
-			camera-daemon = <0x64 0x64>;
-		};
-
 		freqboost {
-			top-app = <0x1e 0x1e>;
+			top-app = <0x05 0x05>;
 		};
 
 		frt {
 			active-ratio = <0x19 0x05>;
 		};
 
-		ontime {
-			foreground = <0x01>;
-			top-app = <0x01>;
-
-			domain0 {
-				cpus = "0-5";
-				lower-boundary = <0x00>;
-				upper-boundary = <0x24>;
-			};
-
-			domain1 {
-				cpus = "6-7";
-				lower-boundary = <0x06>;
-				upper-boundary = <0x64>;
-			};
-		};
-
 		ecs {
 		};
 
-		cpufreq_gov {
-			pelt-margin = <0x19 0x19>;
+		ecs_dynamic {
+			dynamic-busy-ratio = <0x32 0x32>;
+		};
+
+		tex {
+			top-app = <0x01>;
+			prio = <0x77>;
 		};
 	};
 
 	set@0502 {
 		phandle = <0xed>;
 
-		sched_policy {
-			root = <0x01>;
-			foreground = <0x05>;
-			background = <0x01>;
-			top-app = <0x05>;
-			rt = <0x01>;
-			system = <0x01>;
-			system-background = <0x01>;
-			nnapi-hal = <0x01>;
-			camera-daemon = <0x05>;
-		};
-
-		active_weight {
-			root = <0x190 0x190>;
-			foreground = <0x190 0x190>;
-			background = <0x190 0x190>;
-			top-app = <0x190 0x190>;
-			rt = <0x190 0x190>;
-			system = <0x190 0x190>;
-			system-background = <0x190 0x190>;
-			nnapi-hal = <0x190 0x190>;
-			camera-daemon = <0x190 0x190>;
-		};
-
-		idle_weight {
-			root = <0x320 0x320>;
-			foreground = <0x320 0x320>;
-			background = <0x320 0x320>;
-			top-app = <0x320 0x320>;
-			rt = <0x320 0x320>;
-			system = <0x320 0x320>;
-			system-background = <0x320 0x320>;
-			nnapi-hal = <0x320 0x320>;
-			camera-daemon = <0x320 0x320>;
-		};
-
-		freqboost {
-			root = <0x05 0x05>;
-			foreground = <0x05 0x05>;
-			background = <0x05 0x05>;
-			top-app = <0x05 0x05>;
-			rt = <0x05 0x05>;
-			system = <0x05 0x05>;
-			system-background = <0x05 0x05>;
-			nnapi-hal = <0x05 0x05>;
-			camera-daemon = <0x05 0x05>;
-		};
-
 		frt {
 			active-ratio = <0x19 0x05>;
 		};
 
 		ontime {
-			foreground = <0x01>;
-			top-app = <0x01>;
 
 			domain0 {
 				cpus = "0-5";
 				lower-boundary = <0x00>;
-				upper-boundary = <0x24>;
+				upper-boundary = <0x15>;
 			};
 
 			domain1 {
 				cpus = "6-7";
-				lower-boundary = <0x06>;
-				upper-boundary = <0x64>;
+				lower-boundary = <0x08>;
+				upper-boundary = <0x42>;
 			};
 		};
 
 		ecs {
 		};
 
+		ecs_dynamic {
+		};
+
 		tex {
 			top-app = <0x01>;
 			prio = <0x6e>;
-			pinning-mask = "6-7";
-			qjump = <0x00>;
 		};
 
-		prefer_cpu {
+		gsc {
+			up_threshold = <0x00>;
+
+			monitor-group {
+				top-app = <0x01>;
+				foreground = <0x01>;
+			};
 		};
 
-		cpufreq_gov {
-			pelt-margin = <0x19 0x19>;
+		should_spread {
+			enabled = <0x01>;
+		};
+
+		cpuidle_gov {
+			expired-ratio = <0x32 0x32>;
+		};
+
+		ntu {
+			root = <0x00>;
+			foreground = <0x00>;
+			background = <0x00>;
+			top-app = <0x00>;
+			rt = <0x00>;
+			system = <0x00>;
+			system-background = <0x00>;
+			nnapi-hal = <0x00>;
+			camera-daemon = <0x00>;
 		};
 	};
 
 	ems {
 		compatible = "samsung,ems";
 		status = "okay";
+
+		pe-list {
+
+			list@0 {
+				cpus = "0-5\06-7";
+			};
+
+			list@1 {
+				cpus = "6-7\00-5";
+			};
+		};
 
 		cpu-selection-domain {
 
@@ -7773,6 +7162,7 @@
 		};
 
 		ecs {
+			default-gov = <0x00>;
 
 			domain0 {
 				cpus = "6-7";
@@ -7785,6 +7175,20 @@
 				stage1 {
 					cpus = "6-7";
 				};
+			};
+		};
+
+		ecs_dynamic {
+			default-gov = <0x01>;
+
+			domain0 {
+				cpus = "0-5";
+				default-cpus = "0-3";
+			};
+
+			domain1 {
+				cpus = "6-7";
+				default-cpus = "6-7";
 			};
 		};
 

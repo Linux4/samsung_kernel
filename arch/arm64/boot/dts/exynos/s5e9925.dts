@@ -9547,6 +9547,10 @@
 		dun-swap = [00];
 	};
 
+	fmp-simulator {
+		compatible = "samsung,exynos-fmp-simulator";
+	};
+
 	ssp {
 		compatible = "samsung,exynos-ssp";
 		power-domains = <0x139>;

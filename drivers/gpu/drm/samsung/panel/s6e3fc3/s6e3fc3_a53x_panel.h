@@ -40,6 +40,32 @@
 #undef __PN_NAME__
 #define __PN_NAME__
 
+__visible_for_testing int s6e3fc3_getidx_ffc_table(struct maptbl *tbl)
+{
+	int idx;
+	u32 dsi_clk;
+	struct panel_device *panel = (struct panel_device *)tbl->pdata;
+	struct panel_info *panel_data = &panel->panel_data;
+
+	dsi_clk = panel_data->props.dsi_freq;
+
+	switch (dsi_clk) {
+	case 1108000:
+		idx = S6E3FC3_HS_CLK_1108;
+		break;
+	case 1124000:
+		idx = S6E3FC3_HS_CLK_1124;
+		break;
+	case 1125000:
+		idx = S6E3FC3_HS_CLK_1125;
+		break;
+	default:
+		pr_info("%s: invalid dsi clock: %d\n", __func__, dsi_clk);
+		BUG();
+	}
+	return maptbl_index(tbl, 0, idx, 0);
+}
+
 /* ===================================================================================== */
 /* ============================= [S6E3FC3 READ INFO TABLE] ============================= */
 /* ===================================================================================== */
@@ -1083,5 +1109,20 @@ struct common_panel_info s6e3fc3_a53x_panel_info = {
 	.aod_tune = &s6e3fc3_a53x_aod,
 #endif
 };
+
+static int __init s6e3fc3_a53x_panel_init(void)
+{
+	register_common_panel(&s6e3fc3_a53x_panel_info);
+
+	return 0;
+}
+
+static void __exit s6e3fc3_a53x_panel_exit(void)
+{
+	deregister_common_panel(&s6e3fc3_a53x_panel_info);
+}
+
+module_init(s6e3fc3_a53x_panel_init)
+module_exit(s6e3fc3_a53x_panel_exit)
 
 #endif /* __S6E3FC3_A53X_PANEL_H__ */

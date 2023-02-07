@@ -90,6 +90,7 @@ enum abc_enable_cmd {
 struct registered_abc_event_struct {
 	char module_name[ABC_EVENT_STR_MAX];
 	char error_name[ABC_EVENT_STR_MAX];
+	char host[ABC_EVENT_STR_MAX];
 	bool enabled;
 	bool singular_spec;
 };
@@ -109,7 +110,6 @@ struct abc_key_data {
 	char event_type[ABC_TYPE_STR_MAX];
 	char event_module[ABC_EVENT_STR_MAX];
 	char event_name[ABC_EVENT_STR_MAX];
-	char host_name[ABC_EVENT_STR_MAX];
 	char ext_log[ABC_EVENT_STR_MAX];
 	unsigned int cur_time;
 	int idx;

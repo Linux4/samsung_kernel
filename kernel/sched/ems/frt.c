@@ -312,6 +312,7 @@ int frt_find_lowest_rq(struct task_struct *task, struct cpumask *lowest_mask)
 
 	if (task->nr_cpus_allowed == 1) {
 		trace_frt_select_task_rq(task, best_cpu, "NA ALLOWED");
+		update_rt_stat(smp_processor_id(), RT_ALLOWED_1);
 		return best_cpu;
 	}
 
@@ -326,17 +327,23 @@ int frt_find_lowest_rq(struct task_struct *task, struct cpumask *lowest_mask)
 
 	/* 1. idle CPU selection */
 	best_cpu = find_idle_cpu(task);
-	if (cpu_selected(best_cpu))
+	if (cpu_selected(best_cpu)) {
+		update_rt_stat(smp_processor_id(), RT_IDLE);
 		goto out;
+	}
 
 	/* 2. recessive task first */
 	best_cpu = find_recessive_cpu(task, lowest_mask);
-	if (cpu_selected(best_cpu))
+	if (cpu_selected(best_cpu)) {
+		update_rt_stat(smp_processor_id(), RT_RECESSIVE);
 		goto out;
+	}
 
 out:
-	if (!cpu_selected(best_cpu))
+	if (!cpu_selected(best_cpu)) {
 		best_cpu = task_rq(task)->cpu;
+		update_rt_stat(smp_processor_id(), RT_FAILED);
+	}
 
 	if (!cpumask_test_cpu(best_cpu, cpu_active_mask)) {
 		trace_frt_select_task_rq(task, best_cpu, "NOTHING_VALID");
@@ -346,15 +353,45 @@ out:
 	return best_cpu;
 }
 
-int frt_select_task_rq_rt(struct task_struct *p, int prev_cpu, int sd_flag)
+static inline bool frt_can_sync_to_cur_cpu(struct rq *cur_rq, struct task_struct *p,
+					   int cur_cpu)
+{
+	if (!cpu_active(cur_cpu))
+		return false;
+
+	if (!cpumask_test_cpu(cur_cpu, p->cpus_ptr))
+		return false;
+
+	if (p->prio > cur_rq->rt.highest_prio.next)
+		return false;
+
+	if (cur_rq->rt.rt_nr_running > 2)
+		return false;
+
+	return true;
+
+}
+
+int frt_select_task_rq_rt(struct task_struct *p, int prev_cpu,
+			  int sd_flag, int wake_flags)
 {
 	struct task_struct *curr;
-	struct rq *rq;
-	int target_cpu = -1;
+	struct rq *rq, *cur_rq;
+	bool sync = !!(wake_flags & WF_SYNC);
+	int target_cpu = -1, cur_cpu;
 
 	/* For anything but wake ups, just return the task_cpu */
 	if (sd_flag != SD_BALANCE_WAKE && sd_flag != SD_BALANCE_FORK)
 		goto out;
+
+	cur_cpu = raw_smp_processor_id();
+	cur_rq = cpu_rq(cur_cpu);
+
+	/* Handle sync flag */
+	if (sync && frt_can_sync_to_cur_cpu(cur_rq, p, cur_cpu)) {
+		target_cpu = cur_cpu;
+		goto out;
+	}
 
 	rq = cpu_rq(prev_cpu);
 

@@ -757,6 +757,8 @@ enum PANEL_SEQ {
 	PANEL_ECC_TEST_SEQ,
 #endif
 	PANEL_DECODER_TEST_SEQ,
+	PANEL_PRE_READ_SEQ,
+	PANEL_POST_READ_SEQ,
 	PANEL_DUMMY_SEQ,
 	MAX_PANEL_SEQ,
 };
@@ -1415,7 +1417,7 @@ struct device_node *find_panel_modes_node(struct panel_device *panel, u32 id);
 const char *get_panel_lut_dqe_suffix(struct panel_device *panel, u32 id);
 struct device_node *find_panel_power_ctrl_node(struct panel_device *panel, u32 id);
 void print_panel_lut(struct panel_dt_lut *lut_info);
-int check_seqtbl_exist(struct panel_info *panel_data, u32 index);
+bool check_seqtbl_exist(struct panel_info *panel_data, u32 index);
 struct seqinfo *find_panel_seqtbl(struct panel_info *panel_data, char *name);
 struct seqinfo *find_index_seqtbl(struct panel_info *panel_data, u32 index);
 struct pktinfo *find_packet(struct seqinfo *seqtbl, char *name);

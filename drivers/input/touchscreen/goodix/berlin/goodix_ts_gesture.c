@@ -98,7 +98,6 @@ int gsx_set_lowpowermode(void *data, u8 mode)
 
 	ts_info("%s[%X]", mode == TO_LOWPOWER_MODE ? "ENTER" : "EXIT", cd->plat_data->lowpower_mode);
 
-	mutex_lock(&cd->modechange_mutex);
 	if (mode) {
 		gsx_set_utc_sponge(cd);
 
@@ -114,7 +113,6 @@ int gsx_set_lowpowermode(void *data, u8 mode)
 			ts_err("failed to switch coor mode");
 		cd->plat_data->power_state = SEC_INPUT_STATE_POWER_ON;
 	}
-	mutex_unlock(&cd->modechange_mutex);
 
 	return ret;
 }

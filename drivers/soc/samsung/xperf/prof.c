@@ -21,6 +21,7 @@
 #include <soc/samsung/cal-if.h>
 #include <soc/samsung/exynos-devfreq.h>
 #include "../../../kernel/sched/sched.h"
+#include "../../../kernel/sched/ems/ems.h"
 #include <linux/cpumask.h>
 #include <linux/kernel.h>
 #include <soc/samsung/exynos_pm_qos.h>
@@ -28,7 +29,6 @@
 #include <trace/events/ems_debug.h>
 #include <soc/samsung/freq-qos-tracer.h>
 #include "xperf.h"
-#include <linux/ems.h>
 
 #if IS_ENABLED(CONFIG_EXYNOS_UFCC)
 extern unsigned int get_cpufreq_max_limit(void);
@@ -304,12 +304,13 @@ static int cpufreq_log_thread(void *data)
 		// cpu power
 		power_total = 0;
 		for_each_possible_cpu(cpu) {
-			int util_ratio;
+			unsigned int util_ratio, power;
 			util_ratio = (cpu_util_avgs[cpu] * 100) / 1024;
 			cl_idx = get_cl_idx(cpu);
 			freq = cpu_cur[cl_idx] * 1000;
 			f_idx = get_f_idx(cl_idx, freq);
-			cpu_power = util_ratio * (cls[cl_idx].freqs[f_idx].power / 100);
+			power = cls[cl_idx].freqs[f_idx].dyn_power + et_freq_to_spower(cpu, freq);
+			cpu_power = util_ratio * power / 100;
 			power_total += cpu_power;
 			ret += snprintf(buf + ret, buf_size - ret, "%d ", cpu_power);
 		}
@@ -441,7 +442,10 @@ static int init_cpu_power(void)
 			c = cls[cnt].coeff;
 			p = c * v * v * f;
 			p = p / 1000000000;
-			cls[cnt].freqs[i].power = p; // power
+			cls[cnt].freqs[i].dyn_power = p;	// dynamic power
+
+			p = et_freq_to_spower(cls[cnt].first_cpu, cls[cnt].freqs[i].freq);
+			cls[cnt].freqs[i].sta_power = p;	// static power
 		}
 	}
 	return 0;
@@ -454,7 +458,10 @@ static ssize_t show_power(struct kobject *k, struct kobj_attribute *attr, char *
 	int ret = 0;
 	for (i = 0; i < cl_cnt; i++) {
 		for (j = 0; j < cls[i].freq_size; j++)
-			ret += sprintf(b + ret, "%u %u\n", cls[i].freqs[j].freq, cls[i].freqs[j].power);
+			ret += sprintf(b + ret, "%u %u %u\n",
+					cls[i].freqs[j].freq,
+					cls[i].freqs[j].dyn_power,
+					cls[i].freqs[j].sta_power);
 		ret += sprintf(b + ret, "\n");
 	}
 	b[ret] = '\0';

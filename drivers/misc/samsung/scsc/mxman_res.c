@@ -132,6 +132,7 @@ struct memlog_obj *mxman_res_get_memlog_obj(struct scsc_mif_abs *mif, const char
 	return obj;
 }
 
+#if IS_ENABLED(CONFIG_SCSC_MXLOGGER)
 static void mxman_res_set_memlog_version(struct scsc_mif_abs *mif)
 {
 	struct memlog *desc = memlog_get_desc("WB_LOG");
@@ -161,6 +162,7 @@ static void mxman_res_set_memlog_version(struct scsc_mif_abs *mif)
 		memlog_version_info = (struct scsc_memlog_version_info *)scsc_memlog_version_info_obj->vaddr;
 	}
 }
+#endif
 #endif
 
 #if IS_ENABLED(CONFIG_SCSC_MXLOGGER)

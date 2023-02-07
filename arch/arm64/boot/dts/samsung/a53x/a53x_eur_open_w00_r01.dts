@@ -334,7 +334,7 @@
 					battery,tx_high_recovery = <0x1c2>;
 					battery,tx_low_threshold = <0x00>;
 					battery,tx_low_recovery = <0x32>;
-					battery,wire_warm_current = <0x6d6>;
+					battery,wire_warm_current = <0x6c7>;
 					battery,wire_cool1_current = <0xa8c>;
 					battery,wire_cool2_current = <0x47e>;
 					battery,wire_cool3_current = <0x1c2>;
@@ -360,10 +360,10 @@
 					battery,wpc_temp_control_source = <0x01>;
 					battery,wpc_high_temp = <0x190>;
 					battery,wpc_high_temp_recovery = <0x17c>;
-					battery,wpc_input_limit_current = <0x258>;
+					battery,wpc_input_limit_current = <0x320>;
 					battery,wpc_charging_limit_current = <0x3e8>;
 					battery,wpc_temp_lcd_on_control_source = <0x01>;
-					battery,wpc_lcd_on_input_limit_current = <0x258>;
+					battery,wpc_lcd_on_input_limit_current = <0x320>;
 					battery,wpc_store_high_temp = <0x168>;
 					battery,wpc_store_high_temp_recovery = <0x154>;
 					battery,wpc_store_charging_limit_current = <0x190>;
@@ -377,6 +377,11 @@
 					battery,mix_high_temp = <0x1a4>;
 					battery,mix_high_chg_temp = <0x1f4>;
 					battery,mix_high_temp_recovery = <0x186>;
+					battery,mix_v2_lrp_recov = <0x1cc>;
+					battery,mix_v2_lrp_cond = <0x1e0>;
+					battery,mix_v2_bat_cond = <0x1e0>;
+					battery,mix_v2_chg_cond = <0x00>;
+					battery,mix_v2_dchg_cond = <0x00>;
 					battery,full_condition_type = <0x09>;
 					battery,full_condition_soc = <0x5d>;
 					battery,full_condition_vcell = <0x1112>;
@@ -9058,7 +9063,7 @@
 
 						20 {
 							pname = "on_i2c";
-							pin = <0x06 0x01 0x00>;
+							pin = <0x06 0x01 0x5dc>;
 						};
 					};
 

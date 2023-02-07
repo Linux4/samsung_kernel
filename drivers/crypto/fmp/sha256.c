@@ -25,7 +25,7 @@
 #include <linux/string.h>
 #include <linux/errno.h>
 
-#include "sha256.h"
+#include <crypto/sha256.h>
 
 #define SHA256_H0	0x6a09e667UL
 #define SHA256_H1	0xbb67ae85UL
@@ -481,6 +481,7 @@ int fmp_sha256_init(struct fmp_shash_desc *desc)
 
 	return 0;
 }
+EXPORT_SYMBOL(fmp_sha256_init);
 
 int fmp_sha256_update(struct fmp_shash_desc *desc, const u8 *data, unsigned int len)
 {
@@ -489,6 +490,7 @@ int fmp_sha256_update(struct fmp_shash_desc *desc, const u8 *data, unsigned int 
 
 	return sha256_base_do_update(desc, data, len, sha256_generic_block_fn);
 }
+EXPORT_SYMBOL(fmp_sha256_update);
 
 int fmp_sha256_final(struct fmp_shash_desc *desc, u8 *out)
 {
@@ -498,6 +500,7 @@ int fmp_sha256_final(struct fmp_shash_desc *desc, u8 *out)
 	sha256_base_do_finalize(desc, sha256_generic_block_fn);
 	return sha256_base_finish(desc, out);
 }
+EXPORT_SYMBOL(fmp_sha256_final);
 
 int fmp_sha256_finup(struct fmp_shash_desc *desc, const u8 *data,
 		 unsigned int len, u8 *hash)
