@@ -2571,6 +2571,58 @@ int cs35l41_remove(struct cs35l41_private *cs35l41)
 	return 0;
 }
 
+
+int cs35l41_sys_suspend(struct device *dev)
+{
+	struct cs35l41_private *cs35l41 = dev_get_drvdata(dev);
+	struct i2c_client *i2c_client = to_i2c_client(dev);
+
+	dev_dbg(cs35l41->dev, "System suspend, disabling IRQ\n");
+
+	disable_irq(i2c_client->irq);
+
+	return 0;
+}
+EXPORT_SYMBOL(cs35l41_sys_suspend);
+
+int cs35l41_sys_suspend_noirq(struct device *dev)
+{
+	struct cs35l41_private *cs35l41 = dev_get_drvdata(dev);
+	struct i2c_client *i2c_client = to_i2c_client(dev);
+
+	dev_dbg(cs35l41->dev, "Late system suspend, re-enabling IRQ\n");
+	enable_irq(i2c_client->irq);
+
+	return 0;
+}
+EXPORT_SYMBOL(cs35l41_sys_suspend_noirq);
+
+int cs35l41_sys_resume(struct device *dev)
+{
+	struct cs35l41_private *cs35l41 = dev_get_drvdata(dev);
+	struct i2c_client *i2c_client = to_i2c_client(dev);
+
+	dev_dbg(cs35l41->dev, "System resume, re-enabling IRQ\n");
+
+	enable_irq(i2c_client->irq);
+
+	return 0;
+}
+EXPORT_SYMBOL(cs35l41_sys_resume);
+
+int cs35l41_sys_resume_noirq(struct device *dev)
+{
+	struct cs35l41_private *cs35l41 = dev_get_drvdata(dev);
+	struct i2c_client *i2c_client = to_i2c_client(dev);
+
+	dev_dbg(cs35l41->dev, "Early system resume, disabling IRQ\n");
+
+	disable_irq(i2c_client->irq);
+
+	return 0;
+}
+EXPORT_SYMBOL(cs35l41_sys_resume_noirq);
+
 MODULE_DESCRIPTION("ASoC CS35L41 driver");
 MODULE_AUTHOR("David Rhodes, Cirrus Logic Inc, <david.rhodes@cirrus.com>");
 MODULE_LICENSE("GPL");

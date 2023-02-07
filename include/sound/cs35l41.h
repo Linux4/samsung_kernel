@@ -102,4 +102,11 @@ int cs35l41_reinit(struct snd_soc_component *component);
 int cs35l41_probe(struct cs35l41_private *cs35l41);
 int cs35l41_remove(struct cs35l41_private *cs35l41);
 
+int cs35l41_sys_suspend(struct device *dev);
+int cs35l41_sys_suspend_noirq(struct device *dev);
+int cs35l41_sys_resume(struct device *dev);
+int cs35l41_sys_resume_noirq(struct device *dev);
+
+extern const struct dev_pm_ops cs35l41_pm_ops;
+
 #endif /* __CS35L41_H */

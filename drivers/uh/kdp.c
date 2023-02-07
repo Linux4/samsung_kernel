@@ -269,7 +269,7 @@ struct cred *prepare_ro_creds(struct cred *old, int kdp_cmd, u64 p)
 	u64 pgd = (u64)(current->mm ? current->mm->pgd : swapper_pg_dir);
 	struct cred_kdp *temp_old;
 	struct cred_kdp *new_ro = NULL;
-	struct cred_param param_data;
+	struct cred_param param_data __aligned(64);
 	void *use_cnt_ptr = NULL;
 	void *rcu_ptr = NULL;
 	void *tsec = NULL;
