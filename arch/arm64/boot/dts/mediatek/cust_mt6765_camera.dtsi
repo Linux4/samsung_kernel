@@ -1,0 +1,307 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Copyright (c) 2019 MediaTek Inc.
+ *
+ */
+
+/* CAMERA GPIO standardization */
+&pio {
+//main
+	camera_pins_cam0_mclk_on: camera_pins_cam0_mclk_on {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO99__FUNC_CMMCLK0>;
+		};
+	};
+	camera_pins_cam0_mclk_off: camera_pins_cam0_mclk_off {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO99__FUNC_GPIO99>;
+		};
+	};
+	camera_pins_cam0_rst0: cam0@0 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO101__FUNC_GPIO101>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam0_rst1: cam0@1 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO101__FUNC_GPIO101>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	//+bug727089liangyiyi.wt,MODIFY,2022/3/29,modify for fix front camera have loss power when open rear camera
+	camera_pins_cam0_rst_sub0: cam0@2 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO102__FUNC_GPIO102>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam0_rst_sub1: cam0@3 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO102__FUNC_GPIO102>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	camera_pins_cam_ldo_rear_vcamd_en_0: cam0@vcamd0 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO166__FUNC_GPIO166>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam_ldo_rear_vcamd_en_1: cam0@vcamd1 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO166__FUNC_GPIO166>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	//-bug727089liangyiyi.wt,MODIFY,2022/3/29,modify for fix front camera have loss power when open rear camera
+	camera_pins_cam_ldo_rear_vcamd_1v1_0: cam0@vcamd2 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO152__FUNC_GPIO152>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam_ldo_rear_vcamd_1v1_1: cam0@vcamd3 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO152__FUNC_GPIO152>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	camera_pins_cam_ldo_rear_vcamd_1v2_0: cam0@vcamd4 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO176__FUNC_GPIO176>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam_ldo_rear_vcamd_1v2_1: cam0@vcamd5 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO176__FUNC_GPIO176>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	//front
+	camera_pins_cam1_mclk_on: camera_pins_cam1_mclk_on {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO100__FUNC_CMMCLK1>;
+		};
+	};
+	camera_pins_cam1_mclk_off: camera_pins_cam1_mclk_off {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO100__FUNC_GPIO100>;
+		};
+	};
+	camera_pins_cam1_rst0: cam1@0 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO102__FUNC_GPIO102>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam1_rst1: cam1@1 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO102__FUNC_GPIO102>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	//depth
+	camera_pins_cam2_mclk_on: camera_pins_cam2_mclk_on {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO108__FUNC_CMMCLK2>;
+		};
+	};
+	camera_pins_cam2_mclk_off: camera_pins_cam2_mclk_off {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO108__FUNC_GPIO108>;
+		};
+	};
+	camera_pins_cam2_pnd0: cam2@2 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO107__FUNC_GPIO107>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam2_pnd1: cam2@3 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO107__FUNC_GPIO107>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	//micro
+	camera_pins_cam3_mclk_on: camera_pins_cam3_mclk_on {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO88__FUNC_CMMCLK3>;
+		};
+	};
+	camera_pins_cam3_mclk_off: camera_pins_cam3_mclk_off {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO88__FUNC_GPIO88>;
+		};
+	};
+	camera_pins_cam3_pnd0: cam3@0 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO160__FUNC_GPIO160>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam3_pnd1: cam3@1 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO160__FUNC_GPIO160>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	camera_pins_default: camdefault {
+	};
+};
+
+&pio {
+	camera_pins_flashlights_on: camera_pins_flashlights_on {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO154__FUNC_GPIO154>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	camera_pins_flashlights_off: camera_pins_flashlights_off {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO154__FUNC_GPIO154>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_flashlights_on_main: camera_pins_flashlights_on_main {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO173__FUNC_GPIO173>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	camera_pins_flashlights_off_main: camera_pins_flashlights_off_main {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO173__FUNC_GPIO173>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_flashlights_pwm_pin: camera_pins_flashlights_pwm_pin {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO154__FUNC_PWM5>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	camera_pins_flashlights_default: camera_pins_flashlights_default {
+	};
+
+};
+
+&flashlights_sgm3785 {
+		compatible = "mediatek,flashlights_sgm3785";
+		pinctrl-names = "default",
+			"flashlights_on",
+			"flashlights_off",
+			"flashlights_on_main",
+			"flashlights_off_main",
+			"flashlights_pwm_pin";
+
+		pinctrl-0 = <&camera_pins_flashlights_default>;
+		pinctrl-1 = <&camera_pins_flashlights_on>;
+		pinctrl-2 = <&camera_pins_flashlights_off>;
+		pinctrl-3 = <&camera_pins_flashlights_on_main>;
+		pinctrl-4 = <&camera_pins_flashlights_off_main>;
+		pinctrl-5 = <&camera_pins_flashlights_pwm_pin>;
+};
+//+bug727089liangyiyi.wt,MODIFY,2022/3/29,modify for fix front camera have loss power when open rear camera
+&kd_camera_hw1 {
+	pinctrl-names = "default",
+			"cam0_mclk_on",
+			"cam0_mclk_off",
+			"cam0_rst0",
+			"cam0_rst1",
+			"cam0_vcamd_en_0",
+			"cam0_vcamd_en_1",
+			"cam0_vcamd_1v1_0",
+			"cam0_vcamd_1v1_1",
+			"cam0_vcamd_1v2_0",
+			"cam0_vcamd_1v2_1",
+			"cam1_mclk_on",
+			"cam1_mclk_off",
+			"cam1_rst0",
+			"cam1_rst1",
+			"cam2_mclk_on",
+			"cam2_mclk_off",
+			"cam2_pnd0",
+			"cam2_pnd1",
+			"cam3_mclk_on",
+			"cam3_mclk_off",
+			"cam3_pnd0",
+			"cam3_pnd1",
+			"cam0_rst_sub0",
+			"cam0_rst_sub1";
+	pinctrl-0 = <&camera_pins_default>;
+	pinctrl-1 = <&camera_pins_cam0_mclk_on>;
+	pinctrl-2 = <&camera_pins_cam0_mclk_off>;
+	pinctrl-3 = <&camera_pins_cam0_rst0>;
+	pinctrl-4 = <&camera_pins_cam0_rst1>;
+	pinctrl-5 = <&camera_pins_cam_ldo_rear_vcamd_en_0>;
+	pinctrl-6 = <&camera_pins_cam_ldo_rear_vcamd_en_1>;
+	pinctrl-7 = <&camera_pins_cam_ldo_rear_vcamd_1v1_0>;
+	pinctrl-8 = <&camera_pins_cam_ldo_rear_vcamd_1v1_1>;
+	pinctrl-9 = <&camera_pins_cam_ldo_rear_vcamd_1v2_0>;
+	pinctrl-10 = <&camera_pins_cam_ldo_rear_vcamd_1v2_1>;
+	pinctrl-11 = <&camera_pins_cam1_mclk_on>;
+	pinctrl-12 = <&camera_pins_cam1_mclk_off>;
+	pinctrl-13 = <&camera_pins_cam1_rst0>;
+	pinctrl-14 = <&camera_pins_cam1_rst1>;
+	pinctrl-15 = <&camera_pins_cam2_mclk_on>;
+	pinctrl-16 = <&camera_pins_cam2_mclk_off>;
+	pinctrl-17 = <&camera_pins_cam2_pnd0>;
+	pinctrl-18 = <&camera_pins_cam2_pnd1>;
+	pinctrl-19 = <&camera_pins_cam3_mclk_on>;
+	pinctrl-20 = <&camera_pins_cam3_mclk_off>;
+	pinctrl-21 = <&camera_pins_cam3_pnd0>;
+	pinctrl-22 = <&camera_pins_cam3_pnd1>;
+	pinctrl-23 = <&camera_pins_cam0_rst_sub0>;
+	pinctrl-24 = <&camera_pins_cam0_rst_sub1>;
+
+	cam0_vcama-supply = <&mt_pmic_vcama_ldo_reg>;
+	cam0_vcamio-supply = <&mt_pmic_vcamio_ldo_reg>;
+	cam0_vcamaf-supply = <&mt_pmic_vldo28_ldo_reg>;
+	cam0_vcamd-supply = <&mt_pmic_vcamd_ldo_reg>;
+	cam1_vcama-supply = <&mt_pmic_vcama_ldo_reg>;
+	cam1_vcamd-supply = <&mt_pmic_vcamd_ldo_reg>;
+	cam1_vcamio-supply = <&mt_pmic_vcamio_ldo_reg>;
+	cam2_vcama-supply = <&mt_pmic_vcama_ldo_reg>;
+	cam2_vcamd-supply = <&mt_pmic_vcamd_ldo_reg>;
+	cam2_vcamio-supply = <&mt_pmic_vcamio_ldo_reg>;
+	cam3_vcama-supply = <&mt_pmic_vcama_ldo_reg>;
+	cam3_vcamd-supply = <&mt_pmic_vcamd_ldo_reg>;
+	cam3_vcamio-supply = <&mt_pmic_vcamio_ldo_reg>;
+
+	cam0_enable_sensor = "n26_hi5021q_rear_truly_mipi_raw n26_hi5021q_rear_st_mipi_raw n26_s5kjn1_rear_txd_mipi_raw n26_hi5021q_rear_delta_mipi_raw";
+	cam1_enable_sensor = "n26_sc501cs_front_ly_mipi_raw n26_hi556_front_xl_mipi_raw n26_s5k5e9_front_txd_mipi_raw n26_hi556_front_delta_mipi_raw";
+	cam2_enable_sensor = "n26_c2515_dep_cxt_mipi_mono n26_sc201cs_dep_lh_mipi_mono n26_gc02m1_dep_cxt_mipi_raw n26_c2519_dep_delta_mipi_mono";
+	//cam3_enable_sensor = "n26_gc02m2_micro_cxt_mipi_raw n26_sc201cs_micro_lce_mipi_raw n26_c2599_micro_delta_mipi_raw";
+	status = "okay";
+
+};
+
+&camera_af_hw_node {
+	camaf_m1_pmic-supply = <&mt_pmic_vldo28_ldo_reg>;
+	status = "okay";
+};
+/* CAMERA GPIO end */

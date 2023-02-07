@@ -1,0 +1,25 @@
+/* TOUCH start */
+&spi3{
+  fts_touch_mtk:fts_touch@0{
+                compatible = "chipone-tddi","focaltech,fts","mediatek,ili9882q","gcore,touchscreen","himax,hxcommon";
+                spi-max-frequency = <6000000>;
+                reg = <0x0>;
+                status = "okay";
+                tpd-filter-enable = <0>;
+                /* Charger detect */
+                chipone,touch-charger-detect-enable;
+                chipone,touch-charger-detect-type = "poll"; /* notify, poll */
+                chipone,touch-charger-detect-psy-name = "mtk_charger_type";
+                chipone,touch-charger-detect-psp = "POWER_SUPPLY_PROP_ONLINE";
+                chipone,touch-charger-detect-psp-poll-interval = <1000>;
+				       
+				/* Earjack detect */
+				chipone,touch-earjack-detect-enable;
+				/* MTK:  /sys/bus/platform/drivers/Accdet_Driver/state,
+					Sprd: /sys/kernel/headset/state
+					QCOM: None, and disable it */
+				chipone,touch-earjack-state-filepath = "/sys/bus/platform/drivers/pmic-codec-accdet/states";
+				chipone,touch-earjack-poll-interval = <1000>;
+        };
+};
+/* TOUCH end */
