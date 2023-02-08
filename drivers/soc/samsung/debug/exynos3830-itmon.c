@@ -1468,7 +1468,6 @@ static ssize_t itmon_timeout_store(struct device *dev,
 	if (!name)
 		return count;
 
-	name[count - 1] = '\0';
 	offset = OFFSET_TMOUT_REG;
 	for (i = 0; i < (int)ARRAY_SIZE(nodegroup); i++) {
 		group = &nodegroup[i];
@@ -1507,7 +1506,6 @@ static ssize_t itmon_timeout_val_store(struct device *dev,
 	if (!name)
 		return count;
 
-	name[count - 1] = '\0';
 	offset = OFFSET_TMOUT_REG;
 	for (i = 0; i < (int)ARRAY_SIZE(nodegroup); i++) {
 		group = &nodegroup[i];
@@ -1541,7 +1539,6 @@ static ssize_t itmon_timeout_freeze_store(struct device *dev,
 	if (!name)
 		return count;
 
-	name[count - 1] = '\0';
 	offset = OFFSET_TMOUT_REG;
 	for (i = 0; i < (int)ARRAY_SIZE(nodegroup); i++) {
 		group = &nodegroup[i];

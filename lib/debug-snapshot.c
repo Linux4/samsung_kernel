@@ -28,6 +28,8 @@
 #include <linux/of.h>
 #include <linux/of_fdt.h>
 #include <linux/libfdt.h>
+#include <linux/mm.h>
+#include <asm/memory.h>
 
 #include "debug-snapshot-local.h"
 
@@ -165,9 +167,11 @@ int dbg_snapshot_get_debug_level(void)
 	return dss_desc.debug_level;
 }
 
+static bool bl_item_setup = false;
+
 int dbg_snapshot_add_bl_item_info(const char *name, unsigned int paddr, unsigned int size)
 {
-	if (!dbg_snapshot_get_enable())
+	if (!bl_item_setup)
 		return -ENODEV;
 
 	if (dss_bl->item_count >= DSS_MAX_BL_SIZE)
@@ -335,6 +339,9 @@ static inline void dbg_snapshot_hook_logbuf(const char *buf, size_t size, int fa
 {
 	struct dbg_snapshot_item *item = &dss_items[DSS_ITEM_KERNEL_ID];
 
+#ifdef CONFIG_DEBUG_SNAPSHOT_MINIMIZED_MODE
+	fatal = 0;
+#endif
 	do {
 		if (likely(dbg_snapshot_get_enable() && item->entry.enabled)) {
 			size_t last_buf;
@@ -395,7 +402,7 @@ static int dbg_snapshot_output(void)
 
 	dev_info(dss_desc.dev, "debug-snapshot physical / virtual memory layout:\n");
 	for (i = 0; i < ARRAY_SIZE(dss_items); i++) {
-		if (dss_items[i].entry.enabled)
+		if (dss_items[i].entry.enabled && dss_items[i].entry.size)
 			dev_info(dss_desc.dev, "%-12s: phys:0x%zx / virt:0x%zx / size:0x%zx / en:%d\n",
 				dss_items[i].name,
 				dss_items[i].entry.paddr,
@@ -407,7 +414,6 @@ static int dbg_snapshot_output(void)
 
 	dev_info(dss_desc.dev, "total_item_size: %ldKB, dbg_snapshot_log struct size: %dKB\n",
 			size / SZ_1K, dbg_snapshot_log_size / SZ_1K);
-
 	return 0;
 }
 
@@ -590,7 +596,6 @@ static int __init dbg_snapshot_init_desc(void)
 	return 0;
 }
 
-#ifdef CONFIG_OF_RESERVED_MEM
 int __init dbg_snapshot_reserved_mem_check(unsigned long node, unsigned long size)
 {
 	const char *name;
@@ -620,9 +625,82 @@ out:
 	return ret;
 }
 
+struct reconfig_rmem_entry {
+	const char *name;
+	struct reserved_mem *rmem;
+	size_t target_size;
+};
+
+#ifdef CONFIG_DEBUG_SNAPSHOT_MINIMIZED_MODE
+static struct reconfig_rmem_entry reconfig_rmem_list[] =
+{
+	{"log_platform", NULL, 0x200000},
+	{"log_sfr", NULL, 0x0},
+	{"log_arrdumpreset", NULL, 0x0},
+	{"log_bcm", NULL, 0x0},
+	{"log_kevents", NULL, 0x400000},
+	{"log_fatal", NULL, 0x0},
+};
+#else
+static struct reconfig_rmem_entry reconfig_rmem_list[] =
+{
+	{"nothing", NULL, 0},
+};
+#endif
+
+static void __init rmem_patial_release(u64 base, u64 size)
+{
+	struct page *first = phys_to_page(base & PAGE_MASK);
+	struct page *last = phys_to_page(PAGE_ALIGN(base + size));
+	struct page *page;
+
+	/* for proc/memsize/reserved (mm/memblock.c) */
+	free_memsize_reserved(base, size);
+
+	for (page = first; page != last; page++)
+		free_reserved_page(page);
+}
+
+static void __init reconfigure_rmem_entry(struct reconfig_rmem_entry *entry)
+{
+	if (entry->target_size >= entry->rmem->size)
+		return;
+
+	rmem_patial_release(entry->rmem->base + entry->target_size,
+				entry->rmem->size - entry->target_size);
+	entry->rmem->size = entry->target_size;
+}
+
+static void __init reconfigure_rmem(void)
+{
+	int i;
+
+	for (i = 0; i < (int)ARRAY_SIZE(reconfig_rmem_list); i++) {
+		if (!!reconfig_rmem_list[i].rmem)
+			reconfigure_rmem_entry(&reconfig_rmem_list[i]);
+	}
+}
+
+static struct reconfig_rmem_entry * __init should_be_reconfigured(const char *name,
+								  struct reserved_mem *rmem)
+{
+	int i;
+	struct reconfig_rmem_entry *matched = NULL;
+
+	for (i = 0; i < (int)ARRAY_SIZE(reconfig_rmem_list); i++) {
+		if (!strcmp(name, reconfig_rmem_list[i].name)) {
+			matched = &reconfig_rmem_list[i];
+			reconfig_rmem_list[i].rmem = rmem;
+			break;
+		}
+	}
+	return matched;
+}
+
 static int __init dbg_snapshot_item_reserved_mem_setup(struct reserved_mem *remem)
 {
 	unsigned int i;
+	struct reconfig_rmem_entry *rcf_node;
 
 	for (i = 0; i < (unsigned int)ARRAY_SIZE(dss_items); i++) {
 		if (strnstr(remem->name, dss_items[i].name, strlen(remem->name)))
@@ -635,14 +713,26 @@ static int __init dbg_snapshot_item_reserved_mem_setup(struct reserved_mem *reme
 	if (!dss_items[i].entry.enabled)
 		return -ENODEV;
 
-	dss_items[i].entry.paddr = remem->base;
-	dss_items[i].entry.size = remem->size;
+	rcf_node = should_be_reconfigured(dss_items[i].name, remem);
+	if (!!rcf_node && remem->size > rcf_node->target_size) {
+		pr_info("%s size will be reconfigured (%#lx -> %#lx)\n", dss_items[i].name,
+									 remem->size,
+									 rcf_node->target_size);
+		if (rcf_node->target_size == 0)
+			goto out;
+		dss_items[i].entry.paddr = remem->base;
+		dss_items[i].entry.size = rcf_node->target_size;
+	} else {
+		dss_items[i].entry.paddr = remem->base;
+		dss_items[i].entry.size = remem->size;
+	}
 
 	if (strnstr(remem->name, "header", strlen(remem->name))) {
 		dss_base.paddr = remem->base;
 		ess_base = dss_base;
 	}
-	dss_base.size += remem->size;
+	dss_base.size += dss_items[i].entry.size;
+out:
 	return 0;
 }
 
@@ -664,7 +754,6 @@ DECLARE_DBG_SNAPSHOT_RESERVED_REGION("debug-snapshot,", log_pstore);
 DECLARE_DBG_SNAPSHOT_RESERVED_REGION("debug-snapshot,", log_kevents);
 DECLARE_DBG_SNAPSHOT_RESERVED_REGION("debug-snapshot,", log_fatal);
 DECLARE_DBG_SNAPSHOT_RESERVED_REGION("debug-snapshot,", log_last);
-#endif
 
 /*	Header dummy data(4K)
  *	-------------------------------------------------------------------------
@@ -700,7 +789,7 @@ static void __init dbg_snapshot_fixmap_header(void)
 
 	dss_bl->magic1 = 0x01234567;
 	dss_bl->magic2 = 0x89ABCDEF;
-	dss_bl->item_count = ARRAY_SIZE(dss_items);
+	dss_bl->item_count = 1;
 	memcpy(dss_bl->item[DSS_ITEM_HEADER_ID].name,
 			dss_items[DSS_ITEM_HEADER_ID].name,
 			strlen(dss_items[DSS_ITEM_HEADER_ID].name) + 1);
@@ -708,6 +797,7 @@ static void __init dbg_snapshot_fixmap_header(void)
 	dss_bl->item[DSS_ITEM_HEADER_ID].size = (unsigned int)size;
 	dss_bl->item[DSS_ITEM_HEADER_ID].enabled =
 		dss_items[DSS_ITEM_HEADER_ID].entry.enabled;
+	bl_item_setup = true;
 }
 
 static void __init dbg_snapshot_fixmap(void)
@@ -720,10 +810,7 @@ static void __init dbg_snapshot_fixmap(void)
 	dbg_snapshot_fixmap_header();
 
 	for (i = 1; i < ARRAY_SIZE(dss_items); i++) {
-		memcpy(dss_bl->item[i].name, dss_items[i].name,	strlen(dss_items[i].name) + 1);
-		dss_bl->item[i].enabled = dss_items[i].entry.enabled;
-
-		if (!dss_items[i].entry.enabled)
+		if (!dss_items[i].entry.enabled || !dss_items[i].entry.size)
 			continue;
 
 		/*  assign dss_item information */
@@ -769,9 +856,7 @@ static void __init dbg_snapshot_fixmap(void)
 		dss_info.info_log[i - 1].curr_ptr = NULL;
 		dss_info.info_log[i - 1].entry.size = size;
 
-		memcpy(dss_bl->item[i].name,  dss_items[i].name, strlen(dss_items[i].name) + 1);
-		dss_bl->item[i].paddr = paddr;
-		dss_bl->item[i].size = size;
+		dbg_snapshot_add_bl_item_info(dss_items[i].name, paddr, size);
 	}
 
 	dss_log = (struct dbg_snapshot_log *)(dss_items[DSS_ITEM_KEVENTS_ID].entry.vaddr);
@@ -896,6 +981,9 @@ static int __init dbg_snapshot_init(void)
 {
 	if (!dbg_snapshot_get_enable_item(DSS_ITEM_HEADER))
 		return 0;
+
+	reconfigure_rmem();
+	mem_init_print_info("after reconfiguration of dss rmem");
 
 	dbg_snapshot_init_desc();
 

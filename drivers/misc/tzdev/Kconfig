@@ -79,7 +79,7 @@ config TZDEV_SK_MULTICORE
 
 config ION_FD2PHYS
 	tristate "ION FD to physical address converter"
-	depends on ION && (ARCH_EXYNOS || ARCH_MSM || ARCH_WHALE || ARCH_MT6755 || ARCH_MT6735 || ARCH_RANCHU || MACH_MT6757)
+	depends on ION && (ARCH_EXYNOS || ARCH_MSM || ARCH_WHALE || ARCH_MT6755 || ARCH_MT6735 || ARCH_RANCHU || MACH_MT6757 || MACH_MT6853)
 	default y
 	help
 	  Provide a method for userspace to get physical address from ION buffer
@@ -96,13 +96,6 @@ config TZTUI
 	default n
 	help
 	  Enable Trusted user interface support for Samsung Secure OS.
-
-config TZDEV_PAGE_MIGRATION
-	bool "Page migration"
-	depends on MIGRATION && CMA
-	default n
-	help
-	  Enable Page migration functionality for CMA Migration.
 
 config TZDEV_HOTPLUG
 	bool "Core hotplug"

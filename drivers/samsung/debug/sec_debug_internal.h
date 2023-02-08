@@ -101,7 +101,7 @@ struct sec_debug_kcnst {
 
 	uint64_t target_dprm_mask;
 
-	uint64_t reserved[4];
+	uint64_t reserved[3];
 };
 
 struct member_type {

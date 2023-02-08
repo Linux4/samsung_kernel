@@ -1102,6 +1102,7 @@ struct decon_edid_data {
 struct vsync_applied_time_data {
 	u32 config;
 	u64 time;
+	u32 reserved[4];
 };
 
 struct decon_device {
