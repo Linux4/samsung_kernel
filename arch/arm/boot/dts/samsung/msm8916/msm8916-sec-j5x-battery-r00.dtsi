@@ -1,0 +1,160 @@
+/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/ {
+	battery {
+		status = "okay";
+		compatible = "samsung,sec-battery";
+		battery,vendor = "SDI SDI";
+		battery,charger_name = "sm5703-charger";
+		battery,fuelgauge_name = "sm5703-fuelgauge";
+		battery,technology = <2>; /* POWER_SUPPLY_TECHNOLOGY_LION */
+
+		battery,chip_vendor = "QCOM";
+		battery,temp_adc_type = <1>; /* SEC_BATTERY_ADC_TYPE_AP */
+
+		battery,polling_time = <10 30 30 30 3600>;
+
+		battery,adc_check_count = <5>;
+
+		battery,cable_check_type = <4>; /* SEC_BATTERY_CABLE_CHECK_PSY */
+		battery,cable_source_type = <3>; /* SEC_BATTERY_CABLE_SOURCE_EXTERNAL */
+		battery,event_waiting_time = <600>;
+		battery,polling_type = <1>; /* SEC_BATTERY_MONITOR_ALARM */
+		battery,monitor_initial_count = <3>;
+
+		battery,battery_check_type = <1>; /* SEC_BATTERY_CHECK_ADC */
+		battery,check_count = <0>;
+		battery,check_adc_max = <1440000>;
+		battery,check_adc_min = <0>;
+
+		battery,ovp_uvlo_check_type = <3>; /* SEC_BATTERY_OVP_UVLO_CHGPOLLING */
+
+		battery,thermal_source = <2>; /* SEC_BATTERY_THERMAL_SOURCE_ADC */
+
+		battery,temp_table_adc = <27281 27669 28178 28724 29342 30101 30912 31807 32823 33858 34950 36049 37054
+			38025 38219 38448 38626 38795 38989 39229 39540 39687 39822 40523 41123 41619>;
+		battery,temp_table_data = <700 650 600 550 500 450 400 350 300 250 200 150 100
+			50 40 30 20 10 0 (-10) (-30) (-40) (-50) (-100) (-150) (-200)>;
+		battery,temp_check_type = <2>; /* SEC_BATTERY_TEMP_CHECK_TEMP */
+		battery,temp_check_count = <1>;
+		battery,temp_high_threshold_event = <550>;
+		battery,temp_high_recovery_event = <500>;
+		battery,temp_low_threshold_event = <(-50)>;
+		battery,temp_low_recovery_event = <0>;
+		battery,temp_high_threshold_normal = <550>;
+		battery,temp_high_recovery_normal = <500>;
+		battery,temp_low_threshold_normal = <(-50)>;
+		battery,temp_low_recovery_normal = <0>;
+		battery,temp_high_threshold_lpm = <550>;
+		battery,temp_high_recovery_lpm = <500>;
+		battery,temp_low_threshold_lpm = <(-50)>;
+		battery,temp_low_recovery_lpm = <0>;
+		battery,full_check_type = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
+		battery,full_check_type_2nd = <2>; /* SEC_BATTERY_FULLCHARGED_FG_CURRENT */
+		battery,full_check_count = <1>;
+		battery,chg_gpio_full_check = <0>;
+		battery,chg_polarity_full_check = <1>;
+
+		/* SEC_BATTERY_FULL_CONDITION_SOC |
+		   SEC_BATTERY_FULL_CONDITION_NOTIMEFULL |
+		   SEC_BATTERY_FULL_CONDITION_VCELL */
+		battery,full_condition_type = <13>;
+		battery,full_condition_soc = <93>;
+		battery,full_condition_vcell = <4200>;
+
+		battery,recharge_check_count = <1>;
+		battery,recharge_condition_type = <4>; /* SEC_BATTERY_RECHARGE_CONDITION_VCELL */
+		battery,recharge_condition_soc = <98>;
+		battery,recharge_condition_vcell = <4280>;
+
+		battery,chg_float_voltage = <4350>;
+		
+		battery,charging_total_time = <21600>;
+		battery,recharging_total_time = <5400>;
+		battery,charging_reset_time = <0>;
+		qcom,sec-battery-vadc = <&pm8916_vadc>;
+
+		battery,standard_curr = <2000>;
+		battery,expired_time = <14400>;
+		battery,recharging_expired_time = <5400>;
+
+		battery,swelling_high_temp_block = <410>;
+		battery,swelling_high_temp_recov = <390>;
+		
+		battery,swelling_low_temp_2step_mode = <1>;
+		battery,swelling_low_temp_block_1st = <150>;
+		battery,swelling_low_temp_recov_1st = <200>;
+		battery,swelling_low_temp_block_2nd = <50>;
+		battery,swelling_low_temp_recov_2nd = <100>;
+		
+		battery,swelling_low_temp_current = <900>;  // 0.3C * 3500
+		battery,swelling_low_temp_topoff = <150>;  // 0.05C
+		battery,swelling_high_temp_current = <1350>;  // 0.45C * 3500
+		battery,swelling_high_temp_topoff = <150>;  // 0.05C
+
+		battery,swelling_drop_float_voltage = <4150>;
+		battery,swelling_high_rechg_voltage = <4000>;
+		battery,swelling_low_rechg_voltage = <4000>;
+
+		battery,self_discharging_temp_block = <600>;
+		battery,self_discharging_volt_block = <4250>;
+		battery,self_discharging_temp_recov = <550>;
+		battery,self_discharging_temp_pollingtime = <400>;
+
+		battery,input_current_limit = <1550 500 500 1550 500 1550 1550 500 500 1550 650 1550 1550 500 1550 500 700 1550 500 1550 1550 500 500>;
+		battery,fast_charging_current = <2000 0 500 2000 500 2000 2000 500 0 2000 750 2000 2000 (-1) 2000 500 700 2000 500 2000 2000 0 0>;
+		battery,full_check_current_1st = <300 0 300 300 300 300 300 300 0 300 300 300 300 0 300 300 300 300 300 300 300 0 0>;
+		battery,full_check_current_2nd = <150 0 150 150 150 150 150 150 0 150 150 150 150 0 150 150 150 150 150 150 150 0 0>;
+
+		charger{
+			status = "disable";
+			/* Charger */
+			battery,charger_name = "sm5703-charger";
+			battery,chg_gpio_en = <&msm_gpio 114 0x00>;
+			battery,chg_polarity_en = <0>;
+			battery,chg_gpio_status = <0>;
+			battery,chg_polarity_status = <0>;
+			battery,chg_float_voltage = <4350>;
+			battery,ovp_uvlo_check_type = <3>; /* SEC_BATTERY_OVP_UVLO_CHGPOLLING */
+			battery,full_check_type = <7>; /* SEC_BATTERY_FULLCHARGED_CHGPSY */
+			battery,top_off_timer = <0x2>; /* Same as SM5703_TOPOFF_TIMER_30m = 0x2, in sm5703_charger.h file*/
+
+			battery,input_current_limit = <1550 500 500 1550 500 1550 1550 500 500 1550 650 1550 1550 500 1550 500 700 1550 500 1550 1550 500 500>;
+			battery,fast_charging_current = <2000 0 500 2000 500 2000 2000 500 0 2000 750 2000 2000 (-1) 2000 500 700 2000 500 2000 2000 0 0>;
+			battery,full_check_current_1st = <300 0 300 300 300 300 300 300 0 300 300 300 300 0 300 300 300 300 300 300 300 0 0>;
+			battery,full_check_current_2nd = <150 0 150 150 150 150 150 150 0 150 150 150 150 0 150 150 150 150 150 150 150 0 0>;
+		};
+	};
+
+	battery_params {
+		battery,id = <0>; /* -1 means auto, detected by F/G */
+		battery0,battery_type = <4340>; /* 4200 4350 4400 */
+		battery0,battery_table0 = <0x1400 0x1B99 0x1C6A 0x1D31 0x1D6B 0x1D91 0x1DE0 0x1E31 0x1E67 0x1EB4 0x1F0F 0x1F86 0x205E 0x2131 0x223E 0x2400>;
+		battery0,battery_table1 = <0x1400 0x1B99 0x1C6A 0x1D31 0x1D6B 0x1D91 0x1DE0 0x1E31 0x1E67 0x1EB4 0x1F0F 0x1F86 0x205E 0x2131 0x223E 0x2400>;
+		battery0,battery_table2 = <0x0 0x34 0x83 0x106 0x168 0x353 0x49B 0x72B 0x9BA 0xC49 0xE35 0xF7C 0x12B0 0x153F 0x1810 0x181C>;
+		battery0,temp_std = <25>;
+		battery0,temp_offset = <10>;
+		battery0,temp_offset_cal = <0x01>;
+		battery0,rce_value = <0x0749 0x0580 0x371>;
+		battery0,dtcd_value = <0x1>;
+		battery0,rs_value = <0x1ae 0x47a 0x3800 0x00a4>; /*rs mix_factor max min*/
+		battery0,vit_period = <0x3506>;
+		battery0,mix_value = <0x0403 0x0004>; /*mix_rate init_blank*/
+		battery0,topoff_soc = <0x0 0x5>; /*enable soc*/
+		battery0,tem_poff = <3400 100 3320 100>;
+		battery0,charge_offset_cal = <0x05>;
+		battery0,volt_cal = <0x809E>;
+		battery0,curr_cal = <0x7585>;
+	};
+
+};
