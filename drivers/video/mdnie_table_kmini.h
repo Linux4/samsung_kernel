@@ -1,0 +1,1457 @@
+#ifndef __MDNIE_TABLE_H__
+#define __MDNIE_TABLE_H__
+
+#include "mdnie.h"
+
+static unsigned short tune_camera[] = {
+	/*start K mini camera*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0006,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0006,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x00ff,	/*SCR RgCg*/
+	0x0093,0x00ff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00ff,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00ff,	/*SCR KgWg*/
+	0x009c,0x00ff,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_auto_camera[] = {
+	/*start K mini auto camera*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0006,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0006,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x1cff,	/*SCR RgCg*/
+	0x0093,0x1cff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00ff,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00ff,	/*SCR KgWg*/
+	0x009c,0x00ff,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_email[] = {
+	/*start K mini email*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0006,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0006,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0006,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x00ff,	/*SCR RgCg*/
+	0x0093,0x00ff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00f0,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00fa,	/*SCR KgWg*/
+	0x009c,0x00ef,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_auto_ui[] = {
+	/*start K mini auto ui*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0006,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0006,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x00ff,	/*SCR RgCg*/
+	0x0093,0x00ff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00ff,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00ff,	/*SCR KgWg*/
+	0x009c,0x00ff,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_auto_video[] = {
+	/*start K mini auto video*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0007,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0006,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0040,0x0080,	/*DE egth*/
+	0x0042,0x0040,	/*DE pe*/
+	0x0043,0x0040,	/*DE pf*/
+	0x0044,0x0040,	/*DE pb*/
+	0x0045,0x0040,	/*DE ne*/
+	0x0046,0x0040,	/*DE nf*/
+	0x0047,0x0040,	/*DE nb*/
+	0x0048,0x1000,	/*DE max ratio*/
+	0x0049,0x0100,	/*DE min ratio*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x1cff,	/*SCR RgCg*/
+	0x0093,0x1cff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00ff,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00ff,	/*SCR KgWg*/
+	0x009c,0x00ff,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_auto_gallery[] = {
+	/*start K mini auto gallery*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0007,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0006,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0040,0x0080,	/*DE egth*/
+	0x0042,0x0000,	/*DE pe*/
+	0x0043,0x0040,	/*DE pf*/
+	0x0044,0x0040,	/*DE pb*/
+	0x0045,0x0040,	/*DE ne*/
+	0x0046,0x0040,	/*DE nf*/
+	0x0047,0x0040,	/*DE nb*/
+	0x0048,0x1000,	/*DE max ratio*/
+	0x0049,0x0100,	/*DE min ratio*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x1cff,	/*SCR RgCg*/
+	0x0093,0x1cff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00ff,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00ff,	/*SCR KgWg*/
+	0x009c,0x00ff,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_auto_vt[] = {
+	/*start K mini auto vtcall*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0007,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0006,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0040,0x0080,	/*DE egth*/
+	0x0042,0x0040,	/*DE pe*/
+	0x0043,0x0040,	/*DE pf*/
+	0x0044,0x0040,	/*DE pb*/
+	0x0045,0x0040,	/*DE ne*/
+	0x0046,0x0040,	/*DE nf*/
+	0x0047,0x0040,	/*DE nb*/
+	0x0048,0x1000,	/*DE max ratio*/
+	0x0049,0x0100,	/*DE min ratio*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x00ff,	/*SCR RgCg*/
+	0x0093,0x00ff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00ff,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00ff,	/*SCR KgWg*/
+	0x009c,0x00ff,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_auto_browser[] = {
+	/*start K mini auto browser*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0006,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0006,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x1cff,	/*SCR RgCg*/
+	0x0093,0x1cff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00ff,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00ff,	/*SCR KgWg*/
+	0x009c,0x00ff,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_auto_ebook[] = {
+	/*start K mini auto ebook*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0006,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0006,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0006,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x00ff,	/*SCR RgCg*/
+	0x0093,0x00ff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00f0,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00f6,	/*SCR KgWg*/
+	0x009c,0x00e6,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_dynamic_ui[] = {
+	/*start K mini dynamic ui*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0006,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0007,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0050,0x1010,	/*CS hg ry*/
+	0x0051,0x1010,	/*CS hg gc*/
+	0x0052,0x1010,	/*CS hg bm*/
+	0x0053,0x1204,	/*CS weight grayTH*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r  0*/
+	0x0061,0x0893,	/*CC lut r  16 144 */
+	0x0062,0x1aa5,	/*CC lut r  32 160*/
+	0x0063,0x29b7,	/*CC lut r  48 176*/
+	0x0064,0x39c8,	/*CC lut r  64 192*/
+	0x0065,0x4bd8,	/*CC lut r  80 208*/
+	0x0066,0x5de6,	/*CC lut r  96 224*/
+	0x0067,0x6ff4,	/*CC lut r 112 240*/
+	0x0068,0x81ff,	/*CC lut r 128 255*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x00ff,	/*SCR RgCg*/
+	0x0093,0x00ff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00ff,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00ff,	/*SCR KgWg*/
+	0x009c,0x00ff,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_dynamic_video[] = {
+	/*start K mini dynamic video*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0007,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0007,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0040,0x0080,	/*DE egth*/
+	0x0042,0x0070,	/*DE pe*/
+	0x0043,0x0070,	/*DE pf*/
+	0x0044,0x0070,	/*DE pb*/
+	0x0045,0x0070,	/*DE ne*/
+	0x0046,0x0070,	/*DE nf*/
+	0x0047,0x0070,	/*DE nb*/
+	0x0048,0x1000,	/*DE max ratio*/
+	0x0049,0x0100,	/*DE min ratio*/
+	0x0050,0x1010,	/*CS hg ry*/
+	0x0051,0x1010,	/*CS hg gc*/
+	0x0052,0x1010,	/*CS hg bm*/
+	0x0053,0x1204,	/*CS weight grayTH*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r  0*/
+	0x0061,0x0893,	/*CC lut r  16 144 */
+	0x0062,0x1aa5,	/*CC lut r  32 160*/
+	0x0063,0x29b7,	/*CC lut r  48 176*/
+	0x0064,0x39c8,	/*CC lut r  64 192*/
+	0x0065,0x4bd8,	/*CC lut r  80 208*/
+	0x0066,0x5de6,	/*CC lut r  96 224*/
+	0x0067,0x6ff4,	/*CC lut r 112 240*/
+	0x0068,0x81ff,	/*CC lut r 128 255*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x00ff,	/*SCR RgCg*/
+	0x0093,0x00ff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00ff,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00ff,	/*SCR KgWg*/
+	0x009c,0x00ff,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_dynamic_gallery[] = {
+	/*start K mini dynamic gallery*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0007,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0007,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0040,0x0080,	/*DE egth*/
+	0x0042,0x0000,	/*DE pe*/
+	0x0043,0x0070,	/*DE pf*/
+	0x0044,0x0070,	/*DE pb*/
+	0x0045,0x0070,	/*DE ne*/
+	0x0046,0x0070,	/*DE nf*/
+	0x0047,0x0070,	/*DE nb*/
+	0x0048,0x1000,	/*DE max ratio*/
+	0x0049,0x0100,	/*DE min ratio*/
+	0x0050,0x1010,	/*CS hg ry*/
+	0x0051,0x1010,	/*CS hg gc*/
+	0x0052,0x1010,	/*CS hg bm*/
+	0x0053,0x1204,	/*CS weight grayTH*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r  0*/
+	0x0061,0x0893,	/*CC lut r  16 144 */
+	0x0062,0x1aa5,	/*CC lut r  32 160*/
+	0x0063,0x29b7,	/*CC lut r  48 176*/
+	0x0064,0x39c8,	/*CC lut r  64 192*/
+	0x0065,0x4bd8,	/*CC lut r  80 208*/
+	0x0066,0x5de6,	/*CC lut r  96 224*/
+	0x0067,0x6ff4,	/*CC lut r 112 240*/
+	0x0068,0x81ff,	/*CC lut r 128 255*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x00ff,	/*SCR RgCg*/
+	0x0093,0x00ff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00ff,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00ff,	/*SCR KgWg*/
+	0x009c,0x00ff,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_dynamic_vt[] = {
+	/*start K mini dynamic vtcall*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0007,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0007,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0040,0x0080,	/*DE egth*/
+	0x0042,0x0070,	/*DE pe*/
+	0x0043,0x0070,	/*DE pf*/
+	0x0044,0x0070,	/*DE pb*/
+	0x0045,0x0070,	/*DE ne*/
+	0x0046,0x0070,	/*DE nf*/
+	0x0047,0x0070,	/*DE nb*/
+	0x0048,0x1000,	/*DE max ratio*/
+	0x0049,0x0100,	/*DE min ratio*/
+	0x0050,0x1010,	/*CS hg ry*/
+	0x0051,0x1010,	/*CS hg gc*/
+	0x0052,0x1010,	/*CS hg bm*/
+	0x0053,0x1204,	/*CS weight grayTH*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r  0*/
+	0x0061,0x0893,	/*CC lut r  16 144 */
+	0x0062,0x1aa5,	/*CC lut r  32 160*/
+	0x0063,0x29b7,	/*CC lut r  48 176*/
+	0x0064,0x39c8,	/*CC lut r  64 192*/
+	0x0065,0x4bd8,	/*CC lut r  80 208*/
+	0x0066,0x5de6,	/*CC lut r  96 224*/
+	0x0067,0x6ff4,	/*CC lut r 112 240*/
+	0x0068,0x81ff,	/*CC lut r 128 255*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x00ff,	/*SCR RgCg*/
+	0x0093,0x00ff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00ff,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00ff,	/*SCR KgWg*/
+	0x009c,0x00ff,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_dynamic_browser[] = {
+	/*start K mini dynamic browser*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0006,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0007,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0050,0x1010,	/*CS hg ry*/
+	0x0051,0x1010,	/*CS hg gc*/
+	0x0052,0x1010,	/*CS hg bm*/
+	0x0053,0x1204,	/*CS weight grayTH*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r  0*/
+	0x0061,0x0893,	/*CC lut r  16 144 */
+	0x0062,0x1aa5,	/*CC lut r  32 160*/
+	0x0063,0x29b7,	/*CC lut r  48 176*/
+	0x0064,0x39c8,	/*CC lut r  64 192*/
+	0x0065,0x4bd8,	/*CC lut r  80 208*/
+	0x0066,0x5de6,	/*CC lut r  96 224*/
+	0x0067,0x6ff4,	/*CC lut r 112 240*/
+	0x0068,0x81ff,	/*CC lut r 128 255*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x00ff,	/*SCR RgCg*/
+	0x0093,0x00ff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00ff,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00ff,	/*SCR KgWg*/
+	0x009c,0x00ff,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_dynamic_ebook[] = {
+	/*start K mini dynamic ebook*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0006,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0007,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0050,0x1010,	/*CS hg ry*/
+	0x0051,0x1010,	/*CS hg gc*/
+	0x0052,0x1010,	/*CS hg bm*/
+	0x0053,0x1204,	/*CS weight grayTH*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r  0*/
+	0x0061,0x0893,	/*CC lut r  16 144 */
+	0x0062,0x1aa5,	/*CC lut r  32 160*/
+	0x0063,0x29b7,	/*CC lut r  48 176*/
+	0x0064,0x39c8,	/*CC lut r  64 192*/
+	0x0065,0x4bd8,	/*CC lut r  80 208*/
+	0x0066,0x5de6,	/*CC lut r  96 224*/
+	0x0067,0x6ff4,	/*CC lut r 112 240*/
+	0x0068,0x81ff,	/*CC lut r 128 255*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x00ff,	/*SCR RgCg*/
+	0x0093,0x00ff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00ff,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00ff,	/*SCR KgWg*/
+	0x009c,0x00ff,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_standard_ui[] = {
+	/*start K mini standard ui*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0006,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0006,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x00ff,	/*SCR RgCg*/
+	0x0093,0x00ff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00ff,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00ff,	/*SCR KgWg*/
+	0x009c,0x00ff,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_standard_video[] = {
+	/*start K mini standard video*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0007,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0006,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0040,0x0080,	/*DE egth*/
+	0x0042,0x0040,	/*DE pe*/
+	0x0043,0x0040,	/*DE pf*/
+	0x0044,0x0040,	/*DE pb*/
+	0x0045,0x0040,	/*DE ne*/
+	0x0046,0x0040,	/*DE nf*/
+	0x0047,0x0040,	/*DE nb*/
+	0x0048,0x1000,	/*DE max ratio*/
+	0x0049,0x0100,	/*DE min ratio*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x00ff,	/*SCR RgCg*/
+	0x0093,0x00ff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00ff,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00ff,	/*SCR KgWg*/
+	0x009c,0x00ff,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_standard_gallery[] = {
+	/*start K mini standard gallery*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0007,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0006,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0040,0x0080,	/*DE egth*/
+	0x0042,0x0000,	/*DE pe*/
+	0x0043,0x0040,	/*DE pf*/
+	0x0044,0x0040,	/*DE pb*/
+	0x0045,0x0040,	/*DE ne*/
+	0x0046,0x0040,	/*DE nf*/
+	0x0047,0x0040,	/*DE nb*/
+	0x0048,0x1000,	/*DE max ratio*/
+	0x0049,0x0100,	/*DE min ratio*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x00ff,	/*SCR RgCg*/
+	0x0093,0x00ff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00ff,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00ff,	/*SCR KgWg*/
+	0x009c,0x00ff,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_standard_vt[] = {
+	/*start K mini standard vtcall*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0007,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0006,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0040,0x0080,	/*DE egth*/
+	0x0042,0x0040,	/*DE pe*/
+	0x0043,0x0040,	/*DE pf*/
+	0x0044,0x0040,	/*DE pb*/
+	0x0045,0x0040,	/*DE ne*/
+	0x0046,0x0040,	/*DE nf*/
+	0x0047,0x0040,	/*DE nb*/
+	0x0048,0x1000,	/*DE max ratio*/
+	0x0049,0x0100,	/*DE min ratio*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x00ff,	/*SCR RgCg*/
+	0x0093,0x00ff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00ff,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00ff,	/*SCR KgWg*/
+	0x009c,0x00ff,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_standard_browser[] = {
+	/*start K mini standard browser*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0006,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0006,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x00ff,	/*SCR RgCg*/
+	0x0093,0x00ff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00ff,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00ff,	/*SCR KgWg*/
+	0x009c,0x00ff,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_standard_ebook[] = {
+	/*start K mini standard ebook*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0006,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0006,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x00ff,	/*SCR RgCg*/
+	0x0093,0x00ff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00ff,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00ff,	/*SCR KgWg*/
+	0x009c,0x00ff,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_natural_gallery[] = {
+	/*start K mini natural gallery*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0007,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0006,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0040,0x0080,	/*DE egth*/
+	0x0042,0x0000,	/*DE pe*/
+	0x0043,0x0010,	/*DE pf*/
+	0x0044,0x0010,	/*DE pb*/
+	0x0045,0x0010,	/*DE ne*/
+	0x0046,0x0010,	/*DE nf*/
+	0x0047,0x0010,	/*DE nb*/
+	0x0048,0x1000,	/*DE max ratio*/
+	0x0049,0x0100,	/*DE min ratio*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xf800,	/*SCR RrCr*/
+	0x0092,0x00fa,	/*SCR RgCg*/
+	0x0093,0x0af0,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xf000,	/*SCR GgMg*/
+	0x0096,0x00e1,	/*SCR GbMb*/
+	0x0097,0x2fff,	/*SCR BrYr*/
+	0x0098,0x0ffa,	/*SCR BgYg*/
+	0x0099,0xf837,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00f6,	/*SCR KgWg*/
+	0x009c,0x00ee,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_natural_ui[] = {
+	/*start K mini natural ui*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0006,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0006,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xf800,	/*SCR RrCr*/
+	0x0092,0x00fa,	/*SCR RgCg*/
+	0x0093,0x0af0,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xf000,	/*SCR GgMg*/
+	0x0096,0x00e1,	/*SCR GbMb*/
+	0x0097,0x2fff,	/*SCR BrYr*/
+	0x0098,0x0ffa,	/*SCR BgYg*/
+	0x0099,0xf837,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00f6,	/*SCR KgWg*/
+	0x009c,0x00ee,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_natural_video[] = {
+	/*start K mini natural video*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0007,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0006,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0040,0x0080,	/*DE egth*/
+	0x0042,0x0010,	/*DE pe*/
+	0x0043,0x0010,	/*DE pf*/
+	0x0044,0x0010,	/*DE pb*/
+	0x0045,0x0010,	/*DE ne*/
+	0x0046,0x0010,	/*DE nf*/
+	0x0047,0x0010,	/*DE nb*/
+	0x0048,0x1000,	/*DE max ratio*/
+	0x0049,0x0100,	/*DE min ratio*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xf800,	/*SCR RrCr*/
+	0x0092,0x00fa,	/*SCR RgCg*/
+	0x0093,0x0af0,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xf000,	/*SCR GgMg*/
+	0x0096,0x00e1,	/*SCR GbMb*/
+	0x0097,0x2fff,	/*SCR BrYr*/
+	0x0098,0x0ffa,	/*SCR BgYg*/
+	0x0099,0xf837,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00f6,	/*SCR KgWg*/
+	0x009c,0x00ee,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_natural_vt[] = {
+	/*start K mini natural vtcall*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0007,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0006,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0040,0x0080,	/*DE egth*/
+	0x0042,0x0010,	/*DE pe*/
+	0x0043,0x0010,	/*DE pf*/
+	0x0044,0x0010,	/*DE pb*/
+	0x0045,0x0010,	/*DE ne*/
+	0x0046,0x0010,	/*DE nf*/
+	0x0047,0x0010,	/*DE nb*/
+	0x0048,0x1000,	/*DE max ratio*/
+	0x0049,0x0100,	/*DE min ratio*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xf800,	/*SCR RrCr*/
+	0x0092,0x00fa,	/*SCR RgCg*/
+	0x0093,0x0af0,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xf000,	/*SCR GgMg*/
+	0x0096,0x00e1,	/*SCR GbMb*/
+	0x0097,0x2fff,	/*SCR BrYr*/
+	0x0098,0x0ffa,	/*SCR BgYg*/
+	0x0099,0xf837,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00f6,	/*SCR KgWg*/
+	0x009c,0x00ee,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_natural_browser[] = {
+	/*start K mini natural browser*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0006,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0006,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xf800,	/*SCR RrCr*/
+	0x0092,0x00fa,	/*SCR RgCg*/
+	0x0093,0x0af0,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xf000,	/*SCR GgMg*/
+	0x0096,0x00e1,	/*SCR GbMb*/
+	0x0097,0x2fff,	/*SCR BrYr*/
+	0x0098,0x0ffa,	/*SCR BgYg*/
+	0x0099,0xf837,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00f6,	/*SCR KgWg*/
+	0x009c,0x00ee,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_natural_ebook[] = {
+	/*start K mini natural ebook*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0006,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0006,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xf800,	/*SCR RrCr*/
+	0x0092,0x00fa,	/*SCR RgCg*/
+	0x0093,0x0af0,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xf000,	/*SCR GgMg*/
+	0x0096,0x00e1,	/*SCR GbMb*/
+	0x0097,0x2fff,	/*SCR BrYr*/
+	0x0098,0x0ffa,	/*SCR BgYg*/
+	0x0099,0xf837,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00f6,	/*SCR KgWg*/
+	0x009c,0x00ee,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_movie_ui[] = {
+	/*start K mini movie ui*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0006,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0007,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0050,0x1010,	/*CS hg ry*/
+	0x0051,0x1010,	/*CS hg gc*/
+	0x0052,0x1010,	/*CS hg bm*/
+	0x0053,0x1200,	/*CS weight grayTH*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xe787,	/*SCR RrCr*/
+	0x0092,0x1eff,	/*SCR RgCg*/
+	0x0093,0x1ef2,	/*SCR RbCb*/
+	0x0094,0x73f5,	/*SCR GrMr*/
+	0x0095,0xf72a,	/*SCR GgMg*/
+	0x0096,0x37f0,	/*SCR GbMb*/
+	0x0097,0x2efa,	/*SCR BrYr*/
+	0x0098,0x14f5,	/*SCR BgYg*/
+	0x0099,0xed3c,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00f6,	/*SCR KgWg*/
+	0x009c,0x00ee,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_movie_video[] = {
+	/*start K mini movie video*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0007,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0007,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0040,0x0080,	/*DE egth*/
+	0x0042,0x0010,	/*DE pe*/
+	0x0043,0x0010,	/*DE pf*/
+	0x0044,0x0010,	/*DE pb*/
+	0x0045,0x0010,	/*DE ne*/
+	0x0046,0x0010,	/*DE nf*/
+	0x0047,0x0010,	/*DE nb*/
+	0x0048,0x1000,	/*DE max ratio*/
+	0x0049,0x0100,	/*DE min ratio*/
+	0x0050,0x1010,	/*CS hg ry*/
+	0x0051,0x1010,	/*CS hg gc*/
+	0x0052,0x1010,	/*CS hg bm*/
+	0x0053,0x1200,	/*CS weight grayTH*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xe787,	/*SCR RrCr*/
+	0x0092,0x1eff,	/*SCR RgCg*/
+	0x0093,0x1ef2,	/*SCR RbCb*/
+	0x0094,0x73f5,	/*SCR GrMr*/
+	0x0095,0xf72a,	/*SCR GgMg*/
+	0x0096,0x37f0,	/*SCR GbMb*/
+	0x0097,0x2efa,	/*SCR BrYr*/
+	0x0098,0x14f5,	/*SCR BgYg*/
+	0x0099,0xed3c,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00f6,	/*SCR KgWg*/
+	0x009c,0x00ee,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_movie_gallery[] = {
+	/*start K mini movie gallery*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0007,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0007,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0040,0x0080,	/*DE egth*/
+	0x0042,0x0000,	/*DE pe*/
+	0x0043,0x0010,	/*DE pf*/
+	0x0044,0x0010,	/*DE pb*/
+	0x0045,0x0010,	/*DE ne*/
+	0x0046,0x0010,	/*DE nf*/
+	0x0047,0x0010,	/*DE nb*/
+	0x0048,0x1000,	/*DE max ratio*/
+	0x0049,0x0100,	/*DE min ratio*/
+	0x0050,0x1010,	/*CS hg ry*/
+	0x0051,0x1010,	/*CS hg gc*/
+	0x0052,0x1010,	/*CS hg bm*/
+	0x0053,0x1200,	/*CS weight grayTH*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xe787,	/*SCR RrCr*/
+	0x0092,0x1eff,	/*SCR RgCg*/
+	0x0093,0x1ef2,	/*SCR RbCb*/
+	0x0094,0x73f5,	/*SCR GrMr*/
+	0x0095,0xf72a,	/*SCR GgMg*/
+	0x0096,0x37f0,	/*SCR GbMb*/
+	0x0097,0x2efa,	/*SCR BrYr*/
+	0x0098,0x14f5,	/*SCR BgYg*/
+	0x0099,0xed3c,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00f6,	/*SCR KgWg*/
+	0x009c,0x00ee,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_movie_vt[] = {
+	/*start K mini movie vtcall*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0007,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0007,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0040,0x0080,	/*DE egth*/
+	0x0042,0x0010,	/*DE pe*/
+	0x0043,0x0010,	/*DE pf*/
+	0x0044,0x0010,	/*DE pb*/
+	0x0045,0x0010,	/*DE ne*/
+	0x0046,0x0010,	/*DE nf*/
+	0x0047,0x0010,	/*DE nb*/
+	0x0048,0x1000,	/*DE max ratio*/
+	0x0049,0x0100,	/*DE min ratio*/
+	0x0050,0x1010,	/*CS hg ry*/
+	0x0051,0x1010,	/*CS hg gc*/
+	0x0052,0x1010,	/*CS hg bm*/
+	0x0053,0x1200,	/*CS weight grayTH*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xe787,	/*SCR RrCr*/
+	0x0092,0x1eff,	/*SCR RgCg*/
+	0x0093,0x1ef2,	/*SCR RbCb*/
+	0x0094,0x73f5,	/*SCR GrMr*/
+	0x0095,0xf72a,	/*SCR GgMg*/
+	0x0096,0x37f0,	/*SCR GbMb*/
+	0x0097,0x2efa,	/*SCR BrYr*/
+	0x0098,0x14f5,	/*SCR BgYg*/
+	0x0099,0xed3c,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00f6,	/*SCR KgWg*/
+	0x009c,0x00ee,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_movie_browser[] = {
+	/*start K mini movie browser*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0006,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0007,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0050,0x1010,	/*CS hg ry*/
+	0x0051,0x1010,	/*CS hg gc*/
+	0x0052,0x1010,	/*CS hg bm*/
+	0x0053,0x1200,	/*CS weight grayTH*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xe787,	/*SCR RrCr*/
+	0x0092,0x1eff,	/*SCR RgCg*/
+	0x0093,0x1ef2,	/*SCR RbCb*/
+	0x0094,0x73f5,	/*SCR GrMr*/
+	0x0095,0xf72a,	/*SCR GgMg*/
+	0x0096,0x37f0,	/*SCR GbMb*/
+	0x0097,0x2efa,	/*SCR BrYr*/
+	0x0098,0x14f5,	/*SCR BgYg*/
+	0x0099,0xed3c,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00f6,	/*SCR KgWg*/
+	0x009c,0x00ee,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_movie_ebook[] = {
+	/*start K mini movie ebook*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0006,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0007,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0050,0x1010,	/*CS hg ry*/
+	0x0051,0x1010,	/*CS hg gc*/
+	0x0052,0x1010,	/*CS hg bm*/
+	0x0053,0x1200,	/*CS weight grayTH*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1090,	/*CC lut r  16 144*/
+	0x0062,0x1da0,	/*CC lut r  32 160*/
+	0x0063,0x30b0,	/*CC lut r  48 176*/
+	0x0064,0x40c0,	/*CC lut r  64 192*/
+	0x0065,0x50d0,	/*CC lut r  80 208*/
+	0x0066,0x60e0,	/*CC lut r  96 224*/
+	0x0067,0x70f0,	/*CC lut r 112 240*/
+	0x0068,0x80ff,	/*CC lut r 128 255*/
+	0x0091,0xe787,	/*SCR RrCr*/
+	0x0092,0x1eff,	/*SCR RgCg*/
+	0x0093,0x1ef2,	/*SCR RbCb*/
+	0x0094,0x73f5,	/*SCR GrMr*/
+	0x0095,0xf72a,	/*SCR GgMg*/
+	0x0096,0x37f0,	/*SCR GbMb*/
+	0x0097,0x2efa,	/*SCR BrYr*/
+	0x0098,0x14f5,	/*SCR BgYg*/
+	0x0099,0xed3c,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00f6,	/*SCR KgWg*/
+	0x009c,0x00ee,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_outdoor[] = {
+	/*start K mini hbm outdoor*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0007,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0007,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0040,0x0080,	/*DE egth*/
+	0x0042,0x0000,	/*DE pe*/
+	0x0043,0x0040,	/*DE pf*/
+	0x0044,0x0040,	/*DE pb*/
+	0x0045,0x0040,	/*DE ne*/
+	0x0046,0x0040,	/*DE nf*/
+	0x0047,0x0040,	/*DE nb*/
+	0x0048,0x1000,	/*DE max ratio*/
+	0x0049,0x0100,	/*DE min ratio*/
+	0x0050,0x1010,	/*CS hg ry*/
+	0x0051,0x1010,	/*CS hg gc*/
+	0x0052,0x1010,	/*CS hg bm*/
+	0x0053,0x1204,	/*CS weight grayTH*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x2cd5,	/*CC lut r  16 144*/
+	0x0062,0x44dc,	/*CC lut r  32 160*/
+	0x0063,0x58e3,	/*CC lut r  48 176*/
+	0x0064,0x84e9,	/*CC lut r  64 192*/
+	0x0065,0xb0ef,	/*CC lut r  80 208*/
+	0x0066,0xbbf5,	/*CC lut r  96 224*/
+	0x0067,0xc4fa,	/*CC lut r 112 240*/
+	0x0068,0xcdff,	/*CC lut r 128 255*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x00ff,	/*SCR RgCg*/
+	0x0093,0x00ff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00f0,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00ff,	/*SCR KgWg*/
+	0x009c,0x00ff,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static unsigned short tune_outdoor_text[] = {
+	/*start K mini auto gallery*/
+	0x0007,0x0006,	/*DNR roi latency clk on 00 01 1 0*/
+	0x0009,0x0007,	/*DE roi latency clk on 00 01 1 0*/
+	0x000a,0x0007,	/*CS roi latency clk on 00 01 1 0*/
+	0x000b,0x0007,	/*CC roi latency clk on 00 01 1 0*/
+	0x000c,0x0007,	/*SCR roi latency clk on 00 01 1 0*/
+	0x0040,0x0080,	/*DE egth*/
+	0x0042,0x0000,	/*DE pe*/
+	0x0043,0x0040,	/*DE pf*/
+	0x0044,0x0040,	/*DE pb*/
+	0x0045,0x0040,	/*DE ne*/
+	0x0046,0x0040,	/*DE nf*/
+	0x0047,0x0040,	/*DE nb*/
+	0x0048,0x1000,	/*DE max ratio*/
+	0x0049,0x0100,	/*DE min ratio*/
+	0x0050,0x1010,	/*CS hg ry*/
+	0x0051,0x1010,	/*CS hg gc*/
+	0x0052,0x1010,	/*CS hg bm*/
+	0x0053,0x1804,	/*CS weight grayTH*/
+	0x005f,0x0080,	/*CC chsel strength*/
+	0x0060,0x0000,	/*CC lut r   0*/
+	0x0061,0x1598,	/*CC lut r  16 144*/
+	0x0062,0x27a7,	/*CC lut r  32 160*/
+	0x0063,0x38b6,	/*CC lut r  48 176*/
+	0x0064,0x49c5,	/*CC lut r  64 192*/
+	0x0065,0x59d4,	/*CC lut r  80 208*/
+	0x0066,0x69e3,	/*CC lut r  96 224*/
+	0x0067,0x79f1,	/*CC lut r 112 240*/
+	0x0068,0x88ff,	/*CC lut r 128 255*/
+	0x0091,0xff00,	/*SCR RrCr*/
+	0x0092,0x00ff,	/*SCR RgCg*/
+	0x0093,0x00ff,	/*SCR RbCb*/
+	0x0094,0x00ff,	/*SCR GrMr*/
+	0x0095,0xff00,	/*SCR GgMg*/
+	0x0096,0x00ff,	/*SCR GbMb*/
+	0x0097,0x00ff,	/*SCR BrYr*/
+	0x0098,0x00f0,	/*SCR BgYg*/
+	0x0099,0xff00,	/*SCR BbYb*/
+	0x009a,0x00ff,	/*SCR KrWr*/
+	0x009b,0x00ff,	/*SCR KgWg*/
+	0x009c,0x00ff,	/*SCR KbWb*/
+	0x00ff,0x0000,	/*Mask Release*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+struct mdnie_tuning_info outdoor_table[OUTDOOR_MAX] = {
+	{"outdoor", tune_outdoor},
+	{"outdoor_text", tune_outdoor_text},
+};
+
+struct mdnie_tuning_info tuning_table[MODE_MAX][SCENARIO_MAX] = {
+	{
+		{"dyn_ui",		tune_dynamic_ui},
+		{"dyn_video",	tune_dynamic_video},
+		{"dyn_video",	tune_dynamic_video},
+		{"dyn_video",	tune_dynamic_video},
+		{"camera",		tune_camera},
+		{"dyn_ui",		tune_dynamic_ui},
+		{"dyn_gallery",	tune_dynamic_gallery},
+		{"dyn_vt",		tune_dynamic_vt},
+		{"dyn_browser",	tune_dynamic_browser},
+		{"dyn_ebook",	tune_dynamic_ebook},
+		{"email",		tune_email},
+	}, {
+		{"std_ui",		tune_standard_ui},
+		{"std_video",	tune_standard_video},
+		{"std_video",	tune_standard_video},
+		{"std_video",	tune_standard_video},
+		{"camera",		tune_camera},
+		{"std_ui",		tune_standard_ui},
+		{"std_gallery",	tune_standard_gallery},
+		{"std_vt",		tune_standard_vt},
+		{"std_browser",	tune_standard_browser},
+		{"std_ebook",	tune_standard_ebook},
+		{"email",		tune_email},
+	},
+	{
+		{"nat_ui",		tune_natural_ui},
+		{"nat_video",	tune_natural_video},
+		{"nat_video",	tune_natural_video},
+		{"nat_video",	tune_natural_video},
+		{"camera",		tune_camera},
+		{"nat_ui",		tune_natural_ui},
+		{"nat_gallery",	tune_natural_gallery},
+		{"nat_vt",		tune_natural_vt},
+		{"nat_browser",	tune_natural_browser},
+		{"nat_ebook",	tune_natural_ebook},
+		{"email",		tune_email},
+	},
+	{
+		{"mov_ui",		tune_movie_ui},
+		{"mov_video",		tune_movie_video},
+		{"mov_video",		tune_movie_video},
+		{"mov_video",		tune_movie_video},
+		{"camera",		tune_camera},
+		{"mov_ui",		tune_movie_ui},
+		{"mov_gallery",	tune_movie_gallery},
+		{"mov_vt",		tune_movie_vt},
+		{"mov_browser",	tune_movie_browser},
+		{"mov_ebook",	tune_movie_ebook},
+		{"email",		tune_email},
+	}, {
+		{"auto_ui",		tune_auto_ui},
+		{"auto_video",		tune_auto_video},
+		{"auto_video",		tune_auto_video},
+		{"auto_video",		tune_auto_video},
+		{"auto_camera",		tune_auto_camera},
+		{"auto_ui",		tune_auto_ui},
+		{"auto_gallery",	tune_auto_gallery},
+		{"auto_vt",		tune_auto_vt},
+		{"auto_browser",	tune_auto_browser},
+		{"auto_ebook",	tune_auto_ebook},
+		{"email",		tune_email},
+	},
+};
+
+
+#endif /* __MDNIE_TABLE_H__ */

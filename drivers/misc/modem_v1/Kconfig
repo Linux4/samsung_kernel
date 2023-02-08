@@ -1,0 +1,57 @@
+comment "Samsung Mobile Modem Driver (SVNET2) V1 for Memory-type Interface"
+menuconfig SEC_MODEM_V1
+	bool "Samsung Mobile Modem Driver (SVNET2) V1 for Memory-type Interface"
+	depends on SEC_MODEM
+	default n
+	---help---
+	  Samsung Modem Interface Driver
+
+config UMTS_MODEM_SS222
+	bool "Samsung SS222 modem"
+	depends on SEC_MODEM_V1
+	default n
+
+config UMTS_MODEM_SH222AP
+	bool "Samsung SH222AP (one-chip) modem"
+	depends on SEC_MODEM_V1
+	default n
+
+config LINK_DEVICE_MEMORY
+	bool "Memory-type (i.e. shared memory) interface medium"
+	depends on SEC_MODEM_V1
+	default n
+
+config LINK_POWER_MANAGEMENT
+	bool "Power management (PM) for a link device"
+	depends on SEC_MODEM_V1
+	default n
+
+config LINK_DEVICE_C2C
+	bool "Pseudo shared-memory with chip-to-chip (C2C) interface"
+	depends on SEC_MODEM_V1
+	select LINK_DEVICE_MEMORY
+	select LINK_POWER_MANAGEMENT
+	default n
+
+config LINK_DEVICE_SHMEM
+	bool "Real system-level shared-memory on a system bus"
+	depends on SEC_MODEM_V1
+	select LINK_DEVICE_MEMORY
+	default n
+
+choice
+	prompt "SEC MODEM CONFIG"
+	depends on SEC_MODEM_V1
+	default MODEM_SET_SH222AP
+
+config MODEM_SET_SS222
+	bool "Samsung SS222 (single modem configuration)"
+	select UMTS_MODEM_SS222
+	select LINK_DEVICE_C2C
+
+config MODEM_SET_SH222AP
+	bool "Samsung SH222AP (single modem configuration)"
+	select UMTS_MODEM_SH222AP
+	select LINK_DEVICE_SHMEM
+
+endchoice

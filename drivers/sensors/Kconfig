@@ -1,0 +1,150 @@
+#
+# Sensor  drivers configuration
+#
+menuconfig SENSORS_CORE
+	bool "Sensor devices"
+	help
+	  Say Y here, and a list of sensors drivers will be displayed.
+	  Everything that didn't fit into the other categories is here. This option
+	  doesn't affect the kernel.
+
+	  If unsure, say Y.
+
+if SENSORS_CORE
+
+config SENSORS_BMA255
+	tristate "BMA255 Accelelometer Sensor Driver"
+	depends on I2C
+	default n
+	help
+	  If you say yes here you get support for Bosch-Sensortec's
+	  BMA255 Acceleration.
+
+config SENSORS_AK09911C
+	tristate "AK09911C compass support"
+	default n
+	depends on I2C
+	help
+	  If you say yes here you get support for Asahi Kasei's
+	  orientation sensor AK8963.
+
+config SENSORS_AK8963C
+	tristate "AK8963 compass support"
+	default n
+	depends on I2C
+	help
+	  If you say yes here you get support for Asahi Kasei's
+	  orientation sensor AK8963.
+
+config SENSORS_AK8963C_FACTORY
+	tristate "AK8963C factory test"
+	default n
+	depends on SENSORS_AK8963C
+	help
+	  If you say yes here you will support
+	  factory test for AK8963C on the
+	  device driver.
+	  If you say no here you will support
+	  it on the HAL layer.
+
+config SENSORS_GP2A_PROXIMITY
+	depends on I2C
+	tristate "GP2A proximity driver"
+	default n
+	help
+	  Say Y here if you use GP2A_PROXIMITY.
+	  This option enables proximity sensors using
+	  SHARP GP2A_ANALOG device driver.
+
+	  Say N here if you do not use GP2A_ANALOG.
+
+config SENSORS_K2DH
+	tristate "K2DH acceleration sensor support"
+	depends on I2C
+        default n
+	help
+	  Say Y here if you use K2DH.
+	  This option enables accelerometer sensors using
+	  STM K2DH in K3DH device driver.
+
+	  Say N here if you do not use K2DH.
+
+config SENSORS_K2HH
+	tristate "K2HH acceleration sensor support"
+	depends on I2C
+        default n
+	help
+	  Say Y here if you use K2HH.
+	  This option enables accelerometer sensors using
+	  STM K2HH in K3DH device driver.
+
+	  Say N here if you do not use K2HH.
+
+config SENSORS_GP2A0X0
+	depends on I2C
+	tristate "GP2AP030A00F driver"
+	default n
+	help
+	  This option enables proximity & light sensors using gp2ap030a00f driver.
+
+config SENSORS_ADPD142
+	depends on I2C
+	tristate "ADI hrm sensor driver"
+	default n
+	help
+	  This option enables hrm sensors using adpd142 driver.
+
+config SENSORS_TMD27723
+	depends on I2C
+	tristate "TMD27723 driver"
+	default n
+	help
+	  This option enables proximity & light sensors using TMD27723 driver.
+
+config SENSORS_CM36686
+	depends on I2C
+	tristate "CM36686 driver"
+	default n
+	help
+	  This option enables proximity & light sensors using CM36686 driver.
+
+config SENSORS_TMD26713
+	depends on I2C
+	tristate "TMD26713 driver"
+	default n
+	help
+	   Say Y here if you use tmd26713
+	   This option enables proximity sensors using
+	   TAOS TMD26713 device driver
+
+	   Say N here if you do not use tmd26713.
+
+config SENSOR_USE_SYMLINK
+	bool "sensors_symlink"
+	depends on I2C
+
+config SENSORS_SX9500
+	depends on I2C
+	tristate "SX9500 driver"
+	default n
+	help
+	  This option enables grip sensors using SX9500 driver.
+
+config SENSORS_SX9500_INIT_TOUCH_THRESHOLD
+	int "SX9500 Grip sensor threshold for init touch"
+	depends on SENSORS_SX9500
+	default "3000"
+	help
+	  This value is the standard of init touch using
+	  SemTech sx9500 device driver.
+
+config SENSORS_SX9500_NORMAL_TOUCH_THRESHOLD
+	int "SX9500 Grip sensor threshold for normal touch"
+	depends on SENSORS_SX9500
+	default "17"
+	help
+	  This value is the standard of normal touch using
+	  SemTech sx9500 device driver.
+
+source "drivers/sensors/alps/Kconfig"
+endif
