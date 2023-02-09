@@ -15,6 +15,8 @@
 
 #include <uapi/linux/sched/types.h>
 #include <uapi/drm/drm.h>
+#include <linux/circ_buf.h>
+#include <linux/dma-fence.h>
 
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_atomic.h>
@@ -43,22 +45,31 @@
 #endif
 
 static void exynos_drm_crtc_atomic_enable(struct drm_crtc *crtc,
-					  struct drm_crtc_state *old_state)
+					  struct drm_crtc_state *old_crtc_state)
 {
 	struct exynos_drm_crtc *exynos_crtc = to_exynos_crtc(crtc);
 
 	drm_crtc_vblank_on(crtc);
 
 	if (exynos_crtc->ops->enable)
-		exynos_crtc->ops->enable(exynos_crtc, old_state);
+		exynos_crtc->ops->enable(exynos_crtc, old_crtc_state);
 }
 
 static void exynos_drm_crtc_atomic_disable(struct drm_crtc *crtc,
-					   struct drm_crtc_state *old_state)
+					   struct drm_crtc_state *old_crtc_state)
 {
+	struct drm_atomic_state *old_state = old_crtc_state->state;
+	const struct drm_plane_helper_funcs *plane_funcs;
+	struct drm_plane *plane;
+	struct drm_plane_state *old_plane_state;
 	struct exynos_drm_crtc *exynos_crtc = to_exynos_crtc(crtc);
 
-	drm_atomic_helper_disable_planes_on_crtc(old_state, false);
+	drm_atomic_crtc_state_for_each_plane(plane, old_crtc_state) {
+		plane_funcs = plane->helper_private;
+		old_plane_state = drm_atomic_get_old_plane_state(old_state, plane);
+		if (old_plane_state && plane_funcs->atomic_disable)
+			plane_funcs->atomic_disable(plane, old_plane_state);
+	}
 
 	if (exynos_crtc->ops->disable)
 		exynos_crtc->ops->disable(exynos_crtc);
@@ -225,6 +236,7 @@ static const struct drm_crtc_helper_funcs exynos_crtc_helper_funcs = {
 
 void exynos_crtc_handle_event(struct exynos_drm_crtc *exynos_crtc)
 {
+	struct dma_fence *fence;
 	struct drm_crtc *crtc = &exynos_crtc->base;
 	struct drm_pending_vblank_event *event = crtc->state->event;
 	unsigned long flags;
@@ -236,6 +248,10 @@ void exynos_crtc_handle_event(struct exynos_drm_crtc *exynos_crtc)
 	WARN_ON(drm_crtc_vblank_get(crtc) != 0);
 
 	spin_lock_irqsave(&crtc->dev->event_lock, flags);
+	fence = event->base.fence;
+	if (fence)
+		DPU_EVENT_LOG("ARM_CRTC_OUT_FENCE", exynos_crtc, EVENT_FLAG_FENCE,
+				FENCE_FMT, FENCE_ARG(fence));
 	drm_crtc_arm_vblank_event(crtc, event);
 	spin_unlock_irqrestore(&crtc->dev->event_lock, flags);
 }
@@ -328,7 +344,9 @@ exynos_drm_crtc_duplicate_state(struct drm_crtc *crtc)
 	copy->wb_type = EXYNOS_WB_NONE;
 	copy->seamless_modeset = 0;
 	copy->freed_win_mask = 0;
+	copy->win_inserted = false;
 	copy->modeset_only = false;
+	copy->skip_frameupdate = false;
 	copy->tui_changed = false;
 	copy->bts_fps_ptr = NULL;
 	copy->boost_bts_fps = 0;
@@ -455,7 +473,7 @@ static int get_next_adjusted_vblank_timestamp(struct drm_crtc *crtc, uint64_t *v
 	}
 	*val = timestamp;
 
-	DPU_EVENT_LOG(DPU_EVT_NEXT_ADJ_VBLANK, exynos_crtc, &timestamp);
+	DPU_EVENT_LOG("NEXT_ADJ_VBLANK", exynos_crtc, 0, "timestamp(%lld)", timestamp);
 
 	return 0;
 }
@@ -537,7 +555,6 @@ static void exynos_drm_crtc_print_state(struct drm_printer *p,
 		exynos_crtc->ops->atomic_print_state(p, exynos_crtc);
 }
 
-/* add early_unregister callback to unregister debugfs */
 static int exynos_drm_crtc_late_register(struct drm_crtc *crtc)
 {
 	int ret = 0;
@@ -551,6 +568,119 @@ static int exynos_drm_crtc_late_register(struct drm_crtc *crtc)
 		ret = exynos_crtc->ops->late_register(exynos_crtc);
 
 	return ret;
+}
+
+static void exysno_drm_crtc_early_unregister(struct drm_crtc *crtc)
+{
+	struct exynos_drm_crtc *exynos_crtc = to_exynos_crtc(crtc);
+
+	dpu_deinit_debug(exynos_crtc);
+}
+
+/**
+ * exynos_drm_crtc_add_crc_entry - Add entry with CRC information for a frame
+ * @crtc: CRTC to which the frame belongs
+ * @has_frame: whether this entry has a frame number to go with
+ * @frame: number of the frame these CRCs are about
+ * @crcs: array of CRC values, with length matching #drm_crtc_crc.values_cnt
+ *
+ * NOTE : this funcation is for temporary using
+ * and need to replace to dem_crtc_add_crc_entry.
+ */
+int exynos_drm_crtc_add_crc_entry(struct drm_crtc *crtc, bool has_frame,
+			   uint32_t frame, uint32_t *crcs)
+{
+	struct drm_crtc_crc *crc = &crtc->crc;
+	struct drm_crtc_crc_entry *entry;
+	int head, tail;
+	unsigned long flags;
+
+	spin_lock_irqsave(&crc->lock, flags);
+
+	/* Caller may not have noticed yet that userspace has stopped reading */
+	if (!crc->entries) {
+		spin_unlock_irqrestore(&crc->lock, flags);
+		return -EINVAL;
+	}
+
+	head = crc->head;
+	tail = crc->tail;
+
+	if (CIRC_SPACE(head, tail, DRM_CRC_ENTRIES_NR) < 1) {
+		bool was_overflow = crc->overflow;
+
+		crc->overflow = true;
+		spin_unlock_irqrestore(&crc->lock, flags);
+
+		if (!was_overflow)
+			DRM_ERROR("Overflow of CRC buffer, userspace reads too slow.\n");
+
+		return -ENOBUFS;
+	}
+
+	entry = &crc->entries[head];
+	entry->frame = frame;
+	entry->has_frame_counter = has_frame;
+	memcpy(&entry->crcs, crcs, sizeof(*crcs) * crc->values_cnt);
+
+	head = (head + 1) & (DRM_CRC_ENTRIES_NR - 1);
+	crc->head = head;
+
+	spin_unlock_irqrestore(&crc->lock, flags);
+
+	wake_up_interruptible(&crc->wq);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(exynos_drm_crtc_add_crc_entry);
+
+static const char * const exynos_crc_source[] = {"auto"};
+static int exynos_crtc_parse_crc_source(const char *source)
+{
+	if (!source)
+		return 0;
+
+	if (strcmp(source, "auto") == 0)
+		return 1;
+
+	return -EINVAL;
+}
+
+int exynos_drm_crtc_set_crc_source(struct drm_crtc *crtc, const char *source)
+{
+	struct exynos_drm_crtc *exynos_crtc = to_exynos_crtc(crtc);
+
+	if (!source) {
+		DRM_ERROR("CRC source for crtc(%d) was not set\n", crtc->index);
+		exynos_crtc->crc_state = EXYNOS_DRM_CRC_STOP;
+		return 0;
+	}
+
+	if (exynos_crtc->crc_state == EXYNOS_DRM_CRC_STOP)
+		exynos_crtc->crc_state = EXYNOS_DRM_CRC_REQ;
+
+	return 0;
+}
+
+int exynos_drm_crtc_verify_crc_source(struct drm_crtc *crtc, const char *source,
+				      size_t *values_cnt)
+{
+	int idx = exynos_crtc_parse_crc_source(source);
+
+	if (idx < 0) {
+		DRM_INFO("Unknown or invalid CRC source for CRTC%d\n", crtc->index);
+		return -EINVAL;
+	}
+
+	*values_cnt = 3;
+	return 0;
+}
+
+const char *const *exynos_drm_crtc_get_crc_sources(struct drm_crtc *crtc,
+						   size_t *count)
+{
+	*count = ARRAY_SIZE(exynos_crc_source);
+	return exynos_crc_source;
 }
 
 static const struct drm_crtc_funcs exynos_crtc_funcs = {
@@ -567,6 +697,10 @@ static const struct drm_crtc_funcs exynos_crtc_funcs = {
 	.disable_vblank		= exynos_drm_crtc_disable_vblank,
 	.get_vblank_counter	= exynos_drm_crtc_get_vblank_counter,
 	.late_register		= exynos_drm_crtc_late_register,
+	.early_unregister	= exysno_drm_crtc_early_unregister,
+	.set_crc_source		= exynos_drm_crtc_set_crc_source,
+	.verify_crc_source		= exynos_drm_crtc_verify_crc_source,
+	.get_crc_sources		= exynos_drm_crtc_get_crc_sources,
 };
 
 static int

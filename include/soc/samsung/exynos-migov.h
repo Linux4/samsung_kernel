@@ -67,6 +67,7 @@ struct private_fn_gpu {
 	void (*set_util_margin)(int);
 	void (*set_decon_time)(int);
 	void (*set_comb_ctrl)(int);
+	u64 (*get_gpu_hw_status)(void);
 };
 
 struct private_fn_mif {

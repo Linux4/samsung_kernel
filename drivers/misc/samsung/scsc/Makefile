@@ -205,10 +205,10 @@ scsc_mx140_clk-y += mx140_clk_test.o
 endif
 endif
 
-ifneq ($(CONFIG_SCSC_FM),n)
+ifneq ($(CONFIG_SCSC_FM), n)
 obj-$(CONFIG_SCSC_FM) += scsc_mx250_fm.o
 scsc_mx250_fm-y += mx250_fm.o
-ifeq ($(CONFIG_SCSC_FM_TEST),y)
+ifneq ($(CONFIG_SCSC_FM_TEST), n)
 scsc_mx250_fm-y += mx250_fm_test.o
 endif
 endif

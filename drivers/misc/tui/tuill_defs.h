@@ -12,6 +12,7 @@
 #pragma once
 
 #include <linux/types.h>
+#include "stui_ioctl.h"
 
 typedef void		*void_ptr;  /**< a pointer to anything. */
 typedef void_ptr	addr_t;     /**< an address, can be physical or virtual */
@@ -172,6 +173,8 @@ typedef struct FB_Data {
 	uint64_t disp_physical;
 	uint64_t disp_size;
 	uint32_t touch_type;
+	uint64_t lcd_info[STUI_DISPLAY_INFO_SIZE];
+	uint32_t disp_if;
 } __attribute__((packed, aligned(4))) FB_Data_t;
 
 typedef struct OpenPeripheral_cmd {
@@ -303,6 +306,8 @@ typedef struct GetDisplayInfo_rsp {
 	uint32_t flags;
 	uint32_t num_periph;
 	uint32_t associatedPeripherals[TUILL_DRV_MAX];
+	uint64_t lcd_info[STUI_DISPLAY_INFO_SIZE];
+	uint32_t disp_if;
 } __attribute__((packed, aligned(4))) GetDisplayInfo_rsp_t;
 
 typedef struct peripheral_info {

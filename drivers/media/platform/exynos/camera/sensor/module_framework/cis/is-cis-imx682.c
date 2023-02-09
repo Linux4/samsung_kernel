@@ -681,10 +681,6 @@ int sensor_imx682_cis_init(struct v4l2_subdev *subdev)
 	u32 setfile_index = 0;
 	u8 cis_rev;
 	cis_setting_info setinfo;
-#ifdef USE_CAMERA_HW_BIG_DATA
-	struct cam_hw_param *hw_param = NULL;
-	struct is_device_sensor_peri *sensor_peri = NULL;
-#endif
 
 	setinfo.param = NULL;
 	setinfo.return_value = 0;
@@ -721,7 +717,7 @@ int sensor_imx682_cis_init(struct v4l2_subdev *subdev)
 
 	cis_rev = cis->cis_data->cis_rev;
 	/* Check if don't care condition is satisfied */
-	if ((cis_rev & 0xF0) ==  (SENSOR_IMX682_CHIP_ID_VER_3_X_0x1X & 0xF0)) {
+	if ((cis_rev & 0xF0) == (SENSOR_IMX682_CHIP_ID_VER_3_X_0x1X & 0xF0)) {
 		cis_rev = SENSOR_IMX682_CHIP_ID_VER_3_X_0x1X;
 	}
 
@@ -829,6 +825,122 @@ int sensor_imx682_cis_log_status(struct v4l2_subdev *subdev)
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
+	pr_info("[%s] sensor registor values dump\n", __func__);
+
+	ret = is_sensor_read8(client, 0x0005, &data8);
+	if (unlikely(!ret))
+		pr_info("%s: read addr = 0x0005 value= %#x\n", __func__, data8);
+	else
+		goto i2c_err;
+
+	ret = is_sensor_read8(client, 0x0202, &data8);
+	if (unlikely(!ret))
+		pr_info("%s: read addr = 0x0202 value= %#x\n", __func__, data8);
+	else
+		goto i2c_err;
+
+	ret = is_sensor_read8(client, 0x0204, &data8);
+	if (unlikely(!ret))
+		pr_info("%s: read addr = 0x0204 value= %#x\n", __func__, data8);
+	else
+		goto i2c_err;
+
+	ret = is_sensor_read8(client, 0x0340, &data8);
+	if (unlikely(!ret))
+		pr_info("%s: read addr = 0x0340 value= %#x\n", __func__, data8);
+	else
+		goto i2c_err;
+
+	ret = is_sensor_read8(client, 0x0342, &data8);
+	if (unlikely(!ret))
+		pr_info("%s: read addr = 0x0342 value= %#x\n", __func__, data8);
+	else
+		goto i2c_err;
+
+	ret = is_sensor_read8(client, 0x034C, &data8);
+	if (unlikely(!ret))
+		pr_info("%s: read addr = 0x034C value= %#x\n", __func__, data8);
+	else
+		goto i2c_err;
+
+	ret = is_sensor_read8(client, 0x034D, &data8);
+	if (unlikely(!ret))
+		pr_info("%s: read addr = 0x034D value= %#x\n", __func__, data8);
+	else
+		goto i2c_err;
+
+	ret = is_sensor_read8(client, 0x034E, &data8);
+	if (unlikely(!ret))
+		pr_info("%s: read addr = 0x034E value= %#x\n", __func__, data8);
+	else
+		goto i2c_err;
+
+	ret = is_sensor_read8(client, 0x034F, &data8);
+	if (unlikely(!ret))
+		pr_info("%s: read addr = 0x034F value= %#x\n", __func__, data8);
+	else
+		goto i2c_err;
+
+	ret = is_sensor_read8(client, 0x0301, &data8);
+	if (unlikely(!ret))
+		pr_info("%s: read addr = 0x0301 value= %#x\n", __func__, data8);
+	else
+		goto i2c_err;
+
+	ret = is_sensor_read8(client, 0x0303, &data8);
+	if (unlikely(!ret))
+		pr_info("%s: read addr = 0x0303 value= %#x\n", __func__, data8);
+	else
+		goto i2c_err;
+
+	ret = is_sensor_read8(client, 0x0305, &data8);
+	if (unlikely(!ret))
+		pr_info("%s: read addr = 0x0305 value= %#x\n", __func__, data8);
+	else
+		goto i2c_err;
+
+	ret = is_sensor_read8(client, 0x0306, &data8);
+	if (unlikely(!ret))
+		pr_info("%s: read addr = 0x0306 value= %#x\n", __func__, data8);
+	else
+		goto i2c_err;
+
+	ret = is_sensor_read8(client, 0x0307, &data8);
+	if (unlikely(!ret))
+		pr_info("%s: read addr = 0x0307 value= %#x\n", __func__, data8);
+	else
+		goto i2c_err;
+
+	ret = is_sensor_read8(client, 0x030B, &data8);
+	if (unlikely(!ret))
+		pr_info("%s: read addr = 0x030B value= %#x\n", __func__, data8);
+	else
+		goto i2c_err;
+
+	ret = is_sensor_read8(client, 0x030D, &data8);
+	if (unlikely(!ret))
+		pr_info("%s: read addr = 0x030D value= %#x\n", __func__, data8);
+	else
+		goto i2c_err;
+
+	ret = is_sensor_read8(client, 0x030E, &data8);
+	if (unlikely(!ret))
+		pr_info("%s: read addr = 0x030E value= %#x\n", __func__, data8);
+	else
+		goto i2c_err;
+
+	ret = is_sensor_read8(client, 0x030F, &data8);
+	if (unlikely(!ret))
+		pr_info("%s: read addr = 0x030F value= %#x\n", __func__, data8);
+	else
+		goto i2c_err;
+
+	ret = is_sensor_read8(client, 0x0310, &data8);
+	if (unlikely(!ret))
+		pr_info("%s: read addr = 0x0310 value= %#x\n", __func__, data8);
+	else
+		goto i2c_err;
+
 	pr_info("[%s] *******************************\n", __func__);
 
 	ret = is_sensor_read16(client, SENSOR_IMX682_MODEL_ID_ADDR, &data16);
@@ -928,22 +1040,20 @@ static int sensor_imx682_cis_group_param_hold_func(struct v4l2_subdev *subdev, u
 p_err:
 	return ret;
 #else
-
 	return 0;
 #endif
 }
 
-/* Input
- *	hold : true - hold, flase - no hold
- * Output
- *      return: 0 - no effect(already hold or no hold)
- *		positive - setted by request
- *		negative - ERROR value
- */
+/*
+  hold control register for updating multiple-parameters within the same frame. 
+  true : hold, flase : no hold/release
+*/
+#if USE_GROUP_PARAM_HOLD
 int sensor_imx682_cis_group_param_hold(struct v4l2_subdev *subdev, bool hold)
 {
 	int ret = 0;
 	struct is_cis *cis = NULL;
+	u32 mode;
 
 	FIMC_BUG(!subdev);
 
@@ -952,17 +1062,34 @@ int sensor_imx682_cis_group_param_hold(struct v4l2_subdev *subdev, bool hold)
 	FIMC_BUG(!cis);
 	FIMC_BUG(!cis->cis_data);
 
+	if (cis->cis_data->stream_on == false && hold == true) {
+		ret = 0;
+		dbg_sensor(1, "%s : sensor stream off skip group_param_hold", __func__);
+		goto p_err;
+	}
+	
+	mode = cis->cis_data->sens_config_index_cur;
+
+	if (mode == SENSOR_IMX682_2X2BIN_V2H2_2304X1728_120FPS) {
+		ret = 0;
+		dbg_sensor(1, "%s : fast ae skip group_param_hold", __func__);
+		goto p_err;
+	}
+
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = sensor_imx682_cis_group_param_hold_func(subdev, hold);
 	if (ret < 0) {
 		err("sensor_imx682_cis_group_param_hold_func fail!!");
-		goto p_err;
+		goto p_err_unlock;
 	}
 
-p_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
+
+p_err:
 	return ret;
 }
+#endif
 
 int sensor_imx682_cis_set_global_setting(struct v4l2_subdev *subdev)
 {
@@ -981,12 +1108,12 @@ int sensor_imx682_cis_set_global_setting(struct v4l2_subdev *subdev)
 	ret = sensor_cis_set_registers(subdev, sensor_imx682_global, sensor_imx682_global_size);
 	if (ret < 0) {
 		err("sensor_imx682_set_registers fail!!");
-		goto p_err;
+		goto p_err_unlock;
 	}
 
 	dbg_sensor(1, "[%s] global setting done\n", __func__);
 
-p_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	// Check that QSC and DPC Cal is written for Remosaic Capture.
@@ -1031,14 +1158,14 @@ int sensor_imx682_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 	ret = sensor_cis_set_registers(subdev, sensor_imx682_setfiles[mode], sensor_imx682_setfile_sizes[mode]);
 	if (ret < 0) {
 		err("sensor_imx682_set_registers fail!!");
-		goto p_i2c_err;
+		goto p_err_unlock;
 	}
 
 #ifdef DISABLE_PDAF
 	ret = sensor_cis_set_registers(subdev, sensor_imx682_pdaf_off_setfile, sensor_imx682_pdaf_off_size);
 	if (ret < 0) {
 		err("sensor_imx682_pdaf_off_setfile fail!!");
-		goto p_i2c_err;
+		goto p_err_unlock;
 	}
 #endif
 	/* Disable Embedded Data Line */
@@ -1049,7 +1176,7 @@ int sensor_imx682_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 		if (IS_SEAMLESS_MODE_CHANGE(cis)) {
 			ret = sensor_imx682_cis_set_seamless_mode_change_param(cis);
 			if (ret < 0)
-				goto p_i2c_err;
+				goto p_err_unlock;
 		}
 	}
 	dbg_sensor(1, "[%s] mode changed(%d)\n", __func__, mode);
@@ -1065,12 +1192,12 @@ int sensor_imx682_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 		ret = sensor_imx682_cis_QuadSensCal_write(subdev);
 		if (ret < 0) {
 			err("sensor_imx576_Quad_Sens_Cal_write fail!! (%d)", ret);
-			goto p_i2c_err;
+			goto p_err_unlock;
 		}
 	}
 #endif
 
-p_i2c_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	msleep(10);
@@ -1165,8 +1292,6 @@ int sensor_imx682_cis_stream_on(struct v4l2_subdev *subdev)
 
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
 
-	sensor_imx682_cis_group_param_hold(subdev, 0x01);
-
 #ifdef SENSOR_IMX682_DEBUG_INFO
 	{
 		u16 pll;
@@ -1207,8 +1332,6 @@ int sensor_imx682_cis_stream_on(struct v4l2_subdev *subdev)
 	is_sensor_write8(client, SENSOR_IMX682_SETUP_MODE_SELECT_ADDR, 0x01);
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
-	sensor_imx682_cis_group_param_hold(subdev, 0x00);
-
 	cis_data->stream_on = true;
 	sensor_imx682_stream_on_state = true;
 
@@ -1227,6 +1350,7 @@ int sensor_imx682_cis_stream_off(struct v4l2_subdev *subdev)
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
+	u8 frame_count = 0;
 
 #ifdef DEBUG_SENSOR_TIME
 	struct timeval st, end;
@@ -1250,14 +1374,20 @@ int sensor_imx682_cis_stream_off(struct v4l2_subdev *subdev)
 	cis_data = cis->cis_data;
 
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
-
-	sensor_imx682_cis_group_param_hold(subdev, 0x00);
+	
+	cis_data->stream_on = false;
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
+
+	sensor_imx682_cis_group_param_hold_func(subdev, 0x00);
+
+	ret = is_sensor_read8(client, 0x0005, &frame_count);
+	info("%s: frame_count(%#x)\n", __func__, frame_count);
+
 	is_sensor_write8(client, SENSOR_IMX682_SETUP_MODE_SELECT_ADDR, 0x00);
+	
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
-	cis_data->stream_on = false;
 	sensor_imx682_stream_on_state = false;
 
 #ifdef DEBUG_SENSOR_TIME
@@ -1352,7 +1482,6 @@ int sensor_imx682_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 int sensor_imx682_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_duration)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -1419,24 +1548,18 @@ int sensor_imx682_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 				cis->id, __func__, frame_duration, line_length_pck, frame_length_lines);
 	}
 
-	hold = sensor_imx682_cis_group_param_hold(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
 	if (lte_mode->sen_strm_off_on_enable == false && cis_data->frame_length_lines_shifter > 0) {
 		cis_data->frame_length_lines_shifter = 0;
 		ret = is_sensor_write8(client, SENSOR_IMX682_CIT_LSHIFT_ADDR, 0);
 		if (ret < 0)
-			goto p_i2c_err;
+			goto p_err_unlock;
 	}
 
 	ret = is_sensor_write16(client, SENSOR_IMX682_FRAME_LENGTH_LINE_ADDR, frame_length_lines);
 	if (ret < 0) {
-		goto p_i2c_err;
+		goto p_err_unlock;
 	}
 
 	cis_data->cur_frame_us_time = frame_duration;
@@ -1453,15 +1576,10 @@ int sensor_imx682_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
-p_i2c_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_imx682_cis_group_param_hold(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
 	return ret;
 }
 
@@ -1528,7 +1646,6 @@ p_err:
 int sensor_imx682_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_param *target_exposure)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -1650,30 +1767,24 @@ int sensor_imx682_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 	cis_data->cur_long_exposure_coarse = coarse_int;
 	cis_data->cur_short_exposure_coarse = coarse_int;
 
-	hold = sensor_imx682_cis_group_param_hold(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
 	if (lte_mode->sen_strm_off_on_enable == false && cis_data->min_frame_us_time > max_fll_frame_time) {
 		if (cit_lshift_count > 0) {
 			ret = is_sensor_write8(client, SENSOR_IMX682_CIT_LSHIFT_ADDR, cit_lshift_count);
 			if (ret < 0)
-				goto p_i2c_err;
+				goto p_err_unlock;
 		}
 	}
 
 	ret = is_sensor_write16(client, SENSOR_IMX682_COARSE_INTEG_TIME_ADDR, coarse_int);
 	if (ret < 0)
-		goto p_i2c_err;
+		goto p_err_unlock;
 
 	if (lte_mode->sen_strm_off_on_enable == false && cis_data->min_frame_us_time > max_fll_frame_time) {
 		ret = is_sensor_write16(client, SENSOR_IMX682_FRAME_LENGTH_LINE_ADDR, frame_length_lines);
 		if (ret < 0)
-			goto p_i2c_err;
+			goto p_err_unlock;
 	}
 
 	dbg_sensor(1, "[MOD:D:%d] %s, pixelrate(%zu), llp(%d), fll(%d), min_fine_int(%d) cit(%d)\n",  cis->id, __func__,
@@ -1684,15 +1795,10 @@ int sensor_imx682_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
-p_i2c_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_imx682_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
 	return ret;
 }
 
@@ -1845,7 +1951,6 @@ int sensor_imx682_cis_adjust_analog_gain(struct v4l2_subdev *subdev, u32 input_a
 int sensor_imx682_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_param *again)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -1887,12 +1992,6 @@ int sensor_imx682_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_para
 	dbg_sensor(1, "[MOD:D:%d] %s(vsync cnt = %d), input_again = %d us, analog_gain(%#x)\n",
 		cis->id, __func__, cis->cis_data->sen_vsync_count, again->val, analog_gain);
 
-	hold = sensor_imx682_cis_group_param_hold(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	// the address of analog_gain is [9:0] from 0x0204 to 0x0205
 	analog_gain &= 0x03FF;
 
@@ -1900,7 +1999,7 @@ int sensor_imx682_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_para
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = is_sensor_write16(client, SENSOR_IMX682_ANALOG_GAIN_ADDR, analog_gain);
 	if (ret < 0)
-		goto p_i2c_err;
+		goto p_err_unlock;
 
 	cis_data->cur_analog_gain = analog_gain;
 	cis_data->cur_analog_gain_permille = again->val;
@@ -1910,22 +2009,16 @@ int sensor_imx682_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_para
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
-p_i2c_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_imx682_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
 	return ret;
 }
 
 int sensor_imx682_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 
@@ -1950,16 +2043,10 @@ int sensor_imx682_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 		goto p_err;
 	}
 
-	hold = sensor_imx682_cis_group_param_hold(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = is_sensor_read16(client, SENSOR_IMX682_ANALOG_GAIN_ADDR, &analog_gain);
 	if (ret < 0)
-		goto p_i2c_err;
+		goto p_err_unlock;
 
 	analog_gain &= 0x03FF;
 	*again = sensor_imx682_cis_calc_again_permile(analog_gain);
@@ -1972,16 +2059,10 @@ int sensor_imx682_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
-p_i2c_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_imx682_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	return ret;
 }
 
@@ -2062,7 +2143,6 @@ int sensor_imx682_cis_get_max_analog_gain(struct v4l2_subdev *subdev, u32 *max_a
 int sensor_imx682_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_param *dgain)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -2104,12 +2184,6 @@ int sensor_imx682_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_par
 	dbg_sensor(1, "[MOD:D:%d] %s(vsync cnt = %d), input_dgain = %d, dgain_code(%#x)\n",
 			cis->id, __func__, cis->cis_data->sen_vsync_count, dgain->val, dgain_code);
 
-	hold = sensor_imx682_cis_group_param_hold(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	/*
 	 * 0x020E [15:8] - range 1d to 15d
 	 * 0x020F [7:0] - range 0d to 255d
@@ -2120,7 +2194,7 @@ int sensor_imx682_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_par
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = is_sensor_write8_array(client, SENSOR_IMX682_DIG_GAIN_ADDR, dgains, 2);
 	if (ret < 0) {
-		goto p_i2c_err;
+		goto p_err_unlock;
 	}
 
 	cis_data->cur_digital_gain = dgain_code;
@@ -2131,22 +2205,16 @@ int sensor_imx682_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_par
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
-p_i2c_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_imx682_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
 	return ret;
 }
 
 int sensor_imx682_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 
@@ -2171,16 +2239,10 @@ int sensor_imx682_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 		goto p_err;
 	}
 
-	hold = sensor_imx682_cis_group_param_hold(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = is_sensor_read16(client, SENSOR_IMX682_DIG_GAIN_ADDR, &digital_gain);
 	if (ret < 0)
-		goto p_i2c_err;
+		goto p_err_unlock;
 
 	*dgain = sensor_cis_calc_dgain_permile(digital_gain);
 
@@ -2192,16 +2254,10 @@ int sensor_imx682_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
-p_i2c_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_imx682_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	return ret;
 }
 
@@ -2289,18 +2345,11 @@ int sensor_imx682_cis_long_term_exposure(struct v4l2_subdev *subdev)
 	unsigned char cit_lshift_val = 0;
 	int cit_lshift_count = 0;
 	u32 target_exp = 0;
-	int hold = 0;
 
 	FIMC_BUG(!subdev);
 
 	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
 	lte_mode = &cis->long_term_mode;
-
-	hold = sensor_imx682_cis_group_param_hold(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	/* LTE mode or normal mode set */
@@ -2328,13 +2377,6 @@ int sensor_imx682_cis_long_term_exposure(struct v4l2_subdev *subdev)
 
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
-p_err:
-	if (hold > 0) {
-		hold = sensor_imx682_cis_group_param_hold(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-
 	info("[%s] sen_strm_enable(%d), cit_lshift_count (%d), target_exp(%d)", __func__,
 		lte_mode->sen_strm_off_on_enable, cit_lshift_count, lte_mode->expo[0]);
 
@@ -2347,7 +2389,6 @@ int sensor_imx682_cis_set_wb_gain(struct v4l2_subdev *subdev, struct wb_gains wb
 {
 #define ABS_WB_GAIN_NUM	4
 	int ret = 0;
-	int hold = 0;
 	int mode = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
@@ -2391,31 +2432,20 @@ int sensor_imx682_cis_set_wb_gain(struct v4l2_subdev *subdev, struct wb_gains wb
 	dbg_sensor(1, "[SEN:%d]%s, abs_gain_gr(0x%4X), abs_gain_r(0x%4X), abs_gain_b(0x%4X), abs_gain_gb(0x%4X)\n",
 		cis->id, __func__, abs_gains[0], abs_gains[1], abs_gains[2], abs_gains[3]);
 
-	hold = sensor_imx682_cis_group_param_hold(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = is_sensor_write16_array(client, SENSOR_IMX682_ABS_GAIN_GR_SET_ADDR, abs_gains, ABS_WB_GAIN_NUM);
 	if (ret < 0)
-		goto p_i2c_err;
+		goto p_err_unlock;
 
 #ifdef DEBUG_SENSOR_TIME
 	do_gettimeofday(&end);
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
-p_i2c_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_imx682_cis_group_param_hold(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
 	return ret;
 }
 
@@ -2456,7 +2486,9 @@ int sensor_imx682_cis_compensate_gain_for_extremely_br(struct v4l2_subdev *subde
 static struct is_cis_ops cis_ops_imx682 = {
 	.cis_init = sensor_imx682_cis_init,
 	.cis_log_status = sensor_imx682_cis_log_status,
+#if USE_GROUP_PARAM_HOLD
 	.cis_group_param_hold = sensor_imx682_cis_group_param_hold,
+#endif
 	.cis_set_global_setting = sensor_imx682_cis_set_global_setting,
 	.cis_set_size = sensor_imx682_cis_set_size,
 	.cis_mode_change = sensor_imx682_cis_mode_change,

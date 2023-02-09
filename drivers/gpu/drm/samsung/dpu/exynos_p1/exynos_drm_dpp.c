@@ -804,7 +804,7 @@ static int dpp_update(struct exynos_drm_plane *exynos_plane,
 
 	dpp_reg_configure_params(dpp->id, config, dpp->attr);
 
-	exynos_hdr_update(dpp->hdr);
+	exynos_hdr_update(dpp->hdr, state);
 
 #if IS_ENABLED(CONFIG_DRM_MCD_HDR)
 	dpp_reg_set_hdrc_dither(dpp->id, dpp->hdr->enable, config->in_bpc);

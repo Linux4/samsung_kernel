@@ -323,7 +323,7 @@ static ssize_t abox_dump_auto_write(struct file *file, const char __user *data,
 	if (!buffer)
 		return -ENOMEM;
 
-	ret = simple_write_to_buffer(buffer, sz_buffer, ppos, data, count);
+	ret = simple_write_to_buffer(buffer, sz_buffer - 1, ppos, data, count);
 	if (ret < 0)
 		goto err;
 

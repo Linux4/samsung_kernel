@@ -1071,8 +1071,8 @@ static const struct cam_mipi_sensor_mode sensor_imx355_setfile_A_mipi_sensor_mod
 		sensor_imx355_setfile_A_mipi_setting_all,	ARRAY_SIZE(sensor_imx355_setfile_A_mipi_setting_all)
 	},
 	{ SENSOR_IMX355_800X600_115FPS,
-		sensor_imx355_setfile_A_mipi_channel_all,	ARRAY_SIZE(sensor_imx355_setfile_A_mipi_channel_all),
-		sensor_imx355_setfile_A_mipi_setting_all,	ARRAY_SIZE(sensor_imx355_setfile_A_mipi_setting_all)
+		NULL, 0,
+		NULL, 0
 	},
 	{ SENSOR_IMX355_2880X1980_30FPS_702MBPS,
 		sensor_imx355_setfile_A_mipi_channel_all,	ARRAY_SIZE(sensor_imx355_setfile_A_mipi_channel_all),

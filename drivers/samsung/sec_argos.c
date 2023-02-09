@@ -58,8 +58,14 @@ static DEFINE_SPINLOCK(argos_task_lock);
 
 enum {
 	THRESHOLD,
+#if (CONFIG_ARGOS_CLUSTER_NUM > 1)
 	BIG_MIN_FREQ,
 	BIG_MAX_FREQ,
+#endif
+#if (CONFIG_ARGOS_CLUSTER_NUM > 2)
+	MID_MIN_FREQ,
+	MID_MAX_FREQ,
+#endif
 	LIT_MIN_FREQ,
 	LIT_MAX_FREQ,
 	MIF_FREQ,
@@ -89,8 +95,14 @@ struct argos_irq_affinity {
 };
 
 struct argos_pm_qos {
+#if (CONFIG_ARGOS_CLUSTER_NUM > 1)
 	struct freq_qos_request big_min_qos_req;
 	struct freq_qos_request big_max_qos_req;
+#endif
+#if (CONFIG_ARGOS_CLUSTER_NUM > 2)
+	struct freq_qos_request mid_min_qos_req;
+	struct freq_qos_request mid_max_qos_req;
+#endif
 	struct freq_qos_request lit_min_qos_req;
 	struct freq_qos_request lit_max_qos_req;
 	struct exynos_pm_qos_request mif_qos_req;
@@ -167,14 +179,17 @@ static inline void UPDATE_FREQ_PM_QOS(struct freq_qos_request *req, int class_id
 				cpu = 0;
 				type = FREQ_QOS_MAX;
 				break;
+#if (CONFIG_ARGOS_CLUSTER_NUM > 1)
 			case PM_QOS_CLUSTER1_FREQ_MIN:
-				cpu = 4;
+				cpu = 6;
 				type = FREQ_QOS_MIN;
 				break;
 			case PM_QOS_CLUSTER1_FREQ_MAX:
-				cpu = 4;
+				cpu = 6;
 				type = FREQ_QOS_MAX;
 				break;
+#endif
+#if (CONFIG_ARGOS_CLUSTER_NUM > 2)
 			case PM_QOS_CLUSTER2_FREQ_MIN:
 				cpu = 7;
 				type = FREQ_QOS_MIN;
@@ -183,6 +198,7 @@ static inline void UPDATE_FREQ_PM_QOS(struct freq_qos_request *req, int class_id
 				cpu = 7;
 				type = FREQ_QOS_MAX;
 				break;
+#endif
 			default:
 				pr_err("%s class id %d is invalid.\n", __func__, class_id);
 				return;
@@ -501,8 +517,14 @@ static void argos_freq_unlock(int type)
 
 	cname = argos_pdata->devices[type].desc;
 
+#if (CONFIG_ARGOS_CLUSTER_NUM > 1)
 	REMOVE_FREQ_PM_QOS(&qos->big_min_qos_req);
 	REMOVE_FREQ_PM_QOS(&qos->big_max_qos_req);
+#endif
+#if (CONFIG_ARGOS_CLUSTER_NUM > 2)
+	REMOVE_FREQ_PM_QOS(&qos->mid_min_qos_req);
+	REMOVE_FREQ_PM_QOS(&qos->mid_max_qos_req);
+#endif
 	REMOVE_FREQ_PM_QOS(&qos->lit_min_qos_req);
 	REMOVE_FREQ_PM_QOS(&qos->lit_max_qos_req);
 	REMOVE_PM_QOS(&qos->mif_qos_req);
@@ -513,7 +535,12 @@ static void argos_freq_unlock(int type)
 
 static void argos_freq_lock(int type, int level)
 {
+#if (CONFIG_ARGOS_CLUSTER_NUM > 1)
 	unsigned int big_min_freq, big_max_freq;
+#endif
+#if (CONFIG_ARGOS_CLUSTER_NUM > 2)
+	unsigned int mid_min_freq, mid_max_freq;
+#endif
 	unsigned int lit_min_freq, lit_max_freq;
 	unsigned int mif_freq, int_freq;
 	struct boost_table *t = &argos_pdata->devices[type].tables[level];
@@ -522,13 +549,45 @@ static void argos_freq_lock(int type, int level)
 
 	cname = argos_pdata->devices[type].desc;
 
+#if (CONFIG_ARGOS_CLUSTER_NUM > 1)
 	big_min_freq = t->items[BIG_MIN_FREQ];
 	big_max_freq = t->items[BIG_MAX_FREQ];
+#endif
+#if (CONFIG_ARGOS_CLUSTER_NUM > 2)
+	mid_min_freq = t->items[MID_MIN_FREQ];
+	mid_max_freq = t->items[MID_MAX_FREQ];
+#endif
 	lit_min_freq = t->items[LIT_MIN_FREQ];
 	lit_max_freq = t->items[LIT_MAX_FREQ];
 	mif_freq = t->items[MIF_FREQ];
 	int_freq = t->items[INT_FREQ];
 
+#if (CONFIG_ARGOS_CLUSTER_NUM == 3)
+	if (big_min_freq)
+		UPDATE_FREQ_PM_QOS(&qos->big_min_qos_req,
+			      PM_QOS_CLUSTER2_FREQ_MIN, big_min_freq);
+	else
+		REMOVE_FREQ_PM_QOS(&qos->big_min_qos_req);
+
+	if (big_max_freq)
+		UPDATE_FREQ_PM_QOS(&qos->big_max_qos_req,
+			      PM_QOS_CLUSTER2_FREQ_MAX, big_max_freq);
+	else
+		REMOVE_FREQ_PM_QOS(&qos->big_max_qos_req);
+
+	if (mid_min_freq)
+		UPDATE_FREQ_PM_QOS(&qos->mid_min_qos_req,
+			      PM_QOS_CLUSTER1_FREQ_MIN, mid_min_freq);
+	else
+		REMOVE_FREQ_PM_QOS(&qos->mid_min_qos_req);
+
+	if (mid_max_freq)
+		UPDATE_FREQ_PM_QOS(&qos->mid_max_qos_req,
+			      PM_QOS_CLUSTER1_FREQ_MAX, mid_max_freq);
+	else
+		REMOVE_FREQ_PM_QOS(&qos->mid_max_qos_req);
+
+#elif (CONFIG_ARGOS_CLUSTER_NUM == 2)
 	if (big_min_freq)
 		UPDATE_FREQ_PM_QOS(&qos->big_min_qos_req,
 			      PM_QOS_CLUSTER1_FREQ_MIN, big_min_freq);
@@ -540,7 +599,7 @@ static void argos_freq_lock(int type, int level)
 			      PM_QOS_CLUSTER1_FREQ_MAX, big_max_freq);
 	else
 		REMOVE_FREQ_PM_QOS(&qos->big_max_qos_req);
-
+#endif
 
 	if (lit_min_freq)
 		UPDATE_FREQ_PM_QOS(&qos->lit_min_qos_req,
@@ -567,10 +626,20 @@ static void argos_freq_lock(int type, int level)
 		REMOVE_PM_QOS(&qos->int_qos_req);
 
 	pr_info("%s name:%s, "
+#if (CONFIG_ARGOS_CLUSTER_NUM > 1)
 		"BIG_MIN=%d, BIG_MAX=%d, "
+#endif
+#if (CONFIG_ARGOS_CLUSTER_NUM > 2)
+		"MID_MIN=%d, MID_MAX=%d, "
+#endif
 		"LIT_MIN=%d, LIT_MAX=%d, MIF=%d, INT=%d\n",
 		__func__, cname,
+#if (CONFIG_ARGOS_CLUSTER_NUM > 1)
 		big_min_freq, big_max_freq,
+#endif
+#if (CONFIG_ARGOS_CLUSTER_NUM > 2)
+		mid_min_freq, mid_max_freq,
+#endif
 		lit_min_freq, lit_max_freq, mif_freq, int_freq);
 }
 
@@ -750,6 +819,7 @@ static int load_table_items(struct device_node *np, struct boost_table *t)
 		return -EINVAL;
 	}
 
+#if (CONFIG_ARGOS_CLUSTER_NUM > 1)
 	ret = of_property_read_u32(np, "big_min", &t->items[BIG_MIN_FREQ]);
 	/* If not exist, set to default 0 */
 	if (ret == -EINVAL) {
@@ -767,6 +837,27 @@ static int load_table_items(struct device_node *np, struct boost_table *t)
 		pr_err("Failed to get big_max\n");
 		return ret;
 	}
+#endif
+
+#if (CONFIG_ARGOS_CLUSTER_NUM > 2)
+	ret = of_property_read_u32(np, "mid_min", &t->items[MID_MIN_FREQ]);
+	/* If not exist, set to default 0 */
+	if (ret == -EINVAL) {
+		t->items[MID_MIN_FREQ] = 0;
+	} else if (ret) {
+		pr_err("Failed to get mid_min\n");
+		return ret;
+	}
+
+	ret = of_property_read_u32(np, "mid_max", &t->items[MID_MAX_FREQ]);
+	/* If not exist, set to default 0 */
+	if (ret == -EINVAL) {
+		t->items[MID_MAX_FREQ] = 0;
+	} else if (ret) {
+		pr_err("Failed to get mid_max\n");
+		return ret;
+	}
+#endif
 
 	ret = of_property_read_u32(np, "lit_min", &t->items[LIT_MIN_FREQ]);
 	/* If not exist, set to default 0 */

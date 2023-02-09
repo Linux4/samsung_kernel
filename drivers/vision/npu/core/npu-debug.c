@@ -26,6 +26,7 @@
 #define DEBUG_FS_ROOT_NAME "npu"
 #define DEBUG_FS_UNITTEST_NAME "idiot"
 #define DEBUG_FS_LAYER_INFO_NAME "layer_range"
+#define DEBUG_FS_COLD_BOOT_NAME "cold_boot"
 #define NPU_DEBUG_FILENAME_LEN 32 /* Maximum file name length under npu */
 
 #ifdef CONFIG_VISION_UNITTEST
@@ -157,6 +158,99 @@ static const struct file_operations npu_hw_debug_layer_range_fops = {
 	.release	= single_release
 };
 
+static int npu_hw_debug_cold_boot_show(struct seq_file *file, void *unused)
+{
+	int ret = 0;
+
+	struct npu_device *npu_device;
+	struct npu_system *npu_system;
+
+	npu_device = container_of(npu_debug_ref, struct npu_device, debug);
+	if (!npu_device) {
+		ret = -EINVAL;
+		npu_err("Failed to get npu_device\n");
+		goto p_err;
+	}
+	npu_system = &npu_device->system;
+	if (!npu_system) {
+		ret = -EINVAL;
+		npu_err("Failed to get npu_system\n");
+		goto p_err;
+	}
+
+	seq_printf(file, "Current npu's fw_cold_boot flag is %s(%d).\n",
+			npu_system->fw_cold_boot ? "true" : "false", npu_system->fw_cold_boot);
+
+	seq_puts(file, "Please use this command for enabling cold booot : \"echo 1 > /d/npu/cold_boot\"\n");
+
+	return 0;
+p_err:
+	return ret;
+}
+
+static int npu_hw_debug_cold_boot_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, npu_hw_debug_cold_boot_show,
+			inode->i_private);
+}
+
+static ssize_t npu_hw_debug_cold_boot_write(struct file *filp,
+		const char __user *user_buf, size_t count, loff_t *ppos)
+{
+	int ret = 0;
+
+	struct npu_device *npu_device;
+	struct npu_system *npu_system;
+
+	char buf[30];
+	ssize_t size;
+	int fw_cold_boot;
+
+	npu_device = container_of(npu_debug_ref, struct npu_device, debug);
+	if (!npu_device) {
+		ret = -EINVAL;
+		npu_err("Failed to get npu_device\n");
+		goto p_err;
+	}
+	npu_system = &npu_device->system;
+	if (!npu_system) {
+		ret = -EINVAL;
+		npu_err("Failed to get npu_system\n");
+		goto p_err;
+	}
+
+	size = simple_write_to_buffer(buf, sizeof(buf), ppos, user_buf, count);
+	if (size <= 0) {
+		ret = -EINVAL;
+		npu_err("Failed to get user parameter(%zd)\n", size);
+		goto p_err;
+	}
+	buf[size - 1] = '\0';
+
+	ret = kstrtoint(buf, 10, &fw_cold_boot);
+	if (ret) {
+		npu_err("Failed to get fw_cold_boot parameter(%d)\n", ret);
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+	mutex_lock(&npu_device->sessionmgr.mlock);
+	npu_system->fw_cold_boot = fw_cold_boot;
+	mutex_unlock(&npu_device->sessionmgr.mlock);
+
+	return 0;
+p_err:
+	return ret;
+}
+
+static const struct file_operations npu_debug_cold_boot_fops = {
+	.open		= npu_hw_debug_cold_boot_open,
+	.read		= seq_read,
+	.write		= npu_hw_debug_cold_boot_write,
+	.llseek		= seq_lseek,
+	.release	= single_release
+};
+
 int npu_debug_register_arg(
 	const char *name, void *private_arg,
 	const struct file_operations *ops)
@@ -270,7 +364,14 @@ int npu_debug_probe(struct npu_device *npu_device)
 	ret = npu_debug_register(DEBUG_FS_LAYER_INFO_NAME
 				 , &npu_hw_debug_layer_range_fops);
 	if (ret) {
-		probe_err("loading npu_debug : debugfs for unittest can not be created\n");
+		probe_err("loading npu_debug : debugfs for layer range can not be created\n");
+		goto err_exit;
+	}
+
+	ret = npu_debug_register(DEBUG_FS_COLD_BOOT_NAME
+				 , &npu_debug_cold_boot_fops);
+	if (ret) {
+		probe_err("loading npu_debug : debugfs for cold_boot can not be created\n");
 		goto err_exit;
 	}
 

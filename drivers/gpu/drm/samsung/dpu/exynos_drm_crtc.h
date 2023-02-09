@@ -99,6 +99,13 @@ enum exynos_drm_op_mode {
 	EXYNOS_COMMAND_MODE,
 };
 
+enum exynos_drm_crc_state {
+	EXYNOS_DRM_CRC_STOP,
+	EXYNOS_DRM_CRC_REQ,
+	EXYNOS_DRM_CRC_START,
+	EXYNOS_DRM_CRC_PEND,
+};
+
 /*
  * Exynos drm crtc ops
  *
@@ -161,6 +168,7 @@ struct exynos_drm_crtc_ops {
 	bool (*is_recovering)(struct exynos_drm_crtc *crtc);
 	void (*update_bts_fps)(struct exynos_drm_crtc *crtc);
 	void (*emergency_off)(struct exynos_drm_crtc *crtc);
+	void (*get_crc_data)(struct exynos_drm_crtc *crtc);
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
 	void (*dump_event_log)(struct exynos_drm_crtc *crtc);
 #endif
@@ -189,6 +197,7 @@ struct exynos_drm_crtc_state {
 	bool tui_status : 1;
 	bool tui_changed : 1;
 	bool modeset_only : 1;
+	bool skip_frameupdate : 1;
 	struct drm_rect partial_region;
 	struct drm_property_blob *partial;
 	bool needs_reconfigure;
@@ -197,14 +206,14 @@ struct exynos_drm_crtc_state {
 	unsigned int reserved_win_mask;
 	unsigned int visible_win_mask;
 	unsigned int freed_win_mask;
+	bool win_inserted;
 	int64_t dqe_fd;
 	s32 __user *bts_fps_ptr;
 	u32 boost_bts_fps;
-#if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-	bool skip_frame_update;
-#endif
 };
 
+int exynos_drm_crtc_add_crc_entry(struct drm_crtc *crtc, bool has_frame,
+				  uint32_t frame, uint32_t *crcs);
 static inline struct exynos_drm_crtc_state *
 to_exynos_crtc_state(const struct drm_crtc_state *state)
 {
@@ -237,6 +246,7 @@ struct exynos_drm_crtc {
 	struct exynos_partial 		*partial;
 	struct dpu_bts			*bts;
 	struct dpu_freq_hop_ops *freq_hop;
+	enum exynos_drm_crc_state crc_state;
 };
 
 int exynos_drm_crtc_create_properties(struct drm_device *drm_dev);

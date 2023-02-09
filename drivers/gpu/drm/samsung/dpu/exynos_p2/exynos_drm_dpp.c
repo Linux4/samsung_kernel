@@ -475,7 +475,7 @@ static int set_protection(struct dpp_device *dpp, uint64_t modifier)
 		return ret;
 
 	if (dpp->id >= ARRAY_SIZE(protection_ids)) {
-		dpp_err(dpp, "%s: failed to get protection id(%u)\n", __func__,
+		dpp_err(dpp, "failed to get protection id(%u)\n",
 				dpp->id);
 		return -EINVAL;
 	}
@@ -485,14 +485,14 @@ static int set_protection(struct dpp_device *dpp, uint64_t modifier)
 			(protection ? SMC_PROTECTION_ENABLE :
 			SMC_PROTECTION_DISABLE));
 	if (ret) {
-		dpp_err(dpp, "%s: failed to %s protection(ch:%u, ret:%d)\n",
-				__func__, protection ? "enable" : "disable",
+		dpp_err(dpp, "failed to %s protection(ch:%u, ret:%d)\n",
+				protection ? "enable" : "disable",
 				dpp->id, ret);
 		return ret;
 	}
 	dpp->protection = protection;
 
-	dpp_debug(dpp, "%s: ch:%u, en:%d\n", __func__, dpp->id, protection);
+	dpp_debug(dpp, "ch:%u, en:%d\n", dpp->id, protection);
 
 	return ret;
 }
@@ -673,7 +673,7 @@ static int dpp_check(const struct exynos_drm_plane *exynos_plane,
 							plane_state->crtc);
 	const struct drm_display_mode *mode = &crtc_state->adjusted_mode;
 
-	dpp_debug(dpp, "%s +\n", __func__);
+	dpp_debug(dpp, "+\n");
 
 	memset(&config, 0, sizeof(struct dpp_params_info));
 
@@ -703,7 +703,7 @@ static int dpp_check(const struct exynos_drm_plane *exynos_plane,
 
 	exynos_hdr_prepare(dpp->hdr, state);
 
-	dpp_debug(dpp, "%s -\n", __func__);
+	dpp_debug(dpp, "-\n");
 
 	return 0;
 
@@ -730,7 +730,7 @@ static int dpp_update(struct exynos_drm_plane *exynos_plane,
 	const struct exynos_drm_crtc_state *exynos_crtc_state =
 					to_exynos_crtc_state(crtc_state);
 
-	dpp_debug(dpp, "%s +\n", __func__);
+	dpp_debug(dpp, "+\n");
 
 	__dpp_enable(dpp);
 
@@ -741,9 +741,9 @@ static int dpp_update(struct exynos_drm_plane *exynos_plane,
 
 	dpp_reg_configure_params(dpp->id, config, dpp->attr);
 
-	exynos_hdr_update(dpp->hdr);
+	exynos_hdr_update(dpp->hdr, state);
 
-	dpp_debug(dpp, "%s -\n", __func__);
+	dpp_debug(dpp, "-\n");
 
 	return 0;
 }
@@ -764,7 +764,7 @@ static int dpp_bind(struct device *dev, struct device *master, void *data)
 	int id = dpp->id;
 	uint64_t *modifiers;
 
-	dpp_debug(dpp, "%s +\n", __func__);
+	dpp_debug(dpp, "+\n");
 
 	memset(&plane_config, 0, sizeof(plane_config));
 
@@ -797,7 +797,7 @@ static int dpp_bind(struct device *dev, struct device *master, void *data)
 	if (ret)
 		return ret;
 
-	dpp_debug(dpp, "%s -\n", __func__);
+	dpp_debug(dpp, "-\n");
 
 	return 0;
 }
@@ -891,6 +891,7 @@ fail:
 static irqreturn_t dpp_irq_handler(int irq, void *priv)
 {
 	struct dpp_device *dpp = priv;
+	struct decon_device *decon = get_decon_drvdata(dpp->decon_id);
 	u32 dpp_irq = 0;
 
 	spin_lock(&dpp->slock);
@@ -898,6 +899,8 @@ static irqreturn_t dpp_irq_handler(int irq, void *priv)
 		goto irq_end;
 
 	dpp_irq = dpp_reg_get_irq_and_clear(dpp->id);
+	if (dpp_irq & DPP_CFG_ERROR_IRQ)
+		DPU_EVENT_LOG("DPP_CFG_ERR", decon->crtc, EVENT_FLAG_ERROR, NULL);
 
 irq_end:
 	spin_unlock(&dpp->slock);
@@ -920,9 +923,10 @@ static irqreturn_t dma_irq_handler(int irq, void *priv)
 	irqs = idma_reg_get_irq_and_clear(dpp->id);
 
 	if (irqs & IDMA_RECOVERY_START_IRQ) {
-		DPU_EVENT_LOG(DPU_EVT_DMA_RECOVERY, decon->crtc, exynos_plane);
-		exynos_plane->recovery_cnt++;
 		str_comp = get_comp_src_name(exynos_plane->comp_src);
+		DPU_EVENT_LOG("DMA_RECOVERY", decon->crtc, EVENT_FLAG_ERROR,
+				"ID:%d SRC:%s COUNT:%d",
+				dpp->id, str_comp, ++exynos_plane->recovery_cnt);
 		dpp_info(dpp, "recovery start(0x%x) cnt(%d) src(%s)\n", irqs,
 				exynos_plane->recovery_cnt, str_comp);
 	}
@@ -933,12 +937,13 @@ static irqreturn_t dma_irq_handler(int irq, void *priv)
 	 */
 	if (irqs & IDMA_STATUS_FRAMEDONE_IRQ) {
 		idma_reg_set_votf_disable(dpp->id);
-		DPU_EVENT_LOG(DPU_EVT_DPP_FRAMEDONE, decon->crtc, exynos_plane);
+		DPU_EVENT_LOG("DPP_FRAMEDONE", decon->crtc, 0, "ID:%d", dpp->id);
 	}
 	if ((irqs & IDMA_READ_SLAVE_ERROR) || (irqs & IDMA_STATUS_DEADLOCK_IRQ)) {
 		int fid = (dpp->id >= DPP_PER_DPUF) ? 1 : 0;
 		struct dpp_device *dpp_f = get_dpp_drvdata(fid);
 
+		DPU_EVENT_LOG("DMA_ERR", decon->crtc, EVENT_FLAG_ERROR,	NULL);
 		dpp_err(dpp, "error irq occur(0x%x)\n", irqs);
 		__dpp_common_dump(fid, &dpp_f->regs);
 		__dpp_dump(dpp->id, &dpp->regs);

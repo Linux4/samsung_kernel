@@ -616,7 +616,6 @@ unsigned int dsp_elf32_get_mem_size(struct dsp_elf32_mem *mem,
 	return total;
 }
 
-/*
 void dsp_elf32_print(struct dsp_elf32 *elf)
 {
 	dsp_elf32_hdr_print(elf);
@@ -965,7 +964,6 @@ void dsp_elf32_SFRw_print(struct dsp_elf32 *elf)
 		dsp_elf32_get_mem_size(&elf->SFRw, elf));
 	__dsp_elf32_print_mem(&elf->SFRw, elf);
 }
-*/
 
 int dsp_elf32_load_libs(struct dsp_dl_lib_info *infos,
 	struct dsp_lib **libs, int libs_size)

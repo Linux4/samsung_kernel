@@ -86,7 +86,7 @@ enum data_id {
 	DID_SOC_COUNT,
 	DID_MIF_COUNT,
 	DID_IPC_VTS0,
-	DID_IPC_VTS1,
+	DID_SLEEP_WAKEUP,
 	DID_LOCAL_PWR,
 	DID_MIF_ALWAYS_ON,		/* 21 */
 	DID_AP_COUNT_SLEEP,
@@ -676,6 +676,18 @@ static ssize_t exynos_flexpmu_dbg_write(struct file *file, const char __user *us
 
 	return ret;
 }
+
+void exynos_flexpmu_dbg_set_sleep_req(void)
+{
+	__raw_writel(1, flexpmu_dbg_base + (DATA_LINE * DID_SLEEP_WAKEUP) + 0x8);
+}
+EXPORT_SYMBOL_GPL(exynos_flexpmu_dbg_set_sleep_req);
+
+void exynos_flexpmu_dbg_clr_wakeup_req(void)
+{
+	__raw_writel(0, flexpmu_dbg_base + (DATA_LINE * DID_SLEEP_WAKEUP) + 0xC);
+}
+EXPORT_SYMBOL_GPL(exynos_flexpmu_dbg_clr_wakeup_req);
 
 static int exynos_flexpmu_dbg_probe(struct platform_device *pdev)
 {

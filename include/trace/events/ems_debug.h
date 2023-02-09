@@ -136,15 +136,17 @@ TRACE_EVENT(ems_take_util_snapshot,
  */
 TRACE_EVENT(tex_pinning_fit_cpus,
 
-	TP_PROTO(struct task_struct *p, int tex, struct cpumask *fit_cpus,
-		struct cpumask *pinning_cpus, struct cpumask *busy_cpus),
+	TP_PROTO(struct task_struct *p, int tex, int suppress,
+		struct cpumask *fit_cpus, struct cpumask *pinning_cpus,
+		struct cpumask *busy_cpus),
 
-	TP_ARGS(p, tex, fit_cpus, pinning_cpus, busy_cpus),
+	TP_ARGS(p, tex, suppress, fit_cpus, pinning_cpus, busy_cpus),
 
 	TP_STRUCT__entry(
 		__array(	char,		comm,	TASK_COMM_LEN	)
 		__field(	pid_t,		pid			)
 		__field(	int,		tex			)
+		__field(	int,		suppress		)
 		__field(	unsigned int,	fit_cpus		)
 		__field(	unsigned int,	pinning_cpus		)
 		__field(	unsigned int,	busy_cpus		)
@@ -154,13 +156,14 @@ TRACE_EVENT(tex_pinning_fit_cpus,
 		memcpy(__entry->comm, p->comm, TASK_COMM_LEN);
 		__entry->pid		= p->pid;
 		__entry->tex		= tex;
+		__entry->suppress	= suppress;
 		__entry->fit_cpus	= *(unsigned int *)cpumask_bits(fit_cpus);
 		__entry->pinning_cpus	= *(unsigned int *)cpumask_bits(pinning_cpus);
 		__entry->busy_cpus	= *(unsigned int *)cpumask_bits(busy_cpus);
 	),
 
-	TP_printk("comm=%s pid=%d tex=%d fit_cpus=%#x pinning_cpus=%#x busy_cpus=%#x",
-		  __entry->comm, __entry->pid, __entry->tex,
+	TP_printk("comm=%s pid=%d tex=%d suppress=%d fit_cpus=%#x pinning_cpus=%#x busy_cpus=%#x",
+		  __entry->comm, __entry->pid, __entry->tex, __entry->suppress,
 		  __entry->fit_cpus, __entry->pinning_cpus, __entry->busy_cpus)
 );
 
@@ -1475,6 +1478,137 @@ TRACE_EVENT(sched_overutilized,
 		__entry->overutilized)
 );
 
+TRACE_EVENT(gsc_decision_activate_result,
+
+	TP_PROTO(int gid, unsigned long group_util, u64 now, u64 last_update_time, char *label),
+
+	TP_ARGS(gid, group_util, now, last_update_time, label),
+
+	TP_STRUCT__entry(
+		__field( int,			gid			)
+		__field( unsigned long,		group_util		)
+		__field( u64,			now			)
+		__field( u64,			last_update_time	)
+		__array( char,			label,	64		)
+	),
+
+	TP_fast_assign(
+		__entry->gid			= gid;
+		__entry->group_util		= group_util;
+		__entry->now			= now;
+		__entry->last_update_time	= last_update_time;
+		strncpy(__entry->label, label, 63);
+	),
+
+	TP_printk("group_id = %d group_util=%lu now=%llu last_uptime=%llu reason=%s",
+		__entry->gid,  __entry->group_util, __entry->now,
+		__entry->last_update_time, __entry->label)
+);
+
+TRACE_EVENT(gsc_task_cgroup_attach,
+
+	TP_PROTO(struct task_struct *p, unsigned int gid, int ret),
+
+	TP_ARGS(p, gid, ret),
+
+	TP_STRUCT__entry(
+		__array(	char,		comm,	TASK_COMM_LEN	)
+		__field(	pid_t,		pid			)
+		__field( unsigned int,		gid			)
+		__field( int,			ret			)
+	),
+
+	TP_fast_assign(
+		memcpy(__entry->comm, p->comm, TASK_COMM_LEN);
+		__entry->pid		= p->pid;
+		__entry->gid		= gid;
+		__entry->ret		= ret;
+	),
+
+	TP_printk("comm=%s pid=%d gid=%d ret=%d",
+		__entry->comm, __entry->pid, __entry->gid, __entry->ret)
+);
+
+TRACE_EVENT(gsc_flush_task,
+
+	TP_PROTO(struct task_struct *p, int ret),
+
+	TP_ARGS(p, ret),
+
+	TP_STRUCT__entry(
+		__array(	char,		comm,	TASK_COMM_LEN	)
+		__field(	pid_t,		pid			)
+		__field( int,			ret			)
+	),
+
+	TP_fast_assign(
+		memcpy(__entry->comm, p->comm, TASK_COMM_LEN);
+		__entry->pid		= p->pid;
+		__entry->ret		= ret;
+	),
+
+	TP_printk("comm=%s pid=%d ret=%d",
+		__entry->comm, __entry->pid, __entry->ret)
+);
+
+/*
+ * Tracepoint for find target cpu
+ */
+TRACE_EVENT(ems_find_target_cpu,
+
+	TP_PROTO(int cpu, unsigned long util),
+
+	TP_ARGS(cpu, util),
+
+	TP_STRUCT__entry(
+		__field( int,		cpu			)
+		__field( unsigned long,		util			)
+		__field( int,		nr_running			)
+		__field( int,		cfs_nr_running		)
+	),
+
+	TP_fast_assign(
+		__entry->cpu		= cpu;
+		__entry->util		= util;
+		__entry->nr_running		= cpu_rq(cpu)->nr_running;
+		__entry->cfs_nr_running	= cpu_rq(cpu)->cfs.h_nr_running;
+	),
+
+	TP_printk("cpu=%d util=%lu nr_running=%d cfs_nr_running=%d",
+		__entry->cpu, __entry->util, __entry->nr_running, __entry->cfs_nr_running)
+);
+
+/*
+ * Tracepoint for newidle balance
+ */
+TRACE_EVENT(ems_newidle_balance,
+
+	TP_PROTO(int cpu, int target_cpu, int pulled),
+
+	TP_ARGS(cpu, target_cpu, pulled),
+
+	TP_STRUCT__entry(
+		__field( int,		cpu			)
+		__field( int,		target_cpu			)
+		__field( int,		pulled		)
+		__field( int,		nr_running		)
+		__field( int,		rt_nr_running		)
+		__field( int,		cfs_nr_running		)
+	),
+
+	TP_fast_assign(
+		__entry->cpu		= cpu;
+		__entry->pulled		= pulled;
+		__entry->target_cpu		= target_cpu;
+		__entry->nr_running		= cpu_rq(cpu)->nr_running;
+		__entry->rt_nr_running		= cpu_rq(cpu)->rt.rt_nr_running;
+		__entry->cfs_nr_running	= cpu_rq(cpu)->cfs.h_nr_running;
+	),
+
+	TP_printk("cpu=%d pulled=%d target_cpu=%d nr_running=%d rt_nr_running=%d cfs_nr_running=%d",
+		__entry->cpu, __entry->pulled, __entry->target_cpu, __entry->nr_running,
+		__entry->rt_nr_running, __entry->cfs_nr_running)
+);
 #endif /* _TRACE_EMS_DEBUG_H */
 
 /* This part must be outside protection */

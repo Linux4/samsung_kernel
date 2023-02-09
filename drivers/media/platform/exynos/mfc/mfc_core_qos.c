@@ -177,7 +177,7 @@ bool mfc_core_qos_mb_calculate(struct mfc_core *core, struct mfc_core_ctx *core_
 			core->dev->debugfs.feature_option & MFC_OPTION_USE_FIXED_WEIGHT)
 		return update;
 
-	if (!ctx->src_ts.ts_is_full) {
+	if (!ctx->src_ts.ts_is_full || (ctx->framerate > MFC_MAX_FPS)) {
 		core_ctx->dynamic_weight_mb = 0;
 		return update;
 	}

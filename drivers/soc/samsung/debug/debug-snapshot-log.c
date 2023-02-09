@@ -210,9 +210,9 @@ struct item##_log *dss_get_##item##_log_by_cpu_iter(int cpu, int idx) {	\
 		return NULL;						\
 	entry = &entry[dss_get_len_##item##_log_by_cpu(cpu) * cpu];	\
 	if (!(idx % dss_get_len_##item##_log_by_cpu(cpu)))		\
-		idx = 0;							\
+		idx = 0;						\
 	else if (idx < 0)						\
-		idx = dss_get_len_##item##_log() -			\
+		idx = dss_get_len_##item##_log_by_cpu(cpu) -		\
 		(abs(idx) % dss_get_len_##item##_log_by_cpu(cpu));	\
 	else								\
 		idx = idx % dss_get_len_##item##_log_by_cpu(cpu);	\

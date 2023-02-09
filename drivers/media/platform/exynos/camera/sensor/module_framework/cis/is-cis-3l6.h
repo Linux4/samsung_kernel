@@ -25,8 +25,6 @@
 #define SENSOR_3L6_COARSE_INTEGRATION_TIME_MIN              0x2
 #define SENSOR_3L6_COARSE_INTEGRATION_TIME_MAX_MARGIN       0x4
 
-#define USE_GROUP_PARAM_HOLD	(0)
-
 /****
  **  Register Address
  **  : address name format: SENSOR_3L6_XX...XX_ADDR

@@ -1070,7 +1070,7 @@ static int dsim_reg_wait_idle_status(u32 id, u32 is_vm)
 	ret = readl_poll_timeout_atomic(
 			dsim_regs_desc(id)->regs + DSIM_LINK_STATUS0, val,
 			!DSIM_LINK_STATUS0_VIDEO_MODE_STATUS_GET(val), 10,
-			2000);
+			16000);
 	if (ret) {
 		cal_log_err(id, "dsim%d wait timeout idle status\n", id);
 		return ret;
@@ -2268,6 +2268,29 @@ int dsim_reg_get_int_and_clear(u32 id)
 void dsim_reg_clear_int(u32 id, u32 int_src)
 {
 	dsim_write(id, DSIM_INTSRC, int_src);
+}
+
+int dsim_reg_get_int(u32 id)
+{
+	u32 val;
+
+	val = dsim_read(id, DSIM_INTSRC);
+
+	return val;
+}
+
+void dsim_reg_wait_clear_int(u32 id, u32 int_num)
+{
+	u32 val;
+	int ret;
+
+	ret = readl_poll_timeout_atomic(dsim_regs_desc(id)->regs + DSIM_INTSRC,
+					val, !(val & int_num), 10, 30000);
+
+	if (ret)
+		cal_log_err(id,
+			"timeout to wait for clear val(0x%08x) of int(0x%08x)\n",
+			val, int_num);
 }
 
 int dsim_reg_get_link_clock(u32 id)

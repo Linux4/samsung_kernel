@@ -388,9 +388,7 @@ void migov_set_tunable_data(void)
 		} else if (id == MIGOV_GPU) {
 			struct private_data_gpu *private = dom->private;
 
-			tsd.q0_empty_pct_thr = private->q0_empty_pct_thr;
-			tsd.q1_empty_pct_thr = private->q1_empty_pct_thr;
-			tsd.gpu_active_pct_thr = private->gpu_active_pct_thr;
+			tsd.gpu_hw_status = private->fn->get_gpu_hw_status();
 			tsd.minlock_low_limit[id] = private->pm_qos_min_freq;
 		} else if (id == MIGOV_MIF) {
 			struct private_data_mif *private = dom->private;

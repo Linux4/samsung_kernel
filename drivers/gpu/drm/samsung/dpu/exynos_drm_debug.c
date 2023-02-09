@@ -14,7 +14,6 @@
 #include <linux/debugfs.h>
 #include <linux/pm_runtime.h>
 #include <linux/moduleparam.h>
-#include <linux/delay.h>
 #include <video/mipi_display.h>
 #include <drm/drm_print.h>
 #include <drm/drm_atomic.h>
@@ -23,678 +22,214 @@
 #include <exynos_drm_crtc.h>
 #include <exynos_drm_plane.h>
 #include <exynos_drm_format.h>
-#include <exynos_drm_partial.h>
-#include <exynos_drm_tui.h>
 #include <exynos_drm_gem.h>
 #include <exynos_drm_decon.h>
 #include <exynos_drm_recovery.h>
 #include <cal_config.h>
 #include <decon_cal.h>
-#include <dt-bindings/soc/samsung/s5e9925-devfreq.h>
-#include <soc/samsung/exynos-devfreq.h>
+#include <soc/samsung/memlogger.h>
 #if IS_ENABLED(CONFIG_EXYNOS_ITMON)
 #include <soc/samsung/exynos-itmon.h>
 #endif
 
-/* Default is 1024 entries array for event log buffer */
-static unsigned int dpu_event_log_max = 1024;
-static unsigned int dpu_event_print_max = 512;
+/* TODO: erase global variable */
+struct memlog_obj *g_log_obj;
+EXPORT_SYMBOL(g_log_obj);
 
-module_param_named(event_log_max, dpu_event_log_max, uint, 0);
-module_param_named(event_print_max, dpu_event_print_max, uint, 0600);
-MODULE_PARM_DESC(event_log_max, "entry count of event log buffer array");
-MODULE_PARM_DESC(event_print_max, "print entry count of event log buffer");
+struct memlog_obj *g_errlog_obj;
+EXPORT_SYMBOL(g_errlog_obj);
 
-/* If event are happened continuously, then ignore */
-static bool dpu_event_ignore
-	(enum dpu_event_type type, struct dpu_debug *d)
+#define LOG_BUF_SIZE	256
+
+#define RSC_STATUS_IDLE	7
+static size_t __dpu_rsc_to_string(struct exynos_drm_crtc *exynos_crtc,
+		void *buf, size_t remained, u64 rsc)
 {
-	int latest = atomic_read(&d->event_log_idx) % dpu_event_log_max;
-	int idx, offset;
+	const struct drm_device *drm_dev = exynos_crtc->base.dev;
+	int i, n = 0;
+	int win_cnt = get_plane_num(drm_dev);
+	unsigned int decon_id;
 
-	if (IS_ERR_OR_NULL(d->event_log))
-		return true;
-
-	for (offset = 0; offset < DPU_EVENT_KEEP_CNT; ++offset) {
-		idx = (latest + dpu_event_log_max - offset) % dpu_event_log_max;
-		if (type != d->event_log[idx].type)
-			return false;
+	for (i = 0; i < win_cnt; ++i) {
+		decon_id = is_decon_using_ch(rsc, i);
+		n += scnprintf(buf + n, remained - n, "%d[%c] ", i,
+			decon_id < RSC_STATUS_IDLE ? '0' + decon_id : 'X');
 	}
 
-	return true;
+	return n;
 }
 
-static void dpu_event_save_freqs(struct dpu_log_freqs *freqs)
+size_t dpu_rsc_ch_to_string(void *src, void *buf, size_t remained)
 {
-	freqs->mif_freq = exynos_devfreq_get_domain_freq(DEVFREQ_MIF);
-	freqs->int_freq = exynos_devfreq_get_domain_freq(DEVFREQ_INT);
-	freqs->disp_freq = exynos_devfreq_get_domain_freq(DEVFREQ_DISP);
+	struct exynos_drm_crtc *exynos_crtc = src;
+	u64 rsc_ch = decon_reg_get_rsc_ch(exynos_crtc->base.index);
+
+	return __dpu_rsc_to_string(exynos_crtc, buf, remained, rsc_ch);
+}
+
+size_t dpu_rsc_win_to_string(void *src, void *buf, size_t remained)
+{
+	struct exynos_drm_crtc *exynos_crtc = src;
+	u64 rsc_win = decon_reg_get_rsc_win(exynos_crtc->base.index);
+
+	return __dpu_rsc_to_string(exynos_crtc, buf, remained, rsc_win);
+}
+
+size_t dpu_config_to_string(void *src, void *buf, size_t remained)
+{
+	struct dpu_bts_win_config *win = src;
+	char *str_state[3] = {"DISABLED", "COLOR", "BUFFER"};
+	const struct dpu_fmt *fmt;
+	int n = 0;
+
+	if (win->state == DPU_WIN_STATE_DISABLED)
+		return n;
+
+	fmt = dpu_find_fmt_info(win->format);
+
+	n += scnprintf(buf + n, remained - n,
+			"%s[0x%llx] SRC[%d %d %d %d] ",	str_state[win->state],
+			(win->state == DPU_WIN_STATE_BUFFER) ?
+			win->dbg_dma_addr : 0,
+			win->src_x, win->src_y, win->src_w, win->src_h);
+	n += scnprintf(buf + n, remained - n, "DST[%d %d %d %d] ",
+			win->dst_x, win->dst_y, win->dst_w, win->dst_h);
+	n += scnprintf(buf + n, remained - n, "ROT[%d] COMP[%d] HDR[%d] ",
+			win->is_rot, win->is_comp, win->is_hdr);
+	if (win->state == DPU_WIN_STATE_BUFFER)
+		n += scnprintf(buf + n, remained - n, "CH%d ", win->dpp_ch);
+
+	n += scnprintf(buf + n, remained - n, "%s ", fmt->name);
+	n += scnprintf(buf + n, remained - n, "%s ", get_comp_src_name(win->comp_src));
+
+	return n;
+}
+
+static bool
+is_event_repeated(const char *name, struct dpu_memlog_event *event, u32 flag)
+{
+	unsigned long flags;
+	bool ret = false;
+
+	spin_lock_irqsave(&event->slock, flags);
+	if (!(flag & EVENT_FLAG_REPEAT)) {
+		event->repeat_cnt = 0;
+		goto out;
+	}
+
+	if (event->repeat_cnt == 0) {
+		event->last_event_len = strlen(name);
+		strlcpy(event->last_event, name, event->last_event_len + 1);
+	} else if (strncmp(event->last_event, name, event->last_event_len)) {
+		event->repeat_cnt = 1;
+		event->last_event_len = strlen(name);
+		strlcpy(event->last_event, name, event->last_event_len + 1);
+		goto out;
+	}
+
+	/*
+	 * If the same event occurs DPU_EVENT_KEEP_CNT times continuously,
+	 * it will be skipped.
+	 */
+	if (event->repeat_cnt < DPU_EVENT_KEEP_CNT)
+		++event->repeat_cnt;
+	else
+		ret = true;
+
+out:
+	spin_unlock_irqrestore(&event->slock, flags);
+	return ret;
 }
 
 /* ===== EXTERN APIs ===== */
-
 /*
  * DPU_EVENT_LOG() - store information to log buffer by common API
- * @type: event type
+ * @event_name: event name
  * @exynos_crtc: object to store event log, it can be NULL
- * @priv: pointer to DECON, DSIM or DPP device structure, it can be NULL
+ * @flag: EVENT_FLAG_xxx for DPU EVENT LOG
+ * @fmt: format string or to_sting function ptr
+ * @...: Arguments for the format string or function ptr
  *
  * Store information related to DECON, DSIM or DPP. Each DECON has event log
  * So, DECON id is used as @index
  */
-void DPU_EVENT_LOG(enum dpu_event_type type, struct exynos_drm_crtc *exynos_crtc,
-		void *priv)
+void DPU_EVENT_LOG(const char *event_name, struct exynos_drm_crtc *exynos_crtc,
+		u32 flag, void *fmt, ...)
 {
 	struct dpu_debug *d;
-	struct exynos_drm_plane *exynos_plane = NULL;
-	struct dpu_log *log;
-	struct drm_crtc_state *crtc_state;
-	struct exynos_partial *partial;
-	struct drm_rect *partial_region;
-	struct resolution_info *res_info;
-	struct exynos_recovery_cond *recovery_info;
-	unsigned long flags;
-	int idx;
-
-	if (!exynos_crtc)
-		return;
-
-	d = &exynos_crtc->d;
-
-	switch (type) {
-	case DPU_EVT_DSIM_UNDERRUN:
-		d->underrun_cnt++;
-	case DPU_EVT_TE_INTERRUPT:
-		/*
-		 * If the same event occurs DPU_EVENT_KEEP_CNT times
-		 * continuously, it will be skipped.
-		 */
-		if (dpu_event_ignore(type, &exynos_crtc->d))
-			return;
-		break;
-	default:
-		break;
-	}
-
-	spin_lock_irqsave(&d->event_lock, flags);
-	idx = atomic_inc_return(&d->event_log_idx) % dpu_event_log_max;
-	log = &d->event_log[idx];
-	spin_unlock_irqrestore(&d->event_lock, flags);
-
-	log->time = ktime_get();
-	log->type = type;
-
-	switch (type) {
-	case DPU_EVT_DPP_FRAMEDONE:
-		exynos_plane = (struct exynos_drm_plane *)priv;
-		log->data.dpp.id = exynos_plane->base.index;
-		break;
-	case DPU_EVT_DMA_RECOVERY:
-		exynos_plane = (struct exynos_drm_plane *)priv;
-		log->data.dpp.id = exynos_plane->base.index;
-		log->data.dpp.comp_src = exynos_plane->comp_src;
-		log->data.dpp.recovery_cnt = exynos_plane->recovery_cnt;
-		break;
-	case DPU_EVT_DECON_RSC_OCCUPANCY:
-		pm_runtime_get_sync(exynos_crtc->dev);
-		log->data.rsc.rsc_ch = decon_reg_get_rsc_ch(exynos_crtc->base.index);
-		log->data.rsc.rsc_win = decon_reg_get_rsc_win(exynos_crtc->base.index);
-		pm_runtime_put_sync(exynos_crtc->dev);
-		break;
-	case DPU_EVT_ENTER_HIBERNATION_IN:
-	case DPU_EVT_ENTER_HIBERNATION_OUT:
-	case DPU_EVT_EXIT_HIBERNATION_IN:
-	case DPU_EVT_EXIT_HIBERNATION_OUT:
-		log->data.pd.rpm_active = pm_runtime_active(exynos_crtc->dev);
-		break;
-	case DPU_EVT_PLANE_UPDATE:
-	case DPU_EVT_PLANE_DISABLE:
-		exynos_plane = (struct exynos_drm_plane *)priv;
-		log->data.win.win_idx = exynos_plane->win_id;
-		log->data.win.plane_idx = exynos_plane->base.index;
-		break;
-	case DPU_EVT_REQ_CRTC_INFO_OLD:
-	case DPU_EVT_REQ_CRTC_INFO_NEW:
-		crtc_state = (struct drm_crtc_state *)priv;
-		log->data.crtc_info.enable = crtc_state->enable;
-		log->data.crtc_info.active = crtc_state->active;
-		log->data.crtc_info.planes_changed = crtc_state->planes_changed;
-		log->data.crtc_info.mode_changed = crtc_state->mode_changed;
-		log->data.crtc_info.active_changed = crtc_state->active_changed;
-		log->data.crtc_info.color_mgmt_changed =
-					crtc_state->color_mgmt_changed;
-		break;
-	case DPU_EVT_BTS_RELEASE_BW:
-	case DPU_EVT_BTS_UPDATE_BW:
-		dpu_event_save_freqs(&log->data.freqs);
-		break;
-	case DPU_EVT_BTS_CALC_BW:
-		dpu_event_save_freqs(&log->data.bts.freqs);
-		log->data.bts.calc_disp = *(unsigned int *)priv;
-		break;
-	case DPU_EVT_DSIM_UNDERRUN:
-		dpu_event_save_freqs(&log->data.underrun.freqs);
-		log->data.underrun.underrun_cnt = d->underrun_cnt;
-		break;
-	case DPU_EVT_NEXT_ADJ_VBLANK:
-		log->data.timestamp = *(ktime_t *)priv;
-		break;
-	case DPU_EVT_PARTIAL_INIT:
-		partial = priv;
-		log->data.partial.min_w = partial->min_w;
-		log->data.partial.min_h = partial->min_h;
-		break;
-	case DPU_EVT_PARTIAL_PREPARE:
-		memcpy(&log->data.partial, priv, sizeof(struct dpu_log_partial));
-		break;
-	case DPU_EVT_PARTIAL_RESTORE:
-	case DPU_EVT_PARTIAL_UPDATE:
-		partial_region = priv;
-		memcpy(&log->data.partial.prev, partial_region,
-				sizeof(struct drm_rect));
-		break;
-	case DPU_EVT_TUI_ENTER:
-		res_info = (struct resolution_info *)priv;
-		log->data.tui.xres = res_info->xres;
-		log->data.tui.yres = res_info->yres;
-		log->data.tui.mode = res_info->mode;
-		break;
-	case DPU_EVT_WB_ATOMIC_COMMIT:
-		log->data.atomic.win_config[0] = *(struct dpu_bts_win_config *)priv;
-		break;
-	case DPU_EVT_RECOVERY_START:
-	case DPU_EVT_RECOVERY_END:
-		recovery_info = (struct exynos_recovery_cond *)priv;
-		log->data.recovery.id = recovery_info->id;
-		log->data.recovery.count = recovery_info->count;
-		break;
-	default:
-		break;
-	}
-}
-
-/*
- * DPU_EVENT_LOG_ATOMIC_COMMIT() - store all windows information
- * @exynos_crtc: object to store event log
- *
- * Store all windows information which includes window id, DVA, source and
- * destination coordinates, connected DPP and so on
- */
-void DPU_EVENT_LOG_ATOMIC_COMMIT(struct exynos_drm_crtc *exynos_crtc)
-{
-	struct dpu_debug *d = &exynos_crtc->d;
-	struct dpu_log *log;
-	struct dpu_bts_win_config *win_config;
-	unsigned long flags;
-	int idx, i, win_cnt = get_plane_num(exynos_crtc->base.dev);
-
-	if (IS_ERR_OR_NULL(d->event_log))
-		return;
-
-	spin_lock_irqsave(&d->event_lock, flags);
-	idx = atomic_inc_return(&d->event_log_idx) % dpu_event_log_max;
-	log = &d->event_log[idx];
-	spin_unlock_irqrestore(&d->event_lock, flags);
-
-	log->type = DPU_EVT_ATOMIC_COMMIT;
-	log->time = ktime_get();
-
-	win_config = log->data.atomic.win_config;
-	for (i = 0; i < win_cnt; ++i)
-		win_config[i] = exynos_crtc->bts->win_config[i];
-}
-
-#if defined(CONFIG_UML)
-static inline void *return_address(unsigned int level) { return NULL; }
-#else
-extern void *return_address(unsigned int);
-#endif
-
-/*
- * DPU_EVENT_LOG_CMD() - store DSIM command information
- * @exynos_crtc: object to store event log, it can be NULL
- * @cmd_id : DSIM command id
- * @data: command buffer data
- *
- * Stores command id and first data in command buffer and return addresses
- * in callstack which lets you know who called this function.
- */
-void DPU_EVENT_LOG_CMD(struct exynos_drm_crtc *exynos_crtc, u32 cmd_id,
-		unsigned long data)
-{
-	struct dpu_debug *d;
-	struct dpu_log *log;
-	unsigned long flags;
-	int idx;
-	unsigned int i;
-
-	if (!exynos_crtc)
-		return;
-
-	d = &exynos_crtc->d;
-
-	spin_lock_irqsave(&d->event_lock, flags);
-	idx = atomic_inc_return(&d->event_log_idx) % dpu_event_log_max;
-	log = &d->event_log[idx];
-	spin_unlock_irqrestore(&d->event_lock, flags);
-
-	log->type = DPU_EVT_DSIM_COMMAND;
-	log->time = ktime_get();
-
-	log->data.cmd.id = cmd_id;
-	if (cmd_id == MIPI_DSI_DCS_LONG_WRITE)
-		log->data.cmd.buf = *(u8 *)(data);
-	else
-		log->data.cmd.buf = (u8)data;
-
-	for (i = 0; i < DPU_CALLSTACK_MAX; i++)
-		log->data.cmd.caller[i] =
-			(void *)((size_t)return_address(i + 1));
-}
-
-#if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-void DPU_EVENT_LOG_FREQ_HOP(struct exynos_drm_crtc *exynos_crtc, u32 orig_m, u32 orig_k, u32 target_m, u32 target_k)
-{
-	struct dpu_debug *d = &exynos_crtc->d;
-	struct dpu_log *log;
-	unsigned long flags;
-	int idx;
-	struct dpu_log_freq_hop *freq_hop;
-
-	if (IS_ERR_OR_NULL(d->event_log))
-		return;
-
-	spin_lock_irqsave(&d->event_lock, flags);
-	idx = atomic_inc_return(&d->event_log_idx) % dpu_event_log_max;
-	log = &d->event_log[idx];
-	spin_unlock_irqrestore(&d->event_lock, flags);
-
-	log->type = DPU_EVT_FREQ_HOP;
-	log->time = ktime_get();
-
-	freq_hop = &log->data.freq_hop;
-	freq_hop->orig_m = orig_m;
-	freq_hop->orig_k = orig_k;
-	freq_hop->target_m = target_m;
-	freq_hop->target_k = target_k;
-
-}
-
-
-void DPU_EVENT_LOG_MODE_SET(struct exynos_drm_crtc *exynos_crtc, u32 event, char *mode_name)
-{
-	struct dpu_debug *d = &exynos_crtc->d;
-	struct dpu_log *log;
-	unsigned long flags;
-	int idx;
-	struct dpu_log_mode_set *mode_set;
-
-	if (IS_ERR_OR_NULL(d->event_log))
-		return;
-
-	spin_lock_irqsave(&d->event_lock, flags);
-	idx = atomic_inc_return(&d->event_log_idx) % dpu_event_log_max;
-	log = &d->event_log[idx];
-	spin_unlock_irqrestore(&d->event_lock, flags);
-
-	log->type = DPU_EVT_MODE_SET;
-	log->time = ktime_get();
-
-	mode_set = &log->data.mode_set;
-	mode_set->event = event;
-	strncpy(mode_set->mode, mode_name, DRM_DISPLAY_MODE_LEN);
-
-}
-
-#endif
-
-static void __dpu_print_log_atomic(struct dpu_bts_win_config *win,
-		int index, struct drm_printer *p)
-{
-	char *str_state[3] = {"DISABLED", "COLOR", "BUFFER"};
-	const char *str_comp;
-	const struct dpu_fmt *fmt;
-	char buf[128];
-	int len;
-
-	if (win->state == DPU_WIN_STATE_DISABLED)
-		return;
-
-	fmt = dpu_find_fmt_info(win->format);
-
-	len = scnprintf(buf, sizeof(buf),
-			"\t\t\t\t\tWIN%d: %s[0x%llx] SRC[%d %d %d %d] ",
-			index, str_state[win->state],
-			(win->state == DPU_WIN_STATE_BUFFER) ?
-			win->dbg_dma_addr : 0,
-			win->src_x, win->src_y, win->src_w, win->src_h);
-	len += scnprintf(buf + len, sizeof(buf) - len,
-			"DST[%d %d %d %d] ",
-			win->dst_x, win->dst_y, win->dst_w, win->dst_h);
-	len += scnprintf(buf + len, sizeof(buf) - len,
-			"ROT[%d] COMP[%d] ", win->is_rot, win->is_comp);
-	if (win->state == DPU_WIN_STATE_BUFFER)
-		scnprintf(buf + len, sizeof(buf) - len, "CH%d ", win->dpp_ch);
-
-	str_comp = get_comp_src_name(win->comp_src);
-	drm_printf(p, "%s %s %s\n", buf, fmt->name, str_comp);
-}
-
-static void dpu_print_log_atomic(const struct drm_device *drm_dev,
-		struct dpu_log_atomic *atomic, struct drm_printer *p)
-{
-	int i;
-	struct dpu_bts_win_config *win;
-	int win_cnt = get_plane_num(drm_dev);
-
-	for (i = 0; i < win_cnt; ++i) {
-		win = &atomic->win_config[i];
-		__dpu_print_log_atomic(win, i, p);
-	}
-}
-
-static void dpu_print_log_atomic_wb(const struct drm_device *drm_dev,
-		struct dpu_log_atomic *atomic, struct drm_printer *p)
-{
-	__dpu_print_log_atomic(&atomic->win_config[0], 0, p);
-}
-
-#define RSC_STATUS_IDLE	7
-static void dpu_print_log_rsc(const struct drm_device *drm_dev, char *buf,
-		int len, struct dpu_log_rsc_occupancy *rsc)
-{
-	int i, len_chs, len_wins;
-	int win_cnt = get_plane_num(drm_dev);
-	unsigned int decon_id;
-	char str_chs[128];
-	char str_wins[128];
-
-	len_chs = sprintf(str_chs, "CHs: ");
-	len_wins = sprintf(str_wins, "WINs: ");
-
-	for (i = 0; i < win_cnt; ++i) {
-		decon_id = is_decon_using_ch(rsc->rsc_ch, i);
-		len_chs += sprintf(str_chs + len_chs, "%d[%c] ", i,
-				decon_id < RSC_STATUS_IDLE ? '0' + decon_id : 'X');
-
-		decon_id = is_decon_using_win(rsc->rsc_win, i);
-		len_wins += sprintf(str_wins + len_wins, "%d[%c] ", i,
-				decon_id < RSC_STATUS_IDLE ? '0' + decon_id : 'X');
-	}
-
-	sprintf(buf + len, "\t%s\n\t\t\t\t\t%s", str_chs, str_wins);
-}
-
-#define LOG_BUF_SIZE	256
-static int dpu_print_log_freqs(char *buf, int len, struct dpu_log_freqs *freqs)
-{
-	return scnprintf(buf + len, LOG_BUF_SIZE - len,
-			"\tmif(%lu) int(%lu) disp(%lu)",
-			freqs->mif_freq, freqs->int_freq, freqs->disp_freq);
-}
-
-static int dpu_print_log_partial(char *buf, int len, struct dpu_log_partial *p)
-{
-	len += scnprintf(buf + len, LOG_BUF_SIZE - len,
-			"\treq[%d %d %d %d] adj[%d %d %d %d] prev[%d %d %d %d]",
-			p->req.x1, p->req.y1,
-			drm_rect_width(&p->req), drm_rect_height(&p->req),
-			p->adj.x1, p->adj.y1,
-			drm_rect_width(&p->adj), drm_rect_height(&p->adj),
-			p->prev.x1, p->prev.y1,
-			drm_rect_width(&p->prev), drm_rect_height(&p->prev));
-	return scnprintf(buf + len, LOG_BUF_SIZE - len,
-			" reconfig(%d)", p->reconfigure);
-}
-
-#define MAX_EVENT_NAME (32)
-const char *get_event_name(enum dpu_event_type type)
-{
-	static const char events[][MAX_EVENT_NAME] = {
-		"NONE",				"DECON_ENABLED",
-		"DECON_DISABLED",		"DECON_FRAMEDONE",
-		"DECON_FRAMESTART",		"DECON_RSC_OCCUPANCY",
-		"DECON_TRIG_MASK",		"DSIM_ENABLED",
-		"DSIM_DISABLED",		"DSIM_COMMAND",
-		"DSIM_UNDERRUN",		"DSIM_FRAMEDONE",
-		"DPP_FRAMEDONE",		"DMA_RECOVERY",
-		"ATOMIC_COMMIT",		"TE_INTERRUPT",
-		"ENTER_HIBERNATION_IN",		"ENTER_HIBERNATION_OUT",
-		"EXIT_HIBERNATION_IN",		"EXIT_HIBERNATION_OUT",
-		"ATOMIC_BEGIN",			"ATOMIC_FLUSH",
-		"WB_ENABLE",			"WB_DISABLE",
-		"WB_ATOMIC_COMMIT",		"WB_FRAMEDONE",
-		"WB_ENTER_HIBERNATION",		"WB_EXIT_HIBERNATION",
-		"PLANE_UPDATE",			"PLANE_DISABLE",
-		"REQ_CRTC_INFO_OLD",		"REQ_CRTC_INFO_NEW",
-		"FRAMESTART_TIMEOUT",
-		"BTS_RELEASE_BW",		"BTS_CALC_BW",
-		"BTS_UPDATE_BW",		"NEXT_ADJ_VBLANK",
-		"VBLANK_ENABLE",		"VBLANK_DISABLE",
-		"PARTIAL_INIT",			"PARTIAL_PREPARE",
-		"PARTIAL_UPDATE",		"PARTIAL_RESTORE",
-		"DQE_RESTORE",			"DQE_COLORMODE",
-		"DQE_PRESET",			"DQE_CONFIG",
-		"DQE_DIMSTART",			"DQE_DIMEND",
-		"TUI_ENTER",			"TUI_EXIT",
-		"RECOVERY_START",		"RECOVERY_END",
-#if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-		"FREQ_HOP",			"MODE_SET",
-#endif
-	};
-
-	if (type >= DPU_EVT_MAX)
-		return NULL;
-
-	return events[type];
-}
-#if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-void DPU_EVENT_SHOW(const struct exynos_drm_crtc *exynos_crtc, struct drm_printer *p)
-#else
-static void
-DPU_EVENT_SHOW(const struct exynos_drm_crtc *exynos_crtc, struct drm_printer *p)
-#endif
-{
-	const struct dpu_debug *d = &exynos_crtc->d;
-	const struct drm_device *drm_dev = exynos_crtc->base.dev;
-	int idx = atomic_read(&d->event_log_idx);
-	struct dpu_log *log;
-	int latest = idx % dpu_event_log_max;
-	struct timespec64 ts;
-	ktime_t prev_ktime;
-	const char *str_comp;
+	struct dpu_memlog_event *event_log;
 	char buf[LOG_BUF_SIZE];
-	int len;
+	va_list args;
+	int n = 0;
 
-	if (IS_ERR_OR_NULL(d->event_log))
+	if (!exynos_crtc)
 		return;
 
-	drm_printf(p, "----------------------------------------------------\n");
-	drm_printf(p, "%14s  %20s  %20s\n", "Time", "Event ID", "Remarks");
-	drm_printf(p, "----------------------------------------------------\n");
-
-	/* Seek a oldest from current index */
-	if (dpu_event_print_max > dpu_event_log_max)
-		dpu_event_print_max = dpu_event_log_max;
-
-	if (idx < dpu_event_print_max)
-		idx = 0;
+	d = &exynos_crtc->d;
+	if (flag & EVENT_FLAG_FENCE)
+		event_log = &d->memlog.fevent_log;
 	else
-		idx = (idx - dpu_event_print_max) % dpu_event_log_max;
+		event_log = &d->memlog.event_log;
 
-	prev_ktime = ktime_set(0, 0);
-	do {
-		if (++idx >= dpu_event_log_max)
-			idx = 0;
+	if (!event_log->obj)
+		return;
 
-		/* Seek a index */
-		log = &d->event_log[idx];
+	if (is_event_repeated(event_name, event_log, flag))
+		return;
 
-		/* TIME */
-		ts = ktime_to_timespec64(log->time);
+	if (flag & EVENT_FLAG_ERROR)
+		d->err_event_cnt++;
 
-		len = scnprintf(buf, sizeof(buf), "[%6lld.%06ld] ", ts.tv_sec,
-				ts.tv_nsec/NSEC_PER_USEC);
+	n += scnprintf(buf + n, sizeof(buf) - n, "%s: %s\t",
+			event_log->prefix, event_name);
 
-		/* If there is no timestamp, then exit directly */
-		if (!ts.tv_sec)
-			break;
+	if (fmt) {
+		if (flag & EVENT_FLAG_LONG) {
+			dpu_data_to_string fp;
 
-		len += scnprintf(buf + len, sizeof(buf) - len,  "%20s",
-				get_event_name(log->type));
-
-		switch (log->type) {
-		case DPU_EVT_DECON_RSC_OCCUPANCY:
-			dpu_print_log_rsc(drm_dev, buf, len, &log->data.rsc);
-			break;
-		case DPU_EVT_DSIM_COMMAND:
-			scnprintf(buf + len, sizeof(buf) - len,
-					"\tCMD_ID: 0x%x\tDATA[0]: 0x%x",
-					log->data.cmd.id, log->data.cmd.buf);
-			break;
-		case DPU_EVT_DPP_FRAMEDONE:
-			scnprintf(buf + len, sizeof(buf) - len,
-					"\tID:%d", log->data.dpp.id);
-			break;
-		case DPU_EVT_DMA_RECOVERY:
-			str_comp = get_comp_src_name(log->data.dpp.comp_src);
-			scnprintf(buf + len, sizeof(buf) - len,
-					"\tID:%d SRC:%s COUNT:%d",
-					log->data.dpp.id, str_comp,
-					log->data.dpp.recovery_cnt);
-			break;
-		case DPU_EVT_ENTER_HIBERNATION_IN:
-		case DPU_EVT_ENTER_HIBERNATION_OUT:
-		case DPU_EVT_EXIT_HIBERNATION_IN:
-		case DPU_EVT_EXIT_HIBERNATION_OUT:
-			scnprintf(buf + len, sizeof(buf) - len,
-					"\tDPU POWER %s",
-					log->data.pd.rpm_active ? "ON" : "OFF");
-			break;
-		case DPU_EVT_PLANE_UPDATE:
-		case DPU_EVT_PLANE_DISABLE:
-			scnprintf(buf + len, sizeof(buf) - len,
-					"\tCH:%d, WIN:%d",
-					log->data.win.plane_idx,
-					log->data.win.win_idx);
-			break;
-		case DPU_EVT_REQ_CRTC_INFO_OLD:
-		case DPU_EVT_REQ_CRTC_INFO_NEW:
-			scnprintf(buf + len, sizeof(buf) - len,
-				"\tenable(%d) active(%d) [p:%d m:%d a:%d c:%d]",
-					STATE_ARG(&log->data.crtc_info));
-			break;
-		case DPU_EVT_BTS_RELEASE_BW:
-		case DPU_EVT_BTS_UPDATE_BW:
-			dpu_print_log_freqs(buf, len, &log->data.freqs);
-			break;
-		case DPU_EVT_BTS_CALC_BW:
-			len += dpu_print_log_freqs(buf, len,
-					&log->data.bts.freqs);
-			scnprintf(buf + len, sizeof(buf) - len,
-					" calculated disp(%u)",
-					log->data.bts.calc_disp);
-			break;
-		case DPU_EVT_DSIM_UNDERRUN:
-			len += dpu_print_log_freqs(buf, len,
-					&log->data.underrun.freqs);
-			scnprintf(buf + len, sizeof(buf) - len,
-					" underrun count(%d)",
-					log->data.underrun.underrun_cnt);
-			break;
-		case DPU_EVT_NEXT_ADJ_VBLANK:
-			scnprintf(buf + len, sizeof(buf) - len,
-					"\ttimestamp(%lld)",
-					log->data.timestamp);
-			break;
-		case DPU_EVT_PARTIAL_INIT:
-			scnprintf(buf + len, sizeof(buf) - len,
-					"\tminimum rect size[%dx%d]",
-					log->data.partial.min_w,
-					log->data.partial.min_h);
-			break;
-		case DPU_EVT_PARTIAL_PREPARE:
-			dpu_print_log_partial(buf, len,
-					&log->data.partial);
-			break;
-		case DPU_EVT_PARTIAL_RESTORE:
-		case DPU_EVT_PARTIAL_UPDATE:
-			scnprintf(buf + len, sizeof(buf) - len,
-					"\t[%d %d %d %d]",
-					log->data.partial.prev.x1,
-					log->data.partial.prev.y1,
-					drm_rect_width(&log->data.partial.prev),
-					drm_rect_height(&log->data.partial.prev));
-			break;
-		case DPU_EVT_TUI_ENTER:
-			scnprintf(buf + len, sizeof(buf) - len,
-					"\tresolution[%ux%u] mode[%s]",
-					log->data.tui.xres,
-					log->data.tui.yres,
-					(log->data.tui.mode) ? "Video" : "Command");
-			break;
-		case DPU_EVT_RECOVERY_START:
-		case DPU_EVT_RECOVERY_END:
-			scnprintf(buf + len, sizeof(buf) - len,
-					"\tid[%d] count[%d]",
-					log->data.recovery.id,
-					log->data.recovery.count);
-			break;
-#if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-		case DPU_EVT_FREQ_HOP:
-			scnprintf(buf + len, sizeof(buf) - len,
-					"\t[m: %d->%d, k: %d->%d]",
-					log->data.freq_hop.orig_m,
-					log->data.freq_hop.target_m,
-					log->data.freq_hop.orig_k,
-					log->data.freq_hop.target_k);
-			break;
-		case DPU_EVT_MODE_SET:
-			scnprintf(buf + len, sizeof(buf) - len,
-					"\t[MRES: %d, VREF: %d: mode: %s]",
-					(log->data.mode_set.event & SEAMLESS_MODESET_MRES) ? 1 : 0,
-					(log->data.mode_set.event & SEAMLESS_MODESET_VREF) ? 1 : 0,
-					log->data.mode_set.mode);
-			break;
-#endif
-		default:
-			break;
+			va_start(args, (dpu_data_to_string)fmt);
+			fp = (dpu_data_to_string)fmt;
+			n += fp(va_arg(args, void*), buf + n, sizeof(buf) - n);
+			va_end(args);
+		} else {
+			va_start(args, (const char *)fmt);
+			n += vscnprintf(buf + n, sizeof(buf) - n, fmt, args);
+			va_end(args);
 		}
+	}
 
-		drm_printf(p, "%s\n", buf);
-
-		switch (log->type) {
-		case DPU_EVT_ATOMIC_COMMIT:
-			dpu_print_log_atomic(drm_dev, &log->data.atomic, p);
-			break;
-		case DPU_EVT_WB_ATOMIC_COMMIT:
-			dpu_print_log_atomic_wb(drm_dev, &log->data.atomic, p);
-			break;
-		default:
-			break;
-		}
-	} while (latest != idx);
-
-	drm_printf(p, "----------------------------------------------------\n");
+	memlog_write_printf(event_log->obj, MEMLOG_LEVEL_INFO, "%s\n", buf);
 }
 
-static int dpu_debug_event_show(struct seq_file *s, void *unused)
+static int dpu_debug_err_event_show(struct seq_file *s, void *unused)
 {
 	struct exynos_drm_crtc *exynos_crtc = s->private;
-	struct drm_printer p = drm_seq_file_printer(s);
+	const struct dpu_debug *d = &exynos_crtc->d;
 
-	DPU_EVENT_SHOW(exynos_crtc, &p);
+	seq_printf(s, "%d\n", d->err_event_cnt);
 	return 0;
 }
 
-static int dpu_debug_event_open(struct inode *inode, struct file *file)
+static int dpu_debug_err_event_open(struct inode *inode, struct file *file)
 {
-	return single_open(file, dpu_debug_event_show, inode->i_private);
+	return single_open(file, dpu_debug_err_event_show, inode->i_private);
 }
 
-static const struct file_operations dpu_event_fops = {
-	.open = dpu_debug_event_open,
+static ssize_t dpu_debug_err_event_write(struct file *file, const char __user *buf,
+		size_t count, loff_t *f_ops)
+{
+	struct seq_file *s = file->private_data;
+	struct exynos_drm_crtc *exynos_crtc = s->private;
+
+	exynos_crtc->d.err_event_cnt = 0;
+
+	return count;
+}
+
+static const struct file_operations dpu_err_event_fops = {
+	.open = dpu_debug_err_event_open,
 	.read = seq_read,
+	.write = dpu_debug_err_event_write,
 	.llseek = seq_lseek,
 	.release = seq_release,
 };
@@ -714,9 +249,39 @@ static ssize_t recovery_write(struct file *file, const char *user_buf,
 {
 	struct seq_file *s = file->private_data;
 	struct exynos_drm_crtc *exynos_crtc = s->private;
+	char local_buf[256];
+	size_t size;
+	u32 req;
 
-	if (exynos_crtc->ops->recovery)
-		exynos_crtc->ops->recovery(exynos_crtc, "force");
+	size = min(sizeof(local_buf) - 1, count);
+	if (copy_from_user(local_buf, user_buf, size)) {
+		pr_warn("failed to copy from userbuf\n");
+		return count;
+	}
+
+	local_buf[size] = '\0';
+
+	if (kstrtou32(local_buf, 0, &req) != 0 ||
+			!exynos_crtc->ops->recovery)
+		return count;
+
+	switch (req) {
+		case 0:
+			exynos_crtc->ops->recovery(exynos_crtc,
+					"dsim");
+			break;
+		case 2:
+			exynos_crtc->ops->recovery(exynos_crtc,
+					"customer");
+			break;
+		case 3:
+			exynos_crtc->ops->recovery(exynos_crtc,
+					"undefined|force|dsim|customer");
+			break;
+		default:
+			exynos_crtc->ops->recovery(exynos_crtc,
+					"force");
+	}
 
 	return count;
 }
@@ -895,36 +460,15 @@ static const struct file_operations dpu_profile_hiber_fops = {
 	.release = seq_release,
 };
 
+static void dpu_init_memlogger(struct exynos_drm_crtc *exynos_crtc);
 int dpu_init_debug(struct exynos_drm_crtc *exynos_crtc)
 {
-	int i;
-	u32 event_cnt;
 	struct drm_crtc *crtc;
-
-	exynos_crtc->d.event_log = NULL;
-	event_cnt = dpu_event_log_max;
-
-	for (i = 0; i < DPU_EVENT_LOG_RETRY; ++i) {
-		event_cnt = event_cnt >> i;
-		exynos_crtc->d.event_log =
-			vzalloc(sizeof(struct dpu_log) * event_cnt);
-		if (IS_ERR_OR_NULL(exynos_crtc->d.event_log)) {
-			DRM_WARN("failed to alloc event log buf[%d]. retry\n",
-					event_cnt);
-			continue;
-		}
-
-		DRM_INFO("#%d event log buffers are allocated\n", event_cnt);
-		break;
-	}
-	spin_lock_init(&exynos_crtc->d.event_lock);
-	exynos_crtc->d.event_log_cnt = event_cnt;
-	atomic_set(&exynos_crtc->d.event_log_idx, -1);
 
 	crtc = &exynos_crtc->base;
 
-	debugfs_create_file("event", 0444, crtc->debugfs_entry,	exynos_crtc,
-			&dpu_event_fops);
+	debugfs_create_file("err_event", 0664, crtc->debugfs_entry, exynos_crtc,
+			&dpu_err_event_fops);
 
 	debugfs_create_file("recovery", 0644, crtc->debugfs_entry, exynos_crtc,
 			&recovery_fops);
@@ -934,6 +478,16 @@ int dpu_init_debug(struct exynos_drm_crtc *exynos_crtc)
 
 	debugfs_create_file("profile_hiber", 0444, crtc->debugfs_entry,
 			exynos_crtc, &dpu_profile_hiber_fops);
+
+	dpu_init_memlogger(exynos_crtc);
+
+	return 0;
+}
+
+int dpu_deinit_debug(struct exynos_drm_crtc *exynos_crtc)
+{
+	if (exynos_crtc->d.memlog.desc)
+		memlog_unregister(exynos_crtc->d.memlog.desc);
 
 	return 0;
 }
@@ -997,33 +551,13 @@ void dpu_dump(struct exynos_drm_crtc *exynos_crtc)
 		exynos_crtc->ops->dump_register(exynos_crtc);
 }
 
-bool dpu_event(struct exynos_drm_crtc *exynos_crtc)
-{
-	bool active;
-	struct drm_printer p = drm_info_printer(exynos_crtc->dev);
-
-	active = pm_runtime_active(exynos_crtc->dev);
-	pr_info("DPU power %s state\n", active ? "on" : "off");
-
-	DPU_EVENT_SHOW(exynos_crtc, &p);
-
-	return active;
-}
-
-void dpu_dump_with_event(struct exynos_drm_crtc *exynos_crtc)
-{
-	bool active = dpu_event(exynos_crtc);
-
-	if (active && exynos_crtc->ops->dump_register)
-		exynos_crtc->ops->dump_register(exynos_crtc);
-}
-
 int dpu_sysmmu_fault_handler(struct iommu_fault *fault, void *data)
 {
 	struct exynos_drm_crtc *exynos_crtc = data;
 	pr_info("%s +\n", __func__);
 
-	dpu_dump_with_event(exynos_crtc);
+	dpu_dump(exynos_crtc);
+	dbg_snapshot_expire_watchdog();
 
 	return 0;
 }
@@ -1061,7 +595,7 @@ int dpu_itmon_notifier(struct notifier_block *nb, unsigned long act, void *data)
 		pr_info("%s: port: %s, dest: %s\n", __func__,
 				itmon_data->port, itmon_data->dest);
 
-		dpu_dump_with_event(exynos_crtc);
+		dpu_dump(exynos_crtc);
 
 		d->itmon_notified = true;
 		is_dumped = true;
@@ -1154,7 +688,7 @@ bool exynos_atomic_commit_check_buf_sanity(struct drm_atomic_state *old_state)
 	if (!fps)
 		fps = SANITY_DFT_FPS;
 
-	usleep_range(100000/fps/4, 100000/fps/4 + 10);
+	usleep_range(USEC_PER_SEC/fps/4, USEC_PER_SEC/fps/4 + 10);
 
 	for_each_new_plane_in_state(old_state, plane, new_plane_state, i) {
 		fb = new_plane_state->fb;
@@ -1189,105 +723,82 @@ bool exynos_atomic_commit_check_buf_sanity(struct drm_atomic_state *old_state)
 }
 #endif
 
-#if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-#define MAX_EXYNOS_DRM_IOCTL_TIME (20)
-struct exynos_drm_ioctl_time_t exynos_drm_ioctl_time[MAX_EXYNOS_DRM_IOCTL_TIME];
-int exynos_drm_ioctl_time_cnt;
-struct mutex exynos_drm_ioctl_time_mutex;
-
-//#define DEBUG_EXYNOS_DRM_IOCTL_TIME
-
-void exynos_drm_ioctl_time_init(void)
+static int dpu_memlog_ops_dummy(struct memlog_obj *obj, u32 flags)
 {
-	mutex_init(&exynos_drm_ioctl_time_mutex);
-	exynos_drm_ioctl_time_cnt = 0;
+	/* NOP */
+	return 0;
 }
 
-void exynos_drm_ioctl_time_start(unsigned int cmd, ktime_t time_start)
+static const struct memlog_ops dpu_memlog_ops = {
+	.file_ops_completed = dpu_memlog_ops_dummy,
+	.log_status_notify = dpu_memlog_ops_dummy,
+	.log_level_notify = dpu_memlog_ops_dummy,
+	.log_enable_notify = dpu_memlog_ops_dummy,
+};
+
+#define DPU_MEMLOG_SIZE		(SZ_256K)
+#define DPU_ERRMEMLOG_SIZE	(SZ_32K)
+#define DPU_EVENT_MEMLOG_SIZE	(SZ_32K)
+#define DPU_FEVENT_MEMLOG_SIZE	(SZ_16K)
+static void dpu_init_memlogger(struct exynos_drm_crtc *exynos_crtc)
 {
-	int p;
+	char dev_name[10];
+	struct dpu_memlog *memlog = &exynos_crtc->d.memlog;
+	int ret;
 
-	mutex_lock(&exynos_drm_ioctl_time_mutex);
+	scnprintf(dev_name, sizeof(dev_name), "DPU%d",
+			drm_crtc_index(&exynos_crtc->base));
+	ret = memlog_register(dev_name, exynos_crtc->dev, &memlog->desc);
+	if (ret) {
+		pr_info("%s: failed to register memlog(%d)\n", __func__, ret);
+		goto err;
+	}
 
-	p = exynos_drm_ioctl_time_cnt;
+	memlog->desc->ops = dpu_memlog_ops;
 
-	exynos_drm_ioctl_time[p].cmd = cmd;
-	exynos_drm_ioctl_time[p].ioctl_time_start = time_start;
-	exynos_drm_ioctl_time[p].ioctl_time_end = 0;
-	exynos_drm_ioctl_time[p].done = false;
-
-#ifdef DEBUG_EXYNOS_DRM_IOCTL_TIME
-	pr_info("exynos_drm_ioctl_time [START] (%d)(%X)(%lld)\n", p, cmd, time_start);
-#endif
-	exynos_drm_ioctl_time_cnt = (exynos_drm_ioctl_time_cnt + 1) % 20;
-
-	mutex_unlock(&exynos_drm_ioctl_time_mutex);
-
-#ifdef DEBUG_EXYNOS_DRM_IOCTL_TIME
-	exynos_drm_ioctl_time_print();
-#endif
-}
-
-void exynos_drm_ioctl_time_end(unsigned int cmd, ktime_t time_start, ktime_t time_end)
-{
-	int i = 0;
-
-	mutex_lock(&exynos_drm_ioctl_time_mutex);
-
-	for (i = 0 ; i < MAX_EXYNOS_DRM_IOCTL_TIME; i++) {
-		if (exynos_drm_ioctl_time[i].cmd == cmd && exynos_drm_ioctl_time[i].ioctl_time_start == time_start) {
-			exynos_drm_ioctl_time[i].ioctl_time_end = time_end;
-			exynos_drm_ioctl_time[i].done = true;
-
-#ifdef DEBUG_EXYNOS_DRM_IOCTL_TIME
-			pr_info("exynos_drm_ioctl_time [END] (%d)(%X)(%lld)(%lld)\n", i, cmd, time_start, time_end);
-#endif
-			mutex_unlock(&exynos_drm_ioctl_time_mutex);
-#ifdef DEBUG_EXYNOS_DRM_IOCTL_TIME
-			exynos_drm_ioctl_time_print();
-#endif
-			return;
+	if (!g_log_obj) {
+		g_log_obj = memlog_alloc_printf(memlog->desc, DPU_MEMLOG_SIZE,
+				NULL, "log-mem0", 0);
+		if (!g_log_obj) {
+			pr_info("%s: failed to alloc dev memlog memory for log\n",
+					__func__);
+			goto err;
 		}
 	}
-#ifdef DEBUG_EXYNOS_DRM_IOCTL_TIME
-	pr_info("exynos_drm_ioctl_time [END] (%d)(%X)(%lld)(%lld)\n", i, cmd, time_start, time_end);
-	pr_info("somthing wrong!!\n");
-#endif
-	mutex_unlock(&exynos_drm_ioctl_time_mutex);
-}
 
-void exynos_drm_ioctl_time_print(void)
-{
-	int i = 0;
-	struct timespec64 start, end, elapsed;
-
-	mutex_lock(&exynos_drm_ioctl_time_mutex);
-	pr_info("================ [ %s ] ================\n", __func__);
-
-	for (i = 0 ; i < MAX_EXYNOS_DRM_IOCTL_TIME; i++) {
-		start = ktime_to_timespec64(exynos_drm_ioctl_time[i].ioctl_time_start);
-		end = ktime_to_timespec64(exynos_drm_ioctl_time[i].ioctl_time_end);
-
-		if (exynos_drm_ioctl_time[i].done)
-			elapsed = timespec64_sub(end, start); /* start ~ end */
-		else
-			elapsed = timespec64_sub(ktime_to_timespec64(ktime_get()), start); /* start ~ now */
-
-		pr_info("[%3d]cmd:[0X%08X] start:(%lld.%06lld) end:(%lld.%06lld) elapse:(%lld.%06lld) (%s)\n",
-			/* index */
-			i,
-			/* cmd */
-			exynos_drm_ioctl_time[i].cmd,
-			/* start */
-			start.tv_sec, start.tv_nsec/NSEC_PER_USEC,
-			/* end */
-			end.tv_sec, end.tv_nsec/NSEC_PER_USEC,
-			/* elapsed */
-			elapsed.tv_sec, elapsed.tv_nsec/NSEC_PER_USEC,
-			/* done */
-			exynos_drm_ioctl_time[i].done ? "DONE" : "RUNNING!!!");
+	if (!g_errlog_obj) {
+		g_errlog_obj = memlog_alloc_printf(memlog->desc, DPU_ERRMEMLOG_SIZE,
+				NULL, "log-mem1", 0);
+		if (!g_errlog_obj) {
+			pr_info("%s: failed to alloc dev err memlog memory for log\n",
+					__func__);
+			goto err;
+		}
 	}
 
-	mutex_unlock(&exynos_drm_ioctl_time_mutex);
+	memlog->event_log.obj = memlog_alloc_printf(memlog->desc,
+			DPU_EVENT_MEMLOG_SIZE, NULL, "evt-mem", 0);
+	if (!memlog->event_log.obj) {
+		pr_info("%s: failed to alloc dev memlog for event log\n", __func__);
+		goto err;
+	}
+	spin_lock_init(&memlog->event_log.slock);
+	scnprintf(memlog->event_log.prefix, DPU_EVENT_MAX_LEN, "[DECON%d] EVENT",
+			drm_crtc_index(&exynos_crtc->base));
+
+	memlog->fevent_log.obj = memlog_alloc_printf(memlog->desc,
+			DPU_FEVENT_MEMLOG_SIZE, NULL, "fevt-mem", 0);
+	if (!memlog->fevent_log.obj) {
+		pr_info("%s: failed to alloc dev memlog for fevent log\n", __func__);
+		goto err;
+	}
+	spin_lock_init(&memlog->fevent_log.slock);
+	scnprintf(memlog->fevent_log.prefix, DPU_EVENT_MAX_LEN, "[DECON%d] FEVENT",
+			drm_crtc_index(&exynos_crtc->base));
+
+	pr_info("%s: successfully registered\n", __func__);
+
+	return;
+err:
+	pr_err("%s: failed\n", __func__);
 }
-#endif

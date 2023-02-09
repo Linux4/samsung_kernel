@@ -517,6 +517,12 @@ int ems_can_migrate_task(struct task_struct *p, int dst_cpu)
 		return 0;
 	}
 
+	if (tex_suppress_task(p) &&
+		cpumask_test_cpu(dst_cpu, cpu_fastest_mask())) {
+		trace_ems_can_migrate_task(p, dst_cpu, false, "suppress task");
+		return 0;
+	}
+
 	trace_ems_can_migrate_task(p, dst_cpu, true, "n/a");
 
 	return 1;
@@ -547,6 +553,8 @@ void ems_tick(struct rq *rq)
 
 	ontime_migration();
 	ecs_update();
+
+	gsc_update_tick(rq);
 }
 
 void ems_enqueue_task(struct rq *rq, struct task_struct *p, int flags)
@@ -706,6 +714,7 @@ static int ems_probe(struct platform_device *pdev)
 	sysbusy_init(ems_kobj);
 	emstune_init(ems_kobj, pdev->dev.of_node);
 	stt_init(ems_kobj);
+	gsc_init(ems_kobj);
 
 	ret = hook_init();
 	if (ret) {

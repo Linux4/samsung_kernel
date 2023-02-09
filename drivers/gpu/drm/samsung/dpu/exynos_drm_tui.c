@@ -69,6 +69,7 @@ int exynos_drm_atomic_check_tui(struct drm_atomic_state *state)
 		}
 
 		if (old_exynos_crtc_state->tui_changed &&
+         !new_exynos_crtc_state->tui_changed &&
 				(new_crtc_state->plane_mask == 0)) {
 			DRM_ERROR("reject clear display commit(%pK)\n", state);
 			return -EPERM;
@@ -273,7 +274,9 @@ int exynos_atomic_enter_tui(void)
 			DRM_DEV_ERROR(dev->dev, "disp qos setting error\n");
 	}
 
-	DPU_EVENT_LOG(DPU_EVT_TUI_ENTER, exynos_crtc, (void *)(&res_info));
+	DPU_EVENT_LOG("TUI_ENTER", exynos_crtc, 0, "resolution[%ux%u] mode[%s]",
+			res_info.xres, res_info.yres, res_info.mode ?
+			"Video" : "Command");
 
 err_new_state:
 	drm_atomic_state_put(new_state);
@@ -303,9 +306,9 @@ int exynos_atomic_exit_tui(void)
 	struct drm_connector_state *new_connector_state;
 	struct exynos_drm_connector_state *new_exynos_connector_state;
 	int ret, i;
+	unsigned long op_mode = 0;
 	u32 id;
 
-	unsigned long op_mode = 0;
 	pr_info("%s +\n", __func__);
 
 	if (!crtc)
@@ -352,6 +355,7 @@ int exynos_atomic_exit_tui(void)
 	if (!(op_mode & MIPI_DSI_MODE_VIDEO)) {
 		new_exynos_crtc_state->reserved_win_mask = 0;
 		new_exynos_crtc_state->freed_win_mask = 0;
+		new_exynos_crtc_state->win_inserted = false;
 		new_exynos_crtc_state->visible_win_mask = 0;
 	}
 
@@ -386,7 +390,7 @@ int exynos_atomic_exit_tui(void)
 
 	mode_config->suspend_state = NULL;
 
-	DPU_EVENT_LOG(DPU_EVT_TUI_EXIT, exynos_crtc, NULL);
+	DPU_EVENT_LOG("TUI_EXIT", exynos_crtc, 0, NULL);
 err:
 	drm_atomic_state_put(suspend_state);
 	DRM_MODESET_LOCK_ALL_END(dev, ctx, ret);

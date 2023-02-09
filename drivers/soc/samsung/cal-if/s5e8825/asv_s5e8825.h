@@ -15,9 +15,11 @@ static struct asv_power_model {
 	unsigned reserved_0:16;
 	unsigned power_version:8;
 	unsigned power_model_1:8;
-	unsigned reserved_1:24;
+	unsigned power_model_3:8;
+	unsigned reserved_1:16;
 	unsigned power_model_2:8;
-	unsigned reserved_2:24;
+	unsigned power_model_4:8;
+	unsigned reserved_2:16;
 } power_model;
 
 struct asv_tbl_info {
@@ -231,6 +233,8 @@ int print_asv_table(char *buf)
 	size += sprintf(buf + size, "  power_model_0 : %d\n", power_model.power_model_0);
 	size += sprintf(buf + size, "  power_model_1 : %d\n", power_model.power_model_1);
 	size += sprintf(buf + size, "  power_model_2 : %d\n", power_model.power_model_2);
+	size += sprintf(buf + size, "  power_model_3 : %d\n", power_model.power_model_3);
+	size += sprintf(buf + size, "  power_model_4 : %d\n", power_model.power_model_4);
 	size += sprintf(buf + size, "  power_version : %d\n", power_model.power_version);
 
 	return size;
@@ -280,6 +284,20 @@ static ssize_t show_power_model_2(struct kobject *kobj, struct kobj_attribute *a
 static struct kobj_attribute power_model_2 =
 __ATTR(power_model_2, 0400, show_power_model_2, NULL);
 
+static ssize_t show_power_model_3(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", power_model.power_model_3);
+}
+static struct kobj_attribute power_model_3 =
+__ATTR(power_model_3, 0400, show_power_model_3, NULL);
+
+static ssize_t show_power_model_4(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", power_model.power_model_4);
+}
+static struct kobj_attribute power_model_4 =
+__ATTR(power_model_4, 0400, show_power_model_4, NULL);
+
 static ssize_t show_power_version(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	return sprintf(buf, "%d\n", power_model.power_version);
@@ -294,6 +312,8 @@ static struct attribute *asv_info_attrs[] = {
 	&power_model_0.attr,
 	&power_model_1.attr,
 	&power_model_2.attr,
+	&power_model_3.attr,
+	&power_model_4.attr,
 	&power_version.attr,
 	NULL,
 };

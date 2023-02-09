@@ -145,7 +145,7 @@ static void wb_convert_connector_state_to_config(struct dpp_params_info *config,
 	const struct writeback_device *wb = conn_to_wb_dev(state->base.connector);
 	const struct drm_crtc_state *crtc_state = state->base.crtc->state;
 
-	wb_debug(wb, "%s +\n", __func__);
+	wb_debug(wb, "+\n");
 
 	config->src.x = 0;
 	config->src.y = 0;
@@ -163,7 +163,7 @@ static void wb_convert_connector_state_to_config(struct dpp_params_info *config,
 	default:
 		config->src.w = fb->width;
 		config->src.h = fb->height;
-		wb_err(wb, "%s unsupported wb_type(%d)\n", __func__, state->type);
+		wb_err(wb, "unsupported wb_type(%d)\n", state->type);
 		break;
 	}
 
@@ -191,26 +191,40 @@ static void wb_convert_connector_state_to_config(struct dpp_params_info *config,
 	/* TODO: very big count.. recovery will be not working... */
 	config->rcv_num = 0x7FFFFFFF;
 
-	wb_debug(wb, "%s -\n", __func__);
+	wb_debug(wb, "-\n");
 }
 
-static int writeback_check_cwb(struct drm_crtc_state *crtc_state,
-					const struct drm_framebuffer *fb)
+static int writeback_check_cwb(const struct writeback_device *wb,
+		struct drm_crtc_state *crtc_state, const struct drm_framebuffer *fb)
 {
+	if (!fb)
+		return 0;
+
 	/* the fb smaller than lcd resol are not supported */
 	if (fb->width < crtc_state->mode.hdisplay ||
-			fb->height < crtc_state->mode.vdisplay)
+			fb->height < crtc_state->mode.vdisplay) {
+		wb_err(wb, "Invalid fb size, fb size < LCD resolution\n");
 		return -EINVAL;
+	}
 
 	return 0;
 }
 
-static int writeback_check_swb(struct drm_crtc_state *crtc_state,
-					const struct drm_framebuffer *fb)
+static int writeback_check_swb(const struct writeback_device *wb,
+		struct drm_crtc_state *crtc_state, const struct drm_framebuffer *fb)
 {
-	if (fb->width > crtc_state->mode.hdisplay ||
-			fb->height > crtc_state->mode.vdisplay)
+	/* frameupdate w/o out-buffer are not supported in SWB */
+	if (!fb && crtc_state->active && crtc_state->plane_mask) {
+		wb_err(wb, "SWB commit is requested w/o out-buffer\n");
 		return -EINVAL;
+	}
+
+	/* the fb bigger than 4K x 4K are not supported */
+	if (fb && (fb->width > crtc_state->mode.hdisplay ||
+			fb->height > crtc_state->mode.vdisplay)) {
+		wb_err(wb, "Invalid fb size, fb size > max wb size\n");
+		return -EINVAL;
+	}
 
 	return 0;
 }
@@ -219,30 +233,37 @@ static int writeback_atomic_check(struct drm_encoder *encoder,
 				struct drm_crtc_state *crtc_state,
 				struct drm_connector_state *conn_state)
 {
-	const struct writeback_device *wb = enc_to_wb_dev(encoder);
-	const struct drm_framebuffer *fb;
+	struct writeback_device *wb = enc_to_wb_dev(encoder);
+	const struct drm_framebuffer *fb = NULL;
 	struct exynos_drm_writeback_state *wb_state = to_exynos_wb_state(conn_state);
-	int i, ret = 0;
+	int wb_type, i, ret = 0;
+	unsigned long flags;
+
+	if (wb_check_job(conn_state))
+		fb = conn_state->writeback_job->fb;
+
+	wb_type = get_wb_type(conn_state);
+	if (wb_type == EXYNOS_WB_CWB)
+		ret = writeback_check_cwb(wb, crtc_state, fb);
+	else if (wb_type == EXYNOS_WB_SWB)
+		ret = writeback_check_swb(wb, crtc_state, fb);
+	if (ret)
+		goto err;
+
+	spin_lock_irqsave(&wb->writeback.job_lock, flags);
+	ret = !list_empty(&wb->writeback.job_queue);
+	spin_unlock_irqrestore(&wb->writeback.job_lock, flags);
+	if (ret) {
+		wb_err(wb, "previous job is not yet signaled\n");
+		ret = -EBUSY;
+		goto err;
+	}
 
 	if (!wb_check_job(conn_state))
 		return ret;
 
-	wb_state->type = get_wb_type(conn_state);
+	wb_state->type = wb_type;
 	conn_state->writeback_job->priv = conn_state;
-	fb = conn_state->writeback_job->fb;
-
-	if (wb_state->type == EXYNOS_WB_CWB)
-		ret = writeback_check_cwb(crtc_state, fb);
-	else
-		ret = writeback_check_swb(crtc_state, fb);
-	if (ret) {
-		wb_err(wb, "Invalid fb size %ux%u for %s mode size %ux%u\n",
-				fb->width, fb->height,
-				wb_state->type == EXYNOS_WB_CWB ? "CWB" : "SWB",
-				crtc_state->mode.hdisplay,
-				crtc_state->mode.vdisplay);
-		goto err;
-	}
 
 	for (i = 0; i < ARRAY_SIZE(writeback_formats); i++)
 		if (fb->format->format == writeback_formats[i])
@@ -257,7 +278,15 @@ static int writeback_atomic_check(struct drm_encoder *encoder,
 		goto err;
 	}
 
+	return ret;
 err:
+	if (fb)
+		wb_err(wb, "fb size %ux%u, %s mode size %ux%u\n",
+				fb->width, fb->height,
+				wb_type == EXYNOS_WB_CWB ? "CWB" : "SWB",
+				crtc_state->mode.hdisplay,
+				crtc_state->mode.vdisplay);
+
 	return ret;
 }
 
@@ -272,14 +301,15 @@ static void get_repeater_buffer(struct writeback_device *wb,
 			wb_state->type == EXYNOS_WB_CWB)
 		return;
 
-	if (wb->rdb.repeater_buf_active == false) {
+	if (!wb->rdb.repeater_buf_active && wb->rdb.repeater_dev_opened) {
 		ret = repeater_request_buffer(&rdb->repeater_shared_buf, 0);
 		if (ret || (rdb->repeater_shared_buf.buffer_count > MAX_SHARED_BUF_NUM)) {
 			wb_debug(wb, "repeater buffer request failed\n");
+			wb->rdb.repeater_dev_opened = false;
 			goto err_request_buf;
 		}
 		if (IS_ERR_OR_NULL(decon->dev)) {
-			wb_err(wb, "%s: decon device connected to wb invalid\n");
+			wb_err(wb, "decon device connected to wb invalid\n");
 			goto err_request_buf;
 		}
 		for (i = 0; i < MAX_SHARED_BUF_NUM; i++) {
@@ -291,7 +321,7 @@ static void get_repeater_buffer(struct writeback_device *wb,
 			if (IS_ERR_OR_NULL(rdb->attachment[i]) ||
 				IS_ERR_OR_NULL(rdb->sg_table[i]) ||
 				!!!rdb->dma_addr[i]) {
-				wb_err(wb, "%s: repeater buffer map failed\n");
+				wb_err(wb, "repeater buffer map failed\n");
 				goto err_map_buf;
 			}
 		}
@@ -372,7 +402,7 @@ static void set_protection(struct writeback_device *wb, uint64_t modifier)
 	}
 	wb->protection = protection;
 
-	wb_debug(wb, "%s: en:%d\n", __func__, protection);
+	wb_debug(wb, "en:%d\n", protection);
 
 	return;
 }
@@ -395,7 +425,7 @@ static void writeback_atomic_commit(struct drm_connector *connector,
 		return;
 	}
 
-	wb_debug(wb, "%s +\n", __func__);
+	wb_debug(wb, "+\n");
 
 	wb_convert_connector_state_to_config(config, to_exynos_wb_state(state));
 	set_protection(wb, state->writeback_job->fb->modifier);
@@ -408,10 +438,10 @@ static void writeback_atomic_commit(struct drm_connector *connector,
 	}
 	drm_writeback_queue_job(wb_conn, state);
 
-	DPU_EVENT_LOG(DPU_EVT_WB_ATOMIC_COMMIT, exynos_crtc,
-			&exynos_crtc->bts->wb_config);
+	DPU_EVENT_LOG("WB_ATOMIC_COMMIT", exynos_crtc, EVENT_FLAG_LONG,
+			dpu_config_to_string, &exynos_crtc->bts->wb_config);
 
-	wb_debug(wb, "%s -\n", __func__);
+	wb_debug(wb, "-\n");
 }
 
 static const struct drm_connector_helper_funcs wb_connector_helper_funcs = {
@@ -583,15 +613,16 @@ static void writeback_atomic_enable(struct drm_encoder *encoder,
 		return;
 	}
 
-	wb_debug(wb, "%s +\n", __func__);
+	wb_debug(wb, "+\n");
 
 	_writeback_enable(wb);
 	decon = wb_get_decon(wb);
 	wb->decon_id = decon->id;
 	wb->state = WB_STATE_ON;
-	DPU_EVENT_LOG(DPU_EVT_WB_ENABLE, decon->crtc, wb);
+	wb->rdb.repeater_dev_opened = true;
+	DPU_EVENT_LOG("WB_ENABLE", decon->crtc, 0, NULL);
 
-	wb_debug(wb, "%s -\n", __func__);
+	wb_debug(wb, "-\n");
 }
 
 void writeback_exit_hibernation(struct writeback_device *wb)
@@ -604,7 +635,7 @@ void writeback_exit_hibernation(struct writeback_device *wb)
 	_writeback_enable(wb);
 	wb->state = WB_STATE_ON;
 	exynos_crtc = wb_get_exynos_crtc(wb);
-	DPU_EVENT_LOG(DPU_EVT_WB_EXIT_HIBERNATION, exynos_crtc, wb);
+	DPU_EVENT_LOG("WB_EXIT_HIBERNATION", exynos_crtc, 0, NULL);
 }
 
 static void _writeback_disable(struct writeback_device *wb)
@@ -649,7 +680,7 @@ static void writeback_atomic_disable(struct drm_encoder *encoder,
 	old_conn_state = drm_atomic_get_old_connector_state(state,
 			&wb->writeback.base);
 
-	wb_debug(wb, "%s +\n", __func__);
+	wb_debug(wb, "+\n");
 
 	if (wb->state == WB_STATE_OFF) {
 		wb_info(wb, "already disabled(%d)\n", wb->state);
@@ -660,12 +691,12 @@ static void writeback_atomic_disable(struct drm_encoder *encoder,
 	set_protection(wb, 0);
 	release_repeater_buffer(wb);
 	wb->state = WB_STATE_OFF;
-	exynos_crtc = to_exynos_crtc(old_conn_state->crtc);
-	DPU_EVENT_LOG(DPU_EVT_WB_DISABLE, exynos_crtc, wb);
-
 	wb->decon_id = -1;
+	wb->rdb.repeater_dev_opened = false;
+	exynos_crtc = to_exynos_crtc(old_conn_state->crtc);
+	DPU_EVENT_LOG("WB_DISABLE", exynos_crtc, 0, NULL);
 
-	wb_debug(wb, "%s -\n", __func__);
+	wb_debug(wb, "-\n");
 }
 
 void writeback_enter_hibernation(struct writeback_device *wb)
@@ -678,7 +709,7 @@ void writeback_enter_hibernation(struct writeback_device *wb)
 	_writeback_disable(wb);
 	wb->state = WB_STATE_HIBERNATION;
 	exynos_crtc = wb_get_exynos_crtc(wb);
-	DPU_EVENT_LOG(DPU_EVT_WB_ENTER_HIBERNATION, exynos_crtc, wb);
+	DPU_EVENT_LOG("WB_ENTER_HIBERNATION", exynos_crtc, 0, NULL);
 }
 
 static const struct drm_encoder_helper_funcs wb_encoder_helper_funcs = {
@@ -797,7 +828,7 @@ static int writeback_bind(struct device *dev, struct device *master, void *data)
 	struct drm_connector *connector = &wb->writeback.base;
 	int ret;
 
-	wb_info(wb, "%s +\n", __func__);
+	wb_info(wb, "+\n");
 
 	drm_connector_helper_add(connector, &wb_connector_helper_funcs);
 	ret = drm_writeback_connector_init(drm_dev, &wb->writeback,
@@ -814,7 +845,7 @@ static int writeback_bind(struct device *dev, struct device *master, void *data)
 	if (wb->rdb.votf_o_feature_enabled)
 		exynos_drm_wb_conn_create_use_repeater_buffer_property(connector);
 
-	wb_info(wb, "%s -\n", __func__);
+	wb_info(wb, "-\n");
 
 	return 0;
 }
@@ -824,8 +855,8 @@ writeback_unbind(struct device *dev, struct device *master, void *data)
 {
 	const struct writeback_device *wb = dev_get_drvdata(dev);
 
-	wb_debug(wb, "%s +\n", __func__);
-	wb_debug(wb, "%s -\n", __func__);
+	wb_debug(wb, "+\n");
+	wb_debug(wb, "-\n");
 }
 
 static const struct component_ops exynos_wb_component_ops = {
@@ -839,7 +870,7 @@ static int exynos_wb_parse_dt(struct writeback_device *wb,
 	int ret;
 	struct dpp_restriction *res = &wb->restriction;
 
-	wb_debug(wb, "%s +\n", __func__);
+	wb_debug(wb, "+\n");
 
 	ret = of_property_read_u32(np, "dpp,id", &wb->id);
 	if (ret)
@@ -861,7 +892,7 @@ static int exynos_wb_parse_dt(struct writeback_device *wb,
 
 	dpp_print_restriction(wb->id, &wb->restriction);
 
-	wb_debug(wb, "%s -\n", __func__);
+	wb_debug(wb, "-\n");
 
 	return ret;
 }
@@ -893,7 +924,7 @@ static irqreturn_t odma_irq_handler(int irq, void *priv)
 			decon_reg_set_cwb_enable(wb->decon_id, false);
 
 		drm_writeback_signal_completion(&wb->writeback, 0);
-		DPU_EVENT_LOG(DPU_EVT_WB_FRAMEDONE, exynos_crtc, wb);
+		DPU_EVENT_LOG("WB_FRAMEDONE", exynos_crtc, 0, NULL);
 	}
 
 	if ((irqs & ODMA_WRITE_SLAVE_ERROR) || (irqs & ODMA_STATUS_DEADLOCK_IRQ)) {
@@ -916,7 +947,7 @@ static int wb_init_resources(struct writeback_device *wb)
 	struct resource *res;
 	int i;
 
-	wb_debug(wb, "%s +\n", __func__);
+	wb_debug(wb, "+\n");
 
 	pdev = container_of(dev, struct platform_device, dev);
 
@@ -982,7 +1013,7 @@ static int wb_init_resources(struct writeback_device *wb)
 		}
 	}
 
-	wb_debug(wb, "%s -\n", __func__);
+	wb_debug(wb, "-\n");
 
 	return ret;
 }
@@ -1022,7 +1053,7 @@ static int writeback_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, writeback);
 
-	wb_info(writeback, "successfully probed");
+	wb_info(writeback, "successfully probed\n");
 
 	ret = component_add(dev, &exynos_wb_component_ops);
 	if (ret)

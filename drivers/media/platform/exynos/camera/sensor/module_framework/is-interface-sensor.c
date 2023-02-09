@@ -3942,8 +3942,36 @@ int get_sensor_min_frame_duration(struct is_sensor_interface *itf,
 
 int get_delayed_preflash_time(struct is_sensor_interface *itf, u32 *delayedTime)
 {
-	// Need to change
-	return 0;
+	int ret = 0;
+#ifdef CONFIG_LEDS_S2MU106_FLASH
+	struct is_device_sensor_peri *sensor_peri = NULL;
+	struct v4l2_subdev *subdev_flash;
+	struct v4l2_control ctrl;
+
+	WARN_ON(!itf);
+	WARN_ON(itf->magic != SENSOR_INTERFACE_MAGIC);
+
+	sensor_peri = container_of(itf, struct is_device_sensor_peri, sensor_interface);
+	WARN_ON(!sensor_peri);
+
+	subdev_flash = sensor_peri->subdev_flash;
+
+	ctrl.id = V4L2_CID_FLASH_GET_DELAYED_PREFLASH_TIME;
+	ctrl.value = 0;
+	ret = v4l2_subdev_call(subdev_flash, core, ioctl, SENSOR_IOCTL_FLS_G_CTRL,&ctrl);
+	if (ret) {
+		dbg_flash("[%s] get fail (%d)\n", __func__, ret);
+		ret = -1;
+		goto p_err;
+	} else {
+		*delayedTime = (u32)ctrl.value;
+	}
+
+	dbg_flash("[%s] delayedTime(%d)\n", __func__, ctrl.value);
+
+p_err:
+#endif
+	return ret;
 }
 
 /* Dummy APIs for virtual(zebu) sensor env. */

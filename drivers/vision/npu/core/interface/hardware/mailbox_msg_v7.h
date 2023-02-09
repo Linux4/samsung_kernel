@@ -83,6 +83,7 @@ struct cmd_powerdown {
 	u32				dummy;
 };
 
+/* modify "strArr" variable in npu-interface.c, when changes in cmd_done structure */
 struct cmd_done {
 	u32				fid;
 };

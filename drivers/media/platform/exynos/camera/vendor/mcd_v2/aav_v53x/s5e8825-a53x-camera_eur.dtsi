@@ -170,6 +170,7 @@
 				power_seq {
 					scenario_normal_on {
 						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 2000>; share = <SRT_ACQUIRE SHARED_PIN1 1>; };
+						30 { pname = "vdd_ldo23s"; pin = <PIN_REGULATOR 1 2000 1200000>; };
 						80 { pname = "MCLK"; pin = <PIN_MCLK 1 12000>; gpio = <&gpg0 4 0x1>; share = <SRT_ACQUIRE SHARED_PIN4 1>; };
 					};
 
@@ -192,6 +193,7 @@
 				power_seq {
 					scenario_normal_on {
 						30 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 0>; share = <SRT_ACQUIRE SHARED_PIN1 1>; };
+						60 { pname = "vdd_ldo23s"; pin = <PIN_REGULATOR 1 500 1100000>; };
 						90 { pname = "MCLK"; pin = <PIN_MCLK 1 500>; gpio = <&gpg0 4 0x1>; share = <SRT_ACQUIRE SHARED_PIN4 1>; };
 					};
 					scenario_normal_off {
@@ -200,6 +202,7 @@
 					};
 					scenario_read_rom_on {
 						30 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 0>; share = <SRT_ACQUIRE SHARED_PIN1 1>; };
+						60 { pname = "vdd_ldo23s"; pin = <PIN_REGULATOR 1 500 1100000>; };
 						90 { pname = "MCLK"; pin = <PIN_MCLK 1 500>; gpio = <&gpg0 4 0x1>; share = <SRT_ACQUIRE SHARED_PIN4 1>; };
 					};
 					scenario_read_rom_off {
@@ -751,12 +754,12 @@
 
 		use_dualized_standard_cal;
 		rom_dualized_standard_cal_start_addr = <0x16D0>;
-		rom_dualized_standard_cal_end_addr = <0x1DAF>;
+		rom_dualized_standard_cal_end_addr = <0x1ADF>;
 		rom_dualized_standard_cal_sec2lsi_end_addr = <0x1D1F>;
 		rom_dualized_awb_start_addr = <0x16D0>;
 		rom_dualized_awb_end_addr = <0x16D7>;
 		rom_dualized_shading_start_addr = <0x16E0>;
-		rom_dualized_shading_end_addr = <0x1DA8>;
+		rom_dualized_shading_end_addr = <0x1AD8>;
 		rom_dualized_factory_start_addr = <0x1AE0>;
 		rom_dualized_factory_end_addr = <0x1D1F>;
 		rom_dualized_awb_sec2lsi_start_addr = <0x16D0>;
@@ -1050,8 +1053,8 @@
 		/* sysfs camera id */
 		max_camera_num = <7>;
 		sensor_id { /* sensor position = <sensor_id> */
-			0 = <124 62>;	/* IMX682 S5KGW1*/
-			1 = <121 73>;	/* IMX616 S5KGD2*/
+			0 = <124 62>;	/* IMX682 S5KGW1 */
+			1 = <73 121>;	/* S5KGD2 IMX616 */
 			2 = <210>;	/* GC5035 */
 			4 = <110 211>;	/* IMX258 HI1336 */
 			6 = <210>;	/* GC5035 */

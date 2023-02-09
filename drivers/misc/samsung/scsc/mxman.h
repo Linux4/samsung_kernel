@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (c) 2014 - 2021 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2014 - 2022 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -71,7 +71,7 @@ bool mxman_subsys_in_failed_state(struct mxman *mxman, enum scsc_subsystem sub);
 bool mxman_subsys_active(struct mxman *mxman, enum scsc_subsystem sub);
 #endif
 
-#ifdef CONFIG_SCSC_FM
+#if IS_ENABLED(CONFIG_SCSC_FM)
 void mxman_fm_on_halt_ldos_on(void);
 void mxman_fm_on_halt_ldos_off(void);
 int mxman_fm_set_params(struct wlbt_fm_params *params);
@@ -124,7 +124,11 @@ struct mxman {
 	enum mxman_state        mxman_state;
 	enum mxman_state        mxman_next_state;
 	struct mutex            mxman_mutex;
-	struct mutex            mxman_recovery_mutex; /* Syserr sub-sytem and full chip restart co-ordination */
+	/* Syserr sub-sytem and full chip restart co-ordination */
+	struct mutex            mxman_recovery_mutex;
+#if defined(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
+	bool                    panic_in_progress;
+#endif
 	struct mxproc           mxproc;
 	int			suspended;
 	atomic_t		suspend_count;
@@ -159,7 +163,7 @@ struct mxman {
 	unsigned long		last_syserr_level7_recovery_time; /* In jiffies */
 	bool			notify;
 	bool			syserr_recovery_in_progress;
-#ifdef CONFIG_SCSC_FM
+#if IS_ENABLED(CONFIG_SCSC_FM)
 	u32			on_halt_ldos_on;
 #endif
 	char			failure_reason[SCSC_FAILURE_REASON_LEN]; /* previous failure reason */

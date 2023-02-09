@@ -21,6 +21,7 @@
 #include "npu-debug.h"
 #include "npu-util-memdump.h"
 #include "npu-util-regs.h"
+#include "npu-memory.h"
 
 /* Maker structure for each memdump */
 struct mem_dump_stats {
@@ -178,6 +179,14 @@ void npu_util_dump_handle_nrespone(struct npu_system *system)
 }
 #endif
 
+#ifndef CONFIG_NPU_USE_HW_DEVICE
+void npu_util_dump_handle_nrespone_watchdog(void)
+{
+	/* trigger a wdreset to analyse s2d dumps in this case */
+	dbg_snapshot_expire_watchdog();
+}
+#endif
+
 int npu_util_dump_handle_error_k(struct npu_device *device)
 {
 	int ret = 0;
@@ -189,18 +198,10 @@ int npu_util_dump_handle_error_k(struct npu_device *device)
 #ifdef CONFIG_NPU_USE_HW_DEVICE
 	npu_reg_dump(device);
 #endif
-	for (i = 0; i < 5; i++)
-		npu_soc_status_report(&device->system);
-
+	npu_memory_dump(&device->system.memory);
 	/* trigger a wdreset to analyse s2d dumps in this case */
 	dbg_snapshot_expire_watchdog();
 
-	// proto_req_fault_listener();
-	// mbx_rslt_fault_listener();
-	// ret = ram_dump_fault_listner(device);
-	// if (ret)
-	// pr_err("failed in ram_dump_fault_listner\n");
-	// session_fault_listener();
 	return ret;
 }
 

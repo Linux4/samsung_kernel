@@ -27,7 +27,6 @@
 #define MIN_WIN_BLOCK_WIDTH	8
 #define MIN_WIN_BLOCK_HEIGHT	2
 
-
 static int dpu_partial_log_level = 6;
 module_param(dpu_partial_log_level, int, 0600);
 MODULE_PARM_DESC(dpu_partial_log_level, "log level for partial_update [default : 6]");
@@ -203,7 +202,8 @@ static bool is_partial_supported(const struct drm_plane_state *state,
 	src_r = drm_plane_state_src(state);
 	*crtc_r = drm_plane_state_dest(state);
 	if (drm_rect_clip_scaled(&src_r, crtc_r, partial_r)) {
-		if (((drm_rect_height(&src_r) >> 16) < res->src_h.min * sz_align)) {
+		if (((drm_rect_height(&src_r) >> 16) < res->src_h.min * sz_align) ||
+				(drm_rect_width(&src_r) >> 16) < res->src_w.min * sz_align) {
 			partial_debug("src min size limitation. width[%d] height[%d]\n",
 					drm_rect_width(&src_r), drm_rect_height(&src_r));
 			goto not_supported;
@@ -348,18 +348,8 @@ void exynos_partial_initialize(struct exynos_partial *partial,
 
 	partial_debug("INIT: min rect(%dx%d)\n",
 			partial->min_w, partial->min_h);
-	DPU_EVENT_LOG(DPU_EVT_PARTIAL_INIT, partial->exynos_crtc, partial);
-}
-
-static void
-exynos_partial_save_log(struct dpu_log_partial *plog, const struct drm_rect *prev,
-		struct drm_rect *req, struct drm_rect *adj,
-		bool reconfigure)
-{
-	memcpy(&plog->prev, prev, sizeof(struct drm_rect));
-	memcpy(&plog->req, req, sizeof(struct drm_rect));
-	memcpy(&plog->adj, adj, sizeof(struct drm_rect));
-	plog->reconfigure = reconfigure;
+	DPU_EVENT_LOG("PARTIAL_INIT", partial->exynos_crtc, 0,
+		"minimum rect size[%dx%d]", partial->min_w, partial->min_h);
 }
 
 static bool
@@ -380,17 +370,20 @@ void exynos_partial_prepare(struct exynos_partial *partial,
 	struct drm_rect *partial_r = &new_exynos_crtc_state->partial_region;
 	const struct drm_rect *old_partial_r =
 				&old_exynos_crtc_state->partial_region;
-	struct dpu_log_partial plog;
 	struct drm_clip_rect *req_region;
 	struct drm_rect req;
+	struct exynos_dqe *dqe = partial->exynos_crtc->dqe;
 	int ret = -ENOENT;
 	bool region_changed = false;
+	bool atc_enabled = false;
 
 	partial_debug("plane mask[0x%x]\n", crtc_state->plane_mask);
 
 	new_exynos_crtc_state->needs_reconfigure = false;
 
-	if (drm_atomic_crtc_needs_modeset(crtc_state) || !crtc_state->plane_mask) {
+	exynos_dqe_state(dqe, DQE_REG_ATC, &atc_enabled);
+	if (drm_atomic_crtc_needs_modeset(crtc_state) || !crtc_state->plane_mask
+			|| atc_enabled) {
 		exynos_partial_set_full(&crtc_state->mode, partial_r);
 		return;
 	}
@@ -447,9 +440,10 @@ void exynos_partial_prepare(struct exynos_partial *partial,
 
 	partial_debug("reconfigure(%d)\n", new_exynos_crtc_state->needs_reconfigure);
 
-	exynos_partial_save_log(&plog, old_partial_r, &req, partial_r,
-			new_exynos_crtc_state->needs_reconfigure);
-	DPU_EVENT_LOG(DPU_EVT_PARTIAL_PREPARE, partial->exynos_crtc, &plog);
+	DPU_EVENT_LOG("PARTIAL_PREPARE", partial->exynos_crtc, 0, "req["DRM_RECT_FMT
+		"] adj["DRM_RECT_FMT"] prev["DRM_RECT_FMT"] reconfig(%d)",
+		DRM_RECT_ARG(&req), DRM_RECT_ARG(partial_r), DRM_RECT_ARG(old_partial_r),
+		new_exynos_crtc_state->needs_reconfigure);
 }
 
 void exynos_partial_reconfig_coords(struct exynos_partial *partial,
@@ -481,7 +475,8 @@ void exynos_partial_update(struct exynos_partial *partial,
 
 	exynos_partial_send_command(partial, new_partial_region);
 	exynos_partial_set_size(partial, new_partial_region);
-	DPU_EVENT_LOG(DPU_EVT_PARTIAL_UPDATE, partial->exynos_crtc, new_partial_region);
+	DPU_EVENT_LOG("PARTIAL_UPDATE", partial->exynos_crtc, 0, "["DRM_RECT_FMT"]",
+			DRM_RECT_ARG(new_partial_region));
 	partial_debug_region("applied partial region", new_partial_region);
 }
 
@@ -505,7 +500,8 @@ void exynos_partial_restore(struct exynos_partial *partial)
 		return;
 
 	exynos_partial_set_size(partial, old_partial_region);
-	DPU_EVENT_LOG(DPU_EVT_PARTIAL_RESTORE, partial->exynos_crtc, old_partial_region);
+	DPU_EVENT_LOG("PARTIAL_RESTORE", partial->exynos_crtc, 0,
+			"["DRM_RECT_FMT"]", DRM_RECT_ARG(old_partial_region));
 	partial_debug_region("restored partial region", old_partial_region);
 }
 

@@ -132,6 +132,7 @@
 				power_seq {
 					scenario_normal_on {
 						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 2000>; share = <SRT_ACQUIRE SHARED_PIN1 1>; };
+						30 { pname = "vdd_ldo23s"; pin = <PIN_REGULATOR 1 2000 1200000>; };
 						80 { pname = "MCLK"; pin = <PIN_MCLK 1 12000>; gpio = <&gpg0 4 0x1>; share = <SRT_ACQUIRE SHARED_PIN4 1>; };
 					};
 
@@ -154,6 +155,7 @@
 				power_seq {
 					scenario_normal_on {
 						30 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 0>; share = <SRT_ACQUIRE SHARED_PIN1 1>; };
+						60 { pname = "vdd_ldo23s"; pin = <PIN_REGULATOR 1 500 1100000>; };
 						90 { pname = "MCLK"; pin = <PIN_MCLK 1 500>; gpio = <&gpg0 4 0x1>; share = <SRT_ACQUIRE SHARED_PIN4 1>; };
 					};
 					scenario_normal_off {
@@ -162,6 +164,7 @@
 					};
 					scenario_read_rom_on {
 						30 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 0>; share = <SRT_ACQUIRE SHARED_PIN1 1>; };
+						60 { pname = "vdd_ldo23s"; pin = <PIN_REGULATOR 1 500 1100000>; };
 						90 { pname = "MCLK"; pin = <PIN_MCLK 1 500>; gpio = <&gpg0 4 0x1>; share = <SRT_ACQUIRE SHARED_PIN4 1>; };
 					};
 					scenario_read_rom_off {
@@ -369,90 +372,92 @@
 /***** reference symbol node *****/
 /* GPIO_PERI */
 &pinctrl_1 {
-	/* REAR WIDE : i2c1 */
-	hsi2c29_bus: hsi2c29-bus {
-		samsung,pins = "gpm17-0", "gpm18-0";
-		samsung,pin-function = <2>;
-		samsung,pin-pud = <3>;
-		samsung,pin-drv = <0>;
-	};
-
+	/* FRONT I2C */
 	hsi2c29_bus_in: hsi2c29-bus-in {
 		samsung,pins = "gpm17-0", "gpm18-0";
-		samsung,pin-function = <0>;
-		samsung,pin-pud = <0>;
-		samsung,pin-drv = <0>;
+		samsung,pin-function = <0>; /* 0: Input, 1: Output, 2: Func */
+		samsung,pin-pud = <0>;      /* 0: NP, 1: PD, 2: Reserved, 3: PU */
+		samsung,pin-drv = <0>;      /* 0: x1, 1: x2, 2: x3, 3: x4 */
+		samsung,pin-pud-pdn = <0>;  /* 0: NP, 1: PD, 2: Reserved, 3: PU */
 	};
 
-	/* FRONT i2c4 */
+	/* WIDE I2C */
 	hsi2c21_bus: hsi2c21-bus {
 		samsung,pins = "gpm0-0", "gpm1-0";
-		samsung,pin-function = <2>;
-		samsung,pin-pud = <3>;
-		samsung,pin-drv = <0>;
+		samsung,pin-function = <2>; /* 0: Input, 1: Output, 2: Func */
+		samsung,pin-pud = <3>;      /* 0: NP, 1: PD, 2: Reserved, 3: PU */
+		samsung,pin-drv = <0>;      /* 0: x1, 1: x2, 2: x3, 3: x4 */
 	};
-
 	hsi2c21_bus_in: hsi2c21-bus-in {
 		samsung,pins = "gpm0-0", "gpm1-0";
-		samsung,pin-function = <0>;
-		samsung,pin-pud = <0>;
-		samsung,pin-drv = <0>;
+		samsung,pin-function = <0>; /* 0: Input, 1: Output, 2: Func */
+		samsung,pin-pud = <1>;      /* 0: NP, 1: PD, 2: Reserved, 3: PU */
+		samsung,pin-drv = <0>;      /* 0: x1, 1: x2, 2: x3, 3: x4 */
+		samsung,pin-pud-pdn = <1>;  /* 0: NP, 1: PD, 2: Reserved, 3: PU */
 	};
 
-	/* FRONT EEP/AF i2c7 */
-	hsi2c22_bus: hsi2c22-bus {
-		samsung,pins = "gpm2-0", "gpm3-0";
-		samsung,pin-function = <3>;
-		samsung,pin-pud = <3>;
-		samsung,pin-drv = <0>;
-	};
-
+	/* BOKEH_UW_MACRO I2C */
 	hsi2c22_bus_in: hsi2c22-bus-in {
 		samsung,pins = "gpm2-0", "gpm3-0";
-		samsung,pin-function = <0>;
-		samsung,pin-pud = <0>;
-		samsung,pin-drv = <0>;
+		samsung,pin-function = <0>; /* 0: Input, 1: Output, 2: Func */
+		samsung,pin-pud = <0>;      /* 0: NP, 1: PD, 2: Reserved, 3: PU */
+		samsung,pin-drv = <0>;      /* 0: x1, 1: x2, 2: x3, 3: x4 */
+		samsung,pin-pud-pdn = <0>;  /* 0: NP, 1: PD, 2: Reserved, 3: PU */
 	};
 
-	/* REAR UWIDE i2c5 */
-	hsi2c23_bus: hsi2c23-bus {
-		samsung,pins = "gpm4-0", "gpm5-0";
-		samsung,pin-function = <2>;
-		samsung,pin-pud = <3>;
-		samsung,pin-drv = <0>;
-	};
-
+	/* AF_EEP I2C */
 	hsi2c23_bus_in: hsi2c23-bus-in {
 		samsung,pins = "gpm4-0", "gpm5-0";
-		samsung,pin-function = <0>;
-		samsung,pin-pud = <0>;
-		samsung,pin-drv = <0>;
+		samsung,pin-function = <0>; /* 0: Input, 1: Output, 2: Func */
+		samsung,pin-pud = <0>;      /* 0: NP, 1: PD, 2: Reserved, 3: PU */
+		samsung,pin-drv = <0>;      /* 0: x1, 1: x2, 2: x3, 3: x4 */
 	};
 
 	/* MCU I2C */
 	hsi2c25_bus: hsi2c25-bus {
 		samsung,pins = "gpm8-0", "gpm9-0";
-		samsung,pin-function = <2>;
-		samsung,pin-pud = <3>;
-		samsung,pin-drv = <0>;
+		samsung,pin-function = <2>; /* 0: Input, 1: Output, 2: Func */
+		samsung,pin-pud = <3>;      /* 0: NP, 1: PD, 2: Reserved, 3: PU */
+		samsung,pin-drv = <0>;      /* 0: x1, 1: x2, 2: x3, 3: x4 */
+	};
+
+	rcam2_rcam4_ldo_en: rcam2-rcam4-ldo-en {
+		samsung,pins = "gpm6-0";
+		samsung,pin-function = <1>; /* 0: Input, 1: Output, 2: Func */
+		samsung,pin-pud = <1>;      /* 0: NP, 1: PD, 2: Reserved, 3: PU */
+		samsung,pin-con-pdn = <0>;  /* 0: Output0, 1: Output1, 2: Input, 3: Prev */
+		samsung,pin-pud-pdn = <1>;  /* 0: NP, 1: PD, 2: Reserved, 3: PU */
 	};
 
 	ois_ldo_en: ois-ldo-en {
 		samsung,pins = "gpm19-0";
-		samsung,pin-function = <0>; /* 0: Input, 1: Output, 2: Func */
+		samsung,pin-function = <0>; /* 0: Input, 1: Output */
 		samsung,pin-pud = <1>;      /* 0: NP, 1: PD, 2: Reserved, 3: PU */
-		samsung,pin-con-pdn = <2>;  /* 0: Output0, 1: Output1, 2: Input, 3:Prev */
+		samsung,pin-con-pdn = <2>;  /* 0: Output0, 1: Output1, 2: Input, 3: Prev */
 		samsung,pin-pud-pdn = <1>;  /* 0: NP, 1: PD, 2: Reserved, 3: PU */
+	};
+};
+
+&pinctrl_4 {
+	rcam3_ldo_en: rcam3-ldo-en {
+		samsung,pins = "gpf0-1";
+		samsung,pin-function = <1>; /* 0: Input, 1: Output, 2: Func */
+		samsung,pin-con-pdn = <0>;  /* 0: Output0, 1: Output1, 2: Input, 3: Prev */
 	};
 };
 
 &pinctrl_6 {
 	is_flash: is-flash {
 		samsung,pins = "gpp2-2", "gpp2-3";
-		samsung,pin-function = <1>; /* 0: Input, 1: Output */
-		samsung,pin-pud = <1>;      /* 0: NP, 1: PD, 2: Reserved, 3:PU */
+		samsung,pin-function = <1>; /* 0: Input, 1: Output, 2: Func */
+		samsung,pin-pud = <1>;      /* 0: NP, 1: PD, 2: Reserved, 3: PU */
 		samsung,pin-drv = <0>;      /* 0: x1, 1: x2, 2: x3, 3: x4 */
-		samsung,pin-con-pdn = <3>;  /* 0: Output0, 1: Output1, 2: Input, 3:Prev */
+		samsung,pin-con-pdn = <3>;  /* 0: Output0, 1: Output1, 2: Input, 3: Prev */
+	};
+
+	reset_pins: reset-pins {
+		samsung,pins = "gpg1-0", "gpg1-1", "gpg1-2";
+		samsung,pin-con-pdn = <2>;  /* 0: Output0, 1: Output1, 2: Input, 3: Prev */
 	};
 
 	mcu_n_rst: mcu-n-rst {
@@ -792,9 +797,14 @@
 };
 
 &hsi2c_25 {
-	status = "okay";
-	clock-frequency = <1000000>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	gpios = <&gpm8 0 0 &gpm9 0 0>;
+	/* Use 400KHz since SCL suddenly sets LOW while reading halldata with 1MHz */
+	clock-frequency = <400000>;
 	samsung,scl-clk-stretching;
+	samsung,reset-before-trans;
+	status = "okay";
 
 	pinctrl-names = "default","on_i2c","off_i2c";
 	pinctrl-0 = <&hsi2c25_bus &mcu_n_rst>;
@@ -978,7 +988,7 @@
 
 &exynos_is {
 	pinctrl-names = "default","sleep";
-	pinctrl-0 = <&is_flash &ois_ldo_en>;
+	pinctrl-0 = <&is_flash &rcam2_rcam4_ldo_en &ois_ldo_en &rcam3_ldo_en &reset_pins>;
 	pinctrl-1 = <>;
 
 	vender {

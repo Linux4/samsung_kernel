@@ -92,6 +92,8 @@ extern struct is_ois_info ois_uinfo;
 extern struct is_ois_exif ois_exif_data;
 static struct mcu_default_data mcu_init;
 
+long ois_mcu_get_efs_data(struct i2c_client *client);
+
 struct i2c_client *is_mcu_i2c_get_client(struct is_core *core)
 {
 	struct i2c_client *client = NULL;
@@ -1207,8 +1209,6 @@ p_err:
 	} else {
 		if (!IS_ERR_OR_NULL(fw_blob))
 			release_firmware(fw_blob);
-		else if (!IS_ERR_OR_NULL(fw_blob->data))
-			release_firmware(fw_blob);
 	}
 	return ret;
 }
@@ -1342,8 +1342,6 @@ p_err:
 		set_fs(old_fs);
 	} else {
 		if (!IS_ERR_OR_NULL(fw_blob))
-			release_firmware(fw_blob);
-		else if (!IS_ERR_OR_NULL(fw_blob->data))
 			release_firmware(fw_blob);
 	}
 	return ret;
@@ -2216,6 +2214,34 @@ static int __init is_mcu_get_hw_rev(char *arg)
 early_param("androidboot.revision", is_mcu_get_hw_rev);
 #endif
 
+void is_ois_set_gyro_raw(struct i2c_client *client, long raw_data_x, long raw_data_y, long raw_data_z) {
+	int scale_factor = OIS_GYRO_SCALE_FACTOR_LSM6DSO;
+	u8 val;
+
+	raw_data_x = raw_data_x * scale_factor;
+	raw_data_y = raw_data_y * scale_factor;
+	raw_data_z = raw_data_z * scale_factor;
+
+	raw_data_x = raw_data_x / 1000;
+	raw_data_y = raw_data_y / 1000;
+	raw_data_z = raw_data_z / 1000;
+
+	val = raw_data_x & 0x00FF;
+	is_ois_i2c_write(client, 0x0248, val);
+	val = (raw_data_x & 0xFF00) >> 8;
+	is_ois_i2c_write(client, 0x0249, val);
+
+	val = raw_data_y & 0x00FF;
+	is_ois_i2c_write(client, 0x024A, val);
+	val = (raw_data_y & 0xFF00) >> 8;
+	is_ois_i2c_write(client, 0x024B, val);
+
+	val = raw_data_z & 0x00FF;
+	is_ois_i2c_write(client, 0x024C, val);
+	val = (raw_data_z & 0xFF00) >> 8;
+	is_ois_i2c_write(client, 0x024D, val);
+}
+
 int is_ois_init_mcu(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
@@ -2379,6 +2405,8 @@ int is_ois_init_mcu(struct v4l2_subdev *subdev)
 	} else if (module->position == SENSOR_POSITION_REAR) {
 		ois_wide_init = true;
 	}
+
+	ois_mcu_get_efs_data(client);
 
 	info("%s\n", __func__);
 	return ret;
@@ -4082,6 +4110,32 @@ void ois_mcu_parsing_raw_data_mcu(uint8_t *buf, long efs_size, long *raw_data_x,
 	*raw_data_z = sign * (raw_pre * 1000 + raw_post);
 
 	info("%s : X raw_x = %ld, raw_y = %ld, raw_z = %ld\n", __func__, *raw_data_x, *raw_data_y, *raw_data_z);
+}
+
+long ois_mcu_get_efs_data(struct i2c_client *client)
+{
+	long efs_size = 0;
+	struct is_core *core = NULL;
+	struct is_vender_specific *specific;
+	long raw_data_x = 0, raw_data_y = 0, raw_data_z = 0;
+
+	core = is_get_is_core();
+	specific = core->vender.private_data;
+
+	efs_size = specific->gyro_efs_size;
+	if (efs_size == 0) {
+		err("efs read failed.");
+		goto p_err;
+	}
+
+	info("%s : E\n", __func__);
+
+	ois_mcu_parsing_raw_data_mcu(specific->gyro_efs_data, efs_size, &raw_data_x, &raw_data_y, &raw_data_z);
+	if (efs_size > 0)
+		is_ois_set_gyro_raw(client, raw_data_x, raw_data_y, raw_data_z);
+
+p_err:
+	return efs_size;
 }
 
 static struct is_ois_ops ois_ops_mcu = {

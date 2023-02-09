@@ -34,6 +34,20 @@
 #include "../exynos_drm_drv.h"
 #include "panel_drv.h"
 #endif
+#include "../exynos_drm_debug.h"
+
+int get_panel_log_level(void);
+#define panel_info(panel, fmt, ...)	\
+dpu_pr_info(drv_name((panel)), 0, get_panel_log_level(), fmt, ##__VA_ARGS__)
+
+#define panel_warn(panel, fmt, ...)	\
+dpu_pr_warn(drv_name((panel)), 0, get_panel_log_level(), fmt, ##__VA_ARGS__)
+
+#define panel_err(panel, fmt, ...)	\
+dpu_pr_err(drv_name((panel)), 0, get_panel_log_level(), fmt, ##__VA_ARGS__)
+
+#define panel_debug(panel, fmt, ...)	\
+dpu_pr_debug(drv_name((panel)), 0, get_panel_log_level(), fmt, ##__VA_ARGS__)
 
 #define MAX_REGULATORS		3
 #define MAX_HDR_FORMATS		4
@@ -50,8 +64,22 @@ struct exynos_panel;
 #if IS_ENABLED(CONFIG_DRM_PANEL_MCD_COMMON)
 enum exynos_panel_drm_state {
 	PANEL_DRM_STATE_DISABLED,
+	PANEL_DRM_STATE_LPM_DISABLED,
 	PANEL_DRM_STATE_ENABLED,
+	PANEL_DRM_STATE_LPM_ENABLED,
 };
+
+#define PANEL_DRM_STATE_IS_ENABLED(_state_) \
+	((_state_) == PANEL_DRM_STATE_ENABLED || \
+	(_state_) == PANEL_DRM_STATE_LPM_ENABLED)
+
+#define PANEL_DRM_STATE_IS_DISABLED(_state_) \
+	((_state_) == PANEL_DRM_STATE_DISABLED || \
+	(_state_) == PANEL_DRM_STATE_LPM_DISABLED)
+
+#define PANEL_DRM_STATE_IS_LPM(_state_) \
+	((_state_) == PANEL_DRM_STATE_LPM_DISABLED || \
+	(_state_) == PANEL_DRM_STATE_LPM_ENABLED)
 
 enum {
 	MCD_DRM_DRV_WQ_VSYNC = 0,
@@ -149,6 +177,7 @@ struct exynos_panel_desc {
 	const struct drm_panel_funcs *panel_func;
 	const struct exynos_panel_funcs *exynos_panel_func;
 	const char *xml_suffix;
+	bool lp11_reset;
 };
 
 #define MAX_CMDSET_NUM 32
@@ -215,6 +244,13 @@ static inline int exynos_dcs_set_brightness(struct exynos_panel *ctx, u16 br)
 	return mipi_dsi_dcs_set_display_brightness(dsi, br);
 }
 
+static inline int exynos_dcs_get_brightness(struct exynos_panel *ctx, u16 *br)
+{
+	struct mipi_dsi_device *dsi = to_mipi_dsi_device(ctx->dev);
+
+	return mipi_dsi_dcs_get_display_brightness(dsi, br);
+}
+
 #define EXYNOS_DCS_WRITE_SEQ(ctx, seq...) do {				\
 	u8 d[] = { seq };						\
 	int ret;							\
@@ -255,7 +291,8 @@ int dsim_host_cmdset_transfer(struct mipi_dsi_host *host,
 			      bool wait_vsync, bool wait_fifo);
 int exynos_drm_cmdset_add(struct exynos_panel *ctx, u8 type, size_t size, const u8 *data);
 int exynos_drm_cmdset_cleanup(struct exynos_panel *ctx);
-int exynos_drm_cmdset_flush(struct exynos_panel *ctx, bool wait_vsync, bool wait_fifo);
+int exynos_drm_cmdset_flush(struct exynos_panel *ctx, bool wait_vsync,
+							bool wait_fifo);
 
 int exynos_panel_probe(struct mipi_dsi_device *dsi);
 int exynos_panel_remove(struct mipi_dsi_device *dsi);

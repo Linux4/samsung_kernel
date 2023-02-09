@@ -179,4 +179,6 @@
 #define VTS_ERR_HARD_FAULT	(0x1)
 #define VTS_ERR_BUS_FAULT	(0x3)
 
+#define VTS_ITMON_NAME "CHUBVTS(VTS:YAMIN)" /* refer to bootloader/platform/s5e9925/debug/itmon.c */
+
 #endif /* __SND_SOC_VTS_DEP_SOC_V2_H */

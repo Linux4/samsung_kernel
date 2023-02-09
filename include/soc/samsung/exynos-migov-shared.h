@@ -108,9 +108,9 @@ struct tunable_sharing_data {
 	s32	lp_minlock_low_limit[NUM_OF_CPU_DOMAIN];
 
 	/* GPU domain private data */
-	u64	q0_empty_pct_thr;
-	u64	q1_empty_pct_thr;
-	u64	gpu_active_pct_thr;
+	u64	gpu_hw_status;
+	u64	reserved_gpu1;
+	u64	reserved_gpu2;
 
 	/* MIF domain private data */
 	s32	stats0_mode_min_freq;

@@ -269,9 +269,9 @@ p_err:
 	return ret;
 }
 
-#if USE_GROUP_PARAM_HOLD
 static int sensor_4ha_cis_group_param_hold_func(struct v4l2_subdev *subdev, unsigned int hold)
 {
+#if USE_GROUP_PARAM_HOLD
 	int ret = 0;
 	struct is_cis *cis = NULL;
 	struct i2c_client *client = NULL;
@@ -303,23 +303,21 @@ static int sensor_4ha_cis_group_param_hold_func(struct v4l2_subdev *subdev, unsi
 	ret = 1;
 p_err:
 	return ret;
-}
 #else
-static inline int sensor_4ha_cis_group_param_hold_func(struct v4l2_subdev *subdev, unsigned int hold)
-{ return 0; }
+	return 0;
 #endif
+}
 
-/* Input
- *	hold : true - hold, flase - no hold
- * Output
- *      return: 0 - no effect(already hold or no hold)
- *		positive - setted by request
- *		negative - ERROR value
- */
+/*
+  hold control register for updating multiple-parameters within the same frame. 
+  true : hold, flase : no hold/release
+*/
+#if USE_GROUP_PARAM_HOLD
 int sensor_4ha_cis_group_param_hold(struct v4l2_subdev *subdev, bool hold)
 {
 	int ret = 0;
 	struct is_cis *cis = NULL;
+	u32 mode;
 
 	BUG_ON(!subdev);
 
@@ -328,16 +326,32 @@ int sensor_4ha_cis_group_param_hold(struct v4l2_subdev *subdev, bool hold)
 	BUG_ON(!cis);
 	BUG_ON(!cis->cis_data);
 
+	if (cis->cis_data->stream_on == false && hold == true) {
+		ret = 0;
+		dbg_sensor(1, "%s : sensor stream off skip group_param_hold", __func__);
+		goto p_err;
+	}
+
+	mode = cis->cis_data->sens_config_index_cur;
+
+	if (mode == SENSOR_4HA_800X600_120FPS) {
+		ret = 0;
+		dbg_sensor(1, "%s : fast ae skip group_param_hold", __func__);
+		goto p_err;
+	}
+
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = sensor_4ha_cis_group_param_hold_func(subdev, hold);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
-p_err:
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
+p_err:
 	return ret;
 }
+#endif
 
 int sensor_4ha_cis_set_global_setting(struct v4l2_subdev *subdev)
 {
@@ -607,8 +621,6 @@ int sensor_4ha_cis_stream_on(struct v4l2_subdev *subdev)
 
 	is_vendor_set_mipi_clock(device);
 
-	sensor_4ha_cis_group_param_hold_func(subdev, 0x00);
-
 #ifdef DEBUG_4HA_PLL
 	{
 	u16 pll;
@@ -678,29 +690,33 @@ int sensor_4ha_cis_stream_off(struct v4l2_subdev *subdev)
 
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
 
+	cis_data->stream_on = false; /* for not working group_param_hold after stream off */
+
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	sensor_4ha_cis_group_param_hold_func(subdev, 0x00);
 
+	ret = sensor_4ha_cis_group_param_hold_func(subdev, 0x00);
+	if (ret < 0)
+		err("group_param_hold_func failed at stream off");
+	
 	/* Sensor stream off */
-	is_sensor_write8(client, 0x0100, 0x00);
+	ret = is_sensor_write8(client, 0x0100, 0x00);
+	if (ret < 0)
+		err("stream off fail");
 
+	I2C_MUTEX_UNLOCK(cis->i2c_lock);
+ 
 	info("%s\n", __func__);
-
-	cis_data->stream_on = false;
 
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
 p_err:
-	I2C_MUTEX_UNLOCK(cis->i2c_lock);
-
 	return ret;
 }
 
 int sensor_4ha_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_param *target_exposure)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -771,20 +787,15 @@ int sensor_4ha_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_param
 	}
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	hold = sensor_4ha_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
 
 	ret = is_sensor_write16(client, 0x0200, (u16)(fine_int & 0xFFFF));
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 	/* Short exposure */
 	ret = is_sensor_write16(client, 0x0202, short_coarse_int);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 	dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), vt_pic_clk_freq_mhz (%d),"
 		KERN_CONT "line_length_pck(%d), fine_int (%d)\n", cis->id, __func__,
@@ -796,14 +807,10 @@ int sensor_4ha_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_param
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
-p_err:
-	if (hold > 0) {
-		hold = sensor_4ha_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
+p_err:
 	return ret;
 }
 
@@ -957,7 +964,6 @@ int sensor_4ha_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 int sensor_4ha_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_duration)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -998,15 +1004,10 @@ int sensor_4ha_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_dura
 		cis->id, __func__, vt_pic_clk_freq_mhz, frame_duration, line_length_pck, frame_length_lines);
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	hold = sensor_4ha_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
 
 	ret = is_sensor_write16(client, 0x0340, frame_length_lines);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 	cis_data->cur_frame_us_time = frame_duration;
 	cis_data->frame_length_lines = frame_length_lines;
@@ -1015,14 +1016,10 @@ int sensor_4ha_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_dura
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
-p_err:
-	if (hold > 0) {
-		hold = sensor_4ha_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-	I2C_MUTEX_UNLOCK(cis->i2c_lock);
+p_err_unlock:
+ 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
+p_err:
 	return ret;
 }
 
@@ -1091,7 +1088,6 @@ int sensor_4ha_cis_set_frame_rate(struct v4l2_subdev *subdev, u32 min_fps)
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
 p_err:
-
 	return ret;
 }
 
@@ -1143,7 +1139,6 @@ int sensor_4ha_cis_adjust_analog_gain(struct v4l2_subdev *subdev, u32 input_agai
 int sensor_4ha_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_param *again)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 
@@ -1178,34 +1173,24 @@ int sensor_4ha_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_param *
 		cis->id, __func__, cis->cis_data->sen_vsync_count, again->val, analog_gain);
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	hold = sensor_4ha_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
 
 	ret = is_sensor_write16(client, 0x0204, analog_gain);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
-p_err:
-	if (hold > 0) {
-		hold = sensor_4ha_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
-
+ 
+p_err:
 	return ret;
 }
 
 int sensor_4ha_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 
@@ -1227,15 +1212,10 @@ int sensor_4ha_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 	}
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	hold = sensor_4ha_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
 
 	ret = is_sensor_read16(client, 0x0204, &analog_gain);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 	*again = sensor_cis_calc_again_permile(analog_gain);
 
@@ -1245,14 +1225,10 @@ int sensor_4ha_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
-p_err:
-	if (hold > 0) {
-		hold = sensor_4ha_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-	I2C_MUTEX_UNLOCK(cis->i2c_lock);
+p_err_unlock:
+ 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
+p_err:
 	return ret;
 }
 
@@ -1338,7 +1314,6 @@ p_err:
 int sensor_4ha_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_param *dgain)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -1386,37 +1361,27 @@ int sensor_4ha_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_param 
 			cis->id, __func__, cis->cis_data->sen_vsync_count, dgain->long_val, dgain->short_val, long_gain, short_gain);
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	hold = sensor_4ha_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
 
 	dgains[0] = dgains[1] = dgains[2] = dgains[3] = short_gain;
 
 	/* Short digital gain */
 	ret = is_sensor_write16_array(client, 0x020E, dgains, 4);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
-p_err:
-	if (hold > 0) {
-		hold = sensor_4ha_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
+p_err_unlock:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
+p_err:
 	return ret;
 }
 
 int sensor_4ha_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 
@@ -1438,15 +1403,10 @@ int sensor_4ha_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 	}
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	hold = sensor_4ha_cis_group_param_hold_func(subdev, 0x01);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
 
 	ret = is_sensor_read16(client, 0x020E, &digital_gain);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
 
 	*dgain = sensor_cis_calc_dgain_permile(digital_gain);
 
@@ -1456,14 +1416,10 @@ int sensor_4ha_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 	if (IS_ENABLED(DEBUG_SENSOR_TIME))
 		dbg_sensor(1, "[%s] time %ldus", __func__, PABLO_KTIME_US_DELTA_NOW(st));
 
-p_err:
-	if (hold > 0) {
-		hold = sensor_4ha_cis_group_param_hold_func(subdev, 0x00);
-		if (hold < 0)
-			ret = hold;
-	}
-	I2C_MUTEX_UNLOCK(cis->i2c_lock);
+p_err_unlock:
+ 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
+p_err:
 	return ret;
 }
 
@@ -1645,7 +1601,9 @@ p_err:
 static struct is_cis_ops cis_ops = {
 	.cis_init = sensor_4ha_cis_init,
 	.cis_log_status = sensor_4ha_cis_log_status,
+#if USE_GROUP_PARAM_HOLD
 	.cis_group_param_hold = sensor_4ha_cis_group_param_hold,
+#endif
 	.cis_set_global_setting = sensor_4ha_cis_set_global_setting,
 	.cis_mode_change = sensor_4ha_cis_mode_change,
 	.cis_set_size = sensor_4ha_cis_set_size,

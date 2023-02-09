@@ -158,19 +158,11 @@ void xhci_exynos_parse_endpoint(struct xhci_hcd *xhci, struct usb_device *udev, 
 	struct usb_endpoint_descriptor *d = desc;
 	int size = 0x100;
 	unsigned ep_index;
-	struct xhci_ep_ctx *ep_ctx;
 
 	g_hwinfo->rawdesc_length = size;
 	ep_index = xhci_get_endpoint_index(d);
-	ep_ctx = xhci_get_ep_ctx(xhci, ctx, ep_index);
 
-	pr_info("udev = 0x%8x, Ep = 0x%x, desc = 0x%8x, deq = 0x%8x\n",
-			udev, d->bEndpointAddress, d, ep_ctx->deq);
-
-	if (ep_ctx->deq == 0) {
-		pr_info("ep_ctx->deq: 0x%8x has wrong address!!\n", ep_ctx->deq);
-		return;
-	}
+	pr_info("udev = 0x%8x, Ep = 0x%x, desc = 0x%8x\n", udev, d->bEndpointAddress, d);
 
 	if (( d->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK ) ==
 				USB_ENDPOINT_XFER_ISOC) {
@@ -182,21 +174,11 @@ void xhci_exynos_parse_endpoint(struct xhci_hcd *xhci, struct usb_device *udev, 
 					d->bEndpointAddress;
 				pr_info("Feedback IN ISO endpoint #0%x 0x%x\n",
 					d->bEndpointAddress, d->bSynchAddress);
-
-				pr_info("[%s] set fb in deq : %#08llx\n",
-						__func__, ep_ctx->deq);
-				g_hwinfo->fb_old_in_deq = g_hwinfo->fb_in_deq;
-				g_hwinfo->fb_in_deq = ep_ctx->deq;
 			} else {
 				g_hwinfo->fb_out_ep =
 					d->bEndpointAddress;
 				pr_info("Feedback OUT ISO endpoint #0%x 0x%x\n",
 					d->bEndpointAddress, d->bSynchAddress);
-
-				pr_info("[%s] set fb out deq : %#08llx\n",
-						__func__, ep_ctx->deq);
-				g_hwinfo->fb_old_out_deq = g_hwinfo->fb_out_deq;
-				g_hwinfo->fb_out_deq = ep_ctx->deq;
 			}
 		} else {
 			/* Data Stream Endpoint only */
@@ -206,18 +188,9 @@ void xhci_exynos_parse_endpoint(struct xhci_hcd *xhci, struct usb_device *udev, 
 						d->bEndpointAddress;
 					pr_info(" This is IN ISO endpoint #0%x 0x%x\n",
 						d->bEndpointAddress, d->bSynchAddress);
-
-					pr_info("[%s] set in deq : %#08llx\n",
-							__func__, ep_ctx->deq);
-					g_hwinfo->old_in_deq = g_hwinfo->in_deq;
-					g_hwinfo->in_deq = ep_ctx->deq;
 				} else {
 					pr_info("IN ISO endpoint is same with FB #0%x\n",
 						d->bEndpointAddress);
-					pr_info("[%s] set fb in deq : %#08llx\n",
-							__func__, ep_ctx->deq);
-					g_hwinfo->fb_old_in_deq = g_hwinfo->fb_in_deq;
-					g_hwinfo->fb_in_deq = ep_ctx->deq;
 				}
 
 				if ((d->bLength > 7) && (d->bSynchAddress != 0x0)) {
@@ -225,11 +198,6 @@ void xhci_exynos_parse_endpoint(struct xhci_hcd *xhci, struct usb_device *udev, 
 						d->bSynchAddress;
 					pr_info("Feedback OUT ISO endpoint #0%x 0x%x\n",
 						d->bEndpointAddress, d->bSynchAddress);
-
-					pr_info("[%s] set fb out deq : %#08llx\n",
-							__func__, ep_ctx->deq);
-					g_hwinfo->fb_old_out_deq = g_hwinfo->fb_out_deq;
-					g_hwinfo->fb_out_deq = ep_ctx->deq;
 				}
 			} else {
 				g_hwinfo->out_ep =
@@ -237,20 +205,11 @@ void xhci_exynos_parse_endpoint(struct xhci_hcd *xhci, struct usb_device *udev, 
 				pr_info(" This is OUT ISO endpoint #0%x 0x%x\n",
 					d->bEndpointAddress, d->bSynchAddress);
 
-				pr_info("[%s] set out deq : %#08llx\n",
-						__func__, ep_ctx->deq);
-				g_hwinfo->old_out_deq = g_hwinfo->out_deq;
-				g_hwinfo->out_deq = ep_ctx->deq;
 				if ((d->bLength > 7) && (d->bSynchAddress != 0x0)) {
 					g_hwinfo->fb_in_ep =
 						d->bSynchAddress;
 					pr_info("Feedback IN ISO endpoint #0%x 0x%x\n",
 						d->bEndpointAddress, d->bSynchAddress);
-
-					pr_info("[%s] set fb in deq : %#08llx\n",
-							__func__, ep_ctx->deq);
-					g_hwinfo->fb_old_in_deq = g_hwinfo->fb_in_deq;
-					g_hwinfo->fb_in_deq = ep_ctx->deq;
 				}
 			}
 		}
@@ -278,9 +237,39 @@ int xhci_exynos_add_endpoint(struct usb_hcd *hcd, struct usb_device *udev,
 	int ret;
 	struct xhci_hcd *xhci;
 	struct xhci_virt_device *virt_dev;
+	struct usb_endpoint_descriptor *d = &ep->desc;
+
+	/* Check Feedback Endpoint */
+	if ((d->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) ==
+				USB_ENDPOINT_XFER_ISOC) {
+		if ((d->bmAttributes & USB_ENDPOINT_USAGE_MASK) ==
+					USB_ENDPOINT_USAGE_FEEDBACK) {
+			/* Only Feedback endpoint(Not implict feedback data endpoint) */
+			if (d->bEndpointAddress & USB_ENDPOINT_DIR_MASK) {
+				g_hwinfo->fb_in_ep =
+					d->bEndpointAddress;
+				pr_info("Feedback IN EP used #0%x 0x%x\n",
+					d->bEndpointAddress, d->bSynchAddress);
+			} else {
+				g_hwinfo->fb_out_ep =
+					d->bEndpointAddress;
+				pr_info("Feedback OUT EP used #0%x 0x%x\n",
+					d->bEndpointAddress, d->bSynchAddress);
+			}
+		}
+	}
+
+	/* Check Feedback EP is already allocated */
+	if (g_hwinfo->fb_in_ep == d->bEndpointAddress ||
+	    g_hwinfo->fb_out_ep == d->bEndpointAddress)
+		g_hwinfo->feedback = 1;
+	else
+		g_hwinfo->feedback = 0;
 
 	pr_debug("%s +++", __func__);
 	ret = xhci_add_endpoint(hcd, udev, ep);
+	g_hwinfo->feedback = 0;
+
 	if (!ret && udev->slot_id) {
 		xhci = hcd_to_xhci(hcd);
 		virt_dev = xhci->devs[udev->slot_id];
@@ -709,21 +698,33 @@ static struct xhci_segment *xhci_segment_alloc_uram_ep(struct xhci_hcd *xhci,
 	}
 
 	if (endpoint_type == ISOC_OUT_EP) {
-		seg->trbs = ioremap(EXYNOS_URAM_ISOC_OUT_RING_ADDR,
-							TRB_SEGMENT_SIZE);
+		if (!g_hwinfo->feedback)
+			seg->trbs = ioremap(EXYNOS_URAM_ISOC_OUT_RING_ADDR,
+					    TRB_SEGMENT_SIZE);
+		else
+			seg->trbs = dma_pool_zalloc(xhci->segment_pool, flags, &dma);
+
 		if (!seg->trbs)
 			return NULL;
 
-		dma = EXYNOS_URAM_ISOC_OUT_RING_ADDR;
-		xhci_info(xhci, "First ISOC-OUT Ring is allocated at 0x%x", dma);
+		if (!g_hwinfo->feedback)
+			dma = EXYNOS_URAM_ISOC_OUT_RING_ADDR;
+
+		xhci_info(xhci, "First ISOC-OUT Ring is allocated at 0x%8x", dma);
 	} else if (endpoint_type == ISOC_IN_EP) {
-		seg->trbs = ioremap(EXYNOS_URAM_ISOC_IN_RING_ADDR,
-							TRB_SEGMENT_SIZE);
+		if (!g_hwinfo->feedback)
+			seg->trbs = ioremap(EXYNOS_URAM_ISOC_IN_RING_ADDR,
+					    TRB_SEGMENT_SIZE);
+		else
+			seg->trbs = dma_pool_zalloc(xhci->segment_pool, flags, &dma);
+
 		if (!seg->trbs)
 			return NULL;
 
-		dma = EXYNOS_URAM_ISOC_IN_RING_ADDR;
-		xhci_info(xhci, "First ISOC-IN Ring is allocated at 0x%x", dma);
+		if (!g_hwinfo->feedback)
+			dma = EXYNOS_URAM_ISOC_IN_RING_ADDR;
+
+		xhci_info(xhci, "First ISOC-IN Ring is allocated at 0x%8x", dma);
 	} else {
 		xhci_err(xhci, "%s : Unexpected EP Type!\n", __func__);
 		return NULL;
@@ -861,8 +862,65 @@ fail:
 	kfree(ring);
 	return NULL;
 }
-#endif
 //#ifdef CONFIG_SND_EXYNOS_USB_AUDIO
+
+static unsigned int xhci_exynos_get_endpoint_address(unsigned int ep_index)
+{
+	unsigned int number = DIV_ROUND_UP(ep_index, 2);
+	unsigned int direction = ep_index % 2 ? USB_DIR_OUT : USB_DIR_IN;
+	return direction | number;
+}
+
+int xhci_exynos_sync_dev_ctx(struct xhci_hcd *xhci, unsigned int slot_id)
+{
+	struct xhci_virt_device *virt_dev;
+	struct xhci_slot_ctx *slot_ctx;
+
+	int i;
+	int last_ep;
+	int last_ep_ctx = 31;
+
+	/* Use default hwinfo in case
+	 * there are no audio devices occupied
+	 */
+	virt_dev = xhci->devs[slot_id];
+	slot_ctx = xhci_get_slot_ctx(xhci, virt_dev->in_ctx);
+
+	last_ep = LAST_CTX_TO_EP_NUM(le32_to_cpu(slot_ctx->dev_info));
+
+	if (last_ep < 31)
+		last_ep_ctx = last_ep + 1;
+	for (i = 0; i < last_ep_ctx; ++i) {
+		unsigned int epaddr = xhci_exynos_get_endpoint_address(i);
+		struct xhci_ep_ctx *ep_ctx = xhci_get_ep_ctx(xhci, virt_dev->out_ctx, i);
+
+		if (epaddr == g_hwinfo->in_ep) {
+			pr_info("[%s] ep%d set in deq : %#08llx\n",
+					__func__, i, ep_ctx->deq);
+			g_hwinfo->old_in_deq = g_hwinfo->in_deq;
+			g_hwinfo->in_deq = ep_ctx->deq;
+		} else if (epaddr == g_hwinfo->out_ep) {
+			pr_info("[%s] ep%d set out deq : %#08llx\n",
+					__func__, i, ep_ctx->deq);
+			g_hwinfo->old_out_deq = g_hwinfo->out_deq;
+			g_hwinfo->out_deq = ep_ctx->deq;
+		} else if (epaddr == g_hwinfo->fb_out_ep) {
+			pr_info("[%s] ep%d set fb out deq : %#08llx\n",
+					__func__, i, ep_ctx->deq);
+			g_hwinfo->fb_old_out_deq = g_hwinfo->fb_out_deq;
+			g_hwinfo->fb_out_deq = ep_ctx->deq;
+		} else if (epaddr == g_hwinfo->fb_in_ep) {
+			pr_info("[%s] ep%d set fb in deq : %#08llx\n",
+					__func__, i, ep_ctx->deq);
+			g_hwinfo->fb_old_in_deq = g_hwinfo->fb_in_deq;
+			g_hwinfo->fb_in_deq = ep_ctx->deq;
+		}
+	}
+
+	return 0;
+
+}
+#endif
 
 extern struct usb_xhci_pre_alloc xhci_pre_alloc;
 static const struct xhci_driver_overrides xhci_exynos_overrides __initconst = {
@@ -1230,6 +1288,16 @@ static int xhci_priv_init_quirk(struct usb_hcd *hcd)
 	return priv->init_quirk(hcd);
 }
 
+static int xhci_priv_suspend_quirk(struct usb_hcd *hcd)
+{
+	struct xhci_plat_priv *priv = hcd_to_xhci_priv(hcd);
+
+	if (!priv->suspend_quirk)
+		return 0;
+
+	return priv->suspend_quirk(hcd);
+}
+
 static int xhci_priv_resume_quirk(struct usb_hcd *hcd)
 {
 	struct xhci_exynos_priv *priv = hcd_to_xhci_exynos_priv(hcd);
@@ -1451,6 +1519,7 @@ static struct xhci_vendor_ops ops = {
 	.free_transfer_ring = xhci_exynos_free_transfer_ring,
 	.alloc_container_ctx = xhci_exynos_alloc_container_ctx,
 	.free_container_ctx = xhci_exynos_free_container_ctx,
+	.sync_dev_ctx = xhci_exynos_sync_dev_ctx,
 };
 #endif
 
@@ -2027,11 +2096,23 @@ extern u32 otg_is_connect(void);
 static int __maybe_unused xhci_exynos_suspend(struct device *dev)
 {
 	struct xhci_hcd_exynos *xhci_exynos = dev_get_drvdata(dev);
+	struct usb_hcd	*hcd = xhci_exynos->hcd;
+	struct xhci_hcd	*xhci = hcd_to_xhci(hcd);
+	int ret = 0;
 
 	pr_info("[%s]\n", __func__);
 
-	if (otg_is_connect() != 1) { /* If it is not OTG_CONNECT_ONLY */
-		/* Enable HS ReWA */
+	if (otg_is_connect() == 1) { /* If it is OTG_CONNECT_ONLY */
+		ret = xhci_priv_suspend_quirk(hcd);
+		if (ret)
+			return ret;
+		/*
+		 * xhci_suspend() needs `do_wakeup` to know whether host is allowed
+		 * to do wakeup during suspend.
+		 */
+		pr_info("[%s]: xhci_suspend!\n", __func__);
+		ret = xhci_suspend(xhci, device_may_wakeup(dev));
+	} else {  /* Enable HS ReWA */
 		exynos_usbdrd_phy_vendor_set(xhci_exynos->phy_usb2, 1, 0);
 #ifdef CONFIG_EXYNOS_USBDRD_PHY30
 		/* Enable SS ReWA */
@@ -2041,13 +2122,14 @@ static int __maybe_unused xhci_exynos_suspend(struct device *dev)
 	}
 	usb_dr_role_control(0);
 
-	return 0;
+	return ret;
 }
 
 static int __maybe_unused xhci_exynos_resume(struct device *dev)
 {
 	struct xhci_hcd_exynos *xhci_exynos = dev_get_drvdata(dev);
 	struct usb_hcd	*hcd = xhci_exynos->hcd;
+	struct xhci_hcd	*xhci = hcd_to_xhci(hcd);
 	int ret;
 
 	pr_info("[%s]\n", __func__);
@@ -2055,6 +2137,14 @@ static int __maybe_unused xhci_exynos_resume(struct device *dev)
 	ret = xhci_priv_resume_quirk(hcd);
 	if (ret)
 		return ret;
+
+	if (otg_is_connect() == 1) { /* If it is OTG_CONNECT_ONLY */
+		pr_info("[%s]: xhci_resume!\n", __func__);
+		ret = xhci_resume(xhci, 0);
+
+		if (ret)
+			return ret;
+	}
 
 	if (is_rewa_enabled == 1) {
 #ifdef CONFIG_EXYNOS_USBDRD_PHY30

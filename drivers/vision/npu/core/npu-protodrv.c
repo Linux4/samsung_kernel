@@ -40,6 +40,7 @@
 
 #define TIME_STAT_BUF_LEN	256
 
+const char *TYPE_NAME_KPI_FRAME = "frame(KPI)";
 const char *TYPE_NAME_FRAME = "frame";
 const char *TYPE_NAME_NW = "Netwrok mgmt.";
 
@@ -172,6 +173,8 @@ static inline const char *getTypeName(const proto_drv_req_type_e type)
 	switch (type) {
 	case PROTO_DRV_REQ_TYPE_FRAME:
 		return TYPE_NAME_FRAME;
+	case PROTO_DRV_REQ_TYPE_KPI_FRAME:
+		return TYPE_NAME_KPI_FRAME;
 	case PROTO_DRV_REQ_TYPE_NW:
 		return TYPE_NAME_NW;
 	case PROTO_DRV_REQ_TYPE_INVALID:
@@ -2063,8 +2066,8 @@ static struct {
 } NPU_PROTODRV_TIMEOUT_MAP[LSM_LIST_TYPE_INVALID][PROTO_DRV_REQ_TYPE_INVALID] = {
 			/*Dummy*/		/* Frame request */							/* NCP mgmt. request */
 /* FREE - (NA)      */	{{0, 0}, {.timeout_ns = 0,          .err_code = 0                    }, {.timeout_ns = 0,           .err_code = 0} },
-/* REQUESTED        */	{{0, 0}, {.timeout_ns = (5L * S2N), .err_code = NPU_CRITICAL_DRIVER(NPU_ERR_SCHED_TIMEOUT)}, {.timeout_ns = (5L * S2N),  .err_code = NPU_CRITICAL_DRIVER(NPU_ERR_SCHED_TIMEOUT)} },
-/* PROCESSING       */	{{0, 0}, {.timeout_ns = (10L * S2N), .err_code = NPU_CRITICAL_DRIVER(NPU_ERR_NPU_TIMEOUT)  }, {.timeout_ns = (5L * S2N), .err_code = NPU_CRITICAL_DRIVER(NPU_ERR_QUEUE_TIMEOUT)} },
+/* REQUESTED        */	{{0, 0}, {.timeout_ns = (5L * S2N), .err_code = NPU_CRITICAL_DRIVER(NPU_ERR_SCHED_TIMEOUT)}, {.timeout_ns = (100L * S2N), .err_code = NPU_CRITICAL_DRIVER(NPU_ERR_SCHED_TIMEOUT)}, {.timeout_ns = (5L * S2N),  .err_code = NPU_CRITICAL_DRIVER(NPU_ERR_SCHED_TIMEOUT)} },
+/* PROCESSING       */	{{0, 0}, {.timeout_ns = (10L * S2N), .err_code = NPU_CRITICAL_DRIVER(NPU_ERR_NPU_TIMEOUT)}, {.timeout_ns = (100L * S2N), .err_code = NPU_CRITICAL_DRIVER(NPU_ERR_NPU_TIMEOUT)}, {.timeout_ns = (5L * S2N), .err_code = NPU_CRITICAL_DRIVER(NPU_ERR_QUEUE_TIMEOUT)} },
 /* COMPLETED - (NA) */	{{0, 0}, {.timeout_ns = 0,          .err_code = 0                    }, {.timeout_ns = 0,           .err_code = 0} },
 };
 #endif
@@ -2073,22 +2076,33 @@ static int proto_drv_timedout_handling(const lsm_list_type_e state)
 {
 	s64 now = get_time_ns();
 	int timeout_entry_cnt = 0;
+	struct npu_device *device = npu_proto_drv.npu_device;
 	{
+		u32 frame_req_type;
 		struct proto_req_frame *entry;
 
+		if (is_kpi_mode_enabled(true))
+			frame_req_type = PROTO_DRV_REQ_TYPE_KPI_FRAME;
+		else
+			frame_req_type = PROTO_DRV_REQ_TYPE_FRAME;
+
 		LSM_FOR_EACH_ENTRY_IN(proto_frame_lsm, state, entry,
-			if (unlikely(is_timedout(entry, NPU_PROTODRV_TIMEOUT_MAP[state][PROTO_DRV_REQ_TYPE_FRAME].timeout_ns, now))) {
+			if (unlikely(is_timedout(entry, NPU_PROTODRV_TIMEOUT_MAP[state][frame_req_type].timeout_ns, now))) {
 				timeout_entry_cnt++;
 				/* Timeout */
-				entry->frame.result_code = NPU_PROTODRV_TIMEOUT_MAP[state][PROTO_DRV_REQ_TYPE_FRAME].err_code;
+				entry->frame.result_code = NPU_PROTODRV_TIMEOUT_MAP[state][frame_req_type].err_code;
 				proto_frame_lsm.lsm_move_entry(COMPLETED, entry);
 				npu_uwarn("timeout entry (%s) on state %s - req_id(%u), result_code(%u/0x%08x)\n",
 					&entry->frame,
-					getTypeName(PROTO_DRV_REQ_TYPE_FRAME), LSM_STATE_NAMES[state],
+					getTypeName(frame_req_type), LSM_STATE_NAMES[state],
 					entry->frame.npu_req_id, entry->frame.result_code, entry->frame.result_code);
-#ifdef CONFIG_NPU_USE_HW_DEVICE
+				fw_print_log2dram(&device->system, 4 * 1024);
 				fw_will_note(FW_LOGSIZE);
+#ifdef CONFIG_NPU_USE_HW_DEVICE
 				npu_util_dump_handle_nrespone(&npu_proto_drv.npu_device->system);
+#else
+				/* For papaya */
+				npu_util_dump_handle_nrespone_watchdog();
 #endif
 			}
 		)
@@ -2106,6 +2120,12 @@ static int proto_drv_timedout_handling(const lsm_list_type_e state)
 					&entry->nw,
 					getTypeName(PROTO_DRV_REQ_TYPE_NW), LSM_STATE_NAMES[state],
 					entry->nw.npu_req_id, entry->nw.result_code, entry->nw.result_code);
+				fw_print_log2dram(&device->system, 4 * 1024);
+#ifndef CONFIG_NPU_USE_HW_DEVICE
+				/* For papaya */
+				fw_will_note(FW_LOGSIZE);
+				npu_util_dump_handle_nrespone_watchdog();
+#endif
 			}
 		)
 	}

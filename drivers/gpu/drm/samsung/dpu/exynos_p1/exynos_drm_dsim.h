@@ -31,10 +31,10 @@
 #endif
 
 enum dsim_state {
-	DSIM_STATE_INIT, /* already enabled state froam LK display */
-	DSIM_STATE_HSCLKEN,
-	DSIM_STATE_ULPS,
-	DSIM_STATE_SUSPEND
+	DSIM_STATE_INIT,	/* already enable-state from LK display */
+	DSIM_STATE_HSCLKEN,	/* enable-state */
+	DSIM_STATE_ULPS,	/* ulps-state by hibernation */
+	DSIM_STATE_SUSPEND,	/* disable-state */
 };
 
 struct dsim_pll_params {
@@ -119,6 +119,7 @@ struct dsim_device {
 #endif
 
 	enum dsim_state state;
+	bool lp_mode_state;
 
 	/* set bist mode by sysfs */
 	unsigned int bist_mode;

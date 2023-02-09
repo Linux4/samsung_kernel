@@ -219,6 +219,10 @@ int npu_memory_probe(struct npu_memory *memory, struct device *dev)
 	INIT_LIST_HEAD(&memory->alloc_list);
 	memory->alloc_count = 0;
 
+	spin_lock_init(&memory->valloc_lock);
+	INIT_LIST_HEAD(&memory->valloc_list);
+	memory->valloc_count = 0;
+
 	return 0;
 }
 
@@ -238,6 +242,47 @@ int npu_memory_close(struct npu_memory *memory)
 	/* to do cleanup code */
 
 	return ret;
+}
+
+void npu_memory_dump(struct npu_memory *memory)
+{
+	unsigned long flags;
+	struct npu_memory_buffer *npu_memory;
+	struct npu_memory_v_buf *npu_vmemory;
+
+	if (!memory)
+		return;
+
+	spin_lock_irqsave(&memory->alloc_lock, flags);
+	npu_info("---------- NPU Memoy alloc list ----------\n");
+	list_for_each_entry(npu_memory, &memory->alloc_list, list) {
+		npu_info("Memory name = %s\n", npu_memory->name);
+		npu_info("Memory vaddr = 0x%llx\n", npu_memory->vaddr);
+		npu_info("Memory daddr = 0x%llx\n", npu_memory->daddr);
+		npu_info("Memory size = %d\n", npu_memory->size);
+		npu_info("-------------------------------------\n");
+	}
+	spin_unlock_irqrestore(&memory->alloc_lock, flags);
+
+	spin_lock_irqsave(&memory->valloc_lock, flags);
+	npu_info("---------- NPU Memoy valloc list ----------\n");
+	list_for_each_entry(npu_vmemory, &memory->valloc_list, list) {
+		npu_info("Memory name = %s\n", npu_vmemory->name);
+		npu_info("Memory size = %d\n", npu_vmemory->size);
+		npu_info("-------------------------------------\n");
+	}
+	spin_unlock_irqrestore(&memory->valloc_lock, flags);
+
+	spin_lock_irqsave(&memory->map_lock, flags);
+	npu_info("---------- NPU Memoy map list ----------\n");
+	list_for_each_entry(npu_memory, &memory->map_list, list) {
+		npu_info("Memory name = %s\n", npu_memory->name);
+		npu_info("Memory vaddr = 0x%llx\n", npu_memory->vaddr);
+		npu_info("Memory daddr = 0x%llx\n", npu_memory->daddr);
+		npu_info("Memory size = %d\n", npu_memory->size);
+		npu_info("-------------------------------------\n");
+	}
+	spin_unlock_irqrestore(&memory->map_lock, flags);
 }
 
 int npu_memory_map(struct npu_memory *memory, struct npu_memory_buffer *buffer, int prot)
@@ -325,6 +370,7 @@ int npu_memory_map(struct npu_memory *memory, struct npu_memory_buffer *buffer, 
 p_err:
 	if (complete_suc != true) {
 		npu_memory_unmap(memory, buffer);
+		npu_memory_dump(memory);
 	}
 	return ret;
 }
@@ -428,6 +474,7 @@ int __npu_memory_alloc(struct npu_memory *memory, struct npu_memory_buffer *buff
 p_err:
 	if (complete_suc != true) {
 		npu_memory_free(memory, buffer);
+		npu_memory_dump(memory);
 	}
 	return ret;
 }
@@ -490,6 +537,7 @@ int npu_memory_alloc(struct npu_memory *memory, struct npu_memory_buffer *buffer
 		npu_err("npu_memory_ion_alloc is fail(%pK) size(%zu)\n",
 				dma_buf, buffer->size);
 		ret = -EINVAL;
+		npu_memory_dump(memory);
 		return ret;
 	}
 	buffer->dma_buf = dma_buf;
@@ -552,13 +600,14 @@ int npu_memory_v_alloc(struct npu_memory *memory, struct npu_memory_v_buf *buffe
 	buffer->v_buf = (char *)vmalloc((unsigned long)buffer->size);
 	if (!buffer->v_buf) {
 		npu_err("failed vmalloc\n");
+		npu_memory_dump(memory);
 		return -ENOMEM;
 	}
 
-	spin_lock_irqsave(&memory->alloc_lock, flags);
-	list_add_tail(&buffer->list, &memory->alloc_list);
-	memory->alloc_count++;
-	spin_unlock_irqrestore(&memory->alloc_lock, flags);
+	spin_lock_irqsave(&memory->valloc_lock, flags);
+	list_add_tail(&buffer->list, &memory->valloc_list);
+	memory->valloc_count++;
+	spin_unlock_irqrestore(&memory->valloc_lock, flags);
 
 	return 0;
 }
@@ -572,15 +621,15 @@ void npu_memory_v_free(struct npu_memory *memory, struct npu_memory_v_buf *buffe
 
 	vfree((void *)buffer->v_buf);
 
-	spin_lock_irqsave(&memory->alloc_lock, flags);
+	spin_lock_irqsave(&memory->valloc_lock, flags);
 	if (likely(!list_empty(&buffer->list))) {
 		list_del(&buffer->list);
 		INIT_LIST_HEAD(&buffer->list);
-		memory->alloc_count--;
+		memory->valloc_count--;
 	} else
 		npu_info("buffer[%pK] is not linked to alloc_lock. Skipping remove.\n", buffer);
 
-	spin_unlock_irqrestore(&memory->alloc_lock, flags);
+	spin_unlock_irqrestore(&memory->valloc_lock, flags);
 
 	return;
 }

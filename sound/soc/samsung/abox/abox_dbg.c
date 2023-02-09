@@ -36,6 +36,8 @@
 #define ABOX_DBG_DUMP_MAGIC_ATUNE	0x5554413030504D44ull /* DMP00ATU */
 #define ABOX_DBG_DUMP_LIMIT_NS		(5 * NSEC_PER_SEC)
 
+static struct mutex lock;
+
 void abox_dbg_print_gpr_from_addr(struct device *dev, struct abox_data *data,
 		unsigned int *addr)
 {
@@ -49,7 +51,7 @@ void abox_dbg_print_gpr(struct device *dev, struct abox_data *data)
 
 struct abox_dbg_dump_sram {
 	unsigned long long magic;
-	char dump[SZ_512K];
+	char dump[SRAM_FIRMWARE_SIZE];
 } __packed;
 
 struct abox_dbg_dump_dram {
@@ -360,7 +362,7 @@ static void dump_mem_full(struct device *dev, struct abox_data *data,
 	p_dump->previous_mem = 0;
 	strncpy(p_dump->reason, reason, sizeof(p_dump->reason) - 1);
 	memcpy_fromio(p_dump->sram.dump, data->sram_base,
-			data->sram_size);
+			SRAM_FIRMWARE_SIZE);
 	p_dump->sram.magic = ABOX_DBG_DUMP_MAGIC_SRAM;
 	memcpy(p_dump->dram.dump, data->dram_base, DRAM_FIRMWARE_SIZE);
 	p_dump->dram.magic = ABOX_DBG_DUMP_MAGIC_DRAM;
@@ -391,7 +393,7 @@ static void dump_mem_half(struct device *dev, struct abox_data *data,
 	p_dump->previous_mem = 0;
 	strncpy(p_dump->reason, reason, sizeof(p_dump->reason) - 1);
 	memcpy_fromio(p_dump->sram.dump, data->sram_base,
-			data->sram_size);
+			SRAM_FIRMWARE_SIZE);
 	p_dump->sram.magic = ABOX_DBG_DUMP_MAGIC_SRAM;
 	memcpy(p_dump->dram.dump, data->dram_base, DRAM_FIRMWARE_SIZE);
 	p_dump->dram.magic = ABOX_DBG_DUMP_MAGIC_DRAM;
@@ -415,7 +417,7 @@ static void dump_mem_min(struct device *dev, struct abox_data *data,
 	p_dump->previous_mem = 0;
 	strncpy(p_dump->reason, reason, sizeof(p_dump->reason) - 1);
 	memcpy_fromio(p_dump->sram.dump, data->sram_base,
-			data->sram_size);
+			SRAM_FIRMWARE_SIZE);
 	p_dump->sram.magic = ABOX_DBG_DUMP_MAGIC_SRAM;
 
 	memcpy(p_dump->log.dump, data->dram_base + ABOX_LOG_OFFSET,
@@ -434,6 +436,7 @@ static void dump_mem_min(struct device *dev, struct abox_data *data,
 	abox_gicd_dump(data->dev_gic, (char *)p_dump->sfr_gic_gicd, 0,
 			sizeof(p_dump->sfr_gic_gicd));
 
+	mutex_lock(&lock);
 	if (p_dump->dram) {
 		memcpy(p_dump->dram->dump, data->dram_base,
 				DRAM_FIRMWARE_SIZE);
@@ -441,6 +444,7 @@ static void dump_mem_min(struct device *dev, struct abox_data *data,
 	} else {
 		abox_info(dev, "Failed to save ABOX dram\n");
 	}
+	mutex_unlock(&lock);
 }
 
 static int abox_dbg_dump_count;
@@ -645,6 +649,7 @@ static void abox_dbg_rmem_init(struct abox_data *data)
 		p_dump_gpr_from_addr = dump_gpr_from_addr_min;
 		p_dump_gpr = dump_gpr_min;
 		p_dump_mem = dump_mem_min;
+		mutex_init(&lock);
 		abox_info(dev_abox, "%s debug dump\n", "min");
 	}
 
@@ -663,7 +668,7 @@ void abox_dbg_dump_gpr_from_addr(struct device *dev, struct abox_data *data,
 
 	abox_dbg(dev, "%s\n", __func__);
 
-	if (!abox_is_on()) {
+	if (pm_runtime_suspended(data->dev)) {
 		abox_info(dev, "%s is skipped due to no power\n", __func__);
 		return;
 	}
@@ -689,7 +694,7 @@ void abox_dbg_dump_gpr(struct device *dev, struct abox_data *data,
 
 	abox_dbg(dev, "%s\n", __func__);
 
-	if (!abox_is_on()) {
+	if (pm_runtime_suspended(data->dev)) {
 		abox_info(dev, "%s is skipped due to no power\n", __func__);
 		return;
 	}
@@ -732,7 +737,7 @@ static void dump_mem(struct device *dev, struct abox_data *data,
 
 	abox_dbg(dev, "%s\n", __func__);
 
-	if (!abox_is_on()) {
+	if (pm_runtime_suspended(data->dev)) {
 		abox_info(dev, "%s is skipped due to no power\n", __func__);
 		return;
 	}
@@ -799,7 +804,7 @@ void abox_dbg_dump_simple(struct device *dev, struct abox_data *data,
 
 	abox_info(dev, "%s\n", __func__);
 
-	if (!abox_is_on()) {
+	if (pm_runtime_suspended(data->dev)) {
 		abox_info(dev, "%s is skipped due to no power\n", __func__);
 		return;
 	}
@@ -816,7 +821,7 @@ void abox_dbg_dump_simple(struct device *dev, struct abox_data *data,
 			sizeof(abox_dump_simple.reason) - 1);
 	abox_core_dump_gpr(abox_dump_simple.gpr);
 	memcpy_fromio(abox_dump_simple.sram.dump, data->sram_base,
-			data->sram_size);
+			SRAM_FIRMWARE_SIZE);
 	abox_dump_simple.sram.magic = ABOX_DBG_DUMP_MAGIC_SRAM;
 	memcpy(abox_dump_simple.log.dump, data->dram_base + ABOX_LOG_OFFSET,
 			ABOX_LOG_SIZE);
@@ -843,7 +848,7 @@ void abox_dbg_dump_suspend(struct device *dev, struct abox_data *data)
 			sizeof(abox_dump_suspend.reason) - 1);
 	abox_core_dump_gpr(abox_dump_suspend.gpr);
 	memcpy_fromio(abox_dump_suspend.sram.dump, data->sram_base,
-			data->sram_size);
+			SRAM_FIRMWARE_SIZE);
 	abox_dump_suspend.sram.magic = ABOX_DBG_DUMP_MAGIC_SRAM;
 	memcpy(abox_dump_suspend.log.dump, data->dram_base + ABOX_LOG_OFFSET,
 			ABOX_LOG_SIZE);
@@ -896,7 +901,8 @@ static ssize_t calliope_sram_read(struct file *file, struct kobject *kobj,
 
 	abox_dbg(dev, "%s(%lld, %zu)\n", __func__, off, size);
 
-	if (pm_runtime_get_if_in_use(dev_abox) > 0) {
+	if (!pm_runtime_suspended(dev_abox)) {
+		pm_runtime_get(dev_abox);
 		if (off == 0)
 			abox_core_flush();
 		memcpy_fromio(buf, battr->private + off, size);
@@ -921,7 +927,8 @@ static ssize_t calliope_dram_read(struct file *file, struct kobject *kobj,
 	if (!battr->private)
 		return 0;
 
-	if (pm_runtime_get_if_in_use(dev_abox) > 0) {
+	if (!pm_runtime_suspended(dev_abox)) {
+		pm_runtime_get(dev_abox);
 		if (off == 0)
 			abox_core_flush();
 		pm_runtime_put(dev_abox);
@@ -979,7 +986,9 @@ static struct bin_attribute *calliope_bin_attrs[] = {
 static ssize_t gpr_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	if (!abox_is_on()) {
+	struct device *dev_abox = dev->parent;
+
+	if (pm_runtime_suspended(dev_abox)) {
 		abox_info(dev, "%s is skipped due to no power\n", __func__);
 		return -EFAULT;
 	}
@@ -1200,7 +1209,7 @@ static void abox_dbg_create_files(struct abox_data *data)
 	dir = abox_proc_mkdir("runtime", NULL);
 
 	abox_dbg_create_file(&sram_info, dir, data, data->sram_base,
-			NULL, data->sram_size);
+			NULL, SRAM_FIRMWARE_SIZE);
 	abox_dbg_create_file(&dram_info, dir, data, NULL,
 			data->dram_base, DRAM_FIRMWARE_SIZE);
 	abox_dbg_create_file(&log_info, dir, data, NULL,
@@ -1367,13 +1376,13 @@ static void abox_dbg_alloc_work_func(struct work_struct *work)
 	if (!p_abox_dbg_dump_min)
 		return;
 
-
+	mutex_lock(&lock);
 	for (i = 0; i < ABOX_DBG_DUMP_COUNT; i++) {
 		p_dump = &(*p_abox_dbg_dump_min)[i];
 		if (!p_dump->dram)
 			p_dump->dram = vmalloc(sizeof(*p_dump->dram));
 	}
-
+	mutex_unlock(&lock);
 }
 static DECLARE_WORK(abox_dbg_alloc_work, abox_dbg_alloc_work_func);
 
@@ -1385,12 +1394,14 @@ static void abox_dbg_free_work_func(struct work_struct *work)
 	if (!p_abox_dbg_dump_min)
 		return;
 
+	mutex_lock(&lock);
 	for (i = 0; i < ABOX_DBG_DUMP_COUNT; i++) {
 		p_dump = &(*p_abox_dbg_dump_min)[i];
 		if (p_dump->dram)
 			vfree(p_dump->dram);
 		p_dump->dram = NULL;
 	}
+	mutex_unlock(&lock);
 }
 static DECLARE_DEFERRABLE_WORK(abox_dbg_free_work, abox_dbg_free_work_func);
 
@@ -1466,7 +1477,7 @@ static int samsung_abox_debug_probe(struct platform_device *pdev)
 	if (ret < 0)
 		abox_warn(dev, "Failed to create file: %s\n",
 				dev_attr_gpr.attr.name);
-	bin_attr_calliope_sram.size = data->sram_size;
+	bin_attr_calliope_sram.size = SRAM_FIRMWARE_SIZE;
 	bin_attr_calliope_sram.private = data->sram_base;
 	bin_attr_calliope_dram.private = data->dram_base;
 	bin_attr_calliope_log.private = data->dram_base + ABOX_LOG_OFFSET;

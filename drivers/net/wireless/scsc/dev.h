@@ -104,23 +104,27 @@
 #define MHS_SAR_BACKOFF_DISABLED            8
 #define MHS_SAR_BACKOFF_ENABLED             9
 
-#define SUB6_SAR_1_BAND                     2
-#define SUB6_SAR_2_BAND                     25
-#define SUB6_SAR_3_BAND                     41
-#define SUB6_SAR_4_BAND                     66
-#define SUB6_SAR_5_BAND                     48
-#define SUB6_SAR_6_BAND                     77
+#define SUB6_SAR_1_BAND                     7
+#define SUB6_SAR_2_BAND                     38
+#define SUB6_SAR_3_BAND                     40
+#define SUB6_SAR_4_BAND                     41
+#define SUB6_SAR_5_BAND                     77
+#define SUB6_SAR_6_BAND                     78
 
 #define SLSI_HOSTSTATE_LCD_ACTIVE           0x0001
 #define SLSI_HOSTSTATE_CELLULAR_ACTIVE      0x0002
 #define SLSI_HOSTSTATE_MHS_SAR_ACTIVE       0x0010
 #define SLSI_HOSTSTATE_HEAD_SAR_ACTIVE      0x0020
 #define SLSI_HOSTSTATE_GRIP_SAR_ACTIVE      0x0040
-#define SLSI_HOSTSTATE_BASE_MMW             0x0004
-#define SLSI_HOSTSTATE_BASE_SUB6            0x0008
-#define SLSI_HOSTSTATE_SAR_INIT_MASK        0x0083
 #define SLSI_HOSTSTATE_LOW_LATENCY_ACTIVE   0x0080
-#define SLSI_HOSTSTATE_SUB6_BAND_ACTIVE     0x0700
+#define SLSI_HOSTSTATE_SAR_INIT_MASK        0x0083
+#define SLSI_HOSTSTATE_BASE_MASK            0x000C
+#define SLSI_HOSTSTATE_BASE_NONE            0
+#define SLSI_HOSTSTATE_BASE_MMW             1
+#define SLSI_HOSTSTATE_BASE_SUB6            2
+#define SLSI_HOSTSTATE_BASE_POS             2
+#define SLSI_HOSTSTATE_SUB6_BAND_MASK       0x0700
+#define SLSI_HOSTSTATE_SUB6_BAND_POS        8
 #define SLSI_HOST_TAG_ARP_MASK              BIT(15)
 #define SLSI_ARP_UNPAUSE_THRESHOLD          4
 /* RTT ID: : A value (1-7) for identifying the RTT activity being requested. */
@@ -818,6 +822,7 @@ struct slsi_last_disconnected_sta {
 	bool mimo_used;
 	u16 reason;
 	int support_mode;
+	int supported_band;
 };
 
 struct slsi_vif_ap {

@@ -18,15 +18,15 @@
 
 #include <linux/videodev2.h>
 #include <linux/videodev2_exynos_camera.h>
-
 #include "is-flash.h"
 #include "is-device-sensor.h"
 #include "is-device-sensor-peri.h"
 #include "is-core.h"
 
-#ifdef CONFIG_LEDS_SM5714
+#if IS_ENABLED(CONFIG_LEDS_SM5714)
 #include <linux/sm5714.h>
 extern int32_t sm5714_fled_mode_ctrl(int state, uint32_t brightness);
+extern int sm5714_create_sysfs(struct class*);
 #endif
 
 static int flash_sm5714_init(struct v4l2_subdev *subdev, u32 val)
@@ -50,7 +50,7 @@ static int flash_sm5714_init(struct v4l2_subdev *subdev, u32 val)
 	gpio_request_one(flash->torch_gpio, GPIOF_OUT_INIT_LOW, "CAM_TORCH_GPIO_OUTPUT");
 	gpio_free(flash->torch_gpio);
 
-#ifdef CONFIG_LEDS_SM5714
+#if IS_ENABLED(CONFIG_LEDS_SM5714)
 	ret = sm5714_fled_mode_ctrl(SM5714_FLED_MODE_OFF, 0);
 #else
 	ret = control_flash_gpio(flash->flash_gpio, 0);
@@ -75,7 +75,7 @@ static int sensor_sm5714_flash_control(struct v4l2_subdev *subdev, enum flash_mo
 		mode == CAM2_FLASH_MODE_SINGLE ? "FLASH" : "TORCH",
 		intensity);
 
-#ifdef CONFIG_LEDS_SM5714
+#if IS_ENABLED(CONFIG_LEDS_SM5714)
 	if (mode == CAM2_FLASH_MODE_OFF) {
 		ret = sm5714_fled_mode_ctrl(SM5714_FLED_MODE_OFF, 0);
 		if (ret)
@@ -85,7 +85,7 @@ static int sensor_sm5714_flash_control(struct v4l2_subdev *subdev, enum flash_mo
 		if (ret)
 			err("%s capture flash on fail", __func__);
 	} else if (mode == CAM2_FLASH_MODE_TORCH) {
-		ret = sm5714_fled_mode_ctrl(SM5714_FLED_MODE_PRE_FLASH, 0);
+		ret = sm5714_fled_mode_ctrl(SM5714_FLED_MODE_TORCH_FLASH, 0);
 		if (ret)
 			err("%s torch flash on fail", __func__);
 	} else {
@@ -314,6 +314,10 @@ static int __init flash_sm5714_probe(struct device *dev, struct i2c_client *clie
 
 		probe_info("%s done\n", __func__);
 	}
+
+#if IS_ENABLED(CONFIG_LEDS_SM5714)
+	sm5714_create_sysfs(camera_class);
+#endif
 
 p_err:
 	return ret;

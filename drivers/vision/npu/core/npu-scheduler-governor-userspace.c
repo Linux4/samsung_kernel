@@ -189,7 +189,7 @@ ssize_t npu_store_attrs_governor_userspace(struct device *dev,
 	if (sscanf(buf, "%255s* %d", name, &x) > 0) {
 		d = npu_governor_userspace_get_dev(name);
 		if (!d) {
-			npu_err("No device : %s %d\n", name, x);
+			npu_err("No device error\n");
 			return -ENODEV;
 		}
 		p = (struct npu_governor_userspace_prop *)d->gov_prop;

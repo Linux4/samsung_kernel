@@ -270,6 +270,9 @@ static void plane_state_to_win_config(struct dpu_bts_win_config *win_config,
 {
 	const struct drm_framebuffer *fb = plane_state->fb;
 	unsigned int simplified_rot;
+	struct exynos_drm_plane_state *exynos_state =
+				to_exynos_plane_state(plane_state);
+
 
 	win_config->src_x = plane_state->src.x1 >> 16;
 	win_config->src_y = plane_state->src.y1 >> 16;
@@ -310,17 +313,18 @@ static void plane_state_to_win_config(struct dpu_bts_win_config *win_config,
 	win_config->is_rot = false;
 	if (simplified_rot & DRM_MODE_ROTATE_90)
 		win_config->is_rot = true;
+	win_config->is_hdr = exynos_state->hdr_en;
 
 	DRM_DEBUG("src[%d %d %d %d], dst[%d %d %d %d]\n",
 			win_config->src_x, win_config->src_y,
 			win_config->src_w, win_config->src_h,
 			win_config->dst_x, win_config->dst_y,
 			win_config->dst_w, win_config->dst_h);
-	DRM_DEBUG("rot[%d] afbc[%d] format[%d] ch[%d] zpos[%d] comp_src[%#llx]\n",
+	DRM_DEBUG("rot[%d] afbc[%d] format[%d] ch[%d] zpos[%d] comp_src[%#llx] hdr[%d]\n",
 			win_config->is_rot, win_config->is_comp,
 			win_config->format, win_config->dpp_ch,
 			plane_state->normalized_zpos,
-			win_config->comp_src);
+			win_config->comp_src, win_config->is_hdr);
 	DRM_DEBUG("alpha[%d] blend mode[%d]\n",
 			plane_state->alpha, plane_state->pixel_blend_mode);
 	DRM_DEBUG("simplified rot[0x%x]\n", simplified_rot);
@@ -426,6 +430,9 @@ static void exynos_atomic_bts_pre_update(struct drm_device *dev,
 		struct exynos_drm_crtc *exynos_crtc;
 		struct exynos_drm_crtc_state *new_exynos_crtc_state =
 					to_exynos_crtc_state(new_crtc_state);
+		const size_t max_planes = get_plane_num(dev);
+		const size_t num_planes = hweight32(new_crtc_state->plane_mask);
+		int j;
 
 		exynos_crtc = to_exynos_crtc(crtc);
 
@@ -433,11 +440,6 @@ static void exynos_atomic_bts_pre_update(struct drm_device *dev,
 			continue;
 
 		if (new_crtc_state->planes_changed) {
-			const size_t max_planes = get_plane_num(dev);
-			const size_t num_planes =
-				hweight32(new_crtc_state->plane_mask);
-			int j;
-
 			for (j = num_planes; j < max_planes; j++) {
 				win_config = &exynos_crtc->bts->win_config[j];
 				win_config->state = DPU_WIN_STATE_DISABLED;
@@ -447,7 +449,11 @@ static void exynos_atomic_bts_pre_update(struct drm_device *dev,
 		if (exynos_crtc->ops->update_bts_fps)
 			exynos_crtc->ops->update_bts_fps(exynos_crtc);
 
-		DPU_EVENT_LOG_ATOMIC_COMMIT(exynos_crtc);
+		for (j = 0; j < num_planes; j++)
+			DPU_EVENT_LOG(j == 0 ? "ATOMIC_COMMIT" : "", exynos_crtc,
+					EVENT_FLAG_LONG, dpu_config_to_string,
+					&exynos_crtc->bts->win_config[j]);
+
 		/*
 		 * In the case of seamless modeset, update the bts
 		 * in decon_seamless_set_mode.
@@ -497,8 +503,10 @@ static void exynos_atomic_bts_post_update(struct drm_device *dev,
 			}
 
 			exynos_crtc->bts->ops->update_bw(exynos_crtc, true);
-			DPU_EVENT_LOG(DPU_EVT_DECON_RSC_OCCUPANCY, exynos_crtc,
-					NULL);
+			DPU_EVENT_LOG("DECON_CH_OCCUPANCY", exynos_crtc, EVENT_FLAG_LONG,
+					 dpu_rsc_ch_to_string, exynos_crtc);
+			DPU_EVENT_LOG("DECON_WIN_OCCUPANCY", exynos_crtc, EVENT_FLAG_LONG,
+					 dpu_rsc_win_to_string, exynos_crtc);
 		}
 
 		if (!new_crtc_state->active && new_crtc_state->active_changed)
@@ -506,6 +514,7 @@ static void exynos_atomic_bts_post_update(struct drm_device *dev,
 	}
 }
 
+#define DEFAULT_TIMEOUT_FPS 60
 static void exynos_atomic_wait_for_vblanks(struct drm_device *dev,
 		struct drm_atomic_state *old_state)
 {
@@ -539,27 +548,46 @@ static void exynos_atomic_wait_for_vblanks(struct drm_device *dev,
 		old_state->crtcs[i].last_vblank_count = drm_crtc_vblank_count(crtc);
 	}
 
-	for_each_old_crtc_in_state(old_state, crtc, old_crtc_state, i) {
+	for_each_oldnew_crtc_in_state(old_state, crtc, old_crtc_state, new_crtc_state, i) {
+		static ktime_t timestamp_s;
+		s64 diff_msec;
+		u64 fps;
+		u32 default_vblank_timeout, max_vblank_timeout, interval;
+
 		if (!(crtc_mask & drm_crtc_mask(crtc)))
 			continue;
 
+		fps = drm_mode_vrefresh(&new_crtc_state->mode) ?: DEFAULT_TIMEOUT_FPS;
+		interval = MSEC_PER_SEC / fps;
+		max_vblank_timeout = 12 * interval;
+		default_vblank_timeout = 6 * interval;
+
+		timestamp_s = ktime_get();
 		ret = wait_event_timeout(dev->vblank[i].queue,
 				old_state->crtcs[i].last_vblank_count !=
 				drm_crtc_vblank_count(crtc),
-				msecs_to_jiffies(100));
+				msecs_to_jiffies(max_vblank_timeout));
+		diff_msec = ktime_to_ms(ktime_sub(ktime_get(), timestamp_s));
 
-		WARN(!ret, "[CRTC:%d:%s] vblank wait timed out\n",
-				crtc->base.id, crtc->name);
+		if (diff_msec >= default_vblank_timeout)
+			pr_warn("[CRTC:%d:%s] vblank wait timed out!(%lld ms/%lld ms)\n",
+				crtc->base.id, crtc->name, diff_msec,
+				default_vblank_timeout);
+
 		if (!ret) {
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
 			/* Code for bypass commit when panel was not connected */
 			if (mcd_drm_check_commit_skip(NULL, __func__)) {
 				drm_crtc_handle_vblank(crtc);
 			} else {
+				DPU_EVENT_LOG("VBLANK_TIMEOUT", to_exynos_crtc(crtc),
+						EVENT_FLAG_ERROR, NULL);
 				dpu_print_eint_state(crtc);
 				dpu_check_panel_status(crtc);
 			}
 #else
+			DPU_EVENT_LOG("VBLANK_TIMEOUT", to_exynos_crtc(crtc),
+					EVENT_FLAG_ERROR, NULL);
 			dpu_print_eint_state(crtc);
 			dpu_check_panel_status(crtc);
 #endif
@@ -602,6 +630,7 @@ exynos_atomic_framestart_post_processing(struct drm_atomic_state *old_state)
 
 	for_each_new_crtc_in_state(old_state, crtc, new_crtc_state, i) {
 		new_exynos_crtc_state = to_exynos_crtc_state(new_crtc_state);
+
 		if (!new_exynos_crtc_state->freed_win_mask)
 			continue;
 
@@ -665,10 +694,10 @@ void exynos_atomic_commit_tail(struct drm_atomic_state *old_state)
 		DRM_DEBUG("[CRTC-%d] new en:%d active:%d change[p:%d m:%d a:%d c:%d]\n",
 				drm_crtc_index(crtc), STATE_ARG(new_crtc_state));
 
-		DPU_EVENT_LOG(DPU_EVT_REQ_CRTC_INFO_OLD, exynos_crtc,
-				old_crtc_state);
-		DPU_EVENT_LOG(DPU_EVT_REQ_CRTC_INFO_NEW, exynos_crtc,
-				new_crtc_state);
+		DPU_EVENT_LOG("REQ_CRTC_INFO_OLD", exynos_crtc, 0, STATE_FMT,
+				STATE_ARG(old_crtc_state));
+		DPU_EVENT_LOG("REQ_CRTC_INFO_NEW", exynos_crtc,	0, STATE_FMT,
+				STATE_ARG(new_crtc_state));
 
 		if (new_crtc_state->active || new_crtc_state->active_changed) {
 			hibernation_block_exit(exynos_crtc->hibernation);
@@ -756,13 +785,12 @@ void exynos_atomic_commit_tail(struct drm_atomic_state *old_state)
 			continue;
 
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-		if (exynos_crtc_state->skip_frame_update &&
+		if (exynos_crtc_state->skip_frameupdate &&
 				crtc_get_encoder(new_crtc_state, DRM_MODE_ENCODER_DSI)) {
-			pr_info("skip_frame_update\n");
+			pr_info("skip_frameupdate\n");
 			continue;
 		}
 #endif
-
 		ops = exynos_crtc->ops;
 		DPU_ATRACE_BEGIN("wait_for_frame_start");
 		if (ops->wait_framestart)
@@ -777,7 +805,6 @@ void exynos_atomic_commit_tail(struct drm_atomic_state *old_state)
 			ops->set_fingerprint_mask(exynos_crtc, old_crtc_state, 1);
 #endif
 	}
-
 	exynos_atomic_framestart_post_processing(old_state);
 
 	exynos_atomic_bts_post_update(dev, old_state);

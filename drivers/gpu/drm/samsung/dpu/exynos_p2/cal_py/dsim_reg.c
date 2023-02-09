@@ -83,8 +83,8 @@ static struct cal_regs_desc regs_desc[REGS_DSIM_TYPE_MAX][MAX_DSI_CNT];
 /* If below values depend on panel. These values wil be move to panel file.
  * And these values are valid in case of video mode only.
  */
-#define TE_PROTECT_ON_TIME		158 /* 15.8ms*/
-#define TE_TIMEOUT_TIME			180 /* 18ms */
+#define DSIM_STABLE_VFP_VALUE		2
+#define TE_MARGIN			5 /* 5% */
 
 #define PLL_LOCK_CNT_MUL		500
 #define PLL_LOCK_CNT_MARGIN_RATIO	0	/* 10% ~ 20% */
@@ -1083,7 +1083,7 @@ static int dsim_reg_wait_idle_status(u32 id, u32 is_vm)
 	ret = readl_poll_timeout_atomic(
 			dsim_regs_desc(id)->regs + DSIM_LINK_STATUS0, val,
 			!DSIM_LINK_STATUS0_VIDEO_MODE_STATUS_GET(val), 10,
-			2000);
+			16000);
 	if (ret) {
 		cal_log_err(id, "dsim%d wait timeout idle status\n", id);
 		return ret;
@@ -1229,6 +1229,13 @@ static void dsim_reg_set_cmd_te_ctrl0(u32 id, u32 stablevfp)
 	dsim_write(id, DSIM_CMD_TE_CTRL0, val);
 }
 
+static void dsim_reg_get_cmd_timer(unsigned int fps, unsigned int *te_protect,
+		unsigned int *te_timeout, u32 hs_clk)
+{
+	*te_protect = hs_clk * (100 - TE_MARGIN) * 100 / fps / 16;
+	*te_timeout = hs_clk * (100 + TE_MARGIN * 2) * 100 / fps / 16;
+}
+
 static void dsim_reg_set_cmd_te_ctrl1(u32 id, u32 teprotecton, u32 tetout)
 {
 	u32 val = DSIM_CMD_TE_CTRL1_TIME_TE_PROTECT_ON(teprotecton)
@@ -1244,10 +1251,15 @@ void dsim_reg_set_cmd_ctrl(u32 id, struct dsim_reg_config *config,
 	unsigned int time_te_protect_on;
 	unsigned int time_te_tout;
 
-	time_stable_vfp = config->p_timing.hactive *
-				config->line_stable_vfp * 3 / 100;
-	time_te_protect_on = (clks->hs_clk * TE_PROTECT_ON_TIME) / 16;
-	time_te_tout = (clks->hs_clk * TE_TIMEOUT_TIME) / 16;
+	if (config->dsc.enabled)
+		time_stable_vfp = config->p_timing.hactive * DSIM_STABLE_VFP_VALUE / 100;
+	else
+		time_stable_vfp =
+			config->p_timing.hactive * DSIM_STABLE_VFP_VALUE * 3 / 100;
+
+	dsim_reg_get_cmd_timer(config->p_timing.vrefresh, &time_te_protect_on,
+			       &time_te_tout, clks->hs_clk);
+
 	dsim_reg_set_cmd_te_ctrl0(id, time_stable_vfp);
 	dsim_reg_set_cmd_te_ctrl1(id, time_te_protect_on, time_te_tout);
 }
@@ -2400,11 +2412,12 @@ void dsim_reg_wait_clear_int(u32 id, u32 int_num)
 	int ret;
 
 	ret = readl_poll_timeout_atomic(dsim_regs_desc(id)->regs + DSIM_INTSRC,
-			val, !(val & int_num), 10, 30000);
+					val, !(val & int_num), 10, 30000);
 
 	if (ret)
 		cal_log_err(id,
-			"timeout to wait for clear val(0x%08x) of int(0x%08x)\n", val, int_num);
+			"timeout to wait for clear val(0x%08x) of int(0x%08x)\n",
+			val, int_num);
 }
 
 int dsim_reg_get_link_clock(u32 id)

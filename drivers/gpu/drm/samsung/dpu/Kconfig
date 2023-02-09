@@ -143,7 +143,6 @@ config DRM_DPU_EVENT_LOG_FOR_USER
 	  This enables support for DRM DPU Event log for user
 
 source "drivers/gpu/drm/samsung/dpu/panel/Kconfig"
-source "drivers/gpu/drm/samsung/dpu/kunit_test/Kconfig"
 source "drivers/gpu/drm/samsung/dpu/dp_ext_func/Kconfig"
 source "drivers/gpu/drm/samsung/dpu/mcd_cal/Kconfig"
 

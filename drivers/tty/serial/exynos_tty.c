@@ -2542,6 +2542,7 @@ static ssize_t exynos_serial_bt_log(struct file *file, char __user *userbuf, siz
 	int ret;
 	struct exynos_uart_port *ourport = &exynos_serial_ports[BLUETOOTH_UART_PORT_LINE];
 	static int copied_bytes;
+	int offset;
 
 	if (copied_bytes >= LOG_BUFFER_SIZE) {
 		struct uart_port *port;
@@ -2555,8 +2556,9 @@ static ssize_t exynos_serial_bt_log(struct file *file, char __user *userbuf, siz
 		return 0;
 	}
 
+	offset = copied_bytes;
 	if (copied_bytes + bytes < LOG_BUFFER_SIZE) {
-		ret = copy_to_user(userbuf, ourport->uart_local_buf.buffer+copied_bytes, bytes);
+		ret = copy_to_user(userbuf, ourport->uart_local_buf.buffer + offset, bytes);
 		if (ret) {
 			pr_err("Failed to exynos_serial_bt_log : %d\n", (int)ret);
 			return ret;
@@ -2566,7 +2568,7 @@ static ssize_t exynos_serial_bt_log(struct file *file, char __user *userbuf, siz
 	} else {
 		int byte_to_read = LOG_BUFFER_SIZE-copied_bytes;
 
-		ret = copy_to_user(userbuf, ourport->uart_local_buf.buffer+copied_bytes, byte_to_read);
+		ret = copy_to_user(userbuf, ourport->uart_local_buf.buffer + offset, byte_to_read);
 		if (ret) {
 			pr_err("Failed to exynos_serial_bt_log : %d\n", (int)ret);
 			return ret;
@@ -2588,6 +2590,7 @@ static ssize_t exynos_serial_uart_log(struct file *file, char __user *userbuf, s
 	int ret;
 	struct exynos_uart_port *ourport = &exynos_serial_ports[SERIAL_UART_PORT_LINE];
 	static int copied_bytes;
+	int offset;
 
 	if (copied_bytes >= LOG_BUFFER_SIZE) {
 		struct uart_port *port;
@@ -2601,8 +2604,9 @@ static ssize_t exynos_serial_uart_log(struct file *file, char __user *userbuf, s
 		return 0;
 	}
 
+	offset = copied_bytes;
 	if (copied_bytes + bytes < LOG_BUFFER_SIZE) {
-		ret = copy_to_user(userbuf, ourport->uart_local_buf.buffer+copied_bytes, bytes);
+		ret = copy_to_user(userbuf, ourport->uart_local_buf.buffer + offset, bytes);
 		if (ret) {
 			pr_err("Failed to exynos_serial_serial_log : %d\n", (int)ret);
 			return ret;
@@ -2612,7 +2616,7 @@ static ssize_t exynos_serial_uart_log(struct file *file, char __user *userbuf, s
 	} else {
 		int byte_to_read = LOG_BUFFER_SIZE-copied_bytes;
 
-		ret = copy_to_user(userbuf, ourport->uart_local_buf.buffer+copied_bytes, byte_to_read);
+		ret = copy_to_user(userbuf, ourport->uart_local_buf.buffer + offset, byte_to_read);
 		if (ret) {
 			pr_err("Failed to exynos_serial_log : %d\n", (int)ret);
 			return ret;

@@ -29,6 +29,7 @@
 #include <linux/spinlock.h>
 #include <linux/bitfield.h>
 #include <linux/soc/samsung/exynos-soc.h>
+#include <scsi/scsi.h>
 #include <trace/hooks/ufshcd.h>
 #if IS_ENABLED(CONFIG_SEC_UFS_FEATURE)
 #include "ufs-sec-feature.h"
@@ -203,16 +204,11 @@ static inline void __freeze_cport_logger(struct ufs_vs_handle *handle)
 	hci_writel(handle, 0, 0x110);
 }
 
-static int exynos_ufs_check_ah8_fsm_state(struct ufs_hba *hba, bool is_hibern)
+static int exynos_ufs_check_ah8_fsm_state(struct ufs_hba *hba, u32 state)
 {
 	struct exynos_ufs *ufs = to_exynos_ufs(hba);
 	int cnt = 50;
-	u32 reg, state;
-
-	if (is_hibern)
-		state = HCI_AH8_HIBERNATION_STATE;
-	else
-		state = HCI_AH8_IDLE_STATE;
+	u32 reg;
 
 	do {
 		udelay(100);
@@ -239,16 +235,6 @@ static void exynos_ufs_dump_debug_info(struct ufs_hba *hba)
 {
 	struct exynos_ufs *ufs = to_exynos_ufs(hba);
 	struct ufs_vs_handle *handle = &ufs->handle;
-	u32 ahit = 0;
-	int ret;
-
-	if (ufshcd_is_auto_hibern8_supported(hba)) {
-		ahit = hba->ahit;
-		std_writel(handle, 0, REG_AUTO_HIBERNATE_IDLE_TIMER);
-		ret = exynos_ufs_check_ah8_fsm_state(hba, 0);
-		if (ret)
-			dev_err(hba->dev, "%s: [check_ah8_fsm] ret = %d\n", __func__, ret);
-	}
 
 	/* start cs, not permit overlapped dump */
 	if (test_and_set_bit(EXYNOS_UFS_BIT_DBG_DUMP, &ufs->flag))
@@ -271,11 +257,11 @@ static void exynos_ufs_dump_debug_info(struct ufs_hba *hba)
 	/* finish cs */
 	clear_bit(EXYNOS_UFS_BIT_DBG_DUMP, &ufs->flag);
 out:
-	if (ahit)
-		std_writel(handle, ahit, REG_AUTO_HIBERNATE_IDLE_TIMER);
+#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 #ifndef CONFIG_SCSI_UFS_EXYNOS_BLOCK_WDT_RST
 	if (hba->saved_err & SYSTEM_BUS_FATAL_ERROR)
 		dbg_snapshot_expire_watchdog();
+#endif
 #endif
 #if defined(CONFIG_SCSI_UFS_TEST_MODE)
 	/* do not recover system if test mode is enabled */
@@ -437,11 +423,6 @@ static void exynos_ufs_config_host(struct exynos_ufs *ufs)
 	 */
 	reg = hci_readl(&ufs->handle, HCI_IOP_ACG_DISABLE);
 	hci_writel(&ufs->handle, reg & (~HCI_IOP_ACG_DISABLE_EN), HCI_IOP_ACG_DISABLE);
-
-	unipro_writel(&ufs->handle, DBG_SUITE1_ENABLE,
-			UNIP_PA_DBG_OPTION_SUITE_1);
-	unipro_writel(&ufs->handle, DBG_SUITE2_ENABLE,
-			UNIP_PA_DBG_OPTION_SUITE_2);
 }
 
 static int exynos_ufs_config_externals(struct exynos_ufs *ufs)
@@ -572,12 +553,63 @@ static int exynos_ufs_init(struct ufs_hba *hba)
 	return 0;
 }
 
-static void __requeue_after_reset(struct ufs_hba *hba)
+static int exynos_ufs_wait_for_register(struct ufs_vs_handle *handle, u32 reg, u32 mask,
+				u32 val, unsigned long interval_us,
+				unsigned long timeout_ms)
 {
-	int index;
+	int err = 0;
+	unsigned long timeout = jiffies + msecs_to_jiffies(timeout_ms);
+
+	/* ignore bits that we don't intend to wait on */
+	val = val & mask;
+
+	while ((std_readl(handle, reg) & mask) != val) {
+		usleep_range(interval_us, interval_us + 50);
+		if (time_after(jiffies, timeout)) {
+			if ((std_readl(handle, reg) & mask) != val)
+				err = -ETIMEDOUT;
+			break;
+		}
+	}
+
+	return err;
+}
+
+/* This is same code with ufshcd_clear_cmd() */
+static int exynos_ufs_clear_cmd(struct ufs_hba *hba, int tag)
+{
+	struct exynos_ufs *ufs = to_exynos_ufs(hba);
+	struct ufs_vs_handle *handle = &ufs->handle;
+	int err = 0;
+	u32 mask = 1 << tag;
+
+	/* clear outstanding transaction before retry */
+	if (hba->quirks & UFSHCI_QUIRK_BROKEN_REQ_LIST_CLR)
+		std_writel(handle, (1 << tag), REG_UTP_TRANSFER_REQ_LIST_CLEAR);
+	else
+		std_writel(handle, ~(1 << tag),
+				REG_UTP_TRANSFER_REQ_LIST_CLEAR);
+
+	/*
+	 * wait for for h/w to clear corresponding bit in door-bell.
+	 * max. wait is 1 sec.
+	 */
+	err = exynos_ufs_wait_for_register(handle,
+			REG_UTP_TRANSFER_REQ_DOOR_BELL,
+			mask, ~mask, 1000, 1000);
+
+	if (!err && (hba->ufs_version >= ufshci_version(3, 0)))
+		std_writel(handle, 1UL << tag, REG_UTP_TRANSFER_REQ_LIST_COMPL);
+
+	return err;
+}
+
+static void __requeue_after_reset(struct ufs_hba *hba, bool reset)
+{
 	struct ufshcd_lrb *lrbp;
 	struct scsi_cmnd *cmd;
 	unsigned long completed_reqs = hba->outstanding_reqs;
+	int index, err = 0;
 
 	pr_err("%s: outstanding reqs=0x%lx\n", __func__, hba->outstanding_reqs);
 	for_each_set_bit(index, &completed_reqs, hba->nutrs) {
@@ -588,10 +620,24 @@ static void __requeue_after_reset(struct ufs_hba *hba)
 		cmd = lrbp->cmd;
 		if (!cmd)
 			return;
+		if (!reset) {
+			err = exynos_ufs_clear_cmd(hba, index);
+			if (err)
+				pr_err("%s: Failed to clear tag = %d\n",
+						__func__, index);
+		}
 		trace_android_vh_ufs_compl_command(hba, lrbp);
 		scsi_dma_unmap(cmd);
-		cmd->result = DID_REQUEUE << 16;
-		pr_err("%s: tag %d requeued\n", __func__, index);
+		if (cmd->cmnd[0] == START_STOP) {
+			set_driver_byte(cmd, SAM_STAT_TASK_ABORTED);
+			set_host_byte(cmd, DID_ABORT);
+			pr_err("%s: tag %d, cmd %02x aborted\n", __func__,
+					index, cmd->cmnd[0]);
+		} else {
+			set_host_byte(cmd, DID_REQUEUE);
+			pr_err("%s: tag %d, cmd %02x requeued\n", __func__,
+					index, cmd->cmnd[0]);
+		}
 		ufshcd_crypto_clear_prdt(hba, lrbp);
 		lrbp->cmd = NULL;
 		cmd->scsi_done(cmd);
@@ -603,6 +649,7 @@ static void exynos_ufs_init_host(struct ufs_hba *hba)
 	struct exynos_ufs *ufs = to_exynos_ufs(hba);
 	unsigned long timeout = jiffies + msecs_to_jiffies(1);
 	int err = 0;
+	u32 reg;
 
 	/* host reset */
 	hci_writel(&ufs->handle, UFS_SW_RST_MASK, HCI_SW_RST);
@@ -617,14 +664,19 @@ static void exynos_ufs_init_host(struct ufs_hba *hba)
 
 	exynos_ufs_dump_info(hba, &ufs->handle, ufs->dev);
 	exynos_ufs_fmp_dump_info(hba);
+#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 #ifndef CONFIG_SCSI_UFS_EXYNOS_BLOCK_WDT_RST
 	dbg_snapshot_expire_watchdog();
+#endif
 #endif
 	goto out;
 
 success:
-	/* reset busy count */
-	atomic_set(&ufs->dma_busy_cnt, 0);
+	/* report to IS.UE reg when UIC error happens during AH8 */
+	if (ufshcd_is_auto_hibern8_supported(hba)) {
+		reg = hci_readl(&ufs->handle, HCI_VENDOR_SPECIFIC_IE);
+		hci_writel(&ufs->handle, (reg | AH8_ERR_REPORT_UE), HCI_VENDOR_SPECIFIC_IE);
+	}
 
 	/* performance */
 	if (ufs->perf)
@@ -634,7 +686,12 @@ success:
 	exynos_ufs_config_host(ufs);
 	exynos_ufs_fmp_set_crypto_cfg(hba);
 
-	__requeue_after_reset(hba);
+	__requeue_after_reset(hba, true);
+
+	/* reset busy count */
+	atomic_set(&ufs->dma_busy_cnt, 0);
+
+	ufs->suspend_done = false;
 out:
 	if (!err)
 		ufs_sec_check_device_stuck();
@@ -750,6 +807,12 @@ static int exynos_ufs_hce_enable_notify(struct ufs_hba *hba,
 		__thaw_cport_logger(&ufs->handle);
 
 		ufs->h_state = H_RESET;
+
+		unipro_writel(&ufs->handle, DBG_SUITE1_ENABLE,
+				UNIP_PA_DBG_OPTION_SUITE_1);
+		unipro_writel(&ufs->handle, DBG_SUITE2_ENABLE,
+				UNIP_PA_DBG_OPTION_SUITE_2);
+
 		break;
 	default:
 		break;
@@ -1139,10 +1202,26 @@ static void __compl_nexus_t_task_mgmt(void *data, struct ufs_hba *hba,
 
 static void __check_int_errors(void *data, struct ufs_hba *hba, bool queue_eh_work)
 {
-	u8 upmcrs = (ufshcd_readl(hba, REG_CONTROLLER_STATUS) >> 8) & 0x7;
+	struct exynos_ufs *ufs = to_exynos_ufs(hba);
+	u32 reg;
 
-	if (upmcrs != PWR_ERROR_CAP && upmcrs != PWR_FATAL_ERROR)
-		ufshcd_set_link_active(hba);
+	reg = hci_readl(&ufs->handle, HCI_AH8_STATE);
+
+	if ((hba->errors & UIC_ERROR) && (reg & HCI_AH8_STATE_ERROR)) {
+		dev_err(hba->dev,
+			"%s: ufs uic error: 0x%x, ah8 state err: 0x%x\n",
+			__func__, (hba->errors & UIC_ERROR), (reg & HCI_AH8_STATE_ERROR));
+		ufshcd_set_link_broken(hba);
+	}
+
+	if (hba->pm_op_in_progress && queue_eh_work && !ufs->suspend_done) {
+		pr_err("%s: reset during suspend\n", __func__);
+		__requeue_after_reset(hba, false);
+	}
+
+	if (ufshcd_is_auto_hibern8_supported(hba))
+		hci_writel(&ufs->handle, AH8_ERR_REPORT_UE,
+			HCI_VENDOR_SPECIFIC_IS);
 }
 
 static void exynos_ufs_hibern8_notify(struct ufs_hba *hba, enum uic_cmd_dme cmd,
@@ -1161,7 +1240,7 @@ static void exynos_ufs_hibern8_notify(struct ufs_hba *hba, enum uic_cmd_dme cmd,
 		if (notify == PRE_CHANGE) {
 			if (ufshcd_is_auto_hibern8_supported(hba) && ufs->ah8_ahit) {
 				ufshcd_auto_hibern8_update(hba, 0);
-				ret = exynos_ufs_check_ah8_fsm_state(hba, 0);
+				ret = exynos_ufs_check_ah8_fsm_state(hba, HCI_AH8_IDLE_STATE);
 				if (ret)
 					dev_err(hba->dev,
 						"%s: exynos_ufs_check_ah8_fsm_state return value is %d\n",
@@ -1205,23 +1284,28 @@ static int __exynos_ufs_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 			ufs->h_state != H_HIBERN8)
 		PRINT_STATES(ufs);
 
-#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
-	exynos_pm_qos_update_request(&ufs->pm_qos_int, 0);
-#endif
-
 	/* Make sure AH8 FSM is at Hibern State.
 	 * When doing SW H8 Enter UIC CMD, don't need to check this state.
 	 */
 	if (ufshcd_is_auto_hibern8_enabled(hba)) {
-		ret = exynos_ufs_check_ah8_fsm_state(hba, 1);
-		if (ret)
+		ret = exynos_ufs_check_ah8_fsm_state(hba, HCI_AH8_HIBERNATION_STATE);
+		if (ret) {
 			dev_err(hba->dev, "%s: exynos_ufs_check_ah8_fsm_state return value = %d\n",
 					__func__, ret);
+			ufshcd_set_link_off(hba);
+			return ret;
+		}
 	}
+
+#if IS_ENABLED(CONFIG_EXYNOS_PM_QOS) || IS_ENABLED(CONFIG_EXYNOS_PM_QOS_MODULE)
+	exynos_pm_qos_update_request(&ufs->pm_qos_int, 0);
+#endif
 
 	hci_writel(&ufs->handle, 0 << 0, HCI_GPIO_OUT);
 
 	exynos_ufs_ctrl_phy_pwr(ufs, false);
+
+	ufs->suspend_done = true;
 
 	ufs->h_state = H_SUSPEND;
 	return 0;
@@ -1257,6 +1341,8 @@ static int __exynos_ufs_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 	if (ufshcd_is_system_pm(pm_op))
 		ufs_sec_wb_force_off(hba);
 #endif
+
+	ufshcd_set_link_off(hba);
 
 	return 0;
 }
@@ -1679,13 +1765,6 @@ static int exynos_ufs_sysfs_mon_store(struct exynos_ufs *ufs, u32 value,
 {
 	struct ufs_vs_handle *handle = &ufs->handle;
 	u32 reg;
-	struct ufshcd_lrb *lrbp;
-	struct ufs_hba *hba;
-	struct scsi_cmnd *scmd;
-	struct Scsi_Host *shost;
-	int tag;
-	LIST_HEAD(eh_work_q);
-	LIST_HEAD(eh_done_q);
 
 	if (value & UFS_S_MON_LV1) {
 		/* Trigger HCI error */
@@ -1700,40 +1779,6 @@ static int exynos_ufs_sysfs_mon_store(struct exynos_ufs *ufs, u32 value,
 
 		reg = std_readl(handle, REG_INTERRUPT_ENABLE);
 		std_writel(handle, (reg & ~UTP_TRANSFER_REQ_COMPL), REG_INTERRUPT_ENABLE);
-
-		hba = ufs->hba;
-		if (!hba) {
-			dev_err(ufs->dev, "Device Error: hba is NULL!\n");
-			std_writel(handle, reg, REG_INTERRUPT_ENABLE);
-			return -1;
-		}
-
-		msleep(10000);
-		/*
-		   find offset of first set bit of integer (least one)
-		   returns 1~32 when success,
-		   returns 0 when couldn't find any set bit.
-		 */
-		tag = ffs(hba->outstanding_reqs) - 1;
-
-		dev_info(hba->dev, "Device Error: outstanding_reqs = 0x%08X, tag = %d\n", hba->outstanding_reqs, tag);
-		if (tag < 0) {
-			dev_err(hba->dev, "Device Error: No pending request.. Please try again.\n");
-			std_writel(handle, reg, REG_INTERRUPT_ENABLE);
-			return -1;
-		}
-
-		shost = hba->host;
-		lrbp = &(hba->lrb[tag]);
-		if(!shost || !lrbp || !lrbp->cmd) {
-			dev_err(hba->dev, "Device Error Failed: shost=0x%08X, lrbp=0x%08X\n", shost, lrbp);
-			std_writel(handle, reg, REG_INTERRUPT_ENABLE);
-			return -1;
-		}
-
-		scmd = lrbp->cmd;
-		list_add_tail(&scmd->eh_entry, &eh_work_q);
-		scsi_eh_ready_devs(shost, &eh_work_q, &eh_done_q);
 	} else {
 		dev_err(ufs->dev, "Undefined level\n");
 		return -EINVAL;

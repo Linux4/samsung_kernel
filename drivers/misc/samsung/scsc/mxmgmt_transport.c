@@ -280,8 +280,8 @@ static void mgmt_thread_stop(struct mxmgmt_transport *mxmgmt_transport)
 	unsigned long left_jiffies;
 	struct  mxmgmt_thread *th = &mxmgmt_transport->mxmgmt_thread;
 
-	if (!th->task) {
-		SCSC_TAG_WARNING(MXMGT_TRANS, "%s mgmt_thread is already stopped\n", th->name);
+	if (IS_ERR_OR_NULL(th->task)) {
+		SCSC_TAG_WARNING(MXMGT_TRANS, "%s is already stopped\n", th->name);
 		return;
 	}
 	SCSC_TAG_DEBUG(MXMGT_TRANS, "Stopping %s mgmt_thread\n", th->name);

@@ -24,11 +24,13 @@
 #include <linux/dma-mapping.h>
 #include <linux/scatterlist.h>
 #include <linux/bug.h>
+#include <linux/dma-buf.h>
 
 #include "npu-log.h"
 #include "vision-ioctl.h"
 #include "npu-vertex.h"
 #include "vision-dev.h"
+#include "vision-buffer.h"
 #include "npu-device.h"
 #include "npu-session.h"
 #include "npu-common.h"
@@ -44,13 +46,15 @@
 
 #define DEFAULT_KPI_MODE	false	/* can be changed to true while testing */
 
-bool is_kpi_mode_enabled(void)
+bool is_kpi_mode_enabled(bool strict)
 {
 	struct npu_scheduler_info *info;
 
 	info = npu_scheduler_get_info();
 
 	if (info->mode_ref_cnt[NPU_PERF_MODE_NPU_BOOST_BLOCKING] > 0)
+		return true;
+	else if (strict && info->mode_ref_cnt[NPU_PERF_MODE_NPU_BOOST] > 0)
 		return true;
 	else if (info->dd_direct_path == 0x01)
 		return true;
@@ -215,6 +219,7 @@ static int npu_vertex_open(struct file *file)
 		npu_err("start for emergency recovery\n");
 		__vref_put(&vertex->open_cnt);
 		npu_device_recovery_close(device);
+		ret = -EWOULDBLOCK;
 		goto ErrorExit;
 	}
 	if (ret) {
@@ -249,21 +254,18 @@ static int npu_vertex_open(struct file *file)
 	vctx->state |= BIT(NPU_VERTEX_OPEN);
 
 ErrorExit:
-	if (vctx)
-		npu_iinfo("%s: (%d), open_ref(%d)\n", vctx, __func__, ret,
-							atomic_read(&vertex->open_cnt.refcount));
-	else
-		npu_info("%s: (%d), open_ref(%d)\n",  __func__, ret,
-							atomic_read(&vertex->open_cnt.refcount));
-
 	mutex_unlock(lock);
 	npu_scheduler_boost_off_timeout(info, NPU_SCHEDULER_BOOST_TIMEOUT);
-
 	if (ret < -1000) {
 		/* Return value is not acceptable as open's result */
 		npu_warn("Error [%d/%x] - convert return value to -ELIBACC\n", ret, ret);
 		return -ELIBACC;
 	}
+	if (vctx)
+		npu_iinfo("%s: (%d), open_ref(%d)\n", vctx, __func__, ret,
+							atomic_read(&vertex->open_cnt.refcount));
+	else
+		npu_info("%s: (%d)\n",  __func__, ret);
 	return ret;
 }
 
@@ -314,8 +316,8 @@ static int npu_vertex_close(struct file *file)
 	case NPU_VERTEX_STREAMOFF:
 		goto normal_complete;
 	case NPU_VERTEX_STREAMON:
-	case NPU_VERTEX_FORMAT:
 		goto force_streamoff;
+	case NPU_VERTEX_FORMAT:
 	case NPU_VERTEX_GRAPH:
 #ifdef CONFIG_NPU_USE_BOOT_IOCTL
 	case NPU_VERTEX_POWER:
@@ -374,10 +376,12 @@ session_free:
 			kfree(session->sec_mem_buf);
 			session->sec_mem_buf = NULL;
 		}
-		ret = npu_hwdev_shutdown(device, hids);
-		if (ret) {
-			npu_ierr("fail(%d) in npu_vertex_shutdown\n", vctx, ret);
-			goto p_err;
+		if (!check_emergency(device)) {
+			ret = npu_hwdev_shutdown(device, hids);
+			if (ret) {
+				npu_ierr("fail(%d) in npu_vertex_shutdown\n", vctx, ret);
+				goto p_err;
+			}
 		}
 	}
 #endif
@@ -425,11 +429,13 @@ p_err:
 			goto p_err;
 		}
 	}
-
-	ret = npu_hwdev_shutdown(device, hids);
-	if (ret) {
-		npu_ierr("fail(%d) in npu_vertex_shutdown\n", vctx, ret);
-		goto p_err;
+	if (!check_emergency(device)) {
+		ret = npu_hwdev_shutdown(device, hids);
+		if (ret) {
+			npu_ierr("fail(%d) in npu_vertex_shutdown\n", vctx,
+				 ret);
+			goto p_err;
+		}
 	}
 
 #endif
@@ -1394,7 +1400,8 @@ p_err:
 	return ret;
 }
 #else
-static int npu_vertex_bootup(struct file *file, struct vs4l_ctrl *ctrl)
+
+static int __npu_vertex_bootup(struct file *file, struct vs4l_ctrl *ctrl)
 {
 	int ret = 0;
 	struct npu_vertex_ctx *vctx = file->private_data;
@@ -1430,6 +1437,7 @@ static int npu_vertex_bootup(struct file *file, struct vs4l_ctrl *ctrl)
 		npu_err("start for emergency recovery\n");
 		__vref_put(&vertex->boot_cnt);
 		npu_device_recovery_close(device);
+		ret = -EWOULDBLOCK;
 		goto p_err;
 	}
 
@@ -1467,6 +1475,15 @@ p_err:
 						atomic_read(&vertex->boot_cnt.refcount));
 	mutex_unlock(lock);
 	return ret;
+}
+
+static int npu_vertex_bootup(struct file *file, struct vs4l_ctrl *ctrl)
+{
+	if (!file->private_data) {
+		return -EINVAL;
+	}
+	return __npu_vertex_bootup(file, ctrl);
+
 }
 #endif
 #endif
@@ -1555,6 +1572,9 @@ static int npu_vertex_sync(struct file *file, struct vs4l_ctrl *ctrl)
 		npu_ierr("error in sync: NULL frame, oid %d\n", vctx, session->uid);
 		return -EINVAL;
 	}
+
+	/* sync buffers */
+	vb_queue_sync(DMA_TO_DEVICE, frame->input);
 
 	ret = npu_cmd_map(&device->system, "sync");
 	if (ret) {

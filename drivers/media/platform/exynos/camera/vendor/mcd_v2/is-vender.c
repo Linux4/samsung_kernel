@@ -30,6 +30,10 @@
 #include <linux/dev_ril_bridge.h>
 #endif
 
+#if IS_ENABLED(CONFIG_LEDS_SM5714)
+#include <linux/sm5714.h>
+#endif
+
 #include <linux/bsearch.h>
 #include "is-binary.h"
 
@@ -2125,6 +2129,9 @@ extern int sky81296_torch_ctrl(int state);
 #if IS_ENABLED(CONFIG_LEDS_S2MPB02_FLASH)
 extern int s2mpb02_set_torch_current(enum s2mpb02_torch_mode torch_mode, unsigned int intensity);
 #endif
+#if IS_ENABLED(CONFIG_LEDS_SM5714)
+extern int32_t sm5714_fled_mode_ctrl(int state, uint32_t brightness);
+#endif
 
 int is_vender_set_torch(struct camera2_shot *shot)
 {
@@ -2149,6 +2156,13 @@ int is_vender_set_torch(struct camera2_shot *shot)
 #endif
 		break;
 	case AA_FLASHMODE_START: /*Pre flash mode*/
+#if IS_ENABLED(CONFIG_LEDS_SM5714)
+		if (shot->uctl.masterCamera == AA_SENSORPLACE_REAR) {
+			info("is_vender_set_torch sm5714_fled_mode_ctrl:(%d)\n", aeflashMode);
+			sm5714_fled_mode_ctrl(SM5714_FLED_MODE_PRE_FLASH,0);
+		}
+#endif
+
 #ifdef CONFIG_LEDS_LM3560
 		lm3560_reg_update_export(0xE0, 0xFF, 0xEF);
 #elif defined(CONFIG_LEDS_SKY81296)

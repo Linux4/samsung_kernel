@@ -48,6 +48,7 @@ enum proto_drv_open_steps {
 
 typedef enum {
 	PROTO_DRV_REQ_TYPE_FRAME = 1,
+	PROTO_DRV_REQ_TYPE_KPI_FRAME,
 	PROTO_DRV_REQ_TYPE_NW,
 	PROTO_DRV_REQ_TYPE_INVALID,
 } proto_drv_req_type_e;

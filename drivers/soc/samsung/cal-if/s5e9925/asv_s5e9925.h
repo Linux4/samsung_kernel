@@ -9,6 +9,8 @@
 #define ASV_TABLE_BASE	(0x10009000)
 #define ID_TABLE_BASE	(0x10000000)
 
+#define unsign2sign8bit(a) (((a) >= 128) ? ((a) - 256) : (a))
+
 static struct asv_power_model {
 	unsigned power_model_0:8;
 	unsigned power_model_1:8;
@@ -19,6 +21,17 @@ static struct asv_power_model {
 	unsigned reserved_1:8;
 	unsigned mht_ver:8;
 } power_model;
+
+static struct asv_modify_power_model {
+	unsigned power_model_0:8;
+	unsigned power_model_1:8;
+	unsigned power_model_2:8;
+	unsigned mcd_ver:8;
+	unsigned power_model_3:8;
+	unsigned reserved_0:8;
+	unsigned reserved_1:8;
+	unsigned mht_ver:8;
+} modify_power_model;
 
 static struct dentry *rootdir;
 
@@ -269,12 +282,12 @@ int print_asv_table(char *buf)
 	size += sprintf(buf + size, "\n");
 	size += sprintf(buf + size, "  asb_version : %d\n", id_tbl.asb_version);
 	size += sprintf(buf + size, "\n");
-	size += sprintf(buf + size, "  power_model_0 : %d\n", power_model.power_model_0);
-	size += sprintf(buf + size, "  power_model_1 : %d\n", power_model.power_model_1);
-	size += sprintf(buf + size, "  power_model_2 : %d\n", power_model.power_model_2);
-	size += sprintf(buf + size, "  power_model_3 : %d\n", power_model.power_model_3);
-	size += sprintf(buf + size, "  mcd ver : %d\n", power_model.mcd_ver);
-	size += sprintf(buf + size, "  mht power : %d\n", power_model.mht_ver);
+	size += sprintf(buf + size, "  power_model_0 : %d\n", power_model.power_model_0 + unsign2sign8bit(modify_power_model.power_model_0));
+	size += sprintf(buf + size, "  power_model_1 : %d\n", power_model.power_model_1 + unsign2sign8bit(modify_power_model.power_model_1));
+	size += sprintf(buf + size, "  power_model_2 : %d\n", power_model.power_model_2 + unsign2sign8bit(modify_power_model.power_model_2));
+	size += sprintf(buf + size, "  power_model_3 : %d\n", power_model.power_model_3 + unsign2sign8bit(modify_power_model.power_model_3));
+	size += sprintf(buf + size, "  mcd ver : %d\n", power_model.mcd_ver + unsign2sign8bit(modify_power_model.mcd_ver));
+	size += sprintf(buf + size, "  mht power : %d\n", power_model.mht_ver + unsign2sign8bit(modify_power_model.mht_ver));
 	size += sprintf(buf + size, "\n");
 
 	return size;
@@ -311,42 +324,42 @@ __ATTR(asv_info, 0400, show_asv_info, NULL);
 #endif
 static ssize_t show_power_model_0(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%d\n", power_model.power_model_0);
+	return sprintf(buf, "%d\n", power_model.power_model_0 + unsign2sign8bit(modify_power_model.power_model_0));
 }
 static struct kobj_attribute power_model_0 =
 __ATTR(power_model_0, 0400, show_power_model_0, NULL);
 
 static ssize_t show_power_model_1(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%d\n", power_model.power_model_1);
+	return sprintf(buf, "%d\n", power_model.power_model_1 + unsign2sign8bit(modify_power_model.power_model_1));
 }
 static struct kobj_attribute power_model_1 =
 __ATTR(power_model_1, 0400, show_power_model_1, NULL);
 
 static ssize_t show_power_model_2(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%d\n", power_model.power_model_2);
+	return sprintf(buf, "%d\n", power_model.power_model_2 + unsign2sign8bit(modify_power_model.power_model_2));
 }
 static struct kobj_attribute power_model_2 =
 __ATTR(power_model_2, 0400, show_power_model_2, NULL);
 
 static ssize_t show_power_model_3(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%d\n", power_model.power_model_3);
+	return sprintf(buf, "%d\n", power_model.power_model_3 + unsign2sign8bit(modify_power_model.power_model_3));
 }
 static struct kobj_attribute power_model_3 =
 __ATTR(power_model_3, 0400, show_power_model_3, NULL);
 
 static ssize_t show_mcd_ver(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%d\n", power_model.mcd_ver);
+	return sprintf(buf, "%d\n", power_model.mcd_ver + unsign2sign8bit(modify_power_model.mcd_ver));
 }
 static struct kobj_attribute mcd_ver =
 __ATTR(mcd_ver, 0400, show_mcd_ver, NULL);
 
 static ssize_t show_mht_ver(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%d\n", power_model.mht_ver);
+	return sprintf(buf, "%d\n", power_model.mht_ver + unsign2sign8bit(modify_power_model.mht_ver));
 }
 static struct kobj_attribute mht_ver =
 __ATTR(mht_ver, 0400, show_mht_ver, NULL);
@@ -418,6 +431,11 @@ int asv_table_init(void)
 	*p_table = *regs;
 	*(p_table + 1) = *(unsigned int *)(regs + 1);
 
+	p_table = (unsigned int *)&modify_power_model;
+
+	regs = (unsigned int *)ioremap(ID_TABLE_BASE + 0xF058, sizeof(struct asv_power_model));
+	*p_table = *regs;
+	*(p_table + 1) = *(unsigned int *)(regs + 1);
 
 	asv_debug_init();
 

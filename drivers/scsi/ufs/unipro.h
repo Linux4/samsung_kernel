@@ -205,15 +205,6 @@ enum {
 	UNCHANGED	= 7,
 };
 
-/* PA Tx/Rx PWR State */
-enum {
-	OFF_STATE = 0,
-	FAST_STATE = 1,
-	SLOW_STATE = 2,
-	HIBERNATE_STATE = 3,
-	SLEEP_STATE = 4,
-};
-
 #define PWRMODE_MASK		0xF
 #define PWRMODE_RX_OFFSET	4
 

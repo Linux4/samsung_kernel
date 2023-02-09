@@ -58,4 +58,3 @@ config DRM_PANEL_MCD_COMMON
 	depends on DRM_MIPI_DSI
 	select VIDEOMODE_HELPERS
 
-source "drivers/gpu/drm/samsung/dpu/panel/kunit_test/Kconfig"

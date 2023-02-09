@@ -978,6 +978,11 @@ static u32 _get_cam_lv(struct is_device_ischain *device, struct is_core *core,
 
 	dbg_dvfs(1, "[DVFS] CSIS clk(%d) lv(%d)\n", device, clk_csis, lv_csis);
 
+	if (lv_csis > IS_DVFS_CAM_MIN_LV) {
+		lv_csis = IS_DVFS_CAM_MIN_LV;
+		dbg_dvfs(1, "[DVFS] change CSIS clk(%d) lv(%d)\n", device, clk_csis, lv_csis);
+	}
+
 	return lv_csis;
 }
 
@@ -1041,6 +1046,11 @@ static u32 _get_isp_lv(struct is_device_ischain *device, struct exynos_platform_
 	}
 
 	dbg_dvfs(1, "[DVFS] clk(isp:%d MHz) lv(%d)\n", device, clk_isp, lv_isp);
+
+	if (lv_isp > IS_DVFS_ISP_MIN_LV) {
+		lv_isp = IS_DVFS_ISP_MIN_LV;
+		dbg_dvfs(1, "[DVFS] change clk(isp:%d MHz) lv(%d)\n", device, clk_isp, lv_isp);
+	}
 
 	return lv_isp;
 }

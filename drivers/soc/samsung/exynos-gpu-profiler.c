@@ -56,11 +56,29 @@ static struct profiler {
 	struct profile_result	result[NUM_OF_USER];
 
 	struct kobject		kobj;
+
+	u64			gpu_hw_status;
 } profiler;
 
 /************************************************************************
  *				HELPER					*
  ************************************************************************/
+
+u64 get_gpu_hw_status(void)
+{
+#if defined(CONFIG_SOC_S5E9925)
+	u32 addr = 0x1000a004;
+	unsigned long tmp;
+
+	if (exynos_smc_readsfr(addr, &tmp) == 0) {
+		int shift = 7;
+		unsigned long mask = 0x1fe;
+
+		return (u64)((tmp>>shift)&mask);
+	}
+#endif
+	return 0;
+}
 
 /************************************************************************
  *				SUPPORT-MIGOV				*
@@ -212,6 +230,11 @@ void gpupro_set_comb_ctrl(int enable)
 	return;
 }
 
+u64 gpupro_get_gpu_hw_status(void)
+{
+	return profiler.gpu_hw_status;
+}
+
 struct private_fn_gpu gpu_pd_fn = {
 	.get_q_empty_pct        = &gpupro_get_q_empty_pct,
 	.get_input_nr_avg_cnt   = &gpupro_get_input_nr_avg_cnt,
@@ -221,6 +244,7 @@ struct private_fn_gpu gpu_pd_fn = {
 	.set_util_margin        = &gpupro_set_util_margin,
 	.set_decon_time         = &gpupro_set_decon_time,
 	.set_comb_ctrl          = &gpupro_set_comb_ctrl,
+	.get_gpu_hw_status      = &gpupro_get_gpu_hw_status,
 };
 struct domain_fn gpu_fn = {
 	.get_table_cnt		= &gpupro_get_table_cnt,
@@ -424,6 +448,9 @@ static int exynos_gpu_profiler_probe(struct platform_device *pdev)
 				1, profiler.root, profiler.tz);
 
 	ret = exynos_migov_register_domain(MIGOV_GPU, &gpu_fn, &gpu_pd_fn);
+
+	/* get GPU HW Status */
+	profiler.gpu_hw_status = get_gpu_hw_status();
 
 	show_profiler_info();
 

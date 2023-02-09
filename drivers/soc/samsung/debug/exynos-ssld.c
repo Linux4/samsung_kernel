@@ -179,24 +179,24 @@ static void print_last_suspend_resume_info(struct ssld_descriptor *desc)
 
 	if (info->start) {
 		if (!!info->dev) {
-			print_log_to_buffer(desc, "DPM device timeout [%s/%s],",
+			print_log_to_buffer(desc, "DPM dev timeout[%s/%s],",
 						dev_driver_string(info->dev), dev_name(info->dev));
-			print_log_to_buffer(desc, "time = %lu nsec | pm_ops(%s, %d)",
-						info->time, info->pm_ops, info->event);
+			print_log_to_buffer(desc, "time = %lu usec|pm_ops(%s, %d)",
+						info->time / 1000, info->pm_ops, info->event);
 		} else {
-			print_log_to_buffer(desc, "suspend/resume timeout,");
-			print_log_to_buffer(desc, "time = %lu nsec | action(%s, %d)",
-						info->time, info->action, info->val);
+			print_log_to_buffer(desc, "S2R timeout,");
+			print_log_to_buffer(desc, "time = %lu usec|action(%s, %d)",
+						info->time / 1000, info->action, info->val);
 		}
 	} else {
-		print_log_to_buffer(desc, "Not DPM callback lockup,");
+		print_log_to_buffer(desc, "Not DPM callback,");
 		if (!!info->dev) {
-			print_log_to_buffer(desc, "last DPM info[%s/%s](%d) time = %lu nsec",
+			print_log_to_buffer(desc, "last DPM dev[%s/%s](%d) time = %lu usec",
 						dev_driver_string(info->dev), dev_name(info->dev),
-						info->error, info->time);
+						info->error, info->time / 1000);
 		} else {
-			print_log_to_buffer(desc, "last pm info(%s, %d) time = %lu nsec",
-						info->action, info->val, info->time);
+			print_log_to_buffer(desc, "last pm info(%s, %d) time = %lu usec",
+						info->action, info->val, info->time / 1000);
 		}
 	}
 }
@@ -213,10 +213,11 @@ static void s2r_lockup_detector_handler(struct timer_list *t)
 					desc->s2r_stage_name[desc->s2r_stage + 1]);
 		pr_emerg("curr jiffies(%lu) pm_prepare_jiffies (%lu) expires jiffies(%lu)\n",
 					jiffies, desc->pm_prepare_jiffies, t->expires);
-
-		print_log_to_buffer(desc, "Suspend/Resume hang detected[%s, %d],",
-					desc->s2r_leading_tsk->comm, desc->s2r_leading_tsk->pid);
+		pr_emerg("Suspend/Resume hang detected\n");
+		print_log_to_buffer(desc, "SSLD:");
 		print_last_suspend_resume_info(desc);
+		print_log_to_buffer(desc, "[%s, %d]",
+					desc->s2r_leading_tsk->comm, desc->s2r_leading_tsk->pid);
 
 		nb_data.s2r_leading_tsk = desc->s2r_leading_tsk;
 		nb_data.last_info = &desc->last_info;

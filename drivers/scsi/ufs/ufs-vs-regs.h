@@ -16,6 +16,18 @@
 #define HCI_VENDOR_SPECIFIC_IS		0x38
  #define AH8_H8_ENTER		(1 << 13)
 #define HCI_VENDOR_SPECIFIC_IE		0x3C
+#define AH8_ERR_UECPA_EN	BIT(10)
+#define AH8_ERR_UECDL_EN	BIT(9)
+#define AH8_ERR_UECN_EN		BIT(8)
+#define AH8_ERR_UECT_EN		BIT(7)
+#define AH8_ERR_UECDME_EN	BIT(6)
+/* When the controller is in auto-hibernation sequence and UIC error happens,
+ * report as UIC error with IS.UE register.
+ */
+#define AH8_ERR_REPORT_UE	(AH8_ERR_UECPA_EN | AH8_ERR_UECDL_EN |\
+				 AH8_ERR_UECN_EN | AH8_ERR_UECT_EN |\
+				 AH8_ERR_UECDME_EN)
+
  #define AH8_H8_ENTER_EN	(1 << 13)
 #define HCI_UTRL_NEXUS_TYPE		0x40
 #define HCI_UTMRL_NEXUS_TYPE		0x44

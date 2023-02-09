@@ -237,7 +237,7 @@ static int __npu_update_imb_size_save_result(struct npu_session *dummy_session, 
 
 	imb_size_ctl_ref->result_code = nw_result.result_code;
 	imb_size_ctl_ref->fw_size = nw_result.nw.result_value;
-	wake_up_interruptible(&imb_size_ctl_ref->waitq);
+	wake_up(&imb_size_ctl_ref->waitq);
 
 	return ret;
 }
@@ -265,7 +265,7 @@ static int __npu_update_imb_size(struct npu_session *session, u32 new_chunk_cnt)
 	}
 
 	/* wait for response from FW */
-	wait_event_interruptible(imb_size_ctl_ref->waitq, imb_size_ctl_ref->result_code != NPU_SYSTEM_JUST_STARTED);
+	wait_event(imb_size_ctl_ref->waitq, imb_size_ctl_ref->result_code != NPU_SYSTEM_JUST_STARTED);
 
 	if (unlikely(imb_size_ctl_ref->result_code != NPU_ERR_NO_ERROR)) {
 		/* firmware failed or did not accept the change in IMB size */
@@ -315,7 +315,8 @@ static int __alloc_imb_chunk(struct npu_session *session, struct npu_memory_buff
 	for (i = system->imb_alloc_data.alloc_chunk_cnt; i < req_chunk_cnt; i++) {
 		dAddr = system->chunk_imb->paddr + (i * NPU_IMB_CHUNK_SIZE);
 		system->imb_alloc_data.chunk[i].size = NPU_IMB_CHUNK_SIZE;
-		ret = npu_memory_alloc_from_heap(system->pdev, &(system->imb_alloc_data.chunk[i]), dAddr, "npu_imb", 0);
+		ret = npu_memory_alloc_from_heap(
+			system->pdev, &(system->imb_alloc_data.chunk[i]), dAddr, &system->memory, "IMB", 0);
 		if (unlikely(ret)) {
 			npu_uerr("IMB: npu_memory_alloc_from_heap failed, err: %d\n", session, ret);
 			ret = -EFAULT;
@@ -349,7 +350,7 @@ static inline void __free_imb_chunk(struct npu_session *session, u32 new_chunk_c
 	WARN_ON(!system);
 	cur_chunk_cnt = system->imb_alloc_data.alloc_chunk_cnt;
 	for (i = cur_chunk_cnt; i > new_chunk_cnt; i--) {
-		npu_memory_free_from_heap(&system->pdev->dev, &(system->imb_alloc_data.chunk[i - 1]));
+		npu_memory_free_from_heap(&system->pdev->dev, &system->memory, &(system->imb_alloc_data.chunk[i - 1]));
 		system->imb_alloc_data.alloc_chunk_cnt--;
 	}
 	if (system->imb_alloc_data.alloc_chunk_cnt != cur_chunk_cnt) {
@@ -450,7 +451,7 @@ int npu_session_put_frame_req(
 	};
 	struct npu_frame *f;
 
-	if (is_kpi_mode_enabled()) {
+	if (is_kpi_mode_enabled(false)) {
 		f = &(kpi_frame[incl->index % KPI_FRAME_MAX_BUFFER]);
 		f->uid = session->uid;
 		f->frame_id = j+1;
@@ -1456,6 +1457,7 @@ int __ncp_ion_map(struct npu_session *session, struct drv_usr_share *usr_data)
 	}
 	ncp_mem_buf->fd = usr_data->ncp_fd;
 	ncp_mem_buf->size = usr_data->ncp_size;
+	strcpy(ncp_mem_buf->name, "NCP");
 
 	ret = npu_memory_map(session->memory, ncp_mem_buf, configs[NPU_PBHA_HINT_11]);
 	if (unlikely(ret)) {
@@ -1905,6 +1907,7 @@ int __ion_alloc_IOFM(struct npu_session *session, struct addr_info **IFM_av, str
 	npu_udbg("ion alloc IOFM(0x%pK)\n", session, IOFM_mem_buf);
 
 	IOFM_mem_buf->size = VISION_MAX_CONTAINERLIST * VISION_MAX_BUFFER * IOFM_cnt * sizeof(struct address_vector);
+	strcpy(IOFM_mem_buf->name, "IOFM");
 	ret = npu_memory_alloc(session->memory, IOFM_mem_buf, configs[NPU_PBHA_HINT_00]);
 	if (unlikely(ret)) {
 		npu_uerr("npu_memory_alloc is fail(%d).\n", session, ret);
@@ -2003,6 +2006,17 @@ p_err:
 	return ret;
 }
 
+void npu_session_ion_sync_for_device(struct npu_memory_buffer *pbuf, off_t offset, size_t size, enum dma_data_direction dir)
+{
+	if (likely(pbuf->vaddr)) {
+		BUG_ON((offset < 0) || (offset > pbuf->size));
+		BUG_ON((offset + size) < size);
+		BUG_ON((size > pbuf->size) || ((offset + size) > pbuf->size));
+
+		__npu_session_ion_sync_for_device(pbuf, offset, size, dir);
+	}
+}
+
 int __ion_alloc_IMB(struct npu_session *session, struct addr_info **IMB_av, struct npu_memory_buffer *IMB_mem_buf)
 {
 	int ret = 0;
@@ -2040,6 +2054,8 @@ int __ion_alloc_IMB(struct npu_session *session, struct addr_info **IMB_av, stru
 			 session, i, (session->IMB_info + i)->vaddr, &(session->IMB_info + i)->daddr,
 			 (session->IMB_info + i)->size);
 	}
+
+	npu_session_ion_sync_for_device(IMB_mem_buf, 0, IMB_mem_buf->size, DMA_TO_DEVICE);
 	return ret;
 
 p_err:
@@ -2051,17 +2067,6 @@ p_err:
 	session->IMB_mem_buf = NULL;
 
 	return ret;
-}
-
-void npu_session_ion_sync_for_device(struct npu_memory_buffer *pbuf, off_t offset, size_t size, enum dma_data_direction dir)
-{
-	if (likely(pbuf->vaddr)) {
-		BUG_ON((offset < 0) || (offset > pbuf->size));
-		BUG_ON((offset + size) < size);
-		BUG_ON((size > pbuf->size) || ((offset + size) > pbuf->size));
-
-		__npu_session_ion_sync_for_device(pbuf, offset, size, dir);
-	}
 }
 
 int __config_session_info(struct npu_session *session)
@@ -2118,6 +2123,7 @@ int __config_session_info(struct npu_session *session)
 		ret = -ENOMEM;
 		goto p_err;
 	}
+	strcpy(IMB_mem_buf->name, "IMB");
 
 	ret = __prepare_IMB_info(session, &IMB_av, IMB_mem_buf);
 	if (unlikely(ret)) {
@@ -2144,7 +2150,6 @@ int __config_session_info(struct npu_session *session)
 			goto p_err;
 		}
 		session->ss_state |= BIT(NPU_SESSION_STATE_IMB_ION_ALLOC);
-		npu_session_ion_sync_for_device(IMB_mem_buf, 0, IMB_mem_buf->size, DMA_TO_DEVICE);
 	}
 
 	npu_session_ion_sync_for_device(session->ncp_mem_buf, 0, session->ncp_mem_buf->size, DMA_TO_DEVICE);
@@ -2934,7 +2939,10 @@ int npu_session_NW_CMD_RESUME(struct npu_session *session)
 
 int npu_session_NW_CMD_SUSPEND(struct npu_session *session)
 {
-	int ret = 0, cnt;
+	int ret = 0;
+#if (CONFIG_NPU_MAILBOX_VERSION == 9)
+	int cnt = 0;
+#endif
 	struct npu_sessionmgr *sessionmgr;
 	struct npu_vertex_ctx *vctx;
 	struct npu_vertex *vertex;
@@ -2965,16 +2973,17 @@ int npu_session_NW_CMD_SUSPEND(struct npu_session *session)
 	wait_event(session->wq, session->nw_result.result_code != NPU_NW_JUST_STARTED);
 
 	/* Waiting for FW to update the flag */
-	cnt = 0;
+#if (CONFIG_NPU_MAILBOX_VERSION == 9)
+#define BOOT_TYPE_WARM_BOOT (0xb0080c0d)
 	ret = -EFAULT;
 	do {
-		if (device->system.mbox_hdr->warm_boot_enable) {
+		if (device->system.mbox_hdr->boottype == BOOT_TYPE_WARM_BOOT) {
 			ret = 0;
 			break;
 		}
 		msleep(1);
 	} while (cnt++ < 100); /* Maximum 100 retries */
-
+#endif
 	if (!ret) {
 		sessionmgr->npu_hw_cnt_saved = 0;
 		sessionmgr->npu_hw_cnt_saved = atomic_xchg(&sessionmgr->npu_hw_cnt, sessionmgr->npu_hw_cnt_saved);
@@ -3106,7 +3115,6 @@ static int npu_session_queue(struct npu_queue *queue, struct vb_container_list *
 		}
 		session->ss_state |= BIT(NPU_SESSION_STATE_IMB_ION_ALLOC);
 		npu_session_ion_sync_for_device(session->ncp_mem_buf, 0, session->ncp_mem_buf->size, DMA_TO_DEVICE);
-		npu_session_ion_sync_for_device(session->IMB_mem_buf, 0, session->IMB_mem_buf->size, DMA_TO_DEVICE);
 	}
 
 #ifdef CONFIG_NPU_USE_HW_DEVICE

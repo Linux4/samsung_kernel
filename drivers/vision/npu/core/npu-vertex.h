@@ -18,7 +18,7 @@
 #include "npu-queue.h"
 
 struct npu_vertex;
-bool is_kpi_mode_enabled(void);
+bool is_kpi_mode_enabled(bool strict);
 
 enum npu_vertex_state {
 	NPU_VERTEX_OPEN,

@@ -46,7 +46,7 @@
 #define CREATE_TRACE_POINTS
 #include <dpu_trace.h>
 
-#define DRIVER_NAME	"exynos"
+#define DRIVER_NAME	"exynos-drmdpu"
 #define DRIVER_DESC	"Samsung SoC DRM"
 #define DRIVER_DATE	"20110530"
 #define DRIVER_MAJOR	1
@@ -152,17 +152,10 @@ exynos_drm_crtc_alloc_windows(struct drm_device *dev, struct drm_atomic_state *s
 
 	for_each_oldnew_crtc_in_state(state, crtc, old_crtc_state, new_crtc_state, i) {
 		struct exynos_drm_crtc_state *new_exynos_crtc_state;
-		unsigned int old_win_cnt, new_win_cnt;
 
 		new_exynos_crtc_state = to_exynos_crtc_state(new_crtc_state);
 
-		if (!new_crtc_state->active_changed && !new_crtc_state->zpos_changed)
-			continue;
-
-		old_win_cnt = exynos_drm_crtc_get_win_cnt(old_crtc_state);
-		new_win_cnt = exynos_drm_crtc_get_win_cnt(new_crtc_state);
-
-		if (old_win_cnt >= new_win_cnt)
+		if (!new_exynos_crtc_state->win_inserted)
 			continue;
 
 		/* allocate windows after swap state phase */
@@ -174,46 +167,24 @@ exynos_drm_crtc_alloc_windows(struct drm_device *dev, struct drm_atomic_state *s
 	}
 }
 
-#define CHK_MASK_EXC(_a, _b, _c)	(((_a ^ _b) & _c)==_c)
 static int
 exynos_atomic_check_windows(struct drm_device *dev, struct drm_atomic_state *state)
 {
 	struct drm_crtc *crtc;
 	struct drm_crtc_state *old_crtc_state, *new_crtc_state;
-	struct exynos_drm_private *priv = dev->dev_private;
 	unsigned int win_mask;
-	int reserved_total;
-	int active_crtc_total;
-	int win_cnt = get_plane_num(dev);
-	int all_win_mask = BIT(win_cnt) - 1;
+	bool need_wait = false;
 	int i;
-
-	active_crtc_total = 0;
-	reserved_total = 0;
-
-	drm_for_each_crtc(crtc, dev)
-		if (crtc->state->active) {
-			struct exynos_drm_crtc_state *old_exynos_crtc_state = to_exynos_crtc_state(crtc->state);
-			reserved_total |= old_exynos_crtc_state->reserved_win_mask;
-			active_crtc_total++;
-		}
-
-	mutex_lock(&priv->lock);
-	if (!CHK_MASK_EXC(reserved_total, priv->available_win_mask, all_win_mask))
-		DRM_WARN("window mask is wrong, rsvd(0x%02x), avail(0x%02x), num_crtc(%d)\n",
-			reserved_total, priv->available_win_mask, active_crtc_total);
-	mutex_unlock(&priv->lock);
 
 	for_each_oldnew_crtc_in_state(state, crtc, old_crtc_state, new_crtc_state, i) {
 		struct exynos_drm_crtc_state *new_exynos_crtc_state;
+		struct exynos_drm_crtc_state *old_exynos_crtc_state;
 		unsigned int old_win_cnt, new_win_cnt;
 
 		new_exynos_crtc_state = to_exynos_crtc_state(new_crtc_state);
+		old_exynos_crtc_state = to_exynos_crtc_state(old_crtc_state);
 
-		if (!new_crtc_state->active_changed && !new_crtc_state->zpos_changed)
-			continue;
-
-		old_win_cnt = exynos_drm_crtc_get_win_cnt(old_crtc_state);
+		old_win_cnt = old_crtc_state->active ? hweight32(old_exynos_crtc_state->reserved_win_mask) : 0;
 		new_win_cnt = exynos_drm_crtc_get_win_cnt(new_crtc_state);
 
 		if (old_win_cnt == new_win_cnt)
@@ -237,21 +208,23 @@ exynos_atomic_check_windows(struct drm_device *dev, struct drm_atomic_state *sta
 			new_exynos_crtc_state->reserved_win_mask &= ~win_mask;
 		} else {
 			struct exynos_drm_private *priv = dev->dev_private;
-			struct exynos_drm_crtc_state *old_exynos_crtc_state;
 
-			old_exynos_crtc_state = to_exynos_crtc_state(old_crtc_state);
+			struct drm_crtc_commit *old_commit = old_crtc_state->commit;
 
+retry:
 			mutex_lock(&priv->lock);
 			win_mask = find_set_bits_mask(priv->available_win_mask, new_win_cnt - old_win_cnt);
 			if (!win_mask) {
 				DRM_WARN("%s: No windows available for req win cnt=%d->%d (0x%x)\n",
 						crtc->name, old_win_cnt, new_win_cnt,
 						priv->available_win_mask);
-				DRM_WARN("%s: old state window : reserved(%02x) freed(%02x)\n",
-						crtc->name, old_exynos_crtc_state->reserved_win_mask,
-						old_exynos_crtc_state->freed_win_mask);
 				mutex_unlock(&priv->lock);
-
+				if (old_exynos_crtc_state->freed_win_mask && !need_wait) {
+					wait_for_completion_timeout(&old_commit->hw_done, msecs_to_jiffies(20));
+					need_wait = true;
+					pr_info("%s, re-check the window resource\n", __func__);
+					goto retry;
+				}
 				return -ENOENT;
 			}
 			pr_debug("%s: current win_mask=0x%x new=0x%x avail=0x%x\n", crtc->name,
@@ -260,6 +233,7 @@ exynos_atomic_check_windows(struct drm_device *dev, struct drm_atomic_state *sta
 
 			mutex_unlock(&priv->lock);
 			new_exynos_crtc_state->reserved_win_mask |= win_mask;
+			new_exynos_crtc_state->win_inserted = true;
 		}
 	}
 
@@ -339,6 +313,27 @@ static void exynos_atomic_prepare_partial_update(struct drm_atomic_state *state)
 	}
 }
 
+static int exynos_atomic_add_affected_objects(struct drm_device *dev,
+					       struct drm_atomic_state *state)
+{
+	int i;
+	struct drm_crtc *crtc;
+	struct drm_crtc_state *new_crtc_state;
+	struct drm_connector *conn;
+	struct drm_connector_state *new_conn_state;
+
+	for_each_new_crtc_in_state(state, crtc, new_crtc_state, i) {
+		conn = crtc_get_conn(new_crtc_state, DRM_MODE_CONNECTOR_WRITEBACK);
+		if (conn) {
+			new_conn_state = drm_atomic_get_connector_state(state, conn);
+			if (IS_ERR(new_conn_state))
+				return PTR_ERR(new_conn_state);
+		}
+	}
+
+	return 0;
+}
+
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
 int exynos_drm_check_frame_skip(struct drm_atomic_state *state)
 {
@@ -366,6 +361,11 @@ int exynos_atomic_check(struct drm_device *dev, struct drm_atomic_state *state)
 	int ret;
 
 	DPU_ATRACE_BEGIN("exynos_atomic_check");
+
+	ret = exynos_atomic_add_affected_objects(dev, state);
+	if (ret)
+		goto out;
+
 	ret = exynos_drm_atomic_check_tui(state);
 	if (ret)
 		goto out;
@@ -428,13 +428,14 @@ static const struct drm_private_state_funcs exynos_priv_state_funcs = {
 };
 
 /* See also: drm_atomic_helper_wait_for_fences() */
-#define FENCE_TIMEOUT_NSEC	(3200 * NSEC_PER_MSEC)	/* 3200msec */
+#define FENCE_TIMEOUT_MSEC	(3200)			/* 3200msec */
 #define NUM_VBLANK		(5)			/* vblank wait count */
 #define DFT_FPS			(60)			/* default fps */
 static int exynos_drm_atomic_helper_wait_for_fences(struct drm_device *dev,
 				      struct drm_atomic_state *state,
 				      bool pre_swap)
 {
+	struct exynos_drm_crtc *exynos_crtc;
 	struct drm_crtc_state *new_crtc_state;
 	struct drm_plane *plane;
 	struct drm_plane_state *new_plane_state;
@@ -455,25 +456,40 @@ static int exynos_drm_atomic_helper_wait_for_fences(struct drm_device *dev,
 		 * still interrupt the operation. Instead of blocking until the
 		 * timer expires, make the wait interruptible.
 		 */
-		fence_wait_start = ktime_get();
-		ret = dma_fence_wait(new_plane_state->fence, pre_swap);
-		fence_wait_ms = ktime_ms_delta(ktime_get(), fence_wait_start);
-		if (ret)
-			return ret;
+
+		fence = new_plane_state->fence;
+		exynos_crtc = to_exynos_crtc(new_plane_state->crtc);
+		DPU_EVENT_LOG("WAIT_PLANE_IN_FENCE", exynos_crtc, EVENT_FLAG_FENCE,
+				FENCE_FMT, FENCE_ARG(fence));
 
 		new_crtc_state = new_plane_state->crtc->state;
 		fps = drm_mode_vrefresh(&new_crtc_state->adjusted_mode) ? : DFT_FPS;
 		debug_timeout_ms = NUM_VBLANK * MSEC_PER_SEC / fps;
 
-		if (fence_wait_ms > debug_timeout_ms) {
-			fence = new_plane_state->fence;
+		fence_wait_start = ktime_get();
+		ret = dma_fence_wait_timeout(fence, pre_swap,
+				msecs_to_jiffies(debug_timeout_ms));
+		if (ret <= 0) {
+			DPU_EVENT_LOG("TIMEOUT_PLANE_IN_FENCE", exynos_crtc,
+					EVENT_FLAG_FENCE, "in_fence_wait: %lldmsec",
+					debug_timeout_ms);
 			ops = fence->ops;
-
-			pr_info("[%s] plane-%lu fence waiting elapsed(%lldmsec)\n",
-					__func__, plane->index,	fence_wait_ms);
+			pr_info("[%s] plane-%lu fence waiting timeout(%lldmsec)\n",
+					__func__, plane->index,	debug_timeout_ms);
 			pr_info("[%s] driver=%s, timeline =%s\n", __func__,
 					ops->get_driver_name(fence),
 					ops->get_timeline_name(fence));
+		}
+
+		ret = dma_fence_wait(fence, pre_swap);
+		fence_wait_ms = ktime_ms_delta(ktime_get(), fence_wait_start);
+		if (ret)
+			return ret;
+
+		if (fence_wait_ms > FENCE_TIMEOUT_MSEC) {
+			DPU_EVENT_LOG("ELAPSED_PLANE_IN_FENCE", exynos_crtc,
+					EVENT_FLAG_FENCE, "in_fence_wait: %lldmsec",
+					fence_wait_ms);
 		}
 
 		dma_fence_put(new_plane_state->fence);
@@ -659,41 +675,13 @@ static void exynos_drm_lastclose(struct drm_device *dev)
 	exynos_drm_fbdev_restore_mode(dev);
 }
 
-#if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-atomic_t exynos_drm_ioctl_ref_cnt = ATOMIC_INIT(0);
-
-long exynos_drm_ioctl(struct file *filp,
-	      unsigned int cmd, unsigned long arg)
-{
-	long ret;
-	ktime_t time_start;
-
-	atomic_inc(&exynos_drm_ioctl_ref_cnt);
-
-	time_start = ktime_get();
-	exynos_drm_ioctl_time_start(DRM_IOCTL_NR(cmd), time_start);
-
-	ret = drm_ioctl(filp, cmd, arg);
-
-	exynos_drm_ioctl_time_end(DRM_IOCTL_NR(cmd), time_start, ktime_get());
-
-	atomic_dec(&exynos_drm_ioctl_ref_cnt);
-
-	return ret;
-}
-#endif
-
 static const struct file_operations exynos_drm_driver_fops = {
 	.owner		= THIS_MODULE,
 	.open		= drm_open,
 	.mmap		= exynos_drm_gem_mmap,
 	.poll		= drm_poll,
 	.read		= drm_read,
-#if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-	.unlocked_ioctl = exynos_drm_ioctl,
-#else
 	.unlocked_ioctl = drm_ioctl,
-#endif
 	.compat_ioctl	= drm_compat_ioctl,
 	.release	= drm_release,
 };
@@ -847,6 +835,7 @@ static int exynos_drm_bind(struct device *dev)
 		goto err_priv_state_cleanup;
 
 	win_cnt = get_plane_num(drm);
+
 	mutex_lock(&private->lock);
 	private->available_win_mask = BIT(win_cnt) - 1;
 	mutex_unlock(&private->lock);
@@ -909,10 +898,6 @@ static int exynos_drm_bind(struct device *dev)
 	ret = drm_dev_register(drm, 0);
 	if (ret < 0)
 		goto err_cleanup_fbdev;
-
-#if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-	exynos_drm_ioctl_time_init();
-#endif
 
 	return 0;
 

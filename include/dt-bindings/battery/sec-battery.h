@@ -3,15 +3,15 @@
 #define _DT_BINDINGS_BATTERY_SEC_BATTERY_H
 
 #define SEC_BATTERY_CABLE_UNKNOWN 0
-#define SEC_BATTERY_CABLE_NONE                  1 
-#define SEC_BATTERY_CABLE_PREPARE_TA             2 
-#define SEC_BATTERY_CABLE_TA                     3 
-#define SEC_BATTERY_CABLE_USB                    4 
-#define SEC_BATTERY_CABLE_USB_CDP                5 
-#define SEC_BATTERY_CABLE_9V_TA                  6 
-#define SEC_BATTERY_CABLE_9V_ERR                 7 
-#define SEC_BATTERY_CABLE_9V_UNKNOWN             8 
-#define SEC_BATTERY_CABLE_12V_TA                 9 
+#define SEC_BATTERY_CABLE_NONE                  1
+#define SEC_BATTERY_CABLE_PREPARE_TA             2
+#define SEC_BATTERY_CABLE_TA                     3
+#define SEC_BATTERY_CABLE_USB                    4
+#define SEC_BATTERY_CABLE_USB_CDP                5
+#define SEC_BATTERY_CABLE_9V_TA                  6
+#define SEC_BATTERY_CABLE_9V_ERR                 7
+#define SEC_BATTERY_CABLE_9V_UNKNOWN             8
+#define SEC_BATTERY_CABLE_12V_TA                 9
 #define SEC_BATTERY_CABLE_WIRELESS               10
 #define SEC_BATTERY_CABLE_HV_WIRELESS            11
 #define SEC_BATTERY_CABLE_PMA_WIRELESS           12
@@ -35,15 +35,20 @@
 #define SEC_BATTERY_CABLE_TIMEOUT                30
 #define SEC_BATTERY_CABLE_SMART_OTG              31
 #define SEC_BATTERY_CABLE_SMART_NOTG             32
-#define SEC_BATTERY_CABLE_WIRELESS_TX            33 
-#define SEC_BATTERY_CABLE_HV_WIRELESS_20         34 
-#define SEC_BATTERY_CABLE_HV_WIRELESS_20_LIMIT   35 
+#define SEC_BATTERY_CABLE_WIRELESS_TX            33
+#define SEC_BATTERY_CABLE_HV_WIRELESS_20         34
+#define SEC_BATTERY_CABLE_HV_WIRELESS_20_LIMIT   35
 #define SEC_BATTERY_CABLE_WIRELESS_FAKE 	 36
-#define SEC_BATTERY_CABLE_PREPARE_WIRELESS_20    37 
-#define SEC_BATTERY_CABLE_PDIC_APDO              38 
+#define SEC_BATTERY_CABLE_PREPARE_WIRELESS_20    37
+#define SEC_BATTERY_CABLE_PDIC_APDO              38
 #define SEC_BATTERY_CABLE_POGO                   39
-#define SEC_BATTERY_CABLE_MAX                    40
+#define SEC_BATTERY_CABLE_POGO_9V		 40
+#define SEC_BATTERY_CABLE_MAX                    41
 
+/* d2d support type */
+#define SB_D2D_NONE	0
+#define SB_D2D_SNKONLY	1
+#define SB_D2D_SRCSNK	2
 
 /* temperature check type */
 #define SEC_BATTERY_TEMP_CHECK_NONE 0        /* no temperature check */
@@ -62,16 +67,18 @@
 
 
 /* thermal source */
-/* by fuel gauge */
-#define SEC_BATTERY_THERMAL_SOURCE_FG 		0
+/* none */
+#define SEC_BATTERY_THERMAL_SOURCE_NONE		0
 /* by external source */
 #define SEC_BATTERY_THERMAL_SOURCE_CALLBACK	1
 /* by ADC */
 #define SEC_BATTERY_THERMAL_SOURCE_ADC		2
 /* by charger */
 #define SEC_BATTERY_THERMAL_SOURCE_CHG_ADC	3
-/* none */
-#define SEC_BATTERY_THERMAL_SOURCE_NONE		4
+/* by fuel gauge */
+#define SEC_BATTERY_THERMAL_SOURCE_FG		4
+/* by fuel gauge adc */
+#define SEC_BATTERY_THERMAL_SOURCE_FG_ADC		5
 
 #define SEC_BATTERY_CABLE_CHECK_NOUSBCHARGE             1
 /* SEC_BATTERY_CABLE_CHECK_NOINCOMPATIBLECHARGE
@@ -206,6 +213,17 @@
  */
 #define SEC_BATTERY_RECHARGE_CONDITION_LIMITER          8
 
+#define SIOP_DEFAULT	0xFFFF
+#define SIOP_SKIP		0xFFFE
+
+/* inbat ocv type */
+#define SEC_BATTERY_OCV_NONE			0
+#define SEC_BATTERY_OCV_FG_SRC_CHANGE	1
+#define SEC_BATTERY_OCV_FG_NOSRC_CHANGE	2
+#define SEC_BATTERY_OCV_ADC				3
+#define SEC_BATTERY_OCV_VOLT_FROM_PMIC	4
+
+
 /* enum sec_wireless_rx_power_list */
 #define SEC_WIRELESS_RX_POWER_5W		0
 #define SEC_WIRELESS_RX_POWER_7_5W		1
@@ -221,5 +239,116 @@
 #define SEC_WIRELESS_RX_POWER_CLASS_3	3	/* 12.1W ~ 20W */
 #define SEC_WIRELESS_RX_POWER_CLASS_4	4	/* reserved */
 #define SEC_WIRELESS_RX_POWER_CLASS_5	5	/* reserved */
+
+#define SEC_WIRELESS_PHM_VOUT_CTRL_NO_DEV		0
+#define SEC_WIRELESS_PHM_VOUT_CTRL_OTHER_DEV	1
+#define SEC_WIRELESS_PHM_VOUT_CTRL_GEAR			2
+#define SEC_WIRELESS_PHM_VOUT_CTRL_PHONE		4
+#define SEC_WIRELESS_PHM_VOUT_CTRL_BUDS			8
+
+/* enum sec_wireless_rx_control_mode */
+#define WIRELESS_PAD_FAN_OFF		0
+#define WIRELESS_PAD_FAN_ON		1
+#define WIRELESS_PAD_LED_OFF		2
+#define WIRELESS_PAD_LED_ON		3
+#define WIRELESS_PAD_LED_DIMMING	4
+#define WIRELESS_VRECT_ADJ_ON		5
+#define WIRELESS_VRECT_ADJ_OFF		6
+#define WIRELESS_VRECT_ADJ_ROOM_0	7
+#define WIRELESS_VRECT_ADJ_ROOM_1	8
+#define WIRELESS_VRECT_ADJ_ROOM_2	9
+#define WIRELESS_VRECT_ADJ_ROOM_3	10
+#define WIRELESS_VRECT_ADJ_ROOM_4	11
+#define WIRELESS_VRECT_ADJ_ROOM_5	12
+#define WIRELESS_CLAMP_ENABLE		13
+#define WIRELESS_SLEEP_MODE_ENABLE	14
+#define WIRELESS_SLEEP_MODE_DISABLE	15
+
+/* enum sec_wireless_tx_vout */
+#define WC_TX_VOUT_OFF		0
+#define WC_TX_VOUT_5000MV	5000
+#define WC_TX_VOUT_5500MV	5500
+#define WC_TX_VOUT_6000MV	6000
+#define WC_TX_VOUT_6500MV	6500
+#define WC_TX_VOUT_7000MV	7000
+#define WC_TX_VOUT_7500MV	7500
+#define WC_TX_VOUT_8000MV	8000
+#define WC_TX_VOUT_8500MV	8500
+#define WC_TX_VOUT_9000MV	9000
+#define WC_TX_VOUT_MIN		WC_TX_VOUT_5000MV
+#define WC_TX_VOUT_MAX		WC_TX_VOUT_9000MV
+#define WC_TX_VOUT_STEP_AOV	500
+
+/* enum sec_wireless_vout_control_mode */
+#define WIRELESS_VOUT_OFF		0
+#define WIRELESS_VOUT_NORMAL_VOLTAGE	1 /* 5V , reserved by factory */
+#define WIRELESS_VOUT_RESERVED		2 /* 6V */
+#define WIRELESS_VOUT_HIGH_VOLTAGE	3 /* 9V , reserved by factory */
+#define WIRELESS_VOUT_CC_CV_VOUT	4
+#define WIRELESS_VOUT_CALL		5
+#define WIRELESS_VOUT_5V		6
+#define WIRELESS_VOUT_9V		7
+#define WIRELESS_VOUT_10V		8
+#define WIRELESS_VOUT_11V		9
+#define WIRELESS_VOUT_12V		10
+#define WIRELESS_VOUT_12_5V		11
+#define WIRELESS_VOUT_4_5V_STEP		12
+#define WIRELESS_VOUT_5V_STEP		13
+#define WIRELESS_VOUT_5_5V_STEP		14
+#define WIRELESS_VOUT_9V_STEP		15
+#define WIRELESS_VOUT_10V_STEP		16
+#define WIRELESS_VOUT_OTG			17
+
+/* enum mfc_send_command */
+#define MFC_END_SIG_STRENGTH		0
+#define MFC_END_POWER_TRANSFER		1
+#define MFC_END_CTR_ERROR		2
+#define MFC_END_RECEIVED_POWER		3
+#define MFC_END_CHARGE_STATUS		4
+#define MFC_POWER_CTR_HOLD_OFF		5
+#define MFC_AFC_CONF_5V			6
+#define MFC_AFC_CONF_10V		7
+#define MFC_AFC_CONF_5V_TX		8
+#define MFC_AFC_CONF_10V_TX		9
+#define MFC_AFC_CONF_12V_TX		10
+#define MFC_AFC_CONF_12_5V_TX		11
+#define MFC_AFC_CONF_20V_TX		12
+#define MFC_CONFIGURATION		13
+#define MFC_IDENTIFICATION		14
+#define MFC_EXTENDED_IDENT		15
+#define MFC_LED_CONTROL_ON		16
+#define MFC_LED_CONTROL_OFF		17
+#define MFC_FAN_CONTROL_ON		18
+#define MFC_FAN_CONTROL_OFF		19
+#define MFC_REQUEST_AFC_TX		20
+#define MFC_REQUEST_TX_ID		21
+#define MFC_DISABLE_TX			22
+#define MFC_PHM_ON			23
+#define MFC_LED_CONTROL_DIMMING		24
+#define MFC_SET_OP_FREQ			25
+#define MFC_TX_UNO_OFF			26
+
+#define MFC_VOUT_4_5V	0
+#define MFC_VOUT_5V	1
+#define MFC_VOUT_5_5V	2
+#define MFC_VOUT_6V	3
+#define MFC_VOUT_7V	4
+#define MFC_VOUT_8V	5
+#define MFC_VOUT_9V	6
+#define MFC_VOUT_10V	7
+#define MFC_VOUT_11V	8
+#define MFC_VOUT_12V	9
+#define MFC_VOUT_12_5V	10
+#define MFC_VOUT_OTG	11
+
+/* fod macro */
+#define FOD_FLAG_NONE			0
+#define FOD_FLAG_ADD			1
+#define FOD_FLAG_USE_CC			2
+#define FOD_FLAG_USE_DEFAULT	3
+#define SET_FOD_CC(_flag)		(FOD_FLAG_ ##_flag)
+#define SET_FOD_CV(_flag)		(FOD_FLAG_ ##_flag << 4)
+#define SET_FOD_FULL(_flag)		(FOD_FLAG_ ##_flag << 8)
+#define SET_FOD_HV(_flag)		(FOD_FLAG_ ##_flag << 12)
 
 #endif /* _DT_BINDINGS_BATTERY_SEC_BATTERY_H */

@@ -72,8 +72,6 @@ struct tsmux_cmu_mfc_sfr tsmux_cmu_mfc_sfr_list[] = {
     TSMUX_CMU_MFC_DESC("QCH_CON_VGEN_LITE_MFC0_QCH", 0x18600000, 0x30e8),
     TSMUX_CMU_MFC_DESC("QCH_CON_WFD_QCH", 0x18600000, 0x30f0),
     TSMUX_CMU_MFC_DESC("MFC0_CMU_MFC0_CONTROLLER_OPTION", 0x18600000, 0x0800),
-    TSMUX_CMU_MFC_DESC("BUS_COMPONENT_DRCG_EN", 0x18620000, 0x0104),
-    TSMUX_CMU_MFC_DESC("MEMCLK", 0x18620000, 0x0108),
 };
 
 u32 tsmux_cmu_mfc_sfr_list_size = ARRAY_SIZE(tsmux_cmu_mfc_sfr_list);

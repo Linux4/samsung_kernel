@@ -554,7 +554,6 @@ err_exit:
 void npu_reg_dump(struct npu_device *device)
 {
 	int i, j;
-	int ret = 0;
 	u32 val = 0;
 	struct npu_system *system;
 
@@ -563,10 +562,7 @@ void npu_reg_dump(struct npu_device *device)
 		return;
 
 	for (i = 0; i < ((sizeof(cpu_sfr_reg)) / (sizeof(struct npu_reg_format))); i++) {
-		cpu_sfr_reg[i].sfr = vmalloc(cpu_sfr_reg[i].size);
 		npu_info("sfr dump: %s\n", cpu_sfr_reg[i].name);
-		if (ret)
-			npu_err("fail(%d) in FW report buffer memory allocation\n", ret);
 
 		if (cpu_sfr_reg[i].flag)
 			val = npu_smc_read_hw_reg(npu_get_io_area(system, "sfrdnc"),
@@ -575,33 +571,42 @@ void npu_reg_dump(struct npu_device *device)
 			val = npu_read_hw_reg(npu_get_io_area(system, "sfrdnc"),
 					cpu_sfr_reg[i].base + cpu_sfr_reg[i].offset, 0xFFFFFFFF, 1);
 
-		*cpu_sfr_reg[i].sfr = val;
+		cpu_sfr_reg[i].sfr = vmalloc(cpu_sfr_reg[i].size);
+		if (likely(cpu_sfr_reg[i].sfr)) {
+			*cpu_sfr_reg[i].sfr = val;
+		} else {
+			npu_err("fail in memory allocation\n");
+		}
 	}
 
 	for (i = 0; i < ((sizeof(dsp0_ctrl_sfr_reg)) / (sizeof(struct npu_reg_format))); i++) {
-		dsp0_ctrl_sfr_reg[i].sfr = vmalloc(dsp0_ctrl_sfr_reg[i].size);
 		npu_info("sfr dump: %s\n", dsp0_ctrl_sfr_reg[i].name);
-		if (ret)
-			npu_err("fail(%d) in FW report buffer memory allocation\n", ret);
 
 		val = npu_read_hw_reg(npu_get_io_area(system, "sfrdnc"),
 				dsp0_ctrl_sfr_reg[i].base + dsp0_ctrl_sfr_reg[i].offset, 0xFFFFFFFF, 1);
 
-		*dsp0_ctrl_sfr_reg[i].sfr = val;
+		dsp0_ctrl_sfr_reg[i].sfr = vmalloc(dsp0_ctrl_sfr_reg[i].size);
+		if (likely(dsp0_ctrl_sfr_reg[i].sfr)) {
+			*dsp0_ctrl_sfr_reg[i].sfr = val;
+		} else {
+			npu_err("fail in memory allocation\n");
+		}
 	}
 
 	for (i = 0; i < ((sizeof(npu_dsp_sfr_reg)) / (sizeof(struct npu_reg_format))); i++) {
 		npu_dsp_sfr_reg[i].sfr = vmalloc(npu_dsp_sfr_reg[i].size);
 		npu_info("sfr dump: %s\n", npu_dsp_sfr_reg[i].name);
-		if (ret)
-			npu_err("fail(%d) in FW report buffer memory allocation\n", ret);
 
 		for (j = 0; j < (npu_dsp_sfr_reg[i].size / 0x4); j++) {
 			val = npu_read_hw_reg(npu_get_io_area(system, "sfrdnc"),
 				npu_dsp_sfr_reg[i].base + (0x4 * j), 0xFFFFFFFF, 1);
 
-			*npu_dsp_sfr_reg[i].sfr = val;
-			npu_dsp_sfr_reg[i].sfr++;
+			if (likely(npu_dsp_sfr_reg[i].sfr)) {
+				*npu_dsp_sfr_reg[i].sfr = val;
+				npu_dsp_sfr_reg[i].sfr++;
+			} else {
+				npu_err("fail in memory allocation\n");
+			}
 		}
 	}
 }

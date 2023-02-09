@@ -27,6 +27,7 @@ struct exynos_dqe_funcs {
 	void (*disable)(struct exynos_dqe *dqe);
 	void (*suspend)(struct exynos_dqe *dqe);
 	void (*resume)(struct exynos_dqe *dqe);
+	void (*state)(struct exynos_dqe *dqe, enum dqe_reg_type type, bool *enabled);
 };
 
 // currently used LUT regs which attached to the each dqe handle
@@ -116,6 +117,8 @@ void exynos_dqe_enable(struct exynos_dqe *dqe);
 void exynos_dqe_disable(struct exynos_dqe *dqe);
 void exynos_dqe_suspend(struct exynos_dqe *dqe);
 void exynos_dqe_resume(struct exynos_dqe *dqe);
+void exynos_dqe_state(struct exynos_dqe *dqe,
+			enum dqe_reg_type type,	bool *enabled);
 struct exynos_dqe *exynos_dqe_register(struct decon_device *decon);
 
 #endif /* __EXYNOS_DRM_DQE_H__ */

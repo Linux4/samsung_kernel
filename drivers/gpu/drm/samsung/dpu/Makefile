@@ -93,4 +93,3 @@ subdir-ccflags-y += \
 endif
 
 obj-$(CONFIG_SEC_DISPLAYPORT_EXT_FUNCTION)	+= dp_ext_func/
-obj-$(CONFIG_SEC_KUNIT)			+= kunit_test/

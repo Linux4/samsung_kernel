@@ -22,8 +22,9 @@ struct exynos_hdr;
 struct exynos_hdr_funcs {
 	void (*dump)(struct exynos_hdr *hdr);
 	void (*prepare)(struct exynos_hdr *hdr,
+			struct exynos_drm_plane_state *exynos_plane_state);
+	void (*update)(struct exynos_hdr *hdr,
 			const struct exynos_drm_plane_state *exynos_plane_state);
-	void (*update)(struct exynos_hdr *hdr);
 	void (*disable)(struct exynos_hdr *hdr);
 };
 
@@ -32,10 +33,9 @@ enum hdr_state {
 	HDR_STATE_ENABLE,
 };
 
+#define MAX_HDR_CONTEXT 3 // 3 ctx buffer per layer
 struct hdr_context {
-	bool used;
 	char *data;
-	struct list_head list;
 };
 
 struct exynos_hdr {
@@ -54,9 +54,8 @@ struct exynos_hdr {
 	struct dma_buf	*dma_buf;
 	u32 *dma_vbuf;
 
-	struct list_head ctx_list;
-	struct mutex ctx_list_lock;
-	struct hdr_context *ctx;
+	struct hdr_context ctx[MAX_HDR_CONTEXT];
+	atomic_t ctx_no;
 
 	const struct exynos_hdr_funcs *funcs;
 	bool initialized;
@@ -67,8 +66,9 @@ struct exynos_hdr {
 
 void exynos_hdr_dump(struct exynos_hdr *hdr);
 void exynos_hdr_prepare(struct exynos_hdr *hdr,
+			struct exynos_drm_plane_state *exynos_plane_state);
+void exynos_hdr_update(struct exynos_hdr *hdr,
 			const struct exynos_drm_plane_state *exynos_plane_state);
-void exynos_hdr_update(struct exynos_hdr *hdr);
 void exynos_hdr_disable(struct exynos_hdr *hdr);
 struct exynos_hdr *exynos_hdr_register(struct dpp_device *dpp);
 

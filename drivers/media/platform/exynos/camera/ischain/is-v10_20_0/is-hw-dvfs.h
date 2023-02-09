@@ -20,6 +20,8 @@
 #define IS_DVFS_OTF_PPC		4
 #define IS_DVFS_M2M_PPC		2
 #define IS_DVFS_POTF_BIT	64
+#define IS_DVFS_CAM_MIN_LV	6
+#define IS_DVFS_ISP_MIN_LV	6
 
 #define MIN_REMOSAIC_SIZE	(8000 * 6000)
 

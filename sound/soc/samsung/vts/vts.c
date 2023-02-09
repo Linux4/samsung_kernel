@@ -2939,13 +2939,28 @@ static int vts_itmon_notifier(struct notifier_block *nb,
 	struct device *dev = &pdev->dev;
 	struct itmon_notifier *itmon_data = nb_data;
 
-	if (itmon_data && itmon_data->dest && (strncmp("VTS", itmon_data->dest,
-			sizeof("VTS") - 1) == 0)) {
+	vts_dev_info(dev, "%s: action:%ld, master:%s, dest:%s\n",
+			__func__, action, itmon_data->master, itmon_data->dest);
+
+	if (itmon_data
+	    && ((strncmp(itmon_data->master, VTS_ITMON_NAME, sizeof(VTS_ITMON_NAME) - 1) == 0)
+		|| (strncmp(itmon_data->dest, VTS_ITMON_NAME, sizeof(VTS_ITMON_NAME) - 1) == 0))) {
 		vts_dev_info(dev, "%s(%lu)\n", __func__, action);
+		vts_dev_info(dev, "%s: shared_info: 0x%x, %d, %d", __func__,
+			data->shared_info->vendor_data[0], data->shared_info->vendor_data[1],
+			data->shared_info->vendor_data[2]);
+
 		/* Dump VTS GPR register & SRAM */
 		vts_dbg_dump_fw_gpr(dev, data, VTS_ITMON_ERROR);
+		print_hex_dump(KERN_ERR, "vts-fw-log", DUMP_PREFIX_OFFSET, 32, 4, data->sramlog_baseaddr,
+			VTS_SRAM_EVENTLOG_SIZE_MAX, true);
+		print_hex_dump(KERN_ERR, "vts-time-log", DUMP_PREFIX_OFFSET, 32, 4,
+			data->sramlog_baseaddr + VTS_SRAM_EVENTLOG_SIZE_MAX,
+			VTS_SRAM_TIMELOG_SIZE_MAX, true);
+
 		data->enabled = false;
 		mailbox_update_vts_is_on(false);
+
 		return NOTIFY_BAD;
 	}
 	return NOTIFY_DONE;

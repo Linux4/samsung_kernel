@@ -24,6 +24,9 @@
 #include "is-core.h"
 
 #include <linux/leds-s2mu106.h>
+#include <linux/muic/muic.h>
+
+extern int muic_afc_get_voltage(void);
 
 #define CAPTURE_MAX_TOTAL_CURRENT	(1500)
 #define TORCH_MAX_TOTAL_CURRENT		(150)
@@ -308,6 +311,36 @@ p_err:
 	return ret;
 }
 
+int flash_s2mu106_g_ctrl(struct v4l2_subdev *subdev, struct v4l2_control *ctrl)
+{
+	int ret = 0;
+	struct is_flash *flash = NULL;
+	int voltage;
+
+	FIMC_BUG(!subdev);
+
+	flash = (struct is_flash *)v4l2_get_subdevdata(subdev);
+	FIMC_BUG(!flash);
+
+	switch (ctrl->id) {
+	case V4L2_CID_FLASH_GET_DELAYED_PREFLASH_TIME:
+		voltage = muic_afc_get_voltage();
+		if (voltage == 9) {
+			ctrl->value = 200; /* ms */
+		} else {
+			ctrl->value = 0;
+		}
+		break;
+	default:
+		err("err!!! Unknown CID(%#x)", ctrl->id);
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+p_err:
+	return ret;
+}
+
 long flash_s2mu106_ioctl(struct v4l2_subdev *subdev, unsigned int cmd, void *arg)
 {
 	int ret = 0;
@@ -323,6 +356,11 @@ long flash_s2mu106_ioctl(struct v4l2_subdev *subdev, unsigned int cmd, void *arg
 		}
 		break;
 	case SENSOR_IOCTL_FLS_G_CTRL:
+		ret = flash_s2mu106_g_ctrl(subdev, ctrl);
+		if (ret) {
+			err("err!!! flash_gpio_g_ctrl failed(%d)", ret);
+			goto p_err;
+		}
 		break;
 	default:
 		err("err!!! Unknown command(%#x)", cmd);

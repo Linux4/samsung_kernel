@@ -623,6 +623,14 @@ void is_set_static_dvfs(struct is_device_ischain *device, bool stream_on, bool s
 		if (scenario_id >= 0) {
 			dvfs_ctrl->dynamic_ctrl->cur_frame_tick = KEEP_FRAME_TICK_FAST_LAUNCH;
 			if (stream_on) {
+#ifdef DISABLE_FAST_LAUNCH
+				minfo("[ISC:D] tbl[%d] static scenario(%d)-[%s]\n", device,
+					dvfs_ctrl->dvfs_table_idx, scenario_id,
+					dvfs_ctrl->static_ctrl->scenario_nm);
+
+				is_set_dvfs((struct is_core *)device->interface->core, device,
+					scenario_id);
+#else
 				minfo("[ISC:D] tbl[%d] static scenario(%d)-[%s%s]\n", device,
 					dvfs_ctrl->dvfs_table_idx, scenario_id,
 					dvfs_ctrl->static_ctrl->scenario_nm,
@@ -630,6 +638,7 @@ void is_set_static_dvfs(struct is_device_ischain *device, bool stream_on, bool s
 
 				is_set_dvfs((struct is_core *)device->interface->core, device,
 					sensor_only ? scenario_id : IS_DVFS_SN_DEFAULT);
+#endif
 			}
 		}
 

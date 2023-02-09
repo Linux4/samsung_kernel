@@ -94,7 +94,7 @@ enum err_cmnd_response {
 };
 
 void *mbx_ipc_translate(char *underlay, volatile struct mailbox_ctrl *ctrl, u32 ptr);
-void mbx_ipc_print(char *underlay, volatile struct mailbox_ctrl *ctrl);
+void mbx_ipc_print(char *underlay, volatile struct mailbox_ctrl *ctrl, u32 log_level);
 void mbx_ipc_print_dbg(char *underlay, volatile struct mailbox_ctrl *ctrl);
 int mbx_ipc_put(char *underlay, volatile struct mailbox_ctrl *ctrl, struct message *msg, struct command *cmd);
 int mbx_ipc_peek_msg(char *underlay, volatile struct mailbox_ctrl *ctrl, struct message *msg);
@@ -102,6 +102,7 @@ int mbx_ipc_get_msg(char *underlay, volatile struct mailbox_ctrl *ctrl, struct m
 int mbx_ipc_get_cmd(char *underlay, volatile struct mailbox_ctrl *ctrl, struct message *msg, struct command *cmd);
 int mbx_ipc_clr_msg(char *underlay, volatile struct mailbox_ctrl *ctrl, struct message *msg);
 int mailbox_init(volatile struct mailbox_hdr *header, struct npu_system *system);
+void mailbox_deinit(volatile struct mailbox_hdr *header, struct npu_system *system);
 void dbg_print_hdr(volatile struct mailbox_hdr *mHdr);
 void dbg_print_msg(struct message *msg, struct command *cmd);
 void dbg_print_ctrl(volatile struct mailbox_ctrl *mCtrl);

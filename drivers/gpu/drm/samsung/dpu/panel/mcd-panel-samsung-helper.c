@@ -15,7 +15,6 @@
 #include <linux/slab.h>
 #include <linux/errno.h>
 #include <linux/sort.h>
-#include <kunit/mock.h>
 #include <drm/drm_modes.h>
 #include "panel-samsung-drv.h"
 #include "mcd-panel-samsung-helper.h"

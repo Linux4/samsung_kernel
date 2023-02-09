@@ -378,6 +378,7 @@
 		id = <0>; /* matching is_sensor id */
 		setfile = "setA";
 		status = "okay";
+		vendor_use_adaptive_mipi;
 	};
 
 };

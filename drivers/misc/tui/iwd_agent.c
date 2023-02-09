@@ -27,6 +27,8 @@
 #include <core/iwsock.h>
 #include <core/notifier.h>
 
+extern uint32_t g_stui_disp_if;
+
 struct iwd_functions {
 	int (*cancel_session)(void);
 };
@@ -118,6 +120,10 @@ static int get_display_info(GetDisplayInfo_cmd_t *cmd, GetDisplayInfo_rsp_t *rsp
 		pr_err(TUIHW_LOG_TAG " stui_get_resolution failed\n");
 		return -1;
 	}
+	if (stui_get_lcd_info(buffer.lcd_info, STUI_DISPLAY_INFO_SIZE)) {
+		pr_err(TUIHW_LOG_TAG " stui_get_lcd_info failed\n");
+		return -1;
+	}
 	rsp->physical_width  = 0; //unknown
 	rsp->physical_height = 0; //unknown
 	rsp->pixel_width  = buffer.width;
@@ -126,6 +132,7 @@ static int get_display_info(GetDisplayInfo_cmd_t *cmd, GetDisplayInfo_rsp_t *rsp
 	rsp->flags        = 0;
 	rsp->num_periph   = 1;
 	rsp->associatedPeripherals[0] = TUILL_TOUCH_DRV;
+	memcpy(rsp->lcd_info, buffer.lcd_info, sizeof(uint64_t) * STUI_DISPLAY_INFO_SIZE);
 	pr_debug(TUIHW_LOG_TAG " %s <<\n", __func__);
 	return 0;
 }
@@ -169,6 +176,15 @@ static int open_driver(OpenPeripheral_cmd_t *cmd, OpenPeripheral_rsp_t *rsp)
 			rsp->FB.disp_physical = buffer.disp_physical;
 			rsp->FB.disp_size     = buffer.disp_size;
 			rsp->FB.touch_type    = stui_get_touch_type();
+			ret = stui_get_lcd_info(rsp->FB.lcd_info, STUI_DISPLAY_INFO_SIZE);
+			if (ret < 0) {
+				pr_err(TUIHW_LOG_TAG " failed to get lcd info\n");
+				goto lbl_rollback;
+			}
+
+			rsp->FB.disp_if = buffer.disp_if;
+			g_stui_disp_if  = buffer.disp_if;
+
 			break;
 		}
 	}

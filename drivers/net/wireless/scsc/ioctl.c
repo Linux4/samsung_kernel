@@ -3463,39 +3463,34 @@ static int slsi_wes_mode_write(struct net_device *dev, char *command, int buf_le
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct slsi_dev   *sdev = ndev_vif->sdev;
 	struct slsi_ioctl_args *ioctl_args = NULL;
-	int               result = 0;
+	int               result = -EINVAL;
 	u32               action_frame_bmap = SLSI_STA_ACTION_FRAME_BITMAP;
 	int mode = 0;
 
 	ioctl_args = slsi_get_private_command_args(command, buf_len, 1);
 	SLSI_VERIFY_IOCTL_ARGS(sdev, ioctl_args);
 
+	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
 
 	if (!sdev->device_config.ncho_mode) {
 		SLSI_INFO(sdev, "Command not allowed, NCHO is disabled\n");
-		SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
-		kfree(ioctl_args);
-		return -EINVAL;
+		goto exit;
 	}
 
 	if (!slsi_str_to_int(ioctl_args->args[0], &mode)) {
 		SLSI_ERR(sdev, "Invalid string: '%s'\n", ioctl_args->args[0]);
-		SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
-		kfree(ioctl_args);
-		return -EINVAL;
+		goto exit;
 	}
 
 	if (mode == 0 || mode == 1) {
 		sdev->device_config.wes_mode = mode;
 	} else {
 		SLSI_ERR(sdev, "Invalid WES Mode: Must be 0 or 1 Not '%d'\n", mode);
-		SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
-		kfree(ioctl_args);
-		return -EINVAL;
+		goto exit;
 	}
-	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 
+	result = 0;
 	if (ndev_vif->activated && ndev_vif->vif_type == FAPI_VIFTYPE_STATION &&
 	    ndev_vif->sta.vif_status == SLSI_VIF_STATUS_CONNECTED) {
 		if (sdev->device_config.wes_mode)
@@ -3503,9 +3498,9 @@ static int slsi_wes_mode_write(struct net_device *dev, char *command, int buf_le
 
 		result = slsi_mlme_register_action_frame(sdev, dev, action_frame_bmap, action_frame_bmap);
 	}
-
-	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+exit:
 	SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
+	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	kfree(ioctl_args);
 	return result;
 }
@@ -4376,26 +4371,27 @@ int slsi_set_tx_power_calling(struct net_device *dev, char *command, int buf_len
 
 	switch (mode) {
 	case HEAD_SAR_BACKOFF_DISABLED:
-		host_state = host_state & ~SLSI_HOSTSTATE_HEAD_SAR_ACTIVE;
+		host_state &= ~SLSI_HOSTSTATE_HEAD_SAR_ACTIVE;
 		break;
 	case HEAD_SAR_BACKOFF_ENABLED:
-		host_state = host_state | SLSI_HOSTSTATE_HEAD_SAR_ACTIVE;
+		host_state |= SLSI_HOSTSTATE_HEAD_SAR_ACTIVE;
 		break;
 	case BODY_SAR_BACKOFF_DISABLED:
-		host_state = host_state & ~SLSI_HOSTSTATE_GRIP_SAR_ACTIVE;
+		host_state &= ~SLSI_HOSTSTATE_GRIP_SAR_ACTIVE;
 		break;
 	case BODY_SAR_BACKOFF_ENABLED:
-		host_state = host_state | SLSI_HOSTSTATE_GRIP_SAR_ACTIVE;
+		host_state |= SLSI_HOSTSTATE_GRIP_SAR_ACTIVE;
 		break;
 	case NR_MMWAVE_SAR_BACKOFF_DISABLED:
-		host_state = host_state & ~SLSI_HOSTSTATE_BASE_MMW;
+		host_state &= ~(SLSI_HOSTSTATE_BASE_MMW << SLSI_HOSTSTATE_BASE_POS);
 		break;
 	case NR_MMWAVE_SAR_BACKOFF_ENABLED:
-		host_state = host_state | SLSI_HOSTSTATE_BASE_MMW;
+		host_state &= ~SLSI_HOSTSTATE_BASE_MASK;
+		host_state |= SLSI_HOSTSTATE_BASE_MMW << SLSI_HOSTSTATE_BASE_POS;
 		break;
 	case NR_SUB6_SAR_BACKOFF_DISABLED:
 		sdev->device_config.host_state_sub6_band = false;
-		host_state = (host_state & ~SLSI_HOSTSTATE_BASE_SUB6) & ~SLSI_HOSTSTATE_SUB6_BAND_ACTIVE;
+		host_state &= ~(SLSI_HOSTSTATE_SUB6_BAND_MASK | SLSI_HOSTSTATE_BASE_MASK);
 		break;
 	case NR_SUB6_SAR_BACKOFF_ENABLED:
 		sdev->device_config.host_state_sub6_band = true;
@@ -4403,13 +4399,13 @@ int slsi_set_tx_power_calling(struct net_device *dev, char *command, int buf_len
 		kfree(ioctl_args);
 		return error;
 	case SAR_BACKOFF_DISABLE_ALL:
-		host_state = host_state & SLSI_HOSTSTATE_SAR_INIT_MASK;
+		host_state &= SLSI_HOSTSTATE_SAR_INIT_MASK;
 		break;
 	case MHS_SAR_BACKOFF_DISABLED:
-		host_state = host_state & ~SLSI_HOSTSTATE_MHS_SAR_ACTIVE;
+		host_state &= ~SLSI_HOSTSTATE_MHS_SAR_ACTIVE;
 		break;
 	case MHS_SAR_BACKOFF_ENABLED:
-		host_state = host_state | SLSI_HOSTSTATE_MHS_SAR_ACTIVE;
+		host_state |= SLSI_HOSTSTATE_MHS_SAR_ACTIVE;
 		break;
 	default:
 		SLSI_ERR(sdev, "Invalid mode: '%s'\n", ioctl_args->args[0]);
@@ -4454,26 +4450,27 @@ int slsi_set_tx_power_sub6_band(struct net_device *dev, char *command, int buf_l
 	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
 	host_state = sdev->device_config.host_state;
 
-	host_state |= SLSI_HOSTSTATE_BASE_SUB6;
+	host_state &= ~(SLSI_HOSTSTATE_SUB6_BAND_MASK | SLSI_HOSTSTATE_BASE_MASK);
+	host_state |= SLSI_HOSTSTATE_BASE_SUB6 << SLSI_HOSTSTATE_BASE_POS;
 
 	switch (mode) {
 	case SUB6_SAR_1_BAND:
-		host_state |= (SUB6_SAR_1 << 8);
+		host_state |= (SUB6_SAR_1 << SLSI_HOSTSTATE_SUB6_BAND_POS);
 		break;
 	case SUB6_SAR_2_BAND:
-		host_state |= (SUB6_SAR_2 << 8);
+		host_state |= (SUB6_SAR_2 << SLSI_HOSTSTATE_SUB6_BAND_POS);
 		break;
 	case SUB6_SAR_3_BAND:
-		host_state |= (SUB6_SAR_3 << 8);
+		host_state |= (SUB6_SAR_3 << SLSI_HOSTSTATE_SUB6_BAND_POS);
 		break;
 	case SUB6_SAR_4_BAND:
-		host_state |= (SUB6_SAR_4 << 8);
+		host_state |= (SUB6_SAR_4 << SLSI_HOSTSTATE_SUB6_BAND_POS);
 		break;
 	case SUB6_SAR_5_BAND:
-		host_state |= (SUB6_SAR_5 << 8);
+		host_state |= (SUB6_SAR_5 << SLSI_HOSTSTATE_SUB6_BAND_POS);
 		break;
 	case SUB6_SAR_6_BAND:
-		host_state |= (SUB6_SAR_6 << 8);
+		host_state |= (SUB6_SAR_6 << SLSI_HOSTSTATE_SUB6_BAND_POS);
 		break;
 	default:
 		SLSI_ERR(sdev, "Invalid mode: '%s'\n", ioctl_args->args[0]);
@@ -4885,10 +4882,10 @@ int slsi_get_sta_info(struct net_device *dev, char *command, int buf_len)
 	len += snprintf(&command[len], (buf_len - len), "%d %d %d %d %d %d %d %u %d",
 		       ieee80211_frequency_to_channel(ndev_vif->ap.channel_freq),
 		       ndev_vif->ap.last_disconnected_sta.bandwidth, ndev_vif->ap.last_disconnected_sta.rssi,
-		       ndev_vif->ap.last_disconnected_sta.tx_data_rate, ndev_vif->ap.last_disconnected_sta.mode,
+		       ndev_vif->ap.last_disconnected_sta.tx_data_rate, ndev_vif->ap.last_disconnected_sta.support_mode,
 		       ndev_vif->ap.last_disconnected_sta.antenna_mode,
 		       ndev_vif->ap.last_disconnected_sta.mimo_used, ndev_vif->ap.last_disconnected_sta.reason,
-		       ndev_vif->ap.last_disconnected_sta.support_mode);
+		       ndev_vif->ap.last_disconnected_sta.supported_band);
 #else
 	len = snprintf(command, buf_len, "wl_get_sta_info : %02x%02x%02x %u %d %d %d %d %d %d %u ",
 		       ndev_vif->ap.last_disconnected_sta.address[0], ndev_vif->ap.last_disconnected_sta.address[1],
@@ -5032,6 +5029,9 @@ static int slsi_set_power_mode(struct net_device *dev, char *command, int buf_le
 		kfree(ioctl_args);
 		return -EINVAL;
 	}
+
+	SLSI_NET_INFO(dev, "PS MODE mode:%d, vif_type:%d, vif_index:%d\n", mode, ndev_vif->vif_type,
+		      ndev_vif->ifnum);
 
 	power_mode = (mode == 0) ? FAPI_POWERMANAGEMENTMODE_ACTIVE_MODE : FAPI_POWERMANAGEMENTMODE_POWER_SAVE;
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
@@ -5473,7 +5473,11 @@ static int slsi_ioctl_driver_bug_dump(struct net_device *dev, char *command, int
 	scsc_log_collector_schedule_collection(SCSC_LOG_DUMPSTATE, SCSC_LOG_DUMPSTATE_REASON_DRIVERDEBUGDUMP);
 #else
 #ifndef SLSI_TEST_DEV
+#if IS_ENABLED(CONFIG_SCSC_INDEPENDENT_SUBSYSTEM)
+	SLSI_NET_INFO(dev, "SCSC_LOG_COLLECTION not enabled. Sable will not be triggered\n");
+#else
 	ret = mx140_log_dump();
+#endif
 #endif
 #endif
 	return ret;

@@ -35,7 +35,7 @@ static int s6e8fc1_disable(struct drm_panel *panel)
 	EXYNOS_DCS_WRITE_SEQ(ctx, 0x10, 0x00, 0x00);
 
 	ctx->enabled = false;
-	dev_dbg(ctx->dev, "%s +\n", __func__);
+	panel_debug(ctx, "+\n");
 	return 0;
 }
 
@@ -45,9 +45,9 @@ static int s6e8fc1_unprepare(struct drm_panel *panel)
 
 	ctx = container_of(panel, struct exynos_panel, panel);
 
-	dev_dbg(ctx->dev, "%s +\n", __func__);
+	panel_debug(ctx, "+\n");
 	exynos_panel_set_power(ctx, false);
-	dev_dbg(ctx->dev, "%s -\n", __func__);
+	panel_debug(ctx, "-\n");
 	return 0;
 }
 
@@ -57,11 +57,11 @@ static int s6e8fc1_prepare(struct drm_panel *panel)
 
 	ctx = container_of(panel, struct exynos_panel, panel);
 
-	dev_dbg(ctx->dev, "%s +\n", __func__);
+	panel_debug(ctx, "+\n");
 	exynos_panel_set_power(ctx, true);
 	usleep_range(10000, 11000);
 	exynos_panel_reset(ctx);
-	dev_dbg(ctx->dev, "%s -\n", __func__);
+	panel_debug(ctx, "-\n");
 
 	return 0;
 }
@@ -77,12 +77,12 @@ static int s6e8fc1_set_brightness(struct exynos_panel *exynos_panel, u16 br)
 static void s6e8fc1_mode_set(struct exynos_panel *ctx,
 		const struct exynos_panel_mode *pmode, unsigned int flags)
 {
-	dev_dbg(ctx->dev, "%s +\n", __func__);
+	panel_debug(ctx, "+\n");
 
 	if (!ctx->enabled)
 		return;
 
-	dev_dbg(ctx->dev, "%s -\n", __func__);
+	panel_debug(ctx, "-\n");
 }
 
 static void s6e8fc1_lp_mode_set(struct exynos_panel *ctx,
@@ -91,7 +91,7 @@ static void s6e8fc1_lp_mode_set(struct exynos_panel *ctx,
 	if (!ctx->enabled)
 		return;
 
-	dev_info(ctx->dev, "enter %dhz LP mode\n", drm_mode_vrefresh(&pmode->mode));
+	panel_debug(ctxv, "enter %dhz LP mode\n", drm_mode_vrefresh(&pmode->mode));
 }
 
 static int s6e8fc1_enable(struct drm_panel *panel)
@@ -101,12 +101,12 @@ static int s6e8fc1_enable(struct drm_panel *panel)
 	const struct drm_display_mode *mode;
 
 	if (!pmode) {
-		dev_err(ctx->dev, "no current mode set\n");
+		panel_err(ctx, "no current mode set\n");
 		return -EINVAL;
 	}
 	mode = &pmode->mode;
 
-	dev_info(ctx->dev, "%s +\n", __func__);
+	panel_info(ctx, "+\n");
 
 	EXYNOS_DCS_WRITE_SEQ_DELAY(ctx, 20, 0x11);
 	EXYNOS_DCS_WRITE_SEQ(ctx, 0xf0, 0x5a, 0x5a);
@@ -127,7 +127,7 @@ static int s6e8fc1_enable(struct drm_panel *panel)
 	if (pmode->exynos_mode.is_lp_mode)
 		s6e8fc1_lp_mode_set(ctx, pmode);
 
-	dev_info(ctx->dev, "%s -\n", __func__);
+	panel_info(ctx, "-\n");
 
 	return 0;
 }
