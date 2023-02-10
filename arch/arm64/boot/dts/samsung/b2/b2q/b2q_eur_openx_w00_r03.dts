@@ -254,6 +254,40 @@
 					phandle = <0x7f>;
 				};
 
+				sec_abc {
+					compatible = "samsung,sec_abc";
+					status = "okay";
+
+					gpu {
+						gpu,label = "GPU fault";
+						gpu,threshold_count = <0x4>;
+						gpu,threshold_time = <0x4b0>;
+					};
+
+					gpu_page {
+						gpu_page,label = "GPU page fault";
+						gpu_page,threshold_count = <0x14>;
+						gpu_page,threshold_time = <0x4b0>;
+					};
+
+					aicl {
+						aicl,label = "battery aicl";
+						aicl,threshold_count = <0x5>;
+						aicl,threshold_time = <0x12c>;
+					};
+				};
+
+				abc_hub {
+					compatible = "samsung,abc_hub";
+					status = "okay";
+
+					bootc {
+						bootc,time_spec_user = <0x186a0>;
+						bootc,time_spec_eng = <0x186a0>;
+						bootc,time_spec_fac = <0x186a0>;
+					};
+				};
+
 				input_booster {
 					status = "okay";
 					compatible = "input_booster";
@@ -834,58 +868,26 @@
 					};
 				};
 
+				sec_abc_detect_conn {
+					compatible = "samsung,sec_abc_detect_conn";
+					status = "okay";
+					sec,det_conn_gpios = <0xffffffff 0x78 0x0 0xffffffff 0x83 0x0 0xffffffff 0x84 0x0>;
+					sec,det_conn_name = "SUB_CONNECT", "MAIN_BAT_DETECT", "SUB_BAT_DETECT";
+					pinctrl-names = "det_ap_connect";
+					pinctrl-0 = <0x7>;
+				};
+
 				hall_ic {
 					status = "okay";
 					compatible = "hall_ic";
 					pinctrl-names = "default";
-					pinctrl-0 = <0x7>;
+					pinctrl-0 = <0x8>;
 					phandle = <0xd4>;
 
 					flip {
 						event = <0x0>;
 						gpios = <0xffffffff 0x50 0x1>;
 						phandle = <0xd5>;
-					};
-				};
-
-				sec_abc {
-					compatible = "samsung,sec_abc";
-					status = "okay";
-
-					gpu {
-						gpu,label = "GPU fault";
-						gpu,threshold_count = <0x4>;
-						gpu,threshold_time = <0x4b0>;
-					};
-
-					gpu_page {
-						gpu_page,label = "GPU page fault";
-						gpu_page,threshold_count = <0x14>;
-						gpu_page,threshold_time = <0x4b0>;
-					};
-
-					aicl {
-						aicl,label = "battery aicl";
-						aicl,threshold_count = <0x5>;
-						aicl,threshold_time = <0x12c>;
-					};
-				};
-
-				abc_hub {
-					compatible = "samsung,abc_hub";
-					status = "okay";
-					pinctrl-names = "det_ap_connect";
-					pinctrl-0 = <0x8>;
-
-					bootc {
-						bootc,time_spec_user = <0x186a0>;
-						bootc,time_spec_eng = <0x186a0>;
-						bootc,time_spec_fac = <0x186a0>;
-					};
-
-					cond {
-						sec,det_conn_gpios = <0xffffffff 0x78 0x0 0xffffffff 0x83 0x0 0xffffffff 0x84 0x0>;
-						sec,det_conn_name = "sub", "main_bat", "sub_bat", "", "", "";
 					};
 				};
 
@@ -9286,6 +9288,29 @@
 
 		__overlay__ {
 
+			detect_conn_setting {
+				phandle = <0x7>;
+
+				mux {
+					pins = "gpio120", "gpio131", "gpio132";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio120", "gpio131", "gpio132";
+					drive-strength = <0x2>;
+					bias-disable;
+					input-enable;
+				};
+			};
+		};
+	};
+
+	fragment@80 {
+		target = <0xffffffff>;
+
+		__overlay__ {
+
 			motor_pwm_active {
 				phandle = <0x85>;
 
@@ -9320,7 +9345,7 @@
 		};
 	};
 
-	fragment@80 {
+	fragment@81 {
 		target = <0xffffffff>;
 
 		__overlay__ {
@@ -9338,13 +9363,13 @@
 		};
 	};
 
-	fragment@81 {
+	fragment@82 {
 		target = <0xffffffff>;
 
 		__overlay__ {
 
 			folder_hall_irq {
-				phandle = <0x7>;
+				phandle = <0x8>;
 
 				mux {
 					pins = "gpio80";
@@ -9356,24 +9381,6 @@
 					drive-strength = <0x2>;
 					input-enable;
 					bias-disable;
-				};
-			};
-		};
-	};
-
-	fragment@82 {
-		target = <0xffffffff>;
-
-		__overlay__ {
-
-			detect_conn_setting {
-				phandle = <0x8>;
-
-				config {
-					pins = "gpio120", "gpio131", "gpio132";
-					drive-strength = <0x2>;
-					bias-disable;
-					input-enable;
 				};
 			};
 		};
@@ -11005,13 +11012,13 @@
 				label = "ss_mafpc_HAD_AMF670ZA01_dtsi";
 				samsung,support_mafpc;
 				samsung,mafpc_crc_pass_data = [94 0d];
-				samsung,mafpc_brightness_scale_revA = [29 00 00 00 00 00 03 f0 5a 5a 29 00 00 00 00 00 04 b0 00 09 87 29 00 00 00 00 00 04 87 ff ff ff 29 00 00 00 00 00 03 f0 a5 a5];
+				samsung,mafpc_brightness_scale_revA = [29 00 00 00 00 00 04 b0 00 09 87 29 00 00 00 00 00 04 87 ff ff ff];
 				samsung,mafpc_setting_pre_revA = [29 01 00 00 01 00 02 75 40 29 01 00 00 00 00 02 87 00];
 				samsung,mafpc_setting_pre2_revA = [29 00 00 00 00 00 04 b0 00 67 fe 29 01 00 00 00 00 05 fe 44 80 af 50];
 				samsung,mafpc_setting_post_revA = [29 01 00 00 00 00 02 75 01];
-				samsung,mafpc_on_revA = [29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 49 87 51 09 20 04 00 00 66 66 66 ff ff ff 33 33 33 33 33 33 ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 29 01 00 00 00 00 02 f7 01 29 01 00 00 00 00 03 f0 a5 a5];
+				samsung,mafpc_on_revA = [29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 49 87 71 09 20 04 00 00 66 66 66 ff ff ff 33 33 33 33 33 33 ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff 29 01 00 00 00 00 02 f7 01 29 01 00 00 00 00 03 f0 a5 a5];
 				samsung,mafpc_off_revA = [29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 02 87 00 29 01 00 00 00 00 03 f0 a5 a5];
-				samsung,mafpc_check_tx_pre1_revA = <0x29010000 0x39f 0xa5a52901 0x0 0x3f05a5a 0x29010000 0x3fc 0x5a5a2901 0x0 0x4b00027 0xd8290100 0x2 0xd8152901 0x0 0xabf0107 0xff000010 0x29 0x1000000 0x498751 0x9200400 0x666666 0xffffff33 0x33333333 0x33ffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffff29 0x1000000 0x2f701 0x29010000 0x27a 0x290100 0x220002 0xdd002901 0x0 0x3fca5a5 0x29010000 0x3f0 0xa5a52901 0x0 0x39f5a5a>;
+				samsung,mafpc_check_tx_pre1_revA = <0x29010000 0x39f 0xa5a52901 0x0 0x3f05a5a 0x29010000 0x3fc 0x5a5a2901 0x0 0x4b00027 0xd8290100 0x2 0xd8152901 0x0 0xabf0107 0xff000010 0x29 0x1000000 0x498771 0x9200400 0x666666 0xffffff33 0x33333333 0x33ffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffffff 0xffffff29 0x1000000 0x2f701 0x29010000 0x27a 0x290100 0x220002 0xdd002901 0x0 0x3fca5a5 0x29010000 0x3f0 0xa5a52901 0x0 0x39f5a5a>;
 				samsung,mafpc_check_rx_cmds_revA = [06 01 00 00 00 00 01 14 02 00 00];
 				samsung,mafpc_check_tx_post_revA = <0x29010000 0x39f 0xa5a52901 0x0 0x3f05a5a 0x29010000 0x3fc 0x5a5a2901 0x0 0xabf0007 0xff000010 0x29 0x1000000 0x28700 0x29010000 0x27a 0x5290100 0x2 0xdd012901 0x0 0x3fca5a5 0x29010000 0x3f0 0xa5a52901 0x0 0x39f5a5a>;
 				phandle = <0x9b>;
@@ -12628,7 +12635,7 @@
 			sec,wb-up-threshold-rqs = <0x1e>;
 			sec,wb-down-threshold-block = <0x600>;
 			sec,wb-down-threshold-rqs = <0x19>;
-			sec,wb-disable-threshold-lt = <0x7>;
+			sec,wb-disable-threshold-lt = <0x9>;
 			sec,wb-on-delay-ms = <0x5c>;
 			sec,wb-off-delay-ms = <0x1194>;
 		};
@@ -14529,11 +14536,11 @@
 		sub_bat_enb_default = "/fragment@76/__overlay__/sub_bat_enb_default";
 		s2asl01_limiter_main = "/fragment@77/__overlay__/s2asl01-limiter-main@38";
 		s2asl01_limiter_sub = "/fragment@78/__overlay__/s2asl01-limiter-sub@39";
-		motor_pwm_active = "/fragment@79/__overlay__/motor_pwm_active";
-		motor_pwm_suspend = "/fragment@79/__overlay__/motor_pwm_suspend";
-		pwm_gpclk = "/fragment@80/__overlay__/samsung,pwm_gpclk";
-		folder_hall_irq = "/fragment@81/__overlay__/folder_hall_irq";
-		detect_conn_setting = "/fragment@82/__overlay__/detect_conn_setting";
+		detect_conn_setting = "/fragment@79/__overlay__/detect_conn_setting";
+		motor_pwm_active = "/fragment@80/__overlay__/motor_pwm_active";
+		motor_pwm_suspend = "/fragment@80/__overlay__/motor_pwm_suspend";
+		pwm_gpclk = "/fragment@81/__overlay__/samsung,pwm_gpclk";
+		folder_hall_irq = "/fragment@82/__overlay__/folder_hall_irq";
 		snvm_i2c_sda_sleep = "/fragment@87/__overlay__/snvm_i2c_sda_sleep";
 		snvm_i2c_scl_sleep = "/fragment@87/__overlay__/snvm_i2c_scl_sleep";
 		s2dos05_irq = "/fragment@89/__overlay__/s2dos05_irq";
@@ -14660,10 +14667,10 @@
 	};
 
 	__fixups__ {
-		tlmm = "/fragment@smd/__overlay__/samsung_mobile_device/hall_ic/flip:gpios:0", "/fragment@smd/__overlay__/samsung_mobile_device/abc_hub/cond:sec,det_conn_gpios:0", "/fragment@smd/__overlay__/samsung_mobile_device/abc_hub/cond:sec,det_conn_gpios:12", "/fragment@smd/__overlay__/samsung_mobile_device/abc_hub/cond:sec,det_conn_gpios:24", "/fragment@smd/__overlay__/samsung_mobile_device/max77705-fuelgauge:fuelgauge,jig_gpio:0", "/fragment@smd/__overlay__/samsung_mobile_device/max77705-fuelgauge:fuelgauge,bat_id_gpio:0", "/fragment@smd/__overlay__/samsung_mobile_device/max77705-fuelgauge:fuelgauge,sub_bat_id_gpio:0", "/fragment@18/__overlay__/qcom,mdss_dsi_sw43404_amoled_wqhd_cmd:qcom,platform-reset-gpio:0", "/fragment@19/__overlay__/qcom,mdss_dsi_sw43404_amoled_wqhd_video:qcom,platform-reset-gpio:0", "/fragment@21/__overlay__/qcom,mdss_dsi_sharp_4k_dsc_cmd:qcom,platform-reset-gpio:0", "/fragment@21/__overlay__/qcom,mdss_dsi_sharp_4k_dsc_cmd:qcom,platform-bklight-en-gpio:0", "/fragment@22/__overlay__/qcom,mdss_dsi_sharp_4k_dsc_video:qcom,platform-reset-gpio:0", "/fragment@22/__overlay__/qcom,mdss_dsi_sharp_4k_dsc_video:qcom,platform-bklight-en-gpio:0", "/fragment@23/__overlay__/qcom,mdss_dsi_sharp_qhd_plus_dsc_cmd:qcom,platform-reset-gpio:0", "/fragment@23/__overlay__/qcom,mdss_dsi_sharp_qhd_plus_dsc_cmd:qcom,platform-bklight-en-gpio:0", "/fragment@24/__overlay__/qcom,mdss_dsi_sharp_qsync_wqhd_cmd:qcom,platform-reset-gpio:0", "/fragment@24/__overlay__/qcom,mdss_dsi_sharp_qsync_wqhd_cmd:qcom,platform-bklight-en-gpio:0", "/fragment@25/__overlay__/qcom,mdss_dsi_sharp_qsync_wqhd_video:qcom,platform-reset-gpio:0", "/fragment@25/__overlay__/qcom,mdss_dsi_sharp_qsync_wqhd_video:qcom,platform-bklight-en-gpio:0", "/fragment@26/__overlay__/qcom,mdss_dsi_sharp_1080p_cmd:qcom,platform-reset-gpio:0", "/fragment@27/__overlay__/qcom,mdss_dsi_nt35597_truly_wqxga_cmd:qcom,platform-reset-gpio:0", "/fragment@28/__overlay__/qcom,mdss_dsi_nt35597_wqxga_video_truly:qcom,platform-reset-gpio:0", "/fragment@29/__overlay__/qcom,mdss_dsi_nt35695b_truly_fhd_cmd:qcom,platform-reset-gpio:0", "/fragment@31/__overlay__/qcom,mdss_dsi_r66451_fhd_plus_cphy_vid:qcom,platform-reset-gpio:0", "/fragment@32/__overlay__/qcom,mdss_dsi_r66451_fhd_plus_cphy_cmd:qcom,platform-reset-gpio:0", "/fragment@33/__overlay__/qcom,mdss_dsi_visionox_r66451_fhd_plus_video:qcom,platform-reset-gpio:0", "/fragment@34/__overlay__/qcom,mdss_dsi_visionox_r66451_fhd_plus_cmd:qcom,platform-reset-gpio:0", "/fragment@35/__overlay__/qcom,mdss_dsi_visionox_r66451_fhd_plus_60hz_cmd:qcom,platform-reset-gpio:0", "/fragment@36/__overlay__/qcom,mdss_dsi_r66451_fhd_plus_144hz_cmd:qcom,platform-reset-gpio:0", "/fragment@38/__overlay__/qcom,mdss_dsi_sim_cmd:qcom,platform-reset-gpio:0", "/fragment@39/__overlay__/qcom,mdss_dsi_sim_video:qcom,platform-reset-gpio:0", "/fragment@40/__overlay__/qcom,mdss_dsi_sim_dsc_375_cmd:qcom,platform-reset-gpio:0", "/fragment@41/__overlay__/qcom,mdss_dsi_sim_dsc_10b_cmd:qcom,platform-reset-gpio:0", "/fragment@42/__overlay__/qcom,mdss_dsi_dual_sim_cmd:qcom,platform-reset-gpio:0", "/fragment@43/__overlay__/qcom,mdss_dsi_dual_sim_video:qcom,platform-reset-gpio:0", "/fragment@44/__overlay__/qcom,mdss_dsi_dual_sim_dsc_375_cmd:qcom,platform-reset-gpio:0", "/fragment@45/__overlay__/qcom,mdss_dsi_sim_sec_hd_cmd:qcom,platform-reset-gpio:0", "/fragment@45/__overlay__/qcom,mdss_dsi_sim_sec_hd_cmd:qcom,platform-sec-reset-gpio:0", "/fragment@46/__overlay__/qcom,mdss_dsi_sim_vdc_vid:qcom,platform-reset-gpio:0", "/fragment@47/__overlay__/qcom,mdss_dsi_sim_vdc_cmd:qcom,platform-reset-gpio:0", "/fragment@48/__overlay__/qcom,dsi-display-primary:qcom,platform-te-gpio:0", "/fragment@48/__overlay__/qcom,dsi-display-secondary:qcom,platform-te-gpio:0", "/fragment@49:target:0", "/fragment@56/__overlay__/st_fts@49:interrupt-parent:0", "/fragment@56/__overlay__/st_fts@49:st,irq-gpio:0", "/fragment@56/__overlay__/st_fts@49:st,reset-gpio:0", "/fragment@56/__overlay__/focaltech@38:interrupt-parent:0", "/fragment@56/__overlay__/focaltech@38:focaltech,reset-gpio:0", "/fragment@56/__overlay__/focaltech@38:focaltech,irq-gpio:0", "/fragment@57/__overlay__:cd-gpios:0", "/fragment@63/__overlay__/nq@28:qcom,sn-irq:0", "/fragment@63/__overlay__/nq@28:qcom,sn-ven:0", "/fragment@63/__overlay__/nq@28:qcom,sn-firm:0", "/fragment@63/__overlay__/nq@28:qcom,sn-clkreq:0", "/fragment@63/__overlay__/nq@28:interrupt-parent:0", "/fragment@64/__overlay__/ss_dsi_panel_PBA_BOOTING_FHD:qcom,platform-reset-gpio:0", "/fragment@65:target:0", "/fragment@66:target:0", "/fragment@model/__overlay__/i2c@32:gpios:0", "/fragment@model/__overlay__/i2c@32:gpios:12", "/fragment@model/__overlay__/i2c@32/s2dos05_pmic@60:s2dos05,s2dos05_int:0", "/fragment@model/__overlay__/i2c@31:gpios:0", "/fragment@model/__overlay__/i2c@31:gpios:12", "/fragment@model/__overlay__/i2c@31/s2mpb02_pmic@59:interrupt-parent:0", "/fragment@model/__overlay__/i2c@31/s2mpb02_pmic@59/torch/s2mpb02-leds1:gpios:0", "/fragment@model/__overlay__/i2c@31/s2mpb02_pmic@59/torch/s2mpb02-leds2:gpios:0", "/fragment@model/__overlay__/i2c@30:gpios:0", "/fragment@model/__overlay__/i2c@30:gpios:12", "/fragment@model/__overlay__/i2c@30/mfc-s2miw04-charger@3b:battery,wpc_int:0", "/fragment@model/__overlay__/i2c@30/mfc-s2miw04-charger@3b:battery,wpc_en:0", "/fragment@67:target:0", "/fragment@68:target:0", "/fragment@69:target:0", "/fragment@70:target:0", "/fragment@71/__overlay__/ss_dsi_panel_PBA_BOOTING_FHD_DSI1:qcom,platform-reset-gpio:0", "/fragment@72:target:0", "/fragment@73:target:0", "/fragment@74:target:0", "/fragment@75:target:0", "/fragment@76:target:0", "/fragment@77/__overlay__/s2asl01-limiter-main@38:limiter,main_bat_det_gpio:0", "/fragment@77/__overlay__/s2asl01-limiter-main@38:limiter,main_bat_enb_gpio:0", "/fragment@77/__overlay__/s2asl01-limiter-main@38:limiter,main_bat_enb2_gpio:0", "/fragment@78/__overlay__/s2asl01-limiter-sub@39:limiter,sub_bat_det_gpio:0", "/fragment@78/__overlay__/s2asl01-limiter-sub@39:limiter,sub_bat_enb_gpio:0", "/fragment@79:target:0", "/fragment@81:target:0", "/fragment@82:target:0", "/fragment@87:target:0", "/fragment@89:target:0", "/fragment@90:target:0", "/fragment@92:target:0", "/fragment@94:target:0", "/fragment@95/__overlay__/pn547@2B:pn547,irq-gpio:0", "/fragment@95/__overlay__/pn547@2B:pn547,ven-gpio:0", "/fragment@95/__overlay__/pn547@2B:pn547,firm-gpio:0", "/fragment@95/__overlay__/pn547@2B:pn547,clk_req-gpio:0", "/fragment@96:target:0", "/fragment@97:target:0", "/fragment@98:target:0", "/fragment@99:target:0", "/fragment@100/__overlay__/sec-cisd:ovp_power:0", "/fragment@100/__overlay__/sec-cisd:ovp_signal:0", "/fragment@102/__overlay__/ss_dsi_panel_S6E36W3_AMB114EU09_116X300:qcom,platform-sec-reset-gpio:0", "/fragment@102/__overlay__/ss_dsi_panel_S6E36W3_AMB114EU09_116X300:qcom,platform-te-gpio:0", "/fragment@102/__overlay__/ss_dsi_panel_S6E36W3_AMB114EU09_116X300:samsung,ub-con-det:0", "/fragment@102/__overlay__/ss_dsi_panel_S6E36W3_AMB114EU09_116X300:samsung,esd-irq-gpio1:0", "/fragment@104:target:0", "/fragment@105:target:0", "/fragment@106:target:0", "/fragment@107:target:0", "/fragment@108:target:0", "/fragment@109:target:0", "/fragment@110:target:0", "/fragment@111/__overlay__/gw3x:goodix,gpio_reset:0", "/fragment@111/__overlay__/gw3x:goodix,gpio_irq:0", "/fragment@114/__overlay__/ss_dsi_panel_S6E3HA9_AMF670UH01_FHD:qcom,platform-reset-gpio:0", "/fragment@114/__overlay__/ss_dsi_panel_S6E3HA9_AMF670UH01_FHD:qcom,platform-te-gpio:0", "/fragment@114/__overlay__/ss_dsi_panel_S6E3HA9_AMF670UH01_FHD:samsung,ub-con-det:0", "/fragment@115:target:0", "/fragment@116:target:0", "/fragment@117:target:0", "/fragment@121/__overlay__/ss_dsi_panel_S6E3HAD_AMF670ZA01_FHD:qcom,platform-reset-gpio:0", "/fragment@121/__overlay__/ss_dsi_panel_S6E3HAD_AMF670ZA01_FHD:qcom,platform-te-gpio:0", "/fragment@121/__overlay__/ss_dsi_panel_S6E3HAD_AMF670ZA01_FHD:samsung,ub-con-det:0", "/fragment@122:target:0", "/fragment@123:target:0", "/fragment@124:target:0", "/fragment@125:target:0", "/fragment@126/__overlay__/touchscreen@49:sec,irq_gpio:0", "/fragment@129/__overlay__/ss_dsi_panel_S6E36W3_AMB190ZB01_260X488:qcom,platform-sec-reset-gpio:0", "/fragment@129/__overlay__/ss_dsi_panel_S6E36W3_AMB190ZB01_260X488:qcom,platform-te-gpio:0", "/fragment@129/__overlay__/ss_dsi_panel_S6E36W3_AMB190ZB01_260X488:samsung,ub-con-det:0", "/fragment@129/__overlay__/ss_dsi_panel_S6E36W3_AMB190ZB01_260X488:samsung,esd-irq-gpio1:0", "/fragment@131:target:0", "/fragment@132:target:0", "/fragment@133:target:0", "/fragment@134:target:0", "/fragment@141:target:0", "/fragment@175/__overlay__:wlan_fem_sel:0", "/fragment@178:target:0", "/fragment@180:target:0", "/fragment@182:target:0", "/fragment@183/__overlay__/i2c@17:gpios:0", "/fragment@183/__overlay__/i2c@17:gpios:12", "/fragment@183/__overlay__/i2c@17/sx9360-i2c@28:interrupt-parent:0", "/fragment@183/__overlay__/i2c@17/sx9360-i2c@28:sx9360,nirq-gpio:0", "/fragment@185:target:0", "/fragment@186:target:0", "/fragment@212/__overlay__/cs35l41@40:interrupt-parent:0", "/fragment@212/__overlay__/cs35l41@40:reset-gpios:0", "/fragment@212/__overlay__/cs35l41@41:interrupt-parent:0", "/fragment@212/__overlay__/cs35l41@41:reset-gpios:0", "/fragment@215/__overlay__:samsung,cc_dir:0", "/fragment@221:target:0", "/fragment@225/__overlay__/touchscreen@20:interrupt-parent:0", "/fragment@225/__overlay__/touchscreen@20:zinitix,irq_gpio:0", "/fragment@225/__overlay__/touchscreen@48:interrupt-parent:0", "/fragment@225/__overlay__/touchscreen@48:sec,irq_gpio:0", "/fragment@228/__overlay__:qcom,bt-sw-ctrl-gpio:0", "/fragment@228/__overlay__:qcom,bt-fem-sel-gpio:0", "/fragment@231/__overlay__/qcom,cam-sensor0:gpios:0", "/fragment@231/__overlay__/qcom,cam-sensor0:gpios:12", "/fragment@231/__overlay__/qcom,cam-sensor1:gpios:0", "/fragment@231/__overlay__/qcom,cam-sensor1:gpios:12", "/fragment@231/__overlay__/qcom,cam-sensor12:gpios:0", "/fragment@231/__overlay__/qcom,cam-sensor12:gpios:12", "/fragment@232/__overlay__/qcom,cam-sensor2:gpios:0", "/fragment@232/__overlay__/qcom,cam-sensor2:gpios:12", "/fragment@234/__overlay__/qcom,ois@51:gpios:0", "/fragment@234/__overlay__/qcom,ois@51:gpios:12";
+		tlmm = "/fragment@smd/__overlay__/samsung_mobile_device/sec_abc_detect_conn:sec,det_conn_gpios:0", "/fragment@smd/__overlay__/samsung_mobile_device/sec_abc_detect_conn:sec,det_conn_gpios:12", "/fragment@smd/__overlay__/samsung_mobile_device/sec_abc_detect_conn:sec,det_conn_gpios:24", "/fragment@smd/__overlay__/samsung_mobile_device/hall_ic/flip:gpios:0", "/fragment@smd/__overlay__/samsung_mobile_device/max77705-fuelgauge:fuelgauge,jig_gpio:0", "/fragment@smd/__overlay__/samsung_mobile_device/max77705-fuelgauge:fuelgauge,bat_id_gpio:0", "/fragment@smd/__overlay__/samsung_mobile_device/max77705-fuelgauge:fuelgauge,sub_bat_id_gpio:0", "/fragment@18/__overlay__/qcom,mdss_dsi_sw43404_amoled_wqhd_cmd:qcom,platform-reset-gpio:0", "/fragment@19/__overlay__/qcom,mdss_dsi_sw43404_amoled_wqhd_video:qcom,platform-reset-gpio:0", "/fragment@21/__overlay__/qcom,mdss_dsi_sharp_4k_dsc_cmd:qcom,platform-reset-gpio:0", "/fragment@21/__overlay__/qcom,mdss_dsi_sharp_4k_dsc_cmd:qcom,platform-bklight-en-gpio:0", "/fragment@22/__overlay__/qcom,mdss_dsi_sharp_4k_dsc_video:qcom,platform-reset-gpio:0", "/fragment@22/__overlay__/qcom,mdss_dsi_sharp_4k_dsc_video:qcom,platform-bklight-en-gpio:0", "/fragment@23/__overlay__/qcom,mdss_dsi_sharp_qhd_plus_dsc_cmd:qcom,platform-reset-gpio:0", "/fragment@23/__overlay__/qcom,mdss_dsi_sharp_qhd_plus_dsc_cmd:qcom,platform-bklight-en-gpio:0", "/fragment@24/__overlay__/qcom,mdss_dsi_sharp_qsync_wqhd_cmd:qcom,platform-reset-gpio:0", "/fragment@24/__overlay__/qcom,mdss_dsi_sharp_qsync_wqhd_cmd:qcom,platform-bklight-en-gpio:0", "/fragment@25/__overlay__/qcom,mdss_dsi_sharp_qsync_wqhd_video:qcom,platform-reset-gpio:0", "/fragment@25/__overlay__/qcom,mdss_dsi_sharp_qsync_wqhd_video:qcom,platform-bklight-en-gpio:0", "/fragment@26/__overlay__/qcom,mdss_dsi_sharp_1080p_cmd:qcom,platform-reset-gpio:0", "/fragment@27/__overlay__/qcom,mdss_dsi_nt35597_truly_wqxga_cmd:qcom,platform-reset-gpio:0", "/fragment@28/__overlay__/qcom,mdss_dsi_nt35597_wqxga_video_truly:qcom,platform-reset-gpio:0", "/fragment@29/__overlay__/qcom,mdss_dsi_nt35695b_truly_fhd_cmd:qcom,platform-reset-gpio:0", "/fragment@31/__overlay__/qcom,mdss_dsi_r66451_fhd_plus_cphy_vid:qcom,platform-reset-gpio:0", "/fragment@32/__overlay__/qcom,mdss_dsi_r66451_fhd_plus_cphy_cmd:qcom,platform-reset-gpio:0", "/fragment@33/__overlay__/qcom,mdss_dsi_visionox_r66451_fhd_plus_video:qcom,platform-reset-gpio:0", "/fragment@34/__overlay__/qcom,mdss_dsi_visionox_r66451_fhd_plus_cmd:qcom,platform-reset-gpio:0", "/fragment@35/__overlay__/qcom,mdss_dsi_visionox_r66451_fhd_plus_60hz_cmd:qcom,platform-reset-gpio:0", "/fragment@36/__overlay__/qcom,mdss_dsi_r66451_fhd_plus_144hz_cmd:qcom,platform-reset-gpio:0", "/fragment@38/__overlay__/qcom,mdss_dsi_sim_cmd:qcom,platform-reset-gpio:0", "/fragment@39/__overlay__/qcom,mdss_dsi_sim_video:qcom,platform-reset-gpio:0", "/fragment@40/__overlay__/qcom,mdss_dsi_sim_dsc_375_cmd:qcom,platform-reset-gpio:0", "/fragment@41/__overlay__/qcom,mdss_dsi_sim_dsc_10b_cmd:qcom,platform-reset-gpio:0", "/fragment@42/__overlay__/qcom,mdss_dsi_dual_sim_cmd:qcom,platform-reset-gpio:0", "/fragment@43/__overlay__/qcom,mdss_dsi_dual_sim_video:qcom,platform-reset-gpio:0", "/fragment@44/__overlay__/qcom,mdss_dsi_dual_sim_dsc_375_cmd:qcom,platform-reset-gpio:0", "/fragment@45/__overlay__/qcom,mdss_dsi_sim_sec_hd_cmd:qcom,platform-reset-gpio:0", "/fragment@45/__overlay__/qcom,mdss_dsi_sim_sec_hd_cmd:qcom,platform-sec-reset-gpio:0", "/fragment@46/__overlay__/qcom,mdss_dsi_sim_vdc_vid:qcom,platform-reset-gpio:0", "/fragment@47/__overlay__/qcom,mdss_dsi_sim_vdc_cmd:qcom,platform-reset-gpio:0", "/fragment@48/__overlay__/qcom,dsi-display-primary:qcom,platform-te-gpio:0", "/fragment@48/__overlay__/qcom,dsi-display-secondary:qcom,platform-te-gpio:0", "/fragment@49:target:0", "/fragment@56/__overlay__/st_fts@49:interrupt-parent:0", "/fragment@56/__overlay__/st_fts@49:st,irq-gpio:0", "/fragment@56/__overlay__/st_fts@49:st,reset-gpio:0", "/fragment@56/__overlay__/focaltech@38:interrupt-parent:0", "/fragment@56/__overlay__/focaltech@38:focaltech,reset-gpio:0", "/fragment@56/__overlay__/focaltech@38:focaltech,irq-gpio:0", "/fragment@57/__overlay__:cd-gpios:0", "/fragment@63/__overlay__/nq@28:qcom,sn-irq:0", "/fragment@63/__overlay__/nq@28:qcom,sn-ven:0", "/fragment@63/__overlay__/nq@28:qcom,sn-firm:0", "/fragment@63/__overlay__/nq@28:qcom,sn-clkreq:0", "/fragment@63/__overlay__/nq@28:interrupt-parent:0", "/fragment@64/__overlay__/ss_dsi_panel_PBA_BOOTING_FHD:qcom,platform-reset-gpio:0", "/fragment@65:target:0", "/fragment@66:target:0", "/fragment@model/__overlay__/i2c@32:gpios:0", "/fragment@model/__overlay__/i2c@32:gpios:12", "/fragment@model/__overlay__/i2c@32/s2dos05_pmic@60:s2dos05,s2dos05_int:0", "/fragment@model/__overlay__/i2c@31:gpios:0", "/fragment@model/__overlay__/i2c@31:gpios:12", "/fragment@model/__overlay__/i2c@31/s2mpb02_pmic@59:interrupt-parent:0", "/fragment@model/__overlay__/i2c@31/s2mpb02_pmic@59/torch/s2mpb02-leds1:gpios:0", "/fragment@model/__overlay__/i2c@31/s2mpb02_pmic@59/torch/s2mpb02-leds2:gpios:0", "/fragment@model/__overlay__/i2c@30:gpios:0", "/fragment@model/__overlay__/i2c@30:gpios:12", "/fragment@model/__overlay__/i2c@30/mfc-s2miw04-charger@3b:battery,wpc_int:0", "/fragment@model/__overlay__/i2c@30/mfc-s2miw04-charger@3b:battery,wpc_en:0", "/fragment@67:target:0", "/fragment@68:target:0", "/fragment@69:target:0", "/fragment@70:target:0", "/fragment@71/__overlay__/ss_dsi_panel_PBA_BOOTING_FHD_DSI1:qcom,platform-reset-gpio:0", "/fragment@72:target:0", "/fragment@73:target:0", "/fragment@74:target:0", "/fragment@75:target:0", "/fragment@76:target:0", "/fragment@77/__overlay__/s2asl01-limiter-main@38:limiter,main_bat_det_gpio:0", "/fragment@77/__overlay__/s2asl01-limiter-main@38:limiter,main_bat_enb_gpio:0", "/fragment@77/__overlay__/s2asl01-limiter-main@38:limiter,main_bat_enb2_gpio:0", "/fragment@78/__overlay__/s2asl01-limiter-sub@39:limiter,sub_bat_det_gpio:0", "/fragment@78/__overlay__/s2asl01-limiter-sub@39:limiter,sub_bat_enb_gpio:0", "/fragment@79:target:0", "/fragment@80:target:0", "/fragment@82:target:0", "/fragment@87:target:0", "/fragment@89:target:0", "/fragment@90:target:0", "/fragment@92:target:0", "/fragment@94:target:0", "/fragment@95/__overlay__/pn547@2B:pn547,irq-gpio:0", "/fragment@95/__overlay__/pn547@2B:pn547,ven-gpio:0", "/fragment@95/__overlay__/pn547@2B:pn547,firm-gpio:0", "/fragment@95/__overlay__/pn547@2B:pn547,clk_req-gpio:0", "/fragment@96:target:0", "/fragment@97:target:0", "/fragment@98:target:0", "/fragment@99:target:0", "/fragment@100/__overlay__/sec-cisd:ovp_power:0", "/fragment@100/__overlay__/sec-cisd:ovp_signal:0", "/fragment@102/__overlay__/ss_dsi_panel_S6E36W3_AMB114EU09_116X300:qcom,platform-sec-reset-gpio:0", "/fragment@102/__overlay__/ss_dsi_panel_S6E36W3_AMB114EU09_116X300:qcom,platform-te-gpio:0", "/fragment@102/__overlay__/ss_dsi_panel_S6E36W3_AMB114EU09_116X300:samsung,ub-con-det:0", "/fragment@102/__overlay__/ss_dsi_panel_S6E36W3_AMB114EU09_116X300:samsung,esd-irq-gpio1:0", "/fragment@104:target:0", "/fragment@105:target:0", "/fragment@106:target:0", "/fragment@107:target:0", "/fragment@108:target:0", "/fragment@109:target:0", "/fragment@110:target:0", "/fragment@111/__overlay__/gw3x:goodix,gpio_reset:0", "/fragment@111/__overlay__/gw3x:goodix,gpio_irq:0", "/fragment@114/__overlay__/ss_dsi_panel_S6E3HA9_AMF670UH01_FHD:qcom,platform-reset-gpio:0", "/fragment@114/__overlay__/ss_dsi_panel_S6E3HA9_AMF670UH01_FHD:qcom,platform-te-gpio:0", "/fragment@114/__overlay__/ss_dsi_panel_S6E3HA9_AMF670UH01_FHD:samsung,ub-con-det:0", "/fragment@115:target:0", "/fragment@116:target:0", "/fragment@117:target:0", "/fragment@121/__overlay__/ss_dsi_panel_S6E3HAD_AMF670ZA01_FHD:qcom,platform-reset-gpio:0", "/fragment@121/__overlay__/ss_dsi_panel_S6E3HAD_AMF670ZA01_FHD:qcom,platform-te-gpio:0", "/fragment@121/__overlay__/ss_dsi_panel_S6E3HAD_AMF670ZA01_FHD:samsung,ub-con-det:0", "/fragment@122:target:0", "/fragment@123:target:0", "/fragment@124:target:0", "/fragment@125:target:0", "/fragment@126/__overlay__/touchscreen@49:sec,irq_gpio:0", "/fragment@129/__overlay__/ss_dsi_panel_S6E36W3_AMB190ZB01_260X488:qcom,platform-sec-reset-gpio:0", "/fragment@129/__overlay__/ss_dsi_panel_S6E36W3_AMB190ZB01_260X488:qcom,platform-te-gpio:0", "/fragment@129/__overlay__/ss_dsi_panel_S6E36W3_AMB190ZB01_260X488:samsung,ub-con-det:0", "/fragment@129/__overlay__/ss_dsi_panel_S6E36W3_AMB190ZB01_260X488:samsung,esd-irq-gpio1:0", "/fragment@131:target:0", "/fragment@132:target:0", "/fragment@133:target:0", "/fragment@134:target:0", "/fragment@141:target:0", "/fragment@175/__overlay__:wlan_fem_sel:0", "/fragment@178:target:0", "/fragment@180:target:0", "/fragment@182:target:0", "/fragment@183/__overlay__/i2c@17:gpios:0", "/fragment@183/__overlay__/i2c@17:gpios:12", "/fragment@183/__overlay__/i2c@17/sx9360-i2c@28:interrupt-parent:0", "/fragment@183/__overlay__/i2c@17/sx9360-i2c@28:sx9360,nirq-gpio:0", "/fragment@185:target:0", "/fragment@186:target:0", "/fragment@212/__overlay__/cs35l41@40:interrupt-parent:0", "/fragment@212/__overlay__/cs35l41@40:reset-gpios:0", "/fragment@212/__overlay__/cs35l41@41:interrupt-parent:0", "/fragment@212/__overlay__/cs35l41@41:reset-gpios:0", "/fragment@215/__overlay__:samsung,cc_dir:0", "/fragment@221:target:0", "/fragment@225/__overlay__/touchscreen@20:interrupt-parent:0", "/fragment@225/__overlay__/touchscreen@20:zinitix,irq_gpio:0", "/fragment@225/__overlay__/touchscreen@48:interrupt-parent:0", "/fragment@225/__overlay__/touchscreen@48:sec,irq_gpio:0", "/fragment@228/__overlay__:qcom,bt-sw-ctrl-gpio:0", "/fragment@228/__overlay__:qcom,bt-fem-sel-gpio:0", "/fragment@231/__overlay__/qcom,cam-sensor0:gpios:0", "/fragment@231/__overlay__/qcom,cam-sensor0:gpios:12", "/fragment@231/__overlay__/qcom,cam-sensor1:gpios:0", "/fragment@231/__overlay__/qcom,cam-sensor1:gpios:12", "/fragment@231/__overlay__/qcom,cam-sensor12:gpios:0", "/fragment@231/__overlay__/qcom,cam-sensor12:gpios:12", "/fragment@232/__overlay__/qcom,cam-sensor2:gpios:0", "/fragment@232/__overlay__/qcom,cam-sensor2:gpios:12", "/fragment@234/__overlay__/qcom,ois@51:gpios:0", "/fragment@234/__overlay__/qcom,ois@51:gpios:12";
 		spmi_bus = "/fragment@0:target:0", "/fragment@1:target:0", "/fragment@3:target:0", "/fragment@5:target:0", "/fragment@7:target:0";
 		thermal_zones = "/fragment@2:target:0", "/fragment@4:target:0", "/fragment@6:target:0", "/fragment@8:target:0", "/fragment@9:target:0", "/fragment@53:target:0", "/fragment@202:target:0";
-		soc = "/fragment@10:target:0", "/fragment@11:target:0", "/fragment@17:target:0", "/fragment@48:target:0", "/fragment@50:target:0", "/fragment@55:target:0", "/fragment@80:target:0", "/fragment@100:target:0", "/fragment@101:target:0", "/fragment@111:target:0", "/fragment@112:target:0", "/fragment@113:target:0", "/fragment@118:target:0", "/fragment@119:target:0", "/fragment@120:target:0", "/fragment@127:target:0", "/fragment@128:target:0", "/fragment@135:target:0", "/fragment@140:target:0", "/fragment@143:target:0", "/fragment@145:target:0", "/fragment@172:target:0", "/fragment@179:target:0", "/fragment@183:target:0", "/fragment@209:target:0", "/fragment@214:target:0", "/fragment@226:target:0", "/fragment@230:target:0", "/fragment@236:target:0";
+		soc = "/fragment@10:target:0", "/fragment@11:target:0", "/fragment@17:target:0", "/fragment@48:target:0", "/fragment@50:target:0", "/fragment@55:target:0", "/fragment@81:target:0", "/fragment@100:target:0", "/fragment@101:target:0", "/fragment@111:target:0", "/fragment@112:target:0", "/fragment@113:target:0", "/fragment@118:target:0", "/fragment@119:target:0", "/fragment@120:target:0", "/fragment@127:target:0", "/fragment@128:target:0", "/fragment@135:target:0", "/fragment@140:target:0", "/fragment@143:target:0", "/fragment@145:target:0", "/fragment@172:target:0", "/fragment@179:target:0", "/fragment@183:target:0", "/fragment@209:target:0", "/fragment@214:target:0", "/fragment@226:target:0", "/fragment@230:target:0", "/fragment@236:target:0";
 		lpi_tlmm = "/fragment@12:target:0", "/fragment@14/__overlay__:qcom,msm_audio_ssr_devs:8", "/fragment@184:target:0";
 		bolero = "/fragment@13:target:0", "/fragment@13/__overlay__/wsa-macro@3240000/wsa_swr_master/wsa883x@02170221:qcom,bolero-handle:0", "/fragment@13/__overlay__/wsa-macro@3240000/wsa_swr_master/wsa883x@02170222:qcom,bolero-handle:0", "/fragment@14/__overlay__:asoc-codec:4", "/fragment@14/__overlay__:qcom,msm_audio_ssr_devs:12", "/fragment@205:target:0";
 		lpass_audio_hw_vote = "/fragment@13/__overlay__/va-macro@3370000:clocks:0", "/fragment@13/__overlay__/tx-macro@3220000/tx_swr_master:clocks:8", "/fragment@13/__overlay__/rx-macro@3200000/rx_swr_master:clocks:8", "/fragment@13/__overlay__/wsa-macro@3240000/wsa_swr_master:clocks:8";
@@ -14862,11 +14869,11 @@
 						pinctrl-0 = <0x0 0x4 0x8 0xc 0x10>;
 					};
 
-					hall_ic {
+					sec_abc_detect_conn {
 						pinctrl-0 = <0x0>;
 					};
 
-					abc_hub {
+					hall_ic {
 						pinctrl-0 = <0x0>;
 					};
 
@@ -15773,7 +15780,7 @@
 			};
 		};
 
-		fragment@80 {
+		fragment@81 {
 
 			__overlay__ {
 

@@ -839,7 +839,7 @@ int sec_bat_set_charging_current(struct sec_battery_info *battery)
 #endif
 		}
 #if IS_ENABLED(CONFIG_DIRECT_CHARGING)
-		else if (is_pd_apdo_wire_type(ct))
+		else if (is_pd_apdo_wire_type(ct) && battery->pd_list.now_isApdo)
 			sec_bat_check_direct_chg_temp(battery);
 #endif
 
@@ -3158,7 +3158,7 @@ static void sec_bat_siop_level_work(struct work_struct *work)
 
 	pr_info("%s : set current by siop level(%d), siop_step(%d)\n", __func__, battery->siop_level, siop_step);
 
-	if ((battery->siop_level >= 100) ||
+	if ((battery->siop_level >= 100) || is_slate_mode(battery) ||
 		((battery->siop_level == 80) && is_wired_type(battery->cable_type))) {
 #if defined(CONFIG_SUPPORT_HV_CTRL)
 		sec_vote(battery->iv_vote, VOTER_SIOP, false, 0);
@@ -3287,6 +3287,7 @@ __visible_for_testing void sec_bat_fw_init_work(struct work_struct *work)
 		sec_bat_fw_update(battery, SEC_WIRELESS_FW_UPDATE_AUTO_MODE);
 	}
 }
+EXPORT_SYMBOL_KUNIT(sec_bat_fw_init_work);
 #endif
 
 #if defined(CONFIG_UPDATE_BATTERY_DATA)

@@ -3943,7 +3943,6 @@ void warn_alloc(gfp_t gfp_mask, nodemask_t *nodemask, const char *fmt, ...)
 	va_list args;
 	static DEFINE_RATELIMIT_STATE(nopage_rs, DEFAULT_RATELIMIT_INTERVAL,
 				      DEFAULT_RATELIMIT_BURST);
-	char task_comm[TASK_COMM_LEN];
 
 	if ((gfp_mask & __GFP_NOWARN) || !__ratelimit(&nopage_rs))
 		return;
@@ -3951,10 +3950,9 @@ void warn_alloc(gfp_t gfp_mask, nodemask_t *nodemask, const char *fmt, ...)
 	va_start(args, fmt);
 	vaf.fmt = fmt;
 	vaf.va = &args;
-	get_task_comm(task_comm, current->group_leader);
-	pr_warn("%s: %pV, mode:%#x(%pGg), fatal_signal:%d, group_loader:%s, nodemask=%*pbl",
+	pr_warn("%s: %pV, mode:%#x(%pGg), fatal_signal:%d, nodemask=%*pbl",
 			current->comm, &vaf, gfp_mask, &gfp_mask,
-			fatal_signal_pending(current) ? 1 : 0, task_comm,
+			fatal_signal_pending(current) ? 1 : 0,
 			nodemask_pr_args(nodemask));
 	va_end(args);
 

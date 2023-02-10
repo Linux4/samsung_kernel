@@ -590,6 +590,10 @@ int sec_bat_set_dchg_current(struct sec_battery_info *battery, int power_type, i
 {
 	int input_current = 0, charging_current = 0;
 
+	/* skip power_type check for non-use lrp_temp_check models */
+	if (battery->pdata->lrp_temp_check_type == SEC_BATTERY_TEMP_CHECK_NONE)
+		power_type = NORMAL_TA;
+
 	if (power_type == SFC_45W) {
 		if (pt & 0x01) {
 			input_current = battery->pdata->lrp_curr[LRP_45W].st_icl[ST1];
@@ -629,8 +633,7 @@ void sec_bat_check_direct_chg_temp(struct sec_battery_info *battery)
 
 	is_apdo = (is_pd_apdo_wire_type(ct) && battery->pd_list.now_isApdo) ? 1 : 0;
 	power_type = sec_bat_check_power_type(battery->max_charge_power,
-				battery->pd_max_charge_power, ct, ws, is_apdo);
-
+		battery->pd_max_charge_power, ct, ws, is_apdo);
 	pt = sec_bat_check_lpm_power(sec_bat_get_lpmode(), power_type);
 
 	if (battery->siop_level >= 100) {

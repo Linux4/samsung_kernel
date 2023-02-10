@@ -74,10 +74,10 @@ struct s2dos05_data {
 };
 
 #if IS_ENABLED(CONFIG_SEC_ABC)
-#define s2dos05_abc_event(arg...)	\
-	__s2dos05_abc_event((char *)__func__, ##arg)
+#define s2dos05_i2c_abc_event(arg...)	\
+	__s2dos05_i2c_abc_event((char *)__func__, ##arg)
 
-static void __s2dos05_abc_event(char *func, struct s2dos05_data *info, int ret)
+static void __s2dos05_i2c_abc_event(char *func, struct s2dos05_data *info, int ret)
 {
 	char buf[64];
 	char *type;
@@ -94,15 +94,31 @@ static void __s2dos05_abc_event(char *func, struct s2dos05_data *info, int ret)
 		count = atomic_inc_return(&info->i2c_fail_count);
 		if (count >= fail_threshold_cnt) {
 			atomic_set(&info->i2c_fail_count, 0);
-			snprintf(buf, sizeof(buf), "MODULE=pmic@%s=%s", type, func);
+			snprintf(buf, sizeof(buf), "MODULE=pmic@%s=%s_fail", type, func);
 			sec_abc_send_event(buf);
 		}
 	} else {
 		atomic_set(&info->i2c_fail_count, 0);
 	}
 }
+
+static void s2dos05_irq_abc_event(const char *irq_desc)
+{
+	char buf[64];
+	char *type;
+
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+	type = "WARN";
 #else
-#define s2dos05_abc_event(arg...)	do {} while (0)
+	type = "INFO";
+#endif /* CONFIG_SEC_FACTORY */
+
+	snprintf(buf, sizeof(buf), "MODULE=pmic@%s=s2dos05_%s", type, irq_desc);
+	sec_abc_send_event(buf);
+}
+#else
+#define s2dos05_i2c_abc_event(arg...)	do {} while (0)
+#define s2dos05_irq_abc_event(arg...)	do {} while (0)
 #endif /* CONFIG_SEC_ABC */
 
 int s2dos05_read_reg(struct i2c_client *i2c, u8 reg, u8 *dest)
@@ -114,7 +130,7 @@ int s2dos05_read_reg(struct i2c_client *i2c, u8 reg, u8 *dest)
 	mutex_lock(&s2dos05->i2c_lock);
 	ret = i2c_smbus_read_byte_data(i2c, reg);
 	mutex_unlock(&s2dos05->i2c_lock);
-	s2dos05_abc_event(info, ret);
+	s2dos05_i2c_abc_event(info, ret);
 	if (ret < 0) {
 		pr_info("%s:%s reg(0x%02hhx), ret(%d)\n",
 			 MFD_DEV_NAME, __func__, reg, ret);
@@ -136,7 +152,7 @@ int s2dos05_bulk_read(struct i2c_client *i2c, u8 reg, int count, u8 *buf)
 	mutex_lock(&s2dos05->i2c_lock);
 	ret = i2c_smbus_read_i2c_block_data(i2c, reg, count, buf);
 	mutex_unlock(&s2dos05->i2c_lock);
-	s2dos05_abc_event(info, ret);
+	s2dos05_i2c_abc_event(info, ret);
 	if (ret < 0)
 		return ret;
 
@@ -153,7 +169,7 @@ int s2dos05_read_word(struct i2c_client *i2c, u8 reg)
 	mutex_lock(&s2dos05->i2c_lock);
 	ret = i2c_smbus_read_word_data(i2c, reg);
 	mutex_unlock(&s2dos05->i2c_lock);
-	s2dos05_abc_event(info, ret);
+	s2dos05_i2c_abc_event(info, ret);
 	if (ret < 0)
 		return ret;
 
@@ -170,7 +186,7 @@ int s2dos05_write_reg(struct i2c_client *i2c, u8 reg, u8 value)
 	mutex_lock(&s2dos05->i2c_lock);
 	ret = i2c_smbus_write_byte_data(i2c, reg, value);
 	mutex_unlock(&s2dos05->i2c_lock);
-	s2dos05_abc_event(info, ret);
+	s2dos05_i2c_abc_event(info, ret);
 	if (ret < 0)
 		pr_info("%s:%s reg(0x%02hhx), ret(%d)\n",
 				MFD_DEV_NAME, __func__, reg, ret);
@@ -188,7 +204,7 @@ int s2dos05_bulk_write(struct i2c_client *i2c, u8 reg, int count, u8 *buf)
 	mutex_lock(&s2dos05->i2c_lock);
 	ret = i2c_smbus_write_i2c_block_data(i2c, reg, count, buf);
 	mutex_unlock(&s2dos05->i2c_lock);
-	s2dos05_abc_event(info, ret);
+	s2dos05_i2c_abc_event(info, ret);
 	if (ret < 0)
 		return ret;
 
@@ -211,7 +227,7 @@ int s2dos05_update_reg(struct i2c_client *i2c, u8 reg, u8 val, u8 mask)
 		ret = i2c_smbus_write_byte_data(i2c, reg, new_val);
 	}
 	mutex_unlock(&s2dos05->i2c_lock);
-	s2dos05_abc_event(info, ret);
+	s2dos05_i2c_abc_event(info, ret);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(s2dos05_update_reg);
@@ -442,7 +458,7 @@ static int s2m_elvss_fd_disable(struct regulator_dev *rdev)
 
 	if (info->fd_work_init)
 		cancel_delayed_work_sync(&info->fd_work);
-	
+
 	return 0;
 }
 #endif /* CONFIG_SEC_PM */
@@ -582,7 +598,7 @@ static irqreturn_t s2dos05_irq_thread(int irq, void *irq_data)
 	struct s2dos05_data *s2dos05 = irq_data;
 	u8 val = 0;
 #if IS_ENABLED(CONFIG_SEC_PM)
-	const char *irq_bit[] = { "OCD", "UVLO", "SCP", "SSD", "TSD", "PWRMT" };
+	const char *irq_bit[] = { "ocd", "uvlo", "scp", "ssd", "tsd", "pwrmt" };
 	char irq_name[32];
 	ssize_t ret = 0;
 	unsigned long bit, tmp;
@@ -593,10 +609,12 @@ static irqreturn_t s2dos05_irq_thread(int irq, void *irq_data)
 
 #if IS_ENABLED(CONFIG_SEC_PM)
 	tmp = val;
-	for_each_set_bit(bit, &tmp, ARRAY_SIZE(irq_bit))
+	for_each_set_bit(bit, &tmp, ARRAY_SIZE(irq_bit)) {
 		ret += sprintf(irq_name + ret, " %s", irq_bit[bit]);
+		s2dos05_irq_abc_event(irq_bit[bit]);
+	}
 
-	pr_info("%s: IRQ:%s\n", __func__, irq_name);
+	pr_info("%s: irq:%s\n", __func__, irq_name);
 #endif /* CONFIG_SEC_PM */
 
 #if IS_ENABLED(CONFIG_SEC_PM)

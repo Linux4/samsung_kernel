@@ -594,6 +594,8 @@ enum ss_dsi_cmd_set_type {
 	TX_SELF_MASK_ON,
 	TX_SELF_MASK_ON_FACTORY,
 	TX_SELF_MASK_OFF,
+	TX_SELF_MASK_UDC_ON,
+	TX_SELF_MASK_UDC_OFF,
 	TX_SELF_MASK_GREEN_CIRCLE_ON,		/* Finger Print Green Circle */
 	TX_SELF_MASK_GREEN_CIRCLE_OFF,
 	TX_SELF_MASK_GREEN_CIRCLE_ON_FACTORY,
@@ -986,6 +988,7 @@ struct self_display {
 	int on;
 	int file_open;
 	int time_set;
+	bool udc_mask_enable;
 
 	struct self_time_info st_info;
 	struct self_icon_info si_info;
@@ -1013,6 +1016,7 @@ struct self_display {
 	int (*aod_exit)(struct samsung_display_driver_data *vdd);
 	void (*self_mask_img_write)(struct samsung_display_driver_data *vdd);
 	int (*self_mask_on)(struct samsung_display_driver_data *vdd, int enable);
+	int (*self_mask_udc_on)(struct samsung_display_driver_data *vdd, int enable);
 	int (*self_mask_check)(struct samsung_display_driver_data *vdd);
 	void (*self_blinking_on)(struct samsung_display_driver_data *vdd, int enable);
 	int (*self_display_debug)(struct samsung_display_driver_data *vdd);
@@ -2532,6 +2536,9 @@ struct samsung_display_driver_data {
 
 	struct seq_delay on_delay;
 	struct seq_delay off_delay;
+
+	/* check if dsi_display is enabled */
+	bool display_enabled;
 };
 
 extern struct list_head vdds_list;

@@ -133,6 +133,10 @@ struct p61_device {
 	int spi_cs_gpio;
 	int pid;
 	bool pid_diff;
+#if IS_ENABLED(CONFIG_SPI_MSM_GENI)
+	struct delayed_work spi_release_work;
+	struct nfc_wake_lock spi_release_wakelock;
+#endif
 #endif
 #if defined(CONFIG_ESE_SECURE) && defined(CONFIG_ESE_USE_TZ_API)
 	int ese_secure_check;
@@ -193,6 +197,19 @@ static int ese_set_spi_configuration(char *name)
 		NFC_LOG_INFO("%s pinctrl_select_state[%s] failed\n", __func__, name);
 
 	return ret;
+}
+#endif
+
+#if IS_ENABLED(CONFIG_SPI_MSM_GENI) && defined(CONFIG_NFC_FEATURE_SN100U)
+static void p61_spi_release_work(struct work_struct *work)
+{
+	if (p61_dev == NULL) {
+		NFC_LOG_ERR("%s: spi probe is not called\n", __func__);
+		return;
+	}
+
+	NFC_LOG_INFO("release ese spi\n");
+	ese_set_spi_configuration("sleep");
 }
 #endif
 
@@ -537,6 +554,9 @@ static int p61_dev_open(struct inode *inode, struct file *filp)
 	}
 #ifdef CONFIG_NFC_FEATURE_SN100U
 	ese_spi_pinctrl(1);
+#if IS_ENABLED(CONFIG_SPI_MSM_GENI)
+	cancel_delayed_work_sync(&p61_dev->spi_release_work);
+#endif
 	msleep(60);
 #endif
 #if defined(CONFIG_ESE_SECURE) && defined(CONFIG_ESE_USE_TZ_API)
@@ -820,6 +840,12 @@ static int p61_dev_release(struct inode *inode, struct file *file)
 	do_reset_protection(false);
 	ese_spi_pinctrl(0);
 	msleep(60);
+#if IS_ENABLED(CONFIG_SPI_MSM_GENI)
+	schedule_delayed_work(&p61_dev->spi_release_work,
+				msecs_to_jiffies(2000));
+	wake_lock_timeout(&p61_dev->spi_release_wakelock,
+				msecs_to_jiffies(2100));
+#endif
 #endif
 
 #ifdef CONFIG_NFC_FEATURE_SN100U
@@ -1199,6 +1225,10 @@ static int p61_probe(struct device *dev)
 	spin_lock_init(&p61_dev->ese_spi_lock);
 
 	wake_lock_init(&p61_dev->ese_lock, WAKE_LOCK_SUSPEND, "ese_wake_lock");
+#if IS_ENABLED(CONFIG_SPI_MSM_GENI) && defined(CONFIG_NFC_FEATURE_SN100U)
+	INIT_DELAYED_WORK(&p61_dev->spi_release_work, p61_spi_release_work);
+	wake_lock_init(&p61_dev->spi_release_wakelock, WAKE_LOCK_SUSPEND, "ese_spi_wake_lock");
+#endif
 	p61_dev->device_opened = false;
 
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && !defined(CONFIG_NFC_PVDD_LATE_ENABLE)

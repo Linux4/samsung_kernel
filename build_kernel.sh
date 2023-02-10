@@ -1,7 +1,7 @@
 #!/bin/bash
 
 export ARCH=arm64
-export PRODUCT_NAME=b2q
+export PROJECT_NAME=b2q
 mkdir out
 
 BUILD_CROSS_COMPILE=$(pwd)/toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-android-
