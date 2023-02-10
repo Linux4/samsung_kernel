@@ -3,3 +3,9 @@ config PWM_GPCLK
 	depends on OF
 	help
 	  Qualcomm GP CLK control driver
+
+config PWM_GPCLK_DEBUG_FEATURE
+	tristate "PWM GPLK Debug info enable"
+	depends on OF
+	help
+	  Qualcomm GP CLK control driver's Debug info enable

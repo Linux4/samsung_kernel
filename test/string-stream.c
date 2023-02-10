@@ -45,7 +45,7 @@ static int string_stream_vadd(struct string_stream *this,
 	return 0;
 }
 
-static int string_stream_add(struct string_stream *this, const char *fmt, ...)
+int string_stream_add(struct string_stream *this, const char *fmt, ...)
 {
 	va_list args;
 	int result;
@@ -56,7 +56,7 @@ static int string_stream_add(struct string_stream *this, const char *fmt, ...)
 	return result;
 }
 
-static void string_stream_clear(struct string_stream *this)
+void string_stream_clear(struct string_stream *this)
 {
 	struct string_stream_fragment *fragment, *fragment_safe;
 	unsigned long flags;
@@ -74,7 +74,7 @@ static void string_stream_clear(struct string_stream *this)
 	spin_unlock_irqrestore(&this->lock, flags);
 }
 
-static char *string_stream_get_string(struct string_stream *this)
+char *string_stream_get_string(struct string_stream *this)
 {
 	struct string_stream_fragment *fragment;
 	size_t buf_len = this->length + 1; /* +1 for null byte. */
@@ -93,7 +93,7 @@ static char *string_stream_get_string(struct string_stream *this)
 	return buf;
 }
 
-static bool string_stream_is_empty(struct string_stream *this)
+bool string_stream_is_empty(struct string_stream *this)
 {
 	bool is_empty;
 	unsigned long flags;

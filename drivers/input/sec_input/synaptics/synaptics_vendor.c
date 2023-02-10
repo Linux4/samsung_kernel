@@ -61,7 +61,7 @@ struct syna_ioctl_data {
 	unsigned char __user *buf;
 };
 
-#if defined(CONFIG_COMPAT) && defined(HAVE_COMPAT_IOCTL)
+#if defined(CONFIG_COMPAT)
 struct syna_tcm_ioctl_data_compat {
 	unsigned int data_length;
 	unsigned int buf_size;
@@ -1718,13 +1718,8 @@ static int syna_cdev_ioctl_old_dispatch(struct synaptics_ts_data *ts,
  * @return
  *    on success, 0; otherwise, negative value on error.
  */
-#ifdef HAVE_UNLOCKED_IOCTL
 static long syna_cdev_ioctls(struct file *filp, unsigned int cmd,
 		unsigned long arg)
-#else
-static int syna_cdev_ioctls(struct inode *inp, struct file *filp,
-		unsigned int cmd, unsigned long arg)
-#endif
 {
 	int retval = 0;
 	struct device *p_dev;
@@ -1788,7 +1783,7 @@ exit:
 	return retval;
 }
 
-#if defined(CONFIG_COMPAT) && defined(HAVE_COMPAT_IOCTL)
+#if defined(CONFIG_COMPAT)
 /**
  * syna_cdev_compat_ioctls()
  *
@@ -2067,13 +2062,9 @@ static int syna_cdev_release(struct inode *inp, struct file *filp)
  */
 static const struct file_operations device_fops = {
 	.owner = THIS_MODULE,
-#ifdef HAVE_UNLOCKED_IOCTL
 	.unlocked_ioctl = syna_cdev_ioctls,
-#if defined(CONFIG_COMPAT) && defined(HAVE_COMPAT_IOCTL)
+#if defined(CONFIG_COMPAT)
 	.compat_ioctl = syna_cdev_compat_ioctls,
-#endif
-#else
-	.ioctl = syna_cdev_ioctls,
 #endif
 	.llseek = syna_cdev_llseek,
 	.read = syna_cdev_read,

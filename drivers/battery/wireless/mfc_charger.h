@@ -1160,6 +1160,7 @@ struct mfc_charger_data {
 
 	struct power_supply *psy_chg;
 	struct wakeup_source *wpc_ws;
+	struct wakeup_source *wpc_det_ws;
 	struct wakeup_source *wpc_tx_ws;
 	struct wakeup_source *wpc_rx_ws;
 	struct wakeup_source *wpc_update_ws;
@@ -1260,7 +1261,7 @@ struct mfc_charger_data {
 	bool wc_checking_align;
 	struct timespec64 wc_align_check_start;
 	int vout_strength;
-	wait_queue_head_t suspend_wait;
+	bool skip_phm_work_in_sleep;
 #if defined(CONFIG_WIRELESS_IC_PARAM)
 	unsigned int wireless_param_info;
 	unsigned int wireless_fw_ver_param;

@@ -16,4 +16,5 @@
 	charger,fac_vsys = <4400>;
 	charger,fsw = <0>; /* 3MHz */
 	charger,wc_current_step = <25>;
+	charger,disable_ship_mode = <1>;
 };

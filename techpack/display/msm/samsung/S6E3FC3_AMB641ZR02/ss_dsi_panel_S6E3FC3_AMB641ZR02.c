@@ -1179,7 +1179,6 @@ void S6E3FC3_AMB641ZR02_FHD_init(struct samsung_display_driver_data *vdd)
 	/* te high -> 52us (120fps) -> te low -> tx start */
 	vdd->panel_hbm_entry_after_te = 60; //52us is TE high time
 	vdd->panel_hbm_exit_delay = 0;
-	vdd->debug_data->print_cmds = true;
 
 	/* mdnie */
 	vdd->mdnie.support_mdnie = true;

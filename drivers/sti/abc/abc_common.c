@@ -25,8 +25,49 @@
 #define ABC_WARNING_REPORT
 
 struct device *sec_abc;
+EXPORT_SYMBOL_KUNIT(sec_abc);
 __visible_for_testing int abc_enabled;
+EXPORT_SYMBOL_KUNIT(abc_enabled);
 __visible_for_testing int abc_init;
+EXPORT_SYMBOL_KUNIT(abc_init);
+
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+char abc_hub_kunit_test_uevent_str[ABC_HUB_TEST_STR_MAX];
+EXPORT_SYMBOL_KUNIT(abc_hub_kunit_test_uevent_str);
+
+void abc_hub_test_get_uevent_str(char *uevent_str)
+{
+	strlcpy(abc_hub_kunit_test_uevent_str, uevent_str, sizeof(abc_hub_kunit_test_uevent_str));
+}
+EXPORT_SYMBOL_KUNIT(abc_hub_test_get_uevent_str);
+
+char abc_common_kunit_test_work_str[ABC_TEST_UEVENT_MAX][ABC_TEST_STR_MAX] = {"", };
+EXPORT_SYMBOL_KUNIT(abc_common_kunit_test_work_str);
+char abc_common_kunit_test_log_str[ABC_TEST_STR_MAX];
+EXPORT_SYMBOL_KUNIT(abc_common_kunit_test_log_str);
+
+void abc_common_test_get_work_str(char *uevent_str[])
+{
+	int i;
+
+	for (i = 0; i < ABC_TEST_UEVENT_MAX; i++) {
+		if (uevent_str[i]) {
+			if (i >= 2 && !strncmp(uevent_str[i], TIME_KEYWORD, strlen(TIME_KEYWORD)))
+				strlcpy(abc_common_kunit_test_work_str[i],
+						TIME_KEYWORD, ABC_TEST_STR_MAX);
+			else
+				strlcpy(abc_common_kunit_test_work_str[i],
+						uevent_str[i], ABC_TEST_STR_MAX);
+		}
+	}
+}
+EXPORT_SYMBOL_KUNIT(abc_common_test_get_work_str);
+
+void abc_common_test_get_log_str(char *log_str)
+{
+	strlcpy(abc_common_kunit_test_log_str, log_str, sizeof(abc_common_kunit_test_log_str));
+}
+#endif /* CONFIG_SEC_KUNIT */
 
 #if IS_ENABLED(CONFIG_OF)
 
@@ -215,6 +256,7 @@ __visible_for_testing void sec_abc_reset_gpu_buffer(void)
 	pinfo->pdata->gpu_items->buffer.front = 0;
 	pinfo->pdata->gpu_items->fail_cnt = 0;
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_reset_gpu_buffer);
 
 __visible_for_testing void sec_abc_reset_gpu_page_buffer(void)
 {
@@ -224,6 +266,7 @@ __visible_for_testing void sec_abc_reset_gpu_page_buffer(void)
 	pinfo->pdata->gpu_page_items->buffer.front = 0;
 	pinfo->pdata->gpu_page_items->fail_cnt = 0;
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_reset_gpu_page_buffer);
 
 __visible_for_testing void sec_abc_reset_aicl_buffer(void)
 {
@@ -233,6 +276,7 @@ __visible_for_testing void sec_abc_reset_aicl_buffer(void)
 	pinfo->pdata->aicl_items->buffer.front = 0;
 	pinfo->pdata->aicl_items->fail_cnt = 0;
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_reset_aicl_buffer);
 
 __visible_for_testing ssize_t store_abc_enabled(struct device *dev,
 				 struct device_attribute *attr,
@@ -281,6 +325,7 @@ __visible_for_testing ssize_t store_abc_enabled(struct device *dev,
 
 	return count;
 }
+EXPORT_SYMBOL_KUNIT(store_abc_enabled);
 
 static ssize_t show_abc_enabled(struct device *dev,
 				struct device_attribute *attr,
@@ -344,6 +389,7 @@ __visible_for_testing int sec_abc_is_full(struct abc_buffer *buffer)
 	else
 		return 0;
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_is_full);
 
 __visible_for_testing int sec_abc_is_empty(struct abc_buffer *buffer)
 {
@@ -352,6 +398,7 @@ __visible_for_testing int sec_abc_is_empty(struct abc_buffer *buffer)
 	else
 		return 0;
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_is_empty);
 
 __visible_for_testing void sec_abc_enqueue(struct abc_buffer *buffer, struct abc_fault_info in)
 {
@@ -365,6 +412,7 @@ __visible_for_testing void sec_abc_enqueue(struct abc_buffer *buffer, struct abc
 		buffer->abc_element[buffer->rear] = in;
 	}
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_enqueue);
 
 __visible_for_testing void sec_abc_dequeue(struct abc_buffer *buffer, struct abc_fault_info *out)
 {
@@ -378,6 +426,7 @@ __visible_for_testing void sec_abc_dequeue(struct abc_buffer *buffer, struct abc
 		*out = buffer->abc_element[buffer->front];
 	}
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_dequeue);
 
 __visible_for_testing int sec_abc_get_diff_time(struct abc_buffer *buffer)
 {
@@ -395,6 +444,7 @@ __visible_for_testing int sec_abc_get_diff_time(struct abc_buffer *buffer)
 
 	return rear_time - front_time;
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_get_diff_time);
 
 int sec_abc_get_enabled(void)
 {
@@ -834,28 +884,15 @@ static struct platform_driver sec_abc_driver = {
 	},
 };
 
-#ifdef CONFIG_SEC_KUNIT
-kunit_notifier_chain_init(abc_common_test_module);
-#endif
-
 static int __init sec_abc_init(void)
 {
 	ABC_PRINT("%s\n", __func__);
-
-#ifdef CONFIG_SEC_KUNIT
-	kunit_notifier_chain_register(abc_common_test_module);
-#endif
 
 	return platform_driver_register(&sec_abc_driver);
 }
 
 static void __exit sec_abc_exit(void)
 {
-
-#ifdef CONFIG_SEC_KUNIT
-	kunit_notifier_chain_unregister(abc_common_test_module);
-#endif
-
 	return platform_driver_unregister(&sec_abc_driver);
 }
 

@@ -43,6 +43,9 @@
 #if IS_ENABLED(CONFIG_SAMSUNG_TUI)
 #include <linux/input/stui_inf.h>
 #endif
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+#include <linux/vbus_notifier.h>
+#endif
 
 /*
  * Switch events
@@ -59,6 +62,7 @@
 #endif
 
 #define DEFAULT_DEBOUNCE_INTERVAL	50
+#define HALL_IC_WAKEUP_TIMEOUT				500
 
 struct device *sec_hall_ic;
 EXPORT_SYMBOL(sec_hall_ic);
@@ -76,12 +80,17 @@ struct hall_ic_data {
 	int active_low;
 	unsigned int event;
 	const char *name;
+	int hall_count;
 };
 
 struct hall_ic_pdata {
 	struct hall_ic_data *hall;
 	unsigned int nhalls;
 	unsigned int debounce_interval;
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+	struct notifier_block vbus_nb;
+	bool charger_mode;
+#endif
 };
 
 struct hall_ic_drvdata {
@@ -92,9 +101,16 @@ struct hall_ic_drvdata {
 	struct device *sec_dev;
 #endif
 	struct mutex lock;
+	bool probe_done;
 };
 
 static LIST_HEAD(hall_ic_list);
+
+#if IS_ENABLED(CONFIG_HALL_DUMP_KEY_MODE)
+#include <linux/hall/sec_hall_dumpkey.h>
+extern struct hall_dump_callbacks hall_dump_callbacks;
+extern struct device *phall;
+#endif
 
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 struct hall_ic_drvdata *gddata;
@@ -200,12 +216,29 @@ static ssize_t debounce_show(struct device *dev,
 	return strlen(buf);
 }
 
+static ssize_t hall_count_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct hall_ic_data *hall;
+
+	list_for_each_entry(hall, &hall_ic_list, list) {
+		if (hall->event == SW_FOLDER) {
+			snprintf(buf, PAGE_SIZE, "\"FCNT\":\"%d\"", hall->hall_count);
+			hall->hall_count = 0;
+			break;
+		}
+	}
+
+	return strlen(buf);
+}
+
 static DEVICE_ATTR_RO(hall_detect);
 static DEVICE_ATTR_RO(certify_hall_detect);
 static DEVICE_ATTR_RO(hall_wacom_detect);
 static DEVICE_ATTR_RO(flip_status);
 static DEVICE_ATTR_RO(hall_number);
 static DEVICE_ATTR_RO(debounce);
+static DEVICE_ATTR_RO(hall_count);
 
 static struct device_attribute *hall_ic_attrs[] = {
 	&dev_attr_hall_detect,
@@ -214,6 +247,47 @@ static struct device_attribute *hall_ic_attrs[] = {
 	&dev_attr_flip_status,
 	NULL,
 };
+#endif
+
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER) && IS_ENABLED(CONFIG_HALL_DUMP_KEY_MODE)
+int sec_hall_vbus_notification(struct notifier_block *nb, unsigned long cmd, void *data)
+{
+	struct hall_ic_pdata *pdata = container_of(nb, struct hall_ic_pdata, vbus_nb);
+	vbus_status_t vbus_type = *(vbus_status_t *)data;
+
+	switch (vbus_type) {
+	case STATUS_VBUS_HIGH:
+		pdata->charger_mode = true;
+		break;
+	case STATUS_VBUS_LOW:
+		pdata->charger_mode = false;
+		break;
+	default:
+		break;
+	}
+
+	pr_info("%s %d\n", __func__, pdata->charger_mode);
+
+	return 0;
+}
+
+static void dump_hall_event(struct device *dev)
+{
+	struct hall_ic_pdata *pdata = gddata->pdata;
+	struct hall_ic_data *hall;
+
+	if (pdata->charger_mode) {
+		list_for_each_entry(hall, &hall_ic_list, list) {
+			if (hall->event != SW_FOLDER)
+				continue;
+			if (hall->input) {
+				input_report_switch(hall->input, hall->event, 0);
+				input_sync(hall->input);
+				pr_info("[sec_input] %s: %s %d\n", __func__, hall->name, hall->event);
+			}
+		}
+	}
+}
 #endif
 
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
@@ -226,13 +300,14 @@ static void hall_ic_work(struct work_struct *work)
 	char hall_uevent[20] = {0,};
 	char *hall_status[2] = {hall_uevent, NULL};
 
+	mutex_lock(&gddata->lock);
 	first = gpio_get_value_cansleep(hall->gpio);
 	msleep(50);
 	second = gpio_get_value_cansleep(hall->gpio);
 	if (first == second) {
 		hall->state = first;
 		state = first ^ hall->active_low;
-		pr_info("%s %s\n", hall->name,
+		pr_info("%s %s %s\n", __func__, hall->name,
 			state ? "close" : "open");
 
 		if (hall->input) {
@@ -248,9 +323,13 @@ static void hall_ic_work(struct work_struct *work)
 #if IS_ENABLED(CONFIG_HALL_NOTIFIER)
 		hall_notifier_notify(hall->name, state);
 #endif
-	} else
+		hall->hall_count++;
+
+	} else {
 		pr_info("%s %d,%d\n", hall->name,
 			first, second);
+	}
+	mutex_unlock(&gddata->lock);
 }
 #else
 static void hall_ic_work(struct work_struct *work)
@@ -283,11 +362,14 @@ static void hall_ic_work(struct work_struct *work)
 #endif
 	mutex_unlock(&gddata->lock);
 
+	hall->hall_count++;
+	
 #if IS_ENABLED(CONFIG_SAMSUNG_TUI)
 	if (STUI_MODE_TOUCH_SEC & stui_get_mode())
 		stui_cancel_session();
 #endif
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0))
 #if IS_ENABLED(CONFIG_USB_HW_PARAM)
 	if (strncmp(hall->name, "flip", 4) == 0) {
 		struct otg_notify *o_notify = get_otg_notify();
@@ -298,7 +380,28 @@ static void hall_ic_work(struct work_struct *work)
 	}
 #endif
 #endif
+#endif
 }
+#endif
+
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+void hall_ic_request_notitfy(void)
+{
+	struct hall_ic_data *hall;
+	int state;
+
+	list_for_each_entry(hall, &hall_ic_list, list) {
+		mutex_lock(&gddata->lock);
+		hall->state = !!gpio_get_value_cansleep(hall->gpio);
+		state = hall->state ^ hall->active_low;
+		pr_info("%s %s %s(%d)\n", __func__,
+				hall->name, state ? "close" : "open", hall->state);
+
+		hall_notifier_notify(hall->name, state);
+		mutex_unlock(&gddata->lock);
+	}
+}
+EXPORT_SYMBOL(hall_ic_request_notitfy);
 #endif
 
 static irqreturn_t hall_ic_detect(int irq, void *dev_id)
@@ -313,6 +416,11 @@ static irqreturn_t hall_ic_detect(int irq, void *dev_id)
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
 	schedule_delayed_work(&hall->dwork, msecs_to_jiffies(pdata->debounce_interval));
 #else
+
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
+	__pm_wakeup_event(hall->ws, HALL_IC_WAKEUP_TIMEOUT);
+	schedule_delayed_work(&hall->dwork, msecs_to_jiffies(pdata->debounce_interval));
+#else
 	if (state) {
 		__pm_wakeup_event(hall->ws, pdata->debounce_interval + 5);
 		schedule_delayed_work(&hall->dwork, msecs_to_jiffies(pdata->debounce_interval));
@@ -321,6 +429,7 @@ static irqreturn_t hall_ic_detect(int irq, void *dev_id)
 		schedule_delayed_work(&hall->dwork, msecs_to_jiffies(pdata->debounce_interval));
 	}
 #endif
+#endif
 	return IRQ_HANDLED;
 }
 
@@ -328,7 +437,12 @@ static int hall_ic_open(struct input_dev *input)
 {
 	struct hall_ic_data *hall = input_get_drvdata(input);
 
-	pr_info("%s: %s\n", __func__, hall->name);
+	if (gddata->probe_done)
+		pr_info("%s: %s\n", __func__, hall->name);
+	else {
+		pr_info("%s: %s (skip not finished probe_done)\n", __func__, hall->name);
+		return 0;
+	}
 
 	schedule_delayed_work(&hall->dwork, HZ / 2);
 	input_sync(input);
@@ -358,13 +472,13 @@ static int hall_ic_input_dev_register(struct hall_ic_data *hall)
 	input->open = hall_ic_open;
 	input->close = hall_ic_close;
 
+	input_set_drvdata(input, hall);
+
 	ret = input_register_device(input);
 	if (ret) {
 		pr_err("failed to register input device\n");
 		return ret;
 	}
-
-	input_set_drvdata(input, hall);
 
 	return 0;
 }
@@ -375,7 +489,6 @@ static int hall_ic_setup_halls(struct hall_ic_drvdata *ddata)
 	int ret = 0;
 	int i = 0;
 
-	gddata = ddata;
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 	ddata->sec_dev = sec_device_create(ddata, "hall_ic");
 	if (IS_ERR(ddata->sec_dev))
@@ -391,11 +504,19 @@ static int hall_ic_setup_halls(struct hall_ic_drvdata *ddata)
 #endif
 	sec_hall_ic = ddata->sec_dev;
 
-	sysfs_create_file(&ddata->sec_dev->kobj, &dev_attr_hall_number.attr);
-	sysfs_create_file(&ddata->sec_dev->kobj, &dev_attr_debounce.attr);
+	ret = sysfs_create_file(&ddata->sec_dev->kobj, &dev_attr_hall_number.attr);
+	if (ret < 0)
+		pr_err("failed to create sysfs number ret(%d)\n", ret);
+	ret = sysfs_create_file(&ddata->sec_dev->kobj, &dev_attr_debounce.attr);
+	if (ret < 0)
+		pr_err("failed to create sysfs debounce ret(%d)\n", ret);
+	ret = sysfs_create_file(&ddata->sec_dev->kobj, &dev_attr_hall_count.attr);
+	if (ret < 0)
+		pr_err("failed to create sysfs hall_count ret(%d)\n", ret);
+
 	list_for_each_entry(hall, &hall_ic_list, list) {
 		hall->state = gpio_get_value_cansleep(hall->gpio);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 190)	//mt6877 : 4, 19, 191
 		// 4.19 R
 		wakeup_source_init(hall->ws, "hall_ic_wlock");
 		// 4.19 Q
@@ -535,6 +656,7 @@ static int hall_ic_probe(struct platform_device *pdev)
 	device_init_wakeup(&pdev->dev, true);
 	platform_set_drvdata(pdev, ddata);
 	mutex_init(&ddata->lock);
+	gddata = ddata;
 
 	list_for_each_entry(hall, &hall_ic_list, list) {
 		ret = hall_ic_input_dev_register(hall);
@@ -552,6 +674,16 @@ static int hall_ic_probe(struct platform_device *pdev)
 		goto fail2;
 	}
 
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER) && IS_ENABLED(CONFIG_HALL_DUMP_KEY_MODE)
+	vbus_notifier_register(&pdata->vbus_nb, sec_hall_vbus_notification,
+						VBUS_NOTIFY_DEV_CHARGER);
+	phall = dev;
+	hall_dump_callbacks.inform_dump = dump_hall_event;
+#endif
+
+	ddata->probe_done = true;
+	pr_info("%s done\n", __func__);
+
 	return 0;
 
 fail2:
@@ -562,8 +694,15 @@ fail1:
 
 static int hall_ic_remove(struct platform_device *pdev)
 {
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER) && IS_ENABLED(CONFIG_HALL_DUMP_KEY_MODE)
+	struct device *dev = &pdev->dev;
+	struct hall_ic_pdata *pdata = dev_get_platdata(dev);
+#endif
 	struct hall_ic_data *hall;
 
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER) && IS_ENABLED(CONFIG_HALL_DUMP_KEY_MODE)
+	vbus_notifier_unregister(&pdata->vbus_nb);
+#endif
 	list_for_each_entry(hall, &hall_ic_list, list) {
 		input_unregister_device(hall->input);
 		wakeup_source_unregister(hall->ws);

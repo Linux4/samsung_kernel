@@ -37,12 +37,13 @@ EXPORT_SYMBOL(als_eol_set_err_handler);
  *             wideband light include visible light and infrared.
  *
  */
-void als_eol_update_als(int awb, int clear, int wideband)
+void als_eol_update_als(int awb, int clear, int wideband, int uv)
 {
 	if (data->eol_enable && data->eol_count >= EOL_SKIP_COUNT) {
 		data->eol_awb += awb;
 		data->eol_clear += clear;
 		data->eol_wideband += wideband;
+		data->eol_uv += uv;
 	}
 
 	if (data->eol_enable && data->eol_state < EOL_STATE_DONE) {
@@ -58,18 +59,20 @@ void als_eol_update_als(int awb, int clear, int wideband)
 				data->eol_flicker_count = 0;
 				data->eol_state = EOL_STATE_100;
 				data->eol_pulse_count = 0;
+				data->eol_uv = 0;
 				break;
 			default:
 				data->eol_count++;
-				printk(KERN_INFO"%s - eol_state:%d, eol_cnt:%d, flk_avr:%d (sum:%d, cnt:%d), ir:%d, clear:%d, wide:%d\n", __func__,
+				printk(KERN_INFO"%s - eol_state:%d, eol_cnt:%d, flk_avr:%d (sum:%d, cnt:%d), ir:%d, clear:%d, wide:%d, uv:%d\n", __func__,
 						data->eol_state, data->eol_count, (data->eol_flicker / data->eol_flicker_count), data->eol_flicker, data->eol_flicker_count,
-						data->eol_awb, data->eol_clear, data->eol_wideband);
+						data->eol_awb, data->eol_clear, data->eol_wideband, data->eol_uv);
 
 				if (data->eol_count >= (EOL_COUNT + EOL_SKIP_COUNT)) {
 					test_result->flicker[data->eol_state] = data->eol_flicker / data->eol_flicker_count;
 					test_result->awb[data->eol_state] = data->eol_awb / EOL_COUNT;
 					test_result->clear[data->eol_state] = data->eol_clear / EOL_COUNT;
 					test_result->wideband[data->eol_state] = data->eol_wideband / EOL_COUNT;
+					test_result->uv[data->eol_state] = data->eol_uv / EOL_COUNT;
 
 					printk(KERN_INFO"%s - eol_state = %d, pulse_count = %d, flicker_result = %d\n",
 							__func__, data->eol_state, data->eol_pulse_count, test_result->flicker[data->eol_state]);
@@ -81,6 +84,7 @@ void als_eol_update_als(int awb, int clear, int wideband)
 					data->eol_flicker = 0;
 					data->eol_flicker_count = 0;
 					data->eol_pulse_count = 0;
+					data->eol_uv = 0;
 					data->eol_state++;
 				}
 				break;
@@ -234,12 +238,13 @@ struct result_data* als_eol_mode()
 	} else {
 		printk(KERN_ERR "%s - abnormal termination\n", __func__);
 	}
-	printk(KERN_INFO "%s - RESULT: flicker:%d|%d awb:%d|%d clear:%d|%d wide:%d|%d ratio:%d|%d", __func__,
+	printk(KERN_INFO "%s - RESULT: flicker:%d|%d awb:%d|%d clear:%d|%d wide:%d|%d ratio:%d|%d uv:%d|%d", __func__,
 			test_result->flicker[EOL_STATE_100], test_result->flicker[EOL_STATE_120],
 			test_result->awb[EOL_STATE_100], test_result->awb[EOL_STATE_120],
 			test_result->clear[EOL_STATE_100], test_result->clear[EOL_STATE_120],
 			test_result->wideband[EOL_STATE_100], test_result->wideband[EOL_STATE_120],
-			test_result->ratio[EOL_STATE_100], test_result->ratio[EOL_STATE_120]);
+			test_result->ratio[EOL_STATE_100], test_result->ratio[EOL_STATE_120],
+			test_result->uv[EOL_STATE_100], test_result->uv[EOL_STATE_120]);
 
 	data->eol_enable = 0;
 

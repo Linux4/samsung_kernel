@@ -6,10 +6,17 @@ struct pwm_gc {
 	u64 def_period;
 	u64 def_duty_cycle;
 	bool def_enabled;
+	bool allow_delay;
+	unsigned int hwio_reg_update_delay;
 	unsigned int gp_clk;
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pin_active;
 	struct pinctrl_state *pin_suspend;
+	struct mutex  lock;
+#if defined(CONFIG_PWM_GPCLK_DEBUG_FEATURE)
+	struct class * gpclk_class;
+	struct device * gpclk_dev;
+#endif
 };
 
 #define GP_CLK_M_DEFAULT		2
