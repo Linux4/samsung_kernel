@@ -789,7 +789,7 @@ struct s2mu106_muic_data {
 
 	struct mutex muic_mutex;
 	struct mutex switch_mutex;
-#if defined(CONFIG_HV_MUIC_S2MU106_AFC)
+#if IS_ENABLED(CONFIG_HV_MUIC_S2MU106_AFC)
 	struct mutex afc_mutex;
 #endif
 
@@ -813,7 +813,7 @@ struct s2mu106_muic_data {
 	int irq_adc_change;
 	int irq_av_charge;
 	int irq_vbus_off;
-#if defined(CONFIG_HV_MUIC_S2MU106_AFC)
+#if IS_ENABLED(CONFIG_HV_MUIC_S2MU106_AFC)
 	int irq_vdnmon;
 	int irq_mpnack;
 	int irq_mrxtrf;
@@ -822,10 +822,11 @@ struct s2mu106_muic_data {
 	struct power_supply *psy_chg;
 #endif
 	bool afc_check;
-#if defined(CONFIG_HV_MUIC_S2MU106_AFC)
+#if IS_ENABLED(CONFIG_HV_MUIC_S2MU106_AFC)
 	bool is_dp_drive;
 	bool is_hvcharger_detected;
 	bool is_requested_step_down;
+	bool is_charger_ready;
 #endif
 
 	muic_attached_dev_t new_dev;
@@ -834,7 +835,7 @@ struct s2mu106_muic_data {
 	int vbvolt;
 	int vmid;
 	int reg[MAX_NUM];
-#if defined(CONFIG_HV_MUIC_S2MU106_AFC)
+#if IS_ENABLED(CONFIG_HV_MUIC_S2MU106_AFC)
 	int mrxrdy_cnt;
 	int mping_cnt;
 	int qc_retry_cnt;
@@ -852,10 +853,11 @@ struct s2mu106_muic_data {
 
 	/* W/A waiting for the charger ic */
 	struct delayed_work dcd_recheck;
-#if defined(CONFIG_HV_MUIC_S2MU106_AFC)
+#if IS_ENABLED(CONFIG_HV_MUIC_S2MU106_AFC)
 	struct delayed_work reset_work;
 	struct delayed_work mping_retry_work;
 	struct delayed_work qc_retry_work;
+	struct delayed_work muic_hv_charger_init_work;
 #endif
 	struct delayed_work rescan_validity_checker;
 	bool is_timeout_attached;
@@ -869,17 +871,20 @@ struct s2mu106_muic_data {
 #if IS_ENABLED(CONFIG_HICCUP_CHARGER)
 	bool is_hiccup_mode;
 #endif
-#if defined(CONFIG_MUIC_HV_SUPPORT_POGO_DOCK)
+#if defined(CONFIG_S2MU106_TYPEC_WATER)
+	bool is_vbus_on_after_otg;
+	struct timespec64 otg_on_time;
+#endif
+#if IS_ENABLED(CONFIG_MUIC_HV_SUPPORT_POGO_DOCK)
 	/* Pogo dock gpio */
 	int gpio_dock;
 	int irq_dock;
 #endif
 };
 
-extern unsigned int lpcharge;
 extern struct muic_platform_data muic_pdata;
 
-int s2mu106_i2c_read_byte(struct i2c_client *client, u8 command);
+extern int s2mu106_i2c_read_byte(struct i2c_client *client, u8 command);
 int s2mu106_i2c_write_byte(struct i2c_client *client, u8 command, u8 value);
 int s2mu106_muic_recheck_adc(struct s2mu106_muic_data *muic_data);
 void s2mu106_muic_control_vbus_det(struct s2mu106_muic_data *muic_data,

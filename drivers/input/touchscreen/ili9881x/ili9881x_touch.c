@@ -653,8 +653,8 @@ int ili_touch_esd_gesture_flash(void)
 	input_info(true, ilits->dev, "%s 0x%X Enter gesture successfully\n", __func__, answer);
 
 	if (ilits->chip->core_ver >= CORE_VER_1460) {
-		if ((ilits->tp_suspend == true) && (ilits->prox_face_mode == true)) {
-			ret = ili_ic_func_ctrl("proximity", 0x01);
+		if ((ilits->tp_suspend == true) && (ilits->prox_face_mode)) {
+			ret = ili_ic_func_ctrl("proximity", ilits->prox_face_mode);
 			if (ret < 0)
 				input_err(true, ilits->dev, "%s write resume loader error", __func__);
 		}
@@ -759,8 +759,8 @@ int ili_touch_esd_gesture_iram(void)
 		__func__, ilits->gesture_load_code ? "driver" : "firmware");
 
 	if (ilits->chip->core_ver >= CORE_VER_1460) {
-		if ((ilits->tp_suspend == true) && (ilits->prox_face_mode == true)) {
-			ret = ili_ic_func_ctrl("proximity", 0x01);
+		if ((ilits->tp_suspend == true) && (ilits->prox_face_mode)) {
+			ret = ili_ic_func_ctrl("proximity", ilits->prox_face_mode);
 			if (ret < 0)
 				input_err(true, ilits->dev, "%s write resume loader error", __func__);
 		}
@@ -1431,6 +1431,13 @@ int ili_incell_power_control(int onoff)
 		} else {
 			input_err(true, ilits->dev, "%s: lcd_rst is already disabled\n", __func__);
 		}
+
+		if (ilits->chip->id == ILI7807_CHIP) {
+			usleep_range(5 * 1000, 5 * 1000);
+		} else if(ilits->lcd_rst_delay) {
+			usleep_range(ilits->lcd_rst_delay * 1000, ilits->lcd_rst_delay * 1000);
+		}
+
 		if (regulator_is_enabled(ilits->lcd_bl_en)) {
 			ret = regulator_disable(ilits->lcd_bl_en);
 			if (ret)

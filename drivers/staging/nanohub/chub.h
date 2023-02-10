@@ -334,7 +334,7 @@ int contexthub_get_sensortype(struct contexthub_ipc_info *ipc, char *buf);
 void contexthub_print_rtlog(struct contexthub_ipc_info *ipc, bool loop);
 void contexthub_handle_debug(struct contexthub_ipc_info *ipc, enum chub_err_type err);
 
-#ifdef CONFIG_SENSORS_SSP
+#if defined(CONFIG_SENSORS_SSP) || defined(CONFIG_SHUB)
 int contexthub_get_token(struct contexthub_ipc_info *ipc);
 void contexthub_put_token(struct contexthub_ipc_info *ipc);
 #endif

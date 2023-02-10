@@ -57,6 +57,7 @@ scsc_wlan-$(CONFIG_SCSC_WLAN) += scsc_wifi_fcq.o
 scsc_wlan-$(CONFIG_SCSC_WLAN) += ioctl.o
 scsc_wlan-$(CONFIG_SCSC_WLAN) += traffic_monitor.o
 scsc_wlan-$(CONFIG_SCSC_WLAN) += reg_info.o
+scsc_wlan-$(CONFIG_SCSC_WLAN) += scsc_wlan_mmap.o
 
 # ----------------------------------------------------------------------------
 # Wifi Logger Files
@@ -128,7 +129,6 @@ ccflags-$(CONFIG_SCSC_WLAN_RX_NAPI_GRO)                                   += -DC
 ccflags-$(CONFIG_SCSC_WLAN_HIP_SUPPORT_SCATTER_GATHER_API)                += -DCONFIG_SCSC_WLAN_HIP_SUPPORT_SCATTER_GATHER_API
 ccflags-$(CONFIG_SCSC_WLAN_WES_NCHO)                                      += -DCONFIG_SCSC_WLAN_WES_NCHO
 ccflags-$(CONFIG_SCSC_WLAN_MUTEX_DEBUG)                                   += -DCONFIG_SCSC_WLAN_MUTEX_DEBUG
-ccflags-$(CONFIG_SCSC_WLAN_BLOCK_IPV6)					  += -DCONFIG_SCSC_WLAN_BLOCK_IPV6
 ccflags-$(CONFIG_SCSC_WLAN_DISABLE_NAT_KA)				  += -DCONFIG_SCSC_WLAN_DISABLE_NAT_KA
 
 ccflags-y += $(CONFIG_SAMSUNG_MAXWELL_EXTRA)

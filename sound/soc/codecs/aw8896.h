@@ -23,8 +23,9 @@
 
 #define AWINIC_DSP_I2C_WRITES
 #define AW8896_DSP_FW_BASE              0x8c00
-#define AW8896_DSP_CFG_BASE             0x8380
+#define AW8896_DSP_FW_BACKUP_BASE       0x8d80
 #define AW8896_DSP_FW_VER_BASE          0x0f80
+#define AW8896_DSP_FW_SIZE		(512)
 
 
 
@@ -77,6 +78,10 @@ enum aw8896_dsp_cfg_state {
 	AW8896_DSP_CFG_OK,
 };
 
+enum aw8896_status {
+	AW8896_PW_OFF = 0,
+	AW8896_PW_ON,
+};
 
 struct aw8896 {
 	struct regmap *regmap;
@@ -85,9 +90,7 @@ struct aw8896 {
 	struct mutex lock;
 	int dsp_init;
 	int dsp_fw_state;
-	int dsp_cfg_state;
 	int dsp_fw_len;
-	int dsp_cfg_len;
 	int dsp_fw_ver;
 	int sysclk;
 	u16 rev;
@@ -111,6 +114,8 @@ struct aw8896 {
 	unsigned int chipid;
 	unsigned int init;
 	unsigned int spk_rcv_mode;
+	unsigned int status;
+	struct work_struct start_work;
 };
 
 struct aw8896_container {

@@ -89,6 +89,14 @@
 #include <linux/of_gpio.h>
 #endif
 
+#ifdef CONFIG_VBUS_NOTIFIER
+#include <linux/notifier.h>
+#include <linux/vbus_notifier.h>
+#if defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+#include <linux/usb/typec/manager/usb_typec_manager_notifier.h>
+#endif
+#endif
+
 #include "ili9881x_sec_fn.h"
 
 #ifdef CONFIG_MTK_SPI
@@ -147,12 +155,16 @@
 /* Path */
 #define CHIP_ID_9882			"9882"
 #define CHIP_ID_7806S			"7806s"
+#define CHIP_ID_7807S			"7807s"
+#define CHIP_ID_9882Q			"9882q"
 #define INI_PATH_SIZE			64
 #define DEBUG_DATA_FILE_SIZE		(10*K)
 #define DEBUG_DATA_FILE_PATH		"/sdcard/ILITEK_log.csv"
 #define CSV_LCM_ON_PATH			"/sdcard/ilitek_mp_lcm_on_log"
 #define CSV_LCM_OFF_PATH		"/sdcard/ilitek_mp_lcm_off_log"
 #define INI_PATH			"/vendor/firmware/"
+
+/* 9882n & 7806S */
 #define RAWDATANOBK_LCMON_PATH		"Command_Rawdatanobk_LCMON.ini"
 #define DOZERAW_PATH			"Command_Dozeraw.ini"
 #define DAC_PATH			"Command_DAC.ini"
@@ -164,6 +176,9 @@
 #define P2P_TD_PATH			"Command_P2P_TD.ini"
 #define RAWDATATD_PATH			"Command_RawdataTD.ini"
 #define RAWDATANOBK_LCMOFF_PATH		"Command_Rawdatanobk_LCMOFF.ini"
+/* only for 9882q */
+#define RAWDATAHAVEBK_LCMON_PATH		"Command_Rawdatahavebk_LCMON.ini"
+#define RAWDATAHAVEBK_LCMOFF_PATH		"Command_Rawdatahavebk_LCMOFF.ini"
 
 #define POWER_STATUS_PATH		"/sys/class/power_supply/battery/status"
 #define DUMP_FLASH_PATH			"/sdcard/flash_dump"
@@ -196,6 +211,10 @@ do {									\
 #define NONE			-1
 #define DO_SPI_RECOVER		-2
 #define DO_I2C_RECOVER		-3
+
+#ifdef CONFIG_BATTERY_SAMSUNG
+extern unsigned int lpcharge;
+#endif
 
 enum TP_SPI_CLK_LIST {
 	TP_SPI_CLK_1M = 1000000,
@@ -249,6 +268,11 @@ enum TP_SLEEP_STATUS {
 	TP_DEEP_SLEEP = 2,
 	TP_EARLY_RESUME = 3,
 	TP_RESUME = 4
+};
+
+enum USB_PLUG_SATUS {
+	USB_PLUG_DETACHED = 0,
+	USB_PLUG_ATTACHED = 1
 };
 
 enum TP_PROXIMITY_STATUS {
@@ -404,7 +428,9 @@ enum {
 enum {
 	LCD_NONE = 0,
 	LCD_OFF,
-	LCD_ON
+	LCD_ON,
+	LCD_DOZE1,
+	LCD_DOZE2
 };
 
 enum {
@@ -424,6 +450,9 @@ enum MP_INI_PATH {
 	P2P_TD_PATH_NUM,
 	RAWDATATD_PATH_NUM,
 	RAWDATANOBK_LCMOFF_PATH_NUM,
+	/* only for 9882q */
+	RAWDATAHAVEBK_LCMON_PATH_NUM,
+	RAWDATAHAVEBK_LCMOFF_PATH_NUM,
 	MP_INI_PATH_MAX
 };
 
@@ -947,6 +976,7 @@ struct ilitek_ts_data {
 	int tp_int;
 	int cs_gpio;
 	int wait_int_timeout;
+	int lcd_rst_delay;
 
 	u32 lcd_id;
 	int lcd_id1_gpio;
@@ -1058,7 +1088,7 @@ struct ilitek_ts_data {
 	int (*detect_int_stat)(bool status);
 
 	/*IC MODE*/
-	bool prox_face_mode;
+	int prox_face_mode;
 	bool prox_lp_scan_mode;
 	bool dead_zone_enabled;
 	bool sip_mode_enabled;
@@ -1085,6 +1115,13 @@ struct ilitek_ts_data {
 	bool incell_power_state;
 	bool signing;
 	char mp_ini_path[MP_INI_PATH_MAX][INI_PATH_SIZE];
+#ifdef CONFIG_VBUS_NOTIFIER
+	struct notifier_block vbus_nb;
+	int usb_plug_status;
+#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
+	struct notifier_block ccic_nb;
+#endif
+#endif
 
 	unsigned int scrub_id;
 
@@ -1184,6 +1221,7 @@ struct ilitek_hwif_info {
 	const struct of_device_id *of_match_table;
 	const struct dev_pm_ops *pm;
 	int (*plat_probe)(void);
+	int (*plat_shutdown)(void);
 	int (*plat_remove)(void);
 	void *info;
 };

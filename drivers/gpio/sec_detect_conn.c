@@ -144,8 +144,7 @@ int detect_conn_irq_enable(struct sec_det_conn_info *pinfo, bool enable,
 		for (i = 0; i < pinfo->pdata->gpio_total_cnt; i++) {
 			if (pinfo->irq_enabled[i]) {
 				disable_irq(pinfo->pdata->irq_number[i]);
-				free_irq(pinfo->pdata->irq_number[i], pinfo);
-				pinfo->irq_enabled[i] = false;
+				pinfo->irq_enabled[i] = DET_CONN_GPIO_IRQ_DISABLED;
 			}
 		}
 		return ret;
@@ -154,24 +153,28 @@ int detect_conn_irq_enable(struct sec_det_conn_info *pinfo, bool enable,
 	if (pin >= pinfo->pdata->gpio_total_cnt)
 		return ret;
 
-	ret = request_threaded_irq(pinfo->pdata->irq_number[pin], NULL,
-				   sec_detect_conn_interrupt_handler,
-				   pinfo->pdata->irq_type[pin] | IRQF_ONESHOT,
-				   pinfo->pdata->name[pin], pinfo);
+	if (pinfo->irq_enabled[pin] == DET_CONN_GPIO_IRQ_NOT_INIT) {
+		ret = request_threaded_irq(pinfo->pdata->irq_number[pin], NULL,
+					   sec_detect_conn_interrupt_handler,
+					   pinfo->pdata->irq_type[pin] | IRQF_ONESHOT,
+					   pinfo->pdata->name[pin], pinfo);
 
-	if (ret) {
-		SEC_CONN_PRINT("%s: Failed to request irq %d.\n", __func__,
-			       ret);
-		return ret;
+		if (ret) {
+			SEC_CONN_PRINT("%s: Failed to request irq %d.\n", __func__,
+				       ret);
+			return ret;
+		}
+
+		SEC_CONN_PRINT("%s: Succeeded to request threaded irq %d:\n",
+			       __func__, ret);
+	} else if (pinfo->irq_enabled[pin] == DET_CONN_GPIO_IRQ_DISABLED) {
+		enable_irq(pinfo->pdata->irq_number[pin]);
 	}
-
-	SEC_CONN_PRINT("%s: Succeeded to request threaded irq %d:\n",
-		       __func__, ret);
 	SEC_CONN_PRINT("irq_num[%d], type[%x],name[%s].\n",
 		       pinfo->pdata->irq_number[pin],
 		       pinfo->pdata->irq_type[pin], pinfo->pdata->name[pin]);
 
-	pinfo->irq_enabled[pin] = true;
+	pinfo->irq_enabled[pin] = DET_CONN_GPIO_IRQ_ENABLED;
 	return ret;
 }
 

@@ -96,6 +96,8 @@ static int dma_buf_release(struct inode *inode, struct file *file)
 
 	dmabuf = file->private_data;
 
+	dmabuf_trace_free(dmabuf);
+
 	BUG_ON(dmabuf->vmapping_counter);
 
 	/*
@@ -120,8 +122,6 @@ static int dma_buf_release(struct inode *inode, struct file *file)
 	else
 		pr_warn_ratelimited("Leaking dmabuf %s because destructor failed error:%d\n",
 				    dmabuf->name, dtor_ret);
-
-	dmabuf_trace_free(dmabuf);
 
 	if (dmabuf->resv == (struct reservation_object *)&dmabuf[1])
 		reservation_object_fini(dmabuf->resv);
@@ -624,6 +624,10 @@ struct dma_buf *dma_buf_export(const struct dma_buf_export_info *exp_info)
 		goto err_dmabuf;
 	}
 
+	ret = dmabuf_trace_alloc(dmabuf);
+	if (ret)
+		goto err_file;
+
 	file->f_mode |= FMODE_LSEEK;
 	dmabuf->file = file;
 
@@ -635,10 +639,10 @@ struct dma_buf *dma_buf_export(const struct dma_buf_export_info *exp_info)
 	list_add(&dmabuf->list_node, &db_list.head);
 	mutex_unlock(&db_list.lock);
 
-	dmabuf_trace_alloc(dmabuf);
-
 	return dmabuf;
 
+err_file:
+	fput(file);
 err_dmabuf:
 	kfree(dmabuf->exp_name);
 err_expname:

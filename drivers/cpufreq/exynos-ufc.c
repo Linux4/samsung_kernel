@@ -35,7 +35,11 @@ char *stune_group_name2[] = {
 	"min-wo-boost-limit",
 };
 
-struct exynos_ufc ufc;
+struct exynos_ufc ufc = {
+	.last_min_input = -1,
+	.last_min_wo_boost_input = -1,
+	.last_max_input = -1,
+};
 struct cpufreq_policy *little_policy;
 static struct emstune_mode_request emstune_req_ufc;
 
@@ -555,19 +559,19 @@ static ssize_t ufc_show_cpufreq_table(struct kobject *kobj,
 static ssize_t ufc_show_cpufreq_max_limit(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
-	return snprintf(buf, 10, "%d\n", ufc.last_max_input);
+	return snprintf(buf, 30, "%d\n", ufc.last_max_input);
 }
 
 static ssize_t ufc_show_cpufreq_min_limit(struct kobject *kobj,
 				struct kobj_attribute *attr, char *buf)
 {
-	return snprintf(buf, 10, "%d\n", ufc.last_min_input);
+	return snprintf(buf, 30, "%d\n", ufc.last_min_input);
 }
 
 static ssize_t ufc_show_cpufreq_min_limit_wo_boost(struct kobject *kobj,
 				struct kobj_attribute *attr, char *buf)
 {
-	return snprintf(buf, 30, "UFC: min_limit_wo_boost: %d\n", ufc.last_min_wo_boost_input);
+	return snprintf(buf, 30, "%d\n", ufc.last_min_wo_boost_input);
 }
 
 static ssize_t ufc_show_execution_mode_change(struct kobject *kobj,
@@ -994,9 +998,6 @@ static int init_ufc(struct device_node *dn)
 		return -EINVAL;
 
 	ufc.sse_mode = 0;
-	ufc.last_min_input = 0;
-	ufc.last_max_input = 0;
-	ufc.last_min_wo_boost_input = 0;
 
 	return 0;
 }

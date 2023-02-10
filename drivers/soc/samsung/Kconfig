@@ -18,13 +18,14 @@ config EXYNOS_SCI
 
 config EXYNOS_BCM_DBG
 	bool "EXYNOS_BCM_DBG driver support"
+	depends on !DEBUG_SNAPSHOT_MINIMIZED_MODE
 	default y
 	help
 	  Enable exynos-bcm_dbg driver support
 
 config EXYNOS_BCM_DBG_GNR
 	bool "EXYNOS_BCM_DBG_GNR driver support"
-	depends on !EXYNOS_ADV_TRACER
+	depends on !EXYNOS_ADV_TRACER && !DEBUG_SNAPSHOT_MINIMIZED_MODE
 	default y
 	help
 	  Enable exynos-bcm_dbg general interface support.

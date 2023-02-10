@@ -86,6 +86,7 @@ struct ro_rcu_head {
 		struct rcu_head	rcu;	/* RCU deletion hook */
 	};
 	void *bp_cred;
+	void *reflected_cred;
 };
 
 struct kdp_usecnt {
@@ -112,6 +113,13 @@ struct cred_param {
 	 x->cred->suid.val == 0 || x->cred->sgid.val == 0)
 
 #define GET_ROCRED_RCU(cred) 	((struct ro_rcu_head *)((atomic_t *)cred->use_cnt + 1))
+/*
+After KDP endbled, argument of override_creds will not become the current->cred.
+But some code trys to put_creds the current->cred, to free the resource of cred
+which was allocated before the override_creds. In those case, we need to find the
+original cred by below function.
+*/
+#define GET_REFLECTED_CRED(cred) 	((struct cred *)GET_ROCRED_RCU(cred)->reflected_cred)
 
 #define ROCRED_UC_READ(x)			atomic_read(x->use_cnt)
 #define ROCRED_UC_INC(x)			atomic_inc(x->use_cnt)
@@ -135,8 +143,6 @@ extern inline void put_cred(const struct cred *_cred);
 extern void put_rocred_rcu(struct rcu_head *rcu);
 extern unsigned int kdp_get_usecount(struct cred *cred);
 
-#define override_creds(x) kdp_override_creds((struct cred **)&x)
-extern const struct cred *kdp_override_creds(struct cred **);
 extern struct cred *prepare_ro_creds(struct cred *old, int kdp_cmd, u64 p);
 
 extern int security_integrity_current(void);

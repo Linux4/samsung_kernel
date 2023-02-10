@@ -390,6 +390,54 @@ static void run_sram_test(void *device_data)
 
 }
 
+static void run_raw_test_read(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+
+	int ret = 0;
+	char buff[16] = { 0 };
+
+	sec_cmd_set_default_result(sec);
+
+	if (ilits->tp_suspend) {
+		input_err(true, ilits->dev, "%s failed(screen off state).\n", __func__);
+		goto out;
+	}
+
+	/* only for 9882q */
+	if (ilits->chip->id == ILI9882_CHIP && ilits->chip->type == 0x1A) {
+		ilits->current_mpitem = "raw data(have bk)";
+		ilits->allnode = TEST_MODE_MIN_MAX;
+		ilits->node_min = ilits->node_max = 0;
+		ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[RAWDATAHAVEBK_LCMON_PATH_NUM], ON);
+	} else {
+		ilits->current_mpitem = "raw data(no bk)";
+		ilits->allnode = TEST_MODE_MIN_MAX;
+		ilits->node_min = ilits->node_max = 0;
+		ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[RAWDATANOBK_LCMON_PATH_NUM], ON);
+	}
+	if (ret < 0) {
+		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	}
+	sec_cmd_set_cmd_result(sec, ilits->print_buf, strlen(ilits->print_buf));
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING) {
+		sec_cmd_set_cmd_result_all(sec, ilits->print_buf, SEC_CMD_STR_LEN, "RAW");
+	}
+
+	ilits->current_mpitem = "";
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	return;
+out:
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	snprintf(buff, sizeof(buff), "%s", "NG");
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING) {
+		sec_cmd_set_cmd_result_all(sec, ilits->print_buf, SEC_CMD_STR_LEN, "RAW");
+	}
+
+}
+
 static void run_raw_test_read_all(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -404,17 +452,23 @@ static void run_raw_test_read_all(void *device_data)
 		goto out;
 	}
 
-	ilits->current_mpitem = "raw data(no bk)";
-	ilits->allnode = TEST_MODE_ALL_NODE;
-	ilits->node_min = ilits->node_max = 0;
-	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[RAWDATANOBK_LCMON_PATH_NUM], ON);
+	/* only for 9882q */
+	if (ilits->chip->id == ILI9882_CHIP && ilits->chip->type == 0x1A) {
+		ilits->current_mpitem = "raw data(have bk)";
+		ilits->allnode = TEST_MODE_ALL_NODE;
+		ilits->node_min = ilits->node_max = 0;
+		ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[RAWDATAHAVEBK_LCMON_PATH_NUM], ON);
+	} else {
+		ilits->current_mpitem = "raw data(no bk)";
+		ilits->allnode = TEST_MODE_ALL_NODE;
+		ilits->node_min = ilits->node_max = 0;
+		ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[RAWDATANOBK_LCMON_PATH_NUM], ON);
+	}
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 	}
 	sec_cmd_set_cmd_result(sec, ilits->print_buf, strlen(ilits->print_buf));
-	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
-		sec_cmd_set_cmd_result_all(sec, ilits->print_buf, SEC_CMD_STR_LEN, "RAW");
 
 	ilits->current_mpitem = "";
 	sec->cmd_state = SEC_CMD_STATUS_OK;
@@ -423,8 +477,46 @@ out:
 	sec->cmd_state = SEC_CMD_STATUS_FAIL;
 	snprintf(buff, sizeof(buff), "%s", "NG");
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
-	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
-		sec_cmd_set_cmd_result_all(sec, buff, SEC_CMD_STR_LEN, "RAW");
+}
+
+static void run_raw_doze_test_read(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+
+	int ret = 0;
+	char buff[16] = { 0 };
+
+	sec_cmd_set_default_result(sec);
+
+	if (ilits->tp_suspend) {
+		input_err(true, ilits->dev, "%s failed(screen off state).\n", __func__);
+		goto out;
+	}
+
+	ilits->current_mpitem = "doze raw data";
+	ilits->allnode = TEST_MODE_MIN_MAX;
+	ilits->node_min = ilits->node_max = 0;
+
+	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[DOZERAW_PATH_NUM], ON);
+	if (ret < 0) {
+		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	}
+	sec_cmd_set_cmd_result(sec, ilits->print_buf, strlen(ilits->print_buf));
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING) {
+		sec_cmd_set_cmd_result_all(sec, ilits->print_buf, SEC_CMD_STR_LEN, "RAW_DOZE");
+	}
+	ilits->current_mpitem = "";
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	return;
+out:
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	snprintf(buff, sizeof(buff), "%s", "NG");
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING) {
+		sec_cmd_set_cmd_result_all(sec, ilits->print_buf, SEC_CMD_STR_LEN, "RAW_DOZE");
+	}
+	ilits->current_mpitem = "";
 }
 
 static void run_raw_doze_test_read_all(void *device_data)
@@ -525,8 +617,41 @@ static void run_cal_dac_test_read_all(void *device_data)
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 	}
 	sec_cmd_set_cmd_result(sec, ilits->print_buf, strlen(ilits->print_buf));
+
+	ilits->current_mpitem = "";
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	return;
+out:
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	snprintf(buff, sizeof(buff), "%s", "NG");
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+}
+
+static void run_open_test_read(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+
+	int ret = 0;
+	char buff[16] = { 0 };
+
+	sec_cmd_set_default_result(sec);
+
+	if (ilits->tp_suspend) {
+		input_err(true, ilits->dev, "%s failed(screen off state).\n", __func__);
+		goto out;
+	}
+
+	ilits->current_mpitem = "open test_c";
+	ilits->allnode = TEST_MODE_MIN_MAX;
+	ilits->node_min = ilits->node_max = 0;
+	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[OPENTESTC_PATH_NUM], ON);
+	if (ret < 0) {
+		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	}
+	sec_cmd_set_cmd_result(sec, ilits->print_buf, strlen(ilits->print_buf));
 	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
-		sec_cmd_set_cmd_result_all(sec, ilits->print_buf, SEC_CMD_STR_LEN, "CAL_DAC");
+		sec_cmd_set_cmd_result_all(sec, ilits->print_buf, SEC_CMD_STR_LEN, "OPEN");
 
 	ilits->current_mpitem = "";
 	sec->cmd_state = SEC_CMD_STATUS_OK;
@@ -536,7 +661,7 @@ out:
 	snprintf(buff, sizeof(buff), "%s", "NG");
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
-		sec_cmd_set_cmd_result_all(sec, buff, SEC_CMD_STR_LEN, "CAL_DAC");
+		sec_cmd_set_cmd_result_all(sec, buff, SEC_CMD_STR_LEN, "OPEN");
 }
 
 static void run_open_test_read_all(void *device_data)
@@ -712,8 +837,6 @@ static void run_noise_test_read_all(void *device_data)
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 	}
 	sec_cmd_set_cmd_result(sec, ilits->print_buf, strlen(ilits->print_buf));
-	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
-		sec_cmd_set_cmd_result_all(sec, ilits->print_buf, SEC_CMD_STR_LEN, "NOISE");
 
 	ilits->current_mpitem = "";
 	sec->cmd_state = SEC_CMD_STATUS_OK;
@@ -722,8 +845,46 @@ out:
 	sec->cmd_state = SEC_CMD_STATUS_FAIL;
 	snprintf(buff, sizeof(buff), "%s", "NG");
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
-	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
-		sec_cmd_set_cmd_result_all(sec, buff, SEC_CMD_STR_LEN, "NOISE");
+}
+
+static void run_noise_doze_test_read(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+
+	int ret = 0;
+	char buff[16] = { 0 };
+
+	sec_cmd_set_default_result(sec);
+
+	if (ilits->tp_suspend) {
+		input_err(true, ilits->dev, "%s failed(screen off state).\n", __func__);
+		goto out;
+	}
+
+	ilits->current_mpitem = "doze peak to peak";
+	ilits->allnode = TEST_MODE_MIN_MAX;
+	ilits->node_min = ilits->node_max = 0;
+
+	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[DOZEPP_PATH_NUM], ON);
+	if (ret < 0) {
+		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	}
+	sec_cmd_set_cmd_result(sec, ilits->print_buf, strlen(ilits->print_buf));
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING) {
+		sec_cmd_set_cmd_result_all(sec, ilits->print_buf, SEC_CMD_STR_LEN, "NOISE_DOZE");
+	}
+
+	ilits->current_mpitem = "";
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	return;
+out:
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	snprintf(buff, sizeof(buff), "%s", "NG");
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING) {
+		sec_cmd_set_cmd_result_all(sec, ilits->print_buf, SEC_CMD_STR_LEN, "NOISE_DOZE");
+	}
 }
 
 static void run_noise_doze_test_read_all(void *device_data)
@@ -824,8 +985,42 @@ static void run_noise_test_read_all_lcdoff(void *device_data)
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 	}
 	sec_cmd_set_cmd_result(sec, ilits->print_buf, strlen(ilits->print_buf));
+
+	ilits->current_mpitem = "";
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	return;
+out:
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	snprintf(buff, sizeof(buff), "%s", "NG");
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+}
+
+static void run_noise_doze_test_read_lcdoff(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+
+	int ret = 0;
+	char buff[16] = { 0 };
+
+	sec_cmd_set_default_result(sec);
+
+	if (ilits->power_status == POWER_OFF_STATUS) {
+		input_err(true, ilits->dev, "%s failed(power off state).\n", __func__);
+		goto out;
+	}
+
+	ilits->current_mpitem = "peak to peak_td (lcm off)";
+	ilits->allnode = TEST_MODE_MIN_MAX;
+	ilits->node_min = ilits->node_max = 0;
+
+	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[P2P_TD_PATH_NUM], OFF);
+	if (ret < 0) {
+		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	}
+	sec_cmd_set_cmd_result(sec, ilits->print_buf, strlen(ilits->print_buf));
 	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
-		sec_cmd_set_cmd_result_all(sec, ilits->print_buf, SEC_CMD_STR_LEN, "NOISE_OFF");
+		sec_cmd_set_cmd_result_all(sec, ilits->print_buf, SEC_CMD_STR_LEN, "NOISE_DOZE_OFF");
 
 	ilits->current_mpitem = "";
 	sec->cmd_state = SEC_CMD_STATUS_OK;
@@ -835,7 +1030,7 @@ out:
 	snprintf(buff, sizeof(buff), "%s", "NG");
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
-		sec_cmd_set_cmd_result_all(sec, buff, SEC_CMD_STR_LEN, "NOISE_OFF");
+		sec_cmd_set_cmd_result_all(sec, buff, SEC_CMD_STR_LEN, "NOISE_DOZE_OFF");
 }
 
 static void run_noise_doze_test_read_all_lcdoff(void *device_data)
@@ -876,6 +1071,44 @@ out:
 		sec_cmd_set_cmd_result_all(sec, buff, SEC_CMD_STR_LEN, "NOISE_DOZE_OFF");
 }
 
+static void run_raw_doze_test_read_lcdoff(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+
+	int ret = 0;
+	char buff[16] = { 0 };
+
+	sec_cmd_set_default_result(sec);
+
+	if (ilits->power_status == POWER_OFF_STATUS) {
+		input_err(true, ilits->dev, "%s failed(power off state).\n", __func__);
+		goto out;
+	}
+
+	ilits->current_mpitem = "raw data_td (lcm off)";
+	ilits->allnode = TEST_MODE_MIN_MAX;
+	ilits->node_min = ilits->node_max = 0;
+
+	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[RAWDATATD_PATH_NUM], OFF);
+	if (ret < 0) {
+		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	}
+	sec_cmd_set_cmd_result(sec, ilits->print_buf, strlen(ilits->print_buf));
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
+		sec_cmd_set_cmd_result_all(sec, buff, SEC_CMD_STR_LEN, "RAW_DOZE_OFF");
+
+	ilits->current_mpitem = "";
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	return;
+out:
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	snprintf(buff, sizeof(buff), "%s", "NG");
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
+		sec_cmd_set_cmd_result_all(sec, buff, SEC_CMD_STR_LEN, "RAW_DOZE_OFF");
+}
+
 static void run_raw_doze_test_read_all_lcdoff(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -914,7 +1147,7 @@ out:
 		sec_cmd_set_cmd_result_all(sec, buff, SEC_CMD_STR_LEN, "RAW_DOZE_OFF");
 }
 
-static void run_raw_test_read_all_lcdoff(void *device_data)
+static void run_raw_test_read_lcdoff(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
 
@@ -928,10 +1161,18 @@ static void run_raw_test_read_all_lcdoff(void *device_data)
 		goto out;
 	}
 
-	ilits->current_mpitem = "raw data(no bk) (lcm off)";
-	ilits->allnode = TEST_MODE_ALL_NODE;
-	ilits->node_min = ilits->node_max = 0;
-	ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[RAWDATANOBK_LCMOFF_PATH_NUM], OFF);
+	/* only for 9882q */
+	if (ilits->chip->id == ILI9882_CHIP && ilits->chip->type == 0x1A) {
+		ilits->current_mpitem = "raw data(have bk) (lcm off)";
+		ilits->allnode = TEST_MODE_MIN_MAX;
+		ilits->node_min = ilits->node_max = 0;
+		ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[RAWDATAHAVEBK_LCMOFF_PATH_NUM], OFF);
+	} else {
+		ilits->current_mpitem = "raw data(no bk) (lcm off)";
+		ilits->allnode = TEST_MODE_MIN_MAX;
+		ilits->node_min = ilits->node_max = 0;
+		ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[RAWDATANOBK_LCMOFF_PATH_NUM], OFF);
+	}
 	if (ret < 0) {
 		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -948,7 +1189,49 @@ out:
 	snprintf(buff, sizeof(buff), "%s", "NG");
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
-		sec_cmd_set_cmd_result_all(sec, buff, SEC_CMD_STR_LEN, "RAW_OFF");
+		sec_cmd_set_cmd_result_all(sec, ilits->print_buf, SEC_CMD_STR_LEN, "RAW_OFF");
+}
+
+static void run_raw_test_read_all_lcdoff(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+
+	int ret = 0;
+	char buff[16] = { 0 };
+
+	sec_cmd_set_default_result(sec);
+
+	if (ilits->power_status == POWER_OFF_STATUS) {
+		input_err(true, ilits->dev, "%s failed(power off state).\n", __func__);
+		goto out;
+	}
+
+	/* only for 9882q */
+	if (ilits->chip->id == ILI9882_CHIP && ilits->chip->type == 0x1A) {
+		ilits->current_mpitem = "raw data(have bk) (lcm off)";
+		ilits->allnode = TEST_MODE_ALL_NODE;
+		ilits->node_min = ilits->node_max = 0;
+		ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[RAWDATAHAVEBK_LCMOFF_PATH_NUM], OFF);
+	} else {
+		
+		ilits->current_mpitem = "raw data(no bk) (lcm off)";
+		ilits->allnode = TEST_MODE_ALL_NODE;
+		ilits->node_min = ilits->node_max = 0;
+		ret = ilitek_node_mp_test_read(sec, ilits->mp_ini_path[RAWDATANOBK_LCMOFF_PATH_NUM], OFF);
+	}
+	if (ret < 0) {
+		snprintf(ilits->print_buf, SEC_CMD_STR_LEN, "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	}
+	sec_cmd_set_cmd_result(sec, ilits->print_buf, strlen(ilits->print_buf));
+
+	ilits->current_mpitem = "";
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	return;
+out:
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	snprintf(buff, sizeof(buff), "%s", "NG");
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 }
 
 static void factory_cmd_result_all(void *device_data)
@@ -976,6 +1259,12 @@ static void factory_cmd_result_all(void *device_data)
 	run_cal_dac_test_read(sec);
 	run_short_test_read(sec);
 	run_noise_test_read(sec);
+	/* only for 9882q */
+	if (ilits->chip->id == ILI9882_CHIP && ilits->chip->type == 0x1A) {
+		run_raw_test_read(sec);
+		run_raw_doze_test_read(sec);
+		run_noise_doze_test_read(sec);
+	}
 
 	ilits->actual_tp_mode = P5_X_FW_AP_MODE;
 	if (ilits->fw_upgrade_mode == UPGRADE_IRAM) {
@@ -1008,7 +1297,14 @@ static void factory_lcdoff_cmd_result_all(void *device_data)
 
 	sec->cmd_all_factory_state = SEC_CMD_STATUS_RUNNING;
 
-	run_noise_test_read_lcdoff(sec);
+	/* only for 9882q */
+	if (ilits->chip->id == ILI9882_CHIP && ilits->chip->type == 0x1A) {
+		run_noise_test_read_lcdoff(sec);
+		run_noise_doze_test_read_lcdoff(sec);
+		run_raw_test_read_lcdoff(sec);
+	} else {
+		run_noise_test_read_lcdoff(sec);
+	}
 
 	atomic_set(&ilits->mp_stat, DISABLE);
 	sec->cmd_all_factory_state = SEC_CMD_STATUS_OK;
@@ -1107,40 +1403,28 @@ static void ear_detect_enable(void *device_data)
 	sec_cmd_set_default_result(sec);
 	mutex_lock(&ilits->touch_mutex);
 	input_info(true, ilits->dev, "%s: %d\n", __func__, sec->cmd_param[0]);
-	if (ilits->tp_suspend) {
-		input_info(true, ilits->dev, "%s: now screen off stae, it'll setting after screen on\n",
-				__func__, sec->cmd_param[0]);
-		if (sec->cmd_param[0] == 0 || sec->cmd_param[0] == 1) {
-			ilits->prox_face_mode = sec->cmd_param[0];
-			ret = 0;
-		} else {
-			input_info(true, ilits->dev, "%s: Not supported value:%d\n", __func__, sec->cmd_param[0]);
-			ret = -1;
-		}
-		goto out;
-	}
-	switch (sec->cmd_param[0]) {
-	case EAR_DETECT_DISABLE:
-		ilits->prox_face_mode = EAR_DETECT_DISABLE;
-		ret = ili_ic_func_ctrl("proximity", EAR_DETECT_DISABLE);
-		if (ret < 0)
-			input_err(true, ilits->dev, "%s EAR_DETECT_DISABLE failed\n", __func__);
 
-		if (ilits->started_prox_intensity) {
-			debug_mode_onoff(false);
-			ilits->started_prox_intensity = false;
-		}
-		break;
-	case EAR_DETECT_ENABLE:
-		ilits->prox_face_mode = EAR_DETECT_ENABLE;
-		ret = ili_ic_func_ctrl("proximity", EAR_DETECT_ENABLE);
-		if (ret < 0)
-			input_err(true, ilits->dev, "%s EAR_DETECT_ENABLE failed\n", __func__);
-		break;
-	default:
+	if ((sec->cmd_param[0] != EAR_DETECT_DISABLE) && (sec->cmd_param[0] != EAR_DETECT_NORMAL_MODE) && (sec->cmd_param[0] != EAR_DETECT_INSENSITIVE_MODE)) {
 		input_info(true, ilits->dev, "%s: Not supported value:%d\n", __func__, sec->cmd_param[0]);
 		ret = -1;
-		break;
+		goto out;
+	}
+
+	ilits->prox_face_mode = sec->cmd_param[0];
+
+	if (ilits->tp_suspend) {
+		input_info(true, ilits->dev, "%s: now screen off stae, it'll setting after screen on(%d)\n",
+						__func__, ilits->prox_face_mode);
+		goto out;
+	}
+
+	ret = ili_ic_func_ctrl("proximity", ilits->prox_face_mode);
+	if (ret < 0)
+		input_err(true, ilits->dev, "%s Ear Detect Mode Setting failed\n", __func__);
+
+	if ((ilits->prox_face_mode == EAR_DETECT_DISABLE) && ilits->started_prox_intensity) {
+		debug_mode_onoff(false);
+		ilits->started_prox_intensity = false;
 	}
 out:
 	if (ret < 0) {
@@ -1188,7 +1472,7 @@ static void prox_lp_scan_mode(void *device_data)
 
 	switch (sec->cmd_param[0]) {
 	case PORX_LP_SCAN_OFF:
-		if (ilits->prox_face_mode == true) {
+		if (ilits->prox_face_mode) {
 			if (ili_ic_func_ctrl("sleep", SLEEP_IN) < 0)
 				input_err(true, ilits->dev, "%s Write sleep in cmd failed\n", __func__);
 			ilits->prox_lp_scan_mode_enabled = false;
@@ -1197,7 +1481,7 @@ static void prox_lp_scan_mode(void *device_data)
 		}
 		break;
 	case PORX_LP_SCAN_ON:
-		if (ilits->prox_face_mode == true) {
+		if (ilits->prox_face_mode) {
 			ili_switch_tp_mode(P5_X_FW_GESTURE_MODE);
 			ret = ili_ic_func_ctrl("lpwg", 0x21);//proximity report start
 			if (ret < 0)
@@ -1371,20 +1655,27 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("get_x_num", get_x_num),},
 	{SEC_CMD("get_y_num", get_y_num),},
 	{SEC_CMD("run_sram_test", run_sram_test),},
+	{SEC_CMD("run_raw_test_read", run_raw_test_read),},
 	{SEC_CMD("run_raw_test_read_all", run_raw_test_read_all),},
+	{SEC_CMD("run_raw_doze_test_read", run_raw_doze_test_read),},
 	{SEC_CMD("run_raw_doze_test_read_all", run_raw_doze_test_read_all),},
 	{SEC_CMD("run_cal_dac_test_read", run_cal_dac_test_read),},
 	{SEC_CMD("run_cal_dac_test_read_all", run_cal_dac_test_read_all),},
+	{SEC_CMD("run_open_test_read", run_open_test_read),},
 	{SEC_CMD("run_open_test_read_all", run_open_test_read_all),},
 	{SEC_CMD("run_short_test_read", run_short_test_read),},
 	{SEC_CMD("run_short_test_read_all", run_short_test_read_all),},
 	{SEC_CMD("run_noise_test_read", run_noise_test_read),},
 	{SEC_CMD("run_noise_test_read_all", run_noise_test_read_all),},
+	{SEC_CMD("run_noise_doze_test_read", run_noise_doze_test_read),},
 	{SEC_CMD("run_noise_doze_test_read_all", run_noise_doze_test_read_all),},
 	{SEC_CMD("run_noise_test_read_lcdoff", run_noise_test_read_lcdoff),},
 	{SEC_CMD("run_noise_test_read_all_lcdoff", run_noise_test_read_all_lcdoff),},
+	{SEC_CMD("run_noise_doze_test_read_lcdoff", run_noise_doze_test_read_lcdoff),},
 	{SEC_CMD("run_noise_doze_test_read_all_lcdoff", run_noise_doze_test_read_all_lcdoff),},
+	{SEC_CMD("run_raw_doze_test_read_lcdoff", run_raw_doze_test_read_lcdoff),},
 	{SEC_CMD("run_raw_doze_test_read_all_lcdoff", run_raw_doze_test_read_all_lcdoff),},
+	{SEC_CMD("run_raw_test_read_lcdoff", run_raw_test_read_lcdoff),},
 	{SEC_CMD("run_raw_test_read_all_lcdoff", run_raw_test_read_all_lcdoff),},
 	{SEC_CMD("factory_cmd_result_all", factory_cmd_result_all),},
 	{SEC_CMD("factory_lcdoff_cmd_result_all", factory_lcdoff_cmd_result_all),},
@@ -1516,36 +1807,29 @@ static ssize_t protos_event_store(struct device *dev,
 	ret = kstrtou8(buf, 10, &data);
 	if (ret < 0)
 		return ret;
+
 	mutex_lock(&ilits->touch_mutex);
 	input_info(true, ilits->dev, "%s: %d\n", __func__, data);
-	if (ilits->tp_suspend) {
-		input_info(true, ilits->dev, "%s: now screen off stae, it'll setting after screen on\n",
-				__func__, data);
-		if (data == 0 || data == 1)
-			ilits->prox_face_mode = data;
-		else
-			input_info(true, ilits->dev, "%s: Not supported value:%d\n", __func__, data);
+
+	if ((data != EAR_DETECT_DISABLE) && (data != EAR_DETECT_NORMAL_MODE) && (data != EAR_DETECT_INSENSITIVE_MODE)) {
+		input_info(true, ilits->dev, "%s: Not supported value:%d\n", __func__, data);
 		mutex_unlock(&ilits->touch_mutex);
 		return count;
 	}
 
-	switch (data) {
-	case EAR_DETECT_DISABLE:
-		ilits->prox_face_mode = EAR_DETECT_DISABLE;
-		ret = ili_ic_func_ctrl("proximity", EAR_DETECT_DISABLE);
-		if (ret < 0)
-			input_err(true, ilits->dev, "%s EAR_DETECT_DISABLE failed\n", __func__);
-		break;
-	case EAR_DETECT_ENABLE:
-		ilits->prox_face_mode = EAR_DETECT_ENABLE;
-		ret = ili_ic_func_ctrl("proximity", EAR_DETECT_ENABLE);
-		if (ret < 0)
-			input_err(true, ilits->dev, "%s EAR_DETECT_ENABLE failed\n", __func__);
-		break;
-	default:
-		input_info(true, ilits->dev, "%s: Not supported value:%d\n", __func__, data);
-		break;
+	ilits->prox_face_mode = data;
+
+	if (ilits->tp_suspend) {
+		input_info(true, ilits->dev, "%s: now screen off stae, it'll setting after screen on(%d)\n",
+						__func__, ilits->prox_face_mode);
+		mutex_unlock(&ilits->touch_mutex);
+		return count;
 	}
+
+	ret = ili_ic_func_ctrl("proximity", ilits->prox_face_mode);
+	if (ret < 0)
+		input_err(true, ilits->dev, "%s Ear Detect Mode Setting failed\n", __func__);
+
 	mutex_unlock(&ilits->touch_mutex);
 	return count;
 }
@@ -1573,6 +1857,10 @@ static ssize_t enabled_store(struct device *dev,
 	}
 
 	input_info(true, ilits->dev, "%s: %d %d\n", __func__, buff[0], buff[1]);
+
+	/* handle same sequence : buff[0] = LCD_ON, LCD_DOZE1, LCD_DOZE2*/
+	if (buff[0] == LCD_DOZE1 || buff[0] == LCD_DOZE2)
+		buff[0] = LCD_ON;
 
 	switch (buff[0]) {
 	case LCD_OFF:

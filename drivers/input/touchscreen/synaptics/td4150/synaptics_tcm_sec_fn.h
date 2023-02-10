@@ -39,7 +39,7 @@
 
 #include <linux/vmalloc.h>
 #include <linux/uaccess.h>
-//#include <linux/spu-verify.h>
+#include <linux/spu-verify.h>
 
 #define TEST_MODE_MIN_MAX		false
 #define TEST_MODE_ALL_NODE		true
@@ -68,4 +68,6 @@ int raw_data_gap_y(struct sec_cmd_data *sec, struct sec_factory_test_mode *mode)
 int test_fw_crc(struct sec_cmd_data *sec);
 int test_check_connection(struct sec_cmd_data *sec);
 int test_sensitivity(void);
+int get_proximity(void);
 int test_init(struct syna_tcm_hcd *tcm_hcd);
+int syna_tcm_get_face_area(int *data_sum, struct sec_factory_test_mode *mode);

@@ -461,6 +461,8 @@ static inline bool __has_cursum_space(struct f2fs_journal *journal,
 #define F2FS_IOC_PRECACHE_EXTENTS	_IO(F2FS_IOCTL_MAGIC, 15)
 #define F2FS_IOC_RESIZE_FS		_IOW(F2FS_IOCTL_MAGIC, 16, __u64)
 #define F2FS_IOC_GET_VALID_NODE_COUNT	_IOR(F2FS_IOCTL_MAGIC, 32, __u32)
+#define F2FS_IOC_STAT_COMPRESS_FILE	_IOWR(F2FS_IOCTL_MAGIC, 33, \
+						struct f2fs_sec_stat_compfile)
 
 #define F2FS_IOC_GET_VOLUME_NAME	FS_IOC_GETFSLABEL
 #define F2FS_IOC_SET_VOLUME_NAME	FS_IOC_SETFSLABEL
@@ -513,6 +515,22 @@ struct f2fs_move_range {
 struct f2fs_flush_device {
 	u32 dev_num;		/* device number to flush */
 	u32 segments;		/* # of segments to flush */
+};
+
+struct f2fs_sec_stat_compfile {
+	union {
+		struct {
+			u32 in_init:1;
+			u32 in_scan:1;
+			u32 in_commit:1;
+			u32 in_reserved:13;
+			u32 out_compressed:1;
+			u32 out_reserved:15;
+		};
+		u32 flags;
+	};
+	u64	st_blocks;
+	u64	st_compressed_blocks;
 };
 
 /* for inline stuff */
@@ -909,6 +927,13 @@ enum nid_state {
 	PREALLOC_NID,		/* it is preallocated */
 	MAX_NID_STATE,
 };
+ 
+enum nat_state {
+	TOTAL_NAT,
+	DIRTY_NAT,
+	RECLAIMABLE_NAT,
+	MAX_NAT_STATE,
+};
 
 struct f2fs_nm_info {
 	block_t nat_blkaddr;		/* base disk address of NAT */
@@ -925,8 +950,7 @@ struct f2fs_nm_info {
 	struct rw_semaphore nat_tree_lock;	/* protect nat_tree_lock */
 	struct list_head nat_entries;	/* cached nat entry list (clean) */
 	spinlock_t nat_list_lock;	/* protect clean nat entry list */
-	unsigned int nat_cnt;		/* the # of cached nat entries */
-	unsigned int dirty_nat_cnt;	/* total num of nat entries in set */
+	unsigned int nat_cnt[MAX_NAT_STATE]; /* the # of cached nat entries */
 	unsigned int nat_blocks;	/* # of nat blocks */
 
 	/* free node ids management */
@@ -1359,6 +1383,14 @@ struct f2fs_sec_fsck_info {
 	u32 valid_inode_count;
 };
 
+struct f2fs_sec_heimdallfs_stat {
+	u32 nr_pkgs;
+	u64 nr_pkg_blks;
+	u32 nr_comp_pkgs;
+	u64 nr_comp_pkg_blks;
+	u64 nr_comp_saved_blks;
+};
+
 #ifdef CONFIG_F2FS_SEC_BLOCK_OPERATIONS_DEBUG
 #define F2FS_SEC_BLKOPS_ENTRIES		10
 #define F2FS_SEC_BLKOPS_LOGGING_THR	5		// > 5 Secs -> logging
@@ -1676,8 +1708,11 @@ struct f2fs_sb_info {
 
 	struct workqueue_struct *post_read_wq;	/* post read workqueue */
 
+	unsigned int sec_hqm_preserve;
 	struct f2fs_sec_stat_info sec_stat;
 	struct f2fs_sec_fsck_info sec_fsck_stat;
+
+	struct f2fs_sec_heimdallfs_stat sec_heimdallfs_stat;
 
 	/* To gather information of fragmentation */
 	unsigned int s_sec_part_best_extents;
@@ -3582,7 +3617,7 @@ int f2fs_get_valid_checkpoint(struct f2fs_sb_info *sbi);
 void f2fs_update_dirty_page(struct inode *inode, struct page *page);
 void f2fs_remove_dirty_inode(struct inode *inode);
 int f2fs_sync_dirty_inodes(struct f2fs_sb_info *sbi, enum inode_type type);
-void f2fs_wait_on_all_pages_writeback(struct f2fs_sb_info *sbi);
+void f2fs_wait_on_all_pages(struct f2fs_sb_info *sbi, int type);
 int f2fs_write_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc);
 void f2fs_init_ino_entry_info(struct f2fs_sb_info *sbi);
 int __init f2fs_create_checkpoint_caches(void);

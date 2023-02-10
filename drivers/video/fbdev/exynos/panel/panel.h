@@ -836,6 +836,8 @@ struct ddi_properties {
 	bool support_partial_disp;
 	bool err_fg_recovery;
 	u32 init_seq_by_lpdt;
+	u8 delay_cmd;
+	u32 delay_duration;
 };
 
 struct common_panel_info {
@@ -1035,7 +1037,7 @@ enum {
 };
 
 #define MAX_PANEL (32)
-#define MAX_PANEL_DDI (8)
+#define MAX_PANEL_DDI (16)
 #define MAX_PANEL_LUT (128)
 
 enum {

@@ -1,7 +1,7 @@
 /*
- * linux/drivers/video/fbdev/exynos/panel/nt36525b_dtc_dtc/nt36525b_dtc_dtc.c
+ * linux/drivers/video/fbdev/exynos/panel/nt36525b_dtc/nt36525b_dtc.c
  *
- * nt36525b_dtc_dtc Dimming Driver
+ * nt36525b_dtc Dimming Driver
  *
  * Copyright (c) 2016 Samsung Electronics
  *

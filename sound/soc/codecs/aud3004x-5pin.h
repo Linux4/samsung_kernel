@@ -54,6 +54,7 @@ enum {
 	IRQ_ST_IMP_CHK,
 	IRQ_ST_JACKDET,
 	IRQ_ST_JACKOUT,
+	IRQ_ST_DET_JACKOUT,
 	IRQ_ST_ANT_JACKOUT,
 	IRQ_ST_WTJACK_IRQ,
 	IRQ_ST_BTN_DET,
@@ -92,7 +93,7 @@ struct aud3004x_jack {
 	struct aud3004x_priv *p_aud3004x;
 	struct input_dev *input;
 	struct iio_channel *jack_adc_iio;
-	unsigned int irq_val[8];
+	unsigned int irq_val[9];
 	struct wake_lock jack_wake_lock;
 	struct mutex key_lock;
 	struct mutex ldet_lock;

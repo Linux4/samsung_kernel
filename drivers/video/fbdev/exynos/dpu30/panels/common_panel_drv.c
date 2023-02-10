@@ -254,6 +254,85 @@ static void exynos_panel_get_hdr_info(struct exynos_panel_info *info,
 	}
 }
 
+#define DISPLAY_MODE_ITEM_CNT   8
+
+static void exynos_panel_get_display_modes(struct exynos_panel_info *info,
+		struct device_node *np)
+{
+	int size;
+	u32 len;
+	int i;
+	const unsigned int *addr;
+	unsigned int *mode_item;
+	u32 disp_group = 0;
+
+	DPU_INFO_PANEL("%s +\n", __func__);
+
+	of_property_read_u32(np, "active_fps", &info->active_fps);
+	DPU_INFO_PANEL("active_fps(%d)\n", info->active_fps);
+
+	of_property_read_u32(np, "default_mode", &info->cur_mode_idx);
+	DPU_INFO_PANEL("default display mode index(%d)\n", info->cur_mode_idx);
+
+	size = of_property_count_u32_elems(np, "display_mode");
+	if (size < 0) {
+		DPU_INFO_PANEL("This panel doesn't support display mode\n");
+		return;
+	}
+
+	info->display_mode_count = size / DISPLAY_MODE_ITEM_CNT;
+	DPU_INFO_PANEL("supported display mode count(%d)\n", info->display_mode_count);
+
+	addr = of_get_property(np, "display_mode", &len);
+
+	for (i = 0; i < info->display_mode_count; ++i) {
+		mode_item = (unsigned int *)&addr[i * DISPLAY_MODE_ITEM_CNT];
+		info->display_mode[i].mode.index = i;
+		info->display_mode[i].mode.width = be32_to_cpu(mode_item[0]);
+		info->display_mode[i].mode.height = be32_to_cpu(mode_item[1]);
+		info->display_mode[i].mode.fps = be32_to_cpu(mode_item[2]);
+		info->display_mode[i].mode.mm_width = info->width;
+		info->display_mode[i].mode.mm_height = info->height;
+		info->display_mode[i].cmd_lp_ref = be32_to_cpu(mode_item[3]);
+		info->display_mode[i].dsc_en = be32_to_cpu(mode_item[4]);
+		if (info->display_mode[i].dsc_en) {
+			info->display_mode[i].dsc_width = be32_to_cpu(mode_item[5]);
+			info->display_mode[i].dsc_height = be32_to_cpu(mode_item[6]);
+			info->display_mode[i].dsc_enc_sw =
+				exynos_panel_calc_slice_width(info->dsc.cnt,
+						info->dsc.slice_num,
+						info->display_mode[i].mode.width);
+			info->display_mode[i].dsc_dec_sw =
+				info->display_mode[i].mode.width / info->dsc.slice_num;
+		}
+		if ((i > 0) &&
+			((info->display_mode[i].mode.width != info->display_mode[i - 1].mode.width) ||
+			 (info->display_mode[i].mode.height != info->display_mode[i - 1].mode.height)))
+			disp_group++;
+		info->display_mode[i].mode.group = disp_group;
+
+		info->display_mode[i].vfp = be32_to_cpu(mode_item[7]);
+
+		DPU_INFO_PANEL("display mode[%d] : %dx%d@%d, %dmm x %dmm, lp_ref(%d), vfp(%d)\n",
+				info->display_mode[i].mode.index,
+				info->display_mode[i].mode.width,
+				info->display_mode[i].mode.height,
+				info->display_mode[i].mode.fps,
+				info->display_mode[i].mode.mm_width,
+				info->display_mode[i].mode.mm_height,
+				info->display_mode[i].cmd_lp_ref,
+				info->display_mode[i].vfp);
+		DPU_INFO_PANEL("\t\tdsc %s, dsc size(%dx%d), dsc enc/dec sw(%d/%d)\n",
+				info->display_mode[i].dsc_en ? "enabled" : "disabled",
+				info->display_mode[i].dsc_width,
+				info->display_mode[i].dsc_height,
+				info->display_mode[i].dsc_enc_sw,
+				info->display_mode[i].dsc_dec_sw);
+	}
+
+	DPU_INFO_PANEL("%s -\n", __func__);
+}
+
 void parse_lcd_info(struct device_node *np, EXYNOS_PANEL_INFO *lcd_info)
 {
 	u32 res[2];
@@ -278,6 +357,7 @@ void parse_lcd_info(struct device_node *np, EXYNOS_PANEL_INFO *lcd_info)
 	exynos_panel_get_dsc_info(lcd_info, np);
 	exynos_panel_get_mres_info(lcd_info, np);
 	exynos_panel_get_hdr_info(lcd_info, np);
+	exynos_panel_get_display_modes(lcd_info, np);
 }
 
 static void exynos_panel_list_up(void)

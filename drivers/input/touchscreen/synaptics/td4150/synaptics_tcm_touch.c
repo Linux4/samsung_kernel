@@ -56,6 +56,12 @@ enum gesture_id {
 	GESTURE_DOUBLE_TAP = 0X01,
 };
 
+enum display_deep_sleep_state_id {
+	SLEEP_NO_CHANGE = 0,
+	SLEEP_IN = 1,
+	SLEEP_OUT = 2,
+};
+
 enum touch_report_code {
 	TOUCH_END = 0,
 	TOUCH_FOREACH_ACTIVE_OBJECT,
@@ -90,6 +96,7 @@ enum touch_report_code {
 	TOUCH_TUNING_GAUSSIAN_WIDTHS = 0x80,
 	TOUCH_TUNING_SMALL_OBJECT_PARAMS,
 	TOUCH_TUNING_0D_BUTTONS_VARIANCE,
+	TOUCH_REPORT_DISPLAY_DEEP_SLEEP_STATE = 0xC0,
 };
 
 struct object_data {
@@ -126,18 +133,19 @@ struct touch_data {
 	unsigned int fd_data;
 	unsigned int force_data;
 	unsigned int fingerprint_area_meet;
+	unsigned int display_deep_sleep_state;
 };
 
 struct touch_hcd {
 	bool irq_wake;
 	bool init_touch_ok;
-	bool suspend_touch;
 	unsigned char *prev_status;
 	unsigned int max_x;
 	unsigned int max_y;
 	unsigned int max_objects;
 	struct mutex report_mutex;
 	struct input_dev *input_dev;
+	struct input_dev *input_dev_proximity;
 	struct touch_data touch_data;
 	struct input_params input_params;
 	struct syna_tcm_buffer out;
@@ -152,8 +160,9 @@ static struct touch_hcd *touch_hcd;
  *
  * Report finger lift events to the input subsystem for all touch objects.
  */
-static void touch_free_objects(void)
+void touch_free_objects(void)
 {
+	struct syna_tcm_hcd *tcm_hcd = touch_hcd->tcm_hcd;
 #ifdef TYPE_B_PROTOCOL
 	unsigned int idx;
 #endif
@@ -162,6 +171,14 @@ static void touch_free_objects(void)
 		return;
 
 	mutex_lock(&touch_hcd->report_mutex);
+
+	if (tcm_hcd->prox_power_off) {
+		input_info(true, tcm_hcd->pdev->dev.parent, "%s cancel touch\n", __func__);
+		input_report_key(touch_hcd->input_dev, KEY_INT_CANCEL, 1);
+		input_sync(touch_hcd->input_dev);
+		input_report_key(touch_hcd->input_dev, KEY_INT_CANCEL, 0);
+		input_sync(touch_hcd->input_dev);
+	}
 
 #ifdef TYPE_B_PROTOCOL
 	for (idx = 0; idx < touch_hcd->max_objects; idx++) {
@@ -317,9 +334,18 @@ static int touch_parse_report(void)
 	objects = 0;
 	active_objects = 0;
 	active_only = false;
+	touch_data->display_deep_sleep_state = SLEEP_NO_CHANGE;
 
 	while (idx < config_size) {
 		code = config_data[idx++];
+
+		if (tcm_hcd->lp_state == LP_MODE && tcm_hcd->prox_power_off && code != TOUCH_FACE_DETECT) {
+//			input_info(true, tcm_hcd->pdev->dev.parent, "%s: LPM && prox_power_off && !TOUCH_FACE_DETECT\n", __func__);
+			bits = config_data[idx++];
+			offset += bits;
+			continue;
+		}
+
 		switch (code) {
 		case TOUCH_END:
 			goto exit;
@@ -629,6 +655,21 @@ static int touch_parse_report(void)
 						"Failed to detect face\n");
 				return retval;
 			}
+
+			// for debug have to check it!
+//			input_info(false, tcm_hcd->pdev->dev.parent, "%s: show all hover %d\n", __func__, data);
+			if (tcm_hcd->hw_if->bdata->support_ear_detect) {
+				if (touch_data->fd_data != data) {
+					input_info(true, tcm_hcd->pdev->dev.parent, "%s: hover %d\n", __func__, data);
+					//handle debug value 15
+					if(data != 15)
+						tcm_hcd->hover_event = data;
+					
+					input_report_abs(touch_hcd->input_dev_proximity, ABS_MT_CUSTOM, data);
+					input_sync(touch_hcd->input_dev_proximity);
+				}
+			}
+
 			touch_data->fd_data = data;
 			offset += bits;
 			break;
@@ -642,6 +683,21 @@ static int touch_parse_report(void)
 			break;
 		case TOUCH_TUNING_0D_BUTTONS_VARIANCE:
 			bits = config_data[idx++];
+			offset += bits;
+			break;
+		case TOUCH_REPORT_DISPLAY_DEEP_SLEEP_STATE:
+			bits = config_data[idx++];
+			retval = touch_get_report_data(offset, bits, &data);
+			if (retval < 0) {
+				input_err(true, tcm_hcd->pdev->dev.parent,
+					"Failed to get display deep sleep state\n");
+				return retval;
+			}
+
+			if (touch_data->display_deep_sleep_state != data)
+				input_info(true, tcm_hcd->pdev->dev.parent, "%s: display_deep_sleep_state %d\n", __func__, data);
+
+			touch_data->display_deep_sleep_state = data;
 			offset += bits;
 			break;
 		default:
@@ -681,10 +737,29 @@ static void touch_report(void)
 	if (touch_hcd->input_dev == NULL)
 		return;
 
-	if (touch_hcd->suspend_touch)
+	if (tcm_hcd->lp_state == PWR_OFF)
 		return;
 
 	mutex_lock(&touch_hcd->report_mutex);
+
+	if (tcm_hcd->lp_state == LP_MODE) {
+		pm_wakeup_event(tcm_hcd->pdev->dev.parent, 1000);
+
+		/* waiting for blsp block resuming, if not occurs i2c error */
+		retval = wait_for_completion_interruptible_timeout(&tcm_hcd->resume_done, msecs_to_jiffies(500));
+		if (retval == 0) {
+			input_err(true, tcm_hcd->pdev->dev.parent, "%s: LPM: pm resume is not handled\n", __func__);
+			mutex_unlock(&touch_hcd->report_mutex);
+			return;
+		} else if (retval < 0) {
+			input_err(true, tcm_hcd->pdev->dev.parent, "%s: LPM: -ERESTARTSYS if interrupted, %d\n", __func__, retval);
+			mutex_unlock(&touch_hcd->report_mutex);
+			return;
+		}
+
+		input_dbg(true, tcm_hcd->pdev->dev.parent, "%s: run LPM interrupt handler, %d\n", __func__, retval);
+		/* run lpm interrupt handler */
+	}
 
 	retval = touch_parse_report();
 	if (retval < 0) {
@@ -698,8 +773,9 @@ static void touch_report(void)
 
 #if WAKEUP_GESTURE
 	if (touch_data->gesture_id == GESTURE_DOUBLE_TAP &&
-			 tcm_hcd->in_suspend && tcm_hcd->wakeup_gesture_enabled) {
+			 tcm_hcd->lp_state == LP_MODE && tcm_hcd->wakeup_gesture_enabled) {
 
+		input_err(true, tcm_hcd->pdev->dev.parent, "GESTURE_DOUBLE_TAP\n");
 		input_report_key(touch_hcd->input_dev, KEY_WAKEUP, 1);
 		input_sync(touch_hcd->input_dev);
 		input_report_key(touch_hcd->input_dev, KEY_WAKEUP, 0);
@@ -707,7 +783,7 @@ static void touch_report(void)
 	}
 #endif
 
-	if (tcm_hcd->in_suspend)
+	if (tcm_hcd->lp_state == LP_MODE)
 		goto exit;
 
 	for (idx = 0; idx < touch_hcd->max_objects; idx++) {
@@ -901,6 +977,23 @@ static int touch_get_input_params(void)
 	return 0;
 }
 
+static void touch_set_input_prop_proximity(struct input_dev *dev)
+{
+	struct syna_tcm_hcd *tcm_hcd = touch_hcd->tcm_hcd;
+	static char mms_phys[64] = { 0 };
+
+	snprintf(mms_phys, sizeof(mms_phys), "%s1", TOUCH_INPUT_PHYS_PATH);
+	dev->phys = mms_phys;
+	dev->dev.parent = tcm_hcd->pdev->dev.parent;
+
+	set_bit(EV_SYN, dev->evbit);
+	set_bit(EV_SW, dev->evbit);
+	set_bit(INPUT_PROP_DIRECT, dev->propbit);
+
+	input_set_abs_params(dev, ABS_MT_CUSTOM, 0, 0xFFFFFFFF, 0, 0);
+	input_set_drvdata(dev, tcm_hcd);
+}
+
 /**
  * touch_set_input_dev() - Set up input device
  *
@@ -919,6 +1012,21 @@ static int touch_set_input_dev(void)
 		return -ENODEV;
 	}
 
+	if (tcm_hcd->hw_if->bdata->support_ear_detect) {
+		touch_hcd->input_dev_proximity = input_allocate_device();
+		if (touch_hcd->input_dev_proximity == NULL) {
+			input_err(true, tcm_hcd->pdev->dev.parent, "%s: allocate input_dev_proximity err!\n", __func__);
+			if (touch_hcd->input_dev) {
+				input_free_device(touch_hcd->input_dev);
+				touch_hcd->input_dev = NULL;
+				return -ENODEV;
+			}
+		}
+
+		touch_hcd->input_dev_proximity->name = "sec_touchproximity";
+		touch_set_input_prop_proximity(touch_hcd->input_dev_proximity);
+	}
+
 	touch_hcd->input_dev->name = TOUCH_INPUT_NAME;
 	touch_hcd->input_dev->phys = TOUCH_INPUT_PHYS_PATH;
 	touch_hcd->input_dev->id.product = SYNAPTICS_TCM_ID_PRODUCT;
@@ -934,7 +1042,7 @@ static int touch_set_input_dev(void)
 #ifdef INPUT_PROP_DIRECT
 	set_bit(INPUT_PROP_DIRECT, touch_hcd->input_dev->propbit);
 #endif
-
+	set_bit(KEY_INT_CANCEL, touch_hcd->input_dev->keybit);
 #if WAKEUP_GESTURE
 	set_bit(KEY_WAKEUP, touch_hcd->input_dev->keybit);
 	input_set_capability(touch_hcd->input_dev, EV_KEY, KEY_WAKEUP);
@@ -944,6 +1052,10 @@ static int touch_set_input_dev(void)
 	if (retval < 0) {
 		input_err(true, tcm_hcd->pdev->dev.parent, "Failed to set input parameters\n");
 		input_free_device(touch_hcd->input_dev);
+		if (tcm_hcd->hw_if->bdata->support_ear_detect) {
+			if (touch_hcd->input_dev_proximity)
+				input_free_device(touch_hcd->input_dev_proximity);
+		}
 		touch_hcd->input_dev = NULL;
 		return retval;
 	}
@@ -952,8 +1064,29 @@ static int touch_set_input_dev(void)
 	if (retval < 0) {
 		input_err(true, tcm_hcd->pdev->dev.parent, "Failed to register input device\n");
 		input_free_device(touch_hcd->input_dev);
+		if (tcm_hcd->hw_if->bdata->support_ear_detect) {
+			if (touch_hcd->input_dev_proximity)
+				input_free_device(touch_hcd->input_dev_proximity);
+		}
 		touch_hcd->input_dev = NULL;
 		return retval;
+	}
+
+	if (tcm_hcd->hw_if->bdata->support_ear_detect) {
+		retval = input_register_device(touch_hcd->input_dev_proximity);
+		if (retval < 0) {
+			input_err(true, tcm_hcd->pdev->dev.parent, "%s: Unable to register %s input device\n",
+						__func__, touch_hcd->input_dev_proximity->name);
+
+			input_free_device(touch_hcd->input_dev);
+			if (tcm_hcd->hw_if->bdata->support_ear_detect) {
+				if (touch_hcd->input_dev_proximity)
+					input_free_device(touch_hcd->input_dev_proximity);
+			}
+			input_unregister_device(touch_hcd->input_dev);
+			touch_hcd->input_dev = NULL;
+			return retval;
+		}
 	}
 
 	return 0;
@@ -1003,6 +1136,10 @@ static int touch_set_report_config(void)
 	touch_hcd->out.buf[idx++] = TOUCH_GESTURE_ID;
 	touch_hcd->out.buf[idx++] = 8;
 #endif
+	touch_hcd->out.buf[idx++] = TOUCH_FACE_DETECT;
+	touch_hcd->out.buf[idx++] = 8;
+	touch_hcd->out.buf[idx++] = TOUCH_REPORT_DISPLAY_DEEP_SLEEP_STATE;
+	touch_hcd->out.buf[idx++] = 8;
 	touch_hcd->out.buf[idx++] = TOUCH_FOREACH_ACTIVE_OBJECT;
 	touch_hcd->out.buf[idx++] = TOUCH_OBJECT_N_INDEX;
 	touch_hcd->out.buf[idx++] = 4;
@@ -1198,6 +1335,11 @@ int touch_remove(struct syna_tcm_hcd *tcm_hcd)
 	if (touch_hcd->input_dev)
 		input_unregister_device(touch_hcd->input_dev);
 
+	if (tcm_hcd->hw_if->bdata->support_ear_detect) {
+		input_mt_destroy_slots(touch_hcd->input_dev_proximity);
+		input_unregister_device(touch_hcd->input_dev_proximity);
+	}
+
 	kfree(touch_hcd->touch_data.object_data);
 	kfree(touch_hcd->prev_status);
 
@@ -1244,15 +1386,11 @@ int touch_reinit(struct syna_tcm_hcd *tcm_hcd)
 	return retval;
 }
 
+#if 0
 int touch_early_suspend(struct syna_tcm_hcd *tcm_hcd)
 {
 	if (!touch_hcd)
 		return 0;
-
-	if (tcm_hcd->wakeup_gesture_enabled)
-		touch_hcd->suspend_touch = false;
-	else
-		touch_hcd->suspend_touch = true;
 
 	touch_free_objects();
 
@@ -1266,17 +1404,11 @@ int touch_suspend(struct syna_tcm_hcd *tcm_hcd)
 	if (!touch_hcd)
 		return 0;
 
-	touch_hcd->suspend_touch = true;
-
-	touch_free_objects();
-
 	if (tcm_hcd->wakeup_gesture_enabled) {
 		if (!touch_hcd->irq_wake) {
 			enable_irq_wake(tcm_hcd->irq);
 			touch_hcd->irq_wake = true;
 		}
-
-		touch_hcd->suspend_touch = false;
 
 		retval = tcm_hcd->set_dynamic_config(tcm_hcd,
 				DC_IN_WAKEUP_GESTURE_MODE,
@@ -1284,21 +1416,23 @@ int touch_suspend(struct syna_tcm_hcd *tcm_hcd)
 		if (retval < 0) {
 			input_err(true, tcm_hcd->pdev->dev.parent,
 					"Failed to enable wakeup gesture mode\n");
+			touch_free_objects();
 			return retval;
 		}
 	}
+
+	touch_free_objects();
 
 	return 0;
 }
 
 int touch_resume(struct syna_tcm_hcd *tcm_hcd)
 {
+#ifdef CONFIG_SEC_FACTORY
 	int retval;
-
+#endif
 	if (!touch_hcd)
 		return 0;
-
-	touch_hcd->suspend_touch = false;
 
 	if (tcm_hcd->wakeup_gesture_enabled) {
 		if (touch_hcd->irq_wake) {
@@ -1306,12 +1440,12 @@ int touch_resume(struct syna_tcm_hcd *tcm_hcd)
 			touch_hcd->irq_wake = false;
 		}
 
-		retval = tcm_hcd->set_dynamic_config(tcm_hcd, DC_IN_WAKEUP_GESTURE_MODE, 0);
+/*		retval = tcm_hcd->set_dynamic_config(tcm_hcd, DC_IN_WAKEUP_GESTURE_MODE, 0);
 		if (retval < 0) {
 			input_err(true, tcm_hcd->pdev->dev.parent,
 					"Failed to disable wakeup gesture mode\n");
 			return retval;
-		}
+		}*/
 	}
 
 #ifdef CONFIG_SEC_FACTORY
@@ -1323,3 +1457,4 @@ int touch_resume(struct syna_tcm_hcd *tcm_hcd)
 #endif
 	return 0;
 }
+#endif

@@ -208,7 +208,7 @@ void five_hook_file_processed(struct task_struct *task,
 	get_task_struct(task);
 	get_file(file);
 	event.processed.task = task;
-	event.processed.tint_value = task_integrity_read(task->integrity);
+	event.processed.tint_value = task_integrity_read(TASK_INTEGRITY(task));
 	event.processed.file = file;
 	/*
 	 * xattr parameters are optional, because FIVE could get results
@@ -235,7 +235,7 @@ void five_hook_file_signed(struct task_struct *task,
 	get_task_struct(task);
 	get_file(file);
 	event.processed.task = task;
-	event.processed.tint_value = task_integrity_read(task->integrity);
+	event.processed.tint_value = task_integrity_read(TASK_INTEGRITY(task));
 	event.processed.file = file;
 	/* xattr parameters are optional, so we may ignore kmemdup errors */
 	if (xattr) {
@@ -257,7 +257,7 @@ void five_hook_file_skipped(struct task_struct *task, struct file *file)
 	get_task_struct(task);
 	get_file(file);
 	event.skipped.task = task;
-	event.skipped.tint_value = task_integrity_read(task->integrity);
+	event.skipped.tint_value = task_integrity_read(TASK_INTEGRITY(task));
 	event.skipped.file = file;
 
 	if (__push_event(&event, GFP_KERNEL) < 0)
@@ -273,9 +273,9 @@ void five_hook_task_forked(struct task_struct *parent,
 	get_task_struct(parent);
 	get_task_struct(child);
 	event.forked.parent = parent;
-	event.forked.parent_tint_value = task_integrity_read(parent->integrity);
+	event.forked.parent_tint_value = task_integrity_read(TASK_INTEGRITY(parent));
 	event.forked.child = child;
-	event.forked.child_tint_value = task_integrity_read(child->integrity);
+	event.forked.child_tint_value = task_integrity_read(TASK_INTEGRITY(child));
 
 	if (__push_event(&event, GFP_ATOMIC) < 0)
 		hook_wq_event_destroy(&event);

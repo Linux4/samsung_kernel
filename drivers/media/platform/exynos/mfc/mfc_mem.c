@@ -150,7 +150,7 @@ int mfc_mem_ion_alloc(struct mfc_dev *dev,
 	}
 
 	special_buf->vaddr = dma_buf_vmap(special_buf->dma_buf);
-	if (IS_ERR(special_buf->vaddr)) {
+	if (IS_ERR_OR_NULL(special_buf->vaddr)) {
 		mfc_err_dev("Failed to get vaddr (err 0x%p)\n",
 				&special_buf->vaddr);
 		call_dop(dev, dump_and_stop_debug_mode, dev);

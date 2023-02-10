@@ -19,6 +19,7 @@
  */
 #ifndef S2MU106_PMETER_H
 #define S2MU106_PMETER_H
+#include <linux/version.h>
 #include <linux/platform_device.h>
 #include <linux/irq.h>
 #include <linux/interrupt.h>
@@ -27,7 +28,11 @@
 #include "linux/mfd/slsi/s2mu106/s2mu106.h"
 #if defined(CONFIG_S2MU106_TYPEC_WATER)
 #include "linux/usb/typec/slsi/s2mu106/usbpd-s2mu106.h"
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0))
+#include <linux/time64.h>
+#else
 #include <linux/time.h>
+#endif
 #endif
 #include "../../common/sec_charging_common.h"
 
@@ -105,21 +110,21 @@
 /* GPADC Table */
 /* Vadc table */
 #define PM_VWATER		(100)
-#define IS_VGPADC_OPEN(x) 	(x >= 0 && x < PM_VWATER)
-#define IS_VGPADC_WATER(x) 	(x >= PM_VWATER)
+#define IS_VGPADC_OPEN(x)	(x >= 0 && x < PM_VWATER)
+#define IS_VGPADC_WATER(x)	(x >= PM_VWATER)
 #define IS_VGPADC_VBUS_SHORT(x)	(x >= 500)
-#define IS_VGPADC_GND(x) 	(x < 100)
+#define IS_VGPADC_GND(x)	(x < 100)
 
 /* Radc table */
 #define PM_RWATER		(1500)
-#define IS_RGPADC_WATER(x) 	((x >= 1) && (x <= PM_RWATER))
-#define IS_RGPADC_OPEN(x) 	(x > 5000)
-#define IS_RGPADC_GND(x) 	(x <= 50)
+#define IS_RGPADC_WATER(x)	((x >= 1) && (x <= PM_RWATER))
+#define IS_RGPADC_OPEN(x)	(x > 5000)
+#define IS_RGPADC_GND(x)	(x <= 50)
 /* pull-down
  * uct100 : 0 ohm
  * uct300 : 200 kohm
  */
-#define IS_RGPADC_FACWATER(x) 	(x <= 200)
+#define IS_RGPADC_FACWATER(x)	(x <= 200)
 
 /* Water Detection Sensitivity */
 #define PM_WATER_DET_CNT_LOOP		(5)
@@ -168,44 +173,26 @@ enum pm_setprop_opmode {
 	PM_OPMODE_PROP_GPADC_VMEASURE,
 };
 
-typedef enum {
+enum pm_mode {
 	PM_MODE_NONE = 0,
 	PM_RMODE,
 	PM_VMODE,
-} pm_mode_t;
+};
 
-typedef enum {
+enum pm_water_status {
 	PM_DRY_IDLE = 0,
 	PM_DRY_DETECTING,
 	PM_WATER_IDLE,
 	PM_WATER_DETECTING,
-} pm_water_status_t;
+};
 
-typedef enum {
+enum pm_water_sensitivity {
 	PM_WATER_SEN_NONE = 0,
 	PM_WATER_SEN_LOW,
 	PM_WATER_SEN_MIDDLE,
 	PM_WATER_SEN_HIGH,
 	PM_WATER_SEN_CNT_MAX,
-} pm_water_sensitivity_t;
-
-#if 0
-enum power_supply_pm_property {
-	POWER_SUPPLY_PROP_VWCIN,
-	POWER_SUPPLY_PROP_VBYP,
-	POWER_SUPPLY_PROP_VSYS,
-	POWER_SUPPLY_PROP_VBAT,
-	POWER_SUPPLY_PROP_VGPADC,
-	POWER_SUPPLY_PROP_VCC1,
-	POWER_SUPPLY_PROP_VCC2,
-	POWER_SUPPLY_PROP_ICHGIN,
-	POWER_SUPPLY_PROP_IWCIN,
-	POWER_SUPPLY_PROP_IOTG,
-	POWER_SUPPLY_PROP_ITX,
-	POWER_SUPPLY_PROP_CO_ENABLE,
-	POWER_SUPPLY_PROP_RR_ENABLE,
 };
-#endif
 
 #define HYST_LEV_VCHGIN_SHIFT	4
 #define HYST_LEV_VCHGIN_MASK	0x70
@@ -256,25 +243,29 @@ struct s2mu106_pmeter_data {
 	struct power_supply	*psy_pm;
 	struct power_supply_desc psy_pm_desc;
 
-	struct mutex 	pmeter_mutex;
+	struct mutex pmeter_mutex;
 
 #if defined(CONFIG_S2MU106_TYPEC_WATER)
 	struct s2mu106_dev *s2mu106;
 	struct mutex water_mutex;
 	struct power_supply *pdic_psy;
 	struct power_supply *muic_psy;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0))
+	struct timespec64 last_gpadc_irq;
+#else
 	struct timeval last_gpadc_irq;
+#endif
 	struct delayed_work pwr_off_chk_work;
 	struct delayed_work water_work;
 	struct delayed_work late_init_work;
 	struct wakeup_source *water_work_ws;
-	pm_water_status_t water_status;
-	pm_water_sensitivity_t water_sen;
+	enum pm_water_status water_status;
+	enum pm_water_sensitivity water_sen;
 	int water_det_cnt[PM_WATER_SEN_CNT_MAX];
 	int water_work_call_cnt;
 	bool is_pwr_off_water;
 #endif
-#if defined (CONFIG_ARCH_QCOM)
+#if defined(CONFIG_ARCH_QCOM)
 	struct wakeup_source *gpadc_ws;
 #endif
 };

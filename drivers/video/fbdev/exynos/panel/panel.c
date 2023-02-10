@@ -1027,6 +1027,23 @@ static int panel_do_tx_packet(struct panel_device *panel, struct pktinfo *info, 
 				__func__, info->name, ret);
 		return -EINVAL;
 	}
+
+	if (panel->panel_data.ddi_props.delay_cmd && (panel->panel_data.ddi_props.delay_cmd == info->data[0])) {
+#ifdef DEBUG_PANEL
+		panel_dbg("delay_cmd %x %x\n",
+			panel->panel_data.ddi_props.delay_cmd,
+			panel->panel_data.ddi_props.delay_duration);
+#endif
+		if (panel->panel_data.ddi_props.delay_duration < 10)
+			usleep_range(panel->panel_data.ddi_props.delay_duration * 1000,
+			panel->panel_data.ddi_props.delay_duration * 1000 + 500);
+		else
+			panel_err("delay_duration is too long.\n");
+#ifdef DEBUG_PANEL
+		panel_dbg("delay_cmd done\n");
+#endif
+	}
+
 #ifdef DEBUG_PANEL
 	panel_dbg("%s, %s end\n", __func__, info->name);
 	print_data(info->data, info->dlen);

@@ -76,7 +76,7 @@ void ili_resume_by_ddi(void)
 	ili_reset_ctrl(ilits->reset);
 	ili_ice_mode_ctrl(ENABLE, OFF);
 	ilits->ddi_rest_done = true;
-	mdelay(5);
+	usleep_range(5 * 1000, 5 * 1000);
 	queue_work(resume_by_ddi_wq, &(resume_by_ddi_work));
 
 	mutex_unlock(&ilits->touch_mutex);
@@ -228,9 +228,9 @@ void ili_print_info(void)
 		ilits->print_info_cnt_release++;
 
 		input_info(true, ilits->dev,
-				"tc:%d ver:%02d%02d// #%d %d\n",
-				ilits->touch_count, ilits->fw_cur_info[4], ilits->fw_cur_info[5],
-				ilits->print_info_cnt_open, ilits->print_info_cnt_release);
+				"tc:%d ver:%02d%02d%02d%02d// #%d %d\n",
+				ilits->touch_count, ilits->fw_cur_info[2],ilits->fw_cur_info[3],ilits->fw_cur_info[4],
+				ilits->fw_cur_info[5], ilits->print_info_cnt_open, ilits->print_info_cnt_release);
 
 }
 
@@ -427,10 +427,18 @@ void set_current_ic_mode(int mode)
 		}
 
 		if (ilits->prox_face_mode) {
-			ret = ili_ic_func_ctrl("proximity", EAR_DETECT_ENABLE);
+			ret = ili_ic_func_ctrl("proximity", ilits->prox_face_mode);
 			if (ret < 0)
-				input_err(true, ilits->dev, "%s EAR_DETECT_ENABLE failed\n", __func__);
+				input_err(true, ilits->dev, "%s ear detect enabled fail(%d)\n",
+							__func__, ilits->prox_face_mode);
 		}
+		if (ilits->usb_plug_status == USB_PLUG_ATTACHED) {
+			ret = ili_ic_func_ctrl("plug", !ilits->usb_plug_status);
+			if (ret < 0)
+				input_err(true, ilits->dev, "%s USB_PLUG_ATTACHED failed(%d)\n",
+							__func__, ilits->usb_plug_status);
+		}
+		
 	break;
 	case SET_MODE_PROXIMTY_LCDOFF:
 		if (ilits->prox_face_mode && ilits->tp_suspend) {
@@ -564,8 +572,14 @@ int ili_sleep_handler(int mode)
 				ilits->prox_lp_scan_mode_enabled = false;
 			}
 			if (ilits->power_status != LP_FACTORY_STATUS) {
-				ili_incell_power_control(DISABLE);
-				ilitek_pin_control(false);
+				if (ilits->chip->id == ILI7807_CHIP) {
+					ilitek_pin_control(false);
+					usleep_range(5 * 1000, 5 * 1000);
+					ili_incell_power_control(DISABLE);
+				} else {
+					ili_incell_power_control(DISABLE);
+					ilitek_pin_control(false);
+				}
 				ilits->power_status = POWER_OFF_STATUS;
 				usleep_range(15000, 15000);
 			}
@@ -598,7 +612,7 @@ int ili_sleep_handler(int mode)
 		ili_wq_ctrl(WQ_ESD, ENABLE);
 		ili_wq_ctrl(WQ_BAT, ENABLE);
 
-		mdelay(ilits->rst_edge_delay);//resume, after 10ms enable irq , for INT noisy
+		msleep(ilits->rst_edge_delay);//resume, after 10ms enable irq , for INT noisy
 
 		set_current_ic_mode(SET_MODE_NORMAL);
 
@@ -787,7 +801,7 @@ int ili_set_tp_data_len(int format, bool send, u8 *data)
 		ili_set_gesture_symbol();
 
 		if (send) {
-			if (ilits->prox_face_mode == true)
+			if (ilits->prox_face_mode)
 				ret = ili_ic_func_ctrl("lpwg", 0x20);
 			else
 				ret = ili_ic_func_ctrl("lpwg", ctrl);
@@ -1245,6 +1259,12 @@ void ili_dev_remove(void)
 	cancel_delayed_work_sync(&ilits->work_print_info);
 
 	ili_shutdown_is_on_going_tsp = true;
+	ilits->power_status = POWER_OFF_STATUS;
+
+	ili_irq_wake_disable();
+	ili_irq_disable();
+	ilitek_pin_control(false);
+
 	gpio_free(ilits->tp_int);
 	gpio_free(ilits->tp_rst);
 

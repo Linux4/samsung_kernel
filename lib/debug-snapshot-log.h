@@ -28,8 +28,15 @@
 #define DSS_LOG_GEN_LEN			SZ_16
 #define DSS_MMU_REG_OFFSET		SZ_512
 #define DSS_CORE_REG_OFFSET		SZ_512
+
+#ifndef CONFIG_DEBUG_SNAPSHOT_MINIMIZED_MODE
 #define DSS_LOG_MAX_NUM			SZ_1K
 #define DSS_API_MAX_NUM			SZ_2K
+#else
+#define DSS_LOG_MAX_NUM			(SZ_1K / 2)
+#define DSS_API_MAX_NUM			(SZ_2K / 2)
+#endif
+
 #define DSS_EX_MAX_NUM			SZ_8
 #define DSS_IN_MAX_NUM			SZ_8
 #define DSS_CALLSTACK_MAX_NUM		4

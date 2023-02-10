@@ -42,8 +42,17 @@
 
 #include "is-helper-i2c.h"
 
+#include "is-vender-specific.h"
+
 #define SENSOR_NAME "S5K4HA"
 /* #define DEBUG_4HA_PLL */
+
+#if defined(CONFIG_VENDER_MCD_V2)
+extern const struct is_vender_rom_addr *vender_rom_addr[SENSOR_POSITION_MAX];
+#ifdef USE_DUALIZED_OTPROM_SENSOR
+extern const struct is_vender_rom_addr *vender_rom_addr_dualized[SENSOR_POSITION_MAX];
+#endif
+#endif
 
 static const struct v4l2_subdev_ops subdev_ops;
 
@@ -1974,6 +1983,11 @@ int cis_4ha_probe(struct i2c_client *client,
 	int index;
 #endif
 
+#if defined(CONFIG_VENDER_MCD_V2) || defined(CONFIG_CAMERA_OTPROM_SUPPORT_FRONT) || defined(CONFIG_CAMERA_OTPROM_SUPPORT_REAR)
+	struct is_vender_specific *specific = NULL;
+	u32 rom_position = 0;
+#endif
+
 	BUG_ON(!client);
 	BUG_ON(!is_dev);
 
@@ -2034,6 +2048,47 @@ int cis_4ha_probe(struct i2c_client *client,
 		goto p_err;
 	}
 	cis->cis_ops = &cis_ops;
+
+#if defined(CONFIG_VENDER_MCD_V2)
+	if (of_property_read_bool(dnode, "use_sensor_otp")) {
+		ret = of_property_read_u32(dnode, "rom_position", &rom_position);
+		if (ret) {
+			err("rom_position read is fail(%d)", ret);
+		} else {
+			specific = core->vender.private_data;
+			specific->rom_data[rom_position].rom_type = ROM_TYPE_OTPROM;
+			specific->rom_data[rom_position].rom_valid = true;
+
+			if (cis->id == specific->sensor_id[rom_position]) {
+				specific->rom_client[rom_position] = cis->client;
+
+				if (vender_rom_addr[rom_position]) {
+					specific->rom_cal_map_addr[rom_position] = vender_rom_addr[rom_position];
+					probe_info("%s: rom_id=%d, OTP Registered\n", __func__, rom_position);
+				} else {
+					probe_info("%s: S5K4HA OTP address not defined!\n", __func__);
+				}
+			} 
+#ifdef USE_DUALIZED_OTPROM_SENSOR
+			else if (of_property_read_bool(dnode, "dualized_sensor")) {
+				specific->dualized_rom_client[rom_position] = cis->client;
+				specific->dualized_sensor_id[rom_position] = cis->id;
+
+				if (vender_rom_addr_dualized[rom_position]) {
+					specific->dualized_rom_cal_map_addr[rom_position] = vender_rom_addr_dualized[rom_position];
+					probe_info("%s: [Dualization] rom_id=%d, OTP Registered\n", __func__, rom_position);
+				} else {
+					probe_info("%s: [Dualization] S5K4HA OTP address not defined!\n", __func__);
+				}
+			}
+#endif
+			else {
+				err("%s: sensor id does not match", __func__);
+				goto p_err;
+			}
+		}
+	}
+#endif
 
 	/* belows are depend on sensor cis. MUST check sensor spec */
 	cis->bayer_order = OTF_INPUT_ORDER_BAYER_GR_BG;

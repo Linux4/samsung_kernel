@@ -406,88 +406,304 @@ static u8 M12_ILI7806S_05[] = {
 
 static u8 M12_ILI7806S_06[] = {
 	0xFF,
-	0x78, 0x07, 0x03,
+	0x78, 0x07, 0x01,
 };
 
 static u8 M12_ILI7806S_07[] = {
+	0x02,
+	0x2E,
+};
+
+static u8 M12_ILI7806S_08[] = {
+	0x03,
+	0x08,
+};
+
+static u8 M12_ILI7806S_09[] = {
+	0x0E,
+	0x52,
+};
+
+static u8 M12_ILI7806S_10[] = {
+	0xFF,
+	0x78, 0x07, 0x11,
+};
+
+static u8 M12_ILI7806S_11[] = {
+	0x00,
+	0x05,
+};
+
+static u8 M12_ILI7806S_12[] = {
+	0x01,
+	0x4D,
+};
+
+static u8 M12_ILI7806S_13[] = {
+	0xFF,
+	0x78, 0x07, 0x12,
+};
+
+static u8 M12_ILI7806S_14[] = {
+	0x10,
+	0x10,
+};
+
+static u8 M12_ILI7806S_15[] = {
+	0x12,
+	0x0C,
+};
+
+static u8 M12_ILI7806S_16[] = {
+	0x13,
+	0x24,
+};
+
+static u8 M12_ILI7806S_17[] = {
+	0x16,
+	0x09,
+};
+
+static u8 M12_ILI7806S_18[] = {
+	0xC0,
+	0x6B,
+};
+
+static u8 M12_ILI7806S_19[] = {
+	0xFF,
+	0x78, 0x07, 0x03,
+};
+
+static u8 M12_ILI7806S_20[] = {
 	0x80,
 	0x36,
 };
 
-static u8 M12_ILI7806S_08[] = {
+static u8 M12_ILI7806S_21[] = {
 	0x83,
 	0x60,
 };
 
-static u8 M12_ILI7806S_09[] = {
+static u8 M12_ILI7806S_22[] = {
 	0x84,
 	0x00,
 };
 
-static u8 M12_ILI7806S_10[] = {
+static u8 M12_ILI7806S_23[] = {
 	0x88,
 	0xD9,
 };
 
-static u8 M12_ILI7806S_11[] = {
+static u8 M12_ILI7806S_24[] = {
 	0x89,
 	0xE1,
 };
 
-static u8 M12_ILI7806S_12[] = {
+static u8 M12_ILI7806S_25[] = {
 	0x8A,
 	0xE8,
 };
 
-static u8 M12_ILI7806S_13[] = {
+static u8 M12_ILI7806S_26[] = {
 	0x8B,
 	0xF0,
 };
 
-static u8 M12_ILI7806S_14[] = {
+static u8 M12_ILI7806S_27[] = {
 	0xC6,
 	0x14,
 };
 
-static u8 M12_ILI7806S_15[] = {
+static u8 M12_ILI7806S_28[] = {
 	0xFF,
 	0x78, 0x07, 0x06,
 };
 
-static u8 M12_ILI7806S_16[] = {
+static u8 M12_ILI7806S_29[] = {
 	0xDD,
-	0x17,
+	0x1F,
 };
 
-static u8 M12_ILI7806S_17[] = {
+static u8 M12_ILI7806S_30[] = {
 	0xCD,
 	0x00,
 };
 
-static u8 M12_ILI7806S_18[] = {
+static u8 M12_ILI7806S_31[] = {
 	0xD6,
 	0x00,
 };
 
-static u8 M12_ILI7806S_19[] = {
+static u8 M12_ILI7806S_32[] = {
 	0x48,
 	0x03,
 };
 
-static u8 M12_ILI7806S_20[] = {
+static u8 M12_ILI7806S_33[] = {
 	0x69,
 	0xDF,
 };
 
-static u8 M12_ILI7806S_21[] = {
+static u8 M12_ILI7806S_34[] = {
 	0x3E,
 	0xE2,
 };
 
-static u8 M12_ILI7806S_22[] = {
+static u8 M12_ILI7806S_35[] = {
+	0xFF,
+	0x78, 0x07, 0x0B,
+};
+
+static u8 M12_ILI7806S_36[] = {
+	0xC0,
+	0x85,
+};
+
+static u8 M12_ILI7806S_37[] = {
+	0xC1,
+	0x67,
+};
+
+static u8 M12_ILI7806S_38[] = {
+	0xC2,
+	0x04,
+};
+
+static u8 M12_ILI7806S_39[] = {
+	0xC3,
+	0x04,
+};
+
+static u8 M12_ILI7806S_40[] = {
+	0xC4,
+	0x87,
+};
+
+static u8 M12_ILI7806S_41[] = {
+	0xC5,
+	0x87,
+};
+
+static u8 M12_ILI7806S_42[] = {
+	0xD2,
+	0x43,
+};
+
+static u8 M12_ILI7806S_43[] = {
+	0xD3,
+	0x5C,
+};
+
+static u8 M12_ILI7806S_44[] = {
+	0xD4,
+	0x03,
+};
+
+static u8 M12_ILI7806S_45[] = {
+	0xD5,
+	0x03,
+};
+
+static u8 M12_ILI7806S_46[] = {
+	0xD6,
+	0x54,
+};
+
+static u8 M12_ILI7806S_47[] = {
+	0xD7,
+	0x54,
+};
+
+static u8 M12_ILI7806S_48[] = {
+	0xFF,
+	0x78, 0x07, 0x0E,
+};
+
+static u8 M12_ILI7806S_49[] = {
+	0x0B,
+	0x00,
+};
+
+static u8 M12_ILI7806S_50[] = {
+	0x21,
+	0x14,
+};
+
+static u8 M12_ILI7806S_51[] = {
+	0x25,
+	0x0A,
+};
+
+static u8 M12_ILI7806S_52[] = {
+	0x26,
+	0xD5,
+};
+
+static u8 M12_ILI7806S_53[] = {
+	0x2D,
+	0xB8,
+};
+
+static u8 M12_ILI7806S_54[] = {
+	0x30,
+	0x00,
+};
+
+static u8 M12_ILI7806S_55[] = {
+	0xFF,
+	0x78, 0x07, 0x1E,
+};
+
+static u8 M12_ILI7806S_56[] = {
+	0xA5,
+	0x96,
+};
+
+static u8 M12_ILI7806S_57[] = {
+	0xA6,
+	0x96,
+};
+
+static u8 M12_ILI7806S_58[] = {
+	0xAD,
+	0x01,
+};
+
+static u8 M12_ILI7806S_59[] = {
+	0x00,
+	0x5C,
+};
+
+static u8 M12_ILI7806S_60[] = {
+	0x08,
+	0x5C,
+};
+
+static u8 M12_ILI7806S_61[] = {
+	0x09,
+	0x5C,
+};
+
+static u8 M12_ILI7806S_62[] = {
+	0x0A,
+	0x10,
+};
+
+static u8 M12_ILI7806S_63[] = {
+	0x0C,
+	0x0C,
+};
+
+static u8 M12_ILI7806S_64[] = {
+	0x0D,
+	0x24,
+};
+
+static u8 M12_ILI7806S_65[] = {
 	0xFF,
 	0x78, 0x07, 0x00,
 };
+
 
 
 static DEFINE_STATIC_PACKET(m12_sleep_out, DSI_PKT_TYPE_WR, M12_SLEEP_OUT, 0);
@@ -521,6 +737,50 @@ static DEFINE_STATIC_PACKET(m12_ili7806s_19, DSI_PKT_TYPE_WR, M12_ILI7806S_19, 0
 static DEFINE_STATIC_PACKET(m12_ili7806s_20, DSI_PKT_TYPE_WR, M12_ILI7806S_20, 0);
 static DEFINE_STATIC_PACKET(m12_ili7806s_21, DSI_PKT_TYPE_WR, M12_ILI7806S_21, 0);
 static DEFINE_STATIC_PACKET(m12_ili7806s_22, DSI_PKT_TYPE_WR, M12_ILI7806S_22, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_23, DSI_PKT_TYPE_WR, M12_ILI7806S_23, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_24, DSI_PKT_TYPE_WR, M12_ILI7806S_24, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_25, DSI_PKT_TYPE_WR, M12_ILI7806S_25, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_26, DSI_PKT_TYPE_WR, M12_ILI7806S_26, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_27, DSI_PKT_TYPE_WR, M12_ILI7806S_27, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_28, DSI_PKT_TYPE_WR, M12_ILI7806S_28, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_29, DSI_PKT_TYPE_WR, M12_ILI7806S_29, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_30, DSI_PKT_TYPE_WR, M12_ILI7806S_30, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_31, DSI_PKT_TYPE_WR, M12_ILI7806S_31, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_32, DSI_PKT_TYPE_WR, M12_ILI7806S_32, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_33, DSI_PKT_TYPE_WR, M12_ILI7806S_33, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_34, DSI_PKT_TYPE_WR, M12_ILI7806S_34, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_35, DSI_PKT_TYPE_WR, M12_ILI7806S_35, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_36, DSI_PKT_TYPE_WR, M12_ILI7806S_36, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_37, DSI_PKT_TYPE_WR, M12_ILI7806S_37, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_38, DSI_PKT_TYPE_WR, M12_ILI7806S_38, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_39, DSI_PKT_TYPE_WR, M12_ILI7806S_39, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_40, DSI_PKT_TYPE_WR, M12_ILI7806S_40, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_41, DSI_PKT_TYPE_WR, M12_ILI7806S_41, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_42, DSI_PKT_TYPE_WR, M12_ILI7806S_42, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_43, DSI_PKT_TYPE_WR, M12_ILI7806S_43, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_44, DSI_PKT_TYPE_WR, M12_ILI7806S_44, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_45, DSI_PKT_TYPE_WR, M12_ILI7806S_45, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_46, DSI_PKT_TYPE_WR, M12_ILI7806S_46, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_47, DSI_PKT_TYPE_WR, M12_ILI7806S_47, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_48, DSI_PKT_TYPE_WR, M12_ILI7806S_48, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_49, DSI_PKT_TYPE_WR, M12_ILI7806S_49, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_50, DSI_PKT_TYPE_WR, M12_ILI7806S_50, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_51, DSI_PKT_TYPE_WR, M12_ILI7806S_51, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_52, DSI_PKT_TYPE_WR, M12_ILI7806S_52, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_53, DSI_PKT_TYPE_WR, M12_ILI7806S_53, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_54, DSI_PKT_TYPE_WR, M12_ILI7806S_54, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_55, DSI_PKT_TYPE_WR, M12_ILI7806S_55, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_56, DSI_PKT_TYPE_WR, M12_ILI7806S_56, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_57, DSI_PKT_TYPE_WR, M12_ILI7806S_57, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_58, DSI_PKT_TYPE_WR, M12_ILI7806S_58, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_59, DSI_PKT_TYPE_WR, M12_ILI7806S_59, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_60, DSI_PKT_TYPE_WR, M12_ILI7806S_60, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_61, DSI_PKT_TYPE_WR, M12_ILI7806S_61, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_62, DSI_PKT_TYPE_WR, M12_ILI7806S_62, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_63, DSI_PKT_TYPE_WR, M12_ILI7806S_63, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_64, DSI_PKT_TYPE_WR, M12_ILI7806S_64, 0);
+static DEFINE_STATIC_PACKET(m12_ili7806s_65, DSI_PKT_TYPE_WR, M12_ILI7806S_65, 0);
+
 
 
 static DEFINE_PANEL_MDELAY(m12_wait_display_off, 1 * 17); /* 1 frame */
@@ -554,6 +814,49 @@ static void *m12_init_cmdtbl[] = {
 	&PKTINFO(m12_ili7806s_20),
 	&PKTINFO(m12_ili7806s_21),
 	&PKTINFO(m12_ili7806s_22),
+	&PKTINFO(m12_ili7806s_23),
+	&PKTINFO(m12_ili7806s_24),
+	&PKTINFO(m12_ili7806s_25),
+	&PKTINFO(m12_ili7806s_26),
+	&PKTINFO(m12_ili7806s_27),
+	&PKTINFO(m12_ili7806s_28),
+	&PKTINFO(m12_ili7806s_29),
+	&PKTINFO(m12_ili7806s_30),
+	&PKTINFO(m12_ili7806s_31),
+	&PKTINFO(m12_ili7806s_32),
+	&PKTINFO(m12_ili7806s_33),
+	&PKTINFO(m12_ili7806s_34),
+	&PKTINFO(m12_ili7806s_35),
+	&PKTINFO(m12_ili7806s_36),
+	&PKTINFO(m12_ili7806s_37),
+	&PKTINFO(m12_ili7806s_38),
+	&PKTINFO(m12_ili7806s_39),
+	&PKTINFO(m12_ili7806s_40),
+	&PKTINFO(m12_ili7806s_41),
+	&PKTINFO(m12_ili7806s_42),
+	&PKTINFO(m12_ili7806s_43),
+	&PKTINFO(m12_ili7806s_44),
+	&PKTINFO(m12_ili7806s_45),
+	&PKTINFO(m12_ili7806s_46),
+	&PKTINFO(m12_ili7806s_47),
+	&PKTINFO(m12_ili7806s_48),
+	&PKTINFO(m12_ili7806s_49),
+	&PKTINFO(m12_ili7806s_50),
+	&PKTINFO(m12_ili7806s_51),
+	&PKTINFO(m12_ili7806s_52),
+	&PKTINFO(m12_ili7806s_53),
+	&PKTINFO(m12_ili7806s_54),
+	&PKTINFO(m12_ili7806s_55),
+	&PKTINFO(m12_ili7806s_56),
+	&PKTINFO(m12_ili7806s_57),
+	&PKTINFO(m12_ili7806s_58),
+	&PKTINFO(m12_ili7806s_59),
+	&PKTINFO(m12_ili7806s_60),
+	&PKTINFO(m12_ili7806s_61),
+	&PKTINFO(m12_ili7806s_62),
+	&PKTINFO(m12_ili7806s_63),
+	&PKTINFO(m12_ili7806s_64),
+	&PKTINFO(m12_ili7806s_65),
 	&PKTINFO(m12_ili7806s_01),
 	&PKTINFO(m12_sleep_out),
 
@@ -591,10 +894,10 @@ static u8 ILI7806S_M12_I2C_INIT[] = {
 	0x0E, 0x26,
 	0x09, 0xBE,
 	0x02, 0x6B,
-	0x03, 0x0D,
+	0x03, 0x2F,
 	0x11, 0x74,
-	0x04, 0x05,
-	0x05, 0xCC,
+	0x04, 0x06,
+	0x05, 0xC0,
 	0x10, 0x67,
 	0x08, 0x13,
 };

@@ -119,6 +119,7 @@ enum {
 	PANEL_REGULATOR_DDI_VDD3,
 	PANEL_REGULATOR_DDR_VDDR,
 	PANEL_REGULATOR_SSD,
+	PANEL_REGULATOR_BLIC,
 	PANEL_REGULATOR_MAX
 };
 
@@ -145,6 +146,7 @@ enum panel_gpio_lists {
 #define PANEL_REGULATOR_NAME_DDI_VDD3 ("ddi-vdd3")
 #define PANEL_REGULATOR_NAME_DDR_VDDR ("ddr-vddr")
 #define PANEL_REGULATOR_NAME_SSD ("short-detect")
+#define PANEL_REGULATOR_NAME_BLIC ("gpio_lcd_bl_en")
 
 struct panel_gpio {
 	const char *name;
@@ -422,6 +424,7 @@ struct panel_device {
 #ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
 	struct profiler_device profiler;
 #endif
+	struct notifier_block blic_regulator_noti;
 };
 
 #ifdef CONFIG_SUPPORT_DIM_FLASH
@@ -490,6 +493,7 @@ int panel_set_vrr(struct panel_device *panel, int fps, int mode);
 bool panel_gpio_valid(struct panel_gpio *gpio);
 void panel_send_ubconn_uevent(struct panel_device *panel);
 int panel_set_gpio_irq(struct panel_gpio *gpio, bool enable);
+int get_blic_type(void);
 
 #define PANEL_DRV_NAME "panel-drv"
 

@@ -1427,10 +1427,27 @@ static int dsim_acquire_fb_resource(struct dsim_device *dsim)
 	return ret;
 }
 
+static unsigned int dsim_get_vfp_from_display_mode(struct dsim_device *dsim, unsigned int fps)
+{
+	unsigned int i;
+	unsigned int vfp = 0;
+
+	for (i = 0; i < dsim->panel->lcd_info.display_mode_count; i++) {
+		if (dsim->panel->lcd_info.display_mode[i].mode.fps == fps) {
+			vfp = dsim->panel->lcd_info.display_mode[i].vfp;
+			dsim->panel->lcd_info.cur_mode_idx = i;
+			break;
+		}
+	}
+
+	return vfp;
+}
+
 static long dsim_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	struct dsim_device *dsim = container_of(sd, struct dsim_device, sd);
 	int ret = 0;
+	u32 fps = 0, vfp = 0;
 
 	switch (cmd) {
 	case DSIM_IOC_GET_LCD_INFO:
@@ -1474,6 +1491,23 @@ static long dsim_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 
 	case DSIM_IOC_RECOVERY_PROC:
 		dsim_reg_recovery_process(dsim);
+		break;
+
+	case DSIM_IOC_SET_VIDEO_FPS:
+		fps = *(u32 *)arg;
+		dsim_info("DSIM_IOC_SET_VIDEO_FPS : fps(%d)\n", fps);
+
+		vfp = dsim_get_vfp_from_display_mode(dsim, fps);
+
+		if (vfp == 0) {
+			dsim_err("%s(%d) invalid fps(%d)\n", __func__, __LINE__, fps);
+			ret = -EINVAL;
+			break;
+		}
+
+		dsim_reg_update_vfp(dsim->id, vfp);
+		dsim->panel->lcd_info.fps = fps;
+		dsim->panel->lcd_info.vfp = vfp;
 		break;
 
 #if defined(CONFIG_EXYNOS_COMMON_PANEL)

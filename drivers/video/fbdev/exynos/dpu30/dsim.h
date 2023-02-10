@@ -468,6 +468,7 @@ static inline bool IS_DSIM_OFF_STATE(struct dsim_device *dsim)
 #define DSIM_IOC_DOZE_SUSPEND		_IOW('D', 21, u32)
 #define DSIM_IOC_SET_FREQ_HOP		_IOW('D', 30, u32)
 #define DSIM_IOC_RECOVERY_PROC		_IOW('D', 40, u32)
+#define DSIM_IOC_SET_VIDEO_FPS		_IOW('D', 50, u32)
 
 #if defined(CONFIG_EXYNOS_READ_ESD_SOLUTION)
 #define DSIM_ESD_OK			0
@@ -476,8 +477,8 @@ static inline bool IS_DSIM_OFF_STATE(struct dsim_device *dsim)
 #endif
 
 #if defined(CONFIG_EXYNOS_COMMON_PANEL)
-#define DSIM_IOC_NOTIFY         _IOW('D', 50, u32)
-#define DSIM_IOC_SET_ERROR_CB   _IOW('D', 51, struct disp_error_cb_info *)
+#define DSIM_IOC_NOTIFY         _IOW('D', 60, u32)
+#define DSIM_IOC_SET_ERROR_CB   _IOW('D', 61, struct disp_error_cb_info *)
 #endif
 
 #endif /* __SAMSUNG_DSIM_H__ */

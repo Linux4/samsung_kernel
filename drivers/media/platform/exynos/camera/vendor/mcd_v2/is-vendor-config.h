@@ -25,6 +25,8 @@
 #include "is-vendor-config_xxt_v5.h"
 #elif defined(CONFIG_CAMERA_MMT_V12)
 #include "is-vendor-config_mmt_v12.h"
+#elif defined(CONFIG_CAMERA_AAU_V12S)
+#include "is-vendor-config_aau_v12s.h"
 #else
 #include "is-vendor-config_xxt_v5.h"
 #endif

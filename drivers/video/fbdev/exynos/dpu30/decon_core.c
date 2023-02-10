@@ -1659,6 +1659,15 @@ int decon_check_limitation(struct decon_device *decon, int idx,
 	return 0;
 }
 
+static bool is_decon_win_state_vrr(struct decon_device *decon,
+		int state)
+{
+	return ((state == DECON_WIN_STATE_VRR_NORMALMODE) ||
+		(state == DECON_WIN_STATE_VRR_HSMODE) ||
+		(state == DECON_WIN_STATE_VRR_PASSIVEMODE));
+}
+
+
 static int decon_set_win_buffer(struct decon_device *decon,
 		struct decon_win_config *config,
 		struct decon_reg_data *regs, int idx)
@@ -2225,6 +2234,10 @@ static int decon_set_hdr_info(struct decon_device *decon,
 	}
 	video_meta = (struct exynos_video_meta *)dma_buf_vmap(
 			regs->dma_buf_data[win_num][mp_idx].dma_buf);
+	if (IS_ERR_OR_NULL(video_meta)) {
+		decon_err("Failed to get virtual address (err %pK)\n", video_meta);
+		return -ENOMEM;
+	}
 
 	hdr_cmp = memcmp(&decon->prev_hdr_info,
 			&video_meta->shdr_static_info,
@@ -2418,6 +2431,7 @@ static void decon_update_regs(struct decon_device *decon,
 	struct decon_mode_info psr;
 	int i, j, err;
 	bool winup_rollback = false;
+	int req_no_buffers = 0;
 
 	if (!decon->systrace.pid)
 		decon->systrace.pid = current->pid;
@@ -2481,6 +2495,15 @@ static void decon_update_regs(struct decon_device *decon,
 			goto end;
 		}
 	} else {
+		if (regs->fps != 0) {
+			req_no_buffers = 1;
+			if (decon->lcd_info->fps != regs->fps)
+				dpu_update_fps(decon, regs->fps);
+			
+			decon_wait_for_vsync(decon, VSYNC_TIMEOUT_MSEC);
+			goto end_fps;
+		}		
+		
 		decon_save_cur_buf_info(decon, regs);
 		decon_wait_for_vsync(decon, VSYNC_TIMEOUT_MSEC);
 		goto end;
@@ -2536,11 +2559,6 @@ static void decon_update_regs(struct decon_device *decon,
 		}
 	}
 end:
-#if defined(CONFIG_EXYNOS_BTS)
-	/* add update bw : cur < prev */
-	decon->bts.ops->bts_update_bw(decon, regs, 1);
-#endif
-
 	/*
 	 * After shadow update, changed PLL is applied and
 	 * target M value is stored
@@ -2548,6 +2566,12 @@ end:
 	dpu_set_freq_hop(decon, false);
 
 	decon_dpp_stop(decon, false);
+
+end_fps:
+#if defined(CONFIG_EXYNOS_BTS)
+	/* add update bw : cur < prev */
+	decon->bts.ops->bts_update_bw(decon, regs, 1);
+#endif
 
 #ifdef CONFIG_SUPPORT_INDISPLAY
 	decon_set_indisplay_post(decon, regs);
@@ -2564,11 +2588,12 @@ fence_err:
 #if defined(CONFIG_SAMSUNG_TUI)
 	decon_release_sec_buf(decon);
 #endif
-	decon_release_old_bufs(decon, regs, old_dma_bufs, old_plane_cnt);
-	decon_signal_fence(decon, regs->retire_fence);
-	dma_fence_put(regs->retire_fence);
-	DPU_EVENT_LOG(DPU_EVT_FENCE_RELEASE, &decon->sd, ktime_set(0, 0));
-
+	if (!req_no_buffers) {
+		decon_release_old_bufs(decon, regs, old_dma_bufs, old_plane_cnt);
+		decon_signal_fence(decon, regs->retire_fence);
+		dma_fence_put(regs->retire_fence);
+		DPU_EVENT_LOG(DPU_EVT_FENCE_RELEASE, &decon->sd, ktime_set(0, 0));
+	}
 #if defined(CONFIG_EXYNOS_AFBC_DEBUG)
 	decon_save_afbc_enabled_win_id(decon, regs);
 	decon_update_afbc_info(decon, regs, false);
@@ -2896,6 +2921,7 @@ static int decon_set_win_config(struct decon_device *decon,
 			goto err_prepare;
 	} else {
 		win_data->retire_fence = -1;
+		regs->fps = win_data->fps;
 	}
 
 	dpu_prepare_win_update_config(decon, win_data, regs);
@@ -2938,6 +2964,11 @@ static int decon_set_win_config(struct decon_device *decon,
 	dpu_update_freq_hop(decon);
 
 	kthread_queue_work(&decon->up.worker, &decon->up.work);
+
+
+	if (is_decon_win_state_vrr(decon, win_data->config[DECON_WIN_UPDATE_IDX].state) &&
+		(win_data->fps != 0) && (decon->lcd_info->fps != win_data->fps))
+		kthread_flush_worker(&decon->up.worker);
 
 	/**
 	 * The code is moved here because the DPU driver may get a wrong fd
@@ -3114,6 +3145,57 @@ static void decon_translate_idma2ch(struct decon_device *decon,
 }
 #endif
 
+static int decon_get_vsync_change_timeline(struct decon_device *decon,
+		struct vsync_applied_time_data *vsync_time)
+{
+	struct exynos_panel_info *lcd_info = decon->lcd_info;
+	u64 last_vsync, cur_nsec, next_vsync;
+	u64 vsync_period;
+	u32 frames;
+	int ret = 0;
+
+	decon_dbg("%s +\n", __func__);
+	mutex_lock(&decon->lock);
+
+	if (vsync_time->config >= lcd_info->display_mode_count) {
+		decon_err("requested configId(%d) is out of range!\n", vsync_time->config);
+		ret = -EINVAL;
+		goto end;
+	}
+
+	if (vsync_time->config == lcd_info->cur_mode_idx) {
+		decon_warn("requested configId is same as current one\n");
+		ret = -EINVAL;
+		goto end;
+	}
+
+	vsync_period = 1000000000UL / lcd_info->fps;
+
+	last_vsync = ktime_to_ns(decon->vsync.timestamp);
+	cur_nsec = ktime_to_ns(ktime_get());
+
+	if (cur_nsec <= last_vsync)
+		next_vsync = last_vsync;
+	else {
+		next_vsync = last_vsync +
+				(cur_nsec - last_vsync) / vsync_period * vsync_period;
+	}
+
+	frames = atomic_read(&decon->up.remaining_frame);
+	if (frames > 0)
+		frames--;
+	vsync_time->time = next_vsync + frames * vsync_period;
+
+	decon_dbg("EXYNOS_GET_VSYNC_CHANGE_TIMELINE: config(%d) => time(%llu)\n",
+				vsync_time->config, vsync_time->time);
+
+end:
+	mutex_unlock(&decon->lock);
+	decon_dbg("%s -\n", __func__);
+
+	return ret;
+}
+
 static int decon_ioctl(struct fb_info *info, unsigned int cmd,
 			unsigned long arg)
 {
@@ -3143,6 +3225,9 @@ static int decon_ioctl(struct fb_info *info, unsigned int cmd,
 	int i;
 	u32 cm_num;
 	enum disp_pwr_mode pwr;
+	struct exynos_display_mode display_mode;
+	struct exynos_display_mode *mode;
+	struct vsync_applied_time_data vsync_time;
 
 	decon_hiber_block_exit(decon);
 	switch (cmd) {
@@ -3496,7 +3581,71 @@ static int decon_ioctl(struct fb_info *info, unsigned int cmd,
 
 		break;
 
+	case EXYNOS_GET_DISPLAY_MODE_NUM:
+		if (copy_to_user((int __user *)arg, &lcd_info->display_mode_count,
+					sizeof(int))) {
+			ret = -EFAULT;
+			break;
+		}
+		break;
+
+	case EXYNOS_GET_DISPLAY_MODE:
+		if (copy_from_user(&display_mode,
+				   (struct exynos_display_mode __user *)arg,
+				   sizeof(display_mode))) {
+			ret = -EFAULT;
+			break;
+		}
+
+		if (display_mode.index >= lcd_info->display_mode_count) {
+			decon_err("not valid display mode index(%d)\n",
+					display_mode.index);
+			ret = -EINVAL;
+			break;
+		}
+
+		mode = &lcd_info->display_mode[display_mode.index].mode;
+		memcpy(&display_mode, mode, sizeof(display_mode));
+
+		decon_info("display mode[%d] : %dx%d@%d(%dx%dmm)\n",
+				display_mode.index, mode->width, mode->height,
+				mode->fps, mode->mm_width, mode->mm_height);
+
+		if (copy_to_user((struct exynos_display_mode __user *)arg,
+					&display_mode, sizeof(display_mode))) {
+			ret = -EFAULT;
+			break;
+		}
+		break;
+
+	case EXYNOS_GET_DISPLAY_CURRENT_MODE:
+		if (copy_to_user((u32 __user *)arg, &lcd_info->cur_mode_idx, sizeof(u32)))
+			ret = -EFAULT;
+		decon_dbg("EXYNOS_GET_DISPLAY_CURRENT_MODE: current index(%d)\n",
+					lcd_info->cur_mode_idx);
+		break;
+
+	case EXYNOS_GET_VSYNC_CHANGE_TIMELINE:
+		if (copy_from_user(&vsync_time,
+				   (struct exynos_display_mode __user *)arg,
+				   sizeof(vsync_time))) {
+			ret = -EFAULT;
+			break;
+		}
+
+		ret = decon_get_vsync_change_timeline(decon, &vsync_time);
+		if (ret)
+			break;
+
+		if (copy_to_user((struct vsync_applied_time_data __user *)arg,
+					&vsync_time, sizeof(vsync_time))) {
+			ret = -EFAULT;
+			break;
+		}
+		break;
+
 	default:
+		decon_dbg("IOCTL ERROR");
 		ret = -ENOTTY;
 	}
 
@@ -3788,6 +3937,10 @@ static int decon_fb_alloc_memory(struct decon_device *decon, struct decon_win *w
 	}
 
 	vaddr = dma_buf_vmap(buf);
+	if (IS_ERR_OR_NULL(vaddr)) {
+		dev_err(decon->dev, "dma_buf_vmap() failed\n");
+		goto err_map;
+	}
 
 	memset(vaddr, 0x00, size);
 
@@ -3866,6 +4019,10 @@ static int decon_fb_test_alloc_memory(struct decon_device *decon, u32 size)
 	}
 
 	vaddr = dma_buf_vmap(buf);
+	if (IS_ERR_OR_NULL(vaddr)) {
+		dev_err(decon->dev, "dma_buf_vmap() failed\n");
+		goto err_map;
+	}
 
 	memset(vaddr, 0x00, size);
 

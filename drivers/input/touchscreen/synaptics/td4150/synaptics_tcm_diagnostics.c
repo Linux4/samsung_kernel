@@ -519,6 +519,13 @@ static int diag_syncbox(struct syna_tcm_hcd *tcm_hcd)
 	if (!diag_hcd)
 		return 0;
 
+	if (tcm_hcd->report.id == REPORT_FW_PRINTF) {
+		unsigned char fw_log[256] = {0};
+		secure_memcpy(fw_log, 256, tcm_hcd->report.buffer.buf, tcm_hcd->report.buffer.buf_size,
+						tcm_hcd->report.buffer.data_length);
+		LOGE(tcm_hcd->pdev->dev.parent, "TouchFWLog: %s\n", fw_log);
+	}
+
 	if (tcm_hcd->report.id == diag_hcd->report_type)
 		diag_report();
 

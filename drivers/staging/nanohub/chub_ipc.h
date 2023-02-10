@@ -404,7 +404,7 @@ struct ipc_buf {
 	struct ipc_channel_buf ch[IPC_CH_BUF_NUM];
 };
 
-#ifndef CONFIG_SENSORS_SSP
+#if !defined(CONFIG_SENSORS_SSP) && !defined(CONFIG_SHUB)
 enum sensor_type {
     SENSOR_TYPE_META_DATA = 0,
     SENSOR_TYPE_ACCELEROMETER = 1,
@@ -534,7 +534,7 @@ struct ipc_map_area {
 	__raw_write32((val), (base) + REG_MAILBOX_MCUCTL)
 
 
-#ifndef CONFIG_SENSORS_SSP
+#if !defined(CONFIG_SENSORS_SSP) && !defined(CONFIG_SHUB)
 bool ipc_have_sensor_info(struct sensor_map *sensor_map);
 #ifdef CHUB_IPC
 void ipc_set_sensor_id(enum sensor_type type, enum vendor_sensor_list_id id);

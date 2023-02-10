@@ -45,7 +45,7 @@ static struct ilitek_ic_func_ctrl func_ctrl[FUNC_CTRL_NUM] = {
 	[3] = {"stylus", {0x1, 0x7, 0x0}, 3, 0x0, 0, 0xFF},
 	[4] = {"lpwg", {0x1, 0xA, 0x0}, 3, 0x0, 2, 0xFF},
 	[5] = {"proximity", {0x1, 0x10, 0x0}, 3, 0x0, 2, 0xFF},
-	[6] = {"plug", {0x1, 0x11, 0x0}, 3, 0x1, 0, 0xFF},
+	[6] = {"plug", {0x1, 0x11, 0x0}, 3, 0x1, 2, 0xFF},
 	[7] = {"edge_palm", {0x1, 0x12, 0x0}, 3, 0x1, 0, 0xFF},
 	[8] = {"lock_point", {0x1, 0x13, 0x0}, 3, 0x0, 2, 0xFF},
 	[9] = {"active", {0x1, 0x14, 0x0}, 3, 0x0, 2, 0xFF},
@@ -1089,16 +1089,27 @@ void ili_get_ini_path(void)
 	snprintf(ini_name[P2P_TD_PATH_NUM], INI_PATH_SIZE, "%s", P2P_TD_PATH);
 	snprintf(ini_name[RAWDATATD_PATH_NUM], INI_PATH_SIZE, "%s", RAWDATATD_PATH);
 	snprintf(ini_name[RAWDATANOBK_LCMOFF_PATH_NUM], INI_PATH_SIZE, "%s", RAWDATANOBK_LCMOFF_PATH);
+	/* only for 9882Q ic */
+	snprintf(ini_name[RAWDATAHAVEBK_LCMON_PATH_NUM], INI_PATH_SIZE, "%s", RAWDATAHAVEBK_LCMON_PATH);
+	snprintf(ini_name[RAWDATAHAVEBK_LCMOFF_PATH_NUM], INI_PATH_SIZE, "%s", RAWDATAHAVEBK_LCMOFF_PATH);
 
 	switch (ilits->chip->id) {
 	case ILI9882_CHIP:
-	/* 9882N */
-		snprintf(chip_id, sizeof(chip_id), "%s", CHIP_ID_9882);
+		if (ilits->chip->id == ILI9882_CHIP && ilits->chip->type == 0x1A) {
+			/* 9882Q */
+			snprintf(chip_id, sizeof(chip_id), "%s", CHIP_ID_9882Q);
+		} else {
+			/* 9882N */
+			snprintf(chip_id, sizeof(chip_id), "%s", CHIP_ID_9882);
+		}
 		break;
 	case ILI7807_CHIP:
 		if (ilits->chip->type == 0x1F) {
 			/* 7806S */
 			snprintf(chip_id, sizeof(chip_id), "%s", CHIP_ID_7806S);
+		} else if (ilits->chip->type == 0x1C) {
+			/* 7807S */
+			snprintf(chip_id, sizeof(chip_id), "%s", CHIP_ID_7807S);
 		}
 		break;
 	default:

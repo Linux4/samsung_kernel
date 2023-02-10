@@ -203,6 +203,10 @@ struct is_vender_specific {
 	struct is_rom_data				rom_data[SENSOR_POSITION_MAX];
 	struct is_rom_share				rom_share[SENSOR_POSITION_MAX];
 	const struct is_vender_rom_addr		*rom_cal_map_addr[SENSOR_POSITION_MAX];
+#ifdef USE_DUALIZED_OTPROM_SENSOR
+	struct i2c_client					*dualized_rom_client[SENSOR_POSITION_MAX];
+	const struct is_vender_rom_addr		*dualized_rom_cal_map_addr[SENSOR_POSITION_MAX];
+#endif
 
 	bool			running_camera[SENSOR_POSITION_MAX];
 
@@ -210,6 +214,9 @@ struct is_vender_specific {
 
 	/* dt */
 	u32			sensor_id[SENSOR_POSITION_MAX];
+#ifdef USE_DUALIZED_OTPROM_SENSOR
+	u32			dualized_sensor_id[SENSOR_POSITION_MAX];
+#endif
 #ifdef CONFIG_SECURE_CAMERA_USE
 	u32			secure_sensor_id;
 #endif

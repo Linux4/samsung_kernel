@@ -26,7 +26,7 @@
 #include "aud3004x.h"
 #include "aud3004x-6pin.h"
 
-#define AUD3004X_JACK_VER 10016
+#define AUD3004X_JACK_VER 20017
 
 #define ADC_SAMPLE_SIZE 5
 #define ADC_TRACE_NUM		5
@@ -441,10 +441,14 @@ static bool fake_jack_check(struct aud3004x_jack *jackdet)
 	struct aud3004x_priv *aud3004x = jackdet->p_aud3004x;
 	unsigned int jack_status_bit = 0;
 
-	/* Check jack det status */
+	regcache_cache_switch(aud3004x, false);
 	regcache_cache_bypass(aud3004x->regmap[AUD3004D], true);
+
+	/* Check jack det status */
 	jack_status_bit = aud3004x_read(aud3004x, AUD3004X_F0_STATUS1);
+
 	regcache_cache_bypass(aud3004x->regmap[AUD3004D], false);
+	regcache_cache_switch(aud3004x, true);
 
 	jack_status_bit = jack_status_bit & JACK_DET_MASK;
 
@@ -454,6 +458,20 @@ static bool fake_jack_check(struct aud3004x_jack *jackdet)
 	}
 
 	return true;
+}
+
+static void aud3004x_jackstate_reset(struct aud3004x_jack *jackdet)
+{
+	struct aud3004x_priv *aud3004x = jackdet->p_aud3004x;
+	struct device *dev = jackdet->p_aud3004x->dev;
+
+	regcache_cache_switch(aud3004x, false);
+	aud3004x_write(aud3004x, AUD3004X_E4_DCTR_FSM3, 0x10);
+	aud3004x_usleep(JACK_DEFAULT_USEC);
+	aud3004x_write(aud3004x, AUD3004X_E4_DCTR_FSM3, 0x00);
+	regcache_cache_switch(aud3004x, true);
+
+	dev_dbg(dev, "%s called, Jack State Reset.\n", __func__);
 }
 
 /*
@@ -501,6 +519,11 @@ static bool aud3004x_jackstate_register(struct aud3004x_jack *jackdet)
 			aud3004x_write(aud3004x, AUD3004X_E3_DCTR_FSM2, 0x00);
 			/* HQ Mode Reset */
 			aud3004x_write(aud3004x, AUD3004X_E5_DCTR_FSM4, 0x02);
+
+			/* IRQ Masking OFF */
+			aud3004x_write(aud3004x, AUD3004X_08_IRQ1M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_09_IRQ2M, 0x00);
+
 			/* ANT MDET Masking */
 			aud3004x_update_bits(aud3004x, AUD3004X_D2_DCTR_TEST2,
 					T_PDB_ANT_MDET_MASK, T_PDB_ANT_MDET_MASK);
@@ -514,6 +537,11 @@ static bool aud3004x_jackstate_register(struct aud3004x_jack *jackdet)
 			aud3004x_usleep(JACK_DEFAULT_USEC);
 			aud3004x_update_bits(aud3004x, AUD3004X_E4_DCTR_FSM3,
 					AP_POLLING_MASK | AP_JACK_IN_MASK | AP_JACK_OUT_MASK, 0);
+
+			/* IRQ Masking OFF */
+			aud3004x_write(aud3004x, AUD3004X_08_IRQ1M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_09_IRQ2M, 0x00);
+
 			/* ANT MDET Masking */
 			aud3004x_update_bits(aud3004x, AUD3004X_D2_DCTR_TEST2,
 					T_PDB_ANT_MDET_MASK, T_PDB_ANT_MDET_MASK);
@@ -578,8 +606,17 @@ static bool aud3004x_jackstate_register(struct aud3004x_jack *jackdet)
 		}
 		break;
 	case JACK_SURGE_OUT:
-		if (prv_jack & JACK_SURGE_IN) {
-			dev_dbg(dev, "Priv: JACK_SURGE_IN -> Cur: JACK_SURGE_OUT\n");
+		if (prv_jack & (JACK_IN | JACK_POLE_DEC | JACK_SURGE_IN | JACK_OUT)) {
+			if (prv_jack & JACK_3POLE)
+				dev_dbg(dev, "Priv: JACK_3POLE -> Cur: JACK_SURGE_OUT\n");
+			if (prv_jack & JACK_4POLE)
+				dev_dbg(dev, "Priv: JACK_4POLE -> Cur: JACK_SURGE_OUT\n");
+			if (prv_jack & JACK_POLE_DEC)
+				dev_dbg(dev, "Priv: JACK_POLE_DEC -> Cur: JACK_SURGE_OUT\n");
+			if (prv_jack & JACK_SURGE_IN)
+				dev_dbg(dev, "Priv: JACK_SURGE_IN -> Cur: JACK_SURGE_OUT\n");
+			if (prv_jack & JACK_OUT)
+				dev_dbg(dev, "Priv: JACK_OUT -> Cur: JACK_SURGE_OUT\n");
 
 			/* Need to ST_POLE_R */
 			aud3004x_update_bits(aud3004x, AUD3004X_E4_DCTR_FSM3,
@@ -587,6 +624,11 @@ static bool aud3004x_jackstate_register(struct aud3004x_jack *jackdet)
 			aud3004x_usleep(JACK_DEFAULT_USEC);
 			aud3004x_update_bits(aud3004x, AUD3004X_E4_DCTR_FSM3,
 					AP_JACK_IN_MASK, 0);
+
+			/* IRQ Masking OFF */
+			aud3004x_write(aud3004x, AUD3004X_08_IRQ1M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_09_IRQ2M, 0x00);
+
 #if 0
 			/* AP ANT Unmasking */
 			aud3004x_usleep(JACK_ANT_USEC);
@@ -659,6 +701,10 @@ static bool aud3004x_jackstate_register(struct aud3004x_jack *jackdet)
 			aud3004x_usleep(JACK_DEFAULT_USEC);
 			aud3004x_update_bits(aud3004x, AUD3004X_E4_DCTR_FSM3,
 					AP_JACK_IN_MASK, 0);
+
+			/* IRQ Masking OFF */
+			aud3004x_write(aud3004x, AUD3004X_08_IRQ1M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_09_IRQ2M, 0x00);
 		} else {
 			goto err;
 		}
@@ -684,6 +730,10 @@ static bool aud3004x_jackstate_register(struct aud3004x_jack *jackdet)
 			aud3004x_usleep(JACK_DEFAULT_USEC);
 			aud3004x_update_bits(aud3004x, AUD3004X_E4_DCTR_FSM3,
 					AP_JACK_IN_MASK, 0);
+
+			/* IRQ Masking OFF */
+			aud3004x_write(aud3004x, AUD3004X_08_IRQ1M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_09_IRQ2M, 0x00);
 		} else {
 			goto err;
 		}
@@ -700,6 +750,10 @@ static bool aud3004x_jackstate_register(struct aud3004x_jack *jackdet)
 			/* 3 POLE */
 			aud3004x_write(aud3004x, AUD3004X_E3_DCTR_FSM2, 0x20);
 			aud3004x_usleep(JACK_DEFAULT_USEC);
+
+			/* IRQ Masking OFF */
+			aud3004x_write(aud3004x, AUD3004X_08_IRQ1M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_09_IRQ2M, 0x00);
 		} else {
 			goto err;
 		}
@@ -717,8 +771,12 @@ static bool aud3004x_jackstate_register(struct aud3004x_jack *jackdet)
 			aud3004x_write(aud3004x, AUD3004X_E3_DCTR_FSM2, 0x30);
 			aud3004x_usleep(JACK_DEFAULT_USEC);
 
+			/* IRQ Masking OFF */
+			aud3004x_write(aud3004x, AUD3004X_08_IRQ1M, 0x00);
+			aud3004x_write(aud3004x, AUD3004X_09_IRQ2M, 0x00);
+
 			if (prv_jack & (JACK_POLE_DEC | JACK_SURGE_OUT)) {
-				if (aud3004x->is_ext_ant) {
+				if (!jackdet->ant_mode_bypass) {
 					if (jackstate->mdet_adc < jackdet->mic_open_value) {
 						dev_dbg(dev, "Cur: JACK_4POLE, Enable Ant mdet\n");
 						/* ANT MDET Un-Masking */
@@ -743,6 +801,10 @@ static bool aud3004x_jackstate_register(struct aud3004x_jack *jackdet)
 	return true;
 
 err:
+	/* IRQ Masking OFF */
+	aud3004x_write(aud3004x, AUD3004X_08_IRQ1M, 0x00);
+	aud3004x_write(aud3004x, AUD3004X_09_IRQ2M, 0x00);
+
 	regcache_cache_switch(aud3004x, true);
 	dev_err(dev, "%s Jack state machine error! prv: 0x%03x, cur: 0x%03x\n",
 			__func__, jackstate->prv_jack_state, jackstate->cur_jack_state);
@@ -1477,6 +1539,8 @@ static int return_irq_type(struct aud3004x_jack *jackdet)
 {
 	struct earjack_state *jackstate = &jackdet->jack_state;
 	unsigned int pend1, pend2, pend3, pend4, pend5, pend6, stat1, stat2;
+	unsigned int jo_err;
+//	unsigned int stat3;
 
 	pend1 = jackdet->irq_val[0];
 	pend2 = jackdet->irq_val[1];
@@ -1486,6 +1550,9 @@ static int return_irq_type(struct aud3004x_jack *jackdet)
 	pend6 = jackdet->irq_val[5];
 	stat1 = jackdet->irq_val[6];
 	stat2 = jackdet->irq_val[7];
+//	stat3 = jackdet->irq_val[8];
+
+	jo_err = stat2 & WTP_STATE_MASK;
 
 	if (pend5 & OCP_IRQ_R)
 		return IRQ_ST_OVP_IN;
@@ -1498,6 +1565,8 @@ static int return_irq_type(struct aud3004x_jack *jackdet)
 
 	if (pend1 & ST_JACKOUT_R)
 		return IRQ_ST_JACKOUT;
+	else if ((pend2 & JACK_DET_F) && (jo_err & WTP_AP))
+		return IRQ_ST_DET_JACKOUT;
 	else if ((pend1 & ST_APCHECK_R) || (pend2 & ST_MOIST_F))
 		return IRQ_ST_APCHECK;
 	else if (pend3 & ST_POLE_R)
@@ -1587,6 +1656,20 @@ static int aud3004x_notifier_handler(struct notifier_block *nb,
 		queue_delayed_work(jackdet->buttons_wq, &jackdet->buttons_work,
 				msecs_to_jiffies(jackdet->btn_adc_delay));
 		break;
+	case IRQ_ST_DET_JACKOUT:
+		dev_dbg(dev, "[IRQ] %s Jack out(F) interrupt, line: %d\n",
+				__func__, __LINE__);
+
+		aud3004x_jackstate_reset(jackdet);
+
+		aud3004x_jackstate_set(jackdet, JACK_OUT);
+
+		queue_delayed_work(jackdet->jack_det_wq, &jackdet->jack_det_work,
+				msecs_to_jiffies(0));
+
+		queue_delayed_work(jackdet->buttons_wq, &jackdet->buttons_work,
+				msecs_to_jiffies(jackdet->btn_adc_delay));
+		break;
 	case IRQ_ST_WTJACK_IRQ:
 		dev_dbg(dev, "[IRQ] %s Jack interrupt in water, line: %d\n",
 				__func__, __LINE__);
@@ -1643,10 +1726,10 @@ void aud3004x_call_notifier(u8 irq_codec[], int count)
 		jackdet->irq_val[i] = irq_codec[i];
 
 	dev_dbg(aud3004x->dev,
-			"[IRQ] %s(%d) 0x1:%02x 0x2:%02x 0x3:%02x 0x4:%02x 0x5:%02x 0x6:%02x st1:%02x st2:%02x\n",
+			"[IRQ] %s(%d) 0x1:%02x 0x2:%02x 0x3:%02x 0x4:%02x 0x5:%02x 0x6:%02x st1:%02x st2:%02x st3:%02x\n",
 			__func__, __LINE__, jackdet->irq_val[0], jackdet->irq_val[1],
 			jackdet->irq_val[2], jackdet->irq_val[3], jackdet->irq_val[4],
-			jackdet->irq_val[5], jackdet->irq_val[6], jackdet->irq_val[7]);
+			jackdet->irq_val[5], jackdet->irq_val[6], jackdet->irq_val[7], jackdet->irq_val[8]);
 
 	blocking_notifier_call_chain(&aud3004x_notifier, 0, &codec_notifier_t);
 }

@@ -543,7 +543,7 @@ static void __init secdbg_freq_ect_data_init(void)
 	}
 }
 
-static void __init secdbg_freq_init(void)
+static int __init secdbg_freq_init(void)
 {
 	secdbg_freq_dt_init();
 
@@ -556,5 +556,7 @@ static void __init secdbg_freq_init(void)
 	secdbg_print_all_skew_domain_info();
 
 	pr_info("%s: initialized\n", __func__);
+
+	return 0;
 }
 subsys_initcall(secdbg_freq_init);

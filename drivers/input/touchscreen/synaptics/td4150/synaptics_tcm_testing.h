@@ -68,6 +68,7 @@ enum test_code {
 	TEST_FW_CRC = 0xC0,
 	TEST_CHECK_CONNECT = 0xC1,
 	TEST_SENSITIVITY = 0xC2,
+	TEST_FACE_DELTA = 0xC3,	// 195
 };
 
 struct testing_hcd {

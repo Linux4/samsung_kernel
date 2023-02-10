@@ -175,6 +175,21 @@ void decon_set_clocks(struct decon_device *decon)
 {
 }
 
+void dpu_update_fps(struct decon_device *decon, u32 fps)
+{
+	if (fps == 0)
+		return;
+
+	if (decon->dt.out_type != DECON_OUT_DSI)
+		return;
+
+	decon_info("requested fps(%d), current fps(%d)\n",
+			fps, decon->lcd_info->fps);
+	v4l2_subdev_call(decon->out_sd[0], core, ioctl,
+			DSIM_IOC_SET_VIDEO_FPS, &fps);
+	decon_info("applied fps(%d)\n", decon->lcd_info->fps);
+}
+
 int decon_get_out_sd(struct decon_device *decon)
 {
 #if defined(CONFIG_EXYNOS_COMMON_PANEL)

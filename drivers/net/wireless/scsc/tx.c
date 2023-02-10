@@ -762,7 +762,7 @@ int slsi_tx_control(struct slsi_dev *sdev, struct net_device *dev, struct sk_buf
 
 		if (!in_interrupt()) {
 			snprintf(reason, sizeof(reason), "Failed to transmit signal 0x%04X (err:%d)", fapi_get_sigid(skb), res);
-			slsi_sm_service_failed(sdev, reason);
+			slsi_sm_service_failed(sdev, reason, false);
 
 			res = -EIO;
 		}

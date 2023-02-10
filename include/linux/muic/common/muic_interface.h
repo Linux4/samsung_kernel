@@ -22,7 +22,7 @@
 
 #include <linux/muic/common/muic.h>
 
-#if defined(CONFIG_MUIC_SUPPORT_POWERMETER)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_POWERMETER)
 #include <linux/power_supply.h>
 #endif
 
@@ -174,7 +174,7 @@ typedef enum {
 	MUIC_ABNORMAL_OTG,
 } muic_usb_killer_t;
 
-#if defined(CONFIG_MUIC_SUPPORT_PRSWAP)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_PRSWAP)
 typedef enum {
 	MUIC_PRSWAP_UNDIFINED,
 	MUIC_PRSWAP_TO_SINK,
@@ -237,16 +237,16 @@ struct muic_interface_t {
 
 	struct hv_data		*phv;
 
-#if defined(CONFIG_USB_EXTERNAL_NOTIFY)
+#if IS_ENABLED(CONFIG_USB_EXTERNAL_NOTIFY)
 	/* USB Notifier */
 	struct notifier_block	usb_nb;
 #endif
 
-#if defined(CONFIG_MUIC_MANAGER)
+#if IS_ENABLED(CONFIG_MUIC_MANAGER)
 	/* legacy TA or USB for PDIC */
 	muic_attached_dev_t	legacy_dev;
 
-#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	struct notifier_block	manager_nb;
 #else
 	struct notifier_block	pdic_nb;
@@ -257,13 +257,17 @@ struct muic_interface_t {
 	/* Operation Mode */
 	enum muic_op_mode	opmode;
 
-#if defined(CONFIG_MUIC_SUPPORT_PRSWAP)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_PRSWAP)
 	muic_prswap_t prswap_status;
 #endif
 
-#if defined(CONFIG_MUIC_SUPPORT_POWERMETER)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_POWERMETER)
 	struct power_supply *psy_muic;
 	struct power_supply_desc psy_muic_desc;
+#endif
+
+#if IS_ENABLED(CONFIG_HV_MUIC_S2MU004_AFC) || IS_ENABLED(CONFIG_MUIC_HV)
+	int afc_request_cause;
 #endif
 
 	/* function pointer should be registered from each specific driver file */
@@ -281,14 +285,14 @@ struct muic_interface_t {
 	int (*control_rid_adc)(void *, bool enable);
 	int (*get_vbus_voltage)(void *);
 
-#if defined(CONFIG_HV_MUIC_S2MU004_AFC) || defined(CONFIG_MUIC_HV)
+#if IS_ENABLED(CONFIG_HV_MUIC_S2MU004_AFC) || IS_ENABLED(CONFIG_MUIC_HV)
 	int (*set_afc_reset)(void *);
 	muic_attached_dev_t (*check_id_err)(void *, muic_attached_dev_t new_dev);
 	int (*reset_hvcontrol_reg)(void *);
 	int (*check_afc_ready)(void *);
 	int (*get_afc_ready)(void *);
 	int (*reset_afc_register)(void *);
-#if defined(CONFIG_MUIC_SUPPORT_POWERMETER)
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_POWERMETER)
 	int (*pm_chgin_irq)(void *, int vol);
 #endif
 #if IS_ENABLED(CONFIG_HV_MUIC_VOLTAGE_CTRL)
@@ -320,17 +324,16 @@ struct muic_interface_t {
 	int (*get_vbus)(void *);
 	int (*get_adc)(void *);
 	int (*check_usb_killer)(void *);
-#ifdef CONFIG_MUIC_SYSFS
+#if IS_ENABLED(CONFIG_MUIC_SYSFS)
 	int (*show_register)(void *, char *mesg);
 #if IS_ENABLED(CONFIG_SEC_FACTORY) && IS_ENABLED(CONFIG_USB_HOST_NOTIFY)
 	int (*set_otg_reg)(void *, bool enable);
 #endif
 #endif
-#if IS_ENABLED(CONFIG_HICCUP_CHARGER)
 	int (*set_hiccup_mode)(void *, bool en);
 	int (*get_hiccup_mode)(void *);
-#endif
-#if defined(CONFIG_MUIC_SUPPORT_PRSWAP)
+	int (*set_overheat_hiccup_mode)(void *pdata, bool en);
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_PRSWAP)
 	void (*set_chg_det)(void *, bool en);
 	void (*prswap_work)(void *, int mode);
 #endif
@@ -340,14 +343,14 @@ struct muic_interface_t {
 
 extern struct device *switch_device;
 
-struct muic_interface_t *muic_manager_init(void *pdata, void *drv_data);
-void muic_manager_exit(struct muic_interface_t *muic_if);
+extern struct muic_interface_t *muic_manager_init(void *pdata, void *drv_data);
+extern void muic_manager_exit(struct muic_interface_t *muic_if);
 int muic_manager_get_legacy_dev(struct muic_interface_t *muic_if);
-void muic_manager_set_legacy_dev(struct muic_interface_t *muic_if, int new_dev);
+extern void muic_manager_set_legacy_dev(struct muic_interface_t *muic_if, int new_dev);
 void muic_manager_handle_pdic_detach(struct muic_interface_t *muic_if);
 int muic_manager_dcd_rescan(struct muic_interface_t *muic_if);
-#if defined(CONFIG_MUIC_SUPPORT_POWERMETER)
-int muic_manager_psy_init(struct muic_interface_t *muic_if, struct device *parent);
+#if IS_ENABLED(CONFIG_MUIC_SUPPORT_POWERMETER)
+extern int muic_manager_psy_init(struct muic_interface_t *muic_if, struct device *parent);
 #endif
 
 #endif /* __MUIC_INTERNAL_H__ */

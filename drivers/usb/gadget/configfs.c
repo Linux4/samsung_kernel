@@ -39,7 +39,6 @@ EXPORT_SYMBOL_GPL(create_function_device);
 
 #ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
 void set_usb_enumeration_state(int state);
-void set_usb_enable_state(void);
 #endif
 
 #define CHIPID_SIZE	(16)

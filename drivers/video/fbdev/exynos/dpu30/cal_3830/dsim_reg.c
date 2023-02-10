@@ -1008,6 +1008,13 @@ static void dsim_reg_set_hperiod(u32 id, struct exynos_panel_info *lcd)
 	}
 }
 
+void dsim_reg_update_vfp(u32 id, u32 vfp)
+{
+	dsim_write_mask(id, DSIM_VPORCH, DSIM_VPORCH_VFP_TOTAL(vfp),
+		DSIM_VPORCH_VFP_TOTAL_MASK);
+	dsim_info("Applied new VFP!(%d)\n", vfp);
+}
+
 static void dsim_reg_set_video_mode(u32 id, u32 mode)
 {
 	u32 val = mode ? ~0 : 0;

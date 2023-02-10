@@ -119,7 +119,7 @@ static void abox_wdma_disable_barrier(struct device *dev,
 		struct abox_dma_data *data)
 {
 	struct abox_data *abox_data = data->abox_data;
-	u64 timeout = local_clock() + ABOX_DMA_TIMEOUT_NS;
+	u64 timeout = local_clock() + abox_get_waiting_ns(true);
 
 	while (abox_wdma_progress(data)) {
 		if (local_clock() <= timeout) {
@@ -452,7 +452,7 @@ static int abox_wdma_close(struct snd_pcm_substream *substream)
 	}
 
 	time = wait_for_completion_timeout(&data->closed,
-			nsecs_to_jiffies(ABOX_DMA_TIMEOUT_NS));
+			nsecs_to_jiffies(abox_get_waiting_ns(true)));
 	if (time == 0)
 		dev_warn(dev, "close timeout\n");
 
@@ -863,8 +863,10 @@ static int abox_wdma_fio_common_ioctl(struct snd_hwdep *hw, struct file *filp,
 	switch (cmd) {
 	case SNDRV_PCM_IOCTL_MMAP_DATA_FD:
 		ret = abox_ion_get_mmap_fd(dev, data->ion_buf, &mmap_fd);
-		if (ret < 0)
+		if (ret < 0) {
 			dev_err(dev, "%s MMAP_FD failed: %d\n", __func__, ret);
+			return ret;
+		}
 
 		if (copy_to_user(_arg, &mmap_fd, sizeof(mmap_fd)))
 			return -EFAULT;

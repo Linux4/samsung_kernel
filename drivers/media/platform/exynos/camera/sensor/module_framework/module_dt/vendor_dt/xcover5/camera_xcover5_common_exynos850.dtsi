@@ -69,7 +69,7 @@
 					scenario_normal_on {
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name"; 		pin = <act value delay voltage>;	gpio = <gpx# # 0x1>; 	*/
-						10 { pname = SEN_RST_LOW; 	pin = <PIN_OUTPUT 0 500>;		gpio = S5K2P6_RST; 	};
+						10 { pname = SEN_RST_LOW; 	pin = <PIN_OUTPUT 0 0>;		gpio = S5K2P6_RST; 	};
 						20 { pname = "2p6_avdd"; 	pin = <PIN_OUTPUT 1 0>;			gpio = S5K2P6_AVDD;	}; /* RCAM_AVDD_2P8 */
 						30 { pname = "2p6_iovdd"; 	pin = <PIN_OUTPUT 1 0>;			gpio = S5K2P6_IOVDD;}; /* CAM_VDDIO_1P8 */
 						40 { pname = "2p6_dvdd"; 	pin = <PIN_REGULATOR 1 0>;							}; /* RCAM_DVDD_1P05 */
@@ -116,6 +116,7 @@
 						10 { pname = I2C_OFF; 		pin = <PIN_I2C 0 500>; 					};
 						20 { pname = "rcam_af_vdd"; 	pin = <PIN_REGULATOR 0 0>;				}; /* RCAM_AFVDD_2P8 */
 						30 { pname = "2p6_iovdd"; 	pin = <PIN_OUTPUT 0 0>;		gpio = S5K2P6_IOVDD;	}; /* CAM_VDDIO_1P8 */
+						40 { pname = DELAY; 		pin = <PIN_NONE 0 5000>; 				};
 					};
 				};
 			};
@@ -169,7 +170,7 @@
 						40 { pname = MCLK_FUNC;			pin = <PIN_FUNCTION 0 0>;									};
 						50 { pname = I2C_OFF;			pin = <PIN_I2C 0 0>;										};
 						60 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 1000>;			gpio = GC5035_RST;		};
-						70 { pname = "gc5035_ldo";		pin = <PIN_OUTPUT 0 0>;				gpio = GC5035_LDO_EN;	}; /* FCAM_DVDD_1P2 */
+						70 { pname = "gc5035_ldo";		pin = <PIN_OUTPUT 0 500>;				gpio = GC5035_LDO_EN;	}; /* FCAM_DVDD_1P2 */
 						80 { pname = "gc5035_iovdd";	pin = <PIN_OUTPUT 0 0>;				gpio = GC5035_IOVDD;	}; /* CAM_VDDIO_1P8 */
 					};
 
@@ -200,7 +201,7 @@
 						40 { pname = MCLK_FUNC;			pin = <PIN_FUNCTION 0 0>;									};
 						50 { pname = I2C_OFF;			pin = <PIN_I2C 0 0>;										};
 						60 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 1000>;			gpio = GC5035_RST;		};
-						70 { pname = "gc5035_ldo";		pin = <PIN_OUTPUT 0 0>;				gpio = GC5035_LDO_EN;	}; /* FCAM_DVDD_1P2 */
+						70 { pname = "gc5035_ldo";		pin = <PIN_OUTPUT 0 500>;				gpio = GC5035_LDO_EN;	}; /* FCAM_DVDD_1P2 */
 						80 { pname = "gc5035_iovdd";	pin = <PIN_OUTPUT 0 0>;				gpio = GC5035_IOVDD;	}; /* CAM_VDDIO_1P8 */
 					};
 				}; /* power_seq */

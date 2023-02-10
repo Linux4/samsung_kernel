@@ -86,6 +86,31 @@ struct exynos_dsc {
 	u32 enc_sw;
 };
 
+#define MAX_DISPLAY_MODE        32
+
+/* exposed to user */
+struct exynos_display_mode {
+	unsigned int index;
+	unsigned int width;
+	unsigned int height;
+	unsigned int mm_width;
+	unsigned int mm_height;
+	unsigned int fps;
+	unsigned int group;
+};
+
+/* used internally by driver */
+struct exynos_display_mode_info {
+	struct exynos_display_mode mode;
+	unsigned int cmd_lp_ref;
+	bool dsc_en;
+	unsigned int dsc_width;
+	unsigned int dsc_height;
+	unsigned int dsc_dec_sw;
+	unsigned int dsc_enc_sw;
+	unsigned int vfp;
+};
+
 struct exynos_panel_info {
 	unsigned int id; /* panel id. It is used for finding connected panel */
 	enum decon_psr_mode mode;
@@ -110,6 +135,7 @@ struct exynos_panel_info {
 	unsigned int esc_clk;
 
 	unsigned int fps;
+	unsigned int active_fps;
 
 	struct exynos_dsc dsc;
 
@@ -124,5 +150,9 @@ struct exynos_panel_info {
 	unsigned int bpc;
 	unsigned int eotp_disabled;
 	unsigned int continuous_underrun_max;
+
+	int display_mode_count;
+	unsigned int cur_mode_idx;
+	struct exynos_display_mode_info display_mode[MAX_DISPLAY_MODE];
 };
 #endif /* __EXYNOS_PANEL_H__ */

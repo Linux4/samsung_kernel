@@ -18,6 +18,8 @@
 #include <linux/moduleparam.h>
 #include <linux/platform_device.h>
 
+#define SM5714_FLED_VERSION "XXX.UA1"
+
 static struct sm5714_fled_data *g_sm5714_fled;
 extern struct class *camera_class; /*sys/class/camera*/
 extern void sm5714_request_default_power_src(void);
@@ -683,7 +685,7 @@ static int sm5714_fled_probe(struct platform_device *pdev)
 		goto free_device;
 	}
 
-	dev_info(&pdev->dev, "sm5714 fled probe done.\n");
+	dev_info(&pdev->dev, "sm5714 fled probe done[%s].\n", SM5714_FLED_VERSION);
 
 	return 0;
 
@@ -747,3 +749,4 @@ module_exit(sm5714_led_driver_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Samsung Electronics");
 MODULE_DESCRIPTION("Flash-LED device driver for SM5714");
+MODULE_VERSION(SM5714_FLED_VERSION);

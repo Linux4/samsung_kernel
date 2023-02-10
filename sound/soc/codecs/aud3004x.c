@@ -1717,7 +1717,7 @@ static int mic3_pga_ev(struct snd_soc_dapm_widget *w,
 				APW_MIC3L_MASK, 0);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
-		if (!aud3004x->is_ext_ant) {
+		if (aud3004x->p_jackdet->ant_mode_bypass) {
 			/* Prevent Call Drop */
 			aud3004x_update_bits(aud3004x, AUD3004X_D2_DCTR_TEST2,
 					T_PDB_ANT_MDET_MASK, T_PDB_ANT_MDET_MASK);

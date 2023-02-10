@@ -649,6 +649,9 @@ int32_t nvt_check_fw_reset_state(RST_COMPLETE_STATE check_reset_state)
 		usleep_range(10000, 10000);
 	}
 
+	if (!ret)
+		input_info(true, &ts->client->dev, "%s : retry=%d, buf[1] = %x\n", __func__, retry, buf[1]);
+
 	return ret;
 }
 
@@ -892,7 +895,7 @@ static ssize_t nvt_flash_read(struct file *file, char __user *buff, size_t count
 
 out:
 	kfree(str);
-    kfree(buf);
+	kfree(buf);
 kzalloc_failed:
 	return ret;
 }
@@ -1506,6 +1509,10 @@ static void nvt_esd_check_func(struct work_struct *work)
 					__func__, timer, esd_retry);
 		/* do esd recovery, reload fw */
 		nvt_update_firmware(ts->platdata->firmware_name);
+		if (nvt_check_fw_reset_state(RESET_STATE_REK))
+			input_err(true, &ts->client->dev, "%s: Check FW state failed after ESD recovery\n", __func__);
+		else
+			nvt_ts_mode_restore(ts);
 		mutex_unlock(&ts->lock);
 		/* update interrupt timer */
 		irq_timer = jiffies;
@@ -1562,7 +1569,7 @@ void nvt_print_info(void)
 				"tc:%d ver:0x%02X%02X%02X%02X mode:%04X noise:%d aot:%d ed:%d res(%d,%d) // #%d %d\n",
 				ts->touch_count, ts->fw_ver_bin[0], ts->fw_ver_bin[1],
 				ts->fw_ver_bin[2], ts->fw_ver_bin[3],
-				ts->sec_function, ts->noise_mode, ts->aot_enable, ts->ear_detect_enable,
+				ts->sec_function, ts->noise_mode, ts->aot_enable, ts->ear_detect_mode,
 				ts->early_resume_cnt, ts->resume_cnt,
 				ts->print_info_cnt_open, ts->print_info_cnt_release);
 
@@ -1810,6 +1817,11 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
    if (nvt_wdt_fw_recovery(point_data)) {
        input_err(true, &ts->client->dev,"Recover for fw reset, %02X\n", point_data[1]);
        nvt_update_firmware(ts->platdata->firmware_name);
+	   if (nvt_check_fw_reset_state(RESET_STATE_REK))
+		   input_err(true, &ts->client->dev, "%s: Check FW state failed after FW reset recovery\n", __func__);
+	   else
+		   nvt_ts_mode_restore(ts);
+
        goto XFER_ERROR;
    }
 #endif /* #if NVT_TOUCH_WDT_RECOVERY */
@@ -2065,7 +2077,7 @@ static void ts_remaining_var_init(void)
 	input_info(true, &ts->client->dev, "%s : start\n", __func__);
 
 #if PROXIMITY_FUNCTION
-	ts->ear_detect_enable = 0;
+	ts->ear_detect_mode = 0;
 	ts->prox_power_off = 0;
 	ts->hover_event = 0;
 #endif
@@ -2113,18 +2125,22 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	ts->xbuf = (uint8_t *)kzalloc((NVT_TRANSFER_LEN+1+DUMMY_BYTES), GFP_KERNEL);
 	if(ts->xbuf == NULL) {
 		input_err(true, &client->dev,"kzalloc for xbuf failed!\n");
-		if (ts) {
-			kfree(ts);
-			ts = NULL;
-		}
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto err_malloc_xbuf;
+	}
+
+	ts->rbuf = (uint8_t *)kzalloc(NVT_READ_LEN, GFP_KERNEL);
+	if(ts->rbuf == NULL) {
+		input_err(true, &client->dev, "kzalloc for rbuf failed!\n");
+		ret = -ENOMEM;
+		goto err_malloc_rbuf;
 	}
 
 	if (client->dev.of_node) {
 		platdata = devm_kzalloc(&client->dev,sizeof(struct nvt_ts_platdata), GFP_KERNEL);
 		if (!platdata) {
 			input_err(true, &client->dev, "%s: Failed to allocate platform data\n", __func__);
-			goto err_parse_dt_failed;
+			goto err_alloc_platdata_failed;
 		}
 
 		client->dev.platform_data = platdata;
@@ -2438,6 +2454,13 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	if (lpcharge) {
 		input_info(true, &client->dev, "%s: enter sleep mode in lpcharge %d\n", __func__, lpcharge);
 		nvt_ts_suspend(&ts->client->dev);
+#if BOOT_UPDATE_FIRMWARE
+		if (nvt_fwu_wq) {
+			cancel_delayed_work_sync(&ts->nvt_fwu_work);
+			destroy_workqueue(nvt_fwu_wq);
+			nvt_fwu_wq = NULL;
+		}
+#endif
 	}
 #endif
 
@@ -2521,16 +2544,22 @@ err_ckeck_full_duplex:
 	regulator_put(ts->regulator_lcd_reset);
 	regulator_put(ts->regulator_lcd_bl_en);
 err_gpio_config_failed:
-//err_parse_dt_failed:
+err_parse_dt_failed:
 	if (ts->platdata) {
-		kfree(ts->platdata);
+		devm_kfree(&client->dev, ts->platdata);
 		ts->platdata = NULL;
 	}
-err_parse_dt_failed:
+err_alloc_platdata_failed:
+	if (ts->rbuf) {
+		kfree(ts->rbuf);
+		ts->rbuf = NULL;
+	}
+err_malloc_rbuf:
 	if (ts->xbuf) {
 		kfree(ts->xbuf);
 		ts->xbuf = NULL;
 	}
+err_malloc_xbuf:
 	if (ts) {
 		kfree(ts);
 		ts = NULL;
@@ -2626,8 +2655,12 @@ static int32_t nvt_ts_remove(struct spi_device *client)
 	spi_set_drvdata(client, NULL);
 
 	if (ts->platdata) {
-		kfree(ts->platdata);
+		devm_kfree(&client->dev, ts->platdata);
 		ts->platdata = NULL;
+	}
+	if (ts->rbuf) {
+		kfree(ts->rbuf);
+		ts->rbuf = NULL;
 	}
 	if (ts->xbuf) {
 		kfree(ts->xbuf);
@@ -2704,6 +2737,33 @@ static void nvt_ts_shutdown(struct spi_device *client)
 		device_init_wakeup(&ts->input_dev->dev, 0);
 }
 
+
+int nvt_ts_lcd_reset_ctrl(bool on)
+{
+	int retval;
+	static bool enabled;
+
+	if (enabled == on)
+		return 0;
+
+	if (on) {
+		retval = regulator_enable(ts->regulator_lcd_reset);
+		if (retval) {
+			input_err(true, &ts->client->dev, "%s: Failed to enable regulator_lcd_reset: %d\n", __func__, retval);
+			return retval;
+		}
+
+	} else {
+		regulator_disable(ts->regulator_lcd_reset);
+	}
+
+	enabled = on;
+
+	input_info(true, &ts->client->dev, "%s %d done\n", __func__, on);
+
+	return 0;
+}
+
 int nvt_ts_lcd_power_ctrl(bool on)
 {
 	int retval;
@@ -2718,11 +2778,7 @@ int nvt_ts_lcd_power_ctrl(bool on)
 			input_err(true, &ts->client->dev, "%s: Failed to enable regulator_vdd: %d\n", __func__, retval);
 			return retval;
 		}
-		retval = regulator_enable(ts->regulator_lcd_reset);
-		if (retval) {
-			input_err(true, &ts->client->dev, "%s: Failed to enable regulator_lcd_reset: %d\n", __func__, retval);
-			return retval;
-		}
+
 		retval = regulator_enable(ts->regulator_lcd_bl_en);
 		if (retval) {
 			input_err(true, &ts->client->dev, "%s: Failed to enable regulator_lcd_bl_en: %d\n", __func__, retval);
@@ -2730,8 +2786,6 @@ int nvt_ts_lcd_power_ctrl(bool on)
 		}
 	} else {
 		regulator_disable(ts->regulator_lcd_bl_en);
-		regulator_disable(ts->regulator_lcd_reset);
-		usleep_range(5000, 5100);
 		regulator_disable(ts->regulator_vdd);
 	}
 
@@ -2768,17 +2822,17 @@ int32_t nvt_ts_suspend(struct device *dev)
 	nvt_esd_check_enable(false);
 #endif /* #if NVT_TOUCH_ESD_PROTECT */
 
-	input_info(true, &ts->client->dev, "%s : start %d, %d\n", __func__, ts->ear_detect_enable, ts->aot_enable);
+	input_info(true, &ts->client->dev, "%s : start %d, %d\n", __func__, ts->ear_detect_mode, ts->aot_enable);
 
-	if (ts->aot_enable && (ts->prox_power_off || ts->ear_detect_enable))
+	if (ts->aot_enable && (ts->prox_power_off || ts->ear_detect_mode))
 		ts->lowpower_mode = 0;	// for ed
 
-	input_info(true, &ts->client->dev, "%s : start %d, %d\n", __func__, ts->ear_detect_enable, ts->aot_enable);
+	input_info(true, &ts->client->dev, "%s : start %d, %d\n", __func__, ts->ear_detect_mode, ts->aot_enable);
 
 	if (ts->lowpower_mode || ts->lcdoff_test) {
 		nvt_irq_enable(false);
 		nvt_ts_lcd_power_ctrl(true);
-
+		nvt_ts_lcd_reset_ctrl(true);
 		mutex_lock(&ts->lock);
 		ts->power_status = LP_MODE_STATUS;
 
@@ -2793,10 +2847,10 @@ int32_t nvt_ts_suspend(struct device *dev)
 
 		input_info(true, &ts->client->dev, "%s: aot mode\n", __func__);
 
-	} else if (ts->ear_detect_enable) {
+	} else if (ts->ear_detect_mode) {
 
 		nvt_ts_lcd_power_ctrl(true);
-
+		nvt_ts_lcd_reset_ctrl(true);
 		mutex_lock(&ts->lock);
 		ts->power_status = LP_MODE_STATUS;
 		mutex_unlock(&ts->lock);
@@ -2873,11 +2927,9 @@ void nvt_ts_early_resume(struct device *dev)
 		nvt_irq_enable(false);
 
 		mutex_lock(&ts->lock);
-		nvt_ts_lcd_power_ctrl(false);
-		pinctrl_configure(ts, false);
-		ts->power_status = POWER_OFF_STATUS;
+		ts->power_status = LP_MODE_EXIT;
+		nvt_ts_lcd_reset_ctrl(false);
 		mutex_unlock(&ts->lock);
-		msleep(ts->platdata->resume_lp_delay);
 	}
 }
 
@@ -2891,7 +2943,6 @@ return:
 int32_t nvt_ts_resume(struct device *dev)
 {
 	struct nvt_ts_data *ts = dev_get_drvdata(dev);
-//	u8 buf[3] = {0};
 
 	if (ts->power_status == POWER_ON_STATUS) {
 		input_info(true, &ts->client->dev, "%s: Touch is already resume\n", __func__);
@@ -2903,7 +2954,12 @@ int32_t nvt_ts_resume(struct device *dev)
 
 	mutex_lock(&ts->lock);
 
-	pinctrl_configure(ts, true);
+	if (ts->power_status == LP_MODE_EXIT) {
+
+		nvt_ts_lcd_power_ctrl(false);
+	} else {
+		pinctrl_configure(ts, true);
+	}
 
 	ts->lowpower_mode = ts->aot_enable;
 
@@ -2923,8 +2979,19 @@ int32_t nvt_ts_resume(struct device *dev)
 
 	nvt_ts_mode_restore(ts);
 
-	if (ts->ear_detect_enable) {
-		if (set_ear_detect(ts, ts->ear_detect_enable, true)) {
+	if (ts->ear_detect_mode  == 0 && ts->ed_reset_flag) {
+		input_info(true, &ts->client->dev, "%s : set ed on & off\n", __func__);
+		if (set_ear_detect(ts, 1, false)) {
+			input_err(true, &ts->client->dev, "%s : Fail to set set_ear_detect on\n", __func__);
+		}
+		if (set_ear_detect(ts, 0, false)) {
+			input_err(true, &ts->client->dev, "%s : Fail to set set_ear_detect off\n", __func__);
+		}
+	}
+	ts->ed_reset_flag = false;
+
+	if (ts->ear_detect_mode) {
+		if (set_ear_detect(ts, ts->ear_detect_mode, false)) {
 			input_err(true, &ts->client->dev, "%s : Fail to set set_ear_detect\n", __func__);
 		}
 	}

@@ -254,6 +254,7 @@ int is_sec_set_force_caldata_dump(bool fcd);
 
 int is_sec_get_max_cal_size(struct is_core *core, int position);
 int is_sec_get_cal_buf(int position, char **buf);
+int is_sec_get_cal_buf_rom_data(int position, char **buf);
 int is_sec_get_sysfs_finfo_by_position(int position, struct is_rom_info **finfo);
 int is_sec_get_sysfs_finfo(struct is_rom_info **finfo);
 int is_sec_get_sysfs_finfo_front(struct is_rom_info **finfo);

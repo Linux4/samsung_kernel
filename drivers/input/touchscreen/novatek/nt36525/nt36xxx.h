@@ -222,7 +222,7 @@ struct nvt_ts_data {
 	uint8_t carrier_system;
 	uint8_t hw_crc;
 	uint16_t nvt_pid;
-	uint8_t rbuf[1025];
+	uint8_t *rbuf;
 	uint8_t *xbuf;
 	struct mutex xbuf_lock;
 	bool irq_enabled;
@@ -244,7 +244,8 @@ struct nvt_ts_data {
     struct mtk_chip_config spi_ctrl;
 #endif
 	struct sec_cmd_data sec;
-	unsigned int ear_detect_enable;
+	unsigned int ear_detect_mode;
+	bool ed_reset_flag;
 	long prox_power_off;
 	u8 hover_event;	//virtual_prox
 	bool lcdoff_test;
@@ -299,13 +300,16 @@ typedef enum {
 enum {
 	POWER_OFF_STATUS = 0,
 	POWER_ON_STATUS,
-	LP_MODE_STATUS
+	LP_MODE_STATUS,
+	LP_MODE_EXIT,
 };
 
 enum {
 	LCD_NONE = 0,
 	LCD_OFF,
-	LCD_ON
+	LCD_ON,
+	LCD_DOZE1,
+	LCD_DOZE2
 };
 
 enum {
@@ -319,6 +323,7 @@ enum {
 
 #define DUMMY_BYTES (1)
 #define NVT_TRANSFER_LEN	(63*1024)
+#define NVT_READ_LEN		(2*1024)
 #define BLOCK_64KB_NUM 4
 
 #define DEEP_SLEEP_ENTER		0x11
@@ -329,6 +334,8 @@ enum {
 #if PROXIMITY_FUNCTION
 #define PROXIMITY_ENTER		0x85
 #define PROXIMITY_LEAVE		0x86
+#define PROXIMITY_INSENSITIVITY	0x00
+#define PROXIMITY_NORMAL	0x03
 #endif
 
 #define SHOW_NOT_SUPPORT_CMD	0x00
@@ -489,8 +496,8 @@ int nvt_ts_fw_update_from_external(struct nvt_ts_data *ts, const char *file_path
 int nvt_get_checksum(struct nvt_ts_data *ts, u8 *csum_result, u8 csum_size);
 int32_t nvt_set_page(uint32_t addr);
 #if PROXIMITY_FUNCTION
-int set_ear_detect(struct nvt_ts_data *ts, int mode, bool stored);
-int nvt_ts_mode_switch_extened(struct nvt_ts_data *ts, u8 *cmd, u8 len, bool stored);
+int set_ear_detect(struct nvt_ts_data *ts, int mode, bool print_log);
+int nvt_ts_mode_switch_extened(struct nvt_ts_data *ts, u8 *cmd, u8 len, bool print_log);
 #endif
 
 #if NVT_TOUCH_ESD_PROTECT

@@ -58,6 +58,12 @@ config CAMERA_XXT_V5
         default n
         help
           This camera is xxt_v5 project.
+config CAMERA_AAU_V12S
+        bool "This camera is aau_v12s project"
+        depends on VENDER_MCD_V2
+        default n
+        help
+          This camera is aau_v21s project.
 config SECURE_CAMERA_USE
 	bool "Use secure camera"
 	depends on VENDER_MCD_V2

@@ -423,7 +423,12 @@ struct decon_win_config {
 		DECON_WIN_STATE_UPDATE,
 		DECON_WIN_STATE_CURSOR,
 		DECON_WIN_STATE_MRESOL = 0x10000,
-		DECON_WIN_STATE_FINGERPRINT = 0x20000,
+		DECON_WIN_STATE_VRR_NORMALMODE = 0x20000,
+		DECON_WIN_STATE_VRR_HSMODE = 0x20001,
+		DECON_WIN_STATE_VRR_PASSIVEMODE = 0x20002,
+#ifdef CONFIG_SUPPORT_MASK_LAYER
+		DECON_WIN_STATE_FINGERPRINT = 0x30000,
+#endif
 	} state;
 
 	/* Reusability:This struct is used for IDMA and ODMA */
@@ -496,6 +501,7 @@ struct decon_reg_data {
 	u32 lcd_width;
 	u32 lcd_height;
 	int mres_idx;
+	u32 fps;
 };
 
 struct decon_win_config_extra {
@@ -512,6 +518,7 @@ struct decon_win_config_data_old {
 struct decon_win_config_data {
 	int	retire_fence;
 	int	fd_odma;
+	u32 fps;
 	struct decon_win_config config[MAX_DECON_WIN + 2];
 	struct decon_win_config_extra extra;
 };
@@ -1092,6 +1099,12 @@ struct decon_edid_data {
 	u8 edid_data[EDID_BLOCK_SIZE * MAX_EDID_BLOCK];
 };
 
+struct vsync_applied_time_data {
+	u32 config;
+	u64 time;
+	u32 reserved[4];
+};
+
 struct decon_device {
 	int id;
 	enum decon_state state;
@@ -1292,6 +1305,7 @@ void decon_destroy_esd_thread(struct decon_device *decon);
 int decon_create_psr_info(struct decon_device *decon);
 void decon_destroy_psr_info(struct decon_device *decon);
 void decon_get_edid(struct decon_device *decon, struct decon_edid_data *edid_data);
+void dpu_update_fps(struct decon_device *decon, u32 fps);
 
 /* DECON to writeback interface functions */
 int decon_wb_register_irq(struct decon_device *decon);
@@ -1691,8 +1705,16 @@ int dpu_hw_recovery_process(struct decon_device *decon);
 #define EXYNOS_GET_COLOR_MODE		_IOW('F', 601, struct decon_color_mode_info)
 #define EXYNOS_SET_COLOR_MODE		_IOW('F', 602, __u32)
 
+/* Display Mode Support */
+#define EXYNOS_GET_DISPLAY_MODE_NUM _IOW('F', 700, u32)
+#define EXYNOS_GET_DISPLAY_MODE		_IOW('F', 701, struct exynos_display_mode)
+#define EXYNOS_GET_DISPLAY_CURRENT_MODE _IOW('F', 705, u32)
+
 /* EDID data */
 #define EXYNOS_GET_EDID		_IOW('F', 800, struct decon_edid_data)
+
+/* For HWC2.4 */
+#define EXYNOS_GET_VSYNC_CHANGE_TIMELINE	_IOW('F', 850, struct vsync_applied_time_data)
 #if defined(CONFIG_EXYNOS_COMMON_PANEL)
 #define V4L2_EVENT_DECON                (V4L2_EVENT_PRIVATE_START + 1000)
 #define V4L2_EVENT_DECON_FRAME_START    (V4L2_EVENT_DECON + 1)

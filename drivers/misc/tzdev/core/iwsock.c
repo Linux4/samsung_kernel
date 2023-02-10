@@ -630,7 +630,8 @@ int tz_iwsock_connect(struct sock_desc *sd, const char *name, int flags)
 		mutex_unlock(&sd->lock);
 
 		/* Blocking mode */
-		return tz_iwsock_wait_connection(sd);
+		ret = tz_iwsock_wait_connection(sd);
+		return (ret == -ERESTARTSYS) ? -EINTR : ret;
 	}
 
 wrong_state:
@@ -705,6 +706,8 @@ int tz_iwsock_wait_connection(struct sock_desc *sd)
 		break;
 	case BUF_SK_CLOSED:
 		ret = -ECONNREFUSED;
+		tz_iwio_free_iw_channel(sd->iwd_buf);
+		sd->state = TZ_SK_NEW;
 		log_error(tzdev_iwsock, "Peer buffer was closed, error=%d\n", ret);
 		break;
 	default:
@@ -937,7 +940,6 @@ static int __tz_iwsock_read(struct sock_desc *sd, struct circ_buf_desc *read_buf
 	int swd_state;
 	long ret;
 	size_t nbytes;
-	int try_count = 0;
 
 	if (unlikely(tz_iwsock_state != READY)) {
 		log_error(tzdev_iwsock, "Failed to read socket, subsystem is not ready\n");
@@ -961,7 +963,6 @@ static int __tz_iwsock_read(struct sock_desc *sd, struct circ_buf_desc *read_buf
 
 	swd_state = sd->iwd_buf->swd_state;
 
-retry:
 	smp_rmb();
 
 	if (msg->msg_control) {
@@ -999,12 +1000,8 @@ retry:
 	}
 
 recheck:
-	if (ret == -EAGAIN && swd_state == BUF_SK_CLOSED) {
-		if (try_count++ == 0)
-			goto retry;
-
+	if (ret == -EAGAIN && swd_state == BUF_SK_CLOSED)
 		ret = 0;
-	}
 
 unlock:
 	mutex_unlock(&sd->lock);

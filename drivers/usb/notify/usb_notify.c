@@ -67,6 +67,8 @@ struct typec_info {
 	int data_role;
 	int power_role;
 	int pd;
+	int doing_drswap;
+	int doing_prswap;
 };
 
 struct usb_gadget_info {
@@ -145,6 +147,7 @@ static int check_event_type(enum otg_notify_events event)
 	case NOTIFY_EVENT_USBD_SUSPENDED:
 	case NOTIFY_EVENT_USBD_UNCONFIGURED:
 	case NOTIFY_EVENT_USBD_CONFIGURED:
+	case NOTIFY_EVENT_DR_SWAP:
 		ret |= NOTIFY_EVENT_EXTRA;
 		break;
 	case NOTIFY_EVENT_VBUS:
@@ -279,6 +282,8 @@ const char *event_string(enum otg_notify_events event)
 		return "usb_d_unconfigured";
 	case NOTIFY_EVENT_USBD_CONFIGURED:
 		return "usb_d_configured";
+	case NOTIFY_EVENT_DR_SWAP:
+		return "dr_swap";
 	default:
 		return "undefined";
 	}
@@ -1310,7 +1315,10 @@ static void otg_notify_state(struct otg_notify *n,
 	case NOTIFY_EVENT_SMARTDOCK_USB:
 	case NOTIFY_EVENT_VBUS:
 		if (enable) {
+			mutex_lock(&u_notify->state_lock);
 			u_notify->ndev.mode = NOTIFY_PERIPHERAL_MODE;
+			u_notify->typec_status.doing_drswap = 0;
+			mutex_unlock(&u_notify->state_lock);
 			if (n->is_wakelock)
 				__pm_stay_awake(&u_notify->ws);
 			if (gpio_is_valid(n->redriver_en_gpio))
@@ -1386,7 +1394,10 @@ static void otg_notify_state(struct otg_notify *n,
 				pr_err("now host mode, skip this command\n");
 				goto err;
 			}
+			mutex_lock(&u_notify->state_lock);
 			u_notify->ndev.mode = NOTIFY_HOST_MODE;
+			u_notify->typec_status.doing_drswap = 0;
+			mutex_unlock(&u_notify->state_lock);
 			if (n->is_host_wakelock)
 				__pm_stay_awake(&u_notify->ws);
 			host_state_notify(&u_notify->ndev, NOTIFY_HOST_ADD);
@@ -1737,7 +1748,8 @@ static void extra_notify_state(struct otg_notify *n,
 		else
 			u_notify->gadget_status.usb_cable_connect = 0;
 
-		if (u_notify->ndev.mode == NOTIFY_PERIPHERAL_MODE) {
+		if (u_notify->ndev.mode == NOTIFY_PERIPHERAL_MODE
+				&& !u_notify->typec_status.doing_drswap) {
 			if ((u_notify->gadget_status.bus_state
 						== NOTIFY_USB_SUSPENDED)
 				&& u_notify->gadget_status.usb_cable_connect) {
@@ -1773,6 +1785,14 @@ static void extra_notify_state(struct otg_notify *n,
 		if (u_notify->ndev.mode == NOTIFY_PERIPHERAL_MODE)
 			u_notify->gadget_status.bus_state
 					= NOTIFY_USB_CONFIGURED;
+		mutex_unlock(&u_notify->state_lock);
+		break;
+	case NOTIFY_EVENT_DR_SWAP:
+		mutex_lock(&u_notify->state_lock);
+		if (enable)
+			u_notify->typec_status.doing_drswap = 1;
+		else
+			u_notify->typec_status.doing_drswap = 0;
 		mutex_unlock(&u_notify->state_lock);
 		break;
 	default:

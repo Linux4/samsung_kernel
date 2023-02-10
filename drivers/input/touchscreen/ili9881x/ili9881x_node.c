@@ -1875,14 +1875,11 @@ static ssize_t ilitek_node_ioctl_write(struct file *filp, const char *buff, size
 		ilits->mp_retry = !ilits->mp_retry;
 		input_info(true, ilits->dev, "%s switchmpretry = %d\n", __func__, ilits->mp_retry);
 	} else if (strncmp(cmd, "proxfacemode", strlen(cmd)) == 0) {
-		ilits->prox_face_mode = !ilits->prox_face_mode;
-		if (ilits->prox_face_mode == true) {
-			if (ili_ic_func_ctrl("proximity", 0x01) < 0)
-				input_err(true, ilits->dev, "%s Write proximity cmd failed\n", __func__);
-		} else {
-			if (ili_ic_func_ctrl("proximity", 0x00) < 0)
-				input_err(true, ilits->dev, "%s Write proximity cmd failed\n", __func__);
-		}
+		ilits->prox_face_mode = data[1];
+
+		if (ili_ic_func_ctrl("proximity", ilits->prox_face_mode) < 0)
+			input_err(true, ilits->dev, "%s Write proximity cmd failed\n", __func__);
+
 		input_info(true, ilits->dev, "%s switch proximity face mode = %s\n",
 			__func__, (ilits->prox_face_mode ? "ON" : "OFF"));
 	} else if (strncmp(cmd, "sipmode", strlen(cmd)) == 0) {

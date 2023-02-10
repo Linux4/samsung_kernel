@@ -61,14 +61,11 @@
 #if IS_ENABLED(CONFIG_CP_UART_NOTI)
 #include <soc/samsung/exynos-modem-ctrl.h>
 #endif
-#if IS_ENABLED(CONFIG_HICCUP_CHARGER)
-#include <linux/sec_batt.h>
-#endif
+#include <linux/usb/typec/common/pdic_param.h>
 
 struct s2mu106_muic_data *static_data;
 /* Prototypes of the Static symbols of s2mu106-muic */
 
-void s2mu106_muic_charger_init(void);
 #if IS_ENABLED(CONFIG_MUIC_MANAGER)
 static void s2mu106_muic_detect_dev_pdic(struct s2mu106_muic_data *muic_data,
 		muic_attached_dev_t new_dev);
@@ -80,7 +77,8 @@ void s2mu106_muic_get_detect_info(struct s2mu106_muic_data *muic_data);
 static bool s2mu106_muic_is_opmode_typeC(struct s2mu106_muic_data *muic_data);
 static void s2mu106_muic_set_water_state(struct s2mu106_muic_data *muic_data, bool en);
 #if IS_ENABLED(CONFIG_HICCUP_CHARGER)
-static void s2mu106_muic_set_hiccup_mode(struct s2mu106_muic_data *muic_data, bool en);
+static int s2mu106_muic_set_hiccup_mode(struct s2mu106_muic_data *muic_data, bool en);
+static int s2mu106_muic_set_overheat_hiccup_mode(struct s2mu106_muic_data *muic_data, bool en);
 #endif
 
 #ifndef CONFIG_HV_MUIC_S2MU106_AFC
@@ -297,6 +295,7 @@ int s2mu106_i2c_read_byte(struct i2c_client *client, u8 command)
 #endif
 	return data;
 }
+EXPORT_SYMBOL(s2mu106_i2c_read_byte);
 
 int s2mu106_i2c_write_byte(struct i2c_client *client, u8 command, u8 value)
 {
@@ -1013,7 +1012,12 @@ static int s2mu106_if_check_usb_killer(void *mdata)
 {
 	struct s2mu106_muic_data *muic_data = (struct s2mu106_muic_data *)mdata;
 	int ret = MUIC_NORMAL_OTG, i;
-
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+	int event;
+#endif
+#if defined(CONFIG_USB_HW_PARAM)
+	struct otg_notify *o_notify = get_otg_notify();
+#endif
 	if (muic_data->is_water_detected) {
 		pr_err("%s water is detected\n", __func__);
 		return MUIC_ABNORMAL_OTG;
@@ -1025,7 +1029,14 @@ static int s2mu106_if_check_usb_killer(void *mdata)
 			return ret;
 		msleep(150);
 	}
-
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+	event = NOTIFY_EXTRA_USBKILLER;
+	store_usblog_notify(NOTIFY_EXTRA, (void *)&event, NULL);
+#endif
+#if defined(CONFIG_USB_HW_PARAM)
+	if (o_notify)
+		inc_hw_param(o_notify, USB_CCIC_USB_KILLER_COUNT);
+#endif
 	pr_info("%s, USB Killer is detected.", __func__);
 	return ret;
 }
@@ -1082,6 +1093,23 @@ static int s2mu106_if_set_hiccup_mode(void *mdata, bool val)
 
 	s2mu106_muic_set_hiccup_mode(muic_data, val);
 	return 0;
+}
+
+static int s2mu106_if_set_overheat_hiccup_mode(void *pdata, bool val)
+{
+	struct muic_platform_data *muic_pdata = (struct muic_platform_data *) pdata;
+	struct muic_interface_t *muic_if;
+	struct s2mu106_muic_data *muic_data;
+
+	if (muic_pdata == NULL || muic_pdata->muic_if == NULL) {
+		pr_err("%s: some muic data is null\n", __func__);
+		return -1;
+	}
+
+	muic_if = muic_pdata->muic_if;
+	muic_data = muic_if->muic_data;
+
+	return s2mu106_muic_set_overheat_hiccup_mode(muic_data, val);
 }
 
 static int s2mu106_if_get_hiccup_mode(void *mdata)
@@ -1247,6 +1275,12 @@ static void s2mu106_muic_detect_dev_pdic(struct s2mu106_muic_data *muic_data,
 
 		switch (new_dev) {
 		case ATTACHED_DEV_OTG_MUIC:
+#if defined(CONFIG_S2MU106_TYPEC_WATER)
+			ktime_get_real_ts64(&muic_data->otg_on_time);
+			pr_info("%s, s(%lld, %ld)\n", __func__,
+					muic_data->otg_on_time.tv_sec, muic_data->otg_on_time.tv_nsec);
+			muic_data->is_vbus_on_after_otg = false;
+#endif
 			_s2mu106_muic_sel_path(muic_data, S2MU106_PATH_USB);
 #if defined(CONFIG_MUIC_SUPPORT_PRSWAP)
 			_s2mu106_muic_set_chg_det(muic_data, MUIC_DISABLE);
@@ -1277,6 +1311,10 @@ static int s2mu106_muic_detect_dev_bc1p2(struct s2mu106_muic_data *muic_data)
 #if defined(CONFIG_MUIC_HV_SUPPORT_POGO_DOCK)
 	int vbus_value = 0;
 #endif
+
+#if defined(CONFIG_USB_HW_PARAM)
+	struct otg_notify *o_notify = get_otg_notify();
+#endif /* CONFIG_USB_HW_PARAM */
 
 	muic_data->new_dev = ATTACHED_DEV_UNKNOWN_MUIC;
 
@@ -1358,8 +1396,8 @@ static int s2mu106_muic_detect_dev_bc1p2(struct s2mu106_muic_data *muic_data)
 	case S2MU106_SDP_1P8S_MASK:
 		if (muic_data->vbvolt) {
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
-			pr_info("SDP_1P8S=>USB DETECTED\n");
-			muic_data->new_dev = ATTACHED_DEV_USB_MUIC;
+			pr_info("SDP_1P8S DETECTED\n");
+			muic_data->new_dev = ATTACHED_DEV_TIMEOUT_OPEN_MUIC;
 #else
 			if (muic_data->rescan_cnt >= 1) {
 				pr_info("SDP_1P8S DETECTED\n");
@@ -1422,6 +1460,14 @@ static int s2mu106_muic_detect_dev_bc1p2(struct s2mu106_muic_data *muic_data)
 	}
 
 detect_done:
+
+#if defined(CONFIG_USB_HW_PARAM)
+		if (o_notify &&
+			muic_data->rescan_cnt >= 1 &&
+			muic_data->new_dev != ATTACHED_DEV_TIMEOUT_OPEN_MUIC)
+			inc_hw_param(o_notify, USB_MUIC_BC12_RETRY_SUCCESS_COUNT);
+#endif /* CONFIG_USB_HW_PARAM */
+
 	if (muic_data->new_dev != ATTACHED_DEV_UNKNOWN_MUIC)
 		return S2MU106_DETECT_DONE;
 	else
@@ -1649,18 +1695,58 @@ struct muic_platform_data *muic_pdata = muic_data->pdata;
 }
 
 #if IS_ENABLED(CONFIG_HICCUP_CHARGER)
-static void s2mu106_muic_set_hiccup_mode(struct s2mu106_muic_data *muic_data, bool en)
+static int s2mu106_muic_set_hiccup_mode(struct s2mu106_muic_data *muic_data, bool en)
 {
-	pr_info("%s en:%d, lpcharge:%d\n", __func__, (int)en, lpcharge);
+	pr_info("%s en:%d, lpcharge:%d\n", __func__, (int)en, is_lpcharge_pdic_param());
 
 #if !defined(CONFIG_SEC_FACTORY)
-	if (!lpcharge) {
+	if (!is_lpcharge_pdic_param()) {
 		muic_data->is_hiccup_mode = en;
 		_s2mu106_muic_sel_path(muic_data, S2MU106_PATH_OPEN);
 	}
 #else
 	pr_info("%s Do not set hiccup path\n", __func__);
 #endif
+	return 0;
+}
+
+static bool s2mu106_muic_overheat_hiccup_path_change_need(struct muic_platform_data *muic_pdata) {
+	if (muic_pdata->attached_dev == ATTACHED_DEV_NONE_MUIC) {
+		pr_info("%s: attached dev is NONE\n", __func__);
+		return false;
+	}
+	return true;
+}
+
+static int s2mu106_muic_set_overheat_hiccup_mode(struct s2mu106_muic_data *muic_data, bool en)
+{
+	struct muic_platform_data *muic_pdata;
+	
+	pr_info("%s en:%d, lpcharge:%d\n", __func__, (int)en, is_lpcharge_pdic_param());
+
+	if (is_lpcharge_pdic_param())
+		return 0;
+
+	if (muic_data == NULL) {
+		pr_info("%s s2mu106 data is null\n", __func__);
+		return -ENODEV;
+	}
+
+	muic_pdata = muic_data->pdata;
+
+	/* hiccup mode */
+	if (s2mu106_muic_overheat_hiccup_path_change_need(muic_pdata)) {
+		if (en == true) {
+			muic_pdata->attached_dev = ATTACHED_DEV_HICCUP_MUIC;
+			muic_notifier_attach_attached_dev(ATTACHED_DEV_HICCUP_MUIC);
+			_s2mu106_muic_sel_path(muic_data, S2MU106_PATH_UART_CP);
+		} else { /* Hiccup mode off */
+			_s2mu106_muic_sel_path(muic_data, S2MU106_PATH_OPEN);
+		}
+	} else /* do not need to change path */ {
+		pr_info("%s: Do not need to change path\n", __func__);
+	}
+	return 0;
 }
 #endif
 
@@ -1702,8 +1788,7 @@ static bool s2mu106_muic_is_opmode_typeC(struct s2mu106_muic_data *muic_data)
 		return false;
 	}
 
-	if (muic_data->if_data)
-		muic_if = muic_data->if_data;
+	muic_if = muic_data->if_data;
 
 	if (muic_if->opmode & OPMODE_PDIC)
 		return true;
@@ -1819,6 +1904,10 @@ static irqreturn_t s2mu106_muic_detach_isr(int irq, void *data)
 	muic_core_handle_detach(muic_data->pdata);
 #endif
 
+#if IS_ENABLED(CONFIG_LEDS_S2MU106_FLASH)
+	muic_data->is_requested_step_down = false;
+#endif
+
 detach_skip:
 	pr_info("%s done(%s)\n", __func__, dev_to_str(muic_pdata->attached_dev));
 
@@ -1832,6 +1921,10 @@ static irqreturn_t s2mu106_muic_vbus_on_isr(int irq, void *data)
 {
 	struct s2mu106_muic_data *muic_data = data;
 	struct muic_platform_data *muic_pdata;
+#if defined(CONFIG_S2MU106_TYPEC_WATER)
+	struct timespec64 time;
+	uint64_t ms;
+#endif
 
 	if (muic_data == NULL) {
 		pr_err("%s data NULL\n", __func__);
@@ -1852,8 +1945,25 @@ static irqreturn_t s2mu106_muic_vbus_on_isr(int irq, void *data)
 
 	s2mu106_muic_get_detect_info(muic_data);
 
+#if defined(CONFIG_S2MU106_TYPEC_WATER)
+	if (!muic_data->is_vbus_on_after_otg) {
+		muic_data->is_vbus_on_after_otg = true;
+		ktime_get_real_ts64(&time);
+		ms = ((time.tv_sec - muic_data->otg_on_time.tv_sec) * 1000) +
+			((time.tv_nsec - muic_data->otg_on_time.tv_nsec) / 1000000);
+		pr_info("%s, cur(%lld %ld), %llums, vbus(%d)\n", __func__, time.tv_sec,
+				time.tv_nsec, ms, _s2mu106_muic_get_vbus_state(muic_data));
+		if (ms <= 2000) {
+			if (!_s2mu106_muic_get_vbus_state(muic_data)) {
+				pr_info("%s, ignored\n", __func__);
+				goto out;
+			}
+		}
+	}
+#endif
+
 #if IS_ENABLED(CONFIG_HICCUP_CHARGER)
-	if (!lpcharge && muic_data->is_water_detected) {
+	if (!is_lpcharge_pdic_param() && muic_data->is_water_detected) {
 		s2mu106_muic_set_hiccup_mode(muic_data, MUIC_ENABLE);
 	}
 #endif
@@ -1865,6 +1975,9 @@ static irqreturn_t s2mu106_muic_vbus_on_isr(int irq, void *data)
 
 	pr_info("%s done(%s)\n", __func__, dev_to_str(muic_pdata->attached_dev));
 
+#if defined(CONFIG_S2MU106_TYPEC_WATER)
+out:
+#endif
 	__pm_relax(muic_data->muic_ws);
 	mutex_unlock(&muic_data->muic_mutex);
 
@@ -2254,6 +2367,9 @@ static void s2mu106_muic_init_drvdata(struct s2mu106_muic_data *muic_data,
 	muic_data->is_rescanning = false;
 #endif
 	muic_data->is_water_detected = false;
+#if defined(CONFIG_S2MU106_TYPEC_WATER)
+	muic_data->is_vbus_on_after_otg = true;
+#endif
 }
 
 void s2mu106_muic_charger_init(void)
@@ -2274,6 +2390,7 @@ void s2mu106_muic_charger_init(void)
 #endif
 	}
 }
+EXPORT_SYMBOL(s2mu106_muic_charger_init);
 
 static void s2mu106_muic_init_interface(struct s2mu106_muic_data *muic_data,
 					struct muic_interface_t *muic_if)
@@ -2310,6 +2427,7 @@ static void s2mu106_muic_init_interface(struct s2mu106_muic_data *muic_data,
 #if IS_ENABLED(CONFIG_HICCUP_CHARGER)
 	muic_if->set_hiccup_mode = s2mu106_if_set_hiccup_mode;
 	muic_if->get_hiccup_mode = s2mu106_if_get_hiccup_mode;
+	muic_if->set_overheat_hiccup_mode = s2mu106_if_set_overheat_hiccup_mode;
 #endif
 #if defined(CONFIG_MUIC_SUPPORT_PRSWAP)
 	muic_if->set_chg_det = s2mu106_if_set_chg_det;
@@ -2378,7 +2496,7 @@ static int s2mu106_muic_probe(struct platform_device *pdev)
 	mutex_init(&muic_data->switch_mutex);
 	mutex_init(&muic_data->bcd_rescan_mutex);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 188)
 	wakeup_source_init(muic_data->muic_ws, "muic_wake");   // 4.19 R
 	if (!(muic_data->muic_ws)) {
 		muic_data->muic_ws = wakeup_source_create("muic_wake"); // 4.19 Q
@@ -2422,8 +2540,11 @@ static int s2mu106_muic_probe(struct platform_device *pdev)
 	if (muic_pdata->is_rustproof) {
 		pr_err("%s rustproof is enabled\n", __func__);
 		ret = _s2mu106_muic_sel_path(muic_data, S2MU106_PATH_OPEN);
+		if (ret < 0)
+			pr_err("%s, fail to open mansw\n", __func__);
 	}
 #if IS_ENABLED(CONFIG_HV_MUIC_S2MU106_AFC)
+#if !IS_ENABLED(CONFIG_HV_MUIC_AFC_DISABLE_ENFORCE)
 	if (get_afc_mode() == CH_MODE_AFC_DISABLE_VAL) {
 		pr_info("AFC mode disabled\n");
 		muic_data->pdata->afc_disable = true;
@@ -2431,8 +2552,11 @@ static int s2mu106_muic_probe(struct platform_device *pdev)
 		pr_info("AFC mode enabled\n");
 		muic_data->pdata->afc_disable = false;
 	}
+#else
+	pr_info("AFC mode disable enforce\n");
+	muic_data->pdata->afc_disable = true;
+#endif /* !CONFIG_HV_MUIC_AFC_DISABLE_ENFORCE */
 #endif /* CONFIG_HV_MUIC_S2MU106_AFC */
-
 	INIT_DELAYED_WORK(&muic_data->dcd_recheck, s2mu106_muic_dcd_recheck);
 	INIT_DELAYED_WORK(&muic_data->rescan_validity_checker,
 		s2mu106_muic_rescan_validity_checker);
@@ -2631,4 +2755,5 @@ module_exit(s2mu106_muic_exit);
 
 MODULE_DESCRIPTION("Samsung S2MU106 Micro USB IC driver");
 MODULE_LICENSE("GPL");
-
+MODULE_SOFTDEP("pre: s2mu106_pmeter");
+MODULE_SOFTDEP("post: s2mu106-usbpd");

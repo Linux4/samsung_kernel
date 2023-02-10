@@ -270,7 +270,7 @@ static int abox_rdma_mailbox_send_cmd(struct device *dev, unsigned int cmd)
 	msg.ipcid = IPC_OFFLOAD;
 	ret = abox_request_ipc(dev_abox, msg.ipcid, &msg, sizeof(msg), 0, 0);
 
-	timeout = local_clock() + (1 * NSEC_PER_SEC);
+	timeout = local_clock() + abox_get_waiting_ns(true);
 	while (!abox_rdma_mailbox_read(dev, COMPR_ACK)) {
 		if (local_clock() <= timeout) {
 			cond_resched();
@@ -466,7 +466,7 @@ static int abox_rdma_compr_set_param(struct device *dev,
 
 	/* wait until the parameter is set up */
 	ret = wait_for_completion_timeout(&data->created,
-			msecs_to_jiffies(1000));
+			abox_get_waiting_jiffies(true));
 	if (!ret) {
 		dev_err(dev, "CMD_COMPR_SET_PARAM time out\n");
 		abox_rdma_mailbox_write(dev, COMPR_INTR_ACK, 0);
@@ -537,7 +537,7 @@ static int abox_rdma_compr_free(struct snd_compr_stream *stream)
 		ret = abox_rdma_mailbox_send_cmd(dev, CMD_COMPR_DESTROY);
 		if (ret >= 0) {
 			ret = wait_for_completion_timeout(&data->destroyed,
-					msecs_to_jiffies(1000));
+					abox_get_waiting_jiffies(true));
 			if (!ret) {
 				dev_err(dev, "CMD_COMPR_DESTROY time out\n");
 				ret = -EBUSY;
@@ -681,7 +681,7 @@ static int abox_rdma_compr_trigger(struct snd_compr_stream *stream, int cmd)
 				__func__, ret);
 
 		ret = wait_for_completion_timeout(&data->flushed,
-				msecs_to_jiffies(1000));
+				abox_get_waiting_jiffies(true));
 		if (!ret) {
 			dev_err(dev, "CMD_COMPR_STOP time out\n");
 			ret = -EBUSY;
@@ -1258,7 +1258,7 @@ static void abox_rdma_disable_barrier(struct device *dev,
 		struct abox_dma_data *data)
 {
 	struct abox_data *abox_data = data->abox_data;
-	u64 timeout = local_clock() + ABOX_DMA_TIMEOUT_NS;
+	u64 timeout = local_clock() + abox_get_waiting_ns(true);
 
 	while (abox_rdma_progress(data)) {
 		if (local_clock() <= timeout) {
@@ -1610,7 +1610,7 @@ static int abox_rdma_close(struct snd_pcm_substream *substream)
 	}
 
 	time = wait_for_completion_timeout(&data->closed,
-			nsecs_to_jiffies(ABOX_DMA_TIMEOUT_NS));
+			nsecs_to_jiffies(abox_get_waiting_ns(true)));
 	if (time == 0)
 		dev_warn(dev, "close timeout\n");
 
@@ -2202,8 +2202,10 @@ static int abox_rdma_fio_common_ioctl(struct snd_hwdep *hw, struct file *filp,
 	switch (cmd) {
 	case SNDRV_PCM_IOCTL_MMAP_DATA_FD:
 		ret = abox_ion_get_mmap_fd(dev, data->ion_buf, &mmap_fd);
-		if (ret < 0)
+		if (ret < 0) {
 			dev_err(dev, "%s MMAP_FD failed: %d\n", __func__, ret);
+			return ret;
+		}
 
 		if (copy_to_user(_arg, &mmap_fd, sizeof(mmap_fd)))
 			return -EFAULT;

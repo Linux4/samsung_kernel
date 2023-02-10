@@ -685,7 +685,7 @@ static int usb_set_chg_current(int state)
 	}
 
 	/* current setting */
-	pr_info("usb : charing current set = %d\n", state);
+	pr_info("usb : charging current set = %d\n", state);
 
 	switch (state) {
 	case NOTIFY_USB_SUSPENDED:

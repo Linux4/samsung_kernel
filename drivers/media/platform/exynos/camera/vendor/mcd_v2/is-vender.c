@@ -60,6 +60,7 @@ static u32  rear4_sensor_id;
 static u32  front4_sensor_id;
 static u32  rear_tof_sensor_id;
 static u32  front_tof_sensor_id;
+
 #ifdef CONFIG_SECURE_CAMERA_USE
 static u32  secure_sensor_id;
 #endif
@@ -322,6 +323,20 @@ int is_vender_probe(struct is_vender *vender)
 	specific->sensor_id[SENSOR_POSITION_FRONT4] = front4_sensor_id;
 	specific->sensor_id[SENSOR_POSITION_REAR_TOF] = rear_tof_sensor_id;
 	specific->sensor_id[SENSOR_POSITION_FRONT_TOF] = front_tof_sensor_id;
+
+#ifdef USE_DUALIZED_OTPROM_SENSOR
+	specific->dualized_sensor_id[SENSOR_POSITION_REAR] = -1;
+	specific->dualized_sensor_id[SENSOR_POSITION_FRONT] = -1;
+	specific->dualized_sensor_id[SENSOR_POSITION_REAR2] = -1;
+	specific->dualized_sensor_id[SENSOR_POSITION_FRONT2] = -1;
+	specific->dualized_sensor_id[SENSOR_POSITION_REAR3] = -1;
+	specific->dualized_sensor_id[SENSOR_POSITION_FRONT3] = -1;
+	specific->dualized_sensor_id[SENSOR_POSITION_REAR4] = -1;
+	specific->dualized_sensor_id[SENSOR_POSITION_FRONT4] = -1;
+	specific->dualized_sensor_id[SENSOR_POSITION_REAR_TOF] = -1;
+	specific->dualized_sensor_id[SENSOR_POSITION_FRONT_TOF] = -1;
+#endif
+
 #ifdef CONFIG_SECURE_CAMERA_USE
 	specific->secure_sensor_id = secure_sensor_id;
 #endif
@@ -349,6 +364,10 @@ int is_vender_probe(struct is_vender *vender)
 		specific->rom_share[i].share_position = i;
 
 		specific->running_camera[i] = false;
+#ifdef USE_DUALIZED_OTPROM_SENSOR
+		specific->dualized_rom_client[i] = NULL;
+		specific->dualized_rom_cal_map_addr[i] = NULL;
+#endif
 	}
 
 	vender->private_data = specific;

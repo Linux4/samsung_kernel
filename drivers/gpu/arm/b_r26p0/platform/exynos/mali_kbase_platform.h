@@ -248,6 +248,9 @@ struct exynos_context {
 	int gpu_default_vol;
 	int gpu_default_vol_margin;
 
+	int gpu_power_off_clock;
+	int gpu_power_on_clock;
+
 	bool dynamic_abb_status;
 	bool early_clk_gating_status;
 	bool dvs_status;

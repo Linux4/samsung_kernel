@@ -45,6 +45,9 @@
 
 #if defined(CONFIG_VENDER_MCD_V2)
 extern const struct is_vender_rom_addr *vender_rom_addr[SENSOR_POSITION_MAX];
+#ifdef USE_DUALIZED_OTPROM_SENSOR
+extern const struct is_vender_rom_addr *vender_rom_addr_dualized[SENSOR_POSITION_MAX];
+#endif
 #endif
 
 static const struct v4l2_subdev_ops subdev_ops;
@@ -1779,15 +1782,35 @@ int cis_sr846_probe(struct i2c_client *client,
 			err("sensor_id read is fail(%d)", ret);
 		} else {
 			specific = core->vender.private_data;
-			specific->rom_client[rom_position] = cis->client;
 			specific->rom_data[rom_position].rom_type = ROM_TYPE_OTPROM;
 			specific->rom_data[rom_position].rom_valid = true;
 
-			if (vender_rom_addr[rom_position]) {
-				specific->rom_cal_map_addr[rom_position] = vender_rom_addr[rom_position];
-				probe_info("%s: rom_id=%d, OTP Registered\n", __func__, rom_position);
-			} else {
-				probe_info("%s: SR846 OTP addrress not defined!\n", __func__);
+			if (cis->id == specific->sensor_id[rom_position]) {
+				specific->rom_client[rom_position] = cis->client;
+
+				if (vender_rom_addr[rom_position]) {
+					specific->rom_cal_map_addr[rom_position] = vender_rom_addr[rom_position];
+					probe_info("%s: rom_id=%d, OTP Registered\n", __func__, rom_position);
+				} else {
+					probe_info("%s: SR846 OTP address not defined!\n", __func__);
+				}
+			} 
+#ifdef USE_DUALIZED_OTPROM_SENSOR
+			else if (of_property_read_bool(dnode, "dualized_sensor")) {
+				specific->dualized_rom_client[rom_position] = cis->client;
+				specific->dualized_sensor_id[rom_position] = cis->id;
+
+				if (vender_rom_addr_dualized[rom_position]) {
+					specific->dualized_rom_cal_map_addr[rom_position] = vender_rom_addr_dualized[rom_position];
+					probe_info("%s: [Dualization] rom_id=%d, OTP Registered\n", __func__, rom_position);
+				} else {
+					probe_info("%s: [Dualization] SR846 OTP address not defined!\n", __func__);
+				}
+			}
+#endif
+			else {
+				err("%s: sensor id does not match", __func__);
+				goto p_err;
 			}
 		}
 	}

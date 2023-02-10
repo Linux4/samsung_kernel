@@ -162,7 +162,8 @@
 #define CODEC_HIGH_PERF(ctx)	(IS_H264_DEC(ctx) || IS_H264_MVC_DEC(ctx) || IS_HEVC_DEC(ctx))
 #define ON_RES_CHANGE(ctx)	(((ctx)->state >= MFCINST_RES_CHANGE_INIT) &&	\
 				 ((ctx)->state <= MFCINST_RES_CHANGE_END))
-#define IS_NO_DISPLAY(ctx, err) ((mfc_get_warn(err) == MFC_REG_ERR_SYNC_POINT_NOT_RECEIVED) ||	\
+#define IS_NO_DISPLAY(ctx, err) ((IS_VC1_RCV_DEC(ctx) &&					\
+				mfc_get_warn(err) == MFC_REG_ERR_SYNC_POINT_NOT_RECEIVED) ||	\
 				(mfc_get_warn(err) == MFC_REG_ERR_BROKEN_LINK))
 #define IS_NO_ERROR(err)	((err) == 0 ||		\
 				(mfc_get_warn(err)	\

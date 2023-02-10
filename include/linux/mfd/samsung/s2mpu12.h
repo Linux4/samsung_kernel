@@ -106,6 +106,7 @@ struct s2mpu12_platform_data {
 	int	osc_xout;
 
 	bool	use_i2c_speedy;
+	bool	loop_bw_en;
 };
 
 struct s2mpu12 {

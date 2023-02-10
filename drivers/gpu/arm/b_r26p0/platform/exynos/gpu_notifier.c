@@ -332,6 +332,11 @@ static int pm_callback_runtime_on(struct kbase_device *kbdev)
 	gpu_dvfs_start_env_data_gathering(kbdev);
 	platform->power_status = true;
 
+	if (platform->dvfs_status && platform->wakeup_lock) {
+		gpu_set_target_clk_vol(platform->gpu_power_on_clock, false);
+		GPU_LOG(DVFS_DEBUG, LSI_GPU_ON, 0u, 0u, "runtime on callback - restore clock = %d\n", platform->cur_clock);
+	}
+
 #if !defined(CONFIG_MALI_EXYNOS_SECURE_RENDERING_UNSUPPORTED) && defined(CONFIG_SOC_EXYNOS9630)
 	exynos_smc(SMC_DRM_G3D_PPCFW_RESTORE, 0, 0, 0);
 #endif
@@ -359,10 +364,26 @@ static void pm_callback_runtime_off(struct kbase_device *kbdev)
 
 	GPU_LOG(DVFS_DEBUG, LSI_GPU_OFF, 0u, 0u, "runtime off callback\n");
 
-	platform->power_status = false;
-
 	gpu_control_disable_customization(kbdev);
 
+	/* Record current clock to restore when GPU power-on */
+	platform->gpu_power_on_clock = platform->cur_clock;
+	GPU_LOG(DVFS_DEBUG, LSI_GPU_OFF, 0u, 0u, "runtime off callback - record clock = %d\n", platform->gpu_power_on_clock);
+
+#ifdef CONFIG_MALI_DVFS
+#ifdef CONFIG_MALI_SEC_CL_BOOST
+	if (platform->dvfs_status && platform->wakeup_lock && !kbdev->pm.backend.metrics.is_full_compute_util)
+#else
+	if (platform->dvfs_status && platform->wakeup_lock)
+#endif /* CONFIG_MALI_SEC_CL_BOOST */
+		{
+			gpu_set_target_clk_vol(platform->gpu_power_off_clock, false);
+		}else{
+			gpu_set_target_clk_vol(platform->cur_clock, false);
+		}
+#endif /* CONFIG_MALI_DVFS */
+
+	platform->power_status = false;
 	gpu_dvfs_stop_env_data_gathering(kbdev);
 #ifdef CONFIG_MALI_DVFS
 	gpu_dvfs_timer_control(false);

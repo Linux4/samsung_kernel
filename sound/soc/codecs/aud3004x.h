@@ -258,6 +258,7 @@ int aud3004x_jack_remove(struct snd_soc_component *codec);
 #define AUD3004X_E5_DCTR_FSM4		0xE5
 #define AUD3004X_E6_DCTR_GP			0xE6
 #define AUD3004X_F0_STATUS1			0xF0
+#define AUD3004X_F1_STATUS2			0xF1
 #define AUD3004X_F5_STATUS6			0xF5
 #define AUD3004X_F7_STATUS8			0xF7
 #define AUD3004X_F8_STATUS9			0xF8
@@ -1694,6 +1695,15 @@ int aud3004x_jack_remove(struct snd_soc_component *codec);
 
 #define JACK_DET_SHIFT				0
 #define JACK_DET_MASK				BIT(JACK_DET_SHIFT)
+
+/* AUD3004X_F1_STATUS2 */
+#define WTP_STATE_SHIFT				0
+#define WTP_STATE_WIDTH				2
+#define WTP_STATE_MASK				MASK(WTP_STATE_WIDTH, WTP_STATE_SHIFT)
+
+#define WTP_JO						0
+#define WTP_JI						1
+#define WTP_AP						2
 
 /* AUD3004X_F5_STATUS6 */
 #define GPADC_AVG_DATA0_SHIFT		0

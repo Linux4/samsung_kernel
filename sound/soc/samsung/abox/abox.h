@@ -75,8 +75,6 @@
 #define ABOX_CPU_GEAR_MIN		(12)
 #define ABOX_CPU_GEAR_DAI		0xDA100000
 
-#define ABOX_DMA_TIMEOUT_NS		(40000000)
-
 #define ABOX_SAMPLING_RATES (SNDRV_PCM_RATE_KNOT)
 #define ABOX_SAMPLE_FORMATS (SNDRV_PCM_FMTBIT_S16\
 		| SNDRV_PCM_FMTBIT_S24\
@@ -732,4 +730,20 @@ extern int abox_add_extra_firmware(struct device *dev,
 		struct abox_data *data, int idx,
 		const char *name, unsigned int area,
 		unsigned int offset, bool changeable);
+
+/**
+ * get waiting time in nano seconds
+ * @param[in]	coarse		parameter to determine time
+ */
+extern unsigned long abox_get_waiting_ns(bool coarse);
+
+/**
+ * get waiting time in jiffies
+ * @param[in]	coarse		parameter to determine time
+ */
+static inline unsigned long abox_get_waiting_jiffies(bool coarse)
+{
+	return nsecs_to_jiffies(abox_get_waiting_ns(coarse));
+}
+
 #endif /* __SND_SOC_ABOX_H */

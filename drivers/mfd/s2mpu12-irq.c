@@ -34,10 +34,11 @@
 
 #if defined(CONFIG_SND_SOC_AUD3004X_5PIN) || defined(CONFIG_SND_SOC_AUD3004X_6PIN)
 #include <sound/aud3004x.h>
-#define CODEC_IRQ_CNT	8
+#define CODEC_IRQ_CNT		9
+#define CODEC_IRQ_CNT_M		6
 
 u8 irq_codec[CODEC_IRQ_CNT];
-u8 irq_codec_m[CODEC_IRQ_CNT-2];
+u8 irq_codec_m[CODEC_IRQ_CNT_M];
 bool codec_irq_flag = false;
 #endif
 
@@ -325,11 +326,12 @@ static int s2mpu12_check_ibi_source(struct s2mpu12_dev *s2mpu12, u8 *ibi_src)
 					S2MPU12_NUM_IRQ_PMIC_REGS,
 					&irq_reg[PMIC_INT1]);
 
-		exynos_acpm_bulk_read(0, 0x07, 0x08, 6, &irq_codec_m[0]);
-		exynos_acpm_bulk_read(0, 0x07, 0x01, 6, &irq_codec[0]);
-		exynos_acpm_bulk_read(0, 0x07, 0xF0, 2, &irq_codec[6]);
+		exynos_acpm_bulk_read(0, 0x07, 0x08, CODEC_IRQ_CNT_M, &irq_codec_m[0]);
+		exynos_acpm_bulk_read(0, 0x07, 0x01, CODEC_IRQ_CNT_M, &irq_codec[0]);
+		exynos_acpm_bulk_read(0, 0x07, 0xF0,
+				CODEC_IRQ_CNT-CODEC_IRQ_CNT_M, &irq_codec[6]);
 
-		for (i = 0; i < 6; i++) {
+		for (i = 0; i < CODEC_IRQ_CNT_M; i++) {
 			irq_codec[i] = irq_codec[i] & (~irq_codec_m[i]);
 		}
 

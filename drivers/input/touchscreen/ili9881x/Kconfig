@@ -3,7 +3,6 @@
 #
 menuconfig TOUCHSCREEN_ILITEK_ILI9881X
 	bool "Ilitek ili9881x touchscreen"
-	default y
 	help
 	  Say Y here if you have a Synaptics TCM touchscreen connected
 	  to your system.

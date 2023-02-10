@@ -73,6 +73,8 @@ static const u32 *sensor_gc5035_dpc_init_setting;
 static u32 sensor_gc5035_dpc_init_setting_size;
 static const u32 *sensor_gc5035_dpc_function_enable;
 static u32 sensor_gc5035_dpc_function_enable_size;
+static const u32 *sensor_gc5035_image_direction_setting;
+static u32 sensor_gc5035_image_direction_setting_size;
 
 #if USE_GROUP_PARAM_HOLD
 static int sensor_gc5035_group_param_hold_func(struct v4l2_subdev *subdev, unsigned int hold)
@@ -270,7 +272,7 @@ p_err:
 	return ret;
 }
 
-//For finding the nearest value in the gain table
+//For finding the nearest value in the gain table 
 u32 sensor_gc5035_calc_again_closest(u32 permile)
 {
 	int i;
@@ -823,7 +825,7 @@ static int sensor_gc5035_cis_dpc_enable(struct v4l2_subdev *subdev) {
 		return ret;
 	}
 
-	if (cis->cis_data->cis_rev != SENSOR_GC5035_CHIP_ID_WC1XB) {
+	if (cis->cis_data->cis_rev <= SENSOR_GC5035_CHIP_ID_WC1XA) {
 		warn("[%s] Disable DPC", __func__);
 
 		return 0;
@@ -887,6 +889,9 @@ static int sensor_gc5035_cis_dpc_enable(struct v4l2_subdev *subdev) {
 	ret = is_sensor_addr8_read8(client, 0x6c, &num_defect_1);
 	if (ret < 0)
 		goto p_err;
+	ret = is_sensor_addr8_write8(client, 0x69, 0x00);
+	if (ret < 0)
+		goto p_err;
 
 	/* Read OTP 0x0078 */
 	ret = is_sensor_addr8_write8(client, 0x6a, 0x78);
@@ -947,12 +952,22 @@ p_err:
 int sensor_gc5035_cis_set_global_setting(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
+	char const *setfile;
 	struct is_cis *cis = NULL;
+	struct i2c_client *client;
+	struct device_node *dnode;
+	struct device *dev;
 
 	FIMC_BUG(!subdev);
 
 	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
 	FIMC_BUG(!cis);
+
+	client = cis->client;
+	FIMC_BUG(!client);
+
+	dev = &client->dev;
+	dnode = dev->of_node;
 
 	info("[%s] global setting start\n", __func__);
 
@@ -967,6 +982,22 @@ int sensor_gc5035_cis_set_global_setting(struct v4l2_subdev *subdev)
 
 	dbg_sensor(2, "[%s] global setting done\n", __func__);
 
+	/* Add Image Direction Settings before dpc */
+	ret = of_property_read_string(dnode, "setfile", &setfile);
+	if (ret) {
+		err("setfile index read fail(%d), take default setfile!!", ret);
+		setfile = "default";
+	}
+
+	if (strcmp(setfile, "setC") == 0) {
+		ret = sensor_cis_set_registers_addr8(subdev, sensor_gc5035_image_direction_setting, sensor_gc5035_image_direction_setting_size);
+		if (ret < 0) {
+			err("sensor_gc5035_image_direction_setting fail!!");
+			goto p_i2c_err;
+		}
+	}
+
+	/* DPC Enable */
 	ret = sensor_gc5035_cis_dpc_enable(subdev);
 	if (ret < 0) {
 		err("sensor_gc5035_cis_dpc_enable fail!!");
@@ -2459,6 +2490,8 @@ int cis_gc5035_probe(struct i2c_client *client,
 		sensor_gc5035_dpc_init_setting_size = ARRAY_SIZE(sensor_gc5035_setfile_C_Otp_Read_Initial_Setting);
 		sensor_gc5035_dpc_function_enable = sensor_gc5035_setfile_C_DPC_Function_Enable;
 		sensor_gc5035_dpc_function_enable_size = ARRAY_SIZE(sensor_gc5035_setfile_C_DPC_Function_Enable);
+		sensor_gc5035_image_direction_setting = sensor_gc5035_setfile_C_Image_Direction_Setting;
+		sensor_gc5035_image_direction_setting_size = ARRAY_SIZE(sensor_gc5035_setfile_C_Image_Direction_Setting);
 
 		/* setfile C is for B_First Bayer Order so update*/
 		probe_info("%s update bayer order to B_FIRST\n", __func__);

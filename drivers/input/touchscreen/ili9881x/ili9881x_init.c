@@ -28,11 +28,11 @@ void ili_tp_reset(void)
 
 	/* Need accurate power sequence, do not change it to msleep */
 	gpio_direction_output(ilits->tp_rst, 1);
-	mdelay(1);
+	usleep_range(1 * 1000, 1 * 1000);
 	gpio_set_value(ilits->tp_rst, 0);
-	mdelay(5);
+	usleep_range(5 * 1000, 5 * 1000);
 	gpio_set_value(ilits->tp_rst, 1);
-	mdelay(ilits->rst_edge_delay);
+	msleep(ilits->rst_edge_delay);
 }
 
 static void touch_set_input_prop_proximity(struct input_dev *dev)
@@ -165,7 +165,7 @@ void ili_plat_regulator_power_on(bool status)
 		}
 	}
 	atomic_set(&ilits->ice_stat, DISABLE);
-	mdelay(5);
+	usleep_range(5 * 1000, 5 * 1000);
 }
 
 static void ilitek_plat_regulator_power_init(void)
@@ -254,7 +254,7 @@ out:
 	gpio_direction_output(ilits->tp_rst, 1);
 
 	gpio_set_value(ilits->tp_rst, 1);
-	mdelay(ilits->rst_edge_delay);
+	msleep(ilits->rst_edge_delay);
 
 	val = gpio_get_value(ilits->tp_rst);
 	val2 = gpio_get_value(ilits->tp_int);
@@ -316,7 +316,7 @@ out:
 void ili_irq_wake_disable(void)
 {
 	if (atomic_read(&ilits->irq_wake_stat) == DISABLE) {
-		input_info(true, ilits->dev, "%s already diabled\n", __func__);
+		input_info(true, ilits->dev, "%s already disabled\n", __func__);
 		return;
 	}
 
@@ -735,6 +735,21 @@ static int parse_dt(void)
 		ilits->spi_mode = 0;
 	}
 
+	prop = of_find_property(np, "iliteck,lcd_rst_delay", NULL);
+	if (prop && prop->length) {
+		retval = of_property_read_u32(np, "iliteck,lcd_rst_delay", &value);
+		if (retval < 0) {
+			input_err(true, ilits->dev, "%s Unable to read iliteck,lcd_rst_delay property\n", __func__);
+			ilits->lcd_rst_delay = 0;
+		} else{
+			ilits->lcd_rst_delay = value;
+		}
+	} else {
+		ilits->lcd_rst_delay = 0;
+	}
+	input_info(true, ilits->dev, "%s: lcd_rst_delay : %d(us)\n", __func__, ilits->lcd_rst_delay);
+
+
 	if (of_property_read_u32_array(np, "iliteck,area-size", px_zone, 3)) {
 		input_err(true, ilits->dev, "%s : Failed to get zone's size\n", __func__);
 		ilits->area_indicator = 47;
@@ -771,7 +786,7 @@ static int parse_dt(void)
 
 		ilits->pins_off_state = pinctrl_lookup_state(ilits->pinctrl, "pins_off_state");
 		if (IS_ERR(ilits->pins_off_state)) {
-			input_err(true, ilits->dev, "could not get pins pins_on_state (%li)\n",
+			input_err(true, ilits->dev, "could not get pins pins_off_state (%li)\n",
 				PTR_ERR(ilits->pins_off_state));
 		}
 	} else {
@@ -781,6 +796,90 @@ static int parse_dt(void)
 
 	return 0;
 }
+
+#ifdef CONFIG_VBUS_NOTIFIER
+#if defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+static int otg_flag = 0;
+#endif
+#endif
+
+#ifdef CONFIG_VBUS_NOTIFIER
+#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
+static int ilitek_ccic_notification(struct notifier_block *nb,
+	   unsigned long action, void *data)
+{
+
+	PD_NOTI_USB_STATUS_TYPEDEF usb_status = *(PD_NOTI_USB_STATUS_TYPEDEF *)data;
+
+	if (usb_status.dest != PDIC_NOTIFY_DEV_USB) {
+		return 0;
+	}
+
+	switch (usb_status.drp) {
+	case USB_STATUS_NOTIFY_ATTACH_DFP:
+		otg_flag = 1;
+		input_info(true, ilits->dev, "%s otg_flag %d\n", __func__, otg_flag);
+		break;
+	case USB_STATUS_NOTIFY_DETACH:
+		otg_flag = 0;
+		input_info(true, ilits->dev, "%s otg_flag %d\n", __func__, otg_flag);
+		break;
+	default:
+		break;
+	}
+	return 0;
+}
+#endif
+static int ilitek_vbus_notification(struct notifier_block *nb,
+		unsigned long cmd, void *data)
+{
+	vbus_status_t vbus_type = *(vbus_status_t *) data;
+	int ret = 0;
+
+#if defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+	input_info(true, ilits->dev, "%s otg_flag=%d\n", __func__, otg_flag);
+#endif
+	input_info(true, ilits->dev, "%s cmd=%lu, vbus_type=%d\n", __func__, cmd, vbus_type);
+
+
+	switch (vbus_type) {
+	case STATUS_VBUS_HIGH:/* vbus_type == 2 */
+#if defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+		if (!otg_flag)
+			ilits->usb_plug_status = USB_PLUG_ATTACHED;
+		else
+			ret = -1;
+#else
+		ilits->usb_plug_status = USB_PLUG_ATTACHED;
+#endif
+		break;
+	case STATUS_VBUS_LOW:/* vbus_type == 1 */
+		ilits->usb_plug_status = USB_PLUG_DETACHED;
+		break;
+	default:
+		ret = -1;
+		break;
+	}
+
+	if (ret < 0)
+		return 0;
+
+	if (ilits->power_status == POWER_OFF_STATUS) {
+		input_info(true, ilits->dev, "%s  now power off status, it'll setting after screen on(%d)\n",
+				__func__ ,ilits->usb_plug_status);
+		return 0;
+	}
+
+	mutex_lock(&ilits->touch_mutex);
+
+	ret = ili_ic_func_ctrl("plug", !ilits->usb_plug_status);
+	if (ret < 0)
+		input_err(true, ilits->dev, "%s USB_PLUG set failed(%d)\n",
+					__func__, ilits->usb_plug_status);
+	mutex_unlock(&ilits->touch_mutex);
+	return 0;
+}
+#endif
 
 static int ilitek_plat_probe(void)
 {
@@ -793,6 +892,14 @@ static int ilitek_plat_probe(void)
 		input_err(true, ilits->dev, "%s : parse_dt fail unload driver!\n", __func__);
 		return -EINVAL;
 	}
+
+#ifdef CONFIG_BATTERY_SAMSUNG
+	if (lpcharge) {
+		input_info(true, ilits->dev, "%s: enter sleep mode in lpcharge %d\n", __func__, lpcharge);
+		ilitek_pin_control(false);
+		return -ENODEV;
+	}
+#endif
 
 #if REGULATOR_POWER
 	ilitek_plat_regulator_power_init();
@@ -822,6 +929,16 @@ static int ilitek_plat_probe(void)
 	/* add_for_charger_end */
 #endif
 #endif
+
+#ifdef CONFIG_VBUS_NOTIFIER
+#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
+	manager_notifier_register(&ilits->ccic_nb, ilitek_ccic_notification,
+			MANAGER_NOTIFY_PDIC_INITIAL);
+#endif
+	vbus_notifier_register(&ilits->vbus_nb, ilitek_vbus_notification,
+			VBUS_NOTIFY_DEV_CHARGER);
+#endif
+
 	input_info(true, ilits->dev, "%s ILITEK Driver loaded successfully!", __func__);
 	return 0;
 }
@@ -852,6 +969,15 @@ static int ilitek_plat_remove(void)
 	return 0;
 }
 
+static int ilitek_plat_shutdown(void)
+{
+	input_info(true, ilits->dev, "%s shutdown plat dev\n", __func__);
+
+	ili_dev_remove();
+
+	return 0;
+}
+
 static const struct dev_pm_ops tp_pm_ops = {
 	.suspend = ilitek_tp_pm_suspend,
 	.resume = ilitek_tp_pm_resume,
@@ -868,6 +994,7 @@ static struct ilitek_hwif_info hwif = {
 	.name = TDDI_DEV_ID,
 	.of_match_table = of_match_ptr(tp_match_table),
 	.plat_probe = ilitek_plat_probe,
+	.plat_shutdown = ilitek_plat_shutdown,
 	.plat_remove = ilitek_plat_remove,
 	.pm = &tp_pm_ops,
 };

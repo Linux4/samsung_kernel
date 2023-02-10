@@ -72,6 +72,8 @@ void dsim_reg_function_reset(u32 id);
 void dsim_reg_set_partial_update(u32 id, struct exynos_panel_info *lcd_info);
 void dsim_reg_set_mres(u32 id, struct exynos_panel_info *lcd_info);
 
+void dsim_reg_update_vfp(u32 id, u32 vfp);
+
 /* DSIM BIST for test */
 void dsim_reg_set_bist(u32 id, u32 en);
 

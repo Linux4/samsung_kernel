@@ -89,7 +89,7 @@ bool ipc_have_sensor_info(struct sensor_map *sensor_map)
 	return false;
 }
 
-#ifndef CONFIG_SENSORS_SSP
+#if !defined(CONFIG_SENSORS_SSP) && !defined(CONFIG_SHUB)
 #ifdef CHUB_IPC
 void ipc_set_sensor_id(enum sensor_type type, enum vendor_sensor_list_id id)
 {
@@ -311,7 +311,7 @@ void *ipc_get_chub_map(void)
 	ipc_addr[IPC_REG_PERSISTBUF].base = &ipc_map->persist;
 	ipc_addr[IPC_REG_PERSISTBUF].offset = CHUB_PERSISTBUF_SIZE;
 	ipc_addr[IPC_REG_IPC_SENSORINFO].base = &ipc_map->sensormap;
-#ifdef CONFIG_SENSORS_SSP
+#if defined(CONFIG_SENSORS_SSP) || defined(CONFIG_SHUB)
 	ipc_addr[IPC_REG_IPC_SENSORINFO].offset = sizeof(u8) * 36;
 #else
 	ipc_addr[IPC_REG_IPC_SENSORINFO].offset = sizeof(u8) * SENSOR_TYPE_MAX;

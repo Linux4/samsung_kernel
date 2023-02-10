@@ -413,11 +413,17 @@ int sensor_2p6_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 	
 	/* In case of VT Call, forced to set pdaf off */
 	if (cis->use_pdaf == true) {
-		if (mode == SENSOR_2P6_MODE_2304X1728_30 || mode == SENSOR_2P6_MODE_2304X1728_15 ) {
-			cis->cis_data->is_data.paf_stat_enable = false;
+		switch (mode) {
+			case SENSOR_2P6_MODE_2304X1728_30:
+			case SENSOR_2P6_MODE_2304X1728_15:
+			case SENSOR_2P6_MODE_2304X1296_30:
+				cis->cis_data->is_data.paf_stat_enable = false;
+				dbg_sensor(1, "[%s] mode(%d) paf_stat_enable(%d) \n",
+					__func__, mode, cis->cis_data->is_data.paf_stat_enable);
+				break;
+			default:
+				break;
 		}
-		dbg_sensor(1, "[%s] mode(%d) paf_stat_enable(%d) \n",
-			__func__, mode, cis->cis_data->is_data.paf_stat_enable);
 	}
 
 #if defined(USE_SENSOR_WDR)

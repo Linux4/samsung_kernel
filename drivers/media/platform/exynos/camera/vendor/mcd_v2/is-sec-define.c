@@ -17,7 +17,7 @@
 #include "is-sec-util.h"
 #include "is-device-eeprom.h"
 #include "is-vender-rom-config.h"
-#include "is-vender-caminfo_sec2lsi.h"
+#include "is-vender-caminfo.h"
 
 #define IS_LATEST_ROM_VERSION_M		'M'
 
@@ -38,27 +38,35 @@ static struct is_rom_info sysfs_pinfo[SENSOR_POSITION_MAX];
 
 #ifdef IS_REAR_MAX_CAL_SIZE
 static char cal_buf_rear[IS_REAR_MAX_CAL_SIZE];
+static char cal_buf_rom_data_rear[IS_REAR_MAX_CAL_SIZE];
 #endif
 #ifdef IS_FRONT_MAX_CAL_SIZE
 static char cal_buf_front[IS_FRONT_MAX_CAL_SIZE];
+static char cal_buf_rom_data_front[IS_FRONT_MAX_CAL_SIZE];
 #endif
 #ifdef IS_REAR2_MAX_CAL_SIZE
 static char cal_buf_rear2[IS_REAR2_MAX_CAL_SIZE];
+static char cal_buf_rom_data_rear2[IS_REAR2_MAX_CAL_SIZE];
 #endif
 #ifdef IS_FRONT2_MAX_CAL_SIZE
 static char cal_buf_front2[IS_FRONT2_MAX_CAL_SIZE];
+static char cal_buf_rom_data_front2[IS_FRONT2_MAX_CAL_SIZE];
 #endif
 #ifdef IS_REAR3_MAX_CAL_SIZE
 static char cal_buf_rear3[IS_REAR3_MAX_CAL_SIZE];
+static char cal_buf_rom_data_rear3[IS_REAR3_MAX_CAL_SIZE];
 #endif
 #ifdef IS_FRONT3_MAX_CAL_SIZE
 static char cal_buf_front3[IS_FRONT3_MAX_CAL_SIZE];
+static char cal_buf_rom_data_front3[IS_FRONT3_MAX_CAL_SIZE];
 #endif
 #ifdef IS_REAR4_MAX_CAL_SIZE
 static char cal_buf_rear4[IS_REAR4_MAX_CAL_SIZE];
+static char cal_buf_rom_data_rear4[IS_REAR4_MAX_CAL_SIZE];
 #endif
 #ifdef IS_FRONT4_MAX_CAL_SIZE
 static char cal_buf_front4[IS_FRONT4_MAX_CAL_SIZE];
+static char cal_buf_rom_data_front4[IS_FRONT4_MAX_CAL_SIZE];
 #endif
 
 
@@ -100,6 +108,51 @@ static char *cal_buf[SENSOR_POSITION_MAX] = {
 #endif
 #ifdef IS_FRONT4_MAX_CAL_SIZE
 	cal_buf_front4,
+#else
+	NULL,
+#endif
+};
+
+/* cal_buf_rom_data is used for storing original rom data, before standard cal conversion */
+static char *cal_buf_rom_data[SENSOR_POSITION_MAX] = {
+
+#ifdef IS_REAR_MAX_CAL_SIZE
+	cal_buf_rom_data_rear,
+#else
+	NULL,
+#endif
+#ifdef IS_FRONT_MAX_CAL_SIZE
+	cal_buf_rom_data_front,
+#else
+	NULL,
+#endif
+#ifdef IS_REAR2_MAX_CAL_SIZE
+	cal_buf_rom_data_rear2,
+#else
+	NULL,
+#endif
+#ifdef IS_FRONT2_MAX_CAL_SIZE
+	cal_buf_rom_data_front2,
+#else
+	NULL,
+#endif
+#ifdef IS_REAR3_MAX_CAL_SIZE
+	cal_buf_rom_data_rear3,
+#else
+	NULL,
+#endif
+#ifdef IS_FRONT3_MAX_CAL_SIZE
+	cal_buf_rom_data_front3,
+#else
+	NULL,
+#endif
+#ifdef IS_REAR4_MAX_CAL_SIZE
+	cal_buf_rom_data_rear4,
+#else
+	NULL,
+#endif
+#ifdef IS_FRONT4_MAX_CAL_SIZE
+	cal_buf_rom_data_front4,
 #else
 	NULL,
 #endif
@@ -178,6 +231,18 @@ int is_sec_get_cal_buf(int position, char **buf)
 
 	if (*buf == NULL) {
 		err("cal buf is null. position %d", position);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+int is_sec_get_cal_buf_rom_data(int position, char **buf)
+{
+	*buf = cal_buf_rom_data[position];
+
+	if (*buf == NULL) {
+		err("cal buf rom data is null. position %d", position);
 		return -EINVAL;
 	}
 
@@ -350,7 +415,7 @@ bool is_sec_check_rom_ver(struct is_core *core, int position)
 	}
 
 	if (specific->rom_share[position].check_rom_share == true) {
-		if(specific->rom_share[position].share_position < SENSOR_POSITION_MAX) {
+		if (specific->rom_share[position].share_position < SENSOR_POSITION_MAX) {
 			rom_position = specific->rom_share[position].share_position;
 		} else {
 			err("invalid share_position (%d) plz check share_position \n", specific->rom_share[position].share_position);
@@ -585,7 +650,7 @@ bool is_sec_check_eeprom_crc32(char *buf, int position)
 		ae_cal_data = (struct rom_ae_cal_data *)is_sec_search_rom_extend_data(rom_addr->extend_cal_addr, EXTEND_AE_CAL);
 
 		check_length = 0;
-		if(ae_cal_data) {
+		if (ae_cal_data) {
 			if (ae_cal_data->rom_ae_checksum_addr > 0)
 				check_length = ae_cal_data->rom_ae_checksum_len;
 
@@ -1291,10 +1356,10 @@ bool is_sec_readcal_dump(struct is_vender_specific *specific, char **buf, int si
 	rom_type = specific->rom_data[rom_position].rom_type;
 	cal_size = specific->rom_cal_map_addr[rom_position]->rom_max_cal_size;
 
-	if(rom_valid == true) {
+	if (rom_valid == true) {
 		char path[50] = IS_SETFILE_SDCARD_PATH;
 
-		if(rom_type == ROM_TYPE_EEPROM) {
+		if (rom_type == ROM_TYPE_EEPROM) {
 			info("dump folder exist, Dump EEPROM cal data.\n");
 
 			strcat(path, eeprom_cal_dump_path[position]);
@@ -1533,10 +1598,13 @@ bool is_sec_check_awb_lsc_crc32_post_sec2lsi(char* buf, int position, int awb_le
 		pr_warning("Camera[%d]: Skip to check shading crc32\n", position);
 	}
 
+out:
+	crc32_check_list[position][CRC32_CHECK_STANDARD_CAL] = crc32_check_temp;
+	crc32_check_list[position][CRC32_CHECK] = crc32_check_temp;
 	/* Sync DDK Cal with cal_buf during cal reload */
 	is_sec_get_sysfs_finfo_by_position(SENSOR_POSITION_REAR, &default_finfo);
 	info("%s: Sensor running = %d\n", __func__, specific->running_camera[position]);
-	if (default_finfo->is_check_cal_reload == true && specific->running_camera[position] == true) {
+	if (crc32_check_temp && default_finfo->is_check_cal_reload == true && specific->running_camera[position] == true) {
 		for (i = 0; i < IS_VENDOR_SENSOR_COUNT; i++) {
 			is_search_sensor_module_with_position(&core->sensor[i], position, &module);
 			if (module)
@@ -1554,10 +1622,6 @@ bool is_sec_check_awb_lsc_crc32_post_sec2lsi(char* buf, int position, int awb_le
 			err("(%s) Unable to sync cal, is_vender_cal_load failed\n", __func__);
 		}
 	}
-
-out:
-	crc32_check_list[position][CRC32_CHECK_STANDARD_CAL] = crc32_check_temp;
-	crc32_check_list[position][CRC32_CHECK] = crc32_check_temp;
 	info("%s X\n", __func__);
 	return crc32_check_temp;
 }
@@ -1687,7 +1751,7 @@ int is_sec_readcal_eeprom(struct device *dev, int position)
 	info("Camera[%d]: cal_map_ver_addr = %#x, header_version_addr = %#x\n",
 		position, cal_map_ver_start_addr, header_version_start_addr);
 
-	if(cal_map_ver_start_addr < 0 || header_version_start_addr < 0)
+	if (cal_map_ver_start_addr < 0 || header_version_start_addr < 0)
 		goto exit;
 
 	ret = is_i2c_read(client, finfo->cal_map_ver, (u32)cal_map_ver_start_addr, IS_CAL_MAP_VER_SIZE);
@@ -1795,7 +1859,7 @@ crc_retry:
 	/* Header Data: AE CAL DATA */
 	if (rom_addr->extend_cal_addr) {
 		ae_cal_data = (struct rom_ae_cal_data *)is_sec_search_rom_extend_data(rom_addr->extend_cal_addr, EXTEND_AE_CAL);
-		if(ae_cal_data) {
+		if (ae_cal_data) {
 			temp_start_addr = temp_end_addr = -1;
 			if (ae_cal_data->rom_header_main_ae_start_addr >= 0) {
 				temp_start_addr = ae_cal_data->rom_header_main_ae_start_addr;
@@ -2027,7 +2091,7 @@ crc_retry:
 /////////////////////////////////////////////////////////////////////////////////////
 #ifdef USE_AE_CAL
 	temp_start_addr = temp_end_addr = -1;
-	if(ae_cal_data) {
+	if (ae_cal_data) {
 		temp_start_addr = ae_cal_data->rom_ae_module_info_start_addr;
 		temp_end_addr = ae_cal_data->rom_ae_checksum_addr;
 
@@ -2130,7 +2194,7 @@ crc_retry:
 	}
 
 #ifdef USE_AE_CAL
-	if(ae_cal_data) {
+	if (ae_cal_data) {
 		if (ae_cal_data->rom_ae_module_info_start_addr >= 0) {
 			info("%d. AE Data info\n", ++i);
 			info(" Module info : %s\n", finfo->ae_cal_ver);
@@ -2183,7 +2247,7 @@ crc_retry:
 			check_latest_cam_module[position] = false;
 		}
 		/* Check this module is final for manufacture */
-		if(sysfs_finfo[position].header_ver[10] == IS_LATEST_ROM_VERSION_M) {
+		if (sysfs_finfo[position].header_ver[10] == IS_LATEST_ROM_VERSION_M) {
 			check_final_cam_module[position] = true;
 		} else {
 			check_final_cam_module[position] = false;
@@ -2236,9 +2300,9 @@ int is_i2c_read_otp_5e9(struct is_core *core, struct i2c_client *client,
 	is_sensor_write8(client, OTP_PAGE_ADDR, page_num);
 	ret = otprom_5e9_check_to_read(client);
 
-	for(index = 0; index<size ;index++)
+	for (index = 0; index < size ; index++)
 	{
-		if(reg_count >= 64)
+		if (reg_count >= 64)
 		{
 			page_num++;
 			reg_count = 0;
@@ -2419,10 +2483,10 @@ crc_retry:
 		finfo->af_cal_macro = *((u32 *)&buf[rom_addr->rom_oem_af_macro_position_addr]);
 	}
 
-	if(finfo->cal_map_ver[0] != 'V') {
+	if (finfo->cal_map_ver[0] != 'V') {
 		info("Camera: Cal Map version read fail or there's no available data.\n");
 		/* it for case of CRC fail at re-work module  */
-		if(retry == IS_CAL_RETRY_CNT && otp_bank != 0x1) {
+		if (retry == IS_CAL_RETRY_CNT && otp_bank != 0x1) {
 			start_addr -= 0xf;
 			info("%s : change start address(%x)\n",__func__,start_addr);
 			retry--;
@@ -2486,7 +2550,7 @@ crc_retry:
 			check_latest_cam_module[position] = false;
 		}
 		/* Check this module is final for manufacture */
-		if(sysfs_finfo[position].header_ver[10] == IS_LATEST_ROM_VERSION_M) {
+		if (sysfs_finfo[position].header_ver[10] == IS_LATEST_ROM_VERSION_M) {
 			check_final_cam_module[position] = true;
 		} else {
 			check_final_cam_module[position] = false;
@@ -2970,7 +3034,7 @@ int is_sec_readcal_otprom_buffer(char * buf, int position)
 
 	is_sec_get_sysfs_finfo_by_position(position, &finfo);
 	cal_size = is_sec_get_max_cal_size(core, position);
-	
+
 	/* HEADER Data : Module/Manufacturer Information */
 	memcpy(finfo->header_ver, &buf[rom_addr->rom_header_main_module_info_start_addr], IS_HEADER_VER_SIZE);
 	finfo->header_ver[IS_HEADER_VER_SIZE] = '\0';
@@ -2984,6 +3048,10 @@ int is_sec_readcal_otprom_buffer(char * buf, int position)
 
 	if (rom_addr->rom_header_module_id_addr > 0) {
 		memcpy(finfo->rom_module_id, &buf[rom_addr->rom_header_module_id_addr], IS_MODULE_ID_SIZE);
+		finfo->rom_module_id[IS_MODULE_ID_SIZE] = '\0';
+	} else {
+		/* Use ASCII char '0' for initial 5 characters according to module id format */
+		memcpy(finfo->rom_module_id, "00000", 0x5);
 		finfo->rom_module_id[IS_MODULE_ID_SIZE] = '\0';
 	}
 
@@ -3132,13 +3200,13 @@ int is_i2c_read_otp_sr846(struct i2c_client *client, char *buf, u16 start_addr, 
 	u8 start_addr_h = 0;
 	u8 start_addr_l = 0;
 
-	for(index = 0; index < size ;index++) {
-		start_addr_h = ((curr_addr>>8) & 0x1F);
+	for (index = 0; index < size ; index++) {
+		start_addr_h = ((curr_addr >> 8) & 0x1F);
 		start_addr_l = (curr_addr & 0xFF);
-		is_sensor_write8(client, SR846_OTP_ACCESS_ADDR_H, start_addr_h); // upper 16bit
-		is_sensor_write8(client, SR846_OTP_ACCESS_ADDR_L, start_addr_l); // lower 16bit
-		is_sensor_write8(client, SR846_OTP_MODE_ADDR, 0x01); // // OTP continuous read mode
-		ret = is_sensor_read8(client, SR846_OTP_READ_ADDR, &buf[index]); // OTP read
+		is_sensor_write8(client, SR846_OTP_ACCESS_ADDR_H, start_addr_h); /* upper 16bit */
+		is_sensor_write8(client, SR846_OTP_ACCESS_ADDR_L, start_addr_l); /* lower 16bit */
+		is_sensor_write8(client, SR846_OTP_MODE_ADDR, 0x01); /* OTP continuous read mode */
+		ret = is_sensor_read8(client, SR846_OTP_READ_ADDR, &buf[index]); /* OTP read */
 		if (unlikely(ret)) {
 			err("failed to is_sensor_addr8_read8 (%d)\n", ret);
 			goto exit;
@@ -3185,27 +3253,7 @@ int is_sec_readcal_otprom_sr846(struct device *dev, int position)
 	is_i2c_config(client, true);
 	msleep(10);
 
-	/* 0. Sensor Initial Settings (Global) */
-i2c_write_retry_global:
-	if (specific->running_camera[position] == false) {
-		ret = is_sec_set_registers(client, sensor_otp_sr846_global, sensor_otp_sr846_global_size);
-		if (unlikely(ret)) {
-			err("failed to is_sec_set_registers (%d)\n", ret);
-			if (i2c_retry >= 0) {
-				i2c_retry--;
-				msleep(50);
-				goto i2c_write_retry_global;
-			}
-			ret = -EINVAL;
-			goto exit;
-		}
-	}
-
-	/* 1. Stream On */
-	is_sensor_write8(client, 0x0100, 0x01);
-	msleep(50);
-
-	/* 2. OTP Initial Settings */
+	/* 1. OTP Initial Settings */
 	i2c_retry=IS_CAL_RETRY_CNT;
 i2c_write_retry_initial:
 	ret = is_sec_set_registers(client, sensor_otp_sr846_initial, sensor_otp_sr846_initial_size);
@@ -3220,23 +3268,16 @@ i2c_write_retry_initial:
 		goto exit;
 	}
 
-	msleep(50);
-
-	/* OTP mode select register control */
-	is_sensor_write8(client, SR846_FAST_SLEEP_ON_ADDR, 0x01); // fast sleep on
-	is_sensor_write8(client, SR846_STANDBY_ADDR, 0x00); // standby on
-	msleep(10); // sleep 10msec
-	is_sensor_write8(client, SR846_PLL_DISPLAY_ADDR, 0x00); // pll display
-	is_sensor_write8(client, SR846_CP_TRIM_H_ADDR, 0x01); // CP TRIM_H
-	is_sensor_write8(client, SR846_IPGM_TRIM_H_ADDR, 0x09); // IPGM TRIM_H
-	is_sensor_write8(client, SR846_FSYNC_OUTPUT_ENABLE_ADDR, 0x00); // Fsync(OTP busy) output enable
-	is_sensor_write8(client, SR846_FSYNC_OUTPUT_DRIVABILITY_ADDR, 0x07); // Fsync(OTP busy) output drivability
-	is_sensor_write8(client, SR846_OTP_R_W_MODE_ADDR, 0x10); // OTP R/W mode
-	is_sensor_write8(client, SR846_STANDBY_ADDR, 0x01); // standby off
-	msleep(1); // sleep 1msec
+	is_sensor_write8(client, SR846_CP_TRIM_H_ADDR, 0x01); /* CP TRIM_H */
+	is_sensor_write8(client, SR846_IPGM_TRIM_H_ADDR, 0x09); /* IPGM TRIM_H */
+	is_sensor_write8(client, SR846_FSYNC_OUTPUT_ENABLE_ADDR, 0x00); /* Fsync(OTP busy) output enable */
+	is_sensor_write8(client, SR846_FSYNC_OUTPUT_DRIVABILITY_ADDR, 0x07); /* Fsync(OTP busy) output drivability */
+	is_sensor_write8(client, SR846_OTP_R_W_MODE_ADDR, 0x10); /* OTP R/W mode */
+	is_sensor_write8(client, SR846_STANDBY_ADDR, 0x01); /* standby off */
+	msleep(10); /* sleep 10msec */
 
 	/* Read OTP page */
-	is_sensor_write8(client, SR846_OTP_ACCESS_ADDR_H, ((SR846_OTP_BANK_SELECT_ADDR>>8) & 0x1F));
+	is_sensor_write8(client, SR846_OTP_ACCESS_ADDR_H, ((SR846_OTP_BANK_SELECT_ADDR >> 8) & 0x1F));
 	is_sensor_write8(client, SR846_OTP_ACCESS_ADDR_L, (SR846_OTP_BANK_SELECT_ADDR & 0xFF));
 	is_sensor_write8(client, SR846_OTP_MODE_ADDR, 0x01);
 
@@ -3244,7 +3285,7 @@ i2c_write_retry_initial:
 	info("%s: otp_bank = %d\n", __func__, otp_bank);
 
 	/* select start address */
-	switch(otp_bank) {
+	switch (otp_bank) {
 	case 0x01 :
 		start_addr = SR846_OTP_START_ADDR_BANK1;
 		break;
@@ -3279,16 +3320,170 @@ crc_retry:
 	}
 
 exit:
-	// streaming mode change
-	is_sensor_write8(client, SR846_STANDBY_ADDR, 0x00); // standby on
-	msleep(10); // sleep 10msec
-	is_sensor_write8(client, SR846_OTP_R_W_MODE_ADDR, 0x00); // display mode
-	is_sensor_write8(client, SR846_STANDBY_ADDR, 0x01); // standby off
-	msleep(1); // sleep 1msec
+	/* 5. OTP read off */
+	is_sensor_write8(client, SR846_STREAM_OFF_ADDR, 0x0A); /* stream off */
+	is_sensor_write8(client, SR846_STANDBY_ADDR, 0x00);
+	msleep(10); /* sleep 10msec */
+	is_sensor_write8(client, SR846_OTP_MODE_ADDR, 0x00);
+	is_sensor_write8(client, SR846_OTP_R_W_MODE_ADDR, 0x00); /* display mode */
+	msleep(1); /* sleep 1msec */
 	info("%s X\n", __func__);
 	return ret;
 }
-#endif //SENSOR_OTP_SR846
+#endif /* SENSOR_OTP_SR846 */
+
+#if defined(SENSOR_OTP_4HA)
+u16 is_i2c_select_otp_bank_4ha(struct i2c_client *client) {
+	int ret = 0;
+	u8 otp_bank = 0;
+	u16 curr_page = 0;
+	
+	//The Bank details itself is present in bank-1 page-0
+	is_sensor_write8(client, S5K4HA_OTP_PAGE_SELECT_ADDR, S5K4HA_OTP_START_PAGE_BANK1);
+	ret = is_sensor_read8(client, S5K4HA_OTP_BANK_SELECT, &otp_bank);
+	if (unlikely(ret)) {
+		err("failed to is_sensor_read8 (%d). OTP Bank selection failed\n", ret);
+		goto exit;
+	}
+	info("%s otp_bank = %d\n", __func__, otp_bank);
+
+	switch(otp_bank) {
+	case 0x01 :
+		curr_page = S5K4HA_OTP_START_PAGE_BANK1;
+		break;
+	case 0x03 :
+		curr_page = S5K4HA_OTP_START_PAGE_BANK2;
+		break;
+	default :
+		curr_page = S5K4HA_OTP_START_PAGE_BANK1;
+		break;
+	}
+	is_sensor_write8(client, S5K4HA_OTP_PAGE_SELECT_ADDR, curr_page);
+exit:
+	return curr_page;
+}
+
+int is_i2c_read_otp_4ha(struct i2c_client *client, char *buf, u16 start_addr, size_t size)
+{
+	int ret = 0;
+	int index = 0;
+	u16 curr_addr = start_addr;
+	u16 curr_page;
+
+	curr_page = is_i2c_select_otp_bank_4ha(client);
+	for (index = 0; index < size ; index++) {
+		ret = is_sensor_read8(client, curr_addr, &buf[index]); /* OTP read */
+		if (unlikely(ret)) {
+			err("failed to is_sensor_addr8_read8 (%d)\n", ret);
+			goto exit;
+		}
+		curr_addr++;
+		if (curr_addr > S5K4HA_OTP_PAGE_ADDR_H) {
+			curr_addr = S5K4HA_OTP_PAGE_ADDR_L;
+			curr_page++;
+			is_sensor_write8(client, S5K4HA_OTP_PAGE_SELECT_ADDR, curr_page);
+		}
+	}
+
+exit:
+	return ret;
+}
+
+int is_sec_readcal_otprom_4ha(struct device *dev, int position)
+{
+	int ret = 0;
+	int retry = IS_CAL_RETRY_CNT;
+	int i2c_retry = IS_CAL_RETRY_CNT;
+	char *buf = NULL;
+	u8 read_command_complete_check = 0;
+
+	struct is_core *core = dev_get_drvdata(dev);
+	struct is_vender_specific *specific = core->vender.private_data;
+	struct i2c_client *client = NULL;
+	const struct is_vender_rom_addr *rom_addr = specific->rom_cal_map_addr[position];
+
+	if (!rom_addr) {
+		err("%s: otp_%d There is no cal map\n", __func__, position);
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	info("%s E\n", __func__);
+
+	is_sec_get_cal_buf(position, &buf);
+
+	client = specific->rom_client[position];
+
+	if (!client) {
+		err("cis i2c client is NULL\n");
+		return -EINVAL;
+	}
+
+	is_i2c_config(client, true);
+	msleep(10);
+
+	/* 0. Sensor Initial Settings (Global) */
+i2c_write_retry_global:
+	if (specific->running_camera[position] == false) {
+		ret = is_sec_set_registers(client, sensor_otp_4ha_global, sensor_otp_4ha_global_size);
+		if (unlikely(ret)) {
+			err("failed to is_sec_set_registers (%d)\n", ret);
+			if (i2c_retry >= 0) {
+				i2c_retry--;
+				msleep(50);
+				goto i2c_write_retry_global;
+			}
+			ret = -EINVAL;
+			goto exit;
+		}
+	}
+
+	/* 1. Stream On */
+	is_sensor_write8(client, 0x0100, 0x01);
+	msleep(50);
+
+	is_sensor_write8(client, S5K4HA_STANDBY_ADDR, 0x00); /* standby on */
+	msleep(10); /* sleep 10msec */
+
+	is_sensor_write8(client, S5K4HA_OTP_R_W_MODE_ADDR, 0x01); //write "read" command
+
+	retry = IS_CAL_RETRY_CNT;
+	/* confirm write complete*/
+write_complete_retry:
+	msleep(1);
+	is_sensor_read8(client, S5K4HA_OTP_CHECK_ADDR, &read_command_complete_check);
+	if (read_command_complete_check!=1) {
+		if (retry>=0) {
+			retry--;
+			goto write_complete_retry;
+		}
+		goto exit;
+	}
+	retry = IS_CAL_RETRY_CNT;
+
+crc_retry:
+	/* 3. Read OTP Cal Data */
+	info("I2C read cal data\n");
+	is_i2c_read_otp_4ha(client, buf, S5K4HA_OTP_START_ADDR, S5K4HA_OTP_USED_CAL_SIZE);
+
+	/* 4. Parse Cal */
+	ret = is_sec_readcal_otprom_buffer(buf, position);
+	if (unlikely(ret)) {
+		if (retry >= 0) {
+			retry--;
+			goto crc_retry;
+		}
+		crc32_check_list[position][CRC32_CHECK_FACTORY] = false;
+	}
+exit:
+	/* 5. streaming mode change */
+	is_sensor_write8(client, S5K4HA_OTP_R_W_MODE_ADDR, 0x04); /* clear error bit */
+	msleep(1); /* sleep 1msec */
+	is_sensor_write8(client, S5K4HA_OTP_R_W_MODE_ADDR, 0x00); /* initial command */
+	info("%s X\n", __func__);
+	return ret;
+}
+#endif /* SENSOR_OTP_4HA */
 
 #if defined(SENSOR_OTP_GC5035)
 int is_i2c_read_otp_gc5035(struct i2c_client *client, char *buf, u16 start_addr, size_t size)
@@ -3301,7 +3496,7 @@ int is_i2c_read_otp_gc5035(struct i2c_client *client, char *buf, u16 start_addr,
 	int ret = 0;
 	int index;
 
-	for(index = 0; index < size; index++)
+	for (index = 0; index < size; index++)
 	{
 		start_addr_h = ((curr_addr>>8) & 0x1F);
 		start_addr_l = (curr_addr & 0xFF);
@@ -3442,10 +3637,10 @@ int is_i2c_read_otp_gc02m1(struct i2c_client *client, char *buf, u16 start_addr,
 	int ret = 0;
 	int index;
 
-	for(index = 0; index < size; index++) {
+	for (index = 0; index < size; index++) {
 		is_sensor_addr8_write8(client, GC02M1_OTP_PAGE_ADDR, GC02M1_OTP_PAGE);
 		is_sensor_addr8_write8(client, GC02M1_OTP_ACCESS_ADDR, curr_addr);
-		is_sensor_addr8_write8(client, GC02M1_OTP_MODE_ADDR, 0x34); // Read Pulse
+		is_sensor_addr8_write8(client, GC02M1_OTP_MODE_ADDR, 0x34); /* Read Pulse */
 		
 		ret = is_sensor_addr8_read8(client, GC02M1_OTP_READ_ADDR, &buf[index]);
 		if (unlikely(ret)) {
@@ -3521,12 +3716,9 @@ exit:
 }
 #endif //SENSOR_OTP_GC02M1
 
-int is_sec_readcal_otprom(struct device *dev, int position)
+int is_sec_select_otprom(struct device *dev, int position,int sensor_id)
 {
-	int ret = 0;
-	struct is_core *core = (struct is_core *)dev_get_drvdata(is_dev);
-	struct is_vender_specific *specific = core->vender.private_data;
-	u32 sensor_id = specific->sensor_id[position];
+	int ret = -1;
 	switch (sensor_id) {
 #if defined(SENSOR_OTP_5E9)
 		case SENSOR_NAME_S5K5E9:
@@ -3548,9 +3740,60 @@ int is_sec_readcal_otprom(struct device *dev, int position)
 			ret = is_sec_readcal_otprom_gc02m1(dev, position);
 			break;
 #endif
+#if defined(SENSOR_OTP_4HA)
+		case SENSOR_NAME_S5K4HA:
+			ret = is_sec_readcal_otprom_4ha(dev, position);
+			break;
+#endif
 		default:
 			err("%s OTP not supported for sensor_id=%d at position=%d", sensor_id, position);
 	}
+	return ret;
+}
+
+int is_sec_readcal_otprom(struct device *dev, int position)
+{
+	int ret = 0;
+	struct is_core *core = (struct is_core *)dev_get_drvdata(is_dev);
+	struct is_vender_specific *specific = core->vender.private_data;
+	u32 sensor_id = specific->sensor_id[position];
+#ifdef USE_DUALIZED_OTPROM_SENSOR
+	int dualized_sensor_id = specific->dualized_sensor_id[position];
+	struct i2c_client* reuse_rom_client = specific->rom_client[position];
+	const struct is_vender_rom_addr* reuse_rom_cal_map_addr = specific->rom_cal_map_addr[position];
+#endif
+
+	ret = is_sec_select_otprom(dev, position, sensor_id);
+
+#ifdef USE_DUALIZED_OTPROM_SENSOR
+	if (ret != 0 && dualized_sensor_id > 0) {
+		warn("%s OTP calread failed for first sensor", __func__);
+		/* power off previous sensor rom */
+		is_sec_rom_power_off(core, position);
+
+		/* change to dualized sensor */
+		specific->sensor_id[position] = dualized_sensor_id;
+		specific->rom_client[position] = specific->dualized_rom_client[position];
+		specific->rom_cal_map_addr[position] = specific->dualized_rom_cal_map_addr[position];
+		/* power on current sensor rom */
+		is_sec_rom_power_on(core, position); 
+
+		ret = is_sec_select_otprom(dev, position, dualized_sensor_id);
+
+		if (ret == 0) {
+			info("%s Using dualized sensor", __func__);
+		} else {
+			err("%s OTP calread fails for both dualized sensors", __func__);
+			is_sec_rom_power_off(core, position);
+
+			/* change specific information to first sensor */
+			specific->sensor_id[position] = sensor_id;
+			specific->rom_client[position] = reuse_rom_client;
+			specific->rom_cal_map_addr[position] = reuse_rom_cal_map_addr;
+			is_sec_rom_power_on(core, position);
+		}
+	}
+#endif
 
 	return ret;
 }
@@ -3613,13 +3856,6 @@ int is_sec_fw_find_rear(struct is_core *core, int position)
 		snprintf(finfo->load_setfile_name, sizeof(IS_IMX576_SETF), "%s", IS_IMX576_SETF);
 	}
 
-/*
-	// This is for module dualization
-	if (is_sec_fw_module_compare(finfo->header_ver, FW_2P6_Q)) {
-		snprintf(finfo->load_setfile_name, sizeof(IS_2P6_SETF), "%s", IS_2P6_SETF);
-		sensor_id = SENSOR_NAME_S5K2P6;
-	}
-*/
 	info("Camera[%d]%s: sensor id [%d]. load setfile [%s]\n",
 			position, __func__, sensor_id, finfo->load_setfile_name);
 
@@ -3645,30 +3881,13 @@ int is_sec_fw_find_front(struct is_core *core, int position)
 		snprintf(finfo->load_setfile_name, sizeof(IS_3P8SP_SETF), "%s", IS_3P8SP_SETF);
 	} else if (sensor_id == SENSOR_NAME_SR846) {
 		snprintf(finfo->load_setfile_name, sizeof(IS_SR846_SETF), "%s", IS_SR846_SETF);
+	} else if (sensor_id == SENSOR_NAME_S5K4HA) {
+		snprintf(finfo->load_setfile_name, sizeof(IS_4HA_SETF), "%s", IS_4HA_SETF);
 	} else if (sensor_id == SENSOR_NAME_GC5035) {
 		snprintf(finfo->load_setfile_name, sizeof(IS_GC5035_SETF), "%s", IS_GC5035_SETF);
 	} else {
 		snprintf(finfo->load_setfile_name, sizeof(IS_2X5_SETF), "%s", IS_2X5_SETF);
 	}
-
-/*
-	// This for the module dualization
-	if (is_sec_fw_module_compare(finfo->header_ver, FW_3P8SP_P)) {
-		snprintf(finfo->load_setfile_name, sizeof(IS_3P8SP_SETF), "%s", IS_3P8SP_SETF);
-		sensor_id = SENSOR_NAME_S5K3P8SP;
-	}
-	
-	if (is_sec_fw_module_compare(finfo->header_ver, FW_SR846)) {
-		snprintf(finfo->load_setfile_name, sizeof(IS_SR846_SETF), "%s", IS_SR846_SETF);
-		sensor_id = SENSOR_NAME_SR846;
-		specific->sensor_id[position] = sensor_id;
-		//For Bringup Remove after OTP CalChanges for SR846
-		//specific->skip_cal_loading = true;
-	}
-*/
-
-	info("Camera[%d]%s: sensor id [%d]. header_ver [%s]\n",
-			position, __func__, sensor_id, finfo->header_ver);
 
 	info("Camera[%d]%s: sensor id [%d]. load setfile [%s]\n",
 			position, __func__, sensor_id, finfo->load_setfile_name);
@@ -3724,7 +3943,7 @@ int is_sec_run_fw_sel(struct device *dev, int position)
 
 	if ((default_finfo->is_caldata_read == false || force_caldata_dump)
 #ifndef USES_STANDARD_CAL_RELOAD
-	&& sec2lsi_reload
+			&& sec2lsi_reload
 #endif
 	) {
 		ret = is_sec_run_fw_sel_from_rom(dev, SENSOR_POSITION_REAR, true);
@@ -3736,13 +3955,13 @@ int is_sec_run_fw_sel(struct device *dev, int position)
 
 	if (specific->rom_data[position].is_rom_read == false || force_caldata_dump) {
 #ifdef USES_STANDARD_CAL_RELOAD
-		if(sec2lsi_reload){
-			if(position == 0){
+		if (sec2lsi_reload) {
+			if (position == 0) {
 				for (i = SENSOR_POSITION_REAR; i < SENSOR_POSITION_MAX; i++) {
 					if (specific->rom_data[i].rom_valid == true || specific->rom_share[i].check_rom_share == true) {
-						ret = is_sec_run_fw_sel_from_rom(dev, i,false);
+						ret = is_sec_run_fw_sel_from_rom(dev, i, false);
 						sec2lsi_conversion_done[i] = false;
-						info("sec2lsi reload for rom %d",i);
+						info("sec2lsi reload for rom %d", i);
 						if (ret) {
 							err("is_sec_run_fw_sel for [%d] is fail(%d)", i, ret);
 							goto p_err;
@@ -3751,20 +3970,15 @@ int is_sec_run_fw_sel(struct device *dev, int position)
 				}
 			}
 		}
-		else{
+		else
+#endif
+		{
 			ret = is_sec_run_fw_sel_from_rom(dev, position, false);
 			if (ret < 0) {
 				err("failed to select firmware (%d)", ret);
 				goto p_err;
 			}
 		}
-#else
-		ret = is_sec_run_fw_sel_from_rom(dev, position, false);
-		if (ret < 0) {
-			err("failed to select firmware (%d)", ret);
-			goto p_err;
-		}
-#endif
 	}
 
 	memset(allstat_buf, 0x0, sizeof(allstat_buf));
@@ -3967,6 +4181,8 @@ int is_sec_run_fw_sel_from_rom(struct device *dev, int id, bool headerOnly)
 	int rom_type = ROM_TYPE_NONE;
 	bool rom_valid = false;
 	bool is_running_camera = false;
+	char *buf = NULL;
+	char *buf_rom_data = NULL;
 	struct is_core *core = (struct is_core *)dev_get_drvdata(is_dev);
 	struct is_vender_specific *specific = core->vender.private_data;
 	struct is_rom_info *finfo = NULL;
@@ -4003,11 +4219,11 @@ int is_sec_run_fw_sel_from_rom(struct device *dev, int id, bool headerOnly)
 			if (rom_type == ROM_TYPE_EEPROM) {
 				info("Camera: Read Cal data from EEPROM[%d]\n", id);
 
-				if(headerOnly) {
+				if (headerOnly) {
 					info("Camera: Only Read Header[%d]\n", id);
 					is_sec_read_eeprom_header(dev, id);
 				} else {
-					if(!is_sec_readcal_eeprom(dev, id)) {
+					if (!is_sec_readcal_eeprom(dev, id)) {
 						finfo->is_caldata_read = true;
 						specific->rom_data[id].is_rom_read = true;
 					}
@@ -4015,9 +4231,18 @@ int is_sec_run_fw_sel_from_rom(struct device *dev, int id, bool headerOnly)
 			} else if (rom_type == ROM_TYPE_OTPROM) {
 				info("Camera: Read Cal data from OTPROM[%d]\n", id);
 
-				if(!is_sec_readcal_otprom(dev, id)) {
+				if (!is_sec_readcal_otprom(dev, id)) {
 					finfo->is_caldata_read = true;
 					specific->rom_data[id].is_rom_read = true;
+				}
+			}
+
+			/* Store original rom data before conversion for intrinsic cal */
+			if (crc32_check_list[id][CRC32_CHECK] == true ) {
+				is_sec_get_cal_buf(id, &buf);
+				is_sec_get_cal_buf_rom_data(id, &buf_rom_data);
+				if (buf != NULL && buf_rom_data != NULL) {
+					memcpy(buf_rom_data, buf, is_sec_get_max_cal_size(core, id));
 				}
 			}
 		}

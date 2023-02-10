@@ -4,6 +4,7 @@
 
 ccflags-$(CONFIG_TZDEV) += -I$(srctree)/drivers/misc/tzdev/include
 ccflags-y += -I$(srctree)/security/samsung/five
+MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
 
 obj-$(CONFIG_ICD) += icd_driver.o
 
@@ -23,14 +24,14 @@ else
 ccflags-$(CONFIG_ICD_USE_TZDEV) += -I$(srctree)/drivers/misc/tzdev
 endif
 
-ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6768"))
-	icd_driver-y += kinibi_atf_oemflag.o
+ifeq ($(MTK_PLATFORM), mt6768)
+  icd_driver-$(CONFIG_ICD_USE_TRUSTONIC) += kinibi_atf_oemflag.o
 else
-	icd_driver-$(CONFIG_ICD_USE_TRUSTONIC) += kinibi_oemflag.o
+  icd_driver-$(CONFIG_ICD_USE_TRUSTONIC) += kinibi_oemflag.o
 endif
 
 ccflags-y += -Wformat
 
-ifneq ($(CONFIG_KUNIT), y)
-	EXTRA_CFLAGS += -D__visible_for_testing=static
+ifneq ($(CONFIG_SEC_KUNIT), y)
+  EXTRA_CFLAGS += -D__visible_for_testing=static
 endif

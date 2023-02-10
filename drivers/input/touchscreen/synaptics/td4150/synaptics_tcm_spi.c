@@ -59,6 +59,104 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 	struct device_node *np = dev->of_node;
 	const char *name;
 	u32 px_zone[3] = { 0 };
+	int lcd_id1_gpio = 0, lcd_id2_gpio = 0, lcd_id3_gpio = 0, dt_lcdtype;
+	int fw_name_cnt;
+	int lcdtype_cnt;
+	int fw_sel_idx = 0;
+	int lcdtype = 0;
+
+#if defined(CONFIG_EXYNOS_DPU30)
+	int connected;
+
+	connected = get_lcd_info("connected");
+	if (connected < 0) {
+		input_err(true, dev, "%s: Failed to get lcd info\n", __func__);
+		return -EINVAL;
+	}
+
+	if (!connected) {
+		input_err(true, dev, "%s: lcd is disconnected\n", __func__);
+		return -ENODEV;
+	}
+
+	input_info(true, dev, "%s: lcd is connected\n", __func__);
+
+	lcdtype = get_lcd_info("id");
+	if (lcdtype < 0) {
+		input_err(true, dev, "%s: Failed to get lcd info\n", __func__);
+		return -EINVAL;
+	}
+#endif
+
+	fw_name_cnt = of_property_count_strings(np, "synaptics,fw_name");
+
+	if (fw_name_cnt == 0) {
+		input_err(true, dev, "%s: no fw_name in DT\n", __func__);
+		return -EINVAL;
+
+	} else if (fw_name_cnt == 1) {
+		retval = of_property_read_u32(np, "synaptics,lcdtype", &dt_lcdtype);
+		if (retval < 0) {
+			input_err(true, dev, "%s: failed to read synaptics,lcdtype\n", __func__);
+
+		} else {
+			input_info(true, dev, "%s: fw_name_cnt(1), ap lcdtype=0x%06X & dt lcdtype=0x%06X\n",
+								__func__, lcdtype, dt_lcdtype);
+			if (lcdtype != dt_lcdtype) {
+				input_err(true, dev, "%s: panel mismatched, unload driver\n", __func__);
+				return -EINVAL;
+			}
+		}
+	} else {
+
+		lcd_id1_gpio = of_get_named_gpio(np, "synaptics,lcdid1-gpio", 0);
+		if (gpio_is_valid(lcd_id1_gpio))
+			input_info(true, dev, "%s: lcd id1_gpio %d(%d)\n", __func__, lcd_id1_gpio, gpio_get_value(lcd_id1_gpio));
+		else {
+			input_err(true, dev, "%s: Failed to get synaptics,lcdid1-gpio\n", __func__);
+			return -EINVAL;
+		}
+
+		lcd_id2_gpio = of_get_named_gpio(np, "synaptics,lcdid2-gpio", 0);
+		if (gpio_is_valid(lcd_id2_gpio))
+			input_info(true, dev, "%s: lcd id2_gpio %d(%d)\n", __func__, lcd_id2_gpio, gpio_get_value(lcd_id2_gpio));
+		else {
+			input_err(true, dev, "%s: Failed to get synaptics,lcdid2-gpio\n", __func__);
+			return -EINVAL;
+		}
+
+		/* support lcd id3 */
+		lcd_id3_gpio = of_get_named_gpio(np, "synaptics,lcdid3-gpio", 0);
+		if (gpio_is_valid(lcd_id3_gpio)) {
+			input_info(true, dev, "%s: lcd id3_gpio %d(%d)\n", __func__, lcd_id3_gpio, gpio_get_value(lcd_id3_gpio));
+			fw_sel_idx = (gpio_get_value(lcd_id3_gpio) << 2) | (gpio_get_value(lcd_id2_gpio) << 1) | gpio_get_value(lcd_id1_gpio);
+
+		} else {
+			input_err(true, dev, "%s: Failed to get synaptics,lcdid3-gpio and use #1 &#2 id\n", __func__);
+			fw_sel_idx = (gpio_get_value(lcd_id2_gpio) << 1) | gpio_get_value(lcd_id1_gpio);
+		}
+
+		lcdtype_cnt = of_property_count_u32_elems(np, "synaptics,lcdtype");
+		input_info(true, dev, "%s: fw_name_cnt(%d) & lcdtype_cnt(%d) & fw_sel_idx(%d)\n",
+					__func__, fw_name_cnt, lcdtype_cnt, fw_sel_idx);
+
+		if (lcdtype_cnt <= 0 || fw_name_cnt <= 0 || lcdtype_cnt <= fw_sel_idx || fw_name_cnt <= fw_sel_idx) {
+			input_err(true, dev, "%s: abnormal lcdtype & fw name count, fw_sel_idx(%d)\n", __func__, fw_sel_idx);
+			return -EINVAL;
+		}
+		of_property_read_u32_index(np, "synaptics,lcdtype", fw_sel_idx, &dt_lcdtype);
+		input_info(true, dev, "%s: lcd id(%d), ap lcdtype=0x%06X & dt lcdtype=0x%06X\n",
+						__func__, fw_sel_idx, lcdtype, dt_lcdtype);
+
+	}
+
+	of_property_read_string_index(np, "synaptics,fw_name", fw_sel_idx, &bdata->fw_name);
+	if (bdata->fw_name == NULL || strlen(bdata->fw_name) == 0) {
+		input_err(true, dev, "%s: Failed to get fw name\n", __func__);
+		return -EINVAL;
+	} else {
+		input_info(true, dev, "%s: fw name(%s)\n", __func__, bdata->fw_name);
+	}
 
 	prop = of_find_property(np, "synaptics,irq-gpio", NULL);
 	if (prop && prop->length) {
@@ -273,30 +371,43 @@ static int parse_dt(struct device *dev, struct syna_tcm_board_data *bdata)
 		bdata->ubl_byte_delay_us = 0;
 	}
 
-	retval = of_property_read_string(np, "synaptics,fw_name", &bdata->fw_name);
-	if (retval < 0) {
-		input_err(true, dev,
-				"Unable to read synaptics,ubl-byte-delay-us property\n");
-		return retval;
+	if (of_property_read_string(np, "synaptics,regulator_lcd_vdd", &bdata->regulator_lcd_vdd)) {
+		input_err(true, dev, "%s: Failed to get regulator_dvdd name property\n", __func__);
+		return -EINVAL;
 	}
-	input_info(true, dev, "fw path %s\n", bdata->fw_name);
+
+	if (of_property_read_string(np, "synaptics,regulator_lcd_reset", &bdata->regulator_lcd_reset)) {
+		input_err(true, dev, "%s: Failed to get regulator_dvdd name property\n", __func__);
+		return -EINVAL;
+	}
+
+	if (of_property_read_string(np, "synaptics,regulator_lcd_bl", &bdata->regulator_lcd_bl)) {
+		input_err(true, dev, "%s: Failed to get regulator_dvdd name property\n", __func__);
+		return -EINVAL;
+	}
+
+	bdata->enable_settings_aot = of_property_read_bool(np, "synaptics,enable_settings_aot");
 
 	bdata->pinctrl = devm_pinctrl_get(dev);
 	if (IS_ERR(bdata->pinctrl))
 		input_err(true, dev, "%s: could not get pinctrl\n", __func__);
 
 	if (of_property_read_u32_array(np, "synaptics,area-size", px_zone, 3)) {
-			input_info(true, dev, "Failed to get zone's size\n");
-			bdata->area_indicator = 48;
-			bdata->area_navigation = 96;
-			bdata->area_edge = 60;
-		} else {
-			bdata->area_indicator = px_zone[0];
-			bdata->area_navigation = px_zone[1];
-			bdata->area_edge = px_zone[2];
-		}
-		input_info(true, dev, "%s : zone's size - indicator:%d, navigation:%d, edge:%d\n",
-			__func__, bdata->area_indicator, bdata->area_navigation ,bdata->area_edge);
+		input_info(true, dev, "Failed to get zone's size\n");
+		bdata->area_indicator = 48;
+		bdata->area_navigation = 96;
+		bdata->area_edge = 60;
+	} else {
+		bdata->area_indicator = px_zone[0];
+		bdata->area_navigation = px_zone[1];
+		bdata->area_edge = px_zone[2];
+	}
+	input_info(true, dev, "%s : zone's size - indicator:%d, navigation:%d, edge:%d\n",
+		__func__, bdata->area_indicator, bdata->area_navigation ,bdata->area_edge);
+
+	bdata->support_ear_detect = of_property_read_bool(np, "synaptics,support_ear_detect_mode");
+	bdata->prox_lp_scan_enabled = of_property_read_bool(np, "synaptics,prox_lp_scan_enabled");
+	input_info(true, dev, "%s: ED:%d, lp scan:%d\n", __func__, bdata->support_ear_detect, bdata->prox_lp_scan_enabled);
 
 	return 0;
 }
@@ -347,7 +458,7 @@ static int syna_tcm_spi_rmi_read(struct syna_tcm_hcd *tcm_hcd,
 	struct spi_device *spi = to_spi_device(tcm_hcd->pdev->dev.parent);
 	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
-	if (tcm_hcd->in_suspend) {
+	if (tcm_hcd->lp_state == PWR_OFF) {
 		input_err(true, tcm_hcd->pdev->dev.parent, "power off in suspend\n");
 		return -EIO;
 	}
@@ -436,7 +547,7 @@ static int syna_tcm_spi_rmi_write(struct syna_tcm_hcd *tcm_hcd,
 	struct spi_device *spi = to_spi_device(tcm_hcd->pdev->dev.parent);
 	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
-	if (tcm_hcd->in_suspend) {
+	if (tcm_hcd->lp_state == PWR_OFF) {
 		input_err(true, tcm_hcd->pdev->dev.parent, "power off in suspend\n");
 		return -EIO;
 	}
@@ -500,7 +611,7 @@ static int syna_tcm_spi_read(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
 	struct spi_device *spi = to_spi_device(tcm_hcd->pdev->dev.parent);
 	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
-	if (tcm_hcd->in_suspend) {
+	if (tcm_hcd->lp_state == PWR_OFF) {
 		input_err(true, tcm_hcd->pdev->dev.parent, "power off in suspend\n");
 		return -EIO;
 	}
@@ -567,7 +678,7 @@ static int syna_tcm_spi_write(struct syna_tcm_hcd *tcm_hcd, unsigned char *data,
 	struct spi_device *spi = to_spi_device(tcm_hcd->pdev->dev.parent);
 	const struct syna_tcm_board_data *bdata = tcm_hcd->hw_if->bdata;
 
-	if (tcm_hcd->in_suspend) {
+	if (tcm_hcd->lp_state == PWR_OFF) {
 		input_err(true, tcm_hcd->pdev->dev.parent, "power off in suspend\n");
 		return -EIO;
 	}
@@ -625,36 +736,20 @@ exit:
 static int syna_tcm_spi_probe(struct spi_device *spi)
 {
 	int retval;
-#if defined(CONFIG_EXYNOS_DPU30)
-	int connected;
-	int lcdtype = 0;
 
-	connected = get_lcd_info("connected");
-	if (connected < 0) {
-		input_err(true, &spi->dev, "%s: Failed to get lcd info\n", __func__);
+#ifdef CONFIG_OF
+	hw_if.bdata = devm_kzalloc(&spi->dev, sizeof(*hw_if.bdata), GFP_KERNEL);
+	if (!hw_if.bdata) {
+		input_err(true, &spi->dev, "Failed to allocate memory for board data\n");
+		return -ENOMEM;
+	}
+	retval = parse_dt(&spi->dev, hw_if.bdata);
+	if (retval < 0) {
+		input_err(true, &spi->dev, "%s : parse_dt failed\n", __func__);
 		return -EINVAL;
 	}
-
-	if (!connected) {
-		input_err(true, &spi->dev, "%s: lcd is disconnected\n", __func__);
-		return -ENODEV;
-	}
-
-	input_info(true, &spi->dev, "%s: lcd is connected\n", __func__);
-
-	lcdtype = get_lcd_info("id");
-	if (lcdtype < 0) {
-		input_err(true, &spi->dev, "%s: Failed to get lcd info\n", __func__);
-		return -EINVAL;
-	}
-
-	input_err(true, &spi->dev, "%s: lcdtype 0x%06X\n", __func__, lcdtype);
-
-	/* only for a21s */
-	if ((lcdtype & 0x00FF00) != 0x006200) { 
-		input_err(true, &spi->dev, "%s: not support panel\n", __func__);
-		return -EINVAL;
-	}	
+#else
+	hw_if.bdata = spi->dev.platform_data;
 #endif
 
 	if (spi->master->flags & SPI_MASTER_HALF_DUPLEX) {
@@ -667,17 +762,6 @@ static int syna_tcm_spi_probe(struct spi_device *spi)
 		input_err(true, &spi->dev, "Failed to allocate platform device\n");
 		return -ENOMEM;
 	}
-
-#ifdef CONFIG_OF
-	hw_if.bdata = devm_kzalloc(&spi->dev, sizeof(*hw_if.bdata), GFP_KERNEL);
-	if (!hw_if.bdata) {
-		input_err(true, &spi->dev, "Failed to allocate memory for board data\n");
-		return -ENOMEM;
-	}
-	parse_dt(&spi->dev, hw_if.bdata);
-#else
-	hw_if.bdata = spi->dev.platform_data;
-#endif
 
 	switch (hw_if.bdata->spi_mode) {
 	case 0:

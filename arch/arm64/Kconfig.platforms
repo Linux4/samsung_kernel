@@ -387,6 +387,16 @@ config ARCH_EXYNOS9
 	help
 	  Samsung EXYNOS9 (Meercat/Ananke) SoC based systems
 
+config SOC_EXYNOS3830_ANDROID_VERSION_R
+        bool "Samsung EXYNOS3830 Android version R"
+        help
+          This enables support for Android version R of EXYNOS3830
+
+config SOC_EXYNOS3830_ANDROID_VERSION_S
+        bool "Samsung EXYNOS3830 Android version S"
+        help
+          This enables support for Android version S of EXYNOS3830
+
 endmenu
 
 endmenu

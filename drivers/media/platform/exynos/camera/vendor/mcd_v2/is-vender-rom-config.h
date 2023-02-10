@@ -19,6 +19,8 @@
 #include "is-vender-rom-config_mmt_v12.h"
 #elif defined(CONFIG_CAMERA_XXT_V5)
 #include "is-vender-rom-config_xxt_v5.h"
+#elif defined(CONFIG_CAMERA_AAU_V12S)
+#include "is-vender-rom-config_aau_v12s.h"
 #else
 
 const struct is_vender_rom_addr *vender_rom_addr[SENSOR_POSITION_MAX] = {

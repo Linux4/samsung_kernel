@@ -334,6 +334,10 @@ static void dpu_bts_sum_all_decon_bw(struct decon_device *decon, u32 ch_bw[])
 	}
 }
 
+static unsigned int dpu_bts_get_op_fps(struct decon_device *decon) {
+	return (decon->lcd_info->fps < decon->lcd_info->active_fps) ? decon->lcd_info->active_fps : decon->lcd_info->fps;
+}
+
 static void dpu_bts_find_max_disp_freq(struct decon_device *decon,
 		struct decon_reg_data *regs)
 {
@@ -342,8 +346,14 @@ static void dpu_bts_find_max_disp_freq(struct decon_device *decon,
 	u32 max_disp_ch_bw;
 	u32 disp_op_freq = 0, freq = 0;
 	u64 resol_clock;
-	u64 op_fps = LCD_REFRESH_RATE;
+	u64 op_fps;
 	struct decon_win_config *config = regs->dpp_config;
+
+	op_fps = (u64)dpu_bts_get_op_fps(decon);
+	if (regs->fps != 0) {
+		/* if fps change, prev buffer info. will be reused. */
+		config = decon->last_regs.dpp_config;
+	}
 
 	memset(disp_ch_bw, 0, sizeof(disp_ch_bw));
 
@@ -449,6 +459,10 @@ void dpu_bts_calc_bw(struct decon_device *decon, struct decon_reg_data *regs)
 
 	DPU_DEBUG_BTS("\n");
 	DPU_DEBUG_BTS("%s + : DECON%d\n", __func__, decon->id);
+
+	/* if fps change, prev buffer info. will be reused. */
+	if (regs->fps != 0)
+		config = decon->last_regs.dpp_config;
 
 	memset(&bts_info, 0, sizeof(struct bts_decon_info));
 
@@ -629,7 +643,7 @@ void dpu_bts_acquire_bw(struct decon_device *decon)
 		config.src.w = config.dst.w = decon->lcd_info->xres;
 		config.src.h = config.dst.h = decon->lcd_info->yres;
 		resol_clock = decon->lcd_info->xres * decon->lcd_info->yres *
-			LCD_REFRESH_RATE * 11 / 10 / 1000 + 1;
+			dpu_bts_get_op_fps(decon) * 11 / 10 / 1000 + 1;
 		aclk_freq = dpu_bts_calc_aclk_disp(decon, &config, resol_clock);
 		DPU_DEBUG_BTS("Initial calculated disp freq(%lu)\n", aclk_freq);
 		/*
@@ -793,7 +807,7 @@ void dpu_bts_init(struct decon_device *decon)
 		 */
 		decon->bts.resol_clk = (u32)((u64)decon->lcd_info->xres *
 				(u64)decon->lcd_info->yres *
-				LCD_REFRESH_RATE * 11 / 10 / 1000 + 1);
+				(u64)dpu_bts_get_op_fps(decon) * 11 / 10 / 1000 + 1);
 	}
 	DPU_DEBUG_BTS("[Init: D%d] resol clock = %d Khz\n",
 		decon->id, decon->bts.resol_clk);

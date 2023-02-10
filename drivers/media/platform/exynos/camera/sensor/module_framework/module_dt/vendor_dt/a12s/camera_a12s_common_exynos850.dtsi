@@ -1,0 +1,860 @@
+/*
+ * Samsung Exynos SoC series Pablo driver
+ *
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/camera/exynos_is_dt.h>
+#include "../../module_gm2.dtsi"
+#include "../../module_sr846d.dtsi"
+#include "../../module_gc02m1.dtsi"
+#include "../../module_gc5035.dtsi"
+#include "../../module_4ha.dtsi"
+
+/ {
+	fragment@camera {
+		target-path = "/";
+		__overlay__ {
+			/* REAR CAMERA */
+			is_sensor_gm2: is_sensor_gm2@3D {
+				pinctrl-names = "pin0", "pin1", "pin2", "release";
+				pinctrl-0 = <>;
+				pinctrl-1 = <&sensor_mclk0_out>;
+				pinctrl-2 = <&sensor_mclk0_fn>;
+				pinctrl-3 = <>;
+
+				position = <0>; /* Rear:0. Front:1 */
+				id = <0>; /* sensor node id */
+				mclk_ch = <0>;
+				sensor_i2c_ch = <0>; /* I2C 0 */
+
+				status = "okay";
+
+				af {
+					product_name = <27>; /* ACTUATOR_NAME_FP5529 */
+					i2c_ch = <0>; /* SENSOR_CONTROL_I2C0 */
+				};
+
+				flash {
+					product_name = <18>;		/* FLADRV_NAME_SM5714 */
+				};
+
+				power_seq {
+					gpio_mclk = <&gpc0 0 0x1>;
+
+					scenario_normal_on {
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name";		pin = <act value dealy voltage>;	gpio = <gpx# # 0x1>;	*/
+						10 { pname = SEN_RST_LOW;	pin = <PIN_OUTPUT 0 500>;		gpio = GM2_RST;		};
+						20 { pname = "rcam_af_vdd";	pin = <PIN_REGULATOR 1 0>;							}; /* RCAM1_AFVDD_2P8 */
+						30 { pname = "gm2_avdd";	pin = <PIN_OUTPUT 1 0>;			gpio = GM2_AVDD;	}; /* RCAM1_AVDD_2P8 */
+						40 { pname = "gm2_iovdd";	pin = <PIN_OUTPUT 1 0>;			gpio = GM2_IOVDD;	share = <SRT_ACQUIRE SHARED_PIN1 1>;}; /* CAM_VDDIO_1P8 */
+						50 { pname = "gm2_dvdd";	pin = <PIN_REGULATOR 1 2000>;						}; /* RCAM1_DVDD_1P05 */
+						60 { pname = SEN_RST_HIGH;	pin = <PIN_OUTPUT 1 1000>;		gpio = GM2_RST;		};
+						70 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 2 500>;							};
+						80 { pname = MCLK_GPIO;		pin = <PIN_MCLK 1 500>;								};
+						90 { pname = I2C_ON;		pin = <PIN_I2C 1 0>;								};
+						100 { pname = DELAY;		pin = <PIN_NONE 0 10000>;							};
+					};
+
+					scenario_normal_off {
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name";		pin = <act value dealy voltage>;	gpio = <gpx# # 0x1>;	*/
+						10 { pname = DELAY;			pin = <PIN_NONE 0 1000>;							};
+						20 { pname = "rcam_af_vdd";	pin = <PIN_REGULATOR 0 1000>;						}; /* RCAM1_AFVDD_2P8 */
+						30 { pname = I2C_OFF;		pin = <PIN_I2C 0 500>;								};
+						40 { pname = MCLK_GPIO;		pin = <PIN_MCLK 0 500>;								};
+						50 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 1 500>;							};
+						60 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 0 0>;							};
+						70 { pname = SEN_RST_LOW;	pin = <PIN_OUTPUT 0 1000>;		gpio = GM2_RST;		};
+						80 { pname = "gm2_avdd";	pin = <PIN_OUTPUT 0 0>;			gpio = GM2_AVDD;	}; /* RCAM1_AVDD_2P8 */
+						90 { pname = "gm2_dvdd";	pin = <PIN_REGULATOR 0 0>;							}; /* RCAM1_DVDD_1P05 */
+						100 { pname = "gm2_iovdd";	pin = <PIN_OUTPUT 0 0>;			gpio = GM2_IOVDD;	share = <SRT_RELEASE SHARED_PIN1 0>;}; /* CAM_VDDIO_1P8 */
+					};
+					scenario_read_rom_on {
+						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
+						gpio_scenario = <GPIO_SCENARIO_ON>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name";		pin = <act value delay voltage>;	gpio = <gpx# # 0x1>;	*/
+						10 { pname = "rcam_af_vdd";	pin = <PIN_REGULATOR 1 0>;							}; /* RCAM1_AFVDD_2P8 */
+						20 { pname = "gm2_iovdd";	pin = <PIN_OUTPUT 1 5000>;		gpio = GM2_IOVDD;	}; /* CAM_VDDIO_1P8 */
+						30 { pname = I2C_ON;		pin = <PIN_I2C 1 0>;								};
+						40 { pname = DELAY;			pin = <PIN_NONE 0 500>;								};
+					};
+
+					scenario_read_rom_off {
+						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
+						gpio_scenario = <GPIO_SCENARIO_OFF>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name";		pin = <act value delay voltage>;	gpio = <gpx# # 0x1>;	*/
+						10 { pname = I2C_OFF;		pin = <PIN_I2C 0 500>;								};
+						20 { pname = "gm2_iovdd";	pin = <PIN_OUTPUT 0 0>;			gpio = GM2_IOVDD;	}; /* CAM_VDDIO_1P8 */
+						30 { pname = "rcam_af_vdd";	pin = <PIN_REGULATOR 0 0>;							}; /* RCAM1_AFVDD_2P8 */
+						/* 40 ms low time for IO before EEPROM/OTPROM read */
+						40 { pname = DELAY;			pin = <PIN_NONE 0 40000>;							};
+					};
+				};
+			};
+
+			/* FRONT CAMERA */
+			is_sensor_sr846: is_sensor_sr846@42 {
+				pinctrl-names = "pin0", "pin1", "pin2", "release";
+				pinctrl-0 = <>;
+				pinctrl-1 = <&sensor_mclk1_out>;
+				pinctrl-2 = <&sensor_mclk1_fn>;
+				pinctrl-3 = <>;
+
+				position = <1>; /* Rear:0. Front:1 */
+				id = <1>; /* sensor node id */
+				mclk_ch = <1>;
+				sensor_i2c_ch = <1>;
+
+				status = "okay";
+
+				power_seq {
+					gpio_mclk = <&gpc0 1 0x1>;
+
+					scenario_normal_on {
+						sensor_scenario = <SENSOR_SCENARIO_NORMAL>;
+						gpio_scenario = <GPIO_SCENARIO_ON>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name"; pin = <act value dealy voltage>;			gpio = <gpx# # 0x1>;	*/
+						10 { pname = SEN_RST_LOW;	pin = <PIN_OUTPUT 0 500>;		gpio = SR846_RST;	};
+						20 { pname = "sr846_iovdd";	pin = <PIN_OUTPUT 1 500>;		gpio = SR846_IOVDD;	}; /* CAM_VDDIO_1P8 */
+						30 { pname = "sr846_ldo";	pin = <PIN_OUTPUT 1 0>;			gpio = SR846_LDO_EN;};
+						40 { pname = "mipi_sel1";	pin = <PIN_OUTPUT 1 1000>;		gpio = MIPI_SEL1;	}; /* MIPI Select 1 : RCAM3 & FRONT  */
+						50 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 1 500>;							};
+						60 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 2 500>;							};
+						70 { pname = MCLK_GPIO;		pin = <PIN_MCLK 1 0>;								};
+						80 { pname = SEN_RST_HIGH;	pin = <PIN_OUTPUT 1 2000>;		gpio = SR846_RST;	};
+						90 { pname = I2C_ON;		pin = <PIN_I2C 1 0>;								};
+					};
+
+					scenario_normal_off {
+						sensor_scenario = <SENSOR_SCENARIO_NORMAL>;
+						gpio_scenario = <GPIO_SCENARIO_OFF>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name";		pin = <act value dealy voltage>;	gpio = <gpx# # 0x1>;	*/
+						10 { pname = DELAY;			pin = <PIN_NONE 0 500>; };
+						20 { pname = I2C_OFF;		pin = <PIN_I2C 0 0>;								};
+						30 { pname = SEN_RST_LOW;	pin = <PIN_OUTPUT 0 1000>;		gpio = SR846_RST;	};
+						40 { pname = MCLK_GPIO;		pin = <PIN_MCLK 0 500>;								};
+						50 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 1 500>;							};
+						60 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 0 500>;							};
+						70 { pname = "sr846_ldo";	pin = <PIN_OUTPUT 0 0>;			gpio = SR846_LDO_EN;};
+						80 { pname = "sr846_iovdd";	pin = <PIN_OUTPUT 0 500>;		gpio = SR846_IOVDD;	}; /* CAM_VDDIO_1P8 */
+						90 { pname = "mipi_sel1";	pin = <PIN_OUTPUT 0 1000>;		gpio = MIPI_SEL1;	}; /* MIPI Select 1 : RCAM3 & FRONT  */
+						100 { pname = DELAY;			pin = <PIN_NONE 0 500>; };
+					};
+					scenario_read_rom_on {
+						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
+						gpio_scenario = <GPIO_SCENARIO_ON>;
+
+						10 { pname = SEN_RST_LOW;	pin = <PIN_OUTPUT 0 500>;		gpio = SR846_RST;	};
+						20 { pname = "sr846_iovdd";	pin = <PIN_OUTPUT 1 500>;		gpio = SR846_IOVDD;	}; /* CAM_VDDIO_1P8 */
+						30 { pname = "sr846_ldo";	pin = <PIN_OUTPUT 1 0>;			gpio = SR846_LDO_EN;};
+						40 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 1 500>;							};
+						50 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 2 500>;							};
+						60 { pname = MCLK_GPIO;		pin = <PIN_MCLK 1 0>;								};
+						70 { pname = SEN_RST_HIGH;	pin = <PIN_OUTPUT 1 2000>;		gpio = SR846_RST;	};
+						80 { pname = I2C_ON;		pin = <PIN_I2C 1 500>;								};
+					};
+
+					scenario_read_rom_off {
+						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
+						gpio_scenario = <GPIO_SCENARIO_OFF>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name";		pin = <act value delay voltage>;	gpio = <gpx# # 0x1>;	*/
+						10 { pname = DELAY;			pin = <PIN_NONE 0 500>; };
+						20 { pname = SEN_RST_LOW;	pin = <PIN_OUTPUT 0 1000>;		gpio = SR846_RST;	};
+						30 { pname = I2C_OFF;		pin = <PIN_I2C 0 0>;								};
+						40 { pname = MCLK_GPIO;		pin = <PIN_MCLK 0 500>;								};
+						50 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 1 500>;							};
+						60 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 0 500>;							};
+						70 { pname = "sr846_ldo";	pin = <PIN_OUTPUT 0 0>;			gpio = SR846_LDO_EN;};
+						80 { pname = "sr846_iovdd";	pin = <PIN_OUTPUT 0 500>;		gpio = SR846_IOVDD;	}; /* CAM_VDDIO_1P8 */
+						/* 40 ms low time for IO before EEPROM/OTPROM read */
+						90 { pname = DELAY;			pin = <PIN_NONE 0 40000>;							};
+
+					};
+				}; /* power_seq */
+			}; /* is_sensor_sr846 */
+
+			
+			/* FRONT CAMERA */
+			is_sensor_4ha: is_sensor_4ha@5A {
+				pinctrl-names = "pin0", "pin1", "pin2", "release";
+				pinctrl-0 = <>;
+				pinctrl-1 = <&sensor_mclk1_out>;
+				pinctrl-2 = <&sensor_mclk1_fn>;
+				pinctrl-3 = <>;
+
+				position = <1>; /* Rear:0. Front:1 Rear_sub(Rear2):2, Rear_UW(Rear3): 4, Rear4: 6*/
+				id = <1>; /* sensor node id */
+				mclk_ch = <1>;
+				sensor_i2c_ch = <1>;
+
+				status = "okay";
+
+				power_seq {
+					gpio_mclk = <&gpc0 1 0x1>;
+					scenario_normal_on {
+						sensor_scenario = <SENSOR_SCENARIO_NORMAL>;
+						gpio_scenario = <GPIO_SCENARIO_ON>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name"; pin = <act value dealy voltage>; 			gpio = <gpx# # 0x1>; 	*/
+						10 { pname = SEN_RST_LOW; 	pin = <PIN_OUTPUT 0 500>; 		gpio = S5K4HA_RST; 	};
+						20 { pname = "s5k4ha_avdd"; pin = <PIN_OUTPUT 1 0>; 		gpio = S5K4HA_AVDD;	};
+						30 { pname = "s5k4ha_dvdd"; 	pin = <PIN_OUTPUT 1 0>; 	gpio = S5K4HA_DVDD;	};
+						40 { pname = "s5k4ha_iovdd";	pin = <PIN_OUTPUT 1 1000>; 	gpio = S5K4HA_IOVDD;	};
+						50 { pname = "mipi_sel1"; 	pin = <PIN_OUTPUT 1 1000>; 		gpio = MIPI_SEL1; 	};
+						60 { pname = SEN_RST_HIGH; 	pin = <PIN_OUTPUT 1 1000>;		gpio = S5K4HA_RST; 	};
+						70 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 2 500>; 					};
+						80 { pname = MCLK_GPIO;		pin = <PIN_MCLK 1 0>; 						};
+						90 { pname = I2C_ON;		pin = <PIN_I2C 1 3000>; 					};
+					};
+
+					scenario_normal_off {
+						sensor_scenario = <SENSOR_SCENARIO_NORMAL>;
+						gpio_scenario = <GPIO_SCENARIO_OFF>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name"; 		pin = <act value dealy voltage>;	gpio = <gpx# # 0x1>; 	*/
+						10 { pname = DELAY; 		pin = <PIN_NONE 0 500>; 					};
+						20 { pname = I2C_OFF; 		pin = <PIN_I2C 0 0>; 						};
+						30 { pname = MCLK_GPIO; 	pin = <PIN_MCLK 0 500>; 					};
+						40 { pname = MCLK_FUNC; 	pin = <PIN_FUNCTION 1 500>; 					};
+						50 { pname = MCLK_FUNC; 	pin = <PIN_FUNCTION 0 0>; 					};
+						60 { pname = SEN_RST_LOW; 	pin = <PIN_OUTPUT 0 1000>; 			gpio = S5K4HA_RST; 	};
+						70 { pname = "s5k4ha_iovdd"; 	pin = <PIN_OUTPUT 0 0>; 		gpio = S5K4HA_IOVDD;	}; /* CAM_VDDIO_1P8 */
+						80 { pname = "mipi_sel1"; 	pin = <PIN_OUTPUT 0 1000>; 		gpio = MIPI_SEL1; 	};
+						90 { pname = "s5k4ha_dvdd"; 	pin = <PIN_OUTPUT 0 0>; 		gpio = S5K4HA_DVDD;	}; /* RCAM3_DVDD_1P2 */
+						100 { pname = "s5k4ha_avdd"; 	pin = <PIN_OUTPUT 0 1000>; 	gpio = S5K4HA_AVDD;	}; /* RCAM3_AVDD_2P8 */
+					};
+
+					scenario_read_rom_on {
+						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
+						gpio_scenario = <GPIO_SCENARIO_ON>;
+
+						10 { pname = SEN_RST_LOW; 	pin = <PIN_OUTPUT 0 500>; 		gpio = S5K4HA_RST; 	};
+						20 { pname = "s5k4ha_avdd"; pin = <PIN_OUTPUT 1 0>; 		gpio = S5K4HA_AVDD;	};
+						30 { pname = "s5k4ha_dvdd"; 	pin = <PIN_OUTPUT 1 0>; 	gpio = S5K4HA_DVDD;	};
+						40 { pname = "s5k4ha_iovdd";	pin = <PIN_OUTPUT 1 1000>; 	gpio = S5K4HA_IOVDD;	};
+						50 { pname = SEN_RST_HIGH; 	pin = <PIN_OUTPUT 1 1000>;		gpio = S5K4HA_RST; 	};
+						60 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 2 500>; 					};
+						70 { pname = MCLK_GPIO;		pin = <PIN_MCLK 1 0>; 						};
+						80 { pname = I2C_ON;		pin = <PIN_I2C 1 4000>; 					};
+					};
+
+					scenario_read_rom_off {
+						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
+						gpio_scenario = <GPIO_SCENARIO_OFF>;
+
+						10 { pname = DELAY; 		pin = <PIN_NONE 0 500>; 					};
+						20 { pname = I2C_OFF; 		pin = <PIN_I2C 0 1000>; 						};
+						30 { pname = MCLK_GPIO; 	pin = <PIN_MCLK 0 500>; 					};
+						40 { pname = MCLK_FUNC; 	pin = <PIN_FUNCTION 1 500>; 					};
+						50 { pname = MCLK_FUNC; 	pin = <PIN_FUNCTION 0 0>; 					};
+						60 { pname = SEN_RST_LOW; 	pin = <PIN_OUTPUT 0 1000>; 			gpio = S5K4HA_RST; 	};
+						70 { pname = "s5k4ha_iovdd"; 	pin = <PIN_OUTPUT 0 0>; 		gpio = S5K4HA_IOVDD;	}; /* CAM_VDDIO_1P8 */
+						80 { pname = "s5k4ha_dvdd"; 	pin = <PIN_OUTPUT 0 0>; 		gpio = S5K4HA_DVDD;	}; /* RCAM3_DVDD_1P2 */
+						90 { pname = "s5k4ha_avdd"; 	pin = <PIN_OUTPUT 0 1000>; 	gpio = S5K4HA_AVDD;	}; /* RCAM3_AVDD_2P8 */
+						/* 40 ms low time for IO before EEPROM/OTPROM read */
+						100 { pname = DELAY;			pin = <PIN_NONE 0 40000>;							};
+					};
+				}; /* power_seq */
+			}; /* is_sensor_4ha */
+
+			/* REAR SUB CAMERA */
+			is_sensor_gc02m1: is_sensor_gc02m1@6E {
+				pinctrl-names = "pin0", "pin1", "pin2", "release";
+				pinctrl-0 = <>;
+				pinctrl-1 = <&sensor_mclk2_out>;
+				pinctrl-2 = <&sensor_mclk2_fn>;
+				pinctrl-3 = <>;
+
+				position = <2>; /* Rear:0. Front:1 Rear_sub(Rear2):2, Rear_UW(Rear3): 4, Rear4: 6*/
+				id = <2>; /* sensor node id */
+				mclk_ch = <2>;
+				sensor_i2c_ch = <2>;
+
+				status = "okay";
+
+				power_seq {
+					gpio_mclk = <&gpc0 2 0x1>;
+					scenario_normal_on {
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name";		pin = <act value dealy voltage>;	gpio = <gpx# # 0x1>;	*/
+						10 { pname = SEN_RST_LOW;	pin = <PIN_OUTPUT 0 500>;		gpio = GC02M1_RST;	};
+						20 { pname = "gc02m1_ldo";	pin = <PIN_OUTPUT 1 0>;			gpio = GC02M1_LDO_EN;};
+						30 { pname = "gc02m1_iovdd";pin = <PIN_OUTPUT 1 1000>;		gpio = GC02M1_IOVDD;	share = <SRT_ACQUIRE SHARED_PIN1 1>;};
+						40 { pname = "mipi_sel2";	pin = <PIN_OUTPUT 1 1000>;		gpio = MIPI_SEL2;	}; /* MIPI Select 2  */
+						50 { pname = SEN_RST_HIGH;	pin = <PIN_OUTPUT 1 1000>;		gpio = GC02M1_RST;	};
+						60 { pname = I2C_ON;		pin = <PIN_I2C 1 0>;								};
+						70 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 2 500>;							};
+						80 { pname = MCLK_GPIO;		pin = <PIN_MCLK 1 0>;								};
+					};
+
+					scenario_normal_off {
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name";		pin = <act value dealy voltage>;	gpio = <gpx# # 0x1>;	*/
+						10 { pname = DELAY;			pin = <PIN_NONE 0 500>;								};
+						20 { pname = I2C_OFF;		pin = <PIN_I2C 0 0>;								};
+						30 { pname = MCLK_GPIO;		pin = <PIN_MCLK 0 500>;								};
+						40 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 1 500>;							};
+						50 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 0 0>;							};
+						60 { pname = SEN_RST_LOW;	pin = <PIN_OUTPUT 0 1000>;		gpio = GC02M1_RST;	};
+						70 { pname = "gc02m1_iovdd";pin = <PIN_OUTPUT 0 0>;			gpio = GC02M1_IOVDD;	share = <SRT_RELEASE SHARED_PIN1 0>;};
+						80 { pname = "gc02m1_ldo";	pin = <PIN_OUTPUT 0 0>;			gpio = GC02M1_LDO_EN;};
+						90 { pname = "mipi_sel2";	pin = <PIN_OUTPUT 0 1000>;		gpio = MIPI_SEL2;	}; /* MIPI Select 2  */
+						100 { pname = DELAY;			pin = <PIN_NONE 0 100>;								};
+					};
+					scenario_read_rom_on {
+						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
+						gpio_scenario = <GPIO_SCENARIO_ON>;
+
+						10 { pname = SEN_RST_LOW;	pin = <PIN_OUTPUT 0 500>;		gpio = GC02M1_RST;	};
+						20 { pname = "gc02m1_ldo";	pin = <PIN_OUTPUT 1 0>;			gpio = GC02M1_LDO_EN;};
+						30 { pname = "gc02m1_iovdd";pin = <PIN_OUTPUT 1 1000>;		gpio = GC02M1_IOVDD;};
+						40 { pname = SEN_RST_HIGH;	pin = <PIN_OUTPUT 1 1000>;		gpio = GC02M1_RST;	};
+						50 { pname = I2C_ON;		pin = <PIN_I2C 1 0>;								};
+						60 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 2 500>;							};
+						70 { pname = MCLK_GPIO;		pin = <PIN_MCLK 1 0>;								};
+					};
+
+					scenario_read_rom_off {
+						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
+						gpio_scenario = <GPIO_SCENARIO_OFF>;
+
+						10 { pname = DELAY;			pin = <PIN_NONE 0 500>;								};
+						20 { pname = I2C_OFF;		pin = <PIN_I2C 0 0>;								};
+						30 { pname = MCLK_GPIO;		pin = <PIN_MCLK 0 500>;								};
+						40 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 1 500>;							};
+						50 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 0 0>;							};
+						60 { pname = SEN_RST_LOW;	pin = <PIN_OUTPUT 0 1000>;		gpio = GC02M1_RST;	};
+						70 { pname = "gc02m1_iovdd";pin = <PIN_OUTPUT 0 0>;			gpio = GC02M1_IOVDD;};
+						80 { pname = "gc02m1_ldo";	pin = <PIN_OUTPUT 0 0>;			gpio = GC02M1_LDO_EN;};
+						/* 40 ms low time for IO before EEPROM/OTPROM read */
+						90 { pname = DELAY;			pin = <PIN_NONE 0 40000>;							};
+					};
+				}; /* power_seq */
+			}; /* is_sensor_gc02m1 */
+
+			/* REAR UW CAMERA */
+			is_sensor_gc5035: is_sensor_gc5035@7E {
+				pinctrl-names = "pin0", "pin1", "pin2", "release";
+				pinctrl-0 = <>;
+				pinctrl-1 = <&sensor_mclk2_out>;
+				pinctrl-2 = <&sensor_mclk2_fn>;
+				pinctrl-3 = <>;
+
+				position = <4>; /* Rear:0. Front:1 Rear_sub(Rear2):2, Rear_UW(Rear3): 4, Rear4: 6*/
+				id = <3>; /* sensor node id */
+				mclk_ch = <2>;
+				sensor_i2c_ch = <3>;
+
+				status = "okay";
+
+				power_seq {
+					use = <1>;
+					gpio_mclk = <&gpc0 2 0x1>;
+
+					scenario_normal_on {
+						sensor_scenario = <SENSOR_SCENARIO_NORMAL>;
+						gpio_scenario = <GPIO_SCENARIO_ON>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name";	pin = <act value dealy voltage>;		gpio = <gpx# # 0x1>;	*/
+						10 { pname = SEN_RST_LOW;	pin = <PIN_OUTPUT 0 500>;		gpio = GC5035_RST;	};
+						20 { pname = "gc5035_iovdd";pin = <PIN_OUTPUT 1 1000>;		gpio = GC5035_IOVDD;}; /* CAM_VDDIO_1P8 */
+						30 { pname = "gc5035_ldo";	pin = <PIN_OUTPUT 1 500>;		gpio = GC5035_LDO_EN;}; /* RCAM3_AVDD_2P8 */
+						40 { pname = "mipi_sel1";	pin = <PIN_OUTPUT 0 500>;		gpio = MIPI_SEL1;	}; /* MIPI Select 1 : RCAM3 & FRONT  */
+						50 { pname = SEN_RST_HIGH;	pin = <PIN_OUTPUT 1 1000>;		gpio = GC5035_RST;	};
+						60 { pname = I2C_ON;		pin = <PIN_I2C 1 0>;								};
+						70 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 2 1000>;						};
+						80 { pname = MCLK_GPIO;		pin = <PIN_MCLK 1 0>;								};
+					};
+
+					scenario_normal_off {
+						sensor_scenario = <SENSOR_SCENARIO_NORMAL>;
+						gpio_scenario = <GPIO_SCENARIO_OFF>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name";		pin = <act value dealy voltage>;	gpio = <gpx# # 0x1>;	*/
+						10 { pname = DELAY;			pin = <PIN_NONE 0 500>;								};
+						20 { pname = MCLK_GPIO;		pin = <PIN_MCLK 0 500>;								};
+						30 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 1 500>;							};
+						40 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 0 0>;							};
+						50 { pname = I2C_OFF;		pin = <PIN_I2C 0 0>;								};
+						60 { pname = SEN_RST_LOW;	pin = <PIN_OUTPUT 0 1000>;		gpio = GC5035_RST;	};
+						70 { pname = "gc5035_ldo";	pin = <PIN_OUTPUT 0 1000>;		gpio = GC5035_LDO_EN;}; /* RCAM3_DVDD_1P2 */
+						80 { pname = "gc5035_iovdd";pin = <PIN_OUTPUT 0 500>;		gpio = GC5035_IOVDD;}; /* CAM_VDDIO_1P8 */
+					};
+					scenario_read_rom_on {
+						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
+						gpio_scenario = <GPIO_SCENARIO_ON>;
+
+						10 { pname = SEN_RST_LOW;	pin = <PIN_OUTPUT 0 500>;		gpio = GC5035_RST;	};
+						20 { pname = "gc5035_iovdd";pin = <PIN_OUTPUT 1 500>;		gpio = GC5035_IOVDD;}; /* CAM_VDDIO_1P8 */
+						30 { pname = "gc5035_ldo";	pin = <PIN_OUTPUT 1 500>;		gpio = GC5035_LDO_EN;}; /* RCAM3_AVDD_2P8 */
+						40 { pname = SEN_RST_HIGH;	pin = <PIN_OUTPUT 1 1000>;		gpio = GC5035_RST;	};
+						50 { pname = I2C_ON;		pin = <PIN_I2C 1 0>;								};
+						60 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 2 1000>;						};
+						70 { pname = MCLK_GPIO;		pin = <PIN_MCLK 1 0>;								};
+					};
+
+					scenario_read_rom_off {
+						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
+						gpio_scenario = <GPIO_SCENARIO_OFF>;
+
+						10 { pname = DELAY;			pin = <PIN_NONE 0 500>;								};
+						20 { pname = MCLK_GPIO;		pin = <PIN_MCLK 0 500>;								};
+						30 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 1 500>;							};
+						40 { pname = MCLK_FUNC;		pin = <PIN_FUNCTION 0 0>;							};
+						50 { pname = I2C_OFF;		pin = <PIN_I2C 0 0>;								};
+						60 { pname = SEN_RST_LOW;	pin = <PIN_OUTPUT 0 1000>;		gpio = GC5035_RST;	};
+						70 { pname = "gc5035_ldo";	pin = <PIN_OUTPUT 0 0>;			gpio = GC5035_LDO_EN;}; /* RCAM3_DVDD_1P2 */
+						80 { pname = "gc5035_iovdd";pin = <PIN_OUTPUT 0 500>;		gpio = GC5035_IOVDD;}; /* CAM_VDDIO_1P8 */
+						/* 40 ms low time for IO before EEPROM/OTPROM read */
+						90 { pname = DELAY;			pin = <PIN_NONE 0 40000>;							};
+
+					};
+				}; /* power_seq */
+			}; /* is_sensor_gc5035 */
+
+			/* MACRO CAMERA */
+			is_sensor_gc02m1_macro: is_sensor_gc02m1_macro@A4 {
+				pinctrl-names = "pin0", "pin1", "pin2", "release";
+				pinctrl-0 = <>;
+				pinctrl-1 = <&sensor_mclk2_out>;
+				pinctrl-2 = <&sensor_mclk2_fn>;
+				pinctrl-3 = <>;
+
+				id = <4>;/* id of is_sensor*/
+				mclk_ch = <2>;
+				sensor_i2c_ch = <3>;/* SENSOR_CONTROL_I2C3 */
+				position = <6>; /* Rear:0. Front:1 Rear_sub(Rear2):2, Rear_UW(Rear3): 4, Rear4: 6*/
+
+				status = "okay";
+
+				flash {
+					product_name = <18>;		/* FLADRV_NAME_SM5714 */
+				};
+
+				power_seq {
+					use = <1>;
+					gpio_mclk = <&gpc0 2 0x1>;
+
+					scenario_normal_on {
+						sensor_scenario = <SENSOR_SCENARIO_NORMAL>;
+						gpio_scenario = <GPIO_SCENARIO_ON>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name";			pin = <act value dealy voltage>;	gpio = <gpx# # 0x1>;	*/
+						10 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 500>;		gpio = GC02M1_MACRO_RST;	};
+						20 { pname = "avdd_dvdd_ldo";	pin = <PIN_OUTPUT 1 0>;			gpio = GC02M1_MACRO_LDO_EN;	};
+						30 { pname = "iovdd_ldo";		pin = <PIN_OUTPUT 1 0>;			gpio = GC02M1_MACRO_IOVDD;	};
+						40 { pname = "mipi_sel2";		pin = <PIN_OUTPUT 0 1000>;		gpio = MIPI_SEL2;			};	/* MIPI Select 2  */
+						50 { pname = SEN_RST_HIGH;		pin = <PIN_OUTPUT 1 1000>;		gpio = GC02M1_MACRO_RST;	};
+						60 { pname = I2C_ON;			pin = <PIN_I2C 1 0>;										};
+						70 { pname = MCLK_FUNC;			pin = <PIN_FUNCTION 2 500>;									};
+						80 { pname = MCLK_GPIO;			pin = <PIN_MCLK 1 0>;										};
+						90 { pname = DELAY;				pin = <PIN_NONE 0 2000>;									};
+					};
+
+					scenario_normal_off {
+						sensor_scenario = <SENSOR_SCENARIO_NORMAL>;
+						gpio_scenario = <GPIO_SCENARIO_OFF>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name";			pin = <act value dealy voltage>;	gpio = <gpx# # 0x1>;	*/
+						10 { pname = DELAY;				pin = <PIN_NONE 0 500>;										};
+						20 { pname = I2C_OFF;			pin = <PIN_I2C 0 0>;										};
+						30 { pname = MCLK_GPIO;			pin = <PIN_MCLK 0 500>;										};
+						40 { pname = MCLK_FUNC;			pin = <PIN_FUNCTION 1 500>;									};
+						50 { pname = MCLK_FUNC;			pin = <PIN_FUNCTION 0 0>;									};
+						60 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 1000>;		gpio = GC02M1_MACRO_RST;	};
+						70 { pname = "iovdd_ldo";		pin = <PIN_OUTPUT 0 0>;			gpio = GC02M1_MACRO_IOVDD;	};
+						80 { pname = "avdd_dvdd_ldo";	pin = <PIN_OUTPUT 0 0>;			gpio = GC02M1_MACRO_LDO_EN;	};
+					};
+
+					scenario_read_rom_on {
+						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
+						gpio_scenario = <GPIO_SCENARIO_ON>;
+
+						10 { pname = "iovdd_ldo";		pin = <PIN_OUTPUT 1 0>;			gpio = GC02M1_MACRO_IOVDD;	};
+						20 { pname = I2C_ON;			pin = <PIN_I2C 1 500>;										};
+					};
+					scenario_read_rom_off {
+						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
+						gpio_scenario = <GPIO_SCENARIO_OFF>;
+
+						10 { pname = I2C_OFF;			pin = <PIN_I2C 0 500>;										};
+						20 { pname = "iovdd_ldo";		pin = <PIN_OUTPUT 0 0>;			gpio = GC02M1_MACRO_IOVDD;	};
+						/* 40 ms low time for IO before EEPROM/OTPROM read */
+						30 { pname = DELAY;			pin = <PIN_NONE 0 40000>;							};
+
+					};
+				}; /* power_seq */
+			}; /* is_sensor_gc02m1_macro */
+
+			fimc_is_flash_gpio: fimc-is-flash-gpio@0 {
+				compatible = "samsung,sensor-flash-sm5714";
+				id = <0 4>;
+				status = "okay";
+
+				flash-gpio = <&gpg2 2 0>;
+				torch-gpio = <&gpg2 3 0>;
+			};
+		}; /* end of __overlay__ */
+	}; /* end of fragment */
+}; /* end of root */
+
+&exynos_is {
+	secure_mem_info = <0xE1900000 0x1520000>;
+	non_secure_mem_info = <0xDB900000 0xB00000>;
+
+	lic_offsets {
+		/* 3AA = <setA lic offset0, setA lic offset1, set A trigger context */
+		/*		setB lic offset0, setB lic offset1, set B trigger context> */
+		/* 4672: 4640x4352 */
+		/* 5824: 5804x4352 */
+		3AA = <3776 7552 1 3776 7552 2>;
+	};
+
+	is_dvfs {
+		#define DVFS_INT_L0 667000
+		#define DVFS_INT_L1 534000
+		#define DVFS_INT_L2 334000
+		#define DVFS_INT_L3 200000
+		#define DVFS_INT_L4 100000
+
+		#define DVFS_CAM_L0 690000
+		#define DVFS_CAM_L1 680000
+		#define DVFS_CAM_L2 670000
+		#define DVFS_CAM_L3 660000
+		#define DVFS_CAM_L4 650000
+
+		#define DVFS_MIF_L0 1539000
+		#define DVFS_MIF_L1 1352000
+		#define DVFS_MIF_L2 1014000
+		#define DVFS_MIF_L3 845000
+		#define DVFS_MIF_L4 676000
+		#define DVFS_MIF_L5 546000
+		#define DVFS_MIF_L6 421000
+
+		table0 {
+			desc = "dvfs table v0.0 for 12M/8M/5M";
+
+			default_cam = <DVFS_CAM_L0>;
+			default_mif = <DVFS_MIF_L0>;
+			default_int = <DVFS_INT_L0>;
+			default_hpg = <0>;
+
+			front_preview_cam = <DVFS_CAM_L1>;
+			front_preview_mif = <DVFS_MIF_L2>;
+			front_preview_int = <DVFS_INT_L2>;
+			front_preview_hpg = <0>;
+
+			front_preview_full_cam = <DVFS_CAM_L1>;
+			front_preview_full_mif = <DVFS_MIF_L2>;
+			front_preview_full_int = <DVFS_INT_L2>;
+			front_preview_full_hpg = <0>;
+			
+			front_preview_factory_raw_cam = <DVFS_CAM_L1>;
+			front_preview_factory_raw_mif = <DVFS_MIF_L0>;
+			front_preview_factory_raw_int = <DVFS_INT_L2>;
+			front_preview_factory_raw_hpg = <0>;
+
+			front_capture_cam = <DVFS_CAM_L1>;
+			front_capture_mif = <DVFS_MIF_L0>;
+			front_capture_int = <DVFS_INT_L0>;
+			front_capture_hpg = <0>;
+
+			front_video_cam = <DVFS_CAM_L1>;
+			front_video_mif = <DVFS_MIF_L2>;
+			front_video_int = <DVFS_INT_L2>;
+			front_video_hpg = <0>;
+
+			front_video_whd_cam = <DVFS_CAM_L1>;
+			front_video_whd_mif = <DVFS_MIF_L2>;
+			front_video_whd_int = <DVFS_INT_L2>;
+			front_video_whd_hpg = <0>;
+
+			front_video_capture_cam = <DVFS_CAM_L1>;
+			front_video_capture_mif = <DVFS_MIF_L0>;
+			front_video_capture_int = <DVFS_INT_L0>;
+			front_video_capture_hpg = <0>;
+
+			front_video_whd_capture_cam = <DVFS_CAM_L1>;
+			front_video_whd_capture_mif = <DVFS_MIF_L0>;
+			front_video_whd_capture_int = <DVFS_INT_L0>;
+			front_video_whd_capture_hpg = <0>;
+
+			front_vt1_cam = <DVFS_CAM_L1>;
+			front_vt1_mif = <DVFS_MIF_L2>;
+			front_vt1_int = <DVFS_INT_L2>;
+			front_vt1_hpg = <0>;
+
+			front_vt2_cam = <DVFS_CAM_L1>;
+			front_vt2_mif = <DVFS_MIF_L2>;
+			front_vt2_int = <DVFS_INT_L2>;
+			front_vt2_hpg = <0>;
+
+			front_vt4_cam = <DVFS_CAM_L1>;
+			front_vt4_mif = <DVFS_MIF_L2>;
+			front_vt4_int = <DVFS_INT_L2>;
+			front_vt4_hpg = <0>;
+
+			front_preview_high_speed_fps_cam = <DVFS_CAM_L1>;
+			front_preview_high_speed_fps_mif = <DVFS_MIF_L2>;
+			front_preview_high_speed_fps_int = <DVFS_INT_L2>;
+			front_preview_high_speed_fps_hpg = <0>;
+
+			rear2_preview_fhd_cam = <DVFS_CAM_L3>;
+			rear2_preview_fhd_mif = <DVFS_MIF_L2>;
+			rear2_preview_fhd_int = <DVFS_INT_L3>;
+			rear2_preview_fhd_hpg = <0>;
+
+			rear2_capture_cam = <DVFS_CAM_L3>;
+			rear2_capture_mif = <DVFS_MIF_L0>;
+			rear2_capture_int = <DVFS_INT_L0>;
+			rear2_capture_hpg = <0>;
+
+			rear2_video_fhd_cam = <DVFS_CAM_L3>;
+			rear2_video_fhd_mif = <DVFS_MIF_L2>;
+			rear2_video_fhd_int = <DVFS_INT_L3>;
+			rear2_video_fhd_hpg = <0>;
+
+			rear2_video_fhd_capture_cam = <DVFS_CAM_L3>;
+			rear2_video_fhd_capture_mif = <DVFS_MIF_L0>;
+			rear2_video_fhd_capture_int = <DVFS_INT_L0>;
+			rear2_video_fhd_capture_hpg = <0>;
+
+			rear3_preview_fhd_cam = <DVFS_CAM_L2>;
+			rear3_preview_fhd_mif = <DVFS_MIF_L2>;
+			rear3_preview_fhd_int = <DVFS_INT_L2>;
+			rear3_preview_fhd_hpg = <0>;
+
+			rear3_capture_cam = <DVFS_CAM_L1>;
+			rear3_capture_mif = <DVFS_MIF_L2>;
+			rear3_capture_int = <DVFS_INT_L0>;
+			rear3_capture_hpg = <0>;
+
+			rear3_video_fhd_cam = <DVFS_CAM_L2>;
+			rear3_video_fhd_mif = <DVFS_MIF_L2>;
+			rear3_video_fhd_int = <DVFS_INT_L2>;
+			rear3_video_fhd_hpg = <0>;
+
+			rear3_video_fhd_capture_cam = <DVFS_CAM_L2>;
+			rear3_video_fhd_capture_mif = <DVFS_MIF_L2>;
+			rear3_video_fhd_capture_int = <DVFS_INT_L0>;
+			rear3_video_fhd_capture_hpg = <0>;
+
+			rear_preview_fhd_cam = <DVFS_CAM_L0>;
+			rear_preview_fhd_mif = <DVFS_MIF_L2>;
+			rear_preview_fhd_int = <DVFS_INT_L2>;
+			rear_preview_fhd_hpg = <0>;
+
+			rear_preview_whd_cam = <DVFS_CAM_L0>;
+			rear_preview_whd_mif = <DVFS_MIF_L2>;
+			rear_preview_whd_int = <DVFS_INT_L2>;
+			rear_preview_whd_hpg = <0>;
+
+			rear_preview_uhd_cam = <DVFS_CAM_L0>;
+			rear_preview_uhd_mif = <DVFS_MIF_L2>;
+			rear_preview_uhd_int = <DVFS_INT_L2>;
+			rear_preview_uhd_hpg = <0>;
+
+			rear_preview_uhd_60fps_cam = <DVFS_CAM_L0>;
+			rear_preview_uhd_60fps_mif = <DVFS_MIF_L2>;
+			rear_preview_uhd_60fps_int = <DVFS_INT_L2>;
+			rear_preview_uhd_60fps_hpg = <0>;
+
+			rear_preview_full_cam = <DVFS_CAM_L0>;
+			rear_preview_full_mif = <DVFS_MIF_L2>;
+			rear_preview_full_int = <DVFS_INT_L2>;
+			rear_preview_full_hpg = <0>;
+
+			rear_preview_remosaic_cam = <DVFS_CAM_L0>;
+			rear_preview_remosaic_mif = <DVFS_MIF_L0>;
+			rear_preview_remosaic_int = <DVFS_INT_L0>;
+			rear_preview_remosaic_hpg = <0>;
+
+			rear_capture_cam = <DVFS_CAM_L0>;
+			rear_capture_mif = <DVFS_MIF_L0>;
+			rear_capture_int = <DVFS_INT_L0>;
+			rear_capture_hpg = <0>;
+
+			rear_capture_remosaic_cam = <DVFS_CAM_L0>;
+			rear_capture_remosaic_mif = <DVFS_MIF_L0>;
+			rear_capture_remosaic_int = <DVFS_INT_L0>;
+			rear_capture_remosaic_hpg = <0>;
+
+			rear_video_fhd_cam = <DVFS_CAM_L0>;
+			rear_video_fhd_mif = <DVFS_MIF_L2>;
+			rear_video_fhd_int = <DVFS_INT_L2>;
+			rear_video_fhd_hpg = <0>;
+
+			rear_video_whd_cam = <DVFS_CAM_L0>;
+			rear_video_whd_mif = <DVFS_MIF_L2>;
+			rear_video_whd_int = <DVFS_INT_L2>;
+			rear_video_whd_hpg = <0>;
+
+			rear_video_uhd_16_9_cam = <DVFS_CAM_L1>;
+			rear_video_uhd_16_9_mif = <DVFS_MIF_L2>;
+			rear_video_uhd_16_9_int = <DVFS_INT_L2>;
+			rear_video_uhd_16_9_hpg = <0>;
+
+			rear_video_uhd_cam = <DVFS_CAM_L0>;
+			rear_video_uhd_mif = <DVFS_MIF_L2>;
+			rear_video_uhd_int = <DVFS_INT_L2>;
+			rear_video_uhd_hpg = <0>;
+
+			rear_video_uhd_60fps_cam = <DVFS_CAM_L0>;
+			rear_video_uhd_60fps_mif = <DVFS_MIF_L0>;
+			rear_video_uhd_60fps_int = <DVFS_INT_L0>;
+			rear_video_uhd_60fps_hpg = <0>;
+
+			rear_video_fhd_capture_cam = <DVFS_CAM_L0>;
+			rear_video_fhd_capture_mif = <DVFS_MIF_L0>;
+			rear_video_fhd_capture_int = <DVFS_INT_L0>;
+			rear_video_fhd_capture_hpg = <0>;
+
+			rear_video_whd_capture_cam = <DVFS_CAM_L0>;
+			rear_video_whd_capture_mif = <DVFS_MIF_L0>;
+			rear_video_whd_capture_int = <DVFS_INT_L0>;
+			rear_video_whd_capture_hpg = <0>;
+
+			rear_video_uhd_capture_cam = <DVFS_CAM_L0>;
+			rear_video_uhd_capture_mif = <DVFS_MIF_L0>;
+			rear_video_uhd_capture_int = <DVFS_INT_L0>;
+			rear_video_uhd_capture_hpg = <0>;
+
+			dual_preview_cam = <DVFS_CAM_L0>;
+			dual_preview_mif = <DVFS_MIF_L2>;
+			dual_preview_int = <DVFS_INT_L0>;
+			dual_preview_hpg = <0>;
+
+			dual_capture_cam = <DVFS_CAM_L0>;
+			dual_capture_mif = <DVFS_MIF_L0>;
+			dual_capture_int = <DVFS_INT_L0>;
+			dual_capture_hpg = <0>;
+
+			dual_video_fhd_cam = <DVFS_CAM_L0>;
+			dual_video_fhd_mif = <DVFS_MIF_L2>;
+			dual_video_fhd_int = <DVFS_INT_L0>;
+			dual_video_fhd_hpg = <0>;
+
+			dual_video_fhd_capture_cam = <DVFS_CAM_L0>;
+			dual_video_fhd_capture_mif = <DVFS_MIF_L0>;
+			dual_video_fhd_capture_int = <DVFS_INT_L0>;
+			dual_video_fhd_capture_hpg = <0>;
+
+			dual_sync_preview_cam = <DVFS_CAM_L0>;
+			dual_sync_preview_mif = <DVFS_MIF_L0>;
+			dual_sync_preview_int = <DVFS_INT_L0>;
+			dual_sync_preview_hpg = <0>;
+
+			dual_sync_capture_cam = <DVFS_CAM_L0>;
+			dual_sync_capture_mif = <DVFS_MIF_L0>;
+			dual_sync_capture_int = <DVFS_INT_L0>;
+			dual_sync_capture_hpg = <0>;
+
+			dual_sync_preview_whd_cam = <DVFS_CAM_L0>;
+			dual_sync_preview_whd_mif = <DVFS_MIF_L0>;
+			dual_sync_preview_whd_int = <DVFS_INT_L0>;
+			dual_sync_preview_whd_hpg = <0>;
+
+			dual_sync_whd_capture_cam = <DVFS_CAM_L0>;
+			dual_sync_whd_capture_mif = <DVFS_MIF_L0>;
+			dual_sync_whd_capture_int = <DVFS_INT_L0>;
+			dual_sync_whd_capture_hpg = <0>;
+
+			dual_sync_video_fhd_cam = <DVFS_CAM_L0>;
+			dual_sync_video_fhd_mif = <DVFS_MIF_L0>;
+			dual_sync_video_fhd_int = <DVFS_INT_L0>;
+			dual_sync_video_fhd_hpg = <0>;
+
+			dual_sync_video_fhd_capture_cam = <DVFS_CAM_L0>;
+			dual_sync_video_fhd_capture_mif = <DVFS_MIF_L0>;
+			dual_sync_video_fhd_capture_int = <DVFS_INT_L0>;
+			dual_sync_video_fhd_capture_hpg = <0>;
+
+			secure_front_cam = <DVFS_CAM_L0>;
+			secure_front_mif = <DVFS_MIF_L2>;
+			secure_front_int = <DVFS_INT_L2>;
+			secure_front_hpg = <0>;
+
+			pip_preview_cam = <DVFS_CAM_L0>;
+			pip_preview_mif = <DVFS_MIF_L0>;
+			pip_preview_int = <DVFS_INT_L0>;
+			pip_preview_hpg = <0>;
+
+			pip_capture_cam = <DVFS_CAM_L0>;
+			pip_capture_mif = <DVFS_MIF_L0>;
+			pip_capture_int = <DVFS_INT_L0>;
+			pip_capture_hpg = <0>;
+
+			pip_video_cam = <DVFS_CAM_L0>;
+			pip_video_mif = <DVFS_MIF_L0>;
+			pip_video_int = <DVFS_INT_L0>;
+			pip_video_hpg = <0>;
+
+			pip_video_capture_cam = <DVFS_CAM_L0>;
+			pip_video_capture_mif = <DVFS_MIF_L0>;
+			pip_video_capture_int = <DVFS_INT_L0>;
+			pip_video_capture_hpg = <0>;
+
+			preview_high_speed_fps_cam = <DVFS_CAM_L0>;
+			preview_high_speed_fps_mif = <DVFS_MIF_L2>;
+			preview_high_speed_fps_int = <DVFS_INT_L2>;
+			preview_high_speed_fps_hpg = <0>;
+
+			video_high_speed_60fps_cam = <DVFS_CAM_L0>;
+			video_high_speed_60fps_mif = <DVFS_MIF_L0>;
+			video_high_speed_60fps_int = <DVFS_INT_L0>;
+			video_high_speed_60fps_hpg = <0>;
+
+			video_high_speed_120fps_cam = <DVFS_CAM_L0>;
+			video_high_speed_120fps_mif = <DVFS_MIF_L0>;
+			video_high_speed_120fps_int = <DVFS_INT_L0>;
+			video_high_speed_120fps_hpg = <0>;
+
+			video_high_speed_dualfps_cam = <DVFS_CAM_L0>;
+			video_high_speed_dualfps_mif = <DVFS_MIF_L0>;
+			video_high_speed_dualfps_int = <DVFS_INT_L0>;
+			video_high_speed_dualfps_hpg = <0>;
+
+			video_high_speed_60fps_capture_cam = <DVFS_CAM_L0>;
+			video_high_speed_60fps_capture_mif = <DVFS_MIF_L0>;
+			video_high_speed_60fps_capture_int = <DVFS_INT_L0>;
+			video_high_speed_60fps_capture_hpg = <0>;
+
+			ext_front_cam = <DVFS_CAM_L0>;
+			ext_front_mif = <DVFS_MIF_L0>;
+			ext_front_int = <DVFS_INT_L0>;
+			ext_front_hpg = <0>;
+
+			ext_secure_cam = <DVFS_CAM_L0>;
+			ext_secure_mif = <DVFS_MIF_L0>;
+			ext_secure_int = <DVFS_INT_L0>;
+			ext_secure_hpg = <0>;
+
+			max_cam = <DVFS_CAM_L0>;
+			max_mif = <DVFS_MIF_L0>;
+			max_int = <DVFS_INT_L0>;
+			max_hpg = <0>;
+		};
+	};
+};

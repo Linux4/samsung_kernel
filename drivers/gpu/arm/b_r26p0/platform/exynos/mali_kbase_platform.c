@@ -349,6 +349,9 @@ static int gpu_dvfs_update_config_data_from_dt(struct kbase_device *kbdev)
 	platform->gpu_dss_freq_id = 0;
 	gpu_update_config_data_int(np, "gpu_ess_id_type", &platform->gpu_dss_freq_id);
 
+	gpu_update_config_data_int(np, "gpu_power_off_clock", &platform->gpu_power_off_clock);
+	platform->gpu_power_on_clock = platform->gpu_power_off_clock;
+
 	return 0;
 }
 

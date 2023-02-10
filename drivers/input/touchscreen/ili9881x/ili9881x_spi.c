@@ -600,6 +600,7 @@ static int ilitek_spi_probe(struct spi_device *spi)
 	ilits->game_mode_enabled = false;
 	ilits->prox_lp_scan_mode_enabled = false;
 	ilits->sleep_handler_mode = TP_RESUME;
+	ilits->usb_plug_status = USB_PLUG_DETACHED;
 
 #if ENABLE_GESTURE
 	ilits->gesture = DISABLE;
@@ -628,6 +629,13 @@ static int ilitek_spi_probe(struct spi_device *spi)
 		return -EINVAL;
 
 	return info->hwif->plat_probe();
+}
+
+static void ilitek_spi_shutdown(struct spi_device *spi)
+{
+	input_info(true, ilits->dev, "%s\n", __func__);
+	ilits->hwif->plat_shutdown();
+	return;
 }
 
 static int ilitek_spi_remove(struct spi_device *spi)
@@ -665,6 +673,7 @@ int ili_interface_dev_init(struct ilitek_hwif_info *hwif)
 	info->bus_driver.driver.pm = hwif->pm;
 
 	info->bus_driver.probe = ilitek_spi_probe;
+	info->bus_driver.shutdown = ilitek_spi_shutdown;
 	info->bus_driver.remove = ilitek_spi_remove;
 	info->bus_driver.id_table = tp_spi_id;
 
@@ -680,6 +689,6 @@ void ili_interface_dev_exit(struct ilitek_ts_data *ts)
 	kfree(ilits->update_buf);
 	kfree(ilits->spi_tx);
 	kfree(ilits->spi_rx);
-	spi_unregister_driver(&info->bus_driver);
+//	spi_unregister_driver(&info->bus_driver);
 	ipio_kfree((void **)&info);
 }

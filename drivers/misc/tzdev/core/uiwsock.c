@@ -61,6 +61,8 @@ static long tz_uiwsock_connect(struct file *filp, unsigned long arg)
 		return -EFAULT;
 	}
 
+	connection.name[TZ_UIWSOCK_MAX_NAME_LENGTH - 1] = 0;
+
 	ret = tz_iwsock_connect(sd, connection.name, 0);
 	if (IS_EINTR(ret))
 		log_debug(tzdev_uiwsock, "Wait interrupted, filp=%pK, ret=%ld\n", filp, ret);
@@ -104,6 +106,8 @@ static long tz_uiwsock_listen(struct file *filp, unsigned long arg)
 									argp, filp);
 		return -EFAULT;
 	}
+
+	connection.name[TZ_UIWSOCK_MAX_NAME_LENGTH - 1] = 0;
 
 	ret = tz_iwsock_listen(sd, connection.name);
 	if (IS_EINTR(ret))

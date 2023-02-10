@@ -47,9 +47,7 @@
 #define CLK_SRC_DAI 0
 #define CLK_SRC_CODEC 1
 
-#if IS_ENABLED(CONFIG_SND_SMARTPA_AW8896)
 #define AW8896_DAI_ID			0x8896
-#endif
 #define MADERA_DAI_ID			0x4793
 #define CS35L41_DAI_ID			0x3541
 #define ABOX_BE_DAI_ID(c, i)		(0xbe00 | (c) << 4 | (i))
