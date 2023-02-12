@@ -34,11 +34,16 @@ static struct force_err_handle *__force_err_find_handle_locked(
 		struct force_err *force_err, const char *val)
 {
 	struct force_err_handle *h;
-	size_t len = strlen(val) + 1;
+	size_t val_len = strlen(val);
 	u32 key = __force_err_hash(val);
 
 	hash_for_each_possible(force_err->htbl, h, node, key) {
-		if (!memcmp(h->val, val, len))
+		size_t len = strnlen(h->val, val_len + 1);
+
+		if (len != val_len)
+			continue;
+
+		if (!strncmp(h->val, val, val_len))
 			return h;
 	}
 
@@ -144,11 +149,13 @@ static void __simulate_apps_wdog_bite(struct force_err_handle *h)
 	unsigned long time_out_jiffies;
 
 #if IS_ENABLED(CONFIG_HOTPLUG_CPU)
-	int cpu;
+	unsigned int cpu;
 
 	for_each_online_cpu(cpu) {
+		BUG_ON(cpu >= NR_CPUS);
 		if (cpu == 0)
 			continue;
+
 		remove_cpu(cpu);
 	}
 #endif
@@ -171,27 +178,27 @@ static void __simulate_bus_hang(struct force_err_handle *h)
 
 	pr_emerg("Generating Bus Hang!\n");
 
-	if (!IS_ENABLED(CONFIG_UML)) {
-		p = ioremap_wt(0xFC4B8000, 32);
-		*(unsigned int *)p = *(unsigned int *)p;
-		mb();	/* memory barriar to generate bus hang */
-	}
+	p = ioremap_wt(0xFC4B8000, 32);
+	*(unsigned int *)p = *(unsigned int *)p;
+	mb();	/* memory barriar to generate bus hang */
 
 	pr_info("*p = %x\n", *(unsigned int *)p);
 
 	pr_emerg("Clk may be enabled.Try again if it reaches here!\n");
 }
 
+unsigned long *__dabort_buf;
+
 static void __simulate_dabort(struct force_err_handle *h)
 {
-	char *buf = NULL;
-
-	*buf = 0x0;
+	*__dabort_buf = 0;
 }
 
 static void __simulate_pabort(struct force_err_handle *h)
 {
-	((void (*)(void))NULL)();
+	asm volatile ("mov x0, %0 \n\t"
+		      "blr x0\n\t"
+		      :: "r" (PAGE_OFFSET - 0x8));
 }
 
 static void __simulate_undef(struct force_err_handle *h)
@@ -264,7 +271,7 @@ static struct force_err_handle __force_err_default[] = {
 			__simulate_apps_wdog_bark),
 };
 
-static long __force_error(struct force_err *force_err, const char *val, bool is_kunit)
+static long __force_error(struct force_err *force_err, const char *val)
 {
 	struct force_err_handle *h;
 	long err = 0;
@@ -280,11 +287,8 @@ static long __force_error(struct force_err *force_err, const char *val, bool is_
 		return 0;
 	}
 
-	if (!is_kunit) {
-		h->func(h);
-		pr_emerg("No such error defined for now!\n");
-	} else
-		err = PTR_ERR(h->func);
+	h->func(h);
+	pr_emerg("No such error defined for now!\n");
 
 	mutex_unlock(&force_err->lock);
 	return err;
@@ -305,20 +309,13 @@ static int force_error(const char *val, const struct kernel_param *kp)
 	}
 	trimed_val = strim(__trimed_val);
 
-	err = (int)__force_error(&sec_debug->force_err, trimed_val, false);
+	err = (int)__force_error(&sec_debug->force_err, trimed_val);
 
 	kfree(__trimed_val);
 
 	return err;
 }
 module_param_call(force_error, force_error, NULL, NULL, 0644);
-
-#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
-long kunit_force_error(const char *val)
-{
-	return __force_error(val, true);
-}
-#endif
 
 int sec_force_err_probe_prolog(struct builder *bd)
 {

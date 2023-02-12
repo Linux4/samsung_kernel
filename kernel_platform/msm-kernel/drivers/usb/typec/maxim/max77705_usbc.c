@@ -697,7 +697,7 @@ static int max77705_firmware_update_misc(struct max77705_usbc_platform_data *dat
 		};
 
 		if (fw_enable)
-			ret = max77705_usbc_fw_update(usbc_data->max77705, fw_bin, (int)fw_bin_len, 1);
+			ret = max77705_usbc_fw_update(usbc_data->max77705, fw_bin, (int)fw_bin_len, 2);
 		else
 			msg_maxim("FAILED F/W MISMATCH pmic_rev : 0x%x, fw_header->major : 0x%x",
 					pmic_rev, fw_header->major);
@@ -1638,8 +1638,10 @@ static void max77705_init_opcode
 	max77705_usbc_disable_auto_vbus(usbc_data);
 	if (pdata && pdata->support_audio)
 		max77705_usbc_enable_audio(usbc_data);
-	if (reset)
+	if (reset) {
 		max77705_set_enable_alternate_mode(ALTERNATE_MODE_START);
+		max77705_muic_enable_detecting_short(usbc_data->muic_data);
+	}
 }
 
 static bool max77705_check_recover_opcode(u8 opcode)
@@ -1650,6 +1652,7 @@ static bool max77705_check_recover_opcode(u8 opcode)
 	case OPCODE_CCCTRL1_W:
 	case OPCODE_SAMSUNG_FACTORY_TEST:
 	case OPCODE_SET_ALTERNATEMODE:
+	case OPCODE_ENABLE_DETECTING_SHORT:
 		ret = true;
 		break;
 	default:
@@ -1681,6 +1684,10 @@ static void max77705_recover_opcode
 			case OPCODE_SET_ALTERNATEMODE:
 				max77705_set_enable_alternate_mode
 					(usbc_data->set_altmode);
+				break;
+			case OPCODE_ENABLE_DETECTING_SHORT:
+				max77705_muic_enable_detecting_short
+					(usbc_data->muic_data);
 				break;
 			default:
 				break;

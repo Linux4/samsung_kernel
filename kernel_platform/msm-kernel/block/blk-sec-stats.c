@@ -53,6 +53,7 @@ struct pio_node {
 static unsigned long long transferred_bytes;
 
 static struct disk_info internal_disk;
+static unsigned int internal_min_size_mb = 10 * 1024; /* 10GB */
 
 static struct accumulated_stats old, new;
 
@@ -73,11 +74,15 @@ static struct pio_node others = {
 	.bytes = {0, 0, 0, 0},
 };
 
+#define SECTORS2MB(x) ((x) / 2 / 1024)
+
 static struct gendisk *get_internal_disk(void)
 {
 	struct gendisk *gd = NULL;
 	struct block_device *bdev;
 	int idx;
+	int size_mb;
+
 	/* In some project which is powered by MediaTek AP, the internal
 	 * storage device is "sdc / MKDEV(8, 32)". So we have to try (8, 32)
 	 * before trying (179, 0).
@@ -91,9 +96,13 @@ static struct gendisk *get_internal_disk(void)
 
 	for (idx = 0; devno[idx] != MKDEV(0, 0); idx++) {
 		bdev = blkdev_get_by_dev(devno[idx], FMODE_READ, NULL);
-		if (!IS_ERR(bdev)) {
-			gd = bdev->bd_disk;
-			break;
+		if (!IS_ERR(bdev) && bdev->bd_disk) {
+			size_mb = SECTORS2MB(get_capacity(bdev->bd_disk));
+
+			if (size_mb >= internal_min_size_mb) {
+				gd = bdev->bd_disk;
+				break;
+			}
 		}
 	}
 

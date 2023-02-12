@@ -144,26 +144,6 @@ static bool __log_buf_kmsg_check_level_text(struct log_buf_kmsg_ctx *ctx)
 	return true;
 }
 
-#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
-/* NOTE: testing-glue to encapsulate 'struct log_buf_kmsg_ctx' */
-bool kunit__log_buf_kmsg_check_level_text(const char *msg)
-{
-	struct log_buf_kmsg_ctx *ctx;
-	bool ret;
-
-	ctx = kzalloc(SZ_TASK_BUF, GFP_KERNEL);
-
-	strlcpy(ctx->head, msg, SZ_KMSG_BUF);
-	ctx->head_len = strlen(msg);
-
-	ret = __log_buf_kmsg_check_level_text(ctx);
-
-	kfree(ctx);
-
-	return ret;
-}
-#endif
-
 static void __log_buf_kmsg_split(struct log_buf_kmsg_ctx *ctx)
 {
 	char *head = ctx->head;
@@ -187,32 +167,6 @@ static void __log_buf_kmsg_split(struct log_buf_kmsg_ctx *ctx)
 	ctx->head_len = head_len;
 }
 
-#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
-/* NOTE: testing-glue to encapsulate 'struct log_buf_kmsg_ctx' */
-void kunit__log_buf_kmsg_split(char *msg, char **head, char **tail)
-{
-	struct log_buf_kmsg_ctx *ctx;
-	size_t msg_len;
-	off_t offset;
-
-	ctx = kzalloc(sizeof(ctx), GFP_KERNEL);
-
-	strlcpy(ctx->head, msg, SZ_KMSG_BUF);
-	ctx->head_len = strlen(msg);
-	msg_len = ctx->head_len + 1;	/* include null-termination */
-
-	__log_buf_kmsg_split(ctx);
-
-	memcpy(msg, ctx->head, msg_len);
-
-	kfree(ctx);
-
-	offset = ctx->tail - ctx->head;
-	*head = &ctx->head[0];
-	*tail = &ctx->head[offset];
-}
-#endif
-
 static __always_inline void __log_buf_kmg_print(struct log_buf_kmsg_ctx *ctx)
 {
 	if (__log_buf_kmsg_check_level_text(ctx))
@@ -223,6 +177,30 @@ static __always_inline void __log_buf_kmg_print(struct log_buf_kmsg_ctx *ctx)
 		__log_buf_write(ctx->task, ctx->task_len);
 		__log_buf_write(ctx->tail, ctx->tail_len);
 	}
+}
+
+size_t __log_buf_copy_to_buffer(void *buf)
+{
+	const struct sec_log_buf_head *log_buf_head = __log_buf_get_header();
+	const size_t log_buf_size = ___log_buf_get_buf_size();
+	const size_t max_size = log_buf_size;
+	size_t head;
+	size_t total;
+
+	if (log_buf_head->idx > max_size) {
+		head = (size_t)log_buf_head->idx % log_buf_size;
+		__log_buf_memcpy_fromio(buf, &log_buf_head->buf[head],
+				log_buf_size - head);
+		if (head != 0)
+			__log_buf_memcpy_fromio(&buf[log_buf_size - head],
+					log_buf_head->buf, head);
+		total = max_size;
+	} else {
+		__log_buf_memcpy_fromio(buf, log_buf_head->buf, log_buf_head->idx);
+		total = log_buf_head->idx;
+	}
+
+	return total;
 }
 
 static int __log_buf_parse_dt_strategy(struct builder *bd,
@@ -412,9 +390,6 @@ static void __iomem *__log_buf_ioremap(struct log_buf_drvdata *drvdata)
 {
 	struct device *dev = drvdata->bd.dev;
 
-	if (IS_ENABLED(CONFIG_UML))
-		return NULL;
-
 	if (s_log_buf)
 		return s_log_buf;
 
@@ -507,7 +482,7 @@ static int __log_buf_probe_epilog(struct builder *bd)
 	dev_set_drvdata(dev, drvdata);
 	sec_log_buf = drvdata;	/* set a singleton */
 
-	dev_info(dev, "buf base virtual addrs 0x%p phy=%pa\n", s_log_buf,
+	pr_debug("buf base virtual addrs 0x%p phy=%pa\n", s_log_buf,
 			&sec_log_buf->paddr);
 
 	return 0;
@@ -574,6 +549,7 @@ static const struct dev_builder __log_buf_dev_builder[] = {
 	DEVICE_BUILDER(__last_kmsg_procfs_create, __last_kmsg_procfs_remove),
 	DEVICE_BUILDER(__log_buf_pull_early_buffer, NULL),
 	DEVICE_BUILDER(__log_buf_logger_init, __log_buf_logger_exit),
+	DEVICE_BUILDER(__ap_klog_proc_init, __ap_klog_proc_exit),
 	DEVICE_BUILDER(__log_buf_probe_epilog, __log_buf_remove_prolog),
 };
 

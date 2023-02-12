@@ -4324,6 +4324,44 @@ static const struct proc_ops proc_perf_reserve_op = {
 };
 #endif
 
+
+#if IS_ENABLED(CONFIG_RQ_STAT_SHOW)
+static int rq_stat_show(struct seq_file *m, void *data)
+{
+	int cpu;
+	char buf[64];
+	int len = 0;
+	int g_gp_sum = 0;
+	int s_sum = 0;
+
+	for_each_possible_cpu(cpu) {
+		struct rq *rq = cpu_rq(cpu);
+		//len += snprintf(buf + len, 64 - len, "%u ", rq->nr_running);
+		if (!is_min_capacity_cpu(cpu))
+			g_gp_sum += rq->nr_running;
+		else
+			s_sum += rq->nr_running;
+	}
+	len += snprintf(buf + len, 64 - len, "%u ", s_sum);
+	len += snprintf(buf + len, 64 - len, "%u ", g_gp_sum);
+	seq_printf(m, "%s\n", buf);
+
+	return 0;
+}
+
+static int rq_stat_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, rq_stat_show, NULL);
+}
+
+static const struct proc_ops proc_rq_stat_op = {
+	.proc_open = rq_stat_open,
+	.proc_read = seq_read,
+	.proc_lseek = seq_lseek,
+	.proc_release = single_release,
+};
+#endif
+
 static void walt_init(struct work_struct *work)
 {
 	struct ctl_table_header *hdr;
@@ -4364,6 +4402,11 @@ static void walt_init(struct work_struct *work)
 	proc_perf_reserve = 0;
 	if (!proc_create("perf_reserve", 0644, NULL, &proc_perf_reserve_op))
 		pr_err("Failed to register proc interface 'perf_reserve'\n");
+#endif
+
+#if IS_ENABLED(CONFIG_RQ_STAT_SHOW)
+	if (!proc_create("rq_stat", 0444, NULL, &proc_rq_stat_op))
+		pr_err("Failed to register proc interface 'rq_stat'\n");
 #endif
 
 	i = match_string(sched_feat_names, __SCHED_FEAT_NR, "TTWU_QUEUE");

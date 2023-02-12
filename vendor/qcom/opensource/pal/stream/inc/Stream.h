@@ -172,6 +172,9 @@ public:
     bool a2dpMuted = false;
     bool a2dpPaused = false;
     bool force_nlpi_vote = false;
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    bool isMMap = false;
+#endif
     std::vector<pal_device_id_t> suspendedDevIds;
     virtual int32_t open() = 0;
     virtual int32_t close() = 0;
@@ -215,7 +218,9 @@ public:
     uint32_t getLatency();
     int32_t getAssociatedDevices(std::vector <std::shared_ptr<Device>> &adevices);
     int32_t getAssociatedPalDevices(std::vector <struct pal_device> &palDevices);
-    int32_t updatePalDevice(struct pal_device *dattr, pal_device_id_t dev_id, bool replace = true);
+    void clearOutPalDevices();
+    void addPalDevice(struct pal_device *dattr) { mPalDevice.push_back(*dattr); }
+    int32_t updatePalDevice(struct pal_device *dattr, pal_device_id_t dev_id);
     int32_t getSoundCardId();
     int32_t getAssociatedSession(Session** session);
     int32_t setBufInfo(pal_buffer_config *in_buffer_config,

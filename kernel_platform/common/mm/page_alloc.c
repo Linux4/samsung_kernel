@@ -1332,6 +1332,10 @@ static __always_inline bool free_pages_prepare(struct page *page,
 	reset_page_owner(page, order);
 	free_page_pinner(page, order);
 
+#ifdef CONFIG_TASK_HAS_ALLOC_FREE_STAT
+	current->free_sum += (1 << order);
+#endif
+
 	if (!PageHighMem(page)) {
 		debug_check_no_locks_freed(page_address(page),
 					   PAGE_SIZE << order);
@@ -2419,6 +2423,10 @@ static void prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags
 	if (order && (gfp_flags & __GFP_COMP))
 		prep_compound_page(page, order);
 
+#ifdef CONFIG_TASK_HAS_ALLOC_FREE_STAT
+	current->alloc_sum += (1 << order);
+#endif
+
 	/*
 	 * page is set pfmemalloc when ALLOC_NO_WATERMARKS was necessary to
 	 * allocate the page. The expectation is that the caller is taking
@@ -3476,6 +3484,9 @@ int __isolate_free_page(struct page *page, unsigned int order)
 		}
 	}
 
+#ifdef CONFIG_TASK_HAS_ALLOC_FREE_STAT
+	current->alloc_sum += (1 << order);
+#endif
 
 	return 1UL << order;
 }
@@ -3857,11 +3868,15 @@ static inline bool zone_watermark_fast(struct zone *z, unsigned int order,
 	 * need to be calculated.
 	 */
 	if (!order) {
-		long fast_free;
+		long usable_free;
+		long reserved;
 
-		fast_free = free_pages;
-		fast_free -= __zone_watermark_unusable_free(z, 0, alloc_flags);
-		if (fast_free > mark + z->lowmem_reserve[highest_zoneidx])
+		usable_free = free_pages;
+		reserved = __zone_watermark_unusable_free(z, 0, alloc_flags);
+
+		/* reserved may over estimate high-atomic reserves. */
+		usable_free -= min(usable_free, reserved);
+		if (usable_free > mark + z->lowmem_reserve[highest_zoneidx])
 			return true;
 	}
 

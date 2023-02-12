@@ -1909,6 +1909,8 @@ struct coresight_device *coresight_register(struct coresight_desc *desc)
 		}
 	}
 	/* Device is now registered */
+
+	/* Device is not registered */
 	registered = true;
 
 	ret = coresight_create_conns_sysfs_group(csdev);

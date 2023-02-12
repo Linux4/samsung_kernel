@@ -1031,7 +1031,7 @@ struct self_display {
 	int time_set;
 	bool is_initialized;
 	bool need_to_enable;
-	bool need_to_enable_udc;
+	bool udc_mask_enable;
 
 	struct self_time_info st_info;
 	struct self_icon_info si_info;
@@ -1190,6 +1190,7 @@ struct POC {
 	int write_loop_cnt;
 	int write_data_size;
 	int write_addr_idx[3];
+	int write_size_idx[2];
 
 	/* READ */
 	int rd_try_cnt;
@@ -1627,8 +1628,11 @@ struct panel_func {
 	/* Gamma mode2 gamma compensation (for 48/96hz VRR mode) */
 	int (*samsung_gm2_gamma_comp_init)(struct samsung_display_driver_data *vdd);
 
-	/* Read UDC datga */
+	/* Read UDC data */
 	int (*read_udc_data)(struct samsung_display_driver_data *vdd);
+	void (*read_udc_gamma_data)(struct samsung_display_driver_data *vdd);
+	int (*udc_gamma_comp)(struct samsung_display_driver_data *vdd);
+	int (*restore_udc_orig_gamma)(struct samsung_display_driver_data *vdd);
 
 	/* PBA */
 	void (*samsung_pba_config)(struct samsung_display_driver_data *vdd, void *arg);
@@ -1972,6 +1976,7 @@ enum LFD_FUNC_FIX {
 	LFD_FUNC_FIX_OFF = 0,
 	LFD_FUNC_FIX_HIGH = 1,
 	LFD_FUNC_FIX_LOW = 2,
+	LFD_FUNC_FIX_LFD = 3,
 	LFD_FUNC_FIX_MAX
 };
 
@@ -1993,6 +1998,7 @@ struct lfd_base_str {
 	u32 max_div_def;
 	u32 min_div_def;
 	u32 min_div_lowest;
+	u32 fix_div_def;
 	int base_rr;
 };
 
@@ -2184,6 +2190,21 @@ struct UDC {
 	int size;
 	u8 *data;
 	bool read_done;
+
+	u32 gamma_start_addr;
+	int gamma_size;
+	u32 gamma_backup_addr;
+	u32 gamma_comp_start_addr;
+	int gamma_comp_size;
+
+	u8 *gamma_data;
+	bool checksum;
+	u8 *gamma_data_backup;
+	int gamma_offset[19];
+	int JNCD_idx;
+
+	bool udc_comp_done;
+	bool udc_restore_done;
 };
 
 #define MAX_DELAY_NUM	(8)
@@ -2636,6 +2657,9 @@ struct samsung_display_driver_data {
 
 	/* skip bl update until disp_on with qcom,bl-update-flag */
 	bool bl_delay_until_disp_on;
+
+	/* check if dsi_display is enabled */
+	bool display_enabled;
 };
 
 extern struct list_head vdds_list;

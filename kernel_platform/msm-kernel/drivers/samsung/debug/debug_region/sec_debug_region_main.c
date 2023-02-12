@@ -360,7 +360,7 @@ static int __dbg_region_create_root(struct builder *bd)
 
 	root = __dbg_region_alloc(drvdata,
 			sizeof(struct dbg_region_root), &__root);
-	dev_info(bd->dev, "root = %px\n", root);
+	pr_debug("root = %px\n", root);
 	if (IS_ERR_OR_NULL(root))
 		return -ENOMEM;
 
@@ -504,38 +504,10 @@ static const struct dev_builder __dbg_region_dev_builder[] = {
 	DEVICE_BUILDER(__dbg_region_probe_epilog, __dbg_region_remove_prolog),
 };
 
-static void __dbg_region_populate_child(struct platform_device *pdev)
-{
-	struct device *dev = &pdev->dev;
-	struct device_node *parent;
-	struct device_node *child;
-
-	parent = pdev->dev.of_node;
-
-	for_each_available_child_of_node(parent, child) {
-		struct platform_device *cpdev;
-
-		cpdev = of_platform_device_create(child, NULL, &pdev->dev);
-		if (!cpdev) {
-			dev_warn(dev, "failed to create %s\n!", child->name);
-			of_node_put(child);
-		}
-	}
-}
-
 static int sec_dbg_region_probe(struct platform_device *pdev)
 {
-	int err;
-
-	err = __dbg_region_probe(pdev, __dbg_region_dev_builder,
+	return __dbg_region_probe(pdev, __dbg_region_dev_builder,
 			ARRAY_SIZE(__dbg_region_dev_builder));
-	if (err)
-		goto err_probe;
-
-	__dbg_region_populate_child(pdev);
-
-err_probe:
-	return err;
 }
 
 static int sec_dbg_region_remove(struct platform_device *pdev)

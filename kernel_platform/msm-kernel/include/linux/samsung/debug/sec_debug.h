@@ -13,7 +13,7 @@ extern phys_addr_t sec_debug_get_dump_sink_phys(void);
 #else
 static inline unsigned int sec_debug_level(void) { return SEC_DEBUG_LEVEL_LOW; }
 static inline bool sec_debug_is_enabled(void) { return false; }
-extern phys_addr_t sec_debug_get_dump_sink_phys(void) { return 0; }
+static inline phys_addr_t sec_debug_get_dump_sink_phys(void) { return 0; }
 #endif
 
 #endif	/* __SEC_DEBUG_H__ */

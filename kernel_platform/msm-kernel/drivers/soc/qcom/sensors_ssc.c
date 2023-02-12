@@ -33,6 +33,7 @@
 #define IMAGE_UNLOAD_CMD 0
 #define SSR_RESET_CMD 1
 #define SSR_LOAD_SPU 8
+#define SSR_FORCE_RESET_CMD 9
 #define CLASS_NAME	"ssc"
 #define DRV_NAME	"sensors"
 #define DRV_VERSION	"2.00"
@@ -270,6 +271,7 @@ static ssize_t slpi_ssr_store(struct kobject *kobj,
 	struct slpi_loader_private *priv = NULL;
 #if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
 	char msg[50] = "Something went wrong with SLPI, restarting";
+	bool prev_recovery = false;
 #endif
 
 	pr_debug("%s: going to call slpi_ssr\n", __func__);
@@ -277,7 +279,14 @@ static ssize_t slpi_ssr_store(struct kobject *kobj,
 	if (kstrtoint(buf, 10, &ssr_cmd) < 0)
 		return -EINVAL;
 
-	if (ssr_cmd != SSR_RESET_CMD && ssr_cmd != SSR_LOAD_SPU)
+	if (ssr_cmd != SSR_RESET_CMD
+#if IS_ENABLED(CONFIG_SUPPORT_SSC_SPU)
+		&& ssr_cmd != SSR_LOAD_SPU
+#endif
+#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
+		&& ssr_cmd != SSR_FORCE_RESET_CMD
+#endif
+	)
 		return -EINVAL;
 
 	priv = platform_get_drvdata(pdev);
@@ -304,6 +313,13 @@ static ssize_t slpi_ssr_store(struct kobject *kobj,
 		ssc_set_fw_idx(SSC_SPU);
 	}
 #endif
+#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
+	if (ssr_cmd == SSR_FORCE_RESET_CMD) {
+		dev_dbg(&pdev->dev, "SLPI force SSR from Hal\n");
+		prev_recovery = sns_dev->recovery_disabled;
+		sns_dev->recovery_disabled = false;
+	}
+#endif
 	if (sns_dev->recovery_disabled) {
 		sns_dev->state = RPROC_CRASHED;
 		panic("Panicking, remoterpoc %s crashed\n", sns_dev->name);
@@ -312,6 +328,10 @@ static ssize_t slpi_ssr_store(struct kobject *kobj,
 	rproc_shutdown(sns_dev);
 	slpi_loader_do(pdev);
 
+#if IS_ENABLED(CONFIG_SEC_SENSORS_SSC)
+	if (ssr_cmd == SSR_FORCE_RESET_CMD)
+		sns_dev->recovery_disabled = prev_recovery;
+#endif
 	dev_dbg(&pdev->dev, "SLPI restarted\n");
 	return count;
 }

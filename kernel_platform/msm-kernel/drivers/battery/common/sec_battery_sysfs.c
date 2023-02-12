@@ -248,6 +248,7 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(batt_main_enb),
 	SEC_BATTERY_ATTR(batt_main_enb2),
 	SEC_BATTERY_ATTR(batt_sub_enb),
+	SEC_BATTERY_ATTR(batt_sub_pwr_mode2),	
 #endif
 	SEC_BATTERY_ATTR(ext_event),
 	SEC_BATTERY_ATTR(direct_charging_status),
@@ -283,6 +284,7 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(dc_op_mode),
 	SEC_BATTERY_ATTR(dc_adc_mode),
 	SEC_BATTERY_ATTR(dc_vbus),
+	SEC_BATTERY_ATTR(chg_type),
 };
 
 static struct device_attribute sec_pogo_attrs[] = {
@@ -1775,6 +1777,14 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 				value.intval);
 		}
 		break;
+	case BATT_SUB_PWR_MODE2:
+		{		
+			psy_do_property(battery->pdata->sub_limiter_name, get,
+				POWER_SUPPLY_EXT_PROP_POWER_MODE2, value);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				value.intval);
+		}
+		break;
 #endif
 	case EXT_EVENT:
 		break;
@@ -1928,6 +1938,18 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 		psy_do_property(battery->pdata->charger_name, get,
 				POWER_SUPPLY_EXT_PROP_D2D_REVERSE_VBUS, value);
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", value.intval);
+		break;
+	case CHG_TYPE:
+		{
+			char temp_buf[20] = {0,};
+
+			value.strval = sb_get_ct_str(battery->cable_type);
+			strncpy(temp_buf, value.strval, sizeof(temp_buf) - 1);
+			if (is_pd_apdo_wire_type(battery->cable_type))
+				snprintf(temp_buf+strlen(temp_buf), sizeof(temp_buf), "_%d", battery->pd_rated_power);
+			pr_info("%s: CHG_TYPE = %s\n", __func__, temp_buf);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%s\n", temp_buf);
+		}
 		break;
 	default:
 		i = -EINVAL;
@@ -3804,6 +3826,22 @@ ssize_t sec_bat_store_attrs(
 			ret = count;
 		}
 		break;
+	case BATT_SUB_PWR_MODE2:
+		if (sscanf(buf, "%10d\n", &x) == 1) {
+			union power_supply_propval value = {0, };			
+			pr_info("%s sub pwr mode2 = %d\n", __func__, x);
+			if (x == 0) {
+				value.intval = 0;
+				psy_do_property(battery->pdata->sub_limiter_name, set,
+					POWER_SUPPLY_EXT_PROP_POWER_MODE2, value);
+			} else if (x == 1) {
+				value.intval = 1;
+				psy_do_property(battery->pdata->sub_limiter_name, set,
+					POWER_SUPPLY_EXT_PROP_POWER_MODE2, value);
+			}
+			ret = count;				
+		}
+		break;		
 #endif
 	case EXT_EVENT:
 		if (sscanf(buf, "%10d\n", &x) == 1) {
@@ -4057,6 +4095,8 @@ ssize_t sec_bat_store_attrs(
 		}
 		break;
 	case DC_VBUS:
+		break;
+	case CHG_TYPE:
 		break;
 	default:
 		ret = -EINVAL;

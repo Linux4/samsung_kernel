@@ -713,9 +713,17 @@ int32_t StreamCompress::mute_l(bool state)
 {
     int32_t status = 0;
 
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+    PAL_INFO(LOG_TAG, "Enter. session handle - %pK state %d", session, state);
+#else
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d", session, state);
+#endif
     status = session->setConfig(this, MODULE, state ? MUTE_TAG : UNMUTE_TAG);
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+    PAL_INFO(LOG_TAG, "Exit status: %d", status);
+#else
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
+#endif
     return status;
 }
 
@@ -746,7 +754,9 @@ int32_t StreamCompress::pause_l()
     PAL_DBG(LOG_TAG,"Enter, session handle - %p, state %d",
                session, currentState);
 
-    if (currentState != STREAM_PAUSED) {
+    if (isPaused) {
+        PAL_INFO(LOG_TAG, "Stream is already paused");
+    } else {
         status = session->setConfig(this, MODULE, PAUSE_TAG);
         if (0 != status) {
             PAL_ERR(LOG_TAG,"session setConfig for pause failed with status %d",status);
@@ -760,8 +770,6 @@ int32_t StreamCompress::pause_l()
         isPaused = true;
         currentState = STREAM_PAUSED;
         PAL_VERBOSE(LOG_TAG,"session pause successful, state %d", currentState);
-    } else {
-       PAL_INFO(LOG_TAG, "Stream is already paused");
     }
 
 exit:
@@ -839,13 +847,6 @@ int32_t StreamCompress::flush()
         return 0;
     }
 
-    mStreamMutex.unlock();
-    rm->lockActiveStream();
-    mStreamMutex.lock();
-    for (int i = 0; i < mDevices.size(); i++) {
-        rm->deregisterDevice(mDevices[i], this);
-    }
-    rm->unlockActiveStream();
     return session->flush();
 }
 

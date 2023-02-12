@@ -121,6 +121,10 @@
 #include <linux/defex.h>
 #endif
 
+#ifdef CONFIG_PROC_FSLOG
+#include <linux/fslog.h>
+#endif
+
 /*
  * Minimum number of threads to boot the kernel
  */
@@ -988,6 +992,10 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 #ifdef CONFIG_MEMCG
 	tsk->active_memcg = NULL;
 #endif
+#ifdef CONFIG_TASK_HAS_ALLOC_FREE_STAT
+	tsk->alloc_sum = 0;
+	tsk->free_sum = 0;
+#endif
 
 	android_init_vendor_data(tsk, 1);
 	android_init_oem_data(tsk, 1);
@@ -1160,8 +1168,11 @@ void mmput(struct mm_struct *mm)
 {
 	might_sleep();
 
-	if (atomic_dec_and_test(&mm->mm_users))
+	if (atomic_dec_and_test(&mm->mm_users)) {
+		RECLAIMER_LOG("UMR: B|last_exit");
 		__mmput(mm);
+		RECLAIMER_LOG("UMR: E|last_exit");
+	}
 }
 EXPORT_SYMBOL_GPL(mmput);
 

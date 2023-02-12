@@ -76,11 +76,11 @@ static phys_addr_t __init get_expand_size(unsigned long node)
 
 	prop = of_get_flat_dt_prop(node, "expand_size", &len);
 	if (!prop)
-		return -EINVAL;
+		return 0;
 
 	if (len != dt_root_size_cells * sizeof(__be32)) {
 		pr_err("invalid expand_size property in 'rbin' node.\n");
-		return -EINVAL;
+		return 0;
 	}
 	size = dt_mem_next_cell(dt_root_size_cells, &prop);
 

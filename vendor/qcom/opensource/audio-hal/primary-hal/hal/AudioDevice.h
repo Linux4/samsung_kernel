@@ -151,6 +151,10 @@ public:
     int SetGEFParam(void *data, int length);
     int GetGEFParam(void *data, int *length);
     std::shared_ptr<StreamOutPrimary> OutGetStream(audio_io_handle_t handle);
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    std::vector<std::shared_ptr<StreamOutPrimary>> OutGetBLEStreamOutputs();
+    std::vector<std::shared_ptr<StreamInPrimary>> InGetBLEStreamInputs();
+#endif
     std::shared_ptr<StreamOutPrimary> OutGetStream(audio_stream_t* audio_stream);
     std::shared_ptr<StreamInPrimary> CreateStreamIn(
             audio_io_handle_t handle,
@@ -250,6 +254,7 @@ public:
     std::shared_ptr<StreamInPrimary> GetActiveInStreamByUseCase(int UseCase);
     std::shared_ptr<StreamInPrimary> GetActiveInStreamByInputSource(audio_source_t input_source);
     std::shared_ptr<StreamOutPrimary> OutGetStream(pal_stream_type_t pal_stream_type);
+    std::shared_ptr<StreamOutPrimary> OutGetStreamByUsecase(int usecase);
 #endif
 #ifdef SEC_AUDIO_HIDL
     audio_hw_device_t* GetAudioDeviceInstance();
@@ -290,7 +295,7 @@ protected:
     void *visualizer_lib_;
     std::map<audio_devices_t, pal_device_id_t> android_device_map_;
     std::map<audio_patch_handle_t, AudioPatch*> patch_map_;
-    int add_input_headset_if_usb_out_headset(int *device_count,  pal_device_id_t** pal_device_ids);
+    int add_input_headset_if_usb_out_headset(int *device_count,  pal_device_id_t** pal_device_ids, bool conn_state);
 };
 
 static inline uint32_t lcm(uint32_t num1, uint32_t num2)

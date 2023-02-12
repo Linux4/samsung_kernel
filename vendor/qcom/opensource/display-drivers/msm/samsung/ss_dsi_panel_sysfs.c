@@ -1555,16 +1555,16 @@ static ssize_t ss_self_mask_udc_store(struct device *dev,
 	if (sscanf(buf, "%d", &enable) != 1)
 		return size;
 
+	vdd->self_disp.udc_mask_enable = enable;
+
 	if (!ss_is_ready_to_send_cmd(vdd)) {
-		LCD_INFO(vdd, "Panel is not ready. Panel State(%d) keep the value(%d).\n",
+		LCD_INFO(vdd, "Panel is not ready. Panel State(%d) enable(%d)\n",
 			vdd->panel_state, enable);
-		vdd->self_disp.need_to_enable_udc = enable;
 		return size;
 	}
 
-	LCD_INFO(vdd,"SELF MASK UDC %s! (%d)\n", enable ? "enable" : "disable", enable);
 	if (vdd->self_disp.self_mask_udc_on)
-		vdd->self_disp.self_mask_udc_on(vdd, enable);
+		vdd->self_disp.self_mask_udc_on(vdd, vdd->self_disp.udc_mask_enable);
 	else
 		LCD_INFO(vdd, "Self Mask UDC Function is NULL\n");
 
@@ -2873,6 +2873,11 @@ static int ss_gct_store(struct samsung_display_driver_data *vdd)
 
 	vdd->gct.on = 1;
 
+	if (vdd->display_enabled == false) {
+		LCD_ERR(vdd, "dsi_display is not enabled.. it may be turning off.\n");
+		goto end;
+	}
+
 	/* reset panel  */
 	LCD_INFO(vdd, "reset panel +++\n");
 	ss_send_cmd(vdd, DSI_CMD_SET_OFF);
@@ -2899,6 +2904,7 @@ static int ss_gct_store(struct samsung_display_driver_data *vdd)
 	if (vdd->esd_recovery.esd_irq_enable)
 		vdd->esd_recovery.esd_irq_enable(true, true, (void *)vdd, ESD_MASK_GCT_TEST);
 
+end:
 	LCD_INFO(vdd, "lego-opcode gct ---\n");
 
 	return 0;
@@ -5480,6 +5486,74 @@ static ssize_t ss_udc_factory_show(struct device *dev,
 end:
 	return len;
 }
+
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+static ssize_t ss_udc_gamma_restore_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct samsung_display_driver_data *vdd =
+			(struct samsung_display_driver_data *)dev_get_drvdata(dev);
+	int ret = 0;
+
+	LCD_INFO(vdd, "++\n");
+
+	if (vdd->panel_func.restore_udc_orig_gamma)
+		ret = vdd->panel_func.restore_udc_orig_gamma(vdd);
+	else
+		LCD_ERR(vdd, "No restore_udc_orig_gamma func..\n");
+
+	snprintf(buf, 10, "%d", vdd->udc.udc_restore_done);
+
+	LCD_INFO(vdd, "-- %d\n", vdd->udc.udc_restore_done);
+
+	return strlen(buf);
+}
+
+static ssize_t ss_udc_gamma_offset_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct samsung_display_driver_data *vdd =
+			(struct samsung_display_driver_data *)dev_get_drvdata(dev);
+
+	snprintf(buf, 10, "%d", vdd->udc.udc_comp_done);
+	LCD_INFO(vdd, "udc_comp_done:  %d\n", vdd->udc.udc_comp_done);
+
+	return strlen(buf);
+}
+
+static ssize_t ss_udc_gamma_offset_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct samsung_display_driver_data *vdd =
+		(struct samsung_display_driver_data *)dev_get_drvdata(dev);
+	int input;
+	int ret = 0;
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		LCD_INFO(vdd, "no vdd");
+		goto end;
+	}
+
+	if (sscanf(buf, "%d", &input) != 1)
+		goto end;
+
+	vdd->udc.JNCD_idx = input;
+	LCD_INFO(vdd, "select JNCD [%d]\n", vdd->udc.JNCD_idx);
+
+	if (!ss_is_ready_to_send_cmd(vdd)) {
+		LCD_INFO(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
+		return -EBUSY;
+	}
+
+	if (vdd->panel_func.udc_gamma_comp) {
+		ret = vdd->panel_func.udc_gamma_comp(vdd);
+	}
+
+end:
+	return size;
+}
+#endif
+
 static ssize_t ss_set_elvss_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
@@ -5793,6 +5867,10 @@ static DEVICE_ATTR(window_color, S_IRUGO | S_IWUSR | S_IWGRP, ss_window_color_sh
 static DEVICE_ATTR(te_check, S_IRUGO | S_IWUSR | S_IWGRP, ss_te_check_show, NULL);
 static DEVICE_ATTR(udc_data, S_IRUGO | S_IWUSR | S_IWGRP, ss_udc_data_show, ss_udc_data_store);
 static DEVICE_ATTR(udc_fac, S_IRUGO | S_IWUSR | S_IWGRP, ss_udc_factory_show, NULL);
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+static DEVICE_ATTR(udc_gamma_offset, S_IRUGO | S_IWUSR | S_IWGRP, ss_udc_gamma_offset_show, ss_udc_gamma_offset_store);
+static DEVICE_ATTR(udc_gamma_restore, S_IRUGO | S_IWUSR | S_IWGRP, ss_udc_gamma_restore_show, NULL);
+#endif
 static DEVICE_ATTR(set_elvss, S_IRUGO | S_IWUSR | S_IWGRP, NULL, ss_set_elvss_store);
 static DEVICE_ATTR(seq_on_delay, 0644, ss_seq_on_delay_show, ss_seq_on_delay_store);
 static DEVICE_ATTR(seq_off_delay, 0644, ss_seq_off_delay_show, ss_seq_off_delay_store);
@@ -5880,6 +5958,10 @@ static struct attribute *panel_sysfs_attributes[] = {
 	&dev_attr_window_color.attr,
 	&dev_attr_te_check.attr,
 	&dev_attr_udc_data.attr,
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+	&dev_attr_udc_gamma_offset.attr,
+	&dev_attr_udc_gamma_restore.attr,
+#endif
 	&dev_attr_udc_fac.attr,
 	&dev_attr_set_elvss.attr,
 	&dev_attr_seq_on_delay.attr,

@@ -1821,7 +1821,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		}
 #endif
 
-		CAM_INFO(CAM_SENSOR, "%s Device Handle: %d",
+		CAM_DBG(CAM_SENSOR, "%s Device Handle: %d",
 			s_ctrl->sensor_name, sensor_acq_dev.device_handle);
 		if (copy_to_user(u64_to_user_ptr(cmd->handle),
 			&sensor_acq_dev,
@@ -1852,7 +1852,6 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		if (rc < 0) {
 			cam_sensor_power_down(s_ctrl);
 			msleep(20);
-			CAM_INFO(CAM_SENSOR, "%s Device Handle: %d",s_ctrl->sensor_name, s_ctrl->bridge_intf.device_hdl);
 			if (s_ctrl->bridge_intf.device_hdl != -1)
 				cam_destroy_device_hdl(s_ctrl->bridge_intf.device_hdl);
 			s_ctrl->bridge_intf.device_hdl = -1;

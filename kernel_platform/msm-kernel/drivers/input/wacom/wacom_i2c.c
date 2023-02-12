@@ -1733,6 +1733,7 @@ static int wacom_i2c_input_open(struct input_dev *dev)
 	if (wac_i2c->power_enable == false) {
 		mutex_lock(&wac_i2c->lock);
 		wacom_power(wac_i2c, true);
+		msleep(100);
 		wac_i2c->reset_flag = false;
 		mutex_unlock(&wac_i2c->lock);
 	}
@@ -1775,6 +1776,8 @@ static void wacom_i2c_input_close(struct input_dev *dev)
 		wacom_power(wac_i2c, false);
 		wac_i2c->screen_on = false;
 		wac_i2c->reset_flag = false;
+		wac_i2c->survey_mode = EPEN_SURVEY_MODE_NONE;
+		wac_i2c->function_result &= ~EPEN_EVENT_SURVEY;
 		mutex_unlock(&wac_i2c->lock);
 	} else {
 		wacom_sleep_sequence(wac_i2c);
@@ -2269,8 +2272,9 @@ int wacom_fw_update_on_probe(struct wacom_i2c *wac_i2c)
 
 	ret = wacom_i2c_load_fw(wac_i2c, FW_BUILT_IN);
 	if (ret < 0) {
-		input_info(true, &client->dev, "failed to load fw data\n");
-		goto err_update_load_fw;
+		input_info(true, &client->dev, "failed to load fw data (set bringup 1)\n");
+		wac_i2c->pdata->bringup = 1;
+		goto skip_update_fw;
 	}
 
 	if (wac_i2c->pdata->bringup == 2) {
@@ -2387,7 +2391,6 @@ skip_update_fw:
 
 err_update_fw:
 	wacom_i2c_unload_fw(wac_i2c);
-err_update_load_fw:
 
 #if WACOM_SEC_FACTORY
 	ret = wacom_check_ub(wac_i2c->client);
