@@ -2693,12 +2693,13 @@ static int32_t stk3a8x_alps_set_config(struct stk3a8x_data *alps_data, bool en)
 	bool is_irq = false;
 	int32_t ret = 0;
 
+	mutex_lock(&alps_data->config_lock);
 	if (alps_data->first_init)
 	{
 		ret = stk3a8x_request_registry(alps_data);
 
 		if (ret < 0)
-			return ret;
+			goto err;
 
 		stk3a8x_init_para(alps_data, alps_data->pdata);
 		alps_data->first_init = false;
@@ -2707,7 +2708,7 @@ static int32_t stk3a8x_alps_set_config(struct stk3a8x_data *alps_data, bool en)
 	if (alps_data->als_info.enable == en)
 	{
 		err_flicker("ALS status is same (%d)\n", en);
-		return 0;
+		goto done;
 	}
 
 	//To-Do: ODR setting
@@ -2745,7 +2746,7 @@ static int32_t stk3a8x_alps_set_config(struct stk3a8x_data *alps_data, bool en)
 		if (ret < 0)
 		{
 			err_flicker("ALS set INT fail\n");
-			return ret;
+			goto err;
 		}
 
 		stk3a8x_register_interrupt(alps_data);
@@ -2822,7 +2823,11 @@ static int32_t stk3a8x_alps_set_config(struct stk3a8x_data *alps_data, bool en)
 
 #endif
 	//stk3a8x_dump_reg(alps_data);
-	return 0;
+err:
+	err_flicker("error %d", ret);
+done:
+	mutex_unlock(&alps_data->config_lock);
+	return ret;
 }
 
 static void stk3a8x_pin_control(struct stk3a8x_data *alps_data, bool pin_set)
@@ -3084,6 +3089,7 @@ int stk3a8x_probe(struct i2c_client *client,
 	alps_data->dev    = &client->dev;
 	alps_data->bops   = bops;
 	i2c_set_clientdata(client, alps_data);
+	mutex_init(&alps_data->config_lock);
 	mutex_init(&alps_data->io_lock);
 	mutex_init(&alps_data->data_info_lock);
 #if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)
@@ -3222,6 +3228,7 @@ int stk3a8x_remove(struct i2c_client *client)
 #ifdef SUPPORT_SENSOR_CLASS
 	input_unregister_device(alps_data->als_input_dev);
 #endif
+	mutex_destroy(&alps_data->config_lock);
 	mutex_destroy(&alps_data->io_lock);
 	mutex_destroy(&alps_data->data_info_lock);
 #if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)

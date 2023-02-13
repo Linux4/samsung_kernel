@@ -261,6 +261,8 @@ char ss_cmd_set_prop_map[SS_CMD_PROP_SIZE][SS_CMD_PROP_STR_LEN] = {
 	"samsung,self_mask_on_revA",
 	"samsung,self_mask_on_factory_revA",
 	"samsung,self_mask_off_revA",
+	"samsung,self_mask_udc_on_revA",
+	"samsung,self_mask_udc_off_revA",
 	"samsung,self_mask_green_circle_on_revA",
 	"samsung,self_mask_green_circle_off_revA",
 	"samsung,self_mask_green_circle_on_factory_revA",
@@ -790,6 +792,12 @@ void ss_event_frame_update_post(struct samsung_display_driver_data *vdd)
 			goto skip_display_on;
 		}
 		frame_count = 1;
+
+		/* set self_mask_udc before display on */
+		if (vdd->self_disp.self_mask_udc_on)
+			vdd->self_disp.self_mask_udc_on(vdd, vdd->self_disp.udc_mask_enable);
+		else
+			LCD_DEBUG(vdd, "Self Mask UDC Function is NULL\n");
 
 		/* delay between sleep_out and display_on cmd */
 		ss_delay(vdd->dtsi_data.sleep_out_to_on_delay, vdd->sleep_out_time);
@@ -3205,6 +3213,9 @@ int ss_panel_on_post(struct samsung_display_driver_data *vdd)
 	vdd->display_status_dsi.wait_disp_on = true;
 	vdd->display_status_dsi.wait_actual_disp_on = true;
 	vdd->panel_lpm.need_self_grid = true;
+
+	/* in case the code that display_enabled is set to true in bridge_enable function is not ported */
+	vdd->display_enabled = true;
 
 	if (vdd->dyn_mipi_clk.is_support) {
 		LCD_INFO(vdd, "FFC Setting for Dynamic MIPI Clock\n");

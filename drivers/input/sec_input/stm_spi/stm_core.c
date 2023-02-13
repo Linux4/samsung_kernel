@@ -641,9 +641,14 @@ void stm_ts_reinit(void *data)
 		stm_ts_ear_detect_enable(ts, ts->plat_data->ed_enable);
 	if (ts->plat_data->pocket_mode)
 		stm_ts_pocket_mode_enable(ts, ts->plat_data->pocket_mode);
+	if (ts->sip_mode)
+		stm_ts_sip_mode_enable(ts);
+	if (ts->note_mode)
+		stm_ts_note_mode_enable(ts);
+	if (ts->game_mode)
+		stm_ts_game_mode_enable(ts);
 out:
 	stm_ts_set_scanmode(ts, ts->scan_mode);
-	
 }
 /*
  * don't need it in interrupt handler in reality, but, need it in vendor IC for requesting vendor IC.

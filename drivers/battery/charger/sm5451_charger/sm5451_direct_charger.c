@@ -447,6 +447,7 @@ static inline void _try_to_adjust_cc_down(struct sm_dc_info *sm_dc)
 static void pd_check_vbat_work(struct work_struct *work)
 {
 	struct sm_dc_info *sm_dc = container_of(work, struct sm_dc_info, check_vbat_work.work);
+	struct sm_dc_power_source_info ta;
 	union power_supply_propval val;
 	int adc_vbat;
 	int ret;
@@ -461,6 +462,22 @@ static void pd_check_vbat_work(struct work_struct *work)
 		pr_err("%s %s: is not ready to work (wait 1sec)\n", sm_dc->name, __func__);
 		request_state_work(sm_dc, SM_DC_CHECK_VBAT, DELAY_ADC_UPDATE);
 		return;
+	}
+
+	ret = sm_dc->ops->get_apdo_max_power(sm_dc->i2c, &ta);
+	if (ret < 0) {
+		if (sm_dc->ta.retry_cnt < 3) {
+			pr_err("%s %s: get_apdo_max_power, RETRY=%d\n",
+				sm_dc->name, __func__, sm_dc->ta.retry_cnt);
+			sm_dc->ta.retry_cnt++;
+			request_state_work(sm_dc, SM_DC_CHECK_VBAT, DELAY_PPS_UPDATE);
+			return;
+		} else {
+			pr_err("%s %s: fail to get APDO(ret=%d)\n", sm_dc->name, __func__, ret);
+			sm_dc->err = SM_DC_ERR_SEND_PD_MSG;
+			request_state_work(sm_dc, SM_DC_ERR, DELAY_NONE);
+			return;
+		}
 	}
 
 	val.intval = 0;
@@ -1564,17 +1581,18 @@ int sm_dc_get_current_state(struct sm_dc_info *sm_dc)
 }
 EXPORT_SYMBOL(sm_dc_get_current_state);
 
-int sm_dc_start_charging(struct sm_dc_info *sm_dc, struct sm_dc_power_source_info *ta)
+int sm_dc_start_charging(struct sm_dc_info *sm_dc)
 {
 	if (sm_dc->state >= SM_DC_CHECK_VBAT) {
 		pr_err("%s %s: already work on dc (state=%d)\n", sm_dc->name, __func__, sm_dc->state);
 		return -EBUSY;
 	}
 
-	sm_dc->ta.pdo_pos = ta->pdo_pos;
-	sm_dc->ta.v_max = ta->v_max;
-	sm_dc->ta.c_max = ta->c_max;
-	sm_dc->ta.p_max = ta->p_max;
+	sm_dc->ta.pdo_pos = 0;        /* set '0' else return error */
+	sm_dc->ta.v_max = 10000;      /* request voltage level */
+	sm_dc->ta.c_max = 0;
+	sm_dc->ta.p_max = 0;
+	sm_dc->ta.retry_cnt = 0;
 
 	sm_dc->ops->set_adc_mode(sm_dc->i2c, SM_DC_ADC_MODE_ONESHOT);
 	mutex_lock(&sm_dc->st_lock);

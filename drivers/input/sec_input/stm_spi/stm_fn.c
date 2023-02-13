@@ -857,6 +857,8 @@ int stm_ts_wait_for_echo_event(struct stm_ts_data *ts, u8 *cmd, u8 cmd_cnt, int 
 
 	if (delay)
 		sec_delay(delay);
+	else
+		sec_delay(5);
 
 	memset(data, 0x0, STM_TS_EVENT_BUFF_SIZE);
 
@@ -1783,6 +1785,60 @@ int stm_ts_pocket_mode_enable(struct stm_ts_data *ts, u8 enable)
 	if (ret < 0)
 		input_err(true, &ts->client->dev,
 				"%s: failed to pocket mode%d, ret=%d\n", __func__, data, ret);
+	return ret;
+}
+
+int stm_ts_sip_mode_enable(struct stm_ts_data *ts)
+{
+	int ret;
+	u8 reg[3] = { 0 };
+
+	input_info(true, &ts->client->dev, "%s: %s\n",
+			__func__, ts->sip_mode ? "enable" : "disable");
+
+	reg[0] = STM_TS_CMD_SET_FUNCTION_ONOFF;
+	reg[1] = STM_TS_FUNCTION_ENABLE_SIP_MODE;
+	reg[2] = ts->sip_mode;
+	ret = ts->stm_ts_spi_write(ts, reg, 3, NULL, 0);
+	if (ret < 0)
+		input_err(true, &ts->client->dev,
+				"%s: failed to sip mode%d, ret=%d\n", __func__, ts->sip_mode, ret);
+	return ret;
+}
+
+int stm_ts_game_mode_enable(struct stm_ts_data *ts)
+{
+	int ret;
+	u8 reg[3] = { 0 };
+
+	input_info(true, &ts->client->dev, "%s: %s\n",
+			__func__, ts->game_mode ? "enable" : "disable");
+
+	reg[0] = STM_TS_CMD_SET_FUNCTION_ONOFF;
+	reg[1] = STM_TS_CMD_FUNCTION_SET_GAME_MODE;
+	reg[2] = ts->game_mode;
+	ret = ts->stm_ts_spi_write(ts, reg, 3, NULL, 0);
+	if (ret < 0)
+		input_err(true, &ts->client->dev,
+				"%s: failed to game mode%d, ret=%d\n", __func__, ts->game_mode, ret);
+	return ret;
+}
+
+int stm_ts_note_mode_enable(struct stm_ts_data *ts)
+{
+	int ret;
+	u8 reg[3] = { 0 };
+
+	input_info(true, &ts->client->dev, "%s: %s\n",
+			__func__, ts->note_mode ? "enable" : "disable");
+
+	reg[0] = STM_TS_CMD_SET_FUNCTION_ONOFF;
+	reg[1] = STM_TS_CMD_FUNCTION_SET_NOTE_MODE;
+	reg[2] = ts->note_mode;
+	ret = ts->stm_ts_spi_write(ts, reg, 3, NULL, 0);
+	if (ret < 0)
+		input_err(true, &ts->client->dev,
+				"%s: failed to note mode%d, ret=%d\n", __func__, ts->note_mode, ret);
 	return ret;
 }
 

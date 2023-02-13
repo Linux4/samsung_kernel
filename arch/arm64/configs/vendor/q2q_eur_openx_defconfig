@@ -416,6 +416,7 @@ CONFIG_FORCE_MAX_ZONEORDER=11
 # CONFIG_HARDEN_BRANCH_PREDICTOR is not set
 CONFIG_HARDEN_EL2_VECTORS=y
 CONFIG_ARM64_SSBD=y
+CONFIG_MITIGATE_SPECTRE_BRANCH_HISTORY=y
 CONFIG_RODATA_FULL_DEFAULT_ENABLED=y
 CONFIG_ARM64_SW_TTBR0_PAN=y
 # CONFIG_ARM64_TAGGED_ADDR_ABI is not set
@@ -1389,6 +1390,7 @@ CONFIG_QRTR_SMD=y
 # CONFIG_QRTR_TUN is not set
 CONFIG_QRTR_MHI=y
 CONFIG_QRTR_HAVEN=y
+# CONFIG_QRTR_WS_DEBUG is not set
 # CONFIG_NET_NCSI is not set
 CONFIG_KNOX_NCM=y
 CONFIG_RPS=y
@@ -2820,7 +2822,6 @@ CONFIG_GPIO_PCA953X_IRQ=y
 # end of USB GPIO expanders
 
 # CONFIG_GPIO_MOCKUP is not set
-CONFIG_QCOM_SEC_DETECT=m
 # CONFIG_W1 is not set
 CONFIG_POWER_AVS=y
 CONFIG_POWER_RESET=y
@@ -6261,6 +6262,77 @@ CONFIG_CHARGER_MAX77705=y
 CONFIG_SUPPORT_DROPDUMP=y
 
 #
+# Samsung ABC Options
+#
+CONFIG_SEC_ABC=y
+
+#
+# Samsung ABC Common Options
+#
+CONFIG_SEC_ABC_COMMON=y
+
+#
+# Samsung ABC MOTTO Options
+#
+CONFIG_SEC_ABC_MOTTO=y
+
+#
+# Samsung ABC_COMMON KUNIT Options
+#
+
+#
+# Samsung ABC Hub Options
+#
+CONFIG_SEC_ABC_HUB=y
+
+#
+# Samsung ABC Hub Core Options
+#
+CONFIG_SEC_ABC_HUB_CORE=y
+
+#
+# Samsung ABC Hub Connect Detect Options
+#
+# CONFIG_SEC_ABC_HUB_COND is not set
+
+#
+# Samsung ABC Hub Connect Detect Options
+#
+
+#
+# Samsung ABC Hub Booting Time Check Options
+#
+CONFIG_SEC_ABC_HUB_BOOTC=y
+
+#
+# Samsung ABC Hub Booting Time Check eng mode Options
+#
+# CONFIG_SEC_ABC_HUB_BOOTC_ENG is not set
+
+#
+# Samsung ABC_HUB KUNIT Options
+#
+
+#
+# Samsung ABC Hub Connect Detect for ABC HUB
+#
+
+#
+# Samsung ABC Hub Connect Detect Kunit Test FEATURE
+#
+# CONFIG_SEC_ABC_DETECT_KUNIT is not set
+
+#
+# Samsung ABC Hub Connect Detect FEATURE
+#
+CONFIG_SEC_ABC_DETECT_CONN=m
+
+#
+# Samsung ABC Hub Connect Detect for QCOM, MTK
+#
+CONFIG_QCOM_SEC_ABC_DETECT=m
+
+#
 # MUIC configs
 #
 CONFIG_USE_MUIC=y
@@ -6318,6 +6390,7 @@ CONFIG_SENSORS_FINGERPRINT_QCOM=y
 # CONFIG_SENSORS_FINGERPRINT_32BITS_PLATFORM_ONLY is not set
 # CONFIG_SENSORS_QBT2000 is not set
 # CONFIG_SENSORS_ET5XX is not set
+# CONFIG_SENSORS_EC6XX is not set
 # CONFIG_SENSORS_ET7XX is not set
 # CONFIG_SENSORS_EL7XX is not set
 CONFIG_SENSORS_GW3X=m
@@ -6340,59 +6413,6 @@ CONFIG_SENSORS_FLICKER_SELF_TEST=y
 CONFIG_SENSORS_STK3A8X=y
 CONFIG_CHARGER_SM5451=y
 CONFIG_LIMITER_S2ASL01=y
-
-#
-# Samsung ABC Options
-#
-CONFIG_SEC_ABC=y
-
-#
-# Samsung ABC Common Options
-#
-CONFIG_SEC_ABC_COMMON=y
-
-#
-# Samsung ABC MOTTO Options
-#
-CONFIG_SEC_ABC_MOTTO=y
-
-#
-# Samsung ABC_COMMON KUNIT Options
-#
-
-#
-# Samsung ABC Hub Options
-#
-CONFIG_SEC_ABC_HUB=y
-
-#
-# Samsung ABC Hub Core Options
-#
-CONFIG_SEC_ABC_HUB_CORE=y
-
-#
-# Samsung ABC Hub Connect Detect Options
-#
-CONFIG_SEC_ABC_HUB_COND=y
-
-#
-# Samsung ABC Hub Connect Detect Options
-#
-# CONFIG_SEC_ABC_HUB_COND_DAVINCI is not set
-
-#
-# Samsung ABC Hub Booting Time Check Options
-#
-CONFIG_SEC_ABC_HUB_BOOTC=y
-
-#
-# Samsung ABC Hub Booting Time Check eng mode Options
-#
-# CONFIG_SEC_ABC_HUB_BOOTC_ENG is not set
-
-#
-# Samsung ABC_HUB KUNIT Options
-#
 CONFIG_MOTOR_CS40L2X=y
 CONFIG_CS40L2X_SAMSUNG_FEATURE=y
 # CONFIG_SUPPORT_OWT_CWS is not set
@@ -6435,6 +6455,7 @@ CONFIG_SUPPORT_HV_CTRL=y
 CONFIG_INPUT_HALL_IC=y
 CONFIG_HALL_NOTIFIER=y
 # CONFIG_HALL_LOGICAL is not set
+# CONFIG_HALL_DUMP_KEY_MODE is not set
 CONFIG_REGULATOR_S2MPB02=y
 CONFIG_SENSORS_SEC_THERMISTOR=y
 CONFIG_MFD_MAX77705=y

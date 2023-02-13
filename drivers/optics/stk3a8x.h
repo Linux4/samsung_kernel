@@ -410,6 +410,7 @@ typedef struct stk3a8x_data
 #ifdef SUPPORT_SENSOR_CLASS
 	struct sensors_classdev als_cdev;
 #endif
+	struct mutex            config_lock;
 	struct mutex            io_lock;
 	struct mutex            data_info_lock;
 #if defined(CONFIG_AMS_ALS_COMPENSATION_FOR_AUTO_BRIGHTNESS)

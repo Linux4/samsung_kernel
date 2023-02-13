@@ -1172,6 +1172,8 @@ int stm_ts_fw_wait_for_jitter_result(struct stm_ts_data *ts, u8 *reg, u8 count, 
 		return rc;
 	}
 
+	sec_delay(5);
+
 	memset(data, 0x0, STM_TS_EVENT_BUFF_SIZE);
 
 	address = STM_TS_READ_ONE_EVENT;
@@ -1659,6 +1661,8 @@ static int stm_ts_panel_test_micro_result(struct stm_ts_data *ts, int type)
 		input_err(true, &ts->client->dev, "%s: write failed: %d\n", __func__, ret);
 		goto error;
 	}
+
+	sec_delay(5);
 
 	/* maximum timeout 500 msec ? */
 	while (retry-- >= 0) {
@@ -2226,6 +2230,8 @@ static void run_jitter_delta_test(void *device_data)
 		mutex_unlock(&ts->fn_mutex);
 		goto OUT_JITTER_DELTA;
 	}
+
+	sec_delay(5);
 
 	memset(data, 0x0, STM_TS_EVENT_BUFF_SIZE);
 
@@ -3318,6 +3324,8 @@ static void stm_ts_read_self_raw_frame(struct stm_ts_data *ts, bool allnode)
 	reg[2] = TYPE_RAW_DATA;
 	ts->stm_ts_spi_write(ts, &reg[0], 3, NULL, 0);
 
+	sec_delay(5);
+
 	do {
 		reg[0] = 0xA7;
 		reg[1] = 0x00;
@@ -4337,6 +4345,8 @@ static void run_factory_miscalibration(void *device_data)
 		goto error;
 	}
 
+	sec_delay(5);
+
 	/* maximum timeout 2sec ? */
 	while (retry-- >= 0) {
 		memset(data, 0x00, sizeof(data));
@@ -4414,6 +4424,8 @@ static void run_miscalibration(void *device_data)
 		input_err(true, &ts->client->dev, "%s: write failed: %d\n", __func__, ret);
 		goto error;
 	}
+
+	sec_delay(5);
 
 	/* maximum timeout 2sec ? */
 	while (retry-- >= 0) {
@@ -4846,6 +4858,8 @@ static void run_elvss_test(void *device_data)
 		return;
 	}
 
+	sec_delay(5);
+
 	memset(data, 0x00, STM_TS_EVENT_BUFF_SIZE);
 	data[0] = STM_TS_READ_ONE_EVENT;
 
@@ -5130,6 +5144,8 @@ static void run_color_diff_test(void *device_data)
 		enable_irq(ts->irq);
 		return;
 	}
+
+	sec_delay(5);
 
 	memset(data, 0x00, STM_TS_EVENT_BUFF_SIZE);
 	data[0] = STM_TS_READ_ONE_EVENT;
@@ -6519,7 +6535,6 @@ static void set_sip_mode(void *device_data)
 	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
 	char buff[SEC_CMD_STR_LEN] = { 0 };
 	int ret;
-	u8 reg[3] = { 0 };
 
 	sec_cmd_set_default_result(sec);
 
@@ -6527,20 +6542,27 @@ static void set_sip_mode(void *device_data)
 		snprintf(buff, sizeof(buff), "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 	} else {
-		reg[0] = STM_TS_CMD_SET_FUNCTION_ONOFF;
-		reg[1] = STM_TS_FUNCTION_ENABLE_SIP_MODE;
-		reg[2] = sec->cmd_param[0];
-		ret = ts->stm_ts_spi_write(ts, reg, 3, NULL, 0);
+		ts->sip_mode = sec->cmd_param[0];
+
+		if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
+			input_info(true, &ts->client->dev, "%s: Touch is stopped\n", __func__);
+			snprintf(buff, sizeof(buff), "OK");
+			sec->cmd_state = SEC_CMD_STATUS_OK;
+			goto out_sip_mode;
+		}
+
+		ret = stm_ts_sip_mode_enable(ts);
 		if (ret < 0) {
 			snprintf(buff, sizeof(buff), "NG");
 			sec->cmd_state = SEC_CMD_STATUS_FAIL;
 		} else {
-			input_info(true, &ts->client->dev, "%s: %s\n", __func__, reg[2] ? "enable" : "disable");
+			input_info(true, &ts->client->dev, "%s: %s\n", __func__, ts->sip_mode ? "enable" : "disable");
 			snprintf(buff, sizeof(buff), "OK");
 			sec->cmd_state = SEC_CMD_STATUS_OK;
 		}
 	}
 
+out_sip_mode:
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec->cmd_state = SEC_CMD_STATUS_WAITING;
 	sec_cmd_set_cmd_exit(sec);
@@ -6554,7 +6576,6 @@ static void set_game_mode(void *device_data)
 	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
 	char buff[SEC_CMD_STR_LEN] = { 0 };
 	int ret;
-	u8 reg[3] = { 0 };
 
 	sec_cmd_set_default_result(sec);
 
@@ -6562,20 +6583,27 @@ static void set_game_mode(void *device_data)
 		snprintf(buff, sizeof(buff), "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 	} else {
-		reg[0] = STM_TS_CMD_SET_FUNCTION_ONOFF;
-		reg[1] = STM_TS_CMD_FUNCTION_SET_GAME_MODE;
-		reg[2] = sec->cmd_param[0];
-		ret = ts->stm_ts_spi_write(ts, reg, 3, NULL, 0);
+		ts->game_mode = sec->cmd_param[0];
+
+		if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
+			input_info(true, &ts->client->dev, "%s: Touch is stopped\n", __func__);
+			snprintf(buff, sizeof(buff), "OK");
+			sec->cmd_state = SEC_CMD_STATUS_OK;
+			goto out_game_mode;
+		}
+
+		ret = stm_ts_game_mode_enable(ts);
 		if (ret < 0) {
 			snprintf(buff, sizeof(buff), "NG");
 			sec->cmd_state = SEC_CMD_STATUS_FAIL;
 		} else {
-			input_info(true, &ts->client->dev, "%s: %s\n", __func__, reg[2] ? "enable" : "disable");
+			input_info(true, &ts->client->dev, "%s: %s\n", __func__, ts->game_mode ? "enable" : "disable");
 			snprintf(buff, sizeof(buff), "OK");
 			sec->cmd_state = SEC_CMD_STATUS_OK;
 		}
 	}
 
+out_game_mode:
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec->cmd_state = SEC_CMD_STATUS_WAITING;
 	sec_cmd_set_cmd_exit(sec);
@@ -6589,7 +6617,6 @@ static void set_note_mode(void *device_data)
 	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
 	char buff[SEC_CMD_STR_LEN] = { 0 };
 	int ret;
-	u8 reg[3] = { 0 };
 
 	sec_cmd_set_default_result(sec);
 
@@ -6597,20 +6624,27 @@ static void set_note_mode(void *device_data)
 		snprintf(buff, sizeof(buff), "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 	} else {
-		reg[0] = STM_TS_CMD_SET_FUNCTION_ONOFF;
-		reg[1] = STM_TS_CMD_FUNCTION_SET_NOTE_MODE;
-		reg[2] = sec->cmd_param[0];
-		ret = ts->stm_ts_spi_write(ts, reg, 3, NULL, 0);
+		ts->note_mode = sec->cmd_param[0];
+
+		if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
+			input_info(true, &ts->client->dev, "%s: Touch is stopped\n", __func__);
+			snprintf(buff, sizeof(buff), "OK");
+			sec->cmd_state = SEC_CMD_STATUS_OK;
+			goto out_note_mode;
+		}
+
+		ret = stm_ts_note_mode_enable(ts);
 		if (ret < 0) {
 			snprintf(buff, sizeof(buff), "NG");
 			sec->cmd_state = SEC_CMD_STATUS_FAIL;
 		} else {
-			input_info(true, &ts->client->dev, "%s: %s\n", __func__, reg[2] ? "enable" : "disable");
+			input_info(true, &ts->client->dev, "%s: %s\n", __func__, ts->note_mode ? "enable" : "disable");
 			snprintf(buff, sizeof(buff), "OK");
 			sec->cmd_state = SEC_CMD_STATUS_OK;
 		}
 	}
 
+out_note_mode:
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec->cmd_state = SEC_CMD_STATUS_WAITING;
 	sec_cmd_set_cmd_exit(sec);

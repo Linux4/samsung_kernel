@@ -112,3 +112,34 @@ config SEC_ABC_HUB_KUNIT
 	  Samsung ABC(Abnormal Behavior Catcher) Hub KUNIT Function Feature
 	  This config is to support ABC Hub KUNIT Function
 	  It depends on SEC_ABC_HUB && SEC_KUNIT Feature
+
+comment "Samsung ABC Hub Connect Detect for ABC HUB"
+config SEC_ABC_HUB_COND
+	tristate "Samsung ABC Hub Connect Detect Feature"
+	depends on SEC_ABC_HUB
+	help
+	  Samsung COND(Connect Detect) Feature
+	  This function is to detect connect h/w problem
+	  It is sub module of ABC Hub Driver
+	  It depends on SEC_ABC_HUB Feature
+
+comment "Samsung ABC Hub Connect Detect Kunit Test FEATURE"
+config SEC_ABC_DETECT_KUNIT
+	tristate "Samsung Connector Detector Kunit TEST"
+	help
+		Feature for checking connector detection code .
+		This feature should be enabled only for testing while development.
+
+comment "Samsung ABC Hub Connect Detect FEATURE"
+config SEC_ABC_DETECT_CONN
+	tristate "Samsung Connector Detector feature"
+	help
+		Feature for checking connector status.
+		This feature should be enabled in factory mode.
+
+comment "Samsung ABC Hub Connect Detect for QCOM, MTK"
+config QCOM_SEC_ABC_DETECT
+	tristate "Samsung Connector Detector Qcom feature"
+	help
+		Feature for checking QCOM Chipset.
+		This feature should be enabled for QCOM chipset in factory mode.
