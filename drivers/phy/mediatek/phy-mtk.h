@@ -54,6 +54,8 @@ struct mtk_phy_interface {
 		bool on);
 	void (*usb_phy_dpdm_pulldown)(struct mtk_phy_instance *instance,
 		bool enable);
+	void (*usb_phy_dpdm_pullup)(struct mtk_phy_instance *instance,
+		bool enable);
 	int  (*usb_phy_lpm_enable)(struct mtk_phy_instance *instance, bool on);
 	int  (*usb_phy_host_mode)(struct mtk_phy_instance *instance, bool on);
 	int  (*usb_phy_io_read)(struct mtk_phy_instance *instance, u32 reg);

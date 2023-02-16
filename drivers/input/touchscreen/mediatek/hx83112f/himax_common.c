@@ -1674,7 +1674,7 @@ void himax_cable_detect_func(bool force_renew)
 	/*u32 connect_status = 0;*/
 	uint8_t connect_status = 0;
 	USB_detect_flag=upmu_is_chr_det();
-	I("%s:USB_detect_flag=%d",__func__,USB_detect_flag);
+	//I("%s:USB_detect_flag=%d",__func__,USB_detect_flag);
 	connect_status = USB_detect_flag;/* upmu_is_chr_det(); */
 	ts = private_ts;
 
@@ -2793,11 +2793,9 @@ void himax_ts_work(struct himax_ts_data *ts)
 			ts->notouch_frame--;
 		return;
 	}
-
 #if defined(HX_USB_DETECT_GLOBAL)
 	himax_cable_detect_func(false);
 #endif
-
 	ts_path = himax_ts_work_status(ts);
 	switch (ts_path) {
 	case HX_REPORT_COORD:

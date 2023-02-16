@@ -64,11 +64,13 @@ struct sec_nfc_i2c_info {};
 #include "wakelock.h"
 #define SEC_NFC_GET_INFO(dev) i2c_get_clientdata(to_i2c_client(dev))
 
+#if 1
 /*bug 604664,cuijiang.wt,2021.09.29,add nfc info*/
 #include <linux/hardware_info.h>
 extern char nfc_version[HARDWARE_MAX_ITEM_LONGTH];
 volatile bool reset_ntf_flag = false;
 /*bug 604664,cuijiang.wt,2021.09.29,add nfc info*/
+#endif
 enum sec_nfc_irq {
     SEC_NFC_SKIP = -1,
     SEC_NFC_NONE,
@@ -207,6 +209,7 @@ static ssize_t sec_nfc_read(struct file *file, char __user *buf,
         dev_err(info->dev, "copy failed to user\n");
         ret = -EFAULT;
     }
+#if 1
     /*bug 604664,cuijiang.wt,2021.09.29,add nfc info*/
     if(reset_ntf_flag)
     {
@@ -226,6 +229,7 @@ static ssize_t sec_nfc_read(struct file *file, char __user *buf,
         reset_ntf_flag = true;
     }
     /*bug 604664,cuijiang.wt,2021.09.27,add nfc info*/
+#endif
     goto out;
 
 read_error:

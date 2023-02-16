@@ -58,6 +58,8 @@ static struct class *mst_drv_class;
 struct device *mst_drv_dev;
 static int escape_loop = 1;
 static int mst_pwr_en;
+static int mst_en;
+static int mst_data;
 static int mst_vcc;
 static spinlock_t event_lock;
 
@@ -109,72 +111,6 @@ static void of_mst_hw_onoff(bool on)
 	}
 }
 
-uint32_t transmit_mst_teegris(uint32_t cmd)
-{
-	TEEC_Context context;
-	TEEC_Session session_ta;
-	TEEC_Operation operation;
-	TEEC_Result ret;
-
-	uint32_t origin;
-
-	origin = 0x0;
-	operation.paramTypes = TEEC_PARAM_TYPES(TEEC_NONE, TEEC_NONE,
-						TEEC_NONE, TEEC_NONE);
-
-	mst_info("%s: TEEC_InitializeContext\n", __func__);
-	ret = TEEC_InitializeContext(NULL, &context);
-	if (ret != TEEC_SUCCESS) {
-		mst_err("%s: InitializeContext failed, %d\n", __func__, ret);
-		goto exit;
-	}
-
-	mst_info("%s: TEEC_OpenSession\n", __func__);
-	ret = TEEC_OpenSession(&context, &session_ta, &uuid_ta, 0,
-			       NULL, &operation, &origin);
-	if (ret != TEEC_SUCCESS) {
-		mst_err("%s: OpenSession(ta) failed, %d\n", __func__, ret);
-		goto finalize_context;
-	}
-
-	mst_info("%s: TEEC_InvokeCommand (CMD_OPEN)\n", __func__);
-	ret = TEEC_InvokeCommand(&session_ta, CMD_OPEN, &operation, &origin);
-	if (ret != TEEC_SUCCESS) {
-		mst_err("%s: InvokeCommand(OPEN) failed, %d\n", __func__, ret);
-		goto ta_close_session;
-	}
-
-	/* MST IOCTL - transmit track data */
-	mst_info("tracing mark write: MST transmission Start\n");
-	mst_info("%s: TEEC_InvokeCommand (TRACK1 or TRACK2)\n", __func__);
-	ret = TEEC_InvokeCommand(&session_ta, cmd, &operation, &origin);
-	if (ret != TEEC_SUCCESS) {
-		mst_err("%s: InvokeCommand failed, %d\n", __func__, ret);
-		goto ta_close_session;
-	}
-	mst_info("tracing mark write: MST transmission End\n");
-
-	if (ret) {
-		mst_info("%s: Send track%d data --> failed\n", __func__, cmd-2);
-	} else {
-		mst_info("%s: Send track%d data --> success\n", __func__, cmd-2);
-	}
-
-	mst_info("%s: TEEC_InvokeCommand (CMD_CLOSE)\n", __func__);
-	ret = TEEC_InvokeCommand(&session_ta, CMD_CLOSE, &operation, &origin);
-	if (ret != TEEC_SUCCESS) {
-		mst_err("%s: InvokeCommand(CLOSE) failed, %d\n", __func__, ret);
-		goto ta_close_session;
-	}
-
-ta_close_session:
-	TEEC_CloseSession(&session_ta);
-finalize_context:
-	TEEC_FinalizeContext(&context);
-exit:
-	return ret;
-}
-
 /**
  * show_mst_drv - device attribute show sysfs operation
  */
@@ -218,7 +154,7 @@ static ssize_t store_mst_drv(struct device *dev,
 
 		mst_info("%s: send track1 data\n", __func__);
 
-		ret = transmit_mst_teegris(CMD_TRACK1);
+		ret = transmit_mst_data(TRACK1, mst_en, mst_data, event_lock);
 
 		of_mst_hw_onoff(0);
 
@@ -229,7 +165,7 @@ static ssize_t store_mst_drv(struct device *dev,
 
 		mst_info("%s: send track2 data\n", __func__);
 
-		ret = transmit_mst_teegris(CMD_TRACK2);
+		ret = transmit_mst_data(TRACK2, mst_en, mst_data, event_lock);
 
 		of_mst_hw_onoff(0);
 
@@ -293,10 +229,26 @@ static int sec_mst_gpio_init(struct device *dev)
 		gpio_direction_output(mst_pwr_en, 0);
 		mst_info("%s: mst_pwr_en output\n", __func__);
 	}
-	mst_vcc = of_get_named_gpio(dev->of_node, "sec-mst,mst-vcc-gpio", 0);
-	mst_info("%s: Data Value mst_vcc : %d\n", __func__, mst_vcc);
+
+	mst_en = of_get_named_gpio(dev->of_node, "sec-mst,mst-en-gpio", 0);
+	mst_data = of_get_named_gpio(dev->of_node, "sec-mst,mst-data-gpio", 0);
+    mst_vcc = of_get_named_gpio(dev->of_node, "sec-mst,mst-vcc-gpio", 0);
+	mst_info("%s: Data Value mst_en : %d, mst_data : %d, mst_data : %d\n",
+		 __func__, mst_en, mst_data, mst_vcc);
 
 	/* check if gpio pin is available */
+	if (mst_en < 0) {
+		mst_err("%s: fail to get en gpio, %d\n", __func__, mst_en);
+		return 1;
+	}
+	mst_info("%s: gpio en inited\n", __func__);
+
+	if (mst_data < 0) {
+		mst_err("%s: fail to get data gpio, %d\n", __func__, mst_data);
+		return 1;
+	}
+	mst_info("%s: gpio data inited\n", __func__);
+
 	if (mst_vcc < 0) {
 		mst_err("%s: fail to get vcc gpio, %d\n", __func__, mst_vcc);
 		return 1;
@@ -304,12 +256,32 @@ static int sec_mst_gpio_init(struct device *dev)
 	mst_info("%s: gpio vcc inited\n", __func__);
 
 	/* gpio request */
+	ret = gpio_request(mst_en, "sec-mst,mst-en-gpio");
+	if (ret) {
+		mst_err("%s: failed to request en gpio, %d, %d\n",
+			__func__, ret, mst_en);
+	}
+
+	ret = gpio_request(mst_data, "sec-mst,mst-data-gpio");
+	if (ret) {
+		mst_err("%s: failed to request data gpio, %d, %d\n",
+			__func__, ret, mst_data);
+	}
+
 	ret = gpio_request(mst_vcc, "sec-mst,mst-vcc-gpio");
 	if (ret) {
 		mst_err("%s: failed to request data gpio, %d, %d\n",
 			__func__, ret, mst_vcc);
 	}
 	/* set gpio direction */
+	if (!(ret < 0) && (mst_en > 0)) {
+		gpio_direction_output(mst_en, 0);
+		mst_info("%s: mst_en output\n", __func__);
+	}
+	if (!(ret < 0)  && (mst_data > 0)) {
+		gpio_direction_output(mst_data, 0);
+		mst_info("%s: mst_data output\n", __func__);
+	}
 	if (!(ret < 0)  && (mst_vcc > 0)) {
 		gpio_direction_output(mst_vcc, 0);
 		mst_info("%s: mst_vcc output\n", __func__);

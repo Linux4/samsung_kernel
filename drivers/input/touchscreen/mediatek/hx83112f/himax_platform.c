@@ -608,7 +608,7 @@ static ssize_t himax_support_feature(struct device *dev,
 
     feature |= INPUT_FEATURE_ENABLE_SETTINGS_AOT;
 
-    return snprintf(buf, SEC_CMD_BUF_SIZE, "%d", feature);
+    return snprintf(buf, SEC_CMD_BUF_SIZE, "%d\n", feature);
 }
 
 static DEVICE_ATTR(support_feature, 0444, himax_support_feature, NULL);

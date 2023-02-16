@@ -628,7 +628,7 @@ static int ccif_rx_collect(struct md_ccif_queue *queue, int budget,
 			goto OUT;
 		}
 		ccci_h = (struct ccci_header *)skb->data;
-
+		
 #ifdef CONFIG_MTK_SRIL_SUPPORT
 		if (ccci_h->channel == CCCI_RIL_IPC0_RX
 			|| ccci_h->channel == CCCI_RIL_IPC1_RX) {

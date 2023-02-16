@@ -247,7 +247,7 @@ static int txd_disable(struct drm_panel *panel)
 	return 0;
 }
 
-extern bool himax_gesture_status;
+extern bool himax_gesture_status;//bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 static int txd_unprepare(struct drm_panel *panel)
 {
 

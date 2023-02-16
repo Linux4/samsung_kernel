@@ -283,19 +283,18 @@ static ssize_t ili_support_feature(struct device *dev,
 	u32 feature = 0;
 
 	//if (ts->platdata->enable_settings_aot)
-		feature |= INPUT_FEATURE_ENABLE_SETTINGS_AOT;
+	feature |= INPUT_FEATURE_ENABLE_SETTINGS_AOT;
 
 	//input_info(true, &ts->client->dev, "%s: %d%s\n",
-				//__func__, feature,
-				//feature & INPUT_FEATURE_ENABLE_SETTINGS_AOT ? " aot" : "");
-
-	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d", feature);
+	//			__func__, feature,
+	//			feature & INPUT_FEATURE_ENABLE_SETTINGS_AOT ? " aot" : "");
+	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d\n", feature);
 }
 
 static ssize_t ili_scrub_pos(struct device *dev,
 	struct device_attribute *attr,char *buf)
 {
-	return snprintf(buf, SEC_CMD_BUF_SIZE, "%s", "4 0 0");
+	return snprintf(buf, SEC_CMD_BUF_SIZE, "%s\n", "4 0 0");
 }
 
 static DEVICE_ATTR(support_feature, 0444, ili_support_feature, NULL);

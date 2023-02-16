@@ -31,7 +31,7 @@
 #define Q_MAX_H_CURRENT 10000
 
 /* multiple battery profile compile options */
-/*#define MTK_GET_BATTERY_ID_BY_AUXADC*/
+#define MTK_GET_BATTERY_ID_BY_AUXADC
 
 
 /* if ACTIVE_TABLE == 0 && MULTI_BATTERY == 0
@@ -212,7 +212,8 @@ int g_temperature[MAX_TABLE] = {
 #define BIF_NTC_R 16000
 
 #if (BAT_NTC_10 == 1)
-struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[21] = {
+//Bug802661,yuecong.wt,20220915£¬temp modify according to customer requirements
+struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[23] = {
 		{-40, 195652},
 		{-35, 148171},
 		{-30, 113347},
@@ -233,7 +234,9 @@ struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[21] = {
 		{45, 4917},
 		{50, 4161},
 		{55, 3535},
-		{60, 3014}
+		{60, 3014},
+		{65, 2595},
+		{70, 2233} 
 };
 #endif
 

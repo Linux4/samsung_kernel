@@ -132,6 +132,7 @@ int etspi_Interrupt_Free(struct etspi_data *etspi)
 
 void etspi_Interrupt_Abort(struct etspi_data *etspi)
 {
+	etspi->finger_on = 1;
 	wake_up_interruptible(&interrupt_waitq);
 }
 
@@ -814,8 +815,18 @@ int etspi_platformInit(struct etspi_data *etspi)
 
 #ifdef ENABLE_SENSORS_FPRINT_SECURE
 	wakeup_source_init(etspi->fp_spi_lock, "et5xx_wake_lock");
+	if (!(etspi->fp_spi_lock)) {
+		etspi->fp_spi_lock = wakeup_source_create("et5xx_wake_lock");
+		if (etspi->fp_spi_lock)
+			wakeup_source_add(etspi->fp_spi_lock);
+	}
 #endif
 	wakeup_source_init(etspi->fp_signal_lock, "et5xx_sigwake_lock");
+	if (!(etspi->fp_signal_lock)) {
+		etspi->fp_signal_lock = wakeup_source_create("et5xx_sigwake_lock");
+		if (etspi->fp_signal_lock)
+			wakeup_source_add(etspi->fp_signal_lock);
+	}
 
 	pr_info("%s successful status=%d\n", __func__, status);
 	return status;

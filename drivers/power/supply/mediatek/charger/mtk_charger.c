@@ -82,6 +82,8 @@ static struct charger_manager *pinfo;
 static struct list_head consumer_head = LIST_HEAD_INIT(consumer_head);
 static DEFINE_MUTEX(consumer_mutex);
 //zhaosidong.wt, CHG REQ
+extern int batt_full_capacity;
+int mtk_chg_status = 0;
 int min_soc, max_soc;
 bool g_pd_active = 0;
 static void ato_charger_limit_soc(struct charger_manager *info, int min, int max);
@@ -1162,7 +1164,13 @@ void do_sw_jeita_state_machine(struct charger_manager *info)
 		sw_jeita->cv = info->data.battery_cv;
 		sw_jeita->cc = info->data.ac_charger_input_current;
 	}
-
+#if defined (CONFIG_WT_PROJECT_S96801AA3)
+	if (1) {
+		int cycle_fv = wt_set_batt_cycle_fv(false);
+		if ((cycle_fv != 0) && (sw_jeita->cv > cycle_fv))
+			sw_jeita->cv = cycle_fv;
+	}
+#endif
 	chr_err("[SW_JEITA]preState:%d newState:%d tmp:%d cv:%d cc:%d\n",
 		sw_jeita->pre_sm, sw_jeita->sm, info->battery_temp,
 		sw_jeita->cv, sw_jeita->cc);
@@ -1595,8 +1603,12 @@ void mtk_charger_int_handler(void)
 		chr_err("cable_out_cnt=%d\n", pinfo->cable_out_cnt);
 		mutex_unlock(&pinfo->cable_out_lock);
 		charger_manager_notifier(pinfo, CHARGER_NOTIFY_STOP_CHARGING);
-	} else
-		charger_manager_notifier(pinfo, CHARGER_NOTIFY_START_CHARGING);
+	} else{
+		if((batt_full_capacity != 100)&&(battery_get_uisoc() > batt_full_capacity))
+			charger_manager_notifier(pinfo, CHARGER_NOTIFY_STOP_CHARGING);
+		else
+			charger_manager_notifier(pinfo, CHARGER_NOTIFY_START_CHARGING);
+	}
 
 	chr_err("wake_up_charger\n");
 	_wake_up_charger(pinfo);
@@ -1636,6 +1648,7 @@ static int mtk_charger_plug_out(struct charger_manager *info)
 	info->charger_thread_polling = false;
 	info->pd_reset = false;
 
+	mtk_chg_status = 0;
 	pdata1->disable_charging_count = 0;
 	pdata1->input_current_limit_by_aicl = -1;
 	pdata2->disable_charging_count = 0;
@@ -1662,6 +1675,8 @@ static bool mtk_is_charger_on(struct charger_manager *info)
 			info->cable_out_cnt = 0;
 			mutex_unlock(&info->cable_out_lock);
 			mtk_charger_plug_out(info);//zhaosidong.wt
+			if (batt_slate_mode == 2)
+				batt_slate_mode = 0;
 		}
 	} else {
 		if (info->chr_type == CHARGER_UNKNOWN)
@@ -2164,26 +2179,66 @@ static void ato_charger_limit_soc(struct charger_manager *info, int min, int max
 	struct switch_charging_alg_data *swchgalg = info->algorithm_data;
 	int limit_soc;
 
-    limit_soc = battery_get_uisoc();
+	limit_soc = battery_get_uisoc();
 
 	if (battery_get_debug_uisoc() != 0xffff)
 		limit_soc = battery_get_debug_uisoc();
 //+ Bug653977 lvyuanchuan.wt 2021/05/20 Modify,Low power off and full charge occurred during aging test
 	chr_err("limit_soc:%d,state = %d\n",limit_soc,swchgalg->state);
 
-	if(limit_soc >= max) {
+	if (limit_soc >= max) {
+		mtk_chg_status |= 1;
 		charger_dev_enable_hz(info->chg1_dev, 1);
 		_mtk_charger_do_charging(info, 0);
 		chr_err("ato_charger_limit_soc:disable charging\n");
 	}
 
-    if(limit_soc <= min){
-		charger_dev_enable_hz(info->chg1_dev, 0);
-		_mtk_charger_do_charging(info, 1);
-		chr_err("ato_charger_limit_soc:enable charging\n");
+	if (limit_soc <= min) {
+		mtk_chg_status &= ~1;
+		if (!mtk_chg_status) {
+			charger_dev_enable_hz(info->chg1_dev, 0);
+			_mtk_charger_do_charging(info, 1);
+			chr_err("ato_charger_limit_soc:enable charging\n");
+		}
 	}
 //- Bug653977 lvyuanchuan.wt 2021/05/20 Modify,Low power off and full charge occurred during aging test
 }
+
+//+bug 790701,yuecong,wt,20220822, add new req batt_full_capacity node
+void wt_batt_full_capacity_check(struct charger_manager *info)
+{
+	int uisoc = 0;
+	bool is_charger_on = false;
+
+	is_charger_on = mtk_is_charger_on(info);
+	uisoc = battery_get_uisoc();
+
+	if (batt_full_capacity != 100) {
+		if (uisoc >= batt_full_capacity && (is_charger_on == true)) {
+			mtk_chg_status |= 2;
+			charger_dev_enable_hz(info->chg1_dev, 1);
+			_mtk_charger_do_charging(info, 0);
+			chr_err("batt_full_capacity:disable charging\n");
+		} else if ((mtk_chg_status & 2) && (uisoc <= (batt_full_capacity - 2)) && (is_charger_on == true)) {
+			mtk_chg_status &= ~2;
+			if (!mtk_chg_status) {
+				charger_dev_enable_hz(info->chg1_dev, 0);
+				_mtk_charger_do_charging(info, 1);
+				chr_err("batt_full_capacity:enable charging\n");
+			}
+		}
+	} else if (mtk_chg_status & 2) {
+		mtk_chg_status &= ~2;
+		if (!mtk_chg_status) {
+			if (is_charger_on == true) {
+				charger_dev_enable_hz(info->chg1_dev, 0);
+				_mtk_charger_do_charging(info, 1);
+				chr_err("FULL_CAP relieve 100%!! \n");
+			}
+		}
+	}
+}
+//-bug 790701,yuecong,wt,20220822, add new req batt_full_capacity node
 
 //+bug 538879,zhaosidong.wt,ADD,20200311, battery SOC limitation for store mode
 #define SALE_CODE_STR_LEN  3
@@ -2255,6 +2310,11 @@ static int charger_routine_thread(void *arg)
 			ato_charger_limit_soc(info, min_soc, max_soc);
 //-Bug492295,lili5.wt,ADD,20191021,battery capacity control in demo mode
 
+		//+bug 790701,yuecong,wt,20220822, add new req batt_full_capacity node
+		if(is_charger_on)
+			wt_batt_full_capacity_check(info);
+		//-bug 790701,yuecong,wt,20220822, add new req batt_full_capacity node
+		
 		if (info->charger_thread_polling == true)
 			mtk_charger_start_timer(info);
 
@@ -3990,13 +4050,17 @@ int batt_slate_mode_control(struct notifier_block *nb, unsigned long event, void
 	int en = *(int *)v;
 
 	if (en && (swchgalg->state != CHR_ERROR)) {
+		mtk_chg_status |= 4;
 		charger_dev_enable_hz(info->chg1_dev, 1);
 		_mtk_charger_do_charging(info, 0);
 		chr_err("batt_slate_mode_control:disable charging\n");
-	} else if(!en && (swchgalg->state != CHR_CC)){
-		charger_dev_enable_hz(info->chg1_dev, 0);
-		_mtk_charger_do_charging(info, 1);
-		chr_err("batt_slate_mode_control:enable charging\n");
+	} else if (!en && (swchgalg->state != CHR_CC)) {
+		mtk_chg_status &= ~4;
+		if (!mtk_chg_status) {
+			charger_dev_enable_hz(info->chg1_dev, 0);
+			_mtk_charger_do_charging(info, 1);
+			chr_err("batt_slate_mode_control:enable charging\n");
+		}
 	}
 
 	return NOTIFY_DONE;
@@ -4687,6 +4751,7 @@ static int mtk_charger_remove(struct platform_device *dev)
 	return 0;
 }
 
+extern bool factory_shipmode;
 static void mtk_charger_shutdown(struct platform_device *dev)
 {
 	struct charger_manager *info = platform_get_drvdata(dev);
@@ -4707,6 +4772,13 @@ static void mtk_charger_shutdown(struct platform_device *dev)
 			mtk_pe_reset_ta_vchr(info);
 		pr_debug("%s: reset TA before shutdown\n", __func__);
 	}
+	if (factory_shipmode == true){
+		printk("##shutdown with entering shipmode!\n");
+		charger_dev_set_shipmode(info->chg1_dev,true);
+		charger_dev_set_shipmode_delay(info->chg1_dev,false);
+
+	}else
+		printk("##shutdown only!!\n");
 }
 
 static const struct of_device_id mtk_charger_of_match[] = {

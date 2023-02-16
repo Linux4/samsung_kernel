@@ -215,7 +215,7 @@ mipi_dsi_device_register_full(struct mipi_dsi_host *host,
 		return ERR_PTR(-EINVAL);
 	}
 
-	if (info->channel > 6) {
+	if (info->channel > 6) {	//bug773028,pengzhenhua1.wt,add,20220627,lcd bringup
 		dev_err(dev, "invalid virtual channel: %u\n", info->channel);
 		return ERR_PTR(-EINVAL);
 	}

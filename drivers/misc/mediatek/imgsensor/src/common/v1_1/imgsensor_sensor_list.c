@@ -24,7 +24,6 @@
  */
 struct IMGSENSOR_SENSOR_LIST
 	gimgsensor_sensor_list[MAX_NUM_OF_SUPPORT_SENSOR] = {
-
 //+bug604664 chenbocheng.wt, add, 2020/12/12, 1st supply main camera hi4821q bring up
 #if defined(W1HI4821QREARQT_MIPI_RAW)
 		{W1HI4821QREARQT_SENSOR_ID,

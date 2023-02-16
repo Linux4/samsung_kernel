@@ -111,13 +111,20 @@ static dev_t adc_cali_devno;
 static struct cdev *adc_cali_cdev;
 //zhaosidong.wt, CHG REQ
 static int usb_low_current = 0;
-static bool batt_slate_mode = 0;
+int batt_slate_mode = 0;
 bool batt_store_mode = 0;
 bool battery_capacity_limit = true;
 bool batt_hv_disable = 0;
 //+bug672289,lvyuanchuan.wt,add,20210629,Increase file node control OTG
 struct battery_data battery_main;
 //-bug672289,lvyuanchuan.wt,add,20210629,Increase file node control OTG
+//+bug 790701,yuecong,wt,20220822, add new req batt_full_capacity node
+int batt_full_capacity = 100;
+//-bug 790701,yuecong,wt,20220822, add new req batt_full_capacity node
+
+//Bug774039,gudi.wt,add shipmode ctrl
+/* ship mode */
+bool factory_shipmode = false;
 static int adc_cali_slop[14] = {
 	1000, 1000, 1000, 1000, 1000, 1000,
 	1000, 1000, 1000, 1000, 1000, 1000,
@@ -160,6 +167,9 @@ static enum power_supply_property battery_props[] = {
 	POWER_SUPPLY_PROP_NEW_CHARGE_TYPE,
 	POWER_SUPPLY_PROP_CHARGE_TYPE,
 	POWER_SUPPLY_PROP_HV_DISABLE,
+	//+bug 790701,yuecong,wt,20220822, add new req batt_full_capacity node
+	POWER_SUPPLY_PROP_BATT_FULL_CAPACITY,
+	//-bug 790701,yuecong,wt,20220822, add new req batt_full_capacity node	
 };
 
 static enum power_supply_property otg_props[] = {
@@ -499,9 +509,10 @@ int battery_get_input_current_limit(void)
 #define SEC_BAT_CURRENT_EVENT_USB_100MA   0x00040
 #define SEC_BAT_CURRENT_EVENT_SLATE   0x00800
 #define SEC_BAT_CURRENT_EVENT_HV_DISABLE	0x010000
+#define BATT_MISC_EVENT_FULL_CAPACITY  0x01000000
 
 extern  bool mtk_is_pep_series_connect(struct charger_manager *info);
-
+extern void wt_batt_full_capacity_check(struct charger_manager *info);
 
 static int battery_get_property(struct power_supply *psy,
 	enum power_supply_property psp,
@@ -642,6 +653,10 @@ static int battery_get_property(struct power_supply *psy,
 		} else {
 			val->intval = 0;
 		}
+		//+bug 790701,yuecong,wt,20220822, add new req batt_full_capacity node
+		if ((batt_full_capacity != 100) && (data->BAT_STATUS == POWER_SUPPLY_STATUS_NOT_CHARGING))
+			val->intval = BATT_MISC_EVENT_FULL_CAPACITY;
+		//-bug 790701,yuecong,wt,20220822, add new req batt_full_capacity node	
 		break;
 	case POWER_SUPPLY_PROP_BATT_CURRENT_EVENT:
 		val->intval=SEC_BAT_CURRENT_EVENT_NONE;
@@ -694,10 +709,7 @@ static int battery_get_property(struct power_supply *psy,
 		}
 		break;
 	case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
-		if(batt_slate_mode)
-			val->intval = 1;
-		else
-			val->intval = 0;
+		val->intval = batt_slate_mode;
 		break;
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
 		val->intval = battery_get_input_current_limit();
@@ -727,6 +739,11 @@ static int battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_HV_DISABLE:
 		val->intval = batt_hv_disable;
 		break;
+	//+bug 790701,yuecong,wt,20220822, add new req batt_full_capacity node
+	case POWER_SUPPLY_PROP_BATT_FULL_CAPACITY:
+		val->intval = batt_full_capacity;
+		break;
+	//-bug 790701,yuecong,wt,20220822, add new req batt_full_capacity node		
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE:
 		val->intval = gm.dynamic_cv;
 		break;
@@ -746,14 +763,12 @@ static int battery_set_property(struct power_supply *psy,
 {
 	int ret = 0;
 	int pval = val->intval;
+	struct charger_manager *cm = gm.pbat_consumer->cm;
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
 		set_batt_slate_mode(&pval);
-		if(pval)
-			batt_slate_mode = true;
-		else
-			batt_slate_mode = false;
+		batt_slate_mode = val->intval;
 		break;
 	case POWER_SUPPLY_PROP_BATT_CURRENT_EVENT:
 		usb_low_current = val->intval;
@@ -781,6 +796,12 @@ static int battery_set_property(struct power_supply *psy,
 
 		charger_manager_enable_high_voltage_charging(gm.pbat_consumer, !batt_hv_disable);
 		break;
+	//+bug 790701,yuecong,wt,20220822, add new req batt_full_capacity node
+	case POWER_SUPPLY_PROP_BATT_FULL_CAPACITY:
+		batt_full_capacity = val->intval;
+		wt_batt_full_capacity_check(cm);
+		break;
+	//-bug 790701,yuecong,wt,20220822, add new req batt_full_capacity node	
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE:
 		if (val->intval > 0) {
 			gm.dynamic_cv = val->intval / 100;
@@ -789,7 +810,7 @@ static int battery_set_property(struct power_supply *psy,
 				FG_KERNEL_CMD_GET_DYNAMIC_CV, gm.dynamic_cv);
 			bm_err("[%s], dynamic_cv: %d\n",  __func__, gm.dynamic_cv);
 		}
-		break;
+		break;		
 	default:
 		ret = -EINVAL;
 		break;
@@ -805,6 +826,7 @@ static int battery_props_is_writeable(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
 	case POWER_SUPPLY_PROP_STORE_MODE:
 	case POWER_SUPPLY_PROP_HV_DISABLE:
+	case POWER_SUPPLY_PROP_BATT_FULL_CAPACITY:
 		return 1;
 	default:
 		break;
@@ -846,6 +868,9 @@ static int otg_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_PRESENT:
 			val->intval = 1;
 		break;
+	case POWER_SUPPLY_PROP_ONLINE:
+			val->intval = battery_main.BAT_STATUS;
+		break;		
 	default:
 		ret = -EINVAL;
 		break;
@@ -904,7 +929,7 @@ static int otg_props_is_writeable(struct power_supply *psy,
 struct battery_data otg_main = {
 	.psd = {
 		.name = "otg",
-		.type = POWER_SUPPLY_TYPE_OTG,
+		.type = POWER_SUPPLY_TYPE_UNKNOWN,
 		.properties = otg_props,
 		.num_properties = ARRAY_SIZE(otg_props),
 		.get_property = otg_get_property,
@@ -4777,6 +4802,17 @@ static ssize_t store_StartCharging_Test(struct device *dev,struct device_attribu
 }
 static DEVICE_ATTR(StartCharging_Test, 0664, show_StartCharging_Test, store_StartCharging_Test);
 
+//Bug774039,gudi.wt,add shipmode ctrl
+/* ship mode */
+static ssize_t shipmode_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	factory_shipmode = true;
+	printk("factory_shipmode = %d ",factory_shipmode);
+	return sprintf(buf, "%d\n",factory_shipmode);
+}
+static DEVICE_ATTR_RO(shipmode);
+
 /*************************************/
 static struct wakeup_source battery_lock;
 static int __init battery_probe(struct platform_device *dev)
@@ -4952,6 +4988,7 @@ static int __init battery_probe(struct platform_device *dev)
 		ret = device_create_file(&battery_main.psy->dev, &dev_attr_StopCharging_Test);
 		ret = device_create_file(&battery_main.psy->dev, &dev_attr_StartCharging_Test);
 #endif
+		ret = device_create_file(&battery_main.psy->dev, &dev_attr_shipmode);
 
 	battery_debug_init();
 

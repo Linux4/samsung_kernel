@@ -23,7 +23,7 @@
 #define SECLOG                  "[sec_input]"
 #define INPUT_LOG_BUF_SIZE      512
 
-
+//+bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 /*
  * sys/class/sec/tsp/support_feature
  * bit value should be made a promise with InputFramework.
@@ -152,6 +152,8 @@
 #define input_log_fix()	{}
 #define input_raw_data_clear() {}
 #endif
+//-bug773028, fangzhihua.wt,mod, 20220628,TP bringup
+
 /*
  * The event structure itself
  */

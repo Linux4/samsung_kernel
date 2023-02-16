@@ -762,7 +762,11 @@ void usb_phy_recover(void)
 
 	/* RG_USB20_DISCTH[7:4], 4'b0111 for 700 mV */
 	USBPHY_CLR32(0x18, (0xf0<<0));
+#if defined(CONFIG_WT_PROJECT_S96801AA3) || defined(CONFIG_WT_PROJECT_S96806AA3) || defined(CONFIG_WT_PROJECT_S96801WA3)
+	USBPHY_SET32(0x18, (0xf0<<0));
+#else
 	USBPHY_SET32(0x18, (0x70<<0));
+#endif
 
 	USBPHY_SET32(0x18, (0x1<<28));
 	USBPHY_CLR32(0x18, (0xf<<0));

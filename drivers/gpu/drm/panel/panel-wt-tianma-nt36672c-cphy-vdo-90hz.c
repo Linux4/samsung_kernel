@@ -231,10 +231,10 @@ static void tianma_panel_init(struct tianma *ctx)
     tianma_dcs_write_seq_static(ctx,0x35,0x00);
 
 	tianma_dcs_write_seq_static(ctx, 0x11);
-	msleep(110);
+	msleep(105);	//EXTB P220913-07461,pengzhenhua1.wt,add,20221019,ScreenON optimization
 	/* Display On*/
 	tianma_dcs_write_seq_static(ctx, 0x29);
-    msleep(40);
+    msleep(5);		//EXTB P220913-07461,pengzhenhua1.wt,add,20221019,ScreenON optimization
 	pr_info("%s-\n", __func__);
 }
 
@@ -255,7 +255,7 @@ static int tianma_disable(struct drm_panel *panel)
 	return 0;
 }
 
-extern int gesture_flag;
+extern int gesture_flag;//bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 static int tianma_unprepare(struct drm_panel *panel)
 {
 

@@ -1333,9 +1333,9 @@ struct file *file, const char __user *buffer, size_t count, loff_t *data)
 			/* check unsupport pin value, if unsupport,
 			 * set channel = 1 as default setting.
 			 */
- /*bug [604664] w1 modified new thermal ntc zhengtaoying 20211226 begin*/
+ /*bug [773028] w1 modified new thermal ntc renjiawei 20220726 begin*/
 			g_RAP_ADC_channel = AUX_IN2_NTC;
- /*bug [604664] w1 modified new thermal ntc zhengtaoying 20211226 end*/
+ /*bug [773028] w1 modified new thermal ntc renjiawei 20220726 begin*/
 		else {
 			g_RAP_ADC_channel = adc_channel;
 		}

@@ -977,11 +977,11 @@ static int mtk_spi_probe(struct platform_device *pdev)
 			goto err_disable_runtime_pm;
 		}
 
-		/*if (!master->cs_gpios && master->num_chipselect > 1) {
+/*		if (!master->cs_gpios && master->num_chipselect > 1) {
 			dev_err(&pdev->dev,
 				"cs_gpios not specified and num_chipselect > 1\n");
 			ret = -EINVAL;
-			goto err_disable_runtime_pm;	
+			goto err_disable_runtime_pm;
 		}*/
 
 		if (master->cs_gpios) {

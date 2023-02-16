@@ -735,6 +735,7 @@ static void sensor_init(void)
     write_cmos_sensor(0x3b22,0x07); //manual dc
     write_cmos_sensor(0x3b23,0x00);
     write_cmos_sensor(0x3b24,0x14);
+    write_cmos_sensor(0x3122,0x10);//Bug 794716 liuxaingyin, add, 2022/10/17,fix for c8490 preview screen flashes red when switch between capture and video mode
 }
 
 static void preview_setting(kal_uint16 currefps)

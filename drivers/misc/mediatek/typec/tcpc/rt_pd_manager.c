@@ -99,13 +99,9 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 
 			typec_set_data_role(rpmd->typec_port, TYPEC_DEVICE);
 			typec_set_pwr_role(rpmd->typec_port, TYPEC_SINK);
-			if (new_state == TYPEC_ATTACHED_NORP_SRC)
-				typec_set_pwr_opmode(rpmd->typec_port,
-						     TYPEC_PWR_MODE_USB);
-			else
-				typec_set_pwr_opmode(rpmd->typec_port,
-						    noti->typec_state.rp_level -
-						    TYPEC_CC_VOLT_SNK_DFT);
+			typec_set_pwr_opmode(rpmd->typec_port,
+					     noti->typec_state.rp_level -
+					     TYPEC_CC_VOLT_SNK_DFT);
 			typec_set_vconn_role(rpmd->typec_port, TYPEC_SINK);
 		} else if ((old_state == TYPEC_ATTACHED_SNK ||
 			    old_state == TYPEC_ATTACHED_NORP_SRC ||

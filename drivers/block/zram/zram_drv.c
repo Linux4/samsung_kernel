@@ -66,7 +66,7 @@ static DEFINE_MUTEX(zram_index_mutex);
 
 static int zram_major;
 static struct zram *zram_devices;
- #if IS_ENABLED(CONFIG_CRYPTO_LZ4)
+#if IS_ENABLED(CONFIG_CRYPTO_LZ4)
 static const char *default_compressor = "lz4";
 #else
 static const char *default_compressor = "lzo";
@@ -1108,10 +1108,11 @@ static bool zram_should_writeback(struct zram *zram,
 	if (min_writtenback_ratio < writtenback_ratio)
 		ret = false;
 
-	if (zram->disksize < SZ_4G)
-		min_stored_byte = SZ_512M;
-	else
+	if (zram->disksize / 4 > SZ_1G)
 		min_stored_byte = SZ_1G;
+	else
+		min_stored_byte = zram->disksize / 4;
+	
 	if ((stored << PAGE_SHIFT) < min_stored_byte)
 		ret = false;
 
@@ -2629,6 +2630,7 @@ static int __zram_bvec_read(struct zram *zram, struct page *page, u32 index,
 		kunmap_atomic(dst);
 		zcomp_stream_put(zram->comp);
 	}
+	
 	zs_unmap_object(zram->mem_pool, handle);
 #ifdef CONFIG_ZRAM_LRU_WRITEBACK
 	if (zram_test_flag(zram, index, ZRAM_UNDER_PPR))
@@ -2641,8 +2643,10 @@ static int __zram_bvec_read(struct zram *zram, struct page *page, u32 index,
 			atomic64_dec(&zram->stats.lru_pages);
 		}
 	}
+
 	spin_unlock_irqrestore(&zram->list_lock, flags);
 #endif
+	
 	zram_slot_unlock(zram, index);
 
 	return ret;

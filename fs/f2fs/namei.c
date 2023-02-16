@@ -517,8 +517,8 @@ static struct dentry *f2fs_lookup(struct inode *dir, struct dentry *dentry,
 		if (PTR_ERR(inode) != -ENOMEM) {
 			struct f2fs_sb_info *sbi = F2FS_I_SB(dir);
 
-			printk_ratelimited(KERN_ERR "F2FS-fs: Invalid inode referenced: %u"
-					"at parent inode : %lu\n",ino, dir->i_ino);
+			printk_ratelimited(KERN_ERR "F2FS-fs: Invalid inode referenced: %u, "
+					"at parent inode: %lu, err: %ld\n", ino, dir->i_ino, PTR_ERR(inode));
 			print_block_data(sbi->sb, page->index,
 					page_address(page), 0, F2FS_BLKSIZE);
 			f2fs_bug_on(sbi, 1);
@@ -610,6 +610,7 @@ static int f2fs_unlink(struct inode *dir, struct dentry *dentry)
 		goto fail;
 	}
 	f2fs_delete_entry(de, page, dir, inode);
+	f2fs_unlock_op(sbi);
 #ifdef CONFIG_UNICODE
 	/* VFS negative dentries are incompatible with Encoding and
 	 * Case-insensitiveness. Eventually we'll want avoid
@@ -620,7 +621,6 @@ static int f2fs_unlink(struct inode *dir, struct dentry *dentry)
 	if (IS_CASEFOLDED(dir))
 		d_invalidate(dentry);
 #endif
-	f2fs_unlock_op(sbi);
 
 	if (IS_DIRSYNC(dir))
 		f2fs_sync_fs(sbi->sb, 1);

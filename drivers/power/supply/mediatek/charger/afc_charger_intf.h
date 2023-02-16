@@ -18,8 +18,9 @@
 #define NO_COMM_CHECK 0
 
 extern int g_afc_work_status;//Bug 518556,liuyong3.wt,ADD,20191128,Charging afc flag
+#ifdef CONFIG_AFC_CHARGER
 extern bool g_is_afc_charger;
-
+#endif
 enum {
 	CHECK_AFC	= 0,
 	SET_VOLTAGE 	= 1,

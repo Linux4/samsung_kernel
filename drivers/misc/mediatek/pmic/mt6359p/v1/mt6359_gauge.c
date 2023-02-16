@@ -34,7 +34,6 @@
 #include <mtk_battery_internal.h>
 #include <mt-plat/mtk_auxadc_intf.h>
 #include "aee.h"
-#include <linux/hardware_info.h>
 
 /*********************** MT6359 setting *********************/
 #define UNIT_FGCURRENT     (610352)
@@ -3331,8 +3330,6 @@ static int mt6359_gauge_probe(struct platform_device *pdev)
 		ret = PTR_ERR(info->gauge_dev);
 		goto err_register_gauge_dev;
 	}
-	//zhaosidong.wt, gauge name
-	hardwareinfo_set_prop(HARDWARE_BMS_GAUGE_ID, "mt6365");
 
 	info->gauge_dev->driver_data = info;
 

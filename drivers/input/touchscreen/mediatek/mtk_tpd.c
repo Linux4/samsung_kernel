@@ -25,10 +25,10 @@
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
 #endif
-
+//+bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 #include <panel_notifier.h>
 #include<ilitek_v3.h>
-
+//-bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 
 #if defined(CONFIG_MTK_S3320) || defined(CONFIG_MTK_S3320_50) \
 	|| defined(CONFIG_MTK_S3320_47) || defined(CONFIG_MTK_MIT200) \
@@ -47,11 +47,11 @@
 #define COMPAT_TPD_GET_FILTER_PARA _IOWR(TOUCH_IOC_MAGIC, \
 						2, struct tpd_filter_t)
 #endif
-
+//+bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 extern int panel_register_client(struct notifier_block *nb);
 extern void tpd_resume(struct device *h);
 extern void tpd_suspend(struct device *h);
-
+//-bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 struct tpd_filter_t tpd_filter;
 struct tpd_dts_info tpd_dts_data;
 struct pinctrl *pinctrl1;
@@ -62,7 +62,7 @@ const struct of_device_id touch_of_match[] = {
 	{ .compatible = "mediatek,touch", },
 	{},
 };
-
+//+bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 enum lcm_name{
 	TM_NT36672C_MODULE = 0,
 	TXD_ILI7807S_MODULE = 1,
@@ -71,16 +71,13 @@ enum lcm_name{
 	DJN_NT36672C_MODULE = 4,
 	JDI_HX83112F_MODULE = 5
 };
-
 enum touch_name{
 	TXD_ILI7807S = 0,
 };
-
 int g_lcm_name;
-//extern int g_touch_name;
 extern char *saved_command_line;
 char tp_name[20] = { 0 };
-
+//-+bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 void tpd_get_dts_info(void)
 {
 	struct device_node *node1 = NULL;
@@ -444,6 +441,7 @@ static void touch_resume_workqueue_callback(struct work_struct *work)
 	g_tpd_drv->resume(NULL);
 	tpd_suspend_flag = 0;
 }
+//+bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 static int tpd_ilitek_notifier_callback(
 	struct notifier_block *self,
 	unsigned long event,
@@ -461,6 +459,7 @@ static int tpd_ilitek_notifier_callback(
 	}
 	return 0;
 }
+//-bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 static int tpd_fb_notifier_callback(
 			struct notifier_block *self,
 			unsigned long event, void *data)
@@ -576,7 +575,7 @@ static void tpd_create_attributes(struct device *dev, struct tpd_attrs *attrs)
 			pr_info("mtk_tpd: tpd create attributes file failed\n");
 	}
 }
-
+//+bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 static int tp_match_lcm_name(void)
 {
 	TPD_DMESG("saved_command_line is %s \t%s, %d\n", saved_command_line,__func__, __LINE__);
@@ -609,7 +608,7 @@ static int tp_match_lcm_name(void)
 
 	return 0;
 }
-
+//+bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 /* touch panel probe */
 static int tpd_probe(struct platform_device *pdev)
 {
@@ -621,7 +620,7 @@ static int tpd_probe(struct platform_device *pdev)
 	int ret = 0;
 #endif
 #endif
-	tp_match_lcm_name();
+	tp_match_lcm_name();//bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 	TPD_DMESG("enter %s, %d\n", __func__, __LINE__);
 	pr_info("enter %s, %d\n", __func__, __LINE__);
 
@@ -716,9 +715,12 @@ static int tpd_probe(struct platform_device *pdev)
 	for (i = 1; i < TP_DRV_MAX_COUNT; i++) {
 		/* add tpd driver into list */
 		if (tpd_driver_list[i].tpd_device_name != NULL) {
+			//+bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 			printk("[mtk_tpd] tpd_driver_list[%d].tpd_device_name is %s, tp_name is %s\n", i, tpd_driver_list[i].tpd_device_name, tp_name);
 			if(strcmp(tpd_driver_list[i].tpd_device_name, tp_name)) 
 				continue;
+			//-bug773028, fangzhihua.wt,mod, 20220628,TP bringup
+
 			tpd_driver_list[i].tpd_local_init();
 			/* msleep(1); */
 			if (tpd_load_status == 1) {
@@ -744,7 +746,7 @@ static int tpd_probe(struct platform_device *pdev)
 	touch_resume_workqueue = create_singlethread_workqueue("touch_resume");
 	INIT_WORK(&touch_resume_work, touch_resume_workqueue_callback);
 	/* use fb_notifier */
-
+	//+bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 	if(g_lcm_name == TXD_ILI7807S_MODULE) {
 		tpd_fb_notifier.notifier_call = tpd_ilitek_notifier_callback;
 		if(panel_register_client(&tpd_fb_notifier))
@@ -754,6 +756,7 @@ static int tpd_probe(struct platform_device *pdev)
 		if (fb_register_client(&tpd_fb_notifier))
 			TPD_DMESG("register fb_notifier fail!\n");
 	}
+	//-bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 	/* TPD_TYPE_CAPACITIVE handle */
 	if (touch_type == 1) {
 

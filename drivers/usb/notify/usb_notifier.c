@@ -256,11 +256,11 @@ static int usb_notifier_probe(struct platform_device *pdev)
 
 #if defined(CONFIG_CABLE_TYPE_NOTIFIER)
 	cable_type_notifier_register(&pdata->cable_type_nb, cable_type_handle_notification,
-			       CABLE_TYPE_NOTIFY_DEV_USB);
+					CABLE_TYPE_NOTIFY_DEV_USB);
 #endif
 #if defined(CONFIG_VBUS_NOTIFIER)
 	vbus_notifier_register(&pdata->vbus_nb, vbus_handle_notification,
-			       VBUS_NOTIFY_DEV_USB);
+					VBUS_NOTIFY_DEV_USB);
 #endif
 	dev_info(&pdev->dev, "usb notifier probe\n");
 	return 0;

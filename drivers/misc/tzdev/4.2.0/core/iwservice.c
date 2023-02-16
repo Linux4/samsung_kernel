@@ -31,7 +31,7 @@ unsigned long tz_iwservice_get_cpu_mask(void)
 	if (!iw_channel)
 		return 0;
 
-	return (iw_channel->cpu_mask | iw_channel->user_cpu_mask);
+	return iw_channel->cpu_mask;
 }
 
 unsigned long tz_iwservice_get_user_cpu_mask(void)

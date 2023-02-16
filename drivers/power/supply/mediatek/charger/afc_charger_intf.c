@@ -39,7 +39,9 @@
 #include "mtk_charger_intf.h"
 
 int g_afc_work_status = 0;//Bug 518556,liuyong3.wt,ADD,20191128,Charging afc flag
+#ifdef CONFIG_AFC_CHARGER
 bool g_is_afc_charger = false;
+#endif
 extern signed int battery_get_vbus(void);
 extern int pmic_get_battery_voltage(void);
 extern signed int battery_get_bat_current(void);
@@ -381,13 +383,17 @@ int afc_plugout_reset(struct charger_manager *pinfo)
 		goto err;
 
 	g_afc_work_status = 0;//Bug 518556,liuyong3.wt,ADD,20191128,Charging afc flag
+#ifdef CONFIG_AFC_CHARGER
 	g_is_afc_charger = false;
+#endif
 	pr_info("%s: OK\n", __func__);
 	return ret;
     
 err:
 	g_afc_work_status = 0;
+#ifdef CONFIG_AFC_CHARGER
 	g_is_afc_charger = false;
+#endif
 	pr_err("%s: failed, ret = %d\n", __func__, ret);
 	return ret;
 }
@@ -689,11 +695,13 @@ static int __afc_set_ta_vchr(struct charger_manager *pinfo, u32 chr_volt);
 int afc_check_charger(struct charger_manager *pinfo)
 {
 	int ret = -1;
-	u32 retry_cnt_max = 20;
 	struct afc_dev *afc_device = &pinfo->afc;
 	//EXTB P200225-00205,zhaosidong.wt,ADD,20200227, report fast charging state in time.
 	struct power_supply *psy = power_supply_get_by_name("battery");
 
+#if !defined(CONFIG_WT_PROJECT_S96801AA3)
+	u32 retry_cnt_max = 20;
+	
 	printk("%s: Start, is_afc = %d, type = %d\n", __func__,g_is_afc_charger,mt_get_charger_type());
 	msleep(1000);
 	if(afc_get_vbus() < 6500000){
@@ -711,6 +719,7 @@ int afc_check_charger(struct charger_manager *pinfo)
 			printk("retry cnt = %d\n",retry_cnt_max);
 		}
 	}
+#endif
 	if (!pinfo->enable_hv_charging) {
 		pr_err("%s: hv charging is disabled\n", __func__);
 		if (afc_device->is_connect) {
@@ -758,7 +767,9 @@ The AICR will be configured right siut value in CC step */
 	ret = afc_set_ta_vchr(pinfo, SET_9V);
 	if (ret == 0) {
 		g_afc_work_status = 1;
+#ifdef CONFIG_AFC_CHARGER		
 		g_is_afc_charger = true;
+#endif
 		ret = afc_set_mivr(pinfo, afc_device->vol - 1000000);
 	} else {
 		g_afc_work_status = 0;

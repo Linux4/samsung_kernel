@@ -58,6 +58,68 @@
 	io-channel-names = "batteryID-channel";
 #include "mediatek/bat_setting/battery_W1_SCUD_4V4_5000mAh.dtsi"
 #include "mediatek/bat_setting/battery_W1_BYD_4V4_5000mAh.dtsi"
+	wt,batt-cycle-ranges = <
+		0   299  4400000
+		300 399  4380000
+		400 699  4360000
+		700 999  4340000
+		1000 999999 4290000>;
+	ACTIVE_TABLE = <(5)>;
+	g_FG_PSEUDO100_cv4400 = <
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		90 90 100 100
+		90 90 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100>;
+	g_FG_PSEUDO100_cv4380 = <
+		98 98 100 100
+		99 98 100 100
+		99 98 100 100
+		89 88 100 100
+		89 89 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100>;
+	g_FG_PSEUDO100_cv4360 = <
+		97 96 100 100
+		97 96 100 100
+		97 96 100 100
+		88 86 100 100
+		88 87 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100>;
+	g_FG_PSEUDO100_cv4340 = <
+		96 95 100 100
+		96 95 100 100
+		96 94 100 100
+		87 86 100 100
+		87 86 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100>;
+	g_FG_PSEUDO100_cv4290 = <
+		92 90 100 100
+		92 90 100 100
+		92 90 100 100
+		84 82 100 100
+		85 83 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100>;
 };
 
 &mt6360_pmu {
@@ -349,7 +411,7 @@
 };
 
 #include "mediatek/cust_mt6833_touch_1080x2300.dtsi"
-
+//+bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 &touch {
 	tpd-resolution = <1080 2400>;
 	use-tpd-button = <0>;
@@ -410,7 +472,7 @@
 		};
 	};
 };
-
+//-+bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 /* accdet start */
 &accdet {
 	/* accdet micbias voltage: 0x09:2.85v 0x08:2.8v 0x07,
@@ -735,7 +797,7 @@
 };
 /* FINGERPRINT end */
 
-#include "mediatek/cust_mt6833_camera.dtsi"
+#include "mediatek/w1t_cust_mt6833_camera.dtsi"
 #include "mediatek/S96801AA2/cust.dtsi"
 #include "mediatek/mst.dtsi"
 /* bug 604677,lulinliang.wt, 20201215, add, add for NFC driver*/
@@ -754,5 +816,5 @@
         sec-nfc,clk_req-gpio = <&pio 81 0x0>;/*gpio_81*/
     };
 };
-
+#include "mediatek/sia81xx.dtsi"
 /*End of this file, DO NOT ADD ANYTHING HERE*/

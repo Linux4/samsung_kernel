@@ -1036,8 +1036,9 @@ static int cmdq_halt(struct mmc_host *mmc, bool halt)
 		if (cq_host->ops->pre_cqe_enable)
 			cq_host->ops->pre_cqe_enable(mmc, true);
 	}
-    if (ret)
+	if (ret)
 		mmc_cmdq_error_logging(mmc->card, NULL, HALT_UNHALT_ERR);
+
 	return ret;
 }
 

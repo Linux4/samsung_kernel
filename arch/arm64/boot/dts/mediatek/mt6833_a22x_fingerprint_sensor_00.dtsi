@@ -15,7 +15,7 @@
 	btp_irq: btp-irq {
 		pins_cmd_dat{
 			pinmux = <PINMUX_GPIO18__FUNC_GPIO18>;
-			bias-pull-down;
+			bias-disable;
 			drive-strength = <1>;
 		};
 	};

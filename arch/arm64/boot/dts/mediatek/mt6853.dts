@@ -44,7 +44,7 @@
 	/* chosen */
 	chosen: chosen {
 		bootargs = "console=tty0 console=ttyS0,921600n1 root=/dev/ram \
-vmalloc=400M slub_debug=OFZPU swiotlb=noforce \
+vmalloc=400M swiotlb=noforce \
 initcall_debug=1 \
 firmware_class.path=/vendor/firmware \
 page_owner=on loop.max_part=7";
@@ -2946,6 +2946,9 @@ page_owner=on loop.max_part=7";
 		mtk_dsp_ktv = <0x1 0x8 0x12 0xffffffff 0x10000>;
 		mtk_dsp_capture_raw = <0x1 0xffffffff 0xffffffff 0xffffffff 0x20000>;
 		mtk_dsp_fm = <0x1 0xffffffff 0x10 0xffffffff 0x10000>;
+		mtk_dsp_ulproc = <0x1 0xffffffff 0xffffffff 0xffffffff 0x20000>;
+		mtk_dsp_echoref = <0x0 0xffffffff 0x13 0xffffffff 0x20000>;
+		mtk_dsp_echodl = <0x0 0x6 0xffffffff 0xffffffff 0x30000>;
 		mtk_dsp_ver = <0x1>;
 		swdsp_smartpa_process_enable = <0x5>;
 		mtk_dsp_mem_afe = <0x1 0x40000>; /* always enable */

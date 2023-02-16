@@ -166,26 +166,6 @@ struct egis_ioc_transfer {
 	__u8 pad[3];
 };
 
-/*
- *	If platform is 32bit and kernel is 64bit
- *	We will alloc egis_ioc_transfer for 64bit and 32bit
- *	We use ioc_32(32bit) to get data from user mode.
- *	Then copy the ioc_32 to ioc(64bit).
- */
-#ifdef CONFIG_SENSORS_FINGERPRINT_32BITS_PLATFORM_ONLY
-struct egis_ioc_transfer_32 {
-	__u32 tx_buf;
-	__u32 rx_buf;
-	__u32 len;
-	__u32 speed_hz;
-	__u16 delay_usecs;
-	__u8 bits_per_word;
-	__u8 cs_change;
-	__u8 opcode;
-	__u8 pad[3];
-};
-#endif
-
 #define EGIS_IOC_MAGIC			'k'
 #define EGIS_MSGSIZE(N) \
 	((((N)*(sizeof(struct egis_ioc_transfer))) < (1 << _IOC_SIZEBITS)) \
@@ -208,13 +188,6 @@ struct etspi_data {
 	unsigned int ldo_pin;	/* Ldo GPIO pin number */
 	const char *btp_vdd;
 	struct regulator *regulator_3p3;
-#ifndef ENABLE_SENSORS_FPRINT_SECURE
-#ifdef CONFIG_SOC_EXYNOS8890
-	/* set cs pin in fp driver, use only Exynos8890 */
-	/* for use auto cs mode with dualization fp sensor */
-	unsigned int cs_gpio;
-#endif
-#endif
 	struct pinctrl *p;
 	struct pinctrl_state *pins_poweron;
 	struct pinctrl_state *pins_poweroff;

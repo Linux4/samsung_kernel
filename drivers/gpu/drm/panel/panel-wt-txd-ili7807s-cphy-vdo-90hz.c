@@ -510,9 +510,10 @@ static int txd_disable(struct drm_panel *panel)
 
 	return 0;
 }
-
+//#+bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 extern bool  gestrue_status;
 extern bool  gestrue_spay;
+//#+bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 static int txd_unprepare(struct drm_panel *panel)
 {
 
@@ -566,7 +567,7 @@ static int txd_unprepare(struct drm_panel *panel)
 	return 0;
 }
 
-extern void ili_resume_by_ddi(void);
+extern void ili_resume_by_ddi(void);//bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 static int txd_prepare(struct drm_panel *panel)
 {
 	struct txd *ctx = panel_to_txd(panel);
@@ -601,7 +602,7 @@ static int txd_prepare(struct drm_panel *panel)
 
 	txd_panel_init(ctx);
 
-	ili_resume_by_ddi();
+	ili_resume_by_ddi();//bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 
 	//add for TP resume
 	panel_notifier_call_chain(PANEL_PREPARE, NULL);

@@ -192,7 +192,8 @@ static DEFINE_MUTEX(open_lock);
 module_param(perdev_minors, int, 0444);
 MODULE_PARM_DESC(perdev_minors, "Minors numbers to allocate per device");
 
-static void mmc_card_error_logging(struct mmc_card *card, struct mmc_blk_request *brq, u32 status);
+static void mmc_card_error_logging(struct mmc_card *card,
+				struct mmc_blk_request *brq, u32 status);
 
 static inline int mmc_blk_part_switch(struct mmc_card *card,
 				      unsigned int part_type);
@@ -1347,8 +1348,8 @@ static inline int mmc_blk_part_switch(struct mmc_card *card,
 
 		ret = mmc_blk_part_switch_pre(card, part_type);
 		if (ret) {
-			if(part_type == EXT_CSD_PART_CONFIG_ACC_RPMB)
-				mmc_cmdq_error_logging(card, NULL, RPMB_SWITCH_ERR);			
+			if (part_type == EXT_CSD_PART_CONFIG_ACC_RPMB)
+				mmc_cmdq_error_logging(card, NULL, RPMB_SWITCH_ERR);
 			return ret;
 		}
 
@@ -1359,9 +1360,9 @@ static inline int mmc_blk_part_switch(struct mmc_card *card,
 				 EXT_CSD_PART_CONFIG, part_config,
 				 card->ext_csd.part_time);
 		if (ret) {
-			if(part_type == EXT_CSD_PART_CONFIG_ACC_RPMB)
-				mmc_cmdq_error_logging(card, NULL, RPMB_SWITCH_ERR);
 			mmc_blk_part_switch_post(card, part_type);
+			if (part_type == EXT_CSD_PART_CONFIG_ACC_RPMB)
+				mmc_cmdq_error_logging(card, NULL, RPMB_SWITCH_ERR);
 			return ret;
 		}
 
@@ -2999,6 +3000,7 @@ reset:
 		goto out;
 	}
 	mmc_cmdq_error_logging(host->card, NULL, HW_RST);
+
 	/*
 	 * CMDQ HW reset would have already made CQE
 	 * in unhalted state, but reflect the same

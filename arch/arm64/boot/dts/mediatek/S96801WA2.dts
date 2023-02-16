@@ -12,8 +12,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
-/dts-v1/;
-/plugin/;
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #ifndef CONFIG_FPGA_EARLY_PORTING
@@ -58,6 +56,68 @@
 	io-channel-names = "batteryID-channel";
 #include "mediatek/bat_setting/battery_W1_SCUD_4V4_5000mAh.dtsi"
 #include "mediatek/bat_setting/battery_W1_BYD_4V4_5000mAh.dtsi"
+	wt,batt-cycle-ranges = <
+		0   299  4400000
+		300 399  4380000
+		400 699  4360000
+		700 999  4340000
+		1000 999999 4290000>;
+	ACTIVE_TABLE = <(5)>;
+	g_FG_PSEUDO100_cv4400 = <
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		90 90 100 100
+		90 90 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100>;
+	g_FG_PSEUDO100_cv4380 = <
+		98 98 100 100
+		99 98 100 100
+		99 98 100 100
+		89 88 100 100
+		89 89 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100>;
+	g_FG_PSEUDO100_cv4360 = <
+		97 96 100 100
+		97 96 100 100
+		97 96 100 100
+		88 86 100 100
+		88 87 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100>;
+	g_FG_PSEUDO100_cv4340 = <
+		96 95 100 100
+		96 95 100 100
+		96 94 100 100
+		87 86 100 100
+		87 86 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100>;
+	g_FG_PSEUDO100_cv4290 = <
+		92 90 100 100
+		92 90 100 100
+		92 90 100 100
+		84 82 100 100
+		85 83 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100
+		100 100 100 100>;
 };
 
 &mt6360_pmu {
@@ -330,6 +390,7 @@
 			};
 		};
 	};
+	
 	ports {
 		port {
 			dsi_out: endpoint {
@@ -442,10 +503,9 @@
 	status = "okay";
 };
 /* accdet end */
-
 &mt6360_ldo {
-    sdcard_det_en = <1>;
-    sdcard_hlact = <0>;
+	sdcard_det_en = <1>;
+	sdcard_hlact = <0>;
 };
 
 &odm {
@@ -735,8 +795,9 @@
 };
 /* FINGERPRINT end */
 
-#include "mediatek/cust_mt6833_camera.dtsi"
-#include "mediatek/S96801WA2/cust.dtsi"
+#include "mediatek/w1t_cust_mt6833_camera.dtsi"
+#include "mediatek/S96806AA2/cust.dtsi"
+#include "mediatek/sia81xx.dtsi"
 #include "mediatek/mst.dtsi"
 /* bug 604677,lulinliang.wt, 20201215, add, add for NFC driver*/
 &i2c3 {
@@ -754,5 +815,4 @@
         sec-nfc,clk_req-gpio = <&pio 81 0x0>;/*gpio_81*/
     };
 };
-
 /*End of this file, DO NOT ADD ANYTHING HERE*/

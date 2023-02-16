@@ -225,6 +225,7 @@ static ssize_t sensors_enable_store(struct device *dev,
 	return size;
 }
 
+
 static ssize_t sensors_enable_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {

@@ -168,6 +168,7 @@ static const struct mt6360_chg_platform_data def_platform_data = {
 	.aicr = 500000,			/* uA */
 	.mivr = 4400000,		/* uV */
 	.cv = 4350000,			/* uA */
+	.vrechg = 200000,		/* uV */
 	.ieoc = 250000,			/* uA */
 	.safety_timer = 12,		/* hour */
 #ifdef CONFIG_MTK_BIF_SUPPORT
@@ -218,6 +219,11 @@ static u32 mt6360_trans_mivr_sel(u32 uV)
 static u32 mt6360_trans_cv_sel(u32 uV)
 {
 	return mt6360_trans_sel(uV, 3900000, 10000, 0x51);
+}
+
+static u32 mt6360_trans_vrechg_sel(u32 uA)
+{
+	return mt6360_trans_sel(uA, 100000, 50000, 0x03);
 }
 
 static u32 mt6360_trans_ieoc_sel(u32 uA)
@@ -850,7 +856,7 @@ static int mt6360_chgdet_post_process(struct mt6360_pmu_chg_info *mpci)
 
 		mpci->attach = !attach;
 		pr_info("ignore chrdet changed,start second check\n");
-		return ret;
+		goto out;
 	}
 out:
 	if (!attach) {
@@ -2035,6 +2041,37 @@ static int mt6360_dump_registers(struct charger_device *chg_dev)
 	return 0;
 }
 
+//+Bug774039,gudi.wt,add shipmode ctrl begin
+static int mt6360_set_shipmode(struct charger_device *chg_dev,bool en)
+{
+	/* Set to ship mode */
+	unsigned int ret = 0;
+	struct mt6360_pmu_chg_info *mpci = charger_get_data(chg_dev);
+	if (en) {
+		ret = mt6360_pmu_reg_set_bits(mpci->mpi, MT6360_PMU_CHG_CTRL2,
+						MT6360_MASK_SHIP_MODE);
+		if (ret < 0) {
+			dev_err(mpci->dev, "%s:set shipmode fail\n", __func__);
+		}
+	}
+	return 0;
+}
+
+static int mt6360_set_shipmode_delay(struct charger_device *chg_dev,bool en)
+{
+	/* Set to ship mode delay*/
+	unsigned int ret = 0;
+	struct mt6360_pmu_chg_info *mpci = charger_get_data(chg_dev);
+	if (en) {
+		ret = mt6360_pmu_reg_set_bits(mpci->mpi, MT6360_PMU_CHG_CTRL2,
+						MT6360_MASK_SHIP_DELAY);
+		if (ret < 0) {
+			dev_err(mpci->dev, "%s:set shipmode delay fail\n", __func__);
+		}
+	}
+	return 0;
+}
+//-Bug774039,gudi.wt,add shipmode ctrl end
 static int mt6360_do_event(struct charger_device *chg_dev, u32 event,
 				   u32 args)
 {
@@ -2279,6 +2316,10 @@ static const struct charger_ops mt6360_chg_ops = {
 	.dump_registers = mt6360_dump_registers,
 	/* event */
 	.event = mt6360_do_event,
+//Bug774039,gudi.wt,add shipmode ctrl
+	/* ship mode */
+	.set_shipmode = mt6360_set_shipmode,
+	.set_shipmode_delay = mt6360_set_shipmode_delay,
 	/* TypeC */
 	.enable_usbid = mt6360_enable_usbid,
 	.set_usbid_rup = mt6360_set_usbid_rup,
@@ -2864,6 +2905,9 @@ static const struct mt6360_pdata_prop mt6360_pdata_props[] = {
 	MT6360_PDATA_VALPROP(cv, struct mt6360_chg_platform_data,
 			     MT6360_PMU_CHG_CTRL4, 1, 0xFE,
 			     mt6360_trans_cv_sel, 0),
+	MT6360_PDATA_VALPROP(vrechg, struct mt6360_chg_platform_data,
+			     MT6360_PMU_CHG_CTRL11, 0, 0x03,
+			     mt6360_trans_vrechg_sel, 0),
 	MT6360_PDATA_VALPROP(ieoc, struct mt6360_chg_platform_data,
 			     MT6360_PMU_CHG_CTRL9, 4, 0xF0,
 			     mt6360_trans_ieoc_sel, 0),
@@ -2905,6 +2949,7 @@ static const struct mt6360_val_prop mt6360_val_props[] = {
 	MT6360_DT_VALPROP(aicr, struct mt6360_chg_platform_data),
 	MT6360_DT_VALPROP(mivr, struct mt6360_chg_platform_data),
 	MT6360_DT_VALPROP(cv, struct mt6360_chg_platform_data),
+	MT6360_DT_VALPROP(vrechg, struct mt6360_chg_platform_data),
 	MT6360_DT_VALPROP(ieoc, struct mt6360_chg_platform_data),
 	MT6360_DT_VALPROP(safety_timer, struct mt6360_chg_platform_data),
 	MT6360_DT_VALPROP(ircmp_resistor, struct mt6360_chg_platform_data),

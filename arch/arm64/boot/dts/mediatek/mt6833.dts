@@ -1514,7 +1514,7 @@ page_owner=on loop.max_part=7";
 	};
 
 	touch:touch {
-		compatible = "mediatek,touch";
+		compatible = "mediatek,touch";//bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 	};
 
 	ap_ccif0@10209000 {
@@ -1526,12 +1526,13 @@ page_owner=on loop.max_part=7";
 	goodix_fp: fingerprint {
 		compatible = "mediatek,goodix-fp";
 	};
+	
 
 	finger_fp:finger_fp {
 		compatible = "fp-egistec",
 		"sil,silead_fp-pins",
 		"mediatek,finger-chipone",
-                "mediatek,finger-focaltech";
+        "mediatek,finger-focaltech";
 	};
 
 	fpsensor_fp_eint:fpsensor_fp_eint{
@@ -2552,8 +2553,8 @@ page_owner=on loop.max_part=7";
 		io-channels = <&auxadc 2>;
 		io-channel-names = "thermistor-ch2";
 	};
-	
-        //bug [604664] w1 add new thermal ntc zhengtaoying 20211226 begin
+
+        //bug[773028] w1 add new thermal ntc renjiawei 20220726 begin
 	tboard_thermistor4: thermal-sensor4 {
 		compatible = "mediatek,mtboard-thermistor4";
 		io-channels = <&auxadc 3>;
@@ -2571,7 +2572,8 @@ page_owner=on loop.max_part=7";
 		io-channels = <&auxadc 6>;
 		io-channel-names = "thermistor-ch6";
 	};
-        //bug [604664] w1 add new thermal ntc zhengtaoying 20211226 begin
+        //bug[773028] w1 add new thermal ntc renjiawei 20220726 begin
+
 	usb0@11200000 {
 		compatible = "mediatek,mt6833-usb20";
 		reg = <0 0x11200000 0 0x10000>,

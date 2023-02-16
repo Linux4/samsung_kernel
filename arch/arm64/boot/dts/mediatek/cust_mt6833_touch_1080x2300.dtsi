@@ -11,7 +11,7 @@
  * GNU General Public License for more details.
  */
 /* TOUCH start */
-
+//+bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 &spi1 {
 	status = "ok";
 

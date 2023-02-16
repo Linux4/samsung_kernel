@@ -1,9 +1,9 @@
 /*
  *  Universal power supply monitor class
  *
- *  Copyright © 2007  Anton Vorontsov <cbou@mail.ru>
- *  Copyright © 2004  Szabolcs Gyurko
- *  Copyright © 2003  Ian Molton <spyro@f2s.com>
+ *  Copyright Â© 2007  Anton Vorontsov <cbou@mail.ru>
+ *  Copyright Â© 2004  Szabolcs Gyurko
+ *  Copyright Â© 2003  Ian Molton <spyro@f2s.com>
  *
  *  Modified: 2004, Oct     Szabolcs Gyurko
  *
@@ -22,7 +22,7 @@
 
 /*
  * All voltages, currents, charges, energies, time and temperatures in uV,
- * µA, µAh, µWh, seconds and tenths of degree Celsius unless otherwise
+ * ÂµA, ÂµAh, ÂµWh, seconds and tenths of degree Celsius unless otherwise
  * stated. It's driver's job to convert its raw values to units in which
  * this class operates.
  */
@@ -170,6 +170,7 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_NEW_CHARGE_TYPE,
 	POWER_SUPPLY_PROP_REAL_TYPE,
 	POWER_SUPPLY_PROP_HV_DISABLE,
+	POWER_SUPPLY_PROP_BATT_FULL_CAPACITY,
 //+Bug660501,lvyuanchuan.wt ,2021/0521, reading charging vol
 	POWER_SUPPLY_PROP_VOLTAGE,
 	/* Local extensions */

@@ -512,10 +512,10 @@ static void truly_panel_init(struct truly *ctx)
     truly_dcs_write_seq_static(ctx,0XB0,0xaa,0x0a);
     //dim 64 frame
     truly_dcs_write_seq_static(ctx,0X00,0xb5);
-    truly_dcs_write_seq_static(ctx,0Xca,0x08);
+    truly_dcs_write_seq_static(ctx,0Xca,0x06);	//bug817316,pengzhenhua1.wt,modify,20221121,lcd backlight flash dim 64-->32
     //pwm 12bit 54.2k
     truly_dcs_write_seq_static(ctx,0X00,0xB0);
-    truly_dcs_write_seq_static(ctx,0XCA,0x0f,0x0f,0x09);
+    truly_dcs_write_seq_static(ctx,0XCA,0x00,0x00,0x0c);	//bug817316,pengzhenhua1.wt,modify,20221121,lcd backlight flash pwm 12bit 34.47k
 
     truly_dcs_write_seq_static(ctx,0X1C,0x02);
 
@@ -554,7 +554,7 @@ static int truly_disable(struct drm_panel *panel)
 	return 0;
 }
 
-extern bool fts_gestrue_status;
+extern bool fts_gestrue_status;//bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 static int truly_unprepare(struct drm_panel *panel)
 {
 

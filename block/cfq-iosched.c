@@ -3489,7 +3489,7 @@ static bool cfq_may_dispatch(struct cfq_data *cfqd, struct cfq_queue *cfqq)
 
 	/*
 	 * Let it wait if too many async requests are dispatched.
-	 */
+	*/
 	if (!cfq_cfqq_sync(cfqq) && !CFQ_MAY_DISPATCH_ASYNC(cfqd))
 		return false;
 
@@ -4252,7 +4252,7 @@ static void cfq_update_hw_tag(struct cfq_data *cfqd)
 		return;
 
 	if (cfqd->hw_tag_est_depth >= CFQ_HW_QUEUE_MIN) {
-		cfqd->hw_tag = 1;
+ 		cfqd->hw_tag = 1;
 		/*
 		 * for queueing devices, such as UFS and eMMC CQ,
 		 * set slice_idle to 0 if no one touched it yet.

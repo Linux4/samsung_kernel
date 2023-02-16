@@ -40,9 +40,9 @@
 #endif
 #include "pmic_auxadc.h"
 #endif /* end of #if PMIC_ACCDET_KERNEL */
-
+#if defined(WT_AUDIO_WHETHER_SHARE)
 //NO_USE_COMPARATOR
- #ifdef CONFIG_ACCDET_EINT_IRQ
+#ifdef CONFIG_ACCDET_EINT_IRQ
 #define NO_USE_COMPARATOR	1/* for  NO use comp. with AB on type judge */
 #else
 #define NO_USE_COMPARATOR	0
@@ -62,7 +62,7 @@
 #define TYPE_AB_10			(0x02)/* Illegal state */
 #endif
 //NO_USE_COMPARATOR
-
+#endif
 /********************grobal variable definitions******************/
 #if PMIC_ACCDET_CTP
 #define CONFIG_ACCDET_EINT_IRQ
@@ -124,7 +124,10 @@ enum pmic_eint_ID {
 	PMIC_BIEINT = 3,
 };
 #endif
+
+#if defined(WT_AUDIO_WHETHER_SHARE)
 static u32 accdet_get_auxadc(int deCount);
+#endif
 /* accdet_status_str: to record current 'accdet_status' by string,
  * mapping to  'enum accdet_status'
  */
@@ -152,7 +155,9 @@ static char *accdet_report_str[] = {
 static dev_t accdet_devno;
 static struct cdev *accdet_cdev;
 static struct class *accdet_class;
-struct device *accdet_earjack; //add by pangxin01 20220426
+#if defined(WT_AUDIO_WHETHER_SHARE)
+struct device *accdet_earjack;
+#endif
 static struct device *accdet_device;
 static int s_button_status;
 
@@ -173,11 +178,13 @@ static struct workqueue_struct *accdet_workqueue;
 static struct work_struct eint_work;
 static struct workqueue_struct *eint_workqueue;
 
+#if defined(WT_AUDIO_WHETHER_SHARE)
 //NO_USE_COMPARATOR
 #ifdef NO_USE_COMPARATOR
 static inline void check_cable_type(void);
 #endif
 //NO_USE_COMPARATOR
+#endif
 
 /* micbias_timer: disable micbias if no accdet irq after eint,
  * timeout: 6 seconds
@@ -833,8 +840,11 @@ static ssize_t set_headset_mode_store(struct device_driver *ddri,
 
 	return count;
 }
-
+#if defined(WT_AUDIO_WHETHER_SHARE)
 static ssize_t states_show(struct device_driver *ddri, char *buf)
+#else
+static ssize_t state_show(struct device_driver *ddri, char *buf)
+#endif
 {
 	char temp_type = (char)cable_type;
 	int ret = 0;
@@ -854,14 +864,22 @@ static DRIVER_ATTR_WO(start_debug);
 static DRIVER_ATTR_WO(set_reg);
 static DRIVER_ATTR_RW(dump_reg);
 static DRIVER_ATTR_WO(set_headset_mode);
+#if defined(WT_AUDIO_WHETHER_SHARE)
 static DRIVER_ATTR_RO(states);
+#else
+static DRIVER_ATTR_RO(state);
+#endif
 
 static struct driver_attribute *accdet_attr_list[] = {
 	&driver_attr_start_debug,
 	&driver_attr_set_reg,
 	&driver_attr_dump_reg,
 	&driver_attr_set_headset_mode,
-	&driver_attr_states,
+#if defined(WT_AUDIO_WHETHER_SHARE)
+        &driver_attr_states,
+#else
+	&driver_attr_state,
+#endif
 };
 
 static int accdet_create_attr(struct device_driver *driver)
@@ -2038,9 +2056,9 @@ static unsigned int check_pole_type(void)
 static inline void check_cable_type(void)
 {
 	u32 cur_AB;
-//NO_USE_COMPARATOR
 #if NO_USE_COMPARATOR
-	if (accdet_status == PLUG_OUT) {
+#if defined(WT_AUDIO_WHETHER_SHARE)
+        if (accdet_status == PLUG_OUT) {
 	cur_AB = check_pole_type();
 	}else {
 		   //cur_AB = pmic_read(ACCDET_STATE_RG) >>
@@ -2050,14 +2068,17 @@ static inline void check_cable_type(void)
 	    pr_notice("accdet %s(), cur_status:%s current AB = %d\n", __func__,
 		     accdet_status_str[accdet_status], cur_AB);
 	}
-#else//NO_USE_COMPARATOR
-
+#else
+	cur_AB = check_pole_type();
+	pr_notice("accdet %s(), cur_status:%s current AB = %d\n", __func__,
+		     accdet_status_str[accdet_status], cur_AB);
+#endif
+#else
 cur_AB = pmic_read(PMIC_ACCDET_MEM_IN_ADDR) >> ACCDET_STATE_MEM_IN_OFFSET;
 	cur_AB = cur_AB & ACCDET_STATE_AB_MASK;
 	pr_notice("accdet %s(), cur_status:%s current AB = %d\n", __func__,
 		     accdet_status_str[accdet_status], cur_AB);
 #endif
-//NO_USE_COMPARATOR
 	s_button_status = 0;
 	pre_status = accdet_status;
 
@@ -2203,16 +2224,25 @@ static void accdet_work_callback(struct work_struct *work)
 static void accdet_work_callback(void)
 #endif
 {
+#if defined(WT_AUDIO_WHETHER_SHARE)
 #ifndef NO_USE_COMPARATOR
 	u32 pre_cable_type = cable_type;
+#endif
+#else
+        u32 pre_cable_type = cable_type;
 #endif
 	__pm_stay_awake(accdet_irq_lock);
 	check_cable_type();
 
 	mutex_lock(&accdet_eint_irq_sync_mutex);
 	if (eint_accdet_sync_flag) {
-#ifndef NO_USE_COMPARATOR	
+#if defined(WT_AUDIO_WHETHER_SHARE)
+#ifndef NO_USE_COMPARATOR
 	if ((pre_cable_type != cable_type) ||
+			(cable_type == HEADSET_MIC))
+#endif
+#else
+		if ((pre_cable_type != cable_type) ||
 			(cable_type == HEADSET_MIC))
 #endif
 			send_accdet_status_event(cable_type, 1);
@@ -3417,7 +3447,8 @@ static void delay_init_timerhandler(struct timer_list *t)
 			pr_info("%s inited dts fail\n", __func__);
 	}
 }
-//Added by pangxin01.wt on 20220426
+
+#if defined(WT_AUDIO_WHETHER_SHARE)
 static ssize_t state_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -3426,7 +3457,7 @@ static ssize_t state_show(struct device *dev,
 	return scnprintf(buf, PAGE_SIZE, "%d\n", accdet_AB);
 };
 static DEVICE_ATTR_RO(state);
-//Added by pangxin01.wt on 20220426
+#endif
 
 int mt_accdet_probe(struct platform_device *dev)
 {
@@ -3462,31 +3493,30 @@ int mt_accdet_probe(struct platform_device *dev)
 		goto err_class_create;
 	}
 
-//Added by pangxin01.wt on 20220321
+#if defined(WT_AUDIO_WHETHER_SHARE)
 	ret = alloc_chrdev_region(&accdet_devno, 0, 1, ACCDET_AUDIO_DEVNAME);
 	if (ret)
 		goto err_chrdevregion;
-    // class create
+	// class create
 	accdet_class = class_create(THIS_MODULE, ACCDET_AUDIO_DEVNAME);
 	if (!accdet_class) {
 		ret = -1;
-                pr_notice("%s class_create fail.\n", __func__);
-                goto err_class_create;
+		pr_notice("%s class_create fail.\n", __func__);
+		goto err_class_create;
 	}
-    //device create
-    accdet_earjack = device_create(accdet_class, NULL, accdet_devno,
-            NULL, ACCDET_AUDIO_EARJACK_DEVNAME);
-    if (!accdet_earjack) {
-                ret = -1;
-                pr_notice("%s device_create fail.\n", __func__);
-                goto err_device_create;
-    }
-    //device create file
+	//device create
+	accdet_earjack = device_create(accdet_class, NULL, accdet_devno,
+		NULL, ACCDET_AUDIO_EARJACK_DEVNAME);
+	if (!accdet_earjack) {
+		ret = -1;
+		pr_notice("%s device_create fail.\n", __func__);
+		goto err_device_create;
+	}
+	//device create file
 	ret = device_create_file(accdet_earjack, &dev_attr_state);
 	if (ret < 0)
-        goto err_device_create;
-//Added by pangxin01.wt on 20220426
-
+		goto err_device_create;
+#endif
 	/* create device under /dev node
 	 * if we want auto creat device node, we must call this
 	 */

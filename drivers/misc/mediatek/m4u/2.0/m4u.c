@@ -1993,6 +1993,7 @@ out:
 
 static void m4u_early_suspend(void)
 {
+#if 0
 	int i = 0;
 
 	M4UMSG("%s +, %d\n", __func__, m4u_tee_en);
@@ -2008,10 +2009,12 @@ static void m4u_early_suspend(void)
 			larb_clock_off(i, 1);
 	}
 	M4UMSG("%s -\n", __func__);
+#endif
 }
 
 static void m4u_late_resume(void)
 {
+#if 0
 	int i = 0;
 
 	M4UMSG("%s +, %d\n", __func__, m4u_tee_en);
@@ -2028,6 +2031,7 @@ static void m4u_late_resume(void)
 	}
 
 	M4UMSG("%s -\n", __func__);
+#endif
 }
 
 static struct notifier_block m4u_fb_notifier;
@@ -2729,6 +2733,23 @@ static int m4u_remove(struct platform_device *pdev)
 
 static int m4u_suspend(struct platform_device *pdev, pm_message_t mesg)
 {
+#ifdef M4U_TEE_SERVICE_ENABLE
+	int i = 0;
+
+	M4UMSG("%s, m4u_reg_backup_sec +, %d\n", __func__, m4u_tee_en);
+
+	//smi_debug_bus_hang_detect(false, M4U_DEV_NAME);
+	if (m4u_tee_en) {
+		for (i = 0; i < SMI_LARB_NR; i++)
+			larb_clock_on(i, 1);
+
+		m4u_reg_backup_sec();
+
+		for (i = 0; i < SMI_LARB_NR; i++)
+			larb_clock_off(i, 1);
+	}
+	M4UMSG("%s, m4u_reg_backup_sec -\n", __func__);
+#endif
 	m4u_reg_backup();
 	M4UINFO("M4U backup in suspend\n");
 
@@ -2737,6 +2758,24 @@ static int m4u_suspend(struct platform_device *pdev, pm_message_t mesg)
 
 static int m4u_resume(struct platform_device *pdev)
 {
+#ifdef M4U_TEE_SERVICE_ENABLE
+	int i = 0;
+
+	M4UMSG("%s, m4u_reg_restore_sec +, %d\n", __func__, m4u_tee_en);
+
+	//smi_debug_bus_hang_detect(false, M4U_DEV_NAME);
+	if (m4u_tee_en) {
+		for (i = 0; i < SMI_LARB_NR; i++)
+			larb_clock_on(i, 1);
+
+		m4u_reg_restore_sec();
+
+		for (i = 0; i < SMI_LARB_NR; i++)
+			larb_clock_off(i, 1);
+	}
+
+	M4UMSG("%s, m4u_reg_restore_sec -\n", __func__);
+#endif
 	m4u_reg_restore();
 	M4UINFO("M4U restore in resume\n");
 	return 0;

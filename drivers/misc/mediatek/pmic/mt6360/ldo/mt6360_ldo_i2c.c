@@ -661,7 +661,7 @@ static int mt6360_ldo_parse_dt_data(struct device *dev,
 	mt6360_dt_parser_helper(np, (void *)pdata,
 				mt6360_val_props, ARRAY_SIZE(mt6360_val_props));
 	res_cnt = of_irq_count(np);
-        if (!res_cnt) {
+	if (!res_cnt) {
 		dev_info(dev, "no irqs specified\n");
 		goto bypass_irq_res;
 	}

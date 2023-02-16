@@ -54,7 +54,7 @@
 #define KEY_GESTURE_V                           KEY_V
 #define KEY_GESTURE_C                           KEY_C
 #define KEY_GESTURE_Z                           KEY_Z
-#define GESTURE_DOUBLE_TAP		    KEY_WAKEUP
+#define GESTURE_DOUBLE_TAP		    	KEY_HOMEPAGE
 
 #define GESTURE_LEFT                            0x20
 #define GESTURE_RIGHT                           0x21
@@ -474,7 +474,7 @@ static ssize_t fts_support_feature(struct device *dev,
 
 	feature |= INPUT_FEATURE_ENABLE_SETTINGS_AOT;
 
-	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d", feature);
+	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d\n", feature);
 }
 
 static DEVICE_ATTR(support_feature, 0444, fts_support_feature, NULL);

@@ -282,6 +282,28 @@ const struct attribute_group mtu3_attr_group = {
 #endif
 #endif
 
+static void ssusb_dp_pullup_work(struct work_struct *w)
+{
+	struct ssusb_mtk *ssusb = container_of(w, struct ssusb_mtk, dp_work);
+	int ret = 0;
+
+	ret = usb_mtkphy_dpdm_pullup(ssusb->phys[0], 1);
+	if(ret)
+		dev_info(ssusb->dev, "%s Pull up DP failed!\n", __func__);
+
+	mdelay(50);
+	ret = usb_mtkphy_dpdm_pullup(ssusb->phys[0], 0);
+	if(ret)
+		dev_info(ssusb->dev, "%s Pull down DP failed!\n", __func__);
+
+}
+
+void ssusb_phy_dp_pullup(struct ssusb_mtk *ssusb)
+{
+	dev_info(ssusb->dev, "%s\n", __func__);
+	queue_work(system_power_efficient_wq, &ssusb->dp_work);
+}
+
 /* u2-port0 should be powered on and enabled; */
 int ssusb_check_clocks(struct ssusb_mtk *ssusb, u32 ex_clks)
 {
@@ -685,6 +707,8 @@ static int mtu3_probe(struct platform_device *pdev)
 		/*mtu3_cable_mode = CABLE_MODE_FORCEON;*/
 	}
 #endif
+
+	INIT_WORK(&ssusb->dp_work, ssusb_dp_pullup_work);
 
 	return 0;
 

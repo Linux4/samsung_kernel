@@ -470,7 +470,7 @@ done:
 
 	return 0;
 }
-
+//bug773028,pengzhenhua1.wt,add,20220627,lcd bringup
 u8 rec_esd = 1;	//LCM ESD recover flag global value
 
 static int mtk_drm_esd_check_worker_kthread(void *data)
@@ -533,13 +533,13 @@ static int mtk_drm_esd_check_worker_kthread(void *data)
 
 			if (!ret) /* success */
 			{
-				rec_esd = 0;
+				rec_esd = 0;	//bug773028,pengzhenhua1.wt,add,20220627,lcd bringup
 				break;
 			}
 			DDPPR_ERR(
 				"[ESD]esd check fail, will do esd recovery. try=%d\n",
 				i);
-			rec_esd = 1;
+			rec_esd = 1;	//bug773028,pengzhenhua1.wt,add,20220627,lcd bringup
 			mtk_drm_esd_recover(crtc);
 			recovery_flg = 1;
 		} while (++i < ESD_TRY_CNT);

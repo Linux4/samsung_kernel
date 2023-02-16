@@ -234,6 +234,9 @@ static void swtp_tx_delayed_work(struct work_struct *work)
 int swtp_md_tx_power_req_hdlr(int md_id, int data)
 {
 	struct swtp_t *swtp = NULL;
+#ifdef CUST_FT_SEND_TX_POWER
+	unsigned long flags;
+#endif
 
 	if (md_id < 0 || md_id >= SWTP_MAX_SUPPORT_MD) {
 		CCCI_LEGACY_ERR_LOG(md_id, SYS,
@@ -243,6 +246,12 @@ int swtp_md_tx_power_req_hdlr(int md_id, int data)
 	}
 
 	swtp = &swtp_data[md_id];
+#ifdef CUST_FT_SEND_TX_POWER
+	/*default do tx power for special use*/
+	spin_lock_irqsave(&swtp->spinlock, flags);
+	swtp->tx_power_mode = SWTP_DO_TX_POWER;
+	spin_unlock_irqrestore(&swtp->spinlock, flags);
+#endif
 	swtp_send_tx_power_state(swtp);
 
 	return 0;

@@ -264,12 +264,6 @@ int verity_handle_err_hex_debug(struct dm_verity *v, enum verity_block_type type
     /* Corruption should be visible in device status in all modes */
     v->hash_failed = 1;
 
-    if (ignore_fs_panic) {
-        DMERR("%s: Don't trigger a panic during cleanup for shutdown. Skipping %s",
-                v->data_dev->name, __func__);
-        return 0;
-    }
-
     if (v->corrupted_errs >= DM_VERITY_MAX_CORRUPTED_ERRS)
         goto out;
 

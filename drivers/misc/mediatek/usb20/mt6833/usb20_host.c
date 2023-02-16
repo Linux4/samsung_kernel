@@ -418,8 +418,8 @@ static int otg_tcp_notifier_call(struct notifier_block *nb,
 			noti->swap_state.new_role == PD_ROLE_DFP) {
 			DBG(0, "switch role to host\n");
 #if defined(CONFIG_CABLE_TYPE_NOTIFIER)
-					cable_type_notifier_set_attached_dev(CABLE_TYPE_NONE);
-					cable_type_notifier_set_attached_dev(CABLE_TYPE_OTG);
+			cable_type_notifier_set_attached_dev(CABLE_TYPE_NONE);
+			cable_type_notifier_set_attached_dev(CABLE_TYPE_OTG);
 #else
 			mt_usb_disconnect();
 			mt_usb_host_connect(0);

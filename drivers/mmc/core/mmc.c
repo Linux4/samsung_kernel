@@ -941,7 +941,7 @@ static ssize_t flash_name_show(struct device *dev, struct device_attribute *attr
                 emcp_name = "MT29VZZZAD8GQFSL_046W_9R8";
             else if (strncmp(card->cid.prod_name, "G1C12L", strlen("G1C12L")) == 0)
                 emcp_name = "MT29VZZZCD9GQKPR_046W_12L";
-            else if (strncmp(card->cid.prod_name, "G2C215", strlen("G2C215")) == 0)
+	    else if (strncmp(card->cid.prod_name, "G2C215", strlen("G2C215")) == 0)
                 emcp_name = "MT29VZZZCD9GUKPR_046";
             else
                 emcp_name = NULL;

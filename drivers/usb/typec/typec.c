@@ -1049,10 +1049,8 @@ static ssize_t power_operation_mode_show(struct device *dev,
 					 char *buf)
 {
 	struct typec_port *port = to_typec_port(dev);
-	if (!IS_ERR_OR_NULL(port) && !IS_ERR_OR_NULL(&(port->pwr_opmode)) && (port->pwr_opmode) > 0 && (port->pwr_opmode) < 4)
-		return sprintf(buf, "%s\n", typec_pwr_opmodes[port->pwr_opmode]);
-	else
-		return sprintf(buf, "%s\n", typec_pwr_opmodes[0]);
+
+	return sprintf(buf, "%s\n", typec_pwr_opmodes[port->pwr_opmode]);
 }
 static DEVICE_ATTR_RO(power_operation_mode);
 

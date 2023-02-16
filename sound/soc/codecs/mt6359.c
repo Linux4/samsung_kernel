@@ -2421,11 +2421,14 @@ static int mt_mic_bias_0_event(struct snd_soc_dapm_widget *w,
 			break;
 		}
 
-		//OA710560 wunan01.wt -modify micbias0 1P9 to 2P5 20220110
-		/* MISBIAS0 = 2P5V */
+		/* MISBIAS0 = 1P9V */
 		regmap_update_bits(priv->regmap, MT6359_AUDENC_ANA_CON15,
 				   RG_AUDMICBIAS0VREF_MASK_SFT,
-				   MIC_BIAS_2P5 << RG_AUDMICBIAS0VREF_SFT);
+#if defined(WT_AUDIO_WHETHER_SHARE) //tanglintao.wt -modify micbias0 1P9 to 2P5 20220815
+                                   MIC_BIAS_2P5 << RG_AUDMICBIAS0VREF_SFT);
+#else
+				   MIC_BIAS_1P9 << RG_AUDMICBIAS0VREF_SFT);
+#endif
 		/* vow low power select */
 		regmap_update_bits(priv->regmap, MT6359_AUDENC_ANA_CON15,
 				   RG_AUDMICBIAS0LOWPEN_MASK_SFT,
@@ -2456,14 +2459,21 @@ static int mt_mic_bias_1_event(struct snd_soc_dapm_widget *w,
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
-		//OA710560 wunan01.wt -modify micbias1 2P6 to 2P7 20210110
-		/* MISBIAS1 = 2P7V */
+		/* MISBIAS1 = 2P6V */
 		if (mic_type == MIC_TYPE_MUX_DCC_ECM_SINGLE)
+#if defined(WT_AUDIO_WHETHER_SHARE)//tanglintao.wt -modify micbias1 2P6 to 2P7 20220811
 			regmap_write(priv->regmap,
 				     MT6359_AUDENC_ANA_CON16, 0x0170);
 		else
 			regmap_write(priv->regmap,
 				     MT6359_AUDENC_ANA_CON16, 0x0070);
+#else
+                        regmap_write(priv->regmap,
+                                     MT6359_AUDENC_ANA_CON16, 0x0160);
+                else
+                        regmap_write(priv->regmap,
+                                     MT6359_AUDENC_ANA_CON16, 0x0060);
+#endif
 
 		/* vow low power select */
 		regmap_update_bits(priv->regmap, MT6359_AUDENC_ANA_CON16,
@@ -2509,11 +2519,14 @@ static int mt_mic_bias_2_event(struct snd_soc_dapm_widget *w,
 			break;
 		}
 
-		//OA710560 wunan01.wt -modify micbias2 1P9 to 2P5 20220110
-		/* MISBIAS2 = 2P5V */
+		/* MISBIAS2 = 1P9V */
 		regmap_update_bits(priv->regmap, MT6359_AUDENC_ANA_CON17,
 				   RG_AUDMICBIAS2VREF_MASK_SFT,
-				   MIC_BIAS_2P5 << RG_AUDMICBIAS2VREF_SFT);
+#if defined(WT_AUDIO_WHETHER_SHARE)//tanglintao.wt -modify micbias2 1P9 to 2P5 20220815
+                                   MIC_BIAS_2P5 << RG_AUDMICBIAS2VREF_SFT);
+#else
+				   MIC_BIAS_1P9 << RG_AUDMICBIAS2VREF_SFT);
+#endif
 		/* vow low power select */
 		regmap_update_bits(priv->regmap, MT6359_AUDENC_ANA_CON17,
 				   RG_AUDMICBIAS2LOWPEN_MASK_SFT,

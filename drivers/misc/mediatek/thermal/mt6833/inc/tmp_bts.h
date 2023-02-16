@@ -20,11 +20,12 @@
 #define AUX_IN0_NTC (0)
 #define AUX_IN1_NTC (1)
 #define AUX_IN2_NTC (2)
-/*bug [604664] w1 add new thermal ntc zhengtaoying 20211226 begin*/
+/*bug[773028] w1 add new thermal ntc renjiawei 20220726 begin*/
 #define AUX_IN3_NTC (3)
 #define AUX_IN4_NTC (4)
 #define AUX_IN6_NTC (6)
-/*bug [604664] w1 add new thermal ntc zhengtaoying 20211226 end*/
+/*bug[773028] w1 add new thermal ntc renjiawei 20220726 end*/
+
 #define BTS_RAP_PULL_UP_R		100000 /* 100K, pull up resister */
 
 #define BTS_TAP_OVER_CRITICAL_LOW	4397119 /* base on 100K NTC temp
@@ -59,7 +60,8 @@
 #define BTSNRPA_RAP_NTC_TABLE		7
 
 #define BTSNRPA_RAP_ADC_CHANNEL		AUX_IN2_NTC
-/*bug [604664] w1 add new thermal ntc zhengtaoying 20211226 begin*/
+
+/*bug[773028] w1 add new thermal ntc renjiawei 20220726 begin*/
 #define BTSCHARGER_EXT_RAP_PULL_UP_R	100000	/* 100K,pull up resister */
 
 #define BTSCHARGER_EXT_TAP_OVER_CRITICAL_LOW 4397119 /* base on 100K NTC temp
@@ -96,7 +98,7 @@
 #define BTSMBTHERMAL_RAP_NTC_TABLE	7
 
 #define BTSMBTHERMAL_RAP_ADC_CHANNEL	AUX_IN6_NTC
-/*bug [604664] w1 add new thermal ntc zhengtaoying 20211226 end*/
+/*bug[773028] w1 add new thermal ntc renjiawei 20220726 end*/
 
 
 extern int IMM_GetOneChannelValue(int dwChannel, int data[4], int *rawdata);

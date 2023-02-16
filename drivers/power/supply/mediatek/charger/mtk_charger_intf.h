@@ -32,6 +32,7 @@
 
 struct charger_manager;
 struct charger_data;
+extern int batt_slate_mode;
 #ifdef CONFIG_AFC_CHARGER
 //yuanjian.wt add for AFC charge
 #include "afc_charger_intf.h"

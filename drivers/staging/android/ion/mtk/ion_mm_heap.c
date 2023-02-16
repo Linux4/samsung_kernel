@@ -629,7 +629,6 @@ void ion_mm_heap_free(struct ion_buffer *buffer)
 	sg_free_table(table);
 	kfree(table);
 	atomic_long_sub(size, &systemheap_total_allocated);
-
 }
 
 struct sg_table *ion_mm_heap_map_dma(struct ion_heap *heap,

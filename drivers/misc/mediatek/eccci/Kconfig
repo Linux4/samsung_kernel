@@ -61,4 +61,3 @@ config MTK_SRIL_SUPPORT
 	  if yes, then it is supported,
 	  if no, it is disabled.
 	  The option default disabled.
-

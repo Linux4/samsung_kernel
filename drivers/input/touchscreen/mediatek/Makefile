@@ -1,6 +1,7 @@
 subdir-ccflags-y += -Werror
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/
 ccflags-y += -I$(srctree)/drivers/input/touchscreen/mediatek
+#+bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 ccflags-y += -I$(srctree)/drivers/input/touchscreen/mediatek/ILI7807S
 
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include
@@ -30,3 +31,4 @@ obj-$(CONFIG_TOUCHSCREEN_MTK_FOCALTECH_FHD)	+=  focaltech_fhd_touch/
 obj-$(CONFIG_TOUCHSCREEN_MTK_GT9157)    +=  GT9157/
 obj-$(CONFIG_TOUCHSCREEN_HIMAX_CHIPSET_8789P1_8185P3)    +=  hxchipset_8789p1_8185p3/
 obj-$(CONFIG_TOUCHSCREEN_HIMAX_CHIPSET) += hx83112f/
+#-bug773028, fangzhihua.wt,mod, 20220628,TP bringup

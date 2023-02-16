@@ -4926,6 +4926,7 @@ s32 cmdq_pkt_wait_flush_ex_result(struct cmdqRecStruct *handle)
 	u32 count = 0;
 	const struct cmdq_controller *ctrl = handle->ctrl;
 	struct cmdq_client *client;
+	bool skip = false;
 
 	CMDQ_PROF_MMP(cmdq_mmp_get_event()->wait_task,
 		MMPROFILE_FLAG_PULSE, ((unsigned long)handle), handle->thread);
@@ -4947,7 +4948,22 @@ s32 cmdq_pkt_wait_flush_ex_result(struct cmdqRecStruct *handle)
 			handle->thread, client->chan->mbox,
 			client->chan->mbox->dev);
 
-	do {
+	while (!handle->pkt->task_alloc) {
+		waitq = wait_event_timeout(
+			cmdq_wait_queue[(u32)handle->thread],
+			(handle->state != TASK_STATE_BUSY &&
+			handle->state != TASK_STATE_WAITING),
+			msecs_to_jiffies(CMDQ_PREDUMP_TIMEOUT_MS));
+		if (waitq) {
+			/* task alloc failed then skip predump */
+			skip = true;
+			break;
+		}
+		CMDQ_LOG("wait before submit handle:%p pkt:%p, task_alloc:%d",
+			handle, handle->pkt, handle->pkt->task_alloc);
+	}
+
+	while (!skip) {
 		if (!handle->pkt->loop) {
 			/* wait event and pre-dump */
 			waitq = wait_event_timeout(
@@ -4998,7 +5014,8 @@ s32 cmdq_pkt_wait_flush_ex_result(struct cmdqRecStruct *handle)
 		}
 
 		count++;
-	} while (1);
+	}
+	handle->pkt->task_alloc = false;
 
 	handle->wakedUp = sched_clock();
 	CMDQ_SYSTRACE_END();

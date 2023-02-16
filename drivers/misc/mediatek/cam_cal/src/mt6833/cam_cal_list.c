@@ -35,6 +35,18 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	{IMX350_SENSOR_ID, 0xA0, Common_read_region},
 	{IMX386_MONO_SENSOR_ID, 0xA0, Common_read_region},
 	{IMX499_SENSOR_ID, 0xA0, Common_read_region},
+        //+bug710560 wangmingli, add, 2021/12/29,st_hi846 dc_gc8034 st2_hi846 and txd_c8490 eeprom bring up
+        //+bug604664 zhouyikuan, add, 2020/12/14,hi846&gc8034  eeprom bring up
+        {W1HI846FRONTST_SENSOR_ID, 0xA0, Common_read_region},
+        {W1GC8034FRONTDC_SENSOR_ID, 0xA0, Common_read_region},
+        //-bug604664 zhouyikuan, add, 2020/12/14,hi846&gc8034  eeprom bring up
+        //+bug604664 wangmingli, add, 2021/11/8,hi846frontst2 eeprom bring up
+        {W1HI846FRONTST2_SENSOR_ID, 0xA0, Common_read_region},
+        //-bug604664 wangmingli, add, 2021/11/8,hi846frontst2 eeprom bring up
+        //+bug604664 qinduilin, add, 2021/11/12,c8490 eeprom bring up
+        {W1C8490FRONTTXD_SENSOR_ID, 0xA0, Common_read_region},
+         //-bug604664 qinduilin, add, 2021/11/12,c8490 eeprom bring up
+        //-bug710560 wangmingli, add, 2021/12/29,st_hi846 dc_gc8034 st2_hi846 and txd_c8490 eeprom bring up
 	/*  ADD before this line */
 	{0, 0, 0}       /*end of list */
 };

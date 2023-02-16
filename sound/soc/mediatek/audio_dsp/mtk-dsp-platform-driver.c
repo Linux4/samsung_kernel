@@ -129,6 +129,60 @@ static int dsp_captureul1_default_get(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int dsp_ulproc_default_set(struct snd_kcontrol *kcontrol,
+					 struct snd_ctl_elem_value *ucontrol)
+{
+	int val = ucontrol->value.integer.value[0];
+
+	set_task_attr(AUDIO_TASK_UL_PROCESS_ID, ADSP_TASK_ATTR_DEFAULT, val);
+	return 0;
+}
+
+static int dsp_ulproc_default_get(struct snd_kcontrol *kcontrol,
+					   struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] =
+		get_task_attr(AUDIO_TASK_UL_PROCESS_ID,
+			      ADSP_TASK_ATTR_DEFAULT);
+	return 0;
+}
+
+static int dsp_echoref_default_set(struct snd_kcontrol *kcontrol,
+					 struct snd_ctl_elem_value *ucontrol)
+{
+	int val = ucontrol->value.integer.value[0];
+
+	set_task_attr(AUDIO_TASK_ECHO_REF_ID, ADSP_TASK_ATTR_DEFAULT, val);
+	return 0;
+}
+
+static int dsp_echoref_default_get(struct snd_kcontrol *kcontrol,
+					   struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] =
+		get_task_attr(AUDIO_TASK_ECHO_REF_ID,
+			      ADSP_TASK_ATTR_DEFAULT);
+	return 0;
+}
+
+static int dsp_echorefdl_default_set(struct snd_kcontrol *kcontrol,
+					 struct snd_ctl_elem_value *ucontrol)
+{
+	int val = ucontrol->value.integer.value[0];
+
+	set_task_attr(AUDIO_TASK_ECHO_REF_DL_ID, ADSP_TASK_ATTR_DEFAULT, val);
+	return 0;
+}
+
+static int dsp_echorefdl_default_get(struct snd_kcontrol *kcontrol,
+					   struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] =
+		get_task_attr(AUDIO_TASK_ECHO_REF_DL_ID,
+			      ADSP_TASK_ATTR_DEFAULT);
+	return 0;
+}
+
 static int dsp_offload_default_set(struct snd_kcontrol *kcontrol,
 					 struct snd_ctl_elem_value *ucontrol)
 {
@@ -384,6 +438,59 @@ static int dsp_captureul1_runtime_get(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int dsp_ulproc_runtime_set(struct snd_kcontrol *kcontrol,
+					 struct snd_ctl_elem_value *ucontrol)
+{
+	int val = ucontrol->value.integer.value[0];
+
+	set_task_attr(AUDIO_TASK_UL_PROCESS_ID, ADSP_TASK_ATTR_RUMTIME, val);
+	return 0;
+}
+
+static int dsp_ulproc_runtime_get(struct snd_kcontrol *kcontrol,
+					   struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] =
+		get_task_attr(AUDIO_TASK_UL_PROCESS_ID,
+			      ADSP_TASK_ATTR_RUMTIME);
+	return 0;
+}
+
+static int dsp_echoref_runtime_set(struct snd_kcontrol *kcontrol,
+					 struct snd_ctl_elem_value *ucontrol)
+{
+	int val = ucontrol->value.integer.value[0];
+
+	set_task_attr(AUDIO_TASK_ECHO_REF_ID, ADSP_TASK_ATTR_RUMTIME, val);
+	return 0;
+}
+
+static int dsp_echoref_runtime_get(struct snd_kcontrol *kcontrol,
+					   struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] =
+		get_task_attr(AUDIO_TASK_ECHO_REF_ID,
+			      ADSP_TASK_ATTR_RUMTIME);
+	return 0;
+}
+
+static int dsp_echorefdl_runtime_set(struct snd_kcontrol *kcontrol,
+					 struct snd_ctl_elem_value *ucontrol)
+{
+	int val = ucontrol->value.integer.value[0];
+
+	set_task_attr(AUDIO_TASK_ECHO_REF_DL_ID, ADSP_TASK_ATTR_RUMTIME, val);
+	return 0;
+}
+
+static int dsp_echorefdl_runtime_get(struct snd_kcontrol *kcontrol,
+					   struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] =
+		get_task_attr(AUDIO_TASK_ECHO_REF_DL_ID,
+			      ADSP_TASK_ATTR_RUMTIME);
+	return 0;
+}
 
 static int dsp_offload_runtime_set(struct snd_kcontrol *kcontrol,
 					 struct snd_ctl_elem_value *ucontrol)
@@ -696,6 +803,12 @@ static const struct snd_kcontrol_new dsp_platform_kcontrols[] = {
 	SOC_SINGLE_EXT("dsp_captureraw_default_en", SND_SOC_NOPM, 0, 0x1, 0,
 		       dsp_capture_raw_default_get,
 		       dsp_capture_raw_default_set),
+	SOC_SINGLE_EXT("dsp_ulproc_default_en", SND_SOC_NOPM, 0, 0x1, 0,
+		       dsp_ulproc_default_get, dsp_ulproc_default_set),
+	SOC_SINGLE_EXT("dsp_echoref_default_en", SND_SOC_NOPM, 0, 0x1, 0,
+		       dsp_echoref_default_get, dsp_echoref_default_set),
+	SOC_SINGLE_EXT("dsp_echodl_default_en", SND_SOC_NOPM, 0, 0x1, 0,
+		       dsp_echorefdl_default_get, dsp_echorefdl_default_set),
 	SOC_SINGLE_EXT("dsp_fm_default_en", SND_SOC_NOPM, 0, 0x1, 0,
 		       dsp_fm_default_get, dsp_fm_default_set),
 	SOC_SINGLE_EXT("dsp_primary_runtime_en", SND_SOC_NOPM, 0, 0x1, 0,
@@ -724,6 +837,12 @@ static const struct snd_kcontrol_new dsp_platform_kcontrols[] = {
 	SOC_SINGLE_EXT("dsp_captureraw_runtime_en", SND_SOC_NOPM, 0, 0x1, 0,
 		       dsp_capture_raw_runtime_get,
 		       dsp_capture_raw_runtime_set),
+	SOC_SINGLE_EXT("dsp_ulproc_runtime_en", SND_SOC_NOPM, 0, 0x1, 0,
+		       dsp_ulproc_runtime_get, dsp_ulproc_runtime_set),
+	SOC_SINGLE_EXT("dsp_echoref_runtime_en", SND_SOC_NOPM, 0, 0x1, 0,
+		       dsp_echoref_runtime_get, dsp_echoref_runtime_set),
+	SOC_SINGLE_EXT("dsp_echodl_runtime_en", SND_SOC_NOPM, 0, 0x1, 0,
+		       dsp_echorefdl_runtime_get, dsp_echorefdl_runtime_set),
 	SOC_SINGLE_EXT("dsp_fm_runtime_en", SND_SOC_NOPM, 0, 0x1, 0,
 		       dsp_fm_runtime_get, dsp_fm_runtime_set),
 	SOC_SINGLE_EXT("audio_dsp_wakelock", SND_SOC_NOPM, 0, 0x1, 0,
@@ -1227,14 +1346,12 @@ static int mtk_dsp_pcm_hw_params(struct snd_pcm_substream *substream,
 	int id = rtd->cpu_dai->id;
 	void *ipi_audio_buf; /* dsp <-> audio data struct*/
 	int ret = 0;
-	struct mtk_base_dsp_mem *dsp_memif;
 
 	if (id < 0 || id >= AUDIO_TASK_DAI_NUM) {
 		pr_info("%s id = %d, is overrange\n", __func__, id);
 		return -1;
 	}
 
-	dsp_memif = &dsp->dsp_mem[id];
 	pr_info("%s(), task_id: %d\n", __func__, id);
 
 	reset_audiobuffer_hw(&dsp->dsp_mem[id].adsp_buf);
@@ -1310,9 +1427,8 @@ static int mtk_dsp_pcm_hw_params(struct snd_pcm_substream *substream,
 	/* send to task with hw_param information , buffer and pcm attribute */
 	mtk_scp_ipi_send(get_dspscene_by_dspdaiid(id), AUDIO_IPI_PAYLOAD,
 			 AUDIO_IPI_MSG_NEED_ACK, AUDIO_DSP_TASK_HWPARAM,
-			 sizeof(unsigned int),
-			 (unsigned int)
-			 dsp_memif->msg_atod_share_buf.phy_addr,
+			 sizeof(dsp->dsp_mem[id].msg_atod_share_buf.phy_addr),
+			 0,
 			 (char *)&dsp->dsp_mem[id].msg_atod_share_buf.phy_addr);
 
 	return ret;
@@ -1404,9 +1520,8 @@ static int mtk_dsp_pcm_hw_prepare(struct snd_pcm_substream *substream)
 	/* send to task with prepare status */
 	mtk_scp_ipi_send(get_dspscene_by_dspdaiid(id), AUDIO_IPI_PAYLOAD,
 			 AUDIO_IPI_MSG_NEED_ACK, AUDIO_DSP_TASK_PREPARE,
-			 sizeof(unsigned int),
-			 (unsigned int)
-			 dsp_memif->msg_atod_share_buf.phy_addr,
+			 sizeof(dsp->dsp_mem[id].msg_atod_share_buf.phy_addr),
+			 0,
 			 (char *)&dsp->dsp_mem[id].msg_atod_share_buf.phy_addr);
 	return ret;
 }
@@ -1531,8 +1646,8 @@ static int mtk_dsp_pcm_copy_dl(struct snd_pcm_substream *substream,
 	ret = mtk_scp_ipi_send(
 			get_dspscene_by_dspdaiid(id), AUDIO_IPI_PAYLOAD,
 			ack_type, AUDIO_DSP_TASK_DLCOPY,
-			sizeof(unsigned int),
-			(unsigned int)dsp_mem->msg_atod_share_buf.phy_addr,
+			sizeof(dsp_mem->msg_atod_share_buf.phy_addr),
+			0,
 			(char *)&dsp_mem->msg_atod_share_buf.phy_addr);
 
 	return ret;
@@ -1585,8 +1700,8 @@ static int mtk_dsp_pcm_copy_ul(struct snd_pcm_substream *substream,
 	ret = mtk_scp_ipi_send(
 			get_dspscene_by_dspdaiid(id), AUDIO_IPI_PAYLOAD,
 			AUDIO_IPI_MSG_NEED_ACK, AUDIO_DSP_TASK_ULCOPY,
-			sizeof(unsigned int),
-			(unsigned int)dsp_mem->msg_atod_share_buf.phy_addr,
+			sizeof(dsp_mem->msg_atod_share_buf.phy_addr),
+			0,
 			(char *)&dsp_mem->msg_atod_share_buf.phy_addr);
 
 #ifdef DEBUG_VERBOSE

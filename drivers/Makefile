@@ -190,6 +190,3 @@ obj-$(CONFIG_SEC_EXT)	+= samsung/
 obj-$(CONFIG_GNSS)		+= gnss/
 obj-$(CONFIG_SWITCH)		+= switch/
 obj-$(CONFIG_SENSORS)   += sensors/
-
-# OLOG
-obj-y				+= kperfmon/

@@ -563,5 +563,3 @@
 	mediatek,kpd-hw-factory-key = <17>;
 	status = "okay";
 };
-
-

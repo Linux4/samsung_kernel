@@ -16,7 +16,7 @@ config MTK_FINGERPRINT_SUPPORT
 config MTK_FINGERPRINT_SELECT
 	string "sensor type"
 	default "NA"
-
+	
 config EGIS_FINGERPRINT
 	bool "Egis Fingerprint"
 	default n

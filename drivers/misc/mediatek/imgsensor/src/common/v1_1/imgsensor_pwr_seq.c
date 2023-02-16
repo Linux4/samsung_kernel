@@ -320,8 +320,13 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 	},
 #endif
 //-bug604664 liudijin.wt, add, 2021/04/16, distinguish depth camera params for ov64b40 dualcam
+//-bug584789, liudijin.wt, ADD, 2021/01/11, add 3 gong wide camera sc500cs bringup
+//-bug710560 , zhanghao2.wt, ADD, 2021/12/28, add wide sensor hi556 gc5035c sc500cs bringup
 
+//-bug604664 chenbocheng.wt, add, 2021/01/13, distinguish depth camera params for dualcam
+//-bug584789,zhanghengyuan.wt,MODIFY,2020/12/17,depth c2515 bf2253 gc02m1b bringup
 #if 0
+
 #if defined(IMX766_MIPI_RAW)
 	{
 		SENSOR_DRVNAME_IMX766_MIPI_RAW,

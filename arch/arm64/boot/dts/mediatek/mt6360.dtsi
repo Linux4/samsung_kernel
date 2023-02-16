@@ -51,6 +51,7 @@
 			aicr = <500000>;		/* uA */
 			mivr = <4400000>;		/* uV */
 			cv = <4350000>;			/* uA */
+			vrechg = <200000>;		/* uV */
 			ieoc = <150000>;		/* uA */
 			safety_timer = <12>;		/* hour */
 			ircmp_resistor = <25000>;	/* uohm */

@@ -162,12 +162,6 @@ unlock:
 static int tz_format_cred_kernel(struct tz_cred *cred)
 {
 	cred->type = TZ_CRED_KERNEL;
-	cred->pid = current->real_parent->pid;
-	cred->uid = __kuid_val(current_uid());
-	cred->gid = __kgid_val(current_gid());
-
-	memcpy(&cred->hash, &kernel_client_hash, SHA256_DIGEST_SIZE);
-
 	return 0;
 }
 

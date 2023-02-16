@@ -102,6 +102,11 @@
 #if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
 #include <linux/usb_notify.h>
 #endif
+#if (defined CONFIG_MUIC_NOTIFIER) && (!defined CONFIG_USB_NOTIFY_LAYER) \
+	&& (defined CONFIG_MUIC_S2MU005)
+#include <linux/muic/muic.h>
+#include <linux/muic/muic_notifier.h>
+#endif
 
 #if (defined CONFIG_MUIC_NOTIFIER) && (!defined CONFIG_USB_NOTIFY_LAYER) \
 	&& (defined CONFIG_MUIC_S2MU005)

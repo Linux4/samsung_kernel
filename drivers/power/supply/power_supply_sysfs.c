@@ -276,6 +276,7 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(new_charge_type),
 	POWER_SUPPLY_ATTR(real_type),
 	POWER_SUPPLY_ATTR(hv_disable),
+	POWER_SUPPLY_ATTR(batt_full_capacity),
 //+Bug660501,lvyuanchuan.wt ,2021/0521, reading charging vol
 	POWER_SUPPLY_ATTR(voltage),
 	/* Local extensions */

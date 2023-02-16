@@ -445,10 +445,6 @@ obj-$(CONFIG_THERMAL) += mtk_ts_pa_thput.o
 obj-$(CONFIG_THERMAL) += mtk_ts_pmic.o
 obj-$(CONFIG_THERMAL) += mtk_ts_charger.o
 #obj-$(CONFIG_THERMAL) += mtk_ts_charger2.o
-obj-$(CONFIG_THERMAL) += mtk_ts_btscharger_ext.o
-obj-$(CONFIG_THERMAL) += mtk_ts_btsflashlight.o
-obj-$(CONFIG_THERMAL) += mtk_ts_btsmbthermal.o
-
 
 ifneq ($(CONFIG_MTK_COMBO_WIFI),)
     obj-$(CONFIG_THERMAL) += mtk_ts_wmt.o
@@ -494,6 +490,9 @@ obj-$(CONFIG_THERMAL) += mtk_ts_pa_thput.o
 obj-$(CONFIG_THERMAL) += mtk_ts_pmic.o
 obj-$(CONFIG_THERMAL) += mtk_ts_charger.o
 #obj-$(CONFIG_THERMAL) += mtk_ts_charger2.o
+obj-$(CONFIG_THERMAL) += mtk_ts_btscharger_ext.o
+obj-$(CONFIG_THERMAL) += mtk_ts_btsflashlight.o
+obj-$(CONFIG_THERMAL) += mtk_ts_btsmbthermal.o
 
 
 ifneq ($(CONFIG_MTK_COMBO_WIFI),)

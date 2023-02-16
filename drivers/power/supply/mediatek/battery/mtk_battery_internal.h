@@ -52,7 +52,7 @@
 #define SHUTDOWN_TIME 40
 #define AVGVBAT_ARRAY_SIZE 30
 #define INIT_VOLTAGE 3450
-#define BATTERY_SHUTDOWN_TEMPERATURE 88 //Bug493176,guoyanjun.wt,MODIFY,20220427,88 degree trigger shutdown
+#define BATTERY_SHUTDOWN_TEMPERATURE 68 //Bug802661,yuecong.wt,MODIFY,20220915,68 degree trigger shutdown
 
 /* ============================================================ */
 /* typedef and Struct*/
@@ -891,6 +891,10 @@ struct mtk_battery {
 	int bat_cycle_thr;
 	int bat_cycle_car;
 	int bat_cycle_ncar;
+#if defined (CONFIG_WT_PROJECT_S96801AA3)
+	int *batt_cycle_fv_cfg;
+	int fv_levels;
+#endif
 
 /* cust req ocv data */
 	int algo_qmax;

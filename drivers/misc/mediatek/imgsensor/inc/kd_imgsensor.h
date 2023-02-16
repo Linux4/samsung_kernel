@@ -616,6 +616,21 @@
 #define SENSOR_DRVNAME_S5KGW3_MIPI_RAW          "s5kgw3_mipi_raw"
 #define SENSOR_DRVNAME_SR846D_MIPI_RAW          "sr846d_mipi_raw"
 
+//+bug584789,zhouyikuan.wt,MODIFY,2020/12/04,front n22_st_hi846 sensor bringup
+#define W1HI846FRONTST_SENSOR_ID 0x846
+#define SENSOR_DRVNAME_W1HI846FRONTST_MIPI_RAW "w1hi846frontst_mipi_raw"
+//-bug584789,zhouyikuan.wt,MODIFY,2020/12/04,front n22_st_hi846 sensor bringup
+
+//+bug584789,zhouyikuan.wt,MODIFY,2020/12/04,front n22_dc_gc8034 sensor bringup
+#define W1GC8034FRONTDC_SENSOR_ID 0x8044
+#define SENSOR_DRVNAME_W1GC8034FRONTDC_MIPI_RAW "w1gc8034frontdc_mipi_raw"
+//-bug584789,zhouyikuan.wt,MODIFY,2020/12/04,front n22_dc_gc8034 sensor bringup
+
+//+bug584789, qinduilin.wt, ADD, 2021/11/10, add front camera c8490 bringup
+#define W1C8490FRONTTXD_SENSOR_ID 0x0802
+#define SENSOR_DRVNAME_W1C8490FRONTTXD_MIPI_RAW "w1c8490fronttxd_mipi_raw"
+//-bug584789, qinduilin.wt, ADD, 2021/11/10, add front camera c8490 bringup
+
 //+bug604664 chenbocheng.wt, add, 2020/12/12, 1st supply main camera hi4821q bring up
 #define W1HI4821QREARQT_SENSOR_ID 0x4821
 #define SENSOR_DRVNAME_W1HI4821QREARQT_MIPI_RAW "w1hi4821qrearqt_mipi_raw"
@@ -636,27 +651,10 @@
 #define SENSOR_DRVNAME_W1OV64B40REARTXD_MIPI_RAW "w1ov64b40reartxd_mipi_raw"
 //-bug584789, qinduilin.wt,ADD,2021/02/20,add for OV64B40 bringup
 
-//+bug710560, wangmingli.wt, ADD, 2021/12/28, add front camera st_hi846 dc_gc8034 st2_hi846 and txd_c8490 bringup
-//+bug584789,zhouyikuan.wt,MODIFY,2020/12/04,front n22_st_hi846 sensor bringup
-#define W1HI846FRONTST_SENSOR_ID 0x846
-#define SENSOR_DRVNAME_W1HI846FRONTST_MIPI_RAW "w1hi846frontst_mipi_raw"
-//-bug584789,zhouyikuan.wt,MODIFY,2020/12/04,front n22_st_hi846 sensor bringup
-
-//+bug584789,zhouyikuan.wt,MODIFY,2020/12/04,front n22_dc_gc8034 sensor bringup
-#define W1GC8034FRONTDC_SENSOR_ID 0x8044
-#define SENSOR_DRVNAME_W1GC8034FRONTDC_MIPI_RAW "w1gc8034frontdc_mipi_raw"
-//-bug584789,zhouyikuan.wt,MODIFY,2020/12/04,front n22_dc_gc8034 sensor bringup
-
 //+bug604664,wangmingli.wt,add,2021/11/08,front n22_st2_hi846 sensor bringup
 #define W1HI846FRONTST2_SENSOR_ID 0x847
 #define SENSOR_DRVNAME_W1HI846FRONTST2_MIPI_RAW "w1hi846frontst2_mipi_raw"
 //-bug604664,wangmingli.wt,add,2021/11/08,front n22_st2_hi846 sensor bringup
-
-//+bug584789, qinduilin.wt, ADD, 2021/11/10, add front camera c8490 bringup
-#define W1C8490FRONTTXD_SENSOR_ID 0x0802
-#define SENSOR_DRVNAME_W1C8490FRONTTXD_MIPI_RAW "w1c8490fronttxd_mipi_raw"
-//-bug584789, qinduilin.wt, ADD, 2021/11/10, add front camera c8490 bringup
-//-bug710560, wangmingli.wt, ADD, 2021/12/28, add front camera st_hi846 dc_gc8034 st2_hi846 and txd_c8490 bringup
 
 //+bug584789,zhanghengyuan.wt,MODIFY,2020/12/17,depth c2515 bf2253 gc02m1b bringup
 #define W1C2515DEPSJ_SENSOR_ID 0x0209
@@ -691,6 +689,7 @@
 #define SENSOR_DRVNAME_W1SC500CSWIDELY_MIPI_RAW         "w1sc500cswidely_mipi_raw"
 //-bug584789, liudijin.wt, ADD, 2021/01/11, add 3 gong wide camera sc500cs bringup
 //-bug710560 , zhanghao2.wt, ADD, 2021/12/28, add wide sensor hi556 gc5035c sc500cs bringup
+
 
 /******************************************************************************
 *

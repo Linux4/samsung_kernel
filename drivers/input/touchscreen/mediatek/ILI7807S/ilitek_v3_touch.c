@@ -1254,15 +1254,21 @@ void ili_report_gesture_mode(u8 *buf, int len)
 
 	switch (gc->code) {
 	case GESTURE_DOUBLECLICK:
-		ILI_INFO("Double Click key event\n");
-		input_report_key(input, GESTURE_DOUBLE_TAP, 1);
-		input_sync(input);
-		input_report_key(input, GESTURE_DOUBLE_TAP, 0);
-		input_sync(input);
-		gc->type  = GESTURE_DOUBLECLICK;
-		gc->clockwise = 1;
-		gc->pos_end.x = gc->pos_start.x;
-		gc->pos_end.y = gc->pos_start.y;
+		//+ExtB-P221123-05102,fangzhiuha.wt,add,2022-11-25,fix double_tap report after spay setting to true and aot_enable seeting to false
+		if (ilits->gesture){
+			ILI_INFO("Double Click key event\n");
+			input_report_key(input, GESTURE_DOUBLE_TAP, 1);
+			input_sync(input);
+			input_report_key(input, GESTURE_DOUBLE_TAP, 0);
+			input_sync(input);
+			gc->type  = GESTURE_DOUBLECLICK;
+			gc->clockwise = 1;
+			gc->pos_end.x = gc->pos_start.x;
+			gc->pos_end.y = gc->pos_start.y;
+		}else{
+			ILI_INFO("Double Click not enable\n");
+		};
+		//-ExtB-P221123-05102,fangzhiuha.wt,add,2022-11-25,fix double_tap report after spay setting to true and aot_enable seeting to false
 		break;
 	case GESTURE_LEFT:
 		gc->type  = GESTURE_LEFT;

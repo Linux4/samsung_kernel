@@ -2498,14 +2498,14 @@ static void get_scan_count(struct lruvec *lruvec, struct mem_cgroup *memcg,
 	unsigned long ap, fp;
 	enum lru_list lru;
 
-        /*BUG 710560,wangguoni01.wt,modify,20220113,Modify memory recycle too slow,start*/
+        /*BUG 773028,qinjing1.wt,modify,20220728,Modify memory recycle too slow,start*/
         int other_file = global_node_page_state(NR_FILE_PAGES) -
                 global_node_page_state(NR_SHMEM) -
                 global_node_page_state(NR_UNEVICTABLE) -
                 total_swapcache_pages();
         if (other_file > SZ_2G_PER_PAGE)
                 swappiness = 100;
-        /*BUG 710560,wangguoni01.wt,modify,20220113,Modify memory recycle too slow,end*/
+        /*BUG 773028,qinjing1.wt,modify,20220728,Modify memory recycle too slow,end*/
 	/* If we have no swap space, do not bother scanning anon pages. */
 	if (!sc->may_swap || mem_cgroup_get_nr_swap_pages(memcg) <= 0) {
 		scan_balance = SCAN_FILE;

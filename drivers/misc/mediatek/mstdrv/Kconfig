@@ -1,0 +1,4 @@
+config NFC_MST_ZF115
+    bool "Samsung MST ZF115 dirver"
+    help
+      nfc pay function

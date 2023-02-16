@@ -440,12 +440,14 @@ READ_START:
 		ret = -EFAULT;
 	}
 	ts_1 = local_clock();
+	
 #ifdef CONFIG_MTK_SRIL_SUPPORT
 	if (port->rx_ch == CCCI_RIL_IPC0_RX || port->rx_ch == CCCI_RIL_IPC1_RX) {
 		print_hex_dump(KERN_INFO, "3. mif: RX: ",
 				DUMP_PREFIX_NONE, 32, 1, skb->data, 32, 0);
 	}
 #endif
+
 	skb_pull(skb, read_len);
 	/* 4. free request */
 	if (full_req_done)

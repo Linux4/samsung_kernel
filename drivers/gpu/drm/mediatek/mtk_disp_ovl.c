@@ -3551,6 +3551,10 @@ mtk_ovl_config_trigger(struct mtk_ddp_comp *comp, struct cmdq_pkt *pkt,
 	switch (flag) {
 	case MTK_TRIG_FLAG_PRE_TRIGGER:
 	{
+		/* not access HW which in blank mode */
+		if (comp->blank_mode)
+			break;
+
 		cmdq_pkt_write(pkt, comp->cmdq_base,
 			comp->regs_pa + DISP_REG_OVL_RST, 0x1, 0x1);
 		cmdq_pkt_write(pkt, comp->cmdq_base,

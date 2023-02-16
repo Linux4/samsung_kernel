@@ -1684,8 +1684,6 @@ static int musb_gadget_queue
 	request->tx = musb_ep->is_in;
 
 	map_dma_buffer(request, musb, musb_ep);
-	DBG(2, "dma=0x%p, buffer=0x%p\n",
-			request->request.dma, request->request.buf);
 
 	spin_lock_irqsave(&musb->lock, lockflags);
 
@@ -1809,10 +1807,9 @@ static int musb_gadget_dequeue(struct usb_ep *ep, struct usb_request *request)
 
 	if (!ep || !request || to_musb_request(request)->ep != musb_ep)
 		return -EINVAL;
-//+ Bug 710560, liangcheng.wt,add,20220516,fix musb gadget dequeu issue
+//+ Bug 710560, liuwenfei01.wt,add,20220815,fix musb gadget dequeu issue
 	disable_irq(musb->nIrq);
-//+ Bug 710560, liangcheng.wt,add,20220516,fix musb gadget dequeu issue
-
+//+ Bug 710560, liuwenfei01.wt,add,20220815,fix musb gadget dequeu issue
 	spin_lock_irqsave(&musb->lock, flags);
 
 	list_for_each_entry(r, &musb_ep->req_list, list) {
@@ -1836,14 +1833,12 @@ static int musb_gadget_dequeue(struct usb_ep *ep, struct usb_request *request)
 		musb_flush_qmu(musb_ep->hw_ep->epnum,
 				(musb_ep->is_in ? TXQ : RXQ));
 
-//+ Bug 710560, liangcheng.wt,add,20220516,fix musb gadget dequeu issue.
+//+ Bug 710560, liuwenfei01.wt,add,20220815,fix musb gadget dequeu issue.
         mtk_qmu_enable(musb,
                 musb_ep->hw_ep->epnum,
                 (musb_ep->is_in ? TXQ : RXQ));
-
 		musb_g_giveback(musb_ep, request, -ECONNRESET);
-//+ Bug 710560, liangcheng.wt,add,20220516,fix musb gadget dequeu issue.
-
+//+ Bug 710560, liuwenfei01.wt,add,20220815,fix musb gadget dequeu issue.
 	}
 #else
 	/* ... else abort the dma transfer ... */
@@ -1867,9 +1862,9 @@ static int musb_gadget_dequeue(struct usb_ep *ep, struct usb_request *request)
 
 done:
 	spin_unlock_irqrestore(&musb->lock, flags);
-//+ Bug 710560, liangcheng.wt,add,20220516,fix musb gadget dequeu issue
+//+ Bug 710560, liuwenfei01.wt,add,20220815,fix musb gadget dequeu issue
 	enable_irq(musb->nIrq);
-//+ Bug 710560, liangcheng.wt,add,20220516,fix musb gadget dequeu issue
+//+ Bug 710560, liuwenfei01.wt,add,20220815,fix musb gadget dequeu issue
 	return status;
 }
 
@@ -1894,7 +1889,6 @@ static int musb_gadget_set_halt(struct usb_ep *ep, int value)
 	if (!ep)
 		return -EINVAL;
 	mbase = musb->mregs;
-	
 	spin_lock_irqsave(&musb->lock, flags);
 
 	if (musb_ep->type == USB_ENDPOINT_XFER_ISOC) {
@@ -1958,7 +1952,6 @@ static int musb_gadget_set_halt(struct usb_ep *ep, int value)
 
 done:
 	spin_unlock_irqrestore(&musb->lock, flags);
-
 	return status;
 }
 

@@ -39,13 +39,14 @@
 
 #include <linux/string.h>
 
-
+#define WT_AUDIO_WHETHER_SHARE
 #define ACCDET_DEVNAME "accdet"
-//add by pangxin01 20220426
-#define ACCDET_AUDIO_DEVNAME "audio" 
-#define ACCDET_AUDIO_EARJACK_DEVNAME "earjack" 
-//add by pangxin01 20220426
-
+#if defined(WT_AUDIO_WHETHER_SHARE)
+//add by tanglintao 20220815
+#define ACCDET_AUDIO_DEVNAME "audio"
+#define ACCDET_AUDIO_EARJACK_DEVNAME "earjack"
+//add by tanglintao 20220815
+#endif
 /****** SW ENV define *************************************/
 #define PMIC_ACCDET_KERNEL         1
 #define PMIC_ACCDET_CTP            0

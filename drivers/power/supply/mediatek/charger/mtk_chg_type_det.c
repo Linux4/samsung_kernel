@@ -57,6 +57,9 @@
 #endif
 #include "mtk_charger_intf.h"
 //zhaosidong.wt, power swap without usb disconnect
+
+#include <../../../misc/mediatek/leds/leds-mtk-disp.h>
+
 bool g_ignore_usb;
 
 #ifdef CONFIG_EXTCON_USB_CHG
@@ -198,8 +201,13 @@ static int mt_charger_online(struct mt_charger *mtk_chg)
 #endif /*CONFIG_KPOC_GET_SOURCE_CAP_TRY*/
 				pr_notice("%s: system_state=%d\n", __func__,
 					system_state);
-				if (system_state != SYSTEM_POWER_OFF)
+				if (system_state != SYSTEM_POWER_OFF) {
+					pr_notice("%s: SS kpoc charge mode\n", __func__);
+					mt_leds_brightness_set("lcd-backlight", 0);
+					msleep(200);
 					kernel_power_off();
+				}
+
 #ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
 			}
 #endif /*CONFIG_KPOC_GET_SOURCE_CAP_TRY*/
@@ -475,6 +483,8 @@ static enum power_supply_property mt_usb_properties[] = {
 static void tcpc_power_off_work_handler(struct work_struct *work)
 {
 	pr_info("%s\n", __func__);
+	mt_leds_brightness_set("lcd-backlight", 0);
+	msleep(200);
 	kernel_power_off();
 }
 

@@ -361,9 +361,8 @@
                 <def_mode>1</def_mode>
                 <inpull_en>false</inpull_en>
                 <inpull_selhigh>false</inpull_selhigh>
-                <def_dir>OUT</def_dir>
+                <def_dir>IN</def_dir>
                 <out_high>false</out_high>
-                <varName0>GPIO_SPI1_CK_PIN</varName0>
                 <smt>true</smt>
                 <ies>true</ies>
             </gpio27>
@@ -372,9 +371,8 @@
                 <def_mode>1</def_mode>
                 <inpull_en>false</inpull_en>
                 <inpull_selhigh>false</inpull_selhigh>
-                <def_dir>OUT</def_dir>
+                <def_dir>IN</def_dir>
                 <out_high>false</out_high>
-                <varName0>GPIO_SPI1_CS_PIN</varName0>
                 <smt>true</smt>
                 <ies>true</ies>
             </gpio28>
@@ -383,9 +381,8 @@
                 <def_mode>1</def_mode>
                 <inpull_en>false</inpull_en>
                 <inpull_selhigh>false</inpull_selhigh>
-                <def_dir>OUT</def_dir>
+                <def_dir>IN</def_dir>
                 <out_high>false</out_high>
-                <varName0>GPIO_SPI1_MOSI_PIN</varName0>
                 <smt>true</smt>
                 <ies>true</ies>
             </gpio29>
@@ -396,7 +393,6 @@
                 <inpull_selhigh>false</inpull_selhigh>
                 <def_dir>IN</def_dir>
                 <out_high>false</out_high>
-		<varName0>GPIO_SPI1_MISO_PIN</varName0>
                 <smt>true</smt>
                 <ies>true</ies>
             </gpio30>

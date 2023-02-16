@@ -22,7 +22,6 @@ struct IMGSENSOR_INIT_FUNC_LIST {
 	MUINT8    name[32];
 	MUINT32 (*init)(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 };
-
 //+bug604664 chenbocheng.wt, add, 2020/12/12, 1st supply main camera hi4821q bring up
 UINT32 W1HI4821QREARQT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 

@@ -1135,12 +1135,12 @@ static int mt6833_mt6359_dev_probe(struct platform_device *pdev)
 	card->dev = &pdev->dev;
 
 	dev_info(&pdev->dev, "%s(), devm_snd_soc_register_card\n", __func__);
-	//Bug 710559 wunan01  Audio bringup code 20211228
+	//Bug 710559 tanglintao  Audio bring up  20220707
 	ret = soc_aux_init_only_sia81xx(pdev, card);
 	if (ret)
 		dev_err(&pdev->dev, "%s soc_aux_init_only_sia81xx fail %d\n",
 			__func__, ret);
-	//Bug 710559 end
+
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret)
 		dev_err(&pdev->dev, "%s snd_soc_register_card fail %d\n",

@@ -220,337 +220,6 @@ void blk_dump_rq_flags(struct request *rq, char *msg)
 }
 EXPORT_SYMBOL(blk_dump_rq_flags);
 
-#ifdef CONFIG_BLK_IO_VOLUME
-void blk_queue_reset_io_vol(struct request_queue *q)
-{
-	struct block_io_volume *vol;
-	int idx;
-
-	spin_lock_irq(q->queue_lock);
-	for (idx = 0; idx < BLK_MAX_IO_VOLS; idx++) {
-		vol = &(q->blk_io_vol[idx]);
-
-		vol->queuing_rqs = 0;
-		vol->queuing_bytes = 0;
-
-		vol->peak_rqs = 0;
-		vol->peak_bytes = 0;
-
-		vol->peak_rqs_cnt[0] = 0;
-		vol->peak_rqs_cnt[1] = 0;
-		vol->peak_rqs_cnt[2] = 0;
-		vol->peak_rqs_cnt[3] = 0;
-
-		vol->peak_bytes_cnt[0] = 0;
-		vol->peak_bytes_cnt[1] = 0;
-		vol->peak_bytes_cnt[2] = 0;
-		vol->peak_bytes_cnt[3] = 0;
-	}
-	spin_unlock_irq(q->queue_lock);
-}
-
-/* should be called with queue_lock held */
-void blk_queue_io_vol_add(struct request_queue *q, int opf, long long bytes)
-{
-	struct block_io_volume *vol;
-	int op = opf & REQ_OP_MASK;
-
-	if (q->mq_ops)
-		return;
-
-	lockdep_assert_held(q->queue_lock);
-
-	if ((bytes > 0) && ((op == REQ_OP_READ) || (op == REQ_OP_WRITE))) {
-		vol = &(q->blk_io_vol[op]);
-
-		vol->queuing_rqs++;
-		vol->queuing_bytes += bytes;
-
-		if (vol->queuing_rqs > vol->peak_rqs)
-			vol->peak_rqs = vol->queuing_rqs;
-		if (vol->queuing_bytes > vol->peak_bytes)
-			vol->peak_bytes = vol->queuing_bytes;
-	}
-}
-
-/* should be called with queue_lock held */
-void blk_queue_io_vol_del(struct request_queue *q, int opf, long long bytes)
-{
-	struct block_io_volume *vol;
-	int op = opf & REQ_OP_MASK;
-	int idx;
-
-	if (q->mq_ops)
-		return;
-
-	lockdep_assert_held(q->queue_lock);
-
-	if ((bytes > 0) && ((op == REQ_OP_READ) || (op == REQ_OP_WRITE))) {
-		vol = &(q->blk_io_vol[op]);
-
-		vol->queuing_rqs--;
-		vol->queuing_bytes -= bytes;
-
-		if (vol->queuing_rqs == 0) {
-			if (vol->peak_rqs >= 16) {
-				/*
-				 * count up index
-				 * 0 : 16 <= vol->peak_rqs < 32
-				 * 1 : 32 <= vol->peak_rqs < 64
-				 * 2 : 64 <= vol->peak_rqs < 128
-				 * 3 : 128 <= vol->peak_rqs
-				 */
-				idx = fls(vol->peak_rqs >> 5);
-				idx = (idx < 4) ? idx : 3;
-				vol->peak_rqs_cnt[idx]++;
-			}
-
-			if (vol->peak_bytes >= (1 << 23)) {
-				/*
-				 * count up index
-				 * 0 : 8MB <= vol->peak_bytes < 16MB
-				 * 1 : 16MB <= vol->peak_bytes < 32MB
-				 * 2 : 32MB <= vol->peak_bytes < 64MB
-				 * 3 : 64MB <= vol->peak_bytes
-				 */
-				idx = fls(vol->peak_bytes >> 24);
-				idx = (idx < 4) ? idx : 3;
-				vol->peak_bytes_cnt[idx]++;
-			}
-
-			vol->peak_rqs = 0;
-			vol->peak_bytes = 0;
-		}
-	}
-}
-
-/* should be called with queue_lock held */
-void blk_queue_io_vol_merge(struct request_queue *q,
-	int opf, int rqs, long long bytes)
-{
-	struct block_io_volume *vol;
-	int op = opf & REQ_OP_MASK;
-
-	if (q->mq_ops)
-		return;
-
-	lockdep_assert_held(q->queue_lock);
-
-	if ((op == REQ_OP_READ) || (op == REQ_OP_WRITE)) {
-		vol = &(q->blk_io_vol[op]);
-
-		vol->queuing_rqs += rqs;
-		vol->queuing_bytes += bytes;
-
-		if (vol->queuing_rqs > vol->peak_rqs)
-			vol->peak_rqs = vol->queuing_rqs;
-		if (vol->queuing_bytes > vol->peak_bytes)
-			vol->peak_bytes = vol->queuing_bytes;
-	}
-}
-#endif /* CONFIG_BLK_IO_VOLUME */
-
-#ifdef CONFIG_BLK_TURBO_WRITE
-#define set_tw_state(tw, s) ({(tw)->state = (s); (tw)->state_ts = jiffies; })
-#define tw_may_on(tw, write_bytes, write_rqs) \
-	((write_bytes) > (tw)->up_threshold_bytes || \
-	(write_rqs) > (tw)->up_threshold_rqs)
-#define tw_may_off(tw, write_bytes, write_rqs) \
-	((write_bytes) < (tw)->down_threshold_bytes && \
-	(write_rqs) < (tw)->down_threshold_rqs)
-
-int blk_alloc_turbo_write(struct request_queue *q)
-{
-	struct blk_turbo_write	*new;
-
-	new = kmalloc(sizeof(struct blk_turbo_write), GFP_KERNEL);
-	if (!new)
-		return -ENOMEM;
-
-	set_tw_state(new, TW_OFF);
-
-	new->up_threshold_bytes = (12 * 1024 * 1024);
-	new->up_threshold_rqs = 50;
-	new->down_threshold_bytes = (10 * 1024 * 1024);
-	new->down_threshold_rqs = 40;
-	new->on_delay = msecs_to_jiffies(20);
-	new->off_delay = msecs_to_jiffies(5000);
-
-	new->prev_on_ready_ts = 0;
-	new->on_interval = msecs_to_jiffies(200);
-
-	new->try_on = NULL;
-	new->try_off = NULL;
-
-	new->curr_issued_kb = 0;
-	new->total_issued_mb = 0;
-	new->issued_size_cnt[0] = 0;
-	new->issued_size_cnt[1] = 0;
-	new->issued_size_cnt[2] = 0;
-	new->issued_size_cnt[3] = 0;
-
-	spin_lock_irq(q->queue_lock);
-	if (q->tw) {
-		spin_unlock_irq(q->queue_lock);
-		kfree(new);
-		return -EEXIST;
-	}
-
-	q->tw = new;
-	spin_unlock_irq(q->queue_lock);
-
-	return 0;
-}
-
-void blk_free_turbo_write(struct request_queue *q)
-{
-	spin_lock_irq(q->queue_lock);
-	if (!q->tw) {
-		spin_unlock_irq(q->queue_lock);
-		return;
-	}
-
-	kfree(q->tw);
-	q->tw = NULL;
-	spin_unlock_irq(q->queue_lock);
-}
-
-int blk_register_tw_try_on_fn(struct request_queue *q, blk_tw_try_on_fn *fn)
-{
-	spin_lock_irq(q->queue_lock);
-	if (!q->tw) {
-		spin_unlock_irq(q->queue_lock);
-		return -ENODEV;
-	}
-
-	q->tw->try_on = fn;
-	spin_unlock_irq(q->queue_lock);
-
-	return 0;
-}
-
-int blk_register_tw_try_off_fn(struct request_queue *q, blk_tw_try_off_fn *fn)
-{
-	spin_lock_irq(q->queue_lock);
-	if (!q->tw) {
-		spin_unlock_irq(q->queue_lock);
-		return -ENODEV;
-	}
-
-	q->tw->try_off = fn;
-	spin_unlock_irq(q->queue_lock);
-
-	return 0;
-}
-
-int blk_reset_tw_state(struct request_queue *q)
-{
-	spin_lock_irq(q->queue_lock);
-	if (!q->tw) {
-		spin_unlock_irq(q->queue_lock);
-		return -ENODEV;
-	}
-
-	set_tw_state(q->tw, TW_OFF);
-	spin_unlock_irq(q->queue_lock);
-
-	return 0;
-}
-
-static void blk_update_tw_stats(struct blk_turbo_write *tw)
-{
-	int idx;
-
-	if (tw->curr_issued_kb > 0) {
-		/*
-		 * count up index
-		 * 0 : tw->curr_issued_kb < 4GB
-		 * 1 : 4GB <= tw->curr_issued_kb < 8GB
-		 * 2 : 8GB <= tw->curr_issued_kb < 16GB
-		 * 3 : 16GB <= tw->curr_issued_kb
-		 */
-		idx = fls(tw->curr_issued_kb >> 22);
-		idx = (idx < 4) ? idx : 3;
-		tw->issued_size_cnt[idx]++;
-
-		tw->total_issued_mb += tw->curr_issued_kb >> 10;
-		tw->curr_issued_kb = 0;
-	}
-}
-
-/* should be called with queue_lock held */
-void blk_update_tw_state(struct request_queue *q,
-	int write_rqs, long long write_bytes)
-{
-	struct blk_turbo_write	*tw = q->tw;
-
-	lockdep_assert_held(q->queue_lock);
-
-	if (!tw)
-		return;
-
-	switch (tw->state) {
-	case TW_OFF:
-		if (tw_may_on(tw, write_bytes, write_rqs))
-			set_tw_state(tw, TW_ON_READY);
-		break;
-
-	case TW_ON_READY:
-		if (tw_may_off(tw, write_bytes, write_rqs)) {
-			tw->prev_on_ready_ts = tw->state_ts;
-			set_tw_state(tw, TW_OFF);
-		} else if (time_after_eq(jiffies, tw->state_ts + tw->on_delay) ||
-			   time_after_eq(tw->prev_on_ready_ts + tw->on_interval, tw->state_ts)) {
-			tw->prev_on_ready_ts = tw->state_ts;
-			set_tw_state(tw, TW_ON);
-			if (tw->try_on) {
-				spin_unlock_irq(q->queue_lock);
-				tw->try_on(q);
-				spin_lock_irq(q->queue_lock);
-			}
-		}
-		break;
-
-	case TW_OFF_READY:
-		if (tw_may_on(tw, write_bytes, write_rqs))
-			set_tw_state(tw, TW_ON);
-		else if (time_after_eq(jiffies, tw->state_ts + tw->off_delay)) {
-			set_tw_state(tw, TW_OFF);
-			if (tw->try_off) {
-				spin_unlock_irq(q->queue_lock);
-				tw->try_off(q);
-				spin_lock_irq(q->queue_lock);
-			}
-			blk_update_tw_stats(tw);
-		}
-		break;
-
-	case TW_ON:
-		if (tw_may_off(tw, write_bytes, write_rqs))
-			set_tw_state(tw, TW_OFF_READY);
-		break;
-
-	default:
-		BUG();
-		break;
-	}
-}
-
-/* should be called with queue_lock held */
-void blk_account_tw_io(struct request_queue *q, int opf, int bytes)
-{
-	struct blk_turbo_write	*tw = q->tw;
-
-	lockdep_assert_held(q->queue_lock);
-
-	if (!tw)
-		return;
-
-	if ((tw->state != TW_OFF) && op_is_write(opf))
-		tw->curr_issued_kb += bytes / 1024;
-}
-#endif
-
 static void blk_delay_work(struct work_struct *work)
 {
 	struct request_queue *q;
@@ -997,9 +666,6 @@ void blk_cleanup_queue(struct request_queue *q)
 	queue_flag_set(QUEUE_FLAG_DEAD, q);
 	spin_unlock_irq(lock);
 
-	blk_queue_reset_io_vol(q);
-	blk_free_turbo_write(q);
-
 	/*
 	 * make sure all in-progress dispatch are completed because
 	 * blk_freeze_queue() can only complete all requests, and
@@ -1240,12 +906,6 @@ struct request_queue *blk_alloc_queue_node(gfp_t gfp_mask, int node_id)
 
 	if (blkcg_init_queue(q))
 		goto fail_ref;
-
-	blk_queue_reset_io_vol(q);
-
-#ifdef CONFIG_BLK_TURBO_WRITE
-	q->tw = NULL;
-#endif
 
 	return q;
 
@@ -1820,8 +1480,6 @@ void blk_requeue_request(struct request_queue *q, struct request *rq)
 
 	BUG_ON(blk_queued_rq(rq));
 
-	blk_account_tw_io(q, rq->cmd_flags, (-1 * blk_rq_bytes(rq)));
-
 	elv_requeue_request(q, rq);
 }
 EXPORT_SYMBOL(blk_requeue_request);
@@ -2186,16 +1844,11 @@ static blk_qc_t blk_queue_bio(struct request_queue *q, struct bio *bio)
 
 	spin_lock_irq(q->queue_lock);
 
-	blk_update_tw_state(q,
-			blk_io_vol_rqs(q, REQ_OP_WRITE),
-			blk_io_vol_bytes(q, REQ_OP_WRITE));
-
 	switch (elv_merge(q, &req, bio)) {
 	case ELEVATOR_BACK_MERGE:
 		if (!bio_attempt_back_merge(q, req, bio))
 			break;
 		elv_bio_merged(q, req, bio);
-		blk_queue_io_vol_merge(q, bio->bi_opf, 0, bio->bi_iter.bi_size);
 		free = attempt_back_merge(q, req);
 		if (free)
 			__blk_put_request(q, free);
@@ -2206,7 +1859,6 @@ static blk_qc_t blk_queue_bio(struct request_queue *q, struct bio *bio)
 		if (!bio_attempt_front_merge(q, req, bio))
 			break;
 		elv_bio_merged(q, req, bio);
-		blk_queue_io_vol_merge(q, bio->bi_opf, 0, bio->bi_iter.bi_size);
 		free = attempt_front_merge(q, req);
 		if (free)
 			__blk_put_request(q, free);
@@ -2956,7 +2608,6 @@ struct request *blk_peek_request(struct request_queue *q)
 			 * not be passed by new incoming requests
 			 */
 			rq->rq_flags |= RQF_STARTED;
-			blk_account_tw_io(q, rq->cmd_flags, blk_rq_bytes(rq));
 			trace_block_rq_issue(q, rq);
 		}
 
@@ -3041,8 +2692,6 @@ static void blk_dequeue_request(struct request *rq)
 		q->in_flight[rq_is_sync(rq)]++;
 		set_io_start_time_ns(rq);
 	}
-
-	blk_queue_io_vol_del(q, rq->cmd_flags, blk_rq_bytes(rq));
 }
 
 /**

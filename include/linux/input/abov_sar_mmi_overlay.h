@@ -290,11 +290,18 @@ struct abovXX {
 	capsensor_enable_flag_t enable_flag;
 #endif
 
-#ifdef USE_USB_CHANGE_RECAL
+//#ifdef USE_USB_CHANGE
+//#ifdef USE_USB_CHANGE_RECAL
 	struct work_struct ps_notify_work;
+//#endif
 	struct notifier_block ps_notif;
 	bool ps_is_present;
-#endif
+	bool abov_first_boot;
+	int interrupt_count;
+	u16 ch0_backgrand_cap;
+	u16 ch1_backgrand_cap;
+	u16 ch2_backgrand_cap;
+//#endif
 
 	bool loading_fw;
 	struct work_struct fw_update_work;
@@ -309,8 +316,8 @@ struct abovXX {
 	void (*statusFunc)(pabovXX_t this);
 	struct pinctrl *sar_pinctl;
 	struct pinctrl_state *pinctrl_state_default;
-        char channel_status; //bug 492320,20191119,gaojingxuan.wt,add,use SS hal
-        bool first_cali_flag;
+       char channel_status; //bug 492320,20191119,gaojingxuan.wt,add,use SS hal
+       bool first_cali_flag;
 #if defined(CONFIG_SENSORS)
 	bool skip_data;
 #endif

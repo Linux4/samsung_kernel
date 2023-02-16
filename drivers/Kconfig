@@ -1,6 +1,21 @@
 # SPDX-License-Identifier: GPL-2.0
 menu "Device Drivers"
 
+config WT_PROJECT_S96801AA3
+	bool "Define for S96801AA3"
+	help
+	 Say Y here for distinguish different projects
+
+config WT_PROJECT_S96806AA3
+	bool "Define for S96806AA3"
+	help
+	 Say Y here for distinguish different projects
+
+config WT_PROJECT_S96801WA3
+	bool "Define for S96801WA3"
+	help
+	 Say Y here for distinguish different projects
+
 source "drivers/amba/Kconfig"
 
 source "drivers/base/Kconfig"
@@ -177,6 +192,10 @@ source "drivers/irqchip/Kconfig"
 
 source "drivers/ipack/Kconfig"
 
+source "drivers/battery/Kconfig"
+
+source "drivers/battery_v2/Kconfig"
+
 source "drivers/reset/Kconfig"
 
 source "drivers/fmc/Kconfig"
@@ -215,13 +234,11 @@ source "drivers/tee/Kconfig"
 
 source "drivers/mux/Kconfig"
 
+source "drivers/samsung/Kconfig"
+
 source "drivers/switch/Kconfig"
 
 source "drivers/sensors/Kconfig"
 
-source "drivers/samsung/Kconfig"
-
 source "drivers/fingerprint/Kconfig"
-
-source "drivers/kperfmon/Kconfig"
 endmenu

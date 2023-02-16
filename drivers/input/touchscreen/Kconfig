@@ -1256,9 +1256,9 @@ config TOUCHSCREEN_MTK_TOUCH
          Set touch IC name if you have touch panel.
 
          To compile this dirver for used touch IC.
-
+#+bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 config TOUCHSCREEN_MTK
-       string "Touch IC name for Mediatek package"
+       bool "Touch IC name for Mediatek package"
        help
          Set touch IC name if you have touch panel.
 
@@ -1266,10 +1266,10 @@ config TOUCHSCREEN_MTK
 
 config MTK_ENABLE_LCDID_CHECK_FOR_TOUCH
        bool "USE LCD_ID for Touch IC"
-	   default n
+       default n
        help
          Say Y here if you have multiple touch panel.
-		 LCD ID is used to recognize the embedded touch panel.
+	 LCD ID is used to recognize the embedded touch panel.
 
 source "drivers/input/touchscreen/synaptics_tcm2/Kconfig"
 source "drivers/input/touchscreen/synaptics_tcm/Kconfig"
@@ -1277,4 +1277,5 @@ source "drivers/input/touchscreen/new_tddi_9881x/Kconfig"
 source "drivers/input/touchscreen/melfas_mip4/Kconfig"
 source "drivers/input/touchscreen/melfas_mss100_a/Kconfig"
 source "drivers/input/touchscreen/imagis/ist4050/Kconfig"
+#-bug773028, fangzhihua.wt,mod, 20220628,TP bringup
 endif
