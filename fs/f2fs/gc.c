@@ -1319,6 +1319,10 @@ gc_more:
 		goto stop;
 	}
 
+	sbi->s_sec_debug_victims[sbi->s_sec_debug_victim_idx++] = segno;
+	if (sbi->s_sec_debug_victim_idx >= SEC_MAX_DEBUG_VICTIM)
+		sbi->s_sec_debug_victim_idx = 0;
+
 	seg_freed = do_garbage_collect(sbi, segno, &gc_list, gc_type);
 	if (gc_type == FG_GC && seg_freed == sbi->segs_per_sec)
 		sec_freed++;
