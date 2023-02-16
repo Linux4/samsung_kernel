@@ -57,6 +57,25 @@ scsc_wlan-$(CONFIG_SCSC_WLAN) += scsc_wifi_fcq.o
 scsc_wlan-$(CONFIG_SCSC_WLAN) += ioctl.o
 scsc_wlan-$(CONFIG_SCSC_WLAN) += traffic_monitor.o
 scsc_wlan-$(CONFIG_SCSC_WLAN) += reg_info.o
+scsc_wlan-$(CONFIG_SCSC_WLAN) += scsc_wlan_mmap.o
+
+# ----------------------------------------------------------------------------
+# Wifi Logger Files
+# ----------------------------------------------------------------------------
+ifeq ($(CONFIG_SCSC_WIFILOGGER),m)
+ccflags-y += -DCONFIG_SCSC_WIFILOGGER
+endif
+obj-$(CONFIG_SCSC_WIFILOGGER) +=  scsc_wifilogger.o
+scsc_wifilogger-y += scsc_wifilogger_api.o \
+                     scsc_wifilogger_internal.o \
+                     scsc_wifilogger_core.o \
+                     scsc_wifilogger_module.o \
+                     scsc_wifilogger_ring_connectivity.o \
+                     scsc_wifilogger_ring_wakelock.o \
+                     scsc_wifilogger_ring_pktfate.o
+
+scsc_wifilogger-$(CONFIG_SCSC_WIFILOGGER_DEBUGFS) += scsc_wifilogger_debugfs.o
+scsc_wifilogger-$(CONFIG_SCSC_WIFILOGGER_TEST) += scsc_wifilogger_ring_test.o
 
 # ----------------------------------------------------------------------------
 # ACM
@@ -70,6 +89,14 @@ endif
 # ----------------------------------------------------------------------------
 scsc_wlan-$(CONFIG_SCSC_WLAN) += hip.o
 scsc_wlan-$(CONFIG_SCSC_WLAN) += cm_if.o
+
+ifeq ($(CONFIG_SCSC_MXLOGGER), m)
+ccflags-y += -DCONFIG_SCSC_MXLOGGER
+endif
+
+ifeq ($(CONFIG_SCSC_LOG_COLLECTION), m)
+ccflags-y += -DCONFIG_SCSC_LOG_COLLECTION
+endif
 
 ifeq ($(CONFIG_SCSC_WLAN_KIC_OPS),y)
 scsc_wlan-$(CONFIG_SCSC_WLAN) += kic.o
@@ -89,12 +116,6 @@ ifeq ($(CONFIG_SCSC_WLAN_KEY_MGMT_OFFLOAD),y)
 ccflags-y += -DCONFIG_SCSC_WLAN_KEY_MGMT_OFFLOAD
 endif
 
-# ---------------------------------------------------------------------------
-# Include
-# ---------------------------------------------------------------------------
-# TODO: This is only required because scsc_wifilogger is in the wrong driver directory
-ccflags-y += -Idrivers/misc/samsung/scsc
-
 # ----------------------------------------------------------------------------
 # Wlan configuration
 # ----------------------------------------------------------------------------
@@ -108,7 +129,6 @@ ccflags-$(CONFIG_SCSC_WLAN_RX_NAPI_GRO)                                   += -DC
 ccflags-$(CONFIG_SCSC_WLAN_HIP_SUPPORT_SCATTER_GATHER_API)                += -DCONFIG_SCSC_WLAN_HIP_SUPPORT_SCATTER_GATHER_API
 ccflags-$(CONFIG_SCSC_WLAN_WES_NCHO)                                      += -DCONFIG_SCSC_WLAN_WES_NCHO
 ccflags-$(CONFIG_SCSC_WLAN_MUTEX_DEBUG)                                   += -DCONFIG_SCSC_WLAN_MUTEX_DEBUG
-ccflags-$(CONFIG_SCSC_WLAN_BLOCK_IPV6)					  += -DCONFIG_SCSC_WLAN_BLOCK_IPV6
 ccflags-$(CONFIG_SCSC_WLAN_DISABLE_NAT_KA)				  += -DCONFIG_SCSC_WLAN_DISABLE_NAT_KA
 
 ccflags-y += $(CONFIG_SAMSUNG_MAXWELL_EXTRA)
@@ -116,6 +136,21 @@ ccflags-y += -DCONFIG_SCSC_WLAN_MAX_INTERFACES=$(CONFIG_SCSC_WLAN_MAX_INTERFACES
 
 # Android specific build options
 ccflags-$(CONFIG_SCSC_WLAN_ANDROID) += -DCONFIG_SCSC_WLAN_ANDROID
+
+ccflags-y += -Idrivers/misc/samsung/scsc
+# Android Platform version
+ifneq ($(ANDROID_VERSION),)
+ANDROID_PLATFORM_VERSION=$(shell expr $(ANDROID_VERSION) / 10000)
+ccflags-y += -DSCSC_SEP_VERSION=$(ANDROID_PLATFORM_VERSION)
+$(info ANDROID_VERSION is $(ANDROID_VERSION))
+else
+ifneq ($(PLATFORM_VERSION),)
+ANDROID_PLATFORM_VERSION := $(basename $(PLATFORM_VERSION))
+ccflags-y += -DSCSC_SEP_VERSION=$(ANDROID_PLATFORM_VERSION)
+$(info PLATFORM_VERSION is $(PLATFORM_VERSION))
+endif
+endif
+$(info ANDROID_PLATFORM_VERSION is $(ANDROID_PLATFORM_VERSION))
 
 ## See drivers/misc/samsung/scsc/ Makefile for an explanation of the reasons
 ## of the following ifeq/else

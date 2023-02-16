@@ -546,7 +546,7 @@ void mfc_qos_on(struct mfc_ctx *ctx)
 	}
 
 	start_qos_step = pdata->num_qos_steps;
-	if (enc_found)
+	if (enc_found && (dev->num_inst == 1))
 		start_qos_step = pdata->max_qos_steps;
 
 	/* search the suitable qos table */
@@ -606,6 +606,12 @@ void mfc_qos_off(struct mfc_ctx *ctx)
 		mutex_unlock(&dev->qos_mutex);
 		return;
 	}
+	
+
+	if (ON_RES_CHANGE(ctx)) {
+		mutex_unlock(&dev->qos_mutex);
+		return;
+	}
 
 #ifdef CONFIG_EXYNOS_BTS
 	mfc_bw.peak = 0;
@@ -634,7 +640,7 @@ void mfc_qos_off(struct mfc_ctx *ctx)
 		list_del(&ctx->qos_list);
 
 	start_qos_step = pdata->num_qos_steps;
-	if (enc_found)
+	if (enc_found && (dev->num_inst == 1))
 		start_qos_step = pdata->max_qos_steps;
 
 	/* search the suitable qos table */
@@ -892,7 +898,8 @@ void mfc_qos_update_framerate(struct mfc_ctx *ctx, int idle_trigger_only)
 {
 	struct mfc_dev *dev = ctx->dev;
 	bool update_framerate = false, update_idle = false;
-
+	unsigned long framerate;
+	
 	/* 1) Idle mode trigger */
 	mutex_lock(&dev->idle_qos_mutex);
 	if (dev->idle_mode == MFC_IDLE_MODE_IDLE) {
@@ -909,14 +916,36 @@ void mfc_qos_update_framerate(struct mfc_ctx *ctx, int idle_trigger_only)
 	if (idle_trigger_only)
 		goto update_qos;
 
-	/* 2) framerate is updated */
-	if (ctx->last_framerate != 0 && ctx->last_framerate != ctx->framerate) {
-		mfc_debug(2, "[QoS] fps changed: %ld -> %ld, qos ratio: %d\n",
-				ctx->framerate, ctx->last_framerate, ctx->qos_ratio);
-		ctx->framerate = ctx->last_framerate;
-		update_framerate = true;
-	}
+	/* 2) when src timestamp isn't full, only check operating framerate by user */
+	if (!ctx->ts_is_full) {
+		if (ctx->operating_framerate && (ctx->operating_framerate > ctx->framerate)) {
+			mfc_debug(2, "[QoS] operating fps changed: %ld\n", ctx->operating_framerate);
+			ctx->framerate = ctx->operating_framerate;
+			update_framerate = true;
+		}
+	} else {
+		/* 3) get src framerate */
+		framerate = ctx->last_framerate;
 
+		/* 4) check operating framerate by user */
+		if (ctx->operating_framerate && (ctx->operating_framerate > framerate)) {
+			mfc_debug(2, "[QoS] operating fps %ld\n", ctx->operating_framerate);
+			framerate = ctx->operating_framerate;
+		}
+
+		/* 5) check non-real-time */
+		if (ctx->rt == MFC_NON_RT && (framerate < DEC_DEFAULT_FPS)) {
+			mfc_debug(2, "[QoS] max operating fps %ld\n", DEC_DEFAULT_FPS);
+			framerate = DEC_DEFAULT_FPS;
+		}
+
+		if (framerate && (framerate != ctx->framerate)) {
+			mfc_debug(2, "[QoS] fps changed: %ld -> %ld, qos ratio: %d\n",
+					ctx->framerate, framerate, ctx->qos_ratio);
+			ctx->framerate = framerate;
+			update_framerate = true;
+		}
+	}
 update_qos:
 	if (update_idle || update_framerate)
 		mfc_qos_on(ctx);

@@ -30,6 +30,7 @@
 #ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
 #include <linux/battery/battery_notifier.h>
 extern struct pdic_notifier_struct pd_noti;
+void sm5713_usbpd_inform_pdo_list(void);
 
 void sm5713_select_pdo(int num)
 {
@@ -56,9 +57,10 @@ void sm5713_select_pdo(int num)
 		return;
 	}
 
-	if (pd_noti.sink_status.selected_pdo_num == num)
+	if (pd_noti.sink_status.selected_pdo_num == num) {
+		sm5713_usbpd_inform_pdo_list();	
 		return;
-	else if (num > pd_noti.sink_status.available_pdo_num)
+	} else if (num > pd_noti.sink_status.available_pdo_num)
 		pd_noti.sink_status.selected_pdo_num =
 			pd_noti.sink_status.available_pdo_num;
 	else if (num < 1)
@@ -72,6 +74,21 @@ void sm5713_select_pdo(int num)
 		__func__, pd_noti.sink_status.selected_pdo_num);
 
 	sm5713_usbpd_inform_event(psubpd, MANAGER_NEW_POWER_SRC);
+}
+
+void sm5713_usbpd_inform_pdo_list(void)
+{
+	CC_NOTI_ATTACH_TYPEDEF pd_notifier;
+
+	pd_noti.event = PDIC_NOTIFY_EVENT_PD_SINK;;
+	pd_notifier.src = CCIC_NOTIFY_DEV_CCIC;
+	pd_notifier.dest = CCIC_NOTIFY_DEV_BATTERY;
+	pd_notifier.id = CCIC_NOTIFY_ID_POWER_STATUS;
+	pd_notifier.attach = 1;
+#if defined(CONFIG_CCIC_NOTIFIER)
+	ccic_notifier_notify((CC_NOTI_TYPEDEF *)&pd_notifier,
+			&pd_noti, 1/* pdic_attach */);
+#endif
 }
 
 void sm5713_usbpd_change_available_pdo(struct device *dev)
@@ -1705,7 +1722,7 @@ void sm5713_usbpd_init_protocol(struct sm5713_usbpd_data *pd_data)
 			policy->state == PE_SNK_Send_Soft_Reset ||
 			policy->state == PE_SRC_Soft_Reset ||
 			policy->state == PE_SNK_Soft_Reset) {
-		if ((pdic_data->reset_done == 0) && !pdic_data->is_mpsm_exit)
+		if (pdic_data->reset_done == 0)
 			sm5713_protocol_layer_reset(pd_data);
 	}
 

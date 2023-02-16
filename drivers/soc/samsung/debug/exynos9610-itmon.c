@@ -961,21 +961,33 @@ static void itmon_report_hwa_rawdata(struct itmon_dev *itmon,
 				     struct itmon_nodeinfo *node)
 {
 	unsigned int hwa_ctl, hwa_info, hwa_int_id;
+#ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
+	char temp_buf[SZ_128];
+#endif
 
 	hwa_ctl = __raw_readl(node->regs +  OFFSET_HW_ASSERT + REG_HWA_CTL);
 	hwa_info = __raw_readl(node->regs +  OFFSET_HW_ASSERT + REG_HWA_INT);
 	hwa_int_id = __raw_readl(node->regs + OFFSET_HW_ASSERT + REG_HWA_INT_ID);
 
 	/* Output Raw register information */
-	pr_info("--------------------------------------------------------------------------\n"
+	pr_auto(ASL3,
+		"--------------------------------------------------------------------------\n"
 		"      HWA Raw Register Information(ITMON information)\n\n");
-	pr_info("      > %s(%s, 0x%08X)\n"
+	pr_auto(ASL3,
+		"      > %s(%s, 0x%08X)\n"
 		"      > REG(0x104~0x10C)      : 0x%08X, 0x%08X, 0x%08X\n",
 		node->name, itmon_nodestring[node->type],
 		node->phy_regs,
 		hwa_ctl,
 		hwa_info,
 		hwa_int_id);
+
+#ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
+	snprintf(temp_buf, SZ_128, "%s %s/ %s/ 0x%08x",
+		node->name, itmon_nodestring[node->type],
+		"HWA", node->phy_regs);
+	sec_debug_set_extra_info_busmon(temp_buf);
+#endif
 }
 
 static void itmon_report_rawdata(struct itmon_dev *itmon,

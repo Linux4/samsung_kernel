@@ -7,28 +7,33 @@
 #include <linux/module.h>
 #include <linux/types.h>
 #include <linux/init.h>
-#include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/fs.h>
 #include <linux/slab.h>
 #include <linux/list_sort.h>
 #include <linux/limits.h>
 #include <linux/workqueue.h>
-
+#include <linux/vmalloc.h>
+#include <linux/version.h>
+#include <linux/fs.h>
 #include <scsc/scsc_log_collector.h>
 #include "scsc_log_collector_proc.h"
 #include "scsc_log_collector_mmap.h"
-#include <scsc/scsc_mx.h>
-#include "mxlogger.h"
 
-#ifdef CONFIG_SCSC_WLBTD
-#include "scsc_wlbtd.h"
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
 #endif
 
 #define SCSC_NUM_CHUNKS_SUPPORTED	13
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
+#define SCSC_SUPPORT_LOG_COLLECT_TO_FILE
+#endif
+
+#ifdef SCSC_SUPPORT_LOG_COLLECT_TO_FILE
 #define TO_RAM				0
 #define TO_FILE				1
+#endif
 /* Add-remove supported chunks on this kernel */
 static u8 chunk_supported_sbl[SCSC_NUM_CHUNKS_SUPPORTED] = {
 	SCSC_LOG_CHUNK_SYNC,
@@ -50,10 +55,12 @@ static int scsc_log_collector_collect(enum scsc_log_reason reason, u16 reason_co
 
 static atomic_t in_collection;
 
+#ifdef SCSC_SUPPORT_LOG_COLLECT_TO_FILE
 /* Collect logs in an intermediate buffer to be collected at later time (mmap or wq) */
 static bool collect_to_ram = true;
 module_param(collect_to_ram, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(collect_to_ram, "Collect buffer in ram");
+#endif
 
 static char collection_dir_buf[256] = "/data/vendor/log/wifi";
 module_param_string(collection_target_directory, collection_dir_buf, sizeof(collection_dir_buf), S_IRUGO | S_IWUSR);
@@ -70,7 +77,6 @@ static int sable_collection_off_set_param_cb(const char *val,
 
 	if (sable_collection_off ^ nval) {
 		sable_collection_off = nval;
-		mxlogger_set_enabled_status(!sable_collection_off);
 		pr_info("Sable Log Collection is now %sABLED.\n",
 			sable_collection_off ? "DIS" : "EN");
 	}
@@ -102,8 +108,10 @@ static struct scsc_log_collector_list { struct list_head list; } scsc_log_collec
 	.list = LIST_HEAD_INIT(scsc_log_collector_list.list)
 };
 
-struct scsc_log_status {
+static struct scsc_log_status {
+#ifdef SCSC_SUPPORT_LOG_COLLECT_TO_FILE
 	struct file *fp;
+#endif
 	loff_t pos;
 	bool in_collection;
 	char fapi_ver[SCSC_LOG_FAPI_VERSION_SIZE];
@@ -115,6 +123,7 @@ struct scsc_log_status {
 	u16 reason_code;
 	struct mutex collection_serial;
 	bool observer_present;
+	struct scsc_log_collector_mx_cb *singleton_mx_cb;
 } log_status;
 
 static DEFINE_MUTEX(log_mutex);
@@ -144,7 +153,6 @@ int __init scsc_log_collector(void)
 	/* Update mxlogger status on init.*/
 	pr_info("Sable Log Collection is now %sABLED.\n",
 		sable_collection_off ? "DIS" : "EN");
-	mxlogger_set_enabled_status(!sable_collection_off);
 
 	/* Create the buffer on the constructor */
 	log_status.buf = vzalloc(SCSC_LOG_COLLECT_MAX_SIZE);
@@ -200,6 +208,26 @@ static int scsc_log_collector_compare(void *priv, struct list_head *A, struct li
 	else
 		return 1;
 }
+
+int scsc_log_collector_register_mx_cb(struct scsc_log_collector_mx_cb *mx_cb)
+{
+	mutex_lock(&log_mutex);
+	pr_info("Register mx_cb functions\n");
+	log_status.singleton_mx_cb = mx_cb;
+	mutex_unlock(&log_mutex);
+	return 0;
+}
+EXPORT_SYMBOL(scsc_log_collector_register_mx_cb);
+
+int scsc_log_collector_unregister_mx_cb(struct scsc_log_collector_mx_cb *mx_cb)
+{
+	mutex_lock(&log_mutex);
+	pr_info("Unregister mx_cb functions\n");
+	log_status.singleton_mx_cb = NULL;
+	mutex_unlock(&log_mutex);
+	return 0;
+}
+EXPORT_SYMBOL(scsc_log_collector_unregister_mx_cb);
 
 int scsc_log_collector_register_client(struct scsc_log_collector_client *collect_client)
 {
@@ -279,6 +307,7 @@ static int __scsc_log_collector_write_to_ram(char __user *buf, size_t count, u8 
 	return 0;
 }
 
+#ifdef SCSC_SUPPORT_LOG_COLLECT_TO_FILE
 static int __scsc_log_collector_write_to_file(char __user *buf, size_t count, u8 align)
 {
 	int ret = 0;
@@ -293,31 +322,47 @@ static int __scsc_log_collector_write_to_file(char __user *buf, size_t count, u8
 
 	log_status.pos = (log_status.pos + align - 1) & ~(align - 1);
 	/* Write buf to file */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+	ret = kernel_write(log_status.fp, buf, count, &log_status.pos);
+#else
 	ret = vfs_write(log_status.fp, buf, count, &log_status.pos);
+#endif
 	if (ret < 0) {
 		pr_err("write file error, err = %d\n", ret);
 		return ret;
 	}
 	return 0;
 }
+#endif
 
 int scsc_log_collector_write(char __user *buf, size_t count, u8 align)
 {
+#ifdef SCSC_SUPPORT_LOG_COLLECT_TO_FILE
 	if (collect_to_ram)
 		return __scsc_log_collector_write_to_ram(buf, count, align);
 	else
 		return __scsc_log_collector_write_to_file(buf, count, align);
+#else
+	return __scsc_log_collector_write_to_ram(buf, count, align);
+#endif
 }
 EXPORT_SYMBOL(scsc_log_collector_write);
 
 #define align_chunk(ppos) (((ppos) + (SCSC_LOG_CHUNK_ALIGN - 1)) & \
 			  ~(SCSC_LOG_CHUNK_ALIGN - 1))
 
+#ifdef SCSC_SUPPORT_LOG_COLLECT_TO_FILE
 static int __scsc_log_collector_collect(enum scsc_log_reason reason, u16 reason_code, u8 buffer)
+#else
+static int __scsc_log_collector_collect(enum scsc_log_reason reason,
+					u16 reason_code)
+#endif
 {
 	struct scsc_log_client *lc, *next;
+#ifdef SCSC_SUPPORT_LOG_COLLECT_TO_FILE
 	mm_segment_t old_fs;
 	char memdump_path[128];
+#endif
 	int ret = 0;
 	char version_fw[SCSC_LOG_FW_VERSION_SIZE] = {0};
 	char version_host[SCSC_LOG_HOST_VERSION_SIZE] = {0};
@@ -331,12 +376,12 @@ static int __scsc_log_collector_collect(enum scsc_log_reason reason, u16 reason_
 	bool sbl_is_valid =  false;
 
 	mutex_lock(&log_mutex);
-
 	pr_info("Log collection triggered %s reason_code 0x%x\n",
 		scsc_get_trigger_str((int)reason), reason_code);
 
 	start = ktime_get();
 
+#ifdef SCSC_SUPPORT_LOG_COLLECT_TO_FILE
 	if (buffer == TO_FILE) {
 		snprintf(memdump_path, sizeof(memdump_path), "%s/%s.sbl",
 			collection_dir_buf, scsc_get_trigger_str((int)reason));
@@ -352,6 +397,9 @@ static int __scsc_log_collector_collect(enum scsc_log_reason reason, u16 reason_
 			return PTR_ERR(log_status.fp);
 		}
 	} else if (!log_status.buf) {
+#else
+	if (!log_status.buf) {
+#endif
 		pr_err("RAM buffer not created. Aborting dump\n");
 		mutex_unlock(&log_mutex);
 		return -ENOMEM;
@@ -408,9 +456,14 @@ static int __scsc_log_collector_collect(enum scsc_log_reason reason, u16 reason_
 	sbl_header.reason_code = reason_code;
 	sbl_header.observer = log_status.observer_present;
 	sbl_header.offset_data = first_chunk_pos;
-	mxman_get_fw_version(version_fw, SCSC_LOG_FW_VERSION_SIZE);
+
+	if (log_status.singleton_mx_cb->get_fw_version)
+		log_status.singleton_mx_cb->get_fw_version(log_status.singleton_mx_cb, version_fw, SCSC_LOG_FW_VERSION_SIZE);
+
 	memcpy(sbl_header.fw_version, version_fw, SCSC_LOG_FW_VERSION_SIZE);
-	mxman_get_driver_version(version_host, SCSC_LOG_HOST_VERSION_SIZE);
+
+	if (log_status.singleton_mx_cb->get_fw_version)
+		log_status.singleton_mx_cb->get_drv_version(log_status.singleton_mx_cb, version_host, SCSC_LOG_HOST_VERSION_SIZE);
 	memcpy(sbl_header.host_version, version_host, SCSC_LOG_HOST_VERSION_SIZE);
 	memcpy(sbl_header.fapi_version, log_status.fapi_ver, SCSC_LOG_FAPI_VERSION_SIZE);
 
@@ -420,6 +473,7 @@ static int __scsc_log_collector_collect(enum scsc_log_reason reason, u16 reason_
 
 	scsc_log_collector_write((char *)&sbl_header, sizeof(struct scsc_log_sbl_header), 1);
 
+#ifdef SCSC_SUPPORT_LOG_COLLECT_TO_FILE
 	if (buffer == TO_FILE) {
 		/* Sync file from filesystem to physical media */
 		ret = vfs_fsync(log_status.fp, 0);
@@ -428,9 +482,11 @@ static int __scsc_log_collector_collect(enum scsc_log_reason reason, u16 reason_
 			goto exit;
 		}
 	}
+#endif
 
 	sbl_is_valid = true;
 exit:
+#ifdef SCSC_SUPPORT_LOG_COLLECT_TO_FILE
 	if (buffer == TO_FILE) {
 		/* close file before return */
 		if (!IS_ERR(log_status.fp))
@@ -439,6 +495,7 @@ exit:
 		/* restore previous address limit */
 		set_fs(old_fs);
 	}
+#endif
 
 	log_status.in_collection = false;
 
@@ -450,8 +507,8 @@ exit:
 	pr_info("Calling sable collection\n");
 
 #ifdef CONFIG_SCSC_WLBTD
-	if (sbl_is_valid)
-		call_wlbtd_sable((u8)reason, reason_code);
+	if (sbl_is_valid && log_status.singleton_mx_cb->get_fw_version)
+		log_status.singleton_mx_cb->call_wlbtd_sable(log_status.singleton_mx_cb, (u8)reason, reason_code);
 #endif
 	pr_info("Log collection end. Took: %lld\n", ktime_to_ns(ktime_sub(ktime_get(), start)));
 
@@ -470,10 +527,14 @@ static int scsc_log_collector_collect(enum scsc_log_reason reason, u16 reason_co
 		return ret;
 	}
 
+#ifdef SCSC_SUPPORT_LOG_COLLECT_TO_FILE
 	if (collect_to_ram)
 		ret = __scsc_log_collector_collect(reason, reason_code, TO_RAM);
 	else
 		ret = __scsc_log_collector_collect(reason, reason_code, TO_FILE);
+#else
+	ret = __scsc_log_collector_collect(reason, reason_code);
+#endif
 
 	return ret;
 }

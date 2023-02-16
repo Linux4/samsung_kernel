@@ -18,7 +18,7 @@ fw-external-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_DSX) += tsp_synaptics/synaptics_b
 fw-shipped-$(CONFIG_TOUCHSCREEN_SEC_TS) += tsp_sec/y761_dream1.fw
 fw-external-$(CONFIG_TOUCHSCREEN_MELFAS_MSS100) += tsp_melfas/mss100_a51.fw tsp_melfas/mss100_a51_old.fw \
 											tsp_melfas/mss100_m31.fw tsp_melfas/mss100_m21.fw tsp_melfas/mss100_m31s.fw
-fw-external-$(CONFIG_TOUCHSCREEN_NOVATEK_NT36672A) += tsp_novatek/nt36672a_xcoverpro.fw
+fw-external-$(CONFIG_TOUCHSCREEN_NOVATEK_NT36672A) += tsp_novatek/nt36672a_xcoverpro.fw tsp_novatek/nt36672a_xcoverpro_4BF245.fw
 fw-external-$(CONFIG_TOUCHSCREEN_HIMAX_CHIPSET) += tsp_himax/hx83102e_gta4xl.fw tsp_himax/hx83102e_gta4xl_old.fw
 fw-external-$(CONFIG_EPEN_WACOM_W9019) += epen/wacom9019_gta4xl.fw
 

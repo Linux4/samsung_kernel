@@ -217,7 +217,7 @@ static void delay_start_func(struct work_struct *work)
 		pr_err("mx140: Error starting delayed service\n");
 }
 
-DECLARE_DELAYED_WORK(delay_start, delay_start_func);
+static DECLARE_DELAYED_WORK(delay_start, delay_start_func);
 
 /* Start the null service after a delay */
 static void delay_open_start_services(void)
@@ -287,7 +287,7 @@ void client_module_remove(struct scsc_mx_module_client *module_client, struct sc
 
 
 /* Test client driver registration */
-struct scsc_mx_module_client client_test_driver = {
+static struct scsc_mx_module_client client_test_driver = {
 	.name = "MX client test driver",
 	.probe = client_module_probe,
 	.remove = client_module_remove,

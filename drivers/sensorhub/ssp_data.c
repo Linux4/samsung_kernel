@@ -127,13 +127,14 @@ void show_system_info(char *dataframe, int *idx)
 	//===================================================//
 	sensor_debug_info *info = 0;
 	system_debug_info *s_info = 0;
+	int i;
 	int count = *dataframe;
 
 	++dataframe;
 	*idx += (1 + sizeof(sensor_debug_info) * count + sizeof(system_debug_info));
 
 	ssp_info("==system info ===");
-	for (int i = 0; i < count; ++i) {
+	for (i = 0; i < count; ++i) {
 		info = (sensor_debug_info *)dataframe;
 		ssp_info("id(%d), total(%d), external(%d), e_sampling(%d), e_report(%d), fastest(%d)",
 			 info->uid, info->total_count, info->ext_client, info->ext_sampling, info->ext_report, info->fastest_sampling);
@@ -897,6 +898,52 @@ int set_accel_cal(struct ssp_data *data)
 		ssp_errf("ssp_send_command Fail %d", ret);
 	pr_info("[SSP] Set accel cal data %d, %d, %d\n",
 		data->accelcal.x, data->accelcal.y, data->accelcal.z);
+
+	return ret;
+}
+
+
+#define ORIENTATION_CMD_MODE	128
+int set_device_orientation_mode(struct ssp_data *data)
+{
+	int ret = 0;
+
+	if (!(data->sensor_probe_state & (1ULL << SENSOR_TYPE_DEVICE_ORIENTATION))) {
+		ssp_infof("sensor is not connected(0x%llx)", data->sensor_probe_state);
+		return ret;
+	}
+
+	ret = ssp_send_command(data, CMD_SETVALUE, SENSOR_TYPE_DEVICE_ORIENTATION, ORIENTATION_CMD_MODE, 0,
+				&data->orientation_mode, sizeof(data->orientation_mode), NULL, NULL);
+	if (ret < 0) {
+		ssp_errf("CMD fail %d", ret);
+		return ret;
+	}
+
+	ssp_infof("%d", data->orientation_mode);
+
+	return ret;
+}
+
+#define SBM_RESET_CMD	128
+int set_sar_backoff_motion_reset_value(struct ssp_data *data, int32_t value)
+{
+	int ret = 0;
+
+	if (!(data->sensor_probe_state & (1ULL << SENSOR_TYPE_SAR_BACKOFF_MOTION))) {
+		ssp_infof("Skip this function!!! sbm is not connected(0x%llx)", data->sensor_probe_state);
+		return ret;
+	}
+
+	ret = ssp_send_command(data, CMD_SETVALUE, SENSOR_TYPE_SAR_BACKOFF_MOTION, SBM_RESET_CMD, 0,
+			       (char *)&value, sizeof(value), NULL, NULL);
+
+	if (ret != SUCCESS) {
+		ssp_errf("ssp_send_command Fail %d", ret);
+		return ret;
+	}
+
+	ssp_infof("%d", value);
 
 	return ret;
 }

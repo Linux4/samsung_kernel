@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (c) 2014 - 2019 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2014 - 2020 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 #include <linux/types.h>
@@ -15,7 +15,7 @@
 #include "hip4_sampler.h"
 #include "traffic_monitor.h"
 
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 #include <scsc/scsc_log_collector.h>
 #endif
 
@@ -99,7 +99,7 @@ static int sap_ma_version_supported(u16 version)
 	return -EINVAL;
 }
 
-static void slsi_rx_check_mc_addr_regd(struct slsi_dev *sdev, struct net_device *dev, struct ethhdr *ehdr)
+static bool slsi_rx_check_mc_addr_regd(struct slsi_dev *sdev, struct net_device *dev, struct ethhdr *ehdr)
 {
 	int i;
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
@@ -108,32 +108,30 @@ static void slsi_rx_check_mc_addr_regd(struct slsi_dev *sdev, struct net_device 
 
 	for (i = 0 ; i < ndev_vif->sta.regd_mc_addr_count; i++)
 		if (memcmp(ehdr->h_dest, ndev_vif->sta.regd_mc_addr[i], ETH_ALEN) == 0) {
-			SLSI_INFO(sdev, "Wakeup by regd mc addr %pM\n", ndev_vif->sta.regd_mc_addr[i]);
+			SLSI_INFO(sdev, "Wakeup by regd mc addr " MACSTR "\n", MAC2STR(ndev_vif->sta.regd_mc_addr[i]));
 			slsi_spinlock_unlock(&ndev_vif->sta.regd_mc_addr_lock);
-			return;
+			return true;
 		}
 
 	SLSI_ERR(sdev, "Wakeup by unregistered mc address\n");
-	SLSI_INFO(sdev, "Received packet source : %pM, dest : %pM\n", ehdr->h_source, ehdr->h_dest);
+	SLSI_INFO(sdev, "Received packet source : " MACSTR ", dest : " MACSTR "\n", MAC2STR(ehdr->h_source), MAC2STR(ehdr->h_dest));
 	SLSI_INFO(sdev, "Regd mc addr : \n");
 	for (i = 0 ; i < ndev_vif->sta.regd_mc_addr_count; i++)
-		SLSI_INFO(sdev, "    %pM\n", ndev_vif->sta.regd_mc_addr[i]);
+		SLSI_INFO(sdev, "    " MACSTR "\n", MAC2STR(ndev_vif->sta.regd_mc_addr[i]));
 
 	slsi_spinlock_unlock(&ndev_vif->sta.regd_mc_addr_lock);
+	return false;
 }
 
 static int slsi_rx_amsdu_deaggregate(struct net_device *dev, struct sk_buff *skb, struct sk_buff_head *msdu_list)
 {
-	unsigned int msdu_len;
-	unsigned int subframe_len;
-	int padding;
+	unsigned int data_len = 0;
+	unsigned int subframe_len = 0;
+	unsigned char padding = 0;
 	struct sk_buff *subframe = NULL;
-	bool last_sub_frame = false;
 	const unsigned char mac_0[ETH_ALEN] = { 0 };
-	bool skip_frame = false;
-	struct ethhdr *mh;
-
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+	struct ethhdr *mh = NULL;
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 	/* Rate limit for debug of incorrectly formatted A-MSDU frame
 	 * not more than 1 Sable every 30 seconds
 	 */
@@ -141,122 +139,246 @@ static int slsi_rx_amsdu_deaggregate(struct net_device *dev, struct sk_buff *skb
 #endif
 
 	SLSI_NET_DBG4(dev, SLSI_RX, "A-MSDU received (len:%d)\n", skb->len);
-
-	while (!last_sub_frame) {
-		msdu_len = (skb->data[ETH_ALEN * 2] << 8) | skb->data[(ETH_ALEN * 2) + 1];
-
-		/* check if the MSDU length field is non-zero or if length is valid */
-		if (!msdu_len || msdu_len >= skb->len) {
-			SLSI_NET_ERR(dev, "invalid MSDU length %d, SKB length = %d\n", msdu_len, skb->len);
-			__skb_queue_purge(msdu_list);
-			kfree_skb(skb);
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+	while (skb->len) {
+		/* MSDU format.
+		 * MSDU is 4 byte aligned execpt for the last one, i.e., the last frame does not have padding.
+		 * Dst: Destination MAC
+		 * Src: Source MAC
+		 * Len: Data length
+		 * SNAP->ETH_TYPE: EtherType
+		 * +-----+-----+--------+-----------------------------+----------------------+------+-----+
+		 * | Dst | Src |   Len  |             LLC             |         SNAP         | Data | Pad |
+		 * | (6) | (6) |   (2)  | DSAP(1) | SSAP(1) | Ctrl(1) | OUI(3) | ETH_TYPE(2) |      |     |
+		 * +-----+-----+--------+-----------------------------+----------------------+------+-----+
+		 *             ^msdu_len^
+		 */
+		if (unlikely((ETH_ALEN * 2 + 2) > skb->len)) {
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 			if (__ratelimit(&_rs))
 				scsc_log_collector_schedule_collection(SCSC_LOG_HOST_WLAN, SCSC_LOG_HOST_WLAN_REASON_INVALID_AMSDU);
 #endif
+			SLSI_NET_ERR(dev, "invalid SKB length %d < %d\n", skb->len, (ETH_ALEN * 2 + 2));
+			__skb_queue_purge(msdu_list);
+			kfree_skb(skb);
 			return -EINVAL;
 		}
 
-		subframe_len = msdu_len + (2 * ETH_ALEN) + 2;
-
-		/* check if the length of sub-frame is valid */
-		if (subframe_len > skb->len) {
-			SLSI_NET_ERR(dev, "invalid subframe length %d, SKB length = %d\n", subframe_len, skb->len);
+		data_len = (skb->data[ETH_ALEN * 2] << 8) | skb->data[(ETH_ALEN * 2) + 1];
+		if (unlikely(data_len <= LLC_SNAP_HDR_LEN)) {
+			SLSI_NET_ERR(dev, "invalid data length %d < %d\n", data_len, LLC_SNAP_HDR_LEN);
 			__skb_queue_purge(msdu_list);
 			kfree_skb(skb);
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+			return -EINVAL;
+		}
+		data_len -= LLC_SNAP_HDR_LEN;
+		/* check if the length of sub-frame is valid.
+		 * <---------------------(ETH_ALEN * 2 + 2 + 8 + data_len)---------------------->
+		 * +-----+-----+-----+-----------------------------+----------------------+------+-----+
+		 * | Dst | Src | Len |             LLC             |         SNAP         | Data | Pad |
+		 * | (6) | (6) | (2) | DSAP(1) | SSAP(1) | Ctrl(1) | OUI(3) | ETH_TYPE(2) |      |     |
+		 * +-----+-----+-----+-----------------------------+----------------------+------+-----+
+		 */
+		if (unlikely(ETH_ALEN * 2 + 2 + LLC_SNAP_HDR_LEN + data_len > skb->len)) {
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 			if (__ratelimit(&_rs))
 				scsc_log_collector_schedule_collection(SCSC_LOG_HOST_WLAN, SCSC_LOG_HOST_WLAN_REASON_INVALID_AMSDU);
 #endif
+			SLSI_NET_ERR(dev, "invalid MSDU data length %d, SKB length = %d\n", data_len, skb->len);
+			__skb_queue_purge(msdu_list);
+			kfree_skb(skb);
 			return -EINVAL;
 		}
+		/* We convert MSDU to Ethernet II format.
+		 * <--------subframe_len--------->
+		 * <---(struct ethhdr)--->
+		 * +-----+-----+----------+------+
+		 * | Dst | Src | ETH_TYPE | Data |
+		 * | (6) | (6) |   (2)    |      |
+		 * +-----+-----+----------+------+
+		 */
+		subframe_len = sizeof(struct ethhdr) + data_len;
 
-		/* For the last subframe skb length and subframe length will be same */
-		if (skb->len == subframe_len) {
-			subframe = skb_copy(skb, GFP_ATOMIC);
+		/* handle last subframe */
+		if (skb->len == subframe_len + LLC_SNAP_HDR_LEN) {
 
-			if (!subframe) {
-				SLSI_NET_ERR(dev, "failed to alloc the SKB for A-MSDU subframe\n");
-				__skb_queue_purge(msdu_list);
+			SLSI_ETHER_COPY(&skb->data[14], &skb->data[6]);
+			SLSI_ETHER_COPY(&skb->data[8], &skb->data[0]);
+
+			skb_pull(skb, LLC_SNAP_HDR_LEN);
+
+			skb_set_mac_header(skb, 0);
+			mh = eth_hdr(skb);
+			if (SLSI_ETHER_EQUAL(mh->h_dest, mac_0)) {
+				SLSI_NET_DBG3(dev, SLSI_RX, "msdu subframe filtered out: MAC destination address %pM\n", mh->h_dest);
 				kfree_skb(skb);
-				return -ENOMEM;
+			} else {
+				__skb_queue_tail(msdu_list, skb);
 			}
 
-			/* There is no padding for last subframe */
-			padding = 0;
-			last_sub_frame = true;
-		} else {
-			/* Copy the skb for the subframe */
-			subframe = skb_copy(skb, GFP_ATOMIC);
-
-			if (!subframe) {
-				SLSI_NET_ERR(dev, "failed to alloc the SKB for A-MSDU subframe\n");
-				__skb_queue_purge(msdu_list);
-				kfree_skb(skb);
-				return -ENOMEM;
-			}
-
-			padding = (4 - (subframe_len % 4)) & 0x3;
+			return 0;
 		}
 
-		/* Remove the other subframes by adjusting the tail pointer of the copied skb */
-		skb_trim(subframe, subframe_len);
+		/* Allocate subframe skbuff */
+		subframe = alloc_skb(subframe_len, GFP_ATOMIC);
+		if (unlikely(!subframe)) {
+			SLSI_NET_ERR(dev, "failed to alloc the SKB for A-MSDU subframe\n");
+			__skb_queue_purge(msdu_list);
+			kfree_skb(skb);
+			return -ENOMEM;
+		}
+		/* Copy Destination and Source MAC
+		 * +-----+-----+-----+-----------------------------+----------------------+------+-----+
+		 * | Dst | Src | Len |             LLC             |         SNAP         | Data | Pad |
+		 * | (6) | (6) | (2) | DSAP(1) | SSAP(1) | Ctrl(1) | OUI(3) | ETH_TYPE(2) |      |     |
+		 * +-----+-----+-----+-----------------------------+----------------------+------+-----+
+		 * ^
+		 * skb->data
+		 * +-----+-----+
+		 * | Dst | Src |
+		 * | (6) | (6) |
+		 * +-----+-----+
+		 * ^
+		 * skb_put(subframe, ETH_ALEN * 2)
+		 */
+		skb_put_data(subframe, skb->data, ETH_ALEN * 2);
+		skb_pull(skb, ETH_ALEN * 2);
+		/* Skip MSDU length field, LLC header and SNAP OUI field
+		 * +-----+-----+-----+-----------------------------+----------------------+------+-----+
+		 * | Dst | Src | Len |             LLC             |         SNAP         | Data | Pad |
+		 * | (6) | (6) | (2) | DSAP(1) | SSAP(1) | Ctrl(1) | OUI(3) | ETH_TYPE(2) |      |     |
+		 * +-----+-----+-----+-----------------------------+----------------------+------+-----+
+		 *                                                          ^
+		 *             <-------------------(8)--------------------->skb->data
+		 */
+		skb_pull(skb, 8);
+		/* Copy ETH_TYPE.
+		 * +-----+-----+-----+-----------------------------+----------------------+------+-----+
+		 * | Dst | Src | Len |             LLC             |         SNAP         | Data | Pad |
+		 * | (6) | (6) | (2) | DSAP(1) | SSAP(1) | Ctrl(1) | OUI(3) | ETH_TYPE(2) |      |     |
+		 * +-----+-----+-----+-----------------------------+----------------------+------+-----+
+		 *                                                          ^
+		 *                                                          skb->data
+		 * +-----+-----+----------+
+		 * | Dst | Src | ETH_TYPE |
+		 * | (6) | (6) |   (2)    |
+		 * +-----+-----+----------+
+		 *             ^
+		 *             skb_put(subframe, 2)
+		 */
+		skb_put_data(subframe, skb->data, 2);
+		skb_pull(skb, 2);
+		/* Copy data.
+		 * +-----+-----+-----+-----------------------------+----------------------+------+-----+
+		 * | Dst | Src | Len |             LLC             |         SNAP         | Data | Pad |
+		 * | (6) | (6) | (2) | DSAP(1) | SSAP(1) | Ctrl(1) | OUI(3) | ETH_TYPE(2) |      |     |
+		 * +-----+-----+-----+-----------------------------+----------------------+------+-----+
+		 *                                                                        ^
+		 *                                                                        skb->data
+		 * +-----+-----+----------+------+
+		 * | Dst | Src | ETH_TYPE | Data |
+		 * | (6) | (6) |   (2)    |      |
+		 * +-----+-----+----------+------+
+		 *                        ^
+		 *                        skb_put(subframe, data_len)
+		 */
+		skb_put_data(subframe, skb->data, data_len);
+		skb_pull(skb, data_len);
 
-		/* Overwrite LLC+SNAP header with src and dest addr */
-		SLSI_ETHER_COPY(&subframe->data[14], &subframe->data[6]);
-		SLSI_ETHER_COPY(&subframe->data[8], &subframe->data[0]);
-
-		/* Remove 8 bytes of LLC+SNAP header */
-		skb_pull(subframe, LLC_SNAP_HDR_LEN);
-
-		SLSI_NET_DBG_HEX(dev, SLSI_RX, subframe->data,
-				 subframe->len < 64 ? subframe->len : 64, "Subframe before giving to OS:\n");
-
+		/* Find padding size and skip the padding.
+		 * +----------+-----+-------
+		 * | (n)-MSDU | Pad | (n+1)-MSDU
+		 * |          |     |
+		 * +----------+-----+-------
+		 *                  ^
+		 *                  skb->data
+		 */
+		padding = (skb->len ? (4 - (subframe_len % 4)) & 0x3 : 0);
+		if (unlikely(!skb_pull(skb, padding))) {
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
+			if (__ratelimit(&_rs))
+				scsc_log_collector_schedule_collection(SCSC_LOG_HOST_WLAN, SCSC_LOG_HOST_WLAN_REASON_INVALID_AMSDU);
+#endif
+			kfree_skb(subframe);
+			SLSI_NET_ERR(dev, "Invalid A-MSDU Padding\n");
+			__skb_queue_purge(msdu_list);
+			kfree_skb(skb);
+			return -EINVAL;
+		}
 		/* Before preparing the skb, filter out if the Destination Address of the Ethernet frame
 		 * or A-MSDU subframe is set to an invalid value, i.e. all zeros
 		 */
 		skb_set_mac_header(subframe, 0);
 		mh = eth_hdr(subframe);
-		if (SLSI_ETHER_EQUAL(mh->h_dest, mac_0)) {
+		if (unlikely(SLSI_ETHER_EQUAL(mh->h_dest, mac_0))) {
 			SLSI_NET_DBG3(dev, SLSI_RX, "msdu subframe filtered out: MAC destination address %pM\n", mh->h_dest);
-			skip_frame = true;
-		}
-
-		/* If this is not the last subframe then move to the next subframe */
-		if (!last_sub_frame) {
-			/* If A-MSDU is not formed correctly (e.g when skb->len < subframe_len + padding),
-			 * skb_pull() will return NULL without any manipulation in skb.
-			 * It can lead to infinite loop.
-			 */
-			if (!skb_pull(skb, (subframe_len + padding))) {
-				SLSI_NET_ERR(dev, "Invalid subframe + padding length=%d, SKB length=%d\n", subframe_len + padding, skb->len);
-				__skb_queue_purge(msdu_list);
-				kfree_skb(skb);
-#ifdef CONFIG_SCSC_LOG_COLLECTION
-				if (__ratelimit(&_rs))
-					scsc_log_collector_schedule_collection(SCSC_LOG_HOST_WLAN, SCSC_LOG_HOST_WLAN_REASON_INVALID_AMSDU);
-#endif
-				return -EINVAL;
-			}
-		}
-
-		/* If this frame has been filtered out, free the clone and continue */
-		if (skip_frame) {
-			skip_frame = false;
-			/* Free the the skbuff structure itself but not the data */
-			/* skb will be freed if it is the last subframe (i.e. subframe == skb) */
 			kfree_skb(subframe);
 			continue;
 		}
 		__skb_queue_tail(msdu_list, subframe);
 	}
-	consume_skb(skb);
 	return 0;
 }
 
 static inline bool slsi_rx_is_amsdu(struct sk_buff *skb)
 {
 	return (fapi_get_u16(skb, u.ma_unitdata_ind.data_unit_descriptor) == FAPI_DATAUNITDESCRIPTOR_AMSDU);
+}
+
+static void slsi_rx_check_opt_out_packet(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb)
+{
+	struct netdev_vif *ndev_vif = netdev_priv(dev);
+	struct ethhdr *ehdr = (struct ethhdr *)(skb->data);
+
+	ndev_vif->is_opt_out_packet = false;
+
+	if (is_broadcast_ether_addr(ehdr->h_dest)) {
+		ndev_vif->is_opt_out_packet = true;
+		SLSI_NET_ERR(dev, "Wakeup by Broadcast packet\n");
+	} else if (is_multicast_ether_addr(ehdr->h_dest)) {
+		ndev_vif->is_opt_out_packet = !slsi_rx_check_mc_addr_regd(sdev, dev, ehdr);
+	} else if (be16_to_cpu(ehdr->h_proto) == ETH_P_ARP) {
+		u8 *frame;
+		u16 arp_opcode;
+
+		frame = skb->data + sizeof(struct ethhdr);
+		arp_opcode = frame[SLSI_ARP_OPCODE_OFFSET] << 8 | frame[SLSI_ARP_OPCODE_OFFSET + 1];
+
+		/* not enhanced : only request opcode opt out
+		 * enhanced : if (enhanced_pkt_filter_enabled) - ALL pkt opt out
+		 *                else - only request opcode opt out
+		 */
+		if (arp_opcode == SLSI_ARP_REQUEST_OPCODE)
+			ndev_vif->is_opt_out_packet = true;
+#ifdef CONFIG_SCSC_WLAN_ENHANCED_PKT_FILTER
+		else
+			ndev_vif->is_opt_out_packet = sdev->enhanced_pkt_filter_enabled;
+#endif
+		SLSI_NET_ERR(dev, "Wakeup by ARP packet, arp_opcode : %d\n", arp_opcode);
+#ifdef CONFIG_SCSC_WLAN_ENHANCED_PKT_FILTER
+	} else if (sdev->enhanced_pkt_filter_enabled) {
+		if (is_unicast_ether_addr(ehdr->h_dest)) {
+			/* IPv4 & TCP / IPv6 & TCP : opt in */
+			if (be16_to_cpu(ehdr->h_proto) == ETH_P_IP) {
+				struct iphdr *ip = (struct iphdr *)(skb->data + sizeof(struct ethhdr));
+
+				ndev_vif->is_opt_out_packet = !(ip->protocol == IPPROTO_TCP);
+				SLSI_NET_INFO(dev, "Wakeup by IPV4 , ip->protocol = %d\n", ip->protocol);
+			} else if (be16_to_cpu(ehdr->h_proto) == ETH_P_IPV6) {
+				struct ipv6hdr *ip = (struct ipv6hdr *)(skb->data + sizeof(struct ethhdr));
+
+				ndev_vif->is_opt_out_packet = !(ip->nexthdr == IPPROTO_TCP);
+				SLSI_NET_INFO(dev, "Wakeup by IPV6 , ip->nexthdr = %d\n", ip->nexthdr);
+			} else {
+				ndev_vif->is_opt_out_packet = true;
+				SLSI_NET_ERR(dev, "Wakeup by h_proto : 0x%.4X\n", be16_to_cpu(ehdr->h_proto));
+			}
+		} else {
+			SLSI_NET_ERR(dev, "Wakeup by Not Unicast - the packet must be checking in Multicast condition\n");
+		}
+#endif
+	} else {
+		SLSI_NET_INFO(dev, "Wakeup by Opt in packet\n");
+	}
 }
 
 void slsi_rx_data_deliver_skb(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb, bool ctx_napi)
@@ -276,7 +398,7 @@ void slsi_rx_data_deliver_skb(struct slsi_dev *sdev, struct net_device *dev, str
 		/* Retrieve the associated smapper skb */
 		skb = slsi_hip_get_skb_from_smapper(sdev, skb);
 		if (!skb) {
-			SLSI_NET_DBG2(dev, SLSI_RX, "SKB from SMAPPER is NULL\n");
+			SLSI_NET_WARN(dev, "SKB from SMAPPER is NULL\n");
 			return;
 		}
 	} else {
@@ -298,6 +420,7 @@ void slsi_rx_data_deliver_skb(struct slsi_dev *sdev, struct net_device *dev, str
 	/* A-MSDU deaggregation */
 	if (is_amsdu) {
 		if (slsi_rx_amsdu_deaggregate(dev, skb, &msdu_list)) {
+			SLSI_NET_WARN(dev, "Packet dropped (A-MSDU error)\n");
 			ndev_vif->stats.rx_dropped++;
 			if (peer)
 				peer->sinfo.rx_dropped_misc++;
@@ -309,31 +432,39 @@ void slsi_rx_data_deliver_skb(struct slsi_dev *sdev, struct net_device *dev, str
 	/* WARNING: skb may be NULL here and should not be used after this */
 	while (!skb_queue_empty(&msdu_list)) {
 		struct sk_buff *rx_skb;
+#if defined(CONFIG_SCSC_WLAN_RX_NAPI) && defined(CONFIG_SCSC_WLAN_RX_NAPI_GRO)
+		u16 drop_proto;
+#endif
 
 		rx_skb = __skb_dequeue(&msdu_list);
 
-		/* In STA mode, the AP relays back our multicast traffic.
-		 * Receiving these frames and passing it up confuses some
-		 * protocols and applications, notably IPv6 Duplicate
-		 * Address Detection.
-		 *
-		 * So these frames are dropped instead of passing it further.
-		 * No need to update the drop statistics as these frames are
-		 * locally generated and should not be accounted in reception.
+		/* In STA mode, if Wakeup by Opt out packet, it looks it was
+		 * NOT install packet filter when enter Suspend mode. So it
+		 * should be install Packet filter and LCD state again.
 		 */
 		if (ndev_vif->vif_type == FAPI_VIFTYPE_STATION) {
 			struct ethhdr *ehdr = (struct ethhdr *)(rx_skb->data);
 
-			if (is_multicast_ether_addr(ehdr->h_dest)) {
-				/* Check multicast address is registered if host wakeup by multicast */
-				if (unlikely(slsi_skb_cb_get(rx_skb)->wakeup))
-					slsi_rx_check_mc_addr_regd(sdev, dev, ehdr);
+			if (unlikely(slsi_skb_cb_get(rx_skb)->wakeup)) {
+				slsi_rx_check_opt_out_packet(sdev, dev, rx_skb);
+				slsi_wake_lock(&sdev->wlan_wl);
+				schedule_work(&ndev_vif->update_pkt_filter_work);
+			}
 
-				if (!compare_ether_addr(ehdr->h_source, dev->dev_addr)) {
-					SLSI_NET_DBG2(dev, SLSI_RX, "drop locally generated multicast frame relayed back by AP\n");
-					consume_skb(rx_skb);
-					continue;
-				}
+			/* In STA mode, the AP relays back our multicast
+			 * traffic. Receiving these frames and passing it up
+			 * confuses some protocols and applications, notably
+			 * IPv6 Duplicate Address Detection.
+			 *
+			 * So these frames are dropped instead of passing it
+			 * further. No need to update the drop statistics as
+			 * these frames are locally generated and should not be
+			 * accounted in reception.
+			 */
+			if (is_multicast_ether_addr(ehdr->h_dest) && !compare_ether_addr(ehdr->h_source, dev->dev_addr)) {
+				SLSI_NET_DBG2(dev, SLSI_RX, "drop locally generated multicast frame relayed back by AP\n");
+				consume_skb(rx_skb);
+				continue;
 			}
 		}
 
@@ -343,11 +474,8 @@ void slsi_rx_data_deliver_skb(struct slsi_dev *sdev, struct net_device *dev, str
 			struct ethhdr *ehdr = (struct ethhdr *)(rx_skb->data);
 
 			if (is_multicast_ether_addr(ehdr->h_dest)) {
-#ifdef CONFIG_SCSC_WLAN_RX_NAPI
+				/* For the case of uing NAPI, we need to use GFP_ATOMIC */
 				struct sk_buff *rebroadcast_skb = skb_copy(rx_skb, GFP_ATOMIC);
-#else
-				struct sk_buff *rebroadcast_skb = skb_copy(rx_skb, GFP_KERNEL);
-#endif
 				if (!rebroadcast_skb) {
 					SLSI_WARN(sdev, "Intra BSS: failed to alloc new SKB for broadcast\n");
 				} else {
@@ -402,11 +530,8 @@ void slsi_rx_data_deliver_skb(struct slsi_dev *sdev, struct net_device *dev, str
 						if (other_ndev_vif->peer_sta_record[j] &&
 							other_ndev_vif->peer_sta_record[j]->valid &&
 						    ether_addr_equal(other_ndev_vif->peer_sta_record[j]->address, ehdr->h_source)) {
-#ifdef CONFIG_SCSC_WLAN_RX_NAPI
+							/* For the case of uing NAPI, we need to use GFP_ATOMIC */
 							struct sk_buff *duplicate_skb = skb_copy(rx_skb, GFP_ATOMIC);
-#else
-							struct sk_buff *duplicate_skb = skb_copy(rx_skb, GFP_KERNEL);
-#endif
 							SLSI_NET_DBG2(other_dev, SLSI_RX, "NAN: source address match %pM\n", other_ndev_vif->peer_sta_record[j]->address);
 							if (!duplicate_skb) {
 								SLSI_NET_WARN(other_dev, "NAN: multicast: failed to alloc new SKB\n");
@@ -454,7 +579,7 @@ void slsi_rx_data_deliver_skb(struct slsi_dev *sdev, struct net_device *dev, str
 			    (frame[SLSI_ARP_SRC_IP_ADDR_OFFSET + 2] == ((ndev_vif->ipaddress >> 16U) & 255)) &&
 			    (frame[SLSI_ARP_SRC_IP_ADDR_OFFSET + 3] == ((ndev_vif->ipaddress >> 24U) & 255)) &&
 			    !SLSI_IS_GRATUITOUS_ARP(frame) &&
-			    !SLSI_ETHER_EQUAL(sdev->hw_addr, frame + 8)) /*if src MAC = DUT MAC */
+			    !SLSI_ETHER_EQUAL(dev->dev_addr, frame + 8)) /*if src MAC = DUT MAC */
 				ndev_vif->enhanced_arp_stats.is_duplicate_addr_detected = 1;
 		}
 	}
@@ -486,12 +611,26 @@ void slsi_rx_data_deliver_skb(struct slsi_dev *sdev, struct net_device *dev, str
 		slsi_traffic_mon_event_rx(sdev, dev, rx_skb);
 
 		SLSI_NET_DBG4(dev, SLSI_RX, "pass %u bytes to local stack\n", rx_skb->len);
+		slsi_skb_cb_init(rx_skb);
 #ifdef CONFIG_SCSC_WLAN_RX_NAPI
 #ifdef CONFIG_SCSC_WLAN_RX_NAPI_GRO
-		if (ctx_napi)
-			napi_gro_receive(&sdev->hip4_inst.hip_priv->napi, rx_skb);
-		else
-			netif_receive_skb(rx_skb);
+#ifdef CONFIG_SCSC_WLAN_NW_PKT_DROP
+		/* We directly call protocol handler to ensure that
+		 * ARP response is properly processed regardless of filters.
+		 */
+		if (rx_skb->protocol == htons(ETH_P_ARP)) {
+			bypass_backlog(sdev, dev, rx_skb);
+			return;
+		}
+#endif
+		drop_proto = rx_skb->protocol;
+		if (ctx_napi) {
+			if (GRO_DROP == napi_gro_receive(&sdev->hip4_inst.hip_priv->napi, rx_skb))
+				SLSI_NET_WARN(dev, "Packet is dropped. Protocol=%hx\n", ntohs(drop_proto));
+		} else {
+			if (NET_RX_DROP == netif_receive_skb(rx_skb))
+				SLSI_NET_WARN(dev, "Packet is dropped. Protocol=%hx\n", ntohs(drop_proto));
+		}
 #else /* #ifdef CONFIG_SCSC_WLAN_RX_NAPI_GRO */
 		netif_receive_skb(rx_skb);
 #endif
@@ -520,7 +659,6 @@ static void slsi_rx_data_ind(struct slsi_dev *sdev, struct net_device *dev, stru
 		return;
 	}
 
-#ifdef CONFIG_SCSC_WLAN_DEBUG
 	/* pass the data up "As is" if the VIF type is Monitor */
 	if (ndev_vif->vif_type == FAPI_VIFTYPE_MONITOR) {
 #ifdef CONFIG_SCSC_SMAPPER
@@ -539,6 +677,9 @@ static void slsi_rx_data_ind(struct slsi_dev *sdev, struct net_device *dev, stru
 #else
 		skb_pull(skb, fapi_get_siglen(skb));
 #endif
+		/* Populate wake reason stats here */
+		if (unlikely(slsi_skb_cb_get(skb)->wakeup))
+			slsi_rx_update_wake_stats(sdev, (struct ethhdr *)(skb->data), skb->len);
 		skb_reset_mac_header(skb);
 		skb->dev = dev;
 		skb->ip_summed = CHECKSUM_UNNECESSARY;
@@ -546,14 +687,13 @@ static void slsi_rx_data_ind(struct slsi_dev *sdev, struct net_device *dev, stru
 		netif_rx_ni(skb);
 		return;
 	}
-#endif
 
 #ifdef CONFIG_SCSC_SMAPPER
 		/* Check if the payload is in the SMAPPER entry */
 		if (fapi_get_u16(skb, u.ma_unitdata_ind.bulk_data_descriptor) == FAPI_BULKDATADESCRIPTOR_SMAPPER) {
 			eth_hdr = (struct ethhdr *)slsi_hip_get_skb_data_from_smapper(sdev, skb);
 			if (!(eth_hdr)) {
-				SLSI_NET_DBG2(dev, SLSI_RX, "SKB from SMAPPER is NULL\n");
+				SLSI_NET_WARN(dev, "SKB from SMAPPER is NULL\n");
 				kfree_skb(skb);
 				return;
 			}
@@ -563,14 +703,18 @@ static void slsi_rx_data_ind(struct slsi_dev *sdev, struct net_device *dev, stru
 #else
 		eth_hdr = (struct ethhdr *)fapi_get_data(skb);
 #endif
+	/* Populate wake reason stats here */
+	if (unlikely(slsi_skb_cb_get(skb)->wakeup))
+		slsi_rx_update_wake_stats(sdev, eth_hdr, skb->len);
 	seq_num = fapi_get_u16(skb, u.ma_unitdata_ind.sequence_number);
-	SLSI_NET_DBG4(dev, SLSI_RX, "ma_unitdata_ind(vif:%d, dest:%pM, src:%pM, datatype:%d, priority:%d, s:%d)\n",
+	SLSI_NET_DBG4(dev, SLSI_RX, "ma_unitdata_ind(vif:%d, dest:%pM, src:%pM, datatype:%d, priority:%d, s:%d, s-mapper:%d)\n",
 			  fapi_get_vif(skb),
 			  eth_hdr->h_dest,
 			  eth_hdr->h_source,
 			  fapi_get_u16(skb, u.ma_unitdata_ind.data_unit_descriptor),
 			  fapi_get_u16(skb, u.ma_unitdata_ind.priority),
-			  (seq_num & SLSI_RX_SEQ_NUM_MASK));
+			  (seq_num & SLSI_RX_SEQ_NUM_MASK),
+			  fapi_get_u16(skb, u.ma_unitdata_ind.bulk_data_descriptor));
 
 	peer = slsi_get_peer_from_mac(sdev, dev, eth_hdr->h_source);
 	if (!peer) {
@@ -733,10 +877,12 @@ void slsi_rx_netdev_data_work(struct work_struct *work)
 			break;
 		}
 
+		slsi_spinlock_lock(&ndev_vif->ba_lock);
 		if (atomic_read(&ndev_vif->ba_flush)) {
 			atomic_set(&ndev_vif->ba_flush, 0);
 			slsi_ba_process_complete(dev, false);
 		}
+		slsi_spinlock_unlock(&ndev_vif->ba_lock);
 
 		skb = slsi_skb_work_dequeue(w);
 		if (!skb) {
@@ -772,6 +918,9 @@ void slsi_rx_netdev_data_work(struct work_struct *work)
 		SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	}
 	slsi_wake_unlock(&sdev->wlan_wl);
+	/* reprocess hip_wq for skipped data BH */
+	slsi_hip_reprocess_skipped_data_bh(sdev);
+
 }
 
 static int slsi_rx_queue_data(struct slsi_dev *sdev, struct sk_buff *skb)

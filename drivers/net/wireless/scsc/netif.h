@@ -55,6 +55,7 @@
 /* sizeof ma_unitdata_req [36] + pad [30] + pad_words [2]  */
 #define SLSI_NETIF_SKB_HEADROOM (68 + 160)
 #define SLSI_NETIF_SKB_TAILROOM 0
+#define SLSI_SYS_ERROR_RECOVERY_TIMEOUT  1000 /* 1s timeout */
 
 static inline u16 slsi_netif_get_peer_queue(s16 queueset, s16 ac)
 {
@@ -107,5 +108,5 @@ int slsi_netif_register_locked(struct slsi_dev *sdev, struct net_device *dev);
 #ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
 void slsi_net_randomize_nmi_ndi(struct slsi_dev *sdev);
 #endif
-
+int slsi_netif_set_tid_config(struct slsi_dev *sdev, struct net_device *dev, u8 mode, u32 uid, u8 tid);
 #endif /*__SLSI_NETIF_H__*/

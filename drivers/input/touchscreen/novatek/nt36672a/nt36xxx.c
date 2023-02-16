@@ -423,7 +423,7 @@ int nvt_ts_check_fw_reset_state(struct nvt_ts_data *ts, RST_COMPLETE_STATE reset
 int nvt_ts_get_fw_info(struct nvt_ts_data *ts)
 {
 	struct nvt_ts_platdata *platdata = ts->platdata;
-	u8 buf[10] = { 0 };
+	u8 buf[20] = { 0 };
 	u8 fw_ver, x_num, y_num;
 	u16 abs_x_max, abs_y_max;
 	int i;
@@ -438,7 +438,9 @@ int nvt_ts_get_fw_info(struct nvt_ts_data *ts)
 
 		//---read fw info---
 		buf[0] = EVENT_MAP_FWINFO;
-		nvt_ts_i2c_read(ts, I2C_FW_Address, buf, 9);
+		buf[1] = 0x00;
+		buf[2] = 0x00;
+		nvt_ts_i2c_read(ts, I2C_FW_Address, buf, 20);
 
 		fw_ver = buf[1];
 		x_num = buf[3];
@@ -470,60 +472,60 @@ int nvt_ts_get_fw_info(struct nvt_ts_data *ts)
 		__func__, fw_ver, x_num, y_num, abs_x_max, abs_y_max);
 
 	/* ic_name, project_id, panel, fw info */
-	//---set xdata index for IC name---
-	buf[0] = 0xFF;
-	buf[1] = 0x01;
-	buf[2] = 0xF6;
-	ret = nvt_ts_i2c_write(ts, I2C_FW_Address, buf, 3);
-	if (ret < 0) {
-		input_err(true, &ts->client->dev, "%s: nvt_ts_i2c_write error(%d)\n", ret);
-		return ret;
+	// Customized version string start
+	//---Get IC name---
+	if ((trim_id_table[ts->ic_idx].id[5] == 0x03) && (trim_id_table[ts->ic_idx].id[4] == 0x66) &&
+		(trim_id_table[ts->ic_idx].id[3] == 0x72) && (trim_id_table[ts->ic_idx].id[0] == 0x0A)) {
+		ts->fw_ver_ic[0] = (((trim_id_table[ts->ic_idx].id[5] & 0x0F) << 4) | ((trim_id_table[ts->ic_idx].id[4] & 0xF0) >> 4));
+	} else {
+		ts->fw_ver_ic[0] = buf[15];
 	}
 
-	buf[0] = 0x4E;
-	ret = nvt_ts_i2c_read(ts, I2C_FW_Address, buf, 8);
-	if (ret < 0) {
-		input_err(true, &ts->client->dev, "%s: nvt_ts_i2c_read error(%d)\n", ret);
-		return ret;
-	}
-	ts->fw_ver_ic[0] = ((buf[6] & 0x0F) << 4) | ((buf[5] & 0xF0) >> 4);
-
-	//---set xdata index to EVENT BUF ADDR---
+	//---Get Novatek PID---
 	buf[0] = 0xFF;
 	buf[1] = (ts->mmap->EVENT_BUF_ADDR >> 16) & 0xFF;
 	buf[2] = (ts->mmap->EVENT_BUF_ADDR >> 8) & 0xFF;
 	ret = nvt_ts_i2c_write(ts, I2C_FW_Address, buf, 3);
 	if (ret < 0) {
-		input_err(true, &ts->client->dev, "%s: nvt_ts_i2c_write error(%d)\n", ret);
+		input_err(true, &ts->client->dev, "%s: nvt_ts_i2c_write error(%d)\n",__func__,  ret);
 		return ret;
 	}
 
 	buf[0] = EVENT_MAP_PROJECTID;
+	buf[1] = 0x00;
 	ret = nvt_ts_i2c_read(ts, I2C_FW_Address, buf, 2);
 	if (ret < 0) {
-		input_err(true, &ts->client->dev, "%s: nvt_ts_i2c_read error(%d)\n", ret);
+		input_err(true, &ts->client->dev, "%s: nvt_ts_i2c_read error(%d)\n",__func__,  ret);
 		return ret;
 	}
 	ts->fw_ver_ic[1] = buf[1];
 
+	//---get panel id---
 	buf[0] = EVENT_MAP_PANEL;
+	buf[1] = 0x00;
 	ret = nvt_ts_i2c_read(ts, I2C_FW_Address, buf, 2);
 	if (ret < 0) {
-		input_err(true, &ts->client->dev, "%s: nvt_ts_i2c_read error(%d)\n", ret);
+		input_err(true, &ts->client->dev, "%s: nvt_ts_i2c_read error(%d)\n",__func__,  ret);
 		return ret;
 	}
 	ts->fw_ver_ic[2] = buf[1];
 
+	//---get firmware version---
 	buf[0] = EVENT_MAP_FWINFO;
+	buf[1] = 0x00;
 	ret = nvt_ts_i2c_read(ts, I2C_FW_Address, buf, 2);
 	if (ret < 0) {
-		input_err(true, &ts->client->dev, "%s: nvt_ts_i2c_read error(%d)\n", ret);
+		input_err(true, &ts->client->dev, "%s: nvt_ts_i2c_read error(%d)\n",__func__,  ret);
 		return ret;
 	}
 	ts->fw_ver_ic[3] = buf[1];
 
 	input_info(true, &ts->client->dev, "%s: fw_ver_ic = %02X%02X%02X%02X\n",
 		__func__, ts->fw_ver_ic[0], ts->fw_ver_ic[1], ts->fw_ver_ic[2], ts->fw_ver_ic[3]);
+
+	input_info(true, &ts->client->dev, "%s: trim_ver_ic = %02X%02X%02X%02X\n",
+		__func__, trim_id_table[ts->ic_idx].id[5], trim_id_table[ts->ic_idx].id[4],
+		trim_id_table[ts->ic_idx].id[3], trim_id_table[ts->ic_idx].id[0]);
 
 	return ret;
 }
@@ -823,12 +825,15 @@ void nvt_ts_stop_crc_reboot(struct nvt_ts_data *ts)
 
 	//---change I2C index to prevent geting 0xFF, but not 0xFC---
 	buf[0] = 0xFF;
-	buf[1] = 0x01;
-	buf[2] = 0xF6;
+	buf[1] = (CHIP_VER_TRIM_ADDR >> 16) & 0xFF;
+	buf[2] = (CHIP_VER_TRIM_ADDR >> 8) & 0xFF;
 	nvt_ts_i2c_write(ts, I2C_BLDR_Address, buf, 3);
 
 	//---read to check if buf is 0xFC which means IC is in CRC reboot ---
-	buf[0] = 0x4E;
+	buf[0] = CHIP_VER_TRIM_ADDR & 0xFF;
+	buf[1] = 0x00;
+	buf[2] = 0x00;
+	buf[3] = 0x00;
 	nvt_ts_i2c_read(ts, I2C_BLDR_Address, buf, 4);
 
 	if ((buf[1] == 0xFC) ||
@@ -865,6 +870,7 @@ void nvt_ts_stop_crc_reboot(struct nvt_ts_data *ts)
 			nvt_ts_i2c_write(ts, I2C_BLDR_Address, buf, 3);
 
 			buf[0] = 0x35;
+			buf[1] = 0x00;
 			nvt_ts_i2c_read(ts, I2C_BLDR_Address, buf, 2);
 
 			if (buf[1] == 0xA5)
@@ -879,15 +885,23 @@ void nvt_ts_stop_crc_reboot(struct nvt_ts_data *ts)
 	return;
 }
 
-static int nvt_ts_check_chip_ver_trim(struct nvt_ts_data *ts)
+/*******************************************************
+Description:
+	Novatek touchscreen check chip version trim function.
+
+return:
+	Executive outcomes. 0---NVT IC. -1---not NVT IC.
+*******************************************************/
+static int8_t nvt_ts_check_chip_ver_trim(struct nvt_ts_data *ts, uint32_t chip_ver_trim_addr)
 {
-	u8 buf[8] = { 0 };
-	int retry = 0;
-	int list = 0;
-	int i = 0;
+	uint8_t buf[8] = {0};
+	int32_t retry = 0;
+	int32_t list = 0;
+	int32_t i = 0;
 
-	nvt_ts_bootloader_reset(ts);
+	nvt_ts_bootloader_reset(ts); // NOT in retry loop
 
+	//---Check for 5 times---
 	for (retry = 5; retry > 0; retry--) {
 		nvt_ts_sw_reset_idle(ts);
 
@@ -898,13 +912,19 @@ static int nvt_ts_check_chip_ver_trim(struct nvt_ts_data *ts)
 		msleep(10);
 
 		buf[0] = 0xFF;
-		buf[1] = 0x01;
-		buf[2] = 0xF6;
+		buf[1] = (chip_ver_trim_addr >> 16) & 0xFF;
+		buf[2] = (chip_ver_trim_addr >> 8) & 0xFF;
 		nvt_ts_i2c_write(ts, I2C_BLDR_Address, buf, 3);
 
-		buf[0] = 0x4E;
+		buf[0] = chip_ver_trim_addr & 0xFF;
+		buf[1] = 0x00;
+		buf[2] = 0x00;
+		buf[3] = 0x00;
+		buf[4] = 0x00;
+		buf[5] = 0x00;
+		buf[6] = 0x00;
 		nvt_ts_i2c_read(ts, I2C_BLDR_Address, buf, 7);
-		input_info(true, &ts->client->dev, "IC version: %02X 02X %02X %02X %02X %02X\n",
+		input_info(true, &ts->client->dev, "IC version: %02X %02X %02X %02X %02X %02X\n",
 				buf[1], buf[2], buf[3], buf[4], buf[5], buf[6]);
 
 		//---Stop CRC check to prevent IC auto reboot---
@@ -914,7 +934,9 @@ static int nvt_ts_check_chip_ver_trim(struct nvt_ts_data *ts)
 			continue;
 		}
 
+		// compare read chip id on supported list
 		for (list = 0; list < (sizeof(trim_id_table) / sizeof(struct nvt_ts_trim_id_table)); list++) {
+			// compare each byte
 			for (i = 0; i < NVT_ID_BYTE_MAX; i++) {
 				if (trim_id_table[list].mask[i]) {
 					if (buf[i + 1] != trim_id_table[list].id[i])
@@ -925,9 +947,12 @@ static int nvt_ts_check_chip_ver_trim(struct nvt_ts_data *ts)
 			if (i == NVT_ID_BYTE_MAX) {
 				input_info(true, &ts->client->dev, "found match ic version\n");
 				ts->mmap = trim_id_table[list].mmap;
-				ts->carrier_system = trim_id_table[list].carrier_system;
+				ts->carrier_system = trim_id_table[list].hwinfo->carrier_system;
+				ts->ic_idx = list;
 
 				return 0;
+			} else {
+				ts->mmap = NULL;
 			}
 		}
 
@@ -982,7 +1007,6 @@ static void nvt_ts_close(struct nvt_ts_data *ts)
 	}
 
 	cancel_delayed_work(&ts->work_print_info);
-	nvt_ts_print_info(ts);
 
 #if defined(CONFIG_INPUT_SEC_SECURE_TOUCH)
 	secure_touch_stop(ts, 1);
@@ -993,6 +1017,7 @@ static void nvt_ts_close(struct nvt_ts_data *ts)
 	mutex_lock(&ts->lock);
 
 	disable_irq(ts->client->irq);
+	nvt_ts_print_info(ts);
 
 	mode = nvt_ts_mode_read(ts);
 	if (ts->sec_function != mode) {
@@ -1105,7 +1130,9 @@ static void nvt_ts_print_info_work(struct work_struct *work)
 	struct nvt_ts_data *ts = container_of(work, struct nvt_ts_data,
 			work_print_info.work);
 
+	mutex_lock(&ts->lock);
 	nvt_ts_print_info(ts);
+	mutex_unlock(&ts->lock);
 
 	schedule_delayed_work(&ts->work_print_info, msecs_to_jiffies(TOUCH_PRINT_INFO_DWORK_TIME));
 }
@@ -1188,7 +1215,14 @@ static struct nvt_ts_platdata *nvt_ts_parse_dt(struct device *dev)
 		platdata->irq_flags = IRQF_TRIGGER_LOW | IRQF_ONESHOT;
 	}
 
+	platdata->support_dual_fw = of_property_read_bool(np, "support_dual_fw");
 	ret = of_property_read_string(np, "novatek,firmware_name", &platdata->firmware_name);
+
+	/* LCD type old NT36672A:12F240 LCD type new NT36672C:4BF245 */
+	if(platdata->support_dual_fw && lcdtype == 0x4BF245) 
+	{
+		ret = of_property_read_string(np, "novatek,firmware_name_new_ic", &platdata->firmware_name);
+	}
 	if (ret)
 		platdata->firmware_name = NULL;
 
@@ -1295,10 +1329,15 @@ static int nvt_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	msleep(10);
 
 	/* check chip version trim */
-	ret = nvt_ts_check_chip_ver_trim(ts);
+	ret = nvt_ts_check_chip_ver_trim(ts, CHIP_VER_TRIM_ADDR);
 	if (ret) {
-		input_err(true, &client->dev, "chip is not identified\n");
-		goto err_check_trim;
+		input_err(true, &client->dev, "try to check from old chip ver trim address\n");
+		ret = nvt_ts_check_chip_ver_trim(ts, CHIP_VER_TRIM_OLD_ADDR);
+		if (ret) {
+			input_err(true, &client->dev, "chip is not identified\n");
+			ret = -EINVAL;
+			goto err_check_trim;
+		}
 	}
 
 	nvt_ts_bootloader_reset(ts);

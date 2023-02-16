@@ -25,22 +25,60 @@
 
 #include "nt36xxx.h"
 
-#define FW_BIN_VER_OFFSET	0x1A000
-#define FW_BIN_VER_BAR_OFFSET	0x1A001
+#define SIZE_4KB 4096
+#define FLASH_SECTOR_SIZE SIZE_4KB
 
-#define FW_BIN_IC_ID			0x1AFF2
-#define FW_BIN_PROJECT_ID	0x1AFF3
-#define FW_BIN_PANEL_ID		0x1AFF4
-#define FW_BIN_VERSION		0x1AFF5
+#define FW_BIN_VER_OFFSET (fw_need_write_size - SIZE_4KB)
+#define FW_BIN_VER_BAR_OFFSET (FW_BIN_VER_OFFSET + 1)
+
+#define FW_BIN_SEC_INFO		(fw_need_write_size - 16)
+#define FW_BIN_IC_ID		(FW_BIN_SEC_INFO + 2)
+#define FW_BIN_PROJECT_ID	(FW_BIN_SEC_INFO + 3)
+#define FW_BIN_PANEL_ID		(FW_BIN_SEC_INFO + 4)
+#define FW_BIN_VERSION		(FW_BIN_SEC_INFO + 5)
 
 #define NVT_FLASH_END_FLAG_LEN	3
-#define NVT_FLASH_END_FLAG_ADDR	0x1AFFD
-
-#define FLASH_SECTOR_SIZE 4096
+#define NVT_FLASH_END_FLAG_ADDR (fw_need_write_size - NVT_FLASH_END_FLAG_LEN)
 
 void nvt_ts_stop_crc_reboot(struct nvt_ts_data *ts);
 
+size_t fw_need_write_size = 0;
+/*******************************************************
+Description:
+	Novatek touchscreen firmware size calculation function.
 
+return:
+	Executive outcomes. 0---succeed. -22---failed.
+*******************************************************/
+static int32_t nvt_get_fw_need_write_size(struct nvt_ts_data *ts, const struct firmware *fw_entry)
+{
+	int32_t i = 0;
+	int32_t total_sectors_to_check = 0;
+
+	total_sectors_to_check = fw_entry->size / FLASH_SECTOR_SIZE;
+	/* printk("total_sectors_to_check = %d\n", total_sectors_to_check); */
+
+	for (i = total_sectors_to_check; i > 0; i--) {
+		/* printk("current end flag address checked = 0x%X\n", i * FLASH_SECTOR_SIZE - NVT_FLASH_END_FLAG_LEN); */
+		/* check if there is end flag "NVT" at the end of this sector */
+		if (strncmp(&fw_entry->data[i * FLASH_SECTOR_SIZE - NVT_FLASH_END_FLAG_LEN], "NVT", NVT_FLASH_END_FLAG_LEN) == 0) {
+			fw_need_write_size = i * FLASH_SECTOR_SIZE;
+			input_info(true, &ts->client->dev, "%s: fw_need_write_size = %zu(0x%zx)\n", __func__, fw_need_write_size, fw_need_write_size);
+			return 0;
+		}
+	}
+
+	input_err(true, &ts->client->dev, "%s: end flag \"NVT\" not found!\n", __func__);
+	return -EINVAL;
+}
+
+/*******************************************************
+Description:
+	Novatek touchscreen request update firmware function.
+
+return:
+	Executive outcomes. 0---succeed. -1,-22---failed.
+*******************************************************/
 static int update_firmware_request(struct nvt_ts_data *ts, const char *filename)
 {
 	const struct firmware *fw_entry;
@@ -58,13 +96,20 @@ static int update_firmware_request(struct nvt_ts_data *ts, const char *filename)
 		return ret;
 	}
 
+	// check FW need to write size
+	if (nvt_get_fw_need_write_size(ts, fw_entry)) {
+		input_err(true, &ts->client->dev, "get fw need to write size fail!\n");
+		release_firmware(fw_entry);
+		return -EINVAL;
+	}
+/* Remove this checking due to different fw size for different IC
 	// check bin file size (116kb)
 	if (fw_entry->size != FW_BIN_SIZE) {
 		input_err(true, &ts->client->dev, "bin file size not match. (%zu)\n", fw_entry->size);
 		release_firmware(fw_entry);
 		return -EINVAL;
 	}
-
+*/
 	// check if FW version add FW version bar equals 0xFF
 	if (fw_entry->data[FW_BIN_VER_OFFSET] + fw_entry->data[FW_BIN_VER_BAR_OFFSET] != 0xFF) {
 		input_err(true, &ts->client->dev, "bin file FW_VER + FW_VER_BAR should be 0xFF!\n");
@@ -88,6 +133,13 @@ static int update_firmware_request(struct nvt_ts_data *ts, const char *filename)
 	return 0;
 }
 
+/*******************************************************
+Description:
+	Novatek touchscreen release update firmware function.
+
+return:
+	n.a.
+*******************************************************/
 static void update_firmware_release(struct nvt_ts_data *ts)
 {
 	if (ts->fw_entry)
@@ -96,6 +148,14 @@ static void update_firmware_release(struct nvt_ts_data *ts)
 	ts->fw_entry = NULL;
 }
 
+/*******************************************************
+Description:
+	Novatek touchscreen check firmware version function.
+
+return:
+	Executive outcomes. 0---need update. 1---need not
+	update.
+*******************************************************/
 static int nvt_ts_check_fw_ver(struct nvt_ts_data *ts)
 {
 	u8 buf[4] = {0};
@@ -107,14 +167,14 @@ static int nvt_ts_check_fw_ver(struct nvt_ts_data *ts)
 	buf[2] = (ts->mmap->EVENT_BUF_ADDR >> 8) & 0xFF;
 	ret = nvt_ts_i2c_write(ts, I2C_BLDR_Address, buf, 3);
 	if (ret < 0) {
-		input_err(true, &ts->client->dev, "%s: failed to write cmd\n");
+		input_err(true, &ts->client->dev, "%s: failed to write cmd\n", __func__);
 		return ret;
 	}
 
 	buf[0] = EVENT_MAP_PROJECTID;
 	ret = nvt_ts_i2c_read(ts, I2C_FW_Address, buf, 2);
 	if (ret < 0) {
-		input_err(true, &ts->client->dev, "%s: nvt_ts_i2c_read error(%d)\n", ret);
+		input_err(true, &ts->client->dev, "%s: nvt_ts_i2c_read error(%d)\n", __func__, ret);
 		return ret;
 	}
 	ts->fw_ver_ic[1] = buf[1];
@@ -123,7 +183,7 @@ static int nvt_ts_check_fw_ver(struct nvt_ts_data *ts)
 	buf[0] = EVENT_MAP_FWINFO;
 	ret = nvt_ts_i2c_read(ts, I2C_BLDR_Address, buf, 3);
 	if (ret < 0) {
-		input_err(true, &ts->client->dev, "%s: failed to read cmd\n");
+		input_err(true, &ts->client->dev, "%s: failed to read cmd\n", __func__);
 		return ret;
 	}
 	ts->fw_ver_ic[3] = buf[1];
@@ -132,7 +192,7 @@ static int nvt_ts_check_fw_ver(struct nvt_ts_data *ts)
 	input_info(true, &ts->client->dev, "%s: IC - ID = %02X, FW Ver = 0x%02X, FW Ver Bar = 0x%02X\n",
 			__func__, ts->fw_ver_ic[1], ts->fw_ver_ic[3], ts->fw_ver_ic_bar);
 	input_info(true, &ts->client->dev, "%s: Bin - ID = %02X, FW Ver = 0x%02X, FW ver Bar = 0x%02X\n",
-			__func__, ts->fw_ver_ic[1], ts->fw_ver_bin[3], ts->fw_ver_bin_bar);
+			__func__, ts->fw_ver_bin[1], ts->fw_ver_bin[3], ts->fw_ver_bin_bar);
 
 	// check IC FW_VER + FW_VER_BAR equals 0xFF or not, need to update if not
 	if ((ts->fw_ver_ic[3]+ ts->fw_ver_ic_bar) != 0xFF) {
@@ -168,6 +228,13 @@ static int nvt_ts_check_fw_ver(struct nvt_ts_data *ts)
 	}
 }
 
+/*******************************************************
+Description:
+	Novatek touchscreen resume from deep power down function.
+
+return:
+	Executive outcomes. 0---succeed. negative---failed.
+*******************************************************/
 int nvt_ts_resume_pd(struct nvt_ts_data *ts)
 {
 	uint8_t buf[8] = {0};
@@ -189,6 +256,7 @@ int nvt_ts_resume_pd(struct nvt_ts_data *ts)
 		msleep(1);
 
 		buf[0] = 0x00;
+		buf[1] = 0x00;
 		ret = nvt_ts_i2c_read(ts, I2C_HW_Address, buf, 2);
 		if (ret < 0) {
 			input_err(true, &ts->client->dev, "Check 0xAA (Resume Command) error!!(%d)\n", ret);
@@ -211,15 +279,23 @@ int nvt_ts_resume_pd(struct nvt_ts_data *ts)
 	return 0;
 }
 
+/*******************************************************
+Description:
+	Novatek touchscreen check firmware checksum function.
+
+return:
+	Executive outcomes. 0---checksum not match.
+	1---checksum match. -1--- checksum read failed.
+*******************************************************/
 static int nvt_ts_check_checksum(struct nvt_ts_data *ts)
 {
 	u8 buf[64] = {0};
 	int xdata_addr = ts->mmap->READ_FLASH_CHECKSUM_ADDR;
 	int ret = 0;
-	int i, k;
+	int i = 0;
+	int k = 0;
 	u16 WR_Filechksum[BLOCK_64KB_NUM] = {0};
 	u16 RD_Filechksum[BLOCK_64KB_NUM] = {0};
-	size_t fw_bin_size = 0;
 	size_t len_in_blk = 0;
 	int retry = 0;
 
@@ -228,12 +304,10 @@ static int nvt_ts_check_checksum(struct nvt_ts_data *ts)
 		return -EPERM;
 	}
 
-	fw_bin_size = ts->fw_entry->size;
-
 	for (i = 0; i < BLOCK_64KB_NUM; i++) {
-		if (fw_bin_size > (i * SIZE_64KB)) {
+		if (fw_need_write_size > (i * SIZE_64KB)) {
 			// Calculate WR_Filechksum of each 64KB block
-			len_in_blk = min(fw_bin_size - i * SIZE_64KB, (size_t)SIZE_64KB);
+			len_in_blk = min(fw_need_write_size - i * SIZE_64KB, (size_t)SIZE_64KB);
 			WR_Filechksum[i] = i + 0x00 + 0x00 + (((len_in_blk - 1) >> 8) & 0xFF) + ((len_in_blk - 1) & 0xFF);
 			for (k = 0; k < len_in_blk; k++) {
 				WR_Filechksum[i] += ts->fw_entry->data[k + i * SIZE_64KB];
@@ -248,7 +322,6 @@ static int nvt_ts_check_checksum(struct nvt_ts_data *ts)
 			buf[4] = 0x00;
 			buf[5] = ((len_in_blk - 1) >> 8) & 0xFF;
 			buf[6] = (len_in_blk - 1) & 0xFF;
-
 			ret = nvt_ts_i2c_write(ts, I2C_HW_Address, buf, 7);
 			if (ret < 0) {
 				input_err(true, &ts->client->dev, "Fast Read Command error!!(%d)\n", ret);
@@ -260,6 +333,7 @@ static int nvt_ts_check_checksum(struct nvt_ts_data *ts)
 				msleep(80);
 
 				buf[0] = 0x00;
+				buf[1] = 0x00;
 				ret = nvt_ts_i2c_read(ts, I2C_HW_Address, buf, 2);
 				if (ret < 0) {
 					input_err(true, &ts->client->dev, "Check 0xAA (Fast Read Command) error!!(%d)\n", ret);
@@ -287,6 +361,8 @@ static int nvt_ts_check_checksum(struct nvt_ts_data *ts)
 			}
 			// Read Checksum
 			buf[0] = (xdata_addr) & 0xFF;
+			buf[1] = 0x00;
+			buf[2] = 0x00;
 			ret = nvt_ts_i2c_read(ts, I2C_BLDR_Address, buf, 3);
 			if (ret < 0) {
 				input_err(true, &ts->client->dev, "Read Checksum error!!(%d)\n", ret);
@@ -341,6 +417,7 @@ static int nvt_ts_init_bootloader(struct nvt_ts_data *ts)
 		msleep(1);
 
 		buf[0] = 0x00;
+		buf[1] = 0x00;
 		ret = nvt_ts_i2c_read(ts, I2C_HW_Address, buf, 2);
 		if (ret < 0) {
 			input_err(true, &ts->client->dev, "Check 0xAA (Inittial Flash Block) error!!(%d)\n", ret);
@@ -393,6 +470,7 @@ static int nvt_ts_erase_flash(struct nvt_ts_data *ts)
 		mdelay(1);
 
 		buf[0] = 0x00;
+		buf[1] = 0x00;
 		ret = nvt_ts_i2c_read(ts, I2C_HW_Address, buf, 2);
 		if (ret < 0) {
 			input_err(true, &ts->client->dev, "Check 0xAA (Write Enable for Write Status Register) error!!(%d)\n", ret);
@@ -424,6 +502,7 @@ static int nvt_ts_erase_flash(struct nvt_ts_data *ts)
 		mdelay(1);
 
 		buf[0] = 0x00;
+		buf[1] = 0x00;
 		ret = nvt_ts_i2c_read(ts, I2C_HW_Address, buf, 2);
 		if (ret < 0) {
 			input_err(true, &ts->client->dev, "Check 0xAA (Write Status Register) error!!(%d)\n", ret);
@@ -454,6 +533,8 @@ static int nvt_ts_erase_flash(struct nvt_ts_data *ts)
 
 		// Check 0xAA (Read Status)
 		buf[0] = 0x00;
+		buf[1] = 0x00;
+		buf[2] = 0x00;
 		ret = nvt_ts_i2c_read(ts, I2C_HW_Address, buf, 3);
 		if (ret < 0) {
 			input_err(true, &ts->client->dev, "Check 0xAA (Read Status for Write Status Register) error!!(%d)\n", ret);
@@ -470,10 +551,10 @@ static int nvt_ts_erase_flash(struct nvt_ts_data *ts)
 		}
 	}
 
-	if (ts->fw_entry->size % FLASH_SECTOR_SIZE)
-		count = ts->fw_entry->size / FLASH_SECTOR_SIZE + 1;
+	if (fw_need_write_size % FLASH_SECTOR_SIZE)
+		count = fw_need_write_size / FLASH_SECTOR_SIZE + 1;
 	else
-		count = ts->fw_entry->size / FLASH_SECTOR_SIZE;
+		count = fw_need_write_size / FLASH_SECTOR_SIZE;
 
 	for(i = 0; i < count; i++) {
 		// Write Enable
@@ -490,6 +571,7 @@ static int nvt_ts_erase_flash(struct nvt_ts_data *ts)
 			mdelay(1);
 
 			buf[0] = 0x00;
+			buf[1] = 0x00;
 			ret = nvt_ts_i2c_read(ts, I2C_HW_Address, buf, 2);
 			if (ret < 0) {
 				input_err(true, &ts->client->dev, "Check 0xAA (Write Enable) error!!(%d,%d)\n", ret, i);
@@ -525,6 +607,7 @@ static int nvt_ts_erase_flash(struct nvt_ts_data *ts)
 			mdelay(1);
 
 			buf[0] = 0x00;
+			buf[1] = 0x00;
 			ret = nvt_ts_i2c_read(ts, I2C_HW_Address, buf, 2);
 			if (ret < 0) {
 				input_err(true, &ts->client->dev, "Check 0xAA (Sector Erase) error!!(%d,%d)\n", ret, i);
@@ -555,6 +638,8 @@ static int nvt_ts_erase_flash(struct nvt_ts_data *ts)
 
 			// Check 0xAA (Read Status)
 			buf[0] = 0x00;
+			buf[1] = 0x00;
+			buf[2] = 0x00;
 			ret = nvt_ts_i2c_read(ts, I2C_HW_Address, buf, 3);
 			if (ret < 0) {
 				input_err(true, &ts->client->dev, "Check 0xAA (Read Status) error!!(%d,%d)\n", ret, i);
@@ -606,10 +691,10 @@ static int nvt_ts_write_flash(struct nvt_ts_data *ts)
 		return ret;
 	}
 
-	if (ts->fw_entry->size % 256)
-		count = ts->fw_entry->size / 256 + 1;
+	if (fw_need_write_size % 256)
+		count = fw_need_write_size / 256 + 1;
 	else
-		count = ts->fw_entry->size / 256;
+		count = fw_need_write_size / 256;
 
 	for (i = 0; i < count; i++) {
 		Flash_Address = i * 256;
@@ -628,6 +713,7 @@ static int nvt_ts_write_flash(struct nvt_ts_data *ts)
 			udelay(100);
 
 			buf[0] = 0x00;
+			buf[1] = 0x00;
 			ret = nvt_ts_i2c_read(ts, I2C_HW_Address, buf, 2);
 			if (ret < 0) {
 				input_err(true, &ts->client->dev, "Check 0xAA (Write Enable) error!!(%d,%d)\n", ret, i);
@@ -645,7 +731,7 @@ static int nvt_ts_write_flash(struct nvt_ts_data *ts)
 		}
 
 		// Write Page : 256 bytes
-		for (j = 0; j < min(ts->fw_entry->size - i * 256, (size_t)256); j += 32) {
+		for (j = 0; j < min(fw_need_write_size - i * 256, (size_t)256); j += 32) {
 			buf[0] = (XDATA_Addr + j) & 0xFF;
 			for (k = 0; k < 32; k++) {
 				buf[1 + k] = ts->fw_entry->data[Flash_Address + j + k];
@@ -656,12 +742,12 @@ static int nvt_ts_write_flash(struct nvt_ts_data *ts)
 				return ret;
 			}
 		}
-		if (ts->fw_entry->size - Flash_Address >= 256)
+		if (fw_need_write_size - Flash_Address >= 256)
 			tmpvalue=(Flash_Address >> 16) + ((Flash_Address >> 8) & 0xFF) + (Flash_Address & 0xFF) + 0x00 + (255);
 		else
-			tmpvalue=(Flash_Address >> 16) + ((Flash_Address >> 8) & 0xFF) + (Flash_Address & 0xFF) + 0x00 + (ts->fw_entry->size - Flash_Address - 1);
+			tmpvalue=(Flash_Address >> 16) + ((Flash_Address >> 8) & 0xFF) + (Flash_Address & 0xFF) + 0x00 + (fw_need_write_size - Flash_Address - 1);
 
-		for (k = 0;k < min(ts->fw_entry->size - Flash_Address,(size_t)256); k++)
+		for (k = 0;k < min(fw_need_write_size - Flash_Address,(size_t)256); k++)
 			tmpvalue += ts->fw_entry->data[Flash_Address + k];
 
 		tmpvalue = 255 - tmpvalue + 1;
@@ -673,7 +759,7 @@ static int nvt_ts_write_flash(struct nvt_ts_data *ts)
 		buf[3] = ((Flash_Address >> 8) & 0xFF);
 		buf[4] = (Flash_Address & 0xFF);
 		buf[5] = 0x00;
-		buf[6] = min(ts->fw_entry->size - Flash_Address,(size_t)256) - 1;
+		buf[6] = min(fw_need_write_size - Flash_Address,(size_t)256) - 1;
 		buf[7] = tmpvalue;
 		ret = nvt_ts_i2c_write(ts, I2C_HW_Address, buf, 8);
 		if (ret < 0) {
@@ -686,6 +772,7 @@ static int nvt_ts_write_flash(struct nvt_ts_data *ts)
 			mdelay(1);
 
 			buf[0] = 0x00;
+			buf[1] = 0x00;
 			ret = nvt_ts_i2c_read(ts, I2C_HW_Address, buf, 2);
 			if (ret < 0) {
 				input_err(true, &ts->client->dev, "Page Program error!!(%d)\n", ret);
@@ -720,6 +807,8 @@ static int nvt_ts_write_flash(struct nvt_ts_data *ts)
 
 			// Check 0xAA (Read Status)
 			buf[0] = 0x00;
+			buf[1] = 0x00;
+			buf[2] = 0x00;
 			ret = nvt_ts_i2c_read(ts, I2C_HW_Address, buf, 3);
 			if (ret < 0) {
 				input_err(true, &ts->client->dev, "Check 0xAA (Read Status) error!!(%d)\n", ret);
@@ -768,16 +857,13 @@ static int nvt_ts_verify_flash(struct nvt_ts_data *ts)
 	int32_t k = 0;
 	uint16_t WR_Filechksum[BLOCK_64KB_NUM] = {0};
 	uint16_t RD_Filechksum[BLOCK_64KB_NUM] = {0};
-	size_t fw_bin_size = 0;
 	size_t len_in_blk = 0;
 	int32_t retry = 0;
 
-	fw_bin_size = ts->fw_entry->size;
-
 	for (i = 0; i < BLOCK_64KB_NUM; i++) {
-		if (fw_bin_size > (i * SIZE_64KB)) {
+		if (fw_need_write_size > (i * SIZE_64KB)) {
 			// Calculate WR_Filechksum of each 64KB block
-			len_in_blk = min(fw_bin_size - i * SIZE_64KB, (size_t)SIZE_64KB);
+			len_in_blk = min(fw_need_write_size - i * SIZE_64KB, (size_t)SIZE_64KB);
 			WR_Filechksum[i] = i + 0x00 + 0x00 + (((len_in_blk - 1) >> 8) & 0xFF) + ((len_in_blk - 1) & 0xFF);
 			for (k = 0; k < len_in_blk; k++) {
 				WR_Filechksum[i] += ts->fw_entry->data[k + i * SIZE_64KB];
@@ -803,6 +889,7 @@ static int nvt_ts_verify_flash(struct nvt_ts_data *ts)
 				msleep(80);
 
 				buf[0] = 0x00;
+				buf[1] = 0x00;
 				ret = nvt_ts_i2c_read(ts, I2C_HW_Address, buf, 2);
 				if (ret < 0) {
 					input_err(true, &ts->client->dev, "Check 0xAA (Fast Read Command) error!!(%d)\n", ret);
@@ -829,6 +916,8 @@ static int nvt_ts_verify_flash(struct nvt_ts_data *ts)
 			}
 			// Read Checksum
 			buf[0] = (XDATA_Addr) & 0xFF;
+			buf[1] = 0x00;
+			buf[2] = 0x00;
 			ret = nvt_ts_i2c_read(ts, I2C_BLDR_Address, buf, 3);
 			if (ret < 0) {
 				input_err(true, &ts->client->dev, "Read Checksum error!!(%d)\n", ret);
@@ -848,6 +937,13 @@ static int nvt_ts_verify_flash(struct nvt_ts_data *ts)
 	return 0;
 }
 
+/*******************************************************
+Description:
+	Novatek touchscreen update firmware function.
+
+return:
+	Executive outcomes. 0---succeed. negative---failed.
+*******************************************************/
 static int nvt_ts_update_firmware(struct nvt_ts_data *ts)
 {
 	int ret = 0;
@@ -883,10 +979,18 @@ static int nvt_ts_update_firmware(struct nvt_ts_data *ts)
 	//Step 6 : Bootloader Reset
 	nvt_ts_bootloader_reset(ts);
 	ret = nvt_ts_check_fw_reset_state(ts, RESET_STATE_INIT);
+	nvt_ts_get_fw_info(ts);
 
 	return ret;
 }
 
+/*******************************************************
+Description:
+	Novatek touchscreen check flash end flag function.
+
+return:
+	Executive outcomes. 0---succeed. 1,negative---failed.
+*******************************************************/
 static int nvt_check_flash_end_flag(struct nvt_ts_data *ts)
 {
 	uint8_t buf[8] = {0};
@@ -932,6 +1036,7 @@ static int nvt_check_flash_end_flag(struct nvt_ts_data *ts)
 
 	// Check 0xAA (Read Command)
 	buf[0] = 0x00;
+	buf[1] = 0x00;
 	ret = nvt_ts_i2c_read(ts, I2C_HW_Address, buf, 2);
 	if (ret < 0) {
 		input_err(true, &ts->client->dev, "Check 0xAA (Read Command) error!!(%d)\n", ret);
@@ -968,7 +1073,7 @@ static int nvt_check_flash_end_flag(struct nvt_ts_data *ts)
 	strncpy(nvt_end_flag, &buf[3], NVT_FLASH_END_FLAG_LEN);
 	input_info(true, &ts->client->dev, "nvt_end_flag=%s (%02X %02X %02X)\n", nvt_end_flag, buf[3], buf[4], buf[5]);
 
-	if (strncmp(nvt_end_flag, "NVT", 3) == 0) {
+	if (strncmp(nvt_end_flag, "NVT", NVT_FLASH_END_FLAG_LEN) == 0) {
 		return 0;
 	} else {
 		input_err(true, &ts->client->dev, "\"NVT\" end flag not found!\n");
@@ -1006,7 +1111,7 @@ int nvt_ts_fw_update_from_external(struct nvt_ts_data *ts, const char *file_path
 		if (!fw_data) {
 			input_err(true, &ts->client->dev, "%s: failed to alloc mem\n", __func__);
 			ret = -ENOMEM;
-			goto out;
+			goto out_vzalloc;
 		}
 
 		nread = vfs_read(fp, (char __user *)fw_data, fw_size, &fp->f_pos);
@@ -1058,6 +1163,13 @@ int nvt_ts_fw_update_from_external(struct nvt_ts_data *ts, const char *file_path
 			fw_entry.data = fw_data;
 			fw_entry.size = fw_size;
 
+			// check FW need to write size
+			if (nvt_get_fw_need_write_size(ts, &fw_entry)) {
+				input_err(true, &ts->client->dev, "get fw need to write size fail!\n");
+				ret = -EINVAL;
+				goto out;
+			}
+
 			ts->fw_entry = &fw_entry;
 
 			nvt_ts_sw_reset_idle(ts);
@@ -1069,11 +1181,11 @@ int nvt_ts_fw_update_from_external(struct nvt_ts_data *ts, const char *file_path
 			if (ts->client->irq)
 				enable_irq(ts->client->irq);
 		}
-
+out:
 		vfree(fw_data);
 	}
 
-out:
+out_vzalloc:
 	mutex_unlock(&ts->lock);
 
 	filp_close(fp, NULL);
@@ -1107,6 +1219,14 @@ int nvt_ts_fw_update_from_bin(struct nvt_ts_data *ts)
 	return ret;
 }
 
+/*******************************************************
+Description:
+	Novatek touchscreen update firmware when booting
+	function.
+
+return:
+	n.a.
+*******************************************************/
 int nvt_ts_firmware_update_on_probe(struct nvt_ts_data *ts, bool bforce)
 {
 	int ret;
@@ -1123,8 +1243,9 @@ int nvt_ts_firmware_update_on_probe(struct nvt_ts_data *ts, bool bforce)
 	}
 
 	input_info(true, &ts->client->dev, "%s: request firmware done, size = %d\n",
-		__func__, (int)ts->fw_entry->size);
+		__func__, (int)fw_need_write_size);
 
+	mutex_lock(&ts->lock);
 	nvt_ts_sw_reset_idle(ts);
 
 	if (bforce) {
@@ -1156,6 +1277,7 @@ out:
 
 	nvt_ts_bootloader_reset(ts);
 	nvt_ts_check_fw_reset_state(ts, RESET_STATE_INIT);
+	mutex_unlock(&ts->lock);
 
 	return ret;
 }

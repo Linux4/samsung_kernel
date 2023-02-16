@@ -2705,10 +2705,20 @@ static int himax_fw_update_from_storage(bool signing, const char *file_path)
 	if (fsize > 0) {
 		unsigned char *spu_fw_data;
 
-		upgrade_fw = kzalloc(sizeof(unsigned char) * fsize, GFP_KERNEL);
+		upgrade_fw = vzalloc(fsize);
+		if (!upgrade_fw) {
+			ret = -ENOMEM;
+			goto FAIL_END;
+		}
 
 		if (signing) {
-			spu_fw_data = kzalloc(spu_fw_size, GFP_KERNEL);
+			spu_fw_data = vzalloc(spu_fw_size);
+			if (!spu_fw_data) {
+				ret = -ENOMEM;
+				vfree(upgrade_fw);
+				goto FAIL_END;
+			}
+
 			nread = vfs_read(filp, (char __user *)spu_fw_data, spu_fw_size, &filp->f_pos);
 			I("%s - path [%s] size [%zu]\n",
 					__func__, file_path, spu_fw_size);
@@ -2717,8 +2727,8 @@ static int himax_fw_update_from_storage(bool signing, const char *file_path)
 				I("%s [ERROR] vfs_read - size[%zu] read[%zu]\n",
 					__func__, fsize, nread);
 				ret = FW_ERR_FILE_READ;
-				kfree(spu_fw_data);
-				kfree(upgrade_fw);
+				vfree(spu_fw_data);
+				vfree(upgrade_fw);
 				goto FAIL_END;
 			}
 
@@ -2728,13 +2738,13 @@ static int himax_fw_update_from_storage(bool signing, const char *file_path)
 			if (spu_ret != fsize) {
 				I("%s: signature verify failed, %ld\n", __func__, spu_ret);
 				ret = FW_ERR_FILE_SIGN;
-				kfree(spu_fw_data);
-				kfree(upgrade_fw);
+				vfree(spu_fw_data);
+				vfree(upgrade_fw);
 				goto FAIL_END;
 			}
 
 			memcpy(upgrade_fw, spu_fw_data, fsize);
-			kfree(spu_fw_data);
+			vfree(spu_fw_data);
 		} else {
 			nread = vfs_read(filp, (char __user *)upgrade_fw, fsize, &filp->f_pos);
 			I("%s - path [%s] size [%zu]\n", __func__, file_path, fsize);
@@ -2743,7 +2753,7 @@ static int himax_fw_update_from_storage(bool signing, const char *file_path)
 				I("%s [ERROR] vfs_read - size[%zu] read[%zu]\n",
 					__func__, fsize, nread);
 				ret = FW_ERR_FILE_READ;
-				kfree(upgrade_fw);
+				vfree(upgrade_fw);
 				goto FAIL_END;;
 			}
 		}
@@ -2784,8 +2794,7 @@ static int himax_fw_update_from_storage(bool signing, const char *file_path)
 	else
 		ret = FW_ERR_NONE;
 
-	if (upgrade_fw)
-		kfree(upgrade_fw);
+	vfree(upgrade_fw);
 
 	g_core_fp.fp_reload_disable(0);
 	g_core_fp.fp_read_FW_ver();
@@ -4782,6 +4791,69 @@ static void set_note_mode(void *dev_data)
 	I("%s: %s\n", __func__, buf);
 }
 
+void himax_set_cover_mode(struct himax_ts_data *ts, bool closed)
+{
+	u8 tmp_addr[4] = { 0 };
+	u8 sdata[4] = { 0 };
+	int ret;
+
+	if (atomic_read(&ts->suspend_mode) == 1) {
+		E("%s: %s, but IC is powered off\n", __func__, closed ? "on" : "off");
+		return;
+	}
+
+	himax_in_parse_assign_cmd(fw_addr_ctrl_fw, tmp_addr, sizeof(tmp_addr));
+	
+	if (closed)
+		sdata[0] = 0xC1;
+	else
+		sdata[0] = 0xC0;
+
+	I("%s: %s\n", __func__, closed ? "on" : "off");
+
+	ret = g_core_fp.fp_register_write(tmp_addr, sizeof(sdata), sdata, 0);
+	if (ret < 0)
+		E("%s: failed to write cover mode\n", __func__);
+}
+
+static void clear_cover_mode(void *dev_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)dev_data;
+	struct himax_ts_data *ts = container_of(sec, struct himax_ts_data, sec);
+	char buf[16] = {0};
+
+	sec_cmd_set_default_result(sec);
+
+	switch (sec->cmd_param[0]) {
+	case 0:
+		ts->cover_closed = false;
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+		I("%s: Cover mode off\n", __func__);
+		himax_set_cover_mode(ts, ts->cover_closed);
+		break;
+	case 3:
+		ts->cover_closed = true;
+		sec->cmd_state = SEC_CMD_STATUS_OK;
+		I("%s: Cover mode on\n", __func__);
+		himax_set_cover_mode(ts, ts->cover_closed);
+		break;
+	default:
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		I("%s: Invalid Argument\n", __func__);
+		break;
+	}
+
+	if (sec->cmd_state == SEC_CMD_STATUS_OK)
+		snprintf(buf, sizeof(buf), "%s", "OK");
+	else
+		snprintf(buf, sizeof(buf), "%s", "NG");
+
+	sec_cmd_set_cmd_result(sec, buf, strnlen(buf, sizeof(buf)));
+	sec_cmd_set_cmd_exit(sec);
+
+	I("%s: %s\n", __func__, buf);
+}
+
 /*
  * read_support_feature function
  * returns the bit combination of specific feature that is supported.
@@ -4888,6 +4960,7 @@ struct sec_cmd sec_cmds[] = {
 #endif
 	{SEC_CMD("set_game_mode", set_game_mode),},
 	{SEC_CMD("set_note_mode", set_note_mode),},
+	{SEC_CMD("clear_cover_mode", clear_cover_mode),},
 	{SEC_CMD("not_support_cmd", not_support_cmd),},
 };
 

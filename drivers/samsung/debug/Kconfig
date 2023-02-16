@@ -159,3 +159,11 @@ config SEC_DEBUG_SOFTDOG_PWDT
 	select SOFT_WATCHDOG
 	help
 	  This option enables soft watchdog device and soft_panic.
+
+config SEC_DEBUG_SOFTDOG
+	bool "Enable enhanced softdog info"
+	depends on SEC_DEBUG && SOFT_WATCHDOG
+	default y
+	help
+	  This option enables enhanced softdog info.
+	  Select the option to show related task info.

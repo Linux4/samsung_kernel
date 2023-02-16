@@ -2472,6 +2472,7 @@ const u32 sensor_imx582_setfile_B_REMOSAIC_CROP_4000x3000_30FPS[] = {
 	0x3E3B, 0x00, 0x01,
 	0x4034, 0x00, 0x01,
 	0x4035, 0xF8, 0x01,
+	I2C_MODE_DELAY, 10000, 0x00,
 };
 
 const u32 sensor_imx582_setfile_B_REMOSAIC_CROP_4000x2256_30FPS[] = {

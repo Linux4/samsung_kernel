@@ -313,6 +313,7 @@ int gpu_job_fence_status_dump(struct sync_file *timeout_sync_file)
 									i, info_in.fence, info_in.name, kctx->jctx.atoms[i].core_req, fence_in->context, fence_in->seqno, (check_fence == true) ? "***" : "  ");
 						}
 					}
+				}
 #ifdef MALI_SEC_DEPENDENCY_CHECK
 				/* Print dependency atom infomation */
 				if (kctx->jctx.atoms[i].status == KBASE_JD_ATOM_STATE_QUEUED || kctx->jctx.atoms[i].status == KBASE_JD_ATOM_STATE_IN_JS) {

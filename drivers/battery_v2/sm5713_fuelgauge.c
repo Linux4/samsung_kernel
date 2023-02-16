@@ -1508,13 +1508,16 @@ static bool sm5713_fg_reg_init(struct sm5713_fuelgauge_data *fuelgauge, bool is_
 
 static int sm5713_abnormal_reset_check(struct sm5713_fuelgauge_data *fuelgauge)
 {
-	int cntl_read, reset_read;
+	int cntl_read, reset_read, table_len_read;
 
 	reset_read = sm5713_read_word(fuelgauge->i2c, SM5713_FG_REG_RESET) & 0xF000;
+	table_len_read = sm5713_read_word(fuelgauge->i2c, SM5713_FG_REG_PARAM_CTRL) & 0x001F;
+
 	/* abnormal case process */
-	if (sm5713_fg_check_reg_init_need(fuelgauge) || (reset_read == 0)) {
+	if (sm5713_fg_check_reg_init_need(fuelgauge) || (reset_read == 0) || (table_len_read != FG_TABLE_LEN)) {
 		cntl_read = sm5713_read_word(fuelgauge->i2c, SM5713_FG_REG_CNTL);
-		pr_info("%s: SM5713 FG abnormal case!!!! SM5713_REG_CNTL : 0x%x, is_FG_initialised : %d, reset_read : 0x%x\n", __func__, cntl_read, fuelgauge->info.is_FG_initialised, reset_read);
+		pr_info("%s: SM5713 FG abnormal case!!!! SM5713_REG_CNTL : 0x%x, is_FG_initialised : %d, reset_read : 0x%x, table_len_read : 0x%x\n",
+				__func__, cntl_read, fuelgauge->info.is_FG_initialised, reset_read, table_len_read);
 
 		if (fuelgauge->info.is_FG_initialised == 1) {
 			/* SW reset code */
@@ -2187,6 +2190,55 @@ static void sm5713_set_full_value(struct sm5713_fuelgauge_data *fuelgauge,
 }
 #endif
 
+#define FULL_CAPACITY 850
+static int calc_ttf_to_full_capacity(struct sm5713_fuelgauge_data *fuelgauge,
+		    union power_supply_propval *val)
+{
+	int i;
+	int cc_time = 0, cv_time = 0;
+
+	int soc = FULL_CAPACITY;
+	int charge_current = val->intval;
+	struct cv_slope *cv_data = fuelgauge->cv_data;
+	int design_cap = fuelgauge->ttf_capacity;
+
+	if (!cv_data || (val->intval <= 0)) {
+		pr_info("%s: no cv_data or val: %d\n", __func__, val->intval);
+		return -1;
+	}
+	for (i = 0; i < fuelgauge->cv_data_lenth; i++) {
+		if (charge_current >= cv_data[i].fg_current)
+			break;
+	}
+	i = i >= fuelgauge->cv_data_lenth ? fuelgauge->cv_data_lenth - 1 : i;
+	if (cv_data[i].soc < soc) {
+		for (i = 0; i < fuelgauge->cv_data_lenth; i++) {
+			if (soc <= cv_data[i].soc)
+				break;
+		}
+		cv_time =
+		    ((cv_data[i - 1].time - cv_data[i].time) * (cv_data[i].soc - soc)
+		     / (cv_data[i].soc - cv_data[i - 1].soc)) + cv_data[i].time;
+	} else {		/* CC mode || NONE */
+		cv_time = cv_data[i].time;
+		cc_time = design_cap * (cv_data[i].soc - soc)
+		    / val->intval * 3600 / 1000;
+		pr_debug("%s: cc_time: %d\n", __func__, cc_time);
+		if (cc_time < 0)
+			cc_time = 0;
+	}
+
+	pr_debug
+	    ("%s: cap: %d, soc: %4d, T: %6d, avg: %4d, cv soc: %4d, i: %4d, val: %d\n",
+	     __func__, design_cap, soc, cv_time + cc_time,
+	     fuelgauge->current_avg, cv_data[i].soc, i, val->intval);
+
+	if (cv_time + cc_time >= 0)
+		return cv_time + cc_time;
+	else
+		return 0;
+}
+
 static int calc_ttf(struct sm5713_fuelgauge_data *fuelgauge, union power_supply_propval *val)
 {
 	int i;
@@ -2496,6 +2548,10 @@ static int sm5713_fg_get_property(struct power_supply *psy,
 			sm5713_fg_periodic_read(fuelgauge);
 #endif
 			break;
+		case POWER_SUPPLY_EXT_PROP_TTF_FULL_CAPACITY:
+			val->intval = calc_ttf_to_full_capacity(fuelgauge, val);
+			break;
+		break;
 		default:
 			return -EINVAL;			
 		}

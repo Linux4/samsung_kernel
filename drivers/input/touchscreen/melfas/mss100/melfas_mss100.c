@@ -1127,10 +1127,20 @@ int mms_fw_update_from_storage(struct mms_ts_info *info, bool force, bool signin
 		unsigned char *fw_data;
 		unsigned char *spu_fw_data;
 
-		fw_data = kzalloc(fw_size, GFP_KERNEL);
+		fw_data = vzalloc(fw_size);
+		if (!fw_data) {
+			ret = -ENOMEM;
+			goto ERROR;
+		}
 
 		if (signing) {
-			spu_fw_data = kzalloc(spu_fw_size, GFP_KERNEL);
+			spu_fw_data = vzalloc(spu_fw_size);
+			if (!fw_data) {
+				ret = -ENOMEM;
+				vfree(fw_data);
+				goto ERROR;
+			}
+
 			nread = vfs_read(fp, (char __user *)spu_fw_data, spu_fw_size, &fp->f_pos);
 			input_info(true, &info->client->dev, "%s - path [%s] size [%zu]\n",
 					__func__, file_path, spu_fw_size);
@@ -1139,8 +1149,8 @@ int mms_fw_update_from_storage(struct mms_ts_info *info, bool force, bool signin
 				input_err(true, &info->client->dev, "%s [ERROR] vfs_read - size[%zu] read[%zu]\n",
 					__func__, fw_size, nread);
 				ret = FW_ERR_FILE_READ;
-				kfree(spu_fw_data);
-				kfree(fw_data);
+				vfree(spu_fw_data);
+				vfree(fw_data);
 				goto ERROR;
 			}
 
@@ -1149,13 +1159,13 @@ int mms_fw_update_from_storage(struct mms_ts_info *info, bool force, bool signin
 				input_err(true, &info->client->dev, "%s: signature verify failed, %zu\n",
 						__func__, spu_ret);
 				ret = -EINVAL;
-				kfree(spu_fw_data);
-				kfree(fw_data);
+				vfree(spu_fw_data);
+				vfree(fw_data);
 				goto ERROR;
 			}
 
 			memcpy(fw_data, spu_fw_data, fw_size);
-			kfree(spu_fw_data);
+			vfree(spu_fw_data);
 		} else {
 			nread = vfs_read(fp, (char __user *)fw_data, fw_size, &fp->f_pos);
 			input_info(true, &info->client->dev, "%s - path [%s] size [%zu]\n",
@@ -1165,13 +1175,13 @@ int mms_fw_update_from_storage(struct mms_ts_info *info, bool force, bool signin
 				input_err(true, &info->client->dev, "%s [ERROR] vfs_read - size[%zu] read[%zu]\n",
 					__func__, fw_size, nread);
 				ret = FW_ERR_FILE_READ;
-				kfree(fw_data);
+				vfree(fw_data);
 				goto ERROR;
 			}
 		}
 
 		ret = mip4_ts_flash_fw(info, fw_data, fw_size, force, true, false);
-		kfree(fw_data);
+		vfree(fw_data);
 	} else {
 		input_err(true, &info->client->dev, "%s [ERROR] fw_size [%zu]\n", __func__, fw_size);
 		ret = FW_ERR_FILE_READ;

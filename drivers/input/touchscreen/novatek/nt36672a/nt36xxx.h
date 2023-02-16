@@ -99,6 +99,7 @@ struct nvt_ts_platdata {
 	u8 max_touch_num;
 	u32 bringup;
 	bool check_fw_project_id;
+	bool support_dual_fw;
 	const char *firmware_name;
 	u32 open_test_spec[2];
 	u32 short_test_spec[2];
@@ -118,6 +119,7 @@ struct nvt_ts_data {
 	struct notifier_block fb_nb;
 #endif
 
+	u32 ic_idx;
 	u8 fw_ver_ic[4];
 	u8 fw_ver_ic_bar;
 	u8 fw_ver_bin[4];
@@ -181,7 +183,7 @@ enum {
 };
 
 void nvt_ts_bootloader_reset(struct nvt_ts_data *ts);
-
+int nvt_ts_get_fw_info(struct nvt_ts_data *ts);
 int nvt_ts_i2c_write(struct nvt_ts_data *ts, u16 address, u8 *buf, u16 len);
 int nvt_ts_i2c_read(struct nvt_ts_data *ts, u16 address, u8 *buf, u16 len);
 

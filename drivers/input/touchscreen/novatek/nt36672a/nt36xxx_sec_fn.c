@@ -104,8 +104,7 @@ enum {
 };
 
 u16 landscape_deadzone[2] = { 0 };
-
-int nvt_ts_get_fw_info(struct nvt_ts_data *ts);
+extern size_t fw_need_write_size;
 
 int nvt_ts_fw_update_from_bin(struct nvt_ts_data *ts);
 int nvt_ts_fw_update_from_external(struct nvt_ts_data *ts, const char *file_path);
@@ -667,13 +666,8 @@ static int nvt_ts_noise_read(struct nvt_ts_data *ts, int *min_buff, int *max_buf
 	for (y = 0; y < ts->platdata->y_num; y++) {
 		for (x = 0; x < ts->platdata->x_num; x++) {
 			offset = y * ts->platdata->x_num + x;
-			if (ts->carrier_system) {
-				max_buff[offset] = (u16)rawdata_buf[offset];
-				min_buff[offset] = 0;
-			} else {
-				max_buff[offset] = (s8)((rawdata_buf[offset] >> 8) & 0xFF);
-				min_buff[offset] = (s8)(rawdata_buf[offset] & 0xFF);
-			}
+			max_buff[offset] = (s8)((rawdata_buf[offset] >> 8) & 0xFF);
+			min_buff[offset] = (s8)(rawdata_buf[offset] & 0xFF);
 		}
 	}
 
@@ -690,7 +684,6 @@ static int nvt_ts_noise_read(struct nvt_ts_data *ts, int *min_buff, int *max_buf
 static int nvt_ts_ccdata_read(struct nvt_ts_data *ts, int *buff)
 {
 	u32 x, y;
-	int tmp;
 	int offset;
 	int ret;
 
@@ -723,14 +716,7 @@ static int nvt_ts_ccdata_read(struct nvt_ts_data *ts, int *buff)
 	for (y = 0; y < ts->platdata->y_num; y++) {
 		for (x = 0; x < ts->platdata->x_num; x++) {
 			offset = y * ts->platdata->x_num + x;
-			if (ts->carrier_system) {
-				tmp = buff[offset];
-				/* not use */
-				//RawData_FW_CC_I[offset] = (u8)(tmp & 0xFF);
-				//RawData_FW_CC_Q[offset] = (u8)((tmp >> 8) & 0xFF);
-			} else {
-				buff[offset] = (u16)buff[offset];
-			}
+			buff[offset] = (u16)buff[offset];
 		}
 	}
 
@@ -774,10 +760,7 @@ static int nvt_ts_rawdata_read(struct nvt_ts_data *ts, int *buff)
 	for (y = 0; y < ts->platdata->y_num; y++) {
 		for (x = 0; x < ts->platdata->x_num; x++) {
 			offset = y * ts->platdata->x_num + x;
-			if (ts->carrier_system)
-				buff[offset] = (u16)buff[offset];
-			else
-				buff[offset] = (s16)buff[offset];
+			buff[offset] = (s16)buff[offset];
 		}
 	}
 
@@ -835,15 +818,10 @@ static int nvt_ts_short_read(struct nvt_ts_data *ts, int *buff)
 	if (!rawdata_buf)
 		return -ENOMEM;
 
-	if (ts->carrier_system) {
-		// to get short diff rawdata at pipe0
+	if (!nvt_ts_get_fw_pipe(ts))
 		raw_pipe_addr = ts->mmap->RAW_PIPE0_ADDR;
-	} else {
-		if (!nvt_ts_get_fw_pipe(ts))
-			raw_pipe_addr = ts->mmap->RAW_PIPE0_ADDR;
-		else
-			raw_pipe_addr = ts->mmap->RAW_PIPE1_ADDR;
-	}
+	else
+		raw_pipe_addr = ts->mmap->RAW_PIPE1_ADDR;
 
 	for (y = 0; y < ts->platdata->y_num; y++) {
 		offset = y * ts->platdata->x_num * 2;
@@ -867,43 +845,12 @@ static int nvt_ts_short_read(struct nvt_ts_data *ts, int *buff)
 		}
 	}
 
-	// for carrier sensing system to get short baseline rawdata
-	if (ts->carrier_system) {
-		// to get short baseline rawdata at pipe1
-		raw_pipe_addr = ts->mmap->RAW_PIPE1_ADDR;
-
-		for (y = 0; y < ts->platdata->y_num; y++) {
-			offset = y * ts->platdata->x_num * 2;
-			//---change xdata index---
-			buf[0] = 0xFF;
-			buf[1] = (u8)(((raw_pipe_addr + offset) >> 16) & 0xFF);
-			buf[2] = (u8)(((raw_pipe_addr + offset) >> 8) & 0xFF);
-			nvt_ts_i2c_write(ts, I2C_FW_Address, buf, 3);
-
-			buf[0] = (u8)((raw_pipe_addr + offset) & 0xFF);
-			nvt_ts_i2c_read(ts, I2C_FW_Address, buf, ts->platdata->x_num * 2 + 1);
-
-			memcpy(rawdata_buf + offset, buf + 1, ts->platdata->x_num * 2);
-		}
-
-		for (y = 0; y < ts->platdata->y_num; y++) {
-			for (x = 0; x < ts->platdata->x_num; x++) {
-				offset = y * ts->platdata->x_num + x;
-				//RawData_Short_Base[offset] = (s16)(rawdata_buf[offset * 2]
-				//			+ 256 * rawdata_buf[offset * 2 + 1]);
-			}
-		}
-	}
-
 	kfree(rawdata_buf);
 
 	//---Leave Test Mode---
 	nvt_ts_change_mode(ts, NORMAL_MODE);
 
-	if (ts->carrier_system)
-		input_raw_info(true, &ts->client->dev, "%s: Raw_Data_Short_Diff\n", __func__);
-	else
-		input_raw_info(true, &ts->client->dev, "%s: Raw_Data_Short\n", __func__);
+	input_raw_info(true, &ts->client->dev, "%s: Raw_Data_Short\n", __func__);
 
 	return 0;
 }
@@ -1248,7 +1195,8 @@ static void fw_update(void *device_data)
 	if (ret)
 		goto out;
 
-	nvt_ts_get_fw_info(ts);
+	// move below action to nvt_ts_update_firmware() protected by mutex lock
+	//nvt_ts_get_fw_info(ts);
 
 	snprintf(buff, sizeof(buff), "%s", "OK");
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
@@ -1288,82 +1236,29 @@ static void get_fw_ver_ic(void *device_data)
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
 	struct nvt_ts_data *ts = container_of(sec, struct nvt_ts_data, sec);
 	char buff[SEC_CMD_STR_LEN] = { 0 };
-	char data[4] = { 0 };
-	char temp[8] = { 0 };
 	char model[16] = { 0 };
-	int ret;
 
 	sec_cmd_set_default_result(sec);
 
 	if (ts->power_status == POWER_OFF_STATUS) {
 		input_err(true, &ts->client->dev, "%s: POWER_STATUS : OFF!\n", __func__);
-		goto out_power_off;
-	}
-
-	nvt_ts_bootloader_reset(ts);
-	nvt_ts_sw_reset_idle(ts);
-
-	//---set xdata index for IC name---
-	temp[0] = 0xFF;
-	temp[1] = 0x01;
-	temp[2] = 0xF6;
-	ret = nvt_ts_i2c_write(ts, I2C_FW_Address, temp, 3);
-	if (ret < 0) {
-		input_err(true, &ts->client->dev, "%s: nvt_ts_i2c_write error(%d)\n", ret);
 		goto out;
 	}
 
-	temp[0] = 0x4E;
-	ret = nvt_ts_i2c_read(ts, I2C_FW_Address, temp, 8);
-	if (ret < 0) {
-		input_err(true, &ts->client->dev, "%s: nvt_ts_i2c_read error(%d)\n", ret);
-		goto out;
-	}
-	data[0] = ((temp[6] & 0x0F) << 4) | ((temp[5] & 0xF0) >> 4);
-
-	nvt_ts_bootloader_reset(ts);
-	nvt_ts_check_fw_reset_state(ts, RESET_STATE_REK);
-	nvt_ts_mode_restore(ts);
-
-	//---set xdata index to EVENT BUF ADDR---
-	temp[0] = 0xFF;
-	temp[1] = (ts->mmap->EVENT_BUF_ADDR >> 16) & 0xFF;
-	temp[2] = (ts->mmap->EVENT_BUF_ADDR >> 8) & 0xFF;
-	ret = nvt_ts_i2c_write(ts, I2C_FW_Address, temp, 3);
-	if (ret < 0) {
-		input_err(true, &ts->client->dev, "%s: nvt_ts_i2c_write error(%d)\n", ret);
+	if (mutex_lock_interruptible(&ts->lock)) {
+		input_err(true, &ts->client->dev, "%s: another task is running\n",
+			__func__);
 		goto out;
 	}
 
-	temp[0] = EVENT_MAP_PROJECTID;
-	ret = nvt_ts_i2c_read(ts, I2C_FW_Address, temp, 2);
-	if (ret < 0) {
-		input_err(true, &ts->client->dev, "%s: nvt_ts_i2c_read error(%d)\n", ret);
-		goto out;
-	}
-	data[1] = temp[1];
+	nvt_ts_get_fw_info(ts);
+	mutex_unlock(&ts->lock);
 
-	temp[0] = EVENT_MAP_PANEL;
-	ret = nvt_ts_i2c_read(ts, I2C_FW_Address, temp, 2);
-	if (ret < 0) {
-		input_err(true, &ts->client->dev, "%s: nvt_ts_i2c_read error(%d)\n", ret);
-		goto out;
-	}
-	data[2] = temp[1];
-
-	temp[0] = EVENT_MAP_FWINFO;
-	ret = nvt_ts_i2c_read(ts, I2C_FW_Address, temp, 2);
-	if (ret < 0) {
-		input_err(true, &ts->client->dev, "%s: nvt_ts_i2c_read error(%d)\n", ret);
-		goto out;
-	}
-	data[3] = temp[1];
-
-	snprintf(buff, sizeof(buff), "NO%02X%02X%02X%02X", data[0], data[1], data[2], data[3]);
+	snprintf(buff, sizeof(buff), "NO%02X%02X%02X%02X", ts->fw_ver_ic[0], ts->fw_ver_ic[1], ts->fw_ver_ic[2], ts->fw_ver_ic[3]);
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec->cmd_state = SEC_CMD_STATUS_OK;
 
-	snprintf(model, sizeof(model), "NO%02X%02X", data[0], data[1]);
+	snprintf(model, sizeof(model), "NO%02X%02X", ts->fw_ver_ic[0], ts->fw_ver_ic[1]);
 
 	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING) {
 		sec_cmd_set_cmd_result_all(sec, buff, strnlen(buff, sizeof(buff)), "FW_VER_IC");
@@ -1375,10 +1270,6 @@ static void get_fw_ver_ic(void *device_data)
 	return;
 
 out:
-	nvt_ts_bootloader_reset(ts);
-	nvt_ts_check_fw_reset_state(ts, RESET_STATE_REK);
-	nvt_ts_mode_restore(ts);
-out_power_off:
 	snprintf(buff, sizeof(buff), "%s", "NG");
 	sec->cmd_state = SEC_CMD_STATUS_FAIL;
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
@@ -1439,6 +1330,12 @@ static void get_checksum_data(void *device_data)
 		goto out;
 	}
 
+	if (mutex_lock_interruptible(&ts->lock)) {
+		input_err(true, &ts->client->dev, "%s: another task is running\n",
+			__func__);
+		goto out;
+	}
+
 	nvt_ts_sw_reset_idle(ts);
 
 	if (nvt_ts_resume_pd(ts)) {
@@ -1447,8 +1344,8 @@ static void get_checksum_data(void *device_data)
 	}
 
 	for (i = 0; i < BLOCK_64KB_NUM; i++) {
-		if (FW_BIN_SIZE > (i * SIZE_64KB)) {
-			size_t len_in_blk = MIN(FW_BIN_SIZE - i * SIZE_64KB, (size_t)SIZE_64KB);
+		if (fw_need_write_size > (i * SIZE_64KB)) {
+ 			size_t len_in_blk = MIN(fw_need_write_size - i * SIZE_64KB, (size_t)SIZE_64KB);
 			int xdata_addr = ts->mmap->READ_FLASH_CHECKSUM_ADDR;
 			u8 buf[10] = {0};
 			int retry = 0;
@@ -1512,6 +1409,7 @@ static void get_checksum_data(void *device_data)
 	nvt_ts_bootloader_reset(ts);
 	nvt_ts_check_fw_reset_state(ts, RESET_STATE_REK);
 	nvt_ts_mode_restore(ts);
+	mutex_unlock(&ts->lock);
 
 	snprintf(buff, sizeof(buff), "%s", csum_result);
 	sec->cmd_state = SEC_CMD_STATUS_OK;
@@ -1525,6 +1423,7 @@ err:
 	nvt_ts_bootloader_reset(ts);
 	nvt_ts_check_fw_reset_state(ts, RESET_STATE_REK);
 	nvt_ts_mode_restore(ts);
+	mutex_unlock(&ts->lock);
 out:
 	snprintf(buff, sizeof(buff), "%s", "NG");
 	sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -3017,13 +2916,27 @@ static void get_func_mode(void *device_data)
 
 	sec_cmd_set_default_result(sec);
 
+	if (mutex_lock_interruptible(&ts->lock)) {
+		input_err(true, &ts->client->dev, "%s: another task is running\n",
+			__func__);
+		goto out;
+	}
+
 	snprintf(buff, sizeof(buff), "0x%X", nvt_ts_mode_read(ts));
+
+	mutex_unlock(&ts->lock);
 
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec->cmd_state = SEC_CMD_STATUS_NOT_APPLICABLE;
 	sec_cmd_set_cmd_exit(sec);
 
 	input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
+out:
+	snprintf(buff, sizeof(buff), "%s", "NG");
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+
+	input_info(true, &ts->client->dev, "%s: %s", __func__, buff);
 }
 
 static void not_support_cmd(void *device_data)
@@ -3230,12 +3143,20 @@ static ssize_t sensitivity_mode_show(struct device *dev, struct device_attribute
 	int i;
 	int ret;
 
+	if (mutex_lock_interruptible(&ts->lock)) {
+		input_err(true, &ts->client->dev, "%s: another task is running\n",
+			__func__);
+		return snprintf(buf, PAGE_SIZE, "another task is running\n");
+	}
+
 	data[0] = EVENT_MAP_SENSITIVITY_DIFF;
 	ret = nvt_ts_i2c_read(ts, I2C_FW_Address, data, 19);
 	if (ret < 0) {
 		input_err(true, &ts->client->dev, "%s: failed to read sensitivity",
 			__func__);
 	}
+
+	mutex_unlock(&ts->lock);
 
 	for (i = 0; i < 9; i++)
 		diff[i] = (data[2 * i + 2] << 8) + data[2 * i + 1];

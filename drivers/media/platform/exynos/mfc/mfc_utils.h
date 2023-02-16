@@ -225,4 +225,5 @@ static inline void mfc_change_idle_mode(struct mfc_dev *dev,
 		mfc_idle_checker_start_tick(dev);
 }
 
+void mfc_update_real_time(struct mfc_ctx *ctx);
 #endif /* __MFC_UTILS_H */

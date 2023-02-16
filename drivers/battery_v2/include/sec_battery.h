@@ -108,6 +108,7 @@ extern char *sec_cable_type[];
 #define BATT_MISC_EVENT_TEMP_HICCUP_TYPE	0x00002000
 
 #define BATT_MISC_EVENT_BATTERY_HEALTH			0x000F0000
+#define BATT_MISC_EVENT_FULL_CAPACITY			0x01000000
 
 #define BATTERY_HEALTH_SHIFT                16
 enum misc_battery_health {
@@ -148,6 +149,8 @@ enum misc_battery_health {
 #define SIOP_HV_CHARGING_LIMIT_CURRENT			1000
 #define SIOP_HV_12V_INPUT_LIMIT_CURRENT			535
 #define SIOP_HV_12V_CHARGING_LIMIT_CURRENT		1000
+
+#define SELECT_PDO_INPUT_CURRENT 1000
 
 #define WIRELESS_OTG_INPUT_CURRENT 900
 
@@ -399,6 +402,8 @@ struct sec_battery_info {
 	int muic_cable_type;
 	int extended_cable_type;
 
+	bool pd_disable_by_afc_option;
+
 	bool auto_mode;
 
 	struct wake_lock cable_wake_lock;
@@ -418,6 +423,8 @@ struct sec_battery_info {
 	struct wake_lock wc_headroom_wake_lock;
 	struct wake_lock wpc_tx_wake_lock;
 	struct delayed_work wpc_tx_work;
+	struct delayed_work hv_disable_work;
+	struct wake_lock hv_disable_wake_lock;
 #if defined(CONFIG_UPDATE_BATTERY_DATA)
 	struct delayed_work batt_data_work;
 	struct wake_lock batt_data_wake_lock;
@@ -572,6 +579,8 @@ struct sec_battery_info {
 	int ta_alert_mode;
 
 	bool boot_complete;
+	int batt_full_capacity;
+	bool usb_slow_chg;
 
 	bool block_water_event;
 };

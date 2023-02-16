@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (c) 2014 - 2019 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2014 - 2020 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -25,7 +25,11 @@
 #include <linux/netdevice.h>
 #endif
 #ifdef CONFIG_SCSC_WLAN_ANDROID
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+#include <scsc/scsc_wakelock.h>
+#else
 #include <linux/wakelock.h>
+#endif
 #endif
 #include "mbulk.h"
 #ifdef CONFIG_SCSC_SMAPPER
@@ -50,29 +54,29 @@
 /**** OFFSET SHOULD BE 4096 BYTES ALIGNED ***/
 /*** CONFIG POOL ***/
 #define HIP4_WLAN_CONFIG_OFFSET	0x00000
-#define HIP4_WLAN_CONFIG_SIZE	0x02000 /* 8 kB*/
+#define HIP4_WLAN_CONFIG_SIZE	0x02000 /* 8 kB */
 /*** MIB POOL ***/
 #define HIP4_WLAN_MIB_OFFSET	(HIP4_WLAN_CONFIG_OFFSET +  HIP4_WLAN_CONFIG_SIZE)
-#define HIP4_WLAN_MIB_SIZE	0x08000 /* 32 kB*/
+#define HIP4_WLAN_MIB_SIZE	0x08000 /* 32 kB */
 /*** TX POOL ***/
 #define HIP4_WLAN_TX_OFFSET	(HIP4_WLAN_MIB_OFFSET + HIP4_WLAN_MIB_SIZE)
 /*** TX POOL - DAT POOL ***/
 #define HIP4_WLAN_TX_DAT_OFFSET	HIP4_WLAN_TX_OFFSET
-#define HIP4_WLAN_TX_DAT_SIZE	0xe6000 /* 920 kB*/
+#define HIP4_WLAN_TX_DAT_SIZE	0x100000 /* 1 MB */
 /*** TX POOL - CTL POOL ***/
 #define HIP4_WLAN_TX_CTL_OFFSET	(HIP4_WLAN_TX_DAT_OFFSET + HIP4_WLAN_TX_DAT_SIZE)
-#define HIP4_WLAN_TX_CTL_SIZE	0x10000 /*  64 kB*/
+#define HIP4_WLAN_TX_CTL_SIZE	0x10000 /*  64 kB */
 #define HIP4_WLAN_TX_SIZE	(HIP4_WLAN_TX_DAT_SIZE + HIP4_WLAN_TX_CTL_SIZE)
 /*** RX POOL ***/
 #define HIP4_WLAN_RX_OFFSET	(HIP4_WLAN_TX_CTL_OFFSET +  HIP4_WLAN_TX_CTL_SIZE)
 #ifdef CONFIG_SCSC_PCIE
 #define HIP4_WLAN_RX_SIZE	0x80000  /* 512 kB */
 #else
-#define HIP4_WLAN_RX_SIZE	0x100000 /* 1MB */
+#define HIP4_WLAN_RX_SIZE	0x100000 /* 1 MB */
 #endif
 /*** TOTAL : CONFIG POOL + TX POOL + RX POOL ***/
 #define HIP4_WLAN_TOTAL_MEM	(HIP4_WLAN_CONFIG_SIZE + HIP4_WLAN_MIB_SIZE + \
-				 HIP4_WLAN_TX_SIZE + HIP4_WLAN_RX_SIZE) /* 2 MB */
+				 HIP4_WLAN_TX_SIZE + HIP4_WLAN_RX_SIZE) /* 2 MB + 104 KB*/
 
 #define HIP4_POLLING_MAX_PACKETS 512
 
@@ -239,10 +243,16 @@ struct slsi_hip4;
 /* This struct is private to the HIP implementation */
 struct hip4_priv {
 #ifdef CONFIG_SCSC_WLAN_RX_NAPI
-	struct tasklet_struct        intr_tasklet;
+	/* NAPI CPU switch lock */
+	spinlock_t                   napi_cpu_lock;
+	struct work_struct           intr_wq_napi_cpu_switch;
 	struct work_struct           intr_wq_ctrl;
-	struct work_struct           intr_wq_fb;
+	struct tasklet_struct	     intr_tl_fb;
 	struct napi_struct           napi;
+	unsigned long                napi_state;
+	bool                         napi_perf_mode;
+	u8                           napi_rx_full_cnt;
+	u8                           napi_rx_saturated;
 #else
 	struct work_struct           intr_wq;
 #endif
@@ -283,12 +293,23 @@ struct hip4_priv {
 
 #ifdef CONFIG_SCSC_WLAN_ANDROID
 #ifdef CONFIG_SCSC_WLAN_RX_NAPI
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+	struct scsc_wake_lock             hip4_wake_lock_tx;
+	struct scsc_wake_lock             hip4_wake_lock_ctrl;
+	struct scsc_wake_lock             hip4_wake_lock_data;
+#else
+
 	struct wake_lock             hip4_wake_lock_tx;
 	struct wake_lock             hip4_wake_lock_ctrl;
 	struct wake_lock             hip4_wake_lock_data;
 #endif
+#endif
 	/* Wakelock for modem_ctl */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+	struct scsc_wake_lock             hip4_wake_lock;
+#else
 	struct wake_lock             hip4_wake_lock;
+#endif
 #endif
 
 	/* Control the hip4 deinit */
@@ -366,7 +387,13 @@ void hip4_resume(struct slsi_hip4 *hip);
 void hip4_freeze(struct slsi_hip4 *hip);
 void hip4_deinit(struct slsi_hip4 *hip);
 int hip4_free_ctrl_slots_count(struct slsi_hip4 *hip);
+void hip4_set_napi_cpu(struct slsi_hip4 *hip, u8 napi_cpu, bool perf_mode);
 int scsc_wifi_transmit_frame(struct slsi_hip4 *hip, struct sk_buff *skb, bool ctrl_packet, u8 vif_index, u8 peer_index, u8 priority);
+#ifdef CONFIG_SCSC_WLAN_RX_NAPI
+void hip4_sched_wq_ctrl(struct slsi_hip4 *hip);
+#else
+void hip4_sched_wq(struct slsi_hip4 *hip);
+#endif
 
 /* Macros for accessing information stored in the hip_config struct */
 #define scsc_wifi_get_hip_config_version_4_u8(buff_ptr, member) le16_to_cpu((((struct hip4_hip_config_version_4 *)(buff_ptr))->member))

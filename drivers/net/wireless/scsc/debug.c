@@ -56,7 +56,7 @@ static struct kernel_param_ops param_ops_log = {
 };
 
 #define ADD_DEBUG_MODULE_PARAM(name, default_level, filter) \
-	int slsi_dbg_lvl_ ## name = default_level; \
+	static int slsi_dbg_lvl_ ## name = default_level; \
 	module_param_cb(slsi_dbg_lvl_ ## name, &param_ops_log, (void *)&filter, S_IRUGO | S_IWUSR); \
 	MODULE_PARM_DESC(slsi_dbg_lvl_ ## name, " Debug levels (0~4) for the " # name " module (0 = off) default=" # default_level)
 
@@ -95,7 +95,7 @@ ADD_DEBUG_MODULE_PARAM(mbulk,               0, SLSI_MBULK);
 ADD_DEBUG_MODULE_PARAM(flowc,               0, SLSI_FLOWC);
 ADD_DEBUG_MODULE_PARAM(smapper,             0, SLSI_SMAPPER);
 
-int       slsi_dbg_lvl_all; /* Override all debug modules */
+static int       slsi_dbg_lvl_all; /* Override all debug modules */
 
 int       *slsi_dbg_filters[] = {
 	&slsi_dbg_lvl_init_deinit,
@@ -132,7 +132,7 @@ int       *slsi_dbg_filters[] = {
 	&slsi_dbg_lvl_smapper,
 };
 #else
-int slsi_dbg_lvl_compat_all;
+static int slsi_dbg_lvl_compat_all;
 module_param(slsi_dbg_lvl_compat_all, int, S_IRUGO | S_IWUSR);
 
 int       *slsi_dbg_filters[] = {
@@ -213,7 +213,7 @@ int       *slsi_dbg_filters[] = {
 	&slsi_dbg_lvl_compat_all,
 };
 
-int       slsi_dbg_lvl_all; /* Override all debug modules */
+static int       slsi_dbg_lvl_all; /* Override all debug modules */
 #endif
 
 const int SLSI_DF_MAX = (sizeof(slsi_dbg_filters) / sizeof(slsi_dbg_filters[0]));

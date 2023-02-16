@@ -417,6 +417,14 @@ static int cpuhp_control(bool enable)
  * #echo mask > /sys/power/cpuhp/set_online_cpu
  */
 #define STR_LEN 6
+static inline toupper(char ch)
+{
+	if ('a' <= ch && ch <= 'z')
+		ch += 'A' - 'a';
+
+	return ch;
+}
+
 static ssize_t set_online_cpu_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -440,7 +448,7 @@ static ssize_t set_online_cpu_store(struct device *dev,
 	if (!sscanf(buf, "%5s", str))
 		return -EINVAL;
 
-	if (str[0] == '0' && str[1] == 'x')
+	if (str[0] == '0' && toupper(str[1]) == 'X')
 		/* Move str pointer to remove "0x" */
 		cpumask_parse(str + 2, &online_cpus);
 	else {

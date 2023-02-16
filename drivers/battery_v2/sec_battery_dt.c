@@ -14,6 +14,36 @@
 
 
 #ifdef CONFIG_OF
+static int sec_bat_parse_lcp_siop(struct device_node *np, struct lcp_siop *lcp_table)
+{
+	int ret = 0;
+
+	ret = of_property_count_u32_elems(np, "battery,lcp_siop");
+	if (ret <= 0)
+		return -ENODEV;
+
+	lcp_table->size = ret / 2;
+	lcp_table->data = kcalloc(lcp_table->size, sizeof(struct lcp_data), GFP_KERNEL);
+	if (!lcp_table->data) {
+		lcp_table->size = 0;
+		return -ENOMEM;
+	}
+
+	ret = of_property_read_u32_array(np, "battery,lcp_siop", (u32 *)lcp_table->data, ret);
+	if (ret) {
+		kfree(lcp_table->data);
+		lcp_table->size = 0;
+		return ret;
+	}
+
+	for (ret = 0; ret < lcp_table->size; ret++) {
+		pr_info("%s: idx = %d, siop = %d, lcp = %d\n",
+			__func__, ret, lcp_table->data[ret].siop, lcp_table->data[ret].lcp);
+	}
+
+	return 0;
+}
+
 int sec_bat_parse_dt(struct device *dev,
 		struct sec_battery_info *battery)
 {
@@ -695,6 +725,13 @@ int sec_bat_parse_dt(struct device *dev,
 	if (ret) {
 		pr_info("%s : pre_afc_input_current is Empty\n", __func__);
 		pdata->pre_afc_input_current = 1000;
+	}
+
+	ret = of_property_read_u32(np, "battery,select_pd_input_current",
+		&pdata->select_pd_input_current);
+	if (ret) {
+		pr_info("%s : select_pd_input_current is Empty\n", __func__);
+		pdata->select_pd_input_current = 1000;
 	}
 
 	ret = of_property_read_u32(np, "battery,pre_afc_work_delay",
@@ -1497,6 +1534,8 @@ int sec_bat_parse_dt(struct device *dev,
 		pr_info("%s : input_current_by_siop_20 is Empty\n", __func__);
 		pdata->input_current_by_siop_20 = 0;
 	}
+
+	ret = sec_bat_parse_lcp_siop(np, &pdata->lcp_table);
 
 	ret = of_property_read_u32(np, "battery,wireless_otg_input_current",
 			&pdata->wireless_otg_input_current);

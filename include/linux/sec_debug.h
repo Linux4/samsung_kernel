@@ -717,5 +717,11 @@ struct secdbg_member_type {
 #define SECDBG_DEFINE_MEMBER_TYPE(a, b, c)
 #endif /* CONFIG_SEC_DEBUG */
 
+#ifdef CONFIG_SEC_DEBUG_SOFTDOG
+extern void secdbg_softdog_show_info(void);
+#else
+#define secdbg_softdog_show_info()		do { } while (0)
+#endif
+
 #endif /* SEC_DEBUG_H */
 

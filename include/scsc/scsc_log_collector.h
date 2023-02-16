@@ -145,4 +145,33 @@ void scsc_log_collector_is_observer(bool observer);
 
 void scsc_log_collector_schedule_collection(enum scsc_log_reason reason, u16 reason_code);
 int scsc_log_collector_write(char __user *buf, size_t count, u8 align);
+
+/* function to provide string representation of uint8 trigger code */
+static inline const char *scsc_get_trigger_str(int code)
+{
+	switch (code) {
+	case 1:	return "scsc_log_fw_panic";
+	case 2:	return "scsc_log_user";
+	case 3:	return "scsc_log_fw";
+	case 4:	return "scsc_log_dumpstate";
+	case 5:	return "scsc_log_host_wlan";
+	case 6:	return "scsc_log_host_bt";
+	case 7:	return "scsc_log_host_common";
+	case 8:	return "scsc_log_sys_error";
+	case 0:
+	default:
+		return "unknown";
+	}
+};
+
+/* callbacks to mxman */
+struct scsc_log_collector_mx_cb {
+	void (*get_fw_version)(struct scsc_log_collector_mx_cb *mx_cb, char *version, size_t ver_sz);
+	void (*get_drv_version)(struct scsc_log_collector_mx_cb *mx_cb, char *version, size_t ver_sz);
+	void (*call_wlbtd_sable)(struct scsc_log_collector_mx_cb *mx_cb, u8 trigger_code, u16 reason_code);
+};
+
+int scsc_log_collector_register_mx_cb(struct scsc_log_collector_mx_cb *mx_cb);
+int scsc_log_collector_unregister_mx_cb(struct scsc_log_collector_mx_cb *mx_cb);
+
 #endif /* __SCSC_LOG_COLLECTOR_H__ */

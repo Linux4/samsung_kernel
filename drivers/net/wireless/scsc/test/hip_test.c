@@ -273,4 +273,7 @@ int scsc_wifi_fcq_stat_queueset(struct scsc_wifi_fcq_data_qset *queue_set,
 {
 	return 0;
 }
+void slsi_hip_reprocess_skipped_data_bh(struct slsi_dev *sdev)
+{
 
+}

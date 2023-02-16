@@ -656,6 +656,7 @@
 #define KEY_DATA			0x277
 #define KEY_ONSCREEN_KEYBOARD		0x278
 #define KEY_EMERGENCY			0x2a0
+#define KEY_DEX_ON			0x2bd
 #define KEY_INT_CANCEL		0x2be	/* for touch event skip */
 #define KEY_WINK			0x2bf	/* Intelligence Key */
 
@@ -700,6 +701,10 @@
 #define BTN_TRIGGER_HAPPY38		0x2e5
 #define BTN_TRIGGER_HAPPY39		0x2e6
 #define BTN_TRIGGER_HAPPY40		0x2e7
+
+#define BTN_HOTKEY_APP1 		0x2f5
+#define BTN_HOTKEY_APP2 		0x2f6
+#define BTN_HOTKEY_APP3 		0x2f7
 
 /* We avoid low common keys in module aliases so they don't get huge. */
 #define KEY_MIN_INTERESTING	KEY_MUTE
@@ -814,6 +819,7 @@
 #define SW_GLOVE		0x0f	/* set = glove mode */
 #define SW_FLIP                 0x15    /* set = flip cover */
 #define SW_CERTIFYHALL          0x1b    /* set = certify_hall... */
+#define SW_WACOM_HALL		0x1e  /* set = wacom hall ic attach/detach */
 #define SW_MAX			0x20
 #define SW_CNT			(SW_MAX+1)
 

@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (c) 2012 - 2016 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2020 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -70,9 +70,7 @@ struct scsc_wifi_cm_if {
 
 	int       recovery_state;
 
-#ifdef CONFIG_SCSC_WLAN_FAST_RECOVERY
 	atomic_t                 reset_level;
-#endif
 };
 
 /*********************************** API ************************************/
@@ -88,7 +86,7 @@ void slsi_dev_detach(struct slsi_dev *sdev);
  */
 int slsi_sm_service_driver_register(void);
 void slsi_sm_service_driver_unregister(void);
-void slsi_sm_service_failed(struct slsi_dev *sdev, const char *reason);
+void slsi_sm_service_failed(struct slsi_dev *sdev, const char *reason, bool is_work);
 int slsi_sm_wlan_service_open(struct slsi_dev *sdev);
 int slsi_sm_wlan_service_start(struct slsi_dev *sdev);
 int slsi_sm_wlan_service_stop(struct slsi_dev *sdev);

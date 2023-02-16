@@ -3293,6 +3293,8 @@ int himax_pinctrl_configure(struct himax_ts_data *ts, bool active)
 
 int himax_chip_common_suspend(struct himax_ts_data *ts)
 {
+	I("%s : START lp:%d cover:%d\n", __func__, ts->SMWP_enable, ts->cover_closed);
+
 	if (ts->suspended) {
 		I("%s: Already suspended. Skipped.\n", __func__);
 		goto END;
@@ -3381,7 +3383,7 @@ int himax_chip_common_resume(struct himax_ts_data *ts)
 #if defined(HX_ZERO_FLASH) && defined(HX_RESUME_SET_FW)
 	int result = 0;
 #endif
-	I("%s: enter\n", __func__);
+	I("%s : START lp:%d cover:%d\n", __func__, ts->SMWP_enable, ts->cover_closed);
 
 	if (ts->suspended == false) {
 		I("%s: It had entered resume, skip this step\n", __func__);

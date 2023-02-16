@@ -2,6 +2,7 @@
 #include "pmucal_rae.h"
 #ifdef CONFIG_FLEXPMU
 #include "pmucal_powermode.h"
+#include <soc/samsung/exynos-debug.h>
 
 unsigned int pmucal_sys_powermode[NUM_SYS_POWERDOWN] = {0xffffffff, };
 #endif
@@ -16,7 +17,7 @@ unsigned int pmucal_sys_powermode[NUM_SYS_POWERDOWN] = {0xffffffff, };
  */
 int pmucal_system_enter(int mode)
 {
-	int ret;
+	int ret = 0;
 
 	if (mode != SYS_SICD)
 		dbg_snapshot_pmu(mode, __func__, DSS_FLAG_IN);
@@ -24,13 +25,15 @@ int pmucal_system_enter(int mode)
 	if (mode >= NUM_SYS_POWERDOWN) {
 		pr_err("%s %s: mode index(%d) is out of supported range (0~%d).\n",
 				PMUCAL_PREFIX, __func__, mode, NUM_SYS_POWERDOWN);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto err_out;
 	}
 
 	if (!pmucal_lpm_list[mode].enter) {
 		pr_err("%s %s: there is no sequence element for entering mode(%d).\n",
 				PMUCAL_PREFIX, __func__, mode);
-		return -ENOENT;
+		ret = -ENOENT;
+		goto err_out;
 	}
 #ifdef CONFIG_FLEXPMU
 	pmucal_powermode_hint(pmucal_sys_powermode[mode]);
@@ -43,13 +46,19 @@ int pmucal_system_enter(int mode)
 	if (ret) {
 		pr_err("%s %s: error on handling enter sequence. (mode : %d)\n",
 				PMUCAL_PREFIX, __func__, mode);
-		return ret;
+		goto err_out;
 	}
 
 	if (mode != SYS_SICD)
 		dbg_snapshot_pmu(mode, __func__, DSS_FLAG_OUT);
 
 	return 0;
+
+err_out:
+	dump_stack();
+	s3c2410wdt_set_emergency_reset(0, 0);
+
+	return ret;
 }
 
 /**
@@ -62,7 +71,7 @@ int pmucal_system_enter(int mode)
  */
 int pmucal_system_exit(int mode)
 {
-	int ret;
+	int ret = 0;
 
 	if (mode != SYS_SICD)
 		dbg_snapshot_pmu(mode, __func__, DSS_FLAG_IN);
@@ -70,13 +79,15 @@ int pmucal_system_exit(int mode)
 	if (mode >= NUM_SYS_POWERDOWN) {
 		pr_err("%s %s: mode index(%d) is out of supported range (0~%d).\n",
 				PMUCAL_PREFIX, __func__, mode, NUM_SYS_POWERDOWN);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto err_out;
 	}
 
 	if (!pmucal_lpm_list[mode].exit) {
 		pr_err("%s %s: there is no sequence element for exiting mode(%d).\n",
 				PMUCAL_PREFIX, __func__, mode);
-		return -ENOENT;
+		ret = -ENOENT;
+		goto err_out;
 	}
 
 	ret = pmucal_rae_handle_seq(pmucal_lpm_list[mode].exit,
@@ -84,7 +95,7 @@ int pmucal_system_exit(int mode)
 	if (ret) {
 		pr_err("%s %s: error on handling exit sequence. (mode : %d)\n",
 				PMUCAL_PREFIX, __func__, mode);
-		return ret;
+		goto err_out;
 	}
 
 	ret = pmucal_rae_restore_seq(pmucal_lpm_list[mode].save,
@@ -92,13 +103,19 @@ int pmucal_system_exit(int mode)
 	if (ret) {
 		pr_err("%s %s: error on handling restore sequence. (mode : %d)\n",
 				PMUCAL_PREFIX, __func__, mode);
-		return ret;
+		goto err_out;
 	}
 
 	if (mode != SYS_SICD)
 		dbg_snapshot_pmu(mode, __func__, DSS_FLAG_OUT);
 
 	return 0;
+
+err_out:
+	dump_stack();
+	s3c2410wdt_set_emergency_reset(0, 0);
+
+	return ret;
 }
 
 /**
@@ -111,7 +128,7 @@ int pmucal_system_exit(int mode)
  */
 int pmucal_system_earlywakeup(int mode)
 {
-	int ret;
+	int ret = 0;
 
 	if (mode != SYS_SICD)
 		dbg_snapshot_pmu(mode, __func__, DSS_FLAG_IN);
@@ -119,13 +136,15 @@ int pmucal_system_earlywakeup(int mode)
 	if (mode >= NUM_SYS_POWERDOWN) {
 		pr_err("%s %s: mode index(%d) is out of supported range (0~%d).\n",
 				PMUCAL_PREFIX, __func__, mode, NUM_SYS_POWERDOWN);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto err_out;
 	}
 
 	if (!pmucal_lpm_list[mode].early_wakeup) {
 		pr_err("%s %s: there is no sequence element for early_wkup mode(%d).\n",
 				PMUCAL_PREFIX, __func__, mode);
-		return -ENOENT;
+		ret = -ENOENT;
+		goto err_out;
 	}
 
 	ret = pmucal_rae_handle_seq(pmucal_lpm_list[mode].early_wakeup,
@@ -133,7 +152,7 @@ int pmucal_system_earlywakeup(int mode)
 	if (ret) {
 		pr_err("%s %s: error on handling elry_wkup sequence. (mode : %d)\n",
 				PMUCAL_PREFIX, __func__, mode);
-		return ret;
+		goto err_out;
 	}
 
 	ret = pmucal_rae_restore_seq(pmucal_lpm_list[mode].save,
@@ -141,7 +160,7 @@ int pmucal_system_earlywakeup(int mode)
 	if (ret) {
 		pr_err("%s %s: error on handling restore sequence. (mode : %d)\n",
 				PMUCAL_PREFIX, __func__, mode);
-		return ret;
+		goto err_out;
 	}
 #ifdef CONFIG_FLEXPMU
 	pmucal_powermode_hint_clear();
@@ -151,6 +170,12 @@ int pmucal_system_earlywakeup(int mode)
 		dbg_snapshot_pmu(mode, __func__, DSS_FLAG_OUT);
 
 	return 0;
+
+err_out:
+	dump_stack();
+	s3c2410wdt_set_emergency_reset(0, 0);
+
+	return ret;
 }
 
 /**

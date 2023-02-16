@@ -1136,6 +1136,9 @@ out:
 	else
 		sdd->tgl_spi = spi;
 
+	if (sci->delay_usecs)
+		udelay(sci->delay_usecs);
+
 	msg->status = status;
 
 	spi_finalize_current_message(master);
@@ -1507,6 +1510,13 @@ static struct s3c64xx_spi_info *s3c64xx_spi_parse_dt(struct device *dev)
 		sci->num_cs = 1;
 	} else {
 		sci->num_cs = temp;
+	}
+
+	if (of_property_read_u32(dev->of_node, "samsung,delay_usecs", &temp)) {
+		sci->delay_usecs = 0;
+	} else {
+		dev_info(dev, "set transfer delay %dus\n", temp);
+		sci->delay_usecs = temp;
 	}
 
 	sci->domain = DOMAIN_TOP;

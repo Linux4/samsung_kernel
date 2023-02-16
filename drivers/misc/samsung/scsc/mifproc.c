@@ -18,7 +18,7 @@ static struct proc_dir_entry *procfs_dir_ramman[MX_MAX_PROC_RAMMAN];
 
 /* WARNING --- SINGLETON FOR THE TIME BEING */
 /* EXTEND PROC ENTRIES IF NEEDED!!!!! */
-struct scsc_mif_abs *mif_global;
+static struct scsc_mif_abs *mif_global;
 
 static int mifprocfs_open_file_generic(struct inode *inode, struct file *file)
 {
@@ -446,7 +446,7 @@ void mifproc_remove_proc_dir(void)
 
 /* /proc/driver/mif_ctrl/rammanX */
 static const char *ramman_procdir = "ramman";
-struct miframman *proc_miframman[MX_MAX_PROC_RAMMAN];
+static struct miframman *proc_miframman[MX_MAX_PROC_RAMMAN];
 static int ramman_instance;
 
 int mifproc_create_ramman_proc_dir(struct miframman *ramman)

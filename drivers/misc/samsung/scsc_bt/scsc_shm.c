@@ -21,8 +21,12 @@
 #include <linux/wait.h>
 #include <linux/kthread.h>
 #include <asm/io.h>
+#include <linux/version.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+#include <scsc/scsc_wakelock.h>
+#else
 #include <linux/wakelock.h>
-
+#endif
 #include <scsc/scsc_mx.h>
 #include <scsc/scsc_mifram.h>
 #include <scsc/api/bsmhcp.h>
@@ -204,7 +208,7 @@ bool scsc_bt_shm_h4_avdtp_detect_write(uint32_t flags,
 		spin_unlock(&bt_service.avdtp_detect.fw_write_lock);
 
 		/* Memory barrier to ensure out-of-order execution is completed */
-		mmiowb();
+		wmb();
 
 		/* Trigger the interrupt in the mailbox */
 		scsc_service_mifintrbit_bit_set(
@@ -263,7 +267,7 @@ static ssize_t scsc_bt_shm_h4_hci_cmd_write(const unsigned char *data, size_t co
 		bt_service.bsmhcp_protocol->header.mailbox_hci_cmd_write = tr_write;
 
 		/* Memory barrier to ensure out-of-order execution is completed */
-		mmiowb();
+		wmb();
 
 		/* Trigger the interrupt in the mailbox */
 		scsc_service_mifintrbit_bit_set(bt_service.service, bt_service.bsmhcp_protocol->header.ap_to_bg_int_src, SCSC_MIFINTR_TARGET_R4);
@@ -433,7 +437,7 @@ static ssize_t scsc_bt_shm_h4_acl_write(const unsigned char *data, size_t count)
 		bt_service.bsmhcp_protocol->header.mailbox_acl_tx_write = tr_write;
 
 		/* Memory barrier to ensure out-of-order execution is completed */
-		mmiowb();
+		wmb();
 
 		if (bt_service.bsmhcp_protocol->header.firmware_features & BSMHCP_FEATURE_M4_INTERRUPTS)
 			/* Trigger the interrupt in the mailbox */
@@ -966,7 +970,7 @@ static ssize_t scsc_bt_shm_h4_read_hci_evt(char __user *buf, size_t len)
 
 			/* If this ACL connection had an avdtp stream, mark it gone and interrupt the bg */
 			if (scsc_avdtp_detect_reset_connection_handle(td->hci_connection_handle))
-				mmiowb();
+				wmb();
 
 			/* If the connection is marked as active the ACL disconnect packet hasn't yet arrived */
 			if (CONNECTION_ACTIVE == bt_service.connection_handle_list[td->hci_connection_handle].state) {
@@ -1440,7 +1444,7 @@ ssize_t scsc_bt_shm_h4_read(struct file *file, char __user *buf, size_t len, lof
 	bt_service.bsmhcp_protocol->header.mailbox_iq_report_read = bt_service.mailbox_iq_report_read;
 
 	/* Ensure the data is updating correctly in memory */
-	mmiowb();
+	wmb();
 
 	if (gen_bg_int)
 		scsc_service_mifintrbit_bit_set(bt_service.service, bt_service.bsmhcp_protocol->header.ap_to_bg_int_src, SCSC_MIFINTR_TARGET_R4);

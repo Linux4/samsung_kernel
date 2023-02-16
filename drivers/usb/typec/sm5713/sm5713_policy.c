@@ -274,13 +274,19 @@ static policy_state sm5713_usbpd_policy_src_ready(
 		struct sm5713_policy_data *policy)
 {
 	struct sm5713_usbpd_data *pd_data = policy_to_usbpd(policy);
+#if defined(CONFIG_USB_HOST_NOTIFY)
+	struct otg_notify *o_notify = get_otg_notify();
+	bool must_block_host = is_blocked(o_notify, NOTIFY_BLOCK_TYPE_HOST);
+#endif
 	int i = 0, data_role = 0;
 	unsigned int ret;
 
 	dev_info(pd_data->dev, "%s\n", __func__);
 
-	if (!sm5713_check_vbus_state(pd_data))
+#if defined(CONFIG_USB_HOST_NOTIFY)
+	if (must_block_host && !sm5713_check_vbus_state(pd_data))
 		return PE_SRC_Hard_Reset;
+#endif
 
 	sm5713_usbpd_power_ready(pd_data->dev, TYPE_C_ATTACH_SRC);
 

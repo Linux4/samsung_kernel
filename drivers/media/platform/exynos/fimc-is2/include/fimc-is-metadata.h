@@ -1090,6 +1090,11 @@ enum aa_night_timelaps_mode {
 	AA_NIGHT_TIMELAPS_MODE_ON,
 };
 
+enum aa_recording_extra_mode {
+	AA_RECORDING_EXTRA_MODE_OFF = 0,
+	AA_RECORDING_EXTRA_MODE_AUTO_TRACKING,
+};
+
 struct camera2_aa_ctl {
 	enum aa_ae_antibanding_mode	aeAntibandingMode;
 	int32_t				aeExpCompensation;
@@ -1134,8 +1139,9 @@ struct camera2_aa_ctl {
 	float				vendor_expBracketingCapture;
 	enum aa_supernightmode		vendor_superNightShotMode;
 	enum aa_night_timelaps_mode	vendor_nightTimelapsMode;
-	uint32_t			vendor_enableDynamicBds; 
-	uint32_t			vendor_reserved[5];
+	uint32_t			vendor_enableDynamicBds;
+	enum aa_recording_extra_mode	vendor_recordingExtraMode;
+	uint32_t			vendor_reserved[4];
 };
 
 struct aa_apexInfo {
@@ -1732,6 +1738,7 @@ enum camera2_wdr_mode {
 	CAMERA_WDR_ON = 2,
 	CAMERA_WDR_AUTO = 3,
 	CAMERA_WDR_AUTO_LIKE = 4,
+	CAMERA_WDR_AUTO_3P = 5,
 	TOTALCOUNT_CAMERA_WDR,
 	CAMERA_WDR_UNKNOWN,
 };
@@ -1763,10 +1770,12 @@ enum camera_op_mode {
 	CAMERA_OP_MODE_HAL3_TW,
 	CAMERA_OP_MODE_FAC,
 	CAMERA_OP_MODE_HAL3_FAC,
-	CAMERA_OP_MODE_HAL3_SDK,
+	CAMERA_OP_MODE_HAL3_SDK,  // UNIHAL default
 	CAMERA_OP_MODE_HAL3_CAMERAX,
-	CAMERA_OP_MODE_HAL3_AVSP,
+	CAMERA_OP_MODE_HAL3_UNIHAL_VIP,
 	CAMERA_OP_MODE_HAL3_SDK_VIP,
+	CAMERA_OP_MODE_HAL3_ATTACH,
+	CAMERA_OP_MODE_HAL3_UNIHAL_VIDEO,
 };
 
 struct camera2_is_mode_uctl {

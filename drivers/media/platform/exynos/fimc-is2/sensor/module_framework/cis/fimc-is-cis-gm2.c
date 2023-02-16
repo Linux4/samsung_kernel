@@ -818,14 +818,14 @@ int sensor_gm2_cis_stream_on(struct v4l2_subdev *subdev)
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
 	info("[%s] start\n", __func__);
-
+#ifndef DISABLE_DUAL_SYNC
 	/* Here Add for Master mode in dual */
 	ret = sensor_cis_set_registers(subdev, sensor_gm2_dual_master_setfile, sensor_gm2_dual_master_size);
 	if (ret < 0) {
 		err("[%s] sensor_gm2_dual_master_setfile fail", __func__);
 		goto p_i2c_err;
 	}
-
+#endif
 	/* Disabling embedded data*/
 	if(sensor_peri->companion){
 		ret = fimc_is_sensor_write16(client, 0x6028, 0x4000);

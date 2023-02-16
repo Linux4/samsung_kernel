@@ -125,7 +125,7 @@ void usbpd_manager_select_pdo(int num)
 #endif
 #endif
 	if (pd_noti.sink_status.selected_pdo_num == num)
-		goto exit;
+		usbpd_manager_plug_attach(pd_data->dev, ATTACHED_DEV_TYPE3_CHARGER_MUIC);
 	else if (num > pd_noti.sink_status.available_pdo_num)
 		pd_noti.sink_status.selected_pdo_num = pd_noti.sink_status.available_pdo_num;
 	else if (num < 1)

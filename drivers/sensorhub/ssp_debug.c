@@ -333,20 +333,20 @@ int print_mcu_debug(char *dataframe, int *index, int dataframe_length)
 	return 0;
 }
 
+#define SSP_LOG_MAX_BYTE	200
 void print_dataframe(struct ssp_data *data, char *dataframe, int frame_len)
 {
-	char *raw_data;
-	int size = 0;
-	int i = 0;
+	char raw_data[SSP_LOG_MAX_BYTE*4];
+	int i = 0, cur = 0;
 
-	raw_data = kzalloc(frame_len * 4, GFP_KERNEL);
+	while ((frame_len - cur) > 0) {
+		int size = 0;
+		int pr_size = ((frame_len - cur) > SSP_LOG_MAX_BYTE) ? SSP_LOG_MAX_BYTE : (frame_len - cur);
 
-	for (i = 0; i < frame_len; i++) {
-		size += snprintf(raw_data + size, PAGE_SIZE, "%d ",
-		                 *(dataframe + i));
+		memset(raw_data, 0, sizeof(raw_data));
+		for (i = 0; i < pr_size; i++)
+			size += snprintf(raw_data + size, PAGE_SIZE, "%d ", *(dataframe + cur++));
+
+		ssp_info("%s", raw_data);
 	}
-
-	ssp_info("%s", raw_data);
-	kfree(raw_data);
 }
-

@@ -1927,7 +1927,6 @@ static void rt5665_water_detect_handler(struct work_struct *work)
 {
 	struct rt5665_priv *rt5665 =
 		container_of(work, struct rt5665_priv, water_detect_work.work);
-	struct snd_soc_codec *codec = rt5665->codec;
 	int adc_val;
 
 	wake_lock(&rt5665->jack_detect_wake_lock);
@@ -1944,10 +1943,6 @@ static void rt5665_water_detect_handler(struct work_struct *work)
 #ifdef CONFIG_SWITCH
 			switch_set_state(&rt5665_headset_switch, 1);
 #endif
-			if (rt5665->pdata.mic_check_in_bg)
-				snd_soc_update_bits(codec, RT5665_HP_CHARGE_PUMP_1,
-					RT5665_OSW_L_MASK | RT5665_OSW_R_MASK,
-					RT5665_OSW_L_DIS | RT5665_OSW_R_DIS);
 		} else if (rt5665->jack_type == SND_JACK_HEADPHONE) {
 #ifdef CONFIG_SWITCH
 			switch_set_state(&rt5665_headset_switch, 2);
@@ -1979,7 +1974,7 @@ static void rt5665_water_detect_handler(struct work_struct *work)
 
 	mutex_unlock(&rt5665->open_gender_mutex);
 
-	schedule_delayed_work( &rt5665->water_detect_work,
+	schedule_delayed_work(&rt5665->water_detect_work,
 		msecs_to_jiffies(1000));
 
 	wake_lock_timeout(&rt5665->jack_detect_wake_lock, 2 * HZ);
@@ -2265,7 +2260,7 @@ static void rt5665_jack_detect_handler(struct work_struct *work)
 				0x200, reg094);
 
 			rt5665->do_rek = false;
-	
+
 			dev_dbg(codec->dev, "jack_type = 0x%04x\n",
 				rt5665->jack_type);
 		}
@@ -2343,7 +2338,7 @@ static void rt5665_jack_detect_open_gender_handler(struct work_struct *work)
 #endif
 			}
 
-			if (rt5665->pdata.delay_plug_out_pb) 
+			if (rt5665->pdata.delay_plug_out_pb)
 				rt5665->irq_work_delay_time =
 					rt5665->pdata.delay_plug_out_pb;
 			else
@@ -2376,7 +2371,7 @@ static void rt5665_jack_detect_open_gender_handler(struct work_struct *work)
 
 					dev_dbg(codec->dev, "(open gender fix) jack_type = 0x%04x\n",
 						rt5665->jack_type);
-					
+
 					snd_soc_jack_report(rt5665->hs_jack, rt5665->jack_type,
 						SND_JACK_HEADSET);
 				}
@@ -2648,6 +2643,14 @@ static int rt5665_disable_ng2_put(struct snd_kcontrol *kcontrol,
 	struct rt5665_priv *rt5665 = snd_soc_codec_get_drvdata(codec);
 
 	rt5665->disable_ng2 = !!ucontrol->value.integer.value[0];
+
+	if (rt5665->disable_ng2) {
+		snd_soc_update_bits(codec, RT5665_STO_NG2_CTRL_1,
+			RT5665_NG2_EN_MASK, RT5665_NG2_DIS);
+		snd_soc_update_bits(codec, RT5665_MONO_NG2_CTRL_1,
+			RT5665_NG2_EN_MASK, RT5665_NG2_DIS);
+		rt5665_noise_gate(codec, false);
+	}
 
 	return 0;
 }
@@ -6103,7 +6106,7 @@ static int rt5665_parse_dt(struct rt5665_priv *rt5665, struct device *dev)
 	rt5665->pdata.dtv_check_gpio = of_get_named_gpio(dev->of_node,
 		"realtek,gpio-dtv-check", 0);
 
-	pr_debug("%s: dtv_check gpio value : %d\n", __func__, gpio_get_value(rt5665->pdata.dtv_check_gpio));
+	pr_debug("%s: dtv_check gpio value: %d\n", __func__, gpio_get_value(rt5665->pdata.dtv_check_gpio));
 
 	if (gpio_get_value(rt5665->pdata.dtv_check_gpio)) {
 		pr_debug("%s: DTV flags\n", __func__);
@@ -6127,7 +6130,7 @@ static int rt5665_parse_dt(struct rt5665_priv *rt5665, struct device *dev)
 
 	/* This is for next IRQ event (Plug-out)of delay */
 	of_property_read_u32(dev->of_node, "realtek,delay-plug-out-pb",
-		&rt5665->pdata.delay_plug_out_pb); 
+		&rt5665->pdata.delay_plug_out_pb);
 
 	if (!of_property_read_u32_array(dev->of_node, "imp_table", data,
 		(len * 4))) {
@@ -6241,7 +6244,7 @@ static void rt5665_calibrate(struct rt5665_priv *rt5665)
 	regcache_mark_dirty(rt5665->regmap);
 	regcache_sync(rt5665->regmap);
 
-	//volatile settings
+	/* volatile settings */
 	regmap_write(rt5665->regmap, RT5665_STO1_DAC_SIL_DET, 0x4121);
 
 	mutex_unlock(&codec->component.card->dapm_mutex);
@@ -6372,7 +6375,7 @@ static int rt5665_i2c_probe(struct i2c_client *i2c,
 			dev_err(&i2c->dev, "Fail gpio_direction gpio_ldo\n");
 	}
 
-	/* Sleep for 300 ms miniumum */
+	/* Sleep for 300 ms minimum */
 	usleep_range(300000, 350000);
 
 	rt5665->regmap = devm_regmap_init_i2c(i2c, &rt5665_regmap);
@@ -6402,7 +6405,7 @@ static int rt5665_i2c_probe(struct i2c_client *i2c,
 		if (regulator_disable(regulator_3v3))
 			dev_err(&i2c->dev, "Fail to disable regulator_3v3\n");
 
-		/* Sleep for 300 ms miniumum */
+		/* Sleep for 300 ms minimum */
 		usleep_range(300000, 350000);
 
 		if (regulator_enable(regulator_1v8))
@@ -6411,7 +6414,7 @@ static int rt5665_i2c_probe(struct i2c_client *i2c,
 		if (regulator_enable(regulator_3v3))
 			dev_err(&i2c->dev, "Fail to enable regulator_3v3\n");
 
-		/* Sleep for 300 ms miniumum */
+		/* Sleep for 300 ms minimum */
 		usleep_range(300000, 350000);
 
 		regmap_read(rt5665->regmap, RT5665_DEVICE_ID, &val);

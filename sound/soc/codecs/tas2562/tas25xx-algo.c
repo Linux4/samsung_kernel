@@ -56,7 +56,7 @@ static struct tas25xx_algo* p_tas25xx_algo = NULL;
 /*Max value supported is 2^8*/
 static uint8_t trans_val_to_user_m(uint32_t val, uint8_t qformat)
 {
-		uint32_t ret = (uint32_t)(((long long)val * 1000) >> qformat) % 1000;
+	uint32_t ret = (uint32_t)(((long long)val * 1000) >> qformat) % 1000;
 	return (uint8_t)(ret / 10);
 }
 

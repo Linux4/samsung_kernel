@@ -449,6 +449,7 @@ struct himax_ts_data {
 	int p_y[10];
 
 	uint8_t glove_enabled;
+	bool cover_closed;
 
 	struct device *dev;
 	struct workqueue_struct *himax_wq;
@@ -620,6 +621,7 @@ int himax_report_data_init(void);
 int himax_dev_set(struct himax_ts_data *ts);
 int himax_input_register_device(struct input_dev *input_dev);
 int himax_pinctrl_configure(struct himax_ts_data *ts, bool active);
+void himax_set_cover_mode(struct himax_ts_data *ts, bool closed);
 
 #if defined(HX_USB_DETECT_GLOBAL)
 void himax_cable_detect_func(bool force_renew);

@@ -116,6 +116,7 @@ enum power_supply_ext_property {
 	POWER_SUPPLY_EXT_PROP_UPDATE_BATTERY_DATA,
 #endif
 	POWER_SUPPLY_EXT_PROP_ENABLE_HW_FACTORY_MODE,
+	POWER_SUPPLY_EXT_PROP_TTF_FULL_CAPACITY,
 };
 
 enum ic_type {
@@ -815,6 +816,16 @@ struct sec_wireless_rx_power_info {
 	unsigned int rx_power;
 };
 
+struct lcp_data {
+	unsigned int siop;
+	unsigned int lcp; /* limit charging power */
+};
+
+struct lcp_siop {
+	struct lcp_data *data;
+	unsigned int size;
+};
+
 #define sec_wireless_rx_power_info_t \
 	struct sec_wireless_rx_power_info
 
@@ -857,6 +868,7 @@ struct sec_battery_platform_data {
 	/* NO NEED TO BE CHANGED */
 	unsigned int pre_afc_input_current;
 	unsigned int pre_wc_afc_input_current;
+	unsigned int select_pd_input_current;
 	unsigned int store_mode_max_input_power;
 	unsigned int prepare_ta_delay;
 
@@ -1140,7 +1152,9 @@ struct sec_battery_platform_data {
 
 	/* set current in some siop_level case */
 	int input_current_by_siop_20;
-	
+
+	struct lcp_siop lcp_table;
+
 	int siop_wireless_input_limit_current;
 	int siop_wireless_charging_limit_current;
 	int siop_hv_wireless_input_limit_current;

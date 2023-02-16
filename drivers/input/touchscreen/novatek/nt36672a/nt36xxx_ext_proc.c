@@ -420,12 +420,7 @@ static int32_t nvt_baseline_open(struct inode *inode, struct file *file)
 		return -EAGAIN;
 	}
 
-	if (ts->carrier_system) {
-		nvt_read_mdata_rss(ts->mmap->BASELINE_ADDR, ts->mmap->BASELINE_Q_ADDR,
-				ts->mmap->BASELINE_BTN_ADDR, ts->mmap->BASELINE_BTN_Q_ADDR);
-	} else {
-		nvt_read_mdata(ts->mmap->BASELINE_ADDR, ts->mmap->BASELINE_BTN_ADDR);
-	}
+	nvt_read_mdata(ts->mmap->BASELINE_ADDR, ts->mmap->BASELINE_BTN_ADDR);
 
 	nvt_change_mode(NORMAL_MODE);
 
@@ -480,19 +475,10 @@ static int32_t nvt_raw_open(struct inode *inode, struct file *file)
 		return -EAGAIN;
 	}
 
-	if (ts->carrier_system) {
-		if (nvt_get_fw_pipe() == 0)
-			nvt_read_mdata_rss(ts->mmap->RAW_PIPE0_ADDR, ts->mmap->RAW_PIPE0_Q_ADDR,
-				ts->mmap->RAW_BTN_PIPE0_ADDR, ts->mmap->RAW_BTN_PIPE0_Q_ADDR);
-		else
-			nvt_read_mdata_rss(ts->mmap->RAW_PIPE1_ADDR, ts->mmap->RAW_PIPE1_Q_ADDR,
-				ts->mmap->RAW_BTN_PIPE1_ADDR, ts->mmap->RAW_BTN_PIPE1_Q_ADDR);
-	} else {
-		if (nvt_get_fw_pipe() == 0)
-			nvt_read_mdata(ts->mmap->RAW_PIPE0_ADDR, ts->mmap->RAW_BTN_PIPE0_ADDR);
-		else
-			nvt_read_mdata(ts->mmap->RAW_PIPE1_ADDR, ts->mmap->RAW_BTN_PIPE1_ADDR);
-	}
+	if (nvt_get_fw_pipe() == 0)
+		nvt_read_mdata(ts->mmap->RAW_PIPE0_ADDR, ts->mmap->RAW_BTN_PIPE0_ADDR);
+	else
+		nvt_read_mdata(ts->mmap->RAW_PIPE1_ADDR, ts->mmap->RAW_BTN_PIPE1_ADDR);
 
 	nvt_change_mode(NORMAL_MODE);
 
@@ -547,19 +533,10 @@ static int32_t nvt_diff_open(struct inode *inode, struct file *file)
 		return -EAGAIN;
 	}
 
-	if (ts->carrier_system) {
-		if (nvt_get_fw_pipe() == 0)
-			nvt_read_mdata_rss(ts->mmap->DIFF_PIPE0_ADDR, ts->mmap->DIFF_PIPE0_Q_ADDR,
-				ts->mmap->DIFF_BTN_PIPE0_ADDR, ts->mmap->DIFF_BTN_PIPE0_Q_ADDR);
-		else
-			nvt_read_mdata_rss(ts->mmap->DIFF_PIPE1_ADDR, ts->mmap->DIFF_PIPE1_Q_ADDR,
-				ts->mmap->DIFF_BTN_PIPE1_ADDR, ts->mmap->DIFF_BTN_PIPE1_Q_ADDR);
-	} else {
-		if (nvt_get_fw_pipe() == 0)
-			nvt_read_mdata(ts->mmap->DIFF_PIPE0_ADDR, ts->mmap->DIFF_BTN_PIPE0_ADDR);
-		else
-			nvt_read_mdata(ts->mmap->DIFF_PIPE1_ADDR, ts->mmap->DIFF_BTN_PIPE1_ADDR);
-	}
+	if (nvt_get_fw_pipe() == 0)
+		nvt_read_mdata(ts->mmap->DIFF_PIPE0_ADDR, ts->mmap->DIFF_BTN_PIPE0_ADDR);
+	else
+		nvt_read_mdata(ts->mmap->DIFF_PIPE1_ADDR, ts->mmap->DIFF_BTN_PIPE1_ADDR);
 
 	nvt_change_mode(NORMAL_MODE);
 

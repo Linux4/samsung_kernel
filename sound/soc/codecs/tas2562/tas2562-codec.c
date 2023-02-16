@@ -58,6 +58,12 @@ static char const *iv_enable_text[] = {"Off", "On"};
 static int tas2562iv_enable;
 static int mb_mute;
 
+/* Register Table to cache and reload after reset */
+/* ?? Can use [ 0 ... MAX_REGISTERS-1 ] = -1 instead */
+static int tas2562_reg_cache[MAX_REGISTERS][2] = {{0,0}};
+static int tas2562_reg_count[MAX_REGISTERS] = {0};
+static int reg_count = 0;
+
 static const struct soc_enum tas2562_enum[] = {
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(iv_enable_text), iv_enable_text),
 };
@@ -207,6 +213,18 @@ static int tas2562_codec_write(struct snd_soc_codec *codec, unsigned int reg,
 	struct tas2562_priv *p_tas2562 = snd_soc_codec_get_drvdata(codec);
 
 	dev_dbg(p_tas2562->dev, "%s: %d, %d", __func__, reg, value);
+
+	/* This Reg Cache Table only support Book-0, Page-0
+	 * So range is 0-0x7f
+	 */
+	if (reg <= 0x7f) {
+		if (tas2562_reg_cache[reg][0] == 0) {
+			tas2562_reg_count[reg_count] = reg;
+			tas2562_reg_cache[reg][0] = 1;
+			reg_count++;
+		}
+		tas2562_reg_cache[reg][1] = value;
+	}
 	p_tas2562->write (p_tas2562, channel_both, reg, value);
 
 	return 0;
@@ -361,7 +379,13 @@ static int tas2562_set_power_state(struct tas2562_priv *p_tas2562,
 		break;
 
 	case TAS2562_POWER_SHUTDOWN:
-
+		if (p_tas2562->mn_status_check) {
+			if (hrtimer_active(&p_tas2562->mtimer))
+			{
+				dev_info(p_tas2562->dev, "cancel timer\n");
+				hrtimer_cancel(&p_tas2562->mtimer);
+			}
+		}
 		n_result = p_tas2562->update_bits(p_tas2562, chn,
 			TAS2562_POWERCONTROL,
 			TAS2562_POWERCONTROL_OPERATIONALMODE10_MASK,
@@ -1166,16 +1190,18 @@ static int tas2562_dac_mute_ctrl_put(struct snd_kcontrol *pKcontrol,
 	else
 		chn = channel_left;
 
-	if (mute) {
-		n_result = p_tas2562->update_bits(p_tas2562, chn,
-		TAS2562_POWERCONTROL,
-		TAS2562_POWERCONTROL_OPERATIONALMODE10_MASK,
-		TAS2562_POWERCONTROL_OPERATIONALMODE10_MUTE);
-	} else {
-		n_result = p_tas2562->update_bits(p_tas2562, chn,
-		TAS2562_POWERCONTROL,
-		TAS2562_POWERCONTROL_OPERATIONALMODE10_MASK,
-		TAS2562_POWERCONTROL_OPERATIONALMODE10_ACTIVE);
+	if (p_tas2562->mn_power_state == TAS2562_POWER_ACTIVE) {
+		if (mute) {
+			n_result = p_tas2562->update_bits(p_tas2562, chn,
+			TAS2562_POWERCONTROL,
+			TAS2562_POWERCONTROL_OPERATIONALMODE10_MASK,
+			TAS2562_POWERCONTROL_OPERATIONALMODE10_MUTE);
+		} else {
+			n_result = p_tas2562->update_bits(p_tas2562, chn,
+			TAS2562_POWERCONTROL,
+			TAS2562_POWERCONTROL_OPERATIONALMODE10_MASK,
+			TAS2562_POWERCONTROL_OPERATIONALMODE10_ACTIVE);
+		}
 	}
 
         p_tas2562->dac_mute = mute;
@@ -1287,6 +1313,86 @@ void tas2562_load_config(struct tas2562_priv *p_tas2562)
 	if (ret < 0)
 		goto end;
 
+end:
+/* power up failed, restart later */
+	if (ret < 0)
+		schedule_delayed_work(&p_tas2562->irq_work,
+				msecs_to_jiffies(1000));
+}
+
+/* Added for Mute Issue: Device Reset and Reload */
+void tas2562_reset_reload(struct tas2562_priv *p_tas2562)
+{
+	int ret = 0;
+	int i = 0;
+	unsigned int reg = -1;
+
+	dev_info(p_tas2562->dev, "%s\n", __func__);
+
+	/*Software Reset*/
+	p_tas2562->write(p_tas2562, channel_both, TAS2562_SOFTWARERESET,
+			TAS2562_SOFTWARERESET_SOFTWARERESET_RESET);
+	msleep(2);
+
+	/*Reload all configuration*/
+	ret = tas2562_iv_slot_config(p_tas2562);
+	if (ret < 0)
+		goto end;
+
+	ret = tas2562_load_init(p_tas2562);
+	if (ret < 0)
+		goto end;
+
+	ret = tas2562_iv_enable(p_tas2562, tas2562iv_enable);
+	if (ret < 0)
+		goto end;
+
+	ret = tas2562_set_slot(p_tas2562, p_tas2562->mn_slot_width);
+	if (ret < 0)
+		goto end;
+
+	ret = tas2562_set_fmt(p_tas2562, p_tas2562->mn_asi_format);
+	if (ret < 0)
+		goto end;
+
+	ret = tas2562_set_bitwidth(p_tas2562, p_tas2562->mn_pcm_format);
+	if (ret < 0)
+		goto end;
+
+	ret = tas2562_set_samplerate(p_tas2562, p_tas2562->mn_sampling_rate);
+	if (ret < 0)
+		goto end;
+
+	/* Update mixer control changes */
+
+	/* Update Amplifier Gain(Amp Output Level)*/
+	for (i = 0; i < reg_count; i++) {
+		reg = tas2562_reg_count[i];
+		ret |= p_tas2562->write (p_tas2562, channel_both, reg,
+			tas2562_reg_cache[reg][1]);
+	}
+	if (ret < 0)
+		goto end;
+
+	/* Update ICN */
+	if (p_tas2562->icn_sw == 0) {
+		ret = p_tas2562->update_bits(p_tas2562, channel_both,
+			TAS2562_ICN_SW_REG,
+			TAS2562_ICN_SW_MASK,
+			TAS2562_ICN_SW_ENABLE);
+		dev_info(p_tas2562->dev, "%s: ICN Enable!\n", __func__);
+        } else {
+		ret = p_tas2562->update_bits(p_tas2562, channel_both,
+			TAS2562_ICN_SW_REG,
+			TAS2562_ICN_SW_MASK,
+			TAS2562_ICN_SW_DISABLE);
+		dev_info(p_tas2562->dev, "%s: ICN Disable!\n", __func__);
+	}
+	if (ret < 0)
+		goto end;
+
+	ret = tas2562_set_power_state(p_tas2562, channel_both,
+			p_tas2562->mn_power_state);
 end:
 /* power up failed, restart later */
 	if (ret < 0)

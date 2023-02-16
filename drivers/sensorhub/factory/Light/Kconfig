@@ -40,7 +40,17 @@ config SENSORS_SSP_LIGHT_VEML3328
           If you say yes here you get light veml3328 support for
 	  factory test.
 	  To compile this driver as a module, choose M here: the
-	  module will be called ssp.	  
+	  module will be called ssp.
+
+config SENSORS_SSP_LIGHT_CM32183
+	tristate "Sensors ssp light cm32183"
+	default n
+	help
+	  light cm32183 file for factory test in ssp driver.
+          If you say yes here you get light cm32183 support for
+	  factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
 
 config SENSORS_SSP_LIGHT_STK3X6X
 	tristate "Sensors ssp light stk3x6x"
@@ -51,7 +61,7 @@ config SENSORS_SSP_LIGHT_STK3X6X
 	  factory test.
 	  To compile this driver as a module, choose M here: the
 	  module will be called ssp.
-	  
+
 config SENSORS_SSP_CAMERALIGHT_FOR_TAB
         tristate "Sensors ssp camera light for tab"
         default n

@@ -21,7 +21,7 @@
 #include "scsc_logring_common.h"
 
 #define ADD_DEBUG_MODULE_PARAM(tagname, default_level, filter) \
-	int scsc_droplevel_ ## tagname = default_level; \
+	static int scsc_droplevel_ ## tagname = default_level; \
 	module_param(scsc_droplevel_ ## tagname, int, S_IRUGO | S_IWUSR); \
 	SCSC_MODPARAM_DESC(scsc_droplevel_ ## tagname, \
 			   "Droplevels for the '" # tagname "' family.", \

@@ -10,6 +10,7 @@
 #include "debug.h"
 #include "procfs.h"
 #include "sap.h"
+#include "hip4.h"
 #ifdef CONFIG_SCSC_SMAPPER
 #include "hip4_smapper.h"
 #endif
@@ -326,3 +327,23 @@ int slsi_hip_stop(struct slsi_dev *sdev)
 	mutex_unlock(&sdev->hip.hip_mutex);
 	return 0;
 }
+#ifdef CONFIG_SCSC_WLAN_RX_NAPI
+void slsi_hip_set_napi_cpu(struct slsi_dev *sdev, u8 napi_cpu, bool perf_mode)
+{
+	hip4_set_napi_cpu(&sdev->hip4_inst, napi_cpu, perf_mode);
+}
+
+void slsi_hip_reprocess_skipped_ctrl_bh(struct slsi_dev *sdev)
+{
+	struct slsi_hip4 *hip4 = &sdev->hip4_inst;
+
+	hip4_sched_wq_ctrl(hip4);
+}
+#else
+void slsi_hip_reprocess_skipped_data_bh(struct slsi_dev *sdev)
+{
+	struct slsi_hip4 *hip4 = &sdev->hip4_inst;
+
+	hip4_sched_wq(hip4);
+}
+#endif

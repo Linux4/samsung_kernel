@@ -159,6 +159,9 @@ void select_light_ops(struct ssp_data *data, char *name)
 #if defined(CONFIG_SENSORS_SSP_LIGHT_VEML3328)
 	count++;
 #endif
+#if defined(CONFIG_SENSORS_SSP_LIGHT_CM32183)
+	count++;
+#endif
 #if defined(CONFIG_SENSORS_SSP_LIGHT_STK3X6X)
 	count++;
 #endif
@@ -182,6 +185,9 @@ void select_light_ops(struct ssp_data *data, char *name)
 #endif
 #if defined(CONFIG_SENSORS_SSP_LIGHT_VEML3328)
 	light_ops_ary[i++] = get_light_veml3328_function_pointer(data);
+#endif
+#if defined(CONFIG_SENSORS_SSP_LIGHT_CM32183)
+	light_ops_ary[i++] = get_light_cm32183_function_pointer(data);
 #endif
 #if defined(CONFIG_SENSORS_SSP_LIGHT_STK3X6X)
 	light_ops_ary[i++] = get_light_stk3x6x_function_pointer(data);

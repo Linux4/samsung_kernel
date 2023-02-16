@@ -234,7 +234,12 @@ static void regmode_vote(struct s2mu106_charger_data *charger, int voter, int va
 		/* auto async mode */
 		s2mu106_update_reg(charger->i2c, 0x3A, 0x01, 0x03);
 	} else {
-		s2mu106_update_reg(charger->i2c, 0x3A, 0x01, 0x03); // SET_Auto Async
+		/* 
+		 * Regmode (CHG, BUCK, BUCK OFF)
+		 * Do not set Auto Async mode before BUCK OFF mode
+		 */
+		if ((set_val & REG_MODE_CHG) || (set_val & REG_MODE_BUCK))
+			s2mu106_update_reg(charger->i2c, 0x3A, 0x01, 0x03); // SET_Auto Async
 		s2mu106_update_reg(charger->i2c,
 				S2MU106_CHG_CTRL0, set_val, REG_MODE_MASK);
 		s2mu106_update_reg(charger->i2c, 0x39, 0x55, 0xFF); // prevent OTG OCP default

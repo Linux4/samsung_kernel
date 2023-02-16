@@ -84,13 +84,14 @@ enum mbulk_class {
 	MBULK_CLASS_CONTROL                 = 0,
 	MBULK_CLASS_HOSTIO                  = 1,
 	MBULK_CLASS_DEBUG                   = 2,
+	MBULK_CLASS_DEBUG_CRIT              = 3,
 
-	MBULK_CLASS_FROM_HOST_DAT           = 3,
-	MBULK_CLASS_FROM_HOST_CTL           = 4,
-	MBULK_CLASS_FROM_RADIO              = 5,
-	MBULK_CLASS_DPLP                    = 6,
-	MBULK_CLASS_OTHERS                  = 7,
-	MBULK_CLASS_FROM_RADIO_FORWARDED    = 8,
+	MBULK_CLASS_FROM_HOST_DAT           = 4,
+	MBULK_CLASS_FROM_HOST_CTL           = 5,
+	MBULK_CLASS_FROM_RADIO              = 6,
+	MBULK_CLASS_DPLP                    = 7,
+	MBULK_CLASS_OTHERS                  = 8,
+	MBULK_CLASS_FROM_RADIO_FORWARDED    = 9,
 	MBULK_CLASS_MAX
 } __packed;
 

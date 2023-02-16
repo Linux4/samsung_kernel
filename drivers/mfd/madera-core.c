@@ -209,6 +209,10 @@ EXPORT_SYMBOL_GPL(madera_name_from_type);
 
 static int madera_wait_for_boot(struct madera *madera)
 {
+	unsigned int unused_mask = ~(MADERA_CTRLIF_ERR_STS1 |
+				     MADERA_SYSCLK_FAIL_STS1 |
+				     MADERA_CLOCK_DETECT_STS1 |
+				     MADERA_BOOT_DONE_STS1);
 	unsigned int val;
 	int ret;
 
@@ -220,6 +224,7 @@ static int madera_wait_for_boot(struct madera *madera)
 	ret = regmap_read_poll_timeout(madera->regmap,
 				       MADERA_IRQ1_RAW_STATUS_1,
 				       val,
+					   !(val & unused_mask) &&
 				       (val & MADERA_BOOT_DONE_STS1),
 				       MADERA_BOOT_POLL_MAX_INTERVAL_US,
 				       MADERA_BOOT_POLL_TIMEOUT_US);

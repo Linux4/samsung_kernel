@@ -30,7 +30,7 @@ config SCSC_PCIE
 	depends on PCI
 
 config SCSC_MXLOGGER
-	bool "Samsung SCSC MXLOGGER"
+	tristate "Samsung SCSC MXLOGGER"
 	depends on SCSC_CORE
 	default y
 	---help---
@@ -139,28 +139,13 @@ config SCSC_BUILD_TYPE
        ---help---
          Type of Kernel Build: User, User Debug, Engineering
 
-config SCSC_WIFILOGGER
-	tristate "Samsung SCSC Android Wi-Fi Logger"
-	depends on SCSC_CORE
-	default n
-
-config SCSC_WIFILOGGER_DEBUGFS
-	bool "Samsung SCSC Android Wi-Fi Logger DebugFS"
-	depends on SCSC_WIFILOGGER && DEBUG_FS
-	default y
-
 config SCSC_LOGRING_DEBUGFS
-	bool "Samsung SCSC Logring DebugFS"
-	depends on SCSC_LOGRING && DEBUG_FS
-	default y
-
-config SCSC_WIFILOGGER_TEST
-	bool "Samsung SCSC Android Wi-Fi Logger Test Harness"
-	depends on SCSC_WIFILOGGER && SCSC_WIFILOGGER_DEBUGFS
-	default n
+        bool "Samsung SCSC Logring DebugFS"
+        depends on SCSC_LOGRING && DEBUG_FS
+        default y
 
 config SCSC_LOG_COLLECTION
-	bool "Samsung SCSC Log Collection"
+	tristate "Samsung SCSC Log Collection"
 	depends on SCSC_CORE
 	default y
 	---help---
@@ -187,12 +172,6 @@ config SCSC_MX450_GDB_SUPPORT
 	---help---
 	  Enable GDB Channels for MX450
 
-config SCSC_WLAN_FAST_RECOVERY
-        bool "Enable fast recovery"
-        default n
-        ---help---
-        This option tells if fast recovery is enabled or not.
-
 config SCSC_LAST_PANIC_IN_DRAM
         bool "Enable last panic in DRAM"
         default n
@@ -206,3 +185,16 @@ config SCSC_WLBT_CFG_REQ_WQ
 	default n
 	---help---
 	Enable processing CFG REQ by Workqueue
+
+config SCSC_MEMLOG
+	tristate "Enable WLBT logging with memlog API"
+	depends on SCSC_CORE
+	depends on SOC_S5E9815
+	---help---
+	  Enable memlog feature. So mxlogger doesn't allocated in reserved memory, dynamically by memlog API.
+
+config SCSC_MX152_EXT_DUAL_FEM
+	bool "Enable dual fem for MX152"
+	default n
+	help
+		Enable dual fem for MX152

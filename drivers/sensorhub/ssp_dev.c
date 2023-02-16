@@ -64,7 +64,7 @@ static void init_sensorlist(struct ssp_data *data)
 		SENSOR_INFO_UNKNOWN,
 		SENSOR_INFO_PICK_UP_GESTURE,
 		SENSOR_INFO_UNKNOWN,
-		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_DEVICE_ORIENTATION,
 		SENSOR_INFO_UNKNOWN,
 		SENSOR_INFO_PROXIMITY_RAW,
 		SENSOR_INFO_GEOMAGNETIC_POWER,
@@ -76,8 +76,22 @@ static void init_sensorlist(struct ssp_data *data)
 		SENSOR_INFO_WAKE_UP_MOTION,
 		SENSOR_INFO_AUTO_BIRGHTNESS,
 		SENSOR_INFO_VDIS_GYRO,
-		SENSOR_INFO_POCKET_MODE,
+		SENSOR_INFO_POCKET_MODE_LITE,
 		SENSOR_INFO_PROXIMITY_CALIBRATION,
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_DEVICE_ORIENTATION_WU,
+		SENSOR_INFO_UNKNOWN,
+		SENSOR_INFO_SAR_BACKOFF_MOTION,
 	};
 
 	memcpy(&data->info, sensorinfo, sizeof(data->info));
@@ -205,6 +219,12 @@ int initialize_mcu(struct ssp_data *data)
 	ret = set_accel_cal(data);
 	if (ret < 0) {
 		ssp_errf("set_accel_cal failed\n");
+		return FAIL;
+	}
+
+	ret = set_device_orientation_mode(data);
+	if (ret < 0) {
+		ssp_errf("set_device_orientation_mode failed");
 		return FAIL;
 	}
 #endif

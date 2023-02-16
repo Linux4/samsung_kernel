@@ -63,7 +63,7 @@
 extern int exynos_acpm_set_flag(void);
 #endif
 
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 #include <scsc/scsc_log_collector.h>
 #endif
 /* Time to wait for CFG_REQ IRQ on 9610 */
@@ -195,8 +195,6 @@ struct platform_mif {
 	void (*resume_handler)(struct scsc_mif_abs *abs, void *data);
 	void *suspendresume_data;
 };
-
-extern int mx140_log_dump(void);
 
 #define platform_mif_from_mif_abs(MIF_ABS_PTR) container_of(MIF_ABS_PTR, struct platform_mif, interface)
 
@@ -732,8 +730,6 @@ uint32_t ka_patch[] = {
 	0x00000022,
 };
 
-extern bool reset_failed;
-
 irqreturn_t platform_cfg_req_isr(int irq, void *data)
 {
 	struct platform_mif *platform = (struct platform_mif *)data;
@@ -775,8 +771,6 @@ irqreturn_t platform_cfg_req_isr(int irq, void *data)
 
 		regmap_read(platform->pmureg, WLBT_DEBUG, &val);
 		SCSC_TAG_INFO(PLAT_MIF, "WLBT_DEBUG 0x%x\n", val);
-
-		reset_failed = true; /* prevent further interaction with HW */
 
 		return IRQ_HANDLED;
 	}
@@ -1208,10 +1202,8 @@ done:
 		SCSC_TAG_ERR_DEV(PLAT_MIF, platform->dev, "Reset not recovered");
 
 	/* Save log at point of failure, last to show recovery attempt */
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 	scsc_log_collector_schedule_collection(SCSC_LOG_HOST_COMMON, SCSC_LOG_HOST_COMMON_RECOVER_RST);
-#else
-	mx140_log_dump();
 #endif
 	return ret;
 }
@@ -1346,12 +1338,6 @@ static int platform_mif_pmu_reset(struct scsc_mif_abs *interface, u8 rst_case)
 	regmap_read(platform->pmureg, WLBT_DEBUG, &val);
 	SCSC_TAG_INFO(PLAT_MIF, "WLBT_DEBUG 0x%x\n", val);
 
-#if 0
-	/* Try to recovery in case of reset failure */
-	ret = __platform_mif_9610_recover_reset(platform);
-	if (!ret)
-		return 0;
-#endif
 #else
 	/* 7885, 7872, 7570 */
 	ret = regmap_update_bits(platform->pmureg, CLEANY_BUS_WIFI_SYS_PWR_REG,

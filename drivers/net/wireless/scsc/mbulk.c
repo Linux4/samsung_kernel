@@ -22,7 +22,7 @@
  */
 #define MBULK_DAT_BUFSZ_REQ_BEST_MAGIC  ((u32)(-2))
 
-DEFINE_SPINLOCK(mbulk_pool_lock);
+static DEFINE_SPINLOCK(mbulk_pool_lock);
 
 static inline void mbulk_debug(struct mbulk *m)
 {
@@ -80,7 +80,7 @@ static inline struct mbulk *mbulk_pool_get(struct mbulk_pool *pool, enum mbulk_c
 	pool->free_cnt--;
 	pool->usage[clas]++;
 
-	SCSC_HIP4_SAMPLER_MBULK(pool->minor, (pool->free_cnt & 0x100) >> 8, (pool->free_cnt & 0xff), clas);
+	SCSC_HIP4_SAMPLER_MBULK(pool->minor, (pool->free_cnt & 0x100) >> 8, (pool->free_cnt & 0xff), pool->pid);
 
 	if (m->next_offset == 0)
 		pool->free_list = NULL;
@@ -105,7 +105,7 @@ static inline void mbulk_pool_put(struct mbulk_pool *pool, struct mbulk *m)
 	pool->usage[m->clas]--;
 	pool->free_cnt++;
 
-	SCSC_HIP4_SAMPLER_MBULK(pool->minor, (pool->free_cnt & 0x100) >> 8, (pool->free_cnt & 0xff), m->clas);
+	SCSC_HIP4_SAMPLER_MBULK(pool->minor, (pool->free_cnt & 0x100) >> 8, (pool->free_cnt & 0xff), pool->pid);
 	m->flag = MBULK_F_FREE;
 	if (pool->free_list != NULL)
 		m->next_offset = (uintptr_t)pool->free_list - (uintptr_t)m;

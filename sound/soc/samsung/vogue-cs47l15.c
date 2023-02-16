@@ -1216,8 +1216,8 @@ static void exynos9610_mic_always_on(struct platform_device *pdev)
 	dev_info(&pdev->dev, "%s\n", __func__);
 
 	if (of_find_property(pdev->dev.of_node, "mic-always-on", NULL) != NULL){
-		snd_soc_dapm_force_enable_pin(dapm, "MICBIAS2");
-		snd_soc_dapm_force_enable_pin(dapm, "MICBIAS3");
+		snd_soc_dapm_force_enable_pin(dapm, "MICBIAS1B");
+		snd_soc_dapm_force_enable_pin(dapm, "MICBIAS1C");
 		snd_soc_dapm_sync(dapm);
 	} else {
 		dev_info(&pdev->dev, "Invalid mic_always_on\n");

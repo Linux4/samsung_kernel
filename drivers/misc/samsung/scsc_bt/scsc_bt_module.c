@@ -22,7 +22,11 @@
 #include <linux/proc_fs.h>
 #include <asm/io.h>
 #include <asm/termios.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+#include <scsc/scsc_wakelock.h>
+#else
 #include <linux/wakelock.h>
+#endif
 #include <linux/delay.h>
 #include <linux/seq_file.h>
 #include <linux/ctype.h>
@@ -399,7 +403,7 @@ struct scsc_log_collector_client bt_collect_hcf_client = {
 };
 #endif
 
-static bool scsc_recovery_in_progress()
+static bool scsc_recovery_in_progress(void)
 {
 #ifdef CONFIG_SCSC_ANT
 	return bt_service.recovery_level != 0 || ant_service.recovery_level != 0;
@@ -408,7 +412,7 @@ static bool scsc_recovery_in_progress()
 #endif
 }
 
-static int slsi_sm_bt_service_cleanup()
+static int slsi_sm_bt_service_cleanup(void)
 {
 	int ret = 0;
 
@@ -474,8 +478,10 @@ static int slsi_sm_bt_service_cleanup()
 
 #ifdef CONFIG_SCSC_LOG_COLLECTION
 		/* Deinit HCF log collection */
-		scsc_log_collector_unregister_client(&bt_collect_hcf_client);
-		bt_collect_hcf_client.prv = NULL;
+		if (bt_collect_hcf_client.prv) {
+			scsc_log_collector_unregister_client(&bt_collect_hcf_client);
+			bt_collect_hcf_client.prv = NULL;
+		}
 
 		if (bt_service.hcf_collection.hcf) {
 			/* Reset HCF pointer - memory will be freed later */
@@ -689,6 +695,116 @@ done_error:
 }
 #endif
 
+
+static void get_bluetooth_address(uint32_t *lap, uint8_t *uap, uint16_t *nap)
+{
+#ifdef SCSC_BT_ADDR
+	struct firmware *firm;
+#endif
+#if defined(CONFIG_ARCH_EXYNOS) || defined(CONFIG_ARCH_EXYNOS9)
+	*nap = (exynos_soc_info.unique_id & 0x000000FFFF00) >> 8;
+	*uap = (exynos_soc_info.unique_id & 0x0000000000FF);
+	*lap = (exynos_soc_info.unique_id & 0xFFFFFF000000) >> 24;
+#endif
+
+	if (bluetooth_address) {
+		SCSC_TAG_INFO(BT_COMMON, "using stack supplied Bluetooth address\n");
+		*nap = (bluetooth_address & 0xFFFF00000000) >> 32;
+		*uap = (bluetooth_address & 0x0000FF000000) >> 24;
+		*lap = (bluetooth_address & 0x000000FFFFFF);
+	}
+
+#ifdef SCSC_BT_ADDR
+	/* Request the Bluetooth address file */
+	SCSC_TAG_DEBUG(BT_COMMON,
+		"loading Bluetooth address configuration file: "
+		SCSC_BT_ADDR "\n");
+	err = mx140_request_file(common_service.maxwell_core, SCSC_BT_ADDR, &firm);
+	if (err) {
+		/* Not found - just silently ignore this */
+		SCSC_TAG_DEBUG(BT_COMMON, "Bluetooth address not found\n");
+	} else if (firm && firm->size) {
+		u32 u[SCSC_BT_ADDR_LEN];
+
+#ifdef CONFIG_SCSC_BT_BLUEZ
+		/* Convert the data into a native format */
+		if (sscanf(firm->data, "%04x %02X %06x", &u[0], &u[1], &u[2])
+		    == SCSC_BT_ADDR_LEN) {
+			*lap = u[2];
+			*uap = u[1];
+			*nap = u[0];
+		} else
+			SCSC_TAG_WARNING(BT_COMMON,
+				"data size incorrect = %zu\n", firm->size);
+#else
+		/* Convert the data into a native format */
+		if (sscanf(firm->data, "%02X:%02X:%02X:%02X:%02X:%02X",
+			   &u[0], &u[1], &u[2], &u[3], &u[4], &u[5])
+		    == SCSC_BT_ADDR_LEN) {
+			*lap = (u[3] << 16) | (u[4] << 8) | u[5];
+			*uap = u[2];
+			*nap = (u[0] << 8) | u[1];
+		} else
+			SCSC_TAG_WARNING(BT_COMMON,
+				"data size incorrect = %zu\n", firm->size);
+#endif
+		/* Relase the configuration information */
+		mx140_release_file(common_service.maxwell_core, firm);
+		firm = NULL;
+	} else {
+		SCSC_TAG_DEBUG(BT_COMMON, "empty Bluetooth address\n");
+		mx140_release_file(common_service.maxwell_core, firm);
+		firm = NULL;
+	}
+#endif
+
+#ifdef CONFIG_SCSC_DEBUG
+	SCSC_TAG_DEBUG(
+		BT_COMMON,
+		"Bluetooth address: %04X:%02X:%06X\n",
+		*nap,
+		*uap,
+		*lap);
+
+	/* Always print Bluetooth Address in Kernel log */
+	printk(
+		KERN_INFO "Bluetooth address: %04X:%02X:%06X\n",
+		*nap,
+		*uap,
+		*lap);
+#endif /* CONFIG_SCSC_DEBUG */
+}
+
+static const struct firmware *load_config(void)
+{
+	int err = 0;
+	const struct firmware *firm;
+
+	SCSC_TAG_DEBUG(BT_COMMON, "loading configuration: " SCSC_BT_CONF "\n");
+	err = mx140_file_request_conf(
+		common_service.maxwell_core,
+		&firm,
+		"bluetooth",
+		SCSC_BT_CONF);
+
+	if (err) {
+		/* Not found - just silently ignore this */
+		SCSC_TAG_DEBUG(BT_COMMON, "configuration not found\n");
+		firm = NULL;
+	} else if (firm && firm->size) {
+		SCSC_TAG_DEBUG(BT_COMMON, "configuration size = %zu\n", firm->size);
+	} else {
+		/* Empty configuration - just silently ignore this */
+		SCSC_TAG_DEBUG(BT_COMMON, "empty configuration\n");
+
+		/* Relase the configuration information */
+		mx140_file_release_conf(common_service.maxwell_core, firm);
+		firm = NULL;
+	}
+
+	return firm;
+}
+
 static int setup_bhcs(struct scsc_service *service,
 		      struct BHCS *bhcs,
 		      uint32_t protocol_ref,
@@ -708,25 +824,18 @@ static int setup_bhcs(struct scsc_service *service,
 	bhcs->bluetooth_address_lap = 0;
 	bhcs->bluetooth_address_uap = 0;
 	bhcs->bluetooth_address_nap = 0;
+	*config_ref = 0;
 
-	/* Request the configuration file */
-	SCSC_TAG_DEBUG(BT_COMMON,
-		"loading configuration: " SCSC_BT_CONF "\n");
-	err = mx140_file_request_conf(common_service.maxwell_core,
-				      &firm, "bluetooth", SCSC_BT_CONF);
-	if (err) {
-		/* Not found - just silently ignore this */
-		SCSC_TAG_DEBUG(BT_COMMON, "configuration not found\n");
-		*config_ref = 0;
-	} else if (firm && firm->size) {
-		SCSC_TAG_DEBUG(BT_COMMON,
-			       "configuration size = %zu\n", firm->size);
+	firm = load_config();
 
+	if (firm != NULL)
+	{
 		/* Allocate a region for the data */
-		err = scsc_mx_service_mifram_alloc(service,
-						   firm->size,
-						   config_ref,
-						   BSMHCP_ALIGNMENT);
+		err = scsc_mx_service_mifram_alloc(
+			service,
+			firm->size,
+			config_ref,
+			BSMHCP_ALIGNMENT);
 		if (err) {
 			SCSC_TAG_WARNING(BT_COMMON, "mifram alloc failed\n");
 			mx140_file_release_conf(common_service.maxwell_core, firm);
@@ -734,12 +843,12 @@ static int setup_bhcs(struct scsc_service *service,
 		}
 
 		/* Map the region to a memory pointer */
-		conf_ptr = scsc_mx_service_mif_addr_to_ptr(service,
-						*config_ref);
+		conf_ptr = scsc_mx_service_mif_addr_to_ptr(service, *config_ref);
 		if (conf_ptr == NULL) {
-			SCSC_TAG_ERR(BT_COMMON,
-				     "couldn't map kmem to bhcs_ref 0x%08x\n",
-				     (u32)*bhcs_ref);
+			SCSC_TAG_ERR(
+				BT_COMMON,
+				"couldn't map kmem to bhcs_ref 0x%08x\n",
+				(u32)*bhcs_ref);
 			mx140_file_release_conf(common_service.maxwell_core, firm);
 			return -EINVAL;
 		}
@@ -748,98 +857,13 @@ static int setup_bhcs(struct scsc_service *service,
 		memcpy(conf_ptr, firm->data, firm->size);
 		bhcs->configuration_offset = *config_ref;
 		bhcs->configuration_length = firm->size;
-
-		/* Relase the configuration information */
 		mx140_file_release_conf(common_service.maxwell_core, firm);
-		firm = NULL;
-	} else {
-		/* Empty configuration - just silently ignore this */
-		SCSC_TAG_DEBUG(BT_COMMON, "empty configuration\n");
-		*config_ref = 0;
-
-		/* Relase the configuration information */
-		mx140_file_release_conf(common_service.maxwell_core, firm);
-		firm = NULL;
 	}
 
-#if defined(CONFIG_ARCH_EXYNOS) || defined(CONFIG_ARCH_EXYNOS9)
-	bhcs->bluetooth_address_nap =
-		(exynos_soc_info.unique_id & 0x000000FFFF00) >> 8;
-	bhcs->bluetooth_address_uap =
-		(exynos_soc_info.unique_id & 0x0000000000FF);
-	bhcs->bluetooth_address_lap =
-		(exynos_soc_info.unique_id & 0xFFFFFF000000) >> 24;
-#endif
-
-	if (bluetooth_address) {
-		SCSC_TAG_INFO(BT_COMMON,
-			      "using stack supplied Bluetooth address\n");
-		bhcs->bluetooth_address_nap =
-			(bluetooth_address & 0xFFFF00000000) >> 32;
-		bhcs->bluetooth_address_uap =
-			(bluetooth_address & 0x0000FF000000) >> 24;
-		bhcs->bluetooth_address_lap =
-			(bluetooth_address & 0x000000FFFFFF);
-	}
-
-#ifdef SCSC_BT_ADDR
-	/* Request the Bluetooth address file */
-	SCSC_TAG_DEBUG(BT_COMMON,
-		"loading Bluetooth address configuration file: "
-		SCSC_BT_ADDR "\n");
-	err = mx140_request_file(common_service.maxwell_core, SCSC_BT_ADDR, &firm);
-	if (err) {
-		/* Not found - just silently ignore this */
-		SCSC_TAG_DEBUG(BT_COMMON, "Bluetooth address not found\n");
-	} else if (firm && firm->size) {
-		u32 u[SCSC_BT_ADDR_LEN];
-
-#ifdef CONFIG_SCSC_BT_BLUEZ
-		/* Convert the data into a native format */
-		if (sscanf(firm->data, "%04x %02X %06x",
-			   &u[0], &u[1], &u[2])
-		    == SCSC_BT_ADDR_LEN) {
-			bhcs->bluetooth_address_lap = u[2];
-			bhcs->bluetooth_address_uap = u[1];
-			bhcs->bluetooth_address_nap = u[0];
-		} else
-			SCSC_TAG_WARNING(BT_COMMON,
-				"data size incorrect = %zu\n", firm->size);
-#else
-		/* Convert the data into a native format */
-		if (sscanf(firm->data, "%02X:%02X:%02X:%02X:%02X:%02X",
-			   &u[0], &u[1], &u[2], &u[3], &u[4], &u[5])
-		    == SCSC_BT_ADDR_LEN) {
-			bhcs->bluetooth_address_lap =
-				(u[3] << 16) | (u[4] << 8) | u[5];
-			bhcs->bluetooth_address_uap = u[2];
-			bhcs->bluetooth_address_nap = (u[0] << 8) | u[1];
-		} else
-			SCSC_TAG_WARNING(BT_COMMON,
-				"data size incorrect = %zu\n", firm->size);
-#endif
-		/* Relase the configuration information */
-		mx140_release_file(common_service.maxwell_core, firm);
-		firm = NULL;
-	} else {
-		SCSC_TAG_DEBUG(BT_COMMON, "empty Bluetooth address\n");
-		mx140_release_file(common_service.maxwell_core, firm);
-		firm = NULL;
-	}
-#endif
-
-#ifdef CONFIG_SCSC_DEBUG
-	SCSC_TAG_DEBUG(BT_COMMON, "Bluetooth address: %04X:%02X:%06X\n",
-		       bhcs->bluetooth_address_nap,
-		       bhcs->bluetooth_address_uap,
-		       bhcs->bluetooth_address_lap);
-
-	/* Always print Bluetooth Address in Kernel log */
-	printk(KERN_INFO "Bluetooth address: %04X:%02X:%06X\n",
-		bhcs->bluetooth_address_nap,
-		bhcs->bluetooth_address_uap,
-		bhcs->bluetooth_address_lap);
-#endif /* CONFIG_SCSC_DEBUG */
+	get_bluetooth_address(
+		&bhcs->bluetooth_address_lap,
+		&bhcs->bluetooth_address_uap,
+		&bhcs->bluetooth_address_nap);
 
 	return err;
 }
@@ -1287,7 +1311,7 @@ exit:
 #endif
 
 /* Stop the BT service */
-static int slsi_sm_bt_service_stop()
+static int slsi_sm_bt_service_stop(void)
 {
 	SCSC_TAG_INFO(BT_COMMON, "bt service users %u\n", atomic_read(&bt_service.service_users));
 
@@ -2147,7 +2171,7 @@ static int scsc_btlog_enables_set_param_cb(const char *buffer,
 		 * by copying the remaining part of the string plus a null
 		 * terminator, to a temporary buffer.
 		 */
-		char btlog_enables_buf[SCSC_BTLOG_BUF_LEN + newline_len];
+		char btlog_enables_buf[SCSC_BTLOG_BUF_LEN + 1];
 
 		u32 start_index = buffer_len - SCSC_BTLOG_BUF_MAX_CHAR_TO_COPY - newline_len;
 
@@ -2394,6 +2418,7 @@ static int __init scsc_bt_module_init(void)
 	init_waitqueue_head(&bt_service.read_wait);
 	init_waitqueue_head(&bt_service.info_wait);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	wake_lock_init(&bt_service.read_wake_lock,
 		       WAKE_LOCK_SUSPEND,
 		       "bt_read_wake_lock");
@@ -2417,7 +2442,25 @@ static int __init scsc_bt_module_init(void)
 		       WAKE_LOCK_SUSPEND,
 		       "ant_service_wake_lock");
 #endif
+#else
+        wake_lock_init(NULL, &bt_service.read_wake_lock.ws,
+                       "bt_read_wake_lock");
+        wake_lock_init(NULL, &bt_service.write_wake_lock.ws,
+                       "bt_write_wake_lock");
+        wake_lock_init(NULL, &bt_service.service_wake_lock.ws,
+                       "bt_service_wake_lock");
 
+#ifdef CONFIG_SCSC_ANT
+        init_waitqueue_head(&ant_service.read_wait);
+
+        wake_lock_init(NULL, &ant_service.read_wake_lock.ws,
+                       "ant_read_wake_lock");
+        wake_lock_init(NULL, &ant_service.write_wake_lock.ws,
+                       "ant_write_wake_lock");
+        wake_lock_init(NULL, &ant_service.service_wake_lock.ws,
+                       "ant_service_wake_lock");
+#endif
+#endif
 	procfs_dir = proc_mkdir("driver/scsc_bt", NULL);
 	if (NULL != procfs_dir) {
 		proc_create_data("stats", S_IRUSR | S_IRGRP,

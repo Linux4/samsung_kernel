@@ -72,7 +72,7 @@ static int slsi_tx_eapol(struct slsi_dev *sdev, struct net_device *dev, struct s
 	peer = slsi_get_peer_from_mac(sdev, dev, eth_hdr(skb)->h_dest);
 	if (!peer) {
 		slsi_spinlock_unlock(&ndev_vif->peer_lock);
-		SLSI_NET_WARN(dev, "no peer record for %pM, drop EAP frame\n", eth_hdr(skb)->h_dest);
+		SLSI_NET_WARN(dev, "no peer record for " MACSTR ", drop EAP frame\n", MAC2STR(eth_hdr(skb)->h_dest));
 		return -EINVAL;
 	}
 
@@ -82,25 +82,25 @@ static int slsi_tx_eapol(struct slsi_dev *sdev, struct net_device *dev, struct s
 		  * Detect if this is an EAPOL key frame. If so detect if
 		  * it is an EAPOL-Key M4 packet
 		  * In M4 packet,
-		  * - MIC bit set in key info
 		  * - Key type bit set in key info (pairwise=1, Group=0)
 		  * - ACK bit will not be set
 		  * - Secure bit will be set in key type RSN (WPA2/WPA3
 		  *   Personal/WPA3 Enterprise)
 		  * - Key Data length check for Zero is for WPA as Secure
-		  *   bit will not be set
+		  *   bit will not be set, MIC bit set in key info
 		  */
 		if ((skb->len - sizeof(struct ethhdr)) >= 99)
 			eapol = skb->data + sizeof(struct ethhdr);
 		if (eapol && eapol[SLSI_EAPOL_IEEE8021X_TYPE_POS] == SLSI_IEEE8021X_TYPE_EAPOL_KEY) {
 			msg_type = FAPI_MESSAGETYPE_EAPOL_KEY_M123;
 
-			if ((eapol[SLSI_EAPOL_TYPE_POS] == SLSI_EAPOL_TYPE_RSN_KEY || eapol[SLSI_EAPOL_TYPE_POS] == SLSI_EAPOL_TYPE_WPA_KEY) &&
-			    (eapol[SLSI_EAPOL_KEY_INFO_LOWER_BYTE_POS] & SLSI_EAPOL_KEY_INFO_KEY_TYPE_BIT_IN_LOWER_BYTE) &&
-			    (!(eapol[SLSI_EAPOL_KEY_INFO_LOWER_BYTE_POS] & SLSI_EAPOL_KEY_INFO_ACK_BIT_IN_LOWER_BYTE)) &&
-			    (eapol[SLSI_EAPOL_KEY_INFO_HIGHER_BYTE_POS] & SLSI_EAPOL_KEY_INFO_MIC_BIT_IN_HIGHER_BYTE) &&
-			    ((eapol[SLSI_EAPOL_KEY_INFO_HIGHER_BYTE_POS] & SLSI_EAPOL_KEY_INFO_SECURE_BIT_IN_HIGHER_BYTE) ||
-			    (eapol[SLSI_EAPOL_KEY_DATA_LENGTH_HIGHER_BYTE_POS] == 0 && eapol[SLSI_EAPOL_KEY_DATA_LENGTH_LOWER_BYTE_POS] == 0))) {
+			if ((!(eapol[SLSI_EAPOL_KEY_INFO_LOWER_BYTE_POS] & SLSI_EAPOL_KEY_INFO_ACK_BIT_IN_LOWER_BYTE)) &&
+			    eapol[SLSI_EAPOL_KEY_INFO_LOWER_BYTE_POS] & SLSI_EAPOL_KEY_INFO_KEY_TYPE_BIT_IN_LOWER_BYTE &&
+			    ((eapol[SLSI_EAPOL_TYPE_POS] == SLSI_EAPOL_TYPE_RSN_KEY &&
+			    eapol[SLSI_EAPOL_KEY_INFO_HIGHER_BYTE_POS] & SLSI_EAPOL_KEY_INFO_SECURE_BIT_IN_HIGHER_BYTE) ||
+			    (eapol[SLSI_EAPOL_TYPE_POS] == SLSI_EAPOL_TYPE_WPA_KEY &&
+			    eapol[SLSI_EAPOL_KEY_INFO_HIGHER_BYTE_POS] & SLSI_EAPOL_KEY_INFO_MIC_BIT_IN_HIGHER_BYTE &&
+			    eapol[SLSI_EAPOL_KEY_DATA_LENGTH_HIGHER_BYTE_POS] == 0 && eapol[SLSI_EAPOL_KEY_DATA_LENGTH_LOWER_BYTE_POS] == 0))){
 				msg_type = FAPI_MESSAGETYPE_EAPOL_KEY_M4;
 				dwell_time = 0;
 			}
@@ -165,7 +165,7 @@ static int slsi_tx_arp(struct slsi_dev *sdev, struct net_device *dev, struct sk_
 	peer = slsi_get_peer_from_mac(sdev, dev, eth_hdr(skb)->h_dest);
 	if (!peer && !is_broadcast_ether_addr(eth_hdr(skb)->h_dest)) {
 		slsi_spinlock_unlock(&ndev_vif->peer_lock);
-		SLSI_NET_WARN(dev, "no peer record for %pM, drop ARP frame\n", eth_hdr(skb)->h_dest);
+		SLSI_NET_WARN(dev, "no peer record for " MACSTR ", drop ARP frame\n", MAC2STR(eth_hdr(skb)->h_dest));
 		return -EINVAL;
 	}
 
@@ -234,7 +234,7 @@ static int slsi_tx_dhcp(struct slsi_dev *sdev, struct net_device *dev, struct sk
 	peer = slsi_get_peer_from_mac(sdev, dev, eth_hdr(skb)->h_dest);
 	if (!peer && !is_broadcast_ether_addr(eth_hdr(skb)->h_dest)) {
 		slsi_spinlock_unlock(&ndev_vif->peer_lock);
-		SLSI_NET_WARN(dev, "no peer record for %pM, drop DHCP frame\n", eth_hdr(skb)->h_dest);
+		SLSI_NET_WARN(dev, "no peer record for " MACSTR ", drop DHCP frame\n", MAC2STR(eth_hdr(skb)->h_dest));
 		return -EINVAL;
 	}
 
@@ -402,7 +402,7 @@ int slsi_tx_data(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *
 	cb->sig_length = fapi_sig_size(ma_unitdata_req);
 	cb->data_length = skb->len;
 
-#ifdef CONFIG_SCSC_WIFILOGGER
+#if IS_ENABLED(CONFIG_SCSC_WIFILOGGER)
 	/* Log only the linear skb chunk ... unidata anywya will be truncated to 100.*/
 	SCSC_WLOG_PKTFATE_LOG_TX_DATA_FRAME(fapi_get_u16(skb, u.ma_unitdata_req.host_tag),
 					    skb->data, skb_headlen(skb));
@@ -458,7 +458,7 @@ int slsi_tx_data(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *
 	peer = slsi_get_peer_from_mac(sdev, dev, eth_hdr(skb)->h_dest);
 	if (!peer) {
 		slsi_spinlock_unlock(&ndev_vif->peer_lock);
-		SLSI_NET_WARN(dev, "no peer record for %pM, drop Tx frame\n", eth_hdr(skb)->h_dest);
+		SLSI_NET_WARN(dev, "no peer record for " MACSTR ", drop Tx frame\n", MAC2STR(eth_hdr(skb)->h_dest));
 		if (original_skb)
 			consume_skb(skb);
 		return -EINVAL;
@@ -507,7 +507,7 @@ int slsi_tx_data(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *
 									  vif_index,
 									  ndev_vif->peer_sta_record[i]->aid);
 					if (ret < 0) {
-						SLSI_NET_WARN(dev, "duplicate SKB: no fcq for %pM, drop Tx frame\n", ndev_vif->peer_sta_record[i]->address);
+						SLSI_NET_WARN(dev, "duplicate SKB: no fcq for " MACSTR ", drop Tx frame\n", MAC2STR(ndev_vif->peer_sta_record[i]->address));
 						kfree_skb(duplicate_skb);
 						continue;
 					}
@@ -543,7 +543,7 @@ int slsi_tx_data(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *
 					  vif_index,
 					  peer_index);
 	if (ret < 0) {
-		SLSI_NET_WARN(dev, "no fcq for %pM, drop Tx frame\n", eth_hdr(skb)->h_dest);
+		SLSI_NET_WARN(dev, "no fcq for " MACSTR ", drop Tx frame\n", MAC2STR(eth_hdr(skb)->h_dest));
 		slsi_spinlock_unlock(&ndev_vif->peer_lock);
 		if (original_skb)
 			consume_skb(skb);
@@ -663,8 +663,8 @@ int slsi_tx_data_lower(struct slsi_dev *sdev, struct sk_buff *skb)
 	slsi_spinlock_lock(&ndev_vif->peer_lock);
 	peer = slsi_get_peer_from_mac(sdev, dev, dest);
 	if (!peer) {
-		SLSI_ERR(sdev, "no peer record for %02x:%02x:%02x:%02x:%02x:%02x, dropping TX frame\n",
-			 dest[0], dest[1], dest[2], dest[3], dest[4], dest[5]);
+		SLSI_ERR(sdev, "no peer record for " MACSTR ", dropping TX frame\n",
+			 MAC2STR(dest));
 		slsi_spinlock_unlock(&ndev_vif->peer_lock);
 		return -EINVAL;
 	}
@@ -747,7 +747,7 @@ int slsi_tx_control(struct slsi_dev *sdev, struct net_device *dev, struct sk_buf
 	hdr = (struct fapi_signal_header *)skb->data;
 	hdr->fw_reference = 0;
 
-#ifdef CONFIG_SCSC_WIFILOGGER
+#if IS_ENABLED(CONFIG_SCSC_WIFILOGGER)
 	/* Log only the linear skb  chunk */
 	SCSC_WLOG_PKTFATE_LOG_TX_CTRL_FRAME(fapi_get_u16(skb, u.mlme_frame_transmission_ind.host_tag),
 					    skb->data, skb_headlen(skb));
@@ -762,7 +762,7 @@ int slsi_tx_control(struct slsi_dev *sdev, struct net_device *dev, struct sk_buf
 
 		if (!in_interrupt()) {
 			snprintf(reason, sizeof(reason), "Failed to transmit signal 0x%04X (err:%d)", fapi_get_sigid(skb), res);
-			slsi_sm_service_failed(sdev, reason);
+			slsi_sm_service_failed(sdev, reason, false);
 
 			res = -EIO;
 		}

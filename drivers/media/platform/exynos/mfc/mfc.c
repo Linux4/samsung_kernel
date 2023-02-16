@@ -95,6 +95,8 @@ static void __mfc_deinit_dec_ctx(struct mfc_ctx *ctx)
 {
 	struct mfc_dec *dec = ctx->dec_priv;
 
+	mfc_cleanup_assigned_iovmm(ctx);
+
 	mfc_delete_queue(&ctx->src_buf_queue);
 	mfc_delete_queue(&ctx->dst_buf_queue);
 	mfc_delete_queue(&ctx->src_buf_nal_queue);
@@ -164,6 +166,7 @@ static int __mfc_init_dec_ctx(struct mfc_ctx *ctx)
 	dec->is_dpb_full = 0;
 	mfc_cleanup_assigned_fd(ctx);
 	mfc_clear_assigned_dpb(ctx);
+	mutex_init(&dec->dpb_mutex);
 
 	/* sh_handle: released dpb info */
 	dec->sh_handle_dpb.fd = -1;
@@ -459,12 +462,12 @@ static int mfc_open(struct file *file)
 	enum mfc_node_type node;
 	struct video_device *vdev = NULL;
 
-	mfc_debug(2, "mfc driver open called\n");
-
 	if (!dev) {
 		mfc_err_dev("no mfc device to run\n");
 		goto err_no_device;
 	}
+
+	mfc_info_dev("mfc driver open called\n");
 
 	if (mutex_lock_interruptible(&dev->mfc_mutex))
 		return -ERESTARTSYS;

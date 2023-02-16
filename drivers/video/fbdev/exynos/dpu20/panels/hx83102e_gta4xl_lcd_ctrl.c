@@ -254,7 +254,6 @@ static int hx83102e_exit(struct lcd_info *lcd)
 	DSI_WRITE(SEQ_SET_E9_VSOM_SOFT2, ARRAY_SIZE(SEQ_SET_E9_VSOM_SOFT2));
 	DSI_WRITE(SEQ_SLEEP_IN, ARRAY_SIZE(SEQ_SLEEP_IN));
 	DSI_WRITE(SEQ_SET_B9_CLOSE_PW, ARRAY_SIZE(SEQ_SET_B9_CLOSE_PW));
-	msleep(40);	/* > 2 frame + 5ms */
 
 	return ret;
 }
@@ -524,11 +523,44 @@ static ssize_t cabc_store(struct device *dev,
 	return size;
 }
 
+static ssize_t abnormal_temperature_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	unsigned int value;
+	int ret;
+
+	ret = kstrtouint(buf, 0, &value);
+
+	if (ret < 0)
+		return ret;
+
+	if ((cpu_to_be32(lcd->id_info.value) != 0x0CD234))
+		return size;
+
+	if (value == 1) {
+		DSI_WRITE(SEQ_SET_B9_PW, ARRAY_SIZE(SEQ_SET_B9_PW));
+		DSI_WRITE(SEQ_SET_B1_POWER_LOW_TEMP, ARRAY_SIZE(SEQ_SET_B1_POWER_LOW_TEMP));
+		DSI_WRITE(SEQ_SET_B9_CLOSE_PW, ARRAY_SIZE(SEQ_SET_B9_CLOSE_PW));
+		dev_info(&lcd->ld->dev, "%s: change VGH voltage to 17.4V \n", __func__);
+	} else {
+		DSI_WRITE(SEQ_SET_B9_PW, ARRAY_SIZE(SEQ_SET_B9_PW));
+		DSI_WRITE(SEQ_SET_B1_POWER, ARRAY_SIZE(SEQ_SET_B1_POWER));
+		DSI_WRITE(SEQ_SET_B9_CLOSE_PW, ARRAY_SIZE(SEQ_SET_B9_CLOSE_PW));
+		dev_info(&lcd->ld->dev, "%s: change VGH voltage to 16.0V \n", __func__);
+	}
+
+	dev_info(&lcd->ld->dev, "%s: %d\n", __func__, value);
+
+	return size;
+}
+
 static DEVICE_ATTR(lcd_type, 0444, lcd_type_show, NULL);
 static DEVICE_ATTR(window_type, 0444, window_type_show, NULL);
 static DEVICE_ATTR(brightness_table, 0444, brightness_table_show, NULL);
 static DEVICE_ATTR(lux, 0644, lux_show, lux_store);
 static DEVICE_ATTR(cabc, 0644, NULL, cabc_store);
+static DEVICE_ATTR(abnormal_temperature, 0644, NULL, abnormal_temperature_store);
 
 static struct attribute *lcd_sysfs_attributes[] = {
 	&dev_attr_lcd_type.attr,
@@ -536,6 +568,7 @@ static struct attribute *lcd_sysfs_attributes[] = {
 	&dev_attr_brightness_table.attr,
 	&dev_attr_lux.attr,
 	&dev_attr_cabc.attr,
+	&dev_attr_abnormal_temperature.attr,
 	NULL,
 };
 
@@ -567,14 +600,14 @@ static int dsim_panel_probe(struct dsim_device *dsim)
 		goto probe_err;
 	}
 
-	lcd->ld = lcd_device_register("panel", dsim->dev, lcd, NULL);
+	lcd->ld = exynos_lcd_device_register("panel", dsim->dev, lcd, NULL);
 	if (IS_ERR(lcd->ld)) {
 		pr_err("%s: failed to register lcd device\n", __func__);
 		ret = PTR_ERR(lcd->ld);
 		goto probe_err;
 	}
 
-	lcd->bd = backlight_device_register("panel", dsim->dev, lcd, &panel_backlight_ops, NULL);
+	lcd->bd = exynos_backlight_device_register("panel", dsim->dev, lcd, &panel_backlight_ops, NULL);
 	if (IS_ERR(lcd->bd)) {
 		pr_err("%s: failed to register backlight device\n", __func__);
 		ret = PTR_ERR(lcd->bd);

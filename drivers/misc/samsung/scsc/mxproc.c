@@ -15,9 +15,13 @@
 #include "scsc_wlbtd.h"
 #endif
 
-#if defined(CONFIG_DEBUG_SNAPSHOT)
+#if IS_ENABLED(CONFIG_DEBUG_SNAPSHOT)
 #include <linux/uaccess.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+#include <soc/samsung/debug-snapshot.h>
+#else
 #include <linux/debug-snapshot.h>
+#endif
 #endif
 
 #ifndef AID_MXPROC
@@ -42,45 +46,20 @@
 	}
 
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 9))
 #define MX_PDE_DATA(inode) PDE_DATA(inode)
-#else
-#define MX_PDE_DATA(inode) (PDE(inode)->data)
-#endif
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 9))
 #define MX_PROCFS_SET_UID_GID(_entry) \
 	do { \
 		kuid_t proc_kuid = KUIDT_INIT(AID_MXPROC); \
 		kgid_t proc_kgid = KGIDT_INIT(AID_MXPROC); \
 		proc_set_user(_entry, proc_kuid, proc_kgid); \
 	} while (0)
-#else
-#define MX_PROCFS_SET_UID_GID(entry) \
-	do { \
-		(entry)->uid = AID_MXPROC; \
-		(entry)->gid = AID_MXPROC; \
-	} while (0)
-#endif
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 9))
 #define MX_PROCFS_ADD_FILE(_sdev, name, parent, mode)                      \
 	do {                                                               \
 		struct proc_dir_entry *entry = proc_create_data(# name, mode, parent, &mx_procfs_ ## name ## _fops, _sdev); \
 		MX_PROCFS_SET_UID_GID(entry);                              \
 	} while (0)
-#else
-#define MX_PROCFS_ADD_FILE(_data, name, parent, mode)                      \
-	do {                                                               \
-		struct proc_dir_entry *entry;                              \
-		entry = create_proc_entry(# name, mode, parent);           \
-		if (entry) {                                               \
-			entry->proc_fops = &mx_procfs_ ## name ## _fops; \
-			entry->data = _data;                               \
-			MX_PROCFS_SET_UID_GID(entry);                      \
-		}                                                          \
-	} while (0)
-#endif
 
 #define MX_PROCFS_REMOVE_FILE(name, parent) remove_proc_entry(# name, parent)
 
@@ -184,14 +163,14 @@ static ssize_t mx_procfs_mx_panic_write(struct file *file, const char __user *us
 	OS_UNUSED_PARAMETER(count);
 	OS_UNUSED_PARAMETER(ppos);
 
-#if defined(CONFIG_DEBUG_SNAPSHOT) && defined(GO_S2D_ID)
+#if IS_ENABLED(CONFIG_DEBUG_SNAPSHOT) && defined(GO_S2D_ID)
 	if (count != 2)
 		return -EFAULT;
 	if (copy_from_user(&value, user_buf, 1))
 		return -EFAULT;
 	if (value == '3') {
 		SCSC_TAG_INFO(MX_PROC, "Manual Scandump");
-		dbg_snapshot_soc_do_dpm_policy(GO_S2D_ID);
+		dbg_snapshot_do_dpm_policy(GO_S2D_ID);
 	} else if (mxproc) {
 		SCSC_TAG_INFO(MX_PROC, "Manual FW Panic");
 		mxman_force_panic(mxproc->mxman);
@@ -439,7 +418,7 @@ int mxproc_create_ctrl_proc_dir(struct mxproc *mxproc, struct mxman *mxman)
 	mxproc->procfs_ctrl_dir_num = proc_count;
 	MX_PROCFS_ADD_FILE(mxproc, mx_fail, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
 	MX_PROCFS_ADD_FILE(mxproc, mx_freeze, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
-	MX_PROCFS_ADD_FILE(mxproc, mx_panic, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+	MX_PROCFS_ADD_FILE(mxproc, mx_panic, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
 	MX_PROCFS_ADD_FILE(mxproc, mx_suspend, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
 	MX_PROCFS_ADD_FILE(mxproc, mx_suspend_count, parent, S_IRUSR | S_IRGRP | S_IROTH);
 	MX_PROCFS_ADD_FILE(mxproc, mx_recovery_count, parent, S_IRUSR | S_IRGRP | S_IROTH);

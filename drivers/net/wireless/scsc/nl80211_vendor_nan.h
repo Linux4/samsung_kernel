@@ -24,13 +24,21 @@
 #define SLSI_NAN_TLV_TAG_DATA_PATH_SECURITY        0x010e
 #define SLSI_NAN_TLV_TAG_APP_INFO                  0x010f
 #define SLSI_NAN_TLV_TAG_RANGING                   0x0110
+#define SLSI_NAN_TLV_TAG_CONFIG_SUPPLEMENTAL       0x0111
 #define SLSI_NAN_TLV_WFA_IPV6_LOCAL_LINK           0x0000
 #define SLSI_NAN_TLV_WFA_SERVICE_INFO              0x0001
+#define SLSI_NAN_TLV_NAN_RTT_CONFIG                0x0112
+#define SLSI_NAN_TLV_NAN_RTT_CONFIG_LEN            0x0009
+#define SLSI_NAN_TLV_NAN_RTT_RESULT                0x0113
+#define SLSI_NAN_TLV_NAN_RTT_RESULT_LEN            0x0023
 
 #define SLSI_NAN_MAX_SERVICE_ID 16
 #define SLSI_NAN_MAX_HOST_FOLLOWUP_REQ 20
 #define SLSI_NAN_MAX_NDP_INSTANCES 8
 #define SLSI_NAN_DATA_IFINDEX_START 5
+#define SLSI_NAN_CLUSTER_MERGE_ENABLE_MASK 0xC0000000
+#define SLSI_NAN_CLUSTER_MERGE_DISABLE_MASK 0x80000000
+#define SLSI_NAN_MAC_RANDOM_INTERVAL_MASK 0x3fffffff
 
 enum SLSI_NAN_REPLY_ATTRIBUTES {
 	NAN_REPLY_ATTR_STATUS_TYPE,
@@ -62,7 +70,7 @@ enum SLSI_NAN_REPLY_ATTRIBUTES {
 };
 
 enum SLSI_NAN_REQ_ATTRIBUTES {
-	NAN_REQ_ATTR_MASTER_PREF,
+	NAN_REQ_ATTR_MASTER_PREF = 1,
 	NAN_REQ_ATTR_CLUSTER_LOW,
 	NAN_REQ_ATTR_CLUSTER_HIGH,
 	NAN_REQ_ATTR_HOP_COUNT_LIMIT_VAL,
@@ -72,7 +80,7 @@ enum SLSI_NAN_REQ_ATTRIBUTES {
 	NAN_REQ_ATTR_RSSI_CLOSE_2G4_VAL,
 	NAN_REQ_ATTR_RSSI_MIDDLE_2G4_VAL,
 	NAN_REQ_ATTR_RSSI_PROXIMITY_2G4_VAL,
-	NAN_REQ_ATTR_BEACONS_2G4_VAL = 10,
+	NAN_REQ_ATTR_BEACONS_2G4_VAL = 11,
 	NAN_REQ_ATTR_SDF_2G4_VAL,
 	NAN_REQ_ATTR_CHANNEL_2G4_MHZ_VAL,
 	NAN_REQ_ATTR_RSSI_PROXIMITY_VAL,
@@ -82,7 +90,7 @@ enum SLSI_NAN_REQ_ATTRIBUTES {
 	NAN_REQ_ATTR_RSSI_PROXIMITY_5G_VAL,
 	NAN_REQ_ATTR_BEACON_5G_VAL,
 	NAN_REQ_ATTR_SDF_5G_VAL,
-	NAN_REQ_ATTR_CHANNEL_5G_MHZ_VAL = 20,
+	NAN_REQ_ATTR_CHANNEL_5G_MHZ_VAL = 21,
 	NAN_REQ_ATTR_RSSI_WINDOW_SIZE_VAL,
 	NAN_REQ_ATTR_OUI_VAL,
 	NAN_REQ_ATTR_MAC_ADDR_VAL,
@@ -92,7 +100,7 @@ enum SLSI_NAN_REQ_ATTRIBUTES {
 	NAN_REQ_ATTR_RANDOM_FACTOR_FORCE_VAL,
 	NAN_REQ_ATTR_HOP_COUNT_FORCE_VAL,
 	NAN_REQ_ATTR_CONN_CAPABILITY_PAYLOAD_TX,
-	NAN_REQ_ATTR_CONN_CAPABILITY_IBSS = 30,
+	NAN_REQ_ATTR_CONN_CAPABILITY_IBSS = 31,
 	NAN_REQ_ATTR_CONN_CAPABILITY_WFD,
 	NAN_REQ_ATTR_CONN_CAPABILITY_WFDS,
 	NAN_REQ_ATTR_CONN_CAPABILITY_TDLS,
@@ -102,7 +110,7 @@ enum SLSI_NAN_REQ_ATTRIBUTES {
 	NAN_REQ_ATTR_DISCOVERY_ATTR_VAL,
 	NAN_REQ_ATTR_CONN_TYPE,
 	NAN_REQ_ATTR_NAN_ROLE,
-	NAN_REQ_ATTR_TRANSMIT_FREQ = 40,
+	NAN_REQ_ATTR_TRANSMIT_FREQ = 41,
 	NAN_REQ_ATTR_AVAILABILITY_DURATION,
 	NAN_REQ_ATTR_AVAILABILITY_INTERVAL,
 	NAN_REQ_ATTR_MESH_ID_LEN,
@@ -112,7 +120,7 @@ enum SLSI_NAN_REQ_ATTRIBUTES {
 	NAN_REQ_ATTR_FURTHER_AVAIL_NUM_ENTRIES,
 	NAN_REQ_ATTR_FURTHER_AVAIL_VAL,
 	NAN_REQ_ATTR_FURTHER_AVAIL_ENTRY_CTRL,
-	NAN_REQ_ATTR_FURTHER_AVAIL_CHAN_CLASS = 50,
+	NAN_REQ_ATTR_FURTHER_AVAIL_CHAN_CLASS = 51,
 	NAN_REQ_ATTR_FURTHER_AVAIL_CHAN,
 	NAN_REQ_ATTR_FURTHER_AVAIL_CHAN_MAPID,
 	NAN_REQ_ATTR_FURTHER_AVAIL_INTERVAL_BITMAP,
@@ -122,7 +130,7 @@ enum SLSI_NAN_REQ_ATTRIBUTES {
 	NAN_REQ_ATTR_PUBLISH_TYPE,
 	NAN_REQ_ATTR_PUBLISH_TX_TYPE,
 	NAN_REQ_ATTR_PUBLISH_COUNT,
-	NAN_REQ_ATTR_PUBLISH_SERVICE_NAME_LEN = 60,
+	NAN_REQ_ATTR_PUBLISH_SERVICE_NAME_LEN = 61,
 	NAN_REQ_ATTR_PUBLISH_SERVICE_NAME,
 	NAN_REQ_ATTR_PUBLISH_MATCH_ALGO,
 	NAN_REQ_ATTR_PUBLISH_SERVICE_INFO_LEN,
@@ -132,7 +140,7 @@ enum SLSI_NAN_REQ_ATTRIBUTES {
 	NAN_REQ_ATTR_PUBLISH_TX_MATCH_FILTER_LEN,
 	NAN_REQ_ATTR_PUBLISH_TX_MATCH_FILTER,
 	NAN_REQ_ATTR_PUBLISH_RSSI_THRESHOLD_FLAG,
-	NAN_REQ_ATTR_PUBLISH_CONN_MAP = 70,
+	NAN_REQ_ATTR_PUBLISH_CONN_MAP = 71,
 	NAN_REQ_ATTR_PUBLISH_RECV_IND_CFG,
 	NAN_REQ_ATTR_SUBSCRIBE_ID,
 	NAN_REQ_ATTR_SUBSCRIBE_TTL,
@@ -142,7 +150,7 @@ enum SLSI_NAN_REQ_ATTRIBUTES {
 	NAN_REQ_ATTR_SUBSCRIBE_RESP_INCLUDE,
 	NAN_REQ_ATTR_SUBSCRIBE_USE_RESP_FILTER,
 	NAN_REQ_ATTR_SUBSCRIBE_SSI_REQUIRED,
-	NAN_REQ_ATTR_SUBSCRIBE_MATCH_INDICATOR = 80,
+	NAN_REQ_ATTR_SUBSCRIBE_MATCH_INDICATOR = 81,
 	NAN_REQ_ATTR_SUBSCRIBE_COUNT,
 	NAN_REQ_ATTR_SUBSCRIBE_SERVICE_NAME_LEN,
 	NAN_REQ_ATTR_SUBSCRIBE_SERVICE_NAME,
@@ -152,7 +160,7 @@ enum SLSI_NAN_REQ_ATTRIBUTES {
 	NAN_REQ_ATTR_SUBSCRIBE_RX_MATCH_FILTER,
 	NAN_REQ_ATTR_SUBSCRIBE_TX_MATCH_FILTER_LEN,
 	NAN_REQ_ATTR_SUBSCRIBE_TX_MATCH_FILTER,
-	NAN_REQ_ATTR_SUBSCRIBE_RSSI_THRESHOLD_FLAG = 90,
+	NAN_REQ_ATTR_SUBSCRIBE_RSSI_THRESHOLD_FLAG = 91,
 	NAN_REQ_ATTR_SUBSCRIBE_CONN_MAP,
 	NAN_REQ_ATTR_SUBSCRIBE_NUM_INTF_ADDR_PRESENT,
 	NAN_REQ_ATTR_SUBSCRIBE_INTF_ADDR,
@@ -162,7 +170,7 @@ enum SLSI_NAN_REQ_ATTRIBUTES {
 	NAN_REQ_ATTR_FOLLOWUP_ADDR,
 	NAN_REQ_ATTR_FOLLOWUP_PRIORITY,
 	NAN_REQ_ATTR_FOLLOWUP_SERVICE_NAME_LEN,
-	NAN_REQ_ATTR_FOLLOWUP_SERVICE_NAME = 100,
+	NAN_REQ_ATTR_FOLLOWUP_SERVICE_NAME = 101,
 	NAN_REQ_ATTR_FOLLOWUP_TX_WINDOW,
 	NAN_REQ_ATTR_FOLLOWUP_RECV_IND_CFG,
 	NAN_REQ_ATTR_SUBSCRIBE_SID_BEACON_VAL,
@@ -172,7 +180,7 @@ enum SLSI_NAN_REQ_ATTRIBUTES {
 	NAN_REQ_ATTR_PUBLISH_SDEA_LEN,
 	NAN_REQ_ATTR_PUBLISH_SDEA,
 	NAN_REQ_ATTR_RANGING_AUTO_RESPONSE,
-	NAN_REQ_ATTR_SDEA_PARAM_NDP_TYPE = 110,
+	NAN_REQ_ATTR_SDEA_PARAM_NDP_TYPE = 111,
 	NAN_REQ_ATTR_SDEA_PARAM_SECURITY_CFG,
 	NAN_REQ_ATTR_SDEA_PARAM_RANGING_STATE,
 	NAN_REQ_ATTR_SDEA_PARAM_RANGE_REPORT,
@@ -182,7 +190,7 @@ enum SLSI_NAN_REQ_ATTRIBUTES {
 	NAN_REQ_ATTR_RANGING_CFG_INGRESS_MM,
 	NAN_REQ_ATTR_RANGING_CFG_EGRESS_MM,
 	NAN_REQ_ATTR_CIPHER_TYPE,
-	NAN_REQ_ATTR_SCID_LEN = 120,
+	NAN_REQ_ATTR_SCID_LEN = 121,
 	NAN_REQ_ATTR_SCID,
 	NAN_REQ_ATTR_SECURITY_KEY_TYPE,
 	NAN_REQ_ATTR_SECURITY_PMK_LEN,
@@ -192,7 +200,7 @@ enum SLSI_NAN_REQ_ATTRIBUTES {
 	NAN_REQ_ATTR_RANGE_RESPONSE_CFG_PUBLISH_ID,
 	NAN_REQ_ATTR_RANGE_RESPONSE_CFG_REQUESTOR_ID,
 	NAN_REQ_ATTR_RANGE_RESPONSE_CFG_PEER_ADDR,
-	NAN_REQ_ATTR_RANGE_RESPONSE_CFG_RANGING_RESPONSE = 130,
+	NAN_REQ_ATTR_RANGE_RESPONSE_CFG_RANGING_RESPONSE = 131,
 	NAN_REQ_ATTR_REQ_INSTANCE_ID,
 	NAN_REQ_ATTR_NDP_INSTANCE_ID,
 	NAN_REQ_ATTR_CHAN_REQ_TYPE,
@@ -202,11 +210,16 @@ enum SLSI_NAN_REQ_ATTRIBUTES {
 	NAN_REQ_ATTR_APP_INFO_LEN,
 	NAN_REQ_ATTR_APP_INFO,
 	NAN_REQ_ATTR_SERVICE_NAME_LEN,
-	NAN_REQ_ATTR_SERVICE_NAME = 140,
+	NAN_REQ_ATTR_SERVICE_NAME = 141,
 	NAN_REQ_ATTR_NDP_RESPONSE_CODE,
 	NAN_REQ_ATTR_USE_NDPE_ATTR,
 	NAN_REQ_ATTR_HAL_TRANSACTION_ID,
-	NAN_REQ_ATTR_CONFIG_DISC_MAC_ADDR_RANDOM
+	NAN_REQ_ATTR_CONFIG_DISC_MAC_ADDR_RANDOM,
+	NAN_REQ_ATTR_DISCOVERY_BEACON_INT,
+	NAN_REQ_ATTR_NSS,
+	NAN_REQ_ATTR_ENABLE_RANGING,
+	NAN_REQ_ATTR_DW_EARLY_TERMINATION,
+	NAN_REQ_ATTR_MAX
 };
 
 enum SLSI_NAN_RESP_ATTRIBUTES {
@@ -469,6 +482,8 @@ enum slsi_nan_data_path_response_code {
 	NAN_DP_REQUEST_REJECT
 };
 
+struct slsi_rtt_config;
+
 struct slsi_hal_nan_social_channel_scan_params {
 	u8 dwell_time[SLSI_HAL_NAN_MAX_SOCIAL_CHANNELS];
 	u16 scan_period[SLSI_HAL_NAN_MAX_SOCIAL_CHANNELS];
@@ -646,6 +661,11 @@ struct slsi_hal_nan_enable_req {
 	u8 config_5g_dw_band;
 	u32 dw_5g_interval_val;
 	u32 disc_mac_addr_rand_interval_sec;
+	/*NAN Configuration Supplemental */
+	u32 discovery_beacon_interval_ms;
+	u32 nss_discovery;
+	u32 enable_dw_early_termination;
+	u32 enable_ranging;
 };
 
 struct slsi_hal_nan_publish_req {
@@ -933,6 +953,11 @@ struct slsi_hal_nan_config_req {
 	/* channel frequency in MHz to enable Nan on */
 	u8 config_24g_channel;
 	u32 channel_24g_val;
+	/*NAN Configuration Supplemental */
+	u32 discovery_beacon_interval_ms;
+	u32 nss_discovery;
+	u32 enable_dw_early_termination;
+	u32 enable_ranging;
 };
 
 struct slsi_hal_nan_data_path_cfg {
@@ -1089,15 +1114,19 @@ int slsi_nan_data_iface_delete(struct wiphy *wiphy, struct wireless_dev *wdev, c
 int slsi_nan_ndp_initiate(struct wiphy *wiphy, struct wireless_dev *wdev, const void *data, int len);
 int slsi_nan_ndp_respond(struct wiphy *wiphy, struct wireless_dev *wdev, const void *data, int len);
 int slsi_nan_ndp_end(struct wiphy *wiphy, struct wireless_dev *wdev, const void *data, int len);
-int slsi_nan_ndp_new_entry(struct slsi_dev *sdev, struct net_device *dev, u32 ndp_id,
+int slsi_nan_ndp_new_entry(struct slsi_dev *sdev, struct net_device *dev, u32 ndp_instance_id,
 			   u16 ndl_vif_id, u8 *local_ndi, u8 *peer_nmi);
-void slsi_nan_ndp_del_entry(struct slsi_dev *sdev, struct net_device *dev, u32 ndp_id, const bool ndl_vif_locked);
+void slsi_nan_ndp_del_entry(struct slsi_dev *sdev, struct net_device *dev, u32 ndp_instance_id, const bool ndl_vif_locked);
 void slsi_nan_ndp_setup_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb, bool is_req_ind);
 void slsi_nan_ndp_requested_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
 void slsi_nan_ndp_termination_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
 u32 slsi_nan_get_ndp_from_ndl_local_ndi(struct net_device *dev, u16 ndl_vif_id, u8 *local_ndi);
-void slsi_nan_del_peer(struct slsi_dev *sdev, struct net_device *dev, u8 *local_ndi, u16 ndp_id);
-void slsi_nan_ndp_termination_handler(struct slsi_dev *sdev, struct net_device *dev, u16 ndp_id, u16 ndl_vif, u8 *ndi);
+void slsi_nan_del_peer(struct slsi_dev *sdev, struct net_device *dev, u8 *local_ndi, u16 ndp_instance_id);
+void slsi_nan_ndp_termination_handler(struct slsi_dev *sdev, struct net_device *dev, u16 ndp_instance_id, u8 *ndi);
 int slsi_nan_push_followup_ids(struct slsi_dev *sdev, struct net_device *dev, u16 match_id, u16 trans_id);
 void slsi_nan_pop_followup_ids(struct slsi_dev *sdev, struct net_device *dev, u16 match_id);
+void slsi_rx_nan_range_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb);
+int slsi_send_nan_range_cancel(struct slsi_dev *sdev);
+int slsi_send_nan_range_config(struct slsi_dev *sdev, u8 count, struct slsi_rtt_config *nl_rtt_params, int rtt_id);
+
 #endif

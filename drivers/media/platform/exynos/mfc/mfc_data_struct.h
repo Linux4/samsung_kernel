@@ -223,6 +223,18 @@ enum mfc_debug_cause {
 	MFC_LAST_INFO_DRM                       = 31,
 };
 
+enum mfc_real_time {
+	/* real-time */
+	MFC_RT                  = 0,
+	/* low-priority real-time */
+	MFC_RT_LOW              = 1,
+	/* constrained real-time */
+	MFC_RT_CON              = 2,
+	/* non real-time */
+	MFC_NON_RT              = 3,
+	MFC_RT_UNDEFINED        = 4,
+};
+
 struct mfc_debug {
 	u32	fw_version;
 	u32	cause;
@@ -1245,8 +1257,7 @@ struct mfc_ctrls_ops {
 			struct list_head *head, EncoderInputStr *pInStr);
 	int (*get_buf_ctrls_val_nal_q_enc) (struct mfc_ctx *ctx,
 			struct list_head *head, EncoderOutputStr *pOutStr);
-	int (*recover_buf_ctrls_nal_q) (struct mfc_ctx *ctx,
-			struct list_head *head);
+	int (*restore_buf_ctrls) (struct mfc_ctx *ctx, struct list_head *head);
 };
 
 struct stored_dpb_info {
@@ -1403,6 +1414,12 @@ struct mfc_dec {
 	struct mfc_user_shared_handle sh_handle_hdr;
 	struct hdr10_plus_meta *hdr10_plus_info;
 
+	struct dma_buf *assigned_dmabufs[MFC_MAX_DPBS][2][MFC_MAX_PLANES];
+	struct dma_buf_attachment *assigned_attach[MFC_MAX_DPBS][2][MFC_MAX_PLANES];
+	dma_addr_t assigned_addr[MFC_MAX_DPBS][2][MFC_MAX_PLANES];
+	int assigned_refcnt[MFC_MAX_DPBS];
+	struct mutex dpb_mutex;
+
 	int has_multiframe;
 
 	unsigned int err_reuse_flag;
@@ -1489,6 +1506,10 @@ struct mfc_ctx {
 	int int_condition;
 	int int_reason;
 	unsigned int int_err;
+	
+
+	int prio;
+	enum mfc_real_time rt;
 
 	struct mfc_fmt *src_fmt;
 	struct mfc_fmt *dst_fmt;
@@ -1552,6 +1573,7 @@ struct mfc_ctx {
 
 	unsigned long framerate;
 	unsigned long last_framerate;
+	unsigned long operating_framerate;
 	unsigned int qos_ratio;
 
 #ifdef CONFIG_MFC_USE_BUS_DEVFREQ

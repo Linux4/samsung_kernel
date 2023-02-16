@@ -945,11 +945,14 @@ int fb_notifier_callback(struct notifier_block *self,
 	I(" %s event: %x, blank: %d\n", __func__, event, blank);
 
 	if (evdata && evdata->data && ts != NULL && ts->dev != NULL) {
-		if (event == FB_EARLY_EVENT_BLANK &&
-			blank == FB_BLANK_POWERDOWN) {
+		if (event == FB_EARLY_EVENT_BLANK && blank == FB_BLANK_POWERDOWN) {
 			himax_common_suspend(ts->dev);
-		} else if (event == FB_EVENT_BLANK &&
-				blank == FB_BLANK_UNBLANK) {
+		} else if(event == FB_EVENT_BLANK && blank == FB_BLANK_POWERDOWN) {
+			if (ts->SMWP_enable && ts->cover_closed) {
+				msleep(20);
+				himax_set_cover_mode(ts, ts->cover_closed);
+			}
+		} else if (event == FB_EVENT_BLANK && blank == FB_BLANK_UNBLANK) {
 			himax_common_resume(ts->dev);
 		}
 	}

@@ -58,7 +58,7 @@
 extern int exynos_acpm_set_flag(void);
 #endif
 
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 #include <scsc/scsc_log_collector.h>
 #endif
 #ifdef CONFIG_OF_RESERVED_MEM

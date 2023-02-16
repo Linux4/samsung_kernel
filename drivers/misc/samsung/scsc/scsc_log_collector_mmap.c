@@ -16,9 +16,9 @@
 #define DEVICE_NAME "scsc_log_collector"
 #define N_MINORS	1
 
-struct class *scsc_log_collector_class;
-struct cdev scsc_log_collector_dev[N_MINORS];
-dev_t dev_num;
+static struct class *scsc_log_collector_class;
+static struct cdev scsc_log_collector_dev[N_MINORS];
+static dev_t dev_num;
 
 static int scsc_log_collector_mmap_open(struct inode *inode, struct file *filp)
 {

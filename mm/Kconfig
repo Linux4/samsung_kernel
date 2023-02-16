@@ -769,7 +769,6 @@ config INCREASE_MAXIMUM_SWAPPINESS
 	depends on SWAP
 	default y
 
-# IOPP-dirty_buffer-v2.0.4.14
 config LARGE_DIRTY_BUFFER
 	bool "Use large dirty_threshold value by enabling dirty_ratio"
 	default y
@@ -780,6 +779,7 @@ config LARGE_DIRTY_BUFFER
 
 config MAX_DIRTY_THRESH_PAGES
 	int "The upper bound of VM dirty_thresh value in number of pages"
+	depends on LARGE_DIRTY_BUFFER
 	default 25600
 	help
 	  This value is the upper bound of VM dirty-thresh. (0 means no limit.)
@@ -816,6 +816,14 @@ config MMAP_READAROUND_LIMIT
 	  during the sluggish situation. Add the hard upper-limit for
 	  mmap readaround.
 
+config SWAP_ENABLE_READAHEAD
+	bool "Enable readahead on page swap in"
+	depends on SWAP
+	default y
+	help
+	  When a page fault occurs, adjacent pages are also paged in
+          expecting those pages will be used in near future.
+
 config KANOND
 	bool "Support kanond"
 	default n
@@ -836,7 +844,7 @@ config BOOT_MEMORY_PARAM
 config PROCESS_RECLAIM
 	bool "Enable process reclaim"
 	depends on PROC_FS
-	default n
+	default y
 	help
 	  It allows to reclaim pages of the process by /proc/pid/reclaim.
 

@@ -1382,6 +1382,13 @@ static void sm5713_muic_handle_logically_detach(
 	switch (muic_data->attached_dev) {
 	case ATTACHED_DEV_USB_MUIC:
 	case ATTACHED_DEV_CDP_MUIC:
+		if (new_dev == ATTACHED_DEV_OTG_MUIC) {
+			pr_info("[%s:%s] data role changed, not detach\n",
+				MUIC_DEV_NAME, __func__);
+			return;
+		}
+		ret = com_to_open(muic_data);
+		break;
 	case ATTACHED_DEV_OTG_MUIC:
 	case ATTACHED_DEV_TA_MUIC:
 	case ATTACHED_DEV_JIG_USB_OFF_MUIC:

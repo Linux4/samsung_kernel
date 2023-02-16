@@ -22,6 +22,8 @@
 
 #define TAS2562_PAGE_REG(reg)			((reg % (256 * 128)) % 128)
 
+/* Added for register cache table */
+#define MAX_REGISTERS		0x7f
 
     /* Software Reset */
 #define TAS2562_SOFTWARERESET  TAS2562_REG(0x0, 0x0, 0x01)
@@ -429,6 +431,23 @@
 #define TAS2562_LATCHEDINTERRUPTREG1_PDMCLOCKERRORSTICKY_NOINTERRUPT  (0x0 << 0)
 #define TAS2562_LATCHEDINTERRUPTREG1_PDMCLOCKERRORSTICKY_INTERRUPT  (0x1 << 0)
 
+    /* Latched-Interrupt Reg2 */
+#define TAS2562_LATCHEDINTERRUPTREG2  TAS2562_REG(0x0, 0x0, 0x26)
+
+    /* Latched-Interrupt Reg3 */
+#define TAS2562_LATCHEDINTERRUPTREG3  TAS2562_REG(0x0, 0x0, 0x27)
+
+    /* Latched-Interrupt Reg4 */
+#define TAS2562_LATCHEDINTERRUPTREG4  TAS2562_REG(0x0, 0x0, 0x28)
+
+    /* Latched-Interrupt Reg5 */
+#define TAS2562_LATCHEDINTERRUPTREG5  TAS2562_REG(0x0, 0x0, 0x29)
+
+    /* INT STATUS */
+#define TAS2562_INTSTATUS  TAS2562_REG(0x0, 0x0, 0x78)
+#define TAS2562_INTSTATUS_CLASSD  (0x1 << 2)
+#define TAS2562_INTSTATUS_DAC  (0x1 << 3)
+
     /* VBAT MSB */
 #define TAS2562_VBATMSB  TAS2562_REG(0x0, 0x0, 0x2A)
 #define TAS2562_VBATMSB_VBATMSB70_MASK  (0xff << 0)
@@ -665,6 +684,11 @@ int mn_dbg_cmd;
 int mn_current_reg;
 struct mutex file_lock;
 #endif
+
+/* Added for Mute Issue */
+struct delayed_work status_work;
+int mn_status_check;
+int mn_status_period;
 };
 
 #endif /* __TAS2562_ */

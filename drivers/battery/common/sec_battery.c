@@ -3287,6 +3287,44 @@ static void sec_bat_calculate_safety_time(struct sec_battery_info *battery)
 	pr_info("%s : REMAIN_TIME(%ld) CAL_REMAIN_TIME(%ld)\n", __func__, battery->expired_time, battery->cal_safety_time);
 }
 
+static void sec_bat_recov_full_capacity(struct sec_battery_info *battery)
+{
+	sec_bat_set_misc_event(battery, 0, BATT_MISC_EVENT_FULL_CAPACITY);
+	if (battery->status == POWER_SUPPLY_STATUS_NOT_CHARGING
+		&& battery->health == POWER_SUPPLY_HEALTH_GOOD)
+		sec_bat_set_charging_status(battery,
+			POWER_SUPPLY_STATUS_CHARGING);
+	sec_vote(battery->chgen_vote, VOTER_FULL_CAPACITY, false, 0);
+}
+
+static void sec_bat_check_full_capacity(struct sec_battery_info *battery)
+{
+	int rechg_capacity = battery->batt_full_capacity - 2;
+
+	if (battery->batt_full_capacity >= 100 || battery->batt_full_capacity <= 0 ||
+		battery->status == POWER_SUPPLY_STATUS_DISCHARGING) {
+		if (battery->misc_event & BATT_MISC_EVENT_FULL_CAPACITY) {
+			pr_info("%s: full_capacity(%d) status(%d)\n",
+				__func__, battery->batt_full_capacity, battery->status);
+			sec_bat_recov_full_capacity(battery);
+		}
+		return;
+	}
+
+	if (battery->misc_event & BATT_MISC_EVENT_FULL_CAPACITY) {
+		if (battery->capacity <= rechg_capacity) {
+			pr_info("%s : start re-charging(%d, %d)\n", __func__, battery->capacity, rechg_capacity);
+			sec_bat_recov_full_capacity(battery);
+		}
+	} else if (battery->capacity >= battery->batt_full_capacity) {
+		pr_info("%s : stop charging(%d, %d)\n", __func__, battery->capacity, battery->batt_full_capacity);
+		sec_bat_set_misc_event(battery, BATT_MISC_EVENT_FULL_CAPACITY,
+			BATT_MISC_EVENT_FULL_CAPACITY);
+		sec_bat_set_charging_status(battery, POWER_SUPPLY_STATUS_NOT_CHARGING);
+		sec_vote(battery->chgen_vote, VOTER_FULL_CAPACITY, true, SEC_BAT_CHG_MODE_CHARGING_OFF);
+	}
+}
+
 static void sec_bat_monitor_work(
 				struct work_struct *work)
 {
@@ -3361,6 +3399,7 @@ static void sec_bat_monitor_work(
 	/* time to full check */
 	sec_bat_calc_time_to_full(battery);
 
+	sec_bat_check_full_capacity(battery);
 #if defined(CONFIG_WIRELESS_TX_MODE)
 	/* tx mode check */
 	if (battery->wc_tx_enable) {
@@ -4220,11 +4259,12 @@ static void sec_bat_cable_work(struct work_struct *work)
 			sec_bat_do_fullcharged(battery, true);
 			dev_info(battery->dev,
 					"%s: charging start at full, do not turn on charging\n", __func__);
-		} else {
+		} else if (!(battery->misc_event & BATT_MISC_EVENT_FULL_CAPACITY)) {
 			sec_vote(battery->chgen_vote, VOTER_CABLE, true, SEC_BAT_CHG_MODE_CHARGING);
 		}
 #else
-		sec_vote(battery->chgen_vote, VOTER_CABLE, true, SEC_BAT_CHG_MODE_CHARGING);
+		if (!(battery->misc_event & BATT_MISC_EVENT_FULL_CAPACITY))
+			sec_vote(battery->chgen_vote, VOTER_CABLE, true, SEC_BAT_CHG_MODE_CHARGING);
 #endif
 		if (battery->cable_type == SEC_BATTERY_CABLE_USB && !lpcharge)
 			queue_delayed_work(battery->monitor_wqueue, &battery->slowcharging_work,
@@ -4695,6 +4735,11 @@ static int sec_bat_set_property(struct power_supply *psy,
 			pr_info("%s: WCIN-UNO %s\n", __func__, value.intval > 0 ? "on" : "off");
 			psy_do_property("otg", set,
 					POWER_SUPPLY_EXT_PROP_CHARGE_UNO_CONTROL, value);
+			break;
+		case POWER_SUPPLY_EXT_PROP_SRCCAP:
+			if (val->intval)
+				battery->init_src_cap = true;
+			pr_info("%s: set init src cap %d", __func__, battery->init_src_cap);
 			break;
 		default:
 			return -EINVAL;
@@ -5875,7 +5920,7 @@ static int usb_typec_handle_notification(struct notifier_block *nb,
 		case MUIC_NOTIFY_CMD_ATTACH:
 		case MUIC_NOTIFY_CMD_LOGICALLY_ATTACH:
 			/* Skip notify from MUIC if PDIC is attached already */
-			if (is_pd_wire_type(battery->wire_status)) {
+			if (is_pd_wire_type(battery->wire_status) || battery->init_src_cap) {
 				if (lpcharge) {
 					mutex_unlock(&battery->typec_notylock);
 					return 0;
@@ -5909,6 +5954,7 @@ static int usb_typec_handle_notification(struct notifier_block *nb,
 		}
 		battery->pdic_attach = false;
 		battery->pdic_ps_rdy = false;
+		battery->init_src_cap = false;
 #if defined(CONFIG_AFC_CHARGER_MODE)
 		if (battery->muic_cable_type == ATTACHED_DEV_QC_CHARGER_9V_MUIC ||
 			battery->muic_cable_type == ATTACHED_DEV_QC_CHARGER_ERR_V_MUIC)
@@ -5932,6 +5978,7 @@ static int usb_typec_handle_notification(struct notifier_block *nb,
 		dev_info(battery->dev, "%s: pd_event(%d)\n", __func__,
 			(*(struct pdic_notifier_struct *)usb_typec_info.pd).event);
 #endif
+		battery->init_src_cap = false;
 		if ((*(struct pdic_notifier_struct *)usb_typec_info.pd).event == PDIC_NOTIFY_EVENT_DETACH) {
 			dev_info(battery->dev, "%s: skip pd operation - attach(%d)\n", __func__, usb_typec_info.attach);
 			battery->pdic_attach = false;
@@ -6757,6 +6804,7 @@ static int sec_battery_probe(struct platform_device *pdev)
 	battery->health_change = false;
 	battery->usb_thm_status = USB_THM_NORMAL;
 
+	battery->batt_full_capacity = 0;
 	/* Check High Voltage charging option for wireless charging */
 	/* '1' means disabling High Voltage charging */
 	if (charging_night_mode == '1')

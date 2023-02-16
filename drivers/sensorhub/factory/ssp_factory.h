@@ -201,13 +201,20 @@ void select_light_ops(struct ssp_data *data, char *);
 
 #if defined(CONFIG_SENSORS_SSP_LIGHT_TMD3700)
 struct light_sensor_operations *get_light_tmd3700_function_pointer(struct ssp_data *);
-#elif defined(CONFIG_SENSORS_SSP_LIGHT_TMD3725)
+#endif
+#if defined(CONFIG_SENSORS_SSP_LIGHT_TMD3725)
 struct light_sensor_operations *get_light_tmd3725_function_pointer(struct ssp_data *);
-#elif defined(CONFIG_SENSORS_SSP_LIGHT_VEML3328)
+#endif
+#if defined(CONFIG_SENSORS_SSP_LIGHT_VEML3328)
 struct light_sensor_operations *get_light_veml3328_function_pointer(struct ssp_data *);
-#elif defined(CONFIG_SENSORS_SSP_LIGHT_STK3X6X)
+#endif
+#if defined(CONFIG_SENSORS_SSP_LIGHT_CM32183)
+struct light_sensor_operations *get_light_cm32183_function_pointer(struct ssp_data *);
+#endif
+#if defined(CONFIG_SENSORS_SSP_LIGHT_STK3X6X)
 struct light_sensor_operations *get_light_stk3x6x_function_pointer(struct ssp_data *);
-#else //if defined(CONFIG_SENSORS_SSP_LIGHT_TCS3701)
+#endif
+#if defined(CONFIG_SENSORS_SSP_LIGHT_TCS3701)
 struct light_sensor_operations *get_light_tcs3701_function_pointer(struct ssp_data *);
 #endif
 #endif
