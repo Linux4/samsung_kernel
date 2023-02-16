@@ -1,0 +1,18 @@
+/ {
+	fragment@smd {
+		target-path = "/";
+			__overlay__ {
+				samsung_mobile_device {
+					dc_vibrator {
+						compatible = "samsung,dc_vibrator";
+						status = "okay";
+						dc_vib,motor_type = "COINDC";
+#if 1
+						dc_vib,regulator_name = "dc_vib";
+						dc_vib-supply = <&mt_pmic_vibr_ldo_reg>;
+#endif
+					};
+				};
+			};
+	};
+};
