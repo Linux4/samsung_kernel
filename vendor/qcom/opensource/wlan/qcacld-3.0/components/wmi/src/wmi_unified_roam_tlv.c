@@ -1807,6 +1807,8 @@ extract_roam_frame_info_tlv(wmi_unified_t wmi_handle, void *evt_buf,
 
 		dst_buf->retry_count = src_data->retry_count;
 		dst_buf->rssi = (-1) * src_data->rssi_dbm_abs;
+		dst_buf->assoc_id =
+			WMI_GET_ASSOC_ID(src_data->frame_info_ext);
 
 		dst_buf++;
 		src_data++;

@@ -3853,7 +3853,11 @@ static int max77705_usbc_probe(struct platform_device *pdev)
 #if IS_ENABLED(CONFIG_IF_CB_MANAGER)
 	max77705_usbpd_set_host_on(usbc_data, 0);
 #endif
+#if IS_ENABLED(CONFIG_QCOM_IFPMIC_SUSPEND)
+	usbc_data->host_turn_on_wait_time = 10;
+#else
 	usbc_data->host_turn_on_wait_time = 3;
+#endif
 
 	usbc_data->cc_open_req = 1;
 	pdic_manual_ccopen_request(0);

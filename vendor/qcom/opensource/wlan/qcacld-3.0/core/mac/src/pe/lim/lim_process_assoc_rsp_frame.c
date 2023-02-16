@@ -853,6 +853,7 @@ lim_process_assoc_rsp_frame(struct mac_context *mac_ctx, uint8_t *rx_pkt_info,
 	tLimMlmAssocCnf assoc_cnf;
 	tSchBeaconStruct *beacon;
 	uint8_t ap_nss;
+	uint16_t aid;
 	int8_t rssi;
 	QDF_STATUS status;
 	enum ani_akm_type auth_type;
@@ -1137,12 +1138,14 @@ lim_process_assoc_rsp_frame(struct mac_context *mac_ctx, uint8_t *rx_pkt_info,
 			      (assoc_rsp->status_code ? QDF_STATUS_E_FAILURE :
 			       QDF_STATUS_SUCCESS), assoc_rsp->status_code);
 
-	if (subtype != LIM_REASSOC)
+	if (subtype != LIM_REASSOC) {
+		aid = assoc_rsp->aid & 0x3FFF;
 		wlan_connectivity_mgmt_event((struct wlan_frame_hdr *)hdr,
 					     session_entry->vdev_id,
 					     assoc_rsp->status_code, 0, rssi,
-					     0, 0, 0,
+					     0, 0, 0, aid,
 					     WLAN_ASSOC_RSP);
+	}
 
 	ap_nss = lim_get_nss_supported_by_ap(&assoc_rsp->VHTCaps,
 					     &assoc_rsp->HTCaps,

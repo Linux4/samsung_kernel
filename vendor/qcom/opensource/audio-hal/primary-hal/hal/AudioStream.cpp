@@ -5421,7 +5421,7 @@ ssize_t StreamInPrimary::read(const void *buffer, size_t bytes) {
     ret = pal_stream_read(pal_stream_handle_, &palBuffer);
 
 #ifdef SEC_AUDIO_SAMSUNGRECORD
-    ret = preprocess_->Process(this, (void**)&palBuffer.buffer, bytes);
+    preprocess_->Process(this, (void**)&palBuffer.buffer, bytes);
     palBuffer.size = preprocess_->SwapBuffer(this, (void**)&palBuffer.buffer, bytes, palBuffer.size);
 #endif
 

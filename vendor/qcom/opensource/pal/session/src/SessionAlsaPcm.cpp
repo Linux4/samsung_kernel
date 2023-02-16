@@ -466,7 +466,7 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
         PAL_ERR(LOG_TAG, "stream get attributes failed");
         return status;
     }
-    PAL_DBG(LOG_TAG, "Enter tag: %d", tag);
+    PAL_DBG(LOG_TAG, "Enter tag: 0x%x", tag);
     switch (type) {
         case MODULE:
             tkv.clear();
@@ -600,7 +600,14 @@ exit:
     if (calConfig)
         free(calConfig);
 
-    PAL_DBG(LOG_TAG, "exit status: %d ", status);
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+    if (status != 0) {
+        PAL_ERR(LOG_TAG, "exit status: %d (failed)", status);
+    } else
+#endif
+    {
+        PAL_DBG(LOG_TAG, "exit status: %d ", status);
+    }
     return status;
 }
 
@@ -1309,6 +1316,11 @@ pcm_start:
             if (setConfig(s, CALIBRATION, TAG_STREAM_VOLUME) != 0) {
                 PAL_ERR(LOG_TAG,"Setting volume failed");
             }
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+            else {
+                PAL_INFO(LOG_TAG,"Setting volume success");
+            }
+#endif
         }
     }
 

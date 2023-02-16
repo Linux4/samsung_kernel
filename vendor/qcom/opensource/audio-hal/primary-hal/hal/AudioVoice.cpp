@@ -646,6 +646,11 @@ int AudioVoice::RouteStream(const std::set<audio_devices_t>& rx_devices) {
                 if (session && session->pal_voice_handle &&
                         session->pal_vol_data && sec_voice_->volume != -1.0f) {
                     session->pal_vol_data->volume_pair[0].vol = sec_voice_->volume;
+#ifdef SEC_AUDIO_SUPPORT_BT_RVC
+                    if (adevice->effect_->SetScoVolume(session->pal_vol_data->volume_pair[0].vol) == 0) {
+                        AHAL_DBG("sco volume applied on voice session %d", i);
+                    } else
+#endif
                     ret = pal_stream_set_volume(session->pal_voice_handle,
                             session->pal_vol_data);
                     if (ret)
@@ -1069,6 +1074,11 @@ int AudioVoice::VoiceStart(voice_session_t *session) {
                         sec_voice_->volume, session->pal_vol_data->volume_pair[0].vol);
             session->pal_vol_data->volume_pair[0].vol = sec_voice_->volume;
         }
+#endif
+#ifdef SEC_AUDIO_SUPPORT_BT_RVC
+        if (adevice->effect_->SetScoVolume(session->pal_vol_data->volume_pair[0].vol) == 0) {
+            AHAL_DBG("sco volume applied on voice session");
+        } else
 #endif
         ret = pal_stream_set_volume(session->pal_voice_handle, session->pal_vol_data);
         if (ret)

@@ -897,9 +897,6 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
 {
     int32_t status = 0;
     int32_t size = 0;
-    bool isA2dp = false;
-    bool isSpkr = false;
-    bool isA2dpSuspended = false;
     uint32_t frameSize = 0;
     uint32_t byteWidth = 0;
     uint32_t sampleRate = 0;
@@ -909,43 +906,9 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
             session, currentState);
 
     mStreamMutex.lock();
-    for (int i = 0; i < mDevices.size(); i++) {
-#ifdef SEC_AUDIO_BLE_OFFLOAD
-        if (mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
-            mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_BLE ||
-            mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST)
-#else
-        if (mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_A2DP)
-#endif
-            isA2dp = true;
-        if (mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_SPEAKER)
-            isSpkr = true;
-    }
-
-    if (isA2dp && !isSpkr) {
-        pal_param_bta2dp_t *paramA2dp = NULL;
-        size_t paramSize = 0;
-        int ret = rm->getParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED,
-                (void **)&paramA2dp,
-                &paramSize,
-                NULL);
-        if (!ret && paramA2dp)
-            isA2dpSuspended = paramA2dp->a2dp_suspended;
-#ifdef SEC_PATCH_FIXME
-        if (isA2dpSuspended) {
-            PAL_ERR(LOG_TAG, "A2DP in suspended state");
-            mStreamMutex.unlock();
-            status = -EIO;
-            goto exit;
-        }
-#endif
-    }
 
     // If cached state is not STREAM_IDLE, we are still processing SSR up.
     if ((mDevices.size() == 0)
-#ifdef SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD
-            || isA2dpSuspended
-#endif
             || (rm->cardState == CARD_STATUS_OFFLINE)
             || cachedState != STREAM_IDLE) {
         byteWidth = mStreamAttr->out_media_config.bit_width / 8;

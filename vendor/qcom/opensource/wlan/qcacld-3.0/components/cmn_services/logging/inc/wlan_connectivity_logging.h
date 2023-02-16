@@ -38,6 +38,8 @@
  * @WLAN_AUTH_RESP: Authentication response frame
  * @WLAN_ASSOC_REQ: Association request frame
  * @WLAN_ASSOC_RESP: Association response frame
+ * @WLAN_REASSOC_REQ: Reassociation request frame
+ * @WLAN_REASSOC_RSP: Reassociation response frame
  * @WLAN_DEAUTH_RX: Deauthentication frame received
  * @WLAN_DEAUTH_TX: Deauthentication frame sent
  * @WLAN_DISASSOC_RX: Disassociation frame received
@@ -79,6 +81,8 @@ enum wlan_main_tag {
 	WLAN_AUTH_RESP,
 	WLAN_ASSOC_REQ,
 	WLAN_ASSOC_RSP,
+	WLAN_REASSOC_REQ,
+	WLAN_REASSOC_RSP,
 	WLAN_DEAUTH_RX,
 	WLAN_DEAUTH_TX,
 	WLAN_DISASSOC_RX,
@@ -141,11 +145,13 @@ struct wlan_roam_candidate_info {
  * struct wlan_roam_scan_info  - Roam scan related information
  * @cand_ap_count: Roam candidate AP count
  * @num_scanned_frequencies: Number of scanned frequencies
+ * @is_btcoex_active: Is bluetooth coex active
  * @scan_freq: Array of scanned frequencies value in MHz
  */
 struct wlan_roam_scan_info {
 	uint8_t cand_ap_count;
 	uint16_t num_scanned_freq;
+	bool is_btcoex_active;
 	qdf_freq_t scan_freq[NUM_CHANNELS];
 };
 
@@ -242,8 +248,10 @@ struct wlan_roam_btm_info {
  * values:
  * 1 - SAE commit frame
  * 2 - SAE confirm frame
+ * @assoc_id: Association ID received in association response frame as
+ * defined in IEEE Std 802.11-2020 Figure 9-91-AID field format.
  * @frame_status_code: Frame status code as defined in IEEE Std
- * 802.11‐2020 Table 9-50—Status codes.
+ * 802.11 2020 Table 9-50—Status codes.
  * @seq_num: Frame sequence number
  * @rssi: Peer RSSI in dBm
  * @is_retry_frame: is frame retried
@@ -255,6 +263,7 @@ struct wlan_packet_info {
 	uint8_t auth_algo;
 	uint8_t auth_seq_num;
 	uint8_t auth_type;
+	uint16_t assoc_id;
 	uint16_t frame_status_code;
 	uint16_t seq_num;
 	int32_t rssi;
@@ -463,7 +472,7 @@ wlan_connectivity_mgmt_event(struct wlan_frame_hdr *mac_hdr,
 			     enum qdf_dp_tx_rx_status tx_status,
 			     int8_t peer_rssi,
 			     uint8_t auth_algo, uint8_t auth_type,
-			     uint8_t auth_seq,
+			     uint8_t auth_seq, uint16_t aid,
 			     enum wlan_main_tag tag);
 #else
 static inline
@@ -492,7 +501,7 @@ wlan_connectivity_mgmt_event(struct wlan_frame_hdr *mac_hdr,
 			     enum qdf_dp_tx_rx_status tx_status,
 			     int8_t peer_rssi,
 			     uint8_t auth_algo, uint8_t auth_type,
-			     uint8_t auth_seq,
+			     uint8_t auth_seq, uint16_t aid,
 			     enum wlan_main_tag tag)
 {}
 #endif
