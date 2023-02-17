@@ -464,12 +464,12 @@ static int mfc_open(struct file *file)
 	enum mfc_node_type node;
 	struct video_device *vdev = NULL;
 
-	mfc_debug(2, "mfc driver open called\n");
-
 	if (!dev) {
 		mfc_err_dev("no mfc device to run\n");
 		goto err_no_device;
 	}
+
+	mfc_info_dev("mfc driver open called\n");
 
 	if (mutex_lock_interruptible(&dev->mfc_mutex))
 		return -ERESTARTSYS;
@@ -1020,6 +1020,7 @@ static void __mfc_parse_dt(struct device_node *np, struct mfc_dev *mfc)
 	of_property_read_u32_array(np, "color_aspect_enc", &pdata->color_aspect_enc.support, 2);
 	of_property_read_u32_array(np, "static_info_enc", &pdata->static_info_enc.support, 2);
 	of_property_read_u32_array(np, "hdr10_plus", &pdata->hdr10_plus.support, 2);
+	of_property_read_u32_array(np, "enc_ts_delta", &pdata->enc_ts_delta.support, 2);
 
 	/* Default 10bit format for decoding */
 	of_property_read_u32(np, "P010_decoding", &pdata->P010_decoding);
