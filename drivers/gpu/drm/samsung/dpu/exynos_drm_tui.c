@@ -23,10 +23,10 @@
 #include <exynos_drm_hibernation.h>
 #include <exynos_drm_plane.h>
 #include <exynos_drm_partial.h>
+#include <exynos_drm_dsim.h>
 
 #include <cal_common/decon_cal.h>
 #include <cal_common/dpp_cal.h>
-#include "exynos_p1/exynos_drm_dsim.h"
 
 #if IS_ENABLED(CONFIG_SAMSUNG_TUI)
 struct stui_buf_info *(*tui_get_buf_info)(void);
@@ -370,10 +370,12 @@ int exynos_atomic_exit_tui(void)
 				&new_exynos_crtc_state->partial_region);
 	}
 
-	decon_reg_set_interrupts(0, true);
-	for (id = 0; id <= REGS_DPP7_ID; id++) {
-		idma_reg_set_irq_enable(id);
-		dpp_reg_set_irq_enable(id);
+    if (op_mode & MIPI_DSI_MODE_VIDEO) {
+           decon_reg_set_interrupts(0, true);
+           for (id = 0; id <= REGS_DPP7_ID; id++) {
+                   idma_reg_set_irq_enable(id);
+                   dpp_reg_set_irq_enable(id);
+           }
 	}
 
 	exynos_crtc = to_exynos_crtc(crtc);

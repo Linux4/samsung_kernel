@@ -253,7 +253,7 @@ static void __ufs_print_sfr(struct ufs_vs_handle *handle,
 				ufs_sfr_field_name[0],
 				ufs_sfr_field_name[1],
 				ufs_sfr_field_name[2]);
-#ifdef CONFIG_SCSI_UFS_EXYNOS_DUMP_TO_CONSOLE
+#if IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 	dev_err(dev, ":---------------------------------------------------\n");
 	dev_err(dev, ":\t\tREGISTER\n");
 	dev_err(dev, ":---------------------------------------------------\n");
@@ -272,7 +272,7 @@ static void __ufs_print_sfr(struct ufs_vs_handle *handle,
 			pr_memlog(mgr->mem_log, "\n");
 		pr_memlog(mgr->mem_log, ": %-30s\t0x%-012x\t0x%-014x\n",
 				cfg->name, cfg->offset, cfg->val[SFR_VAL_H_0]);
-#ifdef CONFIG_SCSI_UFS_EXYNOS_DUMP_TO_CONSOLE
+#if IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 		dev_err(dev, ": %-30s\t0x%-012x\t0x%-014x\n",
 			cfg->name, cfg->offset, cfg->val[SFR_VAL_H_0]);
 #endif
@@ -298,7 +298,7 @@ static void __ufs_print_attr(struct ufs_vs_handle *handle,
 				ufs_attr_field_name[1],
 				ufs_attr_field_name[2],
 				ufs_attr_field_name[3]);
-#ifdef CONFIG_SCSI_UFS_EXYNOS_DUMP_TO_CONSOLE
+#if IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 	dev_err(dev, ":---------------------------------------------------\n");
 	dev_err(dev, ":\t\tATTRIBUTE\n");
 	dev_err(dev, ":---------------------------------------------------\n");
@@ -319,7 +319,7 @@ static void __ufs_print_attr(struct ufs_vs_handle *handle,
 		pr_memlog(mgr->mem_log, ": 0x%-27x\t0x%-012x\t0x%-014x\t0x%-014x\n",
 				cfg->mib, cfg->offset,
 				cfg->val[ATTR_VAL_H_0_L_0], cfg->val[ATTR_VAL_H_0_L_1]);
-#ifdef CONFIG_SCSI_UFS_EXYNOS_DUMP_TO_CONSOLE
+#if IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 		dev_err(dev, ": 0x%-27x\t0x%-012x\t0x%-014x\t0x%-014x\n",
 			cfg->mib, cfg->offset,
 			cfg->val[ATTR_VAL_H_0_L_0], cfg->val[ATTR_VAL_H_0_L_1]);

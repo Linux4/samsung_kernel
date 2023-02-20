@@ -2043,12 +2043,15 @@ static irqreturn_t exynos_sci_irq_handler(int irq, void *p)
 	SCI_INFO("------------------------------------------\n");
 
 	/* panic only when LLC uncorrected error occurred */
-	if ((source > 47 && source < 51) && (((miscinfo >> 13) & 0xF) == 0x6))
+	if ((source > 47 && source < 56) && (((miscinfo >> 13) & 0xF) == 0x6)) {
 		pr_err("SCI uncorrectable error (irqnum: %d)\n", irq);
-
-	source = __raw_readl(data->sci_base + 0x928);
-	source |= ((0x1 << 10) | (0x1 << 9));
-	__raw_writel(source, data->sci_base + 0x928);
+		disable_irq_nosync(irq);
+		dbg_snapshot_expire_watchdog();
+	} else {
+		source = __raw_readl(data->sci_base + 0x928);
+		source |= ((0x1 << 10) | (0x1 << 9));
+		__raw_writel(source, data->sci_base + 0x928);
+	}
 
 	return IRQ_HANDLED;
 }

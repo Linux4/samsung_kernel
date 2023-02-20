@@ -566,13 +566,9 @@ struct amdgpu_fpriv {
 	struct mutex		memory_lock;
 	size_t			total_pages;
 	int			tgid;
-#if IS_ENABLED(CONFIG_DEBUG_FS)
-	char			*mem_profile_buf;
-	size_t			mem_profile_len;
-	struct mutex		mem_profile_lock;
-	struct dentry		*mem_profile_pid_debugfs_dir;
-	struct dentry		*mem_profile_node;
-#endif
+
+	struct mutex		instance_data_handles_lock;
+	struct idr		instance_data_handles;
 };
 
 int amdgpu_file_to_fpriv(struct file *filp, struct amdgpu_fpriv **fpriv);
@@ -589,6 +585,22 @@ int amdgpu_ib_schedule(struct amdgpu_ring *ring, unsigned num_ibs,
 int amdgpu_ib_pool_init(struct amdgpu_device *adev);
 void amdgpu_ib_pool_fini(struct amdgpu_device *adev);
 int amdgpu_ib_ring_tests(struct amdgpu_device *adev);
+
+struct sgpu_mem_profile {
+	char			*buf;
+	size_t			len;
+	struct mutex		lock;
+	struct dentry		*node;
+};
+
+struct sgpu_instance_data {
+	struct kref		ref;
+	struct amdgpu_fpriv	*fpriv;
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+	struct dentry		*debugfs_dir;
+	struct sgpu_mem_profile	mem_profile;
+#endif
+};
 
 /*
  * CS.

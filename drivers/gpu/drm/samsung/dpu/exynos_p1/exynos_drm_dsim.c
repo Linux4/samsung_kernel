@@ -477,19 +477,10 @@ static int dsim_set_clock_mode(struct dsim_device *dsim,
 	return 0;
 }
 
-#if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-static int dsim_of_parse_modes(struct device_node *dsim_np, struct device_node *entry,
-		struct dsim_pll_param *pll_param)
-#else
 static int dsim_of_parse_modes(struct device_node *entry,
 		struct dsim_pll_param *pll_param)
-#endif
 {
-#if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-	struct stdphy_pms pms;
-#else
 	u32 res[14];
-#endif
 	int ret, cnt;
 
 	memset(pll_param, 0, sizeof(*pll_param));
@@ -505,37 +496,7 @@ static int dsim_of_parse_modes(struct device_node *entry,
 				pll_param->name, cnt);
 		return -EINVAL;
 	}
-#if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-	of_property_read_u32(entry, "hs-clk", &pll_param->pll_freq);
-	of_property_read_u32(entry, "esc-clk", &pll_param->esc_freq);
-	of_property_read_u32(entry, "cmd_underrun_cnt", &pll_param->cmd_underrun_cnt);
 
-	ret = mcd_dsim_of_get_pll_param(dsim_np, pll_param->pll_freq * 1000, &pms);
-	if (ret) {
-		pr_err("ERR:%s Can't found pll param, hs_clock: %dkhz\n",
-			__func__, pll_param->pll_freq * 1000);
-		WARN_ON(1);
-	}
-
-	pll_param->p = pms.p;
-	pll_param->m = pms.m;
-	pll_param->s = pms.s;
-	pll_param->k = pms.k;
-
-	pll_param->mfr = pms.mfr;
-	pll_param->mrr = pms.mrr;
-	pll_param->sel_pf = pms.sel_pf;
-	pll_param->icp = pms.icp;
-	pll_param->afc_enb = pms.afc_enb;
-	pll_param->extafc = pms.extafc;
-	pll_param->feed_en = pms.feed_en;
-	pll_param->fsel = pms.feed_en;
-	pll_param->fout_mask = pms.fout_mask;
-	pll_param->rsel = pms.rsel;
-
-	pll_param->dither_en = false;
-
-#else
 	/* TODO: how dsi dither handle ? */
 	of_property_read_u32_array(entry, "pmsk", res, cnt);
 	pll_param->dither_en = false;
@@ -562,7 +523,6 @@ static int dsim_of_parse_modes(struct device_node *entry,
 	of_property_read_u32(entry, "esc-clk", &pll_param->esc_freq);
 	of_property_read_u32(entry, "cmd_underrun_cnt",
 			&pll_param->cmd_underrun_cnt);
-#endif
 	pr_info("hs: %d, pmsk: %d, %d, %d, %d\n", pll_param->pll_freq,
 			pll_param->p, pll_param->m, pll_param->s, pll_param->k);
 
@@ -616,18 +576,11 @@ static struct dsim_pll_params *dsim_of_get_clock_mode(struct dsim_device *dsim)
 		pll_param = kzalloc(sizeof(*pll_param), GFP_KERNEL);
 		if (!pll_param)
 			goto getpll_fail;
-#if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-		if (dsim_of_parse_modes(dev->of_node, entry, pll_param) < 0) {
-			kfree(pll_param);
-			continue;
-		}
 
-#else
 		if (dsim_of_parse_modes(entry, pll_param) < 0) {
 			kfree(pll_param);
 			continue;
 		}
-#endif
 
 		pll_params->params[pll_params->num_modes] = pll_param;
 		pll_params->num_modes++;

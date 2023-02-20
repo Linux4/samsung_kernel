@@ -15,7 +15,6 @@
 #include <linux/io.h>
 #include <linux/soc/samsung/exynos-soc.h>
 #include <linux/sec_class.h>
-#include <linux/sec_ext.h>
 #include <soc/samsung/exynos-pm.h>
 
 #include "sec_debug_internal.h"

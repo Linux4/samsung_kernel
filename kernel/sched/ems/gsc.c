@@ -373,6 +373,9 @@ void gsc_flush_task(struct task_struct *p)
 	if (!gsc_stats.enabled)
 		return;
 
+	if (unlikely(gte == NULL))
+		return;
+
 	if (gte->grp == NULL)
 		goto out;
 

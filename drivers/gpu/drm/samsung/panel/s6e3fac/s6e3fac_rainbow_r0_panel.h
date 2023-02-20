@@ -16,6 +16,7 @@
 #include "../panel.h"
 #include "../panel_drv.h"
 #include "s6e3fac.h"
+#include "s6e3fac_rainbow_r0.h"
 #include "s6e3fac_dimming.h"
 #ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
 #include "s6e3fac_rainbow_r0_panel_mdnie.h"
@@ -4611,19 +4612,5 @@ struct common_panel_info s6e3fac_rainbow_r0_panel_info = {
 	.nr_spi_data_tbl = ARRAY_SIZE(s6e3fac_rainbow_r0_spi_data_list),
 #endif
 };
-
-__visible_for_testing int __init s6e3fac_r0_panel_init(void)
-{
-	register_common_panel(&s6e3fac_rainbow_r0_panel_info);
-	return 0;
-}
-
-__visible_for_testing void __exit s6e3fac_r0_panel_exit(void)
-{
-	deregister_common_panel(&s6e3fac_rainbow_r0_panel_info);
-}
-
-module_init(s6e3fac_r0_panel_init)
-module_exit(s6e3fac_r0_panel_exit)
 
 #endif /* __S6E3FAC_RAINBOW_R0_PANEL_H__ */

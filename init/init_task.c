@@ -223,8 +223,10 @@ struct task_struct init_task
 	.alloc_sum = 0,
 	.free_sum = 0,
 #endif
+#ifdef CONFIG_ANDROID_VENDOR_OEM_DATA
 	.android_vendor_data1 = {0, },
 	.android_oem_data1 = {0, },
+#endif
 	INIT_INTEGRITY(init_task)
 };
 EXPORT_SYMBOL(init_task);

@@ -731,10 +731,8 @@ static void decon_fingerprint_mask(struct exynos_drm_crtc *crtc,
 		return;
 	}
 
-	if (decon->id != 0)  {
-		pr_info("%s decon id is not 0(%d).\n", __func__, decon->id);
+	if (decon->id != 0)
 		return;
-	}
 
 	state = old_crtc_state->state;
 

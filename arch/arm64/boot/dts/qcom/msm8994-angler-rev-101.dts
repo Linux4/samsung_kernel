@@ -16,17 +16,19 @@
 
 	clocks {
 
-		xo_board {
+		xo-board {
 			compatible = "fixed-clock";
 			#clock-cells = <0x00>;
 			clock-frequency = <0x124f800>;
+			clock-output-names = "xo_board";
 			phandle = <0x11>;
 		};
 
-		sleep_clk {
+		sleep-clk {
 			compatible = "fixed-clock";
 			#clock-cells = <0x00>;
 			clock-frequency = <0x8000>;
+			clock-output-names = "sleep_clk";
 			phandle = <0x2e>;
 		};
 	};
@@ -104,7 +106,7 @@
 		cpu@102 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57";
-			reg = <0x00 0x101>;
+			reg = <0x00 0x102>;
 			enable-method = "psci";
 			next-level-cache = <0x03>;
 			phandle = <0x0a>;
@@ -113,7 +115,7 @@
 		cpu@103 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57";
-			reg = <0x00 0x101>;
+			reg = <0x00 0x103>;
 			enable-method = "psci";
 			next-level-cache = <0x03>;
 			phandle = <0x0b>;
@@ -330,7 +332,7 @@
 			#dma-cells = <0x01>;
 			qcom,ee = <0x00>;
 			qcom,controlled-remotely;
-			num-channels = <0x12>;
+			num-channels = <0x18>;
 			qcom,num-ees = <0x04>;
 			phandle = <0x1e>;
 		};
@@ -425,7 +427,7 @@
 			#dma-cells = <0x01>;
 			qcom,ee = <0x00>;
 			qcom,controlled-remotely;
-			num-channels = <0x12>;
+			num-channels = <0x18>;
 			qcom,num-ees = <0x04>;
 			phandle = <0x27>;
 		};
@@ -754,8 +756,8 @@
 	};
 
 	__symbols__ {
-		xo_board = "/clocks/xo_board";
-		sleep_clk = "/clocks/sleep_clk";
+		xo_board = "/clocks/xo-board";
+		sleep_clk = "/clocks/sleep-clk";
 		CPU0 = "/cpus/cpu@0";
 		L2_0 = "/cpus/cpu@0/l2-cache";
 		CPU1 = "/cpus/cpu@1";

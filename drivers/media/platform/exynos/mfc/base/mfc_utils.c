@@ -679,7 +679,6 @@ void mfc_dec_defer_update(struct mfc_core_ctx *core_ctx)
 {
 	struct mfc_core *core = core_ctx->core;
 	struct mfc_ctx *ctx = core_ctx->ctx;
-	struct mfc_core_ctx *qos_core_ctx;
 	struct mfc_dec *dec = ctx->dec_priv;
 	unsigned long flags;
 	int defer = 0, num_inst = 0;
@@ -690,18 +689,11 @@ void mfc_dec_defer_update(struct mfc_core_ctx *core_ctx)
 	if (core->dev->debugfs.dbd_dec_dis)
 		return;
 
-	/* The num of instance except idle mode */
-	mutex_lock(&core->qos_mutex);
-	list_for_each_entry(qos_core_ctx, &core->qos_queue, qos_list) {
-		if (qos_core_ctx->ctx->idle_mode != MFC_IDLE_MODE_IDLE)
-			num_inst++;
-	}
-	mutex_unlock(&core->qos_mutex);
-
 	spin_lock_irqsave(&dec->defer_dec_lock, flags);
 
 	dec->defer_frame_cnt++;
 
+	num_inst = core->dev->num_inst;
 	if ((num_inst == 1) && IS_SINGLE_MODE(ctx) && !ctx->boosting_time &&
 		(core_ctx->state == MFCINST_RUNNING) &&
 		(ctx->idle_mode == MFC_IDLE_MODE_NONE) &&

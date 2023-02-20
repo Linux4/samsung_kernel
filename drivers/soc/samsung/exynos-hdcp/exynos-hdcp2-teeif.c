@@ -88,6 +88,7 @@ int hdcp_tee_close()
 int hdcp_tee_comm(struct hci_message *hci)
 {
 	int ret;
+	dma_addr_t dma_handle;
 
 	if (!hci)
 		return -EINVAL;
@@ -99,10 +100,21 @@ int hdcp_tee_comm(struct hci_message *hci)
 	 */
 
 	// mark on 5.4 __flush_dcache_area((void *)hci, sizeof(struct hci_message));
-	dma_map_single(device_hdcp, (void *)hci, sizeof(struct hci_message), DMA_TO_DEVICE);
+	dma_handle = dma_map_single(device_hdcp, (void *)hci, sizeof(struct hci_message), DMA_TO_DEVICE);
+	if (dma_mapping_error(device_hdcp, dma_handle)) {
+		hdcp_err("DMA map error. (to_deivce)\n");
+		return -EINVAL;
+	}
+	dma_unmap_single(device_hdcp, dma_handle, sizeof(struct hci_message), DMA_TO_DEVICE);
 	ret = exynos_smc(SMC_HDCP_PROT_MSG, 0, 0, 0);
+
 	// mark on 5.4 __inval_dcache_area((void *)hci, sizeof(struct hci_message));
-	dma_map_single(device_hdcp, (void *)hci, sizeof(struct hci_message), DMA_FROM_DEVICE);
+	dma_handle = dma_map_single(device_hdcp, (void *)hci, sizeof(struct hci_message), DMA_FROM_DEVICE);
+	if (dma_mapping_error(device_hdcp, dma_handle)) {
+		hdcp_err("DMA map error. (from_device)\n");
+		return -EINVAL;
+	}
+	dma_unmap_single(device_hdcp, dma_handle, sizeof(struct hci_message), DMA_FROM_DEVICE);
 
 	if (ret) {
 		hdcp_info("SWd returned(%x)\n", ret);

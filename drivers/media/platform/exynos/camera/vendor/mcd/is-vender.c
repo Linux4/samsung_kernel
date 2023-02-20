@@ -841,13 +841,13 @@ int is_vender_dt(struct device_node *np)
 	}
 
 	if (of_property_read_u32(np, "ois_sensor_index", &ois_sensor_index))
-		probe_info("ois_sensor_index read is fail");
+		probe_info("no ois_sensor_index\n");
 
 	if (of_property_read_u32(np, "mcu_sensor_index", &mcu_sensor_index))
-		probe_info("mcu_sensor_index read is fail");
+		probe_info("no mcu_sensor_index\n");
 
 	if (of_property_read_u32(np, "aperture_sensor_index", &aperture_sensor_index))
-		probe_info("aperture_sensor_index read is fail");
+		probe_info("no aperture_sensor_index\n");
 
 	check_sensor_vendor = of_property_read_bool(np, "check_sensor_vendor");
 	if (!check_sensor_vendor) {
@@ -910,7 +910,7 @@ int is_vender_dt(struct device_node *np)
 	}
 
 	if (of_property_read_u32(np, "is_vendor_sensor_count", &is_vendor_sensor_count)) {
-		probe_info("is_vendor_sensor_count read is fail");
+		probe_info("no is_vendor_sensor_count\n");
 		is_vendor_sensor_count = IS_SENSOR_COUNT;
 	}
 

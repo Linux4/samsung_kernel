@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -42,6 +43,7 @@
 #include "qdf_util.h"
 #include <cdp_txrx_misc.h>
 #include "wlan_fwol_ucfg_api.h"
+#include "wlan_reg_ucfg_api.h"
 
 /**
  * hdd_nan_datapath_target_config() - Configure NAN datapath features
@@ -201,14 +203,113 @@ static bool hdd_is_ndp_allowed(struct hdd_context *hdd_ctx)
 #endif /* NDP_SAP_CONCURRENCY_ENABLE */
 
 /**
+ * hdd_ndi_config_ch_list() - Configure the channel list for NDI start
+ * @hdd_ctx: hdd context
+ * @ch_info: Buffer to fill supported channels, give preference to 5220 and 2437
+ * to keep the legacy behavior intact
+ *
+ * Unlike traditional device modes, where the higher application
+ * layer initiates connect / join / start, the NAN data
+ * interface does not have any such formal requests. The NDI
+ * create request is responsible for starting the BSS as well.
+ * Use the 5GHz Band NAN Social channel for BSS start if target
+ * supports it, since a 2.4GHz channel will require a DBS HW mode change
+ * first on a DBS 2x2 MAC target. Use a 2.4 GHz Band NAN Social channel
+ * if the target is not 5GHz capable. If both of these channels are
+ * not available, pick the next available channel. This would be used just to
+ * start the NDI. Actual channel for NDP data transfer would be negotiated with
+ * peer later.
+ *
+ * Return: SUCCESS if some valid channels are obtained
+ */
+static QDF_STATUS
+hdd_ndi_config_ch_list(struct hdd_context *hdd_ctx,
+              tCsrChannelInfo *ch_info)
+{
+   struct regulatory_channel *cur_chan_list;
+	int i;
+	QDF_STATUS status = QDF_STATUS_E_FAILURE;
+	static const qdf_freq_t valid_freq[] = {NAN_SOCIAL_FREQ_5GHZ_UPPER_BAND,
+						NAN_SOCIAL_FREQ_5GHZ_LOWER_BAND,
+						NAN_SOCIAL_FREQ_2_4GHZ};
+	enum channel_state state;
+
+   ch_info->numOfChannels = 0;
+   cur_chan_list = qdf_mem_malloc(sizeof(*cur_chan_list) *
+                           (NUM_CHANNELS + 2));
+   if (!cur_chan_list)
+       return QDF_STATUS_E_NOMEM;
+
+   status = ucfg_reg_get_current_chan_list(hdd_ctx->pdev, cur_chan_list);
+   if (status != QDF_STATUS_SUCCESS) {
+       hdd_err_rl("Failed to get the current channel list");
+		status = QDF_STATUS_E_IO;
+		goto end;
+   }
+
+   ch_info->freq_list = qdf_mem_malloc(sizeof(uint32_t) * NUM_CHANNELS);
+   if (!ch_info->freq_list) {
+		status = QDF_STATUS_E_NOMEM;
+		goto end;
+   }
+
+	for (i = 0; i < ARRAY_SIZE(valid_freq); i++) {
+		state = wlan_reg_get_channel_state_for_freq(hdd_ctx->pdev,
+							    valid_freq[i]);
+		if (state != CHANNEL_STATE_DISABLE &&
+		    state != CHANNEL_STATE_INVALID) {
+			ch_info->freq_list[0] =  valid_freq[i];
+			ch_info->numOfChannels = 1;
+			status = QDF_STATUS_SUCCESS;
+			goto end;
+		}
+ 	}
+	
+   for (i = 0; i < NUM_CHANNELS; i++) {
+       /**
+        * current channel list includes all channels. Exclude
+        * disabled channels
+        */
+       if (cur_chan_list[i].chan_flags & REGULATORY_CHAN_DISABLED ||
+           cur_chan_list[i].chan_flags & REGULATORY_CHAN_RADAR)
+           continue;
+
+       /**
+        * do not include 6 GHz channels for now as NAN would need
+        * 2.4 GHz and 5 GHz channels for discovery.
+        * <TODO> Need to consider the 6GHz channels when there is a
+        * case where all 2GHz and 5GHz channels are disabled and
+        * only 6GHz channels are enabled
+        */
+       if (wlan_reg_is_6ghz_chan_freq(cur_chan_list[i].center_freq))
+           continue;
+
+		ch_info->freq_list[0] = cur_chan_list[i].center_freq;
+		ch_info->numOfChannels = 1;
+		status = QDF_STATUS_SUCCESS;
+		goto end;
+   }
+
+   if (!ch_info->numOfChannels) {
+       status = QDF_STATUS_E_NULL_VALUE;
+       qdf_mem_free(ch_info->freq_list);
+   }
+
+end:
+   qdf_mem_free(cur_chan_list);
+
+   return status;
+}
+
+
+
+/**
  * hdd_ndi_start_bss() - Start BSS on NAN data interface
  * @adapter: adapter context
- * @oper_freq: freq on which the BSS to be started
  *
  * Return: 0 on success, error value on failure
  */
-static int hdd_ndi_start_bss(struct hdd_adapter *adapter,
-			     qdf_freq_t oper_freq)
+static int hdd_ndi_start_bss(struct hdd_adapter *adapter)
 {
 	QDF_STATUS status;
 	uint32_t roam_id;
@@ -244,11 +345,13 @@ static int hdd_ndi_start_bss(struct hdd_adapter *adapter,
 
 	roam_profile->csrPersona = adapter->device_mode;
 
-	if (!oper_freq)
-		oper_freq = NAN_SOCIAL_FREQ_2_4GHZ;
 
-	roam_profile->ChannelInfo.numOfChannels = 1;
-	roam_profile->ChannelInfo.freq_list = (uint32_t *)&oper_freq;
+    status = hdd_ndi_config_ch_list(hdd_ctx, &roam_profile->ChannelInfo);
+    if (!QDF_IS_STATUS_SUCCESS(status)) {
+      hdd_err("Get uapsd_mask failed");
+      return -EINVAL;
+    }
+
 
 	roam_profile->SSIDs.numOfSSIDs = 1;
 	roam_profile->SSIDs.SSIDList->SSID.length = 0;
@@ -273,6 +376,7 @@ static int hdd_ndi_start_bss(struct hdd_adapter *adapter,
 		hdd_info("sme_RoamConnect issued successfully for NDI");
 	}
 
+    qdf_mem_free(roam_profile->ChannelInfo.freq_list);
 	roam_profile->ChannelInfo.freq_list = NULL;
 	roam_profile->ChannelInfo.numOfChannels = 0;
 
@@ -620,7 +724,6 @@ int hdd_ndi_start(char *iface_name, uint16_t transaction_id)
 {
 	int ret;
 	QDF_STATUS status;
-	qdf_freq_t op_freq;
 	struct hdd_adapter *adapter;
 	struct hdd_context *hdd_ctx = cds_get_context(QDF_MODULE_ID_HDD);
 	struct wlan_objmgr_vdev *vdev;
@@ -656,24 +759,8 @@ int hdd_ndi_start(char *iface_name, uint16_t transaction_id)
 	ucfg_nan_set_ndp_create_transaction_id(vdev, transaction_id);
 	ucfg_nan_set_ndi_state(vdev, NAN_DATA_NDI_CREATING_STATE);
 	hdd_objmgr_put_vdev_by_user(vdev, WLAN_OSIF_NAN_ID);
-	/*
-	 * The NAN data interface has been created at this point.
-	 * Unlike traditional device modes, where the higher application
-	 * layer initiates connect / join / start, the NAN data
-	 * interface does not have any such formal requests. The NDI
-	 * create request is responsible for starting the BSS as well.
-	 * Use the 5GHz Band NAN Social channel for BSS start if target
-	 * supports it, since a 2.4GHz channel will require a DBS HW mode change
-	 * first on a DBS 2x2 MAC target. Use a 2.4 GHz Band NAN Social channel
-	 * if the target is not 5GHz capable.
-	 */
 
-	if (hdd_is_5g_supported(hdd_ctx))
-		op_freq = NAN_SOCIAL_FREQ_5GHZ_LOWER_BAND;
-	else
-		op_freq = NAN_SOCIAL_FREQ_2_4GHZ;
-
-	if (hdd_ndi_start_bss(adapter, op_freq)) {
+    if (hdd_ndi_start_bss(adapter)) {
 		hdd_err("NDI start bss failed");
 		ret = -EFAULT;
 		goto err_handler;

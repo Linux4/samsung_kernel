@@ -62,7 +62,9 @@ __attribute__((unused)) static int load_fw_utc_vector(struct npu_session *sess, 
 	char				*vector_path;
 	size_t				vector_len = 0;
 	int				ret;
-	struct npu_binary		vector_binary;
+	struct npu_binary		vector_binary = {
+		.dev = NULL,
+	};
 	struct npu_memory_buffer	*test_buf;
 
 	BUG_ON(!ft_handle);

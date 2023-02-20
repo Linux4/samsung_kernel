@@ -493,7 +493,7 @@ static irqreturn_t exynos_sysmmu_irq(int irq, void *dev_id)
 	int flags = 0;
 	u32 info;
 	u32 int_status, ctrl_val;
-	int ret;
+	int ret, fault_id;
 	enum pcie_sysmmu_vid pcie_vid;
 
 	dev_info(drvdata->sysmmu, "%s:%d: irq(%d) happened\n",
@@ -546,7 +546,11 @@ static irqreturn_t exynos_sysmmu_irq(int irq, void *dev_id)
 		return IRQ_HANDLED;
 	}
 
-	panic("Unrecoverable System MMU Fault!!");
+	fault_id = SYSMMU_FAULT_ID(flags);
+	panic("(%s) From [PCIe CH%d], SysMMU %s %s at %#010lx\n", dev_name(drvdata->sysmmu),
+		pcie_vid - SYSMMU_PCIE_VID_OFFSET, /* PCIe channel number */
+		(flags & IOMMU_FAULT_WRITE) ? "WRITE" : "READ",
+		sysmmu_fault_name[fault_id], addr);
 
 	return IRQ_HANDLED;
 }

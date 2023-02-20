@@ -179,11 +179,12 @@ enum is_dvfs_scenario_common_mode {
 };
 
 enum is_dvfs_scenario_vendor {
-	IS_DVFS_SCENARIO_VENDOR_VT = 1,
-	IS_DVFS_SCENARIO_VENDOR_SSM = 2,
-	IS_DVFS_SCENARIO_VENDOR_VIDEO_HDR = 3,
+	IS_DVFS_SCENARIO_VENDOR_NONE         = 0,
+	IS_DVFS_SCENARIO_VENDOR_VT           = 1,
+	IS_DVFS_SCENARIO_VENDOR_SSM          = 2,
+	IS_DVFS_SCENARIO_VENDOR_VIDEO_HDR    = 3,
 	IS_DVFS_SCENARIO_VENDOR_SUPER_STEADY = 4,
-	IS_DVFS_SCENARIO_VENDOR_LOW_POWER = 5,
+	IS_DVFS_SCENARIO_VENDOR_LOW_POWER    = 5,
 };
 
 #define IS_DVFS_SCENARIO_WIDTH_SHIFT        0
@@ -720,6 +721,8 @@ enum aa_capture_intent {
 	AA_CAPTURE_INTENT_STILL_CAPTURE_GALAXY_RAW_DYNAMIC_SHOT                 = 138,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_REMOSAIC_LLHDR_DYNAMIC_SHOT             = 139,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_AEB_HDR_LIKE                            = 140,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_FUSION_REMOSAIC_DYNAMIC_SHOT            = 141,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_FUSION_REMOSAIC_LLHDR_DYNAMIC_SHOT      = 142,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_AI_HIGHRES_SINGLE                       = 150,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_AI_HIGHRES_HDR                          = 151,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_HYBRID_MFHDR_DYNAMIC_SHOT               = 160,
@@ -731,6 +734,8 @@ enum aa_capture_intent {
 	AA_CAPTURE_INTENT_STILL_CAPTURE_ASTRO_SHOT                              = 166,
 
 	AA_CAPTURE_INTENT_VIDEO_RECORD_CHANGE_FPS                               = 500,
+	AA_CAPTURE_INTENT_VIDEO_RECORD_START                                    = 501,
+	AA_CAPTURE_INTENT_VIDEO_RECORD_STOP                                     = 502,
 
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SPORT_MOTIONLEVEL0 = 90000,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SPORT_MOTIONLEVEL1 = 90001,
@@ -1134,6 +1139,7 @@ enum aa_night_timelaps_mode {
 	AA_NIGHT_TIMELAPS_MODE_OFF = 0,
 	AA_NIGHT_TIMELAPS_MODE_ON_45X,
 	AA_NIGHT_TIMELAPS_MODE_ON_15X,
+	AA_NIGHT_TIMELAPS_MODE_ON_300X,
 };
 
 enum aa_capture_hint {
@@ -1181,6 +1187,11 @@ enum aa_moire_trigger {
 enum aa_moire_result {
 	AA_MOIRE_NOT_DETECTED = 0,
 	AA_MOIRE_DETECTED,
+};
+
+enum aa_sensor_state_result {
+    AA_SENSOR_STATE_NORMAL           = 0,
+    AA_SENSOR_STATE_CROPPED_REMOSAIC = 1,
 };
 
 struct camera2_video_output_size {
@@ -1263,7 +1274,11 @@ struct camera2_aa_ctl {
 	uint32_t			vendor_packageHint;
 	uint64_t            vendor_specialImageQualityPolicy;
 	uint32_t			vendor_exposureTableType;
-	uint32_t			vendor_reserved[10];
+	uint32_t			vendor_fastCaptureOption;
+
+	// static info for remosaic preview crop zoom ratio (0:invalid)
+	uint32_t			vendor_remosaicCropZoomRatio;
+	uint32_t			vendor_reserved[8];
 };
 
 struct aa_apexInfo {
@@ -1351,7 +1366,8 @@ struct camera2_aa_dm {
 	uint32_t			vendor_aeDarkBoostGain;
 	enum aa_aeb_state		vendor_aebState;
 	enum aa_moire_trigger	vendor_moireTrigger;
-	uint32_t			vendor_reserved[25];
+	enum aa_sensor_state_result     vendor_sensorState;
+	uint32_t			vendor_reserved[24];
 
 	// For dual
 	uint32_t			vendor_wideTeleConvEv;
@@ -2073,8 +2089,14 @@ enum remosaic_oper_mode {
 	REMOSAIC_OPER_MODE_NONE = 0,
 	REMOSAIC_OPER_MODE_SINGLE = 1,
 	REMOSAIC_OPER_MODE_MFHDR = 2,
-	REMOSAIC_OPER_MODE_SINGLE_4_3H = 3,
 };
+
+enum highresolution_mode {
+	HIGHRESOLUTION_MODE_NONE       = 0,
+	HIGHRESOLUTION_MODE_MID        = 1,
+	HIGHRESOLUTION_MODE_HIGH       = 2,
+};
+
 enum camera_adaptive_lens_condition {
 	CAMERA_ADAPTIVE_LENS_UNAVAILABLE = 0,
 	CAMERA_ADAPTIVE_LENS_UW_AUTO_AVAILABLE = 1,
@@ -2150,7 +2172,7 @@ struct camera2_uctl {
 	uint8_t				countryCode[4];
 	enum camera_motion_state	motionState;
 	enum camera_client_index	cameraClientIndex;
-	uint32_t			remosaicResolutionMode;
+	uint32_t			remosaicOperMode;
 	struct camera2_mfstill_uctl	mfInfoUd;
 	uint32_t			drcGridInfo[6];		/* Used in HAL-DDK interface */
 	uint32_t			svHistInfo[6];		/* Used in HAL-DDK interface */
@@ -2159,7 +2181,8 @@ struct camera2_uctl {
 	struct camera2_object_detect_uctl   multiObjectDetectInfoUd[3];
 	struct camera2_segmentationInfo_uctl segmentationInfo;
 	struct camera2_object_detect_uctl sunDetectInfoUd;
-	uint32_t			reserved[50];
+	uint32_t			highResolutionMode;
+	uint32_t			reserved[49];
 };
 
 struct camera2_udm {

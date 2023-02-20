@@ -30,7 +30,11 @@
 #include <asm/stackprotector.h>
 
 #include <soc/samsung/debug-snapshot.h>
+#if IS_ENABLED(CONFIG_SOC_S5E3830)
+#include <soc/samsung/exynos-pmu.h>
+#else
 #include <soc/samsung/exynos-pmu-if.h>
+#endif
 #include <soc/samsung/exynos_pm_qos.h>
 #include <uapi/linux/sched/types.h>
 

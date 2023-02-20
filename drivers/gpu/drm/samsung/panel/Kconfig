@@ -155,8 +155,8 @@ config SUPPORT_GM2_FLASH
 	depends on MCD_PANEL
 	default n
 
-config DYNAMIC_MIPI
-	bool "Support Dynamic Mipi"
+config PANEL_FREQ_HOP
+	bool "Support Panel Frequency Hopping"
 	depends on MCD_PANEL
 	default n
 
@@ -235,8 +235,38 @@ config MCD_PANEL_BLIC
 	depends on MCD_PANEL
 	default n
 
+config MCD_PANEL_RCD
+	bool "Support mcd panel rcd"
+	depends on MCD_PANEL
+	default n
+
 config UNSUPPORT_INIT_READ
 	bool "Support unsupport init read"
+	depends on MCD_PANEL
+	default n
+
+config PANEL_ID_READ_REG_04
+	bool "Using ID READ Register 04h"
+	depends on MCD_PANEL
+	default n
+
+config PANEL_ID_READ_REG_DADBDC
+	bool "Using ID READ Register DA/DB/DCh"
+	depends on MCD_PANEL
+	default n
+
+config PANEL_ID_READ_REG_ADAEAF
+	bool "Using ID READ Register AD/AE/AFh"
+	depends on MCD_PANEL
+	default n
+
+config PANEL_ID_READ_BY_LPDT
+	bool "Using ID READ by LPDT"
+	depends on MCD_PANEL
+	default n
+
+config PANEL_ID_READ_BY_HSDT
+	bool "Using ID READ by HSDT"
 	depends on MCD_PANEL
 	default n
 
