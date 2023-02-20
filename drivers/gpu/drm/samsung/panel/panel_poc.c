@@ -25,11 +25,6 @@
 #include "panel_spi.h"
 #endif
 
-#ifdef PANEL_PR_TAG
-#undef PANEL_PR_TAG
-#define PANEL_PR_TAG	"poc"
-#endif
-
 static u8 *poc_wr_img;
 static u8 *poc_rd_img;
 

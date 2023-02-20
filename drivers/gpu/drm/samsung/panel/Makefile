@@ -7,29 +7,6 @@
 
 subdir-ccflags-y := -I$(srctree) -I$(srctree)/$(src)
 
-ifneq ($(filter y m,$(CONFIG_DRM_SAMSUNG_DPU)),)
-subdir-ccflags-y += \
-	-I$(srctree)/drivers/gpu/drm/samsung/dpu \
-	-I$(srctree)/drivers/gpu/drm/samsung/dpu/include \
-	-I$(srctree)/drivers/gpu/drm/samsung/dpu/cal_common
-subdir-ccflags-$(CONFIG_UML) += \
-	-I$(srctree)/drivers/gpu/drm/samsung/dpu/exynos_p1 \
-	-I$(srctree)/drivers/gpu/drm/samsung/dpu/exynos_p1/cal_pm
-subdir-ccflags-$(CONFIG_SOC_S5E9925) += \
-	-I$(srctree)/drivers/gpu/drm/samsung/dpu/exynos_p1 \
-	-I$(srctree)/drivers/gpu/drm/samsung/dpu/exynos_p1/cal_pm
-subdir-ccflags-$(CONFIG_SOC_S5E8825) += \
-	-I$(srctree)/drivers/gpu/drm/samsung/dpu/exynos_p2 \
-	-I$(srctree)/drivers/gpu/drm/samsung/dpu/exynos_p2/cal_py
-subdir-ccflags-$(CONFIG_SOC_S5E9935) += \
-	-I$(srctree)/drivers/gpu/drm/samsung/dpu/cal_qd
-endif
-
-ifneq ($(filter y m,$(CONFIG_EXYNOS_DPU30)),)
-subdir-ccflags-y += \
-	-I$(srctree)/drivers/video/fbdev/exynos/dpu30
-endif
-
 mcd-panel-y += timenval.o \
 				util.o \
 				panel_lib.o \
@@ -51,7 +28,7 @@ mcd-panel-$(CONFIG_EXYNOS_DECON_LCD_SYSFS) += sysfs.o
 mcd-panel-$(CONFIG_EXYNOS_DECON_MDNIE_LITE) += mdnie.o
 mcd-panel-$(CONFIG_PANEL_DEBUG) += panel_debug.o
 mcd-panel-$(CONFIG_EXTEND_LIVE_CLOCK) += aod/aod_drv.o
-mcd-panel-$(CONFIG_DYNAMIC_MIPI) += dynamic_mipi/dynamic_mipi.o
+mcd-panel-$(CONFIG_PANEL_FREQ_HOP) += panel_freq_hop.o
 mcd-panel-$(CONFIG_SUPPORT_MAFPC) += mafpc/mafpc_drv.o
 mcd-panel-$(CONFIG_PANEL_NOTIFY) += panel_notify.o
 mcd-panel-$(CONFIG_DISPLAY_USE_INFO) += dpui.o

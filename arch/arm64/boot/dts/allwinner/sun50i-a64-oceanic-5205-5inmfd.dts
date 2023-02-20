@@ -1584,7 +1584,7 @@
 		};
 	};
 
-	opp_table0 {
+	opp-table-cpu {
 		compatible = "operating-points-v2";
 		opp-shared;
 		phandle = <0x05>;
@@ -1808,6 +1808,6 @@
 		reg_drivevbus = "/soc/rsb@1f03400/pmic@3a3/regulators/drivevbus";
 		usb_power_supply = "/soc/rsb@1f03400/pmic@3a3/usb-power-supply";
 		wdt0 = "/soc/watchdog@1c20ca0";
-		cpu0_opp_table = "/opp_table0";
+		cpu0_opp_table = "/opp-table-cpu";
 	};
 };

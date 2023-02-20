@@ -212,6 +212,8 @@ int sensor_imx374_cis_init(struct v4l2_subdev *subdev)
 	cis->mipi_clock_index_cur = CAM_MIPI_NOT_INITIALIZED;
 	cis->mipi_clock_index_new = CAM_MIPI_NOT_INITIALIZED;
 #endif
+	cis->long_term_mode.sen_strm_off_on_step = 0;
+	cis->long_term_mode.sen_strm_off_on_enable = false;
 
 	sensor_imx374_cis_data_calculation(sensor_imx374_pllinfos[setfile_index], cis->cis_data);
 	sensor_imx374_set_integration_max_margin(setfile_index, cis->cis_data);
@@ -429,6 +431,44 @@ p_err:
 	return ret;
 }
 
+int sensor_imx374_cis_long_term_exposure(struct v4l2_subdev *subdev)
+{
+	int ret = 0;
+	struct is_cis *cis;
+	struct is_long_term_expo_mode *lte_mode;
+	unsigned char shift_count = 0;
+
+	FIMC_BUG(!subdev);
+
+	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
+	lte_mode = &cis->long_term_mode;
+
+	I2C_MUTEX_LOCK(cis->i2c_lock);
+	/* LTE mode or normal mode set */
+	if (lte_mode->sen_strm_off_on_enable) {
+		shift_count = sensor_cis_get_duration_shifter(cis, lte_mode->expo[0]);
+		if (shift_count > 0) {
+			lte_mode->expo[0] >>= shift_count;
+
+			ret |= is_sensor_write8(cis->client, 0x3100, shift_count);
+		}
+	} else {
+		ret |= is_sensor_write8(cis->client, 0x3100, 0x00);
+	}
+
+	I2C_MUTEX_UNLOCK(cis->i2c_lock);
+
+	info("%s enable(%d) shift_count(%d) exp(%d)",
+		__func__, lte_mode->sen_strm_off_on_enable, shift_count, lte_mode->expo[0]);
+
+	if (ret < 0) {
+		pr_err("ERR[%s]: LTE register setting fail\n", __func__);
+		return ret;
+	}
+
+	return ret;
+}
+
 int sensor_imx374_cis_stream_on(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
@@ -508,13 +548,12 @@ int sensor_imx374_cis_set_test_pattern(struct v4l2_subdev *subdev, camera2_senso
 			cis->cis_data->cur_pattern_mode, sensor_ctl->testPatternMode);
 
 	if (cis->cis_data->cur_pattern_mode != sensor_ctl->testPatternMode) {
-		info("%s REG : 0xB000 write to 0x00\n", __func__);
-		is_sensor_write8(client, 0xB000, 0x00);
 
 		if (sensor_ctl->testPatternMode == SENSOR_TEST_PATTERN_MODE_OFF) {
 			info("%s: set DEFAULT pattern! (testpatternmode : %d)\n", __func__, sensor_ctl->testPatternMode);
 
 			I2C_MUTEX_LOCK(cis->i2c_lock);
+			is_sensor_write8(client, 0xB000, 0x00);
 			is_sensor_write16(client, 0x0600, 0x0000);
 			I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
@@ -528,6 +567,7 @@ int sensor_imx374_cis_set_test_pattern(struct v4l2_subdev *subdev, camera2_senso
 				(unsigned short)sensor_ctl->testPatternData[3]);
 
 			I2C_MUTEX_LOCK(cis->i2c_lock);
+			is_sensor_write8(client, 0xB000, 0x00);
 			is_sensor_write16(client, 0x0600, 0x0001);
 			I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
@@ -595,6 +635,8 @@ int sensor_imx374_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 	u16 short_coarse_int = 0;
 	u32 line_length_pck = 0;
 	u32 min_fine_int = 0;
+	u32 input_duration;
+	u8 cit_shifter = 0;
 
 	WARN_ON(!subdev);
 	WARN_ON(!target_exposure);
@@ -620,15 +662,21 @@ int sensor_imx374_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 
 	cis_data = cis->cis_data;
 
+	if (cis->long_term_mode.sen_strm_off_on_enable == false) {
+		input_duration = MAX(target_exposure->long_val, target_exposure->short_val);
+		cit_shifter = sensor_cis_get_duration_shifter(cis, input_duration);
+
+		cit_shifter = MAX(cit_shifter, cis_data->frame_length_lines_shifter);
+		target_exposure->long_val >>= cit_shifter;
+		target_exposure->short_val >>= cit_shifter;
+	}
+
 	dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), target long(%d), short(%d)\n", cis->id, __func__,
 			cis_data->sen_vsync_count, target_exposure->long_val, target_exposure->short_val);
 
 	vt_pic_clk_freq_khz = cis_data->pclk / 1000;
 	line_length_pck = cis_data->line_length_pck;
 	min_fine_int = cis_data->min_fine_integration_time;
-
-	dbg_sensor(1, "[MOD:D:%d] %s, vt_pic_clk_freq_khz (%d), line_length_pck(%d), min_fine_int (%d)\n",
-		cis->id, __func__, vt_pic_clk_freq_khz, line_length_pck, min_fine_int);
 
 	long_coarse_int = ((target_exposure->long_val * vt_pic_clk_freq_khz) / 1000 - min_fine_int) / line_length_pck;
 	short_coarse_int = ((target_exposure->short_val * vt_pic_clk_freq_khz) / 1000 - min_fine_int) / line_length_pck;
@@ -663,9 +711,6 @@ int sensor_imx374_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 		long_coarse_int = short_coarse_int;
 	}
 
-	dbg_sensor(1, "[MOD:D:%d] %s, frame_length_lines(%#x), long_coarse_int %#x, short_coarse_int %#x\n",
-		cis->id, __func__, cis_data->frame_length_lines, long_coarse_int, short_coarse_int);
-
 	cis_data->cur_long_exposure_coarse = long_coarse_int;
 	cis_data->cur_short_exposure_coarse = short_coarse_int;
 
@@ -680,6 +725,21 @@ int sensor_imx374_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 	ret = is_sensor_write16(client, 0x0202, short_coarse_int);
 	if (ret < 0)
 		goto p_err_i2c_unlock;
+
+	/* CIT shifter */
+	if (cis->long_term_mode.sen_strm_off_on_enable == false) {
+		ret = is_sensor_write8(client, 0x3100, cit_shifter);
+		if (ret < 0)
+			goto p_err_i2c_unlock;
+	}
+
+	dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), vt_pic_clk_freq_khz (%llu),"
+		KERN_CONT "line_length_pck(%d), min_fine_int (%d)\n", cis->id, __func__,
+		cis_data->sen_vsync_count, vt_pic_clk_freq_khz, line_length_pck, min_fine_int);
+	dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), frame_length_lines(%#x),"
+		KERN_CONT "long_coarse_int %#x, short_coarse_int %#x cit_shifter %#x\n",
+		cis->id, __func__, cis_data->sen_vsync_count, cis_data->frame_length_lines,
+		long_coarse_int, short_coarse_int, cit_shifter);
 
 p_err_i2c_unlock:
 	if (hold > 0) {
@@ -844,6 +904,7 @@ int sensor_imx374_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 	u64 vt_pic_clk_freq_khz = 0;
 	u32 line_length_pck = 0;
 	u16 frame_length_lines = 0;
+	u8 fll_shifter = 0;
 
 	WARN_ON(!subdev);
 
@@ -866,15 +927,19 @@ int sensor_imx374_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 		frame_duration = cis_data->min_frame_us_time;
 	}
 
+	if (cis->long_term_mode.sen_strm_off_on_enable == false) {
+		fll_shifter = sensor_cis_get_duration_shifter(cis, frame_duration);
+		frame_duration >>= fll_shifter;
+	}
 	vt_pic_clk_freq_khz = cis_data->pclk / 1000;
 	line_length_pck = cis_data->line_length_pck;
 
 	frame_length_lines = (u16)((vt_pic_clk_freq_khz * frame_duration) / (line_length_pck * 1000));
 
-	dbg_sensor(1, "[MOD:D:%d] %s, vt_pic_clk_freq_khz(%#x) frame_duration = %d us,"
-			KERN_CONT "(line_length_pck%#x), frame_length_lines(%#x)\n",
-			cis->id, __func__, vt_pic_clk_freq_khz, frame_duration,
-			line_length_pck, frame_length_lines);
+	dbg_sensor(1, "[MOD:D:%d] %s, vt_pic_clk_freq_khz(%llu)) frame_duration = %d us,"
+			KERN_CONT "(line_length_pck%#x), frame_length_lines(%#x), fll_shifter(%#x)\n",
+			cis->id, __func__, vt_pic_clk_freq_khz/1000, frame_duration,
+			line_length_pck, frame_length_lines, fll_shifter);
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	hold = sensor_imx374_cis_group_param_hold_func(subdev, 0x01);
@@ -891,6 +956,7 @@ int sensor_imx374_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 	cis_data->frame_length_lines = frame_length_lines;
 	cis_data->max_coarse_integration_time = cis_data->frame_length_lines -
 						cis_data->max_margin_coarse_integration_time;
+	cis_data->frame_length_lines_shifter = fll_shifter;
 
 p_err_i2c_unlock:
 	if (hold > 0) {
@@ -1402,6 +1468,7 @@ static struct is_cis_ops cis_ops = {
 	.cis_check_rev_on_init = sensor_imx374_cis_check_rev_on_init,
 	.cis_set_initial_exposure = sensor_cis_set_initial_exposure,
 	.cis_set_test_pattern = sensor_imx374_cis_set_test_pattern,
+	.cis_set_long_term_exposure = sensor_imx374_cis_long_term_exposure,
 };
 
 static int cis_imx374_probe(struct i2c_client *client,

@@ -131,12 +131,12 @@ bool exynos_atomic_commit_check_buf_sanity(struct drm_atomic_state *old_state);
 
 extern struct memlog_obj *g_log_obj;
 extern struct memlog_obj *g_errlog_obj;
-#define DPU_PR_PREFIX ""
-#define DPU_PR_FMT "%s[%d]: %s:%d "
-#define DPU_PR_ARG(name, id) (name), (id), __func__, __LINE__
+#define DPU_PR_PREFIX		""
+#define DPU_PR_FMT		"%s[%d]: %s:%d "
+#define DPU_PR_ARG(name, id)	(name), (id), __func__, __LINE__
 
 #define drv_name(d) (((d) && (d)->dev && (d)->dev->driver) ?			\
-			(d)->dev->driver->name : "???")
+			(d)->dev->driver->name : "unregistered")
 #define dpu_pr_memlog(handle, name, id, memlog_lv, fmt, ...)			\
 	do {									\
 		if ((handle) && ((handle)->enabled))				\

@@ -984,29 +984,29 @@ enum {
 	DUMP_FLASH_LOADED,
 };
 
-__visible_for_testing int show_rddpm(struct dumpinfo *info);
-__visible_for_testing int show_rddpm_before_sleep_in(struct dumpinfo *info);
-__visible_for_testing int show_rddsm(struct dumpinfo *info);
-__visible_for_testing int show_err(struct dumpinfo *info);
-__visible_for_testing int show_err_fg(struct dumpinfo *info);
-__visible_for_testing int show_dsi_err(struct dumpinfo *info);
-__visible_for_testing int show_self_diag(struct dumpinfo *info);
+int show_rddpm(struct dumpinfo *info);
+int show_rddpm_before_sleep_in(struct dumpinfo *info);
+int show_rddsm(struct dumpinfo *info);
+int show_err(struct dumpinfo *info);
+int show_err_fg(struct dumpinfo *info);
+int show_dsi_err(struct dumpinfo *info);
+int show_self_diag(struct dumpinfo *info);
 #ifdef CONFIG_SUPPORT_DDI_CMDLOG
-__visible_for_testing int show_cmdlog(struct dumpinfo *info);
+int show_cmdlog(struct dumpinfo *info);
 #endif
-__visible_for_testing int show_ssr_err(struct dumpinfo *info);
-__visible_for_testing int show_ecc_err(struct dumpinfo *info);
-__visible_for_testing int show_flash_loaded(struct dumpinfo *info);
+int show_ssr_err(struct dumpinfo *info);
+int show_ecc_err(struct dumpinfo *info);
+int show_flash_loaded(struct dumpinfo *info);
 
 #ifdef CONFIG_SUPPORT_MAFPC
 #define S6E3FAC_MAFPC_ENABLE 		0x71
 #define S6E3FAC_MAFPC_CTRL_CMD_OFFSET 	6
 
-__visible_for_testing int show_mafpc_log(struct dumpinfo *info);
-__visible_for_testing int show_mafpc_flash_log(struct dumpinfo *info);
-__visible_for_testing int show_abc_crc_log(struct dumpinfo *info);
+int show_mafpc_log(struct dumpinfo *info);
+int show_mafpc_flash_log(struct dumpinfo *info);
+int show_abc_crc_log(struct dumpinfo *info);
 #endif
-__visible_for_testing int show_self_mask_crc(struct dumpinfo *info);
+int show_self_mask_crc(struct dumpinfo *info);
 
 static struct dumpinfo s6e3fac_dmptbl[] = {
 	[DUMP_RDDPM] = DUMPINFO_INIT(rddpm, &s6e3fac_restbl[RES_RDDPM], show_rddpm),
@@ -1208,104 +1208,104 @@ enum {
 	MAX_S6E3FAC_SMOOTH_DIM,
 };
 
-__visible_for_testing int init_common_table(struct maptbl *);
-__visible_for_testing int getidx_common_maptbl(struct maptbl *);
-__visible_for_testing int init_gamma_mode2_brt_table(struct maptbl *tbl);
-__visible_for_testing int getidx_gamma_mode2_brt_table(struct maptbl *);
-__visible_for_testing int getidx_vrr_brt_table(struct maptbl *tbl);
-__visible_for_testing int getidx_dimming_frame_table(struct maptbl *tbl);
-__visible_for_testing int getidx_dia_onoff_table(struct maptbl *tbl);
-__visible_for_testing int getidx_acl_opr_table(struct maptbl *);
-__visible_for_testing int init_lpm_brt_table(struct maptbl *tbl);
-__visible_for_testing int getidx_lpm_brt_table(struct maptbl *);
-__visible_for_testing int getidx_irc_mode_table(struct maptbl *);
+int init_common_table(struct maptbl *);
+int getidx_common_maptbl(struct maptbl *);
+int init_gamma_mode2_brt_table(struct maptbl *tbl);
+int getidx_gamma_mode2_brt_table(struct maptbl *);
+int getidx_vrr_brt_table(struct maptbl *tbl);
+int getidx_dimming_frame_table(struct maptbl *tbl);
+int getidx_dia_onoff_table(struct maptbl *tbl);
+int getidx_acl_opr_table(struct maptbl *);
+int init_lpm_brt_table(struct maptbl *tbl);
+int getidx_lpm_brt_table(struct maptbl *);
+int getidx_irc_mode_table(struct maptbl *);
 
 #ifdef CONFIG_SUPPORT_GRAM_CHECKSUM
-__visible_for_testing int s6e3fac_getidx_vddm_table(struct maptbl *);
-__visible_for_testing int s6e3fac_getidx_gram_img_pattern_table(struct maptbl *tbl);
+int s6e3fac_getidx_vddm_table(struct maptbl *);
+int s6e3fac_getidx_gram_img_pattern_table(struct maptbl *tbl);
 #endif
 #if defined(CONFIG_SUPPORT_FAST_DISCHARGE)
-__visible_for_testing int getidx_fast_discharge_table(struct maptbl *tbl);
+int getidx_fast_discharge_table(struct maptbl *tbl);
 #endif
 #ifdef CONFIG_SUPPORT_XTALK_MODE
-__visible_for_testing int getidx_vgh_table(struct maptbl *tbl);
+int getidx_vgh_table(struct maptbl *tbl);
 #endif
 
 #ifdef CONFIG_SUPPORT_MAFPC
-__visible_for_testing void copy_mafpc_enable_maptbl(struct maptbl *tbl, u8 *dst);
-__visible_for_testing void copy_mafpc_ctrl_maptbl(struct maptbl *tbl, u8 *dst);
-__visible_for_testing void copy_mafpc_scale_maptbl(struct maptbl *tbl, u8 *dst);
+void copy_mafpc_enable_maptbl(struct maptbl *tbl, u8 *dst);
+void copy_mafpc_ctrl_maptbl(struct maptbl *tbl, u8 *dst);
+void copy_mafpc_scale_maptbl(struct maptbl *tbl, u8 *dst);
 #endif
 
 #ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
-__visible_for_testing void copy_dummy_maptbl(struct maptbl *tbl, u8 *dst);
+void copy_dummy_maptbl(struct maptbl *tbl, u8 *dst);
 #endif
-__visible_for_testing void copy_common_maptbl(struct maptbl *, u8 *);
-__visible_for_testing void copy_tset_maptbl(struct maptbl *tbl, u8 *);
-__visible_for_testing void copy_elvss_cal_maptbl(struct maptbl *, u8 *);
+void copy_common_maptbl(struct maptbl *, u8 *);
+void copy_tset_maptbl(struct maptbl *tbl, u8 *);
+void copy_elvss_cal_maptbl(struct maptbl *, u8 *);
 
 #ifdef CONFIG_EXYNOS_DECON_LCD_COPR
-__visible_for_testing void copy_copr_maptbl(struct maptbl *, u8 *);
+void copy_copr_maptbl(struct maptbl *, u8 *);
 #endif
-__visible_for_testing int getidx_vrr_table(struct maptbl *tbl);
-__visible_for_testing int getidx_vrr_mode_table(struct maptbl *tbl);
+int getidx_vrr_table(struct maptbl *tbl);
+int getidx_vrr_mode_table(struct maptbl *tbl);
 #ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
-__visible_for_testing int init_color_blind_table(struct maptbl *tbl);
-__visible_for_testing int getidx_mdnie_scenario_maptbl(struct maptbl *tbl);
+int init_color_blind_table(struct maptbl *tbl);
+int getidx_mdnie_scenario_maptbl(struct maptbl *tbl);
 #ifdef CONFIG_SUPPORT_HMD
-__visible_for_testing int init_gamma_mode2_hmd_brt_table(struct maptbl *tbl);
-__visible_for_testing int getidx_gamma_mode2_hmd_brt_table(struct maptbl *tbl);
-__visible_for_testing int getidx_mdnie_hmd_maptbl(struct maptbl *tbl);
+int init_gamma_mode2_hmd_brt_table(struct maptbl *tbl);
+int getidx_gamma_mode2_hmd_brt_table(struct maptbl *tbl);
+int getidx_mdnie_hmd_maptbl(struct maptbl *tbl);
 #endif
-__visible_for_testing int getidx_mdnie_hdr_maptbl(struct maptbl *tbl);
-__visible_for_testing int getidx_mdnie_trans_mode_maptbl(struct maptbl *tbl);
-__visible_for_testing int init_mdnie_night_mode_table(struct maptbl *tbl);
-__visible_for_testing int getidx_mdnie_night_mode_maptbl(struct maptbl *tbl);
-__visible_for_testing int init_mdnie_color_lens_table(struct maptbl *tbl);
-__visible_for_testing int getidx_color_lens_maptbl(struct maptbl *tbl);
-__visible_for_testing int init_color_coordinate_table(struct maptbl *);
-__visible_for_testing int init_sensor_rgb_table(struct maptbl *tbl);
-__visible_for_testing int getidx_adjust_ldu_maptbl(struct maptbl *tbl);
-__visible_for_testing int getidx_color_coordinate_maptbl(struct maptbl *tbl);
-__visible_for_testing void copy_scr_white_maptbl(struct maptbl *tbl, u8 *dst);
-__visible_for_testing int getidx_trans_maptbl(struct pkt_update_info *pktui);
-__visible_for_testing int getidx_mdnie_0_maptbl(struct pkt_update_info *pktui);
-__visible_for_testing int getidx_mdnie_1_maptbl(struct pkt_update_info *pktui);
-__visible_for_testing int getidx_mdnie_2_maptbl(struct pkt_update_info *pktui);
-__visible_for_testing int getidx_mdnie_scr_white_maptbl(struct pkt_update_info *pktui);
-__visible_for_testing void update_current_scr_white(struct maptbl *tbl, u8 *dst);
+int getidx_mdnie_hdr_maptbl(struct maptbl *tbl);
+int getidx_mdnie_trans_mode_maptbl(struct maptbl *tbl);
+int init_mdnie_night_mode_table(struct maptbl *tbl);
+int getidx_mdnie_night_mode_maptbl(struct maptbl *tbl);
+int init_mdnie_color_lens_table(struct maptbl *tbl);
+int getidx_color_lens_maptbl(struct maptbl *tbl);
+int init_color_coordinate_table(struct maptbl *);
+int init_sensor_rgb_table(struct maptbl *tbl);
+int getidx_adjust_ldu_maptbl(struct maptbl *tbl);
+int getidx_color_coordinate_maptbl(struct maptbl *tbl);
+void copy_scr_white_maptbl(struct maptbl *tbl, u8 *dst);
+int getidx_trans_maptbl(struct pkt_update_info *pktui);
+int getidx_mdnie_0_maptbl(struct pkt_update_info *pktui);
+int getidx_mdnie_1_maptbl(struct pkt_update_info *pktui);
+int getidx_mdnie_2_maptbl(struct pkt_update_info *pktui);
+int getidx_mdnie_scr_white_maptbl(struct pkt_update_info *pktui);
+void update_current_scr_white(struct maptbl *tbl, u8 *dst);
 #endif /* CONFIG_EXYNOS_DECON_MDNIE_LITE */
-__visible_for_testing int s6e3fac_do_gamma_flash_checksum(struct panel_device *panel, void *data, u32 len);
+int s6e3fac_do_gamma_flash_checksum(struct panel_device *panel, void *data, u32 len);
 #ifdef CONFIG_SUPPORT_SSR_TEST
-__visible_for_testing int s6e3fac_ssr_test(struct panel_device *panel, void *data, u32 len);
+int s6e3fac_ssr_test(struct panel_device *panel, void *data, u32 len);
 #endif
 
 #ifdef CONFIG_SUPPORT_ECC_TEST
-__visible_for_testing int s6e3fac_ecc_test(struct panel_device *panel, void *data, u32 len);
+int s6e3fac_ecc_test(struct panel_device *panel, void *data, u32 len);
 #endif
 #ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
-__visible_for_testing int s6e3fac_decoder_test(struct panel_device *panel, void *data, u32 len);
+int s6e3fac_decoder_test(struct panel_device *panel, void *data, u32 len);
 #endif
-__visible_for_testing int s6e3fac_getidx_ddi_rev_table(struct maptbl *tbl);
-__visible_for_testing int get_s6e3fac_wait_1_frame_after_changing_refresh_rate(struct panel_device *panel, ktime_t s_time, ktime_t mark_time);
-__visible_for_testing int mark_s6e3fac_wait_1_frame_after_changing_refresh_rate(struct panel_device *panel, ktime_t s_time, ktime_t *mark_time);
-__visible_for_testing bool is_panel_state_not_lpm(struct panel_device *panel);
-__visible_for_testing bool is_vsync_for_mode_change(struct panel_device *panel);
-__visible_for_testing bool is_first_set_bl(struct panel_device *panel);
-__visible_for_testing bool is_wait_vsync_needed(struct panel_device *panel);
-__visible_for_testing bool is_120hs_based_fps(struct panel_device *panel);
-__visible_for_testing bool is_60ns_based_fps(struct panel_device *panel);
-__visible_for_testing bool is_60hs_based_fps(struct panel_device *panel);
-__visible_for_testing bool is_96hs_60hs_48hs_based_fps(struct panel_device *panel);
-__visible_for_testing bool is_hs_mode(struct panel_device *panel);
-__visible_for_testing bool is_ddi_evt0(struct panel_device *panel);
-__visible_for_testing bool is_osc_94500khz(struct panel_device *panel);
-__visible_for_testing bool is_osc_96500khz(struct panel_device *panel);
-__visible_for_testing void s6e3fac_set_osc1(struct maptbl *tbl, u8 *dst);
-__visible_for_testing void s6e3fac_set_osc2(struct maptbl *tbl, u8 *dst);
-__visible_for_testing int s6e3fac_getidx_ffc_table(struct maptbl *tbl);
-__visible_for_testing int s6e3fac_ddi_init(struct panel_device *panel, void *data, u32 len);
-__visible_for_testing int init_analog_gamma_offset(struct maptbl *tbl);
-__visible_for_testing int find_s6e3fac_vrr(struct panel_vrr *vrr);
+int s6e3fac_getidx_ddi_rev_table(struct maptbl *tbl);
+int get_s6e3fac_wait_1_frame_after_changing_refresh_rate(struct panel_device *panel, ktime_t s_time, ktime_t mark_time);
+int mark_s6e3fac_wait_1_frame_after_changing_refresh_rate(struct panel_device *panel, ktime_t s_time, ktime_t *mark_time);
+bool is_panel_state_not_lpm(struct panel_device *panel);
+bool is_vsync_for_mode_change(struct panel_device *panel);
+bool is_first_set_bl(struct panel_device *panel);
+bool is_wait_vsync_needed(struct panel_device *panel);
+bool is_120hs_based_fps(struct panel_device *panel);
+bool is_60ns_based_fps(struct panel_device *panel);
+bool is_60hs_based_fps(struct panel_device *panel);
+bool is_96hs_60hs_48hs_based_fps(struct panel_device *panel);
+bool is_hs_mode(struct panel_device *panel);
+bool is_ddi_evt0(struct panel_device *panel);
+bool is_osc_94500khz(struct panel_device *panel);
+bool is_osc_96500khz(struct panel_device *panel);
+void s6e3fac_set_osc1(struct maptbl *tbl, u8 *dst);
+void s6e3fac_set_osc2(struct maptbl *tbl, u8 *dst);
+int s6e3fac_getidx_ffc_table(struct maptbl *tbl);
+int s6e3fac_ddi_init(struct panel_device *panel, void *data, u32 len);
+int init_analog_gamma_offset(struct maptbl *tbl);
+int find_s6e3fac_vrr(struct panel_vrr *vrr);
 
 #endif /* __S6E3FAC_H__ */

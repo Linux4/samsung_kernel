@@ -768,6 +768,29 @@ static int max77705_fuelgauge_read_vcell(struct max77705_dev *max77705)
 	return vcell;
 }
 
+static int max77705_fuelgauge_read_vbyp(struct max77705_dev *max77705)
+{
+	u8 data[2];
+	u32 vbyp, temp;
+	u16 w_data;
+
+	if (max77705_bulk_read(max77705->fuelgauge, VBYP_REG, 2, data) < 0) {
+		pr_err("%s: Failed to read VBYP_REG\n", __func__);
+		return -1;
+	}
+
+	w_data = (data[1] << 8) | data[0];
+
+	temp = (w_data & 0xFFF) * 427246;
+	vbyp = temp / 1000000;
+
+	temp = ((w_data & 0xF000) >> 4) * 427246;
+	temp /= 1000000;
+	vbyp += (temp << 4);
+
+	return vbyp;
+}
+
 static void max77705_wc_control(struct max77705_dev *max77705, bool enable)
 {
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
@@ -821,7 +844,7 @@ int max77705_usbc_fw_update(struct max77705_dev *max77705,
 	u8 chg_cnfg_00 = 0;
 	bool chg_mode_changed = 0;
 	bool wpc_en_changed = 0;
-	int vcell = 0;
+	int vcell = 0, vbyp = 0;
 	u8 chgin_dtls = 0;
 	u8 wcin_dtls = 0;
 	int error = 0;
@@ -892,10 +915,11 @@ retry:
 		if (try_count == 0 && try_command == 0) {
 			/* change chg_mode during FW update */
 			vcell = max77705_fuelgauge_read_vcell(max77705);
+			vbyp = max77705_fuelgauge_read_vbyp(max77705);
 
 			if (vcell < 3600) {
-				pr_info("%s: keep chg_mode(0x%x), vcell(%dmv)\n",
-					__func__, chg_cnfg_00 & 0x0F, vcell);
+				pr_info("%s: keep chg_mode(0x%x), vcell(%dmv), vbyp(%dmV)\n",
+					__func__, chg_cnfg_00 & 0x0F, vcell, vbyp);
 				error = -EAGAIN;
 				goto out;
 			}
@@ -914,6 +938,22 @@ retry:
 		pr_info("%s: chgin_dtls:0x%x, wcin_dtls:0x%x\n",
 			__func__, chgin_dtls, wcin_dtls);
 
+#if !IS_ENABLED(CONFIG_SEC_FACTORY)
+		if (try_count == 0 && try_command == 0) {
+			if (chgin_dtls == 0x0 && wcin_dtls == 0x0) {
+				pr_info("%s: Battery only mode\n", __func__);
+			} else {
+				/* adb update case */
+				if (enforce_do == 2)	{
+					pr_info("%s: USB mode (ADB)\n", __func__);
+				} else {
+					error = -EAGAIN;
+					pr_info("%s: TA mode\n", __func__);
+					goto out;
+				}
+			}
+		}
+#endif
 		if ((chgin_dtls != 0x3) && (wcin_dtls != 0x3)) {
 			chg_mode_changed = true;
 					/* Switching Frequency : 3MHz */
@@ -1406,135 +1446,9 @@ static int max77705_resume(struct device *dev)
 #define max77705_resume		NULL
 #endif /* CONFIG_PM */
 
-#ifdef CONFIG_HIBERNATION
-
-#if 0
-u8 max77705_dumpaddr_pmic[] = {
-#if 0
-	MAX77705_LED_REG_IFLASH,
-	MAX77705_LED_REG_IFLASH1,
-	MAX77705_LED_REG_IFLASH2,
-	MAX77705_LED_REG_ITORCH,
-	MAX77705_LED_REG_ITORCHTORCHTIMER,
-	MAX77705_LED_REG_FLASH_TIMER,
-	MAX77705_LED_REG_FLASH_EN,
-	MAX77705_LED_REG_MAX_FLASH1,
-	MAX77705_LED_REG_MAX_FLASH2,
-	MAX77705_LED_REG_VOUT_CNTL,
-	MAX77705_LED_REG_VOUT_FLASH,
-	MAX77705_LED_REG_VOUT_FLASH1,
-	MAX77705_LED_REG_FLASH_INT_STATUS,
-#endif
-	MAX77705_PMIC_REG_PMICID1,
-	MAX77705_PMIC_REG_PMICREV,
-	MAX77705_PMIC_REG_MAINCTRL1,
-	MAX77705_PMIC_REG_MCONFIG,
-};
-#endif
-
-u8 max77705_dumpaddr_muic[] = {
-	MAX77705_MUIC_REG_INTMASK_MAIN,
-	MAX77705_MUIC_REG_INTMASK_BC,
-	MAX77705_MUIC_REG_INTMASK_FC,
-	MAX77705_MUIC_REG_INTMASK_GP,
-	MAX77705_MUIC_REG_STATUS1_BC,
-	MAX77705_MUIC_REG_STATUS2_BC,
-	MAX77705_MUIC_REG_STATUS_GP,
-	MAX77705_MUIC_REG_CONTROL1_BC,
-	MAX77705_MUIC_REG_CONTROL2_BC,
-	MAX77705_MUIC_REG_CONTROL1,
-	MAX77705_MUIC_REG_CONTROL2,
-	MAX77705_MUIC_REG_CONTROL3,
-	MAX77705_MUIC_REG_CONTROL4,
-	MAX77705_MUIC_REG_HVCONTROL1,
-	MAX77705_MUIC_REG_HVCONTROL2,
-};
-
-#if 0
-u8 max77705_dumpaddr_haptic[] = {
-	MAX77705_HAPTIC_REG_CONFIG1,
-	MAX77705_HAPTIC_REG_CONFIG2,
-	MAX77705_HAPTIC_REG_CONFIG_CHNL,
-	MAX77705_HAPTIC_REG_CONFG_CYC1,
-	MAX77705_HAPTIC_REG_CONFG_CYC2,
-	MAX77705_HAPTIC_REG_CONFIG_PER1,
-	MAX77705_HAPTIC_REG_CONFIG_PER2,
-	MAX77705_HAPTIC_REG_CONFIG_PER3,
-	MAX77705_HAPTIC_REG_CONFIG_PER4,
-	MAX77705_HAPTIC_REG_CONFIG_DUTY1,
-	MAX77705_HAPTIC_REG_CONFIG_DUTY2,
-	MAX77705_HAPTIC_REG_CONFIG_PWM1,
-	MAX77705_HAPTIC_REG_CONFIG_PWM2,
-	MAX77705_HAPTIC_REG_CONFIG_PWM3,
-	MAX77705_HAPTIC_REG_CONFIG_PWM4,
-};
-#endif
-
-u8 max77705_dumpaddr_led[] = {
-	MAX77705_RGBLED_REG_LEDEN,
-	MAX77705_RGBLED_REG_LED0BRT,
-	MAX77705_RGBLED_REG_LED1BRT,
-	MAX77705_RGBLED_REG_LED2BRT,
-	MAX77705_RGBLED_REG_LED3BRT,
-	MAX77705_RGBLED_REG_LEDBLNK,
-	MAX77705_RGBLED_REG_LEDRMP,
-};
-
-static int max77705_freeze(struct device *dev)
-{
-	struct i2c_client *i2c = container_of(dev, struct i2c_client, dev);
-	struct max77705_dev *max77705 = i2c_get_clientdata(i2c);
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(max77705_dumpaddr_pmic); i++)
-		max77705_read_reg(i2c, max77705_dumpaddr_pmic[i],
-				&max77705->reg_pmic_dump[i]);
-
-	for (i = 0; i < ARRAY_SIZE(max77705_dumpaddr_muic); i++)
-		max77705_read_reg(i2c, max77705_dumpaddr_muic[i],
-				&max77705->reg_muic_dump[i]);
-
-	for (i = 0; i < ARRAY_SIZE(max77705_dumpaddr_led); i++)
-		max77705_read_reg(i2c, max77705_dumpaddr_led[i],
-				&max77705->reg_led_dump[i]);
-
-	disable_irq(max77705->irq);
-
-	return 0;
-}
-
-static int max77705_restore(struct device *dev)
-{
-	struct i2c_client *i2c = container_of(dev, struct i2c_client, dev);
-	struct max77705_dev *max77705 = i2c_get_clientdata(i2c);
-	int i;
-
-	enable_irq(max77705->irq);
-
-	for (i = 0; i < ARRAY_SIZE(max77705_dumpaddr_pmic); i++)
-		max77705_write_reg(i2c, max77705_dumpaddr_pmic[i],
-				max77705->reg_pmic_dump[i]);
-
-	for (i = 0; i < ARRAY_SIZE(max77705_dumpaddr_muic); i++)
-		max77705_write_reg(i2c, max77705_dumpaddr_muic[i],
-				max77705->reg_muic_dump[i]);
-
-	for (i = 0; i < ARRAY_SIZE(max77705_dumpaddr_led); i++)
-		max77705_write_reg(i2c, max77705_dumpaddr_led[i],
-				max77705->reg_led_dump[i]);
-
-	return 0;
-}
-#endif
-
 const struct dev_pm_ops max77705_pm = {
 	.suspend = max77705_suspend,
 	.resume = max77705_resume,
-#ifdef CONFIG_HIBERNATION
-	.freeze =  max77705_freeze,
-	.thaw = max77705_restore,
-	.restore = max77705_restore,
-#endif
 };
 
 static struct i2c_driver max77705_i2c_driver = {

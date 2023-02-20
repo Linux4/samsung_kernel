@@ -14,6 +14,9 @@
 #ifndef EXYNOS_ITMON__H
 #define EXYNOS_ITMON__H
 
+#include <dt-bindings/soc/samsung/debug-snapshot-def.h>
+#include <linux/notifier.h>
+
 struct itmon_notifier {
 	char *port;			/* The block to which the master IP belongs */
 	char *master;			/* The master's name which problem occurred */
@@ -30,6 +33,12 @@ struct itmon_notifier {
 #define T_M_NODE		(2)
 #define S_NODE			(3)
 #define NODE_TYPE		(4)
+
+#define ITMON_NOTIFY_MASK	((0x800) | NOTIFY_STOP_MASK)
+#define ITMON_SKIP_MASK		(ITMON_NOTIFY_MASK | GO_DEFAULT_ID)
+#define ITMON_PANIC_MASK	(ITMON_NOTIFY_MASK | GO_PANIC_ID)
+#define ITMON_WATCHDOG_MASK	(ITMON_NOTIFY_MASK | GO_WATCHDOG_ID)
+#define ITMON_S2D_MASK		(ITMON_NOTIFY_MASK | GO_S2D_ID)
 
 #if IS_ENABLED(CONFIG_EXYNOS_ITMON)
 extern void itmon_notifier_chain_register(struct notifier_block *n);

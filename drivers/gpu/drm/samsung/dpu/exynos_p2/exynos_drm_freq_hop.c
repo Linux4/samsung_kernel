@@ -76,6 +76,11 @@ void dpu_set_freq_hop(struct exynos_drm_crtc *exynos_crtc, bool en)
 	if ((pms->m != target_m) || (pms->k != target_k)) {
 		if (en) {
 			dsim_set_freq_hop(dsim, &dsim->freq_hop);
+#if defined(CONFIG_EXYNOS_PLL_SLEEP)
+			/* wakeup PLL if sleeping... */
+			decon_reg_set_pll_wakeup(decon->id, true);
+			decon_reg_set_pll_sleep(decon->id, false);
+#endif
 		} else {
 			pms->m = dsim->freq_hop.target_m;
 			pms->k = dsim->freq_hop.target_k;
@@ -83,6 +88,9 @@ void dpu_set_freq_hop(struct exynos_drm_crtc *exynos_crtc, bool en)
 			pr_info("%s: en(%d), pmsk[%d %d %d %d]\n", __func__,
 					en, pms->p, pms->m, pms->s, pms->k);
 			dsim_set_freq_hop(dsim, &freq_hop);
+#if defined(CONFIG_EXYNOS_PLL_SLEEP)
+			decon_reg_set_pll_sleep(decon->id, true);
+#endif
 		}
 	}
 }

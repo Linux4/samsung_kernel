@@ -54,16 +54,21 @@
 #define CDH_SIZE		SZ_128K		/* CDH : Camera Debug Helper */
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
-#if defined(CONFIG_KASAN_GENERIC)
-#define VMALLOC_OFS	0			/* KASAN: 64GB */
-#elif defined(CONFIG_KASAN_SW_TAGS)
-#define VMALLOC_OFS	0x0800000000ULL		/* KASAN: 32GB */
+#if defined(BPF_JIT_REGION_SIZE)
+#define BPF_OFS		0
 #else
-#define VMALLOC_OFS	0x1000000000ULL
+#define BPF_OFS		SZ_128M
+#endif
+#if defined(CONFIG_KASAN_GENERIC)
+#define VMALLOC_OFS	BPF_OFS				/* KASAN: 64GB */
+#elif defined(CONFIG_KASAN_SW_TAGS)
+#define VMALLOC_OFS	(0x0800000000ULL + BPF_OFS)	/* KASAN: 32GB */
+#else
+#define VMALLOC_OFS	(0x1000000000ULL + BPF_OFS)
 #endif /* defined(CONFIG_KASAN_GENERIC) || defined(CONFIG_KASAN_SW_TAGS) */
 #else
 #ifdef CONFIG_KASAN
-#define VMALLOC_OFS	0			/* KASAN: 64GB */
+#define VMALLOC_OFS	0				/* KASAN: 64GB */
 #else
 #define VMALLOC_OFS	0x1000000000ULL
 #endif /* CONFIG_KASAN */

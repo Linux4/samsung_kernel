@@ -27,7 +27,7 @@ struct s3c2410_builtin_wdt {
 
 static struct s3c2410_builtin_wdt *s3c_reset_wdt;
 
-int do_s3c2410wdt_builtin_expire_watchdog(void)
+static int do_s3c2410wdt_builtin_expire_watchdog(void)
 {
 	struct s3c2410_builtin_wdt *wdt = s3c_reset_wdt;
 	unsigned long wtcon;
@@ -50,6 +50,20 @@ int do_s3c2410wdt_builtin_expire_watchdog(void)
 
 	return 0;
 }
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
+int s3c2410wdt_builtin_expire_watchdog_raw(void)
+{
+	struct s3c2410_builtin_wdt *wdt = s3c_reset_wdt;
+
+	if (!wdt)
+		return -ENODEV;
+
+	secdbg_base_built_wdd_set_emerg_addr(_RET_IP_);
+
+	return do_s3c2410wdt_builtin_expire_watchdog();
+}
+#endif
 
 extern void *return_address(unsigned int);
 

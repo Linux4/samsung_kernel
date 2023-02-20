@@ -176,6 +176,7 @@ struct exynos_panel_desc {
 	size_t num_lp_modes;
 	const struct drm_panel_funcs *panel_func;
 	const struct exynos_panel_funcs *exynos_panel_func;
+	bool lp11_reset;
 	const char *xml_suffix;
 };
 
@@ -290,7 +291,8 @@ int dsim_host_cmdset_transfer(struct mipi_dsi_host *host,
 			      bool wait_vsync, bool wait_fifo);
 int exynos_drm_cmdset_add(struct exynos_panel *ctx, u8 type, size_t size, const u8 *data);
 int exynos_drm_cmdset_cleanup(struct exynos_panel *ctx);
-int exynos_drm_cmdset_flush(struct exynos_panel *ctx, bool wait_vsync, bool wait_fifo);
+int exynos_drm_cmdset_flush(struct exynos_panel *ctx, bool wait_vsync,
+							bool wait_fifo);
 
 int exynos_panel_probe(struct mipi_dsi_device *dsi);
 int exynos_panel_remove(struct mipi_dsi_device *dsi);

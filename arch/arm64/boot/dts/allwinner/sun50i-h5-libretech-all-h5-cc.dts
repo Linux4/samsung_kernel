@@ -1134,14 +1134,14 @@
 			};
 		};
 
-		gpu_thermal {
+		gpu-thermal {
 			polling-delay-passive = <0x00>;
 			polling-delay = <0x00>;
 			thermal-sensors = <0x2f 0x01>;
 		};
 	};
 
-	cpu-opp-table {
+	opp-table-cpu {
 		compatible = "operating-points-v2";
 		opp-shared;
 		phandle = <0x29>;
@@ -1428,7 +1428,7 @@
 		cpu_thermal = "/thermal-zones/cpu-thermal";
 		cpu_hot_trip = "/thermal-zones/cpu-thermal/trips/cpu-hot";
 		cpu_very_hot_trip = "/thermal-zones/cpu-thermal/trips/cpu-very-hot";
-		cpu_opp_table = "/cpu-opp-table";
+		cpu_opp_table = "/opp-table-cpu";
 		hdmi_con_in = "/connector/port/endpoint";
 		reg_vcc1v2 = "/vcc1v2";
 		reg_vcc3v3 = "/vcc3v3";

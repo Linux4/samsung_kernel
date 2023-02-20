@@ -1645,7 +1645,7 @@ int amdgpu_debugfs_init(struct amdgpu_device *adev)
 	if (sgpu_debugfs_dmsg_init(adev) != 0)
 		return -EIO;
 
-	if (sgpu_debugfs_mem_profile_init(adev) != 0)
+	if (sgpu_instance_data_debugfs_init(adev) != 0)
 		return -EIO;
 
 	if (cwsr_enable)

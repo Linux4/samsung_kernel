@@ -568,7 +568,7 @@ static void decon_atomic_begin(struct exynos_drm_crtc *crtc)
 		decon_info(decon, "is skipped(recovery started)\n");
 	else if (decon_reg_wait_update_done_and_mask(decon->id, &decon->config.mode,
 				SHADOW_UPDATE_TIMEOUT_US)) {
-		decon_info(decon, "decon update timeout\n");
+		decon_err(decon, "decon update timeout\n");
 		dpu_dump(crtc);
 	}
 	decon_debug(decon, "-\n");
@@ -812,6 +812,7 @@ static void decon_atomic_flush(struct exynos_drm_crtc *exynos_crtc,
 	bool color_map = true;
 	char rtc_buf[RTC_STR_BUF_SIZE];
 #endif
+
 	decon_debug(decon, "+\n");
 
 	if (new_exynos_crtc_state->wb_type == EXYNOS_WB_NONE &&
@@ -827,7 +828,7 @@ static void decon_atomic_flush(struct exynos_drm_crtc *exynos_crtc,
 		const int win_id = decon_get_win_id(new_crtc_state, 0);
 
 		if (win_id < 0) {
-			decon_warn(decon, "unable to get free win_id=%d mask=0x%x\n",
+			decon_err(decon, "unable to get free win_id=%d mask=0x%x\n",
 				win_id, new_exynos_crtc_state->reserved_win_mask);
 			return;
 		}
@@ -1024,7 +1025,7 @@ static void decon_wait_framestart(struct exynos_drm_crtc *exynos_crtc)
 	else if (!wait_for_completion_timeout(&decon->framestart_done,
 				msecs_to_jiffies(framestart_timeout))) {
 		DPU_EVENT_LOG("FRAMESTART_TIMEOUT", exynos_crtc, EVENT_FLAG_ERROR, NULL);
-		decon_warn(decon, "framestart timeout\n");
+		decon_err(decon, "framestart timeout\n");
 	}
 }
 
@@ -1051,7 +1052,7 @@ static void decon_set_trigger(struct exynos_drm_crtc *exynos_crtc,
 
 	if (decon_reg_wait_update_done_timeout(decon->id,
 		SHADOW_UPDATE_TIMEOUT_US)) {
-		decon_info(decon, "decon update timeout\n");
+		decon_err(decon, "decon update timeout\n");
 		if (atomic_inc_return(&exynos_crtc->d.shadow_timeout_cnt) >= TIMEOUT_CNT) {
 			if (__is_recovery_supported(decon)) {
 				if (!__is_recovery_running(decon))

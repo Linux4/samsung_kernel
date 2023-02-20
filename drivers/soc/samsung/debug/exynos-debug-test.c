@@ -823,6 +823,41 @@ static void simulate_S2RLOCKUP(char *arg)
 	}
 }
 
+static atomic_t multi_panic_cpu_cnt;
+
+static void simulate_MULTI_PANIC_handler(void *info)
+{
+	unsigned int cnt;
+
+	pr_emerg("CPU%d %s called\n", raw_smp_processor_id(), __func__);
+
+	atomic_inc(&multi_panic_cpu_cnt);
+
+	do {
+		cnt = atomic_read(&multi_panic_cpu_cnt);
+	} while (cnt != num_active_cpus());
+
+	panic("CPU%d panic, active cpu num = %u", raw_smp_processor_id(), cnt);
+}
+
+static void simulate_MULTI_PANIC(char *arg)
+{
+	int this_cpu, cpu;
+
+	pr_emerg("%s called\n", __func__);
+
+	atomic_set(&multi_panic_cpu_cnt, 0);
+	this_cpu = get_cpu();
+	for_each_possible_cpu(cpu) {
+		if (cpu == this_cpu)
+			continue;
+
+		smp_call_function_single(cpu, simulate_MULTI_PANIC_handler, NULL, 0);
+	}
+	simulate_MULTI_PANIC_handler(NULL);
+	put_cpu();
+}
+
 static struct force_error_item force_error_vector[] = {
 	{"KP",		&simulate_KP},
 	{"DP",		&simulate_DP},
@@ -857,6 +892,7 @@ static struct force_error_item force_error_vector[] = {
 	{"dramfail",	&simulate_DRAMFAIL},
 	{"ecc",		&simulate_ECC},
 	{"s2rlockup",	&simulate_S2RLOCKUP},
+	{"multiPanic",	&simulate_MULTI_PANIC},
 };
 
 static int debug_force_error(const char *val)

@@ -1537,6 +1537,7 @@ int sensor_hm3_cis_update_seamless_mode(struct v4l2_subdev *subdev)
 	u32 load_sram_idx = SENSOR_HM3_LOAD_SRAM_IDX_NONE;
 	u32 dummy_value = 0;
 	u8 cur_frame_count = 0;
+	u16 reg_check = 0;
 
 	WARN_ON(!subdev);
 
@@ -1612,6 +1613,11 @@ int sensor_hm3_cis_update_seamless_mode(struct v4l2_subdev *subdev)
 	cis->cis_data->sens_config_index_cur = next_mode;
 
 	sensor_hm3_cis_data_calculation(sensor_hm3_pllinfos[next_mode], cis->cis_data);
+
+	is_sensor_write16(cis->client, 0x602C, 0x2001);
+	is_sensor_write16(cis->client, 0x602E, 0x96A4);
+	is_sensor_read16(cis->client, 0x6F12, &reg_check);
+	info("[%s] 0x200196A4[0x%x]\n", __func__, reg_check);
 
 	info("[%s] F(%d) pre(%d)->cur(%d) 12bit[%d] LN[%d] ZOOM[%d] AEB[%d] => load_sram_idx[%d] fast_change_idx[0x%x]\n",
 		 __func__, cur_frame_count,
@@ -2334,6 +2340,7 @@ int sensor_hm3_cis_stream_on(struct v4l2_subdev *subdev)
 	struct is_device_sensor *device;
 	u16 fast_change_idx = 0x00FF;
 	ktime_t st = ktime_get();
+	u16 reg_check = 0;
 
 	WARN_ON(!subdev);
 
@@ -2461,6 +2468,11 @@ int sensor_hm3_cis_stream_on(struct v4l2_subdev *subdev)
 #endif
 
 	is_sensor_read16(client, 0x0B30, &fast_change_idx);
+
+	is_sensor_write16(client, 0x602C, 0x2001);
+	is_sensor_write16(client, 0x602E, 0x96A4);
+	is_sensor_read16(client, 0x6F12, &reg_check);
+	info("[%s] 0x200196A4[0x%x]\n", __func__, reg_check);
 
 	/* Sensor stream on */
 	info("%s - set_cal_available(%d), fast_change_idx(0x%x)\n",

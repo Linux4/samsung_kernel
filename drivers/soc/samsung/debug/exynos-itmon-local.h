@@ -121,6 +121,7 @@
 #define SET_AFFINITY(x)			((x & 0xFFFF) << 16)
 
 #define OFFSET_DSS_CUSTOM		(0xF000)
+#define CUSTOM_MAX_PRIO			(7)
 
 enum err_type {
 	TMOUT,

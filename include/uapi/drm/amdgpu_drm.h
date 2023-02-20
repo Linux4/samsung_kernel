@@ -55,6 +55,7 @@ extern "C" {
 #define DRM_AMDGPU_FENCE_TO_HANDLE	0x14
 #define DRM_AMDGPU_SCHED		0x15
 /* not upstream */
+#define DRM_SGPU_INSTANCE_DATA		0x5d
 #define DRM_AMDGPU_WGP_GATING		0x5e
 #define DRM_SGPU_MEM_PROFILE_ADD	0x5f
 
@@ -74,6 +75,7 @@ extern "C" {
 #define DRM_IOCTL_AMDGPU_VM		DRM_IOWR(DRM_COMMAND_BASE + DRM_AMDGPU_VM, union drm_amdgpu_vm)
 #define DRM_IOCTL_AMDGPU_FENCE_TO_HANDLE DRM_IOWR(DRM_COMMAND_BASE + DRM_AMDGPU_FENCE_TO_HANDLE, union drm_amdgpu_fence_to_handle)
 #define DRM_IOCTL_AMDGPU_SCHED		DRM_IOW(DRM_COMMAND_BASE + DRM_AMDGPU_SCHED, union drm_amdgpu_sched)
+#define DRM_IOCTL_SGPU_INSTANCE_DATA	DRM_IOWR(DRM_COMMAND_BASE + DRM_SGPU_INSTANCE_DATA, union drm_sgpu_instance_data)
 #define DRM_IOCTL_AMDGPU_WGP_GATING   DRM_IOWR(DRM_COMMAND_BASE + DRM_AMDGPU_WGP_GATING, union drm_amdgpu_wgp_gating)
 #define DRM_IOCTL_SGPU_MEM_PROFILE_ADD  DRM_IOWR(DRM_COMMAND_BASE + DRM_SGPU_MEM_PROFILE_ADD, struct drm_sgpu_mem_profile_add)
 
@@ -1163,15 +1165,29 @@ union drm_amdgpu_wgp_gating {
  * Memory breakdown is exposed through debugfs node
  * @buffer: Pointer to the memory breakdown
  * @len: Length
- * @padding: Padding
+ * @instance_data_handle: Handle to an sgpu_instance_data
  *
  * The data provided is accessible through a debugfs file
  */
 struct drm_sgpu_mem_profile_add {
 	__u64 buffer;
 	__u32 len;
-	__u32 padding;
+	__u32 instance_data_handle;
 };
+
+union drm_sgpu_instance_data {
+	struct {
+		__u32 op;
+		__u32 handle;
+	} in;
+
+	struct {
+		__u32 handle;
+	} out;
+};
+
+#define SGPU_INSTANCE_DATA_OP_CREATE	1
+#define SGPU_INSTANCE_DATA_OP_DESTROY	2
 
 #if defined(__cplusplus)
 }

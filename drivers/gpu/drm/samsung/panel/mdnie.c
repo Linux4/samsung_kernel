@@ -30,11 +30,6 @@
 #include "dpui.h"
 #endif
 
-#ifdef PANEL_PR_TAG
-#undef PANEL_PR_TAG
-#define PANEL_PR_TAG	"mdnie"
-#endif
-
 #ifdef MDNIE_SELF_TEST
 int g_coord_x = MIN_WCRD_X;
 int g_coord_y = MIN_WCRD_Y;

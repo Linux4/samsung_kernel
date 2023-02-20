@@ -155,12 +155,43 @@ static struct drm_display_mode mode_vga[1] = {
 	.picture_aspect_ratio = HDMI_PICTURE_ASPECT_4_3, }
 };
 
-static int proaudio_support_vics[] = {
-	4, /* 720P60 */
-	34, /* 1920X1080P30 */
-	16, /* 1920X1080P60 */
-	95, /* 3840X2160P30 */
-	97, /* 3840X2160P60 */
+/* from drm_edid.c */
+static struct drm_display_mode pro_audio_support_modes[] = {
+	/* 4 - 1280x720@60Hz 16:9 */
+	{ DRM_MODE("1280x720", DRM_MODE_TYPE_DRIVER, 74250, 1280, 1390,
+		   1430, 1650, 0, 720, 725, 730, 750, 0,
+		   DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC),
+	  .picture_aspect_ratio = HDMI_PICTURE_ASPECT_16_9, },
+	/* 16 - 1920x1080@60Hz 16:9 */
+	{ DRM_MODE("1920x1080", DRM_MODE_TYPE_DRIVER, 148500, 1920, 2008,
+		   2052, 2200, 0, 1080, 1084, 1089, 1125, 0,
+		   DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC),
+	  .picture_aspect_ratio = HDMI_PICTURE_ASPECT_16_9, },
+	/* 34 - 1920x1080@30Hz 16:9 */
+	{ DRM_MODE("1920x1080", DRM_MODE_TYPE_DRIVER, 74250, 1920, 2008,
+		   2052, 2200, 0, 1080, 1084, 1089, 1125, 0,
+		   DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC),
+	  .picture_aspect_ratio = HDMI_PICTURE_ASPECT_16_9, },
+	/* 95 - 3840x2160@30Hz 16:9 */
+	{ DRM_MODE("3840x2160", DRM_MODE_TYPE_DRIVER, 297000, 3840, 4016,
+		   4104, 4400, 0, 2160, 2168, 2178, 2250, 0,
+		   DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC),
+	  .picture_aspect_ratio = HDMI_PICTURE_ASPECT_16_9, },
+	/* 97 - 3840x2160@60Hz 16:9 */
+	{ DRM_MODE("3840x2160", DRM_MODE_TYPE_DRIVER, 594000, 3840, 4016,
+		   4104, 4400, 0, 2160, 2168, 2178, 2250, 0,
+		   DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC),
+	  .picture_aspect_ratio = HDMI_PICTURE_ASPECT_16_9, },
+	/* 100 - 4096x2160@30Hz 256:135 */
+	{ DRM_MODE("4096x2160", DRM_MODE_TYPE_DRIVER, 297000, 4096, 4184,
+		   4272, 4400, 0, 2160, 2168, 2178, 2250, 0,
+		   DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC),
+	  .picture_aspect_ratio = HDMI_PICTURE_ASPECT_256_135, },
+	/* 102 - 4096x2160@60Hz 256:135 */
+	{ DRM_MODE("4096x2160", DRM_MODE_TYPE_DRIVER, 594000, 4096, 4184,
+		   4272, 4400, 0, 2160, 2168, 2178, 2250, 0,
+		   DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC),
+	  .picture_aspect_ratio = HDMI_PICTURE_ASPECT_256_135, }
 };
 
 #ifdef FEATURE_DEX_SUPPORT
@@ -408,7 +439,7 @@ static void dp_sad_to_audio_info(struct dp_device *dp, struct cea_sad *sads, int
 	int i;
 
 	for (i = 0; i < num; i++) {
-		dp_info(dp, "audio format: %d, freq: %d, bit: %d\n",
+		dp_info(dp, "audio format: %d, ch: %d, freq: %d, bit: %d\n",
 			sads[i].format, sads[i].channels, sads[i].freq, sads[i].byte2);
 
 		if (sads[i].format == HDMI_AUDIO_CODING_TYPE_PCM) {
@@ -1522,13 +1553,13 @@ bool edid_support_pro_audio(void)
 }
 
 #ifdef FEATURE_USE_DRM_EDID_PARSER
-static bool dp_mode_check_proaud_support(int vic)
+static bool dp_mode_check_proaud_support(struct drm_display_mode *mode)
 {
-	int arr_size = ARRAY_SIZE(proaudio_support_vics);
+	int arr_size = ARRAY_SIZE(pro_audio_support_modes);
 	int i;
 
 	for (i = 0; i < arr_size; i++) {
-		if (vic == proaudio_support_vics[i])
+		if (drm_mode_match(mode, &pro_audio_support_modes[i], DRM_MODE_MATCH_TIMINGS))
 			return true;
 	}
 
@@ -1547,10 +1578,10 @@ u32 edid_audio_informs(struct dp_device *dp)
 
 #ifdef FEATURE_USE_DRM_EDID_PARSER
 	/* if cur_mode does not support pro audio, then reduce sample frequency. */
-	if (!dp_mode_check_proaud_support(dp->cur_mode_vic)) {
-		dp_info(dp, "reduce SF(pro_aud:%d, link_rate:0x%X, ch:0x%X, sf:0x%X)\n",
-				supported_videos[dp->cur_video].pro_audio_support, link_rate,
-				ch_info, audio_sample_rates);
+	if (!dp_mode_check_proaud_support(&dp->cur_mode)) {
+		dp_info(dp, "reduce SF(mode:%s, link_rate:0x%X, ch:0x%X, sf:0x%X)\n",
+					dp->cur_mode.name, link_rate,
+					ch_info, audio_sample_rates);
 		audio_sample_rates &= 0x7; /* reduce to under 48KHz */
 	}
 #else
