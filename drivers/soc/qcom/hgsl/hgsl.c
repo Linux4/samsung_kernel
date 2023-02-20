@@ -688,7 +688,7 @@ static int hgsl_dbq_assign(struct file *filep, unsigned long arg)
 	if (copy_from_user(&dbq_idx, USRPTR(arg), sizeof(dbq_idx)))
 		return -EFAULT;
 
-	if (dbq_idx > MAX_DB_QUEUE)
+	if (dbq_idx >= MAX_DB_QUEUE)
 		return -EINVAL;
 
 	priv->dbq_idx = dbq_idx;

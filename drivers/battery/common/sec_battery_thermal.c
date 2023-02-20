@@ -642,7 +642,7 @@ void sec_bat_thermal_check(struct sec_battery_info *battery)
 				if (is_hv_afc_wire_type(battery->cable_type) && !battery->vbus_limit) {
 #if defined(CONFIG_MUIC_HV) || defined(CONFIG_SUPPORT_HV_CTRL)
 					battery->vbus_chg_by_siop = SEC_INPUT_VOLTAGE_0V;
-					muic_afc_set_voltage(SEC_INPUT_VOLTAGE_0V);
+					muic_afc_request_voltage(AFC_REQUEST_CHARGER, SEC_INPUT_VOLTAGE_0V);
 #endif
 					battery->vbus_limit = true;
 					pr_info("%s: Set AFC TA to 0V\n", __func__);
@@ -659,7 +659,6 @@ void sec_bat_thermal_check(struct sec_battery_info *battery)
 #endif
 			break;
 		case BAT_THERMAL_OVERHEAT:
-			battery->swelling_mode = true;
 			battery->usb_thm_status = USB_THM_NORMAL;
 			battery->warm_overheat_thresh -= THERMAL_HYSTERESIS_2;
 			battery->normal_warm_thresh -= THERMAL_HYSTERESIS_2;
@@ -678,7 +677,6 @@ void sec_bat_thermal_check(struct sec_battery_info *battery)
 				SEC_BAT_CURRENT_EVENT_SWELLING_MODE);
 			break;
 		case BAT_THERMAL_WARM:
-			battery->swelling_mode = true;
 			battery->usb_thm_status = USB_THM_NORMAL;
 			battery->normal_warm_thresh -= THERMAL_HYSTERESIS_2;
 			if (is_wireless_type(battery->cable_type) ||
@@ -713,7 +711,6 @@ void sec_bat_thermal_check(struct sec_battery_info *battery)
 				SEC_BAT_CURRENT_EVENT_SWELLING_MODE);
 			break;
 		case BAT_THERMAL_COOL1:
-			battery->swelling_mode = true;
 			battery->usb_thm_status = USB_THM_NORMAL;
 			battery->cool1_normal_thresh += THERMAL_HYSTERESIS_2;
 			if (is_wireless_type(battery->cable_type) ||
@@ -730,7 +727,6 @@ void sec_bat_thermal_check(struct sec_battery_info *battery)
 				SEC_BAT_CURRENT_EVENT_SWELLING_MODE);
 			break;
 		case BAT_THERMAL_COOL2:
-			battery->swelling_mode = true;
 			battery->usb_thm_status = USB_THM_NORMAL;
 			battery->cool2_cool1_thresh += THERMAL_HYSTERESIS_2;
 			battery->cool1_normal_thresh += THERMAL_HYSTERESIS_2;
@@ -748,7 +744,6 @@ void sec_bat_thermal_check(struct sec_battery_info *battery)
 				SEC_BAT_CURRENT_EVENT_SWELLING_MODE);
 			break;
 		case BAT_THERMAL_COOL3:
-			battery->swelling_mode = true;
 			battery->usb_thm_status = USB_THM_NORMAL;
 			battery->cool3_cool2_thresh += THERMAL_HYSTERESIS_2;
 			battery->cool2_cool1_thresh += THERMAL_HYSTERESIS_2;
@@ -767,7 +762,6 @@ void sec_bat_thermal_check(struct sec_battery_info *battery)
 				SEC_BAT_CURRENT_EVENT_SWELLING_MODE);
 			break;
 		case BAT_THERMAL_COLD:
-			battery->swelling_mode = true;
 			battery->usb_thm_status = USB_THM_NORMAL;
 			battery->cold_cool3_thresh += THERMAL_HYSTERESIS_2;
 			battery->cool3_cool2_thresh += THERMAL_HYSTERESIS_2;
@@ -785,7 +779,6 @@ void sec_bat_thermal_check(struct sec_battery_info *battery)
 			break;
 		case BAT_THERMAL_NORMAL:
 		default:
-			battery->swelling_mode = false;
 			battery->usb_thm_status = USB_THM_NORMAL;
 			sec_vote(battery->fcc_vote, VOTER_SWELLING, false, 0);
 			sec_vote(battery->fv_vote, VOTER_SWELLING, false, 0);

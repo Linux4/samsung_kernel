@@ -251,6 +251,8 @@ source "drivers/input/touchscreen/Kconfig"
 
 source "drivers/input/wacom/Kconfig"
 
+source "drivers/input/w9019/Kconfig"
+
 source "drivers/input/misc/Kconfig"
 
 source "drivers/input/sensors/smi130/Kconfig"

@@ -2054,6 +2054,13 @@ int wacom_fw_update_on_probe(struct wacom_i2c *wac_i2c)
 		goto err_update_load_fw;
 	}
 
+	if ((wac_i2c->pdata->img_version_of_ic[0] != 0) && wac_i2c->query_status &&
+				(wac_i2c->pdata->img_version_of_ic[0] != wac_i2c->pdata->img_version_of_bin[0])) {
+		input_err(true, &client->dev, "%s: MPU ver is not matched. unload driver. ic:%02X, bin:%02X\n",
+					__func__, wac_i2c->pdata->img_version_of_ic[0], wac_i2c->pdata->img_version_of_bin[0]);
+		goto err_update_fw;
+	}
+
 	if (wac_i2c->pdata->bringup == 2) {
 		input_info(true, &client->dev, "%s: bringup #2. do not update\n", __func__);
 		goto out_update_fw;
@@ -2129,7 +2136,10 @@ fw_update:
 		ret = wacom_i2c_flash(wac_i2c);
 		if (ret) {
 			input_info(true, &client->dev, "failed to flash fw(%d) %d\n", ret, retry);
-			continue;
+			if (!wac_i2c->bl_mpu_match)
+				goto err_update_fw;
+			else
+				continue;
 		}
 		break;
 	}
@@ -3035,7 +3045,13 @@ err_register_input_dev:
 	mutex_destroy(&wac_i2c->ble_charge_mode_lock);
 
 	i2c_unregister_device(wac_i2c->client_boot);
+
+	wacom_power(wac_i2c, false);
+	msleep(110);
 	regulator_put(pdata->avdd);
+
+	if (wac_i2c->input_dev)
+		input_free_device(wac_i2c->input_dev);
 
 	input_err(true, &client->dev, "%s: failed to probe\n", __func__);
 	input_log_fix();
@@ -3210,9 +3226,13 @@ static int __init wacom_i2c_init(void)
 {
 	int ret = 0;
 
+	pr_info("%s: %s start\n", SECLOG, __func__);
+
 	ret = i2c_add_driver(&wacom_i2c_driver);
 	if (ret)
 		pr_err("%s: %s: failed to add i2c driver\n", SECLOG, __func__);
+
+	pr_info("%s: %s end\n", SECLOG, __func__);
 
 	return ret;
 }

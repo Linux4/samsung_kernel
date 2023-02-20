@@ -365,7 +365,7 @@ static int dsi_panel_reset(struct dsi_panel *panel)
 	struct dsi_panel_reset_config *r_config = &panel->reset_config;
 	int i;
 
-#if defined(CONFIG_DISPLAY_SAMSUNG)
+#if defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 	struct samsung_display_driver_data *vdd = panel->panel_private;
 
 	if (vdd->aot_reset_regulator || vdd->aot_reset_regulator_late) {
@@ -429,7 +429,9 @@ exit:
 	return rc;
 }
 
-#if defined(CONFIG_DISPLAY_SAMSUNG) || defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+int dsi_panel_set_pinctrl_state(struct dsi_panel *panel, bool enable)
+#elif defined(CONFIG_DISPLAY_SAMSUNG_LEGO)
 /* Reset regulater control when aot_reset_regulator enabled
  * regulator name should be "panel_reset" or "lcd_rst"
  */

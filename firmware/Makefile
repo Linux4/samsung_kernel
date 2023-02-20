@@ -67,6 +67,7 @@ fw-external-$(CONFIG_TOUCHSCREEN_NOVATEK_NT36672) += tsp_novatek/nt36672_a60.bin
 						tsp_novatek/nt36672_a60_tianma.bin
 
 fw-external-$(CONFIG_EPEN_WACOM_WEZ01) += epen/w9021_gts6lite.bin
+fw-external-$(CONFIG_EPEN_WACOM_W9019) += epen/w9019_gts6lite.bin
 
 #touch based grip sensor
 fw-shipped-$(CONFIG_SENSORS_TC3XXK_A60) += coreriver/tc305k_a60_grip.fw

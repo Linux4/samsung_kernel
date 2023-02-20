@@ -888,11 +888,23 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", value.intval);
 		break;
 	case FG_FULL_VOLTAGE:
-		psy_do_property(battery->pdata->charger_name, get,
+		{
+			int recharging_voltage = battery->pdata->recharge_condition_vcell;
+
+			if (battery->current_event & SEC_BAT_CURRENT_EVENT_HIGH_TEMP_SWELLING) {
+				recharging_voltage = battery->pdata->swelling_high_rechg_voltage;
+			} else if (battery->current_event & SEC_BAT_CURRENT_EVENT_LOW_TEMP_MODE) {
+				/* float voltage - 150mV */
+				recharging_voltage = (battery->pdata->chg_float_voltage /
+				battery->pdata->chg_float_voltage_conv) - battery->pdata->swelling_low_rechg_thr;
+			}
+
+			psy_do_property(battery->pdata->charger_name, get,
 			POWER_SUPPLY_PROP_VOLTAGE_MAX, value);		
-		i += scnprintf(buf + i, PAGE_SIZE - i, "%d %d\n",
-			value.intval, battery->pdata->recharge_condition_vcell);
-		break;
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d %d\n",
+			value.intval, recharging_voltage);
+			break;
+		}
 	case FG_FULLCAPNOM:
 		value.intval =
 			SEC_BATTERY_CAPACITY_AGEDCELL;

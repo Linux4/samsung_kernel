@@ -551,6 +551,7 @@ struct wacom_i2c {
 	int ble_hist_index;
 	char cover;
 	u8 flip_state;
+	bool bl_mpu_match;
 };
 
 extern struct wacom_i2c *g_wac_i2c;

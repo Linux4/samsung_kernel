@@ -52,7 +52,7 @@ const char *module_name[GRIP_MAX_CNT] = {
 	"grip_sensor_sub",
 	"grip_sensor_wifi"
 };
-
+#define NOTI_MODULE_NAME        "grip_notifier"
 enum registers {
 	ISG6320_IRQSRC_REG = 0x00,
 	ISG6320_IRQSTS_REG,
@@ -155,6 +155,9 @@ enum registers {
 
 #define ISG6320_CAL_RTN_A_MASK		0x02
 #define ISG6320_CAL_RTN_B_MASK		0x01
+
+#define UNKNOWN_ON  1
+#define UNKNOWN_OFF 2
 
 enum {
 	OFF = 0,
