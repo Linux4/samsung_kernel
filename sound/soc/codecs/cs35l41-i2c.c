@@ -90,6 +90,7 @@ static struct i2c_driver cs35l41_i2c_driver = {
 	.driver = {
 		.name		= "cs35l41",
 		.of_match_table = cs35l41_of_match,
+		.pm = &cs35l41_pm_ops,
 	},
 	.id_table	= cs35l41_id_i2c,
 	.probe		= cs35l41_i2c_probe,

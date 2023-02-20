@@ -16,11 +16,6 @@
 #include "dimming.h"
 #include "dimming_gamma.h"
 
-#ifdef PANEL_PR_TAG
-#undef PANEL_PR_TAG
-#define PANEL_PR_TAG	"dimm"
-#endif
-
 static int NR_LUMINANCE;
 static int NR_TP;
 static int TP_VT = 0;
@@ -805,7 +800,7 @@ s64 interpolation_round(s64 from, s64 to, int cur_step, int total_step)
 	return num;
 }
 
-s64 interpolation(s64 from, s64 to, int cur_step, int total_step)
+s64 disp_interpolation64(s64 from, s64 to, int cur_step, int total_step)
 {
 	s64 num, den;
 
@@ -818,7 +813,7 @@ s64 interpolation(s64 from, s64 to, int cur_step, int total_step)
 
 	return num;
 }
-EXPORT_SYMBOL(interpolation);
+EXPORT_SYMBOL(disp_interpolation64);
 
 int gamma_table_add_offset(s32 (*src)[MAX_COLOR], s32 (*ofs)[MAX_COLOR],
 		s32 (*out)[MAX_COLOR], struct tp *tp, int nr_tp)
@@ -870,7 +865,7 @@ int gamma_table_interpolation(s32 (*from)[MAX_COLOR], s32 (*to)[MAX_COLOR],
 	for (i = 0; i < nr_tp; i++) {
 		for_each_color(c) {
 			out[i][c] =
-				interpolation(from[i][c], to[i][c], cur_step, total_step);
+				disp_interpolation64(from[i][c], to[i][c], cur_step, total_step);
 #ifdef DEBUG_DIMMING
 			panel_info("from %d, to %d, out %d, cur_step %d, total_step %d\n",
 					from[i][c], to[i][c], out[i][c], cur_step, total_step);
@@ -934,7 +929,7 @@ static int generate_gray_scale(struct dimming_info *dim_info)
 		for_each_color(c) {
 			v_upper = (s64)gray_scale_lut[iv_upper].vout[c];
 			v_lower = (s64)gray_scale_lut[iv_lower].vout[c];
-			vout = interpolation(v_lower, v_upper, cur_step, total_step);
+			vout = disp_interpolation64(v_lower, v_upper, cur_step, total_step);
 #ifdef DEBUG_DIMMING
 			panel_info("lower %3d, upper %3d, "
 					"cur_step %3d, total_step %3d, vout[%d]\t "

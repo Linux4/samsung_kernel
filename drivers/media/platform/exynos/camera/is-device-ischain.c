@@ -3814,9 +3814,15 @@ static void is_ischain_update_otf_data(struct is_device_ischain *device,
 
 	spin_unlock_irqrestore(&group->slock_s_ctrl, flags);
 
-	if (frame->shot->ctl.aa.sceneMode == AA_SCENE_MODE_EXECUTOR_TOOL ||
-		frame->shot->ctl.aa.sceneMode == AA_SCENE_MODE_ASTRO) {
+	if (frame->shot->ctl.aa.sceneMode == AA_SCENE_MODE_EXECUTOR_TOOL
+		|| frame->shot->ctl.aa.sceneMode == AA_SCENE_MODE_ASTRO) {
 		resourcemgr->shot_timeout = SHOT_TIMEOUT * 10; // 30s timeout
+	} else if (frame->shot->ctl.aa.sceneMode == AA_SCENE_MODE_SUPER_NIGHT
+		&& sensor->frame_duration >= ((SHOT_TIMEOUT * 1000) - 1000000)) {
+		resourcemgr->shot_timeout = (sensor->frame_duration / 1000) + SHOT_TIMEOUT;
+	} else if (frame->shot->ctl.aa.sceneMode == AA_SCENE_MODE_HYPERLAPSE
+		&& frame->shot->ctl.aa.vendor_currentHyperlapseMode == 300) {
+		resourcemgr->shot_timeout = SHOT_TIMEOUT * 5; // 15s timeout
 	} else if (CHK_UPDATE_EXP_BY_RTA_CAPTURE_SCN(frame->shot->ctl.aa.captureIntent)) {
 		/*
 		 * Set shot_timeout value depend on captureintent
@@ -3840,9 +3846,6 @@ static void is_ischain_update_otf_data(struct is_device_ischain *device,
 		resourcemgr->shot_timeout_tick = KEEP_FRAME_TICK_DEFAULT;
 	} else if (resourcemgr->shot_timeout_tick > 0) {
 		resourcemgr->shot_timeout_tick--;
-	} else if (frame->shot->ctl.aa.sceneMode == AA_SCENE_MODE_SUPER_NIGHT &&
-				sensor->frame_duration >= ((SHOT_TIMEOUT * 1000) - 1000000)) {
-		resourcemgr->shot_timeout = (sensor->frame_duration / 1000) + SHOT_TIMEOUT;
 	} else {
 		resourcemgr->shot_timeout = SHOT_TIMEOUT;
 	}

@@ -556,14 +556,14 @@ int ufs_perf_init_v1(struct ufs_perf *perf)
 	/* default thresholds for stats */
 	stat->th_qd_max = 14;
 	stat->th_qd_min = 2;
-	stat->th_dwell_in_high = 22;
+	stat->th_dwell_in_high = 1;
 	stat->th_reach_up_to_high = 30;
 
 	stat->th_duration = 1;
 	stat->th_count = 16;
 	stat->th_detect_dwell = 3;
 	stat->th_detect_rare = 12;
-	stat->th_reset_in_ms = 40;
+	stat->th_reset_in_ms = 100;
 	stat->seq_continue_count = 0;
 	stat->last_lba = 0;
 

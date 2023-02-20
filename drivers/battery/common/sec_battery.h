@@ -870,6 +870,8 @@ struct sec_battery_info {
 	struct cisd cisd;
 	bool skip_cisd;
 	bool usb_overheat_check;
+	bool otg_check;
+	bool d2d_check;
 	int prev_volt;
 	int prev_temp;
 	int prev_jig_on;

@@ -1761,10 +1761,11 @@ int sensor_gn3_cis_retention_prepare(struct v4l2_subdev *subdev)
 	ext_info = &module->ext;
 	WARN_ON(!ext_info);
 
-	I2C_MUTEX_LOCK(cis->i2c_lock);
 #if IS_ENABLED(CIS_CALIBRATION)
+	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret |= sensor_gn3_cis_set_cal(subdev);
 	ret |= sensor_cis_set_registers(subdev, sensor_gn3_goldenCal, sensor_gn3_goldenCal_size);
+	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 	if (ret < 0) {
 		err("sensor_gn3_cis_set_cal fail!!");
 		goto p_err;
@@ -1772,7 +1773,9 @@ int sensor_gn3_cis_retention_prepare(struct v4l2_subdev *subdev)
 #endif
 
 	for (i = 0; i < sensor_gn3_max_retention_num; i++) {
+		I2C_MUTEX_LOCK(cis->i2c_lock);
 		ret = sensor_cis_set_registers(subdev, sensor_gn3_retention[i], sensor_gn3_retention_size[i]);
+		I2C_MUTEX_UNLOCK(cis->i2c_lock);
 		if (ret < 0) {
 			err("sensor_gn3_set_registers fail!!");
 			goto p_err;
@@ -1780,13 +1783,16 @@ int sensor_gn3_cis_retention_prepare(struct v4l2_subdev *subdev)
 	}
 
 	//FAST AE Setting
+	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = sensor_cis_set_registers(subdev, sensor_gn3_setfiles[SENSOR_GN3_2040X1532_120FPS],
 						sensor_gn3_setfile_sizes[SENSOR_GN3_2040X1532_120FPS]);
+	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 	if (ret < 0) {
 		err("sensor_gn3_set_registers fail!!");
 		goto p_err;
 	}
 
+	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret |= is_sensor_write16(cis->client, 0xFCFC, 0x4000);
 	ret |= is_sensor_write16(cis->client, 0x6000, 0x0005);
 	ret |= is_sensor_write16(cis->client, 0xFCFC, 0x2000);
@@ -1812,7 +1818,6 @@ int sensor_gn3_cis_retention_prepare(struct v4l2_subdev *subdev)
 	ret |= is_sensor_write16(cis->client, 0xFCFC, 0x4000);
 	ret |= is_sensor_write16(cis->client, 0x0B30, 0x01FF);
 	ret |= is_sensor_write16(cis->client, 0x6000, 0x0085);
-
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	if (sensor_gn3_need_stream_on_retention) {
@@ -1859,7 +1864,6 @@ int sensor_gn3_cis_retention_prepare(struct v4l2_subdev *subdev)
 	info("[%s] retention sensor RAM write done\n", __func__);
 
 p_err:
-
 	return ret;
 }
 

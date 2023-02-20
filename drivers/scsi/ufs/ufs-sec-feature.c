@@ -371,7 +371,7 @@ bool ufs_sec_parse_wb_info(struct ufs_hba *hba)
 		ufs_wb.down_threshold_rqs = 25;
 
 	if (of_property_read_u32(node, "sec,wb-disable-threshold-lt", &ufs_wb.wb_disable_threshold_lt))
-		ufs_wb.wb_disable_threshold_lt = 7;
+		ufs_wb.wb_disable_threshold_lt = 9;
 
 	if (of_property_read_u32(node, "sec,wb-on-delay-ms", &temp_delay_ms_value))
 		ufs_wb.on_delay = msecs_to_jiffies(92);

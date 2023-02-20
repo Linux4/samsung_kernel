@@ -57,6 +57,7 @@
 #define CMD_SEND_TRACK2_DATA		'3'	// send track2 test data
 #define ERROR_VALUE			-1	// Error value
 
+#if !defined(CONFIG_MST_DUMMY_DRV)
 /* global variables */
 static struct class *mst_drv_class;
 struct device *mst_drv_dev;
@@ -83,7 +84,10 @@ static int wpc_det;
 static struct pm_qos_request mst_pm_qos_request;
 uint32_t mst_lpm_tag;
 #endif
-
+#if defined(CONFIG_MST_PCR)
+static bool mst_pwr_use_uno;
+#endif
+#endif
 /* function */
 /**
  * mst_printk - print with mst tag
@@ -107,6 +111,7 @@ void mst_printk(int level, const char *fmt, ...)
 	va_end(args);
 }
 
+#if !defined(CONFIG_MST_DUMMY_DRV)
 #if defined(CONFIG_MST_ARCH_QCOM)
 #if defined(_ARCH_ARM_MACH_MSM_BUS_H) // build error
 /**
@@ -188,13 +193,15 @@ extern void mst_ctrl_of_mst_hw_onoff(bool on)
 		gpio_set_value(mst_pwr_en, 0);
 		mst_info("%s: mst_pwr_en LOW\n", __func__);
 #if defined(CONFIG_MST_PCR)
-		value.intval = OFF;
-		psy_do_property("battery", set,
-				POWER_SUPPLY_EXT_PROP_CHARGE_UNO_CONTROL, value);
+		if (mst_pwr_use_uno) {
+			value.intval = OFF;
+			psy_do_property("battery", set,
+					POWER_SUPPLY_EXT_PROP_CHARGE_UNO_CONTROL, value);
 
-		value.intval = 1000;
-		psy_do_property("otg", set,
-				POWER_SUPPLY_EXT_PROP_WIRELESS_TX_IOUT, value);
+			value.intval = 1000;
+			psy_do_property("otg", set,
+					POWER_SUPPLY_EXT_PROP_WIRELESS_TX_IOUT, value);
+		}
 #endif
 #endif
 #endif
@@ -298,13 +305,15 @@ static void of_mst_hw_onoff(bool on)
 #else
 #if !defined(CONFIG_MST_IF_PMIC)
 #if defined(CONFIG_MST_PCR)
-		value.intval = 1500;
-		psy_do_property("otg", set,
-				POWER_SUPPLY_EXT_PROP_WIRELESS_TX_IOUT, value);
+		if (mst_pwr_use_uno) {
+			value.intval = 1500;
+			psy_do_property("otg", set,
+					POWER_SUPPLY_EXT_PROP_WIRELESS_TX_IOUT, value);
 
-		value.intval = ON;
-		psy_do_property("battery", set,
-				POWER_SUPPLY_EXT_PROP_CHARGE_UNO_CONTROL, value);
+			value.intval = ON;
+			psy_do_property("battery", set,
+					POWER_SUPPLY_EXT_PROP_CHARGE_UNO_CONTROL, value);
+		}
 #endif
 		gpio_set_value(mst_pwr_en, 1);
 		mst_info("%s: mst_pwr_en HIGH\n", __func__);
@@ -383,13 +392,15 @@ static void of_mst_hw_onoff(bool on)
 		gpio_set_value(mst_pwr_en, 0);
 		mst_info("%s: mst_pwr_en LOW\n", __func__);
 #if defined(CONFIG_MST_PCR)
-		value.intval = OFF;
-		psy_do_property("battery", set,
-				POWER_SUPPLY_EXT_PROP_CHARGE_UNO_CONTROL, value);
+		if (mst_pwr_use_uno) {
+			value.intval = OFF;
+			psy_do_property("battery", set,
+					POWER_SUPPLY_EXT_PROP_CHARGE_UNO_CONTROL, value);
 
-		value.intval = 1000;
-		psy_do_property("otg", set,
-				POWER_SUPPLY_EXT_PROP_WIRELESS_TX_IOUT, value);
+			value.intval = 1000;
+			psy_do_property("otg", set,
+					POWER_SUPPLY_EXT_PROP_WIRELESS_TX_IOUT, value);
+		}
 #endif
 #endif
 #endif
@@ -909,8 +920,10 @@ static int sec_mst_gpio_init(struct device *dev)
 static int mst_ldo_device_probe(struct platform_device *pdev)
 {
 	int retval = 0;
-#if defined(CONFIG_MST_SUPPORT_GPIO)
+#if defined(CONFIG_MST_SUPPORT_GPIO) || defined(CONFIG_MST_PCR)
 	struct device *dev = &pdev->dev;
+#endif
+#if defined(CONFIG_MST_SUPPORT_GPIO)
 	uint8_t is_mst_support = 0;
 #endif
 
@@ -956,6 +969,16 @@ static int mst_ldo_device_probe(struct platform_device *pdev)
 		return -1;
 	}
 #endif
+
+#if defined(CONFIG_MST_PCR)
+	mst_pwr_use_uno = of_property_read_bool(dev->of_node, "sec-mst,mst-use-uno-power");
+	if (mst_pwr_use_uno) {
+		mst_info("%s: support UNO for mst power\n", __func__);
+	} else {
+		mst_info("%s: Not support UNO. use VPH_PWR\n", __func__);
+	}
+#endif
+
 #if defined(CONFIG_MST_NONSECURE)
 	spin_lock_init(&event_lock);
 #endif
@@ -1094,13 +1117,14 @@ static void mst_cluster_freq_ctrl_worker(struct work_struct *work)
 	return;
 }
 
+#endif
 /**
  * mst_drv_init - Driver init function
  */
 static int __init mst_drv_init(void)
 {
 	int ret = 0;
-
+#if !defined(CONFIG_MST_DUMMY_DRV)
 	mst_info("%s\n", __func__);
 	ret = platform_driver_register(&sec_mst_ldo_driver);
 	mst_info("%s: init , ret : %d\n", __func__, ret);
@@ -1108,7 +1132,9 @@ static int __init mst_drv_init(void)
 	cluster_freq_ctrl_wq =
 		create_singlethread_workqueue("mst_cluster_freq_ctrl_wq");
 	INIT_DELAYED_WORK(&dwork, mst_cluster_freq_ctrl_worker);
-
+#else
+	mst_info("%s: create dummy driver\n", __func__);
+#endif
 	return ret;
 }
 
@@ -1117,12 +1143,17 @@ static int __init mst_drv_init(void)
  */
 static void __exit mst_drv_exit(void)
 {
+#if !defined(CONFIG_MST_DUMMY_DRV)
 	class_destroy(mst_drv_class);
 #if defined(CONFIG_MST_REGULATOR)
 	if (regulator3_0)
 		regulator_put(regulator3_0);
 #endif
 	mst_info("%s\n", __func__);
+#else
+	mst_info("%s: destroy dummy driver\n", __func__);
+#endif
+
 }
 
 MODULE_AUTHOR("yurak.choe@samsung.com");

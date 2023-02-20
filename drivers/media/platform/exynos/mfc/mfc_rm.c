@@ -66,7 +66,6 @@ static int __mfc_rm_get_core_num_by_load(struct mfc_dev *dev, struct mfc_ctx *ct
 					int default_core)
 {
 	struct mfc_core *core;
-	int core_balance = dev->pdata->core_balance;
 	int total_load[MFC_NUM_CORE];
 	int core_num, surplus_core;
 	int curr_load;
@@ -87,15 +86,20 @@ static int __mfc_rm_get_core_num_by_load(struct mfc_dev *dev, struct mfc_ctx *ct
 	mfc_debug(2, "[RMLB] load%s fixed (curr mb: %ld, load: %d%%)\n",
 			ctx->src_ts.ts_is_full ? " " : " not", ctx->weighted_mb, curr_load);
 
+	if (!dev->num_enc_inst)
+		dev->core_balance = dev->pdata->core_balance;
+	else
+		dev->core_balance = MFC_MAX_CORE_BALANCE;
+
 	/* 1) Default core has not yet been balanced */
-	if (total_load[default_core] < core_balance) {
-		if (total_load[default_core] + curr_load <= core_balance) {
+	if (total_load[default_core] < dev->core_balance) {
+		if (total_load[default_core] + curr_load <= dev->core_balance) {
 			core_num = default_core;
 			goto fix_core;
 		}
 	/* 2) Default core has been balanced */
-	} else if ((total_load[default_core] >= core_balance) &&
-			(total_load[surplus_core] < core_balance)) {
+	} else if ((total_load[default_core] >= dev->core_balance) &&
+			(total_load[surplus_core] < dev->core_balance)) {
 		core_num = surplus_core;
 		goto fix_core;
 	}
@@ -1118,7 +1122,6 @@ void mfc_rm_load_balancing(struct mfc_ctx *ctx, int load_add)
 {
 	struct mfc_dev *dev = ctx->dev;
 	struct mfc_core *core;
-	struct mfc_platdata *pdata = dev->pdata;
 	struct mfc_ctx *tmp_ctx;
 	unsigned long flags;
 	int i, core_num, ret = 0;
@@ -1269,7 +1272,7 @@ void mfc_rm_load_balancing(struct mfc_ctx *ctx, int load_add)
 				tmp_ctx->src_fmt->name : tmp_ctx->dst_fmt->name,
 				tmp_ctx->load, tmp_ctx->op_core_type, tmp_ctx->op_mode,
 				tmp_ctx->stream_op_mode);
-	mfc_debug(3, "[RMLB] >>>> core balance %d%%\n", pdata->core_balance);
+	mfc_debug(3, "[RMLB] >>>> core balance %d%%\n", dev->core_balance);
 	for (i = 0; i < dev->num_core; i++)
 		mfc_debug(3, "[RMLB] >> MFC-%d total load: %d%%\n", i,
 				dev->core[i]->total_mb * 100 / dev->core[i]->core_pdata->max_mb);

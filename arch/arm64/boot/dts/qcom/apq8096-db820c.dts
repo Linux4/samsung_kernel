@@ -14,7 +14,7 @@
 	clocks {
 		compatible = "simple-bus";
 
-		xo_board {
+		xo-board {
 			compatible = "fixed-clock";
 			#clock-cells = <0x00>;
 			clock-frequency = <0x124f800>;
@@ -22,7 +22,7 @@
 			phandle = <0x72>;
 		};
 
-		sleep_clk {
+		sleep-clk {
 			compatible = "fixed-clock";
 			#clock-cells = <0x00>;
 			clock-frequency = <0x7ffc>;
@@ -923,8 +923,6 @@
 			iommus = <0x28 0x00>;
 			nvmem-cells = <0x29>;
 			nvmem-cell-names = "speed_bin";
-			qcom,gpu-quirk-two-pass-use-wfi;
-			qcom,gpu-quirk-fault-detect-mask;
 			operating-points-v2 = <0x2a>;
 
 			opp-table {
@@ -3797,8 +3795,8 @@
 	};
 
 	__symbols__ {
-		xo_board = "/clocks/xo_board";
-		sleep_clk = "/clocks/sleep_clk";
+		xo_board = "/clocks/xo-board";
+		sleep_clk = "/clocks/sleep-clk";
 		divclk4 = "/clocks/divclk4";
 		div1_mclk = "/clocks/divclk1";
 		CPU0 = "/cpus/cpu@0";

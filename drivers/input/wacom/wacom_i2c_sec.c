@@ -1648,9 +1648,17 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 		input_info(true, &wac_i2c->client->dev, "%s: [%s] disable\n", __func__, current->comm);
 		wacom_input_disable_device(wac_i2c->input_dev);
 	} else if (buff[0] == DISPLAY_STATE_FORCE_ON) {
+		if (wac_i2c->pdata->enabled) {
+			input_info(true, &wac_i2c->client->dev, "%s: [%s] device already enabled, FORCE_ON\n", __func__, current->comm);
+			goto out;
+		}
 		input_info(true, &wac_i2c->client->dev, "%s: [%s] DISPLAY_STATE_FORCE_ON\n", __func__, current->comm);
 		wacom_input_enable_device(wac_i2c->input_dev);
 	} else if (buff[0] == DISPLAY_STATE_FORCE_OFF) {
+		if (!wac_i2c->pdata->enabled) {
+			input_info(true, &wac_i2c->client->dev, "%s: [%s] device already disabled, FORCE_OFF\n", __func__, current->comm);
+			goto out;
+		}
 		input_info(true, &wac_i2c->client->dev, "%s: [%s] DISPLAY_STATE_FORCE_OFF\n", __func__, current->comm);
 		wacom_input_disable_device(wac_i2c->input_dev);
 	}
@@ -3665,6 +3673,46 @@ err_out:
 
 	input_info(true, &wac_i2c->client->dev, "%s: Fail\n", __func__);
 }
+
+static void set_pdct_lowsensitivity_enable(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct wacom_i2c *wac_i2c = container_of(sec, struct wacom_i2c, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	u8 cmd;
+	int ret;
+
+	sec_cmd_set_default_result(sec);
+
+	if (!wac_i2c->power_enable) {
+		input_err(true, &wac_i2c->client->dev, "%s: [ERROR] Wacom is stopped\n", __func__);
+		goto err_out;
+	}
+
+	cmd = COM_PDCT_LOW_SENSE_MODE;
+	ret = wacom_i2c_send(wac_i2c, &cmd, 1);
+	if (ret != 1) {
+		input_err(true, &wac_i2c->client->dev, "%s : failed to send data(%02x)\n", __func__, cmd);
+		goto err_out;
+	}
+
+	snprintf(buff, sizeof(buff), "OK");
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+
+	input_info(true, &wac_i2c->client->dev, "%s: Done\n", __func__);
+	return;
+
+err_out:
+	snprintf(buff, sizeof(buff), "NG");
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+
+	input_info(true, &wac_i2c->client->dev, "%s: Fail\n", __func__);
+	return;
+}
 #endif
 
 static void set_cover_type(void *device_data)
@@ -3901,6 +3949,7 @@ static struct sec_cmd sec_cmds[] = {
 #if 1 // WACOM_PDCT_ENABLE
 	{SEC_CMD("get_ble_charge_fp", get_ble_charge_fp),},
 	{SEC_CMD("epen_ble_charging_mode", set_ble_charging_mode),},
+	{SEC_CMD("set_pdct_lowsensitivity_enable", set_pdct_lowsensitivity_enable),},
 #endif
 	{SEC_CMD("set_cover_type", set_cover_type),},
 	{SEC_CMD("refresh_rate_mode", set_display_mode),},

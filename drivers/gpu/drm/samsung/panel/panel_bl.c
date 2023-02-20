@@ -27,11 +27,6 @@
 #include "panel_drv.h"
 #include "panel_irc.h"
 
-#ifdef PANEL_PR_TAG
-#undef PANEL_PR_TAG
-#define PANEL_PR_TAG	"brt"
-#endif
-
 static char *dim_type_str[MAX_DIM_TYPE_STR] = {
 	[DIM_TYPE_STR_TABLE] = "table",
 	[DIM_TYPE_STR_FLASH] = "flash",
@@ -641,14 +636,14 @@ int aor_interpolation(unsigned int *brt_tbl, unsigned int *lum_tbl,
 		S_DIMMING : A_DIMMING;
 
 	if (dimtype == A_DIMMING) {
-		aor_ratio = (interpolation(lower_aor_ratio * disp_pow(10, 3), upper_aor_ratio * disp_pow(10, 3),
+		aor_ratio = (disp_interpolation64(lower_aor_ratio * disp_pow(10, 3), upper_aor_ratio * disp_pow(10, 3),
 					(s32)((u64)brightness - lower_brt) * disp_pow(10, 2),
 					(s32)(upper_brt - lower_brt) * disp_pow(10, 2)) + 5 * disp_pow(10, 2)) / disp_pow(10, 3);
 		aor = disp_div64(vtotal * aor_ratio + 5 * disp_pow(10, 3), disp_pow(10, 4));
 	} else if (dimtype == S_DIMMING) {
 		vbase_lum = VIRTUAL_BASE_LUMINANCE(upper_lum, upper_aor_ratio);
 		vbase_lum = disp_pow_round(vbase_lum, 2);
-		intrp_brt = interpolation(lower_lum * disp_pow(10, 4), upper_lum * disp_pow(10, 4),
+		intrp_brt = disp_interpolation64(lower_lum * disp_pow(10, 4), upper_lum * disp_pow(10, 4),
 				(s32)((u64)brightness - lower_brt), (s32)(upper_brt - lower_brt));
 		intrp_brt = disp_pow_round(intrp_brt, 4);
 		aor_ratio = disp_pow(10, 8) - disp_div64(intrp_brt * disp_pow(10, 6), vbase_lum);
@@ -690,7 +685,7 @@ int aor_interpolation_2(unsigned int *brt_tbl,
 	if (upper_brt == brightness) {
 		aor = upper_aor;
 	} else {
-		aor_ratio = (interpolation(lower_aor_ratio * disp_pow(10, 3), upper_aor_ratio * disp_pow(10, 3),
+		aor_ratio = (disp_interpolation64(lower_aor_ratio * disp_pow(10, 3), upper_aor_ratio * disp_pow(10, 3),
 					(s32)((u64)brightness - lower_brt) * disp_pow(10, 2),
 					(s32)(upper_brt - lower_brt) * disp_pow(10, 2)) + 5 * disp_pow(10, 2)) / disp_pow(10, 3);
 		aor = disp_div64(vtotal * aor_ratio + 5 * disp_pow(10, 3), disp_pow(10, 4));

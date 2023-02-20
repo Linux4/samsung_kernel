@@ -26,10 +26,6 @@
 #include <exynos_drm_crtc.h>
 #include <dsim_cal.h>
 
-#if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-#include <mcd_drm_dsim.h>
-#endif
-
 enum dsim_state {
 	DSIM_STATE_INIT,	/* already enable-state from LK display */
 	DSIM_STATE_HSCLKEN,	/* enable-state */
@@ -132,9 +128,7 @@ struct dsim_device {
 	int idle_ip_index;
 
 	struct dsim_burst_cmd burst_cmd;
-#if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-	struct mcd_dsim_device mcd_dsim;
-#endif
+	bool lp11_reset;
 };
 
 extern struct dsim_device *dsim_drvdata[MAX_DSI_CNT];
@@ -189,6 +183,7 @@ dsim_get_decon(const struct dsim_device *dsim)
 void dsim_enter_ulps(struct dsim_device *dsim);
 void dsim_exit_ulps(struct dsim_device *dsim);
 void dsim_dump(struct dsim_device *dsim);
+static inline void dsim_atomic_activate(struct drm_encoder *encoder) { }
 
 #if defined(CONFIG_EXYNOS_DMA_DSIMFC)
 ssize_t dsim_host_fcmd_transfer(struct mipi_dsi_host *host,

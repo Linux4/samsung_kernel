@@ -12,7 +12,11 @@
  *
  */
 
+#include <linux/pm.h>
+#include <linux/regulator/consumer.h>
+#include "wm_adsp.h"
 #include "cs35l41.h"
+#include <sound/cs35l41.h>
 
 const struct reg_default cs35l41_reg[CS35L41_MAX_CACHE_REG] = {
 	{CS35L41_TEST_KEY_CTL,			0x00000000},
@@ -887,4 +891,10 @@ const struct otp_map_element_t otp_map_map[3] = {
 		.map = otp_map_2,
 		.num_elements = CS35L41_NUM_OTP_ELEM,
 	},
+};
+
+
+const struct dev_pm_ops cs35l41_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(cs35l41_sys_suspend, cs35l41_sys_resume)
+	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(cs35l41_sys_suspend_noirq, cs35l41_sys_resume_noirq)
 };

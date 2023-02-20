@@ -63,18 +63,18 @@
 #define PIXELCLK_1080P30HZ 74250000 /* FHD 30Hz */
 
 /* DP debug module sysfs */
-static int dp_underrun_dump = 0;
+static int dp_underrun_dump;
 module_param(dp_underrun_dump, int, 0644);
 static int dp_log_level = 6;
 module_param(dp_log_level, int, 0644);
-static int dp_sst1_bist_test = 0;
+static int dp_sst1_bist_test;
 module_param(dp_sst1_bist_test, int, 0644);
-static int dp_sst2_bist_test = 0;
+static int dp_sst2_bist_test;
 module_param(dp_sst2_bist_test, int, 0644);
 
-static int dp_hdp_link_tr_fail = 0;
+static int dp_hdp_link_tr_fail;
 module_param(dp_hdp_link_tr_fail, int, 0644);
-static int dp_hdp_read_fail = 0;
+static int dp_hdp_read_fail;
 module_param(dp_hdp_read_fail, int, 0644);
 
 
@@ -2375,6 +2375,11 @@ void dp_audio_bist_config(struct dp_device *dp,
 	dp_info(dp, "audio_enable = %d\n", audio_config_data.audio_enable);
 	dp_info(dp, "audio_channel_cnt = %d\n", audio_config_data.audio_channel_cnt);
 	dp_info(dp, "audio_fs = %d\n", audio_config_data.audio_fs);
+
+	if (dp->hpd_current_state == EXYNOS_HPD_UNPLUG) {
+		dp_info(dp, "dp not ready\n");
+		return;
+	}
 	dp_reg_audio_bist_enable(&dp->cal_res, audio_config_data);
 	dp_set_audio_infoframe(dp, &audio_config_data);
 }
@@ -4423,6 +4428,12 @@ static ssize_t dp_test_store(struct class *dev,
 		}
 
 		switch (val[5]) {
+		case 32:
+			audio_config_data.audio_fs = FS_32KHZ;
+			break;
+		case 44:
+			audio_config_data.audio_fs = FS_44KHZ;
+			break;
 		case 48:
 			audio_config_data.audio_fs = FS_48KHZ;
 			break;

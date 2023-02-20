@@ -723,13 +723,11 @@ int sensor_imx563_cis_set_test_pattern(struct v4l2_subdev *subdev, camera2_senso
 			cis->cis_data->cur_pattern_mode, sensor_ctl->testPatternMode);
 
 	if (cis->cis_data->cur_pattern_mode != sensor_ctl->testPatternMode) {
-		info("%s REG : 0xB000 write to 0x00\n", __func__);
-		is_sensor_write8(client, 0xB000, 0x00);
-
 		if (sensor_ctl->testPatternMode == SENSOR_TEST_PATTERN_MODE_OFF) {
 			info("%s: set DEFAULT pattern! (testpatternmode : %d)\n", __func__, sensor_ctl->testPatternMode);
 
 			I2C_MUTEX_LOCK(cis->i2c_lock);
+			is_sensor_write8(client, 0xB000, 0x00);
 			is_sensor_write16(client, 0x0600, 0x0000);
 			I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
@@ -743,6 +741,7 @@ int sensor_imx563_cis_set_test_pattern(struct v4l2_subdev *subdev, camera2_senso
 				(unsigned short)sensor_ctl->testPatternData[2]);
 
 			I2C_MUTEX_LOCK(cis->i2c_lock);
+			is_sensor_write8(client, 0xB000, 0x00);
 			is_sensor_write16(client, 0x0600, 0x0001);
 			I2C_MUTEX_UNLOCK(cis->i2c_lock);
 

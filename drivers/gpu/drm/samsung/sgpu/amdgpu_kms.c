@@ -1018,6 +1018,110 @@ static int amdgpu_wgp_gating_ioctl(struct drm_device *dev, void *data,
 	return r;
 }
 
+/**
+ * sgpu_instance_data_create - creates an sgpu_instance_data
+ *
+ * @fpriv: DRM file private
+ * @instance_handle: Pointer to the returned platform id
+ *
+ * The sgpu_instance_data is also added to fpriv->instance_data_handles
+ * Returns 0 on success, -EINVAL or-ENOMEM on failure.
+ */
+static int sgpu_instance_data_create(struct amdgpu_fpriv *fpriv, uint32_t *handle)
+{
+	struct sgpu_instance_data *instance_data;
+	int r;
+	uint32_t id;
+
+	instance_data = kzalloc(sizeof(struct sgpu_instance_data), GFP_KERNEL);
+	if (!instance_data)
+		return -ENOMEM;
+
+	mutex_lock(&fpriv->instance_data_handles_lock);
+	// Start from 1: treat id 0 as an invalid id
+	r = idr_alloc(&fpriv->instance_data_handles, instance_data, 1, 0, GFP_KERNEL);
+	mutex_unlock(&fpriv->instance_data_handles_lock);
+
+	if (r < 0)
+		goto error_free;
+
+	id = (uint32_t)r;
+
+	// initialize the sgpu_instance_data
+	kref_init(&instance_data->ref);
+	instance_data->fpriv = fpriv;
+	r = sgpu_instance_data_debugfs_add(instance_data, id);
+	if (r)
+		goto error_idr_remove;
+
+	*handle = id;
+	return 0;
+
+error_idr_remove:
+	mutex_lock(&fpriv->instance_data_handles_lock);
+	idr_remove(&fpriv->instance_data_handles, id);
+	mutex_unlock(&fpriv->instance_data_handles_lock);
+
+error_free:
+	kfree(instance_data);
+	return r;
+}
+
+/**
+ * sgpu_instance_data_free - destroys an sgpu_instance_data
+ *
+ * @ref: Reference counter
+ */
+static void sgpu_instance_data_free(struct kref *ref)
+{
+	struct sgpu_instance_data *instance_data =
+			container_of(ref, struct sgpu_instance_data, ref);
+
+	sgpu_instance_data_debugfs_remove(instance_data);
+	kfree(instance_data);
+}
+
+/**
+ * sgpu_instance_data_destroy - destroys an sgpu_instance_data
+ *
+ * @fpriv: DRM file private
+ * @handle: Handle of the sgpu_instance_data to destroy
+ */
+static int sgpu_instance_data_destroy(struct amdgpu_fpriv *fpriv, uint32_t handle)
+{
+	struct sgpu_instance_data *instance_data;
+
+	mutex_lock(&fpriv->instance_data_handles_lock);
+	instance_data = idr_remove(&fpriv->instance_data_handles, handle);
+	mutex_unlock(&fpriv->instance_data_handles_lock);
+
+	if (instance_data)
+		kref_put(&instance_data->ref, sgpu_instance_data_free);
+
+	return 0;
+}
+
+static int sgpu_instance_data_ioctl(struct drm_device *dev, void *data,
+				    struct drm_file *filp)
+{
+	int r;
+	union drm_sgpu_instance_data *args = data;
+	struct amdgpu_fpriv *fpriv = filp->driver_priv;
+
+	switch (args->in.op) {
+	case SGPU_INSTANCE_DATA_OP_CREATE:
+		r = sgpu_instance_data_create(fpriv, &args->out.handle);
+		break;
+	case SGPU_INSTANCE_DATA_OP_DESTROY:
+		r = sgpu_instance_data_destroy(fpriv, args->in.handle);
+		break;
+	default:
+		r = -EINVAL;
+	}
+
+	return r;
+}
+
 /*
  * Outdated mess for old drm with Xorg being in charge (void function now).
  */
@@ -1109,10 +1213,11 @@ int amdgpu_driver_open_kms(struct drm_device *dev, struct drm_file *file_priv)
 	fpriv->total_pages = 0;
 	fpriv->tgid = current->tgid;
 
+	mutex_init(&fpriv->instance_data_handles_lock);
+	idr_init(&fpriv->instance_data_handles);
+
 	file_priv->driver_priv = fpriv;
-#if IS_ENABLED(CONFIG_DEBUG_FS)
-	mutex_init(&fpriv->mem_profile_lock);
-#endif
+
 	trace_amdgpu_vm_pt_base(pasid,
 				amdgpu_gmc_pd_addr(fpriv->vm.root.base.bo));
 	goto out_suspend;
@@ -1158,6 +1263,7 @@ void amdgpu_driver_postclose_kms(struct drm_device *dev,
 	struct amdgpu_bo *pd;
 	u32 pasid;
 	int handle;
+	struct sgpu_instance_data *instance_data;
 
 	if (!fpriv)
 		return;
@@ -1202,8 +1308,11 @@ void amdgpu_driver_postclose_kms(struct drm_device *dev,
 	mutex_destroy(&fpriv->bo_list_lock);
 	mutex_destroy(&fpriv->memory_lock);
 
-	// Cleanup related to memory breakdown debugfs
-	sgpu_mem_profile_debugfs_remove(fpriv);
+	idr_for_each_entry(&fpriv->instance_data_handles, instance_data, handle)
+		kref_put(&instance_data->ref, sgpu_instance_data_free);
+
+	idr_destroy(&fpriv->instance_data_handles);
+	mutex_destroy(&fpriv->instance_data_handles_lock);
 
 	kfree(fpriv);
 	file_priv->driver_priv = NULL;
@@ -1305,7 +1414,7 @@ int amdgpu_enable_vblank_kms(struct drm_crtc *crtc)
 }
 
 static int sgpu_mem_profile_add(struct drm_device *dev, void *data,
-		       struct drm_file *filp)
+				struct drm_file *filp)
 {
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	struct drm_sgpu_mem_profile_add *args = (struct drm_sgpu_mem_profile_add *)data;
@@ -1313,6 +1422,7 @@ static int sgpu_mem_profile_add(struct drm_device *dev, void *data,
 
 	char *buf = NULL;
 	int err = 0;
+	struct sgpu_instance_data *instance_data;
 
 	if (args->len == 0 || args->len > PAGE_SIZE) {
 		DRM_DEBUG_VBL("mem_profile_add: buffer too big");
@@ -1328,7 +1438,22 @@ static int sgpu_mem_profile_add(struct drm_device *dev, void *data,
 		kfree(buf);
 		return -EFAULT;
 	}
-	return sgpu_mem_profile_debugfs_update(fpriv, buf, args->len);
+
+	mutex_lock(&fpriv->instance_data_handles_lock);
+	instance_data = idr_find(&fpriv->instance_data_handles, args->instance_data_handle);
+	if (instance_data && !kref_get_unless_zero(&instance_data->ref))
+		instance_data = NULL;
+	mutex_unlock(&fpriv->instance_data_handles_lock);
+
+	if (!instance_data) {
+		kfree(buf);
+		return -EINVAL;
+	}
+
+	err = sgpu_mem_profile_debugfs_update(instance_data, buf, args->len);
+	kref_put(&instance_data->ref, sgpu_instance_data_free);
+
+	return err;
 #else
 	return 0;
 #endif
@@ -1370,6 +1495,7 @@ const struct drm_ioctl_desc amdgpu_ioctls_kms[] = {
 	DRM_IOCTL_DEF_DRV(AMDGPU_GEM_OP, amdgpu_gem_op_ioctl, DRM_AUTH|DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(AMDGPU_GEM_USERPTR, amdgpu_gem_userptr_ioctl, DRM_AUTH|DRM_RENDER_ALLOW),
 	/* Mariner */
+	DRM_IOCTL_DEF_DRV(SGPU_INSTANCE_DATA, sgpu_instance_data_ioctl, DRM_AUTH|DRM_UNLOCKED|DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(AMDGPU_WGP_GATING, amdgpu_wgp_gating_ioctl, DRM_AUTH|DRM_UNLOCKED|DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(SGPU_MEM_PROFILE_ADD, sgpu_mem_profile_add, DRM_AUTH|DRM_UNLOCKED|DRM_RENDER_ALLOW)
 };

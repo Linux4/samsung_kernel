@@ -17,3 +17,7 @@ mcd-panel-s6e3hae-$(CONFIG_EXTEND_LIVE_CLOCK) += s6e3hae_aod.o
 
 obj-$(CONFIG_EXYNOS_DECON_LCD_S6E3HAE) += mcd-panel-s6e3hae.o
 
+
+mcd-panel-s6e3hae_rainbow_b0-y += s6e3hae.o s6e3hae_rainbow_b0.o
+mcd-panel-s6e3hae_rainbow_b0-$(CONFIG_EXTEND_LIVE_CLOCK) += s6e3hae_aod.o
+obj-$(CONFIG_EXYNOS_DECON_LCD_S6E3HAE) += mcd-panel-s6e3hae_rainbow_b0.o

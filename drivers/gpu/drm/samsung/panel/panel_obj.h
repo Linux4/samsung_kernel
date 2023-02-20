@@ -45,7 +45,7 @@ struct panel_obj_properties {
 struct panel_obj_property *panel_obj_find_property(struct panel_obj_properties *properties, char *name);
 
 int panel_obj_set_property_value(struct panel_obj_properties *properties, char *name, unsigned int value);
-unsigned int panel_obj_get_property_value(struct panel_obj_properties *properties, char *name);
+int panel_obj_get_property_value(struct panel_obj_properties *properties, char *name);
 int panel_obj_add_property_value(struct panel_obj_properties *properties, char *name, unsigned int init_value);
 
 int panel_obj_set_property_str(struct panel_obj_properties *properties, char *name, char *str);

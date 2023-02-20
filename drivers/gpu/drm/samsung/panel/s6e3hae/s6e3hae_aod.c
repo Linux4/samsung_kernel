@@ -15,11 +15,6 @@
 #include "../panel_debug.h"
 #include "s6e3hae_aod.h"
 
-#ifdef PANEL_PR_TAG
-#undef PANEL_PR_TAG
-#define PANEL_PR_TAG	"self"
-#endif
-
 void s6e3hae_copy_self_mask_ctrl(struct maptbl *tbl, u8 *dst)
 {
 	panel_info("was called\n");
@@ -170,7 +165,7 @@ void s6e3hae_copy_timer_rate(struct maptbl *tbl, u8 *dst)
 	}
 
 	dst[1] = value;
-	panel_info("dst[1]:%x, dst[2]:%x\n", dst[1], dst[2]);
+	panel_err("dst[1]:%x, dst[2]:%x\n", dst[1], dst[2]);
 }
 
 
