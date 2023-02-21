@@ -118,6 +118,7 @@ __visible_for_testing int sec_dual_check_eoc_status(struct sec_dual_battery_info
 	} else
 		return POWER_SUPPLY_STATUS_CHARGING;
 }
+EXPORT_SYMBOL_KUNIT(sec_dual_check_eoc_status);
 
 /* this function is only for 1st full charging */
 static int sec_dual_check_each_batterys_eoc(struct sec_dual_battery_info *battery)

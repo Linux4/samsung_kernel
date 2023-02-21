@@ -18,7 +18,7 @@ static int __dbg_region_prepare_pool(struct dbg_region_drvdata *drvdata)
 	void __iomem *virt;
 
 	if (rmem_type == RMEM_TYPE_NOMAP)
-		virt = devm_ioremap(dev, drvdata->phys, drvdata->size);
+		virt = devm_ioremap_wc(dev, drvdata->phys, drvdata->size);
 	else
 		virt = phys_to_virt(drvdata->phys);
 

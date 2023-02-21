@@ -23,4 +23,8 @@ endif
 
 GCOV_PROFILE := y
 five-$(CONFIG_FIVE) += five_dsms.o
-ccflags-$(CONFIG_FIVE) += -DFIVE_KUNIT_ENABLED
+
+ifeq ($(CONFIG_SEC_KUNIT)$(CONFIG_UML), yy)
+  ccflags-$(CONFIG_FIVE) += -DFIVE_KUNIT_ENABLED
+  ccflags-$(CONFIG_PROCA) += -DPROCA_KUNIT_ENABLED
+endif

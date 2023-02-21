@@ -82,15 +82,18 @@ static void cam_mem_mgr_print_tbl(void)
 	CAM_INFO(CAM_MEM, "***%llu:%llu:%llu:%llu Mem mgr table dump***",
 		hrs, min, sec, ms);
 	for (i = 1; i < CAM_MEM_BUFQ_MAX; i++) {
-		if (tbl.bufq[i].active) {
-			CAM_CONVERT_TIMESTAMP_FORMAT((tbl.bufq[i].timestamp), hrs, min, sec, ms);
-			CAM_INFO(CAM_MEM,
-				"%llu:%llu:%llu:%llu idx %d fd %d i_ino %lu size %llu",
-				hrs, min, sec, ms, i, tbl.bufq[i].fd, tbl.bufq[i].i_ino,
-				tbl.bufq[i].len);
-		}
+		CAM_CONVERT_TIMESTAMP_FORMAT(tbl.bufq[i].map_timestamp,
+			hrs, min, sec, ms);
+		CAM_INFO(CAM_MEM,
+			"mapped timestamp %llu:%llu:%llu:%llu idx %d fd %d i_ino %lu size %llu",
+			hrs, min, sec, ms, i, tbl.bufq[i].fd, tbl.bufq[i].i_ino,
+			tbl.bufq[i].len);
+		CAM_CONVERT_TIMESTAMP_FORMAT(tbl.bufq[i].unmap_timestamp,
+			hrs, min, sec, ms);
+		CAM_INFO(CAM_MEM,
+			"Unmapped timestamp %llu:%llu:%llu:%llu idx %d",
+			hrs, min, sec, ms, i);
 	}
-
 }
 
 static int cam_mem_util_get_dma_dir(uint32_t flags)
@@ -265,7 +268,7 @@ static int32_t cam_mem_get_slot(void)
 
 	set_bit(idx, tbl.bitmap);
 	tbl.bufq[idx].active = true;
-	CAM_GET_TIMESTAMP((tbl.bufq[idx].timestamp));
+	CAM_GET_TIMESTAMP(tbl.bufq[idx].map_timestamp);
 	mutex_init(&tbl.bufq[idx].q_lock);
 	mutex_unlock(&tbl.m_lock);
 
@@ -278,7 +281,7 @@ static void cam_mem_put_slot(int32_t idx)
 	mutex_lock(&tbl.bufq[idx].q_lock);
 	tbl.bufq[idx].active = false;
 	tbl.bufq[idx].is_internal = false;
-	memset(&tbl.bufq[idx].timestamp, 0, sizeof(struct timespec64));
+	memset(&tbl.bufq[idx].map_timestamp, 0, sizeof(struct timespec64));
 	mutex_unlock(&tbl.bufq[idx].q_lock);
 	mutex_destroy(&tbl.bufq[idx].q_lock);
 	clear_bit(idx, tbl.bitmap);
@@ -304,6 +307,7 @@ int cam_mem_get_io_buf(int32_t buf_handle, int32_t mmu_handle,
 	if (!tbl.bufq[idx].active) {
 		CAM_ERR(CAM_MEM, "Buffer at idx=%d is already unmapped,",
 			idx);
+		cam_mem_mgr_print_tbl();
 		return -EAGAIN;
 	}
 
@@ -976,6 +980,7 @@ int cam_mem_mgr_alloc_and_map(struct cam_mem_mgr_alloc_cmd *cmd)
 	if (idx < 0) {
 		CAM_ERR(CAM_MEM, "Failed in getting mem slot, idx=%d", idx);
 		rc = -ENOMEM;
+		cam_mem_mgr_print_tbl();
 		goto slot_fail;
 	}
 
@@ -1324,6 +1329,8 @@ static int cam_mem_mgr_cleanup_table(void)
 		tbl.bufq[i].dma_buf = NULL;
 		tbl.bufq[i].active = false;
 		tbl.bufq[i].is_internal = false;
+		memset(&tbl.bufq[i].map_timestamp, 0, sizeof(struct timespec64));
+		memset(&tbl.bufq[i].unmap_timestamp, 0, sizeof(struct timespec64));
 		cam_mem_mgr_reset_presil_params(i);
 		mutex_unlock(&tbl.bufq[i].q_lock);
 		mutex_destroy(&tbl.bufq[i].q_lock);
@@ -1356,6 +1363,7 @@ static int cam_mem_util_unmap(int32_t idx,
 {
 	int rc = 0;
 	enum cam_smmu_region_id region = CAM_SMMU_REGION_SHARED;
+	uint64_t ms, hrs, min, sec;
 
 	if (idx >= CAM_MEM_BUFQ_MAX || idx <= 0) {
 		CAM_ERR(CAM_MEM, "Incorrect index");
@@ -1416,6 +1424,9 @@ static int cam_mem_util_unmap(int32_t idx,
 
 	mutex_lock(&tbl.m_lock);
 	mutex_lock(&tbl.bufq[idx].q_lock);
+	CAM_GET_TIMESTAMP(tbl.bufq[idx].unmap_timestamp);
+	CAM_CONVERT_TIMESTAMP_FORMAT(tbl.bufq[idx].unmap_timestamp, hrs, min, sec, ms);
+	CAM_DBG(CAM_MEM, "Unmap idx = %d at %llu:%llu:%llu:%llu", idx, hrs, min, sec, ms);
 	tbl.bufq[idx].flags = 0;
 	tbl.bufq[idx].buf_handle = -1;
 	memset(tbl.bufq[idx].hdls, 0,
@@ -1437,7 +1448,6 @@ static int cam_mem_util_unmap(int32_t idx,
 	tbl.bufq[idx].len = 0;
 	tbl.bufq[idx].num_hdl = 0;
 	cam_mem_mgr_reset_presil_params(idx);
-	memset(&tbl.bufq[idx].timestamp, 0, sizeof(struct timespec64));
 	mutex_unlock(&tbl.bufq[idx].q_lock);
 	mutex_destroy(&tbl.bufq[idx].q_lock);
 	clear_bit(idx, tbl.bitmap);

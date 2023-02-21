@@ -61,6 +61,7 @@ struct usb_notify_dev {
 	char whitelist_str[MAX_WHITELIST_STR_LEN];
 	int whitelist_array_for_mdm[MAX_CLASS_TYPE_NUM+1];
 	struct usb_audio_info usb_audio_cards[MAX_USB_AUDIO_CARDS];
+	unsigned request_action;
 };
 
 extern int usb_notify_dev_uevent(struct usb_notify_dev *udev,

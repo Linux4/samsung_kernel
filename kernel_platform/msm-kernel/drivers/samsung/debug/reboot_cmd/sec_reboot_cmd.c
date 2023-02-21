@@ -301,25 +301,18 @@ static int sec_rbcmd_notifier_call(struct notifier_block *this,
 		break;
 	}
 
-#if !IS_ENABLED(CONFIG_UML)
+#if IS_BUILTIN(CONFIG_SEC_REBOOT_CMD)
 	flush_cache_all();
+#else
+	dsb(sy);
+#endif
+
 #if !IS_ENABLED(CONFIG_ARM64)
 	outer_flush_all();
-#endif
 #endif
 
 	return ret;
 }
-
-#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
-int kunit_rbcmd_mock_notifier_call(enum sec_rbcmd_stage s,
-		unsigned long type, void *data)
-{
-	struct reboot_cmd_stage *stage = __rbcmd_get_stage(s, reboot_cmd);
-
-	return sec_rbcmd_notifier_call(&stage->nb, type, data);
-}
-#endif
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 static void __rbcmd_dbgfs_show_each_cmd_locked(struct seq_file *m,
@@ -568,31 +561,11 @@ static void __rbcmd_remove_prolog(struct builder *bd)
 	reboot_cmd = NULL;
 }
 
-static void __rbcmd_populate_child(struct platform_device *pdev)
-{
-	struct device *dev = &pdev->dev;
-	struct device_node *parent;
-	struct device_node *child;
-
-	parent = pdev->dev.of_node;
-
-	for_each_available_child_of_node(parent, child) {
-		struct platform_device *cpdev;
-
-		cpdev = of_platform_device_create(child, NULL, &pdev->dev);
-		if (!cpdev) {
-			dev_warn(dev, "failed to create %s\n!", child->name);
-			of_node_put(child);
-		}
-	}
-}
-
 static int __rbcmd_probe(struct platform_device *pdev,
 		const struct dev_builder *builder, ssize_t n)
 {
 	struct device *dev = &pdev->dev;
 	struct reboot_cmd_drvdata *drvdata;
-	int err;
 
 	drvdata = devm_kzalloc(dev, sizeof(*drvdata), GFP_KERNEL);
 	if (!drvdata)
@@ -600,13 +573,7 @@ static int __rbcmd_probe(struct platform_device *pdev,
 
 	drvdata->bd.dev = dev;
 
-	err = sec_director_probe_dev(&drvdata->bd, builder, n);
-	if (err)
-		return err;
-
-	__rbcmd_populate_child(pdev);
-
-	return 0;
+	return sec_director_probe_dev(&drvdata->bd, builder, n);
 }
 
 static int __rbcmd_remove(struct platform_device *pdev,
@@ -618,25 +585,6 @@ static int __rbcmd_remove(struct platform_device *pdev,
 
 	return 0;
 }
-
-#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
-static const struct dev_builder __rbcmd_mock_dev_builder[] = {
-	DEVICE_BUILDER(__rbcmd_probe_prolog, NULL),
-	DEVICE_BUILDER(__rbcmd_probe_epilog, __rbcmd_remove_prolog),
-};
-
-int kunit_rbcmd_mock_probe(struct platform_device *pdev)
-{
-	return __rbcmd_probe(pdev, __rbcmd_mock_dev_builder,
-			ARRAY_SIZE(__rbcmd_mock_dev_builder));
-}
-
-int kunit_rbcmd_mock_remove(struct platform_device *pdev)
-{
-	return __rbcmd_remove(pdev, __rbcmd_mock_dev_builder,
-			ARRAY_SIZE(__rbcmd_mock_dev_builder));
-}
-#endif
 
 static const struct dev_builder __rbcmd_dev_builder[] = {
 	DEVICE_BUILDER(__rbcmd_parse_dt, NULL),

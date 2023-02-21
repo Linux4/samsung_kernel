@@ -1,5 +1,6 @@
 sec_boot_stat.ko
 sec_log_buf.ko
+sec_arm64_ap_context.ko
 abc.ko
 gh_virt_wdt.ko
 qcom_wdt_core.ko
@@ -102,7 +103,6 @@ qrtr.ko
 qti-regmap-debugfs.ko
 regmap-spmi.ko
 rtc-pm8xxx.ko
-sec_arm64_ap_context.ko
 sec_class.ko
 sec_crashkey.ko
 sec_crashkey_long.ko
@@ -143,5 +143,7 @@ qcom_rimps.ko
 c1dcvs_vendor.ko
 c1dcvs_scmi.ko
 bcl_pmic5.ko
+nfc_i2c.ko
 hdm.ko
 pwm-gpclk.ko
+msm_rng.ko

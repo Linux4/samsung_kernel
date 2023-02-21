@@ -29,8 +29,8 @@ static int recovery=50;
 static int sleep_time=5;
 
 /*thread info*/
-static int enable_tid=-1;
-static int enable_code=-1;
+static int enable_tid = -1;
+static int enable_code = 0;
 
 static unsigned long start_jiffy=0;
 static int tran_count=0;
@@ -40,16 +40,24 @@ static int throttle=0;
 int binder_monitor(int from_pid,int from_tid,unsigned int code,int target_pid)
 {
 	
-        if(enable_tid<=0)
-        return 0;
+        if (enable_tid <= 0)
+            return 0;
 
-        /* if eable_code==0 ,all tid's binder call will be control */
-        if((enable_tid==from_tid && enable_code==code)||(enable_tid==from_pid && enable_code==0)){
+        if ((enable_tid == from_tid && enable_code == code)||(enable_tid == from_pid && enable_code == -1)){
 
             if(tran_count==0){
                 start_jiffy=jiffies;
             }
             tran_count++;
+
+            // If eable_code==-1 ,count the number of binder calls about 5 seconds
+            if (enable_code == -1){
+                if (time_after(jiffies, start_jiffy + 5*HZ)){
+                    enable_tid = 0;
+                }
+                return 0;
+            }
+
             if(throttle){
                 msleep(sleep_time);
                 if(tran_count>=recovery){
@@ -128,7 +136,10 @@ static ssize_t enable_code_show(struct kobject *kobj,
 			      struct kobj_attribute *attr,
 			      char *buf)
 {
-	return sprintf(buf, "%d\n", enable_code);
+	if (tran_count > 0 && enable_code == -1)
+		return sprintf(buf, "%d\n", tran_count);
+	else
+		return sprintf(buf, "%d\n", enable_code);
 }
 
 static ssize_t enable_code_store(struct kobject *kobj,

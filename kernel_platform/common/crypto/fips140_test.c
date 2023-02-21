@@ -612,8 +612,7 @@ static int __test_drbg(const drbg_testvec_t *tv,
 	ret = memcmp(tv->expected, buf, tv->expectedlen);
 
 outbuf:
-	if (drng)
-		crypto_free_rng(drng);
+	crypto_free_rng(drng);
 	kfree_sensitive(buf);
 	return ret;
 }

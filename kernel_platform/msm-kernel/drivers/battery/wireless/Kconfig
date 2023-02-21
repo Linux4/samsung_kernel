@@ -17,15 +17,15 @@ config WIRELESS_CHARGING
 	 Wireless charging models should enable this charging option.
 	 it include various scenario for wireless charging models only.
 
-config WIRELESS_CHARGER_P9320
-	tristate "MFC IC P9320 charger support"
+config WIRELESS_CHARGER_S2MIW04
+	tristate "S2MIW04 MFC IC charger support"
 	select WIRELESS_CHARGING
 	depends on BATTERY_SAMSUNG && I2C
 	help
 	  Say Y here, to enable
-	  support for the P9320 MFC IC
-	  MFC include wireless charger driver.
-	  It is for IDT.
+	  support for the S2MIW04 MFC IC
+	  S2MIW04 MFC include wireless charger driver.
+	  It is for LSI.
 
 config WIRELESS_NO_HV
 	bool "wireless no hv"
@@ -128,15 +128,15 @@ config WIRELESS_CHARGING
 	 Wireless charging models should enable this charging option.
 	 it include various scenario for wireless charging models only.
 
-config WIRELESS_CHARGER_S2MIW04
-	tristate "S2MIW04 MFC IC charger support"
+config WIRELESS_CHARGER_P9320
+	tristate "MFC IC P9320 charger support"
 	select WIRELESS_CHARGING
 	depends on BATTERY_SAMSUNG && I2C
 	help
 	  Say Y here, to enable
-	  support for the S2MIW04 MFC IC
-	  S2MIW04 MFC include wireless charger driver.
-	  It is for LSI.
+	  support for the P9320 MFC IC
+	  MFC include wireless charger driver.
+	  It is for IDT.
 
 config WIRELESS_NO_HV
 	bool "wireless no hv"

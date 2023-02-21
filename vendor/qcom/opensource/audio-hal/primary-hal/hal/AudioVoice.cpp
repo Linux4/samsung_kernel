@@ -38,6 +38,7 @@
 #include "AudioVoice.h"
 #include "PalApi.h"
 #include "AudioCommon.h"
+#include <audio_extn/AudioExtn.h>
 
 #ifndef AUDIO_MODE_CALL_SCREEN
 #define AUDIO_MODE_CALL_SCREEN 4
@@ -52,8 +53,13 @@ int AudioVoice::SetMode(const audio_mode_t mode) {
 
     AHAL_DBG("Enter: mode: %d", mode);
     if (mode_ != mode) {
+#ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
+        if((mode != AUDIO_MODE_NORMAL) && adevice->sec_device_->listenback_on) {
+            adevice->sec_device_->SetListenbackMode(false);
+        }
+#endif
 #ifdef SEC_AUDIO_CALL
-        if (mode ==  AUDIO_MODE_IN_CALL) {
+        if (mode == AUDIO_MODE_IN_CALL) {
             voice_session_t *session = NULL;
             for (int i = 0; i < max_voice_sessions_; i++) {
                 if (sec_voice_->cur_vsid == voice_.session[i].vsid) {
@@ -65,11 +71,13 @@ int AudioVoice::SetMode(const audio_mode_t mode) {
                 session->state.new_ = CALL_ACTIVE;
                 AHAL_DBG("new state is ACTIVE for vsid:%x", session->vsid);
             }
+#ifdef SEC_AUDIO_RECOVERY
             if (adevice->factory_ &&
                     (adevice->factory_->factory.state != FACTORY_TEST_INACTIVE)) {
                 adevice->factory_->InitState();
-                AHAL_DBG("%s: initialize factory state before starting call", __func__);
+                AHAL_DBG("initialize factory state before starting call");
             }
+#endif
 #ifdef SEC_AUDIO_FMRADIO
             if (adevice->sec_device_->fm.on) {
                 AHAL_DBG("%s: FM force stop for call", __func__);
@@ -90,10 +98,15 @@ int AudioVoice::SetMode(const audio_mode_t mode) {
             VoiceSetDevice(voice_.session);
         } else {
 #ifdef SEC_AUDIO_CALL_VOIP
-            if (mode_== AUDIO_MODE_IN_COMMUNICATION) {
+            if (mode_ == AUDIO_MODE_IN_COMMUNICATION) {
                 std::shared_ptr<StreamOutPrimary> astream_out = adevice->OutGetStream(PAL_STREAM_VOIP_RX);
                 if (astream_out && astream_out->HasPalStreamHandle() && sec_voice_->cng_enable)
                     sec_voice_->SetCNGForEchoRefMute(false);
+#ifdef SEC_AUDIO_RECOVERY
+                if (mode == AUDIO_MODE_NORMAL) {
+                    sec_voice_->InitState(__func__);
+                }
+#endif
             }
 #endif
             mode_ = mode;
@@ -145,7 +158,12 @@ int AudioVoice::VoiceSetParameters(const char *kvpairs) {
     if (!parms)
        return  -EINVAL;
 
+#ifdef SEC_AUDIO_DUMP 
     AHAL_DBG("Enter params: %s", kvpairs);
+#else
+    AHAL_DBG("Enter");
+#endif
+
 #ifdef SEC_AUDIO_CALL
     ret = sec_voice_->VoiceSetParameters(adevice, parms);
 #endif
@@ -174,6 +192,15 @@ int AudioVoice::VoiceSetParameters(const char *kvpairs) {
     }
     err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_TTY_MODE, c_value, sizeof(c_value));
     if (err >= 0) {
+#ifdef SEC_AUDIO_CALL_TTY
+        uint32_t vsid = VOICEMMODE1_VSID;
+        err = str_parms_get_str(parms, AUDIO_PARAMETER_SUBKEY_TTY_MODE_SIM2, c_value, sizeof(c_value));
+        if (err >= 0) {
+            vsid = VOICEMMODE2_VSID;
+            str_parms_del(parms, AUDIO_PARAMETER_SUBKEY_TTY_MODE_SIM2);
+        }
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_TTY_MODE);
+#endif
         if (strcmp(c_value, AUDIO_PARAMETER_VALUE_TTY_OFF) == 0)
             tty_mode = PAL_TTY_OFF;
         else if (strcmp(c_value, AUDIO_PARAMETER_VALUE_TTY_VCO) == 0)
@@ -188,7 +215,13 @@ int AudioVoice::VoiceSetParameters(const char *kvpairs) {
         }
 
         for ( i = 0; i < max_voice_sessions_; i++) {
+#ifdef SEC_AUDIO_CALL_TTY
+            if (voice_.session[i].vsid == vsid) {
+                voice_.session[i].tty_mode = tty_mode;
+            }
+#else
             voice_.session[i].tty_mode = tty_mode;
+#endif
             if (IsCallActive(&voice_.session[i])) {
                 params = (pal_param_payload *)calloc(1,
                                    sizeof(pal_param_payload) + sizeof(tty_mode));
@@ -385,7 +418,7 @@ void AudioVoice::VoiceGetParameters(struct str_parms *query, struct str_parms *r
     std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
     pal_effect_custom_payload_t *custom_payload = NULL;
 #endif
-
+#ifndef SEC_AUDIO_CALL_TTY
     ret = str_parms_get_str(query, AUDIO_PARAMETER_KEY_TTY_MODE,
                             value, sizeof(value));
     if (ret >= 0) {
@@ -411,7 +444,7 @@ void AudioVoice::VoiceGetParameters(struct str_parms *query, struct str_parms *r
             AHAL_ERR("Error happened for getting TTY mode");
         }
     }
-
+#endif
 #ifdef SEC_AUDIO_CALL
     ret = str_parms_get_str(query, AUDIO_PARAMETER_SEC_GLOBAL_FACTORY_ECHOREF_MUTE_DETECT, value, sizeof(value));
     if (ret >= 0) {
@@ -487,6 +520,11 @@ int AudioVoice::GetMatchingTxDevices(const std::set<audio_devices_t>& rx_devices
             case AUDIO_DEVICE_OUT_BLUETOOTH_SCO_CARKIT:
                 tx_devices.insert(AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET);
                 break;
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            case AUDIO_DEVICE_OUT_BLE_HEADSET:
+                tx_devices.insert(AUDIO_DEVICE_IN_BLE_HEADSET);
+                break;
+#endif
             case AUDIO_DEVICE_OUT_HEARING_AID:
                 tx_devices.insert(AUDIO_DEVICE_IN_BUILTIN_MIC);
                 break;
@@ -596,24 +634,40 @@ int AudioVoice::RouteStream(const std::set<audio_devices_t>& rx_devices) {
 #endif
         }
     } else {
-        //do device switch here
+        // do device switch here
         for (int i = 0; i < max_voice_sessions_; i++) {
-             ret = VoiceSetDevice(&voice_.session[i]);
-             if (ret) {
-                 AHAL_ERR("Device switch failed for session[%d]", i);
-             }
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            {
+                /* already in call, and now if BLE is connected send metadata
+                 * so that BLE can be configured for call and then switch to
+                 * BLE device
+                 */
+                updateVoiceMetadataForBT(true);
+                // dont start the call, until we get suspend from BLE
+                std::unique_lock<std::mutex> guard(reconfig_wait_mutex_);
+            }
+#endif
+            ret = VoiceSetDevice(&voice_.session[i]);
+            if (ret) {
+                AHAL_ERR("Device switch failed for session[%d]", i);
+            }
 #ifdef SEC_AUDIO_CALL
-             else {
+            else {
                 voice_session_t *session = &voice_.session[i];
                 if (session && session->pal_voice_handle &&
                         session->pal_vol_data && sec_voice_->volume != -1.0f) {
                     session->pal_vol_data->volume_pair[0].vol = sec_voice_->volume;
+#ifdef SEC_AUDIO_SUPPORT_BT_RVC
+                    if (adevice->effect_->SetScoVolume(session->pal_vol_data->volume_pair[0].vol) == 0) {
+                        AHAL_DBG("sco volume applied on voice session %d", i);
+                    } else
+#endif
                     ret = pal_stream_set_volume(session->pal_voice_handle,
                             session->pal_vol_data);
                     if (ret)
                         AHAL_ERR("Failed to apply volume on voice session %d, status %x", i, ret);
                 }
-             }
+            }
 #endif
         }
     }
@@ -628,6 +682,19 @@ exit:
     AHAL_DBG("Exit ret: %d", ret);
     return ret;
 }
+
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+bool AudioVoice::get_voice_call_state(audio_mode_t *mode) {
+    int i;
+    *mode = mode_;
+    for (i = 0; i < max_voice_sessions_; i++) {
+        if (voice_.session[i].state.current_ == CALL_ACTIVE) {
+            return true;
+        }
+    }
+    return false;
+}
+#endif
 
 int AudioVoice::UpdateCallState(uint32_t vsid, int call_state) {
     voice_session_t *session = NULL;
@@ -653,6 +720,10 @@ int AudioVoice::UpdateCallState(uint32_t vsid, int call_state) {
             ret = UpdateCalls(voice_.session);
         }
     } else {
+#ifdef SEC_AUDIO_CALL
+        AHAL_DBG("max sessions:%d vsid:0x%x, session[0].vsid:0x%x, session[1].vsid:0x%x",
+                    max_voice_sessions_, vsid, voice_.session[0].vsid, voice_.session[1].vsid);
+#endif
         ret = -EINVAL;
     }
     voice_mutex_.unlock();
@@ -677,6 +748,14 @@ int AudioVoice::UpdateCalls(voice_session_t *pSession) {
             {
             case CALL_INACTIVE:
                 AHAL_DBG("INACTIVE -> ACTIVE vsid:%x", session->vsid);
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+                {
+                    updateVoiceMetadataForBT(true);
+                    //dont start the call, until we get suspend from BLE
+                    std::unique_lock<std::mutex> guard(reconfig_wait_mutex_);
+                }
+#endif
+
                 ret = VoiceStart(session);
                 if (ret < 0) {
                     AHAL_ERR("VoiceStart() failed");
@@ -702,6 +781,11 @@ int AudioVoice::UpdateCalls(voice_session_t *pSession) {
                 } else {
                     session->state.current_ = session->state.new_;
                 }
+
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+                AHAL_DBG("ACTIVE -> INACTIVE update cached meta data");
+                updateVoiceMetadataForBT(false);
+#endif
                 break;
 
             default:
@@ -726,6 +810,9 @@ int AudioVoice::StopCall() {
     for (i = 0; i < max_voice_sessions_; i++)
         voice_.session[i].state.new_ = CALL_INACTIVE;
     ret = UpdateCalls(voice_.session);
+#ifdef SEC_AUDIO_RECOVERY
+    sec_voice_->InitState(__func__);
+#endif
     AHAL_DBG("Exit ret: %d", ret);
     return ret;
 }
@@ -796,6 +883,33 @@ int AudioVoice::VoiceStart(voice_session_t *session) {
         palDevices[1].id = PAL_DEVICE_OUT_PROXY;  //overwrite the device with proxy dev
     }
     if (streamAttributes.info.voice_call_info.tty_mode == PAL_TTY_HCO) {
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+        /**  device pairs for HCO usecase
+          *  <handset, headset-mic>
+          *  <handset, usb-headset-mic>
+          *  <speaker, headset-mic>
+          *  <speaker, usb-headset-mic>
+          *  override devices accordingly.
+          */
+        if (pal_voice_rx_device_id_ == PAL_DEVICE_OUT_WIRED_HEADSET ||
+            (pal_voice_rx_device_id_ == PAL_DEVICE_OUT_USB_HEADSET &&
+                        adevice->usb_input_dev_enabled))
+            palDevices[1].id = PAL_DEVICE_OUT_HANDSET;
+        else if (pal_voice_rx_device_id_ == PAL_DEVICE_OUT_SPEAKER) {
+         /*does not handle 3-pole wired or USB headset*/
+#ifdef SEC_AUDIO_CALL_TTY
+            if (adevice->usb_input_dev_enabled) {
+                palDevices[0].id = PAL_DEVICE_IN_USB_HEADSET;
+            } else if (!adevice->USBConnected()) {
+                palDevices[0].id = PAL_DEVICE_IN_WIRED_HEADSET;
+            }
+#else
+            palDevices[0].id = PAL_DEVICE_IN_WIRED_HEADSET;
+            if (adevice->usb_input_dev_enabled)
+               palDevices[0].id = PAL_DEVICE_IN_USB_HEADSET;
+#endif
+        }
+#else
         /**  device pairs for HCO usecase
           *  <handset, headset-mic>
           *  <speaker, headset-mic>
@@ -805,10 +919,38 @@ int AudioVoice::VoiceStart(voice_session_t *session) {
             palDevices[1].id = PAL_DEVICE_OUT_HANDSET;
         else if (pal_voice_rx_device_id_ == PAL_DEVICE_OUT_SPEAKER)
             palDevices[0].id = PAL_DEVICE_IN_WIRED_HEADSET;
+#endif
         else
             AHAL_ERR("Invalid device pair for the usecase");
     }
     if (streamAttributes.info.voice_call_info.tty_mode == PAL_TTY_VCO) {
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+        /**  device pairs for VCO usecase
+          *  <headphones, handset-mic>
+          *  <usb-headset, handset-mic>
+          *  <headphones, speaker-mic>
+          *  <usb-headset, speaker-mic>
+          *  override devices accordingly.
+          */
+        if (pal_voice_rx_device_id_ == PAL_DEVICE_OUT_WIRED_HEADSET ||
+            pal_voice_rx_device_id_ == PAL_DEVICE_OUT_WIRED_HEADPHONE ||
+            pal_voice_rx_device_id_ == PAL_DEVICE_OUT_USB_HEADSET)
+            palDevices[0].id = PAL_DEVICE_IN_HANDSET_MIC;
+        else if (pal_voice_rx_device_id_ == PAL_DEVICE_OUT_SPEAKER) {
+#ifdef SEC_AUDIO_CALL_TTY
+            if (adevice->usb_input_dev_enabled) {
+                palDevices[1].id = PAL_DEVICE_OUT_USB_HEADSET;
+            } else if (!adevice->USBConnected()) {
+                palDevices[1].id = PAL_DEVICE_OUT_WIRED_HEADSET;
+            }
+#else
+            palDevices[1].id = PAL_DEVICE_OUT_WIRED_HEADSET;
+          /*does not handle 3-pole wired or USB headset*/
+            if (adevice->usb_input_dev_enabled)
+               palDevices[1].id = PAL_DEVICE_OUT_USB_HEADSET;
+#endif
+        }
+#else
         /**  device pairs for VCO usecase
           *  <headphones, handset-mic>
           *  <headphones, speaker-mic>
@@ -819,6 +961,7 @@ int AudioVoice::VoiceStart(voice_session_t *session) {
             palDevices[0].id = PAL_DEVICE_IN_HANDSET_MIC;
         else if (pal_voice_rx_device_id_ == PAL_DEVICE_OUT_SPEAKER)
             palDevices[1].id = PAL_DEVICE_OUT_WIRED_HEADSET;
+#endif
         else
             AHAL_ERR("Invalid device pair for the usecase");
     }
@@ -945,6 +1088,11 @@ int AudioVoice::VoiceStart(voice_session_t *session) {
                         sec_voice_->volume, session->pal_vol_data->volume_pair[0].vol);
             session->pal_vol_data->volume_pair[0].vol = sec_voice_->volume;
         }
+#endif
+#ifdef SEC_AUDIO_SUPPORT_BT_RVC
+        if (adevice->effect_->SetScoVolume(session->pal_vol_data->volume_pair[0].vol) == 0) {
+            AHAL_DBG("sco volume applied on voice session");
+        } else
 #endif
         ret = pal_stream_set_volume(session->pal_voice_handle, session->pal_vol_data);
         if (ret)
@@ -1113,6 +1261,33 @@ int AudioVoice::VoiceSetDevice(voice_session_t *session) {
     }
 
     if (session && session->tty_mode == PAL_TTY_HCO) {
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+        /**  device pairs for HCO usecase
+          *  <handset, headset-mic>
+          *  <handset, usb-headset-mic>
+          *  <speaker, headset-mic>
+          *  <speaker, usb-headset-mic>
+          *  override devices accordingly.
+          */
+        if (pal_voice_rx_device_id_ == PAL_DEVICE_OUT_WIRED_HEADSET ||
+            (pal_voice_rx_device_id_ == PAL_DEVICE_OUT_USB_HEADSET &&
+                                     adevice->usb_input_dev_enabled))
+            palDevices[1].id = PAL_DEVICE_OUT_HANDSET;
+        else if (pal_voice_rx_device_id_ == PAL_DEVICE_OUT_SPEAKER) {
+        /* does not handle 3-pole wired or USB headset */
+#ifdef SEC_AUDIO_CALL_TTY
+            if (adevice->usb_input_dev_enabled) {
+                palDevices[0].id = PAL_DEVICE_IN_USB_HEADSET;
+            } else if (!adevice->USBConnected()) {
+                palDevices[0].id = PAL_DEVICE_IN_WIRED_HEADSET;
+            }
+#else
+            palDevices[0].id = PAL_DEVICE_IN_WIRED_HEADSET;
+            if (adevice->usb_input_dev_enabled)
+               palDevices[0].id = PAL_DEVICE_IN_USB_HEADSET;
+#endif
+        }
+#else
         /**  device pairs for HCO usecase
           *  <handset, headset-mic>
           *  <speaker, headset-mic>
@@ -1122,10 +1297,38 @@ int AudioVoice::VoiceSetDevice(voice_session_t *session) {
             palDevices[1].id = PAL_DEVICE_OUT_HANDSET;
         else if (pal_voice_rx_device_id_ == PAL_DEVICE_OUT_SPEAKER)
             palDevices[0].id = PAL_DEVICE_IN_WIRED_HEADSET;
+#endif
         else
             AHAL_ERR("Invalid device pair for the usecase");
     }
     if (session && session->tty_mode == PAL_TTY_VCO) {
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+        /**  device pairs for VCO usecase
+          *  <headphones, handset-mic>
+          *  <usb-headset, handset-mic>
+          *  <headphones, speaker-mic>
+          *  <usb-headset, speaker-mic>
+          *  override devices accordingly.
+          */
+        if (pal_voice_rx_device_id_ == PAL_DEVICE_OUT_WIRED_HEADSET ||
+            pal_voice_rx_device_id_ == PAL_DEVICE_OUT_WIRED_HEADPHONE ||
+            pal_voice_rx_device_id_ == PAL_DEVICE_OUT_USB_HEADSET)
+            palDevices[0].id = PAL_DEVICE_IN_HANDSET_MIC;
+        else if (pal_voice_rx_device_id_ == PAL_DEVICE_OUT_SPEAKER) {
+#ifdef SEC_AUDIO_CALL_TTY
+            if (adevice->usb_input_dev_enabled) {
+                palDevices[1].id = PAL_DEVICE_OUT_USB_HEADSET;
+            } else if (!adevice->USBConnected()) {
+                palDevices[1].id = PAL_DEVICE_OUT_WIRED_HEADSET;
+            }
+#else
+            palDevices[1].id = PAL_DEVICE_OUT_WIRED_HEADSET;
+        /* does not handle 3-pole wired or USB headset */
+            if (adevice->usb_input_dev_enabled)
+               palDevices[1].id = PAL_DEVICE_OUT_USB_HEADSET;
+#endif
+        }
+#else
         /**  device pairs for VCO usecase
           *  <headphones, handset-mic>
           *  <headphones, speaker-mic>
@@ -1136,6 +1339,7 @@ int AudioVoice::VoiceSetDevice(voice_session_t *session) {
             palDevices[0].id = PAL_DEVICE_IN_HANDSET_MIC;
         else if (pal_voice_rx_device_id_ == PAL_DEVICE_OUT_SPEAKER)
             palDevices[1].id = PAL_DEVICE_OUT_WIRED_HEADSET;
+#endif
         else
             AHAL_ERR("Invalid device pair for the usecase");
     }
@@ -1251,12 +1455,10 @@ int AudioVoice::SetVoiceVolume(float volume) {
             if (session[i].pal_vol_data) {
 #ifdef SEC_AUDIO_SUPPORT_BT_RVC
                 std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
-                ret = adevice->effect_->SetScoVolume(volume);
-                if (ret == 0) {
-                    AHAL_DBG("sco volume applied on voice session %d status %x", i, ret);
-                    return ret;
+                if (adevice->effect_->SetScoVolume(volume) == 0) {
+                    AHAL_DBG("sco volume applied on voice session %d", i);
+                    return 0;
                 }
-                ret = 0;
 #endif
                 session[i].pal_vol_data->volume_pair[0].vol = volume;
                 if (session[i].pal_voice_handle) {
@@ -1285,6 +1487,62 @@ int AudioVoice::SetVoiceVolume(float volume) {
     AHAL_DBG("Exit ret: %d", ret);
     return ret;
 }
+
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+void AudioVoice::updateVoiceMetadataForBT(bool call_active)
+{
+    ssize_t track_count = 1;
+    std::vector<playback_track_metadata_t> Sourcetracks;
+    std::vector<record_track_metadata_t> Sinktracks;
+    Sourcetracks.resize(track_count);
+    Sinktracks.resize(track_count);
+    int32_t ret = 0;
+
+    source_metadata_t btSourceMetadata;
+    sink_metadata_t btSinkMetadata;
+
+    if (call_active) {
+        btSourceMetadata.track_count = track_count;
+        btSourceMetadata.tracks = Sourcetracks.data();
+
+        btSourceMetadata.tracks->usage = AUDIO_USAGE_VOICE_COMMUNICATION;
+        btSourceMetadata.tracks->content_type = AUDIO_CONTENT_TYPE_SPEECH;
+
+        AHAL_DBG("Source metadata for voice call usage:%d content_type:%d",
+            btSourceMetadata.tracks->usage, btSourceMetadata.tracks->content_type);
+        //Pass the source metadata to PAL
+        pal_set_param(PAL_PARAM_ID_SET_SOURCE_METADATA, (void*)&btSourceMetadata, 0);
+
+        btSinkMetadata.track_count = track_count;
+        btSinkMetadata.tracks = Sinktracks.data();
+
+        btSinkMetadata.tracks->source = AUDIO_SOURCE_VOICE_CALL;
+
+        AHAL_DBG("Sink metadata for voice call source:%d", btSinkMetadata.tracks->source);
+        //Pass the sink metadata to PAL
+        pal_set_param(PAL_PARAM_ID_SET_SINK_METADATA, (void*)&btSinkMetadata, 0);
+    } else {
+
+        /* When voice call ends, we need to restore metadata configuration for
+         * source and sink sessions same as prior to the call. Send source
+         * and sink metadata separately to BT.
+         */
+        if (stream_out_primary_) {
+            ret = stream_out_primary_->SetAggregateSourceMetadata(false);
+            if (ret != 0) {
+                AHAL_ERR("Set PAL_PARAM_ID_SET_SOURCE_METADATA for %d failed", ret);
+            }
+        }
+
+        if (stream_in_primary_) {
+            ret = stream_in_primary_->SetAggregateSinkMetadata(false);
+            if (ret != 0) {
+                AHAL_ERR("Set PAL_PARAM_ID_SET_SINK_METADATA for %d failed", ret);
+            }
+        }
+    }
+}
+#endif
 
 AudioVoice::AudioVoice() {
 
@@ -1353,7 +1611,9 @@ AudioVoice::~AudioVoice() {
     voice_.session[MMODE2_SESS_IDX].vsid = VOICEMMODE2_VSID;
 
     stream_out_primary_ = NULL;
+#ifndef SEC_AUDIO_CALL
     max_voice_sessions_ = 0;
+#endif
 }
 
 #ifdef SEC_AUDIO_CALL

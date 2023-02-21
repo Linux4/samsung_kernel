@@ -56,3 +56,13 @@ int set_fp_debug_timer(struct debug_logger *logger,
 
 	return rc;
 }
+
+void set_delay_in_spi_transfer(struct spi_transfer *xfer, unsigned int usec)
+{
+#if LINUX_VERSION_CODE > KERNEL_VERSION(5, 10, 0)
+	xfer->delay.unit = SPI_DELAY_UNIT_USECS;
+	xfer->delay.value = usec;
+#else
+	xfer->delay_usecs = usec;
+#endif
+}

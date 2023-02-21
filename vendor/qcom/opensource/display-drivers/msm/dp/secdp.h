@@ -48,12 +48,14 @@
 /*#define SECDP_EVENT_THREAD*/
 /*#define SECDP_TEST_HDCP2P2_REAUTH*/
 /*#define NOT_SUPPORT_DEX_RES_CHANGE*/
-/*#define SECDP_IGNORE_PREFER*/	 /* ignore prefer timing if dex timing exists */
+
+#define DPCD_IEEE_OUI			0x500
+#define DPCD_DEVID_STR			0x503
 
 #define LEN_BRANCH_REV		3
-#define	DPCD_BRANCH_HW_REV		0x509
-#define	DPCD_BRANCH_SW_REV_MAJOR	0x50A
-#define	DPCD_BRANCH_SW_REV_MINOR	0x50B
+#define DPCD_BRANCH_HW_REV		0x509
+#define DPCD_BRANCH_SW_REV_MAJOR	0x50A
+#define DPCD_BRANCH_SW_REV_MINOR	0x50B
 
 #define MAX_CNT_LINK_STATUS_UPDATE	4
 #define MAX_CNT_HDCP_RETRY		10
@@ -198,8 +200,9 @@ enum dex_support_res_t {
 #define DEX_MAX_COL	3440
 #define DEX_MAX_ROW	1440
 
-#define DEX_REFRESH_MIN	50
-#define DEX_REFRESH_MAX	60
+#define DEX_REFRESH_MIN		50
+#define DEX_REFRESH_MAX		60
+#define MIRROR_REFRESH_MIN	24
 
 static inline char *secdp_dex_res_to_string(int res)
 {
@@ -343,6 +346,13 @@ struct secdp_attention_node {
 struct secdp_adapter {
 	uint ven_id;
 	uint prod_id;
+	char ieee_oui[4];  /* DPCD 500h ~ 502h */
+	char devid_str[7]; /* DPCD 503h ~ 508h */
+	char fw_ver[10];   /* firmware ver, 0:h/w, 1:s/w major, 2:s/w minor */
+
+	bool ss_genuine;
+	bool ss_legacy;
+	enum dex_support_res_t dex_type;
 };
 
 #define MON_NAME_LEN	14	/* monitor name length, max 13 chars + null */
@@ -367,8 +377,6 @@ struct secdp_prefer {
 	enum mon_aspect_ratio_t	ratio;
 
 	bool exist;   /* true if preferred resolution */
-	bool ignore;  /* true if larger refresh rate exists */
-
 	int  hdisp;   /* horizontal pixel of preferred resolution */
 	int  vdisp;   /* vertical pixel of preferred resolution */
 	int  refresh; /* refresh rate of preferred resolution */
@@ -382,6 +390,7 @@ struct secdp_dex {
 	enum DEX_STATUS curr; /* previously known as "dex_en" */
 	int  setting_ui;      /* "dex_set", true if setting has Dex mode */
 
+	bool ignore_prefer_ratio; /* true if prefer ratio does not match to dex ratio */
 	bool adapter_check_skip;
 
 	/*
@@ -391,12 +400,7 @@ struct secdp_dex {
 	 */
 	enum DEX_STATUS status; /* previously known as "dex_node_status" */
 
-	char fw_ver[10];   /* firmware ver, 0:h/w, 1:s/w major, 2:s/w minor */
 	bool reconnecting; /* true if dex is under reconnecting */
-
-#ifdef SECDP_IGNORE_PREFER
-	bool res_exist;    /* true if dex resolution exists */
-#endif
 };
 
 struct secdp_display_timing {
@@ -408,6 +412,7 @@ struct secdp_display_timing {
 	enum dex_support_res_t dex_res;    /* dex supported resolution */
 	enum mon_aspect_ratio_t mon_ratio; /* monitor aspect ratio */
 	int  supported;                    /* for unit test */
+	u64  total;
 };
 
 struct secdp_mst {
@@ -438,6 +443,8 @@ struct secdp_debug {
 
 struct secdp_misc {
 	struct delayed_work link_status_work;
+	struct delayed_work link_backoff_work;
+	bool backoff_start;
 	struct delayed_work poor_discon_work;
 
 	bool cable_connected; /* previously known as "cable_connected_phy" */
@@ -497,7 +504,6 @@ struct secdp_misc {
 bool secdp_get_lpm_mode(void);
 int  secdp_send_deferred_hpd_noti(void);
 bool secdp_get_clk_status(enum dp_pm_type type);
-void secdp_send_poor_connection_event(void);
 
 int  secdp_pdic_noti_register_ex(struct secdp_misc *sec, bool retry);
 bool secdp_phy_reset_check(void);
@@ -533,8 +539,11 @@ bool secdp_check_dex_mode(void);
 void secdp_clear_link_status_cnt(struct dp_link *dp_link);
 void secdp_reset_link_status(struct dp_link *dp_link);
 bool secdp_check_link_stable(struct dp_link *dp_link);
+void secdp_link_backoff_start(void);
+void secdp_link_backoff_stop(void);
 bool secdp_dex_adapter_skip_show(void);
 void secdp_dex_adapter_skip_store(bool skip);
+bool secdp_adapter_is_legacy(void);
 
 bool secdp_panel_hdr_supported(void);
 

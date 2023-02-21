@@ -2155,7 +2155,6 @@ int cam_flash_release_dev(struct cam_flash_ctrl *fctrl)
 	int rc = 0;
 
 	if (fctrl->bridge_intf.device_hdl != 1) {
-		CAM_INFO(CAM_FLASH, "CAM_RELEASE_DEV for dev_hdl: 0x%x",fctrl->bridge_intf.device_hdl);
 		rc = cam_destroy_device_hdl(fctrl->bridge_intf.device_hdl);
 		if (rc)
 			CAM_ERR(CAM_FLASH,

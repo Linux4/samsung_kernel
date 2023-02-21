@@ -561,6 +561,9 @@
             <usecase>
                 <name>PAL_STREAM_LOOPBACK</name>
                 <snd_device_name>rec-usb-headset-mic</snd_device_name>
+                <custom-config key="speaker_fm">
+                    <priority>3</priority>
+                </custom-config>
                 <custom-config key="vr">
                     <snd_device_name>vr-usb-headset-mic</snd_device_name>
                 </custom-config>
@@ -762,6 +765,10 @@
             <usecase>
                 <name>PAL_STREAM_COMPRESSED</name>
                 <priority>4</priority>
+                <custom-config key="speaker_left_amp_off">
+                    <priority>5</priority>
+                    <snd_device_name>speaker-mono-right</snd_device_name>
+                </custom-config>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL_MUSIC</name>

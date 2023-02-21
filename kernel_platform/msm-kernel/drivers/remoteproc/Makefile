@@ -3,6 +3,11 @@
 # Generic framework for controlling remote processors
 #
 
+ifeq ($(CONFIG_HDM),m)
+# Support Knox HDM feature
+  ccflags-y += -DHDM_SUPPORT
+endif
+
 obj-$(CONFIG_REMOTEPROC)		+= remoteproc.o
 remoteproc-y				:= remoteproc_core.o
 remoteproc-y				+= remoteproc_coredump.o
@@ -44,3 +49,4 @@ obj-$(CONFIG_ST_SLIM_REMOTEPROC)	+= st_slim_rproc.o
 obj-$(CONFIG_STM32_RPROC)		+= stm32_rproc.o
 obj-$(CONFIG_TI_K3_DSP_REMOTEPROC)	+= ti_k3_dsp_remoteproc.o
 obj-$(CONFIG_TI_K3_R5_REMOTEPROC)	+= ti_k3_r5_remoteproc.o
+obj-$(CONFIG_QCOM_RPROC_HELIOS)   += qcom_rproc_helios.o

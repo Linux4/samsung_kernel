@@ -23,7 +23,7 @@
 #include <linux/power_supply.h>
 #include "sx938x.h"
 
-#if defined(CONFIG_SENSORS_CORE_AP)
+#if IS_ENABLED(CONFIG_SENSORS_CORE_AP)
 #include <linux/sensor/sensors_core.h>
 #endif
 
@@ -116,7 +116,7 @@ struct sx938x_p {
 	int gpio_nirq;
 	int state;
 	int init_done;
-#if defined(CONFIG_SENSORS_COMMON_VDD_SUB)
+#if IS_ENABLED(CONFIG_SENSORS_COMMON_VDD_SUB)
 	int gpio_nirq_sub;
 #endif
 
@@ -403,6 +403,7 @@ static void sx938x_get_data(struct sx938x_p *data)
 static int sx938x_set_mode(struct sx938x_p *data, unsigned char mode)
 {
 	int ret = -EINVAL;
+	u8 val = 0;
 
 	GRIP_INFO(" %u\n", mode);
 
@@ -410,7 +411,8 @@ static int sx938x_set_mode(struct sx938x_p *data, unsigned char mode)
 	if (mode == SX938x_MODE_SLEEP) {
 		ret = sx938x_i2c_write(data, SX938x_GNRL_CTRL0_REG, REF_OFF_MAIN_OFF);
 	} else if (mode == SX938x_MODE_NORMAL) {
-		ret = sx938x_i2c_write(data, SX938x_GNRL_CTRL0_REG, REF_OFF_MAIN_ON);
+		val = setup_reg[data->ic_num][SX938x_GNRL_CTRL0_REG_IDX].val;
+		ret = sx938x_i2c_write(data, SX938x_GNRL_CTRL0_REG, val);
 		msleep(20);
 		sx938x_manual_offset_calibration(data);
 		msleep(450);
@@ -544,14 +546,24 @@ static ssize_t sx938x_sw_reset_show(struct device *dev,
 				    struct device_attribute *attr, char *buf)
 {
 	struct sx938x_p *data = dev_get_drvdata(dev);
-	u8 compstat = 0;
+	u8 compstat = 0xFF;
+	int retry = 0;
 
 	GRIP_INFO("\n");
 	sx938x_manual_offset_calibration(data);
 	msleep(450);
 	sx938x_get_data(data);
-	sx938x_i2c_read(data, SX938x_STAT_REG, &compstat);
-	compstat &= 0x04;
+
+	while (retry++ <= 3) {
+		sx938x_i2c_read(data, SX938x_STAT_REG, &compstat);
+		GRIP_INFO("compstat : 0x%x\n", compstat);
+		compstat &= 0x04;
+
+		if (compstat == 0)
+			break;
+
+		msleep(50);
+	}
 
 	if (compstat == 0)
 		return snprintf(buf, PAGE_SIZE, "%d\n", 0);
@@ -1180,7 +1192,8 @@ static DEVICE_ATTR(menual_calibrate, S_IRUGO | S_IWUSR | S_IWGRP,
 static DEVICE_ATTR(register_write, S_IWUSR | S_IWGRP,
 		   NULL, sx938x_register_write_store);
 static DEVICE_ATTR(register_read_all, S_IRUGO, sx938x_register_show, NULL);
-static DEVICE_ATTR(register_read, S_IRUGO, sx938x_register_read_show, sx938x_register_read_store);
+static DEVICE_ATTR(register_read, S_IRUGO | S_IWUSR | S_IWGRP,
+			sx938x_register_read_show, sx938x_register_read_store);
 static DEVICE_ATTR(reset, S_IRUGO, sx938x_sw_reset_show, NULL);
 
 static DEVICE_ATTR(name, S_IRUGO, sx938x_name_show, NULL);
@@ -1302,9 +1315,10 @@ static void sx938x_touch_process(struct sx938x_p *data)
 	sx938x_i2c_read(data, SX938x_STAT_REG, &status);
 	GRIP_INFO("0x%x\n", status);
 
+	sx938x_get_data(data);
+
 	if (data->abnormal_mode) {
 		if (status & SX938x_PROXSTAT_FLAG) {
-			sx938x_get_data(data);
 			if (data->max_diff < data->diff)
 				data->max_diff = data->diff;
 			data->irq_count++;
@@ -1455,10 +1469,11 @@ static int sx938x_input_init(struct sx938x_p *data)
 		return ret;
 	}
 
-#if defined(CONFIG_SENSORS_CORE_AP)
+#if IS_ENABLED(CONFIG_SENSORS_CORE_AP)
 	ret = sensors_create_symlink(&dev->dev.kobj, dev->name);
 	if (ret < 0) {
 		GRIP_ERR("failed to create symlink (%d)\n", ret);
+		input_unregister_device(dev);
 		return ret;
 	}
 
@@ -1470,6 +1485,7 @@ static int sx938x_input_init(struct sx938x_p *data)
 #else
 	ret = sensors_create_symlink(dev);
 	if (ret < 0) {
+		GRIP_ERR("failed to create symlink (%d)\n", ret);
 		input_unregister_device(dev);
 		return ret;
 	}
@@ -1649,7 +1665,7 @@ static int sx938x_check_dependency(struct device *dev, int ic_num)
 			dvdd_vreg_name = NULL;
 		}
 	}
-#if defined(CONFIG_SENSORS_SX9380_SUB)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB)
 	if (ic_num == SUB_GRIP) {
 		if (of_property_read_string_index(dNode, "sx938x_sub,dvdd_vreg_name", 0,
 						(const char **)&dvdd_vreg_name)) {
@@ -1657,7 +1673,7 @@ static int sx938x_check_dependency(struct device *dev, int ic_num)
 		}
 	}
 #endif
-#if defined(CONFIG_SENSORS_SX9380_SUB2)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB2)
 	if (ic_num == SUB2_GRIP) {
 		if (of_property_read_string_index(dNode, "sx938x_sub2,dvdd_vreg_name", 0,
 						(const char **)&dvdd_vreg_name)) {
@@ -1665,7 +1681,7 @@ static int sx938x_check_dependency(struct device *dev, int ic_num)
 		}
 	}
 #endif
-#if defined(CONFIG_SENSORS_SX9380_WIFI)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_WIFI)
 	if (ic_num == WIFI_GRIP) {
 		if (of_property_read_string_index(dNode, "sx938x_wifi,dvdd_vreg_name", 0,
 						(const char **)&dvdd_vreg_name)) {
@@ -1699,7 +1715,7 @@ static int sx938x_parse_dt(struct sx938x_p *data, struct device *dev)
 		return -ENODEV;
 
 	if (data->ic_num == MAIN_GRIP) {
-#if defined(CONFIG_SENSORS_COMMON_VDD_SUB)
+#if IS_ENABLED(CONFIG_SENSORS_COMMON_VDD_SUB)
 		data->gpio_nirq_sub = of_get_named_gpio_flags(dNode,
 							  "sx938x,nirq_gpio_sub", 0, &flags);
 		if (data->gpio_nirq_sub < 0)
@@ -1710,17 +1726,17 @@ static int sx938x_parse_dt(struct sx938x_p *data, struct device *dev)
 		data->gpio_nirq = of_get_named_gpio_flags(dNode,
 							  "sx938x,nirq-gpio", 0, &flags);
 		ret = of_property_read_u32(dNode, "sx938x,unknown_sel", &data->unknown_sel);
-#if defined(CONFIG_SENSORS_SX9380_SUB)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB)
 	} else if (data->ic_num == SUB_GRIP) {
 		data->gpio_nirq = of_get_named_gpio_flags(dNode, "sx938x_sub,nirq-gpio", 0, &flags);
 		ret = of_property_read_u32(dNode, "sx938x_sub,unknown_sel", &data->unknown_sel);
 #endif
-#if defined(CONFIG_SENSORS_SX9380_SUB2)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB2)
 	} else if (data->ic_num == SUB2_GRIP) {
 		data->gpio_nirq = of_get_named_gpio_flags(dNode, "sx938x_sub2,nirq-gpio", 0, &flags);
 		ret = of_property_read_u32(dNode, "sx938x_sub2,unknown_sel", &data->unknown_sel);
 #endif
-#if defined(CONFIG_SENSORS_SX9380_WIFI)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_WIFI)
 	} else if (data->ic_num == WIFI_GRIP) {
 		data->gpio_nirq = of_get_named_gpio_flags(dNode, "sx938x_wifi,nirq-gpio", 0, &flags);
 		ret = of_property_read_u32(dNode, "sx938x_wifi,unknown_sel", &data->unknown_sel);
@@ -1744,15 +1760,15 @@ static int sx938x_parse_dt(struct sx938x_p *data, struct device *dev)
 
 	if (data->ic_num == MAIN_GRIP)
 		data->ldo_en = of_get_named_gpio_flags(dNode, "sx938x,ldo_en", 0, &flags);
-#if defined(CONFIG_SENSORS_SX9380_SUB)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB)
 	if (data->ic_num == SUB_GRIP)
 		data->ldo_en = of_get_named_gpio_flags(dNode, "sx938x_sub,ldo_en", 0, &flags);
 #endif
-#if defined(CONFIG_SENSORS_SX9380_SUB2)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB2)
 	if (data->ic_num == SUB2_GRIP)
 		data->ldo_en = of_get_named_gpio_flags(dNode, "sx938x_sub2,ldo_en", 0, &flags);
 #endif
-#if defined(CONFIG_SENSORS_SX9380_WIFI)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_WIFI)
 	if (data->ic_num == WIFI_GRIP)
 		data->ldo_en = of_get_named_gpio_flags(dNode, "sx938x_wifi,ldo_en", 0, &flags);
 #endif
@@ -1763,15 +1779,15 @@ static int sx938x_parse_dt(struct sx938x_p *data, struct device *dev)
 	} else {
 		if (data->ic_num == MAIN_GRIP)
 			ret = gpio_request(data->ldo_en, "sx938x_ldo_en");
-#if defined(CONFIG_SENSORS_SX9380_SUB)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB)
 		if (data->ic_num == SUB_GRIP)
 			ret = gpio_request(data->ldo_en, "sx938x_sub_ldo_en");
 #endif
-#if defined(CONFIG_SENSORS_SX9380_SUB2)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB2)
 		if (data->ic_num == SUB2_GRIP)
 			ret = gpio_request(data->ldo_en, "sx938x_sub2_ldo_en");
 #endif
-#if defined(CONFIG_SENSORS_SX9380_WIFI)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_WIFI)
 		if (data->ic_num == WIFI_GRIP)
 			ret = gpio_request(data->ldo_en, "sx938x_wifi_ldo_en");
 #endif
@@ -1779,7 +1795,7 @@ static int sx938x_parse_dt(struct sx938x_p *data, struct device *dev)
 			GRIP_ERR("gpio %d request failed %d\n", data->ldo_en, ret);
 			return ret;
 		}
-		gpio_direction_output(data->ldo_en, 1);
+		gpio_direction_output(data->ldo_en, 0);
 		gpio_free(data->ldo_en);
 	}
 
@@ -1789,7 +1805,7 @@ static int sx938x_parse_dt(struct sx938x_p *data, struct device *dev)
 			data->dvdd_vreg_name = NULL;
 		}
 	}
-#if defined(CONFIG_SENSORS_SX9380_SUB)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB)
 	if (data->ic_num == SUB_GRIP) {
 		if (of_property_read_string_index(dNode, "sx938x_sub,dvdd_vreg_name", 0,
 						(const char **)&data->dvdd_vreg_name)) {
@@ -1797,7 +1813,7 @@ static int sx938x_parse_dt(struct sx938x_p *data, struct device *dev)
 		}
 	}
 #endif
-#if defined(CONFIG_SENSORS_SX9380_SUB2)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB2)
 	if (data->ic_num == SUB2_GRIP) {
 		if (of_property_read_string_index(dNode, "sx938x_sub2,dvdd_vreg_name", 0,
 						(const char **)&data->dvdd_vreg_name)) {
@@ -1805,7 +1821,7 @@ static int sx938x_parse_dt(struct sx938x_p *data, struct device *dev)
 		}
 	}
 #endif
-#if defined(CONFIG_SENSORS_SX9380_WIFI)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_WIFI)
 	if (data->ic_num == WIFI_GRIP) {
 		if (of_property_read_string_index(dNode, "sx938x_wifi,dvdd_vreg_name", 0,
 						(const char **)&data->dvdd_vreg_name)) {
@@ -1817,30 +1833,30 @@ static int sx938x_parse_dt(struct sx938x_p *data, struct device *dev)
 
 	if (data->ic_num == MAIN_GRIP)
 		reg_size = sizeof(sx938x_parse_reg) / sizeof(char *);
-#if defined(CONFIG_SENSORS_SX9380_SUB)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB)
 	else if (data->ic_num == SUB_GRIP)
 		reg_size = sizeof(sx938x_sub_parse_reg) / sizeof(char *);
 #endif
-#if defined(CONFIG_SENSORS_SX9380_SUB2)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB2)
 	else if (data->ic_num == SUB2_GRIP)
 		reg_size = sizeof(sx938x_sub2_parse_reg) / sizeof(char *);
 #endif
-#if defined(CONFIG_SENSORS_SX9380_WIFI)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_WIFI)
 	else if (data->ic_num == WIFI_GRIP)
 		reg_size = sizeof(sx938x_wifi_parse_reg) / sizeof(char *);
 #endif
 	for (i = 0; i < reg_size; i++) {
 		if (data->ic_num == MAIN_GRIP)
 			sx938x_read_setupreg(data, dNode, sx938x_parse_reg[i], i);
-#if defined(CONFIG_SENSORS_SX9380_SUB)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB)
 		else if (data->ic_num == SUB_GRIP)
 			sx938x_read_setupreg(data, dNode, sx938x_sub_parse_reg[i], i);
 #endif
-#if defined(CONFIG_SENSORS_SX9380_SUB2)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB2)
 		else if (data->ic_num == SUB2_GRIP)
 			sx938x_read_setupreg(data, dNode, sx938x_sub2_parse_reg[i], i);
 #endif
-#if defined(CONFIG_SENSORS_SX9380_WIFI)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_WIFI)
 		else if (data->ic_num == WIFI_GRIP)
 			sx938x_read_setupreg(data, dNode, sx938x_wifi_parse_reg[i], i);
 #endif
@@ -1906,15 +1922,15 @@ static int sx938x_probe(struct i2c_client *client, const struct i2c_device_id *i
 
 	if (strcmp(client->name, "sx938x") == 0)
 		ic_num = MAIN_GRIP;
-#if defined(CONFIG_SENSORS_SX9380_SUB)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB)
 	else if (strcmp(client->name, "sx938x_sub") == 0)
 		ic_num = SUB_GRIP;
 #endif
-#if defined(CONFIG_SENSORS_SX9380_SUB2)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB2)
 	else if (strcmp(client->name, "sx938x_sub2") == 0)
 		ic_num = SUB2_GRIP;
 #endif
-#if defined(CONFIG_SENSORS_SX9380_WIFI)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_WIFI)
 	else if (strcmp(client->name, "sx938x_wifi") == 0)
 		ic_num = WIFI_GRIP;
 #endif
@@ -1929,13 +1945,13 @@ static int sx938x_probe(struct i2c_client *client, const struct i2c_device_id *i
 		return ret;
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
-		pr_info("[GRIP %s] i2c_check_functionality error\n", grip_name[ic_num]);
+		pr_info("[GRIP_%s] i2c_check_functionality error\n", grip_name[ic_num]);
 		goto exit;
 	}
 
 	data = kzalloc(sizeof(struct sx938x_p), GFP_KERNEL);
 	if (data == NULL) {
-		pr_info("[GRIP %s] Failed to allocate memory\n", grip_name[ic_num]);
+		pr_info("[GRIP_%s] Failed to allocate memory\n", grip_name[ic_num]);
 		ret = -ENOMEM;
 		goto exit_kzalloc;
 	}
@@ -1965,7 +1981,7 @@ static int sx938x_probe(struct i2c_client *client, const struct i2c_device_id *i
 
 //If Host NIRQ pin has a protection diode and PULL UP (state HIGH), addr can be 0x29 or 0x2A
 //However, if the state of the pin is LOW, 0x28 is guaranteed.
-#if defined(CONFIG_SENSORS_COMMON_VDD_SUB)
+#if IS_ENABLED(CONFIG_SENSORS_COMMON_VDD_SUB)
 	if (ic_num == SUB_GRIP) {
 		GRIP_INFO("skip irq outmode\n");
 	} else {
@@ -2021,7 +2037,7 @@ static int sx938x_probe(struct i2c_client *client, const struct i2c_device_id *i
 	}
 	disable_irq(data->irq);
 
-#if defined(CONFIG_SENSORS_CORE_AP)
+#if IS_ENABLED(CONFIG_SENSORS_CORE_AP)
 	ret = sensors_register(&data->factory_device, data, sensor_attrs, (char *)module_name[data->ic_num]);
 #else
 	ret = sensors_register(data->factory_device, data, sensor_attrs, (char *)module_name[data->ic_num]);
@@ -2065,7 +2081,7 @@ exit_of_node:
 	mutex_destroy(&data->read_mutex);
 	wakeup_source_unregister(data->grip_ws);
 	sysfs_remove_group(&data->input->dev.kobj, &sx938x_attribute_group);
-#if defined(CONFIG_SENSORS_CORE_AP)
+#if IS_ENABLED(CONFIG_SENSORS_CORE_AP)
 	sensors_remove_symlink(&data->input->dev.kobj, data->input->name);
 #else
 	sensors_remove_symlink(data->input);
@@ -2097,7 +2113,7 @@ static int sx938x_remove(struct i2c_client *client)
 
 	wakeup_source_unregister(data->grip_ws);
 	sensors_unregister(data->factory_device, sensor_attrs);
-#if defined(CONFIG_SENSORS_CORE_AP)
+#if IS_ENABLED(CONFIG_SENSORS_CORE_AP)
 	sensors_remove_symlink(&data->input->dev.kobj, data->input->name);
 #else
 	sensors_remove_symlink(data->input);
@@ -2182,7 +2198,7 @@ static struct i2c_driver sx938x_driver = {
 	.id_table	= sx938x_id,
 };
 
-#if defined(CONFIG_SENSORS_SX9380_SUB)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB)
 static const struct of_device_id sx938x_sub_match_table[] = {
 	{ .compatible = "sx938x_sub",},
 	{},
@@ -2207,7 +2223,7 @@ static struct i2c_driver sx938x_sub_driver = {
 };
 #endif
 
-#if defined(CONFIG_SENSORS_SX9380_SUB2)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB2)
 static const struct of_device_id sx938x_sub2_match_table[] = {
 	{ .compatible = "sx938x_sub2",},
 	{},
@@ -2232,7 +2248,7 @@ static struct i2c_driver sx938x_sub2_driver = {
 };
 #endif
 
-#if defined(CONFIG_SENSORS_SX9380_WIFI)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_WIFI)
 static const struct of_device_id sx938x_wifi_match_table[] = {
 	{ .compatible = "sx938x_wifi",},
 	{},
@@ -2264,17 +2280,17 @@ static int __init sx938x_init(void)
 	ret = i2c_add_driver(&sx938x_driver);
 	if (ret != 0)
 		pr_err("[GRIP] sx938x_driver probe fail\n");
-#if defined(CONFIG_SENSORS_SX9380_SUB)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB)
 	ret = i2c_add_driver(&sx938x_sub_driver);
 	if (ret != 0)
 		pr_err("[GRIP_SUB] sx938x_sub_driver probe fail\n");
 #endif
-#if defined(CONFIG_SENSORS_SX9380_SUB2)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB2)
 	ret = i2c_add_driver(&sx938x_sub2_driver);
 	if (ret != 0)
 		pr_err("[GRIP_SUB] sx938x_sub2_driver probe fail\n");
 #endif
-#if defined(CONFIG_SENSORS_SX9380_WIFI)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_WIFI)
 	ret = i2c_add_driver(&sx938x_wifi_driver);
 	if (ret != 0)
 		pr_err("[GRIP_WIFI] sx938x_wifi_driver probe fail\n");
@@ -2286,13 +2302,13 @@ static int __init sx938x_init(void)
 static void __exit sx938x_exit(void)
 {
 	i2c_del_driver(&sx938x_driver);
-#if defined(CONFIG_SENSORS_SX9380_SUB)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB)
 	i2c_del_driver(&sx938x_sub_driver);
 #endif
-#if defined(CONFIG_SENSORS_SX9380_SUB2)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB2)
 	i2c_del_driver(&sx938x_sub2_driver);
 #endif
-#if defined(CONFIG_SENSORS_SX9380_WIFI)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_WIFI)
 	i2c_del_driver(&sx938x_wifi_driver);
 #endif
 

@@ -2,6 +2,7 @@
 #include <dt-bindings/input/input.h>
 #include "cape-pmic-overlay.dtsi"
 #include "waipio-thermal-overlay.dtsi"
+#include <dt-bindings/phy/qcom,usb3-4nm-qmp-combo.h>
 
 &soc {
 	gpio_keys {
@@ -157,7 +158,7 @@
 				0x4 0x6 0x6 0x4>;
 		flat-gain = /bits/ 8 <
 				/* Parameters for USB */
-				0x3 0x1 0x1 0x3
+				0x0 0x1 0x1 0x2
 				/* Parameters for DP */
 				0x0 0x3 0x3 0x0>;
 		output-comp = /bits/ 8 <
@@ -175,6 +176,12 @@
 
 &usb_qmp_dp_phy {
 	pinctrl-names = "unused";
+
+	qcom,qmp-phy-override-seq =
+		/* <reg_offset,	value> */
+		<USB3_DP_QSERDES_RXA_RX_MODE_01_HIGH4		0x0D
+		USB3_DP_QSERDES_TXB_TX_DRV_LVL			0x38
+		USB3_DP_QSERDES_RXB_RX_MODE_01_HIGH4		0x0D>;
 };
 
 &usb0 {
