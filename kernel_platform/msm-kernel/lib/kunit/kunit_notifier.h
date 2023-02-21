@@ -11,7 +11,6 @@ extern struct test_module abc_common_test_module;
 extern struct test_module abc_spec_type1_test_module;
 extern struct test_module sec_battery_misc__module;
 extern struct test_module sec_cisd_test_module;
-/*
 extern struct test_module sec_battery_test_module;
 extern struct test_module sec_adc_test_module;
 extern struct test_module sec_battery_dt_test_module;
@@ -23,8 +22,6 @@ extern struct test_module sec_battery_wc_test_module;
 extern struct test_module sec_pd_test_module;
 extern struct test_module sec_step_charging_test_module;
 extern struct test_module usb_typec_manager_notifier_test_module;
-extern struct test_module sec_cmd_test_module;
-*/
 
 /*
  * kunit_notifier_chain_init() - initialize kunit notifier for module built

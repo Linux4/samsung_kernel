@@ -97,6 +97,9 @@ Return<bool> Usb::enableUsbDataSignal(bool enable) {
 //        }
 //]
     }
+//[@VOLD
+    queryPortStatus();
+//]
     return result;
 }
 

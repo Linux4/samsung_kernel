@@ -862,10 +862,17 @@ public:
     bool isDeviceReady(pal_device_id_t id);
     static bool isBtScoDevice(pal_device_id_t id);
     static bool isBtDevice(pal_device_id_t id);
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    int32_t a2dpSuspend(pal_device_id_t dev_id);
+    int32_t a2dpResume(pal_device_id_t dev_id);
+    int32_t a2dpCaptureSuspend(pal_device_id_t dev_id);
+    int32_t a2dpCaptureResume(pal_device_id_t dev_id);
+#else
     int32_t a2dpSuspend();
     int32_t a2dpResume();
     int32_t a2dpCaptureSuspend();
     int32_t a2dpCaptureResume();
+#endif
     bool isPluginDevice(pal_device_id_t id);
     bool updateDevAttr(struct pal_device *activeDevAttr, const struct pal_device_info *inDevInfo,
          struct pal_device *inDevAttr);

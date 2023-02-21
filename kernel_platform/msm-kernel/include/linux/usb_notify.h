@@ -148,6 +148,11 @@ enum usb_current_state {
 	NOTIFY_USB_CONFIGURED,
 };
 
+enum usb_request_action_type {
+	USB_REQUEST_NOTHING,
+	USB_REQUEST_DUMPSTATE,
+};
+
 struct otg_notify {
 	int vbus_detect_gpio;
 	int redriver_en_gpio;
@@ -209,6 +214,7 @@ extern bool is_snkdfp_usb_device_connected(struct otg_notify *n);
 extern int get_con_dev_max_speed(struct otg_notify *n);
 extern void set_con_dev_max_speed
 		(struct otg_notify *n, int speed);
+extern void set_request_action(struct otg_notify *n,unsigned request_action);
 extern int is_known_usbaudio(struct usb_device *dev);
 extern void set_usb_audio_cardnum(int card_num, int bundle, int attach);
 extern void send_usb_audio_uevent(struct usb_device *dev,
@@ -264,6 +270,8 @@ static inline int get_con_dev_max_speed(struct otg_notify *n)
 			{return 0; }
 static inline void set_con_dev_max_speed
 		(struct otg_notify *n, int speed) {}
+static inline  void set_request_action
+		(struct otg_notify *n,unsigned request_action) {}
 static inline int is_known_usbaudio(struct usb_device *dev) {return 0; }
 static inline void set_usb_audio_cardnum(int card_num,
 		int bundle, int attach) {}

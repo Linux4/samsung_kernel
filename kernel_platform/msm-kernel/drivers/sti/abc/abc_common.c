@@ -52,64 +52,75 @@ char abc_hub_kunit_test_uevent_str[ABC_HUB_TEST_STR_MAX];
 EXPORT_SYMBOL_KUNIT(abc_hub_kunit_test_uevent_str);
 #endif
 
-/* "module_name", "error_name", on, singular_spec */
+/* "module_name", "error_name", "host", on, singular_spec */
 struct registered_abc_event_struct abc_event_list[] = {
-	{"audio", "spk_amp", true, true},
-	{"audio", "spk_amp_short", true, true},
-	{"battery", "dc_i2c_fail", true, true},
-	{"battery", "over_voltage", true, true},
-	{"battery", "pd_input_ocp", true, true},
-	{"battery", "safety_timer", true, true},
-	{"battery", "vsys_ovp", true, true},
-	{"bootc", "boot_time_fail", true, true},
-	{"camera", "camera_error", true, true},
-	{"camera", "i2c_fail", true, false},
-	{"camera", "icp_error", true, true},
-	{"camera", "ipp_overflow", true, true},
-	{"camera", "mipi_overflow", true, false},
-	{"cond", "CAM_CONNECT", true, true},
-	{"cond", "LOWER_C2C_DETECT", true, true},
-	{"cond", "MAIN_BAT_DETECT", true, true},
-	{"cond", "MAIN_DIGITIZER_DETECT", true, true},
-	{"cond", "SUB_BAT_DETECT", true, true},
-	{"cond", "SUB_CONNECT", true, true},
-	{"cond", "SUB_LOWER_DETECT", true, true},
-	{"cond", "SUB_UB_DETECT", true, true},
-	{"cond", "TOF_CONNECT", true, true},
-	{"cond", "UPPER_C2C_DETECT", true, true},
-	{"decon", "fence_timeout", true, true},
-	{"display", "act_section_panel_main_dsi_error", true, true},
-	{"display", "act_section_panel_sub_dsi_error", true, true},
-	{"gpu", "gpu_fault", true, false},
-	{"gpu", "gpu_job_timeout", true, true},
-	{"gpu_qc", "gpu_fault", true, false},
-	{"gpu_qc", "gpu_page_fault", true, false},
-	{"muic", "afc_hv_fail", true, true},
-	{"muic", "cable_short", true, true},
-	{"muic", "qc_hv_fail", true, true},
-	{"npu", "npu_fw_warning", true, true},
-	{"pdic", "i2c_fail", true, true},
-	{"pdic", "water_det", true, true},
-	{"pmic", "s2dos05_bulk_read", true, true},
-	{"pmic", "s2dos05_bulk_write", true, true},
-	{"pmic", "s2dos05_read_reg", true, true},
-	{"pmic", "s2dos05_read_word", true, true},
-	{"pmic", "s2dos05_update_reg", true, true},
-	{"pmic", "s2dos05_write_reg", true, true},
-	{"storage", "mmc_hwreset_err", true, true},
-	{"storage", "sd_removed_err", true, true},
-	{"storage", "ufs_hwreset_err", true, true},
-	{"storage", "ufs_medium_err", true, true},
-	{"tsp", "tsp_int_fault", true, false},
-	{"tsp_sub", "tsp_int_fault", true, false},
-	{"ub_main", "ub_disconnected", true, true},
-	{"ub_sub", "ub_disconnected", true, true},
-	{"vib", "fw_load_fail", true, true},
-	{"vib", "int_gnd_short", true, false},
+	{"audio", "spk_amp", "", true, true},
+	{"audio", "spk_amp_short", "", true, true},
+	{"battery", "dc_i2c_fail", "", true, true},
+	{"battery", "over_voltage", "", true, true},
+	{"battery", "pd_input_ocp", "it", true, true},
+	{"battery", "safety_timer", "", true, true},
+	{"battery", "pp_open", "it", true, true},
+	{"battery", "lim_stuck", "it", true, true},
+	{"battery", "vsys_ovp", "", true, true},
+	{"battery", "dc_current", "it", true, true},
+	{"bootc", "boot_time_fail", "", true, true},
+	{"camera", "camera_error", "", true, true},
+	{"camera", "i2c_fail", "", true, false},
+	{"camera", "icp_error", "", true, true},
+	{"camera", "ipp_overflow", "", true, true},
+	{"camera", "mipi_overflow", "", true, false},
+	{"cond", "CAM_CONNECT", "", true, true},
+	{"cond", "LOWER_C2C_DETECT", "", true, true},
+	{"cond", "MAIN_BAT_DETECT", "", true, true},
+	{"cond", "MAIN_DIGITIZER_DETECT", "", true, true},
+	{"cond", "SUB_BAT_DETECT", "", true, true},
+	{"cond", "SUB_CONNECT", "", true, true},
+	{"cond", "SUB_LOWER_DETECT", "", true, true},
+	{"cond", "SUB_UB_DETECT", "", true, true},
+	{"cond", "TOF_CONNECT", "", true, true},
+	{"cond", "UPPER_C2C_DETECT", "", true, true},
+	{"decon", "fence_timeout", "", true, true},
+	{"display", "act_section_panel_main_dsi_error", "", true, true},
+	{"display", "act_section_panel_sub_dsi_error", "", true, true},
+	{"gpu", "gpu_fault", "", true, false},
+	{"gpu", "gpu_job_timeout", "", true, true},
+	{"gpu_qc", "gpu_fault", "", true, false},
+	{"gpu_qc", "gpu_page_fault", "", true, false},
+	{"muic", "afc_hv_fail", "", true, true},
+	{"muic", "cable_short", "", true, true},
+	{"muic", "qc_hv_fail", "", true, true},
+	{"npu", "npu_fw_warning", "", true, true},
+	{"pdic", "i2c_fail", "it", true, true},
+	{"pdic", "water_det", "", true, true},
+	{"pmic", "s2dos05_bulk_read", "", true, true},
+	{"pmic", "s2dos05_bulk_write", "", true, true},
+	{"pmic", "s2dos05_read_reg", "", true, true},
+	{"pmic", "s2dos05_read_word", "", true, true},
+	{"pmic", "s2dos05_update_reg", "", true, true},
+	{"pmic", "s2dos05_write_reg", "", true, true},
+	{"pmic", "s2dos05_bulk_read_fail", "", true, true},
+	{"pmic", "s2dos05_bulk_write_fail", "", true, true},
+	{"pmic", "s2dos05_read_reg_fail", "", true, true},
+	{"pmic", "s2dos05_read_word_fail", "", true, true},
+	{"pmic", "s2dos05_update_reg_fail", "", true, true},
+	{"pmic", "s2dos05_write_reg_fail", "", true, true},
+	{"pmic", "s2dos05_scp", "", true, true},
+	{"pmic", "s2dos05_ssd", "", true, true},
+	{"storage", "mmc_hwreset_err", "", true, true},
+	{"storage", "sd_removed_err", "", true, true},
+	{"storage", "ufs_hwreset_err", "", true, true},
+	{"storage", "ufs_medium_err", "", true, true},
+	{"tsp", "tsp_int_fault", "", true, false},
+	{"tsp_sub", "tsp_int_fault", "", true, false},
+	{"ub_main", "ub_disconnected", "", true, true},
+	{"ub_sub", "ub_disconnected", "", true, true},
+	{"vib", "fw_load_fail", "it", true, true},
+	{"vib", "int_gnd_short", "", true, false},
 #if IS_ENABLED(CONFIG_SEC_KUNIT)
-	{"kunit", "test_warn", true, true},
-	{"kunit", "test_info", true, true},
-	{"kunit", "test_error", true, true},
+	{"kunit", "test_warn", "", true, true},
+	{"kunit", "test_info", "", true, true},
+	{"kunit", "test_error", "", true, true},
 #endif
 };
 EXPORT_SYMBOL_KUNIT(abc_event_list);
@@ -205,8 +216,8 @@ void sec_abc_send_uevent(struct abc_key_data *key_data, char *uevent_type)
 	uevent_str[0] = uevent_module_str;
 	uevent_str[1] = uevent_event_str;
 	uevent_str[2] = timestamp;
-	if (key_data->host_name[0]) {
-		snprintf(uevent_host_str, ABC_EVENT_STR_MAX, "HOST=%s", key_data->host_name);
+	if (abc_event_list[key_data->idx].host[0]) {
+		snprintf(uevent_host_str, ABC_EVENT_STR_MAX, "HOST=%s", abc_event_list[key_data->idx].host);
 		uevent_str[3] = uevent_host_str;
 	}
 
@@ -503,7 +514,7 @@ ssize_t features_show(struct device *dev,
 {
 	int count = 0;
 
-	count += scnprintf(buf, PAGE_SIZE, "spec_control\nissue_tracker\n");
+	count += scnprintf(buf, PAGE_SIZE, "spec_control\nhost\n");
 
 	return count;
 }
@@ -530,11 +541,11 @@ EXPORT_SYMBOL(sec_abc_get_enabled);
 
 static void sec_abc_work_func_clear_pre_events(struct work_struct *work)
 {
-	ABC_PRINT("start");
+	ABC_DEBUG("start");
 
 	sec_abc_clear_pre_events();
 
-	ABC_PRINT("end");
+	ABC_DEBUG("end");
 }
 
 #if IS_ENABLED(CONFIG_UML)
@@ -544,7 +555,6 @@ static void sec_abc_init_key_data(struct abc_key_data *key_data)
 	memset(key_data->event_name, 0, sizeof(key_data->event_name));
 	memset(key_data->event_type, 0, sizeof(key_data->event_type));
 	memset(key_data->ext_log, 0, sizeof(key_data->ext_log));
-	memset(key_data->host_name, 0, sizeof(key_data->host_name));
 }
 #endif
 
@@ -558,7 +568,7 @@ static void sec_abc_work_func(struct work_struct *work)
 
 	event_work_data = container_of(work, struct abc_event_work, work);
 
-	ABC_PRINT("work start. str : %s", event_work_data->abc_str);
+	ABC_DEBUG("work start. str : %s", event_work_data->abc_str);
 
 #if IS_ENABLED(CONFIG_UML)
 	sec_abc_init_key_data(&key_data);
@@ -609,7 +619,7 @@ static void sec_abc_work_func(struct work_struct *work)
 	}
 
 abc_work_end:
-	ABC_PRINT("work done");
+	ABC_DEBUG("work done");
 	mutex_unlock(&pinfo->work_mutex);
 #if IS_ENABLED(CONFIG_SEC_KUNIT)
 	complete(&pinfo->test_work_done);
@@ -631,7 +641,7 @@ void sec_abc_enqueue_work(struct abc_event_work work_data[], char *str)
 
 	for (idx = 0; idx < ABC_WORK_MAX; idx++) {
 		if (!work_pending(&work_data[idx].work)) {
-			ABC_PRINT("Event %s use work[%d]", str, idx);
+			ABC_DEBUG("Event %s use work[%d]", str, idx);
 			strlcpy(work_data[idx].abc_str, str, ABC_BUFFER_MAX);
 			queue_work(pinfo->workqueue, &work_data[idx].work);
 			return;

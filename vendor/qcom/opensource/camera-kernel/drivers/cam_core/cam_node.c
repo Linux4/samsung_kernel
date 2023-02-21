@@ -113,7 +113,7 @@ static int __cam_node_handle_acquire_dev(struct cam_node *node,
 		goto free_ctx;
 	}
 
-	CAM_INFO(CAM_CORE, "[%s] Acquire ctx_id %d dev_hdl %d",
+	CAM_DBG(CAM_CORE, "[%s] Acquire ctx_id %d dev_hdl %d",
 		node->name, ctx->ctx_id, acquire->dev_handle);
 
 	return 0;
@@ -427,7 +427,6 @@ static int __cam_node_handle_release_dev(struct cam_node *node,
 	cam_context_putref(ctx);
 
 destroy_dev_hdl:
-	CAM_INFO(CAM_CORE, "[%s] Release call ctx_id %d dev_hdl %d",node->name, ctx->ctx_id, release->dev_handle);
 	rc = cam_destroy_device_hdl(release->dev_handle);
 	if (rc)
 		CAM_ERR(CAM_CORE, "destroy device hdl failed for node %s",

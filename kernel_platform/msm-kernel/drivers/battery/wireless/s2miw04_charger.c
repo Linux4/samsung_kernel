@@ -3755,6 +3755,8 @@ static int mfc_s2miw04_chg_set_property(struct power_supply *psy,
 			charger->led_cover = val->intval;
 			pr_info("%s: LED_COVER(%d)\n", __func__, charger->led_cover);
 			break;
+		case POWER_SUPPLY_EXT_PROP_WIRELESS_WR_CONNECTED:
+			break;
 		default:
 			return -ENODATA;
 		}

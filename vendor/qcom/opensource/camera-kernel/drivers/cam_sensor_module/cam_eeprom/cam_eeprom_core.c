@@ -3408,7 +3408,7 @@ static int32_t cam_eeprom_get_dev_handle(struct cam_eeprom_ctrl_t *e_ctrl,
 	e_ctrl->bridge_intf.device_hdl = eeprom_acq_dev.device_handle;
 	e_ctrl->bridge_intf.session_hdl = eeprom_acq_dev.session_handle;
 
-	CAM_INFO(CAM_EEPROM, "EEPROM Device Handle: %d", eeprom_acq_dev.device_handle);
+	CAM_DBG(CAM_EEPROM, "Device Handle: %d", eeprom_acq_dev.device_handle);
 	if (copy_to_user(u64_to_user_ptr(cmd->handle),
 		&eeprom_acq_dev, sizeof(struct cam_sensor_acquire_dev))) {
 		CAM_ERR(CAM_EEPROM, "EEPROM:ACQUIRE_DEV: copy to user failed");
@@ -5114,7 +5114,6 @@ int32_t cam_eeprom_driver_cmd(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 			rc = -EINVAL;
 			goto release_mutex;
 		}
-		CAM_INFO(CAM_EEPROM, "EEPROM Device Handle: %d", e_ctrl->bridge_intf.device_hdl);
 		rc = cam_destroy_device_hdl(e_ctrl->bridge_intf.device_hdl);
 		if (rc < 0)
 			CAM_ERR(CAM_EEPROM,

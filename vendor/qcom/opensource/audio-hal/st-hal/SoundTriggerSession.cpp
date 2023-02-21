@@ -629,8 +629,9 @@ int SoundTriggerSession::StartRecognition(
         ss_param->ctrl_LPSD = 0;
         ss_param->ctrl_VT = 0;
         ss_param->ctrl_hist_buf_time = backlog_size;
-        ALOGD("%s: ss_param->ctrl_SVT_MODE %d, ss_param->ctrl_hist_buf_time %d",
-            __func__, ss_param->ctrl_SVT_MODE, ss_param->ctrl_hist_buf_time);
+        rec_config_->capture_handle = AUDIO_IO_HANDLE_NONE;
+        ALOGD("%s: ss_param->ctrl_SVT_MODE %d, ss_param->ctrl_hist_buf_time %d, rec_config_->capture_handle = %d",
+            __func__, ss_param->ctrl_SVT_MODE, ss_param->ctrl_hist_buf_time, rec_config_->capture_handle);
     } else {
 #endif
     if (version == SOUND_TRIGGER_DEVICE_API_VERSION_1_3) {

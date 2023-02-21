@@ -31,6 +31,14 @@ struct log_buf_logger {
 	void (*remove)(struct log_buf_drvdata *);
 };
 
+struct ap_klog_proc {
+	char *buf;
+	size_t size;
+	struct mutex lock;
+	unsigned int ref_cnt;
+	struct proc_dir_entry *proc;
+};
+
 struct log_buf_drvdata {
 	struct builder bd;
 	struct reserved_mem *rmem;
@@ -44,6 +52,7 @@ struct log_buf_drvdata {
 	};
 	const struct log_buf_logger *logger;
 	struct last_kmsg_data last_kmsg;
+	struct ap_klog_proc ap_klog;
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 	struct dentry *dbgfs;
 #endif
@@ -61,6 +70,7 @@ extern void __log_buf_write(const char *s, size_t count);
 extern void __log_buf_store_from_kmsg_dumper(void);
 extern const struct sec_log_buf_head *__log_buf_get_header(void);
 extern ssize_t ___log_buf_get_buf_size(void);
+extern size_t __log_buf_copy_to_buffer(void *buf);
 
 /* sec_log_buf_last_kmsg.c */
 extern int __last_kmsg_alloc_buffer(struct builder *bd);
@@ -96,5 +106,9 @@ extern const struct log_buf_logger *__log_buf_logger_console_creator(void);
 
 /* sec_log_buf_vh_log_buf.c */
 extern const struct log_buf_logger *__log_buf_logger_vh_logbuf_creator(void);
+
+/* sec_log_buf_ap_klog.c */
+extern int __ap_klog_proc_init(struct builder *bd);
+extern void __ap_klog_proc_exit(struct builder *bd);
 
 #endif /* __INTERNAL__SEC_QC_LOG_BUF_H__ */

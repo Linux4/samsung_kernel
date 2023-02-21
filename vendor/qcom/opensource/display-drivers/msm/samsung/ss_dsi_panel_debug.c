@@ -941,14 +941,14 @@ int ss_read_ddi_debug_reg(struct samsung_display_driver_data *vdd)
 
 	ss_read_pps_data(vdd);
 
-	SS_XLOG(rddpm, rddsm, esderr, dsierr_cnt, protocol_err, ecc, flash_done);
-
-	if (ret)
+	if (ret) {
 		LCD_INFO(vdd, "error: panel dbg: %x %x %x %x %x %x %x\n",
 				rddpm, rddsm, esderr, dsierr_cnt, protocol_err, ecc, flash_done);
-	else
+		SS_XLOG(vdd->ndx, rddpm, rddsm, esderr, dsierr_cnt, protocol_err, ecc, flash_done);
+	} else {
 		LCD_INFO(vdd, "pass: panel dbg: %x %x %x %x %x %x %x\n",
 				rddpm, rddsm, esderr, dsierr_cnt, protocol_err, ecc, flash_done);
+	}
 
 	return ret;
 }

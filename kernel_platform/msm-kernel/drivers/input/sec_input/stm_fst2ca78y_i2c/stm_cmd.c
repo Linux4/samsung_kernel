@@ -598,7 +598,7 @@ static ssize_t fod_pos_show(struct device *dev,
 
 	if (!ts->plat_data->support_fod) {
 		input_err(true, &ts->client->dev, "%s: fod is not supported\n", __func__);
-		return snprintf(buf, SEC_CMD_BUF_SIZE, "NG");
+		return snprintf(buf, SEC_CMD_BUF_SIZE, "NA");
 	}
 
 	if (!ts->plat_data->fod_data.vi_size) {
@@ -709,6 +709,7 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 
 	if (buff[0] == DISPLAY_STATE_ON && buff[1] == DISPLAY_EVENT_LATE) {
 		if (ts->plat_data->enabled) {
+			ts->plat_data->display_state = DISPLAY_STATE_ON;
 			input_err(true, &ts->client->dev, "%s: device already enabled\n", __func__);
 			goto out;
 		}
@@ -2123,6 +2124,7 @@ static void run_lcdoff_mutual_jitter(void *device_data)
 	if (ret < 0) {
 		input_err(true, &ts->client->dev, "%s: failed to write command\n", __func__);
 		mutex_unlock(&ts->fn_mutex);
+		enable_irq(ts->irq);
 		goto ERROR;
 	}
 
@@ -6532,7 +6534,6 @@ static void set_sip_mode(void *device_data)
 	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
 	char buff[SEC_CMD_STR_LEN] = { 0 };
 	int ret;
-	u8 reg[3] = { 0 };
 
 	sec_cmd_set_default_result(sec);
 
@@ -6540,20 +6541,27 @@ static void set_sip_mode(void *device_data)
 		snprintf(buff, sizeof(buff), "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 	} else {
-		reg[0] = STM_TS_CMD_SET_FUNCTION_ONOFF;
-		reg[1] = STM_TS_FUNCTION_ENABLE_SIP_MODE;
-		reg[2] = sec->cmd_param[0];
-		ret = ts->stm_ts_write(ts, reg, 3, NULL, 0);
+		ts->sip_mode = sec->cmd_param[0];
+
+		if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
+			input_info(true, &ts->client->dev, "%s: Touch is stopped\n", __func__);
+			snprintf(buff, sizeof(buff), "OK");
+			sec->cmd_state = SEC_CMD_STATUS_OK;
+			goto out_sip_mode;
+		}
+
+		ret = stm_ts_sip_mode_enable(ts);
 		if (ret < 0) {
 			snprintf(buff, sizeof(buff), "NG");
 			sec->cmd_state = SEC_CMD_STATUS_FAIL;
 		} else {
-			input_info(true, &ts->client->dev, "%s: %s\n", __func__, reg[2] ? "enable" : "disable");
+			input_info(true, &ts->client->dev, "%s: %s\n", __func__, ts->sip_mode ? "enable" : "disable");
 			snprintf(buff, sizeof(buff), "OK");
 			sec->cmd_state = SEC_CMD_STATUS_OK;
 		}
 	}
 
+out_sip_mode:
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec->cmd_state = SEC_CMD_STATUS_WAITING;
 	sec_cmd_set_cmd_exit(sec);
@@ -6567,7 +6575,6 @@ static void set_game_mode(void *device_data)
 	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
 	char buff[SEC_CMD_STR_LEN] = { 0 };
 	int ret;
-	u8 reg[3] = { 0 };
 
 	sec_cmd_set_default_result(sec);
 
@@ -6575,20 +6582,27 @@ static void set_game_mode(void *device_data)
 		snprintf(buff, sizeof(buff), "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 	} else {
-		reg[0] = STM_TS_CMD_SET_FUNCTION_ONOFF;
-		reg[1] = STM_TS_CMD_FUNCTION_SET_GAME_MODE;
-		reg[2] = sec->cmd_param[0];
-		ret = ts->stm_ts_write(ts, reg, 3, NULL, 0);
+		ts->game_mode = sec->cmd_param[0];
+
+		if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
+			input_info(true, &ts->client->dev, "%s: Touch is stopped\n", __func__);
+			snprintf(buff, sizeof(buff), "OK");
+			sec->cmd_state = SEC_CMD_STATUS_OK;
+			goto out_game_mode;
+		}
+
+		ret = stm_ts_game_mode_enable(ts);
 		if (ret < 0) {
 			snprintf(buff, sizeof(buff), "NG");
 			sec->cmd_state = SEC_CMD_STATUS_FAIL;
 		} else {
-			input_info(true, &ts->client->dev, "%s: %s\n", __func__, reg[2] ? "enable" : "disable");
+			input_info(true, &ts->client->dev, "%s: %s\n", __func__, ts->game_mode ? "enable" : "disable");
 			snprintf(buff, sizeof(buff), "OK");
 			sec->cmd_state = SEC_CMD_STATUS_OK;
 		}
 	}
 
+out_game_mode:
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec->cmd_state = SEC_CMD_STATUS_WAITING;
 	sec_cmd_set_cmd_exit(sec);
@@ -6602,7 +6616,6 @@ static void set_note_mode(void *device_data)
 	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
 	char buff[SEC_CMD_STR_LEN] = { 0 };
 	int ret;
-	u8 reg[3] = { 0 };
 
 	sec_cmd_set_default_result(sec);
 
@@ -6610,20 +6623,27 @@ static void set_note_mode(void *device_data)
 		snprintf(buff, sizeof(buff), "NG");
 		sec->cmd_state = SEC_CMD_STATUS_FAIL;
 	} else {
-		reg[0] = STM_TS_CMD_SET_FUNCTION_ONOFF;
-		reg[1] = STM_TS_CMD_FUNCTION_SET_NOTE_MODE;
-		reg[2] = sec->cmd_param[0];
-		ret = ts->stm_ts_write(ts, reg, 3, NULL, 0);
+		ts->note_mode = sec->cmd_param[0];
+
+		if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF) {
+			input_info(true, &ts->client->dev, "%s: Touch is stopped\n", __func__);
+			snprintf(buff, sizeof(buff), "OK");
+			sec->cmd_state = SEC_CMD_STATUS_OK;
+			goto out_note_mode;
+		}
+
+		ret = stm_ts_note_mode_enable(ts);
 		if (ret < 0) {
 			snprintf(buff, sizeof(buff), "NG");
 			sec->cmd_state = SEC_CMD_STATUS_FAIL;
 		} else {
-			input_info(true, &ts->client->dev, "%s: %s\n", __func__, reg[2] ? "enable" : "disable");
+			input_info(true, &ts->client->dev, "%s: %s\n", __func__, ts->note_mode ? "enable" : "disable");
 			snprintf(buff, sizeof(buff), "OK");
 			sec->cmd_state = SEC_CMD_STATUS_OK;
 		}
 	}
 
+out_note_mode:
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec->cmd_state = SEC_CMD_STATUS_WAITING;
 	sec_cmd_set_cmd_exit(sec);

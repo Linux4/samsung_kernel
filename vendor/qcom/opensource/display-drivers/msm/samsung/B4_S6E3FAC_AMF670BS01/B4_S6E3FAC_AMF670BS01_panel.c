@@ -413,6 +413,7 @@ done:
 	lfd_base->max_div_def = max_div_def;
 	lfd_base->min_div_def = min_div_def;
 	lfd_base->min_div_lowest = min_div_lowest;
+	lfd_base->fix_div_def = 1; // LFD MAX/MIN 120hz fix
 
 	vrr->lfd.base_rr = base_rr;
 
@@ -570,7 +571,7 @@ static struct dsi_panel_cmd_set *ss_vrr(struct samsung_display_driver_data *vdd,
 	cmd_idx = ss_get_cmd_idx(vrr_cmds, 0x00, 0xF7);
 	if (cmd_idx >= 0)
 		vrr_cmds->cmds[cmd_idx].post_wait_ms = delay / 1000;
-	LCD_INFO(vdd, "VRR delay %d\n", delay);
+	LCD_DEBUG(vdd, "VRR delay %d\n", delay);
 
 	/* VFP setting */
 	cmd_idx = ss_get_cmd_idx(vrr_cmds, 0x08, 0xF2);

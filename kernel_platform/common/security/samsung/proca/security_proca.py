@@ -8,19 +8,19 @@ config = {
         "name": "proca",
     },
     "build": {
-        "path": "security",
+        "path": "security/proca",
         "file": "security_proca.py",
         "location": [
             {
-                "src": "proca/*.c proca/*.h proca/*.asn1 proca/Makefile proca/Kconfig",
+                "src": "*.c *.h *.asn1 Makefile Kconfig",
                 "dst": "security/samsung/proca/",
             },
             {
-                "src": "proca/gaf/*",
+                "src": "gaf/*",
                 "dst": "security/samsung/proca/gaf/",
             },
             {
-                "src": "proca/s_os/*.c proca/s_os/*.h",
+                "src": "s_os/*.c s_os/*.h",
                 "dst": "security/samsung/proca/s_os/",
             },
         ],
@@ -40,15 +40,15 @@ config = {
         "build": {
             "location": [
                 {
-                    "src": "five/kunit_test/test_helpers.h proca/kunit_test/*.c proca/kunit_test/*.h proca/kunit_test/Makefile:cp",
+                    "src": "../five/kunit_test/test_helpers.h kunit_test/*.c kunit_test/*.h kunit_test/Makefile:cp",
                     "dst": "security/samsung/proca/kunit_test/",
                 },
                 {
-                    "src": "five/*.c five/*.h five/*.S five/*.der five/Kconfig proca/kunit_test/five/Makefile",
+                    "src": "../five/*.c ../five/*.h ../five/*.S ../five/*.der ../five/Kconfig kunit_test/five/Makefile",
                     "dst": "security/samsung/five/",
                 },
                 {
-                    "src": "five/s_os/*.c",
+                    "src": "../five/s_os/*.c",
                     "dst": "security/samsung/five/s_os/",
                 },
             ],

@@ -2467,7 +2467,7 @@ static ssize_t gyro_noise_stdev_show(struct device *dev,
 		cam_ois_power_up(g_o_ctrl);
 	}
 	msleep(20);
-	
+
 	result = cam_ois_gyro_sensor_noise_check(g_o_ctrl, &stdev_data_x, &stdev_data_y);
 
 	if (g_o_ctrl->is_power_up) {
@@ -2499,7 +2499,7 @@ static ssize_t gyro_selftest_show(struct device *dev, struct device_attribute *a
 	bool result_offset = 0, result_selftest = 0;
 	uint32_t selftest_ret = 0;
 	long raw_data_x = 0, raw_data_y = 0;
-	int OIS_GYRO_OFFSET_SPEC = 10000;
+	int OIS_GYRO_OFFSET_SPEC = 15000;
 
 #if defined(CONFIG_SAMSUNG_OIS_MCU_STM32)
 	long raw_data_z = 0;
@@ -3229,7 +3229,7 @@ static ssize_t rear_af_hall_show(struct device *dev,
 {
 	int rc = 0;
 	af_hall = 0;
-	
+
 	if(NULL == g_a_ctrls[SEC_WIDE_SENSOR])
 	{
 		CAM_ERR(CAM_ACTUATOR,"[AF] No actuator exists\n");
@@ -3967,13 +3967,6 @@ ssize_t rear_flash_store(struct device *dev,
 			struct device_attribute *attr, const char *buf,
 			size_t count)
 {
-#if defined(CONFIG_SEC_Q4Q_PROJECT)
-    if(strcmp(buf,"z")==0)
-    {
-        CAM_ERR(CAM_UTIL, "[ANKIT_FORCE_PANIC]");
-        BUG();
-    }
-#endif
 #if IS_REACHABLE(CONFIG_LEDS_S2MPB02)
 	s2mpb02_store(buf);
 #elif defined(CONFIG_LEDS_KTD2692)

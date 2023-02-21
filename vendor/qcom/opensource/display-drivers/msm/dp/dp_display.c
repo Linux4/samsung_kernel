@@ -312,13 +312,14 @@ bool secdp_get_lpm_mode(void)
 	return sec->lpm_booting;
 }
 
-void secdp_send_poor_connection_event(void)
+static void secdp_send_poor_connection_event(bool edid_fail)
 {
 	struct dp_display_private *dp = g_secdp_priv;
 
-	DP_INFO("poor connection!\n");
+	DP_INFO("poor connection++ %d\n", edid_fail);
 
-	dp->link->poor_connection = true;
+	if (!edid_fail)
+		dp->link->poor_connection = true;
 
 #if IS_ENABLED(CONFIG_SWITCH)
 	switch_set_state(&switch_secdp_msg, 1);
@@ -2110,7 +2111,7 @@ static int dp_display_process_hpd_high(struct dp_display_private *dp)
 #if defined(CONFIG_SECDP)
 	if (rc == -EINVAL) {
 		/* read EDID is corrupted or invalid, failsafe case */
-		secdp_send_poor_connection_event();
+		secdp_send_poor_connection_event(true);
 	}
 
 	dp->sec.dex.prev = secdp_check_dex_mode();
@@ -2215,7 +2216,7 @@ off:
 
 	mutex_unlock(&dp->session_lock);
 
-	secdp_send_poor_connection_event();
+	secdp_send_poor_connection_event(false);
 	return rc;
 #endif
 }
@@ -2260,6 +2261,7 @@ static int dp_display_process_hpd_low(struct dp_display_private *dp)
 	cancel_delayed_work_sync(&dp->sec.hdcp.start_work);
 	cancel_delayed_work(&dp->sec.link_status_work);
 	cancel_delayed_work(&dp->sec.poor_discon_work);
+	secdp_link_backoff_stop();
 #endif
 
 	dp_audio_enable(dp, false);
@@ -2481,6 +2483,7 @@ static void dp_display_clean(struct dp_display_private *dp)
 	cancel_delayed_work_sync(&dp->sec.hdcp.start_work);
 	cancel_delayed_work(&dp->sec.link_status_work);
 	cancel_delayed_work(&dp->sec.poor_discon_work);
+	secdp_link_backoff_stop();
 #endif
 
 	if (dp_display_is_hdcp_enabled(dp) &&
@@ -2545,7 +2548,7 @@ static void dp_display_disconnect_sync(struct dp_display_private *dp)
 	DP_ENTER("\n");
 
 	if (dp->link->poor_connection) {
-		secdp_send_poor_connection_event();
+		secdp_send_poor_connection_event(false);
 		dp->link->status_update_cnt = 0;
 		dp->sec.hdcp.retry = 0;
 	}
@@ -2793,6 +2796,12 @@ cp_irq:
 		dp->hdcp.ops->cp_irq(dp->hdcp.data);
 
 	if (!dp->mst.mst_active) {
+#if defined(CONFIG_SECDP)
+		if (dp->sec.hpd.noti_deferred) {
+			DP_INFO("noti_deferred! skip noti\n");
+			goto exit;
+		}
+#endif
 		/*
 		 * It is possible that the connect_work skipped sending
 		 * the HPD notification if the attention message was
@@ -2983,7 +2992,7 @@ static void secdp_process_attention(struct dp_display_private *dp,
 
 			/* SECDP_ADT_SST */
 			if (dp->link->poor_connection) {
-				DP_INFO("poor connection!\n");
+				DP_INFO("poor connection!!\n");
 				goto end;
 			}
 
@@ -3182,6 +3191,58 @@ void secdp_self_test_hdcp_off(void)
 }
 #endif
 
+static enum mon_aspect_ratio_t secdp_get_aspect_ratio(struct drm_display_mode *mode)
+{
+	enum mon_aspect_ratio_t aspect_ratio = MON_RATIO_NA;
+	int hdisplay = mode->hdisplay;
+	int vdisplay = mode->vdisplay;
+
+	if ((hdisplay == 4096 && vdisplay == 2160) ||
+		(hdisplay == 3840 && vdisplay == 2160) ||
+		(hdisplay == 2560 && vdisplay == 1440) ||
+		(hdisplay == 1920 && vdisplay == 1080) ||
+		(hdisplay == 1600 && vdisplay ==  900) ||
+		(hdisplay == 1366 && vdisplay ==  768) ||
+		(hdisplay == 1280 && vdisplay ==  720))
+		aspect_ratio = MON_RATIO_16_9;
+	else if ((hdisplay == 2560 && vdisplay == 1600) ||
+		(hdisplay  == 1920 && vdisplay == 1200) ||
+		(hdisplay  == 1680 && vdisplay == 1050) ||
+		(hdisplay  == 1440 && vdisplay ==  900) ||
+		(hdisplay  == 1280 && vdisplay ==  800))
+		aspect_ratio = MON_RATIO_16_10;
+	else if ((hdisplay == 3840 && vdisplay == 1600) ||
+		(hdisplay == 3440 && vdisplay == 1440) ||
+		(hdisplay == 2560 && vdisplay == 1080))
+		aspect_ratio = MON_RATIO_21_9;
+	else if ((hdisplay == 1720 && vdisplay == 1440) ||
+		(hdisplay == 1280 && vdisplay == 1080))
+		aspect_ratio = MON_RATIO_10P5_9;
+	else if (hdisplay == 2520 && vdisplay == 1200)
+		aspect_ratio = MON_RATIO_21_10;
+	else if (hdisplay == 1320 && vdisplay == 1200)
+		aspect_ratio = MON_RATIO_11_10;
+	else if ((hdisplay == 5120 && vdisplay == 1440) ||
+		(hdisplay  == 3840 && vdisplay == 1080))
+		aspect_ratio = MON_RATIO_32_9;
+	else if (hdisplay == 3840 && vdisplay == 1200)
+		aspect_ratio = MON_RATIO_32_10;
+	else if ((hdisplay == 1280 && vdisplay == 1024) ||
+		(hdisplay  ==  720 && vdisplay ==  576))
+		aspect_ratio = MON_RATIO_5_4;
+	else if (hdisplay == 1280 && vdisplay == 768)
+		aspect_ratio = MON_RATIO_5_3;
+	else if ((hdisplay == 1152 && vdisplay == 864) ||
+		(hdisplay  == 1024 && vdisplay == 768) ||
+		(hdisplay  ==  800 && vdisplay == 600) ||
+		(hdisplay  ==  640 && vdisplay == 480))
+		aspect_ratio = MON_RATIO_4_3;
+	else if (hdisplay == 720 && vdisplay == 480)
+		aspect_ratio = MON_RATIO_3_2;
+
+	return aspect_ratio;
+}
+
 /*
  * @target	[inout]	timing to be updated (prefer/mirror/dex)
  * @mode	[in]	timing info to compare
@@ -3195,6 +3256,7 @@ static bool secdp_update_max_timing(struct secdp_display_timing *target,
 	if (!mode) {
 		/* reset */
 		memset(target, 0, sizeof(struct secdp_display_timing));
+		target->mon_ratio = MON_RATIO_NA;
 		ret = true;
 		goto end;
 	}
@@ -3218,6 +3280,7 @@ static bool secdp_update_max_timing(struct secdp_display_timing *target,
 	target->active_v = mode->vdisplay;
 	target->refresh_rate = vrefresh;
 	target->clock = mode->clock;
+	target->mon_ratio = secdp_get_aspect_ratio(mode);
 
 	ret = true;
 end:
@@ -3660,7 +3723,7 @@ int secdp_send_deferred_hpd_noti(void)
 	struct dp_display_private *dp = g_secdp_priv;
 	int rc = 0;
 
-	DP_INFO("+++ %d\n", dp->sec.hpd.noti_deferred);
+	DP_INFO("noti_deferred:%d\n", dp->sec.hpd.noti_deferred);
 
 	cancel_delayed_work_sync(&dp->sec.hpd.noti_work);
 
@@ -3676,7 +3739,7 @@ static void secdp_hpd_noti_work(struct work_struct *work)
 {
 	struct dp_display_private *dp = g_secdp_priv;
 
-	DP_INFO("+++\n");
+	DP_INFO("hpd_noti_work:%d\n", dp->sec.hpd.noti_deferred);
 
 	dp_display_send_hpd_notification(dp);
 	dp->sec.hpd.noti_deferred = false;
@@ -3698,12 +3761,69 @@ static void secdp_poor_disconnect_work(struct work_struct *work)
 {
 	struct dp_display_private *dp = g_secdp_priv;
 
-	DP_DEBUG("poor:%d\n", dp->link->poor_connection);
+	DP_INFO("poor:%d\n", dp->link->poor_connection);
 
 	if (!dp->link->poor_connection)
 		dp->link->poor_connection = true;
 
 	dp_display_disconnect_sync(dp);
+}
+
+#define LINK_BACKOFF_TIMER	120000	/*2min*/
+
+void secdp_link_backoff_start(void)
+{
+	struct dp_display_private *dp = g_secdp_priv;
+	struct secdp_misc *sec = &dp->sec;
+
+	if (sec->backoff_start) {
+		//DP_DEBUG("[backoff] already queued\n");
+		return;
+	}
+
+	schedule_delayed_work(&sec->link_backoff_work,
+			msecs_to_jiffies(LINK_BACKOFF_TIMER));
+	sec->backoff_start = true;
+	DP_INFO("[backoff] started\n");
+}
+
+void secdp_link_backoff_stop(void)
+{
+	struct dp_display_private *dp = g_secdp_priv;
+	struct secdp_misc *sec = &dp->sec;
+
+	if (!sec->backoff_start) {
+		//DP_DEBUG("[backoff] already cancelled\n");
+		return;
+	}
+
+	cancel_delayed_work(&sec->link_backoff_work);
+	sec->backoff_start = false;
+	DP_INFO("[backoff] stopped\n");
+}
+
+static void secdp_link_backoff_work(struct work_struct *work)
+{
+	struct dp_display_private *dp = g_secdp_priv;
+	struct secdp_misc *sec = &dp->sec;
+
+	if (!secdp_get_cable_status() || !dp_display_state_is(DP_STATE_ENABLED))
+		return;
+
+	//DP_DEBUG("[backoff] status_update_cnt %d\n", dp->link->status_update_cnt);
+
+	if (dp->link->status_update_cnt > 0)
+		dp->link->status_update_cnt--;
+
+	if (!dp->link->status_update_cnt) {
+		sec->backoff_start = false;
+		DP_INFO("[backoff] finished\n");
+		return;
+	}
+
+	schedule_delayed_work(&sec->link_backoff_work,
+			msecs_to_jiffies(LINK_BACKOFF_TIMER));
+	DP_INFO("[backoff] re-started %d\n", dp->link->status_update_cnt);
 }
 
 /**
@@ -3717,10 +3837,10 @@ static void secdp_link_status_work(struct work_struct *work)
 	struct secdp_misc *sec = &dp->sec;
 	int status_update_cnt = dp->link->status_update_cnt;
 
-	DP_INFO("status_update_cnt %d\n", status_update_cnt);
+	DP_INFO("[link_work] status_update_cnt %d\n", status_update_cnt);
 
 	if (dp->link->poor_connection) {
-		DP_INFO("poor_connection!\n");
+		DP_INFO("[link_work] poor connection!\n");
 		goto poor_disconnect;
 	}
 
@@ -3768,6 +3888,7 @@ static int secdp_init(struct dp_display_private *dp)
 	INIT_DELAYED_WORK(&sec->hpd.noti_work, secdp_hpd_noti_work);
 	INIT_DELAYED_WORK(&sec->hdcp.start_work, secdp_hdcp_start_work);
 	INIT_DELAYED_WORK(&sec->link_status_work, secdp_link_status_work);
+	INIT_DELAYED_WORK(&sec->link_backoff_work, secdp_link_backoff_work);
 	INIT_DELAYED_WORK(&sec->poor_discon_work, secdp_poor_disconnect_work);
 
 	INIT_DELAYED_WORK(&sec->pdic_noti.reg_work, secdp_pdic_noti_register);
@@ -4681,6 +4802,7 @@ static int dp_display_pre_disable(struct dp_display *dp_display, void *panel)
 	cancel_delayed_work_sync(&dp->sec.hdcp.start_work);
 	cancel_delayed_work(&dp->sec.link_status_work);
 	cancel_delayed_work(&dp->sec.poor_discon_work);
+	secdp_link_backoff_stop();
 #endif
 
 	if (dp_display_is_hdcp_enabled(dp) &&
@@ -4890,6 +5012,7 @@ void secdp_timing_init(void)
 	struct dp_display_private *dp = g_secdp_priv;
 	struct secdp_misc *sec = &dp->sec;
 	struct secdp_prefer *prefer = &sec->prefer;
+	struct secdp_dex *dex = &sec->dex;
 
 	secdp_update_max_timing(&sec->prf_timing, NULL);
 	secdp_update_max_timing(&sec->mrr_timing, NULL);
@@ -4901,6 +5024,8 @@ void secdp_timing_init(void)
 	prefer->hdisp    = 0;
 	prefer->vdisp    = 0;
 	prefer->refresh  = 0;
+
+	dex->ignore_prefer_ratio = false;
 
 #ifdef SECDP_IGNORE_PREFER
 	sec->dex.res_exist = false;
@@ -5085,58 +5210,6 @@ static bool secdp_check_refresh_rate(struct drm_display_mode *mode)
 	return ret;
 }
 
-static enum mon_aspect_ratio_t secdp_get_aspect_ratio(struct drm_display_mode *mode)
-{
-	enum mon_aspect_ratio_t aspect_ratio = MON_RATIO_NA;
-	int hdisplay = mode->hdisplay;
-	int vdisplay = mode->vdisplay;
-
-	if ((hdisplay == 4096 && vdisplay == 2160) ||
-		(hdisplay == 3840 && vdisplay == 2160) ||
-		(hdisplay == 2560 && vdisplay == 1440) ||
-		(hdisplay == 1920 && vdisplay == 1080) ||
-		(hdisplay == 1600 && vdisplay ==  900) ||
-		(hdisplay == 1366 && vdisplay ==  768) ||
-		(hdisplay == 1280 && vdisplay ==  720))
-		aspect_ratio = MON_RATIO_16_9;
-	else if ((hdisplay == 2560 && vdisplay == 1600) ||
-		(hdisplay  == 1920 && vdisplay == 1200) ||
-		(hdisplay  == 1680 && vdisplay == 1050) ||
-		(hdisplay  == 1440 && vdisplay ==  900) ||
-		(hdisplay  == 1280 && vdisplay ==  800))
-		aspect_ratio = MON_RATIO_16_10;
-	else if ((hdisplay == 3840 && vdisplay == 1600) ||
-		(hdisplay == 3440 && vdisplay == 1440) ||
-		(hdisplay == 2560 && vdisplay == 1080))
-		aspect_ratio = MON_RATIO_21_9;
-	else if ((hdisplay == 1720 && vdisplay == 1440) ||
-		(hdisplay == 1280 && vdisplay == 1080))
-		aspect_ratio = MON_RATIO_10P5_9;
-	else if (hdisplay == 2520 && vdisplay == 1200)
-		aspect_ratio = MON_RATIO_21_10;
-	else if (hdisplay == 1320 && vdisplay == 1200)
-		aspect_ratio = MON_RATIO_11_10;
-	else if ((hdisplay == 5120 && vdisplay == 1440) ||
-		(hdisplay  == 3840 && vdisplay == 1080))
-		aspect_ratio = MON_RATIO_32_9;
-	else if (hdisplay == 3840 && vdisplay == 1200)
-		aspect_ratio = MON_RATIO_32_10;
-	else if ((hdisplay == 1280 && vdisplay == 1024) ||
-		(hdisplay  ==  720 && vdisplay ==  576))
-		aspect_ratio = MON_RATIO_5_4;
-	else if (hdisplay == 1280 && vdisplay == 768)
-		aspect_ratio = MON_RATIO_5_3;
-	else if ((hdisplay == 1152 && vdisplay == 864) ||
-		(hdisplay  == 1024 && vdisplay == 768) ||
-		(hdisplay  ==  800 && vdisplay == 600) ||
-		(hdisplay  ==  640 && vdisplay == 480))
-		aspect_ratio = MON_RATIO_4_3;
-	else if (hdisplay == 720 && vdisplay == 480)
-		aspect_ratio = MON_RATIO_3_2;
-
-	return aspect_ratio;
-}
-
 static bool secdp_exceed_mst_max_pclk(struct drm_display_mode *mode)
 {
 	bool ret = false;
@@ -5201,18 +5274,33 @@ static bool secdp_check_dex_resolution(struct dp_display_private *dp,
 				struct drm_display_mode *mode)
 {
 	struct secdp_display_timing *dex_table = secdp_dex_resolution;
+	struct secdp_misc *sec = NULL;
+	struct secdp_prefer *prefer = NULL;
+	struct secdp_dex *dex = NULL;
+	enum mon_aspect_ratio_t mode_ratio = MON_RATIO_NA;
 	u64 i;
 	bool mode_interlaced = !!(mode->flags & DRM_MODE_FLAG_INTERLACE);
 	bool prefer_support, prefer_mode, ret = false;
 
+	if (!dp->panel->edid_ctrl->edid) {
+		/*fail safe*/
+		ret = true;
+		goto end;
+	}
+
 	if (!secdp_check_dex_refresh(mode))
 		goto end;
+
+	sec = &dp->sec;
+	prefer = &sec->prefer;
+	dex = &sec->dex;
+	mode_ratio = secdp_get_aspect_ratio(mode);
 
 	prefer_support = dp->parser->prefer_support;
 	prefer_mode = secdp_check_prefer_resolution(dp, mode);
 	if (prefer_support && prefer_mode &&
 			secdp_check_dex_rowcol(mode) &&
-			secdp_check_dex_ratio(secdp_get_aspect_ratio(mode))) {
+			secdp_check_dex_ratio(mode_ratio)) {
 		ret = true;
 		goto end;
 	}
@@ -5220,7 +5308,11 @@ static bool secdp_check_dex_resolution(struct dp_display_private *dp,
 	for (i = 0; i < ARRAY_SIZE(secdp_dex_resolution); i++) {
 		if ((mode_interlaced != dex_table[i].interlaced) ||
 				(mode->hdisplay != dex_table[i].active_h) ||
-				(mode->vdisplay != dex_table[i].active_v))
+				(mode->vdisplay != dex_table[i].active_v) ||
+				!secdp_check_dex_ratio(mode_ratio))
+			continue;
+
+		if (!dex->ignore_prefer_ratio && mode_ratio != prefer->ratio)
 			continue;
 
 		if (dex_table[i].dex_res <= secdp_get_dex_res()) {
@@ -5246,6 +5338,7 @@ static bool secdp_check_resolution(struct dp_display_private *dp,
 {
 	struct secdp_prefer *prefer = NULL;
 	struct secdp_misc *sec = NULL;
+	struct secdp_dex *dex = NULL;
 	struct secdp_display_timing *prf_timing, *mrr_timing, *dex_timing;
 	bool prefer_support, prefer_mode, ret = false, dex_supported = false;
 	bool mrr_fps_nolimit = true;
@@ -5257,6 +5350,7 @@ static bool secdp_check_resolution(struct dp_display_private *dp,
 	}
 
 	sec = &dp->sec;
+	dex = &sec->dex;
 	prefer = &sec->prefer;
 	prefer_support = dp->parser->prefer_support;
 	mrr_fps_nolimit = dp->parser->mrr_fps_nolimit;
@@ -5268,6 +5362,11 @@ static bool secdp_check_resolution(struct dp_display_private *dp,
 	prefer_mode = secdp_check_prefer_resolution(dp, mode);
 	if (prefer_mode) {
 		secdp_show_max_timing(dp);
+
+		if ((mrr_timing->clock || prf_timing->clock) && !dex_timing->clock) {
+			dex->ignore_prefer_ratio = true;
+			DP_INFO("[dex] ignore prefer ratio\n");
+		}
 
 		prefer->ratio = secdp_get_aspect_ratio(mode);
 		DP_INFO("prefer timing found! %dx%d@%dhz, %s\n",
@@ -5288,6 +5387,11 @@ static bool secdp_check_resolution(struct dp_display_private *dp,
 
 	if (prefer->ratio == MON_RATIO_NA) {
 		DP_INFO("prefer timing is absent!\n");
+
+		if ((mrr_timing->clock || prf_timing->clock) && !dex_timing->clock) {
+			dex->ignore_prefer_ratio = true;
+			DP_INFO("[dex] ignore prefer ratio\n");
+		}
 
 		prefer->ratio = secdp_get_aspect_ratio(mode);
 		if (prefer->ratio != MON_RATIO_NA) {

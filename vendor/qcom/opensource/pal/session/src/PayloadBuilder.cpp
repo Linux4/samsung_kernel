@@ -1819,12 +1819,23 @@ int PayloadBuilder::getBtDeviceKV(int dev_id, std::vector<std::pair<int,int>>& d
     filled_selector_pairs.push_back(std::make_pair(CODECFORMAT_SEL,
                                    btCodecFormatLUT.at(codecFormat)));
 
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    if (dev_id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
+        dev_id == PAL_DEVICE_OUT_BLUETOOTH_BLE ||
+        dev_id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST) {
+#else
     if (dev_id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+#endif
         filled_selector_pairs.push_back(std::make_pair(ABR_ENABLED_SEL,
             isAbrEnabled ? "TRUE" : "FALSE"));
         filled_selector_pairs.push_back(std::make_pair(HOSTLESS_SEL,
             isHostless ? "TRUE" : "FALSE"));
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    } else if (dev_id == PAL_DEVICE_IN_BLUETOOTH_A2DP ||
+        dev_id == PAL_DEVICE_IN_BLUETOOTH_BLE) {
+#else
     } else if (dev_id == PAL_DEVICE_IN_BLUETOOTH_A2DP) {
+#endif
         filled_selector_pairs.push_back(std::make_pair(HOSTLESS_SEL,
             isHostless ? "TRUE" : "FALSE"));
     }
@@ -2327,11 +2338,7 @@ std::vector<std::pair<selector_type_t, std::string>> PayloadBuilder::getSelector
     if (!s) {
         PAL_ERR(LOG_TAG, "stream is NULL");
         filled_selector_pairs.clear();
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
         goto free_sattr;
-#else
-        goto exit;
-#endif
     }
 
     status = s->getStreamAttributes(sattr);
@@ -2781,21 +2788,13 @@ int PayloadBuilder::populateDevicePPCkv(Stream *s, std::vector <std::pair<int,in
     status = s->getAssociatedDevices(associatedDevices);
     if (0 != status) {
        PAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
        goto free_sattr;
-#else
-       goto exit;
-#endif
     }
     for (int i = 0; i < associatedDevices.size();i++) {
         status = associatedDevices[i]->getDeviceAttributes(&dAttr);
         if (0 != status) {
             PAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
             goto free_sattr;
-#else
-            goto exit;
-#endif
         }
 
         switch (sattr->type) {
@@ -3007,22 +3006,14 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {
             PAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
             goto error_1;
-#else
-            return status;
-#endif
         }
 
         for (int i = 0; i < associatedDevices.size(); i++) {
             status = associatedDevices[i]->getDeviceAttributes(&dAttr);
             if (0 != status) {
                 PAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
                 goto error_1;
-#else
-                return status;
-#endif
             }
             if (dAttr.id == PAL_DEVICE_OUT_SPEAKER) {
                 if (dAttr.config.ch_info.channels > 1) {
@@ -3041,22 +3032,14 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {
             PAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
             goto error_1;
-#else
-            return status;
-#endif
         }
 
         for (int i = 0; i < associatedDevices.size(); i++) {
             status = associatedDevices[i]->getDeviceAttributes(&dAttr);
             if (0 != status) {
                 PAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
                 goto error_1;
-#else
-                return status;
-#endif
             }
             if (dAttr.id == PAL_DEVICE_IN_VI_FEEDBACK) {
                 if (dAttr.config.ch_info.channels > 1) {

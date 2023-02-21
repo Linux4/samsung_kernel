@@ -693,6 +693,36 @@ static void s2asl01_powermeter_onoff(
 	}
 }
 
+static bool s2asl01_get_poweroff_mode2(
+		struct s2asl01_limiter_data *limiter)
+{
+	u8 data = 0;
+
+	s2asl01_read_reg(limiter->client, S2ASL01_LIMITER_CORE_CTRL2, &data);
+	data &= S2ASL01_SUB_PWR_OFF_MODE_MASK;
+
+	pr_info("%s [%s]: mode = %d [0 : mode2, 1: mode 1]\n", __func__, current_limiter_type_str[limiter->pdata->bat_type], data);
+
+	if (!data)
+		return true;
+	else
+		return false;
+}
+
+static void s2asl01_set_poweroff_mode2(
+		struct s2asl01_limiter_data *limiter, bool en)
+{
+	pr_info("%s [%s]: (%d)\n", __func__, current_limiter_type_str[limiter->pdata->bat_type], en);
+
+	if (en) {
+		s2asl01_update_reg(limiter->client, S2ASL01_LIMITER_CORE_CTRL2,
+			S2ASL01_SUB_PWR_OFF_MODE2, S2ASL01_SUB_PWR_OFF_MODE_MASK);		
+	} else {
+		s2asl01_update_reg(limiter->client, S2ASL01_LIMITER_CORE_CTRL2,
+			S2ASL01_SUB_PWR_OFF_MODE1, S2ASL01_SUB_PWR_OFF_MODE_MASK);
+	}
+}
+
 static void s2asl01_tsd_onoff(
 		struct s2asl01_limiter_data *limiter, bool onoff)
 {
@@ -771,6 +801,9 @@ static int s2asl01_get_property(struct power_supply *psy,
 			break;
 		case POWER_SUPPLY_EXT_PROP_POWERMETER_ENABLE:
 			val->intval = limiter->power_meter;
+			break;
+		case POWER_SUPPLY_EXT_PROP_POWER_MODE2:
+			val->intval = s2asl01_get_poweroff_mode2(limiter);
 			break;
 		default:
 			return -EINVAL;
@@ -851,6 +884,10 @@ static int s2asl01_set_property(struct power_supply *psy,
 			break;
 		case POWER_SUPPLY_EXT_PROP_POWERMETER_ENABLE:
 			s2asl01_init_regs(limiter);
+			s2asl01_test_read(limiter->client);
+			break;
+		case POWER_SUPPLY_EXT_PROP_POWER_MODE2:
+			s2asl01_set_poweroff_mode2(limiter, val->intval);
 			s2asl01_test_read(limiter->client);
 			break;
 		default:
@@ -1127,10 +1164,18 @@ static void s2asl01_init_regs(struct s2asl01_limiter_data *limiter)
 
 	pr_err("%s: s2asl01 limiter initialize\n", __func__);
 
-	/* SUB_PWR_OFF_MODE disable */
-	s2asl01_update_reg(limiter->client, S2ASL01_LIMITER_CORE_CTRL2,
-		S2ASL01_SUB_PWR_OFF_MODE1, S2ASL01_SUB_PWR_OFF_MODE_MASK);
-
+#if defined(CONFIG_SEC_FACTORY)
+	if (limiter->pdata->bat_type & LIMITER_MAIN) {
+		/* MAIN disable SUB_PWR_OFF_MODE */
+		s2asl01_set_poweroff_mode2(limiter, 0);
+	} else {
+		/* SUB enable SUB_PWR_OFF_MODE */
+		s2asl01_set_poweroff_mode2(limiter, 1);
+	}
+#else
+	/* MAIN/SUB both disable SUB_PWR_OFF_MODE */
+	s2asl01_set_poweroff_mode2(limiter, 0);
+#endif
 	s2asl01_powermeter_onoff(limiter, 1);
 
 	/* chg mode setting */

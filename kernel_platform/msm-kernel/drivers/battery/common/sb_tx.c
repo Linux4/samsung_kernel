@@ -68,6 +68,7 @@ struct sb_tx_aov {
 	unsigned int low_freq;
 	unsigned int high_freq;
 	unsigned int delay;
+	unsigned int preset_delay;
 	unsigned int phm_icl;
 	unsigned int phm_icl_full;
 };
@@ -197,13 +198,13 @@ int sb_tx_monitor_aov(int vout, bool phm)
 	case AOV_STATE_PRESET:
 		if (vout < aov->start_vout) {
 			if (prev_aov_state == AOV_STATE_NONE) {
-				sec_bat_run_wpc_tx_work(battery, (aov->delay + 1000));
+				sec_bat_run_wpc_tx_work(battery, (aov->preset_delay + 1000));
 			} else {
 				vout = vout + AOV_VOUT_STEP;
 				sec_vote(battery->iv_vote, VOTER_WC_TX, true, vout);
 				sec_bat_wireless_vout_cntl(tx->battery, vout);
 				sec_bat_run_wpc_tx_work(battery,
-					((vout == aov->start_vout) ? (aov->delay * 2) : 500));
+					((vout == aov->start_vout) ? (aov->preset_delay * 2) : 500));
 			}
 			break;
 		}
@@ -356,6 +357,7 @@ static int sb_tx_parse_aov_dt(struct device_node *np, struct sb_tx_aov *aov)
 	sb_of_parse_u32(np, aov, low_freq, 131);
 	sb_of_parse_u32(np, aov, high_freq, 147);
 	sb_of_parse_u32(np, aov, delay, 3000);
+	sb_of_parse_u32(np, aov, preset_delay, 3000);
 	return 0;
 }
 

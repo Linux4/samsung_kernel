@@ -3739,6 +3739,13 @@ wl_cfg80211_stop_ap(
 		return BCME_OK;
 	}
 
+#if defined(AP_LESS_BCAST)
+	if (cfg->ap_less_bcast &&
+		!strncmp(cfg->ap_less_bcast_name, dev->name, strlen(cfg->ap_less_bcast_name))) {
+		(void)wl_cfg80211_set_softap_less_bcast(cfg, dev->name, 0);
+	}
+#endif /* AP_LESS_BCAST */
+
 	if ((err = wl_cfg80211_bss_up(cfg, dev, bssidx, 0)) < 0) {
 		WL_ERR(("bss down error %d\n", err));
 	}
@@ -7063,3 +7070,91 @@ wl_cfg80211_set_softap_bw(struct bcm_cfg80211 *cfg, uint32 band, uint32 limit)
 	return BCME_OK;
 }
 #endif /* LIMIT_AP_BW */
+
+#if defined(AP_LESS_BCAST)
+int
+wl_cfg80211_set_softap_less_bcast(struct bcm_cfg80211 *cfg, char *ifname, int enable)
+{
+	int ap_cnt = 0;
+	struct net_device *ndev = NULL;
+	int err;
+	int bi_interval;
+	int fd_val;
+	char buf[WLC_IOCTL_SMLEN] = {0, };
+	char iov_resp[WLC_IOCTL_SMLEN] = {0, };
+	uint16 buflen = WLC_IOCTL_SMLEN, buflen_start = 0;
+	bcm_iov_buf_t *iov_buf = (bcm_iov_buf_t *)buf;
+	uint8 fd_tx_duration;
+	uint8 *pxtlv = NULL;
+	uint16 iovlen = 0;
+
+	ap_cnt = wl_cfgvif_get_iftype_count(cfg, WL_IF_TYPE_AP);
+	if (enable && ap_cnt != 1) {
+		/* disable can be done regardless ap count */
+		WL_ERR(("Control FD TX is supported only if "
+			"single AP case current AP cnt = %d\n", ap_cnt));
+		return BCME_ERROR;
+	}
+
+	ndev = wl_get_ap_netdev(cfg, ifname);
+	if (ndev == NULL) {
+		WL_ERR(("No softAP interface named %s\n", ifname));
+		return BCME_NOTAP;
+	}
+
+	if (!enable) {
+		/* DISABLE LESS BROADCAST */
+		fd_val = APLB_FD_FOREVER;
+		bi_interval = APLB_BI_STEP * APLB_BI_MIN;
+	} else {
+		fd_val = APLB_FD_NONE;
+		bi_interval = enable * APLB_BI_STEP;
+		bzero(cfg->ap_less_bcast_name, sizeof(cfg->ap_less_bcast_name));
+		strncpy(cfg->ap_less_bcast_name, ifname, strlen(ifname));
+	}
+
+	if ((err = wldev_ioctl_set(ndev, WLC_SET_BCNPRD,
+		&bi_interval, sizeof(int))) < 0) {
+		WL_ERR(("FAIL to change BI for SoftAP err = %d\n", err));
+		goto exit;
+	}
+
+	/* fill header */
+	iov_buf->version = WL_OCE_IOV_VERSION_1_1;
+	iov_buf->id = WL_OCE_CMD_FD_TX_DURATION;
+
+	pxtlv = (uint8 *)&iov_buf->data[0];
+	buflen = buflen_start = WLC_IOCTL_SMLEN - sizeof(bcm_iov_buf_t);
+
+	fd_tx_duration = (uint8)fd_val;
+	/* TBD: validation */
+	err = bcm_pack_xtlv_entry(&pxtlv, &buflen, WL_OCE_XTLV_FD_TX_DURATION,
+		sizeof(fd_tx_duration), &fd_tx_duration, BCM_XTLV_OPTION_ALIGN32);
+	if (err != BCME_OK) {
+		/* restore back to default BI */
+		bi_interval = APLB_BI_STEP * APLB_BI_MIN;
+		(void)wldev_ioctl_set(ndev, WLC_SET_BCNPRD, &bi_interval, sizeof(int));
+		WL_ERR(("FAIL to PACK FD TX duration for SoftAP err = %d\n", err));
+		goto exit;
+	}
+	iov_buf->len = buflen_start - buflen;
+	iovlen = sizeof(bcm_iov_buf_t) + iov_buf->len;
+
+	err = wldev_iovar_setbuf(ndev, "oce", (void *)iov_buf, iovlen,
+		iov_resp, sizeof(iov_resp), NULL);
+
+	if (unlikely(err)) {
+		/* restore back to default BI */
+		bi_interval = APLB_BI_STEP * APLB_BI_MIN;
+		(void)wldev_ioctl_set(ndev, WLC_SET_BCNPRD, &bi_interval, sizeof(int));
+		WL_ERR(("FAIL to SET FD TX duration for SoftAP err = %d\n", err));
+		goto exit;
+	}
+
+exit:
+	if (err == BCME_OK) {
+		cfg->ap_less_bcast = enable;
+	}
+	return err;
+}
+#endif /* AP_LESS_BCAST */

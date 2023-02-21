@@ -653,7 +653,7 @@ static void sde_encoder_phys_vid_underrun_irq(void *arg, int irq_idx)
 #if IS_ENABLED(CONFIG_SEC_DEBUG)
 		if (vdd && sec_debug_is_enabled() && ss_panel_attach_get(vdd)) {
 			SDE_EVT32(DRMID(phys_enc->parent), SDE_EVTLOG_FATAL);
-			SDE_DBG_DUMP_WQ(SDE_DBG_BUILT_IN_ALL, "panic");
+			/*SDE_DBG_DUMP_WQ(SDE_DBG_BUILT_IN_ALL, "panic");*/
 		}
 #endif
 	}

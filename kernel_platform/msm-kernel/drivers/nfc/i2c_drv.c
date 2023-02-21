@@ -419,6 +419,12 @@ ssize_t nfc_i2c_dev_read(struct file *filp, char __user *buf, size_t count,
 		NFC_LOG_ERR("%s: device doesn't exist anymore\n", __func__);
 		return -ENODEV;
 	}
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+	if (count > MAX_NCI_BUFFER_SIZE) {
+		//NFC_LOG_ERR("%s: too big count %u\n", __func__, count);
+		return -EINVAL;
+	}
+#endif
 	mutex_lock(&nfc_dev->read_mutex);
 	if (filp->f_flags & O_NONBLOCK) {
 		ret = i2c_master_recv(nfc_dev->i2c_dev.client, nfc_dev->read_kbuf, count);
@@ -723,7 +729,7 @@ int nfc_i2c_dev_suspend(struct device *device)
 		}
 #endif
 	}
-	NFC_LOG_DBG("%s: irq_wake_up = %d", __func__, i2c_dev->irq_wake_up);
+	NFC_LOG_DBG("%s: irq_wake_up = %d\n", __func__, i2c_dev->irq_wake_up);
 	return 0;
 }
 
@@ -751,7 +757,7 @@ int nfc_i2c_dev_resume(struct device *device)
 			disable_irq_wake(nfc_gpio->clk_req_irq);
 #endif
 	}
-	NFC_LOG_DBG("%s: irq_wake_up = %d", __func__, i2c_dev->irq_wake_up);
+	NFC_LOG_DBG("%s: irq_wake_up = %d\n", __func__, i2c_dev->irq_wake_up);
 	return 0;
 }
 

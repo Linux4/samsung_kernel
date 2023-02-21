@@ -386,7 +386,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
                 goto exit;
             }
     }
-    
+
     if ((streamKV.size() > 0) || (streamCKV.size() > 0)) {
         getAgmMetaData(streamKV, streamCKV, (struct prop_data *)streamPropId,
                 streamMetaData);
@@ -1829,10 +1829,18 @@ int SessionAlsaUtils::disconnectSessionDevice(Stream* streamHandle, pal_stream_t
                 sub = 1;
             else
                 sub = 2;
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            if (dAttr.id > PAL_DEVICE_OUT_MIN && dAttr.id < PAL_DEVICE_OUT_MAX) {
+#else
             if (dAttr.id >= PAL_DEVICE_OUT_HANDSET && dAttr.id <= PAL_DEVICE_OUT_HEARING_AID) {
+#endif
                 feName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "p";
                 disconnectCtrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "p" << " disconnect";
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            } else if (dAttr.id > PAL_DEVICE_IN_MIN && dAttr.id < PAL_DEVICE_IN_MAX) {
+#else
             } else if (dAttr.id >= PAL_DEVICE_IN_HANDSET_MIC && dAttr.id <= PAL_DEVICE_IN_PROXY) {
+#endif
                 feName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "c";
                 disconnectCtrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "c" << " disconnect";
             }
@@ -1990,9 +1998,17 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
             else
                 sub = 2;
 
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            if (dAttr.id > PAL_DEVICE_OUT_MIN && dAttr.id < PAL_DEVICE_OUT_MAX) {
+#else
             if (dAttr.id >= PAL_DEVICE_OUT_HANDSET && dAttr.id <= PAL_DEVICE_OUT_HEARING_AID) {
+#endif
                 connectCtrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "p" << " connect";
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            } else if (dAttr.id > PAL_DEVICE_IN_MIN && dAttr.id < PAL_DEVICE_IN_MAX) {
+#else
             } else if (dAttr.id >= PAL_DEVICE_IN_HANDSET_MIC && dAttr.id <= PAL_DEVICE_IN_PROXY) {
+#endif
                 connectCtrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "c" << " connect";
             }
             break;
@@ -2297,11 +2313,19 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, pal_stream_type_t
             else
                 sub = 2;
 
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            if (dAttr.id > PAL_DEVICE_OUT_MIN && dAttr.id < PAL_DEVICE_OUT_MAX) {
+#else
             if (dAttr.id >= PAL_DEVICE_OUT_HANDSET && dAttr.id <= PAL_DEVICE_OUT_HEARING_AID) {
+#endif
                 cntrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "p" << " control";
                 aifMdName << aifBackEndsToConnect[0].second.data() << " metadata";
                 feMdName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "p" << " metadata";
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            } else if (dAttr.id > PAL_DEVICE_IN_MIN && dAttr.id < PAL_DEVICE_IN_MAX) {
+#else
             } else if (dAttr.id >= PAL_DEVICE_IN_HANDSET_MIC && dAttr.id <= PAL_DEVICE_IN_PROXY) {
+#endif
                 cntrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "c" << " control";
                 aifMdName << aifBackEndsToConnect[0].second.data() << " metadata";
                 feMdName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "c" << " metadata";

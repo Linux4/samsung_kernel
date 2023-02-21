@@ -313,8 +313,6 @@ static void walt_find_best_target(struct sched_domain *sd,
 			long spare_cap;
 			unsigned int idle_exit_latency = UINT_MAX;
 			struct walt_rq *wrq = (struct walt_rq *) cpu_rq(i)->android_vendor_data1;
-			struct task_struct *curr = cpu_rq(i)->curr;
-			bool curr_is_mvp = false;
 
 			trace_sched_cpu_util(i);
 			/* record the prss as we visit cpus in a cluster */
@@ -334,12 +332,6 @@ static void walt_find_best_target(struct sched_domain *sd,
 				continue;
 
 			if (fbt_env->skip_cpu == i)
-				continue;
-
-			raw_spin_lock(&cpu_rq(i)->lock);
-			curr_is_mvp = is_mvp_task(cpu_rq(i), curr);
-			raw_spin_unlock(&cpu_rq(i)->lock);
-			if (curr_is_mvp)
 				continue;
 
 			/*
@@ -977,21 +969,21 @@ static void walt_binder_low_latency_set(void *unused, struct task_struct *task,
 	if (unlikely(walt_disabled))
 		return;
 
-	if (task && current->signal &&
-			(current->signal->oom_score_adj == 0) &&
-			((current->prio < DEFAULT_PRIO) ||
-			(task->group_leader->prio < MAX_RT_PRIO)))
+	if (task && ((task_in_related_thread_group(current) &&
+			task->group_leader->prio < MAX_RT_PRIO) ||
+			(current->group_leader->prio < MAX_RT_PRIO &&
+			task_in_related_thread_group(task))))
 		wts->low_latency |= WALT_LOW_LATENCY_BINDER;
-}
-
-static void walt_binder_low_latency_clear(void *unused, struct binder_transaction *t)
-{
-	struct walt_task_struct *wts = (struct walt_task_struct *) current->android_vendor_data1;
-
-	if (unlikely(walt_disabled))
-		return;
-
-	if (wts->low_latency & WALT_LOW_LATENCY_BINDER)
+	else
+		/*
+		 * Clear low_latency flag if criterion above is not met, this
+		 * will handle usecase where for a binder thread WALT_LOW_LATENCY_BINDER
+		 * is set by one task and before WALT clears this flag after timer expiry
+		 * some other task tries to use same binder thread.
+		 *
+		 * The only gets cleared when binder transaction is initiated
+		 * and the above condition to set flasg is nto satisfied.
+		 */
 		wts->low_latency &= ~WALT_LOW_LATENCY_BINDER;
 }
 
@@ -1330,7 +1322,6 @@ void walt_cfs_init(void)
 	register_trace_android_rvh_select_task_rq_fair(walt_select_task_rq_fair, NULL);
 
 	register_trace_android_vh_binder_wakeup_ilocked(walt_binder_low_latency_set, NULL);
-	register_trace_binder_transaction_received(walt_binder_low_latency_clear, NULL);
 
 	register_trace_android_vh_binder_set_priority(binder_set_priority_hook, NULL);
 	register_trace_android_vh_binder_restore_priority(binder_restore_priority_hook, NULL);

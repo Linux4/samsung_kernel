@@ -127,7 +127,6 @@ StreamCommon::StreamCommon(const struct pal_stream_attributes *sattr, struct pal
             mStreamMutex.unlock();
             throw std::runtime_error("failed to create device object");
         }
-        mPalDevice.push_back(dattr[i]);
         mStreamMutex.unlock();
         isDeviceConfigUpdated = rm->updateDeviceConfig(&dev, &dattr[i], sattr);
         mStreamMutex.lock();
@@ -138,6 +137,7 @@ StreamCommon::StreamCommon(const struct pal_stream_attributes *sattr, struct pal
         /* Create only update device attributes first time so update here using set*/
         /* this will have issues if same device is being currently used by different stream */
         mDevices.push_back(dev);
+        mPalDevice.push_back(dattr[i]);
     }
 
     mStreamMutex.unlock();

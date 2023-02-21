@@ -261,13 +261,8 @@ static void lookup_tree_test(struct kunit *test)
 		/* T2: file with attribute other than feature_is_file */
 		KUNIT_EXPECT_EQ(test, 1, lookup_tree(first_file, first_file_attr, file_one));
 
-#ifdef DEFEX_INTEGRITY_ENABLE
-		/* T3: file with different contents */
-		KUNIT_EXPECT_EQ(test, DEFEX_INTEGRITY_FAIL, lookup_tree(first_file, first_file_attr, file_two));
-#else
-		/* T3: file with different contents */
+		/* T3: file with different contents and without check integrity flag */
 		KUNIT_EXPECT_EQ(test, 1, lookup_tree(first_file, first_file_attr, file_two));
-#endif
 
 		filp_close(file_one, 0);
 		filp_close(file_two, 0);
@@ -342,7 +337,7 @@ static void lookup_dir_test(struct kunit *test)
 			if (!size)
 				KUNIT_FAIL(test, "Error in lookup: existing_directory_no_features");
 			policy_item = lookup_dir(policy_base, path, size, 0, packed_rules_primary);
-			KUNIT_ASSERT_NOT_NULL(test, policy_item);
+			KUNIT_ASSERT_PTR_NE(test, policy_item, NULL);
 			KUNIT_EXPECT_EQ(test, 0, strncmp(policy_item->name, path, size));
 			policy_base = policy_item;
 			path += size;
@@ -447,7 +442,7 @@ static void defex_check_integrity_test(struct kunit *test)
 			if (!size)
 				KUNIT_FAIL(test, "Error in lookup: existing_directory_no_features");
 			policy_item = lookup_dir(policy_base, path, size, 0, packed_rules_primary);
-			KUNIT_ASSERT_NOT_NULL(test, policy_item);
+			KUNIT_ASSERT_PTR_NE(test, policy_item, NULL);
 			KUNIT_ASSERT_EQ(test, 0, strncmp(policy_item->name, path, size));
 			policy_base = policy_item;
 			path += size;
