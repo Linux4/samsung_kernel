@@ -3456,6 +3456,29 @@ wlan_mlme_get_channel_bonding_5ghz(struct wlan_objmgr_psoc *psoc,
 				   uint32_t *value);
 
 /**
+ * wlan_mlme_set_safe_mode_enable() - set safe_mode_enable flag
+ * based on value set by user space.
+ *
+ * @psoc: psoc context
+ * @safe_mode_enable: safe mode enabled or not
+ *
+ * Return: none
+ */
+void wlan_mlme_set_safe_mode_enable(struct wlan_objmgr_psoc *psoc,
+                                   bool safe_mode_enable);
+
+/**
+ * wlan_mlme_get_safe_mode_enable() - get safe_mode_enable set by user
+ * space
+ *
+ * @psoc: psoc context
+ * @safe_mode_enable: safe mode enabled or not
+ *
+ * Return: none
+ */
+void wlan_mlme_get_safe_mode_enable(struct wlan_objmgr_psoc *psoc,
+                                    bool *safe_mode_enable);
+/**
  * wlan_mlme_update_ratemask_params() - Update ratemask params
  *
  * @vdev: pointer to vdev object

@@ -478,6 +478,8 @@ static int clk_debug_measure_get(void *data, u64 *val)
 		*val *= get_mux_divs(measure);
 		disable_debug_clks(measure);
 	}
+
+	trace_clk_measure(clk_hw_get_name(hw), *val);
 exit:
 	mutex_unlock(&clk_debug_lock);
 	clk_runtime_put_debug_mux(meas);
@@ -943,9 +945,7 @@ static void clk_debug_suspend_trace_probe(void *unused,
 					const char *action, int val, bool start)
 {
 	if (start && val > 0 && !strcmp("machine_suspend", action)) {
-		mutex_lock(&clk_debug_lock);
 		clock_debug_print_enabled_clocks(NULL);
-		mutex_unlock(&clk_debug_lock);
 	}
 }
 

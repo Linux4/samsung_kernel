@@ -1241,9 +1241,20 @@ static int adev_dump(const audio_hw_device_t *device, int fd)
     std::shared_ptr<AudioDevice> adevice =
             AudioDevice::GetInstance((audio_hw_device_t*)device);
     if (adevice) {
+#ifdef SEC_AUDIO_CALL
+        std::shared_ptr<AudioVoice> avoice = adevice->voice_;
+        dprintf(fd, " \n");
+        dprintf(fd, "max_voice_sessions_: %d \n", avoice->max_voice_sessions_);        
+        if (avoice) {
+            for (int i = 0; i < MAX_VOICE_SESSIONS; i++) {
+                dprintf(fd, "voice_.session[%d].vsid: 0x%x \n", i, avoice->voice_.session[i].vsid);
+                dprintf(fd, "voice_.session[%d].state.current_: %s \n",
+                    i, avoice->voice_.session[i].state.current_ == CALL_ACTIVE ? "CALL_ACTIVE" : "CALL_INACTIVE");
+            }
+        }
         dprintf(fd, "primary_out_io_handle: %d \n",
             (adevice->primary_out_io_handle != AUDIO_IO_HANDLE_NONE) ? adevice->primary_out_io_handle : 0);
-
+#endif
         if (adevice->sec_device_) {
             adevice->sec_device_->Dump(fd);
         }
@@ -1598,15 +1609,6 @@ int AudioDevice::SetMode(const audio_mode_t mode) {
     int ret = 0;
 
     AHAL_DBG("enter: mode: %d", mode);
-
-#ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
-    std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
-    AudioExtn* AudExtn = &adevice->sec_device_->SecAudExtn;
-    if((mode != AUDIO_MODE_NORMAL) && adevice->sec_device_->listenback_on && AudExtn->is_karaoke_mode()) {
-        adevice->sec_device_->SetListenbackMode(false);
-    }
-#endif
-
     ret = voice_->SetMode(mode);
     AHAL_DBG("Exit ret: %d", ret);
     return ret;

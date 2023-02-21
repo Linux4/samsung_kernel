@@ -11354,6 +11354,19 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
     }
 
     mActiveStreamMutex.unlock();
+
+#ifdef SEC_AUDIO_COMMON
+    // Below code is added for QC Patch(3891320) at the beginning of this function
+    if (isPluginPlaybackDevice((pal_device_id_t)dev->getSndDeviceId())) {
+        char currentSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
+        getSndDeviceName(dev->getSndDeviceId(), currentSndDeviceName);
+        if (!strcmp(activeSndDeviceName, currentSndDeviceName)) { // added by samsung
+            PAL_ERR(LOG_TAG, "don't restore device for usb/3.5 hs playback");
+            goto exit;
+        }
+    }
+#endif
+
     if (!streamDevDisconnect.empty())
         streamDevSwitch(streamDevDisconnect, streamDevConnect);
 exit:

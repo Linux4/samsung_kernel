@@ -15,6 +15,12 @@ support low-latency signalling for Global Synx framework.
 	Value type: <string>
 	Definition: should specify the subsystem name this edge corresponds to.
 
+- global_atomic:
+	Usage: required
+	Value type: <u32>
+	Definition: this property specifies if the core supports global atomic operations
+		    1 if cores supports, 0 if core doesn't support global atomic operations
+
 - interrupts:
 	Usage: required
 	Value type: <prop-encoded-array>
@@ -45,6 +51,7 @@ ipclite {
 	ipclite_cdsp: cdsp {
 		qcom,remote-pid = <5>;
 		label = "cdsp";
+		global_atomic = <0>;
 
 		ipclite_signal_0 {
 			index = <0>;

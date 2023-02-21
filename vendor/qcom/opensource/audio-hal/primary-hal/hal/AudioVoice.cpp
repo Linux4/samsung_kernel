@@ -53,6 +53,11 @@ int AudioVoice::SetMode(const audio_mode_t mode) {
 
     AHAL_DBG("Enter: mode: %d", mode);
     if (mode_ != mode) {
+#ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
+        if((mode != AUDIO_MODE_NORMAL) && adevice->sec_device_->listenback_on) {
+            adevice->sec_device_->SetListenbackMode(false);
+        }
+#endif
 #ifdef SEC_AUDIO_CALL
         if (mode == AUDIO_MODE_IN_CALL) {
             voice_session_t *session = NULL;
@@ -715,6 +720,10 @@ int AudioVoice::UpdateCallState(uint32_t vsid, int call_state) {
             ret = UpdateCalls(voice_.session);
         }
     } else {
+#ifdef SEC_AUDIO_CALL
+        AHAL_DBG("max sessions:%d vsid:0x%x, session[0].vsid:0x%x, session[1].vsid:0x%x",
+                    max_voice_sessions_, vsid, voice_.session[0].vsid, voice_.session[1].vsid);
+#endif
         ret = -EINVAL;
     }
     voice_mutex_.unlock();
@@ -1602,7 +1611,9 @@ AudioVoice::~AudioVoice() {
     voice_.session[MMODE2_SESS_IDX].vsid = VOICEMMODE2_VSID;
 
     stream_out_primary_ = NULL;
+#ifndef SEC_AUDIO_CALL
     max_voice_sessions_ = 0;
+#endif
 }
 
 #ifdef SEC_AUDIO_CALL

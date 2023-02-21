@@ -37,6 +37,8 @@ Optional properties:
   - qcom,hyp_disabled: Boolean context flag to disable hyperviser
   - mboxes: Specifies mbox channel data for AOP messaging
   - qcom,vreg_ol_cpr: Specifies voltage regulator used for OL CPR vote
+  - qcom,pon-gpio-control: Boolean context flag to enable PMIC GPIO based
+			   power sequence trigger via SPMI
 
 WLAN SMP2P sub nodes
 

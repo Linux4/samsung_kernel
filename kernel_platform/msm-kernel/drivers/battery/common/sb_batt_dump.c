@@ -80,6 +80,16 @@ static ssize_t show_attrs(struct device *dev,
 			sec_bat_get_lpmode());
 		size = sizeof(temp_buf) - strlen(temp_buf);
 
+	{
+		unsigned short vid = 0, pid = 0;
+		unsigned int xid = 0;
+
+		sec_pd_get_vid_pid(&vid, &pid, &xid);
+		snprintf(temp_buf+strlen(temp_buf), size,
+			"%04x,%04x,%08x,", vid, pid, xid);
+		size = sizeof(temp_buf) - strlen(temp_buf);
+	}
+
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
 		snprintf(temp_buf+strlen(temp_buf), size,
 			"%d,%d,%d,%d,",

@@ -63,6 +63,7 @@ blocklist torture
 blocklist locktorture
 blocklist rcutorture
 blocklist mmrm_test_module
+blocklist limits_stat
 blocklist abc_common_test.ko
 blocklist abc_hub_test.ko
 blocklist abc_spec_type1_test.ko

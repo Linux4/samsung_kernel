@@ -4711,6 +4711,7 @@ static void cw_nocharge_type(struct sec_battery_info *battery)
 			SEC_BAT_CURRENT_EVENT_USB_STATE |
 			SEC_BAT_CURRENT_EVENT_SEND_UVDM));
 	sec_bat_set_misc_event(battery, 0, BATT_MISC_EVENT_WIRELESS_MISALIGN);
+	sec_bat_recov_full_capacity(battery); /* should call this after setting discharging */
 
 	/* slate_mode needs to be clear manually since smart switch does not disable slate_mode sometimes */
 	if (is_slate_mode(battery)) {
@@ -5717,6 +5718,15 @@ static int sec_bat_set_property(struct power_supply *psy,
 		case POWER_SUPPLY_EXT_PROP_MISC_EVENT_CLEAR:
 			pr_info("%s: new misc_event clear %d\n", __func__, val->intval);
 			sec_bat_set_misc_event(battery, 0, val->intval);
+			break;
+		case POWER_SUPPLY_EXT_PROP_ABNORMAL_SRCCAP:
+			store_battery_log(
+				"ABNORMAL_SRCCAP:%d%%,%dmV,%s,PDO(0x%X)",
+				battery->capacity,
+				battery->voltage_now,
+				sb_get_bst_str(battery->status),
+				val->intval
+			);
 			break;
 		default:
 			return -EINVAL;

@@ -24,17 +24,23 @@
 	};
 };
 
+&usb2_phy0 {
+	qcom,param-override-seq = <
+			0x83 0x6c
+			0xcb 0x70
+			0x1e 0x74
+			0x03 0x78>;
+};
+
 &sdhc_1 {
 	status = "ok";
 
 	vdd-supply = <&L24B>;
-	qcom,vdd-voltage-level = <2960000 2960000>;
 	qcom,vdd-current-level = <0 570000>;
 
 	vdd-io-supply = <&L19B>;
 	qcom,vdd-io-always-on;
 	qcom,vdd-io-lpm-sup;
-	qcom,vdd-io-voltage-level = <1800000 1800000>;
 	qcom,vdd-io-current-level = <0 325000>;
 
 	pinctrl-names = "default", "sleep";
@@ -85,6 +91,26 @@
 
 	qcom,vddp-ref-clk-supply = <&L13B>;
 	qcom,vddp-ref-clk-max-microamp = <100>;
+
+	/*
+	 * ufs-dev-types and nvmem entries are for ufs device
+	 * identification using nvmem interface. Use number of
+	 * ufs devices supported for ufs-dev-types, and nvmem handle
+	 * added by pmic for sdam register.
+	 *
+	 * Default value taken by driver is bit[0] = 0 for 3.x and
+	 * bit[0] = 1 for 2.x driver code takes this as default case.
+	 *
+	 * But Bit value to identify ufs device is not consistent
+	 * across the targets it could be bit[0] = 0/1 for UFS2.x/3x
+	 * and vice versa. If the bit[0] value is not same as default
+	 * value used in driver and if its reverted then use flag
+	 * qcom,ufs-dev-revert to identify ufs device.
+	 */
+	ufs-dev-types = <2>;
+	qcom,ufs-dev-revert;
+	nvmem-cells = <&ufs_dev>, <&boot_config>;
+	nvmem-cell-names = "ufs_dev", "boot_conf";
 
 	status = "ok";
 };
@@ -143,5 +169,7 @@
 		pinctrl-0 = <&ts_spi_active>;
 		pinctrl-1 = <&ts_spi_int_suspend &ts_spi_reset_suspend>;
 		pinctrl-2 = <&ts_spi_release>;
+
+		qcom,touch-environment = "pvm";
 	};
 };

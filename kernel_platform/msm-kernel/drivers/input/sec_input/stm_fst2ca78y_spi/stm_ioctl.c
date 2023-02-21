@@ -12,11 +12,14 @@
 #ifdef RAWDATA_IOCTL
 #include "stm_reg.h"
 #include <linux/miscdevice.h>
+#include <linux/mutex.h>
 
 struct tsp_ioctl {
 	int num;
 	u8 data[PAGE_SIZE];
 };
+
+static struct mutex lock;
 
 #define IOCTL_TSP_MAP_READ		_IOR(0, 0, struct tsp_ioctl)
 #define IOCTL_TSP_MAP_WRITE		_IOW(0, 0, struct tsp_ioctl)
@@ -27,6 +30,8 @@ static long tsp_ioctl_handler(struct file *file, unsigned int cmd, void __user *
 	static struct tsp_ioctl t;
 	u8 *copier;
 	int total;
+
+	mutex_lock(&lock);
 
 	if (cmd == IOCTL_TSP_MAP_READ) {
 #if 0
@@ -40,8 +45,10 @@ static long tsp_ioctl_handler(struct file *file, unsigned int cmd, void __user *
 			if (copy_to_user(p, (void *)&t, sizeof(struct tsp_ioctl))) {
 				input_err(true, &g_ts->client->dev, "%s: failed to 0 copy_to_user\n",
 					__func__);
+				mutex_unlock(&lock);
 				return -EFAULT;
 			} else {
+				mutex_unlock(&lock);
 				return 0;
 			}
 		} else if (t.num < 0) {
@@ -69,11 +76,13 @@ static long tsp_ioctl_handler(struct file *file, unsigned int cmd, void __user *
 		if (copy_to_user(p, (void *)&t, sizeof(struct tsp_ioctl))) {
 			input_err(true, &g_ts->client->dev, "%s: failed to copyt_to_user\n",
 				__func__);
+			mutex_unlock(&lock);
 			return -EFAULT;
 		}
 	} else if (cmd == IOCTL_TSP_MAP_WRITE_TEST_1) {
 		if (copy_from_user((void *)&t, p, sizeof(struct tsp_ioctl))) {
 			input_err(true, &g_ts->client->dev, "%s: failed to copyt_from_user\n", __func__);
+			mutex_unlock(&lock);
 			return -EFAULT;
 		}
 		input_info(true, &g_ts->client->dev, "%s: TEST_1, %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X\n", __func__,
@@ -81,6 +90,7 @@ static long tsp_ioctl_handler(struct file *file, unsigned int cmd, void __user *
 				t.data[6], t.data[7], t.data[8], t.data[9], t.data[10], t.data[11]);
 	}
 
+	mutex_unlock(&lock);
 	return 0;
 }
 
@@ -178,6 +188,8 @@ int stm_ts_rawdata_init(struct stm_ts_data *ts)
 	ts->raw_len = PAGE_SIZE;
 	ret = sysfs_create_group(&ts->sec.fac_dev->kobj, &rawdata_attr_group);
 	input_info(true, &ts->client->dev, "%s: sysfs_create_group: ret: %d\n", __func__, ret);
+
+	mutex_init(&lock);
 
 	ret = misc_register(&tsp_misc);
 	input_info(true, &ts->client->dev, "%s: misc_register: ret: %d\n", __func__, ret);

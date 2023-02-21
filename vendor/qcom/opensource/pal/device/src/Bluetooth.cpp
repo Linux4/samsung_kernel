@@ -1498,7 +1498,13 @@ free_fe:
         rm->freeFrontEndIds(fbpcmDevIds, sAttr, dir);
         fbpcmDevIds.clear();
     }
-    isAbrEnabled = false;
+
+    /* Check for deviceStartStopCount, to avoid false reset of isAbrEnabled flag in
+     * case of BLE playback path stops during ongoing capture session
+     */
+    if (deviceStartStopCount == 1) {
+        isAbrEnabled = false;
+    }
 
     if (isfbDeviceLocked) {
         isfbDeviceLocked = false;
@@ -2071,16 +2077,12 @@ int BtA2dp::start()
 
     status = (a2dpRole == SOURCE) ? startPlayback() : startCapture();
     if (status) {
-        isAbrEnabled = false;
-        mDeviceMutex.unlock();
         goto exit;
     }
 
     if (totalActiveSessionRequests == 1) {
         status = configureSlimbusClockSrc();
         if (status) {
-            isAbrEnabled = false;
-            mDeviceMutex.unlock();
             goto exit;
         }
     }
@@ -2092,12 +2094,12 @@ int BtA2dp::start()
         customPayload = NULL;
         customPayloadSize = 0;
     }
-    mDeviceMutex.unlock();
 
     if (!status && isAbrEnabled)
         startAbr();
 
 exit:
+    mDeviceMutex.unlock();
     return status;
 }
 
@@ -2105,10 +2107,9 @@ int BtA2dp::stop()
 {
     int status = 0;
 
+    mDeviceMutex.lock();
     if (isAbrEnabled)
         stopAbr();
-
-    mDeviceMutex.lock();
 
     Device::stop_l();
 

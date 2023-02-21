@@ -72,12 +72,15 @@ struct test_data {
 	u8 eol_enable;
 	s16 eol_state;
 	u32 eol_count;
+	u32 eol_sum_count;
 	u32 eol_awb;
 	u32 eol_clear;
 	u32 eol_wideband;
 	u32 eol_flicker;
 	u32 eol_flicker_sum;
+	u32 eol_flicker_sum_count;
 	u32 eol_flicker_count;
+	u32 eol_flicker_skip_count;
 	u32 eol_pulse_count;
 	u32 eol_uv;
 };

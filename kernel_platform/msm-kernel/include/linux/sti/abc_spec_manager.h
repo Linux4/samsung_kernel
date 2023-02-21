@@ -41,6 +41,7 @@ int sec_abc_get_event_type(char *dst, char *src);
 int sec_abc_get_ext_log(char *dst, char *src);
 int sec_abc_get_count(int *dst, char *src);
 void sec_abc_reset_all_spec(void);
+void sec_abc_enable_all_spec(void);
 void sec_abc_free_spec_buffer(void);
 void sec_abc_reset_all_buffer(void);
 /* spec_type1 */

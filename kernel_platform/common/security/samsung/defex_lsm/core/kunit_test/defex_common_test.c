@@ -61,7 +61,11 @@ static void local_fread_test(struct kunit *test)
 
 	f = local_fopen(ROOT_PATH, O_RDONLY, 0);
 	KUNIT_ASSERT_FALSE(test, IS_ERR_OR_NULL(f));
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 	KUNIT_EXPECT_EQ(test, local_fread(f, offset, NULL, 0), -EISDIR);
+#else
+	KUNIT_EXPECT_EQ(test, local_fread(f, offset, NULL, 0), -EINVAL);
+#endif
 	filp_close(f, NULL);
 
 	/* Missing test case in which a file is opened for read without error */

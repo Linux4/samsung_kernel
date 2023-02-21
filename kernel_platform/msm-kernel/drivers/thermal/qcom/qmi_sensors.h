@@ -73,6 +73,8 @@ enum qmi_ts_sensor {
 	QMI_TS_SUB2_SCG_FR1_CC,
 	QMI_TS_SUB2_SCG_FR2_CC,
 	QMI_TS_NSP_ISENSE_TRIM,
+	QMI_TS_SDR0_PA,
+	QMI_TS_SDR1_PA,
 	QMI_TS_MAX_NR
 };
 
@@ -109,14 +111,14 @@ static char sensor_clients[QMI_TS_MAX_NR][QMI_CLIENT_NAME_LENGTH] = {
 	{"sdr_mmw_therm"},
 	{"qtm_therm"},
 	{"modem_bcl_warn"},
-	{"sdr0_pa"},
+	{"sdr0_pa0"},
 	{"sdr0_pa1"},
 	{"sdr0_pa2"},
 	{"sdr0_pa3"},
 	{"sdr0_pa4"},
 	{"sdr0_pa5"},
 	{"sdr0"},
-	{"sdr1_pa"},
+	{"sdr1_pa0"},
 	{"sdr1_pa1"},
 	{"sdr1_pa2"},
 	{"sdr1_pa3"},
@@ -141,6 +143,8 @@ static char sensor_clients[QMI_TS_MAX_NR][QMI_CLIENT_NAME_LENGTH] = {
 	{"sub2_scg_fr1_cc"},
 	{"sub2_scg_fr2_cc"},
 	{"isense_trim"},
+	{"sdr0_pa"},
+	{"sdr1_pa"},
 };
 
 #endif /* __QMI_SENSORS_H__ */
