@@ -78,8 +78,7 @@ static void cam_csiphy_subdev_handle_message(
 
 			cam_csiphy_common_status_reg_dump(csiphy_dev);
 
-			if (csiphy_dev->en_full_phy_reg_dump)
-				cam_csiphy_reg_dump(&csiphy_dev->soc_info);
+			cam_csiphy_reg_dump(&csiphy_dev->soc_info);
 
 			if (csiphy_dev->en_lane_status_reg_dump) {
 				CAM_INFO(CAM_CSIPHY,

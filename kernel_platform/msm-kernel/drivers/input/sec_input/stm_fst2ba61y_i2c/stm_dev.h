@@ -534,6 +534,9 @@ struct stm_ts_data {
 	u8 touch_opmode;
 	u8 charger_mode;
 	u8 scan_mode;
+	u8 game_mode;
+	u8 sip_mode;
+	u8 note_mode;
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 	atomic_t secure_enabled;
@@ -642,7 +645,6 @@ struct stm_ts_data {
 	bool fix_active_mode;
 	bool touch_aging_mode;
 	int sensitivity_mode;
-	u8 low_sensitivity_mode;
 
 	bool rawcap_lock;
 	int rawcap_max;
@@ -744,7 +746,9 @@ void stm_ts_interrupt_notify(struct work_struct *work);
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 int stm_ts_vbus_notification(struct notifier_block *nb, unsigned long cmd, void *data);
 #endif
-
+int stm_ts_sip_mode_enable(struct stm_ts_data *ts);
+int stm_ts_game_mode_enable(struct stm_ts_data *ts);
+int stm_ts_note_mode_enable(struct stm_ts_data *ts);
 
 //cmd
 void stm_ts_fn_remove(struct stm_ts_data *ts);

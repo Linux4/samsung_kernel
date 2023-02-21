@@ -836,6 +836,7 @@ enum loc_api_adapter_err LocApiV02 :: close()
   clientHandle = LOC_CLIENT_INVALID_HANDLE_VALUE;
 
   // < SEC_GPS
+  mSecDefaultInitDone = false;
   qmi_secgps_client_deinit();
   // SEC_GPS >
 
@@ -11729,16 +11730,17 @@ int LocApiV02 :: setSecGnssParams()
   if (setLPPConfigSync((GnssConfigLppProfileMask)sec_gps_conf.LPP_PROFILE) < 0) {
     LOC_LOGE("fail to setLPPConfig");
   }
-  if (sec_gps_conf.SPIRENT == 0 || sec_gps_conf.SPIRENT == 1) {
-    if (setSpirentType(sec_gps_conf.SPIRENT) < 0) {
-      LOC_LOGE("fail to setSpirentYype");
-    }
-  }
   if (setLPPeProtocolCpSync((GnssConfigLppeControlPlaneMask)sec_gps_conf.LPPE_CP_TECHNOLOGY) < 0) {
     LOC_LOGE("fail to setLPPeProtocolCp");
   }
   if (setLPPeProtocolUpSync((GnssConfigLppeUserPlaneMask)sec_gps_conf.LPPE_UP_TECHNOLOGY) < 0) {
     LOC_LOGE("fail to setLPPeProtocolUp");
+  }
+
+  if (sec_gps_conf.SPIRENT == 0 || sec_gps_conf.SPIRENT == 1) {
+    if (setSpirentType(sec_gps_conf.SPIRENT) < 0) {
+      LOC_LOGE("fail to setSpirentYype");
+    }
   }
 
   if (sec_gps_conf.AGPS_MODE > 0) {

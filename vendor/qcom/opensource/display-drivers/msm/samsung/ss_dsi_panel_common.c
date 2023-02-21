@@ -807,6 +807,12 @@ void ss_event_frame_update_post(struct samsung_display_driver_data *vdd)
 		}
 		frame_count = 1;
 
+		/* set self_mask_udc before display on */
+		if (vdd->self_disp.self_mask_udc_on)
+			vdd->self_disp.self_mask_udc_on(vdd, vdd->self_disp.udc_mask_enable);
+		else
+			LCD_DEBUG(vdd, "Self Mask UDC Function is NULL\n");
+
 		/* delay between sleep_out and display_on cmd */
 		ss_delay(vdd->dtsi_data.sleep_out_to_on_delay, vdd->sleep_out_time);
 
@@ -1180,7 +1186,7 @@ int ss_get_lfd_div(struct samsung_display_driver_data *vdd,
 {
 	struct vrr_info *vrr = &vdd->vrr;
 	struct lfd_mngr *mngr;
-	u32 max_div, min_div, max_div_def, min_div_def, min_div_lowest;
+	u32 max_div, min_div, max_div_def, min_div_def, min_div_lowest, fix_div_def;
 	u32 min_div_clear;
 	u32 min_div_scal;
 	int i;
@@ -1201,10 +1207,15 @@ int ss_get_lfd_div(struct samsung_display_driver_data *vdd,
 	min_div_def = lfd_base.min_div_def;
 	min_div_lowest = lfd_base.min_div_lowest;
 	min_div_clear = min_div_lowest + 1;
+	fix_div_def = lfd_base.fix_div_def;
 
 	/* FIX */
 	for (i = 0, mngr = &vrr->lfd.lfd_mngr[i]; i < LFD_CLIENT_MAX; i++, mngr++) {
-		if (mngr->fix[scope] == LFD_FUNC_FIX_LOW &&
+		if (mngr->fix[scope] == LFD_FUNC_FIX_LFD) {
+			max_div = min_div = fix_div_def;
+			LCD_INFO(vdd, "FIX LFD. fix_div_def(%d)\n", fix_div_def);
+			goto set_out_div;
+		} else if (mngr->fix[scope] == LFD_FUNC_FIX_LOW &&
 				i == LFD_CLIENT_FAC) {
 			max_div = min_div = min_div_def;
 			LCD_INFO(vdd, "FIX: (FAC): fix low\n");
@@ -1319,6 +1330,7 @@ done:
 		max_div = min_div;
 	}
 
+set_out_div:
 	*out_min_div = min_div;
 	*out_max_div = max_div;
 
@@ -3201,8 +3213,14 @@ int ss_panel_on_pre(struct samsung_display_driver_data *vdd)
 	}
 
 	/* UDC */
-	if (vdd->panel_func.read_udc_data && !vdd->udc.read_done)
+	if (vdd->panel_func.read_udc_data && !vdd->udc.read_done) {
 		vdd->panel_func.read_udc_data(vdd);
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+		/* Read UDC Gamma is for factory only */
+		if (vdd->panel_func.read_udc_gamma_data)
+			vdd->panel_func.read_udc_gamma_data(vdd);
+#endif
+	}
 
 skip_read:
 
@@ -3412,8 +3430,6 @@ int ss_panel_off_post(struct samsung_display_driver_data *vdd)
 	/* To prevent panel off without finger off */
 	if (vdd->br_info.common_br.finger_mask_hbm_on)
 		vdd->br_info.common_br.finger_mask_hbm_on = false;
-
-	vdd->self_disp.need_to_enable_udc = 0;
 
 	LCD_INFO(vdd, "- : mdp underrun: %d\n", vdd->cnt_mdp_clk_underflow);
 	SS_XLOG(vdd->cnt_mdp_clk_underflow);
@@ -3874,7 +3890,7 @@ void ss_panel_recovery(struct samsung_display_driver_data *vdd)
 		return;
 	}
 	LCD_INFO(vdd, "Panel Recovery, Trial Count = %d\n", vdd->panel_recovery_cnt++);
-	SS_XLOG(vdd->panel_recovery_cnt);
+	SS_XLOG(vdd->ndx, vdd->panel_recovery_cnt);
 	inc_dpui_u32_field(DPUI_KEY_QCT_RCV_CNT, 1);
 
 	esd_irq_enable(false, true, (void *)vdd, ESD_MASK_DEFAULT);
@@ -5132,6 +5148,13 @@ static void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 			LCD_INFO(vdd, "fail to get poc_write_addr_idx\n");
 		}
 
+		rc = of_property_read_u32_array(np, "samsung,poc_write_size_idx",
+				vdd->poc_driver.write_size_idx, 2);
+		if (rc) {
+			vdd->poc_driver.write_size_idx[0] = -1;
+			LCD_INFO(vdd, "fail to get poc_write_size_idx\n");
+		}
+
 		LCD_INFO(vdd, "[POC][WRITE] delay_us(%d) data_size(%d) loo_cnt(%d) addr idx (%d %d %d)\n",
 			vdd->poc_driver.write_delay_us,
 			vdd->poc_driver.write_data_size,
@@ -5598,7 +5621,7 @@ static void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 	ss_self_disp_parse_dt(vdd);
 	ss_test_mode_parse_dt(vdd);
 
-	/* UDC */
+	/* UDC transmittance flash read */
 	rc = of_property_read_u32(np, "samsung,udc_start_addr", tmp);
 	vdd->udc.start_addr = (!rc ? tmp[0] : 0);
 	rc = of_property_read_u32(np, "samsung,udc_data_size", tmp);
@@ -5606,9 +5629,27 @@ static void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 	if (vdd->udc.size) {
 		vdd->udc.data = kzalloc(vdd->udc.size, GFP_KERNEL);
 		if (!vdd->udc.data)
-			LCD_INFO(vdd, "[UDC] fail to alloc udc data buf..\n");
+			LCD_INFO(vdd, "[UDC transmittance] fail to alloc udc transmittance data buf..\n");
 		else
-			LCD_INFO(vdd, "[UDC] start_addr : %X, data_size : %d\n", vdd->udc.start_addr, vdd->udc.size);
+			LCD_INFO(vdd, "[UDC transmittance] start_addr : %X, data_size : %d\n", vdd->udc.start_addr, vdd->udc.size);
+	}
+
+	/* UDC gamma flash read */
+	rc = of_property_read_u32(np, "samsung,udc_gamma_start_addr", tmp);
+	vdd->udc.gamma_start_addr = (!rc ? tmp[0] : 0);
+	rc = of_property_read_u32(np, "samsung,udc_gamma_size", tmp);
+	vdd->udc.gamma_size = (!rc ? tmp[0] : 0);
+
+	rc = of_property_read_u32(np, "samsung,udc_gamma_backup_addr", tmp);
+	vdd->udc.gamma_backup_addr = (!rc ? tmp[0] : 0);
+
+	if (vdd->udc.gamma_size) {
+		vdd->udc.gamma_data_backup = kzalloc(vdd->udc.gamma_size, GFP_KERNEL);
+		vdd->udc.gamma_data = kzalloc(vdd->udc.gamma_size, GFP_KERNEL);
+		if (!vdd->udc.gamma_data_backup || !vdd->udc.gamma_data)
+			LCD_INFO(vdd, "[UDC gamma] fail to alloc udc gamma data buf..\n");
+
+		LCD_INFO(vdd, "[UDC gamma] start_addr : %X, data_size : %d\n", vdd->udc.gamma_start_addr, vdd->udc.gamma_size);
 	}
 
 	/* use recovery when flash loading is failed */
@@ -7031,7 +7072,7 @@ __visible_for_testing void ss_vrr_event_work(struct work_struct *work)
 
 	ss_panel_notifier_call_chain(PANEL_EVENT_VRR_CHANGED, &dms_data);
 
-	LCD_INFO(vdd, "fps=%d, lfd_min=%dhz(%d), lfd_max=%dhz(%d), base_rr=%dhz \n",
+	LCD_DEBUG(vdd, "fps=%d, lfd_min=%dhz(%d), lfd_max=%dhz(%d), base_rr=%dhz \n",
 			dms_data.fps,
 			dms_data.lfd_min_freq, vrr->lfd.min_div,
 			dms_data.lfd_max_freq, vrr->lfd.max_div,
@@ -7065,7 +7106,7 @@ __visible_for_testing void ss_lfd_event_work(struct work_struct *work)
 
 	ss_panel_notifier_call_chain(PANEL_EVENT_LFD_CHANGED, &dms_data);
 
-	LCD_INFO(vdd, "fps=%d, lfd_min=%d, lfd_max=%d ++\n", dms_data.fps,
+	LCD_DEBUG(vdd, "fps=%d, lfd_min=%d, lfd_max=%d ++\n", dms_data.fps,
 			dms_data.lfd_min_freq, dms_data.lfd_max_freq);
 	return;
 }
@@ -7396,12 +7437,12 @@ __visible_for_testing int ss_panel_vrr_switch(struct vrr_info *vrr)
 				(adjusted_rr == 48 || adjusted_rr == 96)) {
 			/* 60/120hz mode -> 48/96hz mode: apply compensated gamma */
 			vrr->gm2_gamma = VRR_GM2_GAMMA_COMPENSATE;
-			LCD_INFO(vdd, "compensate gamma\n");
+			LCD_DEBUG(vdd, "compensate gamma\n");
 		} else if ((cur_rr == 48 || cur_rr == 96) &&
 				(adjusted_rr != 48 && adjusted_rr != 96)) {
 			/* 48/96hz mode -> 60/120hz mode: restore original gamma MTP */
 			vrr->gm2_gamma = VRR_GM2_GAMMA_RESTORE_ORG;
-			LCD_INFO(vdd, "restore org gamma\n");
+			LCD_DEBUG(vdd, "restore org gamma\n");
 		}
 	}
 
@@ -7414,9 +7455,9 @@ __visible_for_testing int ss_panel_vrr_switch(struct vrr_info *vrr)
 		ret = -EPERM;
 		SS_XLOG(0xbad, vdd->panel_state);
 
-		vrr->cur_refresh_rate = adjusted_rr;
-		vrr->cur_sot_hs_mode = adjusted_hs;
-		vrr->cur_phs_mode = adjusted_phs;
+		vrr->prev_refresh_rate = vrr->cur_refresh_rate = adjusted_rr;
+		vrr->prev_sot_hs_mode = vrr->cur_sot_hs_mode = adjusted_hs;
+		vrr->prev_phs_mode = vrr->cur_phs_mode = adjusted_phs;
 
 		goto brr_done;
 	}

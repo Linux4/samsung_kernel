@@ -355,6 +355,7 @@ enum epen_elec_spec_mode {
 	EPEN_ELEC_DATA_ASSY		= 1,	// sub - assy
 	EPEN_ELEC_DATA_UNIT		= 2,	// sub - unit
 	EPEN_ELEC_DATA_NEW_ASSY	= 3,	// sub - new assy
+	EPEN_ELEC_DATA_DGT_ASSY	= 4,	// sub - dgt assy
 };
 
 struct wacom_elec_data {
@@ -433,7 +434,7 @@ struct wacom_elec_data {
 
 struct wacom_g5_platform_data {
 	struct wacom_elec_data *edata;		/* currnet test spec */
-	struct wacom_elec_data *edatas[4];	/* 0:main, 1:sub assy, 2:sub unit, 3:sub new assy */
+	struct wacom_elec_data *edatas[5];	/* 0:main, 1:sub assy, 2:sub unit, 3:sub new assy */
 
 	volatile bool enabled;
 

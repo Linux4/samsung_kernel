@@ -1226,8 +1226,16 @@ s32 wl_cfgscan_pfn_handler(struct bcm_cfg80211 *cfg, wl_pfn_scanresult_v3_1_t *p
 			"or invalid bss_info length\n"));
 		goto exit;
 	}
-
+	preempt_disable();
+#ifdef ESCAN_CHANNEL_CACHE
+	add_roam_cache(cfg, bi);
+#endif /* ESCAN_CHANNEL_CACHE */
 	err = wl_inform_single_bss(cfg, bi, false);
+	if (unlikely(err)) {
+		WL_ERR(("bss inform failed\n"));
+	}
+	preempt_enable();
+	WL_MEM(("cfg80211 scan cache updated\n"));
 exit:
 	return err;
 }

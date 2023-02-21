@@ -1951,6 +1951,8 @@ static int netlink_recvmsg(struct socket *sock, struct msghdr *msg, size_t len,
 	size_t copied;
 	struct sk_buff *skb, *data_skb;
 	int err, ret;
+	struct nlmsghdr *nh;
+	struct nlmsgerr *err2;
 
 	if (flags & MSG_OOB)
 		return -EOPNOTSUPP;
@@ -1962,7 +1964,13 @@ static int netlink_recvmsg(struct socket *sock, struct msghdr *msg, size_t len,
 		goto out;
 
 	data_skb = skb;
-
+/*
+	if (msg->msg_name) {
+		nh = (struct nlmsghdr *) msg->msg_name;
+		err2 = nlmsg_data(nh);
+		pr_err("lsy %s %d %d\n", __func__, __LINE__, err2->error);
+	}
+*/
 #ifdef CONFIG_COMPAT_NETLINK_MESSAGES
 	if (unlikely(skb_shinfo(skb)->frag_list)) {
 		/*
@@ -1993,7 +2001,13 @@ static int netlink_recvmsg(struct socket *sock, struct msghdr *msg, size_t len,
 
 	skb_reset_transport_header(data_skb);
 	err = skb_copy_datagram_msg(data_skb, 0, msg, copied);
-
+/*
+	if (msg->msg_name) {
+		nh = (struct nlmsghdr *) msg->msg_name;
+		err2 = nlmsg_data(nh);
+		pr_err("lsy %s %d %d\n", __func__, __LINE__, err2->error);
+	}
+*/
 	if (msg->msg_name) {
 		DECLARE_SOCKADDR(struct sockaddr_nl *, addr, msg->msg_name);
 		addr->nl_family = AF_NETLINK;
@@ -2021,11 +2035,21 @@ static int netlink_recvmsg(struct socket *sock, struct msghdr *msg, size_t len,
 		if (ret) {
 			sk->sk_err = -ret;
 			sk->sk_error_report(sk);
+/*			if (msg->msg_name) {
+				nh = (struct nlmsghdr *) msg->msg_name;
+				err2 = nlmsg_data(nh);
+				pr_err("lsy %s %d %d\n", __func__, __LINE__, err2->error);
+			}*/
 		}
 	}
 
 	scm_recv(sock, msg, &scm, flags);
 out:
+/*	if (msg->msg_name) {
+		nh = (struct nlmsghdr *) msg->msg_name;
+		err2 = nlmsg_data(nh);
+		pr_err("lsy %s %d %d\n", __func__, __LINE__, err2->error);
+	}*/
 	netlink_rcv_wake(sk);
 	return err ? : copied;
 }

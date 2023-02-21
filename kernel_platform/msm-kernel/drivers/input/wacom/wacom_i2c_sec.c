@@ -1594,7 +1594,7 @@ static void run_elec_test(void *device_data)
 
 	input_info(true, &client->dev, "%s: parm[%d]\n", __func__, sec->cmd_param[0]);
 
-	if (sec->cmd_param[0] < EPEN_ELEC_DATA_MAIN || sec->cmd_param[0] > EPEN_ELEC_DATA_NEW_ASSY) {
+	if (sec->cmd_param[0] < EPEN_ELEC_DATA_MAIN || sec->cmd_param[0] > EPEN_ELEC_DATA_DGT_ASSY) {
 		input_err(true, &client->dev,
 				"%s: Abnormal parm[%d]\n", __func__, sec->cmd_param[0]);
 		goto error;
@@ -2128,7 +2128,7 @@ static void get_elec_test_ver(void *device_data)
 
 	sec_cmd_set_default_result(sec);
 
-	if (sec->cmd_param[0] < EPEN_ELEC_DATA_MAIN || sec->cmd_param[0] > EPEN_ELEC_DATA_NEW_ASSY) {
+	if (sec->cmd_param[0] < EPEN_ELEC_DATA_MAIN || sec->cmd_param[0] > EPEN_ELEC_DATA_DGT_ASSY) {
 		input_err(true, &wac_i2c->client->dev,
 				"%s: Abnormal parm[%d]\n", __func__, sec->cmd_param[0]);
 		goto err_out;
@@ -3688,7 +3688,7 @@ int wacom_sec_init(struct wacom_i2c *wac_i2c)
 		input_err(true, &client->dev, "failed to create sysfs link\n");
 		goto err_create_symlink;
 	}
-	for (i = EPEN_ELEC_DATA_MAIN ; i <= EPEN_ELEC_DATA_NEW_ASSY ; i++) {
+	for (i = EPEN_ELEC_DATA_MAIN ; i <= EPEN_ELEC_DATA_DGT_ASSY ; i++) {
 		wacom_sec_elec_init(wac_i2c, i);
 	}
 

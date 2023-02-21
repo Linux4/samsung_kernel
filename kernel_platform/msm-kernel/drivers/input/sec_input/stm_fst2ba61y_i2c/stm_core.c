@@ -817,6 +817,7 @@ static void stm_ts_vm_mem_on_release_handler(enum gh_mem_notifier_tag tag,
 		return;
 	}
 
+	input_err(true, &ts->client->dev, "received mem lend request with handle:\n");
 	if (stm_ts_trusted_touch_get_pvm_driver_state(ts) ==
 				PVM_IRQ_RELEASE_NOTIFIED) {
 		stm_ts_trusted_touch_set_pvm_driver_state(ts,
@@ -1598,9 +1599,14 @@ void stm_ts_reinit(void *data)
 		stm_ts_ear_detect_enable(ts, ts->plat_data->ed_enable);
 	if (ts->plat_data->pocket_mode)
 		stm_ts_pocket_mode_enable(ts, ts->plat_data->pocket_mode);
+	if (ts->sip_mode)
+		stm_ts_sip_mode_enable(ts);
+	if (ts->note_mode)
+		stm_ts_note_mode_enable(ts);
+	if (ts->game_mode)
+		stm_ts_game_mode_enable(ts);
 out:
 	stm_ts_set_scanmode(ts, ts->scan_mode);
-
 }
 /*
  * don't need it in interrupt handler in reality, but, need it in vendor IC for requesting vendor IC.
@@ -2035,12 +2041,12 @@ int stm_ts_input_open(struct input_dev *dev)
 	if (ts->fix_active_mode)
 		stm_ts_fix_active_mode(ts, true);
 
-	if (ts->low_sensitivity_mode) {
+	if (ts->plat_data->low_sensitivity_mode) {
 		u8 reg[3];
 
 		reg[0] = STM_TS_CMD_SET_FUNCTION_ONOFF;
 		reg[1] = STM_TS_CMD_FUNCTION_SET_LOW_SENSITIVITY_MODE;
-		reg[2] = ts->low_sensitivity_mode;
+		reg[2] = ts->plat_data->low_sensitivity_mode;
 		ret = ts->stm_ts_write(ts, reg, 3, NULL, 0);
 		if (ret < 0)
 			input_err(true, &ts->client->dev, "%s: Failed to set low sensitivity mode\n", __func__);
@@ -2127,7 +2133,7 @@ void stm_ts_input_close(struct input_dev *dev)
 #if IS_ENABLED(CONFIG_GH_RM_DRV)
 	if (atomic_read(&ts->trusted_touch_enabled)) {
 		input_info(true, &ts->client->dev, "%s wait for disabling trusted touch\n", __func__);
-		wait_for_completion_interruptible(&ts->secure_powerdown);
+		wait_for_completion_interruptible(&ts->trusted_touch_powerdown);
 	}
 #endif
 #endif

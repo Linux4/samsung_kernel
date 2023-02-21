@@ -36,8 +36,17 @@ config CS40L26_SAMSUNG_FEATURE
 
 config CS40L26_SAMSUNG_USE_DVL
 	bool "Cirrus CS40L26 Haptic Driver uses dvl bin"
-	depends on INPUT_CS40L26_I2C
 	default n
 	help
 	  Say Y to enable CS40L26_SAMSUNG_USE_DVL.
 	  is used for enabling dvl firmware load
+
+config CS40L26_SAMSUNG_USE_MAX_DATA_TX_SIZE
+	bool "Cirrus CS40L26 driver uses max data transfer size"
+	depends on CS40L26_SAMSUNG_FEATURE
+	default n
+	help
+	  Say Y to enable CS40L26_SAMSUNG_USE_MAX_DATA_TX_SIZE.
+	  Samsung feature uses only 32 byte transfer due to SLSI AP's 
+	  I3C Regmap limitation. To use maximum data transfer size 
+	  please enable it.

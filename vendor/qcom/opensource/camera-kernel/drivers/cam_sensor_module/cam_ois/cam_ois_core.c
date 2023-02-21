@@ -142,7 +142,7 @@ static int cam_ois_get_dev_handle(struct cam_ois_ctrl_t *o_ctrl,
 	o_ctrl->bridge_intf.session_hdl = ois_acq_dev.session_handle;
 #endif
 
-	CAM_INFO(CAM_OIS, "OIS Device Handle: %d", ois_acq_dev.device_handle);
+	CAM_DBG(CAM_OIS, "Device Handle: %d", ois_acq_dev.device_handle);
 	if (copy_to_user(u64_to_user_ptr(cmd->handle), &ois_acq_dev,
 		sizeof(struct cam_sensor_acquire_dev))) {
 		CAM_ERR(CAM_OIS, "ACQUIRE_DEV: copy to user failed");
@@ -1526,7 +1526,6 @@ int cam_ois_driver_cmd(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 			rc = -EINVAL;
 			goto release_mutex;
 		}
-		CAM_INFO(CAM_OIS, "OIS Device Handle: %d", o_ctrl->bridge_intf.device_hdl);
 		rc = cam_destroy_device_hdl(o_ctrl->bridge_intf.device_hdl);
 		if (rc < 0)
 			CAM_ERR(CAM_OIS, "destroying the device hdl");

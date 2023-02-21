@@ -830,7 +830,7 @@ static int stm_ts_fw_burn(struct stm_ts_data *ts, const u8 *fw_data)
 	reg[2] = 0x00;
 	reg[3] = 0x00;
 	reg[4] = 0xDE;
-	reg[5] = 0x03;
+	reg[5] = 0x83;
 	rc = ts->stm_ts_write(ts, &reg[0], 6, NULL, 0);
 	if (rc < 0)
 		return rc;

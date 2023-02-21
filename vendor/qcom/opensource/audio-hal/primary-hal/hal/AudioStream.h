@@ -488,7 +488,7 @@ public:
 #ifdef SEC_AUDIO_CALL_VOIP
     pal_stream_attributes getStreamAttributes() { return streamAttributes_; }
 #endif
-#ifdef SEC_AUDIO_KARAOKE
+#ifdef SEC_AUDIO_COMMON
     bool HasPalStreamHandle() { return (pal_stream_handle_ != NULL) ? true : false; }
 #endif
 protected:
@@ -508,6 +508,7 @@ protected:
     struct pal_volume_data *volume_; /* used to cache volume */
     std::map <audio_devices_t, pal_device_id_t> mAndroidDeviceMap;
     int mmap_shared_memory_fd;
+    pal_param_device_capability_t *device_cap_query_;
 };
 
 #ifdef SEC_AUDIO_COMMON
@@ -587,10 +588,16 @@ public:
 #endif
 #ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
     int UpdateListenback(bool on);
+    void CheckAndSwitchListenbackMode(bool on);
 #endif
 #ifdef SEC_AUDIO_COMMON
     void lock_output_stream() { stream_mutex_.lock(); }
     void unlock_output_stream() { stream_mutex_.unlock(); }
+#endif
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    source_metadata_t btSourceMetadata;
+    std::vector<playback_track_metadata_t> tracks;
+    int SetAggregateSourceMetadata(bool voice_active);
 #endif
 protected:
 #ifdef SEC_AUDIO_DSM_AMP
@@ -697,6 +704,11 @@ public:
 #endif
 #ifdef SEC_AUDIO_SAMSUNGRECORD
     std::shared_ptr<AudioPreProcess> PreProcessInit();
+#endif
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    sink_metadata_t btSinkMetadata;
+    std::vector<record_track_metadata_t> tracks;
+    int SetAggregateSinkMetadata(bool voice_active);
 #endif
 protected:
     struct timespec readAt;

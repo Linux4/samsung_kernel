@@ -64,20 +64,6 @@ static void __msg_log_unset_msg_log_data(struct builder *bd)
 	msg_log_data = NULL;
 }
 
-#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
-int notrace ___sec_debug_msg_log(void *caller, const char *fmt, ...)
-{
-	va_list args;
-	int r;
-
-	va_start(args, fmt);
-	r = ____msg_log(caller, fmt, args);
-	va_end(args);
-
-	return r;
-}
-#endif
-
 static int notrace __msg_log(const char *fmt, ...)
 {
 	va_list args;
@@ -197,9 +183,6 @@ static int sec_qc_msg_log_probe(struct qc_logger *logger)
 	if (err)
 		return err;
 
-	if (IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML))
-		return 0;
-
 	return __qc_logger_sub_module_probe(logger,
 			__msg_logdev_builder_trace,
 			ARRAY_SIZE(__msg_logdev_builder_trace));
@@ -210,9 +193,6 @@ static void sec_qc_msg_log_remove(struct qc_logger *logger)
 	__qc_logger_sub_module_remove(logger,
 			__msg_logdev_builder,
 			ARRAY_SIZE(__msg_logdev_builder));
-
-	if (IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML))
-		return;
 
 	__qc_logger_sub_module_remove(logger,
 			__msg_logdev_builder_trace,

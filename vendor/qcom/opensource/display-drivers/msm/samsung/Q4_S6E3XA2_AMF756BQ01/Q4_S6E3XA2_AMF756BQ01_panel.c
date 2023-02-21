@@ -81,12 +81,6 @@ static int samsung_panel_on_post(struct samsung_display_driver_data *vdd)
 	if (vdd->self_disp.self_mask_on)
 		vdd->self_disp.self_mask_on(vdd, true);
 
-	if (vdd->self_disp.need_to_enable_udc) {
-		LCD_INFO(vdd, "write SELF MASK UDC %s cmd \n", vdd->self_disp.need_to_enable_udc ? "enable" : "disable");
-		vdd->self_disp.need_to_enable_udc = 0;
-		ss_send_cmd(vdd, TX_SELF_MASK_UDC_ON);
-	}
-
 	if (is_umc_panel)
 		ss_send_cmd(vdd, TX_UMC_IP_OFF_TIMING);
 #else
@@ -373,7 +367,7 @@ static struct dsi_panel_cmd_set * ss_brightness_gamma_mode2_normal(struct samsun
 	return pcmds;
 }
 
-static void ss_read_flash(struct samsung_display_driver_data *vdd, u32 raddr, u32 rsize, u8 *rbuf)
+static void ss_read_flash_sysfs(struct samsung_display_driver_data *vdd, u32 raddr, u32 rsize, u8 *rbuf)
 {
 	char showbuf[256];
 	int i, pos = 0;
@@ -399,6 +393,7 @@ static void ss_read_flash(struct samsung_display_driver_data *vdd, u32 raddr, u3
 
 	return;
 }
+
 
 #define FLASH_TEST_MODE_NUM     (1)
 static int ss_test_ddi_flash_check(struct samsung_display_driver_data *vdd, char *buf)
@@ -1757,7 +1752,9 @@ static int ss_ffc(struct samsung_display_driver_data *vdd, int idx)
 	return 0;
 }
 
-static int poc_erase(struct samsung_display_driver_data *vdd, u32 erase_pos, u32 erase_size, u32 target_pos)
+#define FLASH_SECTOR_SIZE		4096
+
+static int flash_sector_erase(struct samsung_display_driver_data *vdd, u32 start_addr, int sector_n)
 {
 	struct dsi_display *display = NULL;
 	struct dsi_panel_cmd_set *poc_erase_sector_tx_cmds = NULL;
@@ -1766,6 +1763,8 @@ static int poc_erase(struct samsung_display_driver_data *vdd, u32 erase_pos, u32
 	int type;
 	int ret = 0;
 	int wait_cnt = 1000; /* 1000 * 0.5ms = 500ms */
+	int erase_size = FLASH_SECTOR_SIZE * sector_n;
+	int i;
 
 	if (IS_ERR_OR_NULL(vdd)) {
 		LCD_ERR(vdd, "no vdd\n");
@@ -1778,7 +1777,7 @@ static int poc_erase(struct samsung_display_driver_data *vdd, u32 erase_pos, u32
 		return -EINVAL;
 	}
 
-	if (!ss_is_ready_to_send_cmd(vdd)) {
+	if (ss_is_panel_off(vdd)) {
 		LCD_ERR(vdd, "Panel is not ready. Panel State(%d)\n", vdd->panel_state);
 		return -EBUSY;
 	}
@@ -1798,8 +1797,8 @@ static int poc_erase(struct samsung_display_driver_data *vdd, u32 erase_pos, u32
 	image_size = vdd->poc_driver.image_size;
 	delay_us = vdd->poc_driver.erase_delay_us;
 
-	LCD_INFO(vdd, "[ERASE] (%6d / %6d), erase_size (%d), delay %dus\n",
-		erase_pos, target_pos, erase_size, delay_us);
+	LCD_INFO(vdd, "[ERASE] 0x%X, %d sectoc, erase_size (%d), delay %dus\n",
+		start_addr, sector_n, erase_size, delay_us);
 
 	/* Enter exclusive mode */
 	mutex_lock(&vdd->exclusive_tx.ex_tx_lock);
@@ -1813,28 +1812,27 @@ static int poc_erase(struct samsung_display_driver_data *vdd, u32 erase_pos, u32
 
 	/* POC MODE ENABLE */
 	ss_send_cmd(vdd, TX_POC_ENABLE);
-
-	LCD_INFO(vdd, "WRITE [TX_POC_PRE_ERASE_SECTOR]");
 	ss_send_cmd(vdd, TX_POC_PRE_ERASE_SECTOR);
 
-	poc_erase_sector_tx_cmds->cmds[2].ss_txbuf[vdd->poc_driver.erase_sector_addr_idx[0]]
-											= (erase_pos & 0xFF0000) >> 16;
-	poc_erase_sector_tx_cmds->cmds[2].ss_txbuf[vdd->poc_driver.erase_sector_addr_idx[1]]
-											= (erase_pos & 0x00FF00) >> 8;
-	poc_erase_sector_tx_cmds->cmds[2].ss_txbuf[vdd->poc_driver.erase_sector_addr_idx[2]]
-											= erase_pos & 0x0000FF;
+	for (i = 0; i < sector_n; i++) {
+		LCD_INFO(vdd, "[ERASE] 0x%X\n", start_addr);
 
-	ss_send_cmd(vdd, TX_POC_ERASE_SECTOR);
+		poc_erase_sector_tx_cmds->cmds[2].ss_txbuf[vdd->poc_driver.erase_sector_addr_idx[0]]
+												= (start_addr & 0xFF0000) >> 16;
+		poc_erase_sector_tx_cmds->cmds[2].ss_txbuf[vdd->poc_driver.erase_sector_addr_idx[1]]
+												= (start_addr & 0x00FF00) >> 8;
+		poc_erase_sector_tx_cmds->cmds[2].ss_txbuf[vdd->poc_driver.erase_sector_addr_idx[2]]
+												= start_addr & 0x0000FF;
+		vdd->debug_data->print_cmds = true;
+		ss_send_cmd(vdd, TX_POC_ERASE_SECTOR);
+		vdd->debug_data->print_cmds = false;
 
-	usleep_range(delay_us, delay_us);
+		usleep_range(delay_us, delay_us);
 
-	if ((erase_pos + erase_size >= target_pos) || ret == -EIO) {
-		LCD_INFO(vdd, "WRITE [TX_POC_POST_ERASE_SECTOR] - cur_erase_pos(%d) target_pos(%d) ret(%d)\n",
-			erase_pos, target_pos, ret);
-		ss_send_cmd(vdd, TX_POC_POST_ERASE_SECTOR);
+		start_addr += FLASH_SECTOR_SIZE;
 	}
 
-	/* POC MODE DISABLE */
+	ss_send_cmd(vdd, TX_POC_POST_ERASE_SECTOR);
 	ss_send_cmd(vdd, TX_POC_DISABLE);
 
 	/* exit exclusive mode*/
@@ -2115,7 +2113,7 @@ cancel_poc:
 	return ret;
 }
 
-static int ss_read_udc_data(struct samsung_display_driver_data *vdd)
+static int ss_read_udc_transmittance_data(struct samsung_display_driver_data *vdd)
 {
 	int i = 0;
 	u8 *read_buf;
@@ -2126,16 +2124,14 @@ static int ss_read_udc_data(struct samsung_display_driver_data *vdd)
 	read_buf = kzalloc(vdd->udc.size, GFP_KERNEL);
 
 	ss_send_cmd(vdd, TX_POC_ENABLE);
-
 	ss_send_cmd(vdd, TX_FLASH_GAMMA_PRE1);
 
-	LCD_INFO(vdd, "[UDC] start_addr : %X, size : %X\n", vdd->udc.start_addr, vdd->udc.size);
+	LCD_INFO(vdd, "[UDC transmittance] start_addr : %X, size : %X\n", vdd->udc.start_addr, vdd->udc.size);
 
 	flash_read_bytes(vdd, vdd->udc.start_addr, fsize, vdd->udc.size, read_buf);
 	memcpy(vdd->udc.data, read_buf, vdd->udc.size);
 
 	ss_send_cmd(vdd, TX_FLASH_GAMMA_POST);
-
 	ss_send_cmd(vdd, TX_POC_DISABLE);
 
 	for (i = 0; i < vdd->udc.size/2; i++) {
@@ -2147,6 +2143,917 @@ static int ss_read_udc_data(struct samsung_display_driver_data *vdd)
 	vdd->debug_data->print_cmds = false;
 
 	return 0;
+}
+
+static int ss_flash_write(struct samsung_display_driver_data *vdd, int start_addr, int write_size, int total_size, u8 *buf)
+{
+	int i, r_size;
+	struct dsi_panel_cmd_set *write_cmd = NULL;
+	struct dsi_panel_cmd_set *write_data_add = NULL;
+	int type;
+	int wait_cnt = 1000;
+
+	write_cmd = ss_get_cmds(vdd, TX_POC_WRITE_LOOP_256BYTE);
+	if (SS_IS_CMDS_NULL(write_cmd)) {
+		LCD_ERR(vdd, "no cmds for TX_POC_WRITE_LOOP_256BYTE..\n");
+		return -EINVAL;
+	}
+
+	write_data_add = ss_get_cmds(vdd, TX_POC_WRITE_LOOP_DATA_ADD);
+	if (SS_IS_CMDS_NULL(write_data_add)) {
+		LCD_ERR(vdd, "no cmds for TX_POC_WRITE_LOOP_DATA_ADD..\n");
+		return -EINVAL;
+	}
+
+	mutex_lock(&vdd->exclusive_tx.ex_tx_lock);
+	vdd->exclusive_tx.permit_frame_update = 1;
+	vdd->exclusive_tx.enable = 1;
+	while (!list_empty(&vdd->cmd_lock.wait_list) && --wait_cnt)
+		usleep_range(500, 500);
+
+	for (type = TX_POC_CMD_START; type < TX_POC_CMD_END + 1 ; type++)
+		ss_set_exclusive_tx_packet(vdd, type, 1);
+	for (type = TX_FLASH_GAMMA_PRE1; type < TX_FLASH_GAMMA_POST + 1 ; type++)
+		ss_set_exclusive_tx_packet(vdd, type, 1);
+
+	ss_send_cmd(vdd, TX_POC_ENABLE);
+	ss_send_cmd(vdd, TX_FLASH_GAMMA_PRE1);
+
+	r_size = write_size;
+	for (i = 0; i < total_size; i += r_size) {
+
+		/* last trim */
+		if (total_size - i < write_size)
+			r_size = total_size - i;
+
+		LCD_INFO(vdd, "[%X] r_addr [%X] r_size [%d][0x%X] \n", i, start_addr + i, r_size, r_size);
+
+		/* set write size */
+		write_cmd->cmds[0].msg.tx_len = r_size + 1;
+
+		/* data copy */
+		memcpy(&write_cmd->cmds[0].ss_txbuf[1], &buf[i], r_size);
+
+		if (total_size < 10)
+			LCD_INFO(vdd, "[0x%X] %02X %02X \n", start_addr + i, write_cmd->cmds[0].ss_txbuf[1], write_cmd->cmds[0].ss_txbuf[2]);
+		else
+			LCD_INFO(vdd, "[0x%X] %02X %02X %02X %02X %02X .. %02X %02X %02X %02X\n", start_addr + i,
+				write_cmd->cmds[0].ss_txbuf[1], write_cmd->cmds[0].ss_txbuf[2], write_cmd->cmds[0].ss_txbuf[3], write_cmd->cmds[0].ss_txbuf[4], write_cmd->cmds[0].ss_txbuf[5],
+				write_cmd->cmds[0].ss_txbuf[r_size-3], write_cmd->cmds[0].ss_txbuf[r_size-2], write_cmd->cmds[0].ss_txbuf[r_size-1], write_cmd->cmds[0].ss_txbuf[r_size]);
+
+		vdd->debug_data->print_cmds = true;
+
+		ss_send_cmd(vdd, TX_POC_WRITE_LOOP_256BYTE);
+
+		/*	Multi Data Address */
+		write_data_add->cmds[2].ss_txbuf[vdd->poc_driver.write_addr_idx[0]]
+										= ((start_addr + i) & 0xFF0000) >> 16;
+		write_data_add->cmds[2].ss_txbuf[vdd->poc_driver.write_addr_idx[1]]
+										= ((start_addr + i) & 0x00FF00) >> 8;
+		write_data_add->cmds[2].ss_txbuf[vdd->poc_driver.write_addr_idx[2]]
+										= ((start_addr + i) & 0x0000FF);
+
+		write_data_add->cmds[2].ss_txbuf[vdd->poc_driver.write_size_idx[0]]
+										= ((r_size | 0xC000) & 0xFF00) >> 8;
+		write_data_add->cmds[2].ss_txbuf[vdd->poc_driver.write_size_idx[1]]
+										= ((r_size | 0xC000) & 0x00FF);
+
+		ss_send_cmd(vdd, TX_POC_WRITE_LOOP_DATA_ADD);
+		vdd->debug_data->print_cmds = false;
+
+		usleep_range(40000, 40000);
+
+	}
+
+	ss_send_cmd(vdd, TX_FLASH_GAMMA_POST);
+	ss_send_cmd(vdd, TX_POC_DISABLE);
+
+	for (type = TX_POC_CMD_START; type < TX_POC_CMD_END + 1 ; type++)
+		ss_set_exclusive_tx_packet(vdd, type, 0);
+	for (type = TX_FLASH_GAMMA_PRE1; type < TX_FLASH_GAMMA_POST + 1 ; type++)
+		ss_set_exclusive_tx_packet(vdd, type, 0);
+	vdd->exclusive_tx.enable = 0;
+	vdd->exclusive_tx.permit_frame_update = 0;
+	mutex_unlock(&vdd->exclusive_tx.ex_tx_lock);
+	wake_up_all(&vdd->exclusive_tx.ex_tx_waitq);
+
+	return 0;
+}
+
+static void ss_flash_read(struct samsung_display_driver_data *vdd, u32 addr, int total_size, int read_size, u8* buf)
+{
+	int i = 0;
+	u32 read_addr, target_addr, fsize, rsize;
+	u8 *read_buf;
+	int type;
+	int wait_cnt = 1000;
+
+	target_addr = addr + total_size;
+
+	LCD_INFO(vdd, "addr : 0x%X ~ 0x%X, total_read_size %d ++\n", addr, target_addr - 1, total_size);
+
+	mutex_lock(&vdd->exclusive_tx.ex_tx_lock);
+	vdd->exclusive_tx.permit_frame_update = 1;
+	vdd->exclusive_tx.enable = 1;
+	while (!list_empty(&vdd->cmd_lock.wait_list) && --wait_cnt)
+		usleep_range(500, 500);
+	for (type = TX_POC_CMD_START; type < TX_POC_CMD_END + 1 ; type++)
+		ss_set_exclusive_tx_packet(vdd, type, 1);
+	for (type = TX_FLASH_GAMMA_PRE1; type < TX_FLASH_GAMMA_POST + 1 ; type++)
+		ss_set_exclusive_tx_packet(vdd, type, 1);
+	ss_set_exclusive_tx_packet(vdd, RX_POC_READ, 1);
+	ss_set_exclusive_tx_packet(vdd, TX_REG_READ_POS, 1);
+	ss_set_exclusive_tx_packet(vdd, RX_FLASH_GAMMA, 1);
+
+	/* 1. Read UDC Flash */
+	ss_send_cmd(vdd, TX_POC_ENABLE);
+	ss_send_cmd(vdd, TX_FLASH_GAMMA_PRE1);
+
+	for (i = 0; i < total_size; i+= rsize) {
+		read_addr = addr + i;
+
+		if (read_addr + rsize >= target_addr)
+			rsize = target_addr - read_addr;
+		else
+			rsize = read_size;
+
+		fsize = 0xC00000 | rsize;
+		read_buf = kzalloc(rsize, GFP_KERNEL);
+
+		LCD_INFO(vdd, "[%d] addr : 0x%X, rsize : %d, fsize : 0x%X\n", i, read_addr, rsize, fsize);
+
+		flash_read_bytes(vdd, read_addr, fsize, rsize, read_buf);
+
+		/* keep the original flash data */
+		memcpy(&buf[i], read_buf, rsize);
+
+		if (rsize > 10)
+			LCD_INFO(vdd, "[0x%X] %02X %02X %02X %02X %02X .. %02X %02X %02X\n", read_addr,
+				read_buf[0], read_buf[1], read_buf[2], read_buf[3], read_buf[4], read_buf[rsize-3], read_buf[rsize-2], read_buf[rsize-1]);
+		else
+			LCD_INFO(vdd, "[0x%X] %02X  .. %02X\n", read_addr, read_buf[0], read_buf[rsize-1]);
+
+	}
+
+	ss_send_cmd(vdd, TX_FLASH_GAMMA_POST);
+	ss_send_cmd(vdd, TX_POC_DISABLE);
+
+	for (type = TX_POC_CMD_START; type < TX_POC_CMD_END + 1 ; type++)
+		ss_set_exclusive_tx_packet(vdd, type, 0);
+	for (type = TX_FLASH_GAMMA_PRE1; type < TX_FLASH_GAMMA_POST + 1 ; type++)
+		ss_set_exclusive_tx_packet(vdd, type, 0);
+	ss_set_exclusive_tx_packet(vdd, RX_POC_READ, 0);
+	ss_set_exclusive_tx_packet(vdd, TX_REG_READ_POS, 0);
+	ss_set_exclusive_tx_packet(vdd, RX_FLASH_GAMMA, 0);
+	vdd->exclusive_tx.enable = 0;
+	vdd->exclusive_tx.permit_frame_update = 0;
+	mutex_unlock(&vdd->exclusive_tx.ex_tx_lock);
+	wake_up_all(&vdd->exclusive_tx.ex_tx_waitq);
+
+	LCD_INFO(vdd, "-- \n");
+	return;
+}
+
+#define UDC_GAMMA_READ_SIZE		128
+#define UDC_GAMMA_WRITE_SIZE	128
+#define UDC_CS_ADDR1		0xCF244
+#define UDC_CS_ADDR2		0xCF245
+#define COMP_HS1_ADDR		0xCE110
+#define COMP_HS2_ADDR		0xCEAA0
+
+/*
+ * 1. [READ] Read the UDC gamma data from 0xCD000 ~ 0xCF245 (8774 bytes)
+ * 2. [C/S] Check CHECKSUM data
+ * 3. [BACKUP] If it's never backed it up, backup the original UDC gamma data to the backup address
+ */
+static void ss_read_udc_gamma_data(struct samsung_display_driver_data *vdd)
+{
+	int target_addr;
+	u8* backup_buf;
+	int orig_data_sum = 0;
+	int i = 0;
+
+	target_addr = vdd->udc.gamma_start_addr + vdd->udc.gamma_size;
+
+	/* 1. [READ] Read the UDC gamma data from 0xCD000 ~ 0xCF245 (8774 bytes) */
+	LCD_INFO(vdd, "addr : 0x%X ~ 0x%X, total_read_size %d ++\n", vdd->udc.gamma_start_addr, target_addr, vdd->udc.gamma_size);
+	ss_flash_read(vdd, vdd->udc.gamma_start_addr, vdd->udc.gamma_size, UDC_GAMMA_READ_SIZE, vdd->udc.gamma_data);
+
+	/* 2. [C/S] Check CHECKSUM data */
+	for (i = 0; i < vdd->udc.gamma_size - 2; i++)
+		orig_data_sum += vdd->udc.gamma_data[i];
+
+	LCD_INFO(vdd, "ORIG_DATA_SUM : [%X]\n", orig_data_sum);
+	LCD_INFO(vdd, "ORIG_CHECKSUM : [%X] %02X, [%X] %02X\n",
+		UDC_CS_ADDR1, vdd->udc.gamma_data[UDC_CS_ADDR1 - vdd->udc.gamma_start_addr],
+		UDC_CS_ADDR2, vdd->udc.gamma_data[UDC_CS_ADDR2 - vdd->udc.gamma_start_addr]);
+
+	vdd->udc.checksum = true;
+
+	if (((orig_data_sum >> 8) & 0xFF) != vdd->udc.gamma_data[UDC_CS_ADDR1 - vdd->udc.gamma_start_addr]) {
+		LCD_ERR(vdd, "ORIG_CHECKSUM1 fail!\n");
+		vdd->udc.checksum = false;
+	}
+
+	if ((orig_data_sum & 0xFF) != vdd->udc.gamma_data[UDC_CS_ADDR2 - vdd->udc.gamma_start_addr]) {
+		LCD_ERR(vdd, "ORIG_CHECKSUM2 fail!\n");
+		vdd->udc.checksum = false;
+	}
+
+	/* 3. [BACKUP] If it's never backed it up, backup the original UDC gamma data to the backup address */
+
+	/* Read only 2 bytes in the backup address. */
+	backup_buf = kzalloc(2, GFP_KERNEL);
+	ss_flash_read(vdd, vdd->udc.gamma_backup_addr, 2, 2, backup_buf);
+
+	LCD_INFO(vdd, "[0x%X] %X, [0x%X] %X\n",
+		vdd->udc.gamma_backup_addr, backup_buf[0], vdd->udc.gamma_backup_addr + 1, backup_buf[1]);
+
+	/* The value 0xFF means that it has never been backed up. */
+	if (backup_buf[0] == 0xFF && backup_buf[1] == 0xFF) {
+		LCD_INFO(vdd, "Do backup..\n");
+		flash_sector_erase(vdd, vdd->udc.gamma_backup_addr, 3);
+		ss_flash_write(vdd, vdd->udc.gamma_backup_addr, UDC_GAMMA_WRITE_SIZE, vdd->udc.gamma_size, &vdd->udc.gamma_data[0]);
+	} else {
+		LCD_INFO(vdd, "already backed up..\n");
+	}
+
+	LCD_INFO(vdd, "-- checksum result: %d\n", vdd->udc.checksum);
+
+	return;
+}
+
+#define UDC_CONVERT1_SIZE	19
+#define UDC_COMP1_SIZE		(UDC_CONVERT1_SIZE * 2)
+
+static int JNCD_VAL1[3][UDC_CONVERT1_SIZE] = {
+	{-1, -3, -6, -9, -11, -14, -17, -20, -20, -20, -18, -16, -13, -11, -9, -7, -4, -2, -1},
+	{-1, -7, -14, -21, -29, -36, -43, -50, -50, -50, -44, -39, -33, -28, -22, -17, -11, -6, -1},
+	{-1, -11, -23, -34, -46, -57, -69, -80, -80, -80, -71, -62, -53, -44, -36, -27, -18, -9, -1},
+};
+
+static int comp1_idx1[4] = {
+	6816,
+	6612,
+	4368,
+	4164
+};
+
+static int comp1_idx2[4] = {
+	7224,
+	7020,
+	4776,
+	4572
+};
+
+#define UDC_CONVERT2_SIZE	15
+#define UDC_COMP2_SIZE		(UDC_CONVERT2_SIZE * 2)
+
+static int JNCD_VAL2[3][UDC_CONVERT2_SIZE] = {
+	{-2, -5, -7, -10, -12, -15, -17, -20, -20, -20, -20, -20, -20, -20, -20},
+	{-6, -12, -18, -25, -31, -37, -43, -50, -50, -50, -50, -50, -50, -50, -50},
+	{-10, -20, -30, -40, -50, -60, -70, -80, -80, -80, -80, -80, -80, -80, -80},
+};
+
+static int JNCD_VAL3[3][UDC_CONVERT2_SIZE] = {
+	{0, -3, -6, -10, -13, -16, -20, -20, -20, -20, -20, -20, -20, -20, 0},
+	{0, -8, -16, -25, -33, -41, -50, -50, -50, -50, -50, -50, -50, -50, 0},
+	{0, -13, -26, -40, -53, -66, -80, -80, -80, -80, -80, -80, -80, -80, 0},
+};
+
+static int comp2_idx1[2] = {
+	5794,
+	3346,
+};
+static int comp2_idx2[2] = {
+	5998,
+	3550,
+};
+static int comp2_idx3[2] = {
+	6202,
+	3754,
+};
+static int comp2_idx4[2] = {
+	6406,
+	3958,
+};
+
+static int ss_udc_gamma_comp(struct samsung_display_driver_data *vdd)
+{
+	struct UDC *udc = &vdd->udc;
+	int convert1_data[UDC_CONVERT1_SIZE];
+	int new_convert_data1[UDC_CONVERT1_SIZE];
+	int new_convert_data2[UDC_CONVERT1_SIZE];
+	int convert2_data[UDC_CONVERT2_SIZE];
+	int new_convert_data3[UDC_CONVERT2_SIZE];
+	int new_convert_data4[UDC_CONVERT2_SIZE];
+	int new_convert_data5[UDC_CONVERT2_SIZE];
+	int new_convert_data6[UDC_CONVERT2_SIZE];
+	char pBuf[256];
+	u8 comp_buf1[UDC_COMP1_SIZE];
+	u8 comp_buf2[UDC_COMP2_SIZE];
+	int i, j, comp_idx;
+	u8 val1, val2;
+	int new_data_sum = 0;
+	int JNCD_idx = vdd->udc.JNCD_idx;
+	int CS1_idx, CS2_idx;
+	int convert_idx, convert_base;
+	int ret = 0;
+
+	LCD_INFO(vdd, "++\n");
+
+	if (!vdd->udc.gamma_data) {
+		LCD_ERR(vdd, "No udc gamma data..\n");
+		return -1;
+	}
+
+	CS1_idx = UDC_CS_ADDR1 - udc->gamma_start_addr;
+	CS2_idx = UDC_CS_ADDR2 - udc->gamma_start_addr;
+
+	/******************************************************************/
+	/* 2. Convert *****************************************************/
+	/******************************************************************/
+
+	/* 2. Convert 1-1 (6816, 6612, 4368, 4164) */
+
+	convert_base = comp1_idx1[0];
+
+	LCD_INFO(vdd, "[UDC_GAMMA_COMP] comp idx [%d] [0x%X] ============================== \n", convert_base, convert_base);
+
+	memset(pBuf, 0x00, 256);
+	for (i = 0; i < UDC_CONVERT1_SIZE; i++) {
+		convert1_data[i] = (udc->gamma_data[convert_base+2*i] << 8) | (udc->gamma_data[convert_base+2*i+1]);
+		scnprintf(pBuf + strnlen(pBuf, 256), 256, " %04X", convert1_data[i]);
+	}
+
+	LCD_INFO(vdd, "convert_data[%d] : %s\n", UDC_CONVERT1_SIZE, pBuf);
+
+	LCD_INFO(vdd, "OFFSET[%d] : %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d\n", JNCD_idx,
+			JNCD_VAL1[JNCD_idx][0], JNCD_VAL1[JNCD_idx][1], JNCD_VAL1[JNCD_idx][2], JNCD_VAL1[JNCD_idx][3], JNCD_VAL1[JNCD_idx][4], JNCD_VAL1[JNCD_idx][5],
+			JNCD_VAL1[JNCD_idx][6], JNCD_VAL1[JNCD_idx][7], JNCD_VAL1[JNCD_idx][8], JNCD_VAL1[JNCD_idx][9], JNCD_VAL1[JNCD_idx][10], JNCD_VAL1[JNCD_idx][11],
+			JNCD_VAL1[JNCD_idx][12], JNCD_VAL1[JNCD_idx][13], JNCD_VAL1[JNCD_idx][14], JNCD_VAL1[JNCD_idx][15], JNCD_VAL1[JNCD_idx][16], JNCD_VAL1[JNCD_idx][17],
+			JNCD_VAL1[JNCD_idx][18]);
+
+	/* UDC Offset & CS Caluculation */
+	memset(pBuf, 0x00, 256);
+	for (i = 0; i < UDC_CONVERT1_SIZE; i++) {
+		if (convert1_data[i] + JNCD_VAL1[JNCD_idx][i] < 0)
+			new_convert_data1[i] = 0x00;
+		else if (convert1_data[i] + JNCD_VAL1[JNCD_idx][i] > 0xFFFF)
+			new_convert_data1[i] = 0xFFFF;
+		else
+			new_convert_data1[i] = convert1_data[i] + JNCD_VAL1[JNCD_idx][i];
+
+		scnprintf(pBuf + strnlen(pBuf, 256), 256, " %04X", new_convert_data1[i]);
+	}
+
+	LCD_INFO(vdd, "new_convert_data1[%d] : %s\n", UDC_CONVERT1_SIZE, pBuf);
+
+	/* Convert Format */
+	for (i = 0; i < sizeof(comp1_idx1) / sizeof(int); i++) {
+		convert_idx = comp1_idx1[i];
+
+		for (j = 0; j < UDC_CONVERT1_SIZE; j++) {
+			val1 = udc->gamma_data[convert_idx+2*j];
+			val2 = udc->gamma_data[convert_idx+2*j+1];
+
+			udc->gamma_data[convert_idx+2*j] = (new_convert_data1[j] >> 8) & 0xFF;
+			udc->gamma_data[convert_idx+2*j+1] = new_convert_data1[j] & 0xFF;
+
+			LCD_INFO(vdd, "Convert [%d] %02X -> %02X \n", convert_idx+2*j, val1, udc->gamma_data[convert_idx+2*j]);
+			LCD_INFO(vdd, "Convert [%d] %02X -> %02X \n", convert_idx+2*j+1, val2, udc->gamma_data[convert_idx+2*j+1]);
+		}
+	}
+
+	/* 2. Convert 1-2 (7224, 7020, 4776, 4572) */
+
+	convert_base = comp1_idx2[0];
+
+	LCD_INFO(vdd, "[UDC_GAMMA_COMP] comp idx [%d] [0x%X] ============================== \n", convert_base, convert_base);
+
+	memset(pBuf, 0x00, 256);
+	for (i = 0; i < UDC_CONVERT1_SIZE; i++) {
+		convert1_data[i] = (udc->gamma_data[convert_base+2*i] << 8) | (udc->gamma_data[convert_base+2*i+1]);
+		scnprintf(pBuf + strnlen(pBuf, 256), 256, " %04X", convert1_data[i]);
+	}
+
+	LCD_INFO(vdd, "convert_data[%d] : %s\n", UDC_CONVERT1_SIZE, pBuf);
+
+	LCD_INFO(vdd, "OFFSET[%d] : %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d\n", JNCD_idx,
+			JNCD_VAL1[JNCD_idx][0], JNCD_VAL1[JNCD_idx][1], JNCD_VAL1[JNCD_idx][2], JNCD_VAL1[JNCD_idx][3], JNCD_VAL1[JNCD_idx][4], JNCD_VAL1[JNCD_idx][5],
+			JNCD_VAL1[JNCD_idx][6], JNCD_VAL1[JNCD_idx][7], JNCD_VAL1[JNCD_idx][8], JNCD_VAL1[JNCD_idx][9], JNCD_VAL1[JNCD_idx][10], JNCD_VAL1[JNCD_idx][11],
+			JNCD_VAL1[JNCD_idx][12], JNCD_VAL1[JNCD_idx][13], JNCD_VAL1[JNCD_idx][14], JNCD_VAL1[JNCD_idx][15], JNCD_VAL1[JNCD_idx][16], JNCD_VAL1[JNCD_idx][17],
+			JNCD_VAL1[JNCD_idx][18]);
+
+	/* UDC Offset & CS Caluculation */
+	memset(pBuf, 0x00, 256);
+	for (i = 0; i < UDC_CONVERT1_SIZE; i++) {
+		if (convert1_data[i] + JNCD_VAL1[JNCD_idx][i] < 0)
+			new_convert_data2[i] = 0x00;
+		else if (convert1_data[i] + JNCD_VAL1[JNCD_idx][i] > 0xFFFF)
+			new_convert_data2[i] = 0xFFFF;
+		else
+			new_convert_data2[i] = convert1_data[i] + JNCD_VAL1[JNCD_idx][i];
+
+		scnprintf(pBuf + strnlen(pBuf, 256), 256, " %04X", new_convert_data2[i]);
+	}
+
+	LCD_INFO(vdd, "new_convert_data2[%d] : %s\n", UDC_CONVERT1_SIZE, pBuf);
+
+	/* Convert Format */
+	for (i = 0; i < sizeof(comp1_idx2) / sizeof(int); i++) {
+		convert_idx = comp1_idx2[i];
+
+		for (j = 0; j < UDC_CONVERT1_SIZE; j++) {
+			val1 = udc->gamma_data[convert_idx+2*j];
+			val2 = udc->gamma_data[convert_idx+2*j+1];
+
+			udc->gamma_data[convert_idx+2*j] = (new_convert_data2[j] >> 8) & 0xFF;
+			udc->gamma_data[convert_idx+2*j+1] = new_convert_data2[j] & 0xFF;
+
+			LCD_INFO(vdd, "Convert [%d] %02X -> %02X \n", convert_idx+2*j, val1, udc->gamma_data[convert_idx+2*i]);
+			LCD_INFO(vdd, "Convert [%d] %02X -> %02X \n", convert_idx+2*j+1, val2, udc->gamma_data[convert_idx+2*i+1]);
+		}
+	}
+
+	/* 2. Convert 2-1 (5794, 3346) */
+
+	convert_base = comp2_idx1[0];
+
+	LCD_INFO(vdd, "[UDC_GAMMA_COMP] comp idx [%d] [0x%X] ============================== \n", convert_base, convert_base);
+
+	memset(pBuf, 0x00, 256);
+	for (i = 0; i < UDC_CONVERT2_SIZE; i++) {
+		convert2_data[i] = (udc->gamma_data[convert_base+2*i] << 8) | (udc->gamma_data[convert_base+2*i+1]);
+		scnprintf(pBuf + strnlen(pBuf, 256), 256, " %04X", convert2_data[i]);
+	}
+
+	LCD_INFO(vdd, "convert_data[%d] : %s\n", UDC_CONVERT2_SIZE, pBuf);
+
+	LCD_INFO(vdd, "OFFSET[%d] : %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d\n", JNCD_idx,
+			JNCD_VAL2[JNCD_idx][0], JNCD_VAL2[JNCD_idx][1], JNCD_VAL2[JNCD_idx][2], JNCD_VAL2[JNCD_idx][3], JNCD_VAL2[JNCD_idx][4], JNCD_VAL2[JNCD_idx][5],
+			JNCD_VAL2[JNCD_idx][6], JNCD_VAL2[JNCD_idx][7], JNCD_VAL2[JNCD_idx][8], JNCD_VAL2[JNCD_idx][9], JNCD_VAL2[JNCD_idx][10], JNCD_VAL2[JNCD_idx][11],
+			JNCD_VAL2[JNCD_idx][12], JNCD_VAL2[JNCD_idx][13], JNCD_VAL2[JNCD_idx][14]);
+
+	/* UDC Offset & CS Caluculation */
+	memset(pBuf, 0x00, 256);
+	for (i = 0; i < UDC_CONVERT2_SIZE; i++) {
+		if (convert2_data[i] + JNCD_VAL2[JNCD_idx][i] < 0)
+			new_convert_data3[i] = 0x00;
+		else if (convert2_data[i] + JNCD_VAL2[JNCD_idx][i] > 0xFFFF)
+			new_convert_data3[i] = 0xFFFF;
+		else
+			new_convert_data3[i] = convert2_data[i] + JNCD_VAL2[JNCD_idx][i];
+
+		scnprintf(pBuf + strnlen(pBuf, 256), 256, " %04X", new_convert_data3[i]);
+	}
+
+	LCD_INFO(vdd, "new_convert_data3[%d] : %s\n", UDC_CONVERT2_SIZE, pBuf);
+
+	/* Convert Format */
+	for (i = 0; i < sizeof(comp2_idx1) / sizeof(int); i++) {
+		convert_idx = comp2_idx1[i];
+
+		for (j = 0; j < UDC_CONVERT2_SIZE; j++) {
+			val1 = udc->gamma_data[convert_idx+2*j];
+			val2 = udc->gamma_data[convert_idx+2*j+1];
+
+			udc->gamma_data[convert_idx+2*j] = (new_convert_data3[j] >> 8) & 0xFF;
+			udc->gamma_data[convert_idx+2*j+1] = new_convert_data3[j] & 0xFF;
+
+			LCD_INFO(vdd, "Convert [%d] %02X -> %02X \n", convert_idx+2*j, val1, udc->gamma_data[convert_idx+2*i]);
+			LCD_INFO(vdd, "Convert [%d] %02X -> %02X \n", convert_idx+2*j+1, val2, udc->gamma_data[convert_idx+2*i+1]);
+		}
+	}
+
+	/* 2. Convert 2-2 (5998, 3550) */
+
+	convert_base = comp2_idx2[0];
+
+	LCD_INFO(vdd, "[UDC_GAMMA_COMP] comp idx [%d] [0x%X] ============================== \n", convert_base, convert_base);
+
+	memset(pBuf, 0x00, 256);
+	for (i = 0; i < UDC_CONVERT2_SIZE; i++) {
+		convert2_data[i] = (udc->gamma_data[convert_base+2*i] << 8) | (udc->gamma_data[convert_base+2*i+1]);
+		scnprintf(pBuf + strnlen(pBuf, 256), 256, " %04X", convert2_data[i]);
+	}
+
+	LCD_INFO(vdd, "convert_data[%d] : %s\n", UDC_CONVERT2_SIZE, pBuf);
+
+	LCD_INFO(vdd, "OFFSET[%d] : %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d\n", JNCD_idx,
+			JNCD_VAL2[JNCD_idx][0], JNCD_VAL2[JNCD_idx][1], JNCD_VAL2[JNCD_idx][2], JNCD_VAL2[JNCD_idx][3], JNCD_VAL2[JNCD_idx][4], JNCD_VAL2[JNCD_idx][5],
+			JNCD_VAL2[JNCD_idx][6], JNCD_VAL2[JNCD_idx][7], JNCD_VAL2[JNCD_idx][8], JNCD_VAL2[JNCD_idx][9], JNCD_VAL2[JNCD_idx][10], JNCD_VAL2[JNCD_idx][11],
+			JNCD_VAL2[JNCD_idx][12], JNCD_VAL2[JNCD_idx][13], JNCD_VAL2[JNCD_idx][14]);
+
+	/* UDC Offset & CS Caluculation */
+	memset(pBuf, 0x00, 256);
+	for (i = 0; i < UDC_CONVERT2_SIZE; i++) {
+		if (convert2_data[i] + JNCD_VAL2[JNCD_idx][i] < 0)
+			new_convert_data4[i] = 0x00;
+		else if (convert2_data[i] + JNCD_VAL2[JNCD_idx][i] > 0xFFFF)
+			new_convert_data4[i] = 0xFFFF;
+		else
+			new_convert_data4[i] = convert2_data[i] + JNCD_VAL2[JNCD_idx][i];
+
+		scnprintf(pBuf + strnlen(pBuf, 256), 256, " %04X", new_convert_data4[i]);
+	}
+
+	LCD_INFO(vdd, "new_convert_data4[%d] : %s\n", UDC_CONVERT2_SIZE, pBuf);
+
+	/* Convert Format */
+	for (i = 0; i < sizeof(comp2_idx2) / sizeof(int); i++) {
+		convert_idx = comp2_idx2[i];
+
+		for (j = 0; j < UDC_CONVERT2_SIZE; j++) {
+			val1 = udc->gamma_data[convert_idx+2*j];
+			val2 = udc->gamma_data[convert_idx+2*j+1];
+
+			udc->gamma_data[convert_idx+2*j] = (new_convert_data4[j] >> 8) & 0xFF;
+			udc->gamma_data[convert_idx+2*j+1] = new_convert_data4[j] & 0xFF;
+
+			LCD_INFO(vdd, "Convert [%d] %02X -> %02X \n", convert_idx+2*j, val1, udc->gamma_data[convert_idx+2*i]);
+			LCD_INFO(vdd, "Convert [%d] %02X -> %02X \n", convert_idx+2*j+1, val2, udc->gamma_data[convert_idx+2*i+1]);
+		}
+	}
+
+	/* 2. Convert 2-3 (6202, 3754) */
+
+	convert_base = comp2_idx3[0];
+
+	LCD_INFO(vdd, "[UDC_GAMMA_COMP] comp idx [%d] [0x%X] ============================== \n", convert_base, convert_base);
+
+	memset(pBuf, 0x00, 256);
+	for (i = 0; i < UDC_CONVERT2_SIZE; i++) {
+		convert2_data[i] = (udc->gamma_data[convert_base+2*i] << 8) | (udc->gamma_data[convert_base+2*i+1]);
+		scnprintf(pBuf + strnlen(pBuf, 256), 256, " %04X", convert2_data[i]);
+	}
+
+	LCD_INFO(vdd, "convert_data[%d] : %s\n", UDC_CONVERT2_SIZE, pBuf);
+
+	LCD_INFO(vdd, "OFFSET[%d] : %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d\n", JNCD_idx,
+			JNCD_VAL2[JNCD_idx][0], JNCD_VAL2[JNCD_idx][1], JNCD_VAL2[JNCD_idx][2], JNCD_VAL2[JNCD_idx][3], JNCD_VAL2[JNCD_idx][4], JNCD_VAL2[JNCD_idx][5],
+			JNCD_VAL2[JNCD_idx][6], JNCD_VAL2[JNCD_idx][7], JNCD_VAL2[JNCD_idx][8], JNCD_VAL2[JNCD_idx][9], JNCD_VAL2[JNCD_idx][10], JNCD_VAL2[JNCD_idx][11],
+			JNCD_VAL2[JNCD_idx][12], JNCD_VAL2[JNCD_idx][13], JNCD_VAL2[JNCD_idx][14]);
+
+	/* UDC Offset & CS Caluculation */
+	memset(pBuf, 0x00, 256);
+	for (i = 0; i < UDC_CONVERT2_SIZE; i++) {
+		if (convert2_data[i] + JNCD_VAL2[JNCD_idx][i] < 0)
+			new_convert_data5[i] = 0x00;
+		else if (convert2_data[i] + JNCD_VAL2[JNCD_idx][i] > 0xFFFF)
+			new_convert_data5[i] = 0xFFFF;
+		else
+			new_convert_data5[i] = convert2_data[i] + JNCD_VAL2[JNCD_idx][i];
+
+		scnprintf(pBuf + strnlen(pBuf, 256), 256, " %04X", new_convert_data5[i]);
+	}
+
+	LCD_INFO(vdd, "new_convert_data5[%d] : %s\n", UDC_CONVERT2_SIZE, pBuf);
+
+	/* Convert Format */
+	for (i = 0; i < sizeof(comp2_idx3) / sizeof(int); i++) {
+		convert_idx = comp2_idx3[i];
+
+		for (j = 0; j < UDC_CONVERT2_SIZE; j++) {
+			val1 = udc->gamma_data[convert_idx+2*j];
+			val2 = udc->gamma_data[convert_idx+2*j+1];
+
+			udc->gamma_data[convert_idx+2*j] = (new_convert_data5[j] >> 8) & 0xFF;
+			udc->gamma_data[convert_idx+2*j+1] = new_convert_data5[j] & 0xFF;
+
+			LCD_INFO(vdd, "Convert [%d] %02X -> %02X \n", convert_idx+2*j, val1, udc->gamma_data[convert_idx+2*i]);
+			LCD_INFO(vdd, "Convert [%d] %02X -> %02X \n", convert_idx+2*j+1, val2, udc->gamma_data[convert_idx+2*i+1]);
+		}
+	}
+
+	/* 2. Convert 2-4 (6406, 3958) */
+
+	convert_base = comp2_idx4[0];
+
+	LCD_INFO(vdd, "[UDC_GAMMA_COMP] comp idx [%d] [0x%X] ============================== \n", convert_base, convert_base);
+
+	memset(pBuf, 0x00, 256);
+	for (i = 0; i < UDC_CONVERT2_SIZE; i++) {
+		convert2_data[i] = (udc->gamma_data[convert_base+2*i] << 8) | (udc->gamma_data[convert_base+2*i+1]);
+		scnprintf(pBuf + strnlen(pBuf, 256), 256, " %04X", convert2_data[i]);
+	}
+
+	LCD_INFO(vdd, "convert_data[%d] : %s\n", UDC_CONVERT2_SIZE, pBuf);
+
+	LCD_INFO(vdd, "OFFSET[%d] : %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d\n", JNCD_idx,
+			JNCD_VAL3[JNCD_idx][0], JNCD_VAL3[JNCD_idx][1], JNCD_VAL3[JNCD_idx][2], JNCD_VAL3[JNCD_idx][3], JNCD_VAL3[JNCD_idx][4], JNCD_VAL3[JNCD_idx][5],
+			JNCD_VAL3[JNCD_idx][6], JNCD_VAL3[JNCD_idx][7], JNCD_VAL3[JNCD_idx][8], JNCD_VAL3[JNCD_idx][9], JNCD_VAL3[JNCD_idx][10], JNCD_VAL3[JNCD_idx][11],
+			JNCD_VAL3[JNCD_idx][12], JNCD_VAL3[JNCD_idx][13], JNCD_VAL3[JNCD_idx][14]);
+
+	/* UDC Offset & CS Caluculation */
+	memset(pBuf, 0x00, 256);
+	for (i = 0; i < UDC_CONVERT2_SIZE; i++) {
+		if (convert2_data[i] + JNCD_VAL3[JNCD_idx][i] < 0)
+			new_convert_data6[i] = 0x00;
+		else if (convert2_data[i] + JNCD_VAL3[JNCD_idx][i] > 0xFFFF)
+			new_convert_data6[i] = 0xFFFF;
+		else
+			new_convert_data6[i] = convert2_data[i] + JNCD_VAL3[JNCD_idx][i];
+
+		scnprintf(pBuf + strnlen(pBuf, 256), 256, " %04X", new_convert_data6[i]);
+	}
+
+	LCD_INFO(vdd, "new_convert_data6[%d] : %s\n", UDC_CONVERT2_SIZE, pBuf);
+
+	/* Convert Format */
+	for (i = 0; i < sizeof(comp2_idx4) / sizeof(int); i++) {
+		convert_idx = comp2_idx4[i];
+
+		for (j = 0; j < UDC_CONVERT2_SIZE; j++) {
+			val1 = udc->gamma_data[convert_idx+2*j];
+			val2 = udc->gamma_data[convert_idx+2*j+1];
+
+			udc->gamma_data[convert_idx+2*j] = (new_convert_data6[j] >> 8) & 0xFF;
+			udc->gamma_data[convert_idx+2*j+1] = new_convert_data6[j] & 0xFF;
+
+			LCD_INFO(vdd, "Convert [%d] %02X -> %02X \n", convert_idx+2*j, val1, udc->gamma_data[convert_idx+2*i]);
+			LCD_INFO(vdd, "Convert [%d] %02X -> %02X \n", convert_idx+2*j+1, val2, udc->gamma_data[convert_idx+2*i+1]);
+		}
+	}
+
+	/***************************************/
+	/* check/set NEW CHECKSUM **************/
+	/***************************************/
+
+	for (i = 0; i < udc->gamma_size - 2; i++)
+		new_data_sum += udc->gamma_data[i];
+
+	udc->gamma_data[CS1_idx] = (new_data_sum >> 8) & 0xFF;
+	udc->gamma_data[CS2_idx] = new_data_sum & 0xFF;
+
+	LCD_INFO(vdd, "NEW_DATA_SUM : [%X]\n", new_data_sum);
+	LCD_INFO(vdd, "NEW_CHECKSUM : [%X] %02X, [%X] %02X\n",
+		UDC_CS_ADDR1, udc->gamma_data[CS1_idx],	UDC_CS_ADDR2, udc->gamma_data[CS2_idx]);
+
+	/******************************************************************/
+	/* 4. Sector Erase (it must be performed before writing) **********/
+	/******************************************************************/
+
+	flash_sector_erase(vdd, udc->gamma_start_addr, 3);
+
+	/******************************************************************/
+	/* 5. write comp data *********************************************/
+	/******************************************************************/
+
+	ss_flash_write(vdd, udc->gamma_start_addr, UDC_GAMMA_WRITE_SIZE, udc->gamma_size, &udc->gamma_data[0]);
+
+
+	/******************************************************************/
+	/* 6. check written values ****************************************/
+	/******************************************************************/
+
+	/* read a written value and check it. (38byte) */
+	LCD_INFO(vdd, "check written values...\n");
+
+	comp_idx = comp1_idx1[0];
+	memset(pBuf, 0x00, 256);
+	ss_flash_read(vdd, udc->gamma_start_addr + comp_idx, UDC_COMP1_SIZE, UDC_COMP1_SIZE, comp_buf1);
+	for (i = 0; i < UDC_COMP1_SIZE; i++) {
+		scnprintf(pBuf + strnlen(pBuf, 256), 256, " %02X", comp_buf1[i]);
+
+		if (udc->gamma_data[comp_idx+i] != comp_buf1[i]) {
+			LCD_ERR(vdd, "[%d][%X] calc data [%02X] != read data [%02X] ..\n", i, comp_idx+i, udc->gamma_data[comp_idx+i], comp_buf1[i]);
+			ret = -1;
+			break;
+		}
+	}
+	LCD_INFO(vdd, "[%d] read_data[%d] : %s\n", comp_idx, UDC_COMP1_SIZE, pBuf);
+
+	/* read a written value and check it. (38byte) */
+	comp_idx = comp1_idx2[0];
+	memset(pBuf, 0x00, 256);
+	ss_flash_read(vdd, udc->gamma_start_addr + comp_idx, UDC_COMP1_SIZE, UDC_COMP1_SIZE, comp_buf1);
+	for (i = 0; i < UDC_COMP1_SIZE; i++) {
+		scnprintf(pBuf + strnlen(pBuf, 256), 256, " %02X", comp_buf1[i]);
+
+		if (udc->gamma_data[comp_idx+i] != comp_buf1[i]) {
+			LCD_ERR(vdd, "[%d][%X] calc data [%02X] != read data [%02X] ..\n", i, comp_idx+i, udc->gamma_data[comp_idx+i], comp_buf1[i]);
+			ret = -1;
+			break;
+		}
+	}
+	LCD_INFO(vdd, "[%d] read_data[%d] : %s\n", comp_idx, UDC_COMP1_SIZE, pBuf);
+
+	/* read a written value and check it. (30byte) */
+	comp_idx = comp2_idx1[0];
+	memset(pBuf, 0x00, 256);
+	ss_flash_read(vdd, udc->gamma_start_addr + comp_idx, UDC_COMP2_SIZE, UDC_COMP2_SIZE, comp_buf2);
+	for (i = 0; i < UDC_COMP2_SIZE; i++) {
+		scnprintf(pBuf + strnlen(pBuf, 256), 256, " %02X", comp_buf2[i]);
+
+		if (udc->gamma_data[comp_idx+i] != comp_buf2[i]) {
+			LCD_ERR(vdd, "[%d][%X] calc data [%02X] != read data [%02X] ..\n", i, comp_idx+i, udc->gamma_data[comp_idx+i], comp_buf2[i]);
+			ret = -1;
+			break;
+		}
+	}
+	LCD_INFO(vdd, "[%d] read_data[%d] : %s\n", comp_idx, UDC_COMP2_SIZE, pBuf);
+
+	/* read a written value and check it. (30byte) */
+	comp_idx = comp2_idx2[0];
+	memset(pBuf, 0x00, 256);
+	ss_flash_read(vdd, udc->gamma_start_addr + comp_idx, UDC_COMP2_SIZE, UDC_COMP2_SIZE, comp_buf2);
+	for (i = 0; i < UDC_COMP2_SIZE; i++) {
+		scnprintf(pBuf + strnlen(pBuf, 256), 256, " %02X", comp_buf2[i]);
+
+		if (udc->gamma_data[comp_idx+i] != comp_buf2[i]) {
+			LCD_ERR(vdd, "[%d][%X] calc data [%02X] != read data [%02X] ..\n", i, comp_idx+i, udc->gamma_data[comp_idx+i], comp_buf2[i]);
+			ret = -1;
+			break;
+		}
+	}
+	LCD_INFO(vdd, "[%d] read_data[%d] : %s\n", comp_idx, UDC_COMP2_SIZE, pBuf);
+
+	/* read a written value and check it. (30byte) */
+	comp_idx = comp2_idx3[0];
+	memset(pBuf, 0x00, 256);
+	ss_flash_read(vdd, udc->gamma_start_addr + comp_idx, UDC_COMP2_SIZE, UDC_COMP2_SIZE, comp_buf2);
+	for (i = 0; i < UDC_COMP2_SIZE; i++) {
+		scnprintf(pBuf + strnlen(pBuf, 256), 256, " %02X", comp_buf2[i]);
+
+		if (udc->gamma_data[comp_idx+i] != comp_buf2[i]) {
+			LCD_ERR(vdd, "[%d][%X] calc data [%02X] != read data [%02X] ..\n", i, comp_idx+i, udc->gamma_data[comp_idx+i], comp_buf2[i]);
+			ret = -1;
+			break;
+		}
+	}
+	LCD_INFO(vdd, "[%d] read_data[%d] : %s\n", comp_idx, UDC_COMP2_SIZE, pBuf);
+
+	/* read a written value and check it. (30byte) */
+	comp_idx = comp2_idx4[0];
+	memset(pBuf, 0x00, 256);
+	ss_flash_read(vdd, udc->gamma_start_addr + comp_idx, UDC_COMP2_SIZE, UDC_COMP2_SIZE, comp_buf2);
+	for (i = 0; i < UDC_COMP2_SIZE; i++) {
+		scnprintf(pBuf + strnlen(pBuf, 256), 256, " %02X", comp_buf2[i]);
+
+		if (udc->gamma_data[comp_idx+i] != comp_buf2[i]) {
+			LCD_ERR(vdd, "[%d][%X] calc data [%02X] != read data [%02X] ..\n", i, comp_idx+i, udc->gamma_data[comp_idx+i], comp_buf2[i]);
+			ret = -1;
+			break;
+		}
+	}
+	LCD_INFO(vdd, "[%d] read_data[%d] : %s\n", comp_idx, UDC_COMP2_SIZE, pBuf);
+
+	if (ret)
+		udc->udc_comp_done = false;
+	else
+		udc->udc_comp_done = true;
+
+	LCD_INFO(vdd, "-- ret:%d comp_done:%d\n", ret, udc->udc_comp_done);
+
+	return ret;
+}
+
+static int ss_udc_restore_orig_gamma(struct samsung_display_driver_data *vdd)
+{
+	struct UDC *udc = &vdd->udc;
+	u32 target_addr;
+	int ret = 0;
+	char pBuf[256];
+	int i, comp_idx;
+	u8 comp_buf1[UDC_COMP1_SIZE];
+	u8 comp_buf2[UDC_COMP2_SIZE];
+
+	target_addr = udc->gamma_backup_addr + udc->gamma_size;
+
+	LCD_INFO(vdd, "backup addr : 0x%X ~ 0x%X, total_read_size %d ++\n",
+		udc->gamma_backup_addr, target_addr, udc->gamma_size);
+
+	/******************************************************************/
+	/* Read flash gamma from backup addr ******************************/
+	/******************************************************************/
+
+	ss_flash_read(vdd, udc->gamma_backup_addr, udc->gamma_size, UDC_GAMMA_READ_SIZE, udc->gamma_data_backup);
+	memcpy(udc->gamma_data, udc->gamma_data_backup, udc->gamma_size);
+
+	if (udc->gamma_data_backup[0] == 0xFF && udc->gamma_data_backup[1] == 0xFF) {
+		LCD_ERR(vdd, "not backed up!\n");
+		ret = -1;
+	} else {
+		LCD_INFO(vdd, "Do restore\n");
+
+		/******************************************************************/
+		/* Erase UDC gamma addr *******************************************/
+		/******************************************************************/
+
+		flash_sector_erase(vdd, udc->gamma_start_addr, 3);
+
+		/******************************************************************/
+		/* Write Backup data to gamma flash addr **************************/
+		/******************************************************************/
+
+		ss_flash_write(vdd, udc->gamma_start_addr, UDC_GAMMA_WRITE_SIZE, udc->gamma_size, &udc->gamma_data_backup[0]);
+
+		/******************************************************************/
+		/* check written values *******************************************/
+		/******************************************************************/
+
+		/* read a written value and check it. (38byte) */
+		LCD_INFO(vdd, "check written values...\n");
+
+		comp_idx = comp1_idx1[0];
+		memset(pBuf, 0x00, 256);
+		ss_flash_read(vdd, udc->gamma_start_addr + comp_idx, UDC_COMP1_SIZE, UDC_COMP1_SIZE, comp_buf1);
+		for (i = 0; i < UDC_COMP1_SIZE; i++) {
+			scnprintf(pBuf + strnlen(pBuf, 256), 256, " %02X", comp_buf1[i]);
+
+			if (udc->gamma_data[comp_idx+i] != comp_buf1[i]) {
+				LCD_ERR(vdd, "[%d][%X] calc data [%02X] != read data [%02X] ..\n", i, comp_idx+i, udc->gamma_data[comp_idx+i], comp_buf1[i]);
+				ret = -1;
+				break;
+			}
+		}
+		LCD_INFO(vdd, "[%d] read_data[%d] : %s\n", comp_idx, UDC_COMP1_SIZE, pBuf);
+
+		/* read a written value and check it. (38byte) */
+		comp_idx = comp1_idx2[0];
+		memset(pBuf, 0x00, 256);
+		ss_flash_read(vdd, udc->gamma_start_addr + comp_idx, UDC_COMP1_SIZE, UDC_COMP1_SIZE, comp_buf1);
+		for (i = 0; i < UDC_COMP1_SIZE; i++) {
+			scnprintf(pBuf + strnlen(pBuf, 256), 256, " %02X", comp_buf1[i]);
+
+			if (udc->gamma_data[comp_idx+i] != comp_buf1[i]) {
+				LCD_ERR(vdd, "[%d][%X] calc data [%02X] != read data [%02X] ..\n", i, comp_idx+i, udc->gamma_data[comp_idx+i], comp_buf1[i]);
+				ret = -1;
+				break;
+			}
+		}
+		LCD_INFO(vdd, "[%d] read_data[%d] : %s\n", comp_idx, UDC_COMP1_SIZE, pBuf);
+
+		/* read a written value and check it. (30byte) */
+		comp_idx = comp2_idx1[0];
+		memset(pBuf, 0x00, 256);
+		ss_flash_read(vdd, udc->gamma_start_addr + comp_idx, UDC_COMP2_SIZE, UDC_COMP2_SIZE, comp_buf2);
+		for (i = 0; i < UDC_COMP2_SIZE; i++) {
+			scnprintf(pBuf + strnlen(pBuf, 256), 256, " %02X", comp_buf2[i]);
+
+			if (udc->gamma_data[comp_idx+i] != comp_buf2[i]) {
+				LCD_ERR(vdd, "[%d][%X] calc data [%02X] != read data [%02X] ..\n", i, comp_idx+i, udc->gamma_data[comp_idx+i], comp_buf2[i]);
+				ret = -1;
+				break;
+			}
+		}
+		LCD_INFO(vdd, "[%d] read_data[%d] : %s\n", comp_idx, UDC_COMP2_SIZE, pBuf);
+
+		/* read a written value and check it. (30byte) */
+		comp_idx = comp2_idx2[0];
+		memset(pBuf, 0x00, 256);
+		ss_flash_read(vdd, udc->gamma_start_addr + comp_idx, UDC_COMP2_SIZE, UDC_COMP2_SIZE, comp_buf2);
+		for (i = 0; i < UDC_COMP2_SIZE; i++) {
+			scnprintf(pBuf + strnlen(pBuf, 256), 256, " %02X", comp_buf2[i]);
+
+			if (udc->gamma_data[comp_idx+i] != comp_buf2[i]) {
+				LCD_ERR(vdd, "[%d][%X] calc data [%02X] != read data [%02X] ..\n", i, comp_idx+i, udc->gamma_data[comp_idx+i], comp_buf2[i]);
+				ret = -1;
+				break;
+			}
+		}
+		LCD_INFO(vdd, "[%d] read_data[%d] : %s\n", comp_idx, UDC_COMP2_SIZE, pBuf);
+
+		/* read a written value and check it. (30byte) */
+		comp_idx = comp2_idx3[0];
+		memset(pBuf, 0x00, 256);
+		ss_flash_read(vdd, udc->gamma_start_addr + comp_idx, UDC_COMP2_SIZE, UDC_COMP2_SIZE, comp_buf2);
+		for (i = 0; i < UDC_COMP2_SIZE; i++) {
+			scnprintf(pBuf + strnlen(pBuf, 256), 256, " %02X", comp_buf2[i]);
+
+			if (udc->gamma_data[comp_idx+i] != comp_buf2[i]) {
+				LCD_ERR(vdd, "[%d][%X] calc data [%02X] != read data [%02X] ..\n", i, comp_idx+i, udc->gamma_data[comp_idx+i], comp_buf2[i]);
+				ret = -1;
+				break;
+			}
+		}
+		LCD_INFO(vdd, "[%d] read_data[%d] : %s\n", comp_idx, UDC_COMP2_SIZE, pBuf);
+
+		/* read a written value and check it. (30byte) */
+		comp_idx = comp2_idx4[0];
+		memset(pBuf, 0x00, 256);
+		ss_flash_read(vdd, udc->gamma_start_addr + comp_idx, UDC_COMP2_SIZE, UDC_COMP2_SIZE, comp_buf2);
+		for (i = 0; i < UDC_COMP2_SIZE; i++) {
+			scnprintf(pBuf + strnlen(pBuf, 256), 256, " %02X", comp_buf2[i]);
+
+			if (udc->gamma_data[comp_idx+i] != comp_buf2[i]) {
+				LCD_ERR(vdd, "[%d][%X] calc data [%02X] != read data [%02X] ..\n", i, comp_idx+i, udc->gamma_data[comp_idx+i], comp_buf2[i]);
+				ret = -1;
+				break;
+			}
+		}
+		LCD_INFO(vdd, "[%d] read_data[%d] : %s\n", comp_idx, UDC_COMP2_SIZE, pBuf);
+	}
+
+	if (ret)
+		udc->udc_restore_done = false;
+	else
+		udc->udc_restore_done = true;
+
+	LCD_INFO(vdd, "-- ret:%d udc_restore_done:%d\n", ret, udc->udc_restore_done);
+
+	return ret;
 }
 
 /* mtp original data */
@@ -2257,7 +3164,6 @@ static int ss_gm2_gamma_comp_init(struct samsung_display_driver_data *vdd)
 		memcpy(aor_table_96, aor_table_96_revA, sizeof(aor_table_96));
 		memcpy(aor_table_120, aor_table_120_revA, sizeof(aor_table_120));
 	}
-
 
 	/***********************************************************/
 	/* 1. [HBM/ NORMAL] Read HS120 ORIGINAL GAMMA Flash      */
@@ -2633,10 +3539,13 @@ void Q4_S6E3XA2_AMF756BQ01_QXGA_init(struct samsung_display_driver_data *vdd)
 	vdd->panel_func.samsung_gm2_gamma_comp_init = ss_gm2_gamma_comp_init;
 	vdd->panel_func.samsung_print_gamma_comp = ss_print_gamma_comp;
 	vdd->panel_func.samsung_read_gamma = ss_read_gamma;
-	vdd->panel_func.read_flash = ss_read_flash;
+	vdd->panel_func.read_flash = ss_read_flash_sysfs;
 
 	/* UDC */
-	vdd->panel_func.read_udc_data = ss_read_udc_data;
+	vdd->panel_func.read_udc_data = ss_read_udc_transmittance_data;
+	vdd->panel_func.read_udc_gamma_data = ss_read_udc_gamma_data;
+	vdd->panel_func.udc_gamma_comp = ss_udc_gamma_comp;
+	vdd->panel_func.restore_udc_orig_gamma = ss_udc_restore_orig_gamma;
 
 	/* VRR */
 	vdd->panel_func.samsung_lfd_get_base_val = ss_update_base_lfd_val;
@@ -2649,7 +3558,6 @@ void Q4_S6E3XA2_AMF756BQ01_QXGA_init(struct samsung_display_driver_data *vdd)
 	vdd->motto_info.vreg_ctrl_0 = 0x47;
 
 	/* FLSH */
-	vdd->poc_driver.poc_erase = poc_erase;
 	vdd->poc_driver.poc_write = poc_write;
 	vdd->poc_driver.poc_read = poc_read;
 }

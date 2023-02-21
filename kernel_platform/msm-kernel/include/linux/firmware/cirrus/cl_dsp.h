@@ -2,7 +2,7 @@
  *
  * cl_dsp.h -- DSP control for non-ALSA Cirrus Logic devices
  *
- * Copyright 2021 Cirrus Logic, Inc.
+ * Copyright 2022 Cirrus Logic, Inc.
  *
  * Author: Fred Treven <fred.treven@cirrus.com>
  */
@@ -77,7 +77,7 @@
 
 #define CL_DSP_NUM_ALGOS_MAX		32
 
-#ifdef CONFIG_CS40L26_SAMSUNG_FEATURE
+#ifndef CONFIG_CS40L26_SAMSUNG_USE_MAX_DATA_TX_SIZE
 #define CL_DSP_MAX_WLEN			32
 #else
 #define CL_DSP_MAX_WLEN			4096

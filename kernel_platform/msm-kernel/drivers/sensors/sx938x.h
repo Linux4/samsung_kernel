@@ -176,7 +176,7 @@ const char *sx938x_parse_reg[] = {
 	"sx938x,usefilter3_reg",
 	"sx938x,usefilter4_reg"
 };
-#if defined(CONFIG_SENSORS_SX9380_SUB)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB)
 const char *sx938x_sub_parse_reg[] = {
 	"sx938x_sub,irq_enable_reg",
 	"sx938x_sub,irqcfg_reg",
@@ -204,7 +204,7 @@ const char *sx938x_sub_parse_reg[] = {
 	"sx938x_sub,usefilter4_reg"
 };
 #endif
-#if defined(CONFIG_SENSORS_SX9380_SUB2)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB2)
 const char *sx938x_sub2_parse_reg[] = {
 	"sx938x_sub2,irq_enable_reg",
 	"sx938x_sub2,irqcfg_reg",
@@ -232,7 +232,7 @@ const char *sx938x_sub2_parse_reg[] = {
 	"sx938x_sub2,usefilter4_reg"
 };
 #endif
-#if defined(CONFIG_SENSORS_SX9380_WIFI)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_WIFI)
 const char *sx938x_wifi_parse_reg[] = {
 	"sx938x_wifi,irq_enable_reg",
 	"sx938x_wifi,irqcfg_reg",
@@ -368,7 +368,7 @@ static struct smtc_reg_data setup_reg[][24] = {
 			.val = 0x00,
 		},
 	},
-#if defined(CONFIG_SENSORS_SX9380_SUB)
+#if IS_ENABLED(CONFIG_SENSORS_SX9380_SUB)
 	{
 		//Interrupt and config
 		{
@@ -489,7 +489,7 @@ enum {
 #define GRIP_INFO(fmt, ...) pr_info("[GRIP_%s] %s: "fmt, grip_name[data->ic_num], __func__, ##__VA_ARGS__)
 #define GRIP_WARN(fmt, ...) pr_warn("[GRIP_%s] %s: "fmt, grip_name[data->ic_num], __func__, ##__VA_ARGS__)
 
-#ifndef CONFIG_SENSORS_CORE_AP
+#if !IS_ENABLED(CONFIG_SENSORS_CORE_AP)
 extern int sensors_create_symlink(struct input_dev *inputdev);
 extern void sensors_remove_symlink(struct input_dev *inputdev);
 extern int sensors_register(struct device *dev, void *drvdata,

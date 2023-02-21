@@ -2,7 +2,7 @@
 //
 // cl_dsp.c -- DSP Control for non-ALSA Cirrus Logic Devices
 //
-// Copyright 2021 Cirrus Logic, Inc.
+// Copyright 2022 Cirrus Logic, Inc.
 //
 // Author: Fred Treven <fred.treven@cirrus.com>
 
@@ -344,6 +344,7 @@ int cl_dsp_coeff_file_parse(struct cl_dsp *dsp, const struct firmware *fw)
 	unsigned int reg, wt_reg, algo_rev;
 	u16 algo_id, parent_id;
 	struct device *dev;
+	u32 len;
 	int i;
 
 	if (!dsp)
@@ -369,13 +370,12 @@ int cl_dsp_coeff_file_parse(struct cl_dsp *dsp, const struct firmware *fw)
 				CL_DSP_COEFF_DBLK_HEADER_SIZE);
 		pos += CL_DSP_COEFF_DBLK_HEADER_SIZE;
 
-		data_block.payload = kmalloc(data_block.header.data_len,
-				GFP_KERNEL);
+		len = data_block.header.data_len;
+		data_block.payload = kmalloc(len, GFP_KERNEL);
 		if (!data_block.payload)
 			return -ENOMEM;
 
-		memcpy(data_block.payload, &fw->data[pos],
-				data_block.header.data_len);
+		memcpy(data_block.payload, &fw->data[pos], len);
 
 		algo_id = data_block.header.algo_id & 0xFFFF;
 
@@ -418,10 +418,9 @@ int cl_dsp_coeff_file_parse(struct cl_dsp *dsp, const struct firmware *fw)
 		case CL_DSP_WMDR_INFO_TYPE:
 			reg = 0;
 
-			cl_dsp_coeff_handle_info_text(dsp, data_block.payload,
-					data_block.header.data_len);
+			cl_dsp_coeff_handle_info_text(dsp, data_block.payload, len);
 
-			if (data_block.header.data_len < CL_DSP_WMDR_DATE_LEN)
+			if (len < CL_DSP_WMDR_DATE_LEN)
 				break;
 
 			if (memcmp(&fw->data[pos], CL_DSP_WMDR_DATE_PREFIX,
@@ -451,12 +450,10 @@ int cl_dsp_coeff_file_parse(struct cl_dsp *dsp, const struct firmware *fw)
 					goto err_free;
 
 				if (reg == wt_reg) {
-					if (data_block.header.data_len >
-						dsp->wt_desc->wt_limit_xm) {
+					if (len > dsp->wt_desc->wt_limit_xm) {
 						dev_err(dev,
 						"XM too large: %d bytes\n",
-						data_block.header.data_len
-						/ 4 * 3);
+						len / 4 * 3);
 
 						ret = -EINVAL;
 						goto err_free;
@@ -465,8 +462,7 @@ int cl_dsp_coeff_file_parse(struct cl_dsp *dsp, const struct firmware *fw)
 						if (ret)
 							goto err_free;
 
-						ret = cl_dsp_read_wt(dsp, pos,
-						data_block.header.data_len);
+						ret = cl_dsp_read_wt(dsp, pos, len);
 						if (ret < 0)
 							goto err_free;
 						dsp->wt_desc->is_xm = true;
@@ -474,7 +470,7 @@ int cl_dsp_coeff_file_parse(struct cl_dsp *dsp, const struct firmware *fw)
 
 					dev_info(dev,
 					"Wavetable found: %d bytes (XM)\n",
-					data_block.header.data_len / 4 * 3);
+					len / 4 * 3);
 				}
 			}
 			break;
@@ -499,18 +495,15 @@ int cl_dsp_coeff_file_parse(struct cl_dsp *dsp, const struct firmware *fw)
 					goto err_free;
 
 				if (reg == wt_reg) {
-					if (data_block.header.data_len >
-						dsp->wt_desc->wt_limit_ym) {
+					if (len > dsp->wt_desc->wt_limit_ym) {
 						dev_err(dev,
 						"YM too large: %d bytes\n",
-						data_block.header.data_len
-						/ 4 * 3);
+						len / 4 * 3);
 
 						ret = -EINVAL;
 						goto err_free;
 					} else {
-						ret = cl_dsp_read_wt(dsp, pos,
-						data_block.header.data_len);
+						ret = cl_dsp_read_wt(dsp, pos, len);
 						if (ret < 0)
 							goto err_free;
 						dsp->wt_desc->is_xm = false;
@@ -518,7 +511,7 @@ int cl_dsp_coeff_file_parse(struct cl_dsp *dsp, const struct firmware *fw)
 
 					dev_dbg(dev,
 					"Wavetable found: %d bytes (YM)\n",
-					data_block.header.data_len / 4 * 3);
+					len / 4 * 3);
 				}
 			}
 			break;
@@ -537,8 +530,7 @@ int cl_dsp_coeff_file_parse(struct cl_dsp *dsp, const struct firmware *fw)
 		}
 		if (reg) {
 			ret = cl_dsp_raw_write(dsp, reg, &fw->data[pos],
-					data_block.header.data_len,
-					CL_DSP_MAX_WLEN);
+					len, CL_DSP_MAX_WLEN);
 			if (ret) {
 				dev_err(dev, "Failed to write coefficients\n");
 				goto err_free;
@@ -546,7 +538,7 @@ int cl_dsp_coeff_file_parse(struct cl_dsp *dsp, const struct firmware *fw)
 		}
 
 		/* Blocks are word-aligned */
-		pos += (data_block.header.data_len + 3) & ~CL_DSP_ALIGN;
+		pos += (len + 3) & ~CL_DSP_ALIGN;
 
 		kfree(data_block.payload);
 	}
@@ -1090,9 +1082,9 @@ int cl_dsp_wavetable_create(struct cl_dsp *dsp, unsigned int id,
 		return -ENOMEM;
 
 	wt_desc->id = id;
-	memcpy(wt_desc->wt_name_xm, wt_name_xm, CL_DSP_WMDR_NAME_LEN);
-	memcpy(wt_desc->wt_name_ym, wt_name_ym, CL_DSP_WMDR_NAME_LEN);
-	memcpy(wt_desc->wt_file, wt_file, CL_DSP_WMDR_NAME_LEN);
+	strscpy(wt_desc->wt_name_xm, wt_name_xm, CL_DSP_WMDR_NAME_LEN);
+	strscpy(wt_desc->wt_name_ym, wt_name_ym, CL_DSP_WMDR_NAME_LEN);
+	strscpy(wt_desc->wt_file, wt_file, CL_DSP_WMDR_NAME_LEN);
 
 	dsp->wt_desc = wt_desc;
 

@@ -108,6 +108,10 @@ static void *ats_init_thread(void *obj __unused)
 
 int agm_init()
 {
+#ifdef SEC_AUDIO_BOOT_ON_ERR
+    AGM_LOGD("Enter. agm_initialized %d ", agm_initialized);
+#endif
+
     int ret = 0;
 
     if (agm_initialized)
@@ -136,9 +140,9 @@ int agm_init()
         AGM_LOGE("Session_obj_init failed with %d", ret);
 
         // { SEC_AUDIO_BOOT_ON_ERR
-        if (ret == -EAGAIN) {
+        if (ret == -EAGAIN || ret == -EIO) {
             property_set("vendor.audio.use.primary.default", "true");
-            AGM_LOGE(LOG_TAG, "agm_init: sound card err, vendor.audio.use.primary.default as true");
+            AGM_LOGE("sound card err, vendor.audio.use.primary.default as true");
             ret = 0;
         }
         // } SEC_AUDIO_BOOT_ON_ERR
@@ -148,6 +152,9 @@ int agm_init()
     agm_initialized = 1;
 
 exit:
+#ifdef SEC_AUDIO_BOOT_ON_ERR
+    AGM_LOGD("Exit. agm_initialized %d ", agm_initialized);
+#endif
     return ret;
 }
 
@@ -609,6 +616,12 @@ int agm_session_set_config(uint64_t hndl,
         AGM_LOGE("Invalid handle\n");
         return -EINVAL;
     }
+
+    if (!session_obj_valid_check(hndl)) {
+        AGM_LOGE("Invalid handle\n");
+        return -EINVAL;
+    }
+    
     return session_obj_set_config(handle, stream_config, media_config,
                                                        buffer_config);
 }
@@ -621,6 +634,11 @@ int agm_session_prepare(uint64_t hndl)
         AGM_LOGE("Invalid handle\n");
         return -EINVAL;
     }
+
+    if (!session_obj_valid_check(hndl)) {
+        AGM_LOGE("Invalid handle\n");
+        return -EINVAL;
+    }    
     return session_obj_prepare(handle);
 }
 
@@ -632,6 +650,11 @@ int agm_session_start(uint64_t hndl)
         AGM_LOGE("Invalid handle\n");
         return -EINVAL;
     }
+
+    if (!session_obj_valid_check(hndl)) {
+        AGM_LOGE("Invalid handle\n");
+        return -EINVAL;
+    }    
     return session_obj_start(handle);
 }
 
@@ -643,6 +666,11 @@ int agm_session_stop(uint64_t hndl)
         AGM_LOGE("Invalid handle\n");
         return -EINVAL;
     }
+
+    if (!session_obj_valid_check(hndl)) {
+        AGM_LOGE("Invalid handle\n");
+        return -EINVAL;
+    }    
     return session_obj_stop(handle);
 }
 
@@ -653,6 +681,11 @@ int agm_session_close(uint64_t hndl)
         AGM_LOGE("Invalid handle\n");
         return -EINVAL;
     }
+
+    if (!session_obj_valid_check(hndl)) {
+        AGM_LOGE("Invalid handle\n");
+        return -EINVAL;
+    }    
     return session_obj_close(handle);
 }
 
@@ -663,6 +696,11 @@ int agm_session_pause(uint64_t hndl)
         AGM_LOGE("Invalid handle\n");
         return -EINVAL;
     }
+
+    if (!session_obj_valid_check(hndl)) {
+        AGM_LOGE("Invalid handle\n");
+        return -EINVAL;
+    }    
     return session_obj_pause(handle);
 }
 
@@ -673,6 +711,11 @@ int agm_session_flush(uint64_t hndl)
         AGM_LOGE("Invalid handle\n");
         return -EINVAL;
     }
+
+    if (!session_obj_valid_check(hndl)) {
+        AGM_LOGE("Invalid handle\n");
+        return -EINVAL;
+    }    
     return session_obj_flush(handle);
 }
 
@@ -683,6 +726,11 @@ int agm_session_resume(uint64_t hndl)
         AGM_LOGE("Invalid handle\n");
         return -EINVAL;
     }
+
+    if (!session_obj_valid_check(hndl)) {
+        AGM_LOGE("Invalid handle\n");
+        return -EINVAL;
+    }    
     return session_obj_resume(handle);
 }
 
@@ -693,6 +741,11 @@ int agm_session_suspend(uint64_t hndl)
         AGM_LOGE("Invalid handle\n");
         return -EINVAL;
     }
+
+    if (!session_obj_valid_check(hndl)) {
+        AGM_LOGE("Invalid handle\n");
+        return -EINVAL;
+    }    
     return session_obj_suspend(handle);
 }
 
@@ -703,6 +756,11 @@ int agm_session_write(uint64_t hndl, void *buff, size_t *count)
         AGM_LOGE("Invalid handle\n");
         return -EINVAL;
     }
+
+    if (!session_obj_valid_check(hndl)) {
+        AGM_LOGE("Invalid handle\n");
+        return -EINVAL;
+    }    
     return session_obj_write(handle, buff, count);
 }
 
@@ -713,6 +771,11 @@ int agm_session_read(uint64_t hndl, void *buff, size_t *count)
         AGM_LOGE("Invalid handle\n");
         return -EINVAL;
     }
+
+    if (!session_obj_valid_check(hndl)) {
+        AGM_LOGE("Invalid handle\n");
+        return -EINVAL;
+    }    
     return session_obj_read(handle, buff, count);
 }
 
@@ -723,6 +786,11 @@ size_t agm_get_hw_processed_buff_cnt(uint64_t hndl, enum direction dir)
         AGM_LOGE("Invalid handle\n");
         return -EINVAL;
     }
+
+    if (!session_obj_valid_check(hndl)) {
+        AGM_LOGE("Invalid handle\n");
+        return -EINVAL;
+    }    
     return session_obj_hw_processed_buff_cnt(handle, dir);
 }
 
@@ -782,6 +850,10 @@ int agm_session_eos(uint64_t handle)
         return -EINVAL;
     }
 
+    if (!session_obj_valid_check(handle)) {
+        AGM_LOGE("Invalid handle\n");
+        return -EINVAL;
+    }
     return session_obj_eos((struct session_obj *) handle);
 }
 
@@ -791,6 +863,11 @@ int agm_get_session_time(uint64_t handle, uint64_t *timestamp)
         AGM_LOGE("Invalid handle or timestamp pointer\n");
         return -EINVAL;
     }
+
+    if (!session_obj_valid_check(handle)) {
+        AGM_LOGE("Invalid handle\n");
+        return -EINVAL;
+    }    
     return session_obj_get_timestamp((struct session_obj *) handle, timestamp);
 }
 
@@ -852,6 +929,10 @@ int agm_set_gapless_session_metadata(uint64_t handle,
         return -EINVAL;
     }
 
+    if (!session_obj_valid_check(handle)) {
+        AGM_LOGE("Invalid handle\n");
+        return -EINVAL;
+    }
     return session_obj_set_gapless_metadata((struct session_obj *) handle, type,
                                              silence);
 }
@@ -863,17 +944,27 @@ int agm_session_write_with_metadata(uint64_t handle, struct agm_buff *buff,
         AGM_LOGE("%s Invalid handle\n", __func__);
         return -EINVAL;
     }
+
+    if (!session_obj_valid_check(handle)) {
+        AGM_LOGE("Invalid handle\n");
+        return -EINVAL;
+    }    
     return session_obj_write_with_metadata((struct session_obj *) handle, buff,
                                             consumed_size);
 }
 
-int agm_session_read_with_metadata(uint64_t handle __unused, struct agm_buff *buff __unused,
-                                    uint32_t *captured_size __unused)
+int agm_session_read_with_metadata(uint64_t handle, struct agm_buff *buff,
+                                    uint32_t *captured_size )
 {
     if (!handle) {
         AGM_LOGE("%s Invalid handle\n", __func__);
         return -EINVAL;
     }
+
+    if (!session_obj_valid_check(handle)) {
+        AGM_LOGE("Invalid handle\n");
+        return -EINVAL;
+    }    
     return session_obj_read_with_metadata((struct session_obj *) handle, buff,
                                            captured_size);
 }
@@ -890,6 +981,10 @@ int agm_session_set_non_tunnel_mode_config(uint64_t handle,
         return -EINVAL;
     }
 
+    if (!session_obj_valid_check(handle)) {
+        AGM_LOGE("Invalid handle\n");
+        return -EINVAL;
+    }
     return session_obj_set_non_tunnel_mode_config((struct session_obj *) handle,
                                             session_config,
                                             in_media_config,

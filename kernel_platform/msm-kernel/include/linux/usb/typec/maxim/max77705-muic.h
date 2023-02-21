@@ -430,6 +430,6 @@ extern void max77705_muic_unregister_ccic_notifier(struct max77705_muic_data *mu
 #if defined(CONFIG_USB_EXTERNAL_NOTIFY)
 extern void muic_send_dock_intent(int type);
 #endif /* CONFIG_USB_EXTERNAL_NOTIFY */
-
+extern void max77705_muic_enable_detecting_short(struct max77705_muic_data *muic_data);
 #endif /* __MAX77705_MUIC_H__ */
 

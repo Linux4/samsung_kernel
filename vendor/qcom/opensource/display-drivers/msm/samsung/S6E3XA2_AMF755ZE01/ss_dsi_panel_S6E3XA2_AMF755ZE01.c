@@ -783,7 +783,7 @@ static int ss_get_frame_insert_cmd(struct samsung_display_driver_data *vdd,
 		out_cmd[0] = 0x00;
 		out_cmd[2] = 0x01;
 	}
-	LCD_INFO(vdd, "frame insert: %02X %02X %02X (LFD %uhz~%uhz, %s)\n",
+	LCD_DEBUG(vdd, "frame insert: %02X %02X %02X (LFD %uhz~%uhz, %s)\n",
 			out_cmd[0], out_cmd[1], out_cmd[2], min_freq, max_freq,
 			cur_hs ? "HS" : "NS");
 

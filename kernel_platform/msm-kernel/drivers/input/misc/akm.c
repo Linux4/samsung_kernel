@@ -756,10 +756,18 @@ static void akm_power_control(struct akm_info *info, bool on)
 				input_err(true, &info->client->dev, "%s: failed to enable pullup: %d\n", __func__, ret);
 		}
 	} else {
-		regulator_disable(info->pdata->dvdd);
-		regulator_disable(info->pdata->pullup);
+		if (!IS_ERR_OR_NULL(info->pdata->dvdd)) {
+			ret = regulator_disable(info->pdata->dvdd);
+			if (ret)
+				input_err(true, &info->client->dev, "%s: failed to disable dvdd: %d\n", __func__, ret);
+		}
+		if (!IS_ERR_OR_NULL(info->pdata->pullup)) {
+			ret = regulator_disable(info->pdata->pullup);
+			if (ret)
+				input_err(true, &info->client->dev, "%s: failed to disable pullup: %d\n", __func__, ret);
+		}
 	}
-	if (IS_ERR_OR_NULL(info->pdata->dvdd))
+	if (!IS_ERR_OR_NULL(info->pdata->dvdd))
 		input_info(true, &info->client->dev, "%s: %s: dvdd:%s\n", __func__, on ? "on" : "off",
 				regulator_is_enabled(info->pdata->dvdd) ? "on" : "off");
 	if (!IS_ERR_OR_NULL(info->pdata->pullup))

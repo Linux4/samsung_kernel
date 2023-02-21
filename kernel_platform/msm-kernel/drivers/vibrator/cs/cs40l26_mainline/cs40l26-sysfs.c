@@ -3,7 +3,7 @@
 // cs40l26-syfs.c -- CS40L26 Boosted Haptic Driver with Integrated DSP and
 // Waveform Memory with Advanced Closed Loop Algorithms and LRA protection
 //
-// Copyright 2021 Cirrus Logic, Inc.
+// Copyright 2022 Cirrus Logic, Inc.
 //
 // Author: Fred Treven <fred.treven@cirrus.com>
 //
@@ -24,16 +24,13 @@ static ssize_t dsp_state_show(struct device *dev,
 	u8 dsp_state;
 	int ret;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	ret = cs40l26_dsp_state_get(cs40l26, &dsp_state);
 
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -55,16 +52,13 @@ static ssize_t halo_heartbeat_show(struct device *dev,
 	if (ret)
 		return ret;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	ret = regmap_read(cs40l26->regmap, reg, &halo_heartbeat);
 
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -80,16 +74,13 @@ static ssize_t pm_stdby_timeout_ms_show(struct device *dev,
 	u32 timeout_ms;
 	int ret;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	ret = cs40l26_pm_stdby_timeout_ms_get(cs40l26, &timeout_ms);
 
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -108,16 +99,13 @@ static ssize_t pm_stdby_timeout_ms_store(struct device *dev,
 	if (ret)
 		return -EINVAL;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	ret = cs40l26_pm_stdby_timeout_ms_set(cs40l26, timeout_ms);
 
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -133,16 +121,13 @@ static ssize_t pm_active_timeout_ms_show(struct device *dev,
 	u32 timeout_ms;
 	int ret;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	ret = cs40l26_pm_active_timeout_ms_get(cs40l26, &timeout_ms);
 
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -161,16 +146,13 @@ static ssize_t pm_active_timeout_ms_store(struct device *dev,
 	if (ret)
 		return -EINVAL;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	ret = cs40l26_pm_active_timeout_ms_set(cs40l26, timeout_ms);
 
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -209,6 +191,12 @@ static ssize_t power_on_seq_show(struct device *dev,
 	mutex_lock(&cs40l26->lock);
 
 	base = cs40l26->pseq_base;
+
+	if (list_empty(&cs40l26->pseq_op_head)) {
+		dev_err(cs40l26->dev, "Power on sequence is empty\n");
+		ret = -EINVAL;
+		goto err_mutex;
+	}
 
 	list_for_each_entry_reverse(op, &cs40l26->pseq_op_head, list) {
 		switch (op->operation) {
@@ -263,11 +251,9 @@ static ssize_t owt_free_space_show(struct device *dev,
 	u32 reg, words;
 	int ret;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	ret = cl_dsp_get_reg(cs40l26->dsp, "OWT_SIZE_XM",
 		CL_DSP_XM_UNPACKED_TYPE, CS40L26_VIBEGEN_ALGO_ID, &reg);
@@ -283,8 +269,7 @@ static ssize_t owt_free_space_show(struct device *dev,
 	ret = snprintf(buf, PAGE_SIZE, "%d\n", words * CL_DSP_BYTES_PER_WORD);
 
 err_pm:
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	return ret;
 }
@@ -299,11 +284,9 @@ static ssize_t die_temp_show(struct device *dev,
 	int ret;
 	u32 val;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	ret = regmap_read(regmap, CS40L26_GLOBAL_ENABLES, &val);
 	if (ret) {
@@ -330,8 +313,7 @@ static ssize_t die_temp_show(struct device *dev,
 	ret = snprintf(buf, PAGE_SIZE, "0x%03X\n", die_temp);
 
 err_pm:
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	return ret;
 }
@@ -344,11 +326,9 @@ static ssize_t num_waves_show(struct device *dev,
 	u32 nwaves;
 	int ret;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	ret = cs40l26_get_num_waves(cs40l26, &nwaves);
 	if (ret)
@@ -357,8 +337,7 @@ static ssize_t num_waves_show(struct device *dev,
 	ret = snprintf(buf, PAGE_SIZE, "%u\n", nwaves);
 
 err_pm:
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	return ret;
 }
@@ -372,11 +351,9 @@ static ssize_t boost_disable_delay_show(struct device *dev,
 	u32 reg, boost_disable_delay;
 	int ret;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	ret = cl_dsp_get_reg(cs40l26->dsp, "BOOST_DISABLE_DELAY",
 			CL_DSP_XM_UNPACKED_TYPE, CS40L26_EXT_ALGO_ID, &reg);
@@ -390,8 +367,7 @@ static ssize_t boost_disable_delay_show(struct device *dev,
 	ret = snprintf(buf, PAGE_SIZE, "%d\n", boost_disable_delay);
 
 err_pm:
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	return ret;
 }
@@ -416,11 +392,9 @@ static ssize_t boost_disable_delay_store(struct device *dev,
 		boost_disable_delay > CS40L26_BOOST_DISABLE_DELAY_MAX)
 		return -EINVAL;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	ret = cl_dsp_get_reg(cs40l26->dsp, "BOOST_DISABLE_DELAY",
 			CL_DSP_XM_UNPACKED_TYPE, CS40L26_EXT_ALGO_ID, &reg);
@@ -430,8 +404,7 @@ static ssize_t boost_disable_delay_store(struct device *dev,
 	ret = regmap_write(cs40l26->regmap, reg, boost_disable_delay);
 
 err_pm:
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -447,11 +420,9 @@ static ssize_t f0_offset_show(struct device *dev,
 	unsigned int reg, val;
 	int ret;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -470,8 +441,7 @@ static ssize_t f0_offset_show(struct device *dev,
 
 err_mutex:
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	return ret;
 }
@@ -490,11 +460,9 @@ static ssize_t f0_offset_store(struct device *dev,
 	if (val > CS40L26_F0_OFFSET_MAX && val < CS40L26_F0_OFFSET_MIN)
 		return -EINVAL;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -512,8 +480,7 @@ static ssize_t f0_offset_store(struct device *dev,
 
 err_mutex:
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	return ret;
 }
@@ -595,11 +562,9 @@ static ssize_t f0_comp_enable_store(struct device *dev,
 	if (ret)
 		return -EINVAL;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -629,8 +594,7 @@ static ssize_t f0_comp_enable_store(struct device *dev,
 err_mutex:
 	cs40l26->comp_enable_pend = false;
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	return ret;
 }
@@ -675,11 +639,10 @@ static ssize_t redc_comp_enable_store(struct device *dev,
 	if (ret)
 		return -EINVAL;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
+
 	mutex_lock(&cs40l26->lock);
 
 	cs40l26->comp_enable_pend = true;
@@ -708,8 +671,7 @@ static ssize_t redc_comp_enable_store(struct device *dev,
 err_mutex:
 	cs40l26->comp_enable_pend = false;
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	return ret;
 }
@@ -797,11 +759,10 @@ static ssize_t vpbr_thld_store(struct device *dev,
 		sysfs_val < CS40L26_VPBR_THLD_MIN)
 		return -EINVAL;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
+
 	mutex_lock(&cs40l26->lock);
 
 	if (cs40l26->fw_id == CS40L26_FW_CALIB_ID) {
@@ -846,8 +807,7 @@ static ssize_t vpbr_thld_store(struct device *dev,
 
 err_mutex:
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	return ret;
 }
@@ -885,11 +845,9 @@ static ssize_t dbc_enable_show(struct device *dev,
 	u32 val, reg;
 	int ret;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -904,7 +862,6 @@ static ssize_t dbc_enable_show(struct device *dev,
 		goto err_pm;
 	}
 
-
 	val &= CS40L26_DBC_ENABLE_MASK;
 	val >>= CS40L26_DBC_ENABLE_SHIFT;
 
@@ -912,9 +869,7 @@ static ssize_t dbc_enable_show(struct device *dev,
 
 err_pm:
 	mutex_unlock(&cs40l26->lock);
-
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	return ret;
 }
@@ -933,11 +888,9 @@ static ssize_t dbc_enable_store(struct device *dev,
 	if (val > 1)
 		return -EINVAL;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -945,8 +898,7 @@ static ssize_t dbc_enable_store(struct device *dev,
 
 	mutex_unlock(&cs40l26->lock);
 
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	return ret ? ret : count;
 }
@@ -976,11 +928,9 @@ static ssize_t dbc_env_rel_coef_store(struct device *dev,
 	if (ret)
 		return ret;
 
-	ret = pm_runtime_get_sync(cdev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cdev, ret);
+	ret = cs40l26_pm_enter(cdev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -988,8 +938,7 @@ static ssize_t dbc_env_rel_coef_store(struct device *dev,
 
 	mutex_unlock(&cs40l26->lock);
 
-	pm_runtime_mark_last_busy(cdev);
-	pm_runtime_put_autosuspend(cdev);
+	cs40l26_pm_exit(cdev);
 
 	return ret ? ret : count;
 }
@@ -1019,11 +968,9 @@ static ssize_t dbc_rise_headroom_store(struct device *dev,
 	if (ret)
 		return ret;
 
-	ret = pm_runtime_get_sync(cdev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cdev, ret);
+	ret = cs40l26_pm_enter(cdev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -1031,8 +978,7 @@ static ssize_t dbc_rise_headroom_store(struct device *dev,
 
 	mutex_unlock(&cs40l26->lock);
 
-	pm_runtime_mark_last_busy(cdev);
-	pm_runtime_put_autosuspend(cdev);
+	cs40l26_pm_exit(cdev);
 
 	return ret ? ret : count;
 }
@@ -1062,11 +1008,9 @@ static ssize_t dbc_fall_headroom_store(struct device *dev,
 	if (ret)
 		return ret;
 
-	ret = pm_runtime_get_sync(cdev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cdev, ret);
+	ret = cs40l26_pm_enter(cdev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -1074,8 +1018,7 @@ static ssize_t dbc_fall_headroom_store(struct device *dev,
 
 	mutex_unlock(&cs40l26->lock);
 
-	pm_runtime_mark_last_busy(cdev);
-	pm_runtime_put_autosuspend(cdev);
+	cs40l26_pm_exit(cdev);
 
 	return ret ? ret : count;
 }
@@ -1105,11 +1048,9 @@ static ssize_t dbc_tx_lvl_thresh_fs_store(struct device *dev,
 	if (ret)
 		return ret;
 
-	ret = pm_runtime_get_sync(cdev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cdev, ret);
+	ret = cs40l26_pm_enter(cdev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -1117,8 +1058,7 @@ static ssize_t dbc_tx_lvl_thresh_fs_store(struct device *dev,
 
 	mutex_unlock(&cs40l26->lock);
 
-	pm_runtime_mark_last_busy(cdev);
-	pm_runtime_put_autosuspend(cdev);
+	cs40l26_pm_exit(cdev);
 
 	return ret ? ret : count;
 }
@@ -1148,11 +1088,9 @@ static ssize_t dbc_tx_lvl_hold_off_ms_store(struct device *dev,
 	if (ret)
 		return ret;
 
-	ret = pm_runtime_get_sync(cdev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cdev, ret);
+	ret = cs40l26_pm_enter(cdev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -1160,8 +1098,7 @@ static ssize_t dbc_tx_lvl_hold_off_ms_store(struct device *dev,
 
 	mutex_unlock(&cs40l26->lock);
 
-	pm_runtime_mark_last_busy(cdev);
-	pm_runtime_put_autosuspend(cdev);
+	cs40l26_pm_exit(cdev);
 
 	return ret ? ret : count;
 }
@@ -1195,6 +1132,11 @@ static ssize_t trigger_calibration_store(struct device *dev,
 	dev_dbg(cs40l26->dev, "%s: %s", __func__, buf);
 #endif
 
+	if (!cs40l26->calib_fw) {
+		dev_err(cs40l26->dev, "Must use calibration firmware\n");
+		return -EPERM;
+	}
+
 	ret = kstrtou32(buf, 16, &calibration_request_payload);
 	if (ret ||
 		calibration_request_payload < 1 ||
@@ -1207,12 +1149,10 @@ static ssize_t trigger_calibration_store(struct device *dev,
 				(calibration_request_payload &
 				CS40L26_DSP_MBOX_CMD_PAYLOAD_MASK);
 
-	/* pm_runtime_put occurs is irq_handler after diagnostic is finished */
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	/* pm_exit occurs is irq_handler after diagnostic is finished */
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -1240,11 +1180,9 @@ static ssize_t f0_measured_show(struct device *dev,
 	int ret;
 	u32 reg, f0_measured;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -1260,8 +1198,7 @@ static ssize_t f0_measured_show(struct device *dev,
 
 err_mutex:
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -1277,11 +1214,9 @@ static ssize_t q_measured_show(struct device *dev,
 	int ret;
 	u32 reg, q_measured;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -1297,8 +1232,7 @@ static ssize_t q_measured_show(struct device *dev,
 
 err_mutex:
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -1314,17 +1248,15 @@ static ssize_t redc_measured_show(struct device *dev,
 	int ret;
 	u32 reg, redc_measured;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
 	ret = cl_dsp_get_reg(cs40l26->dsp, "RE_EST_STATUS",
 			CL_DSP_YM_UNPACKED_TYPE,
-			CS40l26_SVC_ALGO_ID, &reg);
+			CS40L26_SVC_ALGO_ID, &reg);
 	if (ret)
 		goto err_mutex;
 
@@ -1334,8 +1266,7 @@ static ssize_t redc_measured_show(struct device *dev,
 
 err_mutex:
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -1351,11 +1282,9 @@ static ssize_t redc_est_show(struct device *dev, struct device_attribute *attr,
 	int ret;
 	u32 reg, redc_est;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -1371,8 +1300,7 @@ static ssize_t redc_est_show(struct device *dev, struct device_attribute *attr,
 
 err_mutex:
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -1397,11 +1325,9 @@ static ssize_t redc_est_store(struct device *dev, struct device_attribute *attr,
 	if (ret)
 		return ret;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -1417,8 +1343,7 @@ static ssize_t redc_est_store(struct device *dev, struct device_attribute *attr,
 
 err_mutex:
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -1434,11 +1359,9 @@ static ssize_t f0_stored_show(struct device *dev,
 	int ret;
 	u32 reg, f0_stored;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -1454,8 +1377,7 @@ static ssize_t f0_stored_show(struct device *dev,
 
 err_mutex:
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -1483,11 +1405,9 @@ static ssize_t f0_stored_store(struct device *dev,
 		f0_stored > CS40L26_F0_EST_MAX)
 		return -EINVAL;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -1503,8 +1423,7 @@ static ssize_t f0_stored_store(struct device *dev,
 
 err_mutex:
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -1520,11 +1439,9 @@ static ssize_t q_stored_show(struct device *dev, struct device_attribute *attr,
 	int ret;
 	u32 reg, q_stored;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -1540,8 +1457,7 @@ static ssize_t q_stored_show(struct device *dev, struct device_attribute *attr,
 
 err_mutex:
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -1567,11 +1483,9 @@ static ssize_t q_stored_store(struct device *dev, struct device_attribute *attr,
 	if (ret || q_stored < CS40L26_Q_EST_MIN || q_stored > CS40L26_Q_EST_MAX)
 		return -EINVAL;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -1587,8 +1501,7 @@ static ssize_t q_stored_store(struct device *dev, struct device_attribute *attr,
 
 err_mutex:
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -1604,11 +1517,9 @@ static ssize_t redc_stored_show(struct device *dev,
 	int ret;
 	u32 reg, redc_stored;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -1624,8 +1535,7 @@ static ssize_t redc_stored_show(struct device *dev,
 
 err_mutex:
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -1650,11 +1560,9 @@ static ssize_t redc_stored_store(struct device *dev,
 	if (ret)
 		return ret;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -1670,8 +1578,7 @@ static ssize_t redc_stored_store(struct device *dev,
 
 err_mutex:
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -1687,11 +1594,9 @@ static ssize_t f0_and_q_cal_time_ms_show(struct device *dev,
 	u32 reg, tone_dur_ms, freq_span_raw, freq_centre;
 	int ret, freq_span, f0_and_q_cal_time_ms;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -1750,8 +1655,7 @@ static ssize_t f0_and_q_cal_time_ms_show(struct device *dev,
 
 err_mutex:
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -1768,11 +1672,9 @@ static ssize_t redc_cal_time_ms_show(struct device *dev,
 	int ret;
 	u32 reg, redc_playtime_ms, redc_total_cal_time_ms;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -1790,8 +1692,7 @@ static ssize_t redc_cal_time_ms_show(struct device *dev,
 
 err_mutex:
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -1807,11 +1708,9 @@ static ssize_t logging_en_show(struct device *dev,
 	u32 reg, enable;
 	int ret;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -1828,8 +1727,7 @@ static ssize_t logging_en_show(struct device *dev,
 
 err_mutex:
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	return ret;
 }
@@ -1851,11 +1749,9 @@ static ssize_t logging_en_store(struct device *dev,
 	if (enable != 0 && enable != 1)
 		return -EINVAL;
 
-	ret = pm_runtime_get_sync(cdev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cdev, ret);
+	ret = cs40l26_pm_enter(cdev);
+	if (ret)
 		return ret;
-	}
 
 	mutex_lock(&cs40l26->lock);
 
@@ -1876,13 +1772,6 @@ static ssize_t logging_en_store(struct device *dev,
 		goto exit_mutex;
 
 	if (cs40l26->fw_id == CS40L26_FW_ID) {
-		if (src_count != CS40L26_LOGGER_SRC_COUNT) {
-			dev_err(cdev, "Unexpected source count %u\n",
-					src_count);
-			ret = -EINVAL;
-			goto exit_mutex;
-		}
-
 		ret = regmap_read(regmap, reg, &src);
 		if (ret) {
 			dev_err(cdev, "Failed to get Logger Source\n");
@@ -1898,13 +1787,6 @@ static ssize_t logging_en_store(struct device *dev,
 			goto exit_mutex;
 		}
 	} else if (cs40l26->fw_id == CS40L26_FW_CALIB_ID) {
-		if (src_count != CS40L26_LOGGER_SRC_COUNT_CALIB) {
-			dev_err(cdev, "Unexpected source count %u\n",
-					src_count);
-			ret = -EINVAL;
-			goto exit_mutex;
-		}
-
 		for (i = 0; i < src_count; i++) {
 			ret = regmap_read(regmap, reg +
 					(i * CL_DSP_BYTES_PER_WORD), &src);
@@ -1941,9 +1823,7 @@ static ssize_t logging_en_store(struct device *dev,
 
 exit_mutex:
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cdev);
-	pm_runtime_put_autosuspend(cdev);
-
+	cs40l26_pm_exit(cdev);
 
 	return ret ? ret : count;
 }
@@ -1964,17 +1844,14 @@ static ssize_t logging_max_reset_store(struct device *dev,
 	if (rst != 1)
 		return -EINVAL;
 
-	ret = pm_runtime_get_sync(cs40l26->dev);
-	if (ret < 0) {
-		cs40l26_resume_error_handle(cs40l26->dev, ret);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
 		return ret;
-	}
 
 	cs40l26_ack_write(cs40l26, CS40L26_DSP_VIRTUAL1_MBOX_1,
 		CS40L26_DSP_MBOX_CMD_LOGGER_MAX_RESET, CS40L26_DSP_MBOX_RESET);
 
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	return count;
 }
@@ -1983,7 +1860,6 @@ static DEVICE_ATTR_WO(logging_max_reset);
 static ssize_t max_bemf_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
-
 	struct cs40l26_private *cs40l26 = dev_get_drvdata(dev);
 	u32 reg, max_bemf;
 	int ret;
@@ -1993,7 +1869,10 @@ static ssize_t max_bemf_show(struct device *dev, struct device_attribute *attr,
 		return -EPERM;
 	}
 
-	pm_runtime_get_sync(cs40l26->dev);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
+		return ret;
+
 	mutex_lock(&cs40l26->lock);
 
 	ret = cl_dsp_get_reg(cs40l26->dsp, "DATA", CL_DSP_XM_UNPACKED_TYPE,
@@ -2008,8 +1887,7 @@ static ssize_t max_bemf_show(struct device *dev, struct device_attribute *attr,
 
 err_mutex:
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -2021,7 +1899,6 @@ static DEVICE_ATTR_RO(max_bemf);
 static ssize_t max_vbst_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
-
 	struct cs40l26_private *cs40l26 = dev_get_drvdata(dev);
 	u32 reg, max_vbst;
 	int ret;
@@ -2031,7 +1908,10 @@ static ssize_t max_vbst_show(struct device *dev, struct device_attribute *attr,
 		return -EPERM;
 	}
 
-	pm_runtime_get_sync(cs40l26->dev);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
+		return ret;
+
 	mutex_lock(&cs40l26->lock);
 
 	ret = cl_dsp_get_reg(cs40l26->dsp, "DATA", CL_DSP_XM_UNPACKED_TYPE,
@@ -2046,8 +1926,7 @@ static ssize_t max_vbst_show(struct device *dev, struct device_attribute *attr,
 
 err_mutex:
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -2059,7 +1938,6 @@ static DEVICE_ATTR_RO(max_vbst);
 static ssize_t max_vmon_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
-
 	struct cs40l26_private *cs40l26 = dev_get_drvdata(dev);
 	u32 reg, max_vmon;
 	u8 offset;
@@ -2070,7 +1948,10 @@ static ssize_t max_vmon_show(struct device *dev, struct device_attribute *attr,
 	else
 		offset = CS40L26_LOGGER_DATA_1_MAX_OFFSET;
 
-	pm_runtime_get_sync(cs40l26->dev);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
+		return ret;
+
 	mutex_lock(&cs40l26->lock);
 
 	ret = cl_dsp_get_reg(cs40l26->dsp, "DATA", CL_DSP_XM_UNPACKED_TYPE,
@@ -2084,8 +1965,7 @@ static ssize_t max_vmon_show(struct device *dev, struct device_attribute *attr,
 
 err_mutex:
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -2101,14 +1981,16 @@ static ssize_t svc_le_est_show(struct device *dev,
 	unsigned int le;
 	int ret;
 
-	pm_runtime_get_sync(cs40l26->dev);
+	ret = cs40l26_pm_enter(cs40l26->dev);
+	if (ret)
+		return ret;
+
 	mutex_lock(&cs40l26->lock);
 
 	ret = cs40l26_svc_le_estimate(cs40l26, &le);
 
 	mutex_unlock(&cs40l26->lock);
-	pm_runtime_mark_last_busy(cs40l26->dev);
-	pm_runtime_put_autosuspend(cs40l26->dev);
+	cs40l26_pm_exit(cs40l26->dev);
 
 	if (ret)
 		return ret;
@@ -2117,8 +1999,45 @@ static ssize_t svc_le_est_show(struct device *dev,
 }
 static DEVICE_ATTR_RO(svc_le_est);
 
+static ssize_t svc_le_stored_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct cs40l26_private *cs40l26 = dev_get_drvdata(dev);
+	int ret;
+
+	mutex_lock(&cs40l26->lock);
+
+	ret = snprintf(buf, PAGE_SIZE, "%d\n", cs40l26->svc_le_est_stored);
+
+	mutex_unlock(&cs40l26->lock);
+
+	return ret;
+}
+
+static ssize_t svc_le_stored_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct cs40l26_private *cs40l26 = dev_get_drvdata(dev);
+	int ret;
+	u32 svc_le_stored;
+
+	ret = kstrtou32(buf, 10, &svc_le_stored);
+	if (ret)
+		return ret;
+
+	mutex_lock(&cs40l26->lock);
+
+	cs40l26->svc_le_est_stored = svc_le_stored;
+
+	mutex_unlock(&cs40l26->lock);
+
+	return count;
+}
+static DEVICE_ATTR_RW(svc_le_stored);
+
 static struct attribute *cs40l26_dev_attrs_cal[] = {
 	&dev_attr_svc_le_est.attr,
+	&dev_attr_svc_le_stored.attr,
 	&dev_attr_max_vbst.attr,
 	&dev_attr_max_bemf.attr,
 	&dev_attr_max_vmon.attr,

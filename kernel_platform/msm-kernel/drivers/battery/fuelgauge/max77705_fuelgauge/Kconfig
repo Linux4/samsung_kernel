@@ -38,7 +38,7 @@ config ID_USING_BAT_SUBBAT
 	  This is to calculate bat_id using main_bat_id & sub_bat_id.
 
 config FUELGAUGE_MAX77705_TEST
-	bool "KUnit test for max77705_fuelgauge_test"
+	tristate "KUnit test for max77705_fuelgauge_test"
 	depends on SEC_KUNIT
 	help
 	  Say Y here to enable

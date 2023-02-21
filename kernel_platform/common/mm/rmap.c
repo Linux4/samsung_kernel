@@ -884,7 +884,21 @@ int page_referenced(struct page *page,
 		rwc.invalid_vma = invalid_page_referenced_vma;
 	}
 
-	rmap_walk(page, &rwc);
+	if (need_memory_boosting() && !PageAnon(page)) {
+		struct address_space *mapping = page_mapping(page);
+
+		if (mapping != NULL) {
+			if (i_mmap_trylock_read(mapping)) {
+				rmap_walk_locked(page, &rwc);
+				i_mmap_unlock_read(mapping);
+			} else {
+				pra.referenced = 1;
+			}
+		}
+	} else {
+		rmap_walk(page, &rwc);
+	}
+
 	*vm_flags = pra.vm_flags;
 
 	if (we_locked)

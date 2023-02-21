@@ -619,8 +619,18 @@ static int adsp_start(struct rproc *rproc)
 
 	scm_pas_enable_bw();
 	ret = qcom_scm_pas_auth_and_reset(adsp->pas_id);
+#ifdef HDM_SUPPORT
+	if (ret) {
+		// Intentionally block cp load.
+		if (hdm_cp_support)
+			goto disable_regs;
+		else
+			panic("Panicking, auth and reset failed for remoteproc %s\n", rproc->name);
+	}
+#else
 	if (ret)
 		panic("Panicking, auth and reset failed for remoteproc %s\n", rproc->name);
+#endif
 	scm_pas_disable_bw();
 
 	if (!timeout_disabled) {

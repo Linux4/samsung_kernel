@@ -89,7 +89,7 @@ media.stagefright.audio.deep=false
 endif
 #guard for non generic_odm_image
 
-ifneq ($(filter q2q% b2q%, $(TARGET_PRODUCT)),)
+ifneq ($(filter q2q% b2q% gts7% gts6% gtact%, $(TARGET_PRODUCT)),)
 $(warning ****** not support mmap for $(TARGET_PRODUCT) ******)
 PRODUCT_PRODUCT_PROPERTIES += aaudio.mmap_policy=1
 PRODUCT_PRODUCT_PROPERTIES += aaudio.mmap_exclusive_policy=1

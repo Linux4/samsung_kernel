@@ -1570,6 +1570,60 @@ int stm_ts_pocket_mode_enable(struct stm_ts_data *ts, u8 enable)
 	return ret;
 }
 
+int stm_ts_sip_mode_enable(struct stm_ts_data *ts)
+{
+	int ret;
+	u8 reg[3] = { 0 };
+
+	input_info(true, &ts->client->dev, "%s: %s\n",
+			__func__, ts->sip_mode ? "enable" : "disable");
+
+	reg[0] = STM_TS_CMD_SET_FUNCTION_ONOFF;
+	reg[1] = STM_TS_FUNCTION_ENABLE_SIP_MODE;
+	reg[2] = ts->sip_mode;
+	ret = ts->stm_ts_write(ts, reg, 3, NULL, 0);
+	if (ret < 0)
+		input_err(true, &ts->client->dev,
+				"%s: failed to sip mode%d, ret=%d\n", __func__, ts->sip_mode, ret);
+	return ret;
+}
+
+int stm_ts_game_mode_enable(struct stm_ts_data *ts)
+{
+	int ret;
+	u8 reg[3] = { 0 };
+
+	input_info(true, &ts->client->dev, "%s: %s\n",
+			__func__, ts->game_mode ? "enable" : "disable");
+
+	reg[0] = STM_TS_CMD_SET_FUNCTION_ONOFF;
+	reg[1] = STM_TS_CMD_FUNCTION_SET_GAME_MODE;
+	reg[2] = ts->game_mode;
+	ret = ts->stm_ts_write(ts, reg, 3, NULL, 0);
+	if (ret < 0)
+		input_err(true, &ts->client->dev,
+				"%s: failed to game mode%d, ret=%d\n", __func__, ts->game_mode, ret);
+	return ret;
+}
+
+int stm_ts_note_mode_enable(struct stm_ts_data *ts)
+{
+	int ret;
+	u8 reg[3] = { 0 };
+
+	input_info(true, &ts->client->dev, "%s: %s\n",
+			__func__, ts->note_mode ? "enable" : "disable");
+
+	reg[0] = STM_TS_CMD_SET_FUNCTION_ONOFF;
+	reg[1] = STM_TS_CMD_FUNCTION_SET_NOTE_MODE;
+	reg[2] = ts->note_mode;
+	ret = ts->stm_ts_write(ts, reg, 3, NULL, 0);
+	if (ret < 0)
+		input_err(true, &ts->client->dev,
+				"%s: failed to note mode%d, ret=%d\n", __func__, ts->note_mode, ret);
+	return ret;
+}
+
 #define NVM_CMD(mtype, moffset, mlength)		.type = mtype,	.offset = moffset,	.length = mlength
 struct stm_ts_nvm_data_map nvm_data[] = {
 	{NVM_CMD(0,						0x00, 0),},

@@ -23,6 +23,20 @@
 #if IS_ENABLED(CONFIG_SEC_ABC)
 #include <linux/sti/abc_common.h>
 #endif
+#if IS_ENABLED(CONFIG_SEC_PARAM)
+#include <linux/sec_param.h>
+#endif
+
+/* Use __VIB_TEST_STORE_LE_PARAM only for testing purpose,
+ * else there will be GKI violation.
+ * #define __VIB_TEST_STORE_LE_PARAM
+ */
+
+#if defined(CONFIG_VIB_STORE_LE_PARAM)
+static uint32_t vib_le_est;
+module_param(vib_le_est, uint, 0444);
+MODULE_PARM_DESC(vib_le_est, "sec_vib_inputff_le_est value");
+#endif
 
 __visible_for_testing int sec_vib_inputff_get_i2s_test(
 	struct sec_vib_inputff_drvdata *ddata)
@@ -79,7 +93,7 @@ __visible_for_testing int sec_vib_inputff_load_firmware(
 		if (retry < FWLOAD_TRY-1) {
 			ddata->fw.ret[retry] = ret;
 			queue_delayed_work(ddata->fw.fw_workqueue,
-				&ddata->fw.retry_wk, msecs_to_jiffies(3000));
+				&ddata->fw.retry_wk, msecs_to_jiffies(1000));
 			ddata->fw.retry++;
 		} else {
 			dev_err(ddata->dev, "%s firmware load retry fail\n", __func__);
@@ -253,6 +267,14 @@ err:
 }
 static DEVICE_ATTR_RW(ach_percent);
 
+static ssize_t trigger_calibration_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct sec_vib_inputff_drvdata *ddata = dev_get_drvdata(dev);
+
+	return sprintf(buf, "%d\n", ddata->trigger_calibration);
+}
+
 static ssize_t trigger_calibration_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -278,7 +300,7 @@ static ssize_t trigger_calibration_store(struct device *dev,
 	}
 	return count;
 }
-static DEVICE_ATTR_WO(trigger_calibration);
+static DEVICE_ATTR_RW(trigger_calibration);
 
 static ssize_t f0_measured_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -321,6 +343,20 @@ static ssize_t f0_stored_show(struct device *dev,
 	return sprintf(buf, "%08X\n", ddata->f0_stored);
 }
 
+/*
+ * f0_stored_store - loads the f0 calibrated data to the driver.
+ *			Its stored in efs and the f0 calibration data to be loaded
+ *			on every boot.
+ * sequence: (Pre-requisite)
+ *	1) Load Calib firmware.
+ *	2) Trigger Calibration
+ *	3) Measure f0 value
+ *	4) Store the f0 value to efs area.
+ *	5) Load Normal firmware
+ * Upon every boot, HAL reads from efs and loads to driver via this function.
+ * Future Check : If any new IC, will have EEPROM, that may needs to be
+ *    preferred over efs area?
+ */
 static ssize_t f0_stored_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
@@ -351,6 +387,99 @@ static ssize_t f0_stored_store(struct device *dev,
 	return count;
 }
 static DEVICE_ATTR_RW(f0_stored);
+
+static ssize_t le_est_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct sec_vib_inputff_drvdata *ddata = dev_get_drvdata(dev);
+	unsigned int le = 0;
+	int ret = 0;
+
+	if (!ddata->vib_ops->get_le_est) {
+		dev_err(ddata->dev, "%s le_est doesn't support\n", __func__);
+		return -EOPNOTSUPP;
+	}
+
+	ret = ddata->vib_ops->get_le_est(ddata->input, &le);
+	if (ret)
+		return ret;
+
+	return snprintf(buf, PAGE_SIZE, "%u\n", le);
+}
+static DEVICE_ATTR_RO(le_est);
+
+static ssize_t le_stored_param_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct sec_vib_inputff_drvdata *ddata = dev_get_drvdata(dev);
+
+	if (!ddata->vib_ops->get_le_stored) {
+		dev_err(ddata->dev, "%s le_stored doesn't support\n", __func__);
+		return -EOPNOTSUPP;
+	}
+
+	return snprintf(buf, PAGE_SIZE, "%u\n", ddata->vib_ops->get_le_stored(ddata->input));
+}
+
+/*
+ * le_stored_param_store - Stores the lra estimated data to SEC param.
+ * sequence:
+ *	1) Load Calib firmware.
+ *	2) LRA Estimate
+ *	3) Call this function to store the LRA.
+ *	4) Load Normal firmware (To get the value to be effective).
+ * Future Check : If any new IC, will have EEPROM, that may needs to be
+ *    preferred over SEC_PARAM?
+ */
+static ssize_t le_stored_param_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct sec_vib_inputff_drvdata *ddata = dev_get_drvdata(dev);
+	int ret;
+	u32 le_stored;
+
+	ret = kstrtos32(buf, 10, &le_stored);
+	if (ret < 0) {
+		dev_err(ddata->dev, "%s kstrtos32 error : %d\n", __func__, ret);
+		return ret;
+	}
+
+	pr_info("%s le_stored: %d\n", __func__, le_stored);
+
+	if (ddata->vib_ops->set_le_stored) {
+		if (ddata->fw.stat == FW_LOAD_SUCCESS && ddata->fw.id == 1) {
+			ret = ddata->vib_ops->set_le_stored(ddata->input, le_stored);
+			if (ret) {
+				dev_err(ddata->dev, "%s le_stored error : %d\n", __func__, ret);
+				return -EINVAL;
+			}
+		}
+		ddata->le_stored = le_stored;
+		dev_info(ddata->dev, "%s le_stored : %u, Updated\n", __func__, le_stored);
+#if defined(__VIB_TEST_STORE_LE_PARAM)
+		dev_err(ddata->dev, "%s Dont store sec_param from driver. Use only for testing\n", __func__);
+#if IS_ENABLED(CONFIG_SEC_PARAM)
+#if IS_ENABLED(CONFIG_ARCH_QCOM) && !defined(CONFIG_USB_ARCH_EXYNOS) && !defined(CONFIG_ARCH_EXYNOS)
+		ret = sec_set_param(param_vib_le_est, &le_stored);
+		if (ret == false) {
+			dev_info(ddata->dev, "%s:set_paramset_param failed - %x(%d)\n", __func__, le_stored, ret);
+
+			return -EIO;
+		}
+		dev_info(ddata->dev, "%s Store in sec param - Done\n", __func__);
+#endif
+#else
+	/* Need to add for SLSI */
+	dev_err(ddata->dev, "%s le_stored not stored in sec_param\n", __func__);
+#endif
+#endif // __VIB_TEST_STORE_LE_PARAM
+	} else {
+		dev_err(ddata->dev, "%s le_stored doesn't support\n", __func__);
+		return -EOPNOTSUPP;
+	}
+	return count;
+}
+static DEVICE_ATTR_RW(le_stored_param);
 
 static ssize_t use_sep_index_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
@@ -494,6 +623,8 @@ static struct attribute *vib_inputff_sys_attr[] = {
 	&dev_attr_f0_measured.attr,
 	&dev_attr_f0_offset.attr,
 	&dev_attr_f0_stored.attr,
+	&dev_attr_le_est.attr,
+	&dev_attr_le_stored_param.attr,
 	&dev_attr_use_sep_index.attr,
 #if defined(CONFIG_SEC_VIB_FOLD_MODEL)
 	&dev_attr_event_cmd.attr,
@@ -504,6 +635,16 @@ static struct attribute *vib_inputff_sys_attr[] = {
 static struct attribute_group vib_inputff_sys_attr_group = {
 	.attrs = vib_inputff_sys_attr,
 };
+
+
+static void sec_vib_inputff_vib_param_init(struct sec_vib_inputff_drvdata *ddata)
+{
+#if defined(CONFIG_VIB_STORE_LE_PARAM)
+	ddata->le_stored = vib_le_est;
+	if (ddata->le_stored)
+		ddata->vib_ops->set_le_stored(ddata->input, ddata->le_stored);
+#endif
+}
 
 static void sec_vib_inputff_fw_init(struct sec_vib_inputff_drvdata *ddata)
 {
@@ -531,8 +672,10 @@ int sec_vib_inputff_sysfs_init(struct sec_vib_inputff_drvdata *ddata)
 
 	dev_info(ddata->dev, "%s\n", __func__);
 
-	if (ddata->support_fw)
+	if (ddata->support_fw) {
+		sec_vib_inputff_vib_param_init(ddata);
 		sec_vib_inputff_fw_init(ddata);
+	}
 
 	ddata->sec_vib_inputff_class = class_create(THIS_MODULE, "sec_vib_inputff");
 	if (IS_ERR(ddata->sec_vib_inputff_class)) {

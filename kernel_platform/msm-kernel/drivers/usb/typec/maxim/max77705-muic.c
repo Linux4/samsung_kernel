@@ -507,9 +507,9 @@ static int switch_to_cp_uart(struct max77705_muic_data *muic_data,
 	return ret;
 }
 
-static void max77705_muic_enable_detecting_short(struct max77705_muic_data *muic_data)
+void max77705_muic_enable_detecting_short(struct max77705_muic_data *muic_data)
 {
-#if !defined(CONFIG_SEC_FACTORY)
+
 	struct max77705_usbc_platform_data *usbc_pdata = muic_data->usbc_pdata;
 	usbc_cmd_data write_data;
 
@@ -523,11 +523,16 @@ static void max77705_muic_enable_detecting_short(struct max77705_muic_data *muic
 	 * bit 1: Enable detecting sbu-gnd short
 	 * bit 2: Enable detecting vbus-sbu short
 	 */
+#if !defined(CONFIG_SEC_FACTORY)
 	write_data.write_data[0] = 0x7;
+#else
+	/* W/A, in factory mode, sbu-gnd short disable */
+	write_data.write_data[0] = 0x5;
+#endif
 	write_data.read_length = 1;
 
 	max77705_usbc_opcode_write(usbc_pdata, &write_data);
-#endif
+
 }
 
 static void max77705_muic_dp_reset(struct max77705_muic_data *muic_data)
@@ -1716,6 +1721,12 @@ static void max77705_muic_detect_dev(struct max77705_muic_data *muic_data,
 	u8 status[5];
 	u8 adc, vbvolt, chgtyp, spchgtyp, sysmsg, vbadc, dcdtmo, ccstat;
 	int ret;
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+	int event;
+#endif
+#if defined(CONFIG_USB_HW_PARAM)
+	struct otg_notify *o_notify = get_otg_notify();
+#endif
 
 	ret = max77705_bulk_read(i2c,
 		MAX77705_USBC_REG_USBC_STATUS1, 5, status);
@@ -1855,8 +1866,17 @@ static void max77705_muic_detect_dev(struct max77705_muic_data *muic_data,
 	} else {
 		pr_info("%s DETACHED\n", __func__);
 
-		if (vbvolt == 0 && chgtyp == CHGTYP_DEDICATED_CHARGER)
-			pr_info("%s catch the Fake Vbus type\n", __func__);
+		if (vbvolt == 0 && chgtyp == CHGTYP_DEDICATED_CHARGER) {
+			pr_info("[MUIC] %s USB Killer Detected!!!\n", __func__);
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+			event = NOTIFY_EXTRA_USBKILLER;
+			store_usblog_notify(NOTIFY_EXTRA, (void *)&event, NULL);
+#endif
+#if defined(CONFIG_USB_HW_PARAM)
+			if (o_notify)
+				inc_hw_param(o_notify, USB_CCIC_USB_KILLER_COUNT);
+#endif
+		}
 
 		ret = max77705_muic_handle_detach(muic_data, irq);
 		if (ret)

@@ -2273,6 +2273,31 @@ void set_con_dev_max_speed(struct otg_notify *n, int speed)
 }
 EXPORT_SYMBOL(set_con_dev_max_speed);
 
+void set_request_action(struct otg_notify *n, unsigned request_action)
+{
+	struct usb_notify *u_notify = NULL;
+
+	if (!n) {
+		pr_err("%s o_notify is null\n", __func__);
+		goto err;
+	}
+	u_notify = (struct usb_notify *)(n->u_notify);
+
+	if (!u_notify) {
+		pr_err("%s u_notify structure is null\n",
+			__func__);
+		goto err;
+	}
+
+	pr_info("%s prev action = %u set action as=%u\n", 
+		__func__, u_notify->udev.request_action, request_action);
+
+	u_notify->udev.request_action = request_action;
+err:
+	return;
+}
+EXPORT_SYMBOL(set_request_action);
+
 struct dev_table {
 	struct usb_device_id dev;
 	int index;

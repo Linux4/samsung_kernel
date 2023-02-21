@@ -18,7 +18,6 @@
 #include <linux/module.h>
 #include <linux/proc_fs.h>
 #include <linux/mm.h>
-#include <linux/bootconfig.h>
 #if defined(CONFIG_ARCH_QCOM)
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -34,7 +33,6 @@
 #include <soc/qcom/secure_buffer.h>
 #include <linux/qtee_shmbridge.h>
 #endif
-#include <linux/samsung/bsp/sec_cmdline.h>
 
 
 #include "hdm_log.h"
@@ -43,8 +41,14 @@
 
 int hdm_log_level = HDM_LOG_LEVEL;
 
+static char *status = "NONE";
+module_param(status, charp, 0444);
+MODULE_PARM_DESC(status, "HDM status");
+
 int hdm_wifi_support;
+int hdm_cp_support;
 EXPORT_SYMBOL(hdm_wifi_support);
+EXPORT_SYMBOL(hdm_cp_support);
 
 void hdm_printk(int level, const char *fmt, ...)
 {
@@ -64,87 +68,51 @@ void hdm_printk(int level, const char *fmt, ...)
 	va_end(args);
 }
 
-/*
-static int __init hdm_wifi_flag(void)
+
+static int __init hdm_flag_setup(void)
 {
-	int error = 0;
-	struct file *filep = NULL;
-	char cmdline[4096] = {0};
-	char tmp_cmdline[4096] = {0};
-	char *cmdline_p = NULL;
-	char *tmp_cmdline_p = NULL;
+	char tmp_hdm_status[100] = {0};
+	char *tmp_p = NULL;
 	char *token = NULL;
 	int cnt = 0;
-	long val;
-	int err;
-
-	mm_segment_t old_fs;
+	long val = 0;
+	int err = 0;
 
 	hdm_wifi_support = 0;
+	hdm_cp_support = 0;
 
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
+	hdm_info("%s hdm.status = %s\n", __func__, status);
 
-	filep = filp_open("/proc/bootconfig", O_RDONLY, 0);
+	if (status) {
+		snprintf(tmp_hdm_status, sizeof(tmp_hdm_status), "%s", status);
 
-	if (IS_ERR(filep) || (filep == NULL)) {
-		hdm_info("%s fail to open cmdline\n", __func__);
-		set_fs(old_fs);
-		return 0;
-	}
+		tmp_p = tmp_hdm_status;
 
-	error = kernel_read(filep, cmdline, sizeof(cmdline), (&filep->f_pos));
+		token = strsep(&tmp_p, "&|");
 
-	if (error < 0) {
-		hdm_info("%s fail to read cmdline\n", __func__);
-		set_fs(old_fs);
-		return 0;
-	}
-
-	set_fs(old_fs);
-
-	cmdline_p = cmdline;
-
-	token = strsep(&cmdline_p, "\n");
-
-	while (token) {
-		hdm_info("%s %s\n", __func__, token);
-		if (strncmp(token, "androidboot.hdm_status = ", 23) == 0) {
-			hdm_info("%s %s\n", __func__, token);
-			snprintf(tmp_cmdline, sizeof(tmp_cmdline), "%s", token);
-			tmp_cmdline_p = tmp_cmdline;
-
-			token = strsep(&tmp_cmdline_p, "=");
-			token = strsep(&tmp_cmdline_p, "&|");
-			hdm_info("%s token2 = %s\n", __func__, token);
-
-			while (token) {
-				//even = hdm applied bit
-				hdm_info("%s hdm bit = %s\n", __func__, token);
-				if (cnt++%2) {
-					err = kstrtol(token, 16, &val);
-					hdm_info("%s hdm token = 0x%x\n", __func__, val);
-					if (err)
-						return err;
-					if (val & HDM_WIFI_SUPPORT_BIT) {
-						hdm_info("%s wifi bit set applied bit = 0x%x\n", __func__, val);
-						hdm_wifi_support = 1;
-						break;
-					}
+		while (token) {
+			//even = hdm applied bit
+			if (cnt++%2) {
+				err = kstrtol(token, 16, &val);
+				if (err)
+					return err;
+				if (val & HDM_WIFI_SUPPORT_BIT && hdm_wifi_support == 0) {
+					hdm_info("%s wifi bit set\n", __func__);
+					hdm_wifi_support = 1;
 				}
-				token = strsep(&tmp_cmdline_p, "&|");
+				if (val & HDM_CP_SUPPORT_BIT && hdm_cp_support == 0) {
+					hdm_info("%s cp bit set\n", __func__);
+					hdm_cp_support = 1;
+				}
 			}
-			break;
+			token = strsep(&tmp_p, "&|");
 		}
-		token = strsep(&cmdline_p, " ");
 	}
-	hdm_info("%s finish\n", __func__);
-	hdm_wifi_support = 1;
+
+	hdm_info("%s hdm_wifi_support = %d, hdm_cp_support = %d\n", __func__, hdm_wifi_support, hdm_cp_support);
 
 	return 0;
 }
-*/
-
 
 static ssize_t store_hdm_policy(struct device *dev,
 				struct device_attribute *attr,
@@ -265,8 +233,7 @@ static int __init hdm_test_init(void)
 	int err;
 #endif
 
-//	hdm_wifi_flag();
-	hdm_wifi_support = 1;
+	hdm_flag_setup();
 
 	dev = sec_device_create(NULL, "hdm");
 	WARN_ON(!dev);

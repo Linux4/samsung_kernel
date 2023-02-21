@@ -309,30 +309,24 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, uint32_t tag1,
             }
             status = SessionAlsaUtils::getTagMetadata(tagsent, tkv, tagConfig);
             if (0 != status) {
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
                 if (tagConfig)
                     free(tagConfig);
-#endif
                 goto exit;
             }
             tagCntrlName << stream << pcmDevIds.at(0) << " " << setParamTagControl;
             ctl = mixer_get_ctl_by_name(mixer, tagCntrlName.str().data());
             if (!ctl) {
                 PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlName.str().data());
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
                 if (tagConfig)
                     free(tagConfig);
-#endif
                 return -ENOENT;
             }
 
             tkv_size = tkv.size() * sizeof(struct agm_key_value);
             status = mixer_ctl_set_array(ctl, tagConfig, sizeof(struct agm_tag_config) + tkv_size);
             if (status != 0) {
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
                 if (tagConfig)
                     free(tagConfig);
-#endif
                 PAL_ERR(LOG_TAG, "failed to set the tag calibration %d", status);
                 goto exit;
             }
@@ -2288,12 +2282,8 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
                 status = SessionAlsaUtils::setMixerParameter(mixer, device,
                                                paramData, paramSize);
                 PAL_INFO(LOG_TAG, "mixer set volume config status=%d\n", status);
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
                 delete [] paramData;
                 paramSize = 0;
-#else
-                freeCustomPayload(&paramData, &paramSize);
-#endif
             }
             return 0;
 
@@ -2349,9 +2339,7 @@ int SessionAlsaPcm::register_asps_event(uint32_t reg)
     event_cfg->event_id = EVENT_ID_ASPS_CLOSE_ALL;
     SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
             (void *)event_cfg, payload_size);
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
     free(event_cfg);
-#endif
     return status;
 }
 

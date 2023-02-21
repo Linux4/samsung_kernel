@@ -410,7 +410,7 @@ typedef struct sec_battery_platform_data {
 	unsigned int swelling_low_rechg_voltage;
 	unsigned int swelling_low_cool3_rechg_voltage;
 
-#if defined(CONFIG_STEP_CHARGING)
+#if IS_ENABLED(CONFIG_STEP_CHARGING)
 	/* step charging */
 	unsigned int **step_chg_cond;
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
@@ -871,6 +871,7 @@ struct sec_battery_info {
 	unsigned int charge_power;		/* charge power (mW) */
 	unsigned int max_charge_power;		/* max charge power (mW) */
 	unsigned int pd_max_charge_power;		/* max charge power for pd (mW) */
+	unsigned int pd_rated_power;		/* rated power for pd (W) */
 
 	struct adc_sample_info	adc_sample[ADC_CH_COUNT];
 
@@ -891,6 +892,8 @@ struct sec_battery_info {
 	struct cisd cisd;
 	bool skip_cisd;
 	bool usb_overheat_check;
+	bool otg_check;
+	bool d2d_check;
 	int prev_volt;
 	int prev_temp;
 	int prev_jig_on;
@@ -938,7 +941,7 @@ struct sec_battery_info {
 #if defined(CONFIG_ENG_BATTERY_CONCEPT)
 	bool test_max_current;
 	bool test_charge_current;
-#if defined(CONFIG_STEP_CHARGING)
+#if IS_ENABLED(CONFIG_STEP_CHARGING)
 	int test_step_condition;
 #endif
 #endif
@@ -1102,25 +1105,29 @@ struct sec_battery_info {
 	bool wpc_vout_ctrl_mode;
 	char *hv_chg_name;
 #if IS_ENABLED(CONFIG_WIRELESS_CHARGING)
+	bool nv_wc_temp_ctrl_skip;
 	int tx_avg_curr;
 	int tx_time_cnt;
 	int tx_total_power;
 	struct delayed_work wpc_txpower_calc_work;
 
+	bool wc_ept_timeout;
 	unsigned int wc20_vout;
 	unsigned int wc20_power_class;
 	unsigned int wc20_rx_power;
 	unsigned int wc20_info_len;
 	unsigned int wc20_info_idx;
 	struct delayed_work wc20_current_work;
+	struct delayed_work wc_ept_timeout_work;
 	struct wakeup_source *wc20_current_ws;
+	struct wakeup_source *wc_ept_timeout_ws;
 #endif
 	struct delayed_work slowcharging_work;
 #if defined(CONFIG_BATTERY_AGE_FORECAST)
 	int batt_cycle;
 #endif
 	int batt_asoc;
-#if defined(CONFIG_STEP_CHARGING)
+#if IS_ENABLED(CONFIG_STEP_CHARGING)
 	bool step_charging_skip_lcd_on;
 	bool step_chg_en_in_factory;
 	unsigned int step_chg_type;
@@ -1325,7 +1332,7 @@ extern void sec_bat_fw_update(struct sec_battery_info *battery, int mode);
 extern bool sec_bat_check_boost_mfc_condition(struct sec_battery_info *battery, int mode);
 #endif
 
-#if defined(CONFIG_STEP_CHARGING)
+#if IS_ENABLED(CONFIG_STEP_CHARGING)
 extern void sec_bat_reset_step_charging(struct sec_battery_info *battery);
 extern void sec_step_charging_init(struct sec_battery_info *battery, struct device *dev);
 extern bool sec_bat_check_step_charging(struct sec_battery_info *battery);
