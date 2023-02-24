@@ -97,6 +97,8 @@
 #define FEATURE_NFC_TEST
 #define FEATURE_NFC_IRQ_LVL_TRIGGER	/*if not defined, it's edge trigger*/
 
+static int nfc_param_lpcharge = LPM_NO_SUPPORT;
+module_param(nfc_param_lpcharge, int, 0440);
 
 #if defined(CONFIG_ESE_SECURE) && defined(CONFIG_ESE_USE_TZ_API)
 extern int tz_tee_ese_secure_check(void);
@@ -132,7 +134,7 @@ void pn547_register_ese_shutdown(void (*func)(void))
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && !defined(CONFIG_NFC_PVDD_LATE_ENABLE)
 	if (!lpcharge && pn547_dev)
 #else
-	if (pn547_dev)
+	if (nfc_param_lpcharge != LPM_TRUE && pn547_dev)
 #endif
 		pn547_dev->ese_shutdown = func;
 }
@@ -259,7 +261,7 @@ static irqreturn_t pn547_wake_irq_handler(int irq, void *dev_id)
 			}
 		}
 	} else {
-		NFC_LOG_REC("clk_req irq, wakelock %d\n", pn547_dev->clk_req_wakelock);
+		NFC_LOG_REC("clk_req\n");
 #ifdef CONFIG_PM
 		if (pn547_dev->clk_req_wakelock) {
 			pn547_dev->clk_req_wakelock = false;
@@ -282,7 +284,7 @@ void pn547_print_status(void)
 		return;
 
 	en = gpio_get_value(pn547_dev->ven_gpio);
-	firm = gpio_get_value(pn547_dev->firm_gpio);
+	firm = gpio_get_value_cansleep(pn547_dev->firm_gpio);
 	irq = gpio_get_value(pn547_dev->irq_gpio);
 	pvdd = regulator_is_enabled(pn547_dev->nfc_pvdd);
 
@@ -570,9 +572,12 @@ static int pn547_dev_open(struct inode *inode, struct file *filp)
 						   struct pn547_dev,
 						   pn547_device);
 
+	mutex_lock(&pn547_dev->dev_ref_mutex);
+
 	if (!atomic_dec_and_test(&s_Device_opened)) {
 		atomic_inc(&s_Device_opened);
 		NFC_LOG_ERR("already opened!\n");
+		mutex_unlock(&pn547_dev->dev_ref_mutex);
 		return -EBUSY;
 	}
 	if (!regulator_is_enabled(pn547_dev->nfc_pvdd))
@@ -594,16 +599,19 @@ static int pn547_dev_open(struct inode *inode, struct file *filp)
 		if (ret) {
 			nfc_ese_secured = ESE_NOT_SECURED;
 			NFC_LOG_ERR("eSE spi is not Secured\n");
+			mutex_unlock(&pn547_dev->dev_ref_mutex);
 			return -EBUSY;
 		}
 		nfc_ese_secured = ESE_SECURED;
 	} else if (nfc_ese_secured == ESE_NOT_SECURED) {
 		NFC_LOG_ERR("eSE spi is not Secured\n");
+		mutex_unlock(&pn547_dev->dev_ref_mutex);
 		return -EBUSY;
 	}
 #endif
 	pn547_clk_req_irq_control(pn547_dev, true);
 	pn547_dev->clk_req_wakelock = false;
+	mutex_unlock(&pn547_dev->dev_ref_mutex);
 
 	return 0;
 }
@@ -640,9 +648,10 @@ static int pn547_dev_release(struct inode *inode, struct file *filp)
 #endif
 
 	NFC_LOG_INFO("release\n");
+	mutex_lock(&pn547_dev->dev_ref_mutex);
 	set_force_reset(false);
 	if (pn547_dev->firm_gpio)
-		gpio_set_value(pn547_dev->firm_gpio, 0);
+		gpio_set_value_cansleep(pn547_dev->firm_gpio, 0);
 
 #ifdef CONFIG_NFC_PN547_ESE_SUPPORT
 	p61_get_access_state(pn547_dev, &current_state);
@@ -658,6 +667,7 @@ static int pn547_dev_release(struct inode *inode, struct file *filp)
 	pn547_print_status();
 	atomic_inc(&s_Device_opened);
 
+	mutex_unlock(&pn547_dev->dev_ref_mutex);
 	return 0;
 }
 
@@ -859,7 +869,7 @@ static int pn547_set_pwr(struct pn547_dev *pdev, unsigned long arg)
 			p61_update_access_state(pdev, P61_STATE_IDLE, true);
 
 		NFC_LOG_INFO("power off, irq=%d\n", atomic_read(&pdev->irq_enabled));
-		gpio_set_value(pdev->firm_gpio, 0);
+		gpio_set_value_cansleep(pdev->firm_gpio, 0);
 
 		pdev->nfc_ven_enabled = false;
 		/* Don't change Ven state if spi made it high */
@@ -876,7 +886,7 @@ static int pn547_set_pwr(struct pn547_dev *pdev, unsigned long arg)
 		if (current_state & P61_STATE_DWNLD)
 			p61_update_access_state(pdev, P61_STATE_DWNLD, false);
 
-		gpio_set_value(pdev->firm_gpio, 0);
+		gpio_set_value_cansleep(pdev->firm_gpio, 0);
 #ifdef FEATURE_SN100X
 		pdev->state_flags &= ~(PN547_STATE_FW_DNLD);
 #endif
@@ -902,7 +912,7 @@ static int pn547_set_pwr(struct pn547_dev *pdev, unsigned long arg)
 		if (pdev->spi_ven_enabled == false) {
 			/* power on with firmware download (requires hw reset) */
 			p61_update_access_state(pdev, P61_STATE_DWNLD, true);
-			gpio_set_value(pdev->firm_gpio, 1);
+			gpio_set_value_cansleep(pdev->firm_gpio, 1);
 #ifdef FEATURE_SN100X
 			pdev->state_flags |= (PN547_STATE_FW_DNLD);
 #endif
@@ -915,7 +925,7 @@ static int pn547_set_pwr(struct pn547_dev *pdev, unsigned long arg)
 			NFC_LOG_INFO("power on with firmware, irq=%d\n",
 				atomic_read(&pdev->irq_enabled));
 			NFC_LOG_INFO("VEN=%d FIRM=%d\n", gpio_get_value(pdev->ven_gpio),
-				gpio_get_value(pdev->firm_gpio));
+				gpio_get_value_cansleep(pdev->firm_gpio));
 		}
 		break;
 #ifdef FEATURE_SN100X
@@ -932,7 +942,7 @@ static int pn547_set_pwr(struct pn547_dev *pdev, unsigned long arg)
 		/*NFC Service called FW dwnld*/
 		if (pn547_dev->firm_gpio) {
 			p61_update_access_state(pn547_dev, P61_STATE_DWNLD, true);
-			gpio_set_value(pn547_dev->firm_gpio, 1);
+			gpio_set_value_cansleep(pn547_dev->firm_gpio, 1);
 #ifdef FEATURE_SN100X
 			pn547_dev->state_flags |= PN547_STATE_FW_DNLD;
 #endif
@@ -953,7 +963,7 @@ static int pn547_set_pwr(struct pn547_dev *pdev, unsigned long arg)
 		break;
 	case MODE_FW_GPIO_LOW:
 		if (pn547_dev->firm_gpio) {
-			gpio_set_value(pn547_dev->firm_gpio, 0);
+			gpio_set_value_cansleep(pn547_dev->firm_gpio, 0);
 #ifdef FEATURE_SN100X
 			pn547_dev->state_flags &= ~(PN547_STATE_FW_DNLD);
 #endif
@@ -1543,7 +1553,7 @@ long pn547_dev_ioctl(struct file *filp,
 			/* power on with firmware download (requires hw reset)
 			 */
 			set_pd(pn547_dev, PN547_NFC_PW_ON);
-			gpio_set_value(pn547_dev->firm_gpio, 1);
+			gpio_set_value_cansleep(pn547_dev->firm_gpio, 1);
 			usleep_range(4900, 5000);
 			set_pd(pn547_dev, PN547_NFC_PW_OFF);
 			usleep_range(4900, 5000);
@@ -1554,7 +1564,7 @@ long pn547_dev_ioctl(struct file *filp,
 				atomic_read(&pn547_dev->irq_enabled));
 		} else if (arg == 1) {
 			/* power on */
-			gpio_set_value(pn547_dev->firm_gpio, 0);
+			gpio_set_value_cansleep(pn547_dev->firm_gpio, 0);
 			set_pd(pn547_dev, PN547_NFC_PW_ON);
 			usleep_range(4900, 5000);
 			pn547_enable_irq(pn547_dev);
@@ -1566,7 +1576,7 @@ long pn547_dev_ioctl(struct file *filp,
 				wake_unlock(&pn547_dev->nfc_clk_wake_lock);
 
 			NFC_LOG_INFO("power off, irq=%d\n", atomic_read(&pn547_dev->irq_enabled));
-			gpio_set_value(pn547_dev->firm_gpio, 0);
+			gpio_set_value_cansleep(pn547_dev->firm_gpio, 0);
 			set_pd(pn547_dev, PN547_NFC_PW_OFF);
 			usleep_range(4900, 5000);
 		} else if (arg == 3) {
@@ -1851,7 +1861,7 @@ static int pn547_initialize(void)
 	usleep_range(1000, 1100);
 #endif
 	set_pd(pn547_dev, PN547_NFC_PW_ON);
-	gpio_set_value(pn547_dev->firm_gpio, 1); /* add firmware pin */
+	gpio_set_value_cansleep(pn547_dev->firm_gpio, 1); /* add firmware pin */
 	usleep_range(4900, 5000);
 	set_pd(pn547_dev, PN547_NFC_PW_OFF);
 	usleep_range(14900, 15000);
@@ -1876,7 +1886,7 @@ static int pn547_initialize(void)
 		pn547_dev->client->addr = 0x2B;
 	}
 	set_pd(pn547_dev, PN547_NFC_PW_OFF);
-	gpio_set_value(pn547_dev->firm_gpio, 0); /* add */
+	gpio_set_value_cansleep(pn547_dev->firm_gpio, 0); /* add */
 
 #ifdef VEN_ALWAYS_ON
 	usleep_range(14900, 15000);
@@ -1899,6 +1909,11 @@ static ssize_t pvdd_store(struct class *class,
 	}
 
 	NFC_LOG_INFO("late_pvdd_en %c\n", buf[0]);
+
+	if (nfc_param_lpcharge == LPM_FALSE) {
+		NFC_LOG_INFO("lpcharge is zero. skip!\n");
+		return size;
+	}
 
 	if (buf[0] == '1') {
 		pn547_initialize();
@@ -2025,6 +2040,7 @@ static int pn547_probe(struct i2c_client *client, const struct i2c_device_id *id
 	/* init mutex and queues */
 	init_waitqueue_head(&pn547_dev->read_wq);
 	mutex_init(&pn547_dev->read_mutex);
+	mutex_init(&pn547_dev->dev_ref_mutex);
 	spin_lock_init(&pn547_dev->irq_enabled_lock);
 #ifdef CONFIG_NFC_PN547_ESE_SUPPORT
 	p61_trans_acc_on = 0;
@@ -2089,11 +2105,15 @@ static int pn547_probe(struct i2c_client *client, const struct i2c_device_id *id
 		}
 	}
 
-#if !defined(CONFIG_NFC_PVDD_LATE_ENABLE)
-	ret = pn547_initialize();
-	if (ret < 0)
-		goto err_pvdd;
+#if defined(CONFIG_NFC_PVDD_LATE_ENABLE)
+	if (nfc_param_lpcharge == LPM_FALSE) {
+#else
+	{
 #endif
+		ret = pn547_initialize();
+		if (ret < 0)
+			goto err_pvdd;
+	}
 
 #ifdef FEATURE_NFC_TEST
 	nfc_test_class = class_create(THIS_MODULE, "nfc_test");
@@ -2141,9 +2161,7 @@ static int pn547_probe(struct i2c_client *client, const struct i2c_device_id *id
 err_w_buf_alloc_failed:
 	kfree(pn547_dev->r_buf);
 err_r_buf_alloc_failed:
-#if !defined(CONFIG_NFC_PVDD_LATE_ENABLE)
 err_pvdd:
-#endif
 
 err_request_irq_failed:
 	misc_deregister(&pn547_dev->pn547_device);
@@ -2153,6 +2171,7 @@ err_misc_register:
 #ifdef FEATURE_SN100X
 	ese_reset_resource_destroy();
 #endif
+	mutex_destroy(&pn547_dev->dev_ref_mutex);
 	mutex_destroy(&pn547_dev->read_mutex);
 #ifdef CONFIG_NFC_PN547_ESE_SUPPORT
 	mutex_destroy(&pn547_dev->p61_state_mutex);
@@ -2188,6 +2207,7 @@ static int pn547_remove(struct i2c_client *client)
 	wake_lock_destroy(&pn547_dev->nfc_wake_lock);
 	free_irq(client->irq, pn547_dev);
 	misc_deregister(&pn547_dev->pn547_device);
+	mutex_destroy(&pn547_dev->dev_ref_mutex);
 	mutex_destroy(&pn547_dev->read_mutex);
 	gpio_free(pn547_dev->irq_gpio);
 	gpio_free(pn547_dev->ven_gpio);
@@ -2296,6 +2316,25 @@ static struct i2c_driver pn547_driver = {
 	},
 };
 
+#if !IS_MODULE(CONFIG_SAMSUNG_NFC)
+/*
+ * if cmd line(nfc_sec.nfc_param_lpcharge) is not defined in bootloader,
+ * this function is not called and LPM_NO_SUPPORT(-1) is assigned to nfc_param_lpcharge.
+ */
+static int __init nfc_lpcharge_func(char *str)
+{
+	pr_info("nfc_sec.nfc_param_lpcharge %s\n", str);
+	if (str[0] == '1')
+		nfc_param_lpcharge = LPM_TRUE;
+	else
+		nfc_param_lpcharge = LPM_FALSE;
+
+	return 0;
+}
+
+early_param("nfc_sec.nfc_param_lpcharge", nfc_lpcharge_func);
+#endif
+
 #if IS_MODULE(CONFIG_SAMSUNG_NFC)
 extern int p61_dev_init(void);
 extern void p61_dev_exit(void);
@@ -2345,12 +2384,17 @@ static int __init pn547_dev_init(void)
 #else
 	NFC_LOG_INFO("Loading pn547 driver\n");
 #endif
+	NFC_LOG_INFO("%s lpcharge %d\n", __func__, nfc_param_lpcharge);
+
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && !defined(CONFIG_NFC_PVDD_LATE_ENABLE)
 	if (lpcharge) {
+#else
+	if (nfc_param_lpcharge == LPM_TRUE) {
+#endif
 		NFC_LOG_ERR("LPM, Do not load nfc driver\n");
 		return 0;
 	}
-#endif
+
 	return i2c_add_driver(&pn547_driver);
 }
 
@@ -2359,7 +2403,8 @@ module_init(pn547_dev_init);
 static void __exit pn547_dev_exit(void)
 {
 	NFC_LOG_INFO("Unloading pn547 driver\n");
-	i2c_del_driver(&pn547_driver);
+	if (nfc_param_lpcharge != LPM_TRUE)
+		i2c_del_driver(&pn547_driver);
 }
 
 module_exit(pn547_dev_exit);

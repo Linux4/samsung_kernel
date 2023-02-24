@@ -25,15 +25,18 @@
 
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 #include <linux/muic/common/muic_notifier.h>
-#endif 
+#endif
 
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && !defined(CONFIG_BATTERY_GKI)
 #include <linux/sec_batt.h>
 #endif
+
+#if IS_BUILTIN(CONFIG_MUIC_SM5714)
 #if IS_ENABLED(CONFIG_ARCH_QCOM) && !defined(CONFIG_USB_ARCH_EXYNOS) && !defined(CONFIG_ARCH_EXYNOS)
 #include <linux/sec_param.h>
 #else
 #include <linux/sec_ext.h>
+#endif
 #endif
 
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
@@ -637,9 +640,10 @@ static ssize_t sm5714_muic_set_afc_disable(struct device *dev,
 	union power_supply_propval psy_val;
 #endif
 
-	if (!strncasecmp(buf, "1", 1))
+	if (!strncasecmp(buf, "1", 1)) {
 		pdata->afc_disable = true;
-	else if (!strncasecmp(buf, "0", 1))
+		muic_afc_request_cause_clear();
+	} else if (!strncasecmp(buf, "0", 1))
 		pdata->afc_disable = false;
 	else
 		pr_warn("[%s:%s] invalid value\n", MUIC_DEV_NAME, __func__);
@@ -724,6 +728,10 @@ static ssize_t hiccup_store(struct device *dev,
 	struct sm5714_muic_data *muic_data = dev_get_drvdata(dev);
 
 	if (!strncasecmp(buf, "DISABLE", 7)) {
+		pr_info("%s\n", __func__);
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER) && IS_ENABLED(CONFIG_HICCUP_CC_DISABLE)
+		usbpd_cc_control_command(muic_data->man, 0);
+#endif
 		muic_data->is_hiccup_mode = false;
 		com_to_open(muic_data);
 	} else
@@ -1530,6 +1538,7 @@ static void sm5714_muic_handle_detach(struct sm5714_muic_data *muic_data,
 	muic_data->bc12_retry_count = 0;
 #endif
 	muic_data->hv_voltage = 0;
+	muic_afc_request_cause_clear();
 }
 
 static void sm5714_muic_detect_dev(struct sm5714_muic_data *muic_data, int irq)
@@ -1654,7 +1663,7 @@ static void sm5714_muic_detect_dev(struct sm5714_muic_data *muic_data, int irq)
 		new_dev = ATTACHED_DEV_UNOFFICIAL_TA_MUIC;
 		pr_info("[%s:%s] LO_TA\n", MUIC_DEV_NAME, __func__);
 	} else if (dev1 & DEV_TYPE1_U200) {
-		if (irq == SM5714_MUIC_IRQ_WORK) {
+		if ((irq == SM5714_MUIC_IRQ_WORK) || (irq == SM5714_MUIC_IRQ_PROBE)) {
 			if (!vbvolt) {
 				pr_info("[%s:%s] DEV_TYPE1_U200 + NO VBUS\n",
 						MUIC_DEV_NAME, __func__);
@@ -1971,7 +1980,12 @@ static int sm5714_muic_pdic_set_hiccup_mode(int val)
 
 	if (is_lpcharge_pdic_param())
 		return 0;
-
+#if IS_ENABLED(CONFIG_HICCUP_CC_DISABLE)
+	if (muic_data->shut_down) {
+		pr_info("[%s:%s] do not set after shutdown.\n", MUIC_DEV_NAME, __func__);
+		return 0;
+	}
+#endif
 	pr_info("[%s:%s] val = %d\n", MUIC_DEV_NAME, __func__, val);
 
 	if (val == 1) { /* Hiccup mode on */
@@ -2194,7 +2208,7 @@ static void sm5714_set_bc1p2_retry_count(struct sm5714_muic_data *muic_data)
 	int count;
 
 	np = of_find_compatible_node(NULL, NULL, "siliconmitus,sm5714mfd");
-	
+
 	if (np && !of_property_read_u32(np, "sm5714,bc1p2_retry_count", &count))
 		muic_data->bc1p2_retry_count_max = count;
 	else
@@ -2432,6 +2446,8 @@ static int sm5714_muic_probe(struct platform_device *pdev)
 				MUIC_DEV_NAME, __func__);
 #endif
 
+	muic_data->shut_down = 0;
+
 	return 0;
 
 fail_init_irq:
@@ -2485,6 +2501,8 @@ static void sm5714_muic_shutdown(struct platform_device *pdev)
 {
 	struct sm5714_muic_data *muic_data = platform_get_drvdata(pdev);
 	int ret;
+
+	muic_data->shut_down = 1;
 
 	cancel_delayed_work_sync(&muic_data->muic_debug_work);
 	cancel_delayed_work_sync(&muic_data->muic_U200_work);

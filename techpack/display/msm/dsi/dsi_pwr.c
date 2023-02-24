@@ -230,9 +230,13 @@ static int dsi_pwr_enable_vregs(struct dsi_regulator_info *regs, bool enable)
 				}
 
 				if (vdd->boost_early_off && !strcmp(vreg->vreg_name, "panel_boost_en")) {
-					DSI_INFO("boost_early_off skip boost_en off here\n");
-					continue;
-
+					if (regulator_is_enabled(regs->vregs[i].vreg)) {
+						/* Defence if boost_en is not off, due to no brightness 0 btw screen on-off */
+						DSI_INFO("boost_en is ON, so OFF here\n");
+					} else {
+						DSI_INFO("boost_en is already off.. so skip for boost_en\n");
+						continue;
+					}
 				}
 			}
 #endif

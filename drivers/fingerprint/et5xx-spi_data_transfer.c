@@ -251,10 +251,12 @@ int et5xx_write_register(struct et5xx_data *etspi, u8 addr, u8 buf)
 #else
 	int retval;
 
-	if (etspi->buf == NULL) {
+	mutex_lock(&etspi->buf_lock);
+	if (etspi->buf == NULL)
 		etspi->buf = kmalloc(bufsiz, GFP_KERNEL);
-		if (etspi->buf == NULL)
-			return -ENOMEM;
+	if (etspi->buf == NULL) {
+		retval = -ENOMEM;
+		goto end;
 	}
 
 	etspi->buf[0] = OP_REG_W;
@@ -271,7 +273,8 @@ int et5xx_write_register(struct et5xx_data *etspi, u8 addr, u8 buf)
 		kfree(etspi->buf);
 		etspi->buf = NULL;
 	}
-
+end:
+	mutex_unlock(&etspi->buf_lock);
 	return retval;
 #endif
 }
@@ -283,10 +286,12 @@ int et5xx_read_register(struct et5xx_data *etspi, u8 addr, u8 *buf)
 #else
 	int retval;
 
-	if (etspi->buf == NULL) {
+	mutex_lock(&etspi->buf_lock);
+	if (etspi->buf == NULL)
 		etspi->buf = kmalloc(bufsiz, GFP_KERNEL);
-		if (etspi->buf == NULL)
-			return -ENOMEM;
+	if (etspi->buf == NULL) {
+		retval = -ENOMEM;
+		goto end;
 	}
 
 	etspi->buf[0] = OP_REG_R;
@@ -304,7 +309,8 @@ int et5xx_read_register(struct et5xx_data *etspi, u8 addr, u8 *buf)
 		kfree(etspi->buf);
 		etspi->buf = NULL;
 	}
-
+end:
+	mutex_unlock(&etspi->buf_lock);
 	return retval;
 #endif
 }

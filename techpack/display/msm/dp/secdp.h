@@ -340,6 +340,7 @@ struct secdp_dex {
 	enum DEX_STATUS curr; /* previously known as "dex_en" */
 	int  setting_ui;      /* "dex_set", true if setting has Dex mode */
 
+	bool ignore_prefer_ratio; /* true if prefer ratio does not match to dex ratio */
 	bool adapter_check_skip;
 
 	/*
@@ -396,6 +397,8 @@ struct secdp_debug {
 
 struct secdp_misc {
 	struct delayed_work link_status_work;
+	struct delayed_work link_backoff_work;
+	bool backoff_start;
 	struct delayed_work poor_discon_work;
 
 	bool cable_connected; /* previously known as "cable_connected_phy" */
@@ -454,7 +457,6 @@ struct secdp_misc {
 bool secdp_check_if_lpm_mode(void);
 int  secdp_send_deferred_hpd_noti(void);
 bool secdp_get_clk_status(enum dp_pm_type type);
-void secdp_send_poor_connection_event(void);
 
 int  secdp_pdic_noti_register_ex(struct secdp_misc *sec, bool retry);
 bool secdp_get_power_status(void);
@@ -487,6 +489,8 @@ bool secdp_check_dex_mode(void);
 void secdp_clear_link_status_cnt(struct dp_link *dp_link);
 void secdp_reset_link_status(struct dp_link *dp_link);
 bool secdp_check_link_stable(struct dp_link *dp_link);
+void secdp_link_backoff_start(void);
+void secdp_link_backoff_stop(void);
 bool secdp_dex_adapter_skip_show(void);
 void secdp_dex_adapter_skip_store(bool skip);
 

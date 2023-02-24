@@ -31,7 +31,6 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/platform_device.h>
 #include <linux/pm_qos.h>
-#include <linux/pm_wakeup.h>
 #include <linux/power_supply.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sched.h>
@@ -56,16 +55,12 @@
 #define CMD_MST_LDO_ON			'1'	// MST LDO on
 #define CMD_SEND_TRACK1_DATA		'2'	// Send track1 test data
 #define CMD_SEND_TRACK2_DATA		'3'	// send track2 test data
-#define CMD_HW_RELIABILITY_TEST_START	'4'	// start HW reliability test
-#define CMD_HW_RELIABILITY_TEST_STOP	'5'	// stop HW reliability test
 #define ERROR_VALUE			-1	// Error value
 
 /* global variables */
 static struct class *mst_drv_class;
 struct device *mst_drv_dev;
-static int escape_loop = 1;
 static int nfc_state;
-static struct wakeup_source *mst_ws;
 #if defined(CONFIG_MST_REGULATOR)
 struct regulator *regulator3_0;
 #else
@@ -192,6 +187,15 @@ extern void mst_ctrl_of_mst_hw_onoff(bool on)
 #if !defined(CONFIG_MST_IF_PMIC)
 		gpio_set_value(mst_pwr_en, 0);
 		mst_info("%s: mst_pwr_en LOW\n", __func__);
+#if defined(CONFIG_MST_PCR)
+		value.intval = OFF;
+		psy_do_property("battery", set,
+				POWER_SUPPLY_EXT_PROP_CHARGE_UNO_CONTROL, value);
+
+		value.intval = 1000;
+		psy_do_property("otg", set,
+				POWER_SUPPLY_EXT_PROP_WIRELESS_TX_IOUT, value);
+#endif
 #endif
 #endif
 		usleep_range(800, 1000);
@@ -293,6 +297,15 @@ static void of_mst_hw_onoff(bool on)
 		}
 #else
 #if !defined(CONFIG_MST_IF_PMIC)
+#if defined(CONFIG_MST_PCR)
+		value.intval = 1500;
+		psy_do_property("otg", set,
+				POWER_SUPPLY_EXT_PROP_WIRELESS_TX_IOUT, value);
+
+		value.intval = ON;
+		psy_do_property("battery", set,
+				POWER_SUPPLY_EXT_PROP_CHARGE_UNO_CONTROL, value);
+#endif
 		gpio_set_value(mst_pwr_en, 1);
 		mst_info("%s: mst_pwr_en HIGH\n", __func__);
 #endif
@@ -345,7 +358,7 @@ static void of_mst_hw_onoff(bool on)
 #if defined(CONFIG_MFC_CHARGER)
 		while (--retry_cnt) {
 			psy_do_property("mfc-charger", get, POWER_SUPPLY_EXT_PROP_MST_MODE, value);
-			if (value.intval == 0x02) {
+			if (value.intval > 0) {
 				mst_info("%s: mst mode set!!! : %d\n", __func__,
 					 value.intval);
 				retry_cnt = 1;
@@ -369,6 +382,15 @@ static void of_mst_hw_onoff(bool on)
 #if !defined(CONFIG_MST_IF_PMIC)
 		gpio_set_value(mst_pwr_en, 0);
 		mst_info("%s: mst_pwr_en LOW\n", __func__);
+#if defined(CONFIG_MST_PCR)
+		value.intval = OFF;
+		psy_do_property("battery", set,
+				POWER_SUPPLY_EXT_PROP_CHARGE_UNO_CONTROL, value);
+
+		value.intval = 1000;
+		psy_do_property("otg", set,
+				POWER_SUPPLY_EXT_PROP_WIRELESS_TX_IOUT, value);
+#endif
 #endif
 #endif
 		usleep_range(800, 1000);
@@ -632,11 +654,7 @@ static ssize_t show_mst_drv(struct device *dev,
 	if (!dev)
 		return -ENODEV;
 
-	if (escape_loop == 0) {
-		return sprintf(buf, "%s\n", "activating");
-	} else {
-		return sprintf(buf, "%s\n", "waiting");
-	}
+	return sprintf(buf, "%s\n", "waiting");
 }
 
 /**
@@ -648,7 +666,7 @@ static ssize_t store_mst_drv(struct device *dev,
 {
 	char in = 0;
 	int ret = 0;
-#if defined(CONFIG_MST_ARCH_MTK) && !defined(CONFIG_MST_TEEGRIS)
+#if defined(CONFIG_MST_ARCH_MTK) && !defined(CONFIG_MST_TEEGRIS) && !defined(CONFIG_MST_NONSECURE) // for Kinibi
 	struct arm_smccc_res res;
 #endif
 #if defined(CONFIG_MFC_CHARGER)
@@ -736,57 +754,6 @@ static ssize_t store_mst_drv(struct device *dev,
 #if !defined(CONFIG_MFC_CHARGER)
 		of_mst_hw_onoff(OFF);
 #endif
-		break;
-
-	case CMD_HW_RELIABILITY_TEST_START:
-		if (escape_loop) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
-			wakeup_source_init(mst_ws, "mst_wakelock"); // 4.19 R
-			if (!(mst_ws)) {
-				mst_ws = wakeup_source_create("mst_wakelock"); // 4.19 Q
-				if (mst_ws)
-					wakeup_source_add(mst_ws);
-			}
-#else
-			mst_ws = wakeup_source_register(dev, "mst_wakelock"); // 5.4 R
-#endif
-			__pm_stay_awake(mst_ws);
-		}
-		escape_loop = 0;
-		while (1) {
-			if (escape_loop == 1)
-				break;
-#if !defined(CONFIG_MFC_CHARGER)
-			of_mst_hw_onoff(ON);
-#endif
-			msleep(10);
-			mst_info("%s: Continuous track2 data\n", __func__);
-#if defined(CONFIG_MST_NONSECURE)
-			ret = transmit_mst_data(TRACK2, mst_en, mst_data, event_lock);
-#elif defined(CONFIG_MST_ARCH_QCOM)
-			ret = transmit_mst_data(TRACK2);
-#elif defined(CONFIG_MST_TEEGRIS) // for EXYNOS and MTK TEEgris
-			ret = transmit_mst_teegris(CMD_TRACK2);
-#else // for Kinibi
-#if defined(CONFIG_MST_ARCH_EXYNOS)
-			ret = exynos_smc((0x8300000f), TRACK2, 0, 0);
-#elif defined(CONFIG_MST_ARCH_MTK)
-			arm_smccc_smc(MTK_SIP_KERNEL_MST_TEST_TRANSMIT, 2, 0, 0, 0, 0, 0, 0, &res);
-			mst_debug("%s: result of ATF SMC call for MST transmit(0x%x, %d), ret0 : %lu\n", __func__, MTK_SIP_KERNEL_MST_TEST_TRANSMIT, 2, res.a0);
-#endif
-#endif
-#if !defined(CONFIG_MFC_CHARGER)
-			of_mst_hw_onoff(OFF);
-#endif
-			msleep(1000);
-		}
-		break;
-
-	case CMD_HW_RELIABILITY_TEST_STOP:
-		if (!escape_loop)
-			wakeup_source_unregister(mst_ws);
-		escape_loop = 1;
-		mst_info("%s: escape_loop value = %d\n", __func__, escape_loop);
 		break;
 
 	default:

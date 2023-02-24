@@ -3685,6 +3685,15 @@ void hdd_sysfs_update_driver_status(int32_t status)
    uint8_t softap[512];
 
    if (status == DRIVER_MODULES_ENABLED) {
+	   	if (!policy_mgr_is_hw_dbs_capable(hdd_ctx->psoc)) {
+		sec_hw_dbs_capable = 0;
+		hdd_err("device dont supportd DBS");
+		}
+		else
+		{
+			sec_hw_dbs_capable = 1;
+			hdd_debug("device supports DBS");
+		}
        scnprintf(version, 512,
            "HostSW: %s, "
            "FW: %d.%d.%d.%d.%d.%d, "

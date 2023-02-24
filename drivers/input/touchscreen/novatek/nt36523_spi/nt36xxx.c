@@ -117,12 +117,29 @@ const struct mt_chip_conf spi_ctrdata = {
 };
 #endif
 
-#if 0//IS_ENABLED(CONFIG_SPI_MT65XX)
+#if IS_ENABLED(CONFIG_SPI_MT65XX)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
 const struct mtk_chip_config spi_ctrdata = {
-    .rx_mlsb = 1,
-    .tx_mlsb = 1,
-    .cs_pol = 0,
+	.sample_sel = 0,
+
+	.cs_setuptime = 25,
+	.cs_holdtime = 0,
+	.cs_idletime = 0,
+	.tick_delay = 0,
 };
+#else
+const struct mtk_chip_config spi_ctrdata = {
+	.rx_mlsb = 1,
+	.tx_mlsb = 1,
+	.sample_sel = 0,
+
+	.cs_setuptime = 25,
+	.cs_holdtime = 0,
+	.cs_idletime = 0,
+	.deassert_mode = false,
+	.tick_delay = 0,
+};
+#endif
 #endif
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
@@ -193,6 +210,7 @@ ssize_t secure_touch_enable_store(struct device *dev,
 		disable_irq(ts->client->irq);
 
 		/* Release All Finger */
+		nvt_ts_release_all_finger(ts);
 
 		if (pm_runtime_get_sync(ts->client->controller->dev.parent) < 0) {
 			enable_irq(ts->client->irq);
@@ -462,6 +480,11 @@ int32_t CTP_SPI_READ(struct spi_device *client, uint8_t *buf, uint16_t len)
 		return -EBUSY;
 #endif
 
+	if (ts->shutdown_called) {
+		input_err(true, &ts->client->dev, "%s shutdown was called\n", __func__);
+		return -EIO;
+	}
+
 	if (ts->power_status == POWER_OFF_STATUS) {
 		input_err(true, &client->dev, "%s: POWER_STATUS : OFF!\n", __func__);
 		return -EIO;
@@ -475,6 +498,12 @@ int32_t CTP_SPI_READ(struct spi_device *client, uint8_t *buf, uint16_t len)
 		ret = spi_read_write(client, buf, len, NVTREAD);
 		if (ret == 0) break;
 		retries++;
+
+		if (ts->shutdown_called) {
+			input_err(true, &ts->client->dev, "%s shutdown was called\n", __func__);
+			mutex_unlock(&ts->xbuf_lock);
+			return -EIO;
+		}
 
 		if (ts->power_status == POWER_OFF_STATUS) {
 			input_err(true, &client->dev, "%s: POWER_STATUS : OFF!\n", __func__);
@@ -512,6 +541,11 @@ int32_t CTP_SPI_WRITE(struct spi_device *client, uint8_t *buf, uint16_t len)
 		return -EBUSY;
 #endif
 
+	if (ts->shutdown_called) {
+		input_err(true, &ts->client->dev, "%s shutdown was called\n", __func__);
+		return -EIO;
+	}
+
 	if (ts->power_status == POWER_OFF_STATUS) {
 		input_err(true, &client->dev, "%s: POWER_STATUS : OFF!\n", __func__);
 		return -EIO;
@@ -525,6 +559,12 @@ int32_t CTP_SPI_WRITE(struct spi_device *client, uint8_t *buf, uint16_t len)
 		ret = spi_read_write(client, buf, len, NVTWRITE);
 		if (ret == 0)	break;
 		retries++;
+
+		if (ts->shutdown_called) {
+			input_err(true, &ts->client->dev, "%s shutdown was called\n", __func__);
+			mutex_unlock(&ts->xbuf_lock);
+			return -EIO;
+		}
 
 		if (ts->power_status == POWER_OFF_STATUS) {
 			input_err(true, &client->dev, "%s: POWER_STATUS : OFF!\n", __func__);
@@ -1328,8 +1368,9 @@ return:
 	n.a.
 *******************************************************/
 #if IS_ENABLED(CONFIG_OF)
-static int nvt_parse_dt(struct device *dev, struct nvt_ts_platdata *platdata)
+static int nvt_parse_dt(struct device *dev)
 {
+	struct nvt_ts_platdata *platdata = dev->platform_data;
 	struct device_node *np = dev->of_node;
 	int32_t ret = 0;
 	int tmp[3];
@@ -1565,8 +1606,10 @@ static int nvt_parse_dt(struct device *dev, struct nvt_ts_platdata *platdata)
 	return 0;
 }
 #else
-static int nvt_parse_dt(struct device *dev, struct nvt_ts_platdata *platdata)
+static int nvt_parse_dt(struct device *dev)
 {
+	struct nvt_ts_platdata *platdata = dev->platform_data;
+
 	input_err(true, &dev, "no platform data specified\n");
 
 #if NVT_TOUCH_SUPPORT_HW_RST
@@ -1892,7 +1935,7 @@ static void location_detect(struct nvt_ts_data *ts, char *loc, int x, int y)
 		strcat(loc, "N");
 }
 
-static void nvt_ts_print_coord(struct nvt_ts_data *ts)
+static void nvt_ts_print_coord(struct nvt_ts_data *ts, bool force_release)
 {
 	int i;
 	char location[NVT_TS_LOCATION_DETECT_SIZE] = { 0, };
@@ -1900,9 +1943,8 @@ static void nvt_ts_print_coord(struct nvt_ts_data *ts)
 	for (i = 0; i < TOUCH_MAX_FINGER_NUM; i++) {
 		location_detect(ts, location, ts->coords[i].x, ts->coords[i].y);
 
-		if (ts->coords[i].press && !ts->coords[i].p_press) {
+		if (ts->coords[i].press && !ts->coords[i].prev_press) {
 			ts->touch_count++;
-//			ts->all_finger_count++;
 
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 			input_info(true, &ts->client->dev, "[P] tId:%d.%d x:%d y:%d major:%d minor:%d loc:%s tc:%d type:%X\n",
@@ -1915,34 +1957,33 @@ static void nvt_ts_print_coord(struct nvt_ts_data *ts)
 				ts->coords[i].w_major, ts->coords[i].w_minor, location, ts->touch_count,
 				ts->coords[i].status);
 #endif
-			ts->coords[i].p_press = ts->coords[i].press;
-			ts->coords[i].p_x = ts->coords[i].x;
-			ts->coords[i].p_y = ts->coords[i].y;
+			ts->coords[i].prev_press = ts->coords[i].press;
+			ts->coords[i].first_x = ts->coords[i].x;
+			ts->coords[i].first_y = ts->coords[i].y;
 
-			ts->coords[i].p_status = 0;
+			ts->coords[i].prev_status = 0;
 			ts->coords[i].move_count = 0;
 
-		} else if (!ts->coords[i].press && ts->coords[i].p_press) {
+		} else if (!ts->coords[i].press && ts->coords[i].prev_press) {
 			ts->touch_count--;
 
-//			if (!ts->touch_count)
-//				ts->print_info_cnt_release = 0;
-
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
-			input_info(true, &ts->client->dev, "[R] tId:%d loc:%s dd:%d,%d mc:%d tc:%d lx:%d ly:%d\n",
-				i, location, ts->coords[i].p_x - ts->coords[i].x,
-				ts->coords[i].p_y - ts->coords[i].y,
+			input_info(true, &ts->client->dev, "[R%s] tId:%d loc:%s dd:%d,%d mc:%d tc:%d lx:%d ly:%d\n",
+				force_release ? "A" : "",
+				i, location, ts->coords[i].first_x - ts->coords[i].x,
+				ts->coords[i].first_y - ts->coords[i].y,
 				ts->coords[i].move_count, ts->touch_count,
 				ts->coords[i].x, ts->coords[i].y);
 #else
-			input_info(true, &ts->client->dev, "[R] tId:%d loc:%s dd:%d,%d mc:%d tc:%d\n",
-				i, location, ts->coords[i].p_x - ts->coords[i].x,
-				ts->coords[i].p_y - ts->coords[i].y,
+			input_info(true, &ts->client->dev, "[R%s] tId:%d loc:%s dd:%d,%d mc:%d tc:%d\n",
+				force_release ? "A" : "",
+				i, location, ts->coords[i].first_x - ts->coords[i].x,
+				ts->coords[i].first_y - ts->coords[i].y,
 				ts->coords[i].move_count, ts->touch_count);
 #endif
-			ts->coords[i].p_press = false;
+			ts->coords[i].prev_press = false;
 		} else if (ts->coords[i].press) {
-			if (ts->coords[i].p_status && (ts->coords[i].status != ts->coords[i].p_status)) {
+			if (ts->coords[i].prev_status && (ts->coords[i].status != ts->coords[i].prev_status)) {
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 				input_info(true, &ts->client->dev, "[C] tId:%d x:%d y:%d major:%d minor:%d tc:%d type:%X\n",
 					i, ts->coords[i].x, ts->coords[i].y, ts->coords[i].w_major, ts->coords[i].w_minor,
@@ -1954,7 +1995,7 @@ static void nvt_ts_print_coord(struct nvt_ts_data *ts)
 #endif
 			}
 
-			ts->coords[i].p_status = ts->coords[i].status;
+			ts->coords[i].prev_status = ts->coords[i].status;
 			ts->coords[i].move_count++;
 		}
 	}
@@ -1990,7 +2031,13 @@ void nvt_ts_ic_status(uint8_t *point_data, bool force_print)
 		// print current status
 		fw_status = ts->fw_status_record;
 		fw_status_changed = 0xFF;
+
 	} else {
+		if (point_data == NULL) {
+			input_err(true, &ts->client->dev, "%s: point_data is null\n", __func__);
+			return;
+		}
+
 		// check abnormal event
 		if (nvt_ts_check_all_value(point_data))
 			return;
@@ -2352,6 +2399,114 @@ void nvt_ts_proximity_report(uint8_t *data)
 }
 #endif
 
+void nvt_ts_release_all_finger(struct nvt_ts_data *ts)
+{
+	int i = 0;
+
+	if (ts->prox_power_off) {
+		input_info(true, &ts->client->dev, "%s : cancel touch\n", __func__);
+		input_report_key(ts->input_dev, KEY_INT_CANCEL, 1);
+		input_sync(ts->input_dev);
+		input_report_key(ts->input_dev, KEY_INT_CANCEL, 0);
+		input_sync(ts->input_dev);
+	}
+
+	for (i = 0; i < ts->platdata->max_touch_num; i++) {
+		ts->coords[i].press = false;
+		input_mt_slot(ts->input_dev, i);
+		input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0);
+		input_report_abs(ts->input_dev, ABS_MT_TOUCH_MINOR, 0);
+		input_mt_report_slot_state(ts->input_dev, MT_TOOL_FINGER, 0);
+	}
+
+	input_report_key(ts->input_dev, BTN_TOUCH, 0);
+
+	nvt_ts_print_coord(ts, true);
+
+	input_sync(ts->input_dev);
+}
+
+void nvt_ts_touch_report(struct nvt_ts_data *ts, uint8_t *point_data)
+{
+	struct nvt_ts_platdata *platdata = ts->platdata;
+	struct nvt_ts_event_coord *p_event_coord;
+	u8 id = 0, status = 0, press_id[TOUCH_MAX_FINGER_NUM] = {0};
+	u16 i = 0, finger_cnt = 0, read_x = 0, read_y = 0;
+
+	for (i = 0; i < platdata->max_touch_num; i++) {
+		p_event_coord = (struct nvt_ts_event_coord *)&point_data[1 + 6 * i];
+		id = p_event_coord->id;
+		if (!id || (id > platdata->max_touch_num))
+			continue;
+
+		id = id - 1;
+		status = p_event_coord->status;
+
+		if ((status == FINGER_ENTER) || (status == FINGER_MOVING) || (status == GLOVE_TOUCH)) {
+#if NVT_TOUCH_ESD_PROTECT
+			/* update interrupt timer */
+			irq_timer = jiffies;
+#endif /* #if NVT_TOUCH_ESD_PROTECT */
+			read_x = (u16)(p_event_coord->x_11_4 << 4) + (u16)(p_event_coord->x_3_0);
+			read_y = (u16)(p_event_coord->y_11_4 << 4) + (u16)(p_event_coord->y_3_0);
+			if ((read_x > platdata->abs_x_max) || (read_y > platdata->abs_y_max)) {
+				input_err(true, &ts->client->dev, "%s: invalid coordinate (%d, %d)\n",
+							__func__, ts->coords[id].x, ts->coords[id].y);
+				continue;
+			}
+
+			ts->coords[id].status = status;
+			ts->coords[id].x = read_x;
+			ts->coords[id].y = read_y;
+			ts->coords[id].w_major = p_event_coord->w_major ? p_event_coord->w_major : 1;
+			ts->coords[id].w_minor = point_data[i + 99] ? point_data[i + 99] : 1;
+			press_id[id] = ts->coords[id].press = true;
+			finger_cnt++;
+
+			input_mt_slot(ts->input_dev, id);
+			input_mt_report_slot_state(ts->input_dev, MT_TOOL_FINGER, true);
+			input_report_abs(ts->input_dev, ABS_MT_POSITION_X, ts->coords[id].x);
+			input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, ts->coords[id].y);
+			input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, ts->coords[id].w_major);
+			input_report_abs(ts->input_dev, ABS_MT_TOUCH_MINOR, ts->coords[id].w_minor);
+
+		}
+	}
+
+	for (i = 0; i < platdata->max_touch_num; i++) {
+		if (!press_id[i] && ts->coords[i].prev_press) {
+			ts->coords[i].press = false;
+
+			input_mt_slot(ts->input_dev, i);
+			input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0);
+			input_report_abs(ts->input_dev, ABS_MT_TOUCH_MINOR, 0);
+			input_mt_report_slot_state(ts->input_dev, MT_TOOL_FINGER, false);
+		}
+	}
+
+	input_report_key(ts->input_dev, BTN_TOUCH, (finger_cnt > 0));
+
+#if TOUCH_KEY_NUM > 0
+	if (point_data[61] == 0xF8) {
+#if NVT_TOUCH_ESD_PROTECT
+		/* update interrupt timer */
+		irq_timer = jiffies;
+#endif /* #if NVT_TOUCH_ESD_PROTECT */
+		for (i = 0; i < ts->max_button_num; i++) {
+			input_report_key(ts->input_dev, touch_key_array[i], ((point_data[62] >> i) & 0x01));
+		}
+	} else {
+		for (i = 0; i < ts->max_button_num; i++) {
+			input_report_key(ts->input_dev, touch_key_array[i], 0);
+		}
+	}
+#endif
+
+	input_sync(ts->input_dev);
+
+	nvt_ts_print_coord(ts, false);
+}
+
 /*******************************************************
 Description:
 	Novatek touchscreen work function.
@@ -2361,17 +2516,8 @@ return:
 *******************************************************/
 static irqreturn_t nvt_ts_work_func(int irq, void *data)
 {
-	struct nvt_ts_platdata *platdata = ts->platdata;
-	struct nvt_ts_event_coord *p_event_coord;
-	int32_t ret = -1;
 	uint8_t point_data[POINT_DATA_LEN + 1 + DUMMY_BYTES] = {0};
-	u16 x = 0, y = 0,  w_major = 0, w_minor = 0, p = 0;
-	u8 id = 0, status = 0;
-#if MT_PROTOCOL_B
-	uint8_t press_id[TOUCH_MAX_FINGER_NUM] = {0};
-#endif /* MT_PROTOCOL_B */
-	int32_t i = 0;
-	int32_t finger_cnt = 0;
+	int ret = -1;
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 	if (secure_filter_interrupt(ts) == IRQ_HANDLED) {
@@ -2418,17 +2564,17 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 */
 
 #if NVT_TOUCH_WDT_RECOVERY
-   /* ESD protect by WDT */
-   if (nvt_wdt_fw_recovery(point_data)) {
-       input_err(true, &ts->client->dev,"Recover for fw reset, %02X\n", point_data[1]);
-       nvt_update_firmware(ts->platdata->firmware_name);
-	   if (nvt_check_fw_reset_state(RESET_STATE_REK))
-		   input_err(true, &ts->client->dev, "%s: Check FW state failed after FW reset recovery\n", __func__);
-	   else
-		   nvt_ts_mode_restore(ts);
-
-       goto XFER_ERROR;
-   }
+	/* ESD protect by WDT */
+	if (nvt_wdt_fw_recovery(point_data)) {
+		pm_wakeup_event(&ts->input_dev->dev, 1000);
+		input_err(true, &ts->client->dev,"Recover for fw reset, %02X\n", point_data[1]);
+		nvt_update_firmware(ts->platdata->firmware_name);
+		if (nvt_check_fw_reset_state(RESET_STATE_REK))
+			input_err(true, &ts->client->dev, "%s: Check FW state failed after FW reset recovery\n", __func__);
+		else
+			nvt_ts_mode_restore(ts);
+		goto XFER_ERROR;
+	}
 #endif /* #if NVT_TOUCH_WDT_RECOVERY */
 
 	/* ESD protect by FW handshake */
@@ -2449,11 +2595,9 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 #endif /* POINT_DATA_CHECKSUM */
 
 #if PROXIMITY_FUNCTION
-	if (((uint8_t)(point_data[1] >> 3) == DATA_PROTOCOL)
-			&& (point_data[2] == FUNCPAGE_PROXIMITY)) {
+	if (((uint8_t)(point_data[1] >> 3) == DATA_PROTOCOL) && (point_data[2] == FUNCPAGE_PROXIMITY)) {
 		nvt_ts_proximity_report(point_data);
-		mutex_unlock(&ts->lock);
-		return IRQ_HANDLED;
+		goto XFER_ERROR;
 	}
 #endif
 
@@ -2464,129 +2608,16 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 			input_err(true, &ts->client->dev, "invalid lp event (%02X %02X %02X %02X %02X %02X)",
 				point_data[0], point_data[1], point_data[2],
 				point_data[3], point_data[4], point_data[5]);
-		mutex_unlock(&ts->lock);
-		return IRQ_HANDLED;
+		goto XFER_ERROR;
 	}
 
 #if SEC_FW_STATUS
 	nvt_ts_ic_status(point_data, false);
 #endif
 
-	for (i = 0, finger_cnt = 0; i < platdata->max_touch_num; i++) {
-		p_event_coord = (struct nvt_ts_event_coord *)&point_data[1 + 6 * i];
-		id = p_event_coord->id;
-		if (!id || (id > platdata->max_touch_num))
-			continue;
-
-		id = id - 1;
-		status = p_event_coord->status;
-		if ((status == FINGER_ENTER) || (status == FINGER_MOVING) || (status == GLOVE_TOUCH)) {
-#if NVT_TOUCH_ESD_PROTECT
-			/* update interrupt timer */
-			irq_timer = jiffies;
-#endif /* #if NVT_TOUCH_ESD_PROTECT */
-			ts->coords[id].status = status;
-			x = ts->coords[id].x = (u32)(p_event_coord->x_11_4 << 4) + (u32)(p_event_coord->x_3_0);
-			y = ts->coords[id].y = (u32)(p_event_coord->y_11_4 << 4) + (u32)(p_event_coord->y_3_0);
-			if ((x > platdata->abs_x_max) || (y > platdata->abs_y_max)) {
-				input_err(true, &ts->client->dev, "%s: invalid coordinate (%d, %d)\n",
-					__func__, x, y);
-				continue;
-			}
-
-			// width major
-			w_major = (u32)(p_event_coord->w_major);
-			if (!w_major)
-				w_major = 1;
-			ts->coords[id].w_major = w_major;
-
-			// width minor
-			w_minor = (u32)point_data[i + 99];
-			if (!w_minor)
-				w_minor = 1;
-			ts->coords[id].w_minor = w_minor;
-
-
-			if (i < 2) {
-				p = (u32)(p_event_coord->pressure_7_0) + (u32)(point_data[i + 62] << 8);
-				if (p > TOUCH_FORCE_NUM)
-					p = TOUCH_FORCE_NUM;
-			} else {
-				p = (u32)(p_event_coord->pressure_7_0);
-			}
-
-			if (!p)
-				p = 1;
-
-			ts->coords[id].p = p;
-
-#if MT_PROTOCOL_B
-			press_id[id] = ts->coords[id].press = true;
-			input_mt_slot(ts->input_dev, id);
-			input_mt_report_slot_state(ts->input_dev, MT_TOOL_FINGER, true);
-#else /* MT_PROTOCOL_B */
-			input_report_abs(ts->input_dev, ABS_MT_TRACKING_ID, id);
-			input_report_key(ts->input_dev, BTN_TOUCH, 1);
-#endif /* MT_PROTOCOL_B */
-
-			input_report_abs(ts->input_dev, ABS_MT_POSITION_X, x);
-			input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, y);
-			input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, w_major);
-			input_report_abs(ts->input_dev, ABS_MT_TOUCH_MINOR, w_minor);
-//			input_report_abs(ts->input_dev, ABS_MT_PRESSURE, p);
-
-#if MT_PROTOCOL_B
-#else /* MT_PROTOCOL_B */
-			input_mt_sync(ts->input_dev);
-#endif /* MT_PROTOCOL_B */
-
-			finger_cnt++;
-		}
-	}
-
-#if MT_PROTOCOL_B
-	for (i = 0; i < platdata->max_touch_num; i++) {
-		if (!press_id[i] && ts->coords[i].p_press) {
-			ts->coords[i].press = false;
-
-			input_mt_slot(ts->input_dev, i);
-			input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0);
-			input_report_abs(ts->input_dev, ABS_MT_TOUCH_MINOR, 0);
-//			input_report_abs(ts->input_dev, ABS_MT_PRESSURE, 0);
-			input_mt_report_slot_state(ts->input_dev, MT_TOOL_FINGER, false);
-		}
-	}
-
-	input_report_key(ts->input_dev, BTN_TOUCH, (finger_cnt > 0));
-#else /* MT_PROTOCOL_B */
-	if (finger_cnt == 0) {
-		input_report_key(ts->input_dev, BTN_TOUCH, 0);
-		input_mt_sync(ts->input_dev);
-	}
-#endif /* MT_PROTOCOL_B */
-
-#if TOUCH_KEY_NUM > 0
-	if (point_data[61] == 0xF8) {
-#if NVT_TOUCH_ESD_PROTECT
-		/* update interrupt timer */
-		irq_timer = jiffies;
-#endif /* #if NVT_TOUCH_ESD_PROTECT */
-		for (i = 0; i < ts->max_button_num; i++) {
-			input_report_key(ts->input_dev, touch_key_array[i], ((point_data[62] >> i) & 0x01));
-		}
-	} else {
-		for (i = 0; i < ts->max_button_num; i++) {
-			input_report_key(ts->input_dev, touch_key_array[i], 0);
-		}
-	}
-#endif
-
-	input_sync(ts->input_dev);
-
-	nvt_ts_print_coord(ts);
+	nvt_ts_touch_report(ts, point_data);
 
 XFER_ERROR:
-
 	mutex_unlock(&ts->lock);
 
 	return IRQ_HANDLED;
@@ -2678,7 +2709,7 @@ static int __init get_lcd_type(char *arg)
 early_param("lcdtype", get_lcd_type);
 #endif
 
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+#if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER)
 static int nvt_notifier_call(struct notifier_block *n, unsigned long data, void *v)
 {
 	struct panel_state_data *d = (struct panel_state_data *)v;
@@ -2764,7 +2795,7 @@ static int tsp_vbus_notification(struct notifier_block *nb,
 		break;
 	}
 
-	if (ts->plat_data->shutdown_called) {
+	if (ts->shutdown_called) {
 		input_err(true, &ts->client->dev, "%s shutdown was called\n", __func__);
 		return 0;
 	}
@@ -2855,15 +2886,6 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 #endif
 	struct nvt_ts_platdata *platdata;
 
-	/* only for tui, use later*/
-	struct sec_ts_plat_data *sec_plat_data;
-
-	sec_plat_data = devm_kzalloc(&client->dev, sizeof(struct sec_ts_plat_data), GFP_KERNEL);
-	if (!sec_plat_data) {
-		input_err(true, &client->dev, "failed to allocated memory for sec_ts_plat_data\n");
-		return -ENOMEM;
-	}
-
 	input_info(true, &client->dev, "%s : start\n", __func__);
 
 	ts = kzalloc(sizeof(struct nvt_ts_data), GFP_KERNEL);
@@ -2894,9 +2916,9 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 		}
 
 		// for tui
-		client->dev.platform_data = sec_plat_data;
+		client->dev.platform_data = platdata;
 
-		ret = nvt_parse_dt(&client->dev, platdata);
+		ret = nvt_parse_dt(&client->dev);
 		if (ret < 0) {
 			input_err(true, &client->dev, "%s: Failed to parse dt(%d)\n", __func__, ret);
 			goto err_parse_dt_failed;
@@ -2945,7 +2967,7 @@ static int32_t nvt_ts_probe(struct spi_device *client)
     ts->client->controller_data = (void *)&ts->spi_ctrl;
 #endif
 
-#if 0//IS_ENABLED(CONFIG_SPI_MT65XX)
+#if IS_ENABLED(CONFIG_SPI_MT65XX)
     /* new usage of MTK spi API */
     memcpy(&ts->spi_ctrl, &spi_ctrdata, sizeof(struct mtk_chip_config));
     ts->client->controller_data = (void *)&ts->spi_ctrl;
@@ -3007,11 +3029,7 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 #endif
 	ts->input_dev->propbit[0] = BIT(INPUT_PROP_DIRECT);
 
-#if MT_PROTOCOL_B
 	input_mt_init_slots(ts->input_dev, ts->platdata->max_touch_num, 0);
-#endif
-
-//	input_set_abs_params(ts->input_dev, ABS_MT_PRESSURE, 0, TOUCH_FORCE_NUM, 0, 0);    //pressure = TOUCH_FORCE_NUM
 
 #if TOUCH_MAX_FINGER_NUM > 1
 	input_set_abs_params(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0, 255, 0, 0);    //w_major = 255
@@ -3019,12 +3037,7 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 
 	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_X, 0, ts->platdata->abs_x_max, 0, 0);
 	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_Y, 0, ts->platdata->abs_y_max, 0, 0);
-#if MT_PROTOCOL_B
-	// no need to set ABS_MT_TRACKING_ID, input_mt_init_slots() already set it
-#else
-	input_set_abs_params(ts->input_dev, ABS_MT_TRACKING_ID, 0, ts->platdata->max_touch_num, 0, 0);
-#endif //MT_PROTOCOL_B
-#endif //TOUCH_MAX_FINGER_NUM > 1
+#endif
 
 #if TOUCH_KEY_NUM > 0
 	for (retry = 0; retry < ts->max_button_num; retry++) {
@@ -3146,7 +3159,7 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	nvt_ts_lpwg_dump_buf_init();
 #endif
 
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+#if IS_ENABLED(CONFIG_SEC_PANEL_NOTIFIER)
 	ts->nb.priority = 1;
 	ts->nb.notifier_call = nvt_notifier_call;
 	ss_panel_notifier_register(&ts->nb);
@@ -3158,14 +3171,9 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	panel_notifier_register(&ts->nb);
 #endif
 
-	ts->plat_data = sec_plat_data;
-	ptsp = &client->dev;
-
 #if IS_ENABLED(CONFIG_SAMSUNG_TUI)
-	ts->plat_data->stui_tsp_enter = nvt_stui_tsp_enter;
-	ts->plat_data->stui_tsp_exit = nvt_stui_tsp_exit;
-	ts->plat_data->stui_tsp_type = nvt_stui_tsp_type;
-	input_err(true, &client->dev,"secure touch support, irq_flags=0x%X\n", ts->platdata->irq_flags);
+	stui_tsp_init(nvt_stui_tsp_enter, nvt_stui_tsp_exit, nvt_stui_tsp_type);
+	input_info(true, &client->dev,"secure touch support\n");
 #endif
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
@@ -3217,19 +3225,20 @@ err_fw_update_failed:
 err_int_request_failed:
 #if PROXIMITY_FUNCTION
 	input_unregister_device(ts->input_dev_proximity);
+	ts->input_dev_proximity = NULL;
 err_input_register_proximity_device_failed:
 #endif
 	input_unregister_device(ts->input_dev);
 	ts->input_dev = NULL;
 err_input_register_device_failed:
 #if PROXIMITY_FUNCTION
-	if (ts->input_dev_proximity) {
+	if (ts->input_dev_proximity != NULL) {
 		input_free_device(ts->input_dev_proximity);
 		ts->input_dev_proximity = NULL;
 	}
 err_input_dev_prox_alloc_failed:
 #endif
-	if (ts->input_dev) {
+	if (ts->input_dev != NULL) {
 		input_free_device(ts->input_dev);
 		ts->input_dev = NULL;
 	}
@@ -3376,9 +3385,12 @@ static void nvt_ts_shutdown(struct spi_device *client)
 {
 	input_info(true, &client->dev, "%s : Shutdown driver...\n", __func__);
 
-	mutex_lock(&ts->lock);
-	ts->plat_data->shutdown_called = true;
-	mutex_unlock(&ts->lock);
+	if (ts == NULL) {
+		input_err(true, &client->dev, "%s : tsp data null\n", __func__);
+		return;
+	}
+
+	ts->shutdown_called = true;
 
 	if (ts->platdata->support_ear_detect)
 		device_init_wakeup(&ts->input_dev->dev, 0);
@@ -3501,6 +3513,53 @@ int nvt_ts_lcd_power_ctrl(bool on)
 	return 0;
 }
 
+static void nvt_ts_set_lp_mode(struct nvt_ts_data *ts)
+{
+	uint8_t buf[4] = {0};
+
+	nvt_ts_lcd_power_ctrl(true);
+	nvt_ts_lcd_reset_ctrl(true);
+
+	nvt_irq_enable(false);
+
+	mutex_lock(&ts->lock);
+	ts->power_status = LP_MODE_STATUS;
+	/* LPWG enter */
+	buf[0] = EVENT_MAP_HOST_CMD;
+	buf[1] = LPWG_ENTER;
+	CTP_SPI_WRITE(ts->client, buf, 2);
+	mutex_unlock(&ts->lock);
+
+	nvt_irq_enable(true);
+	enable_irq_wake(ts->client->irq);
+
+	input_info(true, &ts->client->dev, "%s: called(%d)\n", __func__, ts->lowpower_mode);
+}
+static void nvt_ts_set_ed_mode(struct nvt_ts_data *ts)
+{
+	nvt_ts_lcd_power_ctrl(true);
+	nvt_ts_lcd_reset_ctrl(true);
+
+	mutex_lock(&ts->lock);
+	ts->power_status = LP_MODE_STATUS;
+	mutex_unlock(&ts->lock);
+
+	enable_irq_wake(ts->client->irq);
+
+	input_info(true, &ts->client->dev, "%s: called(%d)\n", __func__, ts->lowpower_mode);
+}
+static void nvt_ts_set_icoff_mode(struct nvt_ts_data *ts)
+{
+	nvt_irq_enable(false);
+
+	mutex_lock(&ts->lock);
+	pinctrl_configure(ts, false);
+	ts->power_status = POWER_OFF_STATUS;
+	mutex_unlock(&ts->lock);
+
+	input_info(true, &ts->client->dev, "%s: power off %d\n", __func__, ts->lowpower_mode);
+}
+
 /*******************************************************
 Description:
 	Novatek touchscreen driver suspend function.
@@ -3511,18 +3570,14 @@ return:
 int32_t nvt_ts_suspend(struct device *dev)
 {
 	struct nvt_ts_data *ts = dev_get_drvdata(dev);
-	uint8_t buf[4] = {0};
 	int enter_force_ed_mode = 0;
-#if MT_PROTOCOL_B
-	uint32_t i = 0;
-#endif
 #if SEC_LPWG_DUMP
 	u8 lpwg_dump[5] = {0x3, 0x0, 0x0, 0x0, 0x0};
 #endif
 
 	cancel_delayed_work_sync(&ts->work_read_info);
 
-	if (ts->plat_data->shutdown_called) {
+	if (ts->shutdown_called) {
 		input_err(true, &ts->client->dev, "%s shutdown was called\n", __func__);
 		return 0;
 	}
@@ -3550,50 +3605,11 @@ int32_t nvt_ts_suspend(struct device *dev)
 		enter_force_ed_mode = 0;	// for prox in aot feature
 
 	if ((ts->lowpower_mode || ts->lcdoff_test) && enter_force_ed_mode == 0) {
-		nvt_irq_enable(false);
-		nvt_ts_lcd_power_ctrl(true);
-		nvt_ts_lcd_reset_ctrl(true);
-		mutex_lock(&ts->lock);
-		ts->power_status = LP_MODE_STATUS;
-
-		/* LPWG enter */
-		buf[0] = EVENT_MAP_HOST_CMD;
-		buf[1] = LPWG_ENTER;
-		CTP_SPI_WRITE(ts->client, buf, 2);
-		mutex_unlock(&ts->lock);
-
-		nvt_irq_enable(true);
-		enable_irq_wake(ts->client->irq);
-
-		input_info(true, &ts->client->dev, "%s: lp mode(%d)\n", __func__, ts->lowpower_mode);
-
+		nvt_ts_set_lp_mode(ts);
 	} else if (ts->ear_detect_mode) {
-
-		nvt_ts_lcd_power_ctrl(true);
-		nvt_ts_lcd_reset_ctrl(true);
-		mutex_lock(&ts->lock);
-		ts->power_status = LP_MODE_STATUS;
-		mutex_unlock(&ts->lock);
-
-		enable_irq_wake(ts->client->irq);
-
-		input_info(true, &ts->client->dev, "%s: ed mode(%d)\n", __func__, ts->lowpower_mode);
-
+		nvt_ts_set_ed_mode(ts);
 	} else {
-		nvt_irq_enable(false);
-		mutex_lock(&ts->lock);
-		pinctrl_configure(ts, false);
-		ts->power_status = POWER_OFF_STATUS;
-		mutex_unlock(&ts->lock);
-		input_info(true, &ts->client->dev, "%s: power off %d\n", __func__, ts->power_status);
-	}
-
-	if (ts->prox_power_off) {
-		input_info(true, &ts->client->dev, "%s : cancel touch\n", __func__);
-		input_report_key(ts->input_dev, KEY_INT_CANCEL, 1);
-		input_sync(ts->input_dev);
-		input_report_key(ts->input_dev, KEY_INT_CANCEL, 0);
-		input_sync(ts->input_dev);
+		nvt_ts_set_icoff_mode(ts);
 	}
 
 #if SEC_LPWG_DUMP
@@ -3602,23 +3618,7 @@ int32_t nvt_ts_suspend(struct device *dev)
 	}
 #endif
 
-	/* release all touches */
-#if MT_PROTOCOL_B
-	for (i = 0; i < ts->platdata->max_touch_num; i++) {
-		ts->coords[i].press = false;
-		input_mt_slot(ts->input_dev, i);
-		input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0);
-		input_report_abs(ts->input_dev, ABS_MT_TOUCH_MINOR, 0);
-		input_mt_report_slot_state(ts->input_dev, MT_TOOL_FINGER, 0);
-	}
-#endif
-	input_report_key(ts->input_dev, BTN_TOUCH, 0);
-#if !MT_PROTOCOL_B
-	input_mt_sync(ts->input_dev);
-#endif
-	input_sync(ts->input_dev);
-
-	nvt_ts_print_coord(ts);
+	nvt_ts_release_all_finger(ts);
 
 	msleep(50);
 
@@ -3638,7 +3638,7 @@ void nvt_ts_early_resume(struct device *dev)
 
 	cancel_delayed_work_sync(&ts->work_read_info);
 
-	if (ts->plat_data->shutdown_called) {
+	if (ts->shutdown_called) {
 		input_err(true, &ts->client->dev, "%s shutdown was called\n", __func__);
 		return;
 	}
@@ -3679,7 +3679,7 @@ int32_t nvt_ts_resume(struct device *dev)
 	ts->lcd_esd_recovery = 0;
 	cancel_delayed_work_sync(&ts->work_read_info);
 
-	if (ts->plat_data->shutdown_called) {
+	if (ts->shutdown_called) {
 		input_err(true, &ts->client->dev, "%s shutdown was called\n", __func__);
 		return 0;
 	}
@@ -3716,22 +3716,16 @@ int32_t nvt_ts_resume(struct device *dev)
 
 	nvt_ts_mode_restore(ts);
 
-	if (ts->ear_detect_mode  == 0 && ts->ed_reset_flag) {
-		input_info(true, &ts->client->dev, "%s : set ed on & off\n", __func__);
-		if (set_ear_detect(ts, 1, false)) {
-			input_err(true, &ts->client->dev, "%s : Fail to set set_ear_detect on\n", __func__);
-		}
-		if (set_ear_detect(ts, 0, false)) {
-			input_err(true, &ts->client->dev, "%s : Fail to set set_ear_detect off\n", __func__);
+	if (ts->ear_detect_mode) {
+		set_ear_detect(ts, ts->ear_detect_mode, false);
+	} else {
+		if (ts->ed_reset_flag) {
+			input_info(true, &ts->client->dev, "%s : set ed on & off\n", __func__);
+			set_ear_detect(ts, 1, false);
+			set_ear_detect(ts, 0, false);
 		}
 	}
 	ts->ed_reset_flag = false;
-
-	if (ts->ear_detect_mode) {
-		if (set_ear_detect(ts, ts->ear_detect_mode, false)) {
-			input_err(true, &ts->client->dev, "%s : Fail to set set_ear_detect\n", __func__);
-		}
-	}
 
 #if NVT_TOUCH_ESD_PROTECT
 	nvt_esd_check_enable(false);
@@ -3786,7 +3780,11 @@ static const struct spi_device_id nvt_ts_id[] = {
 
 #if IS_ENABLED(CONFIG_OF)
 static struct of_device_id nvt_match_table[] = {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
+	{ .compatible = "nvt_ts_spi",},
+#else
 	{ .compatible = "novatek,NVT-ts-spi",},
+#endif
 	{ },
 };
 #endif

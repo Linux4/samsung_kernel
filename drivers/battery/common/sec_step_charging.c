@@ -186,7 +186,7 @@ bool sec_bat_check_dc_step_charging(struct sec_battery_info *battery)
 	int i, value;
 	int step = -1, step_vol = -1, step_input = -1, step_soc = -1, soc_condition = 0;
 	bool force_change_step = false;
-	union power_supply_propval val;
+	union power_supply_propval val = {0, };
 
 	if (!battery->dc_step_chg_type)
 		return false;

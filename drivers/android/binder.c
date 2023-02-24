@@ -62,6 +62,7 @@
 #include <linux/nsproxy.h>
 #include <linux/poll.h>
 #include <linux/debugfs.h>
+#include <linux/delay.h>
 #include <linux/rbtree.h>
 #include <linux/sched/signal.h>
 #include <linux/sched/mm.h>
@@ -1956,6 +1957,18 @@ static int binder_inc_ref_for_node(struct binder_proc *proc,
 	}
 	ret = binder_inc_ref_olocked(ref, strong, target_list);
 	*rdata = ref->data;
+	if (ret && ref == new_ref) {
+		/*
+		 * Cleanup the failed reference here as the target
+		 * could now be dead and have already released its
+		 * references by now. Calling on the new reference
+		 * with strong=0 and a tmp_refs will not decrement
+		 * the node. The new_ref gets kfree'd below.
+		 */
+		binder_cleanup_ref_olocked(new_ref);
+		ref = NULL;
+	}
+
 	binder_proc_unlock(proc);
 	if (new_ref && ref != new_ref)
 		/*
@@ -3288,9 +3301,26 @@ static void binder_transaction(struct binder_proc *proc,
 	if (target_node && target_node->txn_security_ctx) {
 		u32 secid;
 		size_t added_size;
+		int retries = 0;
+		int max_retries = 100;
 
 		security_cred_getsecid(proc->cred, &secid);
+retry_lowmem:
 		ret = security_secid_to_secctx(secid, &secctx, &secctx_sz);
+		if (ret == -ENOMEM && retries++ < max_retries) {
+			/*
+			 * security_secid_to_secctx() can fail
+			 * because of a GFP_ATOMIC allocation in
+			 * which case -ENOMEM is returned. This needs
+			 * to be retried, but there is currently no
+			 * way to tell userspace to retry so we do
+			 * it here. Sleep briefly to allow the low
+			 * memory condition to resolve.
+			 */
+			udelay(100);
+			goto retry_lowmem;
+		}
+
 		if (ret) {
 			return_error = BR_FAILED_REPLY;
 			return_error_param = ret;

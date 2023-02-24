@@ -458,9 +458,6 @@ static int sm5714_suspend(struct device *dev)
 	struct sm5714_dev *sm5714 = i2c_get_clientdata(i2c);
 
 	sm5714->suspended =  true;
-#if defined(CONFIG_ARCH_QCOM) || defined(CONFIG_ARCH_MEDIATEK)
-	wake_up(&sm5714->suspend_wait);
-#endif
 
 	if (device_may_wakeup(dev))
 		enable_irq_wake(sm5714->irq);
@@ -482,6 +479,9 @@ static int sm5714_resume(struct device *dev)
 #endif /* CONFIG_SAMSUNG_PRODUCT_SHIP */
 
 	sm5714->suspended =  false;
+#if defined(CONFIG_ARCH_QCOM) || defined(CONFIG_ARCH_MEDIATEK)
+	wake_up(&sm5714->suspend_wait);
+#endif
 
 	if (device_may_wakeup(dev))
 		disable_irq_wake(sm5714->irq);

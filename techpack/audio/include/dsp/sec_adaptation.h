@@ -205,6 +205,7 @@ int afe_set_remote_mic_vol(int port_id, int vol_index);
 #define TX_VOICE_SOLOMONVOICE               0x100010A0
 #define VOICE_ECHO_REF_LCH_MUTE_PARAM       0x10001028
 #define VOICE_NREC_MODE_DYNAMIC_PARAM       0x10001029
+#define ENHANCED_VT_CALL_DYNAMIC_PARAM       0x1000102A
 
 #define VOICE_MODULE_SET_DEVICE				0x10041000
 #define VOICE_MODULE_SET_DEVICE_PARAM		0x10041001
@@ -362,6 +363,11 @@ struct cvp_set_voice_remote_mic_cmd {
 struct cvp_set_bt_rvc_vol_cmd {
 	struct apr_hdr hdr;
 	struct vss_icommon_cmd_set_ui_property_v2_t cvp_set_bt_rvc_vol;
+} __packed;
+
+struct cvp_set_voice_isolation_cmd {
+	struct apr_hdr hdr;
+	struct vss_icommon_cmd_set_ui_property_v2_t cvp_set_voice_isolation;
 } __packed;
 
 void voice_sec_loopback_start_cmd(u32 session_id);

@@ -229,13 +229,13 @@ static struct sec_cmd tsp_commands[] = {
 	{SEC_CMD("pocket_mode_enable", sec_virtual_tsp_dual_cmd),},
 
 	/* SemInputDeviceManagerService */
-	{SEC_CMD("set_game_mode", sec_virtual_tsp_switch_cmd),},
+	{SEC_CMD("set_game_mode", sec_virtual_tsp_dual_cmd),},
+	{SEC_CMD("set_sip_mode", sec_virtual_tsp_dual_cmd),},
+	{SEC_CMD("set_note_mode", sec_virtual_tsp_dual_cmd),},
 	{SEC_CMD("set_scan_rate", sec_virtual_tsp_switch_cmd),},
 	{SEC_CMD("refresh_rate_mode", sec_virtual_tsp_switch_cmd),},
 	{SEC_CMD("prox_lp_scan_mode", sec_virtual_tsp_switch_cmd),},
 	{SEC_CMD("set_grip_data", sec_virtual_tsp_switch_cmd),},
-	{SEC_CMD("set_sip_mode", sec_virtual_tsp_switch_cmd),},
-	{SEC_CMD("set_note_mode", sec_virtual_tsp_switch_cmd),},
 	{SEC_CMD("set_temperature", sec_virtual_tsp_switch_cmd),},
 	{SEC_CMD("set_aod_rect", sec_virtual_tsp_switch_cmd),},
 	{SEC_CMD("fod_icon_visible", sec_virtual_tsp_switch_cmd),},
@@ -257,6 +257,7 @@ static struct sec_cmd tsp_commands[] = {
 	{SEC_CMD("run_cx_data_read_all", sec_virtual_tsp_switch_cmd),},
 	{SEC_CMD("run_cx_gap_data_rx_all", sec_virtual_tsp_switch_cmd),},
 	{SEC_CMD("run_cx_gap_data_tx_all", sec_virtual_tsp_switch_cmd),},
+	{SEC_CMD("run_factory_miscalibration_read_all", sec_virtual_tsp_switch_cmd),},
 #else
 	/* run_xxx_read_all main(stm) */
 	{SEC_CMD("run_ix_data_read_all", sec_virtual_tsp_main_cmd),},
@@ -264,6 +265,7 @@ static struct sec_cmd tsp_commands[] = {
 	{SEC_CMD("run_cx_data_read_all", sec_virtual_tsp_main_cmd),},
 	{SEC_CMD("run_cx_gap_data_rx_all", sec_virtual_tsp_main_cmd),},
 	{SEC_CMD("run_cx_gap_data_tx_all", sec_virtual_tsp_main_cmd),},
+	{SEC_CMD("run_factory_miscalibration_read_all", sec_virtual_tsp_main_cmd),},
 #endif
 
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_ZINITIX_ZTW522)
@@ -291,12 +293,12 @@ static struct sec_cmd tsp_commands[] = {
 static ssize_t sec_virtual_tsp_support_feature_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	char buffer[10];
+	char buffer[16];
 	int ret;
 
 	memset(buffer, 0x00, sizeof(buffer));
 
-	ret = sec_cmd_virtual_tsp_read_sysfs(dual_sec, "/sys/class/sec/tsp1/support_feature", buffer, sizeof(buffer));
+	ret = sec_cmd_virtual_tsp_read_sysfs(dual_sec, PATH_MAIN_SEC_SYSFS_SUPPORT_FEATURE, buffer, sizeof(buffer));
 	if (ret < 0)
 		return snprintf(buf, SEC_CMD_BUF_SIZE, "NG\n");
 
@@ -306,15 +308,15 @@ static ssize_t sec_virtual_tsp_support_feature_show(struct device *dev,
 static ssize_t sec_virtual_tsp_prox_power_off_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	char buffer[10];
+	char buffer[16];
 	int ret;
 
 	memset(buffer, 0x00, sizeof(buffer));
 
 	if (flip_status)
-		ret = sec_cmd_virtual_tsp_read_sysfs(dual_sec, "/sys/class/sec/tsp2/prox_power_off", buffer, sizeof(buffer));
+		ret = sec_cmd_virtual_tsp_read_sysfs(dual_sec, PATH_SUB_SEC_SYSFS_PROX_POWER_OFF, buffer, sizeof(buffer));
 	else
-		ret = sec_cmd_virtual_tsp_read_sysfs(dual_sec, "/sys/class/sec/tsp1/prox_power_off", buffer, sizeof(buffer));
+		ret = sec_cmd_virtual_tsp_read_sysfs(dual_sec, PATH_MAIN_SEC_SYSFS_PROX_POWER_OFF, buffer, sizeof(buffer));
 
 	input_info(false, dual_sec->fac_dev, "%s: %s, ret:%d\n", __func__,
 			 flip_status ? "close" : "open", ret);
@@ -331,9 +333,9 @@ static ssize_t sec_virtual_tsp_prox_power_off_store(struct device *dev,
 	int ret;
 
 	if (flip_status)
-		ret = sec_cmd_virtual_tsp_write_sysfs(dual_sec, "/sys/class/sec/tsp2/prox_power_off", buf);
+		ret = sec_cmd_virtual_tsp_write_sysfs(dual_sec, PATH_SUB_SEC_SYSFS_PROX_POWER_OFF, buf);
 	else
-		ret = sec_cmd_virtual_tsp_write_sysfs(dual_sec, "/sys/class/sec/tsp1/prox_power_off", buf);
+		ret = sec_cmd_virtual_tsp_write_sysfs(dual_sec, PATH_MAIN_SEC_SYSFS_PROX_POWER_OFF, buf);
 
 	input_info(false, dual_sec->fac_dev, "%s: %s, ret:%d\n", __func__,
 			 flip_status ? "close" : "open", ret);
@@ -360,11 +362,14 @@ static ssize_t dualscreen_policy_store(struct device *dev,
 	flip_status = value;
 	mutex_unlock(&switching_mutex);
 
-	if (value == FLIP_STATUS_MAIN)
-		ret = sec_cmd_virtual_tsp_write_sysfs(dual_sec, "/sys/class/sec/tsp1/dualscreen_policy", buf);
+	if (value == FLIP_STATUS_MAIN) {
+		sec_cmd_virtual_tsp_write_sysfs(dual_sec, PATH_MAIN_SEC_SYSFS_DUALSCREEN_POLICY, buf);
+		sec_cmd_virtual_tsp_write_sysfs(dual_sec, PATH_SUB_SEC_SYSFS_DUALSCREEN_POLICY, buf);
+	} else if (value == FLIP_STATUS_SUB)
+		sec_cmd_virtual_tsp_write_sysfs(dual_sec, PATH_SUB_SEC_SYSFS_DUALSCREEN_POLICY, buf);
 
-	input_info(false, dual_sec->fac_dev, "%s: value=%d %s, ret:%d\n", __func__, value,
-			 flip_status ? "close" : "open", ret);
+	input_info(true, dual_sec->fac_dev, "%s: value=%d %s\n", __func__, value,
+			 flip_status ? "close" : "open");
 
 	return count;
 }
@@ -399,9 +404,12 @@ static int __init __init_sec_virtual_tsp(void)
 
 	input_info(true, dual_sec->fac_dev, "%s\n", __func__);
 
+	mutex_init(&switching_mutex);
+
+	mutex_lock(&switching_mutex);
 	fac_flip_status = FLIP_STATUS_DEFAULT;
 	flip_status = FLIP_STATUS_MAIN;
-	mutex_init(&switching_mutex);
+	mutex_unlock(&switching_mutex);
 
 #if IS_ENABLED(CONFIG_HALL_NOTIFIER)
 	hall_ic_nb.priority = 1;

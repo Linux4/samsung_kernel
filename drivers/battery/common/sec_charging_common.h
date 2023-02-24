@@ -210,16 +210,19 @@ enum power_supply_ext_property {
 	POWER_SUPPLY_EXT_PROP_BATT_F_MODE,
 	POWER_SUPPLY_EXT_PROP_BATT_VSYS,
 	POWER_SUPPLY_EXT_PROP_PMIC_BAT_VOLTAGE,
+	POWER_SUPPLY_EXT_PROP_USB_BOOTCOMPLETE,
 	POWER_SUPPLY_EXT_PROP_RP_LEVEL,
 #if defined(CONFIG_DISCRETE_CHARGER)
 	POWER_SUPPLY_EXT_PROP_FLASH_STATE,
 #endif
+	POWER_SUPPLY_EXT_PROP_MTK_FG_INIT,
 	POWER_SUPPLY_EXT_PROP_SRCCAP,
 	POWER_SUPPLY_EXT_PROP_BUCK_STATE,
 	POWER_SUPPLY_EXT_PROP_MIX_LIMIT,
 	POWER_SUPPLY_EXT_PROP_BATTERY_ID,
 	POWER_SUPPLY_EXT_PROP_PASS_THROUGH_MODE,
 	POWER_SUPPLY_EXT_PROP_PASS_THROUGH_MODE_TA_VOL,
+	POWER_SUPPLY_EXT_PROP_CHARGE_OTG_CONTROL,
 };
 
 enum rx_device_type {
@@ -767,6 +770,12 @@ static inline struct power_supply *get_power_supply_by_name(char *name)
 
 #define is_slate_mode(battery) ((battery->current_event & SEC_BAT_CURRENT_EVENT_SLATE) \
 		== SEC_BAT_CURRENT_EVENT_SLATE)
+
+#define can_usb_suspend_type(cable_type) ( \
+	cable_type == SEC_BATTERY_CABLE_PDIC || \
+	cable_type == SEC_BATTERY_CABLE_PDIC_APDO || \
+	cable_type == SEC_BATTERY_CABLE_USB || \
+	cable_type == SEC_BATTERY_CABLE_USB_CDP)
 
 #define is_pd_wire_type(cable_type) ( \
 	cable_type == SEC_BATTERY_CABLE_PDIC || \

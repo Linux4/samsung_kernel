@@ -691,7 +691,7 @@
 					battery,wire_cool2_cool1_thresh = <0x96>;
 					battery,wire_cool3_cool2_thresh = <0x32>;
 					battery,wire_cold_cool3_thresh = <0x0>;
-					battery,wire_warm_current = <0x6d6>;
+					battery,wire_warm_current = <0x6c6>;
 					battery,wire_cool1_current = <0xaf0>;
 					battery,wire_cool2_current = <0x47e>;
 					battery,wire_cool3_current = <0x1e5>;
@@ -6221,45 +6221,6 @@
 		target = <0xffffffff>;
 
 		__overlay__ {
-
-			nt36523_tsp_rst_active {
-				phandle = <0x61>;
-
-				mux {
-					pins = "gpio102";
-					function = "gpio";
-				};
-
-				config {
-					pins = "gpio102";
-					drive-strength = <0x2>;
-					input-enable;
-					bias-pull-down;
-				};
-			};
-
-			nt36523_tsp_rst_sleep {
-				phandle = <0x63>;
-
-				mux {
-					pins = "gpio102";
-					function = "gpio";
-				};
-
-				config {
-					pins = "gpio102";
-					drive-strength = <0x2>;
-					input-enable;
-					bias-pull-down;
-				};
-			};
-		};
-	};
-
-	fragment@55 {
-		target = <0xffffffff>;
-
-		__overlay__ {
 			status = "ok";
 			num-cs = <0x1>;
 
@@ -6272,7 +6233,6 @@
 				pinctrl-0 = <0x60 0x61>;
 				pinctrl-1 = <0x60 0x61>;
 				pinctrl-2 = <0x62 0x63 0x64>;
-				novatek,reset-gpio = <0xffffffff 0x66 0x0>;
 				novatek,irq-gpio = <0xffffffff 0x16 0x2002>;
 				novatek,cs-gpio = <0xffffffff 0x39 0x0>;
 				novatek,resolution = <0x438 0x968>;
@@ -6285,6 +6245,7 @@
 				novatek,lcdid3-gpio = <0xffffffff 0x64 0x0>;
 				novatek,lcdid = <0x0 0x2>;
 				novatek,lcdtype = <0x4bf240 0x0 0x4b7240>;
+				novatek,reset-gpio = <0xffffffff 0x66 0x0>;
 				novatek,fw_name = "tsp_novatek/nt36672_m23xq_csot.bin", "", "tsp_novatek/nt36672_m23xq_tianma.bin";
 				novatek,fw_name_mp = "tsp_novatek/nt36672_m23xq_csot_mp.bin", "", "tsp_novatek/nt36672_m23xq_tianma_mp.bin";
 				novatek,name_lcd_rst = "lcd_rst";
@@ -6320,7 +6281,7 @@
 		};
 	};
 
-	fragment@56 {
+	fragment@55 {
 		target = <0xffffffff>;
 
 		__overlay__ {
@@ -6338,7 +6299,7 @@
 		};
 	};
 
-	fragment@57 {
+	fragment@56 {
 		target = <0xffffffff>;
 
 		__overlay__ {
@@ -6356,7 +6317,7 @@
 		};
 	};
 
-	fragment@58 {
+	fragment@57 {
 		target = <0xffffffff>;
 
 		__overlay__ {
@@ -6371,6 +6332,45 @@
 
 				config {
 					pins = "gpio57";
+					drive-strength = <0x2>;
+					input-enable;
+					bias-pull-down;
+				};
+			};
+		};
+	};
+
+	fragment@58 {
+		target = <0xffffffff>;
+
+		__overlay__ {
+
+			nt36523_tsp_rst_active {
+				phandle = <0x61>;
+
+				mux {
+					pins = "gpio102";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio102";
+					drive-strength = <0x2>;
+					input-enable;
+					bias-pull-down;
+				};
+			};
+
+			nt36523_tsp_rst_sleep {
+				phandle = <0x63>;
+
+				mux {
+					pins = "gpio102";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio102";
 					drive-strength = <0x2>;
 					input-enable;
 					bias-pull-down;
@@ -8238,8 +8238,10 @@
 					isg6320,multi_use = <0x1>;
 					isg6320,hallic_detect = <0x0>;
 					isg6320,hallic_cert_detect = <0x0>;
-					isg6320,reg_num = <0x6d>;
-					isg6320,set_reg = [4b 41 31 00 17 3d 18 3b 19 00 1a 1f 1b 17 1c 1f 1d 36 1e 00 1f 08 20 17 21 17 22 27 23 36 24 08 25 27 26 36 27 08 28 17 2b 2a 38 54 60 05 61 1f 62 3f 91 3f 65 22 67 58 68 34 69 3e 6a 80 6c 80 6d 84 6e 44 6f 08 70 60 71 d0 72 40 73 00 74 ed 75 f6 76 ed 77 de 78 a0 79 f0 7c 15 7d 1a 89 01 8a 69 8b 7d 8c 7d 94 15 95 0f 96 00 c5 08 99 22 9b 58 9c 34 9d 3e 9e 80 a0 80 a1 b7 a2 44 a3 08 a4 60 a5 d0 a6 40 a7 00 a8 ed a9 40 aa ed ab 80 ac a0 ad a0 b0 15 b1 1a bd 01 be 69 bf 7d c0 7d 51 08 52 13 55 10 56 30 59 20 5a 20 d1 06 d2 13 d5 10 d6 30 d9 20 da 0a 37 33 90 13 c4 13 05 b8 06 80 07 0d 08 01 09 80 11 09 12 08 13 1c 14 33 15 13 16 13 2f 77 4c f0 2c 03];
+					isg6320,reg_num = <0x71>;
+					isg6320,set_reg = [4b 41 31 00 17 3d 18 3b 19 00 1a 1f 1b 17 1c 1f 1d 36 1e 00 1f 08 20 17 21 17 22 27 23 36 24 08 25 27 26 36 27 08 28 17 2b 2a 38 54 60 05 61 1f 62 3f 91 3f 65 12 67 58 68 ca 69 3e 6a 80 6c 80 6d 84 6e 44 6f 08 70 60 71 d0 72 40 73 00 74 ed 75 f6 76 f0 77 de 78 f0 79 f0 7c 15 7d 1a 80 03 81 3e 89 01 8a 69 8b 7d 8c 7d 94 15 95 0f 96 00 c5 08 99 12 9b 58 9c ca 9d 3e 9e 80 a0 80 a1 b7 a2 44 a3 08 a4 60 a5 d0 a6 40 a7 00 a8 ed a9 40 aa f0 ab 80 ac f0 ad a0 b0 15 b1 1a b4 03 b5 3e bd 01 be 69 bf 7d c0 7d 51 08 52 13 55 10 56 30 59 20 5a 20 d1 06 d2 13 d5 10 d6 30 d9 20 da 0a 37 33 90 13 c4 13 05 b8 06 80 07 0d 08 01 09 80 11 09 12 08 13 1c 14 33 15 13 16 13 2f 77 4c f0 2c 03];
+					isg6320,fac_reg_num = <0x6d>;
+					isg6320,fac_set_reg = [4b 41 31 00 17 3d 18 3b 19 00 1a 1f 1b 17 1c 1f 1d 36 1e 00 1f 08 20 17 21 17 22 27 23 36 24 08 25 27 26 36 27 08 28 17 2b 2a 38 54 60 05 61 1f 62 3f 91 3f 65 22 67 58 68 34 69 3e 6a 80 6c 80 6d 84 6e 44 6f 08 70 60 71 d0 72 40 73 00 74 ed 75 f6 76 ed 77 de 78 a0 79 f0 7c 15 7d 1a 89 01 8a 69 8b 7d 8c 7d 94 15 95 0f 96 00 c5 08 99 22 9b 58 9c 34 9d 3e 9e 80 a0 80 a1 b7 a2 44 a3 08 a4 60 a5 d0 a6 40 a7 00 a8 ed a9 40 aa ed ab 80 ac a0 ad a0 b0 15 b1 1a bd 01 be 69 bf 7d c0 7d 51 08 52 13 55 10 56 30 59 20 5a 20 d1 06 d2 13 d5 10 d6 30 d9 20 da 0a 37 33 90 13 c4 13 05 b8 06 80 07 0d 08 01 09 80 11 09 12 08 13 1c 14 33 15 13 16 13 2f 77 4c f0 2c 03];
 					phandle = <0x129>;
 				};
 			};
@@ -9466,10 +9468,10 @@
 		usbpd_irq = "/fragment@50/__overlay__/usbpd_irq";
 		nt36523_tsp_int_active = "/fragment@53/__overlay__/nt36523_tsp_int_active";
 		nt36523_int_sleep = "/fragment@53/__overlay__/nt36523_tsp_int_sleep";
-		nt36523_tsp_rst_active = "/fragment@54/__overlay__/nt36523_tsp_rst_active";
-		nt36523_tsp_rst_sleep = "/fragment@54/__overlay__/nt36523_tsp_rst_sleep";
-		tsp_novatek = "/fragment@55/__overlay__/novatek@0";
-		nt36523_tsp_cs_sleep = "/fragment@58/__overlay__/nt36523_tsp_cs_sleep";
+		tsp_novatek = "/fragment@54/__overlay__/novatek@0";
+		nt36523_tsp_cs_sleep = "/fragment@57/__overlay__/nt36523_tsp_cs_sleep";
+		nt36523_tsp_rst_active = "/fragment@58/__overlay__/nt36523_tsp_rst_active";
+		nt36523_tsp_rst_sleep = "/fragment@58/__overlay__/nt36523_tsp_rst_sleep";
 		ldo_gpio2 = "/fragment@60/__overlay__/ldo_gpio2";
 		ldo_gpio1 = "/fragment@61/__overlay__/ldo_gpio1";
 		ldo_gpio3 = "/fragment@62/__overlay__/ldo_gpio3";
@@ -9565,7 +9567,7 @@
 	};
 
 	__fixups__ {
-		tlmm = "/fragment@smd/__overlay__/samsung_mobile_device/dc_vibrator:dc_vib,gpio_en:0", "/fragment@smd/__overlay__/samsung_mobile_device/fixed_regulator@2:gpio:0", "/fragment@smd/__overlay__/samsung_mobile_device/fixed_regulator@1:gpio:0", "/fragment@smd/__overlay__/samsung_mobile_device/fixed_regulator@3:gpio:0", "/fragment@smd/__overlay__/samsung_mobile_device/fixed_regulator@4:gpio:0", "/fragment@smd/__overlay__/samsung_mobile_device/etspi-spi@0:etspi-sleepPin:0", "/fragment@smd/__overlay__/samsung_mobile_device/etspi-spi@0:etspi-drdyPin:0", "/fragment@smd/__overlay__/samsung_mobile_device/sec-mst:sec-mst,mst-pwr-gpio:0", "/fragment@smd/__overlay__/samsung_mobile_device/sm5714-fuelgauge:fuelgauge,bat_id_gpio:0", "/fragment@smd/__overlay__/samsung_mobile_device/sm5714-fuelgauge:fuelgauge,bat_id_gpio:12", "/fragment@6/__overlay__/qcom,mdss_dsi_rm69299_visionox_amoled_video:qcom,platform-te-gpio:0", "/fragment@7/__overlay__/qcom,mdss_dsi_rm69299_visionox_amoled_cmd:qcom,platform-te-gpio:0", "/fragment@20/__overlay__/qcom,dsi-display-primary:qcom,platform-te-gpio:0", "/fragment@30/__overlay__:cd-gpios:0", "/fragment@34/__overlay__/nq@28:qcom,nq-irq:0", "/fragment@34/__overlay__/nq@28:qcom,nq-ven:0", "/fragment@34/__overlay__/nq@28:qcom,nq-firm:0", "/fragment@34/__overlay__/nq@28:qcom,nq-clkreq:0", "/fragment@34/__overlay__/nq@28:interrupt-parent:0", "/fragment@35/__overlay__/synaptics_tcm@20:interrupt-parent:0", "/fragment@35/__overlay__/synaptics_tcm@20:synaptics,irq-gpio:0", "/fragment@35/__overlay__/synaptics_tcm@20:synaptics,reset-gpio:0", "/fragment@40:target:0", "/fragment@41/__overlay__/ss_dsi_panel_PBA_BOOTING_FHD:qcom,platform-reset-gpio:0", "/fragment@46:target:0", "/fragment@47:target:0", "/fragment@model/__overlay__/i2c@30:gpios:0", "/fragment@model/__overlay__/i2c@30:gpios:12", "/fragment@49:target:0", "/fragment@50:target:0", "/fragment@51/__overlay__/sm5714@49:sm5714,irq-gpio:0", "/fragment@52/__overlay__/usbpd-sm5714@33:usbpd,usbpd_int:0", "/fragment@53:target:0", "/fragment@54:target:0", "/fragment@55/__overlay__/novatek@0:novatek,reset-gpio:0", "/fragment@55/__overlay__/novatek@0:novatek,irq-gpio:0", "/fragment@55/__overlay__/novatek@0:novatek,cs-gpio:0", "/fragment@55/__overlay__/novatek@0:novatek,lcdid1-gpio:0", "/fragment@55/__overlay__/novatek@0:novatek,lcdid2-gpio:0", "/fragment@55/__overlay__/novatek@0:novatek,lcdid3-gpio:0", "/fragment@58:target:0", "/fragment@60:target:0", "/fragment@61:target:0", "/fragment@62:target:0", "/fragment@63:target:0", "/fragment@64:target:0", "/fragment@65:target:0", "/fragment@67/__overlay__/ss_dsi_panel_NT36672C_PM6585JB3_M23_FHD:samsung,ub-con-det:0", "/fragment@67/__overlay__/ss_dsi_panel_NT36672C_PM6585JB3_M23_FHD:samsung,esd-irq-gpio1:0", "/fragment@69:target:0", "/fragment@70:target:0", "/fragment@72:target:0", "/fragment@80:target:0", "/fragment@81/__overlay__/pn547@2B:pn547,irq-gpio:0", "/fragment@81/__overlay__/pn547@2B:pn547,ven-gpio:0", "/fragment@81/__overlay__/pn547@2B:pn547,firm-gpio:0", "/fragment@81/__overlay__/pn547@2B:pn547,clk_req-gpio:0", "/fragment@82/__overlay__/ss_dsi_panel_NT36672C_TL066FVMC02_FHD:samsung,ub-con-det:0", "/fragment@82/__overlay__/ss_dsi_panel_NT36672C_TL066FVMC02_FHD:samsung,esd-irq-gpio1:0", "/fragment@84:target:0", "/fragment@85:target:0", "/fragment@93:target:0", "/fragment@127/__overlay__:cd-gpios:0", "/fragment@135/__overlay__:qcom,fm-lna-gpios:0", "/fragment@136/__overlay__/tfa98xx@34:reset-gpio:0", "/fragment@136/__overlay__/tfa98xx@34:irq-gpio:0", "/fragment@138:target:0", "/fragment@140/__overlay__/i2c@17:gpios:0", "/fragment@140/__overlay__/i2c@17:gpios:12", "/fragment@140/__overlay__/i2c@17/isg6320-i2c@28:interrupt-parent:0", "/fragment@140/__overlay__/i2c@17/isg6320-i2c@28:isg6320,irq-gpio:0", "/fragment@141:target:0", "/fragment@144:target:0", "/fragment@146:target:0", "/fragment@148/__overlay__/sm5714-fled:flash-en-gpio:0", "/fragment@148/__overlay__/sm5714-fled:torch-en-gpio:0", "/fragment@149/__overlay__/qcom,cam-sensor@0:gpios:0", "/fragment@149/__overlay__/qcom,cam-sensor@0:gpios:12", "/fragment@149/__overlay__/qcom,cam-sensor@2:gpios:0", "/fragment@149/__overlay__/qcom,cam-sensor@2:gpios:12", "/fragment@149/__overlay__/qcom,cam-sensor@2:gpios:24", "/fragment@150/__overlay__/qcom,cam-sensor@4:gpios:0", "/fragment@150/__overlay__/qcom,cam-sensor@4:gpios:12", "/fragment@150/__overlay__/qcom,cam-sensor@4:gpios:24", "/fragment@150/__overlay__/qcom,cam-sensor@1:gpios:0", "/fragment@150/__overlay__/qcom,cam-sensor@1:gpios:12", "/fragment@150/__overlay__/qcom,cam-sensor@13:gpios:0", "/fragment@150/__overlay__/qcom,cam-sensor@13:gpios:12";
+		tlmm = "/fragment@smd/__overlay__/samsung_mobile_device/dc_vibrator:dc_vib,gpio_en:0", "/fragment@smd/__overlay__/samsung_mobile_device/fixed_regulator@2:gpio:0", "/fragment@smd/__overlay__/samsung_mobile_device/fixed_regulator@1:gpio:0", "/fragment@smd/__overlay__/samsung_mobile_device/fixed_regulator@3:gpio:0", "/fragment@smd/__overlay__/samsung_mobile_device/fixed_regulator@4:gpio:0", "/fragment@smd/__overlay__/samsung_mobile_device/etspi-spi@0:etspi-sleepPin:0", "/fragment@smd/__overlay__/samsung_mobile_device/etspi-spi@0:etspi-drdyPin:0", "/fragment@smd/__overlay__/samsung_mobile_device/sec-mst:sec-mst,mst-pwr-gpio:0", "/fragment@smd/__overlay__/samsung_mobile_device/sm5714-fuelgauge:fuelgauge,bat_id_gpio:0", "/fragment@smd/__overlay__/samsung_mobile_device/sm5714-fuelgauge:fuelgauge,bat_id_gpio:12", "/fragment@6/__overlay__/qcom,mdss_dsi_rm69299_visionox_amoled_video:qcom,platform-te-gpio:0", "/fragment@7/__overlay__/qcom,mdss_dsi_rm69299_visionox_amoled_cmd:qcom,platform-te-gpio:0", "/fragment@20/__overlay__/qcom,dsi-display-primary:qcom,platform-te-gpio:0", "/fragment@30/__overlay__:cd-gpios:0", "/fragment@34/__overlay__/nq@28:qcom,nq-irq:0", "/fragment@34/__overlay__/nq@28:qcom,nq-ven:0", "/fragment@34/__overlay__/nq@28:qcom,nq-firm:0", "/fragment@34/__overlay__/nq@28:qcom,nq-clkreq:0", "/fragment@34/__overlay__/nq@28:interrupt-parent:0", "/fragment@35/__overlay__/synaptics_tcm@20:interrupt-parent:0", "/fragment@35/__overlay__/synaptics_tcm@20:synaptics,irq-gpio:0", "/fragment@35/__overlay__/synaptics_tcm@20:synaptics,reset-gpio:0", "/fragment@40:target:0", "/fragment@41/__overlay__/ss_dsi_panel_PBA_BOOTING_FHD:qcom,platform-reset-gpio:0", "/fragment@46:target:0", "/fragment@47:target:0", "/fragment@model/__overlay__/i2c@30:gpios:0", "/fragment@model/__overlay__/i2c@30:gpios:12", "/fragment@49:target:0", "/fragment@50:target:0", "/fragment@51/__overlay__/sm5714@49:sm5714,irq-gpio:0", "/fragment@52/__overlay__/usbpd-sm5714@33:usbpd,usbpd_int:0", "/fragment@53:target:0", "/fragment@54/__overlay__/novatek@0:novatek,irq-gpio:0", "/fragment@54/__overlay__/novatek@0:novatek,cs-gpio:0", "/fragment@54/__overlay__/novatek@0:novatek,lcdid1-gpio:0", "/fragment@54/__overlay__/novatek@0:novatek,lcdid2-gpio:0", "/fragment@54/__overlay__/novatek@0:novatek,lcdid3-gpio:0", "/fragment@54/__overlay__/novatek@0:novatek,reset-gpio:0", "/fragment@57:target:0", "/fragment@58:target:0", "/fragment@60:target:0", "/fragment@61:target:0", "/fragment@62:target:0", "/fragment@63:target:0", "/fragment@64:target:0", "/fragment@65:target:0", "/fragment@67/__overlay__/ss_dsi_panel_NT36672C_PM6585JB3_M23_FHD:samsung,ub-con-det:0", "/fragment@67/__overlay__/ss_dsi_panel_NT36672C_PM6585JB3_M23_FHD:samsung,esd-irq-gpio1:0", "/fragment@69:target:0", "/fragment@70:target:0", "/fragment@72:target:0", "/fragment@80:target:0", "/fragment@81/__overlay__/pn547@2B:pn547,irq-gpio:0", "/fragment@81/__overlay__/pn547@2B:pn547,ven-gpio:0", "/fragment@81/__overlay__/pn547@2B:pn547,firm-gpio:0", "/fragment@81/__overlay__/pn547@2B:pn547,clk_req-gpio:0", "/fragment@82/__overlay__/ss_dsi_panel_NT36672C_TL066FVMC02_FHD:samsung,ub-con-det:0", "/fragment@82/__overlay__/ss_dsi_panel_NT36672C_TL066FVMC02_FHD:samsung,esd-irq-gpio1:0", "/fragment@84:target:0", "/fragment@85:target:0", "/fragment@93:target:0", "/fragment@127/__overlay__:cd-gpios:0", "/fragment@135/__overlay__:qcom,fm-lna-gpios:0", "/fragment@136/__overlay__/tfa98xx@34:reset-gpio:0", "/fragment@136/__overlay__/tfa98xx@34:irq-gpio:0", "/fragment@138:target:0", "/fragment@140/__overlay__/i2c@17:gpios:0", "/fragment@140/__overlay__/i2c@17:gpios:12", "/fragment@140/__overlay__/i2c@17/isg6320-i2c@28:interrupt-parent:0", "/fragment@140/__overlay__/i2c@17/isg6320-i2c@28:isg6320,irq-gpio:0", "/fragment@141:target:0", "/fragment@144:target:0", "/fragment@146:target:0", "/fragment@148/__overlay__/sm5714-fled:flash-en-gpio:0", "/fragment@148/__overlay__/sm5714-fled:torch-en-gpio:0", "/fragment@149/__overlay__/qcom,cam-sensor@0:gpios:0", "/fragment@149/__overlay__/qcom,cam-sensor@0:gpios:12", "/fragment@149/__overlay__/qcom,cam-sensor@2:gpios:0", "/fragment@149/__overlay__/qcom,cam-sensor@2:gpios:12", "/fragment@149/__overlay__/qcom,cam-sensor@2:gpios:24", "/fragment@150/__overlay__/qcom,cam-sensor@4:gpios:0", "/fragment@150/__overlay__/qcom,cam-sensor@4:gpios:12", "/fragment@150/__overlay__/qcom,cam-sensor@4:gpios:24", "/fragment@150/__overlay__/qcom,cam-sensor@1:gpios:0", "/fragment@150/__overlay__/qcom,cam-sensor@1:gpios:12", "/fragment@150/__overlay__/qcom,cam-sensor@13:gpios:0", "/fragment@150/__overlay__/qcom,cam-sensor@13:gpios:12";
 		pm6150a_l11 = "/fragment@smd/__overlay__/samsung_mobile_device/etspi-spi@0:VDD_BTP_3P3-supply:0", "/fragment@66:target:0";
 		pm6150l_gpios = "/fragment@smd/__overlay__/samsung_mobile_device/sec-mst:sec-mst,mst-support-gpio:0", "/fragment@6/__overlay__/qcom,mdss_dsi_rm69299_visionox_amoled_video:qcom,platform-reset-gpio:0", "/fragment@7/__overlay__/qcom,mdss_dsi_rm69299_visionox_amoled_cmd:qcom,platform-reset-gpio:0", "/fragment@16/__overlay__/qcom,mdss_dsi_sim_cmd:qcom,platform-reset-gpio:0", "/fragment@17/__overlay__/qcom,mdss_dsi_sim_video:qcom,platform-reset-gpio:0", "/fragment@19:target:0", "/fragment@73:target:0", "/fragment@77:target:0", "/fragment@81/__overlay__/pn547@2B:pn547,nfc-det-gpio:0", "/fragment@88:target:0", "/fragment@90:target:0";
 		pm6150l_vadc = "/fragment@smd/__overlay__/samsung_mobile_device/sec_thermistor@1:io-channels:0", "/fragment@smd/__overlay__/samsung_mobile_device/sec_thermistor@2:io-channels:0", "/fragment@smd/__overlay__/samsung_mobile_device/sec_thermistor@0:io-channels:0", "/fragment@smd/__overlay__/samsung_mobile_device/battery:io-channels:0", "/fragment@smd/__overlay__/samsung_mobile_device/battery:io-channels:8", "/fragment@74:target:0", "/fragment@75:target:0", "/fragment@76:target:0", "/fragment@78:target:0", "/fragment@89:target:0";
@@ -9674,9 +9676,9 @@
 		pm6350_l11 = "/fragment@44:target:0";
 		qupv3_se7_i2c = "/fragment@45:target:0", "/fragment@51:target:0", "/fragment@52:target:0", "/fragment@148:target:0";
 		pm6150a_l1 = "/fragment@48:target:0", "/fragment@68:target:0", "/fragment@83:target:0";
-		qupv3_se2_spi = "/fragment@55:target:0";
-		qupv3_se2_spi_active = "/fragment@56:target:0";
-		qupv3_se2_spi_sleep = "/fragment@57:target:0";
+		qupv3_se2_spi = "/fragment@54:target:0";
+		qupv3_se2_spi_active = "/fragment@55:target:0";
+		qupv3_se2_spi_sleep = "/fragment@56:target:0";
 		pm6150l_adc_tm_iio = "/fragment@79:target:0";
 		aliases = "/fragment@91:target:0", "/fragment@131:target:0";
 		gcc = "/fragment@92/__overlay__/qcom,qup_hsuart@98c000:clocks:0", "/fragment@92/__overlay__/qcom,qup_hsuart@98c000:clocks:8", "/fragment@92/__overlay__/qcom,qup_hsuart@98c000:clocks:16";
@@ -10028,7 +10030,7 @@
 			};
 		};
 
-		fragment@55 {
+		fragment@54 {
 
 			__overlay__ {
 

@@ -92,6 +92,12 @@ enum SM5451_reg_addr {
 	SM5451_REG_THEM_ADC_L       = 0x66,
 	SM5451_REG_IBATOCP_DG       = 0x92,
 	SM5451_REG_VDSQRB_DG		= 0x95,
+	SM5451_REG_PRECHG_MODE      = 0xA0,
+	SM5451_REG_CTRL_STM_0       = 0xBA,
+	SM5451_REG_CTRL_STM_1       = 0xBB,
+	SM5451_REG_CTRL_STM_2       = 0xBC,
+	SM5451_REG_CTRL_STM_3       = 0xBD,
+	SM5451_REG_CTRL_STM_5       = 0xBF,
 };
 
 enum SM5451_vbatovp_offset {

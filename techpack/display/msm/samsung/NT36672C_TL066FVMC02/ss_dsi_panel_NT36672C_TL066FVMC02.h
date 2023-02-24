@@ -33,6 +33,7 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 #define SS_DSI_PANEL_NT36672C_TL066FVMC02_H
 
 #include "ss_dsi_panel_common.h"
+#include "../BLIC/ss_blic_ktz8864b_i2c.h"
 
 #define LCD_DEFAUL_BL_LEVEL 125
 

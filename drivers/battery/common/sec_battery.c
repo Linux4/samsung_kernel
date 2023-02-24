@@ -335,8 +335,8 @@ void set_vbus_voltage(int vol)
 	afc_set_voltage(vol);
 #endif
 #else
-#if defined(CONFIG_USE_MUIC)
-	muic_afc_set_voltage(vol);
+#if defined(CONFIG_AFC_CHARGER_MODE)
+	muic_afc_request_voltage(AFC_REQUEST_CHARGER, vol);
 #endif
 #endif
 }
@@ -380,6 +380,9 @@ __visible_for_testing int set_input_current(void * data, int v)
 	battery->charge_power = battery->input_voltage * v;
 	if (battery->charge_power > battery->max_charge_power)
 		battery->max_charge_power = battery->charge_power;
+	if (battery->current_event & SEC_BAT_CURRENT_EVENT_HV_DISABLE &&
+			battery->max_charge_power > battery->pdata->nv_charge_power)
+		battery->max_charge_power = battery->pdata->nv_charge_power;
 	value.intval = v;
 	psy_do_property(battery->pdata->charger_name, set,
 			POWER_SUPPLY_PROP_CURRENT_MAX, value);
@@ -998,6 +1001,7 @@ static void sec_bat_get_input_current_in_power_list(struct sec_battery_info *bat
 	battery->pdata->charging_current[SEC_BATTERY_CABLE_PDIC_APDO].input_current_limit =
 		battery->pdic_info.sink_status.power_list[pdo_num].max_current;
 
+	battery->input_voltage = battery->pdic_info.sink_status.power_list[pdo_num].max_voltage / 1000;
 	pr_info("%s:max_input_current : %dmA, %d\n", __func__, max_input_current, pdo_num);
 	sec_vote(battery->input_vote, VOTER_CABLE, true, max_input_current);
 }
@@ -4556,6 +4560,7 @@ static void sec_bat_cable_work(struct work_struct *work)
 	dev_info(battery->dev, "%s: Start\n", __func__);
 	sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_SKIP_HEATING_CONTROL,
 				SEC_BAT_CURRENT_EVENT_SKIP_HEATING_CONTROL);
+
 #if defined(CONFIG_PDIC_NOTIFIER)
 	if (is_pd_wire_type(battery->wire_status)) {
 		sec_bat_get_input_current_in_power_list(battery);
@@ -4629,6 +4634,16 @@ static void sec_bat_cable_work(struct work_struct *work)
 
 	if (current_cable_type == SEC_BATTERY_CABLE_HV_TA_CHG_LIMIT)
 		current_cable_type = SEC_BATTERY_CABLE_9V_TA;
+
+	if (!can_usb_suspend_type(current_cable_type) &&
+			battery->current_event & SEC_BAT_CURRENT_EVENT_USB_SUSPENDED) {
+		pr_info("%s: clear suspend event prev_cable_type:%s -> %s\n", __func__,
+				sec_cable_type[battery->cable_type], sec_cable_type[current_cable_type]);
+		sec_bat_set_current_event(battery, 0, SEC_BAT_CURRENT_EVENT_USB_SUSPENDED);
+		sec_vote(battery->chgen_vote, VOTER_SUSPEND, false, 0);
+		sec_vote(battery->fcc_vote, VOTER_USB_100MA, false, 0);
+		sec_vote(battery->input_vote, VOTER_USB_100MA, false, 0);
+	}
 
 	prev_cable_type = battery->cable_type;
 	battery->cable_type = current_cable_type;
@@ -4715,6 +4730,19 @@ static void sec_bat_cable_work(struct work_struct *work)
 					 SEC_BAT_CURRENT_EVENT_USB_STATE |
 					 SEC_BAT_CURRENT_EVENT_DC_ERR));
 
+	/* slate_mode needs to be clear manually since smart switch does not disable slate_mode sometimes */
+	if (is_slate_mode(battery)) {
+		int voter_status = SEC_BAT_CHG_MODE_CHARGING;
+
+		if (get_sec_voter_status(battery->chgen_vote, VOTER_SMART_SLATE, &voter_status) < 0)
+			pr_err("%s: INVALID VOTER ID\n", __func__);
+		pr_info("%s: voter_status: %d\n", __func__, voter_status); // debug
+		if (voter_status == SEC_BAT_CHG_MODE_BUCK_OFF) {
+			sec_bat_set_current_event(battery, 0, SEC_BAT_CURRENT_EVENT_SLATE);
+			dev_info(battery->dev,
+					"%s: disable slate mode(smart switch) manually\n", __func__);
+		}
+	}
 		battery->wc_cv_mode = false;
 		battery->is_sysovlo = false;
 		battery->is_vbatovlo = false;
@@ -4758,6 +4786,7 @@ static void sec_bat_cable_work(struct work_struct *work)
 		for (j = 0; j < VOTER_MAX; j++) {
 			if (j == VOTER_SIOP ||
 				j == VOTER_SLATE ||
+				j == VOTER_SMART_SLATE ||
 				j == VOTER_AGING_STEP ||
 				j == VOTER_WC_TX)
 			continue;
@@ -4921,6 +4950,22 @@ run_monitor_work:
 	__pm_stay_awake(battery->monitor_ws);
 	queue_delayed_work(battery->monitor_wqueue, &battery->monitor_work, msecs_to_jiffies(monitor_work_delay));
 end_of_cable_work:
+#if defined(CONFIG_DISCRETE_CHARGER)
+	if ((battery->bc12_cable != SEC_BATTERY_CABLE_TIMEOUT) &&
+		(battery->misc_event & BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE))
+		sec_bat_set_misc_event(battery, 0,
+			BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE);
+#else
+	/*
+	 * showing charging icon and noti(no sound, vi, haptic) only
+	 * if slow insertion is detected by MUIC
+	 */
+	sec_bat_set_misc_event(battery,
+		(battery->muic_cable_type == ATTACHED_DEV_TIMEOUT_OPEN_MUIC ?
+			BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE : 0),
+		BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE);
+#endif
+
 	__pm_relax(battery->cable_ws);
 	dev_info(battery->dev, "%s: End\n", __func__);
 }
@@ -5041,11 +5086,20 @@ static void sec_bat_hv_disable_work(struct work_struct *work)
 	if (is_pd_wire_type(battery->cable_type)) {
 #if defined(CONFIG_PDIC_NOTIFIER)
 		pr_info("hv_disable_work\n");
-		if (battery->pd_disable_by_afc_option) { 
+		if (battery->pd_disable_by_afc_option) {
 			battery->update_pd_list = true;
 			pr_info("%s: update pd list\n", __func__);
 			sec_bat_set_current_event(battery,
 					SEC_BAT_CURRENT_EVENT_HV_DISABLE, SEC_BAT_CURRENT_EVENT_HV_DISABLE);
+#if defined(CONFIG_DIRECT_CHARGING) && defined(CONFIG_LSI_IFPMIC)
+			if (is_pd_apdo_wire_type(battery->cable_type)) {
+				union power_supply_propval value = {0, };
+
+				value.intval = 1;
+				psy_do_property(battery->pdata->charger_name, set,
+					POWER_SUPPLY_EXT_PROP_DIRECT_FIXED_PDO, value);
+			}
+#endif
 			if (battery->pdic_info.sink_status.current_pdo_num != 1) {
 				sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_SELECT_PDO,
 					SEC_BAT_CURRENT_EVENT_SELECT_PDO);
@@ -5124,10 +5178,6 @@ static int sec_bat_set_property(struct power_supply *psy,
 						"%s: OTG is operating\n", __func__);
 			battery->bc12_cable = current_cable_type;
 #if defined(CONFIG_DISCRETE_CHARGER)
-			if ((battery->bc12_cable != SEC_BATTERY_CABLE_TIMEOUT) &&
-				(battery->misc_event & BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE))
-				sec_bat_set_misc_event(battery, 0,
-					BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE);
 			/* Skip notify from BC1.2 if PDIC is attached already */
 			if ((is_pd_wire_type(battery->wire_status) || battery->init_src_cap) &&
 				(battery->bc12_cable != SEC_BATTERY_CABLE_NONE)) {
@@ -5467,6 +5517,10 @@ static int sec_bat_set_property(struct power_supply *psy,
 				__func__, battery->init_src_cap, val->intval);
 			battery->init_src_cap = true;
 			break;
+		case POWER_SUPPLY_EXT_PROP_USB_BOOTCOMPLETE:
+			battery->usb_bootcomplete = val->intval;
+			pr_info("%s: usb_bootcomplete (%d)\n", __func__, battery->usb_bootcomplete);
+			break;
 		default:
 			return -EINVAL;
 		}
@@ -5520,8 +5574,10 @@ static int sec_bat_get_property(struct power_supply *psy,
 			val->intval = POWER_SUPPLY_CHARGE_TYPE_NONE;
 		} else if (is_hv_wire_type(battery->cable_type) || is_pd_wire_type(battery->cable_type) || is_wireless_type(battery->cable_type)) {
 			val->intval = POWER_SUPPLY_CHARGE_TYPE_FAST;
+		} else if (!battery->usb_bootcomplete && !lpcharge && battery->pdata->slowcharging_usb_bootcomplete) {
+			val->intval = POWER_SUPPLY_CHARGE_TYPE_FAST;
 		} else if (input_current <= SLOW_CHARGING_CURRENT_STANDARD || battery->usb_slow_chg) {
-			val->intval = POWER_SUPPLY_CHARGE_TYPE_SLOW;
+			val->intval = POWER_SUPPLY_CHARGE_TYPE_TRICKLE;
 		} else {
 			psy_do_property(battery->pdata->charger_name, get,
 				POWER_SUPPLY_PROP_CHARGE_TYPE, value);
@@ -6297,7 +6353,7 @@ static int sec_bat_cable_check(struct sec_battery_info *battery,
 	case ATTACHED_DEV_UNOFFICIAL_ID_TA_MUIC:
 	case ATTACHED_DEV_UNOFFICIAL_ID_ANY_MUIC:
 	case ATTACHED_DEV_UNSUPPORTED_ID_VB_MUIC:
-	case ATTACHED_DEV_AFC_CHARGER_DISABLED_MUIC: 
+	case ATTACHED_DEV_AFC_CHARGER_DISABLED_MUIC:
 		current_cable_type = SEC_BATTERY_CABLE_TA;
 		break;
 	case ATTACHED_DEV_POGO_DOCK_MUIC:
@@ -6675,6 +6731,8 @@ static int make_pd_list(struct sec_battery_info *battery)
 
 	if (battery->pdic_info.sink_status.selected_pdo_num == battery->pd_list.pd_info[pd_list_select].pdo_index) {
 		battery->pdic_ps_rdy = true;
+		sec_bat_set_current_event(battery, 0, SEC_BAT_CURRENT_EVENT_SELECT_PDO);
+		sec_vote(battery->input_vote, VOTER_SELECT_PDO, false, 0);
 		dev_info(battery->dev, "%s: battery->pdic_ps_rdy(%d)\n", __func__, battery->pdic_ps_rdy);
 	} else if (battery->wc_rx_type != SS_GEAR) {
 		/* change input current before request new pdo if new pdo's input current is less than now */
@@ -6826,7 +6884,7 @@ static int usb_typec_handle_notification(struct notifier_block *nb,
 			goto skip_cable_check;
 		} else if ((*(struct pdic_notifier_struct *)usb_typec_info.pd).event == PDIC_NOTIFY_EVENT_PD_PRSWAP_SRCTOSNK) {
 			cmd = "PD_PRSWAP";
-			dev_info(battery->dev, "%s: PRSWAP_SRCTOSNK(%d)\n", __func__, usb_typec_info.attach);		
+			dev_info(battery->dev, "%s: PRSWAP_SRCTOSNK(%d)\n", __func__, usb_typec_info.attach);
 			mutex_unlock(&battery->typec_notylock);
 			return 0;
 		}
@@ -7055,14 +7113,6 @@ skip_cable_check:
 			queue_delayed_work(battery->monitor_wqueue, &battery->monitor_work, 0);
 		}
 	}
-
-	/*
-	 * showing charging icon and noti(no sound, vi, haptic) only
-	 * if slow insertion is detected by MUIC
-	 */
-	sec_bat_set_misc_event(battery,
-		(battery->muic_cable_type == ATTACHED_DEV_TIMEOUT_OPEN_MUIC ? BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE : 0),
-		 BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE);
 
 	if (cable_type < 0 || cable_type > SEC_BATTERY_CABLE_MAX) {
 		dev_info(battery->dev, "%s: ignore event(%d)\n",
@@ -7652,6 +7702,8 @@ static int sec_battery_probe(struct platform_device *pdev)
 
 	battery->batt_full_capacity = 0;
 	battery->usb_slow_chg = false;
+	battery->usb_bootcomplete = false;
+
 #if IS_ENABLED(CONFIG_USB_FACTORY_MODE)
 	/* Set factory mode variables in OB booting */
 	if (f_mode_battery == OB_MODE) {

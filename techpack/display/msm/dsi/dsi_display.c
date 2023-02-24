@@ -5091,6 +5091,7 @@ int dsi_display_cont_splash_config(void *dsi_display)
 		goto clks_disabled;
 	}
 
+#if defined(CONFIG_DISPLAY_SAMSUNG)
 	/* Splash boot && pba_reuglator_control && PBA panel => PBA regulators off 
 	 * Caution!, both panels should have PBA regulators if with DSI1
 	 */
@@ -5111,6 +5112,7 @@ int dsi_display_cont_splash_config(void *dsi_display)
 			DSI_ERR("[%s] failed to disable vregs, rc=%d\n",
 				display->panel->name, rc);
 	}
+#endif
 
 	dsi_config_host_engine_state_for_cont_splash(display);
 	mutex_unlock(&display->display_lock);

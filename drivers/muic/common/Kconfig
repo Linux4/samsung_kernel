@@ -102,4 +102,12 @@ config MUIC_USE_MODULE_PARAM
 	  need to add cmdline in bootloader.
 	  (ex: common_muic.xxx)
 
+config HICCUP_CC_DISABLE
+	bool "Using HICCUP CC disable"
+	depends on USE_MUIC
+	default n
+	help
+		If you say yes here you will get support for
+		for the hiccup cc disable feature.
+
 

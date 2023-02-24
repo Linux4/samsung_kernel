@@ -2511,6 +2511,100 @@ done:
 	return ret;
 }
 
+static int sec_voice_voice_isolation_cmd(struct voice_data *v, int mode)
+{
+	struct cvp_set_voice_isolation_cmd cvp_voice_isolation_cmd;
+	int ret = 0;
+	u16 cvp_handle;
+
+	if (v == NULL) {
+		pr_err("%s: v is NULL\n", __func__);
+		return -EINVAL;
+	}
+
+	if (this_cvp.apr == NULL) {
+		this_cvp.apr = apr_register("ADSP", "CVP",
+					q6audio_adaptation_cvp_callback,
+					SEC_ADAPTATAION_VOICE_SRC_PORT,
+					&this_cvp);
+	}
+	cvp_handle = voice_get_cvp_handle(v);
+
+	/* fill in the header */
+	cvp_voice_isolation_cmd.hdr.hdr_field = APR_HDR_FIELD(APR_MSG_TYPE_SEQ_CMD,
+				APR_HDR_LEN(APR_HDR_SIZE),
+				APR_PKT_VER);
+	cvp_voice_isolation_cmd.hdr.pkt_size = APR_PKT_SIZE(APR_HDR_SIZE,
+		sizeof(cvp_voice_isolation_cmd) - APR_HDR_SIZE);
+	cvp_voice_isolation_cmd.hdr.src_port = SEC_ADAPTATAION_VOICE_SRC_PORT;
+	cvp_voice_isolation_cmd.hdr.dest_port = cvp_handle;
+	cvp_voice_isolation_cmd.hdr.token = 0;
+	cvp_voice_isolation_cmd.hdr.opcode =
+		q6common_is_instance_id_supported() ? VSS_ICOMMON_CMD_SET_UI_PROPERTY_V2 :
+				VSS_ICOMMON_CMD_SET_UI_PROPERTY;
+	cvp_voice_isolation_cmd.cvp_set_voice_isolation.module_id =
+		VOICE_MODULE_LVVEFQ_TX;
+	cvp_voice_isolation_cmd.cvp_set_voice_isolation.instance_id =
+		0x8000;
+	cvp_voice_isolation_cmd.cvp_set_voice_isolation.param_id =
+		ENHANCED_VT_CALL_DYNAMIC_PARAM;
+	cvp_voice_isolation_cmd.cvp_set_voice_isolation.param_size = 4;
+	cvp_voice_isolation_cmd.cvp_set_voice_isolation.reserved = 0;
+	cvp_voice_isolation_cmd.cvp_set_voice_isolation.enable = mode;
+	cvp_voice_isolation_cmd.cvp_set_voice_isolation.reserved_field = 0;
+
+	pr_info("%s: voice isolation info = %d\n",
+		__func__, cvp_voice_isolation_cmd.cvp_set_voice_isolation.enable);
+
+	atomic_set(&this_cvp.state, 1);
+	ret = apr_send_pkt(this_cvp.apr, (uint32_t *) &cvp_voice_isolation_cmd);
+	if (ret < 0) {
+		pr_err("%s: Failed to send cvp_voice_isolation_cmd\n",
+			__func__);
+		goto fail;
+	}
+
+	ret = wait_event_timeout(this_cvp.wait,
+				(atomic_read(&this_cvp.state) == 0),
+				msecs_to_jiffies(TIMEOUT_MS));
+	if (!ret) {
+		pr_err("%s: wait_event timeout\n", __func__);
+		goto fail;
+	}
+	return 0;
+
+fail:
+	return ret;
+}
+
+int sec_voice_isolation_mode(short mode)
+{
+	struct voice_data *v = NULL;
+	int ret = 0;
+	struct voice_session_itr itr;
+
+	pr_debug("%s: mode is %d\n", __func__, mode);
+
+	voice_itr_init(&itr, ALL_SESSION_VSID);
+	while (voice_itr_get_next_session(&itr, &v)) {
+		if (v != NULL) {
+			mutex_lock(&v->lock);
+			if (is_voc_state_active(v->voc_state) &&
+				(v->lch_mode != VOICE_LCH_START) &&
+				!v->disable_topology)
+				ret = sec_voice_voice_isolation_cmd(v, mode);
+			mutex_unlock(&v->lock);
+		} else {
+			pr_err("%s: invalid session\n", __func__);
+			ret = -EINVAL;
+			break;
+		}
+	}
+	pr_debug("%s: Exit, ret=%d\n", __func__, ret);
+
+	return ret;
+}
+
 static int sec_voice_send_bt_rvc_vol_cmd(struct voice_data *v, int vol)
 {
 	struct cvp_set_bt_rvc_vol_cmd cvp_bt_rvc_vol_cmd;
@@ -2847,6 +2941,30 @@ static int sec_remote_mic_vol_put(struct snd_kcontrol *kcontrol,
 	return sec_afe_remote_mic_vol(volumeindex);
 }
 
+static const char * const voice_isolate[] = {
+	"Standard", "VoiceFocus", "AllSound"
+};
+
+static const struct soc_enum sec_voice_isolation_enum[] = {
+	SOC_ENUM_SINGLE_EXT(3, voice_isolate),
+};
+
+static int sec_voice_isolation_get(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+	return 0;
+}
+
+static int sec_voice_isolation_put(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+	int mode = ucontrol->value.integer.value[0];
+
+	pr_debug("%s: mode = %d\n", __func__, mode);
+
+	return sec_voice_isolation_mode(mode);
+}
+
 /*******************************************************/
 /*/////////////////////// COMMON //////////////////////*/
 /*******************************************************/
@@ -2923,6 +3041,9 @@ static const struct snd_kcontrol_new samsung_solution_mixer_controls[] = {
 	SOC_SINGLE_EXT("Listenback Enable", SND_SOC_NOPM, 0, 65535, 0,
 				sec_audio_sa_listenback_enable_get,
 				sec_audio_sa_listenback_enable_put),
+	SOC_ENUM_EXT("Voice Isolation Mode", sec_voice_isolation_enum[0],
+				sec_voice_isolation_get,
+				sec_voice_isolation_put),
 };
 
 static int q6audio_adaptation_platform_probe(struct snd_soc_component *component)

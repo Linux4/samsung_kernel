@@ -144,10 +144,15 @@ msm_drm-$(CONFIG_PANEL_HX83121_PPC357DB11_WQXGA) += samsung/BLIC/ss_blic_lp8558_
 
 msm_drm-$(CONFIG_PANEL_NT36672C_TL066FVMC02_FHD) += samsung/BLIC/ss_blic_ktz8864b_i2c.o
 
+msm_drm-$(CONFIG_PANEL_XCP2_NT36672C_PM6585JB2_FHD) += samsung/BLIC/ss_blic_ktz8864b_i2c.o
+
 msm_drm-$(CONFIG_PANEL_NT36672C_PM6585JB3_FHD) += samsung/BLIC/ss_blic_s2dps01a01_i2c.o
 
 msm_drm-$(CONFIG_PANEL_HX83121_PPC357DB11_WQXGA) += samsung/PMIC/ss_boost_max77816_i2c.o
 msm_drm-$(CONFIG_PANEL_HX83121_PPC357DB11_WQXGA) += samsung/PMIC/ss_buck_isl98609_i2c.o
+msm_drm-$(CONFIG_PANEL_TAP2_HX8279_TV101WUM_WUXGA) += samsung/PMIC/ss_buck_isl98609_i2c.o
+msm_drm-$(CONFIG_PANEL_GTACT4PRO_HX8279_TV101WUM_WUXGA) += samsung/PMIC/ss_buck_isl98609_i2c.o
+
 msm_drm-$(CONFIG_PANEL_NT36672C_TL066FVMC02_FHD) += samsung/NT36672C_TL066FVMC02/ss_dsi_panel_NT36672C_TL066FVMC02.o
 
 
@@ -200,8 +205,10 @@ msm_drm-$(CONFIG_DISPLAY_SAMSUNG) += samsung/SELF_DISPLAY/self_display_6W3.o \
 	samsung/SELF_DISPLAY/self_display_SW83109_WM6676Z21.o \
 	samsung/SELF_DISPLAY/self_display_HAB_AMB667AN01.o \
 	samsung/SELF_DISPLAY/self_display_HAB_AMB667AN01_A73.o \
+	samsung/SELF_DISPLAY/self_display_A73_S6E3FC3_AMB667BV01.o \
 	samsung/SELF_DISPLAY/self_display_FC3.o \
 	samsung/SELF_DISPLAY/self_display_FAC_AMF670BS01.o
+
 
 msm_drm-$(CONFIG_DISPLAY_SAMSUNG) += samsung/MAFPC/ss_dsi_mafpc_FAB.o \
 	samsung/MAFPC/ss_dsi_mafpc_HAB.o \

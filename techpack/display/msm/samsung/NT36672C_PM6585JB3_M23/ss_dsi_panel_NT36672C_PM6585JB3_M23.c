@@ -1,17 +1,12 @@
 /*
  * =================================================================
- *
- *
  *	Description:  samsung display panel file
- *
- *	Author: jb09.kim
  *	Company:  Samsung Electronics
- *
  * ================================================================
  */
 /*
 <one line to give the program's name and a brief idea of what it does.>
-Copyright (C) 2012, Samsung Electronics. All rights reserved.
+Copyright (C) 2021, Samsung Electronics. All rights reserved.
 
 *
  * This program is free software; you can redistribute it and/or modify
@@ -31,22 +26,77 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 */
 #include "ss_dsi_mdnie_NT36672C_PM6585JB3_M23.h"
 #include "ss_dsi_panel_NT36672C_PM6585JB3_M23.h"
-//#include "ss_dsi_reading_mode_NT36672C_PM6585JB3_M23.h"
+
+enum {
+	BLIC_STATE_OFF = 0,
+	BLIC_STATE_ON,
+	BLIC_STATE_UNKNOWN,
+};
+
+static void ss_blic_ctrl(struct samsung_display_driver_data *vdd, bool on)
+{
+	/* W/A: PWM floating causes brightness on in LCD off case.
+	 * Change brightness mode: pwm -> i2c mode.
+	 * Default i2c mode brightness is zero.
+	 */
+	u8 on_data[][2] = {
+		/* addr value */
+		{0x0C, 0x24},
+		{0x0D, 0x1E},
+		{0x0E, 0x1E},
+		{0x09, 0x99},
+		{0x02, 0x6B},
+		{0x03, 0x0D},
+		{0x11, 0x74},
+		{0x04, 0x03},
+		{0x05, 0xC2},
+		{0x10, 0x66},
+		{0x08, 0x13},
+	};
+	int on_size = ARRAY_SIZE(on_data);
+
+	u8 off_data[][2] = {
+		/* addr value */
+		{0x08, 0x00},
+	};
+	int off_size = ARRAY_SIZE(off_data);
+
+	static int blic_state = BLIC_STATE_UNKNOWN;
+
+	LCD_INFO(vdd, "+++ state: %s, on: %d, data size: %d\n",
+			(blic_state == BLIC_STATE_OFF) ? "off" :
+			(blic_state == BLIC_STATE_ON) ? "on" : "unknown",
+			on, on ? on_size : off_size);
+
+	if (on && blic_state != BLIC_STATE_ON) {
+		ss_blic_ktz8864b_configure(on_data, on_size);
+		blic_state = BLIC_STATE_ON;
+	} else if (!on && blic_state != BLIC_STATE_OFF) {
+		ss_blic_ktz8864b_configure(off_data, off_size);
+		blic_state = BLIC_STATE_OFF;
+	} else {
+		LCD_INFO(vdd, "skip\n");
+	}
+
+	LCD_INFO(vdd, "--- state: %s, on: %d\n",
+			(blic_state == BLIC_STATE_OFF) ? "off" :
+			(blic_state == BLIC_STATE_ON) ? "on" : "unknown",
+			on);
+}
 
 static int samsung_panel_on_pre(struct samsung_display_driver_data *vdd)
 {
 	if (IS_ERR_OR_NULL(vdd)) {
 		pr_err("%s: Invalid data vdd 0x%zx", __func__, (size_t)vdd);
-		return false;
+		return -EINVAL;
 	}
 
 	LCD_INFO(vdd, "+++\n");
-
 	ss_panel_attach_set(vdd, true);
-
+	ss_blic_ctrl(vdd, true); /* turn on blic */
 	LCD_INFO(vdd, "---\n");
 
-	return true;
+	return 0;
 }
 
 static int samsung_panel_on_post(struct samsung_display_driver_data *vdd)
@@ -73,26 +123,12 @@ static int samsung_panel_off_post(struct samsung_display_driver_data *vdd)
 		return -EINVAL;
 	}
 
+	LCD_INFO(vdd, "+++\n");
+	ss_blic_ctrl(vdd, false); /* turn off blic */
 	LCD_INFO(vdd, "---\n");
 
 	return 0;
 }
-
-#if 0
-static void backlight_tft_late_on(struct samsung_display_driver_data *vdd)
-{
-	if (IS_ERR_OR_NULL(vdd)) {
-		pr_err("%s: Invalid data vdd 0x%zx", __func__, (size_t)vdd);
-		return;
-	}
-
-	/* DDI spec.: control brightness PWM (51h) 40ms delay after
-	 * display_on(29h) be sent. 40ms delay included in display on command.
-	 */
-	LCD_INFO(vdd, "re-conf bl_level=%d\n", vdd->br.bl_level);
-	ss_brightness_dcs(vdd, USE_CURRENT_BL_LEVEL, BACKLIGHT_NORMAL);
-}
-#endif
 
 static char ss_panel_revision(struct samsung_display_driver_data *vdd)
 {
@@ -166,92 +202,6 @@ static void make_brightness_packet(struct samsung_display_driver_data *vdd,
 	return;
 }
 
-
-#if 0
-static int dsi_update_mdnie_data(struct samsung_display_driver_data *vdd)
-{
-	struct mdnie_lite_tune_data *mdnie_data;
-
-	mdnie_data = kzalloc(sizeof(struct mdnie_lite_tune_data), GFP_KERNEL);
-	if (!mdnie_data) {
-		LCD_ERR(vdd, "fail to allocate mdnie_data memory\n");
-		return -ENOMEM;
-	}
-	pr_info("dsi_update_mdnie_data\n");
-	/* Update mdnie command */
-
-	mdnie_data->DSI_BYPASS_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_NEGATIVE_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_GRAYSCALE_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_GRAYSCALE_NEGATIVE_MDNIE = DSI0_UI_MDNIE;
-//	mdnie_data->DSI_COLOR_BLIND_MDNIE_1 = DSI0_UI_MDNIE;
-	mdnie_data->DSI_HBM_CE_MDNIE = DSI0_HBM_CE_MDNIE;
-	mdnie_data->DSI_RGB_SENSOR_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_CURTAIN = NULL;
-	mdnie_data->DSI_UI_DYNAMIC_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_UI_STANDARD_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_UI_NATURAL_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_UI_MOVIE_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_UI_AUTO_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_VIDEO_OUTDOOR_MDNIE = NULL;
-	mdnie_data->DSI_VIDEO_DYNAMIC_MDNIE = DSI0_VIDEO_MDNIE;
-	mdnie_data->DSI_VIDEO_STANDARD_MDNIE = DSI0_VIDEO_MDNIE;
-	mdnie_data->DSI_VIDEO_NATURAL_MDNIE = DSI0_VIDEO_MDNIE;
-	mdnie_data->DSI_VIDEO_MOVIE_MDNIE = DSI0_VIDEO_MDNIE;
-	mdnie_data->DSI_VIDEO_AUTO_MDNIE = DSI0_VIDEO_MDNIE;
-	mdnie_data->DSI_VIDEO_WARM_OUTDOOR_MDNIE = NULL;
-	mdnie_data->DSI_VIDEO_WARM_MDNIE = NULL;
-	mdnie_data->DSI_VIDEO_COLD_OUTDOOR_MDNIE = NULL;
-	mdnie_data->DSI_VIDEO_COLD_MDNIE = NULL;
-	mdnie_data->DSI_CAMERA_OUTDOOR_MDNIE = NULL;
-	mdnie_data->DSI_CAMERA_MDNIE = DSI0_CAMERA_MDNIE;
-	mdnie_data->DSI_CAMERA_AUTO_MDNIE = DSI0_CAMERA_MDNIE;
-	mdnie_data->DSI_GALLERY_DYNAMIC_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_GALLERY_STANDARD_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_GALLERY_NATURAL_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_GALLERY_MOVIE_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_GALLERY_AUTO_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_VT_DYNAMIC_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_VT_STANDARD_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_VT_NATURAL_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_VT_MOVIE_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_VT_AUTO_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_BROWSER_DYNAMIC_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_BROWSER_STANDARD_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_BROWSER_NATURAL_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_BROWSER_MOVIE_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_BROWSER_AUTO_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->DSI_EBOOK_DYNAMIC_MDNIE = DSI0_EBOOK_MDNIE;
-	mdnie_data->DSI_EBOOK_STANDARD_MDNIE = DSI0_EBOOK_MDNIE;
-	mdnie_data->DSI_EBOOK_NATURAL_MDNIE = DSI0_EBOOK_MDNIE;
-	mdnie_data->DSI_EBOOK_MOVIE_MDNIE = DSI0_EBOOK_MDNIE;
-	mdnie_data->DSI_EBOOK_AUTO_MDNIE = DSI0_EBOOK_MDNIE;
-	mdnie_data->DSI_EMAIL_AUTO_MDNIE = DSI0_UI_MDNIE;
-	mdnie_data->mdnie_tune_value_dsi = mdnie_tune_value_dsi0;
-	mdnie_data->light_notification_tune_value_dsi = light_notification_tune_value;
-
-	/* Update MDNIE data related with size, offset or index */
-	mdnie_data->dsi_bypass_mdnie_size = ARRAY_SIZE(DSI0_UI_MDNIE);
-	mdnie_data->mdnie_color_blinde_cmd_offset = MDNIE_COLOR_BLINDE_CMD_OFFSET;
-	mdnie_data->mdnie_step_index[MDNIE_STEP1] = MDNIE_STEP1_INDEX;
-	mdnie_data->mdnie_step_index[MDNIE_STEP2] = MDNIE_STEP2_INDEX;
-	mdnie_data->address_scr_white[ADDRESS_SCR_WHITE_RED_OFFSET] = 0;
-	mdnie_data->address_scr_white[ADDRESS_SCR_WHITE_GREEN_OFFSET] = 0;
-	mdnie_data->address_scr_white[ADDRESS_SCR_WHITE_BLUE_OFFSET] = 0;
-	mdnie_data->dsi_rgb_sensor_mdnie_1_size = 0;
-	mdnie_data->dsi_rgb_sensor_mdnie_2_size = 0;
-	mdnie_data->dsi_white_default_r = 0xff;
-	mdnie_data->dsi_white_default_g = 0xff;
-	mdnie_data->dsi_white_default_b = 0xff;
-	mdnie_data->dsi_white_balanced_r = 0;
-	mdnie_data->dsi_white_balanced_g = 0;
-	mdnie_data->dsi_white_balanced_b = 0;
-
-	vdd->mdnie.mdnie_data = mdnie_data;
-	return 0;
-}
-#endif
-
 void NT36672C_PM6585JB3_M23_FHD_init(struct samsung_display_driver_data *vdd)
 {
 	LCD_INFO(vdd, "%s\n", ss_get_panel_name(vdd));
@@ -284,19 +234,6 @@ void NT36672C_PM6585JB3_M23_FHD_init(struct samsung_display_driver_data *vdd)
 	/* MDNIE */
 	vdd->mdnie.support_mdnie = false;
 	vdd->mdnie.support_trans_dimming = false;
-	//dsi_update_mdnie_data(vdd);
 
-#if 0
-	/* Reading mode */
-	vdd->reading_mode.support_reading_mode = true;
-	vdd->reading_mode.cur_level = READING_MODE_MAX_LEVEL_NT36672C_PM6585JB3_M23;
-	vdd->reading_mode.max_level = READING_MODE_MAX_LEVEL_NT36672C_PM6585JB3_M23;
-	vdd->reading_mode.dsi_tune_size = READING_MODE_TUNE_SIZE_NT36672C_PM6585JB3_M23;
-	vdd->reading_mode.reading_mode_tune_dsi = reading_mode_tune_value_dsi;
-#endif
-
-	/* Enable panic on first pingpong timeout */
-	//vdd->debug_data->panic_on_pptimeout = true;
-
-	//ss_panel_attach_set(vdd, true); // ksj..
+	ss_blic_ktz8864b_init();
 }
