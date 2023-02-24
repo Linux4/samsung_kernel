@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# SLSI TOUCH driver configuration
+#
+
+config TOUCHSCREEN_NVT_SPI_ZERO
+    tristate "NVT SPI ZERO Touchscreen"
+    depends on SPI
+    help
+      Say Y here if you want support for NVT SPI ZERO touchscreen controllers.
+      If unsure, say N.
