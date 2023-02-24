@@ -2184,6 +2184,9 @@ static int32_t HQA_RfRegBulkRead(struct net_device
 	else if (u4WfSel == 15)
 		u4Offset = u4Offset | 0x999F0000;
 
+	if ((2 + (u4Length * 4)) > sizeof(HqaCmdFrame->Data)) {
+		return -EINVAL;
+	}
 
 	for (u4Index = 0; u4Index < u4Length; u4Index++) {
 		rMcrInfo.u4McrOffset = u4Offset + u4Index * 4;
@@ -9578,7 +9581,8 @@ int priv_qa_agent(IN struct net_device *prNetDev,
 	if (prGlueInfo->prAdapter->fgTestMode == FALSE)
 		MT_ATEStart(prNetDev, "ATESTART");
 
-	if (!prIwReqData || prIwReqData->data.length == 0) {
+	if (!prIwReqData || prIwReqData->data.length == 0 ||
+		   prIwReqData->data.length > sizeof(*HqaCmdFrame)) {
 		i4Status = -EINVAL;
 		goto ERROR0;
 	}

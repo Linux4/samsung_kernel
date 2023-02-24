@@ -308,6 +308,7 @@ unsigned int GetEnableAudioBlockRegAddr(unsigned int Aud_block);
 
 /* FM AP Dependent */
 bool SetFmI2sConnection(unsigned int ConnectionState);
+bool SetFmOnlyConnection(unsigned int ConnectionState);
 bool SetFmAwbConnection(unsigned int ConnectionState);
 int SetFmI2sInEnable(bool enable);
 int SetFmI2sIn(struct audio_digital_i2s *mDigitalI2S);

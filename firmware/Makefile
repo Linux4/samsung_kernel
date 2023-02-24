@@ -25,7 +25,8 @@ fw-external-$(CONFIG_TOUCHSCREEN_IST4050) += tsp_imagis/ist40xx_a31.bin
 fw-external-$(CONFIG_TOUCHSCREEN_IST4050) += tsp_imagis/ist40xx_a31_cmcs.bin
 fw-external-$(CONFIG_TOUCHSCREEN_NT36xxx_HOSTDL_SPI_A02C) += tsp_novatek/nt36525_a02_csot.bin
 fw-external-$(CONFIG_TOUCHSCREEN_ILITEK_ILI9881X) += tsp_ilitek/ili9881x_a32x.hex tsp_ilitek/ili7806s_a32x.hex \
-							tsp_ilitek/ili9881x_a02.hex tsp_ilitek/ili9881x_a02_boe.hex
+							tsp_ilitek/ili9881x_a02.hex tsp_ilitek/ili9881x_a02_boe.hex \
+							tsp_ilitek/ili9882q_a02_boe.hex
 
 fw-external-$(CONFIG_SENSORS_A96T3X6_A32X) += abov/a96t356_a32x_main.bin abov/a96t356_a32x_sub.bin \
 					 abov/a96t356_a32x_kor_main.bin abov/a96t356_a32x_kor_sub.bin

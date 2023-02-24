@@ -507,7 +507,23 @@ static int mdw_rsc_sec_off(struct mdw_dev_info *d)
 
 static int mdw_rsc_suspend(struct mdw_dev_info *d)
 {
-	return d->dev->send_cmd(APUSYS_CMD_SUSPEND, NULL, d->dev);
+	struct mdw_rsc_tab *t = mdw_rsc_get_tab(d->type);
+	int ret = 0;
+
+	if (!t)
+		return -ENODEV;
+
+	mutex_lock(&t->mtx);
+	if (d->state != MDW_DEV_INFO_STATE_IDLE) {
+		mdw_drv_warn("dev(%s%d) busy(%d)\n", d->name, d->idx, d->state);
+		ret = -EBUSY;
+		goto out;
+	}
+
+	ret = d->dev->send_cmd(APUSYS_CMD_SUSPEND, NULL, d->dev);
+out:
+	mutex_unlock(&t->mtx);
+	return ret;
 }
 
 static int mdw_rsc_resume(struct mdw_dev_info *d)
@@ -781,6 +797,27 @@ static struct mdw_dev_info *mdw_rsc_get_dev_rr(int type)
 	return d;
 }
 
+static void mdw_rsc_req_add(struct mdw_rsc_req *req)
+{
+	list_add_tail(&req->r_item, &rsc_mgr.r_list);
+}
+
+static void mdw_rsc_req_delete(struct mdw_rsc_req *req)
+{
+	struct list_head *tmp = NULL, *list_ptr = NULL;
+	struct mdw_rsc_req *tmp_req = NULL;
+
+	list_for_each_safe(list_ptr, tmp, &rsc_mgr.r_list) {
+		tmp_req = list_entry(list_ptr, struct mdw_rsc_req, r_item);
+		if (tmp_req == req) {
+			list_del(&req->r_item);
+			return;
+		}
+	}
+	mdw_drv_warn("req(%u/0x%llx) not in list\n",
+		req->num[APUSYS_DEVICE_VPU], req->acq_bmp);
+}
+
 static void mdw_rsc_req_done(struct kref *ref)
 {
 	struct mdw_rsc_req *req =
@@ -791,7 +828,7 @@ static void mdw_rsc_req_done(struct kref *ref)
 
 	mdw_flw_debug("req(%p)\n", req);
 
-	list_del(&req->r_item);
+	mdw_rsc_req_delete(req);
 	complete(&req->complt);
 
 	if (req->cb_async)
@@ -898,18 +935,24 @@ int mdw_rsc_get_dev(struct mdw_rsc_req *req)
 	if (req->mode == MDW_DEV_INFO_GET_MODE_TRY) {
 		if (!get_total)
 			ret = -ENODEV;
+		mutex_unlock(&rsc_mgr.mtx);
 		goto out;
 	}
 
 	if (req->acq_bmp) {
 		/* add to rsc list */
 		req->in_list = true;
-		list_add_tail(&req->r_item, &rsc_mgr.r_list);
+		mdw_rsc_req_add(req);
 		/* wait if sync mode */
 		if (req->mode == MDW_DEV_INFO_GET_MODE_SYNC) {
 			mutex_unlock(&rsc_mgr.mtx);
-			wait_for_completion_interruptible(&req->complt);
+			ret = wait_for_completion_interruptible(&req->complt);
 			mutex_lock(&rsc_mgr.mtx);
+			if (ret) {
+				mdw_drv_warn("wait sync completion(%d)\n", ret);
+				mdw_rsc_req_delete(req);
+				goto fail_wait_sync;
+			}
 		}
 		if (req->mode == MDW_DEV_INFO_GET_MODE_ASYNC)
 			ret = -EAGAIN;
@@ -919,18 +962,20 @@ int mdw_rsc_get_dev(struct mdw_rsc_req *req)
 			req->cb_async(req);
 	}
 
+	mutex_unlock(&rsc_mgr.mtx);
 	goto out;
 
+fail_wait_sync:
 fail_first_get:
 fail_check_num:
 fail_get_tab:
+	mutex_unlock(&rsc_mgr.mtx);
 	list_for_each_safe(list_ptr, tmp, &req->d_list) {
 		d = list_entry(list_ptr, struct mdw_dev_info, r_item);
 		list_del(&d->r_item);
 		mdw_rsc_put_dev(d);
 	}
 out:
-	mutex_unlock(&rsc_mgr.mtx);
 	mdw_rsc_update_avl_bmp(type);
 	return ret;
 }

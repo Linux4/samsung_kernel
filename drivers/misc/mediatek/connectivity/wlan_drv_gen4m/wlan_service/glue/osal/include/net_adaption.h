@@ -1139,6 +1139,7 @@ struct test_wlan_info {
 
 };
 
+#define READ_CR_NUM_MAX 100
 /* Test control register read/write for service */
 struct test_register {
 	u_int32 cr_addr;
