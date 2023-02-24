@@ -3820,7 +3820,6 @@ static int decon_set_win_config(struct decon_device *decon,
 			win_data->config[decon->dt.wb_win].acq_fence = readback_fence;
 			if (readback_fence < 0)
 				goto err_prepare;
-			fd_install(readback_fence, sync_ofile->file);
 			regs->readback.fence = dma_fence_get(sync_ofile->fence);
 		}
 #else
@@ -3848,8 +3847,15 @@ static int decon_set_win_config(struct decon_device *decon,
 	dpu_prepare_win_update_config(decon, win_data, regs);
 
 	ret = decon_prepare_win_config(decon, win_data, regs);
-	if (ret)
+	if (ret) {
 		goto err_prepare;
+	}
+#if defined(CONFIG_EXYNOS_SUPPORT_READBACK)
+	else {
+		if ((readback_req) && (readback_fence >= 0))
+			fd_install(readback_fence, sync_ofile->file);
+	}
+#endif
 
 	/*
 	 * If dpu_prepare_win_update_config returns error, prev_up_region is
