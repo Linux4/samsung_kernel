@@ -1,0 +1,55 @@
+/*
+ * Copyright (C) 2013 Spreadtrum Communication Incorporated
+ *		http://www.spreadtrum.com/
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@f00 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a7";
+			reg = <0xf00>;
+		};
+
+		cpu@f01 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a7";
+			reg = <0xf01>;
+		};
+	};
+
+	gpu {
+		compatible  = "sprd,mali-utgard";
+		mali_pp_core_number = <1>;
+		interrupt-names = "mali_gp_irq",
+				"mali_gp_mmu_irq",
+				"mali_pp0_irq",
+				"mali_pp0_mmu_irq";
+		reg-names = "mali_l2",
+				"mali_gp",
+				"mali_gp_mmu",
+				"mali_pp0",
+				"mali_pp0_mmu",
+				"mali_pmu";
+		interrupts =  <0 39 0x0>,  //  MALI_GP_IRQ,
+					<0 39 0x0>,  //  MALI_GP_MMU_IRQ,
+					<0 39 0x0>,  //  MALI_PP0_IRQ,
+					<0 39 0x0>;  //  MALI_PP0_MMU_IRQ,
+		reg = <0x60001000 0x200>,//  MALI_L2,MALI_GPU_RESOURCE_L2(base_addr + 0x1000)
+			<0x60000000 0x100>,//  MALI_GP,
+			<0x60003000 0x100>,//  MALI_GP_MMU,
+			<0x60008000 0x1100>,//  MALI_PP0,
+			<0x60004000 0x100>,//  MALI_PP0_MMU,
+			<0x60002000 0x100>;//  MALI_PMU,
+		clock-names = "clk_gpu_axi","clk_gpu","clk_153m6","clk_208m","clk_256m","clk_312m","clk_384m","clk_460m8";
+		clocks = <&clk_gpu_axi>,<&clk_gpu>,<&clk_153m6>,<&clk_208m>,<&clk_256m>,<&clk_312m>,<&clk_384m>,<&clk_460m8>;
+	};
+};
+

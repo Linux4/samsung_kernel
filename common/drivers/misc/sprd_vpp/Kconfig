@@ -1,0 +1,7 @@
+# to add sprd vsp configs in the future
+#config SPRD_VPP
+#	tristate "SPRD VPP driver"
+#	depends on ARCH_SCX35
+#	default y
+
+source "drivers/misc/sprd_vpp/sprd_deint/Kconfig"

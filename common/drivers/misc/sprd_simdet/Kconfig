@@ -1,0 +1,4 @@
+
+config SPRD_SIMDET
+	tristate "SPRD SIM CARD DETECT Driver"
+	default n

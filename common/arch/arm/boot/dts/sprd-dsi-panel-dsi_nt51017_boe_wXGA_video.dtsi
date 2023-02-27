@@ -1,0 +1,94 @@
+&gen_panel {
+	dsi_nt51017_boe_wXGA_vid: gen-panel-nt51017-boe-wXGA-video {
+		gen-panel-manu = "BOE";		/* condensed manufacturer name */
+		gen-panel-name = "nt51017";
+		gen-panel-id = <0x3>;
+		gen-panel-dev-id = <0>;		/* SPRDFB_MAINLCD_ID : MAIN 0, SUB 1 */
+		gen-panel-type = <2>;		/* LCD_MODE_DSI: MCU 0, RGB 1, DSI 2 */
+		gen-panel-refresh = <60>;
+		gen-panel-xres = <800>;
+		gen-panel-yres = <1280>;
+		gen-panel-width= <129>;		/* screen width in mm */
+		gen-panel-height = <206>;	/* screen height in mm */
+		gen-panel-work-mode = <1>;	/* SPRDFB_MIPI_MODE_VIDEO : CMD 0, VIDEO 1*/
+		gen-panel-direction = <0>;	/* LCD_DIRECT_NORMAL : Normal 0, ROT90 1, ROT180 2, ROT270 3 */
+		gen-panel-suspend-mode = <1>;	/* SEND_SLEEP_CMD : RST 0, SLEEP 1 */
+		gen-panel-bus-width = <24>;
+		gen-panel-lanes = <4>;
+		gen-panel-phy-feq = <481000>;
+		gen-panel-h-sync-pol = <0>;	/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-v-sync-pol = <0>;	/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-de-pol = <0>;		/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-te-pol = <0>;		/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-color-mode-pol = <1>;	/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-shut-down-pol = <1>;	/*SPRDFB_POLARITY_POS : POS 0, NEG 1 */
+		gen-panel-h-front-porch = <80>;/* hfp */
+		gen-panel-h-back-porch = <80>;	/* hbp */
+		gen-panel-h-sync-width = <1>;	/* hsync */
+		gen-panel-v-front-porch = <18>;	/* vfp */
+		gen-panel-v-back-porch = <23>;	/* vbp */
+		gen-panel-v-sync-width = <1>;	/* vsync */
+		gen-panel-no-reset-pin;
+		/*
+		 * DSI PACKET HEADER INFO
+		 * @ delay(msec) : 2byte
+		 * @ size of data : 2byte
+		 */
+		gen-panel-pkt-dinfo-addr-offset = <0>;
+		gen-panel-pkt-dinfo-addr-length = <1>;
+		gen-panel-pkt-dinfo-data-offset = <1>;
+		gen-panel-pkt-dinfo-data-length = <1>;
+
+		gen-panel-init-cmds = [
+			15 00 00 00 00 02		83 96
+			15 00 00 00 00 02		84 69
+			15 00 00 00 00 02		92 19
+			15 00 00 00 00 02		95 00
+			15 00 00 00 00 02		83 00
+			15 00 00 00 00 02		84 00
+			15 00 00 00 00 02		90 77
+			15 00 00 00 00 02		94 FF
+			15 00 00 00 00 02		96 FF
+			15 00 00 00 00 02		91 BD
+			15 00 00 00 00 02		90 77
+		];
+
+		gen-panel-disable-cmds = [
+			15 00 00 A0 00 02		10 00
+		];
+
+		gen-panel-backlight-on-cmds = [
+			15 00 00 00 00 02		83 00
+			15 00 00 00 00 02		84 00
+			15 00 00 00 00 02		96 80
+			15 00 00 00 00 02		83 96
+			15 00 00 00 00 02		84 69
+			15 00 00 00 00 02		9B FF
+			15 00 00 00 00 02		9C FF
+			15 00 00 00 00 02		9D FF
+			15 00 00 00 00 02		9E FF
+			15 00 00 00 00 02		93 00
+			15 00 00 00 00 02		83 00
+			15 00 00 00 00 02		84 00
+		];
+
+		gen-panel-backlight-set-brightness-cmds = [
+			15 00 00 00 00 02		F5 A0
+		];
+
+		gen-panel-read-id = [
+			08 00 01
+		];
+		gen-panel-read-status-reg = [0A];
+		gen-panel-read-status-ok = [9A];
+		status = "okay";
+		gen-panel-temp-compensation {
+			temp-compensation-0 {
+				old-data = [90 77];
+				new-data = [90 7F];
+				trig-type = <0>;	/* 0 : TEMPERATURE_LOW, 1 : TEMPERATURE_HIGH */
+				temperature = <273>;	/* Absolute Temperature (Celsius + 273) */
+			};
+		};
+	};
+};
