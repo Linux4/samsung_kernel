@@ -67,7 +67,7 @@ int sensor_cis_check_model_id(struct v4l2_subdev *subdev);
 
 u32 sensor_cis_calc_again_code(u32 permile);
 u32 sensor_cis_calc_again_permile(u32 code);
-
+u8 sensor_cis_get_duration_shifter(struct is_cis *cis, u32 input_duration);
 u32 sensor_cis_calc_dgain_code(u32 permile);
 u32 sensor_cis_calc_dgain_permile(u32 code);
 

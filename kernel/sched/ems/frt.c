@@ -307,6 +307,7 @@ put_node:
 /*****************************************************************************/
 /*				SELECT WAKEUP CPU			     */
 /*****************************************************************************/
+static void heavy_tasks_tracking(void);
 void frt_update_available_cpus(struct rq *rq)
 {
 	struct frt_dom *dom, *prev_idle_dom = NULL;
@@ -318,6 +319,8 @@ void frt_update_available_cpus(struct rq *rq)
 
 	if (!raw_spin_trylock_irqsave(&frt_lock, flags))
 		return;
+
+	heavy_tasks_tracking();
 
 	cpumask_copy(&mask, cpu_active_mask);
 	list_for_each_entry_reverse(dom, &frt_list, list) {
@@ -396,33 +399,149 @@ static int find_idle_cpu(struct task_struct *task)
 		}
 
 		if (cpu_selected(best_cpu)) {
-			trace_frt_select_task_rq(task, best_cpu, "IDLE-FIRST");
+			trace_frt_select_task_rq(task, best_cpu, &candidate_cpus,
+					emstune_cpus_allowed(task), "IDLE-FIRST");
 			return best_cpu;
 		}
 
 		dom = dom->next;
 	} while (dom != prefer_dom);
 
+	trace_frt_select_task_rq(task, best_cpu, &candidate_cpus,
+			emstune_cpus_allowed(task), "fail_idlecpu");
+
 	return best_cpu;
 }
 
+#define TRACK_TASK_COUNT		5
+s64 heavy_task_util[VENDOR_NR_CPUS];
+static void update_heavy_util(struct task_struct *p, u64 thr, u64 *max)
+{
+	u64 util = ml_task_util(p);
+
+	if (util > thr && util > *max) {
+		*max = util;
+		trace_frt_find_heavy_task(task_cpu(p), p, util);
+	}
+}
+
+static void heavy_tasks_tracking(void)
+{
+	struct task_struct *p;
+	unsigned long flags;
+	int cpu;
+
+	for_each_cpu(cpu, cpu_active_mask) {
+		struct rq *rq = cpu_rq(cpu);
+		s64 thr, max_util = 0;
+		int task_count = 0;
+#ifndef CONFIG_FAIR_GROUP_SCHED
+		struct sched_entity *se;
+#endif
+		if (cpumask_test_cpu(cpu, cpu_coregroup_mask(0)))
+			continue;
+
+		raw_spin_lock_irqsave(&rq->lock, flags);
+
+		if (!rq->cfs.curr)
+			goto unlock;
+
+		thr = capacity_cpu(cpu) >> 1;
+
+#ifndef CONFIG_FAIR_GROUP_SCHED
+		se = rq->cfs.curr;
+		se = get_task_entity(se);
+
+		p = container_of(se, struct task_struct, se);
+		update_heavy_util(p, thr, &max_util);
+
+		se = __pick_first_entity(cfs_rq_of(se));
+		while (se && task_count < TRACK_TASK_COUNT) {
+			if (!entity_is_task(se))
+				goto next_entity;
+
+			p = container_of(se, struct task_struct, se);
+			update_heavy_util(p, thr, &max_util);
+
+next_entity:
+			se = __pick_next_entity(se);
+			task_count++;
+		}
+#else
+		list_for_each_entry(p, &rq->cfs_tasks, se.group_node) {
+			update_heavy_util(p, thr, &max_util);
+
+			if (task_count++ >= TRACK_TASK_COUNT)
+				break;
+		}
+#endif
+
+unlock:
+		heavy_task_util[cpu] = max_util;
+		raw_spin_unlock_irqrestore(&rq->lock, flags);
+	}
+}
+
+static void find_heavy_task_cpu(int cpu, s64 *max_util, int *heavy_cpu)
+{
+	s64 util = heavy_task_util[cpu];
+	if (util > *max_util) {
+		*max_util = util;
+		*heavy_cpu = cpu;
+		trace_frt_find_heavy_cpu(cpu, util);
+	}
+}
+
+#define FIND_MIN_UTIL	0
+#define FIND_MAX_SPARE	1
+static void find_best_recessive_cpu(int cpu, struct task_struct *task,
+				s64 *best_val, int *best_cpu, int *backup_cpu,
+				s64 *max_util, int *heavy_cpu, int type)
+{
+	s64 cpu_val = ml_cpu_util(cpu);
+	s64 cpu_cap = capacity_cpu(cpu);
+
+	if (type == FIND_MIN_UTIL) {
+		if (cpu_val > *best_val)
+			return;
+	} else {
+		find_heavy_task_cpu(cpu, max_util, heavy_cpu);
+		cpu_val = min(cpu_val, cpu_cap);
+		cpu_cap -= cpu_val;
+		if (cpu_cap < *best_val)
+			return;
+		cpu_val = cpu_cap;
+	}
+
+	if ((cpu_val == *best_val) && !(task_cpu(task) == cpu))
+		return;
+
+	if (cpu_selected(*best_cpu))
+		*backup_cpu = *best_cpu;
+
+	*best_val = cpu_val;
+	*best_cpu = cpu;
+}
+
+extern int emstune_cur_level;
 extern DEFINE_PER_CPU(cpumask_var_t, local_cpu_mask);
 static int find_recessive_cpu(struct task_struct *task)
 {
-	int cpu, best_cpu = -1;
-	u64 cpu_util, min_util= ULLONG_MAX;
+	int cpu, backup_cpu = -1, heavy_cpu = -1, best_cpu = -1;
 	struct cpumask *lowest_mask;
 	struct cpumask candidate_cpus;
 	struct frt_dom *dom, *prefer_dom;
+	int type = emstune_cur_level == 2 ? FIND_MAX_SPARE : FIND_MIN_UTIL;
+	s64 best_val = emstune_cur_level == 2 ? LONG_MIN : LONG_MAX;
+	s64 max_util = LONG_MIN;
 
 	/* Make sure the mask is initialized first */
 	lowest_mask = this_cpu_cpumask_var_ptr(local_cpu_mask);
+	cpupri_find(&task_rq(task)->rd->cpupri, task, lowest_mask);
 	if (unlikely(!lowest_mask)) {
-		trace_frt_select_task_rq(task, best_cpu, "NA LOWESTMSK");
+		trace_frt_select_task_rq(task, best_cpu, NULL, NULL, "NA LOWESTMSK");
 		return best_cpu;
 	}
-	/* update the per-cpu local_cpu_mask (lowest_mask) */
-	cpupri_find(&task_rq(task)->rd->cpupri, task, lowest_mask);
 	cpumask_and(&candidate_cpus, lowest_mask, cpu_active_mask);
 	cpumask_and(&candidate_cpus, &candidate_cpus, get_available_cpus());
 	cpumask_and(&candidate_cpus, &candidate_cpus, emstune_cpus_allowed(task));
@@ -435,23 +554,28 @@ static int find_recessive_cpu(struct task_struct *task)
 			if (!ecs_cpu_available(cpu, task))
 				continue;
 
-			cpu_util = frt_cpu_util(cpu);
-
-			if (cpu_util < min_util ||
-				(cpu_util == min_util && task_cpu(task) == cpu)) {
-				min_util = cpu_util;
-				best_cpu = cpu;
-			}
+			find_best_recessive_cpu(cpu, task, &best_val, &best_cpu,
+					&backup_cpu, &max_util, &heavy_cpu, type);
 		}
 
+		if (type == FIND_MAX_SPARE && dom->next != prefer_dom)
+			goto next_dom;
+
+		if (heavy_cpu == best_cpu && cpu_selected(backup_cpu))
+			best_cpu = backup_cpu;
+
 		if (cpu_selected(best_cpu)) {
-			trace_frt_select_task_rq(task, best_cpu,
+			trace_frt_select_task_rq(task, best_cpu, &candidate_cpus,
+				(const struct cpumask *)lowest_mask,
 				rt_task(cpu_rq(best_cpu)->curr) ? "RT-RECESS" : "FAIR-RECESS");
 			return best_cpu;
 		}
-
+next_dom:
 		dom = dom->next;
 	} while (dom != prefer_dom);
+
+	trace_frt_select_task_rq(task, best_cpu, &candidate_cpus,
+			(const struct cpumask *)lowest_mask, "fail_recess");
 
 	return best_cpu;
 }
@@ -460,13 +584,16 @@ int frt_find_lowest_rq(struct task_struct *task)
 {
 	int best_cpu = -1;
 
+	trace_frt_select_task_rq(task, best_cpu, NULL, get_available_cpus(), "start");
 	if (task->nr_cpus_allowed == 1) {
-		trace_frt_select_task_rq(task, best_cpu, "NA ALLOWED");
+		trace_frt_select_task_rq(task, best_cpu, NULL, NULL, "NA ALLOWED");
 		return best_cpu;
 	}
 
-	if (!rt_task(task))
+	if (!rt_task(task)) {
+		trace_frt_select_task_rq(task, best_cpu, NULL, NULL, "NOT RT TASK");
 		return best_cpu;
+	}
 	/*
 	 * Fluid Sched Core selection procedure:
 	 *
@@ -485,11 +612,12 @@ int frt_find_lowest_rq(struct task_struct *task)
 		goto out;
 
 out:
-	if (!cpu_selected(best_cpu))
-		best_cpu = task_rq(task)->cpu;
+	if (!cpu_selected(best_cpu)) {
+ 		best_cpu = task_rq(task)->cpu;
+	}
 
 	if (!cpumask_test_cpu(best_cpu, cpu_active_mask)) {
-		trace_frt_select_task_rq(task, best_cpu, "NOTHING_VALID");
+		trace_frt_select_task_rq(task, best_cpu, NULL, NULL, "NOTHING_VALID");
 		best_cpu = -1;
 	}
 

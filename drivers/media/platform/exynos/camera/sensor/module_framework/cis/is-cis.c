@@ -378,6 +378,27 @@ u32 sensor_cis_calc_dgain_permile(u32 code)
 }
 EXPORT_SYMBOL_GPL(sensor_cis_calc_dgain_permile);
 
+u8 sensor_cis_get_duration_shifter(struct is_cis *cis, u32 input_duration)
+{
+	u8 shifter = 0;
+	u32 shifted_val = input_duration;
+	u64 max_duration_16bit = (u64)0xFF00 * 1000000 * cis->cis_data->line_length_pck / cis->cis_data->pclk;
+
+	if (input_duration > max_duration_16bit) {
+		shifted_val /=  max_duration_16bit;
+		while (shifted_val) {
+			shifted_val >>= 1;
+			shifter++;
+		}
+	}
+
+	dbg_sensor(1, "%s [%d] input_duration(%d), max_duration(%d), shifter(%d)\n",
+		__func__, cis->id, input_duration, max_duration_16bit, shifter);
+
+	return shifter;
+}
+EXPORT_SYMBOL_GPL(sensor_cis_get_duration_shifter);
+
 int sensor_cis_compensate_gain_for_extremely_br(struct v4l2_subdev *subdev, u32 expo, u32 *again, u32 *dgain)
 {
 	int ret = 0;

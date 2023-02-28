@@ -854,6 +854,7 @@ struct mfc_platdata {
 	unsigned int core_balance;
 	unsigned int iova_threshold;
 	unsigned int idle_clk_ctrl;
+	unsigned int enc_timing_dis;
 };
 
 struct mfc_core_platdata {
@@ -1189,6 +1190,8 @@ struct mfc_dev {
 	int num_inst;
 	int num_otf_inst;
 	int num_drm_inst;
+	int num_dec_inst;
+	int num_enc_inst;
 
 	unsigned long otf_inst_bits;
 	unsigned long multi_core_inst_bits;
@@ -1201,6 +1204,7 @@ struct mfc_dev {
 	int move_ctx_cnt;
 	struct list_head ctx_list;
 	spinlock_t ctx_list_lock;
+	unsigned int core_balance;
 
 	atomic_t queued_bits;
 	spinlock_t idle_bits_lock;
