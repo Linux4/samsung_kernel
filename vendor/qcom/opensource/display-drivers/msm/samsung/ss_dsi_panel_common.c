@@ -1349,59 +1349,6 @@ set_out_div:
 }
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
-static void ss_lfd_touch_work(struct work_struct *work)
-{
-	struct lfd_info *lfd = container_of(work, struct lfd_info, lfd_touch_work);
-	struct vrr_info *vrr = container_of(lfd, struct vrr_info, lfd);
-	struct samsung_display_driver_data *vdd = container_of(vrr,
-				struct samsung_display_driver_data, vrr);
-
-	ss_brightness_dcs(vdd, USE_CURRENT_BL_LEVEL, BACKLIGHT_NORMAL);
-}
-static int ss_lfd_touch_notify_cb(struct notifier_block *nb,
-				unsigned long val, void *v)
-{
-	struct lfd_info *lfd;
-	struct samsung_display_driver_data *vdd;
-	struct lfd_mngr *mngr;
-	enum sec_input_notify_t event = (enum sec_input_notify_t)val;
-	struct sec_input_notify_data *tsp_ndx = v;
-
-
-	if (event != NOTIFIER_LCD_VRR_LFD_LOCK_REQUEST &&
-		event != NOTIFIER_LCD_VRR_LFD_LOCK_RELEASE)
-		goto done;
-
-	vdd = ss_get_vdd(tsp_ndx->dual_policy);
-	if (!vdd->vrr.lfd.support_lfd) {
-		LCD_DEBUG(vdd, "not support lfd\n");
-		goto done;
-	}
-
-	lfd = &vdd->vrr.lfd;
-	mngr = &lfd->lfd_mngr[LFD_CLIENT_INPUT];
-
-	if (event == NOTIFIER_LCD_VRR_LFD_LOCK_REQUEST) {
-		mngr->scalability[LFD_SCOPE_NORMAL] = LFD_FUNC_SCALABILITY2; /* div=2*/
-		LCD_INFO(vdd, "touch: control LFD\n");
-		if (ss_is_panel_on(vdd))
-			queue_work(lfd->lfd_touch_wq, &lfd->lfd_touch_work);
-		else
-			LCD_INFO(vdd, "panel is not normal on(%d), delay applying\n",
-					vdd->panel_state);
-	} else if (event == NOTIFIER_LCD_VRR_LFD_LOCK_RELEASE) {
-		mngr->scalability[LFD_SCOPE_NORMAL] = LFD_FUNC_SCALABILITY0;
-		LCD_INFO(vdd, "touch LFD release LFD\n");
-		if (ss_is_panel_on(vdd))
-			queue_work(lfd->lfd_touch_wq, &lfd->lfd_touch_work);
-		else
-			LCD_INFO(vdd, "panel is not normal on(%d), delay applying\n",
-					vdd->panel_state);
-	}
-done:
-	return NOTIFY_DONE;
-}
-
 static int ss_esd_touch_notifier_cb(struct notifier_block *nb,
 				unsigned long val, void *v)
 {
@@ -3890,7 +3837,7 @@ void ss_panel_recovery(struct samsung_display_driver_data *vdd)
 		return;
 	}
 	LCD_INFO(vdd, "Panel Recovery, Trial Count = %d\n", vdd->panel_recovery_cnt++);
-	SS_XLOG(vdd->panel_recovery_cnt);
+	SS_XLOG(vdd->ndx, vdd->panel_recovery_cnt);
 	inc_dpui_u32_field(DPUI_KEY_QCT_RCV_CNT, 1);
 
 	esd_irq_enable(false, true, (void *)vdd, ESD_MASK_DEFAULT);
@@ -8150,19 +8097,6 @@ void ss_panel_init(struct dsi_panel *panel)
 	/* register notifier and init workQ.
 	 * TODO: move hall_ic_notifier_display and dyn_mipi_clk notifier here.
 	 */
-	if (vdd->vrr.lfd.support_lfd) {
-		vdd->vrr.lfd.nb_lfd_touch.priority = 3;
-		vdd->vrr.lfd.nb_lfd_touch.notifier_call = ss_lfd_touch_notify_cb;
-		sec_input_register_notify(&vdd->vrr.lfd.nb_lfd_touch, ss_lfd_touch_notify_cb, 3);
-
-		vdd->vrr.lfd.lfd_touch_wq = create_singlethread_workqueue("lfd_touch_wq");
-		if (!vdd->vrr.lfd.lfd_touch_wq) {
-			LCD_ERR(vdd, "failed to create touch_lfd workqueue..\n");
-			return;
-		}
-		INIT_WORK(&vdd->vrr.lfd.lfd_touch_work, ss_lfd_touch_work);
-	}
-
 	if (vdd->esd_touch_notify) {
 		vdd->nb_esd_touch.priority = 3;
 		vdd->nb_esd_touch.notifier_call = ss_esd_touch_notifier_cb;

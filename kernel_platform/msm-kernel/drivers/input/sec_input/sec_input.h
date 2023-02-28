@@ -27,6 +27,7 @@
 #include <linux/io.h>
 #include <linux/irq.h>
 #include <linux/kernel.h>
+#include <linux/limits.h>
 #include <linux/module.h>
 #include <linux/of_gpio.h>
 #include <linux/platform_device.h>
@@ -726,6 +727,7 @@ struct sec_ts_plat_data {
 	u8 wirelesscharger_mode;
 	bool force_wirelesscharger_mode;
 	int wet_mode;
+	int low_sensitivity_mode;
 
 	bool regulator_boot_on;
 	bool support_mt_pressure;

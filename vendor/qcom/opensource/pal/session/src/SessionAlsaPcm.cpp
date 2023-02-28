@@ -1868,15 +1868,8 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct pal_buffer *buf, int * size
         data = buf->buffer;
         data = static_cast<char *>(data) + offset;
         sizeWritten = out_buf_size;  //initialize 0
-        if (pcm && (mState == SESSION_FLUSHED)) {
-            status = pcm_start(pcm);
-            if (status) {
-                status = errno;
-                PAL_ERR(LOG_TAG, "pcm_start failed %d", status);
-                goto exit;
-            }
-            mState = SESSION_STARTED;
-        } else if (!pcm) {
+
+        if (!pcm) {
             PAL_ERR(LOG_TAG, "pcm is NULL");
             status = -EINVAL;
             goto exit;
@@ -1907,15 +1900,8 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct pal_buffer *buf, int * size
     offset = bytesWritten + buf->offset;
     sizeWritten = bytesRemaining;
     data = buf->buffer;
-    if (pcm && (mState == SESSION_FLUSHED)) {
-        status = pcm_start(pcm);
-        if (status) {
-            status = errno;
-            PAL_ERR(LOG_TAG, "pcm_start failed %d", status);
-            goto exit;
-        }
-        mState = SESSION_STARTED;
-    } else if (!pcm) {
+
+    if (!pcm) {
         PAL_ERR(LOG_TAG, "pcm is NULL");
         status = -EINVAL;
         goto exit;
@@ -2641,20 +2627,22 @@ int SessionAlsaPcm::drain(pal_drain_type_t type __unused)
 int SessionAlsaPcm::flush()
 {
     int status = 0;
+    int doFlush = 1;
+    struct mixer_ctl *ctl = NULL;
+    std::string stream = "PCM";
+    std::string flushControl = "flush";
+    std::ostringstream flushCntrlName;
 
-    if (!pcm) {
-        PAL_ERR(LOG_TAG, "Pcm is invalid");
-        return -EINVAL;
-    }
     PAL_VERBOSE(LOG_TAG, "Enter flush\n");
-    if (pcm && isActive()) {
-        status = pcm_stop(pcm);
+    if (pcmDevIds.size() > 0)
+        flushCntrlName << stream << pcmDevIds.at(0) << " " << flushControl;
 
-        if (!status)
-            mState = SESSION_FLUSHED;
-        else
-            status = errno;
+    ctl = mixer_get_ctl_by_name(mixer, flushCntrlName.str().data());
+    if (!ctl) {
+        PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", flushCntrlName.str().data());
+        return -ENOENT;
     }
+    mixer_ctl_set_value(ctl, 0, doFlush);
 
     PAL_VERBOSE(LOG_TAG, "status %d\n", status);
 

@@ -1407,6 +1407,7 @@ void Bluetooth::stopAbr()
     struct mixer_ctl *btSetFeedbackChannelCtrl = NULL;
     struct mixer *hwMixerHandle = NULL;
     int dir, ret = 0;
+    bool isfbDeviceLocked = false;
 
     mAbrMutex.lock();
     if (!fbPcm) {
@@ -1422,7 +1423,7 @@ void Bluetooth::stopAbr()
     }
 
     if (--abrRefCnt > 0) {
-        PAL_DBG(LOG_TAG, "abrRefCnt is %d", abrRefCnt);
+        PAL_INFO(LOG_TAG, "abrRefCnt is %d", abrRefCnt);
         mAbrMutex.unlock();
         return;
     }
@@ -1431,6 +1432,10 @@ void Bluetooth::stopAbr()
     sAttr.type = PAL_STREAM_LOW_LATENCY;
     sAttr.direction = PAL_AUDIO_INPUT_OUTPUT;
 
+    if (fbDev) {
+        fbDev->lockDeviceMutex();
+        isfbDeviceLocked = true;
+    }
     pcm_stop(fbPcm);
     pcm_close(fbPcm);
 
@@ -1480,7 +1485,18 @@ free_fe:
         rm->freeFrontEndIds(fbpcmDevIds, sAttr, dir);
         fbpcmDevIds.clear();
     }
-    isAbrEnabled = false;
+
+    /* Check for deviceStartStopCount, to avoid false reset of isAbrEnabled flag in
+     * case of BLE playback path stops during ongoing capture session
+     */
+    if (deviceStartStopCount == 1) {
+        isAbrEnabled = false;
+    }
+
+    if (isfbDeviceLocked) {
+        isfbDeviceLocked = false;
+        fbDev->unlockDeviceMutex();
+    }
     mAbrMutex.unlock();
 }
 
@@ -2046,30 +2062,27 @@ int BtA2dp::start()
 
     status = (a2dpRole == SOURCE) ? startPlayback() : startCapture();
     if (status) {
-        isAbrEnabled = false;
         goto exit;
     }
 
     if (totalActiveSessionRequests == 1) {
         status = configureSlimbusClockSrc();
         if (status) {
-            isAbrEnabled = false;
             goto exit;
         }
     }
 
     status = Device::start_l();
 
-    if (!status && isAbrEnabled)
-        startAbr();
-
-exit:
     if (customPayload) {
         free(customPayload);
         customPayload = NULL;
         customPayloadSize = 0;
     }
 
+    if (!status && isAbrEnabled)
+        startAbr();
+exit:
     mDeviceMutex.unlock();
     return status;
 }
@@ -2077,8 +2090,8 @@ exit:
 int BtA2dp::stop()
 {
     int status = 0;
-    mDeviceMutex.lock();
 
+    mDeviceMutex.lock();
     if (isAbrEnabled)
         stopAbr();
 

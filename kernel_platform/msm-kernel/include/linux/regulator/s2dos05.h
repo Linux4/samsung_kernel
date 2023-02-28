@@ -194,6 +194,9 @@ enum S2DOS05_regulators {
 #define CURRENT_MODE			0x00
 #define POWER_MODE			0x10
 #define RAWCURRENT_MODE			0x20
+#define FAULT_STATUS1		0x67	/* S2DOS05 SCP */
+#define FAULT_STATUS2		0x68
+#define INT_STATUS1			0xB8	/* SM3080 SCP */
 #define SMPNUM_MASK			0x0F
 
 #define S2DOS05_MAX_ADC_CHANNEL		8

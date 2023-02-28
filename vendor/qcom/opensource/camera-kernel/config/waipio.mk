@@ -16,6 +16,7 @@ CONFIG_USE_CAMERA_HW_BIG_DATA := y
 CONFIG_SAMSUNG_FRONT_EEPROM := y
 CONFIG_CAMERA_ADAPTIVE_MIPI := y
 CONFIG_CAMERA_SKIP_SECURE_PAGE_FAULT := y
+CONFIG_CAMERA_HYPERLAPSE_300X := y
 endif
 
 ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),gts8 gts8p gts8u gts8wifi gts8pwifi gts8uwifi))
@@ -97,6 +98,7 @@ ccflags-y += -DCONFIG_SAMSUNG_REAR_TRIPLE=1
 ccflags-y += -DCONFIG_USE_CAMERA_HW_BIG_DATA=1
 ccflags-y += -DCONFIG_CAMERA_ADAPTIVE_MIPI=1
 ccflags-y += -DCONFIG_CAMERA_SKIP_SECURE_PAGE_FAULT=1
+ccflags-y += -DCONFIG_CAMERA_HYPERLAPSE_300X=1
 endif
 
 ifeq ($(PROJECT_NAME), $(filter $(PROJECT_NAME),gts8 gts8p gts8u gts8wifi gts8pwifi gts8uwifi))

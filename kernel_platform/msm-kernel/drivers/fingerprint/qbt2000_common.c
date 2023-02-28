@@ -32,13 +32,13 @@ struct ipc_msg_type_to_fw_event g_msg_to_event[] = {
 	{IPC_MSG_ID_FINGER_OFF_SENSOR, FW_EVENT_FINGER_UP},
 };
 
-static ssize_t qbt2000_vendor_show(struct device *dev,
+static ssize_t vendor_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%s\n", VENDOR);
 }
 
-static ssize_t qbt2000_name_show(struct device *dev,
+static ssize_t name_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	struct qbt2000_drvdata *drvdata = dev_get_drvdata(dev);
@@ -46,13 +46,13 @@ static ssize_t qbt2000_name_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%s\n", drvdata->chipid);
 }
 
-static ssize_t qbt2000_adm_show(struct device *dev,
+static ssize_t adm_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "%d\n", DETECT_ADM);
 }
 
-static ssize_t qbt2000_bfs_values_show(struct device *dev,
+static ssize_t bfs_values_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	struct qbt2000_drvdata *drvdata = dev_get_drvdata(dev);
@@ -61,7 +61,7 @@ static ssize_t qbt2000_bfs_values_show(struct device *dev,
 			drvdata->clk_setting->spi_speed);
 }
 
-static ssize_t qbt2000_type_check_show(struct device *dev,
+static ssize_t type_check_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	struct qbt2000_drvdata *drvdata = dev_get_drvdata(dev);
@@ -70,7 +70,7 @@ static ssize_t qbt2000_type_check_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", drvdata->sensortype);
 }
 
-static ssize_t qbt2000_position_show(struct device *dev,
+static ssize_t position_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	struct qbt2000_drvdata *drvdata = dev_get_drvdata(dev);
@@ -78,7 +78,7 @@ static ssize_t qbt2000_position_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%s\n", drvdata->sensor_position);
 }
 
-static ssize_t qbt2000_cbgecnt_show(struct device *dev,
+static ssize_t cbgecnt_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	struct qbt2000_drvdata *drvdata = dev_get_drvdata(dev);
@@ -86,7 +86,7 @@ static ssize_t qbt2000_cbgecnt_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", drvdata->cbge_count);
 }
 
-static ssize_t qbt2000_cbgecnt_store(struct device *dev,
+static ssize_t cbgecnt_store(struct device *dev,
 				struct device_attribute *attr, const char *buf,
 				size_t size)
 {
@@ -122,7 +122,7 @@ static ssize_t qbt2000_cbgecnt_store(struct device *dev,
 	return size;
 }
 
-static ssize_t qbt2000_intcnt_show(struct device *dev,
+static ssize_t intcnt_show(struct device *dev,
 			       struct device_attribute *attr, char *buf)
 {
 	struct qbt2000_drvdata *drvdata = dev_get_drvdata(dev);
@@ -130,7 +130,7 @@ static ssize_t qbt2000_intcnt_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", drvdata->wuhb_count);
 }
 
-static ssize_t qbt2000_intcnt_store(struct device *dev,
+static ssize_t intcnt_store(struct device *dev,
 				struct device_attribute *attr, const char *buf,
 				size_t size)
 {
@@ -143,7 +143,7 @@ static ssize_t qbt2000_intcnt_store(struct device *dev,
 	return size;
 }
 
-static ssize_t qbt2000_resetcnt_show(struct device *dev,
+static ssize_t resetcnt_show(struct device *dev,
 			       struct device_attribute *attr, char *buf)
 {
 	struct qbt2000_drvdata *drvdata = dev_get_drvdata(dev);
@@ -151,7 +151,7 @@ static ssize_t qbt2000_resetcnt_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", drvdata->reset_count);
 }
 
-static ssize_t qbt2000_resetcnt_store(struct device *dev,
+static ssize_t resetcnt_store(struct device *dev,
 				struct device_attribute *attr, const char *buf,
 				size_t size)
 {
@@ -164,7 +164,7 @@ static ssize_t qbt2000_resetcnt_store(struct device *dev,
 	return size;
 }
 
-static ssize_t qbt2000_wuhbtest_show(struct device *dev,
+static ssize_t wuhbtest_show(struct device *dev,
 			       struct device_attribute *attr, char *buf)
 {
 	struct qbt2000_drvdata *drvdata = dev_get_drvdata(dev);
@@ -183,16 +183,16 @@ static ssize_t qbt2000_wuhbtest_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", rc);
 }
 
-static DEVICE_ATTR(bfs_values, 0444, qbt2000_bfs_values_show, NULL);
-static DEVICE_ATTR(type_check, 0444, qbt2000_type_check_show, NULL);
-static DEVICE_ATTR(vendor, 0444, qbt2000_vendor_show, NULL);
-static DEVICE_ATTR(name, 0444, qbt2000_name_show, NULL);
-static DEVICE_ATTR(adm, 0444, qbt2000_adm_show, NULL);
-static DEVICE_ATTR(position, 0444, qbt2000_position_show, NULL);
-static DEVICE_ATTR(cbgecnt, 0664, qbt2000_cbgecnt_show, qbt2000_cbgecnt_store);
-static DEVICE_ATTR(intcnt, 0664, qbt2000_intcnt_show, qbt2000_intcnt_store);
-static DEVICE_ATTR(resetcnt, 0664, qbt2000_resetcnt_show, qbt2000_resetcnt_store);
-static DEVICE_ATTR(wuhbtest, 0444, qbt2000_wuhbtest_show, NULL);
+static DEVICE_ATTR_RO(bfs_values);
+static DEVICE_ATTR_RO(type_check);
+static DEVICE_ATTR_RO(vendor);
+static DEVICE_ATTR_RO(name);
+static DEVICE_ATTR_RO(adm);
+static DEVICE_ATTR_RO(position);
+static DEVICE_ATTR_RW(cbgecnt);
+static DEVICE_ATTR_RW(intcnt);
+static DEVICE_ATTR_RW(resetcnt);
+static DEVICE_ATTR_RO(wuhbtest);
 
 static struct device_attribute *fp_attrs[] = {
 	&dev_attr_bfs_values,
@@ -461,7 +461,7 @@ static int qbt2000_release(struct inode *inode, struct file *file)
 	int rc = 0;
 
 	if (!file || !file->private_data) {
-		pr_err("qbt2000_release: NULL pointer passed\n");
+		pr_err("%s: NULL pointer passed\n", __func__);
 		return -EINVAL;
 	}
 	drvdata = file->private_data;
@@ -499,7 +499,7 @@ static long qbt2000_ioctl(
 	struct qbt2000_drvdata *drvdata;
 
 	if (!file || !file->private_data) {
-		pr_err("qbt2000_ioctl: NULL pointer passed\n");
+		pr_err("%s: NULL pointer passed\n", __func__);
 		return -EINVAL;
 	}
 
@@ -559,13 +559,10 @@ static long qbt2000_ioctl(
 			rc = -EFAULT;
 			goto ioctl_failed;
 		}
-		pr_info("CPU_SPEEDUP %d\n", data);
-		/*
 		if (data)
 			rc = cpu_speedup_enable(drvdata->boosting);
 		else
 			rc = cpu_speedup_disable(drvdata->boosting);
-		*/
 		break;
 	case QBT2000_SET_SENSOR_TYPE:
 		if (copy_from_user(&data, (void *)arg, sizeof(int)) != 0) {
@@ -588,11 +585,10 @@ static long qbt2000_ioctl(
 			goto ioctl_failed;
 		}
 #ifndef ENABLE_SENSORS_FPRINT_SECURE  //only for factory
-		if (data == QBT2000_SENSORTEST_DONE) {
+		if (data == QBT2000_SENSORTEST_DONE)
 			pr_info("SENSORTEST Finished\n");
-		} else {
+		else
 			pr_info("SENSORTEST Start : 0x%x\n", data);
-		}
 #endif
 		break;
 	case QBT2000_NOISE_REQUEST_STOP:
@@ -717,14 +713,12 @@ static unsigned int qbt2000_poll(struct file *filp,
 
 	if (minor_no == MINOR_NUM_FD) {
 		poll_wait(filp, &drvdata->read_wait_queue_fd, wait);
-		if (kfifo_len(&drvdata->fd_events) > 0) {
+		if (kfifo_len(&drvdata->fd_events) > 0)
 			mask |= (POLLIN | POLLRDNORM);
-		}
 	} else if (minor_no == MINOR_NUM_IPC) {
 		poll_wait(filp, &drvdata->read_wait_queue_ipc, wait);
-		if (kfifo_len(&drvdata->ipc_events) > 0) {
+		if (kfifo_len(&drvdata->ipc_events) > 0)
 			mask |= (POLLIN | POLLRDNORM);
-		}
 	} else {
 		pr_err("Invalid minor number\n");
 		return -EINVAL;
@@ -1199,7 +1193,7 @@ static int qbt2000_probe(struct platform_device *pdev)
 
 	rc = fingerprint_register(drvdata->fp_device,
 		drvdata, fp_attrs, "fingerprint");
-	if (rc ) {
+	if (rc) {
 		pr_err("sysfs register failed\n");
 		goto probe_failed_sysfs_register;
 	}
@@ -1310,10 +1304,9 @@ static int qbt2000_suspend(struct platform_device *pdev, pm_message_t state)
 	 */
 	if (!mutex_trylock(&drvdata->mutex))
 		return -EBUSY;
-	else {
-		disable_fp_debug_timer(drvdata->logger);
-		pr_info("ret = %d\n", rc);
-	}
+
+	disable_fp_debug_timer(drvdata->logger);
+	pr_info("ret = %d\n", rc);
 	mutex_unlock(&drvdata->mutex);
 
 	return 0;

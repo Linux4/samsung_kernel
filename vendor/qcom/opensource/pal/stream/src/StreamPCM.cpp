@@ -1214,7 +1214,9 @@ int32_t StreamPCM::pause_l()
         goto exit;
     }
 
-    if (currentState != STREAM_PAUSED) {
+    if (isPaused) {
+        PAL_INFO(LOG_TAG, "Stream is already paused");
+    } else {
         status = session->setConfig(this, MODULE, PAUSE_TAG);
         if (0 != status) {
            PAL_ERR(LOG_TAG, "session setConfig for pause failed with status %d",
@@ -1229,9 +1231,8 @@ int32_t StreamPCM::pause_l()
         isPaused = true;
         currentState = STREAM_PAUSED;
         PAL_DBG(LOG_TAG, "session setConfig successful");
-    } else {
-        PAL_INFO(LOG_TAG, "Stream is already paused");
     }
+
 exit:
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
@@ -1302,14 +1303,6 @@ int32_t StreamPCM::flush()
         PAL_ERR(LOG_TAG, "Already flushed, state %d", currentState);
         goto exit;
     }
-
-    mStreamMutex.unlock();
-    rm->lockActiveStream();
-    mStreamMutex.lock();
-    for (int i = 0; i < mDevices.size(); i++) {
-        rm->deregisterDevice(mDevices[i], this);
-    }
-    rm->unlockActiveStream();
 
     status = session->flush();
 exit:

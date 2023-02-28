@@ -4142,12 +4142,15 @@ StreamOutPrimary::StreamOutPrimary(
             AHAL_ERR("Error usb device is not connected");
             free(dynamic_media_config);
             free(device_cap_query_);
-            goto error;
+            dynamic_media_config = NULL;
+            device_cap_query_ = NULL;
         }
         if (!config->sample_rate || !config->format || !config->channel_mask) {
-            config->sample_rate = dynamic_media_config->sample_rate[0];
-            config->channel_mask = (audio_channel_mask_t) dynamic_media_config->mask[0];
-            config->format = (audio_format_t)dynamic_media_config->format[0];
+            if (dynamic_media_config) {
+                config->sample_rate = dynamic_media_config->sample_rate[0];
+                config->channel_mask = (audio_channel_mask_t) dynamic_media_config->mask[0];
+                config->format = (audio_format_t)dynamic_media_config->format[0];
+            }
             if (config->sample_rate == 0)
                 config->sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
             if (config->channel_mask == AUDIO_CHANNEL_NONE)
@@ -4268,7 +4271,6 @@ StreamOutPrimary::StreamOutPrimary(
     }
 #endif
 
-    (void)FillHalFnPtrs();
     mInitialized = true;
     for(auto dev : mAndroidOutDevices)
         audio_extn_gef_notify_device_config(dev, config_.channel_mask,
@@ -4286,6 +4288,7 @@ StreamOutPrimary::StreamOutPrimary(
 #endif
 
 error:
+    (void)FillHalFnPtrs();
     AHAL_DBG("Exit");
     return;
 }
@@ -4843,7 +4846,12 @@ int StreamInPrimary::SetParameters(const char* kvpairs) {
     struct str_parms *parms = (str_parms *)NULL;
     int ret = 0;
 
-    AHAL_DBG("enter: kvpairs=%s", kvpairs);
+#ifdef SEC_AUDIO_DUMP 
+    AHAL_DBG("enter: kvpairs: %s", kvpairs);
+#else
+    AHAL_DBG("enter");
+#endif
+
     if(!mInitialized)
         goto exit;
 
@@ -5557,16 +5565,19 @@ StreamInPrimary::StreamInPrimary(audio_io_handle_t handle,
             AHAL_ERR("Error usb device is not connected");
             free(dynamic_media_config);
             free(device_cap_query_);
-            goto error;
+            dynamic_media_config = NULL;
+            device_cap_query_ = NULL;
         }
-        AHAL_DBG("usb fs=%d format=%d mask=%x",
-            dynamic_media_config->sample_rate[0],
-            dynamic_media_config->format[0], dynamic_media_config->mask[0]);
-        if (!config->sample_rate) {
-            config->sample_rate = dynamic_media_config->sample_rate[0];
-            config->channel_mask = (audio_channel_mask_t) dynamic_media_config->mask[0];
-            config->format = (audio_format_t)dynamic_media_config->format[0];
-            memcpy(&config_, config, sizeof(struct audio_config));
+        if (dynamic_media_config) {
+            AHAL_DBG("usb fs=%d format=%d mask=%x",
+                dynamic_media_config->sample_rate[0],
+                dynamic_media_config->format[0], dynamic_media_config->mask[0]);
+            if (!config->sample_rate) {
+                config->sample_rate = dynamic_media_config->sample_rate[0];
+                config->channel_mask = (audio_channel_mask_t) dynamic_media_config->mask[0];
+                config->format = (audio_format_t)dynamic_media_config->format[0];
+                memcpy(&config_, config, sizeof(struct audio_config));
+            }
         }
     }
 
@@ -5694,9 +5705,9 @@ StreamInPrimary::StreamInPrimary(audio_io_handle_t handle,
         stream_.get()->create_mmap_buffer = astream_in_create_mmap_buffer;
         stream_.get()->get_mmap_position = astream_in_get_mmap_position;
     }
-    (void)FillHalFnPtrs();
     mInitialized = true;
 error:
+    (void)FillHalFnPtrs();
     AHAL_DBG("Exit");
     return;
 }

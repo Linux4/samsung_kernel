@@ -58,6 +58,26 @@ Optional properties:
  - qcom,skip-disable-before-sw-enable : Presence denotes a hardware requirement
 					to leave the GDSC on that has been
 					enabled by an entity external to HLOS.
+ - qcom,collapse-vote : If present, GDSC will be controlled by votable register.
+			Some targets have single votable register to control GDSC,
+			but there could be targets where separate votable registers
+			to control the GDSCs individually for active and sleep states.
+ - sw-reset : If present, supports asynchronous resets for GDSC. We need to pass
+			the phandles of reset registers while using the property.
+ - domain-addr : If present, supports reset for voltage rail of GDSC. We pass
+			the phandle of the register while using the property.
+ - hw-ctrl-addr : If present, separate register will be there to poll for GDSC
+			status. While using the property, need to pass the phandle
+			of the register.
+ - no-config-gdscr : Presence denotes HW only supports a single register
+			per GDSC.
+ - qcom,clk-ctrl: If present, few clocks will be enabled/disabled before the GDSC
+			enable/disable. This property can contain a 2D array of 4
+			arguments in each row, each row represents one of the clocks.First
+			element in row would be a phandle to the clock controller node
+			that contains the clk to be controlled, second would be offset
+			address of the clk, third would be bit number to control the
+			clk, fourth would be to convey if clk enable is inverted or not.
 
 Example:
 	gdsc_oxili_gx: qcom,gdsc@fd8c4024 {
@@ -66,4 +86,35 @@ Example:
 		parent-supply = <&pm8841_s4>;
 		reg = <0xfd8c4024 0x4>;
 		clock-names = "core_clk";
+	};
+
+	/* Single votable register */
+	gcc_pcie_0_gdsc: qcom,gdsc@17b004 {
+		compatible = "qcom,gdsc";
+		regulator-name = "gcc_pcie_0_gdsc";
+		qcom,collapse-vote = <&active_ctrl 0>;
+	};
+
+	/* Multiple votable registers */
+	gcc_pcie_1_gdsc: qcom,gdsc@19d004 {
+		compatible = "qcom,gdsc";
+		regulator-name = "gcc_pcie_1_gdsc";
+		qcom,collapse-vote = <&active_ctrl &sleep_ctrl 1>;
+	};
+
+	/* GDSC clock control */
+	gpu_cc_cx_gdsc: qcom,gdsc@3d99108 {
+		compatible = "qcom,gdsc";
+		reg = <0x3d99108 0x4>;
+		regulator-name = "gpu_cc_cx_gdsc";
+		qcom,clk-ctrl = <&gpucc 0x9130 22 1>;
+	};
+
+	/* GDSC multiple clocks control */
+	gpu_cc_cx_gdsc: qcom,gdsc@3d99108 {
+		compatible = "qcom,gdsc";
+		reg = <0x3d99108 0x4>;
+		regulator-name = "gpu_cc_cx_gdsc";
+		qcom,clk-ctrl = <&gpucc 0x9130 22 1>,
+				<&gcc 0x81018 0 0>;
 	};
