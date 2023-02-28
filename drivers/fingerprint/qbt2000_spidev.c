@@ -60,7 +60,7 @@ struct qbtspi_data {
 
 	/* TX/RX buffers are NULL unless this device is open (users > 0) */
 	struct mutex		buf_lock;
-	unsigned		users;
+	unsigned int		users;
 	u8			*tx_buffer;
 	u8			*rx_buffer;
 	u32			speed_hz;
@@ -70,7 +70,7 @@ static LIST_HEAD(device_list);
 static DEFINE_MUTEX(device_list_lock);
 static unsigned int bufsiz = 1024 * 256;
 
-module_param(bufsiz, uint, S_IRUGO);
+module_param(bufsiz, uint, 0444);
 MODULE_PARM_DESC(bufsiz, "data bytes in biggest supported SPI message");
 
 /*-------------------------------------------------------------------------*/
@@ -184,13 +184,13 @@ qbtspi_write(struct file *filp, const char __user *buf,
 }
 
 static int qbtspi_message(struct qbtspi_data *spidev,
-		struct spi_ioc_transfer *u_xfers, unsigned n_xfers)
+		struct spi_ioc_transfer *u_xfers, unsigned int n_xfers)
 {
 	struct spi_message	msg;
 	struct spi_transfer	*k_xfers;
 	struct spi_transfer	*k_tmp;
 	struct spi_ioc_transfer *u_tmp;
-	unsigned		n, total, tx_total, rx_total;
+	unsigned int n, total, tx_total, rx_total;
 	u8			*tx_buf, *rx_buf;
 	int			status = -EFAULT;
 
@@ -285,7 +285,7 @@ done:
 
 static struct spi_ioc_transfer *
 qbtspi_get_ioc_message(unsigned int cmd, struct spi_ioc_transfer __user *u_ioc,
-		unsigned *n_ioc)
+		unsigned int *n_ioc)
 {
 	u32	tmp;
 
@@ -310,11 +310,11 @@ static long
 qbtspi_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	int			retval = 0;
-	struct qbtspi_data	*spidev;
-	struct spi_device	*spi;
-	u32			tmp;
-	unsigned		n_ioc;
-	struct spi_ioc_transfer	*ioc;
+	struct qbtspi_data *spidev;
+	struct spi_device *spi;
+	u32 tmp;
+	unsigned int n_ioc;
+	struct spi_ioc_transfer *ioc;
 
 	/* Check type and command number */
 	if (_IOC_TYPE(cmd) != SPI_IOC_MAGIC)
@@ -431,7 +431,7 @@ qbtspi_compat_ioc_message(struct file *filp, unsigned int cmd,
 	int				retval = 0;
 	struct qbtspi_data		*spidev;
 	struct spi_device		*spi;
-	unsigned			n_ioc, n;
+	unsigned int			n_ioc, n;
 	struct spi_ioc_transfer		*ioc;
 
 	u_ioc = (struct spi_ioc_transfer __user *) compat_ptr(arg);

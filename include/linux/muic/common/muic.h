@@ -87,6 +87,11 @@ enum {
 	CH_MODE_AFC_DISABLE_VAL = 0x31, /* char '1' */
 };
 
+enum driver_probe_flag {
+	MUIC_PROBE_DONE = 1 << 0,
+	CHARGER_PROBE_DONE = 1 << 1,
+};
+
 /* MUIC ADC table */
 typedef enum {
 	ADC_GND			= 0x00,
@@ -331,6 +336,8 @@ struct muic_platform_data {
 	int adc;
 
 	bool is_factory_start;
+
+	unsigned long driver_probe_flag;
 
 	/* muic switch dev register function for DockObserver */
 	void (*init_switch_dev_cb) (void);

@@ -905,19 +905,19 @@ int is_vender_dt(struct device_node *np)
 
 	ret = of_property_read_u32(np, "rear2_sensor_id", &rear2_sensor_id);
 	if (ret)
-		probe_err("rear2_sensor_id read is fail(%d)", ret);
+		probe_info("no rear2_sensor_id(%d)\n", ret);
 
 	ret = of_property_read_u32(np, "front2_sensor_id", &front2_sensor_id);
 	if (ret)
-		probe_err("front2_sensor_id read is fail(%d)", ret);
+		probe_info("no front2_sensor_id(%d)\n", ret);
 
 	ret = of_property_read_u32(np, "rear3_sensor_id", &rear3_sensor_id);
 	if (ret)
-		probe_err("rear3_sensor_id read is fail(%d)", ret);
+		probe_info("no rear3_sensor_id(%d)\n", ret);
 
 	ret = of_property_read_u32(np, "rear4_sensor_id", &rear4_sensor_id);
 	if (ret)
-		probe_err("rear4_sensor_id read is fail(%d)", ret);
+		probe_info("no rear4_sensor_id(%d)\n", ret);
 
 #ifdef SECURE_CAMERA_IRIS
 	ret = of_property_read_u32(np, "secure_sensor_id", &secure_sensor_id);
@@ -928,23 +928,23 @@ int is_vender_dt(struct device_node *np)
 #endif
 	ret = of_property_read_u32(np, "rear_tof_sensor_id", &rear_tof_sensor_id);
 	if (ret)
-		probe_err("rear_tof_sensor_id read is fail(%d)", ret);
+		probe_info("no rear_tof_sensor_id(%d)\n", ret);
 
 	ret = of_property_read_u32(np, "front_tof_sensor_id", &front_tof_sensor_id);
 	if (ret)
-		probe_err("front_tof_sensor_id read is fail(%d)", ret);
+		probe_info("no front_tof_sensor_id(%d)\n", ret);
 
 	ret = of_property_read_u32(np, "ois_sensor_index", &ois_sensor_index);
 	if (ret)
-		probe_err("ois_sensor_index read is fail(%d)", ret);
+		probe_info("no ois_sensor_index(%d)\n", ret);
 
 	ret = of_property_read_u32(np, "mcu_sensor_index", &mcu_sensor_index);
 	if (ret)
-		probe_err("mcu_sensor_index read is fail(%d)", ret);
+		probe_info("no mcu_sensor_index(%d)\n", ret);
 
 	ret = of_property_read_u32(np, "aperture_sensor_index", &aperture_sensor_index);
 	if (ret)
-		probe_err("aperture_sensor_index read is fail(%d)", ret);
+		probe_info("no aperture_sensor_index(%d)\n", ret);
 
 	check_sensor_vendor = of_property_read_bool(np, "check_sensor_vendor");
 	if (!check_sensor_vendor) {
@@ -958,7 +958,7 @@ int is_vender_dt(struct device_node *np)
 
 	use_ois_hsi2c = of_property_read_bool(np, "use_ois_hsi2c");
 	if (!use_ois_hsi2c) {
-		probe_err("use_ois_hsi2c not use(%d)", use_ois_hsi2c);
+		probe_info("use_ois_hsi2c not use(%d)\n", use_ois_hsi2c);
 	}
 #endif
 
