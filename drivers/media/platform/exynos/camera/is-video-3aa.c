@@ -872,18 +872,36 @@ static int is_3aa_video_s_ext_ctrl(struct file *file, void *priv,
 			head->intent_ctl.captureIntent = info.captureIntent;
 			head->intent_ctl.vendor_captureCount = info.captureCount;
 			head->intent_ctl.vendor_captureEV = info.captureEV;
-			memcpy(&(head->intent_ctl.vendor_multiFrameEvList), &(info.captureMultiEVList),
-				EV_LIST_SIZE);
-
-			if (info.captureIntent == AA_CAPTURE_INTENT_STILL_CAPTURE_OIS_MULTI
-				|| info.captureIntent == AA_CAPTURE_INTENT_STILL_CAPTURE_GALAXY_RAW_DYNAMIC_SHOT) {
-				head->remainIntentCount = 2 + INTENT_RETRY_CNT;
-			} else {
-				head->remainIntentCount = 0 + INTENT_RETRY_CNT;
+			if (info.captureIso) {
+				head->intent_ctl.vendor_isoValue = info.captureIso;
 			}
+			if (info.captureAeExtraMode) {
+				head->intent_ctl.vendor_aeExtraMode = info.captureAeExtraMode;
+			}
+			if (info.captureAeMode) {
+				head->intent_ctl.aeMode = info.captureAeMode;
+			}
+			memcpy(&(head->intent_ctl.vendor_multiFrameEvList), &(info.captureMultiEVList),
+				sizeof(info.captureMultiEVList));
+			memcpy(&(head->intent_ctl.vendor_multiFrameIsoList), &(info.captureMultiIsoList),
+				sizeof(info.captureMultiIsoList));
+			memcpy(&(head->intent_ctl.vendor_multiFrameExposureList), &(info.CaptureMultiExposureList),
+				sizeof(info.CaptureMultiExposureList));
 
-			mginfo("s_ext_ctrl SET_CAPTURE_INTENT_INFO, intent(%d) count(%d) captureEV(%d) remainIntentCount(%d)\n",
-				head, head, info.captureIntent, info.captureCount, info.captureEV, head->remainIntentCount);
+			switch (info.captureIntent) {
+			case AA_CAPTURE_INTENT_STILL_CAPTURE_OIS_MULTI:
+			case AA_CAPTURE_INTENT_STILL_CAPTURE_GALAXY_RAW_DYNAMIC_SHOT:
+			case AA_CAPTURE_INTENT_STILL_CAPTURE_ASTRO_SHOT:
+				head->remainIntentCount = 2 + INTENT_RETRY_CNT;
+				break;
+			default:
+				head->remainIntentCount = 0 + INTENT_RETRY_CNT;
+				break;
+			}
+			mginfo("s_ext_ctrl SET_CAPTURE_INTENT_INFO, intent(%d) count(%d) captureEV(%d) captureIso(%d)"
+				"captureAeExtraMode(%d) captureAeMode(%d) remainIntentCount(%d)\n",
+				head, head, info.captureIntent, info.captureCount, info.captureEV, info.captureIso,
+				info.captureAeExtraMode, info.captureAeMode, head->remainIntentCount);
 			break;
 		}
 		default:

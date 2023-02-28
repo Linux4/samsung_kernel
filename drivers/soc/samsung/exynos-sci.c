@@ -54,10 +54,17 @@ static void print_sci_data(struct exynos_sci_data *data)
 	SCI_DBG("CPU minimum region: %u\n", data->cpu_min_region);
 }
 
+static void exynos_ecc_int_en(void);
+
 static irqreturn_t exynos_sci_handler(int irq, void *data)
 {
 	llc_ecc_logging();
-	return 0;
+
+	pr_err("SCI uncorrectable error (irqnum: %d)\n", irq);
+	disable_irq_nosync(irq);
+	dbg_snapshot_expire_watchdog();
+
+	return IRQ_HANDLED;
 }
 
 static void set_llc_gov_en(int enable)
@@ -864,31 +871,29 @@ static void print_register(int offset, int ecc, int shift)
 
 static void get_llcecc_info(int offset, int shift)
 {
-	int reg, ecc;
+	int reg;
 
 	reg = __raw_readl(sci_data->sci_base + offset);
-
-	ecc = SCI_BIT_GET(reg, ERR_MASK, shift);
-	if (ecc == 0)
-		SCI_INFO("There is not ECC error\n");
-	else
-		print_register(offset, ecc, shift);
+	print_register(offset, reg, shift);
 }
 
 void llc_ecc_logging(void)
 {
-
 	unsigned long flags;
 
 	spin_lock_irqsave(&sci_data->lock, flags);
-	if (sci_data->llc_ecc_flag)
-		goto out;
 
 	get_llcecc_info(UcErrMiscInfo, UEMI_SHIFT);
 	get_llcecc_info(UcErrOverrunMiscInfo, UEOMI_SHIFT);
+	get_llcecc_info(CorrErrSource0, 0);
+	get_llcecc_info(CorrErrSource1, 0);
+	get_llcecc_info(CorrErrMiscInfo, 0);
+	get_llcecc_info(CorrErrAddrLow, 0);
+	get_llcecc_info(CorrErrAddrHigh, 0);
+	get_llcecc_info(CorrErrOverrunSource0, 0);
+	get_llcecc_info(CorrErrOverrunSource1, 0);
+	get_llcecc_info(CorrErrOverrunMiscInfo, 0);
 
-	sci_data->llc_ecc_flag = true;
-out:
 	spin_unlock_irqrestore(&sci_data->lock, flags);
 }
 EXPORT_SYMBOL(llc_ecc_logging);

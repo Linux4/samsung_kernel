@@ -49,6 +49,7 @@ static struct dm_band_info *search_dynamic_freq_idx(struct panel_device *panel, 
 		if ((min >= 0) && (max <= 0)) {
 			panel_info("Found adap_freq idx: %d, osc: %d\n",
 					band_info->freq_idx, band_info->ddi_osc);
+
 			return band_info;
 		}
 	}
@@ -359,6 +360,34 @@ exit_parse:
 	return 0;
 }
 
+static int parse_skip_frame_count(struct device_node *node, struct dynamic_mipi_info *dm)
+{
+	u32 skip_cnt = 0;
+	struct dm_status_info *dm_status = NULL;
+
+	if (!dm) {
+		panel_err("MCD:DM:dm is null\n");
+		goto exit_parse;
+	}
+
+	dm_status = &dm->dm_status;
+	dm_status->skip_frame_cnt = 0;
+	atomic_set(&dm_status->frame_cnt, 0);
+
+	if (of_property_read_u32(node, "dynamic_mipi_skip_frame", &skip_cnt)) {
+		panel_err("MCD:DM: skip frame count was not defined, set to 0\n");
+		goto exit_parse;
+	}
+
+	dm_status->skip_frame_cnt = skip_cnt;
+	atomic_set(&dm_status->frame_cnt, skip_cnt);
+	panel_info("MCD:DM: skip frame count : %d\n", skip_cnt);
+
+exit_parse:
+	return 0;
+}
+
+
 
 static int parse_dynamic_mipi_dt(struct panel_device *panel)
 {
@@ -379,6 +408,12 @@ static int parse_dynamic_mipi_dt(struct panel_device *panel)
 		node = of_parse_phandle(dev->of_node, "ddi_info", 0);
 	}
 
+	ret = parse_skip_frame_count(node, dm);
+	if (ret) {
+		panel_err("MCD:DM:failed to parse skip frame count\n");
+		goto exit_parse;
+	}
+
 	ret = parse_dynamic_mipi_freq(node, dm);
 	if (ret) {
 		panel_err("MCD:DM:failed to get mipi freq table\n");
@@ -396,6 +431,8 @@ static int parse_dynamic_mipi_dt(struct panel_device *panel)
 		panel_err("MCD:DM:failed to get ffc off command\n");
 		goto exit_parse;
 	}
+
+
 
 exit_parse:
 	return ret;

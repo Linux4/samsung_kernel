@@ -365,8 +365,7 @@ static ssize_t dualscreen_policy_store(struct device *dev,
 	if (value == FLIP_STATUS_MAIN) {
 		sec_cmd_virtual_tsp_write_sysfs(dual_sec, PATH_MAIN_SEC_SYSFS_DUALSCREEN_POLICY, buf);
 		sec_cmd_virtual_tsp_write_sysfs(dual_sec, PATH_SUB_SEC_SYSFS_DUALSCREEN_POLICY, buf);
-	} else if (value == FLIP_STATUS_SUB)
-		sec_cmd_virtual_tsp_write_sysfs(dual_sec, PATH_SUB_SEC_SYSFS_DUALSCREEN_POLICY, buf);
+	}
 
 	input_info(true, dual_sec->fac_dev, "%s: value=%d %s\n", __func__, value,
 			 flip_status ? "close" : "open");
