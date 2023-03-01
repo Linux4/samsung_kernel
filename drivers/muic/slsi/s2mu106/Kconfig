@@ -1,0 +1,28 @@
+config MUIC_S2MU106
+	bool "Using S2MU106 MUIC"
+	depends on USE_MUIC && MFD_S2MU106
+	default n
+	help
+	  If you say yes here you will get support for the S2MU106 MUIC chip.
+
+config HV_MUIC_S2MU106_AFC
+	bool "Using S2MU106 MUIC AFC"
+	depends on MUIC_HV && MUIC_S2MU106
+	default n
+	help
+	  If you say yes here you will get support for the AFC.
+
+config MUIC_S2MU106_RID
+	bool "Using S2MU106 MUIC RID"
+	depends on MUIC_S2MU106
+	default n
+	help
+	  If you say yes here you will get support for the S2MU106 MUIC RID functions.
+
+config S2MU106_TYPEC_WATER
+	bool "Using S2MU106 Type-C Water Detection"
+	depends on MUIC_S2MU106_RID
+	default n
+	help
+	  If you say yes here you will get support for
+	  the S2MU106 Type-C Water functions.
