@@ -1,0 +1,6 @@
+# kalama_sec_userdebug_defconfig
+CONFIG_SEC_FORCE_ERR=y
+
+CONFIG_SEC_GPIO_DVS=m
+
+CONFIG_USB_PHY_TUNING_QCOM=y

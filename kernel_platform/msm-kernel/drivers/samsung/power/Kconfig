@@ -1,0 +1,10 @@
+config SEC_EXT_THERMAL_MONITOR
+	tristate "Samsung external thermal monitor"
+	help
+	  This enables external thermal monitor to get hint whether if there's
+	  external cause or not.
+
+config SEC_PM_LOG
+	tristate "Samsung Power/Thermal Log driver"
+	help
+	  TODO: help is not ready.
