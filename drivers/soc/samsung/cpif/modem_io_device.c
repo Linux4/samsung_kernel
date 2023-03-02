@@ -637,33 +637,6 @@ static int io_dev_recv_net_skb_from_link_dev(struct io_device *iod,
 	return rx_multi_pdp(skb);
 }
 
-/* inform the IO device that the modem is now online or offline or
- * crashing or whatever...
- */
-static void io_dev_modem_state_changed(struct io_device *iod,
-				       enum modem_state state)
-{
-	struct modem_ctl *mc = iod->mc;
-	enum modem_state old_state = mc->phone_state;
-
-	if (state == old_state)
-		goto exit;
-
-	mc->phone_state = state;
-	mif_err("%s->state changed (%s -> %s)\n", mc->name,
-		cp_state_str(old_state), cp_state_str(state));
-
-exit:
-	if (state == STATE_CRASH_RESET
-	    || state == STATE_CRASH_EXIT
-	    || state == STATE_NV_REBUILDING
-	    || state == STATE_CRASH_WATCHDOG
-	    || state == STATE_OFFLINE) {
-		if (atomic_read(&iod->opened) > 0)
-			wake_up(&iod->wq);
-	}
-}
-
 static void io_dev_sim_state_changed(struct io_device *iod, bool sim_online)
 {
 	if (atomic_read(&iod->opened) == 0) {
@@ -812,8 +785,6 @@ int sipc5_init_io_device(struct io_device *iod)
 	else
 		iod->link_header = true;
 
-	/* Get modem state from modem control device */
-	iod->modem_state_changed = io_dev_modem_state_changed;
 	iod->sim_state_changed = io_dev_sim_state_changed;
 
 	/* Get data from link device */

@@ -523,6 +523,16 @@ static void print_sensordata(struct ssp_data *data, unsigned int uSensor)
 			data->buf[uSensor].sar_backoff_motion_event,
 			get_msdelay(data->adDelayBuf[uSensor]));
 		break;
+	case POCKET_POSITION_SENSOR:
+		ssp_dbg("[SSP] %u : %d %d %d %d %d %d (%ums)\n", uSensor,
+			data->buf[uSensor].total_state,
+			data->buf[uSensor].position_state,
+			data->buf[uSensor].position_case,
+			data->buf[uSensor].pedo_state,
+			data->buf[uSensor].pedo_case,
+			data->buf[uSensor].version,
+			get_msdelay(data->adDelayBuf[uSensor]));
+		break;
 	case BULK_SENSOR:
 	case GPS_SENSOR:
 		break;

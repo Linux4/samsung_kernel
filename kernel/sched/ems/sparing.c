@@ -140,7 +140,9 @@ static struct ecs_mode* ecs_get_mode(void)
 
 static int ecs_update_spared_cpus(struct ecs_mode *target_mode)
 {
-	spin_lock(&ecs_lock);
+	unsigned long flags;
+
+	spin_lock_irqsave(&ecs_lock, flags);
 
 	if (!ecs_gov.enabled)
 		goto unlock;
@@ -149,7 +151,7 @@ static int ecs_update_spared_cpus(struct ecs_mode *target_mode)
 	cpumask_copy(&ecs_gov.cpus, &target_mode->cpus);
 
 unlock:
-	spin_unlock(&ecs_lock);
+	spin_unlock_irqrestore(&ecs_lock, flags);
 
 	return 0;
 }
@@ -301,8 +303,9 @@ ecs_mode_show(mode_enabled, enabled);
 static int ecs_set_enable(bool enable)
 {
 	struct ecs_mode *base_mode = ecs_get_base_mode();
+	unsigned long flags;
 
-	spin_lock(&ecs_lock);
+	spin_lock_irqsave(&ecs_lock, flags);
 
 	if (enable == ecs_gov.enabled)
 		goto unlock;
@@ -312,7 +315,7 @@ static int ecs_set_enable(bool enable)
 	cpumask_copy(&ecs_gov.cpus, &base_mode->cpus);
 
 unlock:
-	spin_unlock(&ecs_lock);
+	spin_unlock_irqrestore(&ecs_lock, flags);
 
 	return 0;
 }

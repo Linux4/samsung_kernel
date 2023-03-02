@@ -78,7 +78,7 @@ int test_show_clock(void)
 	min_clock = gpex_clock_get_min_clock();
 	max_clock = gpex_clock_get_max_clock();
 
-	gpex_clock_set(min_clock, TYPE_IGNORE, current->comm, current->pid);
+	gpex_clock_set(min_clock);
 
 	test_helper_reset_test_buf();
 	show_clock_sysfs_device(NULL, NULL, test_buf);
@@ -92,7 +92,7 @@ int test_show_clock(void)
 	if (clock_read != min_clock)
 		CLOCK_SYSFS_TEST_FAIL_LOG_AND_RETURN(-1);
 
-	gpex_clock_set(max_clock, TYPE_IGNORE, current->comm, current->pid);
+	gpex_clock_set(max_clock);
 
 	test_helper_reset_test_buf();
 	show_clock_sysfs_device(NULL, NULL, test_buf);
@@ -106,7 +106,7 @@ int test_show_clock(void)
 	if (clock_read != max_clock)
 		CLOCK_SYSFS_TEST_FAIL_LOG_AND_RETURN(-1);
 
-	gpex_clock_set(min_clock, TYPE_IGNORE, current->comm, current->pid);
+	gpex_clock_set(min_clock);
 
 	return 0;
 }
@@ -122,7 +122,7 @@ int test_set_clock(void)
 	min_clock = gpex_clock_get_min_clock();
 	max_clock = gpex_clock_get_max_clock();
 
-	gpex_clock_set(min_clock, TYPE_IGNORE, current->comm, current->pid);
+	gpex_clock_set(min_clock);
 
 	snprintf(clock_str, sizeof(clock_str), "%d", max_clock);
 	set_clock_sysfs_device(NULL, NULL, clock_str, 0);
@@ -134,7 +134,7 @@ int test_set_clock(void)
 	if (min_clock != gpex_clock_get_clock_slow())
 		CLOCK_SYSFS_TEST_FAIL_LOG_AND_RETURN(-1);
 
-	gpex_clock_set(min_clock, TYPE_IGNORE, current->comm, current->pid);
+	gpex_clock_set(min_clock);
 
 	/* TODO: add test for set_clock to 0, which enables DVFS again */
 	//set_clock_sysfs_device(NULL, NULL, "0", 1);

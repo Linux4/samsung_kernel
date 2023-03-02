@@ -44,6 +44,7 @@
 #include "link_device.h"
 #include "modem_dump.h"
 #include "link_ctrlmsg_iosm.h"
+#include "modem_ctrl.h"
 #ifdef CONFIG_LINK_DEVICE_PCIE
 #include "s51xx_pcie.h"
 #endif
@@ -234,19 +235,6 @@ static inline void purge_txq(struct mem_link_device *mld)
 
 #ifdef GROUP_MEM_CP_CRASH
 
-static void set_modem_state(struct mem_link_device *mld, enum modem_state state)
-{
-	struct link_device *ld = &mld->link_dev;
-	struct modem_ctl *mc = ld->mc;
-	unsigned long flags;
-	struct io_device *iod;
-
-	spin_lock_irqsave(&mc->lock, flags);
-	list_for_each_entry(iod, &mc->modem_state_notify_list, list)
-		iod->modem_state_changed(iod, state);
-	spin_unlock_irqrestore(&mc->lock, flags);
-}
-
 static void shmem_handle_cp_crash(struct mem_link_device *mld,
 		enum modem_state state)
 {
@@ -282,7 +270,7 @@ static void shmem_handle_cp_crash(struct mem_link_device *mld,
 	}
 
 	if (cp_online(mc) || cp_booting(mc))
-		set_modem_state(mld, state);
+		change_modem_state(mc, state);
 
 	atomic_set(&mld->forced_cp_crash, 0);
 }

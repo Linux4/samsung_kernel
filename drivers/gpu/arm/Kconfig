@@ -24,8 +24,8 @@ menuconfig MALI_DDK_VERSION
 choice
 	prompt "version Configuration"
 	depends on MALI_DDK_VERSION
-	default MALI_DDK_VALHALL_R32P1 if $(PLATFORM_VERSION) >= 11
-	default MALI_VALHALL_R20P0 if $(PLATFORM_VERSION) < 11
+	default MALI_DDK_VALHALL_R32P1 if $(SEC_BUILD_CONF_VENDOR_BUILD_OS) <= 12
+	default MALI_DDK_VALHALL_R38P1 if $(SEC_BUILD_CONF_VENDOR_BUILD_OS) >= 13
 	help
 	  Select the gpu support version.
 
@@ -48,6 +48,9 @@ config MALI_VALHALL_R25P1
 config MALI_DDK_VALHALL_R32P1
 	bool "Valhall r32p1 driver"
 
+config MALI_DDK_VALHALL_R38P1
+	bool "Valhall r38p1 driver"
+
 endchoice
 
 if MALI_VALHALL_R17P0
@@ -68,6 +71,10 @@ endif
 
 if MALI_DDK_VALHALL_R32P1
 source "drivers/gpu/arm/bv_r32p1/Kconfig"
+endif
+
+if MALI_DDK_VALHALL_R38P1
+source "drivers/gpu/arm/bv_r38p1/Kconfig"
 endif
 
 endmenu

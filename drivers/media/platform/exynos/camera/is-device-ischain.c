@@ -5626,17 +5626,46 @@ static int is_ischain_paf_shot(struct is_device_ischain *device,
 		captureIntent = group->intent_ctl.captureIntent;
 
 		if (captureIntent != AA_CAPTURE_INTENT_CUSTOM) {
-			frame->shot->ctl.aa.captureIntent = captureIntent;
-			frame->shot->ctl.aa.vendor_captureCount = group->intent_ctl.vendor_captureCount;
-			frame->shot->ctl.aa.vendor_captureExposureTime = group->intent_ctl.vendor_captureExposureTime;
-			frame->shot->ctl.aa.vendor_captureEV = group->intent_ctl.vendor_captureEV;
 			if (group->remainIntentCount > 0) {
+				frame->shot->ctl.aa.captureIntent = captureIntent;
+				frame->shot->ctl.aa.vendor_captureCount = group->intent_ctl.vendor_captureCount;
+				frame->shot->ctl.aa.vendor_captureExposureTime = group->intent_ctl.vendor_captureExposureTime;
+				frame->shot->ctl.aa.vendor_captureEV = group->intent_ctl.vendor_captureEV;
+				if (group->intent_ctl.vendor_isoValue) {
+					frame->shot->ctl.aa.vendor_isoMode = AA_ISOMODE_MANUAL;
+					frame->shot->ctl.aa.vendor_isoValue = group->intent_ctl.vendor_isoValue;
+					frame->shot->ctl.sensor.sensitivity = frame->shot->ctl.aa.vendor_isoValue;
+				}
+				if (group->intent_ctl.vendor_aeExtraMode) {
+					frame->shot->ctl.aa.vendor_aeExtraMode = group->intent_ctl.vendor_aeExtraMode;
+				}
+				if (group->intent_ctl.aeMode) {
+					frame->shot->ctl.aa.aeMode = group->intent_ctl.aeMode;
+				}
+				memcpy(&(frame->shot->ctl.aa.vendor_multiFrameEvList),
+					&(group->intent_ctl.vendor_multiFrameEvList),
+					sizeof(group->intent_ctl.vendor_multiFrameEvList));
+				memcpy(&(frame->shot->ctl.aa.vendor_multiFrameIsoList),
+					&(group->intent_ctl.vendor_multiFrameIsoList),
+					sizeof(group->intent_ctl.vendor_multiFrameIsoList));
+				memcpy(&(frame->shot->ctl.aa.vendor_multiFrameExposureList),
+					&(group->intent_ctl.vendor_multiFrameExposureList),
+					sizeof(group->intent_ctl.vendor_multiFrameExposureList));
 				group->remainIntentCount--;
 			} else {
 				group->intent_ctl.captureIntent = AA_CAPTURE_INTENT_CUSTOM;
 				group->intent_ctl.vendor_captureCount = 0;
 				group->intent_ctl.vendor_captureExposureTime = 0;
 				group->intent_ctl.vendor_captureEV = 0;
+				memset(&(group->intent_ctl.vendor_multiFrameEvList), 0,
+					sizeof(group->intent_ctl.vendor_multiFrameEvList));
+				memset(&(group->intent_ctl.vendor_multiFrameIsoList), 0,
+					sizeof(group->intent_ctl.vendor_multiFrameIsoList));
+				memset(&(group->intent_ctl.vendor_multiFrameExposureList), 0,
+					sizeof(group->intent_ctl.vendor_multiFrameExposureList));
+				group->intent_ctl.vendor_isoValue = 0;
+				group->intent_ctl.vendor_aeExtraMode = AA_AE_EXTRA_MODE_AUTO;
+				group->intent_ctl.aeMode = 0;
 			}
 			minfo("frame count(%d), intent(%d), count(%d), EV(%d), captureExposureTime(%d) remainIntentCount(%d)\n",
 				device, frame->fcount,
@@ -5644,12 +5673,17 @@ static int is_ischain_paf_shot(struct is_device_ischain *device,
 				frame->shot->ctl.aa.vendor_captureEV, frame->shot->ctl.aa.vendor_captureExposureTime,
 				group->remainIntentCount);
 		}
-
-		/*
-		 * Adjust the shot timeout value based on sensor exposure time control.
-		 * Exposure Time >= (SHOT_TIMEOUT - 1sec): Increase shot timeout value.
-		 */
-		if (frame->shot->ctl.aa.vendor_captureExposureTime >= ((SHOT_TIMEOUT * 1000) - 1000000)) {
+	
+		if (frame->shot->ctl.aa.sceneMode == AA_SCENE_MODE_ASTRO) {
+			resourcemgr->shot_timeout = SHOT_TIMEOUT * 10; // 30s timeout
+		} else if (frame->shot->ctl.aa.sceneMode == AA_SCENE_MODE_HYPERLAPSE
+			&& frame->shot->ctl.aa.vendor_currentHyperlapseMode == 300) {
+			resourcemgr->shot_timeout = SHOT_TIMEOUT * 5; // 15s timeout
+		} else if (frame->shot->ctl.aa.vendor_captureExposureTime >= ((SHOT_TIMEOUT * 1000) - 1000000)) {
+			/*
+			* Adjust the shot timeout value based on sensor exposure time control.
+			* Exposure Time >= (SHOT_TIMEOUT - 1sec): Increase shot timeout value.
+			*/
 			resourcemgr->shot_timeout = (frame->shot->ctl.aa.vendor_captureExposureTime / 1000) + SHOT_TIMEOUT;
 			resourcemgr->shot_timeout_tick = KEEP_FRAME_TICK_DEFAULT;
 		} else if (resourcemgr->shot_timeout_tick > 0) {
@@ -5846,17 +5880,46 @@ static int is_ischain_3aa_shot(struct is_device_ischain *device,
 		captureIntent = group->intent_ctl.captureIntent;
 
 		if (captureIntent != AA_CAPTURE_INTENT_CUSTOM) {
-			frame->shot->ctl.aa.captureIntent = captureIntent;
-			frame->shot->ctl.aa.vendor_captureCount = group->intent_ctl.vendor_captureCount;
-			frame->shot->ctl.aa.vendor_captureExposureTime = group->intent_ctl.vendor_captureExposureTime;
-			frame->shot->ctl.aa.vendor_captureEV = group->intent_ctl.vendor_captureEV;
 			if (group->remainIntentCount > 0) {
+				frame->shot->ctl.aa.captureIntent = captureIntent;
+				frame->shot->ctl.aa.vendor_captureCount = group->intent_ctl.vendor_captureCount;
+				frame->shot->ctl.aa.vendor_captureExposureTime = group->intent_ctl.vendor_captureExposureTime;
+				frame->shot->ctl.aa.vendor_captureEV = group->intent_ctl.vendor_captureEV;
+				if (group->intent_ctl.vendor_isoValue) {
+					frame->shot->ctl.aa.vendor_isoMode = AA_ISOMODE_MANUAL;
+					frame->shot->ctl.aa.vendor_isoValue = group->intent_ctl.vendor_isoValue;
+					frame->shot->ctl.sensor.sensitivity = frame->shot->ctl.aa.vendor_isoValue;
+				}
+				if (group->intent_ctl.vendor_aeExtraMode) {
+					frame->shot->ctl.aa.vendor_aeExtraMode = group->intent_ctl.vendor_aeExtraMode;
+				}
+				if (group->intent_ctl.aeMode) {
+					frame->shot->ctl.aa.aeMode = group->intent_ctl.aeMode;
+				}
+				memcpy(&(frame->shot->ctl.aa.vendor_multiFrameEvList),
+					&(group->intent_ctl.vendor_multiFrameEvList),
+					sizeof(group->intent_ctl.vendor_multiFrameEvList));
+				memcpy(&(frame->shot->ctl.aa.vendor_multiFrameIsoList),
+					&(group->intent_ctl.vendor_multiFrameIsoList),
+					sizeof(group->intent_ctl.vendor_multiFrameIsoList));
+				memcpy(&(frame->shot->ctl.aa.vendor_multiFrameExposureList),
+					&(group->intent_ctl.vendor_multiFrameExposureList),
+					sizeof(group->intent_ctl.vendor_multiFrameExposureList));
 				group->remainIntentCount--;
 			} else {
 				group->intent_ctl.captureIntent = AA_CAPTURE_INTENT_CUSTOM;
 				group->intent_ctl.vendor_captureCount = 0;
 				group->intent_ctl.vendor_captureExposureTime = 0;
 				group->intent_ctl.vendor_captureEV = 0;
+				memset(&(group->intent_ctl.vendor_multiFrameEvList), 0,
+					sizeof(group->intent_ctl.vendor_multiFrameEvList));
+				memset(&(group->intent_ctl.vendor_multiFrameIsoList), 0,
+					sizeof(group->intent_ctl.vendor_multiFrameIsoList));
+				memset(&(group->intent_ctl.vendor_multiFrameExposureList), 0,
+					sizeof(group->intent_ctl.vendor_multiFrameExposureList));
+				group->intent_ctl.vendor_isoValue = 0;
+				group->intent_ctl.vendor_aeExtraMode = AA_AE_EXTRA_MODE_AUTO;
+				group->intent_ctl.aeMode = 0;
 			}
 			minfo("frame count(%d), intent(%d), count(%d), EV(%d), captureExposureTime(%d) remainIntentCount(%d)\n",
 				device, frame->fcount,
@@ -5870,11 +5933,16 @@ static int is_ischain_3aa_shot(struct is_device_ischain *device,
 			group->lens_ctl.aperture = 0;
 		}
 
-		/*
-		 * Adjust the shot timeout value based on sensor exposure time control.
-		 * Exposure Time >= (SHOT_TIMEOUT - 1sec): Increase shot timeout value.
-		 */
-		if (frame->shot->ctl.aa.vendor_captureExposureTime >= ((SHOT_TIMEOUT * 1000) - 1000000)) {
+		if (frame->shot->ctl.aa.sceneMode == AA_SCENE_MODE_ASTRO) {
+			resourcemgr->shot_timeout = SHOT_TIMEOUT * 10; // 30s timeout
+		} else if (frame->shot->ctl.aa.sceneMode == AA_SCENE_MODE_HYPERLAPSE
+			&& frame->shot->ctl.aa.vendor_currentHyperlapseMode == 300) {
+			resourcemgr->shot_timeout = SHOT_TIMEOUT * 5; // 15s timeout
+		} else if (frame->shot->ctl.aa.vendor_captureExposureTime >= ((SHOT_TIMEOUT * 1000) - 1000000)) {
+			/*
+			* Adjust the shot timeout value based on sensor exposure time control.
+			* Exposure Time >= (SHOT_TIMEOUT - 1sec): Increase shot timeout value.
+			*/
 			resourcemgr->shot_timeout = (frame->shot->ctl.aa.vendor_captureExposureTime / 1000) + SHOT_TIMEOUT;
 			resourcemgr->shot_timeout_tick = KEEP_FRAME_TICK_DEFAULT;
 		} else if (resourcemgr->shot_timeout_tick > 0) {

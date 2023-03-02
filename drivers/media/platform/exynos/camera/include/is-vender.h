@@ -29,6 +29,14 @@
 #define VENDER_S_CTRL 0
 #define VENDER_G_CTRL 0
 
+#ifndef EV_LIST_SIZE
+#define EV_LIST_SIZE  24
+#endif
+
+#ifndef MANUAL_LIST_SIZE
+#define MANUAL_LIST_SIZE  5
+#endif
+
 struct is_vender {
 	char fw_path[IS_PATH_LEN];
 	char request_fw_path[IS_PATH_LEN];
@@ -105,6 +113,12 @@ struct capture_intent_info_t {
 	u16 captureIntent;
 	u16 captureCount;
 	s16 captureEV;
+	u32 captureIso;
+	u16 captureAeExtraMode;
+	char captureMultiEVList[EV_LIST_SIZE];
+	uint32_t captureMultiIsoList[MANUAL_LIST_SIZE];
+	uint32_t CaptureMultiExposureList[MANUAL_LIST_SIZE];
+	u16 captureAeMode;
 };
 
 #define TOF_CAL_SIZE_MAX 10

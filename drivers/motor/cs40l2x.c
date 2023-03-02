@@ -97,6 +97,7 @@ struct cs40l2x_private {
 	unsigned int force_touch_intensity;
 #endif	
 	EVENT_STATUS save_vib_event;
+	bool use_sep_index;
 #endif
 	struct cs40l2x_pbq_pair pbq_pairs[CS40L2X_PBQ_DEPTH_MAX];
 	struct hrtimer pbq_timer;
@@ -456,6 +457,25 @@ static void set_duration_for_dig_scale(struct cs40l2x_private *cs40l2x,
 		set_current_dig_scale(cs40l2x);
 	}
 }
+
+static int cs40l2x_index_mapping(int sep_index)
+{
+	int cirrus_index = 0;
+
+	switch (sep_index) {
+	case 0:
+	case 100:
+		break;
+	case 119 ... 124:
+		cirrus_index = sep_index + 16;
+		break;
+	default:
+		cirrus_index = sep_index + 9;
+		break;
+	}
+
+	return cirrus_index;
+}
 #endif
 
 static const struct cs40l2x_fw_desc *cs40l2x_firmware_match(
@@ -509,6 +529,12 @@ static ssize_t cs40l2x_cp_trigger_index_store(struct device *dev,
 		return -EINVAL;
 
 #ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
+	if (index >= CS40L2X_INDEX_CLICK_MIN && index <= CS40L2X_INDEX_CLICK_MAX) {
+		if (cs40l2x->use_sep_index) {
+			pr_info("%s SEP index:%u\n", __func__, index);
+			index = cs40l2x_index_mapping(index);
+		}
+	}
 	pr_info("%s index:%u (num_waves:%u)\n", __func__, index, cs40l2x->num_waves);
 #endif
 
@@ -668,6 +694,13 @@ static ssize_t cs40l2x_cp_trigger_queue_store(struct device *dev,
 				ret = -EINVAL;
 				goto err_mutex;
 			}
+#ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
+			if (cs40l2x->use_sep_index) {
+				dev_info(cs40l2x->dev,
+					"SEP index: %d\n", val);
+				val = cs40l2x_index_mapping(val);
+			}
+#endif
 			if (val == 0 || val >= cs40l2x->num_waves) {
 				ret = -EINVAL;
 				goto err_mutex;
@@ -3587,6 +3620,34 @@ error1:
 error:
 	return size;
 }
+
+static ssize_t cs40l2x_use_sep_index_store(struct device *dev,
+		struct device_attribute *devattr, const char *buf, size_t size)
+{
+	struct cs40l2x_private *cs40l2x = cs40l2x_get_private(dev);
+	int ret = 0;
+	bool use_sep_index;
+
+	if (size > 2) {
+		pr_err("%s: size(%zu) is too long.\n", __func__, size);
+		ret = -EOVERFLOW;
+		goto err;
+	}
+
+	ret = kstrtobool(buf, &use_sep_index);
+	if (ret < 0) {
+		pr_err("%s kstrtobool error : %d\n", __func__, ret);
+		goto err;
+	}
+
+	pr_info("%s use_sep_index:%d\n", __func__, use_sep_index);
+
+	mutex_lock(&cs40l2x->lock);
+	cs40l2x->use_sep_index = use_sep_index;
+	mutex_unlock(&cs40l2x->lock);
+err:
+	return ret ? ret : size;
+}
 #endif
 
 static ssize_t cs40l2x_fw_rev_show(struct device *dev,
@@ -4682,6 +4743,7 @@ static DEVICE_ATTR(force_touch_intensity, 0660, cs40l2x_force_touch_intensity_sh
 #endif
 static DEVICE_ATTR(motor_type, 0660, cs40l2x_motor_type_show, NULL);
 static DEVICE_ATTR(event_cmd, 0660, cs40l2x_event_cmd_show, cs40l2x_event_cmd_store);
+static DEVICE_ATTR(use_sep_index, 0220, NULL, cs40l2x_use_sep_index_store);
 #endif
 static DEVICE_ATTR(fw_rev, 0660, cs40l2x_fw_rev_show, NULL);
 static DEVICE_ATTR(vpp_measured, 0660, cs40l2x_vpp_measured_show, NULL);
@@ -4762,6 +4824,7 @@ static struct attribute *cs40l2x_dev_attrs[] = {
 #endif	
 	&dev_attr_motor_type.attr,
 	&dev_attr_event_cmd.attr,
+	&dev_attr_use_sep_index.attr,
 #endif
 	&dev_attr_fw_rev.attr,
 	&dev_attr_vpp_measured.attr,

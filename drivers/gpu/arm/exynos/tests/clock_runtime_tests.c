@@ -55,7 +55,7 @@ int test_gpex_clock_set(int clk)
 {
 	int curr_clk;
 
-	gpex_clock_set(clk, TYPE_IGNORE, current->comm, current->pid);
+	gpex_clock_set(clk);
 	curr_clk = gpex_clock_get_cur_clock();
 
 	if (clk == curr_clk) {
