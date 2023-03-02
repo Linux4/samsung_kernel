@@ -70,7 +70,7 @@ u32 sensor_cis_calc_again_permile(u32 code);
 
 u32 sensor_cis_calc_dgain_code(u32 permile);
 u32 sensor_cis_calc_dgain_permile(u32 code);
-
+u8 sensor_cis_get_duration_shifter(struct is_cis *cis, u32 input_duration);
 int sensor_cis_compensate_gain_for_extremely_br(struct v4l2_subdev *subdev, u32 expo, u32 *again, u32 *dgain);
 
 int sensor_cis_dump_registers(struct v4l2_subdev *subdev, const u32 *regs, const u32 size);

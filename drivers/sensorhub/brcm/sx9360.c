@@ -1845,6 +1845,7 @@ exit_of_node:
 	mutex_destroy(&data->mode_mutex);
 	mutex_destroy(&data->read_mutex);
 	wake_lock_destroy(&data->grip_wake_lock);
+	input_unregister_device(data->noti_input_dev);
 exit_noti_input_init:
 	sysfs_remove_group(&data->input->dev.kobj, &sx9360_attribute_group);
 	sensors_remove_symlink(data->input);

@@ -593,6 +593,7 @@ static int pn547_dev_flush(struct file *pfile, fl_owner_t id)
 	 */
 	if (!mutex_trylock(&pn547_dev->read_mutex)) {
 		pn547_dev->release_read = true;
+		atomic_set(&pn547_dev->read_flag, 1);
 		pn547_disable_irq(pn547_dev);
 		wake_up(&pn547_dev->read_wq);
 		NFC_LOG_ERR("%s: waiting for release of blocked read\n", __func__);
