@@ -75,6 +75,7 @@ extern struct class *sec_class;
 #define ABC_CLEAR_EVENT_TIMEOUT		300000
 #define ABC_EVENT_BUFFER_MAX		30
 #define ABC_DEFAULT_COUNT			0
+#define ABC_TEST_STR_MAX		128
 
 enum abc_enable_cmd {
 	ERROR_REPORT_MODE_ENABLE = 0,
@@ -89,6 +90,7 @@ enum abc_enable_cmd {
 struct registered_abc_event_struct {
 	char module_name[ABC_EVENT_STR_MAX];
 	char error_name[ABC_EVENT_STR_MAX];
+	char host[ABC_EVENT_STR_MAX];
 	bool enabled;
 	bool singular_spec;
 };
@@ -108,14 +110,13 @@ struct abc_key_data {
 	char event_type[ABC_TYPE_STR_MAX];
 	char event_module[ABC_EVENT_STR_MAX];
 	char event_name[ABC_EVENT_STR_MAX];
-	char host_name[ABC_EVENT_STR_MAX];
 	char ext_log[ABC_EVENT_STR_MAX];
+	unsigned int cur_time;
 	int idx;
 };
 
 struct abc_pre_event {
 	struct list_head node;
-	unsigned int cur_time;
 	int error_cnt;
 	int all_cnt;
 	int idx;
@@ -137,8 +138,9 @@ struct abc_event_buffer {
 };
 
 struct abc_common_spec_data {
-	const char *module_name;
-	const char *error_name;
+	char *module_name;
+	char *error_name;
+	int idx;
 	//int spec_type;		In case a new spec type is added
 };
 
@@ -161,7 +163,6 @@ struct abc_platform_data {
 
 struct abc_event_work {
 	char abc_str[ABC_BUFFER_MAX];
-	int cur_time;
 	struct work_struct work;
 };
 
@@ -188,10 +189,21 @@ extern int sec_abc_read_spec(char *str);
 extern void sec_abc_send_event(char *str);
 extern int sec_abc_get_enabled(void);
 extern int sec_abc_wait_enabled(void);
-int sec_abc_save_pre_events(struct abc_key_data *key_data, unsigned int cur_time, char *uevent_type);
+int sec_abc_save_pre_events(struct abc_key_data *key_data, char *uevent_type);
 extern struct registered_abc_event_struct abc_event_list[];
 extern int REGISTERED_ABC_EVENT_TOTAL;
 
 #define ABC_PRINT(format, ...) pr_info("[sec_abc] %s : " format, __func__, ##__VA_ARGS__)
+
+#ifdef CONFIG_SEC_KUNIT
+#define ABC_PRINT_KUNIT(format, ...) do { \
+	char temp[ABC_TEST_STR_MAX]; \
+	ABC_PRINT(format, ##__VA_ARGS__); \
+	snprintf(temp, ABC_TEST_STR_MAX, format, ##__VA_ARGS__); \
+	abc_common_test_get_log_str(temp); \
+} while (0)
+#else
+#define ABC_PRINT_KUNIT(format, ...) ABC_PRINT(format, ##__VA_ARGS__)
+#endif
 
 #endif

@@ -84,6 +84,15 @@ int ps5169_config(int config, int is_DFP)
 	pr_info("%s: config(%s)(%s)(%s)\n", __func__, REDRV_MODE_Print[config],
 		(is_DFP ? "DFP":"UFP"), (is_front ? "FRONT":"REAR"));
 
+	if (is_DFP == redrv_data->is_DFP && is_DFP == 1 && config == USB_ONLY_MODE) {
+		pr_err("%s: already dfp, just return\n", __func__);
+		return 0;
+	}
+	else {
+		pr_err("%s: state chagned(%d) -> (%d)\n", __func__,redrv_data->is_DFP, is_DFP);
+	}
+	redrv_data->is_DFP = is_DFP;
+
 	switch (config) {
 	case WORK_MODE:
 		usleep_range(10000, 10100);
@@ -458,8 +467,10 @@ static int ps5169_probe(struct i2c_client *i2c,
 	if (ps5169_i2c_check() < 0) {
 		pr_info("%s: i2c transfer failed. stop to try i2c transfer\n", __func__);
 		redrv_data = NULL;
-	} else
+	} else {
 		ps5169_config(WORK_MODE, 0);
+		redrv_data->is_DFP = -1;
+	}
 
 	return ret;
 }

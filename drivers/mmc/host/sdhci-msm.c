@@ -4145,7 +4145,9 @@ static ssize_t t_flash_detect_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct sdhci_msm_host *msm_host = dev_get_drvdata(dev);
-#if !defined(CONFIG_SEC_XCOVERPRO2_PROJECT)
+#if !defined(CONFIG_SEC_XCOVERPRO2_PROJECT) &&		\
+	!defined(CONFIG_SEC_GTACT4PRO_PROJECT) &&	\
+	!defined(CONFIG_SEC_GTACT4PROWIFI_PROJECT)
 	if (!mmc_gpio_get_cd(msm_host->mmc)) {
 		pr_debug("SD slot tray Removed.\n");
 		return sprintf(buf, "Notray\n");

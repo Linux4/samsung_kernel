@@ -349,5 +349,6 @@
 #define SET_FOD_CC(_flag)		(FOD_FLAG_ ##_flag)
 #define SET_FOD_CV(_flag)		(FOD_FLAG_ ##_flag << 4)
 #define SET_FOD_FULL(_flag)		(FOD_FLAG_ ##_flag << 8)
+#define SET_FOD_HV(_flag)		(FOD_FLAG_ ##_flag << 12)
 
 #endif /* _DT_BINDINGS_BATTERY_SEC_BATTERY_H */

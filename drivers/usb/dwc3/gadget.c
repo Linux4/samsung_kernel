@@ -2596,7 +2596,7 @@ static void dwc3_set_usb_bootcomplete(struct dwc3 *dwc)
 			POWER_SUPPLY_EXT_PROP_USB_BOOTCOMPLETE,
 			propval);
 #endif
-	dwc->usb_bootcomplete = 1;
+	dwc->usb_bootcomplete = true;
 }
 
 static int dwc3_gadget_pullup(struct usb_gadget *g, int is_on)

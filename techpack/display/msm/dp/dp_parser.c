@@ -916,6 +916,10 @@ static void secdp_parse_misc(struct dp_parser *parser)
 	parser->prefer_support = of_property_read_bool(dev->of_node,
 			"secdp,prefer-res");
 	DP_DEBUG("secdp,prefer-res: %d\n", parser->prefer_support);
+
+	parser->mrr_fps_nolimit = of_property_read_bool(dev->of_node,
+			"secdp,mrr-fps-nolimit");
+	DP_DEBUG("secdp,mrr_fps_nolimit: %d\n", parser->mrr_fps_nolimit);
 }
 
 static const char *secdp_get_phy_pre_emphasis(u32 lvl)

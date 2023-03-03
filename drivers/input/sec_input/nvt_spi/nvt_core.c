@@ -1996,6 +1996,9 @@ void nvt_ts_early_resume(struct device *dev)
 		return;
 	}
 
+#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
+	secure_touch_stop(ts, 0);
+#endif
 	if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM) {
 		if (device_may_wakeup(&ts->client->dev))
 			disable_irq_wake(ts->client->irq);
@@ -2110,6 +2113,16 @@ void nvt_ts_input_suspend(struct device *dev)
 					__func__, ts->plat_data->ed_enable,
 					ts->plat_data->lowpower_mode, ts->plat_data->prox_power_off,
 					ts->lcdoff_test, ts->prox_in_aot);
+
+#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
+	secure_touch_stop(ts, 1);
+#if IS_ENABLED(CONFIG_GH_RM_DRV)
+	if (atomic_read(&ts->trusted_touch_enabled)) {
+		input_info(true, &ts->client->dev, "%s wait for disabling trusted touch\n", __func__);
+		wait_for_completion_interruptible(&ts->secure_powerdown);
+	}
+#endif
+#endif
 
 	if (ts->plat_data->lowpower_mode && (ts->plat_data->prox_power_off || ts->plat_data->ed_enable))
 		enter_force_ed_mode = 1;	// for ed

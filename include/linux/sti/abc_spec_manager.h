@@ -25,25 +25,24 @@
 #define THRESHOLD_CNT_KEY			"threshold_cnt"
 #define THRESHOLD_TIME_KEY			"threshold_time"
 
-extern struct device *sec_abc;
-extern int abc_enable_mode;
-extern int abc_init;
+extern struct list_head abc_spec_list;
 
 int abc_parse_dt(struct device *dev);
-void sec_abc_dequeue_event_data(struct abc_key_data *key_data);
 void sec_abc_reset_event_buffer(struct abc_key_data *key_data);
 int sec_abc_make_key_data(struct abc_key_data *key_data, char *str);
-bool sec_abc_reached_spec(struct abc_key_data *key_data, unsigned int cur_time);
-void sec_abc_enqueue_event_data(struct abc_key_data *key_data, unsigned int cur_time);
+bool sec_abc_reached_spec(struct abc_key_data *key_data);
+void sec_abc_enqueue_event_data(struct abc_key_data *key_data);
 struct abc_common_spec_data *sec_abc_get_matched_common_spec(char *module_name, char *error_name);
 int sec_abc_get_buffer_size_from_threshold_cnt(int th_max);
 int sec_abc_apply_changed_spec(char *str);
 int sec_abc_get_event_module(char *dst, char *src);
 int sec_abc_get_event_name(char *dst, char *src);
 int sec_abc_get_event_type(char *dst, char *src);
-int sec_abc_get_event_host(char *dst, char *src);
 int sec_abc_get_ext_log(char *dst, char *src);
 int sec_abc_get_count(int *dst, char *src);
+void sec_abc_reset_all_spec(void);
+void sec_abc_free_spec_buffer(void);
+void sec_abc_reset_all_buffer(void);
 /* spec_type1 */
 int abc_parse_dt_type1(struct device *dev,
 			  struct device_node *np, int idx,

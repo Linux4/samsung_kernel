@@ -29,6 +29,7 @@ struct ps5169_data {
 	struct device *dev;
 	struct i2c_client *i2c;
 	struct mutex i2c_mutex;
+	int is_DFP;
 	int redriver_en;
 	int con_sel;
 };

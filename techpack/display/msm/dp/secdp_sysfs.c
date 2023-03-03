@@ -841,10 +841,17 @@ static ssize_t dp_preshoot_store(struct class *dev,
 		struct class_attribute *attr, const char *buf, size_t size)
 {
 	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
 
-	memcpy(tmp, buf, min(ARRAY_SIZE(tmp), size));
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
 	secdp_catalog_preshoot_store(tmp);
-
+end:
 	return size;
 }
 

@@ -116,6 +116,7 @@ int et5xx_Interrupt_Free(struct et5xx_data *etspi)
 
 void et5xx_Interrupt_Abort(struct et5xx_data *etspi)
 {
+	etspi->finger_on = 1;
 	wake_up_interruptible(&interrupt_waitq);
 }
 

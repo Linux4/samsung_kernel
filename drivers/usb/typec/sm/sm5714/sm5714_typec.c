@@ -22,7 +22,7 @@
 #include <linux/delay.h>
 #include <linux/completion.h>
 #include <linux/version.h>
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && !defined(CONFIG_BATTERY_GKI)
 #include <linux/sec_batt.h>
 #endif
 #if IS_ENABLED(CONFIG_BATTERY_NOTIFIER)
@@ -1323,7 +1323,7 @@ static void sm5714_pdic_event_notifier(struct work_struct *data)
 	struct pdic_state_work *event_work =
 		container_of(data, struct pdic_state_work, pdic_work);
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
-	struct sm5714_usbpd_data *pd_data = g_pd_data;
+	struct sm5714_usbpd_data *pd_data = sm5714_g_pd_data;
 #endif
 	PD_NOTI_TYPEDEF pdic_noti;
 
@@ -2966,8 +2966,8 @@ void sm5714_vbus_turn_on_ctrl(struct sm5714_phydrv_data *usbpd_data,
 	}
 #endif
 	pr_info("%s : enable=%d\n", __func__, enable);
-	
-#if defined(CONFIG_USB_HOST_NOTIFY)	
+
+#if defined(CONFIG_USB_HOST_NOTIFY)
 	if (o_notify && o_notify->booting_delay_sec && enable) {
 		pr_info("%s %d, is booting_delay_sec. skip to control booster\n",
 			__func__, __LINE__);
@@ -2982,8 +2982,8 @@ void sm5714_vbus_turn_on_ctrl(struct sm5714_phydrv_data *usbpd_data,
 		}
 	}
 #endif
-	
-	
+
+
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	psy_otg = get_power_supply_by_name("otg");
 
@@ -3023,6 +3023,9 @@ static int sm5714_usbpd_notify_attach(void *data)
 	int prev_power_role = pdic_data->power_role_dual;
 #elif defined(CONFIG_TYPEC)
 	int prev_power_role = pdic_data->typec_power_role;
+#endif
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+	int event;
 #endif
 
 	ret = sm5714_usbpd_read_reg(i2c, SM5714_REG_CC_STATUS, &reg_data);
@@ -3189,6 +3192,10 @@ static int sm5714_usbpd_notify_attach(void *data)
 		dev_info(dev, "ccstat : cc_AUDIO\n");
 		manager->acc_type = PDIC_DOCK_UNSUPPORTED_AUDIO;
 		sm5714_usbpd_check_accessory(manager);
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+		event = NOTIFY_EXTRA_USB_ANALOGAUDIO;
+		store_usblog_notify(NOTIFY_EXTRA, (void *)&event, NULL);
+#endif
 	} else {
 		dev_err(dev, "%s, PLUG Error\n", __func__);
 		return -1;
@@ -3533,7 +3540,7 @@ static int sm5714_usbpd_irq_init(struct sm5714_phydrv_data *_data)
 	}
 
 	i2c->irq = gpio_to_irq(_data->irq_gpio);
-	
+
 	ret = gpio_request(_data->irq_gpio, "usbpd_irq");
 	if (ret) {
 		dev_err(_data->dev, "%s: failed requesting gpio %d\n",

@@ -269,6 +269,7 @@ enum sec_bat_attrs {
 	BATT_MAIN_ENB,
 	BATT_MAIN_ENB2,
 	BATT_SUB_ENB,
+	BATT_SUB_PWR_MODE2,
 #endif
 	EXT_EVENT,
 	DIRECT_CHARGING_STATUS,
@@ -304,6 +305,8 @@ enum sec_bat_attrs {
 	DC_OP_MODE,
 	DC_ADC_MODE,
 	DC_VBUS,
+	CHG_TYPE,
+	MST_EN,
 };
 
 enum sec_pogo_attrs {

@@ -47,9 +47,14 @@
 #include <linux/regulator/consumer.h>
 #include <linux/spi/spidev.h>
 #include <linux/of_platform.h>
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 #if IS_ENABLED(CONFIG_SPI_MSM_GENI)
+#include "nfc_wakelock.h"
+#if IS_ENABLED(CONFIG_MSM_GENI_SE)
 #include <linux/msm-geni-se.h>
 #include <linux/msm_gpi.h>
+#endif
+#endif
 #endif
 
 #include "p73.h"
@@ -137,6 +142,8 @@ enum p61_pin_ctrl {
 /* Variable to store current debug level request by ioctl */
 static unsigned char debug_level;
 
+static DEFINE_MUTEX(open_close_mutex);
+
 #define P61_DBG_MSG(msg...)  \
         switch(debug_level)      \
         {                        \
@@ -175,6 +182,11 @@ struct p61_dev {
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pinctrl_state[P61_PIN_CTRL_MAX];
 	struct platform_device *spi_pdev;
+	struct nfc_wake_lock ese_lock;
+#if IS_ENABLED(CONFIG_SPI_MSM_GENI)
+	struct delayed_work spi_release_work;
+	struct nfc_wake_lock spi_release_wakelock;
+#endif
 #endif
 	unsigned char *r_buf;
 	unsigned char *w_buf;
@@ -284,6 +296,21 @@ static void p61_pinctrl_select(struct p61_dev *p61_dev, enum p61_pin_ctrl stat)
 	if (ret < 0)
 		NFC_LOG_INFO("pinctrl[%d] failed\n", stat);
 }
+
+#if IS_ENABLED(CONFIG_SPI_MSM_GENI)
+static void p61_spi_release_work(struct work_struct *work)
+{
+	struct p61_dev *p61_dev = g_p61_dev;
+
+	if (p61_dev == NULL) {
+		NFC_LOG_ERR("%s: spi probe is not called\n", __func__);
+		return;
+	}
+
+	NFC_LOG_INFO("release ese spi\n");
+	p61_pinctrl_select(p61_dev, P61_PIN_CTRL_SUSPEND); /* for QC AP */
+}
+#endif
 #endif
 
 /**
@@ -301,6 +328,8 @@ static int ese_dev_release(struct inode *inode, struct file *filp)
 	struct p61_dev *p61_dev = NULL;
 
 	NFC_LOG_INFO("Enter %s: ESE driver release\n", __func__);
+
+	mutex_lock(&open_close_mutex);
 	p61_dev = filp->private_data;
 	p61_dev->ese_spi_transition_state = ESE_SPI_IDLE;
 	gpio_set_value(p61_dev->trusted_ese_gpio, 0);
@@ -309,7 +338,16 @@ static int ese_dev_release(struct inode *inode, struct file *filp)
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 	p61_pinctrl_select(p61_dev, P61_PIN_CTRL_ESE_OFF); /* for LSI AP */
+#if IS_ENABLED(CONFIG_SPI_MSM_GENI)
+	schedule_delayed_work(&p61_dev->spi_release_work,
+				msecs_to_jiffies(2000));
+	wake_lock_timeout(&p61_dev->spi_release_wakelock,
+				msecs_to_jiffies(2100));
 #endif
+	if (wake_lock_active(&p61_dev->ese_lock))
+		wake_unlock(&p61_dev->ese_lock);
+#endif
+	mutex_unlock(&open_close_mutex);
 	return 0;
 }
 
@@ -387,7 +425,7 @@ static int p61_rw_spi_message(struct p61_dev *p61_dev,
 	err = p61_xfer(p61_dev, dup);
 	if (err != 0) {
 		kfree(dup);
-		NFC_LOG_ERR("%s: p61_xfer failed!\n", __func__);
+		NFC_LOG_ERR("%s: p61_xfer failed, %d\n", __func__, err);
 		return err;
 	}
 
@@ -432,7 +470,7 @@ static int p61_rw_spi_message_compat(struct p61_dev *p61_dev,
 	err = p61_xfer(p61_dev, dup);
 	if (err != 0) {
 		kfree(dup);
-		NFC_LOG_ERR("%s: p61_xfer failed!\n", __func__);
+		NFC_LOG_ERR("%s: p61_xfer failed, %d\n", __func__, err);
 		return err;
 	}
 
@@ -507,12 +545,20 @@ static int p61_dev_open(struct inode *inode, struct file *filp)
 		return -EBUSY;
 	}
 
+	mutex_lock(&open_close_mutex);
 	p61_dev->ese_spi_transition_state = ESE_SPI_BUSY;
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+#if IS_ENABLED(CONFIG_SPI_MSM_GENI)
+	cancel_delayed_work_sync(&p61_dev->spi_release_work);
+#endif
+	if (!wake_lock_active(&p61_dev->ese_lock))
+		wake_lock(&p61_dev->ese_lock);
+
 	p61_pinctrl_select(p61_dev, P61_PIN_CTRL_ESE_ON);
 	msleep(60);
 #endif
+	mutex_unlock(&open_close_mutex);
 
 	NFC_LOG_INFO("%s : Major No: %d, Minor No: %d state=%d\n", __func__,
 		    imajor(inode), iminor(inode), p61_dev->ese_spi_transition_state);
@@ -852,7 +898,7 @@ static ssize_t p61_dev_write(struct file *filp, const char *buf, size_t count,
 	memset(&tx_buffer[0], 0, sizeof(tx_buffer));
 #endif
 	if (copy_from_user(&tx_buffer[0], &buf[0], count)) {
-		NFC_LOG_ERR("%s : failed to copy from user space\n", __func__);
+		NFC_LOG_ERR("%s: failed to copy from user space\n", __func__);
 		mutex_unlock(&p61_dev->write_mutex);
 		return -EFAULT;
 	}
@@ -861,6 +907,7 @@ static ssize_t p61_dev_write(struct file *filp, const char *buf, size_t count,
 	/* Write data */
 	ret = spi_write(p61_dev->spi, &tx_buffer[0], count);
 	if (ret < 0) {
+		NFC_LOG_ERR("%s: spi_write fail %d\n", __func__, ret);
 		ret = -EIO;
 	} else {
 		ret = count;
@@ -1250,6 +1297,7 @@ static int p61_parse_dt(struct device *dev, struct p61_spi_platform_data *data)
 }
 #endif
 #if IS_ENABLED(CONFIG_SPI_MSM_GENI)
+#if IS_ENABLED(CONFIG_MSM_GENI_SE)
 /*
  * eSE driver can't access spi_geni_master structure because it's defined in drivers/spi/spi-msm-geni.c file.
  * so, we need a logic to search se_geni_rsc in "void *spi_geni_master".
@@ -1277,11 +1325,46 @@ struct se_geni_rsc *p61_find_spi_src(struct p61_dev *p61_dev, void *spi_geni_mas
 	return 0;
 }
 
+#else
+/* CONFIG_QCOM_GENI_SE */
+struct qc_spi_pinctrl {
+	struct pinctrl *geni_pinctrl;
+	struct pinctrl_state *geni_gpio_active;
+	struct pinctrl_state *geni_gpio_sleep;
+};
+
+struct qc_spi_pinctrl *p61_find_spi_src(struct p61_dev *p61_dev, void *spi_geni_master)
+{
+	char *offset = spi_geni_master;
+	struct qc_spi_pinctrl *spi_pinctrl;
+	int i;
+	int max_addr_cnt = 250;
+
+	for (i = 0; i < max_addr_cnt; i++) {
+		spi_pinctrl = (struct qc_spi_pinctrl *)offset;
+
+		if (spi_pinctrl->geni_pinctrl == p61_dev->pinctrl &&
+			spi_pinctrl->geni_gpio_active == p61_dev->pinctrl_state[P61_PIN_CTRL_DEFAULT]) {
+			NFC_LOG_INFO("%s, found pinctrl in spi master!\n", __func__);
+			return spi_pinctrl;
+		}
+
+		offset++;
+	}
+
+	NFC_LOG_ERR("%s, failed to find spi pinctrl!\n", __func__);
+	return 0;
+}
+#endif
 static void p61_set_spi_bus_pincontrol(struct p61_dev *p61_dev)
 {
 	struct spi_master *master;
 	void *geni_mas;
-	struct se_geni_rsc *rsc;
+#if IS_ENABLED(CONFIG_MSM_GENI_SE)
+	struct se_geni_rsc *spi_pinctrl;
+#else
+	struct qc_spi_pinctrl *spi_pinctrl;
+#endif
 	static bool called;
 
 	if (!p61_dev || called)
@@ -1293,10 +1376,14 @@ static void p61_set_spi_bus_pincontrol(struct p61_dev *p61_dev)
 	called = true;
 	master = platform_get_drvdata(p61_dev->spi_pdev);
 	geni_mas = spi_master_get_devdata(master);
-	rsc = p61_find_spi_src(p61_dev, geni_mas);
-	if (rsc) {
-		rsc->geni_gpio_sleep = pinctrl_lookup_state(rsc->geni_pinctrl, p61_pinctrl_name[P61_PIN_CTRL_SUSPEND]);
-		rsc->geni_gpio_active = pinctrl_lookup_state(rsc->geni_pinctrl, p61_pinctrl_name[P61_PIN_CTRL_ACTIVE]);
+	spi_pinctrl = p61_find_spi_src(p61_dev, geni_mas);
+	if (spi_pinctrl) {
+		spi_pinctrl->geni_gpio_sleep =
+			pinctrl_lookup_state(spi_pinctrl->geni_pinctrl,
+				p61_pinctrl_name[P61_PIN_CTRL_SUSPEND]);
+		spi_pinctrl->geni_gpio_active =
+			pinctrl_lookup_state(spi_pinctrl->geni_pinctrl,
+				p61_pinctrl_name[P61_PIN_CTRL_ACTIVE]);
 	}
 }
 #endif
@@ -1535,6 +1622,11 @@ static int p61_probe(struct spi_device *spi)
 		ret = -ENOMEM;
 		goto err_exit3;
 	}
+	wake_lock_init(&p61_dev->ese_lock, WAKE_LOCK_SUSPEND, "ese_lock");
+#if IS_ENABLED(CONFIG_SPI_MSM_GENI)
+	INIT_DELAYED_WORK(&p61_dev->spi_release_work, p61_spi_release_work);
+	wake_lock_init(&p61_dev->spi_release_wakelock, WAKE_LOCK_SUSPEND, "ese_spi_wake_lock");
+#endif
 #endif
 
 	p61_dev->enable_poll_mode = 0;	/* Default IRQ read mode */
@@ -1647,9 +1739,11 @@ static int p61_remove(struct spi_device *spi)
 #else
 		misc_deregister(&p61_dev->p61_device);
 #endif
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+		wake_lock_destroy(&p61_dev->ese_lock);
+#endif
 		kfree(p61_dev);
 	}
-
 	P61_DBG_MSG("Exit : %s\n", __func__);
         return 0;
 }

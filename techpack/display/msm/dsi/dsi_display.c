@@ -5515,6 +5515,9 @@ int dsi_display_cont_splash_res_disable(void *dsi_display)
  * @dsi_display:    Pointer to dsi display
  * Returns:     Zero on success
  */
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+extern bool pba_regulator_control_ss;
+#endif
 int dsi_display_cont_splash_config(void *dsi_display)
 {
 	struct dsi_display *display = dsi_display;
@@ -5567,6 +5570,29 @@ int dsi_display_cont_splash_config(void *dsi_display)
 		       display->name, rc);
 		goto clk_manager_update;
 	}
+
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+	/* Splash boot && pba_reuglator_control && PBA panel => PBA regulators off
+	 * Caution!, both panels should have PBA regulators if with DSI1
+	 */
+	if (pba_regulator_control_ss &&
+		(!strcmp(display->panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") ||
+		!strcmp(display->panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1"))) {
+		DSI_INFO("[SDE] splash && pba_regulator && PBA panel => regulator OFF\n");
+
+		/* Reset off : useful? */
+		if (gpio_is_valid(display->panel->reset_config.reset_gpio))
+			gpio_set_value(display->panel->reset_config.reset_gpio, 0);
+		else
+			DSI_INFO("[SDE] reset_gpio is invalid\n");
+
+		/* Regulators off : including reset regulator off */
+		rc = dsi_pwr_enable_regulator(&display->panel->power_info, false);
+		if (rc)
+			DSI_ERR("[SDE] [%s] failed to disable vregs, rc=%d\n",
+				display->panel->name, rc);
+	}
+#endif
 
 	mutex_unlock(&display->display_lock);
 

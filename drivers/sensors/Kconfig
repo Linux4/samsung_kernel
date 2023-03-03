@@ -276,3 +276,11 @@ config SENSORS_A96T396_LDO_SHARE
 	  Say Y here if you use SENSOR_A96T3X6_LDO_SHARE for grip.
 	  This option enables grip sensors using
 	  Above SENSOR_A96T3X6_LDO_SHARE device driver for grip.
+
+config SENSORS_GRIP_SKIP_CABLE_RESET
+	tristate "SENSORS_SKIP_CABLE_RESET driver for grip"
+	default n
+	help
+	  Say Y here if you use SENSORS_SKIP_CABLE_RESET  for grip.
+	  This option enables disabling grip reset when cable is attached or detached.
+	  Above SENSORS_SKIP_CABLE_RESET device driver for grip.

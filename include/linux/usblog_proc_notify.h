@@ -232,6 +232,7 @@ enum ccic_id {
 	NOTIFY_ID_DEVICE_INFO,
 	NOTIFY_ID_SVID_INFO,
 	NOTIFY_ID_CLEAR_INFO,
+	NOTIFY_ID_POGO,
 };
 
 enum ccic_rid {

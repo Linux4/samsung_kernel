@@ -63,6 +63,7 @@
 #define PATH_SUB_SEC_CMD_STATUS_ALL	"/sys/class/sec/tsp2/cmd_status_all"
 #define PATH_SUB_SEC_CMD_RESULT_ALL	"/sys/class/sec/tsp2/cmd_result_all"
 #define PATH_SUB_SEC_SYSFS_PROX_POWER_OFF "/sys/class/sec/tsp2/prox_power_off"
+#define PATH_SUB_SEC_SYSFS_DUALSCREEN_POLICY "/sys/class/sec/tsp2/dualscreen_policy"
 #endif
 
 struct sec_cmd {
@@ -80,6 +81,26 @@ enum SEC_CMD_STATUS {
 	SEC_CMD_STATUS_EXPAND,		// = 4
 	SEC_CMD_STATUS_NOT_APPLICABLE,	// = 5
 };
+
+#define INPUT_CMD_RESULT_NOT_EXIT	0
+#define INPUT_CMD_RESULT_NEED_EXIT	1
+
+#define input_cmd_result(cmd_state_parm, need_exit)				\
+({										\
+	if (need_exit == INPUT_CMD_RESULT_NEED_EXIT) {				\
+		if (cmd_state_parm == SEC_CMD_STATUS_OK)			\
+			snprintf(buff, sizeof(buff), "OK");			\
+		else if (cmd_state_parm == SEC_CMD_STATUS_FAIL)			\
+			snprintf(buff, sizeof(buff), "NG");			\
+		else if (cmd_state_parm == SEC_CMD_STATUS_NOT_APPLICABLE)	\
+			snprintf(buff, sizeof(buff), "NA");			\
+	}									\
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));		\
+	sec->cmd_state = cmd_state_parm;					\
+	if (need_exit == INPUT_CMD_RESULT_NEED_EXIT)				\
+		sec_cmd_set_cmd_exit(sec);					\
+	input_info(true, ptsp, "%s: %s\n", __func__, buff);			\
+})
 
 #ifdef USE_SEC_CMD_QUEUE
 #define SEC_CMD_MAX_QUEUE	10

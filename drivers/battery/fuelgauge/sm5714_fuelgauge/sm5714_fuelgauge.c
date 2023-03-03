@@ -1799,6 +1799,17 @@ static void sm5714_reset_bat_id(struct sm5714_fuelgauge_data *fuelgauge)
 			sm5714_get_bat_id(bat_id, fuelgauge->pdata->bat_gpio_cnt);
 }
 
+static void sm5714_fg_bd_log(struct sm5714_fuelgauge_data *fuelgauge)
+{
+	memset(fuelgauge->d_buf, 0x0, sizeof(fuelgauge->d_buf));
+
+	snprintf(fuelgauge->d_buf + strlen(fuelgauge->d_buf), sizeof(fuelgauge->d_buf),
+		"%d,%d,%d",
+		fuelgauge->info.batt_ocv,
+		fuelgauge->info.batt_soc * 10,
+		fuelgauge->capacity_max);
+}
+
 static int sm5714_fg_get_property(struct power_supply *psy,
 				enum power_supply_property psp,
 				union power_supply_propval *val)
@@ -2014,7 +2025,8 @@ static int sm5714_fg_get_property(struct power_supply *psy,
 			}
 			break;
 		case POWER_SUPPLY_EXT_PROP_BATT_DUMP:
-			val->strval = "FG LOG";
+			sm5714_fg_bd_log(fuelgauge);
+			val->strval = fuelgauge->d_buf;
 			break;
 		default:
 			return -EINVAL;

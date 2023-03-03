@@ -41,13 +41,24 @@ int crypto_qti_program_key(struct crypto_vops_qti_entry *ice_entry,
 			   unsigned int data_unit_mask, int capid)
 {
 	int err = 0;
+	int i;
 	struct qtee_shm shm;
+	union {
+		u8 bytes[BLK_CRYPTO_MAX_WRAPPED_KEY_SIZE];
+		u32 words[BLK_CRYPTO_MAX_WRAPPED_KEY_SIZE / sizeof(u32)];
+	} key_new;
 
 	err = qtee_shmbridge_allocate_shm(key->size, &shm);
 	if (err)
 		return -ENOMEM;
 
-	memcpy(shm.vaddr, key->raw, key->size);
+	memcpy(key_new.bytes, key->raw, key->size);
+	if (!key->is_hw_wrapped) {
+		for (i = 0; i < ARRAY_SIZE(key_new.words); i++)
+			__cpu_to_be32s(&key_new.words[i]);
+	}
+
+	memcpy(shm.vaddr, key_new.bytes, key->size);
 	qtee_shmbridge_flush_shm_buf(&shm);
 
 	if (is_boot_dev_type_emmc())

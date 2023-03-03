@@ -109,7 +109,6 @@ static int samsung_panel_on_pre(struct samsung_display_driver_data *vdd)
 
 	LCD_INFO(vdd, "+++\n");
 	ss_panel_attach_set(vdd, true);
-	ss_blic_ctrl(vdd, true); /* turn on blic */
 	LCD_INFO(vdd, "---\n");
 
 	return 0;
@@ -136,6 +135,22 @@ static int samsung_panel_off_post(struct samsung_display_driver_data *vdd)
 		pr_err("%s: Invalid data vdd 0x%zx", __func__, (size_t)vdd);
 		return -EINVAL;
 	}
+
+	LCD_INFO(vdd, "--\n");
+
+	return 0;
+}
+
+static int samsung_panel_power_on_pre(struct samsung_display_driver_data *vdd)
+{
+	if (IS_ERR_OR_NULL(vdd)) {
+		pr_err("%s: Invalid data vdd 0x%zx", __func__, (size_t)vdd);
+		return -EINVAL;
+	}
+
+	LCD_INFO(vdd, "++\n");
+
+	ss_blic_ctrl(vdd, true);
 
 	LCD_INFO(vdd, "--\n");
 
@@ -339,6 +354,7 @@ void XCP2_NT36672C_PM6585JB2_FHD_init(struct samsung_display_driver_data *vdd)
 	vdd->panel_func.samsung_panel_on_post = samsung_panel_on_post;
 	vdd->panel_func.samsung_panel_off_pre = samsung_panel_off_pre;
 	vdd->panel_func.samsung_panel_off_post = samsung_panel_off_post;
+	vdd->panel_func.samsung_panel_power_on_pre= samsung_panel_power_on_pre;
 	vdd->panel_func.samsung_panel_power_off_post = samsung_panel_power_off_post;
 
 	/* DDI RX */
