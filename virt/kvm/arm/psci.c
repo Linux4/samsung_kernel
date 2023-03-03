@@ -426,18 +426,18 @@ int kvm_hvc_call_handler(struct kvm_vcpu *vcpu)
 				break;
 			}
 			break;
-			case ARM_SMCCC_ARCH_WORKAROUND_3:
-				switch (kvm_arm_get_spectre_bhb_state()) {
-				case SPECTRE_VULNERABLE:
-					break;
-				case SPECTRE_MITIGATED:
-					val = SMCCC_RET_SUCCESS;
-					break;
-				case SPECTRE_UNAFFECTED:
-					val = SMCCC_ARCH_WORKAROUND_RET_UNAFFECTED;
-					break;
-				}
+		case ARM_SMCCC_ARCH_WORKAROUND_3:
+			switch (kvm_arm_get_spectre_bhb_state()) {
+			case SPECTRE_VULNERABLE:
 				break;
+			case SPECTRE_MITIGATED:
+				val = SMCCC_RET_SUCCESS;
+				break;
+			case SPECTRE_UNAFFECTED:
+				val = SMCCC_ARCH_WORKAROUND_RET_UNAFFECTED;
+				break;
+			}
+			break;
 		}
 		break;
 	default:
@@ -514,7 +514,7 @@ static int get_kernel_wa_level(u64 regid)
 			return KVM_REG_ARM_SMCCC_ARCH_WORKAROUND_3_NOT_REQUIRED;
 		}
 		return KVM_REG_ARM_SMCCC_ARCH_WORKAROUND_3_NOT_AVAIL;
-	}
+        }
 
 	return -EINVAL;
 }

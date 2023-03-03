@@ -105,6 +105,12 @@ class Utils:
             return "0x0" + str_hex[-1]
         return str_hex
 
+    def byte_int_to_hex_str2(self, value):
+        str_hex = "{:x}".format(self.to_int(value))
+        if len(str_hex) == 1:
+            return "0" + str_hex[-1]
+        return str_hex
+
     def dump_to_int(self, dump_mem):
         str_dump = ""
         for l_count in range(0, 8):

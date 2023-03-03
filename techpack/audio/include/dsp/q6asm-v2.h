@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2012-2019, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __Q6_ASM_V2_H__
 #define __Q6_ASM_V2_H__
@@ -144,12 +145,16 @@ enum {
 	SOFT_PAUSE_CURVE_LOG,
 };
 
+#ifdef CONFIG_SND_SOC_SAMSUNG_AUDIO
+#define SOFT_VOLUME_MMAP_PERIOD       0   /* ramp up/down for mmap 0ms    */
+#endif
 #define SOFT_VOLUME_PERIOD       30   /* ramp up/down for 30ms    */
 #define SOFT_VOLUME_STEP         0 /* Step value 0ms or 0us */
 enum {
 	SOFT_VOLUME_CURVE_LINEAR = 0,
 	SOFT_VOLUME_CURVE_EXP,
 	SOFT_VOLUME_CURVE_LOG,
+	SOFT_VOLUME_CURVE_ENUM_MAX,
 };
 
 #define SOFT_VOLUME_INSTANCE_1	1

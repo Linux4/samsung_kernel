@@ -407,9 +407,14 @@ static int pwm_gpclk_remove(struct platform_device *pdev)
 	int ret = 0;
 
 	iounmap(virt_mmss_gp1_base);
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0)
 	ret = pwmchip_remove(chip);
 	if (ret < 0)
 		dev_err(chip->dev, "Remove pwmchip failed, ret=%d\n", ret);
+#else
+	pwmchip_remove(chip);
+#endif
 
 	wakeup_source_unregister(ws);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
