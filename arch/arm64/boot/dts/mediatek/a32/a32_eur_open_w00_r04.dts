@@ -678,7 +678,7 @@
 
 #define topckgen_clk topckgen
 #define infracfg_ao_clk infracfg_ao
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6769t/ap_mtk_mt6769t.a32.00.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6769t/ap_mtk_mt6769t.a32.00.dtsi */
 #include <dt-bindings/clock/mt6768-clk.h>
 #include "../../mediatek/k69v1_64_titan_marmot.dts"
 
@@ -695,7 +695,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6769t_shub/dts/sensorhub_mt6769t_shub.a32.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6769t_shub/dts/sensorhub_mt6769t_shub.a32.dtsi */
 / {
 	fragment@model {
 		target-path = "/";
@@ -715,7 +715,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6769t_shub/dts/sensorhub_mt6769t_shub.a32.02.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6769t_shub/dts/sensorhub_mt6769t_shub.a32.02.dtsi */
 / {
 	fragment@model {
 		target-path = "/";
@@ -1490,7 +1490,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/hwmon/sec_thermistor/sec_thermistor_mtk.a32.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/hwmon/sec_thermistor/sec_thermistor_mtk.a32.dtsi */
 &sec_ap_thermistor {
 	use_iio_processed;
 	adc_array = <79 94 111 131 154 183 222 262 318
@@ -1668,7 +1668,7 @@
 };
 
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/sec_input/touchscreen/stm/dts/input-mtk-tsp-stm.a32.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/input/sec_input/touchscreen/stm/dts/input-mtk-tsp-stm.a32.dtsi */
 &tsp_stm {
 	sec,tclm_level = <2>;
 	sec,afe_base = <0x0011>;
@@ -1687,7 +1687,7 @@
 	stm,lpmode_change_delay = <50>;
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/sec_input/touchscreen/stm/dts/input-mtk-tsp-stm.a32.02.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/input/sec_input/touchscreen/stm/dts/input-mtk-tsp-stm.a32.02.dtsi */
 &tsp_stm {
 	status = "ok";
 };
@@ -1923,7 +1923,7 @@
 };
 
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/fuelgauge/sm5714_fuelgauge/sm5714_fuelgauge.a32.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/fuelgauge/sm5714_fuelgauge/sm5714_fuelgauge.a32.dtsi */
 /*
  * M12s battery device tree common
  *
@@ -2321,7 +2321,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/common/dts/battery_common.a32.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/common/dts/battery_common.a32.dtsi */
 &sec_battery {
 	pinctrl-names = "default";
 

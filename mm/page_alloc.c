@@ -2222,6 +2222,10 @@ static void reserve_highatomic_pageblock(struct page *page, struct zone *zone,
 	 * Check is race-prone but harmless.
 	 */
 	max_managed = (zone->managed_pages / 100) + pageblock_nr_pages;
+#if CONFIG_HIGHATOMIC_PAGEBLOCKS > 0
+	max_managed = min_t(unsigned long, max_managed,
+			    pageblock_nr_pages * CONFIG_HIGHATOMIC_PAGEBLOCKS);
+#endif
 	if (zone->nr_reserved_highatomic >= max_managed)
 		return;
 
