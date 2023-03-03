@@ -1523,7 +1523,7 @@ int usbpd_manager_evaluate_capability(struct usbpd_data *pd_data)
 	int i = 0;
 	int power_type = 0;
 	int min_volt = 0, max_volt = 0, cap_current = 0;
-	int pdo_type;
+	int pdo_type = 0;
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	int src_cap_changed = 0;
 	struct usbpd_manager_data *manager = &pd_data->manager;

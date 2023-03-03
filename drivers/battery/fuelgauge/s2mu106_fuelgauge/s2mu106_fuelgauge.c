@@ -1601,6 +1601,30 @@ static int s2mu106_fg_aging_check(
 }
 #endif
 
+#if defined(CONFIG_UI_SOC_PROLONGING)
+static void s2mu106_fg_adjust_capacity_max(
+	struct s2mu106_fuelgauge_data *fuelgauge, int curr_raw_soc)
+{
+	int diff = 0;
+
+	if (fuelgauge->is_charging && fuelgauge->capacity_max_conv) {
+		diff = curr_raw_soc - fuelgauge->prev_raw_soc;
+
+		if ((diff >= 1) && (fuelgauge->capacity_max < fuelgauge->g_capacity_max)) {
+			fuelgauge->capacity_max++;
+		} else if ((fuelgauge->capacity_max >= fuelgauge->g_capacity_max) || (curr_raw_soc == 100)) {
+			fuelgauge->g_capacity_max = 0;
+			fuelgauge->capacity_max_conv = false;
+		}
+		pr_info("%s: curr_raw_soc(%d) prev_raw_soc(%d) capacity_max_conv(%d) Capacity Max(%d | %d)\n",
+			__func__, curr_raw_soc, fuelgauge->prev_raw_soc, fuelgauge->capacity_max_conv,
+			fuelgauge->capacity_max, fuelgauge->g_capacity_max);
+	}
+
+	fuelgauge->prev_raw_soc = curr_raw_soc;
+}
+#endif
+
 /* capacity is 0.1% unit */
 static void s2mu106_fg_get_scaled_capacity(
 		struct s2mu106_fuelgauge_data *fuelgauge,
@@ -1661,6 +1685,54 @@ static int s2mu106_fg_check_capacity_max(
 		((capacity_max >= cap_max) ? cap_max : capacity_max);
 }
 
+#if defined(CONFIG_UI_SOC_PROLONGING)
+static void s2mu106_fg_calculate_dynamic_scale(
+	struct s2mu106_fuelgauge_data *fuelgauge, int capacity, bool scale_by_full)
+{
+	union power_supply_propval raw_soc_val;
+	int min_cap = fuelgauge->pdata->capacity_max - fuelgauge->pdata->capacity_max_margin;
+	int scaling_factor = 1;
+
+	if ((capacity > 100) || ((capacity * 10) < min_cap)) {
+		pr_err("%s: invalid capacity(%d)\n", __func__, capacity);
+		return;
+	}
+
+	if (s2mu106_get_rawsoc(fuelgauge, &raw_soc_val) < 0) {
+		pr_err("%s: failed to read raw soc\n", __func__);
+		return;
+	}
+
+	raw_soc_val.intval = (raw_soc_val.intval) / 10;
+
+	if (capacity < 100)
+		fuelgauge->capacity_max_conv = false;  //Force full sequence , need to decrease capacity_max
+
+	if (raw_soc_val.intval < min_cap) {
+		pr_info("%s: raw soc(%d) is very low, skip routine\n",
+			__func__, raw_soc_val.intval);
+		return;
+	}
+
+	if (capacity == 100)
+		scaling_factor = 2;
+
+	fuelgauge->capacity_max = (raw_soc_val.intval * 100 / (capacity + scaling_factor));
+	fuelgauge->capacity_old = capacity;
+
+	fuelgauge->capacity_max =
+		s2mu106_fg_check_capacity_max(fuelgauge,
+			fuelgauge->capacity_max);
+
+	pr_info("%s: %d is used for capacity_max, capacity(%d)\n",
+		__func__, fuelgauge->capacity_max, capacity);
+	if ((capacity == 100) && !fuelgauge->capacity_max_conv && scale_by_full) {
+		fuelgauge->capacity_max_conv = true;
+		fuelgauge->g_capacity_max = 990;
+		pr_info("%s: Goal capacity max %d\n", __func__, fuelgauge->g_capacity_max);
+	}
+}
+#else
 static void s2mu106_fg_calculate_dynamic_scale(
 		struct s2mu106_fuelgauge_data *fuelgauge, int capacity)
 {
@@ -1695,6 +1767,7 @@ static void s2mu106_fg_calculate_dynamic_scale(
 	pr_info("%s: %d is used for capacity_max, capacity(%d)\n",
 		__func__, fuelgauge->capacity_max, capacity);
 }
+#endif
 
 void s2mu106_fg_set_sys_voltage(struct s2mu106_fuelgauge_data *fuelgauge,
 			int get_sys_vol)
@@ -1835,6 +1908,19 @@ static int s2mu106_fg_get_property(struct power_supply *psy,
 			}
 			val->intval = val->intval / 10;
 
+#if defined(CONFIG_UI_SOC_PROLONGING)
+		if (fuelgauge->pdata->capacity_calculation_type &
+			(SEC_FUELGAUGE_CAPACITY_TYPE_SCALE | SEC_FUELGAUGE_CAPACITY_TYPE_DYNAMIC_SCALE)) {
+
+			s2mu106_fg_adjust_capacity_max(fuelgauge, val->intval);
+			s2mu106_fg_get_scaled_capacity(fuelgauge, val);
+
+			if (val->intval > 1020) {
+				pr_info("%s: scaled capacity (%d)\n", __func__, val->intval);
+				s2mu106_fg_calculate_dynamic_scale(fuelgauge, 100, false);
+			}
+		}
+#else
 			if (fuelgauge->pdata->capacity_calculation_type &
 				(SEC_FUELGAUGE_CAPACITY_TYPE_SCALE |
 					SEC_FUELGAUGE_CAPACITY_TYPE_DYNAMIC_SCALE)) {
@@ -1845,6 +1931,7 @@ static int s2mu106_fg_get_property(struct power_supply *psy,
 					s2mu106_fg_calculate_dynamic_scale(fuelgauge, 100);
 				}
 			}
+#endif
 
 			/* capacity should be between 0% and 100%
 			 * (0.1% degree)
@@ -1866,6 +1953,12 @@ static int s2mu106_fg_get_property(struct power_supply *psy,
 						fuelgauge->pdata->fuel_alert_soc);
 			}
 
+#if defined(CONFIG_UI_SOC_PROLONGING)
+			/* Check UI soc reached 100% from 99% , no need to adjust now */
+			if ((val->intval == 100) && (fuelgauge->capacity_old < 100) &&
+				(fuelgauge->capacity_max_conv == true))
+				fuelgauge->capacity_max_conv = false;
+#endif
 			/* (Only for atomic capacity)
 			 * In initial time, capacity_old is 0.
 			 * and in resume from sleep,
@@ -1972,7 +2065,11 @@ static int s2mu106_fg_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
 		if (fuelgauge->pdata->capacity_calculation_type &
 				SEC_FUELGAUGE_CAPACITY_TYPE_DYNAMIC_SCALE) {
+#if defined(CONFIG_UI_SOC_PROLONGING)
+			s2mu106_fg_calculate_dynamic_scale(fuelgauge, val->intval, true);
+#else
 			s2mu106_fg_calculate_dynamic_scale(fuelgauge, val->intval);
+#endif
 		}
 		break;
 	case POWER_SUPPLY_PROP_ONLINE:
@@ -1998,6 +2095,10 @@ static int s2mu106_fg_set_property(struct power_supply *psy,
 			__func__, fuelgauge->capacity_max, val->intval);
 		fuelgauge->capacity_max = s2mu106_fg_check_capacity_max(fuelgauge, val->intval);
 		fuelgauge->initial_update_of_soc = true;
+#if defined(CONFIG_UI_SOC_PROLONGING)
+		fuelgauge->g_capacity_max = 990;
+		fuelgauge->capacity_max_conv = true;
+#endif
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_EMPTY:
 		break;
@@ -2582,8 +2683,13 @@ static int s2mu106_fuelgauge_probe(struct i2c_client *client,
 	if (s2mu106_get_rawsoc(fuelgauge, &raw_soc_val) >= 0) {
 		raw_soc_val.intval = raw_soc_val.intval / 10;
 
+#if defined(CONFIG_UI_SOC_PROLONGING)
+		if (raw_soc_val.intval > fuelgauge->capacity_max)
+			s2mu106_fg_calculate_dynamic_scale(fuelgauge, 100, false);
+#else
 		if (raw_soc_val.intval > fuelgauge->capacity_max)
 			s2mu106_fg_calculate_dynamic_scale(fuelgauge, 100);
+#endif
 	}
 
 #if (TEMP_COMPEN)

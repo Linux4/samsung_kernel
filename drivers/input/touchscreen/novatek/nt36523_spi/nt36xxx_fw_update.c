@@ -331,9 +331,9 @@ static int32_t update_firmware_request(const char *filename)
 				input_info(true, &ts->client->dev, "%s : ums fw is null & set bin fw\n", __func__);
 				if (ts->nvt_ums_fw != NULL && ts->nvt_ums_fw->data != NULL) {
 					vfree(ts->nvt_ums_fw->data);
+					ts->nvt_ums_fw->size = 0;
+					ts->nvt_ums_fw->data = NULL;
 				}
-				ts->nvt_ums_fw->size = 0;
-				ts->nvt_ums_fw->data = NULL;
 				ts->nvt_ums_fw = NULL;
 
 				ts->cur_fw = ts->nvt_bin_fw;
@@ -1267,9 +1267,7 @@ download_fail:
 out:
 	mutex_unlock(&ts->lock);
 
-	if (fw_entry) {
-		release_firmware(fw_entry);
-	}
+	release_firmware(fw_entry);
 
 	return ret;
 }

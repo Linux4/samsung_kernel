@@ -70,6 +70,7 @@ struct sec_direct_charger_platform_data {
 	int dchg_temp_high_threshold;
 	int dchg_end_soc;
 	int dchg_dc_in_swelling;
+	int swelling_high_rechg_voltage;
 
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
 	unsigned int sc_vbat_thresh; /* vbat threshold which dc to sc */

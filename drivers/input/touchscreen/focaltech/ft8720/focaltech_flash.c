@@ -1257,6 +1257,7 @@ int fts_fwupg_func(int update_type, bool force)
 	} else {
 		sec_delay(200);
 		fts_get_fw_ver(upg->ts_data);
+		fts_set_lp_dump_status(upg->ts_data);
 	}
 
 	return 0;
@@ -1310,7 +1311,7 @@ int fts_fwupg_init_download(struct fts_upgrade *upg)
 	ret = fts_read_reg(FTS_REG_CHIP_ID, &chip_id);
 	FTS_INFO("read chip id:0x%02x", chip_id);
 	fts_get_fw_ver(upg->ts_data);
-
+	fts_set_lp_dump_status(upg->ts_data);
 #if FTS_ESDCHECK_EN
 	fts_esdcheck_switch(ENABLE);
 #endif

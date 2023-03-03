@@ -298,6 +298,11 @@ static void ilitek_tddi_wq_esd_check(struct work_struct *work)
 
 static int read_power_status(u8 *buf)
 {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+	ILI_DBG("%s : skip handle\n", __func__);
+
+	return 0;
+#else
 	struct file *f = NULL;
 	mm_segment_t old_fs;
 	ssize_t byte = 0;
@@ -319,6 +324,7 @@ static int read_power_status(u8 *buf)
 	set_fs(old_fs);
 	filp_close(f, NULL);
 	return 0;
+#endif
 }
 
 static void ilitek_tddi_wq_bat_check(struct work_struct *work)
@@ -407,6 +413,7 @@ void set_current_ic_mode(int mode)
 	}
 	switch (mode) {
 	case SET_MODE_NORMAL:
+		/* restore sec func */
 		if (!ilits->dead_zone_enabled) {
 			ret = ili_ic_func_ctrl("dead_zone_ctrl", DEAD_ZONE_DISABLE);
 			if (ret < 0)
@@ -442,6 +449,12 @@ void set_current_ic_mode(int mode)
 			if (ret < 0)
 				input_err(true, ilits->dev, "%s ear detect enabled fail(%d)\n", __func__, ilits->prox_face_mode);
 		}
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+		if (ilits->usb_plug_status == USB_PLUG_ATTACHED) {
+			ilitek_set_vbus();
+		}
+#endif
+
 	break;
 	case SET_MODE_PROXIMTY_LCDOFF:
 		if (ilits->prox_face_mode && ilits->tp_suspend) {
@@ -489,16 +502,29 @@ int ili_sleep_handler(int mode)
 {
 	int ret = 0;
 	bool sense_stop = true;
+	u8 lpwg_dump[5] = {0};
+
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+	cancel_delayed_work_sync(&ilits->work_vbus);
+#endif
+	cancel_delayed_work_sync(&ilits->work_read_info);
 
 	mutex_lock(&ilits->touch_mutex);
 	atomic_set(&ilits->tp_sleep, START);
 
-	if (atomic_read(&ilits->fw_stat) ||
-		atomic_read(&ilits->mp_stat)) {
-		input_info(true, ilits->dev, "%s fw upgrade or mp still running, ignore sleep requst\n", __func__);
+	if (atomic_read(&ilits->fw_stat) || atomic_read(&ilits->mp_stat)) {
+		input_info(true, ilits->dev, "%s fw upgrade or mp still running, enter ic off mode\n", __func__);
+		if (mode == TP_EARLY_SUSPEND) {
+			ili_wq_ctrl(WQ_ESD, DISABLE);
+			ili_wq_ctrl(WQ_BAT, DISABLE);
+			ili_irq_disable();
+			ilitek_pin_control(false);
+			ilits->power_status = POWER_OFF_STATUS;
+			ilits->sleep_handler_mode = TP_EARLY_SUSPEND;
+		}
 		atomic_set(&ilits->tp_sleep, END);
 		mutex_unlock(&ilits->touch_mutex);
-		return 0;
+		return -1;
 	}
 
 	if (ilits->sleep_handler_mode == mode) {
@@ -537,6 +563,12 @@ int ili_sleep_handler(int mode)
 			ili_switch_tp_mode(P5_X_FW_GESTURE_MODE);
 			ili_irq_wake_enable();
 			ili_irq_enable();
+
+			if (ilits->lp_dump_enable) {
+				lpwg_dump[0] = ILITEK_LPDUMP_LCDOFF;
+				ili_ic_lpwg_dump_buf_write(lpwg_dump);
+			}
+
 			if (ilits->prox_face_mode) {
 				ret = ili_ic_func_ctrl("sleep", SLEEP_IN);
 				if (ret < 0)
@@ -564,6 +596,13 @@ int ili_sleep_handler(int mode)
 				__func__, ilits->power_status, ilits->ges_sym.double_tap);
 		if ((ilits->power_status != POWER_OFF_STATUS) && (ilits->power_status != POWER_ON_STATUS)
 			&& !ilits->tp_shutdown) {
+
+			if (ilits->lp_dump_enable) {
+				ili_ic_lpwg_get();
+				lpwg_dump[0] = ILITEK_LPDUMP_LCDON;
+				ili_ic_lpwg_dump_buf_write(lpwg_dump);
+			}
+
 			ili_irq_wake_disable();
 			if (ilits->power_status == LP_PROX_STATUS) {
 				ilits->actual_tp_mode = P5_X_FW_AP_MODE;
@@ -938,6 +977,7 @@ int ili_report_handler(void)
 	case P5_X_DEMO_AXIS_PACKET_ID:
 		ili_report_ap_mode(&trdata[P5_X_DEMO_MODE_PACKET_INFO_LEN],
 			(rlen - P5_X_DEMO_MODE_PACKET_INFO_LEN - P5_X_DEMO_MODE_AXIS_LEN - P5_X_DEMO_MODE_STATE_INFO));
+		ilitek_tddi_touch_send_debug_data(trdata, rlen);
 		break;
 	case P5_X_DEBUG_AXIS_PACKET_ID:
 		ili_report_debug_mode(trdata, rlen);
@@ -1032,6 +1072,21 @@ int ili_reset_ctrl(int mode)
 	ilits->pll_clk_wakeup = true;
 	atomic_set(&ilits->tp_reset, END);
 	return ret;
+}
+
+static void ili_read_info_work(struct work_struct *work)
+{
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+	input_err(true, ilits->dev, "%s: factory bin : skip ili_read_info_onboot call\n", __func__);
+#else
+	ili_read_info_onboot(&ilits->sec);
+#endif
+
+	cancel_delayed_work(&ilits->work_print_info);
+	ilits->print_info_cnt_open = 0;
+	ilits->print_info_cnt_release = 0;
+	if (!ili_shutdown_is_on_going_tsp)
+		schedule_work(&ilits->work_print_info.work);
 }
 
 int ili_tddi_init(void)
@@ -1136,6 +1191,9 @@ int ili_tddi_init(void)
 	if (!ilits->ws)
 		input_err(true, ilits->dev, "%s wakeup source request failed\n", __func__);
 
+	INIT_DELAYED_WORK(&ilits->work_read_info, ili_read_info_work);
+	schedule_delayed_work(&ilits->work_read_info, msecs_to_jiffies(300));
+
 	return 0;
 }
 
@@ -1146,7 +1204,13 @@ void ili_dev_remove(void)
 	if (!ilits)
 		return;
 
+	cancel_delayed_work_sync(&ilits->work_read_info);
+
 	cancel_delayed_work_sync(&ilits->work_print_info);
+
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+	cancel_delayed_work_sync(&ilits->work_vbus);
+#endif
 
 	ili_shutdown_is_on_going_tsp = true;
 	ilits->power_status = POWER_OFF_STATUS;

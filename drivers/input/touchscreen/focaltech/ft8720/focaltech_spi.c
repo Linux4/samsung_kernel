@@ -89,7 +89,7 @@ static int fts_spi_transfer(u8 *tx_buf, u8 *rx_buf, u32 len)
 	spi_message_init(&msg);
 	spi_message_add_tail(&xfer, &msg);
 
-	if (fts_data->pdata->cs_gpio > 0)
+	if (gpio_is_valid(fts_data->pdata->cs_gpio))
 		gpio_direction_output(fts_data->pdata->cs_gpio, 0);
 
 	ret = spi_sync(spi, &msg);
@@ -98,7 +98,7 @@ static int fts_spi_transfer(u8 *tx_buf, u8 *rx_buf, u32 len)
 		return ret;
 	}
 
-	if (fts_data->pdata->cs_gpio > 0)
+	if (gpio_is_valid(fts_data->pdata->cs_gpio))
 		gpio_direction_output(fts_data->pdata->cs_gpio, 1);
 
 	return ret;
