@@ -335,8 +335,8 @@ void set_vbus_voltage(int vol)
 	afc_set_voltage(vol);
 #endif
 #else
-#if defined(CONFIG_USE_MUIC)
-	muic_afc_set_voltage(vol);
+#if defined(CONFIG_AFC_CHARGER_MODE)
+	muic_afc_request_voltage(AFC_REQUEST_CHARGER, vol);
 #endif
 #endif
 }
@@ -4561,15 +4561,6 @@ static void sec_bat_cable_work(struct work_struct *work)
 	sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_SKIP_HEATING_CONTROL,
 				SEC_BAT_CURRENT_EVENT_SKIP_HEATING_CONTROL);
 
-#if !defined(CONFIG_DISCRETE_CHARGER)
-	/*
-	 * showing charging icon and noti(no sound, vi, haptic) only
-	 * if slow insertion is detected by MUIC
-	 */
-	sec_bat_set_misc_event(battery, (battery->muic_cable_type == ATTACHED_DEV_TIMEOUT_OPEN_MUIC ? BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE : 0),
-		BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE);
-#endif
-
 #if defined(CONFIG_PDIC_NOTIFIER)
 	if (is_pd_wire_type(battery->wire_status)) {
 		sec_bat_get_input_current_in_power_list(battery);
@@ -4643,6 +4634,16 @@ static void sec_bat_cable_work(struct work_struct *work)
 
 	if (current_cable_type == SEC_BATTERY_CABLE_HV_TA_CHG_LIMIT)
 		current_cable_type = SEC_BATTERY_CABLE_9V_TA;
+
+	if (!can_usb_suspend_type(current_cable_type) &&
+			battery->current_event & SEC_BAT_CURRENT_EVENT_USB_SUSPENDED) {
+		pr_info("%s: clear suspend event prev_cable_type:%s -> %s\n", __func__,
+				sec_cable_type[battery->cable_type], sec_cable_type[current_cable_type]);
+		sec_bat_set_current_event(battery, 0, SEC_BAT_CURRENT_EVENT_USB_SUSPENDED);
+		sec_vote(battery->chgen_vote, VOTER_SUSPEND, false, 0);
+		sec_vote(battery->fcc_vote, VOTER_USB_100MA, false, 0);
+		sec_vote(battery->input_vote, VOTER_USB_100MA, false, 0);
+	}
 
 	prev_cable_type = battery->cable_type;
 	battery->cable_type = current_cable_type;
@@ -4954,6 +4955,15 @@ end_of_cable_work:
 		(battery->misc_event & BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE))
 		sec_bat_set_misc_event(battery, 0,
 			BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE);
+#else
+	/*
+	 * showing charging icon and noti(no sound, vi, haptic) only
+	 * if slow insertion is detected by MUIC
+	 */
+	sec_bat_set_misc_event(battery,
+		(battery->muic_cable_type == ATTACHED_DEV_TIMEOUT_OPEN_MUIC ?
+			BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE : 0),
+		BATT_MISC_EVENT_TIMEOUT_OPEN_TYPE);
 #endif
 
 	__pm_relax(battery->cable_ws);

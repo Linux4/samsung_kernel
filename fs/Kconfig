@@ -36,6 +36,7 @@ source "fs/ocfs2/Kconfig"
 source "fs/btrfs/Kconfig"
 source "fs/nilfs2/Kconfig"
 source "fs/f2fs/Kconfig"
+source "fs/erofs/Kconfig"
 
 config FS_DAX
 	bool "Direct Access (DAX) support"

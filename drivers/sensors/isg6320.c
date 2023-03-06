@@ -2543,32 +2543,66 @@ static int isg6320_parse_dt(struct isg6320_data *data, struct device *dev)
 
 	pr_info("[GRIP_%d] gpio_int:%d\n", data->ic_num, data->gpio_int);
 
-	if (data->ic_num == MAIN_GRIP)
-		ret = of_property_read_u32(node, "isg6320,reg_num", &data->reg_size);
+	if (data->ic_num == MAIN_GRIP) {
+#ifdef CONFIG_SEC_FACTORY
+		ret = of_property_read_u32(node, "isg6320,fac_reg_num", &data->reg_size);
+		if (ret < 0)
+#endif
+			ret = of_property_read_u32(node, "isg6320,reg_num", &data->reg_size);
+
+	}
 #if defined(CONFIG_SENSORS_ISG6320_SUB)
-	else if (data->ic_num == SUB_GRIP)
-		ret = of_property_read_u32(node, "isg6320_sub,reg_num", &data->reg_size);
+	else if (data->ic_num == SUB_GRIP) {
+#ifdef CONFIG_SEC_FACTORY
+		ret = of_property_read_u32(node, "isg6320_sub,fac_reg_num", &data->reg_size);
+		if (ret < 0)
+#endif
+			ret = of_property_read_u32(node, "isg6320_sub,reg_num", &data->reg_size);
+	}
 #endif
 #if defined(CONFIG_SENSORS_ISG6320_WIFI)
-	else if (data->ic_num == WIFI_GRIP)
-		ret = of_property_read_u32(node, "isg6320_wifi,reg_num", &data->reg_size);
+	else if (data->ic_num == WIFI_GRIP) {
+#ifdef CONFIG_SEC_FACTORY
+		ret = of_property_read_u32(node, "isg6320_wifi,fac_reg_num", &data->reg_size);
+		if (ret < 0)
+#endif
+			ret = of_property_read_u32(node, "isg6320_wifi,reg_num", &data->reg_size);
+	}
 #endif
 
 	if(ret < 0)
 		data->reg_size = 68;
 
-	if (data->ic_num == MAIN_GRIP)
-		ret = of_property_read_u8_array(node, "isg6320,set_reg", data->setup_reg,
+	if (data->ic_num == MAIN_GRIP) {
+#ifdef CONFIG_SEC_FACTORY
+		ret = of_property_read_u8_array(node, "isg6320,fac_set_reg", data->setup_reg,
 						data->reg_size * 2);
+		if (ret < 0)
+#endif
+			ret = of_property_read_u8_array(node, "isg6320,set_reg", data->setup_reg,
+							data->reg_size * 2);
+	}
 #if defined(CONFIG_SENSORS_ISG6320_SUB)
-	else if (data->ic_num == SUB_GRIP)
-		ret = of_property_read_u8_array(node, "isg6320_sub,set_reg", data->setup_reg,
+	else if (data->ic_num == SUB_GRIP) {
+#ifdef CONFIG_SEC_FACTORY
+		ret = of_property_read_u8_array(node, "isg6320_sub,fac_set_reg", data->setup_reg,
+				data->reg_size * 2);
+		if (ret < 0)
+#endif
+			ret = of_property_read_u8_array(node, "isg6320_sub,set_reg", data->setup_reg,
 						data->reg_size * 2);
+	}
 #endif
 #if defined(CONFIG_SENSORS_ISG6320_WIFI)
-	else if (data->ic_num == WIFI_GRIP)
-		ret = of_property_read_u8_array(node, "isg6320_wifi,set_reg", data->setup_reg,
-						data->reg_size * 2);
+	else if (data->ic_num == WIFI_GRIP) {
+#ifdef CONFIG_SEC_FACTORY
+		ret = of_property_read_u8_array(node, "isg6320_wifi,fac_set_reg", data->setup_reg,
+				data->reg_size * 2);
+		if (ret < 0)
+#endif
+			ret = of_property_read_u8_array(node, "isg6320_wifi,set_reg", data->setup_reg,
+							data->reg_size * 2);
+	}
 #endif
 	if (ret < 0) {
 		pr_err("[GRIP_%d] set_reg fail\n", data->ic_num);

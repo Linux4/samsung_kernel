@@ -1720,8 +1720,22 @@ repeat:
 	if (err)
 		goto out_put;
 
+	max_try = 10;
+repeat2:
 	err = sock->ops->connect(sock, (struct sockaddr *)&address, addrlen,
 				 sock->file->f_flags);
+	if (err == -ENOMEM && max_try-- > 0) {
+		struct page *dummy_page = NULL;
+
+		dummy_page = alloc_page(GFP_KERNEL);
+		if (dummy_page) {
+			__free_page(dummy_page);
+			pr_err("%s: sock->ops->connect failed, rem_retry %d\n",
+			       __func__, max_try);
+			goto repeat2;
+		}
+	}
+
 	if (!err)
 		sockev_notify(SOCKEV_CONNECT, sock);
 out_put:

@@ -1119,9 +1119,8 @@ int nvt_ts_fw_update_from_external(struct nvt_ts_data *ts, const char *file_path
 {
 	const struct firmware *fw_entry;
 	int ret = 0;
-#if defined(SUPPORT_SIGNED_FW)
-	long spu_ret = 0, org_size = 0;
-#endif
+	long fw_size = 0;
+
 	mutex_lock(&ts->lock);
 
 	ret = request_firmware(&fw_entry, file_path, &ts->client->dev);
@@ -1137,25 +1136,32 @@ int nvt_ts_fw_update_from_external(struct nvt_ts_data *ts, const char *file_path
 		goto out;
 	}
 
-#if defined(SUPPORT_SIGNED_FW)
+	fw_size = fw_entry->size;
+
 	if (strncmp(file_path, TSP_SPU_FW_SIGNED, strlen(TSP_SPU_FW_SIGNED)) == 0
 			|| strncmp(file_path, TSP_EXTERNAL_FW_SIGNED, strlen(TSP_EXTERNAL_FW_SIGNED)) == 0) {
-		/* name 3, digest 32, signature 512 */
-		org_size = fw_entry->size - SPU_METADATA_SIZE(TSP);
-		spu_ret = spu_firmware_signature_verify("TSP", fw_entry->data, fw_entry->size);
-		input_info(true, &ts->client->dev, "%s: spu_ret : %ld, spu_fw_size:%ld\n", __func__, spu_ret, fw_entry->size);
+		
+#if defined(SUPPORT_SIGNED_FW)
+		long spu_ret = spu_firmware_signature_verify("TSP", fw_entry->data, fw_entry->size);
 
-		if (spu_ret != org_size) {
+		fw_size = fw_entry->size - SPU_METADATA_SIZE(TSP);	/* name 3, digest 32, signature 512 */
+		input_info(true, &ts->client->dev, "%s: spu_ret : %ld, fw_size : %ld, spu_fw_size:%ld\n",
+					__func__, spu_ret, fw_size, fw_entry->size);
+
+		if (spu_ret != fw_size) {
 			input_err(true, &ts->client->dev, "%s: signature verify failed, %ld\n", __func__, spu_ret);
 			ret = -EIO;
 			goto out;
 		}
-	} else {
-		org_size = fw_entry->size;
-	}
+#else
+		input_err(true, &ts->client->dev, "%s: spu_firmware_signature_verify is not called!\n", __func__);
+		ret = -EIO;
+		goto out;
 #endif
+	}
+
 	input_info(true, &ts->client->dev, "%s: start, file path %s, size %ld Bytes\n",
-		__func__, file_path, fw_entry->size);
+		__func__, file_path, fw_size);
 
 	input_info(true, &ts->client->dev, "%s: ic: project id %02X, firmware version %02X\n",
 		__func__, ts->fw_ver_ic[1], ts->fw_ver_ic[3]);
@@ -1188,13 +1194,9 @@ int nvt_ts_fw_update_from_external(struct nvt_ts_data *ts, const char *file_path
 		ts->nvt_ums_fw->size = 0;
 		ts->nvt_ums_fw->data = NULL;
 	}
-#if defined(SUPPORT_SIGNED_FW)
-	ts->nvt_ums_fw->data = vzalloc(org_size);
-	ts->nvt_ums_fw->size = org_size;
-#else
-	ts->nvt_ums_fw->data = vzalloc(fw_entry->size);
-	ts->nvt_ums_fw->size = fw_entry->size;
-#endif
+
+	ts->nvt_ums_fw->data = vzalloc(fw_size);
+	ts->nvt_ums_fw->size = fw_size;
 	memcpy(ts->nvt_ums_fw->data, fw_entry->data, ts->nvt_ums_fw->size);
 
 	ts->cur_fw = ts->nvt_ums_fw;
