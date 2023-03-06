@@ -1,0 +1,64 @@
+/*
+ * SAMSUNG UNIVERSAL5430 board device tree source
+ *
+ * Copyright (c) 2014 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+#include "exynos_gpio_config_macros.dtsi"
+
+/* S KOR Project Rev01 Support */
+
+&pinctrl_0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&initial0>;
+	initial0: initial-state {
+		PIN_IN(gpa1-2, DOWN, LV1);	/* NC */
+	};
+};
+
+&pinctrl_2 {
+	pinctrl-names = "sleep";
+	pinctrl-0 = <&sleep2>;
+	sleep2: sleep-state {
+		PIN_SLP(gpv6-2, INPUT, DOWN);	/* NC */
+	};
+};
+
+&pinctrl_3 {
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&initial3>;
+	pinctrl-1 = <&sleep3>;
+	initial3: initial-state {
+		PIN_IN(gpr3-6, DOWN, LV1);	/* NC */
+	};
+
+	sleep3: sleep-state {
+		PIN_SLP(gpr3-6, INPUT, DOWN);	/* NC */
+	};
+};
+
+&pinctrl_5 {
+	pinctrl-names = "default","sleep";
+	pinctrl-0 = <&initial5>;
+	pinctrl-1 = <&sleep5>;
+	initial5: initial-state {
+		PIN_IN(gpf0-5, DOWN, LV1);	/* NC */
+	};
+
+	sleep5: sleep-state {
+		PIN_SLP(gpd1-4, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpd1-5, INPUT, DOWN);	/* NC */
+
+		PIN_SLP(gpf0-5, INPUT, DOWN);	/* NC */
+
+		PIN_SLP(gpf4-5, INPUT, DOWN);	/* NC */
+
+		PIN_SLP(gpf3-0, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpf3-1, INPUT, DOWN);	/* NC */
+	};
+};

@@ -1,0 +1,60 @@
+#
+# Grip sensors
+#
+menu "Grip sensors"
+
+config SENSORS_SX9306
+	depends on IIO
+	tristate "SX9306 driver"
+	default n
+	help
+	  Say Y here if you use sx9306.
+	  This option enables grip sensors using
+	  SemTech sx9306 device driver.
+
+	  Say N here if you do not use sx9306.
+
+config SENSORS_SX9306_INIT_TOUCH_THRESHOLD
+	int "SX9306 Grip sensor threshold for init touch"
+	depends on SENSORS_SX9306
+	default "3000"
+	help
+	  This value is the standard of init touch using
+	  SemTech sx9306 device driver.
+
+config SENSORS_SX9306_NORMAL_TOUCH_THRESHOLD
+	int "SX9306 Grip sensor threshold for normal touch"
+	depends on SENSORS_SX9306
+	default "17"
+	help
+	  This value is the standard of normal touch using
+	  SemTech sx9306 device driver.
+
+config SENSORS_SX9306_WIFI
+	depends on IIO
+	tristate "SX9306 driver"
+	default n
+	help
+	  Say Y here if you use sx9306.
+	  This option enables grip sensors using
+	  SemTech sx9306 device driver.
+
+	  Say N here if you do not use sx9306.
+
+config SENSORS_SX9306_WIFI_INIT_TOUCH_THRESHOLD
+	int "SX9306 Grip sensor threshold for init touch"
+	depends on SENSORS_SX9306_WIFI
+	default "3000"
+	help
+	  This value is the standard of init touch using
+	  SemTech sx9306 device driver.
+
+config SENSORS_SX9306_WIFI_NORMAL_TOUCH_THRESHOLD
+	int "SX9306 Grip sensor threshold for normal touch"
+	depends on SENSORS_SX9306_WIFI
+	default "17"
+	help
+	  This value is the standard of normal touch using
+	  SemTech sx9306 device driver.
+
+endmenu
