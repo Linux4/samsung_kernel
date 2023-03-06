@@ -439,6 +439,10 @@ struct sec_battery_info {
 	unsigned int mix_limit;
 	unsigned int vbus_limit;
 
+	/* lrp temperature check */
+	unsigned int lrp_limit;
+	unsigned int lrp_step;
+
 	/* temperature check */
 	int temperature;	/* battery temperature */
 #if defined(CONFIG_ENG_BATTERY_CONCEPT)
@@ -473,6 +477,9 @@ struct sec_battery_info {
 	int dchg_temp;
 #endif
 	int blkt_temp;		/* blanket temperature(instead of batt temp in mix_temp func for tablet model) */
+
+	int lrp;
+	int lrp_test;
 
 	int temp_adc;
 	int temp_ambient_adc;
