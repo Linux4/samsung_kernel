@@ -1,0 +1,34 @@
+/*
+ * Copyright (c) 2014 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+// Support TR 3CA LTE KOR HW REV05~ diff GPIOs.
+
+#include "exynos_gpio_config_macros.dtsi"
+
+&pinctrl_3 {
+	sleep3: sleep-state {
+		PIN_SLP(gpj2-1, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpj2-2, INPUT, DOWN);	/* NC */
+	};
+};
+
+&pinctrl_8 {
+	initial8: initial-state {
+		PIN_IN(gpd7-1, DOWN, LV1);	/* NFC_MCLK */
+
+		PIN_IN(gpg1-4, DOWN, LV1);	/* NC */
+
+	};
+	sleep8: sleep-state {
+		PIN_SLP(gpg3-0, INPUT, NONE);	/* TDMB_I2C_SDA */
+		PIN_SLP(gpg3-1, INPUT, NONE);	/* TDMB_I2C_SCL */
+	};
+};
+
+

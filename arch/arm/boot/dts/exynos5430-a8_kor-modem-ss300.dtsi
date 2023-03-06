@@ -1,0 +1,176 @@
+/*
+ * SAMSUNG universal5422 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+#include "modem-ss300-pdata.dtsi"
+
+#define PIN_SET_FN_SPI(_pin)			\
+	_pin {					\
+		samsung,pins = #_pin;		\
+		samsung,pin-function = <2>;	\
+	}
+
+/* modem_interface_driver: UMTS modem, 2G/3G/4G, Samsung Electronics Shannon300 (SS300) */
+
+/ {
+	mif_pdata {
+		status = "okay";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&cp_on &cp_reset &pda_active &phone_active &ap2cp_wakeup &ap2cp_status
+&cp2ap_wakeup &cp2ap_status &gpio_ipc_int2cp &ap_dump_int>;
+
+		mif,gpio_cp_on = <&gpg2 3 0x1>;
+
+		mif,gpio_cp_reset = <&gpa1 1 0x1>;
+		mif,gpio_pda_active = <&gpg2 4 0x1>;
+		mif,gpio_phone_active = <&gpa2 5 0xf>;
+
+		mif,gpio_cp_status = <&gpa2 3 0xf>;
+		mif,gpio_ipc_int2cp = <&gpf4 7 0x1>;
+		mif,gpio_ap_dump_int = <&gpf4 4 0x1>;
+
+		link_pm {
+			gpio_cp2ap_wakeup = <&gpa3 1 0xf>;
+			gpio_ap2cp_wakeup = <&gpf4 6 0x1>;
+			gpio_cp2ap_status = <&gpa2 3 0xf>;
+			gpio_ap2cp_status = <&gpf4 3 0x1>;
+		};
+	};
+
+	pinctrl@14CC0000 {
+		cp_on: cp_on {
+			samsung,pins = "gpg2-3";
+			samsung,pin-function = <1>;
+			samsung,pin-con-pdn = <3>;
+			samsung,pin-pud-pdn = <0>;
+		};
+
+		pda_active: pda_active {
+			samsung,pins = "gpg2-4";
+			samsung,pin-function = <1>;
+			samsung,pin-con-pdn = <3>;
+			samsung,pin-pud-pdn = <0>;
+		};
+
+		ap2cp_wakeup: ap2cp_wakeup {
+			samsung,pins = "gpf4-3";
+			samsung,pin-function = <1>;
+			samsung,pin-con-pdn = <3>;
+			samsung,pin-pud-pdn = <0>;
+		};
+
+		ap2cp_status: ap2cp_status {
+			samsung,pins = "gpf4-6";
+			samsung,pin-function = <1>;
+			samsung,pin-con-pdn = <3>;
+			samsung,pin-pud-pdn = <0>;
+		};
+
+		gpio_ipc_int2cp: gpio_ipc_int2cp {
+			samsung,pins = "gpf4-7";
+			samsung,pin-function = <1>;
+			samsung,pin-val = <0>;
+		};
+
+		ap_dump_int: ap_dump_int {
+			samsung,pins = "gpf4-4";
+			samsung,pin-function = <1>;
+			samsung,pin-con-pdn = <3>;
+			samsung,pin-pud-pdn = <0>;
+		};
+	};
+
+	pinctrl@10580000 {
+		cp_reset: cp_reset {
+			samsung,pins = "gpa1-1";
+			samsung,pin-function = <1>;
+			samsung,pin-con-pdn = <3>;
+			samsung,pin-pud-pdn = <0>;
+		};
+
+		cp2ap_status: cp2ap_status {
+			samsung,pins = "gpa2-3";
+			samsung,pin-function = <0xf>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+
+		phone_active: phone_active {
+			samsung,pins = "gpa2-5";
+			samsung,pin-function = <0xf>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+
+		cp2ap_wakeup: cp2ap_wakeup {
+			samsung,pins = "gpa3-1";
+			samsung,pin-function = <0xf>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <0>;
+		};
+	};
+
+	mipi-lli@10F24000 {
+		modem-name = "ss300";
+
+		modems {
+			ss300 {
+				/* shared memory size for IPC */
+				shdmem_size = <8>;
+				/* is the shdmem allocated by ion */
+				is_ion_alloc = <0>;
+				/* disable scrambler */
+				scrambler = <0>;
+				/* do not control automode by AP */
+				automode = <0>;
+			};
+		};
+
+		mphy {
+			modem-name = "ss300";
+			modems {
+				ss300 {
+					/* initial-gear is HS-G1 */
+					init-gear = <2 1 1>;
+					/* use shared reference clock for MPHY */
+					shd-refclk = <1>;
+				};
+			};
+		};
+	};
+};
+
+
+
+/* On EXYNOS BSP, gpio slepp state registers will be
+   overwritten by gpio sleep tables, pinctrl_#.
+   So additional configurations are required,
+   except for ALIVE blocks - GPA0, GPA1, GPA2, GPA3. */
+
+&pinctrl_5 {
+	initial5: initial-state {
+		PIN_SET_FN_SPI(gpc3-4);		/* cp boot spi */
+		PIN_SET_FN_SPI(gpc3-5);
+		PIN_SET_FN_SPI(gpc3-6);
+		PIN_SET_FN_SPI(gpc3-7);
+	};
+
+	sleep5: sleep-state {
+		PIN_SLP(gpf1-2, INPUT, DOWN);	/* NC */
+
+		PIN_SLP(gpg2-3, PREV, NONE);	/* CP_ON */
+		PIN_SLP(gpg2-4, PREV, NONE);	/* PDA_ACTIVE */
+		PIN_SLP(gpf4-3, PREV, NONE);	/* AP2CP_WAKEUP */
+		PIN_SLP(gpf4-6, PREV, NONE);	/* AP2CP_STATUS */
+		PIN_SLP(gpf4-7, OUT0, NONE);	/* IPC_INT2CP */
+	};
+};
+

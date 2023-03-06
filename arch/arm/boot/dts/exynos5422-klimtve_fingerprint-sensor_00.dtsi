@@ -1,0 +1,93 @@
+ /*
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/ {
+	pinctrl@13410000 {
+		ocp_flag: ocf-flag {
+			samsung,pins = "gpy0-1";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <3>;
+		};
+	};
+	pinctrl@13400000 {
+		btp_irq: btp-irq {
+			samsung,pins = "gpx0-7";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <3>;
+		};
+		btp_irqsleep: btp-irqsleep {
+			samsung,pins = "gpx0-7";
+			samsung,pin-pud = <1>;
+		};
+		btp_irqidle: btp-irqidle {
+			samsung,pins = "gpx0-7";
+			samsung,pin-pud = <3>;
+		};
+		btp_reset: btp-reset {
+			samsung,pins = "gpy7-6";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+		btp_ldo: btp-ldo {
+			samsung,pins = "gpy7-4";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+		btp_ldo2: btp-ldo2 {
+			samsung,pins = "gpy7-5";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+	};
+	spi_1: spi@12d30000 {
+		status = "okay";
+		/delete-property/ dma-mode;
+		/delete-property/ dmas;
+		/delete-property/ dma-names;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&spi1_bus &spi1_cs2>;
+
+		vfsspi-spi@0 {
+			compatible = "vfsspi,vfs61xx";
+			reg = <0>;
+			spi-max-frequency = <19200000>;
+			pinctrl-names = "default", "sleep", "idle";
+			pinctrl-0 = <&btp_irq &btp_reset &btp_ldo &btp_ldo2 &ocp_flag>;
+			pinctrl-1 = <&btp_irqsleep>;
+			pinctrl-2 = <&btp_irqidle>;
+
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			vfsspi-sleepPin = <&gpy7 6 0x00>;
+			vfsspi-drdyPin = <&gpx0 7 0x00>;
+			vfsspi-ldoPin = <&gpy7 4 0x00>;
+			vfsspi-ldoPin2 = <&gpy7 5 0x00>;
+			/* vfsspi-ocpflag = <&gpy0 1 0x00>; */
+			vfsspi-orient = <0>;
+			vfsspi-ldocontrol = <1>;
+
+			controller-data {
+				cs-gpio = <&gpa2 5 0 0 3>;
+				samsung,spi-feedback-delay = <0>;
+			};
+		};
+	};
+};

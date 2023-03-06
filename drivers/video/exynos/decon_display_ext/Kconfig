@@ -1,0 +1,4 @@
+config EXYNOS_DECON_DUAL_DISPLAY
+	bool "Samsung decon dual display driver"
+	depends on EXYNOS_DECON_DISPLAY
+	default n

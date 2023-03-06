@@ -1,0 +1,149 @@
+/*
+ * SAMSUNG universal5422 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/* modem_interface_driver: UMTS modem, 2G/3G/4G, Samsung Electronics Shannon300 with HSIC */
+
+/ {
+	/* modem_interface_driver: 4G Shannon300 */
+	mif_pdata {
+		compatible = "sec_modem,modem_pdata";
+
+		mif,name = "shannon";
+		mif,modem_net = <2>;
+		mif,modem_type = <8>;
+		mif,link_types = <0x28>;	/* LINKDEV_HSIC | LINKDEV_SPI */
+		mif,use_handover = <0>;
+		mif,ipc_version = <50>;
+		mif,num_iodevs = <14>;
+
+		mif,max_link_channel = <2>;
+		mif,max_acm_channel = <1>;
+
+		iodevs {
+			io_device_0 {
+				iod,name = "umts_ipc0";
+				iod,id = <235>;
+				iod,format = <0>;
+				iod,io_type = <0>;
+				iod,links = <0x20>;	/* LINKDEV_HSIC */
+				iod,attr = <0x0a>;	/* SIPC5 */
+				iod,rxq_max = <1024>;
+				iod,multi_len = <3456>; /* needs to be changed later on */
+			};
+			io_device_1 {
+				iod,name = "umts_rfs0";
+				iod,id = <245>;
+				iod,format = <2>;
+				iod,io_type = <0>;
+				iod,links = <0x20>;
+				iod,attr = <0x02>;
+			};
+			io_device_2 {
+				iod,name = "umts_boot0";
+				iod,id = <0>;
+				iod,format = <4>;
+				iod,io_type = <0>;
+				iod,links = <0x28>;	/* LINKDEV_HSIC | LINKDEV_SPI */
+				iod,tx_link = <5>;
+				iod,attr = <0x02>;
+			};
+			io_device_3 {
+				iod,name = "multipdp";
+				iod,id = <0>;
+				iod,format = <5>;
+				iod,io_type = <2>;
+				iod,links = <0x20>;
+				iod,attr = <0x02>;
+			};
+			io_device_4 {
+				iod,name = "umts_router";
+				iod,id = <25>;
+				iod,format = <1>;
+				iod,io_type = <0>;
+				iod,links = <0x20>;
+				iod,attr = <0x02>;
+			};
+			io_device_5 {
+				iod,name = "umts_csd";
+				iod,id = <1>;
+				iod,format = <1>;
+				iod,io_type = <0>;
+				iod,links = <0x20>;
+				iod,attr = <0x02>;
+			};
+			io_device_6 {
+				iod,name = "umts_dm0";
+				iod,id = <28>;
+				iod,format = <7>;
+				iod,io_type = <0>;
+				iod,links = <0x20>;
+				iod,attr = <0x06>;
+				iod,rxq_max = <8192>;
+			};
+			io_device_7 {
+				iod,name = "umts_log";
+				iod,id = <27>;
+				iod,format = <4>;
+				iod,io_type = <0>;
+				iod,links = <0x20>;
+				iod,attr = <0x02>;
+			};
+			io_device_8 {
+				iod,name = "rmnet0";
+				iod,id = <10>;
+				iod,format = <7>;
+				iod,io_type = <1>;
+				iod,links = <0x20>;
+				iod,attr = <0x06>;	/* ATTR_SIPC5 | ATTR_CDC_NCM */
+			};
+			io_device_9 {
+				iod,name = "rmnet1";
+				iod,id = <11>;
+				iod,format = <7>;
+				iod,io_type = <1>;
+				iod,links = <0x20>;
+				iod,attr = <0x06>;
+			};
+			io_device_10 {
+				iod,name = "rmnet2";
+				iod,id = <12>;
+				iod,format = <7>;
+				iod,io_type = <1>;
+				iod,links = <0x20>;
+				iod,attr = <0x06>;
+			};
+			io_device_11 {
+				iod,name = "rmnet3";
+				iod,id = <13>;
+				iod,format = <7>;
+				iod,io_type = <1>;
+				iod,links = <0x20>;
+				iod,attr = <0x06>;
+			};
+			io_device_12 {
+				iod,name = "rmnet4";
+				iod,id = <31>;
+				iod,format = <7>;
+				iod,io_type = <1>;
+				iod,links = <0x20>;
+				iod,attr = <0x06>;
+			};
+			io_device_13 {
+				iod,name = "ipc_loopback0";
+				iod,id = <13>;
+				iod,format = <0>;
+				iod,io_type = <0>;
+				iod,links = <0x20>;
+				iod,attr = <0x02>;
+			};
+		}; /* end of iodevs */
+	}; /* end of mif_pdata */
+};

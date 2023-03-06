@@ -1,0 +1,151 @@
+config CAMERA_EEPROM_SUPPORT_REAR
+        bool "Enable eeprom for rear cam"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Enable eeprom for rear cam.
+config CAMERA_EEPROM_SUPPORT_FRONT
+        bool "Enable eeprom for front cam"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Enable eeprom for front cam.
+config COMPANION_USE
+        bool "Use companion"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Use companion.
+ config COMPANION_C1_USE
+        bool "Use companion C1"
+        depends on COMPANION_USE
+        default n
+        help
+          Use companion C1.
+ config COMPANION_C2_USE
+        bool "Use companion C2"
+        depends on COMPANION_USE
+        default n
+        help
+          Use companion C2.
+config COMPANION_DCDC_USE
+        bool "Use companion DCDC regulator"
+        depends on COMPANION_USE
+        default n
+        help
+          Use companion DCDC regulator.
+config COMPANION_STANDBY_USE
+        bool "Use companion standby"
+        depends on COMPANION_USE
+        default n
+        help
+          Use companion standby.
+config OIS_USE
+        bool "Use ois"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Use ois.
+config OIS_FW_UPDATE_THREAD_USE
+        bool "Enable ois fw update thread"
+        depends on OIS_USE
+        default n
+        help
+          Enable ois fw update thread.
+config AF_HOST_CONTROL
+        bool "Enable host af control"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Enable host af control.
+config CAMERA_SYSFS_V2
+        bool "Enable to sysfs v2"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Enable to sysfs v2.
+config CAMERA_ACTUATOR_DW9807
+        bool "Use DW9807 camera actuator and eeprom"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Use DW9807 camera actuator and eeprom.
+config CAMERA_SENSOR_TEMP
+        bool "camera sensor temp"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Use to build camera sensor temp.
+config CAMERA_ONLY_SUPPORT_FRONT
+        bool "Support only front camera temporarilly"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Use to support only front camera temporarilly.
+          This config should be removed after bring-up.
+config CAMERA_SENSOR_TIMEOUT_COUNT
+        int "set camera sensor timeout count"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default 0
+        help
+          set camera sensor timeout count.
+config CAMERA_SUPPORT_MULTI_EEPROM
+        bool "Enable for support multi eeprom"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Enable for support multi eeprom.
+config CAMERA_VARIABLE_MIPI_LANES
+        bool "Enable for support variable MIPI lanes"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Enable for support variable MIPI lanes.
+config CAMERA_TBE
+        bool "This camera is TBE Project"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          This camera is TBE Project.
+config CAMERA_TRE
+        bool "This camera is TRE Project"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          This camera is TRE Project.
+config CAMERA_TR
+        bool "This camera is TR Project"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          This camera is TR Project.
+config CAMERA_GTS2
+        bool "This camera is GTS2 Project"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          This camera is GTS2 Project.
+config CAMERA_ALPHA
+        bool "This camera is ALPHA Project"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          This camera is ALPHA Project.
+config CAMERA_CHAGALLHLTE
+        bool "This camera is CHAGALLHLTE Project"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          This camera is CHAGALLHLTE Project.
+config CAMERA_A7
+        bool "This camera is A7 Project"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          This camera is A7 Project.
+config CAMERA_A8
+        bool "This camera is A8 Project"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          This camera is A8 Project.

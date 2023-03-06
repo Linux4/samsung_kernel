@@ -1,0 +1,54 @@
+/*
+ * SAMSUNG UNIVERSAL5430 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/dts-v1/;
+#include "exynos5430-a7_common.dtsi"
+#include "exynos5430-a7_gpio_00.dtsi"
+#include "exynos5430-a7_battery.dtsi"
+
+
+/ {
+	model = "Samsung A7 LTE EUR revision 03 board(EVT1) based on EXYNOS5430 with Ericsson modem";
+	model_info-chip = <5430>;
+	model_info-platform = "a7";
+	model_info-subtype = "a7_eur_open";
+	model_info-hw_rev = <3>;
+	model_info-hw_rev_end = <255>; /* If add new dts file for new hw , it is set to <x>. x is suppored max system revision by this dts */
+	compatible = "samsung,A7 EUR,r03", "samsung,exynos5430";
+
+	/* use pcd interrupt from rev01 */
+	decon_fb: decon_fb {
+		oled-pcd-gpio = <&gpa0 5 0xf>;
+	};
+
+	earjack {
+	compatible = "sec_jack";
+	earjack-detect-gpio = <&gpa3 4 0>;
+	earjack-sendend-gpio = <&gpa2 2 0>;
+	earjack-micbias-gpio = <&gpv7 3 0>;
+
+	det-zones-list = <&det_zones 0 10 10 0>,
+			 <&det_zones 1520 10 10 0>,
+			 <&det_zones 1521 10 10 1>,
+			 <&det_zones 9999 10 10 1>;
+	but-zones-list = <&but_zones 0 0 204>,
+			 <&but_zones 3 205 285>,
+			 <&but_zones 1 286 499>,
+			 <&but_zones 2 500 1100>;
+	pinctrl-names = "earjack_gpio_active","earjack_gpio_suspend";
+	pinctrl-0 = <&earjack_det_act &earjack_switch_act>;
+	pinctrl-1 = <&earjack_det_sus &earjack_switch_sus>;
+
+	io-channels = <&exynos_adc 2>;
+	io-channel-names = "adc-earjack";
+	};
+};
+

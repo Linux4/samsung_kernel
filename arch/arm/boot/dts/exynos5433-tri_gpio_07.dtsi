@@ -1,0 +1,324 @@
+/*
+ * Copyright (c) 2014 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+// Support TRi HW EMUL REV 0.0 (b0111)
+
+#include "exynos_gpio_config_macros.dtsi"
+
+&pinctrl_0 {
+	pinctrl-names = "sleep";
+	pinctrl-0 = <&sleep0>;
+	sleep0: sleep-state {
+		PIN_SLP(gpf1-0, INPUT, NONE);	/* PCIE_WAKE */
+		PIN_SLP(gpf1-1, PREV, NONE);	/* RESET_REQ_N */
+		PIN_SLP(gpf1-2, PREV, NONE);	/* AP2CP_STATUS */
+		PIN_SLP(gpf1-3, INPUT, DOWN);	/* LCD_TE */
+		PIN_SLP(gpf1-4, PREV, NONE);	/* NFC_EN */
+		PIN_SLP(gpf1-5, PREV, NONE);	/* LCD_1.6V_EN */
+		PIN_SLP(gpf1-6, PREV, NONE);	/* WACOM_LDO_EN */
+		PIN_SLP(gpf1-7, PREV, NONE);	/* COMP_EN */
+
+		PIN_SLP(gpf2-0, INPUT, DOWN);	/* TSP_ID */
+		PIN_SLP(gpf2-1, INPUT, DOWN);	/* OCTA_ID */
+		PIN_SLP(gpf2-2, INPUT, UP);	/* MCU_AP_INT_2_1.8V */
+		PIN_SLP(gpf2-3, OUT0, DOWN);	/* AP_MCU_INT_1.8V */
+
+		PIN_SLP(gpf3-0, INPUT, DOWN);	/* RFE_RESET_MAIN (NC) */
+		PIN_SLP(gpf3-1, INPUT, NONE);	/* WLAN_HOST_WAKE */
+		PIN_SLP(gpf3-2, INPUT, NONE);	/* WLAN_DEVICEWAKE */
+		PIN_SLP(gpf3-3, PREV, DOWN);	/* FPS_OCP_EN */
+
+		PIN_SLP(gpf4-0, PREV, NONE);	/* FPS_LDO1_EN */
+		PIN_SLP(gpf4-1, PREV, NONE);	/* FPS_LDO2_EN */
+		PIN_SLP(gpf4-2, PREV, NONE);	/* PCIE_CLKREQ_L */
+		PIN_SLP(gpf4-3, INPUT, NONE);	/* PEN_IRQ_1.8V */
+		PIN_SLP(gpf4-4, INPUT, NONE);	/* PEN_PDCT_1.8V */
+		PIN_SLP(gpf4-5, INPUT, DOWN);	/* CAM_SENSOR_DET */
+		PIN_SLP(gpf4-6, INPUT, DOWN);	/* OIS_VDD_EN */
+		PIN_SLP(gpf4-7, INPUT, DOWN);	/* MAIN_CAM_A_EN */
+
+		PIN_SLP(gpf5-0, PREV, NONE);	/* AP2CP_WAKE */
+		PIN_SLP(gpf5-1, INPUT, DOWN);	/* PEN_FWE_1.8V */
+		PIN_SLP(gpf5-2, PREV, NONE);	/* FPS_RST_N */
+		PIN_SLP(gpf5-3, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpf5-4, OUT1, NONE);	/* WRSTB_IN */
+		PIN_SLP(gpf5-5, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpf5-6, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpf5-7, INPUT, DOWN);	/* COMPANION_RSTN */
+	};
+};
+
+&pinctrl_1 {
+	pinctrl-names = "sleep";
+	pinctrl-0 = <&sleep1>;
+	sleep1: sleep-state {
+		PIN_SLP(gpz0-0, INPUT, DOWN);	/* MM_I2S_CLK */
+		PIN_SLP(gpz0-1, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpz0-2, INPUT, DOWN);	/* MM_I2S_SYNC */
+		PIN_SLP(gpz0-3, INPUT, DOWN);	/* MM_I2S_DI */
+		PIN_SLP(gpz0-4, INPUT, DOWN);	/* MM_I2S_DO */
+		PIN_SLP(gpz0-5, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpz0-6, INPUT, DOWN);	/* NC */
+
+		PIN_SLP(gpz1-0, OUT1, UP);	/* BT_UART_TXD */
+		PIN_SLP(gpz1-1, INPUT, UP);	/* BT_UART_RXD */
+		PIN_SLP(gpz1-2, INPUT, UP);	/* BT_UART_CTS */
+		PIN_SLP(gpz1-3, OUT1, UP);	/* BT_UART_RTS */
+	};
+};
+
+&pinctrl_2 {
+	pinctrl-names = "sleep";
+	pinctrl-0 = <&sleep2>;
+	sleep2: sleep-state {
+		PIN_SLP(gpv6-0, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpv6-1, INPUT, DOWN);	/* NC */
+	};
+};
+
+&pinctrl_3 {
+	pinctrl-names = "sleep";
+	pinctrl-0 = <&sleep3>;
+	sleep3: sleep-state {
+		PIN_SLP(gpj2-0, PREV, NONE);	/* WLAN_EN */
+		PIN_SLP(gpj2-1, INPUT, NONE);	/* FPGA_I2C_SCL */
+		PIN_SLP(gpj2-2, INPUT, NONE);	/* FPGA_I2C_SDA */
+	};
+};
+
+&pinctrl_4 {
+	pinctrl-names = "sleep";
+	pinctrl-0 = <&sleep4>;
+	sleep4: sleep-state {
+		PIN_SLP(gpd5-0, OUT0, NONE);	/* FPS_SPI_CLK */
+		PIN_SLP(gpd5-1, OUT0, NONE);	/* FPS_SPI_CS_N */
+		PIN_SLP(gpd5-2, INPUT, DOWN);	/* FPS_SPI_MISO */
+		PIN_SLP(gpd5-3, OUT0, NONE);	/* FPS_SPI_MOSI */
+	};
+};
+
+&pinctrl_5 {
+	pinctrl-names = "default","sleep";
+	pinctrl-0 = <&initial5>;
+	pinctrl-1 = <&sleep5>;
+	initial5: initial-state {
+		PIN_IN(gph1-1, DOWN, LV1);	/* NC */
+		PIN_IN(gph1-3, DOWN, LV1);	/* NC */
+		PIN_IN(gph1-4, DOWN, LV1);	/* NC */
+		PIN_IN(gph1-5, DOWN, LV1);	/* NC */
+
+		PIN_IN(gpr4-2, DOWN, LV1);	/* NC */
+
+		PIN_IN(gpr0-3, DOWN, LV1);	/* NC */
+		PIN_IN(gpr0-4, DOWN, LV1);	/* NC */
+
+		//PIN_IN(gpr3-6, DOWN, LV1);	/* NC : hard lockup */
+	};
+	sleep5: sleep-state {
+		PIN_SLP(gph1-0, PREV, UP);	/* 10kohm PU with VCC_1.8V_AP */
+		PIN_SLP(gph1-1, INPUT, DOWN);	/* NC */
+		PIN_SLP(gph1-2, PREV, UP);	/* 10kohm PU with VCC_1.8V_AP */
+		PIN_SLP(gph1-3, INPUT, DOWN);	/* NC */
+		PIN_SLP(gph1-4, INPUT, DOWN);	/* NC */
+		PIN_SLP(gph1-5, INPUT, DOWN);	/* NC */
+
+		PIN_SLP(gpr4-0, INPUT, DOWN);	/* T_FLASH_CLK */
+		PIN_SLP(gpr4-1, INPUT, DOWN);	/* T_FLASH_CMD */
+		PIN_SLP(gpr4-2, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpr4-3, INPUT, DOWN);	/* T_FLASH_D(0) */
+		PIN_SLP(gpr4-4, INPUT, DOWN);	/* T_FLASH_D(1) */
+		PIN_SLP(gpr4-5, INPUT, DOWN);	/* T_FLASH_D(2) */
+		PIN_SLP(gpr4-6, INPUT, DOWN);	/* T_FLASH_D(3) */
+
+		PIN_SLP(gpr0-0, INPUT, DOWN);	/* TP601(one port) */
+		PIN_SLP(gpr0-1, INPUT, NONE);	/* 10Kohm PU VMEM_VDD_1.8V */
+		PIN_SLP(gpr0-2, INPUT, DOWN);	/* 10Kohm PD GND */
+		PIN_SLP(gpr0-3, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpr0-4, INPUT, DOWN);	/* NC */
+
+		PIN_SLP(gpr1-0, INPUT, NONE);	/* 51K PU VMEM_VDD_1.8V */
+		PIN_SLP(gpr1-1, INPUT, NONE);	/* 51K PU VMEM_VDD_1.8V */
+		PIN_SLP(gpr1-2, INPUT, NONE);	/* 51K PU VMEM_VDD_1.8V */
+		PIN_SLP(gpr1-3, INPUT, NONE);	/* 51K PU VMEM_VDD_1.8V */
+		PIN_SLP(gpr1-4, INPUT, NONE);	/* 51K PU VMEM_VDD_1.8V */
+		PIN_SLP(gpr1-5, INPUT, NONE);	/* 51K PU VMEM_VDD_1.8V */
+		PIN_SLP(gpr1-6, INPUT, NONE);	/* 51K PU VMEM_VDD_1.8V */
+		PIN_SLP(gpr1-7, INPUT, NONE);	/* 51K PU VMEM_VDD_1.8V */
+
+		PIN_SLP(gpr2-0, PREV, NONE);	/* AP_DUMP_INT */
+		PIN_SLP(gpr2-1, INPUT, DOWN);	/* SIM_SLOT */
+
+		PIN_SLP(gpr3-0, PREV, NONE);	/* BUCK6_DVS */
+		PIN_SLP(gpr3-1, PREV, NONE);	/* CP_ON */
+		PIN_SLP(gpr3-2, PREV, NONE);	/* MICBIAS_EN_AP */
+		PIN_SLP(gpr3-3, PREV, NONE);	/* IRLED_EN */
+		PIN_SLP(gpr3-4, PREV, NONE);	/* PCIE_CLKREQ_L */
+		PIN_SLP(gpr3-5, PREV, NONE);	/* PCIE_RST_L */
+		PIN_SLP(gpr3-6, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpr3-7, PREV, NONE);	/* BT_WAKE */
+	};
+};
+
+&pinctrl_6 {
+	pinctrl-names = "default","sleep";
+	pinctrl-0 = <&initial6>;
+	pinctrl-1 = <&sleep6>;
+	initial6: initial-state {
+		PIN_IN(gpf0-4, DOWN, LV1);	/* NC (IRDA_IRQ) */
+	};
+	sleep6: sleep-state {
+		PIN_SLP(gpf0-0, PREV, NONE);	/* CODEC_LDO_EN */
+		PIN_SLP(gpf0-1, OUT0, NONE);	/* BUCK6EN */
+		PIN_SLP(gpf0-2, INPUT, DOWN);	/* MHL_INT */
+		PIN_SLP(gpf0-3, INPUT, NONE);	/* OCP_FLAG */
+		PIN_SLP(gpf0-4, INPUT, DOWN);	/* NC (IRDA_IRQ) */
+		PIN_SLP(gpf0-5, PREV, NONE);	/* HOST_ACTIVE */
+		PIN_SLP(gpf0-6, PREV, NONE);	/* CP_PMU_RST */
+		PIN_SLP(gpf0-7, OUT0, NONE);	/* LDO17_EN */
+	};
+};
+
+&pinctrl_7 {
+	pinctrl-names = "sleep";
+	pinctrl-0 = <&sleep7>;
+	sleep7: sleep-state {
+		PIN_SLP(gpj0-0, INPUT, NONE);	/* NFC_I2C_SDA */
+		PIN_SLP(gpj0-1, INPUT, NONE);	/* NFC_I2C_SCL */
+		PIN_SLP(gpj0-2, INPUT, DOWN);	/* NFC_FIRMWARE */
+	};
+};
+
+&pinctrl_8 {
+	pinctrl-names = "default","sleep";
+	pinctrl-0 = <&initial8>;
+	pinctrl-1 = <&sleep8>;
+	initial8: initial-state {
+		PIN_IN(gpc3-4, NONE, LV1);	/* HW_REV(0) */
+		PIN_IN(gpc3-5, NONE, LV1);	/* HW_REV(1) */
+		PIN_IN(gpc3-6, NONE, LV1);	/* HW_REV(2) */
+		PIN_IN(gpc3-7, NONE, LV1);	/* HW_REV(3) */
+		PIN_OUT_SET(gpd4-1, 0, LV1);    /* COVER_3.3V_EN  */
+	};
+	sleep8: sleep-state {
+		PIN_SLP(gpv7-0, INPUT, DOWN);	/* MHL_RST */
+		PIN_SLP(gpv7-1, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpv7-2, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpv7-3, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpv7-4, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpv7-5, INPUT, NONE);	/* CCI_MODE */
+
+		PIN_SLP(gpb0-0, INPUT, NONE);	/* FUEL_SDA_1.8V */
+		PIN_SLP(gpb0-1, INPUT, NONE);	/* FUEL_SCL_1.8V */
+		PIN_SLP(gpb0-2, INPUT, DOWN);	/* TOUCH_I2C_SDA */
+		PIN_SLP(gpb0-3, INPUT, DOWN);	/* TOUCH_I2C_SCL */
+		PIN_SLP(gpb0-4, INPUT, DOWN);	/* ERR_FG */
+
+		PIN_SLP(gpc0-0, INPUT, DOWN);	/* VT_CAM_STBY */
+		PIN_SLP(gpc0-1, PREV, DOWN);	/* FLASH_LED_STROBE */
+		PIN_SLP(gpc0-2, INPUT, DOWN);	/* FLASH_LED_TORCH */
+		PIN_SLP(gpc0-3, INPUT, DOWN);	/* VT_CAM_NRST */
+		PIN_SLP(gpc0-4, INPUT, DOWN);	/* MAIN_CAM_RST */
+		PIN_SLP(gpc0-5, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpc0-6, INPUT, DOWN);	/* FROM_SPI_SSN */
+		PIN_SLP(gpc0-7, PREV, NONE);	/* CODEC_RESET_N */
+
+		PIN_SLP(gpc1-0, INPUT, DOWN);	/* COMP_SPI_INT */
+		PIN_SLP(gpc1-1, INPUT, DOWN);	/* CRESET_B */
+
+		PIN_SLP(gpc2-0, INPUT, DOWN);	/* MAIN_CAM_SDA */
+		PIN_SLP(gpc2-1, INPUT, DOWN);	/* MAIN_CAM_SCL */
+		PIN_SLP(gpc2-2, INPUT, DOWN);	/* AF_OIS_SDA */
+		PIN_SLP(gpc2-3, INPUT, DOWN);	/* AF_OIS_SCL */
+		PIN_SLP(gpc2-4, INPUT, DOWN);	/* VT_CAM_SDA */
+		PIN_SLP(gpc2-5, INPUT, DOWN);	/* VT_CAM_SCL */
+
+		PIN_SLP(gpc3-0, INPUT, DOWN);	/* COMP_FROM_SPI_SCLK */
+		PIN_SLP(gpc3-1, INPUT, DOWN);	/* COMP_SPI_SSN */
+		PIN_SLP(gpc3-2, INPUT, DOWN);	/* COMP_FROM_SPI_MISO */
+		PIN_SLP(gpc3-3, INPUT, DOWN);	/* COMP_FROM_SPI_MOSI */
+		PIN_SLP(gpc3-4, INPUT, NONE);	/* HW_REV(0) */
+		PIN_SLP(gpc3-5, INPUT, NONE);	/* HW_REV(1) */
+		PIN_SLP(gpc3-6, INPUT, NONE);	/* HW_REV(2) */
+		PIN_SLP(gpc3-7, INPUT, NONE);	/* HW_REV(3) */
+
+		PIN_SLP(gpg0-0, INPUT, DOWN);	/* MLCD_RST */
+		PIN_SLP(gpg0-1, INPUT, DOWN);	/* LCD_TE */
+
+		PIN_SLP(gpd0-0, INPUT, NONE);	/* SPK_AMP_SCL */
+		PIN_SLP(gpd0-1, INPUT, NONE);	/* SPK_AMP_SDA */
+		PIN_SLP(gpd0-2, INPUT, NONE);	/* PEN_SDA_1.8V */
+		PIN_SLP(gpd0-3, INPUT, NONE);	/* PEN_SCL_1.8V */
+
+		PIN_SLP(gpd1-0, INPUT, DOWN);	/* UART_RXD */
+		PIN_SLP(gpd1-1, INPUT, DOWN);	/* UART_TXD */
+		PIN_SLP(gpd1-2, INPUT, DOWN);	/* VT_CAM_SDA */
+		PIN_SLP(gpd1-3, INPUT, DOWN);	/* VT_CAM_SCL */
+		PIN_SLP(gpd1-4, INPUT, UP);	/* COVER_UART_RXD */
+		PIN_SLP(gpd1-5, INPUT, UP);	/* COVER_UART_TXD */
+
+		PIN_SLP(gpd2-0, INPUT, NONE);	/* AP_PMIC_SDA */
+		PIN_SLP(gpd2-1, INPUT, NONE);	/* AP_PMIC_SCL */
+		PIN_SLP(gpd2-2, INPUT, NONE);	/* MEM_LDO_SDA */
+		PIN_SLP(gpd2-3, INPUT, NONE);	/* MEM_LDO_SCL */
+		PIN_SLP(gpd2-4, OUT0, NONE);	/* VIB_PWM */
+		PIN_SLP(gpd2-5, INPUT, NONE);	/* COVER_ID */
+		PIN_SLP(gpd2-6, INPUT, DOWN);	/* MHLC_I2C_SDA */
+		PIN_SLP(gpd2-7, INPUT, DOWN);	/* MHLC_I2C_SCL */
+
+		PIN_SLP(gpd4-0, PREV, UP);	/* BT_EN */
+		PIN_SLP(gpd4-1, PREV, NONE);    /* COVER_3.3V_EN  */
+		PIN_SLP(gpd4-2, PREV, NONE);	/* FPGA_RSTN */
+		PIN_SLP(gpd4-3, INPUT, DOWN);	/* TDMB_reserved */
+		PIN_SLP(gpd4-4, INPUT, DOWN);	/* VT_CAM_ID */
+
+		PIN_SLP(gpd8-0, OUT1, UP);	/* SHUB_SPI_SCK */
+		PIN_SLP(gpd8-1, OUT1, UP);	/* SHUB_SPI_SSN */
+
+		PIN_SLP(gpd6-0, INPUT, DOWN);	/* SHUB_SPI_MISO */
+		PIN_SLP(gpd6-1, OUT1, UP);	/* SHUB_SPI_MOSI */
+		PIN_SLP(gpd6-2, INPUT, DOWN);	/* CODEC_SPI_SCK */
+		PIN_SLP(gpd6-3, INPUT, DOWN);	/* CODEC_SPI_SSN */
+		PIN_SLP(gpd6-4, INPUT, DOWN);	/* CODEC_SPI_MISO */
+		PIN_SLP(gpd6-5, INPUT, DOWN);	/* CODEC_SPI_MOSI */
+		PIN_SLP(gpd6-6, OUT1, NONE);	/* BOOT_LDO */
+
+		PIN_SLP(gpd7-0, INPUT, DOWN);	/* MAIN_CAM_MCLK */
+		PIN_SLP(gpd7-1, INPUT, DOWN);	/* NFC_MCLK */
+		PIN_SLP(gpd7-2, INPUT, DOWN);	/* VT_CAM_MCLK */
+
+		PIN_SLP(gpg1-0, INPUT, DOWN);	/* TDMB_reserved */
+		PIN_SLP(gpg1-1, INPUT, DOWN);	/* TDMB_reserved */
+		PIN_SLP(gpg1-2, INPUT, DOWN);	/* TDMB_reserved */
+		PIN_SLP(gpg1-3, INPUT, DOWN);	/* TDMB_reserved */
+		PIN_SLP(gpg1-4, INPUT, DOWN);	/* TDMB_reserved */
+
+		PIN_SLP(gpg2-0, PREV, NONE);	/* GPS_HUB_EN */
+		PIN_SLP(gpg2-1, OUT0, NONE);	/* PDA_ACTIVE */
+
+		PIN_SLP(gpg3-0, INPUT, DOWN);	/* TDMB_reserved */
+		PIN_SLP(gpg3-1, INPUT, DOWN);	/* TDMB_reserved */
+		PIN_SLP(gpg3-2, INPUT, DOWN);	/* MHL_I2C_SDA */
+		PIN_SLP(gpg3-3, INPUT, DOWN);	/* MHL_I2C_SCL */
+		PIN_SLP(gpg3-4, INPUT, DOWN);	/* TP602 */
+		PIN_SLP(gpg3-5, INPUT, DOWN);	/* NC */
+		PIN_SLP(gpg3-6, INPUT, DOWN);	/* OLED_DET */
+		PIN_SLP(gpg3-7, OUT0, NONE);	/* IRDA_CONTROL */
+	};
+};
+
+&pinctrl_9 {
+	pinctrl-names = "sleep";
+	pinctrl-0 = <&sleep9>;
+	sleep9: sleep-state {
+		PIN_SLP(gpj1-0, INPUT, DOWN);	/* TS_I2C_SDA */
+		PIN_SLP(gpj1-1, INPUT, DOWN);	/* TS_I2C_SCL */
+		PIN_SLP(gpj1-2, INPUT, DOWN);	/* NC (FPGA_DONE) */
+	};
+};
+

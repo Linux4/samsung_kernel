@@ -1,0 +1,100 @@
+/*
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/ {
+	pinctrl@11090000 {
+		ocp_flag: ocf-flag {
+			samsung,pins = "gpf0-3";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <3>;
+			samsung,pin-drv = <3>;
+		};
+	};
+	pinctrl@10580000 {
+		btp_irq: btp-irq {
+			samsung,pins = "gpa1-7";
+			samsung,pin-function = <0>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <3>;
+		};
+		btp_irqsleep: btp-irqsleep {
+			samsung,pins = "gpa1-7";
+			samsung,pin-pud = <1>;
+		};
+		btp_irqidle: btp-irqidle {
+			samsung,pins = "gpa1-7";
+			samsung,pin-pud = <3>;
+		};
+		btp_reset: btp-reset {
+			samsung,pins = "gpf5-2";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+		btp_ldo: btp-ldo {
+			samsung,pins = "gpf4-0";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+		btp_ldo2: btp-ldo2 {
+			samsung,pins = "gpf4-1";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+		ocp_en: ocp-en {
+			samsung,pins = "gpf3-3";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <1>;
+			samsung,pin-drv = <0>;
+		};
+	};
+	spi_2: spi@14d40000 {
+		status = "okay";
+		/delete-property/ dma-mode;
+		/delete-property/ dmas;
+		/delete-property/ dma-names;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&spi2_bus>;
+
+		vfsspi-spi@0 {
+			compatible = "vfsspi,vfs61xx";
+			reg = <0>;
+			spi-max-frequency = <19200000>;
+			pinctrl-names = "default", "sleep", "idle";
+			pinctrl-0 = <&btp_irq &btp_reset &btp_ldo &btp_ldo2 &ocp_en &ocp_flag>;
+			pinctrl-1 = <&btp_irqsleep>;
+			pinctrl-2 = <&btp_irqidle>;
+
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			vfsspi-sleepPin = <&gpf5 2 0x00>;
+			vfsspi-drdyPin = <&gpa1 7 0x00>;
+			vfsspi-ldoPin = <&gpf4  0 0x00>;
+			vfsspi-ldoPin2 = <&gpf4  1 0x00>;
+			/* vfsspi-ocpflag = <&gpf0 3 0x00>; */
+			vfsspi-ocpen = <&gpf3 3 0x01>;
+			vfsspi-orient = <1>;
+			vfsspi-ldocontrol = <1>;
+
+			controller-data {
+				cs-gpio = <&gpd5 1 0 0 3>;
+				samsung,spi-feedback-delay = <0>;
+			};
+		};
+	};
+};
