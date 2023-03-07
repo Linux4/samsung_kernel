@@ -797,9 +797,28 @@ static int gpio_afc_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static void gpio_afc_shutdown(struct platform_device *dev)
+static void gpio_afc_shutdown(struct platform_device *pdev)
 {
-	/* TBD */
+	struct device *dev = &pdev->dev;
+	struct gpio_afc_ddata *ddata = dev_get_drvdata(dev);
+	int vol;
+
+	if (!ddata) {
+		pr_err("%s: driver is not ready\n", __func__);
+		return;
+	}
+
+	vol = vbus_level_check();
+	pr_info("%s: vbus %d (set_voltage=%d)\n", __func__,
+		vol, ddata->set_voltage);
+
+	if (ddata->set_voltage == 0x9 && vol == 0x9) {
+		gpio_afc_reset(ddata);
+		vol = vbus_level_check();
+		pr_info("%s: after afc reset=> vbus %d\n", __func__, vol);
+		if (vol == 0x9)
+			gpio_afc_set_voltage(ddata, 0x5);
+	}
 }
 
 static const struct of_device_id gpio_afc_of_match[] = {

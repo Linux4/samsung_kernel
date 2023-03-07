@@ -1,7 +1,7 @@
 /*
  * aw8896.c   aw8896 codec module
  *
- * Version: v1.0.14
+ * Version: v1.0.16
  *
  * Copyright (c) 2017 AWINIC Technology CO., LTD
  *
@@ -40,7 +40,7 @@
  ******************************************************/
 #define AW8896_I2C_NAME "aw889x_smartpa"
 
-#define AW8896_VERSION "v1.0.14"
+#define AW8896_VERSION "v1.0.16"
 
 #define AW8896_RATES SNDRV_PCM_RATE_8000_48000
 #define AW8896_FORMATS (SNDRV_PCM_FMTBIT_S16_LE | \
@@ -54,7 +54,7 @@
 #define AW_READ_CHIPID_RETRIES 5
 #define AW_READ_CHIPID_RETRY_DELAY_US 5000
 
-#define AW8896_MAX_DSP_START_TRY_COUNT    10
+#define AW8896_MAX_DSP_START_TRY_COUNT    20
 
 
 static int aw8896_spk_control;
@@ -64,7 +64,6 @@ static int aw8896_rcv_control;
 #define AW8896_MAX_FIRMWARE_LOAD_CNT 20
 static char *aw8896_reg_name = "aw8896_reg.bin";
 static char *aw8896_fw_name = "aw8896_fw_e.bin";
-static char *aw8896_cfg_name = "aw8896_cfg.bin";
 
 /******************************************************
  *
@@ -97,7 +96,7 @@ static aw_snd_soc_codec_t *aw_get_codec(struct snd_soc_dai *dai)
 	return dai->codec;
 #endif
 }
-
+static unsigned char aw8896_dsp_fw_data[AW8896_DSP_FW_SIZE] = {0};
 static int aw8896_i2c_write(struct aw8896 *aw8896,
 			unsigned char reg_addr, unsigned int reg_data);
 static int aw8896_i2c_read(struct aw8896 *aw8896,
@@ -407,19 +406,88 @@ static void aw8896_spk_rcv_mode(struct aw8896 *aw8896)
 	}
 }
 
+static int aw8896_get_sysint(struct aw8896 *aw8896, uint16_t *sysint)
+{
+	int ret = -1;
+	unsigned int reg_val = 0;
+
+	ret = aw8896_i2c_read(aw8896, AW8896_REG_SYSINT, &reg_val);
+	if (ret < 0)
+		pr_info("%s: read sysint fail, ret=%d\n",
+				__func__, ret);
+	else
+		*sysint = reg_val;
+	return ret;
+}
+static int aw8896_set_intmask(struct aw8896 *aw8896, bool flag)
+{
+	if (flag)
+		aw8896_interrupt_setup(aw8896);
+	else
+		aw8896_i2c_write(aw8896, AW8896_REG_SYSINTM,
+					AW8896_BIT_SYSINTM_MASK);
+	return 0;
+}
 static void aw8896_start(struct aw8896 *aw8896)
 {
+	int ret = -1;
+	uint16_t sysint = 0;
+	int i;
+
 	pr_debug("%s enter\n", __func__);
 
 	aw8896_run_pwd(aw8896, false);
+	for (i = 0; i < AW8896_MAX_DSP_START_TRY_COUNT; i++) {
+		ret = aw8896_get_iis_status(aw8896);
+		if (ret < 0) {
+			pr_err("%s: get no iis signal, ret=%d\n",
+				__func__, ret);
+			usleep_range(2000, 2000 + 20);
+			if (i == AW8896_MAX_DSP_START_TRY_COUNT - 1)
+				break;
+		} else {
+			aw8896_dsp_enable(aw8896, true);
+			break;
+		}
+	}
 	aw8896_run_mute(aw8896, false);
+
+	ret = aw8896_get_sysint(aw8896, &sysint);
+	if (ret < 0)
+		pr_err("%s: get_sysint fail, ret=%d\n",
+			__func__, ret);
+	else
+		pr_info("%s: get_sysint=0x%04x\n",
+			__func__, sysint);
+
+	ret = aw8896_get_sysint(aw8896, &sysint);
+	if (ret < 0)
+		pr_err("%s: get_sysint fail, ret=%d\n",
+			__func__, ret);
+	else
+		pr_info("%s: get_sysint=0x%04x\n",
+			__func__, sysint);
+
+	aw8896_set_intmask(aw8896, true);
 }
 
 static void aw8896_stop(struct aw8896 *aw8896)
 {
-	pr_debug("%s enter\n", __func__);
+	int ret = -1;
+	uint16_t sysint = 0;
+
+	pr_info("%s enter\n", __func__);
 
 	aw8896_run_mute(aw8896, true);
+	aw8896_set_intmask(aw8896, false);
+	ret = aw8896_get_sysint(aw8896, &sysint);
+	if (ret < 0)
+		pr_err("%s: get_sysint fail, ret=%d\n",
+			__func__, ret);
+	else
+		pr_info("%s: get_sysint=0x%04x\n",
+			__func__, sysint);
+	aw8896_dsp_enable(aw8896, false);
 	usleep_range(1000, 2000);
 	aw8896_run_pwd(aw8896, true);
 }
@@ -469,93 +537,6 @@ static void aw8896_dsp_container_update(struct aw8896 *aw8896,
 	pr_debug("%s exit\n", __func__);
 }
 
-static int aw8896_cfg_loaded(const struct firmware *cont, struct aw8896 *aw8896)
-{
-	struct aw8896_container *aw8896_cfg;
-	/* int i;  */
-	int ret = -1;
-
-	aw8896->dsp_cfg_state = AW8896_DSP_CFG_FAIL;
-
-	if (!cont) {
-		pr_err("%s: failed to read %s\n", __func__, aw8896_cfg_name);
-		release_firmware(cont);
-		return -EINVAL;
-	}
-
-	pr_info("%s: loaded %s - size: %zu\n", __func__, aw8896_cfg_name,
-			cont ? cont->size : 0);
-
-	aw8896_cfg = kzalloc(cont->size+sizeof(int), GFP_KERNEL);
-	if (!aw8896_cfg) {
-		release_firmware(cont);
-		pr_err("%s: error allocating memory\n", __func__);
-		return -ENOMEM;
-	}
-	aw8896_cfg->len = cont->size;
-	memcpy(aw8896_cfg->data, cont->data, cont->size);
-	release_firmware(cont);
-
-	aw8896_dsp_container_update(aw8896, aw8896_cfg, AW8896_DSP_CFG_BASE);
-
-	aw8896->dsp_cfg_len = aw8896_cfg->len;
-
-	kfree(aw8896_cfg);
-	pr_info("%s: cfg update complete\n", __func__);
-
-	aw8896_dsp_enable(aw8896, true);
-
-	usleep_range(1000, 2000);
-
-	ret = aw8896_get_dsp_status(aw8896);
-	if (ret) {
-		aw8896_dsp_enable(aw8896, false);
-		aw8896_run_mute(aw8896, true);
-		pr_info("%s: dsp working wdt, dsp fw&cfg update failed\n",
-			__func__);
-	} else {
-		if (aw8896->call_in_kctl == 0) {
-			aw8896_spk_rcv_mode(aw8896);
-			aw8896_start(aw8896);
-		}
-		if (!(aw8896->flags & AW8896_FLAG_SKIP_INTERRUPTS)) {
-			aw8896_interrupt_clear(aw8896);
-			aw8896_interrupt_setup(aw8896);
-		}
-		aw8896->init = 1;
-		aw8896->dsp_cfg_state = AW8896_DSP_CFG_OK;
-		aw8896->dsp_fw_state = AW8896_DSP_FW_OK;
-		pr_info("%s: init ok\n", __func__);
-	}
-
-	return ret;
-}
-
-static int aw8896_load_cfg(struct aw8896 *aw8896)
-{
-	const struct firmware *cont = NULL;
-	int ret;
-
-	pr_info("%s enter\n", __func__);
-
-	if (aw8896->dsp_cfg_state == AW8896_DSP_CFG_OK) {
-		pr_debug("%s: dsp cfg ok\n", __func__);
-		return 0;
-	}
-
-	aw8896->dsp_cfg_state = AW8896_DSP_CFG_PENDING;
-
-	ret = request_firmware(&cont, aw8896_cfg_name, aw8896->dev);
-	if (ret < 0) {
-		pr_err("%s: failed to read %s\n", __func__, aw8896_cfg_name);
-		release_firmware(cont);
-		return ret;
-	}
-
-	return aw8896_cfg_loaded(cont, aw8896);
-}
-
-
 static int aw8896_fw_loaded(const struct firmware *cont, struct aw8896 *aw8896)
 {
 	struct aw8896_container *aw8896_fw;
@@ -574,6 +555,11 @@ static int aw8896_fw_loaded(const struct firmware *cont, struct aw8896 *aw8896)
 
 	pr_info("%s: loaded %s - size: %zu\n", __func__, aw8896_fw_name,
 				cont ? cont->size : 0);
+	if (cont->size > AW8896_DSP_FW_SIZE) {
+		pr_err("%s: Errof:Size exceeds the limit of 512\n", __func__);
+		release_firmware(cont);
+		return -ENOMEM;
+	}
 
 	aw8896_fw = kzalloc(cont->size+sizeof(int), GFP_KERNEL);
 	if (!aw8896_fw) {
@@ -583,21 +569,44 @@ static int aw8896_fw_loaded(const struct firmware *cont, struct aw8896 *aw8896)
 	}
 	aw8896_fw->len = cont->size;
 	memcpy(aw8896_fw->data, cont->data, cont->size);
-	release_firmware(cont);
 
-	aw8896_dsp_container_update(aw8896, aw8896_fw, AW8896_DSP_FW_BASE);
+	aw8896_dsp_container_update(aw8896, aw8896_fw,
+		AW8896_DSP_FW_BASE);
+	memcpy(aw8896_fw->data, cont->data, cont->size);
+	aw8896_dsp_container_update(aw8896, aw8896_fw,
+		AW8896_DSP_FW_BACKUP_BASE);
+	memcpy(aw8896_dsp_fw_data, cont->data, cont->size);
+	release_firmware(cont);
 
 	aw8896->dsp_fw_len = aw8896_fw->len;
 	kfree(aw8896_fw);
 
 	pr_info("%s: fw update complete\n", __func__);
 
-	ret = aw8896_load_cfg(aw8896);
-	if (ret) {
-		pr_err("%s: cfg loading requested failed: %d\n", __func__, ret);
-		return ret;
-	}
+	aw8896_dsp_enable(aw8896, true);
 
+	usleep_range(1000, 2000);
+
+	ret = aw8896_get_dsp_status(aw8896);
+	if (ret) {
+		aw8896->init = 0;
+		aw8896_dsp_enable(aw8896, false);
+		aw8896_run_mute(aw8896, true);
+		pr_info("%s: dsp working wdt, dsp fw update failed\n",
+			__func__);
+	} else {
+		if (aw8896->call_in_kctl == 0) {
+			aw8896_spk_rcv_mode(aw8896);
+			aw8896_start(aw8896);
+		}
+		if (!(aw8896->flags & AW8896_FLAG_SKIP_INTERRUPTS)) {
+			aw8896_interrupt_clear(aw8896);
+			aw8896_interrupt_setup(aw8896);
+		}
+		aw8896->init = 1;
+		aw8896->dsp_fw_state = AW8896_DSP_FW_OK;
+		pr_info("%s: init ok\n", __func__);
+	}
 	return 0;
 }
 
@@ -653,6 +662,9 @@ static int aw8896_reg_loaded(const struct firmware *cont, struct aw8896 *aw8896)
 {
 	struct aw8896_container *aw8896_reg = NULL;
 	int ret = -1;
+	int i = 0;
+	int iis_check_max = 5;
+	unsigned int reg_val = 0;
 
 	if (!cont) {
 		pr_err("%s: failed to read %s\n", __func__, aw8896_reg_name);
@@ -674,21 +686,32 @@ static int aw8896_reg_loaded(const struct firmware *cont, struct aw8896 *aw8896)
 	release_firmware(cont);
 
 	aw8896_reg_container_update(aw8896, aw8896_reg);
+	aw8896_i2c_read(aw8896, AW8896_REG_DBGCTRL, &reg_val);
+	aw8896_i2c_write(aw8896, AW8896_REG_DBGCTRL,
+		reg_val | AW8896_BIT_DBGCTRL_DISNCKRST);
+
+	aw8896_i2c_read(aw8896, AW8896_REG_I2SCTRL, &reg_val);
+	aw8896_i2c_write(aw8896, AW8896_REG_I2SCTRL,
+		reg_val & (~AW8896_BIT_I2SCTRL_INPLEV));
 
 	kfree(aw8896_reg);
 
-	ret = aw8896_get_iis_status(aw8896);
-	if (ret < 0) {
-		pr_err("%s: get no iis singal, ret=%d\n", __func__, ret);
-	} else {
-		usleep_range(5000, 6000);
-		ret = aw8896_load_fw(aw8896);
-		if (ret) {
-			pr_err("%s: cfg loading requested failed: %d\n",
+	for (i = 0; i < iis_check_max; i++) {
+		ret = aw8896_get_iis_status(aw8896);
+		if (ret < 0) {
+			pr_err("%s: get no iis signal, ret=%d\n",
 				__func__, ret);
+		} else {
+			usleep_range(5000, 6000);
+			ret = aw8896_load_fw(aw8896);
+			if (ret) {
+				pr_err("%s: fw loading requested failed: %d\n",
+					__func__, ret);
+			}
+			break;
 		}
+		usleep_range(2000, 3000);
 	}
-
 	return ret;
 }
 
@@ -717,7 +740,8 @@ static void aw8896_cold_start(struct aw8896 *aw8896)
 
 	ret = aw8896_load_reg(aw8896);
 	if (ret)
-		pr_err("%s: cfg loading requested failed: %d\n", __func__, ret);
+		pr_err("%s: reg/fw loading requested failed: %d\n",
+			__func__, ret);
 }
 
 static void aw8896_smartpa_cfg(struct aw8896 *aw8896, bool flag)
@@ -1566,7 +1590,6 @@ static ssize_t aw8896_dsp_store(struct device *dev,
 		if (reg_val & AW8896_BIT_SYSST_PLLS) {
 			aw8896->init = 0;
 			aw8896->dsp_fw_state = AW8896_DSP_FW_FAIL;
-			aw8896->dsp_cfg_state = AW8896_DSP_CFG_FAIL;
 			aw8896_smartpa_cfg(aw8896, false);
 			aw8896_smartpa_cfg(aw8896, true);
 		} else {
@@ -1623,11 +1646,11 @@ static ssize_t aw8896_dsp_show(struct device *dev,
 			len += snprintf(buf+len, PAGE_SIZE-len, "\n");
 
 			len += snprintf(buf+len, PAGE_SIZE-len,
-						"aw8896 dsp config:\n");
+						"aw8896 dsp firmware backup:\n");
 			addr = 0;
-			for (i = 0; i < aw8896->dsp_cfg_len; i += 2) {
+			for (i = 0; i < aw8896->dsp_fw_len; i += 2) {
 				aw8896_i2c_write(aw8896, AW8896_REG_DSPMADD,
-						AW8896_DSP_CFG_BASE+addr);
+						AW8896_DSP_FW_BACKUP_BASE+addr);
 				aw8896_i2c_read(aw8896, AW8896_REG_DSPMDAT,
 						&reg_val);
 				len += snprintf(buf+len, PAGE_SIZE-len,

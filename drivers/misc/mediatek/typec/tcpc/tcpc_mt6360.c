@@ -920,6 +920,7 @@ static int mt6360_enable_usbid_polling(struct mt6360_chip *chip, bool en)
 	return 0;
 }
 
+#if !IS_ENABLED(CONFIG_SEC_FACTORY)
 static void mt6360_wd_work(struct work_struct *work)
 {
 	int ret, cc1, cc2;
@@ -948,6 +949,7 @@ static void mt6360_wd_work(struct work_struct *work)
 	mutex_unlock(&chip->tcpc->wd_lock);
 #endif	/* CONFIG_WATER_DETECTION */
 }
+#endif
 
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
 static void send_lcd_on_uevent(struct mt6360_chip *chip)
@@ -1545,6 +1547,8 @@ static int mt6360_set_low_power_mode(struct tcpc_device *tcpc, bool en,
 	int ret = 0;
 	u8 data = 0;
 
+	MT6360_INFO("%s: en[%d]\n", __func__, en);
+
 	ret = (en ? mt6360_i2c_clr_bit : mt6360_i2c_set_bit)
 		(tcpc, MT6360_REG_MODE_CTRL2, MT6360_AUTOIDLE_EN);
 	if (ret < 0)
@@ -1707,8 +1711,8 @@ static int mt6360_wd_irq_handler(struct tcpc_device *tcpc)
 		INIT_WORK(&chip->wd_work, mt6360_wd_irq_work);
 		schedule_work(&chip->wd_work);
 	}
- 	return 0;
- }
+	return 0;
+}
 
 #ifdef CONFIG_WD_POLLING_ONLY
 static void mt6360_usbid_poll_work(struct work_struct *work)
@@ -2342,7 +2346,7 @@ static int mt6360_transmit(struct tcpc_device *tcpc,
 			   const u32 *data)
 {
 	int ret, data_cnt, packet_cnt;
-	u8 temp[MT6360_TRANSMIT_MAX_SIZE];
+	u8 temp[MT6360_TRANSMIT_MAX_SIZE + 1];
 
 	if (type < TCPC_TX_HARD_RESET) {
 		data_cnt = sizeof(u32) * PD_HEADER_CNT(header);

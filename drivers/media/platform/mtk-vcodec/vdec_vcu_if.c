@@ -258,8 +258,8 @@ int vcu_dec_ipi_handler(void *data, unsigned int len, void *priv)
 			(t_e.tv_sec - t_s.tv_sec) * 1000000 +
 			(t_e.tv_usec - t_s.tv_usec));
 		// if (ret == -1 && msg->status == MTK_VDEC_CORE) {
-		// 	/* dump smi when vdec core timeout */
-		// 	smi_debug_bus_hang_detect(0, "VCODEC");
+			///* dump smi when vdec core timeout */
+			//smi_debug_bus_hang_detect(0, "VCODEC");
 		// }
 		msg->status = ret;
 		ret = 1;

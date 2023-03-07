@@ -159,9 +159,6 @@ int __do_page_cache_readahead(struct address_space *mapping, struct file *filp,
 	int ret = 0;
 	loff_t isize = i_size_read(inode);
 	gfp_t gfp_mask = readahead_gfp_mask(mapping);
-#ifdef CONFIG_CMA_RESTRICT_FOR_WFD
-	gfp_mask &= ~__GFP_MOVABLE;
-#endif
 
 	if (isize == 0)
 		goto out;

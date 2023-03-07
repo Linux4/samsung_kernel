@@ -422,6 +422,7 @@ static int dsi_dcs_write_HS(struct mtk_dsi *dsi, void *data, size_t len, u8 type
 
 struct mtk_panel_ext *mtk_dsi_get_panel_ext(struct mtk_ddp_comp *comp);
 static s32 mtk_dsi_poll_for_idle(struct mtk_dsi *dsi, struct cmdq_pkt *handle);
+static int mtk_dsi_get_mode_type(struct mtk_dsi *dsi);
 
 #if defined(CONFIG_SMCDSD_PANEL)
 static int framedone_worker_thread(void *data);
@@ -3965,7 +3966,7 @@ void mipi_dsi_dcs_write_gce2(struct mtk_dsi *dsi, struct cmdq_pkt *dummy,
 
 	struct cmdq_pkt *handle;
 	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(dsi->encoder.crtc);
-	int dsi_mode = readl(dsi->regs + DSI_MODE_CTRL);
+	int dsi_mode = mtk_dsi_get_mode_type(dsi) != CMD_MODE;
 
 	struct mipi_dsi_msg msg = {
 		.tx_buf = data,
@@ -4149,7 +4150,7 @@ int mtk_mipi_dsi_write_gce(struct mtk_dsi *dsi,
 			struct mtk_ddic_dsi_msg *cmd_msg)
 {
 	unsigned int i = 0, j = 0;
-	int dsi_mode = readl(dsi->regs + DSI_MODE_CTRL) & MODE;
+	int dsi_mode = mtk_dsi_get_mode_type(dsi) != CMD_MODE;
 	struct mipi_dsi_msg msg;
 	unsigned int use_lpm = cmd_msg->flags & MIPI_DSI_MSG_USE_LPM;
 	struct mtk_ddp_comp *comp = &dsi->ddp_comp;
@@ -4401,7 +4402,7 @@ int mtk_mipi_dsi_read_gce(struct mtk_dsi *dsi,
 			struct mtk_ddic_dsi_msg *cmd_msg)
 {
 	unsigned int i = 0, j = 0;
-	int dsi_mode = readl(dsi->regs + DSI_MODE_CTRL) & MODE;
+	int dsi_mode = mtk_dsi_get_mode_type(dsi) != CMD_MODE;
 	struct drm_crtc *crtc = &mtk_crtc->base;
 	struct mipi_dsi_msg msg;
 	struct mtk_ddp_comp *comp = &dsi->ddp_comp;
@@ -5805,7 +5806,7 @@ static int mtk_dsi_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle,
 		struct mtk_ddic_dsi_msg *cmd_msg =
 			(struct mtk_ddic_dsi_msg *)params;
 		bool tmp = false;
-		unsigned int use_lpm = (cmd_msg->flags | dsi_device->mode_flags) & MIPI_DSI_MSG_USE_LPM;
+		unsigned int use_lpm = (cmd_msg->flags | dsi_device->mode_flags) & (MIPI_DSI_MSG_USE_LPM | MIPI_DSI_MODE_LPM);
 
 		if (cmd_msg->tx_cmd_num == 0 ||
 				cmd_msg->tx_cmd_num > MAX_TX_CMD_NUM) {
@@ -6280,7 +6281,7 @@ u32 fbconfig_mtk_dsi_get_lanes_num(struct mtk_ddp_comp *comp)
 	return dsi->lanes;
 
 }
-int pm_mtk_dsi_get_mode_type(struct mtk_dsi *dsi)
+static int mtk_dsi_get_mode_type(struct mtk_dsi *dsi)
 {
 	u32 vid_mode = CMD_MODE;
 
@@ -6300,7 +6301,7 @@ int fbconfig_mtk_dsi_get_mode_type(struct mtk_ddp_comp *comp)
 {
 	struct mtk_dsi *dsi = container_of(comp, struct mtk_dsi, ddp_comp);
 
-	u32 vid_mode = pm_mtk_dsi_get_mode_type(dsi);
+	u32 vid_mode = mtk_dsi_get_mode_type(dsi);
 
 	return vid_mode;
 }
@@ -6324,7 +6325,7 @@ u32 PanelMaster_get_dsi_timing(struct mtk_dsi *dsi, enum MIPI_SETTING_TYPE type)
 	else
 		fbconfig_dsiTmpBufBpp = 3;
 
-	vid_mode = pm_mtk_dsi_get_mode_type(dsi);
+	vid_mode = mtk_dsi_get_mode_type(dsi);
 
 
 	t_hsa = (dsi->mipi_hopping_sta) ?
@@ -6511,7 +6512,7 @@ int PanelMaster_DSI_set_timing(struct mtk_dsi *dsi, struct MIPI_TIMING timing)
 	else
 		fbconfig_dsiTmpBufBpp = 3;
 
-	vid_mode = pm_mtk_dsi_get_mode_type(dsi);
+	vid_mode = mtk_dsi_get_mode_type(dsi);
 
 
 	t_hsa = (dsi->mipi_hopping_sta) ?

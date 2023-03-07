@@ -205,6 +205,8 @@ struct t_ib_info* create_ib_instance(struct t_ib_trigger* p_IbTrigger, int uniqI
 			u_ib_mode, ib_boost_modes[u_ib_mode].dt_mask, dev_type);
 		if (dev_type > ib_boost_modes[0].dt_count) {
 			pr_err(ITAG" dev_type(%d) is over dt count(%d)", dev_type, ib_boost_modes[0].dt_count);
+			kfree(ib);
+			ib = NULL;
 			return NULL;
 		}
 		conv_idx = ib_boost_modes[0].type_to_idx_table[dev_type];

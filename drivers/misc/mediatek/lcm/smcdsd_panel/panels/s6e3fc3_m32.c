@@ -919,7 +919,7 @@ static int s6e3fc3_read_esderr(struct lcd_info *lcd)
 #endif
 
 /// for debug, it will be removed
-static int s6e3fc3_read_eareg(struct lcd_info *lcd)
+static int s6e3fc3_read_dsierr(struct lcd_info *lcd)
 {
 	int ret = 0;
 
@@ -1072,7 +1072,7 @@ static int s6e3fc3_exit(struct lcd_info *lcd)
 
 	dev_info(&lcd->ld->dev, "%s\n", __func__);
 
-	s6e3fc3_read_eareg(lcd);		// for debug
+	s6e3fc3_read_dsierr(lcd);		// for debug
 	s6e3fc3_read_rddpm(lcd);
 	s6e3fc3_read_rddsm(lcd);
 #if defined(CONFIG_SMCDSD_DPUI)

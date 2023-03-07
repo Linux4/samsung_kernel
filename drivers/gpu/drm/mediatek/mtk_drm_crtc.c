@@ -2527,7 +2527,9 @@ static void mtk_crtc_update_ddp_state(struct drm_crtc *crtc,
 	int crtc_mask = 0x1 << index;
 	unsigned int prop_lye_idx;
 	unsigned int pan_disp_frame_weight = 4;
+#if defined(CONFIG_MT_ENG_BUILD)
 	struct drm_device *dev = crtc->dev;
+#endif
 
 	mutex_lock(&mtk_drm->lyeblob_list_mutex);
 	prop_lye_idx = crtc_state->prop_val[CRTC_PROP_LYE_IDX];
@@ -2575,17 +2577,23 @@ static void mtk_crtc_update_ddp_state(struct drm_crtc *crtc,
 						   cmdq_handle);
 #ifndef CONFIG_MTK_DISP_NO_LK
 			if (lyeblob_ids->lye_idx == 2 && !already_free) {
-				/*free fb buf in second query valid*/
 #if defined(CONFIG_SMCDSD_PANEL)
+#if !defined(CONFIG_MT_ENG_BUILD)
+				struct drm_device *dev = crtc->dev;
+#endif
 				if (fb_reserved_free) {
 					mtk_drm_fb_gem_release(dev);
 					try_free_fb_buf(dev);
 				}
+				already_free = true;
 #else
+#if defined(CONFIG_MT_ENG_BUILD)
+				/*free fb buf in second query valid*/
 				mtk_drm_fb_gem_release(dev);
 				try_free_fb_buf(dev);
 #endif
 				already_free = true;
+#endif	/* CONFIG_SMCDSD_PANEL */
 #endif
 			}
 			break;

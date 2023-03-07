@@ -1240,10 +1240,6 @@ extern bool mfc_fw_update;
 #if defined(CONFIG_AFC_CHARGER)
 extern int afc_set_voltage(int vol);
 #endif
-#else
-#if defined(CONFIG_USE_MUIC)
-extern int muic_afc_set_voltage(int vol);
-#endif
 #endif
 
 extern void select_pdo(int num);

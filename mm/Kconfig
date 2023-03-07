@@ -896,11 +896,4 @@ config MAX_DIRTY_THRESH_PAGES
 	  It is only effective when dirty_ratio is used.
 	  (Setting dirty_bytes disables this option.)
 
-config CMA_RESTRICT_FOR_WFD
-	bool "Use CMA region only for CMA allocation"
-	depends on CMA
-	default n
-	help
-	  W/A patch to resolve ALPS07141111
-
 source "mm/sec_mm/Kconfig"

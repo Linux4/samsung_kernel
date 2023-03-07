@@ -321,7 +321,7 @@ static unsigned long translate_fd(struct op_meta *meta,
 	}
 
 	if (meta->fd_offset >= U32_MAX)
-		return 0;	
+		return 0;
 
 	mva += meta->fd_offset;
 

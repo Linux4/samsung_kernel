@@ -1816,6 +1816,7 @@ static void cal_work_func(struct work_struct *work)
 		force_cal = true;
 	}
 
+#if 0
 	// check bfcal
 	if (data->bfcal_chk_start) {
 		data->bfcal_chk_count++;
@@ -1843,6 +1844,7 @@ static void cal_work_func(struct work_struct *work)
 			}
 		}
 	}
+#endif
 
 	if (force_cal)
 		schedule_delayed_work(&data->cal_work, msecs_to_jiffies(1000));

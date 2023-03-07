@@ -335,8 +335,8 @@ void set_vbus_voltage(int vol)
 	afc_set_voltage(vol);
 #endif
 #else
-#if defined(CONFIG_USE_MUIC)
-	muic_afc_set_voltage(vol);
+#if defined(CONFIG_AFC_CHARGER_MODE)
+	muic_afc_request_voltage(AFC_REQUEST_CHARGER, vol);
 #endif
 #endif
 }

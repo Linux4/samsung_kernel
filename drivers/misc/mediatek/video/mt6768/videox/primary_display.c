@@ -4278,6 +4278,7 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 #endif
 	uevent_data.name = "lcm_disconnect";
 	uevent_dev_register(&uevent_data);
+	mtk_notifier_activate();
 
 	DISPCHECK("%s done\n", __func__);
 
@@ -10705,7 +10706,9 @@ void primary_display_dynfps_chg_fps(int cfg_id)
 	pgc->lcm_fps = new_dynfps;
 
 	DISPMSG("%s,done\n", __func__);
-
+	mtk_notifier_call_chain(MTK_FPS_CHANGE, (void *)&pgc->lcm_refresh_rate);
+	mmprofile_log_ex(ddp_mmp_get_events()->primary_switch_fps,
+		MMPROFILE_FLAG_END, 0, 3);
 }
 
 void primary_display_dynfps_get_vfp_info(

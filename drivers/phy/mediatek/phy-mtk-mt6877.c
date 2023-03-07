@@ -677,28 +677,6 @@ static void phy_dpdm_pulldown(struct mtk_phy_instance *instance,
 	phy_printk(K_INFO, "%s-\n", __func__);
 }
 
-static void phy_dpdm_pullup(struct mtk_phy_instance *instance,
-						bool enable)
-{
-	struct mtk_phy_drv *phy_drv = instance->phy_drv;
-
-	phy_printk(K_INFO, "%s+\n", __func__);
-
-	if (enable) {
-		u3phywrite32(U3D_U2PHYACR3, RG_USB20_PUPD_BIST_EN_OFST,
-			RG_USB20_PUPD_BIST_EN, 1);
-		u3phywrite32(U3D_U2PHYACR3, RG_USB20_EN_PU_DP_OFST,
-			RG_USB20_EN_PU_DP, 1);
-	} else {
-		u3phywrite32(U3D_U2PHYACR3, RG_USB20_PUPD_BIST_EN_OFST,
-			RG_USB20_PUPD_BIST_EN, 0);
-		u3phywrite32(U3D_U2PHYACR3, RG_USB20_EN_PU_DP_OFST,
-			RG_USB20_EN_PU_DP, 0);
-	}
-
-	phy_printk(K_INFO, "%s-\n", __func__);
-}
-
 static int phy_lpm_enable(struct mtk_phy_instance  *instance, bool on)
 {
 	phy_printk(K_DEBUG, "%s+ = %d\n", __func__, on);
@@ -1188,6 +1166,28 @@ static int mtk_phy_drv_exit(struct platform_device *pdev,
 	if (!IS_ERR_OR_NULL(mtkphy->clk))
 		clk_disable_unprepare(mtkphy->clk);
 	return 0;
+}
+
+static void phy_dpdm_pullup(struct mtk_phy_instance *instance,
+						bool enable)
+{
+	struct mtk_phy_drv *phy_drv = instance->phy_drv;
+
+	phy_printk(K_INFO, "%s+\n", __func__);
+
+	if (enable) {
+		u3phywrite32(U3D_U2PHYACR3, RG_USB20_PUPD_BIST_EN_OFST,
+			RG_USB20_PUPD_BIST_EN, 1);
+		u3phywrite32(U3D_U2PHYACR3, RG_USB20_EN_PU_DP_OFST,
+			RG_USB20_EN_PU_DP, 1);
+	} else {
+		u3phywrite32(U3D_U2PHYACR3, RG_USB20_PUPD_BIST_EN_OFST,
+			RG_USB20_PUPD_BIST_EN, 0);
+		u3phywrite32(U3D_U2PHYACR3, RG_USB20_EN_PU_DP_OFST,
+			RG_USB20_EN_PU_DP, 0);
+	}
+
+	phy_printk(K_INFO, "%s-\n", __func__);
 }
 
 static const struct mtk_phy_interface ssusb_phys[] = {

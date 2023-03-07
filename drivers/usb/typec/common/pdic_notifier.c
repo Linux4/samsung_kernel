@@ -125,7 +125,7 @@ const char *pdic_event_id_string(pdic_notifier_id_t id)
 		return "ID_SVID_INFO";
 	case PDIC_NOTIFY_ID_CLEAR_INFO:
 		return "ID_CLEAR_INFO";
-#if defined(CONFIG_MUIC_SM5504_POGO)
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
 	case PDIC_NOTIFY_ID_POGO:
 		return "ID_POGO";
 #endif

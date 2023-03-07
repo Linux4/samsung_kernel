@@ -246,7 +246,9 @@ __visible_for_testing ssize_t sec_cmd_store(struct device *dev,
 err_out:
 	return count;
 }
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
 EXPORT_SYMBOL_KUNIT(sec_cmd_store);
+#endif
 
 #else	/* defined USE_SEC_CMD_QUEUE */
 static void sec_cmd_store_function(struct sec_cmd_data *data)
@@ -483,7 +485,9 @@ __visible_for_testing ssize_t sec_cmd_store(struct device *dev, struct device_at
 	sec_cmd_execution(data, true);
 	return count;
 }
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
 EXPORT_SYMBOL_KUNIT(sec_cmd_store);
+#endif
 #endif
 
 __visible_for_testing ssize_t sec_cmd_show_status(struct device *dev,
@@ -519,7 +523,9 @@ __visible_for_testing ssize_t sec_cmd_show_status(struct device *dev,
 
 	return snprintf(buf, sizeof(buff), "%s\n", buff);
 }
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
 EXPORT_SYMBOL_KUNIT(sec_cmd_show_status);
+#endif
 
 static ssize_t sec_cmd_show_status_all(struct device *dev,
 				 struct device_attribute *devattr, char *buf)
@@ -582,7 +588,9 @@ __visible_for_testing ssize_t sec_cmd_show_result(struct device *dev,
 
 	return size;
 }
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
 EXPORT_SYMBOL_KUNIT(sec_cmd_show_result);
+#endif
 
 static ssize_t sec_cmd_show_result_all(struct device *dev,
 				 struct device_attribute *devattr, char *buf)
@@ -1134,6 +1142,9 @@ main:
 	}
 	if (exit) {
 		input_dbg(true, sec->fac_dev, "%s: set_cmd_exit\n", sec->cmd);
+		sec_cmd_set_cmd_exit(sec);
+	} else if ((main && !main_sec) || (sub && !sub_sec)) {
+		input_err(true, sec->fac_dev, "%s: some device is not registered in virtual tsp.\n", sec->cmd);
 		sec_cmd_set_cmd_exit(sec);
 	}
 
