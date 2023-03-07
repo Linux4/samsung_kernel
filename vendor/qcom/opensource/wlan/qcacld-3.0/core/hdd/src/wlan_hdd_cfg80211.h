@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -258,7 +259,8 @@ typedef enum {
 #define WIFI_FEATURE_IE_WHITELIST       0x1000000 /* Support Probe IE white listing */
 #define WIFI_FEATURE_SCAN_RAND          0x2000000 /* Support MAC & Probe Sequence Number randomization */
 #define WIFI_FEATURE_SET_LATENCY_MODE   0x40000000 /* Set latency mode */
-
+/* Support changing MAC address without iface reset(down and up) */
+#define WIFI_FEATURE_DYNAMIC_SET_MAC    0x10000000
 
 /* Support Tx Power Limit setting */
 #define WIFI_FEATURE_SET_TX_POWER_LIMIT 0x4000000
@@ -440,7 +442,15 @@ void hdd_select_cbmode(struct hdd_adapter *adapter, qdf_freq_t oper_freq,
  * Return: true or false based on findings
  */
 bool wlan_hdd_is_ap_supports_immediate_power_save(uint8_t *ies, int length);
-int wlan_hdd_del_station(struct hdd_adapter *adapter);
+
+/**
+ * wlan_hdd_del_station() - delete station wrapper
+ * @adapter: pointer to the hdd adapter
+ * @mac: pointer to mac addr
+ *
+ * Return: Errno
+ */
+int wlan_hdd_del_station(struct hdd_adapter *adapter, const uint8_t *mac);
 
 #if defined(USE_CFG80211_DEL_STA_V2)
 int wlan_hdd_cfg80211_del_station(struct wiphy *wiphy,
@@ -741,6 +751,115 @@ int hdd_set_dynamic_antenna_mode(struct hdd_adapter *adapter,
 				 uint8_t num_rx_chains,
 				 uint8_t num_tx_chains);
 
+#ifdef MULTI_CLIENT_LL_SUPPORT
+/**
+ * hdd_get_multi_client_ll_support() - get multi client ll support flag
+ * @adapter: hdd adapter
+ *
+ * Return: none
+ */
+bool hdd_get_multi_client_ll_support(struct hdd_adapter *adapter);
+
+/**
+ * wlan_hdd_set_wlm_client_latency_level() - Set latency level to FW
+ * @adapter: pointer to network adapter
+ * @port_id: port id for which host sends latency level to FW
+ * @latency_level: lavel to be set in fw
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wlan_hdd_set_wlm_client_latency_level(struct hdd_adapter *adapter,
+						 uint32_t port_id,
+						 uint16_t latency_level);
+
+/**
+ * wlan_hdd_set_wlm_latency_level() - Set latency level to FW
+ * @adapter: pointer to network adapter
+ * @latency_level: lavel to be set in fw
+ * @client_id_bitmap: client id bitmap
+ * @force_reset: flag to reset latency lavel in fw
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wlan_hdd_set_wlm_latency_level(struct hdd_adapter *adapter,
+					  uint16_t latency_level,
+					  uint32_t client_id_bitmap,
+					  bool force_reset);
+
+/**
+ * wlan_hdd_get_set_client_info_id() - to update client info table
+ * @adapter: pointer to network adapter
+ * @port_id: port id for which host receives set latency level vendor command
+ * @client_id: client id for a given port id
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wlan_hdd_get_set_client_info_id(struct hdd_adapter *adapter,
+					   uint32_t port_id,
+					   uint32_t *client_id);
+
+/**
+ * wlan_hdd_get_client_id_bitmap() - to calculate client id bitmap
+ * @adapter: pointer to network adapter
+ *
+ * Return: client id bitmap
+ */
+uint8_t wlan_hdd_get_client_id_bitmap(struct hdd_adapter *adapter);
+
+/**
+ * hdd_latency_level_event_handler_cb() - Function to be invoked for low latency
+ * event
+ * @event_data: event data
+ * @vdev_id: vdev id
+ *
+ * Return: none
+ */
+void
+hdd_latency_level_event_handler_cb(const struct latency_level_data *event_data,
+				   uint8_t vdev_id);
+#else
+static inline
+QDF_STATUS wlan_hdd_set_wlm_client_latency_level(struct hdd_adapter *adapter,
+						 uint32_t port_id,
+						 uint16_t latency_level)
+{
+	return QDF_STATUS_E_FAILURE;
+}
+
+static inline
+QDF_STATUS wlan_hdd_set_wlm_latency_level(struct hdd_adapter *adapter,
+					  uint16_t latency_level,
+					  uint32_t client_id_bitmap,
+					  bool force_reset)
+{
+	return QDF_STATUS_E_FAILURE;
+}
+
+static inline uint8_t wlan_hdd_get_client_id_bitmap(struct hdd_adapter *adapter)
+{
+	return 0;
+}
+
+static inline
+QDF_STATUS wlan_hdd_get_set_client_info_id(struct hdd_adapter *adapter,
+					   uint32_t port_id,
+					   uint32_t *client_id)
+{
+	return QDF_STATUS_E_FAILURE;
+}
+
+static inline bool hdd_get_multi_client_ll_support(struct hdd_adapter *adapter)
+{
+	return false;
+}
+
+static inline void
+hdd_latency_level_event_handler_cb(const void *event_data,
+				   uint8_t vdev_id)
+{
+}
+#endif
+
 /**
  * hdd_convert_cfgdot11mode_to_80211mode() - Function to convert cfg dot11 mode
  *  to 80211 mode
@@ -786,6 +905,16 @@ static inline void hdd_send_update_owe_info_event(struct hdd_adapter *adapter,
  */
 int hdd_set_phy_mode(struct hdd_adapter *adapter,
 		     enum qca_wlan_vendor_phy_mode vendor_phy_mode);
+
+/**
+ * hdd_set_mac_chan_width() - set channel width
+ * @adapter: Handle to hdd_adapter
+ * @chwidth: given channel width
+ *
+ * Return: 0 on success, negative errno on failure
+ */
+int hdd_set_mac_chan_width(struct hdd_adapter *adapter,
+			   enum eSirMacHTChannelWidth chwidth);
 
 /**
  * hdd_is_legacy_connection() - Is adapter connection is legacy

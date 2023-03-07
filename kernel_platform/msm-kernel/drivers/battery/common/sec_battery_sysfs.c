@@ -11,7 +11,7 @@
  */
 #include "sec_battery.h"
 #include "sec_battery_sysfs.h"
-#if defined(CONFIG_SEC_ABC)
+#if IS_ENABLED(CONFIG_SEC_ABC)
 #include <linux/sti/abc_common.h>
 #endif
 
@@ -273,6 +273,7 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(batt_full_capacity),
 	SEC_BATTERY_ATTR(lrp),
 	SEC_BATTERY_ATTR(hp_d2d),
+	SEC_BATTERY_ATTR(chg_type),
 };
 
 static struct device_attribute sec_pogo_attrs[] = {
@@ -550,6 +551,10 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 								__func__, battery->pdata->fuelgauge_name,
 								POWER_SUPPLY_PROP_ENERGY_FULL, ret);
 					}
+#if IS_ENABLED(CONFIG_SEC_ABC) && !defined(CONFIG_SEC_FACTORY)
+					if (!value.intval)
+						sec_abc_send_event("MODULE=battery@WARN=show_fg_asoc0");
+#endif
 				}
 			}
 		}
@@ -1879,6 +1884,18 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 	case HP_D2D:
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", battery->hp_d2d);
 		break;
+	case CHG_TYPE:
+		{
+			char temp_buf[20] = {0,};
+
+			value.strval = sb_get_ct_str(battery->cable_type);
+			strncpy(temp_buf, value.strval, sizeof(temp_buf) - 1);
+			if (is_pd_apdo_wire_type(battery->cable_type))
+				snprintf(temp_buf+strlen(temp_buf), sizeof(temp_buf), "_%d", battery->pd_rated_power);
+			pr_info("%s: CHG_TYPE = %s\n", __func__, temp_buf);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%s\n", temp_buf);
+		}
+		break;
 	default:
 		i = -EINVAL;
 		break;
@@ -2087,6 +2104,10 @@ ssize_t sec_bat_store_attrs(
 		if (sscanf(buf, "%d\n", &x) == 1) {
 			if (x >= 0 && x <= 100) {
 				dev_info(battery->dev, "%s: batt_asoc(%d)\n", __func__, x);
+#if IS_ENABLED(CONFIG_SEC_ABC) && !defined(CONFIG_SEC_FACTORY)
+				if (!x)
+					sec_abc_send_event("MODULE=battery@WARN=store_fg_asoc0");
+#endif
 				battery->batt_asoc = x;
 #if defined(CONFIG_BATTERY_CISD)
 				battery->cisd.data[CISD_DATA_ASOC] = x;
@@ -3930,6 +3951,8 @@ ssize_t sec_bat_store_attrs(
 			}
 			ret = count;
 		}
+		break;
+	case CHG_TYPE:
 		break;
 	default:
 		ret = -EINVAL;

@@ -487,6 +487,33 @@ static int mfc_get_adc(struct mfc_charger_data *charger, int adc_type)
 	return ret;
 }
 
+#if !defined(CONFIG_SEC_FACTORY)
+static void mfc_cmb_always_on_toggle(struct mfc_charger_data *charger, bool on)
+{
+	u8 data;
+
+	mfc_reg_read(charger->client, MFC_CTRL_STS_REG, &data);
+	pr_info("%s: read status 0x%x\n", __func__, data);
+	if (on) {
+		if (!(data & MFC_CMB_ALWAYS_ON_STATUS_MASK)) {
+			pr_info("%s: CMB always on disable status, toggle to enable cmb\n", __func__);
+			mfc_reg_update(charger->client, MFC_AP2MFC_CMD_H_REG,
+				MFC_CMD2_CMB_ALWAYS_TOGGLE_MASK, MFC_CMD2_CMB_ALWAYS_TOGGLE_MASK);
+			mfc_reg_read(charger->client, MFC_CTRL_STS_REG, &data);
+			pr_info("%s: read back status 0x%x\n", __func__, data);
+		}
+	} else {
+		if ((data & MFC_CMB_ALWAYS_ON_STATUS_MASK)) {
+			pr_info("%s: CMB always on enable status, toggle to disable cmb\n", __func__);
+			mfc_reg_update(charger->client, MFC_AP2MFC_CMD_H_REG,
+				MFC_CMD2_CMB_ALWAYS_TOGGLE_MASK, MFC_CMD2_CMB_ALWAYS_TOGGLE_MASK);
+			mfc_reg_read(charger->client, MFC_CTRL_STS_REG, &data);
+			pr_info("%s: read back status 0x%x\n", __func__, data);
+		}
+	}
+}
+#endif
+
 static void mfc_cma_cmb_onoff(struct mfc_charger_data *charger, bool cma_on, bool cmb_on)
 {
 	u8 data;
@@ -499,7 +526,7 @@ static void mfc_cma_cmb_onoff(struct mfc_charger_data *charger, bool cma_on, boo
 
 	if (is_unknown_pad(charger)) {
 		cma_on = true;
-		cmb_on = false;
+		cmb_on = true;
 	}
 
 	data = ((cma_on) ? 0xC0 : 0x00) | ((cmb_on) ? 0x30 : 0x00);
@@ -1416,11 +1443,15 @@ static void mfc_auth_set_configs(struct mfc_charger_data *charger, int opt)
 			mfc_reg_update(charger->client, MFC_RECTMODE_REG, 0x40, 0xC0);
 			mfc_reg_read(charger->client, MFC_RECTMODE_REG, &data);
 		}
+		if (charger->tx_id == TX_ID_P2400_PAD || charger->tx_id == TX_ID_P5400_PAD)
+			mfc_cmb_always_on_toggle(charger, true);
 	} else if (opt == AUTH_COMPLETE) {
 		if (charger->tx_id == TX_ID_AUTH_PAD) {
 			mfc_reg_write(charger->client, MFC_RECT_MODE_AP_CTRL, 0x00);
 			mfc_reg_read(charger->client, MFC_RECTMODE_REG, &data);
 		}
+		if (charger->tx_id == TX_ID_P2400_PAD || charger->tx_id == TX_ID_P5400_PAD)
+			mfc_cmb_always_on_toggle(charger, false);
 	} else {
 		pr_info("%s: undefined cmd(%d)\n", __func__, opt);
 	}
@@ -3757,6 +3788,8 @@ static int mfc_s2miw04_chg_set_property(struct power_supply *psy,
 			charger->led_cover = val->intval;
 			pr_info("%s: LED_COVER(%d)\n", __func__, charger->led_cover);
 			break;
+		case POWER_SUPPLY_EXT_PROP_WIRELESS_WR_CONNECTED:
+			break;
 		default:
 			return -ENODATA;
 		}
@@ -3913,12 +3946,8 @@ static void mfc_wpc_det_work(struct work_struct *work)
 
 		pr_info("%s: wireless charger activated, set V_INT as PN\n", __func__);
 
-		if ((charger->tx_id == TX_ID_DREAM_STAND) ||
-			(charger->tx_id == TX_ID_DREAM_DOWN))
-			mfc_cma_cmb_onoff(charger, true, true);
-		else
-			/* default : CMA enable only */
-			mfc_cma_cmb_onoff(charger, true, false);
+		/* default is CMA/CMB both enable since fw version 0x102E */
+		mfc_cma_cmb_onoff(charger, true, true);
 
 		/* read pad mode */
 		mfc_reg_read(charger->client, MFC_SYS_OP_MODE_REG, &pad_mode);
@@ -4620,6 +4649,8 @@ static void mfc_wpc_tx_id_work(struct work_struct *work)
 				(charger->tx_id == TX_ID_DREAM_STAND) ||
 				(charger->tx_id == TX_ID_DREAM_DOWN))
 				mfc_cma_cmb_onoff(charger, true, true);
+			else
+				mfc_cma_cmb_onoff(charger, true, false);
 		}
 	}
 
@@ -4678,6 +4709,27 @@ static irqreturn_t mfc_wpc_pdet_b_irq_thread(int irq, void *irq_data)
 	return IRQ_HANDLED;
 }
 
+static void mfc_set_iec_params(struct i2c_client *client, struct mfc_iec_data data)
+{
+	if (data.reg_84 == 0xFF)
+		return;
+
+	pr_info("@Tx_Mode %s\n", __func__);
+
+	/* need to set before set MFC_MST_MODE_SEL_REG */
+	mfc_reg_write(client, WPCTx_E_FOD_INIT_FREQ, data.reg_84); /* E-FOD Enable */
+	mfc_reg_write(client, WPCTx_E_FOD_INIT_DUTY, data.reg_85);
+	mfc_reg_write(client, WPCTx_E_FOD_WATCH_FREQ, data.reg_86);
+	mfc_reg_write(client, WPCTx_E_FOD_2Q_DESIGNED, data.reg_87);
+	mfc_reg_write(client, WPCTx_E_FOD_Q_THRESHOLD, data.reg_88);
+	mfc_reg_write(client, WPCTx_E_FOD_CURRENT_THRESHOLD_DUTY_INIT, data.reg_89);
+	mfc_reg_write(client, WPCTx_E_FOD_CURRENT_THRESHOLD_DUTY, data.reg_8A);
+	mfc_reg_write(client, WPCTx_E_FOD_CURRENT_CHECK_FREQ, data.reg_8B);
+	mfc_reg_write(client, WPCTx_E_FOD_MAX_Q, data.reg_5B);
+	mfc_reg_write(client, WPCTx_E_FOD_CRADLE_CURRENT, data.reg_56);
+	mfc_reg_write(client, WPCTx_E_FOD_CRADLE_FREQ, data.reg_57);
+}
+
 /* mfc_mst_routine : MST dedicated codes */
 static void mfc_mst_routine(struct mfc_charger_data *charger, u8 irq_src_l, u8 irq_src_h)
 {
@@ -4704,6 +4756,7 @@ static void mfc_mst_routine(struct mfc_charger_data *charger, u8 irq_src_l, u8 i
 			mfc_reg_write(charger->client, MFC_TX_IUNO_HYS_REG, 0x50);
 			mfc_reg_write(charger->client, MFC_DEMOD1_REG, 0x00);
 			mfc_reg_write(charger->client, MFC_DEMOD2_REG, 0x00);
+			mfc_set_iec_params(charger->client, charger->pdata->iec_params);
 			mfc_reg_write(charger->client, MFC_MST_MODE_SEL_REG, 0x03); /* set TX-ON mode */
 			mfc_set_cep_timeout(charger, charger->pdata->cep_timeout); // this is only for CAN
 			pr_info("@Tx_Mode %s: TX-ON Mode : %d\n", __func__, charger->pdata->wc_ic_rev);
@@ -5176,6 +5229,93 @@ static void mfc_chg_parse_fod_data(struct device_node *np,
 	}
 }
 
+static void mfc_chg_parse_iec_data(struct device_node *np,
+		mfc_charger_platform_data_t *pdata)
+{
+	int temp, ret;
+
+	np = of_find_node_by_name(np, "iec_data");
+	if (!np) {
+		pr_err("%s: iec_data is NULL!\n", __func__);
+		pdata->iec_params.reg_84 = 0xFF; /* 0xFF: Disable (Default), 0x00 ~ 0xFE: Enable */
+		return;
+	}
+
+	ret = of_property_read_u32(np, "reg_56", &temp);
+	if (ret < 0)
+		pdata->iec_params.reg_84 = 0xFF;
+	else
+		pdata->iec_params.reg_56 = temp;
+
+	ret = of_property_read_u32(np, "reg_57", &temp);
+	if (ret < 0)
+		pdata->iec_params.reg_84 = 0xFF;
+	else
+		pdata->iec_params.reg_57 = temp;
+
+	ret = of_property_read_u32(np, "reg_5B", &temp);
+	if (ret < 0)
+		pdata->iec_params.reg_84 = 0xFF;
+	else
+		pdata->iec_params.reg_5B = temp;
+
+	ret = of_property_read_u32(np, "reg_84", &temp);
+	if (ret < 0)
+		pdata->iec_params.reg_84 = 0xFF;
+	else
+		pdata->iec_params.reg_84 = temp;
+
+	ret = of_property_read_u32(np, "reg_85", &temp);
+	if (ret < 0)
+		pdata->iec_params.reg_84 = 0xFF;
+	else
+		pdata->iec_params.reg_85 = temp;
+
+	ret = of_property_read_u32(np, "reg_86", &temp);
+	if (ret < 0)
+		pdata->iec_params.reg_84 = 0xFF;
+	else
+		pdata->iec_params.reg_86 = temp;
+
+	ret = of_property_read_u32(np, "reg_87", &temp);
+	if (ret < 0)
+		pdata->iec_params.reg_84 = 0xFF;
+	else
+		pdata->iec_params.reg_87 = temp;
+
+	ret = of_property_read_u32(np, "reg_88", &temp);
+	if (ret < 0)
+		pdata->iec_params.reg_84 = 0xFF;
+	else
+		pdata->iec_params.reg_88 = temp;
+
+	ret = of_property_read_u32(np, "reg_89", &temp);
+	if (ret < 0)
+		pdata->iec_params.reg_84 = 0xFF;
+	else
+		pdata->iec_params.reg_89 = temp;
+
+	ret = of_property_read_u32(np, "reg_8A", &temp);
+	if (ret < 0)
+		pdata->iec_params.reg_84 = 0xFF;
+	else
+		pdata->iec_params.reg_8A = temp;
+
+	ret = of_property_read_u32(np, "reg_8B", &temp);
+	if (ret < 0)
+		pdata->iec_params.reg_84 = 0xFF;
+	else
+		pdata->iec_params.reg_8B = temp;
+
+	pr_info("%s: reg_56=0x%x, reg_57=0x%x, reg_5B=0x%x,"
+		" reg_84=0x%x, reg_85=0x%x, reg_86=0x%x, reg_87=0x%x,"
+		" reg_88=0x%x, reg_89=0x%x, reg_8A=0x%x, reg_8B=0x%x\n",
+		__func__, pdata->iec_params.reg_56, pdata->iec_params.reg_57,
+		pdata->iec_params.reg_5B, pdata->iec_params.reg_84, pdata->iec_params.reg_85,
+		pdata->iec_params.reg_86, pdata->iec_params.reg_87, pdata->iec_params.reg_88,
+		pdata->iec_params.reg_89, pdata->iec_params.reg_8A, pdata->iec_params.reg_8B);
+}
+
 #if defined(CONFIG_WIRELESS_IC_PARAM)
 static void mfc_parse_param_value(struct mfc_charger_data *charger)
 {
@@ -5413,6 +5553,8 @@ static int mfc_chg_parse_dt(struct device *dev,
 	}
 
 	mfc_chg_parse_fod_data(np, pdata);
+	np = dev->of_node;
+	mfc_chg_parse_iec_data(np, pdata);
 	np = dev->of_node;
 
 	return 0;

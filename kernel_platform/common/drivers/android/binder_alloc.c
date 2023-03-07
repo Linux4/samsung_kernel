@@ -222,7 +222,7 @@ static int binder_update_page_range(struct binder_alloc *alloc, int allocate,
 		mm = alloc->vma_vm_mm;
 
 	if (mm) {
-		mmap_read_lock(mm);
+		mmap_write_lock(mm);
 		vma = alloc->vma;
 	}
 
@@ -280,7 +280,7 @@ static int binder_update_page_range(struct binder_alloc *alloc, int allocate,
 		trace_binder_alloc_page_end(alloc, index);
 	}
 	if (mm) {
-		mmap_read_unlock(mm);
+		mmap_write_unlock(mm);
 		mmput(mm);
 	}
 	return 0;
@@ -313,7 +313,7 @@ err_page_ptr_cleared:
 	}
 err_no_vma:
 	if (mm) {
-		mmap_read_unlock(mm);
+		mmap_write_unlock(mm);
 		mmput(mm);
 	}
 	return vma ? -ENOMEM : -ESRCH;
@@ -576,11 +576,11 @@ static struct binder_buffer *binder_alloc_new_buf_locked(
 		alloc->free_async_space -= size + sizeof(struct binder_buffer);
 		if ((system_server_pid == alloc->pid) && (alloc->free_async_space <= 153600)) { // 150K
 			pr_info("%d: [free_size<150K] binder_alloc_buf size %zd async free %zd\n",
-					alloc->pid, size, alloc->free_async_space);
+				alloc->pid, size, alloc->free_async_space);
 		}
 		if ((system_server_pid == alloc->pid) && (size >= 122880)) { // 120K
 			pr_info("%d: [alloc_size>120K] binder_alloc_buf size %zd async free %zd\n",
-					alloc->pid, size, alloc->free_async_space);
+				alloc->pid, size, alloc->free_async_space);
 		}
 		binder_alloc_debug(BINDER_DEBUG_BUFFER_ALLOC_ASYNC,
 			     "%d: binder_alloc_buf size %zd async free %zd\n",

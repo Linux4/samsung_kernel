@@ -129,6 +129,13 @@ typedef enum {
 #endif
 #endif
 
+#ifdef SEC_AUDIO_COMMON
+#define LOG_DEBUG_LEVEL_PROP    "ro.vendor.boot.debug_level"
+#define LOG_DEBUG_LEVEL_LOW     "0x4f4c"
+#define PAL_LOG_LEVEL_LOW       (PAL_LOG_ERR|PAL_LOG_INFO)
+#define PAL_LOG_LEVEL_DEFAULT   (PAL_LOG_ERR|PAL_LOG_INFO|PAL_LOG_DBG)
+#endif
+
 using InstanceListNode_t = std::vector<std::pair<int32_t, bool>> ;
 using nonTunnelInstMap_t = std::unordered_map<uint32_t, bool>;
 
@@ -850,14 +857,22 @@ public:
     bool isDeviceReady(pal_device_id_t id);
     static bool isBtScoDevice(pal_device_id_t id);
     static bool isBtDevice(pal_device_id_t id);
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    int32_t a2dpSuspend(pal_device_id_t dev_id);
+    int32_t a2dpResume(pal_device_id_t dev_id);
+    int32_t a2dpCaptureSuspend(pal_device_id_t dev_id);
+    int32_t a2dpCaptureResume(pal_device_id_t dev_id);
+#else
     int32_t a2dpSuspend();
     int32_t a2dpResume();
     int32_t a2dpCaptureSuspend();
     int32_t a2dpCaptureResume();
+#endif
     bool isPluginDevice(pal_device_id_t id);
     bool updateDevAttr(struct pal_device *activeDevAttr, const struct pal_device_info *inDevInfo,
          struct pal_device *inDevAttr);
     bool isDpDevice(pal_device_id_t id);
+    bool isPluginPlaybackDevice(pal_device_id_t id);
 
     /* Separate device reference counts are maintained in PAL device and GSL device SGs.
      * lock graph is to sychronize these reference counts during device and session operations

@@ -94,6 +94,7 @@ static int mfc_get_firmware_version(struct mfc_charger_data *charger, int firm_m
 static irqreturn_t mfc_wpc_det_irq_thread(int irq, void *irq_data);
 static irqreturn_t mfc_wpc_irq_thread(int irq, void *irq_data);
 static int mfc_reg_multi_write_verify(struct i2c_client *client, u16 reg, const u8 *val, int size);
+static int mfc_reg_multi_write(struct i2c_client *client, u16 reg, const u8 *val, int size);
 
 static unsigned int mfc_get_lpmode(void) { return lpcharge; }
 #if defined(CONFIG_WIRELESS_IC_PARAM)
@@ -1324,6 +1325,41 @@ static void mfc_auth_adt_send(struct mfc_charger_data *charger, u8 *srcData, int
 	mfc_reg_write(charger->client, MFC_INT_A_CLEAR_L_REG, irq_src[0]); // clear int
 	mfc_reg_write(charger->client, MFC_INT_A_CLEAR_H_REG, irq_src[1]); // clear int
 	mfc_set_cmd_l_reg(charger, MFC_CMD_CLEAR_INT_MASK, MFC_CMD_CLEAR_INT_MASK); // command
+}
+
+static void mfc_set_iec_params(struct i2c_client *client, struct mfc_iec_data *data)
+{
+	union power_supply_propval value = {0, };
+	u8 sBuf[2] = {0, };
+	int idx = NoTA;
+
+	if (data[NoTA].reg_049D == 0x0)
+		return;
+
+	psy_do_property("battery", get,
+		POWER_SUPPLY_EXT_PROP_CHARGE_COUNTER_SHADOW, value);
+
+	if (is_wired_type(value.intval))
+		idx = WithTA;
+
+	pr_info("@Tx_Mode %s: idx(%d)\n", __func__, idx);
+
+	mfc_reg_write(client, IEC_FOD_ENABLE, data[idx].reg_049D);
+	mfc_reg_write(client, P_nFO_THLD, data[idx].reg_049C);
+
+	sBuf[1] = (data[idx].reg_048E & 0xFF00) >> 8;
+	sBuf[0] = data[idx].reg_048E & 0xFF;
+	mfc_reg_multi_write(client, P_FO1_THLD, sBuf, sizeof(sBuf));
+
+	sBuf[1] = (data[idx].reg_0494 & 0xFF00) >> 8;
+	sBuf[0] = data[idx].reg_0494 & 0xFF;
+	mfc_reg_multi_write(client, W_FO_THLD, sBuf, sizeof(sBuf));
+
+	sBuf[1] = (data[idx].reg_0498 & 0xFF00) >> 8;
+	sBuf[0] = data[idx].reg_0498 & 0xFF;
+	mfc_reg_multi_write(client, P_FO2_THLD, sBuf, sizeof(sBuf));
+
+	mfc_reg_write(client, FOD_COUNTER, data[idx].reg_049A);
 }
 
 /* uno on/off control function */
@@ -4321,6 +4357,10 @@ static int mfc_chg_set_property(struct power_supply *psy,
 			mfc_set_sgf_data(charger, &data);
 		}
 			break;
+		case POWER_SUPPLY_EXT_PROP_WIRELESS_WR_CONNECTED:
+			if (charger->wc_tx_enable)
+				mfc_set_iec_params(charger->client, charger->pdata->iec_params);
+			break;
 		default:
 			return -ENODATA;
 		}
@@ -5220,8 +5260,9 @@ static void mfc_mst_routine(struct mfc_charger_data *charger, u8 irq_src_l, u8 i
 		msleep(100);
 		pr_info("@Tx_Mode %s: 0x21 Register AC Missing(%d)\n", __func__, data);
 		if (data) {
-			mfc_reg_write(charger->client, MFC_MST_MODE_SEL_REG, MST_OFF_TX_ON_DATA); /* set TX-ON mode */
 			pr_info("@Tx_Mode %s: TX-ON Mode : %d\n", __func__, charger->pdata->wc_ic_rev);
+			mfc_reg_write(charger->client, MFC_MST_MODE_SEL_REG, MST_OFF_TX_ON_DATA); /* set TX-ON mode */
+			mfc_set_iec_params(charger->client, charger->pdata->iec_params); /* this value must be written after mode sel */
 			if (charger->wc_rx_connected) {
 				pr_info("@Tx_Mode %s: AC Missing: make Rx disconnected!\n", __func__);
 				charger->wc_tx_ac_missing = true;
@@ -5636,6 +5677,101 @@ static void mfc_chg_parse_fod_data(struct device_node *np,
 	}
 }
 
+static void mfc_chg_parse_iec_data(struct device_node *np,
+		mfc_charger_platform_data_t *pdata)
+{
+	int ret = 0, temp = 0;
+
+	np = of_find_node_by_name(np, "iec_data");
+	if (!np) {
+		pr_err("%s: iec_data is NULL!\n", __func__);
+		pdata->iec_params[NoTA].reg_049D = 0x0;
+		return;
+	}
+
+	ret = of_property_read_u32(np, "reg_048E_woTA", &temp);
+	if (ret < 0)
+		pdata->iec_params[NoTA].reg_049D = 0x0;
+	else
+		pdata->iec_params[NoTA].reg_048E = temp;
+
+	ret = of_property_read_u32(np, "reg_0494_woTA",	&temp);
+	if (ret < 0)
+		pdata->iec_params[NoTA].reg_049D = 0x0;
+	else
+		pdata->iec_params[NoTA].reg_0494 = temp;
+
+	ret = of_property_read_u32(np, "reg_0498_woTA",	&temp);
+	if (ret < 0)
+		pdata->iec_params[NoTA].reg_049D = 0x0;
+	else
+		pdata->iec_params[NoTA].reg_0498 = temp;
+
+	ret = of_property_read_u32(np, "reg_049A_woTA",	&temp);
+	if (ret < 0)
+		pdata->iec_params[NoTA].reg_049D = 0x0;
+	else
+		pdata->iec_params[NoTA].reg_049A = temp;
+
+	ret = of_property_read_u32(np, "reg_049C_woTA",	&temp);
+	if (ret < 0)
+		pdata->iec_params[NoTA].reg_049D = 0x0;
+	else
+		pdata->iec_params[NoTA].reg_049C = temp;
+
+	ret = of_property_read_u32(np, "reg_049D_woTA",	&temp);
+	if (ret < 0)
+		pdata->iec_params[NoTA].reg_049D = 0x0;
+	else
+		pdata->iec_params[NoTA].reg_049D = temp;
+
+	ret = of_property_read_u32(np, "reg_048E_wTA", &temp);
+	if (ret < 0)
+		pdata->iec_params[NoTA].reg_049D = 0x0;
+	else
+		pdata->iec_params[WithTA].reg_048E = temp;
+
+	ret = of_property_read_u32(np, "reg_0494_wTA", &temp);
+	if (ret < 0)
+		pdata->iec_params[NoTA].reg_049D = 0x0;
+	else
+		pdata->iec_params[WithTA].reg_0494 = temp;
+
+	ret = of_property_read_u32(np, "reg_0498_wTA", &temp);
+	if (ret < 0)
+		pdata->iec_params[NoTA].reg_049D = 0x0;
+	else
+		pdata->iec_params[WithTA].reg_0498 = temp;
+
+	ret = of_property_read_u32(np, "reg_049A_wTA", &temp);
+	if (ret < 0)
+		pdata->iec_params[NoTA].reg_049D = 0x0;
+	else
+		pdata->iec_params[WithTA].reg_049A = temp;
+
+	ret = of_property_read_u32(np, "reg_049C_wTA", &temp);
+	if (ret < 0)
+		pdata->iec_params[NoTA].reg_049D = 0x0;
+	else
+		pdata->iec_params[WithTA].reg_049C = temp;
+
+	ret = of_property_read_u32(np, "reg_049D_wTA", &temp);
+	if (ret < 0)
+		pdata->iec_params[NoTA].reg_049D = 0x0;
+	else
+		pdata->iec_params[WithTA].reg_049D = temp;
+
+	pr_info("%s: reg_048E_woTA=0x%x, reg_0494_woTA=0x%x, reg_0498_woTA=0x%x, reg_049A_woTA=0x%x, reg_049C_woTA=0x%x, reg_049D_woTA=0x%x\n",
+		__func__,
+		pdata->iec_params[NoTA].reg_048E, pdata->iec_params[NoTA].reg_0494, pdata->iec_params[NoTA].reg_0498,
+		pdata->iec_params[NoTA].reg_049A, pdata->iec_params[NoTA].reg_049C, pdata->iec_params[NoTA].reg_049D);
+	pr_info("%s: reg_048E_wTA=0x%x, reg_0494_wTA=0x%x, reg_0498_wTA=0x%x, reg_049A_wTA=0x%x, reg_049C_wTA=0x%x, reg_049D_wTA=0x%x\n",
+		__func__,
+		pdata->iec_params[WithTA].reg_048E, pdata->iec_params[WithTA].reg_0494, pdata->iec_params[WithTA].reg_0498,
+		pdata->iec_params[WithTA].reg_049A, pdata->iec_params[WithTA].reg_049C, pdata->iec_params[WithTA].reg_049D);
+}
+
+
 #if defined(CONFIG_WIRELESS_IC_PARAM)
 static void mfc_parse_param_value(struct mfc_charger_data *charger)
 {
@@ -5864,6 +6000,8 @@ static int mfc_chg_parse_dt(struct device *dev,
 		}
 
 		mfc_chg_parse_fod_data(np, pdata);
+		np = dev->of_node;
+		mfc_chg_parse_iec_data(np, pdata);
 		np = dev->of_node;
 
 		return 0;

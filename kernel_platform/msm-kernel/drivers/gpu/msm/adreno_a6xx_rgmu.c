@@ -781,6 +781,14 @@ static int a6xx_gpu_boot(struct adreno_device *adreno_dev)
 		goto err_oob_clear;
 	}
 
+	/*
+	 * At this point it is safe to assume that we recovered. Setting
+	 * this field allows us to take a new snapshot for the next failure
+	 * if we are prioritizing the first unrecoverable snapshot.
+	 */
+	if (device->snapshot)
+		device->snapshot->recovered = true;
+
 	/* Start the dispatcher */
 	adreno_dispatcher_start(device);
 
@@ -850,27 +858,33 @@ static void rgmu_idle_check(struct work_struct *work)
 	struct kgsl_device *device = container_of(work,
 					struct kgsl_device, idle_check_ws);
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
+	int ret;
 
 	mutex_lock(&device->mutex);
 
 	if (test_bit(GMU_DISABLE_SLUMBER, &device->gmu_core.flags))
 		goto done;
 
-	if (!atomic_read(&device->active_cnt)) {
-		spin_lock(&device->submit_lock);
+	if (atomic_read(&device->active_cnt)) {
+		kgsl_pwrscale_update(device);
+		kgsl_start_idle_timer(device);
+		goto done;
+	}
 		
-		if (device->submit_now) {
-			spin_unlock(&device->submit_lock);
-			kgsl_pwrscale_update(device);
-			kgsl_start_idle_timer(device);
-			goto done;
-		}
+	spin_lock(&device->submit_lock);
 
-		device->slumber = true;
+	if (device->submit_now) {
 		spin_unlock(&device->submit_lock);
-		
-		a6xx_power_off(adreno_dev);
-	} else {
+		kgsl_pwrscale_update(device);
+		kgsl_start_idle_timer(device);
+		goto done;
+	}
+
+	device->slumber = true;
+	spin_unlock(&device->submit_lock);
+
+	ret = a6xx_power_off(adreno_dev);
+	if (ret == -EBUSY) {
 		kgsl_pwrscale_update(device);
 		kgsl_start_idle_timer(device);
 	}
@@ -1070,6 +1084,11 @@ static int a6xx_power_off(struct adreno_device *adreno_dev)
 		goto no_gx_power;
 	}
 
+	if (a6xx_irq_pending(adreno_dev)) {
+		a6xx_gmu_oob_clear(device, oob_gpu);
+		return -EBUSY;
+	}
+
 	kgsl_pwrscale_update_stats(device);
 
 	/* Save active coresight registers if applicable */
@@ -1106,6 +1125,9 @@ no_gx_power:
 
 	if (!IS_ERR_OR_NULL(adreno_dev->gpuhtw_llc_slice))
 		llcc_slice_deactivate(adreno_dev->gpuhtw_llc_slice);
+
+	if (!IS_ERR_OR_NULL(adreno_dev->gpumv_llc_slice))
+		llcc_slice_deactivate(adreno_dev->gpumv_llc_slice);
 
 	clear_bit(RGMU_PRIV_GPU_STARTED, &rgmu->flags);
 

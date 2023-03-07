@@ -618,7 +618,9 @@ unsigned long get_each_object_track(struct kmem_cache *s,
 	slab_lock(page);
 	for_each_object(p, s, page_address(page), page->objects) {
 		t = get_track(s, p, alloc);
+		metadata_access_enable();
 		ret = fn(s, p, t, private);
+		metadata_access_disable();
 		if (ret < 0)
 			break;
 		num_track += 1;
@@ -2511,6 +2513,7 @@ redo:
 
 	c->page = NULL;
 	c->freelist = NULL;
+	c->tid = next_tid(c->tid);
 }
 
 /*
@@ -2644,8 +2647,6 @@ static inline void flush_slab(struct kmem_cache *s, struct kmem_cache_cpu *c)
 {
 	stat(s, CPUSLAB_FLUSH);
 	deactivate_slab(s, c->page, c->freelist, c);
-
-	c->tid = next_tid(c->tid);
 }
 
 /*
@@ -2931,6 +2932,7 @@ redo:
 
 	if (!freelist) {
 		c->page = NULL;
+		c->tid = next_tid(c->tid);
 		stat(s, DEACTIVATE_BYPASS);
 		goto new_slab;
 	}

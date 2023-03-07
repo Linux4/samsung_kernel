@@ -25,13 +25,13 @@
 #include <linux/pm_wakeup.h>
 #include "../common/sec_charging_common.h"
 
-#define MFC_FW_BIN_VERSION			0x146
-#define MFC_FW_BIN_FULL_VERSION		0x01460000
+#define MFC_FW_BIN_VERSION			0x150
+#define MFC_FW_BIN_FULL_VERSION		0x01500000
 #define MFC_FW_BIN_VERSION_ADDR		0x0084 //fw rev85 address
 #define MTP_MAX_PROGRAM_SIZE 0x4000
 #define MTP_VERIFY_ADDR			0x0000
 #define MTP_VERIFY_SIZE			0x4680
-#define MTP_VERIFY_CHKSUM		0x3B5E
+#define MTP_VERIFY_CHKSUM		0x4875
 
 #define MFC_FLASH_FW_HEX_PATH		"mfc/mfc_fw_flash.bin"
 #define MFC_FW_SDCARD_BIN_PATH		"wpc_fw_sdcard.bin"
@@ -278,6 +278,15 @@
 #define MFC_RX_PPP_PACKET_COUNTER1			0x02A9
 #define MFC_RX_PPP_PACKET_COUNTER2			0x02AA
 #define MFC_RX_PPP_PACKET_COUNTER3			0x02AB
+
+#define	IEC_DATA2					0x0480
+#define IEC_DATA1					0x048C
+#define P_FO1_THLD					0x048E
+#define W_FO_THLD					0x0494
+#define P_FO2_THLD					0x0498
+#define FOD_COUNTER					0x049A
+#define P_nFO_THLD					0x049C
+#define IEC_FOD_ENABLE					0x049D
 
 /* ADT Buffer Registers, (0x0800 ~ 0x0FFF) */
 #define MFC_ADT_BUFFER_ADT_TYPE_REG				0x0800
@@ -807,6 +816,17 @@ typedef struct _mfc_fod_data {
 	u32 *data[FOD_STATE_MAX];
 } mfc_fod_data;
 
+#define NoTA 0
+#define WithTA 1
+struct mfc_iec_data {
+	u16 reg_048E;
+	u16 reg_0494;
+	u16 reg_0498;
+	u8 reg_049A;
+	u8 reg_049C;
+	u8 reg_049D;
+};
+
 static const u8 MTPVerifier9320[] = {
 	0x00, 0x02, 0x00, 0x20, 0x99, 0x00, 0x00, 0x00, 0x9D, 0x00, 0x00, 0x00, 0x9F, 0x00, 0x00, 0x00,
 	0x00, 0xF0, 0x02, 0xF8, 0x00, 0xF0, 0x30, 0xF8, 0x0C, 0xA0, 0x30, 0xC8, 0x08, 0x38, 0x24, 0x18,
@@ -1122,6 +1142,8 @@ struct mfc_charger_platform_data {
 
 	mfc_fod_data *fod_list;
 	int fod_data_count;
+
+	struct mfc_iec_data iec_params[WithTA + 1];
 };
 
 #define mfc_charger_platform_data_t \

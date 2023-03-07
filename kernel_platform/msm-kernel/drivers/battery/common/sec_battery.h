@@ -849,6 +849,7 @@ struct sec_battery_info {
 	unsigned int charge_power;		/* charge power (mW) */
 	unsigned int max_charge_power;		/* max charge power (mW) */
 	unsigned int pd_max_charge_power;		/* max charge power for pd (mW) */
+	unsigned int pd_rated_power;		/* rated power for pd (W) */
 
 	struct adc_sample_info	adc_sample[ADC_CH_COUNT];
 
@@ -869,6 +870,8 @@ struct sec_battery_info {
 	struct cisd cisd;
 	bool skip_cisd;
 	bool usb_overheat_check;
+	bool otg_check;
+	bool d2d_check;
 	int prev_volt;
 	int prev_temp;
 	int prev_jig_on;
@@ -1082,13 +1085,16 @@ struct sec_battery_info {
 	bool tx_clear_cisd;
 	struct delayed_work wpc_txpower_calc_work;
 
+	bool wc_ept_timeout;
 	unsigned int wc20_vout;
 	unsigned int wc20_power_class;
 	unsigned int wc20_rx_power;
 	unsigned int wc20_info_len;
 	unsigned int wc20_info_idx;
 	struct delayed_work wc20_current_work;
+	struct delayed_work wc_ept_timeout_work;
 	struct wakeup_source *wc20_current_ws;
+	struct wakeup_source *wc_ept_timeout_ws;
 #endif
 	struct delayed_work slowcharging_work;
 #if defined(CONFIG_BATTERY_AGE_FORECAST)

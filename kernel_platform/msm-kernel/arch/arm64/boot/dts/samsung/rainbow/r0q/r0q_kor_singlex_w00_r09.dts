@@ -16,13 +16,13 @@
 
 			samsung_mobile_device {
 				compatible = "simple-bus";
-				phandle = <0xef>;
+				phandle = <0xee>;
 
 				max77705-charger {
 					charger,fac_vsys = <0x1194>;
 					charger,enable_sysovlo_irq;
 					charger,fsw = <0x00>;
-					phandle = <0xf0>;
+					phandle = <0xef>;
 				};
 
 				battery {
@@ -69,8 +69,8 @@
 					battery,wireless_cool2_cool1_thresh = <0x96>;
 					battery,wireless_cool3_cool2_thresh = <0x32>;
 					battery,wireless_cold_cool3_thresh = <0x00>;
-					battery,tx_high_threshold = <0x1c2>;
-					battery,tx_high_recovery = <0x190>;
+					battery,tx_high_threshold = <0x1f4>;
+					battery,tx_high_recovery = <0x1c2>;
 					battery,tx_low_threshold = <0x00>;
 					battery,tx_low_recovery = <0x32>;
 					battery,wire_warm_current = <0x50a>;
@@ -549,7 +549,7 @@
 					functions = "INTENSITY\0HAPTIC_ENGINE\0INDEX_HAPTIC_PATTERN\0CAPABILITY_EXTERNAL_CONTROL\0PRIMITIVE_EFFECT_COMPOSE";
 					samsung,intensities = <0x00 0x9c4 0x1130 0x189c 0x2008 0x2710>;
 					samsung,haptic_intensities = <0x00 0xbb8 0xfa0 0x1770 0x1f40 0x2710>;
-					phandle = <0xf1>;
+					phandle = <0xf0>;
 				};
 
 				sec_abc {
@@ -589,18 +589,18 @@
 					compatible = "hall_ic";
 					pinctrl-names = "default";
 					pinctrl-0 = <0x07 0x08>;
-					phandle = <0xf2>;
+					phandle = <0xf1>;
 
 					hall {
 						event = <0x15>;
 						gpios = <0xffffffff 0x17 0x01>;
-						phandle = <0xf3>;
+						phandle = <0xf2>;
 					};
 
 					certify_hall {
 						event = <0x1b>;
 						gpios = <0xffffffff 0xa9 0x01>;
-						phandle = <0xf4>;
+						phandle = <0xf3>;
 					};
 				};
 
@@ -628,7 +628,7 @@
 					fuelgauge,lost_soc_trig_scale = <0x02>;
 					fuelgauge,lost_soc_guarantee_soc = <0x1e>;
 					fuelgauge,lost_soc_min_vol = <0xc80>;
-					phandle = <0xf5>;
+					phandle = <0xf4>;
 
 					battery_params {
 						battery0,v_empty = <0xa7e2>;
@@ -664,7 +664,7 @@
 					pinctrl-0 = <0x09>;
 					enable-active-high;
 					regulator-boot-on;
-					phandle = <0xf6>;
+					phandle = <0xf5>;
 				};
 
 				fixed_regulator@1 {
@@ -675,7 +675,7 @@
 					pinctrl-0 = <0x0a>;
 					enable-active-high;
 					regulator-boot-on;
-					phandle = <0xf7>;
+					phandle = <0xf6>;
 				};
 
 				fixed_regulator@0 {
@@ -686,7 +686,7 @@
 					pinctrl-0 = <0x0b>;
 					enable-active-high;
 					regulator-boot-on;
-					phandle = <0xf8>;
+					phandle = <0xf7>;
 				};
 
 				sec-direct-charger {
@@ -721,7 +721,7 @@
 					pinctrl-0 = <0x0c>;
 					adc_array = <0xd6d8 0x13778 0x17755 0x1bc44 0x20d9e 0x26b64 0x2dba9 0x35ca8 0x3efe7 0x49a35 0x5557f 0x605a2 0x6e730 0x7d529 0x8cdc7 0x9c728 0xab9f2 0xba092 0xc73ef 0xd307d 0xdd331 0xe5f57 0xecbcf>;
 					temp_array = <0x384 0x352 0x320 0x2ee 0x2bc 0x28a 0x258 0x226 0x1f4 0x1c2 0x190 0x15e 0x12c 0xfa 0xc8 0x96 0x64 0x32 0x00 0xffffffce 0xffffff9c 0xffffff6a 0xffffff38>;
-					phandle = <0xf9>;
+					phandle = <0xf8>;
 				};
 
 				sec_thermistor@1 {
@@ -737,7 +737,7 @@
 					pinctrl-0 = <0x0d>;
 					adc_array = <0xd6d8 0x1301e 0x17203 0x1b6b1 0x2088d 0x266d4 0x2d719 0x35756 0x3eb57 0x49524 0x54d63 0x5f6ae 0x6d83c 0x7c46f 0x8be52 0x9b7b3 0xaab80 0xb8f56 0xc6640 0xd2515 0xdc8cd 0xe56b9 0xec4b7>;
 					temp_array = <0x384 0x352 0x320 0x2ee 0x2bc 0x28a 0x258 0x226 0x1f4 0x1c2 0x190 0x15e 0x12c 0xfa 0xc8 0x96 0x64 0x32 0x00 0xffffffce 0xffffff9c 0xffffff6a 0xffffff38>;
-					phandle = <0xfa>;
+					phandle = <0xf9>;
 				};
 
 				sec_thermistor@0 {
@@ -751,7 +751,7 @@
 					use_iio_processed;
 					adc_array = <0xd6d8 0x120a9 0x1671d 0x1a9c4 0x1fda7 0x25c2f 0x2cc33 0x34c70 0x3deab 0x488fa 0x53653 0x5e0e2 0x6c1ef 0x7ade1 0x8a805 0x9a124 0xa9677 0xb7c14 0xc523a 0xd155f 0xdb9d9 0xe4a4e 0xebb15>;
 					temp_array = <0x384 0x352 0x320 0x2ee 0x2bc 0x28a 0x258 0x226 0x1f4 0x1c2 0x190 0x15e 0x12c 0xfa 0xc8 0x96 0x64 0x32 0x00 0xffffffce 0xffffff9c 0xffffff6a 0xffffff38>;
-					phandle = <0xfb>;
+					phandle = <0xfa>;
 				};
 
 				cable-info {
@@ -759,7 +759,7 @@
 					default_charging_current = <0x834>;
 					full_check_current_1st = <0x21a>;
 					full_check_current_2nd = <0xb3>;
-					phandle = <0xfc>;
+					phandle = <0xfb>;
 
 					current_group_1 {
 						cable_number = <0x02 0x13 0x15 0x16 0x17 0x1e>;
@@ -848,7 +848,7 @@
 
 				wireless-power-info {
 					count = <0x05>;
-					phandle = <0xfd>;
+					phandle = <0xfc>;
 
 					current_group_0 {
 						wireless_power_class = <0x02>;
@@ -902,7 +902,7 @@
 				};
 
 				sb-tx {
-					phandle = <0xfe>;
+					phandle = <0xfd>;
 
 					aov {
 					};
@@ -912,6 +912,10 @@
 					status = "okay";
 					compatible = "cpufreq_limit";
 					limit,vol_based_clk;
+					limit,vbf_offset = <0x00>;
+					limit,silver_boost_table = <0x1f5900 0xea600 0xe5b00 0xce0e0>;
+					limit,silver_limit_table = <0x2db400 0xffffffff 0x249f00 0x168f00 0xa6680 0x14cd00>;
+					limit,gold_fmin_up = <0xce400>;
 				};
 
 				sec_ext_tm {
@@ -939,14 +943,14 @@
 				reg = <0x00 0x00>;
 				#address-cells = <0x01>;
 				#size-cells = <0x00>;
-				phandle = <0xff>;
+				phandle = <0xfe>;
 
 				pon_hlos@1300 {
 					compatible = "qcom,pm8998-pon";
 					reg = <0x1300 0x800>;
 					reg-names = "pon_hlos\0pon_pbs";
 					qcom,log-kpd-event;
-					phandle = <0x100>;
+					phandle = <0xff>;
 
 					pwrkey {
 						compatible = "qcom,pmk8350-pwrkey";
@@ -1180,7 +1184,7 @@
 					reg = <0x7000>;
 					#address-cells = <0x01>;
 					#size-cells = <0x01>;
-					phandle = <0x101>;
+					phandle = <0x100>;
 				};
 
 				sdam@7100 {
@@ -1188,7 +1192,7 @@
 					reg = <0x7100>;
 					#address-cells = <0x01>;
 					#size-cells = <0x01>;
-					phandle = <0x102>;
+					phandle = <0x101>;
 
 					restart@48 {
 						reg = <0x48 0x01>;
@@ -1238,48 +1242,48 @@
 					reg = <0x8600>;
 					#address-cells = <0x01>;
 					#size-cells = <0x01>;
-					phandle = <0x103>;
+					phandle = <0x102>;
 				};
 
 				sdam@9700 {
 					compatible = "qcom,spmi-sdam";
 					reg = <0x9700>;
-					phandle = <0x104>;
+					phandle = <0x103>;
 
 					cam_phy0_nvmem@90 {
 						reg = <0x90 0x04>;
 						bits = <0x00 0x20>;
-						phandle = <0x9a>;
+						phandle = <0x99>;
 					};
 
 					cam_phy1_nvmem@94 {
 						reg = <0x94 0x04>;
 						bits = <0x00 0x20>;
-						phandle = <0x9b>;
+						phandle = <0x9a>;
 					};
 
 					cam_phy2_nvmem@98 {
 						reg = <0x98 0x04>;
 						bits = <0x00 0x20>;
-						phandle = <0x9c>;
+						phandle = <0x9b>;
 					};
 
 					cam_phy3_nvmem@9c {
 						reg = <0x9c 0x04>;
 						bits = <0x00 0x20>;
-						phandle = <0x9d>;
+						phandle = <0x9c>;
 					};
 
 					cam_phy4_nvmem@a0 {
 						reg = <0xa0 0x04>;
 						bits = <0x00 0x20>;
-						phandle = <0x9e>;
+						phandle = <0x9d>;
 					};
 
 					cam_phy5_nvmem@a4 {
 						reg = <0xa4 0x04>;
 						bits = <0x00 0x20>;
-						phandle = <0x9f>;
+						phandle = <0x9e>;
 					};
 				};
 
@@ -1302,7 +1306,7 @@
 					#gpio-cells = <0x02>;
 					interrupt-controller;
 					#interrupt-cells = <0x02>;
-					phandle = <0x105>;
+					phandle = <0x104>;
 				};
 
 				rtc@6100 {
@@ -1310,7 +1314,7 @@
 					reg = <0x6100 0x6200>;
 					reg-names = "rtc\0alarm";
 					interrupts = <0x00 0x62 0x01 0x01>;
-					phandle = <0x106>;
+					phandle = <0x105>;
 				};
 
 				sdam@7200 {
@@ -1318,11 +1322,11 @@
 					reg = <0x7200>;
 					#address-cells = <0x01>;
 					#size-cells = <0x01>;
-					phandle = <0x107>;
+					phandle = <0x106>;
 
 					pon_reason@69 {
 						reg = <0x69 0x01>;
-						phandle = <0x93>;
+						phandle = <0x92>;
 					};
 				};
 			};
@@ -1361,7 +1365,7 @@
 					#gpio-cells = <0x02>;
 					interrupt-controller;
 					#interrupt-cells = <0x02>;
-					phandle = <0x36>;
+					phandle = <0x35>;
 
 					key_vol_up {
 
@@ -1371,7 +1375,7 @@
 							input-enable;
 							bias-pull-up;
 							power-source = <0x01>;
-							phandle = <0x35>;
+							phandle = <0x34>;
 						};
 					};
 
@@ -1401,7 +1405,7 @@
 						input-enable;
 						bias-pull-up;
 						power-source = <0x01>;
-						phandle = <0x8d>;
+						phandle = <0x8c>;
 					};
 
 					chg_thm {
@@ -1438,35 +1442,29 @@
 				polling-delay = <0x00>;
 				thermal-governor = "step_wise";
 				thermal-sensors = <0x0f>;
-				phandle = <0x108>;
+				phandle = <0x107>;
 
 				trips {
-
-					thermal-engine-config {
-						temperature = <0x1e848>;
-						hysteresis = <0x3e8>;
-						type = "passive";
-					};
 
 					trip0 {
 						temperature = <0x17318>;
 						hysteresis = <0x00>;
 						type = "passive";
-						phandle = <0x2d>;
+						phandle = <0x2c>;
 					};
 
 					trip1 {
 						temperature = <0x1c138>;
 						hysteresis = <0x00>;
 						type = "passive";
-						phandle = <0x109>;
+						phandle = <0x108>;
 					};
 
 					trip2 {
 						temperature = <0x23668>;
 						hysteresis = <0x00>;
 						type = "passive";
-						phandle = <0x10a>;
+						phandle = <0x109>;
 					};
 				};
 			};
@@ -1515,7 +1513,7 @@
 							bias-disable;
 							power-source = <0x01>;
 							qcom,drive-strength = <0x02>;
-							phandle = <0x10b>;
+							phandle = <0x10a>;
 						};
 					};
 
@@ -1526,7 +1524,7 @@
 						input-enable;
 						bias-disable;
 						power-source = <0x01>;
-						phandle = <0x10c>;
+						phandle = <0x10b>;
 					};
 
 					panel_xu01_esd_1_suspend {
@@ -1536,7 +1534,7 @@
 						input-enable;
 						bias-disable;
 						power-source = <0x01>;
-						phandle = <0x10d>;
+						phandle = <0x10c>;
 					};
 
 					panel_xt01_esd_1_active {
@@ -1546,7 +1544,7 @@
 						input-enable;
 						bias-disable;
 						power-source = <0x01>;
-						phandle = <0x10e>;
+						phandle = <0x10d>;
 					};
 
 					panel_xt01_esd_1_suspend {
@@ -1556,7 +1554,7 @@
 						input-enable;
 						bias-disable;
 						power-source = <0x01>;
-						phandle = <0x10f>;
+						phandle = <0x10e>;
 					};
 
 					mfc_det_default {
@@ -1564,7 +1562,7 @@
 						function = "normal";
 						input-enable;
 						bias-disable;
-						phandle = <0x63>;
+						phandle = <0x62>;
 					};
 
 					panel_aw01_esd_1_active {
@@ -1574,7 +1572,7 @@
 						input-enable;
 						bias-disable;
 						power-source = <0x01>;
-						phandle = <0x56>;
+						phandle = <0x55>;
 					};
 
 					panel_aw01_esd_1_suspend {
@@ -1584,7 +1582,7 @@
 						input-enable;
 						bias-disable;
 						power-source = <0x01>;
-						phandle = <0x5a>;
+						phandle = <0x59>;
 					};
 
 					if_pmic_irq {
@@ -1594,7 +1592,7 @@
 						input-enable;
 						bias-disable;
 						power-source = <0x01>;
-						phandle = <0x6f>;
+						phandle = <0x6e>;
 					};
 
 					wpc_det_default {
@@ -1602,7 +1600,7 @@
 						function = "normal";
 						input-enable;
 						bias-disable;
-						phandle = <0x65>;
+						phandle = <0x64>;
 					};
 
 					lsi_det_default {
@@ -1610,7 +1608,7 @@
 						function = "normal";
 						input-enable;
 						bias-disable;
-						phandle = <0x68>;
+						phandle = <0x67>;
 					};
 				};
 
@@ -1661,13 +1659,13 @@
 					reg-names = "lpg-base";
 					#pwm-cells = <0x02>;
 					qcom,num-lpg-channels = <0x01>;
-					phandle = <0x110>;
+					phandle = <0x10f>;
 				};
 
 				qcom,leds@ef00 {
 					compatible = "qcom,tri-led";
 					reg = <0xef00>;
-					phandle = <0x111>;
+					phandle = <0x110>;
 
 					red {
 						label = "red";
@@ -1709,7 +1707,7 @@
 					qcom,thermal-derate-current = <0xc8 0x1f4>;
 					qcom,hw-strobe-gpios = <0x13 0x01 0x00>;
 					status = "ok";
-					phandle = <0x112>;
+					phandle = <0x111>;
 
 					qcom,flash_0 {
 						label = "flash";
@@ -1719,7 +1717,7 @@
 						qcom,id = <0x00>;
 						qcom,duration-ms = <0x500>;
 						qcom,ires-ua = <0x30d4>;
-						phandle = <0x113>;
+						phandle = <0x112>;
 					};
 
 					qcom,flash_1 {
@@ -1730,7 +1728,7 @@
 						qcom,id = <0x01>;
 						qcom,duration-ms = <0x500>;
 						qcom,ires-ua = <0x30d4>;
-						phandle = <0x114>;
+						phandle = <0x113>;
 					};
 
 					qcom,flash_2 {
@@ -1741,7 +1739,7 @@
 						qcom,id = <0x02>;
 						qcom,duration-ms = <0x500>;
 						qcom,ires-ua = <0x30d4>;
-						phandle = <0x115>;
+						phandle = <0x114>;
 					};
 
 					qcom,flash_3 {
@@ -1752,7 +1750,7 @@
 						qcom,id = <0x03>;
 						qcom,duration-ms = <0x500>;
 						qcom,ires-ua = <0x30d4>;
-						phandle = <0x116>;
+						phandle = <0x115>;
 					};
 
 					qcom,torch_0 {
@@ -1762,7 +1760,7 @@
 						qcom,default-led-trigger = "torch0_trigger";
 						qcom,id = <0x00>;
 						qcom,ires-ua = <0x30d4>;
-						phandle = <0x117>;
+						phandle = <0x116>;
 					};
 
 					qcom,torch_1 {
@@ -1772,7 +1770,7 @@
 						qcom,default-led-trigger = "torch1_trigger";
 						qcom,id = <0x01>;
 						qcom,ires-ua = <0x30d4>;
-						phandle = <0x118>;
+						phandle = <0x117>;
 					};
 
 					qcom,torch_2 {
@@ -1782,7 +1780,7 @@
 						qcom,default-led-trigger = "torch2_trigger";
 						qcom,id = <0x02>;
 						qcom,ires-ua = <0x30d4>;
-						phandle = <0x119>;
+						phandle = <0x118>;
 					};
 
 					qcom,torch_3 {
@@ -1792,7 +1790,7 @@
 						qcom,default-led-trigger = "torch3_trigger";
 						qcom,id = <0x03>;
 						qcom,ires-ua = <0x30d4>;
-						phandle = <0x11a>;
+						phandle = <0x119>;
 					};
 
 					qcom,led_switch_0 {
@@ -1801,7 +1799,7 @@
 						qcom,default-led-trigger = "switch0_trigger";
 						qcom,led-mask = <0x09>;
 						qcom,symmetry-en;
-						phandle = <0x11b>;
+						phandle = <0x11a>;
 					};
 
 					qcom,led_switch_1 {
@@ -1810,7 +1808,7 @@
 						qcom,default-led-trigger = "switch1_trigger";
 						qcom,led-mask = <0x06>;
 						qcom,symmetry-en;
-						phandle = <0x11c>;
+						phandle = <0x11b>;
 					};
 
 					qcom,led_switch_2 {
@@ -1819,7 +1817,7 @@
 						qcom,default-led-trigger = "switch2_trigger";
 						qcom,led-mask = <0x0f>;
 						qcom,symmetry-en;
-						phandle = <0x11d>;
+						phandle = <0x11c>;
 					};
 				};
 			};
@@ -1836,35 +1834,29 @@
 				polling-delay = <0x00>;
 				thermal-governor = "step_wise";
 				thermal-sensors = <0x14>;
-				phandle = <0x11e>;
+				phandle = <0x11d>;
 
 				trips {
-
-					thermal-engine-config {
-						temperature = <0x1e848>;
-						hysteresis = <0x3e8>;
-						type = "passive";
-					};
 
 					trip0 {
 						temperature = <0x17318>;
 						hysteresis = <0x00>;
 						type = "passive";
-						phandle = <0x2e>;
+						phandle = <0x2d>;
 					};
 
 					trip1 {
 						temperature = <0x1c138>;
 						hysteresis = <0x00>;
 						type = "passive";
-						phandle = <0x11f>;
+						phandle = <0x11e>;
 					};
 
 					trip2 {
 						temperature = <0x23668>;
 						hysteresis = <0x00>;
 						type = "passive";
-						phandle = <0x120>;
+						phandle = <0x11f>;
 					};
 				};
 			};
@@ -1881,7 +1873,7 @@
 						temperature = <0x01>;
 						hysteresis = <0x01>;
 						type = "passive";
-						phandle = <0x29>;
+						phandle = <0x28>;
 					};
 				};
 			};
@@ -1898,7 +1890,7 @@
 						temperature = <0x01>;
 						hysteresis = <0x01>;
 						type = "passive";
-						phandle = <0x2a>;
+						phandle = <0x29>;
 					};
 				};
 			};
@@ -1915,7 +1907,7 @@
 						temperature = <0x01>;
 						hysteresis = <0x01>;
 						type = "passive";
-						phandle = <0x2b>;
+						phandle = <0x2a>;
 					};
 				};
 			};
@@ -1960,7 +1952,7 @@
 					#gpio-cells = <0x02>;
 					interrupt-controller;
 					#interrupt-cells = <0x02>;
-					phandle = <0x121>;
+					phandle = <0x120>;
 				};
 
 				bcl@4700 {
@@ -1996,11 +1988,11 @@
 					nvmem-names = "hap_cfg_sdam";
 					nvmem = <0x17>;
 					qcom,pbs-client = <0x18>;
-					phandle = <0x122>;
+					phandle = <0x121>;
 
 					qcom,hap-swr-slave-reg {
 						regulator-name = "hap-swr-slave-reg";
-						phandle = <0x123>;
+						phandle = <0x122>;
 					};
 
 					effect_0 {
@@ -2063,7 +2055,7 @@
 					compatible = "qcom,qpnp-amoled-regulator";
 					#address-cells = <0x01>;
 					#size-cells = <0x00>;
-					phandle = <0x124>;
+					phandle = <0x123>;
 
 					oledb@fa00 {
 						reg = <0xfa00>;
@@ -2072,7 +2064,7 @@
 						regulator-min-microvolt = <0x4c4b40>;
 						regulator-max-microvolt = <0x7a1200>;
 						qcom,swire-control;
-						phandle = <0x125>;
+						phandle = <0x124>;
 					};
 
 					ab@f900 {
@@ -2082,7 +2074,7 @@
 						regulator-min-microvolt = <0x4630c0>;
 						regulator-max-microvolt = <0x4f5880>;
 						qcom,swire-control;
-						phandle = <0x126>;
+						phandle = <0x125>;
 					};
 
 					ibb@f800 {
@@ -2093,7 +2085,7 @@
 						regulator-max-microvolt = <0x64b540>;
 						qcom,swire-control;
 						regulator-allow-set-load;
-						phandle = <0x127>;
+						phandle = <0x126>;
 					};
 				};
 
@@ -2118,35 +2110,29 @@
 				polling-delay-passive = <0x64>;
 				polling-delay = <0x00>;
 				thermal-sensors = <0x1c>;
-				phandle = <0x128>;
+				phandle = <0x127>;
 
 				trips {
-
-					thermal-engine-config {
-						temperature = <0x1e848>;
-						hysteresis = <0x3e8>;
-						type = "passive";
-					};
 
 					trip0 {
 						temperature = <0x15f90>;
 						hysteresis = <0x00>;
 						type = "passive";
-						phandle = <0x129>;
+						phandle = <0x128>;
 					};
 
 					trip1 {
 						temperature = <0x1c138>;
 						hysteresis = <0x00>;
 						type = "passive";
-						phandle = <0x12a>;
+						phandle = <0x129>;
 					};
 
 					trip2 {
 						temperature = <0x23668>;
 						hysteresis = <0x00>;
 						type = "passive";
-						phandle = <0x12b>;
+						phandle = <0x12a>;
 					};
 				};
 			};
@@ -2162,7 +2148,7 @@
 						temperature = <0x2328>;
 						hysteresis = <0xc8>;
 						type = "passive";
-						phandle = <0x12c>;
+						phandle = <0x12b>;
 					};
 				};
 			};
@@ -2178,7 +2164,7 @@
 						temperature = <0x2710>;
 						hysteresis = <0xc8>;
 						type = "passive";
-						phandle = <0x12d>;
+						phandle = <0x12c>;
 					};
 				};
 			};
@@ -2206,7 +2192,7 @@
 						temperature = <0x01>;
 						hysteresis = <0x01>;
 						type = "passive";
-						phandle = <0x26>;
+						phandle = <0x25>;
 					};
 				};
 			};
@@ -2234,7 +2220,7 @@
 						temperature = <0x01>;
 						hysteresis = <0x01>;
 						type = "passive";
-						phandle = <0x27>;
+						phandle = <0x26>;
 					};
 				};
 			};
@@ -2262,7 +2248,7 @@
 						temperature = <0x01>;
 						hysteresis = <0x01>;
 						type = "passive";
-						phandle = <0x28>;
+						phandle = <0x27>;
 					};
 				};
 			};
@@ -2287,10 +2273,10 @@
 					};
 
 					socd-trip {
-						temperature = <0x5a>;
+						temperature = <0x64>;
 						hysteresis = <0x00>;
 						type = "passive";
-						phandle = <0x25>;
+						phandle = <0x12d>;
 					};
 				};
 			};
@@ -2349,12 +2335,6 @@
 				phandle = <0x130>;
 
 				trips {
-
-					thermal-engine-config {
-						temperature = <0x1e848>;
-						hysteresis = <0x3e8>;
-						type = "passive";
-					};
 
 					trip0 {
 						temperature = <0x17318>;
@@ -2433,12 +2413,6 @@
 
 				trips {
 
-					thermal-engine-config {
-						temperature = <0x1e848>;
-						hysteresis = <0x3e8>;
-						type = "passive";
-					};
-
 					trip0 {
 						temperature = <0x17318>;
 						hysteresis = <0x00>;
@@ -2514,17 +2488,11 @@
 
 				trips {
 
-					thermal-engine-config {
-						temperature = <0x1e848>;
-						hysteresis = <0x3e8>;
-						type = "passive";
-					};
-
 					trip0 {
 						temperature = <0x17318>;
 						hysteresis = <0x00>;
 						type = "passive";
-						phandle = <0x2c>;
+						phandle = <0x2b>;
 					};
 
 					trip1 {
@@ -2741,42 +2709,42 @@
 						temperature = <0x130b0>;
 						hysteresis = <0x1f40>;
 						type = "passive";
-						phandle = <0x2f>;
+						phandle = <0x2e>;
 					};
 
 					xo-config1 {
 						temperature = <0x13880>;
 						hysteresis = <0x2710>;
 						type = "passive";
-						phandle = <0x30>;
+						phandle = <0x2f>;
 					};
 
 					display-test-config1 {
 						temperature = <0x1e848>;
 						hysteresis = <0x3e8>;
 						type = "passive";
-						phandle = <0x31>;
+						phandle = <0x30>;
 					};
 
 					display-test-config2 {
 						temperature = <0x1e848>;
 						hysteresis = <0x3e8>;
 						type = "passive";
-						phandle = <0x32>;
+						phandle = <0x31>;
 					};
 
 					display-test-config3 {
 						temperature = <0x1e848>;
 						hysteresis = <0x3e8>;
 						type = "passive";
-						phandle = <0x33>;
+						phandle = <0x32>;
 					};
 
 					display-test-config4 {
 						temperature = <0x1e848>;
 						hysteresis = <0x3e8>;
 						type = "passive";
-						phandle = <0x34>;
+						phandle = <0x33>;
 					};
 				};
 			};
@@ -2788,58 +2756,37 @@
 
 		__overlay__ {
 
-			socd {
-
-				cooling-maps {
-
-					socd_apc1 {
-						trip = <0x25>;
-						cooling-device = <0xffffffff 0x01 0x01>;
-					};
-
-					socd_cdsp1 {
-						trip = <0x25>;
-						cooling-device = <0xffffffff 0x04 0x04>;
-					};
-
-					socd_gpu0 {
-						trip = <0x25>;
-						cooling-device = <0xffffffff 0x04 0x04>;
-					};
-				};
-			};
-
 			pm8350b-bcl-lvl0 {
 
 				cooling-maps {
 
 					vbat_lte0 {
-						trip = <0x26>;
+						trip = <0x25>;
 						cooling-device = <0xffffffff 0x08 0x08>;
 					};
 
 					vbat_nr0_scg {
-						trip = <0x26>;
+						trip = <0x25>;
 						cooling-device = <0xffffffff 0x03 0x03>;
 					};
 
 					vbat_nr0 {
-						trip = <0x26>;
+						trip = <0x25>;
 						cooling-device = <0xffffffff 0x06 0x06>;
 					};
 
 					vbat_cdsp0 {
-						trip = <0x26>;
+						trip = <0x25>;
 						cooling-device = <0xffffffff 0x02 0x02>;
 					};
 
 					vbat_cpu_5 {
-						trip = <0x26>;
+						trip = <0x25>;
 						cooling-device = <0xffffffff 0x01 0x01>;
 					};
 
 					vbat_gpu0 {
-						trip = <0x26>;
+						trip = <0x25>;
 						cooling-device = <0xffffffff 0x02 0x02>;
 					};
 				};
@@ -2850,32 +2797,32 @@
 				cooling-maps {
 
 					vbat_lte1 {
-						trip = <0x27>;
+						trip = <0x26>;
 						cooling-device = <0xffffffff 0x0a 0x0a>;
 					};
 
 					vbat_nr1_scg {
-						trip = <0x27>;
+						trip = <0x26>;
 						cooling-device = <0xffffffff 0x0a 0x0a>;
 					};
 
 					vbat_nr1 {
-						trip = <0x27>;
+						trip = <0x26>;
 						cooling-device = <0xffffffff 0x09 0x09>;
 					};
 
 					vbat_cdsp1 {
-						trip = <0x27>;
+						trip = <0x26>;
 						cooling-device = <0xffffffff 0x04 0x04>;
 					};
 
 					vbat_cpu_6_7 {
-						trip = <0x27>;
+						trip = <0x26>;
 						cooling-device = <0xffffffff 0x01 0x01>;
 					};
 
 					vbat_gpu1 {
-						trip = <0x27>;
+						trip = <0x26>;
 						cooling-device = <0xffffffff 0x04 0x04>;
 					};
 				};
@@ -2886,12 +2833,12 @@
 				cooling-maps {
 
 					vbat_cdsp2 {
-						trip = <0x28>;
+						trip = <0x27>;
 						cooling-device = <0xffffffff 0x05 0xffffffff>;
 					};
 
 					vbat_gpu2 {
-						trip = <0x28>;
+						trip = <0x27>;
 						cooling-device = <0xffffffff 0x07 0xffffffff>;
 					};
 				};
@@ -2902,32 +2849,32 @@
 				cooling-maps {
 
 					vph_lte0 {
-						trip = <0x29>;
+						trip = <0x28>;
 						cooling-device = <0xffffffff 0x08 0x08>;
 					};
 
 					vph_nr0_scg {
-						trip = <0x29>;
+						trip = <0x28>;
 						cooling-device = <0xffffffff 0x03 0x03>;
 					};
 
 					vph_nr0 {
-						trip = <0x29>;
+						trip = <0x28>;
 						cooling-device = <0xffffffff 0x06 0x06>;
 					};
 
 					vph_cdsp0 {
-						trip = <0x29>;
+						trip = <0x28>;
 						cooling-device = <0xffffffff 0x02 0x02>;
 					};
 
 					vph_cpu_5 {
-						trip = <0x29>;
+						trip = <0x28>;
 						cooling-device = <0xffffffff 0x01 0x01>;
 					};
 
 					vph_gpu0 {
-						trip = <0x29>;
+						trip = <0x28>;
 						cooling-device = <0xffffffff 0x02 0x02>;
 					};
 				};
@@ -2938,32 +2885,32 @@
 				cooling-maps {
 
 					vph_lte1 {
-						trip = <0x2a>;
+						trip = <0x29>;
 						cooling-device = <0xffffffff 0x0a 0x0a>;
 					};
 
 					vph_nr1_scg {
-						trip = <0x2a>;
+						trip = <0x29>;
 						cooling-device = <0xffffffff 0x0a 0x0a>;
 					};
 
 					vph_nr1 {
-						trip = <0x2a>;
+						trip = <0x29>;
 						cooling-device = <0xffffffff 0x09 0x09>;
 					};
 
 					vph_cdsp1 {
-						trip = <0x2a>;
+						trip = <0x29>;
 						cooling-device = <0xffffffff 0x04 0x04>;
 					};
 
 					vph_cpu_6_7 {
-						trip = <0x2a>;
+						trip = <0x29>;
 						cooling-device = <0xffffffff 0x01 0x01>;
 					};
 
 					vph_gpu1 {
-						trip = <0x2a>;
+						trip = <0x29>;
 						cooling-device = <0xffffffff 0x04 0x04>;
 					};
 				};
@@ -2974,12 +2921,12 @@
 				cooling-maps {
 
 					vph_cdsp2 {
-						trip = <0x2b>;
+						trip = <0x2a>;
 						cooling-device = <0xffffffff 0x05 0xffffffff>;
 					};
 
 					vph_gpu2 {
-						trip = <0x2b>;
+						trip = <0x2a>;
 						cooling-device = <0xffffffff 0x07 0xffffffff>;
 					};
 				};
@@ -2990,17 +2937,17 @@
 				cooling-maps {
 
 					pm8450_cpu4_freq {
-						trip = <0x2c>;
+						trip = <0x2b>;
 						cooling-device = <0xffffffff 0x0f 0xffffffff>;
 					};
 
 					pm8450_cpu7_freq {
-						trip = <0x2c>;
+						trip = <0x2b>;
 						cooling-device = <0xffffffff 0x0f 0xffffffff>;
 					};
 
 					pm8450_apc1 {
-						trip = <0x2c>;
+						trip = <0x2b>;
 						cooling-device = <0xffffffff 0x01 0x01>;
 					};
 				};
@@ -3011,22 +2958,22 @@
 				cooling-maps {
 
 					pm8350_gpu {
-						trip = <0x2d>;
+						trip = <0x2c>;
 						cooling-device = <0xffffffff 0x07 0xffffffff>;
 					};
 
 					pm8350_cpu4_freq {
-						trip = <0x2d>;
+						trip = <0x2c>;
 						cooling-device = <0xffffffff 0x0f 0xffffffff>;
 					};
 
 					pm8350_cpu7_freq {
-						trip = <0x2d>;
+						trip = <0x2c>;
 						cooling-device = <0xffffffff 0x0f 0xffffffff>;
 					};
 
 					pm8350_apc1 {
-						trip = <0x2d>;
+						trip = <0x2c>;
 						cooling-device = <0xffffffff 0x01 0x01>;
 					};
 				};
@@ -3037,17 +2984,17 @@
 				cooling-maps {
 
 					pm8350c_nsp {
-						trip = <0x2e>;
+						trip = <0x2d>;
 						cooling-device = <0xffffffff 0x05 0xffffffff>;
 					};
 
 					pm8350c_lte {
-						trip = <0x2e>;
+						trip = <0x2d>;
 						cooling-device = <0xffffffff 0xff 0xff>;
 					};
 
 					pm8350c_nr {
-						trip = <0x2e>;
+						trip = <0x2d>;
 						cooling-device = <0xffffffff 0xff 0xff>;
 					};
 				};
@@ -3058,72 +3005,72 @@
 				cooling-maps {
 
 					cpu4_freq_cdev {
-						trip = <0x2f>;
+						trip = <0x2e>;
 						cooling-device = <0xffffffff 0x0f 0xffffffff>;
 					};
 
 					cpu7_freq_cdev {
-						trip = <0x2f>;
+						trip = <0x2e>;
 						cooling-device = <0xffffffff 0x0f 0xffffffff>;
 					};
 
 					apc1_cdev {
-						trip = <0x2f>;
+						trip = <0x2e>;
 						cooling-device = <0xffffffff 0x01 0x01>;
 					};
 
 					cdsp_cdev {
-						trip = <0x2f>;
+						trip = <0x2e>;
 						cooling-device = <0xffffffff 0x05 0xffffffff>;
 					};
 
 					gpu_cdev {
-						trip = <0x2f>;
+						trip = <0x2e>;
 						cooling-device = <0xffffffff 0x07 0xffffffff>;
 					};
 
 					cpu5_hot_cdev {
-						trip = <0x30>;
+						trip = <0x2f>;
 						cooling-device = <0xffffffff 0x01 0x01>;
 					};
 
 					cpu6_hot_cdev {
-						trip = <0x30>;
+						trip = <0x2f>;
 						cooling-device = <0xffffffff 0x01 0x01>;
 					};
 
 					cpu7_hot_cdev {
-						trip = <0x30>;
+						trip = <0x2f>;
 						cooling-device = <0xffffffff 0x01 0x01>;
 					};
 
 					lte_cdev {
-						trip = <0x30>;
+						trip = <0x2f>;
 						cooling-device = <0xffffffff 0xff 0xff>;
 					};
 
 					nr_cdev {
-						trip = <0x30>;
+						trip = <0x2f>;
 						cooling-device = <0xffffffff 0xff 0xff>;
 					};
 
 					display_cdev1 {
-						trip = <0x31>;
+						trip = <0x30>;
 						cooling-device = <0xffffffff 0x01 0x01>;
 					};
 
 					display_cdev2 {
-						trip = <0x32>;
+						trip = <0x31>;
 						cooling-device = <0xffffffff 0x02 0x02>;
 					};
 
 					display_cdev3 {
-						trip = <0x33>;
+						trip = <0x32>;
 						cooling-device = <0xffffffff 0x03 0x03>;
 					};
 
 					display_cdev4 {
-						trip = <0x34>;
+						trip = <0x33>;
 						cooling-device = <0xffffffff 0x04 0x04>;
 					};
 				};
@@ -3188,11 +3135,11 @@
 				compatible = "gpio-keys";
 				label = "gpio-keys";
 				pinctrl-names = "default";
-				pinctrl-0 = <0x35>;
+				pinctrl-0 = <0x34>;
 
 				vol_up {
 					label = "volume_up";
-					gpios = <0x36 0x06 0x01>;
+					gpios = <0x35 0x06 0x01>;
 					linux,input-type = <0x01>;
 					linux,code = <0x73>;
 					gpio-key,wakeup;
@@ -3315,8 +3262,8 @@
 			port {
 
 				endpoint {
-					remote-endpoint = <0x37>;
-					phandle = <0x38>;
+					remote-endpoint = <0x36>;
+					phandle = <0x37>;
 				};
 			};
 		};
@@ -3332,8 +3279,8 @@
 				port {
 
 					endpoint {
-						remote-endpoint = <0x38>;
-						phandle = <0x37>;
+						remote-endpoint = <0x37>;
+						phandle = <0x36>;
 					};
 				};
 			};
@@ -3510,8 +3457,8 @@
 				qcom,sde-has-idle-pc;
 				qcom,sde-dspp-ltm-version = <0x10001>;
 				qcom,sde-dspp-ltm-off = <0x15300 0x14300>;
-				connectors = <0x39 0x3a 0x3b 0x3c 0x3d 0x3e 0x3f>;
-				phandle = <0x49>;
+				connectors = <0x38 0x39 0x3a 0x3b 0x3c 0x3d 0x3e>;
+				phandle = <0x48>;
 
 				qcom,sde-sspp-vig-blocks {
 
@@ -4363,7 +4310,7 @@
 
 				qcom,mdss_dsi_sharp_1080p_cmd {
 					qcom,mdss-dsi-panel-name = "sharp 1080p cmd mode dsi panel";
-					qcom,mdss-dsi-panel-controller = <0x40>;
+					qcom,mdss-dsi-panel-controller = <0x3f>;
 					qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 					qcom,dsi-ctrl-num = <0x00>;
 					qcom,dsi-phy-num = <0x00>;
@@ -7919,8 +7866,8 @@
 					samsung,pll_ssc_disabled;
 					samsung,support_ddi_spi;
 					samsung,support_early_id_read;
-					ss,test_mode = <0x41>;
-					ss,self_display = <0x42>;
+					ss,test_mode = <0x40>;
+					ss,self_display = <0x41>;
 					samsung,self_idle_aod_enter = [29 00 00 00 00 00 03 fc 5a 5a 29 00 00 00 00 00 03 76 08 0f 29 00 00 00 00 00 03 fc a5 a5];
 					samsung,self_idle_timer_on = [29 00 00 00 00 00 03 f0 5a 5a 29 00 00 00 00 00 0b 81 00 03 00 00 00 00 03 00 00 00 29 00 00 00 00 00 03 f0 a5 a5];
 					samsung,self_idle_timer_off = [29 00 00 00 00 00 03 f0 5a 5a 29 00 00 00 00 00 03 81 00 00 29 01 00 00 11 00 03 f0 a5 a5];
@@ -7929,7 +7876,7 @@
 					samsung,self_idle_move_on_pattern3 = [29 00 00 00 00 00 03 f0 5a 5a 29 00 00 00 00 00 23 7d 10 01 02 00 00 10 01 50 05 10 01 50 05 10 01 50 05 10 01 50 05 10 01 00 00 00 00 00 00 00 00 00 00 00 29 00 00 00 00 00 03 f0 a5 a5];
 					samsung,self_idle_move_on_pattern4 = [29 00 00 00 00 00 03 f0 5a 5a 29 00 00 00 00 00 23 7d 10 01 02 00 00 10 01 50 05 10 01 50 05 10 01 50 05 10 01 50 05 10 01 00 00 00 00 00 00 00 00 00 00 00 29 00 00 00 00 00 03 f0 a5 a5];
 					samsung,self_idle_move_off = [29 00 00 00 00 00 03 f0 5a 5a 29 00 00 00 00 00 03 7d 00 00 29 00 00 00 00 00 03 f0 a5 a5];
-					ss,mafpc = <0x43>;
+					ss,mafpc = <0x42>;
 					samsung,support_poc_driver;
 					samsung,poc_image_size = <0x86912>;
 					samsung,poc_enable_tx_cmds_revA = <0x29000000 0x3f0 0x5a5a2900 0x00 0x3f1f1a2>;
@@ -8462,8 +8409,8 @@
 					samsung,pll_ssc_disabled;
 					samsung,support_ddi_spi;
 					samsung,support_early_id_read;
-					ss,test_mode = <0x44>;
-					ss,self_display = <0x45>;
+					ss,test_mode = <0x43>;
+					ss,self_display = <0x44>;
 					samsung,self_idle_aod_enter = [29 00 00 00 00 00 03 fc 5a 5a 29 00 00 00 00 00 03 76 08 0f 29 00 00 00 00 00 03 fc a5 a5];
 					samsung,self_idle_timer_on = [29 00 00 00 00 00 03 f0 5a 5a 29 00 00 00 00 00 0b 81 00 03 00 00 00 00 03 00 00 00 29 00 00 00 00 00 03 f0 a5 a5];
 					samsung,self_idle_timer_off = [29 00 00 00 00 00 03 f0 5a 5a 29 00 00 00 00 00 03 81 00 00 29 01 00 00 11 00 03 f0 a5 a5];
@@ -8472,7 +8419,7 @@
 					samsung,self_idle_move_on_pattern3 = [29 00 00 00 00 00 03 f0 5a 5a 29 00 00 00 00 00 23 7d 10 01 02 00 00 10 01 50 05 10 01 50 05 10 01 50 05 10 01 50 05 10 01 00 00 00 00 00 00 00 00 00 00 00 29 00 00 00 00 00 03 f0 a5 a5];
 					samsung,self_idle_move_on_pattern4 = [29 00 00 00 00 00 03 f0 5a 5a 29 00 00 00 00 00 23 7d 10 01 02 00 00 10 01 50 05 10 01 50 05 10 01 50 05 10 01 50 05 10 01 00 00 00 00 00 00 00 00 00 00 00 29 00 00 00 00 00 03 f0 a5 a5];
 					samsung,self_idle_move_off = [29 00 00 00 00 00 03 f0 5a 5a 29 00 00 00 00 00 03 7d 00 00 29 00 00 00 00 00 03 f0 a5 a5];
-					ss,mafpc = <0x46>;
+					ss,mafpc = <0x45>;
 					samsung,support_poc_driver;
 					samsung,poc_image_size = <0x86912>;
 					samsung,poc_enable_tx_cmds_revA = <0x29000000 0x3f0 0x5a5a2900 0x00 0x3f1f1a2>;
@@ -8992,7 +8939,6 @@
 					qcom,mdss-dsi-panel-peak-brightness = <0x44aa20>;
 					qcom,mdss-dsi-panel-average-brightness = <0x124f80>;
 					qcom,mdss-dsi-panel-blackness-level = <0x05>;
-					qcom,qsync-enable;
 					qcom,mdss-dsi-panel-vsync-delay;
 					qcom,ulps-enabled;
 					qcom,esd-check-enabled;
@@ -9014,8 +8960,8 @@
 					samsung,support_ddi_spi;
 					samsung,support_early_id_read;
 					samsung,ddi_use_flash;
-					ss,self_display = <0x47>;
-					ss,mafpc = <0x48>;
+					ss,self_display = <0x46>;
+					ss,mafpc = <0x47>;
 					samsung,support_poc_driver;
 					samsung,poc_image_size = <0x86912>;
 					samsung,poc_enable_tx_cmds_revA = <0x29000000 0x3f0 0x5a5a2900 0x00 0x3f1f1a2>;
@@ -9177,7 +9123,7 @@
 					samsung,delayed-display-on = <0x01>;
 					samsung,esd-irq-gpio1 = <0x13 0x07 0x00>;
 					qcom,dsi-select-clocks = "pll_byte_clk0\0pll_dsi_clk0";
-					phandle = <0x5b>;
+					phandle = <0x5a>;
 
 					samsung,gm2_flash_table {
 
@@ -9224,7 +9170,7 @@
 							qcom,mdss-dsi-t-clk-post = <0x25>;
 							qcom,mdss-dsi-t-clk-pre = <0x1b>;
 							qcom,mdss-dsi-timing-switch-command = <0x29000000 0x3f0 0x5a5a0701 0x00 0x1012900 0x00 0x52a0000 0x4372900 0x00 0x52b0000 0x9232900 0x00 0x3f0a5a5>;
-							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 6e 00 02 f4 44 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 18 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 01 29 01 00 00 00 00 04 b0 00 08 f2 29 01 00 00 00 00 03 f2 00 0c 29 01 00 00 00 00 02 60 00 29 01 00 00 00 00 04 b0 00 8b 98 29 01 00 00 00 00 21 98 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 08 54 08 54 01 7a 01 7a 01 7a 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
+							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 00 00 02 f4 44 29 01 00 00 00 00 02 60 00 29 01 00 00 6e 00 02 f7 0f 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 18 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 01 29 01 00 00 00 00 04 b0 00 08 f2 29 01 00 00 00 00 03 f2 00 0c 29 01 00 00 00 00 02 60 00 29 01 00 00 00 00 04 b0 00 8b 98 29 01 00 00 00 00 21 98 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 08 54 08 54 01 7a 01 7a 01 7a 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
 							qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
 							qcom,mdss-dsi-off-command = [29 00 00 00 00 00 03 9f a5 a5 05 01 00 00 14 00 02 28 00 05 01 00 00 00 00 02 10 00 29 00 00 00 78 00 03 9f 5a 5a];
 							qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
@@ -9261,7 +9207,7 @@
 							qcom,mdss-dsi-t-clk-post = <0x25>;
 							qcom,mdss-dsi-t-clk-pre = <0x1b>;
 							qcom,mdss-dsi-timing-switch-command = <0x29000000 0x3f0 0x5a5a0701 0x00 0x1012900 0x00 0x52a0000 0x4372900 0x00 0x52b0000 0x9232900 0x00 0x3f0a5a5>;
-							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 6e 00 02 f4 44 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 01 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 01 29 01 00 00 00 00 04 b0 00 08 f2 29 01 00 00 00 00 03 f2 02 5c 29 01 00 00 00 00 02 60 00 29 01 00 00 00 00 04 b0 00 8b 98 29 01 00 00 00 00 21 98 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0a 68 0a 68 01 da 01 da 01 da 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
+							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 00 00 02 f4 44 29 01 00 00 00 00 02 60 00 29 01 00 00 6e 00 02 f7 0f 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 01 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 01 29 01 00 00 00 00 04 b0 00 08 f2 29 01 00 00 00 00 03 f2 02 5c 29 01 00 00 00 00 02 60 00 29 01 00 00 00 00 04 b0 00 8b 98 29 01 00 00 00 00 21 98 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0a 68 0a 68 01 da 01 da 01 da 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
 							qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
 							qcom,mdss-dsi-off-command = [29 00 00 00 00 00 03 9f a5 a5 05 01 00 00 14 00 02 28 00 05 01 00 00 00 00 02 10 00 29 00 00 00 78 00 03 9f 5a 5a];
 							qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
@@ -9299,7 +9245,7 @@
 							qcom,mdss-dsi-t-clk-post = <0x25>;
 							qcom,mdss-dsi-t-clk-pre = <0x1b>;
 							qcom,mdss-dsi-timing-switch-command = <0x29000000 0x3f0 0x5a5a0701 0x00 0x1012900 0x00 0x52a0000 0x4372900 0x00 0x52b0000 0x9232900 0x00 0x3f0a5a5>;
-							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 6e 00 02 f4 44 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 01 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 00 29 01 00 00 00 00 04 b0 00 08 f2 29 01 00 00 00 00 03 f2 00 0c 29 01 00 00 00 00 02 60 08 29 01 00 00 00 00 04 b0 00 8b 98 29 01 00 00 00 00 21 98 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 08 54 08 54 01 7a 01 7a 01 7a 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
+							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 00 00 02 f4 44 29 01 00 00 00 00 02 60 08 29 01 00 00 6e 00 02 f7 0f 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 01 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 00 29 01 00 00 00 00 04 b0 00 08 f2 29 01 00 00 00 00 03 f2 00 0c 29 01 00 00 00 00 02 60 08 29 01 00 00 00 00 04 b0 00 8b 98 29 01 00 00 00 00 21 98 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 08 54 08 54 01 7a 01 7a 01 7a 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
 							qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
 							qcom,mdss-dsi-off-command = [29 00 00 00 00 00 03 9f a5 a5 05 01 00 00 14 00 02 28 00 05 01 00 00 00 00 02 10 00 29 00 00 00 78 00 03 9f 5a 5a];
 							qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
@@ -9337,7 +9283,7 @@
 							qcom,mdss-dsi-t-clk-post = <0x25>;
 							qcom,mdss-dsi-t-clk-pre = <0x1b>;
 							qcom,mdss-dsi-timing-switch-command = <0x29000000 0x3f0 0x5a5a0701 0x00 0x1012900 0x00 0x52a0000 0x4372900 0x00 0x52b0000 0x9232900 0x00 0x3f0a5a5>;
-							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 6e 00 02 f4 44 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 01 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 01 29 01 00 00 00 00 02 60 00 29 00 00 00 00 00 15 b9 61 00 03 00 00 00 00 00 00 00 00 00 04 94 00 00 00 00 00 10 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
+							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 00 00 02 f4 44 29 01 00 00 00 00 02 60 00 29 01 00 00 6e 00 02 f7 0f 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 01 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 01 29 01 00 00 00 00 02 60 00 29 00 00 00 00 00 15 b9 61 00 03 00 00 00 00 00 00 00 00 00 04 94 00 00 00 00 00 10 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
 							qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
 							qcom,mdss-dsi-off-command = [29 00 00 00 00 00 03 9f a5 a5 05 01 00 00 14 00 02 28 00 05 01 00 00 00 00 02 10 00 29 00 00 00 78 00 03 9f 5a 5a];
 							qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
@@ -9410,7 +9356,7 @@
 							qcom,mdss-dsi-t-clk-post = <0x25>;
 							qcom,mdss-dsi-t-clk-pre = <0x1b>;
 							qcom,mdss-dsi-timing-switch-command = <0x29000000 0x3f0 0x5a5a0701 0x00 0x1012900 0x00 0x52a0000 0x4372900 0x00 0x52b0000 0x9232900 0x00 0x3f0a5a5>;
-							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 6e 00 02 f4 44 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 01 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 00 29 01 00 00 00 00 04 b0 00 08 f2 29 01 00 00 00 00 03 f2 02 5c 29 01 00 00 00 00 02 60 08 29 01 00 00 00 00 04 b0 00 8b 98 29 01 00 00 00 00 21 98 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0a 68 0a 68 01 da 01 da 01 da 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
+							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 00 00 02 f4 44 29 01 00 00 00 00 02 60 08 29 01 00 00 6e 00 02 f7 0f 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 01 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 00 29 01 00 00 00 00 04 b0 00 08 f2 29 01 00 00 00 00 03 f2 02 5c 29 01 00 00 00 00 02 60 08 29 01 00 00 00 00 04 b0 00 8b 98 29 01 00 00 00 00 21 98 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0a 68 0a 68 01 da 01 da 01 da 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
 							qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
 							qcom,mdss-dsi-off-command = [29 00 00 00 00 00 03 9f a5 a5 05 01 00 00 14 00 02 28 00 05 01 00 00 00 00 02 10 00 29 00 00 00 78 00 03 9f 5a 5a];
 							qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
@@ -9448,7 +9394,7 @@
 							qcom,mdss-dsi-t-clk-post = <0x25>;
 							qcom,mdss-dsi-t-clk-pre = <0x1b>;
 							qcom,mdss-dsi-timing-switch-command = <0x29000000 0x3f0 0x5a5a0701 0x00 0x1012900 0x00 0x52a0000 0x4372900 0x00 0x52b0000 0x9232900 0x00 0x3f0a5a5>;
-							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 6e 00 02 f4 44 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 01 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 01 29 01 00 00 00 00 02 60 00 29 00 00 00 00 00 15 b9 61 00 03 00 00 00 00 00 00 00 00 00 04 94 00 00 00 00 00 10 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
+							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 00 00 02 f4 44 29 01 00 00 00 00 02 60 00 29 01 00 00 6e 00 02 f7 0f 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 01 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 01 29 01 00 00 00 00 02 60 00 29 00 00 00 00 00 15 b9 61 00 03 00 00 00 00 00 00 00 00 00 04 94 00 00 00 00 00 10 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
 							qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
 							qcom,mdss-dsi-off-command = [29 00 00 00 00 00 03 9f a5 a5 05 01 00 00 14 00 02 28 00 05 01 00 00 00 00 02 10 00 29 00 00 00 78 00 03 9f 5a 5a];
 							qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
@@ -9485,7 +9431,7 @@
 							qcom,mdss-dsi-t-clk-post = <0x25>;
 							qcom,mdss-dsi-t-clk-pre = <0x1b>;
 							qcom,mdss-dsi-timing-switch-command = <0x29000000 0x3f0 0x5a5a0701 0x00 0x1012900 0x00 0x52a0000 0x4372900 0x00 0x52b0000 0x9232900 0x00 0x3f0a5a5>;
-							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 6e 00 02 f4 44 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 01 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 00 29 01 00 00 00 00 04 b0 00 08 f2 29 01 00 00 00 00 03 f2 00 0c 29 01 00 00 00 00 02 60 08 29 01 00 00 00 00 04 b0 00 8b 98 29 01 00 00 00 00 21 98 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 08 54 08 54 01 7a 01 7a 01 7a 29 00 00 00 00 00 15 b9 61 00 07 00 00 00 00 00 00 00 00 00 04 94 00 00 00 00 00 10 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
+							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 00 00 02 f4 44 29 01 00 00 00 00 02 60 00 29 01 00 00 6e 00 02 f7 0f 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 01 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 00 29 01 00 00 00 00 04 b0 00 08 f2 29 01 00 00 00 00 03 f2 00 0c 29 01 00 00 00 00 02 60 08 29 01 00 00 00 00 04 b0 00 8b 98 29 01 00 00 00 00 21 98 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 09 40 08 54 08 54 01 7a 01 7a 01 7a 29 00 00 00 00 00 15 b9 61 00 07 00 00 00 00 00 00 00 00 00 04 94 00 00 00 00 00 10 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
 							qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
 							qcom,mdss-dsi-off-command = [29 00 00 00 00 00 03 9f a5 a5 05 01 00 00 14 00 02 28 00 05 01 00 00 00 00 02 10 00 29 00 00 00 78 00 03 9f 5a 5a];
 							qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
@@ -9523,7 +9469,7 @@
 							qcom,mdss-dsi-t-clk-post = <0x25>;
 							qcom,mdss-dsi-t-clk-pre = <0x1b>;
 							qcom,mdss-dsi-timing-switch-command = <0x29000000 0x3f0 0x5a5a0701 0x00 0x1012900 0x00 0x52a0000 0x4372900 0x00 0x52b0000 0x9232900 0x00 0x3f0a5a5>;
-							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 6e 00 02 f4 44 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 01 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 01 29 01 00 00 00 00 02 60 00 29 00 00 00 00 00 15 b9 61 00 07 00 00 00 00 00 00 00 00 00 04 94 00 00 00 00 00 10 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
+							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 00 00 02 f4 44 29 01 00 00 00 00 02 60 00 29 01 00 00 6e 00 02 f7 0f 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 01 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 01 29 01 00 00 00 00 02 60 00 29 00 00 00 00 00 15 b9 61 00 07 00 00 00 00 00 00 00 00 00 04 94 00 00 00 00 00 10 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
 							qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
 							qcom,mdss-dsi-off-command = [29 00 00 00 00 00 03 9f a5 a5 05 01 00 00 14 00 02 28 00 05 01 00 00 00 00 02 10 00 29 00 00 00 78 00 03 9f 5a 5a];
 							qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
@@ -9560,7 +9506,7 @@
 							qcom,mdss-dsi-t-clk-post = <0x25>;
 							qcom,mdss-dsi-t-clk-pre = <0x1b>;
 							qcom,mdss-dsi-timing-switch-command = <0x29000000 0x3f0 0x5a5a0701 0x00 0x1012900 0x00 0x52a0000 0x4372900 0x00 0x52b0000 0x9232900 0x00 0x3f0a5a5>;
-							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 6e 00 02 f4 44 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 01 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 00 29 01 00 00 00 00 04 b0 00 08 f2 29 01 00 00 00 00 03 f2 02 5c 29 01 00 00 00 00 02 60 08 29 01 00 00 00 00 04 b0 00 8b 98 29 01 00 00 00 00 21 98 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0a 68 0a 68 01 da 01 da 01 da 29 00 00 00 00 00 15 b9 61 00 07 00 00 00 00 00 00 00 00 00 04 94 00 00 00 00 00 10 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
+							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 00 00 02 f4 44 29 01 00 00 00 00 02 60 00 29 01 00 00 6e 00 02 f7 0f 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 01 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 00 29 01 00 00 00 00 04 b0 00 08 f2 29 01 00 00 00 00 03 f2 02 5c 29 01 00 00 00 00 02 60 08 29 01 00 00 00 00 04 b0 00 8b 98 29 01 00 00 00 00 21 98 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0a 68 0a 68 01 da 01 da 01 da 29 00 00 00 00 00 15 b9 61 00 07 00 00 00 00 00 00 00 00 00 04 94 00 00 00 00 00 10 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
 							qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
 							qcom,mdss-dsi-off-command = [29 00 00 00 00 00 03 9f a5 a5 05 01 00 00 14 00 02 28 00 05 01 00 00 00 00 02 10 00 29 00 00 00 78 00 03 9f 5a 5a];
 							qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
@@ -9598,7 +9544,7 @@
 							qcom,mdss-dsi-t-clk-post = <0x25>;
 							qcom,mdss-dsi-t-clk-pre = <0x1b>;
 							qcom,mdss-dsi-timing-switch-command = <0x29000000 0x3f0 0x5a5a0701 0x00 0x1012900 0x00 0x52a0000 0x4372900 0x00 0x52b0000 0x9232900 0x00 0x3f0a5a5>;
-							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 6e 00 02 f4 44 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 01 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 01 29 01 00 00 00 00 02 60 00 29 00 00 00 00 00 15 b9 61 00 09 00 00 00 00 00 00 00 00 00 04 94 00 00 00 00 00 10 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
+							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 00 00 02 f4 44 29 01 00 00 00 00 02 60 00 29 01 00 00 6e 00 02 f7 0f 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 01 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 01 29 01 00 00 00 00 02 60 00 29 00 00 00 00 00 15 b9 61 00 09 00 00 00 00 00 00 00 00 00 04 94 00 00 00 00 00 10 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
 							qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
 							qcom,mdss-dsi-off-command = [29 00 00 00 00 00 03 9f a5 a5 05 01 00 00 14 00 02 28 00 05 01 00 00 00 00 02 10 00 29 00 00 00 78 00 03 9f 5a 5a];
 							qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
@@ -9635,7 +9581,7 @@
 							qcom,mdss-dsi-t-clk-post = <0x25>;
 							qcom,mdss-dsi-t-clk-pre = <0x1b>;
 							qcom,mdss-dsi-timing-switch-command = <0x29000000 0x3f0 0x5a5a0701 0x00 0x1012900 0x00 0x52a0000 0x4372900 0x00 0x52b0000 0x9232900 0x00 0x3f0a5a5>;
-							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 6e 00 02 f4 44 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 01 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 00 29 01 00 00 00 00 04 b0 00 08 f2 29 01 00 00 00 00 03 f2 02 5c 29 01 00 00 00 00 02 60 08 29 01 00 00 00 00 04 b0 00 8b 98 29 01 00 00 00 00 21 98 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0a 68 0a 68 01 da 01 da 01 da 29 00 00 00 00 00 15 b9 61 00 13 00 00 00 00 00 00 00 00 00 04 94 00 00 00 00 00 10 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
+							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 00 00 02 f4 44 29 01 00 00 00 00 02 60 00 29 01 00 00 6e 00 02 f7 0f 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 01 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 00 29 01 00 00 00 00 04 b0 00 08 f2 29 01 00 00 00 00 03 f2 02 5c 29 01 00 00 00 00 02 60 08 29 01 00 00 00 00 04 b0 00 8b 98 29 01 00 00 00 00 21 98 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0b 90 0a 68 0a 68 01 da 01 da 01 da 29 00 00 00 00 00 15 b9 61 00 13 00 00 00 00 00 00 00 00 00 04 94 00 00 00 00 00 10 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
 							qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
 							qcom,mdss-dsi-off-command = [29 00 00 00 00 00 03 9f a5 a5 05 01 00 00 14 00 02 28 00 05 01 00 00 00 00 02 10 00 29 00 00 00 78 00 03 9f 5a 5a];
 							qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
@@ -9673,7 +9619,7 @@
 							qcom,mdss-dsi-t-clk-post = <0x25>;
 							qcom,mdss-dsi-t-clk-pre = <0x1b>;
 							qcom,mdss-dsi-timing-switch-command = <0x29000000 0x3f0 0x5a5a0701 0x00 0x1012900 0x00 0x52a0000 0x4372900 0x00 0x52b0000 0x9232900 0x00 0x3f0a5a5>;
-							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 6e 00 02 f4 44 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 01 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 01 29 01 00 00 00 00 02 60 00 29 00 00 00 00 00 15 b9 61 00 17 00 00 00 00 00 00 00 00 00 04 94 00 00 00 00 00 10 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
+							qcom,mdss-dsi-on-command = [29 00 00 00 00 00 04 2c 00 00 00 29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 f1 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 05 01 00 00 0a 00 01 11 29 01 00 00 00 00 04 b0 00 4f 98 29 01 00 00 00 00 03 98 09 40 29 01 00 00 00 00 04 b0 01 a0 98 29 01 00 00 00 00 03 98 0c 50 29 00 00 00 00 00 04 b0 00 85 93 29 00 00 00 00 00 02 93 00 29 01 00 00 00 00 04 b0 00 ac f6 29 01 00 00 00 00 02 f6 25 29 01 00 00 00 00 04 b0 00 09 f6 29 01 00 00 00 00 02 f6 22 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 01 29 01 00 00 00 00 02 f4 44 29 01 00 00 00 00 02 60 00 29 01 00 00 6e 00 02 f7 0f 29 01 00 00 00 00 02 35 00 29 01 00 00 00 00 04 b0 00 0e 94 29 01 00 00 00 00 02 94 01 29 01 00 00 00 00 04 b0 00 19 a3 29 01 00 00 00 00 02 a3 01 29 01 00 00 00 00 04 b0 00 1a cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 2e cb 29 01 00 00 00 00 02 cb 12 29 01 00 00 00 00 04 b0 00 33 f2 29 01 00 00 00 00 02 f2 f0 29 01 00 00 00 00 04 b0 00 02 f8 29 01 00 00 00 00 02 f8 00 29 01 00 00 00 00 02 e5 15 29 01 00 00 00 00 04 b0 00 3d f4 29 01 00 00 00 00 02 f4 10 29 01 00 00 00 00 05 ed 00 40 42 01 29 01 00 00 00 00 04 b0 01 95 92 29 01 00 00 00 00 02 92 02 29 01 00 00 00 00 04 b0 00 0f f6 29 01 00 00 00 00 02 f6 00 07 01 00 00 00 00 01 01 0a 01 00 00 00 00 59 11 00 00 89 30 80 09 24 04 38 00 75 02 1c 02 1c 02 00 02 0e 00 20 0b 64 00 07 00 0c 00 d4 00 df 18 00 10 f0 03 0c 20 00 06 0b 0b 33 0e 1c 2a 38 46 54 62 69 70 77 79 7b 7d 7e 01 02 01 00 09 40 09 be 19 fc 19 fa 19 f8 1a 38 1a 78 1a b6 2a f6 2b 34 2b 74 3b 74 6b f4 00 29 01 00 00 00 00 03 bd 21 81 29 01 00 00 00 00 04 b0 00 2f bd 29 01 00 00 00 00 03 bd 00 02 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 02 f2 01 29 01 00 00 00 00 02 60 00 29 00 00 00 00 00 15 b9 61 00 17 00 00 00 00 00 00 00 00 00 04 94 00 00 00 00 00 10 29 01 00 00 00 00 04 b0 02 79 92 29 01 00 00 00 00 24 92 65 ff 01 00 80 01 ff 10 99 ff 10 ff 80 86 ee 07 07 07 1e 1e 1e 28 28 28 2f 2f 2f 32 32 32 1b 2f e0 18 64 29 01 00 00 00 00 03 51 07 ff 29 01 00 00 00 00 02 f7 0f 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f1 a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
 							qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
 							qcom,mdss-dsi-off-command = [29 00 00 00 00 00 03 9f a5 a5 05 01 00 00 14 00 02 28 00 05 01 00 00 00 00 02 10 00 29 00 00 00 78 00 03 9f 5a 5a];
 							qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
@@ -9740,13 +9686,13 @@
 				frame-threshold-time-us = <0x320>;
 				reg = <0xae94000 0x400 0xaf0f000 0x04 0xae36000 0x300>;
 				reg-names = "dsi_ctrl\0disp_cc_base\0mdp_intf_base";
-				interrupt-parent = <0x49>;
+				interrupt-parent = <0x48>;
 				interrupts = <0x04 0x00>;
 				vdda-1p2-supply = <0xffffffff>;
 				qcom,split-link-supported;
 				clocks = <0xffffffff 0x03 0xffffffff 0x04 0xffffffff 0x06 0xffffffff 0x41 0xffffffff 0x42 0xffffffff 0x37 0xffffffff 0x00>;
 				clock-names = "byte_clk\0byte_clk_rcg\0byte_intf_clk\0pixel_clk\0pixel_clk_rcg\0esc_clk\0xo";
-				phandle = <0x40>;
+				phandle = <0x3f>;
 
 				qcom,ctrl-supply-entries {
 					#address-cells = <0x01>;
@@ -9770,13 +9716,13 @@
 				frame-threshold-time-us = <0x320>;
 				reg = <0xae96000 0x400 0xaf0f000 0x04 0xae37000 0x300>;
 				reg-names = "dsi_ctrl\0disp_cc_base\0mdp_intf_base";
-				interrupt-parent = <0x49>;
+				interrupt-parent = <0x48>;
 				interrupts = <0x05 0x00>;
 				vdda-1p2-supply = <0xffffffff>;
 				qcom,split-link-supported;
 				clocks = <0xffffffff 0x07 0xffffffff 0x08 0xffffffff 0x0a 0xffffffff 0x43 0xffffffff 0x44 0xffffffff 0x39 0xffffffff 0x00>;
 				clock-names = "byte_clk\0byte_clk_rcg\0byte_intf_clk\0pixel_clk\0pixel_clk_rcg\0esc_clk\0xo";
-				phandle = <0x50>;
+				phandle = <0x4f>;
 
 				qcom,ctrl-supply-entries {
 					#address-cells = <0x01>;
@@ -9806,8 +9752,8 @@
 				qcom,platform-regulator-settings = [1d 1d 1d 1d 1d];
 				vdda-0p9-supply = <0xffffffff>;
 				qcom,dsi-pll-ssc-mode = "down-spread";
-				pll_codes_region = <0x4a>;
-				phandle = <0x51>;
+				pll_codes_region = <0x49>;
+				phandle = <0x50>;
 
 				qcom,phy-supply-entries {
 					#address-cells = <0x01>;
@@ -9837,7 +9783,7 @@
 				qcom,platform-lane-config = <0xa0a 0xa0a 0xa0a 0xa0a 0x8a8a>;
 				vdda-0p9-supply = <0xffffffff>;
 				qcom,dsi-pll-ssc-mode = "down-spread";
-				phandle = <0x52>;
+				phandle = <0x51>;
 
 				qcom,phy-supply-entries {
 					#address-cells = <0x01>;
@@ -9857,7 +9803,7 @@
 			dsi_pll_codes {
 				reg = <0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00>;
 				label = "dsi_pll_codes";
-				phandle = <0x4a>;
+				phandle = <0x49>;
 			};
 		};
 	};
@@ -9869,7 +9815,7 @@
 
 			qcom,msm-ext-disp {
 				compatible = "qcom,msm-ext-disp";
-				phandle = <0x4b>;
+				phandle = <0x4a>;
 
 				qcom,msm-ext-disp-audio-codec-rx {
 					compatible = "qcom,msm-ext-disp-audio-codec-rx";
@@ -9887,15 +9833,15 @@
 				compatible = "qcom,dp-display";
 				usb-phy = <0xffffffff>;
 				qcom,dp-aux-switch = <0xffffffff>;
-				qcom,ext-disp = <0x4b>;
+				qcom,ext-disp = <0x4a>;
 				qcom,altmode-dev = <0xffffffff 0x00>;
 				usb-controller = <0xffffffff>;
 				reg = <0xae90000 0xfc 0xae90200 0xc0 0xae90400 0x770 0xae91000 0x98 0x88eaa00 0x200 0x88ea200 0x200 0x88ea600 0x200 0xaf08000 0x1f4 0x88ea000 0x200 0x88e8000 0x20 0xaee1000 0x34 0xae91400 0x98 0xaf09000 0x14>;
 				reg-names = "dp_ahb\0dp_aux\0dp_link\0dp_p0\0dp_phy\0dp_ln_tx0\0dp_ln_tx1\0dp_mmss_cc\0dp_pll\0usb3_dp_com\0hdcp_physical\0dp_p1\0gdsc";
-				interrupt-parent = <0x49>;
+				interrupt-parent = <0x48>;
 				interrupts = <0x0c 0x00>;
 				#clock-cells = <0x01>;
-				clocks = <0xffffffff 0x0b 0xffffffff 0x00 0xffffffff 0xaf 0xffffffff 0xb3 0xffffffff 0x0e 0xffffffff 0x0f 0xffffffff 0x11 0xffffffff 0x13 0x3e 0x01 0xffffffff 0x15 0xffffffff 0x12 0xffffffff 0x14>;
+				clocks = <0xffffffff 0x0b 0xffffffff 0x00 0xffffffff 0xaf 0xffffffff 0xb3 0xffffffff 0x0e 0xffffffff 0x0f 0xffffffff 0x11 0xffffffff 0x13 0x3d 0x01 0xffffffff 0x15 0xffffffff 0x12 0xffffffff 0x14>;
 				clock-names = "core_aux_clk\0rpmh_cxo_clk\0core_usb_ref_clk_src\0core_usb_pipe_clk\0link_clk\0link_clk_src\0link_iface_clk\0pixel_clk_rcg\0pixel_parent\0pixel1_clk_rcg\0strm0_pixel_clk\0strm1_pixel_clk";
 				clock-mmrm = <0x00 0x00 0x00 0x00 0x00 0x0f 0x00 0x00 0x00 0x00 0x00 0x00>;
 				qcom,pll-revision = "5nm-v1";
@@ -9923,14 +9869,15 @@
 				vdd_mx-supply = <0xffffffff>;
 				aux-pullup-supply = <0xffffffff>;
 				pinctrl-names = "mdss_dp_active\0mdss_dp_sleep";
-				pinctrl-0 = <0x4c 0x4d>;
-				pinctrl-1 = <0x4e 0x4f>;
+				pinctrl-0 = <0x4b 0x4c>;
+				pinctrl-1 = <0x4d 0x4e>;
 				qcom,aux-en-gpio = <0xffffffff 0x7d 0x00>;
 				qcom,aux-sel-gpio = <0xffffffff 0x6c 0x00>;
 				qcom,usbplug-cc-gpio = <0xffffffff 0x5b 0x00>;
 				secdp,redrv = [00];
 				secdp,dex-dft-res = [00];
 				secdp,prefer-res;
+				secdp,mrr-fps-nolimit;
 				secdp,vm-pre-emphasis-0 = <0xd15ff>;
 				secdp,vm-pre-emphasis-1 = <0xd15ff>;
 				secdp,vm-pre-emphasis-2 = <0xcffff>;
@@ -9955,7 +9902,7 @@
 				secdp,swing-hbr-rbr-1 = <0x121a1fff>;
 				secdp,swing-hbr-rbr-2 = <0x1c1fffff>;
 				secdp,swing-hbr-rbr-3 = <0xffffffff>;
-				phandle = <0x3e>;
+				phandle = <0x3d>;
 
 				qcom,ctrl-supply-entries {
 					#address-cells = <0x01>;
@@ -10022,7 +9969,7 @@
 				qcom,msm-bus,active-only;
 				interconnects = <0xffffffff 0x3e9 0xffffffff 0x5e8 0xffffffff 0x3e9 0xffffffff 0x5e8>;
 				interconnect-names = "qcom,sde-data-bus0\0qcom,sde-data-bus1";
-				phandle = <0x3f>;
+				phandle = <0x3e>;
 			};
 
 			qcom,smmu_sde_unsec_cb {
@@ -10032,7 +9979,7 @@
 				qcom,iommu-faults = "non-fatal";
 				qcom,iommu-earlymap;
 				dma-coherent;
-				phandle = <0x3b>;
+				phandle = <0x3a>;
 			};
 
 			qcom,smmu_sde_sec_cb {
@@ -10041,7 +9988,7 @@
 				qcom,iommu-dma-addr-pool = <0x20000 0xfffe0000>;
 				qcom,iommu-faults = "non-fatal";
 				qcom,iommu-vmid = <0x0a>;
-				phandle = <0x3c>;
+				phandle = <0x3b>;
 			};
 		};
 	};
@@ -10113,7 +10060,7 @@
 				};
 
 				sde_dsi1_active {
-					phandle = <0x5c>;
+					phandle = <0x5b>;
 
 					mux {
 						pins = "gpio4";
@@ -10128,7 +10075,7 @@
 				};
 
 				sde_dsi1_suspend {
-					phandle = <0x5e>;
+					phandle = <0x5d>;
 
 					mux {
 						pins = "gpio4";
@@ -10177,7 +10124,7 @@
 				};
 
 				sde_te1_active {
-					phandle = <0x5d>;
+					phandle = <0x5c>;
 
 					mux {
 						pins = "gpio87";
@@ -10192,7 +10139,7 @@
 				};
 
 				sde_te1_suspend {
-					phandle = <0x5f>;
+					phandle = <0x5e>;
 
 					mux {
 						pins = "gpio87";
@@ -10364,40 +10311,40 @@
 			qcom,dsi-display-primary {
 				compatible = "qcom,dsi-display";
 				label = "primary";
-				qcom,dsi-ctrl = <0x40 0x50>;
-				qcom,dsi-phy = <0x51 0x52>;
+				qcom,dsi-ctrl = <0x3f 0x4f>;
+				qcom,dsi-phy = <0x50 0x51>;
 				pinctrl-names = "panel_active\0panel_suspend";
-				pinctrl-0 = <0x53 0x54 0x55 0x56>;
-				pinctrl-1 = <0x57 0x58 0x59 0x5a>;
+				pinctrl-0 = <0x52 0x53 0x54 0x55>;
+				pinctrl-1 = <0x56 0x57 0x58 0x59>;
 				qcom,platform-te-gpio = <0xffffffff 0x56 0x00>;
 				qcom,panel-te-source = <0x00>;
-				qcom,mdp = <0x49>;
-				qcom,dsi-default-panel = <0x5b>;
+				qcom,mdp = <0x48>;
+				qcom,dsi-default-panel = <0x5a>;
 				qcom,demura-panel-id = <0x122e700 0xb0>;
-				clocks = <0x51 0x00 0x51 0x01 0x52 0x02 0x52 0x03 0xffffffff 0x3c>;
+				clocks = <0x50 0x00 0x50 0x01 0x51 0x02 0x51 0x03 0xffffffff 0x3c>;
 				clock-names = "pll_byte_clk0\0pll_dsi_clk0\0pll_byte_clk1\0pll_dsi_clk1\0mdp_core_clk";
 				vddio-supply = <0xffffffff>;
 				vci-supply = <0xffffffff>;
-				phandle = <0x39>;
+				phandle = <0x38>;
 			};
 
 			qcom,dsi-display-secondary {
 				compatible = "qcom,dsi-display";
 				label = "secondary";
-				qcom,dsi-ctrl = <0x40 0x50>;
-				qcom,dsi-phy = <0x51 0x52>;
+				qcom,dsi-ctrl = <0x3f 0x4f>;
+				qcom,dsi-phy = <0x50 0x51>;
 				pinctrl-names = "panel_active\0panel_suspend";
-				pinctrl-0 = <0x5c 0x5d>;
-				pinctrl-1 = <0x5e 0x5f>;
+				pinctrl-0 = <0x5b 0x5c>;
+				pinctrl-1 = <0x5d 0x5e>;
 				qcom,platform-te-gpio = <0xffffffff 0x57 0x00>;
 				qcom,panel-te-source = <0x01>;
-				qcom,mdp = <0x49>;
+				qcom,mdp = <0x48>;
 				qcom,demura-panel-id = <0x00 0x00>;
-				clocks = <0x51 0x00 0x51 0x01 0x52 0x02 0x52 0x03 0xffffffff 0x3c>;
+				clocks = <0x50 0x00 0x50 0x01 0x51 0x02 0x51 0x03 0xffffffff 0x3c>;
 				clock-names = "pll_byte_clk0\0pll_dsi_clk0\0pll_byte_clk1\0pll_dsi_clk1\0mdp_core_clk";
 				vddio-supply = <0xffffffff>;
 				vci-supply = <0xffffffff>;
-				phandle = <0x3a>;
+				phandle = <0x39>;
 			};
 		};
 	};
@@ -10415,16 +10362,16 @@
 				regulator-enable-ramp-delay = <0xe9>;
 				enable-active-high;
 				regulator-boot-on;
-				proxy-supply = <0x60>;
+				proxy-supply = <0x5f>;
 				qcom,proxy-consumer-enable;
-				phandle = <0x60>;
+				phandle = <0x5f>;
 			};
 
 			qcom,wb-display@0 {
 				compatible = "qcom,wb-display";
 				cell-index = <0x00>;
 				label = "wb_display";
-				phandle = <0x3d>;
+				phandle = <0x3c>;
 			};
 
 			disp_rdump_region@e1000000 {
@@ -10468,7 +10415,7 @@
 			gpio_i2c_2_sda {
 
 				gpio_i2c_2_sda_default {
-					phandle = <0x61>;
+					phandle = <0x60>;
 
 					mux {
 						pins = "gpio117";
@@ -10494,7 +10441,7 @@
 			gpio_i2c_2_scl {
 
 				gpio_i2c_2_scl_default {
-					phandle = <0x62>;
+					phandle = <0x61>;
 
 					mux {
 						pins = "gpio118";
@@ -10531,7 +10478,7 @@
 				#address-cells = <0x01>;
 				#size-cells = <0x00>;
 				pinctrl-names = "default";
-				pinctrl-0 = <0x61 0x62>;
+				pinctrl-0 = <0x60 0x61>;
 				status = "okay";
 				clock-frequency = <0x186a0>;
 				phandle = <0x178>;
@@ -10541,7 +10488,7 @@
 					reg = <0x3b>;
 					status = "okay";
 					pinctrl-names = "default";
-					pinctrl-0 = <0x63>;
+					pinctrl-0 = <0x62>;
 					wpc_det_gpio = <0x13 0x01 0x00>;
 					chg_name = "max77705-charger";
 					phandle = <0x179>;
@@ -10552,7 +10499,7 @@
 					reg = <0x4b>;
 					status = "okay";
 					pinctrl-names = "default";
-					pinctrl-0 = <0x64 0x65 0x66>;
+					pinctrl-0 = <0x63 0x64 0x65>;
 					battery,wpc_int = <0xffffffff 0x5a 0x01>;
 					battery,wpc_det = <0x13 0x01 0x00>;
 					battery,wpc_en = <0xffffffff 0xaa 0x00>;
@@ -10588,7 +10535,7 @@
 					reg = <0x5b>;
 					status = "okay";
 					pinctrl-names = "default";
-					pinctrl-0 = <0x67 0x68 0x69>;
+					pinctrl-0 = <0x66 0x67 0x68>;
 					battery,wpc_int = <0xffffffff 0x5a 0x01>;
 					battery,wpc_det = <0x13 0x01 0x00>;
 					battery,wpc_en = <0xffffffff 0xaa 0x00>;
@@ -10630,7 +10577,7 @@
 				#address-cells = <0x01>;
 				#size-cells = <0x00>;
 				pinctrl-names = "default";
-				pinctrl-0 = <0x6a 0x6b>;
+				pinctrl-0 = <0x69 0x6a>;
 				status = "okay";
 				phandle = <0x17c>;
 
@@ -10646,7 +10593,7 @@
 							regulator-name = "s2mpb02-l1";
 							regulator-min-microvolt = <0xe1d48>;
 							regulator-max-microvolt = <0xe1d48>;
-							phandle = <0xe2>;
+							phandle = <0xe1>;
 						};
 
 						s2mpb02-ldo2 {
@@ -10660,112 +10607,112 @@
 							regulator-name = "s2mpb02-l3";
 							regulator-min-microvolt = <0x100590>;
 							regulator-max-microvolt = <0x100590>;
-							phandle = <0xb2>;
+							phandle = <0xb1>;
 						};
 
 						s2mpb02-ldo4 {
 							regulator-name = "s2mpb02-l4";
 							regulator-min-microvolt = <0x10c8e0>;
 							regulator-max-microvolt = <0x10c8e0>;
-							phandle = <0xa7>;
+							phandle = <0xa6>;
 						};
 
 						s2mpb02-ldo5 {
 							regulator-name = "s2mpb02-l5";
 							regulator-min-microvolt = <0x100590>;
 							regulator-max-microvolt = <0x100590>;
-							phandle = <0xc1>;
+							phandle = <0xc0>;
 						};
 
 						s2mpb02-ldo6 {
 							regulator-name = "s2mpb02-l6";
 							regulator-min-microvolt = <0x1b7740>;
 							regulator-max-microvolt = <0x1b7740>;
-							phandle = <0xa4>;
+							phandle = <0xa3>;
 						};
 
 						s2mpb02-ldo7 {
 							regulator-name = "s2mpb02-l7";
 							regulator-min-microvolt = <0x1b7740>;
 							regulator-max-microvolt = <0x1b7740>;
-							phandle = <0xbd>;
+							phandle = <0xbc>;
 						};
 
 						s2mpb02-ldo8 {
 							regulator-name = "s2mpb02-l8";
 							regulator-min-microvolt = <0x1b7740>;
 							regulator-max-microvolt = <0x1b7740>;
-							phandle = <0xa9>;
+							phandle = <0xa8>;
 						};
 
 						s2mpb02-ldo9 {
 							regulator-name = "s2mpb02-l9";
 							regulator-min-microvolt = <0x1b7740>;
 							regulator-max-microvolt = <0x1b7740>;
-							phandle = <0xc2>;
+							phandle = <0xc1>;
 						};
 
 						s2mpb02-ldo10 {
 							regulator-name = "s2mpb02-l10";
 							regulator-min-microvolt = <0x1b7740>;
 							regulator-max-microvolt = <0x1b7740>;
-							phandle = <0xea>;
+							phandle = <0xe9>;
 						};
 
 						s2mpb02-ldo11 {
 							regulator-name = "s2mpb02-l11";
 							regulator-min-microvolt = <0x2ab980>;
 							regulator-max-microvolt = <0x2ab980>;
-							phandle = <0xeb>;
+							phandle = <0xea>;
 						};
 
 						s2mpb02-ldo12 {
 							regulator-name = "s2mpb02-l12";
 							regulator-min-microvolt = <0x2ab980>;
 							regulator-max-microvolt = <0x2ab980>;
-							phandle = <0xa8>;
+							phandle = <0xa7>;
 						};
 
 						s2mpb02-ldo13 {
 							regulator-name = "s2mpb02-l13";
 							regulator-min-microvolt = <0x30d400>;
 							regulator-max-microvolt = <0x30d400>;
-							phandle = <0xbe>;
+							phandle = <0xbd>;
 						};
 
 						s2mpb02-ldo14 {
 							regulator-name = "s2mpb02-l14";
 							regulator-min-microvolt = <0x2191c0>;
 							regulator-max-microvolt = <0x2191c0>;
-							phandle = <0xbc>;
+							phandle = <0xbb>;
 						};
 
 						s2mpb02-ldo15 {
 							regulator-name = "s2mpb02-l15";
 							regulator-min-microvolt = <0x2ab980>;
 							regulator-max-microvolt = <0x2ab980>;
-							phandle = <0xc3>;
+							phandle = <0xc2>;
 						};
 
 						s2mpb02-ldo16 {
 							regulator-name = "s2mpb02-l16";
 							regulator-min-microvolt = <0x2ab980>;
 							regulator-max-microvolt = <0x2ab980>;
-							phandle = <0xe9>;
+							phandle = <0xe8>;
 						};
 
 						s2mpb02-ldo17 {
 							regulator-name = "s2mpb02-l17";
 							regulator-min-microvolt = <0x2ab980>;
 							regulator-max-microvolt = <0x2ab980>;
-							phandle = <0xb3>;
+							phandle = <0xb2>;
 						};
 
 						s2mpb02-ldo18 {
 							regulator-name = "s2mpb02-l18";
 							regulator-min-microvolt = <0x30d400>;
 							regulator-max-microvolt = <0x30d400>;
-							phandle = <0xec>;
+							phandle = <0xeb>;
 						};
 
 						s2mpb02-buck1 {
@@ -10773,7 +10720,7 @@
 							regulator-min-microvolt = <0xe1d48>;
 							regulator-max-microvolt = <0xe1d48>;
 							regulator-allowed-modes = <0x01 0x02>;
-							phandle = <0xe1>;
+							phandle = <0xe0>;
 						};
 
 						s2mpb02-buck2 {
@@ -10827,7 +10774,7 @@
 				#address-cells = <0x01>;
 				#size-cells = <0x00>;
 				pinctrl-names = "default";
-				pinctrl-0 = <0x6c 0x6d>;
+				pinctrl-0 = <0x6b 0x6c>;
 				status = "okay";
 				clock-frequency = <0x186a0>;
 				phandle = <0x183>;
@@ -10837,7 +10784,7 @@
 					reg = <0x28>;
 					status = "okay";
 					pinctrl-names = "default";
-					pinctrl-0 = <0x6e>;
+					pinctrl-0 = <0x6d>;
 					interrupt-parent = <0xffffffff>;
 					interrupts = <0xb6 0x00>;
 					isg6320,irq-gpio = <0xffffffff 0xb6 0x00>;
@@ -10855,7 +10802,7 @@
 			sec_pm_debug {
 				compatible = "samsung,sec-ap-pmic";
 				status = "okay";
-				chg_det_gpio = <0x36 0x05 0x01>;
+				chg_det_gpio = <0x35 0x05 0x01>;
 				phandle = <0x185>;
 			};
 		};
@@ -10869,7 +10816,7 @@
 			gpio_i2c_1_sda {
 
 				gpio_i2c_1_sda_default {
-					phandle = <0x6a>;
+					phandle = <0x69>;
 
 					mux {
 						pins = "gpio175";
@@ -10895,7 +10842,7 @@
 			gpio_i2c_1_scl {
 
 				gpio_i2c_1_scl_default {
-					phandle = <0x6b>;
+					phandle = <0x6a>;
 
 					mux {
 						pins = "gpio176";
@@ -11068,6 +11015,7 @@
 		__overlay__ {
 
 			flicker_test {
+				status = "okay";
 				flicker_test,torch-gpio = <0xffffffff 0x57 0x00>;
 			};
 		};
@@ -11271,7 +11219,7 @@
 				samsung,mask_crc_pass_data = [0c 95];
 				samsung,self_mask_check_rx_cmds_revA = [06 01 00 00 00 00 01 14 02 00];
 				samsung,self_mask_check_tx_post_revA = <0x29010000 0x39f 0xa5a52901 0x00 0x3f05a5a 0x29010000 0x3fc 0x5a5a2901 0x00 0x107a2109 0x60096109 0x62096309 0xf000000 0x290100 0x0a 0xbf0007ff 0x1000 0x2901 0x00 0x3fca5a5 0x29010000 0x3f0 0xa5a52901 0x00 0x39f5a5a>;
-				phandle = <0x42>;
+				phandle = <0x41>;
 			};
 		};
 	};
@@ -11294,7 +11242,7 @@
 				samsung,mafpc_check_tx_pre1_revA = [29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 29 01 00 00 00 00 03 b0 27 d8 29 01 00 00 00 00 02 d8 15 29 01 00 00 00 00 0a bf 01 07 ff 00 00 10 00 00 00 29 01 00 00 00 00 2d 87 11 09 0f 00 00 81 81 81 ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff f0 f0 ff 29 01 00 00 00 00 02 7a 00 29 01 00 00 22 00 02 dd 00 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
 				samsung,mafpc_check_rx_cmds_revA = [06 01 00 00 00 00 01 14 02 00];
 				samsung,mafpc_check_tx_post_revA = <0x29010000 0x39f 0xa5a52901 0x00 0x3f05a5a 0x29010000 0x3fc 0x5a5a2901 0x00 0xabf0007 0xff000010 0x29 0x1000000 0x28700 0x29010000 0x27a 0x21290100 0x02 0xdd012901 0x00 0x3fca5a5 0x29010000 0x3f0 0xa5a52901 0x00 0x39f5a5a>;
-				phandle = <0x43>;
+				phandle = <0x42>;
 			};
 		};
 	};
@@ -11320,7 +11268,7 @@
 				samsung,ccd_pass_val = <0x00>;
 				samsung,ccd_fail_val = <0x01>;
 				samsung,ccd_test_off_tx_cmds_revA = [29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 02 cc 00 29 01 00 00 00 00 03 f0 a5 a5];
-				phandle = <0x41>;
+				phandle = <0x40>;
 			};
 		};
 	};
@@ -11478,7 +11426,7 @@
 				samsung,mask_crc_pass_data = [0c 95];
 				samsung,self_mask_check_rx_cmds_revA = [06 01 00 00 00 00 01 14 02 00];
 				samsung,self_mask_check_tx_post_revA = <0x29010000 0x39f 0xa5a52901 0x00 0x3f05a5a 0x29010000 0x3fc 0x5a5a2901 0x00 0x107a2109 0x60096109 0x62096309 0xf000000 0x290100 0x0a 0xbf0007ff 0x1000 0x2901 0x00 0x3fca5a5 0x29010000 0x3f0 0xa5a52901 0x00 0x39f5a5a>;
-				phandle = <0x45>;
+				phandle = <0x44>;
 			};
 		};
 	};
@@ -11501,7 +11449,7 @@
 				samsung,mafpc_check_tx_pre1_revA = [29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 29 01 00 00 00 00 03 b0 27 d8 29 01 00 00 00 00 02 d8 15 29 01 00 00 00 00 0a bf 01 07 ff 00 00 10 00 00 00 29 01 00 00 00 00 2d 87 11 09 0f 00 00 81 81 81 ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff f0 f0 ff 29 01 00 00 00 00 02 7a 00 29 01 00 00 22 00 02 dd 00 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
 				samsung,mafpc_check_rx_cmds_revA = [06 01 00 00 00 00 01 14 02 00];
 				samsung,mafpc_check_tx_post_revA = <0x29010000 0x39f 0xa5a52901 0x00 0x3f05a5a 0x29010000 0x3fc 0x5a5a2901 0x00 0xabf0007 0xff000010 0x29 0x1000000 0x28700 0x29010000 0x27a 0x21290100 0x02 0xdd012901 0x00 0x3fca5a5 0x29010000 0x3f0 0xa5a52901 0x00 0x39f5a5a>;
-				phandle = <0x46>;
+				phandle = <0x45>;
 			};
 		};
 	};
@@ -11527,7 +11475,7 @@
 				samsung,ccd_pass_val = <0x00>;
 				samsung,ccd_fail_val = <0x01>;
 				samsung,ccd_test_off_tx_cmds_revA = [29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 02 cc 00 29 01 00 00 00 00 03 f0 a5 a5];
-				phandle = <0x44>;
+				phandle = <0x43>;
 			};
 		};
 	};
@@ -11721,7 +11669,7 @@
 				samsung,mask_crc_pass_data = [74 2e];
 				samsung,self_mask_check_rx_cmds_revA = [06 01 00 00 00 00 01 14 02 00];
 				samsung,self_mask_check_tx_post_revA = [29 01 00 00 00 00 03 9f a5 a5 29 01 00 00 00 00 03 f0 5a 5a 29 01 00 00 00 00 03 fc 5a 5a 29 01 00 00 00 00 1b 7a 05 00 00 00 09 24 09 25 09 26 09 27 00 00 00 00 00 00 00 00 00 00 3f ff ff ff 29 01 00 00 00 00 0a bf 00 07 ff 00 00 10 00 00 00 29 01 00 00 00 00 03 fc a5 a5 29 01 00 00 00 00 03 f0 a5 a5 29 01 00 00 00 00 03 9f 5a 5a];
-				phandle = <0x47>;
+				phandle = <0x46>;
 			};
 		};
 	};
@@ -11744,7 +11692,7 @@
 				samsung,mafpc_check_rx_cmds_revA = [06 01 00 00 00 00 01 14 02 00];
 				samsung,mafpc_crc_pass_data = [df b0];
 				samsung,mafpc_check_tx_post_revA = <0x29010000 0x39f 0xa5a52901 0x00 0x3f05a5a 0x29010000 0x3fc 0x5a5a2901 0x00 0xabf0007 0xff000010 0x29 0x1000000 0x28700 0x29010000 0x27a 0x5290100 0x02 0xdd012901 0x00 0x3fca5a5 0x29010000 0x3f0 0xa5a52901 0x00 0x39f5a5a>;
-				phandle = <0x48>;
+				phandle = <0x47>;
 			};
 		};
 	};
@@ -11755,7 +11703,7 @@
 		__overlay__ {
 
 			panel_aw01_te_active {
-				phandle = <0x54>;
+				phandle = <0x53>;
 
 				mux {
 					pins = "gpio86";
@@ -11770,7 +11718,7 @@
 			};
 
 			panel_aw01_te_suspend {
-				phandle = <0x58>;
+				phandle = <0x57>;
 
 				mux {
 					pins = "gpio86";
@@ -11792,7 +11740,7 @@
 		__overlay__ {
 
 			panel_aw01_reset_active {
-				phandle = <0x53>;
+				phandle = <0x52>;
 
 				mux {
 					pins = "gpio34";
@@ -11807,7 +11755,7 @@
 			};
 
 			panel_aw01_reset_suspend {
-				phandle = <0x57>;
+				phandle = <0x56>;
 
 				mux {
 					pins = "gpio34";
@@ -11829,7 +11777,7 @@
 		__overlay__ {
 
 			panel_aw01_ubcon_active {
-				phandle = <0x55>;
+				phandle = <0x54>;
 
 				mux {
 					pins = "gpio179";
@@ -11845,7 +11793,7 @@
 			};
 
 			panel_aw01_ubcon_suspend {
-				phandle = <0x59>;
+				phandle = <0x58>;
 
 				mux {
 					pins = "gpio179";
@@ -11875,7 +11823,7 @@
 				compatible = "maxim,max77705";
 				reg = <0x66>;
 				pinctrl-names = "default";
-				pinctrl-0 = <0x6f>;
+				pinctrl-0 = <0x6e>;
 				max77705,irq-gpio = <0x13 0x05 0x01>;
 				max77705,wakeup;
 				max77705,fw_product_id = <0x08>;
@@ -11900,7 +11848,7 @@
 		__overlay__ {
 
 			tsp_int_active {
-				phandle = <0x70>;
+				phandle = <0x6f>;
 
 				mux {
 					pins = "gpio46";
@@ -11916,7 +11864,7 @@
 			};
 
 			tsp_int_sleep {
-				phandle = <0x71>;
+				phandle = <0x70>;
 
 				mux {
 					pins = "gpio46";
@@ -11948,8 +11896,8 @@
 				reg = <0x00>;
 				spi-max-frequency = <0x989680>;
 				pinctrl-names = "on_state\0off_state";
-				pinctrl-0 = <0x70>;
-				pinctrl-1 = <0x71>;
+				pinctrl-0 = <0x6f>;
+				pinctrl-1 = <0x70>;
 				tsp_io_ldo-supply = <0xffffffff>;
 				tsp_avdd_ldo-supply = <0xffffffff>;
 				sec,irq_gpio = <0xffffffff 0x2e 0x00>;
@@ -12002,7 +11950,7 @@
 		__overlay__ {
 
 			spi_mosi_tsp_active {
-				phandle = <0x72>;
+				phandle = <0x71>;
 
 				mux {
 					pins = "gpio29";
@@ -12018,7 +11966,7 @@
 			};
 
 			spi_mosi_tsp_sleep {
-				phandle = <0x75>;
+				phandle = <0x74>;
 
 				mux {
 					pins = "gpio29";
@@ -12034,7 +11982,7 @@
 			};
 
 			spi_miso_tsp_active {
-				phandle = <0x73>;
+				phandle = <0x72>;
 
 				mux {
 					pins = "gpio28";
@@ -12050,7 +11998,7 @@
 			};
 
 			spi_miso_tsp_sleep {
-				phandle = <0x76>;
+				phandle = <0x75>;
 
 				mux {
 					pins = "gpio28";
@@ -12066,7 +12014,7 @@
 			};
 
 			spi_clk_tsp_active {
-				phandle = <0x74>;
+				phandle = <0x73>;
 
 				mux {
 					pins = "gpio30";
@@ -12082,7 +12030,7 @@
 			};
 
 			spi_clk_tsp_sleep {
-				phandle = <0x77>;
+				phandle = <0x76>;
 
 				mux {
 					pins = "gpio30";
@@ -12103,8 +12051,8 @@
 		target = <0xffffffff>;
 
 		__overlay__ {
-			pinctrl-0 = <0x72 0x73 0x74>;
-			pinctrl-1 = <0x75 0x76 0x77>;
+			pinctrl-0 = <0x71 0x72 0x73>;
+			pinctrl-1 = <0x74 0x75 0x76>;
 		};
 	};
 
@@ -12116,7 +12064,7 @@
 			als_rear_int {
 
 				als_rear_int_active {
-					phandle = <0x79>;
+					phandle = <0x78>;
 
 					mux {
 						pins = "gpio63";
@@ -12132,7 +12080,7 @@
 				};
 
 				als_rear_int_suspend {
-					phandle = <0x78>;
+					phandle = <0x77>;
 
 					mux {
 						pins = "gpio63";
@@ -12160,12 +12108,10 @@
 			als_rear@29 {
 				compatible = "ams,tsl2510";
 				reg = <0x29>;
-				interrupt-parent = <0xffffffff>;
-				interrupts = <0x3f 0x00 0x00>;
 				pinctrl-names = "default\0sleep\0active";
-				pinctrl-0 = <0x78>;
-				pinctrl-1 = <0x78>;
-				pinctrl-2 = <0x79>;
+				pinctrl-0 = <0x77>;
+				pinctrl-1 = <0x77>;
+				pinctrl-2 = <0x78>;
 				als_rear,irq-gpio = <0xffffffff 0x3f 0x00>;
 				vdd_1p8-supply = <0xffffffff>;
 			};
@@ -12178,7 +12124,7 @@
 		__overlay__ {
 
 			dp_aux_sel_active {
-				phandle = <0x4c>;
+				phandle = <0x4b>;
 
 				mux {
 					pins = "gpio108";
@@ -12194,7 +12140,7 @@
 			};
 
 			dp_aux_sel_suspend {
-				phandle = <0x4e>;
+				phandle = <0x4d>;
 
 				mux {
 					pins = "gpio108";
@@ -12217,7 +12163,7 @@
 		__overlay__ {
 
 			dp_aux_en_active {
-				phandle = <0x4d>;
+				phandle = <0x4c>;
 
 				mux {
 					pins = "gpio125";
@@ -12233,7 +12179,7 @@
 			};
 
 			dp_aux_en_suspend {
-				phandle = <0x4f>;
+				phandle = <0x4e>;
 
 				mux {
 					pins = "gpio125";
@@ -12256,7 +12202,7 @@
 		__overlay__ {
 
 			mfc_int_default {
-				phandle = <0x64>;
+				phandle = <0x63>;
 
 				mux {
 					pins = "gpio90";
@@ -12279,7 +12225,7 @@
 		__overlay__ {
 
 			wpc_en_default {
-				phandle = <0x66>;
+				phandle = <0x65>;
 
 				mux {
 					pins = "gpio170";
@@ -12301,7 +12247,7 @@
 		__overlay__ {
 
 			grip-i2c-sda {
-				phandle = <0x6c>;
+				phandle = <0x6b>;
 
 				mux {
 					pins = "gpio186";
@@ -12317,7 +12263,7 @@
 			};
 
 			grip-i2c-scl {
-				phandle = <0x6d>;
+				phandle = <0x6c>;
 
 				mux {
 					pins = "gpio187";
@@ -12340,7 +12286,7 @@
 		__overlay__ {
 
 			grip-int {
-				phandle = <0x6e>;
+				phandle = <0x6d>;
 
 				mux {
 					pins = "gpio182";
@@ -12363,7 +12309,7 @@
 		__overlay__ {
 
 			nfc_i2c_sda_active {
-				phandle = <0x7a>;
+				phandle = <0x79>;
 
 				mux {
 					pins = "gpio64";
@@ -12379,7 +12325,7 @@
 			};
 
 			nfc_i2c_scl_active {
-				phandle = <0x7b>;
+				phandle = <0x7a>;
 
 				mux {
 					pins = "gpio65";
@@ -12395,7 +12341,7 @@
 			};
 
 			nfc_i2c_sda_sleep {
-				phandle = <0x7c>;
+				phandle = <0x7b>;
 
 				mux {
 					pins = "gpio64";
@@ -12411,7 +12357,7 @@
 			};
 
 			nfc_i2c_scl_sleep {
-				phandle = <0x7d>;
+				phandle = <0x7c>;
 
 				mux {
 					pins = "gpio65";
@@ -12434,10 +12380,11 @@
 		__overlay__ {
 			status = "ok";
 			qcom,clk-freq-out = <0x61a80>;
-			pinctrl-0 = <0x7a 0x7b>;
-			pinctrl-1 = <0x7c 0x7d>;
+			pinctrl-0 = <0x79 0x7a>;
+			pinctrl-1 = <0x7b 0x7c>;
 
 			pn547@28 {
+				status = "ok";
 				compatible = "pn547";
 				reg = <0x28>;
 				pn547,irq-gpio = <0xffffffff 0x47 0x00>;
@@ -12447,7 +12394,8 @@
 				pn547,late_pvdd_en;
 				pn547,clk_req_wake;
 				nfc_pvdd-supply = <0xffffffff>;
-				phandle = <0x8a>;
+				pn547,disable_clk_irq_during_wakeup;
+				phandle = <0x89>;
 			};
 		};
 	};
@@ -12458,6 +12406,7 @@
 		__overlay__ {
 
 			nfc_platform {
+				status = "ok";
 				compatible = "nfc_platform";
 				pn547,ven-gpio = <0xffffffff 0x42 0x00>;
 				pn547,late_pvdd_en;
@@ -12472,7 +12421,7 @@
 		__overlay__ {
 
 			ese_spi_cs_pd_gpio {
-				phandle = <0x7e>;
+				phandle = <0x7d>;
 
 				mux {
 					pins = "gpio75";
@@ -12488,7 +12437,7 @@
 			};
 
 			ese_spi_clk_pd_gpio {
-				phandle = <0x7f>;
+				phandle = <0x7e>;
 
 				mux {
 					pins = "gpio74";
@@ -12504,7 +12453,7 @@
 			};
 
 			ese_spi_mosi_pd_gpio {
-				phandle = <0x80>;
+				phandle = <0x7f>;
 
 				mux {
 					pins = "gpio73";
@@ -12520,7 +12469,7 @@
 			};
 
 			ese_spi_miso_pd_gpio {
-				phandle = <0x81>;
+				phandle = <0x80>;
 
 				mux {
 					pins = "gpio72";
@@ -12536,7 +12485,7 @@
 			};
 
 			ese_spi_cs_pu_gpio {
-				phandle = <0x86>;
+				phandle = <0x85>;
 
 				mux {
 					pins = "gpio75";
@@ -12552,7 +12501,7 @@
 			};
 
 			ese_spi_clk_pu_gpio {
-				phandle = <0x87>;
+				phandle = <0x86>;
 
 				mux {
 					pins = "gpio74";
@@ -12568,7 +12517,7 @@
 			};
 
 			ese_spi_mosi_pu_gpio {
-				phandle = <0x88>;
+				phandle = <0x87>;
 
 				mux {
 					pins = "gpio73";
@@ -12584,7 +12533,7 @@
 			};
 
 			ese_spi_miso_pu_gpio {
-				phandle = <0x89>;
+				phandle = <0x88>;
 
 				mux {
 					pins = "gpio72";
@@ -12600,7 +12549,7 @@
 			};
 
 			ese_spi_cs_pu_func {
-				phandle = <0x82>;
+				phandle = <0x81>;
 
 				mux {
 					pins = "gpio75";
@@ -12616,7 +12565,7 @@
 			};
 
 			ese_spi_clk_pu_func {
-				phandle = <0x83>;
+				phandle = <0x82>;
 
 				mux {
 					pins = "gpio74";
@@ -12632,7 +12581,7 @@
 			};
 
 			ese_spi_mosi_pu_func {
-				phandle = <0x84>;
+				phandle = <0x83>;
 
 				mux {
 					pins = "gpio73";
@@ -12648,7 +12597,7 @@
 			};
 
 			ese_spi_miso_pu_func {
-				phandle = <0x85>;
+				phandle = <0x84>;
 
 				mux {
 					pins = "gpio72";
@@ -12671,6 +12620,7 @@
 		__overlay__ {
 
 			ese_platform {
+				status = "ok";
 				compatible = "p61_platform";
 			};
 		};
@@ -12684,17 +12634,18 @@
 			sec,pinctrl_active;
 			sec,pinctrl_skip_sleep;
 			pinctrl-names = "default\0sleep\0active\0suspend";
-			pinctrl-0 = <0x7e 0x7f 0x80 0x81>;
-			pinctrl-1 = <0x7e 0x7f 0x80 0x81>;
-			pinctrl-2 = <0x82 0x83 0x84 0x85>;
-			pinctrl-3 = <0x86 0x87 0x88 0x89>;
+			pinctrl-0 = <0x7d 0x7e 0x7f 0x80>;
+			pinctrl-1 = <0x7d 0x7e 0x7f 0x80>;
+			pinctrl-2 = <0x81 0x82 0x83 0x84>;
+			pinctrl-3 = <0x85 0x86 0x87 0x88>;
 
 			ese_spi@0 {
+				status = "ok";
 				compatible = "p61";
 				reg = <0x00>;
 				spi-max-frequency = <0x1312d00>;
 				p61,ap_vendor = "qualcomm";
-				nxp,nfcc = <0x8a>;
+				nxp,nfcc = <0x89>;
 			};
 		};
 	};
@@ -12705,7 +12656,7 @@
 		__overlay__ {
 
 			btp_ipc_default {
-				phandle = <0x8b>;
+				phandle = <0x8a>;
 
 				mux {
 					pins = "gpio88";
@@ -12727,7 +12678,7 @@
 		__overlay__ {
 
 			btp_wuhb_default {
-				phandle = <0x8c>;
+				phandle = <0x8b>;
 
 				mux {
 					pins = "gpio89";
@@ -12768,9 +12719,9 @@
 				qcom,min_cpufreq_limit = <0x211b00>;
 				qcom,chipid = "QBT2608";
 				pinctrl-names = "default\0pins_poweron\0pins_poweroff";
-				pinctrl-0 = <0x8b 0x8c>;
-				pinctrl-1 = <0x8b>;
-				pinctrl-2 = <0x8b>;
+				pinctrl-0 = <0x8a 0x8b>;
+				pinctrl-1 = <0x8a>;
+				pinctrl-2 = <0x8a>;
 			};
 		};
 	};
@@ -12781,7 +12732,7 @@
 		__overlay__ {
 
 			motor-rst {
-				phandle = <0x8e>;
+				phandle = <0x8d>;
 
 				mux {
 					pins = "gpio180";
@@ -12810,8 +12761,8 @@
 				compatible = "cirrus,cs40l26a";
 				reg = <0x40>;
 				pinctrl-names = "default";
-				pinctrl-0 = <0x8d 0x8e>;
-				irq-gpio = <0x36 0x09 0x00>;
+				pinctrl-0 = <0x8c 0x8d>;
+				irq-gpio = <0x35 0x09 0x00>;
 				reset-gpios = <0xffffffff 0xb4 0x00>;
 				cirrus,fw-defer;
 				cirrus,pm-timer-timeout-ticks4 = <0x00>;
@@ -12847,7 +12798,7 @@
 		__overlay__ {
 
 			lsi_int_default {
-				phandle = <0x67>;
+				phandle = <0x66>;
 
 				mux {
 					pins = "gpio90";
@@ -12870,7 +12821,7 @@
 		__overlay__ {
 
 			lsi_en_default {
-				phandle = <0x69>;
+				phandle = <0x68>;
 
 				mux {
 					pins = "gpio170";
@@ -12991,14 +12942,14 @@
 				compatible = "samsung,param";
 				status = "okay";
 				phandle = <0x19e>;
+			};
 
-				samsung,qcom-param {
-					compatible = "samsung,qcom-param";
-					status = "okay";
-					sec,bdev_path = "PARTUUID=2da26441-884e-456c-afbb-721626d69933";
-					sec,negative_offset = <0x100000>;
-					phandle = <0x19f>;
-				};
+			samsung,qcom-param {
+				compatible = "samsung,qcom-param";
+				status = "okay";
+				sec,bdev_path = "PARTUUID=2da26441-884e-456c-afbb-721626d69933";
+				sec,negative_offset = <0x100000>;
+				phandle = <0x19f>;
 			};
 
 			samsung,reloc_gpio {
@@ -13048,33 +12999,33 @@
 			sec_debug_region_pool@800100000 {
 				compatible = "samsung,carve-out";
 				reg = <0x08 0x100000 0x00 0xff000>;
-				phandle = <0x90>;
+				phandle = <0x8f>;
 			};
 
 			sec_debug_region_log@8001FF000 {
 				compatible = "samsung,carve-out";
 				reg = <0x08 0x1ff000 0x00 0x901000>;
-				phandle = <0x91>;
+				phandle = <0x90>;
 			};
 
 			google_debug_kinfo_region@800B00000 {
 				compatible = "samsung,carve-out";
 				no-map;
 				reg = <0x08 0xb00000 0x00 0x1000>;
-				phandle = <0x8f>;
+				phandle = <0x8e>;
 			};
 
 			sec_qcom_rdx_bootdev_region@800C00000 {
 				compatible = "samsung,carve-out";
 				reg = <0x08 0xc00000 0x00 0xad00000>;
-				phandle = <0x94>;
+				phandle = <0x93>;
 			};
 
 			hdm_region@800B01000 {
 				compatible = "removed-dma-pool";
 				no-map;
 				reg = <0x08 0xb01000 0x00 0x1000>;
-				phandle = <0x92>;
+				phandle = <0x91>;
 			};
 		};
 	};
@@ -13100,7 +13051,7 @@
 			google,debug-kinfo {
 				compatible = "google,debug-kinfo";
 				status = "okay";
-				memory-region = <0x8f>;
+				memory-region = <0x8e>;
 				phandle = <0x1a1>;
 			};
 		};
@@ -13129,48 +13080,48 @@
 			samsung,debug_region {
 				compatible = "samsung,debug_region";
 				status = "okay";
-				memory-region = <0x90>;
+				memory-region = <0x8f>;
 				phandle = <0x1a3>;
+			};
 
-				samsung,ap_context-sec_vh_ipi_stop {
-					compatible = "samsung,ap_context";
-					status = "okay";
-					sec,name = "ap_context-sec_vh_ipi_stop";
-					sec,unique_id = <0x86655958>;
-					phandle = <0x1a4>;
-				};
+			samsung,ap_context-sec_vh_ipi_stop {
+				compatible = "samsung,ap_context";
+				status = "okay";
+				sec,name = "ap_context-sec_vh_ipi_stop";
+				sec,unique_id = <0x86655958>;
+				phandle = <0x1a4>;
+			};
 
-				samsung,qcom-sched_log {
-					compatible = "samsung,qcom-logger";
-					status = "okay";
-					sec,name = "qcom-sched_log";
-					sec,unique_id = <0x705e7c9e>;
-					phandle = <0x1a5>;
-				};
+			samsung,qcom-sched_log {
+				compatible = "samsung,qcom-logger";
+				status = "okay";
+				sec,name = "qcom-sched_log";
+				sec,unique_id = <0x705e7c9e>;
+				phandle = <0x1a5>;
+			};
 
-				samsung,qcom-irq_log {
-					compatible = "samsung,qcom-logger";
-					status = "okay";
-					sec,name = "qcom-irq_log";
-					sec,unique_id = <0x811e64d7>;
-					phandle = <0x1a6>;
-				};
+			samsung,qcom-irq_log {
+				compatible = "samsung,qcom-logger";
+				status = "okay";
+				sec,name = "qcom-irq_log";
+				sec,unique_id = <0x811e64d7>;
+				phandle = <0x1a6>;
+			};
 
-				samsung,qcom-irq_exit_log {
-					compatible = "samsung,qcom-logger";
-					status = "okay";
-					sec,name = "qcom-irq_exit_log";
-					sec,unique_id = <0xcd0bd0e1>;
-					phandle = <0x1a7>;
-				};
+			samsung,qcom-irq_exit_log {
+				compatible = "samsung,qcom-logger";
+				status = "okay";
+				sec,name = "qcom-irq_exit_log";
+				sec,unique_id = <0xcd0bd0e1>;
+				phandle = <0x1a7>;
+			};
 
-				samsung,qcom-msg_log {
-					compatible = "samsung,qcom-logger";
-					status = "disabled";
-					sec,name = "qcom-msg_log";
-					sec,unique_id = <0x9c414ca6>;
-					phandle = <0x1a8>;
-				};
+			samsung,qcom-msg_log {
+				compatible = "samsung,qcom-logger";
+				status = "disabled";
+				sec,name = "qcom-msg_log";
+				sec,unique_id = <0x9c414ca6>;
+				phandle = <0x1a8>;
 			};
 
 			samsung,fsimd_debug {
@@ -13186,13 +13137,13 @@
 				sec,reboot_notifier-priority = <0xfa>;
 				sec,restart_handler-priority = <0xdc>;
 				phandle = <0x1aa>;
+			};
 
-				samsung,qcom-reboot_cmd {
-					compatible = "samsung,qcom-reboot_cmd";
-					status = "okay";
-					sec,use-on_reboot;
-					phandle = <0x1ab>;
-				};
+			samsung,qcom-reboot_cmd {
+				compatible = "samsung,qcom-reboot_cmd";
+				status = "okay";
+				sec,use-on_reboot;
+				phandle = <0x1ab>;
 			};
 
 			samsung,upload_cause {
@@ -13200,18 +13151,18 @@
 				status = "okay";
 				sec,panic_notifier-priority = <0xff>;
 				phandle = <0x1ac>;
+			};
 
-				samsung,qcom-upload_cause {
-					compatible = "samsung,qcom-upload_cause";
-					status = "okay";
-					phandle = <0x1ad>;
-				};
+			samsung,qcom-upload_cause {
+				compatible = "samsung,qcom-upload_cause";
+				status = "okay";
+				phandle = <0x1ad>;
 			};
 
 			samsung,kernel_log_buf {
 				compatible = "samsung,kernel_log_buf";
 				status = "okay";
-				memory-region = <0x91>;
+				memory-region = <0x90>;
 				sec,use-partial_reserved_mem;
 				reg = <0x08 0x200000 0x00 0x200000>;
 				#address-cells = <0x02>;
@@ -13260,14 +13211,14 @@
 			};
 
 			samsung,sec_hdm {
-				memory-region = <0x92>;
+				memory-region = <0x91>;
 			};
 
 			samsung,pstore_pmsg {
 				compatible = "samsung,pstore_pmsg";
 				status = "okay";
 				sec,debug_level = <0x494d 0x4948>;
-				memory-region = <0x91>;
+				memory-region = <0x90>;
 				sec,use-partial_reserved_mem;
 				reg = <0x08 0x900000 0x00 0x200000>;
 				#address-cells = <0x02>;
@@ -13287,7 +13238,7 @@
 				compatible = "samsung,qcom-qcom_reboot_reason";
 				status = "okay";
 				sec,reboot_notifier-priority = <0xdc>;
-				nvmem-cells = <0x22 0x93>;
+				nvmem-cells = <0x22 0x92>;
 				nvmem-cell-names = "restart_reason\0pon_reason";
 				phandle = <0x1b5>;
 			};
@@ -13296,7 +13247,7 @@
 				compatible = "samsung,qcom-debug_partition";
 				status = "okay";
 				sec,bdev_path = "PARTUUID=a17d0ddb-cec4-4a80-9e22-7d43fec26358";
-				sec,part_table = <0x00 0x1000 0x1000 0x1000 0x2000 0x1000 0x3000 0x1000 0x4000 0xa000 0xe000 0x1000 0xf000 0x80000 0x8f000 0x1000 0x90000 0x3000 0x93000 0x1000 0x94000 0x1000 0x95000 0x1000 0xfe000 0x2000 0x100000 0x200000 0x300000 0x200000 0x500000 0x300000>;
+				sec,part_table = <0x00 0x1000 0x1000 0x1000 0x2000 0x1000 0x3000 0x1000 0x4000 0xa000 0xe000 0x1000 0xf000 0x80000 0x8f000 0x1000 0x90000 0x3000 0x93000 0x1000 0x94000 0x1000 0x95000 0x1000 0xfd000 0x3000 0x100000 0x200000 0x300000 0x200000 0x500000 0x300000>;
 				phandle = <0x1b6>;
 			};
 
@@ -13305,7 +13256,7 @@
 				status = "okay";
 				sec,die_notifier-priority = <0xfa>;
 				sec,panic_notifier-priority = <0xfa>;
-				memory-region = <0x8f>;
+				memory-region = <0x8e>;
 				memory-region-names = "google,debug_kinfo";
 				phandle = <0x1b7>;
 			};
@@ -13345,7 +13296,7 @@
 				status = "okay";
 				sec,die_notifier-priority = <0xf5>;
 				sec,panic_notifier-priority = <0xf5>;
-				memory-region = <0x91>;
+				memory-region = <0x90>;
 				sec,use-partial_reserved_mem;
 				reg = <0x08 0x1ff000 0x00 0x1000>;
 				#address-cells = <0x02>;
@@ -13366,7 +13317,7 @@
 			samsung,qcom-rdx_bootdev {
 				compatible = "samsung,qcom-rdx_bootdev";
 				status = "okay";
-				memory-region = <0x94>;
+				memory-region = <0x93>;
 				phandle = <0x1be>;
 			};
 		};
@@ -13430,7 +13381,7 @@
 				rbin_dma_heap {
 					qcom,dma-heap-name = "rbin";
 					qcom,dma-heap-type = <0x03>;
-					memory-region = <0x95>;
+					memory-region = <0x94>;
 				};
 			};
 		};
@@ -13443,11 +13394,11 @@
 
 			rbin {
 				size = <0x00 0x32000000>;
-				reserved_size = <0x00 0x40000000>;
+				expand_size = <0x00 0x40000000>;
 				alloc-ranges = <0x08 0x00 0x01 0x80000000 0x00 0x80000000 0x00 0x80000000>;
 				alignment = <0x00 0x2000000>;
 				reusable;
-				phandle = <0x95>;
+				phandle = <0x94>;
 			};
 		};
 	};
@@ -13537,8 +13488,8 @@
 				clock-names = "se-clk\0m-ahb\0s-ahb";
 				clocks = <0xffffffff 0x64 0xffffffff 0x86 0xffffffff 0x87>;
 				pinctrl-names = "default\0sleep";
-				pinctrl-0 = <0x96 0x97>;
-				pinctrl-1 = <0x98 0x99>;
+				pinctrl-0 = <0x95 0x96>;
+				pinctrl-1 = <0x97 0x98>;
 				qcom,wrapper-core = <0xffffffff>;
 				always-on-clock;
 				status = "ok";
@@ -13555,7 +13506,7 @@
 				phandle = <0x1bf>;
 
 				qupv3_se7_2uart_tx_active {
-					phandle = <0x96>;
+					phandle = <0x95>;
 
 					mux {
 						pins = "gpio26";
@@ -13570,7 +13521,7 @@
 				};
 
 				qupv3_se7_2uart_rx_active {
-					phandle = <0x97>;
+					phandle = <0x96>;
 
 					mux {
 						pins = "gpio27";
@@ -13585,7 +13536,7 @@
 				};
 
 				qupv3_se7_2uart_tx_sleep {
-					phandle = <0x98>;
+					phandle = <0x97>;
 
 					mux {
 						pins = "gpio26";
@@ -13601,7 +13552,7 @@
 				};
 
 				qupv3_se7_2uart_rx_sleep {
-					phandle = <0x99>;
+					phandle = <0x98>;
 
 					mux {
 						pins = "gpio27";
@@ -13738,7 +13689,7 @@
 		__overlay__ {
 
 			cci0_active {
-				phandle = <0xa0>;
+				phandle = <0x9f>;
 
 				mux {
 					pins = "gpio110\0gpio111";
@@ -13753,7 +13704,7 @@
 			};
 
 			cci0_suspend {
-				phandle = <0xa1>;
+				phandle = <0xa0>;
 
 				mux {
 					pins = "gpio110\0gpio111";
@@ -13769,7 +13720,7 @@
 			};
 
 			cci1_active {
-				phandle = <0xa2>;
+				phandle = <0xa1>;
 
 				mux {
 					pins = "gpio112\0gpio113";
@@ -13784,7 +13735,7 @@
 			};
 
 			cci1_suspend {
-				phandle = <0xa3>;
+				phandle = <0xa2>;
 
 				mux {
 					pins = "gpio112\0gpio113";
@@ -13800,7 +13751,7 @@
 			};
 
 			cci2_active {
-				phandle = <0xb8>;
+				phandle = <0xb7>;
 
 				mux {
 					pins = "gpio114\0gpio115";
@@ -13815,7 +13766,7 @@
 			};
 
 			cci2_suspend {
-				phandle = <0xb9>;
+				phandle = <0xb8>;
 
 				mux {
 					pins = "gpio114\0gpio115";
@@ -13831,7 +13782,7 @@
 			};
 
 			cci3_active {
-				phandle = <0xba>;
+				phandle = <0xb9>;
 
 				mux {
 					pins = "gpio208\0gpio209";
@@ -13847,7 +13798,7 @@
 			};
 
 			cci3_suspend {
-				phandle = <0xbb>;
+				phandle = <0xba>;
 
 				mux {
 					pins = "gpio208\0gpio209";
@@ -13894,7 +13845,7 @@
 			};
 
 			cam_sensor_mclk1_active {
-				phandle = <0xaa>;
+				phandle = <0xa9>;
 
 				mux {
 					pins = "gpio101";
@@ -13909,7 +13860,7 @@
 			};
 
 			cam_sensor_mclk1_suspend {
-				phandle = <0xac>;
+				phandle = <0xab>;
 
 				mux {
 					pins = "gpio101";
@@ -13924,7 +13875,7 @@
 			};
 
 			cam_sensor_mclk2_active {
-				phandle = <0xe3>;
+				phandle = <0xe2>;
 
 				mux {
 					pins = "gpio102";
@@ -13939,7 +13890,7 @@
 			};
 
 			cam_sensor_mclk2_suspend {
-				phandle = <0xe6>;
+				phandle = <0xe5>;
 
 				mux {
 					pins = "gpio102";
@@ -13954,7 +13905,7 @@
 			};
 
 			cam_sensor_mclk3_active {
-				phandle = <0xb4>;
+				phandle = <0xb3>;
 
 				mux {
 					pins = "gpio103";
@@ -13969,7 +13920,7 @@
 			};
 
 			cam_sensor_mclk3_suspend {
-				phandle = <0xb6>;
+				phandle = <0xb5>;
 
 				mux {
 					pins = "gpio103";
@@ -13984,7 +13935,7 @@
 			};
 
 			cam_sensor_mclk4_active {
-				phandle = <0xc4>;
+				phandle = <0xc3>;
 
 				mux {
 					pins = "gpio104";
@@ -13999,7 +13950,7 @@
 			};
 
 			cam_sensor_mclk4_suspend {
-				phandle = <0xc6>;
+				phandle = <0xc5>;
 
 				mux {
 					pins = "gpio104";
@@ -14074,7 +14025,7 @@
 			};
 
 			cam_sensor_active_rst0 {
-				phandle = <0xe4>;
+				phandle = <0xe3>;
 
 				mux {
 					pins = "gpio109";
@@ -14089,7 +14040,7 @@
 			};
 
 			cam_sensor_suspend_rst0 {
-				phandle = <0xe7>;
+				phandle = <0xe6>;
 
 				mux {
 					pins = "gpio109";
@@ -14105,7 +14056,7 @@
 			};
 
 			cam_sensor_active_rst1 {
-				phandle = <0xc5>;
+				phandle = <0xc4>;
 
 				mux {
 					pins = "gpio24";
@@ -14120,7 +14071,7 @@
 			};
 
 			cam_sensor_suspend_rst1 {
-				phandle = <0xc7>;
+				phandle = <0xc6>;
 
 				mux {
 					pins = "gpio24";
@@ -14136,7 +14087,7 @@
 			};
 
 			cam_sensor_active_rst2 {
-				phandle = <0xab>;
+				phandle = <0xaa>;
 
 				mux {
 					pins = "gpio106";
@@ -14151,7 +14102,7 @@
 			};
 
 			cam_sensor_suspend_rst2 {
-				phandle = <0xad>;
+				phandle = <0xac>;
 
 				mux {
 					pins = "gpio106";
@@ -14167,7 +14118,7 @@
 			};
 
 			cam_sensor_active_rst3 {
-				phandle = <0xb5>;
+				phandle = <0xb4>;
 
 				mux {
 					pins = "gpio120";
@@ -14182,7 +14133,7 @@
 			};
 
 			cam_sensor_suspend_rst3 {
-				phandle = <0xb7>;
+				phandle = <0xb6>;
 
 				mux {
 					pins = "gpio120";
@@ -14335,7 +14286,7 @@
 				clock-rates = <0x17d78400 0x00 0x17d78400 0x00 0x1c9c3800 0x00 0x17d78400 0x00>;
 				status = "ok";
 				nvmem-cell-names = "cam_phy0_nvmem";
-				nvmem-cells = <0x9a>;
+				nvmem-cells = <0x99>;
 				phandle = <0x1cd>;
 			};
 
@@ -14364,7 +14315,7 @@
 				clock-rates = <0x17d78400 0x00 0x17d78400 0x00 0x1c9c3800 0x00 0x17d78400 0x00>;
 				status = "ok";
 				nvmem-cell-names = "cam_phy1_nvmem";
-				nvmem-cells = <0x9b>;
+				nvmem-cells = <0x9a>;
 				phandle = <0x1ce>;
 			};
 
@@ -14393,7 +14344,7 @@
 				clock-rates = <0x17d78400 0x00 0x17d78400 0x00 0x1c9c3800 0x00 0x17d78400 0x00>;
 				status = "ok";
 				nvmem-cell-names = "cam_phy2_nvmem";
-				nvmem-cells = <0x9c>;
+				nvmem-cells = <0x9b>;
 				phandle = <0x1cf>;
 			};
 
@@ -14422,7 +14373,7 @@
 				clock-rates = <0x17d78400 0x00 0x17d78400 0x00 0x1c9c3800 0x00 0x17d78400 0x00>;
 				status = "ok";
 				nvmem-cell-names = "cam_phy3_nvmem";
-				nvmem-cells = <0x9d>;
+				nvmem-cells = <0x9c>;
 				phandle = <0x1d0>;
 			};
 
@@ -14451,7 +14402,7 @@
 				clock-rates = <0x17d78400 0x00 0x17d78400 0x00 0x1c9c3800 0x00 0x17d78400 0x00>;
 				status = "ok";
 				nvmem-cell-names = "cam_phy4_nvmem";
-				nvmem-cells = <0x9e>;
+				nvmem-cells = <0x9d>;
 				phandle = <0x1d1>;
 			};
 
@@ -14480,7 +14431,7 @@
 				clock-rates = <0x17d78400 0x00 0x17d78400 0x00 0x1c9c3800 0x00 0x17d78400 0x00>;
 				status = "ok";
 				nvmem-cell-names = "cam_phy5_nvmem";
-				nvmem-cells = <0x9f>;
+				nvmem-cells = <0x9e>;
 				phandle = <0x1d2>;
 			};
 
@@ -14502,10 +14453,10 @@
 				pctrl-idx-mapping = <0x00 0x01>;
 				pctrl-map-names = "m0\0m1";
 				pinctrl-names = "m0_active\0m0_suspend\0m1_active\0m1_suspend";
-				pinctrl-0 = <0xa0>;
-				pinctrl-1 = <0xa1>;
-				pinctrl-2 = <0xa2>;
-				pinctrl-3 = <0xa3>;
+				pinctrl-0 = <0x9f>;
+				pinctrl-1 = <0xa0>;
+				pinctrl-2 = <0xa1>;
+				pinctrl-3 = <0xa2>;
 				status = "ok";
 				phandle = <0x1d3>;
 
@@ -14578,7 +14529,7 @@
 					reg = <0x02>;
 					compatible = "qcom,eeprom";
 					i2c-freq-mode = <0x01>;
-					cam_vio-supply = <0xa4>;
+					cam_vio-supply = <0xa3>;
 					regulator-names = "cam_vio";
 					rgltr-cntrl-support;
 					rgltr-min-voltage = <0x1b7740>;
@@ -14590,7 +14541,7 @@
 					cci-master = <0x00>;
 					slave-addr = <0xa2>;
 					status = "ok";
-					phandle = <0xa5>;
+					phandle = <0xa4>;
 				};
 
 				qcom,cam-sensor2 {
@@ -14601,12 +14552,12 @@
 					sensor-position-roll = <0x5a>;
 					sensor-position-pitch = <0x00>;
 					sensor-position-yaw = <0xb4>;
-					eeprom-src = <0xa5>;
-					led-flash-src = <0xa6>;
-					cam_vdig-supply = <0xa7>;
-					cam_vio-supply = <0xa4>;
-					cam_vana-supply = <0xa8>;
-					cam_v_custom1-supply = <0xa9>;
+					eeprom-src = <0xa4>;
+					led-flash-src = <0xa5>;
+					cam_vdig-supply = <0xa6>;
+					cam_vio-supply = <0xa3>;
+					cam_vana-supply = <0xa7>;
+					cam_v_custom1-supply = <0xa8>;
 					cam_clk-supply = <0xffffffff>;
 					regulator-names = "cam_vdig\0cam_vio\0cam_vana\0cam_v_custom1\0cam_clk";
 					rgltr-cntrl-support;
@@ -14615,8 +14566,8 @@
 					rgltr-load-current = <0x30d40 0x30d40 0x1388 0x1388 0x00>;
 					gpio-no-mux = <0x00>;
 					pinctrl-names = "cam_default\0cam_suspend";
-					pinctrl-0 = <0xaa 0xab>;
-					pinctrl-1 = <0xac 0xad>;
+					pinctrl-0 = <0xa9 0xaa>;
+					pinctrl-1 = <0xab 0xac>;
 					gpios = <0xffffffff 0x65 0x00 0xffffffff 0x6a 0x00>;
 					gpio-reset = <0x01>;
 					gpio-req-tbl-num = <0x00 0x01>;
@@ -14650,13 +14601,13 @@
 					sensor-position-roll = <0x5a>;
 					sensor-position-pitch = <0x00>;
 					sensor-position-yaw = <0xb4>;
-					eeprom-src = <0xae>;
-					ois-src = <0xaf>;
-					actuator-src = <0xb0>;
-					led-flash-src = <0xb1>;
-					cam_vdig-supply = <0xb2>;
-					cam_vio-supply = <0xa4>;
-					cam_vana-supply = <0xb3>;
+					eeprom-src = <0xad>;
+					ois-src = <0xae>;
+					actuator-src = <0xaf>;
+					led-flash-src = <0xb0>;
+					cam_vdig-supply = <0xb1>;
+					cam_vio-supply = <0xa3>;
+					cam_vana-supply = <0xb2>;
 					cam_clk-supply = <0xffffffff>;
 					regulator-names = "cam_vdig\0cam_vio\0cam_vana\0cam_clk";
 					rgltr-cntrl-support;
@@ -14665,8 +14616,8 @@
 					rgltr-load-current = <0x30d40 0x30d40 0x1388 0x00>;
 					gpio-no-mux = <0x00>;
 					pinctrl-names = "cam_default\0cam_suspend";
-					pinctrl-0 = <0xb4 0xb5>;
-					pinctrl-1 = <0xb6 0xb7>;
+					pinctrl-0 = <0xb3 0xb4>;
+					pinctrl-1 = <0xb5 0xb6>;
 					gpios = <0xffffffff 0x67 0x00 0xffffffff 0x78 0x00>;
 					gpio-reset = <0x01>;
 					gpio-req-tbl-num = <0x00 0x01>;
@@ -14711,10 +14662,10 @@
 				pctrl-idx-mapping = <0x00 0x01>;
 				pctrl-map-names = "m0\0m1";
 				pinctrl-names = "m0_active\0m0_suspend\0m1_active\0m1_suspend";
-				pinctrl-0 = <0xb8>;
-				pinctrl-1 = <0xb9>;
-				pinctrl-2 = <0xba>;
-				pinctrl-3 = <0xbb>;
+				pinctrl-0 = <0xb7>;
+				pinctrl-1 = <0xb8>;
+				pinctrl-2 = <0xb9>;
+				pinctrl-3 = <0xba>;
 				status = "ok";
 				phandle = <0x1da>;
 
@@ -14787,9 +14738,9 @@
 					reg = <0x00>;
 					compatible = "qcom,eeprom";
 					i2c-freq-mode = <0x01>;
-					cam_vana-supply = <0xbc>;
-					cam_vio-supply = <0xbd>;
-					cam_v_custom1-supply = <0xa4>;
+					cam_vana-supply = <0xbb>;
+					cam_vio-supply = <0xbc>;
+					cam_v_custom1-supply = <0xa3>;
 					regulator-names = "cam_vana\0cam_vio\0cam_v_custom1";
 					rgltr-cntrl-support;
 					rgltr-min-voltage = <0x2191c0 0x1b7740 0x1b7740>;
@@ -14801,7 +14752,7 @@
 					cci-master = <0x00>;
 					slave-addr = <0xa0>;
 					status = "ok";
-					phandle = <0xde>;
+					phandle = <0xdd>;
 				};
 
 				qcom,actuator0 {
@@ -14811,8 +14762,8 @@
 					i2c-freq-mode = <0x01>;
 					reg = <0x18>;
 					slave-addr = <0x18>;
-					cam_vaf-supply = <0xbe>;
-					cam_vio-supply = <0xbd>;
+					cam_vaf-supply = <0xbd>;
+					cam_vio-supply = <0xbc>;
 					regulator-names = "cam_vaf\0cam_vio";
 					rgltr-cntrl-support;
 					rgltr-min-voltage = <0x30d400 0x1b7740>;
@@ -14822,7 +14773,7 @@
 					qcom,cam-power-seq-cfg-val = <0x01 0x01>;
 					qcom,cam-power-seq-delay = <0x01 0x0c>;
 					cci-master = <0x00>;
-					phandle = <0xdf>;
+					phandle = <0xde>;
 				};
 
 				qcom,cam-sensor1 {
@@ -14833,11 +14784,11 @@
 					sensor-position-roll = <0x10e>;
 					sensor-position-pitch = <0x00>;
 					sensor-position-yaw = <0x00>;
-					actuator-src = <0xbf>;
-					eeprom-src = <0xc0>;
-					cam_vdig-supply = <0xc1>;
-					cam_vio-supply = <0xc2>;
-					cam_vana-supply = <0xc3>;
+					actuator-src = <0xbe>;
+					eeprom-src = <0xbf>;
+					cam_vdig-supply = <0xc0>;
+					cam_vio-supply = <0xc1>;
+					cam_vana-supply = <0xc2>;
 					cam_clk-supply = <0xffffffff>;
 					regulator-names = "cam_vdig\0cam_vio\0cam_vana\0cam_clk";
 					rgltr-cntrl-support;
@@ -14846,8 +14797,8 @@
 					rgltr-load-current = <0x30d40 0x30d40 0x1388 0x00>;
 					gpio-no-mux = <0x00>;
 					pinctrl-names = "cam_default\0cam_suspend";
-					pinctrl-0 = <0xc4 0xc5>;
-					pinctrl-1 = <0xc6 0xc7>;
+					pinctrl-0 = <0xc3 0xc4>;
+					pinctrl-1 = <0xc5 0xc6>;
 					gpios = <0xffffffff 0x68 0x00 0xffffffff 0x18 0x00>;
 					gpio-reset = <0x01>;
 					gpio-req-tbl-num = <0x00 0x01>;
@@ -14881,11 +14832,11 @@
 					sensor-position-roll = <0x10e>;
 					sensor-position-pitch = <0x00>;
 					sensor-position-yaw = <0x00>;
-					actuator-src = <0xbf>;
-					eeprom-src = <0xc0>;
-					cam_vdig-supply = <0xc1>;
-					cam_vio-supply = <0xc2>;
-					cam_vana-supply = <0xc3>;
+					actuator-src = <0xbe>;
+					eeprom-src = <0xbf>;
+					cam_vdig-supply = <0xc0>;
+					cam_vio-supply = <0xc1>;
+					cam_vana-supply = <0xc2>;
 					cam_clk-supply = <0xffffffff>;
 					regulator-names = "cam_vdig\0cam_vio\0cam_vana\0cam_clk";
 					rgltr-cntrl-support;
@@ -14894,8 +14845,8 @@
 					rgltr-load-current = <0x30d40 0x30d40 0x1388 0x00>;
 					gpio-no-mux = <0x00>;
 					pinctrl-names = "cam_default\0cam_suspend";
-					pinctrl-0 = <0xc4 0xc5>;
-					pinctrl-1 = <0xc6 0xc7>;
+					pinctrl-0 = <0xc3 0xc4>;
+					pinctrl-1 = <0xc5 0xc6>;
 					gpios = <0xffffffff 0x68 0x00 0xffffffff 0x18 0x00>;
 					gpio-reset = <0x01>;
 					gpio-req-tbl-num = <0x00 0x01>;
@@ -15088,7 +15039,7 @@
 							node-name = "level3-rt0-rd-wr-sum";
 							traffic-merge-type = <0x00>;
 							ib-bw-voting-needed;
-							phandle = <0xc8>;
+							phandle = <0xc7>;
 
 							qcom,axi-port-mnoc {
 								interconnect-names = "cam_hf_0";
@@ -15100,7 +15051,7 @@
 							cell-index = <0x01>;
 							node-name = "level3-nrt0-rd-wr-sum";
 							traffic-merge-type = <0x00>;
-							phandle = <0xc9>;
+							phandle = <0xc8>;
 
 							qcom,axi-port-mnoc {
 								interconnect-names = "cam_sf_0";
@@ -15112,7 +15063,7 @@
 							cell-index = <0x02>;
 							node-name = "level3-nrt1-rd-wr-sum";
 							traffic-merge-type = <0x00>;
-							phandle = <0xca>;
+							phandle = <0xc9>;
 
 							qcom,axi-port-mnoc {
 								interconnect-names = "cam_sf_icp";
@@ -15128,42 +15079,42 @@
 						level2-rt0-wr {
 							cell-index = <0x03>;
 							node-name = "level2-rt0-wr";
-							parent-node = <0xc8>;
+							parent-node = <0xc7>;
 							traffic-merge-type = <0x01>;
-							phandle = <0xcb>;
+							phandle = <0xca>;
 						};
 
 						level2-rt0-rd {
 							cell-index = <0x04>;
 							node-name = "level2-rt0-rd";
-							parent-node = <0xc8>;
+							parent-node = <0xc7>;
 							traffic-merge-type = <0x01>;
-							phandle = <0xcc>;
+							phandle = <0xcb>;
 						};
 
 						level2-nrt0-wr {
 							cell-index = <0x05>;
 							node-name = "level2-nrt0-wr";
-							parent-node = <0xc9>;
+							parent-node = <0xc8>;
 							traffic-merge-type = <0x01>;
-							phandle = <0xcd>;
+							phandle = <0xcc>;
 						};
 
 						level2-nrt0-rd {
 							cell-index = <0x06>;
 							node-name = "level2-nrt0-rd";
-							parent-node = <0xc9>;
+							parent-node = <0xc8>;
 							traffic-merge-type = <0x01>;
-							phandle = <0xce>;
+							phandle = <0xcd>;
 						};
 
 						level2-nrt1-rd {
 							cell-index = <0x07>;
 							node-name = "level2-nrt1-rd";
-							parent-node = <0xca>;
+							parent-node = <0xc9>;
 							traffic-merge-type = <0x00>;
 							bus-width-factor = <0x04>;
-							phandle = <0xd9>;
+							phandle = <0xd8>;
 						};
 					};
 
@@ -15174,81 +15125,81 @@
 						level1-rt0-wr0 {
 							cell-index = <0x08>;
 							node-name = "level1-ife-ubwc-wr";
-							parent-node = <0xcb>;
+							parent-node = <0xca>;
 							traffic-merge-type = <0x00>;
-							phandle = <0xcf>;
+							phandle = <0xce>;
 						};
 
 						level1-rt0-wr1 {
 							cell-index = <0x09>;
 							node-name = "level1-ife-rdi-wr";
-							parent-node = <0xcb>;
+							parent-node = <0xca>;
 							traffic-merge-type = <0x00>;
-							phandle = <0xd0>;
+							phandle = <0xcf>;
 						};
 
 						level1-rt0-wr2 {
 							cell-index = <0x0a>;
 							node-name = "level1-ife-pdaf";
-							parent-node = <0xcb>;
+							parent-node = <0xca>;
 							traffic-merge-type = <0x00>;
-							phandle = <0xd1>;
+							phandle = <0xd0>;
 						};
 
 						level1-rt0-wr3 {
 							cell-index = <0x0b>;
 							node-name = "level1-ife01-linear-stats";
-							parent-node = <0xcb>;
+							parent-node = <0xca>;
 							traffic-merge-type = <0x00>;
-							phandle = <0xd2>;
+							phandle = <0xd1>;
 						};
 
 						level1-rt0-wr4 {
 							cell-index = <0x0c>;
 							node-name = "level1-ife2-linear-stats";
-							parent-node = <0xcb>;
+							parent-node = <0xca>;
 							traffic-merge-type = <0x00>;
-							phandle = <0xd3>;
+							phandle = <0xd2>;
 						};
 
 						level1-rt0-wr5 {
 							cell-index = <0x0d>;
 							node-name = "level1-ifelite";
-							parent-node = <0xcb>;
+							parent-node = <0xca>;
 							traffic-merge-type = <0x00>;
-							phandle = <0xd4>;
+							phandle = <0xd3>;
 						};
 
 						level1-rt0-rd0 {
 							cell-index = <0x0e>;
 							node-name = "level1-sfe-rd";
-							parent-node = <0xcc>;
+							parent-node = <0xcb>;
 							traffic-merge-type = <0x00>;
-							phandle = <0xd5>;
+							phandle = <0xd4>;
 						};
 
 						level1-nrt0-wr0 {
 							cell-index = <0x0f>;
 							node-name = "level1-nrt0-wr0";
-							parent-node = <0xcd>;
+							parent-node = <0xcc>;
 							traffic-merge-type = <0x00>;
-							phandle = <0xd7>;
+							phandle = <0xd6>;
 						};
 
 						level1-nrt0-rd0 {
 							cell-index = <0x10>;
 							node-name = "level1-nrt0-rd0";
-							parent-node = <0xce>;
+							parent-node = <0xcd>;
 							traffic-merge-type = <0x00>;
-							phandle = <0xd6>;
+							phandle = <0xd5>;
 						};
 
 						level1-nrt0-rd1 {
 							cell-index = <0x11>;
 							node-name = "level1-nrt0-rd1";
-							parent-node = <0xce>;
+							parent-node = <0xcd>;
 							traffic-merge-type = <0x00>;
-							phandle = <0xd8>;
+							phandle = <0xd7>;
 						};
 					};
 
@@ -15262,7 +15213,7 @@
 							traffic-data = <0x106>;
 							traffic-transaction-type = <0x01>;
 							constituent-paths = <0x01 0x02>;
-							parent-node = <0xcf>;
+							parent-node = <0xce>;
 							phandle = <0x1e5>;
 						};
 
@@ -15273,7 +15224,7 @@
 							traffic-data = <0x106>;
 							traffic-transaction-type = <0x01>;
 							constituent-paths = <0x01 0x02>;
-							parent-node = <0xcf>;
+							parent-node = <0xce>;
 							phandle = <0x1e6>;
 						};
 
@@ -15284,7 +15235,7 @@
 							traffic-data = <0x106>;
 							traffic-transaction-type = <0x01>;
 							constituent-paths = <0x01 0x02>;
-							parent-node = <0xcf>;
+							parent-node = <0xce>;
 							phandle = <0x1e7>;
 						};
 
@@ -15295,7 +15246,7 @@
 							traffic-data = <0x104>;
 							traffic-transaction-type = <0x01>;
 							constituent-paths = <0x04 0x05 0x06 0x09>;
-							parent-node = <0xd0>;
+							parent-node = <0xcf>;
 							phandle = <0x1e8>;
 						};
 
@@ -15306,7 +15257,7 @@
 							traffic-data = <0x104>;
 							traffic-transaction-type = <0x01>;
 							constituent-paths = <0x04 0x05 0x06 0x09>;
-							parent-node = <0xd0>;
+							parent-node = <0xcf>;
 							phandle = <0x1e9>;
 						};
 
@@ -15317,7 +15268,7 @@
 							traffic-data = <0x104>;
 							traffic-transaction-type = <0x01>;
 							constituent-paths = <0x04 0x05 0x06 0x09>;
-							parent-node = <0xd0>;
+							parent-node = <0xcf>;
 							phandle = <0x1ea>;
 						};
 
@@ -15328,7 +15279,7 @@
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x01>;
 							constituent-paths = <0x60 0x66 0x61 0x62 0x63 0x64 0x65>;
-							parent-node = <0xd0>;
+							parent-node = <0xcf>;
 							phandle = <0x1eb>;
 						};
 
@@ -15339,7 +15290,7 @@
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x01>;
 							constituent-paths = <0x60 0x66 0x61 0x62 0x63 0x64 0x65>;
-							parent-node = <0xd0>;
+							parent-node = <0xcf>;
 							phandle = <0x1ec>;
 						};
 
@@ -15349,7 +15300,7 @@
 							client-name = "custom0";
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x01>;
-							parent-node = <0xd0>;
+							parent-node = <0xcf>;
 							phandle = <0x1ed>;
 						};
 
@@ -15359,7 +15310,7 @@
 							client-name = "ife0";
 							traffic-data = <0x08>;
 							traffic-transaction-type = <0x01>;
-							parent-node = <0xd1>;
+							parent-node = <0xd0>;
 							phandle = <0x1ee>;
 						};
 
@@ -15369,7 +15320,7 @@
 							client-name = "ife1";
 							traffic-data = <0x08>;
 							traffic-transaction-type = <0x01>;
-							parent-node = <0xd1>;
+							parent-node = <0xd0>;
 							phandle = <0x1ef>;
 						};
 
@@ -15379,7 +15330,7 @@
 							client-name = "ife2";
 							traffic-data = <0x08>;
 							traffic-transaction-type = <0x01>;
-							parent-node = <0xd1>;
+							parent-node = <0xd0>;
 							phandle = <0x1f0>;
 						};
 
@@ -15390,7 +15341,7 @@
 							traffic-data = <0x107>;
 							traffic-transaction-type = <0x01>;
 							constituent-paths = <0x00 0x03>;
-							parent-node = <0xd2>;
+							parent-node = <0xd1>;
 							phandle = <0x1f1>;
 						};
 
@@ -15401,7 +15352,7 @@
 							traffic-data = <0x107>;
 							traffic-transaction-type = <0x01>;
 							constituent-paths = <0x00 0x03>;
-							parent-node = <0xd2>;
+							parent-node = <0xd1>;
 							phandle = <0x1f2>;
 						};
 
@@ -15412,7 +15363,7 @@
 							traffic-data = <0x107>;
 							traffic-transaction-type = <0x01>;
 							constituent-paths = <0x00 0x03>;
-							parent-node = <0xd3>;
+							parent-node = <0xd2>;
 							phandle = <0x1f3>;
 						};
 
@@ -15422,7 +15373,7 @@
 							client-name = "custom1";
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x01>;
-							parent-node = <0xd4>;
+							parent-node = <0xd3>;
 							phandle = <0x1f4>;
 						};
 
@@ -15433,7 +15384,7 @@
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x01>;
 							constituent-paths = <0x04 0x05 0x06 0x07 0x09 0x03>;
-							parent-node = <0xd4>;
+							parent-node = <0xd3>;
 							phandle = <0x1f5>;
 						};
 
@@ -15444,7 +15395,7 @@
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x01>;
 							constituent-paths = <0x04 0x05 0x06 0x07 0x09 0x03>;
-							parent-node = <0xd4>;
+							parent-node = <0xd3>;
 							phandle = <0x1f6>;
 						};
 
@@ -15455,7 +15406,7 @@
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x01>;
 							constituent-paths = <0x04 0x05 0x06 0x07 0x09 0x03>;
-							parent-node = <0xd4>;
+							parent-node = <0xd3>;
 							phandle = <0x1f7>;
 						};
 
@@ -15466,7 +15417,7 @@
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x01>;
 							constituent-paths = <0x04 0x05 0x06 0x07 0x09 0x03>;
-							parent-node = <0xd4>;
+							parent-node = <0xd3>;
 							phandle = <0x1f8>;
 						};
 
@@ -15477,7 +15428,7 @@
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x01>;
 							constituent-paths = <0x04 0x05 0x06 0x07 0x09 0x03>;
-							parent-node = <0xd4>;
+							parent-node = <0xd3>;
 							phandle = <0x1f9>;
 						};
 
@@ -15488,7 +15439,7 @@
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x00>;
 							constituent-paths = <0x60 0x66 0x61 0x62 0x63 0x64 0x65>;
-							parent-node = <0xd5>;
+							parent-node = <0xd4>;
 							phandle = <0x1fa>;
 						};
 
@@ -15499,7 +15450,7 @@
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x00>;
 							constituent-paths = <0x60 0x66 0x61 0x62 0x63 0x64 0x65>;
-							parent-node = <0xd5>;
+							parent-node = <0xd4>;
 							phandle = <0x1fb>;
 						};
 
@@ -15509,7 +15460,7 @@
 							client-name = "custom0";
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x00>;
-							parent-node = <0xd5>;
+							parent-node = <0xd4>;
 							phandle = <0x1fc>;
 						};
 
@@ -15519,7 +15470,7 @@
 							client-name = "custom1";
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x00>;
-							parent-node = <0xd5>;
+							parent-node = <0xd4>;
 							phandle = <0x1fd>;
 						};
 
@@ -15530,7 +15481,7 @@
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x01>;
 							constituent-paths = <0x22 0x23 0x24>;
-							parent-node = <0xcd>;
+							parent-node = <0xcc>;
 							phandle = <0x1fe>;
 						};
 
@@ -15540,7 +15491,7 @@
 							client-name = "bps0";
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x01>;
-							parent-node = <0xcd>;
+							parent-node = <0xcc>;
 							phandle = <0x1ff>;
 						};
 
@@ -15550,7 +15501,7 @@
 							client-name = "bps0";
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x00>;
-							parent-node = <0xce>;
+							parent-node = <0xcd>;
 							phandle = <0x200>;
 						};
 
@@ -15560,7 +15511,7 @@
 							client-name = "jpeg-enc0";
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x00>;
-							parent-node = <0xd6>;
+							parent-node = <0xd5>;
 							phandle = <0x201>;
 						};
 
@@ -15570,7 +15521,7 @@
 							client-name = "jpeg-dma0";
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x00>;
-							parent-node = <0xd6>;
+							parent-node = <0xd5>;
 							phandle = <0x202>;
 						};
 
@@ -15580,7 +15531,7 @@
 							client-name = "jpeg-enc0";
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x01>;
-							parent-node = <0xd7>;
+							parent-node = <0xd6>;
 							phandle = <0x203>;
 						};
 
@@ -15590,7 +15541,7 @@
 							client-name = "jpeg-dma0";
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x01>;
-							parent-node = <0xd7>;
+							parent-node = <0xd6>;
 							phandle = <0x204>;
 						};
 
@@ -15600,7 +15551,7 @@
 							client-name = "ipe0";
 							traffic-data = <0x21>;
 							traffic-transaction-type = <0x00>;
-							parent-node = <0xce>;
+							parent-node = <0xcd>;
 							phandle = <0x205>;
 						};
 
@@ -15610,7 +15561,7 @@
 							client-name = "ipe0";
 							traffic-data = <0x20>;
 							traffic-transaction-type = <0x00>;
-							parent-node = <0xce>;
+							parent-node = <0xcd>;
 							phandle = <0x206>;
 						};
 
@@ -15620,7 +15571,7 @@
 							client-name = "rt-cdm0";
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x00>;
-							parent-node = <0xd8>;
+							parent-node = <0xd7>;
 							phandle = <0x207>;
 						};
 
@@ -15630,7 +15581,7 @@
 							client-name = "rt-cdm1";
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x00>;
-							parent-node = <0xd8>;
+							parent-node = <0xd7>;
 							phandle = <0x208>;
 						};
 
@@ -15640,7 +15591,7 @@
 							client-name = "rt-cdm2";
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x00>;
-							parent-node = <0xd8>;
+							parent-node = <0xd7>;
 							phandle = <0x209>;
 						};
 
@@ -15650,7 +15601,7 @@
 							client-name = "cpas-cdm0";
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x00>;
-							parent-node = <0xd8>;
+							parent-node = <0xd7>;
 							phandle = <0x20a>;
 						};
 
@@ -15660,7 +15611,7 @@
 							client-name = "icp0";
 							traffic-data = <0x100>;
 							traffic-transaction-type = <0x00>;
-							parent-node = <0xd9>;
+							parent-node = <0xd8>;
 							phandle = <0x20b>;
 						};
 					};
@@ -16347,7 +16298,7 @@
 			sec,wb-up-threshold-rqs = <0x1e>;
 			sec,wb-down-threshold-block = <0x600>;
 			sec,wb-down-threshold-rqs = <0x19>;
-			sec,wb-disable-threshold-lt = <0x07>;
+			sec,wb-disable-threshold-lt = <0x09>;
 			sec,wb-on-delay-ms = <0x5c>;
 			sec,wb-off-delay-ms = <0x1194>;
 			sec,streamid-enable;
@@ -16367,11 +16318,11 @@
 				sensor_vdd-supply = <0xffffffff>;
 				sensor_vdd-uV-uA = <0x1b7740 0x00>;
 				reg-names = "cx\0mx\0sensor_vdd";
-				phandle = <0xda>;
+				phandle = <0xd9>;
 			};
 
 			qcom,msm-ssc-sensors {
-				qcom,rproc-handle = <0xda>;
+				qcom,rproc-handle = <0xd9>;
 				phandle = <0x223>;
 			};
 		};
@@ -16498,7 +16449,7 @@
 		target = <0xffffffff>;
 
 		__overlay__ {
-			qcom,qmp-phy-init-seq = <0x1010 0x01 0x00 0x101c 0x31 0x00 0x1020 0x01 0x00 0x1024 0xde 0x00 0x1028 0x07 0x00 0x1030 0xde 0x00 0x1034 0x07 0x00 0x1050 0x0a 0x00 0x1060 0x20 0x00 0x1074 0x06 0x00 0x1078 0x06 0x00 0x107c 0x16 0x00 0x1080 0x16 0x00 0x1084 0x36 0x00 0x1088 0x36 0x00 0x1094 0x1a 0x00 0x10a4 0x04 0x00 0x10ac 0x14 0x00 0x10b0 0x34 0x00 0x10b4 0x34 0x00 0x10b8 0x82 0x00 0x10bc 0x82 0x00 0x10c4 0x82 0x00 0x10cc 0xab 0x00 0x10d0 0xea 0x00 0x10d4 0x02 0x00 0x10d8 0xab 0x00 0x10dc 0xea 0x00 0x10e0 0x02 0x00 0x110c 0x02 0x00 0x1110 0x24 0x00 0x1118 0x24 0x00 0x111c 0x02 0x00 0x1158 0x01 0x00 0x116c 0x08 0x00 0x11ac 0xca 0x00 0x11b0 0x1e 0x00 0x11b4 0xca 0x00 0x11b8 0x1e 0x00 0x11bc 0x11 0x00 0x1234 0x00 0x00 0x1238 0x00 0x00 0x123c 0x16 0x00 0x1240 0x0e 0x00 0x1284 0x35 0x00 0x1290 0x7f 0x00 0x1294 0x3f 0x00 0x12a4 0x12 0x00 0x12e4 0x21 0x00 0x1408 0x0a 0x00 0x1414 0x05 0x00 0x1430 0x2f 0x00 0x1434 0x7f 0x00 0x143c 0xff 0x00 0x1440 0x0f 0x00 0x1444 0x99 0x00 0x144c 0x08 0x00 0x1450 0x08 0x00 0x1454 0x00 0x00 0x1458 0x04 0x00 0x14d4 0x54 0x00 0x14d8 0x0f 0x00 0x14ec 0x0f 0x00 0x14f0 0x4a 0x00 0x14f4 0x0a 0x00 0x14f8 0xc0 0x00 0x14fc 0x00 0x00 0x1510 0x47 0x00 0x151c 0x04 0x00 0x1524 0x0e 0x00 0x155c 0xbb 0x00 0x1560 0x7b 0x00 0x1564 0xbb 0x00 0x1568 0x3d 0x00 0x156c 0xdb 0x00 0x1570 0x5b 0x00 0x1574 0x1b 0x00 0x1578 0xd2 0x00 0x157c 0x13 0x00 0x1580 0xa9 0x00 0x15a0 0x04 0x00 0x15a4 0x38 0x00 0x1460 0xa0 0x00 0x15a8 0x0c 0x00 0x14dc 0x00 0x00 0x15b0 0x10 0x00 0x1634 0x00 0x00 0x1638 0x00 0x00 0x163c 0x16 0x00 0x1640 0x0e 0x00 0x1684 0x35 0x00 0x1690 0x7f 0x00 0x1694 0x3f 0x00 0x16a4 0x12 0x00 0x16e4 0x21 0x00 0x1814 0x05 0x00 0x1808 0x0a 0x00 0x1830 0x2f 0x00 0x1834 0x7f 0x00 0x183c 0xff 0x00 0x1840 0x0f 0x00 0x1844 0x99 0x00 0x184c 0x08 0x00 0x1850 0x08 0x00 0x1854 0x00 0x00 0x1858 0x04 0x00 0x18d4 0x54 0x00 0x18d8 0x0f 0x00 0x18ec 0x0f 0x00 0x18f0 0x4a 0x00 0x18f4 0x0a 0x00 0x18f8 0xc0 0x00 0x18fc 0x00 0x00 0x1910 0x47 0x00 0x191c 0x04 0x00 0x1924 0x0e 0x00 0x195c 0xbb 0x00 0x1960 0x7b 0x00 0x1964 0xbb 0x00 0x1968 0x3c 0x00 0x196c 0xdb 0x00 0x1970 0x5b 0x00 0x1974 0x1b 0x00 0x1978 0xd2 0x00 0x197c 0x13 0x00 0x1980 0xa9 0x00 0x19a0 0x04 0x00 0x19a4 0x38 0x00 0x1860 0xa0 0x00 0x19a8 0x0c 0x00 0x18dc 0x00 0x00 0x19b0 0x10 0x00 0x1cc4 0xc4 0x00 0x1cc8 0x89 0x00 0x1ccc 0x20 0x00 0x1cd8 0x13 0x00 0x1cdc 0x21 0x00 0x1d88 0xaa 0x00 0x1db0 0x0a 0x00 0x1dc0 0x88 0x00 0x1dc4 0x13 0x00 0x1dd0 0x0c 0x00 0x1ddc 0x4b 0x00 0x1dec 0x10 0x00 0x1f18 0xf8 0x00 0x1f3c 0x07 0x00 0xffffffff 0xffffffff 0x00>;
+			qcom,qmp-phy-init-seq = <0x1010 0x01 0x101c 0x31 0x1020 0x01 0x1024 0xde 0x1028 0x07 0x1030 0xde 0x1034 0x07 0x1050 0x0a 0x1060 0x20 0x1074 0x06 0x1078 0x06 0x107c 0x16 0x1080 0x16 0x1084 0x36 0x1088 0x36 0x1094 0x1a 0x10a4 0x04 0x10ac 0x14 0x10b0 0x34 0x10b4 0x34 0x10b8 0x82 0x10bc 0x82 0x10c4 0x82 0x10cc 0xab 0x10d0 0xea 0x10d4 0x02 0x10d8 0xab 0x10dc 0xea 0x10e0 0x02 0x110c 0x02 0x1110 0x24 0x1118 0x24 0x111c 0x02 0x1158 0x01 0x116c 0x08 0x11ac 0xca 0x11b0 0x1e 0x11b4 0xca 0x11b8 0x1e 0x11bc 0x11 0x1234 0x00 0x1238 0x00 0x123c 0x16 0x1240 0x0e 0x1284 0x35 0x1290 0x7f 0x1294 0x3f 0x12a4 0x12 0x12e4 0x21 0x1408 0x0a 0x1414 0x05 0x1430 0x2f 0x1434 0x7f 0x143c 0xff 0x1440 0x0f 0x1444 0x99 0x144c 0x08 0x1450 0x08 0x1454 0x00 0x1458 0x04 0x14d4 0x54 0x14d8 0x0f 0x14ec 0x0f 0x14f0 0x4a 0x14f4 0x0a 0x14f8 0xc0 0x14fc 0x00 0x1510 0x47 0x151c 0x04 0x1524 0x0e 0x155c 0xbb 0x1560 0x7b 0x1564 0xbb 0x1568 0x3d 0x156c 0xdb 0x1570 0x5b 0x1574 0x1b 0x1578 0xd2 0x157c 0x13 0x1580 0xa9 0x15a0 0x04 0x15a4 0x38 0x1460 0xa0 0x15a8 0x0c 0x14dc 0x00 0x15b0 0x10 0x1634 0x00 0x1638 0x00 0x163c 0x16 0x1640 0x0e 0x1684 0x35 0x1690 0x7f 0x1694 0x3f 0x16a4 0x12 0x16e4 0x21 0x1814 0x05 0x1808 0x0a 0x1830 0x2f 0x1834 0x7f 0x183c 0xff 0x1840 0x0f 0x1844 0x99 0x184c 0x08 0x1850 0x08 0x1854 0x00 0x1858 0x04 0x18d4 0x54 0x18d8 0x0f 0x18ec 0x0f 0x18f0 0x4a 0x18f4 0x0a 0x18f8 0xc0 0x18fc 0x00 0x1910 0x47 0x191c 0x04 0x1924 0x0e 0x195c 0xbb 0x1960 0x7b 0x1964 0xbb 0x1968 0x3c 0x196c 0xdb 0x1970 0x5b 0x1974 0x1b 0x1978 0xd2 0x197c 0x13 0x1980 0xa9 0x19a0 0x04 0x19a4 0x38 0x1860 0xa0 0x19a8 0x0c 0x18dc 0x00 0x19b0 0x10 0x1cc4 0xc4 0x1cc8 0x89 0x1ccc 0x20 0x1cd8 0x13 0x1cdc 0x21 0x1d88 0xaa 0x1db0 0x0a 0x1dc0 0x88 0x1dc4 0x13 0x1dd0 0x0c 0x1ddc 0x4b 0x1dec 0x10 0x1f18 0xf8 0x1f3c 0x07>;
 		};
 	};
 
@@ -16521,7 +16472,7 @@
 					regulator-max-microvolt = <0x2ab980>;
 					qcom,init-voltage = <0x2ab980>;
 					qcom,init-mode = <0x04>;
-					phandle = <0xdd>;
+					phandle = <0xdc>;
 				};
 			};
 		};
@@ -16537,23 +16488,23 @@
 				cell-index = <0x00>;
 				compatible = "qcom,camera-flash";
 				pinctrl-names = "cam_default\0cam_suspend";
-				pinctrl-0 = <0xdb>;
-				pinctrl-1 = <0xdc>;
-				phandle = <0xe0>;
+				pinctrl-0 = <0xda>;
+				pinctrl-1 = <0xdb>;
+				phandle = <0xdf>;
 			};
 
 			qcom,camera-flash2 {
 				status = "ok";
 				cell-index = <0x02>;
 				compatible = "qcom,camera-flash";
-				phandle = <0xa6>;
+				phandle = <0xa5>;
 			};
 
 			qcom,camera-flash3 {
 				status = "ok";
 				cell-index = <0x03>;
 				compatible = "qcom,camera-flash";
-				phandle = <0xb1>;
+				phandle = <0xb0>;
 			};
 
 			qcom,cam-res-mgr {
@@ -16577,7 +16528,7 @@
 				slave-addr = <0xa4>;
 				compatible = "qcom,eeprom";
 				i2c-freq-mode = <0x01>;
-				cam_vio-supply = <0xa4>;
+				cam_vio-supply = <0xa3>;
 				regulator-names = "cam_vio";
 				rgltr-cntrl-support;
 				rgltr-min-voltage = <0x1b7740>;
@@ -16587,7 +16538,7 @@
 				sensor-position = <0x01>;
 				sensor-mode = <0x00>;
 				status = "ok";
-				phandle = <0xae>;
+				phandle = <0xad>;
 			};
 
 			qcom,actuator3 {
@@ -16595,8 +16546,8 @@
 				compatible = "qcom,actuator";
 				reg = <0x1e>;
 				slave-addr = <0x1e>;
-				cam_vaf-supply = <0xdd>;
-				cam_vio-supply = <0xa4>;
+				cam_vaf-supply = <0xdc>;
+				cam_vio-supply = <0xa3>;
 				regulator-names = "cam_vaf\0cam_vio";
 				rgltr-cntrl-support;
 				rgltr-min-voltage = <0x2ab980 0x1b7740>;
@@ -16606,7 +16557,7 @@
 				qcom,cam-power-seq-cfg-val = <0x01 0x01>;
 				qcom,cam-power-seq-delay = <0x01 0x0c>;
 				status = "ok";
-				phandle = <0xb0>;
+				phandle = <0xaf>;
 			};
 		};
 	};
@@ -16627,14 +16578,14 @@
 				sensor-position-roll = <0x5a>;
 				sensor-position-pitch = <0x00>;
 				sensor-position-yaw = <0xb4>;
-				eeprom-src = <0xde>;
-				ois-src = <0xaf>;
-				actuator-src = <0xdf>;
-				led-flash-src = <0xe0>;
-				cam_vdig-supply = <0xe1>;
-				cam_vio-supply = <0xbd>;
-				cam_vana-supply = <0xbc>;
-				cam_v_custom1-supply = <0xe2>;
+				eeprom-src = <0xdd>;
+				ois-src = <0xae>;
+				actuator-src = <0xde>;
+				led-flash-src = <0xdf>;
+				cam_vdig-supply = <0xe0>;
+				cam_vio-supply = <0xbc>;
+				cam_vana-supply = <0xbb>;
+				cam_v_custom1-supply = <0xe1>;
 				cam_clk-supply = <0xffffffff>;
 				regulator-names = "cam_vdig\0cam_vio\0cam_vana\0cam_clk\0cam_v_custom1";
 				rgltr-cntrl-support;
@@ -16643,8 +16594,8 @@
 				rgltr-load-current = <0x30d40 0x30d40 0x1388 0x00 0x1388>;
 				gpio-no-mux = <0x00>;
 				pinctrl-names = "cam_default\0cam_suspend";
-				pinctrl-0 = <0xe3 0xe4 0xe5>;
-				pinctrl-1 = <0xe6 0xe7 0xe8>;
+				pinctrl-0 = <0xe2 0xe3 0xe4>;
+				pinctrl-1 = <0xe5 0xe6 0xe7>;
 				gpios = <0xffffffff 0x66 0x00 0xffffffff 0x6d 0x00 0xffffffff 0x53 0x00>;
 				gpio-reset = <0x01>;
 				gpio-req-tbl-num = <0x00 0x01 0x02>;
@@ -16685,7 +16636,7 @@
 				reg = <0x01>;
 				compatible = "qcom,eeprom";
 				i2c-freq-mode = <0x01>;
-				cam_vio-supply = <0xc2>;
+				cam_vio-supply = <0xc1>;
 				regulator-names = "cam_vio";
 				rgltr-cntrl-support;
 				rgltr-min-voltage = <0x1b7740>;
@@ -16695,7 +16646,7 @@
 				sensor-position = <0x01>;
 				sensor-mode = <0x00>;
 				slave-addr = <0xa2>;
-				phandle = <0xc0>;
+				phandle = <0xbf>;
 			};
 
 			qcom,actuator1 {
@@ -16703,14 +16654,14 @@
 				cell-index = <0x01>;
 				compatible = "qcom,actuator";
 				reg = <0x18>;
-				cam_vaf-supply = <0xe9>;
-				cam_vio-supply = <0xc2>;
+				cam_vaf-supply = <0xe8>;
+				cam_vio-supply = <0xc1>;
 				regulator-names = "cam_vaf\0cam_vio";
 				rgltr-cntrl-support;
 				rgltr-min-voltage = <0x2ab980 0x1b7740>;
 				rgltr-max-voltage = <0x2ab980 0x1b7740>;
 				rgltr-load-current = <0x2710 0x2710>;
-				phandle = <0xbf>;
+				phandle = <0xbe>;
 			};
 		};
 	};
@@ -16730,11 +16681,11 @@
 				slave-addr = <0xc4>;
 				pole-values = <0x01 0x01 0x01 0x01 0x00 0x00>;
 				gyro-orientation = <0x10>;
-				cam_vaf-supply = <0xbe>;
-				cam_v_custom1-supply = <0xdd>;
-				cam_vio-supply = <0xea>;
-				cam_vana-supply = <0xeb>;
-				cam_vdig-supply = <0xec>;
+				cam_vaf-supply = <0xbd>;
+				cam_v_custom1-supply = <0xdc>;
+				cam_vio-supply = <0xe9>;
+				cam_vana-supply = <0xea>;
+				cam_vdig-supply = <0xeb>;
 				regulator-names = "cam_vaf\0cam_v_custom1\0cam_vio\0cam_vana\0cam_vdig";
 				rgltr-cntrl-support;
 				rgltr-min-voltage = <0x30d400 0x2ab980 0x1b7740 0x2ab980 0x30d400>;
@@ -16744,15 +16695,15 @@
 				qcom,cam-power-seq-cfg-val = <0x01 0x01 0x01 0x01 0x01 0x01>;
 				qcom,cam-power-seq-delay = <0x01 0x01 0x01 0x01 0x01 0x0e>;
 				pinctrl-names = "cam_default\0cam_suspend";
-				pinctrl-0 = <0xed>;
-				pinctrl-1 = <0xee>;
+				pinctrl-0 = <0xec>;
+				pinctrl-1 = <0xed>;
 				gpios = <0xffffffff 0x61 0x00 0xffffffff 0x63 0x00>;
 				gpio-reset = <0x00>;
 				gpio-custom1 = <0x01>;
 				gpio-req-tbl-num = <0x00 0x01>;
 				gpio-req-tbl-flags = <0x00 0x00>;
 				gpio-req-tbl-label = "MCU_RESET0\0MCU_BOOT0";
-				phandle = <0xaf>;
+				phandle = <0xae>;
 			};
 		};
 	};
@@ -16801,7 +16752,7 @@
 		__overlay__ {
 
 			flash_led_active {
-				phandle = <0xdb>;
+				phandle = <0xda>;
 
 				mux {
 					pins = "gpio87";
@@ -16816,7 +16767,7 @@
 			};
 
 			flash_led_suspend {
-				phandle = <0xdc>;
+				phandle = <0xdb>;
 
 				mux {
 					pins = "gpio87";
@@ -16832,7 +16783,7 @@
 			};
 
 			mcu_active {
-				phandle = <0xed>;
+				phandle = <0xec>;
 
 				mux {
 					pins = "gpio97\0gpio99";
@@ -16847,7 +16798,7 @@
 			};
 
 			mcu_suspend {
-				phandle = <0xee>;
+				phandle = <0xed>;
 
 				mux {
 					pins = "gpio97\0gpio99";
@@ -16963,7 +16914,7 @@
 		__overlay__ {
 
 			wide_long_exposure_active {
-				phandle = <0xe5>;
+				phandle = <0xe4>;
 
 				mux {
 					pins = "gpio83";
@@ -16976,7 +16927,7 @@
 			};
 
 			wide_long_exposure_suspend {
-				phandle = <0xe8>;
+				phandle = <0xe7>;
 
 				mux {
 					pins = "gpio83";
@@ -17451,7 +17402,7 @@
 		ovp_pwr_flagb_default = "/fragment@104/__overlay__/ovp_pwr_flagb_default";
 		ovp_sig_flagb_default = "/fragment@105/__overlay__/ovp_sig_flagb_default";
 		sec_param = "/fragment@107/__overlay__/samsung,param";
-		sec_qcom_param = "/fragment@107/__overlay__/samsung,param/samsung,qcom-param";
+		sec_qcom_param = "/fragment@107/__overlay__/samsung,qcom-param";
 		sec_reloc_gpio = "/fragment@107/__overlay__/samsung,reloc_gpio";
 		sec_debug_region_pool = "/fragment@109/__overlay__/sec_debug_region_pool@800100000";
 		sec_debug_region_log = "/fragment@109/__overlay__/sec_debug_region_log@8001FF000";
@@ -17461,16 +17412,16 @@
 		google_debug_kinfo = "/fragment@110/__overlay__/google,debug-kinfo";
 		sec_debug = "/fragment@112/__overlay__/samsung,sec_debug";
 		sec_debug_region = "/fragment@112/__overlay__/samsung,debug_region";
-		sec_vh_ipi_stop = "/fragment@112/__overlay__/samsung,debug_region/samsung,ap_context-sec_vh_ipi_stop";
-		sec_qcom_sched_log = "/fragment@112/__overlay__/samsung,debug_region/samsung,qcom-sched_log";
-		sec_qcom_irq_log = "/fragment@112/__overlay__/samsung,debug_region/samsung,qcom-irq_log";
-		sec_qcom_irq_exit_log = "/fragment@112/__overlay__/samsung,debug_region/samsung,qcom-irq_exit_log";
-		sec_qcom_msg_log = "/fragment@112/__overlay__/samsung,debug_region/samsung,qcom-msg_log";
+		sec_vh_ipi_stop = "/fragment@112/__overlay__/samsung,ap_context-sec_vh_ipi_stop";
+		sec_qcom_sched_log = "/fragment@112/__overlay__/samsung,qcom-sched_log";
+		sec_qcom_irq_log = "/fragment@112/__overlay__/samsung,qcom-irq_log";
+		sec_qcom_irq_exit_log = "/fragment@112/__overlay__/samsung,qcom-irq_exit_log";
+		sec_qcom_msg_log = "/fragment@112/__overlay__/samsung,qcom-msg_log";
 		sec_fsimd_debug = "/fragment@112/__overlay__/samsung,fsimd_debug";
 		sec_reboot_cmd = "/fragment@112/__overlay__/samsung,reboot_cmd";
-		sec_qcom_reboot_cmd = "/fragment@112/__overlay__/samsung,reboot_cmd/samsung,qcom-reboot_cmd";
+		sec_qcom_reboot_cmd = "/fragment@112/__overlay__/samsung,qcom-reboot_cmd";
 		sec_upload_cause = "/fragment@112/__overlay__/samsung,upload_cause";
-		sec_qc_upload_cause = "/fragment@112/__overlay__/samsung,upload_cause/samsung,qcom-upload_cause";
+		sec_qc_upload_cause = "/fragment@112/__overlay__/samsung,qcom-upload_cause";
 		sec_log_buf = "/fragment@112/__overlay__/samsung,kernel_log_buf";
 		sec_crashkey = "/fragment@112/__overlay__/samsung,crashkey";
 		sec_crashkey_user = "/fragment@112/__overlay__/samsung,crashkey-user";
@@ -17661,21 +17612,21 @@
 	};
 
 	__fixups__ {
-		tlmm = "/fragment@smd/__overlay__/samsung_mobile_device/sec_abc_detect_conn:sec,det_conn_gpios:0\0/fragment@smd/__overlay__/samsung_mobile_device/hall_ic/hall:gpios:0\0/fragment@smd/__overlay__/samsung_mobile_device/hall_ic/certify_hall:gpios:0\0/fragment@smd/__overlay__/samsung_mobile_device/max77705-fuelgauge:fuelgauge,jig_gpio:0\0/fragment@smd/__overlay__/samsung_mobile_device/max77705-fuelgauge:fuelgauge,bat_id_gpio:0\0/fragment@smd/__overlay__/samsung_mobile_device/max77705-fuelgauge:fuelgauge,bat_id_gpio:12\0/fragment@smd/__overlay__/samsung_mobile_device/fixed_regulator@2:gpio:0\0/fragment@smd/__overlay__/samsung_mobile_device/fixed_regulator@1:gpio:0\0/fragment@smd/__overlay__/samsung_mobile_device/fixed_regulator@0:gpio:0\0/fragment@smd/__overlay__/samsung_mobile_device/sec-cisd:ovp_power:0\0/fragment@smd/__overlay__/samsung_mobile_device/sec-cisd:ovp_signal:0\0/fragment@18/__overlay__:cd-gpios:0\0/fragment@21/__overlay__/nq@28:qcom,sn-irq:0\0/fragment@21/__overlay__/nq@28:qcom,sn-ven:0\0/fragment@21/__overlay__/nq@28:qcom,sn-firm:0\0/fragment@21/__overlay__/nq@28:qcom,sn-clkreq:0\0/fragment@21/__overlay__/nq@28:interrupt-parent:0\0/fragment@22/__overlay__/focaltech@38:interrupt-parent:0\0/fragment@22/__overlay__/focaltech@38:focaltech,reset-gpio:0\0/fragment@22/__overlay__/focaltech@38:focaltech,irq-gpio:0\0/fragment@22/__overlay__/focaltech@38:focaltech,trusted-touch-vm-gpio-list:0\0/fragment@22/__overlay__/focaltech@38:focaltech,trusted-touch-vm-gpio-list:12\0/fragment@22/__overlay__/focaltech@38:focaltech,trusted-touch-vm-gpio-list:24\0/fragment@22/__overlay__/focaltech@38:focaltech,trusted-touch-vm-gpio-list:36\0/fragment@22/__overlay__/focaltech@38:focaltech,trusted-touch-vm-gpio-list:48\0/fragment@22/__overlay__/focaltech@38:focaltech,trusted-touch-vm-gpio-list:60\0/fragment@22/__overlay__/synaptics_tcm@20:interrupt-parent:0\0/fragment@22/__overlay__/synaptics_tcm@20:synaptics,irq-gpio:0\0/fragment@22/__overlay__/synaptics_tcm@20:synaptics,reset-gpio:0\0/fragment@25/__overlay__/qcom,mdss_mdp@ae00000/ss_dsi_panel_PBA_BOOTING_FHD:qcom,platform-reset-gpio:0\0/fragment@25/__overlay__/qcom,mdss_mdp@ae00000/ss_dsi_panel_S6E3FAB_AMB667XU01_FHD:qcom,platform-reset-gpio:0\0/fragment@25/__overlay__/qcom,mdss_mdp@ae00000/ss_dsi_panel_S6E3FAB_AMB667XU01_FHD:qcom,platform-te-gpio:0\0/fragment@25/__overlay__/qcom,mdss_mdp@ae00000/ss_dsi_panel_S6E3FAB_AMB667XU01_FHD:samsung,ub-con-det:0\0/fragment@25/__overlay__/qcom,mdss_mdp@ae00000/ss_dsi_panel_S6E3FAB_AMB624XT01_FHD:qcom,platform-reset-gpio:0\0/fragment@25/__overlay__/qcom,mdss_mdp@ae00000/ss_dsi_panel_S6E3FAB_AMB624XT01_FHD:qcom,platform-te-gpio:0\0/fragment@25/__overlay__/qcom,mdss_mdp@ae00000/ss_dsi_panel_S6E3FAB_AMB624XT01_FHD:samsung,ub-con-det:0\0/fragment@25/__overlay__/qcom,mdss_mdp@ae00000/ss_dsi_panel_S6E3FAC_AMB606AW01_FHD:qcom,platform-reset-gpio:0\0/fragment@25/__overlay__/qcom,mdss_mdp@ae00000/ss_dsi_panel_S6E3FAC_AMB606AW01_FHD:qcom,platform-te-gpio:0\0/fragment@25/__overlay__/qcom,mdss_mdp@ae00000/ss_dsi_panel_S6E3FAC_AMB606AW01_FHD:samsung,ub-con-det:0\0/fragment@26/__overlay__/qcom,dp_display@ae90000:qcom,aux-en-gpio:0\0/fragment@26/__overlay__/qcom,dp_display@ae90000:qcom,aux-sel-gpio:0\0/fragment@26/__overlay__/qcom,dp_display@ae90000:qcom,usbplug-cc-gpio:0\0/fragment@28:target:0\0/fragment@29/__overlay__/qcom,dsi-display-primary:qcom,platform-te-gpio:0\0/fragment@29/__overlay__/qcom,dsi-display-secondary:qcom,platform-te-gpio:0\0/fragment@32:target:0\0/fragment@33:target:0\0/fragment@model/__overlay__/i2c@32:gpios:0\0/fragment@model/__overlay__/i2c@32:gpios:12\0/fragment@model/__overlay__/i2c@32/p9320-charger@4b:battery,wpc_int:0\0/fragment@model/__overlay__/i2c@32/p9320-charger@4b:battery,wpc_en:0\0/fragment@model/__overlay__/i2c@32/s2miw04-charger@5b:battery,wpc_int:0\0/fragment@model/__overlay__/i2c@32/s2miw04-charger@5b:battery,wpc_en:0\0/fragment@model/__overlay__/i2c@31:gpios:0\0/fragment@model/__overlay__/i2c@31:gpios:12\0/fragment@model/__overlay__/i2c@33:gpios:0\0/fragment@model/__overlay__/i2c@33:gpios:12\0/fragment@model/__overlay__/i2c@33/isg6320@28:interrupt-parent:0\0/fragment@model/__overlay__/i2c@33/isg6320@28:isg6320,irq-gpio:0\0/fragment@34:target:0\0/fragment@35:target:0\0/fragment@36:target:0\0/fragment@37:target:0\0/fragment@38:target:0\0/fragment@40:target:0\0/fragment@41:target:0\0/fragment@42:target:0\0/fragment@42/__overlay__/flicker_test:flicker_test,torch-gpio:0\0/fragment@53:target:0\0/fragment@54:target:0\0/fragment@55:target:0\0/fragment@59:target:0\0/fragment@60:target:0\0/fragment@61:target:0\0/fragment@65:target:0\0/fragment@66:target:0\0/fragment@67:target:0\0/fragment@68:target:0\0/fragment@72:target:0\0/fragment@73:target:0\0/fragment@74:target:0\0/fragment@76:target:0\0/fragment@77/__overlay__/touchscreen@0:sec,irq_gpio:0\0/fragment@77/__overlay__/touchscreen@0:sec,gpio_spi_cs:0\0/fragment@79:target:0\0/fragment@81:target:0\0/fragment@82/__overlay__/als_rear@29:interrupt-parent:0\0/fragment@82/__overlay__/als_rear@29:als_rear,irq-gpio:0\0/fragment@83:target:0\0/fragment@84:target:0\0/fragment@85:target:0\0/fragment@86:target:0\0/fragment@87:target:0\0/fragment@88:target:0\0/fragment@89:target:0\0/fragment@90/__overlay__/pn547@28:pn547,irq-gpio:0\0/fragment@90/__overlay__/pn547@28:pn547,ven-gpio:0\0/fragment@90/__overlay__/pn547@28:pn547,clk_req-gpio:0\0/fragment@91/__overlay__/nfc_platform:pn547,ven-gpio:0\0/fragment@92:target:0\0/fragment@95:target:0\0/fragment@96:target:0\0/fragment@98/__overlay__/qcom,qbt2000:qcom,ipc-gpio:0\0/fragment@98/__overlay__/qcom,qbt2000:qcom,wuhb-gpio:0\0/fragment@99:target:0\0/fragment@100/__overlay__/cs40l26a@40:reset-gpios:0\0/fragment@101:target:0\0/fragment@102:target:0\0/fragment@104:target:0\0/fragment@105:target:0\0/fragment@127:target:0\0/fragment@129/__overlay__:samsung,cc_dir:0\0/fragment@135:target:0\0/fragment@136/__overlay__/qcom,cci0@ac15000/qcom,cam-sensor2:gpios:0\0/fragment@136/__overlay__/qcom,cci0@ac15000/qcom,cam-sensor2:gpios:12\0/fragment@136/__overlay__/qcom,cci0@ac15000/qcom,cam-sensor3:gpios:0\0/fragment@136/__overlay__/qcom,cci0@ac15000/qcom,cam-sensor3:gpios:12\0/fragment@136/__overlay__/qcom,cci1@ac16000/qcom,cam-sensor1:gpios:0\0/fragment@136/__overlay__/qcom,cci1@ac16000/qcom,cam-sensor1:gpios:12\0/fragment@136/__overlay__/qcom,cci1@ac16000/qcom,cam-sensor12:gpios:0\0/fragment@136/__overlay__/qcom,cci1@ac16000/qcom,cam-sensor12:gpios:12\0/fragment@139:target:0\0/fragment@141:target:0\0/fragment@147:target:0\0/fragment@156/__overlay__/qcom,cam-sensor0:gpios:0\0/fragment@156/__overlay__/qcom,cam-sensor0:gpios:12\0/fragment@156/__overlay__/qcom,cam-sensor0:gpios:24\0/fragment@158/__overlay__/qcom,ois@62:gpios:0\0/fragment@158/__overlay__/qcom,ois@62:gpios:12\0/fragment@163:target:0\0/fragment@174:target:0\0/fragment@181/__overlay__:qcom,xo-clk-gpio:0";
+		tlmm = "/fragment@smd/__overlay__/samsung_mobile_device/sec_abc_detect_conn:sec,det_conn_gpios:0\0/fragment@smd/__overlay__/samsung_mobile_device/hall_ic/hall:gpios:0\0/fragment@smd/__overlay__/samsung_mobile_device/hall_ic/certify_hall:gpios:0\0/fragment@smd/__overlay__/samsung_mobile_device/max77705-fuelgauge:fuelgauge,jig_gpio:0\0/fragment@smd/__overlay__/samsung_mobile_device/max77705-fuelgauge:fuelgauge,bat_id_gpio:0\0/fragment@smd/__overlay__/samsung_mobile_device/max77705-fuelgauge:fuelgauge,bat_id_gpio:12\0/fragment@smd/__overlay__/samsung_mobile_device/fixed_regulator@2:gpio:0\0/fragment@smd/__overlay__/samsung_mobile_device/fixed_regulator@1:gpio:0\0/fragment@smd/__overlay__/samsung_mobile_device/fixed_regulator@0:gpio:0\0/fragment@smd/__overlay__/samsung_mobile_device/sec-cisd:ovp_power:0\0/fragment@smd/__overlay__/samsung_mobile_device/sec-cisd:ovp_signal:0\0/fragment@18/__overlay__:cd-gpios:0\0/fragment@21/__overlay__/nq@28:qcom,sn-irq:0\0/fragment@21/__overlay__/nq@28:qcom,sn-ven:0\0/fragment@21/__overlay__/nq@28:qcom,sn-firm:0\0/fragment@21/__overlay__/nq@28:qcom,sn-clkreq:0\0/fragment@21/__overlay__/nq@28:interrupt-parent:0\0/fragment@22/__overlay__/focaltech@38:interrupt-parent:0\0/fragment@22/__overlay__/focaltech@38:focaltech,reset-gpio:0\0/fragment@22/__overlay__/focaltech@38:focaltech,irq-gpio:0\0/fragment@22/__overlay__/focaltech@38:focaltech,trusted-touch-vm-gpio-list:0\0/fragment@22/__overlay__/focaltech@38:focaltech,trusted-touch-vm-gpio-list:12\0/fragment@22/__overlay__/focaltech@38:focaltech,trusted-touch-vm-gpio-list:24\0/fragment@22/__overlay__/focaltech@38:focaltech,trusted-touch-vm-gpio-list:36\0/fragment@22/__overlay__/focaltech@38:focaltech,trusted-touch-vm-gpio-list:48\0/fragment@22/__overlay__/focaltech@38:focaltech,trusted-touch-vm-gpio-list:60\0/fragment@22/__overlay__/synaptics_tcm@20:interrupt-parent:0\0/fragment@22/__overlay__/synaptics_tcm@20:synaptics,irq-gpio:0\0/fragment@22/__overlay__/synaptics_tcm@20:synaptics,reset-gpio:0\0/fragment@25/__overlay__/qcom,mdss_mdp@ae00000/ss_dsi_panel_PBA_BOOTING_FHD:qcom,platform-reset-gpio:0\0/fragment@25/__overlay__/qcom,mdss_mdp@ae00000/ss_dsi_panel_S6E3FAB_AMB667XU01_FHD:qcom,platform-reset-gpio:0\0/fragment@25/__overlay__/qcom,mdss_mdp@ae00000/ss_dsi_panel_S6E3FAB_AMB667XU01_FHD:qcom,platform-te-gpio:0\0/fragment@25/__overlay__/qcom,mdss_mdp@ae00000/ss_dsi_panel_S6E3FAB_AMB667XU01_FHD:samsung,ub-con-det:0\0/fragment@25/__overlay__/qcom,mdss_mdp@ae00000/ss_dsi_panel_S6E3FAB_AMB624XT01_FHD:qcom,platform-reset-gpio:0\0/fragment@25/__overlay__/qcom,mdss_mdp@ae00000/ss_dsi_panel_S6E3FAB_AMB624XT01_FHD:qcom,platform-te-gpio:0\0/fragment@25/__overlay__/qcom,mdss_mdp@ae00000/ss_dsi_panel_S6E3FAB_AMB624XT01_FHD:samsung,ub-con-det:0\0/fragment@25/__overlay__/qcom,mdss_mdp@ae00000/ss_dsi_panel_S6E3FAC_AMB606AW01_FHD:qcom,platform-reset-gpio:0\0/fragment@25/__overlay__/qcom,mdss_mdp@ae00000/ss_dsi_panel_S6E3FAC_AMB606AW01_FHD:qcom,platform-te-gpio:0\0/fragment@25/__overlay__/qcom,mdss_mdp@ae00000/ss_dsi_panel_S6E3FAC_AMB606AW01_FHD:samsung,ub-con-det:0\0/fragment@26/__overlay__/qcom,dp_display@ae90000:qcom,aux-en-gpio:0\0/fragment@26/__overlay__/qcom,dp_display@ae90000:qcom,aux-sel-gpio:0\0/fragment@26/__overlay__/qcom,dp_display@ae90000:qcom,usbplug-cc-gpio:0\0/fragment@28:target:0\0/fragment@29/__overlay__/qcom,dsi-display-primary:qcom,platform-te-gpio:0\0/fragment@29/__overlay__/qcom,dsi-display-secondary:qcom,platform-te-gpio:0\0/fragment@32:target:0\0/fragment@33:target:0\0/fragment@model/__overlay__/i2c@32:gpios:0\0/fragment@model/__overlay__/i2c@32:gpios:12\0/fragment@model/__overlay__/i2c@32/p9320-charger@4b:battery,wpc_int:0\0/fragment@model/__overlay__/i2c@32/p9320-charger@4b:battery,wpc_en:0\0/fragment@model/__overlay__/i2c@32/s2miw04-charger@5b:battery,wpc_int:0\0/fragment@model/__overlay__/i2c@32/s2miw04-charger@5b:battery,wpc_en:0\0/fragment@model/__overlay__/i2c@31:gpios:0\0/fragment@model/__overlay__/i2c@31:gpios:12\0/fragment@model/__overlay__/i2c@33:gpios:0\0/fragment@model/__overlay__/i2c@33:gpios:12\0/fragment@model/__overlay__/i2c@33/isg6320@28:interrupt-parent:0\0/fragment@model/__overlay__/i2c@33/isg6320@28:isg6320,irq-gpio:0\0/fragment@34:target:0\0/fragment@35:target:0\0/fragment@36:target:0\0/fragment@37:target:0\0/fragment@38:target:0\0/fragment@40:target:0\0/fragment@41:target:0\0/fragment@42:target:0\0/fragment@42/__overlay__/flicker_test:flicker_test,torch-gpio:0\0/fragment@53:target:0\0/fragment@54:target:0\0/fragment@55:target:0\0/fragment@59:target:0\0/fragment@60:target:0\0/fragment@61:target:0\0/fragment@65:target:0\0/fragment@66:target:0\0/fragment@67:target:0\0/fragment@68:target:0\0/fragment@72:target:0\0/fragment@73:target:0\0/fragment@74:target:0\0/fragment@76:target:0\0/fragment@77/__overlay__/touchscreen@0:sec,irq_gpio:0\0/fragment@77/__overlay__/touchscreen@0:sec,gpio_spi_cs:0\0/fragment@79:target:0\0/fragment@81:target:0\0/fragment@82/__overlay__/als_rear@29:als_rear,irq-gpio:0\0/fragment@83:target:0\0/fragment@84:target:0\0/fragment@85:target:0\0/fragment@86:target:0\0/fragment@87:target:0\0/fragment@88:target:0\0/fragment@89:target:0\0/fragment@90/__overlay__/pn547@28:pn547,irq-gpio:0\0/fragment@90/__overlay__/pn547@28:pn547,ven-gpio:0\0/fragment@90/__overlay__/pn547@28:pn547,clk_req-gpio:0\0/fragment@91/__overlay__/nfc_platform:pn547,ven-gpio:0\0/fragment@92:target:0\0/fragment@95:target:0\0/fragment@96:target:0\0/fragment@98/__overlay__/qcom,qbt2000:qcom,ipc-gpio:0\0/fragment@98/__overlay__/qcom,qbt2000:qcom,wuhb-gpio:0\0/fragment@99:target:0\0/fragment@100/__overlay__/cs40l26a@40:reset-gpios:0\0/fragment@101:target:0\0/fragment@102:target:0\0/fragment@104:target:0\0/fragment@105:target:0\0/fragment@127:target:0\0/fragment@129/__overlay__:samsung,cc_dir:0\0/fragment@135:target:0\0/fragment@136/__overlay__/qcom,cci0@ac15000/qcom,cam-sensor2:gpios:0\0/fragment@136/__overlay__/qcom,cci0@ac15000/qcom,cam-sensor2:gpios:12\0/fragment@136/__overlay__/qcom,cci0@ac15000/qcom,cam-sensor3:gpios:0\0/fragment@136/__overlay__/qcom,cci0@ac15000/qcom,cam-sensor3:gpios:12\0/fragment@136/__overlay__/qcom,cci1@ac16000/qcom,cam-sensor1:gpios:0\0/fragment@136/__overlay__/qcom,cci1@ac16000/qcom,cam-sensor1:gpios:12\0/fragment@136/__overlay__/qcom,cci1@ac16000/qcom,cam-sensor12:gpios:0\0/fragment@136/__overlay__/qcom,cci1@ac16000/qcom,cam-sensor12:gpios:12\0/fragment@139:target:0\0/fragment@141:target:0\0/fragment@147:target:0\0/fragment@156/__overlay__/qcom,cam-sensor0:gpios:0\0/fragment@156/__overlay__/qcom,cam-sensor0:gpios:12\0/fragment@156/__overlay__/qcom,cam-sensor0:gpios:24\0/fragment@158/__overlay__/qcom,ois@62:gpios:0\0/fragment@158/__overlay__/qcom,ois@62:gpios:12\0/fragment@163:target:0\0/fragment@174:target:0\0/fragment@181/__overlay__:qcom,xo-clk-gpio:0";
 		spmi_bus = "/fragment@0:target:0\0/fragment@1:target:0\0/fragment@3:target:0\0/fragment@5:target:0\0/fragment@7:target:0\0/fragment@9:target:0\0/fragment@11:target:0\0/fragment@106:target:0";
 		thermal_zones = "/fragment@2:target:0\0/fragment@4:target:0\0/fragment@6:target:0\0/fragment@8:target:0\0/fragment@10:target:0\0/fragment@12:target:0\0/fragment@14:target:0\0/fragment@15:target:0\0/fragment@146:target:0";
 		soc = "/fragment@13:target:0\0/fragment@19:target:0\0/fragment@25:target:0\0/fragment@26:target:0\0/fragment@29:target:0\0/fragment@30:target:0\0/fragment@56:target:0\0/fragment@57:target:0\0/fragment@58:target:0\0/fragment@62:target:0\0/fragment@63:target:0\0/fragment@64:target:0\0/fragment@70:target:0\0/fragment@71:target:0\0/fragment@78:target:0\0/fragment@91:target:0\0/fragment@93:target:0\0/fragment@98:target:0\0/fragment@103:target:0\0/fragment@107:target:0\0/fragment@110:target:0\0/fragment@112:target:0\0/fragment@115:target:0\0/fragment@126:target:0\0/fragment@128:target:0\0/fragment@134:target:0\0/fragment@136:target:0\0/fragment@142:target:0\0/fragment@144:target:0\0/fragment@145:target:0\0/fragment@148:target:0\0/fragment@154:target:0\0/fragment@161:target:0\0/fragment@169:target:0\0/fragment@171:target:0\0/fragment@172:target:0\0/fragment@179:target:0\0/fragment@182:target:0\0/fragment@183:target:0\0/fragment@184:target:0\0/fragment@185:target:0\0/fragment@187:target:0";
 		mem_dump = "/fragment@13/__overlay__/pmic-pon-log:depends-on-supply:0\0/fragment@114:target:0";
-		APC1_pause = "/fragment@15/__overlay__/socd/cooling-maps/socd_apc1:cooling-device:0\0/fragment@15/__overlay__/pm8450_tz/cooling-maps/pm8450_apc1:cooling-device:0\0/fragment@15/__overlay__/pm8350_tz/cooling-maps/pm8350_apc1:cooling-device:0\0/fragment@15/__overlay__/xo-therm/cooling-maps/apc1_cdev:cooling-device:0";
-		cdsp_sw = "/fragment@15/__overlay__/socd/cooling-maps/socd_cdsp1:cooling-device:0\0/fragment@15/__overlay__/pm8350b-bcl-lvl0/cooling-maps/vbat_cdsp0:cooling-device:0\0/fragment@15/__overlay__/pm8350b-bcl-lvl1/cooling-maps/vbat_cdsp1:cooling-device:0\0/fragment@15/__overlay__/pm8350b-bcl-lvl2/cooling-maps/vbat_cdsp2:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl0/cooling-maps/vph_cdsp0:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl1/cooling-maps/vph_cdsp1:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl2/cooling-maps/vph_cdsp2:cooling-device:0\0/fragment@15/__overlay__/pm8350c_tz/cooling-maps/pm8350c_nsp:cooling-device:0\0/fragment@15/__overlay__/xo-therm/cooling-maps/cdsp_cdev:cooling-device:0";
-		msm_gpu = "/fragment@15/__overlay__/socd/cooling-maps/socd_gpu0:cooling-device:0\0/fragment@15/__overlay__/pm8350b-bcl-lvl0/cooling-maps/vbat_gpu0:cooling-device:0\0/fragment@15/__overlay__/pm8350b-bcl-lvl1/cooling-maps/vbat_gpu1:cooling-device:0\0/fragment@15/__overlay__/pm8350b-bcl-lvl2/cooling-maps/vbat_gpu2:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl0/cooling-maps/vph_gpu0:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl1/cooling-maps/vph_gpu1:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl2/cooling-maps/vph_gpu2:cooling-device:0\0/fragment@15/__overlay__/pm8350_tz/cooling-maps/pm8350_gpu:cooling-device:0\0/fragment@15/__overlay__/xo-therm/cooling-maps/gpu_cdev:cooling-device:0";
 		modem_lte_dsc = "/fragment@15/__overlay__/pm8350b-bcl-lvl0/cooling-maps/vbat_lte0:cooling-device:0\0/fragment@15/__overlay__/pm8350b-bcl-lvl1/cooling-maps/vbat_lte1:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl0/cooling-maps/vph_lte0:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl1/cooling-maps/vph_lte1:cooling-device:0\0/fragment@15/__overlay__/pm8350c_tz/cooling-maps/pm8350c_lte:cooling-device:0\0/fragment@15/__overlay__/xo-therm/cooling-maps/lte_cdev:cooling-device:0";
 		modem_nr_scg_dsc = "/fragment@15/__overlay__/pm8350b-bcl-lvl0/cooling-maps/vbat_nr0_scg:cooling-device:0\0/fragment@15/__overlay__/pm8350b-bcl-lvl1/cooling-maps/vbat_nr1_scg:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl0/cooling-maps/vph_nr0_scg:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl1/cooling-maps/vph_nr1_scg:cooling-device:0\0/fragment@15/__overlay__/pm8350c_tz/cooling-maps/pm8350c_nr:cooling-device:0\0/fragment@15/__overlay__/xo-therm/cooling-maps/nr_cdev:cooling-device:0";
 		modem_nr_dsc = "/fragment@15/__overlay__/pm8350b-bcl-lvl0/cooling-maps/vbat_nr0:cooling-device:0\0/fragment@15/__overlay__/pm8350b-bcl-lvl1/cooling-maps/vbat_nr1:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl0/cooling-maps/vph_nr0:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl1/cooling-maps/vph_nr1:cooling-device:0";
+		cdsp_sw = "/fragment@15/__overlay__/pm8350b-bcl-lvl0/cooling-maps/vbat_cdsp0:cooling-device:0\0/fragment@15/__overlay__/pm8350b-bcl-lvl1/cooling-maps/vbat_cdsp1:cooling-device:0\0/fragment@15/__overlay__/pm8350b-bcl-lvl2/cooling-maps/vbat_cdsp2:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl0/cooling-maps/vph_cdsp0:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl1/cooling-maps/vph_cdsp1:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl2/cooling-maps/vph_cdsp2:cooling-device:0\0/fragment@15/__overlay__/pm8350c_tz/cooling-maps/pm8350c_nsp:cooling-device:0\0/fragment@15/__overlay__/xo-therm/cooling-maps/cdsp_cdev:cooling-device:0";
 		cpu5_pause = "/fragment@15/__overlay__/pm8350b-bcl-lvl0/cooling-maps/vbat_cpu_5:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl0/cooling-maps/vph_cpu_5:cooling-device:0";
+		msm_gpu = "/fragment@15/__overlay__/pm8350b-bcl-lvl0/cooling-maps/vbat_gpu0:cooling-device:0\0/fragment@15/__overlay__/pm8350b-bcl-lvl1/cooling-maps/vbat_gpu1:cooling-device:0\0/fragment@15/__overlay__/pm8350b-bcl-lvl2/cooling-maps/vbat_gpu2:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl0/cooling-maps/vph_gpu0:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl1/cooling-maps/vph_gpu1:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl2/cooling-maps/vph_gpu2:cooling-device:0\0/fragment@15/__overlay__/pm8350_tz/cooling-maps/pm8350_gpu:cooling-device:0\0/fragment@15/__overlay__/xo-therm/cooling-maps/gpu_cdev:cooling-device:0";
 		cpu_6_7_pause = "/fragment@15/__overlay__/pm8350b-bcl-lvl1/cooling-maps/vbat_cpu_6_7:cooling-device:0\0/fragment@15/__overlay__/pm8350c-bcl-lvl1/cooling-maps/vph_cpu_6_7:cooling-device:0";
 		CPU4 = "/fragment@15/__overlay__/pm8450_tz/cooling-maps/pm8450_cpu4_freq:cooling-device:0\0/fragment@15/__overlay__/pm8350_tz/cooling-maps/pm8350_cpu4_freq:cooling-device:0\0/fragment@15/__overlay__/xo-therm/cooling-maps/cpu4_freq_cdev:cooling-device:0";
 		CPU7 = "/fragment@15/__overlay__/pm8450_tz/cooling-maps/pm8450_cpu7_freq:cooling-device:0\0/fragment@15/__overlay__/pm8350_tz/cooling-maps/pm8350_cpu7_freq:cooling-device:0\0/fragment@15/__overlay__/xo-therm/cooling-maps/cpu7_freq_cdev:cooling-device:0";
+		APC1_pause = "/fragment@15/__overlay__/pm8450_tz/cooling-maps/pm8450_apc1:cooling-device:0\0/fragment@15/__overlay__/pm8350_tz/cooling-maps/pm8350_apc1:cooling-device:0\0/fragment@15/__overlay__/xo-therm/cooling-maps/apc1_cdev:cooling-device:0";
 		cpu5_hotplug = "/fragment@15/__overlay__/xo-therm/cooling-maps/cpu5_hot_cdev:cooling-device:0";
 		cpu6_hotplug = "/fragment@15/__overlay__/xo-therm/cooling-maps/cpu6_hot_cdev:cooling-device:0";
 		cpu7_hotplug = "/fragment@15/__overlay__/xo-therm/cooling-maps/cpu7_hot_cdev:cooling-device:0";
@@ -18105,24 +18056,6 @@
 		fragment@15 {
 
 			__overlay__ {
-
-				socd {
-
-					cooling-maps {
-
-						socd_apc1 {
-							trip = <0x00>;
-						};
-
-						socd_cdsp1 {
-							trip = <0x00>;
-						};
-
-						socd_gpu0 {
-							trip = <0x00>;
-						};
-					};
-				};
 
 				pm8350b-bcl-lvl0 {
 

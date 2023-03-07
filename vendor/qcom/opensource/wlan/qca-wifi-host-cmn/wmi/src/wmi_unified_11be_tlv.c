@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -23,8 +24,11 @@
 #endif
 #include "wmi_unified_11be_tlv.h"
 
-size_t vdev_create_mlo_params_size(void)
+size_t vdev_create_mlo_params_size(struct vdev_create_params *param)
 {
+	if (qdf_is_macaddr_zero((struct qdf_mac_addr *)param->mlo_mac))
+		return WMI_TLV_HDR_SIZE;
+
 	return sizeof(wmi_vdev_create_mlo_params) + WMI_TLV_HDR_SIZE;
 }
 
@@ -32,6 +36,11 @@ uint8_t *vdev_create_add_mlo_params(uint8_t *buf_ptr,
 				    struct vdev_create_params *param)
 {
 	wmi_vdev_create_mlo_params *mlo_params;
+
+	if (qdf_is_macaddr_zero((struct qdf_mac_addr *)param->mlo_mac)) {
+		WMITLV_SET_HDR(buf_ptr, WMITLV_TAG_ARRAY_STRUC, 0);
+		return buf_ptr + WMI_TLV_HDR_SIZE;
+	}
 
 	WMITLV_SET_HDR(buf_ptr, WMITLV_TAG_ARRAY_STRUC,
 		       sizeof(wmi_vdev_create_mlo_params));
@@ -62,6 +71,17 @@ size_t vdev_start_mlo_params_size(struct vdev_start_params *req)
 	return vdev_start_mlo_size;
 }
 
+#ifdef WLAN_MCAST_MLO
+static void vdev_start_add_mlo_mcast_params(uint32_t *mlo_flags,
+					    struct vdev_start_params *req)
+{
+	WMI_MLO_FLAGS_SET_MCAST_VDEV(*mlo_flags,
+				     req->mlo_flags.mlo_mcast_vdev);
+}
+#else
+#define vdev_start_add_mlo_mcast_params(mlo_flags, req)
+#endif
+
 uint8_t *vdev_start_add_mlo_params(uint8_t *buf_ptr,
 				   struct vdev_start_params *req)
 {
@@ -81,6 +101,9 @@ uint8_t *vdev_start_add_mlo_params(uint8_t *buf_ptr,
 				  req->mlo_flags.mlo_enabled);
 	WMI_MLO_FLAGS_SET_ASSOC_LINK(mlo_params->mlo_flags.mlo_flags,
 				     req->mlo_flags.mlo_assoc_link);
+
+	vdev_start_add_mlo_mcast_params(&mlo_params->mlo_flags.mlo_flags,
+					req);
 
 	return buf_ptr + sizeof(wmi_vdev_start_mlo_params);
 }
@@ -261,47 +284,64 @@ uint8_t *peer_assoc_add_ml_partner_links(uint8_t *buf_ptr,
 /**
  * force_mode_host_to_fw() - translate force mode for MLO link set active
  *  command
- * @force_mode: force mode defined by host
+ * @host_mode: force mode defined by host
+ * @fw_mode: buffer to store force mode defined by FW
  *
- * Return: force mode defined by firmware
+ * Return: QDF_STATUS_SUCCESS on success, QDF_STATUS_E_INVAL otherwise
  */
-static inline WMI_MLO_LINK_FORCE_MODE
-force_mode_host_to_fw(enum wmi_mlo_link_force_mode force_mode)
+static inline QDF_STATUS
+force_mode_host_to_fw(enum mlo_link_force_mode host_mode,
+		      WMI_MLO_LINK_FORCE_MODE *fw_mode)
 {
-	switch (force_mode) {
-	case WMI_MLO_LINK_FORCE_MODE_ACTIVE:
-		return WMI_MLO_LINK_FORCE_ACTIVE;
-	case WMI_MLO_LINK_FORCE_MODE_INACTIVE:
-		return WMI_MLO_LINK_FORCE_INACTIVE;
-	case WMI_MLO_LINK_FORCE_MODE_ACTIVE_NUM:
-		return WMI_MLO_LINK_FORCE_ACTIVE_LINK_NUM;
-	case WMI_MLO_LINK_FORCE_MODE_INACTIVE_NUM:
-		return WMI_MLO_LINK_FORCE_INACTIVE_LINK_NUM;
-	case WMI_MLO_LINK_FORCE_MODE_NO_FORCE:
-		return WMI_MLO_LINK_NO_FORCE;
+	switch (host_mode) {
+	case MLO_LINK_FORCE_MODE_ACTIVE:
+		*fw_mode = WMI_MLO_LINK_FORCE_ACTIVE;
+		break;
+	case MLO_LINK_FORCE_MODE_INACTIVE:
+		*fw_mode = WMI_MLO_LINK_FORCE_INACTIVE;
+		break;
+	case MLO_LINK_FORCE_MODE_ACTIVE_NUM:
+		*fw_mode = WMI_MLO_LINK_FORCE_ACTIVE_LINK_NUM;
+		break;
+	case MLO_LINK_FORCE_MODE_INACTIVE_NUM:
+		*fw_mode = WMI_MLO_LINK_FORCE_INACTIVE_LINK_NUM;
+		break;
+	case MLO_LINK_FORCE_MODE_NO_FORCE:
+		*fw_mode = WMI_MLO_LINK_NO_FORCE;
+		break;
 	default:
-		return force_mode;
+		wmi_err("Invalid force mode: %d", host_mode);
+		return QDF_STATUS_E_INVAL;
 	}
+
+	return QDF_STATUS_SUCCESS;
 }
 
 /**
  * force_reason_host_to_fw() - translate force reason for MLO link set active
  *  command
- * @force_reason: force reason defined by host
+ * @host_reason: force reason defined by host
+ * @fw_reason: buffer to store force reason defined by FW
  *
- * Return: force reason defined by firmware
+ * Return: QDF_STATUS_SUCCESS on success, QDF_STATUS_E_INVAL otherwise
  */
-static inline WMI_MLO_LINK_FORCE_REASON
-force_reason_host_to_fw(enum wmi_mlo_link_force_reason force_reason)
+static inline QDF_STATUS
+force_reason_host_to_fw(enum mlo_link_force_reason host_reason,
+			WMI_MLO_LINK_FORCE_REASON *fw_reason)
 {
-	switch (force_reason) {
-	case WMI_MLO_LINK_FORCE_REASON_CONNECT:
-		return WMI_MLO_LINK_FORCE_REASON_NEW_CONNECT;
-	case WMI_MLO_LINK_FORCE_REASON_DISCONNECT:
-		return WMI_MLO_LINK_FORCE_REASON_NEW_DISCONNECT;
+	switch (host_reason) {
+	case MLO_LINK_FORCE_REASON_CONNECT:
+		*fw_reason = WMI_MLO_LINK_FORCE_REASON_NEW_CONNECT;
+		break;
+	case MLO_LINK_FORCE_REASON_DISCONNECT:
+		*fw_reason =  WMI_MLO_LINK_FORCE_REASON_NEW_DISCONNECT;
+		break;
 	default:
-		return force_reason;
+		wmi_err("Invalid force reason: %d", host_reason);
+		return QDF_STATUS_E_INVAL;
 	}
+
+	return QDF_STATUS_SUCCESS;
 }
 
 /**
@@ -313,7 +353,7 @@ force_reason_host_to_fw(enum wmi_mlo_link_force_reason force_reason)
  */
 static QDF_STATUS
 send_mlo_link_set_active_cmd_tlv(wmi_unified_t wmi_handle,
-				 struct wmi_mlo_link_set_active_param *param)
+				 struct mlo_link_set_active_param *param)
 {
 	QDF_STATUS status;
 	wmi_mlo_link_set_active_cmd_fixed_param *cmd;
@@ -325,34 +365,34 @@ send_mlo_link_set_active_cmd_tlv(wmi_unified_t wmi_handle,
 	uint32_t len;
 	int i;
 	WMITLV_TAG_ID tag_id;
-	uint32_t force_mode, force_reason;
+	WMI_MLO_LINK_FORCE_MODE force_mode;
+	WMI_MLO_LINK_FORCE_REASON force_reason;
 
-	if (!param->entry_num) {
-		wmi_err("No entry is provided");
+	if (!param->num_vdev_bitmap && !param->num_link_entry) {
+		wmi_err("No entry is provided vdev bit map %d link entry %d",
+			param->num_vdev_bitmap,
+			param->num_link_entry);
 		return QDF_STATUS_E_INVAL;
 	}
 
-	force_mode = force_mode_host_to_fw(param->force_mode);
+	status = force_mode_host_to_fw(param->force_mode, &force_mode);
+	if (QDF_IS_STATUS_ERROR(status))
+		return QDF_STATUS_E_INVAL;
+
+	status = force_reason_host_to_fw(param->reason, &force_reason);
+	if (QDF_IS_STATUS_ERROR(status))
+		return QDF_STATUS_E_INVAL;
+
 	switch (force_mode) {
 	case WMI_MLO_LINK_FORCE_ACTIVE_LINK_NUM:
 	case WMI_MLO_LINK_FORCE_INACTIVE_LINK_NUM:
-		num_link_num_param = param->entry_num;
-		break;
+		num_link_num_param = param->num_link_entry;
+		/* fallthrough */
 	case WMI_MLO_LINK_FORCE_ACTIVE:
 	case WMI_MLO_LINK_FORCE_INACTIVE:
 	case WMI_MLO_LINK_NO_FORCE:
-		num_vdev_bitmap = param->entry_num;
+		num_vdev_bitmap = param->num_vdev_bitmap;
 		break;
-	default:
-		wmi_err("Invalid force mode: %d", force_mode);
-		return QDF_STATUS_E_INVAL;
-	}
-
-	force_reason = force_reason_host_to_fw(param->reason);
-	if (force_reason < WMI_MLO_LINK_FORCE_REASON_NEW_CONNECT ||
-	    force_reason > WMI_MLO_LINK_FORCE_REASON_NEW_DISCONNECT) {
-		wmi_err("Invalid force reason: %d", force_reason);
-		return QDF_STATUS_E_INVAL;
 	}
 
 	len = sizeof(*cmd) +
@@ -372,7 +412,9 @@ send_mlo_link_set_active_cmd_tlv(wmi_unified_t wmi_handle,
 	WMITLV_SET_HDR(&cmd->tlv_header, tag_id, tlv_len);
 	cmd->force_mode = force_mode;
 	cmd->reason = force_reason;
-	wmi_debug("mode %d reason %d", cmd->force_mode, cmd->reason);
+	wmi_debug("mode %d reason %d num_link_num_param %d num_vdev_bitmap %d",
+		  cmd->force_mode, cmd->reason, num_link_num_param,
+		  num_vdev_bitmap);
 	buf_ptr += sizeof(*cmd);
 
 	WMITLV_SET_HDR(buf_ptr, WMITLV_TAG_ARRAY_STRUC,
@@ -443,7 +485,7 @@ send_mlo_link_set_active_cmd_tlv(wmi_unified_t wmi_handle,
  */
 static QDF_STATUS
 extract_mlo_link_set_active_resp_tlv(wmi_unified_t wmi_handle, void *evt_buf,
-				     struct wmi_mlo_link_set_active_resp *resp)
+				     struct mlo_link_set_active_resp *resp)
 {
 	wmi_mlo_link_set_active_resp_event_fixed_param *evt;
 	WMI_MLO_LINK_SET_ACTIVE_RESP_EVENTID_param_tlvs *param_buf;
@@ -462,7 +504,7 @@ extract_mlo_link_set_active_resp_tlv(wmi_unified_t wmi_handle, void *evt_buf,
 
 	bitmap = param_buf->force_active_vdev_bitmap;
 	entry_num = qdf_min(param_buf->num_force_active_vdev_bitmap,
-			    (uint32_t)WMI_MLO_VDEV_BITMAP_SZ);
+			    (uint32_t)MLO_VDEV_BITMAP_SZ);
 	resp->active_sz = entry_num;
 	for (i = 0; i < entry_num; i++) {
 		resp->active[i] = bitmap[i];
@@ -471,7 +513,7 @@ extract_mlo_link_set_active_resp_tlv(wmi_unified_t wmi_handle, void *evt_buf,
 
 	bitmap = param_buf->force_inactive_vdev_bitmap;
 	entry_num = qdf_min(param_buf->num_force_inactive_vdev_bitmap,
-			    (uint32_t)WMI_MLO_VDEV_BITMAP_SZ);
+			    (uint32_t)MLO_VDEV_BITMAP_SZ);
 	resp->inactive_sz = entry_num;
 	for (i = 0; i < entry_num; i++) {
 		resp->inactive[i] = bitmap[i];

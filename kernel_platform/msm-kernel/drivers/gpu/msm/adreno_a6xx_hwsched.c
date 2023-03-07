@@ -163,6 +163,40 @@ static size_t adreno_hwsched_snapshot_rb_payload(struct kgsl_device *device,
 	return size + sizeof(*header);
 }
 
+static bool parse_payload_rb_legacy(struct adreno_device *adreno_dev,
+	struct kgsl_snapshot *snapshot)
+{
+	struct hfi_context_bad_cmd_legacy *cmd = adreno_dev->hwsched.ctxt_bad;
+	u32 i = 0, payload_bytes;
+	void *start;
+	bool ret = false;
+
+	/* Skip if we didn't receive a context bad HFI */
+	if (!cmd->hdr)
+		return false;
+
+	payload_bytes = (MSG_HDR_GET_SIZE(cmd->hdr) << 2) -
+			offsetof(struct hfi_context_bad_cmd_legacy, payload);
+
+	start = &cmd->payload[0];
+
+	while (i < payload_bytes) {
+		struct payload_section *payload = start + i;
+
+		if (payload->type == PAYLOAD_RB) {
+			kgsl_snapshot_add_section(KGSL_DEVICE(adreno_dev),
+				KGSL_SNAPSHOT_SECTION_RB_V2,
+				snapshot, adreno_hwsched_snapshot_rb_payload,
+				payload);
+			ret = true;
+		}
+
+		i += sizeof(*payload) + (payload->dwords << 2);
+	}
+
+	return ret;
+}
+
 static bool parse_payload_rb(struct adreno_device *adreno_dev,
 	struct kgsl_snapshot *snapshot)
 {
@@ -200,10 +234,12 @@ static bool parse_payload_rb(struct adreno_device *adreno_dev,
 void a6xx_hwsched_snapshot(struct adreno_device *adreno_dev,
 	struct kgsl_snapshot *snapshot)
 {
+	struct a6xx_gmu_device *gmu = to_a6xx_gmu(adreno_dev);
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	struct a6xx_hwsched_hfi *hw_hfi = to_a6xx_hwsched_hfi(adreno_dev);
 	u32 i;
 	bool skip_memkind_rb = false;
+	bool parse_payload;
 
 	a6xx_gmu_snapshot(adreno_dev, snapshot);
 
@@ -215,7 +251,12 @@ void a6xx_hwsched_snapshot(struct adreno_device *adreno_dev,
 	 * payloads are not present, fall back to dumping ringbuffers
 	 * based on MEMKIND_RB
 	 */
-	if (parse_payload_rb(adreno_dev, snapshot))
+	if (GMU_VER_MINOR(gmu->ver.hfi) < 2)
+		parse_payload = parse_payload_rb_legacy(adreno_dev, snapshot);
+	else
+		parse_payload = parse_payload_rb(adreno_dev, snapshot);
+
+	if (parse_payload)
 		skip_memkind_rb = true;
 
 	for (i = 0; i < hw_hfi->mem_alloc_entries; i++) {
@@ -247,6 +288,12 @@ void a6xx_hwsched_snapshot(struct adreno_device *adreno_dev,
 
 		if (entry->desc.mem_kind == HFI_MEMKIND_CSW_PRIV_NON_SECURE)
 			snapshot_preemption_records(device, snapshot,
+				entry->md);
+
+		if (entry->desc.mem_kind == HFI_MEMKIND_PREEMPT_SCRATCH)
+			kgsl_snapshot_add_section(device,
+				KGSL_SNAPSHOT_SECTION_GPU_OBJECT_V2,
+				snapshot, adreno_snapshot_global,
 				entry->md);
 	}
 }
@@ -291,6 +338,9 @@ static int a6xx_hwsched_gmu_first_boot(struct adreno_device *adreno_dev)
 
 	a6xx_gmu_version_info(adreno_dev);
 
+	if (GMU_VER_MINOR(gmu->ver.hfi) < 2)
+		set_bit(ADRENO_HWSCHED_CTX_BAD_LEGACY, &adreno_dev->hwsched.flags);
+
 	a6xx_gmu_irq_enable(adreno_dev);
 
 	/* Vote for minimal DDR BW for GMU to init */
@@ -310,21 +360,18 @@ static int a6xx_hwsched_gmu_first_boot(struct adreno_device *adreno_dev)
 
 	device->gmu_fault = false;
 
-	if (ADRENO_FEATURE(adreno_dev, ADRENO_LSR))
-		adreno_dev->lsr_enabled = true;
-
 	trace_kgsl_pwr_set_state(device, KGSL_STATE_AWARE);
 
 	return 0;
 
 err:
+	a6xx_gmu_irq_disable(adreno_dev);
+
 	if (device->gmu_fault) {
 		a6xx_gmu_suspend(adreno_dev);
 
 		return ret;
 	}
-
-	a6xx_gmu_irq_disable(adreno_dev);
 
 clks_gdsc_off:
 	clk_bulk_disable_unprepare(gmu->num_clks, gmu->clks);
@@ -386,13 +433,13 @@ static int a6xx_hwsched_gmu_boot(struct adreno_device *adreno_dev)
 
 	return 0;
 err:
+	a6xx_gmu_irq_disable(adreno_dev);
+
 	if (device->gmu_fault) {
 		a6xx_gmu_suspend(adreno_dev);
 
 		return ret;
 	}
-
-	a6xx_gmu_irq_disable(adreno_dev);
 
 clks_gdsc_off:
 	clk_bulk_disable_unprepare(gmu->num_clks, gmu->clks);
@@ -494,6 +541,7 @@ static int a6xx_hwsched_gmu_power_off(struct adreno_device *adreno_dev)
 	return ret;
 
 error:
+	a6xx_gmu_irq_disable(adreno_dev);
 	a6xx_hwsched_hfi_stop(adreno_dev);
 	a6xx_gmu_suspend(adreno_dev);
 
@@ -539,6 +587,14 @@ static int a6xx_hwsched_gpu_boot(struct adreno_device *adreno_dev)
 		a6xx_disable_gpu_irq(adreno_dev);
 		goto err;
 	}
+
+	/*
+	 * At this point it is safe to assume that we recovered. Setting
+	 * this field allows us to take a new snapshot for the next failure
+	 * if we are prioritizing the first unrecoverable snapshot.
+	 */
+	if (device->snapshot)
+		device->snapshot->recovered = true;
 
 	device->reset_counter++;
 err:
@@ -769,6 +825,9 @@ no_gx_power:
 	if (!IS_ERR_OR_NULL(adreno_dev->gpuhtw_llc_slice))
 		llcc_slice_deactivate(adreno_dev->gpuhtw_llc_slice);
 
+	if (!IS_ERR_OR_NULL(adreno_dev->gpumv_llc_slice))
+		llcc_slice_deactivate(adreno_dev->gpumv_llc_slice);
+
 	clear_bit(GMU_PRIV_GPU_STARTED, &gmu->flags);
 
 	device->state = KGSL_STATE_NONE;
@@ -927,17 +986,17 @@ static void scale_gmu_frequency(struct adreno_device *adreno_dev, int buslevel)
 	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
 	struct a6xx_gmu_device *gmu = to_a6xx_gmu(adreno_dev);
 	static unsigned long prev_freq;
-	unsigned long freq = GMU_FREQ_MIN;
+	unsigned long freq = gmu->freqs[0];
 
 	if (!gmu->perf_ddr_bw)
 		return;
 
 	/*
 	 * Scale the GMU if DDR is at a CX corner at which GMU can run at
-	 * 500 Mhz
+	 * a higher frequency
 	 */
 	if (pwr->ddr_table[buslevel] >= gmu->perf_ddr_bw)
-		freq = GMU_FREQ_MAX;
+		freq = gmu->freqs[GMU_MAX_PWRLEVELS - 1];
 
 	if (prev_freq == freq)
 		return;
@@ -1095,9 +1154,11 @@ int a6xx_hwsched_reset(struct adreno_device *adreno_dev)
 	if (!test_bit(GMU_PRIV_GPU_STARTED, &gmu->flags))
 		return 0;
 
-	a6xx_hwsched_hfi_stop(adreno_dev);
-
 	a6xx_disable_gpu_irq(adreno_dev);
+
+	a6xx_gmu_irq_disable(adreno_dev);
+
+	a6xx_hwsched_hfi_stop(adreno_dev);
 
 	a6xx_gmu_suspend(adreno_dev);
 
@@ -1123,7 +1184,7 @@ const struct adreno_power_ops a6xx_hwsched_power_ops = {
 };
 
 const struct adreno_hwsched_ops a6xx_hwsched_ops = {
-	.submit_cmdobj = a6xx_hwsched_submit_cmdobj,
+	.submit_drawobj = a6xx_hwsched_submit_drawobj,
 	.preempt_count = a6xx_hwsched_preempt_count_get,
 };
 

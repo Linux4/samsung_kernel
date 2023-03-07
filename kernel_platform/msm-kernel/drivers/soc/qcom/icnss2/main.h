@@ -17,6 +17,7 @@
 #include <soc/qcom/icnss2.h>
 #include "wlan_firmware_service_v01.h"
 #include <linux/mailbox_client.h>
+#include <linux/timer.h>
 
 #define WCN6750_DEVICE_ID 0x6750
 #define ADRASTEA_DEVICE_ID 0xabcd
@@ -37,7 +38,6 @@ enum icnss_bdf_type {
 	ICNSS_BDF_BIN,
 	ICNSS_BDF_ELF,
 	ICNSS_BDF_REGDB = 4,
-	ICNSS_BDF_DUMMY = 255,
 };
 
 struct icnss_control_params {
@@ -359,6 +359,14 @@ struct icnss_ramdump_info {
 	struct device *dev;
 };
 
+struct icnss_pinctrl_info {
+	struct pinctrl *pinctrl;
+	struct pinctrl_state *wlan_pon_en;
+	struct pinctrl_state *wlan_pon_dis;
+	struct pinctrl_state *wlan_poff_en;
+	struct pinctrl_state *wlan_poff_dis;
+};
+
 struct icnss_priv {
 	uint32_t magic;
 	struct platform_device *pdev;
@@ -420,8 +428,10 @@ struct icnss_priv {
 	struct icnss_stats stats;
 	void *modem_notify_handler;
 	void *wpss_notify_handler;
+	void *wpss_early_notify_handler;
 	struct notifier_block modem_ssr_nb;
 	struct notifier_block wpss_ssr_nb;
+	struct notifier_block wpss_early_ssr_nb;
 	uint32_t diag_reg_read_addr;
 	uint32_t diag_reg_read_mem_type;
 	uint32_t diag_reg_read_len;
@@ -477,12 +487,23 @@ struct icnss_priv {
 	struct mbox_client mbox_client_data;
 	struct mbox_chan *mbox_chan;
 	u32 wlan_en_delay_ms;
+	u32 wlan_en_delay_ms_user;
 	struct class *icnss_ramdump_class;
 	dev_t icnss_ramdump_dev;
 	struct completion smp2p_soc_wake_wait;
 	uint32_t fw_soc_wake_ack_irq;
 	char foundry_name;
 	bool bdf_download_support;
+	unsigned long device_config;
+	bool wpss_supported;
+	struct icnss_pinctrl_info pinctrl_info;
+	bool pon_gpio_control;
+	u32 pon_pinctrl_owners;
+	u32 pof_pinctrl_owners;
+	bool pon_in_progress;
+	struct timer_list recovery_timer;
+	struct timer_list wpss_ssr_timer;
+	bool wpss_self_recovery_enabled;
 };
 
 struct icnss_reg_info {
@@ -510,5 +531,9 @@ int icnss_update_cpr_info(struct icnss_priv *priv);
 void icnss_add_fw_prefix_name(struct icnss_priv *priv, char *prefix_name,
 			      char *name);
 int icnss_aop_mbox_init(struct icnss_priv *priv);
+struct icnss_priv *icnss_get_plat_priv(void);
+int icnss_get_pinctrl(struct icnss_priv *priv);
+void icnss_recovery_timeout_hdlr(struct timer_list *t);
+void icnss_wpss_ssr_timeout_hdlr(struct timer_list *t);
 #endif
 

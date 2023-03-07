@@ -12,6 +12,26 @@ struct fscrypt_sdp_renament {
 	struct inode *inode;
 };
 
+static inline int fscrypt_is_sensitive_dentry(struct dentry *dentry)
+{
+	struct ext_fscrypt_info *ext_ci = GET_EXT_CI(dentry->d_inode->i_crypt_info);
+	if (ext_ci->ci_sdp_info
+			&& (ext_ci->ci_sdp_info->sdp_flags & SDP_DEK_IS_SENSITIVE)) {
+		return 1;
+	}
+	return 0;
+}
+
+static inline int fscrypt_is_chamber_dentry(struct dentry *dentry)
+{
+	struct ext_fscrypt_info *ext_ci = GET_EXT_CI(dentry->d_inode->i_crypt_info);
+	if (ext_ci->ci_sdp_info
+			&& (ext_ci->ci_sdp_info->sdp_flags & SDP_IS_CHAMBER_DIR)) {
+		return 1;
+	}
+	return 0;
+}
+
 int fscrypt_sdp_get_storage_type(struct dentry *target_dentry)
 {
 	if (!target_dentry)
@@ -69,16 +89,16 @@ void fscrypt_sdp_check_chamber_event(struct inode *old_dir, struct dentry *old_d
 		sdp_fs_command_t *cmd = NULL;
 		int rename_event = 0x00;
 
-		if (FSCRYPT_IS_SENSITIVE_DENTRY(old.dentry->d_parent) &&
-				!FSCRYPT_IS_SENSITIVE_DENTRY(new.dentry->d_parent))
+		if (fscrypt_is_sensitive_dentry(old.dentry->d_parent) &&
+				!fscrypt_is_sensitive_dentry(new.dentry->d_parent))
 			rename_event |= FSCRYPT_EVT_RENAME_OUT_OF_CHAMBER;
 
-		if (!FSCRYPT_IS_SENSITIVE_DENTRY(old.dentry->d_parent) &&
-				FSCRYPT_IS_SENSITIVE_DENTRY(new.dentry->d_parent))
+		if (!fscrypt_is_sensitive_dentry(old.dentry->d_parent) &&
+				fscrypt_is_sensitive_dentry(new.dentry->d_parent))
 			rename_event |= FSCRYPT_EVT_RENAME_TO_CHAMBER;
 
 		if ((rename_event & FSCRYPT_EVT_RENAME_TO_CHAMBER) &&
-				!FSCRYPT_IS_SENSITIVE_DENTRY(old.dentry)) {//Protected dir to Sensitive area
+				!fscrypt_is_sensitive_dentry(old.dentry)) {//Protected dir to Sensitive area
 			cmd = sdp_fs_command_alloc(FSOP_SDP_SET_SENSITIVE, current->pid,
 								fscrypt_sdp_get_engine_id(new.dir),
 								fscrypt_sdp_get_storage_type(new.dentry->d_parent),
@@ -101,12 +121,14 @@ void fscrypt_sdp_check_chamber_event(struct inode *old_dir, struct dentry *old_d
 
 int fscrypt_sdp_check_rename_pre(struct dentry *old_dentry)
 {
-	if (old_dentry->d_inode->i_crypt_info &&
-			old_dentry->d_inode->i_crypt_info->ci_sdp_info &&
-			FSCRYPT_IS_CHAMBER_DENTRY(old_dentry)) {
-		printk_once(KERN_WARNING
-				"Renaming Chamber directory, I/O error\n");
-		return -EIO;
+	if (old_dentry->d_inode->i_crypt_info) {
+		struct ext_fscrypt_info *ext_ci = GET_EXT_CI(old_dentry->d_inode->i_crypt_info);
+		if (ext_ci->ci_sdp_info
+				&& fscrypt_is_chamber_dentry(old_dentry)) {
+			printk_once(KERN_WARNING
+					"Renaming Chamber directory, I/O error\n");
+			return -EIO;
+		}
 	}
 
 	return 0;
@@ -121,12 +143,14 @@ void fscrypt_sdp_check_rename_post(struct inode *old_dir, struct dentry *old_den
 
 int fscrypt_sdp_check_rmdir(struct dentry *dentry)
 {
-	if (dentry->d_inode->i_crypt_info &&
-			dentry->d_inode->i_crypt_info->ci_sdp_info &&
-			FSCRYPT_IS_CHAMBER_DENTRY(dentry)) {
-		printk_once(KERN_WARNING
-				"You're removing Chamber directory, I/O error\n");
-		return -EIO;
+	if (dentry->d_inode->i_crypt_info) {
+		struct ext_fscrypt_info *ext_ci = GET_EXT_CI(dentry->d_inode->i_crypt_info);
+		if (ext_ci->ci_sdp_info
+				&& fscrypt_is_chamber_dentry(dentry)) {
+			printk_once(KERN_WARNING
+					"You're removing Chamber directory, I/O error\n");
+			return -EIO;
+		}
 	}
 
 	return 0;

@@ -10,7 +10,7 @@
 		alloc-ranges = <0x1 0x00000000 0xfffffffe 0xffffffff>;
 		reusable;
 		alignment = <0x0 0x400000>;
-		size = <0 0x3400000>;
+		size = <0 0x3000000>;
 	};
 };
 
@@ -2250,61 +2250,6 @@
 			qcom,dump-id = <0x7>;
 		};
 
-		complex0_scan {
-			qcom,dump-size = <0x4a100>;
-			qcom,dump-id = <0x130>;
-		};
-
-		complex1_scan {
-			qcom,dump-size = <0x4a100>;
-			qcom,dump-id = <0x131>;
-		};
-
-		gold0_scan {
-			qcom,dump-size = <0x5f700>;
-			qcom,dump-id = <0x132>;
-		};
-
-		gold1_scan {
-			qcom,dump-size = <0x5f700>;
-			qcom,dump-id = <0x133>;
-		};
-
-		gold2_scan {
-			qcom,dump-size = <0x5f700>;
-			qcom,dump-id = <0x134>;
-		};
-
-		gold3_scan {
-			qcom,dump-size = <0x81100>;
-			qcom,dump-id = <0x135>;
-		};
-
-		l3slice0scan {
-			qcom,dump-size = <0x4cd00>;
-			qcom,dump-id = <0x136>;
-		};
-
-		l3slice1scan {
-			qcom,dump-size = <0x14e00>;
-			qcom,dump-id = <0x137>;
-		};
-
-		l3slice2scan {
-			qcom,dump-size = <0x14e00>;
-			qcom,dump-id = <0x138>;
-		};
-
-		l3slice3scan {
-			qcom,dump-size = <0x14e00>;
-			qcom,dump-id = <0x139>;
-		};
-
-		mhm_scan {
-			qcom,dump-size = <0x5a700>;
-			qcom,dump-id = <0x161>;
-		};
-
 		l1_icache0 {
 			qcom,dump-size = <0x11100>;
 			qcom,dump-id = <0x60>;
@@ -2670,11 +2615,6 @@
 			qcom,dump-id = <0xef>;
 		};
 
-		gemnoc {
-			qcom,dump-size = <0x100000>;
-			qcom,dump-id = <0x162>;
-		};
-
 		rpmh {
 			qcom,dump-size = <0x2000000>;
 			qcom,dump-id = <0xec>;
@@ -2740,24 +2680,19 @@
 			qcom,dump-id = <0x104>;
 		};
 
-		llcc1dc {
-			qcom,dump-size = <0x171000>;
-			qcom,dump-id = <0x140>;
+		osm_reg {
+			qcom,dump-size = <0x400>;
+			qcom,dump-id = <0x163>;
 		};
 
-		llcc2dc {
-			qcom,dump-size = <0x171000>;
-			qcom,dump-id = <0x141>;
+		pcu_reg {
+			qcom,dump-size = <0x400>;
+			qcom,dump-id = <0x164>;
 		};
 
-		llcc3dc {
-			qcom,dump-size = <0x171000>;
-			qcom,dump-id = <0x142>;
-		};
-
-		llcc4dc {
-			qcom,dump-size = <0x171000>;
-			qcom,dump-id = <0x143>;
+		fsm_data {
+			qcom,dump-size = <0x400>;
+			qcom,dump-id = <0x165>;
 		};
 	};
 };

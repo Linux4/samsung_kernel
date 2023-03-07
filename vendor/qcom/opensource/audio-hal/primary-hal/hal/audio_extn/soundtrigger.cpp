@@ -315,15 +315,20 @@ void* audio_extn_sound_trigger_check_and_get_session(StreamInPrimary *in_stream)
         st_ses_info = node_to_item(node, struct sound_trigger_info , list);
 #ifdef SEC_AUDIO_SOUND_TRIGGER_TYPE
         if (st_ses_info->st_ses.capture_handle == in_stream->GetHandle()
-            || in_stream->IsSeamlessEnabled())
+            || (in_stream->IsSeamlessEnabled() && st_ses_info->st_ses.capture_handle == AUDIO_IO_HANDLE_NONE))
 #else
         if (st_ses_info->st_ses.capture_handle == in_stream->GetHandle())
 #endif
         {
             handle = st_ses_info->st_ses.p_ses;
             in_stream->is_st_session = true;
+#ifdef SEC_AUDIO_SOUND_TRIGGER_TYPE
+            AHAL_DBG("capture_handle %d (%d) is sound trigger",
+                  in_stream->GetHandle(), st_ses_info->st_ses.capture_handle);
+#else
             AHAL_DBG("capture_handle %d is sound trigger",
                   in_stream->GetHandle());
+#endif
             break;
         }
     }
@@ -354,7 +359,7 @@ bool audio_extn_sound_trigger_check_session_activity(StreamInPrimary *in_stream)
         st_ses_info = node_to_item(node, struct sound_trigger_info, list);
 #ifdef SEC_AUDIO_SOUND_TRIGGER_TYPE
         if (st_ses_info->st_ses.capture_handle == in_stream->GetHandle()
-            || in_stream->IsSeamlessEnabled())
+            || st_ses_info->st_ses.capture_handle == AUDIO_IO_HANDLE_NONE)
 #else
         if (st_ses_info->st_ses.capture_handle == in_stream->GetHandle())
 #endif
@@ -441,11 +446,13 @@ void audio_extn_sound_trigger_deinit(std::shared_ptr<AudioDevice> adev)
     struct listnode *node, *temp;
 
     AHAL_INFO("Enter");
-    list_for_each_safe(node, temp, &st_dev->st_ses_list) {
-        st_ses_info = node_to_item(node, struct sound_trigger_info, list);
-        if (st_ses_info) {
-            list_remove(&st_ses_info->list);
-            free(st_ses_info);
+    if (st_dev) {
+        list_for_each_safe(node, temp, &st_dev->st_ses_list) {
+            st_ses_info = node_to_item(node, struct sound_trigger_info, list);
+            if (st_ses_info) {
+                list_remove(&st_ses_info->list);
+                free(st_ses_info);
+            }
         }
     }
 

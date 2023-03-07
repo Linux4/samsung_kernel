@@ -1895,6 +1895,17 @@ ssize_t max77705_fg_store_attrs(struct device *dev,
 	return ret;
 }
 
+static void max77705_fg_bd_log(struct max77705_fuelgauge_data *fuelgauge)
+{
+	memset(fuelgauge->d_buf, 0x0, sizeof(fuelgauge->d_buf));
+
+	snprintf(fuelgauge->d_buf + strlen(fuelgauge->d_buf), sizeof(fuelgauge->d_buf),
+		"%d,%d,%d",
+		max77705_fg_read_vfocv(fuelgauge),
+		max77705_get_fuelgauge_value(fuelgauge, FG_RAW_SOC),
+		fuelgauge->capacity_max);
+}
+
 static int max77705_fg_get_property(struct power_supply *psy,
 				    enum power_supply_property psp,
 				    union power_supply_propval *val)
@@ -1963,6 +1974,9 @@ static int max77705_fg_get_property(struct power_supply *psy,
 			break;
 		case SEC_BATTERY_CAPACITY_VFSOC:
 			val->intval = max77705_get_fuelgauge_value(fuelgauge, FG_QH_VF_SOC);
+			break;
+		case SEC_BATTERY_CAPACITY_RC0:
+			val->intval = max77705_read_word(fuelgauge->i2c, RCOMP_REG);
 			break;
 		}
 		break;
@@ -2087,7 +2101,8 @@ static int max77705_fg_get_property(struct power_supply *psy,
 #endif
 			break;
 		case POWER_SUPPLY_EXT_PROP_BATT_DUMP:
-			val->strval = "FG LOG";
+			max77705_fg_bd_log(fuelgauge);
+			val->strval = fuelgauge->d_buf;
 			break;
 		default:
 			return -EINVAL;

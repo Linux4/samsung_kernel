@@ -18,10 +18,6 @@
 #include <linux/android_kabi.h>
 #include <uapi/linux/thermal.h>
 
-#if IS_ENABLED(CONFIG_SEC_THERMAL_LOG)
-void ss_thermal_print(const char *fmt, ...);
-#endif
-
 #define THERMAL_TRIPS_NONE	-1
 #define THERMAL_MAX_TRIPS	12
 

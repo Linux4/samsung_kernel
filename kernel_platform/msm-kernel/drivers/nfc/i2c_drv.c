@@ -175,6 +175,7 @@ void i2c_disable_clk_irq(struct nfc_dev *dev)
 			disable_irq_nosync(nfc_gpio->clk_req_irq);
 			nfc_gpio->clk_req_irq_enabled = false;
 		}
+		dev->clk_req_wakelock = false;
 	}
 }
 
@@ -188,7 +189,6 @@ void i2c_enable_clk_irq(struct nfc_dev *dev)
 			enable_irq(nfc_gpio->clk_req_irq);
 			nfc_gpio->clk_req_irq_enabled = true;
 		}
-		dev->clk_req_wakelock = true;
 	}
 }
 #endif
@@ -244,14 +244,73 @@ static irqreturn_t nfc_clk_req_irq_handler(int irq, void *dev_id)
 			}
 		}
 	} else {
-		NFC_LOG_REC("clk_req\n");
-
+		NFC_LOG_REC("clk_req w:%d\n", nfc_dev->clk_req_wakelock);
 		if (nfc_dev->clk_req_wakelock) {
 			nfc_dev->clk_req_wakelock = false;
 			wake_lock_timeout(&nfc_dev->nfc_clk_wake_lock, 2*HZ);
 		}
 	}
 	return IRQ_HANDLED;
+}
+
+#define PRINT_NFC_BUF 0
+#if PRINT_NFC_BUF
+static void print_hex_buf(const char *tag, const char *data, int len)
+{
+	pr_info("%s len: %d\n", tag, len);
+	print_hex_dump(KERN_DEBUG, tag, DUMP_PREFIX_OFFSET, 16, 8,
+		data, len, false);
+}
+#else
+static void print_hex_buf(const char *tag, const char *data, int len)
+{
+	do {} while (0);
+}
+#endif/*PRINT_NFC_BUF*/
+
+static void secnfc_check_screen_on_rsp(struct nfc_dev *nfc_dev,
+		const char *buf, size_t count)
+{
+	if (nfc_dev->screen_on_cmd && nfc_dev->screen_cfg) {
+		nfc_dev->screen_on_cmd = false;
+		nfc_dev->screen_cfg = false;
+		NFC_LOG_INFO("scrn_on\n");
+	}
+}
+
+static void secnfc_check_screen_off_rsp(struct nfc_dev *nfc_dev,
+		const char *buf, size_t count)
+{
+	struct i2c_dev *i2c_dev = &nfc_dev->i2c_dev;
+	struct wakeup_source *ws = i2c_dev->client->dev.power.wakeup;
+
+	if (!nfc_dev->screen_off_cmd || !nfc_dev->screen_cfg) {
+		nfc_dev->screen_off_rsp_count = 0;
+		return;
+	}
+
+	if (!nfc_dev->screen_off_rsp_count && count == 3/*header*/) {
+		nfc_dev->screen_off_rsp_count++;
+		return;
+	}
+
+	if (nfc_dev->screen_off_rsp_count == 1/*payload*/) {
+		if (!buf[0]) {//00 or 0000
+			bool before, after;
+
+			before = ws->active;
+			pm_relax(&i2c_dev->client->dev);
+			after = ws->active;
+			NFC_LOG_INFO("scrn_off %d > %d\n", before, after);
+
+			nfc_dev->screen_cfg = false;
+			nfc_dev->screen_off_cmd = false;
+		}
+		nfc_dev->screen_off_rsp_count = 0;
+		return;
+	}
+
+	nfc_dev->screen_off_rsp_count = 0;
 }
 #endif
 
@@ -261,7 +320,7 @@ int i2c_read(struct nfc_dev *nfc_dev, char *buf, size_t count, int timeout)
 	struct i2c_dev *i2c_dev = &nfc_dev->i2c_dev;
 	struct platform_gpio *nfc_gpio = &nfc_dev->configs.gpio;
 
-	NFC_LOG_DBG("rd: %zu\n", count);
+	NFC_LOG_REC("rd: %zu\n", count);
 
 	if (timeout > NCI_CMD_RSP_TIMEOUT_MS)
 		timeout = NCI_CMD_RSP_TIMEOUT_MS;
@@ -331,6 +390,9 @@ int i2c_read(struct nfc_dev *nfc_dev, char *buf, size_t count, int timeout)
 		goto err;
 	}
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+	print_hex_buf("nfc_rd: ", buf, count);
+	secnfc_check_screen_on_rsp(nfc_dev, buf, ret);
+	secnfc_check_screen_off_rsp(nfc_dev, buf, ret);
 #ifdef FEATURE_CORE_RESET_NTF_CHECK
 	nfc_check_is_core_reset_ntf(buf, ret);
 #endif
@@ -363,6 +425,81 @@ err:
 	return ret;
 }
 
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+#define SCREEN_ONOFF_CMD_SZ	4
+#define SCREEN_SET_CFG_SZ	7
+
+static bool secnfc_check_screen_on_cmd(struct nfc_dev *nfc_dev,
+		const char *buf, size_t count)
+{
+	if (count != SCREEN_ONOFF_CMD_SZ)
+		return false;
+
+	if (buf[0] == 0x20 && buf[1] == 0x09 && buf[2] == 0x01 && buf[3] == 0x2)
+		return true;
+
+	return false;
+}
+
+static bool secnfc_check_screen_off_cmd(struct nfc_dev *nfc_dev,
+		const char *buf, size_t count)
+{
+	if (count != SCREEN_ONOFF_CMD_SZ)
+		return false;
+
+	if (buf[0] == 0x20 && buf[1] == 0x09 && buf[2] == 0x01 &&
+			(buf[3] == 0x1 || buf[3] == 0x3))
+		return true;
+
+	return false;
+}
+
+static bool secnfc_check_screen_cfg(struct nfc_dev *nfc_dev,
+		const char *buf, size_t count)
+{
+	if (count != SCREEN_SET_CFG_SZ)
+		return false;
+
+	if (buf[0] == 0x20 && buf[1] == 0x02 && buf[2] == 0x04 &&
+			buf[3] == 0x01 && buf[4] == 0x02 &&
+			buf[5] == 0x01 && buf[6] == 0x00)
+		return true;
+
+	return false;
+}
+
+static void secnfc_configure_clk_irq_based_on_screen_onoff(struct nfc_dev *nfc_dev, bool is_screen_on)
+{
+	struct platform_configs *nfc_configs = &nfc_dev->configs;
+
+	if (!nfc_configs->disable_clk_irq_during_wakeup)
+		return;
+
+	if (is_screen_on)
+		i2c_disable_clk_irq(nfc_dev);
+	else
+		i2c_enable_clk_irq(nfc_dev);
+}
+
+static void secnfc_check_screen_onoff(struct nfc_dev *nfc_dev,
+		const char *buf, size_t count)
+{
+	if (secnfc_check_screen_cfg(nfc_dev, buf, count)) {
+		nfc_dev->screen_cfg = true;
+	} else if (secnfc_check_screen_on_cmd(nfc_dev, buf, count)) {
+		nfc_dev->screen_on_cmd = true;
+		secnfc_configure_clk_irq_based_on_screen_onoff(nfc_dev, true);
+	} else if (secnfc_check_screen_off_cmd(nfc_dev, buf, count)) {
+		nfc_dev->screen_off_cmd = true;
+		secnfc_configure_clk_irq_based_on_screen_onoff(nfc_dev, false);
+	} else {
+		nfc_dev->screen_on_cmd = false;
+		nfc_dev->screen_off_cmd = false;
+		nfc_dev->screen_cfg = false;
+	}
+}
+#endif
+
 int i2c_write(struct nfc_dev *nfc_dev, const char *buf, size_t count,
 		int max_retry_cnt)
 {
@@ -374,6 +511,10 @@ int i2c_write(struct nfc_dev *nfc_dev, const char *buf, size_t count,
 		count = MAX_DL_BUFFER_SIZE;
 
 	NFC_LOG_REC("wr: %zu\n", count);
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+	print_hex_buf("nfc_wr: ", buf, count);
+	secnfc_check_screen_onoff(nfc_dev, buf, count);
+#endif
 	/*
 	 * Wait for any pending read for max 15ms before write
 	 * This is to avoid any packet corruption during read, when
@@ -419,6 +560,12 @@ ssize_t nfc_i2c_dev_read(struct file *filp, char __user *buf, size_t count,
 		NFC_LOG_ERR("%s: device doesn't exist anymore\n", __func__);
 		return -ENODEV;
 	}
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+	if (count > MAX_NCI_BUFFER_SIZE) {
+		//NFC_LOG_ERR("%s: too big count %u\n", __func__, count);
+		return -EINVAL;
+	}
+#endif
 	mutex_lock(&nfc_dev->read_mutex);
 	if (filp->f_flags & O_NONBLOCK) {
 		ret = i2c_master_recv(nfc_dev->i2c_dev.client, nfc_dev->read_kbuf, count);
@@ -608,6 +755,7 @@ int nfc_i2c_dev_probe(struct i2c_client *client, const struct i2c_device_id *id)
 				NFC_LOG_ERR("clk_req_irq failed\n");
 			else {
 				nfc_gpio->clk_req_irq_enabled = true;
+				disable_irq_wake(nfc_gpio->clk_req_irq);
 				i2c_disable_clk_irq(nfc_dev);
 			}
 		}
@@ -706,7 +854,7 @@ int nfc_i2c_dev_suspend(struct device *device)
 	struct platform_configs *nfc_configs = &nfc_dev->configs;
 	struct platform_gpio *nfc_gpio = &nfc_dev->configs.gpio;
 #endif
-	NFC_LOG_INFO("suspend\n");
+	NFC_LOG_INFO_WITH_DATE("suspend\n");
 	if (!nfc_dev) {
 		NFC_LOG_ERR("%s: device doesn't exist anymore\n", __func__);
 		return -ENODEV;
@@ -723,7 +871,7 @@ int nfc_i2c_dev_suspend(struct device *device)
 		}
 #endif
 	}
-	NFC_LOG_DBG("%s: irq_wake_up = %d", __func__, i2c_dev->irq_wake_up);
+	NFC_LOG_DBG("%s: irq_wake_up = %d\n", __func__, i2c_dev->irq_wake_up);
 	return 0;
 }
 
@@ -736,7 +884,7 @@ int nfc_i2c_dev_resume(struct device *device)
 	struct platform_configs *nfc_configs = &nfc_dev->configs;
 	struct platform_gpio *nfc_gpio = &nfc_dev->configs.gpio;
 #endif
-	NFC_LOG_INFO("resume\n");
+	NFC_LOG_INFO_WITH_DATE("resume\n");
 	if (!nfc_dev) {
 		NFC_LOG_ERR("%s: device doesn't exist anymore\n", __func__);
 		return -ENODEV;
@@ -751,7 +899,7 @@ int nfc_i2c_dev_resume(struct device *device)
 			disable_irq_wake(nfc_gpio->clk_req_irq);
 #endif
 	}
-	NFC_LOG_DBG("%s: irq_wake_up = %d", __func__, i2c_dev->irq_wake_up);
+	NFC_LOG_DBG("%s: irq_wake_up = %d\n", __func__, i2c_dev->irq_wake_up);
 	return 0;
 }
 

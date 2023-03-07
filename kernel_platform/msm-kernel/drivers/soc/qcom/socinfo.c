@@ -59,6 +59,7 @@ enum {
 	HW_PLATFORM_HDK = 31,
 	HW_PLATFORM_ATP = 33,
 	HW_PLATFORM_IDP = 34,
+	HW_PLATFORM_QXR = 38,
 	HW_PLATFORM_INVALID
 };
 
@@ -82,6 +83,7 @@ static const char * const hw_platform[] = {
 	[HW_PLATFORM_HDK] = "HDK",
 	[HW_PLATFORM_ATP] = "ATP",
 	[HW_PLATFORM_IDP] = "IDP",
+	[HW_PLATFORM_QXR] = "QXR",
 };
 
 enum {
@@ -779,12 +781,19 @@ static const struct soc_id soc_id[] = {
 	{ 547, "DIWALIP" },
 	{ 564, "DIWALI-LTE" },
 	{ 537, "PARROT" },
+	{ 583, "PARROTP" },
 	{ 530, "CAPE" },
 	{ 531, "CAPEP" },
 	{ 540, "CAPE-V2" },
-	{ 525, "NEO" },
+	{ 591, "UKEE" },
+	{ 525, "NEO-LE" },
 	{ 552, "WAIPIO-LTE" },
 	{ 554, "NEO-LA" },
+	{ 568, "RAVELIN" },
+	{ 549, "ANORAK" },
+	{ 581, "MONTAGUE" },
+	{ 582, "MONTAGUEP" },
+	{ 602, "RAVELINP" },
 };
 
 static struct qcom_socinfo *qsocinfo;
@@ -1348,6 +1357,7 @@ static void socinfo_print(void)
 			socinfo->ndefective_parts_array_offset,
 			socinfo->nmodem_supported,
 			sku ? sku : "Unknown");
+		break;
 
 	default:
 		pr_err("Unknown format found: v%u.%u\n", f_maj, f_min);

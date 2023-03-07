@@ -476,11 +476,7 @@ int Session::handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_
 
                 if (alsaPayloadSize) {
                     status = updateCustomPayload(alsaParamData, alsaPayloadSize);
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
-                    free(alsaParamData);
-#else
-                    delete alsaParamData;
-#endif
+                    freeCustomPayload(&alsaParamData, &alsaPayloadSize);
                     if (0 != status) {
                         PAL_ERR(LOG_TAG, "updateCustomPayload Failed\n");
                         return status;
@@ -655,6 +651,10 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
                 pcmDevIds.at(0), intf, dAttr.id);
 
         if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_BLE ||
+            dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST ||
+#endif
                 dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO) {
             dev = Device::getInstance((struct pal_device *)&dAttr , rm);
             if (!dev) {
@@ -672,6 +672,10 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
             mfcData.numChannel = codecConfig.ch_info.channels;
             mfcData.rotation_type = PAL_SPEAKER_ROTATION_LR;
             mfcData.ch_info = nullptr;
+#ifdef SEC_AUDIO_BLE_OFFLOAD // SEC 
+            PAL_DBG(LOG_TAG, "getCodecConfig sampleRate %d bitWidth %d numChannel %d\n",
+                             mfcData.sampleRate, mfcData.bitWidth, mfcData.numChannel);
+#endif
         } else {
             mfcData.bitWidth = dAttr.config.bit_width;
             if (!devicePPMFCSet && rm->activeGroupDevConfig->devpp_mfc_cfg.sample_rate)

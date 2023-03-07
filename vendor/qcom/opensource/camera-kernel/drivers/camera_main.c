@@ -65,6 +65,11 @@
 #include "cam_csid_ppi100.h"
 #include "camera_main.h"
 
+#ifdef CONFIG_SEC_KUNIT
+#include "camera_kunit_main.h"
+#endif
+
+
 #ifdef CONFIG_CAM_PRESIL
 extern int cam_presil_framework_dev_init_from_main(void);
 extern void cam_presil_framework_dev_exit_from_main(void);
@@ -247,7 +252,7 @@ static const struct camera_submodule submodule_table[] = {
 		.name = "Camera Presil",
 		.num_component = ARRAY_SIZE(camera_presil),
 		.component = camera_presil,
-	}
+	},
 };
 
 static int camera_verify_submodules(void)

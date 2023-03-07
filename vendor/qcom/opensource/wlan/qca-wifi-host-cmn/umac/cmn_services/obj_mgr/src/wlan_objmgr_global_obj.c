@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -835,8 +836,8 @@ void wlan_objmgr_print_ref_ids(qdf_atomic_t *id,
 	for (i = 0; i < WLAN_REF_ID_MAX; i++) {
 		pending_ref = qdf_atomic_read(&id[i]);
 		if (pending_ref)
-			obj_mgr_log_level(log_level, "%s -- %d",
-				string_from_dbgid(i), pending_ref);
+			obj_mgr_log_level(log_level, "%s(%d) -- %d",
+					  string_from_dbgid(i), i, pending_ref);
 	}
 
 	return;
@@ -865,14 +866,64 @@ QDF_STATUS wlan_objmgr_iterate_psoc_list(
 
 qdf_export_symbol(wlan_objmgr_iterate_psoc_list);
 
+struct wlan_objmgr_psoc
+*wlan_objmgr_get_psoc_by_id(uint8_t psoc_id, wlan_objmgr_ref_dbgid dbg_id)
+{
+	struct wlan_objmgr_psoc *psoc;
+
+	if (psoc_id >= WLAN_OBJMGR_MAX_DEVICES) {
+		obj_mgr_err(" PSOC id[%d] is invalid", psoc_id);
+		return NULL;
+	}
+
+	qdf_spin_lock_bh(&g_umac_glb_obj->global_lock);
+
+	psoc = g_umac_glb_obj->psoc[psoc_id];
+	if (psoc) {
+		if (QDF_IS_STATUS_ERROR(wlan_objmgr_psoc_try_get_ref(psoc,
+								     dbg_id)))
+			psoc = NULL;
+	}
+
+	qdf_spin_unlock_bh(&g_umac_glb_obj->global_lock);
+
+	return psoc;
+}
+
 #ifdef WLAN_FEATURE_11BE_MLO
 struct mlo_mgr_context *wlan_objmgr_get_mlo_ctx(void)
 {
 	return g_umac_glb_obj->mlo_ctx;
 }
 
+qdf_export_symbol(wlan_objmgr_get_mlo_ctx);
+
 void wlan_objmgr_set_mlo_ctx(struct mlo_mgr_context *ctx)
 {
 	g_umac_glb_obj->mlo_ctx = ctx;
 }
+
+void wlan_objmgr_set_dp_mlo_ctx(void *dp_handle)
+{
+	struct mlo_mgr_context *mlo_ctx = wlan_objmgr_get_mlo_ctx();
+
+	if (!mlo_ctx)
+		return;
+
+	mlo_ctx->dp_handle = dp_handle;
+}
+
+qdf_export_symbol(wlan_objmgr_set_dp_mlo_ctx);
+
+void *wlan_objmgr_get_dp_mlo_ctx(void)
+{
+	struct mlo_mgr_context *mlo_ctx = wlan_objmgr_get_mlo_ctx();
+
+	if (!mlo_ctx)
+		return NULL;
+
+	return mlo_ctx->dp_handle;
+}
+
+qdf_export_symbol(wlan_objmgr_get_dp_mlo_ctx);
 #endif

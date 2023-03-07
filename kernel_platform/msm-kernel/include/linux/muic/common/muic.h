@@ -87,6 +87,11 @@ enum {
 	CH_MODE_AFC_DISABLE_VAL = 0x31, /* char '1' */
 };
 
+enum driver_probe_flag {
+	MUIC_PROBE_DONE = 1 << 0,
+	CHARGER_PROBE_DONE = 1 << 1,
+};
+
 /* MUIC ADC table */
 typedef enum {
 	ADC_GND			= 0x00,
@@ -254,7 +259,8 @@ typedef enum {
 	HV_STATE_QC_CHARGER = 6,
 	HV_STATE_QC_5V_CHARGER = 7,
 	HV_STATE_QC_9V_CHARGER = 8,
-	HV_STATE_MAX_NUM = 9,
+	HV_STATE_QC_FAILED,
+	HV_STATE_MAX_NUM,
 } muic_hv_state_t;
 
 typedef enum {
@@ -330,6 +336,8 @@ struct muic_platform_data {
 	int adc;
 
 	bool is_factory_start;
+
+	unsigned long driver_probe_flag;
 
 	/* muic switch dev register function for DockObserver */
 	void (*init_switch_dev_cb) (void);
@@ -529,6 +537,7 @@ enum power_supply_lsi_property {
 	POWER_SUPPLY_LSI_PROP_PM_FACTORY,
 	POWER_SUPPLY_LSI_PROP_PCP_CLK,
 	POWER_SUPPLY_LSI_PROP_RID_OPS,
+	POWER_SUPPLY_LSI_PROP_RID_DISABLE,
 #if IS_ENABLED(CONFIG_MFD_S2MU106) || IS_ENABLED(CONFIG_MFD_S2MF301) || defined(CONFIG_BATTERY_GKI)
 	POWER_SUPPLY_LSI_PROP_MAX,
 #endif

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of_gpio.h>
@@ -11,7 +12,7 @@
 #if defined(CONFIG_SECDP)
 #include "secdp.h"
 
-struct dp_parser *g_dp_parser;
+static struct dp_parser *g_dp_parser;
 #endif
 
 static void dp_parser_unmap_io_resources(struct dp_parser *parser)
@@ -223,6 +224,11 @@ static int dp_parser_misc(struct dp_parser *parser)
 		"qcom,max-lclk-frequency-khz", &parser->max_lclk_khz);
 	if (rc)
 		parser->max_lclk_khz = DP_MAX_LINK_CLK_KHZ;
+
+	parser->display_type = of_get_property(of_node,
+				"qcom,display-type", NULL);
+	if (!parser->display_type)
+		parser->display_type = "unknown";
 
 	return 0;
 }
@@ -503,8 +509,6 @@ static void dp_parser_put_vreg_data(struct device *dev,
 }
 
 #if defined(CONFIG_SECDP)
-struct regulator *aux_pullup_vreg;
-
 static struct regulator *secdp_get_aux_pullup_vreg(struct device *dev)
 {
 	struct regulator *vreg = NULL;
@@ -540,7 +544,7 @@ static int dp_parser_regulator(struct dp_parser *parser)
 	}
 
 #if defined(CONFIG_SECDP)
-	aux_pullup_vreg = secdp_get_aux_pullup_vreg(&pdev->dev);
+	parser->aux_pullup_vreg = secdp_get_aux_pullup_vreg(&pdev->dev);
 #endif
 
 	return rc;
@@ -822,6 +826,12 @@ static int dp_parser_mst(struct dp_parser *parser)
 		of_property_read_u32_index(dev->of_node,
 				"qcom,mst-fixed-topology-ports", i,
 				&parser->mst_fixed_port[i]);
+		of_property_read_string_index(
+				dev->of_node,
+				"qcom,mst-fixed-topology-display-types", i,
+				&parser->mst_fixed_display_type[i]);
+		if (!parser->mst_fixed_display_type[i])
+			parser->mst_fixed_display_type[i] = "unknown";
 	}
 
 	return 0;
@@ -940,6 +950,10 @@ static void secdp_parse_misc(struct dp_parser *parser)
 	parser->prefer_support = of_property_read_bool(dev->of_node,
 			"secdp,prefer-res");
 	DP_DEBUG("secdp,prefer-res: %d\n", parser->prefer_support);
+
+	parser->mrr_fps_nolimit = of_property_read_bool(dev->of_node,
+			"secdp,mrr-fps-nolimit");
+	DP_DEBUG("secdp,mrr_fps_nolimit: %d\n", parser->mrr_fps_nolimit);
 }
 
 static const char *secdp_get_phy_pre_emphasis(u32 lvl)

@@ -73,12 +73,12 @@
 
 			qcom,gpu-pwrlevel@0 {
 				reg = <0>;
-				qcom,gpu-freq = <300000000>;
+				qcom,gpu-freq = <320000000>;
 				qcom,level = <RPMH_REGULATOR_LEVEL_LOW_SVS>;
 
-				qcom,bus-freq = <3>;
-				qcom,bus-min = <1>;
-				qcom,bus-max = <11>;
+				qcom,bus-freq = <6>;
+				qcom,bus-min = <6>;
+				qcom,bus-max = <8>;
 
 			};
 		};
@@ -137,5 +137,10 @@
 			"memnoc_clk", "ahb_clk", "hub_clk",
 			"smmu_vote", "apb_pclk";
 
+		qcom,gmu-freq-table = <220000000 RPMH_REGULATOR_LEVEL_LOW_SVS>,
+			<550000000 RPMH_REGULATOR_LEVEL_SVS>;
+
+		/* GPU-MPROC IPC page */
+		qcom,ipc-core = <0x0ed19000 0x1000>;
 	};
 };

@@ -75,6 +75,8 @@
 #define QMI_SUB2_SCG_FR1_CC	61
 #define QMI_SUB2_SCG_FR2_CC	62
 #define QMI_NSP_ISENSE_TRIM	63
+#define QMI_SDR0_PA		64
+#define QMI_SDR1_PA		65
 
 #define QMI_MODEM_INST_ID	0x0
 #define QMI_ADSP_INST_ID	0x1

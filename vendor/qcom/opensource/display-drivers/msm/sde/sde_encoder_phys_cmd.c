@@ -309,8 +309,8 @@ static void sde_encoder_phys_cmd_te_rd_ptr_irq(void *arg, int irq_idx)
 	if (vdd && info[0].wr_ptr_line_count > (phys_enc->cached_mode.vdisplay/3) &&
 			info[0].wr_ptr_line_count < ctrl->ctrl->roi.h) {
 		SS_XLOG(info[0].wr_ptr_line_count, ++vdd->cnt_mdp_clk_underflow);
-		SDE_ERROR("mdp clock underrun: wr: %d, cnt: %d, roi.h=%d\n",
-				info[0].wr_ptr_line_count, vdd->cnt_mdp_clk_underflow, ctrl->ctrl->roi.h);
+		SDE_INFO("mdp wr_ptr_line_count check : cnt [%d] [%d / %d]\n",
+				vdd->cnt_mdp_clk_underflow, info[0].wr_ptr_line_count, ctrl->ctrl->roi.h);
 	}
 
 	if (vdd && vdd->vrr.support_te_mod && vdd->vrr.te_mod_on && vdd->vrr.te_mod_divider > 0) {
@@ -594,14 +594,13 @@ static int _sde_encoder_phys_cmd_handle_ppdone_timeout(
 		phys_enc->hw_ctl->idx - CTL_0,
 		pending_kickoff_cnt);
 
-	SDE_EVT32(DRMID(phys_enc->parent), SDE_EVTLOG_FATAL);
-	SDE_DBG_DUMP(SDE_DBG_BUILT_IN_ALL, "panic");
-#endif
-
 	/* check if panel is still sending TE signal or not */
 	if (sde_connector_esd_status(phys_enc->connector))
 		goto exit;
 
+	SDE_EVT32(DRMID(phys_enc->parent), SDE_EVTLOG_FATAL);
+	SDE_DBG_DUMP(SDE_DBG_BUILT_IN_ALL, "panic");
+#endif
 	/* to avoid flooding, only log first time, and "dead" time */
 	if (cmd_enc->pp_timeout_report_cnt == 1) {
 		SDE_ERROR_CMDENC(cmd_enc,

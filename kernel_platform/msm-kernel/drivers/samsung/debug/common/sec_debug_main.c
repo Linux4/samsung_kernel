@@ -40,9 +40,6 @@ EXPORT_SYMBOL(sec_debug_level);
 
 bool sec_debug_is_enabled(void)
 {
-	if (IS_ENABLED(CONFIG_UML))
-		return true;
-
 	switch (sec_dbg_level) {
 	case SEC_DEBUG_LEVEL_LOW:
 #if IS_ENABLED(CONFIG_SEC_FACTORY)

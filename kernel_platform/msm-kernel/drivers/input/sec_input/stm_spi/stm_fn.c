@@ -40,6 +40,15 @@ int stm_ts_set_custom_library(struct stm_ts_data *ts)
 	if (ret < 0)
 		input_err(true, &ts->client->dev, "%s: Failed to write sponge\n", __func__);
 
+#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	/* inf dump enable */
+	data[0] = STM_TS_CMD_SPONGE_OFFSET_MODE_01;
+	data[2] = ts->plat_data->sponge_mode |= SEC_TS_MODE_SPONGE_INF_DUMP;
+
+	ret = ts->stm_ts_write_sponge(ts, data, 3);
+	if (ret < 0)
+		input_err(true, &ts->client->dev, "%s: Failed to write sponge\n", __func__);
+#endif
 		/* read dump info */
 	data[0] = STM_TS_CMD_SPONGE_LP_DUMP;
 
@@ -90,6 +99,15 @@ void stm_ts_get_custom_library(struct stm_ts_data *ts)
 	}
 
 	sec_input_set_fod_info(&ts->client->dev, data[0], data[1], data[2], data[3]);
+
+	data[0] = STM_TS_CMD_SPONGE_OFFSET_MODE_01;
+	ret = ts->stm_ts_read_sponge(ts, data, 2);
+	if (ret < 0) {
+		input_err(true, &ts->client->dev, "%s: Failed to read mode 01 info\n", __func__);
+		return;
+	}
+	ts->plat_data->sponge_mode = data[0];
+	input_info(true, &ts->client->dev, "%s: sponge_mode %x\n", __func__, ts->plat_data->sponge_mode);
 }
 
 void stm_ts_set_fod_finger_merge(struct stm_ts_data *ts)
@@ -502,6 +520,8 @@ int stm_ts_wait_for_echo_event(struct stm_ts_data *ts, u8 *cmd, u8 cmd_cnt, int 
 
 	if (delay)
 		sec_delay(delay);
+	else
+		sec_delay(5);
 
 	memset(data, 0x0, STM_TS_EVENT_BUFF_SIZE);
 
@@ -676,6 +696,24 @@ out:
 	return rc;
 }
 
+int stm_ts_set_vvc_mode(struct stm_ts_data *ts, bool enable)
+{
+	int ret = 0;
+	u8 data[3];
+
+	/* register */
+	data[0] = 0xC1;
+	data[1] = 0x17;
+	if (enable)
+		data[2] = ts->vvc_mode;
+	else
+		data[2] = 0x00;
+
+	ret = ts->stm_ts_write(ts, data, 3, NULL, 0);
+	input_info(true, &ts->client->dev, "%s: vvc mode write: %02X, ret: %d\n", __func__, data[2], ret);
+	return ret;
+}
+
 int stm_ts_set_opmode(struct stm_ts_data *ts, u8 mode)
 {
 	int ret;
@@ -764,7 +802,7 @@ retry_pmode:
 		goto error;
 	}
 
-	sec_delay(5);
+	sec_delay(ts->lpmode_change_delay);
 
 	address = STM_TS_CMD_SET_GET_OPMODE;
 	ret = ts->stm_ts_read(ts, &address, 1, &para, 1);
@@ -1032,8 +1070,13 @@ void stm_ts_read_info_work(struct work_struct *work)
 	if (ts->plat_data->shutdown_called) {
 		input_err(true, &ts->client->dev, "%s done, do not run work\n", __func__);
 		return;
-	} else {
-		schedule_work(&ts->work_print_info.work);
+	}
+
+	schedule_work(&ts->work_print_info.work);
+
+	if (ts->change_flip_status) {
+		input_info(true, &ts->client->dev, "%s: re-try switching after reading info\n", __func__);
+		schedule_work(&ts->switching_work.work);
 	}
 }
 
@@ -1680,5 +1723,196 @@ int _stm_tclm_data_write(struct stm_ts_data *ts, int address)
 
 	}
 }
+
+void stm_chk_tsp_ic_status(struct stm_ts_data *ts, int call_pos)
+{
+	u8 data[3] = { 0 };
+
+	if (!ts->probe_done) {
+		input_info(true, &ts->client->dev, "%s not finished probe_done\n", __func__);
+		return;
+	}
+
+	mutex_lock(&ts->status_mutex);
+
+	input_info(true, &ts->client->dev,
+			"%s: START: pos[%d] power_state[0x%X] lowpower_flag[0x%X] %sfolding\n",
+			__func__, call_pos, ts->plat_data->power_state, ts->plat_data->lowpower_mode,
+			ts->flip_status_current ? "" : "un");
+
+	if (ts->plat_data->support_dual_foldable == MAIN_TOUCH) {
+		if (call_pos == STM_TS_STATE_CHK_POS_OPEN) {
+			input_dbg(true, &ts->client->dev, "%s(main): OPEN : Nothing\n", __func__);
+		} else if (call_pos == STM_TS_STATE_CHK_POS_CLOSE) {
+			input_dbg(true, &ts->client->dev, "%s(main): CLOSE: Nothing\n", __func__);
+		} else if (call_pos == STM_TS_STATE_CHK_POS_HALL) {
+			if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM && ts->flip_status_current == STM_TS_STATUS_FOLDING) {
+				input_info(true, &ts->client->dev, "%s(main): HALL : TSP IC LP => IC OFF\n", __func__);
+				ts->plat_data->stop_device(ts);
+
+			} else {
+				input_info(true, &ts->client->dev, "%s(main): HALL : Nothing\n", __func__);
+			}
+		} else if (call_pos == STM_TS_STATE_CHK_POS_SYSFS) {
+			if (ts->flip_status_current == STM_TS_STATUS_UNFOLDING) {
+				if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF && ts->plat_data->lowpower_mode) {
+					input_info(true, &ts->client->dev, "%s(main): SYSFS: TSP IC OFF => LP mode[0x%X]\n",
+									__func__, ts->plat_data->lowpower_mode);
+					ts->plat_data->start_device(ts);
+					ts->plat_data->lpmode(ts, TO_LOWPOWER_MODE);
+
+				} else if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM && ts->plat_data->lowpower_mode == 0) {
+					input_info(true, &ts->client->dev, "%s(main): SYSFS: LP mode [0x0] => TSP IC OFF\n",
+									__func__);
+					ts->plat_data->stop_device(ts);
+				} else {
+					input_info(true, &ts->client->dev, "%s(main): SYSFS: set lowpower_flag again[0x%X]\n",
+									__func__, ts->plat_data->lowpower_mode);
+
+					data[2] = ts->plat_data->lowpower_mode;
+					ts->stm_ts_write_sponge(ts, data, 3);
+				}
+			} else {
+				input_info(true, &ts->client->dev, "%s(main): SYSFS: folding nothing[0x%X]\n", __func__, ts->plat_data->lowpower_mode);
+			}
+		} else {
+			input_info(true, &ts->client->dev, "%s(main): ETC  : nothing!\n", __func__);
+		}
+	} else if (ts->plat_data->support_dual_foldable == SUB_TOUCH) {
+		if (call_pos == STM_TS_STATE_CHK_POS_OPEN) {
+			input_dbg(true, &ts->client->dev, "%s(sub): OPEN  : Notthing\n", __func__);
+
+		} else if (call_pos == STM_TS_STATE_CHK_POS_CLOSE) {
+			if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM && ts->flip_status_current == STM_TS_STATUS_UNFOLDING) {
+				input_info(true, &ts->client->dev, "%s(sub): HALL  : TSP IC LP => IC OFF\n", __func__);
+				ts->plat_data->stop_device(ts);
+			}
+		} else if (call_pos == STM_TS_STATE_CHK_POS_HALL) {
+			if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM && ts->flip_status_current == STM_TS_STATUS_UNFOLDING) {
+				input_info(true, &ts->client->dev, "%s(sub): HALL  : TSP IC LP => IC OFF\n", __func__);
+				ts->plat_data->stop_device(ts);
+			} else if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF && ts->flip_status_current == STM_TS_STATUS_FOLDING && ts->plat_data->lowpower_mode != 0) {
+				input_info(true, &ts->client->dev, "%s(sub): HALL  : TSP IC OFF => LP[0x%X]\n", __func__, ts->plat_data->lowpower_mode);
+				ts->plat_data->start_device(ts);
+				ts->plat_data->lpmode(ts, TO_LOWPOWER_MODE);
+			} else {
+				input_info(true, &ts->client->dev, "%s(sub): HALL  : nothing!\n", __func__);
+			}
+
+		} else if (call_pos == STM_TS_STATE_CHK_POS_SYSFS) {
+			if (ts->flip_status_current == STM_TS_STATUS_FOLDING) {
+				if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF && ts->plat_data->lowpower_mode) {
+					input_info(true, &ts->client->dev, "%s(sub): SYSFS : TSP IC OFF => LP mode[0x%X]\n", __func__, ts->plat_data->lowpower_mode);
+					ts->plat_data->start_device(ts);
+					ts->plat_data->lpmode(ts, TO_LOWPOWER_MODE);
+
+				} else if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM && ts->plat_data->lowpower_mode == 0) {
+					input_info(true, &ts->client->dev, "%s(sub): SYSFS : LP mode [0x0] => IC OFF\n", __func__);
+					ts->plat_data->stop_device(ts);
+
+				} else if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM && ts->plat_data->lowpower_mode != 0) {
+					input_info(true, &ts->client->dev, "%s(sub): SYSFS : call LP mode again\n", __func__);
+					ts->plat_data->lpmode(ts, TO_LOWPOWER_MODE);
+
+				} else {
+					input_info(true, &ts->client->dev, "%s(sub): SYSFS : nothing!\n", __func__);
+				}
+			} else {
+				if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM) {
+					input_info(true, &ts->client->dev, "%s(sub): SYSFS : rear selfie off => IC OFF\n", __func__);
+					ts->plat_data->stop_device(ts);
+				} else {
+					input_info(true, &ts->client->dev, "%s(sub): SYSFS : unfolding nothing[0x%X]\n", __func__, ts->plat_data->lowpower_mode);
+				}
+			}
+
+		} else {
+			input_info(true, &ts->client->dev, "%s(sub): Abnormal case\n", __func__);
+		}
+	}
+
+	input_info(true, &ts->client->dev, "%s: END  : pos[%d] power_state[0x%X] lowpower_flag[0x%X]\n",
+					__func__, call_pos, ts->plat_data->power_state, ts->plat_data->lowpower_mode);
+
+	mutex_unlock(&ts->status_mutex);
+}
+
+void stm_switching_work(struct work_struct *work)
+{
+	struct stm_ts_data *ts = container_of(work, struct stm_ts_data,
+				switching_work.work);
+
+	if (ts == NULL) {
+		input_err(true, NULL, "%s: tsp ts is null\n", __func__);
+		return;
+	}
+
+	if (ts->flip_status != ts->flip_status_current) {
+		if (!ts->info_work_done) {
+			input_err(true, &ts->client->dev, "%s: info_work is not done yet\n", __func__);
+			ts->change_flip_status = 1;
+			return;
+		}
+		ts->change_flip_status = 0;
+
+		mutex_lock(&ts->switching_mutex);
+		ts->flip_status = ts->flip_status_current;
+
+		if (ts->flip_status == 0) {
+			/* open : main_tsp on */
+		} else {
+			/* close : main_tsp off */
+#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
+//			secure_touch_stop(ts, 1);
+#endif
+		}
+
+		stm_chk_tsp_ic_status(ts, STM_TS_STATE_CHK_POS_HALL);
+		mutex_unlock(&ts->switching_mutex);
+	} else if (ts->plat_data->support_flex_mode && (ts->plat_data->support_dual_foldable == MAIN_TOUCH)) {
+		input_info(true, &ts->client->dev, "%s support_flex_mode\n", __func__);
+
+		mutex_lock(&ts->switching_mutex);
+		stm_chk_tsp_ic_status(ts, STM_TS_STATE_CHK_POS_SYSFS);
+#if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
+		sec_input_notify(&ts->stm_input_nb, NOTIFIER_MAIN_TOUCH_ON, NULL);
+#endif
+		mutex_unlock(&ts->switching_mutex);
+	}
+}
+
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+int stm_hall_ic_notify(struct notifier_block *nb,
+			unsigned long flip_cover, void *v)
+{
+	struct stm_ts_data *ts = container_of(nb, struct stm_ts_data,
+				hall_ic_nb);
+	struct hall_notifier_context *hall_notifier;
+
+	if (ts == NULL) {
+		input_err(true, NULL, "%s: tsp info is null\n", __func__);
+		return 0;
+	}
+
+	hall_notifier = v;
+
+	if (strncmp(hall_notifier->name, "flip", 4)) {
+		input_info(true, &ts->client->dev, "%s: %s\n", __func__, hall_notifier->name);
+
+		return 0;
+	}
+
+	input_info(true, &ts->client->dev, "%s: %s\n", __func__,
+			 flip_cover ? "close" : "open");
+
+	cancel_delayed_work(&ts->switching_work);
+
+	ts->flip_status_current = flip_cover;
+
+	schedule_work(&ts->switching_work.work);
+
+	return 0;
+}
+#endif
 
 MODULE_LICENSE("GPL");

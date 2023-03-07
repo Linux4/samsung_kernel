@@ -7,9 +7,9 @@
 
 BLOCKING_NOTIFIER_HEAD(kunit_notify_chain);
 
-kunit_notifier_chain_init(abc_common_test_module);
 kunit_notifier_chain_init(abc_hub_test_module);
 kunit_notifier_chain_init(abc_spec_type1_test_module);
+kunit_notifier_chain_init(usb_typec_manager_notifier_test_module);
 kunit_notifier_chain_init(sec_battery_test_module);
 kunit_notifier_chain_init(sec_adc_test_module);
 kunit_notifier_chain_init(sec_battery_dt_test_module);
@@ -20,8 +20,6 @@ kunit_notifier_chain_init(sec_battery_vote_test_module);
 kunit_notifier_chain_init(sec_battery_wc_test_module);
 kunit_notifier_chain_init(sec_pd_test_module);
 kunit_notifier_chain_init(sec_step_charging_test_module);
-kunit_notifier_chain_init(usb_typec_manager_notifier_test_module);
-kunit_notifier_chain_init(sec_cmd_test_module);
 
 int test_executor_init(void)
 {
@@ -58,9 +56,9 @@ static __init int kunit_notifier_init(void)
 {
 	pr_info("%s\n", __func__);
 
-	kunit_notifier_chain_register(abc_common_test_module);
 	kunit_notifier_chain_register(abc_hub_test_module);
 	kunit_notifier_chain_register(abc_spec_type1_test_module);
+	kunit_notifier_chain_register(usb_typec_manager_notifier_test_module);
 	kunit_notifier_chain_register(sec_battery_test_module);
 	kunit_notifier_chain_register(sec_adc_test_module);
 	kunit_notifier_chain_register(sec_battery_dt_test_module);
@@ -71,19 +69,15 @@ static __init int kunit_notifier_init(void)
 	kunit_notifier_chain_register(sec_battery_wc_test_module);
 	kunit_notifier_chain_register(sec_pd_test_module);
 	kunit_notifier_chain_register(sec_step_charging_test_module);
-	kunit_notifier_chain_register(usb_typec_manager_notifier_test_module);
-	kunit_notifier_chain_register(sec_cmd_test_module);
 	return 0;
 }
 
 static void __exit kunit_notifier_exit(void)
 {
-	kunit_notifier_chain_unregister(abc_common_test_module);
 	kunit_notifier_chain_unregister(abc_hub_test_module);
 	kunit_notifier_chain_unregister(abc_spec_type1_test_module);
-	kunit_notifier_chain_unregister(sec_battery_test_module);
 	kunit_notifier_chain_unregister(usb_typec_manager_notifier_test_module);
-	kunit_notifier_chain_unregister(sec_cmd_test_module);
+	kunit_notifier_chain_unregister(sec_battery_test_module);
 }
 
 module_init(kunit_notifier_init);

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef MSM_ADRENO_DEVFREQ_H
@@ -9,9 +10,10 @@
 #include <linux/devfreq.h>
 #include <linux/notifier.h>
 
-#define DEVFREQ_FLAG_WAKEUP_MAXFREQ	0x2
-#define DEVFREQ_FLAG_FAST_HINT		0x4
-#define DEVFREQ_FLAG_SLOW_HINT		0x8
+/* Flags used to send bus modifier hint from busmon governer to driver */
+#define BUSMON_FLAG_FAST_HINT		BIT(0)
+#define BUSMON_FLAG_SUPER_FAST_HINT	BIT(1)
+#define BUSMON_FLAG_SLOW_HINT		BIT(2)
 
 struct device;
 
@@ -54,6 +56,8 @@ struct devfreq_msm_adreno_tz_data {
 	bool ctxt_aware_enable;
 	/* Multiplier to change gpu busy status */
 	u32 mod_percent;
+	/* Increase IB vote on high ddr stall */
+	bool fast_bus_hint;
 };
 
 struct msm_adreno_extended_profile {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  */
 
@@ -100,25 +100,45 @@ static const char * const drv_names_lahaina[] = {
 
 static const char * const drv_names_waipio[] = {
 	"TZ", "HYP", "HLOS", "L3", "SECPROC", "AUDIO", "SENSOR", "AOP",
-	"DEBUG", "GPU", "DISPLAY", "COMPUTE_DSP", "TIME_SW", "TIME_HW",
+	"DEBUG", "GPU", "DISPLAY", "COMPUTE_DSP", "TME_SW", "TME_HW",
 	"MDM SW", "MDM HW", "WLAN RF", "WLAN BB", "DDR AUX", "ARC CPRF",
 	""
 };
 
 static const char * const drv_names_diwali[] = {
 	"TZ", "L3", "HLOS", "HYP", "SECPROC", "AUDIO", "SENSOR", "AOP",
-	"DEBUG", "GPU", "DISPLAY", "COMPUTE_DSP", "TIME_HW", "TIME_SW",
+	"DEBUG", "GPU", "DISPLAY", "COMPUTE_DSP", "TME_HW", "TME_SW",
 	"WPSS", "MDM SW", "MDM HW", "WLAN RF", "DDR AUX", "ARC CPRF",
 	""
 };
 
 static const char * const drv_names_cape[] = {
 	"TZ", "HYP", "HLOS", "L3", "SECPROC", "AUDIO", "SENSOR", "AOP",
-	"DEBUG", "GPU", "DISPLAY", "COMPUTE_DSP", "TIME_SW", "TIME_HW",
+	"DEBUG", "GPU", "DISPLAY", "COMPUTE_DSP", "TME_SW", "TME_HW",
 	"MDM SW", "MDM HW", "WLAN RF", "WLAN BB", "DDR AUX", "ARC CPRF",
 	""
 };
 
+static const char * const drv_names_parrot[] = {
+	"TZ", "L3", "HLOS", "HYP", "AUDIO", "AOP", "DEBUG", "GPU",
+	"DISPLAY", "COMPUTE_DSP", "TME_HW", "TME_SW", "WPSS",
+	"MDM SW", "MDM HW", "WLAN RF", "WLAN BB", "DDR AUX", "ARC CPRF",
+	""
+};
+
+static const char * const drv_names_neo[] = {
+	"TZ", "HYP", "HLOS", "L3", "SECPROC", "AUDIO", "SENSOR", "AOP", "DEBUG",
+	"GPU", "DISPLAY", "COMPUTE_DSP", "TME_HW", "TME_SW", "WPSS",
+	"MDM SW", "MDM HW", "WLAN RF", "WLAN BB", "DDR AUX", "ARC CPRF",
+	""
+};
+
+static const char * const drv_names_anorak[] = {
+	"TZ", "L3", "HLOS", "HYP", "SECPROC", "AUDIO", "SENSOR", "AOP", "DEBUG",
+	"GPU", "DISPLAY", "COMPUTE_DSP", "TME_HW", "TME_SW", "DISPLAY_1",
+	"MDM SW", "MDM HW", "WLAN RF", "WLAN BB", "DDR AUX", "ARC CPRF",
+	""
+};
 static ssize_t debug_time_ms_show(struct device *dev,
 			struct device_attribute *attr, char *buf)
 {
@@ -273,7 +293,7 @@ static void vx_check_drv(struct vx_platform_data *pd)
 
 	ret = read_vx_data(pd, &log);
 	if (ret) {
-		pr_info("fail to read vx data\n");
+		pr_err("fail to read vx data\n");
 		return;
 	}
 
@@ -282,7 +302,7 @@ static void vx_check_drv(struct vx_platform_data *pd)
 			if (log.data[j].drv_vx[i] == 0)
 				break;
 			if (j == log.loglines - 1)
-				pr_info("DRV: %s has blocked power collapse\n", pd->drvs[i]);
+				pr_warn("DRV: %s has blocked power collapse\n", pd->drvs[i]);
 		}
 	}
 
@@ -474,7 +494,7 @@ static const struct file_operations sys_pm_vx_fops = {
 	.release = single_release,
 };
 
-#if defined(DEBUG_FS)
+#if defined(CONFIG_DEBUG_FS)
 static int vx_create_debug_nodes(struct vx_platform_data *pd)
 {
 	struct dentry *pf;
@@ -499,6 +519,12 @@ static const struct of_device_id drv_match_table[] = {
 	  .data = drv_names_diwali },
 	{ .compatible = "qcom,sys-pm-cape",
 	  .data = drv_names_cape },
+	{ .compatible = "qcom,sys-pm-parrot",
+	  .data = drv_names_parrot },
+	{ .compatible = "qcom,sys-pm-neo",
+	  .data = drv_names_neo },
+	{ .compatible = "qcom,sys-pm-anorak",
+	  .data = drv_names_anorak },
 	{ }
 };
 
@@ -535,7 +561,7 @@ static int vx_probe(struct platform_device *pdev)
 	local_pd = pd;
 #endif /* CONFIG_SEC_PM */
 
-#if defined(DEBUG_FS)
+#if defined(CONFIG_DEBUG_FS)
 	ret = vx_create_debug_nodes(pd);
 	if (ret)
 		return ret;
@@ -587,7 +613,7 @@ static int vx_remove(struct platform_device *pdev)
 {
 	struct vx_platform_data *pd = platform_get_drvdata(pdev);
 
-#if defined(DEBUG_FS)
+#if defined(CONFIG_DEBUG_FS)
 	debugfs_remove(pd->vx_file);
 #endif
 	device_remove_file(&pdev->dev, &dev_attr_debug_time_ms);

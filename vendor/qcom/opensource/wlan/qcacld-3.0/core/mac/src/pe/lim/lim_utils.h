@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -264,13 +265,23 @@ lim_release_mlo_conn_idx(struct mac_context *mac, uint16_t peer_idx,
 
 /**
  * lim_update_sta_mlo_info() - update sta mlo information
+ * @pe_session: session entry
  * @add_sta_params: pointer to tpAddStaParams
  * @sta_ds: pointer tpDphHashNode
  *
  * Return: Void
  */
-void lim_update_sta_mlo_info(tpAddStaParams add_sta_params,
+void lim_update_sta_mlo_info(struct pe_session *pe_session,
+			     tpAddStaParams add_sta_params,
 			     tpDphHashNode sta_ds);
+
+void lim_set_mlo_caps(struct mac_context *mac, struct pe_session *session,
+		      uint8_t *ie_start, uint32_t num_bytes);
+
+QDF_STATUS lim_send_mlo_caps_ie(struct mac_context *mac_ctx,
+				struct pe_session *session,
+				enum QDF_OPMODE device_mode,
+				uint8_t vdev_id);
 #else
 static inline uint16_t lim_assign_mlo_conn_idx(struct mac_context *mac,
 					       struct pe_session *pe_session,
@@ -285,9 +296,25 @@ lim_release_mlo_conn_idx(struct mac_context *mac, uint16_t peer_idx,
 {
 }
 
-static inline void lim_update_sta_mlo_info(tpAddStaParams add_sta_params,
+static inline void lim_update_sta_mlo_info(struct pe_session *session,
+					   tpAddStaParams add_sta_params,
 					   tpDphHashNode sta_ds)
 {
+}
+
+static inline
+void lim_set_mlo_caps(struct mac_context *mac, struct pe_session *session,
+		      uint8_t *ie_start, uint32_t num_bytes)
+{
+}
+
+static inline
+QDF_STATUS lim_send_mlo_caps_ie(struct mac_context *mac_ctx,
+				struct pe_session *session,
+				enum QDF_OPMODE device_mode,
+				uint8_t vdev_id)
+{
+	return QDF_STATUS_E_NOSUPPORT;
 }
 #endif
 
@@ -759,7 +786,7 @@ static inline uint16_t ch_width_in_mhz(enum phy_ch_width ch_width)
 		return 5;
 	case CH_WIDTH_10MHZ:
 		return 10;
-#ifdef WLAN_FEATURE_11BE
+#if defined(WLAN_FEATURE_11BE)
 	case CH_WIDTH_320MHZ:
 		return 320;
 #endif
@@ -2425,6 +2452,15 @@ QDF_STATUS lim_sap_move_to_cac_wait_state(struct pe_session *session);
 void lim_disconnect_complete(struct pe_session *session, bool del_bss);
 
 /**
+ * lim_ap_mlme_vdev_rnr_notify() - SAP is changed, notify co-located sap to
+ *                                 update RNR IE
+ * @session: PE session pointer
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS lim_ap_mlme_vdev_rnr_notify(struct pe_session *session);
+
+/**
  * lim_sta_mlme_vdev_stop_send() - send VDEV stop
  * @vdev_mlme_obj:  VDEV MLME comp object
  * @data_len: data size
@@ -2733,6 +2769,20 @@ void lim_process_tpe_ie_from_beacon(struct mac_context *mac,
  */
 void lim_send_conc_params_update(void);
 
+#ifdef WLAN_FEATURE_SAE
+/**
+ * lim_process_sae_msg() - Process SAE message
+ * @mac: Global MAC pointer
+ * @body: Buffer pointer
+ *
+ * Return: None
+ */
+void lim_process_sae_msg(struct mac_context *mac, struct sir_sae_msg *body);
+#else
+static inline void lim_process_sae_msg(struct mac_context *mac, void *body);
+{}
+#endif
+
 /**
  * lim_update_nss() - Function to update NSS
  * @mac_ctx: pointer to Global Mac structure
@@ -2778,4 +2828,86 @@ bool lim_update_channel_width(struct mac_context *mac_ctx,
 uint8_t lim_get_vht_ch_width(tDot11fIEVHTCaps *vht_cap,
 			     tDot11fIEVHTOperation *vht_op,
 			     tDot11fIEHTInfo *ht_info);
+
+/**
+ * lim_update_tx_power() - Function to update the TX power for
+ * the STA interface based on the SAP concurrency
+ *
+ * @mac_ctx: Pointer to Global mac structure
+ * @sap_session: Session pointer of the SAP
+ * @sta_session: Session pointer of the STA
+ * @restore_sta_power: Flag to update the new Tx power for STA
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+lim_update_tx_power(struct mac_context *mac_ctx, struct pe_session *sap_session,
+		    struct pe_session *sta_session, bool restore_sta_power);
+
+/**
+ * lim_skip_tpc_update_for_sta() - Function to check if the TPC set power
+ * needs to be skipped for STA.
+ *
+ * @mac_ctx: Pointer to Global mac structure
+ * @sta_session: Session pointer of the STA.
+ * @sap_session: Session pointer of the SAP
+ *
+ * Return: skip tpc for sta
+ */
+bool
+lim_skip_tpc_update_for_sta(struct mac_context *mac,
+			    struct pe_session *sta_session,
+			    struct pe_session *sap_session);
+
+/**
+ * lim_get_concurrent_session() - Function to get the concurrent session pointer
+ *
+ * @mac_ctx: Pointer to Global mac structure
+ * @vdev_id: vdev id
+ * @opmode: opmode of the interface
+ *
+ * Return: pe_session
+ */
+struct pe_session *
+lim_get_concurrent_session(struct mac_context *mac_ctx, uint8_t vdev_id,
+			   enum QDF_OPMODE opmode);
+
+/**
+ * lim_check_conc_power_for_csa() - Function to change the TX power
+ * of STA when channel switch happens in SAP
+ *
+ * @mac_ctx: Pointer to Global mac structure.
+ * @session: Session pointer of the SAP.
+ *
+ * Return: None
+ */
+void
+lim_check_conc_power_for_csa(struct mac_context *mac_ctx,
+			     struct pe_session *session);
+
+/**
+ * lim_cleanup_power_change() - Function to reset the change_scc_power
+ * flag in concurrent SAP vdev
+ *
+ * @mac_ctx: Pointer to Global mac structure.
+ * @session: Session pointer of the interface
+ */
+void
+lim_cleanup_power_change(struct mac_context *mac_ctx,
+			 struct pe_session *session);
+
+/**
+ * lim_is_power_change_required_for_sta() - Function to check if the 6 GHz
+ * STA power level has to be changed
+ *
+ * @mac_ctx: Pointer to Global mac structure.
+ * @sta_session: Session pointer of STA.
+ * @sap_session: Session pointer of SAP.
+ *
+ * Return: restart required for sta
+ */
+bool
+lim_is_power_change_required_for_sta(struct mac_context *mac_ctx,
+				     struct pe_session *sta_session,
+				     struct pe_session *sap_session);
 #endif /* __LIM_UTILS_H */

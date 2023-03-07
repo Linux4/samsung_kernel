@@ -343,6 +343,23 @@ done:
     pthread_mutex_unlock(&sess_pool->lock);
     return obj;
 }
+int session_obj_valid_check(uint64_t hndl)
+{
+
+    struct session_obj *obj = NULL;
+    struct listnode *node;
+
+    pthread_mutex_lock(&sess_pool->lock);
+    list_for_each(node, &sess_pool->session_list) {
+        obj = node_to_item(node, struct session_obj, node);
+        if (obj == hndl) {
+            pthread_mutex_unlock(&sess_pool->lock);
+            return  1;
+        }
+    }
+    pthread_mutex_unlock(&sess_pool->lock);
+    return 0;
+}
 
 /* returns session_obj associated with session id */
 int session_obj_get(int session_id, struct session_obj **obj)

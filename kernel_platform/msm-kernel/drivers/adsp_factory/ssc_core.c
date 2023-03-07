@@ -651,6 +651,33 @@ static ssize_t fac_fstate_store(struct device *dev,
 
 	return size;
 }
+
+#if defined(CONFIG_TABLET_MODEL_CONCEPT)
+static ssize_t light_debug_info_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct adsp_data *data = dev_get_drvdata(dev);
+	uint8_t cnt = 0;
+
+	adsp_unicast(NULL, 0, MSG_VIR_OPTIC, 0, MSG_TYPE_GET_CAL_DATA);
+	while (!(data->ready_flag[MSG_TYPE_GET_CAL_DATA] & 1 << MSG_VIR_OPTIC) &&
+		cnt++ < TIMEOUT_CNT)
+		usleep_range(500, 550);
+
+	data->ready_flag[MSG_TYPE_GET_CAL_DATA] &= ~(1 << MSG_VIR_OPTIC);
+
+	if (cnt >= TIMEOUT_CNT) {
+		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
+		return snprintf(buf, PAGE_SIZE, "0,0,0,0\n");
+	}
+
+	pr_info("[FACTORY] %s - Light sensor Debug info:%d %d %d %d", __func__, 
+	         data->msg_buf[MSG_VIR_OPTIC][0], data->msg_buf[MSG_VIR_OPTIC][1], 
+			 data->msg_buf[MSG_VIR_OPTIC][2], data->msg_buf[MSG_VIR_OPTIC][3]);
+	return snprintf(buf, PAGE_SIZE, "\"MAIN_LIGHT_SHARE\":\"%d\", \"SUB_LIGHT_SHARE\":\"%d\"\n", 
+	                data->msg_buf[MSG_VIR_OPTIC][2], data->msg_buf[MSG_VIR_OPTIC][3]);
+}
+#endif
 #endif
 
 #if IS_ENABLED(CONFIG_SUPPORT_DEVICE_MODE) && IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
@@ -1138,6 +1165,9 @@ static DEVICE_ATTR(ssr_reset, 0440, ssr_reset_show, NULL);
 static DEVICE_ATTR(support_algo, 0220, NULL, support_algo_store);
 #if IS_ENABLED(CONFIG_SUPPORT_VIRTUAL_OPTIC)
 static DEVICE_ATTR(fac_fstate, 0220, NULL, fac_fstate_store);
+#if defined(CONFIG_TABLET_MODEL_CONCEPT)
+static DEVICE_ATTR(light_debug_info, 0440, light_debug_info_show, NULL);
+#endif
 #endif
 #if IS_ENABLED(CONFIG_SUPPORT_DEVICE_MODE) && IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
 static DEVICE_ATTR(update_ssc_flip, 0220, NULL, update_ssc_flip_store);
@@ -1171,6 +1201,9 @@ static struct device_attribute *core_attrs[] = {
 	&dev_attr_support_algo,
 #if IS_ENABLED(CONFIG_SUPPORT_VIRTUAL_OPTIC)
 	&dev_attr_fac_fstate,
+#if defined(CONFIG_TABLET_MODEL_CONCEPT)
+	&dev_attr_light_debug_info,
+#endif
 #endif
 #if IS_ENABLED(CONFIG_SUPPORT_DEVICE_MODE) && IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
 	&dev_attr_update_ssc_flip,

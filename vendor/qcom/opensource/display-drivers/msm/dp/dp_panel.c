@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "dp_panel.h"
@@ -102,8 +103,7 @@ static const struct dp_panel_info fail_safe = {
 };
 
 #if defined(CONFIG_SECDP)
-
-struct dp_panel *g_dp_panel;
+static struct dp_panel *g_dp_panel;
 
 enum downstream_port_type {
 	DSP_TYPE_DP = 0x00,
@@ -1686,6 +1686,9 @@ static int dp_panel_read_dpcd(struct dp_panel *dp_panel, bool multi_func)
 
 	print_hex_dump_debug("[drm-dp] SINK DPCD: ",
 		DUMP_PREFIX_NONE, 8, 1, dp_panel->dpcd, rlen, false);
+#if defined(CONFIG_SECDP)
+	secdp_logger_hex_dump(dp_panel->dpcd, "DPCD:", rlen);
+#endif
 
 	rlen = drm_dp_dpcd_read(panel->aux->drm_aux,
 		DPRX_FEATURE_ENUMERATION_LIST, &rx_feature, 1);
@@ -1743,12 +1746,12 @@ static int dp_panel_read_dpcd(struct dp_panel *dp_panel, bool multi_func)
 #ifdef SECDP_SELF_TEST
 	if (secdp_self_test_status(ST_LINK_RATE) >= 0) {
 		link_info->rate = secdp_self_test_get_arg(ST_LINK_RATE)[0];
-		DP_INFO("secdp test : link_rate :%d\n", link_info->rate);
+		DP_INFO("secdp self test: link_rate %d\n", link_info->rate);
 	}
 
 	if (secdp_self_test_status(ST_LANE_CNT) >= 0) {
 		link_info->num_lanes = secdp_self_test_get_arg(ST_LANE_CNT)[0];
-		DP_INFO("secdp test : lane_cnt :%d\n", link_info->num_lanes);
+		DP_INFO("secdp self test: lane_cnt %d\n", link_info->num_lanes);
 	}
 #endif
 
@@ -1781,7 +1784,6 @@ static int dp_panel_read_dpcd(struct dp_panel *dp_panel, bool multi_func)
 	secdp_bigdata_save_item(BD_ADAPTER_TYPE, mdss_dp_dsp_type_to_string(dp_panel->dsp_type));
 	secdp_bigdata_save_item(BD_MAX_LANE_COUNT, link_info->num_lanes);
 	secdp_bigdata_save_item(BD_MAX_LINK_RATE, dp_panel->dpcd[DP_MAX_LINK_RATE]);
-
 	secdp_bigdata_save_item(BD_CUR_LANE_COUNT, link_info->num_lanes);
 	secdp_bigdata_save_item(BD_CUR_LINK_RATE, dp_panel->dpcd[DP_MAX_LINK_RATE]);
 #endif
@@ -1809,6 +1811,59 @@ static int dp_panel_set_default_link_params(struct dp_panel *dp_panel)
 
 	return 0;
 }
+
+#if defined(SECDP_SELF_TEST)
+static bool secdp_panel_validate_edid(struct edid *edid, size_t edid_size)
+{
+	if (!edid || (edid_size < EDID_LENGTH))
+		return false;
+
+	if (EDID_LENGTH * (edid->extensions + 1) > edid_size) {
+		DP_ERR("edid size does not match allocated\n");
+		return false;
+	}
+
+	if (!drm_edid_is_valid(edid)) {
+		DP_ERR("invalid edid\n");
+		return false;
+	}
+
+	return true;
+}
+
+static int secdp_panel_set_edid(struct dp_panel *dp_panel, u8 *edid,
+		size_t edid_size)
+{
+	struct sde_edid_ctrl *edid_ctrl;
+
+	if (!dp_panel || (edid_size % EDID_LENGTH)) {
+		DP_ERR("invalid args\n");
+		return -EINVAL;
+	}
+
+	edid_ctrl = dp_panel->edid_ctrl;
+	if (!edid_ctrl) {
+		DP_ERR("invalid edid_ctrl\n");
+		return -EINVAL;
+	}
+	edid_ctrl->edid = NULL;
+	edid_ctrl->custom_edid = false;
+
+	if (!edid && !edid_size) {
+		/*disable*/
+		goto end;
+	}
+
+	/*enable*/
+	if (secdp_panel_validate_edid((struct edid *)edid, edid_size)) {
+		edid_ctrl->edid = (struct edid *)edid;
+		edid_ctrl->custom_edid = true;
+	}
+end:
+	DP_DEBUG("custom_edid: %d\n", edid_ctrl->custom_edid);
+	return 0;
+}
+#endif
 
 #if defined(CONFIG_SECDP)
 static int dp_panel_get_modes(struct dp_panel *dp_panel,
@@ -1993,9 +2048,48 @@ static void dp_panel_read_sink_fec_caps(struct dp_panel *dp_panel)
 }
 
 #if defined(CONFIG_SECDP)
+/* DP testbox list */
+static char secdp_tbox[][MON_NAME_LEN] = {
+	"UNIGRAF TE",
+	"UFG DPR-120",
+	"UCD-400 DP",
+	"UCD-400 DP1",
+	"AGILENT ATR",
+	"UFG DP SINK",
+};
+#define SECDP_TBOX_MAX		32
+
+/** check if connected sink is testbox or not
+ * return true		if it's testbox
+ * return false		otherwise (real sink)
+ */
+static bool secdp_check_tbox(struct dp_panel *panel)
+{
+	unsigned long i, size = SECDP_TBOX_MAX;
+	bool ret = false;
+
+	size = min(ARRAY_SIZE(secdp_tbox), size);
+
+	for (i = 0; i < size; i++) {
+		int rc;
+
+		rc = strncmp(panel->monitor_name, secdp_tbox[i],
+				strlen(panel->monitor_name));
+		if (!rc) {
+			DP_INFO("<%s> detected!\n", panel->monitor_name);
+			ret = true;
+			goto end;
+		}
+	}
+
+	DP_INFO("real sink <%s>\n", panel->monitor_name);
+end:
+	panel->tbox = ret;
+	return ret;
+}
+
 static void secdp_show_sink_caps(struct dp_panel *dp_panel)
 {
-	drm_edid_get_monitor_name(dp_panel->edid_ctrl->edid, dp_panel->monitor_name, 14);
 	DP_INFO("dpcd_rev:0x%02x, vendor:%s, monitor:%s\n",
 		dp_panel->dpcd[DP_DPCD_REV],
 		dp_panel->edid_ctrl->vendor_id,
@@ -2123,6 +2217,8 @@ skip_edid:
 			dp_panel->dsc_en, dp_panel->widebus_en);
 
 #if defined(CONFIG_SECDP)
+	drm_edid_get_monitor_name(dp_panel->edid_ctrl->edid, dp_panel->monitor_name, 14);
+	secdp_check_tbox(dp_panel);
 	secdp_show_sink_caps(dp_panel);
 #endif
 
@@ -3419,6 +3515,9 @@ struct dp_panel *dp_panel_get(struct dp_panel_in *in)
 	dp_panel->read_sink_caps = dp_panel_read_sink_caps;
 #if defined(CONFIG_SECDP)
 	dp_panel->get_min_req_link_rate = secdp_panel_get_min_req_link_rate;
+#endif
+#if defined(SECDP_SELF_TEST)
+	dp_panel->set_edid = secdp_panel_set_edid;
 #endif
 	dp_panel->get_mode_bpp = dp_panel_get_mode_bpp;
 	dp_panel->get_modes = dp_panel_get_modes;

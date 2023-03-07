@@ -36,12 +36,18 @@
 #include <log/log.h>
 #include "battery_listener.h"
 #define DEFAULT_OUTPUT_SAMPLING_RATE 48000
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+#include <mutex>
+#endif
 
 typedef void (*batt_listener_init_t)(battery_status_change_fn_t);
 typedef void (*batt_listener_deinit_t)();
 typedef bool (*batt_prop_is_charging_t)();
 typedef bool (*audio_device_cmp_fn_t)(audio_devices_t);
 
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+extern std::mutex reconfig_wait_mutex_;
+#endif
 class AudioDevice;
 //HFP
 typedef int audio_usecase_t;
@@ -53,6 +59,26 @@ typedef int(*hfp_set_mic_mute2_t)(std::shared_ptr<AudioDevice> adev, bool state)
 
 typedef void (*set_parameters_t) (std::shared_ptr<AudioDevice>, struct str_parms*);
 typedef void (*get_parameters_t) (std::shared_ptr<AudioDevice>, struct str_parms*, struct str_parms*);
+
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+typedef enum {
+    SESSION_UNKNOWN,
+    /** A2DP legacy that AVDTP media is encoded by Bluetooth Stack */
+    A2DP_SOFTWARE_ENCODING_DATAPATH,
+    /** The encoding of AVDTP media is done by HW and there is control only */
+    A2DP_HARDWARE_OFFLOAD_DATAPATH,
+    /** Used when encoded by Bluetooth Stack and streaming to Hearing Aid */
+    HEARING_AID_SOFTWARE_ENCODING_DATAPATH,
+    /** Used when encoded by Bluetooth Stack and streaming to LE Audio device */
+    LE_AUDIO_SOFTWARE_ENCODING_DATAPATH,
+    /** Used when decoded by Bluetooth Stack and streaming to audio framework */
+    LE_AUDIO_SOFTWARE_DECODED_DATAPATH,
+    /** Encoding is done by HW an there is control only */
+    LE_AUDIO_HARDWARE_OFFLOAD_ENCODING_DATAPATH,
+    /** Decoding is done by HW an there is control only */
+    LE_AUDIO_HARDWARE_OFFLOAD_DECODING_DATAPATH,
+}tSESSION_TYPE;
+#endif
 
 class AudioExtn
 {
@@ -97,13 +123,14 @@ public:
     static void audio_extn_fm_set_parameters(std::shared_ptr<AudioDevice> adev, struct str_parms *params);
     static void audio_extn_fm_get_parameters(std::shared_ptr<AudioDevice> adev, struct str_parms *query, struct str_parms *reply);
 
-    // Karaoke
+    //Karaoke
     int karaoke_open(pal_device_id_t device_out, pal_stream_callback pal_callback, pal_channel_info ch_info);
     int karaoke_start();
     int karaoke_stop();
     int karaoke_close();
 #ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
     bool is_karaoke_mode();
+    void karaoke_init();
 #endif
 
     /* start kpi optimize perf apis */

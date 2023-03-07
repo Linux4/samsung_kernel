@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -31,10 +32,6 @@
 #include "dp_rx_buffer_pool.h"
 #include <dp_mon_1.0.h>
 #include <dp_rx_mon_1.0.h>
-
-#ifndef IEEE80211_FCO_SUBTYPE_ACTION_NO_ACK
-#define IEEE80211_FCO_SUBTYPE_ACTION_NO_ACK 0xe0
-#endif
 
 #ifdef WLAN_TX_PKT_CAPTURE_ENH
 #include "dp_rx_mon_feature.h"
@@ -1126,50 +1123,41 @@ dp_rx_pdev_mon_buffers_free(struct dp_pdev *pdev)
 	pdev->monitor_pdev->pdev_mon_init = 0;
 }
 
-static QDF_STATUS
-dp_rx_pdev_mon_cmn_buffers_alloc(struct dp_pdev *pdev, int mac_id)
+QDF_STATUS
+dp_rx_pdev_mon_buffers_alloc(struct dp_pdev *pdev)
 {
-	struct dp_soc *soc = pdev->soc;
-	uint8_t pdev_id = pdev->pdev_id;
+	int mac_id;
 	int mac_for_pdev;
-	bool delayed_replenish;
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
-	struct wlan_cfg_dp_soc_ctxt *soc_cfg_ctx = soc->wlan_cfg_ctx;
+	uint8_t pdev_id = pdev->pdev_id;
+	struct wlan_cfg_dp_soc_ctxt *soc_cfg_ctx = pdev->soc->wlan_cfg_ctx;
 
-	delayed_replenish = soc_cfg_ctx->delayed_replenish_entries ? 1 : 0;
-	mac_for_pdev = dp_get_lmac_id_for_pdev_id(pdev->soc, mac_id, pdev_id);
-	status = dp_rx_pdev_mon_status_buffers_alloc(pdev, mac_for_pdev);
-	if (!QDF_IS_STATUS_SUCCESS(status)) {
-		dp_err("dp_rx_pdev_mon_status_desc_pool_alloc() failed");
-		goto fail;
+	for (mac_id = 0; mac_id < soc_cfg_ctx->num_rxdma_status_rings_per_pdev;
+	     mac_id++) {
+		mac_for_pdev = dp_get_lmac_id_for_pdev_id(pdev->soc, mac_id,
+							  pdev_id);
+		status = dp_rx_pdev_mon_status_buffers_alloc(pdev,
+							     mac_for_pdev);
+		if (!QDF_IS_STATUS_SUCCESS(status)) {
+			dp_err("dp_rx_pdev_mon_status_desc_pool_alloc() failed");
+			goto mon_status_buf_fail;
+		}
 	}
 
-	status = dp_rx_pdev_mon_dest_buffers_alloc(pdev, mac_for_pdev);
-	if (!QDF_IS_STATUS_SUCCESS(status))
-		goto mon_stat_buf_dealloc;
+	for (mac_id = 0; mac_id < soc_cfg_ctx->num_rxdma_dst_rings_per_pdev;
+	     mac_id++) {
+		mac_for_pdev = dp_get_lmac_id_for_pdev_id(pdev->soc, mac_id,
+							  pdev_id);
+		status = dp_rx_pdev_mon_dest_buffers_alloc(pdev, mac_for_pdev);
+		if (!QDF_IS_STATUS_SUCCESS(status))
+			goto mon_stat_buf_dealloc;
+	}
 
 	return status;
 
 mon_stat_buf_dealloc:
 	dp_rx_pdev_mon_status_buffers_free(pdev, mac_for_pdev);
-fail:
-	return status;
-}
-
-QDF_STATUS
-dp_rx_pdev_mon_buffers_alloc(struct dp_pdev *pdev)
-{
-	int mac_id;
-	QDF_STATUS status;
-
-	for (mac_id = 0; mac_id < NUM_RXDMA_RINGS_PER_PDEV; mac_id++) {
-		status = dp_rx_pdev_mon_cmn_buffers_alloc(pdev, mac_id);
-		if (!QDF_IS_STATUS_SUCCESS(status)) {
-			dp_rx_mon_dest_err("%pK: %d failed\n",
-					   pdev->soc, mac_id);
-			return status;
-		}
-	}
+mon_status_buf_fail:
 	return status;
 }
 
@@ -2076,50 +2064,6 @@ void dp_rx_mon_update_pf_tag_to_buf_headroom(struct dp_soc *soc,
 }
 #endif
 #endif
-
-QDF_STATUS dp_rx_mon_process_dest_pktlog(struct dp_soc *soc,
-					 uint32_t mac_id,
-					 qdf_nbuf_t mpdu)
-{
-	uint32_t event, msdu_timestamp = 0;
-	struct dp_pdev *pdev = dp_get_pdev_for_lmac_id(soc, mac_id);
-	void *data;
-	struct ieee80211_frame *wh;
-	uint8_t type, subtype;
-	struct dp_mon_pdev *mon_pdev;
-
-	if (!pdev)
-		return QDF_STATUS_E_INVAL;
-
-	mon_pdev = pdev->monitor_pdev;
-
-	if (mon_pdev->rx_pktlog_cbf) {
-		if (qdf_nbuf_get_nr_frags(mpdu))
-			data = qdf_nbuf_get_frag_addr(mpdu, 0);
-		else
-			data = qdf_nbuf_data(mpdu);
-
-		/* CBF logging required, doesn't matter if it is a full mode
-		 * or lite mode.
-		 * Need to look for mpdu with:
-		 * TYPE = ACTION, SUBTYPE = NO ACK in the header
-		 */
-		event = WDI_EVENT_RX_CBF;
-
-		wh = (struct ieee80211_frame *)data;
-		type = (wh)->i_fc[0] & IEEE80211_FC0_TYPE_MASK;
-		subtype = (wh)->i_fc[0] & IEEE80211_FC0_SUBTYPE_MASK;
-		if (type == IEEE80211_FC0_TYPE_MGT &&
-		    subtype == IEEE80211_FCO_SUBTYPE_ACTION_NO_ACK) {
-			msdu_timestamp = mon_pdev->ppdu_info.rx_status.tsft;
-			dp_rx_populate_cbf_hdr(soc,
-					       mac_id, event,
-					       mpdu,
-					       msdu_timestamp);
-		}
-	}
-	return QDF_STATUS_SUCCESS;
-}
 
 #ifdef QCA_MONITOR_PKT_SUPPORT
 QDF_STATUS dp_mon_htt_dest_srng_setup(struct dp_soc *soc,

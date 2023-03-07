@@ -763,7 +763,7 @@ static void dp_ctrl_select_training_pattern(struct dp_ctrl_private *ctrl,
 	else
 		pattern = DP_TRAINING_PATTERN_2;
 
-	DP_ENTER("pattern:%d, downgrade:%d\n", pattern, downgrade);
+	DP_INFO("+ pattern:%d, downgrade:%d\n", pattern, downgrade);
 
 #ifdef SECDP_MAX_HBR2
 	if (pattern == DP_TRAINING_PATTERN_4) {
@@ -786,7 +786,7 @@ static void dp_ctrl_select_training_pattern(struct dp_ctrl_private *ctrl,
 		break;
 	}
 end:
-	DP_LEAVE("pattern:%d\n", pattern);
+	DP_INFO("- pattern:%d\n", pattern);
 	ctrl->training_2_pattern = pattern;
 }
 
@@ -1474,50 +1474,6 @@ static void dp_ctrl_stream_off(struct dp_ctrl *dp_ctrl, struct dp_panel *panel)
 }
 
 #ifdef SECDP_OPTIMAL_LINK_RATE
-/* DP testbox list */
-static char secdp_tbox[][MON_NAME_LEN] = {
-	"UNIGRAF TE",
-	"UFG DPR-120",
-	"UCD-400 DP",
-	"UCD-400 DP1",
-	"AGILENT ATR",
-	"UFG DP SINK",
-};
-#define SECDP_TBOX_MAX		32
-
-/** check if connected sink is testbox or not
- * return true		if it's testbox
- * return false		otherwise (real sink)
- */
-static bool secdp_check_tbox(struct dp_ctrl_private *ctrl)
-{
-	struct dp_panel *panel;
-	unsigned long i, size = SECDP_TBOX_MAX;
-	bool ret = false;
-
-	if (!ctrl || !ctrl->panel)
-		goto end;
-
-	panel = ctrl->panel;
-	size = min(ARRAY_SIZE(secdp_tbox), size);
-
-	for (i = 0; i < size; i++) {
-		int rc;
-
-		rc = strncmp(panel->monitor_name, secdp_tbox[i],
-				strlen(panel->monitor_name));
-		if (!rc) {
-			DP_INFO("<%s> detected!\n", panel->monitor_name);
-			ret = true;
-			goto end;
-		}
-	}
-
-	DP_INFO("real sink <%s>\n", panel->monitor_name);
-end:
-	return ret;
-}
-
 static u32 secdp_dp_gen_link_clk(struct dp_panel *dp_panel)
 {
 	u32 calc_link_rate, min_link_rate;
@@ -1589,7 +1545,7 @@ static int dp_ctrl_on(struct dp_ctrl *dp_ctrl, bool mst_mode,
 		DP_DEBUG("using phy test link parameters\n");
 	} else {
 #ifdef SECDP_OPTIMAL_LINK_RATE
-		if (!secdp_check_tbox(ctrl))
+		if (!ctrl->panel->tbox)
 			rate = secdp_dp_gen_link_clk(ctrl->panel);
 #endif
 		ctrl->link->link_params.bw_code =

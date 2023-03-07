@@ -330,9 +330,13 @@ static int agm_pcm_plugin_update_hw_ptr(struct agm_pcm_priv *priv)
 
         // Set delta_wall_clk_us only if cached wall clk is non-zero
         if (priv->pos_buf->wall_clk_msw || priv->pos_buf->wall_clk_lsw) {
-                delta_wall_clk_us = (((uint64_t)wall_clk_msw) << 32 | wall_clk_lsw) -
-                                        (((uint64_t)priv->pos_buf->wall_clk_msw) << 32 |
+            uint64_t dsp_wall_clk =  (((uint64_t)wall_clk_msw) << 32 | wall_clk_lsw);
+            uint64_t cached_wall_clk = (((uint64_t)priv->pos_buf->wall_clk_msw) << 32 |
                                          priv->pos_buf->wall_clk_lsw);
+            // Compute delta only if diff is greater than zero
+            if (dsp_wall_clk > cached_wall_clk) {
+                delta_wall_clk_us = (int64_t)(dsp_wall_clk - cached_wall_clk);
+            }
         }
         // Identify the number of times of shared buffer length that the
         // hw ptr has jumped through by checking wall clock time delta

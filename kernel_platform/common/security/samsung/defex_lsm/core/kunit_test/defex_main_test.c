@@ -18,6 +18,7 @@
 #include <linux/sched.h>
 #include <linux/sched/task.h>
 #include <linux/uidgid.h>
+#include <linux/version.h>
 #include "include/defex_internal.h"
 #include "include/defex_test.h"
 #include "include/defex_rules.h"
@@ -62,8 +63,12 @@ static void task_defex_zero_creds_test(struct kunit *test)
 	mock_task->flags &= ~PF_KTHREAD;
 	mock_task->flags &= ~PF_WQ_WORKER;
 #ifdef TASK_NEW
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
 	/* is_fork = 0 (mock_task->state & TASK_NEW) == true */
 	mock_task->state |= TASK_NEW;
+#else
+	mock_task->__state |= TASK_NEW;
+#endif
 #endif
 	KUNIT_EXPECT_EQ(test, task_defex_zero_creds(mock_task), 0);
 	mock_task->flags = backup_flags;

@@ -142,6 +142,8 @@ enum p61_pin_ctrl {
 /* Variable to store current debug level request by ioctl */
 static unsigned char debug_level;
 
+static DEFINE_MUTEX(open_close_mutex);
+
 #define P61_DBG_MSG(msg...)  \
         switch(debug_level)      \
         {                        \
@@ -180,6 +182,7 @@ struct p61_dev {
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pinctrl_state[P61_PIN_CTRL_MAX];
 	struct platform_device *spi_pdev;
+	struct nfc_wake_lock ese_lock;
 #if IS_ENABLED(CONFIG_SPI_MSM_GENI)
 	struct delayed_work spi_release_work;
 	struct nfc_wake_lock spi_release_wakelock;
@@ -325,6 +328,8 @@ static int ese_dev_release(struct inode *inode, struct file *filp)
 	struct p61_dev *p61_dev = NULL;
 
 	NFC_LOG_INFO("Enter %s: ESE driver release\n", __func__);
+
+	mutex_lock(&open_close_mutex);
 	p61_dev = filp->private_data;
 	p61_dev->ese_spi_transition_state = ESE_SPI_IDLE;
 	gpio_set_value(p61_dev->trusted_ese_gpio, 0);
@@ -336,9 +341,13 @@ static int ese_dev_release(struct inode *inode, struct file *filp)
 #if IS_ENABLED(CONFIG_SPI_MSM_GENI)
 	schedule_delayed_work(&p61_dev->spi_release_work,
 				msecs_to_jiffies(2000));
-	wake_lock_timeout(&p61_dev->spi_release_wakelock, 2*HZ);
+	wake_lock_timeout(&p61_dev->spi_release_wakelock,
+				msecs_to_jiffies(2100));
 #endif
+	if (wake_lock_active(&p61_dev->ese_lock))
+		wake_unlock(&p61_dev->ese_lock);
 #endif
+	mutex_unlock(&open_close_mutex);
 	return 0;
 }
 
@@ -536,15 +545,20 @@ static int p61_dev_open(struct inode *inode, struct file *filp)
 		return -EBUSY;
 	}
 
+	mutex_lock(&open_close_mutex);
 	p61_dev->ese_spi_transition_state = ESE_SPI_BUSY;
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 #if IS_ENABLED(CONFIG_SPI_MSM_GENI)
 	cancel_delayed_work_sync(&p61_dev->spi_release_work);
 #endif
+	if (!wake_lock_active(&p61_dev->ese_lock))
+		wake_lock(&p61_dev->ese_lock);
+
 	p61_pinctrl_select(p61_dev, P61_PIN_CTRL_ESE_ON);
 	msleep(60);
 #endif
+	mutex_unlock(&open_close_mutex);
 
 	NFC_LOG_INFO("%s : Major No: %d, Minor No: %d state=%d\n", __func__,
 		    imajor(inode), iminor(inode), p61_dev->ese_spi_transition_state);
@@ -1608,6 +1622,7 @@ static int p61_probe(struct spi_device *spi)
 		ret = -ENOMEM;
 		goto err_exit3;
 	}
+	wake_lock_init(&p61_dev->ese_lock, WAKE_LOCK_SUSPEND, "ese_lock");
 #if IS_ENABLED(CONFIG_SPI_MSM_GENI)
 	INIT_DELAYED_WORK(&p61_dev->spi_release_work, p61_spi_release_work);
 	wake_lock_init(&p61_dev->spi_release_wakelock, WAKE_LOCK_SUSPEND, "ese_spi_wake_lock");
@@ -1724,9 +1739,11 @@ static int p61_remove(struct spi_device *spi)
 #else
 		misc_deregister(&p61_dev->p61_device);
 #endif
+#if IS_ENABLED(CONFIG_SAMSUNG_NFC)
+		wake_lock_destroy(&p61_dev->ese_lock);
+#endif
 		kfree(p61_dev);
 	}
-
 	P61_DBG_MSG("Exit : %s\n", __func__);
         return 0;
 }

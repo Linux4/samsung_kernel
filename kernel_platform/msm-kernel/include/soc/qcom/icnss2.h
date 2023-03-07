@@ -11,6 +11,7 @@
 #define ICNSS_MAX_IRQ_REGISTRATIONS    12
 #define IWCN_MAX_IRQ_REGISTRATIONS    32
 #define ICNSS_MAX_TIMESTAMP_LEN        32
+#define ICNSS_WLFW_MAX_BUILD_ID_LEN    128
 
 #ifndef ICNSS_API_WITH_DEV
 #define ICNSS_API_WITH_DEV
@@ -22,6 +23,10 @@ enum icnss_uevent {
 	ICNSS_UEVENT_FW_DOWN,
 	ICNSS_UEVENT_HANG_DATA,
 	ICNSS_UEVENT_SMMU_FAULT,
+};
+
+enum icnss_device_config {
+	ICNSS_IPA_DISABLED,
 };
 
 struct icnss_uevent_hang_data {
@@ -132,6 +137,17 @@ struct icnss_soc_info {
 	uint32_t soc_id;
 	uint32_t fw_version;
 	char fw_build_timestamp[ICNSS_MAX_TIMESTAMP_LEN + 1];
+	char fw_build_id[ICNSS_WLFW_MAX_BUILD_ID_LEN + 1];
+};
+
+enum icnss_pinctrl_seq {
+	ICNSS_PINCTRL_SEQ_OFF,
+	ICNSS_PINCTRL_SEQ_ON,
+};
+
+enum icnss_pinctrl_owner {
+	ICNSS_PINCTRL_OWNER_WLAN,
+	ICNSS_PINCTRL_OWNER_BT,
 };
 
 #define icnss_register_driver(ops)		\
@@ -204,4 +220,8 @@ extern int icnss_prevent_l1(struct device *dev);
 extern void icnss_allow_l1(struct device *dev);
 extern int icnss_get_mhi_state(struct device *dev);
 extern int icnss_is_pci_ep_awake(struct device *dev);
+extern unsigned long icnss_get_device_config(void);
+extern int icnss_power_trigger_pinctrl(struct device *dev,
+				       enum icnss_pinctrl_owner owner,
+				       enum icnss_pinctrl_seq seq);
 #endif /* _ICNSS_WLAN_H_ */

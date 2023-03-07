@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -635,9 +636,7 @@ SessionAlsaCompress::SessionAlsaCompress(std::shared_ptr<ResourceManager> Rm)
 SessionAlsaCompress::~SessionAlsaCompress()
 {
     delete builder;
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
     compressDevIds.clear();
-#endif
 }
 
 int SessionAlsaCompress::open(Stream * s)
@@ -859,6 +858,7 @@ int SessionAlsaCompress::setTKV(Stream * s __unused, configType type, effect_pal
             tagsent = effectPayload->tag;
             status = SessionAlsaUtils::getTagMetadata(tagsent, tkv, tagConfig);
             if (0 != status) {
+                free(tagConfig);
                 goto exit;
             }
             tagCntrlName<<stream<<compressDevIds.at(0)<<" "<<setParamTagControl;
@@ -1003,9 +1003,7 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
 
             status = SessionAlsaUtils::getTagMetadata(tagsent, tkv, tagConfig);
             if (0 != status) {
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
                 free(tagConfig);
-#endif
                 goto exit;
             }
             //TODO: how to get the id '5'
@@ -1013,10 +1011,8 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
             ctl = mixer_get_ctl_by_name(mixer, tagCntrlName.str().data());
             if (!ctl) {
                 PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlName.str().data());
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
                 if (tagConfig)
                     free(tagConfig);
-#endif
                 return -ENOENT;
             }
             PAL_VERBOSE(LOG_TAG, "mixer control: %s\n", tagCntrlName.str().data());
@@ -1056,10 +1052,8 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
             ctl = mixer_get_ctl_by_name(mixer, calCntrlName.str().data());
             if (!ctl) {
                 PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", calCntrlName.str().data());
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
                 if (calConfig)
                     free(calConfig);
-#endif
                 return -ENOENT;
             }
             PAL_VERBOSE(LOG_TAG, "mixer control: %s\n", calCntrlName.str().data());
@@ -1761,12 +1755,8 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
                 status = SessionAlsaUtils::setMixerParameter(mixer, device,
                                                alsaParamData, alsaPayloadSize);
                 PAL_INFO(LOG_TAG, "mixer set volume config status=%d\n", status);
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
                 delete [] alsaParamData;
                 alsaPayloadSize = 0;
-#else
-                freeCustomPayload(&alsaParamData, &alsaPayloadSize);
-#endif
             }
             break;
         }
@@ -1789,20 +1779,26 @@ int SessionAlsaCompress::registerCallBack(session_callback cb, uint64_t cookie)
 int SessionAlsaCompress::flush()
 {
     int status = 0;
+    int doFlush = 1;
+    struct mixer_ctl *ctl = NULL;
+    std::string stream = "COMPRESS";
+    std::string flushControl = "flush";
+    std::ostringstream flushCntrlName;
 
-    if (!compress) {
-        PAL_ERR(LOG_TAG, "Compress is invalid");
-        return -EINVAL;
-    }
     if (playback_started) {
         PAL_VERBOSE(LOG_TAG, "Enter flush\n");
-        status = compress_stop(compress);
-        if (!status) {
-            playback_started = false;
+        if (compressDevIds.size() > 0)
+            flushCntrlName << stream << compressDevIds.at(0) << " " << flushControl;
+
+        ctl = mixer_get_ctl_by_name(mixer, flushCntrlName.str().data());
+        if (!ctl) {
+            PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", flushCntrlName.str().data());
+            return -ENOENT;
         }
+
+        mixer_ctl_set_value(ctl, 0, doFlush);
     }
-    PAL_VERBOSE(LOG_TAG, "playback_started %d status %d\n", playback_started,
-            status);
+    PAL_VERBOSE(LOG_TAG, "status %d\n", status);
     return status;
 }
 

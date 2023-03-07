@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 
@@ -24,6 +25,7 @@
 #define SPI_NUM_CHIPSELECT	(4)
 #define SPI_XFER_TIMEOUT_MS	(250)
 #define SPI_AUTO_SUSPEND_DELAY	(250)
+#define SPI_XFER_TIMEOUT_OFFSET  (250)
 /* SPI SE specific registers */
 #define SE_SPI_CPHA		(0x224)
 #define SE_SPI_LOOPBACK		(0x22C)
@@ -201,6 +203,7 @@ struct spi_geni_master {
 	u32 miso_sampling_ctrl_val;
 	bool gpi_reset; /* GPI channel reset*/
 	bool disable_dma;
+	bool use_fixed_timeout;
 };
 
 static struct spi_master *get_spi_master(struct device *dev)
@@ -985,7 +988,7 @@ static int spi_geni_prepare_message(struct spi_master *spi,
 
 	if (pm_runtime_status_suspended(mas->dev) && !mas->is_le_vm) {
 		if (!pm_runtime_enabled(mas->dev)) {
-			GENI_SE_ERR(mas->ipc, false, NULL,
+			SPI_LOG_ERR(mas->ipc, true, mas->dev,
 				"%s: System suspended\n", __func__);
 			return -EACCES;
 		}
@@ -1446,7 +1449,7 @@ static int setup_fifo_xfer(struct spi_transfer *xfer,
 	if ((m_cmd & SPI_RX_ONLY) && (mas->cur_xfer_mode == SE_DMA)) {
 		ret =  geni_se_rx_dma_prep(mas->wrapper_dev, mas->base,
 				xfer->rx_buf, xfer->len, &xfer->rx_dma);
-		if (ret) {
+		if (ret || !xfer->rx_buf) {
 			SPI_LOG_ERR(mas->ipc, true, mas->dev,
 				"Failed to setup Rx dma %d\n", ret);
 			xfer->rx_dma = 0;
@@ -1461,7 +1464,7 @@ static int setup_fifo_xfer(struct spi_transfer *xfer,
 			ret =  geni_se_tx_dma_prep(mas->wrapper_dev, mas->base,
 					(void *)xfer->tx_buf, xfer->len,
 							&xfer->tx_dma);
-			if (ret) {
+			if (ret || !xfer->tx_buf) {
 				SPI_LOG_ERR(mas->ipc, true, mas->dev,
 					"Failed to setup tx dma %d\n", ret);
 				xfer->tx_dma = 0;
@@ -1546,7 +1549,7 @@ static int spi_geni_transfer_one(struct spi_master *spi,
 {
 	int ret = 0;
 	struct spi_geni_master *mas = spi_master_get_devdata(spi);
-	unsigned long timeout;
+	unsigned long timeout, xfer_timeout;
 
 	if ((xfer->tx_buf == NULL) && (xfer->rx_buf == NULL)) {
 		dev_err(mas->dev, "Invalid xfer both tx rx are NULL\n");
@@ -1570,6 +1573,15 @@ static int spi_geni_transfer_one(struct spi_master *spi,
 		return -EACCES;
 	}
 
+	if (mas->use_fixed_timeout)
+		xfer_timeout = msecs_to_jiffies(SPI_XFER_TIMEOUT_MS);
+	else
+		xfer_timeout =
+			100 * msecs_to_jiffies(DIV_ROUND_UP(xfer->len * 8,
+			DIV_ROUND_UP(xfer->speed_hz, MSEC_PER_SEC)));
+	SPI_LOG_ERR(mas->ipc, false, mas->dev,
+		    "current xfer_timeout:%lu ms.\n", xfer_timeout);
+
 	if (mas->cur_xfer_mode != GSI_DMA) {
 		reinit_completion(&mas->xfer_done);
 		ret = setup_fifo_xfer(xfer, mas, slv->mode, spi);
@@ -1581,7 +1593,7 @@ static int spi_geni_transfer_one(struct spi_master *spi,
 		}
 
 		timeout = wait_for_completion_timeout(&mas->xfer_done,
-					msecs_to_jiffies(SPI_XFER_TIMEOUT_MS));
+					xfer_timeout);
 		if (!timeout) {
 			SPI_LOG_ERR(mas->ipc, true, mas->dev,
 				"Xfer[len %d tx %pK rx %pK n %d] timed out.\n",
@@ -1605,6 +1617,7 @@ static int spi_geni_transfer_one(struct spi_master *spi,
 		mas->num_tx_eot = 0;
 		mas->num_rx_eot = 0;
 		mas->num_xfers = 0;
+		mas->qn_err = false;
 		reinit_completion(&mas->tx_cb);
 		reinit_completion(&mas->rx_cb);
 
@@ -1623,8 +1636,7 @@ static int spi_geni_transfer_one(struct spi_master *spi,
 			for (i = 0 ; i < mas->num_tx_eot; i++) {
 				timeout =
 				wait_for_completion_timeout(
-					&mas->tx_cb,
-					msecs_to_jiffies(SPI_XFER_TIMEOUT_MS));
+					&mas->tx_cb, xfer_timeout);
 				if (timeout <= 0) {
 					SPI_LOG_ERR(mas->ipc, true, mas->dev,
 					"Tx[%d] timeout%lu\n", i, timeout);
@@ -1635,8 +1647,7 @@ static int spi_geni_transfer_one(struct spi_master *spi,
 			for (i = 0 ; i < mas->num_rx_eot; i++) {
 				timeout =
 				wait_for_completion_timeout(
-					&mas->rx_cb,
-					msecs_to_jiffies(SPI_XFER_TIMEOUT_MS));
+					&mas->rx_cb, xfer_timeout);
 				if (timeout <= 0) {
 					SPI_LOG_ERR(mas->ipc, true, mas->dev,
 					 "Rx[%d] timeout%lu\n", i, timeout);
@@ -2009,6 +2020,9 @@ static int spi_geni_probe(struct platform_device *pdev)
 	geni_mas->dis_autosuspend =
 		of_property_read_bool(pdev->dev.of_node,
 				"qcom,disable-autosuspend");
+	geni_mas->use_fixed_timeout =
+		of_property_read_bool(pdev->dev.of_node,
+				"qcom,use-fixed-timeout");
 	/*
 	 * shared_se property is set when spi is being used simultaneously
 	 * from two Execution Environments.
@@ -2161,6 +2175,11 @@ static int spi_geni_runtime_suspend(struct device *dev)
 		if (ret)
 			return ret;
 	}
+
+	/* For tui usecase LA should control clk/gpio/icb */
+	if (geni_mas->is_la_vm)
+		goto exit_rt_suspend;
+
 	/* Do not unconfigure the GPIOs for a shared_se usecase */
 	if (geni_mas->shared_ee && !geni_mas->shared_se)
 		goto exit_rt_suspend;
@@ -2220,7 +2239,8 @@ static int spi_geni_runtime_resume(struct device *dev)
 		return spi_geni_levm_resume_proc(geni_mas, spi);
 
 	SPI_LOG_DBG(geni_mas->ipc, false, geni_mas->dev, "%s:\n", __func__);
-	if (geni_mas->shared_ee)
+
+	if (geni_mas->shared_ee || geni_mas->is_la_vm)
 		goto exit_rt_resume;
 
 	if (geni_mas->gsi_mode) {
@@ -2261,7 +2281,7 @@ static int spi_geni_suspend(struct device *dev)
 	struct spi_geni_master *geni_mas = spi_master_get_devdata(spi);
 
 	if (!pm_runtime_status_suspended(dev)) {
-		GENI_SE_ERR(geni_mas->ipc, true, dev,
+		SPI_LOG_ERR(geni_mas->ipc, true, dev,
 			":%s: runtime PM is active\n", __func__);
 		ret = -EBUSY;
 		return ret;

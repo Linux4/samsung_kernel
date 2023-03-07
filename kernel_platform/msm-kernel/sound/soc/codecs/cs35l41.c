@@ -2486,7 +2486,11 @@ int cs35l41_reinit(struct snd_soc_component *component)
 		return 0;
 
 	if (cs35l41->reset_gpio) {
+		gpiod_set_value_cansleep(cs35l41->reset_gpio, 0);
 		gpiod_direction_output(cs35l41->reset_gpio, 0);
+		gpiod_direction_output(cs35l41->reset_gpio, 1);
+
+		gpiod_set_value_cansleep(cs35l41->reset_gpio, 0);
 		usleep_range(1000, 1100);
 		gpiod_direction_output(cs35l41->reset_gpio, 1);
 	}

@@ -32,6 +32,13 @@
 			qcom,init-voltage-level =
 				<RPMH_REGULATOR_LEVEL_RETENTION>;
 		};
+
+		cx_cdev: regulator-cdev {
+			compatible = "qcom,rpmh-reg-cdev";
+			mboxes = <&qmp_aop 0>;
+			qcom,reg-resource-name = "cx";
+			#cooling-cells = <2>;
+		};
 	};
 
 	rpmh-regulator-gfxlvl {
@@ -74,7 +81,7 @@
 			qcom,set = <RPMH_REGULATOR_SET_ALL>;
 			regulator-min-microvolt = <1010000>;
 			regulator-max-microvolt = <1170000>;
-			qcom,init-voltage = <1084000>;
+			qcom,init-voltage = <1052000>;
 		};
 	};
 
@@ -85,7 +92,7 @@
 		pm6450_s7: regulator-pm6450-s7 {
 			regulator-name = "pm6450_s7";
 			qcom,set = <RPMH_REGULATOR_SET_ALL>;
-			regulator-min-microvolt = <348000>;
+			regulator-min-microvolt = <880000>;
 			regulator-max-microvolt = <1174000>;
 			qcom,init-voltage = <972000>;
 		};
@@ -112,8 +119,8 @@
 			regulator-name = "pm6450_s9";
 			qcom,set = <RPMH_REGULATOR_SET_ALL>;
 			regulator-min-microvolt = <850000>;
-			regulator-max-microvolt = <2200000>;
-			qcom,init-voltage = <1710000>;
+			regulator-max-microvolt = <2208000>;
+			qcom,init-voltage = <2208000>;
 		};
 	};
 
@@ -129,7 +136,7 @@
 		pm6450_l1: regulator-pm6450-l1 {
 			regulator-name = "pm6450_l1";
 			qcom,set = <RPMH_REGULATOR_SET_ALL>;
-			regulator-min-microvolt = <312000>;
+			regulator-min-microvolt = <300000>;
 			regulator-max-microvolt = <650000>;
 			qcom,init-voltage = <504000>;
 			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
@@ -316,7 +323,6 @@
 			regulator-min-microvolt = <348000>;
 			regulator-max-microvolt = <888000>;
 			qcom,init-voltage = <348000>;
-			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
 		};
 	};
 
@@ -333,7 +339,7 @@
 			regulator-name = "pm6450_l12";
 			qcom,set = <RPMH_REGULATOR_SET_ALL>;
 			regulator-min-microvolt = <1080000>;
-			regulator-max-microvolt = <1304000>;
+			regulator-max-microvolt = <1240000>;
 			qcom,init-voltage = <1080000>;
 			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
 		};
@@ -408,8 +414,8 @@
 		pm6450_l17: regulator-pm6450-l17 {
 			regulator-name = "pm6450_l17";
 			qcom,set = <RPMH_REGULATOR_SET_ALL>;
-			regulator-min-microvolt = <1170000>;
-			regulator-max-microvolt = <1304000>;
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1200000>;
 			qcom,init-voltage = <1200000>;
 			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
 		};
@@ -503,7 +509,7 @@
 		pm6450_l22: regulator-pm6450-l22 {
 			regulator-name = "pm6450_l22";
 			qcom,set = <RPMH_REGULATOR_SET_ALL>;
-			regulator-min-microvolt = <1504000>;
+			regulator-min-microvolt = <1800000>;
 			regulator-max-microvolt = <2000000>;
 			qcom,init-voltage = <1800000>;
 			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
@@ -541,10 +547,14 @@
 		pm6450_l24: regulator-pm6450-l24 {
 			regulator-name = "pm6450_l24";
 			qcom,set = <RPMH_REGULATOR_SET_ALL>;
-			regulator-min-microvolt = <2400000>;
-			regulator-max-microvolt = <3544000>;
-			qcom,init-voltage = <2952000>;
 			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
+			/*
+			 * Remove min/max voltages for this regulator as initial
+			 * voltage of  L24B is set to be 2.4v/2.96v during PON
+			 * depending upon the UFS mode. UFS is the only client
+			 * on this and this regulator will only be voted
+			 * for enabling/disabling conditions.
+			 */
 		};
 	};
 
@@ -702,7 +712,6 @@
 			regulator-min-microvolt = <1620000>;
 			regulator-max-microvolt = <1980000>;
 			qcom,init-voltage = <1620000>;
-			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
 		};
 	};
 
@@ -740,7 +749,6 @@
 			regulator-min-microvolt = <1504000>;
 			regulator-max-microvolt = <3544000>;
 			qcom,init-voltage = <1504000>;
-			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
 		};
 	};
 
@@ -835,7 +843,10 @@
 			regulator-min-microvolt = <3000000>;
 			regulator-max-microvolt = <3400000>;
 			qcom,init-voltage = <3000000>;
-			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
+			/*
+			 * Removed init-mode as it needs to be
+			 * set from client votes alone.
+			 */
 		};
 	};
 
@@ -854,7 +865,6 @@
 			regulator-min-microvolt = <3000000>;
 			regulator-max-microvolt = <3400000>;
 			qcom,init-voltage = <3000000>;
-			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
 		};
 	};
 
@@ -966,8 +976,8 @@
 		BOB: pm6150l_bob: regulator-pm6150l-bob {
 			regulator-name = "pm6150l_bob";
 			qcom,set = <RPMH_REGULATOR_SET_ALL>;
-			regulator-min-microvolt = <1504000>;
-			regulator-max-microvolt = <5500000>;
+			regulator-min-microvolt = <3008000>;
+			regulator-max-microvolt = <3960000>;
 			qcom,init-voltage = <3296000>;
 			qcom,init-mode = <RPMH_REGULATOR_MODE_PASS>;
 		};
@@ -975,8 +985,8 @@
 		BOB_AO: pm6150l_bob_ao: regulator-pm6150l-bob-ao {
 			regulator-name = "pm6150l_bob_ao";
 			qcom,set = <RPMH_REGULATOR_SET_ACTIVE>;
-			regulator-min-microvolt = <1504000>;
-			regulator-max-microvolt = <5500000>;
+			regulator-min-microvolt = <3008000>;
+			regulator-max-microvolt = <3960000>;
 			qcom,init-voltage = <3296000>;
 			qcom,init-mode = <RPMH_REGULATOR_MODE_AUTO>;
 		};
