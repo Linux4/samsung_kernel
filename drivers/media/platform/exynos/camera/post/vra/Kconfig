@@ -1,0 +1,13 @@
+menuconfig VIDEO_EXYNOS_CAMERA_POSTPROCESS_VRA
+	tristate "EXYNOS CAMERA POSTPROCESS VRA Driver"
+	depends on VIDEO_EXYNOS_CAMERA_POSTPROCESS
+	default n
+	help
+		This is a representative exynos CAMERA-PP VRA device.
+
+config CAMERA_PP_VRA_V6_0_0_OBJ
+	tristate "use VGA v6.0.0"
+	depends on VIDEO_EXYNOS_CAMERA_POSTPROCESS_VRA
+	default n
+	help
+		Use to build VGA v6.0.0 driver

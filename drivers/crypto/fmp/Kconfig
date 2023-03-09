@@ -1,0 +1,19 @@
+#
+# FMP controller drivers
+#
+config EXYNOS_FMP
+	tristate "Samsung EXYNOS FMP driver"
+	help
+	  Say yes here to build support for FMP (Flash Memory Protector)
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here
+
+config EXYNOS_FMP_FIPS
+	bool "Samsung EXYNOS FMP Driver for FIPS"
+	depends on EXYNOS_FMP
+	default y
+	help
+	  Say yes here to build support for FMP (Flash Memory Protector)
+	  FIPS validation driver for functional test.
+	  If unsure, say N.

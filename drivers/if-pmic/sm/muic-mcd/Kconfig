@@ -1,0 +1,5 @@
+#
+# MUIC devices
+#
+source "drivers/if-pmic/sm/muic-mcd/common/Kconfig"
+source "drivers/if-pmic/sm/muic-mcd/sm5714/Kconfig"

@@ -1,0 +1,117 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Samsung SoC drivers
+#
+
+source "drivers/soc/samsung/exynos/debug/Kconfig"
+source "drivers/soc/samsung/exynos/exynos-hdcp/Kconfig"
+
+config EXYNOS_MEMORY_LOGGER
+	tristate "Exynos Memory Logger"
+	default n
+	help
+	  Exynos Memory Logger API is provided by memlog driver.
+
+	  Memlog means exynos memory Logger driver. The memlog provides
+	  the logging method desired by each driver in memory for debugging,
+	  memlog provides APIs for memory logging.
+
+config EXYNOS_IMGLOADER
+	tristate "Exynos Image Loader"
+	default n
+	help
+	  Enable Image Loader for Exynos SoC.
+
+config EXYNOS_SYSTEM_EVENT
+	tristate "Exynos System Event Framework"
+	default n
+	help
+	  Enable System Event Framework for Exynos SoC.
+
+config EXYNOS_EL2
+	tristate "Exynos EL2 Solution"
+	depends on ARCH_EXYNOS
+	help
+	  Exynos EL2 Solution has implemented Stage 2
+	  MMU and IOMMU.
+
+config EXYNOS_S2MPU
+        tristate "Exynos Stage 2 Memory Protection Unit(S2MPU)"
+	depends on EXYNOS_EL2
+        help
+          Exynos S2MPU driver to set S2MPU access permission.
+
+config EXYNOS_S2MPU_PD
+	bool "Exynos S2MPU PM domain support"
+	depends on EXYNOS_S2MPU
+	default y
+	help
+	  Backup and restore S2MPU when PM domains
+	  turn on and off.
+
+config EXYNOS_SDM
+	tristate "Exynos Security Dump Manager Support"
+	depends on DEBUG_SNAPSHOT
+	default m
+	help
+	  Exynos Security Dump Manager
+
+config EXYNOS_CRYPTOMANAGER
+	tristate "Exynos Samsung CryptoManager"
+	default m
+	help
+	  Support Exynos Samsung CryptoManager
+
+config EXYNOS_CHIPID_V2
+	tristate "Exynos Chipid controller driver v2"
+	depends on ARCH_EXYNOS
+	help
+	  Exynos chipid V2 driver.
+	  Support newly added soc chipid.
+
+config EXYNOS_TZASC_FAIL_DETECTOR
+	tristate "Exynos TZASC Fail Detector"
+	default m
+	help
+	  Support Exynos TZASC Fail Detector
+
+config EXYNOS_TZASC_ILLEGAL_READ_LOGGING
+	bool "Logging TZASC Read Fail Information"
+	depends on EXYNOS_TZASC_FAIL_DETECTOR
+	default n
+	help
+	  TZASC fail information of illegal reads will be printed
+	  by the Kernel logging system.
+
+config EXYNOS_TZASC_ILLEGAL_ACCESS_PANIC
+	bool "Kernel Panic over TZASC Illegal Access"
+	depends on EXYNOS_TZASC_FAIL_DETECTOR
+	default y
+	help
+	  Kernel panic will occur in case that TZASC illegal
+	  access is detected.
+
+config EXYNOS_MCINFO
+        tristate "Exynos memory controller information"
+        default m
+
+config MCINFO_SYSFS
+        bool "Exynos memory controller information sysfs"
+        depends on EXYNOS_MCINFO
+        default y if SYSFS
+
+config EXYNOS_CONTENT_PATH_PROTECTION
+	tristate "Exynos Content Path Protection"
+	default m
+	help
+	  Enable content path protection of EXYNOS.
+
+config EXYNOS_DP_POWER_CONTROL
+	bool "Exynos DP power control for DRM"
+	depends on HDCP2_DP_ENABLE
+	default n
+	help
+	  Enable DP power control of EXYNOS.
+
+config EXYNOS_USI_V2
+	tristate "Enable Exynos Universal Serial Interface version 2"
