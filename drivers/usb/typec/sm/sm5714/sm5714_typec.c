@@ -3208,7 +3208,7 @@ static void sm5714_power_off_water_check(struct sm5714_phydrv_data *_data)
 		return;
 
 	sm5714_corr_sbu_volt_read(_data, &adc_sbu1, &adc_sbu2, SBU_SOURCING_OFF);
-	if (adc_sbu1 > 0xA && adc_sbu2 > 0xA) {
+	if (adc_sbu1 > 0x24 && adc_sbu2 > 0x24) {
 		_data->is_water_detect = true;
 		sm5714_process_cc_water_det(_data, WATER_MODE_ON);
 		/* Enter water state */

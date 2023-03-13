@@ -513,6 +513,7 @@ static int wacom_i2c_flash_w9020(struct wacom_i2c *wac_i2c, unsigned char *fw_da
 
 	max_address = W9021_END_ADDR;	/* Max.address of Load data */
 	start_address = W9021_START_ADDR;	/* Start.address of Load data */
+	wac_i2c->bl_mpu_match = true;
 
 	/*Obtain boot loader version */
 	if (!flash_blver_w9020(wac_i2c, &iBLVer)) {
@@ -526,12 +527,14 @@ static int wacom_i2c_flash_w9020(struct wacom_i2c *wac_i2c, unsigned char *fw_da
 	if (!flash_mputype_w9020(wac_i2c, &iMpuType)) {
 		input_err(true, &client->dev,
 				"%s failed to get MPU type\n", __func__);
+		wac_i2c->bl_mpu_match = false;
 		return -EXIT_FAIL_GET_MPU_TYPE;
 	}
 
 	if (iMpuType != MPU_WEZ01 && iMpuType != MPU_W9021) {
 		input_err(true, &client->dev,
 					"MPU is not for WEZ01 : %x\n", iMpuType);
+		wac_i2c->bl_mpu_match = false;
 		return -EXIT_FAIL_GET_MPU_TYPE;
 	}
 

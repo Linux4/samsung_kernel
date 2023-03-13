@@ -443,6 +443,35 @@ static ssize_t ar_mode_store(struct device *dev,
 	return size;
 }
 
+static int sbm_init;
+static ssize_t sbm_init_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	pr_info("[FACTORY] %s sbm_init_show:%d\n", __func__, sbm_init);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", sbm_init);
+}
+
+static ssize_t sbm_init_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	int32_t msg_buf[2] = {OPTION_TYPE_SSC_SBM_INIT, 0};
+
+	if (kstrtoint(buf, 10, &sbm_init)) {
+		pr_err("[FACTORY] %s: kstrtoint fail\n", __func__);
+		return -EINVAL;
+	}
+
+	if (sbm_init) {
+		msg_buf[1] = sbm_init;
+		pr_info("[FACTORY] %s sbm_init_store %d\n", __func__, sbm_init);
+		adsp_unicast(msg_buf, sizeof(msg_buf),
+			MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
+	}
+
+	return size;
+}
+
 static DEVICE_ATTR(dumpstate, 0440, dumpstate_show, NULL);
 static DEVICE_ATTR(operation_mode, 0664,
 	operation_mode_show, operation_mode_store);
@@ -456,6 +485,7 @@ static DEVICE_ATTR(ssr_reset, 0440, ssr_reset_show, NULL);
 static DEVICE_ATTR(ssc_mode, 0664, ssc_mode_show, ssc_mode_store);
 #endif
 static DEVICE_ATTR(sensor_dump, 0444, sensor_dump_show, NULL);
+static DEVICE_ATTR(sbm_init, 0660, sbm_init_show, sbm_init_store);
 static DEVICE_ATTR(ar_mode, 0220, NULL, ar_mode_store);
 
 static struct device_attribute *core_attrs[] = {
@@ -471,6 +501,7 @@ static struct device_attribute *core_attrs[] = {
 #ifdef CONFIG_SUPPORT_SSC_MODE
 	&dev_attr_ssc_mode,
 #endif
+	&dev_attr_sbm_init,
 	&dev_attr_ar_mode,
 	NULL,
 };

@@ -2018,12 +2018,11 @@ static int sm5714_fg_set_property(struct power_supply *psy,
 	/* Battery Temperature */
 	case POWER_SUPPLY_PROP_CAPACITY:
 		if (val->intval == SEC_FUELGAUGE_CAPACITY_TYPE_RESET) {
-			fuelgauge->initial_update_of_soc = true;
 			if (!sm5714_fg_reset(fuelgauge, true))
 				return -EINVAL;
-			else
-				break;
+			fuelgauge->initial_update_of_soc = true;
 		}
+		break;
 	case POWER_SUPPLY_PROP_TEMP:
 		fuelgauge->info.temperature = val->intval;
 		if (val->intval < 0) {

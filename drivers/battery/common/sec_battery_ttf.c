@@ -12,6 +12,11 @@
 #include "sec_battery.h"
 #include "sec_battery_ttf.h"
 
+#define is_ttf_thermal_zone(thermal_zone) ( \
+	thermal_zone == BAT_THERMAL_NORMAL || \
+	thermal_zone == BAT_THERMAL_COOL1 || \
+	thermal_zone == BAT_THERMAL_COOL2)
+
 int sec_calc_ttf(struct sec_battery_info * battery, unsigned int ttf_curr)
 {
 	struct sec_cv_slope *cv_data = battery->ttf_d->cv_data;
@@ -328,7 +333,7 @@ int ttf_display(struct sec_battery_info *battery)
 
 	if (((battery->status == POWER_SUPPLY_STATUS_CHARGING) ||
 		(battery->status == POWER_SUPPLY_STATUS_FULL && battery->capacity != 100)) &&
-		!battery->swelling_mode)
+		is_ttf_thermal_zone(battery->thermal_zone))
 		return battery->ttf_d->timetofull;
 	else
 		return 0;
