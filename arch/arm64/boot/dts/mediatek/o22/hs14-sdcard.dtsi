@@ -1,0 +1,8 @@
+/* hs14 code for SR-AL6528A-01-182 by gaochao at 20220905 start */
+&odm {
+	sdcard_det: sdcard-det-pin {
+		compatible = "mediatek,sdcard-detect-pin";
+		mediatek,sdcard-detect-pin-no = <&pio 18 0>;
+	};
+};
+/* hs14 code for SR-AL6528A-01-182 by gaochao at 20220905 end */

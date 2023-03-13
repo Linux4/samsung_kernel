@@ -1,0 +1,11 @@
+#
+# Near Field Communication (NFC) devices
+#
+
+menu "Near Field Communication (NFC) devices"
+	depends on NFC
+
+
+source "drivers/nfc/samsung/Kconfig"
+endmenu
+

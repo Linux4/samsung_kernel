@@ -1,0 +1,12 @@
+config CUSTOM_KERNEL_SAR_SENSOR
+    bool "CUSTOM KERNEL sar Config"
+    help
+      If the platform is supported for sar, this
+      configuration should be configured, and the sar
+      driver configuration should be configured as well.
+
+config SENSORS
+    bool "Sensors Class Support"
+    help
+      This option enables the sensor sysfs class in /sys/class/sensors.
+      You'll need this to do anything useful with sensorss. If unsure, say N.
