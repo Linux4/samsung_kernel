@@ -314,7 +314,7 @@ void dfs_register_save(void)
 	if (g_dfs_data->socdump_flag) {
 		err = dfs_msg_send(&msg, DFS_CMD_SAVE_DUMP_DATA,
 				   msecs_to_jiffies(100), 0);
-		mdelay(100);
+		mdelay(1000);
 		dev_info(g_dfs_data->dev, "info cm4 to save soc_dump data");
 	}
 }

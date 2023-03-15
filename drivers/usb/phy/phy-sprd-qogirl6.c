@@ -98,9 +98,9 @@ struct sprd_hsphy {
 	/* HS03 code for P211026-03673 by gaochao at 20211028 end */
 };
 
-/* HS03 code(Unisoc Patch) for SL6215DEV-4119 by lina at 20220228 start */
+/* HS03_s code(Unisoc Patch) for SSL6215DEV-6 by lina at 20220228 start */
 #define FULLSPEED_USB33_TUNE		3300000
-/* HS03 code(Unisoc Patch) for SL6215DEV-4119 by lina at 20220228 end */
+/* HS03_s code(Unisoc Patch) for SSL6215DEV-6 by lina at 20220228 end */
 
 static int boot_cali;
 static __init int sprd_hsphy_cali_mode(char *str)

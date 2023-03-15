@@ -22,4 +22,4 @@ obj-y += gsp_interface/
 obj-y += gsp_core.o gsp_dev.o gsp_interface.o gsp_kcfg.o \
 	 gsp_layer.o gsp_sync.o gsp_sysfs.o gsp_workqueue.o
 
-obj-$(CONFIG_DRM_SPRD_GSP_IPC_TRUSTY) += gsp_ipc_trusty.o
+#obj-$(CONFIG_DRM_SPRD_GSP_IPC_TRUSTY) += gsp_ipc_trusty.o

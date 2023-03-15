@@ -37,7 +37,11 @@
 #define SPRD_UMP9621_IRQ_NUMS           10
 #define SPRD_UMP9622_IRQ_BASE           0xc080
 #define SPRD_UMP9622_IRQ_NUMS           10
-
+/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 start */
+int sprd_pmic_reg_dump = 0;
+module_param(sprd_pmic_reg_dump, int, 0644);
+MODULE_PARM_DESC(sprd_pmic_reg_dump, "sprd reg dump enable (default: 0)");
+/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 end */
 struct sprd_pmic {
 	struct regmap *regmap;
 	struct device *dev;
@@ -52,6 +56,9 @@ struct sprd_pmic_data {
 	u32 num_irqs;
 };
 
+/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 start */
+static struct task_struct *pmic_dbg_task;
+/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 end */
 /*
  * Since different PMICs of SC27xx&&UMP96xx series can have different interrupt
  * base address and irq number, we should save irq number and irq base
@@ -210,6 +217,28 @@ static const struct regmap_config sprd_pmic_config = {
 	.max_register = 0xffff,
 };
 
+/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 start */
+extern int flag_pmic;
+static int count = 0;
+//static unsigned long counter;
+static int pmic_dbg_func(void *unused)
+{
+	while(1) {
+		if (count == 10 && flag_pmic == 1) {
+			pr_emerg("hang in sprd pmic interrupt count=%d flag_pmic=%d\n", count, flag_pmic);
+			panic("hang in sprd pmic interrupt\n");
+		}
+		msleep(1000);
+		if (flag_pmic) {
+			count++;
+		} else {
+			count = 0;
+		}
+		//printk("here xxing thread %s pid=%i, %lu", current->comm, current->pid, counter++);
+	}
+	return 0;
+}
+/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 end */
 static int sprd_pmic_probe(struct spi_device *spi)
 {
 	struct sprd_pmic *ddata;
@@ -274,7 +303,17 @@ static int sprd_pmic_probe(struct spi_device *spi)
 		dev_err(&spi->dev, "Failed to register device %d\n", ret);
 		return ret;
 	}
+	/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 start */
+	if (!pmic_dbg_task)
+		pmic_dbg_task = kthread_create(pmic_dbg_func, NULL, "pmic_dbg_func");
 
+	if (IS_ERR(pmic_dbg_task)) {
+		dev_err(&spi->dev, "Failed to create pmic_dbg_task\n");
+		pmic_dbg_task = NULL;
+		return -ENOMEM;
+	}
+	wake_up_process(pmic_dbg_task);
+	/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 end */
 	return 0;
 }
 

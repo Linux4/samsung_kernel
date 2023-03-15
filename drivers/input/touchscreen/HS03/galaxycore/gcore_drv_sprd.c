@@ -15,173 +15,90 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  */
-
 #include "gcore_drv_common.h"
-
-#if defined(CONFIG_ENABLE_GESTURE_WAKEUP) && defined(CONFIG_GESTURE_SPECIAL_INT)
-
-int gcore_enable_irq_wake(struct gcore_dev *gdev)
-{
-	GTP_DEBUG("enable irq wake");
-
-	if (gdev->ges_irq) {
-		enable_irq_wake(gdev->ges_irq);
-		return 0;
-	}
-
-	return -EPERM;
-}
-
-EXPORT_SYMBOL(gcore_enable_irq_wake);
-
-void gcore_ges_irq_enable(struct gcore_dev *gdev)
-{
-	unsigned long flags;
-
-	GTP_DEBUG("enable ges irq");
-
-	spin_lock_irqsave(&gdev->irq_flag_lock, flags);
-
-	if (gdev->ges_irq_en == false) {
-		gdev->ges_irq_en = true;
-		spin_unlock_irqrestore(&gdev->irq_flag_lock, flags);
-		enable_irq(gdev->ges_irq);
-	} else if (gdev->ges_irq_en == true) {
-		spin_unlock_irqrestore(&gdev->irq_flag_lock, flags);
-		GTP_ERROR("gesture Eint already enabled!");
-	} else {
-		spin_unlock_irqrestore(&gdev->irq_flag_lock, flags);
-		GTP_ERROR("Invalid irq_flag %d!", gdev->irq_flag);
-	}
-	/*GTP_DEBUG("Enable irq_flag=%d",g_touch.irq_flag); */
-
-}
-
-void gcore_ges_irq_disable(struct gcore_dev *gdev)
-{
-	unsigned long flags;
-
-	GTP_DEBUG("disable ges irq");
-
-	spin_lock_irqsave(&gdev->irq_flag_lock, flags);
-
-	if (gdev->ges_irq_en == false) {
-		spin_unlock_irqrestore(&gdev->irq_flag_lock, flags);
-		GTP_ERROR("gesture Eint already disable!");
-		return;
-	}
-
-	gdev->ges_irq_en = false;
-
-	spin_unlock_irqrestore(&gdev->irq_flag_lock, flags);
-
-	disable_irq_nosync(gdev->ges_irq);
-}
-
-EXPORT_SYMBOL(gcore_ges_irq_disable);
-
-#endif
-
 void gcore_suspend(void)
 {
-	struct gcore_dev *gdev = fn_data.gdev;
-
-	GTP_DEBUG("enter gcore suspend");
-
-	gdev->tp_suspend = true;
-		
-	cancel_delayed_work_sync(&fn_data.gdev->fwu_work);
-		
-#if defined(CONFIG_ENABLE_GESTURE_WAKEUP) && defined(CONFIG_GESTURE_SPECIAL_INT)
-	if (fn_data.gdev->gesture_wakeup_en) {
-		gcore_enable_irq_wake(gdev);
-
-		gdev->irq_disable(gdev);
-
-		sprd_pin_set(&gdev->bus_device->dev, "gpio_144_slp");
-
-		gcore_ges_irq_enable(gdev);
-	}
+    struct gcore_dev *gdev = fn_data.gdev;
+    /*HS03 code for SR-SL6215-01-586 by duanyaoming at 20220304 start*/
+    if(gdev->tp_suspend == true){
+        return;
+    }
+    /*HS03 code for SR-SL6215-01-586 by duanyaoming at 20220304 end*/
+    GTP_DEBUG("enter gcore suspend");
+#if GCORE_WDT_RECOVERY_ENABLE
+    cancel_delayed_work_sync(&fn_data.gdev->wdt_work);
 #endif
+    cancel_delayed_work_sync(&fn_data.gdev->fwu_work);
 
-	msleep(20);
-
+#ifdef CONFIG_ENABLE_GESTURE_WAKEUP
+    if(fn_data.gdev->gesture_wakeup_en) {
+        enable_irq_wake(fn_data.gdev->touch_irq);
+    }
+#endif
+    /*HS03 code for SR-SL6215-01-586 by duanyaoming at 20220304 start*/
+    fn_data.gdev->ts_stat = TS_SUSPEND;
+    gdev->tp_suspend = true;
+    /*HS03 code for SR-SL6215-01-586 by duanyaoming at 20220304 end*/
+    GTP_DEBUG("gcore suspend end");
 }
 
 void gcore_resume(void)
 {
-	struct gcore_dev *gdev = fn_data.gdev;
-
-	GTP_DEBUG("enter gcore resume");
-/* gcore_request_firmware_update_work(NULL); */
-
-	gdev->tp_suspend = false;
-
-#if defined(CONFIG_ENABLE_GESTURE_WAKEUP) && defined(CONFIG_GESTURE_SPECIAL_INT)
-	if (gdev->gesture_wakeup_en) {
-		GTP_DEBUG("disable irq wake");
-
-		gcore_ges_irq_disable(gdev);
-
-		sprd_pin_set(&gdev->bus_device->dev, "gpio_144");
-
-		gdev->irq_enable(gdev);
-	}
+    struct gcore_dev *gdev = fn_data.gdev;
+    /*HS03 code for SR-SL6215-01-586 by duanyaoming at 20220304 start*/
+    if(gdev->tp_suspend == false){
+        return;
+    }
+    /*HS03 code for SR-SL6215-01-586 by duanyaoming at 20220304 end*/
+    GTP_DEBUG("enter gcore resume");
+#ifdef CONFIG_ENABLE_GESTURE_WAKEUP
+    if (gdev->gesture_wakeup_en) {
+        disable_irq_wake(fn_data.gdev->touch_irq);
+    }
 #endif
 
 #ifdef CONFIG_GCORE_AUTO_UPDATE_FW_HOSTDOWNLOAD
-	queue_delayed_work(gdev->fwu_workqueue, &gdev->fwu_work, msecs_to_jiffies(100));
+    gcore_request_firmware_update_work(NULL);
 #endif
-
-	gcore_touch_release_all_point(gdev->input_device);
-
-}
-
-static struct attribute *gcore_dev_suspend_atts[] = {
-	NULL,
-};
-
-static const struct attribute_group gcore_dev_suspend_atts_group = {
-	.attrs = gcore_dev_suspend_atts,
-};
-
-int gcore_sysfs_add_device(struct device *dev)
-{
-	int ret = 0;
-
-	ret = sysfs_create_group(&dev->kobj, &gcore_dev_suspend_atts_group);
-	if (ret) {
-		GTP_ERROR("Add device attr failed!");
-	}
-
-	ret = sysfs_create_link(NULL, &dev->kobj, "touchscreen");
-	if (ret < 0) {
-		GTP_ERROR("Failed to create link!");
-	}
-	return 0;
+    /*HS03 code for SL6215DEV-4294 by duanyaoming at 20220517 start*/
+    msleep(300);
+    gcore_fw_event_notify(FW_HEADSET_UNPLUG-fn_data.gdev->earphone_status);
+    msleep(10);
+    gcore_fw_event_notify(FW_CHARGER_UNPLUG-fn_data.gdev->usb_detect_status);
+    /*HS03 code for SL6215DEV-4294 by duanyaoming at 20220517 end*/
+    /*HS03 code for SR-SL6215-01-586 by duanyaoming at 20220304 start*/
+    fn_data.gdev->ts_stat = TS_NORMAL;
+    gdev->tp_suspend = false;
+    /*HS03 code for SR-SL6215-01-586 by duanyaoming at 20220304 end*/
+    GTP_DEBUG("gcore resume end");
 }
 
 static int __init touch_driver_init(void)
 {
-	GTP_DEBUG("touch driver init.");
-    /* HS03 code for SL6215DEV-100 by yuanliding at 20210813 start */
-    if(tp_is_used != UNKNOWN_TP) {
-        GTP_DEBUG("it is not gcore tp");
-        return -ENODEV;
+    /*HS03 code for SR-SL6215-01-1189 by duanyaoming at 20220407 start*/
+    if (lcd_name) {
+        if (NULL == strstr(lcd_name,"gc7202")) {
+            GTP_DEBUG("it is not gcore tp probe");
+            return -ENODEV;
+        } else {
+            GTP_DEBUG("touch driver init.");
+            if (gcore_touch_bus_init()) {
+                GTP_ERROR("bus init fail!");
+                return -EPERM;
+            }
+        }
+    } else {
+        GTP_ERROR("lcd_name is null");
+        return -EPERM;
     }
-    /* HS03 code for SL6215DEV-100 by yuanliding at 20210813 end */
-	if (gcore_touch_bus_init()) {
-		GTP_ERROR("bus init fail!");
-		return -EPERM;
-	}
-
-	return 0;
+    /*HS03 code for SR-SL6215-01-1189 by duanyaoming at 20220407 end*/
+    return 0;
 }
 
 /* should never be called */
 static void __exit touch_driver_exit(void)
 {
-	gcore_touch_bus_exit();
+    gcore_touch_bus_exit();
 }
 
 module_init(touch_driver_init);

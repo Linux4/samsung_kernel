@@ -957,6 +957,11 @@ static int musb_gadget_enable(struct usb_ep *ep,
 	mbase = musb->mregs;
 	epnum = musb_ep->current_epnum;
 
+	if (pm_runtime_suspended(musb->controller)) {
+		dev_err(musb->controller, "%s controller suspended\n", __func__);
+		return status;
+	}
+
 	spin_lock_irqsave(&musb->lock, flags);
 
 	if (musb_ep->desc) {
@@ -1081,6 +1086,11 @@ static int musb_gadget_enable(struct usb_ep *ep,
 		/* set twice in case of double buffering */
 		musb_writew(regs, MUSB_RXCSR, csr);
 		musb_writew(regs, MUSB_RXCSR, csr);
+		/* workround, sometimes we can't flush fifo by only two times. */
+		while (musb_readw(regs, MUSB_RXCSR) & MUSB_RXCSR_RXPKTRDY) {
+			dev_err(musb->controller, "%s flush fifo more times\n", __func__);
+			musb_writew(regs, MUSB_RXCSR, csr);
+		}
 	}
 
 	/* NOTE:  all the I/O code _should_ work fine without DMA, in case
@@ -1131,6 +1141,14 @@ static int musb_gadget_disable(struct usb_ep *ep)
 	musb = musb_ep->musb;
 	epnum = musb_ep->current_epnum;
 	epio = musb->endpoints[epnum].regs;
+
+	/* If controller has been in suspended, all eps have already been disabled,
+	 * in this case, don't touch musb regs, otherwise may cause crash.
+	 */
+	if (pm_runtime_suspended(musb->controller)) {
+		dev_err(musb->controller, "%s controller suspended\n", __func__);
+		return 0;
+	}
 
 	spin_lock_irqsave(&musb->lock, flags);
 	musb_ep_select(musb->mregs, epnum);
@@ -1269,7 +1287,12 @@ static int musb_gadget_queue(struct usb_ep *ep, struct usb_request *req,
 	if (request->ep != musb_ep)
 		return -EINVAL;
 
-	status = pm_runtime_get_sync(musb->controller);
+	if (pm_runtime_suspended(musb->controller)) {
+		dev_err(musb->controller, "%s controller suspended\n", __func__);
+		return -EINVAL;
+	}
+
+	status = pm_runtime_get(musb->controller);
 	if ((status != -EINPROGRESS) && status < 0) {
 		dev_err(musb->controller,
 			"pm runtime get failed in %s\n",
@@ -1293,7 +1316,7 @@ static int musb_gadget_queue(struct usb_ep *ep, struct usb_request *req,
 				(int)(request->tx));
 		if (status) {
 			musb_dbg(musb, "failed to map request\n");
-			return status;
+			goto end;
 		}
 	} else {
 		map_dma_buffer(request, musb, musb_ep);
@@ -1346,6 +1369,7 @@ static int musb_gadget_queue(struct usb_ep *ep, struct usb_request *req,
 unlock:
 	spin_unlock_irqrestore(&musb->lock, lockflags);
 	pm_runtime_mark_last_busy(musb->controller);
+end:
 	pm_runtime_put_autosuspend(musb->controller);
 
 	return status;
@@ -1365,12 +1389,12 @@ static int musb_gadget_dequeue(struct usb_ep *ep, struct usb_request *request)
 
 	trace_musb_req_deq(req);
 
-	/* Tab A8 code for AX6300DEV-3564 by wenyaqi at 20211129 start */
-#ifdef CONFIG_TARGET_UMS512_1H10
-	if (pm_runtime_suspended(musb->controller))
+	/* If controller has been in suspended, giveback directly */
+	if (pm_runtime_suspended(musb->controller)) {
+		dev_err(musb->controller, "%s controller suspended\n", __func__);
+		musb_g_giveback(musb_ep, request, -ECONNRESET);
 		return 0;
-#endif
-	/* Tab A8 code for AX6300DEV-3564 by wenyaqi at 20211129 end */
+	}
 
 	spin_lock_irqsave(&musb->lock, flags);
 
@@ -1540,9 +1564,10 @@ static int musb_gadget_fifo_status(struct usb_ep *ep)
 	struct musb_ep		*musb_ep = to_musb_ep(ep);
 	void __iomem		*epio = musb_ep->hw_ep->regs;
 	int			retval = -EINVAL;
+	struct musb		*musb = musb_ep->musb;
 
-	if (musb_ep->desc && !musb_ep->is_in) {
-		struct musb		*musb = musb_ep->musb;
+	if (musb_ep->desc && !musb_ep->is_in &&
+	    (!pm_runtime_suspended(musb->controller))) {
 		int			epnum = musb_ep->current_epnum;
 		void __iomem		*mbase = musb->mregs;
 		unsigned long		flags;
@@ -1626,6 +1651,11 @@ static int musb_gadget_get_frame(struct usb_gadget *gadget)
 {
 	struct musb	*musb = gadget_to_musb(gadget);
 
+	if (pm_runtime_suspended(musb->controller)) {
+		dev_err(musb->controller, "%s controller suspended\n", __func__);
+		return -EINVAL;
+	}
+
 	return (int)musb_readw(musb->mregs, MUSB_FRAME);
 }
 
@@ -1637,6 +1667,11 @@ static int musb_gadget_wakeup(struct usb_gadget *gadget)
 	int		status = -EINVAL;
 	u8		power, devctl;
 	int		retries;
+
+	if (pm_runtime_suspended(musb->controller)) {
+		dev_err(musb->controller, "%s controller suspended\n", __func__);
+		return -EINVAL;
+	}
 
 	spin_lock_irqsave(&musb->lock, flags);
 

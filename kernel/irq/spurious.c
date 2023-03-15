@@ -119,8 +119,9 @@ out:
 
 static int misrouted_irq(int irq)
 {
-	struct irq_desc *desc;
-	int i, ok = 0;
+	struct irq_desc *desc = NULL;
+	int i = 0;
+	int ok = 0;
 
 	if (atomic_inc_return(&irq_poll_active) != 1)
 		goto out;
@@ -145,8 +146,8 @@ out:
 
 static void poll_spurious_irqs(unsigned long dummy)
 {
-	struct irq_desc *desc;
-	int i;
+	struct irq_desc *desc = NULL;
+	int i = 0;
 
 	if (atomic_inc_return(&irq_poll_active) != 1)
 		goto out;
@@ -270,7 +271,9 @@ try_misrouted_irq(unsigned int irq, struct irq_desc *desc,
 }
 
 #define SPURIOUS_DEFERRED	0x80000000
-
+/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 start */
+extern bool is_pmic_irq(int irq);
+/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 end */
 void note_interrupt(struct irq_desc *desc, irqreturn_t action_ret)
 {
 	unsigned int irq;
@@ -419,6 +422,10 @@ void note_interrupt(struct irq_desc *desc, irqreturn_t action_ret)
 		 * Now kill the IRQ
 		 */
 		printk(KERN_EMERG "Disabling IRQ #%d\n", irq);
+		/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 start */
+          	if (is_pmic_irq(irq))
+		panic("too many irqs_unhandled");
+		/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 end */
 		desc->istate |= IRQS_SPURIOUS_DISABLED;
 		desc->depth++;
 		irq_disable(desc);

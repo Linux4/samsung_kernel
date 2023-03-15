@@ -106,6 +106,10 @@ struct sprd_glue {
 	bool		dr_swap_host_to_dev;
 	/* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 	bool		is_audiooffload;
+	/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 start */
+	bool		is_data_disabled;
+	enum usb_dr_mode		last_mode;
+	/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 end */
 };
 
 static int boot_charging;
@@ -119,6 +123,7 @@ static const bool is_slave;
 /* HS03 code for P211124-03146 by gaochao at 20211202 start */
 // extern bool sc27xx_get_dr_swap_flag(void);
 extern bool sc27xx_get_dr_swap_flag(void);
+static void musb_sprd_release_all_request(struct musb *musb);
 /* HS03 code for P211124-03146 by gaochao at 20211202 end */
 /* Tab A8 code for AX6300DEV-2368 by qiaodan at 20211028 end */
 static void sprd_musb_enable(struct musb *musb)
@@ -599,7 +604,7 @@ static int musb_sprd_vbus_notifier(struct notifier_block *nb,
 				unsigned long event, void *data)
 {
 	struct sprd_glue *glue = container_of(nb, struct sprd_glue, vbus_nb);
-	unsigned long flags;
+	unsigned long flags = 0;
 
 	if (is_slave) {
 		dev_info(glue->dev, "%s, event(%ld) ignored in slave mode\n", __func__, event);
@@ -718,7 +723,7 @@ static int musb_sprd_id_notifier(struct notifier_block *nb,
 				unsigned long event, void *data)
 {
 	struct sprd_glue *glue = container_of(nb, struct sprd_glue, id_nb);
-	unsigned long flags;
+	unsigned long flags = 0;
 
 	if (is_slave) {
 		dev_info(glue->dev, "%s, event(%ld) ignored in slave mode\n", __func__, event);
@@ -797,7 +802,7 @@ static int musb_sprd_audio_notifier(struct notifier_block *nb,
 
 {
 	struct sprd_glue *glue = container_of(nb, struct sprd_glue, audio_nb);
-	unsigned long flags;
+	unsigned long flags = 0;
 
 	dev_dbg(glue->dev, "[%s]event(%ld)\n", __func__, event);
 
@@ -838,7 +843,7 @@ static int musb_sprd_audio_notifier(struct notifier_block *nb,
 
 static void musb_sprd_detect_cable(struct sprd_glue *glue)
 {
-	unsigned long flags;
+	unsigned long flags = 0;
 	struct extcon_dev *id_ext = glue->id_edev ? glue->id_edev : glue->edev;
 
 	spin_lock_irqsave(&glue->lock, flags);
@@ -877,7 +882,7 @@ musb_sprd_retry_charger_detect(struct sprd_glue *glue)
 	enum usb_charger_type type = UNKNOWN_TYPE;
 	struct usb_phy *usb_phy = glue->xceiv;
 	struct musb *musb = platform_get_drvdata(glue->musb);
-	unsigned long flags;
+	unsigned long flags = 0;
 	u8 pwr;
 
 	dev_info(glue->dev, "%s enter\n", __func__);
@@ -988,7 +993,7 @@ static void sprd_musb_work(struct work_struct *work)
 	struct musb *musb = platform_get_drvdata(glue->musb);
 	enum vbus_state current_state;
 	enum usb_dr_mode current_mode;
-	unsigned long flags;
+	unsigned long flags = 0;
 	bool charging_only = false;
 	int ret;
 	int cnt = 100;
@@ -999,7 +1004,9 @@ static void sprd_musb_work(struct work_struct *work)
 	dev_info(glue->dev, "%s enter!\n", __func__);
 	spin_lock_irqsave(&glue->lock, flags);
 	current_mode = glue->wq_mode;
-	current_state = glue->vbus_active;
+	/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 start */
+	current_state = (glue->vbus_active && (!glue->is_data_disabled));
+	/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 end */
 	glue->wq_mode = USB_DR_MODE_UNKNOWN;
 	spin_unlock_irqrestore(&glue->lock, flags);
 	/* Tab A8 code for P211006-07417 by wangjian at 20211014 start */
@@ -1014,11 +1021,10 @@ static void sprd_musb_work(struct work_struct *work)
 	 * is consistent with the last time,maintain the last state,otherwise
 	 * wait for musb controller enter suspend failed will appear
 	*/
-	if ((glue->pre_mode == current_mode) &&
-		(glue->pre_vbus_active == current_state))
-	{
-		dev_info(glue->dev,
-		 "The status is the same as last time\n");
+	if (glue->pre_vbus_active == current_state) {
+		/* Same mode value may cause function exception */
+		dev_err(glue->dev, "Same vbus_active: mode(%d %d), state(%d %d)\n",
+			glue->pre_mode, current_mode, glue->pre_vbus_active, current_state);
 		return;
 	}
 
@@ -1046,6 +1052,9 @@ static void sprd_musb_work(struct work_struct *work)
 		musb_host_start(musb);
 
 	glue->dr_mode = current_mode;
+	/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 start */
+	glue->last_mode = glue->dr_mode;
+	/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 end */
 	/* Tab A8 code for P211006-07417 by wangjian at 20211014 start */
 	dev_err(musb->controller, "%s enter: vbus = %d mode = %d\n",
 			__func__, current_state, current_mode);
@@ -1059,6 +1068,13 @@ static void sprd_musb_work(struct work_struct *work)
 		if ((musb->g.state != USB_STATE_NOTATTACHED) &&
 		    pm_runtime_active(musb->controller)) {
 			dev_info(glue->dev, "musb device is resumed!\n");
+			/* we know pm_runtime_get_sync will fail here
+			 * but we need to make sure the usage_count will add
+			 * 1, if not, device will enter suspend  when we call
+			 * pm_runtime_put_autosuspend and 500ms pass
+			 */
+			if (glue->dr_mode == USB_DR_MODE_PERIPHERAL)
+				pm_runtime_get_noresume(musb->controller);
 			goto end;
 		}
 
@@ -1212,6 +1228,8 @@ static void sprd_musb_work(struct work_struct *work)
 
 			musb_writeb(musb->mregs, MUSB_DEVCTL,
 				devctl & ~MUSB_DEVCTL_SESSION);
+			/* release request and disable ep before controller suspend */
+			musb_sprd_release_all_request(musb);
 			musb->shutdowning = 1;
 			usb_phy_post_init(glue->xceiv);
 			cnt = 10;
@@ -1270,6 +1288,9 @@ static void sprd_musb_work(struct work_struct *work)
 		/* Tab A8 code for AX6300DEV-3812 by wangjian at 20211217 start */
 		musb->xceiv->otg->state = OTG_STATE_B_IDLE;
 		/* Tab A8 code for AX6300DEV-3812 by wangjian at 20211217 end */
+		/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 start */
+		glue->last_mode = glue->dr_mode;
+		/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 end */
 		glue->dr_mode = USB_DR_MODE_UNKNOWN;
 		if (glue->use_pdhub_c2c) {
 			if (glue->dr_swap_dev_to_host)
@@ -1332,7 +1353,7 @@ static ssize_t musb_audiooffload_show(struct device *dev,
 {
 	struct sprd_glue *glue = dev_get_drvdata(dev);
 	bool offload_value;
-	unsigned long flags;
+	unsigned long flags = 0;
 
 	spin_lock_irqsave(&glue->lock, flags);
 	offload_value = glue->is_audiooffload;
@@ -1346,7 +1367,7 @@ static ssize_t musb_audiooffload_store(struct device *dev,
 		const char *buf, size_t count)
 {
 	struct sprd_glue *glue = dev_get_drvdata(dev);
-	unsigned long flags;
+	unsigned long flags = 0;
 
 	if (strncmp(buf, "enable", 6) == 0) {
 		spin_lock_irqsave(&glue->lock, flags);
@@ -1486,6 +1507,156 @@ end:
 	return false;
 }
 
+
+static struct class *usb_notify_class;
+static struct device *usb_notify_dev;
+
+static ssize_t usb_data_disabled_show(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct sprd_glue *glue = dev_get_drvdata(dev);
+	int usb_data_enabled_flag = glue->is_data_disabled;
+
+	return sprintf(buf, "%d\n", !usb_data_enabled_flag);
+}
+
+static ssize_t usb_data_disabled_store(struct device *dev,
+				struct device_attribute *attr, const char *buf,
+				size_t count)
+{
+	int value = 0;
+	int ret = 0;
+	unsigned long flags;
+	struct sprd_glue *glue = dev_get_drvdata(dev);
+
+	ret = kstrtoint(buf, 10, &value);
+	if (ret) {
+		dev_err(dev, "input err:%d\n", ret);
+		return count;
+	}
+	spin_lock_irqsave(&glue->lock, flags);
+	dev_info(dev, "input value:%d\n", value);
+	if (glue->is_data_disabled == !!value) {
+		if (glue->last_mode == USB_DR_MODE_UNKNOWN) {
+			dev_warn(dev, "last_mode=:%d to %d\n",
+						glue->last_mode, glue->dr_mode);
+			glue->last_mode = glue->dr_mode;
+		}
+		glue->is_data_disabled = !value;
+		glue->wq_mode = glue->last_mode;
+		queue_work(system_unbound_wq, &glue->work);
+	} else {
+		dev_info(dev, "ingnored:%d %d\n",
+					glue->is_data_disabled, value);
+	}
+	dev_dbg(dev, "disable:%d mode:%d vbus:%d\n",
+				glue->is_data_disabled,
+				glue->wq_mode,
+				glue->vbus_active);
+	spin_unlock_irqrestore(&glue->lock, flags);
+
+	return count;
+}
+
+static  DEVICE_ATTR(usb_data_enabled, 0640,
+			       usb_data_disabled_show, usb_data_disabled_store);
+
+static struct attribute *usb_data_control_attrs[] = {
+	&dev_attr_usb_data_enabled.attr,
+	NULL
+};
+
+static const struct attribute_group usb_data_control_group = {
+	.attrs = usb_data_control_attrs,
+};
+
+static int musb_sprd_usb_notify_init(struct platform_device *pdev, void *data)
+{
+	int ret = 0;
+
+	usb_notify_class = class_create(THIS_MODULE, "usb_notify");
+	if (IS_ERR_OR_NULL(usb_notify_class)) {
+		dev_err(&pdev->dev, "usb_notify class create err.\n");
+		ret = PTR_ERR(usb_notify_class);
+		goto out;
+	}
+
+	usb_notify_dev =
+		device_create(usb_notify_class, &pdev->dev, 0, NULL, "usb_control");
+	if (IS_ERR_OR_NULL(usb_notify_dev)) {
+		dev_err(&pdev->dev, "usb_notify class create err.\n");
+		ret = PTR_ERR(usb_notify_dev);
+		class_destroy(usb_notify_class);
+		goto out;
+	}
+
+	ret = sysfs_create_group(&usb_notify_dev->kobj, &usb_data_control_group);
+	if (ret) {
+		dev_err(&pdev->dev, "sysfs create err. ret:%d\n", ret);
+		device_destroy(usb_notify_class, usb_notify_dev->devt);
+		class_destroy(usb_notify_class);
+		goto out;
+	}
+
+	dev_set_drvdata(usb_notify_dev, data);
+	dev_info(&pdev->dev, "[%s] --\n", __func__);
+
+out:
+	return ret;
+}
+
+static void musb_sprd_usb_notify_exit(struct platform_device *pdev)
+{
+	if (usb_notify_dev) {
+		sysfs_remove_group(&usb_notify_dev->kobj, &usb_data_control_group);
+		device_destroy(usb_notify_class, usb_notify_dev->devt);
+	}
+
+	if (usb_notify_class)
+		class_destroy(usb_notify_class);
+
+	dev_info(&pdev->dev, "[%s] --\n", __func__);
+}
+
+/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 start */
+static struct sprd_glue *usb_sprd_glue;
+bool usb_data_enabled = true;
+EXPORT_SYMBOL(usb_data_enabled);
+
+void usb_notify_control(bool data_enabled)
+{
+	struct sprd_glue *glue = NULL;
+	unsigned long flags = 0;
+
+	if (!usb_sprd_glue) {
+		dev_err(NULL, "glue null.\n");
+		return;
+	}
+
+	glue = usb_sprd_glue;
+
+	spin_lock_irqsave(&glue->lock, flags);
+	dev_info(NULL, "input data_enabled:%d\n", data_enabled);
+	if (glue->is_data_disabled == data_enabled) {
+		if (glue->last_mode == USB_DR_MODE_UNKNOWN) {
+			dev_warn(NULL, "last_mode=:%d to %d\n",
+						glue->last_mode, glue->dr_mode);
+			glue->last_mode = glue->dr_mode;
+		}
+		glue->is_data_disabled = !data_enabled;
+		glue->wq_mode = glue->last_mode;
+		queue_work(system_unbound_wq, &glue->work);
+	} else {
+		dev_info(NULL, "ingnored. %d %d\n", glue->is_data_disabled, data_enabled);
+	}
+	dev_dbg(NULL, "disable:%d mode:%d vbus:%d\n",
+				glue->is_data_disabled, glue->wq_mode, glue->vbus_active);
+	spin_unlock_irqrestore(&glue->lock, flags);
+	usb_data_enabled = data_enabled;
+}
+EXPORT_SYMBOL(usb_notify_control);
+/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 end */
+
 static int musb_sprd_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -1495,6 +1666,8 @@ static int musb_sprd_probe(struct platform_device *pdev)
 	struct sprd_glue *glue;
 	u32 buf[2];
 	int ret;
+	u32 is_data_enable = 0;
+
 	if (sprd_usbmux_check_mode() == MUX_MODE) {
 		dev_info(&pdev->dev, "musb driver stop probe since usb mux jtag\n");
 		return -ENODEV;
@@ -1650,6 +1823,19 @@ static int musb_sprd_probe(struct platform_device *pdev)
 		}
 	}
 
+	ret = of_property_read_u32(node, "sprd,usb-data-enable", &is_data_enable);
+	if (!ret && is_data_enable) {
+		ret = musb_sprd_usb_notify_init(pdev, glue);
+		if (ret)
+			dev_warn(&pdev->dev, "usb_notify_init err. %d\n", ret);
+
+		glue->is_data_disabled = 0;
+		glue->last_mode = USB_DR_MODE_UNKNOWN;
+	} else {
+		dev_info(&pdev->dev, "not support usb data control.ret:%d %d\n",
+					ret, is_data_enable);
+	}
+
 	glue->audio_nb.notifier_call = musb_sprd_audio_notifier;
 	ret = register_sprd_usbm_notifier(&glue->audio_nb, SPRD_USBM_EVENT_HOST_MUSB);
 	if (ret) {
@@ -1675,6 +1861,12 @@ static int musb_sprd_probe(struct platform_device *pdev)
 	if (!is_slave)
 		musb_sprd_detect_cable(glue);
 
+	/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 start */
+	usb_sprd_glue = glue;
+	glue->is_data_disabled = false;
+	glue->last_mode = USB_DR_MODE_UNKNOWN;
+	/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 end */
+
 	pr_err("%s probe finish\n", __func__);
 	return 0;
 
@@ -1696,6 +1888,11 @@ static int musb_sprd_remove(struct platform_device *pdev)
 {
 	struct sprd_glue *glue = platform_get_drvdata(pdev);
 	struct musb *musb = platform_get_drvdata(glue->musb);
+
+	musb_sprd_usb_notify_exit(pdev);
+	/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 start */
+	usb_sprd_glue = NULL;
+	/* HS03_S & Tab A8_S code for SL6215SDEV-786 by gaozhengwei at 20220630 end */
 
 	/* this gets called on rmmod.
 	 *  - Host mode: host may still be active
@@ -1857,12 +2054,10 @@ static int musb_sprd_runtime_suspend(struct device *dev)
 	struct dma_controller *c = musb->dma_controller;
 	struct sprd_musb_dma_controller *controller = container_of(c,
 			struct sprd_musb_dma_controller, controller);
-	unsigned long flags;
+	unsigned long flags = 0;
 	int ret;
 
 	usb_phy_vbus_off(glue->xceiv);
-	if (glue->dr_mode == USB_DR_MODE_PERIPHERAL)
-		musb_sprd_release_all_request(musb);
 
 	if (glue->dr_mode == USB_DR_MODE_HOST) {
 		ret = wait_event_timeout(controller->wait,

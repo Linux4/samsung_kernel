@@ -6,7 +6,7 @@
 #else
 #define SPRD_SYSDUMP_MAGIC      0x3B800000
 #endif
-
+#define SYSDUMP_PROC_BUF_LEN	5
 struct sysdump_mem {
 	unsigned long paddr;
 	unsigned long vaddr;

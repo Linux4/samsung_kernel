@@ -90,3 +90,12 @@ config USB_LEDS_TRIGGER_USBPORT
 	  This driver allows LEDs to be controlled by USB events. Enabling this
 	  trigger allows specifying list of USB ports that should turn on LED
 	  when some USB device gets connected.
+
+config USB_INTERFACE_LPM_LIST
+	bool "USB interface class lpm Feature"
+	depends on USB
+	help
+	 The device needs to support L1 for audio class devices
+	 But L1 mode has some issues.
+	 So we will apply L1 mode to the device that has specific interface classes
+	 Now, It is only enabled for audio class.

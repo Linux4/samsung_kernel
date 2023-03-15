@@ -42,7 +42,5 @@ void disp_ca_disconnect(void);
 ssize_t disp_ca_read(void *buf, size_t max_len);
 ssize_t disp_ca_write(void *buf, size_t len);
 int disp_ca_wait_response(void);
-/*HS03 code for P220125-07187 by wenghailong at 20220217 start*/
-void disp_ca_set_disconnect_state(void);
-/*HS03 code for P220125-07187 by wenghailong at 20220217 end*/
+
 #endif

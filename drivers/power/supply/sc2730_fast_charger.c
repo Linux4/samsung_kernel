@@ -80,6 +80,11 @@
 #define FCHG_VOLTAGE_9V				9000000
 #define FCHG_VOLTAGE_12V			12000000
 #define FCHG_VOLTAGE_20V			20000000
+/* Tab A8_S code for AX6300SDEV-324 by wenyaqi at 20220613 start */
+#ifdef CONFIG_AFC
+#define AFC_VOLTAGE_9V				9000000
+#endif
+/* Tab A8_S code for AX6300SDEV-324 by wenyaqi at 20220613 end */
 
 #define SC2730_FCHG_TIMEOUT			msecs_to_jiffies(5000)
 #define SC2730_FAST_CHARGER_DETECT_MS		msecs_to_jiffies(1000)
@@ -910,6 +915,12 @@ static int sc2730_fchg_usb_get_property(struct power_supply *psy,
 			sc2730_get_pps_voltage_max(info, &val->intval);
 		else if (info->sfcp_enable)
 			val->intval = FCHG_VOLTAGE_9V;
+		/* Tab A8_S code for AX6300SDEV-324 by wenyaqi at 20220613 start */
+		#ifdef CONFIG_AFC
+		else if (info->afc_enable)
+			val->intval = AFC_VOLTAGE_9V;
+		#endif
+		/* Tab A8_S code for AX6300SDEV-324 by wenyaqi at 20220613 end */
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
 		if (info->pps_enable)

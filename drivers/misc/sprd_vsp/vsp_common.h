@@ -28,6 +28,7 @@
 struct vsp_fh {
 	int is_vsp_aquired;
 	int is_clock_enabled;
+	bool is_wakelock_got;
 
 	wait_queue_head_t wait_queue_work;
 	int condition_work;

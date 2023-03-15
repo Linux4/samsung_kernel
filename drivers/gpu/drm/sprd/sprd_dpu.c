@@ -979,20 +979,6 @@ int sprd_dpu_stop(struct sprd_dpu *dpu)
 	return 0;
 }
 
-int cali_sprd_dpu_stop(struct sprd_dpu *dpu)
-{
-	struct dpu_context *ctx = &dpu->ctx;
-
-
-	if (dpu->core && dpu->core->stop)
-		dpu->core->stop(ctx);
-
-	drm_crtc_handle_vblank(&dpu->crtc);
-	drm_crtc_vblank_off(&dpu->crtc);
-
-	return 0;
-}
-
 static int sprd_dpu_init(struct sprd_dpu *dpu)
 {
 	struct dpu_context *ctx = &dpu->ctx;
@@ -1141,10 +1127,6 @@ static int sprd_dpu_bind(struct device *dev, struct device *master, void *data)
 
 	DRM_INFO("%s()\n", __func__);
 
-	sprd = drm->dev_private;
-	dpu = dev_get_drvdata(dev);
-	dpu->drm = drm;
-
 	plane = sprd_plane_init(drm, dpu);
 	if (IS_ERR_OR_NULL(plane)) {
 		err = PTR_ERR(plane);
@@ -1253,7 +1235,7 @@ static int sprd_dpu_probe(struct platform_device *pdev)
 
 	if (calibration_mode) {
 		DRM_WARN("Calibration Mode! Don't register sprd dpu driver\n");
-		//return -ENODEV;
+		return -ENODEV;
 	}
 
 	dpu = devm_kzalloc(&pdev->dev, sizeof(*dpu), GFP_KERNEL);

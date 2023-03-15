@@ -269,6 +269,137 @@ static const struct irq_chip regmap_irq_chip = {
 	.irq_set_wake		= regmap_irq_set_wake,
 };
 
+/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 start */
+int flag_pmic = 0;
+struct debug_reg_info {
+	u32 start;
+	u32 end;
+	u32 pre_data[64];
+};
+#define REGS_INIT(regs_base, regs_end)	\
+{					\
+	.start = regs_base,		\
+	.end = regs_end,		\
+}
+
+#define REG_ARRAY_SIZE(a)	(sizeof(a) / sizeof((a)[0]))
+
+static struct debug_reg_info pmic_regs_array[] = {
+	REGS_INIT(0x280, 0x2ff),
+	REGS_INIT(0x708, 0x708),
+	REGS_INIT(0x1ba8, 0x1ba8),
+	REGS_INIT(0x80, 0x88),
+	REGS_INIT(0x4a4, 0x4a4),
+	REGS_INIT(0x1804, 0x1804),
+};
+
+static struct debug_reg_info adi_regs_array[] = {
+	REGS_INIT(0x28, 0x38),
+	REGS_INIT(0x21c, 0x21c),
+	REGS_INIT(0x220, 0x220),
+};
+
+extern struct regmap *sprd_get_pmic_regmap(void);
+extern void __iomem *sprd_get_adi_ioregmap(void);
+extern int sprd_pmic_reg_dump;
+#define ANA_IRQ_NUM (68)
+bool is_pmic_irq(int irq)
+{
+	return (irq == ANA_IRQ_NUM);
+}
+
+static void pmic_adi_check(struct regmap *pmic_regmap)
+{
+	u32 int_mask0, int_mask1, chipid;
+
+	regmap_read(pmic_regmap, 0x80, &int_mask0);
+	regmap_read(pmic_regmap, 0x1804, &chipid);
+	regmap_read(pmic_regmap, 0x80, &int_mask1);
+	pr_err("int_mask0 = 0x%x, int_mask1 = 0x%x, chipid = 0x%x\n",
+		int_mask0, int_mask1, chipid);
+}
+
+static void sprd_pmic_regs_dump_handler(bool ana_int_err)
+{
+	u32 size = REG_ARRAY_SIZE(pmic_regs_array), regdata;
+	struct debug_reg_info *reg_info = NULL;
+	int i, j, k;
+	struct regmap *pmic_regmap = sprd_get_pmic_regmap();
+	void __iomem *adi_base = sprd_get_adi_ioregmap();
+
+	if (!pmic_regmap || !adi_base)
+		return;
+
+	if (ana_int_err)
+		pmic_adi_check(pmic_regmap);
+
+	size = REG_ARRAY_SIZE(adi_regs_array);
+	for (i = 0; i < size; i++) {
+		reg_info = &adi_regs_array[i];
+		for (j = reg_info->start, k = 0; j <= reg_info->end; j += 4, k++) {
+			regdata = 0x1234;
+			regdata = readl_relaxed(adi_base + j);
+			if (ana_int_err)
+				pr_err("adi_reg[%d][0x%x] = [0x%x, 0x%x]\n",
+				       k, j, reg_info->pre_data[k], regdata);
+			else {
+				reg_info->pre_data[k] = regdata;
+				if (sprd_pmic_reg_dump)
+					pr_err("adi_reg[%d][0x%x] = [0x%x]\n",
+						k, j, reg_info->pre_data[k]);
+			}
+		}
+	}
+
+	size = REG_ARRAY_SIZE(pmic_regs_array);
+	for (i = 0; i < size; i++) {
+		reg_info = &pmic_regs_array[i];
+		for (j = reg_info->start, k = 0; j <= reg_info->end; j += 4, k++) {
+			regdata = 0x1234;
+			regmap_read(pmic_regmap, j, &regdata);
+			if (ana_int_err)
+				pr_err("pmic_reg[%d][0x%x] = [0x%x, 0x%x]\n",
+				       k, j, reg_info->pre_data[k], regdata);
+			else {
+				reg_info->pre_data[k] = regdata;
+				if (sprd_pmic_reg_dump)
+					pr_err("pmic_reg[%d][0x%x] = [0x%x]\n",
+						k, j, reg_info->pre_data[k]);
+			}
+		}
+	}
+
+	if (ana_int_err)
+		panic("ana int error, force to panic!!!!!!");
+}
+
+#define ANA_IRQ_OVER_NUM (250)
+static void ana_irq_check(struct regmap_irq_chip_data *data, int irq)
+{
+	const struct regmap_irq_chip *chip = data->chip;
+	struct regmap *map = data->map;
+	int i;
+	static int irq_err_cnt = 0;
+
+	//pr_err("[ana_irq_check] hwirq : %d, irq = %d, comm=%s\n", irq_d->hwirq, irq, current->comm);
+	if (!is_pmic_irq(irq))
+		return;
+
+	for (i = 0; i < chip->num_irqs; i++) {
+		if (data->status_buf[chip->irqs[i].reg_offset /
+				     map->reg_stride] & chip->irqs[i].mask) {
+			sprd_pmic_regs_dump_handler(false);
+			return;
+		}
+	}
+
+	if (irq_err_cnt++ > ANA_IRQ_OVER_NUM) {
+		irq_err_cnt = 0;
+		sprd_pmic_regs_dump_handler(true);
+	}
+}
+/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 end */
+
 static irqreturn_t regmap_irq_thread(int irq, void *d)
 {
 	struct regmap_irq_chip_data *data = d;
@@ -277,7 +408,14 @@ static irqreturn_t regmap_irq_thread(int irq, void *d)
 	int ret, i;
 	bool handled = false;
 	u32 reg;
+	/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 start */
+	static u32 ana_irq_cnt = 0;
 
+	if (is_pmic_irq(irq) && (ana_irq_cnt++ > ANA_IRQ_OVER_NUM)) {
+		pr_err("[pmic handler] in %s : %d, irq = %d, comm=%s,pid=%i\n", __func__, __LINE__, irq, current->comm, current->pid);
+		ana_irq_cnt = 0;
+	}
+	/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 end */
 	if (chip->handle_pre_irq)
 		chip->handle_pre_irq(chip->irq_drv_data);
 
@@ -346,7 +484,9 @@ static irqreturn_t regmap_irq_thread(int irq, void *d)
 			}
 		}
 	}
-
+	/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 start */
+	ana_irq_check(data, irq);
+	/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 end */
 	/*
 	 * Ignore masked IRQs and ack if we need to; we ack early so
 	 * there is no race between handling and acknowleding the
@@ -366,15 +506,22 @@ static irqreturn_t regmap_irq_thread(int irq, void *d)
 					reg, ret);
 		}
 	}
-
+	/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 start */
+	flag_pmic = 1;	//start handle irq
 	for (i = 0; i < chip->num_irqs; i++) {
 		if (data->status_buf[chip->irqs[i].reg_offset /
 				     map->reg_stride] & chip->irqs[i].mask) {
+			if (is_pmic_irq(irq))
+				pr_err("[pmic handler] start in %s : %d, i = %d, nirq = %d\n", __func__, __LINE__, i, irq_find_mapping(data->domain, i));
 			handle_nested_irq(irq_find_mapping(data->domain, i));
+			if (is_pmic_irq(irq))
+				pr_err("[pmic handler] finished in %s : %d, i = %d\n", __func__, __LINE__, i);
 			handled = true;
 		}
 	}
 
+	flag_pmic = 0;	//done
+	/* Tab A8_S code for P220729-02538 by qiaodan at 20220804 end */
 	if (chip->runtime_pm)
 		pm_runtime_put(map->dev);
 

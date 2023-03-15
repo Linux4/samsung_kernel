@@ -55,6 +55,7 @@ int wcn_send_atcmd(void *cmd, unsigned char cmd_len,
 	int num = 1;
 	int ret;
 	unsigned long timeleft;
+	int ret_len = strlen((char *)cmd);
 #ifdef CONFIG_WCN_PCIE
 	/* dma_buf for dma */
 	static struct dma_buf dma_buf;
@@ -91,7 +92,7 @@ int wcn_send_atcmd(void *cmd, unsigned char cmd_len,
 
 #ifdef CONFIG_WCN_PCIE
 	if (at_buf_flag == 0) {
-		ret = dmalloc(pcie_dev, &dma_buf, 128);
+		ret = dmalloc(pcie_dev, &dma_buf, ret_len);
 		if (ret != 0) {
 			mutex_unlock(&sysfs_info.mutex);
 			return -1;
@@ -102,15 +103,15 @@ int wcn_send_atcmd(void *cmd, unsigned char cmd_len,
 	head->phy = (unsigned long)(dma_buf.phy);
 	head->len = cmd_len;
 	memset(head->buf, 0x0, head->len);
-	memcpy(head->buf, cmd, cmd_len);
+	memcpy(head->buf, cmd, ret_len);
 	head->next = NULL;
 #else
-	com_buf = kzalloc(128 + PUB_HEAD_RSV + 1, GFP_KERNEL);
+	com_buf = kzalloc(ret_len + PUB_HEAD_RSV + 1, GFP_KERNEL);
 	if (!com_buf) {
 		mutex_unlock(&sysfs_info.mutex);
 		return -ENOMEM;
 	}
-	memcpy(com_buf + PUB_HEAD_RSV, cmd, cmd_len);
+	memcpy(com_buf + PUB_HEAD_RSV, cmd, ret_len);
 	head->buf = com_buf;
 	head->len = cmd_len;
 	head->next = NULL;

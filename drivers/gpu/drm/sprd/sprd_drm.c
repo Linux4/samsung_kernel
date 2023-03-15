@@ -369,7 +369,6 @@ void sprd_atomic_state_clear(struct drm_atomic_state *state)
 			drm_connector_put(connector);
 		} else {
 			DRM_ERROR("connector destroy function should be defined\n");
-			continue;
 		}
 	}
 
@@ -396,7 +395,6 @@ void sprd_atomic_state_clear(struct drm_atomic_state *state)
 			state->crtcs[i].new_state = NULL;
 		} else {
 			DRM_ERROR("crtc destroy function should be defined\n");
-			continue;
 		}
 	}
 
@@ -415,7 +413,6 @@ void sprd_atomic_state_clear(struct drm_atomic_state *state)
 			state->planes[i].new_state = NULL;
 		} else {
 			DRM_ERROR("plane destroy function should be defined\n");
-			continue;
 		}
 	}
 
@@ -434,7 +431,6 @@ void sprd_atomic_state_clear(struct drm_atomic_state *state)
 			state->private_objs[i].new_state = NULL;
 		} else {
 			DRM_ERROR("obj destroy function should be defined\n");
-			continue;
 		}
 	}
 	state->num_private_objs = 0;

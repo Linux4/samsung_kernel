@@ -5183,10 +5183,6 @@ int io_schedule_prepare(void)
 	int old_iowait = current->in_iowait;
 
 	current->in_iowait = 1;
-#if defined(CONFIG_SPRD_DEBUG)
-	if (!old_iowait)
-		current->iowait_start = ktime_get_boot_fast_ns();
-#endif
 	blk_schedule_flush_plug(current);
 
 	return old_iowait;
@@ -5194,15 +5190,6 @@ int io_schedule_prepare(void)
 
 void io_schedule_finish(int token)
 {
-#if defined(CONFIG_SPRD_DEBUG)
-	unsigned long long delta = ktime_get_boot_fast_ns() - current->iowait_start;
-
-	if (delta > io_schedule_max_ms * NSEC_PER_MSEC)
-		pr_info("iowait: %5lldms [%-16s] %-16s %ps\n",
-			ktime_to_ms(delta), current->comm,
-			current->group_leader ? current->group_leader->comm : "",
-			__builtin_return_address(0));
-#endif
 	current->in_iowait = token;
 }
 

@@ -56,7 +56,7 @@ static unsigned int atoi(const char *str)
 }
 
 /* parse a string containing a comma-separated */
-int analyse_separate(char *str, char str_array[][MAX_SIZE], char *needle)
+int analyse_separate(char *str, char str_array[][MAX_SIZE], char *needle, int max_length)
 {
 	int i = 0;
 	char *buf = NULL;
@@ -71,7 +71,7 @@ int analyse_separate(char *str, char str_array[][MAX_SIZE], char *needle)
 	strncpy(pchar, str, MAX_STR_LEN - 1);
 	buf = strstr(pchar, needle);
 
-	while (NULL != buf) {
+	while ((NULL != buf) && (i < max_length)) {
 		buf[0] = '\0';
 		strncpy(str_array[i], pchar, MAX_SIZE - 1);
 		i++;
@@ -109,7 +109,7 @@ const char *buffer, size_t len, loff_t *off)
 		return -EFAULT;
 	}
 
-	if (-1 == analyse_separate(black_list_str, str, ","))
+	if (-1 == analyse_separate(black_list_str, str, ",", MAX_SIZE))
 		return -EFAULT;
 
 	for (i = 0; i < MAX_SIZE; i++) {
@@ -164,7 +164,7 @@ static ssize_t white_list_proc_write(struct file *file,
 		return -EFAULT;
 	}
 
-	if (-1 == analyse_separate(white_list_str, str, ","))
+	if (-1 == analyse_separate(white_list_str, str, ",", MAX_SIZE))
 		return -EFAULT;
 
 	for (i = 0; i < MAX_SIZE; i++) {
@@ -217,7 +217,7 @@ const char __user *buffer, size_t len, loff_t *off)
 		return -EFAULT;
 	}
 
-	if (-1 == analyse_separate(black_list_comm_str, black_list_comm, ","))
+	if (-1 == analyse_separate(black_list_comm_str, black_list_comm, ",", MAX_SIZE))
 		return -EFAULT;
 
 	for (i = 0; i < MAX_SIZE; i++) {
@@ -267,7 +267,7 @@ const char *buffer, size_t len, loff_t *off)
 		return -EFAULT;
 	}
 
-	if (-1 == analyse_separate(white_list_comm_str, white_list_comm, ","))
+	if (-1 == analyse_separate(white_list_comm_str, white_list_comm, ",", MAX_SIZE))
 		return -EFAULT;
 
 	for (i = 0; i < MAX_SIZE; i++) {

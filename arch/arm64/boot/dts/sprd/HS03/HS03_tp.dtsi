@@ -25,6 +25,26 @@
 
 		/* selftest settings */
 		//selftest start
+		chipone_hlt_hsd,test-reset-pin;
+		//chipone_hlt_hsd,test-int-pin;
+		chipone_hlt_hsd,test-rawdata;
+		chipone_hlt_hsd,test-rawdata-frames = <1>;
+		chipone_hlt_hsd,rawdata-min = <1430>;
+		chipone_hlt_hsd,rawdata-max = <2970>;
+		chipone_hlt_hsd,test-noise;
+		chipone_hlt_hsd,test-noise-frames = <50>;
+		chipone_hlt_hsd,noise-max = <76>;
+		chipone_hlt_hsd,test-open;
+		chipone_hlt_hsd,open-min = <3120>;
+		chipone_hlt_hsd,test-short;
+		chipone_hlt_hsd,short-min = <500>;
+		chipone_hlt_hsd,test-compensate-cap;
+		chipone_hlt_hsd,compensate-cap-min = <1>;
+		chipone_hlt_hsd,compensate-cap-max = <126>;
+		//selftest end
+
+		/* selftest settings */
+		//selftest start
 		chipone_genrpro_inx,test-reset-pin;
 		//chipone_genrpro_inx,test-int-pin;
 

@@ -199,6 +199,26 @@ enum cm_charger_fault_status_shift {
 	CM_CHARGER_BUS_ERR_HI_SHIFT = 25,
 };
 
+/**
+ * uvlo_shutdown_mode -
+ * CM_SHUTDOWN_MODE_ORDERLY - if the file "/sbin/poweroff" exit, it will
+ * shutdown from user layer to kernel layer depend on /sbin/poweroff.
+ * you can use this mode if your system have the file /sbin/poweroff.
+ *
+ * CM_SHUTDOWN_MODE_KERNEL - emergency shutdown, data may not save.
+ * system use this mode as default mode.
+ *
+ * CM_SHUTDOWN_MODE_ANDROID - set the UI cap to 0 and let android layer
+ * to shutdown from android layer to kernel layer.
+ * you can use this mode if you want to save data before shutdown.
+ *
+ */
+enum uvlo_shutdown_modes {
+	CM_SHUTDOWN_MODE_ORDERLY = 0,
+	CM_SHUTDOWN_MODE_KERNEL,
+	CM_SHUTDOWN_MODE_ANDROID,
+};
+
 #define CM_IBAT_BUFF_CNT 7
 
 struct wireless_data {
@@ -578,6 +598,8 @@ struct range_data {
  *	less than under voltage lock out
  * @low_temp_trigger_cnt: The number of times the battery temperature
  *	is less than 10 degree.
+ * @uvlo_shutdown_mode:
+ *	Determine which polling mode will be used
  * @cap_one_time: The percentage of electricity is not
  *	allowed to change by 1% in cm->desc->cap_one_time
  * @trickle_time_out: If 99% lasts longer than it , will force set full statu
@@ -683,6 +705,7 @@ struct charger_desc {
 
 	int charger_status;
 	u32 charger_type;
+	u32 charger_type_cnt;
 	/* Tab A8 code for SR-AX6300-01-5 by wenyaqi at 20210824 start */
 	#ifdef CONFIG_AFC
 	int afc_sts;
@@ -694,6 +717,7 @@ struct charger_desc {
 	int trigger_cnt;
 	int first_trigger_cnt;
 	int uvlo_trigger_cnt;
+	enum uvlo_shutdown_modes uvlo_shutdown_mode;
 	int low_temp_trigger_cnt;
 
 	u32 cap_one_time;
@@ -783,6 +807,11 @@ struct charger_desc {
 	bool batt_store_mode;
 	#endif
 	/* HS03 code for SR-SL6215-01-552 by qiaodan at 20210831 end */
+	/* Tab A8 code for P220915-04436  and AX6300TDEV-163 by  xuliqin at 20220920 start */
+#if !defined(HQ_FACTORY_BUILD)
+	int batt_full_cap;
+#endif
+	/* Tab A8 code for P220915-04436 and AX6300TDEV-163 by  xuliqin at 20220920 end */
 };
 
 #define PSY_NAME_MAX	30
@@ -875,6 +904,11 @@ struct charger_manager {
 	bool en_batt_protect;
 	#endif
 	/* HS03 code for SR-SL6215-01-255 by shixuanxuan at 20210902 end */
+	/* Tab A8 code for P220915-04436  and AX6300TDEV-163 by  xuliqin at 20220920 start */
+#if !defined(HQ_FACTORY_BUILD)
+	bool batt_full_flag;
+#endif
+	/* Tab A8 code for P220915-04436  and AX6300TDEV-163 by  xuliqin at 20220920 end */
 /* HS03 code for SL6216DEV-97 by shixuanxuan at 20211001 start */
 #if !defined(HQ_FACTORY_BUILD)
 	bool en_constant_soc_val;

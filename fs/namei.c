@@ -1011,15 +1011,6 @@ int sysctl_protected_symlinks __read_mostly = 0;
 int sysctl_protected_hardlinks __read_mostly = 0;
 int sysctl_protected_fifos __read_mostly;
 int sysctl_protected_regular __read_mostly;
-#if defined(CONFIG_SPRD_DEBUG)
-int sysctl_fs_timeout[] = {
-	500,    /* vfs_open_max_ms */
-	500,    /* vfs_write_max_ms */
-	2000,   /* fs_sync_max_ms */
-	500,	/* io_schedule_max_ms */
-	10,	/* io_interval in seconds */
-};
-#endif
 
 /**
  * may_follow_link - Check symlink following for unsafe situations

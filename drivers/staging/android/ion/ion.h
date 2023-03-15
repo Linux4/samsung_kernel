@@ -148,6 +148,7 @@ struct ion_heap_ops {
 	int (*map_user)(struct ion_heap *mapper, struct ion_buffer *buffer,
 			struct vm_area_struct *vma);
 	int (*shrink)(struct ion_heap *heap, gfp_t gfp_mask, int nr_to_scan);
+	long (*get_pool_size)(struct ion_heap *heap);
 };
 
 /**
@@ -207,6 +208,8 @@ struct ion_heap {
 	struct task_struct *task;
 
 	int (*debug_show)(struct ion_heap *heap, struct seq_file *, void *);
+	atomic_long_t total_allocated;
+	atomic_long_t total_allocated_peak;
 };
 
 /**
@@ -363,12 +366,7 @@ struct ion_page_pool *ion_page_pool_create(gfp_t gfp_mask, unsigned int order,
 void ion_page_pool_destroy(struct ion_page_pool *pool);
 struct page *ion_page_pool_alloc(struct ion_page_pool *pool, bool *from_pool);
 void ion_page_pool_free(struct ion_page_pool *pool, struct page *page);
-
-#ifdef CONFIG_ION_SYSTEM_HEAP
-long ion_page_pool_nr_pages(void);
-#else
-static inline long ion_page_pool_nr_pages(void) { return 0; }
-#endif
+int ion_page_pool_nr_pages(struct ion_page_pool *pool);
 
 /** ion_page_pool_shrink - shrinks the size of the memory cached in the pool
  * @pool:		the pool

@@ -146,6 +146,9 @@ struct panel_info {
 	int reset_delay_vspn_ms;
 	/*Tab A8 code for AX6300DEV-787 by fengzhigang at 20211020 end*/
 
+	/* HS03 code for SL6215TDEV-652 by gaoxue at 20221020 start */
+	u32 power_vsp_out;
+	/* HS03 code for SL6215TDEV-652 by gaoxue at 20221020 end */
 	/*Tab A8 code for SR-AX6300-01-441 by huangzhongjie at 20211129 start*/
 	u32 reset_low_before_power_delay;
 	/*Tab A8 code for SR-AX6300-01-441 by huangzhongjie at 20211129 end*/
@@ -172,6 +175,7 @@ struct sprd_panel {
 	struct backlight_device *backlight;
 	struct backlight_device *oled_bdev;
 	struct regulator *supply;
+	struct notifier_block panic_nb;
 	struct delayed_work esd_work;
 	/*Tab A8 code for AX6300DEV-875 by fengzhigang at 20210926 start*/
 	bool esd_work_backup;
@@ -207,10 +211,13 @@ extern void nvt_resume_for_earlier(void);
 #endif
 /*Tab A8 code for AX6300DEV-805 by suyurui at 2021/10/9 end*/
 /*Tab A8 code for AX6300DEV-1494 by luxinjun at 2021/11/03 end*/
+/*HS03 code for SR-SL6215-01-1148 by wenghailong at 20220421 start */
 /*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 start*/
 #ifdef CONFIG_TARGET_UMS9230_4H10
 extern enum tp_module_used tp_is_used;
 extern void nvt_resume_for_earlier(void);
+extern int gcore_tp_esd_fail;
 #endif
 /*HS03 code for SL6215DEV-3850 by zhoulingyun at 20211216 end*/
+/*HS03 code for SR-SL6215-01-1148 by wenghailong at 20220421 end */
 #endif

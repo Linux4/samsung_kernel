@@ -530,9 +530,6 @@ EXPORT_SYMBOL(kernel_write);
 ssize_t vfs_write(struct file *file, const char __user *buf, size_t count, loff_t *pos)
 {
 	ssize_t ret;
-#if defined(CONFIG_SPRD_DEBUG)
-	u64 time = ktime_get_boot_fast_ns();
-#endif
 
 	if (!(file->f_mode & FMODE_WRITE))
 		return -EBADF;
@@ -555,11 +552,6 @@ ssize_t vfs_write(struct file *file, const char __user *buf, size_t count, loff_
 		file_end_write(file);
 	}
 
-#if defined(CONFIG_SPRD_DEBUG)
-	time = ktime_get_boot_fast_ns() - time;
-	if (time > vfs_write_max_ms * NSEC_PER_MSEC)
-		_trace_vfs(file, "write", time);
-#endif
 	return ret;
 }
 

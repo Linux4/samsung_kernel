@@ -123,6 +123,7 @@ static long vsp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case VSP_ENABLE:
 		pr_debug("vsp ioctl VSP_ENABLE\n");
 		__pm_stay_awake(&vsp_wakelock);
+		vsp_fp->is_wakelock_got = true;
 
 		ret = vsp_clk_enable(&vsp_hw_dev);
 		if (ret == 0)
@@ -137,6 +138,7 @@ static long vsp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			vsp_fp->is_clock_enabled = 0;
 			vsp_clk_disable(&vsp_hw_dev);
 		}
+		vsp_fp->is_wakelock_got = false;
 		__pm_relax(&vsp_wakelock);
 		break;
 
@@ -647,6 +649,10 @@ static int vsp_release(struct inode *inode, struct file *filp)
 		pr_err("error occurred and close clock\n");
 		vsp_fp->is_clock_enabled = 0;
 		vsp_clk_disable(&vsp_hw_dev);
+	}
+	if (vsp_fp->is_wakelock_got) {
+		pr_err("error occurred and wakelock relax\n");
+		__pm_relax(&vsp_wakelock);
 	}
 
 	if (vsp_fp->is_vsp_aquired) {

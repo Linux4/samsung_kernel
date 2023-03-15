@@ -325,7 +325,7 @@ int sdiohal_adma_pt_write(struct sdiohal_list_t *data_list)
 	struct timespec tm_begin, tm_end;
 	static long time_total_ns;
 	static int times_count;
-	struct bus_puh_t *puh_buf = NULL;
+
 
 	getnstimeofday(&tm_begin);
 
@@ -346,9 +346,7 @@ int sdiohal_adma_pt_write(struct sdiohal_list_t *data_list)
 					  SDIOHAL_DATA_FIX, SDIOHAL_WRITE,
 					  SDIOHAL_PK_MODE_ADDR);
 	if (ret != 0) {
-		puh_buf = (struct bus_puh_t *)data_list->mbuf_head->buf;
-		pr_err("sdio write fail,channel is %u, length is %u\n",
-                       puh_buf->subtype, puh_buf->len);
+
 		sdiohal_success_trans_pac_num();
 		sdiohal_abort();
 	}

@@ -235,6 +235,9 @@ int elevator_init(struct request_queue *q, char *name)
 		 * to "none".
 		 */
 		if (q->mq_ops) {
+			if (q->tag_set && q->tag_set->flags & BLK_MQ_F_NO_SCHED_BY_DEFAULT)
+				return 0;
+
 			if (q->nr_hw_queues == 1)
 				e = elevator_get(q, "mq-deadline", false);
 			if (!e)
@@ -639,9 +642,6 @@ void elv_drain_elevator(struct request_queue *q)
 
 void __elv_add_request(struct request_queue *q, struct request *rq, int where)
 {
-#if defined(CONFIG_SPRD_DEBUG)
-	set_io_insert_ns(rq);
-#endif
 	trace_block_rq_insert(q, rq);
 
 	blk_pm_add_request(q, rq);

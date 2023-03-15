@@ -494,6 +494,7 @@
 #define REG_AON_CLK_CORE_CGM_VSP_CFG              0x0180
 #define REG_AON_CLK_CORE_CGM_GPU_CORE_FRA_DIV     0x0184
 #define REG_AON_CLK_CORE_CGM_GPU_SOC_FRA_DIV      0x0188
+#define REG_AON_CLK_TOP_CFG                       0x0050
 #define REG_AON_CLK_LP_CLK_LP_SEC              0x0004
 #define REG_AON_CLK_LP_CLK_SW_MODE_SEL         0x0020
 #define REG_AON_CLK_LP_BUSCLK_SW_FORCE_EN      0x0024
