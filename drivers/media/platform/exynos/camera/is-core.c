@@ -1443,15 +1443,17 @@ static int __init is_probe(struct platform_device *pdev)
 
 	ret = sysfs_create_group(&core->pdev->dev.kobj, &is_debug_attr_group);
 
-	s = pinctrl_lookup_state(pdata->pinctrl, "release");
+	if (pdata) {
+		s = pinctrl_lookup_state(pdata->pinctrl, "release");
 
-	if (!IS_ERR(s)) {
-		if (pinctrl_select_state(pdata->pinctrl, s) < 0) {
-			probe_err("pinctrl_select_state is fail\n");
-			goto p_err3;
+		if (!IS_ERR(s)) {
+			if (pinctrl_select_state(pdata->pinctrl, s) < 0) {
+				probe_err("pinctrl_select_state is fail\n");
+				goto p_err3;
+			}
+		} else {
+			probe_err("pinctrl_lookup_state failed!!!\n");
 		}
-	} else {
-		probe_err("pinctrl_lookup_state failed!!!\n");
 	}
 
 	core->shutdown = false;

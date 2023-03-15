@@ -936,6 +936,23 @@ int sensor_module_s_ext_ctrls(struct v4l2_subdev *subdev, struct v4l2_ext_contro
 		ext_ctrl = (ctrls->controls + i);
 
 		switch (ext_ctrl->id) {
+		case V4L2_CID_SENSOR_SET_MODE_CHANGE:
+		{
+			struct seamless_mode_change_info mode_change;
+			ret = copy_from_user(&mode_change, ext_ctrl->ptr, sizeof(struct seamless_mode_change_info));
+			if (ret) {
+				err("copy_from_user of seamless_mode_change_info is fail(%d)", ret);
+				goto p_err;
+			}
+
+			ret = is_sensor_peri_s_mode_change(device, &mode_change);
+			if (ret < 0) {
+				err("failed to set mode change : %d\n - %d",
+						device->ex_mode, ret);
+				goto p_err;
+			}
+			break;
+		}
 		case V4L2_CID_SENSOR_SET_SSM_ROI:
 			ret = copy_from_user(&ssm_roi, ext_ctrl->ptr, sizeof(struct v4l2_rect));
 			if (ret) {

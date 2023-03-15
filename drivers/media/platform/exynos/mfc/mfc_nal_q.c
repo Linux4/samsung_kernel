@@ -1698,7 +1698,9 @@ static void __mfc_nal_q_handle_frame_output(struct mfc_ctx *ctx, unsigned int er
 	}
 
 	/* Dequeued display buffer for user */
-	if (!IS_NO_DISPLAY(ctx, err))
+	if (IS_NO_DISPLAY(ctx, err))
+		__mfc_nal_q_handle_reuse_buffer(ctx, pOutStr);
+	else
 		__mfc_nal_q_handle_frame_output_del(ctx, pOutStr, err);
 
 	mfc_debug_leave();

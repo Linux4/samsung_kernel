@@ -1,9 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * linux/drivers/video/fbdev/exynos/panel/panel_bl.c
- *
- * Samsung Common LCD Driver.
- *
- * Copyright (c) 2016 Samsung Electronics
+ * Copyright (c) Samsung Electronics Co., Ltd.
  * Gwanghui Lee <gwanghui.lee@samsung.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -37,9 +34,7 @@ static void print_tbl(int *tbl, int sz)
 	}
 }
 #else
-static void print_tbl(int *tbl, int sz) {
-	return;
-}
+static void print_tbl(int *tbl, int sz) {}
 #endif
 #endif
 
@@ -378,12 +373,10 @@ int get_subdev_actual_brightness(struct panel_bl_device *panel_bl, int id, int b
 		return -EINVAL;
 	}
 
-#if 1
 	if (panel_bl->subdev[id].brt_tbl.lum == NULL) {
 		panel_err("%s bl-%d has no brt_tbl.lum", __func__, id);
 		return -EINVAL;
 	}
-#endif
 
 	index = get_subdev_actual_brightness_index(panel_bl, id, brightness);
 	if (index < 0) {
@@ -469,7 +462,7 @@ int aor_interpolation(unsigned int *brt_tbl, unsigned int *lum_tbl,
 	u64 upper_lum, lower_lum;
 	u64 upper_brt, lower_brt;
 	u64 upper_aor, lower_aor, aor;
-	u64 upper_aor_ratio, lower_aor_ratio, aor_ratio;
+	u64 upper_aor_ratio, lower_aor_ratio, aor_ratio = 0;
 	u64 intrp_brt = 0, vbase_lum = 0;
 	enum DIMTYPE dimtype;
 
@@ -532,7 +525,7 @@ int aor_interpolation_2(unsigned int *brt_tbl,
 	int upper_idx, lower_idx;
 	u64 upper_brt, lower_brt;
 	u64 upper_aor, lower_aor, aor;
-	u64 upper_aor_ratio, lower_aor_ratio, aor_ratio;
+	u64 upper_aor_ratio, lower_aor_ratio, aor_ratio = 0;
 
 	upper_idx = search_tbl(brt_tbl, size, SEARCH_TYPE_UPPER, brightness);
 	lower_idx = max(0, (upper_idx - 1));
@@ -553,9 +546,9 @@ int aor_interpolation_2(unsigned int *brt_tbl,
 	}
 
 	pr_debug("aor: brightness %3d.%02d aor([%d]%2lld.%02lld(0x%04X) [%d]%2lld.%02lld(0x%04X)) aor(%2lld.%02lld %3lld %04X) vtotal %d\n",
-			brightness / 100, brightness % 100, upper_idx, upper_aor_ratio / 100, upper_aor_ratio % 100, upper_aor,
-			lower_idx, lower_aor_ratio / 100, lower_aor_ratio % 100, lower_aor,
-			aor_ratio / disp_pow(10, 2), aor_ratio % disp_pow(10, 2), aor, (int)aor, vtotal);
+			brightness / 100, brightness % 100, upper_idx, upper_aor_ratio / 100, upper_aor_ratio % 100, (unsigned int)upper_aor,
+			lower_idx, lower_aor_ratio / 100, lower_aor_ratio % 100, (unsigned int)lower_aor,
+			aor_ratio / disp_pow(10, 2), aor_ratio % disp_pow(10, 2), aor, (unsigned int)aor, vtotal);
 
 	return (int)aor;
 }
@@ -718,7 +711,7 @@ int panel_bl_set_brightness(struct panel_bl_device *panel_bl, int id, int force)
 	int ret = 0, ilum = 0, luminance = 0, brightness, index = PANEL_SET_BL_SEQ, step;
 	struct panel_bl_sub_dev *subdev;
 	struct panel_device *panel;
-	int luminance_interp;
+	int luminance_interp = 0;
 
 	if (panel_bl == NULL) {
 		panel_err("PANEL:ERR:%s:panel is null\n", __func__);
@@ -752,11 +745,8 @@ int panel_bl_set_brightness(struct panel_bl_device *panel_bl, int id, int force)
 		return -EINVAL;
 	}
 
-#if 1
 	if (panel_bl->subdev[id].brt_tbl.lum)
-#endif
-	luminance_interp =
-			get_actual_brightness_interpolation(panel_bl, brightness);
+		luminance_interp = get_actual_brightness_interpolation(panel_bl, brightness);
 
 	panel_bl->props.brightness = brightness;
 	panel_bl->props.actual_brightness = luminance;

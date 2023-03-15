@@ -99,9 +99,11 @@ struct is_pdp {
 	const char			*int2_str[BITS_PER_LONG];
 	const char			*int2_rdma_str[BITS_PER_LONG];
 
+	u32				lic_mode_def;
 	struct pdp_lic_lut		*lic_lut;
 	bool				stat_enable;
 
+	u32				en_sdc;
 	int				vc_ext_sensor_mode;
 	u32				err_cnt_oneshot;
 

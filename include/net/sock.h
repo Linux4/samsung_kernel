@@ -72,11 +72,11 @@
 #include <net/tcp_states.h>
 #include <linux/net_tstamp.h>
 #include <net/smc.h>
-#include <net/l3mdev.h>
 // SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
 #define NAP_PROCESS_NAME_LEN	128
 #define NAP_DOMAIN_NAME_LEN	255
 // SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
+#include <net/l3mdev.h>
 
 /*
  * This structure really needs to be cleaned up.

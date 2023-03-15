@@ -70,10 +70,12 @@ static int is_ischain_3ac_start(struct is_device_ischain *device,
 			hw_bitwidth, hw_msb);
 	}
 
-	if (hw_format == DMA_OUTPUT_FORMAT_BAYER_PACKED && flag_extra == COMP) {
+	if ((hw_format == DMA_OUTPUT_FORMAT_BAYER_PACKED) && (flag_extra == COMP || flag_extra == COMP_LOSS)) {
+		u32 comp_format =
+		(flag_extra == COMP) ? DMA_OUTPUT_FORMAT_BAYER_COMP : DMA_OUTPUT_FORMAT_BAYER_COMP_LOSSY;
 		mdbg_pframe("ot_crop[fmt: %d -> %d: BAYER_COMP]\n", device, subdev, frame,
-			hw_format, DMA_OUTPUT_FORMAT_BAYER_COMP);
-		hw_format = DMA_OUTPUT_FORMAT_BAYER_COMP;
+			hw_format, comp_format);
+		hw_format = comp_format;
 	}
 
 	if ((otcrop->w != taa_param->otf_input.bayer_crop_width) ||

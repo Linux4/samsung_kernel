@@ -259,3 +259,5 @@ obj-$(CONFIG_MFD_S2MPS19)	+= s2mps19_core.o s2mps19_irq.o
 obj-$(CONFIG_MFD_S2MPS20)	+= s2mps20-core.o s2mps20-irq.o
 obj-$(CONFIG_MFD_S2MPS22)	+= s2mps22_core.o s2mps22_irq.o
 obj-$(CONFIG_MFD_S2MPB02)	+= s2mpb02-core.o s2mpb02-irq.o
+
+ccflags-y := -Wformat

@@ -133,6 +133,8 @@ struct is_framemgr {
 
 	struct votf_action	master;	/* WDMA */
 	struct votf_action	slave;	/* RDMA */
+
+	u32			batch_num;
 };
 
 static const char * const hw_frame_state_name[NR_FRAME_STATE] = {

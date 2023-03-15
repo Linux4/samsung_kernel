@@ -84,6 +84,3 @@ endif
 
 targets := $(patsubst $(obj)/%,%, \
                                 $(shell find $(obj) -name \*.gen.S 2>/dev/null))
-
-# SPU signature verify
-obj-y += spu_verify/

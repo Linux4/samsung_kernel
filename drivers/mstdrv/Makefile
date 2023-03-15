@@ -12,6 +12,8 @@
 #GNU General Public License for more details.
 
 obj-$(CONFIG_MST_LDO) += mstdrv.o
+mstdrv-objs += mstdrv_main.o
 
-GCOV_PROFILE := $(CONFIG_KUNIT)
-obj-$(CONFIG_KUNIT) += test/
+ifeq ($(CONFIG_MST_NONSECURE),y)
+mstdrv-objs += mstdrv_transmit_nonsecure.o
+endif

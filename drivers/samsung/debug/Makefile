@@ -11,12 +11,15 @@ obj-m				:=
 obj-n				:=
 obj-				:=
 
+ccflags-y := -Wformat
+
 # Samsung Debugging Features
 obj-$(CONFIG_SEC_DEBUG)			+= sec_debug_base.o
 obj-$(CONFIG_SEC_DEBUG)			+= sec_debug_test.o
 obj-$(CONFIG_SEC_DEBUG)			+= sec_debug_ksym.o
 obj-$(CONFIG_SEC_DEBUG)			+= sec_debug_mode.o
 obj-$(CONFIG_SEC_DEBUG)			+= sec_debug_memtab.o
+obj-$(CONFIG_SEC_DEBUG)			+= sec_debug_summary.o
 obj-$(CONFIG_SEC_DEBUG_HIST_LOG) 	+= sec_debug_hist.o
 obj-$(CONFIG_SEC_DEBUG_RESET_REASON)	+= sec_debug_reset_reason.o
 obj-$(CONFIG_SEC_DEBUG_EXTRA_INFO)	+= sec_debug_extra_info.o
@@ -29,4 +32,3 @@ obj-$(CONFIG_SEC_DEBUG_WATCHDOGD_FOOTPRINT)	+= sec_debug_wdd_info.o
 obj-$(CONFIG_SEC_DEBUG_FREQ)		+= sec_debug_freq.o
 obj-$(CONFIG_SEC_DEBUG_COMPLETE_HINT)	+= sec_debug_complete_hint.o
 obj-$(CONFIG_SEC_DEBUG_DTASK)		+= sec_debug_dtask.o
-obj-$(CONFIG_SEC_PERF_LATENCYCHECKER)   += sec_perf_latencychecker.o

@@ -2398,6 +2398,7 @@ void task_dirty_inc(struct task_struct *tsk);
 /* readahead.c */
 #define VM_MAX_READAHEAD	128	/* kbytes */
 #define VM_MIN_READAHEAD	16	/* kbytes (includes current page) */
+extern unsigned int mmap_readaround_limit;
 
 int force_page_cache_readahead(struct address_space *mapping, struct file *filp,
 			pgoff_t offset, unsigned long nr_to_read);
@@ -2828,6 +2829,21 @@ static inline void setup_nr_node_ids(void) {}
 #endif
 
 extern inline bool need_memory_boosting(void);
+
+#ifdef CONFIG_PROCESS_RECLAIM
+
+struct reclaim_param {
+	struct vm_area_struct *vma;
+	/* Number of pages scanned */
+	int nr_scanned;
+	/* max pages to reclaim */
+	int nr_to_reclaim;
+	/* pages reclaimed */
+	int nr_reclaimed;
+};
+extern struct reclaim_param reclaim_task_anon(struct task_struct *task,
+		int nr_to_reclaim);
+#endif
 
 enum memsize_kernel_type {
 	MEMSIZE_KERNEL_KERNEL = 0,

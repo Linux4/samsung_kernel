@@ -26,9 +26,14 @@
 #include <linux/of_gpio.h>
 #include <linux/vibrator/sec_vibrator.h>
 #include <linux/vibrator/slsi/s2mu106/s2mu106_vibrator.h>
+#include <linux/interrupt.h>
 
 #define S2MU106_DIVIDER		128
 #define S2MU106_FREQ_DIVIDER	NSEC_PER_SEC / S2MU106_DIVIDER * 10
+
+#if defined(CONFIG_BATTERY_SAMSUNG)
+#include "../../../battery/common/sec_charging_common.h"
+#endif
 
 struct s2mu106_haptic_data {
 	struct s2mu106_dev *s2mu106;
@@ -40,6 +45,20 @@ struct s2mu106_haptic_data {
 	int duty;
 	int period;
 };
+
+#if defined(CONFIG_BATTERY_SAMSUNG)
+static int s2mu106_get_temperature_duty_ratio(struct s2mu106_haptic_data *haptic)
+{
+	union power_supply_propval value = {0, };
+	int ret = haptic->duty_ratio;
+
+	psy_do_property("battery", get, POWER_SUPPLY_PROP_TEMP, value);
+	if (value.intval >= haptic->pdata->temperature)
+		ret = haptic->pdata->high_temp_ratio;
+	pr_info("%s temp:%d duty:%d\n", __func__, value.intval, ret);
+	return ret;
+}
+#endif
 
 static void s2mu106_set_boost_voltage(struct s2mu106_haptic_data *haptic, int voltage)
 {
@@ -56,9 +75,21 @@ static void s2mu106_set_boost_voltage(struct s2mu106_haptic_data *haptic, int vo
 				data, HAPTIC_BOOST_VOLTAGE_MASK);
 }
 
+static irqreturn_t s2mu106_haptic_ocp_isr(int irq, void *data)
+{
+	pr_err("%s: OCP interrupt occurs!!!\n", __func__);
+	return IRQ_HANDLED;
+}
+
+
 static int s2mu106_haptic_set_freq(struct device *dev, int num)
 {
 	struct s2mu106_haptic_data *haptic = dev_get_drvdata(dev);
+
+#if defined(CONFIG_BATTERY_SAMSUNG)
+	if (haptic->pdata->high_temp_ratio)
+		haptic->duty_ratio = s2mu106_get_temperature_duty_ratio(haptic);
+#endif
 
 	if (num >= 0 && num < haptic->pdata->freq_nums) {
 		haptic->period =
@@ -75,15 +106,19 @@ static int s2mu106_haptic_set_freq(struct device *dev, int num)
 		return -EINVAL;
 	}
 
+	pwm_config(haptic->pdata->pwm, haptic->max_duty,
+			haptic->period);
+
 	return 0;
 }
 
 static int s2mu106_haptic_set_intensity(struct device *dev, int intensity)
 {
 	struct s2mu106_haptic_data *haptic = dev_get_drvdata(dev);
-	int data = 0x3FFFF;
-	int max = 0x7FFFF;
+	long data = 0x3FFFF;
+	long max = 0x7FFFF;
 	u8 val1, val2, val3;
+	long temp_intensity = (long)intensity; 
 
 	if (intensity < 0 || MAX_INTENSITY < intensity) {
 		pr_err("%s out of range %d\n", __func__, intensity);
@@ -93,7 +128,7 @@ static int s2mu106_haptic_set_intensity(struct device *dev, int intensity)
 	if (intensity == MAX_INTENSITY)
 		data = max;
 	else if (intensity != 0)
-		data = max * intensity / MAX_INTENSITY;
+		data = max * temp_intensity / MAX_INTENSITY;
 	else
 		data = 0;
 
@@ -282,9 +317,112 @@ static int s2mu106_haptic_parse_dt_lra(struct device *dev,
 	pr_info("normal_ratio: %d\n", pdata->normal_ratio);
 	pr_info("overdrive_ratio: %d\n", pdata->overdrive_ratio);
 
+	ret = of_property_read_u32(np, "haptic,high_temp_ratio",
+			&pdata->high_temp_ratio);
+	if (ret) {
+		pr_err("%s: temp_duty_ratio isn't used\n", __func__);
+		pdata->high_temp_ratio = 0;
+		ret = 0;
+	}
+
+	pr_info("high temp ratio = %d\n", pdata->high_temp_ratio);
+
+	ret = of_property_read_u32(np, "haptic,temperature",
+			&pdata->temperature);
+	if (ret) {
+		pr_err("%s: temperature isn't used\n", __func__);
+		pdata->temperature = 0;
+		ret = 0;
+	}
+
+	pr_info("temperature = %d\n", pdata->temperature);
+
 err_parsing_dt:
 	return ret;
 }
+
+#if defined(CONFIG_SEC_VIBRATOR)
+static int of_sec_vibrator_dt(struct s2mu106_haptic_platform_data *pdata, struct device_node *np)
+{
+	int ret = 0;
+	int i;
+	unsigned int val = 0;
+	int *intensities = NULL;
+
+	pr_info("%s\n", __func__);
+	pdata->calibration = false;
+
+	/* number of steps */
+	ret = of_property_read_u32(np, "samsung,steps", &val);
+	if (ret) {
+		pr_err("%s out of range(%d)\n", __func__, val);
+		return -EINVAL;
+	}
+	pdata->steps = (int)val;
+
+	/* allocate memory for intensities */
+	pdata->intensities = kmalloc_array(pdata->steps, sizeof(int), GFP_KERNEL);
+	if (!pdata->intensities)
+		return -ENOMEM;
+	intensities = pdata->intensities;
+
+	/* intensities */
+	ret = of_property_read_u32_array(np, "samsung,intensities", intensities, pdata->steps);
+	if (ret) {
+		pr_err("intensities are not specified\n");
+		ret = -EINVAL;
+		goto err_getting_int;
+	}
+
+	for (i = 0; i < pdata->steps; i++) {
+		if ((intensities[i] < 0) || (intensities[i] > MAX_INTENSITY)) {
+			pr_err("%s out of range(%d)\n", __func__, intensities[i]);
+			ret = -EINVAL;
+			goto err_getting_int;
+		}
+		}
+	intensities = NULL;
+
+	/* allocate memory for haptic_intensities */
+	pdata->haptic_intensities = kmalloc_array(pdata->steps, sizeof(int), GFP_KERNEL);
+	if (!pdata->haptic_intensities) {
+		ret = -ENOMEM;
+		goto err_alloc_haptic;
+	}
+	intensities = pdata->haptic_intensities;
+
+	/* haptic intensities */
+	ret = of_property_read_u32_array(np, "samsung,haptic_intensities", intensities, pdata->steps);
+	if (ret) {
+		pr_err("haptic_intensities are not specified\n");
+		ret = -EINVAL;
+		goto err_haptic;
+	}
+	for (i = 0; i < pdata->steps; i++) {
+		if ((intensities[i] < 0) || (intensities[i] > MAX_INTENSITY)) {
+			pr_err("%s out of range(%d)\n", __func__, intensities[i]);
+			ret = -EINVAL;
+			goto err_haptic;
+		}
+	}
+
+	/* update calibration statue */
+	pdata->calibration = true;
+
+	return ret;
+
+err_haptic:
+	kfree(pdata->haptic_intensities);
+err_alloc_haptic:
+	pdata->haptic_intensities = NULL;
+err_getting_int:
+	kfree(pdata->intensities);
+	pdata->intensities = NULL;
+	pdata->steps = 0;
+
+	return ret;
+}
+#endif /* if defined(CONFIG_SEC_VIBRATOR) */
 
 static int s2mu106_haptic_parse_dt(struct device *dev,
 			struct s2mu106_haptic_data *haptic)
@@ -292,6 +430,7 @@ static int s2mu106_haptic_parse_dt(struct device *dev,
 	struct device_node *np = of_find_node_by_name(NULL, "s2mu106-haptic");
 	struct s2mu106_haptic_platform_data *pdata = haptic->pdata;
 	u32 temp;
+	const char *strength;
 	int ret = 0;
 
 	pr_info("%s : start dt parsing\n", __func__);
@@ -337,6 +476,17 @@ static int s2mu106_haptic_parse_dt(struct device *dev,
 			pr_err("%s : can't get motor_en\n", __func__);
 			goto err_parsing_dt;
 		}
+
+		ret = of_property_read_string(np, "haptic,motor_strength", &strength);
+		if (ret < 0) {
+			pr_info("%s : can't get motor_strength\n", __func__);
+		}
+		else {
+			ret = kstrtou8(strength, 0, &pdata->strength);
+			if (ret != 0)
+				goto err_parsing_dt;
+			pr_info("motor_strength: 0x%x\n", pdata->strength);
+		}
 	}
 
 	/* Haptic boost setting */
@@ -352,6 +502,12 @@ static int s2mu106_haptic_parse_dt(struct device *dev,
 		pdata->hbst.level = 5500;
 	else
 		pdata->hbst.level = temp;
+
+#if defined(CONFIG_SEC_VIBRATOR)
+	ret = of_sec_vibrator_dt(pdata, np);
+	if (ret < 0)
+		pr_err("sec_vibrator dt read fail\n");
+#endif
 
 	/* parsing info */
 	pr_info("%s :operation_mode = %d, HBST_EN %s, HBST_AUTO_MODE %s\n",
@@ -434,11 +590,98 @@ static void s2mu106_haptic_initial(struct s2mu106_haptic_data *haptic)
 		s2mu106_write_reg(haptic->i2c, S2MU106_REG_PERI_TAR2, 0x00);
 		s2mu106_write_reg(haptic->i2c, S2MU106_REG_DUTY_TAR1, 0x00);
 		s2mu106_write_reg(haptic->i2c, S2MU106_REG_DUTY_TAR2, 0x00);
+#if IS_ENABLED(CONFIG_VIBRATOR_S2MU106_VOLTAGE_3P3)
+		s2mu106_write_reg(haptic->i2c, S2MU106_REG_AMPCOEF1, 0x74);
+#else
 		s2mu106_write_reg(haptic->i2c, S2MU106_REG_AMPCOEF1, 0x7D);
+#endif
+		if(haptic->pdata->strength)
+			s2mu106_write_reg(haptic->i2c, S2MU106_REG_AMPCOEF1, haptic->pdata->strength);
 	}
 
 	pr_info("%s, haptic operation mode = %d\n", __func__, haptic->pdata->hap_mode);
 }
+
+#if defined(CONFIG_SEC_VIBRATOR)
+static bool s2mu106_get_calibration(struct device *dev)
+{
+	struct s2mu106_haptic_data *ddata = dev_get_drvdata(dev);
+	struct s2mu106_haptic_platform_data *pdata = ddata->pdata;
+
+	return pdata->calibration;
+}
+
+static int s2mu106_get_step_size(struct device *dev, int *step_size)
+{
+	struct s2mu106_haptic_data *ddata = dev_get_drvdata(dev);
+	struct s2mu106_haptic_platform_data *pdata = ddata->pdata;
+
+	pr_info("%s step_size=%d\n", __func__, pdata->steps);
+
+	if (pdata->steps == 0)
+		return -ENODATA;
+
+	*step_size = pdata->steps;
+
+	return 0;
+}
+
+
+static int s2mu106_get_intensities(struct device *dev, int *buf)
+{
+	struct s2mu106_haptic_data *ddata = dev_get_drvdata(dev);
+	struct s2mu106_haptic_platform_data *pdata = ddata->pdata;
+	int i;
+
+	if (pdata->intensities[1] == 0)
+		return -ENODATA;
+
+	for (i = 0; i < pdata->steps; i++)
+		buf[i] = pdata->intensities[i];
+
+	return 0;
+}
+
+static int s2mu106_set_intensities(struct device *dev, int *buf)
+{
+	struct s2mu106_haptic_data *ddata = dev_get_drvdata(dev);
+	struct s2mu106_haptic_platform_data *pdata = ddata->pdata;
+	int i;
+
+	for (i = 0; i < pdata->steps; i++)
+		pdata->intensities[i] = buf[i];
+
+	return 0;
+}
+
+static int s2mu106_get_haptic_intensities(struct device *dev, int *buf)
+{
+	struct s2mu106_haptic_data *ddata = dev_get_drvdata(dev);
+	struct s2mu106_haptic_platform_data *pdata = ddata->pdata;
+	int i;
+
+	if (pdata->haptic_intensities[1] == 0)
+		return -ENODATA;
+
+	for (i = 0; i < pdata->steps; i++)
+		buf[i] = pdata->haptic_intensities[i];
+
+	return 0;
+}
+
+static int s2mu106_set_haptic_intensities(struct device *dev, int *buf)
+{
+	struct s2mu106_haptic_data *ddata = dev_get_drvdata(dev);
+	struct s2mu106_haptic_platform_data *pdata = ddata->pdata;
+	int i;
+
+	for (i = 0; i < pdata->steps; i++)
+		pdata->haptic_intensities[i] = buf[i];
+
+	return 0;
+}
+#endif /* if defined(CONFIG_SEC_VIBRATOR) */
+
 
 static struct of_device_id s2mu106_haptic_match_table[] = {
 	{ .compatible = "sec,s2mu106-haptic",},
@@ -451,12 +694,28 @@ static const struct sec_vibrator_ops s2mu106_multi_freq_vib_ops = {
 	.set_frequency = s2mu106_haptic_set_freq,
 	.set_overdrive = s2mu106_haptic_set_overdrive,
 	.get_motor_type = s2mu106_haptic_get_motor_type,
+#if defined(CONFIG_SEC_VIBRATOR)
+	.get_calibration = s2mu106_get_calibration,
+	.get_step_size = s2mu106_get_step_size,
+	.get_intensities = s2mu106_get_intensities,
+	.set_intensities = s2mu106_set_intensities,
+	.get_haptic_intensities = s2mu106_get_haptic_intensities,
+	.set_haptic_intensities = s2mu106_set_haptic_intensities,
+#endif
 };
 
 static const struct sec_vibrator_ops s2mu106_single_freq_vib_ops = {
 	.enable = s2mu106_haptic_enable,
 	.set_intensity = s2mu106_haptic_set_intensity,
 	.get_motor_type = s2mu106_haptic_get_motor_type,
+#if defined(CONFIG_SEC_VIBRATOR)
+	.get_calibration = s2mu106_get_calibration,
+	.get_step_size = s2mu106_get_step_size,
+	.get_intensities = s2mu106_get_intensities,
+	.set_intensities = s2mu106_set_intensities,
+	.get_haptic_intensities = s2mu106_get_haptic_intensities,
+	.set_haptic_intensities = s2mu106_set_haptic_intensities,
+#endif
 };
 
 static const struct sec_vibrator_ops s2mu106_dc_vib_ops = {
@@ -467,6 +726,7 @@ static const struct sec_vibrator_ops s2mu106_dc_vib_ops = {
 static int s2mu106_haptic_probe(struct platform_device *pdev)
 {
 	struct s2mu106_dev *s2mu106 = dev_get_drvdata(pdev->dev.parent);
+	struct s2mu106_platform_data *pdata = dev_get_platdata(s2mu106->dev);
 	struct s2mu106_haptic_data *haptic;
 	int ret = 0;
 
@@ -492,6 +752,18 @@ static int s2mu106_haptic_probe(struct platform_device *pdev)
 		return ret;
 
 	platform_set_drvdata(pdev, haptic);
+
+	/*
+	* irq request+
+	*/
+	haptic->pdata->irq_ocp = pdata->irq_base +	S2MU106_HAPTIC_IRQ_OCP;
+	ret = request_threaded_irq(haptic->pdata->irq_ocp, NULL,
+		s2mu106_haptic_ocp_isr, 0, "haptic-ocp-irq", haptic);
+	if (ret < 0) {
+		dev_err(s2mu106->dev, "%s: Fail to request OCP IRQ: %d: %d\n",
+			__func__, haptic->pdata->irq_ocp, ret);
+		return -1;
+	}
 
 	if (haptic->pdata->hap_mode == S2MU106_HAPTIC_LRA) {
 		haptic->period =

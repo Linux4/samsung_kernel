@@ -180,6 +180,12 @@ int dsp_util_bitmap_set_region(struct dsp_util_bitmap *map, unsigned int size)
 	bool turn = false;
 
 	dsp_enter();
+	if (!size) {
+		ret = -EINVAL;
+		dsp_err("Invalid bitmap size[%s](%u)\n", map->name, size);
+		goto p_err;
+	}
+
 	if (size > map->bitmap_size - map->used_size) {
 		ret = -ENOMEM;
 		dsp_err("Not enough bitmap[%s](%u)\n", map->name, size);
@@ -250,15 +256,15 @@ int dsp_util_bitmap_init(struct dsp_util_bitmap *map, const char *name,
 		goto p_err;
 	}
 
-	map->bitmap = kzalloc(BITS_TO_LONGS(size), GFP_KERNEL);
+	map->bitmap = kzalloc(BITS_TO_LONGS(size) * sizeof(long), GFP_KERNEL);
 	if (!map->bitmap) {
 		ret = -ENOMEM;
 		dsp_err("Failed to init bitmap(%u/%lu)\n",
-				size, BITS_TO_LONGS(size));
+				size, BITS_TO_LONGS(size) * sizeof(long));
 		goto p_err;
 	}
 
-	snprintf(map->name, DSP_BITMAP_NAME_LEN, name);
+	snprintf(map->name, DSP_BITMAP_NAME_LEN, "%s", name);
 	map->bitmap_size = size;
 	map->used_size = 0;
 	map->base_bit = 0;

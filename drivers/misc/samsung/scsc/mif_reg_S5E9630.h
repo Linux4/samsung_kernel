@@ -10,7 +10,7 @@
 /*********************************/
 /* PLATFORM register definitions */
 /*********************************/
-#define NUM_MBOX_PLAT	8
+#define NUM_MBOX_PLAT	4
 #define NUM_SEMAPHORE   12
 
 #define MAILBOX_WLBT_BASE       0x0000
@@ -54,6 +54,9 @@
 
 #define TZPC_PROT0STAT		0x14410200
 #define TZPC_PROT0SET		0x14410204
+
+#define PMU_BOOT_RAM_START	(WLBT_PBUS_BOOT + 0x1000)
+#define PMU_BOOT_RAM_END	(PMU_BOOT_RAM_START + 0xfff)
 
 /* POWER */
 /* Exynos 96300 UM - 46.5.1.59 */

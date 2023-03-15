@@ -30,14 +30,18 @@
 #include "is-device-sensor.h"
 #include "is-votfmgr.h"
 
+static void csi_free_irq(struct is_device_csi *csi);
+
 inline void csi_frame_start_inline(struct is_device_csi *csi)
 {
 	u32 inc = 1;
 	u32 fcount, hw_fcount;
 	struct is_device_sensor *sensor;
-	u32 hashkey;
+	u32 hashkey, hashkey_1, hashkey_2;
 	u32 index;
 	u32 hw_frame_id[2] = {0, 0};
+	u64 timestamp;
+	u64 timestampboot;
 
 	/* frame start interrupt */
 	csi->sw_checker = EXPECT_FRAME_END;
@@ -56,6 +60,12 @@ inline void csi_frame_start_inline(struct is_device_csi *csi)
 				inc = 1;
 			}
 		}
+
+		/* SW FRO: start interrupt have to be called only once per batch number  */
+		if (csi->otf_batch_num > 1) {
+			if ((hw_fcount % csi->otf_batch_num) != 1)
+				return;
+		}
 	}
 
 	fcount = atomic_add_return(inc, &csi->fcount);
@@ -69,10 +79,23 @@ inline void csi_frame_start_inline(struct is_device_csi *csi)
 	    BUG();
 	}
 
+	/*
+	 * Sometimes, frame->fcount is bigger than sensor->fcount if gtask is delayed.
+	 * hashkey_1~2 is to prenvet reverse timestamp.
+	 */
 	sensor->fcount = fcount;
 	hashkey = fcount % IS_TIMESTAMP_HASH_KEY;
-	sensor->timestamp[hashkey] = is_get_timestamp();
-	sensor->timestampboot[hashkey] = is_get_timestamp_boot();
+	hashkey_1 = (fcount + 1) % IS_TIMESTAMP_HASH_KEY;
+	hashkey_2 = (fcount + 2) % IS_TIMESTAMP_HASH_KEY;
+
+	timestamp = is_get_timestamp();
+	timestampboot = is_get_timestamp_boot();
+	sensor->timestamp[hashkey] = timestamp;
+	sensor->timestamp[hashkey_1] = timestamp;
+	sensor->timestamp[hashkey_2] = timestamp;
+	sensor->timestampboot[hashkey] = timestampboot;
+	sensor->timestampboot[hashkey_1] = timestampboot;
+	sensor->timestampboot[hashkey_2] = timestampboot;
 
 	v4l2_subdev_notify(*csi->subdev, CSI_NOTIFY_VSYNC, &fcount);
 
@@ -86,7 +109,7 @@ inline void csi_frame_start_inline(struct is_device_csi *csi)
 
 	if (csi->f_id_dec) {
 		/* after increase fcount */
-		csi_hw_g_dma_common_frame_id(csi->csi_dma->base_reg, csi->batch_num, hw_frame_id);
+		csi_hw_g_dma_common_frame_id(csi->csi_dma->base_reg, csi->dma_batch_num, hw_frame_id);
 		sensor->frame_id[hashkey] = ((u64)hw_frame_id[1] << 32) | (u64)hw_frame_id[0];
 	}
 }
@@ -103,10 +126,18 @@ static inline void csi_frame_end_inline(struct is_device_csi *csi)
 	u32 fcount = atomic_read(&csi->fcount);
 	u32 index;
 
-	dbg_isr(1, "[F%d] E\n", csi, fcount);
-
 	/* frame end interrupt */
 	csi->sw_checker = EXPECT_FRAME_START;
+
+	if (!csi->f_id_dec) {
+		/* SW FRO: start interrupt have to be called only once per batch number  */
+		if (csi->otf_batch_num > 1) {
+			if ((csi->hw_fcount % csi->otf_batch_num) != 0)
+				return;
+		}
+	}
+
+	dbg_isr(1, "[F%d] E\n", csi, fcount);
 
 	atomic_set(&csi->vvalid, 0);
 	atomic_set(&csi->vblank_count, fcount);
@@ -129,7 +160,7 @@ static inline void csi_s_buf_addr(struct is_device_csi *csi, struct is_frame *fr
 	FIMC_BUG_VOID(!frame);
 
 	if (csi->f_id_dec)
-		number = csi->batch_num * (atomic_read(&csi->bufring_cnt) % BUF_SWAP_CNT);
+		number = csi->dma_batch_num * (atomic_read(&csi->bufring_cnt) % BUF_SWAP_CNT);
 	else
 		number = 0;
 
@@ -170,7 +201,7 @@ static inline void csi_s_buf_addr(struct is_device_csi *csi, struct is_frame *fr
 
 		mdbg_common(debug_csi, "[%d][CSI%d][VC%d]", " dva(%d:0x%x)\n",
 			csi->instance, csi->ch, vc, i+number, dvaddr);
-	} while (++i < csi->batch_num);
+	} while (++i < csi->dma_batch_num);
 	spin_unlock_irqrestore(&csi->dma_seq_slock, flag);
 }
 
@@ -596,8 +627,8 @@ void tasklet_csis_str_otf(unsigned long data)
 		g_print_cnt = 0;
 		if (fcount + group_sensor->skip_shots > backup_fcount) {
 			atomic_set(&group_sensor->sensor_fcount, fcount + group_sensor->skip_shots);
-			dbg("%s: [F:%d] up(smp_trigger) - [backup_F:%d] num_bufs(%d)\n", __func__, fcount,
-				backup_fcount, device->num_buffers);
+			dbg("%s: [F:%d] up(smp_trigger) - [backup_F:%d]\n", __func__, fcount,
+				backup_fcount);
 			up(&group_sensor->smp_trigger);
 		}
 	}
@@ -652,7 +683,6 @@ static void csi_dma_tag(struct v4l2_subdev *subdev,
 	struct is_frame *ldr_frame;
 	struct is_frame *frame = NULL;
 	struct is_subdev *dma_subdev = csi->dma_subdev[vc];
-	int i = 0;
 
 	if (!dma_subdev) {
 		merr("[VC%d] could not get DMA sub-device", csi, vc);
@@ -682,9 +712,8 @@ static void csi_dma_tag(struct v4l2_subdev *subdev,
 			clear_bit(f_subdev->id, &ldr_frame->out_flag);
 
 			/* for debug */
-			for (i = 0; i < frame->num_buffers; i++)
-				DBG_DIGIT_TAG(GROUP_SLOT_MAX, 0, GET_QUEUE(vctx), frame,
-					frame->fcount - frame->num_buffers + i, i);
+			DBG_DIGIT_TAG(GROUP_SLOT_MAX, 0, GET_QUEUE(vctx), frame,
+					frame->fcount, 1);
 
 			done_state = (frame->result) ? VB2_BUF_STATE_ERROR : VB2_BUF_STATE_DONE;
 			if (frame->result)
@@ -702,7 +731,8 @@ static void csi_dma_tag(struct v4l2_subdev *subdev,
 		data_type = CSIS_NOTIFY_DMA_END;
 	} else {
 		/* get internal VC buffer for embedded data */
-		if (csi->sensor_cfg->output[vc].type == VC_EMBEDDED) {
+		if ((csi->sensor_cfg->output[vc].type == VC_EMBEDDED)
+			|| (csi->sensor_cfg->output[vc].type == VC_EMBEDDED2)) {
 			u32 frameptr = csi_hw_g_frameptr(csi->vc_reg[csi->scm][vc], vc);
 
 			if (frameptr < framemgr->num_frames) {
@@ -995,6 +1025,10 @@ static void csi_err_handle(struct is_device_csi *csi)
 
 		/* Disable CSIS */
 		csi_hw_disable(csi->base_reg);
+
+		for (vc = CSI_VIRTUAL_CH_0; vc < CSI_VIRTUAL_CH_MAX; vc++)
+			csi_hw_s_dma_irq_msk(csi->cmn_reg[csi->scm][vc], false);
+		csi_hw_s_irq_msk(csi->base_reg, false, csi->f_id_dec);
 
 		/* CSIS register dump */
 		if ((csi->error_count == CSI_ERR_COUNT) || (csi->error_count % 20 == 0)) {
@@ -1395,7 +1429,8 @@ static irqreturn_t is_isr_csi_dma(int irq, void *data)
 			 * So, csi_dma_tag is performed in ISR in only case of embedded data.
 			 */
 			if (IS_ENABLED(CHAIN_TAG_VC0_DMA_IN_HARDIRQ_CONTEXT) ||
-				(csi->sensor_cfg->output[vc].type == VC_EMBEDDED)) {
+				(csi->sensor_cfg->output[vc].type == VC_EMBEDDED) ||
+				(csi->sensor_cfg->output[vc].type == VC_EMBEDDED2)) {
 				framemgr = csis_get_vc_framemgr(csi, vc);
 				if (framemgr)
 					csi_dma_tag(*csi->subdev, csi, framemgr, vc);
@@ -1409,7 +1444,7 @@ static irqreturn_t is_isr_csi_dma(int irq, void *data)
 		if (dma_frame_str & (1 << vc)) {
 			if (csi->f_id_dec && (vc == CSI_VIRTUAL_CH_0)) {
 				int bufring_cnt = atomic_inc_return(&csi->bufring_cnt);
-				u32 number = csi->batch_num * (bufring_cnt % BUF_SWAP_CNT);
+				u32 number = csi->dma_batch_num * (bufring_cnt % BUF_SWAP_CNT);
 
 				csi_s_frameptr(csi, vc, number, false);
 				csi_frame_start_inline(csi);
@@ -1593,8 +1628,6 @@ static int csi_s_power(struct v4l2_subdev *subdev,
 			csi_hw_dma_common_reset(csi_dma->base_reg_stat, on);
 #endif
 		}
-
-		ret = phy_power_on(csi->phy);
 	} else {
 		if (atomic_dec_return(&csi_dma->rcount_pwr) == 0) {
 			/* For safe power-off: IP processing = 0 */
@@ -1603,17 +1636,8 @@ static int csi_s_power(struct v4l2_subdev *subdev,
 			csi_hw_dma_common_reset(csi_dma->base_reg_stat, on);
 #endif
 		}
-
-		ret = phy_power_off(csi->phy);
 	}
 
-	if (ret) {
-		err("fail to csi%d power on/off(%d)", csi->ch, on);
-		goto p_err;
-	}
-
-p_err:
-	mdbgd_front("%s(%d, %d)\n", csi, __func__, on, ret);
 	return ret;
 }
 
@@ -1727,7 +1751,7 @@ static long csi_ioctl(struct v4l2_subdev *subdev, unsigned int cmd, void *arg)
 			u32 *hw_frame_id = (u32 *)arg;
 
 			if (csi->f_id_dec)
-				csi_hw_g_dma_common_frame_id(csi_dma->base_reg, csi->batch_num, hw_frame_id);
+				csi_hw_g_dma_common_frame_id(csi_dma->base_reg, csi->dma_batch_num, hw_frame_id);
 			else
 				ret = 1; /* HW frame ID decoder is not available. */
 		}
@@ -1737,10 +1761,10 @@ static long csi_ioctl(struct v4l2_subdev *subdev, unsigned int cmd, void *arg)
 
 		switch (ctrl->value) {
 		case FRS_SSM_MODE_FPS_960:
-			csi->batch_num = 960 / 60;
+			csi->dma_batch_num = 960 / 60;
 			break;
 		case FRS_SSM_MODE_FPS_480:
-			csi->batch_num = 480 / 60;
+			csi->dma_batch_num = 480 / 60;
 			break;
 		default:
 			return ret;
@@ -1751,8 +1775,8 @@ static long csi_ioctl(struct v4l2_subdev *subdev, unsigned int cmd, void *arg)
 		 * if shadowing scheme is supported at start interrupt of frame id decoder.
 		 */
 		vc = CSI_VIRTUAL_CH_0;
-		csi_hw_s_fro_count(csi->cmn_reg[csi->scm][vc], csi->batch_num, vc);
-		minfo("[CSI%d] change batch_num %d\n", csi, csi->ch, csi->batch_num);
+		csi_hw_s_fro_count(csi->cmn_reg[csi->scm][vc], csi->dma_batch_num, vc);
+		minfo("[CSI%d] change dma_batch_num %d\n", csi, csi->ch, csi->dma_batch_num);
 		break;
 	case SENSOR_IOCTL_G_HW_FCOUNT:
 		{
@@ -1819,16 +1843,16 @@ static int csi_s_fro(struct is_device_csi *csi, struct is_sensor_cfg *sensor_cfg
 	 */
 	if (sensor_cfg->ex_mode == EX_DUALFPS_960) {
 		csi->f_id_dec = true;
-		csi->batch_num = 960 / 60;
+		csi->dma_batch_num = 960 / 60;
 	} else if (sensor_cfg->ex_mode == EX_DUALFPS_480) {
 		csi->f_id_dec = true;
-		csi->batch_num = 480 / 60;
+		csi->dma_batch_num = 480 / 60;
 	} else {
 		csi->f_id_dec = false;
-		csi->batch_num = 1;
+		csi->dma_batch_num = 1;
 	}
 
-	minfo("[CSI%d] fro batch_num %d\n", csi, csi->ch, csi->batch_num);
+	minfo("[CSI%d] fro dma_batch_num %d\n", csi, csi->ch, csi->dma_batch_num);
 
 	atomic_set(&csi->bufring_cnt, 0);
 
@@ -1839,7 +1863,7 @@ static int csi_s_fro(struct is_device_csi *csi, struct is_sensor_cfg *sensor_cfg
 	 * if shadowing scheme is supported at start interrupt of frame id decoder.
 	 */
 	vc = CSI_VIRTUAL_CH_0;
-	csi_hw_s_fro_count(csi->cmn_reg[csi->scm][vc], csi->batch_num, vc);
+	csi_hw_s_fro_count(csi->cmn_reg[csi->scm][vc], csi->dma_batch_num, vc);
 
 	return 0;
 }
@@ -1932,6 +1956,9 @@ static int csi_stream_on(struct v4l2_subdev *subdev,
 	struct is_device_csi_dma *csi_dma = csi->csi_dma;
 	struct is_sensor_cfg *sensor_cfg;
 	struct is_subdev *dma_subdev;
+	struct is_framemgr *ldr_framemgr;
+	struct is_frame *frame;
+	unsigned long flags;
 
 	FIMC_BUG(!csi);
 	FIMC_BUG(!device);
@@ -1953,19 +1980,27 @@ static int csi_stream_on(struct v4l2_subdev *subdev,
 
 	base_reg = csi->base_reg;
 
+	ldr_framemgr = GET_FRAMEMGR(device->vctx);
+	if (!ldr_framemgr) {
+		merr("[CSI%d] ldr_framemgr is NULL", csi, csi->ch);
+		ret = -EINVAL;
+		goto err_invalid_ldr_framemgr;
+	}
+
+	framemgr_e_barrier_irqs(ldr_framemgr, 0, flags);
+	frame = peek_frame(ldr_framemgr, FS_REQUEST);
+	framemgr_x_barrier_irqr(ldr_framemgr, 0, flags);
+
+	csi->otf_batch_num = frame ? frame->num_buffers : 1;
+	csi->hw_fcount = csi_hw_s_fcount(base_reg, CSI_VIRTUAL_CH_0, 0);
+
 	ret = csi_request_irq(csi);
 	if (ret) {
 		merr("[CSI%d] csi_request_irq is fail", csi, csi->ch);
 		goto err_csi_request_irq;
 	}
 
-	if (!device->cfg) {
-		merr("[CSI%d] cfg is NULL", csi, csi->ch);
-		ret = -EINVAL;
-		goto err_invalid_device_cfg;
-	}
-
-	settle = device->cfg->settle;
+	settle = sensor_cfg->settle;
 	if (!settle) {
 		if (sensor_cfg->mipi_speed)
 			settle = is_hw_find_settle(sensor_cfg->mipi_speed, csi->use_cphy);
@@ -1979,12 +2014,13 @@ static int csi_stream_on(struct v4l2_subdev *subdev,
 	else
 		csi->potf = false;
 
-	minfo("[CSI%d] settle(%dx%d@%d) = %d, speed(%u Mbps), %u lane, potf(%d)\n", csi, csi->ch,
+	minfo("[CSI%d] settle(%dx%d@%d) = %d, speed(%u Mbps), %u lane, potf(%d), otf_batch(%d), hw_fcount(%d)\n",
+		csi, csi->ch,
 		csi->image.window.width,
 		csi->image.window.height,
 		sensor_cfg->framerate,
 		settle, sensor_cfg->mipi_speed, sensor_cfg->lanes + 1,
-		csi->potf);
+		csi->potf, csi->otf_batch_num, csi->hw_fcount);
 
 	if (device->ischain)
 		set_bit(CSIS_JOIN_ISCHAIN, &csi->state);
@@ -2016,8 +2052,6 @@ static int csi_stream_on(struct v4l2_subdev *subdev,
 #if defined(SECURE_CAMERA_FACE) && defined(PROTECT_SYSREG_IS)
 	}
 #endif
-
-	csi->hw_fcount = csi_hw_g_fcount(csi->base_reg, CSI_VIRTUAL_CH_0);
 
 	/* CSIS core setting */
 	csi_hw_s_lane(base_reg, &csi->image, sensor_cfg->lanes, sensor_cfg->mipi_speed, csi->use_cphy);
@@ -2163,10 +2197,10 @@ err_get_dma:
 
 err_config_phy:
 err_set_phy:
-err_invalid_device_cfg:
 	csi_free_irq(csi);
 
 err_csi_request_irq:
+err_invalid_ldr_framemgr:
 err_invalid_sensor_cfg:
 err_start_already:
 	return ret;
@@ -2384,6 +2418,11 @@ static int csi_s_format(struct v4l2_subdev *subdev,
 			bytes_per_pixel = 1;
 			buffer_num = SUBDEV_INTERNAL_BUF_MAX;
 			type_name = "VC_EMBEDDED";
+			break;
+		case VC_EMBEDDED2:
+			bytes_per_pixel = 1;
+			buffer_num = SUBDEV_INTERNAL_BUF_MAX;
+			type_name = "VC_EMBEDDED2";
 			break;
 		case VC_PRIVATE:
 			bytes_per_pixel = 1;

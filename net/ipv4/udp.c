@@ -1394,8 +1394,15 @@ int __udp_enqueue_schedule_skb(struct sock *sk, struct sk_buff *skb)
 	 * queue is full; always allow at least a packet
 	 */
 	rmem = atomic_read(&sk->sk_rmem_alloc);
-	if (rmem > sk->sk_rcvbuf)
-		goto drop;
+	if (rmem > sk->sk_rcvbuf) {
+		if (sk->sk_rcvbuf < sysctl_rmem_max) {
+			/* increase sk_rcvbuf twice */
+			sk->sk_rcvbuf = min(sk->sk_rcvbuf * 2, (int)sysctl_rmem_max);
+		}
+
+		if (rmem > sk->sk_rcvbuf)
+			goto drop;
+	}
 
 	/* Under mem pressure, it might be helpful to help udp_recvmsg()
 	 * having linear skbs :
@@ -2254,7 +2261,6 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 
 		if (unlikely(sk->sk_rx_dst != dst))
 			udp_sk_rx_dst_set(sk, dst);
-
 		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
 		/* function to handle open flows with incoming udp packets */
 		if (check_ncm_flag()) {
@@ -2303,6 +2309,7 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 			}
 		}
 		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
+
 		ret = udp_unicast_rcv_skb(sk, skb, uh);
 		sock_put(sk);
 		return ret;
@@ -2320,8 +2327,6 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 		struct nf_conntrack_tuple *tuple = NULL;
 		char srcaddr[INET6_ADDRSTRLEN_NAP];
 		char dstaddr[INET6_ADDRSTRLEN_NAP];
-		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
-		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
 		/* function to handle open flows with incoming udp packets */
 		if (check_ncm_flag()) {
 			if ( (sk) && (sk->sk_protocol == IPPROTO_UDP) ) {
@@ -2369,9 +2374,6 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 			}
 		}
 		// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
-		/* a return value > 0 means to resubmit the input, but
-		 * it wants the return to be -protocol, or 0
-		 */
 		return udp_unicast_rcv_skb(sk, skb, uh);
 	}
 

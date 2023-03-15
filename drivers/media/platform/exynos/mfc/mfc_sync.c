@@ -49,7 +49,7 @@ static inline unsigned int __mfc_r2h_bit_mask(int cmd)
 */
 int mfc_wait_for_done_dev(struct mfc_dev *dev, int command)
 {
-	int ret;
+	int ret, cmd;
 
 	ret = wait_event_timeout(dev->cmd_wq,
 			wait_condition(dev, command),
@@ -57,7 +57,12 @@ int mfc_wait_for_done_dev(struct mfc_dev *dev, int command)
 	if (ret == 0) {
 		mfc_err_dev("Interrupt (dev->int_reason:%d, command:%d) timed out\n",
 							dev->int_reason, command);
-		if (mfc_check_risc2host(dev)) {
+		cmd = mfc_check_risc2host(dev);
+		if (cmd) {
+			if (cmd == -1) {
+				mfc_info_dev("interrupt is being processed\n");
+				goto wait_done;
+			}
 			ret = wait_event_timeout(dev->cmd_wq,
 					wait_condition(dev, command),
 					msecs_to_jiffies(MFC_INT_TIMEOUT * MFC_INT_TIMEOUT_CNT));
@@ -73,6 +78,8 @@ int mfc_wait_for_done_dev(struct mfc_dev *dev, int command)
 	}
 
 wait_done:
+	if (command != MFC_REG_R2H_CMD_COMPLETE_QUEUE_RET)
+		mfc_clear_cmd_only();
 	mfc_debug_dev(2, "Finished waiting (dev->int_reason:%d, command: %d)\n",
 							dev->int_reason, command);
 	return 0;
@@ -87,7 +94,7 @@ wait_done:
 int mfc_wait_for_done_ctx(struct mfc_ctx *ctx, int command)
 {
 	struct mfc_dev *dev = ctx->dev;
-	int ret;
+	int ret, cmd;
 	unsigned int timeout = MFC_INT_TIMEOUT;
 
 	if (command == MFC_REG_R2H_CMD_CLOSE_INSTANCE_RET)
@@ -99,7 +106,12 @@ int mfc_wait_for_done_ctx(struct mfc_ctx *ctx, int command)
 	if (ret == 0) {
 		mfc_err_ctx("Interrupt (ctx->int_reason:%d, command:%d) timed out\n",
 							ctx->int_reason, command);
-		if (mfc_check_risc2host(dev)) {
+		cmd = mfc_check_risc2host(dev);
+		if (cmd) {
+			if (cmd == -1) {
+				mfc_info_ctx("interrupt is being processed\n");
+				goto wait_done;
+			}
 			ret = wait_event_timeout(ctx->cmd_wq,
 					wait_condition(ctx, command),
 					msecs_to_jiffies(MFC_INT_TIMEOUT * MFC_INT_TIMEOUT_CNT));
@@ -164,7 +176,7 @@ int mfc_get_new_ctx(struct mfc_dev *dev)
 		mfc_debug_dev(2, "preempt_ctx is : %d\n", new_ctx_index);
 	} else {
 		for (i = 0; i < MFC_NUM_CONTEXTS; i++) {
-			if (dev->ctx[i] && dev->ctx[i]->otf_handle) {
+			if (test_bit(i, &dev->otf_inst_bits)) {
 				if (test_bit(i, &dev->work_bits.bits)) {
 					spin_unlock_irqrestore(&dev->work_bits.lock, wflags);
 					return i;

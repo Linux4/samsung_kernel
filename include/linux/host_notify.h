@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  *  Host notify class driver
  *
@@ -6,7 +7,7 @@
  *
  */
 
- /* usb notify layer v3.3 */
+ /* usb notify layer v3.4 */
 
 #ifndef __LINUX_HOST_NOTIFY_H__
 #define __LINUX_HOST_NOTIFY_H__
@@ -56,8 +57,8 @@ struct host_notify_dev {
 	int power_change;
 	int mode;
 	int booster;
-	int (*set_mode)(bool);
-	int (*set_booster)(bool);
+	int (*set_mode)(bool on);
+	int (*set_booster)(bool on);
 };
 
 #ifdef CONFIG_USB_HOST_NOTIFY

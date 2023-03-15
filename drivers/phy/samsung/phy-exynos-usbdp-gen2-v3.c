@@ -73,7 +73,7 @@ void phy_exynos_usbdp_g2_v3_tune_each(struct exynos_usbphy_info *info, char *nam
 	if (val == -1)
 		return;
 
-		/* RX squelch detect threshold level 
+		/* RX squelch detect threshold level
 		0000: 0mV, 0001: 45mV, 0010: 60mV, 0011: 75mV
 		0100: 90mV, 0101: 105mV, 0110: 120mV, 0111: 135mV
 		1000: 150mV, 1001: 165mV, 1010: 180mV, 1011: 195mV
@@ -153,6 +153,7 @@ void phy_exynos_usbdp_g2_v3_tune_each(struct exynos_usbphy_info *info, char *nam
 		usbdp_cal_reg_wr(reg, regs_base + EXYNOS_USBDP_COM_TRSV_078D);
 		/* RX HF EQ CONTROL */
 	} else if (!strcmp(name, "ssrx_hf_eq_rsel_ctrl_ss")) {
+		pr_info("%s ssrx_hf_eq_rsel_ctrl_ss set\n", __func__);
 		reg = usbdp_cal_reg_rd(regs_base + EXYNOS_USBDP_COM_TRSV_030B);
 		reg &= USBDP_V3_TRSV_030B_LN0_RX_SSLMS_HF_INIT_RATE_SP_CLR;
 		reg |= USBDP_V3_TRSV_030B_LN0_RX_SSLMS_HF_INIT_RATE_SP(val);
@@ -800,15 +801,63 @@ static void phy_exynos_usbdp_g2_v3_pma_default_sfr_update(struct exynos_usbphy_i
 		usbdp_cal_reg_wr(0x22, regs_base + 0x1ED0); // ln2_rx_sslms_mf_bin_ssp=2
 		usbdp_cal_reg_wr(0x26, regs_base + 0x1ED4); // ln2_rx_sslms_vga_bin_ssp=6
 
-	// U3 Aging fixed : 2019
+	/* U3 Aging fixed : 2019.11.14 */
 		usbdp_cal_reg_wr(0x0F, regs_base + 0x0048); // ana_lcpll_agmc_man_gm_sel
 		usbdp_cal_reg_wr(0x3C, regs_base + 0x0060); // lcpll_ana_cpi_ctrl_coarse/fine
 		usbdp_cal_reg_wr(0xF7, regs_base + 0x0064); // lcpll_ana_cpp_ctrl_coarse / fine
-		usbdp_cal_reg_wr(0x20, regs_base + 0x006C);	// lcpll_ana_lpf_c_sel_coarse 
+		usbdp_cal_reg_wr(0x20, regs_base + 0x006C);	// lcpll_ana_lpf_c_sel_coarse
 		usbdp_cal_reg_wr(0x7D, regs_base + 0x0070);	// lcpll_ana_lpf_c_sel_fine /lcpll_ana_lpf_r_sel_coarse
 		usbdp_cal_reg_wr(0x68, regs_base + 0x0074);	// lcpll_ana_lpf_r_sel_fine
 		usbdp_cal_reg_wr(0x1A, regs_base + 0x0AF4);	// ln0_rx_rterm_ctrl
 		usbdp_cal_reg_wr(0x1A, regs_base + 0x1AF4);	// ln1_rx_rterm_ctrl
+
+	/* TD7.40 Polling retry test : 2019.11.28 */
+	/* LN1_ANA_TX_RXD_VREF_SEL 0: 550mV, 1: 450mV, 2:650mV, 3:750mV */
+		reg = usbdp_cal_reg_rd(regs_base + EXYNOS_USBDP_V3_TRSV_REG0435);
+		reg &= USBDP_V3_TRSV_LN1_ANA_TX_RXD_VREF_SEL_CLR;
+		reg |= USBDP_V3_TRSV_LN1_ANA_TX_RXD_VREF_SEL_SET(0x2);
+		usbdp_cal_reg_wr(reg, regs_base + EXYNOS_USBDP_V3_TRSV_REG0435);
+
+	/* LN2_ANA_TX_RXD_VREF_SEL 0: 550mV, 1: 450mV, 2:650mV, 3:750mV */
+		reg = usbdp_cal_reg_rd(regs_base + EXYNOS_USBDP_V3_TRSV_REG0835);
+		reg &= USBDP_V3_TRSV_LN3_ANA_TX_RXD_VREF_SEL_CLR;
+		reg |= USBDP_V3_TRSV_LN3_ANA_TX_RXD_VREF_SEL_SET(0x2);
+		usbdp_cal_reg_wr(reg, regs_base + EXYNOS_USBDP_V3_TRSV_REG0835);
+
+	/* LCPLL RETRY ENABLE */
+		reg = usbdp_cal_reg_rd(regs_base + EXYNOS_USBDP_V3_CMN_REG0110);
+		reg &= USBDP_V3_CMN_LCPLL_AFC_TIMEOUT_OPT_CLR;
+		reg |= USBDP_V3_CMN_LCPLL_AFC_TIMEOUT_OPT_SET(0x7);
+		usbdp_cal_reg_wr(reg, regs_base + EXYNOS_USBDP_V3_CMN_REG0110);
+
+	/* Rx HF EQ control */
+	reg = usbdp_cal_reg_rd(regs_base + EXYNOS_USBDP_COM_TRSV_030B);
+	reg &= USBDP_V3_TRSV_030B_LN0_RX_SSLMS_HF_INIT_RATE_SP_CLR;
+	reg |= USBDP_V3_TRSV_030B_LN0_RX_SSLMS_HF_INIT_RATE_SP(0x6);
+	usbdp_cal_reg_wr(reg, regs_base + EXYNOS_USBDP_COM_TRSV_030B);
+	reg = usbdp_cal_reg_rd(regs_base + EXYNOS_USBDP_COM_TRSV_070B);
+	reg &= USBDP_V3_TRSV_070B_LN2_RX_SSLMS_HF_INIT_RATE_SP_CLR;
+	reg |= USBDP_V3_TRSV_070B_LN2_RX_SSLMS_HF_INIT_RATE_SP(0x6);
+	usbdp_cal_reg_wr(reg, regs_base + EXYNOS_USBDP_COM_TRSV_070B);
+	pr_info("%s, hf_eq val = 0x%x\n", __func__,
+		usbdp_cal_reg_rd(regs_base + EXYNOS_USBDP_COM_TRSV_030B));
+
+	usbdp_cal_reg_wr(0x08, regs_base + 0x0554);    /*rx wait offsetcal done */
+	usbdp_cal_reg_wr(0x0b, regs_base + 0x0d8c);    /*ln0 rx offset cal = Average mode */
+	usbdp_cal_reg_wr(0x0b, regs_base + 0x1d8c);    /*ln2 rx offset cal = Average mode */
+
+	/*patch 35 */
+	usbdp_cal_reg_wr(0xFF, regs_base + 0x0d30);    /* cdr data mode entry delay  */
+	usbdp_cal_reg_wr(0xFF, regs_base + 0x1d30);    /* cdr data mode entry delay  */
+
+	/* RX HF EQ setting change */
+	usbdp_cal_reg_wr(0x06, regs_base + 0x0c2c);	/*Rx HF EQ control */
+	usbdp_cal_reg_wr(0x06, regs_base + 0x1c2c);	/*Rx HF EQ control */
+
+	usbdp_cal_reg_wr(0x2f, regs_base + 0x0a98);    /*CDR FBB */
+	usbdp_cal_reg_wr(0x2f, regs_base + 0x1a98);    /*CDR FBB */
+
+	usbdp_cal_reg_wr(0x02, regs_base + 0x0414);    /* rx_clock switching deley */
 
 }
 
@@ -817,6 +866,12 @@ static void phy_exynos_usbdp_g2_v3_set_pcs(struct exynos_usbphy_info *info)
 	void __iomem *regs_base = info->pcs_base;
 	void __iomem *regs_base2 = info->link_base;
 	u32 reg;
+
+	/* set skp_remove_th 0x5 -> 0x7 for avoiding retry problem. */
+	reg = usbdp_cal_reg_rd(regs_base + USBDP_PCS_V3_RX_EBUF_PARAM);
+	reg &= USBDP_PCS_V3_RX_EBUF_PARAM_SKP_REMOVE_TH_EMPTY_MODE_CLR;
+	reg |= USBDP_PCS_V3_RX_EBUF_PARAM_SKP_REMOVE_TH_EMPTY_MODE_SET(0x7);
+	usbdp_cal_reg_wr(reg, regs_base + USBDP_PCS_V3_RX_EBUF_PARAM);
 
 	/* abnormal comman pattern mask */
 	reg = usbdp_cal_reg_rd(regs_base + USBDP_PCS_V3_RX_BACK_END_MODE_VEC);
@@ -829,14 +884,15 @@ static void phy_exynos_usbdp_g2_v3_set_pcs(struct exynos_usbphy_info *info)
 	reg |= USBDP_PCS_V3_PM_OUT_VEC_2_B4_SEL_OUT_SET(1);
 	usbdp_cal_reg_wr(reg, regs_base + USBDP_PCS_V3_PM_OUT_VEC_2);
 
-
+	/* TBD : prevent Usb phy's sudden stop issue */
 	/* TX Keeper Disable, Squelch off when U3 */
 	reg = usbdp_cal_reg_rd(regs_base + USBDP_PCS_V3_PM_OUT_VEC_3);
 	reg &= USBDP_PCS_V3_PM_OUT_VEC_3_B7_DYNAMIC_CLR;
 	reg |= USBDP_PCS_V3_PM_OUT_VEC_3_B7_SEL_OUT_SET(1);
 	reg &= USBDP_PCS_V3_PM_OUT_VEC_3_B2_SEL_OUT_CLR;	// Squelch off when U3
 	usbdp_cal_reg_wr(reg, regs_base + USBDP_PCS_V3_PM_OUT_VEC_3);
-#if 0
+
+//#if 0
 	 // 20180822 PCS SFR setting : Noh M.W
 	usbdp_cal_reg_wr(0x05700000, regs_base + USBDP_PCS_V3_PM_NS_VEC_PS1_N1);
 	usbdp_cal_reg_wr(0x01700202, regs_base + USBDP_PCS_V3_PM_NS_VEC_PS2_N0);
@@ -844,7 +900,7 @@ static void phy_exynos_usbdp_g2_v3_set_pcs(struct exynos_usbphy_info *info)
 	usbdp_cal_reg_wr(0x0070, regs_base + USBDP_PCS_V3_PM_TIMEOUT_0);
 
 	usbdp_cal_reg_wr(0x1000, regs_base + USBDP_PCS_V3_PM_TIMEOUT_3);
-#endif
+//#endif
     /* Gen1 Tx Deemphasis/Preshoot Control by PCS
     *        jhkim 19/3/13 */
 	reg = usbdp_cal_reg_rd(regs_base + EXYNOS_PCS_LEQ_HS_TX_COEF_MAP_0);
@@ -898,11 +954,14 @@ static void phy_exynos_usbdp_g2_v3_set_pcs(struct exynos_usbphy_info *info)
 	reg |= USBDP_PCS_V3_RX_RX_CONTROL_EN_BLOCK_ALIGNER_TYPE_B_SET(0x1);
 	writel(reg, regs_base + USBDP_PCS_V3_RX_RX_CONTROL);
 
-		/* Block align at TS1/TS2 for Gen2 stability (Gen2 only) */
+	/* Block align at TS1/TS2 for Gen2 stability (Gen2 only) */
 	reg = usbdp_cal_reg_rd(regs_base + EXYNOS_USBDP_PCS_V3_RX_RX_CONTROL_DEBUG);
 	reg &= USBDP_PCS_V3_RX_RX_CONTROL_DEBUG_EN_TS_CHECK_CLR;
 	reg |= USBDP_PCS_V3_RX_RX_CONTROL_DEBUG_EN_TS_CHECK_SET(1);
 	usbdp_cal_reg_wr(reg, regs_base + EXYNOS_USBDP_PCS_V3_RX_RX_CONTROL_DEBUG);
+
+	/* patch 35 */
+	usbdp_cal_reg_wr(0x601414, regs_base + USBDP_PCS_V3_RX_EBUF_DRAINER_PARAM);
 }
 
 static void phy_exynos_usbdp_g2_v3_pma_lane_mux_sel(struct exynos_usbphy_info *info)
@@ -1078,6 +1137,33 @@ static void phy_exynos_usbdp_g2_v3_pma_ovrd_enable(struct exynos_usbphy_info *in
 	reg &= USBDP_V3_TRSV_LN3_TX_RXD_COMP_EN_CLR;
 	usbdp_cal_reg_wr(reg, regs_base + EXYNOS_USBDP_V3_TRSV_REG0813);
 
+	/*
+	 * reduce Ux Exit time, Recovery.Active(TS1) n x REFCLK_PERIOD(38.4ns)
+	 * 0x0D0C	0x00	ln0_rx_valid_rstn_delay_rise_sp__15_8=0 --> 2
+	 * 0x0D10	0x04	ln0_rx_valid_rstn_delay_rise_sp__7_0=4  --> 0
+	 * 0x1D0C	0x00	ln0_rx_valid_rstn_delay_rise_sp__15_8=0  --> 2
+	 * 0x1D10	0x04	ln0_rx_valid_rstn_delay_rise_sp__7_0=4 --> 0
+	 */
+
+	reg = usbdp_cal_reg_rd(regs_base + EXYNOS_USBDP_V3_TRSV_REG0343);
+	reg &= USBDP_V3_TRSV_REG0343_LN0_RX_VALID_RSTN_DELAY_RISE_SP__15_8_CLR;
+	reg |= USBDP_V3_TRSV_REG0343_LN0_RX_VALID_RSTN_DELAY_RISE_SP__15_8_SET(2);
+	usbdp_cal_reg_wr(reg, regs_base + EXYNOS_USBDP_V3_TRSV_REG0343);
+
+	reg = usbdp_cal_reg_rd(regs_base + EXYNOS_USBDP_V3_TRSV_REG0344);
+	reg &= USBDP_V3_TRSV_REG0344_LN0_RX_VALID_RSTN_DELAY_RISE_SP__7_0_CLR;
+	reg |= USBDP_V3_TRSV_REG0344_LN0_RX_VALID_RSTN_DELAY_RISE_SP__7_0_SET(0);
+	usbdp_cal_reg_wr(reg, regs_base + EXYNOS_USBDP_V3_TRSV_REG0344);
+
+	reg = usbdp_cal_reg_rd(regs_base + EXYNOS_USBDP_V3_TRSV_REG0743);
+	reg &= USBDP_V3_TRSV_REG0743_LN2_RX_VALID_RSTN_DELAY_RISE_SP__15_8_CLR;
+	reg |= USBDP_V3_TRSV_REG0743_LN2_RX_VALID_RSTN_DELAY_RISE_SP__15_8_SET(2);
+	usbdp_cal_reg_wr(reg, regs_base + EXYNOS_USBDP_V3_TRSV_REG0743);
+
+	reg = usbdp_cal_reg_rd(regs_base + EXYNOSV3_USBDP_V3_TRSV_REG0744);
+	reg &= USBDP_V3_TRSV_REG0744_LN2_RX_VALID_RSTN_DELAY_RISE_SP__7_0_CLR;
+	reg |= USBDP_V3_TRSV_REG0744_LN2_RX_VALID_RSTN_DELAY_RISE_SP__7_0_SET(0);
+	usbdp_cal_reg_wr(reg, regs_base + EXYNOSV3_USBDP_V3_TRSV_REG0744);
 
 	/*
 	pcs_bgr_en = 1

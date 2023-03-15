@@ -275,9 +275,6 @@ int is_itf_close_wrap(struct is_device_ischain *device)
 
 	atomic_dec(&hardware->rsccount);
 
-	if (rsccount == 1)
-		check_lib_memory_leak();
-
 	info("%s: done: hw_map[0x%lx][RSC:%d]\n", __func__,
 		hardware->hw_map[instance], atomic_read(&hardware->rsccount));
 
@@ -524,6 +521,8 @@ int __nocfi is_itf_power_down_wrap(struct is_interface *interface, u32 instance)
 	((ddk_shut_down_func_t)DDK_SHUT_DOWN_FUNC_ADDR)(data);
 #endif
 #endif
+
+	check_lib_memory_leak();
 
 	return ret;
 }

@@ -34,6 +34,13 @@ void csi_hw_phy_otp_config(u32 __iomem *base_reg, u32 instance)
 #endif
 }
 
+u32 csi_hw_s_fcount(u32 __iomem *base_reg, u32 vc, u32 count)
+{
+	is_hw_set_reg(base_reg, &csi_regs[CSIS_R_FRM_CNT_CH0 + vc], count);
+
+	return is_hw_get_reg(base_reg, &csi_regs[CSIS_R_FRM_CNT_CH0 + vc]);
+}
+
 u32 csi_hw_g_fcount(u32 __iomem *base_reg, u32 vc)
 {
 	return is_hw_get_reg(base_reg, &csi_regs[CSIS_R_FRM_CNT_CH0 + vc]);
@@ -293,6 +300,8 @@ int csi_hw_s_config_dma(u32 __iomem *base_reg, u32 vc, struct is_frame_cfg *cfg,
 		dma_stg_mode = CSIS_REG_DMA_STG_LEGACY_MODE;
 		break;
 	case HW_FORMAT_USER:
+	case HW_FORMAT_USER1:
+	case HW_FORMAT_USER2:
 	case HW_FORMAT_EMBEDDED_8BIT:
 	case HW_FORMAT_YUV420_8BIT:
 	case HW_FORMAT_YUV420_10BIT:
@@ -770,11 +779,10 @@ int csi_hw_s_fro_count(u32 __iomem *vc_cmn_reg, u32 batch_num, u32 vc)
 void csi_hw_dma_reset(u32 __iomem *base_reg)
 {
 	/*
-	 * DMA off should be called at stream off,
-	 * because if DMA is shared, there can be conficted in on, off control.
-	 * So, DMA off is removed.
+	 * Any other registers are not controlled by 2 instance as well as DMA off,
+	 * because DMA cannot be shared between 1 more instance.
 	 */
-
+	is_hw_set_reg(base_reg, &csi_vcdma_regs[CSIS_R_DMA0_CTRL], 0);
 	is_hw_set_reg(base_reg, &csi_vcdma_regs[CSIS_R_DMA0_FCNTSEQ], 0);
 }
 
@@ -1065,6 +1073,8 @@ int csi_hw_s_config_dma_cmn(u32 __iomem *base_reg, u32 vc, u32 actual_vc, u32 hw
 			break;
 		case HW_FORMAT_RAW8:
 		case HW_FORMAT_USER:
+		case HW_FORMAT_USER1:
+		case HW_FORMAT_USER2:
 			otf_format = 3;
 			dma_input_path = CSIS_REG_DMA_INPUT_PRL;
 			break;

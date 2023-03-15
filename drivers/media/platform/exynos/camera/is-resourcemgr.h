@@ -120,6 +120,11 @@ struct is_global_param {
 	ulong					state;
 };
 
+struct is_lic_sram {
+	size_t					taa_sram[10];
+	atomic_t				taa_sram_sum;
+};
+
 struct is_bts_scen {
 	unsigned int		index;
 	const char		*name;
@@ -179,10 +184,14 @@ struct is_resourcemgr {
 #endif
 	struct is_global_param		global_param;
 
+	struct is_lic_sram			lic_sram;
+
 	/* for critical section at get/put */
 	struct mutex				rsc_lock;
 	/* for sysreg setting */
 	struct mutex				sysreg_lock;
+	/* for qos setting */
+	struct mutex				qos_lock;
 
 	/* BTS */
 	struct is_bts_scen			*bts_scen;
@@ -193,6 +202,7 @@ struct is_resourcemgr {
 #if defined(DISABLE_CORE_IDLE_STATE)
 	struct work_struct                      c2_disable_work;
 #endif
+	u32					streaming_cnt;
 };
 
 int is_resourcemgr_probe(struct is_resourcemgr *resourcemgr, void *private_data, struct platform_device *pdev);
@@ -203,6 +213,7 @@ int is_resource_ioctl(struct is_resourcemgr *resourcemgr, struct v4l2_control *c
 int is_logsync(struct is_interface *itf, u32 sync_id, u32 msg_test_id);
 void is_resource_set_global_param(struct is_resourcemgr *resourcemgr, void *device);
 void is_resource_clear_global_param(struct is_resourcemgr *resourcemgr, void *device);
+int is_resource_update_lic_sram(struct is_resourcemgr *resourcemgr, void *device, bool on);
 int is_resource_dump(void);
 int is_kernel_log_dump(bool overwrite);
 #ifdef ENABLE_HWACG_CONTROL

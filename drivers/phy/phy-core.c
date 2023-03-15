@@ -307,6 +307,17 @@ int phy_vendor_set(struct phy *phy, int is_enable, int is_cancel)
 }
 EXPORT_SYMBOL_GPL(phy_vendor_set);
 
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+int phy_rewa_irq(struct phy *phy)
+{
+	if (!phy || !phy->ops->rewa_irq)
+		return -1;
+
+	return phy->ops->rewa_irq(phy);
+}
+EXPORT_SYMBOL_GPL(phy_rewa_irq);
+#endif
+
 int phy_ilbk(struct phy *phy)
 {
 	int ret;

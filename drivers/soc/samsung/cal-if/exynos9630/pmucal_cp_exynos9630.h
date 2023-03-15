@@ -23,6 +23,8 @@ struct pmucal_seq cp_reset_release[] = {
 	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "SYSTEM_OUT", 0x10e60000, 0x3a20, (0x1 << 9), (0x1 << 9), 0, 0, 0xffffffff, 0),
 	PMUCAL_SEQ_DESC(PMUCAL_WAIT, "VGPIO_TX_MONITOR", 0x11060000, 0x1700, (0x1 << 29), (0x1 << 29), 0, 0, 0xffffffff, 0),
 	PMUCAL_SEQ_DESC(PMUCAL_DELAY, "DELAY", 0x10e60000, 0, 0, 0x3e8, 0, 0, 0, 0),
+	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "CP_CTRL_NS", 0x10e60000, 0x3210, (0x1 << 5), (0x1 << 5), 0, 0, 0xffffffff, 0),
+	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "CP_CTRL_NS", 0x10e60000, 0x3210, (0x1 << 4), (0x0 << 4), 0, 0, 0xffffffff, 0),
 	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "CP_CONFIGURATION", 0x10e60000, 0x3200, (0x1 << 0), (0x1 << 0), 0, 0, 0xffffffff, 0),
 	PMUCAL_SEQ_DESC(PMUCAL_WAIT, "CP_STATUS", 0x10e60000, 0x3204, (0x1 << 0), (0x1 << 0), 0, 0, 0xffffffff, 0),
 	PMUCAL_SEQ_DESC(PMUCAL_WAIT, "CP_IN", 0x10e60000, 0x3224, (0x1 << 4), (0x1 << 4), 0, 0, 0xffffffff, 0),

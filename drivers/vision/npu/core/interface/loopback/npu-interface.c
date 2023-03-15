@@ -68,13 +68,11 @@ void dbg_dump_mbox(void)
 void dbg_print_error(void)
 {
 	return;
-
 }
 
 void dbg_print_ncp_header(struct ncp_header *nhdr)
 {
 	return;
-
 }
 
 void dbg_print_interface(void)
@@ -206,7 +204,7 @@ static int npu_set_cmd(struct message *msg, struct command *cmd, u32 cmdType)
 	}
 	*/
 	Fake_FW(cmdType, msg->mid);
-	return 0;
+	return ret;
 I_ERR:
 	switch (ret) {
 	case -ERESOURCE:
@@ -252,8 +250,8 @@ int npu_interface_probe(struct device *dev, void *regs)
 
 	probe_info("complete in %s\n", __func__);
 	return ret;
-	return ret;
 }
+
 int npu_interface_open(struct npu_system *system)
 {
 	int ret = 0;
@@ -530,7 +528,6 @@ static void __rprt_manager(struct work_struct *w)
 */
 void fw_rprt_manager(void)
 {
-
 	return;
 }
 

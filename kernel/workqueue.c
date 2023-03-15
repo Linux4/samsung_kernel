@@ -50,6 +50,8 @@
 #include <linux/sched/isolation.h>
 #include <linux/debug-snapshot.h>
 #include <linux/nmi.h>
+#include <linux/sec_debug.h>
+#include <soc/samsung/exynos-debug.h>
 
 #include "workqueue_internal.h"
 
@@ -2943,7 +2945,9 @@ static bool __flush_work(struct work_struct *work, bool from_cancel)
 	}
 
 	if (start_flush_work(work, &barr, from_cancel)) {
+		secdbg_dtsk_set_data(DTYPE_WORK, work);
 		wait_for_completion(&barr.done);
+		secdbg_dtsk_clear_data();
 		destroy_work_on_stack(&barr.work);
 		return true;
 	} else {
@@ -5591,6 +5595,12 @@ static void wq_watchdog_timer_fn(struct timer_list *unused)
 			pr_cont_pool_info(pool);
 			pr_cont(" stuck for %us!\n",
 				jiffies_to_msecs(jiffies - pool_ts) / 1000);
+#ifdef CONFIG_SEC_DEBUG_WQ_LOCKUP_INFO
+			if (pool->cpu >= 0) {
+				secdbg_show_sched_info(pool->cpu, 10);
+				secdbg_show_busy_task(pool->cpu, jiffies_to_msecs(jiffies - pool_ts) / 1000, 5);
+			}
+#endif
 		}
 	}
 

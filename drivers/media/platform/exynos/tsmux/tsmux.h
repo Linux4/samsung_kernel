@@ -193,4 +193,9 @@ struct tsmux_rtp_ts_info {
 #define TSMUX_IOCTL_GET_RTP_TS_INFO		\
 	_IOR('A', 0x21, struct tsmux_rtp_ts_info)
 
+#define TSMUX_IOCTL_ENABLE_OTF_DUMMY_TS_PACKET	\
+	_IO('A', 0x30)
+#define TSMUX_IOCTL_DISABLE_OTF_DUMMY_TS_PACKET	\
+	_IO('A', 0x31)
+
 #endif /* TSMUX_H */

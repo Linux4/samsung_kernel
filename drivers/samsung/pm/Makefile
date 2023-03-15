@@ -12,3 +12,5 @@ obj-				:=
 
 # Samsung Mobile Power Management Debugging Support
 obj-$(CONFIG_SEC_PM_DEBUG)		+= sec_pm_debug.o
+
+ccflags-y := -Wformat

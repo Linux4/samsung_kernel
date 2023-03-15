@@ -113,6 +113,32 @@ static int gnss_pmu_clear_interrupt(enum gnss_int_clear gnss_int)
 	return 0;
 }
 
+#if defined(CONFIG_SOC_EXYNOS9630) || defined(CONFIG_SOC_EXYNOS3830)
+static void gnss_get_swreg(struct gnss_swreg *swreg)
+{
+	exynos_smc_readsfr(0x13E43000, (unsigned long *)&swreg->swreg_0);
+	exynos_smc_readsfr(0x13E43004, (unsigned long *)&swreg->swreg_1);
+	exynos_smc_readsfr(0x13E43008, (unsigned long *)&swreg->swreg_2);
+	exynos_smc_readsfr(0x13E4300C, (unsigned long *)&swreg->swreg_3);
+	exynos_smc_readsfr(0x13E43010, (unsigned long *)&swreg->swreg_4);
+	exynos_smc_readsfr(0x13E43014, (unsigned long *)&swreg->swreg_5);
+
+	gif_info("SWREG 0x%08X 0x%08X 0x%08X 0x%08X 0x%08X 0x%08X\n",
+			swreg->swreg_0, swreg->swreg_1, swreg->swreg_2,
+			swreg->swreg_3, swreg->swreg_4, swreg->swreg_5);
+}
+
+static void gnss_get_apreg(struct gnss_apreg *apreg)
+{
+	gnss_pmu_read(EXYNOS_PMU_GNSS_CTRL_NS, &apreg->CTRL_NS);
+	gnss_pmu_read(EXYNOS_PMU_GNSS_CTRL_S, &apreg->CTRL_S);
+	gnss_pmu_read(EXYNOS_PMU_GNSS_STAT, &apreg->STAT);
+	gnss_pmu_read(EXYNOS_PMU_GNSS_DEBUG, &apreg->DEBUG);
+	gif_info("APREG CTRL_NS 0x%08X CTRL_S 0x%08X STAT 0x%08X DEBUG 0x%08X\n",
+			apreg->CTRL_NS, apreg->CTRL_S, apreg->STAT, apreg->DEBUG);
+}
+#endif
+
 #if defined(CONFIG_SOC_EXYNOS9630)
 static void __iomem *intr_bid_pend; /* check APM pending before release reset */
 static bool check_apm_int_pending()
@@ -132,7 +158,7 @@ static bool check_apm_int_pending()
 		gif_info("APM PENDING CHECK REGISTER VAL: 0x%08x\n", reg_val);
 		if ((reg_val >> 17) & 0x3F) {/* check if one or more of bits [22:17] are 1 */
 			count--;
-			mdelay(50);
+			msleep(50);
 			continue;
 		} else {
 			ret = true;
@@ -166,7 +192,7 @@ static int gnss_pmu_hold_reset(void)
 
 	if (check_apm_int_pending()) {
 		cal_gnss_reset_assert();
-		mdelay(50);
+		msleep(50);
 	} else
 		ret = 1;
 
@@ -292,6 +318,10 @@ static struct gnssctl_pmu_ops pmu_ops = {
 	.clear_int = gnss_pmu_clear_interrupt,
 	.req_security = gnss_request_tzpc,
 	.req_baaw = gnss_request_gnss2ap_baaw,
+#if defined(CONFIG_SOC_EXYNOS9630) || defined(CONFIG_SOC_EXYNOS3830)
+	.get_swreg = gnss_get_swreg,
+	.get_apreg = gnss_get_apreg,
+#endif
 };
 
 void gnss_get_pmu_ops(struct gnss_ctl *gc)

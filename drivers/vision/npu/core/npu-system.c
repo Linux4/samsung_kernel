@@ -68,7 +68,7 @@ enum npu_system_resume_steps {
 	NPU_SYS_RESUME_COMPLETED
 };
 
-static int npu_firmware_load(struct npu_system *system);
+static int npu_firmware_load(struct npu_system *system, int mode);
 
 #ifdef CONFIG_EXYNOS_NPU_DRAM_FW_LOG_BUF
 #define DRAM_KERNEL_LOG_BUF_SIZE	(2048*1024)
@@ -87,7 +87,7 @@ static struct npu_memory_v_buf fw_profile_buf = {
 
 int npu_system_alloc_fw_dram_log_buf(struct npu_system *system)
 {
-	int ret;
+	int ret = 0;
 	BUG_ON(!system);
 
 	npu_info("start: initialization.\n");
@@ -134,12 +134,12 @@ int npu_system_alloc_fw_dram_log_buf(struct npu_system *system)
 	}
 
 	npu_info("complete : initialization.\n");
-	return 0;
+	return ret;
 }
 
 static int npu_system_free_fw_dram_log_buf(struct npu_system *system)
 {
-	int ret;
+	int ret = 0;
 
 	BUG_ON(!system);
 
@@ -148,12 +148,12 @@ static int npu_system_free_fw_dram_log_buf(struct npu_system *system)
 
 	ret = npu_memory_free(&system->memory, &dram_kernel_log_buf);
 	if (ret) {
-		npu_err("fail(%d) in kernel Log buffer memory free\n", ret);
+		npu_err("fail(%d) in Log buffer memory free\n", ret);
 		goto err_exit;
 	}
 
 	npu_info("DRAM log buffer for kernel freed.\n");
-	ret = 0;
+	return ret;
 
 err_exit:
 	return ret;
@@ -271,7 +271,7 @@ p_exit:
 /* TODO: Implement throughly */
 int npu_system_release(struct npu_system *system, struct platform_device *pdev)
 {
-	int ret;
+	int ret = 0;
 	struct device *dev;
 	struct npu_device *device;
 
@@ -299,7 +299,7 @@ int npu_system_release(struct npu_system *system, struct platform_device *pdev)
 	if (ret)
 		npu_err("fail(%d) in npu_system_soc_release\n", ret);
 
-	return 0;
+	return ret;
 }
 
 int npu_system_open(struct npu_system *system)
@@ -396,13 +396,13 @@ int npu_system_resume(struct npu_system *system, u32 mode)
 	}
 	set_bit(NPU_SYS_RESUME_INIT_FWBUF, &system->resume_steps);
 
-	npu_info("reset FW working memory : paddr %p, vaddr %p, daddr %p, size 0x%x\n",
+	npu_info("reset FW working memory : paddr %llu, vaddr %p, daddr %llu, size %lu\n",
 		system->fw_npu_memory_buffer->paddr,
 		system->fw_npu_memory_buffer->vaddr,
 		system->fw_npu_memory_buffer->daddr,
 		system->fw_npu_memory_buffer->size);
 	memset(system->fw_npu_memory_buffer->vaddr, 0, system->fw_npu_memory_buffer->size);
-	ret = npu_firmware_load(system);
+	ret = npu_firmware_load(system, device->sched->mode);
 	if (ret) {
 		npu_err("fail(%d) in npu_firmware_load\n", ret);
 		goto p_err;
@@ -579,7 +579,7 @@ int npu_system_stop(struct npu_system *system)
 
 p_err:
 
-	return 0;
+	return ret;
 }
 
 int npu_system_save_result(struct npu_session *session, struct nw_result nw_result)
@@ -590,7 +590,7 @@ int npu_system_save_result(struct npu_session *session, struct nw_result nw_resu
 	return ret;
 }
 
-static int npu_firmware_load(struct npu_system *system)
+static int npu_firmware_load(struct npu_system *system, int mode)
 {
 	int ret = 0;
 #ifdef CONFIG_NPU_HARDWARE
@@ -637,7 +637,7 @@ static int npu_firmware_load(struct npu_system *system)
 				system->fw_npu_memory_buffer->vaddr);
 		ret = npu_firmware_file_read(&system->binary,
 				system->fw_npu_memory_buffer->vaddr,
-				system->fw_npu_memory_buffer->size);
+				system->fw_npu_memory_buffer->size, mode);
 		if (ret) {
 			npu_err("error(%d) in npu_binary_read\n", ret);
 			goto err_exit;
@@ -647,7 +647,7 @@ static int npu_firmware_load(struct npu_system *system)
 	}
 
 	npu_info("complete in npu_firmware_load\n");
-	return 0;
+	return ret;
 err_exit:
 
 	npu_info("error(%d) in npu_firmware_load\n", ret);

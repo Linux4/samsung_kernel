@@ -1345,32 +1345,6 @@ static inline void ufshcd_hba_start(struct ufs_hba *hba)
 	ufshcd_writel(hba, CONTROLLER_ENABLE, REG_CONTROLLER_ENABLE);
 }
 
-#ifdef CUSTOMIZE_UPIU_FLAGS
-SIO_PATCH_VERSION(UPIU_customize, 1, 1, "");
-
-/* IOPP-ufs_cp-v1.0.4.9 */
-static void set_customized_upiu_flags(struct ufshcd_lrb *lrbp, u32 *upiu_flags)
-{
-	if (lrbp->command_type == UTP_CMD_TYPE_SCSI) {
-		switch (req_op(lrbp->cmd->request)) {
-		case REQ_OP_READ:
-			*upiu_flags |= UPIU_COMMAND_PRIORITY_HIGH;
-			break;
-		case REQ_OP_WRITE:
-			if (lrbp->cmd->request->cmd_flags & REQ_SYNC)
-				*upiu_flags |= UPIU_COMMAND_PRIORITY_HIGH;
-			break;
-		case REQ_OP_FLUSH:
-			*upiu_flags |= UPIU_TASK_ATTR_HEADQ;
-			break;
-		case REQ_OP_DISCARD:
-			*upiu_flags |= UPIU_TASK_ATTR_ORDERED;
-			break;
-		}
-	}
-}
-#endif
-
 /**
  * ufshcd_is_hba_active - Get controller state
  * @hba: per adapter instance
@@ -2332,8 +2306,9 @@ static int ufshcd_init_clk_gating(struct ufs_hba *hba)
 
 	snprintf(wq_name, ARRAY_SIZE(wq_name), "ufs_clk_gating_%d",
 		 hba->host->host_no);
-	hba->clk_gating.clk_gating_workq = alloc_ordered_workqueue(wq_name,
-							   WQ_MEM_RECLAIM);
+	hba->clk_gating.clk_gating_workq = alloc_ordered_workqueue("%s",
+								WQ_MEM_RECLAIM, wq_name);
+
 
 	if (!hba->clk_gating.clk_gating_workq) {
 		ret = -ENOMEM;
@@ -2830,6 +2805,29 @@ static void ufshcd_disable_intr(struct ufs_hba *hba, u32 intrs)
 	}
 
 	ufshcd_writel(hba, set, REG_INTERRUPT_ENABLE);
+}
+
+/* IOPP-upiu_flags-v1.2.k5.4 */
+static void set_customized_upiu_flags(struct ufshcd_lrb *lrbp, u32 *upiu_flags)
+{
+	if (!lrbp->cmd || !lrbp->cmd->request)
+		return;
+
+	switch (req_op(lrbp->cmd->request)) {
+	case REQ_OP_READ:
+		*upiu_flags |= UPIU_CMD_PRIO_HIGH;
+		break;
+	case REQ_OP_WRITE:
+		if (lrbp->cmd->request->cmd_flags & REQ_SYNC)
+			*upiu_flags |= UPIU_CMD_PRIO_HIGH;
+		break;
+	case REQ_OP_FLUSH:
+		*upiu_flags |= UPIU_TASK_ATTR_HEADQ;
+		break;
+	case REQ_OP_DISCARD:
+		*upiu_flags |= UPIU_TASK_ATTR_ORDERED;
+		break;
+	}
 }
 
 /**
@@ -10228,7 +10226,7 @@ static void ufs_sec_send_errinfo(void *data)
 {
 	static struct ufs_hba *hba;
 	struct SEC_UFS_counting *err_info;
-	char buf[22];
+	char buf[23];
 
 	if (data) {
 		hba = (struct ufs_hba *)data;

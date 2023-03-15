@@ -5,6 +5,8 @@
 
 # Each configuration option enables a list of files.
 
+ccflags-y += -Wformat
+
 obj-$(CONFIG_KEYBOARD_ADC)		+= adc-keys.o
 obj-$(CONFIG_KEYBOARD_ADP5520)		+= adp5520-keys.o
 obj-$(CONFIG_KEYBOARD_ADP5588)		+= adp5588-keys.o

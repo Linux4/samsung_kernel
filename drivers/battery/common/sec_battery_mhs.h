@@ -34,8 +34,8 @@
 #include <linux/ccic/ccic_notifier.h>
 #endif /* CONFIG_CCIC_NOTIFIER */
 #if defined(CONFIG_MUIC_NOTIFIER)
-#include <linux/muic/muic.h>
-#include <linux/muic/muic_notifier.h>
+#include <linux/muic/common/muic.h>
+#include <linux/muic/common/muic_notifier.h>
 #endif
 #endif
 
@@ -242,11 +242,11 @@ struct sec_battery_info {
 	struct adc_sample_info	adc_sample[ADC_CH_COUNT];
 
 	/* keep awake until monitor is done */
-	struct wake_lock monitor_wake_lock;
+	struct wakeup_source *monitor_ws;
 	struct workqueue_struct *monitor_wqueue;
 	struct delayed_work monitor_work;
 #ifdef CONFIG_SAMSUNG_BATTERY_FACTORY
-	struct wake_lock lpm_wake_lock;
+	struct wakeup_source *lpm_ws;
 #endif
 	unsigned int polling_count;
 	unsigned int polling_time;
@@ -345,31 +345,31 @@ struct sec_battery_info {
 	int cable_type;
 	int charging_port;
 
-	struct wake_lock cable_wake_lock;
+	struct wakeup_source *cable_ws;
 	struct delayed_work cable_work;
-	struct wake_lock vbus_wake_lock;
+	struct wakeup_source *vbus_ws;
 	struct delayed_work siop_work;
-	struct wake_lock siop_wake_lock;
-	struct wake_lock afc_wake_lock;
+	struct wakeup_source *siop_ws;
+	struct wakeup_source *afc_ws;
 	struct delayed_work afc_work;
 #if defined(CONFIG_WIRELESS_FIRMWARE_UPDATE)
 	struct delayed_work update_work;
 	struct delayed_work fw_init_work;
 #endif
 	struct delayed_work siop_event_work;
-	struct wake_lock siop_event_wake_lock;
+	struct wakeup_source *siop_event_ws;
 	struct delayed_work siop_level_work;
-	struct wake_lock siop_level_wake_lock;
+	struct wakeup_source *siop_level_ws;
 	struct delayed_work wc_headroom_work;
-	struct wake_lock wc_headroom_wake_lock;
+	struct wakeup_source *wc_headroom_ws;
 #if defined(CONFIG_UPDATE_BATTERY_DATA)
 	struct delayed_work batt_data_work;
-	struct wake_lock batt_data_wake_lock;
+	struct wakeup_source *batt_data_ws;
 	char *data_path;
 #endif
 #ifdef CONFIG_OF
 	struct delayed_work parse_mode_dt_work;
-	struct wake_lock parse_mode_dt_wake_lock;
+	struct wakeup_source *parse_mode_dt_ws;
 #endif
 	struct delayed_work init_chg_work;
 
@@ -442,7 +442,7 @@ struct sec_battery_info {
 	unsigned int misc_event;
 	unsigned int prev_misc_event;
 	struct delayed_work misc_event_work;
-	struct wake_lock misc_event_wake_lock;
+	struct wakeup_source *misc_event_ws;
 	struct mutex batt_handlelock;
 	struct mutex current_eventlock;
 	struct mutex typec_notylock;

@@ -15,14 +15,16 @@
 #include <linux/device.h>
 #include <linux/module.h>
 #include <linux/usb_notify.h>
-#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
+#if IS_ENABLED(CONFIG_SEC_PD)
+#include <linux/battery/sec_pd.h>
+#elif defined(CONFIG_BATTERY_NOTIFIER)
 #include <linux/battery/battery_notifier.h>
 #endif
 #include <linux/usb/typec/common/pdic_core.h>
 #include <linux/usb/typec/common/pdic_sysfs.h>
 #include <linux/usb/typec/common/pdic_notifier.h>
+#define DRIVER_DESC   "PDIC Notifier driver"
 
-#define DEBUG
 #define SET_PDIC_NOTIFIER_BLOCK(nb, fn, dev) do {	\
 		(nb)->notifier_call = (fn);		\
 		(nb)->priority = (dev);			\
@@ -35,70 +37,171 @@ static struct pdic_notifier_data pdic_notifier;
 
 static int pdic_notifier_init_done;
 
-char PDIC_NOTI_DEST_Print[PDIC_NOTI_DEST_NUM][10] = {
-	[PDIC_NOTIFY_DEV_INITIAL]		= {"INITIAL"},
-	[PDIC_NOTIFY_DEV_USB]			= {"USB"},
-	[PDIC_NOTIFY_DEV_BATT]			= {"BATTERY"},
-	[PDIC_NOTIFY_DEV_PDIC]			= {"PDIC"},
-	[PDIC_NOTIFY_DEV_MUIC]			= {"MUIC"},
-	[PDIC_NOTIFY_DEV_PDIC]			= {"PDIC"},
-	[PDIC_NOTIFY_DEV_MANAGER]		= {"MANAGER"},
-	[PDIC_NOTIFY_DEV_DP]			= {"DP"},
-	[PDIC_NOTIFY_DEV_USB_DP]		= {"USBDP"},
-	[PDIC_NOTIFY_DEV_SUB_BATTERY]		= {"BATTERY2"},
-	[PDIC_NOTIFY_DEV_SECOND_MUIC]		= {"MUIC2"},
-	[PDIC_NOTIFY_DEV_DEDICATED_MUIC]	= {"DMUIC"},
-	[PDIC_NOTIFY_DEV_ALL]			= {"ALL"},
-};
+const char *pdic_event_src_string(pdic_notifier_device src)
+{
+	/* enum pdic_notifier_device */
+	switch (src) {
+	case PDIC_NOTIFY_DEV_INITIAL:
+		return "INITIAL";
+	case PDIC_NOTIFY_DEV_USB:
+		return "USB";
+	case PDIC_NOTIFY_DEV_BATT:
+		return "BATTERY";
+	case PDIC_NOTIFY_DEV_PDIC:
+		return "PDIC";
+	case PDIC_NOTIFY_DEV_MUIC:
+		return "MUIC";
+	case PDIC_NOTIFY_DEV_CCIC:
+		return "CCIC";
+	case PDIC_NOTIFY_DEV_MANAGER:
+		return "MANAGER";
+	case PDIC_NOTIFY_DEV_DP:
+		return "DP";
+	case PDIC_NOTIFY_DEV_USB_DP:
+		return "USBDP";
+	case PDIC_NOTIFY_DEV_SUB_BATTERY:
+		return "BATTERY2";
+	case PDIC_NOTIFY_DEV_SECOND_MUIC:
+		return "MUIC2";
+	case PDIC_NOTIFY_DEV_DEDICATED_MUIC:
+		return "DMUIC";
+	case PDIC_NOTIFY_DEV_ALL:
+		return "ALL";
+	default:
+		return "UNDEFINED";
+	}
+}
+EXPORT_SYMBOL(pdic_event_src_string);
 
-char PDIC_NOTI_ID_Print[PDIC_NOTI_ID_NUM][20] = {
-	[PDIC_NOTIFY_ID_INITIAL] 		= {"ID_INITIAL"},
-	[PDIC_NOTIFY_ID_ATTACH] 		= {"ID_ATTACH"},
-	[PDIC_NOTIFY_ID_RID] 			= {"ID_RID"},
-	[PDIC_NOTIFY_ID_USB]			= {"ID_USB"},
-	[PDIC_NOTIFY_ID_POWER_STATUS]		= {"ID_POWER_STATUS"},
-	[PDIC_NOTIFY_ID_WATER]			= {"ID_WATER"},
-	[PDIC_NOTIFY_ID_VCONN]			= {"ID_VCONN"},
-	[PDIC_NOTIFY_ID_OTG]			= {"ID_OTG"},
-	[PDIC_NOTIFY_ID_TA]			= {"ID_TA"},
-	[PDIC_NOTIFY_ID_DP_CONNECT]		= {"ID_DP_CONNECT"},
-	[PDIC_NOTIFY_ID_DP_HPD]			= {"ID_DP_HPD"},
-	[PDIC_NOTIFY_ID_DP_LINK_CONF]		= {"ID_DP_LINK_CONF"},
-	[PDIC_NOTIFY_ID_USB_DP]			= {"ID_USB_DP"},
-	[PDIC_NOTIFY_ID_ROLE_SWAP]		= {"ID_ROLE_SWAP"},
-	[PDIC_NOTIFY_ID_FAC]			= {"ID_FAC"},
-	[PDIC_NOTIFY_ID_PD_PIN_STATUS]		= {"ID_PIN_STATUS"},
-	[PDIC_NOTIFY_ID_WATER_CABLE]		= {"ID_WATER_CABLE"},
-};
+const char *pdic_event_dest_string(pdic_notifier_device dest)
+{
+	return pdic_event_src_string(dest);
+}
+EXPORT_SYMBOL(pdic_event_dest_string);
 
-char PDIC_NOTI_RID_Print[PDIC_NOTI_RID_NUM][15] = {
-	[RID_UNDEFINED] = {"RID_UNDEFINED"},
-	[RID_000K]		= {"RID_000K"},
-	[RID_001K]		= {"RID_001K"},
-	[RID_255K]		= {"RID_255K"},
-	[RID_301K]		= {"RID_301K"},
-	[RID_523K]		= {"RID_523K"},
-	[RID_619K]		= {"RID_619K"},
-	[RID_OPEN]		= {"RID_OPEN"},
-};
+const char *pdic_event_id_string(pdic_notifier_id_t id)
+{
+	/* enum pdic_notifier_id_t */
+	switch (id) {
+	case PDIC_NOTIFY_ID_INITIAL:
+		return "ID_INITIAL";
+	case PDIC_NOTIFY_ID_ATTACH:
+		return "ID_ATTACH";
+	case PDIC_NOTIFY_ID_RID:
+		return "ID_RID";
+	case PDIC_NOTIFY_ID_USB:
+		return "ID_USB";
+	case PDIC_NOTIFY_ID_POWER_STATUS:
+		return "ID_POWER_STATUS";
+	case PDIC_NOTIFY_ID_WATER:
+		return "ID_WATER";
+	case PDIC_NOTIFY_ID_VCONN:
+		return "ID_VCONN";
+	case PDIC_NOTIFY_ID_OTG:
+		return "ID_OTG";
+	case PDIC_NOTIFY_ID_TA:
+		return "ID_TA";
+	case PDIC_NOTIFY_ID_DP_CONNECT:
+		return "ID_DP_CONNECT";
+	case PDIC_NOTIFY_ID_DP_HPD:
+		return "ID_DP_HPD";
+	case PDIC_NOTIFY_ID_DP_LINK_CONF:
+		return "ID_DP_LINK_CONF";
+	case PDIC_NOTIFY_ID_USB_DP:
+		return "ID_USB_DP";
+	case PDIC_NOTIFY_ID_ROLE_SWAP:
+		return "ID_ROLE_SWAP";
+	case PDIC_NOTIFY_ID_FAC:
+		return "ID_FAC";
+	case PDIC_NOTIFY_ID_CC_PIN_STATUS:
+		return "ID_PIN_STATUS";
+	case PDIC_NOTIFY_ID_WATER_CABLE:
+		return "ID_WATER_CABLE";
+	case PDIC_NOTIFY_ID_POFF_WATER:
+		return "ID_POFF_WATER";
+	case PDIC_NOTIFY_ID_DEVICE_INFO:
+		return "ID_DEVICE_INFO";
+	case PDIC_NOTIFY_ID_SVID_INFO:
+		return "ID_SVID_INFO";
+	case PDIC_NOTIFY_ID_CLEAR_INFO:
+		return "ID_CLEAR_INFO";
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+	case PDIC_NOTIFY_ID_POGO:
+		return "ID_POGO";
+#endif
+	default:
+		return "UNDEFINED";
+	}
+}
+EXPORT_SYMBOL(pdic_event_id_string);
 
-char PDIC_NOTI_USB_STATUS_Print[PDIC_NOTI_USB_STATUS_NUM][20] = {
-	[USB_STATUS_NOTIFY_DETACH]		= {"USB_DETACH"},
-	[USB_STATUS_NOTIFY_ATTACH_DFP]		= {"USB_ATTACH_DFP"},
-	[USB_STATUS_NOTIFY_ATTACH_UFP]		= {"USB_ATTACH_UFP"},
-	[USB_STATUS_NOTIFY_ATTACH_DRP]		= {"USB_ATTACH_DRP"},
-};
+const char *pdic_rid_string(pdic_notifier_rid_t rid)
+{
+	switch (rid) {
+	case RID_UNDEFINED:
+		return "RID_UNDEFINED";
+	case RID_000K:
+		return "RID_000K";
+	case RID_001K:
+		return "RID_001K";
+	case RID_255K:
+		return "RID_255K";
+	case RID_301K:
+		return "RID_301K";
+	case RID_523K:
+		return "RID_523K";
+	case RID_619K:
+		return "RID_619K";
+	case RID_OPEN:
+		return "RID_OPEN";
+	default:
+		return "RID_UNDEFINED";
+	}
+}
+EXPORT_SYMBOL(pdic_rid_string);
 
-char PDIC_NOTI_PIN_STATUS_Print[PDIC_NOTI_PIN_STATUS_NUM][20] = {
-	[PDIC_NOTIFY_PIN_STATUS_NO_DETERMINATION]	= {"NO_DETERMINATION"},
-	[PDIC_NOTIFY_PIN_STATUS_PD1_ACTIVE]			= {"PD1_ACTIVE"},
-	[PDIC_NOTIFY_PIN_STATUS_PD2_ACTIVE]			= {"PD2_ACTIVE"},
-	[PDIC_NOTIFY_PIN_STATUS_AUDIO_ACCESSORY]	= {"AUDIO_ACCESSORY"},
-	[PDIC_NOTIFY_PIN_STATUS_DEBUG_ACCESSORY]	= {"DEBUG_ACCESSORY"},
-	[PDIC_NOTIFY_PIN_STATUS_PDIC_ERROR]			= {"PDIC_ERROR"},
-	[PDIC_NOTIFY_PIN_STATUS_DISABLED]			= {"DISABLED"},
-	[PDIC_NOTIFY_PIN_STATUS_RFU]				= {"RFU"},
-};
+const char *pdic_usbstatus_string(USB_STATUS usbstatus)
+{
+	switch (usbstatus) {
+	case USB_STATUS_NOTIFY_DETACH:
+		return "USB_DETACH";
+	case USB_STATUS_NOTIFY_ATTACH_DFP:
+		return "USB_ATTACH_DFP";
+	case USB_STATUS_NOTIFY_ATTACH_UFP:
+		return "USB_ATTACH_UFP";
+	case USB_STATUS_NOTIFY_ATTACH_DRP:
+		return "USB_ATTACH_DRP";
+	default:
+		return "UNDEFINED";
+	}
+}
+EXPORT_SYMBOL(pdic_usbstatus_string);
+
+const char *pdic_ccpinstatus_string(pdic_notifier_pin_status_t ccpinstatus)
+{
+	switch (ccpinstatus) {
+	case PDIC_NOTIFY_PIN_STATUS_NO_DETERMINATION:
+		return "NO_DETERMINATION";
+	case PDIC_NOTIFY_PIN_STATUS_CC1_ACTIVE:
+		return "CC1_ACTIVE";
+	case PDIC_NOTIFY_PIN_STATUS_CC2_ACTIVE:
+		return "CC2_ACTIVE";
+	case PDIC_NOTIFY_PIN_STATUS_AUDIO_ACCESSORY:
+		return "AUDIO_ACCESSORY";
+	case PDIC_NOTIFY_PIN_STATUS_DEBUG_ACCESSORY:
+		return "DEBUG_ACCESSORY";
+	case PDIC_NOTIFY_PIN_STATUS_PDIC_ERROR:
+		return "CCIC_ERROR";
+	case PDIC_NOTIFY_PIN_STATUS_DISABLED:
+		return "DISABLED";
+	case PDIC_NOTIFY_PIN_STATUS_RFU:
+		return "RFU";
+	case PDIC_NOTIFY_PIN_STATUS_NOCC_USB_ACTIVE:
+		return "NOCC_USB_ACTIVE";
+	default:
+		return "NO_DETERMINATION";
+	}
+}
 
 int pdic_notifier_register(struct notifier_block *nb, notifier_fn_t notifier,
 			pdic_notifier_device listener)
@@ -112,9 +215,11 @@ int pdic_notifier_register(struct notifier_block *nb, notifier_fn_t notifier,
 	}
 	pr_info("%s: listener=%d register\n", __func__, listener);
 
+#if IS_BUILTIN(CONFIG_PDIC_NOTIFIER)
 	/* Check if PDIC Notifier is ready. */
 	if (!pdic_notifier_init_done)
 		pdic_notifier_init();
+#endif
 
 	SET_PDIC_NOTIFIER_BLOCK(nb, notifier, listener);
 	ret = blocking_notifier_chain_register(&(pdic_notifier.notifier_call_chain), nb);
@@ -128,6 +233,7 @@ int pdic_notifier_register(struct notifier_block *nb, notifier_fn_t notifier,
 
 	return ret;
 }
+EXPORT_SYMBOL(pdic_notifier_register);
 
 int pdic_notifier_unregister(struct notifier_block *nb)
 {
@@ -143,12 +249,13 @@ int pdic_notifier_unregister(struct notifier_block *nb)
 
 	return ret;
 }
+EXPORT_SYMBOL(pdic_notifier_unregister);
 
-static void pdic_uevent_work(int id, int state)
+void pdic_uevent_work(int id, int state)
 {
-	char *water[2] = { "PDIC=WATER", NULL };
-	char *dry[2] = { "PDIC=DRY", NULL };
-	char *vconn[2] = { "PDIC=VCONN", NULL };
+	char *water[2] = { "CCIC=WATER", NULL };
+	char *dry[2] = { "CCIC=DRY", NULL };
+	char *vconn[2] = { "CCIC=VCONN", NULL };
 #if defined(CONFIG_SEC_FACTORY)
 	char pdicrid[15] = {0,};
 	char *rid[2] = {pdicrid, NULL};
@@ -164,7 +271,7 @@ static void pdic_uevent_work(int id, int state)
 		return;
 	}
 
-	pr_info("usb: %s: id=%s state=%d\n", __func__, PDIC_NOTI_ID_Print[id], state);
+	pr_info("usb: %s: id=%s state=%d\n", __func__, pdic_event_id_string(id), state);
 
 	switch (id) {
 	case PDIC_NOTIFY_ID_WATER:
@@ -178,19 +285,15 @@ static void pdic_uevent_work(int id, int state)
 		break;
 #if defined(CONFIG_SEC_FACTORY)
 	case PDIC_NOTIFY_ID_RID:
-		snprintf(pdicrid, sizeof(pdicrid), "%s",
-			(state < PDIC_NOTI_RID_NUM) ? PDIC_NOTI_RID_Print[state] : PDIC_NOTI_RID_Print[0]);
+		snprintf(pdicrid, sizeof(pdicrid), "%s", pdic_rid_string(state));
 		kobject_uevent_env(&pdic_device->kobj, KOBJ_CHANGE, rid);
 		break;
 	case PDIC_NOTIFY_ID_FAC:
-		snprintf(pdicFacErr, sizeof(pdicFacErr), "%s:%d",
-			"ERR_STATE", state);
+		snprintf(pdicFacErr, sizeof(pdicFacErr), "%s:%d", "ERR_STATE", state);
 		kobject_uevent_env(&pdic_device->kobj, KOBJ_CHANGE, facErr);
 		break;
-	case PDIC_NOTIFY_ID_PD_PIN_STATUS:
-		snprintf(pdicPinStat, sizeof(pdicPinStat), "%s",
-			(state < PDIC_NOTI_PIN_STATUS_NUM) ?
-			PDIC_NOTI_PIN_STATUS_Print[state] : PDIC_NOTI_PIN_STATUS_Print[0]);
+	case PDIC_NOTIFY_ID_CC_PIN_STATUS:
+		snprintf(pdicPinStat, sizeof(pdicPinStat), "%s", pdic_ccpinstatus_string(state));
 		kobject_uevent_env(&pdic_device->kobj, KOBJ_CHANGE, pinStat);
 		break;
 #endif
@@ -207,7 +310,7 @@ int pdic_notifier_notify(PD_NOTI_TYPEDEF *p_noti, void *pd, int pdic_attach)
 	pdic_notifier.pdic_template = *p_noti;
 
 	switch (p_noti->id) {
-#ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
+#if IS_ENABLED(CONFIG_SEC_PD) || defined(CONFIG_BATTERY_NOTIFIER)
 	case PDIC_NOTIFY_ID_POWER_STATUS:		/* PDIC_NOTIFY_EVENT_PD_SINK */
 		pr_info("%s: src:%01x dest:%01x id:%02x "
 			"attach:%02x cable_type:%02x rprd:%01x\n", __func__,
@@ -219,12 +322,7 @@ int pdic_notifier_notify(PD_NOTI_TYPEDEF *p_noti, void *pd, int pdic_attach)
 			((PD_NOTI_ATTACH_TYPEDEF *)p_noti)->rprd);
 
 		if (pd != NULL) {
-			if (!((PD_NOTI_ATTACH_TYPEDEF *)p_noti)->attach &&
-				((struct pdic_notifier_struct *)pd)->event != PDIC_NOTIFY_EVENT_PDIC_ATTACH) {
-				((struct pdic_notifier_struct *)pd)->event = PDIC_NOTIFY_EVENT_DETACH;
-			}
 			pdic_notifier.pdic_template.pd = pd;
-
 			pr_info("%s: PD event:%d, num:%d, sel:%d \n", __func__,
 				((struct pdic_notifier_struct *)pd)->event,
 				((struct pdic_notifier_struct *)pd)->sink_status.available_pdo_num,
@@ -266,6 +364,10 @@ int pdic_notifier_notify(PD_NOTI_TYPEDEF *p_noti, void *pd, int pdic_attach)
 			((PD_NOTI_ATTACH_TYPEDEF *)p_noti)->id,
 			((PD_NOTI_ATTACH_TYPEDEF *)p_noti)->attach);
 			pdic_uevent_work(PDIC_NOTIFY_ID_WATER, ((PD_NOTI_ATTACH_TYPEDEF *)p_noti)->attach);
+#ifdef CONFIG_SEC_FACTORY
+			pr_info("%s: Do not notifier, just return\n", __func__);
+			return 0;
+#endif
 		break;
 	case PDIC_NOTIFY_ID_VCONN:
 		pdic_uevent_work(PDIC_NOTIFY_ID_VCONN, 0);
@@ -278,12 +380,39 @@ int pdic_notifier_notify(PD_NOTI_TYPEDEF *p_noti, void *pd, int pdic_attach)
 			((PD_NOTI_ATTACH_TYPEDEF *)p_noti)->attach);
 		break;
 #ifdef CONFIG_SEC_FACTORY
-	case PDIC_NOTIFY_ID_PD_PIN_STATUS:
+	case PDIC_NOTIFY_ID_CC_PIN_STATUS:
 		pr_info("%s: src:%01x dest:%01x id:%02x pinStatus:%02x\n", __func__,
 			p_noti->src, p_noti->dest, p_noti->id, p_noti->sub1);
-			pdic_uevent_work(PDIC_NOTIFY_ID_PD_PIN_STATUS, p_noti->sub1);
+			pdic_uevent_work(PDIC_NOTIFY_ID_CC_PIN_STATUS, p_noti->sub1);
 			return 0;
 #endif
+	case PDIC_NOTIFY_ID_DEVICE_INFO:
+		pr_info("%s: src:%01x dest:%01x id:%02x vendor_id:%04x product_id:%04x ifpmic_index:%02x version:%02x\n",
+			__func__,
+			((PD_NOTI_DEVICE_INFO_TYPEDEF *)p_noti)->src,
+			((PD_NOTI_DEVICE_INFO_TYPEDEF *)p_noti)->dest,
+			((PD_NOTI_DEVICE_INFO_TYPEDEF *)p_noti)->id,
+			((PD_NOTI_DEVICE_INFO_TYPEDEF *)p_noti)->vendor_id,
+			((PD_NOTI_DEVICE_INFO_TYPEDEF *)p_noti)->product_id,
+			((PD_NOTI_DEVICE_INFO_TYPEDEF *)p_noti)->ifpmic_index,
+			((PD_NOTI_DEVICE_INFO_TYPEDEF *)p_noti)->version);
+		break;
+	case PDIC_NOTIFY_ID_SVID_INFO:
+		pr_info("%s: src:%01x dest:%01x id:%02x standard_vendor_id:%04x\n",
+			__func__,
+			((PD_NOTI_SVID_INFO_TYPEDEF *)p_noti)->src,
+			((PD_NOTI_SVID_INFO_TYPEDEF *)p_noti)->dest,
+			((PD_NOTI_SVID_INFO_TYPEDEF *)p_noti)->id,
+			((PD_NOTI_SVID_INFO_TYPEDEF *)p_noti)->standard_vendor_id);
+		break;
+	case PDIC_NOTIFY_ID_CLEAR_INFO:
+		pr_info("%s: src:%01x dest:%01x id:%02x clear_id:%04x\n",
+			__func__,
+			((PD_NOTI_CLEAR_INFO_TYPEDEF *)p_noti)->src,
+			((PD_NOTI_CLEAR_INFO_TYPEDEF *)p_noti)->dest,
+			((PD_NOTI_CLEAR_INFO_TYPEDEF *)p_noti)->id,
+			((PD_NOTI_CLEAR_INFO_TYPEDEF *)p_noti)->clear_id);
+		break;
 	default:
 		pr_info("%s: src:%01x dest:%01x id:%02x "
 			"sub1:%d sub2:%02x sub3:%02x\n", __func__,
@@ -296,7 +425,8 @@ int pdic_notifier_notify(PD_NOTI_TYPEDEF *p_noti, void *pd, int pdic_attach)
 		break;
 	}
 #ifdef CONFIG_USB_NOTIFY_PROC_LOG
-	store_usblog_notify(NOTIFY_PDIC_EVENT, (void *)p_noti, NULL);
+	if (p_noti->id != PDIC_NOTIFY_ID_POWER_STATUS)
+		store_usblog_notify(NOTIFY_CCIC_EVENT, (void *)p_noti, NULL);
 #endif
 	ret = blocking_notifier_call_chain(&(pdic_notifier.notifier_call_chain),
 			p_noti->id, &(pdic_notifier.pdic_template));
@@ -305,7 +435,7 @@ int pdic_notifier_notify(PD_NOTI_TYPEDEF *p_noti, void *pd, int pdic_attach)
 	switch (ret) {
 	case NOTIFY_STOP_MASK:
 	case NOTIFY_BAD:
-		pr_err("%s: notify error opdur(0x%x)\n", __func__, ret);
+		pr_err("%s: notify error occur(0x%x)\n", __func__, ret);
 		break;
 	case NOTIFY_DONE:
 	case NOTIFY_OK:
@@ -319,6 +449,7 @@ int pdic_notifier_notify(PD_NOTI_TYPEDEF *p_noti, void *pd, int pdic_attach)
 	return ret;
 
 }
+EXPORT_SYMBOL(pdic_notifier_notify);
 
 int pdic_notifier_init(void)
 {
@@ -344,3 +475,8 @@ static void __exit pdic_notifier_exit(void)
 
 device_initcall(pdic_notifier_init);
 module_exit(pdic_notifier_exit);
+
+MODULE_AUTHOR("Samsung USB Team");
+MODULE_DESCRIPTION("Pdic Notifier");
+MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION(DRIVER_DESC);

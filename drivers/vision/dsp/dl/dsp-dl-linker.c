@@ -54,9 +54,42 @@ void dsp_link_info_free(struct dsp_link_info *info)
 		struct dsp_reloc_sym, node);
 }
 
+static int dsp_reloc_sym_str_compare(
+	struct dsp_list_node *a,
+	struct dsp_list_node *b)
+{
+	struct dsp_reloc_sym *a_sym = container_of(a,
+			struct dsp_reloc_sym, node);
+	struct dsp_reloc_sym *b_sym = container_of(b,
+			struct dsp_reloc_sym, node);
+
+	return strcmp(a_sym->sym_str, b_sym->sym_str);
+}
+
+static int dsp_reloc_sym_addr_compare(
+	struct dsp_list_node *a,
+	struct dsp_list_node *b)
+{
+	struct dsp_reloc_sym *a_sym = container_of(a,
+			struct dsp_reloc_sym, node);
+	struct dsp_reloc_sym *b_sym = container_of(b,
+			struct dsp_reloc_sym, node);
+
+	if (a_sym->align < b_sym->align)
+		return 1;
+	else if (a_sym->align > b_sym->align)
+		return -1;
+	else if (a_sym->value < b_sym->value)
+		return 1;
+	else if (a_sym->value > b_sym->value)
+		return -1;
+	return 0;
+}
+
 void dsp_link_info_print(struct dsp_link_info *info)
 {
 	struct dsp_elf32 *elf = info->elf;
+	struct dsp_list_head remove;
 	struct dsp_list_node *node;
 	int idx;
 
@@ -93,9 +126,15 @@ void dsp_link_info_print(struct dsp_link_info *info)
 		DL_PRINT_BUF(DEBUG);
 	}
 
+	dsp_list_head_init(&remove);
+	dsp_list_unique(&info->reloc_sym, &remove, dsp_reloc_sym_str_compare);
+	dsp_list_free(&remove, struct dsp_reloc_sym, node);
+
+	dsp_list_sort(&info->reloc_sym, dsp_reloc_sym_addr_compare);
 	dsp_list_for_each(node, &info->reloc_sym) {
 		struct dsp_reloc_sym *sym_info = container_of(node,
 				struct dsp_reloc_sym, node);
+
 		DL_INFO("Symbol(%s) value(0x%x) addr(0x%x)\n",
 			sym_info->sym_str, sym_info->value,
 			sym_info->value * sym_info->align);
@@ -319,6 +358,12 @@ static long long __get_linker_value(enum dsp_linker_value_type link_v,
 	long long ret;
 	struct dsp_elf32 *sym_elf = sym_info->elf;
 	struct dsp_elf32 *rela_elf = rela_info->elf;
+
+	if (rela_shdr->sh_info >= rela_elf->shdr_num) {
+		DL_ERROR("invalid sh_info(%u/%zu)\n",
+				rela_shdr->sh_info, rela_elf->shdr_num);
+		return -1;
+	}
 
 	switch (link_v) {
 	case ADDEND:
@@ -705,10 +750,12 @@ static int __calc_gp_link_value(struct dsp_lib *lib, unsigned int *value,
 	return -1;
 }
 
-static int __find_real_sym(struct dsp_elf32_sym **real_sym,
+static int __find_real_sym(
+	struct dsp_elf32_sym **real_sym, struct dsp_lib **real_lib,
 	struct dsp_link_info **sym_info, const char *sym_str,
-	struct dsp_link_info *rela_info, struct dsp_lib **libs,
-	int libs_size)
+	struct dsp_link_info *rela_info,
+	struct dsp_lib **libs, int libs_size,
+	struct dsp_lib **common_libs, int common_size)
 {
 	int ret, idx;
 
@@ -723,17 +770,36 @@ static int __find_real_sym(struct dsp_elf32_sym **real_sym,
 				(void **)real_sym);
 		if (ret != -1) {
 			*sym_info = cur_info;
-			break;
+			*real_lib = libs[idx];
+			return 0;
 		}
 	}
 
-	return 0;
+	for (idx = 0; idx < common_size; idx++) {
+		struct dsp_link_info *cur_info = common_libs[idx]->link_info;
+
+		if (cur_info == rela_info)
+			continue;
+
+		DL_DEBUG("Find %s in common lib %s\n",
+			sym_str, common_libs[idx]->name);
+		ret = dsp_hash_get(&cur_info->elf->symhash, sym_str,
+				(void **)real_sym);
+		if (ret != -1) {
+			*sym_info = cur_info;
+			*real_lib = common_libs[idx];
+			return 0;
+		}
+	}
+
+	return -1;
 }
 
-static int __calc_link_value(struct dsp_lib *lib, unsigned int *value,
-	const char *sym_str, struct dsp_elf32_rela *rela,
-	struct dsp_elf32_shdr *rela_shdr, struct dsp_lib **libs,
-	int libs_size)
+static int __calc_link_value(struct dsp_lib *lib,
+	unsigned int *value, const char *sym_str,
+	struct dsp_elf32_rela *rela, struct dsp_elf32_shdr *rela_shdr,
+	struct dsp_lib **libs, int libs_size,
+	struct dsp_lib **common_libs, int common_size)
 {
 	int ret;
 	struct dsp_link_info *rela_info;
@@ -741,6 +807,7 @@ static int __calc_link_value(struct dsp_lib *lib, unsigned int *value,
 	struct dsp_reloc_rule *rule;
 	struct dsp_link_info *sym_info = NULL;
 	struct dsp_elf32_sym *real_sym = NULL;
+	struct dsp_lib *real_lib = NULL;
 
 	unsigned int sym_align = 1;
 	struct dsp_reloc_sym *reloc_sym;
@@ -749,6 +816,11 @@ static int __calc_link_value(struct dsp_lib *lib, unsigned int *value,
 	if (ret == -1) {
 		rela_info = lib->link_info;
 		ruleidx = dsp_elf32_rela_get_rule_idx(rela);
+		if (ruleidx >= rules->cnt) {
+			DL_ERROR("invalid ruleidx(%u/%d)\n",
+					ruleidx, rules->cnt);
+			return -1;
+		}
 		rule = rules->list[ruleidx];
 
 		ret = dsp_hash_get(&rela_info->elf->symhash, sym_str,
@@ -756,16 +828,18 @@ static int __calc_link_value(struct dsp_lib *lib, unsigned int *value,
 		if (ret == -1) {
 			DL_DEBUG("Sym(%s) is external variable\n", sym_str);
 
-			__find_real_sym(&real_sym, &sym_info, sym_str,
-				rela_info, libs, libs_size);
-
-			if (!sym_info) {
+			ret = __find_real_sym(&real_sym, &real_lib,
+					&sym_info, sym_str, rela_info,
+					libs, libs_size,
+					common_libs, common_size);
+			if (ret == -1) {
 				DL_ERROR("Symbol(%s) is not found\n",
 					sym_str);
 				return -1;
 			}
 		} else {
 			DL_DEBUG("Sym(%s) is internal variable\n", sym_str);
+			real_lib = lib;
 			sym_info = rela_info;
 		}
 
@@ -773,19 +847,26 @@ static int __calc_link_value(struct dsp_lib *lib, unsigned int *value,
 				real_sym, rela);
 	}
 
-	if (real_sym)
-		sym_align = lib->elf->shdr[real_sym->st_shndx].sh_addralign;
+	if (real_sym) {
+		struct dsp_elf32 *real_elf = real_lib->elf;
+		int real_shdr_idx = real_sym->st_shndx;
+
+		sym_align = real_elf->shdr[real_shdr_idx].sh_addralign;
+	}
 
 	DL_DEBUG("value : %u\n", *value);
 
-	reloc_sym = (struct dsp_reloc_sym *)dsp_dl_malloc(
-			sizeof(struct dsp_reloc_sym),
-			"Information of symbol relocated");
-	reloc_sym->sym_str = sym_str;
-	reloc_sym->value = *value;
-	reloc_sym->align = sym_align;
-	dsp_list_node_init(&reloc_sym->node);
-	dsp_list_node_push_back(&lib->link_info->reloc_sym, &reloc_sym->node);
+	if (strncmp(sym_str, "LE_F", 4) != 0) {
+		reloc_sym = (struct dsp_reloc_sym *)dsp_dl_malloc(
+				sizeof(struct dsp_reloc_sym),
+				"Information of symbol relocated");
+		reloc_sym->sym_str = sym_str;
+		reloc_sym->value = *value;
+		reloc_sym->align = sym_align;
+		dsp_list_node_init(&reloc_sym->node);
+		dsp_list_node_push_back(&lib->link_info->reloc_sym,
+			&reloc_sym->node);
+	}
 
 	return 0;
 }
@@ -880,19 +961,20 @@ static int __cvt_to_item_idx(unsigned int *sh, int num, int item_cnt,
 	return idx;
 }
 
-static void __process_rule(struct dsp_lib *lib, struct dsp_reloc_rule *rule,
+static int __process_rule(struct dsp_lib *lib, struct dsp_reloc_rule *rule,
 	struct dsp_elf32_shdr *rela_shdr, unsigned int value,
 	struct dsp_elf32_rela *rela)
 {
-	struct dsp_link_info *l_info = lib->link_info;
-	struct dsp_elf32 *elf = l_info->elf;
+	struct dsp_link_info *l_info;
+	struct dsp_elf32 *elf;
 
-	struct dsp_elf32_shdr *data_shdr = &elf->shdr[rela_shdr->sh_info];
-	char *reloc_data = elf->data + data_shdr->sh_offset + rela->r_offset;
+	struct dsp_elf32_shdr *data_shdr;
+	char *reloc_data;
 
-	int item_bit = rule->cont.type.bit_sz * rule->cont.inst_num;
-	int item_cnt = item_bit / 8 + ((item_bit % 8) ? 1 : 0);
-	int item_align = item_cnt * 8 - item_bit;
+	int item_bit;
+	int item_cnt;
+	int item_align;
+	char item_rev;
 
 	struct dsp_pos *pos;
 	struct dsp_reloc_info r_info;
@@ -900,10 +982,40 @@ static void __process_rule(struct dsp_lib *lib, struct dsp_reloc_rule *rule,
 
 	struct dsp_list_node *pos_node, *bit_node;
 
-	DL_DEBUG("reloc_data : %ld\n",
-		(unsigned long)(reloc_data - elf->data));
+	l_info = lib->link_info;
+	elf = l_info->elf;
+
+	if (rela_shdr->sh_info >= elf->shdr_num) {
+		DL_ERROR("invalid sh_info(%u/%zu)\n",
+				rela_shdr->sh_info, elf->shdr_num);
+		return -1;
+	}
+
+	data_shdr = &elf->shdr[rela_shdr->sh_info];
+	reloc_data = elf->data + data_shdr->sh_offset + rela->r_offset;
+
+	item_bit = rule->cont.type.bit_sz * rule->cont.inst_num;
+	item_cnt = item_bit / 8 + ((item_bit % 8) ? 1 : 0);
+	item_align = item_cnt * 8 - item_bit;
+	item_rev = (char)(rule->cont.type.bit_sz == 8);
+
+	if (rule->cont.inst_num > 4) {
+		DL_ERROR("rule->const.inst_num is greater than 4(%u)\n",
+				rule->cont.inst_num);
+		return -1;
+	}
+
+	if ((reloc_data > (elf->data + elf->size)) ||
+			(reloc_data < elf->data)) {
+		DL_ERROR("reloc_data is out of range(%#lx/%#zx)\n",
+				(unsigned long)(reloc_data - elf->data),
+				elf->size);
+		return -1;
+	}
+	DL_DEBUG("reloc_data : %#lx/%#zx\n",
+			(unsigned long)(reloc_data - elf->data), elf->size);
 	DL_DEBUG("item_bit : %d, cnt : %d, align : %d\n",
-		item_bit, item_cnt, item_align);
+			item_bit, item_cnt, item_align);
 
 	dsp_list_for_each(pos_node, &rule->pos_list) {
 		pos = container_of(pos_node, struct dsp_pos, list_node);
@@ -916,6 +1028,16 @@ static void __process_rule(struct dsp_lib *lib, struct dsp_reloc_rule *rule,
 			r_info.high = rule->type.bit_sz - 1;
 			r_info.h_ext = BIT_NONE;
 			r_info.l_ext = BIT_NONE;
+			if ((&reloc_data[r_info.idx] >
+					(elf->data + elf->size)) ||
+					(reloc_data < elf->data)) {
+				DL_ERROR(
+			"reloc_data + r_info.idx is out of range(%#lx/%#zx)\n",
+					(unsigned long)
+					(reloc_data - elf->data),
+					elf->size);
+				return -1;
+			}
 			__relocate(&r_info, reloc_data);
 		} else {
 			dsp_list_for_each(bit_node, &pos->bit_slice_list) {
@@ -930,45 +1052,71 @@ static void __process_rule(struct dsp_lib *lib, struct dsp_reloc_rule *rule,
 				r_info.idx = __cvt_to_item_idx(&r_info.sh,
 						sl->value, item_cnt,
 						item_align);
+				if ((&reloc_data[r_info.idx] >
+						(elf->data + elf->size)) ||
+						(reloc_data < elf->data)) {
+					DL_ERROR(
+			"reloc_data + r_info.idx is out of range(%#lx/%#zx)\n",
+						(unsigned long)
+						(reloc_data - elf->data),
+						elf->size);
+					return -1;
+				}
 				__relocate(&r_info, reloc_data);
 			}
 		}
 	}
+	return 0;
 }
 
 static int __rela_relocation(struct dsp_lib *lib, struct dsp_elf32_rela *rela,
-	struct dsp_elf32_shdr *rela_shdr, struct dsp_lib **libs,
-	int libs_size)
+	struct dsp_elf32_shdr *rela_shdr,
+	struct dsp_lib **libs, int libs_size,
+	struct dsp_lib **common_libs, int common_size)
 {
 	int ret;
-	struct dsp_link_info *l_info = lib->link_info;
-	struct dsp_elf32 *elf = l_info->elf;
-	unsigned int symidx = dsp_elf32_rela_get_sym_idx(rela);
-	unsigned int ruleidx = dsp_elf32_rela_get_rule_idx(rela);
-
-	struct dsp_reloc_rule *rule = rules->list[ruleidx];
-	struct dsp_elf32_sym *sym = &elf->symtab[symidx];
-	const char *sym_str = elf->strtab + sym->st_name;
-
+	struct dsp_elf32 *elf;
+	unsigned int symidx;
+	struct dsp_elf32_sym *sym;
+	const char *sym_str;
+	unsigned int ruleidx;
+	struct dsp_reloc_rule *rule;
 	unsigned int value;
 
+	elf = lib->link_info->elf;
+	symidx = dsp_elf32_rela_get_sym_idx(rela);
+	if (symidx >= elf->symtab_num) {
+		DL_ERROR("invalid symidx(%u/%zu)\n",
+				symidx, elf->symtab_num);
+		return -1;
+	}
+	sym = &elf->symtab[symidx];
+	sym_str = elf->strtab + sym->st_name;
+
+	ruleidx = dsp_elf32_rela_get_rule_idx(rela);
+	if (ruleidx >= rules->cnt) {
+		DL_ERROR("invalid ruleidx(%u/%d)\n", ruleidx, rules->cnt);
+		return -1;
+	}
+	rule = rules->list[ruleidx];
+
 	ret = __calc_link_value(lib, &value, sym_str, rela, rela_shdr,
-			libs, libs_size);
+			libs, libs_size,
+			common_libs, common_size);
 	if (ret == -1) {
 		DL_ERROR("[%s] CHK_ERR\n", __func__);
 		return -1;
 	}
 
-	DL_DEBUG("Symbol(%s) Link value(%x)", sym_str, value);
+	DL_DEBUG("Symbol(%s) Link value(%x)\n", sym_str, value);
 
-
-	__process_rule(lib, rule, rela_shdr, value, rela);
-	return 0;
+	return __process_rule(lib, rule, rela_shdr, value, rela);
 }
 
 static int __linker_reloc_list(struct dsp_lib *lib,
-	struct dsp_list_head *rela_list, struct dsp_lib **libs,
-	int libs_size)
+	struct dsp_list_head *rela_list,
+	struct dsp_lib **libs, int libs_size,
+	struct dsp_lib **common_libs, int common_size)
 {
 	int ret;
 	struct dsp_elf32_rela_node *rela_node;
@@ -986,7 +1134,8 @@ static int __linker_reloc_list(struct dsp_lib *lib,
 		for (idx = 0; idx < rela_node->rela_num; idx++) {
 			DL_DEBUG("Relocate rela %d\n", idx);
 			ret = __rela_relocation(lib, &rela_node->rela[idx],
-					rela_shdr, libs, libs_size);
+					rela_shdr, libs, libs_size,
+					common_libs, common_size);
 			if (ret == -1) {
 				DL_ERROR("[%s] CHK_ERR\n", __func__);
 				return -1;
@@ -996,56 +1145,71 @@ static int __linker_reloc_list(struct dsp_lib *lib,
 	return 0;
 }
 
-static int __linker_relocate(struct dsp_lib *lib, struct dsp_lib **libs,
-	int libs_size)
+static int __linker_relocate(struct dsp_lib *lib,
+	struct dsp_lib **libs, int libs_size,
+	struct dsp_lib **common_libs, int common_size)
 {
 	int ret;
 	struct dsp_elf32 *elf = lib->link_info->elf;
 
 	DL_DEBUG("Reloc text\n");
-	ret = __linker_reloc_list(lib, &elf->text.rela, libs, libs_size);
+	ret = __linker_reloc_list(lib, &elf->text.rela,
+			libs, libs_size,
+			common_libs, common_size);
 	if (ret == -1) {
 		DL_ERROR("[%s] CHK_ERR\n", __func__);
 		return -1;
 	}
 
 	DL_DEBUG("Reloc DMb\n");
-	ret = __linker_reloc_list(lib, &elf->DMb.rela, libs, libs_size);
+	ret = __linker_reloc_list(lib, &elf->DMb.rela,
+			libs, libs_size,
+			common_libs, common_size);
 	if (ret == -1) {
 		DL_ERROR("[%s] CHK_ERR\n", __func__);
 		return -1;
 	}
 
 	DL_DEBUG("Reloc DMb local\n");
-	ret = __linker_reloc_list(lib, &elf->DMb_local.rela, libs, libs_size);
+	ret = __linker_reloc_list(lib, &elf->DMb_local.rela,
+			libs, libs_size,
+			common_libs, common_size);
 	if (ret == -1) {
 		DL_ERROR("[%s] CHK_ERR\n", __func__);
 		return -1;
 	}
 
 	DL_DEBUG("Reloc TCMb\n");
-	ret = __linker_reloc_list(lib, &elf->TCMb.rela, libs, libs_size);
+	ret = __linker_reloc_list(lib, &elf->TCMb.rela,
+			libs, libs_size,
+			common_libs, common_size);
 	if (ret == -1) {
 		DL_ERROR("[%s] CHK_ERR\n", __func__);
 		return -1;
 	}
 
 	DL_DEBUG("Reloc TCMb_local\n");
-	ret = __linker_reloc_list(lib, &elf->TCMb_local.rela, libs, libs_size);
+	ret = __linker_reloc_list(lib, &elf->TCMb_local.rela,
+			libs, libs_size,
+			common_libs, common_size);
 	if (ret == -1) {
 		DL_ERROR("[%s] CHK_ERR\n", __func__);
 		return -1;
 	}
 
 	DL_DEBUG("Reloc DRAMb\n");
-	ret = __linker_reloc_list(lib, &elf->DRAMb.rela, libs, libs_size);
+	ret = __linker_reloc_list(lib, &elf->DRAMb.rela,
+			libs, libs_size,
+			common_libs, common_size);
 	if (ret == -1) {
 		DL_ERROR("[%s] CHK_ERR\n", __func__);
 		return -1;
 	}
 
 	DL_DEBUG("Reloc SFRw\n");
-	ret = __linker_reloc_list(lib, &elf->SFRw.rela, libs, libs_size);
+	ret = __linker_reloc_list(lib, &elf->SFRw.rela,
+			libs, libs_size,
+			common_libs, common_size);
 	if (ret == -1) {
 		DL_ERROR("[%s] CHK_ERR\n", __func__);
 		return -1;
@@ -1064,7 +1228,7 @@ int dsp_linker_init(struct dsp_dl_lib_file *file)
 			"Reloc rules");
 	ret = dsp_reloc_rule_list_import(rules, file);
 	if (ret == -1) {
-		DL_ERROR("Rule path is invalid\n");
+		DL_ERROR("Failed to import reloc rule list\n");
 		dsp_dl_free(rules);
 		return -1;
 	}
@@ -1091,7 +1255,8 @@ void dsp_linker_free(void)
 	dsp_dl_free(rules);
 }
 
-int dsp_linker_link_libs(struct dsp_lib **libs, int libs_size)
+int dsp_linker_link_libs(struct dsp_lib **libs, int libs_size,
+	struct dsp_lib **common_libs, int common_size)
 {
 	int ret, idx;
 	struct dsp_lib *lib;
@@ -1112,7 +1277,8 @@ int dsp_linker_link_libs(struct dsp_lib **libs, int libs_size)
 				lib->link_info = dsp_link_info_create(elf);
 
 			l_info = lib->link_info;
-			text_offset = lib->pm->start_addr - dsp_pm_start_addr;
+			text_offset = lib->pm->start_addr -
+				dsp_pm_manager_get_pm_start_addr();
 
 			dsp_link_info_set_text(l_info, text_offset);
 			dsp_link_info_set_DMb(l_info, 0UL);
@@ -1127,7 +1293,9 @@ int dsp_linker_link_libs(struct dsp_lib **libs, int libs_size)
 	for (idx = 0; idx < libs_size; idx++) {
 		lib = libs[idx];
 		if (!lib->loaded) {
-			ret = __linker_relocate(lib, libs, libs_size);
+			ret = __linker_relocate(lib,
+					libs, libs_size,
+					common_libs, common_size);
 			if (ret == -1) {
 				DL_ERROR("[%s] CHK_ERR\n", __func__);
 				return -1;

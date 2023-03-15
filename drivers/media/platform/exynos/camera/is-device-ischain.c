@@ -1166,18 +1166,22 @@ int is_itf_stream_on(struct is_device_ischain *device)
 {
 	int ret = 0;
 	u32 retry = 30000;
+	struct is_device_sensor *sensor;
 	struct is_groupmgr *groupmgr;
 	struct is_group *group_leader;
 	struct is_framemgr *framemgr;
+	struct is_frame *frame;
+	unsigned long flags;
 	struct is_resourcemgr *resourcemgr;
+	struct is_group_task *gtask;
 	u32 scount, init_shots, qcount;
 
 	FIMC_BUG(!device);
 	FIMC_BUG(!device->groupmgr);
 	FIMC_BUG(!device->resourcemgr);
 	FIMC_BUG(!device->sensor);
-	FIMC_BUG(!device->sensor->pdata);
 
+	sensor = device->sensor;
 	groupmgr = device->groupmgr;
 	resourcemgr = device->resourcemgr;
 	group_leader = groupmgr->leader[device->instance];
@@ -1187,6 +1191,7 @@ int is_itf_stream_on(struct is_device_ischain *device)
 		goto p_err;
 	}
 
+	gtask = &groupmgr->gtask[group_leader->id];
 	init_shots = group_leader->init_shots;
 	scount = atomic_read(&group_leader->scount);
 
@@ -1213,10 +1218,28 @@ int is_itf_stream_on(struct is_device_ischain *device)
 		}
 	}
 
-	if (retry)
-		minfo("[ISC:D] stream on ready(%d, %d, %d)\n", device, scount, init_shots, qcount);
-	else
-		merr("[ISC:D] stream on NOT ready(%d, %d, %d)\n", device, scount, init_shots, qcount);
+	/*
+	 * If batch(FRO) mode is used,
+	 * asyn shot count doesn't have to bigger than MIN_OF_ASYNC_SHOTS(=1),
+	 * because it will be operated like 60 fps.
+	 */
+	framemgr_e_barrier_irqs(framemgr, 0, flags);
+	frame = peek_frame(framemgr, FS_PROCESS);
+	framemgr_x_barrier_irqr(framemgr, 0, flags);
+	if (frame && frame->num_buffers <= 1) {
+		/* trigger one more asyn_shots */
+		if (is_sensor_g_fast_mode(sensor) == 1) {
+			group_leader->asyn_shots += 1;
+			group_leader->skip_shots = group_leader->asyn_shots;
+			atomic_inc(&group_leader->smp_shot_count);
+			up(&group_leader->smp_trigger);
+			up(&gtask->smp_resource);
+		}
+	}
+
+	minfo("[ISC:D] stream on %s ready(scnt: %d, qcnt: %d, init: %d, asyn: %d, skip: %d)\n",
+		device, retry ? "OK" : "NOT", scount, qcount, init_shots,
+		group_leader->asyn_shots, group_leader->skip_shots);
 
 #ifdef ENABLE_DVFS
 	if ((!pm_qos_request_active(&device->user_qos)) && (sysfs_debug.en_dvfs)) {
@@ -1242,6 +1265,7 @@ int is_itf_stream_on(struct is_device_ischain *device)
 #endif
 
 	is_resource_set_global_param(resourcemgr, device);
+	is_resource_update_lic_sram(resourcemgr, device, true);
 
 	if (debug_clk > 0)
 		CALL_POPS(device, print_clk);
@@ -1265,6 +1289,7 @@ int is_itf_stream_off(struct is_device_ischain *device)
 
 	resourcemgr = device->resourcemgr;
 	is_resource_clear_global_param(resourcemgr, device);
+	is_resource_update_lic_sram(resourcemgr, device, false);
 
 	return ret;
 }
@@ -1868,7 +1893,7 @@ p_sensor_config:
 	bns_height = is_sensor_g_bns_height(device->sensor);
 	framerate = is_sensor_g_framerate(device->sensor);
 	ex_mode = is_sensor_g_ex_mode(device->sensor);
-	if(ex_mode == EX_CROP_ZOOM)
+	if(ex_mode == EX_CROP_ZOOM || ex_mode == EX_LOW_RES_TETRA)
 		binning = is_sensor_g_sensorcrop_bratio(device->sensor);
 	else
 		binning = is_sensor_g_bratio(device->sensor);
@@ -1879,6 +1904,10 @@ p_sensor_config:
 		bns_binning = 1000;
 	else
 		bns_binning = is_sensor_g_bns_ratio(device->sensor);
+
+	minfo("[ISC:D] window_width(%d), window_height(%d), otf_width(%d), otf_height(%d)\n", device,
+		device->sensor->image.window.width, device->sensor->image.window.height,
+		device->sensor->image.window.otf_width, device->sensor->image.window.otf_height);
 
 	sensor_config = is_itf_g_param(device, frame, PARAM_SENSOR_CONFIG);
 	sensor_config->width = sensor_width;
@@ -1904,7 +1933,7 @@ p_sensor_config:
 		sensor_config->max_target_fps = device->sensor->max_target_fps;
 #endif
 
-	if (ex_mode == EX_DUALFPS_960 || ex_mode == EX_DUALFPS_480 || framerate == 240)
+	if (is_sensor_g_fast_mode(device->sensor) == 1)
 		sensor_config->early_config_lock = 1;
 	else
 		sensor_config->early_config_lock = 0;
@@ -3121,6 +3150,35 @@ p_err:
 	return ret;
 }
 
+static void is_fastctl_manager_init(struct is_device_ischain *device)
+{
+	int i;
+	unsigned long flags;
+	struct fast_control_mgr *fastctlmgr;
+	struct is_fast_ctl *fast_ctl;
+
+	fastctlmgr = &device->fastctlmgr;
+
+	spin_lock_init(&fastctlmgr->slock);
+	fastctlmgr->fast_capture_count = 0;
+
+	spin_lock_irqsave(&fastctlmgr->slock, flags);
+
+	for (i = 0; i < IS_FAST_CTL_STATE; i++) {
+		fastctlmgr->queued_count[i] = 0;
+		INIT_LIST_HEAD(&fastctlmgr->queued_list[i]);
+	}
+
+	for (i = 0; i < MAX_NUM_FAST_CTL; i++) {
+		fast_ctl = &fastctlmgr->fast_ctl[i];
+		fast_ctl->state = IS_FAST_CTL_FREE;
+		list_add_tail(&fast_ctl->list, &fastctlmgr->queued_list[IS_FAST_CTL_FREE]);
+		fastctlmgr->queued_count[IS_FAST_CTL_FREE]++;
+	}
+
+	spin_unlock_irqrestore(&fastctlmgr->slock, flags);
+}
+
 static int is_ischain_start(struct is_device_ischain *device)
 {
 	int ret = 0;
@@ -3149,9 +3207,9 @@ static int is_ischain_start(struct is_device_ischain *device)
 #endif
 
 #ifdef ENABLE_ULTRA_FAST_SHOT
-	memset(&device->fastctlmgr, 0x0, sizeof(struct fast_control_mgr));
 	memset(&device->is_region->fast_ctl, 0x0, sizeof(struct is_fast_control));
 #endif
+	is_fastctl_manager_init(device);
 
 	/* NI information clear */
 	memset(&device->cur_noise_idx, 0xFFFFFFFF, sizeof(device->cur_noise_idx));
@@ -5456,6 +5514,12 @@ p_err:
 static void is_ischain_update_shot(struct is_device_ischain *device,
 	struct is_frame *frame)
 {
+	struct fast_control_mgr *fastctlmgr = &device->fastctlmgr;
+	struct is_fast_ctl *fast_ctl = NULL;
+	struct camera2_shot *shot = frame->shot;
+	unsigned long flags;
+	u32 state;
+
 #ifdef ENABLE_ULTRA_FAST_SHOT
 	if (device->fastctlmgr.fast_capture_count) {
 		device->fastctlmgr.fast_capture_count--;
@@ -5463,6 +5527,38 @@ static void is_ischain_update_shot(struct is_device_ischain *device,
 		mrinfo("captureIntent update\n", device, frame);
 	}
 #endif
+
+	spin_lock_irqsave(&fastctlmgr->slock, flags);
+
+	state = IS_FAST_CTL_REQUEST;
+	if (fastctlmgr->queued_count[state]) {
+		/* get req list */
+		fast_ctl = list_first_entry(&fastctlmgr->queued_list[state],
+			struct is_fast_ctl, list);
+		list_del(&fast_ctl->list);
+		fastctlmgr->queued_count[state]--;
+
+		/* Read fast_ctl: lens */
+		if (fast_ctl->lens_pos_flag) {
+			shot->uctl.lensUd.pos = fast_ctl->lens_pos;
+			shot->uctl.lensUd.posSize = 10; /* fixed value: bit size(10 bit) */
+			shot->uctl.lensUd.direction = 0; /* fixed value: 0(infinite), 1(macro) */
+			shot->uctl.lensUd.slewRate = 0; /* fixed value: only DW actuator speed */
+			shot->ctl.aa.afMode = AA_AFMODE_OFF;
+			fast_ctl->lens_pos_flag = false;
+		}
+
+		/* set free list */
+		state = IS_FAST_CTL_FREE;
+		fast_ctl->state = state;
+		list_add_tail(&fast_ctl->list, &fastctlmgr->queued_list[state]);
+		fastctlmgr->queued_count[state]++;
+	}
+
+	spin_unlock_irqrestore(&fastctlmgr->slock, flags);
+
+	if (fast_ctl)
+		mrinfo("fast_ctl: uctl.lensUd.pos(%d)\n", device, frame, shot->uctl.lensUd.pos);
 }
 
 static int is_ischain_paf_shot(struct is_device_ischain *device,
@@ -5495,7 +5591,7 @@ static int is_ischain_paf_shot(struct is_device_ischain *device,
 		goto framemgr_err;
 	}
 
-	frame = peek_frame(framemgr, FS_REQUEST);
+	frame = peek_frame(framemgr, check_frame->state);
 
 	if (unlikely(!frame)) {
 		merr("frame is NULL", device);

@@ -693,15 +693,15 @@ int mms_parse_dt(struct device *dev, struct mms_ts_info *info)
 	info->client->irq = gpio_to_irq(info->dtdata->gpio_intr);
 
 	if (of_property_read_string(np, "melfas,vdd_en", &info->dtdata->gpio_vdd_en))
-		input_err(true, dev,  "Failed to get regulator_dvdd name property\n");
+		input_err(true, dev, "%s", "Failed to get regulator_dvdd name property\n");
 
 	if (of_property_read_string(np, "melfas,io_en", &info->dtdata->gpio_io_en)) {
-		input_err(true, dev, "Failed to get regulator_avdd name property\n");
+		input_err(true, dev, "%s", "Failed to get regulator_avdd name property\n");
 		info->dtdata->gpio_io_en = NULL;
 	}
 
 	if (of_property_read_u32_array(np, "melfas,max_x_y", tmp, 2)){
-		input_info(true, dev, "Failed to get max_x_y\n");
+		input_info(true, dev, "%s", "Failed to get max_x_y\n");
 	} else {
 		info->dtdata->max_x = tmp[0];
 		info->dtdata->max_y = tmp[1];
@@ -719,7 +719,7 @@ int mms_parse_dt(struct device *dev, struct mms_ts_info *info)
 	}
 
 	if (of_property_read_u32_array(np, "melfas,node_info", tmp, 3)){
-		input_info(true, dev, "Failed to get node_info\n");
+		input_info(true, dev, "%s", "Failed to get node_info\n");
 	} else {
 		info->dtdata->node_x = tmp[0];
 		info->dtdata->node_y = tmp[1];
@@ -727,7 +727,7 @@ int mms_parse_dt(struct device *dev, struct mms_ts_info *info)
 	}
 
 	if (of_property_read_u32_array(np, "melfas,event_info", tmp, 3)){
-		input_info(true, dev, "Failed to get event_info\n");
+		input_info(true, dev, "%s", "Failed to get event_info\n");
 	} else {
 		info->dtdata->event_format = tmp[0];
 		info->dtdata->event_size = tmp[1];
@@ -738,7 +738,7 @@ int mms_parse_dt(struct device *dev, struct mms_ts_info *info)
 		info->dtdata->node_key, info->dtdata->event_format, info->dtdata->event_size, info->dtdata->event_size_type);
 
 	if (of_property_read_u32_array(np, "melfas,fod_info", tmp, 3)){
-		input_info(true, dev, "Failed to get fod_info\n");
+		input_info(true, dev, "%s", "Failed to get fod_info\n");
 	} else {
 		info->dtdata->fod_tx = tmp[0];
 		info->dtdata->fod_rx = tmp[1];
@@ -752,10 +752,10 @@ int mms_parse_dt(struct device *dev, struct mms_ts_info *info)
 		info->dtdata->bringup = 0;
 
 	if (of_property_read_string(np, "melfas,fw_name_old", &info->dtdata->fw_name_old))
-		input_err(true, dev, "Failed to get fw_name property\n");
+		input_err(true, dev, "%s", "Failed to get fw_name property\n");
 
 	if (of_property_read_string(np, "melfas,fw_name", &info->dtdata->fw_name))
-		input_err(true, dev, "Failed to get fw_name property\n");
+		input_err(true, dev, "%s", "Failed to get fw_name property\n");
 
 	info->dtdata->support_lpm = of_property_read_bool(np, "melfas,support_lpm");
 	info->dtdata->support_ear_detect = of_property_read_bool(np, "support_ear_detect_mode");
@@ -775,7 +775,7 @@ int mms_parse_dt(struct device *dev, struct mms_ts_info *info)
 #endif
 
 	if (of_property_read_u32_array(np, "melfas,area-siz", px_zone, 3)){
-		input_info(true, dev, "Failed to get zone's size\n");
+		input_info(true, dev, "%s", "Failed to get zone's size\n");
 		info->dtdata->area_indicator = 133;
 		info->dtdata->area_navigation = 266;
 		info->dtdata->area_edge = 341;
@@ -907,6 +907,7 @@ int mms_set_power_state(struct mms_ts_info *info, u8 mode)
 {
 	u8 wbuf[3];
 	u8 rbuf[1];
+	int retry = 10;
 
 	input_dbg(false, &info->client->dev, "%s [START]\n", __func__);
 	input_dbg(false, &info->client->dev, "%s - mode[%u]\n", __func__, mode);
@@ -915,18 +916,20 @@ int mms_set_power_state(struct mms_ts_info *info, u8 mode)
 	wbuf[1] = MIP_R1_CTRL_POWER_STATE;
 	wbuf[2] = mode;
 
-	if (mms_i2c_write(info, wbuf, 3)) {
-		input_err(true, &info->client->dev, "%s [ERROR] mip4_ts_i2c_write\n", __func__);
-		return -EIO;
-	}
+	do {
+		if (mms_i2c_write(info, wbuf, 3)) {
+			input_err(true, &info->client->dev, "%s [ERROR] mip4_ts_i2c_write\n", __func__);
+			return -EIO;
+		}
 
-	msleep(20);
+		msleep(20);
+		if (mms_i2c_read(info, wbuf, 2, rbuf, 1)) {
+			input_err(true, &info->client->dev, "%s [ERROR] read %x %x, rbuf %x\n",
+					__func__, wbuf[0], wbuf[1], rbuf[0]);
+			return -EIO;
+		}
 
-	if (mms_i2c_read(info, wbuf, 2, rbuf, 1)) {
-		input_err(true, &info->client->dev, "%s [ERROR] read %x %x, rbuf %x\n",
-				__func__, wbuf[0], wbuf[1], rbuf[0]);
-		return -EIO;
-	}
+	} while ((retry--) && (rbuf[0] != mode));
 
 	if (rbuf[0] != mode) {
 		input_err(true, &info->client->dev, "%s [ERROR] not changed to %s mode, rbuf %x\n",
@@ -952,17 +955,24 @@ int mms_lowpower_mode(struct mms_ts_info *info, u8 on)
 {
 	int ret;
 	u8 wbuf[3];
+	unsigned char pre_lowpower_flag;
 
 	if (!info->dtdata->support_lpm) {
 		input_err(true, &info->client->dev, "%s not supported\n", __func__);
 		return -EINVAL;
 	}
 
-	input_err(true, &info->client->dev, "%s: %s(%X)\n", __func__,
+	input_info(true, &info->client->dev, "%s: %s(%X)\n", __func__,
 			on == TO_LOWPOWER_MODE ? "ENTER" : "EXIT", info->lowpower_mode);
 
 	if (on == TO_LOWPOWER_MODE) {
-		ret = mms_set_custom_library(info, SPONGE_AOD_ENABLE_OFFSET, &(info->lowpower_flag), 1);
+		pre_lowpower_flag = info->lowpower_flag;
+		if (info->prox_power_off)
+			pre_lowpower_flag = pre_lowpower_flag & ~(MMS_MODE_SPONGE_DOUBLETAP_TO_WAKEUP);
+
+		input_info(true, &info->client->dev, "%s: pre_lowpower_flag: %X\n", __func__, pre_lowpower_flag);
+
+		ret = mms_set_custom_library(info, SPONGE_AOD_ENABLE_OFFSET, &(pre_lowpower_flag), 1);
 		if (ret < 0) {
 			input_err(true, &info->client->dev, "%s: failed\n", __func__);
 			return ret;

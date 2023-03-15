@@ -118,7 +118,7 @@ static void sec_nad_param_update(struct work_struct *work)
 	int ret = -1;
 	struct file *fp;
 #if defined(CONFIG_SEC_NAD_LOG)
-	struct file *fp2;
+	struct file *fp2 = NULL;
 #endif	
 	struct sec_nad_param *param_data =
 		container_of(work, struct sec_nad_param, sec_nad_work);
@@ -200,7 +200,7 @@ static void sec_nad_param_update(struct work_struct *work)
 				sec_nad_env.unlimited_loop);
 #if defined(CONFIG_SEC_NAD_X)			
 				NAD_PRINT("NAD X : %s\n", sec_nad_env.nad_extend);	
-				NAD_PRINT("sec_nad_env total size : %d\n", sizeof(sec_nad_env));
+				NAD_PRINT("sec_nad_env total size : %lu\n", sizeof(sec_nad_env));
 
 				NAD_PRINT(			
 				"NADX : %s\n"
@@ -274,7 +274,7 @@ static void sec_nad_param_update(struct work_struct *work)
 
 #if defined(CONFIG_SEC_NAD_X)			
 				NAD_PRINT("NAD X : %s\n", sec_nad_env.nad_extend);	
-				NAD_PRINT("sec_nad_env total size : %d\n", sizeof(sec_nad_env));
+				NAD_PRINT("sec_nad_env total size : %lu\n", sizeof(sec_nad_env));
 
 				NAD_PRINT(			
 				"NADX : %s\n"

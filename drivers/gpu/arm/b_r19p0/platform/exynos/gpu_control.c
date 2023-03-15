@@ -170,7 +170,7 @@ static int gpu_set_dvfs_using_calapi(struct exynos_context *platform, int clk)
 	platform->cur_clock = cal_dfs_get_rate(platform->g3d_cmu_cal_id);
 
 #ifdef CONFIG_MALI_FTRACE_FREQ
-	trace_gpu_frequency(platform->cur_clock);
+	trace_gpu_frequency_change(platform->cur_clock);
 #endif
 
 	GPU_LOG(DVFS_DEBUG, LSI_CLOCK_VALUE, clk, platform->cur_clock,

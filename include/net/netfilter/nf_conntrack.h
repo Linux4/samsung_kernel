@@ -26,11 +26,11 @@
 #include <net/netfilter/ipv6/nf_conntrack_icmpv6.h>
 
 #include <net/netfilter/nf_conntrack_tuple.h>
-
 // SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
 #define PROCESS_NAME_LEN_NAP	128
 #define DOMAIN_NAME_LEN_NAP	255
 // SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
+
 /* per conntrack: protocol private data */
 union nf_conntrack_proto {
 	/* insert conntrack proto private data here */
@@ -138,6 +138,7 @@ struct nf_conn {
 	/* Atomic variable indicating end of intermediate flow */
 	atomic_t intermediateFlow;
 	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
+
 #ifdef CONFIG_HW_FORWARD
 	u32 packet_count;
 	bool forward_registered;

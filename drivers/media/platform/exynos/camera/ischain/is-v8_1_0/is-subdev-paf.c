@@ -17,33 +17,65 @@
 #include "is-video.h"
 #include "is-type.h"
 
-void is_ischain_paf_stripe_cfg(struct is_subdev *subdev,
+int is_ischain_paf_stripe_cfg(struct is_group *group,
+		struct is_subdev *subdev,
 		struct is_frame *frame,
 		struct is_crop *incrop,
 		struct is_crop *otcrop,
-		struct is_fmt *fmt)
+		u32 bitwidth)
+
 {
+	u32 region_id = frame->stripe_info.region_id;
 	u32 stripe_w, dma_offset = 0;
 
 	/* Input crop & RDMA offset configuration */
-	if (!frame->stripe_info.region_id) {
+	if (!region_id) {
 		/* Left region */
-		stripe_w = ALIGN(incrop->w / frame->stripe_info.region_num, 2);
+		stripe_w = ALIGN(incrop->w / frame->stripe_info.region_num, 4);
+		stripe_w = ALIGN_UPDOWN_STRIPE_WIDTH(stripe_w);
 
-		frame->stripe_info.in.h_pix_ratio = stripe_w * STRIPE_RATIO_PRECISION / incrop->w;
+		if (stripe_w == 0) {
+			msrdbgs(3, "Skip current stripe[#%d] region because stripe_width is too small(%d)\n",
+					subdev, subdev, frame, region_id, stripe_w);
+			frame->stripe_info.region_id++;
+			return -EAGAIN;
+		}
+
 		frame->stripe_info.in.h_pix_num = stripe_w;
+		frame->stripe_info.region_base_addr[0] = frame->dvaddr_buffer[0];
+	} else if (region_id < frame->stripe_info.region_num - 1) {
+		/* Middle region */
+		stripe_w = incrop->w * (region_id + 1) / frame->stripe_info.region_num;
+		stripe_w = ALIGN((stripe_w - frame->stripe_info.in.h_pix_num), 4);
+		stripe_w = ALIGN_UPDOWN_STRIPE_WIDTH(stripe_w);
+
+		if (stripe_w == 0) {
+			msrdbgs(3, "Skip current stripe[#%d] region because stripe_width is too small(%d)\n",
+					subdev, subdev, frame, region_id, stripe_w);
+			frame->stripe_info.region_id++;
+			return -EAGAIN;
+		}
+
+		if (!test_bit(IS_GROUP_OTF_INPUT, &group->state)) {
+			dma_offset = frame->stripe_info.in.h_pix_num - STRIPE_MARGIN_WIDTH;
+			dma_offset = dma_offset * bitwidth / BITS_PER_BYTE;
+		}
+
+		frame->stripe_info.in.h_pix_num += stripe_w;
+		stripe_w += STRIPE_MARGIN_WIDTH;
 	} else {
 		/* Right region */
 		stripe_w = incrop->w - frame->stripe_info.in.h_pix_num;
 
-		/* Add horizontal DMA offset */
-		dma_offset = frame->stripe_info.in.h_pix_num - STRIPE_MARGIN_WIDTH;
-		dma_offset = dma_offset * fmt->bitsperpixel[0] / BITS_PER_BYTE;
+		/* Consider RDMA offset. */
+		if (!test_bit(IS_GROUP_OTF_INPUT, &group->state)) {
+			dma_offset = frame->stripe_info.in.h_pix_num - STRIPE_MARGIN_WIDTH;
+			dma_offset = dma_offset * bitwidth / BITS_PER_BYTE;
+		}
 	}
 
 	/* Add stripe processing horizontal margin into each region. */
 	stripe_w += STRIPE_MARGIN_WIDTH;
-
 	incrop->w = stripe_w;
 
 	/**
@@ -55,14 +87,15 @@ void is_ischain_paf_stripe_cfg(struct is_subdev *subdev,
 	otcrop->w = incrop->w;
 	otcrop->h = incrop->h;
 
-	frame->dvaddr_buffer[0] += dma_offset;
+	frame->dvaddr_buffer[0] = frame->stripe_info.region_base_addr[0] + dma_offset;
 
 	msrdbgs(3, "stripe_in_crop[%d][%d, %d, %d, %d] offset %x\n", subdev, subdev, frame,
-			frame->stripe_info.region_id,
+			region_id,
 			incrop->x, incrop->y, incrop->w, incrop->h, dma_offset);
 	msrdbgs(3, "stripe_ot_crop[%d][%d, %d, %d, %d]\n", subdev, subdev, frame,
-			frame->stripe_info.region_id,
+			region_id,
 			otcrop->x, otcrop->y, otcrop->w, otcrop->h);
+	return 0;
 }
 
 static int is_ischain_paf_cfg(struct is_subdev *leader,
@@ -84,6 +117,7 @@ static int is_ischain_paf_cfg(struct is_subdev *leader,
 	u32 hw_format = DMA_INPUT_FORMAT_BAYER;
 	u32 hw_bitwidth = DMA_INPUT_BIT_WIDTH_16BIT;
 	struct is_crop incrop_cfg, otcrop_cfg;
+	int stripe_ret = -1;
 
 	device = (struct is_device_ischain *)device_data;
 
@@ -141,10 +175,12 @@ static int is_ischain_paf_cfg(struct is_subdev *leader,
 		(*indexes)++;
 	}
 
-	if (IS_ENABLED(CHAIN_USE_STRIPE_PROCESSING) && frame && frame->stripe_info.region_num)
-		is_ischain_paf_stripe_cfg(leader, frame,
-				&incrop_cfg, &otcrop_cfg,
-				queue->framecfg.format);
+	if (IS_ENABLED(CHAIN_USE_STRIPE_PROCESSING) && frame && frame->stripe_info.region_num) {
+		while (stripe_ret)
+			stripe_ret = is_ischain_paf_stripe_cfg(group, leader, frame,
+					&incrop_cfg, &otcrop_cfg,
+					hw_bitwidth);
+	}
 
 	dma_input = is_itf_g_param(device, frame, PARAM_PAF_DMA_INPUT);
 	if (test_bit(IS_GROUP_OTF_INPUT, &group->state)) {
@@ -216,10 +252,17 @@ static int is_ischain_paf_tag(struct is_subdev *subdev,
 	lindex = hindex = indexes = 0;
 	paf_param = &device->is_region->parameter.paf;
 
-	inparm.x = 0;
-	inparm.y = 0;
-	inparm.w = paf_param->dma_input.dma_crop_width;
-	inparm.h = paf_param->dma_input.dma_crop_height;
+	if (test_bit(IS_GROUP_OTF_INPUT, &group->state)) {
+		inparm.x = 0;
+		inparm.y = 0;
+		inparm.w = paf_param->dma_input.width;
+		inparm.h = paf_param->dma_input.height;
+	} else {
+		inparm.x = 0;
+		inparm.y = 0;
+		inparm.w = paf_param->dma_input.dma_crop_width;
+		inparm.h = paf_param->dma_input.dma_crop_height;
+	}
 
 	if (IS_NULL_CROP(incrop))
 		*incrop = inparm;
@@ -227,18 +270,6 @@ static int is_ischain_paf_tag(struct is_subdev *subdev,
 	/* not supported DMA input crop */
 	if ((incrop->x != 0) || (incrop->y != 0))
 		*incrop = inparm;
-
-	if (test_bit(IS_GROUP_OTF_INPUT, &group->state)) {
-		inparm.x = 0;
-		inparm.y = 0;
-		inparm.w = paf_param->dma_input.width;
-		inparm.h = paf_param->dma_input.height;
-	} else {
-		inparm.x = incrop->x;
-		inparm.y = incrop->y;
-		inparm.w = incrop->w;
-		inparm.h = incrop->h;
-	}
 
 	if (!COMPARE_CROP(incrop, &inparm) ||
 		CHECK_STRIPE_CFG(&frame->stripe_info) ||

@@ -20,11 +20,14 @@
 #include <linux/regmap.h>
 #include <linux/spinlock.h>
 #include <linux/io.h>
+#include <linux/regulator/driver.h>
+#include <linux/regulator/consumer.h>
 #include <soc/samsung/exynos-pmu.h>
 
 /* the maximum number of PHY for each module */
 #define EXYNOS_MIPI_PHYS_NUM	4
 
+#define EXYNOS_MIPI_PHY_MAX_REGULATORS 2
 #define EXYNOS_MIPI_PHY_ISO_BYPASS  (1 << 0)
 
 #define MIPI_PHY_MxSx_UNIQUE	(0 << 1)
@@ -67,6 +70,7 @@ struct exynos_mipi_phy {
 	struct regmap *reg_pmu;
 	struct regmap *reg_reset;
 	enum exynos_mipi_phy_owner owner;
+	struct regulator *regulators[EXYNOS_MIPI_PHY_MAX_REGULATORS];
 	struct mipi_phy_desc {
 		struct phy *phy;
 		struct exynos_mipi_phy_data *data;
@@ -155,6 +159,56 @@ static int __set_phy_init(struct exynos_mipi_phy *state,
 		phy_desc->data->flags |= MIPI_PHY_MxSx_INIT_DONE;
 
 phy_exit:
+	return ret;
+}
+
+static int __set_phy_ldo(struct exynos_mipi_phy *state, bool on)
+{
+	int ret = 0;
+	if (on) {
+		/* [on sequence]
+		*  (general) 0.85V on  -> 1.8V on  -> 1.2V on
+		*  (current) <1.2V on> -> 0.85V on -> 1.8V on
+		*  >> prohibition : 0.85 off -> 1.2 on state
+		*/
+		if (state->regulators[0]) {
+			ret = regulator_enable(state->regulators[0]);
+			if (ret) {
+				dev_err(state->dev, "phy regulator 0.85V enable failed\n");
+				return ret;
+			}
+		}
+		usleep_range(100, 101);
+
+		if (state->regulators[1]) {
+			ret = regulator_enable(state->regulators[1]);
+			if (ret) {
+				dev_err(state->dev, "phy regulator 1.80V enable failed\n");
+				return ret;
+			}
+		}
+		usleep_range(100, 101);
+	} else {
+		/* [off sequence]
+		* (current) <1.2V on> -> 1.8V off -> 0.85V off
+		*/
+		if (state->regulators[1]) {
+			ret = regulator_disable(state->regulators[1]);
+			if (ret) {
+				dev_err(state->dev, "phy regulator 1.80V disable failed\n");
+				return ret;
+			}
+		}
+		usleep_range(1000, 1001);
+
+		if (state->regulators[0]) {
+			ret = regulator_disable(state->regulators[0]);
+			if (ret) {
+				dev_err(state->dev, "phy regulator 0.85V disable failed\n");
+				return ret;
+			}
+		}
+	}
 	return ret;
 }
 
@@ -1071,15 +1125,21 @@ static int exynos_mipi_phy_power_on(struct phy *phy)
 	struct mipi_phy_desc *phy_desc = phy_get_drvdata(phy);
 	struct exynos_mipi_phy *state = to_mipi_video_phy(phy_desc);
 
+	__set_phy_ldo(state, 1);
+
 	return __set_phy_state(state, phy_desc, 1);
 }
 
 static int exynos_mipi_phy_power_off(struct phy *phy)
 {
+	int ret;
 	struct mipi_phy_desc *phy_desc = phy_get_drvdata(phy);
 	struct exynos_mipi_phy *state = to_mipi_video_phy(phy_desc);
 
-	return __set_phy_state(state, phy_desc, 0);
+	ret =  __set_phy_state(state, phy_desc, 0);
+	__set_phy_ldo(state, 0);
+
+	return ret;
 }
 
 static int exynos_mipi_phy_set(struct phy *phy, int option, void *info)
@@ -1122,6 +1182,7 @@ static int exynos_mipi_phy_probe(struct platform_device *pdev)
 	struct resource *res;
 	unsigned int i;
 	int ret = 0, elements = 0;
+	char *str_regulator[EXYNOS_MIPI_PHY_MAX_REGULATORS];
 
 	state = devm_kzalloc(dev, sizeof(*state), GFP_KERNEL);
 	if (!state)
@@ -1201,6 +1262,30 @@ static int exynos_mipi_phy_probe(struct platform_device *pdev)
 		state->phys[i].phy	= generic_phy;
 		state->phys[i].data	= phy_data;
 		phy_set_drvdata(generic_phy, &state->phys[i]);
+	}
+
+	/* parse phy regulator */
+	for (i = 0; i < EXYNOS_MIPI_PHY_MAX_REGULATORS; i++) {
+		state->regulators[i] = NULL;
+		str_regulator[i] = NULL;
+	}
+
+	if(!of_property_read_string(node, "ldo0",
+				(const char **)&str_regulator[0])) {
+		state->regulators[0] = regulator_get(dev, str_regulator[0]);
+		if (IS_ERR(state->regulators[0])) {
+			dev_err(dev, "phy regulator 0.85V get failed\n");
+			state->regulators[0] = NULL;
+		}
+	}
+
+	if(!of_property_read_string(dev->of_node, "ldo1",
+				(const char **)&str_regulator[1])) {
+		state->regulators[1] = regulator_get(dev, str_regulator[1]);
+		if (IS_ERR(state->regulators[1])) {
+			dev_err(dev, "phy regulator 1.80V get failed\n");
+			state->regulators[1] = NULL;
+		}
 	}
 
 	phy_provider = devm_of_phy_provider_register(dev,

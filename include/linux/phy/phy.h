@@ -66,6 +66,9 @@ struct phy_ops {
 	int	(*set_mode)(struct phy *phy, enum phy_mode mode);
 	int	(*reset)(struct phy *phy);
 	int	(*calibrate)(struct phy *phy);
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	int 	(*rewa_irq)(struct phy *phy);
+#endif
 	struct module *owner;
 };
 
@@ -173,6 +176,9 @@ int phy_set(struct phy *phy, int option, void *info);
 int phy_power_on(struct phy *phy);
 int phy_power_off(struct phy *phy);
 int phy_set_mode(struct phy *phy, enum phy_mode mode);
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+int phy_rewa_irq(struct phy *phy);
+#endif
 static inline enum phy_mode phy_get_mode(struct phy *phy)
 {
 	return phy->attrs.mode;
@@ -332,6 +338,15 @@ static inline enum phy_mode phy_get_mode(struct phy *phy)
 {
 	return PHY_MODE_INVALID;
 }
+
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+static inline int phy_rewa_irq(struct phy *phy)
+{
+	if (!phy)
+		return 0;
+	return -ENOSYS;
+}
+#endif
 
 static inline int phy_reset(struct phy *phy)
 {

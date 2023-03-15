@@ -29,28 +29,26 @@ void dsp_time_get_interval(struct dsp_time *time)
 void dsp_time_print(struct dsp_time *time, const char *f, ...)
 {
 	char buf[128];
-	int len, size;
 	va_list args;
+	int len;
 
 	dsp_enter();
 	dsp_time_get_interval(time);
 
-	len = snprintf(buf, sizeof(buf), "[%2lu.%09lu sec] ",
-			time->interval.tv_sec, time->interval.tv_nsec);
-	if (len < 0) {
-		dsp_warn("Failed to print time\n");
-		return;
-	}
-	size = len;
-
 	va_start(args, f);
-	len = vsnprintf(buf + size, sizeof(buf) - size, f, args);
-	if (len > 0)
-		size += len;
+	len = vsnprintf(buf, sizeof(buf), f, args);
 	va_end(args);
-	if (buf[size - 1] != '\n')
-		buf[size - 1] = '\n';
 
-	dsp_info("%s", buf);
+	if (len > 0)
+		dsp_info("[%5lu.%06lu ms] %s\n",
+				time->interval.tv_sec * 1000UL +
+				time->interval.tv_nsec / 1000000UL,
+				(time->interval.tv_nsec % 1000000UL),
+				buf);
+	else
+		dsp_info("[%5lu.%06lu ms] INVALID\n",
+				time->interval.tv_sec * 1000UL +
+				time->interval.tv_nsec / 1000000UL,
+				(time->interval.tv_nsec % 1000000UL));
 	dsp_leave();
 }

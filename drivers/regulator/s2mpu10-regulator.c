@@ -30,6 +30,9 @@
 #include <linux/mutex.h>
 #include <linux/interrupt.h>
 #include <linux/regulator/pmic_class.h>
+#ifdef CONFIG_SEC_PM_DEBUG
+#include <linux/sec_pm_debug.h>
+#endif /* CONFIG_SEC_PM_DEBUG */
 
 static struct s2mpu10_info *static_info;
 static struct regulator_desc regulators[S2MPU10_REGULATOR_MAX];
@@ -648,10 +651,38 @@ static ssize_t s2mpu10_write_show(struct device *dev,
 {
 	return sprintf(buf, "echo (register addr.) (data) > s2mpu10_write\n");
 }
+
+#ifdef CONFIG_SEC_FACTORY
+static ssize_t s2mpu10_pwrkey_show(struct device *dev,
+				   struct device_attribute *attr,
+				   char *buf)
+{
+	struct s2mpu10_info *s2mpu10 = dev_get_drvdata(dev);
+	int ret;
+	u8 val = 0;
+
+	ret = s2mpu10_read_reg(s2mpu10->i2c, S2MPU10_PMIC_REG_STATUS1, &val);
+	if (ret < 0)
+		pr_info("%s: fail to read i2c address\n", __func__);
+
+	if (val & 0x1)
+		sprintf(buf, "PRESS");
+	else
+		sprintf(buf, "RELEASE");
+
+	return strlen(buf);
+
+}
+#endif
+
 static DEVICE_ATTR(s2mpu10_write,
 		   0644, s2mpu10_write_show, s2mpu10_write_store);
 static DEVICE_ATTR(s2mpu10_read,
 		   0644, s2mpu10_read_show, s2mpu10_read_store);
+#ifdef CONFIG_SEC_FACTORY
+static DEVICE_ATTR(s2mpu10_pwrkey,
+		   0444, s2mpu10_pwrkey_show, NULL);
+#endif
 
 int create_s2mpu10_sysfs(struct s2mpu10_info *s2mpu10)
 {
@@ -676,6 +707,13 @@ int create_s2mpu10_sysfs(struct s2mpu10_info *s2mpu10)
 			dev_attr_s2mpu10_read.attr.name);
 	}
 
+#ifdef CONFIG_SEC_FACTORY
+	err = device_create_file(s2mpu10_pmic, &dev_attr_s2mpu10_pwrkey);
+	if (err) {
+		pr_err("s2mpu10_sysfs: failed to create device file, %s\n",
+			dev_attr_s2mpu10_pwrkey.attr.name);
+	}
+#endif
 	return 0;
 }
 #endif
@@ -973,6 +1011,14 @@ err:
 static int s2mpu10_set_on_sequence(struct s2mpu10_info *s2mpu10)
 {
 	int ret;
+
+	ret = s2mpu10_write_reg(s2mpu10->i2c,
+				S2MPU10_PMIC_SEQ_CTRL19, 0x03);
+	if (ret < 0) {
+		pr_err("%s: fail to write register\n", __func__);
+		return -1;
+	}
+
 	/* set VDD_CPUCL1 on-seq. */
 	ret = s2mpu10_update_reg(s2mpu10->i2c,
 				 S2MPU10_PMIC_SEQ_CTRL1, 0x00, 0xF0);
@@ -1012,28 +1058,28 @@ static int s2mpu10_set_on_sequence(struct s2mpu10_info *s2mpu10)
 	}
 
 	ret = s2mpu10_write_reg(s2mpu10->i2c,
-				S2MPU10_PMIC_SEQ_CTRL7, 0x59);
+				S2MPU10_PMIC_SEQ_CTRL7, 0x37);
 	if (ret < 0) {
-		pr_err("%s: fail to update register\n", __func__);
+		pr_err("%s: fail to write register\n", __func__);
 		return -1;
 	}
 
 	ret = s2mpu10_write_reg(s2mpu10->i2c,
-				S2MPU10_PMIC_SEQ_CTRL8, 0x7A);
+				S2MPU10_PMIC_SEQ_CTRL8, 0x58);
 	if (ret < 0) {
-		pr_err("%s: fail to update register\n", __func__);
+		pr_err("%s: fail to write register\n", __func__);
 		return -1;
 	}
 
 	ret = s2mpu10_update_reg(s2mpu10->i2c,
-				 S2MPU10_PMIC_SEQ_CTRL9, 0x60, 0xF0);
+				 S2MPU10_PMIC_SEQ_CTRL9, 0x40, 0xF0);
 	if (ret) {
 		pr_err("%s: fail to update register\n", __func__);
 		return -1;
 	}
 
 	ret = s2mpu10_update_reg(s2mpu10->i2c,
-				 S2MPU10_PMIC_SEQ_CTRL10, 0x08, 0x0F);
+				 S2MPU10_PMIC_SEQ_CTRL10, 0x06, 0x0F);
 	if (ret) {
 		pr_err("%s: fail to update register\n", __func__);
 		return -1;
@@ -1058,7 +1104,7 @@ static int s2mpu10_set_on_sequence(struct s2mpu10_info *s2mpu10)
 	ret = s2mpu10_write_reg(s2mpu10->i2c,
 				S2MPU10_PMIC_SEQ_CTRL12, 0x32);
 	if (ret < 0) {
-		pr_err("%s: fail to update register\n", __func__);
+		pr_err("%s: fail to write register\n", __func__);
 		return -1;
 	}
 
@@ -1082,7 +1128,7 @@ static int s2mpu10_set_on_sequence(struct s2mpu10_info *s2mpu10)
 	ret = s2mpu10_write_reg(s2mpu10->i2c,
 				S2MPU10_PMIC_SEL_VGPIO17, 0x99);
 	if (ret < 0) {
-		pr_err("%s: fail to update register\n", __func__);
+		pr_err("%s: fail to write register\n", __func__);
 		return -1;
 	}
 
@@ -1174,6 +1220,23 @@ static int s2mpu10_pmic_probe(struct platform_device *pdev)
 	static_info = s2mpu10;
 
 	platform_set_drvdata(pdev, s2mpu10);
+
+#ifdef CONFIG_SEC_PM_DEBUG
+	ret = s2mpu10_read_reg(s2mpu10->i2c, S2MPU10_PMIC_REG_PWRONSRC,
+			&pmic_onsrc);
+	if (ret)
+		dev_err(&pdev->dev, "failed to read PWRONSRC\n");
+
+	ret = s2mpu10_read_reg(s2mpu10->i2c, S2MPU10_PMIC_REG_OFFSRC,
+			&pmic_offsrc);
+	if (ret)
+		dev_err(&pdev->dev, "failed to read OFFSRC\n");
+
+	/* Clear OFFSRC register */
+	ret = s2mpu10_write_reg(s2mpu10->i2c, S2MPU10_PMIC_REG_OFFSRC, 0);
+	if (ret)
+		dev_err(&pdev->dev, "failed to write OFFSRC\n");
+#endif /* CONFIG_SEC_PM_DEBUG */
 
 	for (i = 0; i < pdata->num_regulators; i++) {
 		int id = pdata->regulators[i].id;

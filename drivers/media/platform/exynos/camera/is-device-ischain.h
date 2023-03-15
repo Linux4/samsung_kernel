@@ -74,8 +74,28 @@ enum is_camera_device {
 	CAMERA_SINGLE_FRONT,
 };
 
+enum is_fast_ctl_state {
+	IS_FAST_CTL_FREE,
+	IS_FAST_CTL_REQUEST,
+	IS_FAST_CTL_STATE,
+};
+
+struct is_fast_ctl {
+	struct list_head	list;
+	u32			state;
+
+	bool			lens_pos_flag;
+	uint32_t		lens_pos;
+};
+
+#define MAX_NUM_FAST_CTL	5
 struct fast_control_mgr {
-	u32 fast_capture_count;
+	u32			fast_capture_count;
+
+	spinlock_t		slock;
+	struct is_fast_ctl	fast_ctl[MAX_NUM_FAST_CTL];
+	u32			queued_count[IS_FAST_CTL_STATE];
+	struct list_head	queued_list[IS_FAST_CTL_STATE];
 };
 
 #define NUM_OF_3AA_SUBDEV	4

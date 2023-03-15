@@ -343,4 +343,15 @@ static inline u8 exynos_get_ctrl(u8 *frm)
 {
 	return 0;
 }
+
+static inline u8 exynos_get_rmnet_type(u8 ch)
+{
+	return ch--;
+}
+
+static inline u8 exynos_get_ch_from_cid(u8 cid)
+{
+	return cid;
+}
+
 #endif

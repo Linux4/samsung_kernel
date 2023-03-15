@@ -446,7 +446,7 @@ static void tx_complete_ncm(struct usb_ep *ep, struct usb_request *req)
 				retval = usb_ep_queue(in, new_req, GFP_ATOMIC);
 				switch (retval) {
 				default:
-					printk(KERN_ERR"usb: dropped tx_complete_newreq(%p)\n", new_req);
+					printk(KERN_ERR"usb: dropped tx_complete_newreq(%pK)\n", new_req);
 					DBG(dev, "tx queue err %d\n", retval);
 					new_req->length = 0;
 					spin_lock(&dev->tx_req_lock);

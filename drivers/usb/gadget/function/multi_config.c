@@ -97,8 +97,9 @@ unsigned count_multi_config(struct usb_configuration *c, unsigned count)
 				!strcmp(f->name, MULTI_FUNCTION_3)) {
 			USB_DBG("%s +\n", f->name);
 			f_second = 1;
-		} else if (!strcmp(f->name, MULTI_EXCEPTION_FUNCTION)) {
-			USB_DBG("exception %s +\n", MULTI_EXCEPTION_FUNCTION);
+		} else if (!strcmp(f->name, MULTI_EXCEPTION_FUNCTION) ||
+				!strcmp(f->name, MULTI_EXCEPTION_FUNCTION_1)) {
+			USB_DBG("exception %s +\n", f->name);
 			f_exception = 1;
 		}
 	}

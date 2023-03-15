@@ -119,3 +119,11 @@ config USB_AUDIO_ENHANCED_DETECT_TIME
 	 uevent includes path, card number, vid, pid
 	 The usb framework gets this uevent.
 	 It is made by samsung.
+
+config USB_DONGLE
+	bool "5G dongle notifier"
+	depends on USB_NOTIFY_LAYER
+	help
+	 The dongle_notifier.c can be spported by 5G dongle.
+	 It is not common code.
+	 It may be different for each project.

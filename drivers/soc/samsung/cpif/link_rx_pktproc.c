@@ -532,7 +532,7 @@ static ssize_t perftest_store(struct device *dev,
 	int ret;
 	int cpu = 5;
 
-	ret = sscanf(buf, "%d %d %d %d %d %x:%x:%x:%x:%x:%x:%x:%x",
+	ret = sscanf(buf, "%d %d %hu %d %d %hx:%hx:%hx:%hx:%hx:%hx:%hx:%hx",
 		&perf->mode, &perf->session, &perf->ch, &cpu, &perf->udelay,
 		&perf->clat_ipv6[0], &perf->clat_ipv6[1], &perf->clat_ipv6[2], &perf->clat_ipv6[3],
 		&perf->clat_ipv6[4], &perf->clat_ipv6[5], &perf->clat_ipv6[6], &perf->clat_ipv6[7]);
@@ -661,7 +661,8 @@ static ssize_t region_show(struct device *dev, struct device_attribute *attr, ch
 	switch (ppa->version) {
 	case PKTPROC_V2:
 		info_v2 = (struct pktproc_info_v2 *)ppa->info_base;
-		count += sprintf(&buf[count], "Control:0x%08x\n", info_v2->control);
+		count += sprintf(&buf[count], "Num Queus: %d Mode: %d Max packet size: %d\n",
+				info_v2->num_queues, info_v2->mode, info_v2->max_packet_size);
 		break;
 	default:
 		break;
@@ -941,7 +942,10 @@ int pktproc_create(struct platform_device *pdev, struct mem_link_device *mld, u3
 			break;
 		case PKTPROC_V2:
 			q->info_v2 = (struct pktproc_info_v2 *)ppa->info_base;
-			q->info_v2->control = ((ppa->desc_mode & 0x1) << 4) | (ppa->num_queue & 0xF);
+			q->info_v2->num_queues = ppa->num_queue;
+			q->info_v2->mode = ppa->desc_mode;
+			q->info_v2->max_packet_size = PKTPROC_MAX_PACKET_SIZE;
+
 			q->q_info = &q->info_v2->q_info[i];
 			break;
 		default:

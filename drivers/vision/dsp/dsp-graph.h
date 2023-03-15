@@ -44,6 +44,7 @@ struct dsp_graph_manager {
 	struct list_head		list;
 	unsigned int			count;
 	struct mutex			lock;
+	struct mutex			lock_for_unload;
 
 	struct dsp_kernel_manager	kernel_manager;
 	struct dsp_core			*core;
@@ -55,12 +56,14 @@ struct dsp_graph *dsp_graph_get(struct dsp_graph_manager *gmgr,
 
 struct dsp_graph *dsp_graph_load(struct dsp_graph_manager *gmgr,
 		struct dsp_mailbox_pool *pool, void *kernel_name,
-		unsigned int version);
+		unsigned int kernel_count, unsigned int version);
 void dsp_graph_unload(struct dsp_graph *graph, struct dsp_mailbox_pool *pool);
 int dsp_graph_execute(struct dsp_graph *graph, struct dsp_mailbox_pool *pool);
 
+void dsp_graph_manager_stop(struct dsp_graph_manager *gmgr, unsigned int id);
 int dsp_graph_manager_open(struct dsp_graph_manager *gmgr);
-void dsp_graph_manager_close(struct dsp_graph_manager *gmgr, unsigned int id);
+void dsp_graph_manager_close(struct dsp_graph_manager *gmgr,
+		unsigned int count);
 
 int dsp_graph_manager_probe(struct dsp_core *core);
 void dsp_graph_manager_remove(struct dsp_graph_manager *gmgr);

@@ -14,62 +14,116 @@
  */
 #include <linux/fs.h>
 #include <linux/uaccess.h>
+#include <linux/io.h>
+#include <linux/slab.h>
+#include <linux/mm.h>
 
 #include "ssp.h"
 #include "ssp_platform.h"
 #include "ssp_dump.h"
+#include "ssp_iio.h"
 
-#define SENSORHUB_DUMP_DIR              "/data/log"
+#define SENSORHUB_DUMP_NOTI_EVENT               0xFC
 
-#define SENSORHUB_DUMP_MAX          5
+char *sensorhub_dump;
+int sensorhub_dump_size;
+int sensorhub_dump_type;
+int sensorhub_dump_count;
 
-void write_ssp_dump_file(struct ssp_data *data, char *info, void *buf, int size)
+static ssize_t shub_dump_read(struct file *file, struct kobject *kobj, struct bin_attribute *battr, char *buf,
+			      loff_t off, size_t size)
 {
-        char file_path[64] = {0,};
-        char info_contents[100] = {0,};
-        char info_path[64] = {0,};
-        struct file *filp;
-        mm_segment_t old_fs;
-        int ret, info_len;
+	memcpy_fromio(buf, battr->private + off, size);
+	return size;
+}
 
-        /* info file */
-        info_len = snprintf(info_contents, sizeof(info_contents), "%s-%02u", info, data->reset_type);
-        ssp_infof("%s", info_contents);
+BIN_ATTR_RO(shub_dump, 0);
 
-        /* dump file */
-        snprintf(file_path, sizeof(file_path), "%s/sensorhub-%d.dump", SENSORHUB_DUMP_DIR, data->dump_index);
-        ssp_infof("%s", file_path);
-        snprintf(info_path, sizeof(info_path), "%s/sensorhub-info-%d.txt", SENSORHUB_DUMP_DIR, data->dump_index);
+struct bin_attribute *ssp_dump_bin_attrs[] = {
+	&bin_attr_shub_dump,
+};
 
-        old_fs = get_fs();
-        set_fs(get_ds());
+static int create_dump_bin_file(struct ssp_data *data)
+{
+	int i, ret;
 
-        filp = filp_open(file_path, O_CREAT | O_WRONLY, 0666);
-        if (IS_ERR(filp)) {
-                ssp_errf("open '%s' file fail: %d\n", file_path, (int)PTR_ERR(filp));
-                goto out;
-        }
-        ret = vfs_write(filp, buf, size, &filp->f_pos);
-        if (ret < 0) {
-                ssp_errf("Can't write dump to file (%d)", ret);
-                filp_close(filp, NULL);
-                goto out;
-        }
-        filp_close(filp, NULL);
+	sensorhub_dump = (char *)kvzalloc(sensorhub_dump_size, GFP_KERNEL);
+	if (ZERO_OR_NULL_PTR(sensorhub_dump)) {
+		ssp_infof("memory alloc failed");
+		return -ENOMEM;
+	}
 
-        filp = filp_open(info_path, O_CREAT | O_WRONLY, 0666);
-        if (IS_ERR(filp)) {
-                ssp_errf("open '%s' file fail: %d\n", info_path, (int)PTR_ERR(filp));
-                goto out;
-        }
-        ret = vfs_write(filp, info_contents, info_len, &filp->f_pos);
-        if (ret < 0) {
-                ssp_errf("can't write dump info to file (%d)", ret);
-        }
-        filp_close(filp, NULL);
+	ssp_infof("dump size %d", sensorhub_dump_size);
 
-        data->dump_index = (data->dump_index+1) % SENSORHUB_DUMP_MAX;
+	bin_attr_shub_dump.size = sensorhub_dump_size;
+	bin_attr_shub_dump.private = sensorhub_dump;
 
-out:
-        set_fs(old_fs);
+	for (i = 0; i < ARRAY_SIZE(ssp_dump_bin_attrs); i++) {
+		struct bin_attribute *battr = ssp_dump_bin_attrs[i];
+
+		ret = device_create_bin_file(data->mcu_device, battr);
+		if (ret < 0) {
+			ssp_errf("Failed to create file: %s %d", battr->attr.name, ret);
+			break;
+		}
+	}
+
+	if (ret < 0) {
+		kvfree(sensorhub_dump);
+		sensorhub_dump_size = 0;
+	}
+
+	return ret;
+}
+
+void write_ssp_dump_file(struct ssp_data *data, char *dump, int dumpsize, int type, int count)
+{
+	int ret;
+
+	if (dump == NULL) {
+		ssp_errf("dump is NULL");
+		return;
+	} else if (sensorhub_dump_size == 0) {
+		sensorhub_dump_size = dumpsize;
+		ret = create_dump_bin_file(data);
+		if (ret < 0)
+			return;
+	}
+	memcpy_fromio(sensorhub_dump, dump, sensorhub_dump_size);
+	sensorhub_dump_type = type;
+	sensorhub_dump_count = count;
+	queue_work(data->debug_wq, &data->work_dump);
+}
+
+
+void report_dump_event_task(struct work_struct *work)
+{
+	struct ssp_data *data = container_of((struct work_struct *)work, struct ssp_data, work_dump);
+	char buffer[3];
+
+	buffer[0] = SENSORHUB_DUMP_NOTI_EVENT;
+	buffer[1] = sensorhub_dump_type;
+	buffer[2] = sensorhub_dump_count;
+
+	ssp_infof("type %d, count %d", buffer[1], buffer[2]);
+	report_sensorhub_data(data, buffer);
+}
+
+void initialize_ssp_dump(struct ssp_data *data)
+{
+	ssp_infof();
+	INIT_WORK(&data->work_dump, report_dump_event_task);
+}
+
+void remove_ssp_dump(struct ssp_data *data)
+{
+	int i;
+	cancel_work_sync(&data->work_dump);
+	if (!ZERO_OR_NULL_PTR(sensorhub_dump)) {
+		kvfree(sensorhub_dump);
+
+		for (i = 0; i < ARRAY_SIZE(ssp_dump_bin_attrs); i++)
+			device_remove_bin_file(data->mcu_device, ssp_dump_bin_attrs[i]);
+	}
+
 }

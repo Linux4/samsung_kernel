@@ -13,6 +13,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program
  */
+#ifndef _P61_H_
+#define _P61_H_
 
 #define DEFAULT_BUFFER_SIZE 258
 
@@ -93,3 +95,5 @@ enum {
 	SPI_SRC_CLK, /* ipclk_spi */
 	MAX_SPI_CLK_CNT,
 };
+
+#endif

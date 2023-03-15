@@ -106,6 +106,7 @@ typedef u32 sysmmu_pte_t;
 #define CTRL_BLOCK	0x7
 #define CTRL_DISABLE	0x0
 #define CTRL_BLOCK_DISABLE 0x3
+#define CTRL_FAULT_STALL_MODE	0x8
 
 #define CFG_MASK_GLOBAL	0x00000F80	/* Bit 11, 10-7 */
 #define CFG_MASK_VM	0xB00F1004	/* Bit 31, 29, 28, 19-16, 12, 2 */
@@ -279,6 +280,7 @@ enum {
 	IDX_SBB_VPN,
 	IDX_SBB_LINK,
 	IDX_SBB_ATTR,
+	IDX_SEC_FLPT_BASE,
 
 	MAX_REG_IDX,
 };

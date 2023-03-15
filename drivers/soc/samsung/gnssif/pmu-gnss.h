@@ -21,8 +21,16 @@
 #define MEMBASE_GNSS_ADDR_2ND	(0xA0000000)
 
 #if defined(CONFIG_SOC_EXYNOS9630)
-#define EXYNOS_PMU_GNSS_CTRL_NS	0x3290
+#define EXYNOS_PMU_GNSS_CTRL_NS		0x3290
+#define EXYNOS_PMU_GNSS_CTRL_S		0x3294
+#define EXYNOS_PMU_GNSS_STAT	0x0048
+#define EXYNOS_PMU_GNSS_DEBUG	0x004C
 #define GNSS_ACTIVE_REQ_CLR	BIT(8)
+#elif defined(CONFIG_SOC_EXYNOS3830)
+#define EXYNOS_PMU_GNSS_CTRL_NS		0x3090
+#define EXYNOS_PMU_GNSS_CTRL_S		0x3094
+#define EXYNOS_PMU_GNSS_STAT	0x0048
+#define EXYNOS_PMU_GNSS_DEBUG	0x004c
 #endif
 
 enum gnss_mode {
@@ -43,6 +51,22 @@ enum gnss_tcxo_mode {
 	TCXO_NON_SHARED_MODE = 1,
 };
 
+struct gnss_swreg {
+	u32 swreg_0;
+	u32 swreg_1;
+	u32 swreg_2;
+	u32 swreg_3;
+	u32 swreg_4;
+	u32 swreg_5;
+};
+
+struct gnss_apreg {
+	u32 CTRL_NS;
+	u32 CTRL_S;
+	u32 STAT;
+	u32 DEBUG;
+};
+
 struct gnss_ctl;
 
 struct gnssctl_pmu_ops {
@@ -54,6 +78,8 @@ struct gnssctl_pmu_ops {
 	int (*change_tcxo_mode)(enum gnss_tcxo_mode);
 	int (*req_security)(void);
 	void (*req_baaw)(void);
+	void (*get_swreg)(struct gnss_swreg *);
+	void (*get_apreg)(struct gnss_apreg *);
 };
 
 void gnss_get_pmu_ops(struct gnss_ctl *);

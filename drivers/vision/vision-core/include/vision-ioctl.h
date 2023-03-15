@@ -25,6 +25,8 @@ struct vertex_ioctl_ops {
 	int (*vertexioc_unprepare)(struct file *file, struct vs4l_container_list *clist);
 	int (*vertexioc_streamon)(struct file *file);
 	int (*vertexioc_streamoff)(struct file *file);
+	int (*vertexioc_profileon)(struct file *file, struct vs4l_profiler *profile);
+	int (*vertexioc_profileoff)(struct file *file, struct vs4l_profiler *profile);
 };
 
 long vertex_ioctl(struct file *file, unsigned int cmd, unsigned long arg);

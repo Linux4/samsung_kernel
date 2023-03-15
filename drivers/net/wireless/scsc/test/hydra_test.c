@@ -51,8 +51,9 @@ int slsi_sm_wlan_service_start(struct slsi_dev *sdev)
 	return 0;
 }
 
-void slsi_sm_wlan_service_stop(struct slsi_dev *sdev)
+int slsi_sm_wlan_service_stop(struct slsi_dev *sdev)
 {
+	return 0;
 }
 
 int slsi_sm_wlan_service_open(struct slsi_dev *sdev)

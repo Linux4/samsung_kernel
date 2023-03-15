@@ -376,10 +376,10 @@ static int is_hw_vra_update_param(struct is_hw_ip *hw_ip,
 	struct is_hw_vra *hw_vra;
 	struct is_lib_vra *lib_vra;
 
-	hw_vra = (struct is_hw_vra *)hw_ip->priv_info;
-
 	FIMC_BUG(!hw_ip);
 	FIMC_BUG(!param);
+
+	hw_vra = (struct is_hw_vra *)hw_ip->priv_info;
 
 	lib_vra = &hw_vra->lib_vra;
 
@@ -410,6 +410,30 @@ static int is_hw_vra_update_param(struct is_hw_ip *hw_ip,
 	return ret;
 }
 
+static int is_hw_vra_update_crop_info(struct is_lib_vra *lib_vra,
+		struct is_frame *frame, u32 instance)
+{
+	int ret = 0;
+
+	FIMC_BUG(!lib_vra);
+	FIMC_BUG(!frame);
+	FIMC_BUG(!frame->shot_ext);
+
+	lib_vra->in_sizes[instance].org_crop_info.crop_offset_x =
+		frame->shot_ext->vra_ext.org_crop_info.crop_offset_x;
+	lib_vra->in_sizes[instance].org_crop_info.crop_offset_y =
+		frame->shot_ext->vra_ext.org_crop_info.crop_offset_y;
+	lib_vra->in_sizes[instance].org_crop_info.crop_width =
+		frame->shot_ext->vra_ext.org_crop_info.crop_width;
+	lib_vra->in_sizes[instance].org_crop_info.crop_height =
+		frame->shot_ext->vra_ext.org_crop_info.crop_height;
+	lib_vra->in_sizes[instance].org_crop_info.full_width =
+		frame->shot_ext->vra_ext.org_crop_info.full_width;
+	lib_vra->in_sizes[instance].org_crop_info.full_height =
+		frame->shot_ext->vra_ext.org_crop_info.full_height;
+
+	return ret;
+}
 
 static int is_hw_vra_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	ulong hw_map)
@@ -462,6 +486,12 @@ static int is_hw_vra_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 			instance, frame->fcount);
 	if (ret) {
 		mserr_hw("lib_vra_update_param is fail (%d)", instance, hw_ip, ret);
+		return ret;
+	}
+
+	ret = is_hw_vra_update_crop_info(lib_vra, frame, instance);
+	if (ret) {
+		mserr_hw("lib_vra_update_crop_info is fail (%d)", instance, hw_ip, ret);
 		return ret;
 	}
 #endif

@@ -53,6 +53,8 @@ struct exynos_ufc {
 	unsigned int		table_col;
 	unsigned int		lit_table_row;
 
+	int			fill_flag;
+
 	int			sse_mode;
 
 	int			last_min_input;

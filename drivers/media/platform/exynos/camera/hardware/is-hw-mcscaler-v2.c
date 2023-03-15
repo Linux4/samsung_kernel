@@ -800,8 +800,7 @@ static int is_hw_mcsc_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 
 config:
 	/* multi-buffer */
-	if (frame->num_buffers)
-		hw_ip->num_buffers = frame->num_buffers;
+	hw_ip->num_buffers = frame->num_buffers;
 
 	/* RDMA cfg */
 	ret = is_hw_mcsc_rdma_cfg(hw_ip, frame, &mcs_param->input);

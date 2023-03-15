@@ -521,6 +521,8 @@ static int __dev_linkforward_queue_xmit(struct sk_buff *skb, void *accel_priv)
 	else
 		skb->dev = get_linkforwd_outter_dev(0);
 
+	qdisc_skb_cb(skb)->pkt_len = skb->len;
+
 	txq = netdev_pick_tx(skb->dev, skb, accel_priv);
 	q = rcu_dereference_bh(txq->qdisc);
 

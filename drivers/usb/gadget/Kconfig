@@ -182,6 +182,22 @@ config USB_NCM_SUPPORT_MTU_CHANGE
 	   If you enable this option,
 	   NCM MTU Change will be able to be used.
 
+config USB_SS_REMOTE_WAKEUP
+	bool "Samsung Remote Wakeup Feature"
+	depends on USB_G_ANDROID	
+	help
+	   Provides Remote Wakeup Feature
+	   for samsung gadget driver.
+	   If you enable this option,
+	   you can use usb remote wakeup.
+
+config USB_SAMSUNG_NO_SERIAL
+	bool "Don't use usb serial number"
+	depends on USB_G_ANDROID	
+	default n
+	help
+	  enable if don't use usb serial-nubmer
+
 config USB_DM_PERFORMANCE_TUNE
 	bool "Samsung DM PERFORMACE TUNE"
 	depends on USB_G_ANDROID
@@ -292,10 +308,16 @@ config USB_F_ACC
 config USB_F_MBIM
 	tristate
 
+config USB_F_GNSS
+	tristate
+
 config USB_F_SIMMIAN
 	tristate
 
 config USB_F_CONN_GADGET
+	tristate
+
+config USB_F_SS_MON_GADGET
 	tristate
 
 # this first set of drivers all depend on bulk-capable hardware.
@@ -501,6 +523,14 @@ config USB_CONFIGFS_F_CONN_GADGET
         help
           SydeSync
 
+config USB_CONFIGFS_F_SS_MON_GADGET
+	bool "F_SAMSUNG gadget"
+	depends on USB_CONFIGFS
+	select USB_F_SS_MON_GADGET
+	help
+	 Driver for control to Samsung Usb device layer
+	 For Samung working scenario and saving debug log, etc
+
 config USB_CONFIGFS_F_ACC
 	bool "Accessory gadget"
 	depends on USB_CONFIGFS
@@ -514,6 +544,14 @@ config USB_CONFIGFS_F_MBIM
 	select USB_F_MBIM
 	help
 	  USB gadget mbim support
+
+config USB_CONFIGFS_F_GNSS
+	bool "Samsung GNSS usb driver"
+	depends on USB_CONFIGFS
+	help
+	   Provides GNSS gadget driver.
+	   If you enable this option,
+	   you can use GNSS function in windows
 
 config USB_CONFIGFS_F_AUDIO_SRC
 	bool "Audio Source gadget"

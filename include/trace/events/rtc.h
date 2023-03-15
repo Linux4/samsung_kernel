@@ -42,6 +42,15 @@ DEFINE_EVENT(rtc_time_alarm_class, rtc_read_time,
 	TP_ARGS(secs, err)
 );
 
+#ifdef CONFIG_RTC_HIGH_RES
+DEFINE_EVENT(rtc_time_alarm_class, rtc_read_hrtime,
+
+	TP_PROTO(time64_t secs, int err),
+
+	TP_ARGS(secs, err)
+);
+#endif /* CONFIG_RTC_HIGH_RES*/
+
 DEFINE_EVENT(rtc_time_alarm_class, rtc_set_alarm,
 
 	TP_PROTO(time64_t secs, int err),

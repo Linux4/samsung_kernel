@@ -26,6 +26,13 @@
 #error
 #endif
 
+#define USB_AUDIO_CONNECT		(1 << 0)
+#define USB_AUDIO_REMOVING		(1 << 1)
+#define USB_AUDIO_DISCONNECT		(1 << 2)
+#define USB_AUDIO_TIMEOUT_PROBE	(1 << 3)
+
+#define DISCONNECT_TIMEOUT	(500)
+
 struct host_data {
 	dma_addr_t out_data_dma;
 	dma_addr_t in_data_dma;
@@ -43,6 +50,7 @@ struct exynos_usb_audio {
 	struct work_struct usb_work;
 	struct completion in_conn_stop;
 	struct completion out_conn_stop;
+	struct completion discon_done;
 
 	u64 out_buf_addr;
 	u64 in_buf_addr;
@@ -66,6 +74,7 @@ struct exynos_usb_audio {
 	u8 fb_indeq_map_done;
 	u8 fb_outdeq_map_done;
 	u32 pcm_open_done;
+	u32 usb_audio_state;
 
 	void *pcm_buf;
 	u64 save_dma;

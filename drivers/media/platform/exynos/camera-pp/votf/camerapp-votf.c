@@ -101,15 +101,19 @@ void votf_init(void)
 		pr_err("%s: votf devices is NULL\n", __func__);
 		return;
 	}
+	mutex_init(&votfdev->votf_lock);
+	mutex_lock(&votfdev->votf_lock);
+
 	votfdev->ring_create = false;
 	votfdev->ring_request = 0;
 	votfdev->dev = NULL;
-	mutex_init(&votfdev->votf_lock);
 
 	memset(votfdev->ring_pair, VS_DISCONNECTED, sizeof(votfdev->ring_pair));
 	memset(votfdev->votf_cfg, 0, sizeof(struct votf_service_cfg));
 	memset(votfdev->votf_module_addr, 0, sizeof(struct votf_module_type_addr));
 	memset(votfdev->votf_table, 0, sizeof(struct votf_table_info));
+
+	mutex_unlock(&votfdev->votf_lock);
 }
 
 void votf_sfr_dump(void)

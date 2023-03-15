@@ -29,6 +29,6 @@
 
 extern struct wake_lock tui_wakelock;
 
-long stui_process_cmd(struct file *f, unsigned int cmd, unsigned long arg);
+long stui_process_cmd(struct device *dev, struct file *f, unsigned int cmd, unsigned long arg);
 
 #endif /* __STUI_CORE_H_ */

@@ -624,8 +624,7 @@ static int is_hw_vra_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	/* multi-buffer */
 	hw_ip->cur_s_int = 0;
 	hw_ip->cur_e_int = 0;
-	if (frame->num_buffers)
-		hw_ip->num_buffers = frame->num_buffers;
+	hw_ip->num_buffers = frame->num_buffers;
 
 	instance = frame->instance;
 	msdbgs_hw(2, "[F:%d] shot\n", instance, hw_ip, frame->fcount);

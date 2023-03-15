@@ -15,4 +15,4 @@
 
 struct ssp_data;
 
-int download_sensorhub_firmware(struct ssp_data *data, void * addr);
+int download_sensorhub_firmware(struct ssp_data *data, void *addr);

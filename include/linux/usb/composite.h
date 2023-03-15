@@ -526,6 +526,10 @@ struct usb_composite_dev {
 	bool				force_disconnect;
 	bool				cleanup_flag;
 #endif
+	/* for factory test : disable u2 */
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	bool				flag_factory_for_u2;
+#endif
 	/* protects deactivations and delayed_status counts*/
 	spinlock_t			lock;
 

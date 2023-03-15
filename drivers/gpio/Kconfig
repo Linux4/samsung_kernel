@@ -1398,7 +1398,13 @@ endif
 
 config SEC_DETECT_CONN
 	tristate "Samsung Connector Detector feature"
-	depends on SEC_FACTORY	
+	depends on SEC_FACTORY && DRV_SAMSUNG
 	help
 		Feature for checking connector status.
 		This feature should be enabled in factory mode.
+
+config QCOM_SEC_DETECT
+	tristate "Samsung Connector Detector Qcom feature"
+	help
+		Feature for checking QCOM Chipset.
+		This feature should be enabled for QCOM chipset in factory mode.

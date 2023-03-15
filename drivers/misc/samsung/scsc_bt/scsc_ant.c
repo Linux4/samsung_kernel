@@ -400,6 +400,10 @@ ssize_t scsc_shm_ant_read(struct file *file, char __user *buf, size_t len, loff_
 	ssize_t res;
 	bool    gen_bg_int = false;
 
+	/* Special handling in case read is called after service has closed */
+	if (!ant_service.service_started)
+		return -EIO;
+
 	/* Only 1 reader is allowed */
 	if (atomic_inc_return(&ant_service.ant_readers) != 1) {
 		atomic_dec(&ant_service.ant_readers);
@@ -519,6 +523,10 @@ ssize_t scsc_shm_ant_write(struct file *file, const char __user *buf, size_t cou
 	UNUSED(file);
 	UNUSED(offset);
 
+	/* Don't allow any writes after service has been closed */
+	if (!ant_service.service_started)
+		return -EIO;
+
 	/* Only 1 writer is allowed */
 	if (atomic_inc_return(&ant_service.ant_writers) != 1) {
 		SCSC_TAG_DEBUG(BT_H4, "only one reader allowed\n");
@@ -626,7 +634,8 @@ unsigned int scsc_shm_ant_poll(struct file *file, poll_table *wait)
 	/* Add the wait queue to the polling queue */
 	poll_wait(file, &ant_service.read_wait, wait);
 
-	if (atomic_read(&ant_service.error_count) != 0)
+	if (!ant_service.service_started ||
+	    atomic_read(&ant_service.error_count) != 0)
 		return POLLERR;
 
 	/* Has en error been detect then just return with an error */

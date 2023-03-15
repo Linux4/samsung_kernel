@@ -485,7 +485,7 @@ static int abox_tplg_dapm_get_mux(struct snd_kcontrol *kcontrol,
 
 	dev_dbg(dev, "%s(%s)\n", __func__, kcontrol->id.name);
 
-	if (pm_runtime_active(dev_abox) && kdata->is_volatile) {
+	if (!pm_runtime_suspended(dev_abox) && kdata->is_volatile) {
 		ret = abox_tplg_kcontrol_get(dev, kdata);
 		if (ret < 0)
 			return ret;
@@ -513,8 +513,11 @@ static int abox_tplg_dapm_put_mux(struct snd_kcontrol *kcontrol,
 	dev_dbg(dev, "%s(%s, %s)\n", __func__, kcontrol->id.name,
 			e->texts[value]);
 
+	if (value >= e->items)
+		return -EINVAL;
+
 	kdata->value[0] = value;
-	if (pm_runtime_active(dev_abox)) {
+	if (!pm_runtime_suspended(dev_abox)) {
 		ret = abox_tplg_kcontrol_put(dev, kdata);
 		if (ret < 0)
 			return ret;
@@ -552,7 +555,7 @@ static int abox_tplg_get_mixer(struct snd_kcontrol *kcontrol,
 
 	dev_dbg(dev, "%s(%s)\n", __func__, kcontrol->id.name);
 
-	if (pm_runtime_active(dev_abox)) {
+	if (!pm_runtime_suspended(dev_abox)) {
 		ret = abox_tplg_kcontrol_get(dev, kdata);
 		if (ret < 0)
 			return ret;
@@ -577,10 +580,14 @@ static int abox_tplg_put_mixer(struct snd_kcontrol *kcontrol,
 
 	dev_dbg(dev, "%s(%s, %ld)\n", __func__, kcontrol->id.name, value[0]);
 
-	for (i = 0; i < kdata->count; i++)
-		kdata->value[i] = (unsigned int)value[i];
+	for (i = 0; i < kdata->count; i++) {
+		if (value[i] < mc->min || value[i] > mc->max)
+			return -EINVAL;
 
-	if (pm_runtime_active(dev_abox)) {
+		kdata->value[i] = (unsigned int)value[i];
+	}
+
+	if (!pm_runtime_suspended(dev_abox)) {
 		ret = abox_tplg_kcontrol_put(dev, kdata);
 		if (ret < 0)
 			return ret;
@@ -601,7 +608,7 @@ static int abox_tplg_dapm_get_mixer(struct snd_kcontrol *kcontrol,
 
 	dev_dbg(dev, "%s(%s)\n", __func__, kcontrol->id.name);
 
-	if (pm_runtime_active(dev_abox) && kdata->is_volatile) {
+	if (!pm_runtime_suspended(dev_abox) && kdata->is_volatile) {
 		ret = abox_tplg_kcontrol_get(dev, kdata);
 		if (ret < 0)
 			return ret;
@@ -629,8 +636,11 @@ static int abox_tplg_dapm_put_mixer(struct snd_kcontrol *kcontrol,
 
 	dev_dbg(dev, "%s(%s, %u)\n", __func__, kcontrol->id.name, value);
 
+	if (value < mc->min || value > mc->max)
+		return -EINVAL;
+
 	kdata->value[0] = value;
-	if (pm_runtime_active(dev_abox)) {
+	if (!pm_runtime_suspended(dev_abox)) {
 		ret = abox_tplg_kcontrol_put(dev, kdata);
 		if (ret < 0)
 			return ret;
@@ -653,7 +663,7 @@ static int abox_tplg_dapm_get_pin(struct snd_kcontrol *kcontrol,
 
 	dev_dbg(dev, "%s(%s)\n", __func__, kcontrol->id.name);
 
-	if (pm_runtime_active(dev_abox) && kdata->is_volatile) {
+	if (!pm_runtime_suspended(dev_abox) && kdata->is_volatile) {
 		ret = abox_tplg_kcontrol_get(dev, kdata);
 		if (ret < 0)
 			return ret;
@@ -687,8 +697,11 @@ static int abox_tplg_dapm_put_pin(struct snd_kcontrol *kcontrol,
 
 	dev_dbg(dev, "%s(%s, %u)\n", __func__, kcontrol->id.name, value);
 
-	kdata->value[0] = value;
-	if (pm_runtime_active(dev_abox)) {
+	if (value < mc->min || value > mc->max)
+		return -EINVAL;
+
+	kdata->value[0] = !!value;
+	if (!pm_runtime_suspended(dev_abox)) {
 		ret = abox_tplg_kcontrol_put(dev, kdata);
 		if (ret < 0)
 			return ret;

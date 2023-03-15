@@ -310,4 +310,14 @@ static inline bool std_bootdump_with_payload(u32 cmd)
 	return (mask && mask < STD_UDL_CRC) ? true : false;
 }
 
+static inline u8 sipc_get_rmnet_type(u8 ch)
+{
+	return ch - 10;
+}
+
+static inline u8 sipc_get_ch_from_cid(u8 cid)
+{
+	return cid + 9;
+}
+
 #endif

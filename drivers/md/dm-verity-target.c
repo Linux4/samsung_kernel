@@ -490,6 +490,7 @@ static int verity_verify_io(struct dm_verity_io *io)
 	struct bvec_iter start;
 	unsigned b;
 	struct crypto_wait wait;
+	struct bio *bio = dm_bio_from_per_bio_data(io, v->ti->per_io_data_size);
 
 	for (b = 0; b < io->n_blocks; b++) {
 		int r;
@@ -552,15 +553,23 @@ static int verity_verify_io(struct dm_verity_io *io)
 #endif
 			continue;
 		}
+		else {
+			if (bio->bi_status) {
+				/*
+				 * Error correction failed; Just return error
+				 */
+				return -EIO;
+			}
 #ifdef SEC_HEX_DEBUG
-		else if (verity_handle_err_hex_debug(v, DM_VERITY_BLOCK_TYPE_DATA,
-					   cur_block, io, &start)) {
-			add_corrupted_blks();
+			if (verity_handle_err_hex_debug(v, DM_VERITY_BLOCK_TYPE_DATA,
+					cur_block, io, &start)) {
+				add_corrupted_blks();
 #else
-		else if (verity_handle_err(v, DM_VERITY_BLOCK_TYPE_DATA,
-					   cur_block)) {
+			if (verity_handle_err(v, DM_VERITY_BLOCK_TYPE_DATA,
+					cur_block)) {
 #endif
-			return -EIO;
+				return -EIO;
+			}
 		}
 	}
 
@@ -645,7 +654,21 @@ no_prefetch_cluster:
 
 static void verity_submit_prefetch(struct dm_verity *v, struct dm_verity_io *io)
 {
+	sector_t block = io->block;
+	unsigned int n_blocks = io->n_blocks;
 	struct dm_verity_prefetch_work *pw;
+
+	if (v->validated_blocks) {
+		while (n_blocks && test_bit(block, v->validated_blocks)) {
+			block++;
+			n_blocks--;
+		}
+		while (n_blocks && test_bit(block + n_blocks - 1,
+					v->validated_blocks))
+			n_blocks--;
+		if (!n_blocks)
+			return;
+	}
 
 	pw = kmalloc(sizeof(struct dm_verity_prefetch_work),
 		GFP_NOIO | __GFP_NORETRY | __GFP_NOMEMALLOC | __GFP_NOWARN);
@@ -655,8 +678,8 @@ static void verity_submit_prefetch(struct dm_verity *v, struct dm_verity_io *io)
 
 	INIT_WORK(&pw->work, verity_prefetch_io);
 	pw->v = v;
-	pw->block = io->block;
-	pw->n_blocks = io->n_blocks;
+	pw->block = block;
+	pw->n_blocks = n_blocks;
 	queue_work(v->verify_wq, &pw->work);
 }
 

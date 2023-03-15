@@ -20,10 +20,10 @@
 
 #ifndef SEC_ABC_H
 #define SEC_ABC_H
-
+#include <linux/kconfig.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
-#ifdef CONFIG_DRV_SAMSUNG
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 #include <linux/sec_class.h>
 #else
 extern struct class *sec_class;
@@ -40,28 +40,31 @@ extern struct class *sec_class;
 #include <linux/suspend.h>
 #include <linux/workqueue.h>
 #include <linux/rtc.h>
+#include <linux/version.h>
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+#include <kunit/test.h>
+#include <kunit/mock.h>
+#else
+#define __visible_for_testing static
+#endif
+#if (KERNEL_VERSION(4, 11, 0) <= LINUX_VERSION_CODE)
 #include <linux/sched/clock.h>
-
+#else
+#include <linux/sched.h>
+#endif
+#if IS_ENABLED(CONFIG_SEC_ABC_MOTTO)
+#include <linux/sti/abc_motto.h>
+#endif
 #define ABC_UEVENT_MAX		20
 #define ABC_BUFFER_MAX		256
 #define ABC_LOG_STR_LEN		50
-#define ABC_LOG_MAX		80
-
+#define ABC_LOG_MAX			80
+#define ABC_DISABLED		0
+#define ERROR_REPORT_MODE_BIT	(1<<0)
+#define ALL_REPORT_MODE_BIT		(1<<1)
 #define ABC_WAIT_ENABLE_TIMEOUT	10000
 
-enum {
-	ABC_DISABLED,
-	/* TYPE1 : ABC Driver - ABC Daemon is not used. ABC Driver manage ABC Error */
-	ABC_TYPE1_ENABLED,
-	/* TYPE2 : Common Driver - ABC Daemon is used. ABC Daemon manage ABC Error. Common Driver send uevent bypass */
-	ABC_TYPE2_ENABLED,
-};
-
-enum {
-	ABC_EVENT_I2C = 1,
-	ABC_EVENT_UNDERRUN,
-	ABC_EVENT_GPU_FAULT,
-};
+#define ABC_PRINT(format, ...) pr_info("[sec_abc] " format, ##__VA_ARGS__)
 
 struct abc_fault_info {
 	unsigned long cur_time;
@@ -86,10 +89,15 @@ struct abc_qdata {
 	struct abc_buffer buffer;
 };
 
+
+
 struct abc_platform_data {
 	struct abc_qdata *gpu_items;
 	struct abc_qdata *gpu_page_items;
 	struct abc_qdata *aicl_items;
+#if IS_ENABLED(CONFIG_SEC_ABC_MOTTO)
+	struct abc_motto_data *motto_data;
+#endif
 
 	unsigned int nItem;
 	unsigned int nGpu;
@@ -117,4 +125,5 @@ struct abc_info {
 extern void sec_abc_send_event(char *str);
 extern int sec_abc_get_enabled(void);
 extern int sec_abc_wait_enabled(void);
+
 #endif

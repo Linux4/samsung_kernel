@@ -25,7 +25,7 @@ static void secdbg_print_mutex_info(struct task_struct *task, struct sec_debug_w
 	pr_info("Mutex: %pS", wmutex);
 	if (owner_task) {
 		if (raw)
-			pr_cont(": owner[0x%lx %s :%d]", owner_task, owner_task->comm, owner_task->pid);
+			pr_cont(": owner[0x%px %s :%d]", owner_task, owner_task->comm, owner_task->pid);
 		else
 			pr_cont(": owner[%s :%d]", owner_task->comm, owner_task->pid);
 	}

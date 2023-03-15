@@ -64,3 +64,5 @@ obj-$(CONFIG_UNIPHIER_THERMAL)	+= uniphier_thermal.o
 
 obj-$(CONFIG_GPU_THERMAL)	+= gpu_cooling.o
 obj-$(CONFIG_ISP_THERMAL)	+= isp_cooling.o
+
+ccflags-y := -Wformat

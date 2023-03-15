@@ -21,79 +21,84 @@ int is_ischain_isp_stripe_cfg(struct is_subdev *subdev,
 		struct is_frame *frame,
 		struct is_crop *incrop,
 		struct is_crop *otcrop,
-		u32 bitwidth)
+		u32 bitwidth,
+		bool is_leader)
 {
-	struct is_groupmgr *groupmgr;
-	struct is_group *group;
-	struct is_group *stream_leader;
-	u32 stripe_w, dma_offset = 0;
-
-	groupmgr = (struct is_groupmgr *)frame->groupmgr;
-	group = frame->group;
-	stream_leader = groupmgr->leader[subdev->instance];
+	struct is_group *group = frame->group;
+	struct camera2_stream *stream = (struct camera2_stream *) frame->shot_ext;
+	u32 region_id = frame->stripe_info.region_id;
+	u32 stripe_w = 0, dma_offset = 0;
 
 	/* Input crop configuration */
-	if (!frame->stripe_info.region_id) {
+	if (!region_id) {
 		/* Left region */
-		/* Stripe width should be 4 align because of 4 ppc */
-		stripe_w = ALIGN(incrop->w / frame->stripe_info.region_num, 4);
-		stripe_w = ALIGN_UPDOWN_STRIPE_WIDTH(stripe_w);
+		if (is_leader || !stream->stripe_region_num) {
+			stripe_w = ALIGN(incrop->w / frame->stripe_info.region_num, 4);
+			stripe_w = ALIGN_UPDOWN_STRIPE_WIDTH(stripe_w);
+		} else {
+			stripe_w = stream->stripe_h_pix_nums[region_id];
+		}
 
 		if (stripe_w == 0) {
-			msrdbgs(3, "Skip current stripe[#%d] region because stripe_width is too small(%d)\n", subdev, subdev, frame,
-									frame->stripe_info.region_id, stripe_w);
+			msrdbgs(3, "Skip current stripe[#%d] region because stripe_width is too small(%d)\n",
+					subdev, subdev, frame, region_id, stripe_w);
 			frame->stripe_info.region_id++;
 			return -EAGAIN;
 		}
 
-		frame->stripe_info.in.h_pix_ratio = stripe_w * STRIPE_RATIO_PRECISION / incrop->w;
 		frame->stripe_info.in.h_pix_num = stripe_w;
 		frame->stripe_info.region_base_addr[0] = frame->dvaddr_buffer[0];
-	} else if (frame->stripe_info.region_id < frame->stripe_info.region_num - 1) {
+	} else if (region_id < frame->stripe_info.region_num - 1) {
 		/* Middle region */
-		stripe_w = ALIGN((incrop->w * (frame->stripe_info.region_id + 1) / frame->stripe_info.region_num) - frame->stripe_info.in.h_pix_num, 4);
-		stripe_w = ALIGN_UPDOWN_STRIPE_WIDTH(stripe_w);
+		frame->stripe_info.in.prev_h_pix_num = frame->stripe_info.in.h_pix_num;
+
+		if (is_leader || !stream->stripe_region_num) {
+			stripe_w = incrop->w * (region_id + 1) / frame->stripe_info.region_num;
+			stripe_w = ALIGN((stripe_w - frame->stripe_info.in.h_pix_num), 4);
+			stripe_w = ALIGN_UPDOWN_STRIPE_WIDTH(stripe_w);
+		} else {
+			stripe_w = stream->stripe_h_pix_nums[region_id] - frame->stripe_info.in.h_pix_num;
+		}
 
 		if (stripe_w == 0) {
-			msrdbgs(3, "Skip current stripe[#%d] region because stripe_width is too small(%d)\n", subdev, subdev, frame,
-									frame->stripe_info.region_id, stripe_w);
+			msrdbgs(3, "Skip current stripe[#%d] region because stripe_width is too small(%d)\n",
+					subdev, subdev, frame, region_id, stripe_w);
 			frame->stripe_info.region_id++;
 			return -EAGAIN;
 		}
 
-		stripe_w += STRIPE_MARGIN_WIDTH;
+		/* Consider RDMA offset. */
 		if (!test_bit(IS_GROUP_OTF_INPUT, &group->state)) {
-			dma_offset = frame->stripe_info.in.h_pix_num - STRIPE_MARGIN_WIDTH;
-			dma_offset = dma_offset * bitwidth / BITS_PER_BYTE;
+			if (is_leader || !stream->stripe_region_num) {
+				dma_offset = frame->stripe_info.in.h_pix_num - STRIPE_MARGIN_WIDTH;
+				dma_offset = dma_offset / BITS_PER_BYTE * bitwidth;
+			} else {
+				dma_offset = frame->stripe_info.in.h_pix_num;
+				dma_offset += STRIPE_MARGIN_WIDTH * ((2 * (region_id - 1)) + 1);
+				dma_offset = dma_offset / BITS_PER_BYTE * bitwidth * incrop->h;
+			}
 		}
+
+		frame->stripe_info.in.h_pix_num += stripe_w;
+		stripe_w += STRIPE_MARGIN_WIDTH;
 	} else {
 		/* Right region */
 		stripe_w = incrop->w - frame->stripe_info.in.h_pix_num;
 
 		/* Consider RDMA offset. */
 		if (!test_bit(IS_GROUP_OTF_INPUT, &group->state)) {
-			if (stream_leader->id == group->id) {
-				/**
-				 * ISP reads the right region of original bayer image.
-				 * Add horizontal DMA offset only.
-				 */
+			if (is_leader || !stream->stripe_region_num) {
 				dma_offset = frame->stripe_info.in.h_pix_num - STRIPE_MARGIN_WIDTH;
-				dma_offset = dma_offset * bitwidth / BITS_PER_BYTE;
-				msrwarn("Processed bayer reprocessing is NOT supported by stripe processing",
-						subdev, subdev, frame);
-
+				dma_offset = dma_offset / BITS_PER_BYTE * bitwidth;
 			} else {
-				/**
-				 * ISP reads the right region with stripe margin.
-				 * Add horizontal DMA offset.
-				 */
-				dma_offset = frame->stripe_info.in.h_pix_num - STRIPE_MARGIN_WIDTH;
-				dma_offset = dma_offset * bitwidth / BITS_PER_BYTE;
+				dma_offset = frame->stripe_info.in.h_pix_num;
+				dma_offset += STRIPE_MARGIN_WIDTH * ((2 * (region_id - 1)) + 1);
+				dma_offset = dma_offset / BITS_PER_BYTE * bitwidth * incrop->h;
 			}
 		}
 	}
-	stripe_w += STRIPE_MARGIN_WIDTH;
 
+	stripe_w += STRIPE_MARGIN_WIDTH;
 	incrop->w = stripe_w;
 
 	/**
@@ -108,10 +113,10 @@ int is_ischain_isp_stripe_cfg(struct is_subdev *subdev,
 	frame->dvaddr_buffer[0] = frame->stripe_info.region_base_addr[0] + dma_offset;
 
 	msrdbgs(3, "stripe_in_crop[%d][%d, %d, %d, %d] offset %x\n", subdev, subdev, frame,
-			frame->stripe_info.region_id,
+			region_id,
 			incrop->x, incrop->y, incrop->w, incrop->h, dma_offset);
 	msrdbgs(3, "stripe_ot_crop[%d][%d, %d, %d, %d]\n", subdev, subdev, frame,
-			frame->stripe_info.region_id,
+			region_id,
 			otcrop->x, otcrop->y, otcrop->w, otcrop->h);
 	return 0;
 }
@@ -126,7 +131,9 @@ static int is_ischain_isp_cfg(struct is_subdev *leader,
 	u32 *indexes)
 {
 	int ret = 0;
+	struct is_groupmgr *groupmgr;
 	struct is_group *group;
+	struct is_group *stream_leader;
 	struct is_queue *queue;
 	struct param_otf_input *otf_input;
 	struct param_otf_output *otf_output;
@@ -142,6 +149,8 @@ static int is_ischain_isp_cfg(struct is_subdev *leader,
 	u32 flag_extra, flag_pixel_size;
 	struct is_crop incrop_cfg, otcrop_cfg;
 	int stripe_ret = -1;
+	bool is_leader = true;
+	u32 prev_region_num = 0;
 
 	device = (struct is_device_ischain *)device_data;
 
@@ -211,10 +220,15 @@ static int is_ischain_isp_cfg(struct is_subdev *leader,
 	}
 
 	if (IS_ENABLED(CHAIN_USE_STRIPE_PROCESSING) && frame && frame->stripe_info.region_num) {
+		groupmgr = (struct is_groupmgr *)frame->groupmgr;
+		stream_leader = groupmgr->leader[leader->instance];
+		is_leader = (stream_leader->id == group->id);
+		prev_region_num = ((struct camera2_stream *)frame->shot_ext)->stripe_region_num;
+
 		while (stripe_ret)
 			stripe_ret = is_ischain_isp_stripe_cfg(leader, frame,
 					&incrop_cfg, &otcrop_cfg,
-					hw_bitwidth);
+					hw_bitwidth, is_leader);
 	}
 
 	/* ISP */
@@ -284,8 +298,14 @@ static int is_ischain_isp_cfg(struct is_subdev *leader,
 			stripe_input->left_margin = STRIPE_MARGIN_WIDTH;
 			stripe_input->right_margin = 0;
 		}
-		stripe_input->full_width = leader->input.width;
-		stripe_input->full_height = leader->input.height;
+
+		if (is_leader || !prev_region_num) {
+			stripe_input->full_width = leader->input.width;
+			stripe_input->full_height = leader->input.height;
+		} else {
+			stripe_input->full_width = incrop_cfg.w;
+			stripe_input->full_height = incrop_cfg.h;
+		}
 	} else {
 		stripe_input->index = 0;
 		stripe_input->total_count = 0;

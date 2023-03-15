@@ -18,8 +18,8 @@
 
 #include "ssp.h"
 
-int initialize_sysfs(struct ssp_data*);
-void remove_sysfs(struct ssp_data*);
+int initialize_sysfs(struct ssp_data *);
+void remove_sysfs(struct ssp_data *);
 
 int enable_legacy_sensor(struct ssp_data *data, unsigned int type);
 int disable_legacy_sensor(struct ssp_data *data, unsigned int type);

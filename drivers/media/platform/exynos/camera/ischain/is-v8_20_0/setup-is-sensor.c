@@ -185,3 +185,8 @@ int exynos_is_sensor_mclk_off(struct device *dev,
 	exynos3830_is_sensor_mclk_off(dev, scenario, channel);
 	return 0;
 }
+
+int is_sensor_mclk_force_off(struct device *dev, u32 channel)
+{
+	return 0;
+}

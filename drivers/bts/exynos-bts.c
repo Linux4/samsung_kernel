@@ -885,6 +885,10 @@ static int exynos_bts_drex_open_show(struct seq_file *buf, void *d)
 					i, info[i].name, stat.pf_rreq_thrt_con);
 				seq_printf(buf, " allow_mo_for_region\t0x%.8X\n",
 						stat.allow_mo_for_region);
+				seq_printf(buf, " pf_token_con\t0x%.8X\n",
+						stat.pf_token_con);
+				seq_printf(buf, " pf_token_th0\t0x%.8X\n",
+						stat.pf_token_th0);
 				seq_printf(buf, " pf_qos_timer 0~7\t");
 
 				for (idx = 0; idx < PF_TIMER_NR; idx++)
@@ -1747,6 +1751,214 @@ static ssize_t exynos_bts_qmax_thrd_write(struct file *file, const char __user *
 	return buf_size;
 }
 
+static int exynos_bts_pf_token_con_open_show(struct seq_file *buf, void *d)
+{
+	struct bts_info *info = btsdev->bts_list;
+	struct bts_stat stat;
+	int ret, i = 0;
+
+	for (i = 0; i < btsdev->num_bts; i++) {
+		if (info[i].ops->get_pf_token_con == NULL ||
+			!info[i].stat[ID_DEFAULT].drex_pf_on)
+			continue;
+
+		spin_lock(&btsdev->lock);
+
+		if (info[i].pd_on) {
+			ret = info[i].ops->get_pf_token_con(info[i].va_base, &stat);
+			if (ret) {
+				pr_err("%s: failed get pf_token_con\n", __func__);
+				goto err_get_pf_token_con;
+			}
+			seq_printf(buf, "[%d] %s:   \tpf_token_con 0x%.8X\n",
+				i, info[i].name,
+				stat.pf_token_con);
+		} else {
+			seq_printf(buf, "[%d] %s:   \tLocal power off!\n",
+					i, info[i].name);
+		}
+err_get_pf_token_con:
+		spin_unlock(&btsdev->lock);
+	}
+
+	return 0;
+}
+
+static int exynos_bts_pf_token_con_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, exynos_bts_pf_token_con_open_show, inode->i_private);
+}
+
+static ssize_t exynos_bts_pf_token_con_write(struct file *file, const char __user *user_buf,
+					size_t count, loff_t *ppos)
+{
+	char buf[64];
+	ssize_t buf_size;
+
+	struct bts_info *info = btsdev->bts_list;
+	struct bts_stat *stat;
+	int ret, scen, index, pf_token_con;
+
+	buf_size = simple_write_to_buffer(buf, sizeof(buf) - 1, ppos, user_buf, count);
+	if (buf_size < 0)
+		return buf_size;
+
+	buf[buf_size] = '\0';
+
+	ret = sscanf(buf, "%d %d %x\n",
+			&scen, &index, &pf_token_con);
+
+	if (ret != 3) {
+		pr_err("%s: sscanf failed. We need 3 inputs."\
+				"<IP PF_token_CON> count=(%d)\n",
+				__func__, ret);
+		return -EINVAL;
+	}
+
+	if (index >= btsdev->num_bts) {
+		pr_err("%s: IP index should be in range of (0 ~ %d). input=(%d)\n",
+			__func__, btsdev->num_bts - 1, index);
+		return -EINVAL;
+	}
+
+	if (scen >= btsdev->num_scen) {
+		pr_err("%s: SCEN index should be in range of (0 ~ %d). input=(%d)\n",
+			__func__, btsdev->num_scen - 1, scen);
+		return -EINVAL;
+	}
+
+	stat = info[index].stat;
+
+	spin_lock(&btsdev->lock);
+
+	if (info[index].ops->set_pf_token_con != NULL &&
+			info[index].stat[ID_DEFAULT].drex_pf_on) {
+		stat[scen].stat_on = true;
+		stat[scen].drex_pf_on = true;
+		stat[scen].pf_token_con = pf_token_con;
+
+		if (scen != btsdev->top_scen)
+			goto out;
+
+		if (info[index].pd_on) {
+			if (info[index].ops->set_pf_token_con(info[index].va_base, &stat[scen]))
+				pr_warn("%s: set_pf_token_con failed. input=(%d) err=(%d)\n",
+						__func__, index, ret);
+		}
+	} else {
+		pr_err("%s: Invalid index. [%d] is %s\n", __func__, index, info[index].name);
+	}
+
+out:
+	spin_unlock(&btsdev->lock);
+
+	return buf_size;
+}
+
+static int exynos_bts_pf_token_th0_open_show(struct seq_file *buf, void *d)
+{
+	struct bts_info *info = btsdev->bts_list;
+	struct bts_stat stat;
+	int ret, i = 0;
+
+	for (i = 0; i < btsdev->num_bts; i++) {
+		if (info[i].ops->get_pf_token_th0 == NULL ||
+			!info[i].stat[ID_DEFAULT].drex_pf_on)
+			continue;
+
+		spin_lock(&btsdev->lock);
+
+		if (info[i].pd_on) {
+			ret = info[i].ops->get_pf_token_th0(info[i].va_base, &stat);
+			if (ret) {
+				pr_err("%s: failed get pf_token_th0\n", __func__);
+				goto err_get_pf_token_th0;
+			}
+			seq_printf(buf, "[%d] %s:   \tpf_token_th0 0x%.8X\n",
+				i, info[i].name,
+				stat.pf_token_th0);
+		} else {
+			seq_printf(buf, "[%d] %s:   \tLocal power off!\n",
+					i, info[i].name);
+		}
+err_get_pf_token_th0:
+		spin_unlock(&btsdev->lock);
+	}
+
+	return 0;
+}
+
+static int exynos_bts_pf_token_th0_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, exynos_bts_pf_token_th0_open_show, inode->i_private);
+}
+
+static ssize_t exynos_bts_pf_token_th0_write(struct file *file, const char __user *user_buf,
+					size_t count, loff_t *ppos)
+{
+	char buf[64];
+	ssize_t buf_size;
+
+	struct bts_info *info = btsdev->bts_list;
+	struct bts_stat *stat;
+	int ret, scen, index, pf_token_th0;
+
+	buf_size = simple_write_to_buffer(buf, sizeof(buf) - 1, ppos, user_buf, count);
+	if (buf_size < 0)
+		return buf_size;
+
+	buf[buf_size] = '\0';
+
+	ret = sscanf(buf, "%d %d %x\n",
+			&scen, &index, &pf_token_th0);
+
+	if (ret != 3) {
+		pr_err("%s: sscanf failed. We need 3 inputs."\
+				"<IP PF_token_th0> count=(%d)\n",
+				__func__, ret);
+		return -EINVAL;
+	}
+
+	if (index >= btsdev->num_bts) {
+		pr_err("%s: IP index should be in range of (0 ~ %d). input=(%d)\n",
+			__func__, btsdev->num_bts - 1, index);
+		return -EINVAL;
+	}
+
+	if (scen >= btsdev->num_scen) {
+		pr_err("%s: SCEN index should be in range of (0 ~ %d). input=(%d)\n",
+			__func__, btsdev->num_scen - 1, scen);
+		return -EINVAL;
+	}
+
+	stat = info[index].stat;
+
+	spin_lock(&btsdev->lock);
+
+	if (info[index].ops->set_pf_token_th0 != NULL &&
+			info[index].stat[ID_DEFAULT].drex_pf_on) {
+		stat[scen].stat_on = true;
+		stat[scen].drex_pf_on = true;
+		stat[scen].pf_token_th0 = pf_token_th0;
+
+		if (scen != btsdev->top_scen)
+			goto out;
+
+		if (info[index].pd_on) {
+			if (info[index].ops->set_pf_token_th0(info[index].va_base, &stat[scen]))
+				pr_warn("%s: set_pf_token_th0 failed. input=(%d) err=(%d)\n",
+						__func__, index, ret);
+		}
+	} else {
+		pr_err("%s: Invalid index. [%d] is %s\n", __func__, index, info[index].name);
+	}
+
+out:
+	spin_unlock(&btsdev->lock);
+
+	return buf_size;
+}
+
 static const struct file_operations debug_bts_hwstatus_fops = {
 	.open		= exynos_bts_hwstatus_open,
 	.read		= seq_read,
@@ -1873,6 +2085,22 @@ static const struct file_operations debug_bts_qmax_thrd_fops = {
 	.release	= single_release,
 };
 
+static const struct file_operations debug_bts_pf_token_con_fops = {
+	.open		= exynos_bts_pf_token_con_open,
+	.read		= seq_read,
+	.write		= exynos_bts_pf_token_con_write,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+static const struct file_operations debug_bts_pf_token_th0_fops = {
+	.open		= exynos_bts_pf_token_th0_open,
+	.read		= seq_read,
+	.write		= exynos_bts_pf_token_th0_write,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
 int exynos_bts_debugfs_init(void)
 {
 	struct dentry *den;
@@ -1913,6 +2141,10 @@ int exynos_bts_debugfs_init(void)
 				&debug_bts_pf_qos_timer_fops);
 	debugfs_create_file("qmax_thrd", 0440, den, NULL,
 				&debug_bts_qmax_thrd_fops);
+	debugfs_create_file("pf_token_con", 0440, den, NULL,
+				&debug_bts_pf_token_con_fops);
+	debugfs_create_file("pf_token_th0", 0440, den, NULL,
+				&debug_bts_pf_token_th0_fops);
 
 	return 0;
 }
@@ -2054,6 +2286,13 @@ static int bts_parse_setting(struct device_node *np, struct bts_stat *stat)
 		if (of_property_read_u32(np, "allow_mo_for_region",
 					&(stat->allow_mo_for_region)))
 			stat->allow_mo_for_region = RREQ_THRT_MO_P2_RESET;
+
+		if (of_property_read_u32(np, "pf_token_con",
+					&(stat->pf_token_con)))
+			stat->pf_token_con = 0x0;
+		if (of_property_read_u32(np, "pf_token_th0",
+					&(stat->pf_token_th0)))
+			stat->pf_token_th0 = 0x0;
 		if (of_property_read_u32_array(np, "pf_qos_timer",
 					stat->pf_qos_timer, PF_TIMER_NR)) {
 			for (i = 0; i < PF_TIMER_NR; i++)

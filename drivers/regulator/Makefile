@@ -97,7 +97,6 @@ obj-$(CONFIG_REGULATOR_RN5T618) += rn5t618-regulator.o
 obj-$(CONFIG_REGULATOR_RT5033)	+= rt5033-regulator.o
 obj-$(CONFIG_REGULATOR_S2MPA01) += s2mpa01.o
 obj-$(CONFIG_REGULATOR_S2MPS11) += s2mps11.o
-obj-$(CONFIG_DRV_SAMSUNG_PMIC) += pmic_class.o
 obj-$(CONFIG_REGULATOR_S2MPS19) += s2mps19_regulator.o s2mps19_powermeter.o
 obj-$(CONFIG_REGULATOR_S2MPS20) += s2mps20-regulator.o s2mps20-powermeter.o
 obj-$(CONFIG_REGULATOR_S2MPS22) += s2mps22_regulator.o s2mps22_powermeter.o

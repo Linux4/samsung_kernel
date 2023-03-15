@@ -138,34 +138,45 @@ int dsp_device_power_active(struct dsp_device *dspdev)
 	return dsp_system_power_active(&dspdev->system);
 }
 
-int dsp_device_power_on(struct dsp_device *dspdev)
+int dsp_device_power_on(struct dsp_device *dspdev, unsigned int pm_level)
 {
 	int ret;
 
 	dsp_enter();
 	if (dsp_device_power_active(dspdev)) {
+		if (dspdev->power_count + 1 < dspdev->power_count) {
+			ret = -EINVAL;
+			dsp_err("power count is overflowed\n");
+			goto p_err;
+		}
+
 		dsp_warn("Duplicated request to enable power(%u)",
-				dspdev->power_count++);
+				++dspdev->power_count);
 		return 0;
 	}
+
+	ret = dsp_system_set_boot_qos(&dspdev->system, pm_level);
+	if (ret)
+		goto p_err_fail;
 
 #if defined(CONFIG_PM)
 	ret = pm_runtime_get_sync(dspdev->dev);
 	if (ret) {
 		dsp_err("Failed to get runtime_pm(%d)\n", ret);
-		goto p_err;
+		goto p_err_fail;
 	}
 #else
 	ret = dsp_device_runtime_resume(dspdev->dev);
 	if (ret)
-		goto p_err;
+		goto p_err_fail;
 #endif
 
 	dspdev->power_count = 1;
 	dsp_leave();
 	return 0;
-p_err:
+p_err_fail:
 	dspdev->power_count = 0;
+p_err:
 	return ret;
 }
 
@@ -188,7 +199,7 @@ void dsp_device_power_off(struct dsp_device *dspdev)
 	dsp_leave();
 }
 
-int dsp_device_start(struct dsp_device *dspdev)
+int dsp_device_start(struct dsp_device *dspdev, unsigned int pm_level)
 {
 	int ret;
 
@@ -201,9 +212,14 @@ int dsp_device_start(struct dsp_device *dspdev)
 	}
 
 	if (dspdev->start_count) {
-		dspdev->start_count++;
+		if (dspdev->start_count + 1 < dspdev->start_count) {
+			ret = -EINVAL;
+			dsp_err("start count is overflowed\n");
+			goto p_err_count;
+		}
+
 		dsp_info("start count is incresed(%u/%u)\n",
-				dspdev->open_count, dspdev->start_count);
+				dspdev->open_count, ++dspdev->start_count);
 		mutex_unlock(&dspdev->lock);
 		return 0;
 	}
@@ -212,7 +228,7 @@ int dsp_device_start(struct dsp_device *dspdev)
 	if (ret)
 		goto p_err_system;
 
-	ret = dsp_device_power_on(dspdev);
+	ret = dsp_device_power_on(dspdev, pm_level);
 	if (ret)
 		goto p_err_power;
 
@@ -232,6 +248,7 @@ p_err_boot:
 p_err_power:
 	dsp_system_stop(&dspdev->system);
 p_err_system:
+p_err_count:
 p_err_open:
 	mutex_unlock(&dspdev->lock);
 	return ret;
@@ -267,6 +284,10 @@ int dsp_device_stop(struct dsp_device *dspdev, unsigned int count)
 		return 0;
 	}
 
+	if (dspdev->start_count < count)
+		dsp_warn("start count is unstable(%u/%u)",
+				dspdev->start_count, count);
+
 	__dsp_device_stop(dspdev);
 
 	dsp_info("device stopped(%u/%u)\n",
@@ -283,9 +304,14 @@ int dsp_device_open(struct dsp_device *dspdev)
 	dsp_enter();
 	mutex_lock(&dspdev->lock);
 	if (dspdev->open_count) {
-		dspdev->open_count++;
+		if (dspdev->open_count + 1 < dspdev->open_count) {
+			ret = -EINVAL;
+			dsp_err("open count is overflowed\n");
+			goto p_err_count;
+		}
+
 		dsp_info("open count is incresed(%u/%u)\n",
-				dspdev->open_count, dspdev->start_count);
+				++dspdev->open_count, dspdev->start_count);
 		mutex_unlock(&dspdev->lock);
 		return 0;
 	}
@@ -300,6 +326,7 @@ int dsp_device_open(struct dsp_device *dspdev)
 
 	dspdev->open_count = 1;
 	dspdev->start_count = 0;
+	dsp_info("device TAG : OFI_SDK_1_1_0\n");
 	dsp_info("device is opened(%u/%u)\n",
 			dspdev->open_count, dspdev->start_count);
 	mutex_unlock(&dspdev->lock);
@@ -309,6 +336,7 @@ int dsp_device_open(struct dsp_device *dspdev)
 p_err_system:
 	dsp_debug_close(&dspdev->debug);
 p_err_debug:
+p_err_count:
 	mutex_unlock(&dspdev->lock);
 	return ret;
 }

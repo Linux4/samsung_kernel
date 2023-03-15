@@ -423,6 +423,9 @@ static void dw_mci_exynos_adjust_clock(struct dw_mci *host, unsigned int wanted)
 #ifndef MHZ
 #define MHZ (1000 * 1000)
 #endif
+#ifndef KHZ
+#define KHZ (1000)
+#endif
 
 static void dw_mci_exynos_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 {
@@ -490,6 +493,9 @@ static void dw_mci_exynos_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 		else if (ios->clock)
 			dw_mci_exynos_ssclk_control(host, 1);
 	}
+
+	if ((ios->clock > 0) && (ios->clock <= 400 * KHZ))
+		sample_path_sel_dis(host, AXI_BURST_LEN);
 
 	host->cclk_in = wanted;
 
@@ -1186,25 +1192,21 @@ static ssize_t sd_detection_cmd_show(struct device *dev,
 	struct dw_mci *host = dev_get_drvdata(dev);
 	struct dw_mci_exynos_priv_data *priv = host->priv;
 
-	if (host->slot && host->slot->mmc && host->slot->mmc->card) {
-		if (priv->sec_sd_slot_type > 0 && !gpio_is_valid(priv->cd_gpio))
-			goto gpio_error;
+	if (priv->sec_sd_slot_type > 0 && !gpio_is_valid(priv->cd_gpio))
+		goto gpio_error;
 
+	if (gpio_get_value(priv->cd_gpio) ^ (host->pdata->use_gpio_invert)
+			&& (priv->sec_sd_slot_type == SEC_HYBRID_SD_SLOT)) {
+		dev_info(host->dev, "SD slot tray Removed.\n");
+		return sprintf(buf, "Notray\n");
+	}
+
+	if (host->slot && host->slot->mmc && host->slot->mmc->card) {
 		dev_info(host->dev, "SD card inserted.\n");
 		return sprintf(buf, "Insert\n");
-	} else {
-		if (priv->sec_sd_slot_type > 0 && !gpio_is_valid(priv->cd_gpio))
-			goto gpio_error;
-
-		if (gpio_get_value(priv->cd_gpio)
-				&& priv->sec_sd_slot_type == SEC_HYBRID_SD_SLOT) {
-			dev_info(host->dev, "SD slot tray Removed.\n");
-			return sprintf(buf, "Notray\n");
-		}
-
-		dev_info(host->dev, "SD card removed.\n");
-		return sprintf(buf, "Remove\n");
 	}
+	dev_info(host->dev, "SD card removed.\n");
+	return sprintf(buf, "Remove\n");
 
 gpio_error:
 	dev_info(host->dev, "%s : External SD detect pin Error\n", __func__);

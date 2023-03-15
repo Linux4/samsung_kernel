@@ -25,6 +25,8 @@ extern int exynos_pcie_host_v1_register_event(struct exynos_pcie_register_event 
 /* not used: extern int exynos_pcie_host_v1_deregister_event(struct exynos_pcie_register_event *reg); */
 extern void exynos_pcie_rc_register_dump(int ch_num);
 extern int exynos_pcie_rc_set_outbound_atu(int ch_num, u32 target_addr, u32 offset, u32 size);
+extern bool exynos_pcie_rc_get_cpl_timeout_state(int ch_num);
+extern void exynos_pcie_rc_set_cpl_timeout_state(int ch_num, bool recovery);
 
 struct s51xx_pcie {
 	unsigned int busdev_num;
@@ -40,6 +42,7 @@ struct s51xx_pcie {
 	bool suspend_try;
 
 	struct exynos_pcie_register_event pcie_event;
+	struct exynos_pcie_register_event pcie_cpl_timeout_event;
 	struct pci_saved_state *pci_saved_configs;
 };
 
@@ -47,7 +50,8 @@ struct s51xx_pcie {
 
 extern int exynos_pcie_host_v1_poweron(int ch_num);
 extern int exynos_pcie_host_v1_poweroff(int ch_num);
-extern int exynos_pcie_set_perst_gpio(int ch_num, bool on);
+extern void exynos_pcie_set_perst_gpio(int ch_num, bool on);
+extern void exynos_pcie_set_ready_cto_recovery(int ch_num);
 /* not used: extern int exynos_pcie_gpio_onoff(int ch_num, int val); */
 /* not used(comment out): extern void exynos_pcie_msi_init_ext(int ch_num); */
 extern int exynos_pcie_rc_set_affinity(int ch_num, int affinity);
@@ -72,5 +76,8 @@ int s5100_poweroff_pcie(struct modem_ctl *mc, bool force_off);
 int s5100_try_gpio_cp_wakeup(struct modem_ctl *mc);
 int s5100_send_panic_noti_ext(void);
 int s5100_set_outbound_atu(struct modem_ctl *mc, struct cp_btl *btl, loff_t *pos, u32 map_size);
+
+int exynos_pcie_rc_lanechange(int ch_num, int lane);
+int exynos_pcie_rc_speedchange(int ch_num, int spd);
 
 #endif /* __S51xx_PCIE_H__ */

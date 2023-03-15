@@ -335,8 +335,8 @@ int is_sensor_write8_array(struct i2c_client *client,
 		goto p_err;
 	}
 
-	if (num > 4) {
-		pr_err("currently limit max num is 4, need to fix it!\n");
+	if (num > 8) {
+		pr_err("currently limit max num is 8, need to fix it!\n");
 		ret = -ENODEV;
 		goto p_err;
 	}
@@ -411,7 +411,7 @@ int is_sensor_write16_array(struct i2c_client *client,
 	int ret = 0;
 	struct i2c_msg msg[1];
 	int i = 0;
-	u8 wbuf[10];
+	u8 wbuf[22];
 
 	if (val == NULL) {
 		pr_err("val array is null\n");
@@ -419,8 +419,8 @@ int is_sensor_write16_array(struct i2c_client *client,
 		goto p_err;
 	}
 
-	if (num > 4) {
-		pr_err("currently limit max num is 4, need to fix it!\n");
+	if (num > 10) {
+		pr_err("currently limit max num is 10, need to fix it!\n");
 		ret = -ENODEV;
 		goto p_err;
 	}

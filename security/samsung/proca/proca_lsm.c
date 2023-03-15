@@ -14,15 +14,6 @@
  * GNU General Public License for more details.
  */
 
-#include "proca_identity.h"
-#include "proca_certificate.h"
-#include "proca_task_descr.h"
-#include "proca_table.h"
-#include "proca_log.h"
-#include "proca_config.h"
-
-#include "five_hooks.h"
-
 #include <linux/module.h>
 #include <linux/file.h>
 #include <linux/task_integrity.h>
@@ -30,7 +21,37 @@
 #include <linux/fs.h>
 #include <linux/proca.h>
 
+#include "proca_identity.h"
+#include "proca_certificate.h"
+#include "proca_task_descr.h"
+#include "proca_table.h"
+#include "proca_log.h"
+#include "proca_config.h"
 #include "proca_porting.h"
+
+#define XATTR_FIVE_SUFFIX "five"
+#define XATTR_NAME_FIVE (XATTR_SECURITY_PREFIX XATTR_FIVE_SUFFIX)
+
+#define XATTR_PA_SUFFIX "pa"
+#define XATTR_NAME_PA (XATTR_USER_PREFIX XATTR_PA_SUFFIX)
+
+#include "five_hooks.h"
+
+#ifdef CONFIG_PROCA_GKI_10
+#define F_SIGNATURE(file) ((void *)((file)->android_vendor_data1))
+
+static inline void f_signature_assign(struct file *file, void *f_signature)
+{
+	file->android_vendor_data1 = (u64)f_signature;
+}
+#else
+#define F_SIGNATURE(file) ((file)->f_signature)
+
+static inline void f_signature_assign(struct file *file, void *f_signature)
+{
+	file->f_signature = f_signature;
+}
+#endif
 
 static void proca_task_free_hook(struct task_struct *task);
 
@@ -83,7 +104,8 @@ static int read_xattr(struct dentry *dentry, const char *name,
 	dentry = d_real_comp(dentry);
 
 	*xattr_value = NULL;
-	ret = __vfs_getxattr(dentry, dentry->d_inode, name, NULL, 0);
+	ret = __vfs_getxattr(dentry, dentry->d_inode, name,
+				NULL, 0, XATTR_NOSECURITY);
 	if (ret <= 0)
 		return 0;
 
@@ -92,7 +114,7 @@ static int read_xattr(struct dentry *dentry, const char *name,
 		return 0;
 
 	ret = __vfs_getxattr(dentry, dentry->d_inode, name,
-				buffer, ret + 1);
+				buffer, ret + 1, XATTR_NOSECURITY);
 
 	if (ret <= 0) {
 		ret = 0;
@@ -102,36 +124,6 @@ static int read_xattr(struct dentry *dentry, const char *name,
 	}
 
 	return ret;
-}
-
-static bool is_cert_relevant_to_task(
-				const struct proca_certificate *parsed_cert,
-				struct task_struct *task)
-{
-	const char system_server_app_name[] = "/system/framework/services.jar";
-	const char system_server[] = "system_server";
-	const size_t max_app_name = 1024;
-	char cmdline[max_app_name + 1];
-	int cmdline_size;
-
-	cmdline_size = get_cmdline(task, cmdline, max_app_name);
-	cmdline[cmdline_size] = 0;
-
-	// Special case for system_server
-	if (!strncmp(parsed_cert->app_name, system_server_app_name,
-			parsed_cert->app_name_size)) {
-		if (strncmp(cmdline, system_server, sizeof(system_server)))
-			return false;
-	} else if (parsed_cert->app_name[0] != '/') {
-		// Case for Android applications
-		PROCA_DEBUG_LOG("Task %d has cmdline : %s\n",
-			task->pid, cmdline);
-		if (strncmp(cmdline, parsed_cert->app_name,
-				parsed_cert->app_name_size))
-			return false;
-	}
-
-	return true;
 }
 
 static struct proca_task_descr *prepare_unsigned_proca_task_descr(
@@ -196,7 +188,7 @@ static struct proca_task_descr *prepare_proca_task_descr(
 				    &parsed_cert))
 		goto five_xattr_cleanup;
 
-	if (!is_cert_relevant_to_task(&parsed_cert, task))
+	if (!is_certificate_relevant_to_task(&parsed_cert, task))
 		goto proca_cert_cleanup;
 
 	PROCA_DEBUG_LOG("%s xattr was found for task %d\n", XATTR_NAME_PA,
@@ -305,15 +297,15 @@ static void proca_hook_file_processed(struct task_struct *task,
 
 	need_set_five |= task_integrity_value_allow_sign(tint_value);
 
-	if ((five_xattr_value || need_set_five) && !file->f_signature) {
+	if ((five_xattr_value || need_set_five) && !F_SIGNATURE(file)) {
 		if (!five_xattr_value && xattr)
 			five_xattr_value = kmemdup(
 						xattr, xattr_size, GFP_KERNEL);
 		else if (!five_xattr_value && !xattr)
 			read_xattr(file->f_path.dentry, XATTR_NAME_FIVE,
 					&five_xattr_value);
-		file->f_signature = five_xattr_value;
-	} else if (five_xattr_value && file->f_signature) {
+		f_signature_assign(file, five_xattr_value);
+	} else if (five_xattr_value && F_SIGNATURE(file)) {
 		kfree(five_xattr_value);
 	}
 }
@@ -332,10 +324,10 @@ static void proca_hook_file_signed(struct task_struct *task,
 	if (!file)
 		return;
 
-	kfree(file->f_signature);
+	kfree(F_SIGNATURE(file));
 
 	xattr_value = kmemdup(xattr, xattr_size, GFP_KERNEL);
-	file->f_signature = xattr_value;
+	f_signature_assign(file, xattr_value);
 }
 
 static void proca_hook_file_skipped(struct task_struct *task,
@@ -348,7 +340,7 @@ static void proca_hook_file_skipped(struct task_struct *task,
 	if (!task || !file)
 		return;
 
-	if (file->f_signature)
+	if (F_SIGNATURE(file))
 		return;
 
 	file = get_real_file(file);
@@ -362,9 +354,9 @@ static void proca_hook_file_skipped(struct task_struct *task,
 		// PROCA get FIVE signature for runtime provisioning
 		// from kernel, so
 		// we should set f_signature for each signed file
-		file->f_signature = xattr_value;
+		f_signature_assign(file, xattr_value);
 	} else if (__vfs_getxattr(dentry, dentry->d_inode, XATTR_NAME_PA,
-				NULL, 0) > 0) {
+				NULL, 0, XATTR_NOSECURITY) > 0) {
 		// Workaround for Android applications.
 		// If file has user.pa - check it.
 		five_file_verify(task, file);
@@ -412,8 +404,8 @@ static void proca_task_free_hook(struct task_struct *task)
 
 static void proca_file_free_security_hook(struct file *file)
 {
-	kfree(file->f_signature);
-	file->f_signature = NULL;
+	kfree(F_SIGNATURE(file));
+	f_signature_assign(file, NULL);
 }
 
 #ifndef LINUX_LSM_SUPPORTED

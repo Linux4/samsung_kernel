@@ -127,6 +127,10 @@ static void exynos_abox_panic_handler(void)
 
 	dev_dbg(dev, "%s\n", __func__);
 
+	if (data)
+		dev_info(dev, "%s audio_mode(%d) call_event(%d)\n", __func__,
+				data->audio_mode, data->call_event);
+
 	if (abox_is_on() && dev) {
 		if (has_run) {
 			dev_info(dev, "already dumped\n");
@@ -1305,6 +1309,9 @@ static int abox_component_control_put(struct snd_kcontrol *kcontrol,
 		int val = (int)ucontrol->value.integer.value[i];
 		char *name = kcontrol->id.name;
 
+		if (val < value->control->min || val > value->control->max)
+			return -EINVAL;
+
 		value->cache[i] = val;
 		dev_dbg(dev, "%s: %s[%d] <= %d", __func__, name, i, val);
 	}
@@ -2279,14 +2286,18 @@ static int abox_ext_bin_reload_put(struct snd_kcontrol *kcontrol,
 	struct abox_data *data = dev_get_drvdata(dev);
 	struct soc_mixer_control *mc =
 			(struct soc_mixer_control *)kcontrol->private_value;
+	unsigned int value = (unsigned int)ucontrol->value.integer.value[0];
 	struct abox_extra_firmware *efw = mc->dobj.private;
 
-	dev_dbg(dev, "%s(%s)\n", __func__, kcontrol->id.name);
+	dev_dbg(dev, "%s(%s, %u)\n", __func__, kcontrol->id.name, value);
+
+	if (value < mc->min || value > mc->max)
+		return -EINVAL;
 
 	if (!efw->changeable)
 		return -EINVAL;
 
-	if (ucontrol->value.integer.value[0]) {
+	if (value) {
 		abox_ext_bin_request(dev, efw);
 		abox_ext_bin_download(data, efw);
 		abox_ext_bin_reload_put_ipc(data, efw);
@@ -2321,11 +2332,17 @@ static int abox_ext_bin_reload_all_put(struct snd_kcontrol *kcontrol,
 	struct snd_soc_component *cmpnt = snd_soc_kcontrol_component(kcontrol);
 	struct device *dev = cmpnt->dev;
 	struct abox_data *data = dev_get_drvdata(dev);
+	struct soc_mixer_control *mc =
+			(struct soc_mixer_control *)kcontrol->private_value;
+	unsigned int value = (unsigned int)ucontrol->value.integer.value[0];
 	struct abox_extra_firmware *efw;
 
-	dev_dbg(dev, "%s(%s)\n", __func__, kcontrol->id.name);
+	dev_dbg(dev, "%s(%s, %u)\n", __func__, kcontrol->id.name, value);
 
-	if (ucontrol->value.integer.value[0]) {
+	if (value < mc->min || value > mc->max)
+		return -EINVAL;
+
+	if (value) {
 		list_for_each_entry(efw, &data->firmware_extra, list) {
 			if (efw->changeable) {
 				abox_ext_bin_request(dev, efw);
@@ -2607,6 +2624,11 @@ static void abox_update_suspend_wait_flag(struct abox_data *data, bool suspend)
 	WRITE_ONCE(data->hndshk_tag->suspend_wait_flag, flag);
 }
 
+static void abox_cleanup(struct abox_data *data)
+{
+	writel(0x0, data->sfr_base + ABOX_SIDETONE_CTRL);
+}
+
 static int abox_enable(struct device *dev)
 {
 	struct abox_data *data = dev_get_drvdata(dev);
@@ -2710,6 +2732,7 @@ static int abox_disable(struct device *dev)
 	abox_failsafe_report_reset(dev);
 	abox_dbg_dump_suspend(dev, data);
 	abox_power_notifier_call_chain(data, false);
+	abox_cleanup(data);
 	return 0;
 }
 
@@ -3238,6 +3261,8 @@ static int samsung_abox_probe(struct platform_device *pdev)
 	ret = abox_cmpnt_register(dev);
 	if (ret < 0)
 		dev_err(dev, "component register failed: %d\n", ret);
+
+	data->call_event = ABOX_CALL_EVENT_OFF;
 
 	dev_info(dev, "%s: probe complete\n", __func__);
 

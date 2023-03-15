@@ -133,6 +133,10 @@ struct bts_ops {
 	int             (*get_cutoff)(void __iomem *va, struct bts_stat *stat);
 	int             (*set_pf_rreq_thrt_con)(void __iomem *va, struct bts_stat *stat);
 	int             (*get_pf_rreq_thrt_con)(void __iomem *va, struct bts_stat *stat);
+	int             (*set_pf_token_con)(void __iomem *va, struct bts_stat *stat);
+	int             (*get_pf_token_con)(void __iomem *va, struct bts_stat *stat);
+	int             (*set_pf_token_th0)(void __iomem *va, struct bts_stat *stat);
+	int             (*get_pf_token_th0)(void __iomem *va, struct bts_stat *stat);
 	int             (*set_allow_mo_for_region)(void __iomem *va, struct bts_stat *stat);
 	int             (*get_allow_mo_for_region)(void __iomem *va, struct bts_stat *stat);
 	int             (*set_pf_qos_timer)(void __iomem *va, struct bts_stat *stat,
@@ -210,6 +214,8 @@ struct bts_stat {
 	bool			drex_pf_on;
 	unsigned int		pf_rreq_thrt_con;
 	unsigned int		allow_mo_for_region;
+	unsigned int		pf_token_con;
+	unsigned int		pf_token_th0;
 	unsigned int		pf_qos_timer[PF_TIMER_NR];
 	int			qos_num;
 };

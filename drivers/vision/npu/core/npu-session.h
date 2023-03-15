@@ -103,6 +103,11 @@ struct npu_session {
 	struct ion_info *imb_ion_info;
 
 	pid_t	pid;
+
+	u32 address_vector_offset;
+	u32 address_vector_cnt;
+	u32 memory_vector_offset;
+	u32 memory_vector_cnt;
 };
 
 typedef int (*session_cb)(struct npu_session *);

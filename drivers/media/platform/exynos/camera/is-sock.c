@@ -47,12 +47,11 @@ struct is_sock_server {
 
 	struct socket *sock;
 	struct task_struct *thread;
-	bool stop;
 	atomic_t num_of_cons;
 	struct list_head cons;
 	spinlock_t slock;
 
-	/* IS socket sever ops */
+	/* IS socket server ops */
 	int (*on_accept)(struct socket *newsock);
 	int (*on_connect)(struct is_sock_con *con);
 };
@@ -65,7 +64,7 @@ static int is_sock_create(struct socket **sockp, int type, unsigned int ip, int 
 	int opt;
 	int ret;
 
-	ret = sock_create(PF_INET, type, 0, &sock);
+	ret = sock_create_kern(&init_net, PF_INET, type, 0, &sock);
 	*sockp = sock;
 	if (ret) {
 		err("failed to create socket: %d", ret);
@@ -444,36 +443,25 @@ static int is_sock_server_thread(void *data)
 {
 	struct is_sock_server *svr = (struct is_sock_server *)data;
 	int ret;
-	long timeo;
+	long timeo = msecs_to_jiffies(200);
 
 	ret = is_sock_create_listen(&svr->sock, svr->type, svr->ip, svr->port);
 	if (ret)
 		return ret;
 
-	timeo = sock_rcvtimeo(svr->sock->sk, O_NONBLOCK);
-
-	/* set_freezable(); */
-
-	while (!svr->stop) {
-		/* try_to_freeze(); */
-
+	while (!kthread_should_stop()) {
 		ret = is_sock_server_accept(svr);
 		if (ret == -EAGAIN) {
 			set_current_state(TASK_INTERRUPTIBLE);
 			schedule_timeout(timeo);
 			set_current_state(TASK_RUNNING);
 		} else if (ret) {
-			err("sever accept error: %d", ret);
+			err("server accept error: %d", ret);
 		}
 	}
 
 	kernel_sock_shutdown(svr->sock, SHUT_RDWR);
 	sock_release(svr->sock);
-
-	while (!kthread_should_stop()) {
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule();
-	}
 
 	return 0;
 }
@@ -484,17 +472,18 @@ static int is_sock_server_start(struct is_sock_server *svr)
 
 	svr->thread = kthread_run(is_sock_server_thread,
 			(void *)svr, "sock-%s", svr->name);
-
 	if (IS_ERR(svr->thread)) {
 		err("failed to start socket server thread for %s", svr->name);
 		ret = PTR_ERR(svr->thread);
 		svr->thread = NULL;
+		goto err_run_server_thread;
 	}
 
 	atomic_set(&svr->num_of_cons, 0);
 	INIT_LIST_HEAD(&svr->cons);
 	spin_lock_init(&svr->slock);
 
+err_run_server_thread:
 	return ret;
 }
 
@@ -506,7 +495,6 @@ static int is_sock_server_stop(struct is_sock_server *svr)
 	if (!svr)
 		return -EINVAL;
 
-	svr->stop = true;
 	if (svr->thread)
 		ret = kthread_stop(svr->thread);
 	svr->thread = NULL;
@@ -527,6 +515,7 @@ static int is_sock_server_stop(struct is_sock_server *svr)
 #define TUNING_MAX	3
 
 struct is_sock_server *tuning_svr;
+struct mutex ts_mlock;
 
 struct is_tuning_con {
 	char read_buf[TUNING_BUF_SIZE];
@@ -535,7 +524,6 @@ struct is_tuning_con {
 };
 
 struct is_tuning_svr {
-	struct mutex mlock;
 	atomic_t num_of_filp;
 	struct file *filp[TUNING_MAX];
 };
@@ -639,7 +627,6 @@ int is_tuning_start(void)
 		return -ENOMEM;
 	}
 	tuning_svr->priv = (void *)(its);
-	mutex_init(&its->mlock);
 	atomic_set(&its->num_of_filp, 0);
 
 	ret = is_sock_server_start(tuning_svr);
@@ -747,30 +734,31 @@ static int is_tuning_open(struct inode *inode, struct file *filp)
 	unsigned int num_of_filp;
 	int ret;
 
+
+	mutex_lock(&ts_mlock);
+
 	if (!tuning_svr) {
 		ret = is_tuning_start();
 		if (ret) {
-			err("failed to start tuning sever: %d", ret);
+			err("failed to start tuning server: %d", ret);
+			mutex_unlock(&ts_mlock);
 			return ret;
 		}
 	}
 
 	its = (struct is_tuning_svr *)tuning_svr->priv;
-
-	mutex_lock(&its->mlock);
-
 	num_of_filp = atomic_read(&its->num_of_filp);
 	if (num_of_filp >= TUNING_MAX) {
-		mutex_unlock(&its->mlock);
+		mutex_unlock(&ts_mlock);
 		return -EINVAL;
 	}
 
 	its->filp[num_of_filp] = filp;
 	atomic_inc(&its->num_of_filp);
 
-	mutex_unlock(&its->mlock);
-
 	filp->private_data = NULL;
+
+	mutex_unlock(&ts_mlock);
 
 	return 0;
 }
@@ -780,11 +768,16 @@ static int is_tuning_close(struct inode *inodep, struct file *filp)
 	struct is_sock_con *con = (struct is_sock_con *)filp->private_data;
 	struct is_tuning_svr *its = (struct is_tuning_svr *)tuning_svr->priv;
 
+
+	mutex_lock(&ts_mlock);
+
 	if (con)
 		is_sock_con_close(con);
 
 	if (!atomic_dec_return(&its->num_of_filp))
 		is_tuning_stop(NULL);
+
+	mutex_unlock(&ts_mlock);
 
 	return 0;
 }
@@ -813,6 +806,8 @@ static int __init is_sock_init(void)
 	if (ret)
 		err("failed to register is_tuning_socket devices");
 
+	mutex_init(&ts_mlock);
+
 	return ret;
 }
 
@@ -826,6 +821,6 @@ static void __exit is_sock_exit(void)
 module_init(is_sock_init);
 module_exit(is_sock_exit);
 
-MODULE_AUTHOR("Jeongtae Park <jtp.park@samsung.net>");
+MODULE_AUTHOR("Jeongtae Park <jtp.park@samsung.com>");
 MODULE_DESCRIPTION("socket layer for image subsystem in Exynos");
 MODULE_LICENSE("GPL");

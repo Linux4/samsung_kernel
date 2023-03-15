@@ -188,6 +188,7 @@ static void s2mpu11_set_notifier(struct s2mpu11_dev *s2mpu11)
 int s2mpu11_notifier_init(struct s2mpu11_dev *s2mpu11)
 {
 	s2mpu11_global = s2mpu11;
+	mutex_init(&s2mpu11->irq_lock);
 
 	/* register notifier */
 	s2mpu11_set_notifier(s2mpu11);

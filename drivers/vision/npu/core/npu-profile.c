@@ -58,8 +58,21 @@ struct npu_profile_control *profile_ctl_ref;
 
 #define GET_SYSTEM(pt_profile_ctl)		container_of(pt_profile_ctl, struct npu_system, profile_ctl)
 
+/* Profiling function pointer to quickly skip profile function when disabled */
+static void __profile_point_enabled(
+	const u32 point_id, const u32 uid, const u32 frame_id,
+	const u32 p0, const u32 p1, const u32 p2);
+static void __profile_point_disabled(
+	const u32 point_id, const u32 uid, const u32 frame_id,
+	const u32 p0, const u32 p1, const u32 p2);
+
+static void (*current_profile_func)(
+                const u32 point_id, const u32 uid, const u32 frame_id,
+                const u32 p0, const u32 p1, const u32 p2) = __profile_point_disabled;
+
 
 struct read_pos {
+
 	struct npu_profile_control	*profile_ctl;
 	const char			*data;
 	size_t				size;
@@ -73,6 +86,11 @@ volatile struct {
 	int		sysfs_ok;
 	struct device	*dev;
 } s_profiler_ctl;
+
+static inline int is_s_profile_enabled(void)
+{
+	return (s_profiler_ctl.enabled == 1);
+}
 
 /* Set initial value of profile_data */
 static void init_profile_data(struct npu_profile *profile_data)
@@ -137,9 +155,8 @@ err_exit:
 }
 
 /* Deallocate profile data */
-static int dealloc_profile_data(struct npu_profile_control *profile_ctl)
+static void dealloc_profile_data(struct npu_profile_control *profile_ctl)
 {
-	int ret;
 	struct npu_system *system;
 
 	BUG_ON(!profile_ctl);
@@ -149,23 +166,26 @@ static int dealloc_profile_data(struct npu_profile_control *profile_ctl)
 
 	if (profile_ctl->buf.size == 0) {
 		npu_warn("profile data was not allocated. skipping deallocation.\n");
-		ret = 0;
-		goto err_exit;
+		return;
 	}
-	ret = npu_memory_free(&system->memory, &profile_ctl->buf);
-	if (ret) {
-		npu_err("npu_memory_free for profile buffer memory: ret(%d)\n", ret);
-		goto err_exit;
-	}
+	npu_memory_free(&system->memory, &profile_ctl->buf);
 	npu_info("profiling buffer deallocated.\n");
 
 	/* Clear pointer */
 	profile_ctl->profile_data = NULL;
 	profile_ctl->buf.size = 0;
-	ret = 0;
+}
 
-err_exit:
-	return ret;
+/* Change profile function pointer based on current status */
+static void update_current_profile_func(void)
+{
+	if (is_s_profile_enabled()
+	    || SKEEPER_COMPARE_STATE(&profile_ctl_ref->statekeeper, NPU_PROFILE_STATE_PWRON_WAITING)
+	    || SKEEPER_COMPARE_STATE(&profile_ctl_ref->statekeeper, NPU_PROFILE_STATE_GATHERING)) {
+		current_profile_func = __profile_point_enabled;
+	} else {
+		current_profile_func = __profile_point_disabled;
+	}
 }
 
 /* Call-back from Protodrv */
@@ -259,23 +279,17 @@ err_exit:
 	return ret;
 }
 
-static int npu_profile_clear(struct npu_profile_control *profile_ctl)
+static void npu_profile_clear(struct npu_profile_control *profile_ctl)
 {
-	int ret;
-
 	BUG_ON(!profile_ctl);
 
 	npu_dbg("start in npu_profile_clear\n");
 
-	ret = dealloc_profile_data(profile_ctl);
-	if (ret)
-		npu_err("error(%d) deallocate profile data\n", ret);
+	dealloc_profile_data(profile_ctl);
 
 	npu_statekeeper_transition(&profile_ctl->statekeeper, NPU_PROFILE_STATE_NOT_INITIALIZED);
 
 	npu_dbg("complete in npu_profile_clear.\n");
-
-	return 0;
 }
 
 static int npu_profile_stop(struct npu_profile_control *profile_ctl)
@@ -337,6 +351,7 @@ err_exit:
 	npu_profile_clear(profile_ctl);
 
 ok_exit:
+	update_current_profile_func();
 	npu_dbg("complete in npu_profile_stop\n");
 	return ret;
 }
@@ -353,12 +368,7 @@ static int npu_profile_start(struct npu_profile_control *profile_ctl)
 
 	if (SKEEPER_COMPARE_STATE(&profile_ctl->statekeeper, NPU_PROFILE_STATE_EXPORT_READY)) {
 		npu_info("profiling data is remaining. cleaning it first.");
-		ret = npu_profile_clear(profile_ctl);
-		ret = 0;
-		if (ret) {
-			npu_err("fail(%d) in npu_profile_clear\n", ret);
-			goto not_alloc_err_exit;
-		}
+		npu_profile_clear(profile_ctl);
 	}
 	if (!npu_if_session_protodrv_is_opened()) {
 		/* NPU is not working now. Delay initialization until it is opened */
@@ -396,9 +406,9 @@ static int npu_profile_start(struct npu_profile_control *profile_ctl)
 err_exit:
 	npu_dbg("error occurred, deaalocated profiling data\n");
 	dealloc_profile_data(profile_ctl);
-not_alloc_err_exit:
 	npu_statekeeper_transition(&profile_ctl->statekeeper, NPU_PROFILE_STATE_NOT_INITIALIZED);
 ok_exit:
+	update_current_profile_func();
 	npu_dbg("complete in npu_profile_start\n");
 	return ret;
 }
@@ -607,7 +617,7 @@ static int npu_profile_result_close(struct inode *inode, struct file *file)
 
 static ssize_t npu_profile_result_read(struct file *file, char __user *outbuf, size_t outlen, loff_t *loff)
 {
-	int ret;
+	int ret = 0;
 	size_t copy_len;
 	struct read_pos *rp = file->private_data;
 	struct npu_profile_control *profile_ctl;
@@ -670,7 +680,7 @@ static ssize_t s_profiler_show(struct device *dev, struct device_attribute *attr
 		"Simple profiler state : %s\n"
 		" - echo 0 > s_profiler : Disable simple profiler\n"
 		"   echo 1 > s_profiler : Enable simple profiler\n",
-		(s_profiler_ctl.enabled) ? "Enabled" : "Disabled");
+		(is_s_profile_enabled()) ? "Enabled" : "Disabled");
 	return ret;
 }
 
@@ -693,12 +703,8 @@ static ssize_t s_profiler_store(struct device *dev, struct device_attribute *att
 		break;
 	}
 
+	update_current_profile_func();
 	return len;
-}
-
-static inline int is_s_profile_enabled(void)
-{
-	return (s_profiler_ctl.enabled == 1);
 }
 
 /*
@@ -714,7 +720,7 @@ static DEVICE_ATTR_RW(s_profiler);
  */
 int npu_profile_probe(struct npu_system *system)
 {
-	int ret;
+	int ret = 0;
 	struct npu_profile_control	*profile_ctl;
 	struct npu_device		*npu_device;
 	struct device			*dev;
@@ -730,8 +736,9 @@ int npu_profile_probe(struct npu_system *system)
 	s_profiler_ctl.dev = dev;
 	ret = sysfs_create_file(&dev->kobj, &dev_attr_s_profiler.attr);
 	if (ret) {
-		npu_err("sysfs_create_file error : ret = %d\n", ret);
+		probe_err("sysfs_create_file error : ret = %d\n", ret);
 		s_profiler_ctl.sysfs_ok = 0;
+		goto err_exit;
 	} else {
 		s_profiler_ctl.sysfs_ok = 1;
 	}
@@ -753,11 +760,15 @@ int npu_profile_probe(struct npu_system *system)
 
 	/* Initialized debugfs interface */
 	ret = npu_debug_register_arg("profile-control", profile_ctl, &profile_ctl_fops);
-	if (ret)
+	if (ret) {
 		probe_err("fail(%d) in npu_debug_register_arg(profile-control)\n", ret);
+		goto err_exit;
+	}
 	ret = npu_debug_register_arg("profile-result", profile_ctl, &profile_result_fops);
-	if (ret)
+	if (ret) {
 		probe_err("fail(%d) in npu_debug_register_arg(profile-result)\n", ret);
+		goto err_exit;
+	}
 
 	init_waitqueue_head(&profile_ctl->wq);
 
@@ -766,7 +777,8 @@ int npu_profile_probe(struct npu_system *system)
 
 	probe_info("complete in npu_profile_probe\n");
 
-	return 0;
+err_exit:
+	return ret;
 }
 
 int npu_profile_open(struct npu_system *system)
@@ -825,6 +837,7 @@ err_exit:
 
 int npu_profile_release(void)
 {
+	int ret = 0;
 	struct npu_profile_control *profile_ctl = profile_ctl_ref;
 
 	BUG_ON(!profile_ctl);
@@ -840,7 +853,12 @@ int npu_profile_release(void)
 
 	if (SKEEPER_COMPARE_STATE(&profile_ctl->statekeeper, NPU_PROFILE_STATE_GATHERING)) {
 		npu_info("profiling is GATHERING state. stopping it first.");
-		npu_profile_stop(profile_ctl);
+		ret = npu_profile_stop(profile_ctl);
+		if (ret) {
+			mutex_unlock(&profile_ctl->lock);
+			npu_err("fail(%d) in npu_profile_relsease\n", ret);
+			goto err_exit;
+		}
 	}
 
 	if (SKEEPER_COMPARE_STATE(&profile_ctl->statekeeper, NPU_PROFILE_STATE_EXPORT_READY)) {
@@ -856,10 +874,37 @@ int npu_profile_release(void)
 	mutex_unlock(&profile_ctl->lock);
 
 	npu_dbg("Completed.\n");
+
+err_exit:
+	return ret;
+}
+
+/**************************************************************************
+ * Profile operations - Helper for profiling functions
+ */
+
+/* Default operations - Used when npu_profile_set_operation() is not called */
+static u32 default_timestamp(void)
+{
+	return readl(profile_ctl_ref->pwm);
+}
+static struct npu_profile_operation profile_ops = {
+	.timestamp = default_timestamp,
+};
+
+int npu_profile_set_operation(const struct npu_profile_operation *ops)
+{
+	BUG_ON(!ops);
+
+	profile_ops = *ops;
+
 	return 0;
 }
 
-static inline void __profile_point(
+/**************************************************************************
+ * Profiling functions
+ */
+static void __profile_point_enabled(
 	const u32 point_id, const u32 uid, const u32 frame_id,
 	const u32 p0, const u32 p1, const u32 p2)
 {
@@ -901,7 +946,7 @@ static inline void __profile_point(
 	npu_dbg("profiling data is written to (" NPU_KPTR_LOG "), index(%d)\n", pt, write_idx);
 
 	pt->id = point_id;
-	pt->timestamp = readl(profile_ctl_ref->pwm);
+	pt->timestamp = profile_ops.timestamp();
 	pt->session_id = uid;
 	pt->frame_id = frame_id;
 	pt->param[0] = p0;
@@ -909,9 +954,17 @@ static inline void __profile_point(
 	pt->param[2] = p2;
 }
 
+static void __profile_point_disabled(
+	const u32 point_id, const u32 uid, const u32 frame_id,
+	const u32 p0, const u32 p1, const u32 p2)
+{
+	return;
+}
+
+/* Call __profile_point_enabled(..) or __profile_point_disabled(..), depends on value of current_profile_func */
 void profile_point1(const u32 point_id, const u32 uid, const u32 frame_id, const u32 p0)
 {
-	__profile_point(point_id, uid, frame_id, p0, 0, 0);
+	current_profile_func(point_id, uid, frame_id, p0, 0, 0);
 }
 
 void profile_point3(
@@ -919,5 +972,5 @@ void profile_point3(
 	const u32 p0, const u32 p1, const u32 p2)
 
 {
-	__profile_point(point_id, uid, frame_id, p0, p1, p2);
+	current_profile_func(point_id, uid, frame_id, p0, p1, p2);
 }

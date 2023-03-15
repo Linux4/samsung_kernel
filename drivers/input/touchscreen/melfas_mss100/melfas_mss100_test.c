@@ -484,7 +484,7 @@ static int mms_proc_vector_data(struct mms_ts_info *info, u8 data_type_size,
 	for (i_line = 0; i_line < (key_exist + vector_num); i_line++) {
 		if ((i_line == 0) && (key_exist == 1)) {
 			elem_len = key_num;
-			input_raw_info(true, &info->client->dev, "[Key]\n");
+			input_raw_info(true, &info->client->dev, "%s", "[Key]\n");
 		} else {
 			elem_len = vector_elem_num[i_vector];
 
@@ -494,37 +494,37 @@ static int mms_proc_vector_data(struct mms_ts_info *info, u8 data_type_size,
 			}
 			switch (vector_id[i_vector]) {
 			case VECTOR_ID_SCREEN_RX:
-				input_raw_info(true, &info->client->dev, "[Screen Rx]\n");
+				input_raw_info(true, &info->client->dev, "%s", "[Screen Rx]\n");
 				break;
 			case VECTOR_ID_SCREEN_TX:
-				input_raw_info(true, &info->client->dev, "[Screen Tx]\n");
+				input_raw_info(true, &info->client->dev, "%s", "[Screen Tx]\n");
 				break;
 			case VECTOR_ID_KEY_RX:
-				input_raw_info(true, &info->client->dev, "[Key Rx]\n");
+				input_raw_info(true, &info->client->dev, "%s", "[Key Rx]\n");
 				break;
 			case VECTOR_ID_KEY_TX:
-				input_raw_info(true, &info->client->dev, "[Key Tx]\n");
+				input_raw_info(true, &info->client->dev, "%s", "[Key Tx]\n");
 				break;
 			case VECTOR_ID_PRESSURE:
-				input_raw_info(true, &info->client->dev, "[Pressure]\n");
+				input_raw_info(true, &info->client->dev, "%s", "[Pressure]\n");
 				break;
 			case VECTOR_ID_OPEN_RESULT:
-				input_raw_info(true, &info->client->dev, "[Open Result]\n");
+				input_raw_info(true, &info->client->dev, "%s", "[Open Result]\n");
 				break;
 			case VECTOR_ID_OPEN_RX:
-				input_raw_info(true, &info->client->dev, "[Open Rx]\n");
+				input_raw_info(true, &info->client->dev, "%s", "[Open Rx]\n");
 				break;
 			case VECTOR_ID_OPEN_TX:
-				input_raw_info(true, &info->client->dev, "[Open Tx\n");
+				input_raw_info(true, &info->client->dev, "%s", "[Open Tx\n");
 				break;
 			case VECTOR_ID_SHORT_RESULT:
-				input_raw_info(true, &info->client->dev, "[Short Result]\n");
+				input_raw_info(true, &info->client->dev, "%s", "[Short Result]\n");
 				break;
 			case VECTOR_ID_SHORT_RX:
-				input_raw_info(true, &info->client->dev, "[Short Rx]\n");
+				input_raw_info(true, &info->client->dev, "%s", "[Short Rx]\n");
 				break;
 			case VECTOR_ID_SHORT_TX:
-				input_raw_info(true, &info->client->dev, "[Short Tx]\n");
+				input_raw_info(true, &info->client->dev, "%s", "[Short Tx]\n");
 				break;
 			default:
 				input_raw_info(true, &info->client->dev, "[%d]\n", i_vector);
@@ -640,46 +640,46 @@ int mms_run_test(struct mms_ts_info *info, u8 test_type)
 	/* check test type */
 	switch (test_type) {
 	case MIP_TEST_TYPE_CM:
-		input_raw_info(true, &info->client->dev, "==== CM Test ===\n");
+		input_raw_info(true, &info->client->dev, "%s", "==== CM Test ===\n");
 		break;
 	case MIP_TEST_TYPE_CM_ABS:
-		input_raw_info(true, &info->client->dev, "==== CM ABS Test ===\n");
+		input_raw_info(true, &info->client->dev, "%s", "==== CM ABS Test ===\n");
 		break;
 	case MIP_TEST_TYPE_CM_JITTER:
-		input_raw_info(true, &info->client->dev, "==== CM JITTER Test ===\n");
+		input_raw_info(true, &info->client->dev, "%s", "==== CM JITTER Test ===\n");
 		break;
 	case MIP_TEST_TYPE_SHORT:
-		input_raw_info(true, &info->client->dev, "==== SHORT Test ===\n");
+		input_raw_info(true, &info->client->dev, "%s", "==== SHORT Test ===\n");
 		break;
 	case MIP_TEST_TYPE_GPIO_LOW:
-		input_raw_info(true, &info->client->dev, "==== GPIO LOW Test ===\n");
+		input_raw_info(true, &info->client->dev, "%s", "==== GPIO LOW Test ===\n");
 		break;
 	case MIP_TEST_TYPE_GPIO_HIGH:
-		input_raw_info(true, &info->client->dev, "==== GPIO HIGH Test ===\n");
+		input_raw_info(true, &info->client->dev, "%s", "==== GPIO HIGH Test ===\n");
 		break;
 	case MIP_TEST_TYPE_CM_DIFF_HOR:
-		input_raw_info(true, &info->client->dev, "==== CM DIFF HOR Test ===\n");
+		input_raw_info(true, &info->client->dev, "%s", "==== CM DIFF HOR Test ===\n");
 		break;
 	case MIP_TEST_TYPE_CM_DIFF_VER:
-		input_raw_info(true, &info->client->dev, "==== CM DIFF VER Test ===\n");
+		input_raw_info(true, &info->client->dev, "%s", "==== CM DIFF VER Test ===\n");
 		break;
 	case MIP_TEST_TYPE_CP:
-		input_raw_info(true, &info->client->dev, "==== CP Test ===\n");
+		input_raw_info(true, &info->client->dev, "%s", "==== CP Test ===\n");
 		break;
 	case MIP_TEST_TYPE_CP_SHORT:
-		input_raw_info(true, &info->client->dev, "==== CP SHORT Test ===\n");
+		input_raw_info(true, &info->client->dev, "%s", "==== CP SHORT Test ===\n");
 		break;		
 	case MIP_TEST_TYPE_CP_LPM:
-		input_raw_info(true, &info->client->dev, "==== CP LPM Test ===\n");
+		input_raw_info(true, &info->client->dev, "%s", "==== CP LPM Test ===\n");
 		break;
 	case MIP_TEST_TYPE_PANEL_CONN:
-		input_raw_info(true, &info->client->dev, "==== CONNECTION Test ===\n");
+		input_raw_info(true, &info->client->dev, "%s", "==== CONNECTION Test ===\n");
 		break;
 	case MIP_TEST_TYPE_OPEN_SHORT:
-		input_raw_info(true, &info->client->dev, "==== OPEN SHORT Test ===\n");
+		input_raw_info(true, &info->client->dev, "%s", "==== OPEN SHORT Test ===\n");
 		break;
 	case MIP_TEST_TYPE_VSYNC:
-		input_raw_info(true, &info->client->dev, "==== V-SYNC Test ===\n");
+		input_raw_info(true, &info->client->dev, "%s", "==== V-SYNC Test ===\n");
 		break;
 	default:
 		input_raw_info(true, &info->client->dev, "%s [ERROR] Unknown test type\n", __func__);
@@ -1014,22 +1014,22 @@ int mms_get_image(struct mms_ts_info *info, u8 image_type)
 	//check image type
 	switch (image_type) {
 	case MIP_IMG_TYPE_INTENSITY:
-		input_info(true, &info->client->dev, "=== Intensity Image ===\n");
+		input_info(true, &info->client->dev, "%s", "=== Intensity Image ===\n");
 		break;
 	case MIP_IMG_TYPE_RAWDATA:
-		input_info(true, &info->client->dev, "=== Rawdata Image ===\n");
+		input_info(true, &info->client->dev, "%s", "=== Rawdata Image ===\n");
 		break;
 	case MIP_IMG_TYPE_HSELF_RAWDATA:
-		input_info(true, &info->client->dev, "=== self Rawdata Image ===\n");
+		input_info(true, &info->client->dev, "%s", "=== self Rawdata Image ===\n");
 		break;
 	case MIP_IMG_TYPE_HSELF_INTENSITY:
-		input_info(true, &info->client->dev, "=== self intensity Image ===\n");
+		input_info(true, &info->client->dev, "%s", "=== self intensity Image ===\n");
 		break;
 	case MIP_IMG_TYPE_PROX_INTENSITY:
-		input_info(true, &info->client->dev, "=== PROX intensity Image ===\n");
+		input_info(true, &info->client->dev, "%s", "=== PROX intensity Image ===\n");
 		break;
 	case MIP_IMG_TYPE_5POINT_INTENSITY:
-		input_info(true, &info->client->dev, "=== sensitivity Image ===\n");
+		input_info(true, &info->client->dev, "%s", "=== sensitivity Image ===\n");
 		break;		
 	default:
 		input_err(true, &info->client->dev, "%s [ERROR] Unknown image type\n", __func__);

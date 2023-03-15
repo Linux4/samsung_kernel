@@ -70,6 +70,7 @@ struct exynos_pm_domain {
 	bool power_down_skipped;
 	unsigned int need_smc;
 	bool skip_idle_ip;
+	bool always_off;
 };
 
 struct exynos_pd_dbg_info {

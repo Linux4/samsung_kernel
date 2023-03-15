@@ -33,33 +33,12 @@ config BATTERY_SAMSUNG_MHS
 	 To see battery-related functions,
 	 refer to sec_charging_common.h
 
-config BATTERY_SAMSUNG_DATA_FILE
-	depends on BATTERY_SAMSUNG
-	string "samsung battery data file"
-	default "default_battery_data.h"
-	help
-	 Path to the battery data file.
-
-config SLOW_CHARGING_CURRENT_STANDARD
-	int "slow charging"
-	depends on BATTERY_SAMSUNG
-	default "1000"
-	help
-	 Value for standard of slow-charging.
-
 config CHARGING_VZWCONCEPT
 	tristate "VZW concept about the charging"
 	default n
 	depends on BATTERY_SAMSUNG
 	help
 	 Say Y to include support for the VZW concepts.
-
-config CALC_TIME_TO_FULL
-	tristate "calculate time to full"
-	default n
-	depends on BATTERY_SAMSUNG
-	help
-	 Say Y to use calc time to full function.
 
 config MULTI_CHARGING
 	bool "support for multi charger ICs"
@@ -162,12 +141,6 @@ config DISABLE_SAVE_CAPACITY_MAX
 		capacity_max is restored after boot up
 		You can find the code in healthd
 
-config SIOP_CHARGING_LIMIT_CURRENT
-	int "Siop charging limit current"
-	default 0
-	help
-	  set SIOP charging limit current.
-
 config EN_OOPS
 	bool "enable oops filter"
 	default n
@@ -179,6 +152,15 @@ config USE_POGO
 	default n
 	help
 	  Say Y to enable CONFIG_USE_POGO
+
+config DISCRETE_CHARGER
+	bool "enable discrete charger"
+	default n
+	help
+	  Say Y to enable CONFIG_USE_CHARGER
+	  This feature is used for models that have a
+	  dedicated charger IC or in-PMIC charger.
+	  It is needed to separate concepts in the battery driver.
 
 config MACH_KOR_EARJACK_WR
 	bool "enable earjack-noise workaround"
@@ -205,11 +187,41 @@ config BATTERY_AGE_FORECAST
 	help
 	  Say Y to use calc time to full function.
 
+config BATTERY_AGE_FORECAST_DETACHABLE
+	tristate "battery age forecast for detachable"
+	default n
+	select BATTERY_AGE_FORECAST
+	help
+	Say Y to use battery age forecast for detachable
+
+config BATTERY_AGE_FORECAST_B2B
+	tristate "battery age forecast for B2B"
+	default n
+	select BATTERY_AGE_FORECAST
+	help
+	Say Y to use battery age forecast for B2B
+
+config BATTERY_LOGGING
+	tristate "battery logging"
+	default n
+	depends on BATTERY_SAMSUNG
+	help
+	Say Y to use update battery logging
+
 config ENG_BATTERY_CONCEPT
        bool "enable temp block"
        default n
        help
 	 Say Y to enable CONFIG_ENG_BATTERY_CONCEPT
+
+config USB_FACTORY_MODE
+	bool "enable USB factory mode"
+	default n
+	help
+	  Say Y to enable CONFIG_USB_FACTORY_MODE
+	  This feature is used for models that support
+	  factory mode using USB cable instead of Anyway JIG.
+	  Code for this is added in charger and battery driver.
 
 config QH_ALGORITHM
 	bool "enable QH algorithm"
@@ -269,5 +281,72 @@ config PREVENT_USB_CONN_OVERHEAT
 
 endif
 
-endmenu
+config SUPPORT_HV_CTRL
+    bool "support for controlling voltage"
+    default n
+    help
+	  Say Y to include support for controlling voltage
 
+config SUPPORT_WAKEUP_REGISTER
+    bool "support for wakeup register api based on kernel version"
+    default n
+    help
+	  Say Y to enable CONFIG_SUPPORT_WAKEUP_REGISTER
+	  This feature is used for kernel wakeup api and
+	  old kernel version do not support wakeup register api.
+	  Please check pm_wakeup header in your kernel before enable this.
+
+config SEC_BATTERY_TEST
+	bool "KUnit test for sec_battery_test"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+
+config SEC_BATTERY_THERMAL_TEST
+	bool "KUnit test for sec_battery_thermal_test"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+
+config SEC_BATTERY_VOTE_TEST
+	bool "KUnit test for sec_battery_vote_test"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+
+config SEC_CISD_TEST
+	bool "KUnit test for sec_cisd_test"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+
+config SEC_ADC_TEST
+	bool "KUnit test for sec_adc_test"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+
+config SEC_BATTERY_SYSFS_TEST
+	bool "KUnit test for sec_battery_sysfs_test"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+
+config SEC_BATTERY_TTF_TEST
+	bool "KUnit test for sec_battery_ttf_test"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+
+config SEC_STEP_CHARGING_TEST
+	bool "KUnit test for sec_step_charging_test"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+
+config SEC_PD_TEST
+	bool "KUnit test for sec_pd_test"
+	depends on SEC_KUNIT
+	help
+	  TODO: Describe config fully.
+endmenu

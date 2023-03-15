@@ -109,6 +109,7 @@ struct scsc_bt_audio_abox {
 	offsetof(struct scsc_bt_audio_abox, abox_to_bt_streaming_if_data)) ^ \
 	0xBA12EF82)
 
+#ifndef CONFIG_SOC_EXYNOS7885
 struct scsc_bt_audio {
 	struct device			*dev;
 	struct scsc_bt_audio_abox	*abox_virtual;
@@ -129,5 +130,21 @@ int scsc_bt_audio_register(struct device *dev,
 		int (*dev_iommu_map)(struct device *, phys_addr_t, size_t),
 		void (*dev_iommu_unmap)(struct device *, size_t));
 int scsc_bt_audio_unregister(struct device *dev);
+#else
+struct scsc_bt_audio {
+	struct device			*dev;
+	struct scsc_bt_audio_abox	*abox_virtual;
+	struct scsc_bt_audio_abox	*abox_physical;
+};
+
+struct scsc_bt_audio_driver {
+	const char *name;
+	void (*probe)(struct scsc_bt_audio_driver *driver, struct scsc_bt_audio *bt_audio);
+	void (*remove)(struct scsc_bt_audio *bt_audio);
+};
+
+int scsc_bt_audio_register(struct scsc_bt_audio_driver *driver);
+int scsc_bt_audio_unregister(struct scsc_bt_audio_driver *driver);
+#endif
 
 #endif /* _BT_AUDIO_H */

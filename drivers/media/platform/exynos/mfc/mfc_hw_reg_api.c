@@ -118,6 +118,8 @@ int mfc_check_risc2host(struct mfc_dev *dev)
 	if (mfc_pm_get_pwr_ref_cnt(dev) && mfc_pm_get_clk_ref_cnt(dev)) {
 		if (MFC_READL(MFC_REG_RISC2HOST_INT))
 			return MFC_READL(MFC_REG_RISC2HOST_CMD);
+		else if (MFC_READL(MFC_REG_RISC2HOST_CMD))
+			return -1;
 		else
 			return 0;
 	}

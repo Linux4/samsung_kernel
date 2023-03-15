@@ -80,7 +80,7 @@ void s51xx_pcie_chk_ep_conf(struct pci_dev *pdev)
 	int i;
 	u32 val1, val2, val3, val4;
 
-	/* EP config. full dump:
+	/* full log
 	for (i = 0x0; i < 0x50; i += 0x10) {
 		pci_read_config_dword(pdev, i, &val1);
 		pci_read_config_dword(pdev, i + 0x4, &val2);
@@ -113,6 +113,8 @@ void s51xx_pcie_chk_ep_conf(struct pci_dev *pdev)
 inline int s51xx_pcie_send_doorbell_int(struct pci_dev *pdev, int int_num)
 {
 	struct s51xx_pcie *s51xx_pcie = pci_get_drvdata(pdev);
+	struct pci_driver *driver = pdev->driver;
+	struct modem_ctl *mc = container_of(driver, struct modem_ctl, pci_driver);
 	u32 reg, count = 0;
 	int cnt = 0;
 	u16 cmd;
@@ -120,6 +122,12 @@ inline int s51xx_pcie_send_doorbell_int(struct pci_dev *pdev, int int_num)
 	if (s51xx_pcie->link_status == 0) {
 		mif_err_limited("Can't send Interrupt(not enabled)!!!\n");
 		return -EAGAIN;
+	}
+
+	if (exynos_pcie_rc_get_cpl_timeout_state(s51xx_pcie->pcie_channel_num)) {
+		mif_err_limited("Can't send Interrupt(cto_retry_cnt: %d)!!!\n",
+				mc->pcie_cto_retry_cnt);
+		return 0;
 	}
 
 	if (s51xx_check_pcie_link_status(s51xx_pcie->pcie_channel_num) == 0) {
@@ -137,10 +145,11 @@ inline int s51xx_pcie_send_doorbell_int(struct pci_dev *pdev, int int_num)
 
 			/* set bme bit */
 			pci_set_master(pdev);
-			mif_info("after setting bme: cmd reg = 0x%04x\n", cmd);
+
+			pci_read_config_word(pdev, PCI_COMMAND, &cmd);
+			mif_info("cmd reg = 0x%04x\n", cmd);
 
 			/* set mse bit */
-			pci_read_config_word(pdev, PCI_COMMAND, &cmd);
 			cmd |= PCI_COMMAND_MEMORY;
 			pci_write_config_word(pdev, PCI_COMMAND, cmd);
 
@@ -370,6 +379,26 @@ static void s51xx_pcie_linkdown_cb(struct exynos_pcie_notify *noti)
 	}
 }
 
+static void s51xx_pcie_cpl_timeout_cb(struct exynos_pcie_notify *noti)
+{
+	struct pci_dev *pdev = (struct pci_dev *)noti->user;
+	struct pci_driver *driver = pdev->driver;
+	struct modem_ctl *mc = container_of(driver, struct modem_ctl, pci_driver);
+
+	pr_err("s51xx CPL_TIMEOUT notification callback function!!!\n");
+	pr_err("CPL: a=%d c=%d\n", mc->pcie_cto_retry_cnt_all++, mc->pcie_cto_retry_cnt);
+
+	if (mc->pcie_cto_retry_cnt++ < 10) {
+		pr_err("[%s][%d] retry pcie poweron !!!\n", __func__,
+				mc->pcie_cto_retry_cnt);
+		queue_work_on(2, mc->wakeup_wq, &mc->wakeup_work);
+	} else {
+		pr_err("[%s][%d] force crash !!!\n", __func__,
+				mc->pcie_cto_retry_cnt);
+		s5100_force_crash_exit_ext();
+	}
+}
+
 static int s51xx_pcie_probe(struct pci_dev *pdev,
 			const struct pci_device_id *ent)
 {
@@ -444,12 +473,19 @@ static int s51xx_pcie_probe(struct pci_dev *pdev,
 	if (s51xx_pcie->doorbell_addr == NULL)
 		pr_err("Can't ioremap doorbell address!!!\n");
 
-	pr_info("Register PCIE notification event...\n");
+	pr_info("Register PCIE notification LINKDOWN event...\n");
 	s51xx_pcie->pcie_event.events = EXYNOS_PCIE_EVENT_LINKDOWN;
 	s51xx_pcie->pcie_event.user = pdev;
 	s51xx_pcie->pcie_event.mode = EXYNOS_PCIE_TRIGGER_CALLBACK;
 	s51xx_pcie->pcie_event.callback = s51xx_pcie_linkdown_cb;
 	exynos_pcie_host_v1_register_event(&s51xx_pcie->pcie_event);
+
+	pr_info("Register PCIE notification CPL_TIMEOUT event...\n");
+	s51xx_pcie->pcie_cpl_timeout_event.events = EXYNOS_PCIE_EVENT_CPL_TIMEOUT;
+	s51xx_pcie->pcie_cpl_timeout_event.user = pdev;
+	s51xx_pcie->pcie_cpl_timeout_event.mode = EXYNOS_PCIE_TRIGGER_CALLBACK;
+	s51xx_pcie->pcie_cpl_timeout_event.callback = s51xx_pcie_cpl_timeout_cb;
+	exynos_pcie_host_v1_register_event(&s51xx_pcie->pcie_cpl_timeout_event);
 
 	pr_err("Enable PCI device...\n");
 	ret = pci_enable_device(pdev);

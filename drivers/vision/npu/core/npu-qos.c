@@ -15,6 +15,7 @@
 #include <linux/mutex.h>
 #include <linux/of.h>
 #include <linux/of_platform.h>
+#include <soc/samsung/exynos-devfreq.h>
 
 #include "npu-vs4l.h"
 #include "npu-device.h"
@@ -24,6 +25,78 @@
 
 static struct npu_qos_setting *qos_setting;
 static LIST_HEAD(qos_list);
+
+static struct npu_qos_freq_lock qos_lock;
+
+static ssize_t npu_show_attrs_qos_sysfs(struct device *dev,
+		struct device_attribute *attr, char *buf);
+static ssize_t npu_store_attrs_qos_sysfs(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count);
+static int npu_qos_sysfs_create(struct npu_system *system);
+
+static int npu_qos_max_notifier(struct notifier_block *nb,
+		unsigned long action, void *nb_data)
+{
+	/* activate/deactivate peripheral DVFS */
+	npu_scheduler_activate_peripheral_dvfs(action);
+
+	/* reset all peripheral DVFS minlock */
+	pm_qos_update_request(&qos_setting->npu_qos_req_mif, 0);
+	pm_qos_update_request(&qos_setting->npu_qos_req_int, 0);
+	pm_qos_update_request(&qos_setting->npu_qos_req_cpu_cl0, 0);
+	pm_qos_update_request(&qos_setting->npu_qos_req_cpu_cl1, 0);
+//	pm_qos_update_request(&qos_setting->npu_qos_req_cpu_cl2, 0);
+
+	qos_setting->req_mif_freq = 0;
+	qos_setting->req_int_freq = 0;
+	qos_setting->req_cl0_freq = 0;
+	qos_setting->req_cl1_freq = 0;
+	//qos_setting->req_cl2_freq = 0;
+
+	return NOTIFY_DONE;
+}
+
+static int npu_check_qos_dsp_min(void)
+{
+	unsigned long dsp_freq;
+
+	/* use L0 even with DSP for typical mode */
+	if (qos_setting->info->mode == NPU_PERF_MODE_NPU_BOOST ||
+			qos_setting->info->mode == NPU_PERF_MODE_NPU_DN) {
+		npu_info("use L0 even with DSP L0 : mode %d\n", qos_setting->info->mode);
+		return NOTIFY_DONE;
+	}
+
+	/* check DSP minlock level */
+	if (!qos_setting->dsp_type ||
+			!qos_setting->dsp_max_freq ||
+			!qos_setting->npu_max_freq) {
+		npu_info("not correlated to DSP : type %d max_freq (dsp %d, npu %d)\n",
+				qos_setting->dsp_type,
+				qos_setting->dsp_max_freq,
+				qos_setting->npu_max_freq);
+		return NOTIFY_DONE;
+	}
+
+	dsp_freq = exynos_devfreq_get_domain_freq(qos_setting->dsp_type);
+
+	if (dsp_freq >= qos_setting->dsp_max_freq) {
+		/* set NPU maxlock with DSP minlock */
+		pm_qos_update_request(&qos_setting->npu_qos_req_npu_max,
+				qos_setting->npu_max_freq);
+	} else {
+		/* release NPU maxlock with DSP minlock */
+		pm_qos_update_request(&qos_setting->npu_qos_req_npu_max,
+				PM_QOS_NPU_THROUGHPUT_MAX_DEFAULT_VALUE);
+	}
+	return NOTIFY_DONE;
+}
+
+static int npu_qos_dsp_min_notifier(struct notifier_block *nb,
+		unsigned long action, void *nb_data)
+{
+	return npu_check_qos_dsp_min();
+}
 
 int npu_qos_probe(struct npu_system *system)
 {
@@ -37,6 +110,16 @@ int npu_qos_probe(struct npu_system *system)
 	pm_qos_add_request(&qos_setting->npu_qos_req_mif, PM_QOS_BUS_THROUGHPUT, 0);
 	pm_qos_add_request(&qos_setting->npu_qos_req_int, PM_QOS_DEVICE_THROUGHPUT, 0);
 
+	/* qos add request(max_freq) */
+	pm_qos_add_request(&qos_setting->npu_qos_req_dnc_max, PM_QOS_DNC_THROUGHPUT_MAX,
+						PM_QOS_DNC_THROUGHPUT_MAX_DEFAULT_VALUE);
+	pm_qos_add_request(&qos_setting->npu_qos_req_npu_max, PM_QOS_NPU_THROUGHPUT_MAX,
+						PM_QOS_NPU_THROUGHPUT_MAX_DEFAULT_VALUE);
+	pm_qos_add_request(&qos_setting->npu_qos_req_mif_max, PM_QOS_BUS_THROUGHPUT_MAX,
+						PM_QOS_BUS_THROUGHPUT_MAX_DEFAULT_VALUE);
+	pm_qos_add_request(&qos_setting->npu_qos_req_int_max, PM_QOS_DEVICE_THROUGHPUT_MAX,
+						PM_QOS_DEVICE_THROUGHPUT_MAX_DEFAULT_VALUE);
+
 	pm_qos_add_request(&qos_setting->npu_qos_req_cpu_cl0, PM_QOS_CLUSTER0_FREQ_MIN, 0);
 	pm_qos_add_request(&qos_setting->npu_qos_req_cpu_cl1, PM_QOS_CLUSTER1_FREQ_MIN, 0);
 	//pm_qos_add_request(&qos_setting->npu_qos_req_cpu_cl2, NPU_PM_CPU_CL2, 0);
@@ -48,6 +131,19 @@ int npu_qos_probe(struct npu_system *system)
 	qos_setting->req_cl0_freq = 0;
 	qos_setting->req_cl1_freq = 0;
 //	qos_setting->req_cl2_freq = 0;
+	qos_lock.npu_freq_maxlock = PM_QOS_NPU_THROUGHPUT_MAX_DEFAULT_VALUE;
+	qos_lock.dnc_freq_maxlock = PM_QOS_DNC_THROUGHPUT_MAX_DEFAULT_VALUE;
+
+	qos_setting->npu_qos_max_nb.notifier_call = npu_qos_max_notifier;
+	pm_qos_add_notifier(PM_QOS_NPU_THROUGHPUT_MAX, &qos_setting->npu_qos_max_nb);
+
+	qos_setting->npu_qos_dsp_min_nb.notifier_call = npu_qos_dsp_min_notifier;
+	pm_qos_add_notifier(PM_QOS_DSP_THROUGHPUT, &qos_setting->npu_qos_dsp_min_nb);
+
+	if (npu_qos_sysfs_create(system)) {
+		npu_info("npu_qos_sysfs create failed\n");
+		return -1;
+	}
 
 	return 0;
 }
@@ -69,6 +165,8 @@ int npu_qos_start(struct npu_system *system)
 	qos_setting->req_mif_freq = 0;
 	qos_setting->req_cl0_freq = 0;
 	qos_setting->req_cl1_freq = 0;
+	// check for dsp even without any minlock request
+	npu_check_qos_dsp_min();
 
 	mutex_unlock(&qos_setting->npu_qos_lock);
 
@@ -87,7 +185,8 @@ int npu_qos_stop(struct npu_system *system)
 	list_for_each_safe(pos, q, &qos_list) {
 		qr = list_entry(pos, struct npu_session_qos_req, list);
 		list_del(pos);
-		kfree(qr);
+		if (qr)
+			kfree(qr);
 	}
 	list_del_init(&qos_list);
 
@@ -96,8 +195,18 @@ int npu_qos_stop(struct npu_system *system)
 	pm_qos_update_request(&qos_setting->npu_qos_req_mif, 0);
 	pm_qos_update_request(&qos_setting->npu_qos_req_int, 0);
 
+	pm_qos_update_request(&qos_setting->npu_qos_req_dnc_max,
+				PM_QOS_DNC_THROUGHPUT_MAX_DEFAULT_VALUE);
+	pm_qos_update_request(&qos_setting->npu_qos_req_npu_max,
+				PM_QOS_NPU_THROUGHPUT_MAX_DEFAULT_VALUE);
+	pm_qos_update_request(&qos_setting->npu_qos_req_mif_max,
+				PM_QOS_BUS_THROUGHPUT_MAX_DEFAULT_VALUE);
+	pm_qos_update_request(&qos_setting->npu_qos_req_int_max,
+				PM_QOS_DEVICE_THROUGHPUT_MAX_DEFAULT_VALUE);
+
 	pm_qos_update_request(&qos_setting->npu_qos_req_cpu_cl0, 0);
 	pm_qos_update_request(&qos_setting->npu_qos_req_cpu_cl1, 0);
+//	pm_qos_update_request(&qos_setting->npu_qos_req_cpu_cl2, 0);
 
 	qos_setting->req_npu_freq = 0;
 	qos_setting->req_dnc_freq = 0;
@@ -105,7 +214,10 @@ int npu_qos_stop(struct npu_system *system)
 	qos_setting->req_mif_freq = 0;
 	qos_setting->req_cl0_freq = 0;
 	qos_setting->req_cl1_freq = 0;
-	qos_setting->req_cl2_freq = 0;
+//	qos_setting->req_cl2_freq = 0;
+
+	qos_lock.npu_freq_maxlock = PM_QOS_NPU_THROUGHPUT_MAX_DEFAULT_VALUE;
+	qos_lock.dnc_freq_maxlock = PM_QOS_DNC_THROUGHPUT_MAX_DEFAULT_VALUE;
 
 	mutex_unlock(&qos_setting->npu_qos_lock);
 
@@ -224,6 +336,34 @@ npu_s_param_ret npu_qos_param_handler(struct npu_session *sess, struct vs4l_para
 
 		mutex_unlock(&qos_setting->npu_qos_lock);
 		return S_PARAM_HANDLED;
+	case NPU_S_PARAM_QOS_DNC_MAX:
+		qos_setting->req_dnc_freq = param->offset;
+		__req_param_qos(sess->uid, param->target, &qos_setting->npu_qos_req_dnc_max,
+					qos_setting->req_dnc_freq);
+
+		mutex_unlock(&qos_setting->npu_qos_lock);
+		return S_PARAM_HANDLED;
+	case NPU_S_PARAM_QOS_NPU_MAX:
+		qos_setting->req_npu_freq = param->offset;
+		__req_param_qos(sess->uid, param->target, &qos_setting->npu_qos_req_npu_max,
+				qos_setting->req_npu_freq);
+
+		mutex_unlock(&qos_setting->npu_qos_lock);
+		return S_PARAM_HANDLED;
+	case NPU_S_PARAM_QOS_MIF_MAX:
+		qos_setting->req_mif_freq = param->offset;
+		__req_param_qos(sess->uid, param->target, &qos_setting->npu_qos_req_mif_max,
+				qos_setting->req_mif_freq);
+
+		mutex_unlock(&qos_setting->npu_qos_lock);
+		return S_PARAM_HANDLED;
+	case NPU_S_PARAM_QOS_INT_MAX:
+		qos_setting->req_int_freq = param->offset;
+		__req_param_qos(sess->uid, param->target, &qos_setting->npu_qos_req_int_max,
+				qos_setting->req_int_freq);
+
+		mutex_unlock(&qos_setting->npu_qos_lock);
+		return S_PARAM_HANDLED;
 	case NPU_S_PARAM_QOS_CL0:
 		qos_setting->req_cl0_freq = param->offset;
 		__req_param_qos(sess->uid, param->target, &qos_setting->npu_qos_req_cpu_cl0,
@@ -252,4 +392,102 @@ npu_s_param_ret npu_qos_param_handler(struct npu_session *sess, struct vs4l_para
 		mutex_unlock(&qos_setting->npu_qos_lock);
 		return S_PARAM_NOMB;
 	}
+}
+
+static struct device_attribute npu_qos_sysfs_attr[] = {
+	__ATTR(npu_freq_maxlock, 0664,
+		npu_show_attrs_qos_sysfs,
+		npu_store_attrs_qos_sysfs),
+	__ATTR(dnc_freq_maxlock, 0664,
+		npu_show_attrs_qos_sysfs,
+		npu_store_attrs_qos_sysfs),
+};
+
+static struct attribute *npu_qos_sysfs_entries[] = {
+	&npu_qos_sysfs_attr[0].attr,
+	&npu_qos_sysfs_attr[1].attr,
+	NULL,
+};
+
+static struct attribute_group npu_qos_attr_group = {
+	.name = "qos_freq",
+	.attrs = npu_qos_sysfs_entries,
+};
+enum {
+	NPU_QOS_NPU_FREQ_MAXLOCK = 0,
+	NPU_QOS_DNC_FREQ_MAXLOCK,
+	NPU_QOS_MIF_FREQ_ATTR_NUM,
+};
+
+static ssize_t npu_show_attrs_qos_sysfs(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int i = 0;
+	const ptrdiff_t offset = attr - npu_qos_sysfs_attr;
+
+	switch (offset) {
+	case NPU_QOS_NPU_FREQ_MAXLOCK:
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%u\n",
+				qos_lock.npu_freq_maxlock);
+		break;
+	case NPU_QOS_DNC_FREQ_MAXLOCK:
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%u\n",
+				qos_lock.dnc_freq_maxlock);
+		break;
+
+	default:
+		break;
+	}
+
+	return i;
+}
+
+static ssize_t npu_store_attrs_qos_sysfs(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int ret = 0, value = 0;
+	const ptrdiff_t offset = attr - npu_qos_sysfs_attr;
+
+	ret = sscanf(buf, "%d", &value);
+	if (ret > 0) {
+		switch (offset) {
+		case NPU_QOS_NPU_FREQ_MAXLOCK:
+			qos_lock.npu_freq_maxlock = (u32)value;
+			pm_qos_update_request(&qos_setting->npu_qos_req_npu_max,
+									value);
+			ret = count;
+			break;
+		case NPU_QOS_DNC_FREQ_MAXLOCK:
+			qos_lock.dnc_freq_maxlock = (u32)value;
+			pm_qos_update_request(&qos_setting->npu_qos_req_dnc_max,
+									value);
+			ret = count;
+			break;
+		default:
+			break;
+		}
+	}
+
+	return ret;
+}
+
+static int npu_qos_sysfs_create(struct npu_system *system)
+{
+	int ret = 0;
+	struct npu_device *device;
+
+	BUG_ON(!system);
+
+	device = container_of(system, struct npu_device, system);
+
+	npu_info("npu qos-sysfs create\n");
+	npu_info("creating sysfs group %s\n", npu_qos_attr_group.name);
+
+	ret = sysfs_create_group(&device->dev->kobj, &npu_qos_attr_group);
+	if (ret) {
+		npu_err("failed to create sysfs for %s\n",
+						npu_qos_attr_group.name);
+	}
+
+	return ret;
 }

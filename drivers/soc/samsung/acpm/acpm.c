@@ -316,6 +316,24 @@ void exynos_acpm_ps_hold_down(void)
 	pr_err("PS HOLD down fail. (ret: %d)\n", ret);
 }
 
+void exynos_acpm_force_apm_wdt_reset(void)
+{
+	struct ipc_config config;
+	int ret = 0;
+	unsigned int cmd[4] = {0, };
+
+	acpm_ipc_set_waiting_mode(BUSY_WAIT);
+
+	config.cmd = cmd;
+	config.response = true;
+	config.indirection = false;
+	config.cmd[0] = (1 << ACPM_IPC_PROTOCOL_STOP_WDT);
+
+	ret = acpm_send_data(exynos_acpm->dev->of_node, ACPM_IPC_PROTOCOL_STOP_WDT, &config);
+
+	pr_err("ACPM force WDT reset. (ret: %d)\n", ret);
+}
+
 static int acpm_send_data(struct device_node *node, unsigned int check_id,
 		struct ipc_config *config)
 {

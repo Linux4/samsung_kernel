@@ -9,6 +9,7 @@
 #include <linux/sched.h>
 #include <linux/fs.h>
 #include <linux/mount.h>
+#include <linux/version.h>
 #include <asm/pgtable.h>
 #include <linux/kernel_stat.h>
 #include "../fs/mount.h"
@@ -17,6 +18,19 @@
 #include "proca_identity.h"
 #include "proca_task_descr.h"
 #include "proca_table.h"
+
+#ifdef CONFIG_PROCA_GKI_10
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+#define OFFSETOF_INTEGRITY offsetof(struct task_struct, android_oem_data1[2])
+#define OFFSETOF_F_SIGNATURE offsetof(struct file, android_oem_data1)
+#else
+#define OFFSETOF_INTEGRITY offsetof(struct task_struct, android_vendor_data1[2])
+#define OFFSETOF_F_SIGNATURE offsetof(struct file, android_vendor_data1)
+#endif
+#else
+#define OFFSETOF_INTEGRITY offsetof(struct task_struct, integrity)
+#define OFFSETOF_F_SIGNATURE offsetof(struct file, f_signature)
+#endif
 
 static struct GAForensicINFO {
 	unsigned short ver;
@@ -102,19 +116,25 @@ static struct GAForensicINFO {
 	.struct_mount_mnt_parent = offsetof(struct mount, mnt_parent),
 	.list_head_struct_next = offsetof(struct list_head, next),
 	.list_head_struct_prev = offsetof(struct list_head, prev),
-#if defined(CONFIG_KDP_NS) || defined(CONFIG_RKP_NS_PROT)
+#if defined(CONFIG_KDP_NS) || defined(CONFIG_RKP_NS_PROT) || defined(CONFIG_RUSTUH_KDP_NS)
 	.is_kdp_ns_on = true,
+#if defined(CONFIG_SOC_EXYNOS2100) || defined(CONFIG_ARCH_LAHAINA) || defined(CONFIG_SOC_S5E9925) || defined(CONFIG_ARCH_HOLI) \
+|| defined(CONFIG_SOC_S5E8825)
+	.struct_vfsmount_bp_mount = offsetof(struct kdp_vfsmount, bp_mount),
+#else
 	.struct_vfsmount_bp_mount = offsetof(struct vfsmount, bp_mount),
+#endif
 #else
 	.is_kdp_ns_on = false,
 #endif
+
 #ifdef CONFIG_FIVE
-	.task_struct_integrity = offsetof(struct task_struct, integrity),
+	.task_struct_integrity = OFFSETOF_INTEGRITY,
 #else
 	.task_struct_integrity = 0xECEF,
 #endif
 #if defined(CONFIG_FIVE_PA_FEATURE) || defined(CONFIG_PROCA)
-	.file_struct_f_signature = offsetof(struct file, f_signature),
+	.file_struct_f_signature = OFFSETOF_F_SIGNATURE,
 #endif
 #ifdef CONFIG_PROCA
 	.proca_task_descr_task =

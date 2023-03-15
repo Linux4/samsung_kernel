@@ -46,6 +46,7 @@ struct if_cb_manager *register_usb(struct usb_dev *usb)
 
 	return man_core;
 }
+EXPORT_SYMBOL(register_usb);
 
 struct if_cb_manager *register_muic(struct muic_dev *muic)
 {
@@ -56,6 +57,7 @@ struct if_cb_manager *register_muic(struct muic_dev *muic)
 
 	return man_core;
 }
+EXPORT_SYMBOL(register_muic);
 
 struct if_cb_manager *register_usbpd(struct usbpd_dev *usbpd)
 {
@@ -66,6 +68,21 @@ struct if_cb_manager *register_usbpd(struct usbpd_dev *usbpd)
 
 	return man_core;
 }
+EXPORT_SYMBOL(register_usbpd);
+
+void usb_set_vbus_current(struct if_cb_manager *man_core, int state)
+{
+	if (man_core == NULL || man_core->usb_d == NULL ||
+			man_core->usb_d->ops == NULL ||
+			man_core->usb_d->ops->usb_set_vbus_current == NULL) {
+		pr_err("%s : Member of if_cb_manager is NULL\n", __func__);
+		return;
+	}
+
+	man_core->usb_d->ops->usb_set_vbus_current(
+			man_core->usb_d->data, state);
+}
+EXPORT_SYMBOL(usb_set_vbus_current);
 
 int muic_check_usb_killer(struct if_cb_manager *man_core)
 {
@@ -79,6 +96,21 @@ int muic_check_usb_killer(struct if_cb_manager *man_core)
 	return man_core->muic_d->ops->muic_check_usb_killer(
 			man_core->muic_d->data);
 }
+EXPORT_SYMBOL(muic_check_usb_killer);
+
+void muic_set_bc12(struct if_cb_manager *man_core, int enable)
+{
+	if (man_core == NULL || man_core->muic_d == NULL ||
+			man_core->muic_d->ops == NULL ||
+			man_core->muic_d->ops->muic_set_bc12 == NULL) {
+		pr_err("%s : Member of if_cb_manager is NULL\n", __func__);
+		return;
+	}
+
+	man_core->muic_d->ops->muic_set_bc12(
+			man_core->muic_d->data, enable);
+}
+EXPORT_SYMBOL(muic_set_bc12);
 
 int usbpd_sbu_test_read(struct if_cb_manager *man_core)
 {
@@ -92,6 +124,7 @@ int usbpd_sbu_test_read(struct if_cb_manager *man_core)
 	return man_core->usbpd_d->ops->usbpd_sbu_test_read(
 			man_core->usbpd_d->data);
 }
+EXPORT_SYMBOL(usbpd_sbu_test_read);
 
 void usbpd_set_host_on(struct if_cb_manager *man_core, int mode)
 {
@@ -105,5 +138,38 @@ void usbpd_set_host_on(struct if_cb_manager *man_core, int mode)
 	man_core->usbpd_d->ops->usbpd_set_host_on(
 		man_core->usbpd_d->data, mode);
 }
+EXPORT_SYMBOL(usbpd_set_host_on);
 
+void usbpd_cc_control_command(struct if_cb_manager *man_core, int is_off)
+{
+	if (man_core == NULL || man_core->usbpd_d == NULL ||
+			man_core->usbpd_d->ops == NULL ||
+			man_core->usbpd_d->ops->usbpd_cc_control_command == NULL) {
+			pr_err("%s : Member of if_cb_manager is NULL\n", __func__);
+		return;
+	}
+
+	man_core->usbpd_d->ops->usbpd_cc_control_command(
+		man_core->usbpd_d->data, is_off);
+}
+EXPORT_SYMBOL(usbpd_cc_control_command);
+
+static int __init if_cb_manager_init(void)
+{
+	if (!man_core)
+		create_alloc_if_cb_manager();
+	return 0;
+}
+
+static void __exit if_cb_manager_exit(void)
+{
+	kfree(man_core);
+	man_core = NULL;
+}
+
+module_init(if_cb_manager_init);
+module_exit(if_cb_manager_exit);
+
+MODULE_AUTHOR("Samsung USB Team");
+MODULE_DESCRIPTION("Interface Callback Manager");
 MODULE_LICENSE("GPL");

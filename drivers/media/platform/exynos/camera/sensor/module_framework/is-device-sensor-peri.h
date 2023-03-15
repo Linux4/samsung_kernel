@@ -134,7 +134,12 @@ struct is_cis {
 	ae_setting			last_ae_setting;
 
 	/* settings for sensor stat */
-	void				*sensor_stats;
+	struct sensor_lsi_3hdr_stat_control_mode_change		lsi_sensor_stats;
+	struct sensor_imx_3hdr_stat_control_mode_change		imx_sensor_stats;
+	bool							sensor_stats;
+	/* setting for 3HDR LSC */
+	struct 				sensor_imx_3hdr_lsc_table_init imx_lsc_table_3hdr;
+	bool				lsc_table_status;
 
 	/* dual sync mode */
 	u32				dual_sync_mode;
@@ -256,6 +261,9 @@ struct is_flash_data {
 	u32				intensity;
 	u32				firing_time_us;
 	bool				flash_fired;
+#ifdef USE_HIGH_RES_FLASH_FIRE_BEFORE_STREAM_ON
+	bool				high_resolution_flash;
+#endif
 	struct work_struct		flash_fire_work;
 	struct timer_list		flash_expire_timer;
 	struct work_struct		flash_expire_work;

@@ -344,7 +344,7 @@
 		/*		setB lic offset0, setB lic offset1, set B trigger context> */
 		/* 4672: 4640x4352 */
 		/* 5824: 5804x4352 */
-		3AA = <4672 10496 1 4064 13344 2>;
+		3AA = <3776 7552 1 3776 7552 2>;
 	};
 
 	is_dvfs {

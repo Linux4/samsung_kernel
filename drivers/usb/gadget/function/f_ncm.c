@@ -730,7 +730,7 @@ static void ncm_setdgram_complete(struct usb_ep *ep, struct usb_request *req)
 	}
 
 	if (dgram_size + NTH_NDP_OUT_TOTAL_SIZE > ntb_min_size) {
-		printk(KERN_ERR"usb:%s * MTU(%d) SIZE is larger than NTB SIZE (%d + %d) from host * \n",
+		printk(KERN_ERR"usb:%s * MTU(%d) SIZE is larger than NTB SIZE (%d + %lu) from host * \n",
 			__func__, ntb_min_size, dgram_size, NTH_NDP_OUT_TOTAL_SIZE);
 		printk(KERN_ERR"*************************************************\n");
 		goto invalid;

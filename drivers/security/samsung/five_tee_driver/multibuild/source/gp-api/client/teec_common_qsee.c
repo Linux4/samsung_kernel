@@ -1,41 +1,23 @@
 /*
- * Copyright (c) 2015-2016 Samsung Electronics Co., Ltd All Rights Reserved
- * Author: Iaroslav Makarchuk (i.makarchuk@samsung.com)
- *
- * PROPRIETARY/CONFIDENTIAL
- *
- * This software is the confidential and proprietary information of
- * SAMSUNG ELECTRONICS ("Confidential Information").
- * You shall not disclose such Confidential Information and shall
- * use it only in accordance with the terms of the license agreement
- * you entered into with SAMSUNG ELECTRONICS.  SAMSUNG make no
- * representations or warranties about the suitability
- * of the software, either express or implied, including but not
- * limited to the implied warranties of merchantability, fitness for
- * a particular purpose, or non-infringement.
- * SAMSUNG shall not be liable for any damages suffered by licensee as
- * a result of using, modifying or distributing this software or its derivatives.
- *
- * ======================================================
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2.
- *
- *
- *  Copyright (c) 2015-2016 Samsung Electronics Co., Ltd.
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
+ *
+ * This code is originated from Samsung Electronics proprietary sources.
+ * Author: Iaroslav Makarchuk (i.makarchuk@samsung.com)
+ * Created: 12 Oct 2016
+ *
+ * Copyright (C) 2016 Samsung Electronics, Inc.
  */
 
 #include <linux/string.h>
 #include <linux/bug.h>
+#include <uapi/linux/qseecom.h>
 
 #include "teec_common.h"
 
@@ -44,7 +26,7 @@
 #include "teec_param_utils.h"
 #include "linux/errno.h"
 
-#define MAX_QSEE_UUID_LEN 17
+#define MAX_QSEE_UUID_LEN (MAX_APP_NAME_SIZE) // usually 64 bytes
 #define QSEE_SUCCESS      0
 
 /* 1. Actually we don't use the response buffer. But RBUF_LEN can't be zero.
@@ -57,6 +39,8 @@
  */
 #define SBUF_LEN (sizeof(ProtocolCmd) + MAX_SHAREDMEM_SIZE)
 #define RBUF_LEN (QSEECOM_ALIGN(SBUF_LEN) - SBUF_LEN + QSEECOM_ALIGN_SIZE)
+
+#define TA_LOAD_RETRY 5
 
 typedef struct QseeSessionStruct {
 	struct qseecom_handle *qsee_com_handle;
@@ -121,6 +105,7 @@ TEEC_Result QseeLoadTA(void *ta_session, const TEEC_UUID *uuid)
 	char ta_name[MAX_QSEE_UUID_LEN] = "five/";
 	char qsee_uuid[MAX_QSEE_UUID_LEN] = {0};
 	QseeSession *qsee_session = (QseeSession *)ta_session;
+	unsigned int retry_num = 0;
 
 	if (!ta_session || !uuid ||
 		TEEC_SUCCESS != TeecUuidToQseeUuid(uuid, qsee_uuid)) {
@@ -137,14 +122,41 @@ TEEC_Result QseeLoadTA(void *ta_session, const TEEC_UUID *uuid)
 
 	BUILD_BUG_ON((SBUF_LEN + RBUF_LEN) & QSEECOM_ALIGN_MASK);
 
-	qsee_res = qseecom_start_app(&qsee_session->qsee_com_handle,
-				 ta_name,
-				 SBUF_LEN + RBUF_LEN);
-	if (qsee_res != QSEE_SUCCESS) {
-		status = qsee_res == -EINVAL ? TEEC_ERROR_TARGET_DEAD :
-							    TEEC_ERROR_GENERIC;
-	}
+	do {
+		++retry_num;
+		qsee_res = qseecom_start_app(&qsee_session->qsee_com_handle,
+					ta_name,
+					SBUF_LEN + RBUF_LEN);
+		if (qsee_res == QSEE_SUCCESS) {
+			pr_info("FIVE: Load trusted app from five dir attempt: %u\n",
+				retry_num);
+			status = TEEC_SUCCESS;
+			break;
+		}
 
+		if (qsee_res == -EIO) {
+			qsee_res = qseecom_start_app(
+					&qsee_session->qsee_com_handle,
+					qsee_uuid,
+					SBUF_LEN + RBUF_LEN);
+			if (qsee_res != QSEE_SUCCESS) {
+				pr_err("FIVE: Can't load trusted app after -EIO attempt: %u result: %d\n",
+					retry_num, qsee_res);
+				status = qsee_res == -EINVAL ?
+				   TEEC_ERROR_TARGET_DEAD : TEEC_ERROR_GENERIC;
+			} else {
+				pr_info("FIVE: Load trusted app attempt: %u\n",
+					retry_num);
+				status = TEEC_SUCCESS;
+				break;
+			}
+		} else {
+			pr_err("FIVE: Can't load trusted app attempt: %u result: %d\n",
+				retry_num, qsee_res);
+			status = qsee_res == -EINVAL ?
+				TEEC_ERROR_TARGET_DEAD : TEEC_ERROR_GENERIC;
+		}
+	} while (retry_num < TA_LOAD_RETRY);
 exit:
 	return status;
 }

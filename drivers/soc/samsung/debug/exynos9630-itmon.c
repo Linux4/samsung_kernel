@@ -911,7 +911,7 @@ static void itmon_report_traceinfo(struct itmon_dev *itmon,
 	if (!traceinfo->dirty)
 		return;
 
-	dev_auto(ASL3, itmon->dev,
+	pr_auto(ASL3,
 		"\n--------------------------------------------------------------------------\n"
 		"      Transaction Information\n\n"
 		"      > Master         : %s %s\n"
@@ -941,7 +941,7 @@ static void itmon_report_traceinfo(struct itmon_dev *itmon,
 	if (node) {
 		struct itmon_tracedata *tracedata = &node->tracedata;
 
-		dev_auto(ASL3, itmon->dev,
+		pr_auto(ASL3,
 			"\n      > Size           : %u bytes x %u burst => %u bytes\n"
 			"      > Burst Type     : %u (0:FIXED, 1:INCR, 2:WRAP)\n"
 			"      > Level          : %s\n"
@@ -953,7 +953,7 @@ static void itmon_report_traceinfo(struct itmon_dev *itmon,
 			(BIT_AXPROT(tracedata->ext_info_2) & 0x2) ? "Non-secure access" : "Secure access");
 
 		group = node->group;
-		dev_auto(ASL3, itmon->dev,
+		pr_auto(ASL3,
 			"\n      > Path Type      : %s\n"
 			"--------------------------------------------------------------------------\n",
 			itmon_pathtype[traceinfo->path_type == -1 ? group->bus_type : traceinfo->path_type]);
@@ -962,6 +962,14 @@ static void itmon_report_traceinfo(struct itmon_dev *itmon,
 		dev_err(itmon->dev,
 			"\n--------------------------------------------------------------------------\n");
 	}
+
+	/* Summary */
+	pr_err("\nITMON: %s %s / %s / 0x%lx / %s / %s\n",
+		traceinfo->port, traceinfo->master ? traceinfo->master : "",
+		traceinfo->dest ? traceinfo->dest : NOT_AVAILABLE_STR,
+		traceinfo->target_addr,
+		trans_type == TRANS_TYPE_READ ? "R" : "W",
+		itmon_errcode[traceinfo->errcode]);
 }
 
 static void itmon_report_pathinfo(struct itmon_dev *itmon,
@@ -973,7 +981,7 @@ static void itmon_report_pathinfo(struct itmon_dev *itmon,
 	struct itmon_traceinfo *traceinfo = &pdata->traceinfo[trans_type];
 
 	if (!traceinfo->path_dirty) {
-		dev_auto(ASL3, itmon->dev,
+		pr_auto(ASL3,
 			"\n--------------------------------------------------------------------------\n"
 			"      ITMON Report (%s)\n"
 			"--------------------------------------------------------------------------\n"
@@ -983,22 +991,22 @@ static void itmon_report_pathinfo(struct itmon_dev *itmon,
 	}
 	switch (node->type) {
 	case M_NODE:
-		dev_auto(ASL3, itmon->dev,
+		pr_auto(ASL3,
 			"\n      > %14s, %8s(0x%08X)\n",
 			node->name, "M_NODE", node->phy_regs + tracedata->offset);
 		break;
 	case T_S_NODE:
-		dev_auto(ASL3, itmon->dev,
+		pr_auto(ASL3,
 			"\n      > %14s, %8s(0x%08X)\n",
 			node->name, "T_S_NODE", node->phy_regs + tracedata->offset);
 		break;
 	case T_M_NODE:
-		dev_auto(ASL3, itmon->dev,
+		pr_auto(ASL3,
 			"\n      > %14s, %8s(0x%08X)\n",
 			node->name, "T_M_NODE", node->phy_regs + tracedata->offset);
 		break;
 	case S_NODE:
-		dev_auto(ASL3, itmon->dev,
+		pr_auto(ASL3,
 			"\n      > %14s, %8s(0x%08X)\n",
 			node->name, "S_NODE", node->phy_regs + tracedata->offset);
 		break;
@@ -1127,6 +1135,9 @@ static void itmon_report_prot_chk_rawdata(struct itmon_dev *itmon,
 				     struct itmon_nodeinfo *node)
 {
 	unsigned int dbg_mo_cnt, prot_chk_ctl, prot_chk_info, prot_chk_int_id;
+#ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
+	char temp_buf[SZ_128];
+#endif
 
 	dbg_mo_cnt = __raw_readl(node->regs +  OFFSET_PROT_CHK);
 	prot_chk_ctl = __raw_readl(node->regs +  OFFSET_PROT_CHK + REG_PROT_CHK_CTL);
@@ -1146,6 +1157,26 @@ static void itmon_report_prot_chk_rawdata(struct itmon_dev *itmon,
 		prot_chk_ctl,
 		prot_chk_info,
 		prot_chk_int_id);
+
+	/* Summary */
+	pr_err("\nITMON: Protocol Error / %s / 0x%08X / %s / 0x%08X / 0x%08X / 0x%08X / 0x%08X\n",
+		node->name,
+		node->phy_regs,
+		itmon_nodestring[node->type],
+		dbg_mo_cnt,
+		prot_chk_ctl,
+		prot_chk_info,
+		prot_chk_int_id);
+#ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
+	snprintf(temp_buf, SZ_128, "%s/ %s/ 0x%08X/ %s/ 0x%08X, 0x%08X, 0x%08X, 0x%08X",
+		"Protocol Error", node->name, node->phy_regs,
+		itmon_nodestring[node->type],
+		dbg_mo_cnt,
+		prot_chk_ctl,
+		prot_chk_info,
+		prot_chk_int_id);
+	secdbg_exin_set_busmon(temp_buf);
+#endif
 }
 
 static void itmon_report_rawdata(struct itmon_dev *itmon,
@@ -1195,7 +1226,7 @@ static void itmon_route_tracedata(struct itmon_dev *itmon)
 
 	if (pdata->traceinfo[TRANS_TYPE_READ].dirty ||
 		pdata->traceinfo[TRANS_TYPE_WRITE].dirty)
-		dev_auto(ASL3, itmon->dev,
+		pr_auto(ASL3,
 			"\n      Raw Register Information(ITMON Internal Information)\n\n");
 
 	for (trans_type = 0; trans_type < TRANS_TYPE_NUM; trans_type++) {
@@ -1261,7 +1292,7 @@ static void itmon_trace_data(struct itmon_dev *itmon,
 		/* Only NOT S-Node is able to make log to registers */
 		break;
 	default:
-		dev_auto(ASL3, itmon->dev,
+		pr_auto(ASL3,
 			"Unknown Error - node:%s offset:%u\n", node->name, offset);
 		break;
 	}
@@ -1289,7 +1320,7 @@ static void itmon_trace_data(struct itmon_dev *itmon,
 
 		list_add(&new_node->list, &pdata->tracelist[read]);
 	} else {
-		dev_auto(ASL3, itmon->dev,
+		pr_auto(ASL3,
 			"failed to kmalloc for %s node %x offset\n",
 			node->name, offset);
 	}

@@ -108,7 +108,7 @@ static ssize_t fod_position_show(struct device *dev,
 
 	if (!info->dtdata->support_fod) {
 		input_err(true, &info->client->dev, "%s: fod is not supported\n", __func__);
-		return snprintf(buf, SEC_CMD_BUF_SIZE, "NG");
+		return snprintf(buf, SEC_CMD_BUF_SIZE, "NA");
 	}
 
 	if (!info->fod_vi_size) {
@@ -138,7 +138,7 @@ static ssize_t fod_info_show(struct device *dev,
 
 	if (!info->dtdata->support_fod) {
 		input_err(true, &info->client->dev, "%s: fod is not supported\n", __func__);
-		return snprintf(buf, SEC_CMD_BUF_SIZE, "NG");
+		return snprintf(buf, SEC_CMD_BUF_SIZE, "NA");
 	}
 
 	input_info(true, &info->client->dev, "%s: tx:%d, rx:%d, size:%d\n",

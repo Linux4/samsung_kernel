@@ -18,7 +18,10 @@
 
 #include "ssp.h"
 
-struct ssp_data* get_ssp_data(void);
+struct ssp_data *get_ssp_data(void);
+
+int sync_sensor_data(struct ssp_data *data);
+int open_sensor_calibration_data(struct ssp_data *data);
 
 int queue_refresh_task(struct ssp_data *data, int delay);
 int queue_power_on_task(struct ssp_data *data, int delay);

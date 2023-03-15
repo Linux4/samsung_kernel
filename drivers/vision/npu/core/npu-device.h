@@ -74,6 +74,7 @@ struct npu_device {
 #endif
 	struct npu_scheduler_info *sched;
 	int magic;
+	struct mutex start_stop_lock;
 };
 
 int npu_device_open(struct npu_device *device);

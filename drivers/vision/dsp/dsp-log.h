@@ -32,13 +32,22 @@
 #if defined(ENABLE_DYNAMIC_DEBUG_LOG)
 #define dsp_dbg(fmt, args...)						\
 do {									\
-	if (dsp_debug_log_enable)					\
+	if (dsp_debug_log_enable & 0x1)					\
+		dsp_info("[DBG]" fmt, ##args);				\
+	else								\
+		dev_dbg(dsp_global_dev, "(%4d)" fmt, __LINE__, ##args);	\
+} while (0)
+#define dsp_dl_dbg(fmt, args...)					\
+do {									\
+	if (dsp_debug_log_enable & 0x2)					\
 		dsp_info("[DBG]" fmt, ##args);				\
 	else								\
 		dev_dbg(dsp_global_dev, "(%4d)" fmt, __LINE__, ##args);	\
 } while (0)
 #else
 #define dsp_dbg(fmt, args...)					\
+	dev_dbg(dsp_global_dev, "(%4d)" fmt, __LINE__, ##args)
+#define dsp_dl_dbg(fmt, args...)				\
 	dev_dbg(dsp_global_dev, "(%4d)" fmt, __LINE__, ##args)
 #endif
 

@@ -180,8 +180,7 @@ int fmp_cipher_run(struct exynos_fmp *fmp, struct fmp_test_data *fdata,
 	int op_flags;
 
 	if (!fmp || !fdata || !ci) {
-		pr_err("%s: Invalid fmp struct: %p, %p, %p\n",
-			__func__, fmp, fdata, ci);
+		pr_err("%s: Invalid fmp struct(fmp , fdata, ci)\n", __func__);
 		return -EINVAL;
 	}
 	dev = fmp->dev;

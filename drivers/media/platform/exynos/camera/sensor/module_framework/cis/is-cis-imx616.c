@@ -467,7 +467,7 @@ int sensor_imx616_cis_init(struct v4l2_subdev *subdev)
 	FIMC_BUG(!cis->cis_data);
 	memset(cis->cis_data, 0, sizeof(cis_shared_data));
 
-	info("[%s] init %s\n", __func__, cis->use_3hdr ? "(3hdr)" : "");
+	info("[%s] init %s\n", __func__, cis->use_3hdr ? "(Use 3HDR)" : "");
 	cis->rev_flag = false;
 
 /***********************************************************************
@@ -703,7 +703,7 @@ int sensor_imx616_cis_get_seamless_trasition_mode(u32 mode)
 	int pair_mode = -1;
 
 	switch (mode) {
-	case IMX616_MODE_QHDR_SEAMLESS_3264x1836_30FPS:
+	case IMX616_MODE_QBCHDR_SEAMLESS_3264x1836_30FPS:
 		pair_mode = IMX616_MODE_TRANSITION_2X2BIN_to_QBCHDR;
 		break;
 	case IMX616_MODE_2X2BIN_SEAMLESS_3264x1836_30FPS:
@@ -878,6 +878,15 @@ int sensor_imx616_cis_mode_change_seamless(struct v4l2_subdev *subdev, u32 mode)
 		goto p_err_i2c;
 	}
 #endif
+
+	/*
+	 * Enabling fast transition leads to change fps unintentionally due to a GPH bug
+	 * So, disable fast transition right after mode transition
+	 */
+	if (IS_3HDR_SEAMLESS(cis, mode)) {
+		ret = is_sensor_write8(client, 0x3020, 0x00);
+		CHECK_ERR_GOTO(ret < 0, p_err_i2c, "transition cmd fail!!");
+	}
 
 	dbg_sensor(1, "[%s] mode changed(%d)\n", __func__, mode);
 
@@ -1523,7 +1532,7 @@ int sensor_imx616_cis_get_max_exposure_time(struct v4l2_subdev *subdev, u32 *max
 	max_coarse = frame_length_lines - max_coarse_margin;
 	max_fine = cis_data->max_fine_integration_time;
 
-	max_integration_time = (u32)(((line_length_pck * max_coarse) + max_fine) *1000 / pix_rate_freq_khz);
+	max_integration_time = (u32)(((line_length_pck * max_coarse) + max_fine) * 1000 / pix_rate_freq_khz);
 
 	*max_expo = max_integration_time;
 
@@ -2190,7 +2199,7 @@ void sensor_imx616_cis_data_calc(struct v4l2_subdev *subdev, u32 mode)
 	sensor_imx616_cis_data_calculation(sensor_imx616_pllinfos[mode], cis->cis_data);
 }
 
-#ifdef TEMP_3HDR
+#ifdef SUPPORT_SENSOR_SEAMLESS_3HDR
 /**
  * sensor_imx616_cis_set_3hdr_flk_roi
  * : set flicker roi
@@ -2398,6 +2407,7 @@ p_err:
 
 	return ret;
 }
+#endif /* SUPPORT_SENSOR_SEAMLESS_3HDR */
 
 void sensor_imx616_cis_check_wdr_mode(struct v4l2_subdev *subdev, u32 mode_idx)
 {
@@ -2719,7 +2729,6 @@ p_i2c_err:
 
 	return ret;
 }
-#endif /* TEMP_3HDR */
 
 static struct is_cis_ops cis_ops_imx616 = {
 	.cis_init = sensor_imx616_cis_init,
@@ -2754,14 +2763,14 @@ static struct is_cis_ops cis_ops_imx616 = {
 	.cis_compensate_gain_for_extremely_br = sensor_cis_compensate_gain_for_extremely_br,
 	.cis_set_wb_gains = sensor_imx616_cis_set_wb_gain,
 	.cis_data_calculation = sensor_imx616_cis_data_calc,
-#ifdef TEMP_3HDR
+#ifdef SUPPORT_SENSOR_SEAMLESS_3HDR
 	.cis_set_roi_stat = sensor_imx616_cis_set_roi_stat,
 	.cis_set_3hdr_stat = sensor_imx616_cis_set_3hdr_stat,
+#endif
 	.cis_check_wdr_mode = sensor_imx616_cis_check_wdr_mode,
 	.cis_init_3hdr_lsc_table = sensor_imx616_cis_init_3hdr_lsc_table,
 	.cis_set_tone_stat = sensor_imx616_cis_set_3hdr_tone,
 	.cis_set_ev_stat = sensor_imx616_cis_set_3hdr_ev,
-#endif
 };
 
 int cis_imx616_probe(struct i2c_client *client,
@@ -2877,6 +2886,7 @@ int cis_imx616_probe(struct i2c_client *client,
 		cis->use_pdaf = use_pdaf;
 
 		cis->use_3hdr = of_property_read_bool(dnode, "use_3hdr");
+		probe_info("%s use_3hdr(%d)\n", __func__, cis->use_3hdr);
 
 		cis->use_initial_ae = of_property_read_bool(dnode, "use_initial_ae");
 		probe_info("%s use initial_ae(%d)\n", __func__, cis->use_initial_ae);

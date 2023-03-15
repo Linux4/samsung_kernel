@@ -257,7 +257,7 @@ static int isolate_movable_pages(unsigned long start_pfn, unsigned int nr_pages,
 				isolate_lru_page(page);
 			if (page_mapped(page))
 				try_to_unmap(page,
-					TTU_IGNORE_MLOCK | TTU_IGNORE_ACCESS);
+					TTU_IGNORE_MLOCK | TTU_IGNORE_ACCESS, NULL);
 			continue;
 		}
 		/*
@@ -606,7 +606,7 @@ err:
 	if (ret < 0)
 		return ret;
 
-	pr_info("stolen %d pages in %llu msec.(drn,islt,stel %llu %llu %llu)\n",
+	pr_info("stolen %lu pages in %llu msec.(drn,islt,stel %llu %llu %llu)\n",
 		nr_pages, ktime_ms_delta(end, begin),
 		ktime_ms_delta(steal, isolate),
 		ktime_ms_delta(isolate, begin),
@@ -664,7 +664,7 @@ static int page_steal_debugfs_steal_write(void *data, u64 val)
 	return 0;
 }
 DEFINE_SIMPLE_ATTRIBUTE(page_steal_debugfs_steal_fops, NULL,
-			page_steal_debugfs_steal_write, "%u\n");
+			page_steal_debugfs_steal_write, "%llu\n");
 
 static int page_steal_debugfs_base_pfn_get(void *data, u64 *val)
 {

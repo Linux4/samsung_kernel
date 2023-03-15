@@ -75,7 +75,7 @@ void secdbg_hint_display_complete_hint()
 				continue;
 			offset += snprintf(buf + offset, LOG_LINE_MAX, "HINT%d ", i+1);
 			if (hint->type == COMPLETE_IN_TASK)
-				offset += snprintf(buf + offset, LOG_LINE_MAX, "%d %s %lx ", hint->p->pid, hint->p->comm, hint->p);
+				offset += snprintf(buf + offset, LOG_LINE_MAX, "%d %s %px ", hint->p->pid, hint->p->comm, hint->p);
 			else
 				offset += snprintf(buf + offset, LOG_LINE_MAX, "%pF ", hint->fn);
 			for (j = 0; j < CALLSTACK_MAX_NUM; j++) {

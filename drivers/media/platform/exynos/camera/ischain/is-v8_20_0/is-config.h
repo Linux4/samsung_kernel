@@ -192,11 +192,17 @@
 #define SECURE_CAMERA_HEAP_ID           (11)
 #define SECURE_CAMERA_MEM_SHARE
 #define SECURE_CAMERA_MEM_ADDR          (0xE1900000)    /* secure_camera_heap */
-#define SECURE_CAMERA_MEM_SIZE          (0x01CA0000)
+#define SECURE_CAMERA_MEM_SIZE          (0x01520000)
 #define NON_SECURE_CAMERA_MEM_ADDR      (0xDB900000)    /* camera_heap */
-#define NON_SECURE_CAMERA_MEM_SIZE      (0x00690000)
+#define NON_SECURE_CAMERA_MEM_SIZE      (0x00B00000)
 #define PROTECT_SYSREG_IS               /* If sysreg_is needs to be protected in secure scenario */
 
+#define SECURE_CAMERA_USE_EXT_HEAP
+#define SECURE_CAMERA_HEAP_ID_EXT      (14)
+#define SECURE_CAMERA_MEM_ADDR_EXT     (0xE2E20000)    /* secure_camera_ext_heap */
+#define SECURE_CAMERA_MEM_SIZE_EXT     (0x00780000)
+
+#define CONVERT_BUFFER_SECURE_TO_NON_SECURE
 #undef SECURE_CAMERA_FACE_SEQ_CHK       /* To check sequence before applying secure protection */
 #endif
 
@@ -263,6 +269,9 @@
 #define META_ITF_VER_20192003
 
 #define SUPPORT_STRIPE_REGION_NUM
+
+#define ENABLE_STRIPE_SYNC_PROCESSING
+#define ENABLE_SYNC_REPROCESSING
 
 #define CONFIG_SW_PDAF		1
 

@@ -681,7 +681,7 @@ static int do_sea(unsigned long addr, unsigned int esr, struct pt_regs *regs)
 	inf = esr_to_fault_info(esr);
 
 	if (IS_ENABLED(CONFIG_SEC_DEBUG_FAULT_MSG_ADV))
-		pr_auto(ASL1, "%s (0x%08x) at 0x%016lx[0x%09lx]\n",
+		pr_auto(ASL1, "%s (0x%08x) at 0x%016lx[0x%09llx]\n",
 			      inf->name, esr, addr, show_virt_to_phys(addr));
 	/*
 	 * Synchronous aborts may interrupt code which had interrupts masked.
@@ -862,7 +862,7 @@ asmlinkage void __exception do_sp_pc_abort(unsigned long addr,
 	if (!user_mode(regs))
 		pr_auto(ASL1, "%s exception: pc=0x%016llx sp=0x%016llx\n",
 			esr_get_class_string(esr),
-			(void *)regs->pc, (void *)regs->sp);
+			regs->pc, regs->sp);
 #endif
 #ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
 	if (!user_mode(regs)) {

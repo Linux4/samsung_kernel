@@ -30,7 +30,8 @@ static int slsi_src_sink_fake_sta_start(struct slsi_dev *sdev, struct net_device
 	}
 
 	if (WARN(slsi_vif_activated(sdev, dev) != 0, "activate VIF failed")) {
-		slsi_mlme_del_vif(sdev, dev);
+		if (slsi_mlme_del_vif(sdev, dev) != 0)
+			SLSI_NET_ERR(dev, "slsi_mlme_del_vif failed\n");
 		SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 		return -EFAULT;
 	}
@@ -38,7 +39,8 @@ static int slsi_src_sink_fake_sta_start(struct slsi_dev *sdev, struct net_device
 	peer = slsi_peer_add(sdev, dev, fake_peer_mac, SLSI_STA_PEER_QUEUESET + 1);
 	if (WARN(!peer, "add fake peer failed")) {
 		slsi_vif_deactivated(sdev, dev);
-		slsi_mlme_del_vif(sdev, dev);
+		if (slsi_mlme_del_vif(sdev, dev) != 0)
+			SLSI_NET_ERR(dev, "slsi_mlme_del_vif failed\n");
 		SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 		return -EFAULT;
 	}
@@ -64,10 +66,14 @@ static void slsi_src_sink_fake_sta_stop(struct slsi_dev *sdev, struct net_device
 	}
 
 	netif_carrier_off(dev);
-	if (peer)
+	if (peer) {
+		slsi_spinlock_lock(&ndev_vif->peer_lock);
 		slsi_peer_remove(sdev, dev, peer);
+		slsi_spinlock_unlock(&ndev_vif->peer_lock);
+	}
 	slsi_vif_deactivated(sdev, dev);
-	slsi_mlme_del_vif(sdev, dev);
+	if (slsi_mlme_del_vif(sdev, dev) != 0)
+			SLSI_NET_ERR(dev, "slsi_mlme_del_vif failed\n");
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 }
 
@@ -305,7 +311,7 @@ long slsi_src_sink_cdev_ioctl_cfg(struct slsi_dev *sdev, unsigned long arg)
 		/* copy the report to userspace */
 		if (copy_to_user((void *)arg, (void *)(&src_sink_arg), sizeof(struct unifiio_src_sink_arg_t)))
 			r = -EFAULT;
-		slsi_kfree_skb(ind);
+		kfree_skb(ind);
 		break;
 	case SRC_SINK_ACTION_GEN_REPORT:
 		req = fapi_alloc(debug_pkt_gen_report_req, DEBUG_PKT_GEN_REPORT_REQ, src_sink_arg.common.vif, 0);
@@ -341,7 +347,7 @@ long slsi_src_sink_cdev_ioctl_cfg(struct slsi_dev *sdev, unsigned long arg)
 		/* copy the report to userspace */
 		if (copy_to_user((void *)arg, (void *)(&src_sink_arg), sizeof(struct unifiio_src_sink_arg_t)))
 			r = -EFAULT;
-		slsi_kfree_skb(ind);
+		kfree_skb(ind);
 		break;
 	case SRC_SINK_ACTION_SINK_REPORT_CACHED:
 		SLSI_DBG1(sdev, SLSI_SRC_SINK, "cached sink_report\n");
@@ -391,7 +397,7 @@ void slsi_rx_sink_report(struct slsi_dev *sdev, struct net_device *dev, struct s
 	report->free_kbytes         = fapi_get_u16(skb, u.debug_pkt_sink_report_ind.free_kbytes);
 	report->timestamp           = jiffies_to_msecs(jiffies);
 	SLSI_MUTEX_UNLOCK(sdev->netdev_add_remove_mutex);
-	slsi_kfree_skb(skb);
+	kfree_skb(skb);
 }
 
 void slsi_rx_gen_report(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb)
@@ -413,5 +419,5 @@ void slsi_rx_gen_report(struct slsi_dev *sdev, struct net_device *dev, struct sk
 	report->free_kbytes       = fapi_get_u16(skb, u.debug_pkt_gen_report_ind.free_kbytes);
 	report->timestamp         = jiffies_to_msecs(jiffies);
 	SLSI_MUTEX_UNLOCK(sdev->netdev_add_remove_mutex);
-	slsi_kfree_skb(skb);
+	kfree_skb(skb);
 }

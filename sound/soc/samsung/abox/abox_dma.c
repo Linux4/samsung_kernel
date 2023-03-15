@@ -710,7 +710,6 @@ int abox_dma_hw_params_fixup(struct device *dev,
 	const struct snd_mask *mask;
 	const struct snd_interval *interval;
 	snd_pcm_hw_param_t param;
-	int ret;
 
 	dev_dbg(dev, "%s:Total=%u PrdSz=%u(%u) #Prds=%u rate=%u, width=%d, channels=%u\n",
 			__func__, params_buffer_bytes(fix),
@@ -731,13 +730,6 @@ int abox_dma_hw_params_fixup(struct device *dev,
 		if (!snd_interval_empty(interval))
 			snd_interval_copy(hw_param_interval(params, param),
 					interval);
-	}
-
-	/* ignore refine errors for compress offload */
-	if (substream && substream->runtime) {
-		ret = snd_pcm_hw_refine(substream, params);
-		if (ret < 0)
-			dev_dbg(dev, "hw_refine error: %d", ret);
 	}
 
 	dev_dbg(dev, "%s:Total=%u PrdSz=%u(%u) #Prds=%u rate=%u, width=%d, channels=%u\n",

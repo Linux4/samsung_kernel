@@ -455,7 +455,7 @@ int decon_create_vsync_thread(struct decon_device *decon)
 	}
 
 	sprintf(name, "decon%d-vsync", decon->id);
-	decon->vsync.thread = kthread_run(decon_vsync_thread, decon, name);
+	decon->vsync.thread = kthread_run(decon_vsync_thread, decon, "%s", name);
 	if (IS_ERR_OR_NULL(decon->vsync.thread)) {
 		decon_err("failed to run vsync thread\n");
 		decon->vsync.thread = NULL;
@@ -516,7 +516,7 @@ int decon_create_fsync_thread(struct decon_device *decon)
 	}
 
 	sprintf(name, "decon%d-fsync", decon->id);
-	decon->fsync.thread = kthread_run(decon_fsync_thread, decon, name);
+	decon->fsync.thread = kthread_run(decon_fsync_thread, decon, "%s", name);
 	if (IS_ERR_OR_NULL(decon->fsync.thread)) {
 		decon_err("failed to run fsync thread\n");
 		decon->fsync.thread = NULL;
@@ -866,7 +866,7 @@ int decon_create_esd_thread(struct decon_device *decon)
 	}
 
 	sprintf(name, "decon%d-esd", decon->id);
-	decon->esd.thread = kthread_run(decon_esd_thread, decon, name);
+	decon->esd.thread = kthread_run(decon_esd_thread, decon, "%s", name);
 	if (IS_ERR_OR_NULL(decon->esd.thread)) {
 		decon_err("failed to run esd thread\n");
 		decon->esd.thread = NULL;
@@ -1249,6 +1249,7 @@ int decon_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	aclk_khz = v4l2_subdev_call(decon->out_sd[0], core, ioctl,
 			EXYNOS_DPU_GET_ACLK, NULL) / 1000U;
 
+	memset(&dpp_config, 0, sizeof(struct dpp_config));
 	memcpy(&dpp_config.config, &config, sizeof(struct decon_win_config));
 	dpp_config.rcv_num = aclk_khz;
 
@@ -1792,7 +1793,7 @@ static int dpu_set_pre_df_dsim(struct decon_device *decon)
 		return -EINVAL;
 	}
 	if (df_set->hs == 0) {
-		decon_err("[DYN_FREQ]:ERR:%s:df index : %d hs is 0 : %d\n",
+		decon_err("[DYN_FREQ]:ERR:%s:df index : %d hs is 0\n",
 			__func__, status->target_df);
 		return -EINVAL;
 	}

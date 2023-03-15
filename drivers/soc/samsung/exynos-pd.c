@@ -124,7 +124,7 @@ static int exynos_pd_power_on(struct generic_pm_domain *genpd)
 		goto acc_unlock;
 	}
 
-	if (pd->power_down_skipped) {
+	if (pd->always_off || pd->power_down_skipped) {
 		pr_info(EXYNOS_PD_PREFIX "%s power-on is skipped.\n", pd->name);
 		goto acc_unlock;
 	}
@@ -162,7 +162,7 @@ static int exynos_pd_power_off(struct generic_pm_domain *genpd)
 		goto acc_unlock;
 	}
 
-	if (pd->power_down_ok && !pd->power_down_ok()) {
+	if (pd->always_off || (pd->power_down_ok && !pd->power_down_ok())) {
 		pr_info(EXYNOS_PD_PREFIX "%s power-off is skipped.\n", pd->name);
 		pd->power_down_skipped = true;
 		goto acc_unlock;
@@ -241,10 +241,14 @@ static bool exynos_pd_power_down_ok_vts(void)
 
 static bool exynos_pd_power_down_ok_usb(void)
 {
+#ifndef CONFIG_USB_CONFIGFS_F_MBIM
 #ifdef CONFIG_USB_DWC3_EXYNOS
 	return !otg_is_connect();
 #else
 	return true;
+#endif
+#else
+	return false;
 #endif
 }
 
@@ -301,6 +305,8 @@ static int exynos_pd_genpd_init(struct exynos_pm_domain *pd, int state)
 static void exynos_pd_show_power_domain(void)
 {
 	struct device_node *np;
+	int ret;
+
 	for_each_compatible_node(np, NULL, "samsung,exynos-pd") {
 		struct platform_device *pdev;
 		struct exynos_pm_domain *pd;
@@ -310,6 +316,15 @@ static void exynos_pd_show_power_domain(void)
 			if (!pdev)
 				continue;
 			pd = platform_get_drvdata(pdev);
+
+			if (pd->always_off) {
+				pd->always_off = false;
+				ret = exynos_pd_power_off(&pd->genpd);
+				pd->always_off = true;
+				if (ret) {
+					pr_err(EXYNOS_PD_PREFIX "%s is always-off, but cannot be powered off\n", pd->genpd.name);
+				}
+			}
 			pr_info("   %-9s - %-3s\n", pd->genpd.name,
 					cal_pd_status(pd->cal_pdid) ? "on" : "off");
 		} else
@@ -377,6 +392,11 @@ static __init int exynos_pd_dt_parse(void)
 			pd->skip_idle_ip = true;
 		else
 			pd->idle_ip_index = exynos_get_idle_ip_index(pd->name);
+
+		if (of_property_read_bool(np, "always-off"))
+			pd->always_off = true;
+		else
+			pd->always_off = false;
 
 		mutex_init(&pd->access_lock);
 		platform_set_drvdata(pdev, pd);

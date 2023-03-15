@@ -172,8 +172,8 @@ static int __mfc_init_dec_ctx(struct mfc_ctx *ctx)
 
 	/* sh_handle: HDR10+ HEVC SEI meta */
 	dec->sh_handle_hdr.fd = -1;
-	dec->hdr10_plus_info = vmalloc(
-			(sizeof(struct hdr10_plus_meta) * MFC_MAX_DPBS));
+	dec->sh_handle_hdr.data_size = sizeof(struct hdr10_plus_meta) * MFC_MAX_BUFFERS;
+	dec->hdr10_plus_info = vmalloc(dec->sh_handle_hdr.data_size);
 	if (!dec->hdr10_plus_info)
 		mfc_err_ctx("[HDR+] failed to allocate HDR10+ information data\n");
 
@@ -284,6 +284,9 @@ static int __mfc_init_enc_ctx(struct mfc_ctx *ctx)
 	enc->sh_handle_svc.fd = -1;
 	enc->sh_handle_roi.fd = -1;
 	enc->sh_handle_hdr.fd = -1;
+	enc->sh_handle_svc.data_size = sizeof(struct temporal_layer_info);
+	enc->sh_handle_roi.data_size = sizeof(struct mfc_enc_roi_info);
+	enc->sh_handle_hdr.data_size = sizeof(struct hdr10_plus_meta) * MFC_MAX_BUFFERS;
 
 	/* Init videobuf2 queue for OUTPUT */
 	ctx->vq_src.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
@@ -456,7 +459,7 @@ static int mfc_open(struct file *file)
 		goto err_no_device;
 	}
 
-	mfc_debug_dev(2, "mfc driver open called\n");
+	mfc_info_dev("mfc driver open called\n");
 
 	if (mutex_lock_interruptible(&dev->mfc_mutex))
 		return -ERESTARTSYS;

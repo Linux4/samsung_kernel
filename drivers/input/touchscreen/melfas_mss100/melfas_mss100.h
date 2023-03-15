@@ -31,7 +31,8 @@
 #include <linux/of_device.h>
 #include <linux/of_gpio.h>
 #include <linux/platform_device.h>
-#include <linux/wakelock.h>
+#include <linux/version.h>
+#include <linux/pm_wakeup.h>
 #include <linux/vmalloc.h>
 #include <linux/uaccess.h>
 #include <linux/regulator/consumer.h>
@@ -50,6 +51,16 @@
 #include <linux/muic/common/muic.h>
 #include <linux/muic/common/muic_notifier.h>
 #include <linux/vbus_notifier.h>
+#endif
+
+#ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
+#include <linux/atomic.h>
+#include <linux/clk.h>
+#include <linux/pm_runtime.h>
+#include <soc/qcom/scm.h>
+
+#define SECURE_TOUCH_ENABLE	1
+#define SECURE_TOUCH_DISABLE	0
 #endif
 
 #ifdef CONFIG_SEC_DEBUG_TSP_LOG
@@ -454,6 +465,12 @@ struct mms_ts_info {
 	u8 item_cmdata;
 	bool check_version;
 	u8 hover_event; /* keystring for protos */
+#ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
+	atomic_t secure_enabled;
+	atomic_t secure_pending_irqs;
+	struct completion secure_powerdown;
+	struct completion secure_interrupt;
+#endif
 };
 
 typedef enum {

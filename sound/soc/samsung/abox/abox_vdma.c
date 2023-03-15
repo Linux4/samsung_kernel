@@ -12,6 +12,8 @@
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/memblock.h>
+#include <linux/dma-mapping.h>
+#include <linux/dma-buf.h>
 #include <sound/pcm.h>
 #include <sound/soc.h>
 #include <sound/pcm_params.h>
@@ -299,6 +301,25 @@ static snd_pcm_uframes_t abox_vdma_pointer(struct snd_pcm_substream *substream)
 	return bytes_to_frames(substream->runtime, pointer);
 }
 
+static int abox_vdma_mmap(struct snd_pcm_substream *substream,
+		struct vm_area_struct *vma)
+{
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	struct snd_soc_pcm_runtime *soc_rtd = substream->private_data;
+	int id = soc_rtd->dai_link->id;
+	struct abox_vdma_info *info = abox_vdma_get_info(id);
+	struct abox_vdma_rtd *rtd = abox_vdma_get_rtd(info, substream->stream);
+	struct device *dev = info->dev;
+
+	dev_info(dev, "%s\n", __func__);
+
+	if (!IS_ERR_OR_NULL(rtd->ion_buf))
+		return dma_buf_mmap(rtd->ion_buf->dma_buf, vma, 0);
+	else
+		return dma_mmap_coherent(dev, vma, runtime->dma_area,
+				runtime->dma_addr, runtime->dma_bytes);
+}
+
 static int abox_vdma_ack(struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *pcm_rtd = substream->runtime;
@@ -337,6 +358,7 @@ static struct snd_pcm_ops abox_vdma_ops = {
 	.prepare	= abox_vdma_prepare,
 	.trigger	= abox_vdma_trigger,
 	.pointer	= abox_vdma_pointer,
+	.mmap		= abox_vdma_mmap,
 	.ack		= abox_vdma_ack,
 };
 

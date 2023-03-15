@@ -26,6 +26,11 @@
 #define OVERLAYFS_SUPER_MAGIC 0x794c7630
 #endif
 
+/* EROFS_SUPER_MAGIC_V1 is defined since v5.4 */
+#ifndef EROFS_SUPER_MAGIC_V1
+#define EROFS_SUPER_MAGIC_V1 0xE0F5E1E2
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 21)
 /* d_backing_inode is absent on some Linux Kernel 3.x. but it back porting for
  * few Samsung kernels:
@@ -41,6 +46,26 @@
 #define inode_lock_nested(inode, subclass) \
 				mutex_lock_nested(&(inode)->i_mutex, subclass)
 #define inode_unlock(inode)	mutex_unlock(&(inode)->i_mutex)
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
+#include <linux/fs.h>
+
+#ifndef IS_VERITY
+#define IS_VERITY(inode) 0
+#endif
+#endif
+
+#if LINUX_VERSION_CODE > KERNEL_VERSION(4, 20, 0)
+/* It is added for initialization purposes.
+ * For developing LSM, please, use DEFINE_LSM
+ */
+#define security_initcall(fn) late_initcall(fn)
+#endif
+
+#if LINUX_VERSION_CODE > KERNEL_VERSION(4, 20, 17)
+/* This file was added in v5.0.0 */
+#include <uapi/linux/mount.h>
 #endif
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(4, 14, 20)
@@ -82,6 +107,16 @@ static inline ssize_t __vfs_getxattr(struct dentry *dentry, struct inode *inode,
 
 	return inode->i_op->getxattr(dentry, name, value, size);
 }
+#endif
+
+#if defined(CONFIG_ANDROID) && LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
+/*
+ * __vfs_getxattr was changed in Android Kernel v5.4
+ * https://android.googlesource.com/kernel/common/+/3484eba91d6b529cc606486a2db79513f3db6c67
+ */
+#define XATTR_NOSECURITY 0x4	/* get value, do not involve security check */
+#define __vfs_getxattr(dentry, inode, name, value, size, flags) \
+		__vfs_getxattr(dentry, inode, name, value, size)
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
@@ -183,7 +218,7 @@ static inline struct dentry *d_real_comp(struct dentry *dentry)
 #else
 static inline struct dentry *d_real_comp(struct dentry *dentry)
 {
-	return d_real(dentry, NULL);
+	return d_real(dentry, d_real_inode(dentry));
 }
 #endif
 

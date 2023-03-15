@@ -15,6 +15,7 @@
 
 #include "npu-binary.h"
 #include "npu-log.h"
+#include "npu-scheduler.h"
 
 static noinline_for_stack long __get_file_size(struct file *file)
 {
@@ -38,8 +39,6 @@ int npu_binary_init(struct npu_binary *binary,
 	char *fpath2,
 	char *fname)
 {
-	int ret = 0;
-
 	BUG_ON(!binary);
 	BUG_ON(!dev);
 
@@ -48,7 +47,7 @@ int npu_binary_init(struct npu_binary *binary,
 	snprintf(binary->fpath1, sizeof(binary->fpath1), "%s%s", fpath1, fname);
 	snprintf(binary->fpath2, sizeof(binary->fpath2), "%s%s", fpath2, fname);
 
-	return ret;
+	return 0;
 }
 
 int npu_binary_g_size(struct npu_binary *binary, size_t *size)
@@ -115,7 +114,7 @@ static void print_fw_signature(char *fw_addr, size_t fw_size)
 		npu_info(SIGNATURE_HEADING "invalid\n");
 }
 
-static long __npu_binary_read(struct npu_binary *binary, void *target, size_t target_size)
+static long __npu_binary_read(struct npu_binary *binary, void *target, size_t target_size, int mode)
 {
 	int ret = 0;
 	const struct firmware *fw_blob;
@@ -124,6 +123,7 @@ static long __npu_binary_read(struct npu_binary *binary, void *target, size_t ta
 	mm_segment_t old_fs;
 	long fsize, nread;
 	char *fpath = NULL;
+	char *npu_fw_path = NULL;
 
 	loff_t file_offset = 0;
 
@@ -179,16 +179,30 @@ static long __npu_binary_read(struct npu_binary *binary, void *target, size_t ta
 	ret = fsize;
 
 p_err:
-	vfree(buf);
-	filp_close(fp, current->files);
+	if (buf)
+		vfree(buf);
+	if (fp)
+		filp_close(fp, current->files);
 	set_fs(old_fs);
 
 	return ret;
 
 request_fw:
-	ret = request_firmware(&fw_blob, NPU_FW_PATH3 NPU_FW_NAME, binary->dev);
+	switch (mode) {
+	case NPU_PERF_MODE_NPU_BOOST:
+		npu_fw_path = NPU_FW_PATH4 NPU_PERF_FW_NAME;
+		break;
+	case NPU_PERF_MODE_NPU_DN:
+		npu_fw_path = NPU_FW_PATH5 NPU_DN_FW_NAME;
+		break;
+	default:
+		npu_fw_path = NPU_FW_PATH3 NPU_FW_NAME;
+		break;
+	}
+
+	ret = request_firmware(&fw_blob, npu_fw_path, binary->dev);
 	if (ret) {
-		npu_err("fail(%d) in request_firmware(%s)", ret, NPU_FW_PATH3 NPU_FW_NAME);
+		npu_err("fail(%d) in request_firmware(%s)", ret, npu_fw_path);
 		ret = -EINVAL;
 		goto request_err;
 	}
@@ -218,7 +232,7 @@ request_fw:
 	memcpy(target, fw_blob->data, fw_blob->size);
 #endif
 
-	npu_info("success of binary(%s, %ld) apply.\n", NPU_FW_PATH3 NPU_FW_NAME, fw_blob->size);
+	npu_info("success of binary(%s, %ld) apply.\n", npu_fw_path, fw_blob->size);
 	ret = fw_blob->size;
 
 request_err:
@@ -229,7 +243,7 @@ request_err:
 
 int npu_binary_read(struct npu_binary *binary, void *target, size_t target_size)
 {
-	long ret = __npu_binary_read(binary, target, target_size);
+	long ret = __npu_binary_read(binary, target, target_size, 0);
 
 	if (ret > 0)
 		return 0;
@@ -238,9 +252,9 @@ int npu_binary_read(struct npu_binary *binary, void *target, size_t target_size)
 	return ret;
 }
 
-int npu_firmware_file_read(struct npu_binary *binary, void *target, size_t target_size)
+int npu_firmware_file_read(struct npu_binary *binary, void *target, size_t target_size, int mode)
 {
-	long ret = __npu_binary_read(binary, target, target_size);
+	long ret = __npu_binary_read(binary, target, target_size, mode);
 
 	if (ret > 0) {
 		/* Print firmware signature on success */

@@ -12,41 +12,6 @@
 #include <linux/kernel.h>
 #include <linux/sec_debug.h>
 
-/* secure jtag lock */
-static int __debug_sj_lock;
-
-int secdbg_mode_check_sj(void)
-{
-	if (__debug_sj_lock == 1)
-		/* Locked */
-		return 1;
-	else if (__debug_sj_lock == 0)
-		/* Unlocked */
-		return 0;
-
-	return -1;
-}
-
-static int __init secdbg_mode_get_sj_status(char *str)
-{
-	unsigned long val = memparse(str, &str);
-
-	pr_err("%s: start %lx\n", __func__, val);
-
-	if (!val) {
-		pr_err("%s: UNLOCKED (%lx)\n", __func__, val);
-		__debug_sj_lock = 0;
-		/* Unlocked or Disabled */
-		return 1;
-	} else {
-		pr_err("%s: LOCKED (%lx)\n", __func__, val);
-		__debug_sj_lock = 1;
-		/* Locked */
-		return 1;
-	}
-}
-__setup("sec_debug.sjl=", secdbg_mode_get_sj_status);
-
 /* upload mode en/disable */
 static int __force_upload;
 

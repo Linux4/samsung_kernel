@@ -200,7 +200,7 @@ int is_dvfs_sel_static(struct is_device_ischain *device)
 	struct is_dvfs_scenario *scenarios;
 	struct is_resourcemgr *resourcemgr;
 	struct is_dual_info *dual_info;
-	int i, scenario_id, scenario_cnt;
+	int i, scenario_id, scenario_cnt, streaming_cnt;
 	int position, resol, fps, stream_cnt;
 	unsigned long sensor_map;
 	int sel;
@@ -243,7 +243,13 @@ int is_dvfs_sel_static(struct is_device_ischain *device)
 	scenario_cnt = static_ctrl->scenario_cnt;
 	position = is_sensor_g_position(device->sensor);
 	fps = sensor_cfg->max_fps;
+
+	/*
+	 * stream_cnt : number of open sensors
+	 * streaming_cnt : number of sensors in operation
+	 */
 	stream_cnt = is_get_start_sensor_cnt(core);
+	streaming_cnt = resourcemgr->streaming_cnt;
 	sensor_map = core->sensor_map;
 	dual_info = &core->dual_info;
 #ifdef BDS_DVFS
@@ -252,15 +258,17 @@ int is_dvfs_sel_static(struct is_device_ischain *device)
 	resol = is_get_target_resol(device);
 #endif
 
-	dbg_dvfs(1, "pos(%d), res(%d), fps(%d), sc(%d), map(%d), dual(%d, %d, %d, %d, %d)(%d), setfile(%d)\n",
-		device,	position, resol, fps, stream_cnt, sensor_map,
+	dbg_dvfs(1, "pos(%d), res(%d), fps(%d), sc(%d, %d), map(%d), dual(%d, %d, %d, %d, %d)(%d), setfile(%d),\
+ limited_fps(%d)\n",
+		device,	position, resol, fps, stream_cnt, streaming_cnt, sensor_map,
 		dual_info->max_fps[SENSOR_POSITION_REAR],
 		dual_info->max_fps[SENSOR_POSITION_REAR2],
 		dual_info->max_fps[SENSOR_POSITION_REAR3],
 		dual_info->max_fps[SENSOR_POSITION_FRONT],
 		dual_info->max_fps[SENSOR_POSITION_REAR_TOF],
 		dual_info->mode,
-		(device->setfile & IS_SETFILE_MASK));
+		(device->setfile & IS_SETFILE_MASK),
+		resourcemgr->limited_fps);
 
 	for (i = 0; i < scenario_cnt; i++) {
 		if (!scenarios[i].check_func) {
@@ -269,7 +277,7 @@ int is_dvfs_sel_static(struct is_device_ischain *device)
 		}
 
 		sel = scenarios[i].check_func(device, NULL, position, resol, fps,
-			stream_cnt, sensor_map, dual_info);
+			stream_cnt, streaming_cnt, sensor_map, dual_info);
 
 		dbg_dvfs(1, "sel(%d) idx(%d) [%s]\n",
 			device, sel, i, scenarios[i].scenario_nm);
@@ -393,7 +401,7 @@ int is_dvfs_sel_dynamic(struct is_device_ischain *device, struct is_group *group
 			continue;
 		}
 
-		ret = scenarios[i].check_func(device, frame->shot, position, resol, fps, 0, sensor_map, dual_info);
+		ret = scenarios[i].check_func(device, frame->shot, position, resol, fps, 0, 0, sensor_map, dual_info);
 		switch (ret) {
 		case DVFS_MATCHED:
 			scenario_id = scenarios[i].scenario_id;
@@ -424,7 +432,7 @@ int is_dvfs_sel_external(struct is_device_sensor *device)
 	struct is_resourcemgr *resourcemgr;
 	struct is_dual_info *dual_info;
 	int i, scenario_id, scenario_cnt;
-	int position, resol, fps, stream_cnt;
+	int position, resol, fps, stream_cnt, streaming_cnt;
 	unsigned long sensor_map;
 
 	FIMC_BUG(!device);
@@ -450,7 +458,13 @@ int is_dvfs_sel_external(struct is_device_sensor *device)
 	position = is_sensor_g_position(device);
 	resol = is_sensor_g_width(device) * is_sensor_g_height(device);
 	fps = is_sensor_g_framerate(device);
+
+	/*
+	 * stream_cnt : number of open sensors
+	 * streaming_cnt : number of sensors in operation
+	 */
 	stream_cnt = is_get_start_sensor_cnt(core);
+	streaming_cnt = resourcemgr->streaming_cnt;
 	sensor_map = core->sensor_map;
 	dual_info = &core->dual_info;
 
@@ -461,7 +475,7 @@ int is_dvfs_sel_external(struct is_device_sensor *device)
 		}
 
 		ret = scenarios[i].ext_check_func(device, position, resol, fps,
-				stream_cnt, sensor_map, dual_info);
+				stream_cnt, streaming_cnt, sensor_map, dual_info);
 		switch (ret) {
 		case DVFS_MATCHED:
 			scenario_id = scenarios[i].scenario_id;
@@ -477,8 +491,8 @@ int is_dvfs_sel_external(struct is_device_sensor *device)
 		}
 	}
 
-	warn("couldn't find external dvfs scenario [sensor:(%d/%d)/fps:%d/resol:(%d)]\n",
-		stream_cnt, position, fps, resol);
+	warn("couldn't find external dvfs scenario [sensor:(%d/%d/%d)/fps:%d/resol:(%d)]\n",
+		stream_cnt, streaming_cnt, position, fps, resol);
 
 	external_ctrl->cur_scenario_id = IS_SN_MAX;
 	external_ctrl->cur_scenario_idx = -1;
@@ -690,13 +704,8 @@ void is_dual_mode_update(struct is_device_ischain *device,
 	struct is_core *core = (struct is_core *)device->interface->core;
 	struct is_dual_info *dual_info = &core->dual_info;
 	struct is_device_sensor *sensor = device->sensor;
+	struct is_resourcemgr *resourcemgr;
 	int i, streaming_cnt = 0;
-
-	/* Continue if wide and tele/s-wide complete is_sensor_s_input(). */
-	if (!(test_bit(SENSOR_POSITION_REAR, &core->sensor_map) &&
-		(test_bit(SENSOR_POSITION_REAR2, &core->sensor_map) ||
-		 test_bit(SENSOR_POSITION_REAR3, &core->sensor_map))))
-		return;
 
 	if (group->head->device_type != IS_DEVICE_SENSOR)
 		return;
@@ -704,17 +713,29 @@ void is_dual_mode_update(struct is_device_ischain *device,
 	/* Update max fps of dual sensor device with reference to shot meta. */
 	dual_info->max_fps[sensor->position] = frame->shot->ctl.aa.aeTargetFpsRange[1];
 
+	resourcemgr = sensor->resourcemgr;
+	/* Check the number of active sensors for all PIP sensor combinations */
+	for (i = 0; i < SENSOR_POSITION_REAR_TOF; i++) {
+		if (resourcemgr->limited_fps && dual_info->max_fps[i])
+			streaming_cnt++;
+		else if (dual_info->max_fps[i] >= 10)
+			streaming_cnt++;
+	}
+
+	resourcemgr->streaming_cnt = streaming_cnt;
+
+	/* Continue if wide and tele/s-wide complete is_sensor_s_input(). */
+	if (!(test_bit(SENSOR_POSITION_REAR, &core->sensor_map) &&
+		(test_bit(SENSOR_POSITION_REAR2, &core->sensor_map) ||
+		 test_bit(SENSOR_POSITION_REAR3, &core->sensor_map))))
+		return;
+
 	/*
 	 * bypass - master_max_fps : 30fps, slave_max_fps : 0fps (sensor standby)
 	 * sync - master_max_fps : 30fps, slave_max_fps : 30fps (fusion)
 	 * switch - master_max_fps : 5ps, slave_max_fps : 30fps (post standby)
 	 * nothing - invalid mode
 	 */
-	for (i = 0; i < SENSOR_POSITION_REAR_TOF; i++) {
-		if (dual_info->max_fps[i] >= 10)
-			streaming_cnt++;
-	}
-
 	if (streaming_cnt == 1)
 		dual_info->mode = IS_DUAL_MODE_BYPASS;
 	else if (streaming_cnt >= 2)
@@ -803,9 +824,6 @@ void is_dual_dvfs_update(struct is_device_ischain *device,
 			is_set_dvfs((struct is_core *)device->interface->core, device, scenario_id);
 		} else {
 			dual_info->tick_count++;
-			mgrinfo("tbl[%d] dual DVFS update skip %d -> %d\n", device, group, frame,
-				resourcemgr->dvfs_ctrl.dvfs_table_idx,
-				pre_scenario_id, scenario_id);
 		}
 	}
 

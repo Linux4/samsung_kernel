@@ -39,16 +39,15 @@ int npu_core_on(struct npu_system *system)
 		core = g_npu_core_list[i];
 		active = pm_runtime_active(core->dev);
 		npu_info("%s %d %d\n", __func__, i, core->id);
-		ret = pm_runtime_get_sync(core->dev);
+		ret += pm_runtime_get_sync(core->dev);
 		if (ret)
 			npu_err("fail(%d) in pm_runtime_get_sync\n", ret);
+
 		pm_runtime_set_active(core->dev);
 
 		if (!active && pm_runtime_active(core->dev)) {
 			npu_info("%s core\n", __func__);
-			ret = npu_soc_core_on(system, core->id);
-			if (ret)
-				npu_err("fail(%d) in npu_soc_core_on\n", ret);
+			//ret = npu_soc_core_on(system, core->id);
 		}
 	}
 	npu_dbg("%s\n", __func__);
@@ -70,9 +69,10 @@ int npu_core_off(struct npu_system *system)
 		//if (ret)
 		//	npu_err("fail(%d) in npu_soc_core_off\n", ret);
 
-		ret = pm_runtime_put_sync(core->dev);
+		ret += pm_runtime_put_sync(core->dev);
 		if (ret)
 			npu_err("fail(%d) in pm_runtime_put_sync\n", ret);
+
 		BUG_ON(ret < 0);
 	}
 	npu_dbg("%s\n", __func__);
@@ -99,7 +99,6 @@ int npu_core_clock_on(struct npu_system *system)
 
 int npu_core_clock_off(struct npu_system *system)
 {
-	int ret = 0;
 	int i;
 	struct npu_core *core;
 
@@ -110,10 +109,10 @@ int npu_core_clock_off(struct npu_system *system)
 		npu_clk_disable_unprepare(&core->clks);
 	}
 	npu_dbg("%s\n", __func__);
-	return ret;
+	return 0;
 }
 
-static int npu_core_probe(struct platform_device *pdev)
+int npu_core_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct device *dev;
@@ -164,13 +163,13 @@ ok_exit:
 }
 
 #ifdef CONFIG_PM_SLEEP
-static int npu_core_suspend(struct device *dev)
+int npu_core_suspend(struct device *dev)
 {
 	npu_info("%s()\n", __func__);
 	return 0;
 }
 
-static int npu_core_resume(struct device *dev)
+int npu_core_resume(struct device *dev)
 {
 	npu_info("%s()\n", __func__);
 	return 0;
@@ -178,9 +177,8 @@ static int npu_core_resume(struct device *dev)
 #endif
 
 #ifdef CONFIG_PM
-static int npu_core_runtime_suspend(struct device *dev)
+int npu_core_runtime_suspend(struct device *dev)
 {
-	int ret = 0;
 	struct npu_core *core;
 
 	BUG_ON(!dev);
@@ -188,16 +186,15 @@ static int npu_core_runtime_suspend(struct device *dev)
 
 	core = dev_get_drvdata(dev);
 
-	npu_dbg("%s clk\n", __func__);
 	npu_clk_disable_unprepare(&core->clks);
 
-	npu_dbg("%s:%d\n", __func__, ret);
-	return ret;
+	npu_dbg("%s:\n", __func__);
+	return 0;
 }
 
-static int npu_core_runtime_resume(struct device *dev)
+int npu_core_runtime_resume(struct device *dev)
 {
-	int ret = 0;
+	int ret;
 	struct npu_core *core;
 
 	BUG_ON(!dev);
@@ -207,15 +204,17 @@ static int npu_core_runtime_resume(struct device *dev)
 
 	npu_dbg("%s clk\n", __func__);
 	ret = npu_clk_prepare_enable(&core->clks);
-	if (ret)
+	if (ret) {
 		npu_err("fail(%d) in npu_clk_prepare_enable\n", ret);
+		return ret;
+	}
 
 	npu_dbg("%s:%d\n", __func__, ret);
 	return ret;
 }
 #endif
 
-static int npu_core_remove(struct platform_device *pdev)
+int npu_core_remove(struct platform_device *pdev)
 {
 	struct device *dev;
 	struct npu_core *core;
@@ -233,63 +232,63 @@ static int npu_core_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static const struct dev_pm_ops npu_core_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(npu_core_suspend, npu_core_resume)
-	SET_RUNTIME_PM_OPS(npu_core_runtime_suspend, npu_core_runtime_resume, NULL)
-};
-
-#ifdef CONFIG_OF
-const static struct of_device_id exynos_npu_core_match[] = {
-	{
-		.compatible = "samsung,exynos-npu-core"
-	},
-	{}
-};
-MODULE_DEVICE_TABLE(of, exynos_npu_core_match);
-#endif
-
-static struct platform_driver npu_core_driver = {
-	.probe	= npu_core_probe,
-	.remove = npu_core_remove,
-	.driver = {
-		.name	= "exynos-npu-core",
-		.owner	= THIS_MODULE,
-		.pm	= &npu_core_pm_ops,
-		.of_match_table = of_match_ptr(exynos_npu_core_match),
-	},
-};
-
-static int __init npu_core_init(void)
-{
-	int ret = platform_driver_register(&npu_core_driver);
-
-	if (ret) {
-		probe_err("error(%d) in platform_driver_register\n", ret);
-		goto err_exit;
-	}
-
-	probe_info("success in %s\n", __func__);
-	ret = 0;
-	goto ok_exit;
-
-err_exit:
-	// necessary clean-up
-
-ok_exit:
-	return ret;
-}
-
-static void __exit npu_core_exit(void)
-{
-	platform_driver_unregister(&npu_core_driver);
-	npu_info("success in %s\n", __func__);
-}
-
-
-late_initcall(npu_core_init);
-module_exit(npu_core_exit);
-
-
-MODULE_AUTHOR("Sungsup Lim <sungsup0.lim@samsung.com>");
-MODULE_DESCRIPTION("Exynos NPU core driver");
-MODULE_LICENSE("GPL");
+//static const struct dev_pm_ops npu_core_pm_ops = {
+//	SET_SYSTEM_SLEEP_PM_OPS(npu_core_suspend, npu_core_resume)
+//	SET_RUNTIME_PM_OPS(npu_core_runtime_suspend, npu_core_runtime_resume, NULL)
+//};
+//
+//#ifdef CONFIG_OF
+//const static struct of_device_id exynos_npu_core_match[] = {
+//	{
+//		.compatible = "samsung,exynos-npu-core"
+//	},
+//	{}
+//};
+//MODULE_DEVICE_TABLE(of, exynos_npu_core_match);
+//#endif
+//
+//static struct platform_driver npu_core_driver = {
+//	.probe	= npu_core_probe,
+//	.remove = npu_core_remove,
+//	.driver = {
+//		.name	= "exynos-npu-core",
+//		.owner	= THIS_MODULE,
+//		.pm	= &npu_core_pm_ops,
+//		.of_match_table = of_match_ptr(exynos_npu_core_match),
+//	},
+//};
+//
+//static int __init npu_core_init(void)
+//{
+//	int ret = platform_driver_register(&npu_core_driver);
+//
+//	if (ret) {
+//		probe_err("error(%d) in platform_driver_register\n", ret);
+//		goto err_exit;
+//	}
+//
+//	probe_info("success in %s\n", __func__);
+//	ret = 0;
+//	goto ok_exit;
+//
+//err_exit:
+//	// necessary clean-up
+//
+//ok_exit:
+//	return ret;
+//}
+//
+//static void __exit npu_core_exit(void)
+//{
+//	platform_driver_unregister(&npu_core_driver);
+//	npu_info("success in %s\n", __func__);
+//}
+//
+//
+//late_initcall(npu_core_init);
+//module_exit(npu_core_exit);
+//
+//
+//MODULE_AUTHOR("Sungsup Lim <sungsup0.lim@samsung.com>");
+//MODULE_DESCRIPTION("Exynos NPU core driver");
+//MODULE_LICENSE("GPL");

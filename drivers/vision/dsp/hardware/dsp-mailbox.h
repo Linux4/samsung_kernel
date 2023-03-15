@@ -39,6 +39,7 @@ struct dsp_mailbox_pool {
 	dma_addr_t			iova;
 	void				*kva;
 	struct list_head		list;
+	int				pm_qos;
 
 	struct dsp_mailbox_pool_manager	*owner;
 	struct dsp_time			time;

@@ -363,11 +363,22 @@ int dsp_tlsf_malloc(size_t size, struct dsp_tlsf_mem **mem,
 	(*mem)->type = MEM_USE;
 	dsp_tlsf_remove_block(*mem, tlsf);
 
+	if ((*mem)->size < size) {
+		DL_ERROR("Overflow will happen.\n");
+		return -1;
+	}
+
 	if ((*mem)->size - size >= TLSF_MIN_BLOCK_SIZE) {
 		new_mem = (struct dsp_tlsf_mem *)dsp_dl_malloc(
 				sizeof(*new_mem), "TLSF New mem");
 		dsp_tlsf_mem_init(new_mem);
 		new_mem->type = MEM_EMPTY;
+
+		if (size > (unsigned int)(*mem)->start_addr + size) {
+			DL_ERROR("Overflow happened.\n");
+			return -1;
+		}
+
 		new_mem->start_addr = (*mem)->start_addr + size;
 		new_mem->size = (*mem)->size - size;
 
@@ -399,8 +410,8 @@ int dsp_tlsf_free(struct dsp_tlsf_mem *mem, struct dsp_tlsf *tlsf)
 
 	merge = mem;
 
-	if (dsp_tlsf_is_prev_empty(mem)) {
-		struct dsp_list_node *node = &mem->mem_list_node;
+	if (dsp_tlsf_is_prev_empty(merge)) {
+		struct dsp_list_node *node = &merge->mem_list_node;
 		struct dsp_tlsf_mem *prev_mem = container_of(node->prev,
 				struct dsp_tlsf_mem, mem_list_node);
 
@@ -417,8 +428,8 @@ int dsp_tlsf_free(struct dsp_tlsf_mem *mem, struct dsp_tlsf *tlsf)
 		}
 	}
 
-	if (dsp_tlsf_is_next_empty(mem)) {
-		struct dsp_list_node *node = &mem->mem_list_node;
+	if (dsp_tlsf_is_next_empty(merge)) {
+		struct dsp_list_node *node = &merge->mem_list_node;
 		struct dsp_tlsf_mem *next_mem = container_of(node->next,
 				struct dsp_tlsf_mem, mem_list_node);
 

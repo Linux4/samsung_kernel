@@ -13,42 +13,6 @@
 #include "dsp-core.h"
 #include "dsp-graph.h"
 
-/* TODO: remove after dma-coherent confirmation */
-static void __dsp_graph_sync_for_device(struct dsp_graph *graph)
-{
-	struct dsp_memory *mem;
-	struct dsp_buffer *buf, *temp;
-
-	dsp_enter();
-	mem = &graph->owner->core->dspdev->system.memory;
-
-	list_for_each_entry_safe(buf, temp, &graph->update_list, list)
-		dsp_memory_sync_for_device(mem, buf);
-
-	list_for_each_entry_safe(buf, temp, &graph->buf_list, list)
-		dsp_memory_sync_for_device(mem, buf);
-
-	dsp_leave();
-}
-
-/* TODO: remove after dma-coherent confirmation */
-static void __dsp_graph_sync_for_cpu(struct dsp_graph *graph)
-{
-	struct dsp_memory *mem;
-	struct dsp_buffer *buf, *temp;
-
-	dsp_enter();
-	mem = &graph->owner->core->dspdev->system.memory;
-
-	list_for_each_entry_safe(buf, temp, &graph->update_list, list)
-		dsp_memory_sync_for_cpu(mem, buf);
-
-	list_for_each_entry_safe(buf, temp, &graph->buf_list, list)
-		dsp_memory_sync_for_cpu(mem, buf);
-
-	dsp_leave();
-}
-
 static void __dsp_graph_unmap_buffer(struct dsp_graph *graph,
 		struct dsp_buffer *buf)
 {
@@ -322,6 +286,28 @@ static void __dsp_graph_remove_kernel(struct dsp_graph *graph)
 	dsp_leave();
 }
 
+static int __dsp_graph_check_kernel(struct dsp_graph *graph, char *str,
+		unsigned int length)
+{
+	int ret, idx;
+
+	dsp_enter();
+	str[length - 1] = '\0';
+
+	for (idx = 0; idx < length; ++idx) {
+		if (str[idx] == '/') {
+			ret = -EINVAL;
+			dsp_err("Path in file name isn't supported(%s)\n", str);
+			goto p_err;
+		}
+	}
+
+	dsp_leave();
+	return 0;
+p_err:
+	return ret;
+}
+
 static int __dsp_graph_add_kernel(struct dsp_graph *graph, void *kernel_name)
 {
 	int ret;
@@ -338,6 +324,13 @@ static int __dsp_graph_add_kernel(struct dsp_graph *graph, void *kernel_name)
 	length = kernel_name;
 	offset = (unsigned long)&length[kernel_count];
 
+	if (kernel_count > DSP_MAX_KERNEL_COUNT) {
+		ret = -EINVAL;
+		dsp_err("kernel_count(%u/%u) is invalid\n",
+				kernel_count, DSP_MAX_KERNEL_COUNT);
+		goto p_err;
+	}
+
 	graph->dl_libs = kcalloc(kernel_count, sizeof(*graph->dl_libs),
 			GFP_KERNEL);
 	if (!graph->dl_libs) {
@@ -347,6 +340,14 @@ static int __dsp_graph_add_kernel(struct dsp_graph *graph, void *kernel_name)
 	}
 
 	for (idx = 0; idx < kernel_count; ++idx) {
+		ret = __dsp_graph_check_kernel(graph, (char *)offset,
+				length[idx]);
+		if (ret) {
+			dsp_err("Failed to check kernel(%u/%u)\n",
+					idx, kernel_count);
+			goto p_err_alloc;
+		}
+
 		graph->dl_libs[idx].name = (const char *)offset;
 
 		kernel = dsp_kernel_alloc(kmgr, length[idx],
@@ -386,8 +387,7 @@ static void __dsp_graph_unload(struct dsp_graph_manager *gmgr,
 	__dsp_graph_unmap_list(graph, DSP_COMMON_PARAM_UPDATE);
 	__dsp_graph_unmap_list(graph, DSP_COMMON_PARAM_TSGD);
 
-	if (graph->kernel_name)
-		vfree(graph->kernel_name);
+	kfree(graph->kernel_name);
 	kfree(graph);
 	dsp_leave();
 }
@@ -444,7 +444,7 @@ struct dsp_graph *dsp_graph_get(struct dsp_graph_manager *gmgr,
 
 struct dsp_graph *dsp_graph_load(struct dsp_graph_manager *gmgr,
 		struct dsp_mailbox_pool *pool, void *kernel_name,
-		unsigned int version)
+		unsigned int kernel_count, unsigned int version)
 {
 	int ret;
 	struct dsp_graph *graph, *temp;
@@ -484,6 +484,13 @@ struct dsp_graph *dsp_graph_load(struct dsp_graph_manager *gmgr,
 		dsp_err("Failed to load graph due to invalid version(%u)\n",
 			version);
 		goto p_err_version;
+	}
+
+	if (ginfo_n_kernel != kernel_count) {
+		ret = -EINVAL;
+		dsp_err("kernel_cnt is different from value of ginfo(%u/%u)\n",
+				kernel_count, ginfo_n_kernel);
+		goto p_err_count;
 	}
 
 	mutex_lock(&gmgr->lock);
@@ -550,6 +557,7 @@ p_err_map:
 	kfree(graph);
 p_err_graph:
 	mutex_unlock(&gmgr->lock);
+p_err_count:
 p_err_version:
 	return ERR_PTR(ret);
 }
@@ -616,7 +624,6 @@ int dsp_graph_execute(struct dsp_graph *graph, struct dsp_mailbox_pool *pool)
 			goto p_err;
 		}
 	}
-	__dsp_graph_sync_for_device(graph);
 
 	mutex_unlock(&gmgr->lock);
 
@@ -624,7 +631,6 @@ int dsp_graph_execute(struct dsp_graph *graph, struct dsp_mailbox_pool *pool)
 			true, true, false);
 
 	mutex_lock(&gmgr->lock);
-	__dsp_graph_sync_for_cpu(graph);
 	__dsp_graph_unmap_list(graph, DSP_COMMON_PARAM_UPDATE);
 	mutex_unlock(&gmgr->lock);
 
@@ -635,6 +641,25 @@ int dsp_graph_execute(struct dsp_graph *graph, struct dsp_mailbox_pool *pool)
 	return 0;
 p_err:
 	return ret;
+}
+
+void dsp_graph_manager_stop(struct dsp_graph_manager *gmgr, unsigned int id)
+{
+	struct dsp_graph *graph, *temp;
+
+	dsp_enter();
+	mutex_lock(&gmgr->lock);
+
+	list_for_each_entry_safe(graph, temp, &gmgr->list, list) {
+		if (GET_COMMON_CONTEXT_ID(graph->global_id) == id) {
+			dsp_warn("unreleased graph remains(%x/%u)\n",
+					graph->global_id, gmgr->count);
+			__dsp_graph_unload(gmgr, graph);
+		}
+	}
+
+	mutex_unlock(&gmgr->lock);
+	dsp_leave();
 }
 
 int dsp_graph_manager_open(struct dsp_graph_manager *gmgr)
@@ -652,24 +677,10 @@ p_err:
 	return ret;
 }
 
-void dsp_graph_manager_close(struct dsp_graph_manager *gmgr, unsigned int id)
+void dsp_graph_manager_close(struct dsp_graph_manager *gmgr, unsigned int count)
 {
-	struct dsp_graph *graph, *temp;
-
 	dsp_enter();
-	mutex_lock(&gmgr->lock);
-
-	list_for_each_entry_safe(graph, temp, &gmgr->list, list) {
-		if (GET_COMMON_CONTEXT_ID(graph->global_id) == id) {
-			dsp_warn("unreleased graph remains(%x/%u)\n",
-					graph->global_id, gmgr->count);
-			__dsp_graph_unload(gmgr, graph);
-		}
-	}
-
-	mutex_unlock(&gmgr->lock);
-
-	dsp_kernel_manager_close(&gmgr->kernel_manager);
+	dsp_kernel_manager_close(&gmgr->kernel_manager, count);
 	dsp_leave();
 }
 
@@ -688,6 +699,7 @@ int dsp_graph_manager_probe(struct dsp_core *core)
 
 	INIT_LIST_HEAD(&gmgr->list);
 	mutex_init(&gmgr->lock);
+	mutex_init(&gmgr->lock_for_unload);
 	dsp_leave();
 	return 0;
 p_err_kernel:

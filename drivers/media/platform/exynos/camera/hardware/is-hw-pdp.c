@@ -169,7 +169,8 @@ static int is_hw_pdp_set_pdstat_reg(struct is_pdp *pdp)
 }
 
 #if defined(USE_SKIP_DUMP_LIC_OVERFLOW)
-static int get_crc_flag(u32 instance, struct is_hw_ip *hw_ip, bool *crc_flag)
+static int crc_flag;
+static int get_crc_flag(u32 instance, struct is_hw_ip *hw_ip)
 {
 	int ret = 0;
 	struct is_group *group;
@@ -203,7 +204,11 @@ static int get_crc_flag(u32 instance, struct is_hw_ip *hw_ip, bool *crc_flag)
 		return -ENODEV;
 	}
 
-	*crc_flag = csi->crc_flag;
+	if (csi->crc_flag)
+		crc_flag |= csi->crc_flag << instance;
+	else
+		crc_flag &= ~(csi->crc_flag << instance);
+
 	csi->crc_flag = false;
 
 	return ret;
@@ -224,9 +229,6 @@ static irqreturn_t is_isr_pdp_int1(int irq, void *data)
 	struct is_work_list *work_list;
 	struct paf_rdma_param *param;
 	u32 en_votf;
-#if defined(USE_SKIP_DUMP_LIC_OVERFLOW)
-	bool crc_flag;
-#endif
 
 	hw_ip = (struct is_hw_ip *)data;
 	pdp = (struct is_pdp *)hw_ip->priv_info;
@@ -262,7 +264,7 @@ static irqreturn_t is_isr_pdp_int1(int irq, void *data)
 
 		_is_hw_frame_dbg_trace(hw_ip, atomic_read(&hw_ip->fcount), DEBUG_POINT_FRAME_START);
 
-		atomic_add(hw_ip->num_buffers, &hw_ip->count.fs);
+		atomic_add(1, &hw_ip->count.fs);
 		if (hw_ip->is_leader)
 			is_hardware_frame_start(hw_ip, instance);
 
@@ -313,15 +315,17 @@ static irqreturn_t is_isr_pdp_int1(int irq, void *data)
 	if (pdp_hw_is_occured(state, PE_END)) {
 		_is_hw_frame_dbg_trace(hw_ip, atomic_read(&hw_ip->fcount), DEBUG_POINT_FRAME_END);
 
-		atomic_add(hw_ip->num_buffers, &hw_ip->count.fe);
-		is_hardware_frame_done(hw_ip, NULL, -1, IS_HW_CORE_END,
-						IS_SHOT_SUCCESS, true);
+		atomic_add(1, &hw_ip->count.fe);
+
+		if (hw_ip->is_leader)
+			is_hardware_frame_done(hw_ip, NULL, -1, IS_HW_CORE_END,
+						IS_SHOT_SUCCESS, false);
 
 		if (pdp->stat_enable)
 			wq_func_schedule(pdp, &pdp->work_stat[WORK_PDP_STAT1]);
 #if defined(USE_SKIP_DUMP_LIC_OVERFLOW)
 		/* clear crc flag */
-		get_crc_flag(instance, hw_ip, &crc_flag);
+		get_crc_flag(instance, hw_ip);
 #endif
 		atomic_set(&hw_ip->status.Vvalid, V_BLANK);
 		wake_up(&hw_ip->status.wait_queue);
@@ -371,12 +375,13 @@ static irqreturn_t is_isr_pdp_int1(int irq, void *data)
 			print_all_hw_frame_count(hw_ip->hardware);
 			is_hardware_sfr_dump(hw_ip->hardware, DEV_HW_END, false);
 #if defined(USE_SKIP_DUMP_LIC_OVERFLOW)
-			if (!get_crc_flag(instance, hw_ip, &crc_flag) && crc_flag == true) {
+			if (!get_crc_flag(instance, hw_ip) && crc_flag) {
 				set_bit(IS_SENSOR_ESD_RECOVERY,
 					&hw_ip->group[instance]->device->sensor->state);
 				warn("skip to s2d dump");
 				pdp_hw_s_reset(pdp->cmn_base);
 			} else {
+				pdp_hw_dump(pdp->base);
 				is_debug_s2d(true, "LIC overflow");
 			}
 #else
@@ -738,12 +743,14 @@ static int is_hw_pdp_init_config(struct is_hw_ip *hw_ip, u32 instance, struct is
 	struct is_device_csi *csi;
 	struct paf_rdma_param *param;
 	u32 csi_ch, en_val, i;
-	u32 img_width, img_height, img_hwformat, img_pixelsize;
+	struct is_crop img_full_size = {0, 0, 0, 0};
+	struct is_crop img_crop_size = {0, 0, 0, 0};
+	struct is_crop img_comp_size = {0, 0, 0, 0};
+	u32 img_hwformat, img_pixelsize;
 	u32 pd_width, pd_height, pd_hwformat;
 	u32 path;
 	u32 en_votf;
 	u32 en_sdc;
-	struct is_hardware *hardware;
 	struct is_module_enum *module;
 	u32 fps;
 	ulong flags = 0;
@@ -782,12 +789,6 @@ static int is_hw_pdp_init_config(struct is_hw_ip *hw_ip, u32 instance, struct is
 		return -EINVAL;
 	}
 	position = sensor->position;
-
-	hardware = hw_ip->hardware;
-	if (!hardware) {
-		mserr_hw("failed to get hardware", instance, hw_ip);
-		return -EINVAL;
-	}
 
 	if (test_bit(IS_ISCHAIN_REPROCESSING, &device->state) ||
 		!test_bit(IS_PDP_SET_PARAM, &pdp->state)) {
@@ -851,20 +852,25 @@ static int is_hw_pdp_init_config(struct is_hw_ip *hw_ip, u32 instance, struct is
 
 	if (path == OTF || en_votf) {
 		/* A shot after stream on is prevented. */
-		if (atomic_read(&hardware->streaming[hardware->sensor_position[instance]]))
+		if (atomic_read(&group->head->scount))
 			return 0;
+
+		hw_ip->is_leader = false;
 	} else {
+		set_bit(hw_ip->id, &frame->core_flag);
+
 		if (pdp->prev_instance == instance)
 			return 0;
 
+		hw_ip->is_leader = true;
 		pdp->prev_instance = instance;
 	}
 
 	extformat = sensor_cfg->input[CSI_VIRTUAL_CH_0].extformat;
 	if (extformat == HW_FORMAT_RAW10_SDC)
-		en_sdc = 1;
+		pdp->en_sdc = en_sdc = 1;
 	else
-		en_sdc = 0;
+		pdp->en_sdc = en_sdc = 0;
 
 	/* VOTF RDMA settings */
 	if (en_votf == OTF_INPUT_COMMAND_ENABLE) {
@@ -911,9 +917,12 @@ static int is_hw_pdp_init_config(struct is_hw_ip *hw_ip, u32 instance, struct is
 	else
 		fps = sensor_cfg->max_fps;
 
-	if (path == OTF || en_votf || en_sdc) {
-		img_width = sensor_cfg->input[CSI_VIRTUAL_CH_0].width;
-		img_height = sensor_cfg->input[CSI_VIRTUAL_CH_0].height;
+	if (path == OTF || en_votf) {
+		img_crop_size.w = sensor_cfg->width;
+		img_crop_size.h = sensor_cfg->height;
+		img_full_size.w = sensor_cfg->input[CSI_VIRTUAL_CH_0].width;
+		img_full_size.h = sensor_cfg->input[CSI_VIRTUAL_CH_0].height;
+
 		if (sensor_cfg->input[CSI_VIRTUAL_CH_0].hwformat == HW_FORMAT_RAW14)
 			img_pixelsize = OTF_INPUT_BIT_WIDTH_14BIT;
 		else
@@ -922,10 +931,21 @@ static int is_hw_pdp_init_config(struct is_hw_ip *hw_ip, u32 instance, struct is
 		/* used for votf enabled, check whether un-packed is used */
 		img_hwformat = DMA_INPUT_FORMAT_BAYER_PACKED;
 	} else {
-		img_width = param->dma_input.width;
-		img_height = param->dma_input.height;
+		img_full_size.w = param->dma_input.width;
+		img_full_size.h = param->dma_input.height;
+		img_crop_size.w = param->dma_input.dma_crop_width;
+		img_crop_size.h = param->dma_input.dma_crop_height;
+
 		img_hwformat = param->dma_input.format;
 		img_pixelsize = param->dma_input.msb + 1;
+	}
+
+	if (en_sdc) {
+		img_comp_size.w = img_full_size.w;
+		img_comp_size.h = img_full_size.h;
+	} else {
+		img_comp_size.w = img_crop_size.w;
+		img_comp_size.h = img_crop_size.h;
 	}
 
 	pd_width = sensor_cfg->input[CSI_VIRTUAL_CH_1].width;
@@ -934,7 +954,8 @@ static int is_hw_pdp_init_config(struct is_hw_ip *hw_ip, u32 instance, struct is
 
 	/* PDP context setting */
 	pdp_hw_s_sensor_type(pdp->base, sensor_type);
-	pdp_hw_s_core(pdp, enable, sensor_cfg, img_width, img_height, img_hwformat, img_pixelsize,
+	pdp_hw_s_core(pdp, enable, sensor_cfg, img_full_size, img_crop_size, img_comp_size,
+		img_hwformat, img_pixelsize,
 		pd_width, pd_height, pd_hwformat, sensor_type, path, pdp->vc_ext_sensor_mode,
 		fps, en_sdc, en_votf, frame->num_buffers, pdp->freq, position);
 
@@ -992,13 +1013,12 @@ static int is_hw_pdp_init_config(struct is_hw_ip *hw_ip, u32 instance, struct is
 #if defined(VOTF_ONESHOT)
 		if (en_votf)
 			set_bit(IS_PDP_VOTF_ONESHOT_FIRST_FRAME, &pdp->state);
-		else
-			pdp_hw_s_path(pdp->base, DMA);
 #else
 		/* This path selection must be set at the end. */
-		pdp_hw_s_path(pdp->base, path);
-		if (en_votf)
+		if (en_votf) {
+			pdp_hw_s_path(pdp->base, path);
 			pdp_hw_s_global_enable(pdp->base, true);
+		}
 #endif
 		break;
 	default:
@@ -1220,6 +1240,7 @@ static int is_hw_pdp_close(struct is_hw_ip *hw_ip, u32 instance)
 
 		if (!valid_hw_slot_id(hw_slot)) {
 			merr_hw("invalid slot (%d,%d)", instance, hw_id, hw_slot);
+			mutex_unlock(&cmn_reg_lock);
 			return -EINVAL;
 		}
 
@@ -1383,6 +1404,7 @@ static int is_hw_pdp_enable(struct is_hw_ip *hw_ip, u32 instance, ulong hw_map)
 
 		if (!valid_hw_slot_id(hw_slot)) {
 			merr_hw("invalid slot (%d,%d)", instance, hw_id, hw_slot);
+			mutex_unlock(&cmn_reg_lock);
 			return -EINVAL;
 		}
 
@@ -1404,7 +1426,7 @@ static int is_hw_pdp_enable(struct is_hw_ip *hw_ip, u32 instance, ulong hw_map)
 		}
 
 		pdp_hw_s_init(pdp->cmn_base);
-		pdp_hw_s_global(pdp->cmn_base, pdp->id, path, lic_lut);
+		pdp_hw_s_global(pdp->cmn_base, pdp->id, pdp->lic_mode_def, lic_lut);
 
 		/*
 		 * Due to limitation, mapping between LIC and core need to do sequencially.
@@ -1518,9 +1540,13 @@ static int is_hw_pdp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	struct is_pdp *pdp;
 	struct is_region *region;
 	struct paf_rdma_param *param;
-	u32 lindex, hindex, instance;
+	u32 lindex = 0, hindex = 0, instance;
 	u32 num_buffers;
 	u32 en_votf;
+	struct is_crop img_full_size = {0, 0, 0, 0};
+	struct is_crop img_crop_size = {0, 0, 0, 0};
+	struct is_crop img_comp_size = {0, 0, 0, 0};
+	u32 img_hwformat, img_pixelsize;
 
 	FIMC_BUG(!hw_ip);
 	FIMC_BUG(!frame);
@@ -1537,16 +1563,20 @@ static int is_hw_pdp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 		return -EINVAL;
 	}
 
-	set_bit(hw_ip->id, &frame->core_flag);
-
 	FIMC_BUG(!hw_ip->priv_info);
 	pdp = (struct is_pdp *)hw_ip->priv_info;
 	region = hw_ip->region[instance];
 	FIMC_BUG(!region);
 
+	if (frame->type != SHOT_TYPE_INTERNAL) {
+		FIMC_BUG(!frame->shot);
+
+		lindex = frame->shot->ctl.vendor_entry.lowIndexParam;
+		hindex = frame->shot->ctl.vendor_entry.highIndexParam;
+	}
+
 	/* multi-buffer */
-	if (num_buffers)
-		hw_ip->num_buffers = num_buffers;
+	hw_ip->num_buffers = num_buffers;
 
 	ret = is_hw_pdp_update_param(hw_ip,
 		region,
@@ -1574,9 +1604,33 @@ static int is_hw_pdp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 			}
 		}
 
+		if (lindex & LOWBIT_OF(PARAM_PAF_DMA_INPUT) ||
+			hindex & HIGHBIT_OF(PARAM_PAF_DMA_INPUT)) {
+			img_full_size.w = param->dma_input.width;
+			img_full_size.h = param->dma_input.height;
+			img_crop_size.w = param->dma_input.dma_crop_width;
+			img_crop_size.h = param->dma_input.dma_crop_height;
+
+			if (pdp->en_sdc) {
+				img_comp_size.w = img_full_size.w;
+				img_comp_size.h = img_full_size.h;
+			} else {
+				img_comp_size.w = img_crop_size.w;
+				img_comp_size.h = img_crop_size.h;
+			}
+
+			img_hwformat = param->dma_input.format;
+			img_pixelsize = param->dma_input.msb + 1;
+
+			pdp_hw_s_img_size(pdp->base, img_full_size, img_crop_size, img_comp_size,
+				img_hwformat, img_pixelsize);
+		}
+
 		pdp_hw_s_fro(pdp->base, num_buffers);
 		pdp_hw_s_rdma_addr(pdp->base, &frame->dvaddr_buffer[cur_idx], num_buffers);
-		pdp_hw_s_one_shot_enable(pdp);
+		pdp_hw_s_path(pdp->base, DMA);
+		if (pdp_hw_g_idle_state(pdp->base))
+			pdp_hw_s_one_shot_enable(pdp);
 	}
 
 	return ret;
@@ -1608,16 +1662,14 @@ static int is_hw_pdp_set_param(struct is_hw_ip *hw_ip, struct is_region *region,
 static int is_hw_pdp_frame_ndone(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	u32 instance, enum ShotErrorType done_type)
 {
-	int output_id;
 	int ret = 0;
 
 	FIMC_BUG(!hw_ip);
 	FIMC_BUG(!frame);
 
-	output_id = IS_HW_CORE_END;
 	if (test_bit_variables(hw_ip->id, &frame->core_flag))
 		ret = is_hardware_frame_done(hw_ip, frame, -1,
-				output_id, done_type, false);
+				IS_HW_CORE_END, done_type, false);
 
 	return ret;
 }
@@ -2010,6 +2062,12 @@ static int __init pdp_probe(struct platform_device *pdev)
 	/* LIC LUT */
 	lic_lut_np = of_parse_phandle(dev->of_node, "lic_lut", 0);
 	if (lic_lut_np) {
+		ret = of_property_read_u32(lic_lut_np, "lic_mode_default", &pdp->lic_mode_def);
+		if (ret) {
+			dev_warn(dev, "lic_mode_default read is fail(%d)", ret);
+			pdp->lic_mode_def = 0;
+		}
+
 		num_scen = of_get_child_count(lic_lut_np);
 
 		pdp->lic_lut = devm_kcalloc(&pdev->dev, num_scen, sizeof(struct pdp_lic_lut), GFP_KERNEL);
@@ -2182,7 +2240,6 @@ static int __init pdp_probe(struct platform_device *pdev)
 	atomic_set(&hw_ip->fcount, 0);
 	hw_ip->is_leader = leader;
 	atomic_set(&hw_ip->status.Vvalid, V_BLANK);
-	atomic_set(&hw_ip->status.otf_start, 0);
 	atomic_set(&hw_ip->rsccount, 0);
 	atomic_set(&hw_ip->run_rsccount, 0);
 	init_waitqueue_head(&hw_ip->status.wait_queue);

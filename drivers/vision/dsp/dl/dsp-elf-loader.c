@@ -114,16 +114,73 @@ static int __dsp_elf32_check_magic(struct dsp_dl_lib_file *file)
 	return ck;
 }
 
-static void __dsp_elf32_get_symtab(int idx, struct dsp_elf32 *elf)
+int dsp_elf32_check_range(struct dsp_elf32 *elf, size_t size)
 {
-	struct dsp_elf32_shdr *shdr = elf->shdr + idx;
+	if (size > elf->size) {
+		DL_ERROR("invalid size range of elf(%zu/%zu)\n",
+				size, elf->size);
+		return -1;
+	}
+
+	return 0;
+}
+
+static void *__dsp_elf32_get_ptr(struct dsp_elf32 *elf, void *src, size_t size)
+{
+	if ((src < (void *)elf->data) ||
+			(src + size > (void *)elf->data + elf->size)) {
+		DL_ERROR("invalid ptr access\n");
+		return NULL;
+	}
+
+	if (src + size < src) {
+		DL_ERROR("ptr overflow\n");
+		return NULL;
+	}
+
+	return src;
+}
+
+static int __dsp_elf32_get_symtab(int idx, struct dsp_elf32 *elf)
+{
+	struct dsp_elf32_shdr *shdr;
 	struct dsp_elf32_shdr *str_hdr;
 
-	elf->symtab = (struct dsp_elf32_sym *)(elf->data + shdr->sh_offset);
+	shdr = __dsp_elf32_get_ptr(elf, elf->shdr + idx,
+			sizeof(struct dsp_elf32_shdr));
+	if (!shdr) {
+		DL_ERROR("shdr is NULL\n");
+		return -1;
+	}
+
+	if (!shdr->sh_entsize) {
+		DL_ERROR("sh_entsize must not be zero\n");
+		return -1;
+	}
 	elf->symtab_num = shdr->sh_size / shdr->sh_entsize;
 
-	str_hdr = elf->shdr + shdr->sh_link;
-	elf->strtab = elf->data + str_hdr->sh_offset;
+	elf->symtab = __dsp_elf32_get_ptr(elf, elf->data + shdr->sh_offset,
+			sizeof(struct dsp_elf32_sym) * elf->symtab_num);
+	if (!elf->symtab) {
+		DL_ERROR("elf->symtab is NULL\n");
+		return -1;
+	}
+
+	str_hdr = __dsp_elf32_get_ptr(elf, elf->shdr + shdr->sh_link,
+			sizeof(struct dsp_elf32_shdr));
+	if (!str_hdr) {
+		DL_ERROR("str_hdr is NULL\n");
+		return -1;
+	}
+
+	elf->strtab = __dsp_elf32_get_ptr(elf, elf->data + str_hdr->sh_offset,
+			sizeof(char));
+	if (!elf->strtab) {
+		DL_ERROR("elf->strtab is NULL\n");
+		return -1;
+	}
+
+	return 0;
 }
 
 static void __dsp_elf32_get_text(int idx, struct dsp_elf32 *elf)
@@ -190,63 +247,92 @@ static void __dsp_elf32_get_mem(int idx, const char *mem_name,
 		__dsp_elf32_idx_node_push_back(idx, SFRw);
 }
 
-static void __dsp_elf32_rela_node_push_back(int idx, struct dsp_list_head *head,
+static int __dsp_elf32_rela_node_push_back(int idx, struct dsp_list_head *head,
 	struct dsp_elf32 *elf)
 {
-	struct dsp_elf32_shdr *shdr = elf->shdr + idx;
-	struct dsp_elf32_rela_node *sec =
-		(struct dsp_elf32_rela_node *)dsp_dl_malloc(
-			sizeof(*sec),
-			"Rela node");
+	struct dsp_elf32_shdr *shdr;
+	struct dsp_elf32_rela_node *sec;
 
+	shdr = __dsp_elf32_get_ptr(elf, elf->shdr + idx,
+			sizeof(struct dsp_elf32_shdr));
+	if (!shdr) {
+		DL_ERROR("shdr is NULL\n");
+		return -1;
+	}
+
+	if (!shdr->sh_entsize) {
+		DL_ERROR("sh_entsize must not be zero\n");
+		return -1;
+	}
+
+	sec = (struct dsp_elf32_rela_node *)dsp_dl_malloc(sizeof(*sec),
+			"Rela node");
 	sec->idx = idx;
-	sec->rela = (struct dsp_elf32_rela *)(elf->data + shdr->sh_offset);
 	sec->rela_num = shdr->sh_size / shdr->sh_entsize;
+	sec->rela = __dsp_elf32_get_ptr(elf, elf->data + shdr->sh_offset,
+			sizeof(struct dsp_elf32_rela) * sec->rela_num);
+	if (!sec->rela) {
+		DL_ERROR("sec->rela is NULL\n");
+		return -1;
+	}
+
 	dsp_list_node_init(&sec->node);
 	dsp_list_node_push_back(head, &sec->node);
+	return 0;
 }
 
-static void __dsp_elf32_get_mem_rela(int idx, const char *sec_name,
+static int __dsp_elf32_get_mem_rela(int idx, const char *sec_name,
 	struct dsp_elf32 *elf, struct dsp_list_head *text,
 	struct dsp_list_head *DMb, struct dsp_list_head *DMb_local,
 	struct dsp_list_head *DRAMb, struct dsp_list_head *TCMb,
 	struct dsp_list_head *TCMb_local, struct dsp_list_head *SFRw)
 {
+	int ret;
+	struct dsp_list_head *head = NULL;
+
 	DL_DEBUG("Elf32 get mem rela\n");
 
-	if (strncmp("text", sec_name, 4) == 0)
-		__dsp_elf32_rela_node_push_back(idx, text, elf);
-	else if (strncmp("data.", sec_name, 5) == 0) {
+	if (strncmp("text", sec_name, 4) == 0) {
+		head = text;
+	} else if (strncmp("data.", sec_name, 5) == 0) {
 		const char *mem_name = sec_name + 5;
 
 		if (strncmp("DMb", mem_name, 3) == 0) {
 			const char *local_name = mem_name + 5;
 
 			if (strlen(local_name) == 13 &&
-				strncmp(".thread_local", local_name,
-					13) == 0) {
-				__dsp_elf32_rela_node_push_back(idx, DMb_local,
-					elf);
-			} else
-				__dsp_elf32_rela_node_push_back(idx, DMb, elf);
+					strncmp(".thread_local", local_name,
+						13) == 0)
+				head = DMb_local;
+			else
+				head = DMb;
 		} else if (strncmp("TCMb", mem_name, 4) == 0) {
 			const char *local_name = mem_name + 6;
 
 			if (strlen(local_name) == 13 &&
-				strncmp(".thread_local", local_name,
-					13) == 0) {
-				__dsp_elf32_rela_node_push_back(idx, TCMb_local,
-					elf);
-			} else
-				__dsp_elf32_rela_node_push_back(idx, TCMb, elf);
-		}  else if (strncmp("DRAMb", mem_name, 5) == 0)
-			__dsp_elf32_rela_node_push_back(idx, DRAMb, elf);
-		else if (strncmp("SFRw", mem_name, 4) == 0)
-			__dsp_elf32_rela_node_push_back(idx, SFRw, elf);
+					strncmp(".thread_local", local_name,
+						13) == 0)
+				head = TCMb_local;
+			else
+				head = TCMb;
+		} else if (strncmp("DRAMb", mem_name, 5) == 0) {
+			head = DRAMb;
+		} else if (strncmp("SFRw", mem_name, 4) == 0) {
+			head = SFRw;
+		}
 	}
+
+	if (head) {
+		ret = __dsp_elf32_rela_node_push_back(idx, head, elf);
+		if (ret == -1) {
+			DL_ERROR("Failed rela node push back\n");
+			return -1;
+		}
+	}
+	return 0;
 }
 
-static void __dsp_elf32_get_bss_symhash(struct dsp_elf32 *elf)
+static int __dsp_elf32_get_bss_symhash(struct dsp_elf32 *elf)
 {
 	unsigned int idx;
 	struct dsp_elf32_sym *sym;
@@ -260,9 +346,22 @@ static void __dsp_elf32_get_bss_symhash(struct dsp_elf32 *elf)
 		ndx = sym->st_shndx;
 
 		if (ndx > 0 && ndx < elf->hdr->e_shnum) {
-			const char *sym_str = elf->strtab + sym->st_name;
-			const char *shstr = elf->shstrtab +
-				elf->shdr[ndx].sh_name;
+			const char *sym_str;
+			const char *shstr;
+
+			sym_str = __dsp_elf32_get_ptr(elf, elf->strtab +
+					sym->st_name, sizeof(char));
+			if (!sym_str) {
+				DL_ERROR("sym_str is NULL\n");
+				return -1;
+			}
+
+			shstr = __dsp_elf32_get_ptr(elf, elf->shstrtab +
+					elf->shdr[ndx].sh_name, sizeof(char));
+			if (!shstr) {
+				DL_ERROR("shstr is NULL\n");
+				return -1;
+			}
 
 			dsp_hash_push(&elf->symhash, sym_str, sym);
 
@@ -280,9 +379,11 @@ static void __dsp_elf32_get_bss_symhash(struct dsp_elf32 *elf)
 			}
 		}
 	}
+
+	return 0;
 }
 
-static void __dsp_elf32_get_extern_sym(struct dsp_elf32 *elf)
+static int __dsp_elf32_get_extern_sym(struct dsp_elf32 *elf)
 {
 	int ret;
 	unsigned int idx;
@@ -297,7 +398,14 @@ static void __dsp_elf32_get_extern_sym(struct dsp_elf32 *elf)
 		ndx = sym->st_shndx;
 
 		if (ndx == 0) {
-			const char *sym_str = elf->strtab + sym->st_name;
+			const char *sym_str;
+
+			sym_str = __dsp_elf32_get_ptr(elf, elf->strtab +
+					sym->st_name, sizeof(char));
+			if (!sym_str) {
+				DL_ERROR("sym_str is NULL\n");
+				return -1;
+			}
 
 			ret = dsp_hash_get(&elf->symhash, sym_str,
 					(void **)&sym);
@@ -315,6 +423,8 @@ static void __dsp_elf32_get_extern_sym(struct dsp_elf32 *elf)
 			}
 		}
 	}
+
+	return 0;
 }
 
 int dsp_elf32_load(struct dsp_elf32 *elf, struct dsp_dl_lib_file *file)
@@ -327,30 +437,69 @@ int dsp_elf32_load(struct dsp_elf32 *elf, struct dsp_dl_lib_file *file)
 
 	ret = __dsp_elf32_check_magic(file);
 	if (ret == -1) {
-		DL_ERROR("[%s] CHK_ERR\n", __func__);
+		DL_ERROR("CHK_ERR\n");
 		return -1;
 	}
 
 	elf->data = (char *)file->mem;
 	elf->size = file->size;
 
-	elf->hdr = (struct dsp_elf32_hdr *)elf->data;
+	elf->hdr = __dsp_elf32_get_ptr(elf, elf->data,
+			sizeof(struct dsp_elf32_hdr));
+	if (!elf->hdr) {
+		DL_ERROR("elf->hdr is NULL\n");
+		return -1;
+	}
 
-	elf->shdr = (struct dsp_elf32_shdr *)(elf->data + elf->hdr->e_shoff);
+	elf->shdr = __dsp_elf32_get_ptr(elf, elf->data + elf->hdr->e_shoff,
+			sizeof(struct dsp_elf32_shdr));
+	if (!elf->shdr) {
+		DL_ERROR("elf->shdr is NULL\n");
+		return -1;
+	}
 	elf->shdr_num = elf->hdr->e_shnum;
 
-	shstrtab_hdr = elf->shdr + elf->hdr->e_shstrndx;
-	elf->shstrtab = elf->data + shstrtab_hdr->sh_offset;
+	shstrtab_hdr = __dsp_elf32_get_ptr(elf, elf->shdr +
+			elf->hdr->e_shstrndx, sizeof(struct dsp_elf32_shdr));
+	if (!shstrtab_hdr) {
+		DL_ERROR("shstrtab_hdr is NULL\n");
+		return -1;
+	}
+
+	elf->shstrtab = __dsp_elf32_get_ptr(elf, elf->data +
+			shstrtab_hdr->sh_offset, sizeof(char));
+	if (!elf->shstrtab) {
+		DL_ERROR("elf->shstrtab is NULL\n");
+		return -1;
+	}
 
 	for (idx = 0; idx < elf->hdr->e_shnum; idx++) {
-		struct dsp_elf32_shdr *shdr = elf->shdr + idx;
-		const char *shdr_name = elf->shstrtab + shdr->sh_name;
+		struct dsp_elf32_shdr *shdr;
+		const char *shdr_name;
 
-		if (shdr->sh_type == 2)
-			__dsp_elf32_get_symtab(idx, elf);
-		else if (strcmp(".text", shdr_name) == 0)
+		shdr = __dsp_elf32_get_ptr(elf, elf->shdr + idx,
+				sizeof(struct dsp_elf32_shdr));
+		if (!shdr) {
+			DL_ERROR("shdr is NULL\n");
+			return -1;
+		}
+
+		shdr_name = __dsp_elf32_get_ptr(elf, elf->shstrtab +
+				shdr->sh_name, sizeof(char));
+		if (!shdr_name) {
+			DL_ERROR("shdr_name is NULL\n");
+			return -1;
+		}
+
+		if (shdr->sh_type == 2) {
+			ret = __dsp_elf32_get_symtab(idx, elf);
+			if (ret == -1) {
+				DL_ERROR("Failed to get symtab\n");
+				return -1;
+			}
+		} else if (strcmp(".text", shdr_name) == 0) {
 			__dsp_elf32_get_text(idx, elf);
-		else if (strncmp(".robss.", shdr_name, 7) == 0) {
+		} else if (strncmp(".robss.", shdr_name, 7) == 0) {
 			const char *mem_name = shdr_name + 7;
 
 			__dsp_elf32_get_mem(idx, mem_name, &elf->DMb.robss,
@@ -383,16 +532,30 @@ int dsp_elf32_load(struct dsp_elf32 *elf, struct dsp_dl_lib_file *file)
 		} else if (strncmp(".rela.", shdr_name, 6) == 0) {
 			const char *sec_name = shdr_name + 6;
 
-			__dsp_elf32_get_mem_rela(idx, sec_name, elf,
-				&elf->text.rela, &elf->DMb.rela,
-				&elf->DMb_local.rela, &elf->DRAMb.rela,
-				&elf->TCMb.rela, &elf->TCMb_local.rela,
-				&elf->SFRw.rela);
+			ret = __dsp_elf32_get_mem_rela(idx, sec_name, elf,
+					&elf->text.rela, &elf->DMb.rela,
+					&elf->DMb_local.rela, &elf->DRAMb.rela,
+					&elf->TCMb.rela, &elf->TCMb_local.rela,
+					&elf->SFRw.rela);
+			if (ret == -1) {
+				DL_ERROR("Failed to get mem rela\n");
+				return -1;
+			}
 		}
 	}
 
-	__dsp_elf32_get_bss_symhash(elf);
-	__dsp_elf32_get_extern_sym(elf);
+	ret = __dsp_elf32_get_bss_symhash(elf);
+	if (ret == -1) {
+		DL_ERROR("Failed to get bss symhash\n");
+		return -1;
+	}
+
+	ret = __dsp_elf32_get_extern_sym(elf);
+	if (ret == -1) {
+		DL_ERROR("Failed to get extern sym\n");
+		return -1;
+	}
+
 	return 0;
 }
 
@@ -442,6 +605,11 @@ static unsigned int __dsp_elf32_get_section_list_size(
 		struct dsp_elf32_shdr *sec = elf->shdr + idx_node->idx;
 		unsigned int size = sec->sh_size;
 
+		if (total > total + __dsp_elf32_align_4byte(size)) {
+			DL_ERROR("Overflow happened\n");
+			return UINT_MAX;
+		}
+
 		total += __dsp_elf32_align_4byte(size);
 	}
 	return total;
@@ -456,11 +624,50 @@ unsigned int dsp_elf32_get_mem_size(struct dsp_elf32_mem *mem,
 	struct dsp_elf32 *elf)
 {
 	unsigned int total = 0;
+	unsigned int size = 0;
 
-	total += __dsp_elf32_get_section_list_size(&mem->robss, elf);
-	total += __dsp_elf32_get_section_list_size(&mem->rodata, elf);
-	total += __dsp_elf32_get_section_list_size(&mem->bss, elf);
-	total += __dsp_elf32_get_section_list_size(&mem->data, elf);
+	total = __dsp_elf32_get_section_list_size(&mem->robss, elf);
+	if (total == UINT_MAX) {
+		DL_ERROR("Overflow happened\n");
+		return UINT_MAX;
+	}
+
+	size = __dsp_elf32_get_section_list_size(&mem->rodata, elf);
+	if (size == UINT_MAX) {
+		DL_ERROR("Overflow happened\n");
+		return UINT_MAX;
+	}
+
+	if (total > total + size) {
+		DL_ERROR("Overflow happened\n");
+		return UINT_MAX;
+	}
+	total += size;
+
+	size = __dsp_elf32_get_section_list_size(&mem->bss, elf);
+	if (size == UINT_MAX) {
+		DL_ERROR("Overflow happened\n");
+		return UINT_MAX;
+	}
+
+	if (total > total + size) {
+		DL_ERROR("Overflow happened\n");
+		return UINT_MAX;
+	}
+	total += size;
+
+	size = __dsp_elf32_get_section_list_size(&mem->data, elf);
+	if (size == UINT_MAX) {
+		DL_ERROR("Overflow happened\n");
+		return UINT_MAX;
+	}
+
+	if (total > total + size) {
+		DL_ERROR("Overflow happened\n");
+		return UINT_MAX;
+	}
+	total += size;
+
 	return total;
 }
 
@@ -834,7 +1041,7 @@ int dsp_elf32_load_libs(struct dsp_dl_lib_info *infos,
 			ret = dsp_elf32_load(libs[idx]->elf,
 					&infos[idx].file);
 			if (ret == -1) {
-				DL_ERROR("[%s] CHK_ERR\n", __func__);
+				DL_ERROR("CHK_ERR\n");
 				return -1;
 			}
 		}

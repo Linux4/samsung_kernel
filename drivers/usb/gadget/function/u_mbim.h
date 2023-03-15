@@ -35,13 +35,15 @@ struct ncm_header {
 #define NCM_NDP_LEN16			(0xB4)
 #define NCM_NDP_REV			(0x0)
 
-#define NTB_DEFAULT_IN_SIZE	16384
+#define NTB_DEFAULT_IN_SIZE	16384 * 4
 #define NTB_OUT_SIZE		16384
 
 #define TX_MAX_NUM_DPE		32
 
 /* Delay for the transmit to wait before sending an unfilled NTB frame. */
 #define TX_TIMEOUT_NSECS	300000
+
+#define MBIM_MAX_DATAGRAM        (42)
 
 /*
  * Here are options for NCM Datagram Pointer table (NDP) parser.

@@ -43,9 +43,7 @@ extern void secdbg_lkmg_store(unsigned char *head_ptr,
 /*
  * SEC DEBUG MODE
  */
-extern int secdbg_mode_check_sj(void);
 extern int secdbg_mode_enter_upload(void);
-
 
 /*
  * SEC DEBUG - DEBUG SNAPSHOT BASE HOOKING
@@ -126,7 +124,8 @@ extern void secdbg_exin_set_zswap(char *str);
 extern void secdbg_exin_set_mfc_error(char *str);
 extern void secdbg_exin_set_aud(char *str);
 extern void secdbg_exin_set_epd(char *str);
-extern void secdbg_exin_set_unfz(const char *tmp);
+extern void secdbg_exin_set_unfz(const char *tmp, int pid);
+extern char *secdbg_exin_get_unfz(void);
 #else /* !CONFIG_SEC_DEBUG_EXTRA_INFO */
 #define secdbg_exin_set_finish(a)	do { } while (0)
 #define secdbg_exin_set_fault(a, b, c)	do { } while (0)
@@ -150,6 +149,7 @@ extern void secdbg_exin_set_unfz(const char *tmp);
 #define secdbg_exin_set_aud(a)		do { } while (0)
 #define secdbg_exin_set_epd(a)		do { } while (0)
 #define secdbg_exin_set_unfz(a)		do { } while (0)
+#define secdbg_exin_get_unfz(a)		do { } while (0)
 #endif /* CONFIG_SEC_DEBUG_EXTRA_INFO */
 
 #ifdef CONFIG_SEC_DEBUG_WATCHDOGD_FOOTPRINT
@@ -163,7 +163,7 @@ extern void secdbg_wdd_set_emerg_addr(unsigned long addr);
 #endif
 
 #ifdef CONFIG_SEC_DEBUG_FREQ
-extern void secdbg_freq_check(int type, unsigned long index, unsigned long freq);
+extern void secdbg_freq_check(int type, unsigned long index, unsigned long freq, int en);
 #endif
 
 #ifdef CONFIG_SEC_DEBUG_SYSRQ_KMSG
@@ -192,9 +192,14 @@ extern void secdbg_base_set_bs_info_phase(int phase);
 #ifdef CONFIG_SEC_DEBUG_DTASK
 extern void secdbg_dtsk_print_info(struct task_struct *task, bool raw);
 extern void secdbg_dtsk_set_data(int type, void *data);
+static inline void secdbg_dtsk_clear_data(void)
+{
+	secdbg_dtsk_set_data(DTYPE_NONE, NULL);
+}
 #else
 #define secdbg_dtsk_print_info(a, b)		do { } while (0)
 #define secdbg_dtsk_set_data(a, b)		do { } while (0)
+#define secdbg_dtsk_clear_data()		do { } while (0)
 #endif /* CONFIG_SEC_DEBUG_DTASK */
 
 #ifdef CONFIG_SEC_DEBUG_PM_DEVICE_INFO
@@ -222,5 +227,26 @@ extern void secdbg_base_set_task_in_sync_irq(uint64_t task, unsigned int irq, co
 #define secdbg_base_set_task_in_dev_shutdown(a)		do { } while (0)
 #define secdbg_base_set_task_in_sync_irq(a, b, c, d)	do { } while (0)
 #endif /* CONFIG_SEC_DEBUG_PM_DEVICE_INFO */
+
+#ifdef CONFIG_SEC_DEBUG
+#define SDBG_KNAME_LEN	64
+
+struct secdbg_member_type {
+	char member[SDBG_KNAME_LEN];
+	uint16_t size;
+	uint16_t offset;
+	uint16_t unused[2];
+};
+
+#define SECDBG_DEFINE_MEMBER_TYPE(key, st, mem)					\
+	const struct secdbg_member_type sdbg_##key				\
+		__attribute__((__section__(".secdbg_mbtab." #key))) = {		\
+		.member = #key,							\
+		.size = FIELD_SIZEOF(struct st, mem),				\
+		.offset = offsetof(struct st, mem),				\
+	}
+#else
+#define SECDBG_DEFINE_MEMBER_TYPE(a, b, c)
+#endif /* CONFIG_SEC_DEBUG */
 
 #endif /* SEC_DEBUG_H */

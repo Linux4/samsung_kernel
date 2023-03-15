@@ -1,4 +1,5 @@
 # Makefile of modem_v1
+ccflags-y += -Wformat
 
 EXTRA_CFLAGS += -Idrivers/soc/samsung/cpif \
 		-DCONFIG_OPTION_REGION=\"$(PROJECT_REGION)\"
@@ -38,11 +39,11 @@ obj-$(CONFIG_LINK_CONTROL_MSG_IOSM) += link_ctrlmsg_iosm.o
 
 obj-$(CONFIG_CP_BTL) += cp_btl.o
 
-obj-$(CONFIG_USB_CONFIGFS_F_MBIM) += mbim_io_device.o
-
 obj-$(CONFIG_CPIF_TP_MONITOR) += cpif_tp_monitor.o
 
 obj-$(CONFIG_MODEM_IF_LEGACY_QOS) += cpif_qos_info.o
+
+obj-$(CONFIG_USB_CONFIGFS_F_MBIM) += mbim_io_device.o
 
 ifeq ($(CONFIG_RPS), y)
 ifeq ($(CONFIG_ARGOS), y)

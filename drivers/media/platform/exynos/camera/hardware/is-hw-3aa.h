@@ -22,6 +22,7 @@ enum sram_config_type {
 	SRAM_CFG_R,
 	SRAM_CFG_MODE_CHANGE_R,
 	SRAM_CFG_BLOCK,
+	SRAM_CFG_S,
 	SRAM_CFG_MAX
 };
 

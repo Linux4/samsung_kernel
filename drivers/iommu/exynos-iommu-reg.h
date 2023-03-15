@@ -341,7 +341,7 @@ static inline void show_secure_fault_information(struct sysmmu_drvdata *drvdata,
 	char temp_buf[SZ_128];
 #endif
 
-	pgtable = __secure_info_read(MMU_SEC_REG(drvdata, IDX_FLPT_BASE));
+	pgtable = __secure_info_read(MMU_SEC_REG(drvdata, IDX_SEC_FLPT_BASE));
 	pgtable <<= PAGE_SHIFT;
 
 	info = __secure_info_read(MMU_SEC_REG(drvdata, IDX_FAULT_TRANS_INFO));
@@ -393,15 +393,11 @@ static inline void show_secure_fault_information(struct sysmmu_drvdata *drvdata,
 	pr_auto(ASL4, "ADDR: %#x, MMU_CTRL: %#010x, PT_BASE: %#010x\n",
 		sfrbase,
 		__secure_info_read(sfrbase + REG_MMU_CTRL),
-		__secure_info_read(MMU_SEC_REG(drvdata, IDX_FLPT_BASE)));
+		__secure_info_read(MMU_SEC_REG(drvdata, IDX_SEC_FLPT_BASE)));
 	pr_auto(ASL4, "VERSION %d.%d.%d, MMU_CFG: %#010x, MMU_STATUS: %#010x\n",
 		MMU_MAJ_VER(info), MMU_MIN_VER(info), MMU_REV_VER(info),
 		__secure_info_read(sfrbase + REG_MMU_CFG),
 		__secure_info_read(sfrbase + REG_MMU_STATUS));
-	if (drvdata->has_vcr)
-		pr_auto(ASL4, "MMU_CTRL_VM: %#010x, MMU_CFG_VM: %#010x\n",
-			__secure_info_read(sfrbase + REG_MMU_CTRL_VM),
-			__secure_info_read(sfrbase + REG_MMU_CFG_VM));
 
 finish:
 	pr_auto(ASL4, "----------------------------------------------------------\n");
@@ -687,7 +683,8 @@ static inline void __sysmmu_enable_nocount(struct sysmmu_drvdata *drvdata)
 
 	writel(CTRL_ENABLE, drvdata->sfrbase + REG_MMU_CTRL);
 	if (drvdata->has_vcr)
-		writel(CTRL_ENABLE, drvdata->sfrbase + REG_MMU_CTRL_VM);
+		writel(CTRL_ENABLE | CTRL_FAULT_STALL_MODE,
+				drvdata->sfrbase + REG_MMU_CTRL_VM);
 
 	SYSMMU_EVENT_LOG_ENABLE(SYSMMU_DRVDATA_TO_LOG(drvdata));
 }

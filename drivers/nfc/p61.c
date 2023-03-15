@@ -41,7 +41,8 @@
 #include <linux/spi/spidev.h>
 #include <linux/of_gpio.h>
 #include <linux/of_platform.h>
-#include <linux/wakelock.h>
+
+#include "nfc_wakelock.h"
 #include "p61.h"
 #include "pn547.h"
 #if defined(CONFIG_ESE_SECURE) && defined(CONFIG_ESE_USE_TZ_API)
@@ -108,7 +109,7 @@ struct p61_device {
 	bool tz_mode;
 	spinlock_t ese_spi_lock;
 	bool isGpio_cfgDone;
-	struct wake_lock ese_lock;
+	struct nfc_wake_lock ese_lock;
 	bool device_opened;
 
 	struct pinctrl *pinctrl;
@@ -308,6 +309,7 @@ static int p61_xfer(struct p61_device *p61_dev,
 	int status = 0;
 	struct spi_message m;
 	struct spi_transfer t;
+	int read_write = 0; /* 0: write, 1: read */
 	/*For SDM845 & linux4.9: need to change spi buffer
 	 * from stack to dynamic memory
 	 */
@@ -323,7 +325,7 @@ static int p61_xfer(struct p61_device *p61_dev,
 
 	memset(p61_dev->buf, 0, tr->len); /*memset 0 for read */
 	if (tr->tx_buffer != NULL) { /*write */
-		pr_info("%s...write\n", __func__);
+		read_write = 0;
 		if (copy_from_user(p61_dev->buf, tr->tx_buffer, tr->len) != 0)
 			return -EFAULT;
 	}
@@ -339,15 +341,15 @@ static int p61_xfer(struct p61_device *p61_dev,
 		if (tr->rx_buffer != NULL) { /*read */
 			unsigned long missing = 0;
 
-			pr_info("%s...read\n", __func__);
+			read_write = 1;
 			missing = copy_to_user(tr->rx_buffer, p61_dev->buf, tr->len);
 			if (missing != 0)
 				tr->len = tr->len - (unsigned int)missing;
 		}
 	}
-	pr_info("%s p61_xfer,length=%d\n", __func__, tr->len);
-	return status;
+	pr_info("%s %s(%d)\n", __func__, read_write ? "read":"write", tr->len);
 
+	return status;
 } /* vfsspi_xfer */
 
 static int p61_rw_spi_message(struct p61_device *p61_dev,
@@ -459,7 +461,6 @@ static long p61_dev_ioctl(struct file *filp, unsigned int cmd,
 			__func__, cmd, _IOC_TYPE(cmd), P61_MAGIC);
 		return -ENOTTY;
 	}
-	pr_debug("%s entered %x arg = %pK\n", __func__, cmd, (void *)arg);
 	p61_dev = filp->private_data;
 
 	switch (cmd) {
@@ -787,6 +788,7 @@ static int p61_parse_dt(struct device *dev,
 	struct pinctrl *ese_pinctrl;
 #endif
 	int ese_det_gpio;
+	int ret;
 
 	if (!of_property_read_string(np, "p61,ap_vendor",
 		&p61_dev->ap_vendor)) {
@@ -837,7 +839,10 @@ static int p61_parse_dt(struct device *dev,
 	if (!gpio_is_valid(ese_det_gpio)) {
 		pr_info("%s : ese-det-gpio is not set", __func__);
 	} else {
-		gpio_request(ese_det_gpio, "ese_det_gpio");
+		ret = gpio_request(ese_det_gpio, "ese_det_gpio");
+		if (ret < 0)
+			pr_info("%s failed to get gpio ese_det_gpio\n", __func__);
+
 		gpio_direction_input(ese_det_gpio);
 		if (!gpio_get_value(ese_det_gpio)) {
 			pr_info("%s : ese is not supported", __func__);

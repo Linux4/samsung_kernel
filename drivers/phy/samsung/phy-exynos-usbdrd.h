@@ -103,6 +103,7 @@
 #define MHZ	(KHZ * KHZ)
 
 #define EXYNOS_DRD_MAX_TUNEPARAM_NUM		32
+#define EXYNOS_DRD_TUNEPARAM_LEN		30
 
 enum exynos_usbdrd_phy_id {
 	EXYNOS_DRDPHY_UTMI,
@@ -123,6 +124,9 @@ struct exynos_usbdrd_phy_config {
 	void (*phy_ilbk)(struct exynos_usbdrd_phy *phy_drd);
 	void (*phy_set)(struct exynos_usbdrd_phy *phy_drd, int, void *);
 	unsigned int (*set_refclk)(struct phy_usb_instance *inst);
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+	int (*phy_rewa_irq)(struct exynos_usbdrd_phy *phy_drd);
+#endif
 };
 
 struct exynos_usbdrd_phy_drvdata {
@@ -196,6 +200,16 @@ struct exynos_usbdrd_phy {
 	u32 reverse_phy_port;
 	spinlock_t lock;
 	u32 use_default_tune_val;
+
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	int is_wdisable_irq_en;
+	int is_u3_rewa_irq_en;
+	int occurred_rewa_irq;
+	u32 w_disable_gpio;
+	u32 w_disable_irq;
+	struct irq_chip *wakeup_irq;
+	u32 f_no_jig_case;
+#endif
 };
 
 void __iomem *phy_exynos_usbdp_get_address(void);

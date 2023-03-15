@@ -410,6 +410,7 @@ static void __mfc_set_enc_params_h264(struct mfc_ctx *ctx)
 	struct mfc_enc *enc = ctx->enc_priv;
 	struct mfc_enc_params *p = &enc->params;
 	struct mfc_h264_enc_params *p_264 = &p->codec.h264;
+	unsigned int mb = 0;
 	unsigned int reg = 0;
 
 	mfc_debug_enter();
@@ -425,14 +426,31 @@ static void __mfc_set_enc_params_h264(struct mfc_ctx *ctx)
 		__mfc_set_gop_size(ctx, 1);
 	}
 
-	/* UHD encoding case */
-	if(IS_UHD_RES(ctx)) {
+	mb = WIDTH_MB((ctx)->crop_width) * HEIGHT_MB((ctx)->crop_height);
+	/* Level 6.0 case */
+	if (IS_LV60_MB(mb)) {
+		if (p_264->level < 60) {
+			mfc_info_ctx("Set Level 6.0 for MB %d\n", mb);
+			p_264->level = 60;
+		}
+		if (p_264->profile < 0x1) {
+			mfc_info_ctx("Set High profile for MB %d\n", mb);
+			p_264->profile = 0x2;
+		}
+		if (p_264->entropy_mode != 0x1) {
+			mfc_info_ctx("Set Entropy mode CABAC\n");
+			p_264->entropy_mode = 1;
+		}
+	}
+
+	/* Level 5.1 case */
+	if (IS_LV51_MB(mb)) {
 		if (p_264->level < 51) {
-			mfc_info_ctx("Set Level 5.1 for UHD\n");
+			mfc_info_ctx("Set Level 5.1 for MB %d\n", mb);
 			p_264->level = 51;
 		}
-		if (p_264->profile != 0x2) {
-			mfc_info_ctx("Set High profile for UHD\n");
+		if (p_264->profile < 0x1) {
+			mfc_info_ctx("Set High profile for MB %d\n", mb);
 			p_264->profile = 0x2;
 		}
 	}
@@ -1038,6 +1056,7 @@ static void __mfc_set_enc_params_hevc(struct mfc_ctx *ctx)
 	struct mfc_enc *enc = ctx->enc_priv;
 	struct mfc_enc_params *p = &enc->params;
 	struct mfc_hevc_enc_params *p_hevc = &p->codec.hevc;
+	unsigned int mb = 0;
 	unsigned int reg = 0;
 	int i;
 
@@ -1055,11 +1074,17 @@ static void __mfc_set_enc_params_hevc(struct mfc_ctx *ctx)
 		__mfc_set_gop_size(ctx, 1);
 	}
 
-	/* UHD encoding case */
-	if (IS_UHD_RES(ctx)) {
+	mb = WIDTH_MB((ctx)->crop_width) * HEIGHT_MB((ctx)->crop_height);
+	/* Level 6.0 case */
+	if (IS_LV60_MB(mb) && p_hevc->level < 60) {
+		mfc_info_ctx("Set Level 6.0 for MB %d\n", mb);
+		p_hevc->level = 60;
+	}
+
+	/* Level 5.1 case */
+	if (IS_LV51_MB(mb) && p_hevc->level < 51) {
+		mfc_info_ctx("Set Level 5.1 for MB %d\n", mb);
 		p_hevc->level = 51;
-		p_hevc->tier_flag = 0;
-	/* this tier_flag can be changed */
 	}
 
 	/* tier_flag & level & profile */

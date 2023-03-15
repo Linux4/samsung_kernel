@@ -41,7 +41,7 @@ static void stui_wq_func(struct work_struct *param)
 	struct delayed_work *wq = container_of(param, struct delayed_work, work);
 	long ret;
 	mutex_lock(&stui_mode_mutex);
-	ret = stui_process_cmd(NULL, STUI_HW_IOCTL_FINISH_TUI, 0);
+	ret = stui_process_cmd(stui_device, NULL, STUI_HW_IOCTL_FINISH_TUI, 0);
 	if (ret != STUI_RET_OK)
 		pr_err("[STUI] STUI_HW_IOCTL_FINISH_TUI in wq fail: %ld\n", ret);
 	kfree(wq);
@@ -83,7 +83,7 @@ static long stui_handler_ioctl(struct file *f, unsigned int cmd, unsigned long a
 {
 	long ret;
 	mutex_lock(&stui_mode_mutex);
-	ret = stui_process_cmd(f, cmd, arg);
+	ret = stui_process_cmd(stui_device, f, cmd, arg);
 	if (stui_get_mode() & STUI_MODE_ALL) {
 		f->private_data = (void *)1UL;
 	} else {
@@ -130,9 +130,15 @@ static int stui_handler_init(void)
 	stui_device = device_create(tui_class, NULL, devno, NULL, STUI_DEV_NAME);
 	if (!IS_ERR(stui_device)) {
 		pr_info("[STUI] stui_handler_init -\n");
+		/* Registration on REE events */
+		if (stui_register_on_events() != 0) {
+			pr_err("[STUI] stui_register_on_events failed\n");
+			goto err_reg_events;
+		}
 		return 0;
 	}
 
+err_reg_events:
 	err = PTR_ERR(stui_device);
 	wake_lock_destroy(&tui_wakelock);
 
@@ -147,6 +153,7 @@ err_class_create:
 static void stui_handler_exit(void)
 {
 	pr_debug("[STUI] stui_handler_exit\n");
+	stui_unregister_from_events();
 	wake_lock_destroy(&tui_wakelock);
 	unregister_chrdev_region(stui_cdev.dev, 1);
 	cdev_del(&stui_cdev);

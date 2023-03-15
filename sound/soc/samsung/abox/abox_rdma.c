@@ -192,6 +192,27 @@ static u32 abox_rdma_mailbox_read(struct device *dev, u32 index)
 	return val;
 }
 
+static void abox_rdma_mailbox_update_bits(struct device *dev, u32 index,
+		u32 mask, u32 value)
+{
+	struct regmap *regmap = dev_get_regmap(dev, NULL);
+	int ret;
+
+	dev_dbg(dev, "%s(%#x, %#x, %#x)\n", __func__, index, mask, value);
+
+	if (!regmap) {
+		dev_err(dev, "%s: regmap is null\n", __func__);
+		return;
+	}
+
+	pm_runtime_get(dev);
+	ret = regmap_update_bits(regmap, index, mask, value);
+	if (ret < 0)
+		dev_warn(dev, "%s(%#x) failed: %d\n", __func__, index, ret);
+	pm_runtime_mark_last_busy(dev);
+	pm_runtime_put_autosuspend(dev);
+}
+
 static void abox_mailbox_save(struct device *dev)
 {
 	struct regmap *regmap = dev_get_regmap(dev, NULL);
@@ -1164,6 +1185,45 @@ static int abox_rdma_compr_format_get(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int abox_rdma_compr_mailbox_put(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *cmpnt = snd_soc_kcontrol_component(kcontrol);
+	struct device *dev = cmpnt->dev;
+	struct soc_mixer_control *mc =
+			(struct soc_mixer_control *)kcontrol->private_value;
+	unsigned int shift = mc->shift;
+	int max = mc->max;
+	unsigned int mask = (1 << fls(max)) - 1;
+	unsigned int val = (unsigned int)ucontrol->value.integer.value[0];
+
+	dev_dbg(dev, "%s: %u\n", __func__, val);
+
+	abox_rdma_mailbox_update_bits(dev, mc->reg, mask << shift,
+			val << shift);
+
+	return 0;
+}
+
+static int abox_rdma_compr_mailbox_get(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *cmpnt = snd_soc_kcontrol_component(kcontrol);
+	struct device *dev = cmpnt->dev;
+	struct soc_mixer_control *mc =
+			(struct soc_mixer_control *)kcontrol->private_value;
+	unsigned int shift = mc->shift;
+	int max = mc->max;
+	unsigned int mask = (1 << fls(max)) - 1;
+	unsigned int val = abox_rdma_mailbox_read(dev, mc->reg);
+
+	dev_dbg(dev, "%s: %u\n", __func__, val);
+
+	ucontrol->value.integer.value[0] = (val >> shift) & mask;
+
+	return 0;
+}
+
 static const char * const abox_rdma_compr_format_text[] = {
 	"48kHz 16bit",
 	"192kHz 24bit",
@@ -1182,12 +1242,15 @@ static const struct snd_kcontrol_new abox_rdma_compr_controls[] = {
 			abox_rdma_compr_vol_gain),
 	SOC_ENUM_EXT("Format", abox_rdma_compr_format,
 			abox_rdma_compr_format_get, abox_rdma_compr_format_put),
-	SOC_SINGLE("Bit", COMPR_UPSCALE, COMPR_BIT_SHIFT,
-			COMPR_BIT_MASK, 0),
-	SOC_SINGLE("Ch", COMPR_UPSCALE, COMPR_CH_SHIFT,
-			COMPR_CH_MASK, 0),
-	SOC_SINGLE("Rate", COMPR_UPSCALE, COMPR_RATE_SHIFT,
-			COMPR_RATE_MASK, 0),
+	SOC_SINGLE_EXT("Bit", COMPR_UPSCALE, COMPR_BIT_SHIFT,
+			COMPR_BIT_MASK, 0, abox_rdma_compr_mailbox_get,
+			abox_rdma_compr_mailbox_put),
+	SOC_SINGLE_EXT("Ch", COMPR_UPSCALE, COMPR_CH_SHIFT,
+			COMPR_CH_MASK, 0, abox_rdma_compr_mailbox_get,
+			abox_rdma_compr_mailbox_put),
+	SOC_SINGLE_EXT("Rate", COMPR_UPSCALE, COMPR_RATE_SHIFT,
+			COMPR_RATE_MASK, 0, abox_rdma_compr_mailbox_get,
+			abox_rdma_compr_mailbox_put),
 };
 
 static const struct snd_pcm_hardware abox_rdma_hardware = {
@@ -1957,6 +2020,8 @@ static const struct snd_soc_component_driver abox_rdma_compr = {
 	.num_controls	= ARRAY_SIZE(abox_rdma_compr_controls),
 	.probe		= abox_rdma_probe,
 	.remove		= abox_rdma_remove,
+	.read		= abox_rdma_read,
+	.write		= abox_rdma_write,
 	.pcm_new	= abox_rdma_pcm_new,
 	.pcm_free	= abox_rdma_pcm_free,
 	.ops		= &abox_rdma_ops,
@@ -2203,8 +2268,10 @@ static int abox_rdma_fio_common_ioctl(struct snd_hwdep *hw, struct file *filp,
 	switch (cmd) {
 	case SNDRV_PCM_IOCTL_MMAP_DATA_FD:
 		ret = abox_ion_get_mmap_fd(dev, data->ion_buf, &mmap_fd);
-		if (ret < 0)
+		if (ret < 0) {
 			dev_err(dev, "%s MMAP_FD failed: %d\n", __func__, ret);
+			return ret;
+		}
 
 		if (copy_to_user(_arg, &mmap_fd, sizeof(mmap_fd)))
 			return -EFAULT;

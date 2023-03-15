@@ -44,7 +44,7 @@ int npu_scheduler_governor_unregister(struct npu_scheduler_info *info);
 
 /* governors */
 #ifdef CONFIG_NPU_GOVERNOR_SIMPLE_EXYNOS
-int npu_governor_simple_exynos_register(struct npu_scheduler_info *info);
+void npu_governor_simple_exynos_register(struct npu_scheduler_info *info);
 int npu_governor_simple_exynos_unregister(struct npu_scheduler_info *info);
 #endif
 #ifdef CONFIG_NPU_GOVERNOR_EXYNOS_INTERACTIVE
@@ -52,7 +52,7 @@ int npu_governor_exynos_interactive_register(struct npu_scheduler_info *info);
 int npu_governor_exynos_interactive_unregister(struct npu_scheduler_info *info);
 #endif
 #ifdef CONFIG_NPU_GOVERNOR_USERSPACE
-int npu_governor_userspace_register(struct npu_scheduler_info *info);
+void npu_governor_userspace_register(struct npu_scheduler_info *info);
 int npu_governor_userspace_unregister(struct npu_scheduler_info *info);
 #endif
 

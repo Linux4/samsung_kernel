@@ -173,35 +173,35 @@ static int abox_dbg_dump_create_file(struct abox_data *data)
 
 			info->sram.data = p_dump->sram.dump;
 			info->sram.size = sizeof(p_dump->sram.dump);
-			debugfs_create_blob("sram", 0664, dir, &info->sram);
+			debugfs_create_blob("sram", 0440, dir, &info->sram);
 
 			info->dram.data = p_dump->dram.dump;
 			info->dram.size = sizeof(p_dump->dram.dump);
-			debugfs_create_blob("dram", 0664, dir, &info->dram);
+			debugfs_create_blob("dram", 0440, dir, &info->dram);
 
 			info->log.data = p_dump->dram.dump + ABOX_LOG_OFFSET;
 			info->log.size = ABOX_LOG_SIZE;
-			debugfs_create_blob("log", 0664, dir, &info->log);
+			debugfs_create_blob("log", 0444, dir, &info->log);
 
 			info->sfr.data = p_dump->sfr.dump;
 			info->sfr.size = sizeof(p_dump->sfr.dump);
-			debugfs_create_blob("sfr", 0664, dir, &info->sfr);
+			debugfs_create_blob("sfr", 0440, dir, &info->sfr);
 
 			info->gicd.data = p_dump->sfr_gic_gicd;
 			info->gicd.size = sizeof(p_dump->sfr_gic_gicd);
-			debugfs_create_blob("gicd", 0664, dir, &info->gicd);
+			debugfs_create_blob("gicd", 0440, dir, &info->gicd);
 
 			info->gpr.data = p_dump->gpr;
 			info->gpr.size = sizeof(p_dump->gpr);
-			debugfs_create_blob("gpr", 0664, dir, &info->gpr);
+			debugfs_create_blob("gpr", 0440, dir, &info->gpr);
 
-			debugfs_create_u64("time", 0664, dir, &p_dump->time);
+			debugfs_create_u64("time", 0440, dir, &p_dump->time);
 
 			info->reason.data = p_dump->reason;
 			info->reason.size = sizeof(p_dump->reason);
-			debugfs_create_blob("reason", 0664, dir, &info->reason);
+			debugfs_create_blob("reason", 0440, dir, &info->reason);
 
-			debugfs_create_bool("previous", 0664, dir,
+			debugfs_create_bool("previous", 0440, dir,
 					&p_dump->previous);
 
 			kfree(dir_name);
@@ -217,27 +217,27 @@ static int abox_dbg_dump_create_file(struct abox_data *data)
 
 			info->sram.data = p_dump->sram.dump;
 			info->sram.size = sizeof(p_dump->sram.dump);
-			debugfs_create_blob("sram", 0664, dir, &info->sram);
+			debugfs_create_blob("sram", 0440, dir, &info->sram);
 
 			info->sfr.data = p_dump->sfr.dump;
 			info->sfr.size = sizeof(p_dump->sfr.dump);
-			debugfs_create_blob("sfr", 0664, dir, &info->sfr);
+			debugfs_create_blob("sfr", 0440, dir, &info->sfr);
 
 			info->gicd.data = p_dump->sfr_gic_gicd;
 			info->gicd.size = sizeof(p_dump->sfr_gic_gicd);
-			debugfs_create_blob("gicd", 0664, dir, &info->gicd);
+			debugfs_create_blob("gicd", 0440, dir, &info->gicd);
 
 			info->gpr.data = p_dump->gpr;
 			info->gpr.size = sizeof(p_dump->gpr);
-			debugfs_create_blob("gpr", 0664, dir, &info->gpr);
+			debugfs_create_blob("gpr", 0440, dir, &info->gpr);
 
-			debugfs_create_u64("time", 0664, dir, &p_dump->time);
+			debugfs_create_u64("time", 0440, dir, &p_dump->time);
 
 			info->reason.data = p_dump->reason;
 			info->reason.size = sizeof(p_dump->reason);
-			debugfs_create_blob("reason", 0664, dir, &info->reason);
+			debugfs_create_blob("reason", 0440, dir, &info->reason);
 
-			debugfs_create_bool("previous", 0664, dir,
+			debugfs_create_bool("previous", 0440, dir,
 					&p_dump->previous);
 
 			kfree(dir_name);
@@ -600,11 +600,12 @@ static ssize_t gicd_read(struct file *file, struct kobject *kobj,
 }
 
 /* size will be updated later */
-static BIN_ATTR_RO(calliope_sram, 0);
-static BIN_ATTR_RO(calliope_dram, DRAM_FIRMWARE_SIZE);
+static BIN_ATTR(calliope_sram, 0440, calliope_sram_read, NULL, 0);
+static BIN_ATTR(calliope_dram, 0440, calliope_dram_read, NULL,
+		DRAM_FIRMWARE_SIZE);
 static BIN_ATTR_RO(calliope_log, ABOX_LOG_SIZE);
-static BIN_ATTR_RO(calliope_slog, 0);
-static BIN_ATTR_RO(gicd, SZ_4K);
+static BIN_ATTR(calliope_slog, 0440, calliope_slog_read, NULL, 0);
+static BIN_ATTR(gicd, 0440, gicd_read, NULL, SZ_4K);
 static struct bin_attribute *calliope_bin_attrs[] = {
 	&bin_attr_calliope_sram,
 	&bin_attr_calliope_dram,
@@ -624,7 +625,7 @@ static ssize_t gpr_show(struct device *dev,
 	return abox_core_show_gpr(buf);
 }
 
-static DEVICE_ATTR_RO(gpr);
+static DEVICE_ATTR(gpr, 0440, gpr_show, NULL);
 
 static void abox_dbg_alloc_work_func(struct work_struct *work)
 {

@@ -24,6 +24,11 @@ enum scsc_wifi_fcq_ps_state {
 struct scsc_wifi_fcq_q_stat {
 	u32 netq_stops;
 	u32 netq_resumes;
+	u32 netq_stop_percent;
+	u32 netq_stop_time_in_ms;
+	ktime_t last_sample_time;
+	ktime_t last_stop_time;
+	bool netq_state;
 };
 
 struct scsc_wifi_fcq_q_header {
@@ -94,8 +99,8 @@ int scsc_wifi_fcq_receive_data_no_peer(struct net_device *dev, u16 priority, str
 
 void scsc_wifi_fcq_pause_queues(struct slsi_dev *sdev);
 #ifdef CONFIG_SCSC_WLAN_ARP_FLOW_CONTROL
-void scsc_wifi_pause_ctrl_q_all_vif(struct slsi_dev *sdev);
-void scsc_wifi_unpause_ctrl_q_all_vif(struct slsi_dev *sdev);
+void scsc_wifi_pause_arp_q_all_vif(struct slsi_dev *sdev);
+void scsc_wifi_unpause_arp_q_all_vif(struct slsi_dev *sdev);
 #endif
 
 void scsc_wifi_fcq_unpause_queues(struct slsi_dev *sdev);

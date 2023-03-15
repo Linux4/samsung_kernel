@@ -33,12 +33,19 @@
 #include <linux/usb/of.h>
 #include <linux/usb/otg.h>
 
+#include <linux/usb_notify.h>
+
 #include "core.h"
 #include "otg.h"
 #include "gadget.h"
 #include "io.h"
 
 #include "debug.h"
+
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+#include <linux/usblog_proc_notify.h>
+#endif
+#include <linux/mbim_queue.h>
 
 #define DWC3_DEFAULT_AUTOSUSPEND_DELAY	5000 /* ms */
 
@@ -63,8 +70,26 @@ int dwc3_set_vbus_current(int state)
 static void dwc3_exynos_set_vbus_current_work(struct work_struct *w)
 {
 	struct dwc3 *dwc = container_of(w, struct dwc3, set_vbus_current_work);
-
+	struct otg_notify *o_notify = get_otg_notify();
+	
+	switch (dwc->vbus_current) {
+	case USB_CURRENT_SUSPENDED:
+	/* set vbus current for suspend state is called in usb_notify. */
+		send_otg_notify(o_notify, NOTIFY_EVENT_USBD_SUSPENDED, 1);
+		goto skip;
+	case USB_CURRENT_UNCONFIGURED:
+		send_otg_notify(o_notify, NOTIFY_EVENT_USBD_UNCONFIGURED, 1);
+		break;
+	case USB_CURRENT_HIGH_SPEED:
+	case USB_CURRENT_SUPER_SPEED:
+		send_otg_notify(o_notify, NOTIFY_EVENT_USBD_CONFIGURED, 1);
+		break;
+	default:
+		break;
+	}
 	dwc3_set_vbus_current(dwc->vbus_current);
+skip:
+	return;
 }
 /* -------------------------------------------------------------------------- */
 
@@ -356,7 +381,7 @@ void dwc3_core_config(struct dwc3 *dwc)
 		reg &= ~(DWC3_LLUCTL_TX_TS1_CNT_MASK);
 		reg |= (DWC3_PENDING_HP_TIMER_US(0xb) | DWC3_EN_US_HP_TIMER) |
 		    (DWC3_LLUCTL_PIPE_RESET) | (DWC3_LLUCTL_LTSSM_TIMER_OVRRD) |
-		    (DWC3_LLUCTL_TX_TS1_CNT(0x7));
+		    (DWC3_LLUCTL_TX_TS1_CNT(0x0));
 		if (dwc->force_gen1)
 			reg |= DWC3_FORCE_GEN1;
 		dwc3_writel(dwc->regs, DWC3_LLUCTL, reg);
@@ -595,7 +620,10 @@ static void dwc3_frame_length_adjustment(struct dwc3 *dwc)
 		reg &= ~DWC3_GFLADJ_REFCLK_240MHZ_DECR_MASK;
 		reg |= DWC3_GFLADJ_REFCLK_240MHZ_DECR(0x6);
 
-		reg &= ~DWC3_GFLADJ_REFCLK_LPM_SEL;
+		if (dwc->maximum_speed >= USB_SPEED_SUPER)
+			reg |= DWC3_GFLADJ_REFCLK_LPM_SEL;
+		else
+			reg &= ~DWC3_GFLADJ_REFCLK_LPM_SEL;
 		reg &= ~DWC3_GFLADJ_REFCLK_FLADJ_MASK;
 		reg |= DWC3_GFLADJ_30MHZ_SDBND_SEL;
 
@@ -710,6 +738,7 @@ int dwc3_event_buffers_setup(struct dwc3 *dwc)
 void dwc3_event_buffers_cleanup(struct dwc3 *dwc)
 {
 	struct dwc3_event_buffer	*evt;
+	u32 left = 0;
 
 	evt = dwc->ev_buf;
 
@@ -717,7 +746,13 @@ void dwc3_event_buffers_cleanup(struct dwc3 *dwc)
 
 	dwc3_writel(dwc->regs, DWC3_GEVNTSIZ(0), DWC3_GEVNTSIZ_INTMASK
 			| DWC3_GEVNTSIZ_SIZE(0));
-	dwc3_writel(dwc->regs, DWC3_GEVNTCOUNT(0), 0);
+	left = dwc3_readl(dwc->regs, DWC3_GEVNTCOUNT(0));
+    left &= DWC3_GEVNTCOUNT_MASK;
+
+    while (left > 0) {
+        dwc3_writel(dwc->regs, DWC3_GEVNTCOUNT(0), 4);
+        left -= 4;
+    }
 }
 
 static int dwc3_alloc_scratch_buffers(struct dwc3 *dwc)
@@ -1610,7 +1645,11 @@ static int dwc3_get_option(struct dwc3 *dwc)
 		dev_info(dev, "usb_host_device_timeout is not defined...\n");
 		dwc->usb_host_device_timeout = 0x0;
 	}
-
+	if (!of_property_read_u32(node, "remote_wakeup", &value)) {
+		dwc->usb_remote_wakeup = value ? true : false;
+	} else {
+		dev_info(dev, "can't get usb remote_wakeup from %s node", node->name);
+	}
 	return 0;
 
 }
@@ -1995,9 +2034,33 @@ static int dwc3_suspend_common(struct dwc3 *dwc, pm_message_t msg)
 {
 	unsigned long	flags;
 	u32 reg;
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+	int ret;
+	struct dwc3_otg	*dotg = dwc->dotg;
+#endif
+
+#ifndef CONFIG_USB_SS_REMOTE_WAKEUP
 	/* bring to full power */
 	pm_runtime_get_sync(dwc->dev);
+#endif
 
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+	ret = phy_vendor_set(dwc->usb3_generic_phy, 0, 0);
+	if (ret) {
+		pr_info("%s: w_disable gpio is high! enable wake_lock\n", __func__);
+		if (atomic_inc_return(&dotg->otg_wakelock_cnt) != 1) {
+			atomic_dec(&dotg->otg_wakelock_cnt);
+			pr_info("usb: %s : otg_wakelock - already locked\n", __func__);
+		} else {
+			pr_info("usb: %s : otg_wakelock - wake_lock\n", __func__);
+			wake_lock(&dotg->wakelock);
+		}
+		return -1;
+	}
+
+	mbim_suspend();
+	return 0;
+#endif
 	switch (dwc->current_dr_role) {
 	case USB_DR_MODE_PERIPHERAL:
 		spin_lock_irqsave(&dwc->lock, flags);
@@ -2060,6 +2123,11 @@ static int dwc3_resume_common(struct dwc3 *dwc, pm_message_t msg)
 	int		ret;
 	u32		reg;
 
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+	phy_vendor_set(dwc->usb3_generic_phy, 0, 1);
+	mbim_resume();
+	return 0;
+#endif
 	switch (dwc->current_dr_role) {
 	case DWC3_GCTL_PRTCAP_DEVICE:
 		ret = dwc3_core_init_for_resume(dwc);
@@ -2142,21 +2210,41 @@ static int dwc3_resume(struct device *dev)
 {
 	struct dwc3	*dwc = dev_get_drvdata(dev);
 	int		ret;
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+	struct dwc3_otg	*dotg = dwc->dotg;
 
+	if (phy_rewa_irq(dwc->usb3_generic_phy)) {
+		pr_info("%s: occurred rewa irq: %d\n", __func__, phy_rewa_irq(dwc->usb3_generic_phy));
+		store_usblog_notify(NOTIFY_USBMODE_EXTRA,
+					(void *)"resume: w_lock", NULL);
+
+		if (atomic_inc_return(&dotg->otg_wakelock_cnt) != 1) {
+			atomic_dec(&dotg->otg_wakelock_cnt);
+			printk("usb: %s : otg_wakelock - already locked \n",__func__);
+		} else {
+			printk("usb: %s : otg_wakelock - wake_lock \n",__func__);
+			wake_lock(&dotg->wakelock);
+		}
+	} else {
+		pr_info("%s: wake up without rewa irq\n", __func__);
+	}
+#endif
 	pr_info("[%s]\n", __func__);
+
 	pinctrl_pm_select_default_state(dev);
 
 	ret = dwc3_resume_common(dwc, PMSG_RESUME);
 	if (ret)
 		return ret;
 
+#ifndef CONFIG_USB_SS_REMOTE_WAKEUP
 	pm_runtime_disable(dev);
 	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
 
 	/* Compensate usage count incremented during prepare */
 	pm_runtime_put_sync(dev);
-
+#endif
 	return 0;
 }
 #endif /* CONFIG_PM_SLEEP */

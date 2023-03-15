@@ -49,6 +49,7 @@ typedef enum {
 	NPU_FRAME_CMD_BASE = 32,
 	NPU_FRAME_CMD_Q,
 	NPU_FRAME_CMD_END,
+	NPU_FRAME_CMD_PROFILER,
 } frame_cmd_e;
 
 struct addr_info {
@@ -145,6 +146,7 @@ struct npu_frame {
 	u32			magic_tail;
 	struct mbox_process_dat mbox_process_dat;
 	int msgid;
+	int duration;
 };
 
 struct nw_result {

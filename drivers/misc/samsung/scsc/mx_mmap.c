@@ -47,7 +47,7 @@
 
 #define MAX_MEMORY              (8 * 1024 * 1024UL) /* maximum memory: this should match MX_DRAM_SIZE_SECTION_1 */
 
-DECLARE_BITMAP(bitmap_minor, SCSC_MAX_INTERFACES);
+static DECLARE_BITMAP(bitmap_minor, SCSC_MAX_INTERFACES);
 
 struct mx_mmap_dev {
 	/* file pointer */
@@ -181,7 +181,8 @@ int mx_gdb_open(struct inode *inode, struct file *filp)
 static ssize_t mx_gdb_write(struct file *filp, const char __user *ubuf, size_t len, loff_t *offset)
 {
 	struct mx_mmap_dev *mx_dev;
-	char *wbuf = NULL, *lbuf = NULL, buf[SCSC_GDB_DEF_BUF_SZ] = {};
+	static char buf[SCSC_GDB_DEF_BUF_SZ] = {};
+	char *wbuf = NULL, *lbuf = NULL;
 
 	mx_dev = filp->private_data;
 	/* When write_req do NOT fit inside the auto array just dyn-alloc */
@@ -399,7 +400,7 @@ void client_gdb_remove(struct gdb_transport_client *gdb_client, struct gdb_trans
 }
 
 /* Test client driver registration */
-struct gdb_transport_client client_gdb_driver = {
+static struct gdb_transport_client client_gdb_driver = {
 	.name = "GDB client driver",
 	.probe = client_gdb_probe,
 	.remove = client_gdb_remove,

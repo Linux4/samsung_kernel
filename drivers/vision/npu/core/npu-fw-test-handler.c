@@ -94,6 +94,11 @@ __attribute__((unused)) static int load_fw_utc_vector(struct npu_session *sess, 
 		goto err_exit;
 	}
 	ret = copy_from_user(vector_path, (__user void *)param->addr, param->size);
+	if (ret) {
+		npu_err("copy_from_user failed(%d)\n", ret);
+		ret = -EFAULT;
+		goto err_exit;
+	}
 	vector_path[param->size] = '\0';
 	npu_dbg("Loading FW test vector from : %s\n", vector_path);
 
@@ -158,7 +163,8 @@ __attribute__((unused)) static int load_fw_utc_vector(struct npu_session *sess, 
 	ret = 0;
 
 err_exit:
-	kfree(vector_path);
+	if (vector_path)
+		kfree(vector_path);
 
 	npu_trace("%s() completed. ret = %d\n", __func__, ret);
 	return ret;
@@ -183,7 +189,7 @@ static int fw_utc_save_result_cb(struct npu_session *sess, struct nw_result resu
 
 static int execute_fw_utc_vector(struct npu_session *sess, struct vs4l_param *param)
 {
-	int				ret;
+	int				ret = 0;
 	struct npu_nw			nw;
 	int				test_result = 0;
 	struct npu_system		*system;
@@ -297,17 +303,14 @@ npu_s_param_ret fw_test_s_param_handler(struct npu_session *sess, struct vs4l_pa
 	case NPU_S_PARAM_FW_UTC_LOAD:
 #ifdef CONFIG_EXYNOS_NPU_DRAM_FW_LOG_BUF
 		ret = load_fw_utc_vector(sess, param);
-		*retval = ret;
 		return S_PARAM_HANDLED;
 #else
 		npu_err("Firmware UTC support requires CONFIG_EXYNOS_NPU_DRAM_FW_LOG_BUF option.\n");
-		*retval = -EINVAL;
 		return S_PARAM_ERROR;
 #endif
 
 	case NPU_S_PARAM_FW_UTC_EXECUTE:
 		ret = execute_fw_utc_vector(sess, param);
-		*retval = ret;
 		return S_PARAM_HANDLED;
 
 	default:

@@ -67,7 +67,61 @@ void dsp_list_node_remove(struct dsp_list_head *head,
 		node->next->prev = node->prev;
 }
 
-void dsp_list_merge(struct dsp_list_head *head, struct dsp_list_head *head1,
+void dsp_list_node_swap(struct dsp_list_head *head,
+	struct dsp_list_node *node1,
+	struct dsp_list_node *node2)
+{
+	struct dsp_list_node *swap_tmp;
+
+	if (node1->next == node2) {
+		swap_tmp = node1->prev;
+		node1->prev = node2;
+		node2->prev = swap_tmp;
+
+		swap_tmp = node2->next;
+		node2->next = node1;
+		node1->next = swap_tmp;
+	} else if (node2->next == node1) {
+		swap_tmp = node1->next;
+		node1->next = node2;
+		node2->next = swap_tmp;
+
+		swap_tmp = node2->prev;
+		node2->prev = node1;
+		node1->prev = swap_tmp;
+	} else {
+		swap_tmp = node1->next;
+		node1->next = node2->next;
+		node2->next = swap_tmp;
+
+		swap_tmp = node1->prev;
+		node1->prev = node2->prev;
+		node2->prev = swap_tmp;
+	}
+
+	if (!node1->prev)
+		head->next = node1;
+	else
+		node1->prev->next = node1;
+
+	if (!node1->next)
+		head->prev = node1;
+	else
+		node1->next->prev = node1;
+
+	if (!node2->prev)
+		head->next = node2;
+	else
+		node2->prev->next = node2;
+
+	if (!node2->next)
+		head->prev = node2;
+	else
+		node2->next->prev = node2;
+}
+
+void dsp_list_merge(struct dsp_list_head *head,
+	struct dsp_list_head *head1,
 	struct dsp_list_head *head2)
 {
 	head1->prev->next = head2->next;
@@ -83,4 +137,42 @@ int dsp_list_is_empty(struct dsp_list_head *head)
 		return 1;
 	else
 		return 0;
+}
+
+void dsp_list_sort(struct dsp_list_head *head,
+	dsp_list_compare_func func)
+{
+	int swap_ck = 1;
+	struct dsp_list_node *node;
+
+	while (swap_ck) {
+		swap_ck = 0;
+		for (node = head->next; node != NULL && node->next != NULL;) {
+			if (func(node, node->next) < 0) {
+				dsp_list_node_swap(head, node, node->next);
+				swap_ck = 1;
+			} else
+				node = node->next;
+		}
+	}
+}
+
+void dsp_list_unique(struct dsp_list_head *head,
+	struct dsp_list_head *remove,
+	dsp_list_compare_func func)
+{
+	struct dsp_list_node *node, *next;
+
+	dsp_list_for_each(node, head) {
+		dsp_list_for_each(next, node) {
+			struct dsp_list_node *prev = next->prev;
+
+			if (func(node, next) == 0) {
+				dsp_list_node_remove(head, next);
+				dsp_list_node_init(next);
+				dsp_list_node_push_back(remove, next);
+				next = prev;
+			}
+		}
+	}
 }

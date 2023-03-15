@@ -106,6 +106,16 @@ config USB_RTL8152
 	  To compile this driver as a module, choose M here: the
 	  module will be called r8152.
 
+config USB_RTL8156
+	tristate "Realtek RTL8156 Based USB Ethernet Adapters"
+	select MII
+	help
+	  10/100 Ethernet adapters and RTL81156 based USB 3.0 10/100/1000/2500
+	  Ethernet adapters.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called r8156.
+
 config USB_LAN78XX
 	tristate "Microchip LAN78XX Based USB Ethernet Adapters"
 	select MII

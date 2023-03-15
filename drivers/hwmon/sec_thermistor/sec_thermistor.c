@@ -20,7 +20,7 @@
 #include <linux/hwmon-sysfs.h>
 #include <linux/iio/consumer.h>
 #include <linux/platform_data/sec_thermistor.h>
-#if defined(CONFIG_DRV_SAMSUNG)
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 #include <linux/sec_class.h>
 #endif
 
@@ -276,16 +276,16 @@ static int sec_therm_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	info->chan = iio_channel_get(info->dev, NULL);
+	info->chan = devm_iio_channel_get(info->dev, NULL);
 	if (IS_ERR(info->chan)) {
 		dev_err(info->dev, "%s: fail to get iio channel\n", __func__);
 		return PTR_ERR(info->chan);
 	}
 
-#ifdef CONFIG_DRV_SAMSUNG
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 	info->sec_dev = sec_device_create(info, info->name);
 #else
-	info->sec_dev = -EINVAL;
+	info->sec_dev = ERR_PTR(-EINVAL);
 #endif
 	if (IS_ERR(info->sec_dev)) {
 		dev_err(info->dev, "%s: fail to create sec_dev\n", __func__);
@@ -327,7 +327,9 @@ static int sec_therm_probe(struct platform_device *pdev)
 err_register_hwmon:
 	sysfs_remove_group(&info->sec_dev->kobj, &sec_therm_group);
 err_create_sysfs:
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 	sec_device_destroy(info->sec_dev->devt);
+#endif
 	return ret;
 }
 
@@ -342,8 +344,9 @@ static int sec_therm_remove(struct platform_device *pdev)
 		g_ap_therm_info = NULL;
 
 	sysfs_remove_group(&info->sec_dev->kobj, &sec_therm_group);
-	iio_channel_release(info->chan);
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 	sec_device_destroy(info->sec_dev->devt);
+#endif
 	platform_set_drvdata(pdev, NULL);
 
 	return 0;

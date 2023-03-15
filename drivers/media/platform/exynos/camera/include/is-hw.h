@@ -188,6 +188,7 @@ enum flite_hw_control_id {
  */
 void csi_hw_phy_otp_config(u32 __iomem *base_reg, u32 instance);
 int csi_hw_get_ppc_mode(u32 __iomem *base_reg);
+u32 csi_hw_s_fcount(u32 __iomem *base_reg, u32 vc, u32 count);
 u32 csi_hw_g_fcount(u32 __iomem *base_reg, u32 vc);
 int csi_hw_reset(u32 __iomem *base_reg);
 int csi_hw_s_settle(u32 __iomem *base_reg, u32 settle);

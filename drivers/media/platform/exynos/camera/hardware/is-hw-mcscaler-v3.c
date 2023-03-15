@@ -629,12 +629,15 @@ static void is_hw_mcsc_wdma_cfg(struct is_hw_ip *hw_ip, struct is_frame *frame)
 #endif
 	ulong flag;
 	int idx, p_cur_idx, p_buf_idx;
+	struct is_hardware *hardware;
+	bool en;
 
 	BUG_ON(!cap);
 	BUG_ON(!hw_ip->priv_info);
 
 	param = &hw_ip->region[frame->instance]->parameter.mcs;
 	hw_mcsc = (struct is_hw_mcsc *)hw_ip->priv_info;
+	hardware = hw_ip->hardware;
 
 	for (out_id = MCSC_OUTPUT0; out_id < cap->max_output; out_id++) {
 		if ((cap->out_dma[out_id] != MCSC_CAP_SUPPORT)
@@ -660,7 +663,6 @@ static void is_hw_mcsc_wdma_cfg(struct is_hw_ip *hw_ip, struct is_frame *frame)
 			spin_unlock_irqrestore(&mcsc_out_slock, flag);
 
 			msdbg_hw(2, "[OUT:%d]dma_out enabled\n", frame->instance, hw_ip, out_id);
-			is_scaler_set_dma_out_enable(hw_ip->regs[REG_SETA], out_id, true);
 
 			/* use only one buffer (per-frame) */
 			is_scaler_set_wdma_frame_seq(hw_ip->regs[REG_SETA], out_id,
@@ -696,6 +698,13 @@ static void is_hw_mcsc_wdma_cfg(struct is_hw_ip *hw_ip, struct is_frame *frame)
 					p_buf_idx = buf_idx * plane;
 					idx = i + p_cur_idx + p_buf_idx;
 
+					if (!hardware->hw_fro_en && !wdma_base[idx]) {
+						en = false;
+						break;
+					} else {
+						en = true;
+					}
+
 					wdma_addr[out_id][i] = wdma_base[idx] ?
 						wdma_base[idx] : wdma_base[i];
 #ifdef USE_MCSC_STRIP_OUT_CROP
@@ -706,6 +715,7 @@ static void is_hw_mcsc_wdma_cfg(struct is_hw_ip *hw_ip, struct is_frame *frame)
 				}
 				hw_mcsc_set_wdma_addr(hw_ip, wdma_addr[out_id], out_id, plane, buf_idx);
 			}
+			is_scaler_set_dma_out_enable(hw_ip->regs[REG_SETA], out_id, en);
 
 		} else {
 			is_hw_mcsc_wdma_clear(hw_ip, frame, param, out_id, cap);
@@ -791,8 +801,7 @@ static int is_hw_mcsc_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 
 config:
 	/* multi-buffer */
-	if (frame->num_buffers)
-		hw_ip->num_buffers = frame->num_buffers;
+	hw_ip->num_buffers = frame->num_buffers;
 
 	/* RDMA cfg */
 	ret = is_hw_mcsc_rdma_cfg(hw_ip, frame, &mcs_param->input);
@@ -1533,7 +1542,7 @@ int is_hw_mcsc_poly_phase(struct is_hw_ip *hw_ip, struct param_mcs_input *input,
 	config = (input_id == hw_ip->id ? true : false);
 
 #ifdef USE_MCSC_STRIP_OUT_CROP
-	use_out_crop = (output->crop_cmd & BIT(MCSC_OUT_CROP)) >> MCSC_OUT_CROP;
+	use_out_crop = (u32)((output->crop_cmd & BIT(MCSC_OUT_CROP)) >> MCSC_OUT_CROP);
 	full_in_width = output->full_input_width;
 	full_out_width = output->full_output_width;
 #endif
@@ -1547,7 +1556,7 @@ int is_hw_mcsc_poly_phase(struct is_hw_ip *hw_ip, struct param_mcs_input *input,
 
 	is_scaler_set_poly_scaler_enable(hw_ip->regs[REG_SETA], hw_ip->id, output_id, 1);
 
-	crop_type = (output->crop_cmd & BIT(MCSC_CROP_TYPE)) >> MCSC_CROP_TYPE;
+	crop_type = (u32)((output->crop_cmd & BIT(MCSC_CROP_TYPE)) >> MCSC_CROP_TYPE);
 	src_pos_x = output->crop_offset_x;
 	src_pos_y = output->crop_offset_y;
 	src_width = output->crop_width;
@@ -1686,7 +1695,7 @@ int is_hw_mcsc_poly_phase(struct is_hw_ip *hw_ip, struct param_mcs_input *input,
 		 */
 		temp = (temp_stripe_pre_dst_x * hratio) + h_phase_offset;
 		offset = (u32)(temp >> MCSC_PRECISION) - temp_stripe_start_pos_x;
-		max_dst_width = ((ulong)(src_width - offset) * RATIO_X8_8) / hratio;
+		max_dst_width = (u32)(((ulong)(src_width - offset) * RATIO_X8_8) / hratio);
 		if (input->stripe_region_index == input->stripe_total_count - 1) {
 			if (poly_dst_width > max_dst_width) {
 				msdbg_hw(2, "[OUT:%d] poly_phase: stripe output width(%d) is over input, output width changed(%d) -> (%d)\n",
@@ -1774,7 +1783,7 @@ int is_hw_mcsc_post_chain(struct is_hw_ip *hw_ip, struct param_mcs_input *input,
 	config = (input_id == hw_ip->id ? true : false);
 
 #ifdef USE_MCSC_STRIP_OUT_CROP
-	use_out_crop = (output->crop_cmd & BIT(MCSC_OUT_CROP)) >> MCSC_OUT_CROP;
+	use_out_crop = (u32)((output->crop_cmd & BIT(MCSC_OUT_CROP)) >> MCSC_OUT_CROP);
 	full_in_width = output->full_input_width;
 	full_out_width = output->full_output_width;
 	roi_start_x = output->stripe_roi_start_pos_x;
@@ -1872,7 +1881,7 @@ int is_hw_mcsc_post_chain(struct is_hw_ip *hw_ip, struct param_mcs_input *input,
 		 */
 		temp = (temp_stripe_pre_dst_x * hratio) + h_phase_offset;
 		offset = (u32)(temp >> MCSC_PRECISION) - temp_stripe_start_pos_x;
-		max_dst_width = ((ulong)(img_width - offset) * RATIO_X8_8) / hratio;
+		max_dst_width = (u32)(((ulong)(img_width - offset) * RATIO_X8_8) / hratio);
 		if (input->stripe_region_index == input->stripe_total_count - 1) {
 			if (dst_width > max_dst_width) {
 				msdbg_hw(2, "[OUT:%d] post_chain: stripe output width(%d) is over input, output width changed(%d) -> (%d)\n",

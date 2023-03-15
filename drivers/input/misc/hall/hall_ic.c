@@ -24,17 +24,51 @@
 #include <linux/of_irq.h>
 #include <linux/of.h>
 #include <linux/spinlock.h>
-#include <linux/wakelock.h>
+#include <linux/version.h>
+#include <linux/pm_wakeup.h>
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 #include <linux/sec_class.h>
 #endif
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
 #include <linux/delay.h>
 #endif
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+#include <linux/hall/hall_ic_notifier.h>
+#endif
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
+#if IS_ENABLED(CONFIG_USB_HW_PARAM)
+#include <linux/usb_notify.h>
+#endif
+#endif
+#if IS_ENABLED(CONFIG_SAMSUNG_TUI)
+#include <linux/input/stui_inf.h>
+#endif
+
+/*
+ * Switch events
+ */
+#define SW_FOLDER		0x00  /* set = folder open, close*/
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+#define SW_FLIP			0x10  /* set = flip cover open, close*/
+#define SW_CERTIFYHALL		0x0b  /* set = certify_hall attach/detach */
+#define SW_WACOM_HALL			0x0c	/* set = tablet wacom hall attach/detach(set wacom cover mode) */
+#else
+#define SW_FLIP			0x15  /* set = flip cover open, close*/
+#define SW_CERTIFYHALL		0x1b  /* set = certify_hall attach/detach */
+#define SW_WACOM_HALL			0x1e	/* set = tablet wacom hall attach/detach(set wacom cover mode) */
+#endif
+
+#define DEFAULT_DEBOUNCE_INTERVAL	50
+#define HALL_IC_WAKEUP_TIMEOUT				500
+
+struct device *sec_hall_ic;
+EXPORT_SYMBOL(sec_hall_ic);
+
+struct class *hall_sec_class;
 
 struct hall_ic_data {
 	struct delayed_work dwork;
-	struct wake_lock wlock;
+	struct wakeup_source *ws;
 	struct input_dev *input;
 	struct list_head list;
 	int gpio;
@@ -43,21 +77,24 @@ struct hall_ic_data {
 	int active_low;
 	unsigned int event;
 	const char *name;
+	int hall_count;
 };
 
 struct hall_ic_pdata {
 	struct hall_ic_data *hall;
 	unsigned int nhalls;
+	unsigned int debounce_interval;
 };
 
 struct hall_ic_drvdata {
 	struct hall_ic_pdata *pdata;
-	struct input_dev *input;
 	struct work_struct work;
 	struct device *dev;
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG)
-	struct device *sec_key_dev;
+	struct device *sec_dev;
 #endif
+	struct mutex lock;
+	bool probe_done;
 };
 
 static LIST_HEAD(hall_ic_list);
@@ -71,39 +108,130 @@ static ssize_t hall_detect_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct hall_ic_data *hall;
+	int state;
 
 	list_for_each_entry(hall, &hall_ic_list, list) {
 		if (hall->event != SW_FLIP)
 			continue;
-		if (!!gpio_get_value_cansleep(hall->gpio))
-			sprintf(buf, "OPEN\n");
-		else
+		hall->state = !!gpio_get_value_cansleep(hall->gpio);
+		state = hall->state ^ hall->active_low;
+		if (state)
 			sprintf(buf, "CLOSE\n");
+		else
+			sprintf(buf, "OPEN\n");
 	}
 	return strlen(buf);
 }
+
 static ssize_t certify_hall_detect_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct hall_ic_data *hall;
+	int state;
+
+	list_for_each_entry(hall, &hall_ic_list, list) {
+		if (hall->event != SW_CERTIFYHALL)
+			continue;
+		hall->state = !!gpio_get_value_cansleep(hall->gpio);
+		state = hall->state ^ hall->active_low;
+		if (state)
+			sprintf(buf, "CLOSE\n");
+		else
+			sprintf(buf, "OPEN\n");
+	}
+
+	return strlen(buf);
+}
+
+static ssize_t hall_wacom_detect_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct hall_ic_data *hall;
+	int state;
+
+	list_for_each_entry(hall, &hall_ic_list, list) {
+		if (hall->event != SW_WACOM_HALL)
+			continue;
+		hall->state = !!gpio_get_value_cansleep(hall->gpio);
+		state = hall->state ^ hall->active_low;
+		if (state)
+			sprintf(buf, "CLOSE\n");
+		else
+			sprintf(buf, "OPEN\n");
+	}
+
+	return strlen(buf);
+}
+
+static ssize_t flip_status_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct hall_ic_data *hall;
+	int state;
+
+	list_for_each_entry(hall, &hall_ic_list, list) {
+		if (hall->event != SW_FOLDER)
+			continue;
+		hall->state = !!gpio_get_value_cansleep(hall->gpio);
+		state = hall->state ^ hall->active_low;
+		if (state)
+			snprintf(buf, 2, "0");	/* close */
+		else
+			snprintf(buf, 2, "1");	/* open */
+	}
+
+	return strlen(buf);
+}
+
+static ssize_t hall_number_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct hall_ic_drvdata *ddata = dev_get_drvdata(dev);
+
+	sprintf(buf, "%u\n", ddata->pdata->nhalls);
+
+	return strlen(buf);
+}
+
+static ssize_t debounce_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct hall_ic_drvdata *ddata = dev_get_drvdata(dev);
+
+	sprintf(buf, "%d\n", ddata->pdata->debounce_interval);
+	
+	return strlen(buf);
+}
+
+static ssize_t hall_count_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct hall_ic_data *hall;
 
 	list_for_each_entry(hall, &hall_ic_list, list) {
-		if (hall->event != SW_CERTIFYHALL)
-			continue;
-		if (!!gpio_get_value_cansleep(hall->gpio))
-			sprintf(buf, "OPEN\n");
-		else
-			sprintf(buf, "CLOSE\n");
+		if (hall->event == SW_FOLDER) {
+			snprintf(buf, PAGE_SIZE, "\"FCNT\":\"%d\"", hall->hall_count);
+			hall->hall_count = 0;
+			break;
+		}
 	}
 
 	return strlen(buf);
 }
+
 static DEVICE_ATTR_RO(hall_detect);
 static DEVICE_ATTR_RO(certify_hall_detect);
+static DEVICE_ATTR_RO(hall_wacom_detect);
+static DEVICE_ATTR_RO(flip_status);
+static DEVICE_ATTR_RO(hall_number);
+static DEVICE_ATTR_RO(debounce);
+static DEVICE_ATTR_RO(hall_count);
 
 static struct device_attribute *hall_ic_attrs[] = {
 	&dev_attr_hall_detect,
 	&dev_attr_certify_hall_detect,
+	&dev_attr_hall_wacom_detect,
+	&dev_attr_flip_status,
 	NULL,
 };
 #endif
@@ -113,67 +241,158 @@ static void hall_ic_work(struct work_struct *work)
 {
 	struct hall_ic_data *hall = container_of(work,
 		struct hall_ic_data, dwork.work);
+	struct hall_ic_drvdata *ddata = gddata;
 	int first, second, state;
+	char hall_uevent[20] = {0,};
+	char *hall_status[2] = {hall_uevent, NULL};
 
+	mutex_lock(&gddata->lock);
 	first = gpio_get_value_cansleep(hall->gpio);
 	msleep(50);
 	second = gpio_get_value_cansleep(hall->gpio);
 	if (first == second) {
 		hall->state = first;
 		state = first ^ hall->active_low;
-		pr_info("%s %s\n", hall->name,
-			hall->state ? "open" : "close");
-		input_report_switch(hall->input, hall->event, state);
-		input_sync(hall->input);
-	} else
+		pr_info("%s %s %s\n", __func__, hall->name,
+			state ? "close" : "open");
+
+		if (hall->input) {
+			input_report_switch(hall->input, hall->event, state);
+			input_sync(hall->input);
+		}
+
+		/* send uevent for hall ic */
+		snprintf(hall_uevent, sizeof(hall_uevent), "%s=%s",
+			hall->name, state ? "close" : "open");
+		kobject_uevent_env(&ddata->sec_dev->kobj, KOBJ_CHANGE, hall_status);
+
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+		hall_notifier_notify(hall->name, state);
+#endif
+		hall->hall_count++;
+
+	} else {
 		pr_info("%s %d,%d\n", hall->name,
 			first, second);
+	}
+	mutex_unlock(&gddata->lock);
 }
 #else
 static void hall_ic_work(struct work_struct *work)
 {
 	struct hall_ic_data *hall = container_of(work,
 		struct hall_ic_data, dwork.work);
+	struct hall_ic_drvdata *ddata = gddata;
 	int state;
+	char hall_uevent[20] = {0,};
+	char *hall_status[2] = {hall_uevent, NULL};
 
+	mutex_lock(&gddata->lock);
 	hall->state = !!gpio_get_value_cansleep(hall->gpio);
 	state = hall->state ^ hall->active_low;
 	pr_info("%s %s %s(%d)\n", __func__, hall->name,
-		hall->state ? "open" : "close", hall->state);
-	input_report_switch(hall->input, hall->event, state);
-	input_sync(hall->input);
+		state ? "close" : "open", hall->state);
+
+	if (hall->input) {
+		input_report_switch(hall->input, hall->event, state);
+		input_sync(hall->input);
+	}
+
+	/* send uevent for hall ic */
+	snprintf(hall_uevent, sizeof(hall_uevent), "%s=%s",
+		hall->name, state ? "close" : "open");
+	kobject_uevent_env(&ddata->sec_dev->kobj, KOBJ_CHANGE, hall_status);
+
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+	hall_notifier_notify(hall->name, state);
+#endif
+	mutex_unlock(&gddata->lock);
+
+	hall->hall_count++;
+	
+#if IS_ENABLED(CONFIG_SAMSUNG_TUI)
+	if (STUI_MODE_TOUCH_SEC & stui_get_mode())
+		stui_cancel_session();
+#endif
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0))
+#if IS_ENABLED(CONFIG_USB_HW_PARAM)
+	if (strncmp(hall->name, "flip", 4) == 0) {
+		struct otg_notify *o_notify = get_otg_notify();
+
+		if (state && o_notify)
+			inc_hw_param(o_notify, USB_HALL_FOLDING_COUNT);
+
+	}
+#endif
+#endif
+#endif
 }
+#endif
+
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+void hall_ic_request_notitfy(void)
+{
+	struct hall_ic_data *hall;
+	int state;
+
+	list_for_each_entry(hall, &hall_ic_list, list) {
+		mutex_lock(&gddata->lock);
+		hall->state = !!gpio_get_value_cansleep(hall->gpio);
+		state = hall->state ^ hall->active_low;
+		pr_info("%s %s %s(%d)\n", __func__,
+				hall->name, state ? "close" : "open", hall->state);
+
+		hall_notifier_notify(hall->name, state);
+		mutex_unlock(&gddata->lock);
+	}
+}
+EXPORT_SYMBOL(hall_ic_request_notitfy);
 #endif
 
 static irqreturn_t hall_ic_detect(int irq, void *dev_id)
 {
 	struct hall_ic_data *hall = dev_id;
+	struct hall_ic_pdata *pdata = gddata->pdata;
 	int state = !!gpio_get_value_cansleep(hall->gpio);
 
 	pr_info("%s %s(%d)\n", __func__,
 		hall->name, state);
 	cancel_delayed_work_sync(&hall->dwork);
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
-	schedule_delayed_work(&hall->dwork, HZ / 20);
+	schedule_delayed_work(&hall->dwork, msecs_to_jiffies(pdata->debounce_interval));
 #else
-	if (state)	{
-		wake_lock_timeout(&hall->wlock, HZ / 20);
-		schedule_delayed_work(&hall->dwork, HZ  / 100);
+
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
+	__pm_wakeup_event(hall->ws, HALL_IC_WAKEUP_TIMEOUT);
+	schedule_delayed_work(&hall->dwork, msecs_to_jiffies(pdata->debounce_interval));
+#else
+	if (state) {
+		__pm_wakeup_event(hall->ws, pdata->debounce_interval + 5);
+		schedule_delayed_work(&hall->dwork, msecs_to_jiffies(pdata->debounce_interval));
 	} else {
-		wake_unlock(&hall->wlock);
-		schedule_delayed_work(&hall->dwork, 0);
+		__pm_relax(hall->ws);
+		schedule_delayed_work(&hall->dwork, msecs_to_jiffies(pdata->debounce_interval));
 	}
+#endif
 #endif
 	return IRQ_HANDLED;
 }
 
 static int hall_ic_open(struct input_dev *input)
 {
-	struct hall_ic_data *hall;
+	struct hall_ic_data *hall = input_get_drvdata(input);
 
-	list_for_each_entry(hall, &hall_ic_list, list)
-		schedule_delayed_work(&hall->dwork, HZ / 2);
+	if (gddata->probe_done)
+		pr_info("%s: %s\n", __func__, hall->name);
+	else {
+		pr_info("%s: %s (skip not finished probe_done)\n", __func__, hall->name);
+		return 0;
+	}
+
+	schedule_delayed_work(&hall->dwork, HZ / 2);
 	input_sync(input);
+
 	return 0;
 }
 
@@ -181,23 +400,80 @@ static void hall_ic_close(struct input_dev *input)
 {
 }
 
+static int hall_ic_input_dev_register(struct hall_ic_data *hall)
+{
+	struct input_dev *input;
+	int ret = 0;
+
+	input = input_allocate_device();
+	if (!input) {
+		pr_err("failed to allocate state\n");
+		return -ENOMEM;
+	}
+
+	hall->input = input;
+	input_set_capability(input, EV_SW, hall->event);
+	input->name = hall->name;
+	input->phys = hall->name;
+	input->open = hall_ic_open;
+	input->close = hall_ic_close;
+
+	input_set_drvdata(input, hall);
+
+	ret = input_register_device(input);
+	if (ret) {
+		pr_err("failed to register input device\n");
+		return ret;
+	}
+
+	return 0;
+}
+
 static int hall_ic_setup_halls(struct hall_ic_drvdata *ddata)
 {
-	struct input_dev *input = ddata->input;
 	struct hall_ic_data *hall;
 	int ret = 0;
-#if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 	int i = 0;
 
-	gddata = ddata;
-	ddata->sec_key_dev = sec_dev_get_by_name("sec_key");
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG)
+	ddata->sec_dev = sec_device_create(ddata, "hall_ic");
+	if (IS_ERR(ddata->sec_dev))
+		pr_err("%s failed to create hall_ic\n", __func__);
+#else
+	hall_sec_class = class_create(THIS_MODULE, "hall_ic");
+	if (unlikely(IS_ERR(hall_sec_class))) {
+		pr_err("%s %s: Failed to create class(sec) %ld\n", SECLOG, __func__, PTR_ERR(tsp_sec_class));
+		return PTR_ERR(tsp_sec_class);
+	}
+	ddata->sec_dev = device_create(hall_sec_class, NULL, 17, ddata, "%s", "hall_ic");
+
 #endif
+	sec_hall_ic = ddata->sec_dev;
+
+	ret = sysfs_create_file(&ddata->sec_dev->kobj, &dev_attr_hall_number.attr);
+	if (ret < 0)
+		pr_err("failed to create sysfs number ret(%d)\n", ret);
+	ret = sysfs_create_file(&ddata->sec_dev->kobj, &dev_attr_debounce.attr);
+	if (ret < 0)
+		pr_err("failed to create sysfs debounce ret(%d)\n", ret);
+	ret = sysfs_create_file(&ddata->sec_dev->kobj, &dev_attr_hall_count.attr);
+	if (ret < 0)
+		pr_err("failed to create sysfs hall_count ret(%d)\n", ret);
+
 	list_for_each_entry(hall, &hall_ic_list, list) {
-		hall->input = input;
 		hall->state = gpio_get_value_cansleep(hall->gpio);
-		input_set_capability(input, EV_SW, hall->event);
-		wake_lock_init(&hall->wlock,
-			WAKE_LOCK_SUSPEND, "hall_ic_wlock");
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
+		// 4.19 R
+		wakeup_source_init(hall->ws, "hall_ic_wlock");
+		// 4.19 Q
+		if (!(hall->ws)) {
+			hall->ws = wakeup_source_create("hall_ic_wlock");
+			if (hall->ws)
+				wakeup_source_add(hall->ws);
+		}
+#else
+		hall->ws = wakeup_source_register(NULL, "hall_ic_wlock");
+#endif
 		INIT_DELAYED_WORK(&hall->dwork, hall_ic_work);
 		ret = request_threaded_irq(hall->irq, NULL, hall_ic_detect,
 				IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
@@ -207,13 +483,13 @@ static int hall_ic_setup_halls(struct hall_ic_drvdata *ddata)
 				hall->irq, ret);
 
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG)
-		if (!ddata->sec_key_dev)
+		if (!ddata->sec_dev)
 			continue;
 
 		for (i = 0; i < ARRAY_SIZE(hall_ic_attrs); i++) {
 			if (!strncmp(hall->name, hall_ic_attrs[i]->attr.name,
 					strlen(hall->name))) {
-				ret = sysfs_create_file(&ddata->sec_key_dev->kobj,
+				ret = sysfs_create_file(&ddata->sec_dev->kobj,
 						&hall_ic_attrs[i]->attr);
 				if (ret < 0)
 					pr_err("failed to create sysfr %d(%d)\n",
@@ -248,6 +524,12 @@ static struct hall_ic_pdata *hall_ic_parsing_dt(struct device *dev)
 	if (!pdata->hall)
 		return ERR_PTR(-ENOMEM);
 
+	if (of_property_read_u32(node, "hall_ic,debounce-interval", &pdata->debounce_interval)) {
+		pr_info("%s failed to get debounce value, set to default\n", __func__);
+		pdata->debounce_interval = DEFAULT_DEBOUNCE_INTERVAL;
+	}
+	pr_info("%s debounce interval: %d\n", __func__, pdata->debounce_interval);
+
 	pdata->nhalls = nhalls;
 	for_each_child_of_node(node, pp) {
 		struct hall_ic_data *hall = &pdata->hall[i++];
@@ -261,16 +543,33 @@ static struct hall_ic_pdata *hall_ic_parsing_dt(struct device *dev)
 				return ERR_PTR(ret);
 			}
 		}
+
 		hall->active_low = flags & OF_GPIO_ACTIVE_LOW;
+		gpio_direction_input(hall->gpio);
 		hall->irq = gpio_to_irq(hall->gpio);
 		hall->name = of_get_property(pp, "name", NULL);
 
+		pr_info("%s flags: %d\n", __func__, flags);
 		pr_info("%s %s\n", __func__, hall->name);
 
 		if (of_property_read_u32(pp, "event", &hall->event)) {
 			pr_err("failed to get event: 0x%x\n", hall->event);
 			return ERR_PTR(-EINVAL);
 		}
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+		if (hall->event == 0x15) { /* SW_FLIP */
+			hall->event = 0x10;
+		} else if (hall->event == 0x1b) {	/* SW_CERTIFYHALL */
+			hall->event = 0x0b;
+		} else if (hall->event == 0x1e) {	/* SW_WACOM_HALL */
+			hall->event = 0x0c;
+		} else if (hall->event == 0x00) {	/* SW_FOLDER */
+//			continue;
+		} else {
+			pr_err("failed to get name, not match event\n");
+			return ERR_PTR(-EINVAL);
+		}
+#endif
 		list_add(&hall->list, &hall_ic_list);
 	}
 	return pdata;
@@ -281,13 +580,13 @@ static int hall_ic_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct hall_ic_pdata *pdata = dev_get_platdata(dev);
 	struct hall_ic_drvdata *ddata;
-	struct input_dev *input;
+	struct hall_ic_data *hall;
 	int ret = 0;
 
 	if (!pdata) {
 		pdata = hall_ic_parsing_dt(dev);
 		if (IS_ERR(pdata)) {
-			pr_info("%s : fail to get the DT\n", __func__);
+			pr_err("%s : fail to get the DT\n", __func__);
 			goto fail1;
 		}
 	}
@@ -299,35 +598,31 @@ static int hall_ic_probe(struct platform_device *pdev)
 		goto fail1;
 	}
 
-	input = input_allocate_device();
-	if (!input) {
-		pr_err("failed to allocate state\n");
-		ret = -ENOMEM;
-		goto fail1;
-	}
-
-	ddata->input = input;
 	ddata->pdata = pdata;
-	input->name = pdev->name;
-	input->phys = pdev->name;
-	input->dev.parent = &pdev->dev;
-	input->open = hall_ic_open;
-	input->close = hall_ic_close;
 	device_init_wakeup(&pdev->dev, true);
 	platform_set_drvdata(pdev, ddata);
+	mutex_init(&ddata->lock);
+	gddata = ddata;
+
+	list_for_each_entry(hall, &hall_ic_list, list) {
+		ret = hall_ic_input_dev_register(hall);
+		if (ret) {
+			pr_err("hall_ic_input_dev_register failed %d\n", ret);
+			goto fail2;
+		}
+
+		hall->input->dev.parent = &pdev->dev;
+	}
+
 	ret = hall_ic_setup_halls(ddata);
 	if (ret) {
 		pr_err("failed to set up hall : %d\n", ret);
 		goto fail2;
 	}
 
-	ret = input_register_device(input);
-	if (ret) {
-		pr_err("failed to register input device : %d\n", ret);
-		goto fail2;
-	}
+	ddata->probe_done = true;
+	pr_info("%s done\n", __func__);
 
-	input_set_drvdata(input, ddata);
 	return 0;
 
 fail2:
@@ -338,10 +633,13 @@ fail1:
 
 static int hall_ic_remove(struct platform_device *pdev)
 {
-	struct hall_ic_drvdata *ddata = platform_get_drvdata(pdev);
+	struct hall_ic_data *hall;
 
+	list_for_each_entry(hall, &hall_ic_list, list) {
+		input_unregister_device(hall->input);
+		wakeup_source_unregister(hall->ws);
+	}
 	device_init_wakeup(&pdev->dev, 0);
-	input_unregister_device(ddata->input);
 	platform_set_drvdata(pdev, NULL);
 	return 0;
 }
@@ -371,7 +669,7 @@ static int hall_ic_resume(struct device *dev)
 
 		state ^= hall->active_low;
 		pr_info("%s %s %s(%d)\n", __func__, hall->name,
-			hall->state ? "open" : "close", hall->state);
+			state ? "close" : "open", hall->state);
 		disable_irq_wake(hall->irq);
 		input_report_switch(hall->input, hall->event, state);
 		input_sync(hall->input);

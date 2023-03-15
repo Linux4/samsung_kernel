@@ -14,6 +14,7 @@
 #include <linux/version.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
+#include <linux/cdev.h>
 
 #include <scsc/scsc_logring.h>
 #include "scsc_logring_ring.h"
@@ -41,12 +42,24 @@ struct scsc_ibox {
 };
 
 struct scsc_debugfs_info {
+#ifdef CONFIG_SCSC_LOGRING_DEBUGFS
 	struct dentry *rootdir;
 	struct dentry *bufdir;
 	struct dentry *samsgfile;
 	struct dentry *samlogfile;
 	struct dentry *statfile;
 	struct dentry *samwritefile;
+#else
+	struct device dev;
+	struct cdev cdev;
+	dev_t devt; /* char device number */
+	struct cdev cdev_samsg;
+	struct cdev cdev_samlog;
+	struct cdev cdev_samwrite;
+	struct cdev cdev_stat;
+	struct scsc_ring_buffer *rb;
+	struct class *logring_class; /* char device class */
+#endif
 };
 
 struct write_config {

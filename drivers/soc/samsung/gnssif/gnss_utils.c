@@ -241,3 +241,29 @@ void gif_disable_irq_sync(struct gnss_irq *irq)
 	gif_info("%s(#%d) is disabled <%pf>\n",
 			irq->name, irq->num, CALLER);
 }
+
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+int gif_gpio_get_value(unsigned int gpio, bool log_print)
+{
+	int value;
+	char *name = NULL;
+	struct gpio_desc *desc = NULL;
+
+	if (!gpio_is_valid(gpio)) {
+		gif_err("GET GPIO %d is failed\n", gpio);
+		return -EINVAL;
+	}
+
+	value = gpio_get_value(gpio);
+
+	if (log_print) {
+		desc = gpio_to_desc(gpio);
+		if (desc != NULL && gpiod_get_consumer_name(desc, &name) == 0)
+			gif_info("GET GPIO %s = %d\n", name, value);
+		else
+			gif_info("GET GPIO %d = %d\n", gpio, value);
+	}
+
+	return value;
+}
+#endif

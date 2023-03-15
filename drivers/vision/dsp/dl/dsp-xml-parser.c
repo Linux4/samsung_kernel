@@ -15,6 +15,7 @@
 #define TOKEN_END	(-255)
 #define TOKEN_LIST_NUM	(64)
 #define TOKEN_MAX	(64)
+#define KERNEL_CNT_MAX	(256)
 
 struct dsp_string_tree_node *xml_str;
 struct dsp_xml_lib_table *xml_libs;
@@ -178,18 +179,24 @@ static int __get_next_token(unsigned short *type, char *buf,
 			break;
 		case SXML_ERROR_BUFFERDRY:
 			DL_ERROR("Larger than buf size\n");
-			return -1;
+			return TOKEN_END;
 		case SXML_ERROR_XMLINVALID:
 			DL_ERROR("XML is invalid\n");
-			return -1;
+			return TOKEN_END;
 		default:
 			DL_ERROR("Error code is invalid\n");
-			return -1;
+			return TOKEN_END;
 		}
 	}
 
 	token = tokens[idx++];
 	token_value_size = token.endpos - token.startpos;
+	if (token_value_size >= TOKEN_MAX) {
+		DL_ERROR("Token_value_size is too big(%zd/%u)\n",
+				token_value_size, TOKEN_MAX);
+		return TOKEN_END;
+	}
+
 	memcpy(token_value, buf + token.startpos, token_value_size);
 	token_value[token_value_size] = '\0';
 
@@ -227,11 +234,18 @@ static int __create_kernel_table(struct dsp_xml_lib *lib, char *buf,
 			DL_ERROR("token end before create xml structure\n");
 			return -1;
 		} else if (ret == KERNEL && type == SXML_ENDTAG) {
-			if (idx == 0xFFFFFFFF) {
-				DL_ERROR("no kernel idx\n");
+			if (!lib->kernels) {
+				DL_ERROR("no memory for kernel tables\n");
 				return -1;
 			}
 
+			if (idx == 0xFFFFFFFF) {
+				DL_ERROR("no kernel idx\n");
+				return -1;
+			} else if (idx >= lib->kernel_cnt) {
+				DL_ERROR("invalid kernel idx\n");
+				return -1;
+			}
 			lib->kernels[idx] = kernel_table;
 			return 0;
 		} else if (ret == ID && type == SXML_CDATA) {
@@ -322,7 +336,8 @@ static int __create_lib(char *buf, unsigned int buf_len)
 			dsp_dl_free(lib);
 			DL_ERROR("token end before create xml structure\n");
 			return -1;
-		} else if (ret == LIB && type == SXML_ENDTAG) {
+		} else if (ret == LIB && type == SXML_ENDTAG
+				&& lib->name != NULL) {
 			dsp_hash_push(&xml_libs->lib_hash, lib->name, lib);
 			return 0;
 		} else if (ret == NAME && type == SXML_CDATA) {
@@ -364,18 +379,39 @@ static int __create_lib(char *buf, unsigned int buf_len)
 			} else if (type == SXML_CHARACTER) {
 				ret = kstrtouint(token_value, 10,
 						&lib->kernel_cnt);
-				if (ret)
+				if (ret) {
 					DL_ERROR("Failed to change str(%d)\n",
 						ret);
+					dsp_dl_free(lib);
+					return -1;
+				}
 
+				if (!lib->kernel_cnt) {
+					DL_ERROR("invalid kernel cnt\n");
+					dsp_dl_free(lib);
+					return -1;
+				}
 				DL_DEBUG("lib kernel cnt : %u\n",
 					lib->kernel_cnt);
+
+				if (lib->kernel_cnt > KERNEL_CNT_MAX) {
+					DL_ERROR("kernel_cnt(%u) is over(%d)\n",
+							lib->kernel_cnt,
+							KERNEL_CNT_MAX);
+					dsp_dl_free(lib);
+					return -1;
+				}
 
 				lib->kernels = (struct dsp_xml_kernel_table *)
 					dsp_dl_malloc(
 						sizeof(*lib->kernels) *
 						lib->kernel_cnt,
 						"XML kernel table");
+				if (!lib->kernels) {
+					DL_ERROR("Failed to alloc XML kt\n");
+					dsp_dl_free(lib);
+					return -1;
+				}
 			} else {
 				if (lib->kernels)
 					dsp_dl_free(lib->kernels);
@@ -454,6 +490,5 @@ static int __create_xml_structure(char *buf, unsigned int buf_len)
 int dsp_xml_parser_parse(struct dsp_dl_lib_file *file)
 {
 	dsp_dl_lib_file_reset(file);
-	__create_xml_structure((char *)file->mem, file->size);
-	return 0;
+	return __create_xml_structure((char *)file->mem, file->size);
 }

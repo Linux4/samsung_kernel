@@ -74,6 +74,7 @@ struct ssrm_camera_data {
 	int previewMinFPS;
 	int previewMaxFPS;
 	int sensorOn;
+	int shotMode;
 };
 
 enum ssrm_camerainfo_operation {
@@ -1283,8 +1284,8 @@ static ssize_t camera_ssrm_camera_info_store(struct device *dev,
 	memset(&temp, 0, sizeof(temp));
 	temp.cameraID = -1;
 
-	ret_count = sscanf(buf, "%d%d%d%d%d%d%d", &temp.operation, &temp.cameraID, &temp.previewMinFPS,
-		&temp.previewMaxFPS, &temp.previewSizeWidth,  &temp.previewSizeHeight, &temp.sensorOn);
+	ret_count = sscanf(buf, "%d%d%d%d%d%d%d%d", &temp.operation, &temp.cameraID, &temp.previewMinFPS,
+		&temp.previewMaxFPS, &temp.previewSizeWidth,  &temp.previewSizeHeight, &temp.sensorOn, &temp.shotMode);
 
 	if (ret_count > sizeof(SsrmCameraInfo)/sizeof(int)) {
 		return -EINVAL;
@@ -1299,6 +1300,7 @@ static ssize_t camera_ssrm_camera_info_store(struct device *dev,
 				SsrmCameraInfo[i].previewSizeHeight = 0;
 				SsrmCameraInfo[i].previewSizeWidth = 0;
 				SsrmCameraInfo[i].sensorOn = 0;
+				SsrmCameraInfo[i].shotMode = -1;
 				SsrmCameraInfo[i].cameraID = -1;
 			}
 		}
@@ -1326,6 +1328,7 @@ static ssize_t camera_ssrm_camera_info_store(struct device *dev,
 				SsrmCameraInfo[i].previewSizeHeight = temp.previewSizeHeight;
 				SsrmCameraInfo[i].previewSizeWidth = temp.previewSizeWidth;
 				SsrmCameraInfo[i].sensorOn = temp.sensorOn;
+				SsrmCameraInfo[i].shotMode = temp.shotMode;
 				break;
 			}
 		}
@@ -1340,8 +1343,19 @@ static ssize_t camera_ssrm_camera_info_store(struct device *dev,
 static ssize_t camera_ssrm_camera_info_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	char temp_buffer[50] = {0,};
+	char temp_buffer[65] = {0,};
 	int i = 0;
+
+	for (i = 0; i < IS_SENSOR_COUNT; i++) {
+		if (SsrmCameraInfo[i].cameraID != -1) {
+			strncat(buf, "SHOTMODE=", strlen("SHOTMODE="));
+			sprintf(temp_buffer, "%d;", SsrmCameraInfo[i].shotMode);
+			strncat(buf, temp_buffer, strlen(temp_buffer));
+
+			strncat(buf, "\n", strlen("\n"));
+			break;
+		}
+	}
 
 	for (i = 0; i < IS_SENSOR_COUNT; i++) {
 		if (SsrmCameraInfo[i].cameraID != -1) {

@@ -170,9 +170,7 @@ int dsp_memory_alloc(struct dsp_memory *mem, struct dsp_priv_mem *pmem)
 	}
 	pmem->kvaddr = kvaddr;
 
-	dsp_info("[%16s] %#lx/%zuKB\n", pmem->name, (long)kvaddr,
-			pmem->size / SZ_1K);
-
+	dsp_info("[%16s] %zuKB\n", pmem->name, pmem->size / SZ_1K);
 	dsp_leave();
 	return 0;
 p_err_alloc:
@@ -231,8 +229,8 @@ int dsp_memory_ion_alloc(struct dsp_memory *mem, struct dsp_priv_mem *pmem)
 
 	if (pmem->kmap) {
 		kvaddr = dma_buf_vmap(dbuf);
-		if (IS_ERR(kvaddr)) {
-			ret = PTR_ERR(kvaddr);
+		if (!kvaddr) {
+			ret = -EFAULT;
 			dsp_err("Failed to map kvaddr(%d)[%s]\n",
 					ret, pmem->name);
 			goto p_err_kmap;
@@ -271,15 +269,8 @@ int dsp_memory_ion_alloc(struct dsp_memory *mem, struct dsp_priv_mem *pmem)
 		pmem->iova = iova;
 	}
 
-	if (pmem->kmap)
-		dsp_info("[%16s] %#lx/%#x/%zuKB\n",
-				pmem->name, (long)pmem->kvaddr, (int)pmem->iova,
-				pmem->size / SZ_1K);
-	else
-		dsp_info("[%16s] %#x/%zuKB\n",
-				pmem->name, (int)pmem->iova,
-				pmem->size / SZ_1K);
-
+	dsp_info("[%16s] %#x/%zuKB\n",
+			pmem->name, (int)pmem->iova, pmem->size / SZ_1K);
 	dsp_leave();
 	return 0;
 p_err_map_dva:

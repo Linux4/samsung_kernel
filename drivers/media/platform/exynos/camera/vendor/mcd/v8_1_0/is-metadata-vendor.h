@@ -127,6 +127,7 @@ enum is_scenario_is {
 	IS_SCENARIO_HIGH_SPEED_DUALFPS = 5, /* FPS is changed from normal to high speed */
 	IS_SCENARIO_SECURE = 6,
 	IS_SCENAIRO_REMOSAIC = 7,
+	IS_SCENARIO_PRO_VIDEO = 9,
 };
 
 /*
@@ -2431,6 +2432,7 @@ struct camera2_stream {
 	  stripe region horizontal pixel nums
 	  this value indicates each width pixel size of stripe region
 	 */
+	uint32_t                stripe_region_num;
 	uint32_t		stripe_h_pix_nums[CAMERA2_MAX_STRIPE_REGION_NUM];
 };
 

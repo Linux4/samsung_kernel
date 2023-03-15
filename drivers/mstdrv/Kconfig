@@ -9,13 +9,37 @@
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+# GNU General Public License for more details. 
 
 config MST_LDO
-	bool "MST LDO kernel driver"
+	tristate "MST LDO kernel driver"
 	default n
 	help
 	This enables the MST LDO kernel driver
+
+config MST_ARCH_EXYNOS
+	bool "MST S.LSI Architecture"
+	default n
+	help
+	This enables the MST S.LSI Architecture
+
+config MST_ARCH_QCOM
+	bool "MST QCOM Architecture"
+	default n
+	help
+	This enables the MST QCOM Architecture
+
+config MST_ARCH_MTK
+	bool "MST MediaTek Architecture"
+	default n
+	help
+	This enables the MST MediaTek Architecture
+
+config MST_V2
+	bool "MST Version 2"
+	default n
+	help
+	This enables the MST V2 Code
 
 config MST_REGULATOR
 	bool "MST uses regulator API"

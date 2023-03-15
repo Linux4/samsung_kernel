@@ -15,16 +15,24 @@
 #include <linux/pm_qos.h>
 #include <linux/mutex.h>
 #include <linux/list.h>
+#include <linux/notifier.h>
+
+struct npu_qos_freq_lock {
+	u32	npu_freq_maxlock;
+	u32	dnc_freq_maxlock;
+};
 
 struct npu_qos_setting {
 	struct mutex		npu_qos_lock;
-	struct platform_device	*dvfs_npu_dev;
-	struct platform_device	*dvfs_dnc_dev;
 
 	struct pm_qos_request	npu_qos_req_dnc;
 	struct pm_qos_request	npu_qos_req_npu;
 	struct pm_qos_request	npu_qos_req_mif;
 	struct pm_qos_request	npu_qos_req_int;
+	struct pm_qos_request	npu_qos_req_dnc_max;
+	struct pm_qos_request	npu_qos_req_npu_max;
+	struct pm_qos_request	npu_qos_req_mif_max;
+	struct pm_qos_request	npu_qos_req_int_max;
 	struct pm_qos_request	npu_qos_req_cpu_cl0;
 	struct pm_qos_request	npu_qos_req_cpu_cl1;
 	struct pm_qos_request	npu_qos_req_cpu_cl2;
@@ -36,6 +44,15 @@ struct npu_qos_setting {
 	s32		req_dnc_freq;
 	s32		req_mif_freq;
 	s32		req_int_freq;
+
+	u32		dsp_type;
+	u32		dsp_max_freq;
+	u32		npu_max_freq;
+
+	struct notifier_block npu_qos_max_nb;
+	struct notifier_block npu_qos_dsp_min_nb;
+
+	struct npu_scheduler_info *info;
 };
 
 struct npu_session_qos_req {

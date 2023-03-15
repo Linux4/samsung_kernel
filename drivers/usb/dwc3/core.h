@@ -479,6 +479,7 @@
 #define DWC3_DCTL_ACCEPTU1ENA		BIT(9)
 #define DWC3_DCTL_TSTCTRL_MASK		(0xf << 1)
 
+#define DWC3_DCTL_REMOTE_WAKE_UP	(0x8 << 5)
 #define DWC3_DCTL_ULSTCHNGREQ_MASK	(0x0f << 5)
 #define DWC3_DCTL_ULSTCHNGREQ(n) (((n) << 5) & DWC3_DCTL_ULSTCHNGREQ_MASK)
 
@@ -536,6 +537,15 @@
 #define DWC3_DSTS_FULLSPEED1		(3 << 0)
 
 
+/* Notification Type. identified the type of the device notification
+   (8.5.6 Device Notification (DEV_NOTIFICATION) Transaction Packet) */
+#define RESERVED				0x0
+#define FUNCTION_WAKE				0x1
+#define LATENCY_TOLERANCE_MESSAGE		0x2
+#define BUS_INTERVAL_ADJUSTMENT_MESSAGE		0x3
+#define HOST_ROLE_REQUEST			0x4
+#define SUBLINK_SPEED				0x5
+
 /* Device Generic Command Register */
 #define DWC3_DGCMD_SET_LMP		0x01
 #define DWC3_DGCMD_SET_PERIODIC_PAR	0x02
@@ -544,6 +554,9 @@
 /* These apply for core versions 1.94a and later */
 #define DWC3_DGCMD_SET_SCRATCHPAD_ADDR_LO	0x04
 #define DWC3_DGCMD_SET_SCRATCHPAD_ADDR_HI	0x05
+
+/* Function Wake Noti about U3 */
+#define DWC3_DGCMD_TRANSMIT_DEV_NOTI	0x07
 
 #define DWC3_DGCMD_SELECTED_FIFO_FLUSH	0x09
 #define DWC3_DGCMD_ALL_FIFO_FLUSH	0x0a
@@ -835,6 +848,11 @@ enum dwc3_link_state {
 	DWC3_LINK_STATE_MASK		= 0x0f,
 };
 
+enum {
+	RELEASE	= 0,
+	NOTIFY	= 1,
+};
+
 /* TRB Length, PCM and Status */
 #define DWC3_TRB_SIZE_MASK	(0x00ffffff)
 #define DWC3_TRB_SIZE_LENGTH(n)	((n) & DWC3_TRB_SIZE_MASK)
@@ -973,6 +991,8 @@ struct dwc3_request {
 	unsigned		mapped:1;
 	unsigned		started:1;
 };
+
+#define MAX_RETRY_CNT 5
 
 /*
  * struct dwc3_scratchpad_array - hibernation scratchpad array
@@ -1165,6 +1185,11 @@ struct dwc3 {
 	struct notifier_block	edev_nb;
 	enum usb_phy_interface	hsphy_mode;
 
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	int			retry_cnt;
+	struct work_struct		work;
+#endif
+
 	u32			fladj;
 	u32			irq_gadget;
 	u32			otg_irq;
@@ -1228,6 +1253,8 @@ struct dwc3 {
 	u8			u1pel;
 
 	u8			speed;
+	u8			remote_wakeup_set;
+	u8			usb_remote_wakeup;
 
 	u8			num_eps;
 
@@ -1313,8 +1340,23 @@ struct dwc3 {
 	int level_val;
 	struct work_struct      set_vbus_current_work;
 	int			vbus_current; /* 100mA,  500mA,  900mA */
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	struct delayed_work		dwc3_reset_delayed_work;
+#endif
+
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+	u8			remote_wakeup_fail;
+	int 			interface_number;
+#endif
+	struct delayed_work usb_event_work;
+	ktime_t rst_time_before;
+	ktime_t rst_time_first;
+	int rst_err_cnt;
+	bool rst_err_noti;
+	bool event_state;
 };
 
+#define ERR_RESET_CNT	3
 #define INCRX_BURST_MODE 0
 #define INCRX_UNDEF_LENGTH_BURST_MODE 1
 
@@ -1513,6 +1555,11 @@ static inline int dwc3_host_init(struct dwc3 *dwc)
 { return 0; }
 static inline void dwc3_host_exit(struct dwc3 *dwc)
 { }
+#endif
+
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+void mbim_suspend(void);
+void mbim_resume(void);
 #endif
 
 #if IS_ENABLED(CONFIG_USB_DWC3_GADGET) || IS_ENABLED(CONFIG_USB_DWC3_DUAL_ROLE)

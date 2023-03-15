@@ -30,6 +30,7 @@ struct reg_set_map_2 {
 };
 
 void npu_write_hw_reg(const struct npu_iomem_area *base, u32 offset, u32 val, u32 mask);
+u32 npu_read_hw_reg(const struct npu_iomem_area *base, u32 offset);
 int npu_set_hw_reg(
 	const struct npu_iomem_area *base, const struct reg_set_map *set_map,
 	size_t map_len, int regset_mdelay);

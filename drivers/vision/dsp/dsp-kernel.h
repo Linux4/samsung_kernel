@@ -53,7 +53,8 @@ int dsp_kernel_unload(struct dsp_kernel_manager *kmgr,
 void dsp_kernel_dump(struct dsp_kernel_manager *kmgr);
 
 int dsp_kernel_manager_open(struct dsp_kernel_manager *kmgr);
-void dsp_kernel_manager_close(struct dsp_kernel_manager *kmgr);
+void dsp_kernel_manager_close(struct dsp_kernel_manager *kmgr,
+		unsigned int count);
 int dsp_kernel_manager_probe(struct dsp_graph_manager *gmgr);
 void dsp_kernel_manager_remove(struct dsp_kernel_manager *kmgr);
 

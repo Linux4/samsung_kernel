@@ -1114,6 +1114,15 @@ int is_sensor_dm_tag(struct is_device_sensor *device,
 		frame->shot->dm.request.frameCount = frame->fcount;
 		frame->shot->dm.sensor.timeStamp = device->timestamp[hashkey];
 		frame->shot->udm.sensor.timeStampBoot = device->timestampboot[hashkey];
+
+		if (device->timestampboot[hashkey] < device->prev_timestampboot)
+			minfo("[SS%d][F%d] Reverse timestampboot(p[%llu], c[%llu])\n",
+				device, device->device_id,
+				frame->fcount,
+				device->prev_timestampboot,
+				device->timestampboot[hashkey]);
+
+		device->prev_timestampboot = device->timestampboot[hashkey];
 		/*
 		 * frame_id is extraced form embedded data of sensor.
 		 * So, embedded data should be extraced before frame end.
@@ -1811,6 +1820,7 @@ int is_sensor_open(struct is_device_sensor *device,
 	FIMC_BUG(!vctx);
 	FIMC_BUG(!GET_VIDEO(vctx));
 
+	mutex_lock(&device->mlock_state);
 	if (test_bit(IS_SENSOR_OPEN, &device->state)) {
 		merr("already open", device);
 		ret = -EMFILE;
@@ -1890,6 +1900,7 @@ int is_sensor_open(struct is_device_sensor *device,
 	device->dtp_check = true;
 #endif
 	set_bit(IS_SENSOR_OPEN, &device->state);
+	mutex_unlock(&device->mlock_state);
 
 	minfo("[SS%d:D] %s():%d\n", device, device->device_id, __func__, ret);
 	return 0;
@@ -1905,6 +1916,7 @@ err_devicemgr_open:
 err_csi_open:
 err_camif_open:
 err_open_state:
+	mutex_unlock(&device->mlock_state);
 	merr("[SS%d:D] ret(%d)\n", device, device->device_id, ret);
 	return ret;
 
@@ -3237,6 +3249,25 @@ int is_sensor_g_csis_error(struct is_device_sensor *device)
 	return errorCode;
 }
 
+int is_sensor_g_fast_mode(struct is_device_sensor *device)
+{
+	u32 ex_mode;
+	u32 framerate;
+	u32 height;
+
+	ex_mode = is_sensor_g_ex_mode(device);
+	framerate = is_sensor_g_framerate(device);
+	height = is_sensor_g_height(device);
+
+	if (ex_mode == EX_DUALFPS_960 ||
+		ex_mode == EX_DUALFPS_480 ||
+		framerate >= 240 ||
+		height <= LINE_FOR_SHOT_VALID_TIME)
+		return 1;
+	else
+		return 0;
+}
+
 int __nocfi is_sensor_register_itf(struct is_device_sensor *device)
 {
 	int ret = 0;
@@ -3751,7 +3782,7 @@ int is_sensor_front_start(struct is_device_sensor *device,
 		mutex_unlock(&dvfs_ctrl->lock);
 	}
 #endif
-	mdbgd_sensor("%s(snesor id : %d, csi ch : %d, size : %d x %d)\n", device,
+	mdbgd_sensor("%s(sensor id : %d, csi ch : %d, size : %d x %d)\n", device,
 		__func__,
 		module->sensor_id,
 		device->pdata->csi_ch,
@@ -3896,7 +3927,6 @@ const struct is_queue_ops is_sensor_ops = {
 
 static int is_sensor_suspend(struct device *dev)
 {
-#ifdef CONFIG_SOC_EXYNOS9820
 	struct platform_device *pdev = to_platform_device(dev);
 	struct is_device_sensor *device;
 	struct exynos_platform_is_sensor *pdata;
@@ -3905,7 +3935,6 @@ static int is_sensor_suspend(struct device *dev)
 		pdata = device->pdata;
 		pdata->mclk_force_off(dev, 0);
 	}
-#endif
 
 	info("%s\n", __func__);
 
@@ -4181,7 +4210,6 @@ static int is_sensor_shot(struct is_device_ischain *ischain,
 
 	PROGRAM_COUNT(8);
 
-	sensor->num_buffers = frame->num_buffers;
 	ret = is_devicemgr_shot_callback(group, frame, frame->fcount, IS_DEVICE_SENSOR);
 	if (ret) {
 		merr("is_ischainmgr_shot_callback fail(%d)", ischain, ret);

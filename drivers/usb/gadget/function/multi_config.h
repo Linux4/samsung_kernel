@@ -62,6 +62,7 @@
 #define MULTI_FUNCTION_2 "acm"
 #define MULTI_FUNCTION_3 "conn_gadget"
 #define MULTI_EXCEPTION_FUNCTION "adb"
+#define MULTI_EXCEPTION_FUNCTION_1 "mbim"
 
 #define MAC_REQUEST	0
 #define OTHER_REQUEST	1

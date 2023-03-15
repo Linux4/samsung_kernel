@@ -21,6 +21,7 @@ struct dsp_reg_format {
 	const unsigned int	offset;
 	const unsigned int	flag;
 	const unsigned int	count;
+	const unsigned int	interval;
 	const char		*name;
 };
 

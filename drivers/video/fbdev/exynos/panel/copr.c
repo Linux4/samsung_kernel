@@ -1,9 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * linux/drivers/video/fbdev/exynos/panel/copr.c
- *
- * Samsung Common LCD COPR Driver.
- *
- * Copyright (c) 2016 Samsung Electronics
+ * Copyright (c) Samsung Electronics Co., Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -919,7 +916,7 @@ int copr_roi_set_value(struct copr_info *copr, struct copr_roi *roi, int size)
 int copr_roi_get_value(struct copr_info *copr, struct copr_roi *roi, int size, u32 *out)
 {
 	if (copr->props.version == COPR_VER_3 ||
-		copr->props.version == COPR_VER_5) 
+		copr->props.version == COPR_VER_5)
 		return copr_cur_roi_get_value(copr, roi, size, out);
 	else
 		return copr_iter_roi_get_value(copr, roi, size, out);
@@ -1085,7 +1082,7 @@ int copr_enable(struct copr_info *copr)
 		 */
 		props->state = COPR_REG_ON;
 	}
-	if(copr->props.options.check_avg) {
+	if (copr->props.options.check_avg) {
 		copr_res_init(copr);
 #ifdef CONFIG_SUPPORT_COPR_AVG
 		if (copr->props.version == COPR_VER_1 ||
@@ -1122,7 +1119,7 @@ int copr_disable(struct copr_info *copr)
 	pr_info("%s +\n", __func__);
 	atomic_set(&copr->stop, 1);
 	mutex_lock(&copr->lock);
-	if(copr->props.options.check_avg) {
+	if (copr->props.options.check_avg) {
 		if (copr->props.version < COPR_VER_2)
 			copr_update_average(copr);
 	}
@@ -1216,16 +1213,6 @@ static int copr_fb_notifier_callback(struct notifier_block *self,
 		return 0;
 	if (unlikely(!copr->props.support))
 		return 0;
-
-#if 0
-	if (fb_blank == FB_BLANK_UNBLANK) {
-		if (!early_blank)
-			copr_enable(copr);
-	} else if (fb_blank == FB_BLANK_POWERDOWN) {
-		if (early_blank)
-			copr_disable(copr);
-	}
-#endif
 
 	return 0;
 }

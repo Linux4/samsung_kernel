@@ -419,6 +419,7 @@ static int mfc_enc_s_fmt_vid_cap_mplane(struct file *file, void *priv,
 	struct mfc_ctx *ctx = fh_to_mfc_ctx(file->private_data);
 	struct mfc_enc *enc = ctx->enc_priv;
 	struct v4l2_pix_format_mplane *pix_fmt_mp = &f->fmt.pix_mp;
+	struct mfc_fmt *fmt = NULL;
 	int ret = 0;
 
 	mfc_debug_enter();
@@ -428,11 +429,12 @@ static int mfc_enc_s_fmt_vid_cap_mplane(struct file *file, void *priv,
 		return -EBUSY;
 	}
 
-	ctx->dst_fmt = __mfc_enc_find_format(ctx, pix_fmt_mp->pixelformat);
-	if (!ctx->dst_fmt) {
+	fmt = __mfc_enc_find_format(ctx, pix_fmt_mp->pixelformat);
+	if (!fmt) {
 		mfc_err_ctx("Unsupported format for destination\n");
 		return -EINVAL;
 	}
+	ctx->dst_fmt = fmt;
 
 	ctx->codec_mode = ctx->dst_fmt->codec_mode;
 	mfc_info_ctx("[STREAM] Enc dst codec(%d) : %s\n",
@@ -558,6 +560,7 @@ static int mfc_enc_s_fmt_vid_out_mplane(struct file *file, void *priv,
 {
 	struct mfc_ctx *ctx = fh_to_mfc_ctx(file->private_data);
 	struct v4l2_pix_format_mplane *pix_fmt_mp = &f->fmt.pix_mp;
+	struct mfc_fmt *fmt = NULL;
 
 	mfc_debug_enter();
 
@@ -571,11 +574,12 @@ static int mfc_enc_s_fmt_vid_out_mplane(struct file *file, void *priv,
 		return 0;
 	}
 
-	ctx->src_fmt = __mfc_enc_find_format(ctx, pix_fmt_mp->pixelformat);
-	if (!ctx->src_fmt) {
+	fmt = __mfc_enc_find_format(ctx, pix_fmt_mp->pixelformat);
+	if (!fmt) {
 		mfc_err_ctx("Unsupported format for source\n");
 		return -EINVAL;
 	}
+	ctx->src_fmt = fmt;
 
 	if (ctx->src_fmt->mem_planes != pix_fmt_mp->num_planes) {
 		mfc_err_ctx("[FRAME] enc src plane number is different (%d != %d)\n",
@@ -798,14 +802,26 @@ static int mfc_enc_qbuf(struct file *file, void *priv, struct v4l2_buffer *buf)
 		return -EIO;
 	}
 
-	if (V4L2_TYPE_IS_MULTIPLANAR(buf->type) && !buf->length) {
+	if (!V4L2_TYPE_IS_MULTIPLANAR(buf->type)) {
+		mfc_err_ctx("Invalid V4L2 Buffer for driver: type(%d)\n", buf->type);
+		return -EINVAL;
+	}
+
+	if (!buf->length) {
 		mfc_err_ctx("multiplanar but length is zero\n");
 		return -EIO;
 	}
 
 	if (buf->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		mfc_debug(4, "enc src buf[%d] Q\n", buf->index);
-		for (i = 0; i < ctx->src_fmt->num_planes; i++) {
+		if (ctx->src_fmt->mem_planes != buf->length) {
+			mfc_err_ctx("number of memory container miss-match "
+					"between Src planes(%d) and buffer length(%d)\n",
+					ctx->src_fmt->mem_planes, buf->length);
+			return -EINVAL;
+		}
+
+		for (i = 0; i < ctx->src_fmt->mem_planes; i++) {
 			if (!buf->m.planes[i].bytesused) {
 				mfc_debug(2, "[FRAME] enc src[%d] size zero, "
 						"changed to buf size %d\n",
@@ -845,6 +861,12 @@ static int mfc_enc_dqbuf(struct file *file, void *priv, struct v4l2_buffer *buf)
 		mfc_err_ctx("Call on DQBUF after unrecoverable error\n");
 		return -EIO;
 	}
+
+	if (!V4L2_TYPE_IS_MULTIPLANAR(buf->type)) {
+		mfc_err_ctx("Invalid V4L2 Buffer for driver: type(%d)\n", buf->type);
+		return -EINVAL;
+	}
+
 	if (buf->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		mfc_debug(4, "enc src buf[%d] DQ\n", buf->index);
 		ret = vb2_dqbuf(&ctx->vq_src, buf, file->f_flags & O_NONBLOCK);
@@ -868,6 +890,11 @@ static int mfc_enc_streamon(struct file *file, void *priv,
 	if (ctx->otf_handle) {
 		mfc_info_ctx("[OTF] skip streamon\n");
 		return 0;
+	}
+
+	if (!V4L2_TYPE_IS_MULTIPLANAR(type)) {
+		mfc_err_ctx("Invalid V4L2 Buffer for driver: type(%d)\n", type);
+		return -EINVAL;
 	}
 
 	if (type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
@@ -895,7 +922,7 @@ static int mfc_enc_streamoff(struct file *file, void *priv,
 			    enum v4l2_buf_type type)
 {
 	struct mfc_ctx *ctx = fh_to_mfc_ctx(file->private_data);
-	int ret;
+	int ret = -EINVAL;;
 
 	mfc_debug_enter();
 
@@ -904,7 +931,11 @@ static int mfc_enc_streamoff(struct file *file, void *priv,
 		return 0;
 	}
 
-	ret = -EINVAL;
+	if (!V4L2_TYPE_IS_MULTIPLANAR(type)) {
+		mfc_err_ctx("Invalid V4L2 Buffer for driver: type(%d)\n", type);
+		return -EINVAL;
+	}
+
 	if (type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		mfc_debug(4, "enc src streamoff\n");
 		mfc_qos_reset_last_framerate(ctx);
@@ -956,6 +987,8 @@ static int __mfc_enc_ext_info(struct mfc_ctx *ctx)
 	val |= ENC_SET_PVC_MODE;
 	val |= ENC_SET_RATIO_OF_INTRA;
 	val |= ENC_SET_DROP_CONTROL;
+	val |= ENC_SET_OPERATING_FPS;
+	val |= ENC_SET_PRIORITY;
 
 	if (MFC_FEATURE_SUPPORT(dev, dev->pdata->color_aspect_enc))
 		val |= ENC_SET_COLOR_ASPECT;
@@ -1046,6 +1079,9 @@ static int __mfc_enc_get_ctrl_val(struct mfc_ctx *ctx, struct v4l2_control *ctrl
 		break;
 	case V4L2_CID_MPEG_VIDEO_BPG_HEADER_SIZE:
 		ctrl->value = enc->header_size;
+		break;
+	case V4L2_CID_MPEG_MFC51_VIDEO_FRAME_RATE:
+		ctrl->value = mfc_qos_get_framerate(ctx);
 		break;
 	default:
 		mfc_err_ctx("Invalid control: 0x%08x\n", ctrl->id);
@@ -1176,6 +1212,11 @@ static int __mfc_enc_set_param(struct mfc_ctx *ctx, struct v4l2_control *ctrl)
 	int ret = 0;
 
 	switch (ctrl->id) {
+	case V4L2_CID_MPEG_VIDEO_PRIORITY:
+		ctx->prio = ctrl->value;
+		mfc_update_real_time(ctx);
+		mfc_debug(2, "[PRIO] user set priority: %d\n", ctrl->value);
+		break;
 	case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
 		p->gop_size = ctrl->value;
 		break;
@@ -1886,6 +1927,11 @@ static int __mfc_enc_set_param(struct mfc_ctx *ctx, struct v4l2_control *ctrl)
 					enc->sh_handle_hdr.fd,
 					enc->sh_handle_hdr.vaddr);
 		}
+		break;
+	case V4L2_CID_MPEG_MFC51_VIDEO_FRAME_RATE:
+		ctx->operating_framerate = ctrl->value;
+		mfc_update_real_time(ctx);
+		mfc_debug(2, "[QoS] user set the operating frame rate: %d\n", ctrl->value);
 		break;
 	default:
 		mfc_err_ctx("Invalid control: 0x%08x\n", ctrl->id);

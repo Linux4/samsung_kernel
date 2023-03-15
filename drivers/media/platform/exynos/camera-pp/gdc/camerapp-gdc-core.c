@@ -1299,10 +1299,7 @@ static irqreturn_t gdc_irq_handler(int irq, void *priv)
 		gdc->current_ctx = NULL;
 		spin_unlock(&gdc->ctxlist_lock);
 
-		if (test_bit(DEV_SUSPEND, &gdc->state))
-			gdc_dbg("wake up blocked process by suspend\n");
-		else
-			v4l2_m2m_job_finish(gdc->m2m.m2m_dev, ctx->m2m_ctx);
+		v4l2_m2m_job_finish(gdc->m2m.m2m_dev, ctx->m2m_ctx);
 
 		gdc_resume(gdc->dev);
 		wake_up(&gdc->wait);
@@ -1862,11 +1859,8 @@ static int gdc_remove(struct platform_device *pdev)
 static void gdc_shutdown(struct platform_device *pdev)
 {
 	struct gdc_dev *gdc = platform_get_drvdata(pdev);
-	unsigned long flags;
 
-	spin_lock_irqsave(&gdc->slock, flags);
 	set_bit(DEV_SUSPEND, &gdc->state);
-	spin_unlock_irqrestore(&gdc->slock, flags);
 
 	wait_event(gdc->wait,
 			!test_bit(DEV_RUN, &gdc->state));

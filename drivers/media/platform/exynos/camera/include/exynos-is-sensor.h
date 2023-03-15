@@ -87,6 +87,12 @@ enum actuator_name {
 	ACTUATOR_NAME_DW9808	= 24,
 	ACTUATOR_NAME_ZC535	= 25,
 	ACTUATOR_NAME_DW9817	= 26,
+	ACTUATOR_NAME_FP5529	= 27,
+	ACTUATOR_NAME_DW9800	= 28,
+	ACTUATOR_NAME_LC898219	= 29,
+	ACTUATOR_NAME_DW9714	= 30,
+	ACTUATOR_NAME_BU64981	= 31,
+	ACTUATOR_NAME_SEM1215S	= 32,
 	ACTUATOR_NAME_END,
 	ACTUATOR_NAME_NOTHING	= 100,
 };
@@ -132,6 +138,7 @@ enum ois_name {
 	OIS_NAME_RUMBA_S4	= 1,
 	OIS_NAME_RUMBA_S6	= 2,
 	OIS_NAME_ROHM_BU24218GWL = 3,
+	OIS_NAME_SEM1215S	= 4,
 	OIS_NAME_END,
 	OIS_NAME_NOTHING	= 100,
 };
@@ -152,6 +159,14 @@ enum aperture_name {
 enum eeprom_name {
 	EEPROM_NAME_GM1		= 1,
 	EEPROM_NAME_5E9		= 2,
+	EEPROM_NAME_GW1		= 3,
+	EEPROM_NAME_GD1		= 4,
+	EEPROM_NAME_HI846	= 5,
+	EEPROM_NAME_3M5_TELE	= 6,
+	EEPROM_NAME_3M5_FOLD	= 7,
+	EEPROM_NAME_GD1_TELE	= 8,
+	EEPROM_NAME_GC5035	= 9,
+	EEPROM_NAME_OV02A10	= 10,
 	EEPROM_NAME_END,
 	EEPROM_NAME_NOTHING	= 100,
 };
@@ -253,9 +268,7 @@ struct exynos_platform_is_sensor {
 	int (*iclk_off)(struct device *dev, u32 scenario, u32 channel);
 	int (*mclk_on)(struct device *dev, u32 scenario, u32 channel);
 	int (*mclk_off)(struct device *dev, u32 scenario, u32 channel);
-#ifdef CONFIG_SOC_EXYNOS9820
 	int (*mclk_force_off)(struct device *dev, u32 channel);
-#endif
 	u32 id;
 	u32 scenario;
 	u32 csi_ch;
@@ -291,7 +304,5 @@ int exynos_is_sensor_mclk_on(struct device *dev,
 int exynos_is_sensor_mclk_off(struct device *dev,
 	u32 scenario,
 	u32 channel);
-#ifdef CONFIG_SOC_EXYNOS9820
 int is_sensor_mclk_force_off(struct device *dev, u32 channel);
-#endif
 #endif /* MEDIA_EXYNOS_SENSOR_H */

@@ -22,6 +22,11 @@ enum modem_event {
 	MODEM_EVENT_WATCHDOG	= 9,
 };
 
+enum modem_voice_call_event {
+	MODEM_VOICE_CALL_OFF	= 0,
+	MODEM_VOICE_CALL_ON	= 1,
+};
+
 #if IS_ENABLED(CONFIG_SHM_IPC)
 extern int register_modem_event_notifier(struct notifier_block *nb);
 #ifdef CONFIG_EXYNOS_MODEM_IF
@@ -35,6 +40,17 @@ static inline int register_modem_event_notifier(struct notifier_block *nb)
 	return 0;
 }
 static inline void modem_notify_event(enum modem_event evt) {}
+#endif
+
+#if defined(CONFIG_SUSPEND_DURING_VOICE_CALL)
+extern int register_modem_voice_call_event_notifier(struct notifier_block *nb);
+extern void modem_voice_call_notify_event(enum modem_voice_call_event evt, void *data);
+#else
+static inline int register_modem_voice_call_event_notifier(struct notifier_block *nb)
+{
+	return 0;
+}
+static inline void modem_voice_call_notify_event(enum modem_voice_call_event evt, void *data) {}
 #endif
 
 #endif/*__MODEM_NOTIFIER_H__*/

@@ -33,6 +33,7 @@ int is_ischain_mxp_stripe_cfg(struct is_subdev *subdev,
 	struct is_frame *frame;
 	struct is_fmt *fmt = framecfg->format;
 	bool x_flip = mcs_out_flip & CAM_FLIP_MODE_HORIZONTAL ? true : false;
+	bool is_last_region = false;
 	unsigned long flags;
 	u32 region_id = ldr_frame->stripe_info.region_id;
 	u32 stripe_x, stripe_w;
@@ -65,8 +66,10 @@ int is_ischain_mxp_stripe_cfg(struct is_subdev *subdev,
 				temp_stripe_x = incrop->x - ldr_frame->stripe_info.in.prev_h_pix_num;
 
 			/* Stripe width when crop region end in middle region */
-			if (incrop->x + incrop->w < ldr_frame->stripe_info.in.h_pix_num)
+			if (incrop->x + incrop->w < ldr_frame->stripe_info.in.h_pix_num) {
 				temp_stripe_w = incrop->w - frame->stripe_info.in.h_pix_num;
+				is_last_region = true;
+			}
 
 			stripe_w = temp_stripe_w > 0 ? temp_stripe_w: 0;
 			stripe_x = stripe_x + temp_stripe_x;
@@ -97,7 +100,10 @@ int is_ischain_mxp_stripe_cfg(struct is_subdev *subdev,
 				dma_offset = (otcrop->w - stripe_w) * fmt->bitsperpixel[0] / BITS_PER_BYTE;
 		} else if (region_id < ldr_frame->stripe_info.region_num - 1) {
 			/* Middle region */
-			stripe_w = ALIGN(otcrop->w * frame->stripe_info.in.h_pix_ratio / STRIPE_RATIO_PRECISION, 2);
+			if (is_last_region)
+				stripe_w = otcrop->w - frame->stripe_info.out.h_pix_num;
+			else
+				stripe_w = ALIGN(otcrop->w * frame->stripe_info.in.h_pix_ratio / STRIPE_RATIO_PRECISION, 2);
 
 			/* Add horizontal DMA offset */
 			if (x_flip)
@@ -399,7 +405,8 @@ static int is_ischain_mxp_start(struct is_device_ischain *device,
 			mdbg_pframe("CRange:N\n", device, subdev, frame);
 	}
 
-	if (frame->shot_ext->mcsc_flip[index - PARAM_MCS_OUTPUT0] != mcs_output->flip) {
+	if ((index >= PARAM_MCS_OUTPUT0 && index < PARAM_MCS_OUTPUT5) &&
+		frame->shot_ext->mcsc_flip[index - PARAM_MCS_OUTPUT0] != mcs_output->flip) {
 		mdbg_pframe("flip is changed(%d->%d)\n",
 			device, subdev, frame,
 			mcs_output->flip,
@@ -442,7 +449,7 @@ static int is_ischain_mxp_start(struct is_device_ischain *device,
 	mcs_output->height = otcrop_cfg.h; /* per frame */
 
 	mcs_output->crop_cmd = 0;
-	mcs_output->crop_cmd |= (node->request & BIT(MCSC_CROP_TYPE)); /* 0: ceter crop, 1: freeform crop */
+	mcs_output->crop_cmd |= (u32)(node->request & BIT(MCSC_CROP_TYPE)); /* 0: ceter crop, 1: freeform crop */
 	/* HW spec: stride should be aligned by 16 byte. */
 	mcs_output->dma_stride_y = ALIGN(max(otcrop->w * format->bitsperpixel[0] / BITS_PER_BYTE,
 					queue->framecfg.bytesperline[0]), 16);
@@ -651,6 +658,8 @@ static int is_ischain_mxp_tag(struct is_subdev *subdev,
 		goto p_err;
 	}
 
+	memset(target_addr, 0, sizeof(ldr_frame->sc0TargetAddress));
+
 	mcs_output = is_itf_g_param(device, ldr_frame, index);
 
 	if (node->request) {
@@ -661,7 +670,8 @@ static int is_ischain_mxp_tag(struct is_subdev *subdev,
 			pixelformat = node->pixelformat;
 		}
 
-		if (ldr_frame->shot_ext->mcsc_flip[index - PARAM_MCS_OUTPUT0] != mcs_output->flip)
+		if ((index >= PARAM_MCS_OUTPUT0 && index < PARAM_MCS_OUTPUT5) &&
+			ldr_frame->shot_ext->mcsc_flip[index - PARAM_MCS_OUTPUT0] != mcs_output->flip)
 			change_flip = true;
 
 		inparm.x = mcs_output->crop_offset_x;

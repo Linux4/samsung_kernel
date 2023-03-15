@@ -14,6 +14,7 @@
 #include "dsp-device.h"
 #include "hardware/dsp-mailbox.h"
 #include "dsp-common-type.h"
+#include "dsp-control.h"
 #include "dsp-context.h"
 
 static int dsp_context_boot(struct dsp_context *dctx, struct dsp_ioc_boot *args)
@@ -22,22 +23,35 @@ static int dsp_context_boot(struct dsp_context *dctx, struct dsp_ioc_boot *args)
 	struct dsp_core *core;
 
 	dsp_enter();
+	dsp_dbg("boot start\n");
 	core = dctx->core;
 
-	mutex_lock(&dctx->lock);
+	ret = dsp_graph_manager_open(&core->graph_manager);
+	if (ret)
+		goto p_err_graph;
 
-	ret = dsp_device_start(core->dspdev);
-	if (ret) {
-		mutex_unlock(&dctx->lock);
-		goto p_err_device;
+	mutex_lock(&dctx->lock);
+	if (dctx->boot_count + 1 < dctx->boot_count) {
+		ret = -EINVAL;
+		dsp_err("boot count is overflowed\n");
+		goto p_err_count;
 	}
+
+	ret = dsp_device_start(core->dspdev, args->pm_level);
+	if (ret)
+		goto p_err_device;
 
 	dctx->boot_count++;
 	mutex_unlock(&dctx->lock);
 
+	dsp_dbg("boot end\n");
 	dsp_leave();
 	return 0;
 p_err_device:
+p_err_count:
+	mutex_unlock(&dctx->lock);
+	dsp_graph_manager_close(&core->graph_manager, 1);
+p_err_graph:
 	return ret;
 }
 
@@ -47,22 +61,23 @@ static int __dsp_context_get_graph_info(struct dsp_context *dctx,
 	int ret;
 
 	dsp_enter();
-	ret = copy_from_user(ginfo, (void *)load->param_addr, load->param_size);
-	if (ret) {
-		dsp_err("Failed to copy form user param_addr(%d)\n", ret);
-		goto p_err_copy;
+	if (copy_from_user(ginfo, (void __user *)load->param_addr,
+				load->param_size)) {
+		ret = -EFAULT;
+		dsp_err("Failed to copy from user param_addr(%d)\n", ret);
+		goto p_err;
 	}
 
-	ret = copy_from_user(kernel_name, (void *)load->kernel_addr,
-			load->kernel_size);
-	if (ret) {
-		dsp_err("Failed to copy form user kernel_addr(%d)\n", ret);
-		goto p_err_copy;
+	if (copy_from_user(kernel_name, (void __user *)load->kernel_addr,
+				load->kernel_size)) {
+		ret = -EFAULT;
+		dsp_err("Failed to copy from user kernel_addr(%d)\n", ret);
+		goto p_err;
 	}
 
 	dsp_leave();
 	return 0;
-p_err_copy:
+p_err:
 	return ret;
 }
 
@@ -72,10 +87,90 @@ static void __dsp_context_put_graph_info(struct dsp_context *dctx, void *ginfo)
 	dsp_leave();
 }
 
+static int __dsp_context_check_graph_info(struct dsp_context *dctx,
+		struct dsp_ioc_load_graph *load, unsigned int ginfo_size,
+		unsigned int param_list_size, void *kernel_name)
+{
+	int ret;
+	unsigned int *check;
+	unsigned int idx, kernel_size;
+
+	dsp_enter();
+	ginfo_size += param_list_size;
+	if (ginfo_size < param_list_size) {
+		ret = -EINVAL;
+		dsp_err("ginfo_size(%u/%u) is overflowed\n",
+				ginfo_size, param_list_size);
+		goto p_err;
+	}
+
+	if (ginfo_size != load->param_size) {
+		ret = -EINVAL;
+		dsp_err("param_size(%u/%u) is invalid\n",
+				load->param_size, ginfo_size);
+		goto p_err;
+	}
+
+	if (load->kernel_count > DSP_MAX_KERNEL_COUNT) {
+		ret = -EINVAL;
+		dsp_err("kernel_count(%u/%u) is invalid\n",
+				load->kernel_count, DSP_MAX_KERNEL_COUNT);
+		goto p_err;
+	}
+
+	kernel_size = load->kernel_count * sizeof(int);
+	if (kernel_size < load->kernel_count) {
+		ret = -EINVAL;
+		dsp_err("kernel_size(%u/%u) is overflowed\n",
+				kernel_size, load->kernel_count);
+		goto p_err;
+	}
+
+	if (kernel_size > load->kernel_size) {
+		ret = -EINVAL;
+		dsp_err("kernel_count(%u/%u) is invalid\n",
+				load->kernel_count, load->kernel_size);
+		goto p_err;
+	}
+
+	check = kernel_name;
+	for (idx = 0; idx < load->kernel_count; ++idx) {
+		if (check[idx] == 0) {
+			ret = -EINVAL;
+			dsp_err("kernel_size(%u/%u/%u/%u) is wrong\n",
+					kernel_size, check[idx],
+					idx, load->kernel_count);
+			goto p_err;
+		}
+		kernel_size += check[idx];
+		if (kernel_size < check[idx]) {
+			ret = -EINVAL;
+			dsp_err("kernel_size(%u/%u/%u/%u) is overflowed\n",
+					kernel_size, check[idx],
+					idx, load->kernel_count);
+			goto p_err;
+		}
+	}
+
+	if (kernel_size != load->kernel_size) {
+		ret = -EINVAL;
+		dsp_err("kernel_size(%u/%u/%u) is invalid\n",
+				load->kernel_count, load->kernel_size,
+				kernel_size);
+		goto p_err;
+	}
+
+	dsp_leave();
+	return 0;
+p_err:
+	return ret;
+}
+
 static int dsp_context_load_graph(struct dsp_context *dctx,
 		struct dsp_ioc_load_graph *args)
 {
 	int ret;
+	unsigned int booted;
 	struct dsp_system *sys;
 	void *kernel_name;
 	struct dsp_mailbox_pool *pool;
@@ -83,18 +178,35 @@ static int dsp_context_load_graph(struct dsp_context *dctx,
 	struct dsp_common_graph_info_v2 *ginfo2;
 	struct dsp_common_graph_info_v3 *ginfo3;
 	struct dsp_graph *graph;
-	unsigned int version;
+	unsigned int version, ginfo_size, param_list_size;
 
 	dsp_enter();
+	dsp_dbg("load start\n");
+	mutex_lock(&dctx->lock);
+	booted = dctx->boot_count;
+	mutex_unlock(&dctx->lock);
+	if (!booted) {
+		ret = -EINVAL;
+		dsp_err("device is not booted\n");
+		goto p_err;
+	}
+
 	sys = &dctx->core->dspdev->system;
 	version = args->version;
 
-	kernel_name = vzalloc(args->kernel_size);
+	if (!args->kernel_size || args->kernel_size > DSP_MAX_KERNEL_SIZE) {
+		ret = -EINVAL;
+		dsp_err("size for kernel_name is invalid(%u/%zu)\n",
+				args->kernel_size, DSP_MAX_KERNEL_SIZE);
+		goto p_err;
+	}
+
+	kernel_name = kmalloc(args->kernel_size, GFP_KERNEL);
 	if (!kernel_name) {
 		ret = -ENOMEM;
-		dsp_err("Failed to allocate kernel_name(%d)\n",
+		dsp_err("Failed to allocate kernel_name(%u)\n",
 				args->kernel_size);
-		goto p_err_klist;
+		goto p_err_name;
 	}
 
 	pool = dsp_mailbox_alloc_pool(&sys->mailbox, args->param_size);
@@ -102,6 +214,7 @@ static int dsp_context_load_graph(struct dsp_context *dctx,
 		ret = PTR_ERR(pool);
 		goto p_err_pool;
 	}
+	pool->pm_qos = args->request_qos;
 
 	if (version == DSP_IOC_V1) {
 		ginfo1 = pool->kva;
@@ -109,6 +222,23 @@ static int dsp_context_load_graph(struct dsp_context *dctx,
 				kernel_name);
 		if (ret)
 			goto p_err_info;
+
+		ginfo_size = sizeof(*ginfo1);
+		if (args->param_size < ginfo_size) {
+			ret = -EINVAL;
+			dsp_err("param size is invalid(%u/%u)\n",
+					args->param_size, ginfo_size);
+			goto p_err_info;
+		}
+
+		param_list_size = (ginfo1->n_tsgd + ginfo1->n_param) *
+			sizeof(ginfo1->param_list[0]);
+
+		ret = __dsp_context_check_graph_info(dctx, args, ginfo_size,
+				param_list_size, kernel_name);
+		if (ret)
+			goto p_err_info;
+
 		SET_COMMON_CONTEXT_ID(&ginfo1->global_id, dctx->id);
 	} else if (version == DSP_IOC_V2) {
 		ginfo2 = pool->kva;
@@ -116,6 +246,23 @@ static int dsp_context_load_graph(struct dsp_context *dctx,
 				kernel_name);
 		if (ret)
 			goto p_err_info;
+
+		ginfo_size = sizeof(*ginfo2);
+		if (args->param_size < ginfo_size) {
+			ret = -EINVAL;
+			dsp_err("param size is invalid(%u/%u)\n",
+					args->param_size, ginfo_size);
+			goto p_err_info;
+		}
+
+		param_list_size = (ginfo2->n_tsgd + ginfo2->n_param) *
+			sizeof(ginfo2->param_list[0]);
+
+		ret = __dsp_context_check_graph_info(dctx, args, ginfo_size,
+				param_list_size, kernel_name);
+		if (ret)
+			goto p_err_info;
+
 		SET_COMMON_CONTEXT_ID(&ginfo2->global_id, dctx->id);
 	} else if (version == DSP_IOC_V3) {
 		ginfo3 = pool->kva;
@@ -123,6 +270,23 @@ static int dsp_context_load_graph(struct dsp_context *dctx,
 				kernel_name);
 		if (ret)
 			goto p_err_info;
+
+		ginfo_size = sizeof(*ginfo3);
+		if (args->param_size < ginfo_size) {
+			ret = -EINVAL;
+			dsp_err("param size is invalid(%u/%u)\n",
+					args->param_size, ginfo_size);
+			goto p_err_info;
+		}
+
+		param_list_size = (ginfo3->n_tsgd + ginfo3->n_param) *
+			sizeof(ginfo3->param_list[0]);
+
+		ret = __dsp_context_check_graph_info(dctx, args, ginfo_size,
+				param_list_size, kernel_name);
+		if (ret)
+			goto p_err_info;
+
 		SET_COMMON_CONTEXT_ID(&ginfo3->global_id, dctx->id);
 	} else {
 		ret = -EINVAL;
@@ -132,7 +296,7 @@ static int dsp_context_load_graph(struct dsp_context *dctx,
 	}
 
 	graph = dsp_graph_load(&dctx->core->graph_manager, pool,
-			kernel_name, version);
+			kernel_name, args->kernel_count, version);
 	if (IS_ERR(graph)) {
 		ret = PTR_ERR(graph);
 		goto p_err_graph;
@@ -147,6 +311,8 @@ static int dsp_context_load_graph(struct dsp_context *dctx,
 		__dsp_context_put_graph_info(dctx, ginfo2);
 	else if (version == DSP_IOC_V3)
 		__dsp_context_put_graph_info(dctx, ginfo3);
+
+	dsp_dbg("load end\n");
 	dsp_leave();
 	return 0;
 p_err_graph:
@@ -159,23 +325,38 @@ p_err_graph:
 p_err_info:
 	dsp_mailbox_free_pool(pool);
 p_err_pool:
-	vfree(kernel_name);
-p_err_klist:
+	kfree(kernel_name);
+p_err_name:
+p_err:
 	return ret;
-
 }
 
 static int dsp_context_unload_graph(struct dsp_context *dctx,
 		struct dsp_ioc_unload_graph *args)
 {
 	int ret;
+	unsigned int booted;
 	struct dsp_system *sys;
 	struct dsp_graph *graph;
 	struct dsp_mailbox_pool *pool;
 	unsigned int *global_id;
+	struct dsp_graph_manager *gmgr;
 
 	dsp_enter();
+	dsp_dbg("unload start\n");
+	gmgr = &dctx->core->graph_manager;
+	mutex_lock(&dctx->lock);
+	booted = dctx->boot_count;
+	mutex_unlock(&dctx->lock);
+	if (!booted) {
+		ret = -EINVAL;
+		dsp_err("device is not booted\n");
+		goto p_err;
+	}
+
 	sys = &dctx->core->dspdev->system;
+
+	mutex_lock(&gmgr->lock_for_unload);
 
 	SET_COMMON_CONTEXT_ID(&args->global_id, dctx->id);
 	graph = dsp_graph_get(&dctx->core->graph_manager, args->global_id);
@@ -190,6 +371,7 @@ static int dsp_context_unload_graph(struct dsp_context *dctx,
 		ret = PTR_ERR(pool);
 		goto p_err;
 	}
+	pool->pm_qos = args->request_qos;
 	global_id = pool->kva;
 	*global_id = args->global_id;
 
@@ -197,9 +379,11 @@ static int dsp_context_unload_graph(struct dsp_context *dctx,
 
 	args->timestamp[0] = pool->time.start;
 	args->timestamp[1] = pool->time.end;
+	mutex_unlock(&gmgr->lock_for_unload);
 
 	dsp_mailbox_free_pool(pool);
 
+	dsp_dbg("unload end\n");
 	dsp_leave();
 	return 0;
 p_err:
@@ -221,9 +405,9 @@ static int __dsp_context_get_execute_info(struct dsp_context *dctx,
 		goto p_err;
 	}
 
-	ret = copy_from_user(einfo, (void *)execute->addr, size);
-	if (ret) {
-		dsp_err("Failed to copy form user addr(%d)\n", ret);
+	if (copy_from_user(einfo, (void __user *)execute->addr, size)) {
+		ret = -EFAULT;
+		dsp_err("Failed to copy from user addr(%d)\n", ret);
 		goto p_err_copy;
 	}
 
@@ -244,6 +428,7 @@ static int dsp_context_execute_msg(struct dsp_context *dctx,
 		struct dsp_ioc_execute_msg *args)
 {
 	int ret;
+	unsigned int booted;
 	struct dsp_system *sys;
 	struct dsp_mailbox_pool *pool;
 	struct dsp_common_execute_info_v1 *einfo1;
@@ -254,6 +439,16 @@ static int dsp_context_execute_msg(struct dsp_context *dctx,
 	unsigned int einfo_global_id;
 
 	dsp_enter();
+	dsp_dbg("execute start\n");
+	mutex_lock(&dctx->lock);
+	booted = dctx->boot_count;
+	mutex_unlock(&dctx->lock);
+	if (!booted) {
+		ret = -EINVAL;
+		dsp_err("device is not booted\n");
+		goto p_err;
+	}
+
 	sys = &dctx->core->dspdev->system;
 	version = args->version;
 
@@ -262,6 +457,7 @@ static int dsp_context_execute_msg(struct dsp_context *dctx,
 		ret = PTR_ERR(pool);
 		goto p_err_pool;
 	}
+	pool->pm_qos = args->request_qos;
 
 	if (version == DSP_IOC_V1) {
 		einfo1 = pool->kva;
@@ -321,6 +517,7 @@ static int dsp_context_execute_msg(struct dsp_context *dctx,
 
 	dsp_mailbox_free_pool(pool);
 
+	dsp_dbg("execute end\n");
 	dsp_leave();
 	return 0;
 p_err_graph_execute:
@@ -335,14 +532,117 @@ p_err_graph_get:
 p_err_info:
 	dsp_mailbox_free_pool(pool);
 p_err_pool:
+p_err:
+	return ret;
+}
+
+static int __dsp_context_get_control(struct dsp_context *dctx,
+		struct dsp_ioc_control *control, union dsp_control *cmd)
+{
+	int ret;
+
+	dsp_enter();
+	dsp_dbg("control(%u/%u/%#lx)\n",
+			control->control_id, control->size, control->addr);
+
+	switch (control->control_id) {
+	case DSP_CONTROL_ENABLE_DVFS:
+	case DSP_CONTROL_DISABLE_DVFS:
+		if (control->size != sizeof(cmd->dvfs.pm_qos)) {
+			ret = -EINVAL;
+			dsp_err("user cmd size is invalid(%u/%zu)\n",
+					control->size,
+					sizeof(cmd->dvfs.pm_qos));
+			goto p_err;
+		}
+
+		if (copy_from_user(&cmd->dvfs.pm_qos,
+					(void __user *)control->addr,
+					control->size)) {
+			ret = -EFAULT;
+			dsp_err("Failed to copy from user cmd(%u/%d)\n",
+					control->control_id, ret);
+			goto p_err;
+		}
+
+		break;
+	case DSP_CONTROL_ENABLE_BOOST:
+	case DSP_CONTROL_DISABLE_BOOST:
+		break;
+	case DSP_CONTROL_REQUEST_MO:
+	case DSP_CONTROL_RELEASE_MO:
+		if (!control->size || control->size >= SCENARIO_NAME_MAX) {
+			ret = -EINVAL;
+			dsp_err("user cmd size is invalid(%u/%u)\n",
+					control->size, SCENARIO_NAME_MAX);
+			goto p_err;
+		}
+
+		if (copy_from_user(cmd->mo.scenario_name,
+					(void __user *)control->addr,
+					control->size)) {
+			ret = -EFAULT;
+			dsp_err("Failed to copy from user cmd(%u/%d)\n",
+					control->control_id, ret);
+			goto p_err;
+		}
+
+		cmd->mo.scenario_name[control->size] = '\0';
+		break;
+	default:
+		ret = -EINVAL;
+		dsp_err("control id is invalid(%u)\n", control->control_id);
+		goto p_err;
+	}
+
+	dsp_leave();
+	return 0;
+p_err:
+	return ret;
+}
+
+static int dsp_context_control(struct dsp_context *dctx,
+		struct dsp_ioc_control *args)
+{
+	int ret;
+	unsigned int booted;
+	struct dsp_system *sys;
+	union dsp_control cmd;
+
+	dsp_enter();
+	dsp_dbg("control start\n");
+	mutex_lock(&dctx->lock);
+	booted = dctx->boot_count;
+	mutex_unlock(&dctx->lock);
+	if (!booted) {
+		ret = -EINVAL;
+		dsp_err("device is not booted\n");
+		goto p_err;
+	}
+
+	sys = &dctx->core->dspdev->system;
+
+	ret = __dsp_context_get_control(dctx, args, &cmd);
+	if (ret)
+		goto p_err;
+
+	ret = dsp_system_request_control(sys, args->control_id, &cmd);
+	if (ret)
+		goto p_err;
+
+	dsp_dbg("control end\n");
+	dsp_leave();
+	return 0;
+p_err:
 	return ret;
 }
 
 const struct dsp_ioctl_ops dsp_ioctl_ops = {
-	.boot		= dsp_context_boot,
-	.load_graph	= dsp_context_load_graph,
-	.unload_graph	= dsp_context_unload_graph,
-	.execute_msg	= dsp_context_execute_msg,
+	.boot			= dsp_context_boot,
+	.load_graph		= dsp_context_load_graph,
+	.unload_graph		= dsp_context_unload_graph,
+	.execute_msg		= dsp_context_execute_msg,
+	.control		= dsp_context_control,
 };
 
 struct dsp_context *dsp_context_create(struct dsp_core *core)
@@ -390,9 +690,6 @@ void dsp_context_destroy(struct dsp_context *dctx)
 
 	dsp_enter();
 	core = dctx->core;
-
-	if (dctx->boot_count)
-		dsp_device_stop(core->dspdev, dctx->boot_count);
 
 	mutex_destroy(&dctx->lock);
 

@@ -39,19 +39,25 @@
 #include <linux/mbim_queue.h>
 #include "u_mbim.h"
 
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+#include "../dwc3/core.h"
+#endif
+
+#ifdef CONFIG_OF
+#include <linux/of_device.h>
+#include <linux/of_gpio.h>
+#endif
+
 #define ETH_FRAME_LEN	1514
 
-#define MAX_NOTIFY_REQUESTS (8)
+#define MAX_NOTIFY_REQUESTS (1)
 #define MAX_BULKIN_REQUESTS	(8)
 #define MAX_BULKOUT_REQUESTS	(4)
 
-//#define NOT_ERROR	0x08
-//#define SELECTED	0x10
-
-#define MBIM_BULK_BUFFER_SIZE		4096
-
+#define MBIM_BULK_BUFFER_SIZE	4096
 #define USB_CDC_RESET		0x05
 
+#define DEBUG			0
 struct MBIM_MESSAGE_HEADER {
 	unsigned int MessageType;
 	// MSB:0, host -> function
@@ -82,6 +88,7 @@ typedef struct _IOCTL_MBIM_CONNECT_INFO_PARAM
 #define IOCTL_MBIM_GETCOMMAND			_IOR( 'A', 4, IOCTL_MBIM_GETCOMMAND_PARAM )
 #define IOCTL_MBIM_SETRESPONSE			_IOW( 'A', 5, IOCTL_MBIM_SETRESPONSE_PARAM )
 #define IOCTL_MBIM_CONNECT_INFO			_IOW( 'A', 7, IOCTL_MBIM_CONNECT_INFO_PARAM )
+#define IOCTL_MBIM_INFO_USBMODE			_IOR( 'A', 8, IOCTL_MBIM_GETCOMMAND_PARAM )
 
 #define NR_MBIM_PORTS			1
 
@@ -91,6 +98,12 @@ typedef struct _IOCTL_MBIM_CONNECT_INFO_PARAM
 #define GET_DEVICE_ID		0
 #define GET_PORT_STATUS		1
 #define SOFT_RESET			2
+
+#define MBIM_MAX_TX_TIMEOUT_NSECS	3000000
+#define MBIM_MIN_TX_TIMEOUT_NSECS	500000
+#define MBIM_UL_SEND_TIME		1000000
+
+#define MBIM_MAX_SEND_COUNT		64
 
 static int major, minors;
 static struct class *usb_gadget_class;
@@ -122,9 +135,9 @@ struct mbim_dev {
 	s8			interface;
 	struct usb_ep		*in_ep, *out_ep, *notify_ep;
 	//struct usb_request	*notify_req;
+	atomic_t			notify_count;
 
 	struct list_head	rx_reqs;
-	struct list_head	rx_reqs_active;
 	struct list_head	rx_buffers;
 	struct sk_buff_head	rx_sk_buffers;
 	wait_queue_head_t	rx_wait;
@@ -136,7 +149,6 @@ struct mbim_dev {
 	struct list_head	tx_reqs;
 	struct list_head	tx_reqs_active;
 	wait_queue_head_t	tx_wait;
-	wait_queue_head_t	tx_flush_wait;
 
 	unsigned		tx_qlen;
 
@@ -149,17 +161,19 @@ struct mbim_dev {
 	atomic_t		write_excl;
 	wait_queue_head_t	read_wq;
 	wait_queue_head_t	write_wq;
+	wait_queue_head_t	sync_wq;
 	struct list_head	cpkt_req_q;
 	struct list_head	cpkt_resp_q;
 
 	bool			EnabledDevice;
 	bool			mbim_ready;
 	bool			mbim_online;
+
 	spinlock_t		notify_req_lock;
 
 	u8			reset_mbim;
 	int			minor;
-	struct cdev		mbim_cdev;
+	struct usb_composite_dev *mbim_cdev;
 	u8			mbim_cdev_open;
 	wait_queue_head_t	wait;
 	unsigned		q_len;
@@ -169,12 +183,16 @@ struct mbim_dev {
 	struct miscdevice	miscdev;
 	struct net_device	*ndev;
 
-	struct workqueue_struct	*mbim_wq;
-	struct work_struct	rx_work;
-	struct delayed_work	start_xmit;
+	struct workqueue_struct	*mbim_dl;
+	struct workqueue_struct	*mbim_ul;
+
+	struct work_struct	start_xmit;
+	struct hrtimer		tx_timer;
+	struct hrtimer		rx_timer;
 	bool en_timer;
-#define MAX_TX_TIMEOUT_NSECS	6000000
-#define MIN_TX_TIMEOUT_NSECS	500000
+
+	unsigned                dl_max_pkts_per_xfer;
+	unsigned                ul_max_pkts_per_xfer;
 
 	/* NCM requires fixed size bundles */
 	bool			is_fixed;
@@ -184,7 +202,7 @@ struct mbim_dev {
 	unsigned		qmult;
 
 	bool			zlp;
-	bool			occured_timeout;
+	bool			occurred_timeout;
 
 	spinlock_t		req_lock;	/* guard {rx,tx}_reqs */
 
@@ -194,11 +212,16 @@ struct mbim_dev {
 	bool			unwrap;
 	int			func_flag;
 	int			tx_skb_hold_count;
+	/* pc wakeup gpio */
+	int			host_wakeup_gpio;
+	/* for debug */
+	int			cnt_notify_int;
 };
 
 struct mbim_port{
 	struct mbim_dev *mbim;
 };
+
 
 static void setup_rx_reqs(struct mbim_dev *dev);
 
@@ -216,6 +239,7 @@ static inline struct mbim_dev *func_to_mbim(struct usb_function *f)
 
  /* holds our biggest descriptor */
 #define USB_DESC_BUFSIZE		256
+#define USB_DL_BUFSIZE			80 * 1024
 #define USB_BUFSIZE			64 * 1024
 
 #define NCM_STATUS_INTERVAL_MS		32
@@ -243,65 +267,50 @@ struct usb_cdc_ncm_ntb_parameters ntb_parameters = {
 	.wNtbOutMaxDatagrams = 32,
 };
 
-struct usb_interface_assoc_descriptor ncm_iad_desc = {
-	.bLength = sizeof ncm_iad_desc,
+struct usb_interface_assoc_descriptor mbim_iad_desc = {
+	.bLength = sizeof mbim_iad_desc,
 	.bDescriptorType = USB_DT_INTERFACE_ASSOCIATION,
 
 	/* .bFirstInterface =	DYNAMIC, */
 	.bInterfaceCount = 2,	/* control + data */
-	.bFunctionClass = 2,
-	.bFunctionSubClass = 0x0e,
-	.bFunctionProtocol = 0,
+	.bFunctionClass = USB_CLASS_COMM,
+	.bFunctionSubClass = USB_CDC_SUBCLASS_MBIM,
+	.bFunctionProtocol = USB_CDC_PROTO_NONE,
 	/* .iFunction =		DYNAMIC */
 };
 
 /* interface descriptor: */
 
-struct usb_interface_descriptor ncm_control_intf = {
-	.bLength = sizeof ncm_control_intf,
+struct usb_interface_descriptor mbim_control_intf = {
+	.bLength = sizeof mbim_control_intf,
 	.bDescriptorType = USB_DT_INTERFACE,
 
 	/* .bInterfaceNumber = DYNAMIC */
 	.bNumEndpoints = 1,
-	.bInterfaceClass = 0x02,
-	.bInterfaceSubClass = 0x0e,
-	.bInterfaceProtocol = 0,
+	.bInterfaceClass = USB_CLASS_COMM,
+	.bInterfaceSubClass = USB_CDC_SUBCLASS_MBIM,
+	.bInterfaceProtocol = USB_CDC_PROTO_NONE,
 	/* .iInterface = DYNAMIC */
 };
 
-struct usb_cdc_header_desc ncm_header_desc = {
-	.bLength = sizeof ncm_header_desc,
+struct usb_cdc_header_desc mbim_header_desc = {
+	.bLength = sizeof mbim_header_desc,
 	.bDescriptorType = USB_DT_CS_INTERFACE,
 	.bDescriptorSubType = USB_CDC_HEADER_TYPE,
 
 	.bcdCDC = cpu_to_le16(0x0110),
 };
 
-struct usb_cdc_union_desc ncm_union_desc = {
-	.bLength = sizeof(ncm_union_desc),
+struct usb_cdc_union_desc mbim_union_desc = {
+	.bLength = sizeof(mbim_union_desc),
 	.bDescriptorType = USB_DT_CS_INTERFACE,
 	.bDescriptorSubType = USB_CDC_UNION_TYPE,
 	/* .bMasterInterface0 =	DYNAMIC */
 	/* .bSlaveInterface0 =	DYNAMIC */
 };
 
-#if 0
-struct usb_cdc_ether_desc ecm_desc = {
-	.bLength = sizeof ecm_desc,
-	.bDescriptorType = USB_DT_CS_INTERFACE,
-	.bDescriptorSubType = USB_CDC_ETHERNET_TYPE,
-
-	/* this descriptor actually adds value, surprise! */
-	/* .iMACAddress = DYNAMIC */
-	.bmEthernetStatistics = cpu_to_le32(0), /* no statistics */
-	.wMaxSegmentSize = cpu_to_le16(ETH_FRAME_LEN),
-	.wNumberMCFilters = cpu_to_le16(0),
-	.bNumberPowerFilters = 0,
-};
-#endif
-
-struct usb_cdc_mbim_desc ncm_desc = {
-	.bLength = sizeof ncm_desc,
+struct usb_cdc_mbim_desc mbim_desc = {
+	.bLength = sizeof mbim_desc,
 	.bDescriptorType = USB_DT_CS_INTERFACE,
 	.bDescriptorSubType = USB_CDC_MBIM_TYPE,
 
@@ -327,46 +336,46 @@ struct usb_cdc_ext_mbb_desc ext_mbb_desc = {
 	.bLength = sizeof ext_mbb_desc,
 	.bDescriptorType = USB_DT_CS_INTERFACE,
 	.bDescriptorSubType = 0x1c,
-
-	.bcdMbbExtendedVersion = cpu_to_le16(0x0100),
+	/* Mbim expansion version for 5G should be set to version 2.0 */
+	.bcdMbbExtendedVersion = cpu_to_le16(0x0200),
 	.bMaxOutstandingCmdMsges = 64,
 	.wMTU = 1500,
 };
 
 /* the default data interface has no endpoints ... */
 
-struct usb_interface_descriptor ncm_data_nop_intf = {
-	.bLength = sizeof ncm_data_nop_intf,
+struct usb_interface_descriptor mbim_data_nop_intf = {
+	.bLength = sizeof mbim_data_nop_intf,
 	.bDescriptorType = USB_DT_INTERFACE,
 
 	.bInterfaceNumber = 1,
 	.bAlternateSetting = 0,
 	.bNumEndpoints = 0,
-	.bInterfaceClass = 0x0a,
+	.bInterfaceClass = USB_CLASS_CDC_DATA,
 	.bInterfaceSubClass = 0,
-	.bInterfaceProtocol = 0x02,
+	.bInterfaceProtocol = USB_CDC_MBIM_PROTO_NTB,
 	/* .iInterface = DYNAMIC */
 };
 
 /* ... but the "real" data interface has two bulk endpoints */
 
-struct usb_interface_descriptor ncm_data_intf = {
-	.bLength = sizeof ncm_data_intf,
+struct usb_interface_descriptor mbim_data_intf = {
+	.bLength = sizeof mbim_data_intf,
 	.bDescriptorType = USB_DT_INTERFACE,
 
 	.bInterfaceNumber = 1,
 	.bAlternateSetting = 1,
 	.bNumEndpoints = 2,
-	.bInterfaceClass = 0x0a,
+	.bInterfaceClass = USB_CLASS_CDC_DATA,
 	.bInterfaceSubClass = 0,
-	.bInterfaceProtocol = 0x02,
+	.bInterfaceProtocol = USB_CDC_MBIM_PROTO_NTB,
 	/* .iInterface = DYNAMIC */
 };
 
 /* full speed support: */
 #define LOG2_STATUS_INTERVAL_MSEC	8
 
-struct usb_endpoint_descriptor fs_ncm_notify_desc = {
+struct usb_endpoint_descriptor fs_mbim_notify_desc = {
 	.bLength = USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType = USB_DT_ENDPOINT,
 
@@ -376,7 +385,7 @@ struct usb_endpoint_descriptor fs_ncm_notify_desc = {
 	.bInterval = 1,
 };
 
-struct usb_endpoint_descriptor fs_ncm_in_desc = {
+struct usb_endpoint_descriptor fs_mbim_in_desc = {
 	.bLength = USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType = USB_DT_ENDPOINT,
 
@@ -384,7 +393,7 @@ struct usb_endpoint_descriptor fs_ncm_in_desc = {
 	.bmAttributes = USB_ENDPOINT_XFER_BULK,
 };
 
-struct usb_endpoint_descriptor fs_ncm_out_desc = {
+struct usb_endpoint_descriptor fs_mbim_out_desc = {
 	.bLength = USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType = USB_DT_ENDPOINT,
 
@@ -392,26 +401,26 @@ struct usb_endpoint_descriptor fs_ncm_out_desc = {
 	.bmAttributes = USB_ENDPOINT_XFER_BULK,
 };
 
-struct usb_descriptor_header *ncm_fs_function[] = {
-	(struct usb_descriptor_header *) &ncm_iad_desc,
-	/* CDC NCM control descriptors */
-	(struct usb_descriptor_header *) &ncm_control_intf,
-	(struct usb_descriptor_header *) &ncm_header_desc,
-	(struct usb_descriptor_header *) &ncm_union_desc,
-	(struct usb_descriptor_header *) &ncm_desc,
+struct usb_descriptor_header *mbim_fs_function[] = {
+	(struct usb_descriptor_header *) &mbim_iad_desc,
+	/* CDC MBIM control descriptors */
+	(struct usb_descriptor_header *) &mbim_control_intf,
+	(struct usb_descriptor_header *) &mbim_header_desc,
+	(struct usb_descriptor_header *) &mbim_union_desc,
+	(struct usb_descriptor_header *) &mbim_desc,
 	(struct usb_descriptor_header *) &ext_mbb_desc,
-	(struct usb_descriptor_header *) &fs_ncm_notify_desc,
+	(struct usb_descriptor_header *) &fs_mbim_notify_desc,
 	/* data interface, altsettings 0 and 1 */
-	(struct usb_descriptor_header *) &ncm_data_nop_intf,
-	(struct usb_descriptor_header *) &ncm_data_intf,
-	(struct usb_descriptor_header *) &fs_ncm_in_desc,
-	(struct usb_descriptor_header *) &fs_ncm_out_desc,
+	(struct usb_descriptor_header *) &mbim_data_nop_intf,
+	(struct usb_descriptor_header *) &mbim_data_intf,
+	(struct usb_descriptor_header *) &fs_mbim_in_desc,
+	(struct usb_descriptor_header *) &fs_mbim_out_desc,
 	NULL,
 };
 
 /* high speed support: */
 
-struct usb_endpoint_descriptor hs_ncm_notify_desc = {
+struct usb_endpoint_descriptor hs_mbim_notify_desc = {
 	.bLength = USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType = USB_DT_ENDPOINT,
 
@@ -420,7 +429,7 @@ struct usb_endpoint_descriptor hs_ncm_notify_desc = {
 	.wMaxPacketSize = 4 * cpu_to_le16(NCM_STATUS_BYTECOUNT),
 	.bInterval = LOG2_STATUS_INTERVAL_MSEC + 4,
 };
-struct usb_endpoint_descriptor hs_ncm_in_desc = {
+struct usb_endpoint_descriptor hs_mbim_in_desc = {
 	.bLength = USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType = USB_DT_ENDPOINT,
 
@@ -429,7 +438,7 @@ struct usb_endpoint_descriptor hs_ncm_in_desc = {
 	.wMaxPacketSize = cpu_to_le16(512),
 };
 
-struct usb_endpoint_descriptor hs_ncm_out_desc = {
+struct usb_endpoint_descriptor hs_mbim_out_desc = {
 	.bLength = USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType = USB_DT_ENDPOINT,
 
@@ -438,27 +447,27 @@ struct usb_endpoint_descriptor hs_ncm_out_desc = {
 	.wMaxPacketSize = cpu_to_le16(512),
 };
 
-struct usb_descriptor_header *ncm_hs_function[] = {
-	(struct usb_descriptor_header *) &ncm_iad_desc,
-	/* CDC NCM control descriptors */
-	(struct usb_descriptor_header *) &ncm_control_intf,
-	(struct usb_descriptor_header *) &ncm_header_desc,
-	(struct usb_descriptor_header *) &ncm_union_desc,
-	(struct usb_descriptor_header *) &ncm_desc,
+struct usb_descriptor_header *mbim_hs_function[] = {
+	(struct usb_descriptor_header *) &mbim_iad_desc,
+	/* CDC MBIM control descriptors */
+	(struct usb_descriptor_header *) &mbim_control_intf,
+	(struct usb_descriptor_header *) &mbim_header_desc,
+	(struct usb_descriptor_header *) &mbim_union_desc,
+	(struct usb_descriptor_header *) &mbim_desc,
 	(struct usb_descriptor_header *) &ext_mbb_desc,
-	(struct usb_descriptor_header *) &hs_ncm_notify_desc,
+	(struct usb_descriptor_header *) &hs_mbim_notify_desc,
 	/* data interface, altsettings 0 and 1 */
-	(struct usb_descriptor_header *) &ncm_data_nop_intf,
-	(struct usb_descriptor_header *) &ncm_data_intf,
-	(struct usb_descriptor_header *) &hs_ncm_in_desc,
-	(struct usb_descriptor_header *) &hs_ncm_out_desc,
+	(struct usb_descriptor_header *) &mbim_data_nop_intf,
+	(struct usb_descriptor_header *) &mbim_data_intf,
+	(struct usb_descriptor_header *) &hs_mbim_in_desc,
+	(struct usb_descriptor_header *) &hs_mbim_out_desc,
 	NULL,
 };
 
 
 /* super speed support: */
 
-struct usb_endpoint_descriptor ss_ncm_notify_desc = {
+struct usb_endpoint_descriptor ss_mbim_notify_desc = {
 	.bLength = USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType = USB_DT_ENDPOINT,
 
@@ -468,8 +477,8 @@ struct usb_endpoint_descriptor ss_ncm_notify_desc = {
 	.bInterval = USB_MS_TO_HS_INTERVAL(NCM_STATUS_INTERVAL_MS)
 };
 
-struct usb_ss_ep_comp_descriptor ss_ncm_notify_comp_desc = {
-	.bLength = sizeof(ss_ncm_notify_comp_desc),
+struct usb_ss_ep_comp_descriptor ss_mbim_notify_comp_desc = {
+	.bLength = sizeof(ss_mbim_notify_comp_desc),
 	.bDescriptorType = USB_DT_SS_ENDPOINT_COMP,
 
 	/* the following 3 values can be tweaked if necessary */
@@ -478,7 +487,7 @@ struct usb_ss_ep_comp_descriptor ss_ncm_notify_comp_desc = {
 	.wBytesPerInterval = 4 * cpu_to_le16(NCM_STATUS_BYTECOUNT),
 };
 
-struct usb_endpoint_descriptor ss_ncm_in_desc = {
+struct usb_endpoint_descriptor ss_mbim_in_desc = {
 	.bLength = USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType = USB_DT_ENDPOINT,
 
@@ -487,7 +496,7 @@ struct usb_endpoint_descriptor ss_ncm_in_desc = {
 	.wMaxPacketSize = cpu_to_le16(1024),
 };
 
-struct usb_endpoint_descriptor ss_ncm_out_desc = {
+struct usb_endpoint_descriptor ss_mbim_out_desc = {
 	.bLength = USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType = USB_DT_ENDPOINT,
 
@@ -496,32 +505,50 @@ struct usb_endpoint_descriptor ss_ncm_out_desc = {
 	.wMaxPacketSize = cpu_to_le16(1024),
 };
 
-struct usb_ss_ep_comp_descriptor ss_ncm_bulk_comp_desc = {
-	.bLength = sizeof(ss_ncm_bulk_comp_desc),
+struct usb_ss_ep_comp_descriptor ss_mbim_bulk_comp_desc = {
+	.bLength = sizeof(ss_mbim_bulk_comp_desc),
 	.bDescriptorType = USB_DT_SS_ENDPOINT_COMP,
 
 	/* the following 2 values can be tweaked if necessary */
-	/* .bMaxBurst =		0, */
+	 .bMaxBurst =		4,
 	/* .bmAttributes =	0, */
 };
 
-struct usb_descriptor_header *ncm_ss_function[] = {
-	(struct usb_descriptor_header *) &ncm_iad_desc,
-	/* CDC NCM control descriptors */
-	(struct usb_descriptor_header *) &ncm_control_intf,
-	(struct usb_descriptor_header *) &ncm_header_desc,
-	(struct usb_descriptor_header *) &ncm_union_desc,
-	(struct usb_descriptor_header *) &ncm_desc,
+struct usb_descriptor_header *mbim_ss_function[] = {
+	(struct usb_descriptor_header *) &mbim_iad_desc,
+	/* CDC NBIM control descriptors */
+	(struct usb_descriptor_header *) &mbim_control_intf,
+	(struct usb_descriptor_header *) &mbim_header_desc,
+	(struct usb_descriptor_header *) &mbim_union_desc,
+	(struct usb_descriptor_header *) &mbim_desc,
 	(struct usb_descriptor_header *) &ext_mbb_desc,
-	(struct usb_descriptor_header *) &ss_ncm_notify_desc,
-	(struct usb_descriptor_header *) &ss_ncm_notify_comp_desc,
+	(struct usb_descriptor_header *) &ss_mbim_notify_desc,
+	(struct usb_descriptor_header *) &ss_mbim_notify_comp_desc,
 	/* data interface, altsettings 0 and 1 */
-	(struct usb_descriptor_header *) &ncm_data_nop_intf,
-	(struct usb_descriptor_header *) &ncm_data_intf,
-	(struct usb_descriptor_header *) &ss_ncm_in_desc,
-	(struct usb_descriptor_header *) &ss_ncm_bulk_comp_desc,
-	(struct usb_descriptor_header *) &ss_ncm_out_desc,
-	(struct usb_descriptor_header *) &ss_ncm_bulk_comp_desc,
+	(struct usb_descriptor_header *) &mbim_data_nop_intf,
+	(struct usb_descriptor_header *) &mbim_data_intf,
+	(struct usb_descriptor_header *) &ss_mbim_in_desc,
+	(struct usb_descriptor_header *) &ss_mbim_bulk_comp_desc,
+	(struct usb_descriptor_header *) &ss_mbim_out_desc,
+	(struct usb_descriptor_header *) &ss_mbim_bulk_comp_desc,
+	NULL,
+};
+
+
+/* string IDs are assigned dynamically */
+#define F_MBIM_IDX			0
+
+static struct usb_string mbim_string_defs[] = {
+	[F_MBIM_IDX].s = "Samsung Mobile Broadband Adapter",
+	{  } /* end of list */
+};
+
+static struct usb_gadget_strings mbim_string_table = {
+	.language =		0x0409,	/* en-us */
+	.strings =		mbim_string_defs,
+};
+static struct usb_gadget_strings *mbim_strings[] = {
+	&mbim_string_table,
 	NULL,
 };
 
@@ -592,7 +619,7 @@ static void mbim_clear_queues(struct mbim_dev	*dev)
 	struct list_head *act, *tmp;
 	unsigned long flags;
 
-	pr_info("%s: mbim_clear_queues\n");
+	pr_info("usb: %s: mbim_clear_queues +++\n", __func__);
 
 	spin_lock_irqsave(&dev->notify_req_lock, flags);
 	list_for_each_safe(act, tmp, &dev->cpkt_req_q) {
@@ -606,6 +633,19 @@ static void mbim_clear_queues(struct mbim_dev	*dev)
 		mbim_free_ctrl_pkt(cpkt);
 	}
 	spin_unlock_irqrestore(&dev->notify_req_lock, flags);
+	pr_info("usb: %s: mbim_clear_queues ---\n", __func__);
+}
+
+static void mbim_clear_data_queues(struct mbim_dev *dev)
+{
+	struct sk_buff		*skb;
+
+	pr_info("usb: %s: mbim data queue clear\n", __func__);
+
+	while(!mbim_queue_empty()) {
+		skb = mbim_dequeue_tail();
+		dev_kfree_skb_any(skb);
+	}	
 }
 
 /*-------------------------------------------------------------------------*/
@@ -619,10 +659,12 @@ mbim_req_alloc(struct usb_ep *ep, unsigned len, gfp_t gfp_flags)
 
 	if (req != NULL) {
 		req->length = 0;
-		req->buf = kmalloc(len, gfp_flags);
-		if (req->buf == NULL) {
-			usb_ep_free_request(ep, req);
-			return NULL;
+		if ( len ) {
+			req->buf = kmalloc(len, gfp_flags);
+			if (req->buf == NULL) {
+				usb_ep_free_request(ep, req);
+				return NULL;
+			}
 		}
 	}
 
@@ -637,10 +679,9 @@ static void mbim_req_free(struct usb_ep *ep, struct usb_request *req)
 	}
 }
 
-static struct sk_buff *mnet_wrap_ntb(struct mbim_dev *dev, struct sk_buff *skb)
+static struct sk_buff *mnet_wrap_ntb(struct mbim_dev *dev, struct sk_buff *skb, struct usb_request *req)
 {
 	struct mnet_data_info *mnet_info = dev->mnet_info;
-	struct sk_buff	*skb2;
 	int		ncb_len = 0;
 	__le16		*tmp;
 	int		div;
@@ -651,8 +692,9 @@ static struct sk_buff *mnet_wrap_ntb(struct mbim_dev *dev, struct sk_buff *skb)
 	unsigned	max_size = mnet_info->port.fixed_in_len;
 	const struct ndp_parser_opts *opts = mnet_info->parser_opts;
 	unsigned	crc_len = mnet_info->is_crc ? sizeof(uint32_t) : 0;
-
-	pr_info("%s: +++\n", __func__);
+#if DEBUG
+	pr_info("usb: %s: +++\n", __func__);
+#endif
 	/* If multi-packet is enabled, ncm header will be added directly
 	 * in USB request buffer.
 	 */
@@ -664,7 +706,7 @@ static struct sk_buff *mnet_wrap_ntb(struct mbim_dev *dev, struct sk_buff *skb)
 	ndp_pad = ALIGN(ncb_len, ndp_align) - ncb_len;
 	ncb_len += ndp_pad;
 	ncb_len += opts->ndp_size;
-	ncb_len += 2 * 2 * opts->dgram_item_len * NCM_MAX_DATAGRAM; /* Datagram entry */
+	ncb_len += 2 * 2 * opts->dgram_item_len * MBIM_MAX_DATAGRAM; /* Datagram entry */
 	ncb_len += 2 * 2 * opts->dgram_item_len; /* Zero datagram entry */
 	pad = ALIGN(ncb_len, div) + rem - ncb_len;
 	ncb_len += pad;
@@ -674,17 +716,8 @@ static struct sk_buff *mnet_wrap_ntb(struct mbim_dev *dev, struct sk_buff *skb)
 		dev_kfree_skb_any(skb);
 		return NULL;
 	}
-	skb2 = skb_copy_expand(skb, ncb_len,
-			       max_size - skb->len - ncb_len - crc_len,
-			       GFP_ATOMIC);
-	dev_kfree_skb_any(skb);
 
-	if (!skb2)
-		return NULL;
-
-	skb = skb2;
-
-	tmp = (void *) skb_push(skb, ncb_len);
+	tmp = (void *) req->buf;
 	memset(tmp, 0, ncb_len);
 
 	put_unaligned_le32(opts->nth_sign, tmp); /* dwSignature */
@@ -693,7 +726,7 @@ static struct sk_buff *mnet_wrap_ntb(struct mbim_dev *dev, struct sk_buff *skb)
 	put_unaligned_le16(opts->nth_size, tmp++);
 	/* wSequence */
 	put_unaligned_le16(++mnet_info->nth_sequence, tmp++);
-	put_ncm(&tmp, opts->block_length, skb->len); /* (d)wBlockLength */
+	put_ncm(&tmp, opts->block_length, skb->len + ncb_len); /* (d)wBlockLength */
 
 	/* (d)wFpIndex */
 	/* the first pointer is right after the NTH + align */
@@ -724,7 +757,7 @@ static struct sk_buff *mnet_wrap_ntb(struct mbim_dev *dev, struct sk_buff *skb)
 	/* (d)wDatagramIndex[0] */
 	put_ncm(&tmp, opts->dgram_item_len, ncb_len);
 	/* (d)wDatagramLength[0] */
-	put_ncm(&tmp, opts->dgram_item_len, skb->len - ncb_len);
+	put_ncm(&tmp, opts->dgram_item_len, skb->len);
 	/* (d)wDatagramIndex[1] and  (d)wDatagramLength[1] already zeroed */
 
 	/* Incase of Higher MTU size we do not need to expand and zero off the remaining
@@ -733,10 +766,17 @@ static struct sk_buff *mnet_wrap_ntb(struct mbim_dev *dev, struct sk_buff *skb)
 	if (skb->len > MAX_TX_NONFIXED) {
 		memset(skb_put(skb, max_size - skb->len),
 		       0, max_size - skb->len);
+#if DEBUG
 		printk(KERN_DEBUG"usb:%s Expanding the buffer %d \n", __func__, skb->len);
+#endif
 	}
 
-	pr_info("%s: ---\n", __func__);
+	memcpy(req->buf + ncb_len, skb->data, skb->len);
+	req->length = skb->len + ncb_len + crc_len;
+
+#if DEBUG
+	pr_info("usb: %s: ---\n", __func__);
+#endif
 	return skb;
 
 }
@@ -752,11 +792,17 @@ static void tx_complete(struct usb_ep *ep, struct usb_request *req)
 	case -ESHUTDOWN:		/* disconnect etc */
 		break;
 	case 0:
-		pr_info("%s: transfer complete!! [req: %p, size: %d]\n", __func__, req, req->length);
+		dev->ndev->stats.tx_bytes += req->length;
+		dev->ndev->stats.tx_packets++;
+#if DEBUG
+		pr_info("usb: %s: transfer complete!! [req: %pK, size: %d]\n", __func__, req, req->length);
+#endif
 		break;
 	}
 
-	pr_info("%s: transmit complete!! [%p]\n", __func__, req);
+#if DEBUG
+	pr_info("usb: %s: transmit complete!! [%pK]\n", __func__, req);
+#endif
 	spin_lock(&dev->req_lock);
 	/* Take the request struct off the active list and put it on the
 	 * free list.
@@ -768,8 +814,6 @@ static void tx_complete(struct usb_ep *ep, struct usb_request *req)
 	spin_unlock(&dev->req_lock);
 
 	wake_up_interruptible(&dev->tx_wait);
-	if (likely(list_empty(&dev->tx_reqs_active)))
-		wake_up_interruptible(&dev->tx_flush_wait);
 }
 
 static int  mnet_unwrap_ntb(struct mbim_dev *dev, struct usb_request *req, struct sk_buff_head *list)
@@ -785,12 +829,12 @@ static int  mnet_unwrap_ntb(struct mbim_dev *dev, struct usb_request *req, struc
 	const struct ndp_parser_opts *opts = dev->mnet_info->parser_opts;
 	unsigned	crc_len = dev->mnet_info->is_crc ? sizeof(uint32_t) : 0;
 	int		dgram_counter;
-
-	pr_info("%s: +++\n", __func__);
-
+#if DEBUG
+	pr_info("usb: %s: +++\n", __func__);
+#endif
 	/* dwSignature */
 	if (get_unaligned_le32(tmp) != opts->nth_sign) {
-		pr_err("%s: Wrong NTH SIGN, skblen %d[%x : %x]\n", __func__, req->actual
+		pr_err("usb: %s: Wrong NTH SIGN, skblen %d[%x : %x]\n", __func__, req->actual
 			, get_unaligned_le32(tmp), opts->nth_sign);
 		print_hex_dump(KERN_INFO, "HEAD:", DUMP_PREFIX_ADDRESS, 32, 1,
 			       req->buf, 32, false);
@@ -801,7 +845,7 @@ static int  mnet_unwrap_ntb(struct mbim_dev *dev, struct usb_request *req, struc
 
 	/* wHeaderLength */
 	if (get_unaligned_le16(tmp++) != opts->nth_size) {
-		pr_err("%s: Wrong NTB headersize [%x : %x]", __func__
+		pr_err("usb: %s: Wrong NTB headersize [%x : %x]", __func__
 				, get_unaligned_le16(tmp++), opts->nth_size);
 		goto err;
 	}
@@ -809,7 +853,7 @@ static int  mnet_unwrap_ntb(struct mbim_dev *dev, struct usb_request *req, struc
 
 	/* (d)wBlockLength */
 	if (get_ncm(&tmp, opts->block_length) > max_size) {
-		pr_err("%s: OUT size exceeded\n", __func__);
+		pr_err("usb: %s: OUT size exceeded\n", __func__);
 		goto err;
 	}
 
@@ -820,14 +864,14 @@ static int  mnet_unwrap_ntb(struct mbim_dev *dev, struct usb_request *req, struc
 		/* NCM 3.2 */
 		if (((ndp_index % 4) != 0) &&
 				(ndp_index < opts->nth_size)) {
-			pr_err("%s: Bad index: %#X\n", __func__, ndp_index);
+			pr_err("usb: %s: Bad index: %#X\n", __func__, ndp_index);
 			goto err;
 		}
 
 		/* walk through NDP */
 		tmp = (void *)(req->buf + ndp_index);
 		if (get_unaligned_le32(tmp) != opts->ndp_sign) {
-			pr_err("%s: Wrong NDP IPS SIGN [%x : %x]", __func__
+			pr_err("usb: %s: Wrong NDP IPS SIGN [%x : %x]", __func__
 				, get_unaligned_le32(tmp), opts->ndp_sign);
 			goto err;
 		}
@@ -845,7 +889,7 @@ static int  mnet_unwrap_ntb(struct mbim_dev *dev, struct usb_request *req, struc
 		if ((ndp_len < opts->ndp_size
 				+ 2 * 2 * (opts->dgram_item_len * 2))
 				|| (ndp_len % opts->ndplen_align != 0)) {
-			pr_err("%s: Bad NDP length: %#X\n", __func__, ndp_len);
+			pr_err("usb: %s: Bad NDP length: %#X\n", __func__, ndp_len);
 			goto err;
 		}
 		tmp += opts->reserved1;
@@ -862,7 +906,7 @@ static int  mnet_unwrap_ntb(struct mbim_dev *dev, struct usb_request *req, struc
 			index = index2;
 			dg_len = dg_len2;
 			if (dg_len < 14 + crc_len) { /* ethernet hdr + crc */
-				pr_err("%s: Bad dgram length: %#X\n", __func__, dg_len);
+				pr_err("usb: %s: Bad dgram length: %#X\n", __func__, dg_len);
 				goto err;
 			}
 			if (dev->mnet_info->is_crc) {
@@ -875,7 +919,7 @@ static int  mnet_unwrap_ntb(struct mbim_dev *dev, struct usb_request *req, struc
 						 req->buf + index,
 						 dg_len - crc_len);
 				if (crc != crc2) {
-					pr_err("%s: Bad CRC\n", __func__);
+					pr_err("usb: %s: Bad CRC\n", __func__);
 					goto err;
 				}
 			}
@@ -888,8 +932,10 @@ static int  mnet_unwrap_ntb(struct mbim_dev *dev, struct usb_request *req, struc
 			 * This ensures the truesize is correct
 			 */
 			skb2 = netdev_alloc_skb_ip_align(dev->ndev, dg_len - crc_len);
-			if (skb2 == NULL)
+			if (skb2 == NULL) {
+				pr_err("%s: alloc fail!!\n", __func__);
 				goto err;
+			}
 			skb_put_data(skb2, req->buf + index,
 				     dg_len - crc_len);
 
@@ -903,25 +949,26 @@ static int  mnet_unwrap_ntb(struct mbim_dev *dev, struct usb_request *req, struc
 				break;
 		} while (ndp_len > 2 * (opts->dgram_item_len * 2));
 	} while (ndp_index);
-
-
-	pr_err("%s: Parsed NTB with %d frames\n", __func__, dgram_counter);
-	pr_info("%s: ---\n", __func__);
+#if DEBUG
+	pr_err("usb: %s: Parsed NTB with %d frames\n", __func__, dgram_counter);
+	pr_info("usb: %s: ---\n", __func__);
+#endif
 	return 0;
 err:
-	pr_info("%s: occurred err: %d\n", __func__, ret);
+	pr_info("usb: %s: occurred err: %d\n", __func__, ret);
 	return ret;
 }
 
 static void rx_complete(struct usb_ep *ep, struct usb_request *req)
 {
 	struct mbim_dev	*dev = ep->driver_data;
-	struct sk_buff	*skb = req->context;
+//	struct sk_buff	*skb = req->context;
 	int			status = req->status;
 	unsigned long		flags;
 
-	pr_info("%s: ############################################### rx_complete[%p, req: %p] \n", __func__, skb, req);
-
+#if DEBUG
+	pr_info("usb: %s: ############# rx_complete[%pK, req: %pK] \n", __func__, req);
+#endif
 	spin_lock_irqsave(&dev->lock, flags);
 
 	list_del_init(&req->list);	/* Remode from Active List */
@@ -934,19 +981,23 @@ static void rx_complete(struct usb_ep *ep, struct usb_request *req)
 
 			// for ncm
 			if (dev->unwrap) {
-				pr_err("%s: enter unwrap ntb\n", __func__);
-				skb->data = req->buf;
-				skb->len = req->actual;
+#if DEBUG
+				pr_err("usb: %s: enter unwrap ntb\n", __func__);
+#endif
+//				skb->data = req->buf;
+//				skb->len = req->actual;
 				status = mnet_unwrap_ntb(dev, req, &dev->rx_sk_buffers);
-				if (status)
-					pr_err("%s: ncm unwrap error: %d\n", __func__, status);
+				if (status) {
+					pr_err("usb: %s: ncm unwrap error: %d\n", __func__, status);
+					dev->ndev->stats.rx_errors++;
+				}
 			}
-			pr_err("%s: start rx_work ntb\n", __func__);
+#if DEBUG
+			pr_err("usb: %s: start rx_work ntb\n", __func__);
+#endif
 			list_add_tail(&req->list, &dev->rx_reqs);
-			queue_work(dev->mbim_wq, &dev->rx_work);
 		}
 		else {
-			//pr_info("rx -> again ready\n");
 			list_add_tail(&req->list, &dev->rx_reqs);
 		}
 		break;
@@ -954,13 +1005,13 @@ static void rx_complete(struct usb_ep *ep, struct usb_request *req)
 		/* software-driven interface shutdown */
 	case -ECONNRESET:		/* unlink */
 	case -ESHUTDOWN:		/* disconnect etc */
-		pr_info("%s: rx shutdown, code %d\n", __func__, status);
+		pr_info("usb: %s: rx shutdown, code %d\n", __func__, status);
 		list_add_tail(&req->list, &dev->rx_reqs);
 		break;
 
 		/* for hardware automagic (such as pxa) */
 	case -ECONNABORTED:		/* endpoint reset */
-		pr_info("rx %s reset\n", ep->name);
+		pr_info("usb: rx %s reset\n", ep->name);
 		list_add_tail(&req->list, &dev->rx_reqs);
 		break;
 
@@ -969,22 +1020,25 @@ static void rx_complete(struct usb_ep *ep, struct usb_request *req)
 		/* FALLTHROUGH */
 
 	default:
-		pr_info("rx status %d\n", status);
+		pr_info("usb: rx status %d\n", status);
 		list_add_tail(&req->list, &dev->rx_reqs);
 		break;
 	}
 
 	wake_up_interruptible(&dev->rx_wait);
 	spin_unlock_irqrestore(&dev->lock, flags);
+	if (status == 0)
+		setup_rx_reqs(dev);
 }
 
-#if 1
+#if DEBUG
 void dumpData(unsigned char *data, ssize_t size)
 {
+
 	ssize_t x, y;
 	int i = 0;
 
-	pr_info("len=%d", size);
+	pr_info("usb: len=%ld", size);
 
 	for (y = 0; y < size / 16; y++)
 	{
@@ -1002,6 +1056,8 @@ void dumpData(unsigned char *data, ssize_t size)
 	}
 	pr_info("\n");
 	pr_info("\n");
+	return;
+
 }
 #endif
 
@@ -1019,15 +1075,15 @@ static void mbim_call_interrupt_enqueue(struct mbim_dev	*dev, void * buf, size_t
 		list_del_init(&req->list);
 	} else {
 		spin_unlock_irqrestore(&dev->notify_req_lock, flags);
+		printk("usb: %s : queue empty : dev->notify_count = %d \n",
+					__func__, atomic_read(&dev->notify_count));
+		atomic_inc(&dev->notify_count);
 		goto exit;
 	}
 	spin_unlock_irqrestore(&dev->notify_req_lock, flags);
 
-	if (req == NULL)
-		goto exit;
-
 	if (dev->notify_ep->driver_data == NULL) {
-		pr_err("%s: ep is not enabled.. return error\n", __func__);
+		pr_err("usb: %s: ep is not enabled.. return error\n", __func__);
 		spin_lock_irqsave(&dev->notify_req_lock, flags);
 		list_add_tail(&req->list, &dev->tx_notifyreqs);
 		spin_unlock_irqrestore(&dev->notify_req_lock, flags);
@@ -1036,19 +1092,18 @@ static void mbim_call_interrupt_enqueue(struct mbim_dev	*dev, void * buf, size_t
 
 	req->length = len;
 	memcpy(req->buf, buf, len);
-
+#if DEBUG
 	dumpData(buf, len);
-
+#endif
 	ret = usb_ep_queue(dev->notify_ep,
 		req, GFP_ATOMIC);
 
 	if (ret) {
-		pr_info("%s: notify_ep enqueue error %d\n", __func__, ret);
+		pr_info("usb: %s: notify_ep enqueue error %d\n", __func__, ret);
 		spin_lock_irqsave(&dev->notify_req_lock, flags);
-		list_add(&req->list, &dev->tx_notifyreqs);
+		list_add_tail(&req->list, &dev->tx_notifyreqs);
 		spin_unlock_irqrestore(&dev->notify_req_lock, flags);
 	}
-
 exit:
 	return;
 }
@@ -1113,9 +1168,9 @@ fmbim_send_cpkt_response(struct mbim_dev *gr, struct ctrl_pkt *cpkt)
 	struct mbim_dev	*dev = gr;
 	unsigned long	flags;
 
-	spin_lock_irqsave(&dev->lock, flags);
+	spin_lock_irqsave(&dev->notify_req_lock, flags);
 	list_add_tail(&cpkt->list, &dev->cpkt_resp_q);
-	spin_unlock_irqrestore(&dev->lock, flags);
+	spin_unlock_irqrestore(&dev->notify_req_lock, flags);
 
 //	dev->notify_state = NCM_NOTIFY_RESPONSE_AVAILABLE;
 	mbim_do_notify_response_avaliable(dev);
@@ -1130,78 +1185,162 @@ static int mnet_open(struct net_device *ndev)
 	struct mbim_port *port = netdev_priv(ndev);
 	struct mbim_dev	*dev = port->mbim;
 
-	pr_info("%s: +++\n", __func__);
+	pr_info("usb: %s: +++\n", __func__);
 
 	dev->tx_qlen = 0;
 	netif_wake_queue(ndev);
 
-	pr_info("%s: ---\n", __func__);
+	pr_info("usb: %s: ---\n", __func__);
 	return 0;
 }
 
 static int mnet_close(struct net_device *ndev)
 {
-	pr_info("%s: +++\n", __func__);
+	pr_info("usb: %s: +++\n", __func__);
 	netif_stop_queue(ndev);
-	pr_info("%s: ---\n", __func__);
+	pr_info("usb: %s: ---\n", __func__);
 	return 0;
 }
 
-/* WARN : we only support 16bit NTB and NDP */
-void ncm_add_header(u32 packet_start_offset, void *buf, u32 data_len)
+int get_current_length(__le16 *tmp)
 {
-	struct ncm_header *tmp_header;
-
-	memset(buf, 0, packet_start_offset);
-
-	tmp_header = (struct ncm_header *)buf;
-
-	tmp_header->signature = NCM_NTH_SIGNATURE;
-	tmp_header->header_len = NCM_NTH_LEN16;
-	tmp_header->sequence = NCM_NTH_SEQUENCE;
-	tmp_header->blk_len = data_len + packet_start_offset;
-	tmp_header->index = NCM_NTH_INDEX16;
-	tmp_header->dgram_sig = NCM_NDP_SIGNATURE;
-	tmp_header->dgram_header_len = NCM_NDP_LEN16;
-	tmp_header->dgram_rev = NCM_NDP_REV;
-	tmp_header->dgram_index0 = packet_start_offset;
-	tmp_header->dgram_len0 = data_len;
+	return get_unaligned_le16(tmp + 10) + get_unaligned_le16(tmp + 11);
 }
 
-static void process_rx_w(struct work_struct *work)
+void mbim_add_datagram(__le16 *tmp, int length, int holdcnt)
 {
-	struct mbim_dev		*dev = container_of(work, struct mbim_dev, rx_work);
-	struct sk_buff		*skb;
+	int tmp_val;
+	__le16 *tmp_addr;
+	u32 prev_index, prev_len;
 
-	if(dev->EnabledDevice == false)
-		return;
+	tmp += 4;
+	tmp_val = get_unaligned_le16(tmp);		// wBlockLength
+	put_unaligned_le16(tmp_val + length, tmp);
+	tmp_val = get_unaligned_le16(tmp);
+
+	tmp_addr = tmp + 6;
+
+	tmp_addr += ((holdcnt - 1) * 2);
+
+	prev_index = get_unaligned_le16(tmp_addr);
+	tmp_addr += 1;
+	prev_len = get_unaligned_le16(tmp_addr);
+	tmp_addr += 1;
+#if DEBUG
+	pr_info("usb: %s: prev_index: %08X, prev_len: %d\n", __func__, prev_index, prev_len);
+#endif
+	// calc ips# header
+	put_unaligned_le16(prev_index + prev_len, tmp_addr);
+	tmp_addr += 1;
+	put_unaligned_le16(length, tmp_addr);
+#if DEBUG
+	pr_info("usb: %s: next_index: %08X, next_len: %d\n", __func__, prev_index + prev_len, length);
+#endif
+}
+
+static enum hrtimer_restart tx_timeout(struct hrtimer *data)
+{
+	struct mbim_dev *dev = container_of(data, struct mbim_dev, tx_timer);
+
+#if DEBUG
+	printk("usb: %s : timer timeout \n",__func__);
+#endif
+
+	dev->occurred_timeout = 1;
+	wake_up(&dev->queue->dl_wait);
+
+	return HRTIMER_NORESTART;
+}
+static enum hrtimer_restart rx_timeout(struct hrtimer *data)
+{
+	struct mbim_dev *dev = container_of(data, struct mbim_dev, rx_timer);
+	struct sk_buff		*skb;
+	int ret;
+	int		cnt = 0;
+
+#if DEBUG
+	pr_info("usb: %s: +++\n", __func__);
+#endif
+	if (dev->EnabledDevice == false)
+		return HRTIMER_NORESTART;
+
+	if (unlikely(skb_queue_empty(&dev->rx_sk_buffers)))
+		goto retry;
 
 	while (likely(skb = skb_dequeue(&dev->rx_sk_buffers))) {
-		mbim_send_skb_to_cpif(skb);
+
+		dev->ndev->stats.rx_packets++;
+		dev->ndev->stats.rx_bytes += skb->len;
+
+		ret = mbim_send_skb_to_cpif(skb);
+		if (ret)
+			dev->ndev->stats.rx_errors++;
+
+		if (dev->EnabledDevice == false)
+			return HRTIMER_NORESTART;
+		if (cnt++ >= MBIM_MAX_SEND_COUNT)
+			break;
 	}
 
-	setup_rx_reqs(dev);
+retry:
+	hrtimer_start(&dev->rx_timer, ktime_set(0, MBIM_UL_SEND_TIME), HRTIMER_MODE_REL);
+#if DEBUG
+	pr_info("usb: %s: ---\n", __func__);
+#endif
+	return HRTIMER_NORESTART;
 }
 
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+int mbim_resume_cmpl;
+#endif
 static void mnet_start_xmit(struct work_struct *work)
 {
-	struct mbim_dev *dev = container_of(work, struct mbim_dev, start_xmit.work);
+	struct mbim_dev *dev = container_of(work, struct mbim_dev, start_xmit);
 	unsigned long		flags;
-//	size_t			size;	/* Amount of data in a TX request. */
-//	size_t			len;
 	struct usb_request	*req;
 	struct sk_buff		*skb;
 	int			ret;
 	int			added_offset = 0;
-
-	pr_info("%s: +++\n", __func__);
+	static unsigned long	tx_timeout = MBIM_MIN_TX_TIMEOUT_NSECS;
+	static int cnt;
+#if DEBUG
+	pr_info("usb: %s: +++\n", __func__);
+#endif
 	if (dev->EnabledDevice == false) {
-		pr_err("%s: did not enabled device\n", __func__);
-		return;
+		pr_err("usb: %s: did not enabled device (%d)\n", __func__, __LINE__);
+
+		goto done;
 	}
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+	if (!mbim_resume_cmpl) {
+		if (cnt < 1)
+			pr_info("%s: system resume not complete yet (%d)\n", __func__, __LINE__);
+		cnt++;
+		goto err;
+	}
+	if (cnt)
+		pr_info("%s: system resume send data (%d) cnt = %d\n", __func__, __LINE__, cnt);
+	cnt = 0;
+#endif
+
+	spin_lock_irqsave(&dev->req_lock, flags);
+	if (list_empty(&dev->tx_reqs)) {
+		spin_unlock_irqrestore(&dev->req_lock, flags);
+
+#if DEBUG
+		pr_err("usb: %s: tx requeset queue empty\n", __func__);
+#endif
+		goto err;
+	}
+	req = container_of(dev->tx_reqs.next, struct usb_request, list);
+	list_del(&req->list);
+	spin_unlock_irqrestore(&dev->req_lock, flags);
+
+	tx_timeout = dev->occurred_timeout ? MBIM_MIN_TX_TIMEOUT_NSECS : MBIM_MAX_TX_TIMEOUT_NSECS;
+	dev->occurred_timeout = 0;
+	hrtimer_start(&dev->tx_timer, ktime_set(0, tx_timeout), HRTIMER_MODE_REL);
 
 	spin_lock_irqsave(&dev->lock, flags);
-
 	/* Check if there is any available write buffers */
 	if (likely(mbim_queue_empty())) {
 		/* Turn interrupts back on before sleeping. */
@@ -1209,90 +1348,99 @@ static void mnet_start_xmit(struct work_struct *work)
 
 		/* Sleep until a write buffer is available */
 		wait_event_interruptible(dev->queue->dl_wait,
-			(likely(!mbim_queue_empty())));
-	
+			(likely(!mbim_queue_empty()) || !dev->EnabledDevice));
+
 		spin_lock_irqsave(&dev->lock, flags);
 	}
+	if (dev->EnabledDevice == false) {
+		spin_unlock_irqrestore(&dev->lock, flags);
+		pr_err("usb: %s: did not enabled device (%d)\n", __func__, __LINE__);
+
+		spin_lock_irqsave(&dev->req_lock, flags);
+		list_add_tail(&req->list, &dev->tx_reqs);
+		spin_unlock_irqrestore(&dev->req_lock, flags);
+		return;
+	}
+
 	skb = mbim_dequeue_tail();
 	spin_unlock_irqrestore(&dev->lock, flags);
 
-	pr_info("mbim!!! %s: %p, size = %d\n", __func__, skb, skb->len);
-	
-	spin_lock_irqsave(&dev->req_lock, flags);
-	req = container_of(dev->tx_reqs.next, struct usb_request, list);
-	list_del(&req->list);
-	spin_unlock_irqrestore(&dev->req_lock, flags);
-
-	if (!req) {
-		pr_err("%s: req is null\n", __func__);
-		goto multiframe;
-	}
-	
-
-	if (dev->wrap) {
+#if DEBUG
+	pr_info("usb: mbim!!! %s: %pK, size = %d, req=%pK \n", __func__, skb, skb->len, req);
+#endif
+	if (dev->wrap && dev->EnabledDevice) {
 		spin_lock_irqsave(&dev->lock, flags);
-		skb = mnet_wrap_ntb(dev, skb);
+		skb = mnet_wrap_ntb(dev, skb, req);
 		spin_unlock_irqrestore(&dev->lock, flags);
-		if (!skb)
-			goto multiframe;
-
-	}
-#if 0
-	if (dev->func_flag == NCM_ADD_HEADER) {                  
-		spin_lock_irqsave(&dev->lock, flags);            
-		added_offset = NCM_HEADER_SIZE;                  
-		dev->tx_skb_hold_count = 0;                      
-		ncm_add_header(added_offset, req->buf, skb->len);
-		spin_unlock_irqrestore(&dev->lock, flags);       
-	}
-#endif
-	if (1) {
-//		int skb_len;
-//		unsigned long	tx_timeout;
-
-		/* Copy received IP data from SKB */
-		memcpy(req->buf + req->length + added_offset, skb->data, skb->len);
-		/* Increment req length by skb data length */
-		req->length = req->length + skb->len + added_offset;
-//		skb_len = skb->len;
-//		length = req->length;
-		dev_kfree_skb_any(skb);
-		req->context = NULL;
-
-		spin_lock_irqsave(&dev->req_lock, flags);
-#if 0
-		if (dev->func_flag == NCM_ADD_DGRAM) {
-			ncm_add_datagram(dev->port_usb, (__le16 *)(req->buf),
-					skb_len, dev->tx_skb_hold_count);
+		if (!skb) {
+			spin_lock_irqsave(&dev->req_lock, flags);
+			list_add_tail(&req->list, &dev->tx_reqs);
+			spin_unlock_irqrestore(&dev->req_lock, flags);
+			dev->ndev->stats.tx_dropped++;
+			goto err;
 		}
-#endif
-		dev->tx_skb_hold_count++;
-#if 0
-		if (dev->tx_skb_hold_count < dev->dl_max_pkts_per_xfer) {
-			req->func_flag = NCM_ADD_DGRAM;
-			list_add(&req->list, &dev->tx_reqs);
-			spin_unlock_irqrestore(&dev->tx_req_lock, flags);
-			tx_timeout = dev->occured_timeout ?
-						MIN_TX_TIMEOUT_NSECS : MAX_TX_TIMEOUT_NSECS;
-			dev->occured_timeout = 0;
-			hrtimer_start(&dev->tx_timer, ktime_set(0, tx_timeout),
-					HRTIMER_MODE_REL);
-			dev->en_timer = 1;
-			goto success;
-		}
-		req->func_flag = NCM_ADD_HEADER;
-#endif
+
 		dev->tx_skb_hold_count = 0;
-		spin_unlock_irqrestore(&dev->req_lock, flags);
-	} else {
-		req->length = skb->len;
-		req->buf = skb->data;
-		req->context = skb;
 	}
 
+	do {
+#if DEBUG
+		pr_info("usb: %s: start gather skb packet\n", __func__);
+#endif
+
+		if (skb == NULL) {
+			if (likely(mbim_queue_empty())) {				
+				/* Sleep until a write buffer is available */
+				wait_event_interruptible(dev->queue->dl_wait,
+					(likely(!mbim_queue_empty()) || dev->occurred_timeout
+					|| !dev->EnabledDevice));
+			}
+			if (dev->EnabledDevice == false) {
+				spin_unlock_irqrestore(&dev->lock, flags);
+				pr_err("usb: %s: did not enabled device .. so exit (%d)\n", __func__, __LINE__);
+				spin_lock_irqsave(&dev->req_lock, flags);
+				list_add_tail(&req->list, &dev->tx_reqs);
+				spin_unlock_irqrestore(&dev->req_lock, flags);
+				hrtimer_cancel(&dev->tx_timer);
+				return;
+			} else if (dev->occurred_timeout) {
+				break;
+			}
+
+			skb = mbim_dequeue_tail();
+			dev->func_flag = NCM_ADD_DGRAM;
+
+			/* Copy received IP data from SKB */
+			memcpy(req->buf + req->length + added_offset, skb->data, skb->len);
+			/* Increment req length by skb data length */
+			req->length = req->length + skb->len + added_offset;
+			req->context = NULL;
+		}
+#if DEBUG
+		pr_info("usb: %s: req: %pK, req->len: %d, skb: %pK\n", __func__, req, req->length, skb);
+#endif
+		spin_lock_irqsave(&dev->req_lock, flags);
+
+		if (dev->func_flag == NCM_ADD_DGRAM) {
+			mbim_add_datagram((__le16 *)(req->buf), skb->len, dev->tx_skb_hold_count);
+		} else {
+			req->length = get_current_length((__le16 *)(req->buf));
+		}
+
+		dev_kfree_skb_any(skb);
+		skb = NULL;
+		dev->tx_skb_hold_count++;
+		spin_unlock_irqrestore(&dev->req_lock, flags);
+
+#if DEBUG
+		pr_info("usb: %s: complete gather one skb packet [%d]\n", __func__, dev->tx_skb_hold_count);
+#endif
+	} while(dev->tx_skb_hold_count < dev->dl_max_pkts_per_xfer && !dev->occurred_timeout);
+
+	hrtimer_cancel(&dev->tx_timer);
 	req->complete = tx_complete;
 	/* Check if we need to send a zero length packet. */
-	if (req->length > USB_BUFSIZE)
+	if (req->length > USB_DL_BUFSIZE)
 		/* They will be more TX requests so no yet. */
 		req->zero = 0;
 	else
@@ -1301,29 +1449,40 @@ static void mnet_start_xmit(struct work_struct *work)
 		 */
 		req->zero = ((req->length % dev->in_ep->maxpacket) == 0);
 
-	spin_lock_irqsave(&dev->lock, flags);
 	/* We've disconnected or reset so free the req and buffer */
 	if (dev->reset_mbim) {
 		spin_lock_irqsave(&dev->req_lock, flags);
 		list_add_tail(&req->list, &dev->tx_reqs);
 		spin_unlock_irqrestore(&dev->req_lock, flags);
-		return;
+		goto err;
 	}
+
+	spin_lock_irqsave(&dev->req_lock, flags);
+	list_add(&req->list, &dev->tx_reqs_active);
+	spin_unlock_irqrestore(&dev->req_lock, flags);
 
 	ret = usb_ep_queue(dev->in_ep, req, GFP_ATOMIC);
 	if (ret) {
+		pr_err("usb: %s: ep_queue fail (%d)\n", __func__, ret);
 		spin_lock_irqsave(&dev->req_lock, flags);
+		list_del(&req->list);
 		list_add_tail(&req->list, &dev->tx_reqs);
 		spin_unlock_irqrestore(&dev->req_lock, flags);
-		return;
+		if (dev->EnabledDevice == false) {
+			pr_err("usb: %s: did not enabled device .. so exit (%d)\n", __func__, __LINE__);
+			goto done;
+		}
+		goto err;
 	}
 
-	list_add(&req->list, &dev->tx_reqs_active);
-	spin_unlock_irqrestore(&dev->lock, flags);
+	dev->func_flag = NCM_ADD_HEADER;
 
-multiframe:
-	schedule_delayed_work(&dev->start_xmit, msecs_to_jiffies(0));
-	pr_info("%s: ---\n", __func__);
+err:
+	queue_work_on(6, dev->mbim_dl, &dev->start_xmit);
+done:
+#if DEBUG
+	pr_info("usb: %s: ---\n", __func__);
+#endif
 	return;
 }
 
@@ -1331,105 +1490,11 @@ static netdev_tx_t mnet_xmit(struct sk_buff *skb, struct net_device *ndev)
 {
 	struct mbim_port *port = netdev_priv(ndev);
 	struct mbim_dev	*dev = port->mbim;
-	unsigned long		flags;
-	size_t			size;	/* Amount of data in a TX request. */
-	size_t			bytes_copied = 0;
-	struct usb_request	*req;
-	size_t			len = skb->len;
 
-	pr_info("%s: +++\n", __func__);
+	pr_info("usb: %s: +++\n", __func__);
 
 	if (dev->EnabledDevice == false)
 		return -EINVAL;
-
-	if (len == 0)
-		return -EINVAL;
-
-	mutex_lock(&dev->lock_mbim_io);
-	spin_lock_irqsave(&dev->lock, flags);
-
-	dev->reset_mbim = 0;
-
-	/* Check if there is any available write buffers */
-	if (likely(list_empty(&dev->tx_reqs))) {
-		/* Turn interrupts back on before sleeping. */
-		spin_unlock_irqrestore(&dev->lock, flags);
-
-		/* Sleep until a write buffer is available */
-		wait_event_interruptible(dev->tx_wait,
-			(likely(!list_empty(&dev->tx_reqs))));
-		spin_lock_irqsave(&dev->lock, flags);
-	}
-
-	while (likely(!list_empty(&dev->tx_reqs)) && len) {
-
-		if (len > USB_BUFSIZE)
-			size = USB_BUFSIZE;
-		else
-			size = len;
-
-		req = container_of(dev->tx_reqs.next, struct usb_request,
-			list);
-		list_del_init(&req->list);
-
-		req->complete = tx_complete;
-		req->length = size;
-
-		/* Check if we need to send a zero length packet. */
-		if (len > size)
-			/* They will be more TX requests so no yet. */
-			req->zero = 0;
-		else
-			/* If the data amount is not a multiple of the
-			 * maxpacket size then send a zero length packet.
-			 */
-			req->zero = ((len % dev->in_ep->maxpacket) == 0);
-
-		/* Don't leave irqs off while doing memory copies */
-		spin_unlock_irqrestore(&dev->lock, flags);
-
-		req->buf = kzalloc(skb->len, GFP_KERNEL);
-		if (!req->buf) {
-			pr_err("%s: alloc fail about skb buffer\n", __func__);
-			mutex_unlock(&dev->lock_mbim_io);
-			return bytes_copied;
-		}
-
-		memcpy(req->buf, skb->data, size);
-		bytes_copied += size;
-		len -= size;
-		skb->data += size;
-
-		spin_lock_irqsave(&dev->lock, flags);
-
-		/* We've disconnected or reset so free the req and buffer */
-		if (dev->reset_mbim) {
-			list_add(&req->list, &dev->tx_reqs);
-			spin_unlock_irqrestore(&dev->lock, flags);
-			mutex_unlock(&dev->lock_mbim_io);
-			return -EAGAIN;
-		}
-
-		if (usb_ep_queue(dev->in_ep, req, GFP_ATOMIC)) {
-			list_add(&req->list, &dev->tx_reqs);
-			spin_unlock_irqrestore(&dev->lock, flags);
-			mutex_unlock(&dev->lock_mbim_io);
-			return -EAGAIN;
-		}
-
-		list_add_tail(&req->list, &dev->tx_reqs_active);
-
-	}
-
-	spin_unlock_irqrestore(&dev->lock, flags);
-	mutex_unlock(&dev->lock_mbim_io);
-
-	if (bytes_copied)
-		return bytes_copied;
-	else
-		return -EAGAIN;
-
-	pr_info("%s: ---\n", __func__);
 
 	return NETDEV_TX_OK;
 }
@@ -1438,14 +1503,14 @@ static int mbim_open(struct inode *inode, struct file *fd)
 	struct mbim_dev	*dev = _mbim_dev;
 	unsigned long		flags;
 	int			ret = -EBUSY;
-//	int		IsControl = 0;
 
-	pr_info("%s: +++\n", __func__);
+	pr_info("usb: %s: +++\n", __func__);
 
 	if (!dev) {
-		pr_err("%s: mbim_dev is NULL!\n", __func__);
+		pr_err("usb: %s: mbim_dev is NULL!\n", __func__);
 		return -ENODEV;
 	}
+
 	fd->private_data = _mbim_dev;
 
 	spin_lock_irqsave(&dev->lock, flags);
@@ -1460,7 +1525,7 @@ static int mbim_open(struct inode *inode, struct file *fd)
 	ret = 0;
 	spin_unlock_irqrestore(&dev->lock, flags);
 
-	pr_info("%s: ---\n", __func__);
+	pr_info("usb: %s: ---\n", __func__);
 	return ret;
 }
 
@@ -1470,7 +1535,7 @@ mbim_close(struct inode *inode, struct file *fd)
 	struct mbim_dev	*dev = fd->private_data;
 	unsigned long		flags;
 
-	pr_info("%s: ---\n", __func__);
+	pr_info("usb: %s: +++\n", __func__);
 	spin_lock_irqsave(&dev->lock, flags);
 	dev->mbim_cdev_open--;
 	fd->private_data = NULL;
@@ -1478,7 +1543,7 @@ mbim_close(struct inode *inode, struct file *fd)
 	//dev->mbim_status &= ~SELECTED;
 
 	spin_unlock_irqrestore(&dev->lock, flags);
-	pr_info("%s: ---\n", __func__);
+	pr_info("usb: %s: ---\n", __func__);
 
 	return 0;
 }
@@ -1490,12 +1555,17 @@ setup_rx_reqs(struct mbim_dev *dev)
 	struct usb_request              *req;
 	unsigned long	flags;
 
-	pr_info("%s: +++\n", __func__);
-
+#if DEBUG
+	pr_info("usb: %s: +++\n", __func__);
+#endif
 	spin_lock_irqsave(&dev->lock, flags);
 	while (likely(!list_empty(&dev->rx_reqs))) {
 		int error;
 
+		if (!dev->EnabledDevice ) {
+			pr_err("usb: %s mbim disabled (%d)\n",__func__, dev->EnabledDevice);
+			break;
+		}
 		req = container_of(dev->rx_reqs.next,
 			struct usb_request, list);
 		list_del_init(&req->list);
@@ -1513,12 +1583,13 @@ setup_rx_reqs(struct mbim_dev *dev)
 		/* here, we unlock, and only unlock, to avoid deadlock. */
 		//spin_unlock(&dev->lock);
 
-		pr_info("%s: ############################# usb_ep_queue: [%p, %p \n", __func__, req->context, req);
-
+#if DEBUG
+		pr_info("%s: usb_ep_queue: [%p, %p]\n", __func__, req->context, req);
+#endif
 		error = usb_ep_queue(dev->out_ep, req, GFP_ATOMIC);
 		//spin_lock(&dev->lock);
 		if (error) {
-			pr_info("%s: rx submit --> %d\n", __func__, error);
+			pr_info("usb: %s: rx submit --> %d\n", __func__, error);
 			spin_lock_irqsave(&dev->lock, flags);
 			list_add_tail(&req->list, &dev->rx_reqs);
 			spin_unlock_irqrestore(&dev->lock, flags);
@@ -1527,8 +1598,9 @@ setup_rx_reqs(struct mbim_dev *dev)
 		spin_lock_irqsave(&dev->lock, flags);
 	}
 	spin_unlock_irqrestore(&dev->lock, flags);
-
-	pr_info("%s: ---\n", __func__);
+#if DEBUG
+	pr_info("usb: %s: ---\n", __func__);
+#endif
 }
 
 static ssize_t
@@ -1618,8 +1690,6 @@ mbim_read(struct file *fd, char __user *buf, size_t len, loff_t *ptr)
 		else
 			size = len;
 
-		//pr_info("############################################### size = %d\n", size);
-
 		size -= copy_to_user(buf, current_rx_buf, size);
 		bytes_copied += size;
 		len -= size;
@@ -1666,7 +1736,7 @@ mbim_read(struct file *fd, char __user *buf, size_t len, loff_t *ptr)
 	}
 	else
 	{
-		pr_info("############################################### exit read() error\n");
+		pr_info("usb: ############################################### exit read() error\n");
 		return -EAGAIN;
 	}
 }
@@ -1785,6 +1855,47 @@ mbim_write(struct file *fd, const char __user *buf, size_t len, loff_t *ptr)
 		return -EAGAIN;
 }
 
+static int get_usbmode_info (struct mbim_dev *dev, unsigned long arg)
+{
+	struct usb_function *f;
+	struct usb_composite_dev *cdev = dev->mbim_cdev;
+	struct usb_configuration *configuration;
+	char usbmode[100] = {0,};
+	int length;
+
+	if (!dev->mbim_ready) {
+		printk("usb: %s dev->mbim_ready is false\n",__func__);
+		return -1;
+	}
+
+	/* possible query menu */
+	/* MBIM only			*/
+	/* MTP+MBIM			*/
+	/* MBIM+DM			*/
+	/* gnss and acm is skipped from the return value */
+	list_for_each_entry(configuration, &cdev->configs, list) {
+		list_for_each_entry(f, &configuration->functions, list) {
+			if (f != NULL) {
+				if (!strcmp(f->name, "acm") ||	!strcmp(f->name, "gnss")) {
+					printk("usb: %s : %s is skip \n",__func__, f->name);
+				} else {
+					if (strlen(usbmode))
+						strcat(usbmode,",");
+					strcat(usbmode, f->name);
+				}
+			}
+		}
+	}
+	length = strlen(usbmode);
+	printk("usb: %s : usb_mode = %s : length = %d \n",__func__, usbmode, length);
+
+	if (copy_to_user((IOCTL_MBIM_GETCOMMAND_PARAM *)arg, usbmode, length)) {
+		return -1;
+	}
+
+	return length;
+}
+
 static long
 mbim_ioctl(struct file *fd, unsigned int code, unsigned long arg)
 {
@@ -1795,21 +1906,31 @@ mbim_ioctl(struct file *fd, unsigned int code, unsigned long arg)
 	int ret = 0;
 	IOCTL_MBIM_CONNECT_INFO_PARAM ConnectInfo;
 	//IOCTL_MBIM_SETRESPONSE_PARAM UnsolicitedEventInfo;
-	//struct MBIM_MESSAGE_HEADER	* pResp = NULL;
+	struct MBIM_MESSAGE_HEADER mbim_message;
 
 	/* handle ioctls */
-	//pr_info("mbim_ioctl ++\n");
+	pr_info("usb: mbim_ioctl ++\n");
 
 	//spin_lock_irqsave(&dev->lock, flags);
 
+	/* wait device connected */
+	if (!dev->EnabledDevice) {
+		ret = wait_event_interruptible(dev->sync_wq,
+			dev->EnabledDevice);
+
+		if (ret < 0 ) {
+			pr_err("usb: %s Waiting failed (%d)\n",__func__, __LINE__);
+			return -1;
+		}
+	}
 
 	switch (code) {
 		case IOCTL_MBIM_CONNECT_INFO:
-			//pr_info("[IOCTL_MBIM_CONNECT_INFO]\n");
+			pr_info("usb: [IOCTL_MBIM_CONNECT_INFO]\n");
 			ret = copy_from_user(&ConnectInfo, (IOCTL_MBIM_CONNECT_INFO_PARAM *)arg, sizeof(IOCTL_MBIM_CONNECT_INFO_PARAM));
 			if (ret) {
-				pr_info("copy_from_user failed err:%d\n", ret);
-				return -1;
+				pr_info("usb: copy_from_user failed err:%d\n", ret);
+				return ret;
 			}
 			if (ConnectInfo.IsConnected)
 			{
@@ -1827,7 +1948,7 @@ mbim_ioctl(struct file *fd, unsigned int code, unsigned long arg)
 			//pr_info("[IOCTL_MBIM_GETCOMMAND]\n");
 
 			if (mbim_lock(&dev->read_excl)) {
-				pr_info("Previous reading is not finished yet\n");
+				pr_info("usb: Previous reading is not finished yet\n");
 				mdelay(500);
 				return -1;
 			}
@@ -1835,14 +1956,18 @@ mbim_ioctl(struct file *fd, unsigned int code, unsigned long arg)
 			while (list_empty(&dev->cpkt_req_q)) {
 				//pr_info("Requests list is empty. Wait.\n");
 				ret = wait_event_interruptible(dev->read_wq,
-					!list_empty(&dev->cpkt_req_q));
+					(!list_empty(&dev->cpkt_req_q) || !dev->EnabledDevice));
 				if (ret < 0) {
-					pr_info("Waiting failed\n");
+					pr_info("usb: Waiting failed : ret = %d (%d)\n", ret, __LINE__);
 					mbim_unlock(&dev->read_excl);
+					return ret;
+				}
+				if (dev->EnabledDevice == false) {
+					mbim_unlock(&dev->read_excl);
+					pr_err("usb: %s: did not enabled device (%d)\n", __func__, __LINE__);
 					return -1;
 				}
 			}
-
 			spin_lock_irqsave(&dev->notify_req_lock, flags);
 			cpkt = list_first_entry(&dev->cpkt_req_q, struct ctrl_pkt,
 				list);
@@ -1852,7 +1977,7 @@ mbim_ioctl(struct file *fd, unsigned int code, unsigned long arg)
 			if (cpkt->len > MBIM_BULK_BUFFER_SIZE) {
 				spin_unlock_irqrestore(&dev->notify_req_lock, flags);
 				mbim_unlock(&dev->read_excl);
-				pr_info("cpkt size too big:%d > buf size:%d\n",
+				pr_info("usb: cpkt size too big:%d > buf size:%d\n",
 					cpkt->len, MBIM_BULK_BUFFER_SIZE);
 				return -1;
 			}
@@ -1863,7 +1988,11 @@ mbim_ioctl(struct file *fd, unsigned int code, unsigned long arg)
 			spin_unlock_irqrestore(&dev->notify_req_lock, flags);
 			mbim_unlock(&dev->read_excl);
 
-			pr_info("%s: cpkt->buf: %s\n", __func__, cpkt->buf, cpkt->len);
+			mbim_message.MessageType = *((unsigned int *)cpkt->buf);
+			mbim_message.MessageLength = *((unsigned int *)cpkt->buf+1);
+			mbim_message.TransactionId =  *((unsigned int *)cpkt->buf+2);
+			pr_info("usb: %s: cpkt->buf: %s (cpkt->len : %d) (TYPE=0x%x /ID:%d)\n", __func__,
+				cpkt->buf, cpkt->len, mbim_message.MessageType, mbim_message.TransactionId);
 			if (copy_to_user((IOCTL_MBIM_GETCOMMAND_PARAM *)arg, cpkt->buf, cpkt->len))
 			{
 				mbim_free_ctrl_pkt(cpkt);
@@ -1874,33 +2003,44 @@ mbim_ioctl(struct file *fd, unsigned int code, unsigned long arg)
 			mbim_free_ctrl_pkt(cpkt);
 			break;
 
+		case IOCTL_MBIM_INFO_USBMODE:
+			pr_info("usb: [IOCTL_MBIM_INFO_USBMODE]\n");
+			status = get_usbmode_info(dev, arg);
+			break;
+
 		case IOCTL_MBIM_SETRESPONSE:
-			//pr_info("[IOCTL_MBIM_SETRESPONSE]\n");
+			pr_info("usb: [IOCTL_MBIM_SETRESPONSE]\n");
 
 			if (mbim_lock(&dev->write_excl)) {
-				pr_info("Previous writing not finished yet\n");
+				pr_info("usb: Previous writing not finished yet\n");
 				return -EBUSY;
 			}
 
 			cpkt = mbim_alloc_ctrl_pkt(MBIM_BULK_BUFFER_SIZE, GFP_KERNEL);
-			if (!cpkt) {
-				pr_err("failed to allocate ctrl pkt\n");
+			if (IS_ERR(cpkt)) {
+				pr_err("usb: failed to allocate ctrl pkt\n");
 				mbim_unlock(&dev->write_excl);
 				return -ENOMEM;
 			}
 
 			ret = copy_from_user(cpkt->buf, (IOCTL_MBIM_SETRESPONSE_PARAM *)arg, MBIM_BULK_BUFFER_SIZE);
 			if (ret) {
-				pr_err("copy_from_user failed err:%d\n", ret);
+				pr_err("usb: copy_from_user failed err:%d\n", ret);
 				mbim_free_ctrl_pkt(cpkt);
 				mbim_unlock(&dev->write_excl);
 				return -1;
 			}
+			mbim_message.MessageType = *((unsigned int *)cpkt->buf);
+			mbim_message.MessageLength = *((unsigned int *)cpkt->buf+1);
+			mbim_message.TransactionId =  *((unsigned int *)cpkt->buf+2);
+			/* prevent kernel panic / slub : Poison overwritten*/
+			pr_info("usb: [IOCTL_MBIM_SETRESPONSE] : (TYPE=0x%x/ID:%d, len=%d)\n",
+				mbim_message.MessageType, mbim_message.TransactionId, mbim_message.MessageLength);
 
-			fmbim_send_cpkt_response(dev, cpkt);
-			mbim_unlock(&dev->write_excl);
 			cpkt->len = MBIM_BULK_BUFFER_SIZE;
 			status = cpkt->len;
+			fmbim_send_cpkt_response(dev, cpkt);
+			mbim_unlock(&dev->write_excl);
 			break;
 
 	default:
@@ -1949,65 +2089,12 @@ void mnet_setup(struct net_device *ndev)
 	ndev->watchdog_timeo = 5 * HZ;
 }
 /*-------------------------------------------------------------------------*/
-
-static int
-set_mbim_interface(struct mbim_dev *dev)
-{
-	int			result = 0;
-
-	dev->in_ep->desc = ep_desc(dev->gadget, &fs_ncm_in_desc, &hs_ncm_in_desc,
-		&ss_ncm_in_desc);
-	dev->in_ep->driver_data = dev;
-
-	dev->out_ep->desc = ep_desc(dev->gadget, &fs_ncm_out_desc,
-		&hs_ncm_out_desc, &ss_ncm_out_desc);
-	dev->out_ep->driver_data = dev;
-
-	dev->notify_ep->desc = ep_desc(dev->gadget, &fs_ncm_notify_desc, &hs_ncm_notify_desc,
-		&ss_ncm_notify_desc);
-	dev->notify_ep->driver_data = dev;
-
-	result = usb_ep_enable(dev->in_ep);
-	if (result != 0) {
-		DBG(dev, "enable %s --> %d\n", dev->in_ep->name, result);
-		goto done;
-	}
-
-	result = usb_ep_enable(dev->out_ep);
-	if (result != 0) {
-		DBG(dev, "enable %s --> %d\n", dev->in_ep->name, result);
-		goto done;
-	}
-
-	result = usb_ep_enable(dev->notify_ep);
-	if (result != 0) {
-		DBG(dev, "enable %s --> %d\n", dev->notify_ep->name, result);
-		goto done;
-	}
-
-done:
-	/* on error, disable any endpoints  */
-	if (result != 0) {
-		(void)usb_ep_disable(dev->in_ep);
-		(void)usb_ep_disable(dev->out_ep);
-		(void)usb_ep_disable(dev->notify_ep);
-		dev->in_ep->desc = NULL;
-		dev->out_ep->desc = NULL;
-		dev->notify_ep->desc = NULL;
-	}
-
-	/* caller is responsible for cleanup on error */
-	return result;
-}
-
 static void mbim_reset_interface(struct mbim_dev *dev)
 {
-	unsigned long	flags;
-
 	if (dev->interface < 0)
 		return;
 
-	DBG(dev, "%s\n", __func__);
+	pr_info("usb: %s: +++\n", __func__);
 
 	if (dev->in_ep->desc)
 		usb_ep_disable(dev->in_ep);
@@ -2018,39 +2105,13 @@ static void mbim_reset_interface(struct mbim_dev *dev)
 	if (dev->notify_ep->desc)
 		usb_ep_disable(dev->notify_ep);
 
-	spin_lock_irqsave(&dev->lock, flags);
 	dev->in_ep->desc = NULL;
 	dev->out_ep->desc = NULL;
 	dev->notify_ep->desc = NULL;
 	dev->interface = -1;
-	spin_unlock_irqrestore(&dev->lock, flags);
-}
-
-/* Change our operational Interface. */
-static int set_interface(struct mbim_dev *dev, unsigned number)
-{
-	int			result = 0;
-
-	/* Free the current interface */
-	mbim_reset_interface(dev);
-
-	if ((number == dev->data_id) && (dev->data_alt_int == 0))
-	{
-		dev->interface = number;
-	}
-	else
-	{
-		result = set_mbim_interface(dev);
-		if (result)
-			mbim_reset_interface(dev);
-		else
-			dev->interface = number;
-
-		if (!result)
-			INFO(dev, "Using interface %x\n", number);
-	}
-
-	return result;
+	/* connection gone */
+	atomic_set(&dev->notify_count, 0);
+	pr_info("usb: %s: dev->notify_count=%d ---\n", __func__, atomic_read(&dev->notify_count));
 }
 
 /*-------------------------------------------------------------------------*/
@@ -2094,7 +2155,7 @@ static void mbim_set_ntb_input_size_complete(struct usb_ep *ep, struct usb_reque
 
 	req->context = NULL;
 	if (req->status || req->actual != req->length) {
-		pr_info("Bad control-OUT transfer\n");
+		pr_info("usb: Bad control-OUT transfer\n");
 		goto invalid;
 	}
 
@@ -2102,7 +2163,7 @@ static void mbim_set_ntb_input_size_complete(struct usb_ep *ep, struct usb_reque
 		in_size = get_unaligned_le32(req->buf);
 		if (in_size < USB_CDC_NCM_NTB_MIN_IN_SIZE ||
 			in_size > le32_to_cpu(ntb_parameters.dwNtbInMaxSize)) {
-			pr_info("Illegal INPUT SIZE (%d) from host\n", in_size);
+			pr_info("usb: Illegal INPUT SIZE (%d) from host\n", in_size);
 			goto invalid;
 		}
 	}
@@ -2111,14 +2172,14 @@ static void mbim_set_ntb_input_size_complete(struct usb_ep *ep, struct usb_reque
 		in_size = get_unaligned_le32(&(ntb->ntb_input_size));
 		if (in_size < USB_CDC_NCM_NTB_MIN_IN_SIZE ||
 			in_size > le32_to_cpu(ntb_parameters.dwNtbInMaxSize)) {
-			pr_info("Illegal INPUT SIZE (%d) from host\n", in_size);
+			pr_info("usb: Illegal INPUT SIZE (%d) from host\n", in_size);
 			goto invalid;
 		}
 		dev->ntb_max_datagrams =
 			get_unaligned_le16(&(ntb->ntb_max_datagrams));
 	}
 	else {
-		pr_info("Illegal NTB length %d\n", in_size);
+		pr_info("usb: Illegal NTB length %d\n", in_size);
 		goto invalid;
 	}
 
@@ -2147,13 +2208,13 @@ static void mbim_send_encapsulated_command_complete(struct usb_ep *ep, struct us
 
 	req->context = NULL;
 	if (req->status || req->actual != req->length) {
-		pr_info("Bad control-OUT transfer\n");
+		pr_info("usb: Bad control-OUT transfer\n");
 		goto invalid;
 	}
 
 	cpkt = mbim_alloc_ctrl_pkt(len, GFP_ATOMIC);
-	if (!cpkt) {
-		pr_info("Unable to allocate ctrl pkt\n");
+	if (IS_ERR(cpkt)) {
+		pr_info("usb: Unable to allocate ctrl pkt\n");
 		return;
 	}
 
@@ -2163,7 +2224,7 @@ static void mbim_send_encapsulated_command_complete(struct usb_ep *ep, struct us
 	spin_lock_irqsave(&dev->notify_req_lock, flags);
 
 	if (!dev->mbim_cdev_open) {
-		pr_info("mbim file handler %p is not open (%d)", dev, dev->mbim_cdev_open);
+		pr_info("usb: mbim file handler %pK is not open (%d)", dev, dev->mbim_cdev_open);
 		spin_unlock_irqrestore(&dev->notify_req_lock, flags);
 		mbim_free_ctrl_pkt(cpkt);
 		return;
@@ -2214,6 +2275,8 @@ static int mbim_func_setup(struct usb_function *f,
 	u16			wValue = le16_to_cpu(ctrl->wValue);
 	u16			wLength = le16_to_cpu(ctrl->wLength);
 
+	struct MBIM_MESSAGE_HEADER mbim_message;
+
 	//pr_info("mbim_func_setup++\n");
 	//pr_info("ctrl reqtype:0x%02x, req:0x%02x, value:0x%04x, index:0x%04x, length:0x%04x\n",
 	//	ctrl->bRequestType, ctrl->bRequest, ctrl->wValue, ctrl->wIndex, ctrl->wLength);
@@ -2256,11 +2319,10 @@ static int mbim_func_setup(struct usb_function *f,
 			break;
 
 		case USB_CDC_GET_ENCAPSULATED_RESPONSE:
-			//pr_info("[USB_CDC_GET_ENCAPSULATED_RESPONSE]\n");
 
 			spin_lock(&dev->notify_req_lock);
 			if (list_empty(&dev->cpkt_resp_q)) {
-				pr_info("ctrl resp queue empty\n");
+				pr_info("usb: ctrl resp queue empty\n");
 				spin_unlock(&dev->notify_req_lock);
 				break;
 			}
@@ -2274,6 +2336,18 @@ static int mbim_func_setup(struct usb_function *f,
 
 			value = min_t(unsigned, wLength, pResp->MessageLength);
 			memcpy(req->buf, cpkt->buf, value);
+
+			mbim_message.MessageType = *((unsigned int *)cpkt->buf);
+			mbim_message.MessageLength = *((unsigned int *)cpkt->buf+1);
+			mbim_message.TransactionId =  *((unsigned int *)cpkt->buf+2);
+
+			if (mbim_message.TransactionId)
+				dev->cnt_notify_int++;
+
+			pr_info("usb: [USB_CDC_GET_ENCAPSULATED_RESPONSE] :TYPE=0x%x/ID:%d/len=%d, cnt_notify_int=%d\n",
+				mbim_message.MessageType, mbim_message.TransactionId,
+				mbim_message.MessageLength, dev->cnt_notify_int);
+
 			mbim_free_ctrl_pkt(cpkt);
 			//pr_info("processed, len = %d\n", value);
 
@@ -2293,7 +2367,7 @@ static int mbim_func_setup(struct usb_function *f,
 	default:
 	unknown:
 		VDBG(dev,
-			"unknown ctrl req%02x.%02x v%04x i%04x l%d\n",
+			"usb: unknown ctrl req%02x.%02x v%04x i%04x l%d\n",
 			ctrl->bRequestType, ctrl->bRequest,
 			wValue, wIndex, wLength);
 		break;
@@ -2304,14 +2378,28 @@ static int mbim_func_setup(struct usb_function *f,
 		req->zero = value < wLength;
 		value = usb_ep_queue(cdev->gadget->ep0, req, GFP_ATOMIC);
 		if (value < 0) {
-			ERROR(dev, "%s:%d Error!\n", __func__, __LINE__);
+			ERROR(dev, "usb: %s:%d Error!\n", __func__, __LINE__);
 			req->status = 0;
 		}
 	}
 	return value;
 }
 
-static void ncm_notify_complete(struct usb_ep *ep, struct usb_request *req)
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+void mbim_suspend(void)
+{
+	pr_info("%s : mbim_resume_cmpl clear\n", __func__);
+	mbim_resume_cmpl = 0;
+}
+
+void mbim_resume(void)
+{
+	pr_info("%s : mbim_resule_cmpl set\n", __func__);
+	mbim_resume_cmpl = 1;
+}
+#endif
+
+static void mbim_notify_complete(struct usb_ep *ep, struct usb_request *req)
 {
 	struct mbim_dev *dev = req->context;
 	unsigned long flags;
@@ -2322,16 +2410,27 @@ static void ncm_notify_complete(struct usb_ep *ep, struct usb_request *req)
 		break;
 	case -ECONNRESET:
 	case -ESHUTDOWN:
+		/* connection gone */
+		atomic_set(&dev->notify_count, 0);
+		pr_info("usb: %s: req_shutdown (%pK) \n",__func__, req);
 		break;
 	default:
 		break;
 	}
-	//mbim_do_notify(mbim);
-
-
+//	mbim_do_notify(dev);
 	spin_lock_irqsave(&dev->notify_req_lock, flags);
-	list_add(&req->list, &dev->tx_notifyreqs);
+	list_add_tail(&req->list, &dev->tx_notifyreqs);
 	spin_unlock_irqrestore(&dev->notify_req_lock, flags);
+
+	if (req->status == 0 ) {
+		if (atomic_read(&dev->notify_count) > 0) {
+			printk("usb: %s : pending response .. try signal to pc (%d) \n",
+							__func__, atomic_read(&dev->notify_count));
+			atomic_dec(&dev->notify_count);
+			mbim_do_notify_response_avaliable(dev);
+		}
+	}
+
 }
 
 static inline void mnet_reset_values(struct mbim_dev *dev)
@@ -2353,6 +2452,9 @@ static int mbim_func_bind(struct usb_configuration *c,
 	struct usb_function *f)
 {
 	struct usb_gadget *gadget = c->cdev->gadget;
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+	struct dwc3 *dwc = container_of(gadget, struct dwc3, gadget);
+#endif
 	struct mbim_dev *dev = func_to_mbim(f);
 	struct usb_composite_dev *cdev = c->cdev;
 	struct usb_ep *notify_ep = NULL;
@@ -2360,54 +2462,71 @@ static int mbim_func_bind(struct usb_configuration *c,
 	struct usb_ep *out_ep = NULL;
 	struct usb_request *req;
 	struct mbim_port *mnet_port;
-	struct sk_buff *skb;
+//	struct sk_buff *skb;
 	int id;
 	int ret;
 	u32 i;
+	int status = 0;
 
-	pr_info("mbim_func_bind++\n");
+	pr_info("usb: mbim_func_bind++\n");
 
 	id = usb_interface_id(c, f);
 	if (id < 0)
 		return id;
 
 	dev->ctrl_id = id;
-	ncm_iad_desc.bFirstInterface = id;
-	ncm_control_intf.bInterfaceNumber = id;
-	ncm_union_desc.bMasterInterface0 = id;
+	mbim_iad_desc.bFirstInterface = id;
+	mbim_control_intf.bInterfaceNumber = id;
+	mbim_union_desc.bMasterInterface0 = id;
+
+	/* maybe allocate device-global string IDs */
+	if (mbim_string_defs[0].id == 0) {
+		/* control interface label */
+		status = usb_string_id(c->cdev);
+		if (status < 0)
+			return status;
+		mbim_string_defs[F_MBIM_IDX].id = status;
+		mbim_control_intf.iInterface = status;
+	}
+
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+/* FUNCTION_WAKE Interface field: This field identifies the first interface         */
+/* in the function that caused the device to perform a remote wake operation. */
+		dwc->interface_number = id;
+		pr_info("%s: interface_number:%d\n", __func__, dwc->interface_number);
+#endif
 
 	id = usb_interface_id(c, f);
 	if (id < 0)
 		return id;
 	dev->data_id = id;
 
-	ncm_data_nop_intf.bInterfaceNumber = id;
-	ncm_data_intf.bInterfaceNumber = id;
-	ncm_union_desc.bSlaveInterface0 = id;
-
+	mbim_data_nop_intf.bInterfaceNumber = id;
+	mbim_data_intf.bInterfaceNumber = id;
+	mbim_union_desc.bSlaveInterface0 = id;
 
 	/* finish hookup to lower layer ... */
 	dev->gadget = gadget;
 
 	/* all we really need is bulk IN/OUT */
-	in_ep = usb_ep_autoconfig(cdev->gadget, &fs_ncm_in_desc);
+	in_ep = usb_ep_autoconfig(cdev->gadget, &fs_mbim_in_desc);
 	if (!in_ep)
 	{
-		pr_info("usb_ep_autoconfig error, in_ep\n");
+		pr_info("usb: usb_ep_autoconfig error, in_ep\n");
 		return -ENODEV;
 	}
 
-	out_ep = usb_ep_autoconfig(cdev->gadget, &fs_ncm_out_desc);
+	out_ep = usb_ep_autoconfig(cdev->gadget, &fs_mbim_out_desc);
 	if (!out_ep)
 	{
-		pr_info("usb_ep_autoconfig error, out_ep\n");
+		pr_info("usb: usb_ep_autoconfig error, out_ep\n");
 		return -ENODEV;
 	}
 
-	notify_ep = usb_ep_autoconfig(cdev->gadget, &fs_ncm_notify_desc);
+	notify_ep = usb_ep_autoconfig(cdev->gadget, &fs_mbim_notify_desc);
 	if (!notify_ep)
 	{
-		pr_info("usb_ep_autoconfig error, notify_ep\n");
+		pr_info("usb: usb_ep_autoconfig error, notify_ep\n");
 		return -ENODEV;
 	}
 
@@ -2417,18 +2536,18 @@ static int mbim_func_bind(struct usb_configuration *c,
 
 	dev->EnabledDevice = false;
 
-	hs_ncm_in_desc.bEndpointAddress = fs_ncm_in_desc.bEndpointAddress;
-	hs_ncm_out_desc.bEndpointAddress = fs_ncm_out_desc.bEndpointAddress;
-	hs_ncm_notify_desc.bEndpointAddress =
-		fs_ncm_notify_desc.bEndpointAddress;
+	hs_mbim_in_desc.bEndpointAddress = fs_mbim_in_desc.bEndpointAddress;
+	hs_mbim_out_desc.bEndpointAddress = fs_mbim_out_desc.bEndpointAddress;
+	hs_mbim_notify_desc.bEndpointAddress =
+		fs_mbim_notify_desc.bEndpointAddress;
 
-	ss_ncm_in_desc.bEndpointAddress = fs_ncm_in_desc.bEndpointAddress;
-	ss_ncm_out_desc.bEndpointAddress = fs_ncm_out_desc.bEndpointAddress;
-	ss_ncm_notify_desc.bEndpointAddress =
-		fs_ncm_notify_desc.bEndpointAddress;
+	ss_mbim_in_desc.bEndpointAddress = fs_mbim_in_desc.bEndpointAddress;
+	ss_mbim_out_desc.bEndpointAddress = fs_mbim_out_desc.bEndpointAddress;
+	ss_mbim_notify_desc.bEndpointAddress =
+		fs_mbim_notify_desc.bEndpointAddress;
 
-	ret = usb_assign_descriptors(f, ncm_fs_function, ncm_hs_function,
-		ncm_ss_function, NULL);
+	ret = usb_assign_descriptors(f, mbim_fs_function, mbim_hs_function,
+		mbim_ss_function, NULL);
 
 	if (ret)
 		return ret;
@@ -2438,52 +2557,66 @@ static int mbim_func_bind(struct usb_configuration *c,
 	for (i = 0; i < MAX_NOTIFY_REQUESTS; i++) {
 		req = mbim_req_alloc(dev->notify_ep, USB_BUFSIZE, GFP_KERNEL);
 		if (!req)
-			goto fail_tx_reqs;
+			goto fail_notify_reqs;
 		req->context = dev;
-		req->complete = ncm_notify_complete;
+		req->complete = mbim_notify_complete;
 		list_add(&req->list, &dev->tx_notifyreqs);
 	}
 
 	for (i = 0; i < MAX_BULKIN_REQUESTS; i++) {
-		req = mbim_req_alloc(dev->in_ep, USB_BUFSIZE, GFP_KERNEL);
+		req = mbim_req_alloc(dev->in_ep, USB_DL_BUFSIZE, GFP_KERNEL);
 		if (!req)
 			goto fail_tx_reqs;
 		dev->func_flag = NCM_ADD_HEADER;
 		list_add(&req->list, &dev->tx_reqs);
-		pr_info("%s: pre DL req: %p, req->buf: %p\n", __func__, req, &req->buf);
+		pr_info("usb: %s: pre DL req: %pK, req->buf: %pK\n", __func__, req, &req->buf);
 	}
 
 	for (i = 0; i < MAX_BULKOUT_REQUESTS; i++) {
 		req = mbim_req_alloc(dev->out_ep, USB_BUFSIZE, GFP_KERNEL);
-		skb = __netdev_alloc_skb(dev->ndev, SZ_2K, GFP_KERNEL);
+		//skb = __netdev_alloc_skb(dev->ndev, SZ_2K, GFP_KERNEL);
 		if (!req)
 			goto fail_rx_reqs;
-		pr_info("%s: pre alloc skb pointer: %p, %p\n", __func__, skb, req);
-		skb->data = req->buf;
-		req->context = skb;
+		pr_info("usb: %s: pre alloc skb pointer: %pK\n", __func__, req);
+		//skb->data = req->buf;
+		//req->context = skb;
 		list_add_tail(&req->list, &dev->rx_reqs);
 	}
 
 	dev->ndev = alloc_netdev(sizeof(struct mbim_port), "mbim_net%d", NET_NAME_UNKNOWN, mnet_setup);
 	if (!dev->ndev)
-		pr_err("%s: alloc_netdev fail\n", __func__);
+		pr_err("usb: %s: alloc_netdev fail\n", __func__);
+
+	snprintf(dev->ndev->name, sizeof(dev->ndev->name), "%s%%d", "mbim");
 
 	ret = register_netdev(dev->ndev);
 	if (ret) {
-		pr_err("%s: ERR! register_netdev fail\n", __func__);
+		pr_err("usb: %s: ERR! register_netdev fail\n", __func__);
 	}
 
 	mnet_port = netdev_priv(dev->ndev);
 	mnet_port->mbim = dev;
 
-	dev->mbim_wq  = create_singlethread_workqueue("mbim_wq");
-	if (!dev->mbim_wq) {
-		pr_err("%s: Unable to create workqueue: mbim_wq\n", __func__);
-		return -ENOMEM;
+	dev->mbim_dl  = create_singlethread_workqueue("mbim_dl");
+	if (!dev->mbim_dl) {
+		pr_err("usb: %s: Unable to create workqueue: mbim_wq\n", __func__);
+		ret = -ENOMEM;
+		goto fail_rx_reqs;
 	}
 
-	INIT_WORK(&dev->rx_work, process_rx_w);
-	INIT_DELAYED_WORK(&dev->start_xmit, mnet_start_xmit);
+	dev->mbim_ul = create_singlethread_workqueue("mbim_ul");
+	if (!dev->mbim_ul) {
+		pr_err("usb: %s: Unable to create workqueue: mbim_wq\n", __func__);
+		destroy_workqueue(dev->mbim_dl);
+		ret = -ENOMEM;
+		goto fail_rx_reqs;
+	}
+
+	INIT_WORK(&dev->start_xmit, mnet_start_xmit);
+	hrtimer_init(&dev->tx_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	dev->tx_timer.function = tx_timeout;
+	hrtimer_init(&dev->rx_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	dev->rx_timer.function = rx_timeout;
 
 	if (dev->wrap & dev->unwrap)
 		mnet_reset_values(dev);
@@ -2491,13 +2624,13 @@ static int mbim_func_bind(struct usb_configuration *c,
 	INIT_LIST_HEAD(&dev->cpkt_req_q);
 	INIT_LIST_HEAD(&dev->cpkt_resp_q);
 
-	init_waitqueue_head(&dev->read_wq);
-	init_waitqueue_head(&dev->write_wq);
-
 	atomic_set(&dev->read_excl, 0);
 	atomic_set(&dev->write_excl, 0);
 
-	pr_info("mbim_func_bind-- OK\n");
+	dev->mbim_ready = true;
+	dev->mbim_cdev = cdev;
+
+	pr_info("usb: mbim_func_bind-- OK\n");
 
 	return 0;
 #if 0
@@ -2519,30 +2652,138 @@ fail_tx_reqs:
 		mbim_req_free(dev->in_ep, req);
 	}
 
+fail_notify_reqs:
+	while (!list_empty(&dev->tx_notifyreqs)) {
+		req = container_of(dev->tx_notifyreqs.next, struct usb_request, list);
+		list_del(&req->list);
+		mbim_req_free(dev->notify_ep, req);
+	}
+
 	return ret;
 
 }
-
 static int mbim_func_set_alt(struct usb_function *f,
 	unsigned intf, unsigned alt)
 {
 	struct mbim_dev *dev = func_to_mbim(f);
+	struct usb_composite_dev *cdev = f->config->cdev;
 	int ret = -ENOTSUPP;
 
-	pr_info("%s intf %d alt %d\n", __func__, intf, alt);
+	pr_info("usb: %s intf %d alt %d\n", __func__, intf, alt);
+	/* Control interface has only altsetting 0 */
+	if (intf == dev->ctrl_id) {
+		if (alt != 0)
+			goto fail;
 
-	dev->data_alt_int = alt;
-	ret = set_interface(dev, intf);
+		if (dev->notify_ep->driver_data) {
+			pr_info("usb: %s CONTROL_INTERFACE\n", __func__);
+			usb_ep_disable(dev->notify_ep);
+		}
 
-	if ((intf == 1)&& (alt == 1))
-	{
-		setup_rx_reqs(dev);
+		if (!(dev->notify_ep->desc)) {
+			DBG(cdev, "init ncm ctrl %d\n", intf);
+			if (config_ep_by_speed(cdev->gadget, f, dev->notify_ep)) {
+				dev->notify_ep->desc = NULL;
+				pr_err("usb: %s :Failed configuring notify ep %s: err %d\n",
+						__func__, dev->notify_ep->name, ret);
+				goto fail;
+			}
+		}
+		ret = usb_ep_enable(dev->notify_ep);
+		if (ret) {
+			pr_err("usb: %s ep#%s enable failed, err#%d\n",
+						__func__, dev->notify_ep->name, ret);
+			goto fail1;
+		}
+		dev->notify_ep->driver_data = dev;
 
-		schedule_delayed_work(&dev->start_xmit, 0);
+	/* Data interface has two altsettings, 0 and 1 */
+	} else if (intf == dev->data_id) {
+		if (alt > 1)
+			goto fail;
+		dev->interface = intf;
 		atomic_set(&dev->queue->open_excl, 1);
-		dev->EnabledDevice = true;
-	}
-	return ret;
+
+		if (alt == 0) {
+			if (dev->in_ep->driver_data) {
+				DBG(cdev, "reset ncm\n");
+				pr_info("usb: %s reset mbim (alt = 0)\n", __func__);
+				if (dev->in_ep->desc)
+					usb_ep_disable(dev->in_ep);
+
+				if (dev->out_ep->desc)
+					usb_ep_disable(dev->out_ep);
+
+				dev->in_ep->desc = NULL;
+				dev->out_ep->desc = NULL;
+
+				/* connection gone */
+				atomic_set(&dev->notify_count, 0);
+				pr_info("usb: %s: dev->notify_count=%d ---\n",
+						__func__, atomic_read(&dev->notify_count));
+			}
+			/* if data interface released .. we must clear EnableDevice flag */
+			dev->EnabledDevice = false;
+			wake_up(&dev->sync_wq);
+			pr_info("usb: %s : interface down : (%d) \n",
+							__func__, dev->cnt_notify_int);
+		}
+
+		if (alt == 1) {
+			pr_info("Alt set 1, initialize ports\n");
+
+			if (!dev->in_ep->desc || !dev->out_ep->desc) {
+				DBG(cdev, "init mbim\n");
+				if (config_ep_by_speed(cdev->gadget, f,
+						       dev->in_ep) ||
+				    config_ep_by_speed(cdev->gadget, f,
+						       dev->out_ep)) {
+					dev->in_ep->desc = NULL;
+					dev->out_ep->desc = NULL;
+					goto fail;
+				}
+			}
+			mbim_clear_data_queues(dev);
+			dev->mbim_online = true;
+			ret = usb_ep_enable(dev->in_ep);
+			if (ret != 0) {
+				DBG(dev, "in ep enable %s --> %d\n", dev->in_ep->name, ret);
+				goto fail1;
+			}
+			dev->in_ep->driver_data = dev;
+			ret = usb_ep_enable(dev->out_ep);
+			if (ret != 0) {
+				DBG(dev, "out ep enable %s --> %d\n", dev->out_ep->name, ret);
+				goto fail1;
+			}
+			dev->out_ep->driver_data = dev;
+
+			dev->EnabledDevice = true;
+			setup_rx_reqs(dev);
+			queue_work_on(6, dev->mbim_dl, &dev->start_xmit);
+			hrtimer_start(&dev->rx_timer, ktime_set(0, MBIM_UL_SEND_TIME), HRTIMER_MODE_REL);
+			atomic_set(&dev->queue->open_excl, 1);
+			wake_up(&dev->sync_wq);
+			dev->cnt_notify_int = 0;
+		}
+
+	} else
+		goto fail;
+	mbim_resume_cmpl = 1;
+	return 0;
+fail1:
+	if (dev->in_ep->driver_data)
+		usb_ep_disable(dev->in_ep);
+	if (dev->out_ep->driver_data)
+		usb_ep_disable(dev->out_ep);
+	if (dev->notify_ep->driver_data)
+		usb_ep_disable(dev->notify_ep);
+	dev->in_ep->desc = NULL;
+	dev->out_ep->desc = NULL;
+	dev->notify_ep->desc = NULL;
+fail:
+	pr_info("usb: %s intf %d alt %d fail return\n", __func__, intf, alt);
+	return -EINVAL;
 }
 
 static int mbim_func_get_alt(struct usb_function *f,
@@ -2563,13 +2804,22 @@ static void mbim_func_disable(struct usb_function *f)
 {
 	struct mbim_dev *dev = func_to_mbim(f);
 
-	pr_info("%s\n", __func__);
+	pr_info("usb: %s +++\n", __func__);
 
 	dev->EnabledDevice = false;
+	dev->mbim_online = false;
 
 	mbim_clear_queues(dev);
 
 	mbim_reset_interface(dev);
+
+	/* break queue wait logic */
+	wake_up(&dev->queue->dl_wait);
+	wake_up(&dev->read_wq);
+	wake_up(&dev->sync_wq);
+
+	hrtimer_cancel(&dev->rx_timer);
+	pr_info("usb: %s ----\n", __func__);
 }
 
 static inline struct f_mbim_opts
@@ -2730,6 +2980,8 @@ static void gmbim_free_inst(struct usb_function_instance *f)
 
 	mutex_unlock(&mbim_ida_lock);
 
+	misc_deregister(&mbim_device);
+
 	if (opts->pnp_string_allocated)
 		kfree(opts->pnp_string);
 	kfree(opts);
@@ -2754,26 +3006,25 @@ static void mbim_func_unbind(struct usb_configuration *c,
 	struct usb_request	*req;
 	unsigned long	flags;
 
-	pr_info("mbim_func_unbind++\n");
+	pr_info("usb: mbim_func_unbind++\n");
 
+	mbim_string_defs[0].id = 0;
 	dev = func_to_mbim(f);
 
 	device_destroy(usb_gadget_class, MKDEV(major, dev->minor));
-
 	unregister_netdev(dev->ndev);
 	free_netdev(dev->ndev);
 
-	/* Remove Character Device */
-	cdev_del(&dev->mbim_cdev);
-
 	/* we must already have been disconnected ... no i/o may be active */
 	WARN_ON(!list_empty(&dev->tx_reqs_active));
-	WARN_ON(!list_empty(&dev->rx_reqs_active));
 
 	//kfree(dev->notify_req->buf);
 	//usb_ep_free_request(dev->notify_ep, dev->notify_req);
 
 	/* Free all memory for this driver. */
+
+	dev->mbim_ready = false;
+	wake_up(&dev->sync_wq);
 
 	spin_lock_irqsave(&dev->notify_req_lock, flags);
 	while (!list_empty(&dev->tx_notifyreqs)) {
@@ -2812,7 +3063,6 @@ static void mbim_func_unbind(struct usb_configuration *c,
 		mbim_req_free(dev->out_ep, req);
 		spin_lock_irqsave(&dev->lock, flags);
 	}
-
 	while (!list_empty(&dev->rx_buffers)) {
 		req = container_of(dev->rx_buffers.next,
 			struct usb_request, list);
@@ -2823,13 +3073,15 @@ static void mbim_func_unbind(struct usb_configuration *c,
 		spin_lock_irqsave(&dev->lock, flags);
 	}
 	spin_unlock_irqrestore(&dev->lock, flags);
+	mbim_clear_data_queues(dev);
 
 	usb_free_all_descriptors(f);
-	
-	destroy_workqueue(dev->mbim_wq);
+	destroy_workqueue(dev->mbim_dl);
+	destroy_workqueue(dev->mbim_ul);
+	hrtimer_cancel(&dev->rx_timer);
 	dev->mbim_ready = false;
 
-	pr_info("mbim_func_unbind--\n");
+	pr_info("usb: mbim_func_unbind--\n");
 }
 
 static struct usb_function_instance *gmbim_alloc_inst(void)
@@ -2838,7 +3090,7 @@ static struct usb_function_instance *gmbim_alloc_inst(void)
 	struct usb_function_instance *ret;
 	int status = 0;
 
-	pr_info("%s: +++\n", __func__);
+	pr_info("usb: %s: +++\n", __func__);
 	opts = kzalloc(sizeof(*opts), GFP_KERNEL);
 	if (!opts)
 		return ERR_PTR(-ENOMEM);
@@ -2871,20 +3123,48 @@ static struct usb_function_instance *gmbim_alloc_inst(void)
 
 	status = misc_register(&mbim_device);
 	if (status)
-		pr_err("%s: mbim driver failed to register\n", __func__);
+		pr_err("usb: %s: mbim driver failed to register\n", __func__);
 
-	pr_info("%s: ---\n", __func__);
+	pr_info("usb: %s: ---\n", __func__);
 unlock:
 	mutex_unlock(&mbim_ida_lock);
 	return ret;
 }
 
+#ifdef CONFIG_OF
+static int mbim_parse_dt(struct mbim_dev	*dev)
+{
+	struct device_node *np = NULL;
+	int gpio = 0;	
+
+	np = of_find_compatible_node(NULL, NULL, "samsung,usb-mbim");
+	if (!np) {
+		printk("usb: %s : mbim dt find fails\n", __func__);
+		goto err;
+	}
+
+	gpio = of_get_named_gpio(np, "gpio_mbim_host_wakeup", 0);
+	if (!gpio_is_valid(gpio)) {		
+		pr_err("usb: %s: gpio_mbim_host_wakeup: Invalied gpio pins\n", __func__);
+		goto err;
+	} else
+		dev->host_wakeup_gpio = gpio;
+	return 0;
+err:
+	dev->host_wakeup_gpio = -1;
+	return -1;
+}
+#endif
+
 static struct usb_function *gmbim_alloc(struct usb_function_instance *fi)
 {
 	struct mbim_dev	*dev;
 	struct f_mbim_opts	*opts;
-
-	pr_info("%s: +++\n", __func__);
+#if CONFIG_OF
+	int ret;
+	int gpio = -1;
+#endif 
+	pr_info("usb: %s: +++\n", __func__);
 	opts = container_of(fi, struct f_mbim_opts, func_inst);
 
 	mutex_lock(&opts->lock);
@@ -2901,10 +3181,26 @@ static struct usb_function *gmbim_alloc(struct usb_function_instance *fi)
 
 	dev->mnet_info = kzalloc(sizeof(struct mnet_data_info), GFP_KERNEL);
 	if (!dev->mnet_info) {
-		pr_err("%s: alloc mnet_info fail\n", __func__);
+		pr_err("usb: %s: alloc mnet_info fail\n", __func__);
 		return ERR_PTR(-ENOMEM);
 	}
-	
+#ifdef CONFIG_OF
+	/* Get gpio info from DT */
+	ret = mbim_parse_dt(dev);
+	if (ret) {
+		pr_err("usb: %s: we can't get gpio info\n", __func__);
+	} else {
+		gpio = dev->host_wakeup_gpio;
+		if (gpio_is_valid(gpio)) {
+			ret = gpio_request(gpio, "mbim_pc_waekup");
+			if (ret) {
+				pr_err("usb: failed to gpio request %d\n", gpio);
+			}
+			gpio_direction_output(gpio, 1);
+			pr_info("usb: %s : gpio = %d \n", __func__, gpio);
+		}
+	}
+#endif	
 	++opts->refcnt;
 	dev->minor = opts->minor;
 	dev->pnp_string = opts->pnp_string;
@@ -2920,12 +3216,12 @@ static struct usb_function *gmbim_alloc(struct usb_function_instance *fi)
 	dev->function.disable = mbim_func_disable;
 	dev->function.req_match = gmbim_req_match;
 	dev->function.free_func = gmbim_free;
+	dev->function.strings = mbim_strings;
 
 	INIT_LIST_HEAD(&dev->tx_reqs);
 	INIT_LIST_HEAD(&dev->rx_reqs);
 	INIT_LIST_HEAD(&dev->rx_buffers);
 	INIT_LIST_HEAD(&dev->tx_reqs_active);
-	INIT_LIST_HEAD(&dev->rx_reqs_active);
 	INIT_LIST_HEAD(&dev->ul_shared_reqs);
 	INIT_LIST_HEAD(&dev->dl_shared_reqs);
 
@@ -2939,7 +3235,10 @@ static struct usb_function *gmbim_alloc(struct usb_function_instance *fi)
 	mutex_init(&dev->lock_mbim_io);
 	init_waitqueue_head(&dev->rx_wait);
 	init_waitqueue_head(&dev->tx_wait);
-	init_waitqueue_head(&dev->tx_flush_wait);
+
+	init_waitqueue_head(&dev->read_wq);
+	init_waitqueue_head(&dev->write_wq);
+	init_waitqueue_head(&dev->sync_wq);
 
 	dev->interface = -1;
 	dev->mbim_cdev_open = 0;
@@ -2950,18 +3249,26 @@ static struct usb_function *gmbim_alloc(struct usb_function_instance *fi)
 
 	dev->mbim_cdev_open = 0;
 	dev->queue = mbim_queue_init();
-#if 1
+	mbim_resume_cmpl = 1;
+#if 0
+	if (gpio_is_valid(gpio)) {
+		register_mbim_gpio_info(gpio);
+	}
+#endif
+
 	dev->wrap = 1;
 	dev->unwrap = 1;
-#endif
+	dev->dl_max_pkts_per_xfer = MBIM_MAX_DATAGRAM;
+	dev->ul_max_pkts_per_xfer = 1;
+
 	_mbim_dev = dev;
-	pr_info("%s: ---\n", __func__);
+
+	pr_info("usb: %s: ---\n", __func__);
 	return &dev->function;
 }
 
 DECLARE_USB_FUNCTION_INIT(mbim, gmbim_alloc_inst, gmbim_alloc);
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Hajesoft");
 
 static int gmbim_setup(int count)
 {

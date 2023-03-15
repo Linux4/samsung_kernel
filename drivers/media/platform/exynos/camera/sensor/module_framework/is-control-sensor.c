@@ -628,7 +628,7 @@ static int is_sensor_ctl_set_totalgain(struct is_device_sensor *device,
 	int ret = 0;
 
 	FIMC_BUG(!device);
-	
+
 	if (expo.val == 0 || adj_again.val == 0 || adj_dgain.val == 0) {
 		dbg_sensor(1, "[%s] Skip set Total gain (%d)\n",
 				__func__, expo, adj_again.val, adj_dgain.val);
@@ -797,7 +797,7 @@ void is_sensor_ctl_frame_evt(struct is_device_sensor *device)
 			if (ret < 0)
 				err("[%s] frame number(%d) update gains fail\n", __func__, applied_frame_number);
 		}
-		
+
 		if (module_ctl->update_wb_gains) {
 			ret = is_sensor_peri_s_wb_gains(device, module_ctl->wb_gains);
 			if (ret < 0)
@@ -806,13 +806,16 @@ void is_sensor_ctl_frame_evt(struct is_device_sensor *device)
 			module_ctl->update_wb_gains = false;
 		}
 
-		if (module_ctl->update_3hdr_stat || module_ctl->update_roi) {
+		if (module_ctl->update_3hdr_stat || module_ctl->update_roi
+			|| module_ctl->update_tone || module_ctl->update_ev) {
 			ret = is_sensor_peri_s_sensor_stats(device, true, module_ctl, NULL);
 			if (ret < 0)
 				err("[%s] frame number(%d) set exposure fail\n", __func__, applied_frame_number);
 
 			module_ctl->update_roi = false;
 			module_ctl->update_3hdr_stat = false;
+			module_ctl->update_tone = false;
+			module_ctl->update_ev = false;
 		}
 
 		module_ctl->force_update = false;

@@ -1,9 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * linux/drivers/video/fbdev/exynos/panel/panel_poc.h
- *
- * Samsung Common LCD Driver.
- *
- * Copyright (c) 2017 Samsung Electronics
+ * Copyright (c) Samsung Electronics Co., Ltd.
  * Gwanghui Lee <gwanghui.lee@samsung.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -193,6 +190,7 @@ struct panel_poc_info {
 	u8 *wdata;
 	u32 wdata_len;
 	u32 raddr;
+	u32 rdata_len;
 
 	u8 poc;
 	u8 poc_chksum[POC_CHKSUM_LEN];
@@ -258,6 +256,14 @@ enum dim_flash_items {
 	MAX_DIM_FLASH,
 };
 
+struct dim_flash_info {
+	char *name;
+	u32 offset;
+	u32 nrow;
+	u32 ncol;
+};
+#endif
+
 enum {
 	PARTITION_REGION_DATA,
 	PARTITION_REGION_CHKSUM,
@@ -271,14 +277,6 @@ enum {
 	PARTITION_WRITE_CHECK_OK,
 	MAX_PARTITION_WRITE_CHECK,
 };
-
-struct dim_flash_info {
-	char *name;
-	u32 offset;
-	u32 nrow;
-	u32 ncol;
-};
-#endif
 
 struct poc_partition {
 	char *name;
@@ -316,6 +314,7 @@ struct panel_poc_data {
 	struct poc_partition *partition;
 	u32 nr_partition;
 	u32 wdata_len;
+	u32 rdata_len;
 #ifdef CONFIG_SUPPORT_POC_SPI
 	enum poc_conn_src conn_src;
 	u32 spi_wdata_len;

@@ -32,6 +32,35 @@ do {									\
 	temp_id.context_id;						\
 })
 
+#define DSP_MD5_SIZE			(32)
+
+enum dsp_bin_type {
+	BIN_TYPE_DSP_BIN,
+	BIN_TYPE_DSP_MASTER_BIN,
+	BIN_TYPE_DSP_IAC_DM_BIN,
+	BIN_TYPE_DSP_IAC_PM_BIN,
+	BIN_TYPE_DSP_IVP_DM_BIN,
+	BIN_TYPE_DSP_IVP_PM_BIN,
+	BIN_TYPE_DSP_RELOC_RULES_BIN,
+	BIN_TYPE_DSP_GKT_XML,
+	BIN_TYPE_LIB_IVP_ELF,
+	BIN_TYPE_LIB_LOG_ELF,
+	BIN_TYPE_MAX,
+};
+
+struct dsp_bin_file {
+	unsigned int			name;
+	unsigned int			size;
+	char				md5[DSP_MD5_SIZE];
+	unsigned long long		vaddr;
+};
+
+struct dsp_bin_file_list {
+	unsigned int			count;
+	unsigned int			reserved;
+	struct dsp_bin_file		bins[BIN_TYPE_MAX];
+};
+
 enum dsp_common_message_id {
 	DSP_COMMON_LOAD_GRAPH,
 	DSP_COMMON_EXECUTE_MSG,

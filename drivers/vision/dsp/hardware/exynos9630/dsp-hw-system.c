@@ -10,11 +10,13 @@
 #include <linux/io.h>
 #include <linux/delay.h>
 #include <linux/version.h>
+#include <linux/uaccess.h>
 
 #include "dsp-log.h"
 #include "dsp-device.h"
 #include "dsp-binary.h"
 #include "hardware/dsp-system.h"
+#include "hardware/dsp-dump.h"
 
 #define DSP_WAIT_BOOT_TIME	(100)
 #define DSP_WAIT_MAILBOX_TIME	(1500)
@@ -25,13 +27,79 @@
 
 #define DSP_SET_DEFAULT_LAYER	(0xffffffff)
 
+int dsp_system_request_control(struct dsp_system *sys, unsigned int id,
+		union dsp_control *cmd)
+{
+	int ret;
+	char boost_mo[DSP_BUS_SCENARIO_NAME_LEN] = "max";
+
+	dsp_enter();
+	switch (id) {
+	case DSP_CONTROL_ENABLE_DVFS:
+		ret = dsp_pm_dvfs_enable(&sys->pm, cmd->dvfs.pm_qos);
+		if (ret)
+			goto p_err;
+		break;
+	case DSP_CONTROL_DISABLE_DVFS:
+		ret = dsp_pm_dvfs_disable(&sys->pm, cmd->dvfs.pm_qos);
+		if (ret)
+			goto p_err;
+		break;
+	case DSP_CONTROL_ENABLE_BOOST:
+		mutex_lock(&sys->boost_lock);
+		if (!sys->boost) {
+			ret = dsp_pm_boost_enable(&sys->pm);
+			if (ret) {
+				mutex_unlock(&sys->boost_lock);
+				goto p_err;
+			}
+
+			ret = dsp_bus_mo_get(&sys->bus, boost_mo);
+			if (ret) {
+				dsp_pm_boost_disable(&sys->pm);
+				mutex_unlock(&sys->boost_lock);
+				goto p_err;
+			}
+
+			sys->boost = true;
+		}
+		mutex_unlock(&sys->boost_lock);
+		break;
+	case DSP_CONTROL_DISABLE_BOOST:
+		mutex_lock(&sys->boost_lock);
+		if (sys->boost) {
+			dsp_bus_mo_put(&sys->bus, boost_mo);
+			dsp_pm_boost_disable(&sys->pm);
+			sys->boost = false;
+		}
+		mutex_unlock(&sys->boost_lock);
+		break;
+	case DSP_CONTROL_REQUEST_MO:
+		ret = dsp_bus_mo_get(&sys->bus, cmd->mo.scenario_name);
+		if (ret)
+			goto p_err;
+		break;
+	case DSP_CONTROL_RELEASE_MO:
+		dsp_bus_mo_put(&sys->bus, cmd->mo.scenario_name);
+		break;
+	default:
+		ret = -EINVAL;
+		dsp_err("control cmd id is invalid(%u)\n", id);
+		goto p_err;
+	}
+	dsp_leave();
+	return 0;
+p_err:
+	return ret;
+}
+
 static int __dsp_system_wait_task(struct dsp_system *sys, struct dsp_task *task)
 {
 	int ret;
 	long timeout;
 
 	dsp_enter();
-	timeout = wait_event_interruptible_timeout(sys->task_manager.done_wq,
+	timeout = wait_event_timeout(sys->task_manager.done_wq,
 			task->state == DSP_TASK_STATE_COMPLETE,
 			msecs_to_jiffies(sys->wait[DSP_SYSTEM_WAIT_MAILBOX]));
 	if (!timeout) {
@@ -39,7 +107,7 @@ static int __dsp_system_wait_task(struct dsp_system *sys, struct dsp_task *task)
 		dsp_err("task wait time(%ums) is expired(%u/%u)\n",
 				sys->wait[DSP_SYSTEM_WAIT_MAILBOX],
 				task->id, task->message_id);
-		dsp_ctrl_dump();
+		dsp_dump_ctrl();
 		goto p_err;
 	}
 
@@ -95,10 +163,14 @@ int dsp_system_execute_task(struct dsp_system *sys, struct dsp_task *task)
 
 	dsp_enter();
 
+	dsp_pm_update_devfreq_busy(&sys->pm, task->pool->pm_qos);
 	ret = dsp_mailbox_send_task(&sys->mailbox, task);
 	if (ret)
 		goto p_err;
 
+	dsp_dump_mailbox_pool_debug(task->pool);
+
+	/* TODO Devfreq change criteria required if not waiting */
 	if (task->wait) {
 		ret = __dsp_system_wait_task(sys, task);
 		if (ret) {
@@ -117,39 +189,49 @@ int dsp_system_execute_task(struct dsp_system *sys, struct dsp_task *task)
 		}
 	}
 
+	dsp_pm_update_devfreq_idle(&sys->pm, task->pool->pm_qos);
 	task->owner->normal_count++;
 	dsp_leave();
 	return 0;
 p_err:
+	dsp_pm_update_devfreq_idle(&sys->pm, task->pool->pm_qos);
 	task->owner->error_count++;
-	dsp_mailbox_dump_pool(task->pool);
-	dsp_task_manager_dump_count(task->owner);
-	dsp_kernel_dump(&sys->dspdev->core.graph_manager.kernel_manager);
+	dsp_dump_mailbox_pool_error(task->pool);
+	dsp_dump_task_manager_count(task->owner);
+	dsp_dump_kernel(&sys->dspdev->core.graph_manager.kernel_manager);
 	return ret;
 }
 
 void dsp_system_iovmm_fault_dump(struct dsp_system *sys)
 {
 	dsp_enter();
-	dsp_ctrl_dump();
-	dsp_task_manager_dump_count(&sys->task_manager);
-	dsp_kernel_dump(&sys->dspdev->core.graph_manager.kernel_manager);
+	dsp_dump_ctrl();
+	dsp_dump_task_manager_count(&sys->task_manager);
+	dsp_dump_kernel(&sys->dspdev->core.graph_manager.kernel_manager);
 	dsp_leave();
 }
 
-static int __dsp_system_master_copy(void __iomem *dst, unsigned char *src,
-		size_t size)
+static int __dsp_system_master_copy(struct dsp_system *sys)
 {
 	int ret;
+	void __iomem *dst;
+	unsigned char *src;
+	size_t size;
 	unsigned int remain = 0;
 
 	dsp_enter();
-	if (!dst || !src || !size) {
-		ret = -EINVAL;
-		dsp_warn("master bin must be not zero[%#lx/%#lx/%zu]\n",
-				(long)dst, (long)src, size);
-		goto p_err;
+	if (!sys->boot_bin_size) {
+		dsp_warn("master bin must not be zero(%zu)\n",
+				sys->boot_bin_size);
+		ret = dsp_binary_load(DSP_MASTER_FW_NAME, NULL,
+				DSP_FW_EXTENSION, sys->boot_bin,
+				sizeof(sys->boot_bin), &sys->boot_bin_size);
+		if (ret)
+			goto p_err;
 	}
+	dst = sys->boot_mem;
+	src = sys->boot_bin;
+	size = sys->boot_bin_size;
 
 	__iowrite32_copy(dst, src, size >> 2);
 	if (size & 0x3) {
@@ -171,7 +253,7 @@ static void __dsp_system_init(struct dsp_system *sys)
 	dsp_enter();
 	pmem = sys->memory.priv_mem;
 
-	dsp_ctrl_sm_writel(DSP_SM_RESERVED(TO_CA5_INT_STATUS), 0x0);
+	dsp_ctrl_sm_writel(DSP_SM_RESERVED(TO_CC_INT_STATUS), 0x0);
 	dsp_ctrl_sm_writel(DSP_SM_RESERVED(TO_HOST_INT_STATUS), 0x0);
 
 	dsp_ctrl_sm_writel(DSP_SM_RESERVED(DEBUG_LAYER_START),
@@ -181,7 +263,7 @@ static void __dsp_system_init(struct dsp_system *sys)
 	memcpy(pmem[DSP_PRIV_MEM_FW].kvaddr, pmem[DSP_PRIV_MEM_FW].bac_kvaddr,
 			pmem[DSP_PRIV_MEM_FW].used_size);
 
-	dsp_ctrl_sm_writel(DSP_SM_RESERVED(CA5_DSP_FW_RESERVED_SIZE),
+	dsp_ctrl_sm_writel(DSP_SM_RESERVED(FW_RESERVED_SIZE),
 			pmem[DSP_PRIV_MEM_FW].size);
 	dsp_ctrl_sm_writel(DSP_SM_RESERVED(IVP_PM_IOVA),
 			pmem[DSP_PRIV_MEM_IVP_PM].iova);
@@ -207,13 +289,13 @@ static void __dsp_system_init(struct dsp_system *sys)
 			pmem[DSP_PRIV_MEM_FW_LOG].iova);
 	dsp_ctrl_sm_writel(DSP_SM_RESERVED(FW_LOG_MEMORY_SIZE),
 			pmem[DSP_PRIV_MEM_FW_LOG].size);
-	dsp_ctrl_sm_writel(DSP_SM_RESERVED(TO_CA5_MBOX_MEMORY_IOVA),
+	dsp_ctrl_sm_writel(DSP_SM_RESERVED(TO_CC_MBOX_MEMORY_IOVA),
 			pmem[DSP_PRIV_MEM_MBOX_MEMORY].iova);
-	dsp_ctrl_sm_writel(DSP_SM_RESERVED(TO_CA5_MBOX_MEMORY_SIZE),
+	dsp_ctrl_sm_writel(DSP_SM_RESERVED(TO_CC_MBOX_MEMORY_SIZE),
 			pmem[DSP_PRIV_MEM_MBOX_MEMORY].size);
-	dsp_ctrl_sm_writel(DSP_SM_RESERVED(TO_CA5_MBOX_POOL_IOVA),
+	dsp_ctrl_sm_writel(DSP_SM_RESERVED(TO_CC_MBOX_POOL_IOVA),
 			pmem[DSP_PRIV_MEM_MBOX_POOL].iova);
-	dsp_ctrl_sm_writel(DSP_SM_RESERVED(TO_CA5_MBOX_POOL_SIZE),
+	dsp_ctrl_sm_writel(DSP_SM_RESERVED(TO_CC_MBOX_POOL_SIZE),
 			pmem[DSP_PRIV_MEM_MBOX_POOL].size);
 
 	dsp_ctrl_sm_writel(DSP_SM_RESERVED(KERNEL_MODE), DSP_DYNAMIC_KERNEL);
@@ -227,13 +309,15 @@ static void __dsp_system_init(struct dsp_system *sys)
 	dsp_info("CHIPID : %#x\n", chip_id);
 
 	dsp_ctrl_sm_writel(DSP_SM_RESERVED(PRODUCT_ID), 0xE980);
-	dsp_ctrl_sm_writel(DSP_SM_RESERVED(TEMP_1FD4), 0x0);
-	dsp_ctrl_sm_writel(DSP_SM_RESERVED(TEMP_1FD8), 0x0);
 	dsp_ctrl_sm_writel(DSP_SM_RESERVED(TEMP_1FDC), 0x0);
 	dsp_ctrl_sm_writel(DSP_SM_RESERVED(TEMP_1FE0), 0x0);
 	dsp_ctrl_sm_writel(DSP_SM_RESERVED(TEMP_1FE4), 0x0);
 	dsp_ctrl_sm_writel(DSP_SM_RESERVED(TEMP_1FE8), 0x0);
 	dsp_ctrl_sm_writel(DSP_SM_RESERVED(TEMP_1FEC), 0x0);
+	dsp_ctrl_sm_writel(DSP_SM_RESERVED(TEMP_1FF0), 0x0);
+	dsp_ctrl_sm_writel(DSP_SM_RESERVED(TEMP_1FF4), 0x0);
+	dsp_ctrl_sm_writel(DSP_SM_RESERVED(TEMP_1FF8), 0x0);
+	dsp_ctrl_sm_writel(DSP_SM_RESERVED(TEMP_1FFC), 0x0);
 	dsp_leave();
 }
 
@@ -250,7 +334,7 @@ static int __dsp_system_wait_boot(struct dsp_system *sys)
 		ret = -ETIMEDOUT;
 		dsp_err("Failed to boot DSP (wait time %ums)\n",
 				sys->wait[DSP_SYSTEM_WAIT_BOOT]);
-		dsp_ctrl_dump();
+		dsp_dump_ctrl();
 		goto p_err;
 	} else {
 		dsp_info("Completed to boot DSP\n");
@@ -285,24 +369,21 @@ int dsp_system_boot(struct dsp_system *sys)
 	sys->system_flag = 0x0;
 
 	if (sys->boot_init & BIT(DSP_SYSTEM_NPU_INIT)) {
-		dsp_ctrl_debug_init(&sys->ctrl);
+		dsp_ctrl_init(&sys->ctrl);
 	} else {
 		dsp_ctrl_all_init(&sys->ctrl);
-		ret = __dsp_system_master_copy(sys->boot_mem, sys->boot_bin,
-				sys->boot_bin_size);
-		if (ret) {
-			ret = dsp_binary_master_load(DSP_MASTER_FW_NAME,
-					sys->boot_mem, sys->boot_mem_size);
-			if (ret < 0)
-				goto p_err;
-		}
+		ret = __dsp_system_master_copy(sys);
+		if (ret)
+			goto p_err;
 	}
 
 	__dsp_system_init(sys);
 	dsp_hw_debug_log_start(&sys->debug);
 
+	dsp_pm_update_devfreq_boot(&sys->pm);
 	dsp_ctrl_start(&sys->ctrl);
 	ret = __dsp_system_wait_boot(sys);
+	dsp_pm_update_devfreq_min(&sys->pm);
 	if (ret)
 		goto p_err_reset;
 
@@ -336,7 +417,7 @@ static int __dsp_system_wait_reset(struct dsp_system *sys)
 		ret = -ETIMEDOUT;
 		dsp_err("Failed to reset DSP (wait time %ums)\n",
 				sys->wait[DSP_SYSTEM_WAIT_RESET]);
-		dsp_ctrl_dump();
+		dsp_dump_ctrl();
 		goto p_err;
 	}
 
@@ -357,12 +438,14 @@ int dsp_system_reset(struct dsp_system *sys)
 	}
 
 	sys->system_flag = 0x0;
-	dsp_interface_interrupt(&sys->interface, BIT(DSP_TO_CA5_INT_RESET));
+	dsp_pm_update_devfreq_boot(&sys->pm);
+	dsp_interface_interrupt(&sys->interface, BIT(DSP_TO_CC_INT_RESET));
 	ret = __dsp_system_wait_reset(sys);
 	if (ret)
 		dsp_ctrl_force_reset(&sys->ctrl);
 	else
 		dsp_ctrl_reset(&sys->ctrl);
+	dsp_pm_update_devfreq_min(&sys->pm);
 
 	dsp_mailbox_stop(&sys->mailbox);
 	dsp_hw_debug_log_stop(&sys->debug);
@@ -375,6 +458,21 @@ int dsp_system_power_active(struct dsp_system *sys)
 {
 	dsp_check();
 	return dsp_pm_devfreq_active(&sys->pm);
+}
+
+int dsp_system_set_boot_qos(struct dsp_system *sys, int val)
+{
+	int ret;
+
+	dsp_enter();
+	ret = dsp_pm_set_boot_qos(&sys->pm, val);
+	if (ret)
+		goto p_err;
+
+	dsp_leave();
+	return 0;
+p_err:
+	return ret;
 }
 
 int dsp_system_runtime_resume(struct dsp_system *sys)
@@ -410,7 +508,6 @@ int dsp_system_runtime_suspend(struct dsp_system *sys)
 int dsp_system_resume(struct dsp_system *sys)
 {
 	dsp_enter();
-	dsp_pm_resume(&sys->pm);
 	__dsp_system_recovery(sys);
 	dsp_leave();
 	return 0;
@@ -420,7 +517,6 @@ int dsp_system_suspend(struct dsp_system *sys)
 {
 	dsp_enter();
 	__dsp_system_flush(sys);
-	dsp_pm_suspend(&sys->pm);
 	dsp_leave();
 	return 0;
 }
@@ -436,17 +532,12 @@ static int __dsp_system_npu_boot(struct dsp_system *sys, dma_addr_t fw_iova)
 		dsp_ctrl_sm_writel(DSP_SM_RESERVED(NPU_FW_IOVA), fw_iova);
 		dsp_ctrl_writel(DSPC_CPU_RELEASE, release | 0x6);
 	} else {
-		dsp_ctrl_boot_init(&sys->ctrl);
+		dsp_ctrl_common_init(&sys->ctrl);
 		dsp_ctrl_sm_writel(DSP_SM_RESERVED(NPU_FW_IOVA), fw_iova);
 
-		ret = __dsp_system_master_copy(sys->boot_mem, sys->boot_bin,
-				sys->boot_bin_size);
-		if (ret) {
-			ret = dsp_binary_master_load(DSP_MASTER_FW_NAME,
-					sys->boot_mem, sys->boot_mem_size);
-			if (ret < 0)
-				goto p_err;
-		}
+		ret = __dsp_system_master_copy(sys);
+		if (ret)
+			goto p_err;
 
 		dsp_ctrl_writel(DSPC_CPU_RELEASE, 0x6);
 	}
@@ -490,13 +581,67 @@ int dsp_system_npu_start(struct dsp_system *sys, bool boot, dma_addr_t fw_iova)
 		return __dsp_system_npu_reset(sys);
 }
 
+static int __dsp_system_binary_load(struct dsp_system *sys)
+{
+	int ret;
+	struct dsp_memory *mem;
+	struct dsp_priv_mem *pmem;
+
+	dsp_enter();
+	mem = &sys->memory;
+
+	pmem = &mem->priv_mem[DSP_PRIV_MEM_FW];
+	ret = dsp_binary_load(DSP_FW_NAME, sys->fw_postfix, DSP_FW_EXTENSION,
+			pmem->bac_kvaddr, pmem->size, &pmem->used_size);
+	if (ret)
+		goto p_err_load;
+
+	pmem = &mem->priv_mem[DSP_PRIV_MEM_IVP_PM];
+	ret = dsp_binary_load(DSP_IVP_PM_NAME, sys->fw_postfix,
+			DSP_FW_EXTENSION, pmem->kvaddr, pmem->size,
+			&pmem->used_size);
+	if (ret)
+		goto p_err_load;
+
+	pmem = &mem->priv_mem[DSP_PRIV_MEM_IVP_DM];
+	ret = dsp_binary_load(DSP_IVP_DM_NAME, sys->fw_postfix,
+			DSP_FW_EXTENSION, pmem->kvaddr, pmem->size,
+			&pmem->used_size);
+	if (ret)
+		goto p_err_load;
+
+	pmem = &mem->priv_mem[DSP_PRIV_MEM_IAC_PM];
+	ret = dsp_binary_load(DSP_IAC_PM_NAME, sys->fw_postfix,
+			DSP_FW_EXTENSION, pmem->kvaddr, pmem->size,
+			&pmem->used_size);
+	if (ret)
+		goto p_err_load;
+
+	pmem = &mem->priv_mem[DSP_PRIV_MEM_IAC_DM];
+	ret = dsp_binary_load(DSP_IAC_DM_NAME, sys->fw_postfix,
+			DSP_FW_EXTENSION, pmem->kvaddr, pmem->size,
+			&pmem->used_size);
+	if (ret)
+		goto p_err_load;
+
+	dsp_leave();
+	return 0;
+p_err_load:
+	return ret;
+}
+
 int dsp_system_start(struct dsp_system *sys)
 {
+	int ret;
 	struct dsp_task_manager *tmgr;
 	unsigned long flags;
 
 	dsp_enter();
 	tmgr = &sys->task_manager;
+
+	ret = __dsp_system_binary_load(sys);
+	if (ret)
+		goto p_err_load;
 
 	spin_lock_irqsave(&tmgr->slock, flags);
 	dsp_task_manager_set_block_mode(tmgr, false);
@@ -504,6 +649,8 @@ int dsp_system_start(struct dsp_system *sys)
 
 	dsp_leave();
 	return 0;
+p_err_load:
+	return ret;
 }
 
 int dsp_system_stop(struct dsp_system *sys)
@@ -511,55 +658,6 @@ int dsp_system_stop(struct dsp_system *sys)
 	dsp_enter();
 	dsp_leave();
 	return 0;
-}
-
-static int __dsp_system_binary_load(struct dsp_system *sys)
-{
-	int ret;
-	struct dsp_memory *mem;
-
-	dsp_enter();
-	mem = &sys->memory;
-
-	ret = dsp_binary_load(DSP_FW_NAME,
-			mem->priv_mem[DSP_PRIV_MEM_FW].bac_kvaddr,
-			mem->priv_mem[DSP_PRIV_MEM_FW].size);
-	if (ret < 0)
-		goto p_err_load;
-	mem->priv_mem[DSP_PRIV_MEM_FW].used_size = ret;
-
-	ret = dsp_binary_load(DSP_IVP_PM_NAME,
-			mem->priv_mem[DSP_PRIV_MEM_IVP_PM].kvaddr,
-			mem->priv_mem[DSP_PRIV_MEM_IVP_PM].size);
-	if (ret < 0)
-		goto p_err_load;
-	mem->priv_mem[DSP_PRIV_MEM_IVP_PM].used_size = ret;
-
-	ret = dsp_binary_load(DSP_IVP_DM_NAME,
-			mem->priv_mem[DSP_PRIV_MEM_IVP_DM].kvaddr,
-			mem->priv_mem[DSP_PRIV_MEM_IVP_DM].size);
-	if (ret < 0)
-		goto p_err_load;
-	mem->priv_mem[DSP_PRIV_MEM_IVP_DM].used_size = ret;
-
-	ret = dsp_binary_load(DSP_IAC_PM_NAME,
-			mem->priv_mem[DSP_PRIV_MEM_IAC_PM].kvaddr,
-			mem->priv_mem[DSP_PRIV_MEM_IAC_PM].size);
-	if (ret < 0)
-		goto p_err_load;
-	mem->priv_mem[DSP_PRIV_MEM_IAC_PM].used_size = ret;
-
-	ret = dsp_binary_load(DSP_IAC_DM_NAME,
-			mem->priv_mem[DSP_PRIV_MEM_IAC_DM].kvaddr,
-			mem->priv_mem[DSP_PRIV_MEM_IAC_DM].size);
-	if (ret < 0)
-		goto p_err_load;
-	mem->priv_mem[DSP_PRIV_MEM_IAC_DM].used_size = ret;
-
-	dsp_leave();
-	return 0;
-p_err_load:
-	return ret;
 }
 
 int dsp_system_open(struct dsp_system *sys)
@@ -574,6 +672,10 @@ int dsp_system_open(struct dsp_system *sys)
 	ret = dsp_clk_open(&sys->clk);
 	if (ret)
 		goto p_err_clk;
+
+	ret = dsp_bus_open(&sys->bus);
+	if (ret)
+		goto p_err_bus;
 
 	ret = dsp_memory_open(&sys->memory);
 	if (ret)
@@ -595,14 +697,8 @@ int dsp_system_open(struct dsp_system *sys)
 	if (ret)
 		goto p_err_hw_debug;
 
-	ret = __dsp_system_binary_load(sys);
-	if (ret)
-		goto p_err_load;
-
 	dsp_leave();
 	return 0;
-p_err_load:
-	dsp_hw_debug_close(&sys->debug);
 p_err_hw_debug:
 	dsp_mailbox_close(&sys->mailbox);
 p_err_mbox:
@@ -612,6 +708,8 @@ p_err_ctrl:
 p_err_interface:
 	dsp_memory_close(&sys->memory);
 p_err_memory:
+	dsp_bus_close(&sys->bus);
+p_err_bus:
 	dsp_clk_close(&sys->clk);
 p_err_clk:
 	dsp_pm_close(&sys->pm);
@@ -627,6 +725,7 @@ int dsp_system_close(struct dsp_system *sys)
 	dsp_ctrl_close(&sys->ctrl);
 	dsp_interface_close(&sys->interface);
 	dsp_memory_close(&sys->memory);
+	dsp_bus_close(&sys->bus);
 	dsp_clk_close(&sys->clk);
 	dsp_pm_close(&sys->pm);
 	dsp_leave();
@@ -638,27 +737,28 @@ static void __dsp_system_master_load_async(const struct firmware *fw,
 {
 	int ret, idx, retry = 10;
 	struct dsp_system *sys;
+	char full_name[DSP_BINARY_NAME_SIZE];
 	size_t size;
 
 	dsp_enter();
 	sys = context;
+	snprintf(full_name, DSP_BINARY_NAME_SIZE, "%s.%s", DSP_MASTER_FW_NAME,
+			DSP_FW_EXTENSION);
 
 	if (!fw) {
 		for (idx = 0; idx < retry; ++idx) {
 #if KERNEL_VERSION(4, 18, 0) > LINUX_VERSION_CODE
-			ret = request_firmware_direct(&fw, DSP_MASTER_FW_NAME,
-					sys->dev);
+			ret = request_firmware_direct(&fw, full_name, sys->dev);
 #else
-			ret = firmware_request_nowarn(&fw, DSP_MASTER_FW_NAME,
-					sys->dev);
+			ret = firmware_request_nowarn(&fw, full_name, sys->dev);
 #endif
 			if (ret >= 0)
 				break;
+			/* Wait for the file system to be mounted at boot time*/
 			msleep(500);
 		}
 		if (ret < 0) {
-			dsp_err("Failed to request binary[%s]\n",
-					DSP_MASTER_FW_NAME);
+			dsp_err("Failed to request binary[%s]\n", full_name);
 			return;
 		}
 	}
@@ -666,7 +766,7 @@ static void __dsp_system_master_load_async(const struct firmware *fw,
 	size = sizeof(sys->boot_bin);
 	if (fw->size > size) {
 		dsp_err("binary(%s) size is over(%zu/%zu)\n",
-				DSP_MASTER_FW_NAME, fw->size, size);
+				full_name, fw->size, size);
 		release_firmware(fw);
 		return;
 	}
@@ -674,7 +774,7 @@ static void __dsp_system_master_load_async(const struct firmware *fw,
 	memcpy(sys->boot_bin, fw->data, fw->size);
 	sys->boot_bin_size = fw->size;
 	release_firmware(fw);
-	dsp_info("binary[%s] is loaded\n", DSP_MASTER_FW_NAME);
+	dsp_info("binary[%s/%zu] is loaded\n", full_name, sys->boot_bin_size);
 	dsp_leave();
 }
 
@@ -747,8 +847,13 @@ int dsp_system_probe(struct dsp_device *dspdev)
 	sys->wait[DSP_SYSTEM_WAIT_BOOT] = DSP_WAIT_BOOT_TIME;
 	sys->wait[DSP_SYSTEM_WAIT_MAILBOX] = DSP_WAIT_MAILBOX_TIME;
 	sys->wait[DSP_SYSTEM_WAIT_RESET] = DSP_WAIT_RESET_TIME;
+	sys->boost = false;
+	mutex_init(&sys->boost_lock);
+
 	sys->layer_start = DSP_SET_DEFAULT_LAYER;
 	sys->layer_end = DSP_SET_DEFAULT_LAYER;
+
+	dsp_dump_set_value(DSP_DUMP_DEFAULT_VALUE);
 
 	ret = dsp_pm_probe(sys);
 	if (ret)
@@ -757,6 +862,10 @@ int dsp_system_probe(struct dsp_device *dspdev)
 	ret = dsp_clk_probe(sys);
 	if (ret)
 		goto p_err_clk;
+
+	ret = dsp_bus_probe(sys);
+	if (ret)
+		goto p_err_bus;
 
 	ret = dsp_memory_probe(sys);
 	if (ret)
@@ -782,8 +891,8 @@ int dsp_system_probe(struct dsp_device *dspdev)
 	if (ret)
 		goto p_err_hw_debug;
 
-	ret = dsp_binary_load_async(DSP_MASTER_FW_NAME, sys,
-			__dsp_system_master_load_async);
+	ret = dsp_binary_load_async(DSP_MASTER_FW_NAME, NULL, DSP_FW_EXTENSION,
+			sys, __dsp_system_master_load_async);
 	if (ret < 0)
 		goto p_err_bin_load;
 
@@ -802,6 +911,8 @@ p_err_ctrl:
 p_err_interface:
 	dsp_memory_remove(&sys->memory);
 p_err_memory:
+	dsp_bus_remove(&sys->bus);
+p_err_bus:
 	dsp_clk_remove(&sys->clk);
 p_err_clk:
 	dsp_pm_remove(&sys->pm);
@@ -826,6 +937,7 @@ void dsp_system_remove(struct dsp_system *sys)
 	dsp_ctrl_remove(&sys->ctrl);
 	dsp_interface_remove(&sys->interface);
 	dsp_memory_remove(&sys->memory);
+	dsp_bus_remove(&sys->bus);
 	dsp_clk_remove(&sys->clk);
 	dsp_pm_remove(&sys->pm);
 	devm_iounmap(sys->dev, sys->chip_id);

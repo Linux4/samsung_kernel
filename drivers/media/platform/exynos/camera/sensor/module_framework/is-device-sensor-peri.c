@@ -451,6 +451,7 @@ int is_sensor_mode_change(struct is_cis *cis, u32 mode)
 void is_sensor_setting_mode_change(struct is_device_sensor_peri *sensor_peri)
 {
 	struct is_device_sensor *device;
+	struct is_sensor_ctl *sensor_ctrl;
 	struct ae_param expo;
 	struct ae_param again;
 	struct ae_param dgain;
@@ -458,6 +459,7 @@ void is_sensor_setting_mode_change(struct is_device_sensor_peri *sensor_peri)
 	u32 tgain[EXPOSURE_GAIN_MAX] = {0, 0, 0};
 	enum is_exposure_gain_count num_data;
 	u32 frame_duration = 0;
+	u32 m_fcount;
 
 	FIMC_BUG_VOID(!sensor_peri);
 
@@ -534,8 +536,13 @@ void is_sensor_setting_mode_change(struct is_device_sensor_peri *sensor_peri)
 		err("[%s] invalid exp_gain_count(%d)\n", __func__, num_data);
 	}
 
-	if (sensor_peri->cis.long_term_mode.sen_strm_off_on_enable)
+	if (sensor_peri->cis.long_term_mode.sen_strm_off_on_enable) {
 		CALL_CISOPS(&sensor_peri->cis, cis_set_long_term_exposure, sensor_peri->subdev_cis);
+	} else {
+		if (sensor_peri->cis.cis_data->frame_length_lines_shifter > 0
+			&& sensor_peri->cis.cis_data->min_frame_us_time >= 1000000)
+			CALL_CISOPS(&sensor_peri->cis, cis_data_calculation, sensor_peri->subdev_cis, device->cfg->mode);
+	}
 
 	CALL_CISOPS(&sensor_peri->cis, cis_adjust_frame_duration, sensor_peri->subdev_cis,
 			expo.long_val, &frame_duration);
@@ -553,14 +560,25 @@ void is_sensor_setting_mode_change(struct is_device_sensor_peri *sensor_peri)
 	}
 
 	is_sensor_peri_s_wb_gains(device, sensor_peri->cis.mode_chg_wb_gains);
-	is_sensor_peri_s_sensor_stats(device, false, NULL, sensor_peri->cis.sensor_stats);
+	is_sensor_peri_s_sensor_stats(device, false, NULL,
+				(void *)(uintptr_t)(sensor_peri->cis.sensor_stats || sensor_peri->cis.lsc_table_status));
 
-	sensor_peri->sensor_interface.cis_itf_ops.request_reset_expo_gain(&sensor_peri->sensor_interface,
-			num_data,
-			&expo.long_val,
-			tgain,
-			&again.long_val,
-			&dgain.long_val);
+	m_fcount = device->fcount % EXPECT_DM_NUM;
+	sensor_ctrl = &sensor_peri->cis.sensor_ctls[m_fcount];
+
+	/*
+	 * When sensor mode change with MFHDR Capture as Cropped Remosaic EX mode in case of upper x2 zoom,
+	 * exp & gain reset don't be required.
+	 */
+	if (device->cfg->ex_mode != EX_LOW_RES_TETRA
+		&& sensor_ctrl->force_update == false) {
+		sensor_peri->sensor_interface.cis_itf_ops.request_reset_expo_gain(&sensor_peri->sensor_interface,
+				num_data,
+				&expo.long_val,
+				tgain,
+				&again.long_val,
+				&dgain.long_val);
+	}
 }
 
 void is_sensor_flash_fire_work(struct work_struct *data)
@@ -737,7 +755,7 @@ void is_sensor_flash_fire_work(struct work_struct *data)
 #ifdef CONFIG_LEDS_S2MU106_FLASH
 					pdo_ctrl_by_flash(0);
 					muic_afc_set_voltage(9);
-					info("[%s](%d) MAIN Flash ERR: Power Down set Clear(5V -> 9V).\n" ,__func__,__LINE__);
+					info("[%s](%d) MAIN Flash OFF: Power Down set Clear(5V -> 9V).\n" ,__func__,__LINE__);
 #endif
 				}
 			} else {
@@ -999,6 +1017,11 @@ void is_sensor_muic_ctrl_and_flash_fire(struct work_struct *data)
 			muic_afc_set_voltage(9);
 			info("[%s](%d) Pre-Flash ERR: Power Down Volatge set Clear(5V -> 9V).\n" ,__func__,__LINE__);
 		}
+	}
+	else if (flash->flash_data.mode == CAM2_FLASH_MODE_OFF) { /* Torch off - used only in Video Mode */
+		pdo_ctrl_by_flash(0);
+		muic_afc_set_voltage(9);
+		info("[%s](%d) Pre-Flash OFF: Power Down Volatge set Clear(5V -> 9V).\n" ,__func__,__LINE__);
 	}
 #endif
 }
@@ -2100,6 +2123,20 @@ int is_sensor_peri_s_stream(struct is_device_sensor *device,
 		if (cis->dual_sync_mode)
 			is_sensor_peri_ctl_dual_sync(device, on);
 
+#ifdef USE_HIGH_RES_FLASH_FIRE_BEFORE_STREAM_ON
+		if (sensor_peri->flash != NULL) {
+			if (dual_info->mode == IS_DUAL_MODE_NOTHING) {
+				if (sensor_peri->flash->flash_data.high_resolution_flash == true) {
+					ret = is_sensor_flash_fire(sensor_peri, sensor_peri->flash->flash_data.intensity);
+					sensor_peri->flash->flash_data.high_resolution_flash = false;
+					if (ret) {
+						err("failed to turn off flash at flash expired handler\n");
+					}
+				}
+			}
+		}
+#endif
+
 		ret = CALL_CISOPS(cis, cis_stream_on, subdev_cis);
 		if (ret < 0) {
 			err("[%s]: sensor stream on fail\n", __func__);
@@ -2181,6 +2218,9 @@ int is_sensor_peri_s_stream(struct is_device_sensor *device,
 		if (sensor_peri->flash != NULL) {
 			if (dual_info->mode == IS_DUAL_MODE_NOTHING) {
 				sensor_peri->flash->flash_data.mode = CAM2_FLASH_MODE_OFF;
+#ifdef USE_HIGH_RES_FLASH_FIRE_BEFORE_STREAM_ON
+				sensor_peri->flash->flash_data.high_resolution_flash = false;
+#endif
 				if (sensor_peri->flash->flash_data.flash_fired == true) {
 					ret = is_sensor_flash_fire(sensor_peri, 0);
 					if (ret) {
@@ -2206,10 +2246,23 @@ int is_sensor_peri_s_stream(struct is_device_sensor *device,
 			sensor_peri->cis.sensor_ctls[i].valid_flash_udctrl = false;
 
 			memset(&sensor_peri->cis.sensor_ctls[i].roi_control, 0, sizeof(struct roi_setting_t));
-			memset(&sensor_peri->cis.sensor_ctls[i].stat_control, 0,
+			memset(&sensor_peri->cis.sensor_ctls[i].lsi_stat_control, 0,
 					sizeof(struct sensor_lsi_3hdr_stat_control_per_frame));
+			memset(&sensor_peri->cis.sensor_ctls[i].imx_stat_control, 0,
+					sizeof(struct sensor_imx_3hdr_stat_control_per_frame));
+			memset(&sensor_peri->cis.sensor_ctls[i].imx_tone_control, 0,
+					sizeof(struct sensor_imx_3hdr_tone_control));
+			memset(&sensor_peri->cis.sensor_ctls[i].imx_ev_control, 0,
+					sizeof(struct sensor_imx_3hdr_ev_control));
 		}
-		sensor_peri->cis.sensor_stats = NULL;
+		sensor_peri->cis.sensor_stats = false;
+		memset(&sensor_peri->cis.imx_sensor_stats, 0,
+				sizeof(struct sensor_imx_3hdr_stat_control_mode_change));
+		memset(&sensor_peri->cis.lsi_sensor_stats, 0,
+				sizeof(struct sensor_lsi_3hdr_stat_control_mode_change));
+		sensor_peri->cis.lsc_table_status = false;
+		memset(&sensor_peri->cis.imx_lsc_table_3hdr, 0,
+				sizeof(struct sensor_imx_3hdr_lsc_table_init));
 
 		sensor_peri->use_sensor_work = false;
 	}
@@ -2348,8 +2401,76 @@ p_err:
 }
 #endif
 
+#ifdef SUPPORT_SENSOR_SEAMLESS_3HDR
+static int is_sensor_peri_s_3hdr_mode(struct is_device_sensor *device,
+		struct seamless_mode_change_info *mode_change)
+{
+	int ret = 0;
+	struct v4l2_subdev *subdev_module = NULL;
+	struct is_sensor_cfg *cfg = NULL;
+	struct is_module_enum *module = NULL;
+	struct is_device_sensor_peri *sensor_peri = NULL;
+	struct is_cis *cis = NULL;
+	u32 max_again = 0, max_dgain = 0;
+
+	FIMC_BUG(!mode_change);
+	FIMC_BUG(!device);
+
+	subdev_module = device->subdev_module;
+	FIMC_BUG(!subdev_module);
+
+	module = v4l2_get_subdevdata(subdev_module);
+	FIMC_BUG(!module);
+
+	sensor_peri = (struct is_device_sensor_peri *)module->private_data;
+	FIMC_BUG(!sensor_peri);
+	cis = &sensor_peri->cis;
+
+	if (device->ex_mode == mode_change->ex_mode) {
+		info("%s: already in %d exmode\n", __func__, mode_change->ex_mode);
+		return 0;
+	}
+
+	if (cis->cis_data->cur_width != mode_change->width
+			|| cis->cis_data->cur_height != mode_change->height
+			|| device->image.framerate != mode_change->fps) {
+		merr("%dx%d@%d -> %dx%d@%d not allowed", device,
+				cis->cis_data->cur_width, cis->cis_data->cur_height, device->image.framerate,
+				mode_change->width, mode_change->height, mode_change->fps);
+	}
+
+	device->ex_mode = mode_change->ex_mode;
+	clear_bit(IS_SENSOR_S_CONFIG, &device->state);
+
+	cfg = is_sensor_g_mode(device);
+	device->cfg = cfg;
+	if (!device->cfg) {
+		merr("sensor cfg is invalid", device);
+		ret = -EINVAL;
+		goto p_err;
+	}
+	set_bit(IS_SENSOR_S_CONFIG, &device->state);
+
+	sensor_peri->cis.cis_data->sens_config_index_cur = device->cfg->mode;
+
+	CALL_CISOPS(cis, cis_data_calculation, cis->subdev, device->cfg->mode);
+
+	ret = CALL_CISOPS(cis, cis_mode_change, cis->subdev, device->cfg->mode);
+	if (ret < 0)
+		goto p_err;
+
+	/* Update max again, dgain */
+	CALL_CISOPS(cis, cis_get_max_analog_gain, cis->subdev, &max_again);
+	CALL_CISOPS(cis, cis_get_max_digital_gain, cis->subdev, &max_dgain);
+	info("%s: max again permile %d, max dgain permile %d\n", __func__, max_again, max_dgain);
+
+p_err:
+	return ret;
+}
+#endif
+
 int is_sensor_peri_s_mode_change(struct is_device_sensor *device,
-					struct seamless_mode_change_info *mode_change)
+		struct seamless_mode_change_info *mode_change)
 {
 	int ret = 0;
 
@@ -2357,28 +2478,28 @@ int is_sensor_peri_s_mode_change(struct is_device_sensor *device,
 
 	switch(mode_change->ex_mode) {
 #ifdef SUPPORT_REMOSAIC_CROP_ZOOM
-	case EX_CROP_ZOOM:
-		ret = is_sensor_peri_crop_zoom(device, mode_change);
-		break;
-	case EX_NONE:
-		if(device->ex_mode == EX_CROP_ZOOM)
+		case EX_CROP_ZOOM:
 			ret = is_sensor_peri_crop_zoom(device, mode_change);
-		break;
+			break;
+		case EX_NONE:
+			if(device->ex_mode == EX_CROP_ZOOM)
+				ret = is_sensor_peri_crop_zoom(device, mode_change);
+			break;
 #endif
 #ifdef SUPPORT_SENSOR_SEAMLESS_3HDR
-	case EX_3DHDR:
-	case EX_SEAMLESS_TETRA:
-		ret = is_sensor_peri_s_3hdr_mode(device, mode_change);
-		break;
+		case EX_3DHDR:
+		case EX_SEAMLESS_TETRA:
+			ret = is_sensor_peri_s_3hdr_mode(device, mode_change);
+			break;
 #endif
-	default:
-		err("err!!! Unknown mode(%#x)", device->ex_mode);
-		ret = -EINVAL;
-		goto p_err;
+		default:
+			err("err!!! Unknown mode(%#x)", device->ex_mode);
+			ret = -EINVAL;
+			goto p_err;
 	}
 
 	minfo("received to set sensor mode change: %d (%d)", device,
-						device->ex_mode, ret);
+			device->ex_mode, ret);
 
 p_err:
 	return ret;
@@ -2640,21 +2761,58 @@ int is_sensor_peri_s_sensor_stats(struct is_device_sensor *device,
 		}
 
 		if (module_ctl->update_3hdr_stat) {
-			ret = CALL_CISOPS(&sensor_peri->cis, cis_set_3hdr_stat,
+			if (!strcmp(module->sensor_maker, "SLSI"))
+				ret = CALL_CISOPS(&sensor_peri->cis, cis_set_3hdr_stat,
 						sensor_peri->subdev_cis,
 						streaming,
-						(void *)&module_ctl->stat_control);
+						(void *)&module_ctl->lsi_stat_control);
+			else if (!strcmp(module->sensor_maker, "SONY"))
+				ret = CALL_CISOPS(&sensor_peri->cis, cis_set_3hdr_stat,
+						sensor_peri->subdev_cis,
+						streaming,
+						(void *)&module_ctl->imx_stat_control);
 			if (ret < 0)
 				err("failed to set 3hdr stat(%d)", ret);
 		}
 
+		if (module_ctl->update_tone) {
+			ret = CALL_CISOPS(&sensor_peri->cis, cis_set_tone_stat,
+					sensor_peri->subdev_cis, module_ctl->imx_tone_control);
+			if (ret < 0)
+				err("failed to set tone stat(%d)", ret);
+		}
+
+		if (module_ctl->update_ev) {
+			ret = CALL_CISOPS(&sensor_peri->cis, cis_set_ev_stat,
+					sensor_peri->subdev_cis, module_ctl->imx_ev_control);
+			if (ret < 0)
+				err("failed to set ev stat(%d)", ret);
+		}
 	} else {
-		ret = CALL_CISOPS(&sensor_peri->cis, cis_set_3hdr_stat,
+		if (!strcmp(module->sensor_maker, "SLSI")) {
+			ret = CALL_CISOPS(&sensor_peri->cis, cis_set_3hdr_stat,
+					sensor_peri->subdev_cis,
+					streaming,
+					(void *)&sensor_peri->cis.lsi_sensor_stats);
+			if (ret < 0)
+				err("failed to set 3hdr lsc init table(%d)", ret);
+		} else if (!strcmp(module->sensor_maker, "SONY")) {
+			if (sensor_peri->cis.lsc_table_status) {
+				ret = CALL_CISOPS(&sensor_peri->cis, cis_init_3hdr_lsc_table,
+						sensor_peri->subdev_cis,
+						(void *)&sensor_peri->cis.imx_lsc_table_3hdr);
+				if (ret < 0)
+					err("failed to set 3hdr lsc init table(%d)", ret);
+			}
+			if (sensor_peri->cis.sensor_stats) {
+				ret = CALL_CISOPS(&sensor_peri->cis, cis_set_3hdr_stat,
 						sensor_peri->subdev_cis,
 						streaming,
-						data);
-		if (ret < 0)
-			err("failed to set 3hdr stat(%d)", ret);
+						(void *)&sensor_peri->cis.imx_sensor_stats);
+				if (ret < 0)
+					err("failed to set 3hdr stat(%d)", ret);
+			}
+		}
 	}
 p_err:
 	return ret;

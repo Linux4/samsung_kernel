@@ -596,23 +596,19 @@ static int mtp_send_signal(int value)
 	info.si_signo = SIG_SETUP;
 	info.si_code = SI_QUEUE;
 	info.si_int = value;
-	rcu_read_lock();
 
 	if  (!current->nsproxy) {
 		printk(KERN_DEBUG "process has gone\n");
-		rcu_read_unlock();
 		return -ENODEV;
 	}
 
-	t = pid_task(find_vpid(mtp_pid), PIDTYPE_PID);
+	t = get_pid_task(find_vpid(mtp_pid), PIDTYPE_PID);
 
 	if (t == NULL) {
 		printk(KERN_DEBUG "no such pid\n");
-		rcu_read_unlock();
 		return -ENODEV;
 	}
 
-	rcu_read_unlock();
 	/*send the signal*/
 	ret = send_sig_info(SIG_SETUP, &info, t);
 	if (ret < 0) {
@@ -1426,7 +1422,7 @@ mtpg_function_unbind(struct usb_configuration *c, struct usb_function *f)
 
 	while ((req = mtpg_req_get(dev, &dev->intr_idle)))
 		mtpg_request_free(req, dev->int_in);
-	pr_info("[UDBG] %s %d guid_info=%p\n", __func__, __LINE__, guid_info); // temp
+	pr_info("[UDBG] %s %d guid_info=%pK\n", __func__, __LINE__, guid_info); // temp
 	memset(guid_info, 0, sizeof (guid_info));
 	//printk(KERN_DEBUG "mtp: %s guid after reset = %s\n", __func__, guid_info);
 }

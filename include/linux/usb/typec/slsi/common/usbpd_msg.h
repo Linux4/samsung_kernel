@@ -382,10 +382,10 @@ enum usbpd_port_rp_level {
 };
 
 enum {
-	USBPD_PD_OFF,
-	USBPD_PD_ON,
-	USBPD_PD_MAN_OFF,
-	USBPD_PD_MAN_ON
+	USBPD_CC_OFF,
+	USBPD_CC_ON,
+	USBPD_CC_MAN_OFF,
+	USBPD_CC_MAN_ON
 };
 
 enum vdm_command_type {

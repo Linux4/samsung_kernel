@@ -1276,7 +1276,7 @@ static void aud3003x_jack_register_initialize(struct snd_soc_component *codec)
 	aud3003x_acpm_write_reg(AUD3003X_CLOSE_ADDR, AUD3003X_F67_OTP_ADC2, 0xC8);
 	aud3003x_acpm_write_reg(AUD3003X_CLOSE_ADDR, AUD3003X_F68_OTP_ADC3, 0x2E);
 	aud3003x_acpm_write_reg(AUD3003X_CLOSE_ADDR, AUD3003X_F69_OTP_ADC4, 0x09);
-	aud3003x_acpm_write_reg(AUD3003X_CLOSE_ADDR, AUD3003X_F6A_OTP_ADC5, 0x55);
+	aud3003x_acpm_write_reg(AUD3003X_CLOSE_ADDR, AUD3003X_F6A_OTP_ADC5, 0x77);
 
 	/* All boot time hardware access is done. Put the device to sleep. */
 #ifdef CONFIG_PM

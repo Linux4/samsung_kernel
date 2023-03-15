@@ -11,10 +11,10 @@
 
 #include "dsp-hw-interface.h"
 
-enum dsp_to_ca5_int_num {
-	DSP_TO_CA5_INT_RESET,
-	DSP_TO_CA5_INT_MAILBOX,
-	DSP_TO_CA5_INT_NUM,
+enum dsp_to_cc_int_num {
+	DSP_TO_CC_INT_RESET,
+	DSP_TO_CC_INT_MAILBOX,
+	DSP_TO_CC_INT_NUM,
 };
 
 int dsp_interface_interrupt(struct dsp_interface *itf, int status);

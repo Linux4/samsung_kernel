@@ -26,9 +26,16 @@
 #include <linux/hash.h>
 #include <linux/audit.h>
 #include <linux/workqueue.h>
+#include <linux/xattr.h>
 
 #include "five_cert.h"
 #include "five_crypto.h"
+
+#define XATTR_FIVE_SUFFIX "five"
+#define XATTR_NAME_FIVE (XATTR_SECURITY_PREFIX XATTR_FIVE_SUFFIX)
+
+#define XATTR_PA_SUFFIX "pa"
+#define XATTR_NAME_PA (XATTR_USER_PREFIX XATTR_PA_SUFFIX)
 
 /* set during initialization */
 extern int five_hash_algo;
@@ -95,13 +102,14 @@ int five_appraise_measurement(struct task_struct *task, int func,
 
 int five_read_xattr(struct dentry *dentry, char **xattr_value);
 int five_check_params(struct task_struct *task, struct file *file);
-const char *five_d_path(const struct path *path, char **pathbuf);
+const char *five_d_path(const struct path *path, char **pathbuf,
+			char *namebuf);
 
 int five_digsig_verify(struct five_cert *cert,
 			    const char *digest, int digestlen);
 int five_reboot_notifier(struct notifier_block *nb,
 			       unsigned long action, void *unused);
-void __init five_load_built_x509(void);
+int __init five_load_built_x509(void);
 int __init five_keyring_init(void);
 
 const char *five_get_string_fn(enum five_hooks fn);

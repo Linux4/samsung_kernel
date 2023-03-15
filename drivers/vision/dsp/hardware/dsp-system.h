@@ -9,10 +9,13 @@
 #ifndef __DSP_SYSTEM_H__
 #define __DSP_SYSTEM_H__
 
+#include "dsp-control.h"
 #include "dsp-hw-system.h"
 
 struct dsp_device;
 
+int dsp_system_request_control(struct dsp_system *sys, unsigned int id,
+		union dsp_control *cmd);
 int dsp_system_execute_task(struct dsp_system *sys, struct dsp_task *task);
 void dsp_system_iovmm_fault_dump(struct dsp_system *sys);
 
@@ -20,6 +23,7 @@ int dsp_system_boot(struct dsp_system *sys);
 int dsp_system_reset(struct dsp_system *sys);
 
 int dsp_system_power_active(struct dsp_system *sys);
+int dsp_system_set_boot_qos(struct dsp_system *sys, int val);
 int dsp_system_runtime_resume(struct dsp_system *sys);
 int dsp_system_runtime_suspend(struct dsp_system *sys);
 int dsp_system_resume(struct dsp_system *sys);

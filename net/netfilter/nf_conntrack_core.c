@@ -59,12 +59,12 @@
 #include <soc/samsung/hw_forward.h>
 #endif
 #include <net/netns/hash.h>
-// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
-#include <net/ncm.h>
-// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 #include <net/ip.h>
 
 #include "nf_internals.h"
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
+#include <net/ncm.h>
+// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
 
 __cacheline_aligned_in_smp spinlock_t nf_conntrack_locks[CONNTRACK_LOCKS];
 EXPORT_SYMBOL_GPL(nf_conntrack_locks);
@@ -481,7 +481,6 @@ clean_from_lists(struct nf_conn *ct)
 static void nf_ct_add_to_dying_list(struct nf_conn *ct)
 {
 	struct ct_pcpu *pcpu;
-
 	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA {
 	/* Add 'del_timer(&ct->npa_timeout)' if struct nf_conn->timeout is of type struct timer_list; */
 	/* send dying conntrack entry to collect data */
@@ -489,6 +488,7 @@ static void nf_ct_add_to_dying_list(struct nf_conn *ct)
 		knox_collect_conntrack_data(ct, NCM_FLOW_TYPE_CLOSE, 10);
 	}
 	// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
+
 	/* add this conntrack to the (per cpu) dying list */
 	ct->cpu = smp_processor_id();
 	pcpu = per_cpu_ptr(nf_ct_net(ct)->ct.pcpu_lists, ct->cpu);
@@ -1264,7 +1264,8 @@ static void gc_worker(struct work_struct *work)
 					knox_collect_conntrack_data(tmp, NCM_FLOW_TYPE_INTERMEDIATE, 20);
 				}
 			}
-			// SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
+            // SEC_PRODUCT_FEATURE_KNOX_SUPPORT_NPA }
+
 			if (nf_conntrack_max95 == 0 || gc_worker_skip_ct(tmp))
 				continue;
 
@@ -1495,15 +1496,15 @@ init_conntrack(struct net *net, struct nf_conn *tmpl,
 	ct = __nf_conntrack_alloc(net, zone, tuple, &repl_tuple, GFP_ATOMIC,
 				  hash);
 
+	if (IS_ERR(ct))
+		return (struct nf_conntrack_tuple_hash *)ct;
+
 #ifdef CONFIG_HW_FORWARD
 	ct->netdev = skb->dev;
 #endif
 #ifdef CONFIG_LINK_FORWARD
 	ct->netdev = skb->dev;
 #endif
-
-	if (IS_ERR(ct))
-		return (struct nf_conntrack_tuple_hash *)ct;
 
 	if (!nf_ct_add_synproxy(ct, tmpl)) {
 		nf_conntrack_free(ct);

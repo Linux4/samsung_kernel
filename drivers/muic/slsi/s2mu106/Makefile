@@ -1,5 +1,3 @@
-obj-$(CONFIG_MUIC_S2MU106)		+= s2mu106-muic.o
-obj-$(CONFIG_HV_MUIC_S2MU106_AFC)	+= s2mu106-muic-afc.o
-
-GCOV_PROFILE := $(CONFIG_KUNIT)
-obj-$(CONFIG_KUNIT) += test/
+subdir-ccflags-y := -Wformat
+obj-$(CONFIG_MUIC_S2MU106)	+= muic_s2mu106.o
+muic_s2mu106-y			:= s2mu106-muic.o s2mu106-muic-afc.o

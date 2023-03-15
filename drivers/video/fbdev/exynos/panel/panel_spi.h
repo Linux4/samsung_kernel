@@ -1,9 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * linux/drivers/video/fbdev/exynos/panel/panel_spi.h
- *
- * Samsung Panel SPI Driver.
- *
- * Copyright (c) 2019 Samsung Electronics
+ * Copyright (c) Samsung Electronics Co., Ltd.
  * Kimyung Lee <kernel.lee@samsung.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -22,10 +19,7 @@
 //#define DEBUG_PANEL_SPI
 
 #ifdef DEBUG_PANEL_SPI
-#define panel_spi_dbg(fmt, ...)					\
-	do {										\
-		pr_info(pr_fmt(fmt), ##__VA_ARGS__);	\
-	} while (0)
+#define panel_spi_dbg(fmt, ...)		pr_info(pr_fmt(fmt), ##__VA_ARGS__)
 #else
 	#define panel_spi_dbg(fmt, ...)				\
 	do {} while (0)
@@ -90,7 +84,7 @@ enum {
 	PANEL_SPI_CMD_FLASH_ERASE_256K_DONE,
 	PANEL_SPI_CMD_FLASH_ERASE_CHIP,
 	PANEL_SPI_CMD_FLASH_ERASE_CHIP_DONE,
- 	MAX_PANEL_SPI_CMD,
+	MAX_PANEL_SPI_CMD,
 };
 
 enum {
@@ -197,7 +191,7 @@ struct ioc_erase_info {
 #define PANEL_SPI_IOCTL_MAGIC	'S'
 
 #define IOCTL_AUTO_ERASE_ENABLE		_IO(PANEL_SPI_IOCTL_MAGIC, 1)
-#define IOCTL_AUTO_ERASE_DISABLE	_IO(PANEL_SPI_IOCTL_MAGIC, 2) 
+#define IOCTL_AUTO_ERASE_DISABLE	_IO(PANEL_SPI_IOCTL_MAGIC, 2)
 #define IOCTL_ERASE			_IOW(PANEL_SPI_IOCTL_MAGIC, 4, struct ioc_erase_info)
 
 int panel_spi_drv_probe(struct panel_device *panel, struct spi_data **spi_data_tbl, int nr_spi_data_tbl);

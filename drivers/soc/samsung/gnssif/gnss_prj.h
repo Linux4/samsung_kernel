@@ -46,6 +46,8 @@
 #define GNSS_IOCTL_SET_WATCHDOG_RESET		_IO(GNSS_IOC_MAGIC, 0x10)
 #define GNSS_IOCTL_READ_SHMEM_SIZE		_IO(GNSS_IOC_MAGIC, 0x11)
 #define GNSS_IOCTL_READ_RESET_COUNT		_IO(GNSS_IOC_MAGIC, 0x12)
+#define GNSS_IOCTL_GET_SWREG			_IOWR(GNSS_IOC_MAGIC, 0x20, char *)
+#define GNSS_IOCTL_GET_APREG			_IOWR(GNSS_IOC_MAGIC, 0x21, char *)
 
 enum sensor_power {
 	SENSOR_OFF,
@@ -102,6 +104,13 @@ enum gnss_state {
 	STATE_HOLD_RESET,
 	STATE_FAULT, /* ACTIVE/WDT */
 };
+
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+enum gnss_pwr {
+	POWER_ON,
+	POWER_OFF,
+};
+#endif
 
 static const char * const gnss_state_str[] = {
 	[STATE_OFFLINE]			= "OFFLINE",
@@ -358,8 +367,19 @@ struct gnss_ctl {
 	struct gnss_irq irq_gnss_active;
 	struct gnss_irq irq_gnss_wdt;
 	struct gnss_irq irq_gnss_sw_init;
+	
 
 	u32 reset_count;
+
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	struct irq_chip *apwake_irq_chip;
+
+	int m2_gpio_gnss_pwr;
+	struct gnss_irq m2_irq_gnss_pwr;
+	enum gnss_pwr gnss_pwr;
+	bool is_irq_received;
+#endif
+
 };
 
 extern int exynos_init_gnss_io_device(struct io_device *iod);

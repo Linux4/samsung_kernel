@@ -21,6 +21,12 @@ void secdbg_wdd_set_keepalive(void)
 {
 	time64_t sec;
 
+	if (!wdd_info) {
+		pr_info("%s: wdd_info not initialized\n", __func__);
+
+		return;
+	}
+
 	printk("%s: wdd_info: 0x%p\n", __func__, wdd_info);
 	wdd_info->last_ping_cpu = raw_smp_processor_id();
 	wdd_info->last_ping_time = sched_clock();
@@ -52,6 +58,12 @@ void secdbg_wdd_set_start(void)
 
 void secdbg_wdd_set_emerg_addr(unsigned long addr)
 {
+	if (!wdd_info) {
+		pr_info("%s: wdd_info not initialized\n", __func__);
+
+		return;
+	}
+
 	wdd_info->emerg_addr = addr;
 }
 

@@ -171,24 +171,44 @@ int dsp_dl_out_create(struct dsp_lib *lib)
 	lib->dl_out->DM_sh.offset = offset;
 	lib->dl_out->DM_sh.size = dsp_elf32_get_mem_size(&lib->elf->DMb,
 			lib->elf);
+	if (lib->dl_out->DM_sh.size == UINT_MAX) {
+		DL_ERROR("failed to get DM_SH mem size\n");
+		return -1;
+	}
+
 	offset += lib->dl_out->DM_sh.size;
 	offset = __dsp_dl_out_offset_align(offset);
 
 	lib->dl_out->DM_local.offset = offset;
 	lib->dl_out->DM_local.size = dsp_elf32_get_mem_size(
 			&lib->elf->DMb_local, lib->elf);
+	if (lib->dl_out->DM_local.size == UINT_MAX) {
+		DL_ERROR("failed to get DM_local mem size\n");
+		return -1;
+	}
+
 	offset += lib->dl_out->DM_local.size;
 	offset = __dsp_dl_out_offset_align(offset);
 
 	lib->dl_out->TCM_sh.offset = offset;
 	lib->dl_out->TCM_sh.size = dsp_elf32_get_mem_size(&lib->elf->TCMb,
 			lib->elf);
+	if (lib->dl_out->TCM_sh.size == UINT_MAX) {
+		DL_ERROR("failed to get TCM_SH mem size\n");
+		return -1;
+	}
+
 	offset += lib->dl_out->TCM_sh.size;
 	offset = __dsp_dl_out_offset_align(offset);
 
 	lib->dl_out->TCM_local.offset = offset;
 	lib->dl_out->TCM_local.size = dsp_elf32_get_mem_size(
 			&lib->elf->TCMb_local, lib->elf);
+	if (lib->dl_out->TCM_local.size == UINT_MAX) {
+		DL_ERROR("failed to get TCM_local mem size\n");
+		return -1;
+	}
+
 	offset += lib->dl_out->TCM_local.size;
 	offset = __dsp_dl_out_offset_align(offset);
 
@@ -196,11 +216,31 @@ int dsp_dl_out_create(struct dsp_lib *lib)
 
 	lib->dl_out->sh_mem.size = dsp_elf32_get_mem_size(&lib->elf->SFRw,
 			lib->elf);
+	if (lib->dl_out->sh_mem.size == UINT_MAX) {
+		DL_ERROR("failed to get sh_mem mem size\n");
+		return -1;
+	}
+
 	return 0;
 }
 
 size_t dsp_dl_out_get_size(struct dsp_dl_out *dl_out)
 {
+	if (sizeof(*dl_out) >
+			sizeof(*dl_out) +
+			dl_out->sh_mem.offset + dl_out->sh_mem.size)
+		return UINT_MAX;
+
+	if (dl_out->sh_mem.offset >
+			sizeof(*dl_out) +
+			dl_out->sh_mem.offset + dl_out->sh_mem.size)
+		return UINT_MAX;
+
+	if (dl_out->sh_mem.size >
+			sizeof(*dl_out) +
+			dl_out->sh_mem.offset + dl_out->sh_mem.size)
+		return UINT_MAX;
+
 	return sizeof(*dl_out) + dl_out->sh_mem.offset + dl_out->sh_mem.size;
 }
 
@@ -222,7 +262,7 @@ static void __dsp_dl_out_print_sec_data(struct dsp_dl_out *dl_out,
 
 		if ((idx + 1) % 4 == 0 || idx == sec_end - 1) {
 			DL_BUF_STR("\n");
-			DL_PRINT_BUF(INFO);
+			DL_PRINT_BUF(DEBUG);
 		}
 	}
 }
@@ -239,30 +279,30 @@ static void __dsp_dl_out_print_kernel_table(struct dsp_dl_out *dl_out)
 
 		if ((idx + 1) % 3 == 0 || idx == sec_end - 1) {
 			DL_BUF_STR("\n");
-			DL_PRINT_BUF(INFO);
+			DL_PRINT_BUF(DEBUG);
 		}
 	}
 }
 
 static void __dsp_dl_out_print_data(struct dsp_dl_out *dl_out)
 {
-	DL_INFO("Kernel address table\n");
-	DL_INFO("    Pre        Exe       Post\n");
+	DL_DEBUG("Kernel address table\n");
+	DL_DEBUG("    Pre        Exe       Post\n");
 	__dsp_dl_out_print_kernel_table(dl_out);
 
-	DL_INFO("DM shared data\n");
+	DL_DEBUG("DM shared data\n");
 	__dsp_dl_out_print_sec_data(dl_out, dl_out->DM_sh);
 
-	DL_INFO("DM thread local data\n");
+	DL_DEBUG("DM thread local data\n");
 	__dsp_dl_out_print_sec_data(dl_out, dl_out->DM_local);
 
-	DL_INFO("TCM shared data\n");
+	DL_DEBUG("TCM shared data\n");
 	__dsp_dl_out_print_sec_data(dl_out, dl_out->TCM_sh);
 
-	DL_INFO("TCM thread local data\n");
+	DL_DEBUG("TCM thread local data\n");
 	__dsp_dl_out_print_sec_data(dl_out, dl_out->TCM_local);
 
-	DL_INFO("Shared memory data\n");
+	DL_DEBUG("Shared memory data\n");
 	__dsp_dl_out_print_sec_data(dl_out, dl_out->sh_mem);
 }
 
@@ -286,7 +326,7 @@ void dsp_dl_out_print(struct dsp_dl_out *dl_out)
 	DL_INFO("Shared memory data: offset(%u) size(%u)\n",
 		dl_out->sh_mem.offset, dl_out->sh_mem.size);
 	DL_INFO("\n");
-	DL_INFO("Data loaded\n");
+	DL_DEBUG("Data loaded\n");
 	__dsp_dl_out_print_data(dl_out);
 }
 
@@ -394,6 +434,10 @@ int dsp_dl_out_alloc(struct dsp_lib *lib, int *pm_inv)
 	}
 
 	dl_out_size = dsp_dl_out_get_size(lib->dl_out);
+	if (dl_out_size == UINT_MAX) {
+		DL_ERROR("[%s] failed to get dl_out size.\n", __func__);
+		return -1;
+	}
 	DL_DEBUG("DL_out_size : %zu\n", dl_out_size);
 
 	alloc_ret = __dsp_dl_out_alloc_mem(dl_out_size, lib,
@@ -401,6 +445,7 @@ int dsp_dl_out_alloc(struct dsp_lib *lib, int *pm_inv)
 	if (alloc_ret == -1) {
 		dsp_dl_free(lib->dl_out);
 		lib->dl_out = NULL;
+		lib->dl_out_mem = NULL;
 		return -1;
 	}
 
@@ -411,6 +456,7 @@ int dsp_dl_out_alloc(struct dsp_lib *lib, int *pm_inv)
 	dsp_dl_free(lib->dl_out);
 
 	lib->dl_out = (struct dsp_dl_out *)mem_addr;
+	lib->dl_out_data_size = dl_out_size - sizeof(*lib->dl_out);
 
 	strcpy(lib->dl_out->data, lib->name);
 	DL_DEBUG("lib name : %s\n", lib->dl_out->data);

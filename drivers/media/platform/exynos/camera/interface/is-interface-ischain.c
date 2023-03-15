@@ -569,7 +569,7 @@ complete:
 
 	/* for debug */
 	DBG_DIGIT_TAG((ldr_frame->group) ? ((struct is_group *)ldr_frame->group)->slot : 0,
-			0, GET_QUEUE(sub_vctx), sub_frame, fcount - sub_frame->num_buffers + 1, 1);
+			0, GET_QUEUE(sub_vctx), sub_frame, fcount, 1);
 
 	CALL_VOPS(sub_vctx, done, sub_frame->index, done_state);
 

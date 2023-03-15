@@ -16,6 +16,9 @@ struct power_keys_button {
 	bool can_disable;
 	int value;		/* axis value for EV_ABS */
 	unsigned int irq;	/* Irq number in case of interrupt keys */
+#ifdef CONFIG_DRV_SAMSUNG
+	bool key_switch;
+#endif
 };
 
 struct power_keys_platform_data {

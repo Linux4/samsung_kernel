@@ -31,6 +31,10 @@ struct dsp_list_node {
 	struct dsp_list_node *prev;
 };
 
+typedef int (*dsp_list_compare_func)(
+	struct dsp_list_node *a,
+	struct dsp_list_node *b);
+
 struct dsp_list_head {
 	int num;
 	struct dsp_list_node *next;
@@ -49,9 +53,20 @@ void dsp_list_node_insert_back(struct dsp_list_head *head,
 void dsp_list_node_remove(struct dsp_list_head *head,
 	struct dsp_list_node *node);
 
-void dsp_list_merge(struct dsp_list_head *head, struct dsp_list_head *head1,
+void dsp_list_node_swap(struct dsp_list_head *head,
+	struct dsp_list_node *node1,
+	struct dsp_list_node *node2);
+
+void dsp_list_merge(struct dsp_list_head *head,
+	struct dsp_list_head *head1,
 	struct dsp_list_head *head2);
 
 int dsp_list_is_empty(struct dsp_list_head *head);
+
+void dsp_list_sort(struct dsp_list_head *head,
+	dsp_list_compare_func func);
+void dsp_list_unique(struct dsp_list_head *head,
+	struct dsp_list_head *remove,
+	dsp_list_compare_func func);
 
 #endif

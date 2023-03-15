@@ -24,6 +24,14 @@
 &exynos_is {
 	non_secure_mem_info = <0x92500000 0x27100000>;
 
+	lic_offsets {
+		/* 3AA = <setA lic offset0, setA lic offset1, set A trigger context */
+		/*		setB lic offset0, setB lic offset1, set B trigger context> */
+		/* 4672: 4640x4352 */
+		/* 5824: 5804x4352 */
+		3AA = <6848 13696 1 6848 13696 2>;
+	};
+
 	is_dvfs {
 		#define DVFS_INT_CAM_L0 533000
 		#define DVFS_INT_CAM_L1 532000
@@ -202,6 +210,13 @@
 			front_preview_high_speed_fps_mif = <DVFS_MIF_L2>;
 			front_preview_high_speed_fps_int = <DVFS_INT_L2>;
 			front_preview_high_speed_fps_hpg = <0>;
+
+			front_video_high_speed_120fps_int_cam = <DVFS_INT_CAM_L2>;
+			front_video_high_speed_120fps_tnr = <DVFS_TNR_L1>;
+			front_video_high_speed_120fps_cam = <DVFS_CAM_L0>;
+			front_video_high_speed_120fps_mif = <DVFS_MIF_L2>;
+			front_video_high_speed_120fps_int = <DVFS_INT_L4>;
+			front_video_high_speed_120fps_hpg = <0>;
 
 			rear3_preview_fhd_int_cam = <DVFS_INT_CAM_L5>;
 			rear3_preview_fhd_tnr = <DVFS_TNR_L4>;
@@ -448,13 +463,5 @@
 			max_int = <DVFS_INT_L0>;
 			max_hpg = <0>;
 		};
-	};
-
-	lic_offsets {
-		/* 3AA = <setA lic offset0, setA lic offset1, set A trigger context */
-		/*		setB lic offset0, setB lic offset1, set B trigger context> */
-		/* 4672: 4640x4352 */
-		/* 5824: 5804x4352 */
-		3AA = <4672 10496 1 4064 13344 2>;
 	};
 };

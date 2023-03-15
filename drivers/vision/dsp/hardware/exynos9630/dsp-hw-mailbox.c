@@ -18,17 +18,26 @@ struct dsp_mailbox_pool *dsp_mailbox_alloc_pool(struct dsp_mailbox *mbox,
 {
 	int ret;
 	struct dsp_mailbox_pool_manager *pmgr;
+	unsigned int aligned_size;
 	struct dsp_mailbox_pool *pool;
 	unsigned long flags;
 
 	dsp_enter();
+	pmgr = mbox->pool_manager;
+
 	if (!size) {
 		ret = -EINVAL;
 		dsp_err("size of mailbox pool must be not zero\n");
 		goto p_err;
 	}
 
-	pmgr = mbox->pool_manager;
+	aligned_size = size + pmgr->block_size - 1;
+	if (aligned_size < size) {
+		ret = -EINVAL;
+		dsp_err("size overflowed(%#x/%#x/%#x)\n",
+				aligned_size, size, pmgr->block_size);
+		goto p_err;
+	}
 
 	pool = kzalloc(sizeof(*pool), GFP_KERNEL);
 	if (!pool) {
@@ -37,8 +46,7 @@ struct dsp_mailbox_pool *dsp_mailbox_alloc_pool(struct dsp_mailbox *mbox,
 		goto p_err;
 	}
 	pool->owner = pmgr;
-
-	pool->block_count = (size + pmgr->block_size - 1) / pmgr->block_size;
+	pool->block_count = aligned_size / pmgr->block_size;
 
 	spin_lock_irqsave(&pmgr->slock, flags);
 	pool->block_start = dsp_util_bitmap_set_region(&pmgr->pool_map,
@@ -165,7 +173,7 @@ static int __dsp_mailbox_send_mail(struct dsp_mailbox *mbox,
 
 	mutex_unlock(&mbox->lock);
 	dsp_interface_interrupt(&mbox->sys->interface,
-			BIT(DSP_TO_CA5_INT_MAILBOX));
+			BIT(DSP_TO_CC_INT_MAILBOX));
 	dsp_leave();
 	return 0;
 p_err_enqueue:
@@ -228,9 +236,8 @@ int dsp_mailbox_send_task(struct dsp_mailbox *mbox, struct dsp_task *task)
 	spin_unlock_irqrestore(&task->owner->slock, flags);
 
 	ret = __dsp_mailbox_send_mail(mbox, &mail);
-	if (ret) {
+	if (ret)
 		goto p_err_send;
-	}
 
 	dsp_time_get_timestamp(&task->pool->time, TIMESTAMP_START);
 	dsp_leave();
@@ -320,7 +327,7 @@ int dsp_mailbox_start(struct dsp_mailbox *mbox)
 		goto p_err;
 
 	pmem = &mbox->sys->memory.priv_mem[DSP_PRIV_MEM_MBOX_MEMORY];
-	mbox->to_fw = mbox->sys->sfr + DSP_SM_RESERVED(TO_CA5_MBOX);
+	mbox->to_fw = mbox->sys->sfr + DSP_SM_RESERVED(TO_CC_MBOX);
 	dsp_util_queue_init(mbox->to_fw, sizeof(struct dsp_mailbox_to_fw),
 			pmem->size, (unsigned int)pmem->iova,
 			(unsigned long long)pmem->kvaddr);

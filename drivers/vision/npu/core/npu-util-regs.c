@@ -41,6 +41,25 @@ void npu_write_hw_reg(const struct npu_iomem_area *base, u32 offset, u32 val, u3
 	npu_dbg("written (0x%08x) at (%p)\n", v, reg_addr);
 }
 
+u32 npu_read_hw_reg(const struct npu_iomem_area *base, u32 offset)
+{
+	volatile u32 v;
+	void __iomem *reg_addr;
+
+	BUG_ON(!base);
+	BUG_ON(!base->vaddr);
+
+	if (offset > base->size) {
+		npu_err("offset(%u) exceeds iomem region size(%llu), starting at (%u)\n",
+				offset, base->size, base->paddr);
+		BUG_ON(1);
+	}
+	reg_addr = base->vaddr + offset;
+	v = readl(reg_addr);
+
+	return v;
+}
+
 /*
  * Set the set of register value specified in set_map,
  * with the base specified at base.

@@ -103,7 +103,7 @@ config MALI_SEC_VK_BOOST
 config MALI_SEC_JOB_STATUS_CHECK
 	bool "Enable GPU JOB & FENCE STATUS DUMP"
 	depends on MALI_MIDGARD && MALI_RT_PM && MALI_DVFS && (SYNC || SYNC_FILE)
-	default n
+	default y
 	help
 		Choose this option to enable job & fence status dump feature in the Mali tTRx DDK.
 

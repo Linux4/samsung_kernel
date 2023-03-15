@@ -264,7 +264,6 @@ int exynos_is_sensor_mclk_off(struct device *dev,
 	return 0;
 }
 
-#ifdef CONFIG_SOC_EXYNOS9820
 int is_sensor_mclk_force_off(struct device *dev, u32 channel)
 {
 	char clk_name[30];
@@ -277,4 +276,3 @@ int is_sensor_mclk_force_off(struct device *dev, u32 channel)
 
 	return 0;
 }
-#endif

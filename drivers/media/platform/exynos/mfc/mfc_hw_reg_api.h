@@ -27,6 +27,16 @@
 			MFC_WRITEL(0, MFC_REG_RISC2HOST_INT);	\
 		} while (0)
 
+#define mfc_clear_int_only()					\
+		do {						\
+			MFC_WRITEL(0, MFC_REG_RISC2HOST_INT);	\
+		} while (0)
+
+#define mfc_clear_cmd_only()					\
+		do {						\
+			MFC_WRITEL(0, MFC_REG_RISC2HOST_CMD);	\
+		} while (0)
+
 static inline int mfc_wait_fw_status(struct mfc_dev *dev)
 {
 	unsigned int status;

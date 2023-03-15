@@ -310,8 +310,8 @@ enum sysreg_vra_reg_field {
 /* DDK HEAP: 60MB */
 #define IS_HEAP_SIZE		(0x03C00000)
 
-/* SETFILE: 9.0MB */
-#define IS_SETFILE_SIZE		(0x00900000)
+/* SETFILE: 10.0MB */
+#define IS_SETFILE_SIZE		(0x00A00000)
 
 #define SYSREG_CSIS_BASE_ADDR	(0x15020000)
 #define SYSREG_IPP_BASE_ADDR	(0x15220000)

@@ -172,6 +172,10 @@
 
 #define USB_ENDPOINT_HALT		0	/* IN/OUT will STALL */
 
+/* Bit array elements as information returned by a getstatus() request to an Interface */
+#define USB_INT_FUNCTION_REMOTE_WAKE_CAPA	0	/* Function Remote wake capable */
+#define USB_INT_FUNCTION_REMOTE_WAKEUP		1	/* Function Remote wakeup */
+
 /* Bit array elements as returned by the USB_REQ_GET_STATUS request. */
 #define USB_DEV_STAT_U1_ENABLED		2	/* transition into U1 state */
 #define USB_DEV_STAT_U2_ENABLED		3	/* transition into U2 state */

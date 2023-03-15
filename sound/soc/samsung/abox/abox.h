@@ -440,6 +440,7 @@ struct abox_data {
 	struct delayed_work wdt_work;
 	unsigned long long audio_mode_time;
 	enum audio_mode audio_mode;
+	enum abox_call_event call_event;
 	enum sound_type sound_type;
 	struct wakeup_source ws;
 };

@@ -28,7 +28,7 @@ void cpif_tethering_upstream_dev_get(char *dev_name)
 
 	spin_lock_irqsave(&g_upstream_dev.lock, flags);
 
-	strcpy(dev_name, g_upstream_dev.dev_name);
+	strlcpy(dev_name, g_upstream_dev.dev_name, IFNAMSIZ);
 
 	spin_unlock_irqrestore(&g_upstream_dev.lock, flags);
 }
@@ -39,7 +39,7 @@ void cpif_tethering_upstream_dev_set(char *dev_name)
 
 	spin_lock_irqsave(&g_upstream_dev.lock, flags);
 
-	strcpy(g_upstream_dev.dev_name, dev_name);
+	strlcpy(g_upstream_dev.dev_name, dev_name, IFNAMSIZ);
 
 	spin_unlock_irqrestore(&g_upstream_dev.lock, flags);
 }

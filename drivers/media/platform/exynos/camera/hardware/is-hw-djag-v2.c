@@ -198,7 +198,7 @@ int is_hw_mcsc_update_djag_register(struct is_hw_ip *hw_ip,
 				temp_stripe_start_pos_x = param->output[output_id].stripe_in_start_pos_x;
 				roi_start_x = param->output[output_id].stripe_roi_start_pos_x;
 				roi_end_x = param->output[output_id].stripe_roi_end_pos_x;
-				use_out_crop = (param->output[output_id].crop_cmd & BIT(MCSC_OUT_CROP)) >> MCSC_OUT_CROP;
+				use_out_crop = (u32)((param->output[output_id].crop_cmd & BIT(MCSC_OUT_CROP)) >> MCSC_OUT_CROP);
 #endif
 			}
 #if defined(USE_YUV_RANGE_BY_ISP)

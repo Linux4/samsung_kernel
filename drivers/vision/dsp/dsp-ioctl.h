@@ -13,12 +13,16 @@
 
 #include "dsp-common-type.h"
 
+#define DSP_MAX_KERNEL_COUNT		(8)
+#define DSP_MAX_KERNEL_NAME_SIZE	(32)
+#define DSP_MAX_KERNEL_SIZE		\
+	((DSP_MAX_KERNEL_NAME_SIZE + sizeof(int)) * DSP_MAX_KERNEL_COUNT)
+
 struct dsp_context;
 
 struct dsp_ioc_boot {
 	unsigned int			pm_level;
-	unsigned int			operation_id;
-	int				reserved[2];
+	int				reserved[3];
 	struct timespec			timestamp[4];
 };
 
@@ -29,18 +33,33 @@ struct dsp_ioc_load_graph {
 	unsigned int			kernel_count;
 	unsigned int			kernel_size;
 	unsigned long			kernel_addr;
-	int				reserved[2];
+	unsigned char			request_qos;
+	unsigned char			reserved1[3];
+	int				reserved2;
 	struct timespec			timestamp[4];
 };
 
 struct dsp_ioc_unload_graph {
 	unsigned int			global_id;
-	int				reserved[2];
+	unsigned char			request_qos;
+	unsigned char			reserved1[3];
+	int				reserved2;
 	struct timespec			timestamp[4];
 };
 
 struct dsp_ioc_execute_msg {
 	unsigned int			version;
+	unsigned int			size;
+	unsigned long			addr;
+	unsigned char			request_qos;
+	unsigned char			reserved1[3];
+	int				reserved2;
+	struct timespec			timestamp[4];
+};
+
+struct dsp_ioc_control {
+	unsigned int			version;
+	unsigned int			control_id;
 	unsigned int			size;
 	unsigned long			addr;
 	int				reserved[2];
@@ -51,6 +70,7 @@ struct dsp_ioc_execute_msg {
 #define DSP_IOC_LOAD_GRAPH	_IOWR('D', 1, struct dsp_ioc_load_graph)
 #define DSP_IOC_UNLOAD_GRAPH	_IOWR('D', 2, struct dsp_ioc_unload_graph)
 #define DSP_IOC_EXECUTE_MSG	_IOWR('D', 3, struct dsp_ioc_execute_msg)
+#define DSP_IOC_CONTROL		_IOWR('D', 4, struct dsp_ioc_control)
 
 enum dsp_ioc_version {
 	DSP_IOC_VBASE,
@@ -60,10 +80,11 @@ enum dsp_ioc_version {
 };
 
 union dsp_ioc_arg {
-	struct dsp_ioc_boot		boot;
-	struct dsp_ioc_load_graph	load;
-	struct dsp_ioc_unload_graph	unload;
-	struct dsp_ioc_execute_msg	execute;
+	struct dsp_ioc_boot			boot;
+	struct dsp_ioc_load_graph		load;
+	struct dsp_ioc_unload_graph		unload;
+	struct dsp_ioc_execute_msg		execute;
+	struct dsp_ioc_control			control;
 };
 
 struct dsp_ioctl_ops {
@@ -74,6 +95,8 @@ struct dsp_ioctl_ops {
 			struct dsp_ioc_unload_graph *args);
 	int (*execute_msg)(struct dsp_context *dctx,
 			struct dsp_ioc_execute_msg *args);
+	int (*control)(struct dsp_context *dctx,
+			struct dsp_ioc_control *args);
 };
 
 long dsp_ioctl(struct file *file, unsigned int cmd, unsigned long arg);

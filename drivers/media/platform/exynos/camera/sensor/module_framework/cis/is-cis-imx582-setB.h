@@ -18,15 +18,15 @@
 /*
  * [Mode Information]
  *
- * Reference File : IMX582_SEC-DPHY-26MHz_RegisterSetting_ver7.00-5.11_test_b2_MP0_200110.xlsx
- * Update Data    : 2020-01-23
+ * Reference File : IMX582_SEC-DPHY-26MHz_RegisterSetting_ver9.00-5.10_b3_MP0_200508.xlsx
+ * Update Data    : 2020-05-12
  * Author         : takkyoum.kim
  *
  * - Global Setting -
  *
  * - 2x2 BIN For Still Preview / Capture -
  *    [  0 ] REG_H_2_t   : 2x2 Binning Full 4000x3000 30fps    : Single Still Preview/Capture (4:3)    ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2058
- *    [  1 ] REG_H_2_t2  : 2x2 Binning Crop 4000X2256 30fps    : Single Still Preview/Capture (16:9)   ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2058
+ *    [  1 ] REG_I_2_t   : 2x2 Binning Crop 4000X2256 30fps    : Single Still Preview/Capture (16:9)   ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2058
  *    [  2 ] REG_J_2     : 2x2 Binning Crop 4000X1952 30fps    : Single Still Preview/Capture (18.5:9) ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2058
  *    [  3 ] REG_K_2     : 2x2 Binning Crop 4000X1844 30fps    : Single Still Preview/Capture (19.5:9) ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2058
  *    [  4 ] REG_L_2     : 2x2 Binning Crop 4000X1800 30fps    : Single Still Preview/Capture (20:9)   ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2058
@@ -48,7 +48,7 @@
  * - Remosaic For Single Still Remosaic Capture -
  *    [ 13 ] REG_G       : Remosaic Full 8000x6000 15fps        : Single Still Remosaic Capture (4:3)   ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2184
  *    [ 14 ] REG_T_t     : Remosaic Crop 4000x3000 30fps        : Single Still Remosaic Capture (4:3)   ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2184
- *    [ 15 ] REG_T_t2    : Remosaic Crop 4000x2256 30fps        : Single Still Remosaic Capture (16:9)  ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2058
+ *    [ 15 ] REG_A_A_t   : Remosaic Crop 4000x2256 30fps        : Single Still Remosaic Capture (16:9)  ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2058
  */
 
 const u32 sensor_imx582_setfile_B_Global[] = {
@@ -56,9 +56,9 @@ const u32 sensor_imx582_setfile_B_Global[] = {
 	0x0136, 0x1A, 0x01,
 	0x0137, 0x00, 0x01,
 	//Register version
-	0x3C7E, 0x07, 0x01,
+	0x3C7E, 0x09, 0x01,
 	0x3C7F, 0x05, 0x01,
-	//Global Setting for 12
+	//Global Setting
 	0x5265, 0x13, 0x01,
 	0x5268, 0x05, 0x01,
 	0x526A, 0x27, 0x01,
@@ -618,8 +618,8 @@ const u32 sensor_imx582_setfile_B_2X2BIN_FULL_4000x3000_30FPS[] = {
 	0x0342, 0x1E, 0x01,
 	0x0343, 0xC0, 0x01,
 	//Frame Length Lines Setting
-	0x0340, 0x0D, 0x01,
-	0x0341, 0xFA, 0x01,
+	0x0340, 0x0E, 0x01,
+	0x0341, 0x04, 0x01,
 	//ROI Setting
 	0x0344, 0x00, 0x01,
 	0x0345, 0x00, 0x01,
@@ -705,7 +705,7 @@ const u32 sensor_imx582_setfile_B_2X2BIN_FULL_4000x3000_30FPS[] = {
 #if 0		//for seamless mode change
 	//Integration Setting
 	0x0202, 0x0D, 0x01,
-	0x0203, 0xCA, 0x01,
+	0x0203, 0xD4, 0x01,
 	0x0224, 0x01, 0x01,
 	0x0225, 0xF4, 0x01,
 	0x3FE0, 0x01, 0x01,
@@ -741,7 +741,7 @@ const u32 sensor_imx582_setfile_B_2X2BIN_FULL_4000x3000_30FPS[] = {
 };
 
 const u32 sensor_imx582_setfile_B_2X2BIN_CROP_4000X2256_30FPS[] = {
-	//reg_H_2_t2
+	//reg_I_2_t
 	//2x2 Binning(16:9) 30fps
 	//H: 4000
 	//V: 2256
@@ -753,17 +753,17 @@ const u32 sensor_imx582_setfile_B_2X2BIN_CROP_4000X2256_30FPS[] = {
 	0x0342, 0x1E, 0x01,
 	0x0343, 0xC0, 0x01,
 	//Frame Length Lines Setting
-	0x0340, 0x0D, 0x01,
-	0x0341, 0xFA, 0x01,
+	0x0340, 0x0E, 0x01,
+	0x0341, 0x04, 0x01,
 	//ROI Setting
 	0x0344, 0x00, 0x01,
 	0x0345, 0x00, 0x01,
-	0x0346, 0x00, 0x01,
-	0x0347, 0x00, 0x01,
+	0x0346, 0x02, 0x01,
+	0x0347, 0xE8, 0x01,
 	0x0348, 0x1F, 0x01,
 	0x0349, 0x3F, 0x01,
-	0x034A, 0x17, 0x01,
-	0x034B, 0x6F, 0x01,
+	0x034A, 0x14, 0x01,
+	0x034B, 0x87, 0x01,
 	//Mode Setting
 	0x0900, 0x01, 0x01,
 	0x0901, 0x22, 0x01,
@@ -776,8 +776,8 @@ const u32 sensor_imx582_setfile_B_2X2BIN_CROP_4000X2256_30FPS[] = {
 	0x0405, 0x10, 0x01,
 	0x0408, 0x00, 0x01,
 	0x0409, 0x00, 0x01,
-	0x040A, 0x01, 0x01,
-	0x040B, 0x74, 0x01,
+	0x040A, 0x00, 0x01,
+	0x040B, 0x00, 0x01,
 	0x040C, 0x0F, 0x01,
 	0x040D, 0xA0, 0x01,
 	0x040E, 0x08, 0x01,
@@ -840,7 +840,7 @@ const u32 sensor_imx582_setfile_B_2X2BIN_CROP_4000X2256_30FPS[] = {
 #if 0		//for seamless mode change
 	//Integration Setting
 	0x0202, 0x0D, 0x01,
-	0x0203, 0xCA, 0x01,
+	0x0203, 0xD4, 0x01,
 	0x0224, 0x01, 0x01,
 	0x0225, 0xF4, 0x01,
 	0x3FE0, 0x01, 0x01,
@@ -2352,8 +2352,8 @@ const u32 sensor_imx582_setfile_B_REMOSAIC_CROP_4000x3000_30FPS[] = {
 	0x0342, 0x23, 0x01,
 	0x0343, 0xE0, 0x01,
 	//Frame Length Lines Setting
-	0x0340, 0x0B, 0x01,
-	0x0341, 0xFA, 0x01,
+	0x0340, 0x0C, 0x01,
+	0x0341, 0x04, 0x01,
 	//ROI Setting
 	0x0344, 0x00, 0x01,
 	0x0345, 0x00, 0x01,
@@ -2439,7 +2439,7 @@ const u32 sensor_imx582_setfile_B_REMOSAIC_CROP_4000x3000_30FPS[] = {
 #if 0		//for seamless mode change
 	//Integration Setting
 	0x0202, 0x0B, 0x01,
-	0x0203, 0xCA, 0x01,
+	0x0203, 0xD4, 0x01,
 	0x0224, 0x01, 0x01,
 	0x0225, 0xF4, 0x01,
 	0x3FE0, 0x01, 0x01,
@@ -2467,15 +2467,15 @@ const u32 sensor_imx582_setfile_B_REMOSAIC_CROP_4000x3000_30FPS[] = {
 	//DPC output ctrl Setting
 	0x0B06, 0x01, 0x01,
 	//PDAF TYPE Setting
-	0x3E20, 0x02, 0x01,
+	0x3E20, 0x01, 0x01,
 	//PDAF TYPE2 Setting
-	0x3E3B, 0x01, 0x01,
+	0x3E3B, 0x00, 0x01,
 	0x4034, 0x00, 0x01,
 	0x4035, 0xF8, 0x01,
 };
 
 const u32 sensor_imx582_setfile_B_REMOSAIC_CROP_4000x2256_30FPS[] = {
-	//reg_T_t2
+	//reg_A_A_t
 	//Full_crop(16:9)
 	//H: 4000
 	//V: 2256
@@ -2487,17 +2487,17 @@ const u32 sensor_imx582_setfile_B_REMOSAIC_CROP_4000x2256_30FPS[] = {
 	0x0342, 0x23, 0x01,
 	0x0343, 0xE0, 0x01,
 	//Frame Length Lines Setting
-	0x0340, 0x0B, 0x01,
-	0x0341, 0xFA, 0x01,
+	0x0340, 0x0C, 0x01,
+	0x0341, 0x04, 0x01,
 	//ROI Setting
 	0x0344, 0x00, 0x01,
 	0x0345, 0x00, 0x01,
-	0x0346, 0x05, 0x01,
-	0x0347, 0xD8, 0x01,
+	0x0346, 0x07, 0x01,
+	0x0347, 0x50, 0x01,
 	0x0348, 0x1F, 0x01,
 	0x0349, 0x3F, 0x01,
-	0x034A, 0x11, 0x01,
-	0x034B, 0x8F, 0x01,
+	0x034A, 0x10, 0x01,
+	0x034B, 0x1F, 0x01,
 	//Mode Setting
 	0x0900, 0x00, 0x01,
 	0x0901, 0x11, 0x01,
@@ -2510,8 +2510,8 @@ const u32 sensor_imx582_setfile_B_REMOSAIC_CROP_4000x2256_30FPS[] = {
 	0x0405, 0x10, 0x01,
 	0x0408, 0x07, 0x01,
 	0x0409, 0xD0, 0x01,
-	0x040A, 0x01, 0x01,
-	0x040B, 0x74, 0x01,
+	0x040A, 0x00, 0x01,
+	0x040B, 0x00, 0x01,
 	0x040C, 0x0F, 0x01,
 	0x040D, 0xA0, 0x01,
 	0x040E, 0x08, 0x01,
@@ -2574,7 +2574,7 @@ const u32 sensor_imx582_setfile_B_REMOSAIC_CROP_4000x2256_30FPS[] = {
 #if 0		//for seamless mode change
 	//Integration Setting
 	0x0202, 0x0B, 0x01,
-	0x0203, 0xCA, 0x01,
+	0x0203, 0xD4, 0x01,
 	0x0224, 0x01, 0x01,
 	0x0225, 0xF4, 0x01,
 	0x3FE0, 0x01, 0x01,
@@ -2602,12 +2602,11 @@ const u32 sensor_imx582_setfile_B_REMOSAIC_CROP_4000x2256_30FPS[] = {
 	//DPC output ctrl Setting
 	0x0B06, 0x01, 0x01,
 	//PDAF TYPE Setting
-	0x3E20, 0x02, 0x01,
+	0x3E20, 0x01, 0x01,
 	//PDAF TYPE2 Setting
-	0x3E3B, 0x01, 0x01,
+	0x3E3B, 0x00, 0x01,
 	0x4034, 0x00, 0x01,
 	0x4035, 0xF8, 0x01,
-	
 };
 const struct sensor_pll_info_compact sensor_imx582_pllinfo_B_REMOSAIC_FULL_8000x6000_15FPS = {
 	EXT_CLK_Mhz * 1000 * 1000,   /* ext_clk */
@@ -2620,16 +2619,16 @@ const struct sensor_pll_info_compact sensor_imx582_pllinfo_B_REMOSAIC_FULL_8000x
 const struct sensor_pll_info_compact sensor_imx582_pllinfo_B_2X2BIN_FULL_4000x3000_30FPS = {
 	EXT_CLK_Mhz * 1000 * 1000,   /* ext_clk */
 	2058000000,                  /* mipi_datarate = OPSYCK */
-	211250000,                   /* pclk = VTPXCK of Clock Information */
-	3578,                        /* frame_length_lines */
+	211900000,                   /* pclk = VTPXCK of Clock Information */
+	3588,                        /* frame_length_lines */
 	7872,                        /* line_length_pck */
 };
 
 const struct sensor_pll_info_compact sensor_imx582_pllinfo_B_2X2BIN_CROP_4000X2256_30FPS = {
 	EXT_CLK_Mhz * 1000 * 1000,   /* ext_clk */
 	2058000000,                  /* mipi_datarate = OPSYCK */
-	211250000,                   /* pclk = VTPXCK of Clock Information */
-	3578,                        /* frame_length_lines */
+	211900000,                   /* pclk = VTPXCK of Clock Information */
+	3588,                        /* frame_length_lines */
 	7872,                        /* line_length_pck */
 };
 
@@ -2673,7 +2672,7 @@ const struct sensor_pll_info_compact sensor_imx582_pllinfo_B_2X2BIN_CROP_3000X30
 	7872,                        /* line_length_pck */
 };
 
-const struct sensor_pll_info_compact sensor_imx582_pllinfo_B_2X2BIN_CROP_3264x2448_30FPS= {
+const struct sensor_pll_info_compact sensor_imx582_pllinfo_B_2X2BIN_CROP_3264x2448_30FPS = {
 	EXT_CLK_Mhz * 1000 * 1000,   /* ext_clk */
 	2058000000,                  /* mipi_datarate = OPSYCK */
 	147550000,                   /* pclk = VTPXCK of Clock Information */
@@ -2721,19 +2720,19 @@ const struct sensor_pll_info_compact sensor_imx582_pllinfo_B_2X2BIN_CROP_4000X22
 	4592,                        /* line_length_pck */
 };
 
-const struct sensor_pll_info_compact sensor_imx582_pllinfo_B_REMOSAIC_CROP_4000x3000_30FPS= {
+const struct sensor_pll_info_compact sensor_imx582_pllinfo_B_REMOSAIC_CROP_4000x3000_30FPS = {
 	EXT_CLK_Mhz * 1000 * 1000,   /* ext_clk */
 	2058000000,                  /* mipi_datarate = OPSYCK */
-	211250000,                   /* pclk = VTPXCK of Clock Information */
-	3066,                        /* frame_length_lines */
+	211900000,                   /* pclk = VTPXCK of Clock Information */
+	3076,                        /* frame_length_lines */
 	9184,                        /* line_length_pck */
 };
 
-const struct sensor_pll_info_compact sensor_imx582_pllinfo_B_REMOSAIC_CROP_4000x2256_30FPS= {
+const struct sensor_pll_info_compact sensor_imx582_pllinfo_B_REMOSAIC_CROP_4000x2256_30FPS = {
 	EXT_CLK_Mhz * 1000 * 1000,   /* ext_clk */
 	2058000000,                  /* mipi_datarate = OPSYCK */
-	211250000,                   /* pclk = VTPXCK of Clock Information */
-	3066,                        /* frame_length_lines */
+	211900000,                   /* pclk = VTPXCK of Clock Information */
+	3076,                        /* frame_length_lines */
 	9184,                        /* line_length_pck */
 };
 

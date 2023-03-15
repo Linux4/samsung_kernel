@@ -295,7 +295,7 @@ static void print_tracks_status(const char *lvl, const char *str, int status)
 	int i;
 
 	list_for_each_entry_safe(tracks, temp, &lib->list_of_tracks, list) {
-		info_lib("num_of_track %d\n", tracks->num_of_track);
+		info_lib("number of memory track: %d\n", tracks->num_of_track);
 		for (i = 0; i < tracks->num_of_track; i++) {
 			track = &tracks->track[i];
 
@@ -317,7 +317,7 @@ static void free_tracks(void)
 						struct lib_mem_tracks, list);
 
 		list_del(&tracks->list);
-		vfree(tracks);
+		vfree_atomic(tracks);
 	}
 	spin_unlock_irqrestore(&lib->slock_mem_track, flag);
 }
@@ -839,11 +839,25 @@ void is_inv_dma_orbmch(ulong kva, u32 size)
 	return mblk_inv(&lib->mb_dma_orbmch, kva, size);
 }
 
+void is_clean_dma_orbmch(ulong kva, u32 size)
+{
+	struct is_lib_support *lib = &gPtr_lib_support;
+
+	return mblk_clean(&lib->mb_dma_orbmch, kva, size);
+}
+
 void is_inv_dma_clahe(ulong kva, u32 size)
 {
 	struct is_lib_support *lib = &gPtr_lib_support;
 
 	return mblk_inv(&lib->mb_dma_clahe, kva, size);
+}
+
+void is_clean_dma_clahe(ulong kva, u32 size)
+{
+	struct is_lib_support *lib = &gPtr_lib_support;
+
+	return mblk_clean(&lib->mb_dma_clahe, kva, size);
 }
 
 void is_inv_vra(ulong kva, u32 size)
@@ -1872,6 +1886,7 @@ static void _get_fd_data(u32 instance,
 	struct is_device_ischain *ischain = NULL;
 	struct is_region *is_region = NULL;
 	struct nfd_info *fd_info = NULL;
+	unsigned long flags = 0;
 
 	if (unlikely(!lib)) {
 		err_lib("lib is NULL");
@@ -1887,9 +1902,9 @@ static void _get_fd_data(u32 instance,
 	is_region = ischain->is_region;
 	fd_info = (struct nfd_info *)&is_region->fd_info;
 
-	spin_lock(&is_region->fd_info_slock);
+	spin_lock_irqsave(&is_region->fd_info_slock, flags);
 	memcpy((void *)fd_data, (void *)fd_info, sizeof(struct nfd_info));
-	spin_unlock(&is_region->fd_info_slock);
+	spin_unlock_irqrestore(&is_region->fd_info_slock, flags);
 
 	dbg_lib(3, "_get_fd_data: (fc: %d, fn: %d)\n",
 		fd_data->frame_count, fd_data->face_num);
@@ -2282,6 +2297,8 @@ void set_os_system_funcs(os_system_func_t *funcs)
 	funcs[73] = (os_system_func_t)is_alloc_dma_clahe;
 	funcs[74] = (os_system_func_t)is_free_dma_clahe;
 	funcs[75] = (os_system_func_t)is_clean_dma_medrc;
+	funcs[76] = (os_system_func_t)is_clean_dma_clahe;
+	funcs[77] = (os_system_func_t)is_clean_dma_orbmch;
 
 	/* VOTF interface */
 	funcs[80] = (os_system_func_t)is_votfif_create_ring;
@@ -2839,6 +2856,14 @@ int is_load_bin(void)
 		return ret;
 	}
 
+	ret = lib_support_init();
+	if (ret < 0) {
+		err_lib("lib_support_init failed!! (%d)", ret);
+		return ret;
+	}
+	dbg_lib(3, "lib_support_init success!!\n");
+
+
 	is_load_ctrl_lock();
 #ifdef USE_TZ_CONTROLLED_MEM_ATTRIBUTE
 	if (gPtr_lib_support.binary_code_load_flg & BINARY_LOAD_DDK_DONE) {
@@ -2891,13 +2916,6 @@ int is_load_bin(void)
 		return ret;
 	}
 	is_load_ctrl_unlock();
-
-	ret = lib_support_init();
-	if (ret < 0) {
-		err_lib("lib_support_init failed!! (%d)", ret);
-		return ret;
-	}
-	dbg_lib(3, "lib_support_init success!!\n");
 
 	lib->binary_load_flg = true;
 

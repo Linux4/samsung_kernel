@@ -14,6 +14,17 @@
 /* Logging modules
  * =======================
  */
+#ifdef CONFIG_SCSC_WLAN_DEBUG
+#ifndef MAC2STR
+#define MAC2STR(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5]
+#define MACSTR "%02x:%02x:%02x:%02x:%02x:%02x"
+#endif
+#else
+#ifndef MAC2STR
+#define MAC2STR(a) (a)[0], (a)[4], (a)[5]
+#define MACSTR "%02x:**:**:**:%02x:%02x"
+#endif
+#endif
 
 #ifndef CONFIG_SCSC_DEBUG_COMPATIBILITY
 extern const int SLSI_INIT_DEINIT;

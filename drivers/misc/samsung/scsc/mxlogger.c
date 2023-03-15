@@ -12,8 +12,9 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/atomic.h>
+#include <linux/version.h>
 #include <scsc/scsc_logring.h>
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 #include <scsc/scsc_log_collector.h>
 #endif
 
@@ -62,17 +63,6 @@ MODULE_PARM_DESC(mmxlogger_manual_mxlog, "size for MXLOG buffer when mxlogger_ma
 static int mxlogger_manual_udi;
 module_param(mxlogger_manual_udi , int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(mxlogger_manual_udi, "size for UDI buffer when mxlogger_manual_layout is enabled");
-
-bool mxlogger_set_enabled_status(bool enable)
-{
-	mxlogger_disabled = !enable;
-
-	SCSC_TAG_INFO(MXMAN, "MXLOGGER has been NOW %sABLED. Effective at next WLBT boot.\n",
-		      mxlogger_disabled ? "DIS" : "EN");
-
-	return mxlogger_disabled;
-}
-EXPORT_SYMBOL(mxlogger_set_enabled_status);
 
 static bool mxlogger_forced_to_host;
 
@@ -143,14 +133,14 @@ static struct mxlogger_list { struct list_head list; } mxlogger_list = {
 	.list = LIST_HEAD_INIT(mxlogger_list.list)
 };
 
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 static int mxlogger_collect_init(struct scsc_log_collector_client *collect_client);
 static int mxlogger_collect(struct scsc_log_collector_client *collect_client, size_t size);
 static int mxlogger_collect_end(struct scsc_log_collector_client *collect_client);
 
 /* Collect client registration SYNC buffer */
 /* SYNC - SHOULD BE THE FIRST CHUNK TO BE CALLED - SO USE THE INIT/END ON THIS CLIENT */
-struct scsc_log_collector_client mxlogger_collect_client_sync = {
+static struct scsc_log_collector_client mxlogger_collect_client_sync = {
 	.name = "Sync",
 	.type = SCSC_LOG_CHUNK_SYNC,
 	.collect_init = mxlogger_collect_init,
@@ -160,7 +150,7 @@ struct scsc_log_collector_client mxlogger_collect_client_sync = {
 };
 
 /* Collect client registration IMP buffer */
-struct scsc_log_collector_client mxlogger_collect_client_imp = {
+static struct scsc_log_collector_client mxlogger_collect_client_imp = {
 	.name = "Important",
 	.type = SCSC_LOG_CHUNK_IMP,
 	.collect_init = NULL,
@@ -169,7 +159,7 @@ struct scsc_log_collector_client mxlogger_collect_client_imp = {
 	.prv = NULL,
 };
 
-struct scsc_log_collector_client mxlogger_collect_client_rsv_common = {
+static struct scsc_log_collector_client mxlogger_collect_client_rsv_common = {
 	.name = "Rsv_common",
 	.type = SCSC_LOG_RESERVED_COMMON,
 	.collect_init = NULL,
@@ -178,7 +168,7 @@ struct scsc_log_collector_client mxlogger_collect_client_rsv_common = {
 	.prv = NULL,
 };
 
-struct scsc_log_collector_client mxlogger_collect_client_rsv_bt = {
+static struct scsc_log_collector_client mxlogger_collect_client_rsv_bt = {
 	.name = "Rsv_bt",
 	.type = SCSC_LOG_RESERVED_BT,
 	.collect_init = NULL,
@@ -187,7 +177,7 @@ struct scsc_log_collector_client mxlogger_collect_client_rsv_bt = {
 	.prv = NULL,
 };
 
-struct scsc_log_collector_client mxlogger_collect_client_rsv_wlan = {
+static struct scsc_log_collector_client mxlogger_collect_client_rsv_wlan = {
 	.name = "Rsv_wlan",
 	.type = SCSC_LOG_RESERVED_WLAN,
 	.collect_init = NULL,
@@ -196,7 +186,7 @@ struct scsc_log_collector_client mxlogger_collect_client_rsv_wlan = {
 	.prv = NULL,
 };
 
-struct scsc_log_collector_client mxlogger_collect_client_rsv_radio = {
+static struct scsc_log_collector_client mxlogger_collect_client_rsv_radio = {
 	.name = "Rsv_radio",
 	.type = SCSC_LOG_RESERVED_RADIO,
 	.collect_init = NULL,
@@ -205,7 +195,7 @@ struct scsc_log_collector_client mxlogger_collect_client_rsv_radio = {
 	.prv = NULL,
 };
 /* Collect client registration MXL buffer */
-struct scsc_log_collector_client mxlogger_collect_client_mxl = {
+static struct scsc_log_collector_client mxlogger_collect_client_mxl = {
 	.name = "MXL",
 	.type = SCSC_LOG_CHUNK_MXL,
 	.collect_init = NULL,
@@ -215,7 +205,7 @@ struct scsc_log_collector_client mxlogger_collect_client_mxl = {
 };
 
 /* Collect client registration MXL buffer */
-struct scsc_log_collector_client mxlogger_collect_client_udi = {
+static struct scsc_log_collector_client mxlogger_collect_client_udi = {
 	.name = "UDI",
 	.type = SCSC_LOG_CHUNK_UDI,
 	.collect_init = NULL,
@@ -225,7 +215,9 @@ struct scsc_log_collector_client mxlogger_collect_client_udi = {
 };
 #endif
 
-const char *mxlogger_buf_name[] = { "syn", "imp", "rsv_common", "rsv_bt", "rsv_wlan", "rsv_radio", "mxl", "udi" };
+static const char * const mxlogger_buf_name[] = {
+	"syn", "imp", "rsv_common", "rsv_bt", "rsv_wlan", "rsv_radio", "mxl", "udi"
+};
 
 static void mxlogger_message_handler(const void *message, void *data)
 {
@@ -257,7 +249,7 @@ static void mxlogger_message_handler(const void *message, void *data)
 		else
 			/* old API */
 			reason_code = msg->arg;
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 		SCSC_TAG_INFO(MXMAN, "MXLOGGER:: FW requested collection - Reason code:0x%04x\n", reason_code);
 		scsc_log_collector_schedule_collection(SCSC_LOG_FW, reason_code);
 #endif
@@ -273,7 +265,11 @@ static void mxlogger_message_handler(const void *message, void *data)
 static int __mxlogger_generate_sync_record(struct mxlogger *mxlogger, enum mxlogger_sync_event event)
 {
 	struct mxlogger_sync_record *sync_r_mem;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+	struct timespec64 ts;
+#else
 	struct timeval t;
+#endif
 	struct log_msg_packet msg = {};
 	unsigned long int jd;
 	void *mem;
@@ -314,7 +310,11 @@ static int __mxlogger_generate_sync_record(struct mxlogger *mxlogger, enum mxlog
 	while (time_before(jiffies, jd) && sync_r_mem->fw_time == 0 && sync_r_mem->fw_wrap == 0)
 		;
 	t2 = ktime_get();
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+	ktime_get_real_ts64(&ts);
+#else
 	do_gettimeofday(&t);
+#endif
 	preempt_enable();
 
 	/* Do the processing */
@@ -322,15 +322,25 @@ static int __mxlogger_generate_sync_record(struct mxlogger *mxlogger, enum mxlog
 		/* FW didn't update the record (FW panic?) */
 		SCSC_TAG_INFO(MXMAN, "FW failure updating the FW time\n");
 		SCSC_TAG_INFO(MXMAN, "Sync delta %lld\n", ktime_to_ns(ktime_sub(t2, t1)));
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+		sync_r_mem->tv_sec = ts.tv_sec;
+		sync_r_mem->tv_usec = ts.tv_nsec / NSEC_PER_USEC;
+#else
 		sync_r_mem->tv_sec = (u64)t.tv_sec;
 		sync_r_mem->tv_usec = (u64)t.tv_usec;
+#endif
 		sync_r_mem->kernel_time = ktime_to_ns(t2);
 		sync_r_mem->sync_event = event;
 		return 0;
 	}
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+	sync_r_mem->tv_sec = ts.tv_sec;
+	sync_r_mem->tv_usec = ts.tv_nsec / NSEC_PER_USEC;
+#else
 	sync_r_mem->tv_sec = (u64)t.tv_sec;
 	sync_r_mem->tv_usec = (u64)t.tv_usec;
+#endif
 	sync_r_mem->kernel_time = ktime_to_ns(t2);
 	sync_r_mem->sync_event = event;
 
@@ -470,7 +480,7 @@ static void mxlogger_to_host(struct mxlogger *mxlogger)
 			      &msg, sizeof(msg));
 }
 
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 static void mxlogger_disable_for_collection(struct mxlogger *mxlogger)
 {
 	return __mxlogger_enable(mxlogger, false, MM_MXLOGGER_DISABLE_REASON_COLLECTION);
@@ -549,7 +559,11 @@ static int mxlogger_collect(struct scsc_log_collector_client *collect_client, si
 	}
 
 	sz = mxlogger->cfg->bfds[i].size;
+#if IS_ENABLED(CONFIG_SCSC_MEMLOG)
+	buf = mif->get_mifram_ptr_region2(mif, mxlogger->cfg->bfds[i].location);
+#else
 	buf = mif->get_mifram_ptr(mif, mxlogger->cfg->bfds[i].location);
+#endif
 	SCSC_TAG_INFO(MXMAN, "Writing buffer %s size: %zu\n", mxlogger_buf_name[i], sz);
 	ret = scsc_log_collector_write(buf, sz, 1);
 	if (ret) {
@@ -638,7 +652,11 @@ int mxlogger_init(struct scsc_mx *mx, struct mxlogger *mxlogger, uint32_t mem_sz
 
 	/* Clear memory to avoid reading old records */
 	memset(mxlogger->mem, 0, mxlogger->msz);
+#if IS_ENABLED(CONFIG_SCSC_MEMLOG)
+	mif->get_mifram_ref_region2(mif, mxlogger->mem, &mxlogger->mifram_ref);
+#else
 	mif->get_mifram_ref(mif, mxlogger->mem, &mxlogger->mifram_ref);
+#endif
 
 	mxmgmt_transport_register_channel_handler(scsc_mx_get_mxmgmt_transport(mxlogger->mx),
 						  MMTRANS_CHAN_ID_MAXWELL_LOGGING,
@@ -715,7 +733,11 @@ int mxlogger_init(struct scsc_mx *mx, struct mxlogger *mxlogger, uint32_t mem_sz
 		mxlogger_manual_layout ? mxlogger_manual_udi : udi_mxl_mem_sz;
 
 	/* Save offset to buffers array */
+#if IS_ENABLED(CONFIG_SCSC_MEMLOG)
+	mif->get_mifram_ref_region2(mif, cfg->bfds, &cfg->config.bfds_ref);
+#else
 	mif->get_mifram_ref(mif, cfg->bfds, &cfg->config.bfds_ref);
+#endif
 
 	mxlogger_print_mapping(cfg);
 
@@ -749,7 +771,7 @@ int mxlogger_init(struct scsc_mx *mx, struct mxlogger *mxlogger, uint32_t mem_sz
 	mn->mxl = mxlogger;
 	list_add_tail(&mn->list, &mxlogger_list.list);
 
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 	/**
 	 * Register to the collection infrastructure
 	 *
@@ -825,12 +847,12 @@ int mxlogger_start(struct mxlogger *mxlogger)
 		 */
 		mxlogger_enable(mxlogger, true);
 		mxlogger_to_shared_dram(mxlogger);
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 		scsc_log_collector_is_observer(false);
 #endif
 	} else {
 		mxlogger_to_host(mxlogger);
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 		scsc_log_collector_is_observer(true);
 #endif
 		/* Enabling AFTER communicating direction HOST
@@ -861,7 +883,7 @@ void mxlogger_deinit(struct scsc_mx *mx, struct mxlogger *mxlogger)
 	/* Run deregistration before adquiring the mxlogger lock to avoid
 	 * deadlock with log_collector.
 	 */
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 	scsc_log_collector_unregister_client(&mxlogger_collect_client_sync);
 	scsc_log_collector_unregister_client(&mxlogger_collect_client_imp);
 	scsc_log_collector_unregister_client(&mxlogger_collect_client_rsv_common);
@@ -877,7 +899,7 @@ void mxlogger_deinit(struct scsc_mx *mx, struct mxlogger *mxlogger)
 	mxlogger->configured = false;
 	mxlogger->initialized = false;
 
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 	scsc_log_collector_is_observer(true);
 #endif
 	mxlogger_enable(mxlogger, false);
@@ -914,7 +936,7 @@ int mxlogger_register_observer(struct mxlogger *mxlogger, char *name)
 
 	/* Switch logs to host */
 	mxlogger_to_host(mxlogger);
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 	scsc_log_collector_is_observer(true);
 #endif
 
@@ -940,7 +962,7 @@ int mxlogger_unregister_observer(struct mxlogger *mxlogger, char *name)
 
 	if (mxlogger->observers == 0) {
 		mxlogger_to_shared_dram(mxlogger);
-#ifdef CONFIG_SCSC_LOG_COLLECTION
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 		scsc_log_collector_is_observer(false);
 #endif
 	}
@@ -999,4 +1021,136 @@ int mxlogger_unregister_global_observer(char *name)
 
 	return 0;
 }
+
+#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 12
+static int mxlogger_buffer_to_index(enum scsc_log_chunk_type fw_buffer)
+{
+	int i;
+
+	switch (fw_buffer) {
+	case SCSC_LOG_CHUNK_SYNC:
+		i = MXLOGGER_SYNC;
+		break;
+	case SCSC_LOG_CHUNK_IMP:
+		i = MXLOGGER_IMP;
+		break;
+	case SCSC_LOG_RESERVED_COMMON:
+		i = MXLOGGER_RESERVED_COMMON;
+		break;
+	case SCSC_LOG_RESERVED_BT:
+		i = MXLOGGER_RESERVED_BT;
+		break;
+	case SCSC_LOG_RESERVED_WLAN:
+		i = MXLOGGER_RESERVED_WLAN;
+		break;
+	case SCSC_LOG_RESERVED_RADIO:
+		i = MXLOGGER_RESERVED_RADIO;
+		break;
+	case SCSC_LOG_CHUNK_MXL:
+		i = MXLOGGER_MXLOG;
+		break;
+	case SCSC_LOG_CHUNK_UDI:
+		i = MXLOGGER_UDI;
+		break;
+	default:
+		SCSC_TAG_ERR(MXMAN,
+			     "MXLOGGER Incorrect buffer type\n");
+		return -EIO;
+	}
+
+	return i;
+}
+
+size_t mxlogger_get_fw_buf_size(struct mxlogger *mxlogger, enum scsc_log_chunk_type fw_buffer)
+{
+	struct scsc_mif_abs *mif;
+	size_t size;
+	int i;
+	int ret = 0;
+
+	if (mxlogger && mxlogger->mx)
+		mif = scsc_mx_get_mif_abs(mxlogger->mx);
+	else
+		return 0;
+
+	mutex_lock(&mxlogger->lock);
+
+	if (mxlogger->initialized == false) {
+		SCSC_TAG_ERR(MXMAN, "MXLOGGER not initialized\n");
+		mutex_unlock(&mxlogger->lock);
+		return 0;
+	}
+
+	i = mxlogger_buffer_to_index(fw_buffer);
+	if (i < 0) {
+		SCSC_TAG_ERR(MXMAN, "Incorrect buffer index\n");
+		mutex_unlock(&mxlogger->lock);
+		return 0;
+	}
+
+	SCSC_TAG_INFO(MXMAN, "sync mxlogger before buffer read\n");
+	ret = __mxlogger_generate_sync_record(mxlogger, MXLOGGER_SYN_LOGCOLLECTION);
+	if (ret != 0)
+		SCSC_TAG_INFO(MXMAN, "Error in syncing buffer\n");
+
+	size = mxlogger->cfg->bfds[i].size;
+
+	mutex_unlock(&mxlogger->lock);
+	return size;
+}
+
+size_t mxlogger_dump_fw_buf(struct mxlogger *mxlogger, enum scsc_log_chunk_type fw_buffer, void *buf, size_t size)
+{
+	struct scsc_mif_abs *mif;
+	void *fw_buf;
+	size_t sz;
+	int i;
+	int ret = 0;
+
+	if (mxlogger && mxlogger->mx)
+		mif = scsc_mx_get_mif_abs(mxlogger->mx);
+	else
+		return 0;
+
+	mutex_lock(&mxlogger->lock);
+
+	if (mxlogger->initialized == false) {
+		SCSC_TAG_ERR(MXMAN, "MXLOGGER not initialized\n");
+		goto exit;
+	}
+
+	i = mxlogger_buffer_to_index(fw_buffer);
+	if (i < 0) {
+		SCSC_TAG_ERR(MXMAN, "Incorrect buffer index\n");
+		goto exit;
+	}
+
+	SCSC_TAG_INFO(MXMAN, "sync mxlogger before buffer read\n");
+	ret = __mxlogger_generate_sync_record(mxlogger, MXLOGGER_SYN_LOGCOLLECTION);
+	if (ret != 0)
+		SCSC_TAG_INFO(MXMAN, "Error in syncing buffer\n");
+
+	sz = mxlogger->cfg->bfds[i].size;
+	if (sz == 0 || sz > size) {
+		SCSC_TAG_INFO(MXMAN, "Skipping %s buffer, size %d\n", mxlogger_buf_name[i], sz);
+		goto exit;
+	}
+#if IS_ENABLED(CONFIG_SCSC_MEMLOG)
+		fw_buf = mif->get_mifram_ptr_region2(mif, mxlogger->cfg->bfds[i].location);
+#else
+		fw_buf = mif->get_mifram_ptr(mif, mxlogger->cfg->bfds[i].location);
+#endif
+
+	SCSC_TAG_INFO(MXMAN, "Writing buffer %s size: %zu\n", mxlogger_buf_name[i], size);
+
+	if (fw_buf) {
+		memcpy(buf, fw_buf, size);
+		mutex_unlock(&mxlogger->lock);
+		return size;
+	}
+exit:
+	mutex_unlock(&mxlogger->lock);
+	return 0;
+}
+#endif
 

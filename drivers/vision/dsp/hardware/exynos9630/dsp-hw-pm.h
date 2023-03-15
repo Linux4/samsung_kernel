@@ -23,6 +23,13 @@ enum dsp_devfreq_id {
 struct dsp_pm {
 	struct mutex		lock;
 	struct dsp_pm_devfreq	*devfreq;
+	bool			dvfs;
+	unsigned int		dvfs_disable_count;
+	bool			dvfs_lock;
+	struct pm_qos_request	mif_qos;
+	struct pm_qos_request	int_qos;
+	struct pm_qos_request	cl0_qos;
+	struct pm_qos_request	cl1_qos;
 
 	struct dsp_system	*sys;
 };

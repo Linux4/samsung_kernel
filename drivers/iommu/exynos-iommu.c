@@ -52,6 +52,8 @@ static const unsigned int sysmmu_reg_set[MAX_SET_IDX][MAX_REG_IDX] = {
 		0x8000,	0x8004,	0x8008,	0x800C,
 		/* SBB information */
 		0x8020,	0x8024,	0x8028,	0x802C,
+		/* secure FLPT base (same as non-secure) */
+		0x000C,
 	},
 	/* VM */
 	{
@@ -62,6 +64,8 @@ static const unsigned int sysmmu_reg_set[MAX_SET_IDX][MAX_REG_IDX] = {
 		0x3000,	0x3004,	0x3008,	0x300C,
 		/* SBB information */
 		0x3020,	0x3024,	0x3028,	0x302C,
+		/* secure FLPT base */
+		0x000C,
 	},
 };
 

@@ -983,8 +983,11 @@ int is_hw_camif_cfg(void *sensor_data)
 	}
 
 	pdata = sensor->pdata;
-	if (!pdata)
-		merr("csi-ipp mux dt value is null\n", sensor);
+	if (!pdata) {
+		merr("pdata is null\n", sensor);
+		ret = -ENODEV;
+		return ret;
+	}
 
 	core = sensor->private_data;
 	if (!core) {
@@ -1004,6 +1007,8 @@ int is_hw_camif_cfg(void *sensor_data)
 	if (pdata->csi_mux) {
 		sel_ipp0_input = pdata->csi_mux & 0x000F;
 		sel_ipp1_input = (pdata->csi_mux & 0x00F0) >> 4;
+	} else {
+		merr("csi-ipp mux dt value is null\n", sensor);
 	}
 
 	for (i = 0; i < IS_SENSOR_COUNT; i++) {

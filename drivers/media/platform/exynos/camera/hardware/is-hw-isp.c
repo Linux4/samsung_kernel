@@ -351,7 +351,7 @@ static int is_hw_isp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	ulong hw_map)
 {
 	int ret = 0;
-	int i, cur_idx;
+	int i, cur_idx, batch_num;
 #if defined(SOC_TNR_MERGER)
 	int j;
 #endif
@@ -397,6 +397,7 @@ static int is_hw_isp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 
 	param = &region->parameter.isp;
 	fcount = frame->fcount;
+	cur_idx = frame->cur_buf_index;
 
 	if (frame->type == SHOT_TYPE_INTERNAL) {
 		/* OTF INPUT case */
@@ -450,8 +451,6 @@ static int is_hw_isp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	is_hw_isp_update_param(hw_ip, region, param_set, lindex, hindex, instance);
 
 	/* DMA settings */
-	cur_idx = frame->cur_buf_index;
-
 	if (param_set->dma_input.cmd != DMA_INPUT_COMMAND_DISABLE) {
 		for (i = 0; i < frame->num_buffers; i++) {
 			param_set->input_dva[i] = (typeof(*param_set->input_dva))
@@ -568,8 +567,12 @@ config:
 	param_set->fcount = fcount;
 
 	/* multi-buffer */
-	if (frame->num_buffers)
-		hw_ip->num_buffers = frame->num_buffers;
+	hw_ip->num_buffers = frame->num_buffers;
+	batch_num = hw_ip->framemgr->batch_num;
+	if (batch_num > 1) {
+		hw_ip->num_buffers |= batch_num << SW_FRO_NUM_SHIFT;
+		hw_ip->num_buffers |= cur_idx << CURR_INDEX_SHIFT;
+	}
 
 	if (frame->type == SHOT_TYPE_INTERNAL) {
 		is_log_write("[@][DRV][%d]isp_shot [T:%d][R:%d][F:%d][IN:0x%x] [%d][OUT:0x%x]\n",

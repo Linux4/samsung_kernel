@@ -52,24 +52,28 @@ int pdp_hw_s_one_shot_enable(struct is_pdp *pdp);
 void pdp_hw_s_corex_enable(void __iomem *base, bool enable);
 void pdp_hw_s_corex_type(void __iomem *base, u32 type);
 void pdp_hw_g_corex_state(void __iomem *base, u32 *corex_enable);
+void pdp_hw_s_pd_size(void __iomem *base, u32 width, u32 height, u32 hwformat);
+void pdp_hw_s_img_size(void __iomem *base,
+	struct is_crop full_size,
+	struct is_crop crop_size,
+	struct is_crop comp_size,
+	u32 hwformat, u32 pixelsize);
 void pdp_hw_s_core(struct is_pdp *pdp, bool pd_enable, struct is_sensor_cfg *sensor_cfg,
-	u32 img_width, u32 img_height, u32 img_hwformat, u32 img_pixelsize,
+	struct is_crop img_full_size,
+	struct is_crop img_crop_size,
+	struct is_crop img_comp_size,
+	u32 img_hwformat, u32 img_pixelsize,
 	u32 pd_width, u32 pd_height, u32 pd_hwformat,
 	u32 sensor_type, u32 path, int sensor_mode, u32 fps, u32 en_sdc, u32 en_votf,
 	u32 num_buffers, ulong freq, u32 position);
 void pdp_hw_s_init(void __iomem *base);
 void pdp_hw_s_reset(void __iomem *base);
-void pdp_hw_s_global(void __iomem *base, u32 ch, u32 path, void *data);
+void pdp_hw_s_global(void __iomem *base, u32 ch, u32 lic_mode, void *data);
 void pdp_hw_s_context(void __iomem *base, u32 curr_ch, u32 curr_path);
 void pdp_hw_s_path(void __iomem *base, u32 path);
 void pdp_hw_s_wdma_init(void __iomem *base);
 void pdp_hw_s_wdma_enable(void __iomem *base, dma_addr_t address);
 void pdp_hw_s_wdma_disable(void __iomem *base);
-void pdp_hw_s_rdma_init(void __iomem *base, u32 width, u32 height, u32 hwformat, u32 pixelsize,
-	u32 rmo, u32 en_sdc, u32 en_votf, u32 en_dma, ulong freq, u32 ex_mode);
-void pdp_hw_s_af_rdma_init(void __iomem *base, u32 width, u32 height, u32 hwformat, u32 rmo,
-	u32 en_votf, u32 en_dma);
-void pdp_hw_s_af_rdma_tail_count_reset(void __iomem *base);
 void pdp_hw_s_rdma_addr(void __iomem *base, dma_addr_t *address, u32 num_buffers);
 void pdp_hw_s_af_rdma_addr(void __iomem *base, dma_addr_t *address, u32 num_buffers);
 void pdp_hw_s_post_frame_gap(void __iomem *base, u32 interval);

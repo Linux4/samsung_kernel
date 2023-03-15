@@ -58,6 +58,8 @@ int gif_request_irq(struct gnss_irq *irq, irq_handler_t isr, void *data);
 void gif_enable_irq(struct gnss_irq *irq);
 void gif_disable_irq_nosync(struct gnss_irq *irq);
 void gif_disable_irq_sync(struct gnss_irq *irq);
-
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+int gif_gpio_get_value(unsigned int gpio, bool log_print);
+#endif
 #endif/*__GNSS_UTILS_H__*/
 

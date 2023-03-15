@@ -10,6 +10,9 @@
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/slab.h>
+#if defined(CONFIG_USB_NOTIFY_LAYER)
+#include <linux/usb_notify.h>
+#endif
 
 #include "bus.h"
 
@@ -566,6 +569,9 @@ static ssize_t supports_usb_power_delivery_show(struct device *dev,
 	struct typec_partner *p = to_typec_partner(dev);
 
 	pr_info("%s: %s\n", __func__, p->usb_pd ? "yes" : "no");
+
+	pr_info("%s usb_pd=%d\n", __func__, p->usb_pd);
+
 	return sprintf(buf, "%s\n", p->usb_pd ? "yes" : "no");
 }
 static DEVICE_ATTR_RO(supports_usb_power_delivery);
@@ -684,8 +690,17 @@ EXPORT_SYMBOL_GPL(typec_register_partner);
  */
 void typec_unregister_partner(struct typec_partner *partner)
 {
-	if (!IS_ERR_OR_NULL(partner))
+#if defined(CONFIG_USB_NOTIFY_LAYER)
+	struct otg_notify *o_notify = get_otg_notify();
+#endif
+
+	if (!IS_ERR_OR_NULL(partner)) {
 		device_unregister(&partner->dev);
+#if defined(CONFIG_USB_NOTIFY_LAYER)	
+		if (o_notify)
+			send_otg_notify(o_notify, NOTIFY_EVENT_PD_CONTRACT, 0);
+#endif
+	}
 }
 EXPORT_SYMBOL_GPL(typec_unregister_partner);
 
@@ -1311,6 +1326,7 @@ void typec_set_data_role(struct typec_port *port, enum typec_data_role role)
 		return;
 
 	port->data_role = role;
+	pr_info("%s data_role=%d\n", __func__, port->data_role);
 	sysfs_notify(&port->dev.kobj, NULL, "data_role");
 	kobject_uevent(&port->dev.kobj, KOBJ_CHANGE);
 }
@@ -1329,6 +1345,7 @@ void typec_set_pwr_role(struct typec_port *port, enum typec_role role)
 		return;
 
 	port->pwr_role = role;
+	pr_info("%s pwr_role=%d\n", __func__, port->pwr_role);
 	sysfs_notify(&port->dev.kobj, NULL, "power_role");
 	kobject_uevent(&port->dev.kobj, KOBJ_CHANGE);
 }
@@ -1373,12 +1390,25 @@ void typec_set_pwr_opmode(struct typec_port *port,
 {
 	struct device *partner_dev;
 
+#if defined(CONFIG_USB_NOTIFY_LAYER)
+	struct otg_notify *o_notify = get_otg_notify();
+
+	if (o_notify) {
+		if (opmode == TYPEC_PWR_MODE_PD)
+			send_otg_notify(o_notify, NOTIFY_EVENT_PD_CONTRACT, 1);
+		else
+			send_otg_notify(o_notify, NOTIFY_EVENT_PD_CONTRACT, 0);
+	}
+#endif
 	pr_info("%s pwr_opmode=%d opmode=%d\n", __func__, port->pwr_opmode, opmode);
 	if (port->pwr_opmode == opmode)
 		return;
 
 	port->pwr_opmode = opmode;
 	sysfs_notify(&port->dev.kobj, NULL, "power_operation_mode");
+#ifndef CONFIG_USB_HOST_SAMSUNG_FEATURE
+	kobject_uevent(&port->dev.kobj, KOBJ_CHANGE);
+#endif
 
 	partner_dev = device_find_child(&port->dev, NULL, partner_match);
 	if (partner_dev) {
@@ -1391,7 +1421,9 @@ void typec_set_pwr_opmode(struct typec_port *port,
 		}
 		put_device(partner_dev);
 	}
+#ifdef CONFIG_USB_HOST_SAMSUNG_FEATURE
 	kobject_uevent(&port->dev.kobj, KOBJ_CHANGE);
+#endif
 }
 EXPORT_SYMBOL_GPL(typec_set_pwr_opmode);
 

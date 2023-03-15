@@ -91,6 +91,7 @@ int dev_ril_bridge_send_msg(int id, int size, void *buf)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(dev_ril_bridge_send_msg);
 
 static RAW_NOTIFIER_HEAD(dev_ril_bridge_chain);
 
@@ -101,6 +102,7 @@ int register_dev_ril_bridge_event_notifier(struct notifier_block *nb)
 
 	return raw_notifier_chain_register(&dev_ril_bridge_chain, nb);
 }
+EXPORT_SYMBOL_GPL(register_dev_ril_bridge_event_notifier);
 
 int unregister_dev_ril_bridge_event_notifier(struct notifier_block *nb)
 {
@@ -109,6 +111,7 @@ int unregister_dev_ril_bridge_event_notifier(struct notifier_block *nb)
 
 	return raw_notifier_chain_unregister(&dev_ril_bridge_chain, nb);
 }
+EXPORT_SYMBOL_GPL(unregister_dev_ril_bridge_event_notifier);
 
 static int misc_open(struct inode *inode, struct file *filp)
 {

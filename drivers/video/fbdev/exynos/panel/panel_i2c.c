@@ -1,12 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * linux/drivers/video/fbdev/exynos/panel/i2c.c
- *
- * Samsung Common LCD Driver.
+ * Copyright (c) Samsung Electronics Co., Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
+
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/i2c.h>
@@ -44,9 +44,7 @@ int panel_i2c_tx(struct panel_i2c_dev *i2c_dev, u8 *arr, u32 arr_len)
 
 	mutex_lock(&i2c_dev->lock);
 
-#if 0
-	pr_info("%s ++ [0]:0x%02x, len:%03d\n", __func__, arr[0], arr_len);
-#endif
+	//pr_info("%s ++ [0]:0x%02x, len:%03d\n", __func__, arr[0], arr_len);
 
 	tx_cnt = arr_len / i2c_dev->tx_len;
 
@@ -55,7 +53,7 @@ int panel_i2c_tx(struct panel_i2c_dev *i2c_dev, u8 *arr, u32 arr_len)
 				__func__, arr_len, arr_len % i2c_dev->tx_len);
 	}
 
-	for ( i = 0 ; i < tx_cnt; i++) {
+	for (i = 0; i < tx_cnt; i++) {
 		memcpy(tx_buf, arr + (i * tx_len), tx_len);
 
 		ret = i2c_transfer(i2c_dev->client->adapter, msg, 1);
@@ -111,7 +109,7 @@ int panel_i2c_rx(struct panel_i2c_dev *i2c_dev, u8 *arr, u32 arr_len)
 	rx_cnt = arr_len / i2c_dev->tx_len;
 
 	pr_info("========= %s =========\n", __func__);
-	for ( i = 0 ; i < rx_cnt; i++) {
+	for (i = 0; i < rx_cnt; i++) {
 		memcpy(addr_buf, arr + (i * tx_len), i2c_dev->addr_len);
 		memset(printout_buf, 0x00, ARRAY_SIZE(printout_buf));
 		printout_pos = 0;
@@ -164,7 +162,7 @@ static int panel_i2c_probe(struct i2c_client *client,
 	}
 
 	if (id && id->driver_data)
-		panel= (struct panel_device *)id->driver_data;
+		panel = (struct panel_device *)id->driver_data;
 
 	panel->panel_i2c_dev.client = client;
 
@@ -201,7 +199,7 @@ static struct i2c_driver panel_i2c_driver = {
 	},
 	.id_table = panel_i2c_id,
 	.probe = panel_i2c_probe,
-	.remove 	= panel_i2c_remove,
+	.remove = panel_i2c_remove,
 };
 
 int panel_i2c_drv_probe(struct panel_device *panel, struct i2c_data *i2c_data)

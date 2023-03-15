@@ -14,7 +14,6 @@
 
 int npu_sessionmgr_probe(struct npu_sessionmgr *sessionmgr)
 {
-	int ret = 0;
 	int i = 0;
 	mutex_init(&sessionmgr->mlock);
 
@@ -23,7 +22,7 @@ int npu_sessionmgr_probe(struct npu_sessionmgr *sessionmgr)
 	}
 	atomic_set(&sessionmgr->session_cnt, 0);
 
-	return ret;
+	return 0;
 }
 
 int npu_sessionmgr_open(struct npu_sessionmgr *sessionmgr)
@@ -85,8 +84,6 @@ int npu_sessionmgr_regID(struct npu_sessionmgr *sessionmgr, struct npu_session *
 
 int npu_sessionmgr_unregID(struct npu_sessionmgr *sessionmgr, struct npu_session *session)
 {
-	int ret = 0;
-
 	BUG_ON(!sessionmgr);
 	BUG_ON(!session);
 
@@ -95,5 +92,5 @@ int npu_sessionmgr_unregID(struct npu_sessionmgr *sessionmgr, struct npu_session
 	atomic_dec(&sessionmgr->session_cnt);
 	mutex_unlock(&sessionmgr->mlock);
 
-	return ret;
+	return 0;
 }

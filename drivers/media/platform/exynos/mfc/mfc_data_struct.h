@@ -279,6 +279,18 @@ enum mfc_debug_cause {
 	MFC_LAST_INFO_DRM                       = 31,
 };
 
+enum mfc_real_time {
+	/* real-time */
+	MFC_RT                  = 0,
+	/* low-priority real-time */
+	MFC_RT_LOW              = 1,
+	/* constrained real-time */
+	MFC_RT_CON              = 2,
+	/* non real-time */
+	MFC_NON_RT              = 3,
+	MFC_RT_UNDEFINED        = 4,
+};
+
 struct mfc_debug {
 	u32	fw_version;
 	u32	cause;
@@ -915,7 +927,8 @@ struct mfc_dev {
 	struct mfc_debug	*logging_data;
 
 	int num_inst;
-	int num_otf_inst;
+
+	unsigned long otf_inst_bits;
 
 	struct mutex mfc_mutex;
 
@@ -984,6 +997,7 @@ struct mfc_dev {
 #endif
 	struct mutex qos_mutex;
 	int mfc_freq_by_bps;
+	int last_mfc_freq;
 	struct mfc_bitrate_table bitrate_table[MAX_NUM_MFC_FREQ];
 	int bps_ratio;
 
@@ -1396,6 +1410,7 @@ struct mfc_user_shared_handle {
 	int fd;
 	struct dma_buf *dma_buf;
 	void *vaddr;
+	size_t data_size;
 };
 
 struct mfc_raw_info {
@@ -1623,6 +1638,9 @@ struct mfc_ctx {
 	int int_reason;
 	unsigned int int_err;
 
+	int prio;
+	enum mfc_real_time rt;
+
 	struct mfc_fmt *src_fmt;
 	struct mfc_fmt *dst_fmt;
 
@@ -1694,6 +1712,7 @@ struct mfc_ctx {
 
 	unsigned long framerate;
 	unsigned long last_framerate;
+	unsigned long operating_framerate;
 	unsigned int qos_ratio;
 
 	int qos_req_step;

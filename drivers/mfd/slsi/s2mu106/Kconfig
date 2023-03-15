@@ -1,5 +1,5 @@
 config MFD_S2MU106
-	bool "Samsung Electronics S2MU106 IF PMIC Series Support"
+	tristate "Samsung Electronics S2MU106 IF PMIC Series Support"
 	depends on I2C=y
 	select MFD_CORE
 	help

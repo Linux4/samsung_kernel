@@ -37,6 +37,7 @@
 #define SEC_CONN_PRINT(format, ...) \
 	pr_info("[ABC_COND] " format, ##__VA_ARGS__)
 #define ABCEVENT_CONN_MAX_DEV_STRING 120
+#define ABC_CONN_DEBOUNCE_TIME_MS 300
 
 /* This value is used for checking gpio irq is enabled or not. */
 static int detect_conn_enabled;
@@ -51,7 +52,7 @@ int parse_cond_data(struct device *dev,
 {
 	int i;
 	int gpio_num = 0;
-#if defined(CONFIG_ARCH_QCOM)
+#if IS_ENABLED(CONFIG_ARCH_QCOM)
 	struct pinctrl *conn_pinctrl;
 	struct pinctrl *pm_conn_pinctrl;
 #endif
@@ -69,7 +70,7 @@ int parse_cond_data(struct device *dev,
 
 	pdata->cond.gpio_total_cnt = pdata->cond.gpio_cnt;
 
-#if defined(CONFIG_ARCH_QCOM)
+#if IS_ENABLED(CONFIG_ARCH_QCOM)
 	/* Setting pinctrl state to NO PULL */
 	conn_pinctrl = devm_pinctrl_get_select(dev, "det_ap_connect");
 	if (IS_ERR_OR_NULL(conn_pinctrl))
@@ -99,7 +100,7 @@ int parse_cond_data(struct device *dev,
 			       gpio_num, pdata->cond.irq_type[i]);
 	}
 
-#if defined(CONFIG_ARCH_QCOM)
+#if IS_ENABLED(CONFIG_ARCH_QCOM)
 	/* Get pm_gpio */
 	pdata->cond.gpio_pm_cnt = of_gpio_named_count(np,
 						      "sec,det_pm_conn_gpios");
@@ -184,11 +185,12 @@ void check_and_send_ABC_event_irq(int irq, struct abc_hub_info *pinfo,
 	for (i = 0; i < pinfo->pdata->cond.gpio_total_cnt; i++) {
 		if (irq != pinfo->pdata->cond.irq_num[i])
 			continue;
-		/* if edge interrupt occurs, check level one more.*/
+		/* if edge interrupt occurs, check level twice more.*/
 		/* and if it still level high send ABC_event.*/
-		usleep_range(1 * 1000, 1 * 1000);
+		usleep_range(ABC_CONN_DEBOUNCE_TIME_MS * 1000, ABC_CONN_DEBOUNCE_TIME_MS * 1000);
 		if (gpio_get_value(pinfo->pdata->cond.irq_gpio[i]))
-			send_ABC_event_by_num(i, pinfo, 1);
+			if (gpio_get_value(pinfo->pdata->cond.irq_gpio[i]))
+				send_ABC_event_by_num(i, pinfo, 1);
 
 		SEC_CONN_PRINT("%s status changed.\n",
 			       pinfo->pdata->cond.name[i]);
@@ -227,36 +229,44 @@ int abc_detect_conn_irq_enable(struct abc_hub_info *pinfo, bool enable,
 		for (i = 0; i < pinfo->pdata->cond.gpio_total_cnt; i++) {
 			if (pinfo->pdata->cond.irq_enabled[i]) {
 				disable_irq(pinfo->pdata->cond.irq_num[i]);
-				free_irq(pinfo->pdata->cond.irq_num[i], pinfo);
+				pinfo->pdata->cond.irq_enabled[i] = DET_CONN_GPIO_IRQ_DISABLED;
 			}
 		}
 		detect_conn_enabled = 0;
+		return ret;
 	}
 
 	if (pin >= pinfo->pdata->cond.gpio_total_cnt)
 		return ret;
 
-	ret = request_threaded_irq(pinfo->pdata->cond.irq_num[pin], NULL,
-				   detect_conn_interrupt_handler,
-				   pinfo->pdata->cond.irq_type[pin] |
-				   IRQF_ONESHOT,
-				   pinfo->pdata->cond.name[pin], pinfo);
-
-	if (ret) {
-		SEC_CONN_PRINT("%s: Failed to request threaded irq %d.\n",
-			       __func__, ret);
-
-		return ret;
+	if (pinfo->pdata->cond.irq_enabled[pin] == DET_CONN_GPIO_IRQ_NOT_INIT) {
+	 	ret = request_threaded_irq(pinfo->pdata->cond.irq_num[pin], NULL,
+	 				   detect_conn_interrupt_handler,
+	 				   pinfo->pdata->cond.irq_type[pin] |
+	 				   IRQF_ONESHOT,
+	 				   pinfo->pdata->cond.name[pin], pinfo);
+	 
+	 	if (ret) {
+	 		SEC_CONN_PRINT("%s: Failed to request threaded irq %d.\n",
+	 			       __func__, ret);
+	 
+	 		return ret;
+	 	}
+	 
+	 	SEC_CONN_PRINT("%s: Succeeded to request threaded irq %d:\n",
+	 		       __func__, ret);
+	}
+	else if (pinfo->pdata->cond.irq_enabled[pin] == DET_CONN_GPIO_IRQ_DISABLED) {
+		enable_irq(pinfo->pdata->cond.irq_num[pin]);
 	}
 
-	SEC_CONN_PRINT("%s: Succeeded to request threaded irq %d:\n",
-		       __func__, ret);
 	SEC_CONN_PRINT("irq_num[%d], type[%x],name[%s].\n",
 		       pinfo->pdata->cond.irq_num[pin],
 		       pinfo->pdata->cond.irq_type[pin],
 		       pinfo->pdata->cond.name[pin]);
 
-	pinfo->pdata->cond.irq_enabled[pin] = true;
+	pinfo->pdata->cond.irq_enabled[pin] = DET_CONN_GPIO_IRQ_ENABLED;
+
 	return ret;
 }
 
@@ -280,6 +290,7 @@ void abc_hub_cond_enable(struct device *dev, int enable)
 		SEC_CONN_PRINT("ABC_HUB_COND_DISANABLED.");
 		/*Disable interrupt.*/
 		ret = abc_detect_conn_irq_enable(pinfo, false, 0);
+		return;
 	}
 	SEC_CONN_PRINT("ABC_HUB_COND_ENABLED.");
 	for (i = 0; i < pdata->cond.gpio_total_cnt; i++) {

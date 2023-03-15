@@ -20,9 +20,8 @@
 #include <uapi/linux/if.h>
 #include <linux/skbuff.h>
 
-#define NETDEV_INTERFACE_NAME_LENGTH	IFNAMSIZ /* known to be 16 */
 struct tethering_dev {
-	char dev_name[NETDEV_INTERFACE_NAME_LENGTH];
+	char dev_name[IFNAMSIZ];
 	spinlock_t lock;
 };
 

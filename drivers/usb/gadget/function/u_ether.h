@@ -16,12 +16,6 @@
 #include <linux/usb/cdc.h>
 #include <linux/netdevice.h>
 
-#ifdef CONFIG_USB_RNDIS_MULTIPACKET
-#define QMULT_DEFAULT 10
-#else
-#define QMULT_DEFAULT 5
-#endif
-
 /* Definition of function specific data */
 #define NCM_FUNCTION		(0xa0)
 #define NCM_DATA		(NCM_FUNCTION << 16)
@@ -29,11 +23,17 @@
 #define NCM_ADD_DGRAM		(NCM_DATA | 1)
 #define NCM_HEADER_SIZE		(0xC4)
 
-#define NCM_MTU_SIZE            (1500)
-//#define NCM_MAX_DATAGRAM        (42)
-#define NCM_MAX_DATAGRAM        (1)
+#define NCM_MTU_SIZE		(1500)
+#define NCM_MAX_DATAGRAM	(42)
 
 #define	MAX_TX_NONFIXED		(512 * 3)
+
+#ifdef CONFIG_USB_RNDIS_MULTIPACKET
+#define QMULT_DEFAULT 50
+#else
+#define QMULT_DEFAULT 5
+#endif
+
 /*
  * dev_addr: initial value
  * changed by "ifconfig usb0 hw ether xx:xx:xx:xx:xx:xx"

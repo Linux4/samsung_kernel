@@ -379,6 +379,10 @@ void dmabuf_trace_free(struct dma_buf *dmabuf)
 	mutex_lock(&trace_lock);
 
 	buffer = dmabuf_trace_get_buffer(dmabuf);
+	if (!buffer) {
+		mutex_unlock(&trace_lock);
+		return;
+	}
 
 	list_for_each_entry_safe(ref, tmp, &buffer->ref_list, buffer_node)
 		dmabuf_trace_free_ref_force(ref);
@@ -411,6 +415,11 @@ int dmabuf_trace_track_buffer(struct dma_buf *dmabuf)
 	}
 
 	buffer = dmabuf_trace_get_buffer(dmabuf);
+	if (!buffer) {
+		ret = -EINVAL;
+		goto err;
+	}
+
 	ref = dmabuf_trace_get_ref(buffer, task);
 	if (IS_ERR(ref)) {
 		/*
@@ -460,6 +469,11 @@ int dmabuf_trace_untrack_buffer(struct dma_buf *dmabuf)
 	}
 
 	buffer = dmabuf_trace_get_buffer(dmabuf);
+	if (!buffer) {
+		ret = -EINVAL;
+		goto err_unregister;
+	}
+
 	ref = dmabuf_trace_get_ref_noalloc(buffer, task);
 	if (!ref) {
 		ret = -ENOENT;

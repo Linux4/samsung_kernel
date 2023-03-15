@@ -96,6 +96,7 @@ struct tsmux_context {
 	bool otf_psi_enabled[TSMUX_OUT_BUF_CNT];
 	bool otf_job_queued;
 	bool otf_buf_mapped;
+	bool otf_dummy_ts_packet;
 
 	wait_queue_head_t m2m_wait_queue;
 	wait_queue_head_t otf_wait_queue;

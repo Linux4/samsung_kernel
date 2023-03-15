@@ -692,6 +692,46 @@ static int is_3aa_video_s_ctrl(struct file *file, void *priv,
 	case V4L2_CID_IS_FORCE_DONE:
 		set_bit(IS_GROUP_REQUEST_FSTOP, &device->group_3aa.state);
 		break;
+	case V4L2_CID_IS_FAST_CTL_LENS_POS:
+		{
+			struct fast_control_mgr *fastctlmgr = &device->fastctlmgr;
+			struct is_fast_ctl *fast_ctl = NULL;
+			unsigned long flags;
+			u32 state;
+
+			spin_lock_irqsave(&fastctlmgr->slock, flags);
+
+			state = IS_FAST_CTL_FREE;
+			if (fastctlmgr->queued_count[state]) {
+				/* get free list */
+				fast_ctl = list_first_entry(&fastctlmgr->queued_list[state],
+					struct is_fast_ctl, list);
+				list_del(&fast_ctl->list);
+				fastctlmgr->queued_count[state]--;
+
+				/* Write fast_ctl: lens */
+				if (ctrl->id == V4L2_CID_IS_FAST_CTL_LENS_POS) {
+					fast_ctl->lens_pos = ctrl->value;
+					fast_ctl->lens_pos_flag = true;
+				}
+
+				/* TODO: Here is place for additional fast_ctl. */
+
+				/* set req list */
+				state = IS_FAST_CTL_REQUEST;
+				fast_ctl->state = state;
+				list_add_tail(&fast_ctl->list, &fastctlmgr->queued_list[state]);
+				fastctlmgr->queued_count[state]++;
+			} else {
+				mwarn("not enough fast_ctl free queue\n", device, ctrl->value);
+			}
+
+			spin_unlock_irqrestore(&fastctlmgr->slock, flags);
+
+			if (fast_ctl)
+				mdbgv_3aa("%s: uctl.lensUd.pos(%d)\n", vctx, __func__, ctrl->value);
+		}
+		break;
 	default:
 		ret = is_video_s_ctrl(file, vctx, ctrl);
 		if (ret) {

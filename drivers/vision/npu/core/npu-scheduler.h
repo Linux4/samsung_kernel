@@ -42,6 +42,11 @@ static char *npu_scheduler_ip_name[] = {
 	"NPU",
 };
 
+static char *npu_scheduler_core_name[] = {
+	"DNC",
+	"NPU",
+};
+
 static int npu_scheduler_ip_pmqos_min[] = {
 	PM_QOS_CLUSTER0_FREQ_MIN,
 	PM_QOS_CLUSTER1_FREQ_MIN,
@@ -90,12 +95,14 @@ static inline int get_pm_qos_num(char *name, char *name_list[],
 #define NPU_SCHEDULER_DEFAULT_PERIOD	17	/* msec */
 #define NPU_SCHEDULER_DEFAULT_TPF	16667
 #define NPU_SCHEDULER_FPS_LOAD_RESET_FRAME_NUM	3
+#define NPU_SCHEDULER_BOOST_TIMEOUT	20 /* msec */
 
 static char *npu_perf_mode_name[] = {
 	"none",
 	"normal",
 	"npu boost",
 	"cpu boost",
+	"npu DN",
 };
 
 enum {
@@ -104,6 +111,7 @@ enum {
 	NPU_PERF_MODE_NORMAL,
 	NPU_PERF_MODE_NPU_BOOST,
 	NPU_PERF_MODE_CPU_BOOST,
+	NPU_PERF_MODE_NPU_DN,
 	NPU_PERF_MODE_NUM,
 };
 
@@ -161,6 +169,7 @@ struct npu_scheduler_fps_load {
 	s64		tpf;		/* time per frame */
 	s64		requested_tpf;	/* tpf for fps */
 	unsigned int	fps_load;	/* 0.01 unit */
+	s64		init_freq_ratio;
 
 	struct list_head	list;
 };
@@ -168,17 +177,22 @@ struct npu_scheduler_fps_load {
 struct npu_scheduler_dvfs_info {
 	char			*name;
 	struct platform_device	*dvfs_dev;
+	u32			activated;
 	struct pm_qos_request	qos_req_min;
 	struct pm_qos_request	qos_req_max;
+	struct pm_qos_request	qos_req_min_nw_boost;
 	s32			cur_freq;
 	s32			min_freq;
 	s32			max_freq;
 	s32			delay;
 	s32			limit_min;
 	s32			limit_max;
+	s32			is_init_freq;
 	struct npu_scheduler_governor *gov;
 	void			*gov_prop;
 	u32			mode_min_freq[NPU_PERF_MODE_NUM];
+	s32 curr_up_delay;
+	s32 curr_down_delay;
 
 	struct list_head	dev_list;	/* list to governor */
 	struct list_head	ip_list;	/* list to scheduler */
@@ -242,7 +256,11 @@ struct npu_scheduler_info {
 	struct wake_lock		sched_wake_lock;
 	struct workqueue_struct		*sched_wq;
 	struct delayed_work		sched_work;
+	struct delayed_work		boost_off_work;
 	u32		llc_status;
+
+/* Frequency boost information only for open() and ioctl(S_FORMAT) */
+	int		boost_count;
 };
 
 #define NPU_SET_ATTR(_name, _category)					\
@@ -265,14 +283,21 @@ int npu_scheduler_suspend(struct npu_device *device);
 int npu_scheduler_start(struct npu_device *device);
 int npu_scheduler_stop(struct npu_device *device);
 int npu_scheduler_load(struct npu_device *device, const struct npu_session *session);
-int npu_scheduler_unload(struct npu_device *device, const struct npu_session *session);
+void npu_scheduler_unload(struct npu_device *device, const struct npu_session *session);
 void npu_scheduler_update_sched_param(struct npu_device *device, struct npu_session *session);
 void npu_scheduler_gate(struct npu_device *device, struct npu_frame *frame, bool idle);
 void npu_scheduler_fps_update_idle(struct npu_device *device, struct npu_frame *frame, bool idle);
+void npu_scheduler_set_init_freq(struct npu_device *device, npu_uid_t session_uid);
 void npu_scheduler_rq_update_idle(struct npu_device *device, bool idle);
 void npu_pm_qos_update_request(struct npu_scheduler_dvfs_info *d,
 		struct pm_qos_request *req, s32 new_value);
 npu_s_param_ret npu_scheduler_param_handler(struct npu_session *sess,
 	struct vs4l_param *param, int *retval);
+void npu_scheduler_activate_peripheral_dvfs(unsigned long freq);
+void npu_scheduler_set_mode_freq(struct npu_scheduler_info *info, int uid);
+struct npu_scheduler_info *npu_scheduler_get_info(void);
+int npu_scheduler_boost_on(struct npu_scheduler_info *info);
+int npu_scheduler_boost_off(struct npu_scheduler_info *info);
+int npu_scheduler_boost_off_timeout(struct npu_scheduler_info *info, s64 timeout);
 
 #endif

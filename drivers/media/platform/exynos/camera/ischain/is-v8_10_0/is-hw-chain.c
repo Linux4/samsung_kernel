@@ -1897,6 +1897,10 @@ int is_hw_ischain_enable(struct is_device_ischain *device)
 	if (!ret)
 		merr("blk_dns_mux_control is failed (%d)\n", device, ret);
 #endif
+	ret = blk_csis_qactive_control(device, 1);
+	if (!ret)
+		merr("blk_csis_qactive_control is failed (%d)\n", device, ret);
+
 	ret = blk_tnr_lh_control(device, 1);
 	if (!ret)
 		merr("blk_tnr_lh_control is failed (%d)\n", device, ret);

@@ -763,7 +763,7 @@ static int abox_dump_add_dai_link(struct device *dev)
 
 	cancel_delayed_work_sync(&abox_dump_register_card_work);
 
-	if (abox_dump_card.num_dai_links <= id) {
+	if (abox_dump_card.num_links <= id) {
 		link = krealloc(abox_dump_card.dai_link,
 				sizeof(abox_dump_card.dai_link[0]) * (id + 1),
 				GFP_KERNEL | __GFP_ZERO);

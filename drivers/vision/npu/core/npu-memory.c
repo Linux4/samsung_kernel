@@ -24,8 +24,6 @@
 
 int npu_memory_probe(struct npu_memory *memory, struct device *dev)
 {
-	u32 ret = 0;
-
 	BUG_ON(!memory);
 	BUG_ON(!dev);
 
@@ -53,9 +51,7 @@ int npu_memory_probe(struct npu_memory *memory, struct device *dev)
 	INIT_LIST_HEAD(&memory->alloc_list);
 	memory->alloc_count = 0;
 
-	goto p_err;
-p_err:
-	return ret;
+	return 0;
 }
 
 int npu_memory_open(struct npu_memory *memory)
@@ -135,7 +131,7 @@ int npu_memory_map(struct npu_memory *memory, struct npu_memory_buffer *buffer)
 	buffer->daddr = daddr;
 
 	vaddr = dma_buf_vmap(buffer->dma_buf);
-	if (IS_ERR(vaddr)) {
+	if (IS_ERR_OR_NULL(vaddr)) {
 		npu_err("Failed to get vaddr (err %pK)\n", vaddr);
 		ret = -EFAULT;
 		goto p_err;
@@ -155,9 +151,8 @@ p_err:
 	return ret;
 }
 
-int npu_memory_unmap(struct npu_memory *memory, struct npu_memory_buffer *buffer)
+void npu_memory_unmap(struct npu_memory *memory, struct npu_memory_buffer *buffer)
 {
-	int ret = 0;
 	unsigned long flags;
 
 	BUG_ON(!memory);
@@ -192,8 +187,6 @@ int npu_memory_unmap(struct npu_memory *memory, struct npu_memory_buffer *buffer
 		npu_info("buffer[%pK] is not linked to map_lock. Skipping remove.\n", buffer);
 
 	spin_unlock_irqrestore(&memory->map_lock, flags);
-
-	return ret;
 }
 
 int npu_memory_alloc(struct npu_memory *memory, struct npu_memory_buffer *buffer)
@@ -268,7 +261,7 @@ int npu_memory_alloc(struct npu_memory *memory, struct npu_memory_buffer *buffer
 	buffer->daddr = daddr;
 
 	vaddr = dma_buf_vmap(dma_buf);
-	if (IS_ERR(vaddr)) {
+	if (IS_ERR_OR_NULL(vaddr)) {
 		npu_err("fail(err %pK) in dma_buf_vmap\n", vaddr);
 		ret = -EFAULT;
 		goto p_err;
@@ -293,7 +286,6 @@ p_err:
 
 int npu_memory_free(struct npu_memory *memory, struct npu_memory_buffer *buffer)
 {
-	int ret = 0;
 	const struct vb2_mem_ops *mem_ops;
 	unsigned long flags;
 
@@ -334,8 +326,7 @@ int npu_memory_free(struct npu_memory *memory, struct npu_memory_buffer *buffer)
 
 	spin_unlock_irqrestore(&memory->alloc_lock, flags);
 
-
-	return ret;
+	return 0;
 }
 
 int npu_memory_v_alloc(struct npu_memory *memory, struct npu_memory_v_buf *buffer)

@@ -344,8 +344,10 @@ static int dwc3_ep0_handle_status(struct dwc3 *dwc,
 				usb_status |= 1 << USB_DEV_STAT_U1_ENABLED;
 			if (reg & DWC3_DCTL_INITU2ENA)
 				usb_status |= 1 << USB_DEV_STAT_U2_ENABLED;
+		} else if (dwc->usb_remote_wakeup) {
+			/* remote wakeup */
+			usb_status |= dwc->remote_wakeup_set << USB_INT_FUNCTION_REMOTE_WAKEUP;
 		}
-
 		break;
 
 	case USB_RECIP_INTERFACE:
@@ -353,6 +355,10 @@ static int dwc3_ep0_handle_status(struct dwc3 *dwc,
 		 * Function Remote Wake Capable	D0
 		 * Function Remote Wakeup	D1
 		 */
+		if (dwc->usb_remote_wakeup) {
+			usb_status |= dwc->usb_remote_wakeup;
+			usb_status |= dwc->remote_wakeup_set << USB_INT_FUNCTION_REMOTE_WAKEUP;
+		}
 		break;
 
 	case USB_RECIP_ENDPOINT:
@@ -399,6 +405,12 @@ static int dwc3_ep0_handle_u1(struct dwc3 *dwc, enum usb_device_state state,
 		reg |= DWC3_DCTL_INITU1ENA;
 	else
 		reg &= ~DWC3_DCTL_INITU1ENA;
+
+	/* usb connection issue : disable LGO_U1 Try*/
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	reg &= ~DWC3_DCTL_INITU1ENA;
+#endif
+
 	dwc3_writel(dwc->regs, DWC3_DCTL, reg);
 
 	return 0;
@@ -408,7 +420,15 @@ static int dwc3_ep0_handle_u2(struct dwc3 *dwc, enum usb_device_state state,
 		int set)
 {
 	u32 reg;
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	struct usb_composite_dev *cdev;
+	bool	disable_u2 = true;
 
+	cdev = get_gadget_data(&dwc->gadget);
+
+	if (cdev && cdev->flag_factory_for_u2)
+		disable_u2 = false;
+#endif
 
 	if (state != USB_STATE_CONFIGURED)
 		return -EINVAL;
@@ -425,6 +445,13 @@ static int dwc3_ep0_handle_u2(struct dwc3 *dwc, enum usb_device_state state,
 		reg |= DWC3_DCTL_INITU2ENA;
 	else
 		reg &= ~DWC3_DCTL_INITU2ENA;
+
+/* usb connection issue : disable LGO_U2 Try*/
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	if (disable_u2)
+		reg &= ~DWC3_DCTL_INITU2ENA;
+#endif
+
 	dwc3_writel(dwc->regs, DWC3_DCTL, reg);
 
 	return 0;
@@ -468,6 +495,7 @@ static int dwc3_ep0_handle_device(struct dwc3 *dwc,
 
 	switch (wValue) {
 	case USB_DEVICE_REMOTE_WAKEUP:
+		dwc->remote_wakeup_set = set;
 		break;
 	/*
 	 * 9.4.1 says only only for SS, in AddressState only for
@@ -509,6 +537,7 @@ static int dwc3_ep0_handle_intf(struct dwc3 *dwc,
 		 * For now, we're not doing anything, just making sure we return
 		 * 0 so USB Command Verifier tests pass without any errors.
 		 */
+		dwc->remote_wakeup_set = set;
 		break;
 	default:
 		ret = -EINVAL;
@@ -617,6 +646,15 @@ static int dwc3_ep0_set_config(struct dwc3 *dwc, struct usb_ctrlrequest *ctrl)
 	u32 cfg;
 	int ret;
 	u32 reg;
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	struct usb_composite_dev *cdev;
+	bool	disable_u2 = true;
+
+	cdev = get_gadget_data(&dwc->gadget);
+
+	if (cdev && cdev->flag_factory_for_u2)
+		disable_u2 = false;
+#endif
 
 	cfg = le16_to_cpu(ctrl->wValue);
 
@@ -656,13 +694,37 @@ static int dwc3_ep0_set_config(struct dwc3 *dwc, struct usb_ctrlrequest *ctrl)
 				 * nothing is pending from application.
 				 */
 				reg = dwc3_readl(dwc->regs, DWC3_DCTL);
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+				if (disable_u2)
+					reg |= DWC3_DCTL_ACCEPTU1ENA;
+				else
+					reg |= (DWC3_DCTL_ACCEPTU1ENA | DWC3_DCTL_ACCEPTU2ENA);
+#else
 				reg |= (DWC3_DCTL_ACCEPTU1ENA | DWC3_DCTL_ACCEPTU2ENA);
+#endif
 				dwc3_writel(dwc->regs, DWC3_DCTL, reg);
 			}
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+			/* Disable U2 mode */
+			if (disable_u2) {
+				reg = dwc3_readl(dwc->regs, DWC3_DCTL);
+				reg &= ~(DWC3_DCTL_INITU2ENA);
+				dwc3_writel(dwc->regs, DWC3_DCTL, reg);
+			}
+
+			pr_info("<<< %s, set addr - cancel reset_work\n", __func__);
+				cancel_delayed_work(&dwc->dwc3_reset_delayed_work);
+			dwc->retry_cnt = 0;
+#endif
 		}
 		break;
 
 	case USB_STATE_CONFIGURED:
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+		pr_info("<<< %s, set config - cancel reset_work\n", __func__);
+		cancel_delayed_work(&dwc->dwc3_reset_delayed_work);
+		dwc->retry_cnt = 0;
+#endif
 		ret = dwc3_ep0_delegate_req(dwc, ctrl);
 		if (!cfg && !ret)
 			usb_gadget_set_state(&dwc->gadget,

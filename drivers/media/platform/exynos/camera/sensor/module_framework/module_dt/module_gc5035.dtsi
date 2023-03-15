@@ -49,6 +49,26 @@
 
 				status = "okay";
 
+/*
+ * [Mode Information]
+ *
+ * Reference File : GC5035 MIPI data rate 897M official setfile V1.0.8.xlsx
+ * Update Data    : 2019-12-10
+ * Author         : sgtop9.choi
+ *
+ *  - Global setting
+ *
+ *  - Mode setting
+ *  [ 0 ] 2576 x 1932(4:3)    @30,  MIPI lane: 2, MIPI data rate(Mbps/lane):  897, Mclk(Mhz): 26
+ *  [ 1 ] 2560 x 1440(16:9)   @30,  MIPI lane: 2, MIPI data rate(Mbps/lane):  897, Mclk(Mhz): 26
+ *  [ 2 ] 2224 x 1080(18.5:9) @30,  MIPI lane: 2, MIPI data rate(Mbps/lane):  897, Mclk(Mhz): 26
+ *  [ 3 ] 2576 x 1188(19.5:9) @30,  MIPI lane: 2, MIPI data rate(Mbps/lane):  897, Mclk(Mhz): 26
+ *  [ 4 ] 2576 x 1160(20:9)   @30,  MIPI lane: 2, MIPI data rate(Mbps/lane):  897, Mclk(Mhz): 26
+ *  [ 5 ] 1920 x 1920(1:1)    @30,  MIPI lane: 2, MIPI data rate(Mbps/lane):  897, Mclk(Mhz): 26
+ *  [ 6 ] 800 x 600(4:3)      @60,  MIPI lane: 2, MIPI data rate(Mbps/lane):  897, Mclk(Mhz): 26
+ *
+ */
+
 				/* sensor modes */
 				modes {
 						/* common = <width, height, fps, settle, mode, lane, speed, interleave, lrte, pd_mode> */
@@ -56,7 +76,7 @@
 
 					/* 0 : 2576x1932@30fps 4:3 */
 					mode0 {
-						common = <2576 1932 30 0 0 CSI_DATA_LANES_2 884 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <2576 1932 30 0 0 CSI_DATA_LANES_2 897 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 2576 1932	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -64,7 +84,7 @@
 					};
 					/* 1 : 2560x1440@30fps 16:9 */
 					mode1 {
-						common = <2560 1440 30 0 1 CSI_DATA_LANES_2 884 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <2560 1440 30 0 1 CSI_DATA_LANES_2 897 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 2560 1440	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -72,7 +92,7 @@
 					};
 					/* 2 : 2224x1080@30fps 18.5:9 */
 					mode2 {
-						common = <2224 1080 30 0 2 CSI_DATA_LANES_2 884 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <2224 1080 30 0 2 CSI_DATA_LANES_2 897 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 2224 1080	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -80,7 +100,7 @@
 					};
 					/* 3 : 2576x1188@30fps 19.5:9 */
 					mode3 {
-						common = <2576 1188 30 0 3 CSI_DATA_LANES_2 884 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <2576 1188 30 0 3 CSI_DATA_LANES_2 897 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 2576 1188	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -88,7 +108,7 @@
 					};
 					/* 4 : 2576x1160@30fps 20:9 */
 					mode4 {
-						common = <2576 1160 30 0 4 CSI_DATA_LANES_2 884 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <2576 1160 30 0 4 CSI_DATA_LANES_2 897 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 2576 1160	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -96,7 +116,7 @@
 					};
 					/* 5 : 1920x1920@30fps 1:1 */
 					mode5 {
-						common = <1920 1920 30 0 5 CSI_DATA_LANES_2 884 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <1920 1920 30 0 5 CSI_DATA_LANES_2 897 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 1920 1920	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -104,7 +124,7 @@
 					};
 					/* 6 : 800x600@60fps 4:3 */
 					mode6 {
-						common = <800 600 60 0 6 CSI_DATA_LANES_2 884 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <800 600 60 0 6 CSI_DATA_LANES_2 897 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 800 600	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -174,7 +194,7 @@
 
 					/* 0 : 2576x1932@30fps 4:3 */
 					mode0 {
-						common = <2576 1932 30 0 0 CSI_DATA_LANES_2 884 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <2576 1932 30 0 0 CSI_DATA_LANES_2 897 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 2576 1932	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -182,7 +202,7 @@
 					};
 					/* 1 : 2560x1440@30fps 16:9 */
 					mode1 {
-						common = <2560 1440 30 0 1 CSI_DATA_LANES_2 884 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <2560 1440 30 0 1 CSI_DATA_LANES_2 897 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 2560 1440	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -190,7 +210,7 @@
 					};
 					/* 2 : 2224x1080@30fps 18.5:9 */
 					mode2 {
-						common = <2224 1080 30 0 2 CSI_DATA_LANES_2 884 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <2224 1080 30 0 2 CSI_DATA_LANES_2 897 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 2224 1080	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -198,7 +218,7 @@
 					};
 					/* 3 : 2576x1188@30fps 19.5:9 */
 					mode3 {
-						common = <2576 1188 30 0 3 CSI_DATA_LANES_2 884 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <2576 1188 30 0 3 CSI_DATA_LANES_2 897 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 2576 1188	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -206,7 +226,7 @@
 					};
 					/* 4 : 2576x1160@30fps 20:9 */
 					mode4 {
-						common = <2576 1160 30 0 4 CSI_DATA_LANES_2 884 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <2576 1160 30 0 4 CSI_DATA_LANES_2 897 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 2576 1160	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -214,7 +234,7 @@
 					};
 					/* 5 : 1920x1920@30fps 1:1 */
 					mode5 {
-						common = <1920 1920 30 0 5 CSI_DATA_LANES_2 884 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <1920 1920 30 0 5 CSI_DATA_LANES_2 897 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 1920 1920	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -222,7 +242,7 @@
 					};
 					/* 6 : 800x600@60fps 4:3 */
 					mode6 {
-						common = <800 600 60 0 6 CSI_DATA_LANES_2 884 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <800 600 60 0 6 CSI_DATA_LANES_2 897 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 800 600	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;

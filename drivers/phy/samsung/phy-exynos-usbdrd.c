@@ -38,6 +38,9 @@
 #include <linux/of_gpio.h>
 #endif
 
+#include <linux/soc/samsung/exynos-soc.h>
+#include <soc/samsung/exynos-pmu.h>
+
 #include "phy-exynos-usbdrd.h"
 #include "phy-exynos-debug.h"
 
@@ -152,18 +155,26 @@ exit:
 
 static ssize_t
 exynos_usbdrd_hs_phy_tune_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t n)
+	struct device_attribute *attr, const char *buf, size_t size)
 {
-	char tune_name[30];
-	u32 tune_val;
 	struct device_node *tune_node;
 	struct exynos_usbdrd_phy *phy_drd = dev_get_drvdata(dev);
+	char *tune_name;
 	int ret, i;
+	u32 tune_val;
 	u32 tune_num = 0;
 
-	if (sscanf(buf, "%s %x", tune_name, &tune_val) != 2){
+	if (size > EXYNOS_DRD_TUNEPARAM_LEN) {
+		pr_err("%s size(%zu) is too long.\n", __func__, size);
 		return -EINVAL;
 	}
+
+	tune_name = kzalloc(size + 1, GFP_KERNEL);
+	if (!tune_name)
+		return -ENOMEM;
+
+	if (sscanf(buf, "%s %x", tune_name, &tune_val) != 2)
+		goto exit;
 
 	tune_node = of_parse_phandle(dev->of_node, "hs_tune_param", 0);
 	ret = of_property_read_u32_array(tune_node, "hs_tune_cnt", &tune_num, 1);
@@ -181,7 +192,8 @@ exynos_usbdrd_hs_phy_tune_store(struct device *dev,
 	}
 
 exit:
-	return n;
+	kfree(tune_name);
+	return size;
 }
 
 static DEVICE_ATTR(hs_phy_tune, S_IWUSR | S_IRUSR | S_IRGRP,
@@ -221,18 +233,26 @@ exit:
 
 static ssize_t
 exynos_usbdrd_phy_tune_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t n)
+	struct device_attribute *attr, const char *buf, size_t size)
 {
-	char tune_name[30];
-	u32 tune_val;
 	struct device_node *tune_node;
 	struct exynos_usbdrd_phy *phy_drd = dev_get_drvdata(dev);
+	char *tune_name;
 	int ret, i;
 	u32 tune_num = 0;
+	u32 tune_val = 0;
 
-	if (sscanf(buf, "%s %x", tune_name, &tune_val) != 2){
+	if (size > EXYNOS_DRD_TUNEPARAM_LEN) {
+		pr_err("%s size(%zu) is too long.\n", __func__, size);
 		return -EINVAL;
 	}
+
+	tune_name = kzalloc(size + 1, GFP_KERNEL);
+	if (!tune_name)
+		return -ENOMEM;
+
+	if (sscanf(buf, "%s %x", tune_name, &tune_val) != 2)
+		goto exit;
 
 	tune_node = of_parse_phandle(dev->of_node, "ss_tune_param", 0);
 	ret = of_property_read_u32_array(tune_node, "ss_tune_cnt", &tune_num, 1);
@@ -250,7 +270,8 @@ exynos_usbdrd_phy_tune_store(struct device *dev,
 	}
 
 exit:
-	return n;
+	kfree(tune_name);
+	return size;
 }
 
 static DEVICE_ATTR(phy_tune, S_IWUSR | S_IRUSR | S_IRGRP,
@@ -1522,14 +1543,90 @@ static void exynos_usbdrd_pipe3_ilbk(struct exynos_usbdrd_phy *phy_drd)
 static int exynos_usbdrd_pipe3_vendor_set(struct exynos_usbdrd_phy *phy_drd,
 							int is_enable, int is_cancel)
 {
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	int gpio_val = 0;
+	u32 tmp;
+#endif
+
 	if (is_cancel == 0) {
 		dev_info(phy_drd->dev, "%s - SS ReWA Enable\n",__func__);
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+		phy_drd->occurred_rewa_irq = 0;
+
+		exynos_pmu_update(0x380c, 0x1, 0x1);
+		exynos_pmu_read(0x380c, &tmp);
+		dev_info(phy_drd->dev, "Configure enable 26MHz TCXO for U3[%08X]\n", tmp);
+#endif
+
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+		gpio_val = gpio_get_value(phy_drd->w_disable_gpio);
+		if (gpio_val && !phy_drd->f_no_jig_case) {
+			dev_info(phy_drd->dev, "%s: gpio value: %d, non-airplane mode\n",
+					__func__, gpio_val);
+			if (phy_drd->is_u3_rewa_irq_en) {
+				dev_info(phy_drd->dev,
+					 "Error: rewa irq enabled abnormally\n");
+				disable_irq_nosync(phy_drd->usb3_irq_wakeup);
+				phy_drd->is_u3_rewa_irq_en = 0;
+			}
+
+			phy_exynos_usb3p1_u3_rewa_enable(&phy_drd->usbphy_info, 0);
+			enable_irq(phy_drd->usb3_irq_wakeup);
+			phy_drd->is_u3_rewa_irq_en = 1;
+		} else {
+			dev_info(phy_drd->dev, "%s: gpio value: %d, airplane mode (f_no_jig_case =%d)\n",
+					__func__, gpio_val, phy_drd->f_no_jig_case);
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+			if (gpio_val)
+				return -1;
+			phy_exynos_usb3p1_u3_rewa_enable(&phy_drd->usbphy_info, 0);
+#endif
+			exynos_pmu_update(0x380c, 0x1, 0);
+			exynos_pmu_read(0x380c, &tmp);
+			dev_info(phy_drd->dev, "Configure disable 26MHz TCXO for U3[%08X]\n", tmp);
+
+			if (phy_drd->is_wdisable_irq_en) {
+				disable_irq_nosync(phy_drd->w_disable_irq);
+				phy_drd->is_wdisable_irq_en = 0;
+				dev_info(phy_drd->dev, "Error: rewa irq enabled abnormally\n");
+			}
+			/* enable gpio interrupt */
+			enable_irq(phy_drd->w_disable_irq);
+			phy_drd->is_wdisable_irq_en  = 1;
+			phy_drd->f_no_jig_case = 1;
+		}
+#else
 		phy_exynos_usb3p1_u3_rewa_enable(&phy_drd->usbphy_info, 0);
 		enable_irq(phy_drd->usb3_irq_wakeup);
+#endif
+
 	} else {
-		dev_info(phy_drd->dev, "%s - SS ReWA Disable\n",__func__);
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+		phy_drd->occurred_rewa_irq = 0;
+
+		exynos_pmu_update(0x380c, 0x1, 0);
+		exynos_pmu_read(0x380c, &tmp);
+		dev_info(phy_drd->dev, "%s : Configure disable 26MHz TCXO for U3[%08X]\n", __func__, tmp);
+
+		if (phy_drd->is_wdisable_irq_en) {
+			disable_irq_nosync(phy_drd->w_disable_irq);
+			phy_drd->is_wdisable_irq_en = 0;
+			dev_info(phy_drd->dev, "%s - SS w_disabel_irq Disable\n", __func__);
+		}
+
+		if (phy_drd->is_u3_rewa_irq_en) {
+			dev_info(phy_drd->dev,
+				 "%s - SS ReWA Disable\n", __func__);
+			disable_irq_nosync(phy_drd->usb3_irq_wakeup);
+			phy_drd->is_u3_rewa_irq_en = 0;
+		}
+		phy_exynos_usb3p1_u3_rewa_disable(&phy_drd->usbphy_info);
+
+#else
+		dev_info(phy_drd->dev, "%s - SS ReWA Disable\n", __func__);
 		disable_irq_nosync(phy_drd->usb3_irq_wakeup);
 		phy_exynos_usb3p1_u3_rewa_disable(&phy_drd->usbphy_info);
+#endif
 	}
 
 	return 0;
@@ -1769,6 +1866,38 @@ static void exynos_usbdrd_utmi_set(struct exynos_usbdrd_phy *phy_drd,
 	}
 }
 
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+static irqreturn_t w_disable_irq_handler(int irq, void *data)
+{
+	struct exynos_usbdrd_phy *phy_drd = (struct exynos_usbdrd_phy *)data;
+	int gpio_val = gpio_get_value(phy_drd->w_disable_gpio);
+
+//	disable_irq_nosync(phy_drd->w_disable_irq);
+//	disable_irq_wake(phy_drd->w_disable_irq);
+
+	pr_info("%s: w_disable gpio value: %d\n", __func__, gpio_val);
+	phy_drd->occurred_rewa_irq = 1;
+
+	return IRQ_HANDLED;
+}
+static int exynos_usbdrd_pipe3_rewa_irq(struct exynos_usbdrd_phy *phy_drd)
+{
+	int gpio_val = gpio_get_value(phy_drd->w_disable_gpio);
+
+	return gpio_val;
+	//return phy_drd->occurred_rewa_irq;
+}
+
+static int exynos_usbdrd_utmi_rewa_irq(struct exynos_usbdrd_phy *phy_drd)
+{
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+	phy_drd->occurred_rewa_irq = 0;
+#endif
+	return 0;
+}
+#endif
+
+
 int exynos_usbdrd_phy_link_rst(struct phy *phy)
 {
 	struct phy_usb_instance *inst = phy_get_drvdata(phy);
@@ -1810,6 +1939,19 @@ static int exynos_usbdrd_phy_power_on(struct phy *phy)
 
 	return 0;
 }
+
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+static int exynos_usbdrd_phy_rewa_irq(struct phy *phy)
+{
+	struct phy_usb_instance *inst = phy_get_drvdata(phy);
+	struct exynos_usbdrd_phy *phy_drd = to_usbdrd_phy(inst);
+	int ret;
+
+	ret = inst->phy_cfg->phy_rewa_irq(phy_drd);
+
+	return ret;
+}
+#endif
 
 static struct device_node *exynos_usbdrd_parse_dt(void)
 {
@@ -1925,6 +2067,9 @@ static irqreturn_t exynos_usbdrd_usb3_phy_wakeup_interrupt(int irq, void *_phydr
 	struct exynos_usbdrd_phy *phy_drd = (struct exynos_usbdrd_phy *)_phydrd;
 
 	phy_exynos_usb3p1_u3_rewa_disable(&phy_drd->usbphy_info);
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+	phy_drd->occurred_rewa_irq = 1;
+#endif
 	dev_info(phy_drd->dev, "[%s] USB3 ReWA disabled...\n", __func__);
 
 	return IRQ_HANDLED;
@@ -1965,6 +2110,9 @@ static struct phy_ops exynos_usbdrd_phy_ops = {
 	.power_on	= exynos_usbdrd_phy_power_on,
 	.power_off	= exynos_usbdrd_phy_power_off,
 	.reset		= exynos_usbdrd_phy_link_rst,
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+	.rewa_irq	= exynos_usbdrd_phy_rewa_irq,
+#endif
 	.owner		= THIS_MODULE,
 };
 
@@ -1979,6 +2127,10 @@ static const struct exynos_usbdrd_phy_config phy_cfg_exynos[] = {
 		.phy_ilbk	= exynos_usbdrd_utmi_ilbk,
 		.phy_set	= exynos_usbdrd_utmi_set,
 		.set_refclk	= exynos_usbdrd_utmi_set_refclk,
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+		.phy_rewa_irq	= exynos_usbdrd_utmi_rewa_irq,
+#endif
+
 	},
 	{
 		.id		= EXYNOS_DRDPHY_PIPE3,
@@ -1990,6 +2142,10 @@ static const struct exynos_usbdrd_phy_config phy_cfg_exynos[] = {
 		.phy_ilbk	= exynos_usbdrd_pipe3_ilbk,
 		.phy_set	= exynos_usbdrd_pipe3_set,
 		.set_refclk	= exynos_usbdrd_pipe3_set_refclk,
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+		.phy_rewa_irq	= exynos_usbdrd_pipe3_rewa_irq,
+#endif
+
 	},
 };
 
@@ -2303,6 +2459,34 @@ static int exynos_usbdrd_phy_probe(struct platform_device *pdev)
 		dev_err(dev, "%s - Couldn't create sysfs for PHY EOM\n", __func__);
 	}
 
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+	phy_drd->occurred_rewa_irq = 0;
+	phy_drd->is_wdisable_irq_en = 0;
+	phy_drd->is_u3_rewa_irq_en = 0;
+#endif
+
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	phy_drd->w_disable_gpio = of_get_named_gpio(dev->of_node, "phy,gpio_w_disable_irq", 0);
+	if (phy_drd->w_disable_gpio < 0) {
+		pr_err("%s: Can not get w_disable_gpio\n", __func__);
+		return -ENODEV;
+	}
+
+	ret = gpio_request(phy_drd->w_disable_gpio, "flight_mode_irq");
+	if (ret) {
+		pr_err("%s: fialed requesting gpio %d\n", __func__, phy_drd->w_disable_gpio);
+		return ret;
+	}
+	gpio_direction_input(phy_drd->w_disable_gpio);
+	phy_drd->w_disable_irq = gpio_to_irq(phy_drd->w_disable_gpio);
+	ret = devm_request_irq(dev, phy_drd->w_disable_irq, w_disable_irq_handler,
+				IRQF_TRIGGER_RISING, "w_disable_irq", phy_drd);
+	if (ret) {
+		dev_err(dev, "%s: devm_request_irq(%d) failed, error %d\n", __func__,
+				phy_drd->w_disable_irq, ret);
+	}
+	enable_irq_wake(phy_drd->w_disable_irq);
+#endif
 	pr_info("%s: ---\n", __func__);
 	return 0;
 err1:
@@ -2343,7 +2527,9 @@ static int exynos_usbdrd_phy_resume(struct device *dev)
 	} else {
 		dev_info(dev, "USB was connected\n");
 	}
-
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+//	phy_exynos_usb3p1_u3_rewa_disable(&phy_drd->usbphy_info);
+#endif
 	return 0;
 }
 

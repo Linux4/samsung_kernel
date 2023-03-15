@@ -26,31 +26,32 @@
  *    [ 0 ] REG_H : 2x2 Binning 3264x2448 30fps    : Single Still Preview (4:3)     ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
  *    [ 1 ] REG_I : 2x2 Binning 3264x1836 30fps    : Single Still Preview (16:9)    ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
  *    [ 2 ] REG_T : 2x2 Binning 3264x1836 60fps    : Single Video (16:9)            ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
- *    [ 3 ] REG_J : 2x2 Binning 3264x1504 30fps    : Single Still Preview (19.5:9)  ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
- *    [ 4 ] REG_Q : 2X2 Binning 3264x1472 30fps    : Single Still Preview (20:9)    ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
- *    [ 5 ] REG_N : 2x2 Binning 2448x2448 30fps    : Single Still Preview (1:1)     ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
- *    [ 6 ] REG_Y : 2x2 Binning 2144x1200 120fps   : Single Video (16:9)              ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
+ *    [ 3 ] REG_I_2 : 2x2 Binning 3264x1836 120fps : Single Video (16:9)            ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
+ *    [ 4 ] REG_J : 2x2 Binning 3264x1504 30fps    : Single Still Preview (19.5:9)  ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
+ *    [ 5 ] REG_Q : 2X2 Binning 3264x1472 30fps    : Single Still Preview (20:9)    ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
+ *    [ 6 ] REG_N : 2x2 Binning 2448x2448 30fps    : Single Still Preview (1:1)     ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
+ *    [ 7 ] REG_Y : 2x2 Binning 2144x1200 120fps   : Single Video (16:9)            ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
  *
- * -. 68¨¬2x2 BIN For Single Still Preview / Capture -
- *    [ 7 ] REG_K : 2x2 Binning 2640x1980 30fps    : Single Still Preview (4:3)    ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
- *    [ 8 ] REG_L : 2x2 Binning 2640x1488 30fps    : Single Still Preview (16:9)   ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
- *    [ 9 ] REG_M : 2x2 Binning 2640x1216 30fps    : Single Still Preview (19.5:9) ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
- *    [ 10 ] REG_O_2 : 2x2 Binning 1968x1968 30fps  : Single Still Preview (1:1)    ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
+ * -. 68 deg 2x2 BIN For Single Still Preview / Capture -
+ *    [ 8 ] REG_K : 2x2 Binning 2640x1980 30fps    : Single Still Preview (4:3)     ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
+ *    [ 9 ] REG_L : 2x2 Binning 2640x1488 30fps    : Single Still Preview (16:9)    ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
+ *    [ 10 ] REG_M : 2x2 Binning 2640x1216 30fps   : Single Still Preview (19.5:9)  ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
+ *    [ 11 ] REG_O_2 : 2x2 Binning 1968x1968 30fps : Single Still Preview (1:1)     ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
  *
  * -. 2x2 BIN H2V2 For FastAE
- *    [ 11 ] REG_R_2 : 2x2 Binning 1632x1224 120fps     : FAST AE (4:3)              ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
+ *    [ 12 ] REG_R_2 : 2x2 Binning 1632x1224 120fps   : FAST AE (4:3)               ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
  *
  * -. FULL Remosaic For Single Still Remosaic Capture -
- *    [ 12 ] REG_F  : Full Remosaic 6528x4896 24fps   : Single Still Remosaic Capture (4:3) , MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
+ *    [ 13 ] REG_F  : Full Remosaic 6528x4896 24fps   : Single Still Remosaic Capture (4:3) , MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
  *
- * -. 68¨¬FULL Remosaic For Single Still Remosaic Capture -
- *    [ 13 ] REG_G : Full Remosaic 5264x3948 24fps    : Single Still Remosaic Capture (4:3) , MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
+ * -. 68 deg FULL Remosaic For Single Still Remosaic Capture -
+ *    [ 14 ] REG_G : Full Remosaic 5264x3948 24fps    : Single Still Remosaic Capture (4:3) , MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
  *
  * -. QBC HDR
- *    [ 14 ] REG_S : QBC HDR 3264x2448 24fps          : Single Still Preview (4:3)   ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
- *    [ 15 ] REG_W : QHDR Seamless 3264x1836 30fps    : QHDR seamless                ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
- *    [ 16 ] REG_X : 2x2Bin Seamless 3264x1836 30fps   : 2X2Bin seamless              ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
- *    [ 17 ] REG_Z : 2x2Bin Seamless 3264x2448 24fps   : 2X2Bin seamless              ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
+ *    [ 15 ] REG_S : QBCHDR Seamless 3264x2448 24fps  : QBCHDR seamless (4:3)        ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
+ *    [ 16 ] REG_W : QBCHDR Seamless 3264x1836 30fps  : QBCHDR seamless (16:9)       ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
+ *    [ 17 ] REG_X : 2x2Bin Seamless 3264x1836 30fps  : 2X2Bin seamless (16:9)       ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
+ *    [ 18 ] REG_Z : 2x2Bin Seamless 3264x2448 24fps  : 2X2Bin seamless (4:3)        ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
  *
  */
 
@@ -2625,7 +2626,7 @@ const u32 sensor_imx616_setfile_B_REMOSAIC_5264x3948_24FPS[] =
 };
 
 /* S. QBC HDR_crop w/o PDAF, 3264x2448 */
-const u32 sensor_imx616_setfile_B_QBCHDR_3264x2448_24FPS[] =
+const u32 sensor_imx616_setfile_B_QBCHDR_SEAMLESS_3264x2448_24FPS[] =
 {
 	//reg_S
 	//QBC HDR_crop w/o PDAF
@@ -2747,7 +2748,7 @@ const u32 sensor_imx616_setfile_B_QBCHDR_3264x2448_24FPS[] =
 };
 
 /* W. QHDR_30fps_seamless, 3264x1836 */
-const u32 sensor_imx616_setfile_B_QHDR_SEAMLESS_3264x1836_30FPS[] =
+const u32 sensor_imx616_setfile_B_QBCHDR_SEAMLESS_3264x1836_30FPS[] =
 {
 	//reg_W
 	//QHDR_30fps_seamless
@@ -3207,7 +3208,7 @@ const u32 sensor_imx616_setfile_B_transition_QHDR_to_2X2BIN[] =
 };
 
 /* for 3hdr */
-const u32 sensor_imx616_exposure_nr_on[] = 
+const u32 sensor_imx616_exposure_nr_on[] =
 {
 	0xEB01, 0x01, 0x01,
 	0xF106, 0x28, 0x01,
@@ -3227,7 +3228,7 @@ const u32 sensor_imx616_exposure_nr_on[] =
 	0xF017, 0x10, 0x01,
 };
 
-const u32 sensor_imx616_exposure_nr_off[] = 
+const u32 sensor_imx616_exposure_nr_off[] =
 {
 	0xEB01, 0x00, 0x01,
 	0xF106, 0x45, 0x01,
@@ -3358,7 +3359,7 @@ const struct sensor_pll_info_compact sensor_imx616_pllinfo_B_2X2BIN_1968x1968_30
 const struct sensor_pll_info_compact sensor_imx616_pllinfo_B_H2V2_1632x1224_120FPS = {
 	EXT_CLK_Mhz * 1000 * 1000,	/* ext_clk */
 	2054000000,			/* mipi_datarate = OPSYCK */
-	174200000,			/* pclk = VTPXCK of Clock Information */
+	87100000,			/* pclk = VTPXCK of Clock Information */
 	1290,				/* frame_length_lines */
 	2248,				/* line_length_pck */
 };
@@ -3382,7 +3383,7 @@ const struct sensor_pll_info_compact sensor_imx616_pllinfo_B_REMOSAIC_5264x3948_
 };
 
 /* S */
-const struct sensor_pll_info_compact sensor_imx616_pllinfo_B_QBCHDR_3264x2448_24FPS = {
+const struct sensor_pll_info_compact sensor_imx616_pllinfo_B_QBCHDR_SEAMLESS_3264x2448_24FPS = {
 	EXT_CLK_Mhz * 1000 * 1000,	/* ext_clk */
 	2218670000,			/* mipi_datarate = OPSYCK */
 	215800000,			/* pclk = VTPXCK of Clock Information */
@@ -3391,7 +3392,7 @@ const struct sensor_pll_info_compact sensor_imx616_pllinfo_B_QBCHDR_3264x2448_24
 };
 
 /* W */
-const struct sensor_pll_info_compact sensor_imx616_pllinfo_B_QHDR_SEAMLESS_3264x1836_30FPS = {
+const struct sensor_pll_info_compact sensor_imx616_pllinfo_B_QBCHDR_SEAMLESS_3264x1836_30FPS = {
 	EXT_CLK_Mhz * 1000 * 1000,	/* ext_clk */
 	2218670000,			/* mipi_datarate = OPSYCK */
 	215800000,			/* pclk = VTPXCK of Clock Information */
@@ -3451,8 +3452,8 @@ static const u32 *sensor_imx616_setfiles_B[] = {
 	sensor_imx616_setfile_B_H2V2_1632x1224_120FPS,
 	sensor_imx616_setfile_B_REMOSAIC_6528x4896_24FPS,
 	sensor_imx616_setfile_B_REMOSAIC_5264x3948_24FPS,
-	sensor_imx616_setfile_B_QBCHDR_3264x2448_24FPS,
-	sensor_imx616_setfile_B_QHDR_SEAMLESS_3264x1836_30FPS,
+	sensor_imx616_setfile_B_QBCHDR_SEAMLESS_3264x2448_24FPS,
+	sensor_imx616_setfile_B_QBCHDR_SEAMLESS_3264x1836_30FPS,
 	sensor_imx616_setfile_B_2X2BIN_SEAMLESS_3264x1836_30FPS,
 	sensor_imx616_setfile_B_2X2BIN_SEAMLESS_3264x2448_24FPS,
 	/* ++ Seamless Transition Mode Settings, only used internally in CIS */
@@ -3477,8 +3478,8 @@ static const u32 sensor_imx616_setfile_B_sizes[] = {
 	ARRAY_SIZE(sensor_imx616_setfile_B_H2V2_1632x1224_120FPS),
 	ARRAY_SIZE(sensor_imx616_setfile_B_REMOSAIC_6528x4896_24FPS),
 	ARRAY_SIZE(sensor_imx616_setfile_B_REMOSAIC_5264x3948_24FPS),
-	ARRAY_SIZE(sensor_imx616_setfile_B_QBCHDR_3264x2448_24FPS),
-	ARRAY_SIZE(sensor_imx616_setfile_B_QHDR_SEAMLESS_3264x1836_30FPS),
+	ARRAY_SIZE(sensor_imx616_setfile_B_QBCHDR_SEAMLESS_3264x2448_24FPS),
+	ARRAY_SIZE(sensor_imx616_setfile_B_QBCHDR_SEAMLESS_3264x1836_30FPS),
 	ARRAY_SIZE(sensor_imx616_setfile_B_2X2BIN_SEAMLESS_3264x1836_30FPS),
 	ARRAY_SIZE(sensor_imx616_setfile_B_2X2BIN_SEAMLESS_3264x2448_24FPS),
 	/* ++ Seamless Transition Mode Settings, only used internally in CIS */
@@ -3503,8 +3504,8 @@ static const struct sensor_pll_info_compact *sensor_imx616_pllinfos_B[] = {
 	&sensor_imx616_pllinfo_B_H2V2_1632x1224_120FPS,
 	&sensor_imx616_pllinfo_B_REMOSAIC_6528x4896_24FPS,
 	&sensor_imx616_pllinfo_B_REMOSAIC_5264x3948_24FPS,
-	&sensor_imx616_pllinfo_B_QBCHDR_3264x2448_24FPS,
-	&sensor_imx616_pllinfo_B_QHDR_SEAMLESS_3264x1836_30FPS,
+	&sensor_imx616_pllinfo_B_QBCHDR_SEAMLESS_3264x2448_24FPS,
+	&sensor_imx616_pllinfo_B_QBCHDR_SEAMLESS_3264x1836_30FPS,
 	&sensor_imx616_pllinfo_B_2X2BIN_SEAMLESS_3264x1836_30FPS,
 	&sensor_imx616_pllinfo_B_2X2BIN_SEAMLESS_3264x2448_24FPS,
 	/* ++ Dummy: Seamless Transition Mode PLL */

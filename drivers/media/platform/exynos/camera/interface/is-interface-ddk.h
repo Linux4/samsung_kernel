@@ -27,6 +27,10 @@
 #define MODULE_ID_MASK		(0x0FFF0000)
 #define MODULE_ID_SHIFT		(16)
 
+/* num_buffer of shot */
+#define SW_FRO_NUM_SHIFT	(16)
+#define CURR_INDEX_SHIFT	(24)
+
 #define CHK_VIDEOHDR_MODE_CHANGE(curr_tnr_mode, next_tnr_mode)	\
 	(((curr_tnr_mode == TNR_PROCESSING_TNR_ONLY && next_tnr_mode == TNR_PROCESSING_MERGE_WITH_NR) \
 	|| (curr_tnr_mode == TNR_PROCESSING_MERGE_WITH_NR && next_tnr_mode == TNR_PROCESSING_TNR_ONLY)) ? 1 : 0)
@@ -281,7 +285,11 @@ struct lib_interface_func {
 	int (*create_tune_set)(void *isp_object, u32 instance_id, struct lib_tune_set *set);
 	int (*apply_tune_set)(void *isp_object, u32 instance_id, u32 index);
 	int (*delete_tune_set)(void *isp_object, u32 instance_id, u32 index);
+#if defined(SOC_33S)
+	int (*set_line_buffer_offset)(u32 index, u32 num_set, u32 *offset);
+#else
 	int (*set_line_buffer_offset)(u32 index, u32 num_set, u32 *offset, u32 trigger_context);
+#endif
 	int (*change_chain)(void *isp_object, u32 instance_id, u32 chain_id);
 	int (*load_cal_data)(void *isp_object, u32 instance_id, ulong kvaddr);
 	int (*get_cal_data)(void *isp_object, u32 instance_id,
@@ -291,6 +299,9 @@ struct lib_interface_func {
 	int (*sensor_update_ctl)(void *isp_object, u32 instance_id,
 		u32 frame_count, struct camera2_shot *shot);
 	int (*set_system_config)(struct lib_system_config *config);
+#if defined(SOC_33S)
+	int (*set_line_buffer_trigger)(u32 trigger_value, u32 trigger_event);
+#endif
 };
 
 int is_lib_isp_chain_create(struct is_hw_ip *hw_ip,

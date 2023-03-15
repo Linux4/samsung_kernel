@@ -18,8 +18,8 @@
 
 #include "ssp.h"
 
-#define CAMERA_LUX_ENABLE		-1
-#define CAMERA_LUX_DISABLE		-2
+#define CAMERA_LUX_ENABLE               -1
+#define CAMERA_LUX_DISABLE              -2
 
 struct sensor_value;
 
@@ -30,4 +30,5 @@ void remove_indio_dev(struct ssp_data *data);
 void report_scontext_notice_data(struct ssp_data *data, char notice);
 void report_scontext_data(struct ssp_data *data, char *data_buf, u32 length);
 void report_camera_lux_data(struct ssp_data *data, int lux);
+void report_sensorhub_data(struct ssp_data *data, char *buf);
 #endif

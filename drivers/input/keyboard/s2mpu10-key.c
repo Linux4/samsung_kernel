@@ -76,6 +76,9 @@ struct power_button_data {
 	bool key_pressed;
 	bool key_state;
 	bool suspended;
+#ifdef CONFIG_DRV_SAMSUNG
+	bool key_switch_probe_state;
+#endif
 };
 
 struct power_keys_drvdata {
@@ -586,6 +589,24 @@ static void s2mpu10_keys_work_func(struct work_struct *work)
 						      struct power_button_data,
 						      key_work.work);
 
+#ifdef CONFIG_DRV_SAMSUNG
+	const struct power_keys_button *button = bdata->button;
+	struct input_dev *input = bdata->input;
+	unsigned int type = button->type ?: EV_KEY;
+
+	if (button->key_switch && bdata->key_switch_probe_state) {
+		if (!bdata->key_pressed) {
+			input_event(input, type, button->code, 0);
+			input_sync(input);
+			pr_info("%s %s: %d, (0) (key_switch)\n", SECLOG, __func__, button->code);
+			input_event(input, type, button->code, 1);
+			input_sync(input);
+			pr_info("%s %s: %d, (1) (key_switch)\n", SECLOG, __func__, button->code);
+		}
+		bdata->key_switch_probe_state = 0;
+	}
+#endif
+
 	power_keys_power_report_event(bdata);
 
 	if (bdata->button->wakeup)
@@ -661,7 +682,6 @@ static void power_keys_report_state(struct power_keys_drvdata *ddata)
 	for (i = 0; i < ddata->pdata->nbuttons; i++) {
 		struct power_button_data *bdata = &ddata->button_data[i];
 		/* TO DO: read status directly */
-		bdata->key_pressed = 0;
 		power_keys_power_report_event(bdata);
 	}
 	input_sync(input);
@@ -751,6 +771,10 @@ static struct power_keys_platform_data *power_keys_get_devtree_pdata(
 
 		if (of_property_read_u32(pp, "linux,input-type", &button->type))
 			button->type = EV_KEY;
+
+#ifdef CONFIG_DRV_SAMSUNG
+		button->key_switch = of_property_read_bool(pp, "key_switch");
+#endif
 	}
 
 	if (pdata->nbuttons == 0) {
@@ -821,7 +845,7 @@ static int power_keys_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto fail1;
 	}
-	input->name	= pdata->name ? : pdev->name;
+	input->name	= "sec-pmic-key";
 	input->phys	= "s2mpu10-keys/input0";
 	input->dev.parent = dev;
 	input->open	= power_keys_open;
@@ -943,6 +967,17 @@ static int power_keys_probe(struct platform_device *pdev)
 	pmic_key_get_pwrkey = s2mpu10_get_pwrkey_value;
 #endif
 	s2mpu10_key_pdev = pdev;
+
+#ifdef CONFIG_DRV_SAMSUNG
+	for (i = 0; i < ddata->pdata->nbuttons; i++) {
+		struct power_keys_button *button = &ddata->pdata->buttons[i];
+		struct power_button_data *bdata = &ddata->button_data[i];
+			if (button->key_switch) {
+				bdata->key_switch_probe_state = 1;
+				pr_info("%s %s: %d (key_switch)\n", SECLOG, __func__, bdata->button->code);
+			}
+	}
+#endif
 	pr_info("%s done\n", __func__);
 	return 0;
 

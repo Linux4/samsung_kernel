@@ -116,9 +116,21 @@ struct s2mu106_haptic_platform_data {
 	/* for multi-frequency */
 	int freq_nums;
 	u32 *freq_array;
+	u8 strength;
+	int irq_ocp;
+
+	int high_temp_ratio;
+	int temperature;
 
 	/* haptic boost */
 	struct s2mu106_haptic_boost hbst;
+
+#if defined(CONFIG_SEC_VIBRATOR)
+	bool calibration;
+	int steps;
+	int *intensities;
+	int *haptic_intensities;
+#endif
 };
 
 #endif /* __S2MU106_HAPTIC_H */

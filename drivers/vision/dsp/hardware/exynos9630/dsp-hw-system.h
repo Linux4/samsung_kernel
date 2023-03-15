@@ -14,6 +14,7 @@
 
 #include "hardware/dsp-pm.h"
 #include "hardware/dsp-clk.h"
+#include "hardware/dsp-bus.h"
 #include "hardware/dsp-memory.h"
 #include "hardware/dsp-interface.h"
 #include "hardware/dsp-ctrl.h"
@@ -54,11 +55,15 @@ struct dsp_system {
 	wait_queue_head_t		system_wq;
 	unsigned int			system_flag;
 	unsigned int			wait[DSP_SYSTEM_WAIT_NUM];
+	bool				boost;
+	struct mutex			boost_lock;
+	char				fw_postfix[32];
 	unsigned int			layer_start;
 	unsigned int			layer_end;
 
 	struct dsp_pm			pm;
 	struct dsp_clk			clk;
+	struct dsp_bus			bus;
 	struct dsp_memory		memory;
 	struct dsp_interface		interface;
 	struct dsp_ctrl			ctrl;

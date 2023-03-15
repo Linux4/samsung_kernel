@@ -193,30 +193,6 @@ DEFINE_EVENT(cpu, cpu_frequency,
 	TP_ARGS(frequency, cpu_id)
 );
 
-DECLARE_EVENT_CLASS(gpu,
-
-	TP_PROTO(unsigned int state),
-
-	TP_ARGS(state),
-
-	TP_STRUCT__entry(
-		__field(	u32,		state		)
-	),
-
-	TP_fast_assign(
-		__entry->state = state;
-	),
-
-	TP_printk("gpu state=%lu", (unsigned long)__entry->state)
-);
-
-DEFINE_EVENT(gpu, gpu_frequency,
-
-    TP_PROTO(unsigned int frequency),
-
-    TP_ARGS(frequency)
-);
-
 TRACE_EVENT(cpu_frequency_limits,
 
 	TP_PROTO(struct cpufreq_policy *policy),
@@ -239,6 +215,30 @@ TRACE_EVENT(cpu_frequency_limits,
 		  (unsigned long)__entry->min_freq,
 		  (unsigned long)__entry->max_freq,
 		  (unsigned long)__entry->cpu_id)
+);
+
+DECLARE_EVENT_CLASS(gpu,
+
+   TP_PROTO(unsigned int state),
+
+   TP_ARGS(state),
+
+   TP_STRUCT__entry(
+       __field(    u32,        state       )
+   ),
+
+   TP_fast_assign(
+       __entry->state = state;
+   ),
+
+   TP_printk("gpu state=%lu", (unsigned long)__entry->state)
+);
+
+DEFINE_EVENT(gpu, gpu_frequency_change,
+
+    TP_PROTO(unsigned int frequency),
+
+    TP_ARGS(frequency)
 );
 
 TRACE_EVENT(device_pm_callback_start,

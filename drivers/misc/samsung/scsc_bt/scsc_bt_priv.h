@@ -9,6 +9,7 @@
 #ifndef __SCSC_BT_PRIV_H
 #define __SCSC_BT_PRIV_H
 
+#include <linux/pm_qos.h>
 #include <scsc/scsc_mx.h>
 #include <scsc/api/bsmhcp.h>
 #include <scsc/api/bhcs.h>
@@ -70,6 +71,8 @@
 #define SCSC_BT_ACL_HANDLE_MASK         (0x0FFF)
 
 #define SCSC_TTY_MINORS (8)
+
+#define SCSC_BT_QOS_MAX_SMP_COUNT       (12)
 
 enum scsc_bt_shm_thread_flags;
 
@@ -158,8 +161,8 @@ struct scsc_bt_avdtp_detect_src_snk {
 };
 
 struct scsc_bt_avdtp_detect_snk_seid {
-	uint8_t								seid;
-	struct scsc_bt_avdtp_detect_snk_seid	*next;
+	uint8_t                                 seid;
+	struct scsc_bt_avdtp_detect_snk_seid    *next;
 };
 
 struct scsc_bt_avdtp_detect_hci_connection {
@@ -179,11 +182,26 @@ struct scsc_bt_avdtp_detect {
 };
 
 struct scsc_common_service {
-	struct scsc_mx                *maxwell_core;
+	struct scsc_mx                 *maxwell_core;
 	struct class                   *class;
 };
 
 extern struct scsc_common_service common_service;
+
+struct scsc_qos_service {
+	struct work_struct             work_queue;
+	uint8_t                        firmware_mif_qos;
+	bool                           of_table_present;
+	u32                            number_of_outstanding_hci_events;
+	u32                            number_of_outstanding_acl_packets;
+	struct pm_qos_request          pm_qos_int;
+	struct pm_qos_request          pm_qos_bus;
+	struct pm_qos_request          pm_qos_cluster0_freq_min;
+	struct pm_qos_request          pm_qos_cluster1_freq_min;
+	uint32_t                       hci_events_stats[BSMHCP_TRANSFER_RING_EVT_SIZE];
+	uint32_t                       acl_packet_stats[BSMHCP_TRANSFER_RING_ACL_SIZE];
+	uint32_t                       smp_identifier[SCSC_BT_QOS_MAX_SMP_COUNT];
+};
 
 #ifdef CONFIG_SCSC_LOG_COLLECTION
 struct scsc_bt_hcf_collection {
@@ -240,6 +258,7 @@ struct scsc_bt_service {
 	size_t                         interrupt_count;
 	size_t                         interrupt_read_count;
 	size_t                         interrupt_write_count;
+	size_t                         last_suspend_interrupt_count;
 
 	u32                            mailbox_hci_evt_read;
 	u32                            mailbox_hci_evt_write;
@@ -254,6 +273,7 @@ struct scsc_bt_service {
 	struct scsc_bt_avdtp_detect    avdtp_detect;
 	struct completion              recovery_release_complete;
 	struct completion              recovery_probe_complete;
+	u8                             recovery_level;
 
 	bool                           iq_reports_enabled;
 
@@ -347,6 +367,8 @@ struct scsc_ant_service {
 
 	struct completion              recovery_release_complete;
 	struct completion              recovery_probe_complete;
+	struct completion              release_complete;
+	u8                             recovery_level;
 };
 
 extern struct scsc_ant_service ant_service;
@@ -439,6 +461,12 @@ bool scsc_bt_shm_h4_avdtp_detect_write(uint32_t flags,
 									   uint16_t l2cap_cid,
 									   uint16_t hci_connection_handle);
 void scsc_avdtp_detect_exit(void);
+
+void scsc_bt_qos_init(void);
+void scsc_bt_qos_deinit(void);
+void scsc_bt_qos_service_stop(void);
+void scsc_bt_qos_update(uint32_t number_of_outstanding_hci_events,
+			uint32_t number_of_outstanding_acl_packets);
 
 #ifdef CONFIG_SCSC_BT_BLUEZ
 void slsi_bt_notify_probe(struct device *dev,

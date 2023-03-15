@@ -121,6 +121,10 @@ static unsigned int ipc_poll(struct file *filp, struct poll_table_struct *wait)
 	case STATE_CRASH_WATCHDOG:
 		mif_err("%s: %s.state == %s\n", iod->name, mc->name, mc_state(mc));
 
+		if (iod->format == IPC_FMT) {
+			return POLLHUP;
+		}
+
 		/* give delay to prevent infinite sys_poll call from
 		 * select() in APP layer without 'sleep' user call takes
 		 * almost 100% cpu usage when it is looked up by 'top'
@@ -130,7 +134,9 @@ static unsigned int ipc_poll(struct file *filp, struct poll_table_struct *wait)
 		break;
 
 	case STATE_OFFLINE:
-		/* fall through */
+		if ((iod->ch == EXYNOS_CH_ID_CPLOG && ld->protocol == PROTOCOL_SIT)
+			|| iod->ch == SIPC_CH_ID_CASS)
+			return POLLHUP;
 	default:
 		break;
 	}
@@ -206,11 +212,121 @@ static long ipc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 		return mc->ops.trigger_cp_crash(mc);
 	}
+
 	case IOCTL_SET_INTERNET_PDN_CID:
+	{
 		if (arg)
 			ld->internet_pdn_cid = arg;
-		mif_info("CID Info:%lu\n", arg);
+		mif_info("Internet CID: %lu\n", arg);
 		break;
+	}
+
+	case IOCTL_SET_MULTIPLE_PDN_INFO:
+	{
+		struct pdn_info pdn_arg;
+		u8 rmnet_type;
+
+		mif_info("IOCTL_SET_MULTIPLE_PDN_INFO\n");
+
+		if (copy_from_user(&pdn_arg, (struct pdn_info __user *)arg, sizeof(struct pdn_info))) {
+			mif_err("copy_from_user fail - IOCTL_SET_MULTIPLE_PDN_INFO\n");
+			return -EFAULT;
+		}
+
+		if (pdn_arg.is_internet)
+			ld->internet_pdn_cid = pdn_arg.cid;
+
+		rmnet_type = pdn_arg.cid - 1;
+
+		if (rmnet_type < RMNET_COUNT) {
+			if (pdn_arg.is_activated == true) {
+				mif_info("cid: %d, ipv4: %pI4, ipv6: %pI6c\n",
+						pdn_arg.cid, &pdn_arg.ipv4_src_addr, &pdn_arg.ipv6_src_addr);
+				memcpy(&ld->pdn_table.pdn[rmnet_type], &pdn_arg, sizeof(struct pdn_info));
+			} else {
+				mif_info("Deactivate pdn table (cid: %d)\n", pdn_arg.cid);
+				memset(&ld->pdn_table.pdn[rmnet_type], 0, sizeof(struct pdn_info));
+			}
+		} else {
+			mif_err("Unknow CID: %d\n", pdn_arg.cid);
+			return -EFAULT;
+		}
+		break;
+	}
+
+	case IOCTL_SET_IP_PACKET_FILTERS:
+	{
+		struct packet_filter *filter_arg;
+		u8 rmnet_type;
+
+		mif_info("IOCTL_SET_IP_PACKET_FILTERS\n");
+
+		filter_arg = kzalloc(sizeof(struct packet_filter), GFP_KERNEL);
+		if (!filter_arg) {
+			mif_err("packet_filter devm_kzalloc fail\n");
+			return -EFAULT;
+		}
+
+		if (copy_from_user(filter_arg, (struct packet_filter __user *)arg, sizeof(struct packet_filter))) {
+			mif_err("copy_from_user fail - IOCTL_SET_IP_PACKET_FILTERS\n");
+			kfree(filter_arg);
+			return -EFAULT;
+		}
+
+		rmnet_type = filter_arg->cid - 1;
+
+		if (rmnet_type < RMNET_COUNT) {
+			if (filter_arg->filters_count != 0) {
+				memcpy(&ld->packet_filter_table.rmnet[rmnet_type], &filter_arg, sizeof(struct packet_filter));
+				ld->is_modern_standby = true;
+			} else {
+				memset(&ld->packet_filter_table.rmnet[rmnet_type], 0, sizeof(struct packet_filter));
+				ld->is_modern_standby = false;
+			}
+		} else {
+			mif_err("Unknow CID: %d\n", filter_arg->cid);
+			kfree(filter_arg);
+			return -EFAULT;
+		}
+		kfree(filter_arg);
+		break;
+	}
+
+	case IOCTL_GET_IP_PACKET_FILTERS:
+	{
+		struct packet_filter *filter_arg;
+		u8 rmnet_type;
+
+		mif_info("IOCTL_GET_IP_PACKET_FILTERS\n");
+
+		filter_arg = kzalloc(sizeof(struct packet_filter), GFP_KERNEL);
+		if (!filter_arg) {
+			mif_err("packet_filter devm_kzalloc fail\n");
+			return -EFAULT;
+		}
+
+		if (copy_from_user(filter_arg, (struct packet_filter __user *)arg, sizeof(struct packet_filter))) {
+			mif_err("copy_from_user fail - IOCTL_GET_IP_PACKET_FILTERS\n");
+			kfree(filter_arg);
+			return -EFAULT;
+		}
+
+		rmnet_type = filter_arg->cid - 1;
+
+		if (rmnet_type < RMNET_COUNT) {
+			if (copy_to_user((void __user *)arg, &ld->packet_filter_table.rmnet[rmnet_type], sizeof(struct packet_filter))) {
+				mif_err("copy_to_user fail - IOCTL_GET_IP_PACKET_FILTERS\n");
+				kfree(filter_arg);
+				return -EFAULT;
+			}
+		} else {
+			mif_err("Unknow CID: %d\n", filter_arg->cid);
+			kfree(filter_arg);
+			return -EFAULT;
+		}
+		kfree(filter_arg);
+		break;
+	}
 
 	default:
 		 /* If you need to handle the ioctl for specific link device,

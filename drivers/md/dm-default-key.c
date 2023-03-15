@@ -76,7 +76,7 @@ static int default_key_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 
 	err = crypto_diskcipher_setkey(dkc->diskc, argv[1], key_size, 0, NULL);
 	if (err) {
-		 pr_err("%s: fails to set diskcipher key:%s, size:%d\n", __func__, argv[1], key_size);
+		 pr_err("%s: fails to set diskcipher key:%s, size:%zu\n", __func__, argv[1], key_size);
 		return err;
 	}
 

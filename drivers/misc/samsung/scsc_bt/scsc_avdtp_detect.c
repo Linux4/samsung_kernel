@@ -525,8 +525,8 @@ static uint8_t scsc_avdtp_detect_signaling_rxtx(uint16_t hci_connection_handle,
 			return AVDTP_DETECT_SIGNALING_ACTIVE;
 		else if (signal_id == AVDTP_SIGNAL_ID_OPEN)
 			return AVDTP_DETECT_SIGNALING_OPEN;
-		else if (signal_id == AVDTP_SIGNAL_ID_CLOSE || signal_id == AVDTP_SIGNAL_ID_SUSPEND ||
-				signal_id == AVDTP_SIGNAL_ID_ABORT)
+		else if (is_tx && (signal_id == AVDTP_SIGNAL_ID_CLOSE || signal_id == AVDTP_SIGNAL_ID_SUSPEND ||
+				signal_id == AVDTP_SIGNAL_ID_ABORT))
 			return AVDTP_DETECT_SIGNALING_INACTIVE;
 		else if (signal_id == AVDTP_SIGNAL_ID_DISCOVER) {
 			/* Check the discover signal for potential SNK candidate SEIDs */
@@ -546,7 +546,9 @@ static uint8_t scsc_avdtp_detect_signaling_rxtx(uint16_t hci_connection_handle,
 						   avdtp_hci->tsep_detect.local_snk_seid_candidate,
 						   avdtp_hci->tsep_detect.remote_snk_seid_candidate,
 						   avdtp_hci->hci_connection_handle);
-		}
+		} else if (is_tx && (signal_id == AVDTP_SIGNAL_ID_CLOSE || signal_id == AVDTP_SIGNAL_ID_SUSPEND ||
+				     signal_id == AVDTP_SIGNAL_ID_ABORT))
+			return AVDTP_DETECT_SIGNALING_INACTIVE;
 	} else if (message_type == AVDTP_MESSAGE_TYPE_GENERAL_REJECT || message_type == AVDTP_MESSAGE_TYPE_RSP_REJECT) {
 		if (signal_id == AVDTP_SIGNAL_ID_SET_CONF) {
 			if (is_tx) {

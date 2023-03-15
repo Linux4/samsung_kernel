@@ -98,7 +98,7 @@ int slsi_hip_rx(struct slsi_dev *sdev, struct sk_buff *skb)
 	slsi_log_clients_log_signal_fast(sdev, &sdev->log_clients, skb, SLSI_LOG_DIRECTION_TO_HOST);
 	pid = fapi_get_u16(skb, receiver_pid);
 	if (pid >= SLSI_TX_PROCESS_ID_UDI_MIN && pid <= SLSI_TX_PROCESS_ID_UDI_MAX) {
-		slsi_kfree_skb(skb);
+		kfree_skb(skb);
 		return 0;
 	}
 
@@ -152,7 +152,7 @@ int scsc_wifi_transmit_frame(struct slsi_hip4 *hip, struct sk_buff *skb, bool ct
 
 	slsi_log_clients_log_signal_fast(sdev, &sdev->log_clients, skb, SLSI_LOG_DIRECTION_FROM_HOST);
 
-	slsi_kfree_skb(skb);
+	consume_skb(skb);
 
 	return 0;
 }
@@ -273,4 +273,7 @@ int scsc_wifi_fcq_stat_queueset(struct scsc_wifi_fcq_data_qset *queue_set,
 {
 	return 0;
 }
+void slsi_hip_reprocess_skipped_data_bh(struct slsi_dev *sdev)
+{
 
+}

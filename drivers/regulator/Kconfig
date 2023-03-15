@@ -766,12 +766,6 @@ config REGULATOR_S2MPS11
 	 Buck converters including Dual-Phase Buck converter, Buck-Boost
 	 converter, various LDOs.
 
-config DRV_SAMSUNG_PMIC
-	tristate "Samsung PMIC sysfs system"
-	depends on MFD_S2MPU10
-	help
-	 This driver supports a Samsung PMIC sysfs.
-
 config REGULATOR_S2MPS19
 	tristate "Samsung S2MPS19 voltage regulator"
 	depends on MFD_S2MPS19

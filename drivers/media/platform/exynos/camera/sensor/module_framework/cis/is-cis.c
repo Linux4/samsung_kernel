@@ -73,15 +73,13 @@ int sensor_cis_set_registers(struct v4l2_subdev *subdev, const u32 *regs, const 
 	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
 	if (!cis) {
 		err("cis is NULL");
-		ret = -EINVAL;
-		goto p_err;
+		return -EINVAL;
 	}
 
 	client = cis->client;
 	if (unlikely(!client)) {
 		err("client is NULL");
-		ret = -EINVAL;
-		goto p_err;
+		return -EINVAL;
 	}
 
 	/* Need to delay for sensor setting */
@@ -140,7 +138,6 @@ int sensor_cis_set_registers(struct v4l2_subdev *subdev, const u32 *regs, const 
 
 p_err:
 	if (ret) {
-		if (cis)
 		cis->stream_state = CIS_STREAM_SET_ERR;
 		err("[%s] global/mode setting fail(%d)", __func__, ret);
 	}
@@ -681,6 +678,7 @@ p_err:
 int sensor_cis_wait_streamon(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
+	int ret_err = 0;
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
@@ -768,7 +766,18 @@ int sensor_cis_wait_streamon(struct v4l2_subdev *subdev)
 	/* retention mode CRC wait calculation */
 	usleep_range(1000, 1000);
 #endif
+	return 0;
+
 p_err:
+	ret_err = CALL_CISOPS(cis, cis_stream_off, subdev);
+	if (ret_err < 0) {
+		err("[MOD:D:%d] stream off fail", cis->id);
+	} else {
+		ret_err = CALL_CISOPS(cis, cis_wait_streamoff, subdev);
+		if (ret_err < 0)
+			err("[MOD:D:%d] sensor wait stream off fail", cis->id);
+	}
+
 	return ret;
 }
 

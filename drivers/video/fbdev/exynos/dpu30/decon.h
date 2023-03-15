@@ -76,6 +76,8 @@ extern int dpu_dma_buf_log_level;
 extern int decon_systrace_enable;
 extern struct decon_bts_ops decon_bts_control;
 
+extern struct pm_qos_request exynos_mif_qos_fhd;
+
 #define DECON_MODULE_NAME	"exynos-decon"
 #define MAX_NAME_SIZE		32
 #define MAX_PLANE_CNT		3
@@ -603,11 +605,24 @@ struct decon_reg_data {
 	int mres_idx;
 };
 
+struct decon_win_config_extra {
+	int remained_frames;
+	u32 reserved[7];
+};
+
+struct decon_win_config_data_old {
+	int	retire_fence;
+	int	fd_odma;
+	int	fd_dqe;
+	struct decon_win_config config[MAX_DECON_WIN + 2];
+};
+
 struct decon_win_config_data {
 	int	retire_fence;
 	int	fd_odma;
 	int	fd_dqe;
 	struct decon_win_config config[MAX_DECON_WIN + 2];
+	struct decon_win_config_extra extra;
 };
 
 enum lcd_status {
@@ -1275,6 +1290,7 @@ struct decon_device {
 	enum hwc_ver ver;
 	/* systrace */
 	struct decon_systrace_data systrace;
+	int	update_regs_list_cnt;
 
 	bool mres_enabled;
 	bool low_persistence;
@@ -1292,6 +1308,8 @@ struct decon_device {
 #endif
 #ifdef CONFIG_SUPPORT_INDISPLAY
 	bool current_indisplay;
+	u32 wait_mask_layer_trigger;
+	wait_queue_head_t wait_mask_layer_trigger_queue;
 #endif
 #ifdef CONFIG_DYNAMIC_FREQ
 	struct df_status_info *df_status;
@@ -1299,7 +1317,6 @@ struct decon_device {
 #ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
 	struct v4l2_subdev *profile_sd;
 #endif
-
 };
 
 static inline struct decon_device *get_decon_drvdata(u32 id)
@@ -1630,7 +1647,7 @@ static inline int decon_doze_wake_lock(struct decon_device *decon,
 			usleep_range(1000, 1100);
 
 		if (time_is_before_jiffies(timeout_jiffies)) {
-			decon_err("%s timeout(elapsed %d msec)\n",
+			decon_err("%s timeout(elapsed %lu msec)\n",
 					__func__, timeout);
 		}
 	}
@@ -1946,6 +1963,8 @@ int decon_handle_recovery(struct decon_device *decon);
 /* IOCTL commands */
 #define S3CFB_SET_VSYNC_INT		_IOW('F', 206, __u32)
 #define S3CFB_DECON_SELF_REFRESH	_IOW('F', 207, __u32)
+#define S3CFB_WIN_CONFIG_OLD		_IOW('F', 209, \
+						struct decon_win_config_data_old)
 #define S3CFB_WIN_CONFIG		_IOW('F', 209, \
 						struct decon_win_config_data)
 

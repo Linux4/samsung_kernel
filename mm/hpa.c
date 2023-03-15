@@ -117,7 +117,7 @@ static int hpa_killer(void)
 		return -ESRCH;
 	}
 
-	pr_info("Killing '%s' (%d), adj %hd to free %lukB\n",
+	pr_info("Killing '%s' (%d), adj %d to free %lukB\n",
 		selected->comm, task_pid_nr(selected), selected_adj,
 		selected_tasksize * (PAGE_SIZE / SZ_1K));
 
@@ -263,8 +263,13 @@ static int steal_highorder_pages_block(struct page *pages[], unsigned int order,
 	unsigned int pfn;
 	int picked = 0;
 
-	/* CMA pages should not be reclaimed. */
-	if (is_migrate_cma(mt))
+	/*
+	 * CMA pages should not be reclaimed.
+	 * Isolated page blocks should not be tried again because it
+	 * causes isolated page block remained in isolated state
+	 * forever.
+	 */
+	if (is_migrate_cma(mt) || is_migrate_isolate(mt))
 		return 0;
 
 	/* We don't care about an error type. Just skip this block */

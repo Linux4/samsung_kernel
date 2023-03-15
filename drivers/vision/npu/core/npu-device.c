@@ -39,6 +39,7 @@
 #endif
 
 extern struct system_pwr sysPwr;
+extern struct npu_interface interface;
 extern int npu_system_save_result(struct npu_session *session, struct nw_result nw_result);
 
 static int __npu_device_start(struct npu_device *device)
@@ -148,6 +149,14 @@ static int __npu_device_power_off(struct npu_device *device)
 			POWER_DOWN_DELAY_ON_EMERGENCY);
 		msleep(POWER_DOWN_DELAY_ON_EMERGENCY);
 	}
+
+	interface.sfr->grp[3].c = 0xFFFFFFFF;
+	npu_info("interrupt force clear  grp[3] g : %x, c : %x, m : %x, s : %x, ms : %x  \n", interface.sfr->grp[3].g, interface.sfr->grp[3].c,
+				interface.sfr->grp[3].m, interface.sfr->grp[3].s, interface.sfr->grp[3].ms);
+
+	interface.sfr->grp[4].c = 0xFFFFFFFF;
+	npu_info("interrupt force clear  grp[4] g : %x, c : %x, m : %x, s : %x, ms : %x  \n", interface.sfr->grp[4].g, interface.sfr->grp[4].c,
+				interface.sfr->grp[4].m, interface.sfr->grp[4].s, interface.sfr->grp[4].ms);
 
 	ret = pm_runtime_put_sync(device->dev);
 	if (ret)
@@ -275,6 +284,9 @@ static int npu_device_probe(struct platform_device *pdev)
 		goto err_exit;
 	}
 	device->dev = dev;
+
+	mutex_init(&device->start_stop_lock);
+	probe_info("NPU Device - init start_stop lock\n");
 
 	ret = npu_system_probe(&device->system, pdev);
 	if (ret) {
@@ -552,10 +564,12 @@ int npu_device_start(struct npu_device *device)
 
 	BUG_ON(!device);
 
+	mutex_lock(&device->start_stop_lock);
 	ret = __npu_device_start(device);
 	if (ret)
 		npu_err("fail(%d) in __npu_device_start\n", ret);
 
+	mutex_unlock(&device->start_stop_lock);
 	npu_info("%s():%d\n", __func__, ret);
 	return ret;
 }
@@ -566,10 +580,12 @@ int npu_device_stop(struct npu_device *device)
 
 	BUG_ON(!device);
 
+	mutex_lock(&device->start_stop_lock);
 	ret = __npu_device_stop(device);
 	if (ret)
 		npu_err("fail(%d) in __npu_device_stop\n", ret);
 
+	mutex_unlock(&device->start_stop_lock);
 	npu_info("%s():%d\n", __func__, ret);
 
 	return ret;

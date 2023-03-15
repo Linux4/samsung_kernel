@@ -2379,10 +2379,20 @@ struct facial_angle {
 	uint32_t                roll;
 };
 
+struct vra_org_crop_info {
+	uint16_t                crop_offset_x;
+	uint16_t                crop_offset_y;
+	uint16_t                crop_width;
+	uint16_t                crop_height;
+	uint16_t                full_width;
+	uint16_t                full_height;
+};
+
 struct vra_ext_meta {
 	struct facial_score     facialScore[CAMERA2_MAX_FACES];
 	struct facial_angle     facialAngle[CAMERA2_MAX_FACES];
-	uint32_t                reserved[10];
+	struct vra_org_crop_info        org_crop_info;
+	uint32_t                reserved[7];
 };
 
 struct ddk_setfile_ver

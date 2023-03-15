@@ -60,12 +60,9 @@ enum NPU_PROFILE_ID;
 #define NPU_PROFILE_IDS(x)	#x
 static char *npu_profile_id_name[] = NPU_PROFILE_ID;
 
-static inline void profile_point1(const u32 point_id, const u32 uid, const u32 frame_id, const u32 p0)
-{ return; }
-static inline void profile_point3(
-	const u32 point_id, const u32 uid, const u32 frame_id,
-	const u32 p0, const u32 p1, const u32 p2)
-{ return; }
+struct npu_profile_operation {
+	u32 (*timestamp)(void);
+};
 
 #ifdef CONFIG_NPU_USE_SPROFILER
 
@@ -124,6 +121,7 @@ struct npu_profile_control {
 	struct npu_profile		*profile_data;	/* Pointer to buf's vaddr */
 	struct npu_memory_buffer        buf;		/* Shared buffer handle to struct profile_data object */
 	struct npu_statekeeper          statekeeper;
+	struct npu_profile_operation	ops;
 	int                             unit_num;       /* Not used yet */
 	int                             point_num;      /* Not used yet */
 	atomic_t			next_probe_point_idx;	/* Index of npu_profile.point[] to be used on next profile data */
@@ -139,11 +137,18 @@ int npu_profile_probe(struct npu_system *system);
 int npu_profile_open(struct npu_system *system);
 int npu_profile_close(struct npu_system *system);
 int npu_profile_release(void);
+int npu_profile_set_operation(const struct npu_profile_operation *ops);
 
 void profile_point1(const u32 point_id, const u32 uid, const u32 frame_id, const u32 p0);
 void profile_point3(
 	const u32 point_id, const u32 uid, const u32 frame_id,
 	const u32 p0, const u32 p1, const u32 p2);
+
+#else	/* !CONFIG_NPU_USE_SPROFILER */
+
+#define profile_point1(point_id, uid, frame_id, p0)
+#define profile_point3(point_id, uid, frame_id, p0, p1, p2)
+#define npu_profile_set_operation(ops)	0
 
 #endif	/* CONFIG_NPU_USE_SPROFILER */
 

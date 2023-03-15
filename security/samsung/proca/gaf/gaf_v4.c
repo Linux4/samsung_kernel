@@ -13,6 +13,14 @@
 #include <linux/kernel_stat.h>
 #include "../fs/mount.h"
 
+#ifdef CONFIG_FIVE_GKI_10
+#define OFFSETOF_INTEGRITY offsetof(struct task_struct, android_vendor_data1[2])
+#define OFFSETOF_F_SIGNATURE offsetof(struct file, android_vendor_data1)
+#else
+#define OFFSETOF_INTEGRITY offsetof(struct task_struct, integrity)
+#define OFFSETOF_F_SIGNATURE offsetof(struct file, f_signature)
+#endif
+
 static struct GAForensicINFO {
 	unsigned short ver;
 	unsigned int size;
@@ -228,14 +236,18 @@ static struct GAForensicINFO {
 	.gaf_fp = 0,
 #endif
 #ifdef CONFIG_FIVE
-	.task_struct_integrity = offsetof(struct task_struct, integrity),
+	.task_struct_integrity = OFFSETOF_INTEGRITY,
 #if defined(CONFIG_FIVE_PA_FEATURE) || defined(CONFIG_PROCA)
-	.file_struct_f_signature = offsetof(struct file, f_signature),
+	.file_struct_f_signature = OFFSETOF_F_SIGNATURE,
 #endif
 #endif
 	.mount_struct_mnt_mountpoint = offsetof(struct mount, mnt_mountpoint),
-#ifdef CONFIG_KDP_NS
+#if defined(CONFIG_KDP_NS) || defined(CONFIG_RUSTUH_KDP_NS)
+#if defined(CONFIG_SOC_EXYNOS2100) || defined(CONFIG_ARCH_LAHAINA)
+	.vfsmount_struct_bp_mount = offsetof(struct kdp_vfsmount, bp_mount),
+#else
 	.vfsmount_struct_bp_mount = offsetof(struct vfsmount, bp_mount),
+#endif
 #else
 	.vfsmount_struct_bp_mount =
 		(short)(offsetof(struct mount, mnt_mountpoint)

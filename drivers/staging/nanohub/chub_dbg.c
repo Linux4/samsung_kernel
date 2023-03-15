@@ -20,6 +20,9 @@
 #ifdef CONFIG_CHRE_SENSORHUB_HAL
 #include "main.h"
 #endif
+#ifdef CONFIG_SENSORS_SSP
+#include "../../sensorhub/ssp_platform.h"
+#endif
 
 #define NUM_OF_GPR (17)
 #define GPR_PC_INDEX (16)
@@ -166,6 +169,9 @@ void chub_dbg_dump_hw(struct contexthub_ipc_info *ipc, enum chub_err_type reason
 
 #ifdef CONFIG_CHRE_SENSORHUB_HAL
 	nanohub_add_dump_request(ipc->data);
+#endif
+#ifdef CONFIG_SENSORS_SSP
+	ssp_dump_write_file(&p_dbg_dump->sram[p_dbg_dump->sram_start], ipc_get_chub_mem_size(), reason);
 #endif
 
 #ifdef SUPPORT_DUMP_ON_DRIVER

@@ -81,6 +81,7 @@
  * =================================================================================================
  */
 #define CHAIN_USE_STRIPE_PROCESSING	1
+#define CHAIN_USE_STRIPE_REGION_NUM_META	1
 #define STRIPE_MARGIN_WIDTH		(512)
 #define STRIPE_WIDTH_ALIGN		(512)
 #define STRIPE_RATIO_PRECISION		(1000)
@@ -273,6 +274,7 @@
 
 #define THROTTLING_MIF_LEVEl	(1539000)
 
+#define SYNC_SHOT_ALWAYS	/* This is a feature for reducing late shot. */
 /*
  * ======================================================
  * CONFIG - Interface version configs

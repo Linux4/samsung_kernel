@@ -33,7 +33,7 @@
 #define CHAIN_USE_STRIPE_PROCESSING  1                        /* Support STRIPE_PROCESSING during Remosaic */
 #define USE_AP_PDAF                                           /* Support sensor PDAF SW Solution */
 //#define USE_SENSOR_WDR                                      /* Support sensor WDR */
-//#define SUPPORT_SENSOR_3DHDR                                /* whether capable of 3DHDR or not */
+#define SUPPORT_SENSOR_SEAMLESS_3HDR                          /* Support 3hdr <-> Tetra Seamless switching */
 //#define SUPPORT_REMOSAIC_CROP_ZOOM
 //#undef OVERFLOW_PANIC_ENABLE_CSIS                           /* Not Support Kernel Panic when CSIS OVERFLOW */
 #define DISABLE_DUAL_SYNC                                     /* Not Support DUAL SYNC between Main Sensor and Slave Sensor */
@@ -61,5 +61,7 @@
 #define CSI_SCENARIO_SEN_REAR	(0)                           /* This value follows dtsi */
 #define CSI_SCENARIO_SEN_FRONT	(1)
 #endif
+
+//#define USE_HIGH_RES_FLASH_FIRE_BEFORE_STREAM_ON            /* Remosaic Flash Capture */
 
 #endif /* IS_VENDOR_CONFIG_AAS_V71X_H */

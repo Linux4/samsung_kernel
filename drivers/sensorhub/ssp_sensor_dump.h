@@ -35,8 +35,8 @@
 #define sensor_dump_length(x)  (x*LENGTH_1BYTE_HEXA_WITH_BLANK+LENGTH_EXTRA_STRING)
 
 #define SENSOR_DUMP_SENSOR_LIST         {SENSOR_TYPE_ACCELEROMETER, SENSOR_TYPE_GYROSCOPE, \
-                                                                        SENSOR_TYPE_GEOMAGNETIC_FIELD, SENSOR_TYPE_PRESSURE, \
-                                                                        SENSOR_TYPE_PROXIMITY, SENSOR_TYPE_LIGHT}
+					SENSOR_TYPE_GEOMAGNETIC_FIELD, SENSOR_TYPE_PRESSURE, \
+					SENSOR_TYPE_PROXIMITY, SENSOR_TYPE_LIGHT}
 
 int send_sensor_dump_command(struct ssp_data *data, u8 sensor_type);
 int send_all_sensor_dump_command(struct ssp_data *data);

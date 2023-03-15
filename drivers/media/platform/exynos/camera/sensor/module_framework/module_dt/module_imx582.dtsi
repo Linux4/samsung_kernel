@@ -44,32 +44,32 @@
 					/* VC_BUF_DATA_TYPE_SENSOR_STAT1 */
 					stat0 = </* not avaliable */>;
 					/* VC_BUF_DATA_TYPE_GENERAL_STAT1 */
-					stat1 = </*VC_STAT_TYPE_PDP_1_1_PDAF_STAT0*/ 800 /*VC_SENSOR_MODE_IMX_2X1OCL_2_TAIL*/ 504 992 1448 2>;
+					stat1 = </*VC_STAT_TYPE_PDP_1_1_PDAF_STAT0*/ 800 /*VC_SENSOR_MODE_IMX_2X1OCL_2_TAIL*/ 504 992 1488 2>;
 					/* VC_BUF_DATA_TYPE_SENSOR_STAT2 */
 					stat2 = </* not avaliable */>;
 					/* VC_BUF_DATA_TYPE_GENERAL_STAT2 */
-					stat3 = </*VC_STAT_TYPE_PDP_1_1_PDAF_STAT1*/ 801 /*VC_SENSOR_MODE_IMX_2X1OCL_2_TAIL*/ 504 992 1448 2>;
+					stat3 = </*VC_STAT_TYPE_PDP_1_1_PDAF_STAT1*/ 801 /*VC_SENSOR_MODE_IMX_2X1OCL_2_TAIL*/ 504 992 1488 2>;
 				};
 
 				/*
 				 * [Mode Information]
 				 *
-				 * Reference File : IMX582_SEC-DPHY-26MHz_RegisterSetting_ver7.00-5.11_test_b2_MP0_200110.xlsx
-				 * Update Data    : 2020-01-23
+				 * Reference File : IMX582_SEC-DPHY-26MHz_RegisterSetting_ver9.00-5.10_b3_MP0_200508.xlsx
+				 * Update Data    : 2020-05-12
 				 * Author         : takkyoum.kim
 				 *
 				 * - Global Setting -
 				 *
 				 * - 2x2 BIN For Still Preview / Capture -
 				 *    [  0 ] REG_H_2_t   : 2x2 Binning Full 4000x3000 30fps    : Single Still Preview/Capture (4:3)    ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2058
- 				 *    [  1 ] REG_H_2_t2  : 2x2 Binning Crop 4000X2256 30fps    : Single Still Preview/Capture (16:9)   ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2058
+				 *    [  1 ] REG_I_2_t   : 2x2 Binning Crop 4000X2256 30fps    : Single Still Preview/Capture (16:9)   ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2058
 				 *    [  2 ] REG_J_2     : 2x2 Binning Crop 4000X1952 30fps    : Single Still Preview/Capture (18.5:9) ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2058
 				 *    [  3 ] REG_K_2     : 2x2 Binning Crop 4000X1844 30fps    : Single Still Preview/Capture (19.5:9) ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2058
 				 *    [  4 ] REG_L_2     : 2x2 Binning Crop 4000X1800 30fps    : Single Still Preview/Capture (20:9)   ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2058
 				 *    [  5 ] REG_M_2     : 2x2 Binning Crop 3664X3000 30fps    : MMS (11:9)                            ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2058
 				 *    [  6 ] REG_N_2     : 2x2 Binning Crop 3000X3000 30fps    : Single Still Preview/Capture (1:1)    ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2058
 				 *    [  7 ] REG_U       : 2x2 Binning Crop 3264X2448 30fps    : Single Still Capture (4:3)            ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2058
- 				 *
+				 *
 				 * - 2x2 BIN V2H2 For HighSpeed Recording/FastAE-
 				 *    [  8 ] REG_O_2     : 2x2 Binning V2H2 2000X1500 120fps   : FAST AE (4:3)                         ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 1848
 				 *    [  9 ] REG_P_2     : 2x2 Binning V2H2 2000X1128 120fps   : High Speed Recording (16:9)           ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 1848
@@ -84,7 +84,7 @@
 				 * - Remosaic For Single Still Remosaic Capture -
 				 *    [ 13 ] REG_G       : Remosaic Full 8000x6000 15fps        : Single Still Remosaic Capture (4:3)   ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2184
 				 *    [ 14 ] REG_T_t     : Remosaic Crop 4000x3000 30fps        : Single Still Remosaic Capture (4:3)   ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2184
-				 *    [ 15 ] REG_T_t2    : Remosaic Crop 4000x2256 30fps        : Single Still Remosaic Capture (16:9)  ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2058
+				 *    [ 15 ] REG_A_A_t   : Remosaic Crop 4000x2256 30fps        : Single Still Remosaic Capture (16:9)  ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2058
 				 */
 
 				/* sensor modes */
@@ -94,71 +94,71 @@
 
 					/* 2x2 BIN For Single Still Preview / Capture */
 					mode0 {
-						common = <4000 3000 30 0 0 CSI_DATA_LANES_4 2058 CSI_MODE_VC_ONLY LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
+						common = <4000 3000 30 0 0 CSI_DATA_LANES_4 2058 CSI_MODE_VC_DT LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 4000 3000	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_RAW10 992 1488	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
-						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_MIPISTAT 992 1488>;
-						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_PRIVATE 992 1488>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 					};
 					mode1 {
-						common = <4000 2256 30 0 1 CSI_DATA_LANES_4 2058 CSI_MODE_VC_ONLY LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
+						common = <4000 2256 30 0 1 CSI_DATA_LANES_4 2058 CSI_MODE_VC_DT LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 4000 2256	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_RAW10 992 1120	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
-						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_MIPISTAT 992 1120>;
-						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_PRIVATE 992 1120>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 					};
 					mode2 {
-						common = <4000 1952 30 0 2 CSI_DATA_LANES_4 2058 CSI_MODE_VC_ONLY LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
+						common = <4000 1952 30 0 2 CSI_DATA_LANES_4 2058 CSI_MODE_VC_DT LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 4000 1952	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_RAW10 992 976	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
-						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_MIPISTAT 992 976>;
-						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_PRIVATE 992 976>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 					};
 					mode3 {
-						common = <4000 1844 30 0 3 CSI_DATA_LANES_4 2058 CSI_MODE_VC_ONLY LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
+						common = <4000 1844 30 0 3 CSI_DATA_LANES_4 2058 CSI_MODE_VC_DT LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 4000 1844	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_RAW10 992 912	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
-						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_MIPISTAT 992 912>;
-						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_PRIVATE 992 912>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 					};
 					mode4 {
-						common = <4000 1800 30 0 4 CSI_DATA_LANES_4 2058 CSI_MODE_VC_ONLY LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
+						common = <4000 1800 30 0 4 CSI_DATA_LANES_4 2058 CSI_MODE_VC_DT LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 4000 1800	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_RAW10 992 896	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
-						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_MIPISTAT 992 896>;
-						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_PRIVATE 992 896>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 					};
 					mode5 {
-						common = <3664 3000 30 0 5 CSI_DATA_LANES_4 2058 CSI_MODE_VC_ONLY LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
+						common = <3664 3000 30 0 5 CSI_DATA_LANES_4 2058 CSI_MODE_VC_DT LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 3664 3000	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_RAW10 912 1488	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
-						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_MIPISTAT 912 1488>;
-						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_PRIVATE 912 1488>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 					};
 					mode6 {
-						common = <3000 3000 30 0 6 CSI_DATA_LANES_4 2058 CSI_MODE_VC_ONLY LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
+						common = <3000 3000 30 0 6 CSI_DATA_LANES_4 2058 CSI_MODE_VC_DT LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 3000 3000	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_RAW10 744 1488	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
-						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_MIPISTAT 744 1488>;
-						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_PRIVATE 744 1488>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 					};
 					mode7 {
-						common = <3264 2448 30 0 7 CSI_DATA_LANES_4 2058 CSI_MODE_VC_ONLY LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
+						common = <3264 2448 30 0 7 CSI_DATA_LANES_4 2058 CSI_MODE_VC_DT LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 3264 2448	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
-						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_MIPISTAT 816 1216>;
-						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_PRIVATE 816 1216>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 					};
 					/* 2x2 BIN V2H2 For HighSpeed Recording/FastAE */
 					mode8 {
-						common = <2000 1500 120 0 8 CSI_DATA_LANES_4 1848 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <2000 1500 120 0 8 CSI_DATA_LANES_4 1848 CSI_MODE_VC_DT LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 2000 1500	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 					};
 					mode9 {
-						common = <2000 1128 120 0 9 CSI_DATA_LANES_4 1848 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <2000 1128 120 0 9 CSI_DATA_LANES_4 1848 CSI_MODE_VC_DT LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 2000 1128	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -167,21 +167,21 @@
 
 					/* 2x2 BIN V2H2 For HighSpeed Recording */
 					mode10 {
-						common = <1296 736 240 0 10 CSI_DATA_LANES_4 1848 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <1296 736 240 0 10 CSI_DATA_LANES_4 1848 CSI_MODE_VC_DT LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 1296 736	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 					};
 					mode11 {
-						common = <2000 1128 240 0 11 CSI_DATA_LANES_4 1848 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <2000 1128 240 0 11 CSI_DATA_LANES_4 1848 CSI_MODE_VC_DT LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 2000 1128	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 					};
 					mode12 {
-						common = <4000 2256 60 0 12 CSI_DATA_LANES_4 2058 CSI_MODE_VC_ONLY LRTE_DISABLE PD_NONE EX_NONE>;
+						common = <4000 2256 60 0 12 CSI_DATA_LANES_4 2058 CSI_MODE_VC_DT LRTE_DISABLE PD_NONE EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 4000 2256	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
@@ -189,25 +189,25 @@
 					};
 					/* Remosaic Full For Single Still Remosaic Capture */
 					mode13 {
-						common = <8000 6000 15 0 13 CSI_DATA_LANES_4 2184 CSI_MODE_VC_ONLY LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
+						common = <8000 6000 15 0 13 CSI_DATA_LANES_4 2184 CSI_MODE_VC_DT LRTE_DISABLE PD_MSPD_TAIL EX_NONE>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 8000 6000	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc1 = </* in */ 1 HW_FORMAT_RAW10 992 1488	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
-						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_MIPISTAT 992 1488>;
-						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_PRIVATE 992 1488>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 					};
 					mode14 {
-						common = <4000 3000 30 0 14 CSI_DATA_LANES_4 2058 CSI_MODE_VC_ONLY LRTE_DISABLE PD_MSPD_TAIL EX_CROP_ZOOM>;
+						common = <4000 3000 30 0 14 CSI_DATA_LANES_4 2058 CSI_MODE_VC_DT LRTE_DISABLE PD_NONE EX_LOW_RES_TETRA>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 4000 3000	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
-						vc1 = </* in */ 1 HW_FORMAT_RAW10 496 744	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
-						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_MIPISTAT 496 744>;
-						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_PRIVATE 496 744>;
+						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 					};
 					mode15 {
-						common = <4000 2256 30 0 15 CSI_DATA_LANES_4 2058 CSI_MODE_VC_ONLY LRTE_DISABLE PD_MSPD_TAIL EX_CROP_ZOOM>;
+						common = <4000 2256 30 0 15 CSI_DATA_LANES_4 2058 CSI_MODE_VC_DT LRTE_DISABLE PD_NONE EX_LOW_RES_TETRA>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 4000 2256	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
-						vc1 = </* in */ 1 HW_FORMAT_RAW10 496 560	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
-						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_MIPISTAT 496 560>;
-						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_USER VC_PRIVATE 496 560>;
+						vc1 = </* in */ 1 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 					};
 				};
 

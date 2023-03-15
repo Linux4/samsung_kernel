@@ -1094,7 +1094,7 @@ static int exynos_ufs_access_control_abort(struct ufs_hba *hba)
 {
 	struct exynos_ufs *ufs = to_exynos_ufs(hba);
 
-	dev_err(ufs->dev, "%s: smu:%d, ret:%d\n", __func__, ufs->smu);
+	dev_err(ufs->dev, "%s: smu:%d\n", __func__, ufs->smu);
 	return exynos_fmp_smu_abort(ufs->smu);
 }
 #else

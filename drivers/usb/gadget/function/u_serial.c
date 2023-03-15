@@ -209,6 +209,10 @@ gs_send_packet(struct gs_port *port, char *packet, unsigned size)
 	return size;
 }
 
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+extern int mbim_resume_cmpl;
+#endif
+
 /*
  * gs_start_tx
  *
@@ -231,10 +235,28 @@ __acquires(&port->port_lock)
 	int			status = 0;
 	bool			do_tty_wake = false;
 
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+	int		cnt;
+#endif
+
 	if (!port->port_usb)
 		return status;
 
 	in = port->port_usb->in;
+
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+	cnt = 0;
+	while (!mbim_resume_cmpl) {
+		pr_info("%s: wait system resume for %d msesc\n", __func__, cnt * 10);
+
+		if (cnt > 10) {
+			pr_info("%s: wait timeout for 100ms ! keep going\n", __func__);
+			break;
+		}
+		mdelay(10);
+		cnt++;
+	}
+#endif
 
 	while (!port->write_busy && !list_empty(pool)) {
 		struct usb_request	*req;

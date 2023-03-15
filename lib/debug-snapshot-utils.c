@@ -292,6 +292,11 @@ static void dbg_snapshot_dump_one_task_info(struct task_struct *tsk, bool is_mai
 	    tsk->state == TASK_WAKING ||
 	    task_contributes_to_load(tsk)) {
 		secdbg_dtsk_print_info(tsk, true);
+
+		if (tsk->on_cpu && tsk->on_rq &&
+		    tsk->cpu != smp_processor_id())
+			return;
+
 		show_stack(tsk, NULL);
 		dev_info(dss_desc.dev, "\n");
 	}

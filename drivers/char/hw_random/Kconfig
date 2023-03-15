@@ -471,10 +471,3 @@ config HW_RANDOM_KEYSTONE
 	tristate "TI Keystone NETCP SA Hardware random number generator"
 	help
 	  This option enables Keystone's hardware random generator.
-
-config HW_RANDOM_SECONDARY_RANDOMNESS
-	tristate "Enable secondary hwrng"
-	default n
-	depends on HW_RANDOM_S2Q000
-	---help---
-	  This will enable two hwrngs to write lkrng input pool

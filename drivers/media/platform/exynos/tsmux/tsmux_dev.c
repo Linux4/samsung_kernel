@@ -27,13 +27,7 @@
 #define MAX_JOB_DONE_WAIT_TIME		1000000
 #define AUDIO_TIME_PERIOD_US		21333
 
-#define ADD_NULL_TS_PACKET
-
-#ifdef ADD_NULL_TS_PACKET
-#define TS_PKT_COUNT_PER_RTP    6
-#else
 #define TS_PKT_COUNT_PER_RTP    7
-#endif
 
 #define RTP_HEADER_SIZE     12
 #define TS_PACKET_SIZE      188
@@ -459,6 +453,7 @@ static int tsmux_release(struct inode *inode, struct file *filp)
 	clk_disable(tsmux_dev->tsmux_clock);
 #endif
 	spin_lock_irqsave(&tsmux_dev->device_spinlock, flags);
+	g_tsmux_dev = NULL;
 
 	if (tsmux_dev->ctx_cnt == 1)
 		del_timer(&tsmux_dev->watchdog_timer);
@@ -474,8 +469,6 @@ static int tsmux_release(struct inode *inode, struct file *filp)
 		print_tsmux(TSMUX_ERR, "pm_runtime_put_sync err(%d)\n", ret);
 		return ret;
 	}
-
-	g_tsmux_dev = NULL;
 
 	print_tsmux(TSMUX_COMMON, "%s--\n", __func__);
 	return ret;
@@ -1114,7 +1107,12 @@ int packetize(struct packetizing_param *param)
 	print_tsmux(TSMUX_COMMON, "otf job_queue, v_cc 0x%x\n",
 		ctx->rtp_ts_info.ts_video_cc);
 
-	ctx->otf_cmd_queue.config.pkt_ctrl.rtp_size = TS_PKT_COUNT_PER_RTP;
+	print_tsmux(TSMUX_COMMON, "otf_dummy_ts_packet %d\n", ctx->otf_dummy_ts_packet);
+	if (ctx->otf_dummy_ts_packet)
+		ctx->otf_cmd_queue.config.pkt_ctrl.rtp_size = TS_PKT_COUNT_PER_RTP - 1;
+	else
+		ctx->otf_cmd_queue.config.pkt_ctrl.rtp_size = TS_PKT_COUNT_PER_RTP;
+
 	ret = tsmux_job_queue(ctx,
 			&config->pkt_ctrl,
 			&config->pes_hdr,
@@ -1439,7 +1437,7 @@ void reordering_pes_private_data(char *packetized_data, bool psi)
 	}
 }
 
-void add_null_ts_packet(uint8_t *ptr, int out_buf_size, struct tsmux_ts_hdr *ts_hdr)
+void add_dummy_ts_packet(uint8_t *ptr, int out_buf_size, struct tsmux_ts_hdr *ts_hdr)
 {
 	uint8_t payload_unit_start_indicator = 1;
 	/* Adaptation_field, payload */
@@ -1453,7 +1451,7 @@ void add_null_ts_packet(uint8_t *ptr, int out_buf_size, struct tsmux_ts_hdr *ts_
 
 	last_ts_continuity_counter = *(ptr + out_buf_size - (TS_PACKET_SIZE - 3));
 	last_ts_continuity_counter = last_ts_continuity_counter & 0xf;
-	last_rtp_size = out_buf_size % (TS_PACKET_SIZE * TS_PKT_COUNT_PER_RTP + RTP_HEADER_SIZE);
+	last_rtp_size = out_buf_size % (TS_PACKET_SIZE * (TS_PKT_COUNT_PER_RTP - 1) + RTP_HEADER_SIZE);
 
 	print_tsmux(TSMUX_COMMON, "out_buf_size %d\n", out_buf_size);
 	print_tsmux(TSMUX_COMMON, "last_ts_continuity_counter %d, last_rtp_size %d\n",
@@ -1501,6 +1499,8 @@ static bool tsmux_ioctl_otf_dq_buf(struct tsmux_context *ctx)
 	char *temp_p;
 	int first_ts_video_cc;
 	int last_ts_video_cc;
+	/* Next ts packet's CC is increased by 1 */
+	int offset_ts_video_cc = 1;
 
 	while ((index = get_job_done_buf(ctx)) == -1) {
 		wait_time = wait_event_interruptible_timeout(ctx->otf_wait_queue,
@@ -1515,7 +1515,6 @@ static bool tsmux_ioctl_otf_dq_buf(struct tsmux_context *ctx)
 
 		ctx->otf_job_queued = false;
 
-		ctx->otf_cmd_queue.config.pkt_ctrl.rtp_size = TS_PKT_COUNT_PER_RTP;
 		out_size = ctx->otf_cmd_queue.out_buf[index].actual_size;
 		rtp_size = ctx->otf_cmd_queue.config.pkt_ctrl.rtp_size;
 
@@ -1524,12 +1523,15 @@ static bool tsmux_ioctl_otf_dq_buf(struct tsmux_context *ctx)
 		cur_ts_video_cc = ctx->rtp_ts_info.ts_video_cc;
 		ctx->rtp_ts_info.ts_video_cc = increment_ts_continuity_counter(
 			cur_ts_video_cc, out_size, rtp_size, ctx->otf_psi_enabled[index]);
-#ifdef ADD_NULL_TS_PACKET
-		// TSMUX_HAL will add null ts packet after end of frame
-		ctx->rtp_ts_info.ts_video_cc++;
-		if (ctx->rtp_ts_info.ts_video_cc == 16)
-			ctx->rtp_ts_info.ts_video_cc = 0;
-#endif
+
+		if (ctx->otf_dummy_ts_packet) {
+			ctx->rtp_ts_info.ts_video_cc++;
+			if (ctx->rtp_ts_info.ts_video_cc == 16)
+				ctx->rtp_ts_info.ts_video_cc = 0;
+			/* Next ts packet's CC is increased by 2 because dummy ts added */
+			offset_ts_video_cc = 2;
+		}
+
 		cur_rtp_seq_num = ctx->rtp_ts_info.rtp_seq_number;
 		ctx->rtp_ts_info.rtp_seq_number = increment_rtp_sequence_number(
 			cur_rtp_seq_num, out_size,
@@ -1538,7 +1540,7 @@ static bool tsmux_ioctl_otf_dq_buf(struct tsmux_context *ctx)
 		temp_p = (char *)ctx->otf_outbuf_info[index].vaddr;
 		temp_p += out_size - 188;
 		last_ts_video_cc = (*(temp_p + 3) & 0xf);
-		if (((last_ts_video_cc + 2) & 0xF) != ctx->rtp_ts_info.ts_video_cc) {
+		if (((last_ts_video_cc + offset_ts_video_cc) & 0xF) != ctx->rtp_ts_info.ts_video_cc) {
 			print_tsmux(TSMUX_ERR, "1st cc %.2x last cc %.2x, cc %.2x, out_size %d, rtp_size %d, psi %d\n",
 				first_ts_video_cc, last_ts_video_cc, ctx->rtp_ts_info.ts_video_cc,
 				out_size, rtp_size, ctx->otf_psi_enabled[index]);
@@ -1564,12 +1566,11 @@ static bool tsmux_ioctl_otf_dq_buf(struct tsmux_context *ctx)
 					ctx->otf_psi_enabled[index]);
 		}
 
-#ifdef ADD_NULL_TS_PACKET
-	add_null_ts_packet((uint8_t *)ctx->otf_outbuf_info[index].vaddr,
-		out_size, &ctx->otf_cmd_queue.config.ts_hdr);
-
-	ctx->otf_cmd_queue.out_buf[index].actual_size += TS_PACKET_SIZE;
-#endif
+		if (ctx->otf_dummy_ts_packet) {
+			add_dummy_ts_packet((uint8_t *)ctx->otf_outbuf_info[index].vaddr,
+				out_size, &ctx->otf_cmd_queue.config.ts_hdr);
+			ctx->otf_cmd_queue.out_buf[index].actual_size += TS_PACKET_SIZE;
+		}
 
 		ctx->video_frame_count++;
 		spin_unlock_irqrestore(&tsmux_dev->device_spinlock, flags);
@@ -2027,6 +2028,20 @@ static long tsmux_ioctl(struct file *filp,
 			ret = -EFAULT;
 			break;
 		}
+	break;
+
+	case TSMUX_IOCTL_ENABLE_OTF_DUMMY_TS_PACKET:
+		print_tsmux(TSMUX_COMMON, "TSMUX_IOCTL_ENABLE_OTF_DUMMY_TS_PACKET\n");
+		spin_lock_irqsave(&tsmux_dev->device_spinlock, flags);
+		ctx->otf_dummy_ts_packet = true;
+		spin_unlock_irqrestore(&tsmux_dev->device_spinlock, flags);
+	break;
+
+	case TSMUX_IOCTL_DISABLE_OTF_DUMMY_TS_PACKET:
+		print_tsmux(TSMUX_COMMON, "TSMUX_IOCTL_DISABLE_OTF_DUMMY_TS_PACKET\n");
+		spin_lock_irqsave(&tsmux_dev->device_spinlock, flags);
+		ctx->otf_dummy_ts_packet = false;
+		spin_unlock_irqrestore(&tsmux_dev->device_spinlock, flags);
 	break;
 
 	default:

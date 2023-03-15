@@ -1543,6 +1543,15 @@ struct is_debug_control {
 	u32 fd_frame_drop;
 };
 
+#if defined(CONVERT_BUFFER_SECURE_TO_NON_SECURE)
+struct secure_buffer_convert_info {
+	int secure_buffer_fd;
+	int secure_buffer_size;
+	int non_secure_buffer_fd;
+	int non_secure_buffer_size;
+};
+#endif
+
 static inline enum dma_input_order change_to_input_order(enum dma_output_order output_order)
 {
 	enum dma_input_order input_order;

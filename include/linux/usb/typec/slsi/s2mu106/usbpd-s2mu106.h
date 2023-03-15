@@ -12,13 +12,21 @@
  * GNU General Public License for more details.
  *
  */
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 #include <linux/usb/typec/common/pdic_notifier.h>
+#include <linux/usb/typec/common/pdic_core.h>
+#endif
 #include <linux/usb/typec/slsi/common/s2m_pdic_notifier.h>
 #include <linux/usb/typec/slsi/common/usbpd_msg.h>
-#if defined(CONFIG_TYPEC)
+#include <linux/usb/typec/slsi/common/usbpd.h>
+#if IS_ENABLED(CONFIG_TYPEC)
 #include <linux/usb/typec.h>
 #endif
 #include <linux/power_supply.h>
+#include <linux/pm_wakeup.h>
+#if defined(CONFIG_S2MU106_PDIC_TRY_SNK)
+#include <linux/alarmtimer.h>
+#endif
 
 #ifndef __USBPD_S2MU106_H__
 #define __USBPD_S2MU106_H__
@@ -43,18 +51,29 @@
 #define S2MU106_WATER_CHK_INTERVAL_TIME        (300)
 #define S2MU106_ATTACH_STATE_CHECK_TIME        (1000)
 
-#define S2MU106_WATER_THRESHOLD_MV			(600)
-#define S2MU106_WATER_DRY_THRESHOLD_MV		(1500)
+#define S2MU106_WATER_THRESHOLD_MV (pdic_data->water_th)
+#define S2MU106_WATER_POST (pdic_data->water_post)
+#define S2MU106_DRY_THRESHOLD_MV (pdic_data->dry_th)
+#define S2MU106_DRY_THRESHOLD_POST_MV (pdic_data->dry_th_post)
+#define S2MU106_WATER_DELAY_MS (pdic_data->water_delay)
+#define S2MU106_WATER_THRESHOLD_RA_MV (pdic_data->water_th_ra)
 
-#define S2MU106_WATER_THRESHOLD_POST_MV        (300)
+#define S2MU106_WATER_GPADC_SHORT (pdic_data->water_gpadc_short)
+#define PD_GPADC_SHORT(x) ((x) >= S2MU106_WATER_GPADC_SHORT)
 
 #define WATER_CHK_RETRY_CNT    2
-#define IS_PD_WATER(pd1, pd2)    \
-	((pd1 < S2MU106_WATER_THRESHOLD_MV) && (pd2 < S2MU106_WATER_THRESHOLD_MV))
-#define IS_PD_WATER_POST(pd1, pd2)    \
-	((pd1 > S2MU106_WATER_THRESHOLD_POST_MV) && (pd2 > S2MU106_WATER_THRESHOLD_POST_MV))
-#define IS_PD_DRY(pd1, pd2)    \
-	((pd1 > S2MU106_WATER_DRY_THRESHOLD_MV) && (pd2 > S2MU106_WATER_DRY_THRESHOLD_MV))
+
+#define IS_CC_OR_UNDER_RA(cc1, cc2)\
+	((cc1 <= S2MU106_WATER_THRESHOLD_RA_MV) || (cc2 <= S2MU106_WATER_THRESHOLD_RA_MV))
+#define IS_CC_AND_UNDER_WATER(cc1, cc2)\
+	((cc1 <= S2MU106_WATER_THRESHOLD_MV) && (cc2 <= S2MU106_WATER_THRESHOLD_MV))
+
+#define IS_CC_WATER(cc1, cc2)\
+	((cc1 <= S2MU106_WATER_THRESHOLD_MV) && (cc2 >= (cc1*S2MU106_WATER_POST/10)))
+#define IS_CC_DRY(pd1, pd2)    \
+	((pd1 > S2MU106_DRY_THRESHOLD_MV) && (pd2 > S2MU106_DRY_THRESHOLD_MV))
+#define IS_CC_DRY_POST(pd1, pd2)    \
+	((pd1 < S2MU106_DRY_THRESHOLD_POST_MV) && (pd2 < S2MU106_DRY_THRESHOLD_POST_MV))
 
 /*****************************************/
 /***********DEFINITION REGISTER***********/
@@ -203,7 +222,10 @@
 #define S2MU106_REG_PLUG_CTRL_PD2_MANUAL_EN_SHIFT    (6)
 
 #define S2MU106_REG_PLUG_CTRL_FSM_MANUAL_INPUT_MASK    (0xf)
+#define S2MU106_REG_PLUG_CTRL_FSM_UNATTACHED_SNK        (0)
+#define S2MU106_REG_PLUG_CTRL_FSM_ATTACHWAIT_SNK        (1)
 #define S2MU106_REG_PLUG_CTRL_FSM_ATTACHED_SNK        (2)
+#define S2MU106_REG_PLUG_CTRL_FSM_UNATTACHED_SRC        (4)
 #define S2MU106_REG_PLUG_CTRL_FSM_ATTACHED_SRC        (6)
 #define S2MU106_REG_PLUG_CTRL_PD_MANUAL_EN \
 	(0x1 << S2MU106_REG_PLUG_CTRL_PD_MANUAL_EN_SHIFT) /* 0x10 */
@@ -363,8 +385,7 @@
 						S2MU106_REG_INT_STATUS1_MSG_PR_SWAP)
 #define ENABLED_INT_2    (S2MU106_REG_INT_STATUS2_MSG_VCONN_SWAP |\
 						S2MU106_REG_INT_STATUS2_MSG_WAIT |\
-						S2MU106_REG_INT_STATUS2_MSG_REQUEST |\
-						S2MU106_REG_INT_STATUS2_MSG_SOFTRESET)
+						S2MU106_REG_INT_STATUS2_MSG_REQUEST)
 #define ENABLED_INT_2_WAKEUP    (S2MU106_REG_INT_STATUS2_MSG_VCONN_SWAP |\
 						S2MU106_REG_INT_STATUS2_MSG_WAIT |\
 						S2MU106_REG_INT_STATUS2_MSG_SOFTRESET |\
@@ -373,6 +394,8 @@
 #define ENABLED_INT_4    (S2MU106_REG_INT_STATUS4_USB_DETACH |\
 				S2MU106_REG_INT_STATUS4_PLUG_IRQ |\
 				S2MU106_REG_INT_STATUS4_MSG_PASS |\
+				S2MU106_REG_INT_STATUS4_MSG_ERROR)
+#define ENABLED_INT_4_WATER    (S2MU106_REG_INT_STATUS4_MSG_PASS |\
 				S2MU106_REG_INT_STATUS4_MSG_ERROR)
 #define ENABLED_INT_5    (S2MU106_REG_INT_STATUS5_HARD_RESET)
 
@@ -560,20 +583,30 @@ typedef enum {
 } PDIC_PD_OCP_SEL;
 
 typedef enum {
+	CC_UNATTACHED_SNK = 0,
+	CC_ATTACHWAIT_SNK = 1,
+	CC_ATTACHED_SNK = 2,
+	CC_RSVD_SNK = 3,
+	CC_UNATTACHED_SRC = 4,
+	CC_ATTACHWAIT_SRC = 5,
+	CC_ATTACHED_SRC = 6,
+	CC_RSVD_SRC = 7,
+	CC_DISABLE = 8,
+	CC_ERR_RECV = 9,
+	CC_TRY_SNK = 10,
+	CC_TRY_WAIT_SRC = 11,
+	CC_TRY_SRC = 12,
+	CC_TRY_WAIT_SNK = 13,
+	CC_AUDIO_ACC = 14,
+	CC_DEBUG_ACC = 15,
+} TYPEC_STATE;
+
+typedef enum {
 	S2MU106_PHY_IFG_25US = 0,
 	S2MU106_PHY_IFG_30US = 1,
 	S2MU106_PHY_IFG_35US = 2,
 } PDIC_PHY_IFG_SEL;
 
-enum s2mu106_power_role {
-	PDIC_SINK,
-	PDIC_SOURCE
-};
-
-typedef enum {
-	VBUS_OFF = 0,
-	VBUS_ON = 1,
-} PDIC_VBUS_SEL;
 
 typedef enum {
 	DET_HARD_RESET = 0,
@@ -598,14 +631,13 @@ typedef enum {
 struct s2mu106_usbpd_data {
 	struct device *dev;
 	struct i2c_client *i2c;
-#if defined(CONFIG_PDIC_NOTIFIER)
-	struct workqueue_struct *pdic_wq;
-#endif
 	struct mutex _mutex;
 	struct mutex poll_mutex;
 	struct mutex lpm_mutex;
 	struct mutex pd_mutex;
 	struct mutex water_mutex;
+	struct mutex s2m_water_mutex;
+	struct mutex otg_mutex;
 	int vconn_en;
 	int regulator_en;
 	int irq_gpio;
@@ -629,7 +661,6 @@ struct s2mu106_usbpd_data {
 	bool vbus_short_check;
 	bool pd_vbus_short_check;
 	bool vbus_short;
-	bool lpcharge_water;
 	bool first_attach;
 	int vbus_short_check_cnt;
 	int water_detect_cnt;
@@ -639,7 +670,8 @@ struct s2mu106_usbpd_data {
 	int is_client;
 	int is_attached;
 	int is_killer;
-#if defined(CONFIG_DUAL_ROLE_USB_INTF)
+	int vbus_dischg_gpio;
+#if IS_ENABLED(CONFIG_DUAL_ROLE_USB_INTF)
 	struct dual_role_phy_instance *dual_role;
 	struct dual_role_phy_desc *desc;
 	struct completion reverse_completion;
@@ -647,52 +679,76 @@ struct s2mu106_usbpd_data {
 	struct delayed_work role_swap_work;
 	int data_role_dual; /* data_role for dual role swap */
 	int power_role_dual; /* power_role for dual role swap */
-#elif defined(CONFIG_TYPEC)
-	struct typec_port *port;
-	struct typec_partner *partner;
-	struct usb_pd_identity partner_identity;
-	struct typec_capability typec_cap;
-	struct completion role_reverse_completion;
-	int typec_power_role;
-	int typec_data_role;
-	int typec_try_state_change;
-	struct delayed_work typec_role_swap_work;
 #endif
 
 	int rp_lvl;
+	int slice_lvl[2];
 
 	struct notifier_block type3_nb;
 	struct workqueue_struct *pdic_queue;
 	struct delayed_work plug_work;
 	struct s2m_pdic_notifier_struct pdic_notifier;
-	struct delayed_work water_detect_handler;
-	struct delayed_work ta_water_detect_handler;
-	struct delayed_work water_dry_handler;
-	int pm_pd1;
-	int pm_pd2;
+	struct delayed_work vbus_dischg_off_work;
+	int facwater_check_cnt;
+	int pm_cc1;
+	int pm_cc2;
 	int pm_chgin;
-	struct power_supply_desc pdic_desc;
+	int pm_vgpadc;
 	struct power_supply *psy_pm;
 	struct power_supply *psy_pdic;
-	int pd1_val;
-	int pd2_val;
-
+	struct power_supply *psy_muic;
+	int cc1_val;
+	int cc2_val;
 	int cc_instead_of_vbus;
+	bool checking_pm_water;
+#if IS_ENABLED(CONFIG_S2MU106_TYPEC_WATER)
+	struct delayed_work check_facwater;
+	int water_status;
+	int water_cc;
+	int power_off_water_detected;
+
+	int water_th;
+	int water_post;
+	int dry_th;
+	int dry_th_post;
+	int water_delay;
+	int water_th_ra;
+
+	int water_gpadc_short;
+	int water_gpadc_poweroff;
+
+	struct mutex plug_mutex;
+#endif
+
+#if !defined(CONFIG_ARCH_EXYNOS) && !defined(CONFIG_ARCH_MEDIATEK)
+	struct wakeup_source	*water_wake;
+	struct wakeup_source	*water_irq_wake;
+	struct delayed_work	water_wake_work;
+#endif
 
 	struct regulator *regulator;
 	int rprd_mode;
+	int first_goodcrc;
+
+	void (*rprd_mode_change)(void *data, u8 mode);
+
+#if defined(CONFIG_S2MU106_PDIC_TRY_SNK)
+	struct alarm srcdet_alarm;
+	struct alarm snkdet_alarm;
+	bool srcdet_expired;
+	bool snkdet_expired;
+#endif
 };
 
 extern int s2mu106_usbpd_get_adc(void);
 extern void s2mu106_usbpd_set_muic_type(int type);
-#if defined(CONFIG_PDIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 extern void s2mu106_control_option_command(struct s2mu106_usbpd_data *usbpd_data, int cmd);
 #endif
-#if defined(CONFIG_SEC_FACTORY)
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
 extern int s2mu106_sys_power_off_water_check(struct s2mu106_usbpd_data *pdic_data);
 #endif
-extern void s2mu106_rprd_mode_change(struct s2mu106_usbpd_data *usbpd_data, u8 mode);
-extern void s2mu106_vbus_turn_on_ctrl(struct s2mu106_usbpd_data *usbpd_data, bool enable);
+extern void s2mu106_rprd_mode_change(void *data, u8 mode);
 extern int s2mu106_set_lpm_mode(struct s2mu106_usbpd_data *pdic_data);
 extern int s2mu106_set_normal_mode(struct s2mu106_usbpd_data *pdic_data);
 #endif /* __USBPD_S2MU106_H__ */

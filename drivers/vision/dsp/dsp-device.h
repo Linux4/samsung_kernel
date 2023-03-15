@@ -30,10 +30,10 @@ struct dsp_device {
 
 int dsp_device_npu_start(bool boot, dma_addr_t fw_iova);
 int dsp_device_power_active(struct dsp_device *dspdev);
-int dsp_device_power_on(struct dsp_device *dspdev);
+int dsp_device_power_on(struct dsp_device *dspdev, unsigned int pm_level);
 void dsp_device_power_off(struct dsp_device *dspdev);
 
-int dsp_device_start(struct dsp_device *dspdev);
+int dsp_device_start(struct dsp_device *dspdev, unsigned int pm_level);
 int dsp_device_stop(struct dsp_device *dspdev, unsigned int count);
 int dsp_device_open(struct dsp_device *dspdev);
 int dsp_device_close(struct dsp_device *dspdev);

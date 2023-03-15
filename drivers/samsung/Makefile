@@ -10,7 +10,10 @@ obj-m				:=
 obj-n				:=
 obj-				:=
 
+ccflags-y := -Wformat
+
 obj-$(CONFIG_SEC_DEBUG)		+= debug/
+obj-$(CONFIG_SEC_PERF)		+= perf/
 obj-$(CONFIG_SEC_PM)		+= pm/
 obj-y				+= misc/
 
@@ -25,7 +28,6 @@ obj-$(CONFIG_SEC_DEBUG)         += sec_hard_reset_hook.o
 obj-$(CONFIG_DRV_SAMSUNG)	+= sec_class.o
 obj-$(CONFIG_SEC_PARAM)		+= sec_param.o
 obj-$(CONFIG_SEC_PARAM)		+= sec_fmm_lock.o
-obj-$(CONFIG_SEC_BOOTSTAT)	+= sec_bootstat.o
 obj-$(CONFIG_SEC_COMMON)	+= sec_common.o
 
 # Samsung Throughput monitoring Feature

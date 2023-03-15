@@ -36,8 +36,6 @@ struct npu_governor_exynos_interactive_prop {
 
 	/* internal temperary variables */
 	u32 hispeed_freq;
-	s32 curr_up_delay;
-	s32 curr_down_delay;
 };
 
 static ssize_t npu_show_attrs_governor_exynos_interactive(struct device *dev,
@@ -254,7 +252,7 @@ static ssize_t npu_store_attrs_governor_exynos_interactive(struct device *dev,
 	struct npu_governor_exynos_interactive_prop *p;
 	const ptrdiff_t offset = attr - npu_exynos_interactive_attrs;
 
-	if (sscanf(buf, "%255s%* %d", name, &x) > 0) {
+	if (sscanf(buf, "%255s* %d", name, &x) > 0) {
 		d = npu_governor_exynos_interactive_get_dev(name);
 		if (!d) {
 			npu_err("No device : %s %d\n", name, x);
@@ -313,7 +311,7 @@ static ssize_t npu_store_attrs_governor_exynos_interactive_args(struct device *d
 	struct npu_governor_exynos_interactive_prop *p;
 	const ptrdiff_t offset = attr - npu_exynos_interactive_attrs;
 
-	if (sscanf(buf, "%255s%* %d %d", name, &x, &y) > 0) {
+	if (sscanf(buf, "%255s* %d %d", name, &x, &y) > 0) {
 		d = npu_governor_exynos_interactive_get_dev(name);
 		if (!d) {
 			npu_err("No device : %s %d %d\n", name, x, y);
@@ -373,8 +371,6 @@ static void *npu_governor_exynos_interactive_init_prop(
 
 	/* internal temperary variables */
 	p->hispeed_freq = 0;
-	p->curr_up_delay = 0;
-	p->curr_down_delay = 0;
 
 err_exit:
 	return (void *)p;
@@ -386,15 +382,10 @@ static void npu_governor_exynos_interactive_start(struct npu_scheduler_dvfs_info
 
 	p = (struct npu_governor_exynos_interactive_prop *)d->gov_prop;
 
-	npu_pm_qos_update_request(d, &d->qos_req_min, p->init_freq);
-
-	d->cur_freq = p->init_freq;
-	d->delay = p->init_delay;
-
 	/* internal temperary variables */
 	p->hispeed_freq = 0;
-	p->curr_up_delay = p->up_delay;
-	p->curr_down_delay = p->down_delay;
+	d->curr_up_delay = 0;
+	d->curr_down_delay = p->down_delay;
 
 	npu_info("%s start done : init freq %d\n", d->name, p->init_freq);
 }
@@ -410,18 +401,13 @@ static int npu_governor_exynos_interactive_target(
 	int no_issue = 1;
 	u32 load_idle;
 
+	if ((!info) || (!d)) {
+		npu_err("invalid info or dvfs_info\n");
+		return -EINVAL;
+	}
+
 	/* get property for governor of the ip */
 	p = (struct npu_governor_exynos_interactive_prop *)d->gov_prop;
-
-	/* hispeed_delay > 0 (hispeed on), other delay has been finished
-	 * if load is newly comming (no load in hispeed_idle_delay),
-	 * go to hispeed_freq for hispeed_delay
-	 */
-	npu_trace("target : l%d, hf%d, d%d, lit%d\n",
-			info->load, p->hispeed_freq, d->delay, info->load_idle_time);
-
-	if (info->fps_load && d->cur_freq && info->fps_load < p->hispeed_load * 100)
-		p->hispeed_freq = d->cur_freq;
 
 	if (info->load_policy == NPU_SCHEDULER_LOAD_FPS_RQ)
 		load_idle = info->rq_load;
@@ -429,25 +415,25 @@ static int npu_governor_exynos_interactive_target(
 		load_idle = info->load;
 
 	if (load_idle) {
-		if (p->hispeed_idle_delay && d->delay <= 0 && p->hispeed_freq &&
-				info->load_idle_time > p->hispeed_idle_delay * 1000) {
-			*freq = p->hispeed_freq;
-			d->delay = p->hispeed_delay;
+		if (info->load == 0) {
 			return 0;
 		}
 	} else {
 		if (p->lowspeed_idle_delay &&
 				info->load_idle_time > p->lowspeed_idle_delay * 1000) {
 			*freq = 0;
+			d->is_init_freq = 0;
 			return 0;
 		}
 	}
 
+	d->is_init_freq = 1;
+
 	if (info->load > p->up_threshold * 100) {
-		p->curr_up_delay -= (info->time_diff / 1000);
-		p->curr_down_delay = p->down_delay;
-		//npu_dbg("curr_up_delay %d\n", p->curr_up_delay);
-		if (p->curr_up_delay <= 0) {
+		d->curr_up_delay -= (info->time_diff / 1000);
+		d->curr_down_delay = p->down_delay;
+		//npu_dbg("curr_up_delay %d\n", d->curr_up_delay);
+		if (d->curr_up_delay <= 0) {
 			if (d->cur_freq < d->max_freq) {
 				f = d->cur_freq + 1;
 				opp = dev_pm_opp_find_freq_ceil(
@@ -460,15 +446,15 @@ static int npu_governor_exynos_interactive_target(
 				}
 				//npu_dbg("freq %d, opp %p\n", *freq, opp);
 			}
-			p->curr_up_delay = p->up_delay;
+			d->curr_up_delay = p->up_delay;
 		}
 		no_issue = 0;
 	}
 	if (info->load < p->down_threshold * 100) {
-		p->curr_up_delay = p->up_delay;
-		p->curr_down_delay -= (info->time_diff / 1000);
-		//npu_dbg("curr_down_delay %d\n", p->curr_down_delay);
-		if (p->curr_down_delay <= 0) {
+		d->curr_up_delay = p->up_delay;
+		d->curr_down_delay -= (info->time_diff / 1000);
+		//npu_dbg("curr_down_delay %d\n", d->curr_down_delay);
+		if (d->curr_down_delay <= 0) {
 			if (d->cur_freq > d->min_freq) {
 				f = d->cur_freq - 1;
 				opp = dev_pm_opp_find_freq_floor(
@@ -481,13 +467,13 @@ static int npu_governor_exynos_interactive_target(
 				}
 				//npu_dbg("freq %d, opp %p\n", *freq, opp);
 			}
-			p->curr_down_delay = p->down_delay;
+			d->curr_down_delay = p->down_delay;
 		}
 		no_issue = 0;
 	}
 	if (no_issue) {
-		p->curr_up_delay = p->up_delay;
-		p->curr_down_delay = p->down_delay;
+		d->curr_up_delay = p->up_delay;
+		d->curr_down_delay = p->down_delay;
 	}
 	//npu_dbg("cur_freq %d, freq %d\n", d->cur_freq, *freq);
 
@@ -507,8 +493,8 @@ static void npu_governor_exynos_interactive_stop(struct npu_scheduler_dvfs_info 
 
 	/* internal temperary variables */
 	p->hispeed_freq = 0;
-	p->curr_up_delay = p->up_delay;
-	p->curr_down_delay = p->down_delay;
+	d->curr_up_delay = 0;
+	d->curr_down_delay = p->down_delay;
 
 	npu_info("%s stop done\n", d->name);
 }
@@ -527,9 +513,11 @@ int npu_governor_exynos_interactive_register(struct npu_scheduler_info *info)
 	npu_info("creating sysfs group %s\n",
 			npu_exynos_interactive_attr_group.name);
 
-	if (sysfs_create_group(&info->dev->kobj, &npu_exynos_interactive_attr_group))
+	if (sysfs_create_group(&info->dev->kobj, &npu_exynos_interactive_attr_group)) {
 		npu_err("failed to create sysfs for %s\n",
 			npu_exynos_interactive_attr_group.name);
+		ret = -EINVAL;
+	}
 
 	return ret;
 }

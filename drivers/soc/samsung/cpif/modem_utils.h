@@ -537,7 +537,7 @@ int argos_task_affinity_setup_label(struct task_struct *p, const char *label,
 		struct cpumask *default_cpu_mask);
 #endif
 
-void mif_set_snapshot(bool enable);
+void mif_stop_logging(void);
 void set_wakeup_packet_log(bool enable);
 
 /* MIF buffer management */
@@ -631,6 +631,10 @@ int update_rmnet_status(struct io_device *iod, bool open);
 struct io_device *get_current_rmnet_tx_iod(u8 ch);
 void reset_cp_upload_cnt(void);
 bool check_cp_upload_cnt(void);
+#endif
+
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+void mif_queue_skb(struct sk_buff *skb, int dir);
 #endif
 
 #endif/*__MODEM_UTILS_H__*/

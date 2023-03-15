@@ -153,9 +153,7 @@ int is_set_rate(struct device *dev, const char *name, ulong frequency);
 ulong is_get_rate(struct device *dev, const char *conid);
 int is_enable(struct device *dev, const char *conid);
 int is_disable(struct device *dev, const char *conid);
-#ifdef CONFIG_SOC_EXYNOS9820
 int is_enabled_clk_disable(struct device *dev, const char *conid);
-#endif
 
 /* platform specific clock functions */
 int exynos_is_clk_get(struct device *dev);

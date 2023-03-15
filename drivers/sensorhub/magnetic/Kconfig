@@ -56,3 +56,14 @@ config SENSORS_SSP_MAGNETIC_MMC5603
 	  factory test.
 	  To compile this driver as a module, choose M here: the
 	  module will be called ssp.
+
+config SENSORS_SSP_MAGNETIC_YAS539
+	tristate "Sensors ssp magnetic sensor yas539"
+	default n
+	depends on SPI
+	help
+	  magnetic sensor yas539 file for factory test in ssp driver.
+          If you say yes here you get magnetic sensor yas539 support for
+	  factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.

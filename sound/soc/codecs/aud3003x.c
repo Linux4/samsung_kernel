@@ -2002,6 +2002,9 @@ static void aud3003x_amic_cap_cal(struct aud3003x_priv *aud3003x, int mic_type)
 
 	if (!aud3003x->amic_cal_done) {
 		/* First time of amic work */
+		aud3003x->amic_cal_done = true;
+		aud3003x_usleep(5000);
+
 		/* Calibration code read */
 		i2c_client_change(aud3003x, AUD3003A);
 
@@ -2028,6 +2031,10 @@ static void aud3003x_amic_cap_cal(struct aud3003x_priv *aud3003x, int mic_type)
 		amicr_cap_cal += 2;
 		if (amicr_cap_cal >= 31)
 			amicr_cap_cal = 31;
+
+		aud3003x->amic_cal[0] = amicl_cap_cal;
+		aud3003x->amic_cal[1] = amicc_cap_cal;
+		aud3003x->amic_cal[2] = amicr_cap_cal;
 
 		i2c_client_change(aud3003x, AUD3003A);
 
@@ -2064,11 +2071,9 @@ static void aud3003x_amic_cap_cal(struct aud3003x_priv *aud3003x, int mic_type)
 			snd_soc_component_update_bits(codec, AUD3003X_18_PWAUTO_AD, APW_MIC4R_MASK, 0);
 
 		i2c_client_change(aud3003x, CODEC_CLOSE);
-
-		aud3003x->amic_cal_done = true;
 	} else {
-		dev_dbg(codec->dev, "%s ADC cal done already, skip manual calibration.\n",
-				__func__);
+		dev_dbg(codec->dev, "%s ADC cal done already, ADCL:%d ADCC:%d ADCR:%d\n",
+				__func__, aud3003x->amic_cal[0], aud3003x->amic_cal[1], aud3003x->amic_cal[2]);
 	}
 
 	i2c_client_change(aud3003x, AUD3003A);
@@ -2100,15 +2105,6 @@ static void aud3003x_amic_cap_cal(struct aud3003x_priv *aud3003x, int mic_type)
 
 	i2c_client_change(aud3003x, CODEC_CLOSE);
 	mutex_unlock(&aud3003x->cap_cal_lock);
-}
-
-static void aud3003x_amicl_cap_cal_work(struct work_struct *work)
-{
-	struct aud3003x_priv *aud3003x =
-		container_of(work, struct aud3003x_priv, amicl_cap_cal_work.work);
-
-	if (aud3003x->capture_on)
-		aud3003x_amic_cap_cal(aud3003x, AMIC_L);
 }
 
 static int mic1_pga_ev(struct snd_soc_dapm_widget *w,
@@ -2181,17 +2177,11 @@ static int mic1_pga_ev(struct snd_soc_dapm_widget *w,
 
 		i2c_client_change(aud3003x, CODEC_CLOSE);
 
-		if (aud3003x->codec_ver == REV_0_1) {
-			if (!aud3003x->amic_cal_done)
-				queue_delayed_work(aud3003x->amicl_cap_cal_wq,
-						&aud3003x->amicl_cap_cal_work, msecs_to_jiffies(10));
-			else
-				queue_delayed_work(aud3003x->amicl_cap_cal_wq,
-						&aud3003x->amicl_cap_cal_work, msecs_to_jiffies(0));
-		} else {
-			snd_soc_component_update_bits(codec, AUD3003X_2AB_CTRL_ADC1,
-					CAP_SWL_MASK, 0x10);
-		}
+		if (aud3003x->codec_ver == REV_0_1)
+			aud3003x_amic_cap_cal(aud3003x, AMIC_L);
+		else
+			snd_soc_component_update_bits(codec, AUD3003X_2AB_CTRL_ADC1, CAP_SWL_MASK, 0x10);
+
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
 		if (aud3003x->codec_ver == REV_0_1) {
@@ -2229,15 +2219,6 @@ static int mic1_pga_ev(struct snd_soc_dapm_widget *w,
 		break;
 	}
 	return 0;
-}
-
-static void aud3003x_amicc_cap_cal_work(struct work_struct *work)
-{
-	struct aud3003x_priv *aud3003x =
-		container_of(work, struct aud3003x_priv, amicc_cap_cal_work.work);
-
-	if (aud3003x->capture_on)
-		aud3003x_amic_cap_cal(aud3003x, AMIC_C);
 }
 
 static int mic2_pga_ev(struct snd_soc_dapm_widget *w,
@@ -2310,17 +2291,12 @@ static int mic2_pga_ev(struct snd_soc_dapm_widget *w,
 
 		i2c_client_change(aud3003x, CODEC_CLOSE);
 
-		if (aud3003x->codec_ver == REV_0_1) {
-			if (!aud3003x->amic_cal_done)
-				queue_delayed_work(aud3003x->amicc_cap_cal_wq,
-						&aud3003x->amicc_cap_cal_work, msecs_to_jiffies(10));
-			else
-				queue_delayed_work(aud3003x->amicc_cap_cal_wq,
-						&aud3003x->amicc_cap_cal_work, msecs_to_jiffies(0));
-		} else {
+		if (aud3003x->codec_ver == REV_0_1)
+			aud3003x_amic_cap_cal(aud3003x, AMIC_C);
+		else
 			snd_soc_component_update_bits(codec, AUD3003X_2AC_CTRL_ADC2,
 					CAP_SWC_MASK, 0x10);
-		}
+
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
 		if (aud3003x->codec_ver == REV_0_1) {
@@ -2358,15 +2334,6 @@ static int mic2_pga_ev(struct snd_soc_dapm_widget *w,
 		break;
 	}
 	return 0;
-}
-
-static void aud3003x_amicr_cap_cal_work(struct work_struct *work)
-{
-	struct aud3003x_priv *aud3003x =
-		container_of(work, struct aud3003x_priv, amicr_cap_cal_work.work);
-
-	if (aud3003x->capture_on)
-		aud3003x_amic_cap_cal(aud3003x, AMIC_R);
 }
 
 static int mic3_pga_ev(struct snd_soc_dapm_widget *w,
@@ -2442,17 +2409,12 @@ static int mic3_pga_ev(struct snd_soc_dapm_widget *w,
 
 		i2c_client_change(aud3003x, CODEC_CLOSE);
 
-		if (aud3003x->codec_ver == REV_0_1) {
-			if (!aud3003x->amic_cal_done)
-				queue_delayed_work(aud3003x->amicr_cap_cal_wq,
-						&aud3003x->amicr_cap_cal_work, msecs_to_jiffies(10));
-			else
-				queue_delayed_work(aud3003x->amicr_cap_cal_wq,
-						&aud3003x->amicr_cap_cal_work, msecs_to_jiffies(0));
-		} else {
+		if (aud3003x->codec_ver == REV_0_1)
+			aud3003x_amic_cap_cal(aud3003x, AMIC_R);
+		else
 			snd_soc_component_update_bits(codec, AUD3003X_2AD_CTRL_ADC3,
 					CAP_SWR_MASK, 0x10);
-		}
+
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
 		if (aud3003x->codec_ver == REV_0_1) {
@@ -2571,20 +2533,17 @@ static int mic4_pga_ev(struct snd_soc_dapm_widget *w,
 				ANT_JACKOUT_R_M_MASK, 0);
 		snd_soc_component_update_bits(codec, AUD3003X_09_IRQ2M,
 				ANT_JACKOUT_F_M_MASK, 0);
+		snd_soc_component_update_bits(codec, AUD3003X_D6_DCTR_TEST6,
+				T_A2D_ANT_MDET_OUT_MASK, T_A2D_ANT_MDET_NORMAL << T_A2D_ANT_MDET_OUT_SHIFT);
 
 		i2c_client_change(aud3003x, CODEC_CLOSE);
 
-		if (aud3003x->codec_ver == REV_0_1) {
-			if (!aud3003x->amic_cal_done)
-				queue_delayed_work(aud3003x->amicr_cap_cal_wq,
-						&aud3003x->amicr_cap_cal_work, msecs_to_jiffies(10));
-			else
-				queue_delayed_work(aud3003x->amicr_cap_cal_wq,
-						&aud3003x->amicr_cap_cal_work, msecs_to_jiffies(0));
-		} else {
+		if (aud3003x->codec_ver == REV_0_1)
+			aud3003x_amic_cap_cal(aud3003x, AMIC_R);
+		else
 			snd_soc_component_update_bits(codec, AUD3003X_2AD_CTRL_ADC3,
 					CAP_SWR_MASK, 0x10);
-		}
+
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
 		if (aud3003x->codec_ver == REV_0_1) {
@@ -2608,6 +2567,8 @@ static int mic4_pga_ev(struct snd_soc_dapm_widget *w,
 #endif
 
 		/* ANT MDET Masking */
+		snd_soc_component_update_bits(codec, AUD3003X_D6_DCTR_TEST6,
+				T_A2D_ANT_MDET_OUT_MASK, T_A2D_ANT_MDET_LOW << T_A2D_ANT_MDET_OUT_SHIFT);
 		snd_soc_component_update_bits(codec, AUD3003X_08_IRQ1M,
 				ANT_JACKOUT_R_M_MASK, ANT_JACKOUT_R_M_MASK);
 		snd_soc_component_update_bits(codec, AUD3003X_09_IRQ2M,
@@ -4205,27 +4166,6 @@ static int aud3003x_codec_probe(struct snd_soc_component *codec)
 	aud3003x->amic_cal_done = false;
 
 	/* initialize workqueue */
-	INIT_DELAYED_WORK(&aud3003x->amicl_cap_cal_work, aud3003x_amicl_cap_cal_work);
-	aud3003x->amicl_cap_cal_wq = create_singlethread_workqueue("amicl_cap_cal_wq");
-	if (aud3003x->amicl_cap_cal_wq == NULL) {
-		dev_err(codec->dev, "Failed to create amicl_cap_cal_wq\n");
-		return -ENOMEM;
-	}
-
-	INIT_DELAYED_WORK(&aud3003x->amicc_cap_cal_work, aud3003x_amicc_cap_cal_work);
-	aud3003x->amicc_cap_cal_wq = create_singlethread_workqueue("amicc_cap_cal_wq");
-	if (aud3003x->amicc_cap_cal_wq == NULL) {
-		dev_err(codec->dev, "Failed to create adcc_cap_cal_wq\n");
-		return -ENOMEM;
-	}
-
-	INIT_DELAYED_WORK(&aud3003x->amicr_cap_cal_work, aud3003x_amicr_cap_cal_work);
-	aud3003x->amicr_cap_cal_wq = create_singlethread_workqueue("amicr_cap_cal_wq");
-	if (aud3003x->amicr_cap_cal_wq == NULL) {
-		dev_err(codec->dev, "Failed to create amicr_cap_cal_wq\n");
-		return -ENOMEM;
-	}
-
 	INIT_DELAYED_WORK(&aud3003x->adc_mute_work, aud3003x_adc_mute_work);
 	aud3003x->adc_mute_wq = create_singlethread_workqueue("adc_mute_wq");
 	if (aud3003x->adc_mute_wq == NULL) {
@@ -4286,9 +4226,6 @@ static void aud3003x_codec_remove(struct snd_soc_component *codec)
 
 	dev_dbg(codec->dev, "(*) %s called\n", __func__);
 
-	destroy_workqueue(aud3003x->amicl_cap_cal_wq);
-	destroy_workqueue(aud3003x->amicc_cap_cal_wq);
-	destroy_workqueue(aud3003x->amicr_cap_cal_wq);
 	destroy_workqueue(aud3003x->adc_mute_wq);
 
 #if defined(CONFIG_SND_SOC_AUD3003X_5PIN) || defined(CONFIG_SND_SOC_AUD3003X_6PIN)

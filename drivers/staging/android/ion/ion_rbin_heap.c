@@ -182,6 +182,12 @@ static int ion_rbin_heap_allocate(struct ion_heap *heap,
 	bool may_dirty = false;
 #endif
 
+	if (!!(flags & ION_FLAG_PROTECTED)) {
+		pr_err("ION_FLAG_PROTECTED is set to non-secure heap %s",
+		       heap->name);
+		return -EINVAL;
+	}
+
 	nr_free = rbin_heap->count - atomic_read(&rbin_allocated_pages);
 	if (size_remain > nr_free << PAGE_SHIFT)
 		return -ENOMEM;
@@ -306,7 +312,7 @@ static int ion_rbin_heap_prereclaim(void *data)
 
 	while (true) {
 		wait_event_freezable(rbin_heap->waitqueue, rbin_heap->task_run);
-		trace_printk("start\n");
+		trace_printk("%s\n", "start");
 		total_size = 0;
 		while (true) {
 			page = alloc_rbin_page(rbin_heap, size, false);
@@ -333,7 +339,7 @@ static int ion_rbin_heap_shrink(void *data)
 
 	while (true) {
 		wait_event_freezable(rbin_heap->waitqueue, rbin_heap->shrink_run);
-		trace_printk("start\n");
+		trace_printk("%s\n", "start");
 		total_size = 0;
 		while (true) {
 			page = alloc_rbin_page_from_pool(rbin_heap, size);

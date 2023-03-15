@@ -13,6 +13,7 @@
 #include <linux/list.h>
 #include <linux/of.h>
 #include <linux/sec_debug.h>
+#include <linux/debug-snapshot.h>
 #include <soc/samsung/ect_parser.h>
 #include <soc/samsung/exynos-dm.h>
 
@@ -105,7 +106,7 @@ static void secdbg_freq_ac_print(int type, unsigned long index,
 	const char *sub_type = get_lower_name(skew_domain->slave_dss_id);
 
 	/* e.g. SKEW (mif, index): big 2106 mif 1014 < 1539 @  BIG-MIF table */
-	pr_auto(ASL1, "SKEW (%s, %ul): %s %u %s %u < %u @ %s-%s table\n",
+	pr_auto(ASL1, "SKEW (%s, %lu): %s %u %s %u < %u @ %s-%s table\n",
 			freq_type, index, main_type, main_val/1000,
 			sub_type, sub_val/1000, table_sub,
 			get_freq_name(skew_domain->master_dss_id),
@@ -121,7 +122,7 @@ static struct table_domain *secdbg_get_suitable_freq_lb(unsigned int freq, int t
 	struct table_domain *eslot = table + tsize;
 
 	for (islot = table; islot < eslot; islot++) {
-		pr_debug("%s: [%d] freq: %u, table_main: %u, sub_val: %u\n",
+		pr_debug("%s: [%ld] freq: %u, table_main: %u, sub_val: %u\n",
 				__func__, islot - table, freq, islot->main_freq, islot->sub_freq);
 
 		/* table must be descending order */
@@ -132,11 +133,14 @@ static struct table_domain *secdbg_get_suitable_freq_lb(unsigned int freq, int t
 	return NULL;
 }
 
-static void secdbg_freq_main_sub(int type, unsigned long index, struct secdbg_skew_domain *domain)
+static void secdbg_freq_main_sub(int type, unsigned long index, unsigned int freq, struct secdbg_skew_domain *domain)
 {
-	unsigned int master_freq = get_cur_freq(domain->master_dss_id);
-	unsigned int slave_freq = get_cur_freq(domain->slave_dss_id);
+	unsigned int master_freq;
+	unsigned int slave_freq;
 	struct table_domain *freq_constraint;
+
+	master_freq = (domain->master_dss_id == type) ? freq : get_cur_freq(domain->master_dss_id);
+	slave_freq = (domain->slave_dss_id == type) ? freq : get_cur_freq(domain->slave_dss_id);
 
 	if (!master_freq || !slave_freq) {
 		pr_debug("%s: no cur freq: m_%u, s_%u\n", __func__, master_freq, slave_freq);
@@ -165,7 +169,7 @@ static void secdbg_freq_main_sub(int type, unsigned long index, struct secdbg_sk
 		secdbg_freq_ac_print(type, index, master_freq, slave_freq, freq_constraint->sub_freq, domain);
 }
 
-static void secdbg_freq_judge_skew(int type, unsigned long index)
+static void secdbg_freq_judge_skew(int type, unsigned long index, unsigned int freq)
 {
 	int i;
 	int count = secdbg_skew_ref_table[type]->count;
@@ -173,19 +177,19 @@ static void secdbg_freq_judge_skew(int type, unsigned long index)
 
 	for (i = 0; i < count; i++) {
 		domain = secdbg_skew_ref_table[type]->refs[i];
-		secdbg_freq_main_sub(type, index, domain);
+		secdbg_freq_main_sub(type, index, freq, domain);
 	}
 }
 
-void secdbg_freq_check(int type, unsigned long index, unsigned long freq)
+void secdbg_freq_check(int type, unsigned long index, unsigned long freq, int en)
 {
 	if (!secdbg_freq_initialized) {
-		pr_err_once("%s: not initialized, type(%d)\n", type);
+		pr_err_once("%s: not initialized, type(%d)\n", __func__, type);
 		return;
 	}
 
 	if (type < 0 || type >= MAX_FREQ_DOMAIN) {
-		pr_err("%s: type(%d) not in range\n", type);
+		pr_err("%s: type(%d) not in range\n", __func__, type);
 		return;
 	}
 
@@ -195,11 +199,19 @@ void secdbg_freq_check(int type, unsigned long index, unsigned long freq)
 
 	pr_debug("%s: start\n", __func__);
 
-	/* set freq. domain and target freq */
-	secdbg_freq_set(type, (unsigned int)freq);
+	if (en == DSS_FLAG_OUT) {
+		/* set freq. domain and target freq */
+		secdbg_freq_set(type, (unsigned int)freq);
+	} else if (en < 0) {
+		/* error case :
+		 * We cannot sure whether the frequency has been changed or not.
+		 */
+		secdbg_freq_set(type, 0);
+		return;
+	}
 
 	/* judge skew and ac print */
-	secdbg_freq_judge_skew(type, index);
+	secdbg_freq_judge_skew(type, index, (unsigned int)freq);
 }
 
 static void __init secdbg_set_domain_to_ref(struct secdbg_skew_domain *domain, struct secdbg_skew_ref **skew_ref)

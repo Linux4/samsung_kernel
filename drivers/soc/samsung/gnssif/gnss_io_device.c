@@ -302,6 +302,13 @@ static unsigned int misc_poll(struct file *filp, struct poll_table_struct *wait)
 	struct gnss_ctl *gc = iod->gc;
 	poll_wait(filp, &iod->wq, wait);
 
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	if (gc->is_irq_received == true) {
+		gif_err("POLL wakeup for power on/off interrupt\n");
+		return POLLPRI;
+	}
+#endif
+
 	if (!skb_queue_empty(&iod->sk_rx_q) && gc->gnss_state != STATE_OFFLINE)
 		return POLLIN | POLLRDNORM;
 
@@ -514,6 +521,8 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	struct io_device *iod = (struct io_device *)filp->private_data;
 	struct link_device *ld = iod->ld;
 	struct gnss_ctl *gc = iod->gc;
+	struct gnss_swreg swreg;
+	struct gnss_apreg apreg;
 	int err = 0;
 	int size;
 	int ret = 0;
@@ -600,6 +609,32 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case GNSS_IOCTL_READ_RESET_COUNT:
 		gif_info("%s: GNSS_IOCTL_READ_RESET_COUNT\n", iod->name);
 		return gc->reset_count;
+
+	case GNSS_IOCTL_GET_SWREG:
+		gif_info("%s: GNSS_IOCTL_GET_SWREG\n", iod->name);
+		if (!gc->pmu_ops->get_swreg) {
+			gif_err("get_swreg is not available\n");
+			return -EINVAL;
+		}
+		gc->pmu_ops->get_swreg(&swreg);
+		err = copy_to_user((void __user *)arg, &swreg, sizeof(struct gnss_swreg));
+		if (err) {
+			gif_err("copy to user fail for swreg (0x%08x)\n", err);
+		}
+		return err;
+
+	case GNSS_IOCTL_GET_APREG:
+		gif_info("%s: GNSS_IOCTL_GET_APREG\n", iod->name);
+		if (!gc->pmu_ops->get_apreg) {
+			gif_err("get_apreg is not available\n");
+			return -EINVAL;
+		}
+		gc->pmu_ops->get_apreg(&apreg);
+		err = copy_to_user((void __user *)arg, &apreg, sizeof(struct gnss_apreg));
+		if (err) {
+			gif_err("copy to user fail for apreg (0x%08x)\n", err);
+		}
+		return err;
 
 	default:
 		gif_err("%s: ERR! undefined cmd 0x%X\n", iod->name, cmd);
@@ -778,6 +813,19 @@ static ssize_t misc_read(struct file *filp, char *buf, size_t count,
 	struct sk_buff_head *rxq = &iod->sk_rx_q;
 	struct sk_buff *skb;
 	int copied = 0;
+
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	struct gnss_ctl *gc = iod->gc;
+
+	if (gc->is_irq_received == true) {
+		gc->is_irq_received = false;
+		if (copy_to_user(buf, &gc->gnss_pwr, sizeof(unsigned int))) {
+			gif_err("%s: ERR! copy_to_user fail\n", iod->name);
+			return -EFAULT;
+		}
+		return 0;
+	}
+#endif
 
 	if (skb_queue_empty(rxq)) {
 		gif_debug("%s: ERR! no data in rxq\n", iod->name);

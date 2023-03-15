@@ -65,8 +65,7 @@ static struct workqueue_struct	*uether_wq;
 /* for dual-speed hardware, use deeper queues at high/super speed */
 static inline int qlen(struct usb_gadget *gadget, unsigned qmult)
 {
-	if (gadget_is_dualspeed(gadget) && (gadget->speed == USB_SPEED_HIGH ||
-					    gadget->speed >= USB_SPEED_SUPER))
+	if (gadget_is_dualspeed(gadget))
 		return qmult * DEFAULT_QLEN;
 	else
 		return DEFAULT_QLEN;
@@ -1205,7 +1204,7 @@ int gether_register_netdev(struct net_device *net)
 		dev_dbg(&g->dev, "register_netdev failed, %d\n", status);
 		return status;
 	} else {
-		INFO(dev, "HOST MAC %pM\n", dev->host_mac);
+		DBG(dev, "HOST MAC %pM\n", dev->host_mac);
 
 		/* two kinds of host-initiated state changes:
 		 *  - iff DATA transfer is active, carrier is "on"
@@ -1221,7 +1220,7 @@ int gether_register_netdev(struct net_device *net)
 	if (status)
 		pr_warn("cannot set self ethernet address: %d\n", status);
 	else
-		INFO(dev, "MAC %pM\n", dev->dev_mac);
+		DBG(dev, "MAC %pM\n", dev->dev_mac);
 
 	return status;
 }
@@ -1469,7 +1468,7 @@ int gether_alloc_request(struct gether *link)
 
 	result = alloc_requests(dev, link, qlen(dev->gadget,
 				dev->qmult));
-
+	printk("usb: %s qlen %d\n", __func__, qlen(dev->gadget, dev->qmult));
 	return result;
 }
 EXPORT_SYMBOL_GPL(gether_free_request);

@@ -75,6 +75,17 @@ struct vb_buffer {
 	ulong				reserved;
 };
 
+struct vb_profiler_node {
+	const char	*label;
+	int	duration;
+	struct vb_profiler_node	*child;
+};
+
+struct vb_profiler {
+	int	level;
+	struct vb_profiler_node	*node;
+};
+
 struct vb_container {
 	u32				type;
 	u32				target;

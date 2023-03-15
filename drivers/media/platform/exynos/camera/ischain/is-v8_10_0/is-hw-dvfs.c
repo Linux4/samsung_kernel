@@ -48,7 +48,7 @@ DECLARE_DVFS_DT(IS_SN_END,
 		{"front_video_"				, IS_SN_FRONT_CAMCORDING},
 		{"front_video_whd_"			, IS_SN_FRONT_CAMCORDING_WHD},
 		{"front_video_uhd_"			, IS_SN_FRONT_CAMCORDING_UHD},
-		{"front_video_fhd_60fps"		, IS_SN_FRONT_CAMCORDING_FHD_60FPS},
+		{"front_video_fhd_60fps_"		, IS_SN_FRONT_CAMCORDING_FHD_60FPS},
 		{"front_video_capture_"			, IS_SN_FRONT_CAMCORDING_CAPTURE},
 		{"front_video_whd_capture_"		, IS_SN_FRONT_CAMCORDING_WHD_CAPTURE},
 		{"front_video_uhd_capture_"		, IS_SN_FRONT_CAMCORDING_UHD_CAPTURE},
@@ -61,6 +61,7 @@ DECLARE_DVFS_DT(IS_SN_END,
 		{"front_vt2_"				, IS_SN_FRONT_VT2},
 		{"front_vt4_"				, IS_SN_FRONT_VT4},
 		{"front_preview_high_speed_fps_"	, IS_SN_FRONT_PREVIEW_HIGH_SPEED_FPS},
+		{"front_video_high_speed_120fps_"	, IS_SN_FRONT_VIDEO_HIGH_SPEED_120FPS},
 		{"rear3_preview_fhd_"			, IS_SN_REAR3_PREVIEW_FHD},
 		{"rear3_capture_"			, IS_SN_REAR3_CAPTURE},
 		{"rear3_video_fhd_"			, IS_SN_REAR3_CAMCORDING_FHD},
@@ -146,6 +147,7 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_FRONT_VT1);
 DECLARE_DVFS_CHK_FUNC(IS_SN_FRONT_VT2);
 DECLARE_DVFS_CHK_FUNC(IS_SN_FRONT_VT4);
 DECLARE_DVFS_CHK_FUNC(IS_SN_FRONT_PREVIEW_HIGH_SPEED_FPS);
+DECLARE_DVFS_CHK_FUNC(IS_SN_FRONT_VIDEO_HIGH_SPEED_120FPS);
 
 DECLARE_DVFS_CHK_FUNC(IS_SN_REAR3_PREVIEW_FHD);
 DECLARE_DVFS_CHK_FUNC(IS_SN_REAR3_CAPTURE);
@@ -361,6 +363,10 @@ struct is_dvfs_scenario static_scenarios[] = {
 		.scenario_nm		= DVFS_SN_STR(IS_SN_FRONT_PREVIEW_HIGH_SPEED_FPS),
 		.check_func		= GET_DVFS_CHK_FUNC(IS_SN_FRONT_PREVIEW_HIGH_SPEED_FPS),
 	},  {
+		.scenario_id		= IS_SN_FRONT_VIDEO_HIGH_SPEED_120FPS,
+		.scenario_nm		= DVFS_SN_STR(IS_SN_FRONT_VIDEO_HIGH_SPEED_120FPS),
+		.check_func		= GET_DVFS_CHK_FUNC(IS_SN_FRONT_VIDEO_HIGH_SPEED_120FPS),
+	}, {
 		.scenario_id		= IS_SN_FRONT_CAMCORDING_FHD_60FPS,
 		.scenario_nm		= DVFS_SN_STR(IS_SN_FRONT_CAMCORDING_FHD_60FPS),
 		.check_func		= GET_DVFS_CHK_FUNC(IS_SN_FRONT_CAMCORDING_FHD_60FPS),
@@ -645,6 +651,21 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_FRONT_PREVIEW_HIGH_SPEED_FPS)
 		return 0;
 }
 
+/* front 120fps recording */
+DECLARE_DVFS_CHK_FUNC(IS_SN_FRONT_VIDEO_HIGH_SPEED_120FPS)
+{
+	u32 mask = (device->setfile & IS_SETFILE_MASK);
+	bool setfile_flag = (mask == ISS_SUB_SCENARIO_VIDEO_HIGH_SPEED);
+
+	if (IS_FRONT_SENSOR(position) &&
+			(fps > 60) &&
+			(fps <= 120) &&
+			setfile_flag)
+		return 1;
+	else
+		return 0;
+}
+
 /* secure front */
 DECLARE_DVFS_CHK_FUNC(IS_SN_SECURE_FRONT)
 {
@@ -663,7 +684,9 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_DUAL_SYNC_FHD_CAMCORDING)
 	u32 mask = (device->setfile & IS_SETFILE_MASK);
 	bool setfile_flag = ((mask == ISS_SUB_SCENARIO_VIDEO) ||
 			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_ON) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON));
 
 	if (IS_REAR_DUAL(sensor_map) &&
 		setfile_flag &&
@@ -770,7 +793,9 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_DUAL_FHD_CAMCORDING)
 	u32 mask = (device->setfile & IS_SETFILE_MASK);
 	bool setfile_flag = ((mask == ISS_SUB_SCENARIO_VIDEO) ||
 			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_ON) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON));
 
 	if (IS_REAR_DUAL(sensor_map) &&
 		setfile_flag &&
@@ -940,7 +965,9 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_REAR3_CAMCORDING_FHD)
 	u32 mask = (device->setfile & IS_SETFILE_MASK);
 	bool setfile_flag = ((mask == ISS_SUB_SCENARIO_VIDEO) ||
 			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_ON) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON));
 
 	if ((position == SENSOR_POSITION_REAR3) &&
 			(fps <= 30) &&
@@ -956,7 +983,9 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_REAR2_CAMCORDING_FHD)
 	u32 mask = (device->setfile & IS_SETFILE_MASK);
 	bool setfile_flag = ((mask == ISS_SUB_SCENARIO_VIDEO) ||
 			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_ON) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON));
 
 	if ((position == SENSOR_POSITION_REAR2) &&
 			(fps <= 30) &&
@@ -973,7 +1002,12 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_REAR_CAMCORDING_FHD)
 	u32 mask = (device->setfile & IS_SETFILE_MASK);
 	bool setfile_flag = ((mask == ISS_SUB_SCENARIO_VIDEO) ||
 			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_ON) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY_WDR_ON));
 
 	if ((position == SENSOR_POSITION_REAR) &&
 			(fps <= 30) &&
@@ -993,7 +1027,12 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_REAR_CAMCORDING_WHD)
 			(mask == ISS_SUB_SCENARIO_UHD_30FPS) ||
 			(mask == ISS_SUB_SCENARIO_UHD_30FPS_WDR_ON) ||
 			(mask == ISS_SUB_SCENARIO_UHD_30FPS_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY_WDR_ON));
 
 	if (IS_REAR_SENSOR(position) &&
 			(fps <= 30) &&
@@ -1045,7 +1084,12 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_REAR_CAMCORDING_HDR)
 {
 	u32 mask = (device->setfile & IS_SETFILE_MASK);
 	bool setfile_flag = ((mask == ISS_SUB_SCENARIO_VIDEO_WDR_ON) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY_WDR_ON));
 
 	if ((position == SENSOR_POSITION_REAR) &&
 			setfile_flag)
@@ -1060,9 +1104,12 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_REAR3_PREVIEW_FHD)
 	u32 mask = (device->setfile & IS_SETFILE_MASK);
 	bool setfile_flag = ((mask == ISS_SUB_SCENARIO_VIDEO) ||
 			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_ON) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON));
 
 	if ((position == SENSOR_POSITION_REAR3) &&
+			(streaming_cnt == 1) &&
 			(fps <= 30) &&
 			(resol <= SIZE_16MP_FHD_BDS) &&
 			(!setfile_flag))
@@ -1078,9 +1125,12 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_REAR2_PREVIEW_FHD)
 	u32 mask = (device->setfile & IS_SETFILE_MASK);
 	bool setfile_flag = ((mask == ISS_SUB_SCENARIO_VIDEO) ||
 			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_ON) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON));
 
 	if ((position == SENSOR_POSITION_REAR2) &&
+			(streaming_cnt == 1) &&
 			(fps <= 30) &&
 			(resol <= SIZE_12MP_FHD_BDS) &&
 			(!setfile_flag))
@@ -1096,7 +1146,7 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_REAR_PREVIEW_FULL)
 	u32 scen = (device->setfile & IS_SCENARIO_MASK) >> IS_SCENARIO_SHIFT;
 	bool scenario_flag = (scen == IS_SCENARIO_FULL_SIZE);
 
-	if (IS_REAR_SENSOR(position) && scenario_flag)
+	if (IS_REAR_SENSOR(position) && scenario_flag && streaming_cnt == 1)
 		return 1;
 	else
 		return 0;
@@ -1108,9 +1158,15 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_REAR_PREVIEW_FHD)
 	u32 mask = (device->setfile & IS_SETFILE_MASK);
 	bool setfile_flag = ((mask == ISS_SUB_SCENARIO_VIDEO) ||
 			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_ON) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY_WDR_ON));
 
 	if ((position == SENSOR_POSITION_REAR) &&
+			(streaming_cnt == 1) &&
 			(fps <= 30) &&
 			(resol <= SIZE_12MP_FHD_BDS) &&
 			(!setfile_flag))
@@ -1129,9 +1185,15 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_REAR_PREVIEW_WHD)
 			(mask == ISS_SUB_SCENARIO_UHD_30FPS) ||
 			(mask == ISS_SUB_SCENARIO_UHD_30FPS_WDR_ON) ||
 			(mask == ISS_SUB_SCENARIO_UHD_30FPS_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY_WDR_ON));
 
 	if (IS_REAR_SENSOR(position) &&
+			(streaming_cnt == 1) &&
 			(fps <= 30) &&
 			(resol > SIZE_12MP_FHD_BDS) &&
 			(resol <= SIZE_12MP_QHD_BDS) &&
@@ -1150,6 +1212,7 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_REAR_PREVIEW_UHD)
 			(mask == ISS_SUB_SCENARIO_UHD_30FPS_WDR_AUTO));
 
 	if (IS_REAR_SENSOR(position) &&
+			(streaming_cnt == 1) &&
 			(fps <= 30) &&
 			(resol > SIZE_12MP_QHD_BDS) &&
 			(!setfile_flag))
@@ -1167,6 +1230,7 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_REAR_PREVIEW_UHD_60FPS)
 			(mask == ISS_SUB_SCENARIO_UHD_60FPS_WDR_AUTO));
 
 	if (IS_REAR_SENSOR(position) &&
+			(streaming_cnt == 1) &&
 			(fps > 30) &&
 			(fps <= 60) &&
 			(resol > SIZE_12MP_FHD_BDS) &&
@@ -1183,6 +1247,7 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_REAR_PREVIEW_REMOSAIC)
 	bool scenario_flag = (scen == IS_SCENAIRO_REMOSAIC);
 
 	if ((position == SENSOR_POSITION_REAR) &&
+			(streaming_cnt == 1) &&
 			(fps <= 30) &&
 			(scenario_flag))
 		return 1;
@@ -1249,6 +1314,7 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_FRONT2_PREVIEW)
 			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
 
 	if ((position == SENSOR_POSITION_FRONT2) &&
+		(streaming_cnt == 1) &&
 		(fps <= 30) &&
 		(resol < SIZE_WHD) &&
 		(!setfile_flag))
@@ -1285,7 +1351,10 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_FRONT_CAMCORDING)
 	u32 mask = (device->setfile & IS_SETFILE_MASK);
 	bool setfile_flag = ((mask == ISS_SUB_SCENARIO_VIDEO) ||
 			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_ON) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON) ||
+			(mask == ISS_SUB_SCENARIO_3HDR_VIDEO_WDR_ON));
 
 	if ((position == SENSOR_POSITION_FRONT) &&
 		setfile_flag)
@@ -1302,7 +1371,10 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_FRONT_CAMCORDING_WHD)
 			(mask == ISS_SUB_SCENARIO_UHD_30FPS) ||
 			(mask == ISS_SUB_SCENARIO_UHD_30FPS_WDR_ON) ||
 			(mask == ISS_SUB_SCENARIO_UHD_30FPS_WDR_AUTO) ||
-			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO));
+			(mask == ISS_SUB_SCENARIO_VIDEO_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_AUTO) ||
+			(mask == ISS_SUB_SCENARIO_VIDEO_SW_VDIS_WDR_ON) ||
+			(mask == ISS_SUB_SCENARIO_3HDR_VIDEO_WDR_ON));
 
 	if (IS_FRONT_SENSOR(position) &&
 		setfile_flag &&
@@ -1348,7 +1420,7 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_FRONT_PREVIEW_FULL)
 	u32 scen = (device->setfile & IS_SCENARIO_MASK) >> IS_SCENARIO_SHIFT;
 	bool scenario_flag = (scen == IS_SCENARIO_FULL_SIZE);
 
-	if (IS_FRONT_SENSOR(position) && scenario_flag)
+	if (IS_FRONT_SENSOR(position) && scenario_flag && streaming_cnt == 1)
 		return 1;
 	else
 		return 0;
@@ -1357,7 +1429,7 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_FRONT_PREVIEW_FULL)
 /* front preview */
 DECLARE_DVFS_CHK_FUNC(IS_SN_FRONT_PREVIEW)
 {
-	if (position == SENSOR_POSITION_FRONT)
+	if (position == SENSOR_POSITION_FRONT && streaming_cnt == 1)
 		return 1;
 	else
 		return 0;
@@ -1369,7 +1441,7 @@ DECLARE_DVFS_CHK_FUNC(IS_SN_FRONT_PREVIEW_REMOSAIC)
 	u32 scen = (device->setfile & IS_SCENARIO_MASK) >> IS_SCENARIO_SHIFT;
 	bool scenario_flag = (scen == IS_SCENAIRO_REMOSAIC);
 
-	if ((position == SENSOR_POSITION_FRONT) && (scenario_flag))
+	if ((position == SENSOR_POSITION_FRONT) && (scenario_flag) && streaming_cnt == 1)
 		return 1;
 	else
 		return 0;

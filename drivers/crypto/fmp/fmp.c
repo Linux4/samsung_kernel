@@ -42,9 +42,8 @@ static inline void dump_ci(struct fmp_crypto_info *c)
 {
 	if (c) {
 		pr_info
-		    ("%s: crypto:%p algo:%d enc:%d key_size:%d key:%p\n",
-		     __func__, c, c->algo_mode, c->enc_mode,
-		     c->key_size, c->key);
+		    ("%s: algo:%d enc:%d key_size:%d\n",
+		     __func__, c->algo_mode, c->enc_mode,c->key_size);
 		if (c->enc_mode == EXYNOS_FMP_FILE_ENC)
 			print_hex_dump(KERN_CONT, "key:",
 				       DUMP_PREFIX_OFFSET, 16, 1, c->key,
@@ -146,8 +145,8 @@ static int fmplib_set_file_key(struct fmp_table_setting *table,
 	if (!key || (crypto->enc_mode != EXYNOS_FMP_FILE_ENC) ||
 		((key_size != EXYNOS_FMP_KEY_SIZE_16) &&
 		 (key_size != EXYNOS_FMP_KEY_SIZE_32))) {
-		pr_err("%s: Invalid crypto:%p key:%p key_size:%d enc_mode:%d\n",
-		       __func__, crypto, key, key_size, crypto->enc_mode);
+		pr_err("%s: Invalid key_size:%d enc_mode:%d\n",
+		       __func__, key_size, crypto->enc_mode);
 		return -EINVAL;
 	}
 
@@ -283,7 +282,7 @@ int exynos_fmp_crypt(struct fmp_crypto_info *ci, void *priv)
 	u8 iv[FMP_IV_SIZE_16];
 
 	if (!r || !fmp) {
-		pr_err("%s: invalid req:%p, fmp:%p\n", __func__, r, fmp);
+		pr_err("%s: invalid req or fmp\n", __func__);
 		return -EINVAL;
 	}
 
@@ -321,8 +320,8 @@ int exynos_fmp_crypt(struct fmp_crypto_info *ci, void *priv)
 	if (!ci->algo_mode || !is_supported_ivsize(r->ivsize) ||
 			!r->table || !r->iv) {
 		dev_err(fmp->dev,
-			"%s: invalid mode:%d iv:%p ivsize:%d table:%p\n",
-			__func__, ci->algo_mode, r->iv, r->ivsize, r->table);
+			"%s: invalid mode:%d ivsize:%d\n",
+			__func__, ci->algo_mode, r->ivsize);
 		ret = -EINVAL;
 		goto out;
 	}
@@ -522,8 +521,7 @@ int exynos_fmp_test_crypt(struct fmp_crypto_info *ci,
 	int ret = 0;
 
 	if (!fmp || !iv || !src || !dst) {
-		pr_err("%s: invalid input: fmp:%p, iv:%p, s:%p, d:%p\n",
-			__func__, fmp, iv, src, dst);
+		pr_err("%s: invalid input(fmp, iv, src, dst)\n", __func__);
 		return -EINVAL;
 	}
 

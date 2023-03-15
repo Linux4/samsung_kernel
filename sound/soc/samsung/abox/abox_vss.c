@@ -64,7 +64,7 @@ int abox_vss_notify_call(struct device *dev, struct abox_data *data, int en)
 				dev_info(dev, "%s en(%d)\n", __func__, en);
 				abox_call_notify_event(ABOX_CALL_EVENT_ON,
 						NULL);
-				/* llc_region_alloc(LLC_REGION_CALL, 1); */
+				data->call_event = ABOX_CALL_EVENT_ON;
 			}
 		}
 	} else {
@@ -76,7 +76,7 @@ int abox_vss_notify_call(struct device *dev, struct abox_data *data, int en)
 				dev_info(dev, "%s en(%d)\n", __func__, en);
 				abox_call_notify_event(ABOX_CALL_EVENT_OFF,
 						NULL);
-				/* llc_region_alloc(LLC_REGION_CALL, 0); */
+				data->call_event = ABOX_CALL_EVENT_OFF;
 			}
 		}
 	}

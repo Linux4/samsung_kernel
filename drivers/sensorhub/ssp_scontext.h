@@ -26,7 +26,7 @@
 #define RESET_REASON_SYSFS_REQUEST           0x03
 
 void ssp_scontext_log(const char *func_name,
-                      const char *data, int length);
+		      const char *data, int length);
 int ssp_scontext_initialize(struct ssp_data *ssp_data);
 void ssp_scontext_remove(struct ssp_data *ssp_data);
 

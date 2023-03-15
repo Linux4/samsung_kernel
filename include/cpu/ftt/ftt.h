@@ -1,7 +1,9 @@
 #ifndef _FTT_H_
 #define _FTT_H_
 
-#define FTT_MAX_SCHED 5
+#define FTT_MAX_SCHED 15
+#define FTT_DELINE_COUNT 2
+
 enum DYNAMIC_FTT_TYPE
 {
         DYNAMIC_FTT_BINDER = 0,

@@ -69,18 +69,20 @@ static int hip4_smapper_allocate_skb_buffer_entry(struct slsi_dev *sdev, struct 
 	struct sk_buff *skb;
 	int err;
 
-	skb = slsi_alloc_skb(bank->entry_size, GFP_ATOMIC);
+	skb = alloc_skb(bank->entry_size, GFP_ATOMIC);
 	if (!skb) {
 		SLSI_DBG4_NODEV(SLSI_SMAPPER, "Not enough memory\n");
 		return -ENOMEM;
 	}
+
+	slsi_skb_cb_init(skb);
 	SLSI_DBG4_NODEV(SLSI_SMAPPER, "SKB allocated: 0x%p at bank %d entry %d\n", skb, bank->bank, idx);
 	bank->skbuff_dma[idx] = dma_map_single(sdev->dev, skb->data,
 					     bank->entry_size, DMA_FROM_DEVICE);
 	err = dma_mapping_error(sdev->dev, bank->skbuff_dma[idx]);
 	if (err) {
 		SLSI_DBG4_NODEV(SLSI_SMAPPER, "Error mapping SKB: 0x%p at bank %d entry %d\n", skb, bank->bank, idx);
-		slsi_kfree_skb(skb);
+		kfree_skb(skb);
 		return err;
 	}
 
@@ -89,7 +91,7 @@ static int hip4_smapper_allocate_skb_buffer_entry(struct slsi_dev *sdev, struct 
 		SLSI_DBG4_NODEV(SLSI_SMAPPER, "Phys address: 0x%x not %d aligned. Unmap memory and return error\n",
 				bank->skbuff_dma[idx], bank->align);
 		dma_unmap_single(sdev->dev, bank->skbuff_dma[idx], bank->entry_size, DMA_FROM_DEVICE);
-		slsi_kfree_skb(skb);
+		kfree_skb(skb);
 		bank->skbuff_dma[idx] = 0;
 		return -ENOMEM;
 	}
@@ -133,7 +135,7 @@ static int hip4_smapper_free_skb_buffers(struct slsi_dev *sdev, struct hip4_smap
 			SLSI_DBG4_NODEV(SLSI_SMAPPER, "SKB free: 0x%p at bank %d entry %d\n", bank->skbuff[i], bank->bank, i);
 			dma_unmap_single(sdev->dev, bank->skbuff_dma[i], bank->entry_size, DMA_FROM_DEVICE);
 			bank->skbuff_dma[i] = 0;
-			slsi_kfree_skb(bank->skbuff[i]);
+			kfree_skb(bank->skbuff[i]);
 			bank->skbuff[i] = NULL;
 		}
 	}
@@ -159,8 +161,8 @@ static int hip4_smapper_program(struct slsi_dev *sdev, struct hip4_smapper_bank 
 /* Only the Host Owned Buffers should be refilled  */
 static void hip4_smapper_refill_isr(int irq, void *data)
 {
-	struct slsi_hip4    *hip = (struct slsi_hip4 *)data;
-	struct slsi_dev     *sdev = container_of(hip, struct slsi_dev, hip4_inst);
+	struct slsi_hip4	*hip = (struct slsi_hip4 *)data;
+	struct slsi_dev 	*sdev = container_of(hip, struct slsi_dev, hip4_inst);
 	struct hip4_smapper_control *control;
 	struct hip4_smapper_bank *bank;
 	enum smapper_banks i;
@@ -173,17 +175,17 @@ static void hip4_smapper_refill_isr(int irq, void *data)
 #ifdef CONFIG_SCSC_QOS
 	/* Ignore request if TPUT is low or platform is in suspend */
 	if (hip->hip_priv->pm_qos_state == SCSC_QOS_DISABLED ||
-	    atomic_read(&hip->hip_priv->in_suspend) ||
-	    *control->mbox_ptr == 0x0) {
+		atomic_read(&hip->hip_priv->in_suspend) ||
+		*control->mbox_ptr == 0x0) {
 #else
 	/* Ignore if platform is in suspend */
 	if (atomic_read(&hip->hip_priv->in_suspend) ||
-	    *control->mbox_ptr == 0x0) {
+		*control->mbox_ptr == 0x0) {
 #endif
 	/*
 	 * Temporary removed
 	 * if (__ratelimit(&ratelimit))
-	 * 	SLSI_DBG1_NODEV(SLSI_SMAPPER, "Ignore SMAPPER request. Invalid state.\n");
+	 *	SLSI_DBG1_NODEV(SLSI_SMAPPER, "Ignore SMAPPER request. Invalid state.\n");
 	 */
 		/* Clear interrupt */
 		scsc_service_mifintrbit_bit_clear(sdev->service, control->th_req);
@@ -194,8 +196,8 @@ static void hip4_smapper_refill_isr(int irq, void *data)
 	/* Check if FW has requested a BANK configuration */
 	if (HIP4_SMAPPER_BANKS_CHECK_CONFIGURE(*control->mbox_ptr)) {
 		/* Temporary removed
-	 	* SLSI_DBG4_NODEV(SLSI_SMAPPER, "Trigger SMAPPER configuration\n");
-	 	*/
+		* SLSI_DBG4_NODEV(SLSI_SMAPPER, "Trigger SMAPPER configuration\n");
+		*/
 		scsc_service_mifsmapper_configure(sdev->service, SMAPPER_GRANULARITY);
 		HIP4_SMAPPER_BANKS_CONFIGURE_DONE(*control->mbox_ptr);
 	}
@@ -240,9 +242,12 @@ static void hip4_smapper_refill_isr(int irq, void *data)
 int hip4_smapper_consume_entry(struct slsi_dev *sdev, struct slsi_hip4 *hip, struct sk_buff *skb_fapi)
 {
 	struct sk_buff *skb;
+	struct sk_buff *skb_big = NULL;
 	struct hip4_smapper_bank *bank;
+	u8 i;
 	u8 bank_num;
 	u8 entry;
+	u8 num_entries;
 	u16 len;
 	u16 headroom;
 	struct hip4_smapper_descriptor *desc;
@@ -260,7 +265,7 @@ int hip4_smapper_consume_entry(struct slsi_dev *sdev, struct slsi_hip4 *hip, str
 
 
 	if (bank_num >= HIP4_SMAPPER_TOTAL_BANKS) {
-		SLSI_DBG4_NODEV(SLSI_SMAPPER, "Incorrect bank_num %d\n", bank_num);
+		SLSI_WARN_NODEV("Incorrect bank_num %d\n", bank_num);
 		goto error;
 	}
 
@@ -270,18 +275,32 @@ int hip4_smapper_consume_entry(struct slsi_dev *sdev, struct slsi_hip4 *hip, str
 	bank = &hip->hip_priv->smapper_banks[bank_num];
 
 	if (entry > bank->entries) {
-		SLSI_DBG4_NODEV(SLSI_SMAPPER, "Incorrect entry number %d\n", entry);
+		SLSI_WARN_NODEV("Incorrect entry number %d\n", entry);
 		goto error;
 	}
 
 	if (len > bank->entry_size) {
-		SLSI_DBG4_NODEV(SLSI_SMAPPER, "Incorrect entry len %d\n", len);
-		goto error;
+
+		/* If len > entry_size, we assume FW is using > 1 entry */
+		num_entries = DIV_ROUND_UP(len, bank->entry_size);
+
+		if ((entry + num_entries) > bank->entries) {
+			SLSI_WARN_NODEV("Incorrect entry number %d num_entries %d\n", entry, num_entries);
+			goto error;
+		}
+
+		/* allocate a skb to copy the multiple bank entries */
+		skb_big = alloc_skb(len, GFP_ATOMIC);
+		if (!skb_big) {
+			SLSI_WARN_NODEV("big SKB allocation failed len:%d\n", len);
+			goto error;
+		}
+		goto multi;
 	}
 
 	skb = bank->skbuff[entry];
 	if (!skb) {
-		SLSI_DBG4_NODEV(SLSI_SMAPPER, "SKB IS NULL at bank %d entry %d\n", bank_num, entry);
+		SLSI_WARN_NODEV("SKB is NULL at bank %d entry %d\n", bank_num, entry);
 		goto error;
 	}
 
@@ -295,10 +314,46 @@ int hip4_smapper_consume_entry(struct slsi_dev *sdev, struct slsi_hip4 *hip, str
 	skb_put(skb, len);
 	cb->skb_addr = skb;
 	SLSI_DBG4_NODEV(SLSI_SMAPPER, "Consumed Bank %d Entry %d Len %d SKB smapper: 0x%p, SKB fapi %p\n", bank_num, entry, len, skb, skb_fapi);
+	return 0;
+multi:
+	for (i = 0; i < num_entries; i++, entry++) {
+		u16 bytes;
 
+		skb = bank->skbuff[entry];
+		if (!skb) {
+			SLSI_WARN_NODEV("SKB IS NULL at bank %d entry %d\n", bank_num, entry);
+			goto error;
+		}
+
+		bank->skbuff[entry] = NULL;
+		dma_unmap_single(sdev->dev, bank->skbuff_dma[entry], bank->entry_size, DMA_FROM_DEVICE);
+		bank->skbuff_dma[entry] = 0;
+
+		hip4_smapper_allocate_skb_buffer_entry(sdev, bank, entry);
+
+		if (len > bank->entry_size)
+			bytes = bank->entry_size - headroom;
+		else
+			bytes = len;
+
+		/* jump to the offset where payload starts; only applicable for 1st entry */
+		if (i == 0)
+			skb_reserve(skb, headroom);
+
+		/* do the memcpy to big SKB */
+		memcpy(skb_put(skb_big, bytes), skb->data, bytes);
+
+		/* Free the skb */
+		kfree_skb(skb);
+		len -= bytes;
+	}
+	cb->skb_addr = skb_big;
+	SLSI_DBG4_NODEV(SLSI_SMAPPER, "Consumed Bank %d Entry %d Len %d SKB smapper: 0x%p, SKB fapi %p\n", bank_num, entry, len, skb, skb_fapi);
 	return 0;
 error:
 	/* RX is broken.....*/
+	if (skb_big)
+		kfree_skb(skb_big);
 	return -EIO;
 }
 
@@ -333,9 +388,24 @@ struct sk_buff *hip4_smapper_get_skb(struct slsi_dev *sdev, struct slsi_hip4 *hi
 
 	SLSI_DBG4_NODEV(SLSI_SMAPPER, "Get SKB smapper: 0x%p, SKB fapi 0x%p\n", skb, skb_fapi);
 	cb->free_ma_unitdat = true;
-	slsi_kfree_skb(skb_fapi);
+	kfree_skb(skb_fapi);
 
 	return skb;
+}
+
+void hip4_smapper_free_mapped_skb(struct sk_buff *skb)
+{
+	struct slsi_skb_cb *cb;
+
+	if (!skb)
+		return;
+
+	cb = (struct slsi_skb_cb *)skb->cb;
+
+	if (cb && !cb->free_ma_unitdat && cb->skb_addr) {
+		kfree_skb(cb->skb_addr);
+		cb->skb_addr = NULL;
+	}
 }
 
 int hip4_smapper_init(struct slsi_dev *sdev, struct slsi_hip4 *hip)

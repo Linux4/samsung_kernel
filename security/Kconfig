@@ -295,15 +295,10 @@ config SDP_KEY_DUMP
 	bool "SDP KEY DUMP"
 	default n
 
-
-source "security/samsung/defex_lsm/Kconfig"
-
-source "security/samsung/proca/gaf/Kconfig"
-
-source "security/samsung/proca/Kconfig"
-
-source "security/samsung/dsms/Kconfig"
-
-source "security/samsung/five/Kconfig"
+source "security/samsung/defex_lsm/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+source "security/samsung/proca/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+source "security/samsung/proca/gaf/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+source "security/samsung/dsms/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+source "security/samsung/five/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 endmenu
 

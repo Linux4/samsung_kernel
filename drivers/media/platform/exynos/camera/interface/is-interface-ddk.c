@@ -390,7 +390,7 @@ static void is_lib_camera_callback(void *this, enum lib_cb_event_type event_id,
 
 	switch (event_id) {
 	case LIB_EVENT_CONFIG_LOCK:
-		atomic_add(hw_ip->num_buffers, &hw_ip->count.cl);
+		atomic_add(1, &hw_ip->count.cl);
 		if (unlikely(!atomic_read(&hardware->streaming[hardware->sensor_position[instance_id]])))
 			msinfo_hw("[F:%d]C.L %d\n", instance_id, hw_ip,
 				hw_fcount, (u32)fcount);
@@ -443,13 +443,13 @@ static void is_lib_camera_callback(void *this, enum lib_cb_event_type event_id,
 			msinfo_hw("[F:%d]F.S\n", instance_id, hw_ip,
 				hw_fcount);
 
-		atomic_add(hw_ip->num_buffers, &hw_ip->count.fs);
+		atomic_add(1, &hw_ip->count.fs);
 		is_hardware_frame_start(hw_ip, instance_id);
 		break;
 	case LIB_EVENT_FRAME_END:
 		_is_hw_frame_dbg_trace(hw_ip, hw_fcount, DEBUG_POINT_FRAME_END);
 
-		atomic_add(hw_ip->num_buffers, &hw_ip->count.fe);
+		atomic_add(1, &hw_ip->count.fe);
 		if (unlikely(!atomic_read(&hardware->streaming[hardware->sensor_position[instance_id]])
 			|| debug_irq_ddk))
 			msinfo_hw("[F:%d]F.E\n", instance_id, hw_ip,
@@ -478,7 +478,7 @@ static void is_lib_camera_callback(void *this, enum lib_cb_event_type event_id,
 	case LIB_EVENT_ERROR_CONFIG_LOCK_DELAY:
 		_is_hw_frame_dbg_trace(hw_ip, hw_fcount, DEBUG_POINT_FRAME_END);
 
-		atomic_add(hw_ip->num_buffers, &hw_ip->count.fe);
+		atomic_add(1, &hw_ip->count.fe);
 
 		framemgr = hw_ip->framemgr;
 		framemgr_e_barrier_common(framemgr, 0, flags);
@@ -1302,8 +1302,11 @@ int __nocfi is_lib_set_sram_offset(struct is_hw_ip *hw_ip,
 	struct is_lib_isp *this, u32 instance_id)
 {
 	struct is_hardware *hw = NULL;
-	u32 offset[LIC_TRIGGER_MODE], mode;
+	u32 offset[LIC_TRIGGER_MODE] = {0, }, mode;
 	int index, ret = 0;
+	u32 offsets = LIC_CHAIN_OFFSET_NUM / 2 - 1;
+	u32 set_idx = offsets + 1;
+	int i;
 
 	FIMC_BUG(!hw_ip);
 	FIMC_BUG(!this);
@@ -1311,34 +1314,54 @@ int __nocfi is_lib_set_sram_offset(struct is_hw_ip *hw_ip,
 
 	hw = hw_ip->hardware;
 
-	index = COREX_SETA * LIC_OFFSET_MAX; /* setA */
-	offset[LIC_OFFSET_0] = hw->lic_offset[0][index + LIC_OFFSET_0];
-	offset[LIC_OFFSET_1] = hw->lic_offset[0][index + LIC_OFFSET_1];
-	mode = hw->lic_offset[0][index + LIC_TRIGGER_MODE];
+	index = COREX_SETA * set_idx; /* setA */
+	for (i = LIC_OFFSET_0; i < offsets; i++)
+		offset[i] = hw->lic_offset[0][index + i];
+
+	mode = hw->lic_offset[0][index + offsets];
+#if defined(SOC_33S)
 	ret = CALL_LIBOP(this, set_line_buffer_offset,
-		COREX_SETA, LIC_TRIGGER_MODE, (u32 *)&offset, mode);
+		COREX_SETA, offsets, (u32 *)&offset);
+#else
+	ret = CALL_LIBOP(this, set_line_buffer_offset,
+		COREX_SETA, offsets, (u32 *)&offset, mode);
+#endif
 	if (ret) {
 		err_lib("set_line_buffer_offset fail (%d)", hw_ip->id);
 		return ret;
 	}
-	msinfo_lib("set_line_buffer_offset [%d][%d, %d] done\n",
+	msinfo_lib("set_line_buffer_offset [%d][%d, %d, %d] done\n",
 		instance_id, hw_ip,
-		COREX_SETA, offset[LIC_OFFSET_0], offset[LIC_OFFSET_1]);
+		COREX_SETA, offset[LIC_OFFSET_0], offset[LIC_OFFSET_1], offset[LIC_OFFSET_2]);
 
-	index = COREX_SETB * LIC_OFFSET_MAX; /* setB */
-	offset[LIC_OFFSET_0] = hw->lic_offset[0][index + LIC_OFFSET_0];
-	offset[LIC_OFFSET_1] = hw->lic_offset[0][index + LIC_OFFSET_1];
-	mode = hw->lic_offset[0][index + LIC_TRIGGER_MODE];
+	index = COREX_SETB * set_idx; /* setB */
+	for (i = LIC_OFFSET_0; i < offsets; i++)
+		offset[i] = hw->lic_offset[0][index + i];
+
+	mode = hw->lic_offset[0][index + offsets];
+#if defined(SOC_33S)
 	ret = CALL_LIBOP(this, set_line_buffer_offset,
-		COREX_SETB, LIC_TRIGGER_MODE, (u32 *)&offset, mode);
+		COREX_SETB, offsets, (u32 *)&offset);
+#else
+	ret = CALL_LIBOP(this, set_line_buffer_offset,
+		COREX_SETB, offsets, (u32 *)&offset, mode);
+#endif
 	if (ret) {
 		err_lib("set_line_buffer_offset fail (%d)", hw_ip->id);
 		return ret;
 	}
-	msinfo_lib("set_line_buffer_offset [%d][%d, %d] done\n",
+	msinfo_lib("set_line_buffer_offset [%d][%d, %d, %d] done\n",
 		instance_id, hw_ip,
-		COREX_SETB, offset[LIC_OFFSET_0], offset[LIC_OFFSET_1]);
+		COREX_SETB, offset[LIC_OFFSET_0], offset[LIC_OFFSET_1], offset[LIC_OFFSET_2]);
 
+#if defined(SOC_33S)
+	/* TODO: set trigger mode by scenario */
+	ret = CALL_LIBOP(this, set_line_buffer_trigger, LIC_NO_TRIGGER, LBOFFSET_NONE);
+	if (ret) {
+		err_lib("set_line_buffer_trigger fail (%d)", hw_ip->id);
+		return ret;
+	}
+#endif
 	return ret;
 }
 #endif

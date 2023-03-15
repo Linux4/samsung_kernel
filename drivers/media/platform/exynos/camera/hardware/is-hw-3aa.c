@@ -18,9 +18,6 @@ static int __nocfi is_hw_3aa_open(struct is_hw_ip *hw_ip, u32 instance,
 {
 	int ret = 0;
 	struct is_hw_3aa *hw_3aa = NULL;
-#ifdef TAA_SRAM_STATIC_CONFIG
-	struct is_hardware *hw = NULL;
-#endif
 	FIMC_BUG(!hw_ip);
 
 	if (test_bit(HW_OPEN, &hw_ip->state))
@@ -63,50 +60,6 @@ static int __nocfi is_hw_3aa_open(struct is_hw_ip *hw_ip, u32 instance,
 		goto err_chain_create;
 	}
 
-#ifdef TAA_SRAM_STATIC_CONFIG
-	if (IS_ENABLED(ENABLE_3AA_LIC_OFFSET) && (hw_ip->id == DEV_HW_3AA0)) {
-		/* set default lic offset */
-		hw = hw_ip->hardware;
-		if (hw->lic_offset[0][0] == 0) {
-			hw->lic_offset[0][(COREX_SETA * LIC_OFFSET_MAX) + LIC_OFFSET_0] =
-			DEFAULT_LIC_CTX0_OFFSET0;
-			hw->lic_offset[0][(COREX_SETA * LIC_OFFSET_MAX) + LIC_OFFSET_1] =
-			DEFAULT_LIC_CTX0_OFFSET1;
-			hw->lic_offset[0][(COREX_SETA * LIC_OFFSET_MAX) + LIC_TRIGGER_MODE] =
-			LIC_NO_TRIGGER;
-			hw->lic_offset[0][(COREX_SETB * LIC_OFFSET_MAX) + LIC_OFFSET_0] =
-			DEFAULT_LIC_CTX1_OFFSET0;
-			hw->lic_offset[0][(COREX_SETB * LIC_OFFSET_MAX) + LIC_OFFSET_1] =
-			DEFAULT_LIC_CTX1_OFFSET1;
-			hw->lic_offset[0][(COREX_SETB * LIC_OFFSET_MAX) + LIC_TRIGGER_MODE] =
-			LIC_NO_TRIGGER;
-			msinfo_hw("[%s] 3AA SRAM offset(default): setA(%d, %d, %d), setB(%d, %d, %d)",
-			instance, hw_ip, group_id_name[group->id],
-			hw->lic_offset[0][(COREX_SETA * LIC_OFFSET_MAX) + LIC_OFFSET_0],
-			hw->lic_offset[0][(COREX_SETA * LIC_OFFSET_MAX) + LIC_OFFSET_1],
-			hw->lic_offset[0][(COREX_SETA * LIC_OFFSET_MAX) + LIC_TRIGGER_MODE],
-			hw->lic_offset[0][(COREX_SETB * LIC_OFFSET_MAX) + LIC_OFFSET_0],
-			hw->lic_offset[0][(COREX_SETB * LIC_OFFSET_MAX) + LIC_OFFSET_1],
-			hw->lic_offset[0][(COREX_SETB * LIC_OFFSET_MAX) + LIC_TRIGGER_MODE]);
-		} else {
-			msinfo_hw("[%s] 3AA SRAM offset: setA(%d, %d, %d), setB(%d, %d, %d)",
-			instance, hw_ip, group_id_name[group->id],
-			hw->lic_offset[0][(COREX_SETA * LIC_OFFSET_MAX) + LIC_OFFSET_0],
-			hw->lic_offset[0][(COREX_SETA * LIC_OFFSET_MAX) + LIC_OFFSET_1],
-			hw->lic_offset[0][(COREX_SETA * LIC_OFFSET_MAX) + LIC_TRIGGER_MODE],
-			hw->lic_offset[0][(COREX_SETB * LIC_OFFSET_MAX) + LIC_OFFSET_0],
-			hw->lic_offset[0][(COREX_SETB * LIC_OFFSET_MAX) + LIC_OFFSET_1],
-			hw->lic_offset[0][(COREX_SETB * LIC_OFFSET_MAX) + LIC_TRIGGER_MODE]);
-		}
-
-		ret = is_lib_set_sram_offset(hw_ip, &hw_3aa->lib[instance], instance);
-			if (ret) {
-			mserr_hw("lib_set_sram_offset fail", instance, hw_ip);
-			ret = -EINVAL;
-			goto err_chain_create;
-		}
-	}
-#endif
 	set_bit(HW_OPEN, &hw_ip->state);
 	msdbg_hw(2, "open: [G:0x%x], framemgr[%s]", instance, hw_ip,
 		GROUP_ID(group->id), hw_ip->framemgr->name);
@@ -349,11 +302,13 @@ static int __is_hw_3aa_get_change_state(struct is_hw_ip *hw_ip, int instance, in
 	hw = hw_ip->hardware;
 	head = GET_HEAD_GROUP_IN_DEVICE(IS_DEVICE_ISCHAIN, hw_ip->group[instance]);
 
+	for (i = 0; i < SENSOR_POSITION_MAX; i++) {
+		if (atomic_read(&hw->streaming[i]) & BIT(HW_ISCHAIN_STREAMING))
+			ref_cnt++;
+	}
+
 	if (test_bit(IS_GROUP_OTF_INPUT, &head->state)) {
 		/* OTF or vOTF case */
-		for (i = 0; i < IS_STREAM_COUNT; i++)
-			ref_cnt += atomic_read(&hw->streaming[hw->sensor_position[i]]);
-
 		if (ref_cnt) {
 			ret = SRAM_CFG_BLOCK;
 		} else {
@@ -368,18 +323,26 @@ static int __is_hw_3aa_get_change_state(struct is_hw_ip *hw_ip, int instance, in
 		}
 	} else {
 		/* Reprocessing case */
-		for (i = 0; i < IS_STREAM_COUNT; i++)
-			ref_cnt += atomic_read(&hw->streaming[hw->sensor_position[i]]);
-
 		if (ref_cnt)
 			ret = SRAM_CFG_BLOCK;
 		else
 			ret = SRAM_CFG_R;
-
-		/* if this is mode change capture case, ignoring sensor streaming */
-		if (hint)
-			ret = SRAM_CFG_MODE_CHANGE_R;
 	}
+
+#if IS_ENABLED(TAA_SRAM_STATIC_CONFIG)
+	if (hw->lic_offset_def[0] == 0) {
+		mswarn_hw("lic_offset is 0 with STATIC_CONFIG, use dynamic mode", instance, hw_ip);
+	} else {
+		if (ret == SRAM_CFG_N)
+			ret = SRAM_CFG_S;
+		else
+			ret = SRAM_CFG_BLOCK;
+	}
+#endif
+
+	if (!atomic_read(&hw->streaming[hw->sensor_position[instance]]))
+		msinfo_hw("LIC change state: %d (refcnt(streaming:%d/updated:%d))", instance, hw_ip,
+			ret, ref_cnt, atomic_read(&hw->lic_updated));
 
 	return ret;
 }
@@ -389,85 +352,168 @@ static int __is_hw_3aa_change_sram_offset(struct is_hw_ip *hw_ip, int instance, 
 	struct is_hw_3aa *hw_3aa = NULL;
 	struct is_hardware *hw = NULL;
 	struct taa_param_set *param_set = NULL;
-	u32 offset0, offset1, target_w;
+	u32 target_w;
+	u32 offset[LIC_OFFSET_MAX] = {0, };
+	u32 offsets = LIC_CHAIN_OFFSET_NUM / 2 - 1;
+	u32 set_idx = offsets + 1;
 	int ret = 0;
+	int i, index_a, index_b;
+	char *str_a, *str_b;
+	int id, sum;
 
 	FIMC_BUG(!hw_ip);
 	FIMC_BUG(!hw_ip->hardware);
 	FIMC_BUG(!hw_ip->priv_info);
 
 	hw = hw_ip->hardware;
-	offset0 = hw->lic_offset[0][(COREX_SETA * LIC_OFFSET_MAX) + LIC_OFFSET_0];
-	offset1 = hw->lic_offset[0][(COREX_SETA * LIC_OFFSET_MAX) + LIC_OFFSET_1] -
-			hw->lic_offset[0][(COREX_SETA * LIC_OFFSET_MAX) + LIC_OFFSET_0];
 	hw_3aa = (struct is_hw_3aa *)hw_ip->priv_info;
 	param_set = &hw_3aa->param_set[instance];
 
-	target_w = param_set->otf_input.width;
 	/* check condition */
 	switch (mode) {
 	case SRAM_CFG_BLOCK:
-		if (hw_ip->id == DEV_HW_3AA0) {
-			if (target_w > offset0)
-				mserr_hw("Need to check 3aa0 SRAM size (%d / %d) - w(%d)", instance, hw_ip, offset0, offset1, target_w);
-		} else if (hw_ip->id == DEV_HW_3AA1) {
-			if (target_w > (IS_MAX_HW_3AA_SRAM - offset0))
-				mserr_hw("Need to check 3aa1 SRAM size (%d / %d) - w(%d)", instance, hw_ip, offset0, offset1, target_w);
-		}
 		return ret;
 	case SRAM_CFG_N:
-		offset0 = IS_MAX_HW_3AA_SRAM / 2;
-		offset1 = IS_MAX_HW_3AA_SRAM;
+		for (i = LIC_OFFSET_0; i < offsets; i++) {
+			offset[i] = hw->lic_offset_def[i];
+			if (!offset[i])
+				offset[i] = (IS_MAX_HW_3AA_SRAM / offsets) * (1 + i);
+		}
 
+		target_w = param_set->otf_input.width;
 		/* 3AA2 is not considered */
+		/* TODO: set offset dynamically */
 		if (hw_ip->id == DEV_HW_3AA0) {
-			if (target_w > offset0)
-				offset0 = target_w;
+			if (target_w > offset[LIC_OFFSET_0])
+				offset[LIC_OFFSET_0] = target_w;
 		} else if (hw_ip->id == DEV_HW_3AA1) {
-			offset0 = IS_MAX_HW_3AA_SRAM - target_w;
+			offset[LIC_OFFSET_0] = IS_MAX_HW_3AA_SRAM - target_w;
 		}
 		break;
 	case SRAM_CFG_R:
 	case SRAM_CFG_MODE_CHANGE_R:
-		target_w = MAX(param_set->dma_input.width, target_w);
-		offset0 = IS_MAX_HW_3AA_SRAM - target_w;
-		offset1 = IS_MAX_HW_3AA_SRAM;
+		target_w = param_set->otf_input.width;
+		if (param_set->dma_input.cmd == DMA_INPUT_COMMAND_ENABLE)
+			target_w = MAX(param_set->dma_input.width, target_w);
+
+		id = hw_ip->id - DEV_HW_3AA0;
+		sum = 0;
+		for (i = LIC_OFFSET_0; i < offsets; i++) {
+			if (id == i)
+				offset[i] = sum + target_w;
+			else
+				offset[i] = sum + 0;
+
+			sum = offset[i];
+		}
+		break;
+	case SRAM_CFG_S:
+		for (i = LIC_OFFSET_0; i < offsets; i++)
+			offset[i] = hw->lic_offset_def[i];
 		break;
 	default:
 		mserr_hw("invalid mode (%d)", instance, hw_ip, mode);
 		return ret;
 	}
 
-	hw->lic_offset[0][(COREX_SETA * LIC_OFFSET_MAX) + LIC_OFFSET_0] = offset0;
-	hw->lic_offset[0][(COREX_SETA * LIC_OFFSET_MAX) + LIC_OFFSET_1] = offset1;
-	hw->lic_offset[0][(COREX_SETB * LIC_OFFSET_MAX) + LIC_OFFSET_0] = offset0;
-	hw->lic_offset[0][(COREX_SETB * LIC_OFFSET_MAX) + LIC_OFFSET_1] = offset1;
+	index_a = COREX_SETA * set_idx; /* setA */
+	index_b = COREX_SETB * set_idx; /* setB */
+
+	for (i = LIC_OFFSET_0; i < offsets; i++) {
+		hw->lic_offset[0][index_a + i] = offset[i];
+		hw->lic_offset[0][index_b + i] = offset[i];
+	}
+	hw->lic_offset[0][index_a + offsets] = hw->lic_offset_def[index_a + offsets];
+	hw->lic_offset[0][index_b + offsets] = hw->lic_offset_def[index_b + offsets];
+
 	ret = is_lib_set_sram_offset(hw_ip, &hw_3aa->lib[instance], instance);
 	if (ret) {
 		mserr_hw("lib_set_sram_offset fail", instance, hw_ip);
 		ret = -EINVAL;
 	}
 
-	msinfo_hw("=> (%d) update 3AA SRAM offset: setA(%d, %d, %d), setB(%d, %d, %d)",
-		instance, hw_ip,
-		mode,
-		hw->lic_offset[0][(COREX_SETA * LIC_OFFSET_MAX) + LIC_OFFSET_0],
-		hw->lic_offset[0][(COREX_SETA * LIC_OFFSET_MAX) + LIC_OFFSET_1],
-		hw->lic_offset[0][(COREX_SETA * LIC_OFFSET_MAX) + LIC_TRIGGER_MODE],
-		hw->lic_offset[0][(COREX_SETB * LIC_OFFSET_MAX) + LIC_OFFSET_0],
-		hw->lic_offset[0][(COREX_SETB * LIC_OFFSET_MAX) + LIC_OFFSET_1],
-		hw->lic_offset[0][(COREX_SETB * LIC_OFFSET_MAX) + LIC_TRIGGER_MODE]);
+	if (in_atomic())
+		goto exit_in_atomic;
+
+	str_a = __getname();
+	if (unlikely(!str_a)) {
+		mserr_hw(" out of memory for str_a!", instance, hw_ip);
+		goto err_alloc_str_a;
+	}
+
+	str_b = __getname();
+	if (unlikely(!str_b)) {
+		mserr_hw(" out of memory for str_b!", instance, hw_ip);
+		goto err_alloc_str_b;
+	}
+
+	snprintf(str_a, PATH_MAX, "%d", hw->lic_offset[0][index_a + 0]);
+	snprintf(str_b, PATH_MAX, "%d", hw->lic_offset[0][index_b + 0]);
+	for (i = LIC_OFFSET_1; i <= offsets; i++) {
+		snprintf(str_a, PATH_MAX, "%s, %d", str_a, hw->lic_offset[0][index_a + i]);
+		snprintf(str_b, PATH_MAX, "%s, %d", str_b, hw->lic_offset[0][index_b + i]);
+	}
+	msinfo_hw("=> (%d) update 3AA SRAM offset: setA(%s), setB(%s)\n",
+		instance, hw_ip, mode, str_a, str_b);
+
+	__putname(str_b);
+err_alloc_str_b:
+	__putname(str_a);
+err_alloc_str_a:
+exit_in_atomic:
 
 	return ret;
 }
 #endif
 
+static u32 is_hw_3aa_dma_cfg(char *name, struct is_hw_ip *hw_ip,
+	struct is_frame *frame, int cur_idx,
+	struct param_dma_output *param_dma, u32 *dst, u32 *src)
+{
+	int plane, p_cur_i, p_buf_i, buf_i, i, j;
+	int level;
+	u32 cmd;
+
+	plane = param_dma->plane;
+	p_cur_i = cur_idx * plane;
+
+	cmd = param_dma->cmd;
+	if (cmd == DMA_OUTPUT_COMMAND_DISABLE)
+		goto exit;
+
+	for (buf_i = 0; buf_i < frame->num_buffers; buf_i++) {
+		p_buf_i = buf_i * plane;
+		j = p_buf_i;
+		i = p_buf_i + p_cur_i;
+
+		if (src[i] == 0) {
+			param_dma->cmd = DMA_OUTPUT_COMMAND_DISABLE;
+
+			level = (i == 0) ? 0 : 2;
+			msdbg_hw(level, "[F:%d]%sTargetAddress[%d] is zero\n",
+				frame->instance, hw_ip, frame->fcount, name, i);
+
+			continue;
+		}
+
+		for (; j < p_buf_i + plane; j++, i++)
+			dst[j] = src[i];
+	}
+
+exit:
+	return cmd;
+}
+
 static int is_hw_3aa_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	ulong hw_map)
 {
 	int ret = 0;
-	int i, cur_idx;
+	int i, cur_idx, batch_num;
 	struct is_hw_3aa *hw_3aa;
+	u32 cmd_before_bds;
+	u32 cmd_after_bds;
+	u32 cmd_efd;
+	u32 cmd_mrg;
 	struct taa_param_set *param_set;
 	struct is_region *region;
 	struct taa_param *param;
@@ -508,10 +554,16 @@ static int is_hw_3aa_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	FIMC_BUG(!region);
 
 	param = &region->parameter.taa;
+	cur_idx = frame->cur_buf_index;
 
 	param_region = (struct is_param_region *)frame->shot->ctl.vendor_entry.parameter;
 	if (frame->type == SHOT_TYPE_INTERNAL) {
 		/* OTF INPUT case */
+		cmd_before_bds = param_set->dma_output_before_bds.cmd;
+		cmd_after_bds = param_set->dma_output_after_bds.cmd;
+		cmd_efd = param_set->dma_output_efd.cmd;
+		cmd_mrg = param_set->dma_output_mrg.cmd;
+
 		param_set->dma_output_before_bds.cmd  = DMA_OUTPUT_COMMAND_DISABLE;
 		param_set->output_dva_before_bds[0] = 0x0;
 		param_set->dma_output_after_bds.cmd  = DMA_OUTPUT_COMMAND_DISABLE;
@@ -559,8 +611,6 @@ static int is_hw_3aa_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 		lindex, hindex, instance);
 
 	/* DMA settings */
-	cur_idx = frame->cur_buf_index;
-
 	input_w = param_set->otf_input.bayer_crop_width;
 	input_h = param_set->otf_input.bayer_crop_height;
 	crop_x = param_set->otf_input.bayer_crop_offset_x;
@@ -581,51 +631,29 @@ static int is_hw_3aa_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 		crop_y = param_set->dma_input.bayer_crop_offset_y;
 	}
 
-	if (param_set->dma_output_before_bds.cmd != DMA_OUTPUT_COMMAND_DISABLE) {
-		for (i = 0; i < frame->planes; i++) {
-			param_set->output_dva_before_bds[i] = frame->txcTargetAddress[i + cur_idx];
-			if (param_set->output_dva_before_bds[i] == 0) {
-				msinfo_hw("[F:%d]txcTargetAddress[%d] is zero\n",
-					instance, hw_ip, frame->fcount, i);
-				param_set->dma_output_before_bds.cmd = DMA_OUTPUT_COMMAND_DISABLE;
-			}
-		}
-	}
+	cmd_before_bds = is_hw_3aa_dma_cfg("3ap", hw_ip, frame, cur_idx,
+		&param_set->dma_output_before_bds,
+		&param_set->output_dva_before_bds[0],
+		&frame->txcTargetAddress[0]);
 
-	if (param_set->dma_output_after_bds.cmd != DMA_OUTPUT_COMMAND_DISABLE) {
-		for (i = 0; i < frame->planes; i++) {
-			param_set->output_dva_after_bds[i] = frame->txpTargetAddress[i + cur_idx];
-			if (param_set->output_dva_after_bds[i] == 0) {
-				msinfo_hw("[F:%d]txpTargetAddress[%d] is zero\n",
-					instance, hw_ip, frame->fcount, i);
-				param_set->dma_output_after_bds.cmd = DMA_OUTPUT_COMMAND_DISABLE;
-			}
-		}
+	cmd_after_bds = is_hw_3aa_dma_cfg("3ac", hw_ip, frame, cur_idx,
+		&param_set->dma_output_after_bds,
+		&param_set->output_dva_after_bds[0],
+		&frame->txpTargetAddress[0]);
+	if (cmd_after_bds != DMA_OUTPUT_COMMAND_DISABLE) {
 		output_w = param_set->dma_output_after_bds.width;
 		output_h = param_set->dma_output_after_bds.height;
 	}
 
-	if (param_set->dma_output_efd.cmd != DMA_OUTPUT_COMMAND_DISABLE) {
-		for (i = 0; i < param->efd_output.plane; i++) {
-			param_set->output_dva_efd[i] = frame->efdTargetAddress[i + cur_idx];
-			if (param_set->output_dva_efd[i] == 0) {
-				msinfo_hw("[F:%d]efdTargetAddress[%d] is zero\n",
-					instance, hw_ip, frame->fcount, i);
-				param_set->dma_output_efd.cmd = DMA_OUTPUT_COMMAND_DISABLE;
-			}
-		}
-	}
+	cmd_efd = is_hw_3aa_dma_cfg("efd", hw_ip, frame, cur_idx,
+		&param_set->dma_output_efd,
+		&param_set->output_dva_efd[0],
+		&frame->efdTargetAddress[0]);
 
-	if (param_set->dma_output_mrg.cmd != DMA_OUTPUT_COMMAND_DISABLE) {
-		for (i = 0; i < frame->planes; i++) {
-			param_set->output_dva_mrg[i] = frame->mrgTargetAddress[i + cur_idx];
-			if (param_set->output_dva_mrg[i] == 0) {
-				msinfo_hw("[F:%d]mrgTargetAddress[%d] is zero\n",
-					instance, hw_ip, frame->fcount, i);
-				param_set->dma_output_mrg.cmd = DMA_OUTPUT_COMMAND_DISABLE;
-			}
-		}
-	}
+	cmd_mrg = is_hw_3aa_dma_cfg("mrg", hw_ip, frame, cur_idx,
+		&param_set->dma_output_mrg,
+		&param_set->output_dva_mrg[0],
+		&frame->mrgTargetAddress[0]);
 
 	for (i = 0; i < frame->planes; i++) {
 		param_set->output_kva_me[i] = frame->mexcTargetAddress[i + cur_idx];
@@ -661,8 +689,12 @@ config:
 	param_set->fcount = frame->fcount;
 
 	/* multi-buffer */
-	if (frame->num_buffers)
-		hw_ip->num_buffers = frame->num_buffers;
+	hw_ip->num_buffers = frame->num_buffers;
+	batch_num = hw_ip->framemgr->batch_num;
+	if (batch_num > 1) {
+		hw_ip->num_buffers |= batch_num << SW_FRO_NUM_SHIFT;
+		hw_ip->num_buffers |= cur_idx << CURR_INDEX_SHIFT;
+	}
 
 	if (frame->type == SHOT_TYPE_INTERNAL) {
 		is_log_write("[@][DRV][%d]3aa_shot [T:%d][R:%d][F:%d][IN:0x%x] [%d][C:0x%x]" \
@@ -706,6 +738,11 @@ config:
 	}
 #endif
 	ret = is_lib_isp_shot(hw_ip, &hw_3aa->lib[instance], param_set, frame->shot);
+
+	param_set->dma_output_before_bds.cmd = cmd_before_bds;
+	param_set->dma_output_after_bds.cmd = cmd_after_bds;
+	param_set->dma_output_efd.cmd = cmd_efd;
+	param_set->dma_output_mrg.cmd = cmd_mrg;
 
 	set_bit(HW_CONFIG, &hw_ip->state);
 
@@ -1254,7 +1291,6 @@ int is_hw_3aa_probe(struct is_hw_ip *hw_ip, struct is_interface *itf,
 	atomic_set(&hw_ip->fcount, 0);
 	hw_ip->is_leader = true;
 	atomic_set(&hw_ip->status.Vvalid, V_BLANK);
-	atomic_set(&hw_ip->status.otf_start, 0);
 	atomic_set(&hw_ip->rsccount, 0);
 	atomic_set(&hw_ip->run_rsccount, 0);
 	init_waitqueue_head(&hw_ip->status.wait_queue);

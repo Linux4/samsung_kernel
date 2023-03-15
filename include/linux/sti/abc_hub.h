@@ -28,8 +28,11 @@
 /******************************************/
 
 /*********** sub module : cond ************/
-#ifdef CONFIG_SEC_ABC_HUB_COND
+#if IS_ENABLED(CONFIG_SEC_ABC_HUB_COND)
 #define DET_CONN_MAX_NUM_GPIOS 32
+#define DET_CONN_GPIO_IRQ_NOT_INIT 0
+#define DET_CONN_GPIO_IRQ_ENABLED 1
+#define DET_CONN_GPIO_IRQ_DISABLED 2
 
 struct sub_cond_pdata {
 	// common
@@ -48,7 +51,7 @@ struct sub_cond_pdata {
 #endif
 
 /*********** sub module : bootc ************/
-#ifdef CONFIG_SEC_ABC_HUB_BOOTC
+#if IS_ENABLED(CONFIG_SEC_ABC_HUB_BOOTC)
 #define BOOTC_OFFSET_DATA_CNT 1
 #define BOOTC_OFFSET_STR_MAX 100
 
@@ -61,6 +64,7 @@ struct sub_bootc_pdata {
 	// common
 	int init;
 	int enabled;
+	int bootc_time;
 	// custom
 	int time_spec;
 	int time_spec_offset;
@@ -80,10 +84,10 @@ enum {
 
 struct abc_hub_platform_data {
 	unsigned int nSub;
-#ifdef CONFIG_SEC_ABC_HUB_COND
+#if IS_ENABLED(CONFIG_SEC_ABC_HUB_COND)
 	struct sub_cond_pdata cond;
 #endif
-#ifdef CONFIG_SEC_ABC_HUB_BOOTC
+#if IS_ENABLED(CONFIG_SEC_ABC_HUB_BOOTC)
 	struct sub_bootc_pdata bootc_pdata;
 #endif
 };
@@ -99,7 +103,7 @@ struct abc_hub_info {
 /******************************************/
 
 /*********** sub module : cond ************/
-#ifdef CONFIG_SEC_ABC_HUB_COND
+#if IS_ENABLED(CONFIG_SEC_ABC_HUB_COND)
 int parse_cond_data(struct device *dev,
 		    struct abc_hub_platform_data *pdata,
 		    struct device_node *np);
@@ -111,7 +115,7 @@ int abc_hub_cond_resume(struct device *dev);
 #endif
 
 /*********** sub module : bootc ************/
-#ifdef CONFIG_SEC_ABC_HUB_BOOTC
+#if IS_ENABLED(CONFIG_SEC_ABC_HUB_BOOTC)
 int parse_bootc_data(struct device *dev,
 		     struct abc_hub_platform_data *pdata,
 		     struct device_node *np);

@@ -16,10 +16,13 @@
 
 #include <linux/proca.h>
 #include <linux/task_integrity.h>
+#include <linux/xattr.h>
 #include <linux/slab.h>
 #include <linux/fs.h>
 #include <linux/uaccess.h>
-#include <linux/xattr.h>
+
+#define XATTR_PA_SUFFIX "pa"
+#define XATTR_NAME_PA (XATTR_USER_PREFIX XATTR_PA_SUFFIX)
 
 #include "proca_porting.h"
 
@@ -65,7 +68,7 @@ int proca_fcntl_setxattr(struct file *file, void __user *lv_xattr)
 
 	inode_lock(inode);
 
-	if (task_integrity_allow_sign(current->integrity)) {
+	if (task_integrity_allow_sign(TASK_INTEGRITY(current))) {
 		rc = __vfs_setxattr_noperm(d_real_comp(file->f_path.dentry),
 						XATTR_NAME_PA,
 						x,

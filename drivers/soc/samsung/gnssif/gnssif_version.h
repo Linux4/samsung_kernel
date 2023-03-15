@@ -15,6 +15,6 @@
 #ifndef __GNSSIF_VERSION_H__
 #define __GNSSIF_VERSION_H__
 
-const char gnssif_driver_version[] = "GNSSIF-20200206R1";
+const char gnssif_driver_version[] = "GNSSIF-20200511R1";
 
 #endif /* __GNSSIF_VERSION_H__ */

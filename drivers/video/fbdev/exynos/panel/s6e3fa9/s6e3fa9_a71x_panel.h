@@ -34,6 +34,10 @@
 #include "../display_profiler/display_profiler.h"
 #endif
 
+#ifdef CONFIG_SUPPORT_DDI_FLASH
+#include "s6e3fa9_a71x_panel_poc.h"
+#endif
+
 #include "s6e3fa9_a71x_panel_dimming.h"
 #include "s6e3fa9_a71x_resol.h"
 
@@ -595,6 +599,21 @@ static DEFINE_PKTUI(a71x_hmd_brightness, &a71x_maptbl[HMD_BRT_MAPTBL], 1);
 static DEFINE_VARIABLE_PACKET(a71x_hmd_brightness, DSI_PKT_TYPE_WR, A71X_HMD_BRIGHTNESS, 0);
 #endif
 
+#ifdef CONFIG_USE_DDI_BLACK_GRID
+static u8 A71X_DDI_BLACK_GRID_ON[] = {
+	0xBF,
+	0x01, 0x07, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00,
+};
+static DEFINE_STATIC_PACKET(a71x_ddi_black_grid_on, DSI_PKT_TYPE_WR, A71X_DDI_BLACK_GRID_ON, 0);
+
+static u8 A71X_DDI_BLACK_GRID_OFF[] = {
+	0xBF,
+	0x00, 0x07, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00,
+};
+static DEFINE_STATIC_PACKET(a71x_ddi_black_grid_off, DSI_PKT_TYPE_WR, A71X_DDI_BLACK_GRID_OFF, 0);
+
+#endif
+
 static DEFINE_PANEL_MDELAY(a71x_wait_1msec, 1);
 static DEFINE_PANEL_MDELAY(a71x_wait_2msec, 2);
 static DEFINE_PANEL_MDELAY(a71x_wait_5msec, 5);
@@ -639,6 +658,14 @@ static void *a71x_init_cmdtbl[] = {
 static void *a71x_ub_init_cmdtbl[] = {
 	&PKTINFO(a71x_sleep_out),
 	&DLYINFO(a71x_wait_sleep_out),
+#ifdef CONFIG_SEC_FACTORY
+	&KEYINFO(a71x_level2_key_enable),
+	&KEYINFO(a71x_level3_key_enable),
+	&s6e3fa9_restbl[RES_CELL_ID],
+	&s6e3fa9_restbl[RES_MANUFACTURE_INFO],
+	&KEYINFO(a71x_level3_key_disable),
+	&KEYINFO(a71x_level2_key_disable),
+#endif
 #ifdef CONFIG_SUPPORT_FAST_DISCHARGE
 	&SEQINFO(a71x_ub_seqtbl[PANEL_FD_ON_SEQ]),
 #endif
@@ -905,6 +932,20 @@ static void *a71x_hmd_bl_cmdtbl[] = {
 };
 #endif
 
+#ifdef CONFIG_USE_DDI_BLACK_GRID
+static void *a71x_ddi_black_grid_on_cmdtbl[] = {
+	&KEYINFO(a71x_level3_key_enable),
+	&PKTINFO(a71x_ddi_black_grid_on),
+	&KEYINFO(a71x_level3_key_disable),
+};
+
+static void *a71x_ddi_black_grid_off_cmdtbl[] = {
+	&KEYINFO(a71x_level3_key_enable),
+	&PKTINFO(a71x_ddi_black_grid_off),
+	&KEYINFO(a71x_level3_key_disable),
+};
+#endif
+
 static struct seqinfo a71x_seqtbl[MAX_PANEL_SEQ] = {
 	[PANEL_INIT_SEQ] = SEQINFO_INIT("init-seq", a71x_init_cmdtbl),
 	[PANEL_RES_INIT_SEQ] = SEQINFO_INIT("resource-init-seq", a71x_res_init_cmdtbl),
@@ -968,6 +1009,10 @@ static struct seqinfo a71x_ub_seqtbl[MAX_PANEL_SEQ] = {
 	[PANEL_HMD_ON_SEQ] = SEQINFO_INIT("hmd-on-seq", a71x_hmd_on_cmdtbl),
 	[PANEL_HMD_OFF_SEQ] = SEQINFO_INIT("hmd-off-seq", a71x_hmd_off_cmdtbl),
 	[PANEL_HMD_BL_SEQ] = SEQINFO_INIT("hmd-bl-seq", a71x_hmd_bl_cmdtbl),
+#endif
+#ifdef CONFIG_USE_DDI_BLACK_GRID
+	[PANEL_DDI_BLACK_GRID_ON_SEQ] = SEQINFO_INIT("ddi-black-grid-on-seq", a71x_ddi_black_grid_on_cmdtbl),
+	[PANEL_DDI_BLACK_GRID_OFF_SEQ] = SEQINFO_INIT("ddi-black-grid-off-seq", a71x_ddi_black_grid_off_cmdtbl),
 #endif
 };
 
@@ -1053,7 +1098,9 @@ struct common_panel_info s6e3fa9_a71x_ub_panel_info = {
 #ifdef CONFIG_SUPPORT_DISPLAY_PROFILER
 	.profile_tune = &fa9_profiler_tune,
 #endif
-
+#ifdef CONFIG_SUPPORT_DDI_FLASH
+	.poc_data = &s6e3fa9_a71x_poc_data,
+#endif
 };
 
 static int __init s6e3fa9_a71x_panel_init(void)

@@ -152,7 +152,7 @@ static void _pdp_hw_s_corex_start(void __iomem *base, bool enable)
  * Context: O
  * CR type: Corex + No Corex
  */
-static void _pdp_hw_s_cout_fifo(void __iomem *base, u32 width, u32 height, u32 path)
+static void _pdp_hw_s_cout_fifo(void __iomem *base, u32 path)
 {
 	u32 val;
 
@@ -169,13 +169,8 @@ static void _pdp_hw_s_cout_fifo(void __iomem *base, u32 width, u32 height, u32 p
 	/*
 	 * Set Pameter Value
 	 *
-	 * sensor config: size
 	 * cinfifo_output_count_at_stall: rdma:0, otf:1
 	 */
-	val = 0;
-	val = PDP_SET_V(val, PDP_F_CINFIFO_OUTPUT_IMAGE_WIDTH, width);
-	val = PDP_SET_V(val, PDP_F_CINFIFO_OUTPUT_IMAGE_HEIGHT, height);
-	PDP_SET_R(base, PDP_R_CINFIFO_OUTPUT_IMAGE_DIMENSIONS, val);
 
 	/*
 	 * If PDP_R_CINFIFO_OUTPUT_COUNT_AT_STALL == 0, line gap is inclued when stall signal occurr from 3AA.
@@ -202,8 +197,6 @@ static void _pdp_hw_s_cout_fifo(void __iomem *base, u32 width, u32 height, u32 p
  * CR type: Corex
  */
 static void _pdp_hw_s_lic_context(void __iomem *base,
-	u32 width, u32 height,
-	u32 pd_width, u32 pd_height,
 	u32 pixelsize, u32 sensor_type)
 {
 	u32 val;
@@ -234,16 +227,6 @@ static void _pdp_hw_s_lic_context(void __iomem *base,
 	val = PDP_SET_V(val, PDP_F_LIC_INPUT_14BIT_EN, bit_14);
 	PDP_SET_R(base, PDP_R_LIC_INPUT_CONFIG1, val);
 
-	val = 0;
-	val = PDP_SET_V(val, PDP_F_LIC_INPUT_IMAGE_WIDTH, ALIGN(width, 4));
-	val = PDP_SET_V(val, PDP_F_LIC_INPUT_IMAGE_HEIGHT, height);
-	PDP_SET_R(base, PDP_R_LIC_INPUT_CONFIG2, val);
-
-	val = 0;
-	val = PDP_SET_V(val, PDP_F_LIC_INPUT_PDPXL_WIDTH, ALIGN(pd_width, 4)); /* Mode3 Y size */
-	val = PDP_SET_V(val, PDP_F_LIC_INPUT_PDPXL_HEIGHT, pd_height); /* Mode3 Y size */
-	PDP_SET_R(base, PDP_R_LIC_INPUT_CONFIG3, val);
-
 	/*
 	 * Set Fixed Value
 	 */
@@ -262,7 +245,9 @@ static void _pdp_hw_s_lic_context(void __iomem *base,
  * Context: X (ch0 only)
  * CR type: Corex
  */
-static void _pdp_hw_s_lic_ch0(void __iomem *base, u32 curr_ch, u32 curr_path, struct pdp_lic_lut *lut)
+static u32 dyn_cfg;
+static u32 sta_cfg;
+static void _pdp_hw_s_lic_ch0(void __iomem *base, u32 curr_ch, u32 lic_mode, struct pdp_lic_lut *lut)
 {
 	u32 val;
 	u32 mode;
@@ -282,25 +267,25 @@ static void _pdp_hw_s_lic_ch0(void __iomem *base, u32 curr_ch, u32 curr_path, st
 		PDP_SET_F(base, PDP_R_LIC_OPERATION_MODE, PDP_F_LIC_OPERATION_MODE, mode);
 
 		if (mode == PDP_LIC_MODE_DYNAMIC) {
-			val = 0;
+			dyn_cfg = 0;
 			/* DMA: enable, OTF: disable */
-			val = PDP_SET_V(val, PDP_F_LIC_LIMIT_INPUT_LINE_EN_CONTEXT_0, lut->param0);
-			val = PDP_SET_V(val, PDP_F_LIC_LIMIT_INPUT_LINE_EN_CONTEXT_1, lut->param1);
-			val = PDP_SET_V(val, PDP_F_LIC_LIMIT_INPUT_LINE_EN_CONTEXT_2, lut->param2);
+			dyn_cfg = PDP_SET_V(dyn_cfg, PDP_F_LIC_LIMIT_INPUT_LINE_EN_CONTEXT_0, lut->param0);
+			dyn_cfg = PDP_SET_V(dyn_cfg, PDP_F_LIC_LIMIT_INPUT_LINE_EN_CONTEXT_1, lut->param1);
+			dyn_cfg = PDP_SET_V(dyn_cfg, PDP_F_LIC_LIMIT_INPUT_LINE_EN_CONTEXT_2, lut->param2);
 
-			val = PDP_SET_V(val, PDP_F_LIC_MAX_INPUT_LINE_CONTEXT_0, 1);
-			val = PDP_SET_V(val, PDP_F_LIC_MAX_INPUT_LINE_CONTEXT_1, 1);
-			val = PDP_SET_V(val, PDP_F_LIC_MAX_INPUT_LINE_CONTEXT_2, 1);
-			PDP_SET_R(base, PDP_R_LIC_DYNAMIC_ALLOC_CONFIG, val);
+			dyn_cfg = PDP_SET_V(dyn_cfg, PDP_F_LIC_MAX_INPUT_LINE_CONTEXT_0, 1);
+			dyn_cfg = PDP_SET_V(dyn_cfg, PDP_F_LIC_MAX_INPUT_LINE_CONTEXT_1, 1);
+			dyn_cfg = PDP_SET_V(dyn_cfg, PDP_F_LIC_MAX_INPUT_LINE_CONTEXT_2, 1);
+			PDP_SET_R(base, PDP_R_LIC_DYNAMIC_ALLOC_CONFIG, dyn_cfg);
 		} else if (mode == PDP_LIC_MODE_STATIC) {
-			val = 0;
-			val = PDP_SET_V(val, PDP_F_LIC_PREV_CENTRIC_SCHEDULE_EN, 0);
-			val = PDP_SET_V(val, PDP_F_LIC_PREV_CENTRIC_SCHEDULE_SEL_PREVIEW, 0);
-			val = PDP_SET_V(val, PDP_F_LIC_PREV_CENTRIC_SCHEDULE_NUM_LINE, 0);
-			val = PDP_SET_V(val, PDP_F_LIC_WEIGHT_CONTEXT_0, PDP_LIC_WEIGHT_MAX);
-			val = PDP_SET_V(val, PDP_F_LIC_WEIGHT_CONTEXT_1, PDP_LIC_WEIGHT_MAX);
-			val = PDP_SET_V(val, PDP_F_LIC_WEIGHT_CONTEXT_2, PDP_LIC_WEIGHT_MAX);
-			PDP_SET_R(base, PDP_R_LIC_STATIC_ALLOC_CONFIG1, val);
+			sta_cfg = 0;
+			sta_cfg = PDP_SET_V(sta_cfg, PDP_F_LIC_PREV_CENTRIC_SCHEDULE_EN, 0);
+			sta_cfg = PDP_SET_V(sta_cfg, PDP_F_LIC_PREV_CENTRIC_SCHEDULE_SEL_PREVIEW, 0);
+			sta_cfg = PDP_SET_V(sta_cfg, PDP_F_LIC_PREV_CENTRIC_SCHEDULE_NUM_LINE, 0);
+			sta_cfg = PDP_SET_V(sta_cfg, PDP_F_LIC_WEIGHT_CONTEXT_0, PDP_LIC_WEIGHT_MAX);
+			sta_cfg = PDP_SET_V(sta_cfg, PDP_F_LIC_WEIGHT_CONTEXT_1, PDP_LIC_WEIGHT_MAX);
+			sta_cfg = PDP_SET_V(sta_cfg, PDP_F_LIC_WEIGHT_CONTEXT_2, PDP_LIC_WEIGHT_MAX);
+			PDP_SET_R(base, PDP_R_LIC_STATIC_ALLOC_CONFIG1, sta_cfg);
 
 			/* min ~ max: 1 ~ 7168 */
 			sum = lut->param0 + lut->param1 + lut->param2;
@@ -317,34 +302,32 @@ static void _pdp_hw_s_lic_ch0(void __iomem *base, u32 curr_ch, u32 curr_path, st
 			PDP_SET_F(base, PDP_R_LIC_OPERATION_MODE, PDP_F_LIC_SEL_SINGLE_INPUT, curr_ch);
 		}
 	} else {
-		//mode = PDP_LIC_MODE_STATIC; // TEMP_2020
-		mode = PDP_LIC_MODE_DYNAMIC;
-		PDP_SET_F(base, PDP_R_LIC_OPERATION_MODE, PDP_F_LIC_OPERATION_MODE, mode);
+		PDP_SET_F(base, PDP_R_LIC_OPERATION_MODE, PDP_F_LIC_OPERATION_MODE, lic_mode);
 
-		switch (mode) {
+		switch (lic_mode) {
 		case PDP_LIC_MODE_DYNAMIC:
 		case PDP_LIC_MODE_STATIC:
 			/* DYNAMIC mode: default limitation is disabled. */
-			val = 0;
-			val = PDP_SET_V(val, PDP_F_LIC_LIMIT_INPUT_LINE_EN_CONTEXT_0, 0);
-			val = PDP_SET_V(val, PDP_F_LIC_LIMIT_INPUT_LINE_EN_CONTEXT_1, 0);
-			val = PDP_SET_V(val, PDP_F_LIC_LIMIT_INPUT_LINE_EN_CONTEXT_2, 0);
+			dyn_cfg = 0;
+			dyn_cfg = PDP_SET_V(dyn_cfg, PDP_F_LIC_LIMIT_INPUT_LINE_EN_CONTEXT_0, 0);
+			dyn_cfg = PDP_SET_V(dyn_cfg, PDP_F_LIC_LIMIT_INPUT_LINE_EN_CONTEXT_1, 0);
+			dyn_cfg = PDP_SET_V(dyn_cfg, PDP_F_LIC_LIMIT_INPUT_LINE_EN_CONTEXT_2, 0);
 
-			val = PDP_SET_V(val, PDP_F_LIC_MAX_INPUT_LINE_CONTEXT_0, 1);
-			val = PDP_SET_V(val, PDP_F_LIC_MAX_INPUT_LINE_CONTEXT_1, 1);
-			val = PDP_SET_V(val, PDP_F_LIC_MAX_INPUT_LINE_CONTEXT_2, 1);
+			dyn_cfg = PDP_SET_V(dyn_cfg, PDP_F_LIC_MAX_INPUT_LINE_CONTEXT_0, 1);
+			dyn_cfg = PDP_SET_V(dyn_cfg, PDP_F_LIC_MAX_INPUT_LINE_CONTEXT_1, 1);
+			dyn_cfg = PDP_SET_V(dyn_cfg, PDP_F_LIC_MAX_INPUT_LINE_CONTEXT_2, 1);
 
-			PDP_SET_R(base, PDP_R_LIC_DYNAMIC_ALLOC_CONFIG, val);
+			PDP_SET_R(base, PDP_R_LIC_DYNAMIC_ALLOC_CONFIG, dyn_cfg);
 
 			/* STATIC mode - default weight is MAX. */
-			val = 0;
-			val = PDP_SET_V(val, PDP_F_LIC_PREV_CENTRIC_SCHEDULE_EN, 0);
-			val = PDP_SET_V(val, PDP_F_LIC_PREV_CENTRIC_SCHEDULE_SEL_PREVIEW, 0);
-			val = PDP_SET_V(val, PDP_F_LIC_PREV_CENTRIC_SCHEDULE_NUM_LINE, 0);
-			val = PDP_SET_V(val, PDP_F_LIC_WEIGHT_CONTEXT_0, PDP_LIC_WEIGHT_MAX);
-			val = PDP_SET_V(val, PDP_F_LIC_WEIGHT_CONTEXT_1, PDP_LIC_WEIGHT_MAX);
-			val = PDP_SET_V(val, PDP_F_LIC_WEIGHT_CONTEXT_2, PDP_LIC_WEIGHT_MAX);
-			PDP_SET_R(base, PDP_R_LIC_STATIC_ALLOC_CONFIG1, val);
+			sta_cfg = 0;
+			sta_cfg = PDP_SET_V(sta_cfg, PDP_F_LIC_PREV_CENTRIC_SCHEDULE_EN, 0);
+			sta_cfg = PDP_SET_V(sta_cfg, PDP_F_LIC_PREV_CENTRIC_SCHEDULE_SEL_PREVIEW, 0);
+			sta_cfg = PDP_SET_V(sta_cfg, PDP_F_LIC_PREV_CENTRIC_SCHEDULE_NUM_LINE, 0);
+			sta_cfg = PDP_SET_V(sta_cfg, PDP_F_LIC_WEIGHT_CONTEXT_0, PDP_LIC_WEIGHT_MAX);
+			sta_cfg = PDP_SET_V(sta_cfg, PDP_F_LIC_WEIGHT_CONTEXT_1, PDP_LIC_WEIGHT_MAX);
+			sta_cfg = PDP_SET_V(sta_cfg, PDP_F_LIC_WEIGHT_CONTEXT_2, PDP_LIC_WEIGHT_MAX);
+			PDP_SET_R(base, PDP_R_LIC_STATIC_ALLOC_CONFIG1, sta_cfg);
 
 			/* min ~ max: 1 ~ 7168 */
 			size_1 = (total_size) / 3;
@@ -382,11 +365,14 @@ static void _pdp_hw_s_lic_ch0_priority(void __iomem *base, u32 curr_ch, u32 curr
 {
 	u32 mode;
 	u32 field_enum;
+	u32 bit_mask, bit_start;
 	u32 val, read_val;
-	u32 try_cnt = 0;
+	u32 try_cnt;
+	u32 retry_cnt = 0;
 	u32 cfg_0, cfg_1, cfg_2, cfg_3, cfg_4;
 	u32 corex_mode, corex_cfg_0, corex_cfg_1, corex_cfg_2, corex_cfg_3, corex_cfg_4;
 
+retry_lic_priority:
 	/*
 	 * Set Parameter Value
 	 *
@@ -405,39 +391,52 @@ static void _pdp_hw_s_lic_ch0_priority(void __iomem *base, u32 curr_ch, u32 curr
 	case PDP_LIC_MODE_DYNAMIC:
 	case PDP_LIC_MODE_STATIC:
 		/* DYNAMIC mode - DMA: limitation enable(1), OTF: limitation disable(0) */
-		field_enum = PDP_F_LIC_LIMIT_INPUT_LINE_EN_CONTEXT_0 + curr_ch;
 		if (curr_path == DMA)
 			val = 1;
 		else
 			val = 0;
 
-		PDP_SET_F_DIRECT(base, PDP_R_LIC_DYNAMIC_ALLOC_CONFIG, field_enum, val);
-		PDP_SET_F(base, PDP_R_LIC_DYNAMIC_ALLOC_CONFIG, field_enum, val);
+		field_enum = PDP_F_LIC_LIMIT_INPUT_LINE_EN_CONTEXT_0 + curr_ch;
+		bit_mask = (1 << pdp_fields[field_enum].bit_width) - 1;
+		bit_start = pdp_fields[field_enum].bit_start;
+
+		dyn_cfg &= ~(bit_mask << bit_start);
+		dyn_cfg |= (val << bit_start);
+
+		PDP_SET_R_DIRECT(base, PDP_R_LIC_DYNAMIC_ALLOC_CONFIG, dyn_cfg);
+		PDP_SET_R(base, PDP_R_LIC_DYNAMIC_ALLOC_CONFIG, dyn_cfg);
 
 		/* STATIC mode - DMA: low priority(0), OTF: high priority(7) */
-		field_enum = PDP_F_LIC_WEIGHT_CONTEXT_0 + curr_ch;
 		if (curr_path == DMA)
 			val = 0;
 		else
 			val = PDP_LIC_WEIGHT_MAX;
 
-		PDP_SET_F_DIRECT(base, PDP_R_LIC_STATIC_ALLOC_CONFIG1, field_enum, val);
-		PDP_SET_F(base, PDP_R_LIC_STATIC_ALLOC_CONFIG1, field_enum, val);
+		field_enum = PDP_F_LIC_WEIGHT_CONTEXT_0 + curr_ch;
+		bit_mask = (1 << pdp_fields[field_enum].bit_width) - 1;
+		bit_start = pdp_fields[field_enum].bit_start;
+
+		sta_cfg &= ~(bit_mask << bit_start);
+		sta_cfg |= (val << bit_start);
+
+		PDP_SET_R_DIRECT(base, PDP_R_LIC_STATIC_ALLOC_CONFIG1, sta_cfg);
+		PDP_SET_R(base, PDP_R_LIC_STATIC_ALLOC_CONFIG1, sta_cfg);
 
 		/* wait for register update */
-		read_val = PDP_GET_F(base, PDP_R_LIC_STATIC_ALLOC_CONFIG1, field_enum);
-		while (val != read_val) {
-			dbg_hw(2, "[PDP] %s: write(%d) != read(%d)\n", __func__, val, read_val);
+		try_cnt = 0;
+		read_val = PDP_GET_R(base, PDP_R_LIC_STATIC_ALLOC_CONFIG1);
+		while (sta_cfg != read_val) {
+			dbg_hw(2, "[PDP] %s: write(%d) != read(%d)\n", __func__, sta_cfg, read_val);
 			udelay(5);
 
 			try_cnt++;
 			if (try_cnt >= PDP_TRY_COUNT) {
 				err_hw("[PDP] fail to wait updating LIC priority (%x != %x)",
-					val, read_val);
+					sta_cfg, read_val);
 				break;
 			}
 
-			read_val = PDP_GET_F(base, PDP_R_LIC_STATIC_ALLOC_CONFIG1, field_enum);
+			read_val = PDP_GET_R(base, PDP_R_LIC_STATIC_ALLOC_CONFIG1);
 		}
 		break;
 	case PDP_LIC_MODE_SINGLE:
@@ -468,6 +467,13 @@ static void _pdp_hw_s_lic_ch0_priority(void __iomem *base, u32 curr_ch, u32 curr
 
 	info_hw("[PDP][DBG][COREX] LIC mode(%x), buf_cfg(%x), dyn_cfg(%x), sta_cfg(%x, %x, %x)\n",
 			corex_mode, corex_cfg_0, corex_cfg_1, corex_cfg_2, corex_cfg_3, corex_cfg_4);
+
+	/* Checking same value between direct and corex */
+	if (!retry_cnt && ((cfg_1 != corex_cfg_1) || (cfg_2 != corex_cfg_2))) {
+		retry_cnt++;
+		info_hw("[PDP] retry_lic_priority\n");
+		goto retry_lic_priority;
+	}
 }
 
 /*
@@ -556,7 +562,7 @@ void pdp_hw_s_line_row(void __iomem *base, bool pd_enable, int sensor_mode)
  * Context: O
  * CR type: Corex + No Corex
  */
-static void _pdp_hw_s_common(void __iomem *base, u32 width, u32 height)
+static void _pdp_hw_s_common(void __iomem *base)
 {
 	u32 val;
 
@@ -679,7 +685,7 @@ static void _pdp_hw_s_shadow(void __iomem *base)
  * Context: O
  * CR type: Corex
  */
-static void pdp_hw_s_sdc(void __iomem *base, u32 width, u32 height)
+static void pdp_hw_s_sdc(void __iomem *base, u32 width, u32 height, u32 comp_width)
 {
 	int i;
 	u32 index;
@@ -691,8 +697,17 @@ static void pdp_hw_s_sdc(void __iomem *base, u32 width, u32 height)
 		pdp_sdc_setfile = pdp_sdc_setfile_hd;
 		count = ARRAY_SIZE(pdp_sdc_setfile_hd);
 	} else if (width == SDC_WIDTH_FHD) {
-		pdp_sdc_setfile = pdp_sdc_setfile_fhd;
-		count = ARRAY_SIZE(pdp_sdc_setfile_fhd);
+		if (comp_width == SDC_COMP_WIDTH_FHD_50) {
+			pdp_sdc_setfile = pdp_sdc_setfile_fhd;
+			count = ARRAY_SIZE(pdp_sdc_setfile_fhd);
+		} else if (comp_width == SDC_COMP_WIDTH_FHD_70) {
+			pdp_sdc_setfile = pdp_sdc_setfile_fhd_70;
+			count = ARRAY_SIZE(pdp_sdc_setfile_fhd_70);
+		} else {
+			count = 0;
+			err_hw("[PDP] invalid SDC compression width (width: %d, comp_width: %d)",
+				width, comp_width);
+		}
 	} else {
 		count = 0;
 		err_hw("[PDP] invalide SDC size (width: %d)", width);
@@ -709,6 +724,106 @@ static void pdp_hw_s_sdc(void __iomem *base, u32 width, u32 height)
 	val = PDP_SET_V(val, PDP_F_CINFIFO_OUTPUT_IMAGE_WIDTH, height);
 	val = PDP_SET_V(val, PDP_F_CINFIFO_OUTPUT_IMAGE_HEIGHT, width);
 	PDP_SET_R(base, PDP_R_IMAGE_SIZE, val);
+}
+
+/*
+ * Context: O
+ * CR type: Corex
+ */
+static void _pdp_hw_s_rdma_init(void __iomem *base, u32 height,
+	u32 rmo, u32 en_sdc, u32 en_votf, u32 en_dma, ulong freq, u32 ex_mode)
+{
+	u32 val;
+	u32 line_gap;
+
+	if (en_dma == 0) {
+		PDP_SET_R(base, PDP_R_RDMA_BAYER_CTRL, 0);
+		return;
+	}
+
+	/*
+	 * Keep Reset Value
+	 *
+	 * @PDP_R_RDMA_BAYER_THRESHOLD,
+	 */
+	PDP_SET_R(base, PDP_R_RDMA_BAYER_MO, rmo);
+	info("[HW][PDP] set value of RDMA_MO: %d", rmo);
+
+	/*
+	 * fixed
+	 * PDP_R_RDMA_LINE_GAP should be bigger than 3AA minimum line gap.
+	 * 3AA line gap is 0x32.
+	 */
+	line_gap = PDP_RDMA_LINE_GAP;
+	if (en_votf && (ex_mode == EX_DUALFPS_960 || ex_mode == EX_DUALFPS_480)) {
+		/* HACK: 3ms is forcly added in SSM mode for preventing config lock delay error. */
+		u32 total_gap = 3000; /* us */
+
+		line_gap += (u32)((freq / MHZ) * total_gap / height);
+		info_hw("[PDP] Added line gap (freq:  %lu, line_gap: %d)\n", freq, line_gap);
+	}
+
+	PDP_SET_R(base, PDP_R_RDMA_LINE_GAP, line_gap);
+
+	/* BAYER */
+	val = 0;
+	val = PDP_SET_V(val, PDP_F_RDMA_BAYER_CTRL_SDC, en_sdc);
+	val = PDP_SET_V(val, PDP_F_RDMA_BAYER_CTRL_VOTF, en_votf);
+	val = PDP_SET_V(val, PDP_F_RDMA_BAYER_CTRL_STRIDE, en_dma);
+	val = PDP_SET_V(val, PDP_F_RDMA_BAYER_CTRL_ENABLE, en_dma);
+	PDP_SET_R(base, PDP_R_RDMA_BAYER_CTRL, val);
+}
+
+/*
+ * Context: O
+ * CR type: Corex
+ */
+static void _pdp_hw_s_af_rdma_init(void __iomem *base, u32 rmo,
+	u32 en_votf, u32 en_dma)
+{
+	u32 val;
+
+	if (en_dma == 0) {
+		PDP_SET_R(base, PDP_R_RDMA_AF_CTRL, 0);
+		return;
+	}
+
+	/*
+	 * Keep Reset Value
+	 *
+	 * @PDP_R_RDMA_AF_MO,
+	 * @PDP_R_RDMA_AF_THRESHOLD,
+	 */
+	PDP_SET_R(base, PDP_R_RDMA_AF_MO, rmo);
+
+	/* AF */
+	val = 0;
+	val = PDP_SET_V(val, PDP_F_RDMA_AF_CTRL_VOTF, en_votf);
+	val = PDP_SET_V(val, PDP_F_RDMA_AF_CTRL_STRIDE, en_dma);
+	val = PDP_SET_V(val, PDP_F_RDMA_AF_CTRL_ENABLE, en_dma);
+	PDP_SET_R(base, PDP_R_RDMA_AF_CTRL, val);
+}
+
+/*
+ * When using AF RDMA, line ratio between bayer DMA and af DMA must be 4:1.
+ * 4 If the raio is not 4:1, tail count must be reset at frame end time.
+ */
+void pdp_hw_s_af_rdma_tail_count_reset(void __iomem *base)
+{
+	u32 val;
+	u32 enable;
+
+	/* AF */
+	val = PDP_GET_R(base, PDP_R_RDMA_AF_CTRL);
+
+	enable = PDP_GET_V(val, PDP_F_RDMA_AF_CTRL_ENABLE);
+	if (enable) {
+		val = PDP_SET_V(val, PDP_F_RDMA_AF_CTRL_ENABLE, 0);
+		PDP_SET_R_DIRECT(base, PDP_R_RDMA_AF_CTRL, val);
+
+		val = PDP_SET_V(val, PDP_F_RDMA_AF_CTRL_ENABLE, 1);
+		PDP_SET_R_DIRECT(base, PDP_R_RDMA_AF_CTRL, val);
+	}
 }
 
 /*============= Global Function =============*/
@@ -736,6 +851,7 @@ void pdp_hw_get_line(void __iomem *base)
 	return;
 }
 
+/* config */
 /*
  * Context: O
  * CR type: No Corex
@@ -899,32 +1015,133 @@ void pdp_hw_s_pdstat_path(void __iomem *base, bool enable)
 	}
 }
 
-/* config */
+void pdp_hw_s_pd_size(void __iomem *base, u32 width, u32 height, u32 hwformat)
+{
+	u32 val;
+	u32 format;
+	u32 byte_per_line;
+
+	switch (hwformat) {
+	case HW_FORMAT_RAW10:
+		format = PDP_DMA_FMT_U10BIT_UNPACK_MSB_ZERO;
+		byte_per_line = ALIGN(width * 16 / BITS_PER_BYTE, 16);
+		break;
+	default:
+		err_hw("[PDP] invalid af format (%02X)", hwformat);
+		return;
+	}
+
+	/* AF RDMA */
+	PDP_SET_F(base, PDP_R_RDMA_AF_FORMAT, PDP_F_RDMA_AF_FORMAT, format);
+	PDP_SET_F(base, PDP_R_RDMA_AF_WIDTH, PDP_F_RDMA_AF_WIDTH, width);
+	PDP_SET_F(base, PDP_R_RDMA_AF_HEIGHT, PDP_F_RDMA_AF_HEIGHT, height);
+	PDP_SET_F(base, PDP_R_RDMA_AF_STRIDE, PDP_F_RDMA_AF_STRIDE, byte_per_line);
+	PDP_SET_F(base, PDP_R_RDMA_AF_VOTF, PDP_F_RDMA_AF_VOTF, byte_per_line);
+
+	/* LIC */
+	val = 0;
+	val = PDP_SET_V(val, PDP_F_LIC_INPUT_PDPXL_WIDTH, ALIGN(width, 4)); /* Mode3 Y size */
+	val = PDP_SET_V(val, PDP_F_LIC_INPUT_PDPXL_HEIGHT, height); /* Mode3 Y size */
+	PDP_SET_R(base, PDP_R_LIC_INPUT_CONFIG3, val);
+}
+
+void pdp_hw_s_img_size(void __iomem *base,
+	struct is_crop full_size,
+	struct is_crop crop_size,
+	struct is_crop comp_size,
+	u32 hwformat, u32 pixelsize)
+{
+	u32 val;
+	u32 format;
+	u32 byte_per_line;
+
+	/*
+	 * Set Parameter Value
+	 *
+	 * sesnro config
+	 */
+	switch (hwformat) {
+	case DMA_INPUT_FORMAT_BAYER_PACKED:
+		if (pixelsize == DMA_INPUT_BIT_WIDTH_10BIT) {
+			format = PDP_DMA_FMT_U10BIT_PACK;
+		} else if (pixelsize == DMA_INPUT_BIT_WIDTH_12BIT) {
+			format = PDP_DMA_FMT_U12BIT_PACK;
+		} else if (pixelsize == DMA_INPUT_BIT_WIDTH_14BIT) {
+			format = PDP_DMA_FMT_U14BIT_PACK;
+		} else {
+			err_hw("[PDP] invalid packed pixelsize(%d)", pixelsize);
+			return;
+		}
+
+		byte_per_line = ALIGN(full_size.w * pixelsize / BITS_PER_BYTE, 16);
+		break;
+	case DMA_INPUT_FORMAT_BAYER:
+		/*
+		 * TODO: Is it used LSB_ZERO case?
+		 * In case of old version chip, MSB zero case is only supported
+		 */
+		if (pixelsize == DMA_INPUT_BIT_WIDTH_10BIT) {
+			format = PDP_DMA_FMT_U10BIT_UNPACK_MSB_ZERO;
+		} else if (pixelsize == DMA_INPUT_BIT_WIDTH_12BIT) {
+			format = PDP_DMA_FMT_U12BIT_UNPACK_MSB_ZERO;
+		} else if (pixelsize == DMA_INPUT_BIT_WIDTH_14BIT) {
+			format = PDP_DMA_FMT_U14BIT_UNPACK_MSB_ZERO;
+		} else {
+			err_hw("[PDP] invalid unpacked pixelsize(%d)", pixelsize);
+			return;
+		}
+		byte_per_line = ALIGN(full_size.w * 2, 16);
+		break;
+	default:
+		err_hw("[PDP] invalid bayer format (%02X)", hwformat);
+		return;
+	}
+
+	/* Bayer RDMA */
+	PDP_SET_F(base, PDP_R_RDMA_BAYER_FORMAT, PDP_F_RDMA_BAYER_FORMAT, format);
+	PDP_SET_F(base, PDP_R_RDMA_BAYER_WIDTH, PDP_F_RDMA_BAYER_WIDTH, comp_size.w);
+	PDP_SET_F(base, PDP_R_RDMA_BAYER_HEIGHT, PDP_F_RDMA_BAYER_HEIGHT, crop_size.h);
+	PDP_SET_F(base, PDP_R_RDMA_BAYER_PAY_STRIDE, PDP_F_RDMA_BAYER_PAY_STRIDE, byte_per_line);
+	PDP_SET_F(base, PDP_R_RDMA_BAYER_VOTF, PDP_F_RDMA_BAYER_VOTF, byte_per_line);
+
+	/* LIC */
+	val = 0;
+	val = PDP_SET_V(val, PDP_F_LIC_INPUT_IMAGE_WIDTH, ALIGN(crop_size.w, 4));
+	val = PDP_SET_V(val, PDP_F_LIC_INPUT_IMAGE_HEIGHT, crop_size.h);
+	PDP_SET_R(base, PDP_R_LIC_INPUT_CONFIG2, val);
+
+	/* CINFIFO_OUTPUT */
+	val = 0;
+	val = PDP_SET_V(val, PDP_F_CINFIFO_OUTPUT_IMAGE_WIDTH, crop_size.w);
+	val = PDP_SET_V(val, PDP_F_CINFIFO_OUTPUT_IMAGE_HEIGHT, crop_size.h);
+	PDP_SET_R(base, PDP_R_CINFIFO_OUTPUT_IMAGE_DIMENSIONS, val);
+}
+
 void pdp_hw_s_core(struct is_pdp *pdp, bool pd_enable, struct is_sensor_cfg *sensor_cfg,
-	u32 img_width, u32 img_height, u32 img_hwformat, u32 img_pixelsize,
+	struct is_crop img_full_size,
+	struct is_crop img_crop_size,
+	struct is_crop img_comp_size,
+	u32 img_hwformat, u32 img_pixelsize,
 	u32 pd_width, u32 pd_height, u32 pd_hwformat,
 	u32 sensor_type, u32 path, int sensor_mode, u32 fps, u32 en_sdc, u32 en_votf,
 	u32 num_buffers, ulong freq, u32 position)
 {
 	u32 rmo = PDP_RDMA_MO_DEFAULT;
-	u32 img_width_full;
 	u32 en_dma, en_afdma;
 	void __iomem *base = pdp->base;
 
-	if (en_sdc) {
-		img_width_full = sensor_cfg->width;
+	if (en_sdc)
+		pdp_hw_s_sdc(base, img_crop_size.w, img_crop_size.h, img_comp_size.w);
 
-		pdp_hw_s_sdc(base, img_width_full, img_height);
-	} else {
-		img_width_full = img_width;
-	}
+	pdp_hw_s_img_size(base, img_full_size, img_crop_size, img_comp_size,
+		img_hwformat, img_pixelsize);
+	pdp_hw_s_pd_size(base, pd_width, pd_height, pd_hwformat);
 
 	pdp_hw_s_pdstat_path(base, pd_enable);
 
-	_pdp_hw_s_cout_fifo(base, img_width_full, img_height, path);
-	_pdp_hw_s_lic_context(base, img_width_full, img_height,
-		pd_width, pd_height, img_pixelsize, sensor_type);
-	_pdp_hw_s_common(base, img_width_full, img_height);
+	_pdp_hw_s_cout_fifo(base, path);
+	_pdp_hw_s_lic_context(base, img_pixelsize, sensor_type);
+	_pdp_hw_s_common(base);
 	pdp_hw_s_line_row(base, pd_enable, sensor_mode);
 	_pdp_hw_s_int_mask(base, sensor_type, path);
 
@@ -956,9 +1173,8 @@ void pdp_hw_s_core(struct is_pdp *pdp, bool pd_enable, struct is_sensor_cfg *sen
 		en_afdma = 0;
 	}
 
-	pdp_hw_s_af_rdma_init(base, pd_width, pd_height, pd_hwformat, rmo,
-		en_votf, en_afdma);
-	pdp_hw_s_rdma_init(base, img_width, img_height, img_hwformat, img_pixelsize,
+	_pdp_hw_s_af_rdma_init(base, rmo, en_votf, en_afdma);
+	_pdp_hw_s_rdma_init(base, img_crop_size.h,
 		rmo, en_sdc, en_votf, en_dma, freq, sensor_cfg->ex_mode);
 
 	pdp_hw_s_fro(base, num_buffers);
@@ -983,9 +1199,9 @@ void pdp_hw_s_reset(void __iomem *base)
  * @base: ch0 base only
  * @ch: each context channel
  */
-void pdp_hw_s_global(void __iomem *base, u32 ch, u32 path, void *data)
+void pdp_hw_s_global(void __iomem *base, u32 ch, u32 lic_mode, void *data)
 {
-	_pdp_hw_s_lic_ch0(base, ch, path, (struct pdp_lic_lut *)data);
+	_pdp_hw_s_lic_ch0(base, ch, lic_mode, (struct pdp_lic_lut *)data);
 }
 
 /*
@@ -1063,178 +1279,6 @@ void pdp_hw_s_wdma_disable(void __iomem *base)
 	PDP_SET_F(base, PDP_R_DMA_PDSTAT_0_ENABLE, PDP_F_DMA_PDSTAT_0_ENABLE, 0);
 }
 
-/*
- * Context: O
- * CR type: Corex
- */
-void pdp_hw_s_rdma_init(void __iomem *base, u32 width, u32 height, u32 hwformat, u32 pixelsize,
-	u32 rmo, u32 en_sdc, u32 en_votf, u32 en_dma, ulong freq, u32 ex_mode)
-{
-	u32 val;
-	u32 format;
-	u32 byte_per_line;
-	u32 line_gap;
-
-	if (en_dma == 0) {
-		PDP_SET_R(base, PDP_R_RDMA_BAYER_CTRL, 0);
-		return;
-	}
-
-	/*
-	 * Keep Reset Value
-	 *
-	 * @PDP_R_RDMA_BAYER_THRESHOLD,
-	 */
-	PDP_SET_R(base, PDP_R_RDMA_BAYER_MO, rmo);
-	info("[HW][PDP] set value of RDMA_MO: %d", rmo);
-
-	/*
-	 * Set Parameter Value
-	 *
-	 * sesnro config
-	 */
-	switch (hwformat) {
-	case DMA_INPUT_FORMAT_BAYER_PACKED:
-		if (pixelsize == DMA_INPUT_BIT_WIDTH_10BIT) {
-			format = PDP_DMA_FMT_U10BIT_PACK;
-		} else if (pixelsize == DMA_INPUT_BIT_WIDTH_12BIT) {
-			format = PDP_DMA_FMT_U12BIT_PACK;
-		} else if (pixelsize == DMA_INPUT_BIT_WIDTH_14BIT) {
-			format = PDP_DMA_FMT_U14BIT_PACK;
-		} else {
-			err_hw("[PDP] invalid packed pixelsize(%d)", pixelsize);
-			return;
-		}
-
-		byte_per_line = ALIGN(width * pixelsize / BITS_PER_BYTE, 16);
-		break;
-	case DMA_INPUT_FORMAT_BAYER:
-		/*
-		 * TODO: Is it used LSB_ZERO case?
-		 * In case of old version chip, MSB zero case is only supported
-		 */
-		if (pixelsize == DMA_INPUT_BIT_WIDTH_10BIT) {
-			format = PDP_DMA_FMT_U10BIT_UNPACK_MSB_ZERO;
-		} else if (pixelsize == DMA_INPUT_BIT_WIDTH_12BIT) {
-			format = PDP_DMA_FMT_U12BIT_UNPACK_MSB_ZERO;
-		} else if (pixelsize == DMA_INPUT_BIT_WIDTH_14BIT) {
-			format = PDP_DMA_FMT_U14BIT_UNPACK_MSB_ZERO;
-		} else {
-			err_hw("[PDP] invalid unpacked pixelsize(%d)", pixelsize);
-			return;
-		}
-		byte_per_line = ALIGN(width * 2, 16);
-		break;
-	default:
-		err_hw("[PDP] invalid bayer format (%02X)", hwformat);
-		return;
-	}
-
-	PDP_SET_F(base, PDP_R_RDMA_BAYER_FORMAT, PDP_F_RDMA_BAYER_FORMAT, format);
-	PDP_SET_F(base, PDP_R_RDMA_BAYER_WIDTH, PDP_F_RDMA_BAYER_WIDTH, width);
-	PDP_SET_F(base, PDP_R_RDMA_BAYER_HEIGHT, PDP_F_RDMA_BAYER_HEIGHT, height);
-	PDP_SET_F(base, PDP_R_RDMA_BAYER_PAY_STRIDE, PDP_F_RDMA_BAYER_PAY_STRIDE, byte_per_line);
-	PDP_SET_F(base, PDP_R_RDMA_BAYER_VOTF, PDP_F_RDMA_BAYER_VOTF, byte_per_line);
-
-	/*
-	 * fixed
-	 * PDP_R_RDMA_LINE_GAP should be bigger than 3AA minimum line gap.
-	 * 3AA line gap is 0x32.
-	 */
-	line_gap = PDP_RDMA_LINE_GAP;
-	if (en_votf && (ex_mode == EX_DUALFPS_960 || ex_mode == EX_DUALFPS_480)) {
-		/* HACK: 3ms is forcly added in SSM mode for preventing config lock delay error. */
-		u32 total_gap = 3000; /* us */
-
-		line_gap += (freq / MHZ) * total_gap / height;
-		info_hw("[PDP] Added line gap (freq:  %lu, line_gap: %d)\n", freq, line_gap);
-	}
-
-	PDP_SET_R(base, PDP_R_RDMA_LINE_GAP, line_gap);
-
-	/* BAYER */
-	val = 0;
-	val = PDP_SET_V(val, PDP_F_RDMA_BAYER_CTRL_SDC, en_sdc);
-	val = PDP_SET_V(val, PDP_F_RDMA_BAYER_CTRL_VOTF, en_votf);
-	val = PDP_SET_V(val, PDP_F_RDMA_BAYER_CTRL_STRIDE, en_dma);
-	val = PDP_SET_V(val, PDP_F_RDMA_BAYER_CTRL_ENABLE, en_dma);
-	PDP_SET_R(base, PDP_R_RDMA_BAYER_CTRL, val);
-}
-
-/*
- * Context: O
- * CR type: Corex
- */
-void pdp_hw_s_af_rdma_init(void __iomem *base, u32 width, u32 height, u32 hwformat, u32 rmo,
-	u32 en_votf, u32 en_dma)
-{
-	u32 val;
-	u32 format;
-	u32 byte_per_line;
-
-	if (en_dma == 0) {
-		PDP_SET_R(base, PDP_R_RDMA_AF_CTRL, 0);
-		return;
-	}
-
-	/*
-	 * Keep Reset Value
-	 *
-	 * @PDP_R_RDMA_AF_MO,
-	 * @PDP_R_RDMA_AF_THRESHOLD,
-	 */
-	PDP_SET_R(base, PDP_R_RDMA_AF_MO, rmo);
-
-	/*
-	 * Set Parameter Value
-	 *
-	 * sesnro config
-	 */
-	switch (hwformat) {
-	case HW_FORMAT_RAW10:
-		format = PDP_DMA_FMT_U10BIT_UNPACK_MSB_ZERO;
-		byte_per_line = ALIGN(width * 16 / BITS_PER_BYTE, 16);
-		break;
-	default:
-		err_hw("[PDP] invalid af format (%02X)", hwformat);
-		return;
-	}
-
-	PDP_SET_F(base, PDP_R_RDMA_AF_FORMAT, PDP_F_RDMA_AF_FORMAT, format);
-	PDP_SET_F(base, PDP_R_RDMA_AF_WIDTH, PDP_F_RDMA_AF_WIDTH, width);
-	PDP_SET_F(base, PDP_R_RDMA_AF_HEIGHT, PDP_F_RDMA_AF_HEIGHT, height);
-	PDP_SET_F(base, PDP_R_RDMA_AF_STRIDE, PDP_F_RDMA_AF_STRIDE, byte_per_line);
-	PDP_SET_F(base, PDP_R_RDMA_AF_VOTF, PDP_F_RDMA_AF_VOTF, byte_per_line);
-
-	/* AF */
-	val = 0;
-	val = PDP_SET_V(val, PDP_F_RDMA_AF_CTRL_VOTF, en_votf);
-	val = PDP_SET_V(val, PDP_F_RDMA_AF_CTRL_STRIDE, en_dma);
-	val = PDP_SET_V(val, PDP_F_RDMA_AF_CTRL_ENABLE, en_dma);
-	PDP_SET_R(base, PDP_R_RDMA_AF_CTRL, val);
-}
-
-/*
- * When using AF RDMA, line ratio between bayer DMA and af DMA must be 4:1.
- * 4 If the raio is not 4:1, tail count must be reset at frame end time.
- */
-void pdp_hw_s_af_rdma_tail_count_reset(void __iomem *base)
-{
-	u32 val;
-	u32 enable;
-
-	/* AF */
-	val = PDP_GET_R(base, PDP_R_RDMA_AF_CTRL);
-
-	enable = PDP_GET_V(val, PDP_F_RDMA_AF_CTRL_ENABLE);
-	if (enable) {
-		val = PDP_SET_V(val, PDP_F_RDMA_AF_CTRL_ENABLE, 0);
-		PDP_SET_R_DIRECT(base, PDP_R_RDMA_AF_CTRL, val);
-
-		val = PDP_SET_V(val, PDP_F_RDMA_AF_CTRL_ENABLE, 1);
-		PDP_SET_R_DIRECT(base, PDP_R_RDMA_AF_CTRL, val);
-	}
-}
 /*
  * Context: O
  * CR type: Corex

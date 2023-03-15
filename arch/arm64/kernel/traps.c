@@ -239,7 +239,7 @@ void dump_backtrace(struct pt_regs *regs, struct task_struct *tsk)
 }
 
 #ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT
-static void dump_backtrace_auto_summary(struct pt_regs *regs, struct task_struct *tsk)
+void dump_backtrace_auto_summary(struct pt_regs *regs, struct task_struct *tsk)
 {
 	struct stackframe frame;
 	int skip = 0;
@@ -324,6 +324,14 @@ void show_stack(struct task_struct *tsk, unsigned long *sp)
 	dump_backtrace(NULL, tsk);
 	barrier();
 }
+
+#ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT
+void show_stack_auto_comment(struct task_struct *tsk, unsigned long *sp)
+{
+	dump_backtrace_auto_summary(NULL, tsk);
+	barrier();
+}
+#endif /* CONFIG_SEC_DEBUG_AUTO_COMMENT */
 
 #ifdef CONFIG_PREEMPT
 #define S_PREEMPT " PREEMPT"

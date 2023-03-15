@@ -30,9 +30,17 @@
 #include "pmu-gnss.h"
 #include "gnss_utils.h"
 
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+#include <linux/of_gpio.h>
+#endif
+
 #define BCMD_WAKELOCK_TIMEOUT	(HZ / 10) /* 100 msec */
 #define REQ_BCMD_TIMEOUT	(200) /* ms */
 #define SW_INIT_TIMEOUT	(1000) /* ms */
+
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+static int register_gnss_pwr_interrupt(struct gnss_ctl *gc);
+#endif
 
 static void gnss_state_changed(struct gnss_ctl *gc, enum gnss_state state)
 {
@@ -128,6 +136,95 @@ static irqreturn_t gnss_mbox_kepler_rsp_fault_info(int irq, void *arg)
 
 static DEFINE_MUTEX(reset_lock);
 
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+static int check_link_order = 1;
+static irqreturn_t gnss_power_handler(int irq, void *data)
+{
+	struct gnss_ctl *gc = (struct gnss_ctl *)data;
+	struct io_device *iod = gc->iod;
+	int gnss_pwr = gif_gpio_get_value(gc->m2_gpio_gnss_pwr, true);
+
+	gif_disable_irq_nosync(&gc->m2_irq_gnss_pwr);
+
+	if (gc == NULL) {
+		gif_err_limited("gnss_ctl is NOT initialized - IGNORING interrupt\n");
+		goto irq_done;
+	}
+
+	//if (gc->gnss_state != STATE_ONLINE) {
+	//	gif_err_limited("gnss_state is NOT ONLINE - IGNORING interrupt\n");
+	//	goto irq_done;
+	//}
+
+	gif_info("[GNSS_POWER Handler] state:%s gnss_pwr:%d\n",
+			get_gnss_state_str(gc->gnss_state), gnss_pwr);
+
+	if (gnss_pwr == check_link_order) {
+		gif_info("skip : gnss_power val is same with before : %d\n", gnss_pwr);
+		gc->apwake_irq_chip->irq_set_type(
+			irq_get_irq_data(gc->m2_irq_gnss_pwr.num),
+			(gnss_pwr == 1 ? IRQF_TRIGGER_LOW : IRQF_TRIGGER_HIGH));
+		gif_enable_irq(&gc->m2_irq_gnss_pwr);
+		return IRQ_HANDLED;
+	}
+	check_link_order = gnss_pwr;
+
+	if (gnss_pwr == 1) {
+		gif_info("gnss power on\n");
+		gc->gnss_pwr = POWER_ON;
+	} else if (gnss_pwr == 0) {
+		gif_info("gnss power off\n");
+		gc->gnss_pwr = POWER_OFF;
+	}
+	gc->is_irq_received = true;
+	wake_up(&iod->wq);
+
+	gc->apwake_irq_chip->irq_set_type(
+		irq_get_irq_data(gc->m2_irq_gnss_pwr.num),
+		(gnss_pwr == 1 ? IRQF_TRIGGER_LOW : IRQF_TRIGGER_HIGH));
+	gif_enable_irq(&gc->m2_irq_gnss_pwr);
+
+	return IRQ_HANDLED;
+
+irq_done:
+	gif_disable_irq_nosync(&gc->m2_irq_gnss_pwr);
+
+	return IRQ_HANDLED;
+}
+
+static int register_gnss_pwr_interrupt(struct gnss_ctl *gc)
+{
+	int ret;
+
+	if (gc == NULL)
+		return -EINVAL;
+
+	if (gc->m2_irq_gnss_pwr.registered == true) {
+		gif_info("Set IRQF_TRIGGER_LOW to gnss_power gpio\n");
+		check_link_order = 1;
+		ret = gc->apwake_irq_chip->irq_set_type(
+				irq_get_irq_data(gc->m2_irq_gnss_pwr.num),
+				IRQF_TRIGGER_LOW);
+		return ret;
+	}
+
+	gif_info("Register GNSS POWER interrupt.\n");
+	gif_init_irq(&gc->m2_irq_gnss_pwr, gc->m2_irq_gnss_pwr.num,
+			"gnss_power", IRQF_TRIGGER_LOW);
+
+	ret = gif_request_irq(&gc->m2_irq_gnss_pwr, gnss_power_handler, gc);
+	if (ret) {
+		gif_err("%s: ERR! request_irq(%s#%d) fail (%d)\n",
+			gc->name, gc->m2_irq_gnss_pwr.name,
+			gc->m2_irq_gnss_pwr.num, ret);
+		gif_err("xxx\n");
+		return ret;
+	}
+
+	return ret;
+}
+#endif
+
 static int kepler_hold_reset(struct gnss_ctl *gc)
 {
 	int ret = 0;
@@ -192,7 +289,7 @@ static int kepler_release_reset(struct gnss_ctl *gc)
 		gif_err("%s: sw_init_cmpl TIMEOUT!\n", gc->name);
 		return -EIO;
 	}
-	mdelay(100);
+	msleep(100);
 	ret = gc->pmu_ops->req_security();
 	if (ret != 0) {
 		gif_err("req_security error! %d\n", ret);
@@ -239,13 +336,22 @@ static int kepler_power_on(struct gnss_ctl *gc)
 		gif_err("%s: sw_init_cmpl TIMEOUT!\n", gc->name);
 		return -EIO;
 	}
-	mdelay(100);
+	msleep(100);
 	ret = gc->pmu_ops->req_security();
 	if (ret != 0) {
 		gif_err("req_security error! %d\n", ret);
 		return ret;
 	}
 	gc->pmu_ops->req_baaw();
+
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	ret = register_gnss_pwr_interrupt(gc);
+	if (ret) {
+		gif_err("Err: register_gnss_pwr_interrupt:%d\n", ret);
+		return ret;
+	}
+	gif_enable_irq(&gc->m2_irq_gnss_pwr);
+#endif
 
 	gif_info("%s---\n", __func__);
 
@@ -379,6 +485,15 @@ static int kepler_req_bcmd(struct gnss_ctl *gc, u16 cmd_id, u16 flags,
 
 	gif_info("BCMD cmd_id 0x%x returned 0x%x\n", cmd_id, ret_val);
 
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	ret = register_gnss_pwr_interrupt(gc);
+	if (ret) {
+		gif_err("Err: register_gnss_pwr_interrupt:%d\n", ret);
+		return ret;
+	}
+	gif_enable_irq(&gc->m2_irq_gnss_pwr);
+#endif
+
 	mutex_unlock(&reset_lock);
 
 	return ret_val;
@@ -421,6 +536,23 @@ static void gnss_get_ops(struct gnss_ctl *gc)
 	gc->ops.req_bcmd = kepler_req_bcmd;
 }
 
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+static void gnss_get_pdata(struct gnss_ctl *gc, struct gnss_pdata *pdata)
+{
+	struct platform_device *pdev = to_platform_device(gc->dev);
+	struct device_node *np = pdev->dev.of_node;
+
+	/* GNSS Power */
+	gc->m2_gpio_gnss_pwr = of_get_named_gpio(np, "gpio_gnss_pwr_on_off", 0);
+	if (gc->m2_gpio_gnss_pwr < 0) {
+		gif_err("Can't Get m2_gpio_gnss_pwr!\n");
+		return;
+	}
+	gpio_request(gc->m2_gpio_gnss_pwr, "M2_W_DISABLE2_N");
+	gc->m2_irq_gnss_pwr.num = gpio_to_irq(gc->m2_gpio_gnss_pwr);
+}
+#endif
+
 int init_gnssctl_device(struct gnss_ctl *gc, struct gnss_pdata *pdata)
 {
 	int ret = 0, irq = 0;
@@ -432,6 +564,10 @@ int init_gnssctl_device(struct gnss_ctl *gc, struct gnss_pdata *pdata)
 	gnss_get_ops(gc);
 	gnss_get_pmu_ops(gc);
 
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	gnss_get_pdata(gc, pdata);
+#endif
+
 	dev_set_drvdata(gc->dev, gc);
 
 	wake_lock_init(&gc->gc_fault_wake_lock,
@@ -442,6 +578,15 @@ int init_gnssctl_device(struct gnss_ctl *gc, struct gnss_pdata *pdata)
 	init_completion(&gc->sw_init_cmpl);
 
 	pdev = to_platform_device(gc->dev);
+
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	gif_err("Register GPIO interrupts\n");
+	gc->apwake_irq_chip = irq_get_chip(gc->m2_irq_gnss_pwr.num);
+	if (gc->apwake_irq_chip == NULL) {
+		gif_err("Can't get irq_chip structure!!!!\n");
+		return -EINVAL;
+	}
+#endif
 
 	/* GNSS_ACTIVE */
 	irq = platform_get_irq_byname(pdev, "ACTIVE");

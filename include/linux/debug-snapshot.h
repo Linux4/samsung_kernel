@@ -144,6 +144,23 @@ extern u64 secdbg_snapshot_get_hardlatency_info(unsigned int cpu);
 #define secdbg_snapshot_get_hardlatency_info(a)	do { } while (0)
 #endif
 
+#ifdef CONFIG_SEC_DEBUG_WQ_LOCKUP_INFO
+extern void secdbg_show_sched_info(unsigned int cpu, int count);
+extern int secdbg_show_busy_task(unsigned int cpu, unsigned long long duration, int count);
+extern struct task_struct *get_the_busiest_task(void);
+#else
+#define secdbg_show_sched_info(a, b)	do { } while (0)
+static inline int secdbg_show_busy_task(unsigned int cpu, unsigned long long duration, int count)
+{
+        return -1;
+}
+
+static struct task_struct *get_the_busiest_task(void)
+{
+	return NULL;
+}
+#endif
+
 #ifdef CONFIG_OF_RESERVED_MEM
 extern int dbg_snapshot_reserved_mem_check(unsigned long node, unsigned long size);
 #else

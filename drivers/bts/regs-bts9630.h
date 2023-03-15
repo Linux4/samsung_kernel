@@ -69,6 +69,8 @@
 #define BRB_CUTOFF_CON	0x374
 #define WDBUF_CUTOFF_CON	0x37C
 
+#define PF_TOKEN_CON	0x020
+#define PF_TOKEN_TH0	0x024
 #define RREQ_THRT_CON	0x02C
 #define RREQ_THRT_MO_P2	0x044
 #define PF_QOS_TIMER_0	0x070

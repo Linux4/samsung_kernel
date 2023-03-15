@@ -143,7 +143,8 @@ struct is_device_csi {
 	bool				potf;
 	bool				f_id_dec; /* For frame id decoder in FRO mode */
 	atomic_t			bufring_cnt; /* For double buffering in FRO mode */
-	u32				batch_num;
+	u32				dma_batch_num;
+	u32				otf_batch_num;
 	spinlock_t			dma_seq_slock;
 
 	wait_queue_head_t		dma_flush_wait_q;

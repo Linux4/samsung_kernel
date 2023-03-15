@@ -30,6 +30,7 @@
 #include <asm/cacheflush.h>
 #include <soc/samsung/exynos-pmu.h>
 #include <soc/samsung/exynos-debug.h>
+#include <soc/samsung/acpm_ipc_ctrl.h>
 
 #define	REBOOT_REASON_WTSR		(1 << 0)
 #define	REBOOT_REASON_SMPL		(1 << 1)
@@ -68,6 +69,7 @@ static void simulate_UNALIGNED(char *arg);
 static void simulate_WRITE_RO(char *arg);
 static void simulate_OVERFLOW(char *arg);
 static void simulate_CACHE_FLUSH(char *arg);
+static void simulate_APM_WDT(char *arg);
 
 static int exynos_debug_test_desc_init(struct device_node *np);
 
@@ -134,6 +136,7 @@ static struct force_error_item force_error_vector[] = {
 	{"overflow",	&simulate_OVERFLOW},
 	{"badsched",	&simulate_BAD_SCHED},
 	{"cacheflush",	&simulate_CACHE_FLUSH},
+	{"apmwdt",	&simulate_APM_WDT},
 };
 
 static struct force_error_test_item test_vector[] = {
@@ -163,6 +166,7 @@ static struct force_error_test_item test_vector[] = {
 	{"spabort",			0, REBOOT_REASON_NA},
 	{"overflow",			0, REBOOT_REASON_NA},
 	{"cacheflush",			1, REBOOT_REASON_WDT},
+	{"apmwdt",			0, REBOOT_REASON_WDT},
 };
 
 static int debug_force_error(const char *val)
@@ -684,6 +688,12 @@ static void simulate_CACHE_FLUSH(char *arg)
 	memset(buffer[cpu], 0x5A, PAGE_SIZE * 2);
 	dbg_snapshot_set_debug_test_buffer_addr(addr, cpu);
 	s3c2410wdt_set_emergency_reset(10, 0);
+}
+
+static void simulate_APM_WDT(char *arg)
+{
+	exynos_acpm_force_apm_wdt_reset();
+	asm volatile("b .");
 }
 
 static ssize_t exynos_debug_test_write(struct file *file,

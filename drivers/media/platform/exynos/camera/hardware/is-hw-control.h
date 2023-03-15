@@ -153,6 +153,7 @@ enum corex_index {
 enum lic_sram_index {
 	LIC_OFFSET_0 = 0,
 	LIC_OFFSET_1,
+	LIC_OFFSET_2,
 	LIC_TRIGGER_MODE,
 	LIC_OFFSET_MAX,
 };
@@ -163,6 +164,21 @@ enum lic_trigger_index {
 	LIC_CONTEXT1_TRIGGER,
 	LIC_CONTEXT2_TRIGGER,
 	LIC_TRIGGER_MAX,
+};
+
+enum is_hw_streaming_state {
+	HW_SENSOR_STREAMING = 0,
+	HW_ISCHAIN_STREAMING = 1,
+};
+
+enum lboffset_trigger {
+	LBOFFSET_NONE,
+	LBOFFSET_A_TO_B,
+	LBOFFSET_B_TO_A,
+	LBOFFSET_A_DIRECT,
+	LBOFFSET_B_DIRECT,
+	LBOFFSET_READ,
+	LBOFFSET_MAX,
 };
 
 struct cal_info {
@@ -194,7 +210,6 @@ struct hw_ip_count{
 };
 
 struct hw_ip_status {
-	atomic_t		otf_start;
 	atomic_t		Vvalid;
 	wait_queue_head_t	wait_queue;
 };
@@ -413,7 +428,6 @@ struct is_hardware {
 	/* fast read out in hardware */
 	bool				hw_fro_en;
 	unsigned long			hw_recovery_flag;
-	u32				recovery_numbuffers;
 
 	/*
 	 * To deliver MCSC noise index.
@@ -421,6 +435,7 @@ struct is_hardware {
 	 */
 	struct camera2_ni_udm		ni_udm[2][NI_BACKUP_MAX];
 	u32				lic_offset[LIC_CHAIN_NUM][LIC_CHAIN_OFFSET_NUM];
+	u32				lic_offset_def[LIC_CHAIN_OFFSET_NUM];
 	atomic_t			lic_updated;
 };
 

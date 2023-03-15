@@ -702,7 +702,7 @@ void update_memsize_late_free(void)
 		addr = late_free_ip_addr[i];
 		first = page_to_pfn(late_free_first_page[i]) << PAGE_SHIFT;
 		last = page_to_pfn(late_free_last_page[i]) << PAGE_SHIFT;
-		pr_debug("%s %lx--%lx %ps\n", __func__, first, last + PAGE_SIZE,
+		pr_debug("%s %llx--%llx %ps\n", __func__, first, last + PAGE_SIZE,
 			 (void*)addr);
 		free_memsize_reserved(first, last + PAGE_SIZE - first);
 		late_free_first_page[i] = 0;

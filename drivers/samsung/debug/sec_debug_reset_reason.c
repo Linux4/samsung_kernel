@@ -262,7 +262,7 @@ static int secdbg_reset_reason_pwrsrc_show(struct seq_file *m, void *v)
 
 	pwrsrc_buf.already = 1;
 out:
-	seq_printf(m, pwrsrc_buf.buf);
+	seq_printf(m, "%s", pwrsrc_buf.buf);
 
 	return 0;
 }
@@ -423,7 +423,7 @@ static int secdbg_reset_reason_extra_show(struct seq_file *m, void *v)
 	extra_buf.already = 1;
 
 out:
-	seq_printf(m, extra_buf.buf);
+	seq_printf(m, "%s", extra_buf.buf);
 
 	return 0;
 }

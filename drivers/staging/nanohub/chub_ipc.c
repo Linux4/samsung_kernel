@@ -550,11 +550,6 @@ retry:
 			return -EINVAL;
 		}
 
-		/* get evt channel */
-		cur_evt->evt = evt;
-		cur_evt->status = IPC_EVT_EQ;
-		ipc_evt->ctrl.eq = (ipc_evt->ctrl.eq + 1) % IPC_EVT_NUM;
-		/* gen interrupt*/
 		do {
 #ifdef IPC_DEBUG
 			if (trycnt == 1)
@@ -565,6 +560,9 @@ retry:
 					if (!ipc_hw_read_gen_int_status_reg(AP, i)) {
 						ipc_evt->ctrl.pending[i] = 1;
 						cur_evt->irq = i;
+						cur_evt->evt = evt;
+						cur_evt->status = IPC_EVT_EQ;
+						ipc_evt->ctrl.eq = (ipc_evt->ctrl.eq + 1) % IPC_EVT_NUM;
 						ipc_hw_gen_interrupt(AP, cur_evt->irq);
 						get_evt = 1;
 						goto out;

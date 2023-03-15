@@ -24,6 +24,14 @@ static struct regmap *pmureg;
 static void __iomem *pmu_alive;
 static spinlock_t update_lock;
 
+#ifdef CONFIG_SOC_EXYNOS9630
+void __iomem *i3c_vgpio_tx_monitor;
+#define	G3D_OUT			(0x1f20)
+#define	PWRRGTON		(1 << 2)
+#define	VGPIO_TX_MONITOR	(0x11061700)
+#define	VGPIO_TX_MONITOR_TXDONE	(1 << 26)
+#endif
+
 /* Atomic operation for PMU_ALIVE registers. (offset 0~0x3FFF)
    When the targer register can be accessed by multiple masters,
    This functions should be used. */
@@ -258,8 +266,49 @@ static int exynos_pmu_probe(struct platform_device *pdev)
 	}
 	spin_lock_init(&update_lock);
 
+#ifdef CONFIG_SOC_EXYNOS9630
+	i3c_vgpio_tx_monitor = ioremap(VGPIO_TX_MONITOR, SZ_32);
+	if (!i3c_vgpio_tx_monitor)
+		pr_err("%s: i3c_vgpio_tx_monitor ioremap failed\n", __func__);
+#endif
+
 	return 0;
 }
+
+#ifdef CONFIG_SOC_EXYNOS9630
+/* for NFC Card mode WA */
+static void exynos_pmu_shutdown(struct platform_device *pdev)
+{
+	if (system_state == SYSTEM_POWER_OFF) {
+		u32 g3d_retry = 0;
+		u32 val = 0;
+
+		/* Add NFC Card mode workaround */
+		exynos_pmu_read(G3D_OUT, &val);
+		val |= PWRRGTON;
+		pr_err("PMU shutdown, Write PWR 0x%08X\n", val);
+		exynos_pmu_write(G3D_OUT, val);
+
+		if (!i3c_vgpio_tx_monitor) {
+			udelay(500);
+			return;
+		}
+
+		while (1) {
+			val = readl(i3c_vgpio_tx_monitor);
+			val &= VGPIO_TX_MONITOR_TXDONE;
+			if ((val == VGPIO_TX_MONITOR_TXDONE) || (g3d_retry >= 1000)) {
+				pr_err("PMU shutdown, g3d_try is %d\n", g3d_retry);
+				break;
+			} else {
+				g3d_retry ++;
+				udelay(50);
+			}
+		}
+		udelay(500);
+	}
+}
+#endif
 
 static const struct of_device_id of_exynos_pmu_match[] = {
 	{ .compatible = "samsung,exynos-pmu", },
@@ -278,6 +327,9 @@ static struct platform_driver exynos_pmu_driver = {
 		.of_match_table = of_exynos_pmu_match,
 	},
 	.probe		= exynos_pmu_probe,
+#ifdef CONFIG_SOC_EXYNOS9630
+	.shutdown	= exynos_pmu_shutdown,
+#endif
 	.id_table	= exynos_pmu_ids,
 };
 

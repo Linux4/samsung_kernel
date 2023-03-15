@@ -169,7 +169,7 @@
 /*
  * [Mode Information]
  *
- * Reference File : IMX616-AAJH5_SAM-DPHY_26MHz_RegisterSetting_ver12.00-20.00_b1_190925.xlsx
+ * Reference File : IMX616-AAJH5_SAM-DPHY_26MHz_RegisterSetting_ver14.00-20.01_b1_191023.xlsx
  *
  * -. Global Setting -
  *
@@ -177,31 +177,32 @@
  *    [ 0 ] REG_H : 2x2 Binning 3264x2448 30fps    : Single Still Preview (4:3)     ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
  *    [ 1 ] REG_I : 2x2 Binning 3264x1836 30fps    : Single Still Preview (16:9)    ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
  *    [ 2 ] REG_T : 2x2 Binning 3264x1836 60fps    : Single Video (16:9)            ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
- *    [ 3 ] REG_J : 2x2 Binning 3264x1504 30fps    : Single Still Preview (19.5:9)  ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
- *    [ 4 ] REG_Q : 2X2 Binning 3264x1472 30fps    : Single Still Preview (20:9)    ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
- *    [ 5 ] REG_N : 2x2 Binning 2448x2448 30fps    : Single Still Preview (1:1)     ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
- *    [ 6 ] REG_Y : 2x2 Binning 2144x1200 120fps   : Single Video (16:9)              ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
+ *    [ 3 ] REG_I_2 : 2x2 Binning 3264x1836 120fps : Single Video (16:9)            ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
+ *    [ 4 ] REG_J : 2x2 Binning 3264x1504 30fps    : Single Still Preview (19.5:9)  ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
+ *    [ 5 ] REG_Q : 2X2 Binning 3264x1472 30fps    : Single Still Preview (20:9)    ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
+ *    [ 6 ] REG_N : 2x2 Binning 2448x2448 30fps    : Single Still Preview (1:1)     ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
+ *    [ 7 ] REG_Y : 2x2 Binning 2144x1200 120fps   : Single Video (16:9)            ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
  *
- * -. 68 2x2 BIN For Single Still Preview / Capture -
- *    [ 7 ] REG_K : 2x2 Binning 2640x1980 30fps    : Single Still Preview (4:3)    ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
- *    [ 8 ] REG_L : 2x2 Binning 2640x1488 30fps    : Single Still Preview (16:9)   ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
- *    [ 9 ] REG_M : 2x2 Binning 2640x1216 30fps    : Single Still Preview (19.5:9) ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
- *    [ 10 ] REG_O_2 : 2x2 Binning 1968x1968 30fps  : Single Still Preview (1:1)    ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
+ * -. 68 deg 2x2 BIN For Single Still Preview / Capture -
+ *    [ 8 ] REG_K : 2x2 Binning 2640x1980 30fps    : Single Still Preview (4:3)     ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
+ *    [ 9 ] REG_L : 2x2 Binning 2640x1488 30fps    : Single Still Preview (16:9)    ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
+ *    [ 10 ] REG_M : 2x2 Binning 2640x1216 30fps   : Single Still Preview (19.5:9)  ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
+ *    [ 11 ] REG_O_2 : 2x2 Binning 1968x1968 30fps : Single Still Preview (1:1)     ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
  *
  * -. 2x2 BIN H2V2 For FastAE
- *    [ 11 ] REG_R_2 : 2x2 Binning 1632x1224 120fps     : FAST AE (4:3)              ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
+ *    [ 12 ] REG_R_2 : 2x2 Binning 1632x1224 120fps   : FAST AE (4:3)               ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2054
  *
  * -. FULL Remosaic For Single Still Remosaic Capture -
- *    [ 12 ] REG_F  : Full Remosaic 6528x4896 24fps   : Single Still Remosaic Capture (4:3) , MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
+ *    [ 13 ] REG_F  : Full Remosaic 6528x4896 24fps   : Single Still Remosaic Capture (4:3) , MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
  *
- * -. 68 FULL Remosaic For Single Still Remosaic Capture -
- *    [ 13 ] REG_G : Full Remosaic 5264x3948 24fps    : Single Still Remosaic Capture (4:3) , MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
+ * -. 68 deg FULL Remosaic For Single Still Remosaic Capture -
+ *    [ 14 ] REG_G : Full Remosaic 5264x3948 24fps    : Single Still Remosaic Capture (4:3) , MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
  *
  * -. QBC HDR
- *    [ 14 ] REG_S : QBC HDR 3264x2448 24fps          : Single Still Preview (4:3)   ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
- *    [ 15 ] REG_W : QHDR Seamless 3264x1836 30fps    : QHDR seamless                ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
- *    [ 16 ] REG_X : 2x2Bin Seamless 3264x1836 30fps   : 2X2Bin seamless              ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
- *    [ 17 ] REG_Z : 2x2Bin Seamless 3264x2448 24fps   : 2X2Bin seamless              ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
+ *    [ 15 ] REG_S : QBCHDR Seamless 3264x2448 24fps  : QBCHDR seamless (4:3)        ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
+ *    [ 16 ] REG_W : QBCHDR Seamless 3264x1836 30fps  : QBCHDR seamless (16:9)       ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
+ *    [ 17 ] REG_X : 2x2Bin Seamless 3264x1836 30fps  : 2X2Bin seamless (16:9)       ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
+ *    [ 18 ] REG_Z : 2x2Bin Seamless 3264x2448 24fps  : 2X2Bin seamless (4:3)        ,  MIPI lane: 4, MIPI data rate(Mbps/lane): 2218
  *
  */
 
@@ -232,8 +233,8 @@ enum sensor_imx616_mode_enum {
 	 * : consist of QBCHDR mode and QBCHDR-TRANSITION-CAPABLE mode
 	 */
 	IMX616_MODE_QBCHDR_START ,		/* QBCHDR mode start*/
-	IMX616_MODE_QBCHDR_3264x2448_24FPS = IMX616_MODE_QBCHDR_START,
-	IMX616_MODE_QHDR_SEAMLESS_3264x1836_30FPS,
+	IMX616_MODE_QBCHDR_SEAMLESS_3264x2448_24FPS = IMX616_MODE_QBCHDR_START,
+	IMX616_MODE_QBCHDR_SEAMLESS_3264x1836_30FPS,
 	IMX616_MODE_QBCHDR_CAPABLE_START,	/* QBCHDR transition-capable mode start*/
 	IMX616_MODE_2X2BIN_SEAMLESS_3264x1836_30FPS = IMX616_MODE_QBCHDR_CAPABLE_START,
 	IMX616_MODE_2X2BIN_SEAMLESS_3264x2448_24FPS,

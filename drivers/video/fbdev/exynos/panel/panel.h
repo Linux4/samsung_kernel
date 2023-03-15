@@ -1,9 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * linux/drivers/video/fbdev/exynos/panel/panel.h
- *
- * Header file for Samsung Common LCD Driver.
- *
- * Copyright (c) 2016 Samsung Electronics
+ * Copyright (c) Samsung Electronics Co., Ltd.
  * Gwanghui Lee <gwanghui.lee@samsung.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -95,14 +92,6 @@ enum {
 
 struct maptbl;
 struct mdnie_info;
-
-struct common_panel_ops {
-	int (*tx_cmds)(struct panel_info *, const void *, int);
-	int (*rx_cmds)(struct panel_info *, u8 *, const void *, int);
-#if CONFIG_OF
-	int (*parse_dt)(const struct device_node *);
-#endif
-};
 
 /*
  * [command types]
@@ -771,6 +760,10 @@ enum PANEL_SEQ {
 	PANEL_I2C_EXIT_SEQ,
 	PANEL_I2C_INDEX_END = PANEL_I2C_EXIT_SEQ,
 #endif
+#ifdef CONFIG_USE_DDI_BLACK_GRID
+	PANEL_DDI_BLACK_GRID_ON_SEQ,
+	PANEL_DDI_BLACK_GRID_OFF_SEQ,
+#endif
 	MAX_PANEL_SEQ,
 };
 
@@ -995,8 +988,7 @@ enum {
 #endif
 
 #ifdef CONFIG_SUPPORT_ISC_TUNE_TEST
-enum stm_field_num
-{
+enum stm_field_num {
 	STM_CTRL_EN = 0,
 	STM_MAX_OPT,
 	STM_DEFAULT_OPT,
@@ -1011,8 +1003,7 @@ enum stm_field_num
 	STM_FIELD_MAX
 };
 
-static const char* str_stm_fied[STM_FIELD_MAX] =
-{
+static const char *str_stm_fied[STM_FIELD_MAX] = {
 	"stm_ctrl_en=",
 	"stm_max_opt=",
 	"stm_default_opt=",
@@ -1128,7 +1119,7 @@ struct panel_properties {
 	u8 isc_threshold;
 	u8 stm_field_info[STM_FIELD_MAX];
 #endif
-	u8* gamma_control_buf;
+	u8 *gamma_control_buf;
 	bool mres_updated;
 	u32 mres_mode;
 	u32 xres;

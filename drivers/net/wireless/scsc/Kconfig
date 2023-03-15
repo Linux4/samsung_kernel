@@ -81,12 +81,6 @@ config SCSC_WLAN_MUTEX_DEBUG
 	---help---
 	  This option enables the Mutex debug reports in slsi wlan driver.
 
-config CONFIG_SCSC_WLAN_BLOCK_IPV6
-	bool "Block IPv6"
-	default n
-	---help---
-	  This option blocks IPv6 packets.
-
 config CONFIG_SCSC_WLAN_DISABLE_NAT_KA
 	bool "Disable NAT"
 	default n
@@ -106,6 +100,21 @@ config SCSC_WLAN_NAT_KEEPALIVE_DISABLE
 	---help---
 	  This option disables the NAT KeepAlive
 	  Offload Feature.
+
+config SCSC_WIFILOGGER
+        tristate "Samsung SCSC Android Wi-Fi Logger"
+        depends on SCSC_CORE
+        default n
+
+config SCSC_WIFILOGGER_DEBUGFS
+        bool "Samsung SCSC Android Wi-Fi Logger DebugFS"
+        depends on SCSC_WIFILOGGER && DEBUG_FS
+        default y
+
+config SCSC_WIFILOGGER_TEST
+        bool "Samsung SCSC Android Wi-Fi Logger Test Harness"
+        depends on SCSC_WIFILOGGER && SCSC_WIFILOGGER_DEBUGFS
+        default n
 
 config SCSC_WLAN_ENHANCED_LOGGING
 	bool "Enable Enhanced Logging"
@@ -152,9 +161,14 @@ config SCSC_WLAN_WIFI_SHARING
 
 config SCSC_WLAN_SAE_CONFIG
         bool "Wpa3 Support"
-        default y
+        default n
         ---help---
           This option tells if wpa3  is supported or not.
+config SCSC_WLAN_SAE_PWE
+        bool "WPA3 SAE PWE Support"
+        default n
+        ---help---
+          This option tells if wpa3 sae pwe is supported or not.
 
 config SCSC_WLAN_ENABLE_MAC_RANDOMISATION
         bool "Wifi Mac Randomization Support"
@@ -172,7 +186,7 @@ config SCSC_WLAN_SINGLE_ANTENNA
 
 config SCSC_AP_INTERFACE_NAME
         string "AP net device interface name"
-        default "swlan0"
+        default "wlan1"
         ---help---
           AP net device interface name.
 
@@ -185,7 +199,7 @@ config SCSC_WLAN_ACS_ENABLE
 
 config SCSC_AP_INTERFACE_NAME
         string "AP net device interface name"
-        default "swlan0"
+        default "wlan1"
         ---help---
           AP net device interface name.
 
@@ -199,6 +213,7 @@ config SCSC_WLAN_MHS_STATIC_INTERFACE
 
 config SCSC_WLAN_PRIORITISE_IMP_FRAMES
         bool "Change priority of important frames such as DNS, MDNS, TCP SYN"
+        depends on SOC_EXYNOS9610
         default y
         ---help---
           The option enables the driver to prioritise important frames
@@ -217,11 +232,11 @@ config SCSC_WLAN_ENHANCED_PKT_FILTER
           This option tells if UDP packet filtering in suspend is
           supported or not.
 
-config SCSC_WLAN_SET_NUM_ANTENNAS
-        bool "Enable configuring of number of antennas"
+config SCSC_WLAN_NUM_ANTENNAS
+        bool "Enable configuring and fetching of number of antennas"
         default n
         ---help---
-          This option tells whether configuring of number of antennas is enabled or not.
+          This option tells whether configuring and fetching of number of antennas is enabled or not.
 
 config SCSC_ENHANCED_PACKET_STATS
         bool "Enable enhanced packet stats"
@@ -245,7 +260,7 @@ config SCSC_WLAN_SET_PREFERRED_ANTENNA
 
 config SLSI_WLAN_STA_FWD_BEACON
         bool "Forwarding beacon support"
-        default n
+	default y
         ---help---
           This option tells if beacon forwarding in STA mode is enabled or not.
           When it is enabled, Driver deliver beacon info of connected AP to Supplicant.
@@ -298,3 +313,46 @@ config SCSC_WLAN_MAC_ACL_PER_MAC
         default n
         ---help---
         This option tells if Driver handles MAC ACL list, received as multiple requests.
+
+config SCSC_WLAN_ENHANCED_BIGDATA
+        bool "Send SCSC panic records on HANGED_EVENT"
+        default y
+        ---help---
+        Enable this option to send panic records when HANGED_EVENT
+        is issued by the driver on FW panic.
+
+config SCSC_WLAN_HE
+        bool "Enable HE Capability in Driver"
+        default n
+        ---help---
+        Enable HE Capability in Driver.
+
+config SCSC_WLAN_RTT
+        bool "Enable WiFi RTT"
+        default n
+        ---help---
+          This option tells whether WiFi RTT is enabled or not.
+
+config SCSC_WLAN_NW_PKT_DROP
+        bool "Enable debugging for EAPOL/DHCP/ARP packet drop in Network Stack"
+        default n
+        ---help---
+        This option enable the dumps for packets getting dropped in Network Stack.
+
+config SCSC_WLAN_EXPONENTIAL_SCHED_SCAN
+        bool "Enable exponential scheduled scan"
+        default n
+        ---help---
+        This option enables the exponential scheduled scan.
+
+config SCSC_WLAN_DEBUG_MLME_WORK_STRUCT
+        bool "Enable this to debug memory corruption in mlme work struct"
+        default n
+        ---help---
+        This option enables debug if memory corruption happen in mlme work struct.
+
+config SCSC_WLAN_SAR_SUPPORTED
+        bool "Enables SAR configuration through NL commands"
+        default n
+        ---help---
+        This option enables the SAR configuration through NL commands.

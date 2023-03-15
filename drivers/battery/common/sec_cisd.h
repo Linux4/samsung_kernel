@@ -71,10 +71,10 @@ enum cisd_data {
 	CISD_DATA_VSYS_OVP,
 	CISD_DATA_VBAT_OVP,
 	CISD_DATA_USB_OVERHEAT_RAPID_CHANGE,
-	CISD_DATA_BUCK_OFF,
+	CISD_DATA_ASOC,
 	CISD_DATA_USB_OVERHEAT_ALONE,
 
-	CISD_DATA_DROP_VALUE,
+	CISD_DATA_CAP_NOM,
 
 	CISD_DATA_MAX,
 };
@@ -97,19 +97,19 @@ enum cisd_data_per_day {
 	CISD_DATA_AICL_COUNT_PER_DAY,
 	CISD_DATA_BATT_TEMP_MAX_PER_DAY,
 	CISD_DATA_BATT_TEMP_MIN_PER_DAY,
+	CISD_DATA_SUB_BATT_TEMP_MAX_PER_DAY,
+	CISD_DATA_SUB_BATT_TEMP_MIN_PER_DAY,
 	CISD_DATA_CHG_TEMP_MAX_PER_DAY,
 	CISD_DATA_CHG_TEMP_MIN_PER_DAY,
-	CISD_DATA_WPC_TEMP_MAX_PER_DAY,
-	CISD_DATA_WPC_TEMP_MIN_PER_DAY,
 	CISD_DATA_USB_TEMP_MAX_PER_DAY,
 	CISD_DATA_USB_TEMP_MIN_PER_DAY,
 
 	CISD_DATA_CHG_BATT_TEMP_MAX_PER_DAY,
 	CISD_DATA_CHG_BATT_TEMP_MIN_PER_DAY,
+	CISD_DATA_CHG_SUB_BATT_TEMP_MAX_PER_DAY,
+	CISD_DATA_CHG_SUB_BATT_TEMP_MIN_PER_DAY,
 	CISD_DATA_CHG_CHG_TEMP_MAX_PER_DAY,
 	CISD_DATA_CHG_CHG_TEMP_MIN_PER_DAY,
-	CISD_DATA_CHG_WPC_TEMP_MAX_PER_DAY,
-	CISD_DATA_CHG_WPC_TEMP_MIN_PER_DAY,
 	CISD_DATA_CHG_USB_TEMP_MAX_PER_DAY,
 	CISD_DATA_CHG_USB_TEMP_MIN_PER_DAY,
 	CISD_DATA_USB_OVERHEAT_CHARGING_PER_DAY,
@@ -165,15 +165,33 @@ enum {
 	TX_DATA_MAX,
 };
 
+enum {
+	EVENT_DC_ERR = 0,
+	EVENT_TA_OCP_DET,
+	EVENT_TA_OCP_ON,
+	EVENT_OVP_POWER,
+	EVENT_OVP_SIGNAL,
+	EVENT_DATA_MAX,
+};
+
 extern const char *cisd_data_str[];
 extern const char *cisd_data_str_d[];
 extern const char *cisd_cable_data_str[];
 extern const char *cisd_tx_data_str[];
+extern const char *cisd_event_data_str[];
 
 #define PAD_INDEX_STRING	"INDEX"
 #define PAD_INDEX_VALUE		1
 #define PAD_JSON_STRING		"PAD_0x"
 #define MAX_PAD_ID			0xFF
+#define MAX_CHARGER_POWER	100
+#define POWER_JSON_STRING	"POWER_"
+#define POWER_COUNT_JSON_STRING "COUNT"
+#define SS_PD_VID			0x04E8
+#define MIN_SS_PD_PID		0x3000
+#define MAX_SS_PD_PID		0x30FF
+#define PD_JSON_STRING		"PID_0x"
+#define PD_COUNT_JSON_STRING	"PID"
 
 struct pad_data {
 	unsigned int id;
@@ -181,6 +199,22 @@ struct pad_data {
 
 	struct pad_data* prev;
 	struct pad_data* next;
+};
+
+struct pd_data {
+	unsigned short pid;
+	unsigned int count;
+
+	struct pd_data *prev;
+	struct pd_data *next;
+};
+
+struct power_data {
+	unsigned int power;
+	unsigned int count;
+
+	struct power_data *prev;
+	struct power_data *next;
 };
 
 struct cisd {
@@ -191,14 +225,26 @@ struct cisd {
 	unsigned int ab_vbat_check_count;
 	unsigned int max_voltage_thr;
 
+	unsigned int gpio_ovp_power;
+	unsigned int irq_ovp_power;
+	unsigned int gpio_ovp_signal;
+	unsigned int irq_ovp_signal;
+
 	/* Big Data Field */
 	int data[CISD_DATA_MAX_PER_DAY];
 	int cable_data[CISD_CABLE_TYPE_MAX];
 	unsigned int tx_data[TX_DATA_MAX];
+	unsigned int event_data[EVENT_DATA_MAX];
 
 	struct mutex padlock;
-	struct pad_data* pad_array;
+	struct mutex powerlock;
+	struct mutex pdlock;
+	struct pad_data *pad_array;
+	struct power_data *power_array;
+	struct pd_data *pd_array;
 	unsigned int pad_count;
+	unsigned int power_count;
+	unsigned int pd_count;
 };
 
 extern struct cisd *gcisd;
@@ -222,5 +268,11 @@ static inline void increase_cisd_count(int type)
 
 void init_cisd_pad_data(struct cisd *cisd);
 void count_cisd_pad_data(struct cisd *cisd, unsigned int pad_id);
+
+void init_cisd_power_data(struct cisd *cisd);
+void count_cisd_power_data(struct cisd *cisd, int power);
+
+void init_cisd_pd_data(struct cisd *cisd);
+void count_cisd_pd_data(unsigned short vid, unsigned short pid);
 
 #endif /* __SEC_CISD_H */

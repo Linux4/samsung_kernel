@@ -100,7 +100,6 @@ void *msgid_claim_get_ref(struct msgid_pool *handle, const int msg_id, const int
 	if (__msgid_claim(handle, msg_id)) {
 		return NULL;
 	}
-
 	return ref;
 }
 

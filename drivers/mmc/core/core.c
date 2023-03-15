@@ -2349,6 +2349,9 @@ EXPORT_SYMBOL(mmc_can_discard);
 
 int mmc_can_sanitize(struct mmc_card *card)
 {
+	/* Do Not use Sanitize */
+	return 0;
+
 	if (!mmc_can_trim(card) && !mmc_can_erase(card))
 		return 0;
 	if (card->ext_csd.sec_feature_support & EXT_CSD_SEC_SANITIZE)
@@ -2621,7 +2624,7 @@ static int mmc_rescan_try_freq(struct mmc_host *host, unsigned freq)
 			return 0;
 
 	mmc_power_off(host);
-	mdelay(20);
+	msleep(20);
 
 	return -EIO;
 }
@@ -2701,6 +2704,7 @@ void mmc_rescan(struct work_struct *work)
 	struct mmc_host *host =
 		container_of(work, struct mmc_host, detect.work);
 	int i;
+	bool extend_wakelock = false;
 
 	if (host->rescan_disable)
 		return;
@@ -2708,6 +2712,8 @@ void mmc_rescan(struct work_struct *work)
 	/* check if hw interrupt is triggered */
 	if (!host->trigger_card_event && !host->card) {
 		pr_err("%s: no detect irq, skipping mmc_rescan\n", mmc_hostname(host));
+		if (wake_lock_active(&host->detect_wake_lock))
+			wake_unlock(&host->detect_wake_lock);
 		return;
 	}
 
@@ -2762,16 +2768,22 @@ void mmc_rescan(struct work_struct *work)
 	}
 
 	for (i = 0; i < ARRAY_SIZE(freqs); i++) {
-		if (!mmc_rescan_try_freq(host, max(freqs[i], host->f_min)))
+		if (!mmc_rescan_try_freq(host, max(freqs[i], host->f_min))) {
+			extend_wakelock = true;
 			break;
+		}
+
 		if (freqs[i] <= host->f_min)
 			break;
 	}
 	mmc_release_host(host);
 
  out:
-	if (!host->rescan_disable)
+	if (extend_wakelock && !host->rescan_disable)
 		wake_lock_timeout(&host->detect_wake_lock, HZ / 2);
+	else if (wake_lock_active(&host->detect_wake_lock))
+		wake_unlock(&host->detect_wake_lock);
+
 	if (host->caps & MMC_CAP_NEEDS_POLL)
 		mmc_schedule_delayed_work(&host->detect, HZ);
 }

@@ -68,6 +68,21 @@ config SUPPORT_INDISPLAY
 	tristate "Support Panel indisplay FOD"
 	default n
 
+config SUPPORT_DDI_FLASH
+	depends on EXYNOS_DECON_LCD
+	tristate "Support display ddi flash"
+	default n
+
+config SUPPORT_POC_FLASH
+	depends on EXYNOS_DECON_LCD && SUPPORT_DDI_FLASH
+	tristate "Support display poc flash"
+	default n
+
+config SUPPORT_POC_FLASH_CHKSUM
+	depends on EXYNOS_DECON_LCD && SUPPORT_POC_FLASH
+	tristate "Support display poc flash chksum"
+	default n
+
 config EXTEND_LIVE_CLOCK
 	tristate "Support Extend Live Clock Functions(For Always On Display)"
 	depends on EXYNOS_DECON_LCD
@@ -129,3 +144,12 @@ config EXYNOS_DECON_LCD_S6E3FA9_A71X
 config EXYNOS_DECON_LCD_EA8076_A51X
 	depends on EXYNOS_DECON_LCD
 	tristate "EA8076_A51X LCD driver"
+
+config EXYNOS_DECON_LCD_EA8076_A51X_USA
+	depends on EXYNOS_DECON_LCD_EA8076_A51X
+	tristate "EA8076_A51X LCD driver"
+
+config USE_DDI_BLACK_GRID
+   	depends on EXYNOS_DECON_LCD
+   	tristate "Use DDI black frame"
+   	default n

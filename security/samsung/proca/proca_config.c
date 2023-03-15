@@ -32,8 +32,8 @@ static int append_sys_ram_range(struct resource *res, void *arg)
 {
 	struct proca_config *conf = arg;
 
-	PROCA_DEBUG_LOG("System RAM region %p-%p was found\n",
-		(void *)(uintptr_t)res->start, (void *)(uintptr_t)res->end);
+	PROCA_DEBUG_LOG("System RAM region %llx-%llx was found\n",
+			res->start, res->end);
 
 	if (conf->sys_ram_ranges_num == MAX_MEMORY_RANGES_NUM) {
 		PROCA_ERROR_LOG("Unsupported number of sys ram regions %llu\n",
@@ -75,14 +75,22 @@ static int prepare_sys_ram_ranges(struct proca_config *conf)
 	return ret;
 }
 
+#ifndef PROCA_KUNIT_ENABLED
 static void prepare_kernel_constants(struct proca_config *conf)
 {
 	conf->page_offset = PAGE_OFFSET;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
+	conf->va_bits = vabits_actual;
+#else
 	conf->va_bits = VA_BITS;
+#endif
 	conf->va_start = VA_START;
 	conf->kimage_vaddr = get_kimage_vaddr();
 	conf->kimage_voffset = get_kimage_voffset();
 }
+#else
+static void prepare_kernel_constants(struct proca_config *conf) {}
+#endif
 
 static void dump_proca_config(const struct proca_config *conf)
 {
@@ -92,8 +100,8 @@ static void dump_proca_config(const struct proca_config *conf)
 	PROCA_DEBUG_LOG("size:     %u\n", conf->size);
 	PROCA_DEBUG_LOG("magic:    %u\n", conf->magic);
 
-	PROCA_DEBUG_LOG("gaf_addr:         %p\n", conf->gaf_addr);
-	PROCA_DEBUG_LOG("proca_table_addr: %p\n", conf->proca_table_addr);
+	PROCA_DEBUG_LOG("gaf_addr:         %llx\n", (uint64_t)conf->gaf_addr);
+	PROCA_DEBUG_LOG("proca_table_addr: %llx\n", (uint64_t)conf->proca_table_addr);
 
 	PROCA_DEBUG_LOG("page_offset:    %llx\n",  conf->page_offset);
 	PROCA_DEBUG_LOG("va_bits:        %llu\n",  conf->va_bits);

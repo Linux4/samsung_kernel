@@ -89,7 +89,7 @@ static const char *hex = "0123456789abcdef";
 
 static struct raw_notifier_head cp_crash_notifier;
 
-struct mif_buff_mng *g_mif_buff_mng;
+struct mif_buff_mng *g_mif_buff_mng = NULL;
 
 static inline void ts2utc(struct timespec *ts, struct utc_time *utc)
 {
@@ -1274,29 +1274,9 @@ void __ref modemctl_notify_event(enum modemctl_event evt)
 	raw_notifier_call_chain(&cp_crash_notifier, evt, NULL);
 }
 
-void mif_set_snapshot(bool enable)
+void mif_stop_logging(void)
 {
-	static bool _disabled_by_cpif;
-	bool need_to_set = false;
-
-	if (enable) {
-		if (_disabled_by_cpif) {
-			need_to_set = true;
-			_disabled_by_cpif = false;
-		}
-	} else {
-		acpm_stop_log();
-
-		if (dbg_snapshot_get_enable_item("log_kevents")) {
-			need_to_set = true;
-			_disabled_by_cpif = true;
-		}
-	}
-
-	if (need_to_set) {
-		mif_info("%s log_kevents\n", enable ? "enable" : "disable");
-		dbg_snapshot_set_enable_item("log_kevents", enable);
-	}
+	acpm_stop_log();
 }
 
 static LIST_HEAD(bm_list);
@@ -1689,3 +1669,69 @@ bool check_cp_upload_cnt(void)
 		return false;
 }
 #endif /* CONFIG_SEC_MODEM_S5000AP && CONFIG_SEC_MODEM_S5100 */
+
+/*
+ * Support additional packet capture
+ */
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+extern struct list_head ptype_all __read_mostly;
+void mif_queue_skb(struct sk_buff *skb, int dir)
+{
+	struct packet_type *ptype;
+	struct sk_buff *skb2 = NULL;
+	struct packet_type *pt_prev = NULL;
+	struct list_head *ptype_list = &ptype_all;
+
+	rcu_read_lock_bh();
+
+	list_for_each_entry_rcu(ptype, ptype_list, list) {
+		if (pt_prev) {
+			local_bh_disable();
+			skb_orphan_frags_rx(skb2, GFP_ATOMIC);
+			refcount_inc(&skb2->users);
+			pt_prev->func(skb2, skb2->dev, pt_prev, skb->dev);
+			pt_prev = ptype;
+			local_bh_enable();
+			continue;
+		}
+
+		/* need to clone skb, done only once */
+		skb2 = skb_clone(skb, GFP_ATOMIC);
+		if (!skb2)
+			goto out_unlock;
+
+		__net_timestamp(skb2);
+
+#if 0 /* we're already reset these filed at cpif driver */
+		/* skb->nh should be correctly
+		 * set by sender, so that the second statement is
+		 * just protection against buggy protocols.
+		 */
+		skb_reset_mac_header(skb2);
+
+		if (skb_network_header(skb2) < skb2->data ||
+		    skb_network_header(skb2) > skb_tail_pointer(skb2)) {
+			net_crit_ratelimited("protocol %04x is buggy, dev %s\n",
+					     ntohs(skb2->protocol),
+					     skb->dev->name);
+			skb_reset_network_header(skb2);
+		}
+
+		skb2->transport_header = skb2->network_header;
+#endif
+		skb2->pkt_type = dir == RX ? PACKET_HOST : PACKET_OUTGOING;
+		pt_prev = ptype;
+	}
+
+out_unlock:
+	if (pt_prev) {
+		if (!skb_orphan_frags_rx(skb2, GFP_ATOMIC)) {
+			local_bh_disable();
+			pt_prev->func(skb2, skb->dev, pt_prev, skb->dev);
+			local_bh_enable();
+		} else
+			kfree_skb(skb2);
+	}
+	rcu_read_unlock_bh();
+}
+#endif

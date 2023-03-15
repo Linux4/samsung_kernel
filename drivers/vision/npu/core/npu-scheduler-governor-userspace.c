@@ -159,7 +159,7 @@ ssize_t npu_store_attrs_governor_userspace(struct device *dev,
 	struct npu_governor_userspace_prop *p;
 	const ptrdiff_t offset = attr - npu_userspace_attrs;
 
-	if (sscanf(buf, "%255s%* %d", name, &x) > 0) {
+	if (sscanf(buf, "%255s* %d", name, &x) > 0) {
 		d = npu_governor_userspace_get_dev(name);
 		if (!d) {
 			npu_err("No device : %s %d\n", name, x);
@@ -198,7 +198,7 @@ static ssize_t npu_store_attrs_governor_userspace_args(struct device *dev,
 	struct npu_governor_userspace_prop *p;
 	const ptrdiff_t offset = attr - npu_userspace_attrs;
 
-	if (sscanf(buf, "%255s%* %d %d", name, &x, &y) > 0) {
+	if (sscanf(buf, "%255s* %d %d", name, &x, &y) > 0) {
 		d = npu_governor_userspace_get_dev(name);
 		if (!d) {
 			npu_err("No device : %s %d %d\n", name, x, y);
@@ -299,10 +299,8 @@ void npu_governor_userspace_stop(struct npu_scheduler_dvfs_info *d)
 	npu_info("%s stop done\n", d->name);
 }
 
-int npu_governor_userspace_register(struct npu_scheduler_info *info)
+void npu_governor_userspace_register(struct npu_scheduler_info *info)
 {
-	int ret = 0;
-
 	BUG_ON(!info);
 
 	npu_info("register userspace governor\n");
@@ -316,8 +314,6 @@ int npu_governor_userspace_register(struct npu_scheduler_info *info)
 	if (sysfs_create_group(&info->dev->kobj, &npu_userspace_attr_group))
 		npu_err("failed to create sysfs for %s\n",
 			npu_userspace_attr_group.name);
-
-	return ret;
 }
 
 int npu_governor_userspace_unregister(struct npu_scheduler_info *info)

@@ -60,7 +60,7 @@ struct pktproc_info_v1 {
 
 /* Info for V2 */
 struct pktproc_info_v2 {
-	u32 control;
+	u32 num_queues:4, mode:4, max_packet_size:16, reserved:8;
 	struct pktproc_q_info q_info[PKTPROC_MAX_QUEUE];
 } __packed;
 

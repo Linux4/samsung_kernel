@@ -29,9 +29,6 @@
 #define RNG_MODULE_NAME		"hw_random"
 
 static struct hwrng *current_rng;
-#ifdef CONFIG_HW_RANDOM_SECONDARY_RANDOMNESS
-static struct hwrng *secondary_rng;
-#endif
 /* the current rng has been explicitly chosen by user via sysfs */
 static int cur_rng_set_by_user;
 static struct task_struct *hwrng_fill;
@@ -54,9 +51,6 @@ MODULE_PARM_DESC(default_quality,
 		 "default entropy content of hwrng per mill");
 
 static void drop_current_rng(void);
-#ifdef CONFIG_HW_RANDOM_SECONDARY_RANDOMNESS
-static void drop_secondary_rng(void);
-#endif
 static int hwrng_init(struct hwrng *rng);
 static void start_khwrngd(void);
 
@@ -100,38 +94,11 @@ static int set_current_rng(struct hwrng *rng)
 	if (err)
 		return err;
 
-#ifdef CONFIG_HW_RANDOM_SECONDARY_RANDOMNESS
-	if(current_rng) {
-		drop_secondary_rng();
-		secondary_rng = current_rng;
-	}
-	else
-		drop_current_rng();
-#else
 	drop_current_rng();
-#endif
 	current_rng = rng;
 
 	return 0;
 }
-
-#ifdef CONFIG_HW_RANDOM_SECONDARY_RANDOMNESS
-static int set_secondary_rng(struct hwrng *rng)
-{
-	int err;
-
-	BUG_ON(!mutex_is_locked(&rng_mutex));
-
-	err = hwrng_init(rng);
-	if (err)
-		return err;
-
-	drop_secondary_rng();
-	secondary_rng = rng;
-
-	return 0;
-}
-#endif
 
 static void drop_current_rng(void)
 {
@@ -143,19 +110,6 @@ static void drop_current_rng(void)
 	kref_put(&current_rng->ref, cleanup_rng);
 	current_rng = NULL;
 }
-
-#ifdef CONFIG_HW_RANDOM_SECONDARY_RANDOMNESS
-static void drop_secondary_rng(void)
-{
-	BUG_ON(!mutex_is_locked(&rng_mutex));
-	if (!secondary_rng)
-		return;
-
-	/* decrease last reference for triggering the cleanup */
-	kref_put(&secondary_rng->ref, cleanup_rng);
-	secondary_rng = NULL;
-}
-#endif
 
 /* Returns ERR_PTR(), NULL or refcounted hwrng */
 static struct hwrng *get_current_rng(void)
@@ -172,23 +126,6 @@ static struct hwrng *get_current_rng(void)
 	mutex_unlock(&rng_mutex);
 	return rng;
 }
-
-#ifdef CONFIG_HW_RANDOM_SECONDARY_RANDOMNESS
-static struct hwrng *get_secondary_rng(void)
-{
-	struct hwrng *rng;
-
-	if (mutex_lock_interruptible(&rng_mutex))
-		return ERR_PTR(-ERESTARTSYS);
-
-	rng = secondary_rng;
-	if (rng)
-		kref_get(&rng->ref);
-
-	mutex_unlock(&rng_mutex);
-	return rng;
-}
-#endif
 
 static void put_rng(struct hwrng *rng)
 {
@@ -506,24 +443,6 @@ static int hwrng_fillfn(void *unused)
 		/* Outside lock, sure, but y'know: randomness. */
 		add_hwgenerator_randomness((void *)rng_fillbuf, rc,
 					   rc * current_quality * 8 >> 10);
-
-#ifdef CONFIG_HW_RANDOM_SECONDARY_RANDOMNESS
-		rng = get_secondary_rng();
-		if(likely(rng)) {
-			mutex_lock(&reading_mutex);
-			rc = rng_get_data(rng, rng_fillbuf,
-					  rng_buffer_size(), 1);
-			mutex_unlock(&reading_mutex);
-			put_rng(rng);
-			if (rc <= 0) {
-				pr_warn("hwrng: no data available\n");
-				msleep_interruptible(10000);
-				continue;
-			}
-			add_hwgenerator_randomness((void *)rng_fillbuf, rc,
-						   rc * rng->quality * 8 >> 10);
-		}
-#endif
 	}
 	hwrng_fill = NULL;
 	return 0;
@@ -579,14 +498,7 @@ int hwrng_register(struct hwrng *rng)
 		if (err)
 			goto out_unlock;
 	}
-#ifdef CONFIG_HW_RANDOM_SECONDARY_RANDOMNESS
-	else if (!secondary_rng ||
-	    (!cur_rng_set_by_user && rng != current_rng && rng->quality > secondary_rng->quality)) {
-		err = set_secondary_rng(rng);
-		if (err)
-			goto out_unlock;
-	}
-#endif
+
 	if (old_rng && !rng->init) {
 		/*
 		 * Use a new device's input to add some randomness to

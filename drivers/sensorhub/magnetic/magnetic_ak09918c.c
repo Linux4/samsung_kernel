@@ -24,8 +24,10 @@
 /* factory Sysfs                                                         */
 /*************************************************************************/
 
-#define GM_AKM_DATA_SPEC_MIN    -6500
-#define GM_AKM_DATA_SPEC_MAX    6500
+#define GM_AKM_DATA_SPEC_MIN    -16666
+#define GM_AKM_DATA_SPEC_MAX    16666
+
+#define GM_DATA_SUM_SPEC        26666
 
 #define GM_SELFTEST_X_SPEC_MIN  -200
 #define GM_SELFTEST_X_SPEC_MAX  200
@@ -44,8 +46,10 @@ int check_adc_data_spec(struct ssp_data *data, int sensortype)
 
         if ((data->buf[sensortype].x == 0) && (data->buf[sensortype].y == 0) && (data->buf[sensortype].z == 0)) {
                 return FAIL;
-        } else if ((data->buf[sensortype].x > data_spec_max) || (data->buf[sensortype].x < data_spec_min) || (data->buf[sensortype].y > data_spec_max) || (data->buf[sensortype].y < data_spec_min)
-                        || (data->buf[sensortype].z > data_spec_max) || (data->buf[sensortype].z < data_spec_min)) {
+        } else if ((data->buf[sensortype].x >= data_spec_max) || (data->buf[sensortype].x <= data_spec_min) || (data->buf[sensortype].y >= data_spec_max) || (data->buf[sensortype].y <= data_spec_min)
+                        || (data->buf[sensortype].z >= data_spec_max) || (data->buf[sensortype].z <= data_spec_min)) {
+                return FAIL;
+        } else if((int)abs(data->buf[sensortype].x) + (int)abs(data->buf[sensortype].y) + (int)abs(data->buf[sensortype].z) >= GM_DATA_SUM_SPEC) {
                 return FAIL;
         } else {
                 return SUCCESS;

@@ -1,9 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * linux/drivers/video/fbdev/exynos/panel/panel_spi.c
- *
- * Samsung Panel SPI Driver.
- *
- * Copyright (c) 2019 Samsung Electronics
+ * Copyright (c) Samsung Electronics Co., Ltd.
  * Kimyung Lee <kernel.lee@samsung.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -50,7 +47,7 @@ const char * const panel_spi_cmd_str[] = {
 	[MAX_PANEL_SPI_CMD] = "max_panel_spi_cmd",
 };
 
-static inline bool SPI_IS_READY(struct panel_spi_dev * dev)
+static inline bool SPI_IS_READY(struct panel_spi_dev *dev)
 {
 	return dev->spi_info.ready;
 }
@@ -58,12 +55,13 @@ static inline bool SPI_IS_READY(struct panel_spi_dev * dev)
 
 #define PANEL_SPI_DEV_NAME	"panel_spi"
 
-static bool panel_spi_conv_addressing_bit(u8 *dst, u32 addr, int addr_size) {
+static bool panel_spi_conv_addressing_bit(u8 *dst, u32 addr, int addr_size)
+{
 	if (addr_size > MAX_ADDRESSING_BYTE) {
 		panel_err("PANEL:ERR:%s:address size is invalid in ic's header file %d, %d. skipped\n", __func__, addr_size, MAX_ADDRESSING_BYTE);
 		return false;
 	}
-	
+
 	if (addr_size == 4) {
 		dst[3] = addr & 0xFF;
 		dst[2] = (addr >> 8) & 0xFF;
@@ -93,19 +91,19 @@ static bool panel_spi_cmd_exists(struct panel_spi_dev *spi_dev, int idx)
 		panel_spi_dbg("%s cmd_list is null. check matched panel id\n", __func__, idx, panel_spi_cmd_str[idx]);
 		return false;
 	}
-	
+
 	if (!spi_info->cmd_list[idx]) {
 		panel_spi_dbg("%s cmd %d(%s) is null\n", __func__, idx, panel_spi_cmd_str[idx]);
 		return false;
 	}
-	
+
 	return true;
 }
 static int panel_spi_pdrv_read_param(struct panel_spi_dev *spi_dev, const u8 *wbuf, int wsize)
 {
-	if(wsize < 1 || !wbuf) {
+	if (wsize < 1 || !wbuf)
 		return -EINVAL;
-	}
+
 	memcpy(spi_dev->setparam_buffer, wbuf, wsize);
 	spi_dev->setparam_buffer_size = wsize;
 	return wsize;
@@ -132,9 +130,8 @@ static int panel_spi_sync(struct panel_spi_dev *spi_dev, const u8 *wbuf, int wsi
 		spi->max_speed_hz = spi_info->speed_hz;
 
 	spi_message_init(&msg);
-	if(wsize < 1 || !wbuf) {
+	if (wsize < 1 || !wbuf)
 		return -EINVAL;
-	}
 
 	speed_hz = spi_info->speed_hz;
 	if (speed_hz <= 0)
@@ -147,7 +144,7 @@ static int panel_spi_sync(struct panel_spi_dev *spi_dev, const u8 *wbuf, int wsi
 	x_write.speed_hz = speed_hz;
 	spi_message_add_tail(&x_write, &msg);
 
-	if(rsize) {
+	if (rsize) {
 		memset(spi_dev->read_buf_data, 0, PANEL_SPI_RX_BUF_SIZE);
 		x_read.len = rsize;
 		x_read.rx_buf = spi_dev->read_buf_data;
@@ -165,7 +162,7 @@ static int panel_spi_sync(struct panel_spi_dev *spi_dev, const u8 *wbuf, int wsi
 
 	if (rbuf != NULL)
 		memcpy(rbuf, spi_dev->read_buf_data, rsize);
-	
+
 #ifdef DEBUG_PANEL_SPI
 	print_hex_dump(KERN_ERR, "spi_cmd_print write ", DUMP_PREFIX_ADDRESS, 16, 1, wbuf, wsize, false);
 	if (rbuf != NULL)
@@ -182,9 +179,8 @@ static int panel_spi_pdrv_read(struct panel_spi_dev *spi_dev, const u8 rcmd, u8 
 	int wsize;
 
 	//check setparam cmd for read operation
-	if (!spi_dev->setparam_buffer) {
+	if (!spi_dev->setparam_buffer)
 		return -EINVAL;
-	}
 
 	wbuf = &rcmd;
 	wsize = 1;
@@ -220,7 +216,7 @@ static int panel_spi_read_id(struct panel_spi_dev *spi_dev, u32 *id)
 
 	if (ret < 0)
 		return ret;
-	
+
 	if (!ret)
 		return -EIO;
 
@@ -239,7 +235,7 @@ static int panel_spi_execute_cmd_addr_data(struct panel_spi_dev *spi_dev, struct
 	u8 receive_buf[MAX_PANEL_SPI_RX_BUF] = { 0x00, };
 	int send_len = 0, receive_len = 0, read_data_len = 0;
 	int addr_byte_size = 0;
-	
+
 	if (!spi_cmd) {
 		//err notfound
 		panel_err("%s got null cmd\n", __func__);
@@ -248,13 +244,12 @@ static int panel_spi_execute_cmd_addr_data(struct panel_spi_dev *spi_dev, struct
 
 	if (spi_cmd->reg) {
 		send_buf[send_len++] = spi_cmd->reg;
-	}
-	else {
+	} else {
 		if ((spi_cmd->opt & PANEL_SPI_CMD_OPTION_ONLY_DELAY) == 0) {
 			//err notfound
 			return -EINVAL;
 		}
-		
+
 		if (spi_cmd->delay_before_usecs > 0)
 			usleep_range(spi_cmd->delay_before_usecs, spi_cmd->delay_before_usecs + 10);
 
@@ -275,27 +270,25 @@ static int panel_spi_execute_cmd_addr_data(struct panel_spi_dev *spi_dev, struct
 
 		send_len += addr_byte_size;
 	}
-	
+
 	if (spi_cmd->wlen > 0) {
-		for (i = 0; i < spi_cmd->wlen; i++) {
+		for (i = 0; i < spi_cmd->wlen; i++)
 			send_buf[send_len++] = spi_cmd->wval[i];
-		}
 	}
 
 	if (write_len > 0) {
-		for (i = 0; i < write_len && send_len < MAX_PANEL_SPI_TX_BUF; i++) {
+		for (i = 0; i < write_len && send_len < MAX_PANEL_SPI_TX_BUF; i++)
 			send_buf[send_len++] = write_buf[i];
-		}
 	}
-	
+
 	if (spi_cmd->rlen > 0)
 		receive_len += spi_cmd->rlen;
 
 	if (read_len > 0) {
 		read_data_len = read_len;
-		if (!(read_data_len < MAX_PANEL_SPI_RX_DATA)) {
+		if (!(read_data_len < MAX_PANEL_SPI_RX_DATA))
 			read_data_len = MAX_PANEL_SPI_RX_DATA;
-		}
+
 		receive_len += read_data_len;
 	}
 
@@ -320,11 +313,10 @@ static int panel_spi_execute_cmd_addr_data(struct panel_spi_dev *spi_dev, struct
 			if ((receive_buf[i] & spi_cmd->rmask[i]) != spi_cmd->rval[i]) {
 				//error
 				verify_error_cnt++;
-				panel_spi_dbg("%s verify mismatch, idx %d(%s) buf %02x mask %02x val %02x\n", 
+				panel_spi_dbg("%s verify mismatch, idx %d(%s) buf %02x mask %02x val %02x\n",
 					__func__, i, panel_spi_cmd_str[i], receive_buf[i], spi_cmd->rmask[i], spi_cmd->rval[i]);
-			}
-			else {
-				panel_spi_dbg("%s verify completed, idx %d(%s) buf %02x mask %02x val %02x\n", 
+			} else {
+				panel_spi_dbg("%s verify completed, idx %d(%s) buf %02x mask %02x val %02x\n",
 					__func__, i, panel_spi_cmd_str[i], receive_buf[i], spi_cmd->rmask[i], spi_cmd->rval[i]);
 			}
 		}
@@ -340,7 +332,7 @@ static int panel_spi_execute_cmd_addr_data(struct panel_spi_dev *spi_dev, struct
 
 	return 0;
 
-fail_delay:	
+fail_delay:
 	if (spi_cmd->delay_retry_usecs > 0)
 		usleep_range(spi_cmd->delay_retry_usecs, spi_cmd->delay_retry_usecs + 10);
 	return ret;
@@ -358,7 +350,7 @@ static inline int panel_spi_execute_cmd(struct panel_spi_dev *spi_dev, struct sp
 static int panel_spi_execute_cmd_retry(struct panel_spi_dev *spi_dev, struct spi_cmd *spi_cmd, const int retry)
 {
 	int ret, i;
-	
+
 	for (i = 0; i < retry; i++) {
 		ret = panel_spi_execute_cmd(spi_dev, spi_cmd);
 		if (!ret)
@@ -368,7 +360,8 @@ static int panel_spi_execute_cmd_retry(struct panel_spi_dev *spi_dev, struct spi
 	return ret;
 }
 
-static int panel_spi_flash_init(struct panel_spi_dev *spi_dev) {
+static int panel_spi_flash_init(struct panel_spi_dev *spi_dev)
+{
 	struct spi_dev_info *spi_info = &spi_dev->spi_info;
 	int i, ret = 0;
 	const int q[] = {
@@ -397,10 +390,11 @@ static int panel_spi_flash_init(struct panel_spi_dev *spi_dev) {
 	return ret;
 }
 
-static int panel_spi_flash_exit(struct panel_spi_dev *spi_dev) {
+static int panel_spi_flash_exit(struct panel_spi_dev *spi_dev)
+{
 	struct spi_dev_info *spi_info = &spi_dev->spi_info;
 	int i, ret = 0;
-	const int q[] = { 
+	const int q[] = {
 		PANEL_SPI_CMD_FLASH_WRITE_ENABLE,
 		PANEL_SPI_CMD_FLASH_EXIT1,
 		PANEL_SPI_CMD_FLASH_EXIT1_DONE,
@@ -485,7 +479,7 @@ static int panel_spi_flash_erase(struct panel_spi_dev *spi_dev, struct spi_data_
 			ret = -ENODATA;	// 74
 			goto erase_out;
 		}
-		
+
 		// write en
 		if (panel_spi_cmd_exists(spi_dev, PANEL_SPI_CMD_FLASH_WRITE_ENABLE)) {
 			ret = panel_spi_execute_cmd_retry(spi_dev, spi_info->cmd_list[PANEL_SPI_CMD_FLASH_WRITE_ENABLE], MAX_BUSY_RETRY);
@@ -515,7 +509,7 @@ static int panel_spi_flash_erase(struct panel_spi_dev *spi_dev, struct spi_data_
 		target_addr += erase_size;
 		remain_size -= erase_size;
 	}
-	
+
 erase_out:
 	panel_info("%s: ---, 0x%06x %d\n", __func__, target_addr, remain_size);
 	return ret;
@@ -533,7 +527,7 @@ static int panel_spi_flash_read(struct panel_spi_dev *spi_dev, struct spi_data_b
 		ret = -ENODEV;
 		goto read_out;
 	}
-	
+
 	if (!data_buf) {
 		ret = -EINVAL;
 		goto read_out;
@@ -564,7 +558,7 @@ static int panel_spi_flash_read(struct panel_spi_dev *spi_dev, struct spi_data_b
 	}
 
 	while (remain_size > 0) {
-		if(remain_size > MAX_PANEL_SPI_RX_DATA)
+		if (remain_size > MAX_PANEL_SPI_RX_DATA)
 			read_size = MAX_PANEL_SPI_RX_DATA;
 		else
 			read_size = remain_size;
@@ -572,7 +566,7 @@ static int panel_spi_flash_read(struct panel_spi_dev *spi_dev, struct spi_data_b
 		//send read cmd
 		ret = panel_spi_execute_cmd_addr_data(spi_dev, spi_info->cmd_list[PANEL_SPI_CMD_FLASH_READ],
 			read_addr, NULL, 0, buf, read_size);
-		
+
 		if (ret) {
 			panel_err("%s error occurred when send cmd %d(%s) ret %d\n", __func__, PANEL_SPI_CMD_FLASH_READ,
 				panel_spi_cmd_str[PANEL_SPI_CMD_FLASH_READ], ret);
@@ -587,7 +581,7 @@ static int panel_spi_flash_read(struct panel_spi_dev *spi_dev, struct spi_data_b
 	}
 read_out:
 	panel_info("%s: ---, 0x%06x %d\n", __func__, read_addr, remain_size);
-	
+
 	return ret;
 }
 
@@ -603,14 +597,14 @@ static int panel_spi_flash_write(struct panel_spi_dev *spi_dev, struct spi_data_
 		ret = -ENODEV;
 		goto write_out;
 	}
-	
+
 	if (!data_buf) {
 		ret = -EINVAL;
 		goto write_out;
 	}
 
 	panel_info("%s: +++, 0x%06x %d\n", __func__, data_buf->addr, data_buf->size);
-	
+
 	spi_info = &spi_dev->spi_info;
 	remain_size = data_buf->size;
 	write_addr = data_buf->addr;
@@ -634,7 +628,7 @@ static int panel_spi_flash_write(struct panel_spi_dev *spi_dev, struct spi_data_
 	}
 
 	while (remain_size > 0) {
-		if(remain_size > MAX_PANEL_SPI_TX_DATA)
+		if (remain_size > MAX_PANEL_SPI_TX_DATA)
 			write_size = MAX_PANEL_SPI_TX_DATA;
 		else
 			write_size = remain_size;
@@ -646,7 +640,7 @@ static int panel_spi_flash_write(struct panel_spi_dev *spi_dev, struct spi_data_
 		if (panel_spi_cmd_exists(spi_dev, PANEL_SPI_CMD_FLASH_WRITE_ENABLE)) {
 			ret = panel_spi_execute_cmd_retry(spi_dev, spi_info->cmd_list[PANEL_SPI_CMD_FLASH_WRITE_ENABLE], MAX_CMD_RETRY);
 			if (ret) {
-				panel_err("%s error occurred when send cmd %d(%s) retry %d ret %d\n", 
+				panel_err("%s error occurred when send cmd %d(%s) retry %d ret %d\n",
 					__func__, PANEL_SPI_CMD_FLASH_WRITE_ENABLE,
 					panel_spi_cmd_str[PANEL_SPI_CMD_FLASH_WRITE_ENABLE], MAX_CMD_RETRY, ret);
 				goto write_out;
@@ -658,7 +652,7 @@ static int panel_spi_flash_write(struct panel_spi_dev *spi_dev, struct spi_data_
 		if (panel_spi_cmd_exists(spi_dev, PANEL_SPI_CMD_FLASH_WRITE_DONE)) {
 			ret = panel_spi_execute_cmd_addr_data(spi_dev, spi_info->cmd_list[PANEL_SPI_CMD_FLASH_WRITE],
 				write_addr, buf, write_size, NULL, 0);
-			
+
 			if (ret) {
 				panel_err("%s error occurred when send cmd %d(%s) ret %d\n", __func__, PANEL_SPI_CMD_FLASH_WRITE,
 					panel_spi_cmd_str[PANEL_SPI_CMD_FLASH_WRITE], ret);
@@ -666,12 +660,12 @@ static int panel_spi_flash_write(struct panel_spi_dev *spi_dev, struct spi_data_
 
 			}
 		}
-		
+
 		// busy wait
 		if (panel_spi_cmd_exists(spi_dev, PANEL_SPI_CMD_FLASH_WRITE_DONE)) {
 			ret = panel_spi_execute_cmd_retry(spi_dev, spi_info->cmd_list[PANEL_SPI_CMD_FLASH_WRITE_DONE], MAX_BUSY_RETRY);
 			if (ret) {
-				panel_err("%s error occurred when send cmd %d(%s) retry %d ret %d\n", 
+				panel_err("%s error occurred when send cmd %d(%s) retry %d ret %d\n",
 					__func__, PANEL_SPI_CMD_FLASH_WRITE_DONE, panel_spi_cmd_str[PANEL_SPI_CMD_FLASH_WRITE_DONE], MAX_BUSY_RETRY, ret);
 				goto write_out;
 			}
@@ -683,7 +677,7 @@ static int panel_spi_flash_write(struct panel_spi_dev *spi_dev, struct spi_data_
 	}
 write_out:
 	panel_info("%s: ---, 0x%06x %d\n", __func__, write_addr, remain_size);
-	
+
 	return ret;
 }
 
@@ -694,24 +688,24 @@ static int panel_spi_ctrl(struct panel_spi_dev *spi_dev, int ctrl_msg)
 
 	if (!SPI_IS_READY(spi_dev))
 		return -ENODEV;
-	
+
 	switch (ctrl_msg) {
-		case PANEL_SPI_CTRL_INIT:
-			ret = panel_spi_flash_init(spi_dev);
-			break;
-		case PANEL_SPI_CTRL_EXIT:
-			ret = panel_spi_flash_exit(spi_dev);
-			break;
-		case PANEL_SPI_CTRL_BUSY_CHECK:
-			ret = panel_spi_execute_cmd(spi_dev, spi_dev->spi_info.cmd_list[PANEL_SPI_CMD_FLASH_BUSY_CLEAR]);
-			break;
-		case PANEL_SPI_CTRL_ID_READ:
-			ret = panel_spi_read_id(spi_dev, &id);
-			break;
-		default:
-			break;
+	case PANEL_SPI_CTRL_INIT:
+		ret = panel_spi_flash_init(spi_dev);
+		break;
+	case PANEL_SPI_CTRL_EXIT:
+		ret = panel_spi_flash_exit(spi_dev);
+		break;
+	case PANEL_SPI_CTRL_BUSY_CHECK:
+		ret = panel_spi_execute_cmd(spi_dev, spi_dev->spi_info.cmd_list[PANEL_SPI_CMD_FLASH_BUSY_CLEAR]);
+		break;
+	case PANEL_SPI_CTRL_ID_READ:
+		ret = panel_spi_read_id(spi_dev, &id);
+		break;
+	default:
+		break;
 	}
-	
+
 	if (ret)
 		panel_err("%s ret %d\n", __func__, ret);
 
@@ -788,19 +782,19 @@ static int panel_spi_fops_open(struct inode *inode, struct file *file)
 
 	file->private_data = spi_dev;
 /*
-	if (spi_dev->fopened) {
-		panel_err("Already in use");
-		mutex_unlock(&spi_dev->f_lock);
-		return -EBUSY;
-	}
-*/
+ *	if (spi_dev->fopened) {
+ *		panel_err("Already in use");
+ *		mutex_unlock(&spi_dev->f_lock);
+ *		return -EBUSY;
+ *	}
+ */
 	ret = panel_spi_flash_init(spi_dev);
 	if (ret) {
 		panel_err("%s: Error occurred. init at read-only mode.", __func__);
 //		mutex_unlock(&spi_dev->f_lock);
 //		return -EBUSY;
 	}
-	
+
 	spi_dev->fopened = true;
 
 	mutex_unlock(&spi_dev->f_lock);
@@ -819,7 +813,7 @@ static int panel_spi_fops_release(struct inode *inode, struct file *file)
 	mutex_lock(&spi_dev->f_lock);
 
 	panel_spi_flash_exit(spi_dev);
-	
+
 	spi_dev->fopened = false;
 	mutex_unlock(&spi_dev->f_lock);
 
@@ -832,7 +826,7 @@ static ssize_t panel_spi_fops_read(struct file *file, char __user *buf, size_t c
 	struct panel_device *panel = container_of(spi_dev, struct panel_device, panel_spi_dev);
 	struct spi_data_buffer spi_data_buf;
 	int ret;
-	
+
 	u8 *read_buf;
 	u32 read_done = 0, read_addr;
 	ssize_t read_size, res;
@@ -860,26 +854,26 @@ static ssize_t panel_spi_fops_read(struct file *file, char __user *buf, size_t c
 		mutex_unlock(&spi_dev->f_lock);
 		return -EINVAL;
 	}
-	
-	while(read_done < count) {
+
+	while (read_done < count) {
 		read_addr = *ppos + read_done;
 		read_size = count - read_done;
 
-		if (read_size > PANEL_SPI_RX_BUF_SIZE) {
+		if (read_size > PANEL_SPI_RX_BUF_SIZE)
 			read_size = PANEL_SPI_RX_BUF_SIZE;
-		}
+
 		spi_data_buf.addr = read_addr;
 		spi_data_buf.size = read_size;
 		spi_data_buf.buf = read_buf + read_done;
 
 		panel_spi_dbg("%s: addr 0x%06X, size %d\n", __func__, spi_data_buf.addr, spi_data_buf.size);
-		
+
 		ret = panel_spi_flash_read(spi_dev, &spi_data_buf);
- 		if (ret < 0) {
- 			panel_err("%s: failed to read 0x%06x %d\n", __func__, read_addr, read_size);
+		if (ret < 0) {
+			panel_err("%s: failed to read 0x%06x %d\n", __func__, read_addr, read_size);
 			mutex_unlock(&spi_dev->f_lock);
 			return -EIO;
- 		}
+		}
 
 		read_done += read_size;
 	}
@@ -905,7 +899,7 @@ static ssize_t panel_spi_fops_write(struct file *file, const char __user *buf, s
 
 	if (!SPI_IS_READY(spi_dev))
 		return -ENODEV;
-	
+
 	panel_info("%s was called count %d ppos %d fpos: %d\n", __func__, count, *ppos, file->f_pos);
 
 	if (!spi_dev->fopened) {
@@ -917,7 +911,7 @@ static ssize_t panel_spi_fops_write(struct file *file, const char __user *buf, s
 		panel_err("%s: invalid write buffer\n", __func__);
 		return -EINVAL;
 	}
-	
+
 	mutex_lock(&spi_dev->f_lock);
 	write_buf = (u8 *)devm_kzalloc(panel->dev,  count * sizeof(u8), GFP_KERNEL);
 	if (!write_buf) {
@@ -925,7 +919,7 @@ static ssize_t panel_spi_fops_write(struct file *file, const char __user *buf, s
 		mutex_unlock(&spi_dev->f_lock);
 		return -EINVAL;
 	}
-	
+
 	res = simple_write_to_buffer(write_buf, count, &empty_pos, buf, count);
 
 	while (write_done < count) {
@@ -939,20 +933,19 @@ static ssize_t panel_spi_fops_write(struct file *file, const char __user *buf, s
 		if (spi_dev->auto_erase && write_addr % SZ_4K == 0) {
 			panel_info("%s: auto erase 0x%06X\n", __func__, write_addr);
 			spi_data_buf.addr = write_addr;
-			spi_data_buf.size = SZ_4K;			
+			spi_data_buf.size = SZ_4K;
 			panel_spi_flash_erase(spi_dev, &spi_data_buf);
 		}
 
 		write_size = count - write_done;
-		if (write_size > SZ_256) {
+		if (write_size > SZ_256)
 			write_size = SZ_256;
-		}
 
 		spi_data_buf.addr = write_addr;
 		spi_data_buf.size = write_size;
 		spi_data_buf.buf = write_buf + write_done;
 		panel_spi_flash_write(spi_dev, &spi_data_buf);
-		
+
 		write_done += write_size;
 	}
 
@@ -962,7 +955,8 @@ static ssize_t panel_spi_fops_write(struct file *file, const char __user *buf, s
 	return count;
 }
 
-static int __ioctl_erase(struct panel_spi_dev *spi_dev, unsigned long arg) {
+static int __ioctl_erase(struct panel_spi_dev *spi_dev, unsigned long arg)
+{
 	struct ioc_erase_info erase_info;
 	struct spi_data_buffer spi_data_buf;
 	int ret;
@@ -986,7 +980,7 @@ static int __ioctl_erase(struct panel_spi_dev *spi_dev, unsigned long arg) {
 	ret = panel_spi_flash_erase(spi_dev, &spi_data_buf);
 
 	return ret;
-	
+
 }
 
 static long panel_spi_fops_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
@@ -1020,9 +1014,8 @@ static long panel_spi_fops_ioctl(struct file *file, unsigned int cmd, unsigned l
 	default:
 		panel_info("%s: Unknown cmd %d\n", __func__, cmd);
 		break;
-			
 	}
-	
+
 	mutex_unlock(&spi_dev->f_lock);
 	return ret;
 }
@@ -1084,9 +1077,11 @@ static struct spi_driver panel_spi_driver = {
 	.remove		= panel_spi_remove,
 };
 
-struct spi_data *panel_spi_find_matched_data(struct spi_data **spi_data_tbl, int nr_spi_data_tbl, u32 read_id) {
+struct spi_data *panel_spi_find_matched_data(struct spi_data **spi_data_tbl, int nr_spi_data_tbl, u32 read_id)
+{
 	int i;
 	struct spi_data *data = NULL;
+
 	for (i = 0; i < nr_spi_data_tbl; i++) {
 		data = spi_data_tbl[i];
 		if ((read_id & data->compat_mask) == data->compat_id) {
@@ -1118,7 +1113,7 @@ int panel_spi_drv_probe(struct panel_device *panel, struct spi_data **spi_data_t
 	spi_dev->ops = &panel_spi_drv_ops;
 	spi_dev->pdrv_ops = &panel_spi_drv_pdrv_ops;
 	spi_dev->setparam_buffer = (u8 *)devm_kzalloc(panel->dev, PANEL_SPI_MAX_CMD_SIZE * sizeof(u8), GFP_KERNEL);
-	spi_dev->read_buf_data= (u8 *)devm_kzalloc(panel->dev, PANEL_SPI_RX_BUF_SIZE * sizeof(u8), GFP_KERNEL);
+	spi_dev->read_buf_data = (u8 *)devm_kzalloc(panel->dev, PANEL_SPI_RX_BUF_SIZE * sizeof(u8), GFP_KERNEL);
 	spi_dev->dev.minor = MISC_DYNAMIC_MINOR;
 	spi_dev->dev.fops = &panel_spi_drv_fops;
 	spi_dev->dev.name = DRIVER_NAME;
@@ -1160,7 +1155,7 @@ int panel_spi_drv_probe(struct panel_device *panel, struct spi_data **spi_data_t
 		panel_err("%s failed to read id. check cable connection\n", __func__);
 		return -EIO;
 	}
-	
+
 	panel_info("%s read id: 0x%06X\n", __func__, spi_info->id);
 	spi_data = panel_spi_find_matched_data(spi_data_tbl, nr_spi_data_tbl, spi_info->id);
 	if (spi_data == NULL) {
@@ -1183,11 +1178,10 @@ int panel_spi_drv_probe(struct panel_device *panel, struct spi_data **spi_data_t
 			}
 		}
 		spi_info->ready = true;
-	}
-	else {
+	} else {
 		panel_err("%s cmd list not found. check ic's header file\n", __func__);
 	}
-	
+
 	panel_info("%s done\n", __func__);
 
 rest_init:

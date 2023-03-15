@@ -34,6 +34,11 @@
 #include "is-metadata.h"
 #include "is-param.h"
 
+#if defined(CONVERT_BUFFER_SECURE_TO_NON_SECURE)
+#include <linux/smc.h>
+#include "../../../../staging/android/ion/ion.h"
+#endif
+
 const struct v4l2_file_operations is_vra_video_fops;
 const struct v4l2_ioctl_ops is_vra_video_ioctl_ops;
 const struct vb2_ops is_vra_qops;
@@ -634,6 +639,13 @@ static int is_vra_video_s_ext_ctrl(struct file *file, void *priv,
 			}
 			break;
 #endif
+#if defined(CONVERT_BUFFER_SECURE_TO_NON_SECURE)
+		case V4L2_CID_IS_CONVERT_BUFFER_SECURE_TO_NON_SUCURE:
+		{
+			break;
+		}
+#endif
+
 		default:
 			ctrl.id = ext_ctrl->id;
 			ctrl.value = ext_ctrl->value;
@@ -689,7 +701,7 @@ static int is_vra_queue_setup(struct vb2_queue *vbq,
 	struct is_device_ischain *device;
 	struct is_video *video;
 	struct is_queue *queue;
-#if defined(SECURE_CAMERA_FACE)
+#if defined(SECURE_CAMERA_FACE) && !defined(CONVERT_BUFFER_SECURE_TO_NON_SECURE)
 	struct is_core *core =
 		(struct is_core *)dev_get_drvdata(is_dev);
 #endif
@@ -709,7 +721,7 @@ static int is_vra_queue_setup(struct vb2_queue *vbq,
 
 	mdbgv_isp("%s\n", vctx, __func__);
 
-#if defined(SECURE_CAMERA_FACE)
+#if defined(SECURE_CAMERA_FACE) && !defined(CONVERT_BUFFER_SECURE_TO_NON_SECURE)
 	if (core->scenario == IS_SCENARIO_SECURE)
 		set_bit(IS_QUEUE_NEED_TO_REMAP, &queue->state);
 #endif

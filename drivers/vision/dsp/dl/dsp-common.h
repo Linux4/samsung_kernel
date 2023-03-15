@@ -21,7 +21,7 @@
 
 #define DL_INFO(fmt, args...)	dsp_info(fmt, ##args)
 #define DL_ERROR(fmt, args...)	dsp_err("[%-40s]" fmt, __func__, ##args)
-#define DL_DEBUG(fmt, args...)	dsp_dbg("[%-40s]" fmt, __func__, ##args)
+#define DL_DEBUG(fmt, args...)	dsp_dl_dbg("[%-40s]" fmt, __func__, ##args)
 
 #define DL_BORDER	\
 "====================================================================\n"

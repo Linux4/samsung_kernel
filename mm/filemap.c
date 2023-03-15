@@ -2439,6 +2439,12 @@ EXPORT_SYMBOL(generic_file_read_iter);
 
 #ifdef CONFIG_MMU
 #define MMAP_LOTSAMISS  (100)
+#if CONFIG_MMAP_READAROUND_LIMIT == 0
+unsigned int mmap_readaround_limit = (VM_MAX_READAHEAD / 4); 		/* page */
+#else
+unsigned int mmap_readaround_limit = CONFIG_MMAP_READAROUND_LIMIT;	/* page */
+#endif
+
 static struct file *maybe_unlock_mmap_for_io(struct vm_fault *vmf,
 					     struct file *fpin)
 {
@@ -2503,27 +2509,33 @@ static int lock_page_maybe_drop_mmap(struct vm_fault *vmf, struct page *page,
 	return 1;
 }
 
-static noinline void tracing_mark_write(bool start, struct file *file, pgoff_t offset, unsigned int size, bool sync)
+#ifdef CONFIG_TRACING
+static void filemap_tracing_mark_begin(struct file *file,
+		pgoff_t offset, unsigned int size, bool sync)
 {
-	char buf[256], *path;
+	char buf[TRACING_MARK_BUF_SIZE], *path;
 
-	if (!tracing_is_on() || file == NULL || file->f_path.dentry == NULL)
+	if (!tracing_is_on())
 		return;
 
-	if (start) {
-		path = dentry_path(file->f_path.dentry, buf, 256);
-
-		if (!IS_ERR(path))
-			trace_printk("B|%d|%d , %s , %lu , %d\n", current->tgid, sync, path, offset, size);
-		else
-			trace_printk("B|%d|%d , %s , %lu , %d\n", current->tgid, sync, "dentry_path failed", offset, size);
-	} else {
-		trace_printk("E|%d\n", current->tgid);
+	path = file_path(file, buf, TRACING_MARK_BUF_SIZE);
+	if (IS_ERR(path)) {
+		sprintf(buf, "file_path failed(%ld)", PTR_ERR(path));
+		path = buf;
 	}
+
+	tracing_mark_begin("%d , %s , %lu , %d", sync, path, offset, size);
 }
 
-#define trace_fault_file_path_start(...) tracing_mark_write(1, ##__VA_ARGS__)
-#define trace_fault_file_path_end(...) tracing_mark_write(0, ##__VA_ARGS__)
+static void filemap_tracing_mark_end(void)
+{
+    tracing_mark_end();
+}
+#else
+static void filemap_tracing_mark_begin(struct file *file,
+		pgoff_t offset, unsigned int size, bool sync) { }
+static void filemap_tracing_mark_end(void) { }
+#endif
 
 /*
  * Synchronous readahead happens when we don't even find a page in the page
@@ -2549,10 +2561,10 @@ static struct file *do_sync_mmap_readahead(struct vm_fault *vmf)
 
 	if (vmf->vma->vm_flags & VM_SEQ_READ) {
 		fpin = maybe_unlock_mmap_for_io(vmf, fpin);
-		trace_fault_file_path_start(file, offset, ra->ra_pages, 1);
+		filemap_tracing_mark_begin(file, offset, ra->ra_pages, 1);
 		page_cache_sync_readahead(mapping, ra, file, offset,
 					  ra->ra_pages);
-		trace_fault_file_path_end(file, offset, ra->ra_pages, 1);
+		filemap_tracing_mark_end();
 		return fpin;
 	}
 
@@ -2571,18 +2583,13 @@ static struct file *do_sync_mmap_readahead(struct vm_fault *vmf)
 	 * mmap read-around
 	 */
 	fpin = maybe_unlock_mmap_for_io(vmf, fpin);
-#if CONFIG_MMAP_READAROUND_LIMIT == 0
-	ra_pages = ra->ra_pages;
-#else
-	ra_pages = min_t(unsigned int, ra->ra_pages, CONFIG_MMAP_READAROUND_LIMIT);
-#endif
+	ra_pages = min_t(unsigned int, ra->ra_pages, mmap_readaround_limit);
 	ra->start = max_t(long, 0, offset - ra_pages / 2);
 	ra->size = ra_pages;
 	ra->async_size = ra_pages / 4;
-
-	trace_fault_file_path_start(file, offset, ra_pages, 1);
+	filemap_tracing_mark_begin(file, offset, ra_pages, 1);
 	ra_submit(ra, mapping, file);
-	trace_fault_file_path_end(file, offset, ra_pages, 1);
+	filemap_tracing_mark_end();
 	return fpin;
 }
 
@@ -2607,10 +2614,10 @@ static struct file *do_async_mmap_readahead(struct vm_fault *vmf,
 		ra->mmap_miss--;
 	if (PageReadahead(page)) {
 		fpin = maybe_unlock_mmap_for_io(vmf, fpin);
-		trace_fault_file_path_start(file, offset, ra->ra_pages, 0);
+		filemap_tracing_mark_begin(file, offset, ra->ra_pages, 0);
 		page_cache_async_readahead(mapping, ra, file,
 					   page, offset, ra->ra_pages);
-		trace_fault_file_path_end(file, offset, ra->ra_pages, 0);
+		filemap_tracing_mark_end();
 	}
 	return fpin;
 }
@@ -2733,9 +2740,9 @@ page_not_uptodate:
 	 */
 	ClearPageError(page);
 	fpin = maybe_unlock_mmap_for_io(vmf, fpin);
-	trace_fault_file_path_start(file, offset, 1, 1);
+	filemap_tracing_mark_begin(file, offset, 1, 1);
 	error = mapping->a_ops->readpage(file, page);
-	trace_fault_file_path_end(file, offset, 1, 1);
+	filemap_tracing_mark_end();
 	if (!error) {
 		wait_on_page_locked(page);
 		if (!PageUptodate(page))

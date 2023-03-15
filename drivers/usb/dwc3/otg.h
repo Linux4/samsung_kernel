@@ -83,6 +83,9 @@ struct dwc3_otg {
 	struct usb_dev 	*usb_d;
 	struct if_cb_manager	*man;
 #endif
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+	atomic_t		otg_wakelock_cnt;
+#endif
 };
 
 static inline int dwc3_ext_otg_setup(struct dwc3_otg *dotg)

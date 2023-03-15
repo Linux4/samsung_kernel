@@ -290,16 +290,19 @@ static void sensor_imx686_cis_data_calculation(const struct sensor_pll_info_comp
 	/* 3. the time of processing one frame calcuration (us) */
 	cis_data->min_frame_us_time = (1 * 1000 * 1000) / frame_rate;
 	cis_data->cur_frame_us_time = cis_data->min_frame_us_time;
+#ifdef REAR_SUB_CAMERA
+	cis_data->min_sync_frame_us_time = cis_data->min_frame_us_time;
+#endif
 
 	dbg_sensor(1, "[imx686 data_calcurate]frame_duration(%d) : frame_rate (%d) = "
-		KERN_CONT " pixel_rate(%zu) / (pll_info->frame_length_lines(%d) * pll_info->line_length_pck(%d))\n",
+		KERN_CONT " pixel_rate(%llu) / (pll_info->frame_length_lines(%d) * pll_info->line_length_pck(%d))\n",
 		cis_data->min_frame_us_time, frame_rate, pixel_rate, pll_info->frame_length_lines, pll_info->line_length_pck);
 
 	/* calcurate max fps */
 	max_fps = (pixel_rate * 10) / (pll_info->frame_length_lines * pll_info->line_length_pck);
 	max_fps = (max_fps % 10 >= 5 ? frame_rate + 1 : frame_rate);
 
-	cis_data->pclk = (u32)pixel_rate;
+	cis_data->pclk = pixel_rate;
 	cis_data->max_fps = max_fps;
 	cis_data->frame_length_lines = pll_info->frame_length_lines;
 	cis_data->line_length_pck = pll_info->line_length_pck;
@@ -313,17 +316,17 @@ static void sensor_imx686_cis_data_calculation(const struct sensor_pll_info_comp
 
 	dbg_sensor(1, "%s\n", __func__);
 	dbg_sensor(1, "[imx686 data_calcurate]Sensor size(%d x %d) setting: SUCCESS!\n", cis_data->cur_width, cis_data->cur_height);
-	dbg_sensor(1, "[imx686 data_calcurate]Frame Valid(us): %d\n", frame_valid_us);
+	dbg_sensor(1, "[imx686 data_calcurate]Frame Valid(%d us)\n", frame_valid_us);
 	dbg_sensor(1, "[imx686 data_calcurate]rolling_shutter_skew: %lld\n", cis_data->rolling_shutter_skew);
 
 	dbg_sensor(1, "[imx686 data_calcurate]Fps: %d, max fps(%d)\n", frame_rate, cis_data->max_fps);
 	dbg_sensor(1, "[imx686 data_calcurate]min_frame_time(%d us)\n", cis_data->min_frame_us_time);
-	dbg_sensor(1, "[imx686 data_calcurate]Pixel rate(Kbps): %d\n", cis_data->pclk / 1000);
+	dbg_sensor(1, "[imx686 data_calcurate]Pixel rate(%d KHz)\n", cis_data->pclk / 1000);
 
 	/* Frame period calculation */
 	cis_data->frame_time = (cis_data->line_readOut_time * cis_data->cur_height / 1000);
 
-	dbg_sensor(1, "[imx686 data_calcurate] frame_time(%d), rolling_shutter_skew(%lld)\n", __func__,
+	dbg_sensor(1, "[imx686 data_calcurate] frame_time(%u), rolling_shutter_skew(%lld)\n", __func__,
 	cis_data->frame_time, cis_data->rolling_shutter_skew);
 
 	info("%s: done", __func__);
@@ -1433,33 +1436,40 @@ int sensor_imx686_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 		dbg_sensor(1, "[%s] requested min_fps(%d), max_fps(%d) from HAL\n", __func__, cis->min_fps, cis->max_fps);
 
 		if (coarse_integ_time > cis_data->max_coarse_integration_time) {
-			dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), coarse(%d) max(%d)\n", cis->id, __func__,
+			dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), coarse(%u) max(%u)\n", cis->id, __func__,
 				cis_data->sen_vsync_count, coarse_integ_time, cis_data->max_coarse_integration_time);
 			coarse_integ_time = cis_data->max_coarse_integration_time;
 		}
 
 		if (coarse_integ_time < cis_data->min_coarse_integration_time) {
-			dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), coarse(%d) min(%d)\n", cis->id, __func__,
+			dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), coarse(%u) min(%u)\n", cis->id, __func__,
 				cis_data->sen_vsync_count, coarse_integ_time, cis_data->min_coarse_integration_time);
 			coarse_integ_time = cis_data->min_coarse_integration_time;
 		}
 	}
 
 	frame_length_lines = coarse_integ_time + cis_data->max_margin_coarse_integration_time;
-	frame_duration = (u32)((((u64)frame_length_lines * line_length_pck) / pix_rate_freq_khz) * 1000);
+	frame_duration = (u32)((u64)(frame_length_lines * line_length_pck) / pix_rate_freq_khz) * 1000;
 	max_frame_us_time = 1000000/cis->min_fps;
 
-	dbg_sensor(1, "[%s](vsync cnt = %d) input exp(%d), adj duration, frame duraion(%d), min_frame_us(%d)\n",
-			__func__, cis_data->sen_vsync_count, input_exposure_time, frame_duration, cis_data->min_frame_us_time);
-	dbg_sensor(1, "[%s](vsync cnt = %d) adj duration, frame duraion(%d), min_frame_us(%d), max_frame_us_time(%d)\n",
-			__func__, cis_data->sen_vsync_count, frame_duration, cis_data->min_frame_us_time, max_frame_us_time);
+	dbg_sensor(1, "[%s](vsync cnt = %d) input exp(%d), calcurated frame duration(%d), min_frame_us(%d), max_frame_us_time(%d)\n",
+			__func__, cis_data->sen_vsync_count, input_exposure_time, frame_duration, cis_data->min_frame_us_time, max_frame_us_time);
 
-	*target_duration = MAX(frame_duration, cis_data->min_frame_us_time);
-	if(cis->min_fps == cis->max_fps) {
+	if (input_exposure_time <= 0)
+		*target_duration = cis_data->min_frame_us_time;
+	else
+		*target_duration = MAX(frame_duration, cis_data->min_frame_us_time);
+
+	/*
+	 * For recording with fixed fps (>= 10fps).
+	 * If input exposure is setted as 33333us@30fps from ddk,
+	 * then calcurated frame duration is larger than 33333us because of CIT MARGIN.
+	 */
+	if((cis_data->min_frame_us_time <= 100000) && (cis->min_fps == cis->max_fps)) {
 		*target_duration = MIN(frame_duration, max_frame_us_time);
 	}
 
-	dbg_sensor(1, "[%s] calcurated frame_duration(%d), adjusted frame_duration(%d)\n", __func__, frame_duration, *target_duration);
+	dbg_sensor(1, "[%s] calcurated frame_duration(%d), adjusted target frame_duration(%d)\n", __func__, frame_duration, *target_duration);
 
 #ifdef DEBUG_SENSOR_TIME
 	do_gettimeofday(&end);
@@ -1476,6 +1486,7 @@ int sensor_imx686_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
+	struct is_long_term_expo_mode *lte_mode;
 
 	u64 pix_rate_freq_khz = 0;
 	u32 line_length_pck = 0;
@@ -1501,6 +1512,7 @@ int sensor_imx686_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 	}
 
 	cis_data = cis->cis_data;
+	lte_mode = &cis->long_term_mode;
 
 	if (frame_duration < cis_data->min_frame_us_time) {
 		dbg_sensor(1, "frame duration(%d) is less than min(%d)\n",
@@ -1508,13 +1520,24 @@ int sensor_imx686_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 		frame_duration = cis_data->min_frame_us_time;
 	}
 
+	/*
+	 * For Long Exposure Mode without stream on_off. (ex. Night HyperLaps)
+	 * If frame duration over than 1sec, then it has to be applied CIT shift.
+	 * In this case, frame_duration is setted in set_exposure_time with CIT shift.
+	 */
+	if (lte_mode->sen_strm_off_on_enable == false && cis_data ->min_frame_us_time > 1000000) {
+		cis_data->cur_frame_us_time = frame_duration;
+		dbg_sensor(1, "[MOD:D:%d][%s] Skip set frame duration(%d) for CIT SHIFT.\n",
+			cis->id, __func__, frame_duration);
+		return ret;
+	}
+
 	pix_rate_freq_khz = cis_data->pclk / 1000;
 	line_length_pck = cis_data->line_length_pck;
 
 	frame_length_lines = (u16)((pix_rate_freq_khz * frame_duration) / (line_length_pck * 1000));
 
-	dbg_sensor(1, "[MOD:D:%d] %s, pix_rate_freq_khz(%zu), frame_duration = %d us,"
-		KERN_CONT " line_length_pck(%d), frame_length_lines(%d)\n",
+	dbg_sensor(1, "[MOD:D:%d] %s, pix_rate_freq_khz(%llu), frame_duration(%u us), LLP(%d), FLL(%d)\n",
 		cis->id, __func__, pix_rate_freq_khz, frame_duration, line_length_pck, frame_length_lines);
 
 	hold = sensor_imx686_cis_group_param_hold_func(subdev, 0x01);
@@ -1524,6 +1547,11 @@ int sensor_imx686_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 	}
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
+
+	if (lte_mode->sen_strm_off_on_enable == false && cis_data->frame_length_lines_shifter > 0) {
+		cis_data->frame_length_lines_shifter = 0;
+		ret = is_sensor_write8(client, SENSOR_IMX686_CIT_LSHIFT_ADDR, 0);
+	}
 
 	ret = is_sensor_write16(client, SENSOR_IMX686_FRAME_LENGTH_LINE_ADDR, frame_length_lines);
 	if (ret < 0)
@@ -1615,11 +1643,18 @@ int sensor_imx686_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
+	struct is_long_term_expo_mode *lte_mode;
 
 	u64 pix_rate_freq_khz = 0;
-	u16 short_coarse_int = 0;
+	u16 coarse_int = 0;
 	u32 line_length_pck = 0;
 	u32 min_fine_int = 0;
+	u32 target_exp = 0;
+	u32 target_frame_duration = 0;
+	u16 frame_length_lines = 0;
+
+	unsigned char cit_lshift_val = 0;
+	int cit_lshift_count = 0;
 
 #ifdef DEBUG_SENSOR_TIME
 	struct timeval st, end;
@@ -1649,43 +1684,78 @@ int sensor_imx686_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 	}
 
 	cis_data = cis->cis_data;
+	lte_mode = &cis->long_term_mode;
 
 	dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), target long(%d), short(%d)\n", cis->id, __func__,
 			cis_data->sen_vsync_count, target_exposure->long_val, target_exposure->short_val);
 
+	target_exp = target_exposure->val;
 	pix_rate_freq_khz = cis_data->pclk / 1000;
 	line_length_pck = cis_data->line_length_pck;
 	min_fine_int = cis_data->min_fine_integration_time;
 
-	dbg_sensor(1, "[MOD:D:%d] %s, pix_rate_freq_khz (%d), line_length_pck(%d), min_fine_int (%d)\n",
-		cis->id, __func__, pix_rate_freq_khz, line_length_pck, min_fine_int);
+	/*
+	 * For Long Exposure Mode without stream on_off. (ex. Night Hyper Laps: min exp. is 1.5sec)
+	 * If frame duration over than 1sec, then sequence is same as below
+	 * 1. set CIT_LSHFIT
+	 * 2. set COARSE_INTEGRATION_TIME
+	 * 3. set FRM_LENGTH_LINES
+	 */
+	if (lte_mode->sen_strm_off_on_enable == false && cis_data ->min_frame_us_time > 1000000) {
+		target_frame_duration = cis_data->cur_frame_us_time;
+		dbg_sensor(1, "[MOD:D:%d] %s, input frame duration(%d) for CIT SHIFT \n",
+			cis->id, __func__, target_frame_duration);
 
-	short_coarse_int = (u16)(((target_exposure->short_val * pix_rate_freq_khz) - min_fine_int) / (line_length_pck * 1000));
+		if (target_frame_duration > 100000) {
+			cit_lshift_val = (unsigned char)(target_frame_duration / 100000);
+			while(cit_lshift_val > 1) {
+				cit_lshift_val /= 2;
+				target_frame_duration /= 2;
+				target_exp /= 2;
+				cit_lshift_count ++;
+			}
 
-	if (short_coarse_int%coarse_integ_step_value)
-		short_coarse_int -= 1;
+			if (cit_lshift_count > SENSOR_IMX686_MAX_CIT_LSHIFT_VALUE)
+				cit_lshift_count = SENSOR_IMX686_MAX_CIT_LSHIFT_VALUE;
+		}
 
-	if (short_coarse_int > cis_data->max_coarse_integration_time) {
-		dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), short coarse(%d) max(%d)\n", cis->id, __func__,
-			cis_data->sen_vsync_count, short_coarse_int, cis_data->max_coarse_integration_time);
-		short_coarse_int = cis_data->max_coarse_integration_time;
+		frame_length_lines = (u16)((pix_rate_freq_khz * target_frame_duration) / (line_length_pck * 1000));
+
+		cis_data->frame_length_lines = frame_length_lines;
+		cis_data->frame_length_lines_shifter = cit_lshift_count;
+		cis_data->max_coarse_integration_time =
+			frame_length_lines - cis_data->max_margin_coarse_integration_time;
+
+		dbg_sensor(1, "[MOD:D:%d] %s, target_frame_duration(%d), frame_length_line(%d), cit_lshift_count(%d)\n",
+			cis->id, __func__, target_frame_duration, frame_length_lines, cit_lshift_count);
 	}
 
-	if (short_coarse_int < cis_data->min_coarse_integration_time) {
-		dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), short coarse(%d) min(%d)\n", cis->id, __func__,
-			cis_data->sen_vsync_count, short_coarse_int, cis_data->min_coarse_integration_time);
-		short_coarse_int = cis_data->min_coarse_integration_time;
+	coarse_int = (u16)(((target_exp * pix_rate_freq_khz) - min_fine_int) / (line_length_pck * 1000));
+
+	if (coarse_int%coarse_integ_step_value)
+		coarse_int -= 1;
+
+	if (coarse_int > cis_data->max_coarse_integration_time) {
+		dbg_sensor(1, "[MOD:D:%d] %s, coarse_int(%d) max(%d)\n", cis->id, __func__,
+			coarse_int, cis_data->max_coarse_integration_time);
+		coarse_int = cis_data->max_coarse_integration_time;
+	}
+
+	if (coarse_int < cis_data->min_coarse_integration_time) {
+		dbg_sensor(1, "[MOD:D:%d] %s, coarse_int(%d) min(%d)\n", cis->id, __func__,
+			coarse_int, cis_data->min_coarse_integration_time);
+		coarse_int = cis_data->min_coarse_integration_time;
 	}
 
 	if (cis_data->min_coarse_integration_time == SENSOR_IMX686_COARSE_INTEGRATION_TIME_MIN
-		&& short_coarse_int < 14
-		&& short_coarse_int%2 == 0) {
-		short_coarse_int -= 1;
+		&& coarse_int < 14
+		&& coarse_int%2 == 0) {
+		coarse_int -= 1;
 	}
 
-	cis_data->cur_exposure_coarse = short_coarse_int;
-	cis_data->cur_long_exposure_coarse = short_coarse_int;
-	cis_data->cur_short_exposure_coarse = short_coarse_int;
+	cis_data->cur_exposure_coarse = coarse_int;
+	cis_data->cur_long_exposure_coarse = coarse_int;
+	cis_data->cur_short_exposure_coarse = coarse_int;
 
 	hold = sensor_imx686_cis_group_param_hold_func(subdev, 0x01);
 	if (hold < 0) {
@@ -1695,15 +1765,26 @@ int sensor_imx686_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
-	/* Short exposure */
-	ret = is_sensor_write16(client, SENSOR_IMX686_COARSE_INTEG_TIME_ADDR, short_coarse_int);
+	if (lte_mode->sen_strm_off_on_enable == false && cis_data ->min_frame_us_time > 1000000) {
+		if (cit_lshift_count > 0) {
+			ret = is_sensor_write8(client, SENSOR_IMX686_CIT_LSHIFT_ADDR, cit_lshift_count);
+			if (ret < 0)
+				goto i2c_err;
+		}
+	}
+
+	ret = is_sensor_write16(client, SENSOR_IMX686_COARSE_INTEG_TIME_ADDR, coarse_int);
 	if (ret < 0)
 		goto i2c_err;
 
-	dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), pix_rate_freq_khz (%zu), line_length_pck(%d), min_fine_int (%d)\n",
-		cis->id, __func__, cis_data->sen_vsync_count, pix_rate_freq_khz, line_length_pck, min_fine_int);
-	dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), frame_length_lines(%d), short_coarse_int(%d)\n",
-		cis->id, __func__, cis_data->sen_vsync_count, cis_data->frame_length_lines, short_coarse_int);
+	if (lte_mode->sen_strm_off_on_enable == false && cis_data ->min_frame_us_time > 1000000) {
+		ret = is_sensor_write16(client, SENSOR_IMX686_FRAME_LENGTH_LINE_ADDR, frame_length_lines);
+		if (ret < 0)
+			goto i2c_err;
+	}
+
+	dbg_sensor(1, "[MOD:D:%d] %s, pixelRate (%llu), LLP(%d), FLL(%d), CIT(%d), min_fine_int (%d)\n", cis->id, __func__,
+		pix_rate_freq_khz, line_length_pck, cis_data->frame_length_lines, coarse_int, min_fine_int);
 
 #ifdef DEBUG_SENSOR_TIME
 	do_gettimeofday(&end);

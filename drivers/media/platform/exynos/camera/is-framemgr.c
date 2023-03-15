@@ -248,7 +248,12 @@ static void default_frame_work_fn(struct kthread_work *work)
 		atomic_dec(&group->rcount);
 
 	stripe_region_num = frame->stripe_info.region_num;
+#ifdef ENABLE_STRIPE_SYNC_PROCESSING
+	if (!CHK_MODECHANGE_SCN(frame->shot->ctl.aa.captureIntent)
+			&& stripe_region_num) {
+#else
 	if (stripe_region_num) {
+#endif
 		/* Prevent other frame comming while stripe processing */
 		while (stripe_region_num--)
 			is_group_shot(groupmgr, group, frame);
@@ -274,7 +279,12 @@ static void default_frame_dwork_fn(struct kthread_work *work)
 		atomic_dec(&group->rcount);
 
 	stripe_region_num = frame->stripe_info.region_num;
+#ifdef ENABLE_STRIPE_SYNC_PROCESSING
+	if (!CHK_MODECHANGE_SCN(frame->shot->ctl.aa.captureIntent)
+		&& stripe_region_num) {
+#else
 	if (stripe_region_num) {
+#endif
 		/* Prevent other frame comming while stripe processing */
 		while (stripe_region_num--)
 			is_group_shot(groupmgr, group, frame);
@@ -371,6 +381,9 @@ void frame_manager_print_queues(struct is_framemgr *this)
 {
 	int i;
 
+	if (!this->num_frames)
+		return;
+
 	for (i = 0; i < NR_FRAME_STATE; i++)
 		print_frame_queue(this, (enum is_frame_state)i);
 }
@@ -396,6 +409,9 @@ void dump_frame_queue(struct is_framemgr *this,
 void frame_manager_dump_queues(struct is_framemgr *this)
 {
 	int i;
+
+	if (!this->num_frames)
+		return;
 
 	for (i = 0; i < NR_FRAME_STATE; i++)
 		dump_frame_queue(this, (enum is_frame_state)i);

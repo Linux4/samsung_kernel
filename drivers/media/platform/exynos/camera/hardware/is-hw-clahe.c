@@ -246,7 +246,7 @@ static int is_hw_clh_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	ulong hw_map)
 {
 	int ret = 0;
-	int i;
+	int i, cur_idx, batch_num;
 	struct is_hw_clh *hw_clh;
 	struct clh_param_set *param_set;
 	struct is_region *region;
@@ -281,7 +281,8 @@ static int is_hw_clh_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 	FIMC_BUG(!region);
 
 	param = &region->parameter.clh;
-	fcount = frame->fcount + frame->cur_buf_index;
+	fcount = frame->fcount;
+	cur_idx = frame->cur_buf_index;
 
 	if (frame->type == SHOT_TYPE_INTERNAL) {
 		param_set->dma_input.cmd = DMA_INPUT_COMMAND_DISABLE;
@@ -310,7 +311,7 @@ static int is_hw_clh_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 		hw_plane = param_set->dma_input.plane;
 		/* TODO : need to loop (frame->num_buffers) for FRO */
 		for (i = 0; i < hw_plane; i++) {
-			param_set->input_dva[i] = frame->clxsTargetAddress[frame->cur_buf_index + i];
+			param_set->input_dva[i] = frame->clxsTargetAddress[i + cur_idx];
 			if (frame->clxsTargetAddress[i] == 0) {
 				msinfo_hw("[F:%d]clxsTargetAddress[%d] is zero",
 					instance, hw_ip, frame->fcount, i);
@@ -319,7 +320,7 @@ static int is_hw_clh_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 
 			/* TO DO : svhist_input_dva */
 #if 0
-			param_set->svhist_input_dva[i] = frame->clxcTargetAddress[frame->cur_buf_index + i];
+			param_set->svhist_input_dva[i] = frame->clxcTargetAddress[i + cur_idx];
 			if (frame->clxcTargetAddress[i] == 0) {
 				msdbg_hw(2, "[F:%d]clxcTargetAddress[%d] is zero",
 					instance, hw_ip, frame->fcount, i);
@@ -332,7 +333,7 @@ static int is_hw_clh_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 		hw_plane = param_set->dma_output.plane;
 		/* TODO : need to loop (frame->num_buffers) for FRO */
 		for (i = 0; i < hw_plane; i++) {
-			param_set->output_dva[i] = frame->clxcTargetAddress[frame->cur_buf_index + i];
+			param_set->output_dva[i] = frame->clxcTargetAddress[i + cur_idx];
 			if (frame->clxcTargetAddress[i] == 0) {
 				msinfo_hw("[F:%d]clxcTargetAddress[%d] is zero",
 					instance, hw_ip, frame->fcount, i);
@@ -346,8 +347,12 @@ config:
 	param_set->fcount = fcount;
 
 	/* multi-buffer */
-	if (frame->num_buffers)
-		hw_ip->num_buffers = frame->num_buffers;
+	hw_ip->num_buffers = frame->num_buffers;
+	batch_num = hw_ip->framemgr->batch_num;
+	if (batch_num > 1) {
+		hw_ip->num_buffers |= batch_num << SW_FRO_NUM_SHIFT;
+		hw_ip->num_buffers |= cur_idx << CURR_INDEX_SHIFT;
+	}
 
 	if (frame->type == SHOT_TYPE_INTERNAL) {
 		is_log_write("[@][DRV][%d]clh_shot [T:%d][F:%d][IN:0x%x] [%d][OUT:0x%x]\n",

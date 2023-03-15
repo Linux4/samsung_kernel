@@ -75,6 +75,12 @@
 
 #define MFC_BASE_MASK		((1 << 17) - 1)
 
+/* Error & Warning */
+#define mfc_get_err(x)		(((x) >> MFC_REG_ERR_STATUS_SHIFT)	\
+						& MFC_REG_ERR_STATUS_MASK)
+#define mfc_get_warn(x)		(((x) >> MFC_REG_WARN_STATUS_SHIFT)	\
+						& MFC_REG_WARN_STATUS_MASK)
+
 /* MFC conceal color is black */
 #define MFC_CONCEAL_COLOR	0x8020000
 
@@ -159,12 +165,26 @@
 #define IS_NO_DISPLAY(ctx, err) ((IS_VC1_RCV_DEC(ctx) &&					\
 				mfc_get_warn(err) == MFC_REG_ERR_SYNC_POINT_NOT_RECEIVED) ||	\
 				(mfc_get_warn(err) == MFC_REG_ERR_BROKEN_LINK))
+#define IS_NO_ERROR(err)	((err) == 0 ||		\
+				(mfc_get_warn(err)	\
+				 == MFC_REG_ERR_SYNC_POINT_NOT_RECEIVED))
 
 #define IS_BUFFER_BATCH_MODE(ctx)	((ctx)->batch_mode == 1)
 
-/* UHD resoluition */
-#define MFC_UHD_RES		(3840 * 2160)
-#define IS_UHD_RES(ctx)		(((ctx)->crop_width * (ctx)->crop_height) == MFC_UHD_RES)
+/*
+ levels with maximum property values
+ level	Maximum frame size in MB (MB width x MB height)
+ LV5		22,080
+ LV5.1		36,864
+ LV6		139,264
+ */
+#define LV51_MB_MIN		(22080)
+#define LV51_MB_MAX		(36864)
+#define LV60_MB_MAX		(139264)
+
+#define IS_LV51_MB(mb)		(((mb) > LV51_MB_MIN) && ((mb) <= LV51_MB_MAX))
+#define IS_LV60_MB(mb)		(((mb) > LV51_MB_MAX) && ((mb) <= LV60_MB_MAX))
+
 #define IS_SUPER64_BFRAME(ctx, size, type)	((ctx->is_10bit) && (size >= 2) && (type == 3))
 
 #define IS_SBWC_8B(fmt)		((((fmt)->fourcc) == V4L2_PIX_FMT_NV12M_SBWC_8B) ||	\
@@ -187,6 +207,8 @@
 #define	DEC_SET_SKYPE_FLAG		(1 << 3)
 #define	DEC_SET_HDR10_PLUS		(1 << 4)
 #define	DEC_SET_DRV_DPB_MANAGER		(1 << 5)
+#define	DEC_SET_OPERATING_FPS		(1 << 8)
+#define	DEC_SET_PRIORITY		(1 << 23)
 
 /* Extra information for Encoder */
 #define	ENC_SET_RGB_INPUT		(1 << 0)
@@ -204,6 +226,8 @@
 #define	ENC_SET_HDR10_PLUS		(1 << 12)
 #define	ENC_SET_VP9_PROFILE_LEVEL	(1 << 13)
 #define	ENC_SET_DROP_CONTROL		(1 << 14)
+#define	ENC_SET_OPERATING_FPS		(1 << 18)
+#define	ENC_SET_PRIORITY		(1 << 23)
 
 #define MFC_FEATURE_SUPPORT(dev, f)	((f).support && ((dev)->fw.date >= (f).version))
 

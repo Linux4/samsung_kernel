@@ -96,11 +96,6 @@ config ARGOS_CLUSTER_NUM
 	help
 	  This option enables that argos supports 3 clusters in SMP nodes.
 
-config SEC_BOOTSTAT
-	bool "Enable TN Bootstat logging"
-	depends on SEC_EXT
-	default y
-
 config SEC_COMMON
 	bool "Enable TN common functions"
 	depends on SEC_EXT
@@ -112,6 +107,7 @@ config SEC_SYSUP
 	help
 	  Samsung system update Feature
 
+source "drivers/samsung/perf/Kconfig"
 source "drivers/samsung/debug/Kconfig"
 source "drivers/samsung/pm/Kconfig"
 source "drivers/samsung/misc/Kconfig"

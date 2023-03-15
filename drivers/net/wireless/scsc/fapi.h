@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (c) 2014 - 2020 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2014 - 2021 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -9,34 +9,8 @@
 #ifndef _FAPI_H__
 #define _FAPI_H__
 
-#include <linux/kernel.h>
-#include <linux/if_ether.h>
-#include "utils.h"
-
 #ifdef __cplusplus
 extern "C" {
-#endif
-
-#ifndef CONFIG_SCSC_SMAPPER
-struct slsi_skb_cb {
-	u32 sig_length;
-	u32 data_length;
-	u32 frame_format;
-	u32 colour;
-};
-
-static inline struct slsi_skb_cb *slsi_skb_cb_get(struct sk_buff *skb)
-{
-	return (struct slsi_skb_cb *)skb->cb;
-}
-
-static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
-{
-	BUILD_BUG_ON(sizeof(struct slsi_skb_cb) > sizeof(skb->cb));
-
-	memset(skb->cb, 0, sizeof(struct slsi_skb_cb));
-	return slsi_skb_cb_get(skb);
-}
 #endif
 
 #define FAPI_SIG_TYPE_MASK 0x0F00
@@ -53,12 +27,12 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 
 #define FAPI_DEBUG_SAP_ENG_VERSION               0x0001
 #define FAPI_DATA_SAP_ENG_VERSION                0x0001
-#define FAPI_CONTROL_SAP_ENG_VERSION             0x000c
-#define FAPI_TEST_SAP_ENG_VERSION                0x0014
+#define FAPI_CONTROL_SAP_ENG_VERSION             0x000d
+#define FAPI_TEST_SAP_ENG_VERSION                0x0017
 #define FAPI_DEBUG_SAP_VERSION                   0x0d03
 #define FAPI_TEST_SAP_VERSION                    0x0e00
 #define FAPI_DATA_SAP_VERSION                    0x0e01
-#define FAPI_CONTROL_SAP_VERSION                 0x0e05
+#define FAPI_CONTROL_SAP_VERSION                 0x0e09
 
 #define FAPI_ACLPOLICY_BLACKLIST   0x0000
 #define FAPI_ACLPOLICY_WHITELIST   0x0001
@@ -765,6 +739,8 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define FAPI_DATARATE_CTR_ERROR                       0xe006
 #define FAPI_DATARATE_CTR_LDPC                        0xe007
 #define FAPI_DATARATE_CTR_BEAMFORMED                  0xe008
+#define FAPI_DATARATE_CTR_FROM_AP                     0xe009
+#define FAPI_DATARATE_CTR_INVALID_RSSI                0xe00a
 
 #define FAPI_DATAUNITDESCRIPTOR_IEEE802_11_FRAME   0x0000
 #define FAPI_DATAUNITDESCRIPTOR_IEEE802_3_FRAME    0x0001
@@ -871,6 +847,9 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define FAPI_EVENT_WIFI_EVENT_FW_NAN_ROLE_TYPE                        0x0042
 #define FAPI_EVENT_WIFI_EVENT_FW_FRAME_TRANSMIT_FAILURE               0x0043
 #define FAPI_EVENT_WIFI_EVENT_FW_NR_FRAME_RESPONSE                    0x0044
+#define FAPI_EVENT_WIFI_EVENT_NAN_AVAILABILITY_UPDATE                 0x0045
+#define FAPI_EVENT_WIFI_EVENT_NAN_ULW_UPDATE                          0x0046
+#define FAPI_EVENT_WIFI_EVENT_NAN_TRAFFIC_UPDATE                      0x0047
 #define FAPI_EVENT_WIFI_EVENT_BLACKOUT_START                          0x0064
 #define FAPI_EVENT_WIFI_EVENT_BLACKOUT_STOP                           0x0065
 #define FAPI_EVENT_WIFI_EVENT_NAN_PUBLISH_TERMINATED                  0x0100
@@ -894,7 +873,8 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define FAPI_KEYTYPE_WEP             0x0002
 #define FAPI_KEYTYPE_IGTK            0x0003
 #define FAPI_KEYTYPE_PMK             0x0004
-#define FAPI_KEYTYPE_FIRST_ILLEGAL   0x0005
+#define FAPI_KEYTYPE_BIGTK           0x0005
+#define FAPI_KEYTYPE_FIRST_ILLEGAL   0x0006
 
 #define FAPI_MESSAGETYPE_EAP_MESSAGE          0x0001
 #define FAPI_MESSAGETYPE_EAPOL_KEY_M123       0x0002
@@ -979,10 +959,6 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define FAPI_RADIOBITMAP_RADIO_0   0x0001
 #define FAPI_RADIOBITMAP_RADIO_1   0x0002
 
-#define FAPI_RANGINGINDTYPE_CONTINUOUS_INDICATION   0x0001
-#define FAPI_RANGINGINDTYPE_INGRESS                 0x0002
-#define FAPI_RANGINGINDTYPE_EGRESS                  0x0004
-
 #define FAPI_REASONCODE_RESERVED                                     0x0000
 #define FAPI_REASONCODE_UNSPECIFIED_REASON                           0x0001
 #define FAPI_REASONCODE_DEAUTHENTICATED_INVALID_AUTHENTICATION       0x0002
@@ -1016,6 +992,8 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define FAPI_REASONCODE_CHANNEL_SWITCH_FAILURE                       0x8007
 #define FAPI_REASONCODE_REPORTING_ABORTED_SCANNING                   0x8008
 #define FAPI_REASONCODE_REPORTING_ABORTED_ROAMING                    0x8009
+#define FAPI_REASONCODE_OUT_OF_RANGE_SEQUENCE_NUMBER                 0x800a
+#define FAPI_REASONCODE_MISUSE_OF_AMSDU                              0x800b
 #define FAPI_REASONCODE_NAN_SERVICE_TERMINATED_TIMEOUT               0x9001
 #define FAPI_REASONCODE_NAN_SERVICE_TERMINATED_USER_REQUEST          0x9002
 #define FAPI_REASONCODE_NAN_SERVICE_TERMINATED_COUNT_REACHED         0x9003
@@ -1053,6 +1031,8 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define FAPI_RESULTCODE_ASSOC_ABORT                         0x8012
 #define FAPI_RESULTCODE_AUTH_NO_ACK                         0x8013
 #define FAPI_RESULTCODE_ASSOC_NO_ACK                        0x8014
+#define FAPI_RESULTCODE_AUTH_TX_FAIL                        0x8015
+#define FAPI_RESULTCODE_ASSOC_TX_FAIL                       0x8016
 #define FAPI_RESULTCODE_AUTH_FAILED_CODE                    0x8100
 #define FAPI_RESULTCODE_ASSOC_FAILED_CODE                   0x8200
 #define FAPI_RESULTCODE_INVALID_TLV_VALUE                   0x9000
@@ -1122,6 +1102,10 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define FAPI_RXSTARTFLAGS_LP_MODE                0x0010
 #define FAPI_RXSTARTFLAGS_CHAN_RSSI              0x0020
 #define FAPI_RXSTARTFLAGS_DISABLE_EXTERNAL_LNA   0x0040
+#define FAPI_RXSTARTFLAGS_VALIDATE               0x0080
+
+#define FAPI_SCANMODE_LEGACY        0x0000
+#define FAPI_SCANMODE_LOW_LATENCY   0x0001
 
 #define FAPI_SCANPOLICY_PASSIVE      0x01
 #define FAPI_SCANPOLICY_TEST_MODE    0x02
@@ -1140,15 +1124,17 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define FAPI_SCANTYPE_OBSS_SCAN                   0x0006
 #define FAPI_SCANTYPE_AP_AUTO_CHANNEL_SELECTION   0x0007
 #define FAPI_SCANTYPE_GSCAN                       0x0009
-#define FAPI_SCANTYPE_MEASUREMENT_SCAN            0x000a
-#define FAPI_SCANTYPE_SOFT_CACHED_ROAMING_SCAN    0x000b
-#define FAPI_SCANTYPE_SOFT_FULL_ROAMING_SCAN      0x000c
-#define FAPI_SCANTYPE_HARD_CACHED_ROAMING_SCAN    0x000d
-#define FAPI_SCANTYPE_HARD_FULL_ROAMING_SCAN      0x000e
-#define FAPI_SCANTYPE_OBSS_SCAN_INTERNAL          0x000f
-#define FAPI_SCANTYPE_NAN_SCAN                    0x0010
-#define FAPI_SCANTYPE_FTM_NEIGHBOUR_SCAN          0x0011
-#define FAPI_SCANTYPE_FIRST_ILLEGAL               0x0012
+#define FAPI_SCANTYPE_SINGLE_CHANNEL_SCAN         0x000a
+#define FAPI_SCANTYPE_MEASUREMENT_SCAN            0x0010
+#define FAPI_SCANTYPE_SOFT_CACHED_ROAMING_SCAN    0x0011
+#define FAPI_SCANTYPE_SOFT_FULL_ROAMING_SCAN      0x0012
+#define FAPI_SCANTYPE_HARD_CACHED_ROAMING_SCAN    0x0013
+#define FAPI_SCANTYPE_HARD_FULL_ROAMING_SCAN      0x0014
+#define FAPI_SCANTYPE_OBSS_SCAN_INTERNAL          0x0015
+#define FAPI_SCANTYPE_NAN_SCAN                    0x0016
+#define FAPI_SCANTYPE_FTM_NEIGHBOUR_SCAN          0x0017
+#define FAPI_SCANTYPE_OBSS_NARROW_BW_SCAN         0x0018
+#define FAPI_SCANTYPE_FIRST_ILLEGAL               0x0019
 
 #define FAPI_STATSSTOPBITMAP_STATS_RADIO              0x0001
 #define FAPI_STATSSTOPBITMAP_STATS_RADIO_CCA          0x0002
@@ -1169,11 +1155,23 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 
 #define FAPI_TRANSMISSIONSTATUS_SUCCESSFUL                0x0000
 #define FAPI_TRANSMISSIONSTATUS_RETRY_LIMIT               0x0001
+#define FAPI_TRANSMISSIONSTATUS_UNSPECIFIED_FAILURE1      0x00010
+#define FAPI_TRANSMISSIONSTATUS_UNSPECIFIED_FAILURE2      0x00011
+#define FAPI_TRANSMISSIONSTATUS_UNSPECIFIED_FAILURE3      0x00012
+#define FAPI_TRANSMISSIONSTATUS_UNSPECIFIED_FAILURE4      0x00013
+#define FAPI_TRANSMISSIONSTATUS_UNSPECIFIED_FAILURE5      0x00014
+#define FAPI_TRANSMISSIONSTATUS_UNSPECIFIED_FAILURE6      0x00015
 #define FAPI_TRANSMISSIONSTATUS_TX_LIFETIME               0x0002
 #define FAPI_TRANSMISSIONSTATUS_NO_BSS                    0x0003
 #define FAPI_TRANSMISSIONSTATUS_EXCESSIVE_DATA_LENGTH     0x0004
 #define FAPI_TRANSMISSIONSTATUS_UNAVAILABLE_KEY_MAPPING   0x0005
 #define FAPI_TRANSMISSIONSTATUS_UNSPECIFIED_FAILURE       0x0006
+#define FAPI_TRANSMISSIONSTATUS_DATA_RETRY_LIMIT          0x0007
+#define FAPI_TRANSMISSIONSTATUS_NON_DATA_RETRY_LIMIT      0x0008
+#define FAPI_TRANSMISSIONSTATUS_DATA_TX_LIFETIME          0x0009
+#define FAPI_TRANSMISSIONSTATUS_NON_DATA_TX_LIFETIME      0x000a
+#define FAPI_TRANSMISSIONSTATUS_DATA_CANCELLED            0x000b
+#define FAPI_TRANSMISSIONSTATUS_NON_DATA_CANCELLED        0x000c
 
 #define FAPI_TXDATATYPE_DATA_WORD     0x0000
 #define FAPI_TXDATATYPE_DATA_RANDOM   0x0001
@@ -1207,7 +1205,9 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define FAPI_TXSETPARAMSFLAGS_BEAMFORMING            0x4000
 #define FAPI_TXSETPARAMSFLAGS_DISABLE_EXTERNAL_LNA   0x8000
 
-#define FAPI_TXSETPARAMSFLAGS2_NONE   0x0000
+#define FAPI_TXSETPARAMSFLAGS2_NONE       0x0000
+#define FAPI_TXSETPARAMSFLAGS2_IFS        0x0001
+#define FAPI_TXSETPARAMSFLAGS2_VALIDATE   0x0002
 
 #define FAPI_TYPEOFAIRPOWER_EIRP   0x00
 #define FAPI_TYPEOFAIRPOWER_TPO    0x01
@@ -1226,6 +1226,7 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define FAPI_VIFTYPE_NAN              0x0005
 #define FAPI_VIFTYPE_DISCOVERY        0x0006
 #define FAPI_VIFTYPE_PRECONNECT       0x0007
+#define FAPI_VIFTYPE_DETECT           0x0008
 #define FAPI_VIFTYPE_MONITOR          0x0010
 #define FAPI_VIFTYPE_SCAN             0x0020
 #define FAPI_VIFTYPE_OFFCHANNEL       0x0021
@@ -1345,9 +1346,9 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define MLME_NDP_REQUEST_REQ                  0x2035
 #define MLME_NDP_RESPONSE_REQ                 0x2036
 #define MLME_NDP_TERMINATE_REQ                0x2037
-#define MLME_SPARE_4_REQ                      0x203a
-#define MLME_SPARE_5_REQ                      0x203b
-#define MLME_SPARE_6_REQ                      0x203c
+#define MLME_ROAMING_CHANNEL_LIST_REQ         0x203a
+#define MLME_SET_BSS_MAX_CHANNEL_WIDTH_REQ    0x203b
+#define MLME_SET_SCAN_MODE_REQ                0x203c
 #define MLME_INSTALL_APF_REQ                  0x203d
 #define MLME_READ_APF_REQ                     0x203e
 #define MLME_SET_NUM_ANTENNAS_REQ             0x203f
@@ -1356,9 +1357,20 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define MLME_SET_BAND_REQ                     0x2042
 #define MLME_SET_ROAMING_PARAMETERS_REQ       0x2043
 #define MLME_WIFISHARING_PERMITTED_CHANNELS_REQ 0x2044
-#define MLME_SPARE_SIGNAL_1_REQ               0x2045
-#define MLME_SPARE_SIGNAL_2_REQ               0x2046
-#define MLME_SPARE_SIGNAL_3_REQ               0x2047
+#define MLME_SPARE_7_REQ                      0x2045
+#define MLME_SPARE_8_REQ                      0x2046
+#define MLME_CONFIGURE_MONITOR_MODE_REQ       0x2047
+#define MLME_SPARE_9_REQ                      0x2048
+#define MLME_SPARE_10_REQ                     0x2049
+#define MLME_SPARE_11_REQ                     0x204a
+#define MLME_NAN_RANGE_REQ                    0x204b
+#define MLME_NAN_RANGE_CANCEL_REQ             0x204c
+#define MLME_DELBA_REQ                        0x204d
+#define MLME_GET_NUM_ANTENNAS_REQ             0x204e
+#define MLME_START_DETECT_REQ                 0x204f
+#define MLME_SPARE_SIGNAL_1_REQ               0x2050
+#define MLME_SPARE_SIGNAL_2_REQ               0x2051
+#define MLME_SPARE_SIGNAL_3_REQ               0x2052
 #define MLME_GET_CFM                          0x2101
 #define MLME_SET_CFM                          0x2102
 #define MLME_POWERMGT_CFM                     0x2103
@@ -1408,9 +1420,9 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define MLME_NDP_REQUEST_CFM                  0x2135
 #define MLME_NDP_RESPONSE_CFM                 0x2136
 #define MLME_NDP_TERMINATE_CFM                0x2137
-#define MLME_SPARE_4_CFM                      0x213a
-#define MLME_SPARE_5_CFM                      0x213b
-#define MLME_SPARE_6_CFM                      0x213c
+#define MLME_ROAMING_CHANNEL_LIST_CFM         0x213a
+#define MLME_SET_BSS_MAX_CHANNEL_WIDTH_CFM    0x213b
+#define MLME_SET_SCAN_MODE_CFM                0x213c
 #define MLME_INSTALL_APF_CFM                  0x213d
 #define MLME_READ_APF_CFM                     0x213e
 #define MLME_SET_NUM_ANTENNAS_CFM             0x213f
@@ -1419,9 +1431,20 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define MLME_SET_BAND_CFM                     0x2142
 #define MLME_SET_ROAMING_PARAMETERS_CFM       0x2143
 #define MLME_WIFISHARING_PERMITTED_CHANNELS_CFM 0x2144
-#define MLME_SPARE_SIGNAL_1_CFM               0x2145
-#define MLME_SPARE_SIGNAL_2_CFM               0x2146
-#define MLME_SPARE_SIGNAL_3_CFM               0x2147
+#define MLME_SPARE_7_CFM                      0x2145
+#define MLME_SPARE_8_CFM                      0x2146
+#define MLME_CONFIGURE_MONITOR_MODE_CFM       0x2147
+#define MLME_SPARE_9_CFM                      0x2148
+#define MLME_SPARE_10_CFM                     0x2149
+#define MLME_SPARE_11_CFM                     0x214a
+#define MLME_NAN_RANGE_CFM                    0x214b
+#define MLME_NAN_RANGE_CANCEL_CFM             0x214c
+#define MLME_DELBA_CFM                        0x214d
+#define MLME_GET_NUM_ANTENNAS_CFM             0x214e
+#define MLME_START_DETECT_CFM                 0x214f
+#define MLME_SPARE_SIGNAL_1_CFM               0x2150
+#define MLME_SPARE_SIGNAL_2_CFM               0x2151
+#define MLME_SPARE_SIGNAL_3_CFM               0x2152
 #define MLME_CONNECT_RES                      0x2200
 #define MLME_CONNECTED_RES                    0x2201
 #define MLME_REASSOCIATE_RES                  0x2202
@@ -1460,16 +1483,20 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define MLME_CHANNEL_SWITCHED_IND             0x231a
 #define MLME_SYNCHRONISED_IND                 0x231b
 #define MLME_BEACON_REPORTING_EVENT_IND       0x231c
-#define MLME_SPARE_3_IND                      0x231d
-#define MLME_SPARE_4_IND                      0x231e
+#define MLME_ROAMING_CHANNEL_LIST_IND         0x231d
+#define MLME_BLACKLISTED_IND                  0x231e
 #define MLME_NDP_REQUEST_IND                  0x231f
 #define MLME_NDP_REQUESTED_IND                0x2320
 #define MLME_NDP_RESPONSE_IND                 0x2321
 #define MLME_NDP_TERMINATED_IND               0x2323
 #define MLME_SPARE_5_IND                      0x2324
-#define MLME_SPARE_SIGNAL_1_IND               0x2325
-#define MLME_SPARE_SIGNAL_2_IND               0x2326
-#define MLME_SPARE_SIGNAL_3_IND               0x2327
+#define MLME_SPARE_6_IND                      0x2325
+#define MLME_NAN_RANGE_IND                    0x2326
+#define MLME_SPARE_7_IND                      0x2327
+#define MLME_START_DETECT_IND                 0x2328
+#define MLME_SPARE_SIGNAL_1_IND               0x2329
+#define MLME_SPARE_SIGNAL_2_IND               0x232a
+#define MLME_SPARE_SIGNAL_3_IND               0x232b
 #define DEBUG_SPARE_1_REQ                     0x8000
 #define DEBUG_SPARE_2_REQ                     0x8001
 #define DEBUG_SPARE_3_REQ                     0x8002
@@ -1528,7 +1555,7 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define TEST_HIP_TESTER_SET_PARAMS_REQ        0x901d
 #define TEST_HIP_TESTER_REPORT_REQ            0x901e
 #define TEST_BIST_GET_TX_GAIN_REQ             0x901f
-#define TEST_SPARE_1_REQ                      0x9020
+#define TEST_START_WLANLITE_REQ               0x9020
 #define TEST_SPARE_2_REQ                      0x9021
 #define TEST_SPARE_3_REQ                      0x9022
 #define PHY_EVENT_LOGGING_REQ                 0x9023
@@ -1557,7 +1584,7 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define TEST_HIP_TESTER_STOP_CFM              0x9114
 #define TEST_HIP_TESTER_SET_PARAMS_CFM        0x9115
 #define TEST_BIST_GET_TX_GAIN_CFM             0x9116
-#define TEST_SPARE_1_CFM                      0x9117
+#define TEST_START_WLANLITE_CFM               0x9117
 #define TEST_SPARE_2_CFM                      0x9118
 #define TEST_SPARE_3_CFM                      0x9119
 #define PHY_EVENT_LOGGING_CFM                 0x911A
@@ -2242,6 +2269,7 @@ struct fapi_signal {
 			__le16 match_id;
 			u8     local_ndp_interface_address[ETH_ALEN];
 			u8     peer_nmi[ETH_ALEN];
+			__le16 ndp_instance_id;
 			__le32 spare_1;
 			__le32 spare_2;
 			__le32 spare_3;
@@ -2253,6 +2281,7 @@ struct fapi_signal {
 			__le16 ndl_vif_index;
 			__le16 reason_code;
 			u8     local_ndp_interface_address[ETH_ALEN];
+			__le16 ndp_instance_id;
 			__le32 spare_1;
 			__le32 spare_2;
 			__le32 spare_3;
@@ -2260,8 +2289,7 @@ struct fapi_signal {
 		} __packed mlme_ndp_response_req;
 		struct {
 			__le16 vif;
-			__le16 ndl_vif_index;
-			u8     local_ndp_interface_address[ETH_ALEN];
+			__le16 ndp_instance_id;
 			__le32 spare_1;
 			__le32 spare_2;
 			__le32 spare_3;
@@ -2273,21 +2301,25 @@ struct fapi_signal {
 			__le32 spare_2;
 			__le32 spare_3;
 			u8     dr[0];
-		} __packed mlme_spare_4_req;
+		} __packed mlme_roaming_channel_list_req;
 		struct {
 			__le16 vif;
-			__le32 spare_1;
+			__le16 channel_information;
+			__le16 protection_scope;
 			__le32 spare_2;
 			__le32 spare_3;
 			u8     dr[0];
-		} __packed mlme_spare_5_req;
+		} __packed mlme_set_bss_max_channel_width_req;
 		struct {
 			__le16 vif;
-			__le32 spare_1;
-			__le32 spare_2;
+			__le16 scan_mode;
+			__le16 max_channel_time_active;
+			__le16 home_away_time;
+			__le16 home_time;
+			__le16 max_channel_time_passive;
 			__le32 spare_3;
 			u8     dr[0];
-		} __packed mlme_spare_6_req;
+		} __packed mlme_set_scan_mode_req;
 		struct {
 			__le16 vif;
 			__le16 filter_mode;
@@ -2349,6 +2381,91 @@ struct fapi_signal {
 			__le32 spare_3;
 			u8     dr[0];
 		} __packed mlme_wifisharing_permitted_channels_req;
+		struct {
+			__le16 vif;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_spare_7_req;
+		struct {
+			__le16 vif;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_spare_8_req;
+		struct {
+			__le16 vif;
+			__le16 channel_frequency_segment0;
+			__le16 channel_information;
+			__le16 channel_frequency_segment1;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_configure_monitor_mode_req;
+		struct {
+			__le16 vif;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_spare_9_req;
+		struct {
+			__le16 vif;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_spare_10_req;
+		struct {
+			__le16 vif;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_spare_11_req;
+		struct {
+			__le16 vif;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_nan_range_req;
+		struct {
+			__le16 vif;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_nan_range_cancel_req;
+		struct {
+			__le16 vif;
+			u8     peer_qsta_address[ETH_ALEN];
+			__le16 sequence_number;
+			__le16 user_priority;
+			__le16 reason;
+			__le16 direction;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_delba_req;
+		struct {
+			__le16 vif;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_get_num_antennas_req;
+		struct {
+			__le16 vif;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_start_detect_req;
 		struct {
 			__le16 vif;
 			__le32 spare_1;
@@ -2773,7 +2890,7 @@ struct fapi_signal {
 			__le32 spare_2;
 			__le32 spare_3;
 			u8     dr[0];
-		} __packed mlme_spare_4_cfm;
+		} __packed mlme_roaming_channel_list_cfm;
 		struct {
 			__le16 vif;
 			__le16 result_code;
@@ -2781,7 +2898,7 @@ struct fapi_signal {
 			__le32 spare_2;
 			__le32 spare_3;
 			u8     dr[0];
-		} __packed mlme_spare_5_cfm;
+		} __packed mlme_set_bss_max_channel_width_cfm;
 		struct {
 			__le16 vif;
 			__le16 result_code;
@@ -2789,7 +2906,7 @@ struct fapi_signal {
 			__le32 spare_2;
 			__le32 spare_3;
 			u8     dr[0];
-		} __packed mlme_spare_6_cfm;
+		} __packed mlme_set_scan_mode_cfm;
 		struct {
 			__le16 vif;
 			__le16 result_code;
@@ -2854,6 +2971,95 @@ struct fapi_signal {
 			__le32 spare_3;
 			u8     dr[0];
 		} __packed mlme_wifisharing_permitted_channels_cfm;
+		struct {
+			__le16 vif;
+			__le16 result_code;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_spare_7_cfm;
+		struct {
+			__le16 vif;
+			__le16 result_code;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_spare_8_cfm;
+		struct {
+			__le16 vif;
+			__le16 result_code;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_configure_monitor_mode_cfm;
+		struct {
+			__le16 vif;
+			__le16 result_code;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_spare_9_cfm;
+		struct {
+			__le16 vif;
+			__le16 result_code;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_spare_10_cfm;
+		struct {
+			__le16 vif;
+			__le16 result_code;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_spare_11_cfm;
+		struct {
+			__le16 vif;
+			__le16 result_code;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_nan_range_cfm;
+		struct {
+			__le16 vif;
+			__le16 result_code;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_nan_range_cancel_cfm;
+		struct {
+			__le16 vif;
+			__le16 result_code;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_delba_cfm;
+		struct {
+			__le16 vif;
+			__le16 result_code;
+			__le16 number_of_antennas;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_get_num_antennas_cfm;
+		struct {
+			__le16 vif;
+			__le16 result_code;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_start_detect_cfm;
 		struct {
 			__le16 vif;
 			__le16 result_code;
@@ -2974,7 +3180,8 @@ struct fapi_signal {
 			__le16 preferrednetwork_ap;
 			__le16 anqp_elements_length;
 			__le16 network_block_id;
-			__le32 spare_1;
+			__le16 snr;
+			__le16 spare_1;
 			__le32 spare_2;
 			__le32 spare_3;
 			u8     dr[0];
@@ -3158,11 +3365,11 @@ struct fapi_signal {
 			__le16 vif;
 			__le16 session_id;
 			__le16 match_id;
-			__le32 ranging_measurement;
-			__le16 rangingindicationtype;
 			__le32 spare_1;
-			__le32 spare_2;
+			__le16 spare_2;
 			__le32 spare_3;
+			__le32 spare_4;
+			__le32 spare_5;
 			u8     dr[0];
 		} __packed mlme_nan_service_ind;
 		struct {
@@ -3206,20 +3413,21 @@ struct fapi_signal {
 			__le32 spare_2;
 			__le32 spare_3;
 			u8     dr[0];
-		} __packed mlme_spare_3_ind;
+		} __packed mlme_roaming_channel_list_ind;
 		struct {
 			__le16 vif;
+			u8     bssid[ETH_ALEN];
+			__le32 reassociation_retry_delay;
 			__le32 spare_1;
 			__le32 spare_2;
 			__le32 spare_3;
 			u8     dr[0];
-		} __packed mlme_spare_4_ind;
+		} __packed mlme_blacklisted_ind;
 		struct {
 			__le16 vif;
-			__le16 ndl_vif_index;
 			u8     peer_ndp_interface_address[ETH_ALEN];
 			__le16 result_code;
-			u8     local_ndp_interface_address[ETH_ALEN];
+			__le16 ndp_instance_id;
 			__le32 spare_1;
 			__le32 spare_2;
 			__le32 spare_3;
@@ -3238,10 +3446,9 @@ struct fapi_signal {
 		} __packed mlme_ndp_requested_ind;
 		struct {
 			__le16 vif;
-			__le16 ndl_vif_index;
 			u8     peer_ndp_interface_address[ETH_ALEN];
 			__le16 result_code;
-			u8     local_ndp_interface_address[ETH_ALEN];
+			__le16 ndp_instance_id;
 			__le32 spare_1;
 			__le32 spare_2;
 			__le32 spare_3;
@@ -3249,8 +3456,7 @@ struct fapi_signal {
 		} __packed mlme_ndp_response_ind;
 		struct {
 			__le16 vif;
-			__le16 ndl_vif_index;
-			u8     local_ndp_interface_address[ETH_ALEN];
+			__le16 ndp_instance_id;
 			__le32 spare_1;
 			__le32 spare_2;
 			__le32 spare_3;
@@ -3263,6 +3469,35 @@ struct fapi_signal {
 			__le32 spare_3;
 			u8     dr[0];
 		} __packed mlme_spare_5_ind;
+		struct {
+			__le16 vif;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_spare_6_ind;
+		struct {
+			__le16 vif;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_nan_range_ind;
+		struct {
+			__le16 vif;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_spare_7_ind;
+		struct {
+			__le16 vif;
+			__le16 result;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_start_detect_ind;
 		struct {
 			__le16 vif;
 			__le32 spare_1;
@@ -3777,12 +4012,12 @@ struct fapi_signal {
 			u8     dr[0];
 		} __packed test_bist_get_tx_gain_req;
 		struct {
-			__le16 vif;
-			__le32 spare_1;
+			__le16 spare_1;
 			__le32 spare_2;
 			__le32 spare_3;
+			__le32 spare_4;
 			u8     dr[0];
-		} __packed test_spare_1_req;
+		} __packed test_start_wlanlite_req;
 		struct {
 			__le16 vif;
 			__le32 spare_1;
@@ -4029,13 +4264,13 @@ struct fapi_signal {
 			u8     dr[0];
 		} __packed test_bist_get_tx_gain_cfm;
 		struct {
-			__le16 vif;
 			__le16 result_code;
-			__le32 spare_1;
+			__le16 spare_1;
 			__le32 spare_2;
 			__le32 spare_3;
+			__le32 spare_4;
 			u8     dr[0];
-		} __packed test_spare_1_cfm;
+		} __packed test_start_wlanlite_cfm;
 		struct {
 			__le16 vif;
 			__le16 result_code;
@@ -4245,95 +4480,9 @@ struct fapi_signal {
 	} u;
 } __packed;
 
-static inline struct sk_buff *fapi_alloc_f(size_t sig_size, size_t data_size, u16 id, u16 vif, const char *file, int line)
-{
-	struct sk_buff                *skb = slsi_alloc_skb_f(sig_size + data_size, GFP_ATOMIC, file, line);
-	struct fapi_vif_signal_header *header;
-
-	WARN_ON(sig_size < sizeof(struct fapi_signal_header));
-	if (WARN_ON(!skb))
-		return NULL;
-
-	slsi_skb_cb_init(skb)->sig_length = sig_size;
-	slsi_skb_cb_get(skb)->data_length = sig_size;
-
-	header = (struct fapi_vif_signal_header *)skb_put(skb, sig_size);
-	header->id = cpu_to_le16(id);
-	header->receiver_pid = 0;
-	header->sender_pid = 0;
-	header->fw_reference = 0;
-	header->vif = vif;
-	return skb;
-}
-
 #define fapi_sig_size(mp_name)                  ((u16)offsetof(struct fapi_signal, u.mp_name.dr))
-#define fapi_alloc(mp_name, mp_id, mp_vif, mp_datalen) fapi_alloc_f(fapi_sig_size(mp_name), mp_datalen, mp_id, mp_vif, __FILE__, __LINE__)
-#define fapi_get_buff(mp_skb, mp_name) (((struct fapi_signal *)(mp_skb)->data)->mp_name)
-#define fapi_get_u16(mp_skb, mp_name) le16_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name)
-#define fapi_get_u32(mp_skb, mp_name) le32_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name)
-#define fapi_get_u64(mp_skb, mp_name) le64_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name)
-#define fapi_set_u16(mp_skb, mp_name, mp_value) (((struct fapi_signal *)(mp_skb)->data)->mp_name = cpu_to_le16(mp_value))
-#define fapi_set_u32(mp_skb, mp_name, mp_value) (((struct fapi_signal *)(mp_skb)->data)->mp_name = cpu_to_le32(mp_value))
-#define fapi_get_s16(mp_skb, mp_name) ((s16)le16_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name))
-#define fapi_get_s32(mp_skb, mp_name) ((s32)le32_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name))
-#define fapi_set_s16(mp_skb, mp_name, mp_value) (((struct fapi_signal *)(mp_skb)->data)->mp_name = cpu_to_le16((u16)mp_value))
-#define fapi_set_s32(mp_skb, mp_name, mp_value) (((struct fapi_signal *)(mp_skb)->data)->mp_name = cpu_to_le32((u32)mp_value))
-#define fapi_set_memcpy(mp_skb, mp_name, mp_value) memcpy(((struct fapi_signal *)(mp_skb)->data)->mp_name, mp_value, sizeof(((struct fapi_signal *)(mp_skb)->data)->mp_name))
-#define fapi_set_memset(mp_skb, mp_name, mp_value) memset(((struct fapi_signal *)(mp_skb)->data)->mp_name, mp_value, sizeof(((struct fapi_signal *)(mp_skb)->data)->mp_name))
-
-/* Helper to get and set high/low 16 bits from u32 signals */
-#define fapi_get_high16_u32(mp_skb, mp_name) ((fapi_get_u32((mp_skb), mp_name) & 0xffff0000) >> 16)
-#define fapi_set_high16_u32(mp_skb, mp_name, mp_value) fapi_set_u32((mp_skb), mp_name, (fapi_get_u32((mp_skb), mp_name) & 0xffff) | ((mp_value) << 16))
-#define fapi_get_low16_u32(mp_skb, mp_name) (fapi_get_u32((mp_skb), mp_name) & 0xffff)
-#define fapi_set_low16_u32(mp_skb, mp_name, mp_value) fapi_set_u32((mp_skb), mp_name, (fapi_get_u32((mp_skb), mp_name) & 0xffff0000) | (mp_value))
-
 /* Helper to get signal and data */
 #define fapi_get_sigid(mp_skb) le16_to_cpu(((struct fapi_signal *)(mp_skb)->data)->id)
-#define fapi_get_siglen(mp_skb) (slsi_skb_cb_get(mp_skb)->sig_length)
-#define fapi_get_datalen(mp_skb) (slsi_skb_cb_get(mp_skb)->data_length - slsi_skb_cb_get(mp_skb)->sig_length)
-#define fapi_get_data(mp_skb) (mp_skb->data + fapi_get_siglen(mp_skb))
-#define fapi_get_vif(mp_skb) le16_to_cpu(((struct fapi_vif_signal_header *)(mp_skb)->data)->vif)
-
-/* Helper to get the struct ieee80211_mgmt from the data */
-#define fapi_get_mgmt(mp_skb) ((struct ieee80211_mgmt *)fapi_get_data(mp_skb))
-#define fapi_get_mgmtlen(mp_skb) fapi_get_datalen(mp_skb)
-
-static inline u8 *fapi_append_data(struct sk_buff *skb, const u8 *data, size_t data_len)
-{
-	u8 *p;
-
-	if (WARN_ON(skb_tailroom(skb) < data_len))
-		return NULL;
-
-	p = skb_put(skb, data_len);
-	slsi_skb_cb_get(skb)->data_length += data_len;
-	if (data)
-		memcpy(p, data, data_len);
-	return p;
-}
-
-static inline u8 *fapi_append_data_u32(struct sk_buff *skb, const u32 data)
-{
-	__le32 val = cpu_to_le32(data);
-
-	return fapi_append_data(skb, (u8 *)&val, sizeof(val));
-}
-
-static inline u8 *fapi_append_data_u16(struct sk_buff *skb, const u16 data)
-{
-	__le16 val = cpu_to_le16(data);
-
-	return fapi_append_data(skb, (u8 *)&val, sizeof(val));
-}
-
-static inline u8 *fapi_append_data_u8(struct sk_buff *skb, const u8 data)
-{
-	u8 val = data;
-
-	return fapi_append_data(skb, (u8 *)&val, sizeof(val));
-}
-
-#define fapi_append_data_bool(skb, data) fapi_append_data_u16(skb, data)
 
 static inline bool fapi_is_mlme(struct sk_buff *skb)
 {
@@ -4459,9 +4608,9 @@ static inline u16 fapi_get_expected_size(struct sk_buff *skb)
 		fapi_sig_size(mlme_ndp_terminate_req),
 		0,
 		0,
-		fapi_sig_size(mlme_spare_4_req),
-		fapi_sig_size(mlme_spare_5_req),
-		fapi_sig_size(mlme_spare_6_req),
+		fapi_sig_size(mlme_roaming_channel_list_req),
+		fapi_sig_size(mlme_set_bss_max_channel_width_req),
+		fapi_sig_size(mlme_set_scan_mode_req),
 		fapi_sig_size(mlme_install_apf_req),
 		fapi_sig_size(mlme_read_apf_req),
 		fapi_sig_size(mlme_set_num_antennas_req),
@@ -4470,6 +4619,17 @@ static inline u16 fapi_get_expected_size(struct sk_buff *skb)
 		fapi_sig_size(mlme_set_band_req),
 		fapi_sig_size(mlme_set_roaming_parameters_req),
 		fapi_sig_size(mlme_wifisharing_permitted_channels_req),
+		fapi_sig_size(mlme_spare_7_req),
+		fapi_sig_size(mlme_spare_8_req),
+		fapi_sig_size(mlme_configure_monitor_mode_req),
+		fapi_sig_size(mlme_spare_9_req),
+		fapi_sig_size(mlme_spare_10_req),
+		fapi_sig_size(mlme_spare_11_req),
+		fapi_sig_size(mlme_nan_range_req),
+		fapi_sig_size(mlme_nan_range_cancel_req),
+		fapi_sig_size(mlme_delba_req),
+		fapi_sig_size(mlme_get_num_antennas_req),
+		fapi_sig_size(mlme_start_detect_req),
 		fapi_sig_size(mlme_spare_signal_1_req),
 		fapi_sig_size(mlme_spare_signal_2_req),
 		fapi_sig_size(mlme_spare_signal_3_req),
@@ -4517,7 +4677,7 @@ static inline u16 fapi_get_expected_size(struct sk_buff *skb)
 		fapi_sig_size(test_hip_tester_set_params_req),
 		fapi_sig_size(test_hip_tester_report_req),
 		fapi_sig_size(test_bist_get_tx_gain_req),
-		fapi_sig_size(test_spare_1_req),
+		fapi_sig_size(test_start_wlanlite_req),
 		fapi_sig_size(test_spare_2_req),
 		fapi_sig_size(test_spare_3_req),
 		fapi_sig_size(phy_event_logging_req),
@@ -4595,9 +4755,9 @@ static inline u16 fapi_get_expected_size(struct sk_buff *skb)
 		fapi_sig_size(mlme_ndp_terminate_cfm),
 		0,
 		0,
-		fapi_sig_size(mlme_spare_4_cfm),
-		fapi_sig_size(mlme_spare_5_cfm),
-		fapi_sig_size(mlme_spare_6_cfm),
+		fapi_sig_size(mlme_roaming_channel_list_cfm),
+		fapi_sig_size(mlme_set_bss_max_channel_width_cfm),
+		fapi_sig_size(mlme_set_scan_mode_cfm),
 		fapi_sig_size(mlme_install_apf_cfm),
 		fapi_sig_size(mlme_read_apf_cfm),
 		fapi_sig_size(mlme_set_num_antennas_cfm),
@@ -4606,6 +4766,17 @@ static inline u16 fapi_get_expected_size(struct sk_buff *skb)
 		fapi_sig_size(mlme_set_band_cfm),
 		fapi_sig_size(mlme_set_roaming_parameters_cfm),
 		fapi_sig_size(mlme_wifisharing_permitted_channels_cfm),
+		fapi_sig_size(mlme_spare_7_cfm),
+		fapi_sig_size(mlme_spare_8_cfm),
+		fapi_sig_size(mlme_configure_monitor_mode_cfm),
+		fapi_sig_size(mlme_spare_9_cfm),
+		fapi_sig_size(mlme_spare_10_cfm),
+		fapi_sig_size(mlme_spare_11_cfm),
+		fapi_sig_size(mlme_nan_range_cfm),
+		fapi_sig_size(mlme_nan_range_cancel_cfm),
+		fapi_sig_size(mlme_delba_cfm),
+		fapi_sig_size(mlme_get_num_antennas_cfm),
+		fapi_sig_size(mlme_start_detect_cfm),
 		fapi_sig_size(mlme_spare_signal_1_cfm),
 		fapi_sig_size(mlme_spare_signal_2_cfm),
 		fapi_sig_size(mlme_spare_signal_3_cfm),
@@ -4644,7 +4815,7 @@ static inline u16 fapi_get_expected_size(struct sk_buff *skb)
 		fapi_sig_size(test_hip_tester_stop_cfm),
 		fapi_sig_size(test_hip_tester_set_params_cfm),
 		fapi_sig_size(test_bist_get_tx_gain_cfm),
-		fapi_sig_size(test_spare_1_cfm),
+		fapi_sig_size(test_start_wlanlite_cfm),
 		fapi_sig_size(test_spare_2_cfm),
 		fapi_sig_size(test_spare_3_cfm),
 		fapi_sig_size(phy_event_logging_cfm),
@@ -4694,14 +4865,18 @@ static inline u16 fapi_get_expected_size(struct sk_buff *skb)
 		fapi_sig_size(mlme_channel_switched_ind),
 		fapi_sig_size(mlme_synchronised_ind),
 		fapi_sig_size(mlme_beacon_reporting_event_ind),
-		fapi_sig_size(mlme_spare_3_ind),
-		fapi_sig_size(mlme_spare_4_ind),
+		fapi_sig_size(mlme_roaming_channel_list_ind),
+		fapi_sig_size(mlme_blacklisted_ind),
 		fapi_sig_size(mlme_ndp_request_ind),
 		fapi_sig_size(mlme_ndp_requested_ind),
 		fapi_sig_size(mlme_ndp_response_ind),
 		0,
 		fapi_sig_size(mlme_ndp_terminated_ind),
 		fapi_sig_size(mlme_spare_5_ind),
+		fapi_sig_size(mlme_spare_6_ind),
+		fapi_sig_size(mlme_nan_range_ind),
+		fapi_sig_size(mlme_spare_7_ind),
+		fapi_sig_size(mlme_start_detect_ind),
 		fapi_sig_size(mlme_spare_signal_1_ind),
 		fapi_sig_size(mlme_spare_signal_2_ind),
 		fapi_sig_size(mlme_spare_signal_3_ind),

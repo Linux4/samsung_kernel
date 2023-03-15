@@ -61,10 +61,20 @@ struct api_vpl_out_face {
 	vra_uint32					score;			/* The face's score, given by the FD engine.*/
 };
 
+struct api_vpl_org_crop_info {
+	uint16_t                crop_offset_x;  /* The frame's origin_crop_x */
+	uint16_t                crop_offset_y;  /* The frame's origin_crop_y */
+	uint16_t                crop_width;     /* The frame's origin_crop_w */
+	uint16_t                crop_height;    /* The frame's origin_crop_h */
+	uint16_t                full_width;     /* The frame's origin_dma_in_w */
+	uint16_t                full_height;    /* The frame's origin_dma_in_h */
+};
+
 /* Holds the width and the height of a frame (in pixels) */
 struct api_vpl_frame_size {
 	vra_uint32			width;		/* The frame's width */
 	vra_uint32			height;		/* The frame's height */
+	struct api_vpl_org_crop_info    org_crop_info;  /* The frame's org_input_dma_crop_info */
 };
 
 /* hold pointers to input buffers (R, G, and B) */

@@ -17,69 +17,78 @@
 #include "is-video.h"
 #include "is-type.h"
 
-void is_ischain_3aa_stripe_cfg(struct is_subdev *subdev,
+int is_ischain_3aa_stripe_cfg(struct is_group *group,
+		struct is_subdev *subdev,
 		struct is_frame *frame,
 		u32 *full_w, u32 *full_h,
 		struct is_crop *incrop,
-		struct is_crop *otcrop)
+		struct is_crop *otcrop,
+		u32 bitwidth)
 {
+	u32 region_id = frame->stripe_info.region_id;
 	u32 stripe_x, stripe_w;
 
 	/* Input crop configuration */
-	if (!frame->stripe_info.region_id) {
-		/**
-		 * Left region
-		 * The stripe width should be in h_pix_num.
-		 */
+	if (!region_id) {
+		/* Left region */
 		stripe_x = otcrop->x;
 		stripe_w = ALIGN_DOWN(frame->stripe_info.in.h_pix_num - stripe_x, STRIPE_WIDTH_ALIGN);
-		*full_w = frame->stripe_info.in.h_pix_num;
 
-		frame->stripe_info.in.h_pix_ratio = stripe_w * STRIPE_RATIO_PRECISION / otcrop->w;
+		if (stripe_w == 0) {
+			msrdbgs(3, "Skip current stripe[#%d] region because stripe_width is too small(%d)\n",
+					subdev, subdev, frame, region_id, stripe_w);
+			frame->stripe_info.region_id++;
+			return -EAGAIN;
+		}
+
 		frame->stripe_info.in.h_pix_num = stripe_w + stripe_x;
+		frame->stripe_info.in.prev_h_pix_num = frame->stripe_info.in.h_pix_num;
+	} else if (region_id < frame->stripe_info.region_num - 1) {
+		/* Middle region */
+		stripe_x = (otcrop->x < frame->stripe_info.in.h_pix_num) ? 0 : (otcrop->x - frame->stripe_info.in.h_pix_num);
+		stripe_w = frame->stripe_info.in.h_pix_num - frame->stripe_info.in.prev_h_pix_num;
+		stripe_w = ALIGN_DOWN(stripe_w - stripe_x, STRIPE_WIDTH_ALIGN);
+
+		if (stripe_w == 0) {
+			msrdbgs(3, "Skip current stripe[#%d] region because stripe_width is too small(%d)\n",
+					subdev, subdev, frame, region_id, stripe_w);
+			frame->stripe_info.region_id++;
+			return -EAGAIN;
+		}
+
+		frame->stripe_info.in.h_pix_num = frame->stripe_info.in.prev_h_pix_num;
+		frame->stripe_info.in.h_pix_num += stripe_w + stripe_x;
+		frame->stripe_info.in.prev_h_pix_num = frame->stripe_info.in.h_pix_num;
+		stripe_w += STRIPE_MARGIN_WIDTH;
 	} else {
 		/* Right region */
 		stripe_x = 0;
 		stripe_w = otcrop->w - (frame->stripe_info.in.h_pix_num - otcrop->x);
-		*full_w = *full_w - frame->stripe_info.in.h_pix_num;
 	}
 
-	/* Add stripe processing horizontal margin into each region. */
 	stripe_w += STRIPE_MARGIN_WIDTH;
-	*full_w += STRIPE_MARGIN_WIDTH;
-
 	incrop->x = stripe_x;
 	incrop->y = otcrop->y;
 	incrop->w = stripe_w;
 	incrop->h = otcrop->h;
+	*full_w = incrop->x + incrop->w;
 
-	/* Output crop configuration */
-	if (!frame->stripe_info.region_id) {
-		/* Left region */
-		stripe_x = 0;
-		stripe_w = frame->stripe_info.in.h_pix_num - otcrop->x;
-
-		frame->stripe_info.out.h_pix_ratio = stripe_w * STRIPE_RATIO_PRECISION / otcrop->w;
-		frame->stripe_info.out.h_pix_num = stripe_w;
-	} else {
-		/* Right region */
-		stripe_x = 0;
-		stripe_w = otcrop->w - frame->stripe_info.out.h_pix_num;
-	}
-
-	/* Add stripe processing horizontal margin into each region. */
-	stripe_w += STRIPE_MARGIN_WIDTH;
-
-	otcrop->x = stripe_x;
+	/**
+	 * Output crop configuration.
+	 * No crop & scale.
+	 */
+	otcrop->x = 0;
 	otcrop->y = 0;
-	otcrop->w = stripe_w;
+	otcrop->w = incrop->w;
+	otcrop->h = incrop->h;
 
 	msrdbgs(3, "stripe_in_crop[%d][%d, %d, %d, %d, %d, %d]\n", subdev, subdev, frame,
-			frame->stripe_info.region_id,
+			region_id,
 			incrop->x, incrop->y, incrop->w, incrop->h, *full_w, *full_h);
 	msrdbgs(3, "stripe_ot_crop[%d][%d, %d, %d, %d]\n", subdev, subdev, frame,
-			frame->stripe_info.region_id,
+			region_id,
 			otcrop->x, otcrop->y, otcrop->w, otcrop->h);
+	return 0;
 }
 
 static int is_ischain_3aa_cfg(struct is_subdev *leader,
@@ -107,6 +116,7 @@ static int is_ischain_3aa_cfg(struct is_subdev *leader,
 	u32 hw_bitwidth = DMA_INPUT_BIT_WIDTH_16BIT;
 	struct is_crop incrop_cfg, otcrop_cfg;
 	u32 in_width, in_height;
+	int stripe_ret = -1;
 
 	device = (struct is_device_ischain *)device_data;
 
@@ -169,10 +179,13 @@ static int is_ischain_3aa_cfg(struct is_subdev *leader,
 		in_height = leader->input.height;
 	}
 
-	if (IS_ENABLED(CHAIN_USE_STRIPE_PROCESSING) && frame && frame->stripe_info.region_num)
-		is_ischain_3aa_stripe_cfg(leader, frame,
-				&in_width, &in_height,
-				&incrop_cfg, &otcrop_cfg);
+	if (IS_ENABLED(CHAIN_USE_STRIPE_PROCESSING) && frame && frame->stripe_info.region_num) {
+		while (stripe_ret)
+			stripe_ret = is_ischain_3aa_stripe_cfg(group, leader, frame,
+					&in_width, &in_height,
+					&incrop_cfg, &otcrop_cfg,
+					hw_bitwidth);
+	}
 
 	/*
 	 * bayer crop = bcrop1 + bcrop3
@@ -278,6 +291,9 @@ static int is_ischain_3aa_cfg(struct is_subdev *leader,
 		stripe_input->total_count = frame->stripe_info.region_num;
 		if (!frame->stripe_info.region_id) {
 			stripe_input->left_margin = 0;
+			stripe_input->right_margin = STRIPE_MARGIN_WIDTH;
+		} else if (frame->stripe_info.region_id < frame->stripe_info.region_num - 1) {
+			stripe_input->left_margin = STRIPE_MARGIN_WIDTH;
 			stripe_input->right_margin = STRIPE_MARGIN_WIDTH;
 		} else {
 			stripe_input->left_margin = STRIPE_MARGIN_WIDTH;

@@ -1890,7 +1890,7 @@ int is_video_prepare(struct file *file,
 	struct v4l2_buffer *buf)
 {
 	int ret = 0;
-	int index = 0;
+	unsigned int index = 0;
 	struct is_device_ischain *device;
 	struct is_queue *queue;
 	struct vb2_queue *vbq;
@@ -1909,12 +1909,18 @@ int is_video_prepare(struct file *file,
 	vbq = queue->vbq;
 	video = GET_VIDEO(vctx);
 	index = buf->index;
-        vb = queue->vbq->bufs[index];
-        if (!vb) {
-                mverr("vb is NULL", vctx, video);
-                ret = -EINVAL;
-                goto p_err;
-        }
+	if (index >= VB2_MAX_FRAME) {
+		mverr("buffer index[%d] range over", vctx, video, buf->index);
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+	vb = queue->vbq->bufs[index];
+	if (!vb) {
+		mverr("vb is NULL", vctx, video);
+		ret = -EINVAL;
+		goto p_err;
+	}
 #ifdef ENABLE_BUFFER_HIDING
 	pipe = &device->pipe;
 

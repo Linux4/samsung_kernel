@@ -442,7 +442,6 @@ int is_hw_paf_probe(struct is_hw_ip *hw_ip, struct is_interface *itf,
 	atomic_set(&hw_ip->fcount, 0);
 	hw_ip->is_leader = true;
 	atomic_set(&hw_ip->status.Vvalid, V_BLANK);
-	atomic_set(&hw_ip->status.otf_start, 0);
 	atomic_set(&hw_ip->rsccount, 0);
 	init_waitqueue_head(&hw_ip->status.wait_queue);
 

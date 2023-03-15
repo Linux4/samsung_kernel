@@ -33,4 +33,10 @@ int npu_core_on(struct npu_system *system);
 int npu_core_off(struct npu_system *system);
 int npu_core_clock_on(struct npu_system *system);
 int npu_core_clock_off(struct npu_system *system);
+int npu_core_probe(struct platform_device *pdev);
+int npu_core_suspend(struct device *dev);
+int npu_core_resume(struct device *dev);
+int npu_core_runtime_suspend(struct device *dev);
+int npu_core_runtime_resume(struct device *dev);
+int npu_core_remove(struct platform_device *pdev);
 #endif // _NPU_CORE_H_

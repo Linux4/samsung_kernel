@@ -1,9 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * linux/drivers/video/fbdev/exynos/panel/panel_poc.c
- *
- * Samsung Common LCD Driver.
- *
- * Copyright (c) 2017 Samsung Electronics
+ * Copyright (c) Samsung Electronics Co., Ltd.
  * Gwanghui Lee <gwanghui.lee@samsung.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -28,20 +25,22 @@
 bool is_hbm_zone(struct brightness_table *brt_tbl, int brightness)
 {
 	bool retVal = false;
-	unsigned normal_max_brt = brt_tbl->brt[brt_tbl->sz_ui_lum - 1];
-	if(normal_max_brt < brightness)
+	unsigned int normal_max_brt = brt_tbl->brt[brt_tbl->sz_ui_lum - 1];
+
+	if (normal_max_brt < brightness)
 		retVal = true;
 	return retVal;
 }
 bool is_hbm_800(int hbm_max)
 {
 	bool retVal = false;
-	if(hbm_max >= 800)
+
+	if (hbm_max >= 800)
 		retVal = true;
 	return retVal;
 }
 
-int __generate_irc_v1(struct brightness_table *brt_tbl, struct panel_irc_info* info, u64 luminance, int brightness)
+int __generate_irc_v1(struct brightness_table *brt_tbl, struct panel_irc_info *info, u64 luminance, int brightness)
 {
 	int size_ui_lum = brt_tbl->sz_ui_lum;
 	unsigned int *lum_tbl = brt_tbl->lum;
@@ -54,10 +53,10 @@ int __generate_irc_v1(struct brightness_table *brt_tbl, struct panel_irc_info* i
 	int dynamic_offset = info->dynamic_offset;
 
 	/*
-		hbm 800 : calculate coefficient value refer excel sheet from d.lab
-		other : coef is 1
-	*/
-	if(is_hbm_800(hbm_max)) {
+	 *	hbm 800 : calculate coefficient value refer excel sheet from d.lab
+	 *	other : coef is 1
+	 */
+	if (is_hbm_800(hbm_max)) {
 		if (is_hbm_zone(brt_tbl, brightness)) {				// is hbm
 			lum_gap = luminance - scaleup_normal_max;
 			lum_gap *= disp_pow(10, SCALEUP_4); // for precision scale up
@@ -83,7 +82,7 @@ int __generate_irc_v1(struct brightness_table *brt_tbl, struct panel_irc_info* i
 	return 0;
 }
 
-int __generate_irc_v2(struct brightness_table *brt_tbl, struct panel_irc_info* info, u64 luminance, int brightness)
+int __generate_irc_v2(struct brightness_table *brt_tbl, struct panel_irc_info *info, u64 luminance, int brightness)
 {
 	u64 coef = disp_pow(10, SCALEUP_5);
 	int size_ui_lum = brt_tbl->sz_ui_lum;
@@ -104,13 +103,13 @@ int __generate_irc_v2(struct brightness_table *brt_tbl, struct panel_irc_info* i
 		coef = coef - temp_val;
 	}
 
-	for (i = info->dynamic_offset; i < info->dynamic_offset + info->dynamic_len; i++) 	{
+	for (i = info->dynamic_offset; i < info->dynamic_offset + info->dynamic_len; i++) {
 		temp_val = coef;
 		temp_val *= info->ref_tbl[i];
 		temp_val = (u64)disp_pow_round(disp_div64(temp_val * luminance, lum_tbl[size_ui_lum - 1]), SCALEUP_9);
 		info->buffer[i] = (u8)(temp_val / (u64)disp_pow(10, SCALEUP_9));
-
 	}
+
 	return 0;
 }
 bool is_valid_version(int version)
@@ -121,7 +120,7 @@ bool is_valid_version(int version)
 		return false;
 }
 
-u64 get_scaleup_luminance(struct brightness_table *brt_tbl, struct panel_irc_info* info, int brightness)
+u64 get_scaleup_luminance(struct brightness_table *brt_tbl, struct panel_irc_info *info, int brightness)
 {
 	int upper_idx, lower_idx;
 	u64 upper_lum, lower_lum, current_lum;
@@ -140,7 +139,7 @@ u64 get_scaleup_luminance(struct brightness_table *brt_tbl, struct panel_irc_inf
 	return current_lum;
 }
 
-int generate_irc(struct brightness_table *brt_tbl, struct panel_irc_info* info, int brightness)
+int generate_irc(struct brightness_table *brt_tbl, struct panel_irc_info *info, int brightness)
 {
 	u64 current_lum = 0;
 
@@ -149,7 +148,7 @@ int generate_irc(struct brightness_table *brt_tbl, struct panel_irc_info* info, 
 		__generate_irc_v2
 	};
 
-	if(info->ref_tbl == NULL) {
+	if (info->ref_tbl == NULL) {
 		pr_info("%s ref_tbl is NULL\n", __func__);
 		return -EINVAL;
 	}

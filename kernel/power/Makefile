@@ -18,3 +18,5 @@ obj-$(CONFIG_MAGIC_SYSRQ)	+= poweroff.o
 
 obj-$(CONFIG_ENERGY_MODEL)	+= energy_model.o
 obj-$(CONFIG_SUSPEND)		+= wakeup_reason.o
+
+ccflags-y := -Wformat

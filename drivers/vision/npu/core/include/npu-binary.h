@@ -17,7 +17,11 @@
 #define NPU_FW_PATH1		"/data/"
 #define NPU_FW_PATH2		"/vendor/firmware/"
 #define NPU_FW_PATH3		"npu/"
+#define NPU_FW_PATH4		"npu_perf/"
+#define NPU_FW_PATH5		"npu_dn/"
 #define NPU_FW_NAME		"NPU.bin"
+#define NPU_PERF_FW_NAME	"NPU_perf.bin"
+#define NPU_DN_FW_NAME		"NPU_dn.bin"
 #define NPU_FW_NAME_LEN	100
 #define NPU_VERSION_SIZE	42
 
@@ -50,7 +54,8 @@ int npu_binary_read(struct npu_binary *binary,
 	size_t target_size);
 int npu_firmware_file_read(struct npu_binary *binary,
 	void *target,
-	size_t target_size);
+	size_t target_size,
+	int mode);
 int npu_binary_write(struct npu_binary *binary,
 	void *target,
 	size_t target_size);

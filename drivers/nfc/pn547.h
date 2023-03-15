@@ -14,6 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.
  */
+#include "nfc_wakelock.h"
 
 #define PN547_MAGIC	0xE9
 
@@ -89,6 +90,17 @@
 #define PN547_NFC_CLKCTRL_REQ_POLA	(1 << 30)
 #define PN547_NFC_CLKCTRL_CLK_ENABLE	(1)
 
+#ifndef CONFIG_SEC_NFC_LOGGER
+#define NFC_LOG_ERR(fmt, ...)		pr_err("sec_nfc: "fmt, ##__VA_ARGS__)
+#define NFC_LOG_INFO(fmt, ...)		pr_info("sec_nfc: "fmt, ##__VA_ARGS__)
+#define NFC_LOG_DBG(fmt, ...)		pr_debug("sec_nfc: "fmt, ##__VA_ARGS__)
+#define NFC_LOG_REC(fmt, ...)		do { } while (0)
+
+#define nfc_print_hex_dump(a, b, c)	do { } while (0)
+#define nfc_logger_init()		do { } while (0)
+#define nfc_logger_set_max_count(a)	do { } while (0)
+#endif
+
 enum secure_state {
 	NOT_CHECKED,
 	ESE_SECURED,
@@ -131,7 +143,7 @@ enum jcop_dwnld_state {
 
 };
 
-#ifdef CONFIG_BATTERY_SAMSUNG
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && !defined(CONFIG_NFC_PVDD_LATE_ENABLE)
 extern unsigned int lpcharge;
 #endif
 extern int ese_spi_pinctrl(int enable);

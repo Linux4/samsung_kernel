@@ -1050,7 +1050,8 @@ void slsi_debug_frame(struct slsi_dev *sdev, struct net_device *dev, struct sk_b
 		frametype = fapi_get_u16(skb, u.ma_unitdata_req.data_unit_descriptor);
 		break;
 	case MA_UNITDATA_IND:
-		frametype = fapi_get_u16(skb, u.ma_unitdata_ind.data_unit_descriptor);
+		if (fapi_get_u16(skb, u.ma_unitdata_ind.bulk_data_descriptor) == FAPI_BULKDATADESCRIPTOR_INLINE)
+			frametype = fapi_get_u16(skb, u.ma_unitdata_ind.data_unit_descriptor);
 		break;
 	case MLME_SEND_FRAME_REQ:
 		frametype = fapi_get_u16(skb, u.mlme_send_frame_req.data_unit_descriptor);

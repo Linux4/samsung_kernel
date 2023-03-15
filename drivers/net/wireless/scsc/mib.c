@@ -103,6 +103,7 @@ size_t slsi_mib_encode_octet_str(u8 *buffer, struct slsi_mib_data *octet_value)
 	u8     i;
 	u8     write_count = 0;
 	size_t length = octet_value->dataLength;
+	size_t ret_length = 0;
 
 	/* Encode the Length (Up to 4 bytes 32 bits worth)
 	 *  0xABFF0000 = [0xAB, 0xFF, 0x00, 0x00]
@@ -124,7 +125,8 @@ size_t slsi_mib_encode_octet_str(u8 *buffer, struct slsi_mib_data *octet_value)
 	buffer[1 + write_count] = octet_value->dataLength & 0xFF;
 	memcpy(&buffer[2 + write_count], octet_value->data, octet_value->dataLength);
 
-	return 2U + write_count + octet_value->dataLength;
+	ret_length = (size_t)(2U + write_count + octet_value->dataLength);
+	return ret_length;
 }
 
 size_t slsi_mib_decode_uint32(u8 *buffer, u32 *value)
@@ -266,12 +268,17 @@ static u8 slsi_mib_decode_type_length(u8 *buffer, size_t *length)
 static size_t slsi_mib_encode_psid_indexs(u8 *buffer, const struct slsi_mib_get_entry *value)
 {
 	size_t i;
+	int index = 0;
 
 	SLSI_U16_TO_BUFF_LE(value->psid, &buffer[0]);
 	buffer[2] = 0;
 	buffer[3] = 0;
-	for (i = 0; i < SLSI_MIB_MAX_INDEXES && value->index[i] != 0; i++)
-		buffer[2] += (u8)slsi_mib_encode_uint32(&buffer[4 + buffer[2]], value->index[i]);
+	for (i = 0; i < SLSI_MIB_MAX_INDEXES && value->index[i] != 0; i++) {
+		/* index should be less than 13 because size of the buffer is 13 */
+		index = 4 + buffer[2];
+		if (index < 13)
+			buffer[2] += (u8)slsi_mib_encode_uint32(&buffer[index], value->index[i]);
+	}
 
 	if (buffer[2] % 2 == 1) {
 		/* Add a padding byte "0x00" to the encoded buffer. The Length
@@ -279,8 +286,12 @@ static size_t slsi_mib_encode_psid_indexs(u8 *buffer, const struct slsi_mib_get_
 		 * length is an Odd number the Pad values MUST be there if it
 		 * is Even it will not be.
 		 */
-		buffer[4 + buffer[2]] = 0x00;
-		return 5 + buffer[2];
+		index = 4 + buffer[2];
+		/* index should be less than 13 because size of the buffer is 13 */
+		if (index < 13) {
+			buffer[index] = 0x00;
+			return 5 + buffer[2];
+		}
 	}
 
 	return 4 + buffer[2];
@@ -289,9 +300,8 @@ static size_t slsi_mib_encode_psid_indexs(u8 *buffer, const struct slsi_mib_get_
 u16 slsi_mib_encode(struct slsi_mib_data *buffer, struct slsi_mib_entry *value)
 {
 	size_t i;
-	size_t required_size = 5U + (5U * SLSI_MIB_MAX_INDEXES) +
-			      (value->value.type == SLSI_MIB_TYPE_OCTET ? value->value.u.octetValue.dataLength : 5U);
-
+	size_t required_size =  (size_t)(5U + (5U * SLSI_MIB_MAX_INDEXES) +
+			      (value->value.type == SLSI_MIB_TYPE_OCTET ? value->value.u.octetValue.dataLength : 5U));
 	size_t encoded_length = 4;
 
 	u8     *tmp_buffer = kmalloc(required_size, GFP_KERNEL);
@@ -352,7 +362,7 @@ size_t slsi_mib_decode(struct slsi_mib_data *data, struct slsi_mib_entry *value)
 	u8     *buffer = data->data;
 	u32    buffer_length = data->dataLength;
 	size_t index_count = 0;
-	size_t length;
+	u32 length;
 	size_t decoded_length = 4;
 
 	memset(value, 0x00, sizeof(struct slsi_mib_entry));
@@ -515,7 +525,7 @@ u8 *slsi_mib_find(struct slsi_mib_data *buffer, const struct slsi_mib_get_entry 
 struct slsi_mib_value *slsi_mib_decode_get_list(struct slsi_mib_data *buffer, u16 psids_length, const struct slsi_mib_get_entry *psids)
 {
 	struct slsi_mib_value *results = kmalloc_array((size_t)psids_length, sizeof(struct slsi_mib_value), GFP_KERNEL);
-	size_t                i;
+	size_t                i, mib_decode_len = 0;
 	int len = 0;
 	char psids_not_found[150] = "";
 
@@ -533,7 +543,9 @@ struct slsi_mib_value *slsi_mib_decode_get_list(struct slsi_mib_data *buffer, u1
 			data.dataLength = buffer->dataLength - (data.data - buffer->data);
 			value.psid = psids[i].psid;
 			memcpy(value.index, psids[i].index, sizeof(value.index));
-			(void)slsi_mib_decode(&data, &value);
+			mib_decode_len = slsi_mib_decode(&data, &value);
+			if (mib_decode_len == 0)
+				SLSI_DBG1_NODEV(SLSI_MLME, "Mib decode error for psid %d\n", value.psid);
 
 			results[i] = value.value;
 		} else {

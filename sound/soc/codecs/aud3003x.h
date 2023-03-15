@@ -75,12 +75,6 @@ struct aud3003x_priv {
 	struct mutex regmap_lock;
 	struct mutex cap_cal_lock;
 	/* codec workqueue */
-	struct delayed_work amicl_cap_cal_work;
-	struct workqueue_struct *amicl_cap_cal_wq;
-	struct delayed_work amicc_cap_cal_work;
-	struct workqueue_struct *amicc_cap_cal_wq;
-	struct delayed_work amicr_cap_cal_work;
-	struct workqueue_struct *amicr_cap_cal_wq;
 	struct delayed_work adc_mute_work;
 	struct workqueue_struct *adc_mute_wq;
 	/* codec parse dt */
@@ -103,6 +97,7 @@ struct aud3003x_priv {
 	bool hp_vts_on;
 	bool amic_vts_on;
 	bool amic_cal_done;
+	int amic_cal[3];
 };
 
 /* Forward Declarations */
@@ -1718,6 +1713,11 @@ void reset_mic4_boost(struct aud3003x_jack *jackdet);
 #define T_A2D_ANT_MDET_OUT_SHIFT	4
 #define T_A2D_ANT_MDET_OUT_WIDTH	2
 #define T_A2D_ANT_MDET_OUT_MASK		MASK(T_A2D_ANT_MDET_OUT_WIDTH, T_A2D_ANT_MDET_OUT_SHIFT)
+
+#define T_A2D_ANT_MDET_NORMAL		0
+#define T_A2D_ANT_MDET_INVERT		1
+#define T_A2D_ANT_MDET_LOW			2
+#define T_A2D_ANT_MDET_HIGH			3
 
 #define T_A2D_BTN_OUT_SHIFT			2
 #define T_A2D_BTN_OUT_WIDTH			2

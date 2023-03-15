@@ -32,7 +32,7 @@ struct complete_hint {
 struct secdbg_hint {
 	struct complete_hint hint[MAX_HINT];	
 	int hint_magic;
-	int hint_idx;
+	unsigned int hint_idx;
 };
 
 static inline void secdbg_hint_init(struct secdbg_hint *hint);

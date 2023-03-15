@@ -23,6 +23,7 @@ static int dsp_open(struct inode *inode, struct file *file)
 	struct dsp_context *dctx;
 
 	dsp_enter();
+	dsp_dbg("open start\n");
 	miscdev = file->private_data;
 	dspdev = dev_get_drvdata(miscdev->parent);
 	core = &dspdev->core;
@@ -37,17 +38,12 @@ static int dsp_open(struct inode *inode, struct file *file)
 		goto p_err_dctx;
 	}
 
-	ret = dsp_graph_manager_open(&core->graph_manager);
-	if (ret)
-		goto p_err_graph;
-
 	file->private_data = dctx;
 
 	dsp_info("dsp has been successfully opened\n");
+	dsp_dbg("open end\n");
 	dsp_leave();
 	return 0;
-p_err_graph:
-	dsp_context_destroy(dctx);
 p_err_dctx:
 	dsp_device_close(core->dspdev);
 p_err_device:
@@ -60,14 +56,22 @@ static int dsp_release(struct inode *inode, struct file *file)
 	struct dsp_core *core;
 
 	dsp_enter();
+	dsp_dbg("release start\n");
 	dctx = file->private_data;
 	core = dctx->core;
 
-	dsp_graph_manager_close(&core->graph_manager, dctx->id);
+	dsp_graph_manager_stop(&core->graph_manager, dctx->id);
+
+	if (dctx->boot_count) {
+		dsp_device_stop(core->dspdev, dctx->boot_count);
+		dsp_graph_manager_close(&core->graph_manager, dctx->boot_count);
+	}
+
 	dsp_context_destroy(dctx);
 	dsp_device_close(core->dspdev);
 
 	dsp_info("dsp has been released\n");
+	dsp_dbg("release end\n");
 	dsp_leave();
 	return 0;
 }

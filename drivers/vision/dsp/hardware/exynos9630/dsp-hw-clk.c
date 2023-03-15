@@ -31,7 +31,7 @@ void dsp_clk_dump(struct dsp_clk *clk)
 		if (!freq)
 			continue;
 
-		dsp_info("%15s(%ld) : %3lu.%06lu MHz\n",
+		dsp_dbg("%15s(%ld) : %3lu.%06lu MHz\n",
 				name, count, freq / 1000000, freq % 1000000);
 	}
 

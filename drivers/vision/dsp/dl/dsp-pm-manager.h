@@ -13,8 +13,8 @@
 #include "dl/dsp-tlsf-allocator.h"
 #include "dl/dsp-lib-manager.h"
 
-extern unsigned long dsp_pm_start_addr;
-
+unsigned long dsp_pm_manager_get_pm_start_addr(void);
+size_t dsp_pm_manager_get_pm_total_size(void);
 int dsp_pm_manager_init(unsigned long start_addr, size_t size,
 	unsigned int pm_offset);
 void dsp_pm_manager_free(void);

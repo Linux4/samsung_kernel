@@ -193,7 +193,7 @@ static void destroy_golden_file(struct golden_file *obj)
 static int load_golden_file(struct golden_file *obj)
 {
 
-	int ret;
+	int ret = 0;
 	mm_segment_t old_fs = 0;
 	struct file *fp = NULL;
 	struct kstat st;
@@ -390,7 +390,7 @@ static int npu_golden_set_close(struct inode *inode, struct file *file)
 	if (npu_golden_ctx.data.flags.updated == 0) {
 		// No update after open
 		npu_err("no golden description\n");
-		ret = 0;
+		ret = -EINVAL;
 		goto err_exit;
 	}
 	if (npu_golden_ctx.data.parse_state != PS_BEGIN) {
@@ -1022,7 +1022,7 @@ static int __npu_golden_compare(const struct npu_frame *frame)
 	BUG_ON(!frame->session);
 
 	if (!SKEEPER_EXPECT_STATE(&npu_golden_ctx.statekeeper, NPU_GOLDEN_STATE_CONFIGURED)) {
-		npu_dbg("invalid state.");
+		npu_err("invalid state.");
 		return -EINVAL;
 	}
 
@@ -1185,7 +1185,7 @@ end_compare:
  */
 int npu_golden_compare(const struct npu_frame *frame)
 {
-	int ret;
+	int ret = 0;
 
 	if (!atomic_read(&npu_golden_ctx.loaded)) {
 		npu_uftrace("Golden is not configured.\n", frame);

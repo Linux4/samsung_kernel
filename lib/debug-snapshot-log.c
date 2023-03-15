@@ -39,6 +39,10 @@
 
 #include <linux/sec_debug.h>
 
+#include <linux/sched/debug.h>
+#include <linux/list_sort.h>
+#include "../kernel/sched/sched.h"
+
 struct dbg_snapshot_lastinfo {
 	atomic_t freq_last_idx[DSS_FLAG_END];
 	char log[DSS_NR_CPUS][SZ_1K];
@@ -946,7 +950,7 @@ void dbg_snapshot_freq(int type, unsigned long old_freq, unsigned long target_fr
 		dss_log->freq[i].target_freq = target_freq;
 		dss_log->freq[i].en = en;
 #ifdef CONFIG_SEC_DEBUG_FREQ
-		secdbg_freq_check(type, i, target_freq);
+		secdbg_freq_check(type, i, target_freq, en);
 #endif
 	}
 }
@@ -1546,5 +1550,248 @@ u64 secdbg_snapshot_get_hardlatency_info(unsigned int cpu)
 		ret = (u64)dss_log->irq[cpu][irq_idx].fn;
 	}
 	return ret;
+}
+#endif
+
+#ifdef CONFIG_SEC_DEBUG_WQ_LOCKUP_INFO
+struct busy_info {
+	struct list_head node;
+	unsigned long long residency;
+	struct task_struct *tsk;
+	pid_t pid;
+};
+
+static LIST_HEAD(busy_info_list);
+static int is_busy;
+static bool is_busy_info_list;
+static unsigned long long real_duration;
+
+struct list_head *create_busy_info(struct task_struct *tsk, unsigned long long residency)
+{
+	struct busy_info *info;
+
+	info = kzalloc(sizeof(struct busy_info), GFP_ATOMIC);
+	if (!info)
+		return NULL;
+
+	info->pid = tsk->pid;
+	if (info->pid == 0)
+		is_busy = 0;
+
+	info->tsk = tsk;
+	info->residency = residency;
+
+	return &info->node;
+}
+
+static int residency_cmp(void *priv, struct list_head *a, struct list_head *b)
+{
+	struct busy_info *busy_info_a;
+	struct busy_info *busy_info_b;
+
+	busy_info_a = container_of(a, struct busy_info, node);
+	busy_info_b = container_of(b, struct busy_info, node);
+
+	if (busy_info_a->residency < busy_info_b->residency)
+		return 1;
+	else if (busy_info_a->residency > busy_info_b->residency)
+		return -1;
+	else
+		return 0;
+}
+
+static void show_callstack(void *dummy)
+{
+#ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT
+	show_stack_auto_comment(NULL, NULL);
+#else
+	show_stack(NULL, NULL);
+#endif
+}
+
+#define LOG_LINE_MAX 512
+
+void secdbg_show_sched_info(unsigned int cpu, int count)
+{
+	unsigned long long task_idx;
+	ssize_t offset = 0;
+	int max_count = ARRAY_SIZE(dss_log->task[0]);
+	char buf[LOG_LINE_MAX];
+	struct dbg_snapshot_log_item *log_item = &dss_log_items[DSS_LOG_TASK_ID];
+
+	if (!log_item->entry.enabled)
+		return;
+
+	if (count > max_count)
+		count = max_count;
+
+	offset += scnprintf(buf + offset, LOG_LINE_MAX - offset, "Sched info ");
+	task_idx = atomic_read(&dss_log_misc.task_log_idx[cpu]) & (max_count - 1);
+
+	while (count--) {
+		if (dss_log->task[cpu][task_idx].time == 0)
+			break;
+		offset += scnprintf(buf + offset, LOG_LINE_MAX - offset, "[%d]<", dss_log->task[cpu][task_idx].pid);
+		task_idx = task_idx > 0 ? (task_idx - 1) : (max_count - 1);
+	}
+	pr_auto(ASL5, "%s\n", buf);
+}
+
+static unsigned long long secdbg_make_busy_task_list(unsigned int cpu, unsigned long long duration)
+{
+	unsigned long next_task_idx;
+	unsigned long long residency;
+	unsigned long long limit_time = local_clock() - duration * NSEC_PER_SEC;
+	struct list_head *entry;
+	int max_count = ARRAY_SIZE(dss_log->task[0]);
+	int count = max_count;
+	unsigned long task_idx = atomic_read(&dss_log_misc.task_log_idx[cpu]) & (max_count - 1);
+	struct busy_info *info;
+
+	is_busy_info_list = true;
+	is_busy = 1;
+
+	residency = local_clock() - dss_log->task[cpu][task_idx].time;
+	real_duration += residency;
+	entry = create_busy_info(dss_log->task[cpu][task_idx].task, residency);
+	if (!entry)
+		return 0;
+
+	list_add(entry, &busy_info_list);
+
+	next_task_idx = task_idx;
+	task_idx = task_idx > 0 ? (task_idx - 1) : (max_count - 1);
+
+	while (--count) {
+		if (dss_log->task[cpu][task_idx].time == 0 ||
+			(dss_log->task[cpu][task_idx].time > dss_log->task[cpu][next_task_idx].time) ||
+			(dss_log->task[cpu][task_idx].time < limit_time)) {
+			break;
+		}
+
+		residency = dss_log->task[cpu][next_task_idx].time - dss_log->task[cpu][task_idx].time;
+		real_duration += residency;
+
+		list_for_each_entry(info, &busy_info_list, node) {
+			if (info->pid == dss_log->task[cpu][task_idx].pid) {
+				info->residency += residency;
+				goto next;
+			}
+		}
+
+		entry = create_busy_info(dss_log->task[cpu][task_idx].task, residency);
+		if (!entry)
+			return real_duration - residency;
+
+		list_add(entry, &busy_info_list);
+next:
+		next_task_idx = task_idx;
+		task_idx = task_idx > 0 ? (task_idx - 1) : (max_count - 1);
+	}
+
+	return real_duration;
+}
+
+enum sched_class_type {
+	SECDBG_SCHED_STOP,
+	SECDBG_SCHED_DL,
+	SECDBG_SCHED_RT,
+	SECDBG_SCHED_FAIR,
+	SECDBG_SCHED_IDLE,
+	SECDBG_SCHED_NONE
+};
+
+static enum sched_class_type get_sched_class(struct task_struct *tsk)
+{
+	const struct sched_class *class = tsk->sched_class;
+
+	if (class == &stop_sched_class)
+		return SECDBG_SCHED_STOP;
+
+	if (class == &dl_sched_class)
+		return SECDBG_SCHED_DL;
+
+	if (class == &rt_sched_class)
+		return SECDBG_SCHED_RT;
+
+	if (class == &fair_sched_class)
+		return SECDBG_SCHED_FAIR;
+
+	if (class == &idle_sched_class)
+		return SECDBG_SCHED_IDLE;
+
+	return SECDBG_SCHED_NONE;
+}
+
+int secdbg_show_busy_task(unsigned int cpu, unsigned long long duration, int count)
+{
+	unsigned long long real_duration;
+	struct busy_info *info;
+	struct task_struct *main_busy_tsk;
+	ssize_t offset = 0;
+	char buf[LOG_LINE_MAX];
+	struct dbg_snapshot_log_item *log_item = &dss_log_items[DSS_LOG_TASK_ID];
+	char sched_class_array[] = {'S', 'D', 'R', 'F', 'I', '0'};
+
+	if (is_busy_info_list)
+		return -1;
+
+	pr_auto(ASL5, "CPU%u [CFS util_avg:%lu load_avg:%lu nr_running:%u][RT util_avg:%lu load_avg:%lu rt_nr_running:%u][avg_rt util_avg:%lu]",	\
+		cpu, cpu_rq(cpu)->cfs.avg.util_avg, cpu_rq(cpu)->cfs.avg.load_avg, cpu_rq(cpu)->cfs.nr_running,	\
+		cpu_rq(cpu)->rt.avg.util_avg, cpu_rq(cpu)->rt.avg.load_avg, cpu_rq(cpu)->rt.rt_nr_running, cpu_rq(cpu)->avg_rt.util_avg);
+
+	if (!log_item->entry.enabled)
+		return -1;
+
+	real_duration = secdbg_make_busy_task_list(cpu, duration);
+	list_sort(NULL, &busy_info_list, residency_cmp);
+
+	if (list_empty(&busy_info_list))
+		return -1;
+
+	offset += scnprintf(buf + offset, LOG_LINE_MAX - offset, "CPU Usage: PERIOD(%us)", (unsigned int)(real_duration / NSEC_PER_SEC));
+
+	list_for_each_entry(info, &busy_info_list, node) {
+		offset += scnprintf(buf + offset, LOG_LINE_MAX - offset, \
+			" %s:%d[%c,%d](%u%%)", info->tsk->comm, info->tsk->pid, \
+			sched_class_array[get_sched_class(info->tsk)],	\
+			info->tsk->prio, (unsigned int)((info->residency * 100) / real_duration));
+		if (--count == 0)
+			break;
+	}
+
+	pr_auto(ASL5, "%s\n", buf);
+
+	info = list_first_entry(&busy_info_list, struct busy_info, node);
+	main_busy_tsk = info->tsk;
+
+	if (!is_busy) {
+		pr_auto(ASL5, "CPU%u is not busy.", cpu);
+	} else if (main_busy_tsk == cpu_curr(cpu)) {
+		smp_call_function_single(cpu, show_callstack, NULL, 1);
+	} else {
+#ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT
+		show_stack_auto_comment(main_busy_tsk, NULL);
+#else
+		show_stack(main_busy_tsk, NULL);
+#endif
+	}
+
+	return is_busy;
+}
+
+struct task_struct *get_the_busiest_task()
+{
+	struct busy_info *info;
+
+	if (!is_busy_info_list)
+		return NULL;
+
+	if (list_empty(&busy_info_list))
+		return NULL;
+
+	info = list_first_entry(&busy_info_list, struct busy_info, node);
+
+	return info->tsk;
 }
 #endif

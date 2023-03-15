@@ -712,7 +712,7 @@ int is_last_session_ref(struct proto_req_nw *req_nw)
 
 	sess_entry = find_session_ref_nw(req_nw);
 	if (sess_entry == NULL) {
-		npu_uerr("cannot found session ref.\n", nw);
+		npu_uwarn("cannot found session ref.\n", nw);
 		return 0;
 	}
 	/* No frame shall be associated */
@@ -1185,10 +1185,12 @@ static int nw_mgmt_op_put_result(const struct proto_req_nw *src)
 
 	/* Invoke callback registered on npu_nw object with result code */
 	ret = npu_ncp_mgmt_save_result(src->nw.notify_func, src->nw.session, result);
-	if (ret)
+	if (ret) {
 		npu_uerr("error(%d) in npu_ncp_mgmt_save_result\n", &src->nw, ret);
+		return ret;
+	}
 
-	return 1;
+	return 0;
 }
 
 /* frame_proc_ops -> Use functions in npu-if-session-protodrv */
@@ -1902,7 +1904,7 @@ static int npu_protodrv_handler_nw_completed(void)
 				entry->nw.npu_req_id, entry->nw.result_code, entry->nw.result_code,
 				__print_npu_timestamp(&entry->ts, stat_buf, TIME_STAT_BUF_LEN));
 
-			if (nw_mgmt_op_put_result(entry) > 0) {
+			if (!nw_mgmt_op_put_result(entry)) {
 				npu_uinfo("(COMPLETED)NW: notification sent result(0x%08x)\n",
 					&entry->nw, entry->nw.result_code);
 			} else {
@@ -1916,6 +1918,17 @@ static int npu_protodrv_handler_nw_completed(void)
 			if (ret) {
 				npu_uerr("unlink_session_nw for CMD[%u] failed : %d\n",
 					&entry->nw, entry->nw.cmd, ret);
+			}
+
+			if (entry->nw.cmd == NPU_NW_CMD_LOAD &&
+					entry->nw.result_code != NPU_ERR_NO_ERROR) {
+				npu_uerr("CMD_LOAD failed with result(0x%8x), "
+					"need destroy session ref\n", &entry->nw, entry->nw.result_code);
+
+				/* Destroy session ref */
+				ret = drop_session_ref(entry->nw.uid);
+				if (ret)
+					npu_uerr("drop_session_ref error : %d", &entry->nw, ret);
 			}
 
 			if (entry->nw.cmd == NPU_NW_CMD_UNLOAD) {
@@ -2421,11 +2434,11 @@ static ssize_t proto_drv_dump_status(char *outbuf, const size_t len)
 	/* Collect statistics */
 	if (retrive_lsm_stat(&frame_stat, &proto_frame_lsm_getinfo_ops) != 0) {
 		npu_err("fail in retrive_lsm_stat(FRAME)");
-		return 0;
+		return -EFAULT;
 	}
 	if (retrive_lsm_stat(&nw_stat, &proto_nw_lsm_getinfo_ops) != 0) {
 		npu_err("fail retrive_lsm_stat(NW).");
-		return 0;
+		return -EFAULT;
 	}
 
 	/* Print stat for Frame LSM */
@@ -2626,13 +2639,17 @@ static const struct file_operations npu_proto_drv_dump_debug_fops = {
  */
 int proto_drv_probe(struct npu_device *npu_device)
 {
+	int ret = 0;
+
 	probe_info("start in proto_drv_probe\n");
 	if (!IS_TRANSITABLE(PROTO_DRV_STATE_PROBED))	{
 		return -EBADR;
 	}
 
 	/* Registre dump function on debugfs */
-	npu_debug_register("proto-drv-dump", &npu_proto_drv_dump_debug_fops);
+	ret = npu_debug_register("proto-drv-dump", &npu_proto_drv_dump_debug_fops);
+	if (ret)
+		probe_err("fail(%d) in npu_debug_register\n", ret);
 
 	/* Pass reference of npu_proto_drv via npu_device */
 	npu_device->proto_drv = &npu_proto_drv;
@@ -2645,7 +2662,7 @@ int proto_drv_probe(struct npu_device *npu_device)
 
 	state_transition(PROTO_DRV_STATE_PROBED);
 	probe_info("complete in proto_drv_probe\n");
-	return 0;
+	return ret;
 }
 
 int proto_drv_release(void)
@@ -2746,7 +2763,7 @@ int proto_drv_open(struct npu_device *npu_device)
 	/* AST initialization */
 	ret = auto_sleep_thread_create(&npu_proto_drv.ast,
 		NPU_PROTO_DRV_AST_NAME,
-		proto_drv_do_task, proto_drv_check_work, proto_drv_on_idle, -1);
+		proto_drv_do_task, proto_drv_check_work, proto_drv_on_idle, 0);
 	if (ret) {
 		npu_err("fail(%d) in AST create\n", ret);
 		goto err_exit;

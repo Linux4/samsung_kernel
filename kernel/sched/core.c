@@ -5388,6 +5388,39 @@ void sched_show_task(struct task_struct *p)
 }
 EXPORT_SYMBOL_GPL(sched_show_task);
 
+#ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT
+void sched_show_task_auto_comment(struct task_struct *p)
+{
+	unsigned long free = 0;
+	int ppid;
+
+	if (!try_get_task_stack(p))
+		return;
+
+	pr_auto(ASL1, "%-15.15s %c", p->comm, task_state_to_char(p));
+
+	if (p->state == TASK_RUNNING)
+		printk(KERN_CONT "  running task    ");
+#ifdef CONFIG_DEBUG_STACK_USAGE
+	free = stack_not_used(p);
+#endif
+	ppid = 0;
+	rcu_read_lock();
+	if (pid_alive(p))
+		ppid = task_pid_nr(rcu_dereference(p->real_parent));
+	rcu_read_unlock();
+	printk(KERN_CONT "%5lu %5d %6d 0x%08lx\n", free,
+		task_pid_nr(p), ppid,
+		(unsigned long)task_thread_info(p)->flags);
+
+	print_worker_info(KERN_INFO, p);
+	secdbg_dtsk_print_info(p, false);
+	show_stack_auto_comment(p, NULL);
+	put_task_stack(p);
+}
+EXPORT_SYMBOL_GPL(sched_show_task_auto_comment);
+#endif /* CONFIG_SEC_DEBUG_AUTO_COMMENT */
+
 static inline bool
 state_filter_match(unsigned long state_filter, struct task_struct *p)
 {

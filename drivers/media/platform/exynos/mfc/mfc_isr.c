@@ -733,6 +733,7 @@ static void __mfc_handle_frame(struct mfc_ctx *ctx,
 			ctx->ts_is_full = 0;
 			mfc_qos_reset_last_framerate(ctx);
 			mfc_qos_set_framerate(ctx, DEC_DEFAULT_FPS);
+			mfc_qos_on(ctx);
 
 			goto leave_handle_frame;
 		} else {
@@ -1078,8 +1079,7 @@ static int __mfc_handle_seq_dec(struct mfc_ctx *ctx)
 	dec->mv_count = mfc_get_mv_count();
 	if (CODEC_10BIT(ctx) && dev->pdata->support_10bit) {
 		if (mfc_get_luma_bit_depth_minus8() ||
-			mfc_get_chroma_bit_depth_minus8() ||
-			mfc_get_profile() == MFC_REG_D_PROFILE_HEVC_MAIN_10) {
+			mfc_get_chroma_bit_depth_minus8()) {
 			ctx->is_10bit = 1;
 			mfc_info_ctx("[STREAM][10BIT] 10bit contents, profile: %d, depth: %d/%d\n",
 					mfc_get_profile(),
@@ -1210,10 +1210,8 @@ static int __mfc_handle_seq_enc(struct mfc_ctx *ctx)
 		mfc_release_codec_buffers(ctx);
 	}
 	ret = mfc_alloc_codec_buffers(ctx);
-	if (ret) {
+	if (ret)
 		mfc_err_ctx("Failed to allocate encoding buffers\n");
-		return ret;
-	}
 
 	mfc_change_state(ctx, MFCINST_HEAD_PARSED);
 
@@ -1407,7 +1405,11 @@ static int __mfc_irq_dev(struct mfc_dev *dev, unsigned int reason, unsigned int 
 	case MFC_REG_R2H_CMD_FW_STATUS_RET:
 	case MFC_REG_R2H_CMD_SLEEP_RET:
 	case MFC_REG_R2H_CMD_WAKEUP_RET:
-		mfc_clear_int();
+		/*
+		 * dev interrupt command will be cleared
+		 * in mfc_wait_for_done_dev() after wake up
+		 */
+		mfc_clear_int_only();
 		mfc_wake_up_dev(dev, reason, err);
 		return 0;
 	}

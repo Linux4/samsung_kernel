@@ -682,14 +682,14 @@ static int s2mpu11_set_on_sequence(struct s2mpu11_info *s2mpu11)
 
 	/* set PWREN_MIF on-seq. */
 	ret = s2mpu11_update_reg(s2mpu11->i2c,
-				 S2MPU11_PMIC_REG_ON_SEQ_SEL1, 0x03, 0x0F);
+				 S2MPU11_PMIC_REG_ON_SEQ_SEL1, 0x00, 0x0F);
 	if (ret) {
 		pr_err("%s: fail to update register\n", __func__);
 		return -1;
 	}
 
 	ret = s2mpu11_update_reg(s2mpu11->i2c,
-				 S2MPU11_PMIC_REG_ON_SEQ_SEL2, 0x04, 0x0F);
+				 S2MPU11_PMIC_REG_ON_SEQ_SEL2, 0x01, 0x0F);
 	if (ret) {
 		pr_err("%s: fail to update register\n", __func__);
 		return -1;
@@ -704,7 +704,7 @@ static int s2mpu11_set_on_sequence(struct s2mpu11_info *s2mpu11)
 	}
 
 	ret = s2mpu11_update_reg(s2mpu11->i2c,
-				 S2MPU11_PMIC_REG_ON_SEQ_SEL2, 0x10, 0xF0);
+				 S2MPU11_PMIC_REG_ON_SEQ_SEL2, 0x00, 0xF0);
 	if (ret) {
 		pr_err("%s: fail to update register\n", __func__);
 		return -1;

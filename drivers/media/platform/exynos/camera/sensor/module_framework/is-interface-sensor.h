@@ -117,6 +117,8 @@ enum itf_vc_stat_type {
 	/* Types for 3HDR */
 	VC_STAT_TYPE_TAIL_FOR_3HDR_LSI = 600,
 	VC_STAT_TYPE_TAIL_FOR_3HDR_IMX,
+	VC_STAT_TYPE_TAIL_FOR_3HDR_IMX_2_STAT0,
+	VC_STAT_TYPE_TAIL_FOR_3HDR_IMX_2_STAT1,
 
 	/* Types for PDP 1.0 in 2020 EVT0 */
 	VC_STAT_TYPE_PDP_1_0_PDAF_STAT0 = 700,
@@ -246,11 +248,18 @@ struct wb_gains {
 };
 
 struct roi_setting_t {
-	bool    update;
-	u16     roi_start_x;
-	u16     roi_start_y;
-	u16     roi_end_x;
-	u16     roi_end_y;
+	bool update;
+#ifdef SUPPORT_SENSOR_SEAMLESS_3HDR
+	u16 roi_start_x[2];
+	u16 roi_start_y[2];
+	u16 roi_end_x[2];
+	u16 roi_end_y[2];
+#else
+	u16 roi_start_x;
+	u16 roi_start_y;
+	u16 roi_end_x;
+	u16 roi_end_y;
+#endif
 };
 
 struct sensor_lsi_3hdr_stat_control_mode_change {
@@ -266,6 +275,42 @@ struct sensor_lsi_3hdr_stat_control_per_frame {
 	int r_weight;
 	int b_weight;
 	int g_weight;
+};
+
+struct sensor_imx_3hdr_stat_control_mode_change {
+		struct roi_setting_t y_sum_roi;
+};
+
+struct sensor_imx_3hdr_stat_control_per_frame {
+	u8 pgain;
+	u8 ngain;
+	u8 fc_correct_intensity;
+	u16 wbd_r_gr;
+};
+
+struct sensor_imx_3hdr_lsc_table_init {
+		u16 ram_table[13*10*2];
+};
+
+struct sensor_imx_3hdr_tone_control {
+	bool gmt_tc2_enable;
+	u8 gmt_tc2_ratio;
+	u8 manual21_frame_p1;
+	u8 manual21_frame_p2;
+	u8 manual12_frame_p1;
+	u8 manual12_frame_p2;
+	u8 manual_tc_ratio;
+	u8 ltc_ratio;
+	u16 hdr_tc_ratio_1;
+	u16 hdr_tc_ratio_2;
+	u16 hdr_tc_ratio_3;
+	u16 hdr_tc_ratio_4;
+	u16 hdr_tc_ratio_5;
+};
+
+struct sensor_imx_3hdr_ev_control {
+	u8 evc_pgain;
+	u8 evc_ngain;
 };
 
 typedef struct {
@@ -478,6 +523,9 @@ struct is_cis_ops {
 	int (*cis_set_dual_setting)(struct v4l2_subdev *subdev, u32 mode);
 	int (*cis_get_binning_ratio)(struct v4l2_subdev *subdev, u32 mode, int *binning_ratio);
 	int (*cis_set_totalgain)(struct v4l2_subdev *subdev, struct ae_param *target_exposure, struct ae_param *again, struct ae_param *dgain);
+	int (*cis_init_3hdr_lsc_table)(struct v4l2_subdev *subdev, void *data);
+	int (*cis_set_tone_stat)(struct v4l2_subdev *subdev, struct sensor_imx_3hdr_tone_control tone_control);
+	int (*cis_set_ev_stat)(struct v4l2_subdev *subdev, struct sensor_imx_3hdr_ev_control ev_control);
 };
 
 struct is_sensor_ctl
@@ -536,8 +584,13 @@ struct is_sensor_ctl
 	/* for update 3DHDR sensor stats */
 	struct roi_setting_t roi_control;
 	bool update_roi;
-	struct sensor_lsi_3hdr_stat_control_per_frame stat_control;
+	struct sensor_lsi_3hdr_stat_control_per_frame lsi_stat_control;
+	struct sensor_imx_3hdr_stat_control_per_frame imx_stat_control;
 	bool update_3hdr_stat;
+	struct sensor_imx_3hdr_tone_control imx_tone_control;
+	bool update_tone;
+	struct sensor_imx_3hdr_ev_control imx_ev_control;
+	bool update_ev;
 };
 
 typedef enum is_sensor_adjust_direction_ {
@@ -623,6 +676,7 @@ enum is_exposure_gain_type {
 enum is_sensor_stat_control {
 	SENSOR_STAT_NOTHING = 0, /* Default */
 	SENSOR_STAT_LSI_3DHDR, /* LSI 3DHDR stat control */
+	SENSOR_STAT_IMX_3DHDR, /* IMX 3DHDR stat control */
 	SENSOR_STAT_CONTROL_MAX,
 };
 
@@ -967,6 +1021,17 @@ struct is_cis_ext_interface_ops {
 	int (*set_sensor_stat_control_per_frame)(struct is_sensor_interface *itf,
 			enum is_sensor_stat_control stat_control_type,
 			void *stat_control);
+#ifdef SUPPORT_SENSOR_SEAMLESS_3HDR
+	int (*set_sensor_lsc_table_init)(struct is_sensor_interface *itf,
+			enum is_sensor_stat_control stat_control_type,
+			void *lsc_table);
+	int (*set_sensor_tone_control)(struct is_sensor_interface *itf,
+			enum is_sensor_stat_control stat_control_type,
+			void *tone_control);
+	int (*set_sensor_ev_control)(struct is_sensor_interface *itf,
+			enum is_sensor_stat_control stat_control_type,
+			void *ev_control);
+#endif
 };
 
 struct is_cis_ext2_interface_ops {
@@ -987,7 +1052,16 @@ struct is_cis_ext2_interface_ops {
 				u32 mainflash_duration);
 	int(*set_previous_dm)(struct is_sensor_interface *itf);
 	int (*get_delayed_preflash_time)(struct is_sensor_interface *itf, u32 *delayedTime);
+#ifdef USE_HIGH_RES_FLASH_FIRE_BEFORE_STREAM_ON
+	int (*request_direct_flash)(struct is_sensor_interface *itf,
+				u32 mode,
+				bool on,
+				u32 intensity,
+				u32 time);
+	void *reserved[10];
+#else
 	void *reserved[11];
+#endif
 };
 
 struct is_cis_event_ops {

@@ -27,6 +27,7 @@
 #include <linux/types.h>
 #include <linux/mm.h>
 #include <linux/slab.h>
+#include <linux/swap.h>
 
 /*
  * rbincache: a cleancache API implementation
@@ -283,7 +284,7 @@ static int rc_store_handle(int pool_id, int rb_index, int ra_index, void *handle
 
 		spin_unlock(&rbnode->ra_lock);
 		write_unlock_irqrestore(&rcpool->rb_lock, flags);
-		trace_printk("rbincache: handle insertion failed\n");
+		trace_printk("%s\n", "rbincache: handle insertion failed");
 	} else {
 		atomic_inc(&rc_num_ra_entry);
 	}
@@ -365,6 +366,9 @@ static void rc_store_page(int pool_id, struct cleancache_filekey key,
 	struct rr_handle *handle;
 	int ret;
 	bool zero;
+
+	if (!current_is_kswapd())
+		return;
 
 	atomic_inc(&rc_num_puts);
 	zero = is_zero_page(src);
@@ -597,7 +601,7 @@ static int rc_init_fs(size_t pagesize)
 	pr_info("New pool created id:%d\n", ret);
 
 	atomic_inc(&rc_num_succ_init_fs);
-	trace_printk("rbincache\n");
+	trace_printk("%s\n", "rbincache");
 
 out_unlock:
 	spin_unlock(&rbincache.pool_lock);

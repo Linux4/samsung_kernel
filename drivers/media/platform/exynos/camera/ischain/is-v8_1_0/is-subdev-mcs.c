@@ -89,11 +89,8 @@ void is_ischain_mcs_stripe_cfg(struct is_subdev *subdev,
 		stripe_w = frame->stripe_info.in.h_pix_num;
 	} else if (frame->stripe_info.region_id < frame->stripe_info.region_num - 1) {
 		/* Middle region */
-		stripe_w = ALIGN((incrop->w * (frame->stripe_info.region_id + 1) / frame->stripe_info.region_num) - frame->stripe_info.in.h_pix_num, 4);
-		stripe_w = ALIGN_UPDOWN_STRIPE_WIDTH(stripe_w);
+		stripe_w = frame->stripe_info.in.h_pix_num - frame->stripe_info.in.prev_h_pix_num;
 
-		frame->stripe_info.in.prev_h_pix_num = frame->stripe_info.in.h_pix_num;
-		frame->stripe_info.in.h_pix_num += stripe_w;
 		stripe_w += STRIPE_MARGIN_WIDTH;
 	} else {
 		/* Right region */
@@ -299,10 +296,6 @@ static int is_ischain_mcs_tag(struct is_subdev *subdev,
 	if (IS_NULL_CROP(incrop))
 		*incrop = inparm;
 
-	mcs_param->control.cmd = CONTROL_COMMAND_START;
-	if (frame->shot_ext && frame->shot_ext->tnr_mode == TNR_PROCESSING_TNR_ONLY)
-		mcs_param->control.cmd = CONTROL_COMMAND_STOP;
-
 	if (!COMPARE_CROP(incrop, &inparm) ||
 		CHECK_STRIPE_CFG(&frame->stripe_info) ||
 		test_bit(IS_SUBDEV_FORCE_SET, &leader->state)) {
@@ -332,6 +325,10 @@ static int is_ischain_mcs_tag(struct is_subdev *subdev,
 		mrerr("is_itf_s_param is fail(%d)", device, frame, ret);
 		goto p_err;
 	}
+
+	mcs_param->control.cmd = CONTROL_COMMAND_START;
+	if (frame->shot_ext && frame->shot_ext->tnr_mode == TNR_PROCESSING_TNR_ONLY)
+		mcs_param->control.cmd = CONTROL_COMMAND_STOP;
 
 p_err:
 	return ret;

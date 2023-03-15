@@ -66,5 +66,3 @@ obj-y				+= samsung/
 ccflags-$(CONFIG_TZDEV) += -I$(srctree)/drivers/misc/tzdev/include
 obj-$(CONFIG_TZDEV)		+= tzdev/
 obj-$(CONFIG_SAMSUNG_TUI)	+= tui/
-#TZIC
-obj-y				+= tzic64.o

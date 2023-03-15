@@ -3,5 +3,3 @@
 #
 
 obj-$(CONFIG_DEV_RIL_BRIDGE) += dev_ril_bridge.o
-GCOV_PROFILE := $(CONFIG_KUNIT)
-obj-$(CONFIG_KUNIT) += test/

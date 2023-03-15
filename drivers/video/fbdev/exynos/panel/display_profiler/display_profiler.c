@@ -119,7 +119,7 @@ void profiler_systrace_write(int pid, char id, char *str, int value)
 			return;
 	}
 	panel_info("%s\n", buf);
-	trace_printk(buf);
+	trace_printk("%s", buf);
 
 }
 
@@ -194,7 +194,7 @@ static int update_profile_te(struct profiler_device *p, s64 time_us)
 	int ret = 0;
 	struct profiler_te *te_info;
 	te_info = &p->te_info;
-	
+
 	spin_lock(&te_info->slock);
 	if (time_us == 0) {
 		te_info->last_time = 0;
@@ -202,7 +202,7 @@ static int update_profile_te(struct profiler_device *p, s64 time_us)
 		spin_unlock(&te_info->slock);
 		prof_info(p, te_debug, "%s:reset\n", __func__);
 		return ret;
-	}	
+	}
 	if (te_info->last_time == time_us) {
 		spin_unlock(&te_info->slock);
 		prof_info(p, te_debug, "%s:skipped\n", __func__);
@@ -215,7 +215,7 @@ static int update_profile_te(struct profiler_device *p, s64 time_us)
 		prof_info(p, te_debug, "%s:last time: %lld\n", __func__, te_info->last_time);
 		return ret;
 	}
-	
+
 	te_info->last_diff = time_us - te_info->last_time;
 	te_info->last_time = time_us;
 	spin_unlock(&te_info->slock);
@@ -324,10 +324,10 @@ static int print_cmdlog(struct profiler_device *p)
 
 	if (!profiler_is_cmdlog_initialized(p))
 		return -EINVAL;
-	
+
 	h = p->cmdlog_idx_head;
 	t = p->cmdlog_idx_tail;
-	
+
 	if (t == h) {
 		//empty
 		return 0;
@@ -339,7 +339,7 @@ static int print_cmdlog(struct profiler_device *p)
 			//command log print
 			dir_read = PROFILER_DATALOG_MASK_DIR(c->pkt_type) == PROFILER_DATALOG_DIRECTION_READ;
 			dir_write = PROFILER_DATALOG_MASK_DIR(c->pkt_type) == PROFILER_DATALOG_DIRECTION_WRITE;
-			
+
 			prof_info(p, cmdlog_disp, "cmdlog[%d] DSI_CMD 0x%02x %s%s reg 0x%02x, ofs 0x%02x, len %d\n",
 				t, PROFILER_DATALOG_MASK_SUB(c->pkt_type), (dir_read ? "R":""), (dir_write ? "W":""),
 				c->cmd, c->offset, c->size);
@@ -451,11 +451,11 @@ static int insert_cmdlog(struct profiler_device *p, struct profiler_cmdlog_data 
 		prof_info(p, cmdlog_debug, "cmdlog level is 0(off)\n");
 		return 0;
 	}
-	
+
 	if (p->conf->cmdlog_disp == 2) {
 		print_cmdlog(p);
 	}
-	
+
 	if (prof_en(p, timediff)) {
 		ktime_get_ts(&last_ts);
 		delta_ts = timespec_sub(last_ts, cur_ts);
@@ -479,7 +479,7 @@ static long profiler_v4l2_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *
 //	unsigned int color;
 	struct panel_device *panel;
 	struct profiler_device *p = container_of(sd, struct profiler_device, sd);
-	
+
 	if (p->conf == NULL) {
 		return (long)ret;
 	}
@@ -572,7 +572,7 @@ void profile_fps(struct profiler_device *p)
 	unsigned int gap, c_frame_cnt;
 	ktime_t c_time, p_time;
 	struct profiler_fps *fps;
- 
+
 	fps = &p->fps;
 
 	c_frame_cnt = fps->frame_cnt;
@@ -592,7 +592,7 @@ void profile_fps(struct profiler_device *p)
 
 	time_diff = ktime_to_us(ktime_sub(c_time, p_time));
 	//panel_info("%s : diff : %llu : slot_cnt %d\n", __func__, time_diff, fps->slot_cnt);
- 
+
 	/*To Do.. after lcd off->on, must clear fps->slot data to zero and comp_fps, instan_fps set to 60Hz (default)*/
 	if (ktime_to_us(p_time) != 0) {
 		time_diff = ktime_to_us(ktime_sub(c_time, p_time));
@@ -637,7 +637,7 @@ static int profiler_mprint_update(struct profiler_device *p)
     void *self_mprint_data_cmdtbl[] = {
         &PKTINFO(self_mprint_data),
     };
-	
+
 	struct seqinfo self_mprint_data_seq = SEQINFO_INIT("self_mprint_data_seq", self_mprint_data_cmdtbl);
 
 	if (!IS_PANEL_ACTIVE(panel))
@@ -675,9 +675,9 @@ static int profiler_mprint_update(struct profiler_device *p)
 	}
 	prof_info(p, timediff_en, "write mask image, elapsed = %lldus\n", elapsed_usec);
 	prof_info(p, mprint_debug, "write mask image, size = %d\n", p->mask_props.data_size);
-	
+
 	ret = profiler_do_seqtbl_by_index_nolock(p, ENABLE_PROFILE_FPS_MASK_SEQ);
-do_exit: 
+do_exit:
 	mutex_unlock(&panel->op_lock);
 	panel_wake_unlock(panel);
 
@@ -721,13 +721,13 @@ static int profiler_thread(void *data)
 			schedule_timeout_interruptible(msecs_to_jiffies(cycle_time * 10));
 			continue;
 		}
-		
+
 		len = 0;
 		if (prof_disp(p, hiber)) {
 			len += snprintf(text + len, ARRAY_SIZE(text) - len, "%c ",
 				hiber->hiber_status ? 'H' : ' ');
 		}
-		
+
 		if (prof_disp(p, fps)) {
 			profile_fps(p);
 			len += snprintf(text + len, ARRAY_SIZE(text) - len, "%3d ", p->fps.comp_fps);
@@ -735,15 +735,15 @@ static int profiler_thread(void *data)
 
 		if (prof_disp(p, te)) {
 			if (te->last_diff > 0) {
-				len += snprintf(text + len, ARRAY_SIZE(text) - len, "%3d.%02d ",
+				len += snprintf(text + len, ARRAY_SIZE(text) - len, "%3lld.%02lld ",
 					te->last_diff / 1000, (te->last_diff % 1000) / 10);
 			}
 		}
-		
+
 		if (prof_en(p, mprint) && len > 0 && strncmp(text_old, text, len) != 0) {
 			if (prof_en(p, timediff))
 				ktime_get_ts(&cur_ts);
-			
+
 			ret = char_to_mask_img(mask_props, text);
 
 			if (prof_en(p, timediff))
@@ -756,12 +756,12 @@ static int profiler_thread(void *data)
 			if (prof_en(p, timediff)) {
 				delta_ts = timespec_sub(last_ts, cur_ts);
 				elapsed_usec = timespec_to_ns(&delta_ts) / 1000;
-			}		
+			}
 			prof_info(p, mprint_debug, "generated img by '%s', size %d, cyc %d\n",
 				text, mask_props->data_size, cycle_time);
 
 			prof_info(p, timediff_en, "generated elapsed = %lldus, '%s'\n", elapsed_usec, text);
-			
+
 			profiler_mprint_update(p);
 			memcpy(text_old, text, ARRAY_SIZE(text));
 		}
@@ -781,7 +781,7 @@ static ssize_t prop_config_mprint_show(struct device *dev,
 	struct panel_device *panel = dev_get_drvdata(dev);
 	int *data;
 	int i, len = 0;
-	
+
 	p = &panel->profiler;
 	if (p == NULL) {
 		profiler_error("%s, profiler is null\n", __func__);
@@ -886,7 +886,7 @@ static ssize_t prop_config_show(struct device *dev,
 	struct panel_device *panel = dev_get_drvdata(dev);
 	int *data;
 	int i, len = 0, count;
-	
+
 	p = &panel->profiler;
 	if (p == NULL) {
 		profiler_error("%s, profiler is null\n", __func__);
@@ -905,7 +905,7 @@ static ssize_t prop_config_show(struct device *dev,
 
 	if (count != ARRAY_SIZE(profiler_config_names)) {
 		len += snprintf(buf + len, PAGE_SIZE - len,
-			"CONFIG SIZE MISMATCHED!! configurations are may be wrong(%d, %d)\n",
+			"CONFIG SIZE MISMATCHED!! configurations are may be wrong(%d, %lu)\n",
 			count, ARRAY_SIZE(profiler_config_names));
 	}
 
@@ -920,7 +920,7 @@ static ssize_t prop_config_show(struct device *dev,
 			*(data+i),
 			(i < count - 1) ? "," : "\n");
 	}
-	
+
 	return strlen(buf);
 }
 
@@ -947,7 +947,7 @@ static ssize_t prop_config_store(struct device *dev,
 	}
 
 	data = (int *) p->conf;
-	
+
 	memcpy(str, buf, size < 1024 ? size : 1024);
 	strbuf = str;
 
@@ -983,7 +983,7 @@ static ssize_t prop_config_store(struct device *dev,
 				__func__, profiler_config_names[i], val);
 		}
 	}
-	
+
 	return size;
 }
 
@@ -995,7 +995,7 @@ static ssize_t prop_config_cmdlog_filter_show(struct device *dev,
 	int *data;
 	int i, len = 0, count;
 	int start;
-	
+
 	p = &panel->profiler;
 	if (p == NULL) {
 		profiler_error("%s, profiler is null\n", __func__);
@@ -1028,7 +1028,7 @@ static ssize_t prop_config_cmdlog_filter_show(struct device *dev,
 			start = -1;
 		}
 	}
-	
+
 	return strlen(buf);
 }
 
@@ -1164,14 +1164,14 @@ int profiler_probe(struct panel_device *panel, struct profiler_tune *tune)
 
 	p->mask_props.data = kmalloc(p->mask_config->max_len, GFP_KERNEL);
 	p->mask_props.data_max = p->mask_config->max_len;
-	
+
 	p->mask_props.pkts_max = p->mask_props.data_max / 2;
 	p->mask_props.pkts = kmalloc(sizeof(struct mprint_packet) * p->mask_props.pkts_max, GFP_KERNEL);
 	if (!p->mask_props.pkts) {
 		profiler_error("%s, failed to allocate mask packet buffer\n", __func__);
 		goto err;
 	}
-	
+
 	p->thread = kthread_run(profiler_thread, p, "profiler");
 	if (IS_ERR_OR_NULL(p->thread)) {
 		profiler_error("%s, failed to run thread\n", __func__);

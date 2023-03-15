@@ -315,25 +315,25 @@ static inline void sc_hwset_init(struct sc_dev *sc)
 	cfg = SCALER_CFG_SOFT_RST;
 #endif
 	writel(cfg, sc->regs + SCALER_CFG);
-
-	if (sc->version >= SCALER_VERSION(3, 0, 1))
-		__raw_writel(
-			__raw_readl(sc->regs + SCALER_CFG) | SCALER_CFG_DRCG_EN,
-			sc->regs + SCALER_CFG);
-	if (sc->version >= SCALER_VERSION(4, 0, 1) &&
-			sc->version != SCALER_VERSION(4, 2, 0)) {
-		__raw_writel(
-			__raw_readl(sc->regs + SCALER_CFG) | SCALER_CFG_BURST_RD,
-			sc->regs + SCALER_CFG);
-		__raw_writel(
-			__raw_readl(sc->regs + SCALER_CFG) & ~SCALER_CFG_BURST_WR,
-			sc->regs + SCALER_CFG);
-	}
 }
 
 static inline void sc_hwset_soft_reset(struct sc_dev *sc)
 {
 	sc_hwset_bus_idle(sc);
+	writel(SCALER_CFG_SOFT_RST, sc->regs + SCALER_CFG);
+}
+
+static inline bool sc_hwget_is_sbwc(struct sc_dev *sc)
+{
+	if (sc->version >= SCALER_VERSION(5, 2, 0) &&
+	    readl(sc->regs + SCALER_DST_CFG) & SCALER_CFG_SBWC_FORMAT)
+		return true;
+
+	return false;
+}
+
+static inline void sc_hwset_soft_reset_no_bus_idle(struct sc_dev *sc)
+{
 	writel(SCALER_CFG_SOFT_RST, sc->regs + SCALER_CFG);
 }
 

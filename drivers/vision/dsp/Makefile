@@ -2,12 +2,11 @@
 # Makefile for the dsp common driver
 #
 
+ccflags-y := -Wformat
+subdir-ccflags-y := -Wformat
+
 ccflags-y += -Idrivers/vision/dsp
-ifeq ($(CONFIG_SOC_EXYNOS9830_EVT0),y)
-ccflags-$(CONFIG_EXYNOS_DSP_HARDWARE) += -Idrivers/vision/dsp/hardware/exynos$(CONFIG_EXYNOS_SOC_NAME)_evt0
-else
 ccflags-$(CONFIG_EXYNOS_DSP_HARDWARE) += -Idrivers/vision/dsp/hardware/exynos$(CONFIG_EXYNOS_SOC_NAME)
-endif
 
 obj-y					+= dsp-device.o
 obj-y					+= dsp-context.o

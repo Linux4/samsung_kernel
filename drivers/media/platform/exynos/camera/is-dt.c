@@ -272,6 +272,11 @@ static int parse_lic_offset_data(struct is_hardware *is_hw, struct device_node *
 {
 	int ret = 0;
 	char *str_lic_ip;
+	int elems;
+	u32 offsets = LIC_CHAIN_OFFSET_NUM / 2 - 1;
+	u32 set_idx = offsets + 1;
+	int i, index_a, index_b;
+	char *str_a, *str_b;
 
 	str_lic_ip = __getname();
 	if (unlikely(!str_lic_ip)) {
@@ -281,24 +286,56 @@ static int parse_lic_offset_data(struct is_hardware *is_hw, struct device_node *
 	}
 
 	snprintf(str_lic_ip, PATH_MAX, "3AA");
-	if (of_property_read_bool(dnode, str_lic_ip))
+	if (of_property_read_bool(dnode, str_lic_ip)) {
+		elems = of_property_count_u32_elems(dnode, str_lic_ip);
+		if (elems != LIC_CHAIN_OFFSET_NUM) {
+			err("wrong LIC_CHAIN_OFFSET_NUM(%d!=%d)", elems, LIC_CHAIN_OFFSET_NUM);
+			ret = -EINVAL;
+			goto err_get_elems;
+		}
+
 		of_property_read_u32_array(dnode, str_lic_ip,
-				&is_hw->lic_offset[0][0], LIC_CHAIN_OFFSET_NUM);
-	else
+				&is_hw->lic_offset_def[0], elems);
+	} else {
 		err("[@] Can't fine %s node", str_lic_ip);
+	}
 
 	probe_info("[@] Parse_lic_offset_data\n");
-	probe_info("[@] 3AA setA lic_offset = <%d, %d>(%d)\n",
-			is_hw->lic_offset[0][0],
-			is_hw->lic_offset[0][1],
-			is_hw->lic_offset[0][2]);
-	probe_info("[@] 3AA setB lic_offset = <%d, %d>(%d)\n",
-			is_hw->lic_offset[0][3],
-			is_hw->lic_offset[0][4],
-			is_hw->lic_offset[0][5]);
 
-err_alloc_str_lic_ip:
+	index_a = COREX_SETA * set_idx; /* setA */
+	index_b = COREX_SETB * set_idx; /* setB */
+
+	str_a = __getname();
+	if (unlikely(!str_a)) {
+		err("[@] out of memory for str_a!");
+		ret = -ENOMEM;
+		goto err_alloc_str_a;
+	}
+
+	str_b = __getname();
+	if (unlikely(!str_b)) {
+		err("[@] out of memory for str_b!");
+		ret = -ENOMEM;
+		goto err_alloc_str_b;
+	}
+
+	snprintf(str_a, PATH_MAX, "%d", is_hw->lic_offset_def[index_a + 0]);
+	snprintf(str_b, PATH_MAX, "%d", is_hw->lic_offset_def[index_b + 0]);
+	for (i = 1; i < offsets; i++) {
+		snprintf(str_a, PATH_MAX, "%s, %d", str_a, is_hw->lic_offset_def[index_a + i]);
+		snprintf(str_b, PATH_MAX, "%s, %d", str_b, is_hw->lic_offset_def[index_b + i]);
+	}
+	probe_info("[@] 3AA lic_offset_def: setA<%s>(%d), setB<%s>(%d)",
+		str_a, is_hw->lic_offset_def[index_a + offsets],
+		str_b, is_hw->lic_offset_def[index_b + offsets]);
+
+	__putname(str_b);
+err_alloc_str_b:
+	__putname(str_a);
+err_alloc_str_a:
+err_get_elems:
 	__putname(str_lic_ip);
+err_alloc_str_lic_ip:
 
 	return ret;
 }
@@ -443,9 +480,7 @@ int is_sensor_parse_dt(struct platform_device *pdev)
 	pdata->iclk_off = exynos_is_sensor_iclk_off;
 	pdata->mclk_on = exynos_is_sensor_mclk_on;
 	pdata->mclk_off = exynos_is_sensor_mclk_off;
-#ifdef CONFIG_SOC_EXYNOS9820
 	pdata->mclk_force_off = is_sensor_mclk_force_off;
-#endif
 
 	ret = of_property_read_u32(dnode, "id", &pdata->id);
 	if (ret) {

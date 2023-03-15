@@ -507,7 +507,7 @@ static noinline void __ref rest_init(void)
 }
 
 #ifdef CONFIG_KDP_CRED
-int is_recovery __kdp_ro = 0;
+int __is_kdp_recovery __kdp_ro = 0;
 #endif
 
 /* Check for early params. */
@@ -531,7 +531,7 @@ static int __init do_early_param(char *param, char *val,
 	if ((strncmp(param, "bootmode", 9) == 0)) {
 			//printk("\n [KDP] In Recovery Mode= %d\n",*val);
 			if ((strncmp(val, "2", 2) == 0)) {
-				is_recovery = 1;
+				__is_kdp_recovery = 1;
 			}
 	}
 #endif
@@ -702,6 +702,9 @@ void kdp_init(void)
 #ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
 	cred.selinux.selinux_enforcing_va  = (u64)&selinux_enforcing;
 	cred.selinux.ss_initialized_va	= (u64)&ss_initialized;
+#else
+	cred.selinux.selinux_enforcing_va  = 0;
+	cred.selinux.ss_initialized_va	= 0;
 #endif
 	uh_call(UH_APP_RKP, RKP_KDP_X40, (u64)&cred, 0, 0, 0);
 }

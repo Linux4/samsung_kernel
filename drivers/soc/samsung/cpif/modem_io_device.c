@@ -367,7 +367,6 @@ static int rx_raw_misc(struct sk_buff *skb)
 	return queue_skb_to_iod(skb, iod);
 }
 
-#ifndef CONFIG_USB_CONFIGFS_F_MBIM
 #ifdef CONFIG_MODEM_IF_NET_GRO
 static int check_gro_support(struct sk_buff *skb)
 {
@@ -386,6 +385,44 @@ static int check_gro_support(struct sk_buff *skb)
 	return 0;
 }
 #endif
+
+
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+static bool check_pcket_filter(struct sk_buff *skb)
+{
+	struct link_device *ld = skbpriv(skb)->ld;
+	u8 ch = skbpriv(skb)->sipc_ch;
+	u8 rmnet_type = ld->get_rmnet_type(ch);
+	int i, j;
+	u32 filters_count = 0;
+	u32 filter_size = 0;
+	u8 filter = 0;
+	u8 mask = 0;
+
+	filters_count = ld->packet_filter_table.rmnet[rmnet_type].filters_count;
+
+	if (filters_count == 0)
+		return false;
+
+	for (i = 0; i < filters_count; i++) {
+		filter_size = ld->packet_filter_table.rmnet[rmnet_type].single_filter[i].filter_size;
+		if (skb->data_len != filter_size)
+			continue;
+
+		for (j = 0; j < filter_size; j++) {
+			filter = ld->packet_filter_table.rmnet[rmnet_type].single_filter[i].filter[j];
+			mask = ld->packet_filter_table.rmnet[rmnet_type].single_filter[i].mask[j];
+
+			if (filter != (skb->data[j] & mask)) {
+				mif_info("The packet is not in this filter. (session_id %d, filters_count %d)\n", rmnet_type, i);
+				break;
+			}
+		}
+		if (j == filter_size)
+			return true;
+	}
+	return false;
+}
 #endif
 
 static int rx_multi_pdp(struct sk_buff *skb)
@@ -396,9 +433,11 @@ static int rx_multi_pdp(struct sk_buff *skb)
 	int len = skb->len;
 	int ret = 0;
 
-#ifndef CONFIG_USB_CONFIGFS_F_MBIM
 	struct link_device *ld = skbpriv(skb)->ld;
 	int l2forward = 0;
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	u8 ch = skbpriv(skb)->sipc_ch;
+	u8 rmnet_type = ld->get_rmnet_type(ch);
 #endif
 
 	ndev = iod->ndev;
@@ -445,8 +484,22 @@ static int rx_multi_pdp(struct sk_buff *skb)
 	skb_reset_mac_header(skb);
 
 #ifdef CONFIG_USB_CONFIGFS_F_MBIM
-	ret = mbim_queue_head(skb);
-#else
+	/* packet capture for MBIM device */
+	mif_queue_skb(skb, RX);
+
+	if (ld->is_modern_standby) {
+		if (!check_pcket_filter(skb))
+			return -ENODEV;
+		else
+			request_wakeup();
+	}
+
+	if (ld->pdn_table.pdn[rmnet_type].dl_dst == PC) {
+		ret = mbim_queue_head(skb);
+		return len;
+	}
+#endif
+
 #ifdef CONFIG_LINK_FORWARD
 	/* Link Forward */
 	l2forward = get_linkforward_mode() ?
@@ -471,7 +524,6 @@ static int rx_multi_pdp(struct sk_buff *skb)
 		if (ld->gro_flush)
 			ld->gro_flush(ld);
 	}
-#endif
 	return len;
 }
 
@@ -572,32 +624,6 @@ static int io_dev_recv_net_skb_from_link_dev(struct io_device *iod,
 	iodev_lock_wlock(iod);
 
 	return rx_multi_pdp(skb);
-}
-
-/* inform the IO device that the modem is now online or offline or
- * crashing or whatever...
- */
-static void io_dev_modem_state_changed(struct io_device *iod,
-				       enum modem_state state)
-{
-	struct modem_ctl *mc = iod->mc;
-	enum modem_state old_state = mc->phone_state;
-
-	if (state == old_state)
-		goto exit;
-
-	mc->phone_state = state;
-	mif_err("%s->state changed (%s -> %s)\n", mc->name,
-		cp_state_str(old_state), cp_state_str(state));
-
-exit:
-	if (state == STATE_CRASH_RESET
-	    || state == STATE_CRASH_EXIT
-	    || state == STATE_NV_REBUILDING
-	    || state == STATE_CRASH_WATCHDOG) {
-		if (atomic_read(&iod->opened) > 0)
-			wake_up(&iod->wq);
-	}
 }
 
 static void io_dev_sim_state_changed(struct io_device *iod, bool sim_online)
@@ -748,8 +774,6 @@ int sipc5_init_io_device(struct io_device *iod)
 	else
 		iod->link_header = true;
 
-	/* Get modem state from modem control device */
-	iod->modem_state_changed = io_dev_modem_state_changed;
 	iod->sim_state_changed = io_dev_sim_state_changed;
 
 	/* Get data from link device */

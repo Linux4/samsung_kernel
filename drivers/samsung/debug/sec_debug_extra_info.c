@@ -268,7 +268,7 @@ static void set_key_order(const char *key)
 
 	/* -1 to remove NULL between KEYS */
 	/* +1 to add NULL (by snprintf) */
-	snprintf((char *)(v + len_this), len_remain + 1, tmp);
+	snprintf((char *)(v + len_this), len_remain + 1, "%s", tmp);
 
 unlock_keyorder:
 	spin_unlock(&keyorder_lock);
@@ -328,7 +328,7 @@ static void __init set_bk_item_val(const char *key, int slot, const char *fmt, .
 				return;
 			}
 
-			snprintf((char *)p, get_key_len(key) + 1, key);
+			snprintf((char *)p, get_key_len(key) + 1, "%s", key);
 
 			v = ((char *)p + MAX_ITEM_KEY_LEN);
 
@@ -484,7 +484,7 @@ static void __init init_shared_buffer(int type, int nr_keys, void *ptr)
 
 	for (i = 0; i < nr_keys; i++) {
 		/* NULL is considered as +1 */
-		snprintf((char *)addr, get_key_len(keys[i]) + 1, keys[i]);
+		snprintf((char *)addr, get_key_len(keys[i]) + 1, "%s", keys[i]);
 
 		base += size;
 		addr = phys_to_virt(base);
@@ -748,10 +748,8 @@ static void __init sec_debug_set_extra_info_id(void)
 
 	set_bk_item_val("ID", SLOT_BK_32, "%09lu%s", ts.tv_nsec, EXTRA_VERSION);
 
-#if 0 /* block temporarily */
 	set_item_val("ASB", "%d", id_get_asb_ver());
 	set_item_val("PSITE", "%d", id_get_product_line());
-#endif
 	set_item_val("DDRID", "%s", dram_info);
 }
 
@@ -1068,7 +1066,7 @@ void secdbg_exin_set_epd(char *str)
 
 #define MAX_UNFZ_VAL_LEN (240)
 
-void secdbg_exin_set_unfz(const char *comm)
+void secdbg_exin_set_unfz(const char *comm, int pid)
 {
 	void *p;
 	char *v;
@@ -1105,17 +1103,38 @@ void secdbg_exin_set_unfz(const char *comm)
 	/* get_item_val returned address without key */
 	len_remain -= MAX_ITEM_KEY_LEN;
 
-	/* need comma */
-	len_this = strlen(comm) + 1;
-	len_remain -= len_this;
-
 	/* put last key at the first of ODR */
 	/* +1 to add NULL (by snprintf) */
-	snprintf(v, len_this + 1, "%s,", comm);
+	if (pid < 0)
+		len_this = scnprintf(v, len_remain , "%s/", comm);
+	else
+		len_this = scnprintf(v, len_remain , "%s:%d/", comm, pid);
 
 	/* -1 to remove NULL between KEYS */
 	/* +1 to add NULL (by snprintf) */
-	snprintf((char *)(v + len_this), len_remain + 1, tmp);
+	snprintf((char *)(v + len_this), len_remain - len_this, "%s", tmp);
+}
+
+char *secdbg_exin_get_unfz(void)
+{
+	void *p;
+	int max = MAX_UNFZ_VAL_LEN;
+
+	p = get_item("UNFZ");
+	if (!p) {
+		pr_crit("%s: fail to find\n", __func__);
+
+		return NULL;
+	}
+
+	max = get_max_len(p);
+	if (!max) {
+		pr_crit("%s: fail to get max len\n", __func__);
+
+		return NULL;
+	}
+
+	return get_item_val(p);
 }
 
 /*********** TEST V3 **************************************/
@@ -1131,6 +1150,28 @@ static void test_v3(void *seqm)
 }
 
 /*********** TEST V3 **************************************/
+static int secdbg_exin_set_debug_reset_rwc_proc_show(struct seq_file *m, void *v)
+{
+	char *rstcnt;
+
+	rstcnt = get_bk_item_val("RSTCNT");
+	seq_printf(m, "%s", rstcnt);
+
+	return 0;
+}
+
+static int secdbg_exin_reset_rwc_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, secdbg_exin_set_debug_reset_rwc_proc_show, NULL);
+}
+
+static const struct file_operations secdbg_exin_reset_rwc_proc_fops = {
+	.open = secdbg_exin_reset_rwc_proc_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
 static int set_debug_reset_extra_info_proc_show(struct seq_file *m, void *v)
 {
 	char buf[SZ_1K];
@@ -1139,7 +1180,7 @@ static int set_debug_reset_extra_info_proc_show(struct seq_file *m, void *v)
 		test_v3(m);
 
 	secdbg_exin_get_extra_info_A(buf);
-	seq_printf(m, buf);
+	seq_printf(m, "%s", buf);
 
 	return 0;
 }
@@ -1202,6 +1243,12 @@ static int __init secdbg_extra_info_init(void)
 		return -ENOMEM;
 
 	proc_set_size(entry, SZ_1K);
+
+	entry = proc_create("reset_rwc", S_IWUGO, NULL,
+				&secdbg_exin_reset_rwc_proc_fops);
+
+	if (!entry)
+		return -ENOMEM;
 
 	sec_debug_set_extra_info_id();
 

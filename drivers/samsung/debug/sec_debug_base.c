@@ -52,6 +52,8 @@ static struct sec_debug_next *sdn;
 static unsigned long secdbg_base_rmem_virt;
 static unsigned long secdbg_base_rmem_phys;
 static unsigned long secdbg_base_rmem_size;
+static unsigned long secdbg_sdn_phys;
+static unsigned long secdbg_sdn_size;
 
 /* set magic */
 static void secdbg_base_set_upload_magic(unsigned int magic, char *str)
@@ -392,8 +394,10 @@ void *secdbg_base_get_debug_base(int type)
 
 unsigned long secdbg_base_get_buf_base(int type)
 {
-	if (sdn)
+	if (sdn) {
+		pr_crit("%s: return %lx (%lx)\n", __func__, (unsigned long)sdn, sdn->map.buf[type].base);
 		return sdn->map.buf[type].base;
+	}
 
 	pr_crit("%s: return 0\n", __func__);
 
@@ -577,7 +581,7 @@ static void init_ess_info(unsigned int index, char *key)
 	secdbg_base_get_kevent_info(p, index);
 
 	memset(p->key, 0, SD_ESSINFO_KEY_SIZE);
-	snprintf(p->key, SD_ESSINFO_KEY_SIZE, key);
+	snprintf(p->key, SD_ESSINFO_KEY_SIZE, "%s", key);
 }
 
 /* initialize snapshot offset data in sec debug next */
@@ -600,7 +604,7 @@ static void secdbg_base_set_essinfo(void)
 		init_ess_info(index++, "empty");
 
 	for (index = 0; index < SD_NR_ESSINFO_ITEMS; index++)
-		pr_info("%s: key: %s offset: %llx nr: %x\n", __func__,
+		pr_info("%s: key: %s offset: %lx nr: %x\n", __func__,
 				sdn->ss_info.item[index].key,
 				sdn->ss_info.item[index].base,
 				sdn->ss_info.item[index].nr);
@@ -735,6 +739,9 @@ static int __init secdbg_base_next_init(void)
 		return -1;
 	}
 
+	pr_info("%s: start %lx\n", __func__, (unsigned long)sdn);
+	pr_info("%s: BUF_0: %lx\n", __func__, secdbg_base_get_buf_base(0));
+
 	/* set magic */
 	sdn->magic[0] = SEC_DEBUG_MAGIC0;
 	sdn->magic[1] = SEC_DEBUG_MAGIC1;
@@ -772,7 +779,6 @@ static int __init secdbg_base_next_init(void)
 
 	return 0;
 }
-early_initcall(secdbg_base_next_init);
 
 /* reserve first 1 page from dram base (generally 0x80000000) */
 static int __init secdbg_base_set_magic(struct reserved_mem *rmem)
@@ -788,29 +794,30 @@ static int __init secdbg_base_set_magic(struct reserved_mem *rmem)
 RESERVEDMEM_OF_DECLARE(sec_debug_magic, "exynos,sec_debug_magic", secdbg_base_set_magic);
 
 /* set first 1 page from dram base (generally 0x80000000) as non-cacheable */
-static int __init secdbg_base_nocache_remap(void)
+static unsigned long __init __set_mem_as_nocache(unsigned long base, unsigned long size, int default_clear)
 {
 	pgprot_t prot = __pgprot(PROT_NORMAL_NC);
 	int page_size, i;
 	struct page *page;
 	struct page **pages;
 	void *addr;
+	unsigned long ret;
 
-	if (!secdbg_base_rmem_size || !secdbg_base_rmem_phys) {
+	if (!size || !base) {
 		pr_err("%s: failed to set nocache pages\n", __func__);
 
-		return -1;
+		return 0;
 	}
 
-	page_size = (secdbg_base_rmem_size + PAGE_SIZE - 1) / PAGE_SIZE;
+	page_size = (size + PAGE_SIZE - 1) / PAGE_SIZE;
 	pages = kcalloc(page_size, sizeof(struct page *), GFP_KERNEL);
 	if (!pages) {
 		pr_err("%s: failed to allocate pages\n", __func__);
 
-		return -1;
+		return 0;
 	}
 
-	page = phys_to_page(secdbg_base_rmem_phys);
+	page = phys_to_page(base);
 	for (i = 0; i < page_size; i++)
 		pages[i] = page++;
 
@@ -819,16 +826,28 @@ static int __init secdbg_base_nocache_remap(void)
 		pr_err("%s: failed to mapping between virt and phys\n", __func__);
 		kfree(pages);
 
-		return -1;
+		return 0;
 	}
 
-	pr_info("%s: virt: 0x%p\n", __func__, addr);
-	secdbg_base_rmem_virt = (unsigned long)addr;
+	ret = (unsigned long)addr;
+	pr_info("%s: virt: 0x%lx\n", __func__, ret);
 
 	kfree(pages);
 
-	memset((void *)secdbg_base_rmem_virt, 0, secdbg_base_rmem_size);
+	if (default_clear) {
+		pr_info("%s: clear this area\n", __func__);
+		memset(addr, 0, size);
+	}
 
+	return ret;
+}
+
+static int __init secdbg_base_nocache_remap(void)
+{
+	secdbg_base_rmem_virt = __set_mem_as_nocache(secdbg_base_rmem_phys, secdbg_base_rmem_size, 1);
+	sdn = (struct sec_debug_next *)__set_mem_as_nocache(secdbg_sdn_phys, secdbg_sdn_size, 0);
+
+	secdbg_base_next_init();
 	secdbg_base_set_upload_magic(UPLOAD_MAGIC_PANIC, NULL);
 	register_reboot_notifier(&nb_reboot_block);
 
@@ -866,6 +885,9 @@ static int __init secdbg_base_reserve_memory(char *str)
 		goto out;
 	}
 
+	secdbg_sdn_phys = base;
+	secdbg_sdn_size = size;
+
 	secdbg_base_init_sdn(sdn);
 
 	pr_info("%s: base(virt):0x%lx size:0x%lx\n", __func__,
@@ -878,3 +900,13 @@ out:
 }
 __setup("sec_debug_next=", secdbg_base_reserve_memory);
 
+static int __init secdbg_base_setup_kernel_controls(void)
+{
+	if (IS_ENABLED(CONFIG_SEC_DEBUG_PANIC_ON_RCU_STALL)) {
+		pr_info("set panic_on_rcu_stall\n");
+		sysctl_panic_on_rcu_stall = 1;
+	}
+
+	return 0;
+}
+subsys_initcall(secdbg_base_setup_kernel_controls);

@@ -24,6 +24,8 @@
 #include <linux/iommu.h>
 #include <linux/smc.h>
 #include <linux/soc/samsung/exynos-soc.h>
+#include <linux/sched/clock.h>
+#include <linux/atomic.h>
 
 #include "npu-log.h"
 #include "npu-config.h"
@@ -32,6 +34,7 @@
 #include "npu-system.h"
 #include "npu-util-regs.h"
 #include "npu-system-soc.h"
+#include "npu-stm-soc.h"
 #ifdef CONFIG_NPU_USE_MBR
 #include "dsp-npu.h"
 #endif
@@ -57,6 +60,7 @@
 /* Initialzation steps for system_resume */
 enum npu_system_resume_soc_steps {
 	NPU_SYS_RESUME_SOC_CPU_ON,
+	NPU_SYS_RESUME_SOC_STM_SETUP,
 	NPU_SYS_RESUME_SOC_COMPLETED
 };
 
@@ -85,8 +89,10 @@ int npu_system_soc_probe(struct npu_system *system, struct platform_device *pdev
 		goto p_err;
 	}
 
-	return 0;
-p_err:
+	ret = npu_stm_probe(system);
+	if (ret)
+		probe_err("npu_stm_probe error : %d\n", ret);
+
 #elif defined(CONFIG_NPU_LOOPBACK)
 	system->tcu_sram.vaddr = kmalloc(0x80000, GFP_KERNEL);
 	system->idp_sram.vaddr = kmalloc(0x100000, GFP_KERNEL);
@@ -99,12 +105,19 @@ p_err:
 	system->pwm_npu.vaddr = kmalloc(0x10000, GFP_KERNEL);
 
 #endif
+p_err:
 
 	return ret;
 }
 
 int npu_system_soc_release(struct npu_system *system, struct platform_device *pdev)
 {
+	int ret = 0;
+
+	ret = npu_stm_release(system);
+	if (ret)
+		npu_err("npu_stm_release error : %d\n", ret);
+
 	return 0;
 }
 
@@ -137,7 +150,12 @@ static void print_all_iomem_area(const struct npu_system *system)
 	print_iomem_area("PMU_NCPU", &system->pmu_npu_cpu);
 	print_iomem_area("MBOX_SFR", &system->mbox_sfr);
 	print_iomem_area("PWM_NPU", &system->pwm_npu);
-#endif
+#ifdef CONFIG_CORESIGHT_STM
+	print_iomem_area("CORESIGHT", &system->sfr_coresight);
+	print_iomem_area("STM", &system->sfr_stm);
+	print_iomem_area("MCT_G", &system->sfr_mct_g);
+#endif	/* CONFIG_CORESIGHT_STM */
+#endif	/* CONFIG_NPU_HARDWARE */
 	npu_dbg("end in IOMEM mapping\n");
 
 }
@@ -189,6 +207,14 @@ int npu_system_soc_resume(struct npu_system *system, u32 mode)
 		goto p_err;
 	}
 	set_bit(NPU_SYS_RESUME_SOC_CPU_ON, &system->resume_soc_steps);
+
+	ret = npu_stm_enable(system);
+	if (ret) {
+		npu_err("fail(%d) in npu_stm_enable\n", ret);
+		goto p_err;
+	}
+	set_bit(NPU_SYS_RESUME_SOC_STM_SETUP, &system->resume_soc_steps);
+
 	set_bit(NPU_SYS_RESUME_SOC_COMPLETED, &system->resume_soc_steps);
 
 	return ret;
@@ -206,6 +232,13 @@ int npu_system_soc_suspend(struct npu_system *system)
 	BUG_ON(!system);
 
 	BIT_CHECK_AND_EXECUTE(NPU_SYS_RESUME_SOC_COMPLETED, &system->resume_soc_steps, NULL, ;);
+
+	BIT_CHECK_AND_EXECUTE(NPU_SYS_RESUME_SOC_STM_SETUP, &system->resume_soc_steps, NULL, {
+		ret = npu_stm_disable(system);
+		if (ret)
+			npu_err("fail(%d) in npu_stm_disable\n", ret);
+	});
+
 	BIT_CHECK_AND_EXECUTE(NPU_SYS_RESUME_SOC_CPU_ON, &system->resume_soc_steps, "Turn NPU cpu off", {
 		ret = npu_cpu_off(system);
 		if (ret)
@@ -488,7 +521,7 @@ static inline void set_mailbox_channel(struct npu_system *system, int ch)
 	system->mbox_sfr.size = system->sfr_mbox[ch].size;
 }
 
-static inline void set_max_npu_core(struct npu_system *system, u32 num)
+static inline void set_max_npu_core(struct npu_system *system, s32 num)
 {
 	BUG_ON(num < 0);
 	probe_info("Max number of npu core : %d\n", num);
@@ -517,7 +550,7 @@ static int init_iomem_area(struct npu_system *system)
 	struct iomem_reg_t *iomem_data;
 	const char **iomem_name;
 	struct npu_iomem_area *id;
-	struct npu_memory_buffer **bd;
+	struct npu_memory_buffer **bd = NULL;
 
 	const struct npu_iomem_init_data init_data[] = {
 		{NULL,		"TCUSRAM",	(void *)&system->tcu_sram},
@@ -529,6 +562,11 @@ static int init_iomem_area(struct npu_system *system)
 		{NULL,		"SFR_NPU1", (void *)&system->sfr_npu[1]},
 		{NULL,		"SFR_NPU2", (void *)&system->sfr_npu[2]},
 		{NULL,		"SFR_NPU3", (void *)&system->sfr_npu[3]},
+#ifdef CONFIG_CORESIGHT_STM
+		{NULL,		"SFR_CORESIGHT",	(void*)&system->sfr_coresight},
+		{NULL,		"SFR_STM",	(void*)&system->sfr_stm},
+		{NULL,		"SFR_MCT_G",	(void*)&system->sfr_mct_g},
+#endif
 		{NULL,		"PMU",		(void *)&system->pmu_npu},
 		{NULL,		"PMUCPU",	(void *)&system->pmu_npu_cpu},
 		{NULL,		"MAILBOX0", (void *)&system->sfr_mbox[0]},
@@ -599,6 +637,10 @@ static int init_iomem_area(struct npu_system *system)
 		if (init_data[di].heapname) {
 			bd = (struct npu_memory_buffer **)init_data[di].area_info;
 			*bd = kcalloc(1, sizeof(struct npu_memory_buffer), GFP_KERNEL);
+			if (!(*bd)) {
+				probe_err("*bd is NULL\n");
+				goto err_exit;
+			}
 			(*bd)->size = (iomem_data + i)->size;
 			ret = npu_memory_alloc_from_heap(system->pdev, *bd,
 					(iomem_data + i)->start, init_data[di].heapname);
@@ -645,6 +687,8 @@ static int init_iomem_area(struct npu_system *system)
 	probe_trace("complete in init_iomem_area\n");
 	return 0;
 err_exit:
+	if (*bd)
+		kfree(*bd);
 	probe_err("error(%d) in init_iomem_area\n", ret);
 	return ret;
 }
@@ -667,8 +711,7 @@ void npu_memory_sync_for_device(void)
 			DMA_TO_DEVICE);
 }
 
-static int npu_memory_alloc_from_heap(struct platform_device *pdev, struct npu_memory_buffer *buffer,
-				dma_addr_t daddr, const char *heapname)
+static int npu_memory_alloc_from_heap(struct platform_device *pdev, struct npu_memory_buffer *buffer, dma_addr_t daddr, const char *heapname)
 {
 	int ret = 0;
 	bool complete_suc = false;
@@ -746,7 +789,7 @@ static int npu_memory_alloc_from_heap(struct platform_device *pdev, struct npu_m
 	buffer->daddr = daddr;
 
 	vaddr = dma_buf_vmap(dma_buf);
-	if (IS_ERR(vaddr)) {
+	if (IS_ERR_OR_NULL(vaddr)) {
 		npu_err("fail(err %p) in dma_buf_vmap\n", vaddr);
 		ret = -EFAULT;
 		goto p_err;

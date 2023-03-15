@@ -22,8 +22,8 @@ int dsp_ctrl_offset_writel(unsigned int reg_id, unsigned int offset, int val);
 unsigned int dsp_ctrl_readl(unsigned int reg_id);
 int dsp_ctrl_writel(unsigned int reg_id, int val);
 
-int dsp_ctrl_boot_init(struct dsp_ctrl *ctrl);
-int dsp_ctrl_debug_init(struct dsp_ctrl *ctrl);
+int dsp_ctrl_common_init(struct dsp_ctrl *ctrl);
+int dsp_ctrl_init(struct dsp_ctrl *ctrl);
 int dsp_ctrl_all_init(struct dsp_ctrl *ctrl);
 int dsp_ctrl_start(struct dsp_ctrl *ctrl);
 int dsp_ctrl_reset(struct dsp_ctrl *ctrl);

@@ -85,6 +85,14 @@ config RTC_NVMEM
 	  Say yes here to add support for the non volatile (often battery
 	  backed) storage present on RTCs.
 
+config RTC_HIGH_RES
+	bool "RTC High Resolution Timer support"
+	default n
+	help
+	  Say yes here to enable high resolution timer(milliseconds) support
+	  in the RTC framework if your hardware is capable.
+	  Read time only. Not support set time, set alarm, read alarm.
+
 comment "RTC interfaces"
 
 config RTC_INTF_SYSFS

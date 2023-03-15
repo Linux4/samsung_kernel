@@ -11,8 +11,6 @@
 
 #include "dl/dsp-common.h"
 
-#define DL_COMMIT_HASH			"f26859bd"
-
 enum dsp_dl_status {
 	DSP_DL_FAIL = -1,
 	DSP_DL_SUCCESS = 0,
@@ -34,6 +32,9 @@ struct dsp_dl_param {
 	struct dsp_dl_lib_file gkt;
 	struct dsp_dl_lib_file rule;
 
+	struct dsp_dl_lib_info *common_libs;
+	int common_size;
+
 	struct dsp_dl_param_mem pm;
 	unsigned int pm_offset;
 
@@ -45,10 +46,10 @@ enum dsp_dl_status dsp_dl_init(struct dsp_dl_param *param);
 enum dsp_dl_status dsp_dl_close(void);
 
 struct dsp_dl_load_status dsp_dl_load_libraries(
-	struct dsp_dl_lib_info *libs, int size);
+	struct dsp_dl_lib_info *infos, int size);
 
 enum dsp_dl_status dsp_dl_unload_libraries(
-	struct dsp_dl_lib_info *libs, int size);
+	struct dsp_dl_lib_info *infos, int size);
 
 void dsp_dl_print_status(void);
 

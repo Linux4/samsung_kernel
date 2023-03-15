@@ -42,7 +42,8 @@
 #define SEC_BATTERY_CABLE_PREPARE_WIRELESS_20    37 
 #define SEC_BATTERY_CABLE_PDIC_APDO              38 
 #define SEC_BATTERY_CABLE_POGO                   39
-#define SEC_BATTERY_CABLE_MAX                    40
+#define SEC_BATTERY_CABLE_9V_POGO				 40
+#define SEC_BATTERY_CABLE_MAX                    41
 
 
 /* temperature check type */
@@ -56,9 +57,11 @@
 #define SEC_BATTERY_ADC_TYPE_NONE 	0
 	/* ADC in AP */
 #define SEC_BATTERY_ADC_TYPE_AP 	1
-	 /* ADC by additional IC */
+	/* ADC by additional IC */
 #define SEC_BATTERY_ADC_TYPE_IC 	2
-#define SEC_BATTERY_ADC_TYPE_NUM 	3
+	/* ADC by AP_LEGACY */
+#define SEC_BATTERY_ADC_TYPE_AP_LEGACY	3
+#define SEC_BATTERY_ADC_TYPE_NUM	4
 
 
 /* thermal source */
@@ -70,8 +73,10 @@
 #define SEC_BATTERY_THERMAL_SOURCE_ADC		2
 /* by charger */
 #define SEC_BATTERY_THERMAL_SOURCE_CHG_ADC	3
+/* by fuelgauge adc */
+#define SEC_BATTERY_THERMAL_SOURCE_FG_ADC	4
 /* none */
-#define SEC_BATTERY_THERMAL_SOURCE_NONE		4
+#define SEC_BATTERY_THERMAL_SOURCE_NONE		5
 
 #define SEC_BATTERY_CABLE_CHECK_NOUSBCHARGE             1
 /* SEC_BATTERY_CABLE_CHECK_NOINCOMPATIBLECHARGE
@@ -205,5 +210,8 @@
  * use VCELL of LIMITER for recharging check
  */
 #define SEC_BATTERY_RECHARGE_CONDITION_LIMITER          8
+
+#define SIOP_DEFAULT	0xFFFF
+#define SIOP_SCENARIO_VT_CALL		20
 
 #endif /* _DT_BINDINGS_BATTERY_SEC_BATTERY_H */

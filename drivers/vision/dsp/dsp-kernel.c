@@ -7,6 +7,7 @@
  */
 
 #include <linux/vmalloc.h>
+#include <linux/uaccess.h>
 
 #include "dsp-log.h"
 #include "dsp-util.h"
@@ -15,6 +16,7 @@
 #include "dsp-graph.h"
 #include "dsp-kernel.h"
 #include "hardware/dsp-mailbox.h"
+#include "hardware/dsp-dump.h"
 
 #include "dl/dsp-dl-engine.h"
 #include "dl/dsp-gpt-manager.h"
@@ -27,12 +29,14 @@
 
 #define DSP_DL_GKT_NAME			"dsp_gkt.xml"
 #define DSP_DL_RULE_NAME		"dsp_reloc_rules.bin"
+#define DSP_DL_LIB_LOG_NAME		"liblog.elf"
+#define DSP_DL_LIB_IVP_NAME		"libivp.elf"
+#define DSP_DL_COMMON_SIZE		(2)
 #define DSP_DL_GPT_OFFSET		(SZ_1K * 30)
 #define DSP_DL_GPT_SIZE			(SZ_1K * 2)
 
 struct dsp_kernel *dsp_kernel_alloc(struct dsp_kernel_manager *kmgr,
 		unsigned int name_length, struct dsp_dl_lib_info *dl_lib)
-
 {
 	int ret;
 	struct dsp_kernel *new, *list, *temp;
@@ -67,7 +71,7 @@ struct dsp_kernel *dsp_kernel_alloc(struct dsp_kernel_manager *kmgr,
 
 	list_for_each_entry_safe(list, temp, &kmgr->kernel_list, list) {
 		if (list->name_length == new->name_length &&
-				!strncmp(list->name, dl_lib->name,
+				!strncmp(list->name, new->name,
 					new->name_length)) {
 			list->ref_count++;
 			if (!checked) {
@@ -81,12 +85,14 @@ struct dsp_kernel *dsp_kernel_alloc(struct dsp_kernel_manager *kmgr,
 
 	if (!checked) {
 		new->ref_count = 1;
-		ret = dsp_binary_alloc_load(new->name, &new->elf);
-		if (ret < 0) {
+		ret = dsp_binary_alloc_load(new->name, NULL, NULL,
+				&new->elf, &new->elf_size);
+		if (ret) {
+			dsp_util_bitmap_clear_region(&kmgr->kernel_map,
+					new->id, 1);
 			mutex_unlock(&kmgr->lock);
 			goto p_err_load;
 		}
-		new->elf_size = ret;
 	}
 
 	list_add_tail(&new->list, &kmgr->kernel_list);
@@ -96,8 +102,7 @@ struct dsp_kernel *dsp_kernel_alloc(struct dsp_kernel_manager *kmgr,
 	dl_lib->file.mem = new->elf;
 	dl_lib->file.size = new->elf_size;
 
-	dsp_info("loaded kernel name : [%s](%#lx/%zu)\n",
-			new->name, (long)new->elf, new->elf_size);
+	dsp_info("loaded kernel name : [%s](%zu)\n", new->name, new->elf_size);
 	dsp_leave();
 	return new;
 p_err_load:
@@ -144,27 +149,35 @@ free:
 int dsp_kernel_load(struct dsp_kernel_manager *kmgr,
 		struct dsp_dl_lib_info *dl_libs, unsigned int kernel_count)
 {
-	struct dsp_dl_load_status ret;
+	int ret;
+	struct dsp_dl_load_status dl_ret;
 	struct dsp_mailbox *mbox;
 
 	dsp_enter();
 	mbox = &kmgr->gmgr->core->dspdev->system.mailbox;
 
-	ret = dsp_dl_load_libraries(dl_libs, kernel_count);
-	if (ret.status) {
-		dsp_err("Failed to load kernel libraries(%u/%d)\n",
-				kernel_count, ret.status);
-		dsp_kernel_dump(kmgr);
+	if (kmgr->dl_init) {
+		dl_ret = dsp_dl_load_libraries(dl_libs, kernel_count);
+		if (dl_ret.status) {
+			ret = dl_ret.status;
+			dsp_err("Failed to load kernel(%u/%d)\n",
+					kernel_count, ret);
+			dsp_dump_kernel(kmgr);
+			goto p_err;
+		}
+	} else {
+		ret = -EINVAL;
+		dsp_err("Failed to load kernel as DL is not initilized\n");
 		goto p_err;
 	}
 
-	if (ret.pm_inv)
+	if (dl_ret.pm_inv)
 		dsp_mailbox_send_message(mbox, DSP_COMMON_IVP_CACHE_INVALIDATE);
 
 	dsp_leave();
 	return 0;
 p_err:
-	return ret.status;
+	return ret;
 }
 
 int dsp_kernel_unload(struct dsp_kernel_manager *kmgr,
@@ -173,10 +186,16 @@ int dsp_kernel_unload(struct dsp_kernel_manager *kmgr,
 	int ret;
 
 	dsp_enter();
-	ret = dsp_dl_unload_libraries(dl_libs, kernel_count);
-	if (ret) {
-		dsp_err("Failed to unload kernel libraries(%u/%d)\n",
-				kernel_count, ret);
+	if (kmgr->dl_init) {
+		ret = dsp_dl_unload_libraries(dl_libs, kernel_count);
+		if (ret) {
+			dsp_err("Failed to unload kernel(%u/%d)\n",
+					kernel_count, ret);
+			goto p_err;
+		}
+	} else {
+		ret = -EINVAL;
+		dsp_err("Failed to unload kernel as DL is not initilized\n");
 		goto p_err;
 	}
 	dsp_leave();
@@ -199,27 +218,63 @@ static int __dsp_kernel_manager_dl_init(struct dsp_kernel_manager *kmgr)
 	struct dsp_priv_mem *pmem;
 	struct dsp_dl_param *dl_param;
 	void *load;
+	size_t loaded_size;
 
 	dsp_enter();
 	pmem = kmgr->gmgr->core->dspdev->system.memory.priv_mem;
 	dl_param = &kmgr->dl_param;
+	dl_param->common_libs = kmalloc(sizeof(struct dsp_dl_lib_info) *
+			DSP_DL_COMMON_SIZE, GFP_KERNEL);
 
-	ret = dsp_binary_alloc_load(DSP_DL_GKT_NAME, &load);
-	if (ret < 0)
+	if (!dl_param->common_libs) {
+		ret = -ENOMEM;
+		dsp_err("Failed to allocate dl common libs\n");
 		goto p_err;
+	}
 
+	ret = dsp_binary_alloc_load(DSP_DL_GKT_NAME, NULL, NULL, &load,
+			&loaded_size);
+	if (ret)
+		goto p_err_gkt;
+
+	dl_param->gkt.size = loaded_size;
 	dl_param->gkt.mem = load;
-	dl_param->gkt.size = ret;
 
-	ret = dsp_binary_alloc_load(DSP_DL_RULE_NAME, &load);
-	if (ret < 0)
+	ret = dsp_binary_alloc_load(DSP_DL_RULE_NAME, NULL, NULL,
+			&load, &loaded_size);
+	if (ret)
 		goto p_err_rule;
 
+	dl_param->rule.size = loaded_size;
 	dl_param->rule.mem = load;
-	dl_param->rule.size = ret;
+
+	ret = dsp_binary_alloc_load(DSP_DL_LIB_LOG_NAME, NULL, NULL,
+			&load, &loaded_size);
+	if (ret)
+		goto p_err_log;
+
+	dl_param->common_libs[0].file.size = loaded_size;
+	dl_param->common_libs[0].name = DSP_DL_LIB_LOG_NAME;
+	dl_param->common_libs[0].file.mem = load;
+
+	ret = dsp_binary_alloc_load(DSP_DL_LIB_IVP_NAME, NULL, NULL,
+			&load, &loaded_size);
+	if (ret)
+		goto p_err_ivp;
+
+	dl_param->common_libs[1].file.size = loaded_size;
+	dl_param->common_libs[1].name = DSP_DL_LIB_IVP_NAME;
+	dl_param->common_libs[1].file.mem = load;
+
+	dl_param->common_size = DSP_DL_COMMON_SIZE;
 
 	dl_param->pm.addr = (unsigned long)pmem[DSP_PRIV_MEM_IVP_PM].kvaddr;
 	dl_param->pm.size = pmem[DSP_PRIV_MEM_IVP_PM].size;
+	// TODO temp patch, need to change binary load location
+	if (!pmem[DSP_PRIV_MEM_IVP_PM].used_size) {
+		dsp_warn("IVP PM size is unstable\n");
+		pmem[DSP_PRIV_MEM_IVP_PM].used_size =  SZ_1M;
+	}
 	dl_param->pm_offset = pmem[DSP_PRIV_MEM_IVP_PM].used_size;
 	dl_param->gpt.addr = DSP_DL_GPT_OFFSET;
 	dl_param->gpt.size = DSP_DL_GPT_SIZE;
@@ -232,13 +287,19 @@ static int __dsp_kernel_manager_dl_init(struct dsp_kernel_manager *kmgr)
 		goto p_err_init;
 	}
 
-	dsp_info("DL is initilized(%s)\n", DL_COMMIT_HASH);
+	dsp_info("DL is initilized.\n");
 	dsp_leave();
 	return 0;
 p_err_init:
+	vfree(dl_param->common_libs[1].file.mem);
+p_err_ivp:
+	vfree(dl_param->common_libs[0].file.mem);
+p_err_log:
 	vfree(dl_param->rule.mem);
 p_err_rule:
 	vfree(dl_param->gkt.mem);
+p_err_gkt:
+	kfree(dl_param->common_libs);
 p_err:
 	return ret;
 }
@@ -250,20 +311,25 @@ int dsp_kernel_manager_open(struct dsp_kernel_manager *kmgr)
 	dsp_enter();
 	mutex_lock(&kmgr->lock);
 	if (kmgr->dl_init) {
-		kmgr->dl_init++;
-		mutex_unlock(&kmgr->lock);
-	} else {
-		ret = __dsp_kernel_manager_dl_init(kmgr);
-		if (ret) {
-			mutex_unlock(&kmgr->lock);
+		if (kmgr->dl_init + 1 < kmgr->dl_init) {
+			ret = -EINVAL;
+			dsp_err("dl init count is overflowed\n");
 			goto p_err;
 		}
+
+		kmgr->dl_init++;
+	} else {
+		ret = __dsp_kernel_manager_dl_init(kmgr);
+		if (ret)
+			goto p_err;
+
 		kmgr->dl_init = 1;
-		mutex_unlock(&kmgr->lock);
 	}
+	mutex_unlock(&kmgr->lock);
 	dsp_leave();
 	return 0;
 p_err:
+	mutex_unlock(&kmgr->lock);
 	return ret;
 }
 
@@ -276,21 +342,36 @@ static void __dsp_kernel_manager_dl_deinit(struct dsp_kernel_manager *kmgr)
 	if (ret)
 		dsp_err("Failed to close DL(%d)\n", ret);
 
+	vfree(kmgr->dl_param.common_libs[1].file.mem);
+	vfree(kmgr->dl_param.common_libs[0].file.mem);
 	vfree(kmgr->dl_param.rule.mem);
 	vfree(kmgr->dl_param.gkt.mem);
+	kfree(kmgr->dl_param.common_libs);
 	dsp_leave();
 }
 
-void dsp_kernel_manager_close(struct dsp_kernel_manager *kmgr)
+void dsp_kernel_manager_close(struct dsp_kernel_manager *kmgr,
+		unsigned int count)
 {
 	dsp_enter();
 	mutex_lock(&kmgr->lock);
-	if (kmgr->dl_init == 1) {
-		__dsp_kernel_manager_dl_deinit(kmgr);
-		kmgr->dl_init = 0;
-	} else {
-		kmgr->dl_init--;
+	if (!kmgr->dl_init) {
+		dsp_warn("dl was not initilized");
+		mutex_unlock(&kmgr->lock);
+		return;
 	}
+
+	if (kmgr->dl_init > count) {
+		kmgr->dl_init -= count;
+		mutex_unlock(&kmgr->lock);
+		return;
+	}
+
+	if (kmgr->dl_init < count)
+		dsp_warn("dl_init is unstable(%u/%u)", kmgr->dl_init, count);
+
+	__dsp_kernel_manager_dl_deinit(kmgr);
+	kmgr->dl_init = 0;
 	mutex_unlock(&kmgr->lock);
 	dsp_leave();
 }

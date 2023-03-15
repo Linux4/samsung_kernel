@@ -20,7 +20,7 @@
 #include <linux/leds-s2m-common.h>
 #include <linux/platform_device.h>
 #include <linux/sec_batt.h>
-
+#include <linux/power_supply.h>
 #include <linux/leds-s2mu106.h>
 #include <linux/mfd/slsi/s2mu106/s2mu106.h>
 /* MUIC header file */
@@ -413,6 +413,7 @@ static int s2mu106_fled_set_mode(struct s2mu106_fled_data *fled,
 int s2mu106_led_mode_ctrl(int state)
 {
 	struct s2mu106_fled_data *fled = g_fled_data;
+	union power_supply_propval value;
 	int gpio_torch = fled->torch_gpio;
 	int gpio_flash = fled->flash_gpio;
 
@@ -430,7 +431,14 @@ int s2mu106_led_mode_ctrl(int state)
 		} else {
 			gpio_direction_output(gpio_torch, 0);
 			gpio_direction_output(gpio_flash, 0);
-			s2mu106_fled_operating_mode(fled, AUTO_MODE);
+			if (fled->is_en_flash) {
+				if (!fled->psy_chg)
+					fled->psy_chg = power_supply_get_by_name("s2mu106-charger");
+				fled->is_en_flash = value.intval = false;
+				power_supply_set_property(fled->psy_chg,
+					POWER_SUPPLY_PROP_ENERGY_AVG, &value);
+			}
+			s2mu106_fled_operating_mode(fled, SYS_MODE);
 		}
 		break;
 	case S2MU106_FLED_MODE_TORCH:
@@ -443,6 +451,15 @@ int s2mu106_led_mode_ctrl(int state)
 		}
 		break;
 	case S2MU106_FLED_MODE_FLASH:
+		if (!fled->psy_chg)
+			fled->psy_chg = power_supply_get_by_name("s2mu106-charger");
+
+		fled->is_en_flash = value.intval = true;
+		power_supply_set_property(fled->psy_chg,
+				POWER_SUPPLY_PROP_ENERGY_AVG, &value);
+
+		s2mu106_fled_operating_mode(fled, AUTO_MODE);
+
 		if (g_fled_data->control_mode == CONTROL_I2C) {
 			s2mu106_fled_set_mode(g_fled_data, 1, state);
 		} else {
@@ -779,8 +796,10 @@ void s2mu106_fled_set_operation_mode(int mode)
 static void s2mu106_fled_init(struct s2mu106_fled_data *fled)
 {
 	int i;
+
 	pr_info("%s: s2mu106_fled init start\n", __func__);
 
+	fled->is_en_flash = false;
 	if (gpio_is_valid(fled->pdata->flash_gpio) &&
 			gpio_is_valid(fled->pdata->torch_gpio)) {
 		pr_info("%s: s2mu106_fled gpio mode\n", __func__);
@@ -824,6 +843,8 @@ static void s2mu106_fled_init(struct s2mu106_fled_data *fled)
 	/* w/a: prevent SMPL event in case of flash operation */
 	s2mu106_update_reg(fled->i2c, 0x21, 0x4, 0x7);
 	s2mu106_update_reg(fled->i2c, 0x89, 0x0, 0x3);
+
+	fled->psy_chg = power_supply_get_by_name("s2mu106-charger");
 
 	s2mu106_fled_test_read(fled);
 }

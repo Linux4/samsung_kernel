@@ -18,12 +18,12 @@
 
 #include "ssp.h"
 
-#define SENSORNAME_MAX_LEN                              20
+#define SENSORNAME_MAX_LEN			      20
 
 /* Gyroscope DPS */
-#define GYROSCOPE_DPS250                250
-#define GYROSCOPE_DPS500                500
-#define GYROSCOPE_DPS2000               2000
+#define GYROSCOPE_DPS250		250
+#define GYROSCOPE_DPS500		500
+#define GYROSCOPE_DPS2000	       2000
 
 /* Proxy threshold */
 enum {
@@ -36,16 +36,16 @@ enum {
 	PROX_THRESH_SIZE,
 };
 
-#define DEFAULT_HIGH_THRESHOLD                          50
-#define DEFAULT_LOW_THRESHOLD                           35
-#define DEFAULT_DETECT_HIGH_THRESHOLD           200
-#define DEFAULT_DETECT_LOW_THRESHOLD            190
+#define DEFAULT_HIGH_THRESHOLD			  50
+#define DEFAULT_LOW_THRESHOLD			   35
+#define DEFAULT_DETECT_HIGH_THRESHOLD	   200
+#define DEFAULT_DETECT_LOW_THRESHOLD	    190
 
 /* Light */
-#define LIGHT_COEF_SIZE                                 7
+#define LIGHT_COEF_SIZE				 7
 
 /* Magnetic */
-#define PDC_SIZE                        27
+#define PDC_SIZE			27
 
 struct ssp_data;
 
@@ -65,16 +65,22 @@ struct accelometer_sensor_operations {
 
 void initialize_accel_factorytest(struct ssp_data *);
 void remove_accel_factorytest(struct ssp_data *);
-void select_accel_ops(struct ssp_data *data);
+void select_accel_ops(struct ssp_data *data, char *);
 
 #if defined(CONFIG_SENSORS_SSP_ACCELOMETER_LSM6DSL)
-struct accelometer_sensor_operations* get_accelometer_lsm6dsl_function_pointer(struct ssp_data *);
+struct accelometer_sensor_operations *get_accelometer_lsm6dsl_function_pointer(struct ssp_data *);
 #endif
 #if defined(CONFIG_SENSORS_SSP_ACCELOMETER_ICM42605M)
-struct accelometer_sensor_operations* get_accelometer_icm42605m_function_pointer(struct ssp_data *);
+struct accelometer_sensor_operations *get_accelometer_icm42605m_function_pointer(struct ssp_data *);
+#endif
+#if defined(CONFIG_SENSORS_SSP_ACCELOMETER_ICM42632M)
+struct accelometer_sensor_operations *get_accelometer_icm42632m_function_pointer(struct ssp_data *);
 #endif
 #if defined(CONFIG_SENSORS_SSP_ACCELOMETER_K6DS3TR)
-struct accelometer_sensor_operations* get_accelometer_k6ds3tr_function_pointer(struct ssp_data *);
+struct accelometer_sensor_operations *get_accelometer_k6ds3tr_function_pointer(struct ssp_data *);
+#endif
+#if defined(CONFIG_SENSORS_SSP_ACCELOMETER_LIS2DLC12)
+struct accelometer_sensor_operations *get_accelometer_lis2dlc12_function_pointer(struct ssp_data *);
 #endif
 #endif
 
@@ -82,7 +88,7 @@ struct accelometer_sensor_operations* get_accelometer_k6ds3tr_function_pointer(s
 /* gyroscope sensor */
 void initialize_gyro_factorytest(struct ssp_data *);
 void remove_gyro_factorytest(struct ssp_data *);
-void select_gyro_ops(struct ssp_data *data);
+void select_gyro_ops(struct ssp_data *data, char *);
 
 struct gyroscope_sensor_operations {
 	ssize_t (*get_gyro_name)(char *);
@@ -94,13 +100,16 @@ struct gyroscope_sensor_operations {
 };
 
 #if defined(CONFIG_SENSORS_SSP_GYROSCOPE_LSM6DSL)
-struct gyroscope_sensor_operations* get_gyroscope_lsm6dsl_function_pointer(struct ssp_data *);
+struct gyroscope_sensor_operations *get_gyroscope_lsm6dsl_function_pointer(struct ssp_data *);
 #endif
 #if defined(CONFIG_SENSORS_SSP_GYROSCOPE_ICM42605M)
-struct gyroscope_sensor_operations* get_gyroscope_icm42605m_function_pointer(struct ssp_data *);
+struct gyroscope_sensor_operations *get_gyroscope_icm42605m_function_pointer(struct ssp_data *);
+#endif
+#if defined(CONFIG_SENSORS_SSP_GYROSCOPE_ICM42632M)
+struct gyroscope_sensor_operations *get_gyroscope_icm42632m_function_pointer(struct ssp_data *);
 #endif
 #if defined(CONFIG_SENSORS_SSP_GYROSCOPE_K6DS3TR)
-struct gyroscope_sensor_operations* get_gyroscope_k6ds3tr_function_pointer(struct ssp_data *);
+struct gyroscope_sensor_operations *get_gyroscope_k6ds3tr_function_pointer(struct ssp_data *);
 #endif
 #endif
 
@@ -108,7 +117,7 @@ struct gyroscope_sensor_operations* get_gyroscope_k6ds3tr_function_pointer(struc
 /* magnetic sensor */
 void initialize_magnetic_factorytest(struct ssp_data *);
 void remove_magnetic_factorytest(struct ssp_data *);
-void select_magnetic_ops(struct ssp_data *data);
+void select_magnetic_ops(struct ssp_data *data, char *);
 
 struct magnetic_sensor_operations {
 	ssize_t (*get_magnetic_name)(char *);
@@ -127,13 +136,13 @@ struct magnetic_sensor_operations {
 };
 
 #if defined(CONFIG_SENSORS_SSP_MAGNETIC_AK09918C)
-struct magnetic_sensor_operations* get_magnetic_ak09918c_function_pointer(struct ssp_data *);
+struct magnetic_sensor_operations *get_magnetic_ak09918c_function_pointer(struct ssp_data *);
 #elif defined(CONFIG_SENSORS_SSP_MAGNETIC_MMC5603)
-struct magnetic_sensor_operations* get_magnetic_mmc5603_function_pointer(struct ssp_data *);
+struct magnetic_sensor_operations *get_magnetic_mmc5603_function_pointer(struct ssp_data *);
 #elif defined(CONFIG_SENSORS_SSP_MAGNETIC_AK09916C)
-struct magnetic_sensor_operations* get_magnetic_ak09916c_function_pointer(struct ssp_data *);
+struct magnetic_sensor_operations *get_magnetic_ak09916c_function_pointer(struct ssp_data *);
 #else //if defined(CONFIG_SENSORS_SSP_MAGNETIC_LSM303AH)
-struct magnetic_sensor_operations* get_magnetic_lsm303ah_function_pointer(struct ssp_data *);
+struct magnetic_sensor_operations *get_magnetic_lsm303ah_function_pointer(struct ssp_data *);
 #endif
 #endif
 
@@ -152,7 +161,7 @@ struct proximity_sensor_operations {
 	ssize_t (*get_threshold_detect_low)(struct ssp_data *, char *);
 	ssize_t (*set_threshold_detect_low)(struct ssp_data *, const char *);
 
-	u16(*get_proximity_raw_data)(struct ssp_data *);
+	u16 (*get_proximity_raw_data)(struct ssp_data *);
 
 	ssize_t (*get_proximity_trim_value)(struct ssp_data *, char *);
 	ssize_t (*get_proximity_avg_raw_data)(struct ssp_data *, char *);
@@ -169,20 +178,24 @@ struct proximity_sensor_operations {
 
 void initialize_prox_factorytest(struct ssp_data *);
 void remove_prox_factorytest(struct ssp_data *);
-void select_prox_ops(struct ssp_data *data);
+void select_prox_ops(struct ssp_data *data, char *);
 
 #ifdef CONFIG_SENSOR_SSP_PROXIMITY_GP2AP110S
 int gp2ap110s_read_setting(struct ssp_data *data);
 #endif
 
 #if defined(CONFIG_SENSORS_SSP_PROXIMITY_AUTO_CAL_TMD3725)
-struct proximity_sensor_operations* get_proximity_ams_auto_cal_function_pointer(struct ssp_data *);
+struct proximity_sensor_operations *get_proximity_ams_auto_cal_function_pointer(struct ssp_data *);
 #elif defined(CONFIG_SENSORS_SSP_PROXIMITY_GP2AP110S)
-struct proximity_sensor_operations* get_proximity_gp2ap110s_function_pointer(struct ssp_data *);
+struct proximity_sensor_operations *get_proximity_gp2ap110s_function_pointer(struct ssp_data *);
+#elif defined(CONFIG_SENSORS_SSP_PROXIMITY_STK3A5X)
+struct proximity_sensor_operations *get_proximity_stk3a5x_function_pointer(struct ssp_data *);
 #elif defined(CONFIG_SENSORS_SSP_PROXIMITY_STK3X6X)
-struct proximity_sensor_operations* get_proximity_stk3x6x_function_pointer(struct ssp_data *);
+struct proximity_sensor_operations *get_proximity_stk3x6x_function_pointer(struct ssp_data *);
+#elif defined(CONFIG_SENSORS_SSP_PROXIMITY_STK3328)
+struct proximity_sensor_operations *get_proximity_stk3328_function_pointer(struct ssp_data *);
 #else
-struct proximity_sensor_operations* get_proximity_stk3x3x_function_pointer(struct ssp_data *);
+struct proximity_sensor_operations *get_proximity_stk3x3x_function_pointer(struct ssp_data *);
 #endif
 #endif
 
@@ -199,18 +212,22 @@ struct light_sensor_operations {
 
 void initialize_light_factorytest(struct ssp_data *);
 void remove_light_factorytest(struct ssp_data *);
-void select_light_ops(struct ssp_data *data);
+void select_light_ops(struct ssp_data *data, char *);
 
 #if defined(CONFIG_SENSORS_SSP_LIGHT_TMD3700)
-struct light_sensor_operations* get_light_tmd3700_function_pointer(struct ssp_data *);
+struct light_sensor_operations *get_light_tmd3700_function_pointer(struct ssp_data *);
 #elif defined(CONFIG_SENSORS_SSP_LIGHT_TMD3725)
-struct light_sensor_operations* get_light_tmd3725_function_pointer(struct ssp_data *);
+struct light_sensor_operations *get_light_tmd3725_function_pointer(struct ssp_data *);
 #elif defined(CONFIG_SENSORS_SSP_LIGHT_VEML3328)
-struct light_sensor_operations* get_light_veml3328_function_pointer(struct ssp_data *);
+struct light_sensor_operations *get_light_veml3328_function_pointer(struct ssp_data *);
 #elif defined(CONFIG_SENSORS_SSP_LIGHT_TCS3701)
-struct light_sensor_operations* get_light_tcs3701_function_pointer(struct ssp_data *);
+struct light_sensor_operations *get_light_tcs3701_function_pointer(struct ssp_data *);
+#elif defined(CONFIG_SENSORS_SSP_LIGHT_STK3A5X)
+struct light_sensor_operations *get_light_stk3a5x_function_pointer(struct ssp_data *);
+#elif defined(CONFIG_SENSORS_SSP_LIGHT_STK3328)
+struct light_sensor_operations *get_light_stk3328_function_pointer(struct ssp_data *);
 #else //if defined(CONFIG_SENSORS_SSP_LIGHT_STK3X6X)
-struct light_sensor_operations* get_light_stk3x6x_function_pointer(struct ssp_data *);
+struct light_sensor_operations *get_light_stk3x6x_function_pointer(struct ssp_data *);
 #endif
 #endif
 
@@ -218,12 +235,12 @@ struct light_sensor_operations* get_light_stk3x6x_function_pointer(struct ssp_da
 /* barometer sensor */
 void initialize_barometer_factorytest(struct ssp_data *);
 void remove_barometer_factorytest(struct ssp_data *);
-void select_barometer_ops(struct ssp_data *data);
+void select_barometer_ops(struct ssp_data *data, char *);
 
 struct barometer_sensor_operations {
 	ssize_t (*get_barometer_name)(char *);
 	ssize_t (*get_barometer_vendor)(char *);
-	ssize_t (*get_barometer_eeprom_check)(struct ssp_data *, char *);
+	ssize_t (*get_barometer_selftest)(struct ssp_data *, char *);
 	ssize_t (*get_barometer_calibration)(struct ssp_data *, char *);
 	ssize_t (*set_barometer_calibration)(struct ssp_data *, const char *);
 	ssize_t (*set_barometer_sea_level_pressure)(struct ssp_data *, const char *);
@@ -231,9 +248,11 @@ struct barometer_sensor_operations {
 };
 
 #if defined(CONFIG_SENSORS_SSP_BAROMETER_LPS22H)
-struct barometer_sensor_operations* get_barometer_lps22h_function_pointer(struct ssp_data *);
-#else //if defined(CONFIG_SENSORS_SSP_BAROMETER_LPS25H)
-struct barometer_sensor_operations* get_barometer_lps25h_function_pointer(struct ssp_data *);
+struct barometer_sensor_operations *get_barometer_lps22h_function_pointer(struct ssp_data *);
+#elif defined(CONFIG_SENSORS_SSP_BAROMETER_LPS25H)
+struct barometer_sensor_operations *get_barometer_lps25h_function_pointer(struct ssp_data *);
+#else // CONFIG_SENSORS_SSP_BAROMETER_LPS22HH
+struct barometer_sensor_operations *get_barometer_lps22hh_function_pointer(struct ssp_data *);
 #endif
 #endif
 

@@ -57,6 +57,8 @@ static int set_drexbts(void __iomem *base, struct bts_stat *stat)
 	if (stat->drex_pf_on) {
 		__raw_writel(stat->pf_rreq_thrt_con, base + RREQ_THRT_CON);
 		__raw_writel(stat->allow_mo_for_region, base + RREQ_THRT_MO_P2);
+		__raw_writel(stat->pf_token_con, base + PF_TOKEN_CON);
+		__raw_writel(stat->pf_token_th0, base + PF_TOKEN_TH0);
 
 		for (i = 0; i < PF_TIMER_NR; i++)
 			__raw_writel(stat->pf_qos_timer[i],
@@ -92,6 +94,8 @@ static int get_drexbts(void __iomem *base, struct bts_stat *stat)
 	if (stat->drex_pf_on) {
 		stat->pf_rreq_thrt_con = __raw_readl(base + RREQ_THRT_CON);
 		stat->allow_mo_for_region = __raw_readl(base + RREQ_THRT_MO_P2);
+		stat->pf_token_con = __raw_readl(base + PF_TOKEN_CON);
+		stat->pf_token_th0 = __raw_readl(base + PF_TOKEN_TH0);
 
 		for (i = 0; i < PF_TIMER_NR; i++)
 			stat->pf_qos_timer[i] =
@@ -653,6 +657,46 @@ static int get_drexbts_pf_rreq_thrt_con(void __iomem *base, struct bts_stat *sta
 	return 0;
 }
 
+static int set_drexbts_pf_token_con(void __iomem *base, struct bts_stat *stat)
+{
+	if (!base || !stat)
+		return -EINVAL;
+
+	__raw_writel(stat->pf_token_con, base + PF_TOKEN_CON);
+
+	return 0;
+}
+
+static int get_drexbts_pf_token_con(void __iomem *base, struct bts_stat *stat)
+{
+	if (!base || !stat)
+		return -EINVAL;
+
+	stat->pf_token_con = __raw_readl(base + PF_TOKEN_CON);
+
+	return 0;
+}
+
+static int set_drexbts_pf_token_th0(void __iomem *base, struct bts_stat *stat)
+{
+	if (!base || !stat)
+		return -EINVAL;
+
+	__raw_writel(stat->pf_token_th0, base + PF_TOKEN_TH0);
+
+	return 0;
+}
+
+static int get_drexbts_pf_token_th0(void __iomem *base, struct bts_stat *stat)
+{
+	if (!base || !stat)
+		return -EINVAL;
+
+	stat->pf_token_th0 = __raw_readl(base + PF_TOKEN_TH0);
+
+	return 0;
+}
+
 static int set_drexbts_allow_mo_for_region(void __iomem *base, struct bts_stat *stat)
 {
 	if (!base || !stat)
@@ -876,6 +920,10 @@ int register_btsops(struct bts_info *info)
 		info->ops->set_cutoff = set_drexbts_cutoff;
 		info->ops->get_pf_rreq_thrt_con = get_drexbts_pf_rreq_thrt_con;
 		info->ops->set_pf_rreq_thrt_con = set_drexbts_pf_rreq_thrt_con;
+		info->ops->get_pf_token_con = get_drexbts_pf_token_con;
+		info->ops->set_pf_token_con = set_drexbts_pf_token_con;
+		info->ops->get_pf_token_th0 = get_drexbts_pf_token_th0;
+		info->ops->set_pf_token_th0 = set_drexbts_pf_token_th0;
 		info->ops->get_allow_mo_for_region = get_drexbts_allow_mo_for_region;
 		info->ops->set_allow_mo_for_region = set_drexbts_allow_mo_for_region;
 		info->ops->get_pf_qos_timer = get_drexbts_pf_qos_timer;

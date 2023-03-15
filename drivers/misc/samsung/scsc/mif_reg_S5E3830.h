@@ -138,6 +138,13 @@
 #define TCXO_BUF_CTRL		0x3B78
 #define TCXO_BUF_BIAS_EN_WLBT	BIT(0)
 
+#ifdef CONFIG_SCSC_MX152_EXT_DUAL_FEM
+/* Exynos 3830 UM - TODO */
+#define UART_IO_SHARE_CTRL	0x0760
+#define SEL_TXD_GPIO_1_20	BIT(20)
+#define SEL_TXD_GPIO_1_21	BIT(21)
+#endif
+
 /* New WLBT SFRs for MEM config */
 
 /* end address is exclusive so the ENDx register should be set to the first
@@ -147,7 +154,7 @@
  * 16MB region, so other BAAWs can be used for other purposes
  */
 #define WLBT_DBUS_BAAW_0_START          0x80000000 // Start of DRAM for WLBT R7
-#define WLBT_DBUS_BAAW_0_END            0x81000000 // 16 MB
+#define WLBT_DBUS_BAAW_0_END            0x80C00000 // 12 MB
 #define WLBT_DBUS_BAAW_1_START          0xC0000000
 #define WLBT_DBUS_BAAW_1_END            0xDFFFFFFF
 

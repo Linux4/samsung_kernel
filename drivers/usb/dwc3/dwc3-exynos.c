@@ -25,7 +25,7 @@
 #include <linux/mfd/syscon.h>
 #include <linux/regmap.h>
 #include <linux/soc/samsung/exynos-soc.h>
-
+#include <soc/samsung/exynos-pmu.h>
 
 #include <linux/io.h>
 #include <linux/usb/otg-fsm.h>
@@ -457,9 +457,8 @@ static int dwc3_exynos_probe(struct platform_device *pdev)
 	struct device		*dev = &pdev->dev;
 	struct device_node	*node = dev->of_node;
 #ifdef USB_USE_IOCOHERENCY
-	struct regmap *reg_sysreg;
+	struct regmap		*reg_sysreg;
 #endif
-
 	int			ret;
 
 	pr_info("%s: +++\n", __func__);

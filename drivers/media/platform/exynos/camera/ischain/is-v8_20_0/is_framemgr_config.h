@@ -130,6 +130,7 @@ struct is_frame {
 
 #ifdef ENABLE_SYNC_REPROCESSING
 	struct list_head	sync_list;
+	struct list_head	preview_list;
 #endif
 	struct list_head	votf_list;
 

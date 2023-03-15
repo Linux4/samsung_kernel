@@ -41,6 +41,10 @@
 #include "usb_power_notify.h"
 #endif
 
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+#include <linux/usblog_proc_notify.h>
+#endif
+
 #define OTG_NO_CONNECT		0
 #define OTG_CONNECT_ONLY	1
 #define OTG_DEVICE_CONNECT	2
@@ -400,6 +404,43 @@ err2:
 err1:
 	return ret;
 }
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+void dwc3_otg_run_sm(struct otg_fsm *fsm);
+
+static void rsw_work(struct work_struct *w)
+{
+	struct dwc3 *dwc = container_of(w, struct dwc3, work);
+	struct otg_fsm *fsm = &dwc->dotg->fsm;
+	struct usb_otg	*otg = fsm->otg;
+	struct dwc3_otg	*dotg = container_of(otg, struct dwc3_otg, otg);
+
+	fsm->b_sess_vld = 0;
+	dwc3_otg_run_sm(fsm);
+	if (atomic_inc_return(&dotg->otg_wakelock_cnt) != 1) {
+		atomic_dec(&dotg->otg_wakelock_cnt);
+		pr_info("usb: %s : otg_wakelock -already locked\n", __func__);
+	} else {
+		pr_info("usb: %s : otg_wakelock - wake_lock\n", __func__);
+		store_usblog_notify(NOTIFY_USBMODE_EXTRA,
+			(void *)"start_g: w_lock", NULL);
+		wake_lock(&dotg->wakelock);
+	}
+	msleep(200);
+	fsm->b_sess_vld = 1;
+	if (atomic_dec_and_test(&dotg->otg_wakelock_cnt)) {
+		pr_info("usb: %s: wake unlock\n", __func__);
+		store_usblog_notify(NOTIFY_USBMODE_EXTRA,
+			(void *)"stop_g: w_unlock", NULL);
+
+		wake_unlock(&dotg->wakelock);
+	} else {
+		atomic_inc(&dotg->otg_wakelock_cnt);
+		pr_info("usb: %s: otg_wakelock cnt value is wrong(%d)\n", __func__,
+							atomic_read(&dotg->otg_wakelock_cnt));
+	}
+	dwc3_otg_run_sm(fsm);
+}
+#endif
 
 static int dwc3_otg_start_gadget(struct otg_fsm *fsm, int on)
 {
@@ -418,7 +459,19 @@ static int dwc3_otg_start_gadget(struct otg_fsm *fsm, int on)
 			on ? "on" : "off", otg->gadget->name);
 
 	if (on) {
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+		if (atomic_inc_return(&dotg->otg_wakelock_cnt) != 1) {
+			atomic_dec(&dotg->otg_wakelock_cnt);
+			printk("usb: %s : otg_wakelock -already locked \n",__func__);
+		} else {
+			printk("usb: %s : otg_wakelock - wake_lock \n",__func__);
+			store_usblog_notify(NOTIFY_USBMODE_EXTRA,
+				(void *)"start_g: w_lock", NULL);
+			wake_lock(&dotg->wakelock);
+		}
+#else
 		wake_lock(&dotg->wakelock);
+#endif
 		ret = dwc3_otg_phy_enable(fsm, 0, on);
 		if (ret) {
 			dev_err(dwc->dev, "%s: failed to reinitialize core\n",
@@ -451,7 +504,21 @@ static int dwc3_otg_start_gadget(struct otg_fsm *fsm, int on)
 err2:
 		ret = dwc3_otg_phy_enable(fsm, 0, on);
 err1:
+#ifdef CONFIG_USB_SS_REMOTE_WAKEUP
+		if (atomic_dec_and_test(&dotg->otg_wakelock_cnt)) {
+			pr_info("usb: %s: wake unlock \n", __func__);
+			store_usblog_notify(NOTIFY_USBMODE_EXTRA,
+				(void *)"stop_g: w_unlock", NULL);
+
+			wake_unlock(&dotg->wakelock);
+		} else {
+			atomic_inc(&dotg->otg_wakelock_cnt);
+			printk("usb: %s: otg_wakelock cnt value is wrong(%d)\n",__func__, 
+								atomic_read(&dotg->otg_wakelock_cnt));
+		}
+#else
 		wake_unlock(&dotg->wakelock);
+#endif
 	}
 
 	return ret;
@@ -792,6 +859,23 @@ u32 get_speed_and_disu1u2(void)
 }
 EXPORT_SYMBOL_GPL(get_speed_and_disu1u2);
 
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+static void dwc3_reset_recover_delay_work(struct work_struct *wk)
+{
+	struct delayed_work *delay_work =
+		container_of(wk, struct delayed_work, work);
+	struct dwc3 *dwc = container_of(delay_work, struct dwc3, dwc3_reset_delayed_work);
+
+	pr_info("<<< %s\n", __func__);
+	schedule_work(&dwc->work);
+
+	if (dwc->retry_cnt < MAX_RETRY_CNT)
+		schedule_work(&dwc->work);
+	else
+		panic("USB Warm Reset wasn't recovered");
+}
+#endif
+
 static int dwc3_otg_pm_notifier(struct notifier_block *nb,
 		unsigned long action, void *nb_data)
 {
@@ -924,7 +1008,9 @@ int dwc3_otg_init(struct dwc3 *dwc)
 	ret = sysfs_create_group(&dwc->dev->kobj, &dwc3_otg_attr_group);
 	if (ret)
 		dev_err(dwc->dev, "failed to create dwc3 otg attributes\n");
-
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	INIT_WORK(&dwc->work, rsw_work);
+#endif
 	/* Enable LDO initially */
 	phy_conn(dwc->usb2_generic_phy, 1);
 
@@ -936,6 +1022,10 @@ int dwc3_otg_init(struct dwc3 *dwc)
 
 	dwc->int_qos_lock_wq = create_singlethread_workqueue("usb_int_qos_wq");
 	INIT_WORK(&dwc->int_qos_work, dwc3_int_lock_qos_work);
+#ifdef CONFIG_USB_CONFIGFS_F_MBIM
+	dwc->retry_cnt = 0;
+	INIT_DELAYED_WORK(&dwc->dwc3_reset_delayed_work, dwc3_reset_recover_delay_work);
+#endif
 #if defined(CONFIG_IF_CB_MANAGER)
 	usb_d = kzalloc(sizeof(struct usb_dev), GFP_KERNEL);
 	if (!usb_d)

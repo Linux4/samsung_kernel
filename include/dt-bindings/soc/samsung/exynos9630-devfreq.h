@@ -36,6 +36,7 @@
 #define ESS_FLAG_DSP	10
 #define ESS_FLAG_TNR	11
 #define ESS_FLAG_DNC	12
+#define ESS_FLAG_G3D	13 /* G3D doesn't use DEVFREQ, but this value is added here for the consistency */
 
 /* DEVFREQ GOV TYPE */
 #define SIMPLE_INTERACTIVE 0

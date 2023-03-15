@@ -22,7 +22,7 @@
 #define S2MU106_CHARGER_H
 #include <linux/mfd/slsi/s2mu106/s2mu106.h>
 
-#if defined(CONFIG_MUIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 #include <linux/muic/common/muic.h>
 #include <linux/muic/common/muic_notifier.h>
 #endif /* CONFIG_MUIC_NOTIFIER */
@@ -30,6 +30,25 @@
 #include "../../common/sec_charging_common.h"
 
 extern bool mfc_fw_update;
+
+enum {
+	CHIP_ID = 0,
+	DATA,
+	DATA_1
+};
+
+ssize_t s2mu106_chg_show_attrs(struct device *dev,
+				struct device_attribute *attr, char *buf);
+
+ssize_t s2mu106_chg_store_attrs(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count);
+#define S2MU106_ATTR(_name)				\
+{							\
+	.attr = {.name = #_name, .mode = 0664},	\
+	.show = s2mu106_chg_show_attrs,			\
+	.store = s2mu106_chg_store_attrs,			\
+}
 
 /* define function if need */
 #define ENABLE_MIVR 0
@@ -165,6 +184,7 @@ extern bool mfc_fw_update;
 
 #define CHARGER_OFF_MODE	0
 #define BUCK_MODE		1
+#define BST_MODE		2
 #define CHG_MODE		3
 #define OTG_BST_MODE		6
 
@@ -348,7 +368,7 @@ enum {
 	S2MU106_SET_BAT_OCP_7000mA	= 0x7,
 };
 
-typedef struct s2mu106_charger_platform_data {
+struct s2mu106_charger_platform_data {
 	int chg_float_voltage;
 	char *charger_name;
 	char *fuelgauge_name;
@@ -364,7 +384,9 @@ typedef struct s2mu106_charger_platform_data {
 	int slow_charging_current;
 	int wireless_cc_cv;
 	bool block_otg_psk_mode_en;
-} s2mu106_charger_platform_data_t;
+	bool reduce_async_debounce_time;
+	bool lx_freq_recover;
+};
 
 
 struct s2mu106_charger_data {
@@ -373,9 +395,11 @@ struct s2mu106_charger_data {
 	struct s2mu106_platform_data *s2mu106_pdata;
 	struct delayed_work otg_vbus_work;
 	struct delayed_work ivr_work;
-	struct wake_lock ivr_wake_lock;
+	struct wakeup_source *ivr_ws;
 	struct delayed_work wc_current_work;
-	struct wake_lock wc_current_wake_lock;
+	struct wakeup_source *wc_current_ws;
+	struct delayed_work pmeter_3lv_work;
+	struct delayed_work pmeter_2lv_work;
 
 	struct workqueue_struct *charger_wqueue;
 	struct power_supply *psy_chg;
@@ -385,7 +409,7 @@ struct s2mu106_charger_data {
 	struct power_supply *psy_bat;
 	struct power_supply *psy_fg;
 
-	s2mu106_charger_platform_data_t *pdata;
+	struct s2mu106_charger_platform_data *pdata;
 	int dev_id;
 	int input_current;
 	int charging_current;

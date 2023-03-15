@@ -8,7 +8,7 @@
 #include "melfas_mss100.h"
 
 #if MMS_USE_NAP_MODE
-struct wake_lock mms_wake_lock;
+struct wakeup_source *mms_ws;
 #endif
 
 #ifdef CONFIG_TRUSTONIC_TRUSTED_UI
@@ -23,6 +23,191 @@ struct mms_ts_info *tui_tsp_info;
 struct mms_ts_info *tsp_info;
 #endif
 
+#ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
+static irqreturn_t mms_interrupt(int irq, void *dev_id);
+
+static irqreturn_t secure_filter_interrupt(struct mms_ts_info *info)
+{
+	if (atomic_read(&info->secure_enabled) == SECURE_TOUCH_ENABLE) {
+		if (atomic_cmpxchg(&info->secure_pending_irqs, 0, 1) == 0)
+			sysfs_notify(&info->input_dev->dev.kobj, NULL, "secure_touch");
+		else
+			input_info(true, &info->client->dev, "%s: pending irq:%d\n",
+					__func__, (int)atomic_read(&info->secure_pending_irqs));
+
+		return IRQ_HANDLED;
+	}
+	return IRQ_NONE;
+
+}
+
+/**
+ * Sysfs attr group for secure touch & interrupt handler for Secure world.
+ * @atomic : syncronization for secure_enabled
+ * @pm_runtime : set rpm_resume or rpm_ilde
+ */
+static ssize_t secure_touch_enable_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct mms_ts_info *info = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%d", atomic_read(&info->secure_enabled));
+}
+
+static ssize_t secure_touch_enable_store(struct device *dev,
+		struct device_attribute *addr, const char *buf, size_t count)
+{
+	struct mms_ts_info *info = dev_get_drvdata(dev);
+	int ret;
+	unsigned long data;
+
+	if (count > 2) {
+		input_err(true, &info->client->dev,
+				"%s: cmd length is over (%s,%d)!!\n",
+				__func__, buf, (int)strlen(buf));
+		return -EINVAL;
+	}
+
+	ret = kstrtoul(buf, 10, &data);
+	if (ret != 0) {
+		input_err(true, &info->client->dev, "%s: failed to read:%d\n",
+				__func__, ret);
+		return -EINVAL;
+	}
+
+	if (data == 1) {
+		if (info->reset_is_on_going) {
+			input_err(true, &info->client->dev, "%s: reset is on going because i2c fail\n", __func__);
+			return -EBUSY;
+		}
+
+		/* Enable Secure World */
+		if (atomic_read(&info->secure_enabled) == SECURE_TOUCH_ENABLE) {
+			input_err(true, &info->client->dev, "%s: already enabled\n", __func__);
+			return -EBUSY;
+		}
+
+		/* syncronize_irq -> disable_irq + enable_irq
+		 * concern about timing issue.
+		 */
+		disable_irq(info->client->irq);
+
+		/* Release All Finger */
+
+		if (pm_runtime_get_sync(info->client->adapter->dev.parent) < 0) {
+			enable_irq(info->client->irq);
+			input_err(true, &info->client->dev, "%s: failed to get pm_runtime\n", __func__);
+			return -EIO;
+		}
+
+		msleep(200);
+		reinit_completion(&info->secure_powerdown);
+		reinit_completion(&info->secure_interrupt);
+		atomic_set(&info->secure_enabled, 1);
+		atomic_set(&info->secure_pending_irqs, 0);
+
+		enable_irq(info->client->irq);
+
+		input_info(true, &info->client->dev, "%s: secure touch enable\n", __func__);
+	} else if (data == 0) {
+		/* Disable Secure World */
+		if (atomic_read(&info->secure_enabled) == SECURE_TOUCH_DISABLE) {
+			input_err(true, &info->client->dev, "%s: already disabled\n", __func__);
+			return count;
+		}
+
+		pm_runtime_put_sync(info->client->adapter->dev.parent);
+
+		/* add delay*/
+		msleep(200);
+		atomic_set(&info->secure_enabled, 0);
+
+		sysfs_notify(&info->input_dev->dev.kobj, NULL, "secure_touch");
+
+		mms_interrupt(info->client->irq, info);
+		complete(&info->secure_interrupt);
+		complete(&info->secure_powerdown);
+
+		input_info(true, &info->client->dev, "%s: secure touch disable\n", __func__);
+	} else {
+		input_err(true, &info->client->dev, "%s: unsupport value:%d\n", __func__, data);
+		return -EINVAL;
+	}
+
+	return count;
+}
+
+static ssize_t secure_touch_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct mms_ts_info *info = dev_get_drvdata(dev);
+	int val = 0;
+
+	if (atomic_read(&info->secure_enabled) == SECURE_TOUCH_DISABLE) {
+		input_err(true, &info->client->dev, "%s: disabled\n", __func__);
+		return -EBADF;
+	}
+
+	if (atomic_cmpxchg(&info->secure_pending_irqs, -1, 0) == -1) {
+		input_err(true, &info->client->dev, "%s: pending irq -1\n", __func__);
+		return -EINVAL;
+	}
+
+	if (atomic_cmpxchg(&info->secure_pending_irqs, 1, 0) == 1) {
+		val = 1;
+		input_err(true, &info->client->dev, "%s: pending irq is %d\n",
+				__func__, atomic_read(&info->secure_pending_irqs));
+	}
+
+	complete(&info->secure_interrupt);
+
+	return snprintf(buf, PAGE_SIZE, "%u", val);
+}
+
+static DEVICE_ATTR(secure_touch_enable, (S_IRUGO | S_IWUSR | S_IWGRP),
+		secure_touch_enable_show, secure_touch_enable_store);
+static DEVICE_ATTR(secure_touch, S_IRUGO, secure_touch_show, NULL);
+
+static struct attribute *secure_attr[] = {
+	&dev_attr_secure_touch_enable.attr,
+	&dev_attr_secure_touch.attr,
+	NULL,
+};
+
+static struct attribute_group secure_attr_group = {
+	.attrs = secure_attr,
+};
+
+static int secure_touch_init(struct mms_ts_info *info)
+{
+	input_info(true, &info->client->dev, "%s\n", __func__);
+
+	if (sysfs_create_group(&info->input_dev->dev.kobj, &secure_attr_group) < 0) {
+		input_err(true, &info->client->dev, "%s: do not make secure group\n", __func__);
+		return -ENODEV;
+	}
+
+	init_completion(&info->secure_interrupt);
+	init_completion(&info->secure_powerdown);
+
+	return 0;
+}
+
+static void secure_touch_stop(struct mms_ts_info *info, bool stop)
+{
+	if (atomic_read(&info->secure_enabled)) {
+		atomic_set(&info->secure_pending_irqs, -1);
+
+		sysfs_notify(&info->input_dev->dev.kobj, NULL, "secure_touch");
+
+		if (stop)
+			wait_for_completion_interruptible(&info->secure_powerdown);
+
+		input_info(true, &info->client->dev, "%s: %d\n", __func__, stop);
+	}
+}
+#endif
+
 /**
  * Reboot chip
  *
@@ -32,6 +217,13 @@ void mms_power_reboot(struct mms_ts_info *info)
 {
 	input_dbg(true, &info->client->dev, "%s [START]\n", __func__);
 
+#ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
+	if (atomic_read(&info->secure_enabled) == SECURE_TOUCH_ENABLE) {
+		input_err(true, &info->client->dev,
+				"%s: TSP no accessible from Linux, TUI is enabled!\n", __func__);
+		return;
+	}
+#endif
 	mutex_lock(&info->modechange);
 
 	mms_power_control(info, 0);
@@ -50,6 +242,13 @@ void mms_reset_work(struct work_struct *work)
 	int ret;
 
 	input_info(true, &info->client->dev, "%s [START]\n", __func__);
+#ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
+	if (atomic_read(&info->secure_enabled) == SECURE_TOUCH_ENABLE) {
+		input_err(true, &info->client->dev,
+				"%s: TSP no accessible from Linux, TUI is enabled!\n", __func__);
+		return;
+	}
+#endif
 
 	if (info->reset_is_on_going) {
 		input_err(true, &info->client->dev, "%s: reset is ongoing\n", __func__);
@@ -135,6 +334,13 @@ int mms_i2c_read(struct mms_ts_info *info, char *write_buf, unsigned int write_l
 	if (STUI_MODE_TOUCH_SEC & stui_get_mode())
 		return -EBUSY;
 #endif
+#ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
+	if (atomic_read(&info->secure_enabled) == SECURE_TOUCH_ENABLE) {
+		input_err(true, &info->client->dev,
+				"%s: TSP no accessible from Linux, TUI is enabled!\n", __func__);
+		return -EBUSY;
+	}
+#endif
 
 	if (info->power_status == STATE_POWER_OFF) {
 		input_err(true, &info->client->dev, "%s: POWER_STATUS : OFF\n", __func__);
@@ -174,69 +380,6 @@ DONE:
 	return 0;
 }
 
-
-/**
- * I2C Read (Continue)
- */
-int mms_i2c_read_next(struct mms_ts_info *info, char *read_buf, int start_idx,
-				unsigned int read_len)
-{
-	int retry = I2C_RETRY_COUNT;
-	int res;
-	u8 rbuf[read_len];
-
-#ifdef CONFIG_TRUSTONIC_TRUSTED_UI
-	if (TRUSTEDUI_MODE_INPUT_SECURED & trustedui_get_current_mode()) {
-		input_err(true, &info->client->dev,
-			"%s TSP no accessible from Linux, TUI is enabled!\n", __func__);
-		return -EIO;
-	}
-#endif
-#ifdef CONFIG_SAMSUNG_TUI
-	if (STUI_MODE_TOUCH_SEC & stui_get_mode())
-		return -EBUSY;
-#endif
-
-	if (info->power_status == STATE_POWER_OFF) {
-		input_err(true, &info->client->dev, "%s: POWER_STATUS : OFF\n", __func__);
-		goto ERROR;
-	}
-
-	while (retry--) {
-		res = i2c_master_recv(info->client, rbuf, read_len);
-
-		if (res == read_len) {
-			goto DONE;
-		} else if (res < 0) {
-			input_err(true, &info->client->dev,
-				"%s [ERROR] i2c_master_recv - errno [%d]\n", __func__, res);
-			info->comm_err_count++;
-		} else if (res != read_len) {
-			input_err(true, &info->client->dev,
-				"%s [ERROR] length mismatch - read[%d] result[%d]\n",
-				__func__, read_len, res);
-			info->comm_err_count++;
-		} else {
-			input_err(true, &info->client->dev,
-				"%s [ERROR] unknown error [%d]\n", __func__, res);
-			info->comm_err_count++;
-		}
-	}
-
-	goto ERROR_REBOOT;
-
-ERROR_REBOOT:
-	if (info->probe_done && !info->reset_is_on_going)
-		schedule_delayed_work(&info->reset_work, msecs_to_jiffies(TOUCH_RESET_DWORK_TIME));
-ERROR:
-	return 1;
-
-DONE:
-	memcpy(&read_buf[start_idx], rbuf, read_len);
-
-	return 0;
-}
-
 /**
  * I2C Write
  */
@@ -255,6 +398,13 @@ int mms_i2c_write(struct mms_ts_info *info, char *write_buf, unsigned int write_
 #ifdef CONFIG_SAMSUNG_TUI
 	if (STUI_MODE_TOUCH_SEC & stui_get_mode())
 		return -EBUSY;
+#endif
+#ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
+	if (atomic_read(&info->secure_enabled) == SECURE_TOUCH_ENABLE) {
+		input_err(true, &info->client->dev,
+				"%s: TSP no accessible from Linux, TUI is enabled!\n", __func__);
+		return -EBUSY;
+	}
 #endif
 
 	if (info->power_status == STATE_POWER_OFF) {
@@ -484,6 +634,9 @@ static int mms_input_open(struct input_dev *dev)
 		}
 	}
 #endif
+#ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
+	secure_touch_stop(info, 0);
+#endif
 	info->prox_power_off = 0;
 
 	/* Clear Ear Detection event*/
@@ -540,6 +693,9 @@ static void mms_input_close(struct input_dev *dev)
 			trustedui_set_mode(TRUSTEDUI_MODE_OFF);
 		}
 	}
+#endif
+#ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
+	secure_touch_stop(info, 1);
 #endif
 
 	cancel_delayed_work(&info->reset_work);
@@ -900,11 +1056,30 @@ static irqreturn_t mms_interrupt(int irq, void *dev_id)
 	struct i2c_client *client = info->client;
 	unsigned int packet_size = info->event_size * MAX_FINGER_NUM + 1;
 	u8 wbuf[8];
-	u8 rbuf[packet_size];
+	u8 *rbuf;
 	unsigned int size = 0;
 	u8 category = 0;
 	u8 alert_type = 0;
 	int ret;
+
+#ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
+	if (secure_filter_interrupt(info) == IRQ_HANDLED) {
+		wait_for_completion_interruptible_timeout(&info->secure_interrupt,
+				msecs_to_jiffies(5 * MSEC_PER_SEC));
+
+		input_info(true, &info->client->dev,
+				"%s: secure interrupt handled\n", __func__);
+
+		return IRQ_HANDLED;
+	}
+#endif
+
+	rbuf = kzalloc(packet_size, GFP_KERNEL);
+	if (!rbuf) {
+		input_err(true, &info->client->dev,
+				"%s: Failed to kmalloc\n", __func__);
+		return IRQ_HANDLED;
+	}
 
 	if (info->power_status == STATE_LPM) {
 		pm_wakeup_event(info->input_dev->dev.parent, 1000);
@@ -913,9 +1088,11 @@ static irqreturn_t mms_interrupt(int irq, void *dev_id)
 		ret = wait_for_completion_interruptible_timeout(&info->resume_done, msecs_to_jiffies(500));
 		if (ret == 0) {
 			input_err(true, &info->client->dev, "%s: LPM: pm resume is not handled\n", __func__);
+			kfree(rbuf);
 			return IRQ_HANDLED;
 		} else if (ret < 0) {
 			input_err(true, &info->client->dev, "%s: LPM: -ERESTARTSYS if interrupted, %d\n", __func__, ret);
+			kfree(rbuf);
 			return IRQ_HANDLED;
 		}
 
@@ -1003,6 +1180,7 @@ static irqreturn_t mms_interrupt(int irq, void *dev_id)
 	}
 
 	input_dbg(false, &client->dev, "%s [DONE]\n", __func__);
+	kfree(rbuf);
 	return IRQ_HANDLED;
 
 ERROR:
@@ -1011,6 +1189,7 @@ ERROR:
 		input_info(true, &client->dev, "%s - Reset on error\n", __func__);
 		schedule_delayed_work(&info->reset_work, msecs_to_jiffies(TOUCH_RESET_DWORK_TIME));
 	}
+	kfree(rbuf);
 	return IRQ_HANDLED;
 }
 
@@ -1556,7 +1735,19 @@ static int mms_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	complete_all(&info->resume_done);
 		
 #if MMS_USE_NAP_MODE
-	wake_lock_init(&mms_wake_lock, WAKE_LOCK_SUSPEND, "mms_wake_lock");
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
+	// 4.19 R 
+	wakeup_source_init(mms_ws, "mms_wake_lock");
+	// 4.19 Q
+	if (!(mms_ws)) {
+		mms_ws = wakeup_source_create("mms_wake_lock");
+		if (mms_ws)
+			wakeup_source_add(mms_ws);
+	}
+#else
+	// 5.4 R
+	mms_ws = wakeup_source_register(&info->client->dev, "mms_wake_lock");
+#endif
 #endif
 
 	mms_power_control(info, 1);
@@ -1661,6 +1852,9 @@ static int mms_probe(struct i2c_client *client, const struct i2c_device_id *id)
 		goto err_create_dev_link;
 	}
 #endif
+#ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
+	secure_touch_init(info);
+#endif
 
 	schedule_delayed_work(&info->work_read_info, msecs_to_jiffies(5000));
 
@@ -1708,7 +1902,7 @@ err_input_proximity_register_device:
 err_input_register_device:
 err_fw_update:
 #if MMS_USE_NAP_MODE
-	wake_lock_destroy(&mms_wake_lock);
+	wakeup_source_unregister(mms_ws);
 #endif
 	mutex_destroy(&info->lock);
 	mutex_destroy(&info->modechange);
@@ -1769,7 +1963,7 @@ static int mms_remove(struct i2c_client *client)
 	cancel_delayed_work_sync(&info->reset_work);
 
 #if MMS_USE_NAP_MODE
-	wake_lock_destroy(&mms_wake_lock);
+	wakeup_source_unregister(mms_ws);
 #endif
 	mutex_destroy(&info->lock);
 	mutex_destroy(&info->modechange);
