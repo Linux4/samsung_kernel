@@ -477,10 +477,13 @@ static int mfc_open(struct file *file)
 
 	mfc_ctx_change_idle_mode(ctx, MFC_IDLE_MODE_NONE);
 
-	if (mfc_is_decoder_node(node))
+	if (mfc_is_decoder_node(node)) {
 		ret = __mfc_init_dec_ctx(ctx);
-	else
+		dev->num_dec_inst++;
+	} else {
 		ret = __mfc_init_enc_ctx(ctx);
+		dev->num_enc_inst++;
+	}
 	if (ret)
 		goto err_ctx_init;
 
@@ -511,7 +514,8 @@ static int mfc_open(struct file *file)
 			dev->num_drm_inst++;
 			ctx->is_drm = 1;
 
-			mfc_ctx_info("DRM instance is opened [%d:%d]\n",
+			mfc_ctx_info("DRM %s instance is opened [%d:%d]\n",
+					ctx->type == MFCINST_DECODER ? "Decoder" : "Encoder",
 					dev->num_drm_inst, dev->num_inst);
 		} else {
 			mfc_ctx_err("Too many instance are opened for DRM\n");
@@ -521,7 +525,8 @@ static int mfc_open(struct file *file)
 			goto err_drm_start;
 		}
 	} else {
-		mfc_ctx_info("NORMAL instance is opened [%d:%d]\n",
+		mfc_ctx_info("NORMAL %s instance is opened [%d:%d]\n",
+				ctx->type == MFCINST_DECODER ? "Decoder" : "Encoder",
 				dev->num_drm_inst, dev->num_inst);
 	}
 #endif
@@ -564,6 +569,10 @@ err_ctx_ctrls:
 	vfree(dev->regression_val);
 
 err_ctx_init:
+	if (mfc_is_decoder_node(node))
+		dev->num_dec_inst--;
+	else
+		dev->num_enc_inst--;
 	dev->ctx[ctx->num] = 0;
 
 err_ctx_num:
@@ -598,7 +607,9 @@ static int mfc_release(struct file *file)
 	mutex_lock(&dev->mfc_mutex);
 	mutex_lock(&dev->mfc_migrate_mutex);
 
-	mfc_ctx_info("MFC driver release is called [%d:%d], is_drm(%d)\n",
+	mfc_ctx_info("%s %s instance release is called [%d:%d], is_drm(%d)\n",
+			ctx->is_drm ? "DRM" : "NORMAL",
+			ctx->type == MFCINST_DECODER ? "Decoder" : "Encoder",
 			dev->num_drm_inst, dev->num_inst, ctx->is_drm);
 
 	MFC_TRACE_CTX_LT("[INFO] release is called (ctx:%d, total:%d)\n", ctx->num, dev->num_inst);
@@ -642,10 +653,13 @@ static int mfc_release(struct file *file)
 		if (dev->regression_val)
 			vfree(dev->regression_val);
 
-	if (ctx->type == MFCINST_DECODER)
+	if (ctx->type == MFCINST_DECODER) {
 		__mfc_deinit_dec_ctx(ctx);
-	else if (ctx->type == MFCINST_ENCODER)
+		dev->num_dec_inst--;
+	} else if (ctx->type == MFCINST_ENCODER) {
 		__mfc_deinit_enc_ctx(ctx);
+		dev->num_enc_inst--;
+	}
 
 #if IS_ENABLED(CONFIG_VIDEO_EXYNOS_REPEATER)
 	if (ctx->otf_handle) {
@@ -959,8 +973,11 @@ static int __mfc_parse_dt(struct device_node *np, struct mfc_dev *mfc)
 	/* MFC IOVA threshold */
 	of_property_read_u32(np, "iova_threshold", &pdata->iova_threshold);
 
-	/* MFC IOVA threshold */
+	/* MFC idle clock control */
 	of_property_read_u32(np, "idle_clk_ctrl", &pdata->idle_clk_ctrl);
+
+	/* Encoder timing info disable */
+	of_property_read_u32(np, "enc_timing_dis", &pdata->enc_timing_dis);
 
 	return 0;
 }

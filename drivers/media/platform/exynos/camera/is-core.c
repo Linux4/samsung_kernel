@@ -1641,7 +1641,7 @@ static int is_probe(struct platform_device *pdev)
 				goto p_err3;
 			}
 		} else {
-			probe_err("pinctrl_lookup_state failed!!!\n");
+			probe_info("[%s]pinctrl_lookup no release state\n", __func__);
 		}
 	}
 

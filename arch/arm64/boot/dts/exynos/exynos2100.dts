@@ -14366,7 +14366,7 @@
 		sec,wb-up-threshold-rqs = <0x1e>;
 		sec,wb-down-threshold-block = <0x600>;
 		sec,wb-down-threshold-rqs = <0x19>;
-		sec,wb-disable-threshold-lt = <0x07>;
+		sec,wb-disable-threshold-lt = <0x09>;
 		sec,wb-on-delay-ms = <0x5c>;
 		sec,wb-off-delay-ms = <0x1194>;
 		phandle = <0x321>;
@@ -14662,14 +14662,6 @@
 			};
 		};
 
-		cpus_allowed {
-			target-sched-class = <0x04>;
-			root = "0-7";
-			foreground = "4-6";
-			background = "0-7";
-			top-app = "0-7";
-		};
-
 		prio_pinning {
 			root = <0x00>;
 			foreground = <0x00>;
@@ -14844,14 +14836,6 @@
 			foreground = <0xc8 0xc8 0xc8>;
 			background = <0xc8 0xc8 0xc8>;
 			top-app = <0xc8 0xc8 0xc8>;
-		};
-
-		cpus_allowed {
-			target-sched-class = <0x04>;
-			root = "0-7";
-			foreground = "4-6";
-			background = "0-7";
-			top-app = "0-7";
 		};
 
 		prio_pinning {
@@ -15033,14 +15017,6 @@
 			top-app = <0xc8 0x12c 0xc8>;
 		};
 
-		cpus_allowed {
-			target-sched-class = <0x04>;
-			root = "0-7";
-			foreground = "4-6";
-			background = "0-7";
-			top-app = "0-7";
-		};
-
 		prio_pinning {
 			root = <0x00>;
 			foreground = <0x00>;
@@ -15205,14 +15181,6 @@
 			foreground = <0xc8 0xc8 0xc8>;
 			background = <0xc8 0xc8 0xc8>;
 			top-app = <0xc8 0xc8 0xc8>;
-		};
-
-		cpus_allowed {
-			target-sched-class = <0x04>;
-			root = "0-7";
-			foreground = "4-6";
-			background = "0-7";
-			top-app = "0-7";
 		};
 
 		prio_pinning {
@@ -15412,14 +15380,6 @@
 			foreground = <0x104 0x104 0xc8>;
 			background = <0xc8 0xc8 0xc8>;
 			top-app = <0xc8 0x104 0xc8>;
-		};
-
-		cpus_allowed {
-			target-sched-class = <0x04>;
-			root = "0-7";
-			foreground = "4-6";
-			background = "0-7";
-			top-app = "0-7";
 		};
 
 		prio_pinning {
@@ -15675,14 +15635,6 @@
 					upper-boundary = <0x400>;
 				};
 			};
-		};
-
-		cpus_allowed {
-			target-sched-class = <0x04>;
-			root = "0-7";
-			foreground = "4-6";
-			background = "0-7";
-			top-app = "0-7";
 		};
 
 		prio_pinning {
@@ -16395,14 +16347,6 @@
 					upper-boundary = <0x400>;
 				};
 			};
-		};
-
-		cpus_allowed {
-			target-sched-class = <0x04>;
-			root = "0-7";
-			foreground = "4-6";
-			background = "0-7";
-			top-app = "0-7";
 		};
 
 		prio_pinning {
@@ -17526,6 +17470,7 @@
 		core_balance = <0x36>;
 		iova_threshold = <0x6a4>;
 		idle_clk_ctrl = <0x01>;
+		enc_timing_dis = <0x01>;
 		#address-cells = <0x02>;
 		#size-cells = <0x01>;
 		ranges;

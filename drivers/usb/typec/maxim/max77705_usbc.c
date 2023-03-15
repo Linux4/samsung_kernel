@@ -697,7 +697,7 @@ static int max77705_firmware_update_misc(struct max77705_usbc_platform_data *dat
 		};
 
 		if (fw_enable)
-			ret = max77705_usbc_fw_update(usbc_data->max77705, fw_bin, (int)fw_bin_len, 1);
+			ret = max77705_usbc_fw_update(usbc_data->max77705, fw_bin, (int)fw_bin_len, 2);
 		else
 			msg_maxim("FAILED F/W MISMATCH pmic_rev : 0x%x, fw_header->major : 0x%x",
 					pmic_rev, fw_header->major);
@@ -906,6 +906,25 @@ static void max77705_cc_open_work_func(
 			max77705_set_lockerroren(usbc_data, usbc_data->control3_reg, 0);
 		}
 	}
+}
+
+static void max77705_dp_configure_work_func(
+		struct work_struct *work)
+{
+	struct max77705_usbc_platform_data *usbpd_data;
+#if !IS_ENABLED(CONFIG_ARCH_QCOM) || !defined(CONFIG_SEC_FACTORY)
+	int timeleft = 0;
+#endif
+
+	usbpd_data = container_of(work, struct max77705_usbc_platform_data, dp_configure_work);
+#if !IS_ENABLED(CONFIG_ARCH_QCOM) || !defined(CONFIG_SEC_FACTORY)
+	timeleft = wait_event_interruptible_timeout(usbpd_data->device_add_wait_q,
+			usbpd_data->device_add || usbpd_data->pd_data->cc_status == CC_NO_CONN, HZ/2);
+	msg_maxim("%s timeleft = %d\n", __func__, timeleft);
+#endif
+	if (usbpd_data->pd_data->cc_status != CC_NO_CONN)
+		max77705_ccic_event_work(usbpd_data, PDIC_NOTIFY_DEV_DP,
+			PDIC_NOTIFY_ID_DP_LINK_CONF, usbpd_data->dp_selected_pin, 0, 0);
 }
 
 void max77705_response_selftest_read(struct max77705_usbc_platform_data *usbpd_data, unsigned char *data)
@@ -3764,6 +3783,7 @@ static int max77705_usbc_probe(struct platform_device *pdev)
 
 	INIT_WORK(&usbc_data->op_send_work, max77705_uic_op_send_work_func);
 	INIT_WORK(&usbc_data->cc_open_req_work, max77705_cc_open_work_func);
+	INIT_WORK(&usbc_data->dp_configure_work, max77705_dp_configure_work_func);
 #if defined(MAX77705_SYS_FW_UPDATE)
 	INIT_WORK(&usbc_data->fw_update_work,
 			max77705_firmware_update_sysfs_work);
@@ -3853,7 +3873,11 @@ static int max77705_usbc_probe(struct platform_device *pdev)
 #if IS_ENABLED(CONFIG_IF_CB_MANAGER)
 	max77705_usbpd_set_host_on(usbc_data, 0);
 #endif
+#if IS_ENABLED(CONFIG_USB_DWC3_MSM)
+	usbc_data->host_turn_on_wait_time = 15;
+#else
 	usbc_data->host_turn_on_wait_time = 3;
+#endif
 
 	usbc_data->cc_open_req = 1;
 	pdic_manual_ccopen_request(0);

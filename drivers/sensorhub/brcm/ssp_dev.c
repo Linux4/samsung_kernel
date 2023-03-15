@@ -727,6 +727,7 @@ static int vib_notifier_callback(struct notifier_block *self, unsigned long even
 #ifdef CONFIG_PANEL_NOTIFY
 int send_panel_information(struct panel_bl_event_data *evdata){
 	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	int buf[2] = { evdata->brightness, evdata->aor_ratio };
 	int iRet = 0;
 
 	//TODO: send brightness + aor_ratio information to sensorhub
@@ -736,11 +737,11 @@ int send_panel_information(struct panel_bl_event_data *evdata){
                 return iRet;
         }
 	msg->cmd = MSG2SSP_PANEL_INFORMATION;
-	msg->length = sizeof(struct panel_bl_event_data);
+	msg->length = sizeof(buf);
 	msg->options = AP2HUB_WRITE;
-	msg->buffer = kzalloc(sizeof(struct panel_bl_event_data), GFP_KERNEL);
+	msg->buffer = kzalloc(sizeof(buf), GFP_KERNEL);
 	msg->free_buffer = 1;
-	memcpy(msg->buffer, (u8 *)evdata, sizeof(struct panel_bl_event_data));
+	memcpy(msg->buffer, (u8 *)buf, sizeof(buf));
 
 	iRet = ssp_spi_async(ssp_data_info, msg);
 
