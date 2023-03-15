@@ -176,8 +176,10 @@ struct f2fs_mount_info {
 
 	/* For compression */
 	unsigned char compress_algorithm;	/* algorithm type */
-	unsigned compress_log_size;		/* cluster log size */
+	unsigned char compress_log_size;	/* cluster log size */
+	bool compress_chksum;			/* compressed data chksum */
 	unsigned char compress_ext_cnt;		/* extension count */
+	int compress_mode;			/* compression mode */
 	unsigned char extensions[COMPRESS_EXT_NUM][F2FS_EXTENSION_LEN];	/* extensions */
 };
 
@@ -435,116 +437,10 @@ static inline bool __has_cursum_space(struct f2fs_journal *journal,
 	return size <= MAX_SIT_JENTRIES(journal);
 }
 
-/*
- * ioctl commands
- */
-#define F2FS_IOC_GETFLAGS		FS_IOC_GETFLAGS
-#define F2FS_IOC_SETFLAGS		FS_IOC_SETFLAGS
-#define F2FS_IOC_GETVERSION		FS_IOC_GETVERSION
-
-#define F2FS_IOCTL_MAGIC		0xf5
-#define F2FS_IOC_START_ATOMIC_WRITE	_IO(F2FS_IOCTL_MAGIC, 1)
-#define F2FS_IOC_COMMIT_ATOMIC_WRITE	_IO(F2FS_IOCTL_MAGIC, 2)
-#define F2FS_IOC_START_VOLATILE_WRITE	_IO(F2FS_IOCTL_MAGIC, 3)
-#define F2FS_IOC_RELEASE_VOLATILE_WRITE	_IO(F2FS_IOCTL_MAGIC, 4)
-#define F2FS_IOC_ABORT_VOLATILE_WRITE	_IO(F2FS_IOCTL_MAGIC, 5)
-#define F2FS_IOC_GARBAGE_COLLECT	_IOW(F2FS_IOCTL_MAGIC, 6, __u32)
-#define F2FS_IOC_WRITE_CHECKPOINT	_IO(F2FS_IOCTL_MAGIC, 7)
-#define F2FS_IOC_DEFRAGMENT		_IOWR(F2FS_IOCTL_MAGIC, 8,	\
-						struct f2fs_defragment)
-#define F2FS_IOC_MOVE_RANGE		_IOWR(F2FS_IOCTL_MAGIC, 9,	\
-						struct f2fs_move_range)
-#define F2FS_IOC_FLUSH_DEVICE		_IOW(F2FS_IOCTL_MAGIC, 10,	\
-						struct f2fs_flush_device)
-#define F2FS_IOC_GARBAGE_COLLECT_RANGE	_IOW(F2FS_IOCTL_MAGIC, 11,	\
-						struct f2fs_gc_range)
-#define F2FS_IOC_GET_FEATURES		_IOR(F2FS_IOCTL_MAGIC, 12, __u32)
-#define F2FS_IOC_SET_PIN_FILE		_IOW(F2FS_IOCTL_MAGIC, 13, __u32)
-#define F2FS_IOC_GET_PIN_FILE		_IOR(F2FS_IOCTL_MAGIC, 14, __u32)
-#define F2FS_IOC_PRECACHE_EXTENTS	_IO(F2FS_IOCTL_MAGIC, 15)
-#define F2FS_IOC_RESIZE_FS		_IOW(F2FS_IOCTL_MAGIC, 16, __u64)
-#define F2FS_IOC_GET_COMPRESS_BLOCKS	_IOR(F2FS_IOCTL_MAGIC, 17, __u64)
-#define F2FS_IOC_RELEASE_COMPRESS_BLOCKS				\
-					_IOR(F2FS_IOCTL_MAGIC, 18, __u64)
-#define F2FS_IOC_RESERVE_COMPRESS_BLOCKS				\
-					_IOR(F2FS_IOCTL_MAGIC, 19, __u64)
-#define F2FS_IOC_GET_VALID_NODE_COUNT	_IOR(F2FS_IOCTL_MAGIC, 32, __u32)
-#define F2FS_IOC_STAT_COMPRESS_FILE	_IOWR(F2FS_IOCTL_MAGIC, 33, \
-						struct f2fs_sec_stat_compfile)
-
-#define F2FS_IOC_GET_VOLUME_NAME	FS_IOC_GETFSLABEL
-#define F2FS_IOC_SET_VOLUME_NAME	FS_IOC_SETFSLABEL
-
-#define F2FS_IOC_SET_ENCRYPTION_POLICY	FS_IOC_SET_ENCRYPTION_POLICY
-#define F2FS_IOC_GET_ENCRYPTION_POLICY	FS_IOC_GET_ENCRYPTION_POLICY
-#define F2FS_IOC_GET_ENCRYPTION_PWSALT	FS_IOC_GET_ENCRYPTION_PWSALT
-
-/*
- * should be same as XFS_IOC_GOINGDOWN.
- * Flags for going down operation used by FS_IOC_GOINGDOWN
- */
-#define F2FS_IOC_SHUTDOWN	_IOR('X', 125, __u32)	/* Shutdown */
-#define F2FS_GOING_DOWN_FULLSYNC	0x0	/* going down with full sync */
-#define F2FS_GOING_DOWN_METASYNC	0x1	/* going down with metadata */
-#define F2FS_GOING_DOWN_NOSYNC		0x2	/* going down */
-#define F2FS_GOING_DOWN_METAFLUSH	0x3	/* going down with meta flush */
-#define F2FS_GOING_DOWN_NEED_FSCK	0x4	/* going down to trigger fsck */
-
-#if defined(__KERNEL__) && defined(CONFIG_COMPAT)
-/*
- * ioctl commands in 32 bit emulation
- */
-#define F2FS_IOC32_GETFLAGS		FS_IOC32_GETFLAGS
-#define F2FS_IOC32_SETFLAGS		FS_IOC32_SETFLAGS
-#define F2FS_IOC32_GETVERSION		FS_IOC32_GETVERSION
-#endif
-
-#define F2FS_IOC_FSGETXATTR		FS_IOC_FSGETXATTR
-#define F2FS_IOC_FSSETXATTR		FS_IOC_FSSETXATTR
-
 #ifdef CONFIG_DDAR
 #define F2FS_IOC_GET_DD_POLICY		FS_IOC_GET_DD_POLICY
 #define F2FS_IOC_SET_DD_POLICY		FS_IOC_SET_DD_POLICY
 #endif
-
-struct f2fs_gc_range {
-	u32 sync;
-	u64 start;
-	u64 len;
-};
-
-struct f2fs_defragment {
-	u64 start;
-	u64 len;
-};
-
-struct f2fs_move_range {
-	u32 dst_fd;		/* destination fd */
-	u64 pos_in;		/* start position in src_fd */
-	u64 pos_out;		/* start position in dst_fd */
-	u64 len;		/* size to move */
-};
-
-struct f2fs_flush_device {
-	u32 dev_num;		/* device number to flush */
-	u32 segments;		/* # of segments to flush */
-};
-
-struct f2fs_sec_stat_compfile {
-	union {
-		struct {
-			u32 in_init:1;
-			u32 in_scan:1;
-			u32 in_commit:1;
-			u32 in_reserved:13;
-			u32 out_compressed:1;
-			u32 out_reserved:15;
-		};
-		u32 flags;
-	};
-	u64	st_blocks;
-	u64	st_compressed_blocks;
-};
 
 /* for inline stuff */
 #define DEF_INLINE_RESERVED_SIZE	1
@@ -815,7 +711,10 @@ enum {
 	FI_ATOMIC_REVOKE_REQUEST, /* request to drop atomic data */
 	FI_VERITY_IN_PROGRESS,	/* building fs-verity Merkle tree */
 	FI_COMPRESSED_FILE,	/* indicate file's data can be compressed */
+	FI_COMPRESS_CORRUPT,	/* indicate compressed cluster is corrupted */
 	FI_MMAP_FILE,		/* indicate file was mmapped */
+	FI_ENABLE_COMPRESS,	/* enable compression in "user" compression mode */
+	FI_COMPRESS_RELEASED,	/* compressed blocks were released */
 	FI_MAX,			/* max flag, never be used */
 };
 
@@ -860,6 +759,9 @@ struct f2fs_inode_info {
 	struct rw_semaphore i_gc_rwsem[2];
 	struct rw_semaphore i_mmap_sem;
 	struct rw_semaphore i_xattr_sem; /* avoid racing between reading and changing EAs */
+#ifdef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
+	struct rw_semaphore i_dnode_sem;
+#endif
 
 	int i_extra_isize;		/* size of extra space located in i_addr */
 	kprojid_t i_projid;		/* id for project quota */
@@ -868,9 +770,10 @@ struct f2fs_inode_info {
 	struct timespec64 i_disk_time[4];/* inode disk times */
 
 	/* for file compress */
-	u64 i_compr_blocks;			/* # of compressed blocks */
+	atomic_t i_compr_blocks;		/* # of compressed blocks */
 	unsigned char i_compress_algorithm;	/* algorithm type */
 	unsigned char i_log_cluster_size;	/* log of cluster size */
+	unsigned short i_compress_flag;		/* compress flag */
 	unsigned int i_cluster_size;		/* cluster size */
 };
 
@@ -1085,6 +988,9 @@ struct dnode_of_data {
 	char cur_level;			/* level of hole node page */
 	char max_level;			/* level of current page located */
 	block_t	data_blkaddr;		/* block address of the node block */
+#ifdef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
+	bool for_dnode_relocation;	/* grab write lock, for dnode relocation */
+#endif
 };
 
 static inline void set_new_dnode(struct dnode_of_data *dn, struct inode *inode,
@@ -1441,6 +1347,18 @@ enum fsync_mode {
 	FSYNC_MODE_NOBARRIER,	/* fsync behaves nobarrier based on posix */
 };
 
+enum {
+	COMPR_MODE_FS,		/*
+				 * automatically compress compression
+				 * enabled files
+				 */
+	COMPR_MODE_USER,	/*
+				 * automatical compression is disabled.
+				 * user can control the file compression
+				 * using ioctls
+				 */
+};
+
 /*
  * this value is set in page as a private data which indicate that
  * the page is atomically written, and it is in inmem_pages list.
@@ -1469,9 +1387,15 @@ enum compress_algorithm_type {
 	COMPRESS_MAX,
 };
 
-#define COMPRESS_DATA_RESERVED_SIZE		5
+enum compress_flag {
+	COMPRESS_CHKSUM,
+	COMPRESS_MAX_FLAG,
+};
+
+#define COMPRESS_DATA_RESERVED_SIZE		4
 struct compress_data {
 	__le32 clen;			/* compressed data size */
+	__le32 chksum;			/* compressed data chksum */
 	__le32 reserved[COMPRESS_DATA_RESERVED_SIZE];	/* reserved */
 	u8 cdata[];			/* compressed data */
 };
@@ -2963,6 +2887,7 @@ static inline void __mark_inode_dirty_flag(struct inode *inode,
 	case FI_DATA_EXIST:
 	case FI_INLINE_DOTS:
 	case FI_PIN_FILE:
+	case FI_COMPRESS_RELEASED:
 		f2fs_mark_inode_dirty_sync(inode, true);
 	}
 }
@@ -3084,6 +3009,8 @@ static inline void get_inline_info(struct inode *inode, struct f2fs_inode *ri)
 		set_bit(FI_EXTRA_ATTR, fi->flags);
 	if (ri->i_inline & F2FS_PIN_FILE)
 		set_bit(FI_PIN_FILE, fi->flags);
+	if (ri->i_inline & F2FS_COMPRESS_RELEASED)
+		set_bit(FI_COMPRESS_RELEASED, fi->flags);
 }
 
 static inline void set_raw_inline(struct inode *inode, struct f2fs_inode *ri)
@@ -3104,6 +3031,8 @@ static inline void set_raw_inline(struct inode *inode, struct f2fs_inode *ri)
 		ri->i_inline |= F2FS_EXTRA_ATTR;
 	if (is_inode_flag_set(inode, FI_PIN_FILE))
 		ri->i_inline |= F2FS_PIN_FILE;
+	if (is_inode_flag_set(inode, FI_COMPRESS_RELEASED))
+		ri->i_inline |= F2FS_COMPRESS_RELEASED;
 }
 
 static inline int f2fs_has_extra_attr(struct inode *inode)
@@ -3120,6 +3049,22 @@ static inline int f2fs_compressed_file(struct inode *inode)
 {
 	return S_ISREG(inode->i_mode) &&
 		is_inode_flag_set(inode, FI_COMPRESSED_FILE);
+}
+
+static inline bool f2fs_need_compress_data(struct inode *inode)
+{
+	int compress_mode = F2FS_OPTION(F2FS_I_SB(inode)).compress_mode;
+
+	if (!f2fs_compressed_file(inode))
+		return false;
+
+	if (compress_mode == COMPR_MODE_FS)
+		return true;
+	else if (compress_mode == COMPR_MODE_USER &&
+			is_inode_flag_set(inode, FI_ENABLE_COMPRESS))
+		return true;
+
+	return false;
 }
 
 static inline unsigned int addrs_per_inode(struct inode *inode)
@@ -3366,6 +3311,11 @@ static inline int get_inline_xattr_addrs(struct inode *inode)
 #define F2FS_TOTAL_EXTRA_ATTR_SIZE			\
 	(offsetof(struct f2fs_inode, i_extra_end) -	\
 	offsetof(struct f2fs_inode, i_extra_isize))	\
+
+#define F2FS_COMPRESS_SUPPORT_EXTRA_ATTR_SIZE	\
+	(offsetof(struct f2fs_inode, i_compress_flag) -	\
+	 offsetof(struct f2fs_inode, i_extra_isize) +	\
+	 sizeof_field(struct f2fs_inode, i_compress_flag))	\
 
 #define F2FS_OLD_ATTRIBUTE_SIZE	(offsetof(struct f2fs_inode, i_addr))
 #define F2FS_FITS_IN_INODE(f2fs_inode, extra_isize, field)		\
@@ -3682,6 +3632,11 @@ void f2fs_replace_block(struct f2fs_sb_info *sbi, struct dnode_of_data *dn,
 			block_t old_addr, block_t new_addr,
 			unsigned char version, bool recover_curseg,
 			bool recover_newaddr);
+#ifdef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
+void f2fs_relocate_ofs_in_node_of_block(struct f2fs_sb_info *sbi,
+			struct dnode_of_data *dn,
+			block_t blkaddr, unsigned char version);
+#endif
 void f2fs_allocate_data_block(struct f2fs_sb_info *sbi, struct page *page,
 			block_t old_blkaddr, block_t *new_blkaddr,
 			struct f2fs_summary *sum, int type,
@@ -4245,6 +4200,9 @@ static inline void set_compress_context(struct inode *inode)
 			F2FS_OPTION(sbi).compress_algorithm;
 	F2FS_I(inode)->i_log_cluster_size =
 			F2FS_OPTION(sbi).compress_log_size;
+	F2FS_I(inode)->i_compress_flag =
+			F2FS_OPTION(sbi).compress_chksum ?
+				1 << COMPRESS_CHKSUM : 0;
 	F2FS_I(inode)->i_cluster_size =
 			1 << F2FS_I(inode)->i_log_cluster_size;
 	F2FS_I(inode)->i_flags |= F2FS_COMPR_FL;
@@ -4253,17 +4211,21 @@ static inline void set_compress_context(struct inode *inode)
 	f2fs_mark_inode_dirty_sync(inode, true);
 }
 
-static inline u64 f2fs_disable_compressed_file(struct inode *inode)
+static inline u32 f2fs_disable_compressed_file(struct inode *inode)
 {
 	struct f2fs_inode_info *fi = F2FS_I(inode);
+	u32 i_compr_blocks;
 
 	if (!f2fs_compressed_file(inode))
 		return 0;
 	if (S_ISREG(inode->i_mode)) {
+		if (inode->i_size)
+			return 1;
 		if (get_dirty_pages(inode))
 			return 1;
-		if (fi->i_compr_blocks)
-			return fi->i_compr_blocks;
+		i_compr_blocks = atomic_read(&fi->i_compr_blocks);
+		if (i_compr_blocks)
+			return i_compr_blocks;
 	}
 
 	fi->i_flags &= ~F2FS_COMPR_FL;
@@ -4381,16 +4343,17 @@ static inline void f2fs_i_compr_blocks_update(struct inode *inode,
 						u64 blocks, bool add)
 {
 	int diff = F2FS_I(inode)->i_cluster_size - blocks;
+	struct f2fs_inode_info *fi = F2FS_I(inode);
 
 	/* don't update i_compr_blocks if saved blocks were released */
-	if (!add && !F2FS_I(inode)->i_compr_blocks)
+	if (!add && !atomic_read(&fi->i_compr_blocks))
 		return;
 
 	if (add) {
-		F2FS_I(inode)->i_compr_blocks += diff;
+		atomic_add(diff, &fi->i_compr_blocks);
 		stat_add_compr_blocks(inode, diff);
 	} else {
-		F2FS_I(inode)->i_compr_blocks -= diff;
+		atomic_sub(diff, &fi->i_compr_blocks);
 		stat_sub_compr_blocks(inode, diff);
 	}
 	f2fs_mark_inode_dirty_sync(inode, true);

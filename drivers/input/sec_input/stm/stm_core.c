@@ -2193,6 +2193,16 @@ int stm_ts_input_open(struct input_dev *dev)
 	if (ts->fix_active_mode) 
 		stm_ts_fix_active_mode(ts, STM_TS_ACTIVE_TRUE);
 
+	if (ts->plat_data->low_sensitivity_mode) {
+		u8 reg[2];
+
+		reg[0] = STM_TS_CMD_FUNCTION_SET_LOW_SENSITIVITY_MODE;
+		reg[1] = ts->plat_data->low_sensitivity_mode;
+		ret = ts->stm_ts_write(ts, reg, 2, NULL, 0);
+		if (ret < 0)
+			input_err(true, &ts->client->dev, "%s: Failed to set low sensitivity mode\n", __func__);
+	}
+
 	sec_input_set_temperature(&ts->client->dev, SEC_INPUT_SET_TEMPERATURE_FORCE);
 
 	mutex_unlock(&ts->modechange);
