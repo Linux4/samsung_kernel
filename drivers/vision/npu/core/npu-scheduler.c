@@ -916,8 +916,16 @@ int npu_scheduler_boost_on(struct npu_scheduler_info *info)
 
 		mutex_lock(&info->exec_lock);
 		list_for_each_entry(d, &info->ip_list, ip_list) {
-			npu_pm_qos_update_request(d, &d->qos_req_min_nw_boost, d->max_freq);
-			npu_info("boost on freq for %s : %d\n", d->name, d->max_freq);
+			if ((strcmp(d->name, "NPU") == 0) || (strcmp(d->name, "DNC") == 0)) {
+				if (test_bit(NPU_DEVICE_STATE_OPEN, &info->device->state)) {
+					npu_pm_qos_update_request(d, &d->qos_req_min_nw_boost, d->max_freq);
+					npu_info("boost on freq for %s : %d\n", d->name, d->max_freq);
+				}
+			}
+			else {
+				npu_pm_qos_update_request(d, &d->qos_req_min_nw_boost, d->max_freq);
+				npu_info("boost on freq for %s : %d\n", d->name, d->max_freq);
+			}
 		}
 		mutex_unlock(&info->exec_lock);
 	}
@@ -938,8 +946,16 @@ static int __npu_scheduler_boost_off(struct npu_scheduler_info *info)
 
 	mutex_lock(&info->exec_lock);
 	list_for_each_entry(d, &info->ip_list, ip_list) {
-		npu_pm_qos_update_request(d, &d->qos_req_min_nw_boost, d->min_freq);
-		npu_info("boost off freq for %s : %d\n", d->name, d->min_freq);
+		if ((strcmp(d->name, "NPU") == 0) || (strcmp(d->name, "DNC") == 0)) {
+			if (test_bit(NPU_DEVICE_STATE_OPEN, &info->device->state)) {
+				npu_pm_qos_update_request(d, &d->qos_req_min_nw_boost, d->min_freq);
+				npu_info("boost off freq for %s : %d\n", d->name, d->min_freq);
+			}
+		}
+		else {
+			npu_pm_qos_update_request(d, &d->qos_req_min_nw_boost, d->min_freq);
+			npu_info("boost off freq for %s : %d\n", d->name, d->min_freq);
+		}
 	}
 	mutex_unlock(&info->exec_lock);
 	return ret;

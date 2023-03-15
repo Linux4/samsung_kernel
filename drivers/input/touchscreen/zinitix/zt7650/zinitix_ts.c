@@ -3498,15 +3498,6 @@ static irqreturn_t zt_touch_work(int irq, void *data)
 		}
 	}
 
-	if (info->zt7650m_enabled) {
-	// wait info_work is done
-		if (!info->info_work_done)
-		{
-			input_err(true, &client->dev, "%s: info_work is not done yet\n", __func__);
-			return IRQ_HANDLED;
-		}
-	}
-
 	if (gpio_get_value(info->pdata->gpio_int)) {
 		input_err(true, &client->dev, "%s: Invalid interrupt\n", __func__);
 
@@ -6220,7 +6211,6 @@ int get_zt_tsp_nvm_data(struct zt_ts_info *info, u8 addr, u8 *values, u16 length
 
 	zt_ts_esd_timer_stop(info);
 	disable_irq(info->irq);
-	mutex_lock(&info->work_lock);
 
 	if (write_reg(client, ZT_POWER_STATE_FLAG, 1) != I2C_SUCCESS) {
 		input_info(true, &client->dev, "%s: Fail to set ZT_POWER_STATE_FLAG, 1\n", __func__);
@@ -6257,7 +6247,6 @@ int get_zt_tsp_nvm_data(struct zt_ts_info *info, u8 addr, u8 *values, u16 length
 	}
 	zt_delay(10);
 
-	mutex_unlock(&info->work_lock);
 	enable_irq(info->irq);
 	zt_ts_esd_timer_start(info);
 	return 0;
@@ -6269,7 +6258,6 @@ fail_ium_random_read:
 
 	mini_init_touch(info);
 
-	mutex_unlock(&info->work_lock);
 	enable_irq(info->irq);
 	zt_ts_esd_timer_start(info);
 	return -1;
@@ -6283,7 +6271,6 @@ int set_zt_tsp_nvm_data(struct zt_ts_info *info, u8 addr, u8 *values, u16 length
 
 	zt_ts_esd_timer_stop(info);
 	disable_irq(info->irq);
-	mutex_lock(&info->work_lock);
 
 	if (write_reg(client, ZT_POWER_STATE_FLAG, 1) != I2C_SUCCESS) {
 		input_info(true, &client->dev, "%s: Fail to set ZT_POWER_STATE_FLAG, 1\n", __func__);
@@ -6345,7 +6332,6 @@ int set_zt_tsp_nvm_data(struct zt_ts_info *info, u8 addr, u8 *values, u16 length
 	}
 	zt_delay(10);
 
-	mutex_unlock(&info->work_lock);
 	enable_irq(info->irq);
 	zt_ts_esd_timer_start(info);
 	return 0;
@@ -6362,7 +6348,6 @@ fail_ium_random_write:
 
 	mini_init_touch(info);
 
-	mutex_unlock(&info->work_lock);
 	enable_irq(info->irq);
 	zt_ts_esd_timer_start(info);
 	return -1;
