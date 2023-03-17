@@ -1,0 +1,194 @@
+/* NEED TO FIX IF YOU WANT USE THIS */
+
+
+&pio {
+	ovt_tsp_int_on: ovt_tsp_int_on {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,14), 0)>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	ovt_tsp_int_off: ovt_tsp_int_off {
+		pins_cmd_dat {
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,14), 0)>;
+			slew-rate = <0>;
+			input-enable;
+			bias-pull-down;
+		};
+	};
+};
+&pio {
+	ovt_tsp_reset_on: ovt_tsp_reset_on {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,7), 0)>;
+			slew-rate = <1>;
+			bias-disable;
+			output-high;
+		};
+	};
+
+	ovt_tsp_reset_off: ovt_tsp_reset_off {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,7), 0)>;
+			slew-rate = <1>;
+			bias-disable;
+			output-low;
+		};
+	};
+};
+&pio {
+	ovt_tsp_on_cs: ovt_tsp_on_cs {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,28), 1)>;
+			bias-disable;
+		};
+	};
+	ovt_tsp_off_cs: ovt_tsp_off_cs {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,28), 0)>;
+			slew-rate = <1>;
+			bias-disable;
+			output-low;
+		};
+	};
+};
+&pio {
+	ovt_tsp_on_clk: ovt_tsp_on_clk {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,27), 1)>;
+			bias-disable;
+		};
+	};
+	ovt_tsp_off_clk: ovt_tsp_off_clk {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,27), 0)>;
+			slew-rate = <1>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	ovt_tsp_on_mosi: ovt_tsp_on_mosi {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,29), 1)>;
+			bias-disable;
+		};
+	};
+	ovt_tsp_off_mosi: ovt_tsp_off_mosi {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,29), 0)>;
+			slew-rate = <1>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	ovt_tsp_on_miso: ovt_tsp_on_miso {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,30), 1)>;
+			bias-disable;
+		};
+	};
+
+	ovt_tsp_off_miso: ovt_tsp_off_miso {
+		pins_cmd_dat{
+			pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,30), 0)>;
+			slew-rate = <0>;
+			bias-pull-down;
+			input-enable;
+		};
+	};
+};
+
+&spi1 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	num-cs = <1>;
+
+	tsp_ovt: ovt_tcm@1 {
+		status = "okay";
+		compatible = "ovt,tcm-spi";
+		reg = <1>;
+		spi-max-frequency = <7000000>;
+
+		pinctrl-names = "default", "on_state", "off_state";
+		pinctrl-0 = <&ovt_tsp_int_on &ovt_tsp_reset_on &ovt_tsp_on_miso &ovt_tsp_on_cs &ovt_tsp_on_mosi &ovt_tsp_on_clk>;
+		pinctrl-1 = <&ovt_tsp_int_on &ovt_tsp_reset_on &ovt_tsp_on_miso &ovt_tsp_on_cs &ovt_tsp_on_mosi &ovt_tsp_on_clk>;
+		pinctrl-2 = <&ovt_tsp_int_off &ovt_tsp_reset_off &ovt_tsp_off_miso &ovt_tsp_off_cs &ovt_tsp_off_mosi &ovt_tsp_off_clk>;
+
+		ovt,irq-gpio = <SEC_GPIO_REF(AP,pio,14) 0x2008>; /* IRQF_ONESHOT | IRQF_TRIGGER_LOW */
+		ovt,cs-gpio = <SEC_GPIO_REF(AP,pio,28) 0x00>;
+		ovt,irq-on-state = <0>;
+		ovt,spi-mode = <3>;
+		ovt,byte-delay-us = <0>;
+		ovt,block-delay-us = <0>;
+		ovt,ubl-max-freq = <7000000>;
+		ovt,ubl-byte-delay-us = <20>;
+
+		ovt,enable_sysinput_enabled;
+	};
+};
+
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/ovt/td4150_spi/dts/input-mtk-tsp-td4150_spi.a13x.dtsi */
+&pio {
+	ovt_tsp_id1_default: ovt_tsp_id1_default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO172__FUNC_GPIO172>;
+			slew-rate = <0>;
+			input-enable;
+			bias-disable;
+		};
+	};
+
+	ovt_tsp_id2_default: ovt_tsp_id2_default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO173__FUNC_GPIO173>;
+			slew-rate = <0>;
+			input-enable;
+			bias-disable;
+		};
+	};
+
+	ovt_tsp_id3_default: ovt_tsp_id3_default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO174__FUNC_GPIO174>;
+			slew-rate = <0>;
+			input-enable;
+			bias-disable;
+		};
+	};
+};
+
+/* touch gpio end */
+
+&spi1 {
+	num-cs = <3>;
+};
+
+&tsp_ovt {
+	pinctrl-names = "default", "on_state", "off_state";
+	pinctrl-0 = <&ovt_tsp_int_on &ovt_tsp_reset_on &ovt_tsp_on_miso &ovt_tsp_on_cs &ovt_tsp_on_mosi &ovt_tsp_on_clk &ovt_tsp_id1_default &ovt_tsp_id2_default &ovt_tsp_id3_default>;
+	pinctrl-1 = <&ovt_tsp_int_on &ovt_tsp_reset_on &ovt_tsp_on_miso &ovt_tsp_on_cs &ovt_tsp_on_mosi &ovt_tsp_on_clk &ovt_tsp_id1_default &ovt_tsp_id2_default &ovt_tsp_id3_default>;
+	pinctrl-2 = <&ovt_tsp_int_off &ovt_tsp_reset_off &ovt_tsp_off_miso &ovt_tsp_off_cs &ovt_tsp_off_mosi &ovt_tsp_off_clk &ovt_tsp_id1_default &ovt_tsp_id2_default &ovt_tsp_id3_default>;
+
+	ovt,area-size = <48 81 30>;
+	ovt,regulator_lcd_vdd = "vcamio";
+	ovt,regulator_lcd_bl = "gpio_lcd_bl_en";
+	ovt,regulator_lcd_reset = "gpio_lcd_rst";
+	ovt,lcdid1-gpio = <&pio 172 0x0>;
+	ovt,lcdid2-gpio = <&pio 173 0x0>;
+	ovt,lcdid3-gpio = <&pio 174 0x0>;
+	ovt,enable_settings_aot;
+	ovt,support_ear_detect_mode;
+	ovt,support_spay_gesture_mode;
+	ovt,support_cs_gpio_control;
+	ovt,prox_lp_scan_enabled;
+	ovt,lcdid = <0>;	// BOE-TD4375, BOE-TD4150, BOE-TD4160
+	ovt,lcdtype = <0x2A6220>;
+	ovt,fw_name = "tsp_ovt/td4160_a13x_boe.bin";
+};
+

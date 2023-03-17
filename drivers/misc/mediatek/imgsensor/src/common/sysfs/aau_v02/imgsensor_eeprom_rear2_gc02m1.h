@@ -1,0 +1,7 @@
+#ifndef AAU_V02_IMGSENSOR_EEPROM_REAR2_GC02M1_H
+#define AAU_V02_IMGSENSOR_EEPROM_REAR2_GC02M1_H
+#include "imgsensor_vendor_specific.h"
+
+extern const struct imgsensor_vendor_rom_addr rear2_gc02m1_cal_addr;
+
+#endif //AAU_V02_IMGSENSOR_EEPROM_REAR2_GC02M1_H

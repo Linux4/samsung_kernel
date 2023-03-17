@@ -1,0 +1,7 @@
+#include <dt-bindings/clock/mt6833-clk.h>
+
+#define topckgen_clk topckgen
+#define infracfg_ao_clk infracfg_ao
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6833/ap_mtk_mt6833.a13x_eur.12.dtsi */
+#include "../../mediatek/k6833v1_64_titan_hinterwald/Board_00.dts"
+#include "../../mediatek/k6833v1_64_titan_hinterwald/gpio_12_eur.dtsi"

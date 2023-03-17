@@ -1,0 +1,177 @@
+#if 1
+
+&pio {
+	grip_i2c_sda: grip-i2c-sda {
+		GPIO_CONFIG_PUD_DRV(AP,pio,112, FUNC_INPUT, PULL_UP, DRV_LV1);
+	};
+	grip_i2c_scl: grip-i2c-scl {
+		GPIO_CONFIG_PUD_DRV(AP,pio,111, FUNC_INPUT, PULL_UP, DRV_LV1);
+	};
+};
+
+&pio {
+	grip_int: grip-int {
+		GPIO_CONFIG_PUD_DRV(AP,pio,17, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+
+&i2c7 {
+	gpios = <SEC_GPIO_REF(AP,pio,112) 0 /* sda */
+			SEC_GPIO_REF(AP,pio,111) 0>; /* scl */
+	pinctrl-0 = <&grip_i2c_sda
+				 &grip_i2c_scl
+				 >;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <100000>;
+	a96t396: a96t396@20 {
+		compatible = "a96t396";
+		reg = <0x20>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_int>;
+
+		interrupt-parent = <SEC_GPIO_TYPE(AP,pio,17)>;
+		interrupts = <SEC_GPIO_NUM(AP,pio,17) 0>;
+
+		a96t396,irq_gpio = <SEC_GPIO_REF(AP,pio,17) 0>;
+#if 1
+		a96t396,ldo_en = <SEC_GPIO_REF(AP,pio,139) 0>;
+#endif
+#if 0
+		a96t396,dvdd_vreg_name = "VDD_GRIP_3P3";
+#endif
+		a96t396,multi_use = <1>;
+#if 1
+		a96t396,unknown_ch_selection = <3>; /*bit "0 0" => no use , "0 1" => 1ch only, "1 0" => 2ch only, "1 1" 1ch 2ch both*/
+#endif
+		a96t396,fw_path = "abov/a96t396_a13x_eur_main.bin";
+		a96t396,firmup_cmd = <0x90>;
+	};
+};
+#endif
+
+/* ---- SUB GRIP---- */
+#if 1
+
+&pio {
+	grip_sub_i2c_sda: grip-sub-i2c-sda {
+		GPIO_CONFIG_PUD_DRV(AP,pio,112, FUNC_INPUT, PULL_UP, DRV_LV1);
+	};
+	grip_sub_i2c_scl: grip-sub-i2c-scl {
+		GPIO_CONFIG_PUD_DRV(AP,pio,111, FUNC_INPUT, PULL_UP, DRV_LV1);
+	};
+};
+
+&pio {
+	grip_sub_int: grip-sub-int {
+		GPIO_CONFIG_PUD_DRV(AP,pio,18, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+
+&i2c7 {
+	gpios = <SEC_GPIO_REF(AP,pio,112) 0 /* sda */
+			SEC_GPIO_REF(AP,pio,111) 0>; /* scl */
+	pinctrl-0 = <&grip_sub_i2c_sda
+				 &grip_sub_i2c_scl
+				>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <100000>;
+	a96t396_sub: a96t396_sub@21 {
+
+		compatible = "a96t396_sub";
+		reg = <0x21>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_sub_int>;
+
+		interrupt-parent = <SEC_GPIO_TYPE(AP,pio,18)>;
+		interrupts = <SEC_GPIO_NUM(AP,pio,18) 0>;
+
+		a96t396_sub,irq_gpio = <SEC_GPIO_REF(AP,pio,18) 0>;
+#if 0
+		a96t396_sub,ldo_en = <SEC_GPIO_REF(${gpio_grip_sub_ldo_en}) 0>;
+#else
+		a96t396_sub,ldo_en = <SEC_GPIO_REF(AP,pio,139) 0>;
+#endif
+#if 0
+		a96t396_sub,dvdd_vreg_name = "VDD_GRIP_3P3";
+#endif
+		a96t396_sub,multi_use = <0>;
+#if 1
+		a96t396_sub,unknown_ch_selection = <3>; /*bit "0 0" => no use , "0 1" => 1ch only, "1 0" => 2ch only, "1 1" 1ch 2ch both*/
+#endif
+		a96t396_sub,fw_path = "abov/a96t396_a13x_eur_sub.bin";
+		a96t396_sub,firmup_cmd = <0x90>;
+	};
+};
+#endif
+
+/* ---- WIFI GRIP---- */
+#if 0
+
+&${gpio_grip_wifi_i2c_parent} {
+	grip_wifi_i2c_sda: grip-wifi-i2c-sda {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_wifi_i2c_sda}, FUNC_INPUT, PULL_UP, DRV_LV1);
+	};
+	grip_wifi_i2c_scl: grip-wifi-i2c-scl {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_wifi_i2c_scl}, FUNC_INPUT, PULL_UP, DRV_LV1);
+	};
+};
+
+&${gpio_grip_wifi_irq_parent} {
+	grip_wifi_int: grip-wifi-int {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_wifi_irq}, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+
+&${i2c_grip_wifi} {
+	gpios = <SEC_GPIO_REF(${gpio_grip_wifi_i2c_sda}) 0 /* sda */
+			SEC_GPIO_REF(${gpio_grip_wifi_i2c_scl}) 0>; /* scl */
+	pinctrl-0 = <&grip_wifi_i2c_sda
+				 &grip_wifi_i2c_scl
+				>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <100000>;
+	a96t396_wifi: a96t396_wifi@${a96t396_wifi_address} {
+
+		compatible = "a96t396_wifi";
+		reg = <0x${a96t396_wifi_address}>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_wifi_int>;
+
+		interrupt-parent = <SEC_GPIO_TYPE(${gpio_grip_wifi_irq})>;
+		interrupts = <SEC_GPIO_NUM(${gpio_grip_wifi_irq}) 0>;
+
+		a96t396_wifi,irq_gpio = <SEC_GPIO_REF(${gpio_grip_wifi_irq}) 0>;
+#if 0
+		a96t396_wifi,ldo_en = <SEC_GPIO_REF(${gpio_grip_wifi_ldo_en}) 0>;
+#else
+		a96t396_wifi,ldo_en = <SEC_GPIO_REF(AP,pio,139) 0>;
+#endif
+#if 0
+		a96t396_wifi,dvdd_vreg_name = "VDD_GRIP_3P3";
+#endif
+		a96t396_wifi,multi_use = <0>;
+#if 0
+		a96t396_wifi,unknown_ch_selection = <${a96t396_wifi_unknown_ch_sel}>; /*bit "0 0" => no use , "0 1" => 1ch only, "1 0" => 2ch only, "1 1" 1ch 2ch both*/
+#endif
+		a96t396_wifi,fw_path = "abov/a96t396_a13x_eur_wifi.bin";
+		a96t396_wifi,firmup_cmd = <0x90>;
+	};
+};
+#endif
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensors/a96t396/dts/a96t396.a13x.dtsi */
+&grip_i2c_sda {
+	GPIO_CONFIG_PUD_DRV(AP,pio,112, FUNC_INPUT, PULL_UP, DRV_LV1);
+};
+
+&grip_i2c_scl {
+	GPIO_CONFIG_PUD_DRV(AP,pio,111, FUNC_INPUT, PULL_UP, DRV_LV1);
+};
