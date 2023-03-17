@@ -2300,6 +2300,12 @@ void dp_reg_lh_p_ch_power(u32 en)
 {
 	u32 cnt = 20 * 1000;	/* wait 20ms */
 	u32 state;
+	struct dp_device *dp = get_dp_drvdata();
+
+	if (atomic_read(&dp->cal_res.usbdp_phy_en_cnt) == 0) {
+		cal_log_err(0, "phy is already off\n");
+		return;
+	}
 
 	if (en) {
 		dp_write_mask(SYSTEM_SST1_FUNCTION_ENABLE, 1, SST1_LH_PWR_ON);
@@ -2440,7 +2446,7 @@ void dp_reg_phy_init(struct dp_cal_res *cal_res)
 {
 #if defined(CONFIG_PHY_SAMSUNG_USB_CAL)
 	dwc3_exynos_phy_enable(1, 1);
-	atomic_inc(&cal_res->usbdp_phy_en_cnt);
+	atomic_set(&cal_res->usbdp_phy_en_cnt, 1);
 #endif
 	dp_reg_usbdrd_qch_en(1);
 	//dp_reg_phy_reset(1);
@@ -2470,7 +2476,7 @@ void dp_reg_phy_disable(struct dp_cal_res *cal_res)
 #if defined(CONFIG_PHY_SAMSUNG_USB_CAL)
 	exynos_usbdrd_inform_dp_use(0, dp_reg_get_lane_count());
 	dwc3_exynos_phy_enable(1, 0);
-	atomic_dec(&cal_res->usbdp_phy_en_cnt);
+	atomic_set(&cal_res->usbdp_phy_en_cnt, 0);
 #endif
 }
 
