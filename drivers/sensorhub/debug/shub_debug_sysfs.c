@@ -463,6 +463,11 @@ static ssize_t register_rw_store(struct device *dev, struct device_attribute *at
 	char *dup_str = NULL;
 	char *tmp;
 
+	if (strlen(buf) >= sizeof(input_str)) {
+		shub_errf("bufsize too long(%d)", strlen(buf));
+		goto exit;
+	}
+
 	memcpy(input_str, buf, strlen(buf));
 	dup_str = kstrdup(input_str, GFP_KERNEL);
 

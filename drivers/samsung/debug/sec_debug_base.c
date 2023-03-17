@@ -13,7 +13,11 @@
 
 #include <linux/sec_debug.h>
 
+#if IS_ENABLED(CONFIG_SOC_S5E3830)
+#include <soc/samsung/exynos-pmu.h>
+#else
 #include <soc/samsung/exynos-pmu-if.h>
+#endif
 
 #include "../../../kernel/sched/sched.h"
 #include "sec_debug_internal.h"

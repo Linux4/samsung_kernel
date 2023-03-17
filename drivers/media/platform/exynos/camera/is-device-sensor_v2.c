@@ -796,7 +796,7 @@ static int is_sensor_start(struct is_device_sensor *device)
 	 * So, it should be set before DVFS selection.
 	 */
 	set_bit(IS_SENSOR_START, &device->state);
-	is_set_static_dvfs(ischain, true, sensor_only);
+	is_set_static_dvfs(ischain, true);
 
 	if (!sensor_only) {
 		ret = is_itf_stream_on(ischain);
@@ -852,7 +852,7 @@ p_err_csi_pattern_en:
 
 p_err_itf_stream_on:
 	clear_bit(IS_SENSOR_START, &device->state);
-	is_set_static_dvfs(ischain, false, sensor_only);
+	is_set_static_dvfs(ischain, false);
 
 	return ret;
 }
@@ -945,7 +945,7 @@ static int is_sensor_stop(struct is_device_sensor *device)
 
 p_err:
 	clear_bit(IS_SENSOR_START, &device->state);
-	is_set_static_dvfs(ischain, false, sensor_only);
+	is_set_static_dvfs(ischain, false);
 
 	return ret;
 }

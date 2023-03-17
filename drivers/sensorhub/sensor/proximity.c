@@ -29,7 +29,7 @@ get_init_chipset_funcs_ptr get_prox_funcs_ary[] = {
 	get_proximity_stk3x6x_function_pointer,
 	get_proximity_gp2ap110s_function_pointer,
 	get_proximity_stk3328_function_pointer,
-	get_proximity_stk33910_function_pointer,
+	get_proximity_stk3391x_function_pointer,
 	get_proximity_stk33512_function_pointer,
 };
 

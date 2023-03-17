@@ -1148,6 +1148,31 @@ static int goodix_parse_dt(struct device *dev, struct goodix_ts_core *core_data)
 }
 #endif
 
+static void goodix_ts_handler_wait_resume_work(struct work_struct *work)
+{
+	struct goodix_ts_core *core_data = container_of(work, struct goodix_ts_core, irq_work);
+	struct irq_desc *desc = irq_to_desc(core_data->irq);
+	int ret;
+
+	ret = wait_for_completion_interruptible_timeout(&core_data->resume_done,
+			msecs_to_jiffies(SEC_TS_WAKE_LOCK_TIME));
+	if (ret == 0) {
+		ts_err("LPM: pm resume is not handled");
+		goto out;
+	}
+	if (ret < 0) {
+		ts_err("LPM: -ERESTARTSYS if interrupted, %d", ret);
+		goto out;
+	}
+
+	if (desc && desc->action && desc->action->thread_fn) {
+		ts_info("run irq thread");
+		desc->action->thread_fn(core_data->irq, desc->action->dev_id);
+	}
+out:
+	core_data->hw_ops->irq_enable_for_handler(core_data, true);
+}
+
 /**
  * goodix_ts_threadirq_func - Bottom half of interrupt
  * This functions is excuted in thread context,
@@ -1172,18 +1197,18 @@ static irqreturn_t goodix_ts_threadirq_func(int irq, void *data)
 	if (atomic_read(&core_data->suspended)) {
 		__pm_wakeup_event(core_data->sec_ws, SEC_TS_WAKE_LOCK_TIME);
 
-		ret = wait_for_completion_interruptible_timeout(&core_data->resume_done, msecs_to_jiffies(500));
-		if (ret == 0) {
-			ts_err("LPM: pm resume is not handled");
+		if (!core_data->resume_done.done) {
+			if (!IS_ERR_OR_NULL(core_data->irq_workqueue)) {
+				ts_info("disable irq and queue waiting work");
+				hw_ops->irq_enable_for_handler(core_data, false);
+				queue_work(core_data->irq_workqueue, &core_data->irq_work);
+			} else {
+				ts_info("irq_workqueue not exist");
+			}
 			return IRQ_HANDLED;
 		}
 
-		if (ret < 0) {
-			ts_err("LPM: -ERESTARTSYS if interrupted, %d", ret);
-			return IRQ_HANDLED;
-		}
-
-		ts_info("run LPM interrupt handler, %d", ret);
+		ts_info("run LPM interrupt handler");
 		if (core_data->plat_data->power_state == SEC_INPUT_STATE_LPM) {
 			mutex_lock(&goodix_modules.mutex);
 			list_for_each_entry_safe(ext_module, next,
@@ -1268,6 +1293,14 @@ static int goodix_ts_irq_setup(struct goodix_ts_core *core_data)
 	if (core_data->irq < 0) {
 		ts_err("failed get irq num %d", core_data->irq);
 		return -EINVAL;
+	}
+
+	core_data->irq_workqueue = create_singlethread_workqueue("goodix_ts_irq_wq");
+	if (!IS_ERR_OR_NULL(core_data->irq_workqueue)) {
+		INIT_WORK(&core_data->irq_work, goodix_ts_handler_wait_resume_work);
+		ts_info("set goodix_ts_handler_wait_resume_work");
+	} else {
+		ts_err("failed to create irq_workqueue, err: %ld", PTR_ERR(core_data->irq_workqueue));
 	}
 
 	ts_info("IRQ:%u,flags:0x%X", core_data->irq, core_data->plat_data->irq_flag);
@@ -1592,6 +1625,11 @@ void goodix_ts_reinit(void *data)
 	if (core_data->glove_enable) {
 		ts_info("set glove mode on");
 		goodix_set_cmd(core_data, GOODIX_GLOVE_MODE_ADDR, core_data->glove_enable);
+	}
+
+	if (core_data->plat_data->low_sensitivity_mode) {
+		ts_info("set low sensitivity mode on");
+		goodix_set_cmd(core_data, GOODIX_LS_MODE_ADDR, core_data->plat_data->low_sensitivity_mode);
 	}
 }
 

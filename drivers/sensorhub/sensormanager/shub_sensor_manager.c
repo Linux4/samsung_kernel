@@ -79,6 +79,8 @@ struct init_func_t init_sensor_funcs[] = {
 	{SENSOR_TYPE_DEVICE_ORIENTATION_WU, init_device_orientation_wu},
 	{SENSOR_TYPE_SAR_BACKOFF_MOTION, init_sar_backoff_motion},
 	{SENSOR_TYPE_POGO_REQUEST_HANDLER, init_pogo_request_handler},
+	{SENSOR_TYPE_AOIS, init_aois},
+	{SENSOR_TYPE_LIGHT_SEAMLESS, init_light_seamless},
 };
 
 static int make_sensor_instance(void)

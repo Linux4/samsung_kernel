@@ -459,6 +459,87 @@ static bool determine_short_idle(u64 avg_idle)
 	return avg_idle < idle_threshold;
 }
 
+static int lb_has_pushable_tasks(struct rq *rq)
+{
+	return !plist_head_empty(&rq->rt.pushable_tasks);
+}
+
+static int lb_pick_rt_task(struct rq *rq, struct task_struct *p, int cpu)
+{
+	if (!task_running(rq, p) &&
+	    cpumask_test_cpu(cpu, p->cpus_ptr))
+		return 1;
+
+	return 0;
+}
+
+static struct task_struct *lb_pick_highest_pushable_task(struct rq *rq, int cpu)
+{
+	struct plist_head *head = &rq->rt.pushable_tasks;
+	struct task_struct *p;
+
+	if (!lb_has_pushable_tasks(rq))
+		return NULL;
+
+	plist_for_each_entry(p, head, pushable_tasks) {
+		if (lb_pick_rt_task(rq, p, cpu))
+			return p;
+	}
+
+	return NULL;
+}
+
+#define MIN_RUNNABLE_THRESHOLD	(500000)
+static bool lb_short_runnable(struct task_struct *p)
+{
+	return ktime_get_ns() - ems_last_waked(p) < MIN_RUNNABLE_THRESHOLD;
+}
+
+static int lb_idle_pull_tasks_rt(struct rq *dst_rq)
+{
+	struct rq *src_rq;
+	struct task_struct *pulled_task = NULL;
+	int cpu, src_cpu = -1, dst_cpu = dst_rq->cpu, ret = 0;
+
+	if (sched_rt_runnable(dst_rq))
+		return 0;
+
+	for_each_possible_cpu(cpu) {
+		if (lb_has_pushable_tasks(cpu_rq(cpu))) {
+			src_cpu = cpu;
+			break;
+		}
+	}
+
+	if (src_cpu == -1)
+		return 0;
+
+	src_rq = cpu_rq(src_cpu);
+	double_lock_balance(dst_rq, src_rq);
+
+	if (sched_rt_runnable(dst_rq))
+		goto out;
+
+	pulled_task = lb_pick_highest_pushable_task(src_rq, dst_cpu);
+	if (!pulled_task)
+		goto out;
+
+	if (lb_short_runnable(pulled_task))
+		goto out;
+
+	deactivate_task(src_rq, pulled_task, 0);
+	set_task_cpu(pulled_task, dst_cpu);
+	activate_task(dst_rq, pulled_task, 0);
+	ret = 1;
+
+out:
+	double_unlock_balance(dst_rq, src_rq);
+
+	trace_lb_idle_pull_tasks_rt(src_cpu, pulled_task, ret);
+
+	return ret;
+}
+
 void lb_newidle_balance(struct rq *dst_rq, struct rq_flags *rf,
 				int *pulled_task, int *done)
 {
@@ -491,6 +572,9 @@ void lb_newidle_balance(struct rq *dst_rq, struct rq_flags *rf,
 	rq_unpin_lock(dst_rq, rf);
 
 	if (dst_rq->nr_running)
+		goto out;
+
+	if (lb_idle_pull_tasks_rt(dst_rq))
 		goto out;
 
 	if (!READ_ONCE(dst_rq->rd->overload))

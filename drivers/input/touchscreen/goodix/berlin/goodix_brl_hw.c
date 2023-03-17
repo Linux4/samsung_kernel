@@ -288,6 +288,23 @@ static int brl_irq_enable(struct goodix_ts_core *cd, bool enable)
 	return 0;
 }
 
+static int brl_irq_enable_for_handler(struct goodix_ts_core *cd, bool enable)
+{
+	if (enable && !atomic_cmpxchg(&cd->irq_enabled, 0, 1)) {
+		enable_irq(cd->irq);
+		ts_info("Irq enabled");
+		return 0;
+	}
+
+	if (!enable && atomic_cmpxchg(&cd->irq_enabled, 1, 0)) {
+		disable_irq_nosync(cd->irq);
+		ts_info("Irq disabled (nosync)");
+		return 0;
+	}
+	ts_info("warnning: irq deepth inbalance!");
+	return 0;
+}
+
 static int brl_read(struct goodix_ts_core *cd, unsigned int addr,
 		unsigned char *data, unsigned int len)
 {
@@ -1305,9 +1322,9 @@ static void goodix_parse_finger(struct goodix_ts_core *cd, unsigned int tid, u8 
 	u8 touch_type;
 
 	if (cd->debug_flag & GOODIX_TS_DEBUG_PRINT_ALLEVENT) {
-		ts_info("%s : ALL(%d): %02X %02X %02X %02X %02X %02X %02X %02X\n",
+		ts_info("%s : ALL(%d): %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X\n",
 			__func__, tid, buf[0], buf[1], buf[2], buf[3],
-			buf[4], buf[5], buf[6], buf[7]);
+			buf[4], buf[5], buf[6], buf[7], buf[8], buf[9], buf[10], buf[11]);
 	}
 
 	pdata->prev_coord[tid] = pdata->coord[tid];
@@ -1322,12 +1339,10 @@ static void goodix_parse_finger(struct goodix_ts_core *cd, unsigned int tid, u8 
 	pdata->coord[tid].major = buf[4];
 	pdata->coord[tid].minor = buf[5];
 	pdata->coord[tid].z = buf[6] & 0x3F;
-//	pdata->coord[tid].max_energy_flag = (buf[7] >> 5) & 0x01;
-//	pdata->coord[tid].max_strength = max(pdata->coord[tid].max_strength, p_event_coord->max_strength);
-//	pdata->coord[tid].noise_level = max(pdata->coord[tid].noise_level,
-//							p_event_coord->noise_level);
-//	pdata->coord[tid].hover_id_num = max(pdata->coord[tid].hover_id_num,
-//							(u8)p_event_coord->hover_id_num);
+	pdata->coord[tid].noise_level = max(pdata->coord[tid].noise_level, buf[8]);
+	pdata->coord[tid].max_strength = max(pdata->coord[tid].max_strength, buf[9]);
+	pdata->coord[tid].hover_id_num = max(pdata->coord[tid].hover_id_num, (u8)(buf[10] & 0x0F));
+	pdata->coord[tid].freq_id = buf[11] & 0x0F;
 
 	if (!pdata->coord[tid].palm && (pdata->coord[tid].ttype == SEC_TS_TOUCHTYPE_PALM))
 		pdata->coord[tid].palm_count++;
@@ -1634,6 +1649,7 @@ static struct goodix_ts_hw_ops brl_hw_ops = {
 	.gesture = brl_gesture,
 	.reset = brl_reset,
 	.irq_enable = brl_irq_enable,
+	.irq_enable_for_handler = brl_irq_enable_for_handler,
 	.read = brl_read,
 	.write = brl_write,
 	.read_from_sponge = brl_read_from_sponge,

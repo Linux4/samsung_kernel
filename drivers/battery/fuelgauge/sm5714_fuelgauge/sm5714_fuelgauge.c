@@ -1626,16 +1626,43 @@ bool sm5714_fg_reset(struct sm5714_fuelgauge_data *fuelgauge, bool is_quickstart
 	return true;
 }
 
+#if defined(CONFIG_UI_SOC_PROLONGING)
+static void sm5714_fg_adjust_capacity_max(
+	struct sm5714_fuelgauge_data *fuelgauge, int curr_raw_soc)
+{
+	int diff = 0;
+
+	if (fuelgauge->is_charging && fuelgauge->capacity_max_conv) {
+		diff = curr_raw_soc - fuelgauge->prev_raw_soc;
+
+		if ((diff >= 1) && (fuelgauge->capacity_max < fuelgauge->g_capacity_max)) {
+			fuelgauge->capacity_max++;
+		} else if ((fuelgauge->capacity_max >= fuelgauge->g_capacity_max) || (curr_raw_soc == 100)) {
+			fuelgauge->g_capacity_max = 0;
+			fuelgauge->capacity_max_conv = false;
+		}
+		pr_info("%s: curr_raw_soc(%d) prev_raw_soc(%d) capacity_max_conv(%d) Capacity Max(%d | %d)\n",
+			__func__, curr_raw_soc, fuelgauge->prev_raw_soc, fuelgauge->capacity_max_conv,
+			fuelgauge->capacity_max, fuelgauge->g_capacity_max);
+	}
+
+	fuelgauge->prev_raw_soc = curr_raw_soc;
+}
+#endif
+
 static void sm5714_fg_get_scaled_capacity(
 	struct sm5714_fuelgauge_data *fuelgauge,
 	union power_supply_propval *val)
 {
+	int raw_soc = val->intval;
+
 	val->intval = (val->intval < fuelgauge->pdata->capacity_min) ?
 		0 : ((val->intval - fuelgauge->pdata->capacity_min) * 1000 /
 		(fuelgauge->capacity_max - fuelgauge->pdata->capacity_min));
 
-	pr_info("%s: scaled capacity (%d.%d)\n",
-		__func__, val->intval/10, val->intval%10);
+	pr_info("%s: capacity max (%d) scaled capacity (%d.%d) raw_soc (%d.%d)\n",
+		__func__, fuelgauge->capacity_max, val->intval / 10, val->intval % 10,
+		raw_soc / 10, raw_soc % 10);
 }
 
 
@@ -1682,6 +1709,51 @@ static int sm5714_fg_check_capacity_max(
 		((capacity_max >= cap_max) ? cap_max : capacity_max);
 }
 
+#if defined(CONFIG_UI_SOC_PROLONGING)
+static void sm5714_fg_calculate_dynamic_scale(
+	struct sm5714_fuelgauge_data *fuelgauge, int capacity, bool scale_by_full)
+{
+	union power_supply_propval raw_soc_val;
+	int min_cap = fuelgauge->pdata->capacity_max - fuelgauge->pdata->capacity_max_margin;
+	int scaling_factor = 1;
+
+	if ((capacity > 100) || ((capacity * 10) < min_cap)) {
+		pr_err("%s: invalid capacity(%d)\n", __func__, capacity);
+		return;
+	}
+
+	raw_soc_val.intval = sm5714_get_soc(fuelgauge);
+
+	if (capacity < 100)
+		fuelgauge->capacity_max_conv = false;  //Force full sequence , need to decrease capacity_max
+
+	if (raw_soc_val.intval < min_cap) {
+		pr_info("%s: raw soc(%d) is very low, skip routine\n",
+			__func__, raw_soc_val.intval);
+		return;
+	}
+
+	if (capacity == 100)
+		scaling_factor = 2;
+
+	fuelgauge->capacity_max = (raw_soc_val.intval * 100 / (capacity + scaling_factor));
+	fuelgauge->capacity_old = capacity;
+
+	fuelgauge->capacity_max =
+		sm5714_fg_check_capacity_max(
+			fuelgauge->capacity_max,
+			fuelgauge->pdata->capacity_max,
+			fuelgauge->pdata->capacity_max_margin);
+
+	pr_info("%s: %d is used for capacity_max, capacity(%d)\n",
+		__func__, fuelgauge->capacity_max, capacity);
+	if ((capacity == 100) && !fuelgauge->capacity_max_conv && scale_by_full) {
+		fuelgauge->capacity_max_conv = true;
+		fuelgauge->g_capacity_max = 990;
+		pr_info("%s: Goal capacity max %d\n", __func__, fuelgauge->g_capacity_max);
+	}
+}
+#else
 static void sm5714_fg_calculate_dynamic_scale(
 	struct sm5714_fuelgauge_data *fuelgauge, int capacity)
 {
@@ -1714,6 +1786,7 @@ static void sm5714_fg_calculate_dynamic_scale(
 	pr_info("%s: %d is used for capacity_max, capacity(%d)\n",
 		__func__, fuelgauge->capacity_max, capacity);
 }
+#endif
 
 #if defined(CONFIG_EN_OOPS)
 static void sm5714_set_full_value(struct sm5714_fuelgauge_data *fuelgauge,
@@ -1803,7 +1876,7 @@ static void sm5714_fg_bd_log(struct sm5714_fuelgauge_data *fuelgauge)
 {
 	memset(fuelgauge->d_buf, 0x0, sizeof(fuelgauge->d_buf));
 
-	snprintf(fuelgauge->d_buf + strlen(fuelgauge->d_buf), sizeof(fuelgauge->d_buf),
+	snprintf(fuelgauge->d_buf + strlen(fuelgauge->d_buf), sizeof(fuelgauge->d_buf) - strlen(fuelgauge->d_buf),
 		"%d,%d,%d",
 		fuelgauge->info.batt_ocv,
 		fuelgauge->info.batt_soc * 10,
@@ -1896,9 +1969,24 @@ static int sm5714_fg_get_property(struct power_supply *psy,
 
 		val->intval = fuelgauge->info.batt_soc;
 
+#if defined(CONFIG_UI_SOC_PROLONGING)
+		if (fuelgauge->pdata->capacity_calculation_type &
+			(SEC_FUELGAUGE_CAPACITY_TYPE_SCALE | SEC_FUELGAUGE_CAPACITY_TYPE_DYNAMIC_SCALE)) {
+
+			sm5714_fg_adjust_capacity_max(fuelgauge, val->intval);
+			sm5714_fg_get_scaled_capacity(fuelgauge, val);
+
+			if (val->intval > 1020) {
+				pr_info("%s: scaled capacity (%d)\n", __func__, val->intval);
+				sm5714_fg_calculate_dynamic_scale(fuelgauge, 100, false);
+			}
+		}
+
+#else
 		if (fuelgauge->pdata->capacity_calculation_type &
 				(SEC_FUELGAUGE_CAPACITY_TYPE_SCALE | SEC_FUELGAUGE_CAPACITY_TYPE_DYNAMIC_SCALE))
 			sm5714_fg_get_scaled_capacity(fuelgauge, val);
+#endif
 
 		/* capacity should be between 0% and 100%
 		 * (0.1% degree)
@@ -1946,6 +2034,13 @@ static int sm5714_fg_get_property(struct power_supply *psy,
 			sm5714_fg_fuelalert_init(fuelgauge,
 					fuelgauge->pdata->fuel_alert_soc);
 		}
+
+#if defined(CONFIG_UI_SOC_PROLONGING)
+		/* Check UI soc reached 100% from 99% , no need to adjust now */
+		if ((val->intval == 100) && (fuelgauge->capacity_old < 100) &&
+			(fuelgauge->capacity_max_conv == true))
+			fuelgauge->capacity_max_conv = false;
+#endif
 
 		/* (Only for atomic capacity)
 		 * In initial time, capacity_old is 0.
@@ -2066,8 +2161,13 @@ static int sm5714_fg_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
 		if (fuelgauge->pdata->capacity_calculation_type &
 			SEC_FUELGAUGE_CAPACITY_TYPE_DYNAMIC_SCALE)
+#if defined(CONFIG_UI_SOC_PROLONGING)
+			sm5714_fg_calculate_dynamic_scale(fuelgauge, val->intval, true);
+#else
 			sm5714_fg_calculate_dynamic_scale(fuelgauge, val->intval);
+#endif
 		break;
+
 #if defined(CONFIG_EN_OOPS)
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
 		sm5714_set_full_value(fuelgauge, val->intval);
@@ -2124,6 +2224,10 @@ static int sm5714_fg_set_property(struct power_supply *psy,
 				fuelgauge->pdata->capacity_max,
 				fuelgauge->pdata->capacity_max_margin);
 		fuelgauge->initial_update_of_soc = true;
+#if defined(CONFIG_UI_SOC_PROLONGING)
+		fuelgauge->g_capacity_max = 990;
+		fuelgauge->capacity_max_conv = true;
+#endif
 		break;
 #if defined(CONFIG_BATTERY_AGE_FORECAST)
 	case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
@@ -2921,8 +3025,13 @@ static int sm5714_fuelgauge_probe(struct platform_device *pdev)
 		__func__);
 #endif
 
+#if defined(CONFIG_UI_SOC_PROLONGING)
+	if (raw_soc_val.intval > fuelgauge->capacity_max)
+		sm5714_fg_calculate_dynamic_scale(fuelgauge, 100, false);
+#else
 	if (raw_soc_val.intval > fuelgauge->capacity_max)
 		sm5714_fg_calculate_dynamic_scale(fuelgauge, 100);
+#endif
 
 	/* SW/HW init code. SW/HW V Empty mode must be opposite ! */
 	fuelgauge->info.temperature = 300; /* default value */

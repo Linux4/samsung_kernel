@@ -18,6 +18,7 @@
 #include <linux/kthread.h>
 #include <linux/export.h>
 #include <linux/string.h>
+#include <linux/delay.h>
 #include <drm/drm_drv.h>
 #include <drm/drm_device.h>
 #include <drm/drm_atomic.h>
@@ -295,27 +296,27 @@ static bool exynos_recovery_condition_check(const struct drm_crtc *crtc,
 
 	cond = &recovery->r_cond[recovery->req_mode_id];
 	if (!cond) {
-		pr_err("cond null ptr\n");
+		recov_err("cond null ptr\n");
 		return false;
 	}
 
 	if (cond->func && !cond->func(crtc)) {
-		pr_info("%s:not matched:cond-function\n", cond->name);
+		recov_info("%s:not matched:cond-function\n", cond->name);
 		return false;
 	}
 
 	if (!__verify_max_count(cond)) {
-		pr_info("%s:func matched, but over maximun retry\n", cond->name);
+		recov_info("%s:func matched, but over maximun retry\n", cond->name);
 		return false;
 	}
 
 	if (!__verify_in_time(cond)) {
-		pr_info("%s:func&max matched, but too manay recovery in time\n",
+		recov_info("%s:func&max matched, but too manay recovery in time\n",
 					cond->name);
 		return false;
 	}
 
-	pr_debug("%s: passed!\n", cond->name);
+	recov_debug("%s: passed!\n", cond->name);
 
 	return true;
 }
@@ -399,6 +400,75 @@ free:
 	return state;
 }
 
+#define DEFAULT_INTERVAL_FPS 60
+s64 exynos_recovery_calc_retry_interval(struct drm_atomic_state *state)
+{
+	struct drm_crtc *crtc;
+	struct drm_crtc_state *crtc_state;
+	int i;
+	int fps = DEFAULT_INTERVAL_FPS;
+
+	for_each_new_crtc_in_state(state, crtc, crtc_state, i) {
+		if (!is_primary_crtc(crtc))
+			continue;
+
+		fps = drm_mode_vrefresh(&crtc_state->mode) ?: DEFAULT_INTERVAL_FPS;
+	}
+
+	return USEC_PER_SEC / fps / MSEC_PER_SEC;
+}
+
+static int __monitor_vblank(struct drm_device *dev, s64 interval)
+{
+	struct drm_vblank_crtc *vblank;
+	int pipe = 0;
+	u64 last;
+	int i;
+	s64 wait_time = interval * 3;
+
+	if (dev) {
+		vblank = &dev->vblank[pipe];
+		last = atomic64_read(&vblank->count);
+
+		for (i = 0; i < 5; ++i) {
+			u64 cur;
+
+			msleep(wait_time);
+			cur = atomic64_read(&vblank->count);
+
+			if (last != cur)
+				return 0;
+		}
+	}
+
+	return -EINVAL;
+}
+
+static void exynos_recovery_atomic_helper_commit_hw_done(struct drm_atomic_state *old_state)
+{
+	struct drm_crtc *crtc;
+	struct drm_crtc_state *old_crtc_state, *new_crtc_state;
+	struct drm_crtc_commit *old_commit, *new_commit;
+	int i;
+
+	for_each_oldnew_crtc_in_state(old_state, crtc, old_crtc_state, new_crtc_state, i) {
+		old_commit = old_crtc_state->commit;
+		new_commit = new_crtc_state->commit;
+
+		if (!new_commit || !old_commit)
+			continue;
+
+		drm_crtc_commit_put(old_commit);
+
+		old_crtc_state->commit = drm_crtc_commit_get(new_commit);
+
+		complete_all(&old_commit->hw_done);
+		complete_all(&old_commit->flip_done);
+	}
+}
+
+
+
 int exynos_recovery_atomic_helper_commit_duplicated_state(struct drm_atomic_state *state,
 					      struct drm_modeset_acquire_ctx *ctx)
 {
@@ -455,6 +525,7 @@ static void exynos_recovery_handler(struct work_struct *work)
 	int ret;
 	u64 time_s, time_c;
 	int retry = 0;
+	bool intf_reset = false;
 
 	if (exynos_recovery_get_state(decon) == RECOVERY_NOT_SUPPORTED)
 		return;
@@ -472,9 +543,9 @@ static void exynos_recovery_handler(struct work_struct *work)
 	if (!exynos_recovery_condition_check(crtc, recovery)) {
 		if (recovery->always) {
 			recovery->req_mode_id = recovery->always_id;
-			pr_info("not matched:but always-recovery enabled\n");
+			recov_info("not matched:but always-recovery enabled\n");
 		} else {
-			pr_info("recovery condition not matched\n");
+			recov_info("recovery condition not matched\n");
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
 #ifdef CONFIG_DISPLAY_USE_INFO
 			log_decon_bigdata(decon);
@@ -497,6 +568,9 @@ static void exynos_recovery_handler(struct work_struct *work)
 
 	drm_modeset_acquire_init(&ctx, 0);
 
+retry:
+	++retry;
+
 	rcv_state = exynos_recovery_atomic_helper_duplicate_state(dev, &ctx);
 	if (IS_ERR(rcv_state)) {
 		ret = PTR_ERR(rcv_state);
@@ -509,8 +583,6 @@ static void exynos_recovery_handler(struct work_struct *work)
 		goto out_drop_locks;
 	}
 
-retry:
-	++retry;
 	state->acquire_ctx = &ctx;
 
 	crtc_state = drm_atomic_get_crtc_state(state, crtc);
@@ -550,8 +622,11 @@ retry:
 	*/
 
 	if (recovery->r_cond[recovery->req_mode_id].reset_vblank ||
-		recovery->r_cond[recovery->req_mode_id].reset_phy)
-		drm_crtc_vblank_off(crtc);
+		recovery->r_cond[recovery->req_mode_id].refresh_panel ||
+		recovery->r_cond[recovery->req_mode_id].reset_phy) {
+		intf_reset = true;
+		exynos_recovery_atomic_helper_commit_hw_done(rcv_state);
+	}
 
 	ret = drm_atomic_commit(state);
 	if (ret)
@@ -559,13 +634,18 @@ retry:
 
 	drm_mode_config_reset(dev);
 	exynos_recovery_set_state(decon, RECOVERY_RESTORE);
-	if (recovery->r_cond[recovery->req_mode_id].reset_vblank ||
-		recovery->r_cond[recovery->req_mode_id].reset_phy)
-		drm_crtc_vblank_on(crtc);
 
 	ret = exynos_recovery_atomic_helper_commit_duplicated_state(rcv_state, &ctx);
 	if (ret)
 		goto out;
+
+	if (intf_reset) {
+		s64 interval = exynos_recovery_calc_retry_interval(rcv_state);
+
+		ret = __monitor_vblank(dev, interval);
+		if (ret != 0)
+			goto out;
+	}
 
 	recovery->count++;
 	recovery->r_cond[recovery->req_mode_id].count++;
@@ -581,7 +661,7 @@ retry:
 			time_c/USEC_PER_MSEC, time_c%USEC_PER_MSEC);
 
 out:
-	if (ret == -EDEADLK) {
+	if (ret == -EDEADLK || ret == -EINVAL) {
 		drm_atomic_state_clear(state);
 		drm_atomic_state_clear(rcv_state);
 		ret = drm_modeset_backoff(&ctx);
@@ -596,6 +676,7 @@ out:
 				dbg_snapshot_expire_watchdog();
 				BUG();
 			}
+			recov_info(" *** recovery retry!! (%d) *** \n", retry);
 			goto retry;
 		}
 	}

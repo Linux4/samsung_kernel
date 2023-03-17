@@ -192,6 +192,7 @@ void gsc_update_tick(void)
 		if (now < grp->last_update_time + gsc.min_interval_ns)
 			continue;
 
+
 		gsc_decision_activate(grp, now);
 	}
 

@@ -674,7 +674,7 @@ const struct sensor_pll_info_compact sensor_gc02m1_pllinfo_B_800x600_60fps = {
 	EXT_CLK_Mhz * 1000 * 1000,   /* ext_clk */
 	676 * 1000 * 1000,          /* mipi_datarate = OPSYCK */
 	84500000,                  /* pclk = VTPXCK*/
-	639,                        /* frame_length_lines */
+	640,                        /* frame_length_lines */
 	2192,                        /* line_length_pck */
 };
 

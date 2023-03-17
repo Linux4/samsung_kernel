@@ -403,6 +403,7 @@ static void sx938x_get_data(struct sx938x_p *data)
 static int sx938x_set_mode(struct sx938x_p *data, unsigned char mode)
 {
 	int ret = -EINVAL;
+	u8 val = 0;
 
 	GRIP_INFO(" %u\n", mode);
 
@@ -410,7 +411,8 @@ static int sx938x_set_mode(struct sx938x_p *data, unsigned char mode)
 	if (mode == SX938x_MODE_SLEEP) {
 		ret = sx938x_i2c_write(data, SX938x_GNRL_CTRL0_REG, REF_OFF_MAIN_OFF);
 	} else if (mode == SX938x_MODE_NORMAL) {
-		ret = sx938x_i2c_write(data, SX938x_GNRL_CTRL0_REG, REF_OFF_MAIN_ON);
+		val = setup_reg[data->ic_num][SX938x_GNRL_CTRL0_REG_IDX].val;
+		ret = sx938x_i2c_write(data, SX938x_GNRL_CTRL0_REG, val);
 		msleep(20);
 		sx938x_manual_offset_calibration(data);
 		msleep(450);
@@ -544,14 +546,24 @@ static ssize_t sx938x_sw_reset_show(struct device *dev,
 				    struct device_attribute *attr, char *buf)
 {
 	struct sx938x_p *data = dev_get_drvdata(dev);
-	u8 compstat = 0;
+	u8 compstat = 0xFF;
+	int retry = 0;
 
 	GRIP_INFO("\n");
 	sx938x_manual_offset_calibration(data);
 	msleep(450);
 	sx938x_get_data(data);
-	sx938x_i2c_read(data, SX938x_STAT_REG, &compstat);
-	compstat &= 0x04;
+
+	while (retry++ <= 3) {
+		sx938x_i2c_read(data, SX938x_STAT_REG, &compstat);
+		GRIP_INFO("compstat : 0x%x\n", compstat);
+		compstat &= 0x04;
+
+		if (compstat == 0)
+			break;
+
+		msleep(50);
+	}
 
 	if (compstat == 0)
 		return snprintf(buf, PAGE_SIZE, "%d\n", 0);
@@ -1180,7 +1192,8 @@ static DEVICE_ATTR(menual_calibrate, S_IRUGO | S_IWUSR | S_IWGRP,
 static DEVICE_ATTR(register_write, S_IWUSR | S_IWGRP,
 		   NULL, sx938x_register_write_store);
 static DEVICE_ATTR(register_read_all, S_IRUGO, sx938x_register_show, NULL);
-static DEVICE_ATTR(register_read, S_IRUGO, sx938x_register_read_show, sx938x_register_read_store);
+static DEVICE_ATTR(register_read, S_IRUGO | S_IWUSR | S_IWGRP,
+			sx938x_register_read_show, sx938x_register_read_store);
 static DEVICE_ATTR(reset, S_IRUGO, sx938x_sw_reset_show, NULL);
 
 static DEVICE_ATTR(name, S_IRUGO, sx938x_name_show, NULL);
@@ -1460,6 +1473,7 @@ static int sx938x_input_init(struct sx938x_p *data)
 	ret = sensors_create_symlink(&dev->dev.kobj, dev->name);
 	if (ret < 0) {
 		GRIP_ERR("failed to create symlink (%d)\n", ret);
+		input_unregister_device(dev);
 		return ret;
 	}
 
@@ -1471,6 +1485,7 @@ static int sx938x_input_init(struct sx938x_p *data)
 #else
 	ret = sensors_create_symlink(dev);
 	if (ret < 0) {
+		GRIP_ERR("failed to create symlink (%d)\n", ret);
 		input_unregister_device(dev);
 		return ret;
 	}
@@ -1780,7 +1795,7 @@ static int sx938x_parse_dt(struct sx938x_p *data, struct device *dev)
 			GRIP_ERR("gpio %d request failed %d\n", data->ldo_en, ret);
 			return ret;
 		}
-		gpio_direction_output(data->ldo_en, 1);
+		gpio_direction_output(data->ldo_en, 0);
 		gpio_free(data->ldo_en);
 	}
 
@@ -1930,13 +1945,13 @@ static int sx938x_probe(struct i2c_client *client, const struct i2c_device_id *i
 		return ret;
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
-		pr_info("[GRIP %s] i2c_check_functionality error\n", grip_name[ic_num]);
+		pr_info("[GRIP_%s] i2c_check_functionality error\n", grip_name[ic_num]);
 		goto exit;
 	}
 
 	data = kzalloc(sizeof(struct sx938x_p), GFP_KERNEL);
 	if (data == NULL) {
-		pr_info("[GRIP %s] Failed to allocate memory\n", grip_name[ic_num]);
+		pr_info("[GRIP_%s] Failed to allocate memory\n", grip_name[ic_num]);
 		ret = -ENOMEM;
 		goto exit_kzalloc;
 	}

@@ -388,9 +388,8 @@
 	#size-cells = <0>;
 	gpios = <&gpm4 0 0 &gpm5 0 0>;
 	status = "okay";
-	clock-frequency = <1000000>;
+	clock-frequency = <400000>;
 	samsung,reset-before-trans;
-	samsung,fast-plus-mode;
 
 	pinctrl-names = "default","on_i2c","off_i2c";
 	pinctrl-0 = <&hsi2c23_bus_in>;

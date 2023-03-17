@@ -32,10 +32,14 @@
 #include <exynos_drm_dsim.h>
 #include <exynos_drm_tui.h>
 #include <mcd_drm_decon.h>
+#include <mcd_drm_dsim.h>
 #include "../exynos_drm_dqe.h"
 #include "panel-samsung-drv.h"
 #include "mcd-panel-samsung-helper.h"
 #include "panel_drv.h"
+#if defined(CONFIG_PANEL_FREQ_HOP)
+#include "panel_freq_hop.h"
+#endif
 
 #define MCD_PANEL_PROBE_DELAY_MSEC (5000)
 
@@ -1226,7 +1230,6 @@ static void mcd_drm_panel_mode_set(struct exynos_panel *ctx,
 	panel_info(ctx, "-\n");
 }
 
-
 static void mcd_drm_request_set_clock(struct exynos_panel *ctx, void *arg)
 {
 	int ret;
@@ -2237,7 +2240,99 @@ __visible_for_testing int mcd_drm_emergency_off(void *_ctx)
 	return 0;
 }
 
-struct mipi_drv_ops mcd_panel_mipi_ops = {
+#if defined(CONFIG_PANEL_FREQ_HOP)
+static int mcd_drm_panel_set_osc(struct exynos_panel *ctx, u32 frequency)
+{
+	struct panel_clock_info info;
+	int ret;
+
+	if (!ctx) {
+		pr_err("FREQ_HOP: ERR:%s: invalid param\n", __func__);
+		return -EINVAL;
+	}
+
+	info.clock_id = CLOCK_ID_OSC;
+	info.clock_rate = frequency;
+
+	ret = call_mcd_panel_func(ctx->mcd_panel_dev,
+			req_set_clock, &info);
+	if (ret < 0) {
+		pr_err("%s: failed to set ffc\n", __func__);
+		return ret;
+	}
+
+	return 0;
+}
+
+static int mcd_drm_panel_set_ffc(struct exynos_panel *ctx, u32 frequency)
+{
+	struct panel_clock_info info;
+	int ret;
+
+	if (!ctx) {
+		pr_err("FREQ_HOP: ERR:%s: invalid param\n", __func__);
+		return -EINVAL;
+	}
+
+	info.clock_id = CLOCK_ID_DSI;
+	info.clock_rate = frequency;
+
+	ret = call_mcd_panel_func(ctx->mcd_panel_dev,
+			req_set_clock, &info);
+	if (ret < 0) {
+		pr_err("%s: failed to set ffc\n", __func__);
+		return ret;
+	}
+
+	return 0;
+}
+
+__visible_for_testing int mcd_drm_set_freq_hop(void *_ctx,
+		struct freq_hop_elem *elem)
+{
+	struct mipi_dsi_device *dsi;
+	struct dsim_device *dsim;
+	struct exynos_panel *ctx = _ctx;
+	int ret;
+
+	if (!ctx || !ctx->dev) {
+		pr_err("%s: invalid ctx\n", __func__);
+		return -EINVAL;
+	}
+
+	dsi = to_mipi_dsi_device(ctx->dev);
+	if (!dsi) {
+		pr_err("%s: invalid dsi\n", __func__);
+		return -EINVAL;
+	}
+
+	dsim = container_of(dsi->host, struct dsim_device, dsi_host);
+	ret = mcd_dsim_update_dsi_freq(dsim, elem->dsi_freq);
+	if (ret < 0) {
+		pr_err("%s: failed to update dsi_freq(%d)\n",
+				__func__, elem->dsi_freq);
+		return ret;
+	}
+
+	ret = mcd_drm_panel_set_ffc(ctx, elem->dsi_freq);
+	if (ret < 0) {
+		pr_err("%s: failed to set ffc(%d)\n",
+				__func__, elem->dsi_freq);
+		return ret;
+	}
+
+	ret = mcd_drm_panel_set_osc(ctx, elem->osc_freq);
+	if (ret < 0) {
+		pr_err("%s: failed to set ffc(%d)\n",
+				__func__, elem->dsi_freq);
+		return ret;
+	}
+
+	return 0;
+}
+#endif
+
+struct panel_adapter_funcs mcd_panel_adapter_funcs = {
 	.read = mcd_drm_mipi_read,
 	.write = mcd_drm_mipi_write,
 #if defined(CONFIG_EXYNOS_DMA_DSIMFC)
@@ -2257,6 +2352,9 @@ struct mipi_drv_ops mcd_panel_mipi_ops = {
 	.dpu_event_log_print = mcd_drm_dpu_event_log_print,
 	.set_commit_retry = mcd_drm_set_commit_retry,
 	.emergency_off = mcd_drm_emergency_off,
+#if defined(CONFIG_PANEL_FREQ_HOP)
+	.set_freq_hop = mcd_drm_set_freq_hop,
+#endif
 };
 
 static const struct drm_panel_funcs mcd_drm_panel_funcs = {
@@ -2507,6 +2605,11 @@ int mcd_drm_panel_probe(struct exynos_panel *ctx)
 {
 	struct platform_device *pdev;
 	struct device_node *np;
+	struct panel_adapter adapter = {
+		.ctx = ctx,
+		.fifo_size = DSIM_PL_FIFO_THRESHOLD,
+		.funcs = &mcd_panel_adapter_funcs,
+	};
 	int ret;
 
 	if (!ctx)
@@ -2535,15 +2638,9 @@ int mcd_drm_panel_probe(struct exynos_panel *ctx)
 		return -ENODEV;
 	}
 
-	ret = call_mcd_panel_func(ctx->mcd_panel_dev, set_dsi_ops, &mcd_panel_mipi_ops);
+	ret = call_mcd_panel_func(ctx->mcd_panel_dev, attach_adapter, &adapter);
 	if (ret < 0) {
-		panel_err(ctx, "mcd_panel set_dsi_ops failed(ret:%d)\n", ret);
-		return ret;
-	}
-
-	ret = call_mcd_panel_func(ctx->mcd_panel_dev, dsim_probe, ctx);
-	if (ret < 0) {
-		panel_err(ctx, "mcd_panel call dsim_probe failed(ret:%d)\n", ret);
+		panel_err(ctx, "mcd_panel call attach_adapter failed %d", ret);
 		return ret;
 	}
 

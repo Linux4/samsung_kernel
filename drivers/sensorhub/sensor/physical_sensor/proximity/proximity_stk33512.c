@@ -35,7 +35,6 @@ int init_proximity_stk33512(void)
 	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
 
 	data->cal_data_len = sizeof(u16);
-
 	return 0;
 }
 
@@ -50,9 +49,36 @@ void parse_dt_proximity_stk33512(struct device *dev)
 	shub_info("thresh %u, %u", data->prox_threshold[PROX_THRESH_HIGH], data->prox_threshold[PROX_THRESH_LOW]);
 }
 
+int proximity_open_calibration_stk33512(void)
+{
+	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
+
+	open_default_proximity_calibration();
+	shub_infof(" mode:%d base:%d", data->setting_mode, *((u16 *)data->cal_data));
+
+	return 0;
+}
+
+void set_proximity_state_stk33512(struct proximity_data *data)
+{
+	if (!is_lcd_changed())
+		set_proximity_calibration();
+}
+
+struct proximity_chipset_funcs prox_stk33512_funcs = {
+	.open_calibration_file = proximity_open_calibration_stk33512,
+	.sync_proximity_state = set_proximity_state_stk33512,
+};
+
+void *get_proximity_stk33512_chipset_funcs(void)
+{
+	return &prox_stk33512_funcs;
+}
+
 struct sensor_chipset_init_funcs prox_stk33512_ops = {
 	.init = init_proximity_stk33512,
 	.parse_dt = parse_dt_proximity_stk33512,
+	.get_chipset_funcs = get_proximity_stk33512_chipset_funcs,
 };
 
 struct sensor_chipset_init_funcs *get_proximity_stk33512_function_pointer(char *name)

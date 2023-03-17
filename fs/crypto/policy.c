@@ -757,8 +757,9 @@ int fscrypt_set_context(struct inode *inode, void *fs_data)
 #if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
 	if (fscrypt_has_dar_info(inode)) {
 		int res = 0;
+		struct ext_fscrypt_info *ext_ci = GET_EXT_CI(ci);
 #ifdef CONFIG_DDAR
-		if (ci->ci_dd_info) {
+		if (ext_ci->ci_dd_info) {
 			res = fscrypt_set_knox_ddar_flags(&ctx, ci);
 			if (res) {
 				dd_error("failed to set knox ddar flag\n");
@@ -784,12 +785,12 @@ int fscrypt_set_context(struct inode *inode, void *fs_data)
 				return res;
 			}
 
-			res = dd_write_crypt_context(inode, &ci->ci_dd_info->crypt_context, fs_data);
-			dd_verbose("%s - ino : %ld, policy.flag:%x, res : %d", __func__, inode->i_ino, ci->ci_dd_info->policy.flags, res);
+			res = dd_write_crypt_context(inode, &ext_ci->ci_dd_info->crypt_context, fs_data);
+			dd_verbose("%s - ino : %ld, policy.flag:%x, res : %d", __func__, inode->i_ino, ext_ci->ci_dd_info->policy.flags, res);
 		}
 #endif
 #ifdef CONFIG_FSCRYPT_SDP
-		if (ci->ci_sdp_info) {
+		if (ext_ci->ci_sdp_info) {
 			struct fscrypt_sdp_context sdp_ctx;
 			res = fscrypt_set_knox_sdp_flags(&ctx, ci);
 			if (res) {
@@ -817,12 +818,12 @@ int fscrypt_set_context(struct inode *inode, void *fs_data)
 				return res;
 			}
 
-			sdp_ctx.engine_id = ci->ci_sdp_info->engine_id;
-			sdp_ctx.sdp_dek_type = ci->ci_sdp_info->sdp_dek.type;
-			sdp_ctx.sdp_dek_len = ci->ci_sdp_info->sdp_dek.len;
-			memcpy(sdp_ctx.sdp_dek_buf, ci->ci_sdp_info->sdp_dek.buf, DEK_MAXLEN); //Full copy without memset
+			sdp_ctx.engine_id = ext_ci->ci_sdp_info->engine_id;
+			sdp_ctx.sdp_dek_type = ext_ci->ci_sdp_info->sdp_dek.type;
+			sdp_ctx.sdp_dek_len = ext_ci->ci_sdp_info->sdp_dek.len;
+			memcpy(sdp_ctx.sdp_dek_buf, ext_ci->ci_sdp_info->sdp_dek.buf, DEK_MAXLEN); //Full copy without memset
 	//		memset(sdp_ctx.sdp_en_buf, 0, MAX_EN_BUF_LEN); // Keep it as dummy
-			memcpy(sdp_ctx.sdp_en_buf, ci->ci_sdp_info->sdp_en_buf, MAX_EN_BUF_LEN);
+			memcpy(sdp_ctx.sdp_en_buf, ext_ci->ci_sdp_info->sdp_en_buf, MAX_EN_BUF_LEN);
 
 			/* Update SDP Context */
 			res = fscrypt_sdp_set_context_nolock(inode, &sdp_ctx, sizeof(sdp_ctx), fs_data);

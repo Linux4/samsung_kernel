@@ -134,7 +134,7 @@ u64 get_scaleup_luminance(struct brightness_table *brt_tbl, struct panel_irc_inf
 	upper_brt = brt_tbl->brt[upper_idx];
 	lower_brt = brt_tbl->brt[lower_idx];
 
-	current_lum = interpolation(lower_lum * disp_pow(10, SCALEUP_4), upper_lum * disp_pow(10, SCALEUP_4),
+	current_lum = disp_interpolation64(lower_lum * disp_pow(10, SCALEUP_4), upper_lum * disp_pow(10, SCALEUP_4),
 		(s32)((u64)brightness - lower_brt), (s32)(upper_brt - lower_brt));
 	current_lum = disp_pow_round(current_lum, 2);
 	return current_lum;

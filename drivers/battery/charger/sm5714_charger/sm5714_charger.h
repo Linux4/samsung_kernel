@@ -96,10 +96,13 @@ struct sm5714_charger_platform_data {
 	int chg_float_voltage;
 	int chg_ocp_current;
 	int chg_lxslope;
+	bool chg_float_voltage_down_en;
+	int chg_float_voltage_down_offset_mv;
 #if IS_ENABLED(CONFIG_USE_POGO)
 	unsigned int gpio_pogo_int;
 	unsigned int irq_pogo_int;
 #endif
+	bool boosting_voltage_aicl;
 };
 
 #define REDUCE_CURRENT_STEP			100
@@ -111,6 +114,7 @@ struct sm5714_charger_data {
 	struct i2c_client *i2c;
 	struct mutex charger_mutex;
 
+	struct sm5714_platform_data *sm5714_pdata;
 	struct sm5714_charger_platform_data *pdata;
 	struct power_supply	*psy_chg;
 	struct power_supply	*psy_otg;
@@ -131,7 +135,6 @@ struct sm5714_charger_data {
 	/* sm5714 Charger-IRQs */
 	int irq_vbuspok;
 	int irq_aicl;
-	int irq_aicl_enabled;
 	int irq_vsysovp;
 	int irq_otgfail;
 
@@ -147,6 +150,10 @@ struct sm5714_charger_data {
 	struct delayed_work aicl_work;
 	struct wakeup_source *aicl_ws;
 
+	struct delayed_work vbatreg_autodown_work;
+	int pre_charge_mode;
+	int autodown_cnt;
+	struct wakeup_source *vbatreg_autodown_ws;
 #if IS_ENABLED(CONFIG_USE_POGO)
 	struct delayed_work pogo_init_work;
 	struct delayed_work pogo_detect_work;

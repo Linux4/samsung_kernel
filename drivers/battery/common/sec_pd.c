@@ -284,8 +284,7 @@ EXPORT_SYMBOL(sec_pd_vpdo_auth);
 int sec_pd_get_apdo_max_power(unsigned int *pdo_pos, unsigned int *taMaxVol, unsigned int *taMaxCur, unsigned int *taMaxPwr)
 {
 	int i;
-	int ret = 0;
-	int max_curr = 0, max_volt = 0, min_volt = 0, max_power = 0;
+	int fpdo_max_power = 0;
 
 	if (!g_psink_status) {
 		pr_err("%s: g_psink_status is NULL\n", __func__);
@@ -297,42 +296,40 @@ int sec_pd_get_apdo_max_power(unsigned int *pdo_pos, unsigned int *taMaxVol, uns
 		return -1;
 	}
 
-	if (*pdo_pos == 0) {
-		/* Get the proper PDO */
-		for (i = 1; i <= g_psink_status->available_pdo_num; i++) {
- 			if ((g_psink_status->power_list[i].pdo_type == APDO_TYPE)
-				&& g_psink_status->power_list[i].accept) {
-				max_curr = g_psink_status->power_list[i].max_current;
-				max_volt = g_psink_status->power_list[i].max_voltage;
-				min_volt = g_psink_status->power_list[i].min_voltage;
-				max_power = sec_pd_get_max_power(
-					g_psink_status->power_list[i].pdo_type,
-					min_volt, max_volt, max_curr);
-				*taMaxPwr = max_power > *taMaxPwr ? max_power : *taMaxPwr;
-
-				if (max_volt >= *taMaxVol) {
-					*pdo_pos = i;
-					*taMaxVol = max_volt;
-					*taMaxCur = max_curr;
-					break;
-				}
-			}
+	for (i = 1; i <= g_psink_status->available_pdo_num; i++) {
+		if (g_psink_status->power_list[i].pdo_type != APDO_TYPE) {
+			fpdo_max_power =
+				(g_psink_status->power_list[i].max_voltage * g_psink_status->power_list[i].max_current) > fpdo_max_power ?
+				(g_psink_status->power_list[i].max_voltage * g_psink_status->power_list[i].max_current) : fpdo_max_power;
 		}
+	}
 
-		if (*pdo_pos == 0) {
-			pr_info("mv (%d) and ma (%d) out of range of APDO\n",
-				*taMaxVol, *taMaxCur);
-			ret = -EINVAL;
+	if (*pdo_pos == 0) {
+		/* min(max power of all fpdo, max power of selected apdo) */
+		for (i = 1; i <= g_psink_status->available_pdo_num; i++) {
+			if ((g_psink_status->power_list[i].pdo_type == APDO_TYPE) &&
+				g_psink_status->power_list[i].accept &&
+				(g_psink_status->power_list[i].max_voltage >= *taMaxVol)) {
+				*pdo_pos = i;
+				*taMaxVol = g_psink_status->power_list[i].max_voltage;
+				*taMaxCur = g_psink_status->power_list[i].max_current;
+				*taMaxPwr = min(fpdo_max_power,
+					(g_psink_status->power_list[i].max_voltage * g_psink_status->power_list[i].max_current));
+
+				pr_info("%s : *pdo_pos(%d), *taMaxVol(%d), *maxCur(%d), *maxPwr(%d)\n",
+					__func__, *pdo_pos, *taMaxVol, *taMaxCur, *taMaxPwr);
+
+				return 0;
+			}
 		}
 	} else {
 		/* If we already have pdo object position, we don't need to search max current */
-		ret = -ENOTSUPP;
+		return -ENOTSUPP;
 	}
 
-	pr_info("%s : *pdo_pos(%d), *taMaxVol(%d), *maxCur(%d), *maxPwr(%d)\n",
-		__func__, *pdo_pos, *taMaxVol, *taMaxCur, *taMaxPwr);
+	pr_info("mv (%d) and ma (%d) out of range of APDO\n", *taMaxVol, *taMaxCur);
 
-	return ret;
+	return -EINVAL;
 }
 EXPORT_SYMBOL(sec_pd_get_apdo_max_power);
 

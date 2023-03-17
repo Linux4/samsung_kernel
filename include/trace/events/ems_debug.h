@@ -2152,6 +2152,33 @@ TRACE_EVENT(lb_nohz_balancer_kick,
 );
 
 /*
+ * Tracepoint for lb idle pull tasks rt
+ */
+TRACE_EVENT(lb_idle_pull_tasks_rt,
+
+	TP_PROTO(int src_cpu, struct task_struct *p, int pulled),
+
+	TP_ARGS(src_cpu, p, pulled),
+
+	TP_STRUCT__entry(
+		__array(	char,		comm,	TASK_COMM_LEN	)
+		__field(	pid_t,		pid			)
+		__field(	int,		src_cpu			)
+		__field(	int,		pulled			)
+	),
+
+	TP_fast_assign(
+		memcpy(__entry->comm, p ? p->comm : "no task", TASK_COMM_LEN);
+		__entry->pid			= p ? p->pid : -1;
+		__entry->src_cpu		= src_cpu;
+		__entry->pulled			= pulled;
+	),
+
+	TP_printk("src_cpu=%d pulled=%d comm=%s pid=%d",
+		__entry->src_cpu, __entry->pulled, __entry->comm, __entry->pid)
+);
+
+/*
  * Tracepoint for mhdvfs profile
  */
 TRACE_EVENT(mhdvfs_profile,

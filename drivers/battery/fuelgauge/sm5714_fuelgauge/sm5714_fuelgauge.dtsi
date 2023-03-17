@@ -71,7 +71,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/fuelgauge/sm5714/sm5714_fuelgauge.a53x.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/fuelgauge/sm5714/sm5714_fuelgauge.a53x.dtsi */
 /*
  * A53x battery device tree common
  *

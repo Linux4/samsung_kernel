@@ -270,7 +270,6 @@
 #define AP_PHY_LDO_ALL_SAME  	1
 
 #define CLOGGING		1
-
 /*
  * ======================================================
  * CONFIG - Interface version configs

@@ -28,6 +28,9 @@ static void ems_hook_select_task_rq_fair(void *data,
 {
 	int cpu;
 
+	if ((sd_flag == SD_BALANCE_WAKE) || (sd_flag == SD_BALANCE_FORK))
+		ems_last_waked(p) = ktime_get_ns();
+
 	cpu = ems_select_task_rq_fair(p, prev_cpu, sd_flag, wake_flags);
 
 	*new_cpu = cpu;
@@ -39,6 +42,9 @@ static void ems_hook_select_task_rq_rt(void *data,
 			int sd_flag, int wake_flags, int *new_cpu)
 {
 	int cpu;
+
+	if ((sd_flag == SD_BALANCE_WAKE) || (sd_flag == SD_BALANCE_FORK))
+		ems_last_waked(p) = ktime_get_ns();
 
 	cpu = ems_select_task_rq_rt(p, prev_cpu, sd_flag, wake_flags);
 

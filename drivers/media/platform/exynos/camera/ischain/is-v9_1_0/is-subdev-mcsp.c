@@ -689,7 +689,7 @@ int __mcsc_dma_out_cfg(struct is_device_ischain *device,
 				minfo("[ISC:D] tbl[%d] HF static scenario(%d)-[%s]\n", device,
 					dvfs_ctrl->dvfs_table_idx, scenario_id,
 					static_ctrl->scenario_nm);
-				is_set_dvfs((struct is_core *)device->interface->core, device, scenario_id);
+				is_set_dvfs_m2m(device, scenario_id);
 			}
 
 			mutex_unlock(&dvfs_ctrl->lock);

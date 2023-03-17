@@ -293,7 +293,6 @@
 #define SYNC_SHOT_ALWAYS	/* This is a feature for reducing late shot. */
 
 #define CLOGGING		1
-
 /*
  * ======================================================
  * CONFIG - Interface version configs

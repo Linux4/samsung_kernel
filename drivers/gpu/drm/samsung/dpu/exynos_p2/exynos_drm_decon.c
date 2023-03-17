@@ -890,10 +890,8 @@ static void decon_fingerprint_mask(struct exynos_drm_crtc *crtc,
 		return;
 	}
 
-	if (decon->id != 0)  {
-		pr_info("%s decon id is not 0(%d).\n", __func__, decon->id);
+	if (decon->id != 0)
 		return;
-	}
 
 	state = old_crtc_state->state;
 
@@ -959,7 +957,7 @@ static void decon_atomic_flush(struct exynos_drm_crtc *exynos_crtc,
 		const int win_id = decon_get_win_id(new_crtc_state, 0);
 
 		if (win_id < 0) {
-			decon_warn(decon, "unable to get free win_id=%d mask=0x%x\n",
+			decon_err(decon, "unable to get free win_id=%d mask=0x%x\n",
 				win_id, new_exynos_crtc_state->reserved_win_mask);
 			return;
 		}
@@ -1184,7 +1182,7 @@ static void decon_wait_framestart(struct exynos_drm_crtc *exynos_crtc)
 			 msecs_to_jiffies(framestart_timeout))) {
 		DPU_EVENT_LOG("FRAMESTART_TIMEOUT", exynos_crtc,
 				EVENT_FLAG_ERROR, NULL);
-		decon_warn(decon, "framestart timeout\n");
+		decon_err(decon, "framestart timeout\n");
 	}
 }
 
@@ -1658,9 +1656,8 @@ static int decon_bind(struct device *dev, struct device *master, void *data)
 				if (exynos_pm_qos_request_active(&decon->bts.disp_qos)) {
 					decon_info(decon, "request qos for fb handover\n");
 					exynos_pm_qos_update_request(&decon->bts.disp_qos, 400 * 1000);
-				} else {
+				} else
 					decon_err(decon, "disp qos setting error\n");
-				}
 			}
 		}
 	}
