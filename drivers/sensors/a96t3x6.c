@@ -626,7 +626,6 @@ static void a96t3x6_debug_work_func(struct work_struct *work)
 
 	if (data->resume_called == true) {
 		data->resume_called = false;
-		a96t3x6_sar_only_mode(data, 0);
 		schedule_delayed_work(&data->debug_work, msecs_to_jiffies(1000));
 		return;
 	}
@@ -3066,7 +3065,6 @@ static int a96t3x6_suspend(struct device *dev)
 
 	data->resume_called = false;
 	GRIP_INFO("\n");
-	a96t3x6_sar_only_mode(data, 1);
 	a96t3x6_set_debug_work(data, 0, 1000);
 	if (data->current_state)
 		disable_irq(data->irq);

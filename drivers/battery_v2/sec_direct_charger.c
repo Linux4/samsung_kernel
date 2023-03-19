@@ -13,6 +13,10 @@
 
 #include "include/sec_direct_charger.h"
 
+#if defined(CONFIG_SEC_ABC)
+#include <linux/sti/abc_common.h>
+#endif
+
 char *sec_direct_chg_mode_str[] = {
 	"OFF", //SEC_DIRECT_CHG_MODE_DIRECT_OFF
 	"CHECK_VBAT", //SEC_DIRECT_CHG_MODE_DIRECT_CHECK_VBAT
@@ -180,7 +184,7 @@ static int sec_direct_chg_check_charging_source(struct sec_direct_charger_info *
 			pr_info("%s:  S/C was selected! low vbat(%dmV)\n",
 					__func__, value.intval);
 			charger->vbat_min_src = LOW_VBAT_SET;
-			return SEC_DIRECT_CHG_CHARGING_SOURCE_DIRECT;
+			return SEC_DIRECT_CHG_CHARGING_SOURCE_SWITCHING;
 		}
 		charger->vbat_min_src = LOW_VBAT_OFF;
 	}
@@ -306,6 +310,10 @@ static int sec_direct_chg_set_charging_current(struct sec_direct_charger_info *c
 
 		charging_source = sec_direct_chg_check_charging_source(charger);
 		if (charging_source == SEC_DIRECT_CHG_CHARGING_SOURCE_DIRECT) {
+#if defined(CONFIG_SEC_ABC)
+			if (charger->dc_input_current < (SEC_DIRECT_CHG_MIN_IOUT / 2))
+				sec_abc_send_event("MODULE=battery@WARN=dc_current");
+#endif
 			value.intval = charger->dc_input_current;
 			psy_do_property(charger->pdata->direct_charger_name, set,
 				POWER_SUPPLY_PROP_CURRENT_MAX, value);

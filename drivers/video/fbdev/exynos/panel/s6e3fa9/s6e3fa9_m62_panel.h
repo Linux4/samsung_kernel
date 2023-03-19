@@ -735,6 +735,7 @@ static void *m62_display_off_cmdtbl[] = {
 
 static void *m62_exit_cmdtbl[] = {
  	&KEYINFO(m62_level1_key_enable),
+	&s6e3fa9_dmptbl[DUMP_RDDPM],
 #ifdef CONFIG_DISPLAY_USE_INFO
 	&KEYINFO(m62_level2_key_enable),
 	&s6e3fa9_dmptbl[DUMP_ERR_FG],
@@ -748,9 +749,6 @@ static void *m62_exit_cmdtbl[] = {
 };
 
 static void *m62_check_condition_cmdtbl[] = {
-	&KEYINFO(m62_level2_key_enable),
-	&s6e3fa9_dmptbl[DUMP_RDDPM],
-	&KEYINFO(m62_level2_key_disable),
 };
 
 static void *m62_alpm_enter_cmdtbl[] = {
