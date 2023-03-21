@@ -223,7 +223,7 @@ static int sensor_gw1_power_setpin(struct device *dev,
 	SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_ON, gpio_none,  SENSOR_SET_DELAY,  PIN_NONE, 0, 3000);
 
 	/* READ_ROM - POWER OFF */
-	SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_OFF, gpio_none, RCAM_AF_VDD,       PIN_REGULATOR, 0, 0);
+	SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_OFF, gpio_none, RCAM_AF_VDD,       PIN_REGULATOR, 0, 5000);
 	SET_PIN(pdata, SENSOR_SCENARIO_READ_ROM, GPIO_SCENARIO_OFF, gpio_none, S5KGW1_IOVDD,      PIN_REGULATOR, 0, 0);
 
 	dev_info(dev, "%s X v4\n", __func__);
