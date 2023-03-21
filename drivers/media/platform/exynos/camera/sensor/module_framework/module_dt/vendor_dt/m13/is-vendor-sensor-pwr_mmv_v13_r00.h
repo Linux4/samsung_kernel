@@ -38,6 +38,6 @@
 /***** ETC Define related to sensor power *****/
 
 #define MIPI_SEL1		<&gpg2 5 0x1>		/* MIPI Select 1 : RCAM3 & FRONT */
-#define MIPI_SEL2		<&gpg2 7 0x1>		/* MIPI Select 2 : RCAM2 & RCAM4 */
+//#define MIPI_SEL2		<&gpg2 7 0x1>		/* MIPI Select 2 : RCAM2 & RCAM4 */
 
 #endif /* IS_VENDOR_SENSOR_PWR_MMV_V13_H */

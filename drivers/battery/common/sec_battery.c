@@ -505,11 +505,6 @@ __visible_for_testing void sec_bat_divide_limiter_current(struct sec_battery_inf
 {
 	unsigned int main_current = 0, sub_current = 0, main_current_rate = 0, sub_current_rate = 0;
 
-	if (is_pd_apdo_wire_type(battery->cable_type) && battery->pd_list.now_isApdo) {
-		if (limiter_current < battery->pdata->charging_current[SEC_BATTERY_CABLE_PDIC_APDO].fast_charging_current)
-			limiter_current = battery->pdata->charging_current[SEC_BATTERY_CABLE_PDIC_APDO].fast_charging_current;
-	}
-
 	if (limiter_current <= 1200) {
 		main_current_rate = battery->pdata->main_zone1_current_rate;
 		sub_current_rate = battery->pdata->sub_zone1_current_rate;
@@ -734,9 +729,6 @@ __visible_for_testing int sec_bat_change_iv(void *data, int voltage)
 		sec_bat_check_afc_input_current(battery);
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 		muic_afc_set_voltage(voltage/1000);
-#if defined(CONFIG_BC12_DEVICE)
-		battery->input_voltage = voltage;
-#endif
 #endif
 	} else if (is_pd_wire_type(battery->cable_type)) {
 		int curr_pdo = 0, pdo = 0, iv = 0, icl = 0;
@@ -1286,131 +1278,6 @@ static bool sec_bat_check_by_gpio(struct sec_battery_info *battery)
 
 	return ret;
 }
-
-#if !defined(CONFIG_SEC_FACTORY)
-static void sec_bat_limiter_check(struct sec_battery_info *battery)
-{
-	union power_supply_propval value = {0, };
-	int main_enb, main_enb2, sub_enb;
-
-	/* do not check limiter status input curruent is not set fully */
-	if (is_nocharge_type(battery->cable_type) ||
-		is_wireless_fake_type(battery->cable_type) ||
-		battery->health != POWER_SUPPLY_HEALTH_GOOD ||
-		battery->status != POWER_SUPPLY_STATUS_CHARGING ||
-		battery->current_event & SEC_BAT_CURRENT_EVENT_SWELLING_MODE ||
-		battery->current_event & SEC_BAT_CURRENT_EVENT_AICL ||
-		battery->charge_power < 9000 ||
-		battery->siop_level < 100 ||
-		battery->lcd_status ||
-		battery->limiter_check) {
-		return;
-	}
-
-	/* do not check limiter status when enb is not active status since it is certain test mode using enb pin */
-	main_enb = gpio_get_value(battery->pdata->main_bat_enb_gpio);
-	main_enb2 = gpio_get_value(battery->pdata->main_bat_enb2_gpio);
-	sub_enb = gpio_get_value(battery->pdata->sub_bat_enb_gpio);
-
-	if (main_enb2 || sub_enb) {
-		pr_info("%s : main_enb = %d, main_enb2 = %d, sub_enb = %d\n", __func__, main_enb, main_enb2, sub_enb);
-		return;
-	}
-
-	/* check powermeter and vchg, vbat value of main limiter */
-	psy_do_property(battery->pdata->main_limiter_name, get,
-		POWER_SUPPLY_PROP_HEALTH, value);
-
-	if (value.intval != POWER_SUPPLY_HEALTH_GOOD) {
-		pr_info("%s : main limiter wa will work\n", __func__);
-#if defined(CONFIG_BATTERY_CISD)
-		battery->cisd.event_data[EVENT_MAIN_BAT_ERR]++;
-#endif
-		sec_vote(battery->chgen_vote, VOTER_FULL_CHARGE, true, SEC_BAT_CHG_MODE_CHARGING_OFF);
-
-		value.intval = 400;
-		psy_do_property(battery->pdata->main_limiter_name, set,
-				POWER_SUPPLY_EXT_PROP_DISCHG_LIMIT_CURRENT, value);
-
-		value.intval = 0;
-		psy_do_property(battery->pdata->main_limiter_name, set,
-				POWER_SUPPLY_EXT_PROP_DISCHG_MODE, value);
-
-		/* deactivate main limiter */
-		gpio_direction_output(battery->pdata->main_bat_enb2_gpio, 1);
-		msleep(100);
-		/* activate main limiter */
-		gpio_direction_output(battery->pdata->main_bat_enb2_gpio, 0);
-		msleep(100);
-
-		value.intval = 1;
-		psy_do_property(battery->pdata->main_limiter_name, set,
-				POWER_SUPPLY_EXT_PROP_POWERMETER_ENABLE, value);
-
-		sec_vote(battery->chgen_vote, VOTER_FULL_CHARGE, true, SEC_BAT_CHG_MODE_CHARGING);
-		battery->limiter_check = true;
-		pr_info("%s : main limiter wa done\n", __func__);
-
-		/* re-check powermeter and vchg, vbat value of main limiter */
-		psy_do_property(battery->pdata->main_limiter_name, get,
-			POWER_SUPPLY_PROP_HEALTH, value);
-
-		if (value.intval != POWER_SUPPLY_HEALTH_GOOD) {
-			pr_info("%s : main limiter wa did not work\n", __func__);
-#if defined(CONFIG_BATTERY_CISD)
-			battery->cisd.event_data[EVENT_BAT_WA_ERR]++;
-#endif
-		}
-	}
-
-	/* check powermeter and vchg, vbat value of sub limiter */
-	psy_do_property(battery->pdata->sub_limiter_name, get,
-		POWER_SUPPLY_PROP_HEALTH, value);
-
-	if (value.intval != POWER_SUPPLY_HEALTH_GOOD) {
-		pr_info("%s : sub limiter wa will work\n", __func__);
-#if defined(CONFIG_BATTERY_CISD)
-		battery->cisd.event_data[EVENT_SUB_BAT_ERR]++;
-#endif
-		sec_vote(battery->chgen_vote, VOTER_FULL_CHARGE, true, SEC_BAT_CHG_MODE_CHARGING_OFF);
-
-		value.intval = 400;
-		psy_do_property(battery->pdata->sub_limiter_name, set,
-				POWER_SUPPLY_EXT_PROP_DISCHG_LIMIT_CURRENT, value);
-
-		value.intval = 0;
-		psy_do_property(battery->pdata->sub_limiter_name, set,
-				POWER_SUPPLY_EXT_PROP_DISCHG_MODE, value);
-
-		/* deactivate sub limiter */
-		gpio_direction_output(battery->pdata->sub_bat_enb_gpio, 1);
-		msleep(100);
-		/* activate sub limiter */
-		gpio_direction_output(battery->pdata->sub_bat_enb_gpio, 0);
-		msleep(100);
-
-		value.intval = 1;
-		psy_do_property(battery->pdata->sub_limiter_name, set,
-				POWER_SUPPLY_EXT_PROP_POWERMETER_ENABLE, value);
-
-		sec_vote(battery->chgen_vote, VOTER_FULL_CHARGE, true, SEC_BAT_CHG_MODE_CHARGING);
-
-		battery->limiter_check = true;
-		pr_info("%s : sub limiter wa done\n", __func__);
-
-		/* re-check powermeter and vchg, vbat value of sub limiter */
-		psy_do_property(battery->pdata->sub_limiter_name, get,
-			POWER_SUPPLY_PROP_HEALTH, value);
-
-		if (value.intval != POWER_SUPPLY_HEALTH_GOOD) {
-			pr_info("%s : main limiter wa did not work\n", __func__);
-#if defined(CONFIG_BATTERY_CISD)
-			battery->cisd.event_data[EVENT_BAT_WA_ERR]++;
-#endif
-		}
-	}
-}
-#endif
 #endif
 
 static bool sec_bat_check(struct sec_battery_info *battery)
@@ -2699,7 +2566,6 @@ int sec_bat_get_inbat_vol_ocv(struct sec_battery_info *battery)
 		ret = ocv / 6;
 
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
-		/* just for debug */
 		value.intval = SEC_DUAL_BATTERY_MAIN;
 		psy_do_property(pdata->dual_battery_name, get,
 				POWER_SUPPLY_PROP_VOLTAGE_AVG, value);
@@ -3982,10 +3848,6 @@ static void sec_bat_monitor_work(struct work_struct *work)
 #endif
 #endif
 
-#if IS_ENABLED(CONFIG_DUAL_BATTERY) && !defined(CONFIG_SEC_FACTORY)
-	sec_bat_limiter_check(battery);
-#endif
-
 continue_monitor:
 	/* clear HEATING_CONTROL*/
 	sec_bat_set_current_event(battery, 0, SEC_BAT_CURRENT_EVENT_SKIP_HEATING_CONTROL);
@@ -4101,7 +3963,7 @@ __visible_for_testing void sec_bat_check_input_voltage(struct sec_battery_info *
 	int input_current = battery->pdata->charging_current[cable_type].input_current_limit;
 
 #if !defined(CONFIG_NO_BATTERY)
-	if (battery->status == POWER_SUPPLY_STATUS_DISCHARGING)
+	if (battery->status != POWER_SUPPLY_STATUS_DISCHARGING)
 		return;
 #endif
 
@@ -4751,9 +4613,6 @@ __visible_for_testing void sec_bat_cable_work(struct work_struct *work)
 		battery->cable_type == SEC_BATTERY_CABLE_UNKNOWN)) {
 		pr_info("%s: prev_cable_type(%d)\n", __func__, prev_cable_type);
 		cw_nocharge_type(battery);
-#if IS_ENABLED(CONFIG_DUAL_BATTERY)
-		battery->limiter_check = false;
-#endif
 	} else if (is_slate_mode(battery)) {
 		pr_info("%s: slate mode on\n", __func__);
 		cw_slate_mode(battery);
@@ -7552,12 +7411,6 @@ static void sec_batt_dev_init_work(struct work_struct *work)
 #endif
 
 #if defined(CONFIG_BC12_DEVICE)
-#if defined(CONFIG_SEC_FACTORY)
-	value.intval = 0;
-	psy_do_property(battery->pdata->fuelgauge_name, get,
-			POWER_SUPPLY_EXT_PROP_CHECK_INIT, value);
-	battery->vbat_adc_open = (value.intval == 1) ? true : false;
-#endif
 	value.intval = 0;
 	psy_do_property(battery->pdata->charger_name, get,
 			POWER_SUPPLY_EXT_PROP_CHECK_INIT, value);
@@ -7827,7 +7680,6 @@ static int sec_battery_probe(struct platform_device *pdev)
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
 	battery->main_current = 0;
 	battery->sub_current = 0;
-	battery->limiter_check = false;
 #endif
 	battery->topoff_condition = 0;
 	battery->wpc_vout_level = WIRELESS_VOUT_10V;

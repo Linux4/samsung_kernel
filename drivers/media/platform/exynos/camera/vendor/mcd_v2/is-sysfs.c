@@ -2812,10 +2812,8 @@ static ssize_t camera_rear3_mtf_exif_show(struct device *dev,
 static ssize_t camera_rear3_dualcal_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-#ifdef READ_DUAL_CAL_FIRMWARE_DATA
 	int ret;
 	int copy_size = 0;
-#endif
 	int position = SENSOR_POSITION_REAR;
 	int32_t dual_cal_data2_addr, dual_cal_data2_size;
 	char *cal_buf;

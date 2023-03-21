@@ -42,7 +42,7 @@
 #include <../../drivers/battery/common/sec_charging_common.h>
 #endif /* CONFIG_BATTERY_SAMSUNG */
 #if defined(CONFIG_AFC_CHARGER)
-#include <linux/muic/afc_gpio/gpio_afc_charger.h>
+#include <linux/gpio_afc_charger.h>
 #endif
 
 extern struct muic_platform_data muic_pdata;

@@ -43,6 +43,7 @@
 
 #ifdef CONFIG_USB_PD_DFP_READY_DISCOVER_ID
 #undef CONFIG_PD_DISCOVER_CABLE_ID
+#define CONFIG_PD_DISCOVER_CABLE_ID
 #endif /* CONFIG_USB_PD_DFP_READY_DISCOVER_ID */
 
 #ifdef CONFIG_USB_PD_RESET_CABLE
@@ -61,12 +62,8 @@
 
 #define PD_SOP_NR	3
 
-#ifdef CONFIG_USB_PD_SOFT_TRANSMIT_RETRY
-#define PD_RETRY_COUNT 0
-#else
 /* Default retry count for transmitting */
 #define PD_RETRY_COUNT 3
-#endif
 
 #if PD_RETRY_COUNT > 3
 #error "PD_RETRY_COUNT Max = 3"
@@ -364,12 +361,12 @@ static inline uint8_t *pd_get_ext_msg_payload(struct pd_event *pd_event)
 #define VDO_CMD_GET_LOG      VDO_CMD_VENDOR(13)
 #define VDO_CMD_CCD_EN       VDO_CMD_VENDOR(14)
 
-#define PD_VDO_VID(vdo)      ((vdo) >> 16)
-#define PD_VDO_SVDM(vdo)     (((vdo) >> 15) & 1)
-#define PD_VDO_OPOS(vdo)     (((vdo) >> 8) & 0x7)
-#define PD_VDO_CMD(vdo)      ((vdo) & 0x1f)
-#define PD_VDO_CMDT(vdo)     (((vdo) >> 6) & 0x3)
-#define PD_VDO_VERSION(vdo)  (((vdo) >> 13) & 0x3)
+#define PD_VDO_VID(vdo)  ((vdo) >> 16)
+#define PD_VDO_SVDM(vdo) (((vdo) >> 15) & 1)
+#define PD_VDO_OPOS(vdo) (((vdo) >> 8) & 0x7)
+#define PD_VDO_CMD(vdo)  ((vdo) & 0x1f)
+#define PD_VDO_CMDT(vdo) (((vdo) >> 6) & 0x3)
+
 
 /*
  * SVDM Identity request -> response

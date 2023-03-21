@@ -263,7 +263,6 @@ enum sec_bat_attrs {
 	BATT_MAIN_CON_DET,
 	BATT_SUB_CON_DET,
 	BATT_MAIN_ENB,
-	BATT_MAIN_ENB2,
 	BATT_SUB_ENB,
 #endif
 	EXT_EVENT,

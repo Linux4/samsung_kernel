@@ -2419,9 +2419,8 @@ static inline int typec_handle_vbus_absent(struct tcpc_device *tcpc_dev)
 	}
 #endif	/* CONFIG_USB_POWER_DELIVERY */
 
-	if (tcpc_dev->typec_state == typec_attached_snk) {
+	if (tcpc_dev->typec_state == typec_attached_snk)
 		typec_attached_snk_vbus_absent(tcpc_dev);
-	}
 
 #ifndef CONFIG_TCPC_VSAFE0V_DETECT
 	tcpc_typec_handle_vsafe0v(tcpc_dev);

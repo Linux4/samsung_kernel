@@ -1,7 +1,7 @@
 #ifndef IS_VENDER_ROM_CONFIG_MMV_V13_H
 #define IS_VENDER_ROM_CONFIG_MMV_V13_H
 
-#include "is-otprom-rear2-gc02m1_v001.h"
+#include "is-otprom-rear2-gc02m1_v002.h"
 #include "is-otprom-uw-gc5035_v001.h"
 #include "is-eeprom-rear-jn1_v001.h"
 #include "is-otprom-front-gc08a3_v001.h"

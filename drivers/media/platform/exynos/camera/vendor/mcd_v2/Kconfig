@@ -76,12 +76,6 @@ config CAMERA_AAV_V13
         default n
         help
           This camera is aav_v13 project
-config CAMERA_MMV_V13
-        bool "This camera is mmv_v13 project"
-        depends on VENDER_MCD_V2
-        default n
-        help
-          This camera is mmv_v13 project
 config SECURE_CAMERA_USE
 	bool "Use secure camera"
 	depends on VENDER_MCD_V2

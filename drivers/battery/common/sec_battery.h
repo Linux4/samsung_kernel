@@ -590,7 +590,6 @@ typedef struct sec_battery_platform_data {
 	char *sub_limiter_name;
 	bool support_dual_battery;
 	int main_bat_enb_gpio;
-	int main_bat_enb2_gpio;
 	int sub_bat_enb_gpio;
 #endif
 
@@ -814,8 +813,6 @@ struct sec_battery_info {
 	int voltage_pack_sub;		/* pack voltage sub battery (mV) */
 	int current_now_main;		/* current from main battery (mA) */
 	int current_now_sub;		/* current from sub battery (mA) */
-
-	unsigned int limiter_check;
 #if defined(CONFIG_DUAL_BATTERY_CELL_SENSING)
 	int voltage_cell_main;		/* cell voltage main battery (mV) */
 	int voltage_cell_sub;		/* cell voltage sub battery (mV) */
@@ -1029,9 +1026,6 @@ struct sec_battery_info {
 	bool factory_mode;
 	bool display_test;
 	bool store_mode;
-#if defined(CONFIG_BC12_DEVICE) && defined(CONFIG_SEC_FACTORY)
-	bool vbat_adc_open;
-#endif
 
 	/* usb suspend */
 	int prev_usb_conf;

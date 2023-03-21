@@ -980,9 +980,6 @@ int sec_cmd_virtual_tsp_write_cmd(struct sec_cmd_data *sec, bool main, bool sub)
 	int ret_main = 0;
 	bool exit = false;
 
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(5, 10, 0))
-	return 0;
-#endif
 	sec_cmd_set_default_result(sec);
 
 	if (!main && !sub) {
@@ -1044,9 +1041,6 @@ void sec_cmd_virtual_tsp_write_cmd_factory_all(struct sec_cmd_data *sec, bool ma
 	u8 buff[16];
 	int ret = 0;
 
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(5, 10, 0))
-	return;
-#endif
 	sec_cmd_set_default_result(sec);
 
 	if (!main && !sub) {

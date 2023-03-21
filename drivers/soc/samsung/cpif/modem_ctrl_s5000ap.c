@@ -52,6 +52,7 @@ static int s5000ap_lcd_notifier(struct notifier_block *notifier,
 static irqreturn_t cp_wdt_handler(int irq, void *arg)
 {
 	struct modem_ctl *mc = (struct modem_ctl *)arg;
+	struct io_device *iod;
 	enum modem_state new_state;
 	struct link_device *ld = get_current_link(mc->bootd);
 
@@ -68,7 +69,8 @@ static irqreturn_t cp_wdt_handler(int irq, void *arg)
 
 	mif_info("new_state:%s\n", cp_state_str(new_state));
 
-	change_modem_state(mc, new_state);
+	list_for_each_entry(iod, &mc->modem_state_notify_list, list)
+		iod->modem_state_changed(iod, new_state);
 
 	return IRQ_HANDLED;
 }
@@ -79,6 +81,7 @@ static irqreturn_t cp_wdt_handler(int irq, void *arg)
 static irqreturn_t cp_active_handler(int irq, void *arg)
 {
 	struct modem_ctl *mc = (struct modem_ctl *)arg;
+	struct io_device *iod;
 	int cp_on = cal_cp_status();
 	int cp_active = 0;
 	struct modem_data *modem = mc->mdm_data;
@@ -107,7 +110,8 @@ static irqreturn_t cp_active_handler(int irq, void *arg)
 		if (old_state == STATE_ONLINE)
 			modem_notify_event(MODEM_EVENT_RESET, mc);
 
-		change_modem_state(mc, new_state);
+		list_for_each_entry(iod, &mc->modem_state_notify_list, list)
+			iod->modem_state_changed(iod, new_state);
 	}
 
 	return IRQ_HANDLED;
@@ -303,7 +307,7 @@ static int power_on_cp(struct modem_ctl *mc)
 	exynos_cp_init();
 #endif
 
-	change_modem_state(mc, STATE_OFFLINE);
+	mc->phone_state = STATE_OFFLINE;
 
 	if (cal_cp_status() == 0) {
 		if (!_is_first_boot) {
@@ -336,6 +340,7 @@ static int power_off_cp(struct modem_ctl *mc)
 
 static int power_shutdown_cp(struct modem_ctl *mc)
 {
+	struct io_device *iod;
 	unsigned long timeout = msecs_to_jiffies(1000);
 	unsigned long remain;
 
@@ -346,8 +351,11 @@ static int power_shutdown_cp(struct modem_ctl *mc)
 
 	reinit_completion(&mc->off_cmpl);
 	remain = wait_for_completion_timeout(&mc->off_cmpl, timeout);
-	if (remain == 0)
-		change_modem_state(mc, STATE_OFFLINE);
+	if (remain == 0) {
+		mc->phone_state = STATE_OFFLINE;
+		list_for_each_entry(iod, &mc->modem_state_notify_list, list)
+			iod->modem_state_changed(iod, STATE_OFFLINE);
+	}
 
 exit:
 	mbox_set_interrupt(MCU_CP, mc->int_cp_wakeup);
@@ -389,7 +397,7 @@ static int power_reset_cp(struct modem_ctl *mc)
 		modem_notify_event(MODEM_EVENT_RESET, mc);
 
 	/* Change phone state to OFFLINE */
-	change_modem_state(mc, STATE_OFFLINE);
+	mc->phone_state = STATE_OFFLINE;
 
 	if (cal_cp_status()) {
 		mif_info("CP aleady Init, try reset\n");
@@ -430,7 +438,7 @@ static int power_reset_dump_cp(struct modem_ctl *mc)
 		modem_notify_event(MODEM_EVENT_RESET, mc);
 
 	/* Change phone state to STATE_CRASH_EXIT */
-	change_modem_state(mc, STATE_CRASH_EXIT);
+	mc->phone_state = STATE_CRASH_EXIT;
 
 	if (cal_cp_status()) {
 		mif_info("CP aleady Init, try reset\n");
@@ -452,6 +460,7 @@ static int power_reset_dump_cp(struct modem_ctl *mc)
 static int start_normal_boot(struct modem_ctl *mc)
 {
 	struct link_device *ld = get_current_link(mc->iod);
+	struct io_device *iod;
 	struct modem_data *modem = mc->mdm_data;
 	struct mem_link_device *mld = modem->mld;
 	int cnt = 200;
@@ -466,7 +475,8 @@ static int start_normal_boot(struct modem_ctl *mc)
 	if (ld->link_prepare_normal_boot)
 		ld->link_prepare_normal_boot(ld, mc->bootd);
 
-	change_modem_state(mc, STATE_BOOTING);
+	list_for_each_entry(iod, &mc->modem_state_notify_list, list)
+		iod->modem_state_changed(iod, STATE_BOOTING);
 
 	if (ld->link_start_normal_boot) {
 		mif_info("link_start_normal_boot\n");
@@ -520,6 +530,7 @@ static int start_normal_boot(struct modem_ctl *mc)
 
 static int complete_normal_boot(struct modem_ctl *mc)
 {
+	struct io_device *iod;
 	unsigned long remain;
 	int err = 0;
 #ifdef CONFIG_CP_LCD_NOTIFIER
@@ -543,7 +554,8 @@ static int complete_normal_boot(struct modem_ctl *mc)
 
 	mif_enable_irq(&mc->irq_cp_wdt);
 
-	change_modem_state(mc, STATE_ONLINE);
+	list_for_each_entry(iod, &mc->modem_state_notify_list, list)
+		iod->modem_state_changed(iod, STATE_ONLINE);
 
 #if defined(CONFIG_CPIF_TP_MONITOR)
 	tpmon_start(1);
@@ -793,8 +805,8 @@ static int start_dump_boot(struct modem_ctl *mc)
 
 	mif_info("+++\n");
 
-	/* Change phone state to STATE_CRASH_EXIT */
-	change_modem_state(mc, STATE_CRASH_EXIT);
+	/* Change phone state to CRASH_EXIT */
+	mc->phone_state = STATE_CRASH_EXIT;
 
 	if (init_control_messages(mc))
 		mif_err("Failed to initialize mbox regs\n");

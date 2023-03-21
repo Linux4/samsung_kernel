@@ -755,8 +755,6 @@ int sensor_gc08a3_cis_stream_on(struct v4l2_subdev *subdev)
 	}
 #endif
 
-	msleep(50); /* first frame should be delayed */
-
 	/* Sensor stream on */
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	is_sensor_write8(client, 0x0100, 0x01);

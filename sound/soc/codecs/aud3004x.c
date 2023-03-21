@@ -1142,39 +1142,6 @@ static int codec_enable_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-static int avc_mute_enable_get(struct snd_kcontrol *kcontrol,
-		struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_component *codec = snd_soc_kcontrol_component(kcontrol);
-	struct aud3004x_priv *aud3004x = snd_soc_component_get_drvdata(codec);
-	int avc13;
-	bool avc_mute_flag;
-
-	avc13 = aud3004x_read(aud3004x, AUD3004X_5C_AVC13);
-	avc_mute_flag = avc13 & AMUTE_MASKB_MASK;
-
-	ucontrol->value.integer.value[0] = avc_mute_flag;
-
-	return 0;
-}
-
-static int avc_mute_enable_put(struct snd_kcontrol *kcontrol,
-		struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_component *codec = snd_soc_kcontrol_component(kcontrol);
-	struct aud3004x_priv *aud3004x = snd_soc_component_get_drvdata(codec);
-	int value = ucontrol->value.integer.value[0];
-
-	if (!!value)
-		aud3004x_update_bits(aud3004x, AUD3004X_5C_AVC13,
-				AMUTE_MASKB_MASK, 0);
-	else
-		aud3004x_update_bits(aud3004x, AUD3004X_5C_AVC13,
-				AMUTE_MASKB_MASK, AMUTE_MASKB_MASK);
-
-	return 0;
-}
-
 static const char * const aud3004x_hpf_sel_text[] = {
 	"15Hz", "33Hz", "60Hz", "113Hz"
 };
@@ -1363,12 +1330,6 @@ static const struct snd_kcontrol_new aud3004x_snd_controls[] = {
 	 */
 	SOC_SINGLE_EXT("Codec Enable", SND_SOC_NOPM, 0, 1, 0,
 			codec_enable_get, codec_enable_put),
-
-	/*
-	 * AVC Mute enable/disable control
-	 */
-	SOC_SINGLE_EXT("AVC Mute Enable", SND_SOC_NOPM, 0, 1, 0,
-			avc_mute_enable_get, avc_mute_enable_put),
 };
 
 /*
@@ -2209,6 +2170,8 @@ static int hpdrv_ev(struct snd_soc_dapm_widget *w,
 		/* DRC Range Selection */
 		aud3004x_write(aud3004x, AUD3004X_7A_AVC43, 0x70);
 
+		/* AVC Mute Enable */
+		aud3004x_write(aud3004x, AUD3004X_5C_AVC13, 0x08);
 		switch (aud3004x->playback_aifrate) {
 		case AUD3004X_SAMPLE_RATE_48KHZ:
 			/* CP Frequency Control */
@@ -2422,6 +2385,9 @@ static int hpdrv_ev(struct snd_soc_dapm_widget *w,
 				DRC_SLOPE_SEL_MASK, 0 << DRC_SLOPE_SEL_SHIFT);
 		aud3004x_update_bits(aud3004x, AUD3004X_53_AVC4,
 				DRC_SLOPE_EN_MASK, DRC_SLOPE_EN_MASK);
+
+		/* AVC Mute Disable */
+		aud3004x_write(aud3004x, AUD3004X_5C_AVC13, 0x88);
 		break;
 	}
 	return 0;

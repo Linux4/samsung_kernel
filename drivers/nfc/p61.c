@@ -481,12 +481,6 @@ static int p61_dev_open(struct inode *inode, struct file *filp)
 	struct p61_device *p61_ese = container_of(filp->private_data,
 				struct p61_device, miscdev);
 #endif
-
-	if (!get_nfcc_dev_data()) {
-		NFC_LOG_ERR("%s:open fail,no nfc dev", __func__);
-		return -EAGAIN;
-	}
-
 	spidev = spi_dev_get(p61_ese->spi);
 
 	filp->private_data = p61_ese;

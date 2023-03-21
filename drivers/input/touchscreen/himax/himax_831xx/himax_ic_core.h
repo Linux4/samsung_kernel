@@ -874,7 +874,6 @@ struct himax_core_fp {
 	void (*_proximity_sleep_in)(void);
 	void (*_proximity_display_on)(void);
 	void (*_proximity_sleep_out)(void);
-	void (*_read_proxy_1b)(void);
 #endif
 
 #ifdef CORE_FW

@@ -45,11 +45,7 @@ const char *cisd_cable_data_str[] = {"TA", "AFC", "AFC_FAIL", "QC", "QC_FAIL", "
 EXPORT_SYMBOL(cisd_cable_data_str);
 const char *cisd_tx_data_str[] = {"ON", "OTHER", "GEAR", "PHONE", "BUDS"};
 EXPORT_SYMBOL(cisd_tx_data_str);
-#if IS_ENABLED(CONFIG_DUAL_BATTERY)
-const char *cisd_event_data_str[] = {"DC_ERR", "TA_OCP_DET", "TA_OCP_ON", "OVP_EVENT_POWER", "OVP_EVENT_SIGNAL", "MAIN_BAT_ERR", "SUB_BAT_ERR", "WA_ERR"};
-#else
 const char *cisd_event_data_str[] = {"DC_ERR", "TA_OCP_DET", "TA_OCP_ON", "OVP_EVENT_POWER", "OVP_EVENT_SIGNAL"};
-#endif
 EXPORT_SYMBOL(cisd_event_data_str);
 
 bool sec_bat_cisd_check(struct sec_battery_info *battery)

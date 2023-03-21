@@ -310,8 +310,10 @@ __visible_for_testing int sec_bat_check_wpc_chg_limit(struct sec_battery_info *b
 				ct != SEC_BATTERY_CABLE_WIRELESS_HV_VEHICLE) ||
 				ct == SEC_BATTERY_CABLE_PREPARE_WIRELESS_HV ||
 				ct == SEC_BATTERY_CABLE_PREPARE_WIRELESS_20);
+
 	}
-	temp = sec_bat_get_temp_by_temp_control_source(battery, thermal_source);
+	temp = sec_bat_get_temp_by_temp_control_source(battery,
+			battery->pdata->wpc_temp_lcd_on_control_source);
 	sec_bat_check_wpc_condition(battery, lcd_off, ct, &wpc_high_temp, &wpc_high_temp_recovery);
 	if (!need_check)
 		chg_limit = false;
@@ -849,9 +851,6 @@ void sec_bat_thermal_check(struct sec_battery_info *battery)
 			sec_bat_thermal_zone[battery->thermal_zone]);
 
 	if (battery->status == POWER_SUPPLY_STATUS_DISCHARGING ||
-#if defined(CONFIG_BC12_DEVICE) && defined(CONFIG_SEC_FACTORY)
-		battery->vbat_adc_open ||
-#endif
 		battery->skip_swelling) {
 		battery->health_change = false;
 		pr_debug("%s: DISCHARGING or 15 test mode. stop thermal check\n", __func__);

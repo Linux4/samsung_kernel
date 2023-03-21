@@ -458,10 +458,6 @@ static int s2mpu12_pmic_dt_parse_pdata(struct s2mpu12_dev *iodev,
 	chg_det_en = of_property_read_bool(pmic_np, "chg_det_en");
 #endif
 
-	pdata->loop_bw_en = false;
-	if (of_get_property(pmic_np, "pmic_loop_bw", NULL))
-		pdata->loop_bw_en = true;
-
 	regulators_np = of_find_node_by_name(pmic_np, "regulators");
 	if (!regulators_np) {
 		dev_err(iodev->dev, "could not find regulators sub-node\n");
@@ -935,15 +931,6 @@ static const struct attribute_group ap_pmic_attr_group = {
 };
 #endif /* CONFIG_SEC_PM */
 
-static int s2mpu12_lower_loop_BW(struct s2mpu12_info *s2mpu12, bool loop_bw_en)
-{
-	if (!loop_bw_en)
-		return 0;
-
-	/* lower loop bw */
-	return s2mpu12_write_reg(s2mpu12->iodev->close, 0x0E, 0x42);
-}
-
 static int s2mpu12_pmic_probe(struct platform_device *pdev)
 {
 	struct s2mpu12_dev *iodev = dev_get_drvdata(pdev->dev.parent);
@@ -1084,10 +1071,6 @@ static int s2mpu12_pmic_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "failed to create ap_pmic sysfs group\n");
 	}
 #endif /* CONFIG_SEC_PM */
-
-	ret = s2mpu12_lower_loop_BW(s2mpu12, pdata->loop_bw_en);
-	if (ret < 0)
-		goto err;
 
 	pr_info("%s s2mpu12 pmic driver Loading end\n", __func__);
 	return 0;

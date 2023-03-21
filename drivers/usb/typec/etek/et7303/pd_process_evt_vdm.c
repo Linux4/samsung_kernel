@@ -599,9 +599,6 @@ static inline bool pd_process_data_msg(
 
 	vdm_hdr = pd_msg->payload[0];
 
-	if (PD_VDO_VERSION(vdm_hdr) > 2)
-		return ret;
-
 	if (!PD_VDO_SVDM(vdm_hdr))
 		return pd_process_uvdm(pd_port, pd_event);
 

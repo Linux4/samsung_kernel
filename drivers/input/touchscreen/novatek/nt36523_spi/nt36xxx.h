@@ -62,7 +62,7 @@
 #include <linux/vbus_notifier.h>
 #endif
 
-extern void stui_tsp_init(int (*stui_tsp_enter)(void), int (*stui_tsp_exit)(void), int (*stui_tsp_type)(void));
+extern struct device *ptsp;
 
 #define NVT_DEBUG 1
 
@@ -275,6 +275,7 @@ struct nvt_ts_platdata {
 struct nvt_ts_data {
 	struct spi_device *client;
 	struct nvt_ts_platdata *platdata;
+	struct sec_ts_plat_data *plat_data;	/* only for tui */
 	struct nvt_ts_coord coords[TOUCH_MAX_FINGER_NUM];
 	u8 touch_count;
 	struct input_dev *input_dev;
@@ -308,7 +309,6 @@ struct nvt_ts_data {
 	u8 fw_ver_bin[4];
 	u8 fw_ver_bin_bar;
 	volatile int power_status;
-	volatile bool shutdown_called;
 	u16 sec_function;
 	int lowpower_mode;
 #if IS_ENABLED(CONFIG_MTK_SPI)
@@ -339,7 +339,6 @@ struct nvt_ts_data {
 	struct regulator *regulator_lcd_vsn;
 
 	u8 noise_mode;
-	u8 prox_in_aot;
 	unsigned int scrub_id;
 
 #if SEC_FW_STATUS
@@ -579,7 +578,6 @@ typedef enum {
 	NOISE_MASK			= 0x2000,	// bit 13
 	HIGH_SENSITIVITY_MASK = 0x4000, // bit 14
 	SENSITIVITY_MASK	= 0x8000,	// bit 15
-	PROX_IN_AOT_MASK	= 0x80000,	// bit 19
 #ifdef PROXIMITY_FUNCTION
 	FUNCT_ALL_MASK		= 0xFFCA,
 #else
@@ -652,8 +650,6 @@ void nvt_irq_enable(bool enable);
 #if NVT_TOUCH_ESD_PROTECT
 extern void nvt_esd_check_enable(uint8_t enable);
 #endif /* #if NVT_TOUCH_ESD_PROTECT */
-
-u16 nvt_ts_mode_read(struct nvt_ts_data *ts);
 
 void nvt_ts_early_resume(struct device *dev);
 int32_t nvt_ts_resume(struct device *dev);

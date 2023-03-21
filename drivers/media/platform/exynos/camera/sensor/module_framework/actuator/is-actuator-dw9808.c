@@ -50,7 +50,7 @@
 extern struct is_lib_support gPtr_lib_support;
 extern struct is_sysfs_actuator sysfs_actuator;
 
-int sensor_dw9808_init(struct i2c_client *client, struct is_caldata_sac_dw9808 *cal_data)
+int sensor_dw9808_init(struct i2c_client *client, struct is_caldata_list_dw9808 *cal_data)
 {
 	int ret = 0;
 	u8 i2c_data[2];
@@ -294,7 +294,7 @@ int sensor_dw9808_actuator_init(struct v4l2_subdev *subdev, u32 val)
 {
 	int ret = 0;
 	struct is_actuator *actuator;
-	struct is_caldata_sac_dw9808 *cal_data = NULL;
+	struct is_caldata_list_dw9808 *cal_data = NULL;
 	struct i2c_client *client = NULL;
 	long cal_addr;
 
@@ -326,8 +326,8 @@ int sensor_dw9808_actuator_init(struct v4l2_subdev *subdev, u32 val)
 	}
 
 	/* EEPROM AF calData address */
-	cal_addr = gPtr_lib_support.minfo->kvaddr_cal[SENSOR_POSITION_REAR] + DW9808_CAL_SAC_ADDR;
-	cal_data = (struct is_caldata_sac_dw9808 *)(cal_addr);
+	cal_addr = gPtr_lib_support.minfo->kvaddr_cal[SENSOR_POSITION_REAR] + EEPROM_OEM_BASE;
+	cal_data = (struct is_caldata_list_dw9808 *)(cal_addr);
 
 	/* Read into EEPROM data or default setting */
 	ret = sensor_dw9808_init(client, cal_data);
@@ -695,8 +695,8 @@ int sensor_dw9808_actuator_probe(struct i2c_client *client,
 	dnode = dev->of_node;
 
 	sensor_id_spec = of_get_property(dnode, "id", &sensor_id_len);
-	if (!sensor_id_spec) {
-		err("sensor_id num read is fail(%d)", ret);
+		if (!sensor_id_spec) {
+			err("sensor_id num read is fail(%d)", ret);
 		goto p_err;
 	}
 
@@ -713,45 +713,45 @@ int sensor_dw9808_actuator_probe(struct i2c_client *client,
 		if (ret) {
 			pr_info("place read is fail(%d)", ret);
 			place = 0;
-		}
+	}
 		probe_info("%s sensor_id(%d) actuator_place(%d)\n", __func__, sensor_id[i], place);
 
 		device = &core->sensor[sensor_id[i]];
 
 		actuator = kzalloc(sizeof(struct is_actuator), GFP_KERNEL);
-		if (!actuator) {
+	if (!actuator) {
 			err("actuator is NULL");
-			ret = -ENOMEM;
-			goto p_err;
-		}
+		ret = -ENOMEM;
+		goto p_err;
+	}
 
-		subdev_actuator = kzalloc(sizeof(struct v4l2_subdev), GFP_KERNEL);
-		if (!subdev_actuator) {
-			err("subdev_actuator is NULL");
-			ret = -ENOMEM;
+	subdev_actuator = kzalloc(sizeof(struct v4l2_subdev), GFP_KERNEL);
+	if (!subdev_actuator) {
+		err("subdev_actuator is NULL");
+		ret = -ENOMEM;
 			kfree(actuator);
-			goto p_err;
-		}
+		goto p_err;
+	}
 
-		/* This name must is match to sensor_open_extended actuator name */
-		actuator->id = ACTUATOR_NAME_DW9808;
-		actuator->subdev = subdev_actuator;
+	/* This name must is match to sensor_open_extended actuator name */
+	actuator->id = ACTUATOR_NAME_DW9808;
+	actuator->subdev = subdev_actuator;
 		actuator->device = sensor_id[i];
-		actuator->client = client;
-		actuator->position = 0;
-		actuator->max_position = DW9808_POS_MAX_SIZE;
-		actuator->pos_size_bit = DW9808_POS_SIZE_BIT;
-		actuator->pos_direction = DW9808_POS_DIRECTION;
-		actuator->i2c_lock = NULL;
+	actuator->client = client;
+	actuator->position = 0;
+	actuator->max_position = DW9808_POS_MAX_SIZE;
+	actuator->pos_size_bit = DW9808_POS_SIZE_BIT;
+	actuator->pos_direction = DW9808_POS_DIRECTION;
+        actuator->i2c_lock = NULL;
 
-		device->subdev_actuator[place] = subdev_actuator;
-		device->actuator[place] = actuator;
+	device->subdev_actuator[place] = subdev_actuator;
+	device->actuator[place] = actuator;
 
-		v4l2_i2c_subdev_init(subdev_actuator, client, &subdev_ops);
-		v4l2_set_subdevdata(subdev_actuator, actuator);
-		v4l2_set_subdev_hostdata(subdev_actuator, device);
+	v4l2_i2c_subdev_init(subdev_actuator, client, &subdev_ops);
+	v4l2_set_subdevdata(subdev_actuator, actuator);
+	v4l2_set_subdev_hostdata(subdev_actuator, device);
 
-		snprintf(subdev_actuator->name, V4L2_SUBDEV_NAME_SIZE, "actuator-subdev.%d", actuator->id);
+	snprintf(subdev_actuator->name, V4L2_SUBDEV_NAME_SIZE, "actuator-subdev.%d", actuator->id);
 	}
 
 	probe_info("%s done\n", __func__);

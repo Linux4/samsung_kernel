@@ -160,10 +160,6 @@ int enable_sensor(int type, char *buf, int buf_len)
 	if (sensor->enabled_cnt > 1) {
 		shub_infof("%s(%d) is already enabled (%d)", sensor->name, type, sensor->enabled_cnt);
 		mutex_unlock(&sensor->enabled_mutex);
-		if (type > SENSOR_TYPE_LEGACY_MAX) {
-			shub_infof("%s(%d) extra external client added", sensor->name, type);
-			ret = shub_send_command(CMD_SETVALUE, type, EXTRA_EXTERNAL_CLIENT_ADDED, buf, buf_len);
-		}
 		return ret;
 	}
 
@@ -231,11 +227,6 @@ int disable_sensor(int type, char *buf, int buf_len)
 	if (sensor->enabled_cnt > 0) {
 		shub_infof("%s(%d) enabled cnt is %d", sensor->name, type, sensor->enabled_cnt);
 		mutex_unlock(&sensor->enabled_mutex);
-
-		if (type > SENSOR_TYPE_LEGACY_MAX) {
-			shub_infof("%s(%d) extra external client removed", sensor->name, type);
-			ret = shub_send_command(CMD_SETVALUE, type, EXTRA_EXTERNAL_CLIENT_REMOVED, buf, buf_len);
-		}
 		return ret;
 	}
 

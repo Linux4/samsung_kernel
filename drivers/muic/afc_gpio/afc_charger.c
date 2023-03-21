@@ -38,7 +38,7 @@
 #endif
 #include <linux/ktime.h>
 #include <linux/pinctrl/consumer.h>
-#include <linux/muic/afc_gpio/gpio_afc_charger.h>
+#include <linux/gpio_afc_charger.h>
 
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 #include <dt-bindings/battery/sec-battery.h>

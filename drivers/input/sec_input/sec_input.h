@@ -46,9 +46,7 @@
 #include "sec_tclm_v2.h"
 
 #if !IS_ENABLED(CONFIG_QGKI) && IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 43))	/* default gki */
 #define DUAL_FOLDABLE_GKI
-#endif
 #endif
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,6,0))
@@ -720,12 +718,6 @@ struct sec_ts_plat_data {
 	u32 print_info_cnt_release;
 	u32 print_info_cnt_open;
 	u16 print_info_currnet_mode;
-};
-
-struct sec_ts_secure_data {
-	int (*stui_tsp_enter)(void);
-	int (*stui_tsp_exit)(void);
-	int (*stui_tsp_type)(void);
 };
 
 #ifdef TCLM_CONCEPT

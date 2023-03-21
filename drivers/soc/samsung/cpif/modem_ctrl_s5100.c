@@ -304,7 +304,8 @@ static irqreturn_t cp_active_handler(int irq, void *data)
 		if (old_state == STATE_ONLINE)
 			modem_notify_event(MODEM_EVENT_EXIT, mc);
 
-		change_modem_state(mc, new_state);
+		list_for_each_entry(iod, &mc->modem_state_notify_list, list)
+			iod->modem_state_changed(iod, new_state);
 	}
 
 	atomic_set(&mld->forced_cp_crash, 0);
@@ -503,7 +504,9 @@ static int power_off_cp(struct modem_ctl *mc)
 	if (mc->phone_state == STATE_OFFLINE)
 		goto exit;
 
-	change_modem_state(mc, STATE_OFFLINE);
+	mc->phone_state = STATE_OFFLINE;
+	mc->bootd->modem_state_changed(mc->iod, STATE_OFFLINE);
+	mc->iod->modem_state_changed(mc->iod, STATE_OFFLINE);
 
 	pcie_clean_dislink(mc);
 
@@ -676,7 +679,8 @@ static int start_normal_boot(struct modem_ctl *mc)
 	if (ld->link_prepare_normal_boot)
 		ld->link_prepare_normal_boot(ld, mc->bootd);
 
-	change_modem_state(mc, STATE_BOOTING);
+	list_for_each_entry(iod, &mc->modem_state_notify_list, list)
+		iod->modem_state_changed(iod, STATE_BOOTING);
 
 	mif_info("Disable phone actvie interrupt.\n");
 	mif_disable_irq(&mc->s5100_irq_phone_active);
@@ -749,7 +753,8 @@ static int complete_normal_boot(struct modem_ctl *mc)
 
 	mc->device_reboot = false;
 
-	change_modem_state(mc, STATE_ONLINE);
+	list_for_each_entry(iod, &mc->modem_state_notify_list, list)
+		iod->modem_state_changed(iod, STATE_ONLINE);
 
 	print_mc_state(mc);
 

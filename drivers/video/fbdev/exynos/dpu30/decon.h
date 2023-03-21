@@ -518,9 +518,7 @@ struct decon_win_config_data_old {
 struct decon_win_config_data {
 	int	retire_fence;
 	int	fd_odma;
-	u32 fps;
 	struct decon_win_config config[MAX_DECON_WIN + 2];
-	struct decon_win_config_extra extra;
 };
 
 enum lcd_status {

@@ -14,22 +14,24 @@ fw-shipped-$(CONFIG_TOUCHSCREEN_SEC_TS_A552) += tsp_sec/hero2la.bin
 fw-shipped-$(CONFIG_TOUCHSCREEN_SEC_TS) += tsp_sec/y761_dream1.fw
 
 fw-external-$(CONFIG_TOUCHSCREEN_FTS_FT820X) += tsp_focaltech/ft8203_gtmotorwifi.bin
+fw-external-$(CONFIG_TOUCHSCREEN_FTS_FT8720) += tsp_focaltech/ft8720_m13.bin tsp_focaltech/ft8720_m13_ramtest.bin
 fw-external-$(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83112) += tsp_himax/hx83112f_a13.bin
 fw-external-$(CONFIG_TOUCHSCREEN_SYNAPTICS_TCM) += tsp_synaptics/td4150_a21s.bin
 fw-external-$(CONFIG_KEYBOARD_STM_FSR) += key_stm/sidekey.fw.20190725
 fw-external-$(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83102) += tsp_himax/hx83102e_gta4s_init.bin tsp_himax/hx83102e_gth.bin
 fw-external-$(CONFIG_TOUCHSCREEN_NOVATEK_NT36523_SPI) += tsp_novatek/nt36672_a13_csot.bin tsp_novatek/nt36672_a13_csot_mp.bin \
-													tsp_novatek/nt36672_a13_tianma.bin tsp_novatek/nt36672_a13_tianma_mp.bin
-fw-external-$(CONFIG_TOUCHSCREEN_OVT_TD4150_SPI) += tsp_ovt/td4375_a13_boe.bin
+								tsp_novatek/nt36672_a13_tianma.bin tsp_novatek/nt36672_a13_tianma_mp.bin \
+								tsp_novatek/nt36525c_a04s_csot.bin tsp_novatek/nt36525c_a04s_csot_mp.bin \
+								tsp_novatek/nt36525c_a04s_tianma.bin tsp_novatek/nt36525c_a04s_tianma_mp.bin
+fw-external-$(CONFIG_TOUCHSCREEN_OVT_TD4150_SPI) += tsp_ovt/td4375_a13_boe.bin tsp_ovt/td4162_a04s_boe.bin tsp_ovt/td4160_a13x_boe.bin
 fw-external-$(CONFIG_TOUCHSCREEN_ILITEK_ILI9881X_SPI) += tsp_ilitek/ili7807_m13_f13.hex
-fw-external-$(CONFIG_TOUCHSCREEN_LXS_SW89XXX) += tsp_lxs/lxs89112_m13_f13.bin
-
+fw-external-$(CONFIG_TOUCHSCREEN_HIMAX_HX83XXX_SPI) += tsp_himax/hx83112f_boe_m13_f13.bin
 fw-external-$(CONFIG_SENSORS_A96T396_BENZ2) += abov/a96t396_benz2_main.bin
 fw-external-$(CONFIG_SENSORS_A96T396_A13) += abov/a96t396_a13_main.bin
 
 fw-external-$(CONFIG_KEYBOARD_A96T396) += tk_abov/a96t396_gshhwifi.bin
 
-fw-external-$(CONFIG_SHUB) += sensorhub/shub_nacho_bl.bin sensorhub/shub_nacho_a13.bin sensorhub/shub_nacho_gthhwifi.bin sensorhub/shub_nacho_m13.bin
+fw-external-$(CONFIG_SHUB) += sensorhub/shub_nacho_bl.bin sensorhub/shub_nacho_a13.bin sensorhub/shub_nacho_gthhwifi.bin sensorhub/shub_nacho_m13.bin sensorhub/shub_nacho_a04s.bin
 
 quiet_cmd_fwbin = MK_FW   $@
       cmd_fwbin = FWNAME="$(patsubst firmware/%.gen.S,%,$@)";		     \

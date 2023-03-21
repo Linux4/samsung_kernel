@@ -20,8 +20,6 @@
 
 #define PWR_ON_DELAY	5000 /* DW9808 need delay for 5msec after power-on */
 
-#define DW9808_CAL_SAC_ADDR		0x2694
-
 struct is_caldata_list_dw9808 {
 	u32 af_position_type;
 	u32 af_position_worst;
@@ -52,12 +50,6 @@ struct is_caldata_list_dw9808 {
 	u8 module_version;
 	u8 reserved3[161];
 	u32 check_sum;
-};
-
-struct is_caldata_sac_dw9808 {
-	u8 control_mode;
-	u8 prescale;
-	u8 resonance;
 };
 
 #endif

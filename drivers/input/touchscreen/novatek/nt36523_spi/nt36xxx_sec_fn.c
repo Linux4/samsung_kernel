@@ -1551,7 +1551,7 @@ static int nvt_ts_sram_test(struct nvt_ts_data *ts)
 
 u16 nvt_ts_mode_read(struct nvt_ts_data *ts)
 {
-	u8 buf[4] = {0};
+	u8 buf[3] = {0};
 	int mode_masked;
 
 	//---set xdata index to EVENT BUF ADDR---
@@ -1559,7 +1559,7 @@ u16 nvt_ts_mode_read(struct nvt_ts_data *ts)
 
 	//---read cmd status---
 	buf[0] = EVENT_MAP_FUNCT_STATE;
-	CTP_SPI_READ(ts->client, buf, 4);
+	CTP_SPI_READ(ts->client, buf, 3);
 
 	//---set xdata index to EVENT BUF ADDR---
 	nvt_set_page(ts->mmap->EVENT_BUF_ADDR);
@@ -1570,7 +1570,6 @@ u16 nvt_ts_mode_read(struct nvt_ts_data *ts)
 					__func__, buf[2], buf[1], mode_masked);
 
 	ts->noise_mode = (mode_masked & NOISE_MASK) ? 1 : 0;
-	ts->prox_in_aot = ((buf[3] << 16) & PROX_IN_AOT_MASK) ? 1 : 0;
 
 	return mode_masked;
 }
@@ -2255,7 +2254,7 @@ static void ear_detect_enable(void *device_data)
 		ts->ear_detect_mode = sec->cmd_param[0];
 	}
 
-	if (ts->power_status == POWER_OFF_STATUS) {
+	if (ts->power_status != POWER_ON_STATUS) {
 		ts->ed_reset_flag = true;
 		input_err(true, &ts->client->dev, "%s: POWER_STATUS IS NOT ON(%d)!\n",
 					__func__, ts->power_status);
@@ -5854,25 +5853,6 @@ static ssize_t noise_mode_show(struct device *dev,
 
 	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d\n", ts->noise_mode);
 }
-
-static ssize_t support_prox_in_aot_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	if (mutex_lock_interruptible(&ts->lock)) {
-		input_err(true, &ts->client->dev, "%s: another task is running\n",
-			__func__);
-		return snprintf(buf, PAGE_SIZE, "busy : another task is running\n");
-	}
-
-	nvt_ts_mode_read(ts);
-
-	mutex_unlock(&ts->lock);
-
-	input_info(true, &ts->client->dev, "%s: Support proximity in AOT %s\n", __func__,
-			ts->prox_in_aot ? "ON" : "OFF");
-
-	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d\n", ts->prox_in_aot);
-}
 #endif
 
 static ssize_t read_support_feature(struct device *dev,
@@ -5980,7 +5960,6 @@ static DEVICE_ATTR(virtual_prox, 0664, protos_event_show, protos_event_store);
 static DEVICE_ATTR(support_feature, 0444, read_support_feature, NULL);
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 static DEVICE_ATTR(noise_mode, 0664, noise_mode_show, NULL);
-static DEVICE_ATTR(support_prox_in_aot, 0664, support_prox_in_aot_show, NULL);
 #endif
 static DEVICE_ATTR(enabled, 0664, enabled_show, enabled_store);
 static DEVICE_ATTR(get_lp_dump, 0444, get_lp_dump, NULL);
@@ -6003,7 +5982,6 @@ static struct attribute *cmd_attributes[] = {
 	&dev_attr_support_feature.attr,
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 	&dev_attr_noise_mode.attr,
-	&dev_attr_support_prox_in_aot.attr,
 #endif
 	&dev_attr_enabled.attr,
 	&dev_attr_get_lp_dump.attr,

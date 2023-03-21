@@ -17,8 +17,6 @@
 
 #if defined(CONFIG_CAMERA_AAV_V13)
 #include "is-vender-rom-config_aav_v13.h"
-#elif defined(CONFIG_CAMERA_MMV_V13)
-#include "is-vender-rom-config_mmv_v13.h"
 #elif defined(CONFIG_CAMERA_HTV_V00)
 #include "is-vender-rom-config_htv_v00.h"
 #else

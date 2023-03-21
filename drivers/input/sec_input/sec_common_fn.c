@@ -18,26 +18,18 @@
 static char *lcd_id;
 module_param(lcd_id, charp, S_IRUGO);
 
-#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
-static char *lcd_id1;
-module_param(lcd_id1, charp, S_IRUGO);
-#endif
-
 struct device *ptsp;
 EXPORT_SYMBOL(ptsp);
 
-struct sec_ts_secure_data *psecuretsp = NULL;
-EXPORT_SYMBOL(psecuretsp);
-
-static int sec_input_lcd_parse_panel_id(char *panel_id)
+static int sec_input_lcd_parse_panel_id(void)
 {
 	char *pt;
 	int lcd_id_p = 0;
 
-	if (IS_ERR_OR_NULL(panel_id))
+	if (IS_ERR_OR_NULL(lcd_id))
 		return lcd_id_p;
 
-	for (pt = panel_id; *pt != 0; pt++)  {
+	for (pt = lcd_id; *pt != 0; pt++)  {
 		lcd_id_p <<= 4;
 		switch (*pt) {
 		case '0' ... '9':
@@ -56,9 +48,6 @@ static int sec_input_lcd_parse_panel_id(char *panel_id)
 
 int sec_input_get_lcd_id(struct device *dev)
 {
-#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
-	struct sec_ts_plat_data *pdata = dev->platform_data;
-#endif
 #if !IS_ENABLED(CONFIG_SMCDSD_PANEL)
 	int lcdtype = 0;
 #endif
@@ -102,14 +91,7 @@ int sec_input_get_lcd_id(struct device *dev)
 	}
 #endif
 
-#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
-	input_info(true, dev, "%s: %d\n", __func__, pdata->support_dual_foldable);
-	if (pdata->support_dual_foldable == SUB_TOUCH)
-		lcd_id_param = sec_input_lcd_parse_panel_id(lcd_id1);
-	else
-#endif
-		lcd_id_param = sec_input_lcd_parse_panel_id(lcd_id);
-
+	lcd_id_param = sec_input_lcd_parse_panel_id();
 	if (lcdtype <= 0 && lcd_id_param != 0) {
 		lcdtype = lcd_id_param;
 		if (lcdtype == 0xFFFFFF) {
@@ -1051,14 +1033,13 @@ int sec_input_parse_dt(struct device *dev)
 	u32 px_zone[3] = { 0 };
 	int lcd_type = 0, lcd_type_unload = 0;
 
-	if (of_property_read_u32(np, "sec,support_dual_foldable", &pdata->support_dual_foldable) < 0)
-		pdata->support_dual_foldable = 0;
-
 	lcd_type = sec_input_get_lcd_id(dev);
 #if !defined(DUAL_FOLDABLE_GKI)
 	if (lcd_type < 0) {
 		input_err(true, dev, "%s: lcd is not attached\n", __func__);
+#if !IS_ENABLED(CONFIG_TOUCHSCREEN_STM_SUB)
 		return -ENODEV;
+#endif
 	}
 #endif
 	input_info(true, dev, "%s: lcdtype 0x%08X\n", __func__, lcd_type);
@@ -1235,6 +1216,8 @@ int sec_input_parse_dt(struct device *dev)
 	pdata->sense_off_when_cover_closed = of_property_read_bool(np, "sense_off_when_cover_closed");
 	of_property_read_u32(np, "support_rawdata_map_num", &pdata->support_rawdata_map_num);
 
+	if (of_property_read_u32(np, "sec,support_dual_foldable", &pdata->support_dual_foldable) < 0)
+		pdata->support_dual_foldable = 0;
 	if (of_property_read_u32(np, "sec,support_sensor_hall", &pdata->support_sensor_hall) < 0)
 		pdata->support_sensor_hall = 0;
 	if (of_property_read_u32(np, "sec,dump_ic_ver", &pdata->dump_ic_ver) < 0)
@@ -1319,40 +1302,16 @@ void sec_tclm_parse_dt_dev(struct device *dev, struct sec_tclm_data *tdata)
 }
 EXPORT_SYMBOL(sec_tclm_parse_dt_dev);
 
-void stui_tsp_init(int (*stui_tsp_enter)(void), int (*stui_tsp_exit)(void), int (*stui_tsp_type)(void))
-{
-	pr_info("%s %s: called\n", SECLOG, __func__);
-
-	psecuretsp = kzalloc(sizeof(struct sec_ts_secure_data), GFP_KERNEL);
-
-	psecuretsp->stui_tsp_enter = stui_tsp_enter;
-	psecuretsp->stui_tsp_exit = stui_tsp_exit;
-	psecuretsp->stui_tsp_type = stui_tsp_type;
-}
-EXPORT_SYMBOL(stui_tsp_init);
-
-
 int stui_tsp_enter(void)
 {
 	struct sec_ts_plat_data *pdata = NULL;
-
-	if (psecuretsp != NULL) {
-		pr_info("%s %s: psecuretsp->stui_tsp_enter called!\n", SECLOG, __func__);
-		return psecuretsp->stui_tsp_enter();
-	}
-
-	if (ptsp == NULL) {
-		pr_info("%s: ptsp is null\n", __func__);
+	if (ptsp == NULL)
 		return -EINVAL;
-	}
 
 	pdata = ptsp->platform_data;
-	if (pdata == NULL) {
-		pr_info("%s: pdata is null\n", __func__);
+	if (pdata == NULL)
 		return  -EINVAL;
-	}
 
-	pr_info("%s %s: pdata->stui_tsp_enter called!\n", SECLOG, __func__);
 	return pdata->stui_tsp_enter();
 }
 EXPORT_SYMBOL(stui_tsp_enter);
@@ -1360,12 +1319,6 @@ EXPORT_SYMBOL(stui_tsp_enter);
 int stui_tsp_exit(void)
 {
 	struct sec_ts_plat_data *pdata = NULL;
-
-	if (psecuretsp != NULL) {
-		pr_info("%s %s: psecuretsp->stui_tsp_exit called!\n", SECLOG, __func__);
-		return psecuretsp->stui_tsp_exit();
-	}
-
 	if (ptsp == NULL)
 		return -EINVAL;
 
@@ -1373,7 +1326,6 @@ int stui_tsp_exit(void)
 	if (pdata == NULL)
 		return  -EINVAL;
 
-	pr_info("%s %s: pdata->stui_tsp_exit called!\n", SECLOG, __func__);
 	return pdata->stui_tsp_exit();
 }
 EXPORT_SYMBOL(stui_tsp_exit);
@@ -1381,12 +1333,6 @@ EXPORT_SYMBOL(stui_tsp_exit);
 int stui_tsp_type(void)
 {
 	struct sec_ts_plat_data *pdata = NULL;
-
-	if (psecuretsp != NULL) {
-		pr_info("%s %s: psecuretsp->stui_tsp_type called!\n", SECLOG, __func__);
-		return psecuretsp->stui_tsp_type();
-	}
-
 	if (ptsp == NULL)
 		return -EINVAL;
 
@@ -1394,7 +1340,6 @@ int stui_tsp_type(void)
 	if (pdata == NULL)
 		return  -EINVAL;
 
-	pr_info("%s %s: pdata->stui_tsp_type called!\n", SECLOG, __func__);
 	return pdata->stui_tsp_type();
 }
 EXPORT_SYMBOL(stui_tsp_type);

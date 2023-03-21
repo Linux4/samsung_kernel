@@ -32,7 +32,7 @@
 #define USES_STANDARD_CAL_RELOAD
 
 #define READ_DUAL_CAL_FIRMWARE_DATA
-#define DUAL_CAL_DATA_PATH "/vendor/etc/SetMultiCalInfo.bin"
+#define DUAL_CAL_DATA_PATH "/vendor/firmware/SetMultiCalInfo.bin"
 #define DUAL_CAL_DATA_SIZE_DEFAULT (0x080C)
 
 #define USE_CAMERA_MIPI_CLOCK_VARIATION

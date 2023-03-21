@@ -1482,9 +1482,6 @@ static int max1726x_get_property(struct power_supply *psy,
 		case POWER_SUPPLY_EXT_PROP_CHARGING_ENABLED:
 			val->intval = priv->is_charging;
 			break;
-		case POWER_SUPPLY_EXT_PROP_CHECK_INIT:
-			val->intval = priv->vbat_open ? 1 : 0;
-			break;
 		case POWER_SUPPLY_EXT_PROP_BATT_DUMP:
 			val->strval = "FG LOG";
 			break;

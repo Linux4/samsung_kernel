@@ -1922,11 +1922,6 @@ int sec_bat_parse_dt(struct device *dev,
 				ret = pdata->main_bat_enb_gpio = of_get_named_gpio(np, "limiter,main_bat_enb_gpio", 0);
 				if (ret < 0)
 					pr_info("%s : can't get main_bat_enb_gpio\n", __func__);
-
-				/* MAIN_BATTERY_SW_EN2 */
-				ret = pdata->main_bat_enb2_gpio = of_get_named_gpio(np, "limiter,main_bat_enb2_gpio", 0);
-				if (ret < 0)
-					pr_info("%s : can't get main_bat_enb2_gpio\n", __func__);
 			}
 		}
 		np = of_find_node_by_name(NULL, "sec-dual-battery");

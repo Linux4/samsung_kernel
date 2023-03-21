@@ -24,7 +24,7 @@
 /*#include "aw_afe.h"*/
 #include "aw_bin_parse.h"
 
-#define AW_DEV_SYSST_CHECK_MAX   (3)
+#define AW_DEV_SYSST_CHECK_MAX   (20)
 
 enum {
 	AW_EXT_DSP_WRITE_NONE = 0,
@@ -935,13 +935,13 @@ static int aw_dev_mode1_pll_check(struct aw_device *aw_dev)
 			ret = 0;
 			break;
 		} else {
-			aw_dev_dbg(aw_dev->dev, "wait BCLK for PLL, cnt=%d, reg_val=0x%04x",
+			aw_dev_dbg(aw_dev->dev, "check pll lock fail, cnt=%d, reg_val=0x%04x",
 					i, reg_val);
 			usleep_range(AW_2000_US, AW_2000_US + 10);
 		}
 	}
 	if (ret < 0)
-		aw_dev_err(aw_dev->dev, "skip check BCLK for PLL");
+		aw_dev_err(aw_dev->dev, "check fail");
 	else
 		aw_dev_info(aw_dev->dev, "done");
 
@@ -985,11 +985,11 @@ static int aw_dev_syspll_check(struct aw_device *aw_dev)
 	ret = aw_dev_mode1_pll_check(aw_dev);
 	if (ret < 0) {
 		aw_dev_err(aw_dev->dev,
-			"try switch to mode2 check");
+			"mode1 check iis failed try switch to mode2 check");
 
 		ret= aw_dev_mode2_pll_check(aw_dev);
 		if (ret < 0)
-			aw_dev_err(aw_dev->dev, "skip mode2 check iis");
+			aw_dev_err(aw_dev->dev, "mode2 check iis failed");
 	}
 
 	return ret;
@@ -1008,13 +1008,13 @@ static int aw_dev_sysst_check(struct aw_device *aw_dev)
 			ret = 0;
 			break;
 		} else {
-			aw_dev_info(aw_dev->dev, "wait WCK for sysst, cnt=%d, reg_val=0x%04x",
+			aw_dev_info(aw_dev->dev, "wait for I2S clock, cnt=%d, reg_val=0x%04x",
 					i, reg_val);
 			usleep_range(AW_5000_US, AW_5000_US + 10);
 		}
 	}
 	if (ret < 0)
-		aw_dev_info(aw_dev->dev, "skip check WCK for sysst");
+		aw_dev_info(aw_dev->dev, "wait for I2S clock");
 	else
 		aw_dev_info(aw_dev->dev, "done");
 
@@ -1383,7 +1383,7 @@ int aw_device_start(struct aw_device *aw_dev)
 			aw_dev_dbg(aw_dev->dev, "pll check failed cannot start");
 			return ret;
 		} else {
-			aw_dev_dbg(aw_dev->dev, "skip check BCLK, but not exit");
+			aw_dev_dbg(aw_dev->dev, "pll check failed, but not exit");
 			ret = 0;
 		}
 	}
@@ -1408,7 +1408,7 @@ int aw_device_start(struct aw_device *aw_dev)
 			return -EINVAL;
 		}
 	} else {
-		aw_dev_dbg(aw_dev->dev, "skip check WCK, but not exit");
+		aw_dev_dbg(aw_dev->dev, "check failed, but not exit");
 		ret = 0;
  	}
 

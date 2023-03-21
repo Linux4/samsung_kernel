@@ -161,10 +161,6 @@ unsigned int __read_mostly nad_powermeter;
 EXPORT_SYMBOL(nad_powermeter);
 module_param(nad_powermeter, uint, 0440);
 
-unsigned int __read_mostly nad_rawpowermeter;
-EXPORT_SYMBOL(nad_rawpowermeter);
-module_param(nad_rawpowermeter, uint, 0440);
-
 unsigned int __read_mostly nad_ecc;
 EXPORT_SYMBOL(nad_ecc);
 module_param(nad_ecc, uint, 0440);
@@ -469,7 +465,6 @@ __visible_for_testing bool kq_nad_result_type_is_constant(int type)
 		|| type == KQ_NAD_RESULT_INFO_ECC6
 		|| type == KQ_NAD_RESULT_INFO_ECC7
 		|| type == KQ_NAD_RESULT_INFO_POWERMETER
-		|| type == KQ_NAD_RESULT_INFO_RAWPOWERMETER
 #endif
 	)
 		return true;
@@ -643,9 +638,6 @@ static int kq_nad_add_constant_type_data(char *buf, int maxlen,
 	else if (kq_nad_constant_type->type == KQ_NAD_RESULT_INFO_POWERMETER)
 		len = snprintf(buf, maxlen, kq_nad_constant_type->format,
 			nad_powermeter);
-	else if (kq_nad_constant_type->type == KQ_NAD_RESULT_INFO_RAWPOWERMETER)
-		len = snprintf(buf, maxlen, kq_nad_constant_type->format,
-			nad_rawpowermeter);
 #endif
 #if IS_ENABLED(CONFIG_SEC_KQ_NAD_VDD_CAL)
 	else if (kq_nad_constant_type->type == KQ_NAD_RESULT_INFO_VDD_CAL0)

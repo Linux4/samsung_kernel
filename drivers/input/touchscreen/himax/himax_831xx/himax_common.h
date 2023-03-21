@@ -575,7 +575,6 @@ struct himax_ts_data {
 	struct regulator *regulator_lcd_vsn;
 
 	unsigned int ear_detect_mode;
-	int proxy_1b_en;
 	int ear_detect_val;
 	int ear_detect_in_proximity;
 	bool prox_lp_scan_mode_enabled;

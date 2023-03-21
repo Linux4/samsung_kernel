@@ -1659,14 +1659,6 @@ int decon_check_limitation(struct decon_device *decon, int idx,
 	return 0;
 }
 
-static bool is_decon_win_state_vrr(struct decon_device *decon,
-		int state)
-{
-	return ((state == DECON_WIN_STATE_VRR_NORMALMODE) ||
-		(state == DECON_WIN_STATE_VRR_HSMODE) ||
-		(state == DECON_WIN_STATE_VRR_PASSIVEMODE));
-}
-
 static int decon_set_win_buffer(struct decon_device *decon,
 		struct decon_win_config *config,
 		struct decon_reg_data *regs, int idx)
@@ -2920,7 +2912,7 @@ static int decon_set_win_config(struct decon_device *decon,
 			goto err_prepare;
 	} else {
 		win_data->retire_fence = -1;
-		regs->fps = win_data->fps;
+		decon_err("%s: no active window\n", __func__);
 	}
 
 	dpu_prepare_win_update_config(decon, win_data, regs);
@@ -2952,8 +2944,6 @@ static int decon_set_win_config(struct decon_device *decon,
 	mutex_lock(&decon->up.lock);
 	list_add_tail(&regs->list, &decon->up.list);
 	atomic_inc(&decon->up.remaining_frame);
-	win_data->extra.remained_frames =
-		atomic_read(&decon->up.remaining_frame);
 	mutex_unlock(&decon->up.lock);
 
 	/*
@@ -2964,9 +2954,6 @@ static int decon_set_win_config(struct decon_device *decon,
 
 	kthread_queue_work(&decon->up.worker, &decon->up.work);
 
-	if (is_decon_win_state_vrr(decon, win_data->config[DECON_WIN_UPDATE_IDX].state) &&
-	(win_data->fps != 0) && (decon->lcd_info->fps != win_data->fps))
-	kthread_flush_worker(&decon->up.worker);
 
 	/**
 	 * The code is moved here because the DPU driver may get a wrong fd
@@ -2996,7 +2983,6 @@ err_prepare:
 		put_unused_fd(win_data->retire_fence);
 	}
 	win_data->retire_fence = -1;
-	win_data->extra.remained_frames = -1;
 	for (i = 0; i < decon->dt.max_win; i++)
 		for (j = 0; j < regs->plane_cnt[i]; ++j)
 			decon_free_unused_buf(decon, regs, i, j);
@@ -3249,7 +3235,6 @@ static int decon_ioctl(struct fb_info *info, unsigned int cmd,
 		ret = decon_set_vsync_int(info, active);
 		break;
 
-	case S3CFB_WIN_CONFIG_OLD:
 	case S3CFB_WIN_CONFIG:
 		argp = (struct decon_win_config_data __user *)arg;
 		DPU_EVENT_LOG(DPU_EVT_WIN_CONFIG, &decon->sd, ktime_set(0, 0));

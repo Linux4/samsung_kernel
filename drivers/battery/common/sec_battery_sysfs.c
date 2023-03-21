@@ -242,7 +242,6 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(batt_main_con_det),
 	SEC_BATTERY_ATTR(batt_sub_con_det),
 	SEC_BATTERY_ATTR(batt_main_enb),
-	SEC_BATTERY_ATTR(batt_main_enb2),
 	SEC_BATTERY_ATTR(batt_sub_enb),
 #endif
 	SEC_BATTERY_ATTR(ext_event),
@@ -1726,14 +1725,6 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 		{
 			if (battery->pdata->main_bat_enb_gpio)
 				value.intval = !gpio_get_value(battery->pdata->main_bat_enb_gpio);
-			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
-				value.intval);
-		}
-		break;
-	case BATT_MAIN_ENB2:
-		{
-			if (battery->pdata->main_bat_enb2_gpio)
-				value.intval = gpio_get_value(battery->pdata->main_bat_enb2_gpio);
 			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 				value.intval);
 		}
@@ -3629,35 +3620,9 @@ ssize_t sec_bat_store_attrs(
 					/* deactivate main limiter */
 					gpio_direction_output(battery->pdata->main_bat_enb_gpio, 0);
 				}
-				pr_info("%s main enb = %d, main enb2 = %d, sub enb = %d\n",
+				pr_info("%s main enb = %d, sub enb = %d\n",
 					__func__,
 					gpio_get_value(battery->pdata->main_bat_enb_gpio),
-					gpio_get_value(battery->pdata->main_bat_enb2_gpio),
-					gpio_get_value(battery->pdata->sub_bat_enb_gpio));
-			}
-			ret = count;
-		}
-		break;
-	case BATT_MAIN_ENB2: /* Low active pin */
-		if (sscanf(buf, "%10d\n", &x) == 1) {
-			if (battery->pdata->main_bat_enb2_gpio) {
-				pr_info("%s main battery enb2 = %d\n", __func__, x);
-				if (x == 0) {
-					union power_supply_propval value = {0, };
-					/* activate main limiter */
-					gpio_direction_output(battery->pdata->main_bat_enb2_gpio, 0);
-					msleep(100);
-					value.intval = 1;
-					psy_do_property(battery->pdata->main_limiter_name, set,
-						POWER_SUPPLY_EXT_PROP_POWERMETER_ENABLE, value);
-				} else if (x == 1) {
-					/* deactivate main limiter */
-					gpio_direction_output(battery->pdata->main_bat_enb2_gpio, 1);
-				}
-				pr_info("%s main enb = %d, main enb2 = %d, sub enb = %d\n",
-					__func__,
-					gpio_get_value(battery->pdata->main_bat_enb_gpio),
-					gpio_get_value(battery->pdata->main_bat_enb2_gpio),
 					gpio_get_value(battery->pdata->sub_bat_enb_gpio));
 			}
 			ret = count;

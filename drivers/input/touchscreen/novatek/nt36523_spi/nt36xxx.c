@@ -405,12 +405,7 @@ static inline int32_t spi_read_write(struct spi_device *client, uint8_t *buf, si
 	if (STUI_MODE_TOUCH_SEC & stui_get_mode())
 		return -EBUSY;
 #endif
-#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
-	if (atomic_read(&ts->secure_enabled) == SECURE_TOUCH_ENABLE) {
-		input_err(true, &ts->client->dev, "%s: secure touch is enabled!\n", __func__);
-		return -EBUSY;
-	}
-#endif
+
 	if (ts->power_status == POWER_OFF_STATUS) {
 		input_err(true, &ts->client->dev, "%s: POWER_STATUS : OFF!\n", __func__);
 		return -EIO;
@@ -1328,9 +1323,8 @@ return:
 	n.a.
 *******************************************************/
 #if IS_ENABLED(CONFIG_OF)
-static int nvt_parse_dt(struct device *dev)
+static int nvt_parse_dt(struct device *dev, struct nvt_ts_platdata *platdata)
 {
-	struct nvt_ts_platdata *platdata = dev->platform_data;
 	struct device_node *np = dev->of_node;
 	int32_t ret = 0;
 	int tmp[3];
@@ -1566,10 +1560,8 @@ static int nvt_parse_dt(struct device *dev)
 	return 0;
 }
 #else
-static int nvt_parse_dt(struct device *dev)
+static int nvt_parse_dt(struct device *dev, struct nvt_ts_platdata *platdata)
 {
-	struct nvt_ts_platdata *platdata = dev->platform_data;
-
 	input_err(true, &dev, "no platform data specified\n");
 
 #if NVT_TOUCH_SUPPORT_HW_RST
@@ -2685,7 +2677,6 @@ early_param("lcdtype", get_lcd_type);
 static int nvt_notifier_call(struct notifier_block *n, unsigned long data, void *v)
 {
 	struct panel_state_data *d = (struct panel_state_data *)v;
-	int i;
 
 	if (data == PANEL_EVENT_ESD) {
 		input_info(true, &ts->client->dev, "%s: LCD ESD INTERRUPT CALLED\n", __func__);
@@ -2705,18 +2696,6 @@ static int nvt_notifier_call(struct notifier_block *n, unsigned long data, void 
 				mutex_unlock(&ts->lock);
 				ts->lcd_esd_recovery = 0;
 			}
-		}
-	}
-
-	if (data == PANEL_EVENT_UB_CON_CHANGED) {
-		i = *((char *)v);
-
-		input_info(true, &ts->client->dev, "%s: data = %ld, i = %d\n", __func__, data, i);
-
-		if (i == PANEL_EVENT_UB_CON_DISCONNECTED) {
-			input_info(true, &ts->client->dev, "%s: UB_CON_DISCONNECTED : disable irq & pin control\n", __func__);
-			nvt_irq_enable(false);
-			pinctrl_configure(ts, false);
 		}
 	}
 
@@ -2767,7 +2746,7 @@ static int tsp_vbus_notification(struct notifier_block *nb,
 		break;
 	}
 
-	if (ts->shutdown_called) {
+	if (ts->plat_data->shutdown_called) {
 		input_err(true, &ts->client->dev, "%s shutdown was called\n", __func__);
 		return 0;
 	}
@@ -2858,6 +2837,15 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 #endif
 	struct nvt_ts_platdata *platdata;
 
+	/* only for tui, use later*/
+	struct sec_ts_plat_data *sec_plat_data;
+
+	sec_plat_data = devm_kzalloc(&client->dev, sizeof(struct sec_ts_plat_data), GFP_KERNEL);
+	if (!sec_plat_data) {
+		input_err(true, &client->dev, "failed to allocated memory for sec_ts_plat_data\n");
+		return -ENOMEM;
+	}
+
 	input_info(true, &client->dev, "%s : start\n", __func__);
 
 	ts = kzalloc(sizeof(struct nvt_ts_data), GFP_KERNEL);
@@ -2888,9 +2876,9 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 		}
 
 		// for tui
-		client->dev.platform_data = platdata;
+		client->dev.platform_data = sec_plat_data;
 
-		ret = nvt_parse_dt(&client->dev);
+		ret = nvt_parse_dt(&client->dev, platdata);
 		if (ret < 0) {
 			input_err(true, &client->dev, "%s: Failed to parse dt(%d)\n", __func__, ret);
 			goto err_parse_dt_failed;
@@ -3152,9 +3140,14 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	panel_notifier_register(&ts->nb);
 #endif
 
+	ts->plat_data = sec_plat_data;
+	ptsp = &client->dev;
+
 #if IS_ENABLED(CONFIG_SAMSUNG_TUI)
-	stui_tsp_init(nvt_stui_tsp_enter, nvt_stui_tsp_exit, nvt_stui_tsp_type);
-	input_info(true, &client->dev,"secure touch support\n");
+	ts->plat_data->stui_tsp_enter = nvt_stui_tsp_enter;
+	ts->plat_data->stui_tsp_exit = nvt_stui_tsp_exit;
+	ts->plat_data->stui_tsp_type = nvt_stui_tsp_type;
+	input_err(true, &client->dev,"secure touch support, irq_flags=0x%X\n", ts->platdata->irq_flags);
 #endif
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
@@ -3171,10 +3164,6 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 		vbus_notifier_register(&ts->vbus_nb, tsp_vbus_notification,
 							VBUS_NOTIFY_DEV_CHARGER);
 #endif
-
-	nvt_ts_mode_read(ts);
-	input_info(true, &ts->client->dev, "%s: %s prox(1) & AOT\n",
-				__func__, ts->prox_in_aot ? "Support" : "Not support");
 
 	nvt_irq_enable(true);
 	input_info(true, &client->dev, "%s : end\n", __func__);
@@ -3366,7 +3355,7 @@ static void nvt_ts_shutdown(struct spi_device *client)
 	input_info(true, &client->dev, "%s : Shutdown driver...\n", __func__);
 
 	mutex_lock(&ts->lock);
-	ts->shutdown_called = true;
+	ts->plat_data->shutdown_called = true;
 	mutex_unlock(&ts->lock);
 
 	if (ts->platdata->support_ear_detect)
@@ -3511,7 +3500,7 @@ int32_t nvt_ts_suspend(struct device *dev)
 
 	cancel_delayed_work_sync(&ts->work_read_info);
 
-	if (ts->shutdown_called) {
+	if (ts->plat_data->shutdown_called) {
 		input_err(true, &ts->client->dev, "%s shutdown was called\n", __func__);
 		return 0;
 	}
@@ -3527,16 +3516,11 @@ int32_t nvt_ts_suspend(struct device *dev)
 	nvt_esd_check_enable(false);
 #endif /* #if NVT_TOUCH_ESD_PROTECT */
 
-	input_info(true, &ts->client->dev, "%s : ed:%d, lp:%d, prox:%ld, test:%d, prox_in_aot:%d\n",
-				__func__, ts->ear_detect_mode, ts->lowpower_mode, ts->prox_power_off,
-				ts->lcdoff_test, ts->prox_in_aot);
+	input_info(true, &ts->client->dev, "%s : ed:%d, lp:%d, prox:%ld, test:%d\n",
+				__func__, ts->ear_detect_mode, ts->lowpower_mode, ts->prox_power_off, ts->lcdoff_test);
 
 	if (ts->lowpower_mode && (ts->prox_power_off || ts->ear_detect_mode))
 		enter_force_ed_mode = 1;	// for ed
-
-	/* against ed mode and suppport prox_in_aot only */
-	if ((!ts->prox_power_off && ts->ear_detect_mode) && ts->prox_in_aot)
-		enter_force_ed_mode = 0;	// for prox in aot feature
 
 	if ((ts->lowpower_mode || ts->lcdoff_test) && enter_force_ed_mode == 0) {
 		nvt_irq_enable(false);
@@ -3627,7 +3611,7 @@ void nvt_ts_early_resume(struct device *dev)
 
 	cancel_delayed_work_sync(&ts->work_read_info);
 
-	if (ts->shutdown_called) {
+	if (ts->plat_data->shutdown_called) {
 		input_err(true, &ts->client->dev, "%s shutdown was called\n", __func__);
 		return;
 	}
@@ -3668,7 +3652,7 @@ int32_t nvt_ts_resume(struct device *dev)
 	ts->lcd_esd_recovery = 0;
 	cancel_delayed_work_sync(&ts->work_read_info);
 
-	if (ts->shutdown_called) {
+	if (ts->plat_data->shutdown_called) {
 		input_err(true, &ts->client->dev, "%s shutdown was called\n", __func__);
 		return 0;
 	}

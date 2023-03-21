@@ -247,7 +247,7 @@ static const uint32_t tcpc_timer_timeout[PD_TIMER_NR] = {
 	TIMEOUT_VAL(100),
 	TIMEOUT_RANGE(40, 50),
 	TIMEOUT_RANGE(40, 50),
-	TIMEOUT_RANGE(27, 34), // test with RK3399, 27-34 (24-30)
+	TIMEOUT_RANGE(24, 30),
 	TIMEOUT_RANGE(25, 35),
 	TIMEOUT_RANGE(660, 1000),
 /* PD_TIMER (out of spec )*/

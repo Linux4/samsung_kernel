@@ -133,12 +133,11 @@ static struct kq_nad_block kq_nad_block_data[] = {
 	/* G3D */
 	{ "NONE",	"MANHATTAN",	"AZTEC_NORMAL",	"3D_MARK",	"VGT_TMZ",
 	"MESH_HIGHOP",	"FLATLAND",	"SUBWAY_SUFFER",	"TEXTRI_HUGE",	"SPI_NGG",
-	"TESSELLATION",	"MHT_IFPO",	"SR_GFX",	"MHN_PWR",	"CP_RING",
-	"GC_WALKING"},
+	"TESSELLATION",	"MHT_IFPO",	"SR_GFX",	"MHN_PWR",	"CP_RING" },
 
 	/* MIF */
 	{"NONE",		"MEMTESTER",	"SED",			"VWM",			"RANDOM_DVFS",
-	"PPMPU",		"AES"},
+	"PPMPU"},
 
 	/* INT */
 	{"NONE",		"UFS",			"SSS",			"JPEG",			"SSP",

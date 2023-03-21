@@ -6,7 +6,6 @@
 
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 #include <linux/muic/common/muic_notifier.h>
-extern struct muic_platform_data muic_pdata;
 #endif
 
 /* AFC Unit Interval */
@@ -28,6 +27,7 @@ struct gpio_afc_pdata {
 	int gpio_afc_switch;
 	int gpio_afc_data;
 	int gpio_afc_hvdcp;
+	int gpio_hiccup;
 };
 
 struct gpio_afc_ddata {
@@ -41,7 +41,6 @@ struct gpio_afc_ddata {
 	bool gpio_input;
 	bool check_performance;
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
-	int afc_disable;
 	struct delayed_work set_gpio_afc_disable;
 #endif
 	int curr_voltage;
@@ -55,34 +54,15 @@ struct gpio_afc_ddata {
 	struct notifier_block typec_nb;
 	struct mutex tcm_notify_lock;
 #endif
-#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
-	struct muic_platform_data *muic_pdata;
-#endif
+	struct vt_muic_ic_data afc_ic_data;
 };
 
 #if IS_ENABLED(CONFIG_AFC_CHARGER)
-extern int set_afc_voltage(int voltage);
-#if IS_ENABLED(CONFIG_CHARGER_SYV660)
-extern void afc_dpdm_ctrl(bool onoff);
-#endif
 extern void set_afc_voltage_for_performance(bool enable);
 #else /* NOT CONFIG_AFC_CHARGER */
-static inline int set_afc_voltage(int voltage)
-{
-	return -ENOTSUPP;
-}
-#if IS_ENABLED(CONFIG_CHARGER_SYV660)
-static inline void afc_dpdm_ctrl(bool onoff)
-{
-	return -ENOTSUPP;
-}
-#endif
 static inline void set_afc_voltage_for_performance(bool enable)
 {
 	return -ENOTSUPP;
 }
 #endif /* CONFIG_AFC_CHARGER */
-#if IS_ENABLED(CONFIG_SEC_HICCUP)
-void set_sec_hiccup(bool en);
-#endif /* CONFIG_SEC_HICCUP */
 #endif /* _AFC_CHSRGER_INTF */

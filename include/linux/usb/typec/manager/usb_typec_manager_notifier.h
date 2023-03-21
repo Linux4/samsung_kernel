@@ -189,7 +189,7 @@ struct typec_manager_gadget_ops {
 #endif
 
 /* Timeout for USB off when Vbus is in LOW state */
-#define VBUS_USB_OFF_TIMEOUT 2000
+#define VBUS_USB_OFF_TIMEOUT 1000
 
 /* Time to check whether it is VBUS by OTG to prevent moisture popup error */
 #define OTG_VBUS_CHECK_TIME 300

@@ -2866,10 +2866,9 @@ int ovt_tcm_early_resume(struct device *dev)
 		if (retval < 0) {
 			input_err(true, tcm_hcd->pdev->dev.parent, "Failed to disable interrupt before \n");
 		}
-		usleep_range(5000, 5000);
 
 		ovt_tcm_lcd_reset_ctrl(tcm_hcd, false);
-		usleep_range(10000, 10000);
+		msleep(10);
 	}
 	mutex_unlock(&tcm_hcd->mode_change_mutex);
 

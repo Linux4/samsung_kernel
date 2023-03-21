@@ -130,7 +130,7 @@ static u8 A13_TD4375_005[] = {
 
 static u8 A13_TD4375_006[] = {
 	0xBA,
-	0x23, 0x57, 0x00, 0x00, 0x00, 0x00, 0x0A,
+	0x33, 0x57, 0x00, 0x00, 0x00, 0x00, 0x0A,
 };
 
 static u8 A13_TD4375_007[] = {
@@ -264,7 +264,7 @@ static u8 A13_TD4375_020[] = {
 
 static u8 A13_TD4375_021[] = {
 	0xCE,
-	0x7D, 0x40, 0x49, 0x53, 0x59, 0x5E, 0x63, 0x68, 0x6E, 0x74,
+	0x75, 0x40, 0x49, 0x53, 0x59, 0x5E, 0x63, 0x68, 0x6E, 0x74,
 	0x7E, 0x8A, 0x98, 0xA8, 0xBB, 0xD0, 0xE7, 0xFF, 0x31, 0x5F,
 	0x00, 0x00, 0x45, 0x00, 0x69, 0x5A, 0x40, 0x11, 0xF4, 0x00,
 	0x00, 0x04, 0xFA, 0x00, 0x00,
@@ -613,10 +613,6 @@ static u8 TD4375_A13_I2C_INIT[] = {
 	0x08, 0x13,
 };
 
-static u8 TD4375_A13_I2C_EXIT_VSN[] = {
-	0x09, 0x9C,
-};
-
 static u8 TD4375_A13_I2C_EXIT_VSP[] = {
 	0x09, 0x18,
 };
@@ -640,7 +636,6 @@ static u8 TD4375_A13_I2C_DUMP[] = {
 };
 
 static DEFINE_STATIC_PACKET(td4375_boe_a13_i2c_init, I2C_PKT_TYPE_WR, TD4375_A13_I2C_INIT, 0);
-static DEFINE_STATIC_PACKET(td4375_boe_a13_i2c_exit_vsn, I2C_PKT_TYPE_WR, TD4375_A13_I2C_EXIT_VSN, 0);
 static DEFINE_STATIC_PACKET(td4375_boe_a13_i2c_exit_vsp, I2C_PKT_TYPE_WR, TD4375_A13_I2C_EXIT_VSP, 0);
 static DEFINE_STATIC_PACKET(td4375_boe_a13_i2c_exit_blen, I2C_PKT_TYPE_WR, TD4375_A13_I2C_EXIT_BLEN, 0);
 static DEFINE_STATIC_PACKET(td4375_boe_a13_i2c_dump, I2C_PKT_TYPE_RD, TD4375_A13_I2C_DUMP, 0);
@@ -650,8 +645,6 @@ static void *td4375_boe_a13_init_cmdtbl[] = {
 };
 
 static void *td4375_boe_a13_exit_cmdtbl[] = {
-	&PKTINFO(td4375_boe_a13_i2c_exit_vsn),
-	&DLYINFO(a13_wait_blic_off),
 	&PKTINFO(td4375_boe_a13_i2c_exit_vsp),
 	&DLYINFO(a13_wait_blic_off),	
 	&PKTINFO(td4375_boe_a13_i2c_exit_blen),

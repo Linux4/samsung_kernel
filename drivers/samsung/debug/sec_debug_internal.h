@@ -98,9 +98,6 @@ struct sec_debug_kcnst {
 
 	uint64_t pa_text;
 	uint64_t pa_start_rodata;
-
-	uint64_t target_dprm_mask;
-
 	uint64_t reserved[4];
 };
 
@@ -389,7 +386,6 @@ enum sec_debug_reset_reason_t {
 };
 
 extern void *secdbg_base_get_debug_base(int type);
-extern void *secdbg_base_get_kcnst_base(void);
 extern unsigned long secdbg_base_get_buf_base(int type);
 extern unsigned long secdbg_base_get_buf_size(int type);
 

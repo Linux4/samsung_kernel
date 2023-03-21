@@ -793,7 +793,7 @@
 				interrupts = <0x00 0x33 0x04>;
 				mcu,name = "cp_mailbox";
 				mcu,id = <0x00>;
-				mcu,irq_affinity_mask = <0x03>;
+				mcu,irq_affinity_mask = <0x00>;
 			};
 
 			cp_shmem {

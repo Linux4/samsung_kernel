@@ -20,7 +20,6 @@ obj-$(CONFIG_SEC_DEBUG)			+= sec_debug_ksym.o
 obj-$(CONFIG_SEC_DEBUG)			+= sec_debug_mode.o
 obj-$(CONFIG_SEC_DEBUG)			+= sec_debug_memtab.o
 obj-$(CONFIG_SEC_DEBUG)			+= sec_debug_param.o
-obj-$(CONFIG_SEC_DEBUG)			+= sec_debug_dprm.o
 obj-$(CONFIG_SEC_DEBUG_DUMP_SUMMARY)	+= sec_debug_summary.o
 obj-$(CONFIG_SEC_DEBUG_HIST_LOG) 	+= sec_debug_hist.o
 obj-$(CONFIG_SEC_DEBUG_RESET_REASON)	+= sec_debug_reset_reason.o

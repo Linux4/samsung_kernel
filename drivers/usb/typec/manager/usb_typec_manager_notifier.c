@@ -605,16 +605,12 @@ static void manager_event_processing_by_vbus_work(struct work_struct *work)
 		|| typec_manager.vbus_state == STATUS_VBUS_HIGH) {
 		return;
 	} else if (typec_manager.muic.attach_state == MUIC_NOTIFY_CMD_DETACH) {
-		pr_info("%s: force usb detach", __func__);
 		manager_usb_event_send(USB_STATUS_NOTIFY_DETACH);
 		return;
 	}
 
-	if (typec_manager.pdic_attach_state == PDIC_NOTIFY_DETACH) {
-		pr_info("%s: force pdic detach event", __func__);
-		manager_event_work(PDIC_NOTIFY_DEV_MANAGER, PDIC_NOTIFY_DEV_MUIC,
-			PDIC_NOTIFY_ID_ATTACH, PDIC_NOTIFY_DETACH, 0, typec_manager.muic.cable_type);
-	}
+	manager_event_work(PDIC_NOTIFY_DEV_MANAGER, PDIC_NOTIFY_DEV_MUIC,
+		PDIC_NOTIFY_ID_ATTACH, PDIC_NOTIFY_DETACH, 0, typec_manager.muic.cable_type);
 }
 #endif
 
@@ -1001,7 +997,6 @@ __visible_for_testing int manager_handle_vbus_notification(struct notifier_block
 		if (!manager_check_vbus_by_otg() && typec_manager.water.detected)
 			manager_event_work(PDIC_NOTIFY_DEV_MANAGER, PDIC_NOTIFY_DEV_BATT,
 				PDIC_NOTIFY_ID_WATER, PDIC_NOTIFY_ATTACH, 0, typec_manager.water.report_type);
-		manager_event_processing_by_vbus(false);
 		break;
 	case STATUS_VBUS_LOW:
 		typec_manager.vbus_by_otg_detection = 0;

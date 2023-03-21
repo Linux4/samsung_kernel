@@ -19,14 +19,6 @@
 #include <linux/usb/typec/etek/et7303/tcpci.h>
 #include <linux/usb/typec/etek/et7303/pd_policy_engine.h>
 
-#define VDM_HEAD_SVID(head)	((head >> 16) & 0xffff)
-#define VDM_HEAD_TYPE(head)	((head >> 15) & 1) /* checked at pd_process_evt_vdm.c */
-#define VDM_HEAD_OBJ_POS(head)	((head >> 8) & 7)
-#define VDM_HEAD_CMD_TYPE(head)	((head >> 6) & 3) /* checked at pd_process_evt_vdm.c */
-#define VDM_HEAD_CMD(head)	((head) & 0x1f)a
-
-#define ID_HEAD_PRODUCT_TYPE(head)	((head >> 27) & 7)
-
 /*
  * [PD2.0] Figure 8-64 DFP to UFP VDM Discover Identity State Diagram
  */
@@ -40,22 +32,8 @@ void pe_dfp_ufp_vdm_identity_request_entry(
 void pe_dfp_ufp_vdm_identity_acked_entry(
 	struct pd_port *pd_port, struct pd_event *pd_event)
 {
-	uint32_t vdm_hdr = pd_event->pd_msg->payload[0];
-	uint32_t vdm_id = pd_event->pd_msg->payload[1];
-
 	pd_disable_timer(pd_port, PD_TIMER_VDM_RESPONSE);
-
-	if (VDM_HEAD_SVID(vdm_hdr) != USB_SID_PD ||
-	    VDM_HEAD_OBJ_POS(vdm_hdr) ||
-	    ID_HEAD_PRODUCT_TYPE(vdm_id) == 4 ||
-	    ID_HEAD_PRODUCT_TYPE(vdm_id) == 7 ||
-	    PD_HEADER_CNT(pd_event->pd_msg->msg_hdr) < 5) {
-		pr_info("%s: bad identity response -> vdm_hdr = 0x%x, vdm_id = 0x%x, msg_hdr = 0x%x\n",
-			__func__, vdm_hdr, vdm_id, pd_event->pd_msg->msg_hdr);
-		pd_dpm_dfp_inform_id(pd_port, pd_event, false);
-	} else {
-		pd_dpm_dfp_inform_id(pd_port, pd_event, true);
-	}
+	pd_dpm_dfp_inform_id(pd_port, pd_event, true);
 	pd_free_pd_event(pd_port, pd_event);
 }
 
