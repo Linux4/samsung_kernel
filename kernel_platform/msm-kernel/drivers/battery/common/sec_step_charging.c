@@ -273,6 +273,15 @@ bool sec_bat_check_dc_step_charging(struct sec_battery_info *battery)
 #endif
 	unsigned int dc_step_chg_type;
 
+	if (battery->cable_type == SEC_BATTERY_CABLE_FPDO_DC) {
+		sec_vote(battery->dc_fv_vote, VOTER_DC_STEP_CHARGE, false, 0);
+		sec_vote(battery->fcc_vote, VOTER_CABLE, true,
+			battery->pdata->charging_current[SEC_BATTERY_CABLE_FPDO_DC].fast_charging_current);
+		sec_vote_refresh(battery->fcc_vote);
+
+		return false;
+	}
+
 	i = (battery->step_chg_status < 0 ? 0 : battery->step_chg_status);
 	dc_step_chg_type = battery->dc_step_chg_type[i];
 

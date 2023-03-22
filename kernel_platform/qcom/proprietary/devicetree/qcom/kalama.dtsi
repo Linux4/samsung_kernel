@@ -545,11 +545,6 @@
 		reg = <0x0 0xff800000 0x0 0x600000>;
 	};
 
-	tzdev_shbuf: tzdev_shbuf@ffe00000 {
-		no-map;
-		reg = <0x0 0xffe00000 0x0 0x9000>;
-	};
-
 	va_md_mem: va_md_mem_region {
 		compatible = "shared-dma-pool";
 		alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
@@ -2577,14 +2572,6 @@
 		gunyah-label = <3>;
 		peer-name = <2>;
 		shared-buffer = <&trust_ui_vm_qrtr>;
-	};
-
-	tzdev-gunyah {
-		compatible = "samsung,tzdev-gunyah";
-		gunyah-label = <9>;
-		gunyah-events-label = <10>;
-		peer-name = <4>;
-		shared-buffer = <&tzdev_shbuf>;
 	};
 
 	sys-pm-vx@c320000 {

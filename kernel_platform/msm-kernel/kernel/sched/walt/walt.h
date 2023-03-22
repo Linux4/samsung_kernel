@@ -953,8 +953,9 @@ static inline bool walt_flag_test(struct task_struct *p, enum walt_flags feature
 	return !!(wts->flags & (1 << feature));
 }
 
-#define WALT_MVP_SLICE		30000000U
-#define WALT_MVP_LIMIT		(1 * WALT_MVP_SLICE)
+#define WALT_MVP_SLICE		6000000U
+#define WALT_MVP_LIMIT		(2 * WALT_MVP_SLICE)
+#define WALT_MVP_LL_SLICE		30000000U
 
 /* higher number, better priority */
 #define WALT_RTG_MVP		0

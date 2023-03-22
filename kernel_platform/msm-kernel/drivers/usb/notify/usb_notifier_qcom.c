@@ -581,6 +581,11 @@ static void new_device_added(void *unused, struct usb_device *udev, int *err)
 }
 #endif
 
+static int usb_maximum_speed_control(int speed)
+{
+	return dwc3_usb_maximum_speed_control(speed);
+}
+
 static struct otg_notify sec_otg_notify = {
 	.vbus_drive	= otg_accessory_power,
 #if defined(CONFIG_USB_AUDIO_POWER_SAVING_REVERSE_BYPASS)
@@ -606,6 +611,7 @@ static struct otg_notify sec_otg_notify = {
 	.is_skip_list = is_skip_list,
 #endif
 	.pre_peri_delay_us = 6,
+	.usb_maximum_speed = usb_maximum_speed_control,
 };
 
 static int usb_notifier_probe(struct platform_device *pdev)

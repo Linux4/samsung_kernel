@@ -443,6 +443,14 @@ static int debug_display_read_once(struct samsung_display_driver_data *vdd,
 			len += scnprintf(buf + len, SS_ONCE_LOG_BUF_MAX - len, "[%s] ECC : %X %X %X\n",
 				i == PRIMARY_DISPLAY_NDX ? "MAIN" : "SUB", ecc[0], ecc[1], ecc[2]);
 		}
+
+		LCD_INFO(vddp, "[%s] LAST SM_SUM_O : %X [%X]\n",
+			i == PRIMARY_DISPLAY_NDX ? "MAIN" : "SUB",
+			vddp->self_disp.debug.SM_SUM_O, vddp->self_disp.operation[FLAG_SELF_MASK].img_checksum);
+		len += scnprintf(buf + len, SS_ONCE_LOG_BUF_MAX - len, "[%s] LAST SM_SUM_O : %X [%X]\n",
+			i == PRIMARY_DISPLAY_NDX ? "MAIN" : "SUB",
+			vddp->self_disp.debug.SM_SUM_O, vddp->self_disp.operation[FLAG_SELF_MASK].img_checksum);
+
 	}
 
 	len += scnprintf(buf + len, SS_ONCE_LOG_BUF_MAX - len, "VRR: adj: %d%s\n",

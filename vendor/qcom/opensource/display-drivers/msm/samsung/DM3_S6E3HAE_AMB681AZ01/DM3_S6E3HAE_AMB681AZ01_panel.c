@@ -56,6 +56,7 @@ static int samsung_panel_on_pre(struct samsung_display_driver_data *vdd)
 
 static int samsung_panel_on_post(struct samsung_display_driver_data *vdd)
 {
+	int ret = 0;
 	/*
 	 * self mask is enabled from bootloader.
 	 * so skip self mask setting during splash booting.
@@ -67,7 +68,12 @@ static int samsung_panel_on_post(struct samsung_display_driver_data *vdd)
 		LCD_INFO(vdd, "samsung splash enabled.. skip image write\n");
 	}
 
-	if (vdd->self_disp.self_mask_on)
+	/* self mask checksum */
+	if (vdd->self_disp.self_display_debug)
+		ret = vdd->self_disp.self_display_debug(vdd);
+
+	/* self mask is turned on only when data checksum matches. */
+	if (vdd->self_disp.self_mask_on && !ret)
 		vdd->self_disp.self_mask_on(vdd, true);
 
 	/* mafpc */
@@ -1036,8 +1042,6 @@ static void ss_read_gamma(struct samsung_display_driver_data *vdd)
 	char pBuffer[256];
 	int i, j;
 
-	vdd->debug_data->print_cmds = true;
-
 	ss_send_cmd(vdd, TX_POC_ENABLE);
 
 	LCD_INFO(vdd, "READ_R start\n");
@@ -1061,8 +1065,6 @@ static void ss_read_gamma(struct samsung_display_driver_data *vdd)
 			snprintf(pBuffer + strnlen(pBuffer, 256), 256, " %02x", HS120_R_TYPE_BUF[i][j]);
 		LCD_INFO(vdd, "READ_R 120 SET[%2d] : %s\n", GAMMA_SET_MAX - 1 - i, pBuffer);
 	}
-
-	vdd->debug_data->print_cmds = false;
 
 	return;
 }

@@ -5813,6 +5813,34 @@ static int dwc3_msm_parse_core_params(struct dwc3_msm *mdwc, struct device_node 
 	return ret;
 }
 
+#if IS_ENABLED(CONFIG_USB_NOTIFY_LAYER)
+int dwc3_usb_maximum_speed_control(int speed)
+{
+	struct dwc3_msm *mdwc;
+	struct dwc3 *dwc = NULL;
+	u32		ret = USB_SPEED_UNKNOWN;
+
+	mdwc = dev_get_drvdata(msm_dwc3);
+
+	if (mdwc == NULL) {
+		pr_info("%s, dwc3-msm is not initialized.\n", __func__);
+		return -EAGAIN;
+	}
+
+	dwc = platform_get_drvdata(mdwc->dwc3);
+	if (dwc == NULL) {
+		pr_info("%s, dwc3 controller is not initialized.\n", __func__);
+		return ret;
+	}
+
+	pr_info("%s now:%d, new:%d\n", __func__, dwc->maximum_speed, speed);
+	if (speed >= USB_SPEED_FULL && speed <= DWC3_DSTS_SUPERSPEED_PLUS)
+		dwc->maximum_speed = speed;
+
+	return dwc->maximum_speed;
+}
+EXPORT_SYMBOL_GPL(dwc3_usb_maximum_speed_control);
+#endif
 
 #if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 
