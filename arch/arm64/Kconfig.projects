@@ -1,0 +1,18 @@
+config SEC_XCOVERPRO2_PROJECT
+	default n
+	bool "Samsung XCOVERPRO2 Project"
+	help
+	  Support for Samsung XCOVERPRO2 Project
+
+config MACH_XCOVERPRO2_USA_SINGLE
+	default n
+	bool "Samsung XCOVERPRO2 USA SINGLE"
+	help
+	  Support for Samsung XCOVERPRO2 USA SINGLE device.
+
+config MACH_XCOVERPRO2_USA_OPEN
+	default n
+	bool "Samsung XCOVERPRO2 USA OPEN"
+	help
+	  Support for Samsung XCOVERPRO2 USA OPEN device.
+
