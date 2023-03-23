@@ -1,0 +1,45 @@
+SIPA for Spreadtrum platforms
+
+Required properties:
+- compatible: should be the following:
+	"sprd,qogirn6pro-sipa".
+- reg: Specify the physical base address of the controller and length
+  of memory mapped region.
+- interrupts: Should contain ipa interrupt.
+- power-domains: A phandle pointed to the corresponding power domain.
+- sprd,sipa-bypass-mode: IPA work mode select. 0: bypass mode 1: normal_mode
+- fifo-names: Fifo that need to be reconfigured.
+- fifo-sizes: Corresponding to fifo-names
+	First parameter indicates fifo tx common fifo is it in iram. 0: DDR 1: iram.
+	Second parameter indicates fifo tx common fifo total depth.
+	Third parameter indicates fifo rx common fifo is it in iram. 0: DDR 1: iram.
+	Fourth parameter indicates fifo tx common fifo total depth.
+
+Examples:
+        sipa: sipa@25220000 {
+                compatible = "sprd,qogirn6pro-sipa";
+                reg = <0 0x25220000 0 0x00002000>;
+                reg-names = "ipa-base";
+                interrupts = <GIC_SPI 137 IRQ_TYPE_LEVEL_HIGH>,
+                        <GIC_SPI 136 IRQ_TYPE_LEVEL_HIGH>,
+                        <GIC_SPI 135 IRQ_TYPE_LEVEL_HIGH>,
+                        <GIC_SPI 134 IRQ_TYPE_LEVEL_HIGH>,
+                        <GIC_SPI 133 IRQ_TYPE_LEVEL_HIGH>,
+                        <GIC_SPI 132 IRQ_TYPE_LEVEL_HIGH>,
+                        <GIC_SPI 131 IRQ_TYPE_LEVEL_HIGH>,
+                        <GIC_SPI 130 IRQ_TYPE_LEVEL_HIGH>,
+                        <GIC_SPI 138 IRQ_TYPE_LEVEL_HIGH>;
+                interrupt-names = "ipa_irq0", "ipa_irq1", "ipa_irq2",
+                    "ipa_irq3", "ipa_irq4", "ipa_irq5",
+                    "ipa_irq6", "ipa_irq7", "ipa_general";
+
+                sprd,sipa-bypass-mode = <0>;
+
+                power-domains = <&pd_ipa_sys>;
+
+                fifo-names = "sprd,usb-ul", "sprd,usb-dl",
+                        "sprd,wifi-ul", "sprd,wifi-dl";
+                fifo-sizes = <0 2048 0 2048>, <0 2048 0 2048>,
+                        <0 128 0 128>, <0 128 0 128>;
+        };
+

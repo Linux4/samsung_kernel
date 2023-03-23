@@ -1,0 +1,25 @@
+#
+# Generic cpuhotplug and touchboost drivers configuration
+#
+
+menu "CPU Hotplug and touchboost scaling"
+
+config SPRD_CPU_HOTPLUG_GOV
+	bool "SPRD CPU hotplug policy"
+	depends on HOTPLUG_CPU
+        help
+          SPRD CPU hotplug policy.
+	  And this driver change core number
+	  on the basis of load on cpus.
+
+	  Note that this driver will change the num of
+	  CPU cores.
+
+	  If in doubt, say N.
+
+config SPRD_CPU_HOTPLUG_WORKAROUND
+        bool "Pike2 CPU HOTPLUG WORKAROUND"
+	depends on HOTPLUG_CPU
+	help
+	  Pike2 CPU HOTPLUG WORKAROUND
+endmenu

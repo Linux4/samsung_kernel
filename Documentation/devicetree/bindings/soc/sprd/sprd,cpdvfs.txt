@@ -1,0 +1,49 @@
+Unisoc cpdvfs bindings
+
+Unisoc's some SoCs integrates hardware DVFS. This DVFS driver controls settings and tuning
+for communication processor include pscp, phycp, pubcp and wtlcp.
+
+Required Properties:
+- compatible: should be one of the following.
+  - "sprd,pscp-dvfs": for PSCP DVFS,
+  - "sprd,phycp-dvfs": for PHYCP DVFS,
+  - "sprd,pubcp-dvfs": for PUBCP DVFS,
+  - "sprd,wtlcp-dvfs": for WTLCP DVFS,
+- sprd,core_id: core identification of the dvfs system.
+- sprd,devices-num: number of dvfs device in this system.
+- sprd,devices-name: dvfs device's name sequence list in this system.
+- sprd,devices-id: dvfs device's ID sequence list in this system.
+
+
+Example:
+	dvfs_pubcp {
+		compatible = "sprd,pubcp-dvfs";
+		sprd,core_id = <0>;
+		sprd,devices-num = <1>;
+		sprd,devices-name = "core_axi";
+		sprd,devices-id = <0>;
+	};
+
+	dvfs_wtlcp {
+		compatible = "sprd,wtlcp-dvfs";
+		sprd,core_id = <1>;
+		sprd,devices-num = <1>;
+		sprd,devices-name = "core_axi";
+		sprd,devices-id = <0>;
+	};
+
+	dvfs_pscp {
+		compatible = "sprd,pscp-dvfs";
+		sprd,core_id = <2>;
+		sprd,devices-num = <3>;
+		sprd,devices-name = "core", "axi", "apb";
+		sprd,devices-id = <0>, <1>, <2>;
+	};
+
+	dvfs_phycp {
+		compatible = "sprd,phycp-dvfs";
+		sprd,core_id = <3>;
+		sprd,devices-num = <3>;
+		sprd,devices-name = "core", "axi", "apb";
+		sprd,devices-id = <0>, <1>, <2>;
+	};

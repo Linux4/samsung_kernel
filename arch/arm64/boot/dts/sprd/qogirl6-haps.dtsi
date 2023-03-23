@@ -1,0 +1,490 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Unisoc Qogirl6 platform DTS file
+ *
+ * Copyright (C) 2020, Unisoc Inc.
+ */
+
+#include <dt-bindings/clock/sprd,ums9230-clk.h>
+
+/ {
+	interrupt-parent = <&gic>;
+	#address-cells = <2>;
+	#size-cells = <2>;
+
+	aliases {
+		spi4 = &adi_bus;
+		spi5 = &adi_bus1;
+	};
+
+	soc: soc {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		ap_apb_regs: syscon@20000000 {
+			compatible = "sprd,ums9230-glbregs", "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x20000000 0 0x3000>;
+		};
+
+		apb@200a0000 {
+			compatible = "simple-bus";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges = <0 0x0 0x200a0000 0x10000000>;
+
+			uart0: serial@0  {
+				compatible = "sprd,ums9230-uart",
+					     "sprd,sc9836-uart";
+				reg = <0x0 0x100>;
+				interrupts = <GIC_SPI 2 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&ext_26m>;
+				status = "disabled";
+			};
+
+			uart1: serial@10000 {
+				compatible = "sprd,ums9230-uart",
+					     "sprd,sc9836-uart";
+				reg = <0x10000 0x100>;
+				interrupts = <GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&ext_26m>;
+				status = "disabled";
+			};
+
+			uart2: serial@20000 {
+				compatible = "sprd,ums9230-uart",
+						"sprd,sc9836-uart";
+				reg = <0x20000 0x100>;
+				interrupts = <GIC_SPI 4 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&ext_26m>;
+				status = "disabled";
+			};
+		};
+
+		ap-apb {
+			compatible = "simple-bus";
+			#address-cells = <2>;
+			#size-cells = <2>;
+			ranges;
+
+			sdio3: sdio@201d0000 {
+				compatible = "sprd,sdhc-r11p1";
+				reg = <0 0x201d0000 0 0x1000>;
+				interrupts = <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>;
+				status = "disabled";
+			};
+		};
+
+		ap_ahb_regs: syscon@20400000 {
+			compatible = "sprd,ums9230-glbregs", "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x20400000 0 0x4000>;
+		};
+
+		ap-ahb {
+			compatible = "simple-bus";
+			#address-cells = <2>;
+			#size-cells = <2>;
+			ranges;
+
+			ap_dma: dma-controller@20410000 {
+				compatible = "sprd,qogirl6-dma";
+				reg = <0 0x20410000 0 0x4000>;
+				interrupts = <GIC_SPI 24 IRQ_TYPE_LEVEL_HIGH>;
+				#dma-cells = <1>;
+				#dma-channels = <28>;
+				clock-names = "enable";
+				clocks = <&apahb_gate CLK_DMA_PUB_EB>;
+			};
+
+			dpu: dpu@31000000 {
+				compatible = "sprd,display-processor";
+				reg = <0x0 0x31000000 0x0 0x1000>;
+				syscons = <&ap_ahb_regs 0x0004 0x2>;
+				syscon-names = "reset";
+				interrupts = <GIC_SPI 27 IRQ_TYPE_LEVEL_HIGH>;
+				status = "disabled";
+				iommus = <&iommu_dispc>;
+
+				dma-coherent;
+
+				sprd,ip = "dpu-r5p0";
+				sprd,soc = "qogirl6";
+
+				dpu_port: port {
+					dpu_out: endpoint {
+						remote-endpoint = <&dsi_in>;
+					};
+				};
+			};
+
+			gsp_core0: gsp@31000000 {
+				compatible = "sprd,gsp-core";
+				reg = <0 0x31000000 0 0x2000>;
+				core-id = <0>;
+				kcfg-num = <16>;
+				interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>;
+				iommus = <&iommu_dispc>;
+			};
+
+			iommu_dispc: iommu@31000000 {
+				compatible = "sprd,iommuvau-dispc";
+				reg = <0x0 0x31000800 0x0 0x80>;
+				sprd,iova-base = <0x30000000>;
+				sprd,iova-size = <0x10000000>;
+				reg_name = "mmu_reg";
+				status = "disabled";
+				#iommu-cells = <0>;
+			};
+
+			dsi: dsi@31100000 {
+				compatible = "sprd,dsi-host";
+				reg = <0x0 0x31100000 0x0 0x1000>;
+				syscons = <&ap_ahb_regs 0x0004 0x1>;
+				syscon-names = "reset";
+				interrupts = <GIC_SPI 30 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI 31 IRQ_TYPE_LEVEL_HIGH>;
+				status = "disabled";
+
+				sprd,ip = "sprd,dsi-ctrl", "r3p1";
+				sprd,soc = "qogirl6";
+
+				ports {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					port@0 {
+						reg = <0>;
+						dsi_out: endpoint {
+							remote-endpoint = <&dphy_in>;
+						};
+					};
+
+					port@1 {
+						reg = <1>;
+						dsi_in: endpoint {
+							remote-endpoint = <&dpu_out>;
+						};
+					};
+				};
+			};
+
+			dphy: dphy {
+				compatible = "sprd,dsi-phy";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				reg = <0x0 0x31100000 0x0 0x1000>;
+				syscons = <&ap_ahb_regs 0x0040 (0x2 | 0x1)>,
+					<&pmu_apb_regs 0x035c 0x8>;
+				syscon-names = "enable", "power";
+				status = "disabled";
+
+				sprd,ip = "sprd,megacores-sharkl5";
+				sprd,soc = "qogirl6";
+				sprd,mipi-drive-capability = <7>;
+
+				/* output port */
+				port@0 {
+					reg = <0>;
+					dphy_out: endpoint {
+						remote-endpoint = <&panel_in>;
+					};
+				};
+
+				/* input port*/
+				port@1 {
+					reg = <1>;
+					dphy_in: endpoint {
+						remote-endpoint = <&dsi_out>;
+					};
+				};
+			};
+		};
+
+		gpu_apb_regs: syscon@23000000 {
+			compatible = "sprd,ums9230-glbregs", "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x23000000 0 0x3000>;
+		};
+
+		gpu_dvfs_apb_regs: syscon@23014000 {
+			compatible = "sprd,ums9230-glbregs", "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x23014000 0 0x3000>;
+		};
+
+		mm_ahb_regs: syscon@30000000 {
+			compatible = "sprd,ums9230-glbregs", "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x30000000 0 0x3000>;
+		};
+
+		audcp_ahb_regs: syscon@56000000 {
+			compatible = "sprd,ums9230-glbregs", "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x56000000 0 0x3000>;
+		};
+
+		audcp_apb_regs: syscon@5600d000 {
+			compatible = "sprd,ums9230-glbregs", "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x5600d000 0 0x1000>;
+		};
+
+		pub_apb_regs: syscon@60000000 {
+			compatible = "sprd,ums9230-glbregs", "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x60000000 0 0x9000>;
+		};
+
+		aon_apb_regs: syscon@64000000 {
+			compatible = "sprd,ums9230-glbregs", "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64000000 0 0x3000>;
+		};
+
+		pmu_apb_regs: syscon@64020000 {
+			compatible = "sprd,ums9230-glbregs", "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64020000 0 0x3000>;
+		};
+
+		ap_intc0_regs: syscon@64300000 {
+			compatible = "sprd,ums9230-glbregs", "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64300000 0 0x1000>;
+		};
+
+		ap_intc1_regs: syscon@64310000 {
+			compatible = "sprd,ums9230-glbregs", "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64310000 0 0x1000>;
+		};
+
+		ap_intc2_regs: syscon@64320000 {
+			compatible = "sprd,ums9230-glbregs", "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64320000 0 0x1000>;
+		};
+
+		ap_intc3_regs: syscon@64330000 {
+			compatible = "sprd,ums9230-glbregs", "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64330000 0 0x1000>;
+		};
+
+		ap_intc4_regs: syscon@64340000 {
+			compatible = "sprd,ums9230-glbregs", "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64340000 0 0x1000>;
+		};
+
+		ap_intc5_regs: syscon@64350000 {
+			compatible = "sprd,ums9230-glbregs", "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64350000 0 0x1000>;
+		};
+
+		anlg_phy_g0_regs: syscon@64550000 {
+			compatible = "sprd,ums9230-glbregs", "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64550000 0 0x3000>;
+		};
+
+		anlg_phy_g2_regs: syscon@64570000 {
+			compatible = "sprd,ums9230-glbregs", "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64570000 0 0x3000>;
+		};
+
+		anlg_phy_g3_regs: syscon@64580000 {
+			compatible = "sprd,ums9230-glbregs", "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x64580000 0 0x3000>;
+		};
+
+		anlg_phy_gc_regs: syscon@645a0000 {
+			compatible = "sprd,ums9230-glbregs", "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x645a0000 0 0x3000>;
+		};
+
+		anlg_phy_g10_regs: syscon@645b0000 {
+			compatible = "sprd,ums9230-glbregs", "syscon";
+			#syscon-cells = <2>;
+			reg = <0 0x645b0000 0 0x3000>;
+		};
+
+		aon {
+			compatible = "simple-bus";
+			#address-cells = <2>;
+			#size-cells = <2>;
+			ranges;
+
+			eic_debounce: gpio@64100000 {
+				compatible = "sprd,qogirl6-eic-debounce";
+				reg = <0 0x64100000 0 0x80>,
+				      <0 0x64110000 0 0x80>,
+				      <0 0x64120000 0 0x80>,
+				      <0 0x64130000 0 0x80>,
+				      <0 0x64140000 0 0x80>,
+				      <0 0x64150000 0 0x80>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				interrupts = <GIC_SPI 72 IRQ_TYPE_LEVEL_HIGH>;
+			};
+
+			eic_latch: gpio@64100080 {
+				compatible = "sprd,qogirl6-eic-latch";
+				reg = <0 0x64100080 0 0x20>,
+				      <0 0x64110080 0 0x20>,
+				      <0 0x64120080 0 0x20>,
+				      <0 0x64130080 0 0x20>,
+				      <0 0x64140080 0 0x20>,
+				      <0 0x64150080 0 0x20>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				interrupts = <GIC_SPI 72 IRQ_TYPE_LEVEL_HIGH>;
+			};
+
+			eic_async: gpio@641000a0 {
+				compatible = "sprd,qogirl6-eic-async";
+				reg = <0 0x641000a0 0 0x20>,
+				      <0 0x641100a0 0 0x20>,
+				      <0 0x641200a0 0 0x20>,
+				      <0 0x641300a0 0 0x20>,
+				      <0 0x641400a0 0 0x20>,
+				      <0 0x641500a0 0 0x20>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				interrupts = <GIC_SPI 72 IRQ_TYPE_LEVEL_HIGH>;
+			};
+
+			eic_sync: gpio@641000c0 {
+				compatible = "sprd,qogirl6-eic-sync";
+				reg = <0 0x641000c0 0 0x20>,
+				      <0 0x641100c0 0 0x20>,
+				      <0 0x641200c0 0 0x20>,
+				      <0 0x641300c0 0 0x20>,
+				      <0 0x641400c0 0 0x20>,
+				      <0 0x641500c0 0 0x20>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				interrupts = <GIC_SPI 72 IRQ_TYPE_LEVEL_HIGH>;
+			};
+
+			ap_gpio: gpio@641b0000 {
+				compatible = "sprd,qogirl6-gpio";
+				reg = <0 0x641b0000 0 0x10000>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				interrupts = <GIC_SPI 61 IRQ_TYPE_LEVEL_HIGH>;
+			};
+
+			aon_mailbox: mailbox@641c0000 {
+				compatible = "sprd,mailbox";
+				reg = <0 0x641c0000 0 0x40000>;
+				syscons = <&aon_apb_regs 0x4 0x4>;
+				syscon-names = "clk";
+				interrupts = <GIC_SPI 82 IRQ_TYPE_LEVEL_HIGH>,
+					     <GIC_SPI 83 IRQ_TYPE_LEVEL_HIGH>,
+					     <GIC_SPI 84 IRQ_TYPE_LEVEL_HIGH>;
+				sprd,sensor = <6>;
+				sprd,core-cnt = <9>;
+				sprd,version = <0x200>;
+			};
+
+			adi_bus: spi@64200000 {
+				compatible = "sprd,qogirl6-adi",
+						"sprd,sharkl5-adi";
+				reg = <0 0x64200000 0 0x100000>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+			};
+
+			timer@64470000 {
+				compatible = "sprd,qogirl6-timer",
+						"sprd,sc9860-timer";
+				reg = <0 0x64470000 0 0x20>;
+				interrupts = <GIC_SPI 71 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&ext_32k>;
+			};
+
+			timer@64470020 {
+				compatible = "sprd,qogirl6-suspend-timer",
+						"sprd,sc9860-suspend-timer";
+				reg = <0 0x64470020 0 0x20>;
+				clocks = <&ext_32k>;
+			};
+
+			adi_bus1: spi@64600000 {
+				compatible = "sprd,qogirl6-adi-r5p1";
+				reg = <0 0x64600000 0 0x100000>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+			};
+
+			hwlock: hwspinlock@64910000 {
+				compatible = "sprd,hwspinlock-r3p0";
+				reg = <0 0x64910000 0 0x10000>;
+				#hwlock-cells = <1>;
+				clock-names = "enable";
+				clocks = <&aonapb_gate CLK_SPLK_EB>;
+			};
+		};
+	};
+
+	ext_26m: ext-26m {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <26000000>;
+		clock-output-names = "ext-26m";
+	};
+
+	ext_32k: ext-32k {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <32768>;
+		clock-output-names = "ext-32k";
+	};
+
+	ext_4m: ext-4m {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <4000000>;
+		clock-output-names = "ext-4m";
+	};
+
+	rco_100m: rco-100m {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <100000000>;
+		clock-output-names = "rco-100m";
+	};
+
+	dphy_273m: dphy-273m {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <273000000>;
+		clock-output-names = "dphy-273m";
+	};
+
+	dphy_204m8: dphy-204m8 {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <204800000>;
+		clock-output-names = "dphy-204m8";
+	};
+};

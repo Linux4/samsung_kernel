@@ -1,0 +1,35 @@
+Spreadtrum APDU r3p0 driver
+================================================================
+
+Required properties:
+ - compatible: should be one of the following:
+   "sprd,qogirn6pro-apdu"
+ - reg: physical address of the musb and length of APDU memory mapped region.
+	if soc ranges has been configured,
+	APDU physical base addrress need deduct base address.
+ - sprd,sys-pub-reg: physical base address of pub apb reg,
+	referenced the corresponding syscon.
+ - sprd,pub-ise-reg-offset: physical address offset of
+	ise med high addrress config reg at pub apb.
+ - sprd,pub-ise-bit-offset: ise med high addrress config bit offset
+ - sprd,sys-ise-pd-reg: physical base address of pmu reg for ise.
+ - sprd,sys-ise-aon-reg: ise clock calibrating reg.
+ - sprd,sys-ise-aon-clk-reg: ise clock reg.
+ - interrupts: interrupt number for the musb controller
+
+Example:
+-------
+
+Board specific DT entry:
+
+	apdu_if: apdu@500000 {
+		compatible = "sprd,qogirn6pro-apdu";
+		reg = <0x500000 0x10000>;
+		sprd,sys-pub-reg = <&pub_apb_regs>;
+		sprd,pub-ise-reg-offset = <0x3368>;
+		sprd,pub-ise-bit-offset = <15>;
+		sprd,sys-ise-pd-reg = <&pmu_apb_regs>;
+		sprd,sys-ise-aon-reg = <&aon_apb_regs>;
+		sprd,sys-ise-aon-clk-reg = <&aon_pre_div_clk_gen_regs>;
+		interrupts = <GIC_SPI 49 IRQ_TYPE_LEVEL_HIGH>;
+	};

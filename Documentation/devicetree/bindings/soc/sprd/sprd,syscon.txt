@@ -1,0 +1,18 @@
+UNISOC PMIC syscon driver bindings
+
+This driver is designed for that pmic sub-modules can read/write pmic global register easily.
+
+Required properties:
+- compatible:
+  -"sprd,sc27xx-syscon" for SC27XX series pmic syscon
+  -"sprd,ump962x-syscon" for UMP962x main pmic syscon
+  -"sprd,ump9621-syscon" for UMP9621 sub-pmic syscon
+  -"sprd,ump9622-syscon" for UMP9622 sub-pmic syscon
+
+- reg: Specifies the physical offset address(relative to pmic base register address) for specific pmic register.
+
+Example:
+	syscon@2000 {
+		compatible = "sprd,ump962x-syscon";
+		reg = <0x2004>, <0x2008>;
+	};
