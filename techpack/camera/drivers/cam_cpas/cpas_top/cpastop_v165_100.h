@@ -300,7 +300,7 @@ static struct cam_camnoc_specific
 			.enable = false,
 		},
 		.qosgen_mainctl = {
-			.enable = false,
+			.enable = true,
 			.is_fuse_based = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
@@ -308,7 +308,7 @@ static struct cam_camnoc_specific
 			.value = 0x2,
 		},
 		.qosgen_shaping_low = {
-			.enable = false,
+			.enable = true,
 			.is_fuse_based = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
@@ -316,7 +316,7 @@ static struct cam_camnoc_specific
 			.value = 0x07070707,
 		},
 		.qosgen_shaping_high = {
-			.enable = false,
+			.enable = true,
 			.is_fuse_based = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
@@ -383,7 +383,7 @@ static struct cam_camnoc_specific
 			.value = 1,
 		},
 		.qosgen_mainctl = {
-			.enable = false,
+			.enable = true,
 			.is_fuse_based = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
@@ -391,7 +391,7 @@ static struct cam_camnoc_specific
 			.value = 0x2,
 		},
 		.qosgen_shaping_low = {
-			.enable = false,
+			.enable = true,
 			.is_fuse_based = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
@@ -399,7 +399,7 @@ static struct cam_camnoc_specific
 			.value = 0x07070707,
 		},
 		.qosgen_shaping_high = {
-			.enable = false,
+			.enable = true,
 			.is_fuse_based = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
@@ -466,7 +466,7 @@ static struct cam_camnoc_specific
 			.value = 0,
 		},
 		.qosgen_mainctl = {
-			.enable = false,
+			.enable = true,
 			.is_fuse_based = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
@@ -474,7 +474,7 @@ static struct cam_camnoc_specific
 			.value = 0x2,
 		},
 		.qosgen_shaping_low = {
-			.enable = false,
+			.enable = true,
 			.is_fuse_based = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,
@@ -482,7 +482,7 @@ static struct cam_camnoc_specific
 			.value = 0x07070707,
 		},
 		.qosgen_shaping_high = {
-			.enable = false,
+			.enable = true,
 			.is_fuse_based = true,
 			.access_type = CAM_REG_TYPE_READ_WRITE,
 			.masked_value = 0,

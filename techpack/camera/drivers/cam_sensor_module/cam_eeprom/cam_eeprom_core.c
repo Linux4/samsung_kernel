@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -34,6 +34,10 @@
 
 #ifndef TRUE
 #define TRUE 1
+#endif
+
+#if defined(CONFIG_SEC_GTACT4PRO_PROJECT) || defined(CONFIG_SEC_GTACT4PROWIFI_PROJECT)
+static unsigned int eeprom_revision = 7;     // DV1 EEPROM revision = 7
 #endif
 
 #if defined(CONFIG_SAMSUNG_CAMERA_OTP)
@@ -645,6 +649,20 @@ static int cam_eeprom_module_info_set_load_version(int rev, uint32_t hasSubCalda
 			module_fw_ver[5], module_fw_ver[6], module_fw_ver[7], module_fw_ver[8], module_fw_ver[9],
 			module_fw_ver[10]);
 
+#if defined(CONFIG_SEC_GTACT4PRO_PROJECT) || defined(CONFIG_SEC_GTACT4PROWIFI_PROJECT)
+	if(mInfo->type == SEC_WIDE_SENSOR)
+	{
+		if (module_fw_ver[0] == 'K')	// DVI EEPROM Module Info: G13QLMD00MA  , DV2 EEPROM Module Info: K13ELPER0MA
+		{
+			CAM_DBG(CAM_EEPROM, "DV2 EEPROM Revision");
+			eeprom_revision = 8;	// DV2 EEPROM Revision = 8
+		}
+		else
+		{
+			CAM_DBG(CAM_EEPROM, "DV1 EEPROM Revision");
+		}
+	}
+#endif
 		/* temp phone version */
 		snprintf(phone_fw_ver, FROM_MODULE_FW_INFO_SIZE+1, "%s%s%s%s",
 			mInfo->mVer.phone_hw_info, mInfo->mVer.phone_sw_info,
@@ -1691,7 +1709,7 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 			SIZE_M_DUAL_CAL, e_ctrl->cal_data.mapdata, "rear2 uw", &mInfo);
 #endif
 
-#if defined(CONFIG_SEC_GTS7FEWIFI_PROJECT) || defined(CONFIG_SEC_GTACTPRO2_PROJECT) || defined(CONFIG_SEC_GTACT4PRO_PROJECT) || defined(CONFIG_SEC_GTACT4PROWIFI_PROJECT)
+#if defined(CONFIG_SEC_GTS7FEWIFI_PROJECT)
 		/* AF Cal. data read */
 		{
 			AfIdx_t rear_idx[] = {
@@ -1701,6 +1719,31 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 
 			cam_eeprom_module_info_set_afcal(ADDR_M_AF, rear_idx, sizeof(rear_idx)/sizeof(rear_idx[0]),
 				e_ctrl->cal_data.mapdata, rear_af_cal_str, sizeof(rear_af_cal_str));
+		}
+#elif defined(CONFIG_SEC_GTACT4PRO_PROJECT) || defined(CONFIG_SEC_GTACT4PROWIFI_PROJECT)
+		if (eeprom_revision == 7)
+		{
+		/* AF Cal. data read */
+			{
+				AfIdx_t rear_idx[] = {
+					{AF_CAL_NEAR_IDX, AF_CAL_NEAR_OFFSET_FROM_AF},
+					{AF_CAL_FAR_IDX, AF_CAL_FAR_OFFSET_FROM_AF + 0x0010},	// DV1 Offset: 0x0010 , DV2 Offset: 0x0000  (set the 0x0000 Far offset by default in cam_eeprom_dev.h)
+				};
+				cam_eeprom_module_info_set_afcal(ADDR_M_AF, rear_idx, sizeof(rear_idx)/sizeof(rear_idx[0]),
+					e_ctrl->cal_data.mapdata, rear_af_cal_str, sizeof(rear_af_cal_str));
+			}
+		}
+		else
+		{
+		/* AF Cal. data read */
+			{
+				AfIdx_t rear_idx[] = {
+					{AF_CAL_NEAR_IDX, AF_CAL_NEAR_OFFSET_FROM_AF},
+					{AF_CAL_FAR_IDX, AF_CAL_FAR_OFFSET_FROM_AF},
+				};
+				cam_eeprom_module_info_set_afcal(ADDR_M_AF, rear_idx, sizeof(rear_idx)/sizeof(rear_idx[0]),
+					e_ctrl->cal_data.mapdata, rear_af_cal_str, sizeof(rear_af_cal_str));
+			}
 		}
 #endif
 
@@ -4184,7 +4227,16 @@ static int32_t cam_eeprom_init_pkt_parser(struct cam_eeprom_ctrl_t *e_ctrl,
 					rc = -EINVAL;
 					goto end;
 				}
+
+				if ((num_map + 1) >=
+					(MSM_EEPROM_MAX_MEM_MAP_CNT *
+					MSM_EEPROM_MEMORY_MAP_MAX_SIZE)) {
+					CAM_ERR(CAM_EEPROM, "OOB error");
+					rc = -EINVAL;
+					goto end;
+				}
 				/* Configure the following map slave address */
+
 				map[num_map + 1].saddr = i2c_info->slave_addr;
 				rc = cam_eeprom_update_slaveInfo(e_ctrl,
 					cmd_buf);

@@ -753,104 +753,34 @@ static int cam_cpastop_poweron(struct cam_hw_info *cpas_hw)
 	struct cam_cpas_hw_errata_wa_list *errata_wa_list =
 		camnoc_info->errata_wa_list;
 	struct cam_cpas_hw_errata_wa *errata_wa;
-	struct cam_cpas *cpas_core = (struct cam_cpas *) cpas_hw->core_info;
-	struct cam_hw_soc_info *soc_info = &cpas_hw->soc_info;
-	int reg_base_index;
 
 	cam_cpastop_reset_irq(cpas_hw);
 	for (i = 0; i < camnoc_info->specific_size; i++) {
 		if (camnoc_info->specific[i].enable) {
-			CAM_INFO(CAM_CPAS, "Updating QoS settings for %d",
+			CAM_DBG(CAM_CPAS, "Updating QoS settings for %d",
 				camnoc_info->specific[i].port_type);
 			cam_cpas_util_reg_update(cpas_hw, CAM_CPAS_REG_CAMNOC,
 				&camnoc_info->specific[i].priority_lut_low);
-			CAM_INFO(CAM_CPAS, "%d priority_lut_low 0x%x",
-				i, camnoc_info->specific[i].priority_lut_low.value);
-
 			cam_cpas_util_reg_update(cpas_hw, CAM_CPAS_REG_CAMNOC,
 				&camnoc_info->specific[i].priority_lut_high);
-			CAM_INFO(CAM_CPAS, "%d priority_lut_high 0x%x",
-				i, camnoc_info->specific[i].priority_lut_high.value);
-
 			cam_cpas_util_reg_update(cpas_hw, CAM_CPAS_REG_CAMNOC,
 				&camnoc_info->specific[i].urgency);
-			CAM_INFO(CAM_CPAS, "%d urgency 0x%x",
-				i, camnoc_info->specific[i].urgency.value);
-
 			cam_cpas_util_reg_update(cpas_hw, CAM_CPAS_REG_CAMNOC,
 				&camnoc_info->specific[i].danger_lut);
-			CAM_INFO(CAM_CPAS, "%d danger_lut 0x%x",
-				i, camnoc_info->specific[i].danger_lut.value);
-
 			cam_cpas_util_reg_update(cpas_hw, CAM_CPAS_REG_CAMNOC,
 				&camnoc_info->specific[i].safe_lut);
-			CAM_INFO(CAM_CPAS, "%d safe_lut 0x%x",
-				i, camnoc_info->specific[i].safe_lut.value);
-
 			cam_cpas_util_reg_update(cpas_hw, CAM_CPAS_REG_CAMNOC,
 				&camnoc_info->specific[i].ubwc_ctl);
-			CAM_INFO(CAM_CPAS, "%d ubwc_ctl 0x%x",
-				i, camnoc_info->specific[i].ubwc_ctl.value);
-
 			cam_cpas_util_reg_update(cpas_hw, CAM_CPAS_REG_CAMNOC,
 				&camnoc_info->specific[i].flag_out_set0_low);
-			CAM_INFO(CAM_CPAS, "%d flag_out_set0_low 0x%x",
-				i, camnoc_info->specific[i].flag_out_set0_low.value);
-
 			cam_cpas_util_reg_update(cpas_hw, CAM_CPAS_REG_CAMNOC,
 				&camnoc_info->specific[i].qosgen_mainctl);
-			cam_cpas_util_reg_read(cpas_hw,	CAM_CPAS_REG_CAMNOC,
-				&camnoc_info->specific[i].qosgen_mainctl);
-
 			cam_cpas_util_reg_update(cpas_hw, CAM_CPAS_REG_CAMNOC,
 				&camnoc_info->specific[i].qosgen_shaping_low);
-			cam_cpas_util_reg_read(cpas_hw,	CAM_CPAS_REG_CAMNOC,
-				&camnoc_info->specific[i].qosgen_shaping_low);
-
 			cam_cpas_util_reg_update(cpas_hw, CAM_CPAS_REG_CAMNOC,
-				&camnoc_info->specific[i].qosgen_shaping_high);
-			cam_cpas_util_reg_read(cpas_hw,	CAM_CPAS_REG_CAMNOC,
 				&camnoc_info->specific[i].qosgen_shaping_high);
 		}
 	}
-
-	cpas_core = (struct cam_cpas *) cpas_hw->core_info;
-	soc_info = &cpas_hw->soc_info;
-	reg_base_index = cpas_core->regbase_index[CAM_CPAS_REG_CAMNOC];
-
-	/* Update the ipe_0_rd_qosgen_MainCtl_Low  */
-	cam_io_w_mb(0x2, soc_info->reg_map[reg_base_index].mem_base +
-		0x4A08);
-	/* Update the ipe_0_rd_qosgen_Shaping_Low   */
-	cam_io_w_mb(0x10101010, soc_info->reg_map[reg_base_index].mem_base +
-		0x4A20);
-	/* Update the ipe_0_rd_qosgen_Shaping_High   */
-	cam_io_w_mb(0x10101010, soc_info->reg_map[reg_base_index].mem_base +
-		0x4A24);
-
-	CAM_INFO(CAM_CPAS, "ipe_0_rd_qosgen_MainCtl_Low 0x%x",
-              cam_io_r_mb(soc_info->reg_map[reg_base_index].mem_base + 0x4A08));
-    CAM_INFO(CAM_CPAS, "ipe_0_rd_qosgen_Shaping_Low 0x%x",
-              cam_io_r_mb(soc_info->reg_map[reg_base_index].mem_base + 0x4A20));
-    CAM_INFO(CAM_CPAS, "ipe_0_rd_qosgen_Shaping_High 0x%x",
-          cam_io_r_mb(soc_info->reg_map[reg_base_index].mem_base + 0x4A24));
-
-	/* Update the ipe_1_bps_rd_qosgen_MainCtl_Low   */
-	cam_io_w_mb(0x2, soc_info->reg_map[reg_base_index].mem_base +
-		0x4B08);
-	/* Update the ipe_1_bps_rd_qosgen_Shaping_Low    */
-	cam_io_w_mb(0x10101010, soc_info->reg_map[reg_base_index].mem_base +
-		0x4B20);
-	/* Update the ipe_1_bps_rd_qosgen_Shaping_High    */
-	cam_io_w_mb(0x10101010, soc_info->reg_map[reg_base_index].mem_base +
-		0x4B24);
-		
-	CAM_INFO(CAM_CPAS, "ipe_0_rd_qosgen_MainCtl_Low 0x%x",
-       cam_io_r_mb(soc_info->reg_map[reg_base_index].mem_base + 0x4B08));
-    CAM_INFO(CAM_CPAS, "ipe_1_rd_qosgen_Shaping_Low 0x%x",
-       cam_io_r_mb(soc_info->reg_map[reg_base_index].mem_base + 0x4B20));
-    CAM_INFO(CAM_CPAS, "ipe_1_rd_qosgen_Shaping_High 0x%x",
-       cam_io_r_mb(soc_info->reg_map[reg_base_index].mem_base + 0x4B24));
 
 	if (errata_wa_list) {
 		errata_wa = &errata_wa_list->tcsr_camera_hf_sf_ares_glitch;

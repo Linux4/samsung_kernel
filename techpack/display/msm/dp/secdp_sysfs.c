@@ -304,15 +304,14 @@ static ssize_t dex_ver_show(struct class *class,
 				struct class_attribute *attr, char *buf)
 {
 	struct secdp_sysfs_private *sysfs = g_secdp_sysfs;
-	struct secdp_misc *sec = sysfs->sec;
-	struct secdp_dex *dex = &sec->dex;
+	struct secdp_adapter *adapter = &sysfs->sec->adapter;
 	int rc;
 
 	DP_INFO("branch revision: HW(0x%X), SW(0x%X, 0x%X)\n",
-		dex->fw_ver[0], dex->fw_ver[1], dex->fw_ver[2]);
+		adapter->fw_ver[0], adapter->fw_ver[1], adapter->fw_ver[2]);
 
 	rc = scnprintf(buf, PAGE_SIZE, "%02X%02X\n",
-		dex->fw_ver[1], dex->fw_ver[2]);
+		adapter->fw_ver[1], adapter->fw_ver[2]);
 
 	return rc;
 }
@@ -841,10 +840,17 @@ static ssize_t dp_preshoot_store(struct class *dev,
 		struct class_attribute *attr, const char *buf, size_t size)
 {
 	char tmp[SZ_64] = {0,};
+	int len = min(sizeof(tmp), size);
 
-	memcpy(tmp, buf, min(ARRAY_SIZE(tmp), size));
+	if (!len || len >= SZ_64) {
+		DP_ERR("wrong length! %d\n", len);
+		goto end;
+	}
+
+	memcpy(tmp, buf, len);
+	tmp[SZ_64 - 1] = '\0';
 	secdp_catalog_preshoot_store(tmp);
-
+end:
 	return size;
 }
 

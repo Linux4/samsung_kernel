@@ -324,6 +324,8 @@ static const char *ccic_id_string(enum ccic_id id)
 		return "ID_SVID_INFO";
 	case NOTIFY_ID_CLEAR_INFO:
 		return "ID_CLEAR_INFO";
+	case NOTIFY_ID_POGO:
+		return "ID_POGO";
 	default:
 		return "UNDEFINED";
 	}
@@ -751,6 +753,13 @@ static void print_ccic_event(struct seq_file *m, unsigned long long ts,
 			ccic_dev_string(type.src),
 			ccic_dev_string(type.dest),
 			(type.sub1 == NOTIFY_ID_DEVICE_INFO) ? "DEVICE INFO" : "SVID INFO");
+		else if (type.id == NOTIFY_ID_POGO)
+			seq_printf(m, "[%5lu.%06lu] manager notify: id=%s src=%s dest=%s cable=%d %s\n",
+			(unsigned long)ts, rem_nsec / 1000,
+			ccic_id_string(type.id),
+			ccic_dev_string(type.src),
+			ccic_dev_string(type.dest),
+			cable, ccic_con_string(type.sub1));
 		else
 			seq_printf(m, "[%5lu.%06lu] ccic notify:    id=%s src=%s dest=%s rprd=%s %s\n",
 			(unsigned long)ts, rem_nsec / 1000,

@@ -3551,6 +3551,14 @@ int ufshcd_read_desc_param(struct ufs_hba *hba,
 		return ret;
 	}
 
+	/* Check param offset and size what we need is less than buff_len */
+	if ((param_offset + param_size) > buff_len) {
+		dev_err(hba->dev, "%s: Invalid offset 0x%x(size 0x%x) in descriptor IDN 0x%x, length 0x%x\n",
+				__func__, param_offset, param_size,
+				desc_id, buff_len);
+		return -EINVAL;
+	}
+
 	/* Check whether we need temp memory */
 	if (param_offset != 0 || param_size < buff_len) {
 		desc_buf = kmalloc(buff_len, GFP_KERNEL);

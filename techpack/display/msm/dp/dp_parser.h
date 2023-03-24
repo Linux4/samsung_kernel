@@ -270,6 +270,7 @@ struct dp_parser {
 	int  use_redrv;   /* ptn36502 needs NOT AUX switch SEL control */
 	int  dex_dft_res; /* DeX default resolution, e.g, HG950 */
 	bool prefer_support;  /* true if prefer resolution has high priority */
+	bool mrr_fps_nolimit; /* true if mirroring refresh rate has no limit */
 
 	u8 vm_pre_emphasis[MAX_VOLTAGE_LEVELS][MAX_PRE_EMP_LEVELS];
 	u8 vm_voltage_swing[MAX_VOLTAGE_LEVELS][MAX_PRE_EMP_LEVELS];

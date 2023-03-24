@@ -2137,7 +2137,7 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 		}
 #endif
 
-#if defined(CONFIG_SEC_GTS7FEWIFI_PROJECT)
+#if defined(CONFIG_SEC_GTS7FEWIFI_PROJECT) || defined(CONFIG_SEC_A73XQ_PROJECT)
 		/* This change for is done for TabS7+ Lite Factory timing issue*/
 		if (power_setting->seq_type == SENSOR_VIO)
 		{
