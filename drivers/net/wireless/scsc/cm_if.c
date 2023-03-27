@@ -119,13 +119,14 @@ static void wlan_failure_reset(struct scsc_service_client *client, u16 scsc_pani
 int slsi_check_rf_test_mode(void)
 {
 	struct file *fp = NULL;
-#if defined(ANDROID_VERSION) && ANDROID_VERSION >= 90000
+#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9
  	char *filepath = "/data/vendor/conn/.psm.info";
 #else
 	char *filepath = "/data/misc/conn/.psm.info";
 #endif
 	char *file_path = "/data/vendor/wifi/rftest.info";
 	char power_val = 0;
+	int  ret = 0;
 
 	/* reading power value from /data/vendor/conn/.psm.info */
 	fp = filp_open(filepath, O_RDONLY, 0);
@@ -140,10 +141,14 @@ int slsi_check_rf_test_mode(void)
 	}
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
-	kernel_read(fp, &power_val, 1, &fp->f_pos);
+	ret = kernel_read(fp, &power_val, 1, &fp->f_pos);
 #else
-	kernel_read(fp, fp->f_pos, &power_val, 1);
+	ret = kernel_read(fp, fp->f_pos, &power_val, 1);
 #endif
+	if (ret < 0) {
+		SLSI_INFO_NODEV("Kernel read error found\n");
+		goto exit;
+	}
 	/* if power_val is 0, it means rf_test mode by rf. */
 	if (power_val == '0') {
 		pr_err("*#rf# is enabled.\n");
@@ -157,6 +162,9 @@ int slsi_check_rf_test_mode(void)
 		filp_close(fp, NULL);
 
 	return 0;
+	exit:
+		filp_close(fp, NULL);
+		return -EINVAL;
 }
 
 /* WLAN service driver registration
@@ -555,6 +563,7 @@ int slsi_sm_wlan_service_start(struct slsi_dev *sdev)
 		return err;
 	}
 	atomic_set(&sdev->cm_if.cm_if_state, SCSC_WIFI_CM_IF_STATE_STARTED);
+	sdev->wlan_service_on = 1;
 	mutex_unlock(&slsi_start_mutex);
 	return 0;
 }
@@ -666,6 +675,7 @@ void slsi_sm_wlan_service_close(struct slsi_dev *sdev)
 	int cm_if_state, r;
 
 	mutex_lock(&slsi_start_mutex);
+	sdev->wlan_service_on = 0;
 	cm_if_state = atomic_read(&sdev->cm_if.cm_if_state);
 	if (cm_if_state != SCSC_WIFI_CM_IF_STATE_STOPPED) {
 		SLSI_INFO(sdev, "Service not stopped\n");

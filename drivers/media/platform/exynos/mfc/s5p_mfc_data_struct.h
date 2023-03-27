@@ -773,6 +773,12 @@ struct s5p_mfc_enc_params {
 
 	u16 rc_frame_delta;	/* MFC6.1 Only */
 
+	u32 check_color_range;
+	u32 color_range;
+	u32 colour_primaries;
+	u32 transfer_characteristics;
+	u32 matrix_coefficients;
+
 	union {
 		struct s5p_mfc_h264_enc_params h264;
 		struct s5p_mfc_mpeg4_enc_params mpeg4;
@@ -889,6 +895,7 @@ struct mfc_user_shared_handle {
 	int fd;
 	struct ion_handle *ion_handle;
 	void *vaddr;
+	size_t data_size;
 };
 
 struct s5p_mfc_raw_info {

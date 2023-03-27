@@ -34,7 +34,8 @@ choice
 	default MALI_TMIX_R9P0 if ANDROID_VERSION = "80000"
 	default MALI_TMIX_R10P0 if ANDROID_VERSION = "80100"
 	default MALI_TMIX_R16P0 if ANDROID_VERSION = "90000"
-        default MALI_TMIX_R19P0 if ANDROID_VERSION >= "100000"
+        default MALI_TMIX_R19P0 if ANDROID_VERSION = "100000"
+		default MALI_TMIX_R26P0 if ANDROID_VERSION >= "110000"
 	help
 	  Select the gpu support version.
 
@@ -61,6 +62,14 @@ config MALI_TMIX_R16P0
 config MALI_TMIX_R19P0
 	depends on MALI_TMIX
 	bool "mimir r19p0 driver"
+	
+config MALI_TMIX_R25P1
+	depends on MALI_TMIX
+	bool "mimir r25p1 driver"
+	
+config MALI_TMIX_R26P0
+	depends on MALI_TMIX
+	bool "mimir r26p0 driver"
 endchoice
 
 if MALI_TMIX_R3P0
@@ -86,3 +95,12 @@ endif
 if MALI_TMIX_R19P0
 source "drivers/gpu/arm/b_r19p0/Kconfig"
 endif
+
+if MALI_TMIX_R25P1
+source "drivers/gpu/arm/b_r25p1/Kconfig"
+endif
+
+if MALI_TMIX_R26P0
+source "drivers/gpu/arm/b_r26p0/Kconfig"
+endif
+

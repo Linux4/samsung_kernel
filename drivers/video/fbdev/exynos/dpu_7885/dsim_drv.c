@@ -1332,6 +1332,25 @@ static int dsim_parse_dt(struct dsim_device *dsim, struct device *dev)
 	return 0;
 }
 
+static void dsim_register_panel(struct dsim_device *dsim)
+{
+#if IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_S6E3HA2K)
+	dsim->panel_ops = &s6e3ha2k_mipi_lcd_driver;
+#elif IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_S6E3HF4)
+	dsim->panel_ops = &s6e3hf4_mipi_lcd_driver;
+#elif IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_EMUL_DISP)
+	dsim->panel_ops = &emul_disp_mipi_lcd_driver;
+#elif IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_S6E3FA0)
+	dsim->panel_ops = &s6e3fa0_mipi_lcd_driver;
+#elif IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_S6E3FA3)
+	dsim->panel_ops = &s6e3fa3_mipi_lcd_driver;
+#elif IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_S6E3FA7)
+	dsim->panel_ops = &s6e3fa7_mipi_lcd_driver;
+#else
+	dsim->panel_ops = mipi_lcd_driver;
+#endif
+}
+
 static int dsim_get_data_lanes(struct dsim_device *dsim)
 {
 	int i;

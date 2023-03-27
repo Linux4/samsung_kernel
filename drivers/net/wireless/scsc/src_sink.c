@@ -30,7 +30,8 @@ static int slsi_src_sink_fake_sta_start(struct slsi_dev *sdev, struct net_device
 	}
 
 	if (WARN(slsi_vif_activated(sdev, dev) != 0, "activate VIF failed")) {
-		slsi_mlme_del_vif(sdev, dev);
+		if (slsi_mlme_del_vif(sdev, dev) != 0)
+			SLSI_NET_ERR(dev, "slsi_mlme_del_vif failed\n");
 		SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 		return -EFAULT;
 	}
@@ -38,7 +39,8 @@ static int slsi_src_sink_fake_sta_start(struct slsi_dev *sdev, struct net_device
 	peer = slsi_peer_add(sdev, dev, fake_peer_mac, SLSI_STA_PEER_QUEUESET + 1);
 	if (WARN(!peer, "add fake peer failed")) {
 		slsi_vif_deactivated(sdev, dev);
-		slsi_mlme_del_vif(sdev, dev);
+		if (slsi_mlme_del_vif(sdev, dev) != 0)
+			SLSI_NET_ERR(dev, "slsi_mlme_del_vif failed\n");
 		SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 		return -EFAULT;
 	}
@@ -66,7 +68,8 @@ static void slsi_src_sink_fake_sta_stop(struct slsi_dev *sdev, struct net_device
 	if (peer)
 		slsi_peer_remove(sdev, dev, peer);
 	slsi_vif_deactivated(sdev, dev);
-	slsi_mlme_del_vif(sdev, dev);
+	if (slsi_mlme_del_vif(sdev, dev) != 0)
+			SLSI_NET_ERR(dev, "slsi_mlme_del_vif failed\n");
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 }
 

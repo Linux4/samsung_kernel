@@ -100,6 +100,7 @@
 
 #define CHARGER_OFF_MODE	0
 #define BUCK_MODE		1
+#define BST_MODE		2
 #define CHG_MODE		3
 #define OTG_BST_MODE		6
 
@@ -256,7 +257,6 @@
 
 #define REDUCE_CURRENT_STEP         25
 #define MINIMUM_INPUT_CURRENT           300
-#define SLOW_CHARGING_CURRENT_STANDARD      400
 
 #define FAKE_BAT_LEVEL          50
 
@@ -328,7 +328,6 @@ typedef struct s2mu106_charger_platform_data {
 	int recharge_vcell;
 	uint32_t is_1MHz_switching:1;
 	int chg_switching_freq;
-	int slow_charging_current;
 } s2mu106_charger_platform_data_t;
 
 
@@ -368,6 +367,7 @@ struct s2mu106_charger_data {
 	int irq_chg;
 	int irq_chgin;
 	int irq_chg_fault;
+	int irq_tx;
 	int irq_otg;
 	int irq_vbus;
 	int irq_rst;
@@ -381,7 +381,6 @@ struct s2mu106_charger_data {
 
 	int irq_ivr_enabled;
 	int ivr_on;
-	bool slow_charging;
 
 	/* efficiency 9V charging */
 	unsigned char reg_0x9E;
@@ -389,6 +388,7 @@ struct s2mu106_charger_data {
 #if defined(CONFIG_MUIC_NOTIFIER)
 	struct notifier_block cable_check;
 #endif
+	struct mutex regmode_mutex;
 };
 
 #endif /*S2MU106_CHARGER_H*/

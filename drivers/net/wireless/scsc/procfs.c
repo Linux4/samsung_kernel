@@ -1,6 +1,6 @@
 /*****************************************************************************
  *
- * Copyright (c) 2012 - 2019 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2020 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -223,14 +223,11 @@ static ssize_t slsi_procfs_big_data_read(struct file *file,  char __user *user_b
 	const size_t      bufsz = sizeof(buf);
 	struct slsi_dev   *sdev = (struct slsi_dev *)file->private_data;
 	struct net_device *dev;
-	struct netdev_vif *ndev_vif;
 
 	SLSI_UNUSED_PARAMETER(file);
 	dev = slsi_get_netdev(sdev, 1);
 	if (!dev)
 		goto exit;
-
-	ndev_vif = netdev_priv(dev);
 
 exit:
 	pos = slsi_get_sta_info(dev, buf, bufsz);
@@ -374,11 +371,6 @@ static int slsi_procfs_build_show(struct seq_file *m, void *v)
 #else
 	seq_puts(m, "CONFIG_SCSC_WLAN_KEY_MGMT_OFFLOAD                 : n\n");
 #endif
-#ifdef CONFIG_SCSC_WLAN_SET_PREFERRED_ANTENNA
-	seq_puts(m, "CONFIG_SCSC_WLAN_SET_PREFERRED_ANTENNA            : y\n");
-#else
-	seq_puts(m, "CONFIG_SCSC_WLAN_SET_PREFERRED_ANTENNA            : n\n");
-#endif
 
 	seq_puts(m, "-------------------------------------------------\n");
 #ifdef CONFIG_SCSC_WLAN_DEBUG
@@ -434,6 +426,11 @@ static int slsi_procfs_build_show(struct seq_file *m, void *v)
 #else
 	seq_puts(m, "CONFIG_SCSC_WIFI_NAN_ENABLE                       : n\n");
 #endif
+#ifdef CONFIG_SCSC_WLAN_SET_PREFERRED_ANTENNA
+	seq_puts(m, "CONFIG_SCSC_WLAN_SET_PREFERRED_ANTENNA            : y\n");
+#else
+	seq_puts(m, "CONFIG_SCSC_WLAN_SET_PREFERRED_ANTENNA            : n\n");
+#endif
 #ifdef CONFIG_SLSI_WLAN_STA_FWD_BEACON
 	seq_puts(m, "CONFIG_SLSI_WLAN_STA_FWD_BEACON                   : y\n");
 #else
@@ -445,6 +442,11 @@ static int slsi_procfs_build_show(struct seq_file *m, void *v)
 	seq_puts(m, "CONFIG_SCSC_WLAN_STA_ENHANCED_ARP_DETECT          : n\n");
 #endif
 
+#ifdef CONFIG_SCSC_WLAN_BSS_SELECTION
+	seq_puts(m, "CONFIG_SCSC_WLAN_BSS_SELECTION                      : y\n");
+#else
+	seq_puts(m, "CONFIG_SCSC_WLAN_BSS_SELECTION                      : n\n");
+#endif
 	return 0;
 }
 
@@ -520,7 +522,6 @@ static ssize_t slsi_procfs_uapsd_write(struct file *file,
 {
 	struct slsi_dev   *sdev           = file->private_data;
 	struct net_device *dev          = NULL;
-	struct netdev_vif *ndev_vif     = NULL;
 	int               qos_info      = 0;
 	int               offset        = 0;
 	char              *read_string;
@@ -532,12 +533,14 @@ static ssize_t slsi_procfs_uapsd_write(struct file *file,
 		return -EINVAL;
 	}
 
-	ndev_vif = netdev_priv(dev);
-
 	if (!count)
 		return -EINVAL;
 
 	read_string = kmalloc(count + 1, GFP_KERNEL);
+	if (!read_string) {
+		SLSI_ERR(sdev, "Malloc for read_string failed\n");
+		return -ENOMEM;
+	}
 	memset(read_string, 0, (count + 1));
 
 	simple_write_to_buffer(read_string, count, ppos, user_buf, count);
@@ -554,13 +557,12 @@ static ssize_t slsi_procfs_uapsd_write(struct file *file,
 	sdev->device_config.qos_info = qos_info;
 	SLSI_DBG1(sdev, SLSI_MLME, "set qos_info:%d\n", sdev->device_config.qos_info);
 
-
 	kfree(read_string);
 	return count;
 }
 
 static ssize_t slsi_procfs_ap_cert_disable_ht_vht_write(struct file *file, const char __user *user_buf,
-								size_t count, loff_t *ppos)
+							size_t count, loff_t *ppos)
 {
 	struct slsi_dev *sdev = file->private_data;
 	int offset = 0;
@@ -571,6 +573,10 @@ static ssize_t slsi_procfs_ap_cert_disable_ht_vht_write(struct file *file, const
 		return -EINVAL;
 
 	read_string = kmalloc(count + 1, GFP_KERNEL);
+	if (!read_string) {
+		SLSI_ERR(sdev, "Malloc for read_string failed\n");
+		return -ENOMEM;
+	}
 	memset(read_string, 0, (count + 1));
 
 	simple_write_to_buffer(read_string, count, ppos, user_buf, count);
@@ -603,6 +609,10 @@ static ssize_t slsi_procfs_p2p_certif_write(struct file *file,
 	int               offset        = 0;
 
 	read_string = kmalloc(count + 1, GFP_KERNEL);
+	if (!read_string) {
+		SLSI_ERR(sdev, "Malloc for read_string failed\n");
+		return -ENOMEM;
+	}
 	memset(read_string, 0, (count + 1));
 
 	simple_write_to_buffer(read_string, count, ppos, user_buf, count);
@@ -936,8 +946,10 @@ static int slsi_procfs_fcq_show(struct seq_file *m, void *v)
 			u32                            peer_ps_state_transitions = 0;
 			enum scsc_wifi_fcq_8021x_state cp_state;
 
-			if (scsc_wifi_fcq_stat_queueset(&ndev_vif->ap.group_data_qs, &queue_stat, &smod, &scod, &cp_state, &peer_ps_state_transitions) != 0)
+			if (scsc_wifi_fcq_stat_queueset(&ndev_vif->ap.group_data_qs, &queue_stat, &smod, &scod, &cp_state, &peer_ps_state_transitions) != 0) {
+				SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 				continue;
+			}
 
 			seq_printf(m, "|%-12s|%-6d|%-6s|\n%d). smod:%u, scod:%u, netq stops :%u, netq resumes :%u, PS transitions :%u Controlled port :%s\n",
 				   netdev_name(dev),
@@ -1132,6 +1144,16 @@ static ssize_t slsi_procfs_nan_exclude_ipv6_addr_tlv_write(struct file *file, co
 
 #endif
 
+static ssize_t slsi_procfs_dscp_mapping_read(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
+{
+#if (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 10)
+#define DSCP_MAP "0,8,40,56"
+#else
+#define DSCP_MAP "24,8,40,56"
+#endif
+	return simple_read_from_buffer(user_buf, count, ppos, DSCP_MAP, strlen(DSCP_MAP));
+}
+
 SLSI_PROCFS_SEQ_FILE_OPS(vifs);
 SLSI_PROCFS_SEQ_FILE_OPS(mac_addr);
 SLSI_PROCFS_WRITE_FILE_OPS(uapsd);
@@ -1163,6 +1185,7 @@ SLSI_PROCFS_READ_FILE_OPS(nan_mac_addr);
 SLSI_PROCFS_READ_FILE_OPS(nan_info);
 SLSI_PROCFS_WRITE_FILE_OPS(nan_exclude_ipv6_addr_tlv);
 #endif
+SLSI_PROCFS_READ_FILE_OPS(dscp_mapping);
 
 int slsi_create_proc_dir(struct slsi_dev *sdev)
 {
@@ -1208,6 +1231,7 @@ int slsi_create_proc_dir(struct slsi_dev *sdev)
 		SLSI_PROCFS_ADD_FILE(sdev, nan_info, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 		SLSI_PROCFS_ADD_FILE(sdev, nan_exclude_ipv6_addr_tlv, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 #endif
+		SLSI_PROCFS_ADD_FILE(sdev, dscp_mapping, parent, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 		return 0;
 	}
 
@@ -1222,8 +1246,6 @@ void slsi_remove_proc_dir(struct slsi_dev *sdev)
 		char dir[32];
 
 		SLSI_PROCFS_REMOVE_FILE(build, sdev->procfs_dir);
-		SLSI_PROCFS_REMOVE_FILE(release, sdev->procfs_dir);
-		SLSI_PROCFS_REMOVE_FILE(version, sdev->procfs_dir);
 		SLSI_PROCFS_REMOVE_FILE(status, sdev->procfs_dir);
 		SLSI_PROCFS_REMOVE_FILE(vifs, sdev->procfs_dir);
 		SLSI_PROCFS_REMOVE_FILE(mac_addr, sdev->procfs_dir);
@@ -1253,7 +1275,7 @@ void slsi_remove_proc_dir(struct slsi_dev *sdev)
 		SLSI_PROCFS_REMOVE_FILE(nan_info, sdev->procfs_dir);
 		SLSI_PROCFS_REMOVE_FILE(nan_exclude_ipv6_addr_tlv, sdev->procfs_dir);
 #endif
-
+		SLSI_PROCFS_REMOVE_FILE(dscp_mapping, sdev->procfs_dir);
 		(void)snprintf(dir, sizeof(dir), "driver/unifi%d", sdev->procfs_instance);
 		remove_proc_entry(dir, NULL);
 		sdev->procfs_dir = NULL;

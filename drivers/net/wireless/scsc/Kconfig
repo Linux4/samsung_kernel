@@ -117,7 +117,7 @@ config SCSC_WLAN_WES_NCHO
 
 config SCSC_WLAN_MUTEX_DEBUG
 	bool "Enable Mutex debugging mechanism in slsi wlan driver"
-	default y
+	default n
 	---help---
 	  This option enables the Mutex debug reports in slsi wlan driver.
 
@@ -189,6 +189,12 @@ config SCSC_WLAN_WIFI_SHARING
 	default y
 	---help---
 	  This option tells if wifi sharing is supported or not.
+
+config SCSC_WLAN_SAE_CONFIG
+        bool "Wpa3 Support"
+        default n
+        ---help---
+          This option tells if wpa3  is supported or not.
 
 config SCSC_WLAN_ENABLE_MAC_RANDOMISATION
         bool "Wifi Mac Randomization Support"
@@ -281,3 +287,9 @@ config SCSC_WLAN_DUAL_STATION
         default n
         ---help---
         This option tells if dual station feature is supported or not.
+
+config SCSC_WLAN_BSS_SELECTION
+        bool "Select AP if bssid is not present"
+        default n
+        ---help---
+        This option enable the selection of AP based on the BSSID hint.

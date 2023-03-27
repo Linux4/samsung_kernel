@@ -408,6 +408,14 @@ static void slsi_rx_data_ind(struct slsi_dev *sdev, struct net_device *dev, stru
 		return;
 	}
 
+	/* skip BA reorder if the destination address is Multicast */
+	if (ndev_vif->vif_type == FAPI_VIFTYPE_STATION && (is_multicast_ether_addr(eth_hdr->h_dest))) {
+		/* Skip BA reorder and pass the frames Up */
+		SLSI_NET_DBG2(dev, SLSI_RX, "Multicast/Broadcast packet received in STA mode(seq: %d) skip BA\n", (seq_num & SLSI_RX_SEQ_NUM_MASK));
+		slsi_rx_data_deliver_skb(sdev, dev, skb);
+		return;
+	}
+
 	/* When TDLS connection has just been closed a few last frame may still arrive from the closed connection.
 	 * This frames must not be injected in to the block session with the AP as the sequence numbers are different
 	 * that will confuse the BA process. Therefore we have to skip BA for those frames.

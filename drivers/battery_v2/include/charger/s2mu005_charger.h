@@ -217,7 +217,6 @@
 
 #define REDUCE_CURRENT_STEP			50
 #define MINIMUM_INPUT_CURRENT			300
-#define SLOW_CHARGING_CURRENT_STANDARD		400
 
 enum {
 	CHG_REG = 0,
@@ -234,8 +233,6 @@ typedef struct s2mu005_charger_platform_data {
 	bool always_enable;
 	/* 2nd full check */
 	 sec_battery_full_charged_t full_check_type_2nd;
-	/* Slow charging current */
-	int slow_charging_current;
 	int mivr_voltage;
 	int pd_authentication;
 } s2mu005_charger_platform_data_t;
@@ -266,6 +263,7 @@ struct s2mu005_charger_data {
 	bool ovp;
 	bool otg_on;
 	int is_otg;
+	bool chg_shutdown;
 
 	int unhealth_cnt;
 	int status;
@@ -282,7 +280,6 @@ struct s2mu005_charger_data {
 	struct wake_lock ivr_wake_lock;
 	int irq_ivr_enabled;
 	int ivr_on;
-	bool slow_charging;
 
 	bool suspended;
 	bool pending_chg_work;

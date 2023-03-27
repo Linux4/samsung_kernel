@@ -1289,12 +1289,19 @@ static int vnet_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 	ret = ld->send(ld, iod, skb_new);
 	if (unlikely(ret < 0)) {
+		static DEFINE_RATELIMIT_STATE(_rs, HZ, 100);
+
 		if (ret != -EBUSY) {
 			mif_err_limited("%s->%s: ERR! %s->send fail:%d "
 					"(tx_bytes:%d len:%d)\n",
 					iod->name, mc->name, ld->name, ret,
 					tx_bytes, count);
+			goto drop;
 		}
+
+		/* do 100-retry for every 1sec */
+		if (__ratelimit(&_rs))
+			goto retry;
 		goto drop;
 	}
 

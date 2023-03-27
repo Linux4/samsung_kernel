@@ -33,8 +33,9 @@ static void inherit_derived_state(struct inode *parent, struct inode *child)
 	ci->data->under_cache = pi->data->under_cache;
 	ci->data->under_obb = pi->data->under_obb;
 	set_top(ci, pi->top_data);
-
+#if defined(CONFIG_SDCARD_FS_SUPPORT_KNOX)
 	ci->data->under_knox = pi->data->under_knox;
+#endif
 }
 
 /* helper function for derived state */
@@ -51,8 +52,9 @@ void setup_derived_state(struct inode *inode, perm_t perm, userid_t userid,
 	info->data->under_cache = false;
 	info->data->under_obb = false;
 	set_top(info, top);
-
+#if defined(CONFIG_SDCARD_FS_SUPPORT_KNOX)
 	info->data->under_knox = false;
+#endif
 }
 
 /* While renaming, there is a point where we want the path from dentry,
@@ -73,9 +75,11 @@ void get_derived_permission_new(struct dentry *parent, struct dentry *dentry,
 	struct qstr q_obb = QSTR_LITERAL("obb");
 	struct qstr q_media = QSTR_LITERAL("media");
 	struct qstr q_cache = QSTR_LITERAL("cache");
+#if defined(CONFIG_SDCARD_FS_SUPPORT_KNOX)
 	/* refer to perm_t in sdcardfs.h */
 	struct qstr q_knox = QSTR_LITERAL("knox");
 	struct qstr q_shared = QSTR_LITERAL("shared");
+#endif
 
 
 	/* By default, each inode inherits from its parent.
@@ -118,10 +122,12 @@ void get_derived_permission_new(struct dentry *parent, struct dentry *dentry,
 			/* App-specific directories inside; let anyone traverse */
 			info->data->perm = PERM_ANDROID_DATA;
 			set_top(info, info->data);
+#if defined(CONFIG_SDCARD_FS_SUPPORT_KNOX)
 		} else if (qstr_case_eq(name, &q_knox)) {
 			info->data->perm = PERM_KNOX_PRE_ROOT;
 			info->data->under_knox = true;
 			set_top(info, info->data);
+#endif
 		}
 		break;
 	case PERM_ANDROID:
@@ -158,6 +164,7 @@ void get_derived_permission_new(struct dentry *parent, struct dentry *dentry,
 		}
 		break;
 
+#if defined(CONFIG_SDCARD_FS_SUPPORT_KNOX)
 	/* KNOX */
 	case PERM_KNOX_PRE_ROOT:
 		info->data->perm = PERM_KNOX_ROOT;
@@ -193,6 +200,7 @@ void get_derived_permission_new(struct dentry *parent, struct dentry *dentry,
 	case PERM_KNOX_ANDROID_SHARED:
 	case PERM_KNOX_ANDROID_PACKAGE:
 		break;
+#endif
 	}
 }
 

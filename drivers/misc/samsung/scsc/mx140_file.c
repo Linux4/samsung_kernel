@@ -29,9 +29,6 @@
 #define MX140_FW_BASE_DIR_VENDOR_ETC_WIFI	"/vendor/etc/wifi"
 #endif
 
-/* Look for this file in <dir>/etc/wifi */
-#define MX140_FW_DETECT				"mx"
-
 /* Paths for vendor utilities, used when CONFIG_SCSC_CORE_FW_LOCATION_AUTO=n */
 #define MX140_EXE_DIR_VENDOR		"/vendor/bin"    /* Oreo */
 #define MX140_EXE_DIR_SYSTEM		"/system/bin"	 /* Before Oreo */
@@ -122,6 +119,15 @@ static char *cfg_platform = "default";
 module_param(cfg_platform, charp, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(cfg_platform, "HCF config subdirectory");
 
+#if defined SCSC_SEP_VERSION
+static bool force_flat = true; /* Refer to hcf from /vendor/etc/wifi/ */
+#else
+/* AOSP */
+static bool force_flat = false; /* Refer to hcf from /vendor/etc/wifi/mx140/conf/ */
+#endif
+module_param(force_flat, bool, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(force_flat, "Forcely request flat conf");
+
 /* Reads a configuration file into memory (f/w profile specific) */
 static int __mx140_file_request_conf(struct scsc_mx *mx,
 		const struct firmware **conf,
@@ -186,29 +192,37 @@ int mx140_file_request_conf(struct scsc_mx *mx,
 		return __mx140_file_request_conf(mx, conf, cfg_platform, config_rel_path, filename, false);
 	}
 
-	/* Search in generic location. This is an override.
-	 * e.g. /etc/wifi/mx140/conf/wlan/wlan.hcf
-	 */
-	r = __mx140_file_request_conf(mx, conf, "", config_rel_path, filename, false);
+	if (force_flat) {
+		/* Only request "flat" conf, where all hcf files are in FW root dir
+		 * e.g. /etc/wifi/<firmware-variant>-wlan.hcf
+		 */
+		r = __mx140_file_request_conf(mx, conf, "", config_rel_path, filename, true);
+		SCSC_TAG_INFO(MX_FILE, "forcely request flat conf = %d\n", r);
+	} else {
+		/* Search in generic location. This is an override.
+		 * e.g. /etc/wifi/mx140/conf/wlan/wlan.hcf
+		 */
+		r = __mx140_file_request_conf(mx, conf, "", config_rel_path, filename, false);
 
 #if defined CONFIG_SCSC_WLBT_CONFIG_PLATFORM
-	/* Then  search in platform location
-	 * e.g. /etc/wifi/mx140/conf/$platform_dir/wlan/wlan.hcf
-	 */
-	if (r) {
-		const char *plat = CONFIG_SCSC_WLBT_CONFIG_PLATFORM;
+		/* Then  search in platform location
+		 * e.g. /etc/wifi/mx140/conf/$platform_dir/wlan/wlan.hcf
+		 */
+		if (r) {
+			const char *plat = CONFIG_SCSC_WLBT_CONFIG_PLATFORM;
 
-		/* Don't bother if plat is empty string */
-		if (plat[0] != '\0')
-			r = __mx140_file_request_conf(mx, conf, plat, config_rel_path, filename, false);
-	}
+			/* Don't bother if plat is empty string */
+			if (plat[0] != '\0')
+				r = __mx140_file_request_conf(mx, conf, plat, config_rel_path, filename, false);
+		}
 #endif
 
-	/* Finally request "flat" conf, where all hcf files are in FW root dir
-	 * e.g. /etc/wifi/<firmware-variant>-wlan.hcf
-	 */
-	if (r)
-		r = __mx140_file_request_conf(mx, conf, "", config_rel_path, filename, true);
+		/* Finally request "flat" conf, where all hcf files are in FW root dir
+		 * e.g. /etc/wifi/<firmware-variant>-wlan.hcf
+		 */
+		if (r)
+			r = __mx140_file_request_conf(mx, conf, "", config_rel_path, filename, true);
+	}
 
 	return r;
 }
@@ -502,9 +516,6 @@ int mx140_basedir_file(struct scsc_mx *mx)
 	if (base_dir[0] != '\0')
 		return 0;
 
-	/* Default to pre-O bin dir, until we detect O */
-	strlcpy(exe_dir, MX140_EXE_DIR_SYSTEM, sizeof(exe_dir));
-
 	/* Current segment. */
 	fs = get_fs();
 	/* Set to kernel segment. */
@@ -530,33 +541,16 @@ int mx140_basedir_file(struct scsc_mx *mx)
 
 	/* Now partitions are mounted, so let's see what's in them. */
 
-	/* Try /vendor partition  (Oreo) first.
-	 * If it's present, it'll contain our FW
-	 */
-	r = vfs_stat(MX140_FW_BASE_DIR_VENDOR_ETC_WIFI"/"MX140_FW_DETECT, &stat);
-	if (r != 0) {
-		SCSC_TAG_ERR(MX_FILE, "Base dir: %s/%s doesn't exist\n",
-			MX140_FW_BASE_DIR_VENDOR_ETC_WIFI, MX140_FW_DETECT);
-		base_dir[0] = '\0';
-		r = -ENOENT;
-	} else {
-		strlcpy(base_dir, MX140_FW_BASE_DIR_VENDOR_ETC_WIFI, sizeof(base_dir));
-		fw_base_dir = MX140_FW_BASE_DIR_VENDOR_ETC_WIFI;
-		strlcpy(exe_dir, MX140_EXE_DIR_VENDOR, sizeof(exe_dir));
-		goto done;
-	}
-
+	/* Try /vendor partition  (post-Oreo) */
+	strlcpy(base_dir, MX140_FW_BASE_DIR_VENDOR_ETC_WIFI, sizeof(base_dir));
+	fw_base_dir = MX140_FW_BASE_DIR_VENDOR_ETC_WIFI;
+	strlcpy(exe_dir, MX140_EXE_DIR_VENDOR, sizeof(exe_dir));
+#if defined(SCSC_SEP_VERSION) && (SCSC_SEP_VERSION < 8)
 	/* Try /system partition (pre-Oreo) */
-	r = vfs_stat(MX140_FW_BASE_DIR_SYSTEM_ETC_WIFI"/"MX140_FW_DETECT, &stat);
-	if (r != 0) {
-		SCSC_TAG_ERR(MX_FILE, "Base dir: %s/%s doesn't exist\n",
-			MX140_FW_BASE_DIR_SYSTEM_ETC_WIFI, MX140_FW_DETECT);
-		base_dir[0] = '\0';
-		r = -ENOENT;
-	} else {
-		strlcpy(base_dir, MX140_FW_BASE_DIR_SYSTEM_ETC_WIFI, sizeof(base_dir));
-		fw_base_dir = MX140_FW_BASE_DIR_SYSTEM_ETC_WIFI;
-	}
+	strlcpy(base_dir, MX140_FW_BASE_DIR_SYSTEM_ETC_WIFI, sizeof(base_dir));
+	fw_base_dir = MX140_FW_BASE_DIR_SYSTEM_ETC_WIFI;
+	strlcpy(exe_dir, MX140_EXE_DIR_SYSTEM, sizeof(exe_dir));
+#endif
 
 done:
 	/* Restore segment */

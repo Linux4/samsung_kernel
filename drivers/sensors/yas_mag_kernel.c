@@ -257,7 +257,9 @@ static ssize_t yas_self_test_show(struct device *dev,
 	struct yas_state *data = i2c_get_clientdata(this_client);
 	struct yas539_self_test_result r;
 	s8 err[7] = { 0, };
-
+#ifdef CONFIG_SENSORS_YAS539_A20E
+	int vector_sum;
+#endif
 	int ret;
 
 	mutex_lock(&data->lock);
@@ -284,12 +286,26 @@ static ssize_t yas_self_test_show(struct device *dev,
 		err[5] = -2;
 	if (unlikely(r.sxy1y2[2] > 16251 || r.sxy1y2[2] < 15584))
 		err[5] = -4;
+#ifdef CONFIG_SENSORS_YAS539_A20E
+	if (unlikely(r.xyz[0] < -1500 || r.xyz[0] > 1500))
+		err[6] = -1;
+	if (unlikely(r.xyz[1] < -1500 || r.xyz[1] > 1500))
+		err[6] = -1;
+	if (unlikely(r.xyz[2] < -1500 || r.xyz[2] > 1500))
+		err[6] = -1;
+	vector_sum = r.xyz[0] * r.xyz[0] + r.xyz[1] * r.xyz[1] + r.xyz[2] * r.xyz[2];
+	if (unlikely(vector_sum >= 2250000)) {
+		err[6] = -1;
+		pr_info("[SENSOR] Fail vetor_sum^2= %d\n", vector_sum);
+	}
+#else
 	if (unlikely(r.xyz[0] < -1000 || r.xyz[0] > 1000))
 		err[6] = -1;
 	if (unlikely(r.xyz[1] < -1000 || r.xyz[1] > 1000))
 		err[6] = -1;
 	if (unlikely(r.xyz[2] < -1000 || r.xyz[2] > 1000))
 		err[6] = -1;
+#endif
 
 	pr_info("[SENSOR] %s\n"
 		"[SENSOR] Test1 - err = %d, id = %d\n"

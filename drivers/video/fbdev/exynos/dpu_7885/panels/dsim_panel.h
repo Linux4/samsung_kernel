@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (c) Samsung Electronics Co., Ltd.
  *
@@ -18,9 +19,8 @@ extern struct dsim_lcd_driver *__start___lcd_driver;
 extern struct dsim_lcd_driver *__stop___lcd_driver;
 
 #define __XX_ADD_LCD_DRIVER(name)		\
-struct dsim_lcd_driver *p_##name __attribute__((used, section("__lcd_driver"))) = &name
-
-extern void dsim_register_panel(struct dsim_device *dsim);
+struct dsim_lcd_driver *p_##name __attribute__((used, section("__lcd_driver"))) = &name;	\
+static struct dsim_lcd_driver __maybe_unused *this_driver = &name	\
 
 #endif
 

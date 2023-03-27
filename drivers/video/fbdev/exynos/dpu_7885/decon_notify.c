@@ -61,7 +61,8 @@ int decon_notifier_call_chain(unsigned long val, void *v)
 {
 	int state = 0, ret = 0;
 	struct fb_event *evdata = NULL;
-	u64 blank_delta = 0, extra_delta = 0, total_delta = 0, frame_delta = 0;
+	u64 early_delta = 0, blank_delta = 0, after_delta = 0;
+	u64 extra_delta = 0, total_delta = 0, frame_delta = 0;
 	u64 current_clock = 0;
 	u32 current_index = 0, current_first = 0;
 
@@ -75,9 +76,14 @@ int decon_notifier_call_chain(unsigned long val, void *v)
 
 	state = *(int *)evdata->data;
 
-	current_index = EVENT_TO_STAMP[val];
+	if (val >= EVENT_MAX || state >= STATE_MAX) {
+		dbg_info("invalid notifier info: %d, %02lx\n", state, val);
+		return NOTIFY_DONE;
+	}
 
-	WARN_ON(!current_index);
+	current_index = EVENT_TO_STAMP[val] ? EVENT_TO_STAMP[val] : DECON_STAMP_UNKNOWN;
+
+	WARN_ON(current_index == DECON_STAMP_UNKNOWN);
 
 	STAMP_TIME[current_index][CHAIN_START] = current_clock = local_clock();
 	STAMP_TIME[DECON_STAMP_BLANK][CHAIN_END] = (val == DECON_EVENT_DOZE) ? current_clock : STAMP_TIME[DECON_STAMP_BLANK][CHAIN_END];
@@ -94,19 +100,22 @@ int decon_notifier_call_chain(unsigned long val, void *v)
 	STAMP_TIME[current_index][CHAIN_END] = current_clock = local_clock();
 	STAMP_TIME[DECON_STAMP_BLANK][CHAIN_START] = (val == DECON_EARLY_EVENT_DOZE) ? current_clock : STAMP_TIME[DECON_STAMP_BLANK][CHAIN_START];
 
-	blank_delta += STAMP_TIME[DECON_STAMP_EARLY][CHAIN_END] - STAMP_TIME[DECON_STAMP_EARLY][CHAIN_START];
-	blank_delta += STAMP_TIME[DECON_STAMP_BLANK][CHAIN_END] - STAMP_TIME[DECON_STAMP_BLANK][CHAIN_START];
-	blank_delta += STAMP_TIME[DECON_STAMP_AFTER][CHAIN_END] - STAMP_TIME[DECON_STAMP_AFTER][CHAIN_START];
+	early_delta = STAMP_TIME[DECON_STAMP_EARLY][CHAIN_END] - STAMP_TIME[DECON_STAMP_EARLY][CHAIN_START];
+	blank_delta = STAMP_TIME[DECON_STAMP_BLANK][CHAIN_END] - STAMP_TIME[DECON_STAMP_BLANK][CHAIN_START];
+	after_delta = STAMP_TIME[DECON_STAMP_AFTER][CHAIN_END] - STAMP_TIME[DECON_STAMP_AFTER][CHAIN_START];
 
-	extra_delta = current_clock - STAMP_TIME[DECON_STAMP_BLANK][CHAIN_END];
-	frame_delta = current_clock - STAMP_TIME[current_index - 1][CHAIN_END];
-
-	total_delta = blank_delta + extra_delta;
+	total_delta = early_delta + blank_delta + after_delta;
 
 	if (IS_AFTER(val)) {
-		dbg_info("decon_notifier: blank_mode: %d, %02lx, - %-*s, %-*s, %lld\n",
-			state, val, STATE_NAME_LEN, STATE_NAME[state], EVENT_NAME_LEN, EVENT_NAME[val], NSEC_TO_MSEC(blank_delta));
+		dbg_info("decon_notifier: blank_mode: %d, %02lx, - %-*s, %-*s, %lld(%lld,%lld,%lld)\n",
+			state, val, STATE_NAME_LEN, STATE_NAME[state], EVENT_NAME_LEN, EVENT_NAME[val],
+			NSEC_TO_MSEC(total_delta), NSEC_TO_MSEC(early_delta), NSEC_TO_MSEC(blank_delta), NSEC_TO_MSEC(after_delta));
 	} else if (current_first && IS_FRAME(val)) {
+		extra_delta = current_clock - STAMP_TIME[DECON_STAMP_BLANK][CHAIN_END];
+		frame_delta = current_clock - STAMP_TIME[current_index - 1][CHAIN_END];
+
+		total_delta = total_delta + extra_delta;
+
 		dbg_info("decon_notifier: blank_mode: %d, %02lx, * %-*s, %-*s, %lld(%lld)\n",
 			state, val, STATE_NAME_LEN, STATE_NAME[state], EVENT_NAME_LEN, EVENT_NAME[val], NSEC_TO_MSEC(frame_delta), NSEC_TO_MSEC(total_delta));
 	}
@@ -261,6 +270,5 @@ static int __init decon_notifier_init(void)
 
 	return 0;
 }
-
 core_initcall(decon_notifier_init);
 

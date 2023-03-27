@@ -242,7 +242,7 @@ static int msg_from_wlbtd_build_type_cb(struct sk_buff *skb, struct genl_info *i
 	}
 
 	/* nla_len includes trailing zero. Tested.*/
-	build_type = kmalloc(nla_len(info->attrs[1]), GFP_KERNEL);
+	build_type = kmalloc(PROP_VALUE_MAX + 1, GFP_KERNEL);
 	if (!build_type) {
 		SCSC_TAG_ERR(WLBTD, "kmalloc failed: build_type = NULL\n");
 		mutex_unlock(&build_type_lock);
@@ -262,7 +262,6 @@ static int msg_from_wlbtd_build_type_cb(struct sk_buff *skb, struct genl_info *i
 	SCSC_TAG_INFO(WLBTD, "ro.build.type = %s\n", build_type);
 	mutex_unlock(&build_type_lock);
 	return 0;
-
 }
 
 static int msg_from_wlbtd_write_file_cb(struct sk_buff *skb, struct genl_info *info)

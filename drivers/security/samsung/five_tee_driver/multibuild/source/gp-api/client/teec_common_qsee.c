@@ -17,6 +17,7 @@
 
 #include <linux/string.h>
 #include <linux/bug.h>
+#include <uapi/linux/qseecom.h>
 
 #include "teec_common.h"
 
@@ -25,7 +26,7 @@
 #include "teec_param_utils.h"
 #include "linux/errno.h"
 
-#define MAX_QSEE_UUID_LEN 17
+#define MAX_QSEE_UUID_LEN (MAX_APP_NAME_SIZE) // usually 64 bytes
 #define QSEE_SUCCESS      0
 
 /* 1. Actually we don't use the response buffer. But RBUF_LEN can't be zero.
@@ -122,8 +123,24 @@ TEEC_Result QseeLoadTA(void *ta_session, const TEEC_UUID *uuid)
 				 ta_name,
 				 SBUF_LEN + RBUF_LEN);
 	if (qsee_res != QSEE_SUCCESS) {
-		status = qsee_res == -EINVAL ? TEEC_ERROR_TARGET_DEAD :
-							    TEEC_ERROR_GENERIC;
+		if (qsee_res == -EIO) {
+			qsee_res = qseecom_start_app(
+						&qsee_session->qsee_com_handle,
+						qsee_uuid,
+						SBUF_LEN + RBUF_LEN);
+			if (qsee_res != QSEE_SUCCESS) {
+				status = qsee_res == -EINVAL ?
+				TEEC_ERROR_TARGET_DEAD : TEEC_ERROR_GENERIC;
+			} else {
+				pr_info("FIVE: Load trusted app\n");
+				status = TEEC_SUCCESS;
+			}
+		} else {
+			status = qsee_res == -EINVAL ? TEEC_ERROR_TARGET_DEAD :
+							TEEC_ERROR_GENERIC;
+		}
+	} else {
+		pr_info("FIVE: Load trusted app from five dir\n");
 	}
 
 exit:

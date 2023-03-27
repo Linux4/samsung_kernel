@@ -28,7 +28,7 @@
 #define ENABLE 1
 #define DISABLE 0
 
-#define IVR_WORK_DELAY 50
+#define IVR_WORK_DELAY 150
 
 static char *s2mu205_supplied_to[] = {
 	"battery",
@@ -507,9 +507,6 @@ static int s2mu205_get_charge_type(struct s2mu205_charger_data *charger)
 		break;
 	}
 
-	if (charger->slow_charging)
-		status = POWER_SUPPLY_CHARGE_TYPE_SLOW;
-
 	return status;
 }
 
@@ -684,7 +681,6 @@ static int s2mu205_chg_set_property(struct power_supply *psy,
 		/* val->intval : type */
 	case POWER_SUPPLY_PROP_ONLINE:
 		charger->cable_type = val->intval;
-		charger->slow_charging = false;
 		charger->ivr_on = false;
 		if (charger->cable_type != SEC_BATTERY_CABLE_OTG) {
 			if (charger->cable_type == SEC_BATTERY_CABLE_NONE ||
@@ -895,6 +891,24 @@ static int s2mu205_chg_set_property(struct power_supply *psy,
 		pr_info("%s: reset fuelgauge when surge occur!\n", __func__);
 */
 		break;
+	case POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT_MAX:
+      {
+		 u8 temp = 0;
+       		if (!factory_mode) {
+       				s2mu205_read_reg(charger->i2c, S2MU205_CHG_STATUS3, &temp);
+       				if (temp & IVR_STATUS) {
+               				pr_info("%s: IVR Start\n", __func__);
+               				wake_lock(&charger->ivr_wake_lock);
+               				/* Mask IRQ */
+               				s2mu205_update_reg(charger->i2c,
+                        				       S2MU205_CHG_INT2M, 1 << IVR_M_SHIFT, IVR_M_MASK);
+               				queue_delayed_work(charger->charger_wqueue, &charger->ivr_work,
+                        				       msecs_to_jiffies(IVR_WORK_DELAY));
+       				}
+			}
+
+		break;
+	}
 	case POWER_SUPPLY_PROP_MAX ... POWER_SUPPLY_EXT_PROP_MAX:
 		switch (ext_psp) {
 		case POWER_SUPPLY_EXT_PROP_FACTORY_VOLTAGE_REGULATION:
@@ -1109,29 +1123,6 @@ static irqreturn_t s2mu205_ovp_isr(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static bool s2mu205_check_slow_charging(struct s2mu205_charger_data *charger,
-	int input_current)
-{
-	pr_info("%s: charger->cable_type %d, input_current %d\n",
-		__func__, charger->cable_type, input_current);
-
-	/* under 400mA considered as slow charging concept for VZW */
-	if (input_current <= charger->pdata->slow_charging_current &&
-		charger->cable_type != SEC_BATTERY_CABLE_NONE) {
-		union power_supply_propval value;
-
-		charger->slow_charging = true;
-		pr_info("%s: slow charging on : input current(%dmA), cable type(%d)\n",
-			__func__, input_current, charger->cable_type);
-		value.intval = POWER_SUPPLY_CHARGE_TYPE_SLOW;
-		psy_do_property("battery", set,
-			POWER_SUPPLY_PROP_CHARGE_TYPE, value);
-	} else
-		charger->slow_charging = false;
-
-	return charger->slow_charging;
-}
-
 static void reduce_input_current(struct s2mu205_charger_data *charger)
 {
 	int old_input_current, new_input_current;
@@ -1222,12 +1213,8 @@ static void s2mu205_ivr_irq_work(struct work_struct *work)
 	if (charger->ivr_on) {
 		union power_supply_propval value;
 
-		if (is_not_wireless_type(charger->cable_type))
-			s2mu205_check_slow_charging(charger, charger->input_current);
-
 		if ((charger->irq_ivr_enabled == 1) &&
-			(charger->input_current <= MINIMUM_INPUT_CURRENT) &&
-			(charger->slow_charging)) {
+			(charger->input_current <= MINIMUM_INPUT_CURRENT)) {
 			/* Disable IVR IRQ, can't reduce current any more */
 			u8 reg_data;
 
@@ -1283,15 +1270,6 @@ static int s2mu205_charger_parse_dt(struct device *dev,
 				&pdata->chg_switching_freq);
 		if (ret < 0)
 			pr_info("%s: Charger switching FRQ is Empty\n", __func__);
-
-		ret = of_property_read_u32(np, "charger,slow_charging_current",
-					   &pdata->slow_charging_current);
-		if (ret) {
-			pr_info("%s : slow_charging_current is Empty\n", __func__);
-			pdata->slow_charging_current = SLOW_CHARGING_CURRENT_STANDARD;
-		} else {
-			pr_info("%s : slow_charging_current is %d \n", __func__, pdata->slow_charging_current);
-		}
 	}
 
 	np = of_find_node_by_name(NULL, "battery");
@@ -1389,7 +1367,7 @@ static int s2mu205_charger_probe(struct platform_device *pdev)
 	mutex_init(&charger->charger_mutex);
 	charger->otg_on = false;
 	charger->ivr_on = false;
-	charger->slow_charging = false;
+	charger->cable_type = SEC_BATTERY_CABLE_NONE;
 
 	charger->dev = &pdev->dev;
 	charger->i2c = s2mu205->i2c;

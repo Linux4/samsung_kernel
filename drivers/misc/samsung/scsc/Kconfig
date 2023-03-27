@@ -92,7 +92,7 @@ config SCSC_DEBUG
 config SCSC_DEBUG_COMPATIBILITY
 	bool "Samsung SCSC Logging mode"
 	depends on SCSC_DEBUG
-	default y
+	default n
 
 config SCSC_STATIC_RING
 	tristate "Samsung SCSC Logging use static ring"

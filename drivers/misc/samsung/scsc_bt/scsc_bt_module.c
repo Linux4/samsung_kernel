@@ -934,10 +934,6 @@ int slsi_sm_bt_service_start(void)
 		mutex_unlock(&bt_audio_mutex);
 	}
 
-	if (bt_service.bsmhcp_protocol->header.firmware_features &
-	    BSMHCP_FEATURE_M4_INTERRUPTS)
-		SCSC_TAG_DEBUG(BT_COMMON, "features enabled: M4_INTERRUPTS\n");
-
 exit:
 	if (err) {
 		if (slsi_sm_bt_service_cleanup(false) == 0)
@@ -1771,6 +1767,22 @@ static void scsc_update_btlog_params(void)
 				SCSC_MIFINTR_TARGET_R4);
 	}
 	mutex_unlock(&bt_start_mutex);
+
+#ifdef CONFIG_SCSC_ANT
+	mutex_lock(&ant_start_mutex);
+	if (ant_service.service) {
+		ant_service.asmhcp_protocol->header.btlog_enables0_low = firmware_btlog_enables0_low;
+		ant_service.asmhcp_protocol->header.btlog_enables0_high = firmware_btlog_enables0_high;
+		ant_service.asmhcp_protocol->header.btlog_enables1_low = firmware_btlog_enables1_low;
+		ant_service.asmhcp_protocol->header.btlog_enables1_high = firmware_btlog_enables1_high;
+
+		/* Trigger the interrupt in the mailbox */
+		scsc_service_mifintrbit_bit_set(ant_service.service,
+				ant_service.asmhcp_protocol->header.ap_to_bg_int_src,
+				SCSC_MIFINTR_TARGET_R4);
+	}
+	mutex_unlock(&ant_start_mutex);
+#endif
 }
 
 static int scsc_mxlog_filter_set_param_cb(const char *buffer,

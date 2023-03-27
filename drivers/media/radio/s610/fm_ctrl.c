@@ -29,7 +29,7 @@ void fm_pwroff(void)
 void fmspeedy_wakeup(void)
 {
 	write32(gradio->fmspeedy_base + FMSPDY_CTL, SPDY_WAKEUP);
-	mdelay(1);
+	udelay(5);
 }
 
 void fm_en_speedy_m_int(void)
@@ -105,6 +105,8 @@ get_fail:
 u32 fmspeedy_get_reg(u32 addr)
 {
 	u32 data;
+	
+	API_ENTRY(gradio);
 
 	spin_lock_irq(&gradio->slock);
 
@@ -115,18 +117,23 @@ u32 fmspeedy_get_reg(u32 addr)
 	atomic_set(&gradio->is_doing, 0);
 
 	spin_unlock_irq(&gradio->slock);
-
+	
+	APIEBUG(gradio, "%s():addr[0x%x], data[0x%x]", __func__, addr, data);
+	API_EXIT(gradio);
 	return data;
 }
 
 u32 fmspeedy_get_reg_work(u32 addr)
 {
 	u32 data;
+	
+	API_ENTRY(gradio);
 
 	data = fmspeedy_get_reg_core(addr);
 	if (data == -1)
 		gradio->speedy_error++;
-
+	APIEBUG(gradio, "%s():addr[0x%x], data[0x%x]", __func__, addr, data);
+	API_EXIT(gradio);
 	return data;
 }
 
@@ -165,7 +172,9 @@ int fmspeedy_set_reg_core(u32 addr, u32 data)
 int fmspeedy_set_reg(u32 addr, u32 data)
 {
 	int ret = 0;
-
+	
+	API_ENTRY(gradio);
+	
 	spin_lock_irq(&gradio->slock);
 
 	atomic_set(&gradio->is_doing, 1);
@@ -175,18 +184,22 @@ int fmspeedy_set_reg(u32 addr, u32 data)
 	atomic_set(&gradio->is_doing, 0);
 
 	spin_unlock_irq(&gradio->slock);
-
+	APIEBUG(gradio, "%s():addr[0x%x], data[0x%x], ret[0x%x]", __func__, addr, data, ret);
+	API_EXIT(gradio);
 	return ret;
 }
 
 int fmspeedy_set_reg_work(u32 addr, u32 data)
 {
 	int ret = 0;
-
+	
+	API_ENTRY(gradio);
 	ret = fmspeedy_set_reg_core(addr, data);
 	if (ret == -1)
 		gradio->speedy_error++;
-
+	
+	APIEBUG(gradio, "%s():addr[0x%x], data[0x%x], ret[0x%x]", __func__, addr, data, ret);
+	API_EXIT(gradio);
 	return ret;
 }
 
@@ -228,6 +241,8 @@ u32 fmspeedy_get_reg_field(u32 addr, u32 shift, u32 mask)
 {
 	u32 data;
 
+	API_ENTRY(gradio);
+	
 	spin_lock_irq(&gradio->slock);
 
 	atomic_set(&gradio->is_doing, 1);
@@ -237,17 +252,24 @@ u32 fmspeedy_get_reg_field(u32 addr, u32 shift, u32 mask)
 	atomic_set(&gradio->is_doing, 0);
 
 	spin_unlock_irq(&gradio->slock);
-
+	
+	APIEBUG(gradio, "%s():addr[0x%x], data[0x%x]", __func__, addr, data);
+	API_EXIT(gradio);
 	return data;
 }
 
 u32 fmspeedy_get_reg_field_work(u32 addr, u32 shift, u32 mask)
 {
 	u32 data;
-
+	
+	API_ENTRY(gradio);
+	
 	data = fmspeedy_get_reg_field_core(addr, shift, mask);
 	if (data == -1)
 		gradio->speedy_error++;
+	
+	APIEBUG(gradio, "%s():addr[0x%x], data[0x%x]", __func__, addr, data);
+	API_EXIT(gradio);
 
 	return data;
 }
@@ -311,7 +333,8 @@ set_fail_f:
 int fmspeedy_set_reg_field(u32 addr, u32 shift, u32 mask, u32 data)
 {
 	int ret = 0;
-
+	
+	API_ENTRY(gradio);
 	spin_lock_irq(&gradio->slock);
 
 	atomic_set(&gradio->is_doing, 1);
@@ -321,20 +344,48 @@ int fmspeedy_set_reg_field(u32 addr, u32 shift, u32 mask, u32 data)
 	atomic_set(&gradio->is_doing, 0);
 
 	spin_unlock_irq(&gradio->slock);
-
+	
+	APIEBUG(gradio, "%s():addr[0x%x], data[0x%x], ret[0x%x]", __func__, addr, data, ret);
+	API_EXIT(gradio);
 	return ret;
 }
 
 int fmspeedy_set_reg_field_work(u32 addr, u32 shift, u32 mask, u32 data)
 {
 	int ret = 0;
-
+	
+	API_ENTRY(gradio);
 	ret = fmspeedy_set_reg_field_core(addr, shift, mask, data);
 	if (ret == -1)
 		gradio->speedy_error++;
 
+	APIEBUG(gradio, "%s():addr[0x%x], data[0x%x], ret[0x%x]", __func__, addr, data, ret);
+	API_EXIT(gradio);
+
 	return ret;
 }
+
+void fm_audio_check(void)
+{
+	u32 read;
+
+	API_ENTRY(gradio);
+
+	spin_lock_irq(&gradio->slock);
+	atomic_set(&gradio->is_doing, 1);
+
+	read = read32(gradio->fmspeedy_base + AUDIO_FIFO);
+	dev_err(gradio->dev, "AUDIO_FIFO : 0x%08x\n", read);
+
+	read = read32(gradio->fmspeedy_base + AUDIO_LR_DATA);
+	dev_err(gradio->dev, "AUDIO_LR_DATA : 0x%08x\n", read);
+
+	atomic_set(&gradio->is_doing, 0);
+	spin_unlock_irq(&gradio->slock);
+
+	API_EXIT(gradio);
+}
+
 
 /****************************************************************************
  NAME

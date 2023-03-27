@@ -11,32 +11,9 @@
 
 #include <linux/kernel.h>
 #include <linux/if_ether.h>
-#include "utils.h"
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-
-#ifndef CONFIG_SCSC_SMAPPER
-struct slsi_skb_cb {
-	u32 sig_length;
-	u32 data_length;
-	u32 frame_format;
-	u32 colour;
-};
-
-static inline struct slsi_skb_cb *slsi_skb_cb_get(struct sk_buff *skb)
-{
-	return (struct slsi_skb_cb *)skb->cb;
-}
-
-static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
-{
-	BUILD_BUG_ON(sizeof(struct slsi_skb_cb) > sizeof(skb->cb));
-
-	memset(skb->cb, 0, sizeof(struct slsi_skb_cb));
-	return slsi_skb_cb_get(skb);
-}
 #endif
 
 #define FAPI_SIG_TYPE_MASK 0x0F00
@@ -58,13 +35,14 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define FAPI_DEBUG_SAP_VERSION                   0x0d03
 #define FAPI_TEST_SAP_VERSION                    0x0e00
 #define FAPI_DATA_SAP_VERSION                    0x0e00
-#define FAPI_CONTROL_SAP_VERSION                 0x0e01
+#define FAPI_CONTROL_SAP_VERSION                 0x0e02
 
 #define FAPI_ACLPOLICY_BLACKLIST   0x0000
 #define FAPI_ACLPOLICY_WHITELIST   0x0001
 
 #define FAPI_AUTHENTICATIONTYPE_OPEN_SYSTEM   0x0000
 #define FAPI_AUTHENTICATIONTYPE_SHARED_KEY    0x0001
+#define FAPI_AUTHENTICATIONTYPE_SAE           0x0003
 #define FAPI_AUTHENTICATIONTYPE_LEAP          0x0080
 
 #define FAPI_BAND_AUTO     0x0000
@@ -429,6 +407,7 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define FAPI_MESSAGETYPE_WAI_MESSAGE          0x0007
 #define FAPI_MESSAGETYPE_PERIODIC_OFFLOAD     0x0008
 #define FAPI_MESSAGETYPE_IEEE80211_ACTION     0x0010
+#define FAPI_MESSAGETYPE_IEEE80211_MGMT       0x0011
 
 #define FAPI_MODE_SOURCE     0x0001
 #define FAPI_MODE_SINK       0x0002
@@ -639,6 +618,7 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define FAPI_SCANTYPE_P2P_SCAN_SOCIAL               0x0005
 #define FAPI_SCANTYPE_OBSS_SCAN                     0x0006
 #define FAPI_SCANTYPE_AP_AUTO_CHANNEL_SELECTION     0x0007
+#define FAPI_SCANTYPE_PNO_SCAN                      0x0008
 #define FAPI_SCANTYPE_GSCAN                         0x0009
 #define FAPI_SCANTYPE_MEASUREMENT_SCAN              0x000a
 #define FAPI_SCANTYPE_SOFT_NEIGHBOUR_ROAMING_SCAN   0x000b
@@ -649,7 +629,8 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define FAPI_SCANTYPE_HARD_ALL_ROAMING_SCAN         0x0010
 #define FAPI_SCANTYPE_OBSS_SCAN_INTERNAL            0x0011
 #define FAPI_SCANTYPE_NAN_SCAN                      0x0012
-#define FAPI_SCANTYPE_FIRST_ILLEGAL                 0x0013
+#define FAPI_SCANTYPE_SINGLE_CHANNEL_SCAN           0x0013
+#define FAPI_SCANTYPE_FIRST_ILLEGAL                 0x0014
 
 #define FAPI_STATSSTOPBITMAP_STATS_RADIO              0x0001
 #define FAPI_STATSSTOPBITMAP_STATS_RADIO_CCA          0x0002
@@ -868,9 +849,10 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define MLME_REASSOCIATE_RES                  0x2202
 #define MLME_ROAMED_RES                       0x2203
 #define MLME_TDLS_PEER_RES                    0x2204
-#define MLME_SPARE_SIGNAL_1_RES               0x2205
-#define MLME_SPARE_SIGNAL_2_RES               0x2206
-#define MLME_SPARE_SIGNAL_3_RES               0x2207
+#define MLME_SYNCHRONISED_RES                 0x2205
+#define MLME_SPARE_SIGNAL_1_RES               0x2206
+#define MLME_SPARE_SIGNAL_2_RES               0x2207
+#define MLME_SPARE_SIGNAL_3_RES               0x2208
 #define MLME_SCAN_IND                         0x2300
 #define MLME_SCAN_DONE_IND                    0x2301
 #define MLME_LISTEN_END_IND                   0x2302
@@ -897,6 +879,7 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 #define MLME_NAN_SERVICE_IND                  0x2318
 #define MLME_NAN_FOLLOWUP_IND                 0x2319
 #define MLME_CHANNEL_SWITCHED_IND             0x231a
+#define MLME_SYNCHRONISED_IND                 0x231b
 #define MLME_BEACON_REPORTING_EVENT_IND       0x231c
 #define MLME_SPARE_SIGNAL_1_IND               0x231d
 #define MLME_SPARE_SIGNAL_2_IND               0x231e
@@ -2059,6 +2042,15 @@ struct fapi_signal {
 		} __packed mlme_tdls_peer_res;
 		struct {
 			__le16 vif;
+			__le16 result_code;
+			u8     bssid[ETH_ALEN];
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_synchronised_res;
+		struct {
+			__le16 vif;
 			__le32 spare_1;
 			__le32 spare_2;
 			__le32 spare_3;
@@ -2311,6 +2303,14 @@ struct fapi_signal {
 			__le32 spare_3;
 			u8     dr[0];
 		} __packed mlme_channel_switched_ind;
+		struct {
+			__le16 vif;
+			__le16 rssi;
+			__le32 spare_1;
+			__le32 spare_2;
+			__le32 spare_3;
+			u8     dr[0];
+		} __packed mlme_synchronised_ind;
 		struct {
 			__le16 vif;
 			__le16 abort_reason;
@@ -3090,95 +3090,10 @@ struct fapi_signal {
 	} u;
 } __packed;
 
-static inline struct sk_buff *fapi_alloc_f(size_t sig_size, size_t data_size, u16 id, u16 vif, const char *file, int line)
-{
-	struct sk_buff                *skb = slsi_alloc_skb_f(sig_size + data_size, GFP_ATOMIC, file, line);
-	struct fapi_vif_signal_header *header;
-
-	WARN_ON(sig_size < sizeof(struct fapi_signal_header));
-	if (WARN_ON(!skb))
-		return NULL;
-
-	slsi_skb_cb_init(skb)->sig_length = sig_size;
-	slsi_skb_cb_get(skb)->data_length = sig_size;
-
-	header = (struct fapi_vif_signal_header *)skb_put(skb, sig_size);
-	header->id = cpu_to_le16(id);
-	header->receiver_pid = 0;
-	header->sender_pid = 0;
-	header->fw_reference = 0;
-	header->vif = vif;
-	return skb;
-}
-
 #define fapi_sig_size(mp_name)                  ((u16)offsetof(struct fapi_signal, u.mp_name.dr))
-#define fapi_alloc(mp_name, mp_id, mp_vif, mp_datalen) fapi_alloc_f(fapi_sig_size(mp_name), mp_datalen, mp_id, mp_vif, __FILE__, __LINE__)
-#define fapi_get_buff(mp_skb, mp_name) (((struct fapi_signal *)(mp_skb)->data)->mp_name)
-#define fapi_get_u16(mp_skb, mp_name) le16_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name)
-#define fapi_get_u32(mp_skb, mp_name) le32_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name)
-#define fapi_get_u64(mp_skb, mp_name) le64_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name)
-#define fapi_set_u16(mp_skb, mp_name, mp_value) (((struct fapi_signal *)(mp_skb)->data)->mp_name = cpu_to_le16(mp_value))
-#define fapi_set_u32(mp_skb, mp_name, mp_value) (((struct fapi_signal *)(mp_skb)->data)->mp_name = cpu_to_le32(mp_value))
-#define fapi_get_s16(mp_skb, mp_name) ((s16)le16_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name))
-#define fapi_get_s32(mp_skb, mp_name) ((s32)le32_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name))
-#define fapi_set_s16(mp_skb, mp_name, mp_value) (((struct fapi_signal *)(mp_skb)->data)->mp_name = cpu_to_le16((u16)mp_value))
-#define fapi_set_s32(mp_skb, mp_name, mp_value) (((struct fapi_signal *)(mp_skb)->data)->mp_name = cpu_to_le32((u32)mp_value))
-#define fapi_set_memcpy(mp_skb, mp_name, mp_value) memcpy(((struct fapi_signal *)(mp_skb)->data)->mp_name, mp_value, sizeof(((struct fapi_signal *)(mp_skb)->data)->mp_name))
-#define fapi_set_memset(mp_skb, mp_name, mp_value) memset(((struct fapi_signal *)(mp_skb)->data)->mp_name, mp_value, sizeof(((struct fapi_signal *)(mp_skb)->data)->mp_name))
-
-/* Helper to get and set high/low 16 bits from u32 signals */
-#define fapi_get_high16_u32(mp_skb, mp_name) ((fapi_get_u32((mp_skb), mp_name) & 0xffff0000) >> 16)
-#define fapi_set_high16_u32(mp_skb, mp_name, mp_value) fapi_set_u32((mp_skb), mp_name, (fapi_get_u32((mp_skb), mp_name) & 0xffff) | ((mp_value) << 16))
-#define fapi_get_low16_u32(mp_skb, mp_name) (fapi_get_u32((mp_skb), mp_name) & 0xffff)
-#define fapi_set_low16_u32(mp_skb, mp_name, mp_value) fapi_set_u32((mp_skb), mp_name, (fapi_get_u32((mp_skb), mp_name) & 0xffff0000) | (mp_value))
 
 /* Helper to get signal and data */
 #define fapi_get_sigid(mp_skb) le16_to_cpu(((struct fapi_signal *)(mp_skb)->data)->id)
-#define fapi_get_siglen(mp_skb) (slsi_skb_cb_get(mp_skb)->sig_length)
-#define fapi_get_datalen(mp_skb) (slsi_skb_cb_get(mp_skb)->data_length - slsi_skb_cb_get(mp_skb)->sig_length)
-#define fapi_get_data(mp_skb) (mp_skb->data + fapi_get_siglen(mp_skb))
-#define fapi_get_vif(mp_skb) le16_to_cpu(((struct fapi_vif_signal_header *)(mp_skb)->data)->vif)
-
-/* Helper to get the struct ieee80211_mgmt from the data */
-#define fapi_get_mgmt(mp_skb) ((struct ieee80211_mgmt *)fapi_get_data(mp_skb))
-#define fapi_get_mgmtlen(mp_skb) fapi_get_datalen(mp_skb)
-
-static inline u8 *fapi_append_data(struct sk_buff *skb, const u8 *data, size_t data_len)
-{
-	u8 *p;
-
-	if (WARN_ON(skb_tailroom(skb) < data_len))
-		return NULL;
-
-	p = skb_put(skb, data_len);
-	slsi_skb_cb_get(skb)->data_length += data_len;
-	if (data)
-		memcpy(p, data, data_len);
-	return p;
-}
-
-static inline u8 *fapi_append_data_u32(struct sk_buff *skb, const u32 data)
-{
-	__le32 val = cpu_to_le32(data);
-
-	return fapi_append_data(skb, (u8 *)&val, sizeof(val));
-}
-
-static inline u8 *fapi_append_data_u16(struct sk_buff *skb, const u16 data)
-{
-	__le16 val = cpu_to_le16(data);
-
-	return fapi_append_data(skb, (u8 *)&val, sizeof(val));
-}
-
-static inline u8 *fapi_append_data_u8(struct sk_buff *skb, const u8 data)
-{
-	u8 val = data;
-
-	return fapi_append_data(skb, (u8 *)&val, sizeof(val));
-}
-
-#define fapi_append_data_bool(skb, data) fapi_append_data_u16(skb, data)
 
 static inline bool fapi_is_mlme(struct sk_buff *skb)
 {
@@ -3512,7 +3427,7 @@ static inline u16 fapi_get_expected_size(struct sk_buff *skb)
 		fapi_sig_size(mlme_nan_service_ind),
 		fapi_sig_size(mlme_nan_followup_ind),
 		fapi_sig_size(mlme_channel_switched_ind),
-		0,
+		fapi_sig_size(mlme_synchronised_ind),
 		fapi_sig_size(mlme_beacon_reporting_event_ind),
 		fapi_sig_size(mlme_spare_signal_1_ind),
 		fapi_sig_size(mlme_spare_signal_2_ind),
@@ -3544,6 +3459,7 @@ static inline u16 fapi_get_expected_size(struct sk_buff *skb)
 		fapi_sig_size(mlme_reassociate_res),
 		fapi_sig_size(mlme_roamed_res),
 		fapi_sig_size(mlme_tdls_peer_res),
+		fapi_sig_size(mlme_synchronised_res),
 		fapi_sig_size(mlme_spare_signal_1_res),
 		fapi_sig_size(mlme_spare_signal_2_res),
 		fapi_sig_size(mlme_spare_signal_3_res),

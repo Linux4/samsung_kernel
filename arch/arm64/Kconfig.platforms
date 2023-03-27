@@ -163,6 +163,11 @@ config SOC_EXYNOS7885_ANDROID_VERSION_Q
 	help
 	  This enables support for Android version Q of EXYNOS7885
 
+config SOC_EXYNOS7885_ANDROID_VERSION_R
+	bool "Samsung EXYNOS7885 Android version R"
+	help
+	  This enables support for Android version R of EXYNOS7885
+
 config SOC_EXYNOS7885_ANDROID_VERSION_Q_MR
 	bool "Samsung EXYNOS7885 Android version Q maintenance release"
 	help

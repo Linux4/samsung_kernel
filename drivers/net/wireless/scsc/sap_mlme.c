@@ -54,6 +54,8 @@ static int sap_mlme_notifier(struct slsi_dev *sdev, unsigned long event)
 			if (sdev->netdev[i]) {
 				ndev_vif = netdev_priv(sdev->netdev[i]);
 				slsi_scan_cleanup(sdev, sdev->netdev[i]);
+				if (cancel_work_sync(&ndev_vif->set_multicast_filter_work))
+					slsi_wakeunlock(&sdev->wlan_wl);
 				SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 				slsi_vif_cleanup(sdev, sdev->netdev[i], 0);
 				SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
@@ -258,10 +260,12 @@ int slsi_rx_enqueue_netdev_mlme(struct slsi_dev *sdev, struct sk_buff *skb, u16 
 
 	rcu_read_lock();
 	dev = slsi_get_netdev_rcu(sdev, vif);
-	if (WARN_ON(!dev)) {
+	/* in case of del_vif failure, we may get mlme signals for a netdev which is already removed */
+	if (!dev) {
+		SLSI_WARN(sdev, "dev is NULL");
+		kfree_skb(skb);
 		rcu_read_unlock();
-		/* Calling function should free the skb */
-		return -ENODEV;
+		return 0;
 	}
 
 	ndev_vif = netdev_priv(dev);

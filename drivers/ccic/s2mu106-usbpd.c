@@ -445,8 +445,6 @@ static void s2mu106_pr_swap(void *_data, int val)
 			CCIC_NOTIFY_ID_ROLE_SWAP, 1/* source */, 0);
 	}
 	else if (val == USBPD_SOURCE_OFF) {
-		ccic_event_work(pdic_data, CCIC_NOTIFY_DEV_BATTERY,
-			CCIC_NOTIFY_ID_ATTACH, 0, 0);
 #if defined(CONFIG_DUAL_ROLE_USB_INTF)
 		pdic_data->power_role_dual = DUAL_ROLE_PROP_PR_SNK;
 #elif defined(CONFIG_TYPEC)

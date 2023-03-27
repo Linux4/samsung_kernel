@@ -147,6 +147,7 @@
 #define	ENC_SET_QP_BOUND_PB		(1 << 5)
 #define	ENC_SET_FIXED_SLICE		(1 << 6)
 #define	ENC_SET_PVC_MODE		(1 << 7)
+#define	ENC_SET_COLOR_ASPECT		(1 << 9)
 
 #define MFC_VER_MAJOR(dev)	((s5p_mfc_version(dev) >> 8) & 0xFF)
 #define MFC_VER_MINOR(dev)	(s5p_mfc_version(dev) & 0xFF)
@@ -180,6 +181,8 @@
 					(dev->fw.date >= 0x170825)))
 #define FW_HAS_H2R_INT_COUNTER(dev)	(IS_MFCV1120(dev) &&		\
 					(dev->fw.date >= 0x170905))
+#define FW_HAS_ENC_COLOR_ASPECT(dev)	(IS_MFCV1120(dev) &&		\
+					(dev->fw.date >= 0x200615))
 
 static inline unsigned int s5p_mfc_version(struct s5p_mfc_dev *dev)
 {

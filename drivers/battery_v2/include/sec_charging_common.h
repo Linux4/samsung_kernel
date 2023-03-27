@@ -38,6 +38,7 @@
 
 /* definitions */
 #define SEC_BATTERY_CABLE_HV_WIRELESS_ETX	100
+#define SLOW_CHARGING_CURRENT_STANDARD      400
 
 #define MFC_LDO_ON		1
 #define MFC_LDO_OFF		0
@@ -661,6 +662,7 @@ struct sec_battery_platform_data {
 	/* NO NEED TO BE CHANGED */
 	unsigned int pre_afc_input_current;
 	unsigned int pre_wc_afc_input_current;
+	unsigned int select_pd_input_current;
 	unsigned int store_mode_afc_input_current;
 	unsigned int store_mode_hv_wireless_input_current;
 
@@ -963,7 +965,8 @@ struct sec_battery_platform_data {
 	sec_charger_functions_t chg_functions_setting;
 
 	bool fake_capacity;
-
+	unsigned int slow_charging_current;
+	
 	unsigned int battery_full_capacity;
 #if defined(CONFIG_BATTERY_CISD)
 	unsigned int cisd_cap_high_thr;
@@ -1161,6 +1164,11 @@ static inline struct power_supply *get_power_supply_by_name(char *name)
 
 #define is_hv_wire_type(cable_type) ( \
 	is_hv_afc_wire_type(cable_type) || is_hv_qc_wire_type(cable_type))
+
+#define is_nocharge_type(cable_type) ( \
+		cable_type == SEC_BATTERY_CABLE_NONE || \
+		cable_type == SEC_BATTERY_CABLE_OTG || \
+		cable_type == SEC_BATTERY_CABLE_POWER_SHARING)
 
 #define is_pd_wire_type(cable_type) ( \
 		cable_type == SEC_BATTERY_CABLE_PDIC)

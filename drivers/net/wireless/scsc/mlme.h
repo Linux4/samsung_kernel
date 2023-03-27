@@ -28,7 +28,7 @@ enum slsi_ac_index_wmm_pe {
 
 #define SLSI_WLAN_OUI_TYPE_WFA_HS20_IND 0x10
 #define SLSI_WLAN_OUI_TYPE_WFA_OSEN 0x12
-
+#define SLSI_WLAN_OUI_TYPE_WFA_MBO 0x16
 /*Extended capabilities bytes*/
 #define SLSI_WLAN_EXT_CAPA2_BSS_TRANSISITION_ENABLED  (1 << 3)
 #define SLSI_WLAN_EXT_CAPA3_INTERWORKING_ENABLED        (1 << 7)
@@ -150,7 +150,7 @@ int slsi_mlme_get(struct slsi_dev *sdev, struct net_device *dev, u8 *req, int re
 		  u8 *resp, int resp_buf_len, int *resp_len);
 
 int slsi_mlme_add_vif(struct slsi_dev *sdev, struct net_device *dev, u8 *interface_address, u8 *device_address);
-void slsi_mlme_del_vif(struct slsi_dev *sdev, struct net_device *dev);
+int slsi_mlme_del_vif(struct slsi_dev *sdev, struct net_device *dev);
 #ifdef CONFIG_SLSI_WLAN_STA_FWD_BEACON
 int slsi_mlme_set_forward_beacon(struct slsi_dev *sdev, struct net_device *dev, int action);
 #endif
@@ -214,6 +214,10 @@ int slsi_mlme_connect_scan(struct slsi_dev *sdev, struct net_device *dev,
 int slsi_mlme_powermgt(struct slsi_dev *sdev, struct net_device *dev, u16 ps_mode);
 int slsi_mlme_powermgt_unlocked(struct slsi_dev *sdev, struct net_device *dev, u16 ps_mode);
 int slsi_mlme_register_action_frame(struct slsi_dev *sdev, struct net_device *dev,  u32 af_bitmap_active, u32 af_bitmap_suspended);
+#ifdef CONFIG_SCSC_WLAN_SAE_CONFIG
+int slsi_mlme_synchronised_response(struct slsi_dev *sdev, struct net_device *dev,
+                    struct cfg80211_external_auth_params *params);
+#endif
 int slsi_mlme_channel_switch(struct slsi_dev *sdev, struct net_device *dev,  u16 center_freq, u16 chan_info);
 int slsi_mlme_add_info_elements(struct slsi_dev *sdev, struct net_device *dev,  u16 purpose, const u8 *ies, const u16 ies_len);
 int slsi_mlme_send_frame_mgmt(struct slsi_dev *sdev, struct net_device *dev, const u8 *frame, int frame_len, u16 data_desc, u16 msg_type, u16 host_tag, u16 freq, u32 dwell_time, u32 period);
@@ -278,5 +282,6 @@ int slsi_test_sap_configure_monitor_mode(struct slsi_dev *sdev, struct net_devic
 
 struct sk_buff *slsi_mlme_req_cfm(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb, u16 cfm_id);
 int slsi_mlme_set_roaming_parameters(struct slsi_dev *sdev, struct net_device *dev, u16 psid, int mib_value, int mib_length);
+int slsi_mlme_set_band_req(struct slsi_dev *sdev, struct net_device *dev, uint band);
 
 #endif /*__SLSI_MLME_H__*/

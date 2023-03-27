@@ -19,10 +19,6 @@
 #define	SCSC_FW_EVENT_FAILURE			0
 #define	SCSC_FW_EVENT_MOREDUMP_COMPLETE		1
 
-#ifdef ANDROID_VERSION
-#define SCSC_SEP_VERSION ANDROID_VERSION
-#endif
-
 struct device;
 struct firmware;
 struct scsc_mx;

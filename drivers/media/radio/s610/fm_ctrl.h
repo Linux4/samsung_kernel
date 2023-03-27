@@ -14,6 +14,7 @@ u32 fmspeedy_get_reg_field(u32 addr, u32 shift, u32 mask);
 u32 fmspeedy_get_reg_field_work(u32 addr, u32 shift, u32 mask);
 int fmspeedy_set_reg_field(u32 addr, u32 shift, u32 mask, u32 data);
 int fmspeedy_set_reg_field_work(u32 addr, u32 shift, u32 mask, u32 data);
+void fm_audio_check(void);
 void fm_audio_control(struct s610_radio *radio, bool audio_out, bool lr_switch,
 		u32 req_time, u32 audio_addr);
 

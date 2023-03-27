@@ -394,7 +394,7 @@ static void grip_always_active(struct a96t3x6_data *data, int on)
 			SENSOR_ERR("failed to change grip always active mode\n");
 
 	while (retry--) {
-		msleep(20);
+		usleep_range(20000,20000);
 
 		ret = a96t3x6_i2c_read(data->client, REG_GRIP_ALWAYS_ACTIVE, &r_buf, 1);
 		if (ret < 0)

@@ -13,12 +13,11 @@
 #define	USE_FM_LNA_ENABLE
 /*#undef	USE_FM_LNA_ENABLE*/
 
-#define USE_AUDIO_PM
-/*#undef USE_AUDIO_PM*/
-
 #define	RDS_POLLING_ENABLE
 
 #define IDLE_POLLING_ENABLE
+
+#define USE_AUDIO_PM
 
 /* DEBUG :: Print debug for debug *******/
 #define  SUPPORT_FM_DEBUG
@@ -104,6 +103,8 @@ enum s610_ctrl_id {
 	V4L2_CID_S610_RSSI_TH = (V4L2_CID_USER_S610_BASE + 0x0D),
 	V4L2_CID_S610_KERNEL_VER = (V4L2_CID_USER_S610_BASE + 0x0E),
 	V4L2_CID_S610_SOFT_STEREO_BLEND_REF = (V4L2_CID_USER_S610_BASE+0x0F),
+	V4L2_CID_S610_REG_RW_ADDR = (V4L2_CID_USER_S610_BASE + 0x10),
+	V4L2_CID_S610_REG_RW = (V4L2_CID_USER_S610_BASE + 0x11),
 };
 
 enum fm_flag_get {
@@ -205,6 +206,7 @@ struct fm_rds_parser_info {
 	struct rtp_info rtp_data;
 
 	u8 grp;
+	u8 pty;
 	bool drop_blk;
 	u8 rds_event;
 };
@@ -441,11 +443,11 @@ struct s610_radio {
 #endif /* USE_FM_EXTERN_PLL */
 	struct platform_device *pdev;
 	struct device *dev;
-	struct clk *clk;
-	struct clk *clk_pll;
 #ifdef USE_AUDIO_PM
 	struct device *a_dev;
 #endif /* USE_AUDIO_PM */
+	struct clk **clocks;
+	const char **clk_ids;
 	int tc_on;
 	int trf_on;
 	int trf_spur;
@@ -461,7 +463,7 @@ struct s610_radio {
 	u16 rssi_adjust;
 	bool rssi_ref_enable;
 	u32 agc_enable;
-	u32 agc_thresh;
+	u32 speedy_reg_addr;
 /*	debug print counter */
 	int idle_cnt_mod;
 	int rds_cnt_mod;
@@ -535,6 +537,7 @@ extern void fm_set_blend_mute(struct s610_radio *radio);
 
 extern u32 fmspeedy_get_reg(u32 addr);
 extern int fmspeedy_set_reg(u32 addr, u32 data);
+extern u32 fmspeedy_get_reg_field(u32 addr, u32 shift, u32 mask);
 
 extern void fm_update_rssi(struct s610_radio *radio);
 extern void fm_update_snr(struct s610_radio *radio);
@@ -546,6 +549,7 @@ extern int fm_read_rds_data(struct s610_radio *radio, u8 *buffer, int size,
 extern u32 fmspeedy_get_reg_work(u32 addr);
 extern signed int exynos_get_fm_open_status(void);
 extern void fm_ds_set(u32 data);
+extern void fm_get_version_number(void);
 extern int ringbuf_bytes_used(const struct ringbuf_t *rb);
 extern void fm_rds_parser_reset(struct fm_rds_parser_info *pi);
 #endif /* RADIO_S610_H */

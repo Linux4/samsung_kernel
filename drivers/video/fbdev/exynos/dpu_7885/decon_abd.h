@@ -12,6 +12,9 @@
 
 #include <linux/interrupt.h>
 #include <linux/fb.h>
+#if defined(CONFIG_EXYNOS_DPU30)
+#include <linux/dma-fence.h>
+#endif
 
 #define ABD_LOG_MAX	50
 
@@ -139,6 +142,7 @@ enum {
 	ABD_PIN_DET,
 	ABD_PIN_ERR,
 	ABD_PIN_CON,
+	ABD_PIN_LOG,	/* reserved for just log */
 	ABD_PIN_MAX
 };
 
@@ -180,7 +184,11 @@ struct abd_protect {
 	unsigned int init_done;
 };
 
+#if defined(CONFIG_EXYNOS_DPU20)
 extern unsigned int lcdtype;
+#elif defined(CONFIG_EXYNOS_DPU30)
+extern int boot_panel_id;
+#endif
 
 extern void decon_abd_save_fto(struct abd_protect *abd, void *fence);
 extern void decon_abd_save_udr(struct abd_protect *abd, unsigned long mif, unsigned long iint, unsigned long disp);
@@ -191,6 +199,7 @@ extern int decon_abd_pin_enable(struct abd_protect *abd, unsigned int gpio, bool
 extern int decon_abd_pin_register_handler(struct abd_protect *abd, int irq, irq_handler_t handler, void *dev_id);
 extern int decon_abd_pin_unregister_handler(struct abd_protect *abd, int irq, irq_handler_t handler, void *dev_id);
 extern int decon_abd_con_register(struct abd_protect *abd);
+extern struct device *find_lcd_class_device(void);
 extern struct platform_device *of_find_abd_dt_parent_platform_device(void);
 extern struct platform_device *of_find_abd_container_platform_device(void);
 struct decon_device;

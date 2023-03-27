@@ -482,6 +482,10 @@ static void dw_mci_exynos_adjust_clock(struct dw_mci *host, unsigned int wanted)
 	host->current_speed = 0;
 }
 
+#ifndef KHZ
+#define KHZ (1000)
+#endif
+
 static void dw_mci_exynos_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 {
 	struct dw_mci_exynos_priv_data *priv = host->priv;
@@ -552,6 +556,9 @@ static void dw_mci_exynos_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 		else
 			dw_mci_card_int_hwacg_ctrl(host, HWACG_Q_ACTIVE_DIS, LEGACY_MODE);
 	}
+
+	if ((ios->clock > 0) && (ios->clock <= 400 * KHZ))
+		mci_phase7_mux_dis(host, AXI_BURST_LEN);
 
 	host->cclk_in = wanted;
 

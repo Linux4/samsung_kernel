@@ -163,29 +163,6 @@ static int s2mu004_charger_otg_control(
 }
 
 #if EN_IVR_IRQ
-static bool s2mu004_check_slow_charging(struct s2mu004_charger_data *charger,
-	int input_current)
-{
-	pr_info("%s: charger->cable_type %d, input_current %d\n",
-		__func__, charger->cable_type, input_current);
-
-	/* under 400mA considered as slow charging concept for VZW */
-	if (input_current <= charger->pdata->slow_charging_current &&
-		charger->cable_type != SEC_BATTERY_CABLE_NONE) {
-		union power_supply_propval value;
-
-		charger->slow_charging = true;
-		pr_info("%s: slow charging on : input current(%dmA), cable type(%d)\n",
-			__func__, input_current, charger->cable_type);
-		value.intval = POWER_SUPPLY_CHARGE_TYPE_SLOW;
-		psy_do_property("battery", set,
-			POWER_SUPPLY_PROP_CHARGE_TYPE, value);
-	} else
-		charger->slow_charging = false;
-
-	return charger->slow_charging;
-}
-
 static void reduce_input_current(struct s2mu004_charger_data *charger)
 {
 	int old_input_current, new_input_current;
@@ -970,13 +947,6 @@ static int s2mu004_chg_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_TYPE:
 		if ((!charger->is_charging) || (charger->cable_type == SEC_BATTERY_CABLE_NONE))
 			val->intval = POWER_SUPPLY_CHARGE_TYPE_NONE;
-#if EN_IVR_IRQ
-		else if (charger->slow_charging ||
-			(!charger->slow_charging && s2mu004_check_slow_charging(charger, charger->input_current))) {
-			val->intval = POWER_SUPPLY_CHARGE_TYPE_SLOW;
-			pr_info("%s: slow-charging mode\n", __func__);
-		}
-#endif
 		else
 			val->intval = POWER_SUPPLY_CHARGE_TYPE_FAST;
 		break;
@@ -1023,7 +993,6 @@ static int s2mu004_chg_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_ONLINE:
 		charger->cable_type = val->intval;
 		charger->ivr_on = false;
-		charger->slow_charging = false;
 		if (charger->cable_type != SEC_BATTERY_CABLE_OTG) {
 			if (charger->cable_type == SEC_BATTERY_CABLE_NONE ||
 					charger->cable_type == SEC_BATTERY_CABLE_UNKNOWN) {
@@ -1099,6 +1068,8 @@ static int s2mu004_chg_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
 		charger->charge_mode = val->intval;
 		psy_do_property("battery", get, POWER_SUPPLY_PROP_ONLINE, value);
+		charger->cable_type = value.intval;
+
 		if (value.intval != SEC_BATTERY_CABLE_OTG) {
 			switch (charger->charge_mode) {
 			case SEC_BAT_CHG_MODE_BUCK_OFF:
@@ -1553,12 +1524,8 @@ static void s2mu004_ivr_irq_work(struct work_struct *work)
 	if (charger->ivr_on) {
 		union power_supply_propval value;
 
-		if (is_not_wireless_type(charger->cable_type))
-			s2mu004_check_slow_charging(charger, charger->input_current);
-
 		if ((charger->irq_ivr_enabled == 1) &&
-			(charger->input_current <= MINIMUM_INPUT_CURRENT) &&
-			(charger->slow_charging)) {
+			(charger->input_current <= MINIMUM_INPUT_CURRENT)) {
 			/* Disable IVR IRQ, can't reduce current any more */
 			u8 reg_data;
 
@@ -1667,15 +1634,6 @@ static int s2mu004_charger_parse_dt(struct device *dev,
 			pr_info("%s: Charger switching is: 0x%x\n", __func__,
 				pdata->chg_switching_freq);
 		}
-
-		ret = of_property_read_u32(np, "charger,slow_charging_current",
-					   &pdata->slow_charging_current);
-		if (ret) {
-			pr_info("%s : slow_charging_current is Empty\n", __func__);
-			pdata->slow_charging_current = SLOW_CHARGING_CURRENT_STANDARD;
-		} else {
-			pr_info("%s : slow_charging_current is %d \n", __func__, pdata->slow_charging_current);
-		}
 	}
 
 	np = of_find_node_by_name(NULL, "battery");
@@ -1757,7 +1715,6 @@ static int s2mu004_charger_probe(struct platform_device *pdev)
 	mutex_init(&charger->charger_mutex);
 	charger->otg_on = false;
 	charger->ivr_on = false;
-	charger->slow_charging = false;
 
 	charger->dev = &pdev->dev;
 	charger->i2c = s2mu004->i2c;

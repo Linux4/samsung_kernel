@@ -206,8 +206,9 @@ static int cm36658_i2c_read_word(struct cm36658_data *cm36658, u8 command,
 			*val = (value << 8) | (u16)data[0];
 			return err;
 		}
+		SENSOR_ERR("i2c transfer error ret=%d (%d)\n", err, retry);
+		usleep_range(2000, 2000);
 	}
-	SENSOR_ERR("i2c transfer error ret=%d\n", err);
 	return err;
 }
 

@@ -348,6 +348,9 @@ policy_state usbpd_policy_src_ready(struct policy_data *policy)
 	/* PD State Inform for AP */
 	dev_info(pd_data->dev, "%s\n", __func__);
 
+	if (pd_data->pd_nego == false)
+		pd_data->pd_nego = true;
+
 #if defined (CONFIG_TYPEC) && defined (CONFIG_CCIC_TYPEC_PRSWAP)
 	if (policy->pd_support == 0) {
 		policy->pd_support = 1;
@@ -1285,6 +1288,9 @@ policy_state usbpd_policy_snk_ready(struct policy_data *policy)
 	if(pd_data->protocol_rx.msg_header.msg_type != USBPD_Vendor_Defined){
 		dev_info(pd_data->dev, "%s\n", __func__);
 	}
+
+	if (pd_data->pd_nego == false)
+		pd_data->pd_nego = true;
 
 #if defined (CONFIG_TYPEC) && defined (CONFIG_CCIC_TYPEC_PRSWAP)
 	if (policy->pd_support == 0) {

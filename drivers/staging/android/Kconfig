@@ -90,6 +90,12 @@ config SAMSUNG_FREECESS
 	help
 	  thraw frozen process when recv sig.
 
+config SAMSUNG_LMKD_DEBUG
+	bool "record lmkd kill history"
+	default y
+	help
+	  record lmkd kill history
+
 config ANDROID_VSOC
 	tristate "Android Virtual SoC support"
 	default n
@@ -98,6 +104,12 @@ config ANDROID_VSOC
 	  This option adds support for the Virtual SoC driver needed to boot
 	  a 'cuttlefish' Android image inside QEmu. The driver interacts with
 	  a QEmu ivshmem device. If built as a module, it will be called vsoc.
+
+config SAMSUNG_FREECESS
+	bool "thraw frozen process when recv sig"
+	default n
+	help
+	  thraw frozen process when recv sig.
 
 source "drivers/staging/android/ion/Kconfig"
 

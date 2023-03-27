@@ -17,6 +17,8 @@ struct lcd_seq_info {
 extern int aot_enabled;
 #endif
 
+extern u32 dphy_timing[][10];
+
 static const unsigned char SEQ_SET_B9_PW[] = {
 	0xB9,
 	0x83, 0x10, 0x2E,
@@ -35,6 +37,11 @@ static const unsigned char SEQ_SET_BB_OTP_SETTING[] = {
 static const unsigned char SEQ_SET_E9_OTP_SETTING2[] = {
 	0xE9,
 	0x00,
+};
+
+static const unsigned char SEQ_SET_BA_REGISTER[] = {
+	0xBA,
+	0x70, 0x03, 0xA8, 0x83, 0xF2, 0x80, 0x00, 0x0D,
 };
 
 static const unsigned char SEQ_HX83102P_BL[] = {

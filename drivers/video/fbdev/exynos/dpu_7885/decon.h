@@ -710,10 +710,22 @@ struct decon_reg_data {
 #endif
 };
 
+struct decon_win_config_extra {
+	int remained_frames;
+	u32 reserved[7];
+};
+
+struct decon_win_config_data_old {
+	int	fence;
+	int	fd_odma;
+	struct decon_win_config config[MAX_DECON_WIN + 1];
+};
+
 struct decon_win_config_data {
 	int	fence;
 	int	fd_odma;
 	struct decon_win_config config[MAX_DECON_WIN + 1];
+	struct decon_win_config_extra extra;
 };
 
 #if defined(CONFIG_DPU_20)
@@ -996,6 +1008,7 @@ struct decon_update_regs {
 	struct task_struct *thread;
 	struct kthread_worker worker;
 	struct kthread_work work;
+	atomic_t remaining_frame;
 };
 
 struct decon_vsync {
@@ -1496,6 +1509,8 @@ enum doze_state {
 #endif
 /* IOCTL commands */
 #define S3CFB_SET_VSYNC_INT		_IOW('F', 206, __u32)
+#define S3CFB_WIN_CONFIG_OLD		_IOW('F', 209, \
+						struct decon_win_config_data_old)
 #define S3CFB_WIN_CONFIG		_IOW('F', 209, \
 						struct decon_win_config_data)
 #if defined(CONFIG_DPU_20)

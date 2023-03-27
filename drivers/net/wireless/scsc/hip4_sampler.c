@@ -600,7 +600,6 @@ void hip4_sampler_create(struct scsc_mx *mx)
 	hip4_collect_client.prv = mx;
 	scsc_log_collector_register_client(&hip4_collect_client);
 #endif
-	//spin_lock_init(&g_spinlock);
 	hip4_sampler.init = true;
 
 	SLSI_INFO_NODEV("%s: Ready to start sampling....\n", DRV_NAME);

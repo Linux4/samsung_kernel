@@ -453,12 +453,17 @@ static int s2mu106_get_comp_socr(struct s2mu106_fuelgauge_data *fuelgauge)
 {
 	int comp_socr = 0;
 	int t_socr = 0;
-	int i_socr = (-1) * fuelgauge->i_socr_coeff * fuelgauge->avg_curr;
+	int i_socr = 0;
 
-	if (fuelgauge->temperature <= 0)
-		t_socr = ((-223) * fuelgauge->temperature + fuelgauge->t_socr_coeff) / 1000;
-	else if (fuelgauge->temperature <= 200)
-		t_socr = ((-75) * fuelgauge->temperature + fuelgauge->t_socr_coeff) / 1000;
+	if (fuelgauge->temperature <= 0) {
+		i_socr = (-1) * fuelgauge->i_socr_coeff * fuelgauge->avg_curr;
+		t_socr = (((-1) * fuelgauge->low_t_compen_coeff) * fuelgauge->temperature
+				+ fuelgauge->t_socr_coeff) / 1000;
+	} else if (fuelgauge->temperature <= 200) {
+		i_socr = (-1) * fuelgauge->i_socr_coeff * fuelgauge->avg_curr;
+		t_socr = (((-1) * fuelgauge->t_compen_coeff) * fuelgauge->temperature
+				+ fuelgauge->t_socr_coeff) / 1000;
+	}
 
 	comp_socr = ((t_socr + 1) * i_socr) / 100000;
 
@@ -480,7 +485,7 @@ static int s2mu106_get_soc_map(struct s2mu106_fuelgauge_data *fuelgauge,
 {
 	int soc_map = 0;
 
-	if (bat_charging) {
+	if (bat_charging || fuelgauge->is_charging) {
 		if (fuelgauge->soc0i >= 9950)
 			soc_map = 10000;
 		else
@@ -555,16 +560,16 @@ static void s2mu106_temperature_compensation(struct s2mu106_fuelgauge_data *fuel
 				fuelgauge->soc0i = fuelgauge->rsoc;
 			}
 		} else {
-			/* After mapping, SOC_R is maintained.
-			   If mapping occurs continuously, SOC is not changed.
-			   So SOC_R need to be updated before mapping.
+			/*
+			 *  If the difference between SOC_M and SOC_R is 1% or more,
+			 *  SOC_R is mapped to follow SOC_M
 			 */
-			if (fuelgauge->is_charging == false) {
-				soc_map = s2mu106_get_soc_map(fuelgauge,
-					fuelgauge->pre_bat_charging, fuelgauge->pre_comp_socr);
-				if (soc_map < fuelgauge->soc_r)
-					fuelgauge->soc_r = soc_map;
-			}
+			pr_info("%s: socni updated - SOC_M(%d), SOC_R(%d)\n",
+						__func__, fuelgauge->rsoc, fuelgauge->soc_r);
+			if (fuelgauge->rsoc > fuelgauge->soc_r + 100)
+				fuelgauge->soc_r += 10;
+			else if (fuelgauge->soc_r > fuelgauge->rsoc + 100)
+				fuelgauge->soc_r -= 10;
 
 			fuelgauge->socni = fuelgauge->soc_r;
 			fuelgauge->soc0i = fuelgauge->rsoc;
@@ -1608,6 +1613,8 @@ static int s2mu106_fg_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CAPACITY:
 		if (val->intval == SEC_FUELGAUGE_CAPACITY_TYPE_RAW) {
 			val->intval = s2mu106_get_rawsoc(fuelgauge);
+		} else if (val->intval == SEC_FUELGAUGE_CAPACITY_TYPE_DYNAMIC_SCALE) {
+			val->intval = fuelgauge->raw_capacity;
 		} else {
 			val->intval = s2mu106_get_rawsoc(fuelgauge) / 10;
 			
@@ -1977,6 +1984,22 @@ static int s2mu106_fuelgauge_parse_dt(struct s2mu106_fuelgauge_data *fuelgauge)
 			fuelgauge->t_socr_coeff = 15500;
 		}
 
+		ret = of_property_read_u32(np, "fuelgauge,t_compen_coeff",
+				&fuelgauge->t_compen_coeff);
+		if (ret < 0) {
+			pr_err("%s There is no t_compen_coeff . Use default(75)\n",
+					__func__);
+			fuelgauge->t_compen_coeff = 75;
+		}
+
+		ret = of_property_read_u32(np, "fuelgauge,low_t_compen_coeff",
+				&fuelgauge->low_t_compen_coeff);
+		if (ret < 0) {
+			pr_err("%s There is no low_t_compen_coeff . Use default(223)\n",
+					__func__);
+			fuelgauge->low_t_compen_coeff = 223;
+		}
+
 		/* get topoff info */
 		np = of_find_node_by_name(NULL, "cable-info");
 		if (!np) {
@@ -2042,6 +2065,11 @@ static int s2mu106_fuelgauge_parse_dt(struct s2mu106_fuelgauge_data *fuelgauge)
 
 			pr_err("%s: [Long life] fuelgauge->fg_num_age_step %d \n",
 				__func__,fuelgauge->fg_num_age_step);
+
+			if ((sizeof(fg_age_data_info_t) * fuelgauge->fg_num_age_step) != len) {
+				pr_err("%s: The Long life variables and the data in device tree does not match\n", __func__);
+				BUG();
+			}
 
 			for(i=0 ; i < fuelgauge->fg_num_age_step ; i++){
 				pr_err("%s: [Long life] age_step = %d, table3[0] %d, table4[0] %d, batcap[0] %02x, accum[0] %02x, soc_arr[0] %d, ocv_arr[0] %d, volt_tun : %02x\n",

@@ -848,8 +848,6 @@ void usbpd_manager_plug_attach(struct device *dev, muic_attached_dev_t new_dev)
 	struct policy_data *policy = &pd_data->policy;
 	struct usbpd_manager_data *manager = &pd_data->manager;
 
-	CC_NOTI_ATTACH_TYPEDEF pd_notifier;
-
 	if (new_dev == ATTACHED_DEV_TYPE3_CHARGER_MUIC) {
 		if (policy->send_sink_cap || (manager->ps_rdy == 1 &&
 		manager->prev_available_pdo != pd_noti.sink_status.available_pdo_num)) {
@@ -859,14 +857,8 @@ void usbpd_manager_plug_attach(struct device *dev, muic_attached_dev_t new_dev)
 			pd_noti.event = PDIC_NOTIFY_EVENT_PD_SINK;
 		manager->ps_rdy = 1;
 		manager->prev_available_pdo = pd_noti.sink_status.available_pdo_num;
-		pd_notifier.src = CCIC_NOTIFY_DEV_CCIC;
-		pd_notifier.dest = CCIC_NOTIFY_DEV_BATTERY;
-		pd_notifier.id = CCIC_NOTIFY_ID_POWER_STATUS;
-		pd_notifier.attach = 1;
-		pd_notifier.pd = &pd_noti;
-#if defined(CONFIG_CCIC_NOTIFIER)
-		ccic_notifier_notify((CC_NOTI_TYPEDEF *)&pd_notifier, &pd_noti, 1/* pdic_attach */);
-#endif
+
+		ccic_event_work(pd_data->phy_driver_data,CCIC_NOTIFY_DEV_BATTERY,CCIC_NOTIFY_ID_POWER_STATUS,1,0);
 	}
 
 #else
@@ -1438,6 +1430,11 @@ int usbpd_manager_evaluate_capability(struct usbpd_data *pd_data)
 #ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
 	if (manager->flash_mode == 1)
 		available_pdo_num = 1;
+	if ((pdic_sink_status->available_pdo_num > 0) &&
+			(pdic_sink_status->available_pdo_num != available_pdo_num)) {
+		policy->send_sink_cap = 1;
+		pdic_sink_status->selected_pdo_num = 1;
+	}
 	pdic_sink_status->available_pdo_num = available_pdo_num;
 	return available_pdo_num;
 #endif

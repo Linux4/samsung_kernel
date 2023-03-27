@@ -376,6 +376,13 @@ static const struct g2d1shot_fmt g2d_formats[] = {
 		.num_buffer	= 1,
 		.value		= G2D_DATAFORMAT_RGB8888 | G2D_SWIZZLING_ARGB,
 	}, {
+		.name		= "XRGB8888",
+		.pixelformat	= V4L2_PIX_FMT_XRGB32,	/* [31:0] ARGB */
+		.bpp		= { 32 },
+		.num_planes	= 1,
+		.num_buffer	= 1,
+		.value		= G2D_DATAFORMAT_RGB8888 | G2D_SWIZZLING_XRGB,
+	}, {
 		.name		= "RGB565",
 		.pixelformat	= V4L2_PIX_FMT_RGB565,	/* [15:0] RGB */
 		.bpp		= { 16 },

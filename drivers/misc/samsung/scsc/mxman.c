@@ -137,7 +137,7 @@ static bool disable_error_handling;
 module_param(disable_error_handling, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(disable_error_handling, "Disable error handling");
 
-#if defined(SCSC_SEP_VERSION) && (SCSC_SEP_VERSION >= 100000)
+#if defined(SCSC_SEP_VERSION) && (SCSC_SEP_VERSION >= 10)
 int disable_recovery_handling = 2; /* MEMDUMP_FILE_FOR_RECOVERY : for /sys/wifi/memdump */
 #else
 /* AOSP */
@@ -533,7 +533,6 @@ static void mxman_print_versions(struct mxman *mxman)
 #ifdef CONFIG_SCSC_WLBTD
 	scsc_wlbtd_get_and_print_build_type();
 #endif
-
 }
 
 /** Receive handler for messages from the FW along the maxwell management transport */
@@ -1080,7 +1079,7 @@ static bool is_bug_on_enabled(struct scsc_mx *mx)
 		return bug_on_enabled;
 
 	/* for legacy platforms (including Andorid P) using .memdump.info */
-#if defined(SCSC_SEP_VERSION) && (SCSC_SEP_VERSION >= 90000)
+#if defined(SCSC_SEP_VERSION) && (SCSC_SEP_VERSION >= 9)
 	#define MX140_MEMDUMP_INFO_FILE	"/data/vendor/conn/.memdump.info"
 #else
 	#define MX140_MEMDUMP_INFO_FILE	"/data/misc/conn/.memdump.info"
@@ -1157,7 +1156,7 @@ static void print_panic_code(u16 code)
 		break;
 	case SCSC_PANIC_ORIGIN_HOST:
 		SCSC_TAG_INFO(MXMAN, "WLBT HOST detected FW failure, service:\n");
-		switch (subcode) {
+		switch (subcode >> SCSC_SYSERR_HOST_SERVICE_SHIFT) {
 		case SCSC_SERVICE_ID_WLAN:
 			SCSC_TAG_INFO(MXMAN, " WLAN\n");
 			break;
@@ -1862,14 +1861,14 @@ void mxman_init(struct mxman *mxman, struct scsc_mx *mx)
 	mxproc_create_info_proc_dir(&mxman->mxproc, mxman);
 	active_mxman = mxman;
 
-#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 90000
+#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9
 	mxman_create_sysfs_memdump();
 #endif
 }
 
 void mxman_deinit(struct mxman *mxman)
 {
-#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 90000
+#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9
 	mxman_destroy_sysfs_memdump();
 #endif
 	active_mxman = NULL;

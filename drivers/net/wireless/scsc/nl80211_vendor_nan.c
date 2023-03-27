@@ -616,7 +616,8 @@ int slsi_nan_enable(struct wiphy *wiphy, struct wireless_dev *wdev, const void *
 		if (ret) {
 			SLSI_ERR(sdev, "failed to enable NAN.\n");
 			reply_status = SLSI_HAL_NAN_STATUS_INTERNAL_FAILURE;
-			slsi_mlme_del_vif(sdev, dev);
+			if (slsi_mlme_del_vif(sdev, dev) != 0)
+				SLSI_NET_ERR(dev, "slsi_mlme_del_vif failed\n");
 			ndev_vif->activated = false;
 			ndev_vif->nan.service_id_map = 0;
 		} else {
@@ -675,7 +676,8 @@ int slsi_nan_disable(struct wiphy *wiphy, struct wireless_dev *wdev, const void 
 		ndev_vif = netdev_priv(dev);
 		SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
 		if (ndev_vif->activated) {
-			slsi_mlme_del_vif(sdev, dev);
+			if (slsi_mlme_del_vif(sdev, dev) != 0)
+				SLSI_NET_ERR(dev, "slsi_mlme_del_vif failed\n");
 			ndev_vif->activated = false;
 		} else {
 			SLSI_WARN(sdev, "NAN FWif not active!!");
@@ -1863,7 +1865,7 @@ int slsi_nan_data_iface_create(struct wiphy *wiphy, struct wireless_dev *wdev, c
 				return -EINVAL;
 			iface_name = nla_data(iter);
 		} else if (type == NAN_REQ_ATTR_HAL_TRANSACTION_ID)
-			if (slsi_util_nla_get_u16(iter, &(transaction_id)))
+			if (slsi_util_nla_get_u16(iter, &transaction_id))
 				return -EINVAL;
 	}
 	if (!iface_name) {

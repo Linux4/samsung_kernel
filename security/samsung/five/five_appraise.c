@@ -259,6 +259,16 @@ static bool readonly_sb(struct inode *inode)
 }
 
 /*
+ * five_is_fsverity_protected - checks if file is protected by FSVERITY
+ *
+ * Return true/false
+ */
+static bool five_is_fsverity_protected(const struct inode *inode)
+{
+	return IS_VERITY(inode);
+}
+
+/*
  * five_appraise_measurement - appraise file measurement
  *
  * Return 0 on success, error code otherwise
@@ -294,7 +304,9 @@ int five_appraise_measurement(struct task_struct *task, int func,
 
 	if (!cert) {
 		cause = CAUSE_NO_CERT;
-		if (five_is_dmverity_protected(file))
+		if (five_is_fsverity_protected(inode))
+			status = FIVE_FILE_FSVERITY;
+		else if (five_is_dmverity_protected(file))
 			status = FIVE_FILE_DMVERITY;
 		goto out;
 	}
@@ -483,7 +495,7 @@ static int five_update_xattr(struct task_struct *task,
 		struct inode *inode = file_inode(file);
 
 		rc = __vfs_getxattr(d_real_comp(dentry), inode, XATTR_NAME_FIVE,
-				dummy, sizeof(dummy));
+				dummy, sizeof(dummy), XATTR_NOSECURITY);
 
 		// Check if xattr is exist
 		if (rc > 0 || rc != -ENODATA) {
@@ -826,7 +838,7 @@ int five_fcntl_close(struct file *file)
 	if (iint->five_signing) {
 		dentry = file->f_path.dentry;
 		xattr_len = __vfs_getxattr(d_real_comp(dentry), inode,
-				XATTR_NAME_FIVE, NULL, 0);
+				XATTR_NAME_FIVE, NULL, 0, XATTR_NOSECURITY);
 		if (xattr_len == 0)
 			rc = __vfs_removexattr(d_real_comp(dentry),
 				XATTR_NAME_FIVE);

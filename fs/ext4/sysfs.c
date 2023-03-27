@@ -488,7 +488,8 @@ int ext4_register_sysfs(struct super_block *sb)
 	if (err)
 		return err;
 
-	if (le32_to_cpu(sbi->s_es->s_sec_magic) == EXT4_SEC_DATA_MAGIC) {
+	if (strnlen(sbi->s_es->s_volume_name, 16) == strlen("data") &&
+	    strncmp(sbi->s_es->s_volume_name, "data", strlen("data")) == 0) {
 		err = sysfs_create_link(&ext4_kset.kobj, &sbi->s_kobj,
 			      "userdata");
 		if (err)
@@ -518,7 +519,8 @@ void ext4_unregister_sysfs(struct super_block *sb)
 		remove_proc_entry(sb->s_id, ext4_proc_root);
 	}
 
-	if (le32_to_cpu(sbi->s_es->s_sec_magic) == EXT4_SEC_DATA_MAGIC)
+	if (strnlen(sbi->s_es->s_volume_name, 16) == strlen("data") &&
+	    strncmp(sbi->s_es->s_volume_name, "data", strlen("data")) == 0)
 		sysfs_delete_link(&ext4_kset.kobj, &sbi->s_kobj, "userdata");
 
 	kobject_del(&sbi->s_kobj);

@@ -33,6 +33,12 @@
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
 #include <linux/delay.h>
 #endif
+#include <linux/sec_class.h>
+
+#if defined(CONFIG_HALL_NEW_NODE)
+struct device *hall_ic;
+EXPORT_SYMBOL(hall_ic);
+#endif
 
 struct flip_cover_hall_data {
 	struct delayed_work dwork;
@@ -282,7 +288,9 @@ static int flip_cover_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 #if IS_ENABLED(CONFIG_SEC_SYSFS)
+#if !defined(CONFIG_HALL_NEW_NODE)
 	struct device *sec_key_dev;
+#endif
 #endif
 	struct flip_cover_pdata *pdata = dev_get_platdata(dev);
 	struct flip_cover_drvdata *ddata;
@@ -330,6 +338,22 @@ static int flip_cover_probe(struct platform_device *pdev)
 	}
 	input_set_drvdata(input, ddata);
 #if IS_ENABLED(CONFIG_SEC_SYSFS)
+#if defined(CONFIG_HALL_NEW_NODE)
+	hall_ic = sec_device_create(ddata, "hall_ic");
+	if (pdata->nhalls == 1) {
+		struct flip_cover_hall_data *hall = &ddata->pdata->hall[0];
+
+		if (!strncmp(hall->name, "hall", 4))
+			ret = sysfs_create_group(&hall_ic->kobj,
+						&flip_cover_attr_group);
+		else
+			ret = sysfs_create_group(&hall_ic->kobj,
+						&certify_cover_attr_group);
+	} else if (pdata->nhalls == 2) {
+		ret = sysfs_create_group(&hall_ic->kobj,
+					&flip_cover_attrs_group);
+	}
+#else
 	sec_key_dev = sec_device_find("sec_key");
 	if (pdata->nhalls == 1) {
 		struct flip_cover_hall_data *hall = &ddata->pdata->hall[0];
@@ -344,6 +368,7 @@ static int flip_cover_probe(struct platform_device *pdev)
 		ret = sysfs_create_group(&sec_key_dev->kobj,
 					&flip_cover_attrs_group);
 	}
+#endif
 	if (ret) {
 		pr_err("failed to create sysfs %d\n", ret);
 		goto fail4;
@@ -366,6 +391,21 @@ static int flip_cover_remove(struct platform_device *pdev)
 {
 	struct flip_cover_drvdata *ddata = platform_get_drvdata(pdev);
 #if IS_ENABLED(CONFIG_SEC_SYSFS)
+#if defined(CONFIG_HALL_NEW_NODE)
+	hall_ic  = sec_device_find("hall_ic");
+	if (ddata->pdata->nhalls == 1) {
+		struct flip_cover_hall_data *hall = &ddata->pdata->hall[0];
+
+		if (!strncmp(hall->name, "hall", 4))
+			sysfs_remove_group(&hall_ic->parent->kobj,
+						&flip_cover_attr_group);
+		else
+			sysfs_remove_group(&hall_ic->parent->kobj,
+						&certify_cover_attr_group);
+	} else if (ddata->pdata->nhalls == 2)
+		sysfs_remove_group(&hall_ic->parent->kobj,
+						&flip_cover_attrs_group);
+#else
 	struct device *sec_key_dev;
 
 	sec_key_dev = sec_device_find("sec_key");
@@ -381,6 +421,7 @@ static int flip_cover_remove(struct platform_device *pdev)
 	} else if (ddata->pdata->nhalls == 2)
 		sysfs_remove_group(&sec_key_dev->parent->kobj,
 						&flip_cover_attrs_group);
+#endif
 #endif
 
 	device_init_wakeup(&pdev->dev, 0);

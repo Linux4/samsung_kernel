@@ -9,6 +9,7 @@ extern int g_i_FW_VER;
 extern int g_i_CFG_VER;
 extern int g_i_CID_MAJ;
 extern int g_i_CID_MIN;
+extern int g_i_PANEL;
 extern unsigned char *i_CTPM_FW;
 #endif
 #ifdef HX_ZERO_FLASH
@@ -21,6 +22,7 @@ extern unsigned long CFG_VER_MAJ_FLASH_ADDR;
 extern unsigned long CFG_VER_MIN_FLASH_ADDR;
 extern unsigned long CID_VER_MAJ_FLASH_ADDR;
 extern unsigned long CID_VER_MIN_FLASH_ADDR;
+extern unsigned long PANEL_VERSION_ADDR;
 
 extern unsigned long FW_VER_MAJ_FLASH_LENG;
 extern unsigned long FW_VER_MIN_FLASH_LENG;
@@ -2568,6 +2570,7 @@ static int himax_mcu_fw_ver_bin(void)
 			i_CTPM_FW[CFG_VER_MIN_FLASH_ADDR];
 		g_i_CID_MAJ = i_CTPM_FW[CID_VER_MAJ_FLASH_ADDR];
 		g_i_CID_MIN = i_CTPM_FW[CID_VER_MIN_FLASH_ADDR];
+		g_i_PANEL = i_CTPM_FW[PANEL_VERSION_ADDR];
 	} else {
 		input_info(true, &private_ts->client->dev,
 				"%s %s:FW data is null!\n", HIMAX_LOG_TAG, __func__);

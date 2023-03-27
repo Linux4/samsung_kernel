@@ -251,14 +251,6 @@ static int slsi_net_open(struct net_device *dev)
 	netif_tx_start_all_queues(dev);
 	slsi_wakeunlock(&sdev->wlan_wl);
 
-	/* The default power mode in host*/
-	/* 2511 measn unifiForceActive and 1 means active */
-	if (slsi_is_rf_test_mode_enabled()) {
-		SLSI_NET_ERR(dev, "*#rf# rf test mode set is enabled.\n");
-		slsi_set_mib_roam(sdev, NULL, 2511, 1);
-		slsi_set_mib_roam(sdev, NULL, SLSI_PSID_UNIFI_TPC_MAX_POWER_RSSI_THRESHOLD, 0);
-	}
-
 	return 0;
 }
 
@@ -281,12 +273,6 @@ static int slsi_net_stop(struct net_device *dev)
 		slsi_wakeunlock(&sdev->wlan_wl);
 		return 0;
 	}
-#ifndef SLSI_TEST_DEV
-	if (!slsi_is_rf_test_mode_enabled() && !sdev->recovery_status) {
-		SLSI_NET_DBG1(dev, SLSI_NETDEV, "To user mode\n");
-		slsi_set_mib_roam(sdev, NULL, SLSI_PSID_UNIFI_TPC_MAX_POWER_RSSI_THRESHOLD, -55);
-	}
-#endif
 	slsi_netif_tcp_ack_suppression_stop(dev);
 	slsi_stop_net_dev(sdev, dev);
 
@@ -356,7 +342,7 @@ static u16 slsi_get_priority_from_tos_dscp(u8 *frame, u16 proto)
 		return FAPI_PRIORITY_QOS_UP0;
 	}
 /* DSCP table based in RFC8325 from Android 10 */
-#if (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 100000)
+#if (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 10)
 	switch (dscp) {
 	case CS7:
 		return FAPI_PRIORITY_QOS_UP7;
@@ -663,9 +649,9 @@ void slsi_tdls_move_packets(struct slsi_dev *sdev, struct net_device *dev,
 	/* walk through frames in TCP Ack suppression queue and change mapping to TDLS queue */
 	for (index = 0; index < TCP_ACK_SUPPRESSION_RECORDS_MAX; index++) {
 		tcp_ack = &netdev_vif->ack_suppression[index];
-		if (!tcp_ack && !tcp_ack->state)
+		if (!tcp_ack->state)
 			continue;
-		slsi_spinlock_lock(&tcp_ack->lock);
+
 		skb_queue_walk(&tcp_ack->list, skb) {
 			SLSI_NET_DBG2(dev, SLSI_TDLS, "frame in TCP Ack list (peer:%pM)\n", eth_hdr(skb)->h_dest);
 			/* is it destined to TDLS peer? */
@@ -679,7 +665,6 @@ void slsi_tdls_move_packets(struct slsi_dev *sdev, struct net_device *dev,
 				}
 			}
 		}
-		slsi_spinlock_unlock(&tcp_ack->lock);
 	}
 
 	/**
@@ -1084,6 +1069,9 @@ static void  slsi_set_multicast_list(struct net_device *dev)
 
 exit:
 	ndev_vif->sta.regd_mc_addr_count = i;
+	slsi_wakelock(&ndev_vif->sdev->wlan_wl);
+	if (!schedule_work(&ndev_vif->set_multicast_filter_work))
+		slsi_wakeunlock(&ndev_vif->sdev->wlan_wl);
 }
 
 static int  slsi_set_mac_address(struct net_device *dev, void *addr)
@@ -1094,6 +1082,7 @@ static int  slsi_set_mac_address(struct net_device *dev, void *addr)
 
 	SLSI_NET_DBG1(dev, SLSI_NETDEV, "slsi_set_mac_address %pM\n", sa->sa_data);
 	SLSI_ETHER_COPY(dev->dev_addr, sa->sa_data);
+	sdev->mac_changed = true;
 
 	/* Interface is pulled down before mac address is changed.
 	 * First scan initiated after interface is brought up again, should be treated as initial scan, for faster reconnection.
@@ -1121,6 +1110,52 @@ static void slsi_if_setup(struct net_device *dev)
 	ether_setup(dev);
 	dev->netdev_ops = &slsi_netdev_ops;
 	dev->destructor = free_netdev;
+}
+
+static void slsi_set_multicast_filter_work(struct work_struct *data)
+{
+	struct netdev_vif   *ndev_vif = container_of(data, struct netdev_vif, set_multicast_filter_work);
+	struct slsi_dev *sdev = ndev_vif->sdev;
+
+	if (!sdev) {
+		SLSI_WARN_NODEV("sdev is NULL\n");
+		return;
+	}
+	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
+	if (!ndev_vif->is_available ||
+	    !ndev_vif->activated ||
+	    ndev_vif->vif_type != FAPI_VIFTYPE_STATION)
+		goto exit;
+
+	if (ndev_vif->sta.vif_status != SLSI_VIF_STATUS_CONNECTED) {
+		SLSI_INFO_NODEV("STA is not connected!\n");
+		goto exit;
+	}
+	if (ndev_vif->ifnum > CONFIG_SCSC_WLAN_MAX_INTERFACES) {
+		SLSI_INFO_NODEV("Improper ifidx: %d\n", ndev_vif->ifnum);
+		goto exit;
+	}
+	SLSI_MUTEX_LOCK(sdev->device_config_mutex);
+	SLSI_INFO_NODEV("user_suspend_mode = %d\n", ndev_vif->sdev->device_config.user_suspend_mode);
+	/* if LCD is off, update the mcast filter */
+	if (ndev_vif->sdev->device_config.user_suspend_mode == 1) {
+		struct net_device *dev = NULL;
+		int ret = 0;
+
+		dev = sdev->netdev[ndev_vif->ifnum];
+		if (!dev) {
+			SLSI_ERR_NODEV("Dev is NULL ifnum:%d\n", ndev_vif->ifnum);
+			SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
+			goto exit;
+		}
+		ret = slsi_set_multicast_packet_filters(ndev_vif->sdev, dev);
+		if (ret)
+			SLSI_NET_ERR(dev, "Failed to update mcast filter\n");
+	}
+	SLSI_MUTEX_UNLOCK(sdev->device_config_mutex);
+exit:
+	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+	slsi_wakeunlock(&sdev->wlan_wl);
 }
 
 int slsi_netif_add_locked(struct slsi_dev *sdev, const char *name, int ifnum)
@@ -1162,6 +1197,8 @@ int slsi_netif_add_locked(struct slsi_dev *sdev, const char *name, int ifnum)
 	SLSI_MUTEX_INIT(ndev_vif->vif_mutex);
 	SLSI_MUTEX_INIT(ndev_vif->scan_mutex);
 	SLSI_MUTEX_INIT(ndev_vif->scan_result_mutex);
+	INIT_WORK(&ndev_vif->sched_scan_stop_wk, slsi_sched_scan_stopped);
+	INIT_WORK(&ndev_vif->set_multicast_filter_work, slsi_set_multicast_filter_work);
 	skb_queue_head_init(&ndev_vif->ba_complete);
 	slsi_sig_send_init(&ndev_vif->sig_wait);
 	ndev_vif->sdev = sdev;
@@ -1206,14 +1243,18 @@ int slsi_netif_add_locked(struct slsi_dev *sdev, const char *name, int ifnum)
 	}
 
 	INIT_LIST_HEAD(&ndev_vif->sta.network_map);
+#ifdef CONFIG_SCSC_WLAN_BSS_SELECTION
+	INIT_LIST_HEAD(&ndev_vif->sta.ssid_info);
+	INIT_LIST_HEAD(&ndev_vif->sta.blacklist_head);
+#endif
 	SLSI_DBG1(sdev, SLSI_NETDEV, "ifnum=%d\n", ndev_vif->ifnum);
 
 	/* For HS2 interface */
-	if (SLSI_IS_VIF_INDEX_WLAN(ndev_vif))
+	if (SLSI_IS_VIF_INDEX_WLAN(ndev_vif)) {
 		sdev->wlan_unsync_vif_state = WLAN_UNSYNC_NO_VIF;
-
-	/* For p2p0 interface */
-	else if (SLSI_IS_VIF_INDEX_P2P(ndev_vif)) {
+		INIT_DELAYED_WORK(&ndev_vif->unsync.hs2_del_vif_work, slsi_hs2_unsync_vif_delete_work);
+	} else if (SLSI_IS_VIF_INDEX_P2P(ndev_vif)) {
+		/* For p2p0 interface */
 		ret = slsi_p2p_init(sdev, ndev_vif);
 		if (ret)
 			goto exit_with_error;
@@ -1265,6 +1306,7 @@ int slsi_netif_add_locked(struct slsi_dev *sdev, const char *name, int ifnum)
 	ndev_vif->delete_probe_req_ies = false;
 	ndev_vif->probe_req_ies = NULL;
 	ndev_vif->probe_req_ie_len = 0;
+	sdev->require_vif_delete[ndev_vif->ifnum] = false;
 
 	return 0;
 
@@ -1282,7 +1324,7 @@ int slsi_netif_dynamic_iface_add(struct slsi_dev *sdev, const char *name)
 
 	SLSI_MUTEX_LOCK(sdev->netdev_add_remove_mutex);
 
-#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 90000)
+#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9)
 	if (sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN] == sdev->netdev_ap) {
 		rcu_assign_pointer(sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN], NULL);
 		err = slsi_netif_add_locked(sdev, name, SLSI_NET_INDEX_P2PX_SWLAN);
@@ -1324,7 +1366,7 @@ int slsi_netif_init(struct slsi_dev *sdev)
 		return -EINVAL;
 	}
 #if defined(CONFIG_SCSC_WLAN_WIFI_SHARING) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
-#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 90000) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
+#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
 	if (slsi_netif_add_locked(sdev, CONFIG_SCSC_AP_INTERFACE_NAME, SLSI_NET_INDEX_P2PX_SWLAN) != 0) {
 		rtnl_lock();
 		slsi_netif_remove_locked(sdev, sdev->netdev[SLSI_NET_INDEX_WLAN]);
@@ -1341,7 +1383,7 @@ int slsi_netif_init(struct slsi_dev *sdev)
 		slsi_netif_remove_locked(sdev, sdev->netdev[SLSI_NET_INDEX_WLAN]);
 		slsi_netif_remove_locked(sdev, sdev->netdev[SLSI_NET_INDEX_P2P]);
 #if defined(CONFIG_SCSC_WLAN_WIFI_SHARING) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
-#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 90000) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
+#if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 9) || defined(CONFIG_SCSC_WLAN_DUAL_STATION)
 		slsi_netif_remove_locked(sdev, sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN]);
 #endif
 #endif
@@ -1401,6 +1443,9 @@ void slsi_netif_remove_locked(struct slsi_dev *sdev, struct net_device *dev)
 {
 	int               i;
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
+#ifdef CONFIG_SCSC_WLAN_BSS_SELECTION
+	struct list_head    *pos, *q, *blacklist_pos, *blacklist_q;
+#endif
 
 	SLSI_NET_DBG1(dev, SLSI_NETDEV, "Unregister:%pM\n", dev->dev_addr);
 
@@ -1448,7 +1493,35 @@ void slsi_netif_remove_locked(struct slsi_dev *sdev, struct net_device *dev)
 #ifdef CONFIG_SCSC_WLAN_RX_NAPI
 	slsi_skb_queue_purge(&ndev_vif->napi.rx_data);
 #endif
+
+#ifdef CONFIG_SCSC_WLAN_BSS_SELECTION
+	if (SLSI_IS_VIF_INDEX_WLAN(ndev_vif)) {
+		SLSI_NET_DBG1(dev, SLSI_NETDEV, "Cleaning up scan list!\n");
+		list_for_each_safe(pos, q, &ndev_vif->sta.ssid_info) {
+			struct slsi_ssid_info *ssid_info = list_entry(pos, struct slsi_ssid_info, list);
+			struct list_head *bssid_pos, *p;
+
+			list_for_each_safe(bssid_pos, p, &ssid_info->bssid_list) {
+				struct slsi_bssid_info *bssid_info = list_entry(bssid_pos, struct slsi_bssid_info, list);
+
+				list_del(bssid_pos);
+				kfree(bssid_info);
+			}
+			list_del(pos);
+			kfree(ssid_info);
+		}
+		list_for_each_safe(blacklist_pos, blacklist_q, &ndev_vif->sta.blacklist_head) {
+			struct slsi_bssid_blacklist_info *blacklist_info = list_entry(blacklist_pos,
+				struct slsi_bssid_blacklist_info, list);
+
+			list_del(blacklist_pos);
+			kfree(blacklist_info);
+		}
+	}
+#endif
 	kfree(ndev_vif->probe_req_ies);
+	ndev_vif->probe_req_ies = NULL;
+        ndev_vif->probe_req_ie_len = 0;
 
 	if (atomic_read(&ndev_vif->is_registered)) {
 		atomic_set(&ndev_vif->is_registered, 0);
@@ -1535,10 +1608,10 @@ static int slsi_netif_tcp_ack_suppression_start(struct net_device *dev)
 		tcp_ack->timer.function = slsi_netif_tcp_ack_suppression_timeout;
 		tcp_ack->timer.data = (unsigned long)tcp_ack;
 		init_timer(&tcp_ack->timer);
+		tcp_ack->ndev_vif = ndev_vif;
 		tcp_ack->state = 1;
-		slsi_spinlock_create(&tcp_ack->lock);
 	}
-
+	slsi_spinlock_create(&ndev_vif->tcp_ack_lock);
 	memset(&ndev_vif->tcp_ack_stats, 0, sizeof(struct slsi_tcp_ack_stats));
 	return 0;
 }
@@ -1550,15 +1623,17 @@ static int slsi_netif_tcp_ack_suppression_stop(struct net_device *dev)
 	struct slsi_tcp_ack_s *tcp_ack;
 
 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
+	slsi_spinlock_lock(&ndev_vif->tcp_ack_lock);
 	for (index = 0; index < TCP_ACK_SUPPRESSION_RECORDS_MAX; index++) {
 		tcp_ack = &ndev_vif->ack_suppression[index];
+		slsi_spinlock_unlock(&ndev_vif->tcp_ack_lock);
 		del_timer_sync(&tcp_ack->timer);
-		slsi_spinlock_lock(&tcp_ack->lock);
+		slsi_spinlock_lock(&ndev_vif->tcp_ack_lock);
 		tcp_ack->state = 0;
 		skb_queue_purge(&tcp_ack->list);
-		slsi_spinlock_unlock(&tcp_ack->lock);
 	}
 	ndev_vif->last_tcp_ack = NULL;
+	slsi_spinlock_unlock(&ndev_vif->tcp_ack_lock);
 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
 	return 0;
 }
@@ -1574,20 +1649,28 @@ static void slsi_netif_tcp_ack_suppression_timeout(unsigned long data)
 	if (!tcp_ack)
 		return;
 
-	if (!tcp_ack->state)
+	ndev_vif = tcp_ack->ndev_vif;
+
+	if (!ndev_vif)
 		return;
 
-	slsi_spinlock_lock(&tcp_ack->lock);
+	sdev = ndev_vif->sdev;
+
+	slsi_spinlock_lock(&ndev_vif->tcp_ack_lock);
+
+	if (!tcp_ack->state) {
+		slsi_spinlock_unlock(&ndev_vif->tcp_ack_lock);
+		return;
+	}
+
 	while ((skb = skb_dequeue(&tcp_ack->list)) != 0) {
 		tcp_ack->count = 0;
 
 		if (!skb->dev) {
 			kfree_skb(skb);
-			slsi_spinlock_unlock(&tcp_ack->lock);
+			slsi_spinlock_unlock(&ndev_vif->tcp_ack_lock);
 			return;
 		}
-		ndev_vif = netdev_priv(skb->dev);
-		sdev = ndev_vif->sdev;
 
 		if (tcp_ack_robustness)
 			slsi_skb_cb_get(skb)->frame_format = SLSI_NETIF_FRAME_TCP_ACK;
@@ -1604,7 +1687,7 @@ static void slsi_netif_tcp_ack_suppression_timeout(unsigned long data)
 			ndev_vif->tcp_ack_stats.tack_dropped++;
 		}
 	}
-	slsi_spinlock_unlock(&tcp_ack->lock);
+	slsi_spinlock_unlock(&ndev_vif->tcp_ack_lock);
 }
 
 static int slsi_netif_tcp_ack_suppression_option(struct sk_buff *skb, u32 option)
@@ -1663,12 +1746,12 @@ static void slsi_netif_tcp_ack_suppression_syn(struct net_device *dev, struct sk
 	int index;
 
 	SLSI_NET_DBG2(dev, SLSI_TX, "\n");
+	slsi_spinlock_lock(&ndev_vif->tcp_ack_lock);
 	for (index = 0; index < TCP_ACK_SUPPRESSION_RECORDS_MAX; index++) {
 		tcp_ack = &ndev_vif->ack_suppression[index];
-		slsi_spinlock_lock(&tcp_ack->lock);
 
 		if (!tcp_ack->state) {
-			slsi_spinlock_unlock(&tcp_ack->lock);
+			slsi_spinlock_unlock(&ndev_vif->tcp_ack_lock);
 			return;
 		}
 		/* Recover old/hung/unused record. */
@@ -1719,11 +1802,11 @@ static void slsi_netif_tcp_ack_suppression_syn(struct net_device *dev, struct sk
 				tcp_ack->window_multiplier = 0;
 			tcp_ack->mss = slsi_netif_tcp_ack_suppression_option(skb, TCP_ACK_SUPPRESSION_OPTION_MSS);
 			SLSI_NET_DBG2(dev, SLSI_TX, "options: mss:%u, window:%u\n", tcp_ack->mss, tcp_ack->window_multiplier);
-			slsi_spinlock_unlock(&tcp_ack->lock);
+			slsi_spinlock_unlock(&ndev_vif->tcp_ack_lock);
 			return;
 		}
-		slsi_spinlock_unlock(&tcp_ack->lock);
 	}
+	slsi_spinlock_unlock(&ndev_vif->tcp_ack_lock);
 }
 
 static void slsi_netif_tcp_ack_suppression_fin(struct net_device *dev, struct sk_buff *skb)
@@ -1733,9 +1816,9 @@ static void slsi_netif_tcp_ack_suppression_fin(struct net_device *dev, struct sk
 	int index;
 
 	SLSI_NET_DBG2(dev, SLSI_TX, "\n");
+	slsi_spinlock_lock(&ndev_vif->tcp_ack_lock);
 	for (index = 0; index < TCP_ACK_SUPPRESSION_RECORDS_MAX; index++) {
 		tcp_ack = &ndev_vif->ack_suppression[index];
-		slsi_spinlock_lock(&tcp_ack->lock);
 
 		if ((tcp_ack->dport == tcp_hdr(skb)->dest) &&
 		    (tcp_ack->daddr == ip_hdr(skb)->daddr)) {
@@ -1756,11 +1839,11 @@ static void slsi_netif_tcp_ack_suppression_fin(struct net_device *dev, struct sk
 			}
 
 			del_timer(&tcp_ack->timer);
-			slsi_spinlock_unlock(&tcp_ack->lock);
+			slsi_spinlock_unlock(&ndev_vif->tcp_ack_lock);
 			return;
 		}
-		slsi_spinlock_unlock(&tcp_ack->lock);
 	}
+	slsi_spinlock_unlock(&ndev_vif->tcp_ack_lock);
 }
 
 static struct sk_buff *slsi_netif_tcp_ack_suppression_pkt(struct net_device *dev, struct sk_buff *skb)
@@ -1806,15 +1889,15 @@ static struct sk_buff *slsi_netif_tcp_ack_suppression_pkt(struct net_device *dev
 	if (tcp_hdr(skb)->urg)
 		return skb;
 
+	slsi_spinlock_lock(&ndev_vif->tcp_ack_lock);
 	ndev_vif->tcp_ack_stats.tack_acks++;
 
 	/* If we find a record, leave the spinlock taken until the end of the function. */
 	found = 0;
 	if (ndev_vif->last_tcp_ack) {
 		tcp_ack = ndev_vif->last_tcp_ack;
-		slsi_spinlock_lock(&tcp_ack->lock);
 		if (!tcp_ack->state) {
-			slsi_spinlock_unlock(&tcp_ack->lock);
+			slsi_spinlock_unlock(&ndev_vif->tcp_ack_lock);
 			ndev_vif->tcp_ack_stats.tack_sent++;
 			SLSI_ERR_NODEV("last_tcp_ack record not enabled\n");
 			return skb;
@@ -1823,8 +1906,6 @@ static struct sk_buff *slsi_netif_tcp_ack_suppression_pkt(struct net_device *dev
 		    (tcp_ack->daddr == ip_hdr(skb)->daddr)) {
 			found = 1;
 			ndev_vif->tcp_ack_stats.tack_lastrecord++;
-		} else {
-			slsi_spinlock_unlock(&tcp_ack->lock);
 		}
 	}
 	if (found == 0) {
@@ -1832,10 +1913,8 @@ static struct sk_buff *slsi_netif_tcp_ack_suppression_pkt(struct net_device *dev
 		for (index = 0; index < TCP_ACK_SUPPRESSION_RECORDS_MAX; index++) {
 			tcp_ack = &ndev_vif->ack_suppression[index];
 
-			slsi_spinlock_lock(&tcp_ack->lock);
-
 			if (!tcp_ack->state) {
-				slsi_spinlock_unlock(&tcp_ack->lock);
+				slsi_spinlock_unlock(&ndev_vif->tcp_ack_lock);
 				ndev_vif->tcp_ack_stats.tack_sent++;
 				SLSI_ERR_NODEV("tcp_ack record %d not enabled\n", index);
 				return skb;
@@ -1846,12 +1925,12 @@ static struct sk_buff *slsi_netif_tcp_ack_suppression_pkt(struct net_device *dev
 				ndev_vif->tcp_ack_stats.tack_searchrecord++;
 				break;
 			}
-			slsi_spinlock_unlock(&tcp_ack->lock);
 		}
 		if (found == 0) {
 			/* No record found, so We cannot suppress the ack, return. */
 			ndev_vif->tcp_ack_stats.tack_norecord++;
 			ndev_vif->tcp_ack_stats.tack_sent++;
+			slsi_spinlock_unlock(&ndev_vif->tcp_ack_lock);
 			return skb;
 		}
 		ndev_vif->last_tcp_ack = tcp_ack;
@@ -1863,7 +1942,7 @@ static struct sk_buff *slsi_netif_tcp_ack_suppression_pkt(struct net_device *dev
 		if (((s32)((u32)be32_to_cpu(tcp_hdr(skb)->ack_seq) - (u32)tcp_ack->ack_seq)) < 0) {
 			ndev_vif->tcp_ack_stats.tack_dacks++;
 			ndev_vif->tcp_ack_stats.tack_sent++;
-			slsi_spinlock_unlock(&tcp_ack->lock);
+			slsi_spinlock_unlock(&ndev_vif->tcp_ack_lock);
 			return skb;
 		}
 	}
@@ -2029,7 +2108,7 @@ static struct sk_buff *slsi_netif_tcp_ack_suppression_pkt(struct net_device *dev
 		tcp_ack->ack_seq = be32_to_cpu(tcp_hdr(skb)->ack_seq);
 		if (tcp_ack->age)
 			mod_timer(&tcp_ack->timer, jiffies + msecs_to_jiffies(tcp_ack->age));
-		slsi_spinlock_unlock(&tcp_ack->lock);
+		slsi_spinlock_unlock(&ndev_vif->tcp_ack_lock);
 		return 0;
 	}
 _forward_now:
@@ -2054,7 +2133,7 @@ _forward_now:
 		}
 	}
 	if (!flush) {
-		slsi_spinlock_unlock(&tcp_ack->lock);
+		slsi_spinlock_unlock(&ndev_vif->tcp_ack_lock);
 		return 0;
 	}
 	/* Flush the cache. */
@@ -2065,8 +2144,7 @@ _forward_now:
 		del_timer(&tcp_ack->timer);
 
 	tcp_ack->last_sent = ktime_get();
-
-	slsi_spinlock_unlock(&tcp_ack->lock);
 	ndev_vif->tcp_ack_stats.tack_sent++;
+	slsi_spinlock_unlock(&ndev_vif->tcp_ack_lock);
 	return cskb;
 }

@@ -63,7 +63,11 @@
 #if defined(CONFIG_FOLDER_HALL)
 #define HALLIC_PATH		"/sys/class/sec/sec_flip/flipStatus"
 #else
+#if IS_ENABLED(CONFIG_HALL_NEW_NODE)
+#define HALLIC_PATH	"/sys/class/sec/hall_ic/hall_detect"
+#else
 #define HALLIC_PATH		"/sys/class/sec/sec_key/hall_detect"
+#endif
 #endif
 
 struct sx9330_p {

@@ -693,7 +693,12 @@ static void exynos5_i2c_reset(struct exynos5_i2c *i2c)
 
 static inline void exynos5_i2c_stop(struct exynos5_i2c *i2c)
 {
+	unsigned long i2c_auto_conf;
+
 	writel(0, i2c->regs + HSI2C_INT_ENABLE);
+	i2c_auto_conf = readl(i2c->regs + HSI2C_AUTO_CONF);
+	i2c_auto_conf &= ~HSI2C_MASTER_RUN;
+	writel(i2c_auto_conf, i2c->regs + HSI2C_AUTO_CONF);
 
 	complete(&i2c->msg_complete);
 }

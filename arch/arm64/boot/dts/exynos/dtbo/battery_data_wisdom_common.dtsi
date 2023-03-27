@@ -388,6 +388,7 @@
 
 				battery,pd_charging_charge_power = <7750>;
 				battery,max_charging_current = <1800>;
+				battery,slow_charging_current = <500>;
 				battery,battery_full_capacity = <4200>;
 
 				/* cycle, chg_float_voltage, recharge_condition_vcell, full_condition_vcell, full_condition_soc */
@@ -418,6 +419,18 @@
 				io-channel-names = "adc-temp", "adc-in-bat";
 				#io-channel-cells = <5>;
 				io-channel-ranges;
+				battery,ttf_capacity = <4060>;
+				battery,cv_data = <
+							1608	929		600
+							1597    933     570
+							1554    941     510
+							1462    956     390
+							1452    960     360
+							1358    978     210
+							1342    981     180
+							1272    991     90
+							1205    1000    0
+							>;
 			};
 
 /* sec_battery_cable
@@ -533,7 +546,6 @@
 			s2mu004-charger {
 				status = "disable";
 				compatible = "samsung,s2mu004-charger";
-				charger,slow_charging_current = <500>;
 			};
 		};
 	};

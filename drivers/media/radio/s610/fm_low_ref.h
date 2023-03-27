@@ -140,6 +140,7 @@ void fm_idle_periodic_cancel(unsigned long data);
 #endif	/*IDLE_POLLING_ENABLE*/
 void fm_set_audio_gain(struct s610_radio *radio, u16 gain);
 void fm_ds_set(u32 data);
+void fm_get_version_number(void);
 extern void fmspeedy_wakeup(void);
 extern void fm_pwron(void);
 extern void fm_pwroff(void);

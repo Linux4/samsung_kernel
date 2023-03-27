@@ -50,6 +50,8 @@ extern void fm_update_rssi_work(struct s610_radio *radio);
 #define RDS_EVENT_RT_MASK    0x8
 #define RDS_EVENT_ECC_MASK   0x10
 #define RDS_EVENT_RTP_MASK   0x20
+#define RDS_EVENT_PTY_MASK   0x40
+
 
 #define RDS_RTP_AID	0x4BD7
 
@@ -61,6 +63,7 @@ typedef enum {
 	RDS_EVENT_RT,
 	RDS_EVENT_ECC,
 	RDS_EVENT_RTP,
+	RDS_EVENT_PTY,
 } fm_rds_event_type_enum;
 
 enum {

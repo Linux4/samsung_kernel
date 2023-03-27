@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (c) Samsung Electronics Co., Ltd.
  *
@@ -11,7 +12,7 @@
 
 struct mdnie_info;
 struct mdnie_table;
-#if defined(CONFIG_DEBUG_FS) && !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SEC_GPIO_DVS) && defined(CONFIG_EXYNOS_DECON_MDNIE)
+#if defined(CONFIG_DEBUG_FS) && !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SMCDSD_LCD_DEBUG) && defined(CONFIG_EXYNOS_DECON_MDNIE)
 extern void mdnie_renew_table(struct mdnie_info *mdnie, struct mdnie_table *org);
 extern int init_debugfs_mdnie(struct mdnie_info *md, unsigned int mdnie_no);
 extern void mdnie_update(struct mdnie_info *mdnie);
@@ -22,7 +23,7 @@ static inline void init_debugfs_mdnie(struct mdnie_info *md, unsigned int mdnie_
 
 struct i2c_client;
 struct backlight_device;
-#if defined(CONFIG_DEBUG_FS) && !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SEC_GPIO_DVS)
+#if defined(CONFIG_DEBUG_FS) && !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SMCDSD_LCD_DEBUG)
 extern int init_debugfs_backlight(struct backlight_device *bd, unsigned int *table, struct i2c_client **clients);
 extern void init_debugfs_param(const char *name, void *ptr, u32 ptr_type, u32 sum_size, u32 ptr_unit);
 #else
@@ -31,13 +32,15 @@ static inline void init_debugfs_param(const char *name, void *ptr, u32 ptr_type,
 #endif
 
 struct dsim_device;
-#if defined(CONFIG_DEBUG_FS) && !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SEC_GPIO_DVS)
+#if defined(CONFIG_DEBUG_FS) && !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SMCDSD_LCD_DEBUG)
 extern void dsim_write_data_dump(struct dsim_device *dsim, u32 id, unsigned long d0, u32 d1);
+extern int run_cmdlist(u32 index);
 #else
 static inline void dsim_write_data_dump(struct dsim_device *dsim, u32 id, unsigned long d0, u32 d1) {};
+static inline int run_cmdlist(u32 index) { return 0; };
 #endif
 
-#if defined(CONFIG_DEBUG_FS) && !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SEC_GPIO_DVS)
+#if defined(CONFIG_DEBUG_FS) && !defined(CONFIG_SAMSUNG_PRODUCT_SHIP) && defined(CONFIG_SMCDSD_LCD_DEBUG)
 static inline int dd_simple_write_to_buffer(char *ibuf, size_t sizeof_ibuf,
 					loff_t *ppos, const char __user *user_buf, size_t count)
 {

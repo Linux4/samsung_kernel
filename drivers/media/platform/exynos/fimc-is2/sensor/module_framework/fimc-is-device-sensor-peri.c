@@ -1878,6 +1878,7 @@ stream_on_retry:
 		}
 #endif
 
+		mutex_lock(&cis->control_lock);
 		if (sensor_peri->flash != NULL && dual_info->mode == FIMC_IS_DUAL_MODE_NOTHING) {
 			sensor_peri->flash->flash_data.mode = CAM2_FLASH_MODE_OFF;
 			if (sensor_peri->flash->flash_data.flash_fired == true) {
@@ -1903,6 +1904,7 @@ stream_on_retry:
 			memset(&sensor_peri->cis.sensor_ctls[i].cur_cam20_flash_udctrl, 0, sizeof(camera2_flash_uctl_t));
 			sensor_peri->cis.sensor_ctls[i].valid_flash_udctrl = false;
 		}
+		mutex_unlock(&cis->control_lock);
 		sensor_peri->use_sensor_work = false;
 	}
 	if (ret) {

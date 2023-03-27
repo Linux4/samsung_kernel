@@ -189,7 +189,7 @@ static unsigned char SEQ_ACL_OPR_OFF[] = {
 	0x61, 0x28,	/* 13th~14th para ACL 15% */
 	0x4A,
 	0x41, 0xFC,	/* 16th~17th para Start step 50% */
-	0x00
+	0x20		/* 18th para Dimming 32 frame */
 };
 
 static unsigned char SEQ_ACL_OPR_08P[] = {
@@ -200,7 +200,7 @@ static unsigned char SEQ_ACL_OPR_08P[] = {
 	0x60, 0x98,	/* 13th~14th para ACL 8% */
 	0x4A,
 	0x42, 0x64,	/* 16th~17th para Start step 60% */
-	0x00
+	0x20		/* 18th para Dimming 32 frame */
 };
 
 static unsigned char SEQ_ACL_OPR_15P[] = {
@@ -211,7 +211,7 @@ static unsigned char SEQ_ACL_OPR_15P[] = {
 	0x61, 0x28,	/* 13th~14th para ACL 15% */
 	0x4A,
 	0x41, 0xFC,	/* 16th~17th para Start step 50% */
-	0x00
+	0x20		/* 18th para Dimming 32 frame */
 };
 
 static unsigned char SEQ_ACL_OFF[] = {

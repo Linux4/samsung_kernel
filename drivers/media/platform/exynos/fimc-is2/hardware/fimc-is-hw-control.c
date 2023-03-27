@@ -312,6 +312,7 @@ void fimc_is_hardware_flush_frame(struct fimc_is_hw_ip *hw_ip,
 	while (frame && retry--) {
 		if (done_type == IS_SHOT_TIMEOUT) {
 			mserr_hw("[F:%d]hardware is timeout", frame->instance, hw_ip, frame->fcount);
+			fimc_is_hardware_sfr_dump(hw_ip->hardware);
 			fimc_is_hardware_size_dump(hw_ip);
 		}
 
@@ -852,6 +853,7 @@ static void fimc_is_hardware_shot_timer(unsigned long data)
 
 	BUG_ON(!hw_ip);
 
+	print_all_hw_frame_count(hw_ip->hardware);
 	fimc_is_hardware_flush_frame(hw_ip, FS_HW_REQUEST, IS_SHOT_TIMEOUT);
 }
 

@@ -15,7 +15,7 @@
 / {
 	compatible = "samsung,WISDOMWIFI CHN OPEN 01", "samsung,EXYNOS7904";
 	dtbo-hw_rev = <3>;
-    dtbo-hw_rev_end = <255>;
+	dtbo-hw_rev_end = <255>;
 	fragment@model {
 		target-path = "/";
 		__overlay__ {
@@ -29,9 +29,14 @@
 					>;
 				status = "okay";
 			};
+
+			sound {
+				amp-vendor = "NXP";
+			};
 		}; /* end of __overlay__ */
 	}; /* end of fragment */
 }; /* end of root */
+
 &abox {
 	abox_synchronized_ipc: abox_synchronized_ipc {
 		compatible = "samsung,abox-synchronized-ipc";

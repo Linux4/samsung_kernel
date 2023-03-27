@@ -1461,7 +1461,7 @@ static void __decon_update_regs(struct decon_device *decon, struct decon_reg_dat
 		goto update_exit;
 #endif
 
-	if (decon_reg_start(decon->id, &psr) < 0) {
+	if (decon_reg_start(decon->id, &psr) < 0 && !decon->ignore_vsync) {
 		decon_dump(decon);
 #ifdef CONFIG_LOGGING_BIGDATA_BUG
 		log_decon_bigdata(decon);
@@ -1619,7 +1619,7 @@ static void decon_update_regs(struct decon_device *decon,
 		decon->frame_cnt_target = decon->frame_cnt + 1;
 		decon_wait_for_vsync(decon, VSYNC_TIMEOUT_MSEC);
 		decon_wait_for_vstatus(decon, 50);
-		if (decon_reg_wait_for_update_timeout(decon->id, SHADOW_UPDATE_TIMEOUT) < 0) {
+		if (decon_reg_wait_for_update_timeout(decon->id, SHADOW_UPDATE_TIMEOUT) < 0 && !decon->ignore_vsync) {
 			decon_dump(decon);
 #ifdef CONFIG_LOGGING_BIGDATA_BUG
 			log_decon_bigdata(decon);
@@ -1676,6 +1676,7 @@ static void decon_update_regs_handler(struct kthread_work *work)
 		decon_hiber_unblock(decon);
 		list_del(&data->list);
 		kfree(data);
+		atomic_dec(&decon->up.remaining_frame);
 	}
 }
 
@@ -1874,7 +1875,6 @@ static int decon_set_win_config(struct decon_device *decon,
 		goto err_prepare;
 
 	if (win_data->fence >= 0) {
-		decon_install_fence(fence, win_data->fence);
 #if defined(CONFIG_DPU_20)
 		decon_create_release_fences(decon, win_data, fence);
 #endif
@@ -1884,8 +1884,23 @@ static int decon_set_win_config(struct decon_device *decon,
 
 	mutex_lock(&decon->up.lock);
 	list_add_tail(&regs->list, &decon->up.list);
+	atomic_inc(&decon->up.remaining_frame);
+	win_data->extra.remained_frames =
+		atomic_read(&decon->up.remaining_frame);
 	mutex_unlock(&decon->up.lock);
 	queue_kthread_work(&decon->up.worker, &decon->up.work);
+
+	/**
+	 * The code is moved here because the DPU driver may get a wrong fd
+	 * through the released file pointer,
+	 * if the user(HWC) closes the fd and releases the file pointer.
+	 *
+	 * Since the user land can use fd from this point/time,
+	 * it can be guaranteed to use an unreleased file pointer
+	 * when creating a rel_fence in decon_create_release_fences(...)
+	 */
+	if (win_data->fence >= 0)
+                decon_install_fence(fence, win_data->fence);
 
 	mutex_unlock(&decon->lock);
 
@@ -1920,6 +1935,7 @@ err_prepare:
 	}
 	kfree(regs);
 	win_data->fence = -1;
+	win_data->extra.remained_frames = -1;
 err:
 	mutex_unlock(&decon->lock);
 	return ret;
@@ -1971,10 +1987,9 @@ static int decon_ioctl(struct fb_info *info, unsigned int cmd,
 		ret = decon_set_vsync_int(info, active);
 		break;
 
+	case S3CFB_WIN_CONFIG_OLD:
 	case S3CFB_WIN_CONFIG:
-		if (copy_from_user(&win_data,
-				   (struct decon_win_config_data __user *)arg,
-				   sizeof(struct decon_win_config_data))) {
+		if (copy_from_user(&win_data, (void __user *)arg, _IOC_SIZE(cmd))) {
 			ret = -EFAULT;
 			break;
 		}
@@ -2738,6 +2753,7 @@ static void decon_destroy_update_thread(struct decon_device *decon)
 static int decon_create_update_thread(struct decon_device *decon, char *name)
 {
 	INIT_LIST_HEAD(&decon->up.list);
+	atomic_set(&decon->up.remaining_frame, 0);
 	init_kthread_worker(&decon->up.worker);
 	decon->up.thread = kthread_run(kthread_worker_fn,
 			&decon->up.worker, name);

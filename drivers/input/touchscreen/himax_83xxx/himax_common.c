@@ -63,6 +63,7 @@ int g_i_FW_VER = 0;
 int g_i_CFG_VER = 0;
 int g_i_CID_MAJ = 0;		/*GUEST ID */
 int g_i_CID_MIN = 0;		/*VER for GUEST */
+int g_i_PANEL = 0;
 #endif
 #ifdef HX_ZERO_FLASH
 int g_f_0f_updat = 0;
@@ -798,6 +799,11 @@ static int himax_auto_update_check(void)
 			input_info(true, &private_ts->client->dev,
 					"%s %s: Need to update!\n", HIMAX_LOG_TAG,
 					__func__);
+			return NO_ERR;
+		} else if (ic_data->vendor_panel_ver != g_i_PANEL) {
+			input_info(true, &private_ts->client->dev,
+					"%s %s: Need to update!(panel ic:%x bin:%x)\n", HIMAX_LOG_TAG,
+					__func__, ic_data->vendor_panel_ver, g_i_PANEL);
 			return NO_ERR;
 		} else {
 			input_err(true, &private_ts->client->dev,

@@ -110,6 +110,7 @@ struct himax_i2c_platform_data {
 	const char *proj_name;
 	int hx_config_size;
 	int item_version;
+	bool support_dual_fw;
 
 #if defined(CONFIG_HMX_DB)
 	bool i2c_pull_up;

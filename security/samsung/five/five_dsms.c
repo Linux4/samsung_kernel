@@ -45,6 +45,21 @@ static DEFINE_SPINLOCK(five_dsms_lock);
 static struct sign_err_event sign_err_events[MAX_FIV1_NUM];
 static bool fiv3_overflow;
 static DECLARE_BITMAP(mask, MAX_FIV2_NUM);
+static bool oem_unlocking_state __ro_after_init;
+
+static int __init verifiedboot_state_setup(char *str)
+{
+	static const char unlocked[] = "orange";
+
+	oem_unlocking_state = !strncmp(str, unlocked, sizeof(unlocked));
+
+	if (oem_unlocking_state)
+		pr_err("FIVE: Device is unlocked\n");
+
+	return 0;
+}
+
+__setup("androidboot.verifiedbootstate=", verifiedboot_state_setup);
 
 /*`noinline` is required by DSMS.
  * Don't rename this function. File_name/function_name
@@ -79,7 +94,7 @@ void five_dsms_sign_err(const char *app, int result)
 		if (sign_err_events[i].count == 0) {
 			same_event = &sign_err_events[i];
 			current_count = ++same_event->count;
-			strncpy(same_event->comm, app, TASK_COMM_LEN);
+			strlcpy(same_event->comm, app, TASK_COMM_LEN);
 			same_event->result = result;
 			break;
 		} else if (sign_err_events[i].result == result &&
@@ -117,6 +132,9 @@ void five_dsms_reset_integrity(const char *task_name, int result,
 	unsigned short crc;
 	int msg_size;
 	bool sent = true;
+
+	if (oem_unlocking_state)
+		return;
 
 	msg_size = snprintf(dsms_msg, MESSAGE_BUFFER_SIZE, "%s|%d|%s",
 		task_name, result, file_name ? kbasename(file_name) : "");
