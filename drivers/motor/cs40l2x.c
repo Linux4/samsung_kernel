@@ -99,6 +99,7 @@ struct cs40l2x_private {
 #ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
 	unsigned int intensity;
 	EVENT_STATUS save_vib_event;
+	bool use_sep_index;
 #endif
 	struct cs40l2x_pbq_pair pbq_pairs[CS40L2X_PBQ_DEPTH_MAX];
 	struct hrtimer pbq_timer;
@@ -511,6 +512,25 @@ static void set_duration_for_dig_scale(struct cs40l2x_private *cs40l2x,
 		set_current_dig_scale(cs40l2x);
 	}
 }
+
+static int cs40l2x_index_mapping(int sep_index)
+{
+	int cirrus_index = 0;
+
+	switch (sep_index) {
+	case 0:
+	case 100:
+		break;
+	case 119 ... 124:
+		cirrus_index = sep_index + 16;
+		break;
+	default:
+		cirrus_index = sep_index + 9;
+		break;
+	}
+
+	return cirrus_index;
+}
 #endif
 
 static const struct cs40l2x_fw_desc *cs40l2x_firmware_match(
@@ -564,6 +584,12 @@ static ssize_t cs40l2x_cp_trigger_index_store(struct device *dev,
 		return -EINVAL;
 
 #ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
+	if (index >= CS40L2X_INDEX_CLICK_MIN && index <= CS40L2X_INDEX_CLICK_MAX) {
+		if (cs40l2x->use_sep_index) {
+			pr_info("%s SEP index:%u\n", __func__, index);
+			index = cs40l2x_index_mapping(index);
+		}
+	}
 	pr_info("%s index:%u (num_waves:%u)\n", __func__, index, cs40l2x->num_waves);
 #endif
 
@@ -720,6 +746,13 @@ static ssize_t cs40l2x_cp_trigger_queue_store(struct device *dev,
 				ret = -EINVAL;
 				goto err_mutex;
 			}
+#ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
+			if (cs40l2x->use_sep_index) {
+				dev_info(cs40l2x->dev,
+					"SEP index: %d\n", val);
+				val = cs40l2x_index_mapping(val);
+			}
+#endif
 			if (val == 0 || val >= cs40l2x->num_waves) {
 				ret = -EINVAL;
 				goto err_mutex;
@@ -1111,99 +1144,144 @@ err_mutex:
 	return ret;
 }
 
-static int cs40l2x_hiber_cmd_send(struct cs40l2x_private *cs40l2x,
-			unsigned int hiber_cmd)
+static int cs40l2x_wait_for_pwrmgt_sts(struct cs40l2x_private *cs40l2x)
 {
-	struct regmap *regmap = cs40l2x->regmap;
+	unsigned int sts;
+	int i, ret;
+
+	for (i = 0; i < CS40L2X_STATUS_RETRIES; i++) {
+		ret = regmap_read(cs40l2x->regmap, CS40L2X_PWRMGT_STS, &sts);
+		if (ret)
+			dev_err(cs40l2x->dev,
+				"Failed to read PWRMGT_STS: %d\n", ret);
+		else if (!(sts & CS40L2X_WR_PEND_STS_MASK))
+			return 0;
+	}
+
+	dev_err(cs40l2x->dev, "Timed out reading PWRMGT_STS\n");
+	return -ETIMEDOUT;
+}
+
+static int cs40l2x_apply_hibernate_errata(struct cs40l2x_private *cs40l2x)
+{
+	int ret;
+
+	dev_warn(cs40l2x->dev, "Retry hibernate\n");
+
+	cs40l2x_wait_for_pwrmgt_sts(cs40l2x);
+
+	ret = regmap_write(cs40l2x->regmap, CS40L2X_WAKESRC_CTL,
+			   (CS40L2X_WKSRC_EN_SDA << CS40L2X_WKSRC_EN_SHIFT) |
+			   (CS40L2X_WKSRC_POL_SDA << CS40L2X_WKSRC_POL_SHIFT));
+	if (ret)
+		dev_err(cs40l2x->dev, "Failed to set WAKESRC: %d\n", ret);
+
+	cs40l2x_wait_for_pwrmgt_sts(cs40l2x);
+
+	ret = regmap_write(cs40l2x->regmap, CS40L2X_WAKESRC_CTL,
+			   CS40L2X_UPDT_WKCTL_MASK |
+			   (CS40L2X_WKSRC_EN_SDA << CS40L2X_WKSRC_EN_SHIFT) |
+			   (CS40L2X_WKSRC_POL_SDA << CS40L2X_WKSRC_POL_SHIFT));
+	if (ret)
+		dev_err(cs40l2x->dev, "Failed to enable WAKESRC: %d\n", ret);
+
+	cs40l2x_wait_for_pwrmgt_sts(cs40l2x);
+
+	/*
+	 * This write may force the device into hibernation before the ACK is
+	 * returned, so ignore the return value.
+	 */
+	regmap_write(cs40l2x->regmap, CS40L2X_PWRMGT_CTL,
+		     (1 << CS40L2X_MEM_RDY_SHIFT) |
+		     (1 << CS40L2X_TRIG_HIBER_SHIFT));
+
+	return 0;
+}
+
+static int cs40l2x_wake_from_hibernate(struct cs40l2x_private *cs40l2x)
+{
+	unsigned int pwr_reg = cs40l2x_dsp_reg(cs40l2x, "POWERSTATE",
+					       CS40L2X_XM_UNPACKED_TYPE,
+					       cs40l2x->fw_desc->id);
 	unsigned int val;
-	int ret, i, j;
+	int ret, i;
+
+	dev_dbg(cs40l2x->dev, "Attempt wake from hibernate\n");
+
+	ret = cs40l2x_ack_write(cs40l2x, CS40L2X_MBOX_POWERCONTROL,
+				CS40L2X_POWERCONTROL_WAKEUP,
+				CS40L2X_POWERCONTROL_NONE);
+	if (ret) {
+		if (ret == -ETIME)
+			cs40l2x_apply_hibernate_errata(cs40l2x);
+
+		return ret;
+	}
+
+	for (i = 0; i < CS40L2X_STATUS_RETRIES; i++) {
+		ret = regmap_read(cs40l2x->regmap, pwr_reg, &val);
+		if (ret) {
+			dev_err(cs40l2x->dev, "Failed to read POWERSTATE: %d\n",
+				ret);
+			return ret;
+		}
+
+		dev_dbg(cs40l2x->dev, "Read POWERSTATE: %d\n", val);
+
+		switch (val) {
+		case CS40L2X_POWERSTATE_ACTIVE:
+		case CS40L2X_POWERSTATE_STANDBY:
+			dev_dbg(cs40l2x->dev, "Woke from hibernate\n");
+			return 0;
+		case CS40L2X_POWERSTATE_HIBERNATE:
+			break;
+		default:
+			dev_err(cs40l2x->dev, "Invalid POWERSTATE: %x\n", val);
+			break;
+		}
+
+		usleep_range(5000, 5100);
+	}
+
+	dev_err(cs40l2x->dev, "Timed out waiting for POWERSTATE: %d\n", val);
+
+	cs40l2x_apply_hibernate_errata(cs40l2x);
+
+	return -ETIMEDOUT;
+}
+
+static int cs40l2x_hiber_cmd_send(struct cs40l2x_private *cs40l2x,
+				  unsigned int hiber_cmd)
+{
+	int i;
 
 	switch (hiber_cmd) {
 	case CS40L2X_POWERCONTROL_NONE:
 	case CS40L2X_POWERCONTROL_FRC_STDBY:
-		return cs40l2x_ack_write(cs40l2x,
-				CS40L2X_MBOX_POWERCONTROL, hiber_cmd,
-				CS40L2X_POWERCONTROL_NONE);
+		return cs40l2x_ack_write(cs40l2x, CS40L2X_MBOX_POWERCONTROL,
+					 hiber_cmd, CS40L2X_POWERCONTROL_NONE);
 
 	case CS40L2X_POWERCONTROL_HIBERNATE:
 		/*
-		 * control port is unavailable immediately after
-		 * this write, so don't poll for acknowledgment
+		 * The control port is unavailable immediately after this write,
+		 * so don't poll for acknowledgment.
 		 */
-		return regmap_write(regmap,
-				CS40L2X_MBOX_POWERCONTROL, hiber_cmd);
+		return regmap_write(cs40l2x->regmap, CS40L2X_MBOX_POWERCONTROL,
+				    hiber_cmd);
 
 	case CS40L2X_POWERCONTROL_WAKEUP:
+		/*
+		 * The first several transactions are expected to be NAK'd, so
+		 * retry multiple times in rapid succession.
+		 */
 		for (i = 0; i < CS40L2X_WAKEUP_RETRIES; i++) {
-			/*
-			 * the first several transactions are expected to be
-			 * NAK'd, so retry multiple times in rapid succession
-			 */
-			ret = regmap_write(regmap,
-					CS40L2X_MBOX_POWERCONTROL, hiber_cmd);
-			if (ret) {
-				usleep_range(1000, 1100);
-				continue;
-			}
-
-			/*
-			 * verify the previous firmware ID remains intact and
-			 * brute-force a dummy hibernation cycle if otherwise
-			 */
-			for (j = 0; j < CS40L2X_STATUS_RETRIES; j++) {
-				usleep_range(5000, 5100);
-
-				ret = regmap_read(regmap,
-						CS40L2X_XM_FW_ID, &val);
-				if (ret)
-					return ret;
-
-				if (val == cs40l2x->fw_desc->id)
-					break;
-			}
-			if (j < CS40L2X_STATUS_RETRIES)
-				break;
-
-			dev_warn(cs40l2x->dev,
-					"Unexpected firmware ID: 0x%06X\n",
-					val);
-
-			/*
-			 * this write may force the device into hibernation
-			 * before the ACK is returned, so ignore the return
-			 * value
-			 */
-			regmap_write(regmap, CS40L2X_PWRMGT_CTL,
-					(1 << CS40L2X_MEM_RDY_SHIFT) |
-					(1 << CS40L2X_TRIG_HIBER_SHIFT));
+			if (!cs40l2x_wake_from_hibernate(cs40l2x))
+				return 0;
 
 			usleep_range(1000, 1100);
 		}
-		if (i == CS40L2X_WAKEUP_RETRIES)
-			return -EIO;
 
-		for (i = 0; i < CS40L2X_STATUS_RETRIES; i++) {
-			ret = regmap_read(regmap,
-					cs40l2x_dsp_reg(cs40l2x, "POWERSTATE",
-						CS40L2X_XM_UNPACKED_TYPE,
-						cs40l2x->fw_desc->id),
-					&val);
-			if (ret)
-				return ret;
-
-			switch (val) {
-			case CS40L2X_POWERSTATE_ACTIVE:
-			case CS40L2X_POWERSTATE_STANDBY:
-				return 0;
-			case CS40L2X_POWERSTATE_HIBERNATE:
-				break;
-			default:
-				return -EINVAL;
-			}
-
-			usleep_range(5000, 5100);
-		}
-		return -ETIME;
+		return -ETIMEDOUT;
 
 	default:
 		return -EINVAL;
@@ -3409,6 +3487,34 @@ error1:
 error:
 	return size;
 }
+
+static ssize_t cs40l2x_use_sep_index_store(struct device *dev,
+		struct device_attribute *devattr, const char *buf, size_t size)
+{
+	struct cs40l2x_private *cs40l2x = cs40l2x_get_private(dev);
+	int ret = 0;
+	bool use_sep_index;
+
+	if (size > 2) {
+		pr_err("%s: size(%zu) is too long.\n", __func__, size);
+		ret = -EOVERFLOW;
+		goto err;
+	}
+
+	ret = kstrtobool(buf, &use_sep_index);
+	if (ret < 0) {
+		pr_err("%s kstrtobool error : %d\n", __func__, ret);
+		goto err;
+	}
+
+	pr_info("%s use_sep_index:%d\n", __func__, use_sep_index);
+
+	mutex_lock(&cs40l2x->lock);
+	cs40l2x->use_sep_index = use_sep_index;
+	mutex_unlock(&cs40l2x->lock);
+err:
+	return ret ? ret : size;
+}
 #endif
 
 static ssize_t cs40l2x_fw_rev_show(struct device *dev,
@@ -4460,6 +4566,7 @@ static DEVICE_ATTR(haptic_engine, 0660, cs40l2x_haptic_engine_show, cs40l2x_hapt
 #endif
 static DEVICE_ATTR(motor_type, 0660, cs40l2x_motor_type_show, NULL);
 static DEVICE_ATTR(event_cmd, 0660, cs40l2x_event_cmd_show, cs40l2x_event_cmd_store);
+static DEVICE_ATTR(use_sep_index, 0220, NULL, cs40l2x_use_sep_index_store);
 #endif
 static DEVICE_ATTR(fw_rev, 0660, cs40l2x_fw_rev_show, NULL);
 static DEVICE_ATTR(vpp_measured, 0660, cs40l2x_vpp_measured_show, NULL);
@@ -4539,6 +4646,7 @@ static struct attribute *cs40l2x_dev_attrs[] = {
 #endif
 	&dev_attr_motor_type.attr,
 	&dev_attr_event_cmd.attr,
+	&dev_attr_use_sep_index.attr,
 #endif
 	&dev_attr_fw_rev.attr,
 	&dev_attr_vpp_measured.attr,
@@ -4619,14 +4727,7 @@ static void cs40l2x_vibe_mode_worker(struct work_struct *work)
 	unsigned int val;
 	int ret;
 
-	if (cs40l2x->devid != CS40L2X_DEVID_L25A)
-		return;
-
 	mutex_lock(&cs40l2x->lock);
-
-	if (cs40l2x->vibe_mode == CS40L2X_VIBE_MODE_HAPTIC
-			&& cs40l2x->asp_enable == CS40L2X_ASP_DISABLED)
-		goto err_mutex;
 
 	ret = regmap_read(regmap, cs40l2x_dsp_reg(cs40l2x, "STATUS",
 			CS40L2X_XM_UNPACKED_TYPE, CS40L2X_ALGO_ID_VIBE), &val);
@@ -4694,27 +4795,36 @@ static void cs40l2x_vibe_mode_worker(struct work_struct *work)
 		}
 
 		cs40l2x->vibe_mode = CS40L2X_VIBE_MODE_HAPTIC;
-		if (cs40l2x->vibe_state != CS40L2X_VIBE_STATE_RUNNING)
-			cs40l2x_wl_relax(cs40l2x);
-	} else if (cs40l2x->vibe_mode == CS40L2X_VIBE_MODE_HAPTIC &&
-						cs40l2x->a2h_enable) {
 
-		ret = regmap_update_bits(regmap, CS40L2X_PWR_CTRL3,
-				CS40L2X_CLASSH_EN_MASK,
-				1 << CS40L2X_CLASSH_EN_SHIFT);
-		if (ret)
+		if (cs40l2x->pbq_state != CS40L2X_PBQ_STATE_IDLE)
 			goto err_mutex;
 
-		ret = regmap_write(regmap, CS40L2X_DSP_VIRT1_MBOX_5,
-					CS40L2X_A2H_I2S_START);
-		if (ret)
+		cs40l2x->vibe_state = CS40L2X_VIBE_STATE_STOPPED;
+		cs40l2x_wl_relax(cs40l2x);
+	} else {
+		/* haptic-mode teardown */
+		if (cs40l2x->vibe_state == CS40L2X_VIBE_STATE_STOPPED
+				|| cs40l2x->pbq_state != CS40L2X_PBQ_STATE_IDLE)
 			goto err_mutex;
+
+		if (cs40l2x->amp_gnd_stby) {
+			ret = regmap_write(regmap,
+					CS40L2X_SPK_FORCE_TST_1,
+					CS40L2X_FORCE_SPK_GND);
+			if (ret) {
+				dev_err(dev,
+					"Failed to ground amplifier outputs\n");
+				goto err_mutex;
+			}
+		}
+
+		cs40l2x->vibe_state = CS40L2X_VIBE_STATE_STOPPED;
+		cs40l2x_wl_relax(cs40l2x);
 	}
 
 	ret = cs40l2x_enable_classh(cs40l2x);
 	if (ret)
 		goto err_mutex;
-
 
 err_mutex:
 	mutex_unlock(&cs40l2x->lock);
@@ -4914,36 +5024,6 @@ static void cs40l2x_vibe_pbq_worker(struct work_struct *work)
 
 	switch (cs40l2x->pbq_state) {
 	case CS40L2X_PBQ_STATE_IDLE:
-		if (cs40l2x->vibe_state == CS40L2X_VIBE_STATE_STOPPED)
-			goto err_mutex;
-
-		ret = regmap_read(regmap,
-				cs40l2x_dsp_reg(cs40l2x, "STATUS",
-						CS40L2X_XM_UNPACKED_TYPE,
-						CS40L2X_ALGO_ID_VIBE),
-				&val);
-		if (ret) {
-			dev_err(dev, "Failed to capture playback status\n");
-			goto err_mutex;
-		}
-
-		if (val != CS40L2X_STATUS_IDLE)
-			goto err_mutex;
-
-		if (cs40l2x->amp_gnd_stby) {
-			ret = regmap_write(regmap,
-					CS40L2X_SPK_FORCE_TST_1,
-					CS40L2X_FORCE_SPK_GND);
-			if (ret) {
-				dev_err(dev,
-					"Failed to ground amplifier outputs\n");
-				goto err_mutex;
-			}
-		}
-
-		cs40l2x->vibe_state = CS40L2X_VIBE_STATE_STOPPED;
-		if (cs40l2x->vibe_mode != CS40L2X_VIBE_MODE_AUDIO)
-			cs40l2x_wl_relax(cs40l2x);
 		goto err_mutex;
 
 	case CS40L2X_PBQ_STATE_PLAYING:
@@ -9465,7 +9545,6 @@ static int cs40l2x_i2c_remove(struct i2c_client *i2c_client)
 static int __maybe_unused cs40l2x_suspend(struct device *dev)
 {
 	struct cs40l2x_private *cs40l2x = dev_get_drvdata(dev);
-	struct i2c_client *i2c_client = to_i2c_client(dev);
 	int ret = 0;
 
 	dev_info(dev, "Entering cs40l2x_suspend...\n");
@@ -9476,9 +9555,6 @@ static int __maybe_unused cs40l2x_suspend(struct device *dev)
 		return ret;
 	}
 #endif
-
-	disable_irq(i2c_client->irq);
-
 	mutex_lock(&cs40l2x->lock);
 
 	if (cs40l2x->pdata.gpio1_mode == CS40L2X_GPIO1_MODE_AUTO
@@ -9512,7 +9588,6 @@ err_mutex:
 static int __maybe_unused cs40l2x_resume(struct device *dev)
 {
 	struct cs40l2x_private *cs40l2x = dev_get_drvdata(dev);
-	struct i2c_client *i2c_client = to_i2c_client(dev);
 	int ret = 0;
 
 #ifdef CONFIG_CS40L2X_SAMSUNG_FEATURE
@@ -9547,8 +9622,6 @@ static int __maybe_unused cs40l2x_resume(struct device *dev)
 
 err_mutex:
 	mutex_unlock(&cs40l2x->lock);
-
-	enable_irq(i2c_client->irq);
 
 	return ret;
 }

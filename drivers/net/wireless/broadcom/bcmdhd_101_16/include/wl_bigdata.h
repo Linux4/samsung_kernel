@@ -1,7 +1,7 @@
 /*
  * Bigdata logging and report. None EWP and Hang event.
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -42,6 +42,10 @@ enum {
 	BIGDATA_DOT11_11AX_MODE = 5,
 	BIGDATA_DOT11_MODE_MAX
 };
+
+#define BIGDATA_DOT11_11BGN_BIT	0x00000001	/* STA BGN(11b, 11g, 11n) capable */
+#define BIGDATA_DOT11_11AC_BIT	0x00000002	/* STA VHT(11ac) capable */
+#define BIGDATA_DOT11_11AX_BIT	0x00000004	/* STA HE(11ax) capable */
 
 typedef struct wl_ap_sta_data
 {

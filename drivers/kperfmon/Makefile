@@ -8,7 +8,6 @@
 FLAG=1
 
 #$(info kperfmon_DUMMY="$(shell cp -f $(srctree)/include/linux/olog.pb.h  $(srctree)/drivers/kperfmon/)")
-$(info kperfmon_DUMMY="$(shell cp -f $(srctree)/drivers/kperfmon/ologk_origin.h $(srctree)/include/linux/ologk.h)")
 
 ifneq ($(CONFIG_KPERFMON), y)
 FLAG=0
@@ -42,4 +41,5 @@ $(info kperfmon_DUMMY="$(shell cp -f $(srctree)/drivers/kperfmon/ologk.h $(srctr
 	obj-y				+= kperfmon.o
 else
 	obj-y				+= ologk.o
+#$(info kperfmon_DUMMY="$(shell cp -f $(srctree)/drivers/kperfmon/ologk.h $(srctree)/include/linux/)")
 endif

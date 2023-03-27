@@ -5326,7 +5326,8 @@ static QDF_STATUS dp_vdev_attach_wifi3(struct cdp_soc_t *cdp_soc,
 	qdf_spin_unlock_bh(&pdev->vdev_list_lock);
 	pdev->vdev_count++;
 
-	if (wlan_op_mode_sta != vdev->opmode)
+	if (wlan_op_mode_sta != vdev->opmode &&
+	    wlan_op_mode_ndi != vdev->opmode)
 		vdev->ap_bridge_enabled = true;
 	else
 		vdev->ap_bridge_enabled = false;
@@ -11048,6 +11049,7 @@ static struct cdp_peer_ops dp_ops_peer = {
 	.get_vdev_by_peer_addr = dp_get_vdev_by_peer_addr,
 	.peer_get_peer_mac_addr = dp_peer_get_peer_mac_addr,
 	.get_peer_state = dp_get_peer_state,
+	.peer_flush_frags = dp_peer_flush_frags,
 };
 #endif
 

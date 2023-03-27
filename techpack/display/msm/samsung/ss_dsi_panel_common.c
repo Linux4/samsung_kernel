@@ -487,8 +487,9 @@ static void ss_wait_for_te_gpio(struct samsung_display_driver_data *vdd, int num
 	preempt_disable();
 	disp_te_gpio = ss_get_te_gpio(vdd);
 	for(iter = 0 ; iter < num_of_te ; iter++) {
-		start_time_1_64 = ktime_to_us(ktime_get());
+		//1. check high te gpio value
 		if (gpio_is_valid(disp_te_gpio)) {
+			start_time_1_64 = ktime_to_us(ktime_get());
 			for (te_count = 0 ; te_count < te_max ; te_count++) {
 				rc = gpio_get_value(disp_te_gpio);
 				if (rc == 1) {
@@ -499,15 +500,28 @@ static void ss_wait_for_te_gpio(struct samsung_display_driver_data *vdd, int num
 				ndelay(5000);
 			}
 		}
+		//2. wait for low gpio value
 		if (te_count == te_max)
 			LCD_ERR("LDI doesn't generate TE");
-
-		if (in_atomic())
-			udelay(200);
-		else
-			usleep_range(200, 220);
+		else {
+			if (gpio_is_valid(disp_te_gpio) && (iter < (num_of_te - 1))) {
+				for (te_count = 0 ; te_count < te_max ; te_count++) {
+					rc = gpio_get_value(disp_te_gpio);
+					if (rc == 0)
+						break;
+					else {
+						if (in_atomic())
+							udelay(200);
+						else
+							usleep_range(200, 220);
+					}
+				}
+			}
+		}
 	}
-	udelay(delay_after_te);
+
+	if (delay_after_te)
+		udelay(delay_after_te);
 	preempt_enable();
 }
 
@@ -1651,6 +1665,14 @@ int ss_send_cmd(struct samsung_display_driver_data *vdd,
 		goto error;
 	}
 
+	/* To guarantee below 2 things in Command Mode panel
+	 * 1. To prevent image(video) data tx, we need 2 TE wait
+	 * 2. To make sure the timing of command tx, any command should not be interrupted
+	 */
+	if (vdd->support_optical_fingerprint && vdd->finger_mask_updated &&
+			type == TX_BRIGHT_CTRL && panel->panel_mode == DSI_OP_CMD_MODE)
+		ss_wait_for_te_gpio(vdd, 2, vdd->panel_hbm_entry_after_te);
+
 	dsi_panel_tx_cmd_set(panel, type);
 
 	rc = dsi_display_clk_ctrl(dsi_display->dsi_clk_handle,
@@ -2391,9 +2413,7 @@ int ss_panel_on_pre(struct samsung_display_driver_data *vdd)
 
 	if (!ss_panel_attach_get(vdd)) {
 		ss_read_fw_up_debug_partition();
-#if defined(CONFIG_PANEL_S6TUUM3_AMSA24VU01_WQXGA)
-		BUG_ON(1);
-#endif
+
 		LCD_ERR("ss_panel_attach_get NG\n");
 		return false;
 	}
@@ -2496,6 +2516,11 @@ int ss_panel_on_pre(struct samsung_display_driver_data *vdd)
 		LCD_INFO("panel dbg: %x %x %x %x %x\n", rddpm, rddsm, errfg, dsierror, protocol_err);
 
 		vdd->read_panel_status_from_lk = 1;
+	}
+
+	if (vdd->skip_read_on_pre) {
+		LCD_INFO("Skip read operation in on_pre\n");
+		goto skip_read;
 	}
 
 	/* Module info */
@@ -2682,6 +2707,7 @@ int ss_panel_on_pre(struct samsung_display_driver_data *vdd)
 		}
 	}
 
+skip_read:
 	if (!IS_ERR_OR_NULL(vdd->panel_func.samsung_panel_on_pre))
 		vdd->panel_func.samsung_panel_on_pre(vdd);
 
@@ -2890,7 +2916,7 @@ int ss_panel_off_post(struct samsung_display_driver_data *vdd)
 		vdd->br_info.common_br.finger_mask_hbm_on = false;
 
 	LCD_INFO("[DISPLAY_%d] -\n", vdd->ndx);
-	SS_XLOG(SS_XLOG_FINISH);
+	SS_XLOG(vdd->cnt_mdp_clk_underflow);
 
 	return ret;
 }
@@ -3717,10 +3743,20 @@ static void ss_panel_parse_dt_bright_tables(struct device_node *np,
 				"samsung,candela_map_table_rev", panel_rev,
 				ss_parse_candella_mapping_table);
 
+#if (defined(CONFIG_MACH_X1Q_JPN_SINGLE) || \
+		(defined(CONFIG_MACH_Y2Q_JPN_SINGLE) && !defined(CONFIG_MACH_Y2Q_JPN_DCMOLY)) || \
+		defined(CONFIG_MACH_BLOOMXQ_JPN_SINGLE))
+		LCD_INFO("parse jpn AOD brightness table\n");
+		parse_dt_data(np, &info->candela_map_table[AOD][panel_rev],
+				sizeof(struct candela_map_table),
+				"samsung,aod_candela_map_table_jpn_rev", panel_rev,
+				ss_parse_candella_mapping_table);
+#else
 		parse_dt_data(np, &info->candela_map_table[AOD][panel_rev],
 				sizeof(struct candela_map_table),
 				"samsung,aod_candela_map_table_rev", panel_rev,
 				ss_parse_candella_mapping_table);
+#endif
 
 		parse_dt_data(np, &info->candela_map_table[HBM][panel_rev],
 				sizeof(struct candela_map_table),
@@ -4305,6 +4341,9 @@ static void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 
 	vdd->dtsi_data.panel_lpm_enable = of_property_read_bool(np, "samsung,panel-lpm-enable");
 	LCD_ERR("alpm enable %s\n", vdd->dtsi_data.panel_lpm_enable ? "enabled" : "disabled");
+
+	vdd->skip_read_on_pre = of_property_read_bool(np, "samsung,skip_read_on_pre");
+	LCD_ERR("Skip read on pre %s\n", vdd->skip_read_on_pre ? "enabled" : "disabled");
 
 	/* Set HALL IC */
 	vdd->support_hall_ic  = of_property_read_bool(np, "samsung,mdss_dsi_hall_ic_enable");
@@ -6550,7 +6589,6 @@ int ss_brightness_dcs(struct samsung_display_driver_data *vdd, int level, int ba
 
 		if (backlight_origin == BACKLIGHT_FINGERMASK_ON) {
 			vdd->br_info.common_br.finger_mask_hbm_on = true;
-			ss_wait_for_te_gpio(vdd, 1, vdd->panel_hbm_entry_after_te);
 			backup_acl = vdd->br_info.acl_status;
 			if (vdd->finger_mask_updated) /* do not backup br.bl_level at on to on */
 				backup_bl_level = vdd->br_info.common_br.bl_level;
@@ -6562,7 +6600,6 @@ int ss_brightness_dcs(struct samsung_display_driver_data *vdd, int level, int ba
 		}
 		else if(backlight_origin == BACKLIGHT_FINGERMASK_OFF) {
 			vdd->br_info.common_br.finger_mask_hbm_on = false;
-			ss_wait_for_te_gpio(vdd, 1, vdd->panel_hbm_entry_after_te);
 			vdd->br_info.acl_status = backup_acl;
 			level = backup_bl_level;
 
@@ -7109,6 +7146,7 @@ static void ss_bl_event_work(struct work_struct *work)
 
 	bl_evt_data.bl_level = vdd->br_info.common_br.bl_level;
 	bl_evt_data.aor_data = vdd->br_info.common_br.aor_data;
+	bl_evt_data.finger_mask_hbm_on = vdd->br_info.common_br.finger_mask_hbm_on;
 	bl_evt_data.display_idx = vdd->ndx;
 
 	LCD_DEBUG("%d %d ++\n", bl_evt_data.bl_level, bl_evt_data.aor_data);
@@ -7573,10 +7611,14 @@ brr_done:
 		LCD_INFO("delay 1frame(min_rr: %d, %dus)\n", min_rr, interval_us);
 		usleep_range(interval_us, interval_us);
 
-		ret = ss_set_normal_sde_core_clk(ddev);
-		if (ret) {
-			LCD_ERR("fail to set normal sde core clock..(%d)\n", ret);
-			SS_XLOG(ret, 0xbad2);
+		if (!vrr->running_vrr_mdp) {
+			ret = ss_set_normal_sde_core_clk(ddev);
+			if (ret) {
+				LCD_ERR("fail to set normal sde core clock..(%d)\n", ret);
+				SS_XLOG(ret, 0xbad2);
+			}
+		} else {
+			LCD_INFO("Do not set normal clk, vrr is ongoing!! (%d)\n", vrr->running_vrr_mdp);
 		}
 	} else {
 		LCD_INFO("consecutive VRR req, keep max sde clk (cur: %d%s, adj: %d%s)\n",
@@ -7858,6 +7900,14 @@ int ss_early_display_init(struct samsung_display_driver_data *vdd)
 				LCD_ERR("no samsung_module_info_read function\n");
 			else
 				vdd->module_info_loaded_dsi = vdd->panel_func.samsung_module_info_read(vdd);
+		}
+
+		/* MDNIE X,Y */
+		if (!vdd->mdnie_loaded_dsi) {
+			if (IS_ERR_OR_NULL(vdd->panel_func.samsung_mdnie_read))
+				LCD_ERR("no samsung_mdnie_read function\n");
+			else
+				vdd->mdnie_loaded_dsi = vdd->panel_func.samsung_mdnie_read(vdd);
 		}
 
 		/* Panel Unique Cell ID */

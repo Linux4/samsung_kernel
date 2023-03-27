@@ -631,8 +631,7 @@ static void mhi_pm_disable_transition(struct mhi_controller *mhi_cntrl,
 
 	/* trigger MHI RESET so device will not access host ddr */
 	if (MHI_REG_ACCESS_VALID(prev_state)) {
-		/* MHI_RESET always timed-out, give 1000 msec for graceful reset */
-		unsigned long timeout = msecs_to_jiffies(1000);
+		unsigned long timeout = msecs_to_jiffies(mhi_cntrl->timeout_ms);
 
 		if (system_state == SYSTEM_POWER_OFF) {
 			MHI_ERR("Do not Trigger device MHI_RESET, late shutdown\n"); 
@@ -1092,8 +1091,8 @@ void mhi_control_error(struct mhi_controller *mhi_cntrl)
 	}
 #endif
 
-	/* link is not down if device is in RDDM */
-	transition_state = (mhi_cntrl->ee == MHI_EE_RDDM) ?
+	/* link is not down if device supports RDDM */
+	transition_state = (mhi_cntrl->rddm_supported) ?
 		MHI_PM_DEVICE_ERR_DETECT : MHI_PM_LD_ERR_FATAL_DETECT;
 
 	write_lock_irq(&mhi_cntrl->pm_lock);
@@ -1542,6 +1541,15 @@ int mhi_pm_fast_resume(struct mhi_controller *mhi_cntrl, bool notify_client)
 	}
 
 	if (mhi_cntrl->rddm_supported) {
+
+		/* check EP is in proper state */
+		if (mhi_cntrl->link_status(mhi_cntrl, mhi_cntrl->priv_data)) {
+			MHI_ERR("Unable to access EP Config space\n");
+			write_unlock_irq(&mhi_cntrl->pm_lock);
+			tasklet_enable(&mhi_cntrl->mhi_event->task);
+			return -ETIMEDOUT;
+		}
+
 		if (mhi_get_exec_env(mhi_cntrl) == MHI_EE_RDDM &&
 		    !mhi_cntrl->power_down) {
 			mhi_cntrl->ee = MHI_EE_RDDM;

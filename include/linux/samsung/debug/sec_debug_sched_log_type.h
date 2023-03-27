@@ -12,7 +12,10 @@ struct irq_buf {
 	char *name;
 	int en;
 	int preempt_count;
-	void *context;
+	union {
+		void *context;
+		irq_hw_number_t hwirq;
+	};
 	pid_t pid;
 	unsigned int entry_exit;
 };
@@ -33,7 +36,10 @@ struct irq_exit_buf {
 
 struct sched_buf {
 	u64 time;
-	char comm[TASK_COMM_LEN];
+	union {
+		char comm[TASK_COMM_LEN];
+		u64 addr;
+	};
 	pid_t pid;
 	struct task_struct *pTask;
 	char prev_comm[TASK_COMM_LEN];
@@ -172,6 +178,27 @@ struct power_log {
 	struct power_buf buf[POWER_LOG_MAX];
 } ____cacheline_aligned_in_smp;
 
+#if defined(CONFIG_SEC_DEBUG_SCHED_LOG_PER_CPU)
+struct sec_debug_log {
+	struct sched_log sched;
+	struct irq_log irq;
+
+#ifdef CONFIG_SEC_DEBUG_MSG_LOG
+	struct secmsg_log secmsg;
+#endif
+
+#ifdef CONFIG_SEC_DEBUG_POWER_LOG
+	struct power_log pwr;
+#endif
+};
+
+struct sec_debug_last_pet_ns {
+	/* zwei variables -- last_pet und last_ns */
+	unsigned long long last_pet;
+	atomic64_t last_ns;
+};
+
+#else
 struct sec_debug_log {
 	struct sched_log sched[NR_CPUS];
 	struct irq_log irq[NR_CPUS];
@@ -204,6 +231,7 @@ struct sec_debug_log {
 	unsigned long long last_pet;
 	atomic64_t last_ns;
 };
+#endif
 
 #endif /* __KERNEL */
 

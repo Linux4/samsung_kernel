@@ -1028,7 +1028,7 @@ out_save_result:
 				goto out_ble_charging;
 
 			memset(wac_i2c->ble_hist1, 0x00, WACOM_BLE_HISTORY1_SIZE);
-			memcpy(wac_i2c->ble_hist1, buffer, len);
+			memcpy(wac_i2c->ble_hist1, buffer, WACOM_BLE_HISTORY1_SIZE);
 		}
 	}
 
@@ -1407,10 +1407,10 @@ static ssize_t epen_ble_hist_show(struct device *dev,
 	if (!wac_i2c->ble_hist1)
 		return -ENODEV;
 
-	size1 = strlen(wac_i2c->ble_hist1);
+	size1 = strnlen(wac_i2c->ble_hist1, WACOM_BLE_HISTORY1_SIZE);
 	memcpy(buf, wac_i2c->ble_hist1, size1);
 
-	size = strlen(wac_i2c->ble_hist);
+	size = strnlen(wac_i2c->ble_hist, WACOM_BLE_HISTORY_SIZE);
 	memcpy(buf + size1, wac_i2c->ble_hist, size);
 
 	return size + size1;
@@ -1595,6 +1595,19 @@ static ssize_t get_epen_pos_show(struct device *dev,
 			max_x, max_y);
 }
 
+static ssize_t flip_status_detect_show(struct device *dev,
+		struct device_attribute *attr,
+		char *buf)
+{
+	struct sec_cmd_data *sec = dev_get_drvdata(dev);
+	struct wacom_i2c *wac_i2c = container_of(sec, struct wacom_i2c, sec);
+
+	input_info(true, &wac_i2c->client->dev, "%s: %d\n",
+			__func__,	wac_i2c->flip_state);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", wac_i2c->flip_state);
+}
+
 /* firmware update */
 static DEVICE_ATTR(epen_firm_update, (S_IWUSR | S_IWGRP),
 		NULL, epen_firmware_update_store);
@@ -1647,6 +1660,8 @@ static DEVICE_ATTR(epen_fac_garage_mode, (S_IRUGO | S_IWUSR | S_IWGRP),
 static DEVICE_ATTR(epen_fac_garage_rawdata, S_IRUGO,
 		epen_fac_garage_rawdata_show, NULL);
 #endif
+static DEVICE_ATTR(flip_status_detect, 0444,
+		flip_status_detect_show, NULL);
 
 static struct attribute *epen_attributes[] = {
 	&dev_attr_epen_firm_update.attr,
@@ -1677,6 +1692,7 @@ static struct attribute *epen_attributes[] = {
 	&dev_attr_epen_fac_garage_mode.attr,
 	&dev_attr_epen_fac_garage_rawdata.attr,
 #endif
+	&dev_attr_flip_status_detect.attr,
 	NULL,
 };
 

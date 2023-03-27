@@ -272,12 +272,10 @@ static irqreturn_t max77705_irq_thread(int irq, void *data)
 		pr_debug("[%s] fuelgauge interrupt\n", __func__);
 		pr_debug("[%s]IRQ_BASE(%d), NESTED_IRQ(%d)\n",
 			__func__, max77705->irq_base, max77705->irq_base + MAX77705_FG_IRQ_ALERT);
-		handle_nested_irq(max77705->irq_base + MAX77705_FG_IRQ_ALERT);
-
+		irq_reg[FUEL_INT] = 1 << 1;
 #if defined(CONFIG_SEC_FACTORY)
 		wake_unlock(&max77705_irq_wakelock);
 #endif
-		goto done;
 	}
 
 	if (irq_src & MAX77705_IRQSRC_TOP) {
@@ -372,6 +370,14 @@ static irqreturn_t max77705_irq_thread(int irq, void *data)
 		if (!ic_alt_mode && max77705->set_altmode)
 			irq_reg[VIR_INT] |= (1 << 0);
 		pr_info("%s ic_alt_mode=%d\n", __func__, ic_alt_mode);
+
+		if (irq_reg[PD_INT] & BIT_PDMsg) {
+			if (dump_reg[6] == Sink_PD_PSRdy_received
+					|| dump_reg[6] == SRC_CAP_RECEIVED) {
+				if (max77705->check_pdmsg)
+					max77705->check_pdmsg(max77705->usbc_data, dump_reg[6]);
+			}
+		}
 	}
 
 	if (((irq_reg[USBC_INT] & BIT_SYSMsgI) && (dump_reg[1] == SYSERROR_BOOT_WDT))
@@ -393,8 +399,6 @@ static irqreturn_t max77705_irq_thread(int irq, void *data)
 #if defined(CONFIG_SEC_FACTORY)
 	wake_unlock(&max77705_irq_wakelock);
 #endif
-
-done:
 
 	max77705->doing_irq = 0;
 #if defined(CONFIG_CCIC_MAX77705)

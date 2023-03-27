@@ -728,6 +728,7 @@ struct zt_ts_info {
 	u8 finger_cnt1;
 	unsigned int move_count[MAX_SUPPORTED_FINGER_NUM];
 	struct mutex set_reg_lock;
+	struct mutex set_lpmode_lock;
 	struct mutex modechange;
 	struct mutex work_lock;
 	struct mutex raw_data_lock;
@@ -1417,7 +1418,7 @@ static void zt_set_lp_mode(struct zt_ts_info *info, int event, bool enable)
 {
 	int ret;
 
-	mutex_lock(&info->set_reg_lock);
+	mutex_lock(&info->set_lpmode_lock);
 
 	if (enable)
 		zinitix_bit_set(info->lpm_mode, event);
@@ -1428,7 +1429,7 @@ static void zt_set_lp_mode(struct zt_ts_info *info, int event, bool enable)
 	if (ret < 0)
 		input_err(true, &info->client->dev, "%s: fail to write sponge\n", __func__);
 
-	mutex_unlock(&info->set_reg_lock);
+	mutex_unlock(&info->set_lpmode_lock);
 }
 
 #ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
@@ -3710,7 +3711,6 @@ out:
 static int  zt_ts_open(struct input_dev *dev)
 {
 	struct zt_ts_info *info = misc_info;
-	u8 prev_work_state;
 	int ret = 0;
 
 	if (info == NULL)
@@ -3740,14 +3740,13 @@ static int  zt_ts_open(struct input_dev *dev)
 
 	if (info->sleep_mode) {
 		mutex_lock(&info->work_lock);
-		prev_work_state = info->work_state;
 		info->work_state = SLEEP_MODE_OUT;
 		info->sleep_mode = 0;
 		input_info(true, &info->client->dev, "%s, wake up\n", __func__);
 
 		write_cmd(info->client, ZT_WAKEUP_CMD);
 		write_reg(info->client, ZT_OPTIONAL_SETTING, info->m_optional_mode.optional_mode);
-		info->work_state = prev_work_state;
+		info->work_state = NOTHING;
 		mutex_unlock(&info->work_lock);
 
 #if ESD_TIMER_INTERVAL
@@ -9795,8 +9794,8 @@ static int zt_ts_probe(struct i2c_client *client,
 
 #ifdef CONFIG_DISPLAY_SAMSUNG
 	lcdtype = get_lcd_attached("GET");
-	if (lcdtype == 0xFFFFFF) {
-		input_err(true, &client->dev, "%s: lcd is not attached\n", __func__);
+	if (lcdtype == 0xFFFFFF || ((lcdtype >> 8) != 0x8000)) {
+		input_err(true, &client->dev, "%s: lcd is not attached %X\n", __func__, lcdtype);
 		return -ENODEV;
 	}
 #endif
@@ -9816,8 +9815,8 @@ static int zt_ts_probe(struct i2c_client *client,
 	input_info(true, &client->dev, "%s: lcd is connected\n", __func__);
 
 	lcdtype = get_lcd_info("id");
-	if (lcdtype < 0) {
-		input_err(true, &client->dev, "%s: Failed to get lcd info\n", __func__);
+	if (lcdtype < 0 || ((lcdtype >> 8) != 0x8000)) {
+		input_err(true, &client->dev, "%s: Failed to get lcd info %X\n", __func__, lcdtype);
 		return -EINVAL;
 	}
 #endif
@@ -9882,6 +9881,7 @@ static int zt_ts_probe(struct i2c_client *client,
 
 	mutex_init(&info->modechange);
 	mutex_init(&info->set_reg_lock);
+	mutex_init(&info->set_lpmode_lock);
 	mutex_init(&info->work_lock);
 	mutex_init(&info->raw_data_lock);
 	mutex_init(&info->i2c_mutex);

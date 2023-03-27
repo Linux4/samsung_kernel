@@ -16308,7 +16308,10 @@ QDF_STATUS wlan_hdd_update_wiphy_supported_band(struct hdd_context *hdd_ctx)
 	    cfg->dot11Mode != eHDD_DOT11_MODE_11ax_ONLY)
 		 wlan_hdd_band_5_ghz.vht_cap.vht_supported = 0;
 
-	hdd_init_6ghz(hdd_ctx);
+	if (cfg->dot11Mode == eHDD_DOT11_MODE_AUTO ||
+	    cfg->dot11Mode == eHDD_DOT11_MODE_11ax ||
+	    cfg->dot11Mode == eHDD_DOT11_MODE_11ax_ONLY)
+		hdd_init_6ghz(hdd_ctx);
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -17368,6 +17371,9 @@ static int __wlan_hdd_cfg80211_add_key(struct wiphy *wiphy,
 	cipher = osif_nl_to_crypto_cipher_type(params->cipher);
 	if (pairwise)
 		wma_set_peer_ucast_cipher(mac_address.bytes, cipher);
+
+	cdp_peer_flush_frags(cds_get_context(QDF_MODULE_ID_SOC),
+			     wlan_vdev_get_id(vdev), mac_address.bytes);
 
 	switch (adapter->device_mode) {
 	case QDF_IBSS_MODE:
