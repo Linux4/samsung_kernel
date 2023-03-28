@@ -1969,19 +1969,20 @@ static int decon_set_win_buffer(struct decon_device *decon, struct decon_win *wi
 
 	plane_cnt = decon_get_memory_plane_cnt(win_config->format);
 	for (i = 0; i < plane_cnt; ++i) {
-		handle = ion_import_dma_buf(decon->ion_client, win_config->fd_idma[i]);
-		if (IS_ERR(handle)) {
-			decon_err("failed to import fd\n");
-			ret = PTR_ERR(handle);
-			goto err_invalid;
-		}
-
 		buf[i] = dma_buf_get(win_config->fd_idma[i]);
 		if (IS_ERR_OR_NULL(buf[i])) {
 			decon_err("dma_buf_get() failed: %ld\n", PTR_ERR(buf[i]));
 			ret = PTR_ERR(buf[i]);
+			goto err_invalid;
+		}
+
+		handle = ion_import_dma_buf(decon->ion_client, win_config->fd_idma[i]);
+		if (IS_ERR(handle)) {
+			decon_err("failed to import fd\n");
+			ret = PTR_ERR(handle);
 			goto err_buf_get;
 		}
+
 		buf_size = decon_map_ion_handle(decon, decon->dev,
 				&dma_buf_data[i], handle, buf[i], win_no);
 
@@ -2079,12 +2080,12 @@ err_offset:
 	for (i = 0; i < plane_cnt; ++i)
 		decon_free_dma_buf(decon, &dma_buf_data[i]);
 err_map:
+	if (handle)
+		ion_free(decon->ion_client, handle);
+err_buf_get:
 	for (i = 0; i < plane_cnt; ++i)
 		if (buf[i])
 			dma_buf_put(buf[i]);
-err_buf_get:
-	if (handle)
-		ion_free(decon->ion_client, handle);
 err_invalid:
 	win->fbinfo->var = prev_var;
 	return ret;
