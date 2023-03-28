@@ -35,6 +35,7 @@
 #include "mdss_smmu.h"
 #include "mdss_debug.h"
 
+#undef SZ_4G
 #define SZ_4G 0xF0000000
 
 #ifdef CONFIG_QCOM_IOMMU

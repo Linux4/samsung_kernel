@@ -1085,9 +1085,11 @@
 		reg = <0xb017000 0x1000>;
 		reg-names = "wdt-base";
 		interrupts = <0 3 0>, <0 4 0>;
+		/* HS60 code for P220414-02090 gengyifei at 2022/04/25 start */
                 /* HS60 code for HS60-764  by yanghui at 2019/09/04 start */
-		qcom,bark-time = <13000>;
+		qcom,bark-time = <18000>;
                 /* HS60 code for HS60-764  by yanghui at 2019/09/04 end */
+		/* HS60 code for P220414-02090 gengyifei at 2022/04/25 end */
 		qcom,pet-time = <9360>;
 		qcom,ipi-ping;
 		qcom,wakeup-enable;

@@ -24,6 +24,7 @@
 #include <linux/blkdev.h>
 #include <linux/quotaops.h>
 #include <crypto/hash.h>
+#include <linux/nls.h>
 #include <linux/overflow.h>
 
 #include <linux/fscrypt.h>
@@ -31,10 +32,22 @@
 #include <linux/ctype.h>
 #include "../mount.h"
 
+/* @fs.sec -- ef5f3ea8a5ac82ae371e21c3f69ae858 -- */
+/* @fs.sec -- 57e05a5599690232e533bfcdd864042b -- */
+/* @fs.sec -- 06866fdb03315a8b0fdeb981afd76d82 -- */
+
 #ifdef CONFIG_F2FS_STRICT_BUG_ON
-#define	BUG_ON_CHKFS	BUG_ON
+#define    BUG_ON_CHKFS(sbi, condition)    do { \
+		char volume_name[16] = {0, }; \
+		pr_err("BUG: failure at %s:%d/%s()!\n", __FILE__, __LINE__, __func__); \
+		utf16s_to_utf8s(sbi->raw_super->volume_name, 16, \
+			UTF16_LITTLE_ENDIAN, volume_name, 16); \
+		volume_name[15] = '\0'; \
+		barrier_before_unreachable(); \
+		panic("F2FS: BUG! (%s)", volume_name); \
+	} while (0)
 #else
-#define	BUG_ON_CHKFS	WARN_ON
+#define    BUG_ON_CHKFS(sbi, condition)    WARN_ON(condition)
 #endif
 
 extern int ignore_fs_panic;
@@ -51,11 +64,11 @@ extern void (*ufs_debug_func)(void *);
 				WARN_ON(1);					\
 				set_sbi_flag(sbi, SBI_NEED_FSCK);		\
 				sbi->sec_stat.fs_por_error++;			\
-			} else if (unlikely(!ignore_fs_panic)) {		\
+			} else if (unlikely(!ignore_fs_panic)) {					\
 				if (set_extra_blk)				\
 					f2fs_set_sb_extra_flag(sbi,		\
 						F2FS_SEC_EXTRA_FSCK_MAGIC);	\
-				BUG_ON_CHKFS(1);				\
+				BUG_ON_CHKFS(sbi, 1);				\
 				sbi->sec_stat.fs_error++;			\
 			}							\
 		}								\
@@ -147,6 +160,7 @@ struct f2fs_mount_info {
 	kgid_t flush_group;		/* should issue flush for gid */
 	int active_logs;		/* # of active logs */
 	int inline_xattr_size;		/* inline xattr size */
+	unsigned int ckpt_ioprio;	/* checkpoint thread ioprio */
 #ifdef CONFIG_F2FS_FAULT_INJECTION
 	struct f2fs_fault_info fault_info;	/* For fault injection */
 #endif
@@ -371,6 +385,9 @@ struct discard_cmd_control {
 	atomic_t discard_cmd_cnt;		/* # of cached cmd count */
 	struct rb_root root;			/* root of discard rb-tree */
 	bool rbtree_check;			/* config for consistence check */
+
+	unsigned int discard_cmd_slab_thresh_cnt; /* discard cmd slab count threshold */
+	unsigned int undiscard_thresh_blks; /* undiscard block threshold in Blk */
 };
 
 /* for the list of fsync inodes, used only during recovery */
@@ -1324,6 +1341,36 @@ struct f2fs_sec_blkops_dbg {
 	struct f2fs_sec_blkops_entry entry[NR_F2FS_SEC_DBG_ENTRY];
 };
 #endif
+
+#define F2FS_SUPPORT_CHECKPOINT_CMD_TIME_NS
+
+struct checkpoint_cmd {
+	struct completion wait;
+	struct llist_node llnode;
+	int ret;
+	struct task_struct *owner;
+	unsigned long queue_time;		/* jiffies */
+	unsigned long dispatch_time;
+	unsigned long start_time;
+	unsigned long complete_time;
+#ifdef F2FS_SUPPORT_CHECKPOINT_CMD_TIME_NS
+	unsigned long long queue_time_ns;	/* sched_clock */
+	unsigned long long dispatch_time_ns;
+	unsigned long long start_time_ns;
+	unsigned long long complete_time_ns;
+#endif
+};
+
+struct f2fs_ckpt_cmd_control {
+	struct task_struct *ckpt_task;		/* issue checkpoint task */
+	wait_queue_head_t ckpt_wait_queue;	/* waiting queue for wake-up */
+	atomic_t issued_ckpt;			/* # of issued ckpts */
+	atomic_t issing_ckpt;			/* # of issing ckpts */
+	atomic_t accum_ckpt;			/* # of accum. issing ckpts */
+	struct llist_head issue_list;		/* list for command issue */
+	struct llist_node *dispatch_list;	/* list for command dispatch */
+};
+
 struct f2fs_sb_info {
 	struct super_block *sb;			/* pointer to VFS super block */
 	struct proc_dir_entry *s_proc;		/* proc entry */
@@ -1352,6 +1399,7 @@ struct f2fs_sb_info {
 	mempool_t *write_io_dummy;		/* Dummy pages */
 
 	/* for checkpoint */
+	struct f2fs_ckpt_cmd_control *ccc_info;	/* for checkpoint cmd control */
 	struct f2fs_checkpoint *ckpt;		/* raw checkpoint pointer */
 	int cur_cp_pack;			/* remain current cp pack */
 	spinlock_t cp_lock;			/* for flag in ckpt */
@@ -2546,7 +2594,7 @@ static inline void f2fs_change_bit(unsigned int nr, char *addr)
 	*addr ^= mask;
 }
 
-
+/* @fs.sec -- 23c33f110b35408f8559496c6095c768 -- */
 enum F2FS_SEC_FUA_MODE {
 	F2FS_SEC_FUA_NONE = 0,
 	F2FS_SEC_FUA_ROOT,
@@ -2987,7 +3035,7 @@ static inline bool f2fs_may_extent_tree(struct inode *inode)
 	return S_ISREG(inode->i_mode);
 }
 
-static inline void *kvmalloc(size_t size, gfp_t flags)
+static inline void *_kvmalloc(size_t size, gfp_t flags)
 {
 	void *ret;
 
@@ -3011,10 +3059,10 @@ static inline void *f2fs_kmalloc(struct f2fs_sb_info *sbi,
 	if (ret)
 		return ret;
 
-	return kvmalloc(size, flags);
+	return _kvmalloc(size, flags);
 }
 
-static inline void *kvzalloc(size_t size, gfp_t flags)
+static inline void *_kvzalloc(size_t size, gfp_t flags)
 {
 	void *ret;
 
@@ -3048,7 +3096,7 @@ static inline void *f2fs_kvmalloc(struct f2fs_sb_info *sbi,
 		return NULL;
 	}
 
-	return kvmalloc(size, flags);
+	return _kvmalloc(size, flags);
 }
 
 static inline void *f2fs_kvzalloc(struct f2fs_sb_info *sbi,
@@ -3422,6 +3470,10 @@ int f2fs_write_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc);
 void f2fs_init_ino_entry_info(struct f2fs_sb_info *sbi);
 int __init f2fs_create_checkpoint_caches(void);
 void f2fs_destroy_checkpoint_caches(void);
+int f2fs_issue_checkpoint(struct f2fs_sb_info *sbi);
+int f2fs_create_checkpoint_cmd_control(struct f2fs_sb_info *sbi);
+int f2fs_destroy_checkpoint_cmd_control(struct f2fs_sb_info *sbi, bool free);
+int f2fs_set_issue_ckpt_ioprio(struct f2fs_sb_info *sbi, unsigned int ioprio);
 
 /*
  * data.c
@@ -3477,10 +3529,15 @@ void f2fs_clear_radix_tree_dirty_tag(struct page *page);
 int f2fs_start_gc_thread(struct f2fs_sb_info *sbi);
 void f2fs_stop_gc_thread(struct f2fs_sb_info *sbi);
 block_t f2fs_start_bidx_of_node(unsigned int node_ofs, struct inode *inode);
-int f2fs_gc(struct f2fs_sb_info *sbi, bool sync, bool background,
-			unsigned int segno);
+int __f2fs_gc(struct f2fs_sb_info *sbi, bool sync, bool background,
+			unsigned int segno, bool init_unable_victim_map);
 void f2fs_build_gc_manager(struct f2fs_sb_info *sbi);
 int f2fs_resize_fs(struct f2fs_sb_info *sbi, __u64 block_count);
+static inline int f2fs_gc(struct f2fs_sb_info *sbi, bool sync, bool background,
+			unsigned int segno)
+{
+	return __f2fs_gc(sbi, sync, background, segno, true);
+}
 
 /*
  * recovery.c
@@ -3658,7 +3715,9 @@ static inline struct f2fs_stat_info *F2FS_STAT(struct f2fs_sb_info *sbi)
 	} while (0)
 
 int f2fs_build_stats(struct f2fs_sb_info *sbi);
+#ifdef CONFIG_F2FS_SEC_DEBUG_NODE
 void f2fs_update_sec_stats(struct f2fs_sb_info *sbi);
+#endif
 void f2fs_destroy_stats(struct f2fs_sb_info *sbi);
 void __init f2fs_create_root_stats(void);
 void f2fs_destroy_root_stats(void);

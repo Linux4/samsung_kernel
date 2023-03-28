@@ -263,4 +263,11 @@ config MACH_A02Q_USA_TFN
 	bool "Samsung A02Q USA TFN"
 	help
 	  Support for Samsung HS50 A02Q USA TFM device.
+	  
+config MACH_A02Q_USA_OPEN
+	depends on SEC_A02Q_PROJECT
+	default n
+	bool "Samsung A02Q USA OPEN"
+	help
+	  Support for Samsung HS50 A02Q USA OPEN device.
 	  	  

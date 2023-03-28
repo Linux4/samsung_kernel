@@ -26,6 +26,11 @@
 #define OVERLAYFS_SUPER_MAGIC 0x794c7630
 #endif
 
+/* EROFS_SUPER_MAGIC_V1 is defined since v5.4 */
+#ifndef EROFS_SUPER_MAGIC_V1
+#define EROFS_SUPER_MAGIC_V1 0xE0F5E1E2
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 21)
 /* d_backing_inode is absent on some Linux Kernel 3.x. but it back porting for
  * few Samsung kernels:
@@ -213,7 +218,7 @@ static inline struct dentry *d_real_comp(struct dentry *dentry)
 #else
 static inline struct dentry *d_real_comp(struct dentry *dentry)
 {
-	return d_real(dentry, NULL);
+	return d_real(dentry, d_real_inode(dentry));
 }
 #endif
 

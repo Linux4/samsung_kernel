@@ -1,9 +1,10 @@
 /* Overlay DT source file for QRD board. All DTSI files included by this file must not contain any SOC-specific bindings.
  */
-/*HS50 code for SR-QL3095-01-71 by gaozhengwei at 2020/07/23 start*/
+ /*HS50 code for SR-QL3095-01-71 by gaozhengwei at 2020/07/23 start*/
 #include "display/sdm450-hs50-display.dtsi"
 /*HS50 code for SR-QL3095-01-71 by gaozhengwei at 2020/07/23 end*/
 #include "hs50-tps61280.dtsi"
+
 #include "battery-common.dtsi"
 #include "audio-common.dtsi"
 #include "sdcard-hs50.dtsi"

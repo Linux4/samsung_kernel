@@ -31,6 +31,10 @@
 #include "gc.h"
 #include "trace.h"
 
+/* @fs.sec -- 1f886d6941ebe5b547fded7e6bc457c5 -- */
+/* @fs.sec -- 31ec0bc200a96535a74acf850b47ae01 -- */
+/* @fs.sec -- 7e67fe3e14873ae7829b5f6a76ac1c02 -- */
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/f2fs.h>
 
@@ -141,6 +145,7 @@ enum {
 	Opt_checkpoint_disable_cap,
 	Opt_checkpoint_disable_cap_perc,
 	Opt_checkpoint_enable,
+	Opt_checkpoint_ioprio,
 	Opt_err,
 };
 
@@ -204,6 +209,7 @@ static match_table_t f2fs_tokens = {
 	{Opt_checkpoint_disable_cap, "checkpoint=disable:%u"},
 	{Opt_checkpoint_disable_cap_perc, "checkpoint=disable:%u%%"},
 	{Opt_checkpoint_enable, "checkpoint=enable"},
+	{Opt_checkpoint_ioprio, "checkpoint_ioprio=%u"},
 	{Opt_err, NULL},
 };
 
@@ -888,6 +894,16 @@ static int parse_options(struct super_block *sb, char *options)
 		case Opt_checkpoint_enable:
 			clear_opt(sbi, DISABLE_CHECKPOINT);
 			break;
+		case Opt_checkpoint_ioprio:
+			if (args->from && match_int(args, &arg))
+				return -EINVAL;
+			if (arg < 0 || arg > 7) {
+				f2fs_err(sbi, "Invalid checkpoint task"
+					       " IO priority (must be 0-7)");
+				return -EINVAL;
+			}
+			F2FS_OPTION(sbi).ckpt_ioprio = (unsigned int)arg;
+			break;
 		default:
 			f2fs_err(sbi, "Unrecognized mount option \"%s\" or missing value",
 				 p);
@@ -1146,6 +1162,11 @@ static void f2fs_put_super(struct super_block *sb)
 	/* prevent remaining shrinker jobs */
 	mutex_lock(&sbi->umount_mutex);
 
+	/* flush all issued checkpoints and destroy ccc. after then,
+	 * all checkpoints should be done by each process context.
+	 */
+	f2fs_destroy_checkpoint_cmd_control(sbi, true);
+
 	/*
 	 * We don't need to do checkpoint when superblock is clean.
 	 * But, the previous checkpoint was not done by umount, it needs to do
@@ -1243,9 +1264,13 @@ int f2fs_sync_fs(struct super_block *sb, int sync)
 
 		cpc.reason = __get_cp_reason(sbi);
 
-		mutex_lock(&sbi->gc_mutex);
-		err = f2fs_write_checkpoint(sbi, &cpc);
-		mutex_unlock(&sbi->gc_mutex);
+		if (cpc.reason == CP_SYNC) {
+			err = f2fs_issue_checkpoint(sbi);
+		} else {
+			mutex_lock(&sbi->gc_mutex);
+			err = f2fs_write_checkpoint(sbi, &cpc);
+			mutex_unlock(&sbi->gc_mutex);
+		}
 	}
 	f2fs_trace_ios(NULL, 1);
 
@@ -1538,7 +1563,8 @@ static int f2fs_show_options(struct seq_file *seq, struct dentry *root)
 	return 0;
 }
 
-static void default_options(struct f2fs_sb_info *sbi)
+#define DEFAULT_ISSUE_CHECKPOINT_IOPRIO (3)
+static void default_options(struct f2fs_sb_info *sbi, bool remount)
 {
 	/* init some FS parameters */
 	F2FS_OPTION(sbi).active_logs = NR_CURSEG_TYPE;
@@ -1550,6 +1576,9 @@ static void default_options(struct f2fs_sb_info *sbi)
 	F2FS_OPTION(sbi).s_resuid = make_kuid(&init_user_ns, F2FS_DEF_RESUID);
 	F2FS_OPTION(sbi).s_resgid = make_kgid(&init_user_ns, F2FS_DEF_RESGID);
 	F2FS_OPTION(sbi).flush_group = make_kgid(&init_user_ns, F2FS_DEF_FLUSHGROUP);
+
+	if (!remount)
+		F2FS_OPTION(sbi).ckpt_ioprio = DEFAULT_ISSUE_CHECKPOINT_IOPRIO;
 
 	set_opt(sbi, BG_GC);
 	set_opt(sbi, INLINE_XATTR);
@@ -1605,6 +1634,7 @@ static int f2fs_disable_checkpoint(struct f2fs_sb_info *sbi)
 	unsigned int retry_cnt = 0;
 	int ret;
 	block_t unusable;
+	bool init_victim_map = true;
 
 	if (s_flags & MS_RDONLY) {
 		f2fs_err(sbi, "checkpoint=disable on readonly fs");
@@ -1617,7 +1647,8 @@ static int f2fs_disable_checkpoint(struct f2fs_sb_info *sbi)
 	while (!f2fs_time_over(sbi, DISABLE_TIME)) {
 		retry_cnt++;
 		mutex_lock(&sbi->gc_mutex);
-		err = f2fs_gc(sbi, true, false, NULL_SEGNO);
+		err = __f2fs_gc(sbi, true, false, NULL_SEGNO, init_victim_map);
+		init_victim_map = false;
 		if (err == -ENODATA) {
 			err = 0;
 			break;
@@ -1648,6 +1679,13 @@ static int f2fs_disable_checkpoint(struct f2fs_sb_info *sbi)
 		goto restore_flag;
 	}
 #endif
+
+	ret = f2fs_destroy_checkpoint_cmd_control(sbi, false);
+	if (ret || err) {
+		err = ret ? ret: err;
+		goto restore_flag;
+	}
+
 	mutex_lock(&sbi->gc_mutex);
 	cpc.reason = CP_PAUSE;
 	set_sbi_flag(sbi, SBI_CP_DISABLED);
@@ -1674,6 +1712,10 @@ static void f2fs_enable_checkpoint(struct f2fs_sb_info *sbi)
 	clear_sbi_flag(sbi, SBI_CP_DISABLED);
 	set_sbi_flag(sbi, SBI_IS_DIRTY);
 	mutex_unlock(&sbi->gc_mutex);
+
+	if (f2fs_create_checkpoint_cmd_control(sbi)) {
+		f2fs_warn(sbi, "Failed to initialize F2FS issue_checkpoint_thread");
+	}
 
 	f2fs_sync_fs(sbi->sb, 1);
 }
@@ -1728,7 +1770,7 @@ static int f2fs_remount(struct vfsmount *mnt, struct super_block *sb,
 			clear_sbi_flag(sbi, SBI_NEED_SB_WRITE);
 	}
 
-	default_options(sbi);
+	default_options(sbi, true);
 
 	/* parse mount options */
 	err = parse_options(sb, data);
@@ -1814,6 +1856,9 @@ static int f2fs_remount(struct vfsmount *mnt, struct super_block *sb,
 			f2fs_enable_checkpoint(sbi);
 		}
 	}
+
+	if (F2FS_OPTION(sbi).ckpt_ioprio != org_mount_opt.ckpt_ioprio)
+		f2fs_set_issue_ckpt_ioprio(sbi, F2FS_OPTION(sbi).ckpt_ioprio);
 
 	/*
 	 * We stop issue flush thread if FS is mounted as RO
@@ -3294,7 +3339,7 @@ try_onemore:
 		goto free_sb_buf;
 	}
 #endif
-	default_options(sbi);
+	default_options(sbi, false);
 	/* parse mount options */
 	options = kstrdup((const char *)data, GFP_KERNEL);
 	if (data && !options) {
@@ -3449,6 +3494,13 @@ try_onemore:
 	f2fs_init_ino_entry_info(sbi);
 
 	f2fs_init_fsync_node_info(sbi);
+
+	/* setup checkpoint_cmd_control */
+	err = f2fs_create_checkpoint_cmd_control(sbi);
+	if (err) {
+		f2fs_err(sbi, "Failed to initialize F2FS checkpoint_cmd_control");
+		goto free_ccc;
+	}
 
 	/* setup f2fs internal modules */
 	err = f2fs_build_segment_manager(sbi);
@@ -3648,6 +3700,8 @@ free_nm:
 	f2fs_destroy_node_manager(sbi);
 free_sm:
 	f2fs_destroy_segment_manager(sbi);
+free_ccc:
+	f2fs_destroy_checkpoint_cmd_control(sbi, true);
 free_devices:
 	destroy_device_list(sbi);
 	kvfree(sbi->ckpt);

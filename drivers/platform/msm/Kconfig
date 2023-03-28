@@ -240,4 +240,5 @@ config HPUE_DETECT
 	default n
 # huaqin add for HQ000001 bringup tps61280 by limengxia at 2019/07/17 end
 
+
 endmenu

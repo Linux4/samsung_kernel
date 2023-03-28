@@ -123,7 +123,7 @@ int gt1x_glove_cfg(int sensor_id)
 
 #endif
 
-#define GTP_RESUME_EN                    0
+#define GTP_RESUME_EN                    1
 /************************************************************************
 * Name: create reusme workqueue
 * Brief: put resume period into workqueue
@@ -1133,7 +1133,7 @@ static int gt1x_ts_probe(struct i2c_client *client, const struct i2c_device_id *
 	} while (0);
 #endif
 
-#if GTP_RESUME_EN
+#ifdef GTP_RESUME_EN
 	gt1x_resume_init();
 #endif
 

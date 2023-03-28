@@ -64,7 +64,6 @@
 				pins = "gpio95";
 				function = "gpio";
 			};
-
 			config {
 				pins = "gpio95";
 				drive-strength = <8>;
@@ -79,7 +78,6 @@
 				pins = "gpio95";
 				function = "gpio";
 			};
-
 			config {
 				pins = "gpio95";
 				drive-strength = <2>;
@@ -90,7 +88,6 @@
 	};
 };
 /* HS50 add SR-QL3095-01-48 bring up spc pa by xuyuqing at 2020/08/07 end */
-
 &pri_tlmm_lines_act {
 	mux {
 		pins = "gpio91", "gpio93", "gpio88";

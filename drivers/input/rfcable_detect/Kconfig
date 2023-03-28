@@ -1,0 +1,8 @@
+config SWTP_INT_INPUT_DEV
+	bool "swtp interrupt pin register an input device"
+	default n
+	help
+		To support register an input device in swtp function.
+		if yes, then it is supported,
+		if no, it is disabled.
+		The option default enabled.

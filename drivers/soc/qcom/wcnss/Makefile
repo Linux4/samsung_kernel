@@ -1,6 +1,7 @@
 
 # Makefile for WCNSS triple-play driver
 
+
 ifeq ($(HQ_FACTORY_BUILD), true)
 EXTRA_CFLAGS += -DHQ_FACTORY_BUILD
 $(warning 'wcnss HQ_FACTORY_BUILD =' $(HQ_FACTORY_BUILD))

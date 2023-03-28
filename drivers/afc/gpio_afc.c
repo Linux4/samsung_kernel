@@ -360,6 +360,11 @@ end_afc:
 
 int afc_set_voltage(int vol)
 {
+	if (!gafc) {
+		pr_info("%s, afc is not ready, return\n",__func__);
+		return -ENODEV;
+	}
+
 	pr_info("%s, set_voltage(%d)\n", __func__, vol);
 
 	gafc->vol = vol;
