@@ -1,0 +1,6 @@
+config  PANEL_A23_FT8720_LPS066A767A_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "DTC FT8720 TDDI"
+	default n
+	---help---
+	DTC FT8720 TDDI 1080_2408 A23

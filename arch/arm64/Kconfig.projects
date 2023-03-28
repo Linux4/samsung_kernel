@@ -1,0 +1,12 @@
+config SEC_A23_PROJECT
+	default n
+	bool "Samsung A23 Project"
+	help
+	  Support for Samsung A23 Project
+
+config MACH_A23_EUR_OPEN
+	default n
+	bool "Samsung A23 EUR OPEN"
+	help
+	  Support for Samsung A23 EUR OPEN device.
+
