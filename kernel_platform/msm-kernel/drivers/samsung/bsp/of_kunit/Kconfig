@@ -1,0 +1,7 @@
+config SEC_OF_KUNIT
+	tristate "Samsung additional facilites for of / kunit testing"
+	default y if OF=y && KUNIT=y
+	default m if OF=y && KUNIT=m
+	select OF_UNITTEST
+	help
+	  TODO: help is not ready.
