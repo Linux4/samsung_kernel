@@ -1,0 +1,53 @@
+/* HS70 code for HS70-26/HS70-131/HS70-161 by zhuqiang at 2019/10/11 start */
+
+/* HS70 code for HS70-268 by zhuqiang at 2019/10/23 start */
+&rpm_bus {
+	rpm-regulator-ldoa10 {
+		status = "okay";
+		pm8953_l10: regulator-l10 {
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			qcom,init-voltage = <3300000>;
+			status = "okay";
+		};
+	};
+};
+/* HS70 code for HS70-268 by zhuqiang at 2019/10/23 end */
+
+&soc {
+	silead_fp {
+		compatible = "sil,silead_fp";
+		avdd-supply = <&pm8953_l10>;
+		qcom,qup-id = <7>;
+		spi-max-frequency = <4800000>;
+		interrupt-parent = <&tlmm>;
+		irq-gpios = <&tlmm 48 0x0>;
+		rst-gpios = <&tlmm 140 0x0>;
+	};
+	cdfinger_fp {
+		compatible = "cdfinger,fingerprint";
+		vdd-supply = <&pm8953_l10>;
+		interrupt-parent = <&tlmm>;
+		cdfinger,irq_gpio = <&tlmm 48 0x0>;
+		cdfinger,reset_gpio = <&tlmm 140 0x0>;
+		cdfinger,id_gpio = <&tlmm 59 0x0>;
+	};
+	focaltech_fp {
+		compatible = "focaltech,fingerprint";
+		avdd-supply = <&pm8953_l10>;
+		interrupt-parent = <&tlmm>;
+		fp,irq_gpio = <&tlmm 48 0x0>;
+		fp,reset_gpio = <&tlmm 140 0x0>;
+	};
+/* HS70 code for HS70-858 by chenlei at 2019/11/11 end */
+	egis{
+		compatible = "egistec,et523";
+		interrupt-parent = <&tlmm>;
+		interrupts = <48 0x0>;
+		avdd-supply = <&pm8953_l10>;
+		egistec,gpio_rst = <&tlmm 140 0x0>;
+		egistec,gpio_irq = <&tlmm 48 0x0>;
+	};
+/* HS70 code for HS70-858 by chenlei at 2019/11/11 end */
+};
+
