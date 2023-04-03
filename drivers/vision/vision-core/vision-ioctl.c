@@ -633,8 +633,10 @@ long vertex_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		duration = 0;
 
 		ret = ops->vertexioc_profileon(file, &vs4l_kvar.vspr);
-		if (ret)
+		if (ret) {
 			vision_err("vertexioc_profileon failed(%d)\n", ret);
+			break;
+		}
 
 		ret = put_vs4l_profiler(&vs4l_kvar.vspr,
 				(struct vs4l_profiler __user *)arg);
@@ -650,8 +652,10 @@ long vertex_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}
 
 		ret = ops->vertexioc_profileoff(file, &vs4l_kvar.vspr);
-		if (ret)
+		if (ret) {
 			vision_err("vertexioc_profileoff failed(%d)\n", ret);
+			break;
+		}
 
 		(*vs4l_kvar.vspr.node).duration = duration;
 		ret = put_vs4l_profiler(&vs4l_kvar.vspr,

@@ -815,6 +815,9 @@ int usb_gadget_map_request_by_dev(struct device *dev,
 	if (req->num_sgs) {
 		int     mapped;
 
+		pr_info("%s: req->num_sgs: 0x%x\n", __func__, req->num_sgs);
+		dump_stack();
+
 		mapped = dma_map_sg(dev, req->sg, req->num_sgs,
 				is_in ? DMA_TO_DEVICE : DMA_FROM_DEVICE);
 		if (mapped == 0) {
@@ -823,6 +826,7 @@ int usb_gadget_map_request_by_dev(struct device *dev,
 		}
 
 		req->num_mapped_sgs = mapped;
+		WARN_ON_ONCE(req->num_mapped_sgs);
 	} else {
 		if (is_vmalloc_addr(req->buf)) {
 			dev_err(dev, "buffer is not dma capable\n");

@@ -734,10 +734,11 @@ void mfc_qos_off(struct mfc_ctx *ctx)
 		mutex_unlock(&dev->qos_mutex);
 		return;
 	}
-	
 
-	if (ON_RES_CHANGE(ctx))
+	if (ON_RES_CHANGE(ctx)) {
+		mutex_unlock(&dev->qos_mutex);
 		return;
+	}
 
 #ifdef CONFIG_MFC_USE_BTS
 	mfc_bw.peak = 0;
@@ -1162,20 +1163,20 @@ void mfc_qos_update_framerate(struct mfc_ctx *ctx, u32 bytesused,
 		if (ctx->operating_framerate && (ctx->operating_framerate > framerate)) {
 			mfc_debug(2, "[QoS] operating fps %ld\n", ctx->operating_framerate);
 			framerate = ctx->operating_framerate;
-	}
+		}
 
 		/* 6) check non-real-time */
 		if (ctx->rt == MFC_NON_RT && (framerate < DEC_DEFAULT_FPS)) {
 			mfc_debug(2, "[QoS] max operating fps %ld\n", DEC_DEFAULT_FPS);
 			framerate = DEC_DEFAULT_FPS;
-	}
+		}
 
 		if (framerate && (framerate != ctx->framerate)) {
-		mfc_debug(2, "[QoS] fps changed: %ld -> %ld, qos ratio: %d\n",
+			mfc_debug(2, "[QoS] fps changed: %ld -> %ld, qos ratio: %d\n",
 					ctx->framerate, framerate, ctx->qos_ratio);
 			ctx->framerate = framerate;
 			ctx->update_framerate = true;
-		update_framerate = true;
+			update_framerate = true;
 		}
 	}
 

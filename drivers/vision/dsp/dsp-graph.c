@@ -699,6 +699,7 @@ int dsp_graph_manager_probe(struct dsp_core *core)
 
 	INIT_LIST_HEAD(&gmgr->list);
 	mutex_init(&gmgr->lock);
+	mutex_init(&gmgr->lock_for_unload);
 	dsp_leave();
 	return 0;
 p_err_kernel:

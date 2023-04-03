@@ -2430,8 +2430,12 @@ EXPORT_SYMBOL(vts_start_runtime_resume);
 static int vts_runtime_resume(struct device *dev)
 {
 	struct vts_data *data = dev_get_drvdata(dev);
+
 	data->enabled = true;
 	dev_info(dev, "%s\n", __func__);
+
+	vts_start_runtime_resume(dev, 0);
+
 	return 0;
 }
 

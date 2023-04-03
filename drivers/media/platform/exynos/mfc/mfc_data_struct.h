@@ -665,6 +665,7 @@ struct mfc_platdata {
 	struct mfc_feature wait_nalq_status;
 	struct mfc_feature drm_switch_predict;
 	struct mfc_feature sbwc_enc_src_ctrl;
+	struct mfc_feature enc_ts_delta;
 
 	/* Encoder default parameter */
 	unsigned int enc_param_num;
@@ -752,7 +753,10 @@ typedef struct __EncoderInputStr {
 	int St2094_40sei[30];
 	int SourcePlaneStride[3];
 	int SourcePlane2BitStride[2];
-} EncoderInputStr; /* 86*4 = 344 bytes */
+	int MVHorRange;
+	int MVVerRange;
+	int TimeStampDelta;
+} EncoderInputStr; /* 89*4 = 356 bytes */
 
 typedef struct __DecoderOutputStr {
 	int StartCode; /* 0xAAAAAAAA; Decoder output structure marker */
@@ -1435,8 +1439,7 @@ struct mfc_ctrls_ops {
 			struct list_head *head, EncoderInputStr *pInStr);
 	int (*get_buf_ctrls_val_nal_q_enc) (struct mfc_ctx *ctx,
 			struct list_head *head, EncoderOutputStr *pOutStr);
-	int (*recover_buf_ctrls_nal_q) (struct mfc_ctx *ctx,
-			struct list_head *head);
+	int (*restore_buf_ctrls) (struct mfc_ctx *ctx, struct list_head *head);
 };
 
 struct temporal_layer_info {

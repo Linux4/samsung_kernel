@@ -323,6 +323,9 @@ static DEFINE_VARIABLE_PACKET(r8s_tset_set, DSI_PKT_TYPE_WR, R8S_TSET_SET, 0x00)
 static u8 R8S_AOD_SETTING[] = { 0x91, 0x01, 0x01 };
 static DEFINE_STATIC_PACKET(r8s_aod_setting, DSI_PKT_TYPE_WR, R8S_AOD_SETTING, 0x0);
 
+static u8 R8S_VAINT_SETTING[] = { 0xF4, 0x28 };
+static DEFINE_STATIC_PACKET(r8s_vaint_setting, DSI_PKT_TYPE_WR, R8S_VAINT_SETTING, 0x4C);
+
 static u8 R8S_LPM_PORCH_0_ON[] = { 0xCB, 0x40, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x40 };
 static DEFINE_STATIC_PACKET(r8s_lpm_porch_0_on, DSI_PKT_TYPE_WR, R8S_LPM_PORCH_0_ON, 0x188);
 
@@ -773,6 +776,8 @@ static void *r8s_alpm_enter_cmdtbl[] = {
 	&KEYINFO(r8s_level3_key_enable),
 
 	&PKTINFO(r8s_aod_setting),
+	&PKTINFO(r8s_vaint_setting),
+
 	&PKTINFO(r8s_lpm_nit),
 
 	&PKTINFO(r8s_lpm_porch_0_on),

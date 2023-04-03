@@ -2115,7 +2115,7 @@ static DEFINE_VARIABLE_PACKET(canvas2_a3_s0_wrdisbv, DSI_PKT_TYPE_WR, CANVAS2_A3
 static u8 CANVAS2_A3_S0_WRDISBV_EXIT_LPM[] = {
 	0x51, 0x03, 0xFF
 };
-static DEFINE_PKTUI(canvas2_a3_s0_wrdisbv_exit_lpm, &canvas2_a3_s0_maptbl[GAMMA_MODE2_MAPTBL], 1);
+static DEFINE_PKTUI(canvas2_a3_s0_wrdisbv_exit_lpm, &canvas2_a3_s0_maptbl[GAMMA_MODE2_EXIT_LPM_MAPTBL], 1);
 static DEFINE_VARIABLE_PACKET(canvas2_a3_s0_wrdisbv_exit_lpm, DSI_PKT_TYPE_WR, CANVAS2_A3_S0_WRDISBV_EXIT_LPM, 0);
 
 static u8 CANVAS2_A3_S0_LPM_OFF_WRDISBV[] = {

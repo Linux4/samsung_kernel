@@ -249,7 +249,6 @@ static irqreturn_t cp_active_handler(int irq, void *data)
 	struct modem_ctl *mc = (struct modem_ctl *)data;
 	struct link_device *ld;
 	struct mem_link_device *mld;
-	struct io_device *iod;
 	int cp_active;
 	enum modem_state old_state;
 	enum modem_state new_state;
@@ -302,8 +301,7 @@ static irqreturn_t cp_active_handler(int irq, void *data)
 		if (old_state == STATE_ONLINE)
 			modem_notify_event(MODEM_EVENT_EXIT, mc);
 
-		list_for_each_entry(iod, &mc->modem_state_notify_list, list)
-			iod->modem_state_changed(iod, new_state);
+		change_modem_state(mc, new_state);
 	}
 
 	atomic_set(&mld->forced_cp_crash, 0);
@@ -462,7 +460,7 @@ static int power_on_cp(struct modem_ctl *mc)
 	if (!wake_lock_active(&mc->mc_wake_lock))
 		wake_lock(&mc->mc_wake_lock);
 
-	mc->phone_state = STATE_OFFLINE;
+	change_modem_state(mc, STATE_OFFLINE);
 	modem_notify_event(MODEM_EVENT_OFFLINE, mc);
 
 	pcie_clean_dislink(mc);
@@ -501,11 +499,8 @@ static int power_off_cp(struct modem_ctl *mc)
 	if (mc->phone_state == STATE_OFFLINE)
 		goto exit;
 
-	mc->phone_state = STATE_OFFLINE;
 	modem_notify_event(MODEM_EVENT_OFFLINE, mc);
-
-	mc->bootd->modem_state_changed(mc->iod, STATE_OFFLINE);
-	mc->iod->modem_state_changed(mc->iod, STATE_OFFLINE);
+	change_modem_state(mc, STATE_OFFLINE);
 
 	pcie_clean_dislink(mc);
 
@@ -569,7 +564,8 @@ static int power_reset_dump_cp(struct modem_ctl *mc)
 	if (hrtimer_active(&mld->sbd_print_timer))
 		hrtimer_cancel(&mld->sbd_print_timer);
 
-	mc->phone_state = STATE_CRASH_EXIT;
+	change_modem_state(mc, STATE_CRASH_EXIT);
+
 	mif_disable_irq(&mc->s5100_irq_phone_active);
 	mif_disable_irq(&mc->s5100_irq_ap_wakeup);
 	drain_workqueue(mc->wakeup_wq);
@@ -623,7 +619,8 @@ static int power_reset_cp(struct modem_ctl *mc)
 	if (hrtimer_active(&mld->sbd_print_timer))
 		hrtimer_cancel(&mld->sbd_print_timer);
 
-	mc->phone_state = STATE_OFFLINE;
+	change_modem_state(mc, STATE_OFFLINE);
+
 	pcie_clean_dislink(mc);
 
 	if (mc->s51xx_pdev != NULL)
@@ -687,7 +684,6 @@ static int check_cp_status(struct modem_ctl *mc, unsigned int count)
 static int start_normal_boot(struct modem_ctl *mc)
 {
 	struct link_device *ld = get_current_link(mc->bootd);
-	struct io_device *iod;
 	struct mem_link_device *mld = to_mem_link_device(ld);
 	int ret = 0;
 
@@ -706,14 +702,12 @@ static int start_normal_boot(struct modem_ctl *mc)
 	if (ld->link_prepare_normal_boot)
 		ld->link_prepare_normal_boot(ld, mc->bootd);
 
-	list_for_each_entry(iod, &mc->modem_state_notify_list, list)
-		iod->modem_state_changed(iod, STATE_BOOTING);
+	change_modem_state(mc, STATE_BOOTING);
 
 	mif_info("Disable phone actvie interrupt.\n");
 	mif_disable_irq(&mc->s5100_irq_phone_active);
 
 	mif_gpio_set_value(mc->s5100_gpio_ap_status, 1, 0);
-	mc->phone_state = STATE_BOOTING;
 
 #if defined(CONFIG_SEC_MODEM_S5000AP) && defined(CONFIG_SEC_MODEM_S5100)
 	reset_cp_upload_cnt();
@@ -743,7 +737,6 @@ static int complete_normal_boot(struct modem_ctl *mc)
 {
 	int err = 0;
 	unsigned long remain;
-	struct io_device *iod;
 #ifdef CONFIG_CP_LCD_NOTIFIER
 	int __maybe_unused ret;
 	struct modem_data __maybe_unused *modem = mc->mdm_data;
@@ -780,8 +773,7 @@ static int complete_normal_boot(struct modem_ctl *mc)
 
 	mc->device_reboot = false;
 
-	list_for_each_entry(iod, &mc->modem_state_notify_list, list)
-		iod->modem_state_changed(iod, STATE_ONLINE);
+	change_modem_state(mc, STATE_ONLINE);
 
 	print_mc_state(mc);
 
@@ -912,7 +904,7 @@ static int start_dump_boot(struct modem_ctl *mc)
 	mif_err("+++\n");
 
 	/* Change phone state to CRASH_EXIT */
-	mc->phone_state = STATE_CRASH_EXIT;
+	change_modem_state(mc, STATE_CRASH_EXIT);
 
 	if (!ld->link_start_dump_boot) {
 		mif_err("%s: link_start_dump_boot is null\n", ld->name);

@@ -1163,15 +1163,7 @@ static void __mfc_enc_set_buf_ctrls_exception(struct mfc_ctx *ctx,
 
 	/* set drop control */
 	if (buf_ctrl->id == V4L2_CID_MPEG_VIDEO_DROP_CONTROL) {
-		if (!ctx->ts_last_interval) {
-			p->rc_frame_delta = p->rc_framerate_res / p->rc_framerate;
-			mfc_debug(3, "[DROPCTRL] default delta: %d\n", p->rc_frame_delta);
-		} else {
-			if (IS_H263_ENC(ctx))
-				p->rc_frame_delta = (ctx->ts_last_interval / 100) / p->rc_framerate_res;
-			else
-				p->rc_frame_delta = ctx->ts_last_interval / p->rc_framerate_res;
-		}
+		p->rc_frame_delta = mfc_enc_get_ts_delta(ctx);
 		value = MFC_READL(MFC_REG_E_RC_FRAME_RATE);
 		value &= ~(0xFFFF);
 		value |= (p->rc_frame_delta & 0xFFFF);
@@ -1658,8 +1650,7 @@ static int mfc_enc_recover_buf_ctrls_val(struct mfc_ctx *ctx,
 	return 0;
 }
 
-static int mfc_enc_recover_buf_ctrls_nal_q(struct mfc_ctx *ctx,
-		struct list_head *head)
+static int mfc_enc_restore_buf_ctrls(struct mfc_ctx *ctx, struct list_head *head)
 {
 	struct mfc_buf_ctrl *buf_ctrl;
 
@@ -1671,7 +1662,7 @@ static int mfc_enc_recover_buf_ctrls_nal_q(struct mfc_ctx *ctx,
 		buf_ctrl->has_new = 1;
 		buf_ctrl->updated = 0;
 
-		mfc_debug(6, "[NALQ][CTRLS] Recover buffer control id: 0x%08x, val: %d\n",
+		mfc_debug(6, "[CTRLS] Restore buffer control id: 0x%08x, val: %d\n",
 				buf_ctrl->id, buf_ctrl->val);
 	}
 
@@ -1692,5 +1683,5 @@ struct mfc_ctrls_ops encoder_ctrls_ops = {
 	.get_buf_update_val		= mfc_enc_get_buf_update_val,
 	.set_buf_ctrls_val_nal_q_enc	= mfc_enc_set_buf_ctrls_val_nal_q,
 	.get_buf_ctrls_val_nal_q_enc	= mfc_enc_get_buf_ctrls_val_nal_q,
-	.recover_buf_ctrls_nal_q	= mfc_enc_recover_buf_ctrls_nal_q,
+	.restore_buf_ctrls		= mfc_enc_restore_buf_ctrls,
 };

@@ -1762,6 +1762,9 @@ int ois_mcu_set_power_mode(struct v4l2_subdev *subdev)
 			usleep_range(500, 510);
 			val = is_mcu_get_reg(mcu->regs[OM_REG_CORE], R_OIS_CMD_DEVCTRL);
 			if (--retry < 0) {
+				ois_mcu_core_ctrl(mcu, 0x0);
+				usleep_range(1000, 1100);
+				ois_mcu_core_ctrl(mcu, 0x1);
 				err_mcu("%s Read status failed!!!!, data = 0x%04x\n", __func__, val);
 				break;
 			}

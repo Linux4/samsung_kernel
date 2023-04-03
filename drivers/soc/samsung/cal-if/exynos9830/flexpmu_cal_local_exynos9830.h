@@ -756,15 +756,15 @@ struct pmucal_seq embedded_g3d_on[] = {
 };
 
 struct pmucal_seq embedded_g3d_save[] = {
-	PMUCAL_SEQ_DESC(PMUCAL_SAVE_RESTORE, "HPM0_THRV_DD", 0x18430000, 0x80, 0xffffffff, 0, 0, 0, 0xffffffff, 0),
-	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "HPM0_CONFIG", 0x18430000, 0x0, 0xffffffff, 0x52000001, 0, 0, 0xffffffff, 0),
-	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "HPM0_CONFIG_2", 0x18430000, 0x88, 0xffffffff, 0x5000, 0, 0, 0xffffffff, 0),
-	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "HPM0_CONTROL", 0x18430000, 0x4, 0xffffffff, 0x1, 0, 0, 0xffffffff, 0),
-	PMUCAL_SEQ_DESC(PMUCAL_WAIT, "HPM0_CONTROL", 0x18430000, 0x4, (0x1 << 0), (0x0 << 0), 0, 0, 0xffffffff, 0),
-	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "HPM0_CONFIG", 0x18430000, 0x0, 0xffffffff, 0x52000801, 0, 0, 0xffffffff, 0),
-	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "HPM0_CONFIG_2", 0x18430000, 0x88, 0xffffffff, 0x5001, 0, 0, 0xffffffff, 0),
-	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "HPM0_CONTROL", 0x18430000, 0x4, 0xffffffff, 0x1, 0, 0, 0xffffffff, 0),
-	PMUCAL_SEQ_DESC(PMUCAL_WAIT, "HPM0_CONTROL", 0x18430000, 0x4, (0x1 << 0), (0x0 << 0), 0, 0, 0xffffffff, 0),
+//	PMUCAL_SEQ_DESC(PMUCAL_SAVE_RESTORE, "HPM0_THRV_DD", 0x18430000, 0x80, 0xffffffff, 0, 0, 0, 0xffffffff, 0),
+//	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "HPM0_CONFIG", 0x18430000, 0x0, 0xffffffff, 0x52000001, 0, 0, 0xffffffff, 0),
+//	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "HPM0_CONFIG_2", 0x18430000, 0x88, 0xffffffff, 0x5000, 0, 0, 0xffffffff, 0),
+//	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "HPM0_CONTROL", 0x18430000, 0x4, 0xffffffff, 0x1, 0, 0, 0xffffffff, 0),
+//	PMUCAL_SEQ_DESC(PMUCAL_WAIT, "HPM0_CONTROL", 0x18430000, 0x4, (0x1 << 0), (0x0 << 0), 0, 0, 0xffffffff, 0),
+//	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "HPM0_CONFIG", 0x18430000, 0x0, 0xffffffff, 0x52000801, 0, 0, 0xffffffff, 0),
+//	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "HPM0_CONFIG_2", 0x18430000, 0x88, 0xffffffff, 0x5001, 0, 0, 0xffffffff, 0),
+//	PMUCAL_SEQ_DESC(PMUCAL_WRITE, "HPM0_CONTROL", 0x18430000, 0x4, 0xffffffff, 0x1, 0, 0, 0xffffffff, 0),
+//	PMUCAL_SEQ_DESC(PMUCAL_WAIT, "HPM0_CONTROL", 0x18430000, 0x4, (0x1 << 0), (0x0 << 0), 0, 0, 0xffffffff, 0),
 };
 
 struct pmucal_seq embedded_g3d_off[] = {

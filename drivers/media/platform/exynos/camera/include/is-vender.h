@@ -105,6 +105,7 @@ struct capture_intent_info_t {
 	u16 captureIntent;
 	u16 captureCount;
 	s16 captureEV;
+	char captureMultiEVList[EV_LIST_SIZE];
 };
 
 #define TOF_CAL_SIZE_MAX 10

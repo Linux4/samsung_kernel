@@ -8914,6 +8914,7 @@
 				battery,chg_thermal_source = <0x02>;
 				battery,wpc_thermal_source = <0x02>;
 				battery,dchg_thermal_source = <0x03>;
+				battery,lrp_temp_check_type = <0x03>;
 				battery,polling_time = <0x0a 0x1e 0x1e 0x1e 0xe10>;
 				battery,temp_table_adc = <0x14b 0x174 0x1ac 0x1e3 0x232 0x28e 0x2f9 0x375 0x403 0x4a4 0x55b 0x623 0x6ff 0x7e0 0x8cd 0x9bb 0xaa8 0xb7d 0xc3d 0xce5 0xd76 0xdee 0xe4c>;
 				battery,temp_table_data = <0x384 0x352 0x320 0x2ee 0x2bc 0x28a 0x258 0x226 0x1f4 0x1c2 0x190 0x15e 0x12c 0xfa 0xc8 0x96 0x64 0x32 0x00 0xffffffce 0xffffff9c 0xffffff6a 0xffffff38>;
@@ -8962,8 +8963,8 @@
 				battery,temp_high_recovery_lpm = <0x1e0>;
 				battery,temp_low_threshold_lpm = <0x00>;
 				battery,temp_low_recovery_lpm = <0x14>;
-				battery,wpc_high_threshold_normal = <0x1c2>;
-				battery,wpc_high_recovery_normal = <0x1ae>;
+				battery,wpc_high_threshold_normal = <0x1f4>;
+				battery,wpc_high_recovery_normal = <0x1e0>;
 				battery,wpc_low_threshold_normal = <0x00>;
 				battery,wpc_low_recovery_normal = <0x14>;
 				battery,tx_high_threshold = <0x1c2>;
@@ -8975,12 +8976,12 @@
 				battery,full_check_count = <0x01>;
 				battery,chg_gpio_full_check = <0x00>;
 				battery,chg_polarity_full_check = <0x01>;
-				battery,chg_high_temp = <0x1f4>;
-				battery,chg_high_temp_recovery = <0x1e0>;
-				battery,dchg_high_temp = <0x1e0>;
-				battery,dchg_high_temp_recovery = <0x1a4>;
-				battery,dchg_high_batt_temp = <0x190>;
-				battery,dchg_high_batt_temp_recovery = <0x17c>;
+				battery,chg_high_temp = <0x258>;
+				battery,chg_high_temp_recovery = <0x244>;
+				battery,dchg_high_temp = <0x3e8 0x3e8 0x23a 0x23a>;
+				battery,dchg_high_temp_recovery = <0x3e8 0x3e8 0x212 0x212>;
+				battery,dchg_high_batt_temp = <0x3e8 0x3e8 0x3e8 0x190>;
+				battery,dchg_high_batt_temp_recovery = <0x3e8 0x3e8 0x3e8 0x186>;
 				battery,chg_input_limit_current = <0x3e8>;
 				battery,chg_charging_limit_current = <0x76c>;
 				battery,dchg_input_limit_current = <0x3e8>;
@@ -8994,7 +8995,7 @@
 				battery,wpc_temp_lcd_on_control_source = <0x01>;
 				battery,wpc_lcd_on_high_temp = <0x190>;
 				battery,wpc_lcd_on_high_temp_rec = <0x17c>;
-				battery,wpc_lcd_on_input_limit_current = <0x1c2>;
+				battery,wpc_lcd_on_input_limit_current = <0x258>;
 				battery,wpc_store_high_temp = <0x168>;
 				battery,wpc_store_high_temp_recovery = <0x154>;
 				battery,wpc_store_lcd_on_high_temp = <0x168>;
@@ -9006,6 +9007,8 @@
 				battery,mix_high_chg_temp = <0x1f4>;
 				battery,mix_high_dc_temp = <0x244>;
 				battery,mix_high_temp_recovery = <0x186>;
+				battery,temp_table_LRP_NORMAL = <0x384 0x17c 0x17c 0x172 0x384 0x17c 0x17c 0x168 0x00 0x00 0x00 0x00>;
+				battery,temp_table_LRP_25W = <0x190 0x186 0x17c 0x172 0x190 0x17c 0x17c 0x168 0x6a4 0xd48 0x44c 0x898>;
 				battery,full_condition_type = <0x09>;
 				battery,full_condition_soc = <0x5d>;
 				battery,full_condition_vcell = <0x1112>;
@@ -9782,8 +9785,9 @@
 				sx9360,againfreq_reg = <0x31>;
 				sx9360,refgainrawfilt_reg = <0x22>;
 				sx9360,gainrawfilt_reg = <0x1a>;
-				sx9360,hyst_reg = <0x15>;
-				sx9360,proxthresh_reg = <0x24>;
+				sx9360,regproxctrl3_reg = <0x0e>;
+				sx9360,hyst_reg = <0x35>;
+				sx9360,proxthresh_reg = <0x20>;
 				sx9360,hallic_cert_detect = <0x01>;
 			};
 		};
