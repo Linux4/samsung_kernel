@@ -142,6 +142,9 @@
 /* TX Min Operating Frequency = 60 MHz/value, default is 80kHz (60MHz/0x2EE=80KHz) */
 #define MFC_TX_MIN_OP_FREQ_L_REG			0x62 /* default 0xEE */
 #define MFC_TX_MIN_OP_FREQ_H_REG			0x63 /* default 0x2 */
+
+#define TX_MIN_OP_FREQ_DEFAULT	1130
+
 /* TX Digital Ping Frequency = 60 MHz/value, default is 90kHz (60MHz/0x29B=90KHz) */
 #define MFC_TX_PING_FREQ_L_REG				0x64 /* default 0x9B */
 #define MFC_TX_PING_FREQ_H_REG				0x65 /* default 0x02 */
@@ -814,6 +817,8 @@ struct mfc_charger_platform_data {
 	u32 oc_fod1;
 	u32 phone_fod_threshold;
 	u32 gear_ping_freq;
+	u32 gear_min_op_freq;
+	u32 gear_min_op_freq_delay;
 	u32 tx_ping_freq_init;
 	int no_hv;
 	u32 tx_conflict_curr_init;
@@ -842,6 +847,7 @@ struct mfc_charger_data {
 	struct wake_lock wpc_update_lock;
 	struct wake_lock wpc_opfq_lock;
 	struct wake_lock wpc_tx_duty_min_lock;
+	struct wake_lock wpc_tx_min_opfq_lock;
 	struct wake_lock wpc_afc_vout_lock;
 	struct wake_lock wpc_vout_mode_lock;
 	struct wake_lock wpc_rx_connection_lock;
@@ -866,6 +872,7 @@ struct mfc_charger_data {
 	struct delayed_work wpc_i2c_error_work;
 	struct delayed_work	wpc_rx_type_det_work;
 	struct delayed_work	wpc_rx_connection_work;
+	struct delayed_work wpc_tx_min_op_freq_work;
 	struct delayed_work wpc_tx_duty_min_work;
 	struct delayed_work wpc_tx_phm_work;
 	struct delayed_work wpc_rx_power_work;
@@ -914,5 +921,9 @@ struct mfc_charger_data {
 	int duty_min;
 	int tx_gear_phm;
 	int wpc_en_flag;
+
+	struct mutex fw_lock;
+	unsigned long fw_size;
+	u8 *fw_img;
 };
 #endif /* __WIRELESS_CHARGER_MFC_S2MIW04_H */

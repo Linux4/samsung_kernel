@@ -624,8 +624,8 @@
 		 *  mAFPC
 		 * *************************************************************
 		 */
-		samsung,support_mafpc;
-		ss,mafpc = <&ss_mafpc_HAB_dtsi>;
+		//samsung,support_mafpc;
+		//ss,mafpc = <&ss_mafpc_HAB_dtsi>;
 		samsung,mafpc_crc_pass_data = [5c e5];
 
 		/* *************************************************************
@@ -2658,7 +2658,7 @@
 		 */
 		/*samsung,support_delayed_perf; */
 		samsung,support_vrr_based_bl; /* VRR Variable Refresh Rate */
-		//samsung,support_brr; /* VRR Bridge Refresh Rate */
+		samsung,support_brr; /* VRR Bridge Refresh Rate */
 		/*samsung,support_black_frame;*/ /* VRR: black frame insertion during HS<->NM transition */
 
 		/* *************************************************************
@@ -2964,10 +2964,10 @@
 
 					/* Flash Select for mAFPC Image Data Tx */
 					/* Flash Select CMD should be transferred after sleep out cmd within 80ms */
-					29 00 00 00 00 00 03 F0 5A 5A	/* TEST KEY2 Enable */
-					29 00 00 00 00 00 03 B0 09 FE	/* Global Param */
-					29 00 00 00 00 00 02 FE 12		/* Flash Select */
-					29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY2 Disable*/
+					//29 00 00 00 00 00 03 F0 5A 5A	/* TEST KEY2 Enable */
+					//29 00 00 00 00 00 03 B0 09 FE	/* Global Param */
+					//29 00 00 00 00 00 02 FE 12		/* Flash Select */
+					//29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY2 Disable*/
 
 					29 01 00 00 82 00 03 FC A5 A5		/* TEST KEY3 Disable (wait 130ms) */
 
@@ -3165,10 +3165,10 @@
 
 					/* Flash Select for mAFPC Image Data Tx */
 					/* Flash Select CMD should be transferred after sleep out cmd within 80ms */
-					29 00 00 00 00 00 03 F0 5A 5A	/* TEST KEY2 Enable */
-					29 00 00 00 00 00 03 B0 09 FE	/* Global Param */
-					29 00 00 00 00 00 02 FE 12		/* Flash Select */
-					29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY2 Disable*/
+					//29 00 00 00 00 00 03 F0 5A 5A	/* TEST KEY2 Enable */
+					//29 00 00 00 00 00 03 B0 09 FE	/* Global Param */
+					//29 00 00 00 00 00 02 FE 12		/* Flash Select */
+					//29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY2 Disable*/
 
 					29 01 00 00 82 00 03 FC A5 A5		/* TEST KEY3 Disable (wait 130ms) */
 
@@ -3355,10 +3355,10 @@
 
 					/* Flash Select for mAFPC Image Data Tx */
 					/* Flash Select CMD should be transferred after sleep out cmd within 80ms */
-					29 00 00 00 00 00 03 F0 5A 5A	/* TEST KEY2 Enable */
-					29 00 00 00 00 00 03 B0 09 FE	/* Global Param */
-					29 00 00 00 00 00 02 FE 12		/* Flash Select */
-					29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY2 Disable*/
+					//29 00 00 00 00 00 03 F0 5A 5A	/* TEST KEY2 Enable */
+					//29 00 00 00 00 00 03 B0 09 FE	/* Global Param */
+					//29 00 00 00 00 00 02 FE 12		/* Flash Select */
+					//29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY2 Disable*/
 
 					29 01 00 00 82 00 03 FC A5 A5		/* TEST KEY3 Disable (wait 130ms) */
 
@@ -3515,10 +3515,10 @@
 
 					/* Flash Select for mAFPC Image Data Tx */
 					/* Flash Select CMD should be transferred after sleep out cmd within 80ms */
-					29 00 00 00 00 00 03 F0 5A 5A	/* TEST KEY2 Enable */
-					29 00 00 00 00 00 03 B0 09 FE	/* Global Param */
-					29 00 00 00 00 00 02 FE 12		/* Flash Select */
-					29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY2 Disable*/
+					//29 00 00 00 00 00 03 F0 5A 5A	/* TEST KEY2 Enable */
+					//29 00 00 00 00 00 03 B0 09 FE	/* Global Param */
+					//29 00 00 00 00 00 02 FE 12		/* Flash Select */
+					//29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY2 Disable*/
 
 					29 01 00 00 82 00 03 FC A5 A5		/* TEST KEY3 Disable (wait 130ms) */
 
@@ -3718,10 +3718,10 @@
 
 					/* Flash Select for mAFPC Image Data Tx */
 					/* Flash Select CMD should be transferred after sleep out cmd within 80ms */
-					29 00 00 00 00 00 03 F0 5A 5A	/* TEST KEY2 Enable */
-					29 00 00 00 00 00 03 B0 09 FE	/* Global Param */
-					29 00 00 00 00 00 02 FE 12		/* Flash Select */
-					29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY2 Disable*/
+					//29 00 00 00 00 00 03 F0 5A 5A	/* TEST KEY2 Enable */
+					//29 00 00 00 00 00 03 B0 09 FE	/* Global Param */
+					//29 00 00 00 00 00 02 FE 12		/* Flash Select */
+					//29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY2 Disable*/
 
 					29 01 00 00 82 00 03 FC A5 A5		/* TEST KEY3 Disable (wait 130ms) */
 
@@ -3907,10 +3907,10 @@
 
 					/* Flash Select for mAFPC Image Data Tx */
 					/* Flash Select CMD should be transferred after sleep out cmd within 80ms */
-					29 00 00 00 00 00 03 F0 5A 5A	/* TEST KEY2 Enable */
-					29 00 00 00 00 00 03 B0 09 FE	/* Global Param */
-					29 00 00 00 00 00 02 FE 12		/* Flash Select */
-					29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY2 Disable*/
+					//29 00 00 00 00 00 03 F0 5A 5A	/* TEST KEY2 Enable */
+					//29 00 00 00 00 00 03 B0 09 FE	/* Global Param */
+					//29 00 00 00 00 00 02 FE 12		/* Flash Select */
+					//29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY2 Disable*/
 
 					29 01 00 00 82 00 03 FC A5 A5		/* TEST KEY3 Disable (wait 130ms) */
 
@@ -4068,10 +4068,10 @@
 
 					/* Flash Select for mAFPC Image Data Tx */
 					/* Flash Select CMD should be transferred after sleep out cmd within 80ms */
-					29 00 00 00 00 00 03 F0 5A 5A	/* TEST KEY2 Enable */
-					29 00 00 00 00 00 03 B0 09 FE	/* Global Param */
-					29 00 00 00 00 00 02 FE 12		/* Flash Select */
-					29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY2 Disable*/
+					//29 00 00 00 00 00 03 F0 5A 5A	/* TEST KEY2 Enable */
+					//29 00 00 00 00 00 03 B0 09 FE	/* Global Param */
+					//29 00 00 00 00 00 02 FE 12		/* Flash Select */
+					//29 00 00 00 00 00 03 F0 A5 A5		/* TEST KEY2 Disable*/
 
 					29 01 00 00 82 00 03 FC A5 A5		/* TEST KEY3 Disable (wait 130ms) */
 

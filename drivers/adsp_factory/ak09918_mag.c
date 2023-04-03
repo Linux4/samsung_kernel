@@ -20,7 +20,7 @@
 #define CHIP_ID "AK09918"
 
 #define MAG_ST_TRY_CNT 3
-#if defined(CONFIG_SEC_WINNERLTE_PROJECT) || defined(CONFIG_SEC_WINNERX_PROJECT) || defined(CONFIG_SEC_ZODIAC_PROJECT)
+#if defined(CONFIG_SEC_WINNERLTE_PROJECT) || defined(CONFIG_SEC_WINNERX_PROJECT) || defined(CONFIG_SEC_ZODIAC_PROJECT) || defined(CONFIG_SEC_A82XQ_PROJECT)
 #define ABS(x) (((x)>0)?(x):-(x))
 #define ABS_ADC_SUB_FAIL (-99999)
 #define AKM_ST_FAIL (-1)
@@ -109,7 +109,7 @@ static ssize_t mag_selftest_show(struct device *dev,
 	struct adsp_data *data = dev_get_drvdata(dev);
 	uint8_t cnt = 0;
 	int retry = 0, i;
-#if defined(CONFIG_SEC_WINNERLTE_PROJECT) || defined(CONFIG_SEC_WINNERX_PROJECT) || defined(CONFIG_SEC_ZODIAC_PROJECT)
+#if defined(CONFIG_SEC_WINNERLTE_PROJECT) || defined(CONFIG_SEC_WINNERX_PROJECT) || defined(CONFIG_SEC_ZODIAC_PROJECT) || defined(CONFIG_SEC_A82XQ_PROJECT)
 	int abs_adc_sum = 0, abs_adc_x = 0, abs_adc_y = 0, abs_adc_z = 0;
 #endif
 	int st_status = 0;
@@ -159,12 +159,18 @@ RETRY_MAG_SELFTEST:
 		data->msg_buf[MSG_MAG][6], data->msg_buf[MSG_MAG][7],
 		data->msg_buf[MSG_MAG][8], data->msg_buf[MSG_MAG][9]);
 
-#if defined(CONFIG_SEC_WINNERLTE_PROJECT) || defined(CONFIG_SEC_WINNERX_PROJECT) || defined(CONFIG_SEC_ZODIAC_PROJECT)
+#if defined(CONFIG_SEC_WINNERLTE_PROJECT) || defined(CONFIG_SEC_WINNERX_PROJECT) || defined(CONFIG_SEC_ZODIAC_PROJECT) || defined(CONFIG_SEC_A82XQ_PROJECT)
 	abs_adc_x = ABS(data->msg_buf[MSG_MAG][7]);
 	abs_adc_y = ABS(data->msg_buf[MSG_MAG][8]);
 	abs_adc_z = ABS(data->msg_buf[MSG_MAG][9]);
 	abs_adc_sum = abs_adc_x + abs_adc_y + abs_adc_z;
 
+#ifdef CONFIG_SEC_A82XQ_PROJECT
+	if (abs_adc_sum >= 26666) {
+		pr_info("[FACTORY] abs_adc_sum is higher then 40Gauss");
+		st_status = AKM_ST_FAIL;
+	}
+#else
 	if (abs_adc_sum * 15 > 450000) {
 		pr_info("[FACTORY] abs_adc_sum is higher then 45Gauss");
 		data->msg_buf[MSG_MAG][7] = ABS_ADC_SUB_FAIL;
@@ -172,6 +178,7 @@ RETRY_MAG_SELFTEST:
 		data->msg_buf[MSG_MAG][9] = ABS_ADC_SUB_FAIL;
 		data->msg_buf[MSG_MAG][1] = AKM_ST_FAIL;
 	}
+#endif
 #endif
 
 	adsp_unicast(NULL, 0, MSG_MAG_CAL, 0, MSG_TYPE_FACTORY_ENABLE);

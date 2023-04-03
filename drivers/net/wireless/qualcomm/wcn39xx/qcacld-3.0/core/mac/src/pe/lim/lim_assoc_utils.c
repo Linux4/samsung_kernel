@@ -74,7 +74,10 @@
  */
 uint32_t lim_cmp_ssid(tSirMacSSid *rx_ssid, struct pe_session *session_entry)
 {
-	return qdf_mem_cmp(rx_ssid, &session_entry->ssId,
+	if (session_entry->ssId.length != rx_ssid->length)
+		return true;
+
+	return qdf_mem_cmp(rx_ssid->ssId, &session_entry->ssId.ssId,
 				session_entry->ssId.length);
 }
 
@@ -2438,9 +2441,11 @@ lim_add_sta(struct mac_context *mac_ctx,
 			assoc_req =
 			(tpSirAssocReq) session_entry->parsedAssocReq[aid];
 
-			add_sta_params->wpa_rsn = assoc_req->rsnPresent;
-			add_sta_params->wpa_rsn |=
-				(assoc_req->wpaPresent << 1);
+			if (assoc_req) {
+				add_sta_params->wpa_rsn = assoc_req->rsnPresent;
+				add_sta_params->wpa_rsn |=
+					(assoc_req->wpaPresent << 1);
+			}
 		}
 	}
 

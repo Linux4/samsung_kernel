@@ -87,7 +87,7 @@ const char *selinux_policycap_names[__POLICYDB_CAPABILITY_MAX] = {
 };
 
 static struct selinux_ss selinux_ss;
-#if (defined CONFIG_KDP_CRED && defined CONFIG_SAMSUNG_PRODUCT_SHIP)
+#if (defined CONFIG_RKP_KDP && defined CONFIG_SAMSUNG_PRODUCT_SHIP)
 int ss_initialized __kdp_ro; // SEC_SELINUX_PORTING_COMMON Change to use RKP
 #else
 int ss_initialized;
@@ -2136,6 +2136,7 @@ static void security_load_policycaps(struct selinux_state *state)
 	}
 
 	state->android_netlink_route = p->android_netlink_route;
+	state->android_netlink_getneigh = p->android_netlink_getneigh;
 	selinux_nlmsg_init();
 }
 
@@ -2205,7 +2206,11 @@ int security_load_policy(struct selinux_state *state, void *data, size_t len)
 
 		state->ss->sidtab = newsidtab;
 		security_load_policycaps(state);
+#if (defined CONFIG_RKP_KDP && defined CONFIG_SAMSUNG_PRODUCT_SHIP)
+		uh_call(UH_APP_RKP, RKP_KDP_X60, (u64)&ss_initialized, 1, 0, 0);
+#else
 		ss_initialized = 1; // SEC_SELINUX_PORTING_COMMON Change to use RKP 
+#endif
 		seqno = ++state->ss->latest_granting;
 		selinux_complete_init();
 		avc_ss_reset(state->avc, seqno);

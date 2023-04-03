@@ -974,7 +974,7 @@ static int show_partition(struct seq_file *seqf, void *v)
 	struct hd_struct *part;
 	char buf[BDEVNAME_SIZE];
 
-	/* Don't show non-partitionable removeable devices or empty devices */
+	/* Don't show non-partitionable removable devices or empty devices */
 	if (!get_capacity(sgp) || (!disk_max_parts(sgp) &&
 				   (sgp->flags & GENHD_FL_REMOVABLE)))
 		return 0;
@@ -1029,7 +1029,7 @@ static int show_iodevs(struct seq_file *seqf, void *v)
 	struct hd_struct *part;
 	char buf[BDEVNAME_SIZE];
 
-	/* Don't show non-partitionable removeable devices or empty devices */
+	/* Don't show non-partitionable removable devices or empty devices */
 	if (!get_capacity(sgp) || (!disk_max_parts(sgp) &&
 				(sgp->flags & GENHD_FL_REMOVABLE)))
 		return 0;
@@ -1724,6 +1724,7 @@ static const struct file_operations proc_diskstats_operations = {
 	.release	= seq_release,
 };
 
+/* IOPP-iod-v1.0.4.14 */
 #define PG2KB(x) ((unsigned long)((x) << (PAGE_SHIFT - 10)))
 static int iostats_show(struct seq_file *seqf, void *v)
 {
@@ -1772,7 +1773,7 @@ static int iostats_show(struct seq_file *seqf, void *v)
 			   nread + nwrite,
 			   jiffies_to_msecs(part_stat_read(hd, io_ticks)),
 			   jiffies_to_msecs(part_stat_read(hd, time_in_queue)),
-			   /* followings are added */
+			   /* following are added */
 			   part_stat_read(hd, discard_ios),
 			   part_stat_read(hd, discard_sectors),
 			   part_stat_read(hd, flush_ios),

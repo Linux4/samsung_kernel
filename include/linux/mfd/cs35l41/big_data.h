@@ -26,7 +26,8 @@
 
 void cirrus_bd_store_values(const char *mfd_suffix);
 int cirrus_bd_amp_add(struct regmap *regmap_new, const char *mfd_suffix,
-					const char *dsp_part_name);
+					const char *dsp_part_name,
+					int bd_max_temp);
 int cirrus_bd_init(struct class *cirrus_amp_class, int num_amps,
 					const char **mfd_suffixes,
 					const char **bd_suffixes);

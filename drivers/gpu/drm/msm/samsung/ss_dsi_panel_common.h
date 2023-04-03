@@ -488,6 +488,9 @@ struct samsung_display_dtsi_data {
 	*/
 	/* Physical data lanes to be enabled */
 	int num_of_data_lanes;
+
+	/* temporary flag for JPN AOD brightness table */
+	bool is_jpn;
 };
 
 struct display_status {

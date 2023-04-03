@@ -949,7 +949,7 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 			mInfo.mVer.fw_user_ver             = cam_fw_user_ver;
 			mInfo.mVer.fw_factory_ver          = cam_fw_factory_ver;
 
-#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE) && !defined(CONFIG_SEC_A82XQ_PROJECT)
 			mInfo.mVer.sensor2_id              = rear3_sensor_id;
 
 			hasSubCaldata                      = 1;
@@ -2112,6 +2112,10 @@ static int cam_eeprom_power_up(struct cam_eeprom_ctrl_t *e_ctrl,
 	}
 
 	power_info->dev = soc_info->dev;
+
+#if defined(CONFIG_SEC_A82XQ_PROJECT)
+	msleep(20);
+#endif
 
 	rc = cam_sensor_core_power_up(power_info, soc_info);
 	if (rc) {

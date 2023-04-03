@@ -618,6 +618,8 @@ struct fts_i2c_platform_data {
 	bool support_mt_pressure;
 	bool support_sidegesture;
 	bool support_dex;
+	bool support_open_short_test;
+	bool support_mis_calibration_test;
 	bool sync_reportrate_120;
 	bool enable_settings_aot;
 	int max_x;
@@ -800,6 +802,7 @@ struct fts_ts_info {
 	struct completion st_powerdown;
 	struct completion st_interrupt;
 	struct sec_touch_driver *ss_drv;
+	struct mutex st_lock;
 #endif
 	struct mutex i2c_mutex;
 	struct mutex irq_mutex;

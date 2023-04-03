@@ -212,7 +212,7 @@
 #define MSM_PCIE_MAX_CLK 13
 #define MSM_PCIE_MAX_PIPE_CLK 1
 #define MAX_RC_NUM 4
-#define MAX_DEVICE_NUM 20
+#define MAX_DEVICE_NUM 1
 #define MAX_SHORT_BDF_NUM 16
 #define PCIE_TLP_RD_SIZE 0x5
 #define PCIE_LOG_PAGES (50)
@@ -5297,6 +5297,9 @@ int msm_pcie_enumerate(u32 rc_idx)
 			bridge = devm_pci_alloc_host_bridge(&dev->pdev->dev,
 						sizeof(*dev));
 			if (!bridge) {
+				PCIE_ERR(dev,
+					"PCIe: failed to alloc host bridge for RC%d\n",
+					dev->rc_idx);
 				ret = -ENOMEM;
 				goto out;
 			}
@@ -5322,8 +5325,12 @@ int msm_pcie_enumerate(u32 rc_idx)
 
 			if (IS_ENABLED(CONFIG_PCI_MSM_MSI)) {
 				ret = msm_msi_init(&dev->pdev->dev);
-				if (ret)
+				if (ret) {
+					PCIE_ERR(dev,
+						"PCIe: failed to initialize msi for RC%d: %d\n",
+						dev->rc_idx, ret);
 					goto out;
+				}
 			}
 
 			list_splice_init(&res, &bridge->windows);

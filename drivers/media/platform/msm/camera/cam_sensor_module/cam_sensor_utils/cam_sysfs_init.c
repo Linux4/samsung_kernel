@@ -1210,6 +1210,44 @@ char supported_camera_ids[] = {
     50, //REAR_2ND = Rear UW
     54, // Macro Sensor
 };
+#elif defined(CONFIG_SEC_BEYOND2QLTE_PROJECT) || defined(CONFIG_SEC_WINNERLTE_PROJECT) || defined(CONFIG_SEC_WINNERX_PROJECT) || defined(CONFIG_SEC_ZODIAC_PROJECT)
+char supported_camera_ids[] = {
+	0,  //REAR_0
+	3,  //FRONT_FULL_FOV
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+	20, //DUAL_REAR_ZOOM
+#endif
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+	21, //DUAL_REAR_PORTRAIT
+#endif
+#if defined(CONFIG_SAMSUNG_FRONT_DUAL)
+	22, //DUAL_FRONT_PORTRAIT
+#endif
+#if defined(CONFIG_SAMSUNG_REAR_DUAL) || defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+	23, //DUAL_REAR_PORTRAIT, SW and W
+#endif
+#if defined(CONFIG_SAMSUNG_REAR_DUAL) || defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+	50, //REAR_2ND
+#endif
+#if defined(CONFIG_SAMSUNG_FRONT_DUAL)
+	51, //FRONT_2ND
+#endif
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+	52, //REAR_3RD
+#endif
+#if defined(CONFIG_SAMSUNG_FRONT_TOP)
+	71, //FRONT_TOP
+#endif
+#if defined(CONFIG_SAMSUNG_REAR_TOF)
+	80, //REAR_TOF
+#endif
+#if defined(CONFIG_SAMSUNG_FRONT_TOF)
+	81, //FRONT_TOF
+#endif
+#if defined(CONFIG_SAMSUNG_SECURE_CAMERA)
+	90,  //IRIS
+#endif
+};
 #else
 char supported_camera_ids[] = {
 	0,  //REAR_0

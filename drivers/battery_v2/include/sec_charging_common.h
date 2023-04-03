@@ -171,6 +171,7 @@ enum power_supply_ext_property {
 	POWER_SUPPLY_EXT_PROP_INBAT_VOLTAGE,
 	POWER_SUPPLY_EXT_PROP_WPC_EN,
 	POWER_SUPPLY_EXT_PROP_WPC_EN_MST,
+	POWER_SUPPLY_EXT_PROP_TTF_FULL_CAPACITY,
 };
 
 enum rx_device_type {
@@ -559,6 +560,7 @@ enum sec_battery_wpc_en_ctrl {
 #define SEC_BAT_TX_RETRY_MIX_TEMP		0x0008
 #define SEC_BAT_TX_RETRY_HIGH_TEMP		0x0010
 #define SEC_BAT_TX_RETRY_LOW_TEMP		0x0020
+#define SEC_BAT_TX_RETRY_OCP			0x0040
 
 /* ext_event */
 #define BATT_EXT_EVENT_NONE			0x00000000
@@ -907,6 +909,50 @@ struct sec_wireless_rx_power_info {
 #define sec_wireless_rx_power_info_t \
 	struct sec_wireless_rx_power_info
 
+#define LRP_PROPS 12
+#define FOREACH_LRP_TYPE(GEN_LRP_TYPE) \
+	GEN_LRP_TYPE(LRP_NORMAL) \
+	GEN_LRP_TYPE(LRP_25W) \
+	GEN_LRP_TYPE(LRP_45W) \
+	GEN_LRP_TYPE(LRP_MAX)
+
+#define GENERATE_LRP_ENUM(ENUM) ENUM,
+#define GENERATE_LRP_STRING(STRING) #STRING,
+
+enum LRP_TYPE_ENUM {
+	FOREACH_LRP_TYPE(GENERATE_LRP_ENUM)
+};
+
+static const char * const LRP_TYPE_STRING[] = {
+	FOREACH_LRP_TYPE(GENERATE_LRP_STRING)
+};
+
+enum {
+	LRP_NONE = 0,
+	LRP_STEP1,
+	LRP_STEP2,
+};
+
+enum {
+	ST1 = 0,
+	ST2,
+};
+
+enum {
+	LCD_ON = 0,
+	LCD_OFF,
+};
+
+struct lrp_temp_t {
+	int trig[2][2];
+	int recov[2][2];
+};
+
+struct lrp_current_t {
+	int st_icl[2];
+	int st_fcc[2];
+};
+
 typedef struct {
 	unsigned int cycle;
 	unsigned int asoc;
@@ -1121,6 +1167,7 @@ struct sec_battery_platform_data {
 	unsigned int blkt_temp_adc_table_size;
 
 	sec_battery_temp_check_t temp_check_type;
+	int lrp_temp_check_type;
 	unsigned int temp_check_count;
 	sec_battery_temp_check_t usb_temp_check_type;
 	sec_battery_temp_check_t usb_temp_check_type_backup;
@@ -1164,10 +1211,14 @@ struct sec_battery_platform_data {
 	int chg_12v_high_temp;
 	int chg_high_temp;
 	int chg_high_temp_recovery;
-	int dchg_high_temp;
-	int dchg_high_temp_recovery;
-	int dchg_high_batt_temp;
-	int dchg_high_batt_temp_recovery;	
+	int dchg_high_temp[4];
+	int dchg_high_temp_recovery[4];
+	int dchg_high_batt_temp[4];
+	int dchg_high_batt_temp_recovery[4];
+
+	struct lrp_temp_t lrp_temp[LRP_MAX];
+	struct lrp_current_t lrp_curr[LRP_MAX];
+
 	unsigned int chg_charging_limit_current;
 #if defined(CONFIG_DUAL_BATTERY)
 	unsigned int chg_main_charging_limit_current;

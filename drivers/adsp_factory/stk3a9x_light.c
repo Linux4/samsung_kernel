@@ -536,6 +536,42 @@ static ssize_t light_test_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "0, 0\n");
 }
 
+static ssize_t light_debug_info_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct adsp_data *data = dev_get_drvdata(dev);
+	int32_t cmd = OPTION_TYPE_GET_LIGHT_DEBUG_INFO;
+	uint16_t light_idx = get_light_sidx(data);
+	uint8_t cnt = 0;
+
+	mutex_lock(&data->light_factory_mutex);
+	adsp_unicast(&cmd, sizeof(cmd), light_idx, 0, MSG_TYPE_GET_CAL_DATA);
+
+	while (!(data->ready_flag[MSG_TYPE_GET_CAL_DATA] & 1 << light_idx) &&
+		cnt++ < TIMEOUT_CNT)
+		usleep_range(500, 550);
+
+	data->ready_flag[MSG_TYPE_GET_CAL_DATA] &= ~(1 << light_idx);
+
+	if (cnt >= TIMEOUT_CNT) {
+		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
+		mutex_unlock(&data->light_factory_mutex);
+		return snprintf(buf, PAGE_SIZE, "0,0,0,0,0,0\n");
+	}
+
+	pr_info("[FACTORY] %s: %d,%d,%d,%d,%d,%d\n", __func__,
+		data->msg_buf[light_idx][0], data->msg_buf[light_idx][1],
+		data->msg_buf[light_idx][2] >> 8, data->msg_buf[light_idx][2] & 0xff,
+		data->msg_buf[light_idx][3], data->msg_buf[light_idx][4]);
+
+	mutex_unlock(&data->light_factory_mutex);
+
+	return snprintf(buf, PAGE_SIZE, "%d,%d,%d,%d,%d,%d\n",
+		data->msg_buf[light_idx][0], data->msg_buf[light_idx][1],
+		data->msg_buf[light_idx][2] >> 8, data->msg_buf[light_idx][2] & 0xff,
+		data->msg_buf[light_idx][3], data->msg_buf[light_idx][4]);
+}
+
 static DEVICE_ATTR(read_copr, 0664, light_read_copr_show, light_read_copr_store);
 static DEVICE_ATTR(test_copr, 0444, light_test_copr_show, NULL);
 static DEVICE_ATTR(boled_enable, 0220, NULL, light_boled_enable_store);
@@ -564,6 +600,7 @@ static DEVICE_ATTR(brightness, 0220, NULL, light_brightness_store);
 #ifdef CONFIG_SUPPORT_SSC_AOD_RECT
 static DEVICE_ATTR(set_aod_rect, 0220, NULL, light_set_aod_rect_store);
 #endif
+static DEVICE_ATTR(debug_info, 0444, light_debug_info_show, NULL);
 
 static struct device_attribute *light_attrs[] = {
 	&dev_attr_vendor,
@@ -593,6 +630,7 @@ static struct device_attribute *light_attrs[] = {
 #ifdef CONFIG_SUPPORT_SSC_AOD_RECT
 	&dev_attr_set_aod_rect,
 #endif
+	&dev_attr_debug_info,
 	NULL,
 };
 

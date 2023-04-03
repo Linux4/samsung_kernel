@@ -617,6 +617,12 @@ static ssize_t read_support_feature(struct device *dev,
 	if (info->board->sync_reportrate_120)
 		feature |= INPUT_FEATURE_ENABLE_SYNC_RR120;
 
+	if (info->board->support_open_short_test)
+		feature |= INPUT_FEATURE_SUPPORT_OPEN_SHORT_TEST;
+
+	if (info->board->support_mis_calibration_test)
+		feature |= INPUT_FEATURE_SUPPORT_MIS_CALIBRATION_TEST;
+
 	snprintf(buff, sizeof(buff), "%d", feature);
 	input_info(true, &info->client->dev, "%s: %s\n", __func__, buff);
 

@@ -68,6 +68,7 @@
 
 #ifdef CONFIG_SEC_PM
 #include <linux/regulator/consumer.h>
+extern void sec_clock_debug_print_enabled(void);
 #endif
 
 #define SCLK_HZ (32768)
@@ -192,6 +193,7 @@ static void cluster_prepare(struct lpm_cluster *cluster,
 #ifdef CONFIG_SEC_PM_DEBUG
 extern void sec_gpio_debug_print(void);
 extern void msm_gpio_print_enabled(void);
+extern void sec_debug_print_sleep_time(void);
 static int msm_pm_sleep_sec_debug;
 module_param_named(secdebug, msm_pm_sleep_sec_debug, int, 0664);
 #endif
@@ -1856,7 +1858,7 @@ static int lpm_suspend_prepare(void)
 
 #ifdef CONFIG_SEC_PM
 	regulator_showall_enabled();
-	clock_debug_print_enabled(true);
+	sec_clock_debug_print_enabled();
 
 	debug_masterstats_show("entry");
 	debug_rpmstats_show("entry");
@@ -1880,6 +1882,7 @@ static void lpm_suspend_wake(void)
 	lpm_stats_suspend_exit();
 
 #ifdef CONFIG_SEC_PM
+	sec_debug_print_sleep_time();
 	debug_rpmstats_show("exit");
 	debug_masterstats_show("exit");
 #endif

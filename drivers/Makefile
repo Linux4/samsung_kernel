@@ -235,7 +235,11 @@ endif
 obj-y				+= kperfmon/
 
 #TZIC
-obj-y  += security/samsung/tzic/
+obj-$(CONFIG_TZIC)  += security/samsung/tzic/
 
 # SPU signature verify
 obj-$(CONFIG_SPU_VERIFY) += spu_verify/
+
+ifeq ($(CONFIG_PERF_MGR), y)
+	obj-$(CONFIG_PERF_MGR)	+= perf_mgr/
+endif

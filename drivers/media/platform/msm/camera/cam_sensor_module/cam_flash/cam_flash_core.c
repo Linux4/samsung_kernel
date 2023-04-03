@@ -1977,6 +1977,14 @@ ssize_t flash_power_store(struct device *dev, struct device_attribute *attr, con
             if (i >= MAX_FLASHLIGHT_LEVEL)
                 CAM_ERR(CAM_FLASH, "can't process, invalid value=%u", value_u32);
         }
+        else if (value_u32  == 100)
+        {
+            g_flash_data.led_current_ma[0] = 240;
+        }
+        else if (value_u32  == 200)
+        {
+            g_flash_data.led_current_ma[0] = 300;
+        }
 
         switch (buf[0]) {
         case '0':
@@ -1989,7 +1997,12 @@ ssize_t flash_power_store(struct device *dev, struct device_attribute *attr, con
                 cam_flash_low(g_flash_ctrl,&g_flash_data);
                 CAM_INFO(CAM_FLASH,"torch on");
                 break;
-
+         case '2':
+                cam_torch_off(g_flash_ctrl);
+                g_flash_data.opcode = CAMERA_SENSOR_FLASH_OP_FIREHIGH;
+                cam_flash_high(g_flash_ctrl,&g_flash_data);
+                CAM_INFO(CAM_FLASH,"flash on");
+                break;
         default:
                 break;
         }

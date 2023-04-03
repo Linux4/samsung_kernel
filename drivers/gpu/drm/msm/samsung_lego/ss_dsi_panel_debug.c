@@ -420,12 +420,6 @@ static debug_display_read_once(struct samsung_display_driver_data *vdd,
 		}
 	}
 
-	/* Limit maximum copy_to_user size to one PAGE_SIZE, to avoid error */
-	if (len > PAGE_SIZE) {
-		LCD_ERR("len(%zd) is bigger than one PAGE_SIZE\n", len);
-		return -EFAULT;
-	}
-
 	if (copy_to_user(buff, buf, len))
 		return -EFAULT;
 

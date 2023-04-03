@@ -35,7 +35,7 @@ static struct cam_sensor_power_setting default_power_setting[] =
 {
 	//seq_type,		seq_val,	config_val,	delay,
 	{SENSOR_VAF,            CAM_VAF,        1,      	0,      {}},
-	{SENSOR_VIO,		    CAM_VIO,	    1,		    1,	    {}},
+	{SENSOR_CUSTOM_GPIO2,	CAM_VREG_MAX,	1,		    10,	    {}},
 	{SENSOR_RESET,		    CAM_VREG_MAX,	1,		    14,	    {}},
 	{SENSOR_CUSTOM_GPIO1,	CAM_VREG_MAX,	0,		    1,	    {}},
 };
@@ -45,7 +45,7 @@ static struct cam_sensor_power_setting default_power_down_setting[] =
 	//seq_type,		seq_val,	config_val,	delay,
 	{SENSOR_CUSTOM_GPIO1,	CAM_VREG_MAX,	0,		    0,	    {}},
 	{SENSOR_RESET,		    CAM_VREG_MAX,	0,		    0,	    {}},
-	{SENSOR_VIO,		    CAM_VIO,	    0,		    0,	    {}},
+	{SENSOR_CUSTOM_GPIO2,	CAM_VREG_MAX,	0,		    0,	    {}},
 	{SENSOR_VAF,            CAM_VAF,        0,      	0,      {}},
 };
 #endif
@@ -155,12 +155,12 @@ int32_t cam_ois_construct_default_power_setting(
 	power_info->power_setting[2].seq_val = CAM_V_CUSTOM2;
 	power_info->power_setting[2].config_val = 1;
 	power_info->power_setting[2].delay = 1;
-	
+
 	power_info->power_setting[3].seq_type = SENSOR_CUSTOM_REG3;
 	power_info->power_setting[3].seq_val = CAM_V_CUSTOM3;
 	power_info->power_setting[3].config_val = 1;
 	power_info->power_setting[3].delay = 1;
-	
+
 	power_info->power_setting[4].seq_type = SENSOR_MCLK;
 	power_info->power_setting[4].seq_val = 0;
 	power_info->power_setting[4].config_val = 19200000;
@@ -197,11 +197,11 @@ int32_t cam_ois_construct_default_power_setting(
 	power_info->power_down_setting[4].seq_val = CAM_V_CUSTOM1;
 	power_info->power_down_setting[4].config_val = 0;
 	power_info->power_down_setting[4].delay = 1;
-	
+
 	power_info->power_down_setting[5].seq_type = SENSOR_VIO;
 	power_info->power_down_setting[5].seq_val = CAM_VIO;
 	power_info->power_down_setting[5].config_val = 0;
-	
+
 #endif
 
 	return rc;
@@ -435,6 +435,14 @@ int cam_ois_power_down(struct cam_ois_ctrl_t *o_ctrl)
 #if defined(CONFIG_SAMSUNG_OIS_MCU_STM32) || defined(CONFIG_SAMSUNG_OIS_RUMBA_S4)
 	if (!o_ctrl->is_power_up)
 		return 0;
+
+	rc = cam_ois_i2c_write(o_ctrl, 0x0000, 0x00, CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE); //servo off
+	CAM_DBG(CAM_OIS, "SERVO OFF: Command");
+	if (rc < 0)
+		CAM_ERR(CAM_OIS, "SERVO OFF: I2C write fail");
+
+	msleep(10);
+
 	o_ctrl->is_power_up = false;
 	o_ctrl->is_servo_on = false;
 	o_ctrl->is_config = false;
@@ -942,11 +950,11 @@ static int cam_ois_pkt_parse(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 		rc = cam_sensor_i2c_command_parser(&o_ctrl->io_master_info,
 			i2c_reg_settings,
 			cmd_desc, 1);
-#if defined(CONFIG_SAMSUNG_OIS_MCU_STM32) || defined(CONFIG_SAMSUNG_OIS_RUMBA_S4)
-		mutex_unlock(&(o_ctrl->i2c_mode_data_mutex));
-#endif
 		if (rc < 0) {
 			CAM_ERR(CAM_OIS, "OIS pkt parsing failed: %d", rc);
+#if defined(CONFIG_SAMSUNG_OIS_MCU_STM32) || defined(CONFIG_SAMSUNG_OIS_RUMBA_S4)
+			mutex_unlock(&(o_ctrl->i2c_mode_data_mutex));
+#endif
 			return rc;
 		}
 
@@ -963,6 +971,8 @@ static int cam_ois_pkt_parse(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 		rc = cam_ois_thread_add_msg(o_ctrl, msg);
 		if (rc < 0)
 			CAM_ERR(CAM_OIS, "Failed add msg to OIS thread");
+
+		mutex_unlock(&(o_ctrl->i2c_mode_data_mutex));
 #else
 		rc = cam_ois_apply_settings(o_ctrl, i2c_reg_settings);
 		if (rc < 0) {
