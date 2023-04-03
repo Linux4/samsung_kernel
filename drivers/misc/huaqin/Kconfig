@@ -1,0 +1,43 @@
+#
+# for huaqin mis info
+#
+
+#F52 code for SR-QN3979-01-94 by SunXunou at 20210202 start
+config HQ_SIM_TRAY_CHECK
+	bool "check sim stry status"
+        default y
+	help
+	  this will create a node to show sim tray status.
+
+	  If unsure, say N.
+
+#F52 code for SR-QN3979-01-94 by SunXunou at 20210202 end
+
+config HW_INFO
+	bool "show hw info"
+        default n
+	help
+	  this will create a node to show some hw info.
+
+	  If unsure, say N.
+
+#F52 code for dump display by yanghui at 2021/03/09 start
+config RECORD_CRASH_INFO
+    bool "Record crash info"
+		default n
+    help
+      record crash info
+#F52 code for dump display by yanghui at 2021/03/09 end
+
+#F52 code for trigger crash with key by yutao at 2021/04/22 start
+config TRIGGER_CRASH_BY_KEY
+	depends on MAGIC_SYSRQ
+	default n
+	bool "Enable trigger crash by keys"
+	help
+	  You can trigger crash by pressing keys in strict order:
+	  VOLUMEUP twice + VOLUMEDOWN twice + POWER twice.
+#F52 code for trigger crash with key by yutao at 2021/04/22 end
+
+
+
