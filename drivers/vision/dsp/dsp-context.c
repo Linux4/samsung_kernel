@@ -135,6 +135,13 @@ static int __dsp_context_check_graph_info(struct dsp_context *dctx,
 
 	check = kernel_name;
 	for (idx = 0; idx < load->kernel_count; ++idx) {
+		if (check[idx] == 0) {
+			ret = -EINVAL;
+			dsp_err("kernel_size(%u/%u/%u/%u) is wrong\n",
+					kernel_size, check[idx],
+					idx, load->kernel_count);
+			goto p_err;
+		}
 		kernel_size += check[idx];
 		if (kernel_size < check[idx]) {
 			ret = -EINVAL;
@@ -333,9 +340,11 @@ static int dsp_context_unload_graph(struct dsp_context *dctx,
 	struct dsp_graph *graph;
 	struct dsp_mailbox_pool *pool;
 	unsigned int *global_id;
+	struct dsp_graph_manager *gmgr;
 
 	dsp_enter();
 	dsp_dbg("unload start\n");
+	gmgr = &dctx->core->graph_manager;
 	mutex_lock(&dctx->lock);
 	booted = dctx->boot_count;
 	mutex_unlock(&dctx->lock);
@@ -346,6 +355,8 @@ static int dsp_context_unload_graph(struct dsp_context *dctx,
 	}
 
 	sys = &dctx->core->dspdev->system;
+
+	mutex_lock(&gmgr->lock_for_unload);
 
 	SET_COMMON_CONTEXT_ID(&args->global_id, dctx->id);
 	graph = dsp_graph_get(&dctx->core->graph_manager, args->global_id);
@@ -368,6 +379,7 @@ static int dsp_context_unload_graph(struct dsp_context *dctx,
 
 	args->timestamp[0] = pool->time.start;
 	args->timestamp[1] = pool->time.end;
+	mutex_unlock(&gmgr->lock_for_unload);
 
 	dsp_mailbox_free_pool(pool);
 

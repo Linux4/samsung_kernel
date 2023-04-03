@@ -17,9 +17,6 @@
 #include <linux/usb/composite.h>
 #include <linux/usb/otg.h>
 #include <asm/unaligned.h>
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-#include "../function/multi_config.h"
-#endif
 #include "u_os_desc.h"
 
 /**
@@ -465,11 +462,7 @@ static int config_buf(struct usb_configuration *config,
 	c->bDescriptorType = type;
 	/* wTotalLength is written later */
 	c->bNumInterfaces = config->next_interface_id;
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	c->bConfigurationValue = get_config_number() + 1;
-#else
 	c->bConfigurationValue = config->bConfigurationValue;
-#endif
 	c->iConfiguration = config->iConfiguration;
 
 	c->bmAttributes = USB_CONFIG_ATT_ONE | config->bmAttributes;
@@ -494,14 +487,7 @@ static int config_buf(struct usb_configuration *config,
 	/* add each function's descriptors */
 	list_for_each_entry(f, &config->functions, list) {
 		struct usb_descriptor_header **descriptors;
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-		if (!is_available_function(f->name)) {
-			printk(KERN_DEBUG"usb: %s skip f->%s\n", __func__, f->name);
-			continue;
-		} else {
-			printk(KERN_DEBUG"usb: %s f->%s\n", __func__, f->name);
-		}
-#endif
+
 		descriptors = function_descriptors(f, speed);
 		if (!descriptors)
 			continue;
@@ -509,19 +495,11 @@ static int config_buf(struct usb_configuration *config,
 			(const struct usb_descriptor_header **) descriptors);
 		if (status < 0)
 			return status;
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-		if (change_conf(f, next, len, config, speed) < 0) {
-			printk(KERN_DEBUG"usb: %s failed to change configuration\n", __func__);
-			return -EINVAL;
-		}
-#endif
+
 		len -= status;
 		next += status;
 	}
 
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	set_interface_count(config, c);
-#endif
 	len = next - buf;
 	c->wTotalLength = cpu_to_le16(len);
 	return len;
@@ -554,9 +532,6 @@ static int config_desc(struct usb_composite_dev *cdev, unsigned w_value)
 
 	/* This is a lookup by config *INDEX* */
 	w_value &= 0xff;
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	w_value = set_config_number(w_value);
-#endif
 	pos = &cdev->configs;
 	c = cdev->os_desc_config;
 	if (c)
@@ -645,9 +620,6 @@ static int count_configs(struct usb_composite_dev *cdev, unsigned type)
 				continue;
 		}
 		count++;
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-		count = count_multi_config(c, count);
-#endif
 	}
 	return count;
 }
@@ -824,12 +796,7 @@ static int set_config(struct usb_composite_dev *cdev,
 
 	if (number) {
 		list_for_each_entry(c, &cdev->configs, list) {
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-			if (c->bConfigurationValue == number ||
-					check_config(number)) {
-#else
 			if (c->bConfigurationValue == number) {
-#endif
 				/*
 				 * We disable the FDs of the previous
 				 * configuration only if the new configuration
@@ -866,10 +833,6 @@ static int set_config(struct usb_composite_dev *cdev,
 
 		if (!f)
 			break;
-
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-		USB_DBG_ESS("e %s[%d]\n", f->name, tmp);
-#endif
 
 		/*
 		 * Record which endpoints are used by the function. This is used
@@ -1161,14 +1124,6 @@ static int get_string(struct usb_composite_dev *cdev,
 				collect_langs(sp, s->wData);
 
 			list_for_each_entry(f, &c->functions, list) {
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-				if (!is_available_function(f->name)) {
-					USB_DBG("skip f->%s\n", f->name);
-					continue;
-				} else {
-					USB_DBG("f->%s\n", f->name);
-				}
-#endif
 				sp = f->strings;
 				if (sp)
 					collect_langs(sp, s->wData);
@@ -1667,6 +1622,18 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 	struct usb_function		*f = NULL;
 	u8				endp;
 
+	if (w_length > USB_COMP_EP0_BUFSIZ) {
+		if (ctrl->bRequestType & USB_DIR_IN) {
+			/* Cast away the const, we are going to overwrite on purpose. */
+			__le16 *temp = (__le16 *)&ctrl->wLength;
+
+			*temp = cpu_to_le16(USB_COMP_EP0_BUFSIZ);
+			w_length = USB_COMP_EP0_BUFSIZ;
+		} else {
+			goto done;
+		}
+	}
+
 	/* partial re-init of the response message; the function or the
 	 * gadget might need to intercept e.g. a control-OUT completion
 	 * when we delegate to it.
@@ -1734,9 +1701,6 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 				value = min(w_length, (u16) value);
 			break;
 		case USB_DT_STRING:
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-			set_string_mode(w_length);
-#endif
 			value = get_string(cdev, req->buf,
 					w_index, w_value & 0xff);
 			if (value >= 0)
@@ -1794,23 +1758,13 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 		value = set_config(cdev, ctrl, w_value);
 		spin_unlock(&cdev->lock);
 		printk(KERN_DEBUG "usb: SET_CON\n");
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-		if (value == 0) {
-			if (w_value)
-				set_config_number(w_value - 1);
-		}
-#endif
 		break;
 	case USB_REQ_GET_CONFIGURATION:
 		if (ctrl->bRequestType != USB_DIR_IN)
 			goto unknown;
 		printk(KERN_DEBUG "usb: GET_CON\n");
 		if (cdev->config)
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-			*(u8 *)req->buf = get_config_number() + 1;
-#else
 			*(u8 *)req->buf = cdev->config->bConfigurationValue;
-#endif
 		else
 			*(u8 *)req->buf = 0;
 		value = min(w_length, (u16) 1);
@@ -1967,6 +1921,9 @@ unknown:
 				if (w_index != 0x5 || (w_value >> 8))
 					break;
 				interface = w_value & 0xFF;
+				if (interface >= MAX_CONFIG_INTERFACES ||
+				    !os_desc_cfg->interface[interface])
+					break;
 				buf[6] = w_index;
 				count = count_ext_prop(os_desc_cfg,
 					interface);
@@ -2095,9 +2052,6 @@ void composite_disconnect(struct usb_gadget *gadget)
 	struct usb_composite_dev	*cdev = get_gadget_data(gadget);
 	unsigned long			flags;
 
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	set_string_mode(0);
-#endif
 	if (cdev == NULL) {
 		WARN(1, "%s: Calling disconnect on a Gadget that is \
 			 not connected\n", __func__);
@@ -2214,7 +2168,7 @@ int composite_dev_prepare(struct usb_composite_driver *composite,
 	if (!cdev->req)
 		return -ENOMEM;
 
-	cdev->req->buf = kmalloc(USB_COMP_EP0_BUFSIZ, GFP_KERNEL);
+	cdev->req->buf = kzalloc(USB_COMP_EP0_BUFSIZ, GFP_KERNEL);
 	if (!cdev->req->buf)
 		goto fail;
 

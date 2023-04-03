@@ -133,7 +133,8 @@ static unsigned int ipc_poll(struct file *filp, struct poll_table_struct *wait)
 		break;
 
 	case STATE_OFFLINE:
-		if (iod->ch == EXYNOS_CH_ID_CPLOG && ld->protocol == PROTOCOL_SIT)
+		if ((iod->ch == EXYNOS_CH_ID_CPLOG && ld->protocol == PROTOCOL_SIT)
+			|| iod->ch == SIPC_CH_ID_CASS)
 			return POLLHUP;
 	default:
 		break;

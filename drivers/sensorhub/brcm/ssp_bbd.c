@@ -86,6 +86,15 @@ int bbd_do_transfer(struct ssp_data *data, struct ssp_msg *msg,
 		return -1;
 	}
 
+	ssp_down = data->bSspShutdown;
+
+	if (ssp_down) {
+		pr_err("[SSPBBD]: ssp_down == true. returning\n");
+		clean_msg(msg);
+		mdelay(5);
+		return -1;
+	}
+
 	ssp_packet_size = msg->length;
 	ssp_msg_type = msg->options  & SSP_SPI_MASK;
 
@@ -93,19 +102,6 @@ int bbd_do_transfer(struct ssp_data *data, struct ssp_msg *msg,
 
 	if (timeout)
 		wake_lock(&data->ssp_comm_wake_lock);
-
-	ssp_down = data->bSspShutdown;
-
-	if (ssp_down) {
-		pr_err("[SSPBBD]: ssp_down == true. returning\n");
-		clean_msg(msg);
-		mdelay(5);
-		if (timeout)
-			wake_unlock(&data->ssp_comm_wake_lock);
-
-		mutex_unlock(&data->comm_mutex);
-		return -1;
-	}
 
 	msg->dead_hook = &msg_dead;
 	msg->dead = false;

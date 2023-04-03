@@ -459,7 +459,7 @@ static int mfc_open(struct file *file)
 		goto err_no_device;
 	}
 
-	mfc_debug_dev(2, "mfc driver open called\n");
+	mfc_info_dev("mfc driver open called\n");
 
 	if (mutex_lock_interruptible(&dev->mfc_mutex))
 		return -ERESTARTSYS;
@@ -1043,6 +1043,7 @@ static int __mfc_parse_dt(struct device_node *np, struct mfc_dev *mfc)
 			&pdata->drm_switch_predict.support, 2);
 	of_property_read_u32_array(np, "sbwc_enc_src_ctrl",
 			&pdata->sbwc_enc_src_ctrl.support, 2);
+	of_property_read_u32_array(np, "enc_ts_delta", &pdata->enc_ts_delta.support, 2);
 
 	/* Default 10bit format for decoding and dithering for display */
 	of_property_read_u32(np, "P010_decoding", &pdata->P010_decoding);

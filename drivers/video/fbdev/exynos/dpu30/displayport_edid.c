@@ -327,6 +327,7 @@ static void edid_find_preset(u32 sst_id,
 				}
 			}
 		} else if (mode->flag == FB_MODE_IS_DETAILED &&
+				mode->vmode == FB_VMODE_NONINTERLACED &&
 				supported_videos[i].timing_type == FB_MODE_IS_DETAILED) {
 			if ((mode->refresh == supported_videos[i].fps ||
 				mode->refresh == supported_videos[i].fps - 1) &&
@@ -713,6 +714,12 @@ void edid_check_detail_timing_desc1(u32 sst_id, struct displayport_device *displ
 
 	displayport_info("preferred CEA: %d*%d@%d (%lld, %dps)\n",
 			mode->xres, mode->yres, mode->refresh, pixelclock, mode->pixclock);
+
+	if (mode->vmode != FB_VMODE_NONINTERLACED) {
+		displayport_info("interlaced not support\n");
+		return;
+	}
+
 #ifdef FEATURE_SUPPORT_DISPLAYID
 	if (supported_videos[VDUMMYTIMING].dv_timings.bt.pixelclock > pixelclock) {
 		displayport_info("use DisplayID preferred\n");

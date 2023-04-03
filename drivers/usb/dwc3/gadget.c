@@ -1311,6 +1311,42 @@ static void dwc3_prepare_one_trb_linear(struct dwc3_ep *dep,
 	}
 }
 
+static int dwc3_dump_request(struct dwc3_request *req)
+{
+	pr_info("%s: start to dump dwc3_request!\n", __func__);
+	pr_info("list->next: 0x%016llx, list->prev: 0x%016llx\n",
+		(unsigned long long)req->list.next, (unsigned long long)req->list.prev);
+	if (req->sg)
+		pr_info("sg: 0x%016llx\n", (unsigned long long)req->sg);
+	if (req->start_sg)
+		pr_info("start_sg: 0x%016llx\n", (unsigned long long)req->start_sg);
+	pr_info("num_pending_sgs: 0x%08x, num_queued_sgs: 0x%08x remaining: 0x%08x\n",
+		req->num_pending_sgs, req->num_queued_sgs, req->remaining);
+	pr_info("epnum: 0x%08x\n", req->epnum);
+	if (req->trb)
+		pr_info("req->trb: 0x%016llx\n", (unsigned long long)req->trb);
+	pr_info("trb_dma: 0x%016llx\n", (unsigned long long)req->trb_dma);
+	pr_info("num_trbs: 0x%08x\n", req->num_trbs);
+	pr_info("needs_extra_trb: 0x%08x\n", req->needs_extra_trb);
+
+	pr_info("%s: start to dump usb_request!\n", __func__);
+	pr_info("buf: 0x%016llx\n", (unsigned long long)req->request.buf);
+	pr_info("length: 0x%08x\n", req->request.length);
+	pr_info("dma: 0x%016llx\n", (unsigned long long)req->request.dma);
+	if (req->request.sg)
+		pr_info("sg: 0x%016llx\n", (unsigned long long)req->request.sg);
+	pr_info("num_sgs: 0x%08x\n", req->request.num_sgs);
+	pr_info("num_mapped_sgs: 0x%08x\n", req->request.num_mapped_sgs);
+	pr_info("stream_id: 0x%08x\n", req->request.stream_id);
+	pr_info("list->next: 0x%016llx, list->prev:0x%016llx\n",
+		(unsigned long long)req->request.list.next,
+		(unsigned long long)req->request.list.prev);
+	pr_info("status: %d\n", req->request.status);
+	pr_info("actual: 0x%08x\n", req->request.actual);
+
+	dump_stack();
+	return 0;
+}
 /*
  * dwc3_prepare_trbs - setup TRBs from requests
  * @dep: endpoint for which requests are being prepared
@@ -1336,8 +1372,10 @@ static void dwc3_prepare_trbs(struct dwc3_ep *dep)
 	 * break things.
 	 */
 	list_for_each_entry(req, &dep->started_list, list) {
-		if (req->num_pending_sgs > 0)
+		if (req->num_pending_sgs > 0) {
+			dwc3_dump_request(req);
 			dwc3_prepare_one_trb_sg(dep, req);
+		}
 
 		if (!dwc3_calc_trbs_left(dep))
 			return;
@@ -1357,9 +1395,10 @@ static void dwc3_prepare_trbs(struct dwc3_ep *dep)
 		req->num_queued_sgs	= 0;
 		req->num_pending_sgs	= req->request.num_mapped_sgs;
 
-		if (req->num_pending_sgs > 0)
+		if (req->num_pending_sgs > 0) {
+			dwc3_dump_request(req);
 			dwc3_prepare_one_trb_sg(dep, req);
-		else
+		} else
 			dwc3_prepare_one_trb_linear(dep, req);
 
 		if (!dwc3_calc_trbs_left(dep))

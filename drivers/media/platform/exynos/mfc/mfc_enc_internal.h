@@ -541,7 +541,7 @@ static struct v4l2_queryctrl controls[] = {
 		.type = V4L2_CTRL_TYPE_INTEGER,
 		.name = "H264 level",
 		.minimum = V4L2_MPEG_VIDEO_H264_LEVEL_1_0,
-		.maximum = V4L2_MPEG_VIDEO_H264_LEVEL_5_2,
+		.maximum = V4L2_MPEG_VIDEO_H264_LEVEL_6_0,
 		.step = 1,
 		.default_value = V4L2_MPEG_VIDEO_H264_LEVEL_1_0,
 	},

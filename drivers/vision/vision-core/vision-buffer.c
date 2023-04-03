@@ -278,22 +278,25 @@ static int __vb_map_dmabuf(
 	int ret = 0;
 	bool complete_suc = false;
 
+	struct dma_buf *dma_buf;
 	struct dma_buf_attachment *attachment;
 	struct sg_table *sgt;
 	dma_addr_t daddr;
 	void *vaddr;
 
+	buffer->dma_buf = NULL;
 	buffer->attachment = NULL;
 	buffer->sgt = NULL;
 	buffer->daddr = 0;
 	buffer->vaddr = NULL;
 
-	buffer->dma_buf = dma_buf_get(buffer->m.fd);
-	if (IS_ERR_OR_NULL(buffer->dma_buf)) {
-		vision_err("dma_buf_get is fail(%p)\n", buffer->dma_buf);
+	dma_buf = dma_buf_get(buffer->m.fd);
+	if (IS_ERR_OR_NULL(dma_buf)) {
+		vision_err("dma_buf_get is fail(%p)\n", dma_buf);
 		ret = -EINVAL;
 		goto p_err;
 	}
+	buffer->dma_buf = dma_buf;
 
 	if (buffer->dma_buf->size < size) {
 		vision_err("Allocate buffer size(%zu) is smaller than expectation(%u)\n",
