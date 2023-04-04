@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2015-2021 Samsung Electronics Co. Ltd.
+ * Copyright (C) 2015-2022 Samsung Electronics Co. Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -8,7 +8,7 @@
  * (at your option) any later version.
  */
 
-  /* usb notify layer v3.6 */
+  /* usb notify layer v3.7 */
 
 #ifndef __LINUX_DOCK_NOTIFY_H__
 #define __LINUX_DOCK_NOTIFY_H__

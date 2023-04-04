@@ -26,6 +26,17 @@ static struct mt6397_chip	 *chip;
 /* HS03s code for P210619-01144 by chenjun at 2021/07/15 end */
 #endif
 
+/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 start*/
+#ifdef CONFIG_HQ_PROJECT_HS04
+#include <linux/mfd/mt6397/core.h>
+#include <linux/of_platform.h>
+#include <linux/regmap.h>
+#include <linux/mfd/mt6357/registers.h>
+
+static struct mt6397_chip	 *chip;
+#endif
+/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
+
 static struct REGULATOR *preg_own;
 static bool Is_Notify_call[IMGSENSOR_SENSOR_IDX_MAX_NUM][REGULATOR_TYPE_MAX_NUM];
 
@@ -119,6 +130,14 @@ enum IMGSENSOR_RETURN imgsensor_oc_interrupt(
 			regmap_update_bits(chip->regmap, 0x18ec, 1<< 15, 0<< 15);
 	//		pr_info("[hs03s I]change vcama oc triger befor register\n");
 		#endif
+		/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 start*/
+		#ifdef CONFIG_HQ_PROJECT_HS04
+			regmap_update_bits(chip->regmap, 0x1a7c, 1<< 9, 0<< 9);
+			regmap_update_bits(chip->regmap, 0x1a7a, 1<< 10, 0<< 10);
+			regmap_update_bits(chip->regmap, 0x18ec, 1<< 15, 0<< 15);
+			//pr_info("[hs03s I]change vcama oc triger befor register\n");
+		#endif
+		/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
 		mdelay(5);
 		for (i = 0; i < REGULATOR_TYPE_MAX_NUM; i++) {
 			if (preg_own->pregulator[sensor_idx][i] &&
@@ -168,6 +187,14 @@ enum IMGSENSOR_RETURN imgsensor_oc_interrupt(
 			regmap_update_bits(chip->regmap, 0x18ec, 1<< 15, 1<< 15); // ldo ocfb degtd 10us ->100us
 	//		pr_info("[hs03s I]change vcama oc triger befor unregister\n");
 		#endif
+		/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 start*/
+		#ifdef CONFIG_HQ_PROJECT_HS04
+			regmap_update_bits(chip->regmap, 0x1a7c, 1<< 9,  1<< 9); // ocfb enable
+			regmap_update_bits(chip->regmap, 0x1a7a, 1<< 10, 1<< 10); //ldo vcama stbtd 264us -> 312us
+			regmap_update_bits(chip->regmap, 0x18ec, 1<< 15, 1<< 15); // ldo ocfb degtd 10us ->100us
+			//pr_info("[hs03s I]change vcama oc triger befor unregister\n");
+		#endif
+		/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
 		reg_instance.pid = -1;
 		/* Disable interrupt before power off */
 
@@ -215,6 +242,12 @@ static enum IMGSENSOR_RETURN regulator_init(void *pinstance)
 	struct device_node	 *pmic_node;
 	struct platform_device	 *pmic_pdev;
 	#endif
+	/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 start*/
+	#ifdef CONFIG_HQ_PROJECT_HS04
+	struct device_node	 *pmic_node;
+	struct platform_device	 *pmic_pdev;
+	#endif
+	/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
 	int j, i;
 	char str_regulator_name[LENGTH_FOR_SNPRINTF];
 
@@ -244,6 +277,26 @@ static enum IMGSENSOR_RETURN regulator_init(void *pinstance)
 			if (!chip) {
 				pr_err("get chip fail\n");
 		#endif
+		/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 start*/
+		#ifdef CONFIG_HQ_PROJECT_HS04
+						return IMGSENSOR_RETURN_ERROR;
+			}
+			pmic_node = of_parse_phandle(pdevice->of_node, "pmic", 0);
+			if (!pmic_node)	{
+				pr_info("regulator get pmic_node fail!\n");
+				return IMGSENSOR_RETURN_ERROR;
+			}
+			pmic_pdev = of_find_device_by_node(pmic_node);
+			if (!pmic_pdev)	{
+				pr_info("get pmic_pdev fail!\n");
+				return IMGSENSOR_RETURN_ERROR;
+			}
+			chip = dev_get_drvdata(&(pmic_pdev->dev));
+
+			if (!chip) {
+				pr_err("get chip fail\n");
+		#endif
+		/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
 		return IMGSENSOR_RETURN_ERROR;
 	}
 

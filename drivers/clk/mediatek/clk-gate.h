@@ -1,16 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2014 MediaTek Inc.
- * Author: James Liao <jamesjj.liao@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
 
 #ifndef __DRV_CLK_GATE_H
 #define __DRV_CLK_GATE_H
@@ -24,10 +15,13 @@ struct clk;
  * define pwr status information.
  * including offsets/mask.
  */
+
 struct pwr_status {
 	u32 pwr_ofs;
 	u32 pwr2_ofs;
+	s32 other_ofs;
 	u32 mask;
+	u32 val;
 };
 
 struct mtk_clk_gate {
@@ -80,9 +74,12 @@ struct clk *mtk_clk_register_gate(
 #define GATE_MTK(_id, _name, _parent, _regs, _shift, _ops)	\
 	GATE_MTK_FLAGS(_id, _name, _parent, _regs, _shift, _ops, 0)
 
-#define GATE_PWR_STAT(_pwr_ofs, _pwr2_ofs, _mask) {		\
+#define GATE_PWR_STAT(_pwr_ofs, _pwr2_ofs, _other_ofs, _mask, _val) {	\
 		.pwr_ofs = _pwr_ofs,				\
 		.pwr2_ofs = _pwr2_ofs,				\
-		.mask = _mask}
+		.other_ofs = _other_ofs,			\
+		.mask = _mask,				\
+		.val = _val,				\
+}
 
 #endif /* __DRV_CLK_GATE_H */

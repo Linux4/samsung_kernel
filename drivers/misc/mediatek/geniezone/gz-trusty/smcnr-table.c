@@ -84,6 +84,9 @@ static const uint32_t gz_smcnr_table[SMCF_END][TEE_ID_END] = {
 		MT_SMC_SC_GZ_SET_RAMCONSOLE, SMC_UNDEFINED },
 	[MT_SMCF_SC_VPU] = {
 		MT_SMC_SC_GZ_VPU, SMC_UNDEFINED },
+	[MT_SMCF_FC_KTIME_ALIGN] = {
+		MT_SMC_FC_GZ_KTIME, SMC_UNDEFINED },
+
 	[SMCF_FC_TEST_ADD] = {
 		SMC_UNDEFINED, SMC_FC_NBL_TEST_ADD },
 	[SMCF_FC_TEST_MULTIPLY] = {
@@ -153,7 +156,7 @@ inline uint32_t get_smcnr_teeid(enum smc_functions fid, enum tee_id_t tee_id)
 {
 	uint32_t smcnr;
 
-	if (unlikely(fid < 0 || fid >= SMCF_END || !is_tee_id(tee_id))) {
+	if (unlikely(fid >= SMCF_END || !is_tee_id(tee_id))) {
 		WARN(1, "ERROR parameters %d, %d\n", fid, tee_id);
 		return SMC_UNDEFINED;
 	}

@@ -38,8 +38,8 @@ struct imgsensor_mode_struct {
 	kal_uint32 linelength;	/* record different mode's linelength */
 	kal_uint32 framelength;	/* record different mode's framelength */
 
-	kal_uint8 startx; /* record different mode's startx of grabwindow */
-	kal_uint8 starty; /* record different mode's startx of grabwindow */
+	kal_uint16 startx; /* record different mode's startx of grabwindow */
+	kal_uint16 starty; /* record different mode's startx of grabwindow */
 
 	/* record different mode's width of grabwindow */
 	kal_uint16 grabwindow_width;
@@ -51,7 +51,7 @@ struct imgsensor_mode_struct {
 	 * by different scenario
 	 */
 	kal_uint8 mipi_data_lp2hs_settle_dc;
-
+	kal_uint32 mipi_pixel_rate;
 	/*       following for GetDefaultFramerateByScenario()  */
 	kal_uint16 max_framerate;
 
@@ -143,9 +143,14 @@ struct imgsensor_info_struct {
 
 	/* max framelength by sensor register's limitation */
 	kal_uint32 max_frame_length;
-
-	kal_uint8 isp_driving_current;	/* mclk driving current */
-	kal_uint8 sensor_interface_type;	/* sensor_interface_type */
+	kal_uint32 min_gain;
+	kal_uint32 max_gain;
+	kal_uint32 min_gain_iso;
+	kal_uint32 gain_step;
+	kal_uint32 exp_step;
+	kal_uint32 gain_type;
+	kal_uint8 isp_driving_current; /* mclk driving current */
+	kal_uint8 sensor_interface_type; /* sensor_interface_type */
 	kal_uint8 mipi_sensor_type;
 	kal_uint8 mipi_settle_delay_mode;/* always manual*/
 

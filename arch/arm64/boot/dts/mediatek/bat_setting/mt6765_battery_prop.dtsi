@@ -67,10 +67,15 @@
 	/* Table numbers per battery */
 	MULTI_TEMP_GAUGE0 = <(1)>;
 	/* Multi gauge0 enable */
-#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
 	/* modify code for O6 */
 	RBAT_PULL_UP_R = <(16900)>;
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+	/* modify code for O6 */
+	RBAT_PULL_UP_R = <(16900)>;
+#endif
+#ifdef CONFIG_HQ_PROJECT_OT8
 	/* modify code for O8 */
 	RBAT_PULL_UP_R = <(390000)>;
 #endif

@@ -264,14 +264,14 @@ alarm_boot_show(struct device *dev, struct device_attribute *attr,
 {
 	ssize_t retval;
 	struct rtc_wkalrm alm;
-
+	
 	retval = rtc_get_bootalarm(to_rtc_device(dev), &alm);
 	if (retval) {
 		retval = sprintf(buf, "%d", alm.enabled);
 		pr_info("%s [SAPA] rtc_sysfs_show_wakealarm enabled? : %d\n",__func__,alm.enabled);
 		return retval;
 	}
-
+	
 	return retval;
 }
 static DEVICE_ATTR_RO(alarm_boot);

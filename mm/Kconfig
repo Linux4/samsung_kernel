@@ -786,7 +786,7 @@ config PERCPU_STATS
 config PAGE_BOOST
 	bool "PAGE_BOOST feature"
 	depends on MMU
-	default n
+	default y
 	help
 	  Enable this for PAGE_BOOST feature
 
@@ -841,6 +841,23 @@ config MTK_MM_DEBUG
 	  type of errors. Wrap the debug code with this config,
 	  so we can remove the debug code by disabling it.
 
+config LARGE_DIRTY_BUFFER
+	bool "Use large dirty_threshold value by enabling dirty_ratio"
+	default n
+	help
+	  This config enables dirty_ratio/dirty_background_ratio,
+	  and it means large dirty_threshold value in 64bit architectures.
+	  If unsure, say N to use kernel default value
+
+config MAX_DIRTY_THRESH_PAGES
+	int "The upper bound of VM dirty_thresh value in number of pages"
+	depends on LARGE_DIRTY_BUFFER
+	default 25600
+	help
+	  This value is the upper bound of VM dirty-thresh. (0 means no limit.)
+	  It is only effective when dirty_ratio is used.
+	  (Setting dirty_bytes disables this option.)
+
 config DIRECT_RECLAIM_FILE_PAGES_ONLY
 	bool "Reclaim file pages only on direct reclaim path"
 	depends on SWAP
@@ -858,7 +875,7 @@ config BALANCE_ANON_FILE_RECLAIM
 
 config MMAP_READAROUND_LIMIT
 	int "Limit mmap readaround upperbound"
-	default 16
+	default 8
 	help
 	  Inappropriate mmap readaround size can hurt device performance
 	  during the sluggish situation. Add the hard upper-limit for
@@ -866,7 +883,7 @@ config MMAP_READAROUND_LIMIT
 
 config FAULT_AROUND_4KB
 	bool "Fault around bytes 4KB"
-	default n
+	default y
 	help
 	  Reduce fault around bytes to 4KB
 
@@ -876,22 +893,5 @@ config KSWAPD_CPU
 	help
 	  Set kswapd cpu affinity by default. 0x3F means allowing CPU as 0 to 5.
 	  To disable this config, set this to 0.
-
-config LARGE_DIRTY_BUFFER
-	bool "Use large dirty_threshold value by enabling dirty_ratio"
-	default n
-	help
-	  This config enables dirty_ratio/dirty_background_ratio,
-	  and it means large dirty_threshold value in 64bit architectures.
-	  If unsure, say N to use kernel default value
-
-config MAX_DIRTY_THRESH_PAGES
-	int "The upper bound of VM dirty_thresh value in number of pages"
-	depends on LARGE_DIRTY_BUFFER
-	default 25600
-	help
-	  This value is the upper bound of VM dirty-thresh. (0 means no limit.)
-	  It is only effective when dirty_ratio is used.
-	  (Setting dirty_bytes disables this option.)
 
 endmenu

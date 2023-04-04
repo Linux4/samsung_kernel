@@ -101,7 +101,7 @@ void usb_phy_switch_to_usb(void)
 #define OFFSET_RG_USB20_PHY_REV6 0x18
 #define SHFT_RG_USB20_PHY_REV6 30
 /*HS03s for DEVAL5625-8 by wangzikang at 20210615 start*/
-#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
 #define U2_VRT_REF 0x7
 #define U2_TERM_REF 0x7
 #define U2_HSTX_SRCTRL 0x7
@@ -110,7 +110,18 @@ void usb_phy_switch_to_usb(void)
 #define HOST_U2_TERM_REF 0x7
 #define HOST_U2_HSTX_SRCTRL 0x7
 #define HOST_U2_ENHANCE 0x3
-#else /*ELSE CONFIG_HS03S_SUPPORT*/
+#endif /*ELSE CONFIG_HQ_PROJECT_HS03S*/
+#ifdef CONFIG_HQ_PROJECT_HS04
+#define U2_VRT_REF 0x7
+#define U2_TERM_REF 0x7
+#define U2_HSTX_SRCTRL 0x7
+#define U2_ENHANCE 0x3
+#define HOST_U2_VRT_REF 0x7
+#define HOST_U2_TERM_REF 0x7
+#define HOST_U2_HSTX_SRCTRL 0x7
+#define HOST_U2_ENHANCE 0x3
+#endif /*ELSE CONFIG_HQ_PROJECT_HS04*/
+#ifdef CONFIG_HQ_PROJECT_OT8
 /*HS03s for DEVAL5625-8 by wangzikang at 20210615 end*/
 /*HS03s for DEVAL5625-8 by wenyaqi at 20210425 start*/
 #define U2_VRT_REF 0x7
@@ -123,7 +134,7 @@ void usb_phy_switch_to_usb(void)
 #define HOST_U2_ENHANCE 0x1
 /*HS03s for DEVAL5625-8 by wenyaqi at 20210425 end*/
 /*HS03s for DEVAL5625-8 by wangzikang at 20210615 start*/
-#endif /*END CONFIG_HS03S_SUPPORT*/
+#endif /*END CONFIG_HQ_PROJECT_OT8*/
 /*HS03s for DEVAL5625-8 by wangzikang at 20210615 end*/
 
 void usb_phy_tuning(void)
@@ -562,7 +573,7 @@ void set_usb_phy_mode(int mode)
 		USBPHY_CLR32(0x6C, (0x10<<0));
 		USBPHY_SET32(0x6C, (0x2F<<0));
 		USBPHY_SET32(0x6C, (0x3F<<8));
-#ifndef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_OT8
     /* modify code for OT8 */
 		USBPHY_CLR32(0x14, 1 << 16);
 		set_usb_eye_diagram(U2_VRT_REF, U2_TERM_REF, U2_HSTX_SRCTRL, U2_ENHANCE);
@@ -573,7 +584,7 @@ void set_usb_phy_mode(int mode)
 		USBPHY_CLR32(0x6c, (0x12<<0));
 		USBPHY_SET32(0x6c, (0x2d<<0));
 		USBPHY_SET32(0x6c, (0x3f<<8));
-#ifndef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_OT8
     /* modify code for OT8 */
 		USBPHY_CLR32(0x14, 1 << 16);
 		set_usb_eye_diagram(HOST_U2_VRT_REF, HOST_U2_TERM_REF, HOST_U2_HSTX_SRCTRL,
@@ -585,14 +596,14 @@ void set_usb_phy_mode(int mode)
 		USBPHY_SET32(0x6c, (0x11<<0));
 		USBPHY_CLR32(0x6c, (0x2e<<0));
 		USBPHY_SET32(0x6c, (0x3f<<8));
-#ifndef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_OT8
     /* modify code for OT8 */
 		USBPHY_CLR32(0x14, 1 << 16);
 		set_usb_eye_diagram(U2_VRT_REF, U2_TERM_REF, U2_HSTX_SRCTRL, U2_ENHANCE);
 #endif
 		break;
 	default:
-#ifndef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_OT8
     /* modify code for OT8 */
 		set_usb_eye_diagram(U2_VRT_REF, U2_TERM_REF, U2_HSTX_SRCTRL, U2_ENHANCE);
 #endif

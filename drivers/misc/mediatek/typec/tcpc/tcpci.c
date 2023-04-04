@@ -82,7 +82,9 @@ static int tcpc_check_notify_time(struct tcpc_device *tcpc,
 
 int tcpci_check_vbus_valid_from_ic(struct tcpc_device *tcpc)
 {
-	uint16_t power_status;
+	/*HS03s code for AL5626TDEV-170 by kangkai at 20220923 start*/
+	uint16_t power_status = 0;
+	/*HS03s code for AL5626TDEV-170 by kangkai at 20220923 end*/
 	int vbus_level = tcpc->vbus_level;
 
 	if (tcpci_get_power_status(tcpc, &power_status) == 0) {
@@ -351,6 +353,13 @@ int tcpci_is_vsafe0v(struct tcpc_device *tcpc)
 #endif /* CONFIG_TCPC_VSAFE0V_DETECT_IC */
 
 #ifdef CONFIG_WATER_DETECTION
+bool tcpci_is_in_water_detecting(struct tcpc_device *tcpc)
+{
+	if (tcpc->ops->is_in_water_detecting)
+		return tcpc->ops->is_in_water_detecting(tcpc);
+	return 0;
+}
+
 int tcpci_is_water_detected(struct tcpc_device *tcpc)
 {
 	if (tcpc->ops->is_water_detected)
@@ -462,6 +471,38 @@ int tcpci_retransmit(struct tcpc_device *tcpc)
 #endif	/* CONFIG_USB_PD_RETRY_CRC_DISCARD */
 #endif	/* CONFIG_USB_POWER_DELIVERY */
 
+#ifdef CONFIG_WATER_DETECTION
+struct tcp_notify noti;
+
+void typec_wd_report_usb_port_work(struct work_struct *work)
+{
+	struct tcpc_device *tcpc = container_of(work, struct tcpc_device,
+						wd_report_usb_port_work);
+
+	mutex_lock(&tcpc->wd_lock);
+	tcpc_check_notify_time(tcpc, &noti,
+		TCP_NOTIFY_IDX_USB, TCP_NOTIFY_TYPEC_STATE);
+	mutex_unlock(&tcpc->wd_lock);
+}
+
+static int typec_wd_report_usb_port(struct tcpc_device *tcpc, struct tcp_notify tcp_noti)
+{
+	u32 work_flag;
+
+	noti = tcp_noti;
+
+	work_flag = work_busy(&tcpc->wd_report_usb_port_work);
+	if (work_flag & WORK_BUSY_RUNNING &&
+		(tcpci_is_in_water_detecting(tcpc) || tcpc->water_state)) {
+		TCPC_INFO("%s: already runnung and wait for handle_wd done\n", __func__);
+		return 0;
+	}
+	cancel_work_sync(&tcpc->wd_report_usb_port_work);
+	schedule_work(&tcpc->wd_report_usb_port_work);
+	return 0;
+}
+#endif /* CONFIG_WATER_DETECTION */
+
 int tcpci_notify_typec_state(struct tcpc_device *tcpc)
 {
 	struct tcp_notify tcp_noti;
@@ -473,8 +514,12 @@ int tcpci_notify_typec_state(struct tcpc_device *tcpc)
 	tcp_noti.typec_state.rp_level = tcpc->typec_remote_rp_level;
 	tcp_noti.typec_state.local_rp_level = tcpc->typec_local_rp_level;
 
+#ifdef CONFIG_WATER_DETECTION
+	ret = typec_wd_report_usb_port(tcpc, tcp_noti);
+#else
 	ret = tcpc_check_notify_time(tcpc, &tcp_noti,
 		TCP_NOTIFY_IDX_USB, TCP_NOTIFY_TYPEC_STATE);
+#endif /* CONFIG_WATER_DETECTION */
 	return ret;
 }
 

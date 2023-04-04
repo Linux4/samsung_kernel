@@ -5,6 +5,7 @@
 
 #include <linux/proc_fs.h>
 #include <linux/uaccess.h>
+#include <linux/sched/clock.h>
 #include <linux/spinlock.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
@@ -98,7 +99,7 @@ void lockdep_test_inconsistent_lock_b(void)
 	/* {IN-SOFTIRQ-W} */
 	timer_setup(&lockdep_timer, lockdep_test_timer, 0);
 	mod_timer(&lockdep_timer, jiffies + msecs_to_jiffies(10));
-	mdelay(100);
+	msleep(100);
 
 	/* {SOFTIRQ-ON-W} */
 	spin_lock(&lockA);
@@ -186,7 +187,7 @@ void lockdep_test_safe_to_unsafe(void)
 	mod_timer(&lockdep_timer, jiffies + msecs_to_jiffies(10));
 
 	/* wait for lockdep_test_timer to finish */
-	mdelay(200);
+	msleep(200);
 
 	/* safe and unconcerned */
 	spin_lock_irqsave(&lockA, flags);
@@ -234,10 +235,20 @@ void lockdep_test_held_lock_freed(void)
 	/* should do spin_unlock before free memory */
 }
 
+static void mspin(unsigned long long ms)
+{
+	unsigned long long start, spin_time;
+
+	start = sched_clock();
+	do {
+		spin_time = sched_clock() - start;
+	} while (spin_time < ms * 1000000ULL);
+}
+
 static int lockdep_test_thread(void *data)
 {
 	spin_lock(&lockA);
-	mdelay(8000);
+	mspin(8000);
 	spin_unlock(&lockA);
 	return 0;
 }
@@ -245,7 +256,7 @@ static int lockdep_test_thread(void *data)
 void lockdep_test_spin_time(void)
 {
 	kthread_run(lockdep_test_thread, NULL, "lockdep_test_spin_time");
-	mdelay(100);
+	msleep(100);
 	spin_lock(&lockA);
 	spin_unlock(&lockA);
 }
@@ -256,7 +267,7 @@ static int lock_monitor_thread1(void *data)
 	down_read(&rw_semA);
 	mutex_lock(&mutexA);
 	rcu_read_lock();
-	mdelay(20000);
+	mspin(20000);
 	rcu_read_unlock();
 	mutex_unlock(&mutexA);
 	up_read(&rw_semA);
@@ -283,9 +294,9 @@ static int lock_monitor_thread3(void *arg)
 void lockdep_test_lock_monitor(void)
 {
 	kthread_run(lock_monitor_thread1, NULL, "test_thread1");
-	mdelay(100);
+	msleep(100);
 	kthread_run(lock_monitor_thread2, NULL, "test_thread2");
-	mdelay(100);
+	msleep(100);
 	kthread_run(lock_monitor_thread3, NULL, "test_thread3");
 }
 

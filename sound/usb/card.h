@@ -188,4 +188,9 @@ struct snd_usb_substream *find_snd_usb_substream(unsigned int card_num,
 	unsigned int pcm_idx, unsigned int direction, struct snd_usb_audio
 	**uchip, void (*disconnect_cb)(struct snd_usb_audio *chip));
 
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+extern void sound_usb_connect(struct usb_interface *intf, struct snd_usb_audio *chip);
+extern void sound_usb_disconnect(struct usb_interface *intf);
+#endif
+
 #endif /* __USBAUDIO_CARD_H */

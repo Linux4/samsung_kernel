@@ -568,78 +568,6 @@
 &mt6370_pmu {
 	mt6370,intr_gpio_num = <11>; /* direct defined GPIO num */
 	mt6370,intr_gpio = <&pio 11 0x0>;
-	bled {
-			compatible = "mediatek,mt6370_pmu_bled";
-			interrupt-names = "bled_ocp";
-			mt,bled_name = "mt6370_pmu_bled";
-			/* mt,ext_en_pin; */
-			/* HS03S code added for SR-AL5625-01-357 by gaozhengwei at 20210423 start */
-			mt,chan_en  = <0xC>; /* bit 0 1 2 3 -> chan 1 2 3 4 */
-			/* HS03S code added for SR-AL5625-01-357 by gaozhengwei at 20210423 end */
-			mt,map_linear;
-			mt,bl_ovp_level = <3>;	/* 0: 17v */
-						/* 1: 21v */
-						/* 2: 25v */
-						/* 3: 29v */
-			mt,bl_ocp_level = <2>;	/* 0: 900mA */
-						/* 1: 1200mA */
-						/* 2: 1500mA */
-						/* 3: 1800mA */
-			mt,use_pwm;
-			mt,pwm_fsample = <2>;	/* 0: 1MHz */
-						/* 1: 4MHz */
-						/* 2: or 3: 24mHz */
-			mt,pwm_deglitch = <1>;	/* 0: no filter */
-						/* 1: 100ns */
-						/* 2: 160ns */
-						/* 3: 200ns */
-			mt,pwm_hys_en = <1>;	/* PWM Input Hysteresis */
-			/* hs03s code for SR-AL5625-01-394 by gaozhengwei at 2021/05/29 start */
-			mt,pwm_hys = <2>;	/* 0: 1 bit, 1: 2 bit */
-						/* 2: 4 bit, 3: 6 bit */
-			/* hs03s code for SR-AL5625-01-394 by gaozhengwei at 2021/05/29 end */
-			mt,pwm_avg_cycle = <0>; /* 0: disable avg */
-						/* 1: avg 2 cycle */
-						/* 2: avg 4 cycle */
-						/* 3: avg 8 cycle */
-						/* 4: avg 16 cycle */
-						/* 5: avg 32 cycle */
-			mt,bled_ramptime = <3>; /* 0, 500us, 750us, 1ms, 2ms */
-						/* 5ms, 10ms, 20ms, 50ms */
-						/* 100ms, 250ms, 800ms */
-						/* 1s, 2s, 4s, 8s */
-			mt,bled_flash_ramp = <1>;	/* 0, 500us, 750us */
-							/* 1ms, 2ms, 5ms */
-
-			/* we have 11 bit resolution, quantize in driver */
-			/* HS03S code added for SR-AL5625-01-357 by gaozhengwei at 20210423 start */
-			mt,max_bled_brightness = <1570>; /* maximum 2047 */
-			/* HS03S code added for SR-AL5625-01-357 by gaozhengwei at 20210423 end */
-
-			mt,bled_curr_scale = <0>;	/* 0: 30mA, 1: 22.5mA */
-							/* 2: 20mA, 3: 17.5mA */
-			/* If use bled lpf,
-			 * Set	//mt,map_linear;
-			 *	pwm_lpf_coef = <2>;
-			 *	mt,pwm_lpf_en;
-			 *	mt,bled_curr_mode;
-			 * Else
-			 * Set	mt,map_linear;
-			 *	pwm_lpf_coef = <0>;
-			 *	//mt,pwm_lpf_en;
-			 *	//mt,bled_curr_mode;
-			 */
-			mt,pwm_lpf_coef = <0>;	/* 0: (1)/(2^15) */
-						/* 1: (2)/(2^15) */
-						/* 2: (3)/(2^15) */
-						/* 3: (4)/(2^15) */
-			/* with it, Alpha-LPF enable */
-			/* mt,pwm_lpf_en; */
-			/* with it, pwm duty is multiplied after
-			 * linear/expenential mapper
-			 */
-			/* mt,bled_curr_mode; */
-		};
 };
 
 /*HS03s for SR-AL5625-01-515 by wangzikang at 20210607 start*/
@@ -652,7 +580,7 @@
 &mt6370_chg {
 	bc12_sel = <1>;
 };
-
+/* #include <hs03s/cust.dtsi> */
 #include "mediatek/hs03s/cust.dtsi"
 #include "mediatek/hs03s/hs03s-common.dtsi"
 #include "mediatek/cust_mt6765_camera.dtsi"

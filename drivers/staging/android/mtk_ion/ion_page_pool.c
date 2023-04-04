@@ -14,6 +14,9 @@
 #include <linux/swap.h>
 #include <linux/sched/clock.h>
 #include "ion_priv.h"
+/* HS03_T code for DEVAL5626T-668 by gaochao at 20220914 start */
+#include "mtk/ion_drv_priv.h"
+/* HS03_T code for DEVAL5626T-668 by gaochao at 20220914 end */
 
 static unsigned long long last_alloc_ts;
 
@@ -24,17 +27,11 @@ static unsigned long long last_alloc_ts;
  */
 static long nr_total_pages;
 
-// gaochao-debug
-long ion_get_nr_total_pages(void)
-{
-	return nr_total_pages;
-}
-// gaochao-debug
-
 static void *ion_page_pool_alloc_pages(struct ion_page_pool *pool)
 {
 	unsigned long long start, end;
 	struct page *page;
+	unsigned int i;
 
 	start = sched_clock();
 	page = alloc_pages(pool->gfp_mask, pool->order);
@@ -54,6 +51,8 @@ static void *ion_page_pool_alloc_pages(struct ion_page_pool *pool)
 				  page, PAGE_SIZE << pool->order,
 				  DMA_BIDIRECTIONAL);
 	atomic64_add_return((1 << pool->order), &page_sz_cnt);
+	for (i = 0; i < (1 << pool->order); i++)
+		SetPageIommu(&page[i]);
 	return page;
 }
 
@@ -69,8 +68,44 @@ static void ion_page_pool_free_pages(struct ion_page_pool *pool,
 	}
 }
 
+/* HS03_T code for DEVAL5626T-668 by gaochao at 20220914 start */
+int debug_shrink_set(void *data, u64 val);
+#define POOL_MAX	(200 * 256)
+#define ION_HEAP_TYPE_MULTIMEDIA	10
+
+#define ION_SHRINK_ENTRY	0
+#define ION_SHRINK_EXIT	1
+static int g_ion_shrink_detect = ION_SHRINK_EXIT;
+
+void ion_try_shrink_ion_page_pool(void)
+{
+	if (g_ion_shrink_detect == ION_SHRINK_ENTRY) {
+		IONMSG("%s shrinker is already running\n", __func__);
+		return;
+	}
+	g_ion_shrink_detect = ION_SHRINK_ENTRY;
+	if (ion_page_pool_nr_pages() > POOL_MAX) {
+		struct ion_heap *heap = NULL, *tmp = NULL;
+		IONMSG("[%s][%d] pool is out of %d\n", __FUNCTION__, __LINE__, POOL_MAX);
+		heap = ion_drv_get_heap(g_ion_device, ION_HEAP_TYPE_MULTIMEDIA, 1);
+		if (heap != NULL && heap->debug_show != NULL) {
+			heap->debug_show(heap, NULL, NULL);
+		}
+		plist_for_each_entry_safe(heap, tmp, &g_ion_device->heaps, node) {
+			IONMSG("heap[%s][%d][%d] ion_show\n", heap->name, heap->id, __LINE__);
+			debug_shrink_set(heap, 0);
+		}
+	}
+	g_ion_shrink_detect = ION_SHRINK_EXIT;
+}
+/* HS03_T code for DEVAL5626T-668 by gaochao at 20220914 end */
+
 static int ion_page_pool_add(struct ion_page_pool *pool, struct page *page)
 {
+	/* HS03_T code for DEVAL5626T-668 by gaochao at 20220914 start */
+	ion_try_shrink_ion_page_pool();
+	/* HS03_T code for DEVAL5626T-668 by gaochao at 20220914 end */
+
 	mutex_lock(&pool->mutex);
 	if (PageHighMem(page)) {
 		list_add_tail(&page->lru, &pool->high_items);
@@ -81,6 +116,9 @@ static int ion_page_pool_add(struct ion_page_pool *pool, struct page *page)
 	}
 
 	nr_total_pages += 1 << pool->order;
+	mod_node_page_state(page_pgdat(page),
+			    NR_KERNEL_MISC_RECLAIMABLE,
+			    1 << pool->order);
 	mutex_unlock(&pool->mutex);
 	return 0;
 }
@@ -101,6 +139,9 @@ static struct page *ion_page_pool_remove(struct ion_page_pool *pool, bool high)
 
 	list_del(&page->lru);
 	nr_total_pages -= 1 << pool->order;
+	mod_node_page_state(page_pgdat(page),
+			    NR_KERNEL_MISC_RECLAIMABLE,
+			    -(1 << pool->order));
 	return page;
 }
 

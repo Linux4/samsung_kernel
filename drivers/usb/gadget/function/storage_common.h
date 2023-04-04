@@ -66,6 +66,9 @@ do {									\
 
 #endif /* DUMP_MSGS */
 
+/* SCSI commands that we recognize */
+#define READ_CD					0xbe
+
 /* Length of a SCSI Command Data Block */
 #define MAX_COMMAND_SIZE	16
 

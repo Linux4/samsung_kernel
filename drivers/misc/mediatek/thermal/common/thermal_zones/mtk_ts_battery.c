@@ -197,13 +197,13 @@ static int mtktsbattery_get_hw_temp(void)
 	/* cat /sys/class/power_supply/battery/batt_temp */
 	t_ret = get_hw_battery_temp();
 	t_ret = t_ret * 100;
-#ifndef CONFIG_HS03S_SUPPORT
-/*TabA7 Lite code for OT8-3638 import D85 policy by wenyaqi at 20210301 start*/
-#ifdef HQ_D85_BUILD
+
+	/* hs14 code for SR-AL6528A-01-336 by shanxinkai at 2022/09/15 start */
+	#ifdef HQ_D85_BUILD
 	t_ret = 25000;
-#endif
-/*TabA7 Lite code for OT8-3638 import D85 policy by wenyaqi at 20210301 end*/
-#endif
+	#endif
+	/* hs14 code for SR-AL6528A-01-336 by shanxinkai at 2022/09/15 end */
+
 	mutex_unlock(&Battery_lock);
 
 	if (t_ret)
@@ -214,11 +214,6 @@ static int mtktsbattery_get_hw_temp(void)
 
 	mtktsbattery_dprintk("[%s] T_Battery, %d\n", __func__,
 									t_ret);
-	/*HS03s for SR-AL5625-01-248 by wenyaqi at 20210429 start*/
-	#ifdef HQ_D85_BUILD
-	t_ret = 25000;
-	#endif
-	/*HS03s for SR-AL5625-01-248 by wenyaqi at 20210429 end*/
 	return t_ret;
 }
 
@@ -434,19 +429,11 @@ struct thermal_cooling_device *cdev, unsigned long state)
 		/* To trigger data abort to reset the system
 		 * for thermal protection.
 		 */
-#ifdef CONFIG_HS03S_SUPPORT
-		/*HS03s for SR-AL5625-01-248 by wenyaqi at 20210429 start*/
+		/* hs14 code for SR-AL6528A-01-336 by shanxinkai at 2022/09/15 start */
 		#if defined(HQ_FACTORY_BUILD) && (!defined(HQ_D85_BUILD))
 		BUG();
 		#endif
-		/*HS03s for SR-AL5625-01-248 by wenyaqi at 20210429 end*/
-#else
-/*TabA7 Lite code for OT8-3638 import D85 policy by wenyaqi at 20210301 start*/
-		#ifndef HQ_D85_BUILD
-		BUG();
-		#endif
-/*TabA7 Lite code for OT8-3638 import D85 policy by wenyaqi at 20210301 end*/
-#endif
+		/* hs14 code for SR-AL6528A-01-336 by shanxinkai at 2022/09/15 end */
 	}
 	return 0;
 }

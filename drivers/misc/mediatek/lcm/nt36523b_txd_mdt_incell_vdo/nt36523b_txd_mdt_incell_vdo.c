@@ -519,6 +519,12 @@ static struct LCM_setting_table init_setting_vdo[] = {
     {0xD0,0x01,{0x10}},
     {0xD1,0x01,{0x24}},
     {0xD2,0x01,{0x30}},
+    // 2022-04-26 LCD copper start
+    {0xFF,0x01,{0x20}},
+    {0xFB,0x01,{0x01}},
+    {0x69,0x01,{0x98}},
+    {0x75,0x01,{0xC2}},
+    // 2022-04-26 LCD copper end
     {0xFF,0x01,{0x10}},
     {0xFB,0x01,{0x01}},
     {0x36,0x01,{0x00}},
@@ -681,10 +687,10 @@ static void lcm_suspend_power(void)
     pr_notice("[Kernel/LCM] %s enter\n", __func__);
 
     /*TabA7 Lite code for OT8-4010 by gaozhengwei at 20210319 start*/
-    //if (g_system_is_shutdown) {
-    //    lcm_set_gpio_output(GPIO_LCD_RST, GPIO_OUT_ZERO);
-    //    MDELAY(3);
-    //}
+    if (g_system_is_shutdown) {
+        lcm_set_gpio_output(GPIO_LCD_RST, GPIO_OUT_ZERO);
+        MDELAY(3);
+    }
     /*TabA7 Lite code for OT8-4010 by gaozhengwei at 20210319 end*/
 
     display_bias_disable();

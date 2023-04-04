@@ -17,6 +17,10 @@
 
 #include "tcpci_core.h"
 
+/* hs14 code for SR-AL6528A-01-258 by shanxinkai at 2022/09/13 start */
+#include <linux/chg-tcpc_info.h>
+/* hs14 code for SR-AL6528A-01-258 by shanxinkai at 2022/09/13 end */
+
 #ifdef CONFIG_PD_DBG_INFO
 #include "pd_dbg_info.h"
 #endif /* CONFIG_PD_DBG_INFO */
@@ -32,6 +36,9 @@
 
 /* provide to TCPC interface */
 extern int tcpci_report_usb_port_changed(struct tcpc_device *tcpc);
+#ifdef CONFIG_WATER_DETECTION
+extern void typec_wd_report_usb_port_work(struct work_struct *work);
+#endif /* CONFIG_WATER_DETECTION */
 extern int tcpci_set_wake_lock(
 	struct tcpc_device *tcpc, bool pd_lock, bool user_lock);
 extern int tcpci_report_power_control(struct tcpc_device *tcpc, bool en);
@@ -73,6 +80,9 @@ int tcpci_init_alert_mask(struct tcpc_device *tcpc);
 
 int tcpci_get_cc(struct tcpc_device *tcpc);
 int tcpci_set_cc(struct tcpc_device *tcpc, int pull);
+/* hs14 code for SR-AL6528A-01-258 by shanxinkai at 2022/09/13 start */
+extern enum tcpc_cc_supplier tcpc_info;
+/* hs14 code for SR-AL6528A-01-258 by shanxinkai at 2022/09/13 end */
 static inline int __tcpci_set_cc(struct tcpc_device *tcpc, int pull)
 {
 	PD_BUG_ON(tcpc->ops->set_cc == NULL);
@@ -100,6 +110,7 @@ int tcpci_is_vsafe0v(struct tcpc_device *tcpc);
 #endif /* CONFIG_TCPC_VSAFE0V_DETECT_IC */
 
 #ifdef CONFIG_WATER_DETECTION
+bool tcpci_is_in_water_detecting(struct tcpc_device *tcpc);
 int tcpci_is_water_detected(struct tcpc_device *tcpc);
 int tcpci_set_water_protection(struct tcpc_device *tcpc, bool en);
 int tcpci_set_usbid_polling(struct tcpc_device *tcpc, bool en);

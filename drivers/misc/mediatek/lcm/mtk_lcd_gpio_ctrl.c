@@ -157,7 +157,7 @@ static void __exit lcm_drv_exit(void)
 	pr_notice("LCM: Unregister lcm driver done\n");
 }
 
-late_initcall(lcm_drv_init);
+module_init(lcm_drv_init);
 module_exit(lcm_drv_exit);
 MODULE_AUTHOR("mediatek");
 MODULE_DESCRIPTION("Display subsystem Driver");

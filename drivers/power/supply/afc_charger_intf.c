@@ -41,6 +41,17 @@
 
 extern int charger_dev_set_mivr(struct charger_device *chg_dev, u32 uV);
 int afc_set_ta_vchr(struct mtk_charger *pinfo, u32 chr_volt);
+/*TabA7 Lite code for P210524-04905 by wenyaqi at 20210603 start*/
+#define NDELAY_BASE_NS			10000
+#define NDELAY_BASE_US_TUNE		9000
+#define AFC_DELAY_BASED_NDELAY(ui)					\
+	{													\
+	    int k = 0;											\
+	    for (k = 0; k < (ui) / NDELAY_BASE_NS; k++) {		\
+		    ndelay(NDELAY_BASE_US_TUNE);				\
+	    }													\
+	}
+/*TabA7 Lite code for P210524-04905 by wenyaqi at 20210603 start*/
 
 int send_afc_result(int res)
 {
@@ -113,9 +124,11 @@ void cycle(struct afc_dev *afc, int ui)
 		afc->pin_state = true;
 	}
 	gpio_direction_output(afc->afc_data_gpio, 1);
-	udelay(ui);
+	/*TabA7 Lite code for P210524-04905 by wenyaqi at 20210603 start*/
+	AFC_DELAY_BASED_NDELAY(ui * 1000);
 	gpio_direction_output(afc->afc_data_gpio, 0);
-	udelay(ui);
+	AFC_DELAY_BASED_NDELAY(ui * 1000);
+	/*TabA7 Lite code for P210524-04905 by wenyaqi at 20210603 end*/
 }
 
 void afc_send_Mping(struct afc_dev *afc)
@@ -126,7 +139,9 @@ void afc_send_Mping(struct afc_dev *afc)
 	}
 
 	gpio_direction_output(afc->afc_data_gpio, 1);
-	udelay(16*UI);
+	/*TabA7 Lite code for P210524-04905 by wenyaqi at 20210603 start*/
+	AFC_DELAY_BASED_NDELAY(16*UI * 1000);
+	/*TabA7 Lite code for P210524-04905 by wenyaqi at 20210603 end*/
 	gpio_direction_output(afc->afc_data_gpio, 0);
 }
 
@@ -141,7 +156,8 @@ int afc_recv_Sping(struct afc_dev *afc)
 	gpio_direction_input(afc->afc_data_gpio);
 	while (1)
 	{
-		udelay(UI);
+		/*TabA7 Lite code for P210524-04905 by wenyaqi at 20210603 start*/
+		AFC_DELAY_BASED_NDELAY(UI * 1000);
 		if (gpio_get_value(afc->afc_data_gpio)) {
 			pr_debug("%s: wait rsp %d\n", __func__, i);
 			break;
@@ -158,7 +174,8 @@ int afc_recv_Sping(struct afc_dev *afc)
 			goto Sping_err;
 		}
 
-		udelay(UI);
+		AFC_DELAY_BASED_NDELAY(UI * 1000);
+		/*TabA7 Lite code for P210524-04905 by wenyaqi at 20210603 end*/
 	} while (gpio_get_value(afc->afc_data_gpio));
 
 	if (sp_cnt < SPING_MIN_UI) {
@@ -190,7 +207,9 @@ int afc_send_parity_bit(struct afc_dev *afc, int data)
 	else
 		gpio_direction_output(afc->afc_data_gpio, 0);
 
-	udelay(UI);
+	/*TabA7 Lite code for P210524-04905 by wenyaqi at 20210603 start*/
+	AFC_DELAY_BASED_NDELAY(UI * 1000);
+	/*TabA7 Lite code for P210524-04905 by wenyaqi at 20210603 end*/
 
 	return odd;
 }
@@ -204,28 +223,30 @@ void afc_send_data(struct afc_dev *afc, int data)
 		afc->pin_state = true;
 	}
 
-	udelay(160);
+	/*TabA7 Lite code for P210524-04905 by wenyaqi at 20210603 start*/
+	AFC_DELAY_BASED_NDELAY(UI * 1000);
 
 	if (data & 0x80)
 		cycle(afc, UI/4);
 	else {
 		cycle(afc, UI/4);
 		gpio_direction_output(afc->afc_data_gpio, 1);
-		udelay(UI/4);
+		AFC_DELAY_BASED_NDELAY((UI/4)* 1000);
 	}
 
 	for (i = 0x80; i > 0; i = i >> 1)
 	{
 		gpio_direction_output(afc->afc_data_gpio, data & i);
-		udelay(UI);
+		AFC_DELAY_BASED_NDELAY(UI * 1000);
 	}
 
 	if (afc_send_parity_bit(afc, data)) {
 		gpio_direction_output(afc->afc_data_gpio, 0);
-		udelay(UI/4);
+		AFC_DELAY_BASED_NDELAY((UI/4)* 1000);
 		cycle(afc, UI/4);
 	} else {
-		udelay(UI/4);
+		AFC_DELAY_BASED_NDELAY((UI/4)* 1000);
+		/*TabA7 Lite code for P210524-04905 by wenyaqi at 20210603 end*/
 		cycle(afc, UI/4);
 	}
 }
@@ -281,7 +302,9 @@ int afc_communication(struct afc_dev *afc)
 	if (ret < 0)
 		goto afc_fail;
 
-	udelay(200);
+	/*TabA7 Lite code for P210524-04905 by wenyaqi at 20210603 start*/
+	AFC_DELAY_BASED_NDELAY(200 * 1000);
+	/*TabA7 Lite code for P210524-04905 by wenyaqi at 20210603 end*/
 	afc_send_Mping(afc);
 
 	ret = afc_recv_Sping(afc);

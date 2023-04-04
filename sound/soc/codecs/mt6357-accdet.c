@@ -37,6 +37,13 @@
 /* grobal variable definitions */
 #define NO_USE_COMPARATOR	1
 
+/*hs04 code for DEAL6398A-1876 by tangsumian at 20221012 start*/
+#ifdef CONFIG_HEADSET_IN_OUT_NOTIFY
+#include <linux/notifier.h>
+#define HEADSET_PLUGOUT_STATE	0
+#define HEADSET_PLUGIN_STATE	1
+#endif
+/*hs04 code for DEAL6398A-1876 by tangsumian at 20221012 end*/
 #if NO_USE_COMPARATOR
 /* for headset pole type definition  */
 #define TYPE_AB_00		(0x00)/* 3-pole or hook_switch */
@@ -808,6 +815,51 @@ static void send_key_event(u32 keycode, u32 flag)
 		break;
 	}
 }
+/*hs04 code for DEAL6398A-1876 by tangsumian at 20221012 start*/
+#ifdef CONFIG_HEADSET_IN_OUT_NOTIFY
+static BLOCKING_NOTIFIER_HEAD(headset_notifier);
+/**
+*Name: <headset_notifier_register>
+*Author: <huangzhongjie>
+*Date: <20220809>
+*Param: <headset_notifier>
+*Return: <int execute result>
+*Purpose: <Register the notification chain for broadcasting>
+*/
+int headset_notifier_register(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(&headset_notifier, nb);
+}
+EXPORT_SYMBOL(headset_notifier_register);
+
+/**
+*Name: <headset_notifier_register>
+*Author: <huangzhongjie>
+*Date: <20220809>
+*Param: <headset_notifier>
+*Return: <int execute result>
+*Purpose: <Unregister when device is removed>
+*/
+int headset_notifier_unregister(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(&headset_notifier, nb);
+}
+EXPORT_SYMBOL(headset_notifier_unregister);
+
+/**
+*Name: <headset_notifier_register>
+*Author: <huangzhongjie>
+*Date: <20220809>
+*Param: <headset_notifier>
+*Return: <int execute result>
+*Purpose: <Notification of headphone insertion and removal>
+*/
+int  headset_notifier_call_chain(unsigned long val, void *v)
+{
+	return blocking_notifier_call_chain(&headset_notifier, val, v);
+}
+#endif
+/*hs04 code for DEAL6398A-1876 by tangsumian at 20221012 end*/
 
 static void send_status_event(u32 cable_type, u32 status)
 {
@@ -815,10 +867,19 @@ static void send_status_event(u32 cable_type, u32 status)
 
 	switch (cable_type) {
 	case HEADSET_NO_MIC:
-		if (status)
+/*hs04 code for DEAL6398A-1876 by tangsumian at 20221012 start*/
+		if (status) {
 			report = SND_JACK_HEADPHONE;
-		else
+#ifdef CONFIG_HEADSET_IN_OUT_NOTIFY
+			headset_notifier_call_chain(HEADSET_PLUGIN_STATE, NULL);
+#endif
+		} else {
 			report = 0;
+#ifdef CONFIG_HEADSET_IN_OUT_NOTIFY
+			headset_notifier_call_chain(HEADSET_PLUGOUT_STATE, NULL);
+#endif
+		}
+/*hs04 code for DEAL6398A-1876 by tangsumian at 20221012 end*/
 		snd_soc_jack_report(&accdet->jack, report,
 				SND_JACK_HEADPHONE);
 		/* when plug 4-pole out, if both AB=3 AB=0 happen,3-pole plug
@@ -846,11 +907,19 @@ static void send_status_event(u32 cable_type, u32 status)
 			snd_soc_jack_report(&accdet->jack, report,
 					SND_JACK_HEADPHONE);
 		}
-		if (status)
+/*hs04 code for DEAL6398A-1876 by tangsumian at 20221012 start*/
+		if (status) {
 			report = SND_JACK_MICROPHONE;
-		else
+#ifdef CONFIG_HEADSET_IN_OUT_NOTIFY
+			headset_notifier_call_chain(HEADSET_PLUGIN_STATE, NULL);
+#endif
+		} else {
 			report = 0;
-
+#ifdef CONFIG_HEADSET_IN_OUT_NOTIFY
+			headset_notifier_call_chain(HEADSET_PLUGOUT_STATE, NULL);
+#endif
+		}
+/*hs04 code for DEAL6398A-1876 by tangsumian at 20221012 end*/
 		snd_soc_jack_report(&accdet->jack, report,
 				SND_JACK_MICROPHONE);
 		pr_info("accdet MICROPHONE(4-pole) %s\n",

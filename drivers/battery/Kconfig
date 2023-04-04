@@ -33,8 +33,6 @@ config BATTERY_SAMSUNG_LEGO_STYLE
 	 refer to sec_charging_common.h
 
 if BATTERY_SAMSUNG_LEGO_STYLE
-source "drivers/battery/charger/Kconfig"
-source "drivers/battery/common/Kconfig"
-source "drivers/battery/fuelgauge/Kconfig"
 source "drivers/battery/wireless/Kconfig"
+source "drivers/battery/fuelgauge/Kconfig"
 endif # BATTERY_SAMSUNG_LEGO_STYLE

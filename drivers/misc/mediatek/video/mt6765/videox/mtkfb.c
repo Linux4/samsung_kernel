@@ -2583,13 +2583,7 @@ static void mtkfb_shutdown(struct platform_device *pdev)
 	}
 	
 	
-#ifdef CONFIG_HQ_PROJECT_OT8
-    /* modify code for OT8 */
-	/*TabA7 Lite code for OT8-4010 by gaozhengwei at 20210319 start*/
-	// primary_display_set_power_mode(FB_SUSPEND);
-	// primary_display_suspend();
-	/*TabA7 Lite code for OT8-4010 by gaozhengwei at 20210319 end*/
-#else
+#ifdef CONFIG_HQ_PROJECT_HS03S
     /* modify code for O6 */
 /* HS03S code for DEVAL5625-1451 by gaozhengwei at 2021/06/17 start */
 #ifdef CONFIG_HQ_SET_LCD_BIAS
@@ -2598,7 +2592,15 @@ static void mtkfb_shutdown(struct platform_device *pdev)
 #endif
 /* HS03S code for DEVAL5625-1451 by gaozhengwei at 2021/06/17 end */
 #endif
-
+#ifdef CONFIG_HQ_PROJECT_HS04
+    /* modify code for O6 */
+/* HS03S code for DEVAL5625-1451 by gaozhengwei at 2021/06/17 start */
+#ifdef CONFIG_HQ_SET_LCD_BIAS
+	primary_display_set_power_mode(FB_SUSPEND);
+	primary_display_suspend();
+#endif
+/* HS03S code for DEVAL5625-1451 by gaozhengwei at 2021/06/17 end */
+#endif
 	
 	MTKFB_LOG("[FB Driver] leave mtkfb_shutdown\n");
 }

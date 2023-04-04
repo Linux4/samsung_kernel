@@ -9,6 +9,9 @@
 #include "inc/pd_process_evt.h"
 #include "inc/tcpci_typec.h"
 
+#include <mt-plat/mtk_boot.h>
+#include <mt-plat/v1/charger_class.h>
+
 /* PD Control MSG reactions */
 
 DECL_PE_STATE_TRANSITION(PD_CTRL_MSG_ACCEPT) = {
@@ -393,6 +396,13 @@ static inline bool pd_process_timer_msg(
 #endif	/* CONFIG_USB_PD_DBG_IGRONE_TIMEOUT */
 	struct pe_data __maybe_unused *pe_data = &pd_port->pe_data;
 
+#ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
+	struct charger_device *chg_dev = get_charger_by_name("primary_chg");
+	int vbus = 10000000, ret = -1;
+	bool is_power_off_boot = (tcpc->bootmode == KERNEL_POWER_OFF_CHARGING_BOOT ||
+			tcpc->bootmode == LOW_POWER_OFF_CHARGING_BOOT) ? true:false;
+#endif /*CONFIG_KPOC_GET_SOURCE_CAP_TRY*/
+
 	switch (pd_event->msg) {
 	case PD_TIMER_SINK_REQUEST:
 		return PE_MAKE_STATE_TRANSIT_SINGLE(
@@ -402,6 +412,19 @@ static inline bool pd_process_timer_msg(
 	case PD_TIMER_PS_TRANSITION:
 		if ((pd_port->pe_state_curr != PE_SNK_DISCOVERY) &&
 			(pe_data->hard_reset_counter <= PD_HARD_RESET_COUNT)) {
+#ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
+			if (is_power_off_boot) {
+				if (pd_port->pe_data.hard_reset_counter == 1)
+					ret = charger_dev_get_vbus(chg_dev, &vbus);
+				if (!ret && vbus < 5500000) {
+					PE_DBG("KPOC let TA ERROR_RECOVERY once\r\n");
+					pd_port->pe_data.hard_reset_counter =
+								PD_HARD_RESET_COUNT + 1;
+					PE_TRANSIT_STATE(pd_port, PE_ERROR_RECOVERY);
+					return true;
+				}
+			}
+#endif /*CONFIG_KPOC_GET_SOURCE_CAP_TRY*/
 			PE_TRANSIT_STATE(pd_port, PE_SNK_HARD_RESET);
 			return true;
 		}

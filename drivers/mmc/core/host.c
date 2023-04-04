@@ -154,7 +154,8 @@ int mmc_retune(struct mmc_host *host)
 		err = mmc_hs200_to_hs400(host->card);
 out:
 	host->doing_retune = 0;
-
+	if (err)
+		host->need_retune = 1;
 	return err;
 }
 

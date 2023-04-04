@@ -683,10 +683,10 @@ static void lcm_suspend_power(void)
     pr_notice("[Kernel/LCM] %s enter\n", __func__);
 
     /*TabA7 Lite code for OT8-4010 by gaozhengwei at 20210319 start*/
-    //if (g_system_is_shutdown) {
-    //    lcm_set_gpio_output(GPIO_LCD_RST, GPIO_OUT_ZERO);
-    //    MDELAY(3);
-    //}
+    if (g_system_is_shutdown) {
+        lcm_set_gpio_output(GPIO_LCD_RST, GPIO_OUT_ZERO);
+        MDELAY(3);
+    }
     /*TabA7 Lite code for OT8-4010 by gaozhengwei at 20210319 end*/
 
     display_bias_disable();

@@ -1591,6 +1591,9 @@ int gcore_auto_update_hostdownload(u8 *fw_buf)
 /* int count = 0; */
 
     if (!fw_buf) {
+        /*hs03s_NM code for DEVAL5626-1008 by yuli at 20220815 start*/
+        GTP_ERROR("fw_buf is NULL.");
+        /*hs03s_NM code for DEVAL5626-1008 by yuli at 20220815 end*/
         return -EPERM;
     }
 /* GTP_DEBUG("Start auto update proc..."); */
@@ -1661,7 +1664,11 @@ int gcore_auto_update_hostdownload(u8 *fw_buf)
     default:
         GTP_DEBUG("pram fw read unknow result.");
         fw_update_fn.wait_int = false;
-        complete(&gc_fw_update_complete);
+        /*hs03s_NM code for DEVAL5626-1008 by yuli at 20220815 start*/
+        if (gdev_fwu->ts_stat != TS_MPTEST) {
+            complete(&gc_fw_update_complete);
+        }
+        /*hs03s_NM code for DEVAL5626-1008 by yuli at 20220815 end*/
         break;
     }
 
@@ -1694,6 +1701,11 @@ int gcore_update_hostdownload_trigger(u8 *fw_buf)
         fw_update_fn.wait_int = false;
         return -EPERM;
     }
+
+    /*hs03s_NM code for DEVAL5626-1008 by yuli at 20220815 start*/
+    GTP_DEBUG("hostdownload trigger done");
+    /*hs03s_NM code for DEVAL5626-1008 by yuli at 20220815 end*/
+
 /* if (gcore_auto_update_hostdownload(fw_buf)) */
 /* { */
 /* GTP_ERROR("hostdownload write fail."); */
@@ -2838,6 +2850,10 @@ void gcore_request_firmware_update_work(struct work_struct *work)
         goto retry;
     }
 
+    /*hs03s_NM code for DEVAL5626-1008 by yuli at 20220815 start*/
+    gdev_fwu->fw_mem = fw_buf;
+    /*hs03s_NM code for DEVAL5626-1008 by yuli at 20220815 end*/
+
     if (request_firmware(&fw, FW_BIN_NAME, &gdev_fwu->bus_device->dev)) {
         GTP_ERROR("request firmware fail");
         return;
@@ -3443,6 +3459,9 @@ static int fwu_event_handler(void *p)
             break;
 
         default:
+            /*hs03s_NM code for DEVAL5626-1008 by yuli at 20220815 start*/
+            GTP_DEBUG("fwu event default");
+            /*hs03s_NM code for DEVAL5626-1008 by yuli at 20220815 end*/
             break;
         }
 

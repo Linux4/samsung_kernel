@@ -1065,7 +1065,9 @@ int gcore_probe_device(void)
             break;
         } else {
             GTP_ERROR("GC%04x chip id match fail! retries:%d", id, retries);
-            ret = -1;
+            /*HS03_T code for SL6215TDEV-12 by wangzhongyuan at 20220909 start*/
+            ret = 0;
+            /*HS03_T code for SL6215TDEV-12 by wangzhongyuan at 20220909 end*/
         }
     }
 

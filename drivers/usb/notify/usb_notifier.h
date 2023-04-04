@@ -24,5 +24,11 @@ extern int exynos_otg_vbus_event(struct platform_device *pdev, int state);
 static inline int exynos_otg_vbus_event(
 		struct platform_device *pdev, int state) {return 0; }
 #endif
+#if IS_ENABLED(CONFIG_USB_MTK_HDRC) || IS_ENABLED(CONFIG_USB_MTU3)
+void mtk_usb_connect(void);
+void mtk_usb_disconnect(void);
+void mtk_usb_host_connect(void);
+void mtk_usb_host_disconnect(void);
+#endif
 #endif
 

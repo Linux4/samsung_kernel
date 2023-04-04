@@ -36,6 +36,9 @@
 
 #include "eta6953_reg.h"
 #include "eta6953.h"
+/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 start*/
+#include <linux/hardinfo_charger.h>
+/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 end*/
 
 enum {
 	PN_ETA6953,
@@ -1529,6 +1532,10 @@ static int eta6953_charger_probe(struct i2c_client *client,
 		ret = PTR_ERR(eta->psy);
 	}
 	/*HS03s for SR-AL5625-01-511 by wenyaqi at 20210618 end*/
+
+	/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 start*/
+	set_hardinfo_charger_data(CHG_INFO, "ETA6953");
+	/*HS03s for SR-AL5628-01-162 by zhangjiangbin at 20220915 end*/
 
 	pr_err("eta6953 probe successfully, Part Num:%d-%d, Revision:%d\n!",
 			eta->part_no, eta->e_part_no, eta->revision);

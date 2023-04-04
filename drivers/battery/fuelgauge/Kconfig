@@ -61,14 +61,4 @@ config FUELGAUGE_S2MU107_USE_10MILLIOHM
 	 Say Y to use 10mohm current sensing resistor
 	 instead of 5mohm for S.LSI S2MU107 fuel gauge.
 
-config FUELGAUGE_S2MU106
-	tristate "S2MU106 fuel gauge driver"
-	default n
-	depends on (MFD_S2MU106) && I2C
-	help
-	 Say Y to include support
-	 for S.LSI S2MU106 fuel gauge driver.
-	 Ths fuel-gauge supports current tracking and
-	 voltage tracking to model the battery SOC.
-
 source "drivers/battery/fuelgauge/sm5714/Kconfig"

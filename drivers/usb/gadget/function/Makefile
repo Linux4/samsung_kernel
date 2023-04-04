@@ -5,6 +5,7 @@
 
 ccflags-y			:= -I$(srctree)/drivers/usb/gadget/
 ccflags-y			+= -I$(srctree)/drivers/usb/gadget/udc/
+ccflags-y			+= -I$(srctree)/drivers/misc/mediatek/rps/
 ccflags-y			+= -I$(srctree)/drivers/misc/mediatek/usb_boost/
 
 # USB Functions
@@ -49,6 +50,8 @@ usb_f_hid-y			:= f_hid.o
 obj-$(CONFIG_USB_F_HID)		+= usb_f_hid.o
 usb_f_printer-y			:= f_printer.o
 obj-$(CONFIG_USB_F_PRINTER)	+= usb_f_printer.o
+usb_f_dm-y			:= f_dm.o
+obj-$(CONFIG_USB_CONFIGFS_F_DM)	+= usb_f_dm.o
 usb_f_tcm-y			:= f_tcm.o
 obj-$(CONFIG_USB_F_TCM)		+= usb_f_tcm.o
 usb_f_accessory-y		:= f_accessory.o

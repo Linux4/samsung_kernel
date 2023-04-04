@@ -12,6 +12,9 @@
 #include <linux/mfd/mt6357/registers.h>
 #include <linux/mfd/mt6358/registers.h>
 #include <linux/mfd/mt6359/registers.h>
+#if defined(CONFIG_MTK_PMIC_CHIP_MT6359)
+#include <linux/mfd/mt6358/core.h>
+#endif
 #include <linux/mfd/mt6397/core.h>
 #include <linux/module.h>
 #include <linux/of.h>
@@ -374,6 +377,36 @@ static void auxadc_timeout_handler(struct mt635x_auxadc_device *adc_dev,
 }
 #endif
 
+#if 0
+int get_auxadc_out(struct mt635x_auxadc_device *adc_dev,
+			  const struct auxadc_channels *auxadc_chan, int *val);
+
+int auxadc_priv_read_channel(struct device *dev, int channel)
+{
+	const struct auxadc_channels *auxadc_chan;
+	struct iio_dev *indio_dev;
+	struct mt635x_auxadc_device *adc_dev;
+	int val, ret;
+
+	auxadc_chan = &auxadc_chans[channel];
+	indio_dev = platform_get_drvdata(to_platform_device(dev));
+	adc_dev = iio_priv(indio_dev);
+
+	ret = get_auxadc_out(adc_dev, auxadc_chan, &val);
+	val = val * auxadc_chan->r_ratio[0] * VOLT_FULL;
+	val = (val / auxadc_chan->r_ratio[1]) >> auxadc_chan->res;
+
+	return val;
+}
+#endif
+
+unsigned char *auxadc_get_r_ratio(int channel)
+{
+	const struct auxadc_channels *auxadc_chan = &auxadc_chans[channel];
+
+	return (unsigned char *)auxadc_chan->r_ratio;
+}
+
 static inline int auxadc_conv_imp_vbat(struct mt635x_auxadc_device *adc_dev)
 {
 	int vbat;
@@ -644,6 +677,7 @@ static const struct auxadc_info mt6359_info = {
 /*
  * imix_r cali before entering suspend
  */
+#if 0
 static void enable_dummy_load(struct mt635x_auxadc_device *adc_dev)
 {
 	int i = 0;
@@ -740,6 +774,7 @@ static int auxadc_get_uisoc(void)
 	else
 		return prop.intval;
 }
+#endif
 
 /*
  * @adc_dev:	 pointer to the struct mt635x_auxadc_device
@@ -747,7 +782,7 @@ static int auxadc_get_uisoc(void)
 		 auxadc channel
  * @val:	 pointer to output value
  */
-static int get_auxadc_out(struct mt635x_auxadc_device *adc_dev,
+int get_auxadc_out(struct mt635x_auxadc_device *adc_dev,
 			  const struct auxadc_channels *auxadc_chan, int *val)
 {
 	int ret;
@@ -902,7 +937,7 @@ static void mt6357_vbif_conv(struct mt635x_auxadc_device *adc_dev,
 				   MT6357_BATON_TDET_EN, MT6357_BATON_TDET_EN);
 }
 
-static int auxadc_priv_read_channel(struct mt635x_auxadc_device *adc_dev,
+int auxadc_priv_read_channel(struct mt635x_auxadc_device *adc_dev,
 				    int channel)
 {
 	const struct auxadc_channels *auxadc_chan;
@@ -1026,6 +1061,7 @@ void auxadc_set_cali_fn(int channel,
 #define	IMIX_R_CALI_CNT		2
 static int auxadc_cali_imix_r(struct mt635x_auxadc_device *dev)
 {
+#if 0
 	static struct mt635x_auxadc_device *adc_dev;
 	static int pre_uisoc = 101;
 	int cur_uisoc = auxadc_get_uisoc();
@@ -1061,6 +1097,7 @@ static int auxadc_cali_imix_r(struct mt635x_auxadc_device *dev)
 
 	if (imix_r_avg > IMIX_R_MIN_MOHM)
 		adc_dev->imix_r = imix_r_avg;
+#endif
 	return 0;
 }
 

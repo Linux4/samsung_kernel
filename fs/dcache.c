@@ -1435,11 +1435,21 @@ static enum d_walk_ret select_collect(void *_data, struct dentry *dentry)
 
 	if (dentry->d_flags & DCACHE_SHRINK_LIST) {
           // HS03s for P210821-00616 by ningkaixuan at 20220314 start
-                #ifdef CONFIG_HQ_PROJECT_HS03S
+                /* M04 code for DEVAL6398A-9 by gaochao at 2022/07/04 start */
+                // #ifdef CONFIG_HQ_PROJECT_HS03S
+                #if defined(CONFIG_HQ_PROJECT_O22)
                     goto out;
-                #else
+                #endif
+                #if defined(CONFIG_HQ_PROJECT_HS03S)
+                    goto out;
+                #endif
+                #if defined(CONFIG_HQ_PROJECT_HS04)
+                    goto out;
+                #endif
+                #if defined(CONFIG_HQ_PROJECT_OT8)
                     data->found++;
                 #endif
+                /* M04 code for DEVAL6398A-9 by gaochao at 2022/07/04 end */
           // HS03s for P210821-00616 by ningkaixuan at 20220314 end
 	} else {
 		if (dentry->d_flags & DCACHE_LRU_LIST)

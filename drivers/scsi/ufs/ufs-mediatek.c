@@ -14,23 +14,47 @@
 #include <linux/of_device.h>
 #include <linux/phy/phy.h>
 #include <linux/platform_device.h>
+#include <linux/pm_qos.h>
 #include <linux/regulator/consumer.h>
 #include <linux/reset.h>
 #include <linux/rpmb.h>
 #include <linux/soc/mediatek/mtk_sip_svc.h>
+#include <linux/soc/mediatek/mtk-pm-qos.h>
+#include <mt-plat/mtk_boot.h>
+#include <linux/of.h>
+#include <linux/of_fdt.h>
+#include <linux/of_irq.h>
+#include <linux/of_platform.h>
+
+
+#ifdef CONFIG_MTK_AEE_FEATURE
+#include <mt-plat/aee.h>
+#endif
+#include <mt-plat/upmu_common.h>
+#define CREATE_TRACE_POINTS
+#include "trace/events/ufs_mtk.h"
 
 #include "ufshcd.h"
 #include "ufshcd-crypto.h"
 #include "ufshcd-pltfrm.h"
 #include "ufs_quirks.h"
-#include "unipro.h"
 #include "ufs-mediatek.h"
 #include "ufs-mediatek-dbg.h"
 #include "ufs-mtk-block.h"
+#include "unipro.h"
 
-#ifdef CONFIG_MTK_AEE_FEATURE
-#include <mt-plat/aee.h>
+#if defined(CONFIG_MACH_MT6781) || defined(CONFIG_MACH_MT6785)
+#include "mtk_clkbuf_ctl.h"
 #endif
+
+#if defined(CONFIG_SCSI_UFS_HPB) || defined(CONFIG_SCSI_SKHPB)
+#include "ufshpb.h"
+#endif
+
+u32  ufs_mtk_qcmd_r_cmd_cnt;
+u32  ufs_mtk_qcmd_w_cmd_cnt;
+static bool ufs_mtk_is_data_write_cmd(char cmd_op, bool isolation);
+static bool ufs_mtk_is_data_cmd(char cmd_op, bool isolation);
 
 #define ufs_mtk_smc(cmd, val, res) \
 	arm_smccc_smc(MTK_SIP_UFS_CONTROL, \
@@ -48,11 +72,27 @@
 #define ufs_mtk_device_reset_ctrl(high, res) \
 	ufs_mtk_smc(UFS_MTK_SIP_DEVICE_RESET, high, res)
 
+#if defined(PMIC_RG_LDO_VUFS_LP_ADDR)
+#define ufs_mtk_vufs_set_lpm(on) \
+	pmic_config_interface(PMIC_RG_LDO_VUFS_LP_ADDR, \
+					(on), \
+					PMIC_RG_LDO_VUFS_LP_MASK, \
+					PMIC_RG_LDO_VUFS_LP_SHIFT)
+#else
+#define ufs_mtk_vufs_set_lpm(on)
+#endif
+
 int ufsdbg_perf_dump = 0;
 static struct ufs_hba *ufs_mtk_hba;
 
 static const struct ufs_mtk_host_cfg ufs_mtk_mt8183_cfg = {
 	.quirks = UFS_MTK_HOST_QUIRK_BROKEN_AUTO_HIBERN8
+	#if defined(CONFIG_MACH_MT6877)
+				| UFS_MTK_HOST_QUIRK_UFS_VCC_ALWAYS_ON
+	#elif defined(CONFIG_MACH_MT6893)
+				| UFS_MTK_HOST_QUIRK_UFS_HCI_PERF_HEURISTIC | UFS_MTK_HOST_QUIRK_UFS_VCC_ALWAYS_ON
+	#endif
+
 };
 
 static const struct of_device_id ufs_mtk_of_match[] = {
@@ -62,6 +102,10 @@ static const struct of_device_id ufs_mtk_of_match[] = {
 	},
 	{},
 };
+
+#if defined(CONFIG_MACH_MT6781) || defined(CONFIG_MACH_MT6785)
+extern bool clk_buf_ctrl(enum clk_buf_id id, bool onoff);
+#endif
 
 struct rpmb_dev *ufs_mtk_rpmb_get_raw_dev()
 {
@@ -330,7 +374,7 @@ void ufs_mtk_rpmb_quiesce(struct ufs_hba *hba)
  * Expected/Submitted buffer structure is struct rpmb_cmd.
  * It will read/write data to rpmb
  */
-int ufs_mtk_ioctl_rpmb(struct ufs_hba *hba, void __user *buf_user)
+int ufs_mtk_ioctl_rpmb(struct ufs_hba *hba, const void __user *buf_user)
 {
 	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
 	struct rpmb_cmd cmd[3];
@@ -479,6 +523,7 @@ static void ufs_mtk_parse_dt(struct ufs_mtk_host *host)
 	struct ufs_hba *hba = host->hba;
 	struct device *dev = hba->dev;
 	int ret;
+	u32 tmp;
 
 	/*
 	 * Parse reference clock control setting
@@ -501,7 +546,19 @@ static void ufs_mtk_parse_dt(struct ufs_mtk_host *host)
 	if (!host->reg_va09) {
 		dev_info(hba->dev, "%s: failed to get va09!\n",
 			 __func__);
-		return;
+	}
+
+	tmp = 0;
+	ret = of_property_read_u32(dev->of_node, "mediatek,vreg_vufs_lpm",
+								&tmp);
+	if (ret)
+		host->vreg_lpm_supported = FALSE;
+	else
+		host->vreg_lpm_supported = tmp ? TRUE : FALSE;
+
+	if (of_property_read_bool(dev->of_node, "mediatek,ufs-qos")) {
+		host->qos_allowed = true;
+		host->qos_enabled = true;
 	}
 }
 
@@ -614,6 +671,21 @@ static int ufs_mtk_hce_enable_notify(struct ufs_hba *hba,
 	return 0;
 }
 
+static void ufs_mtk_pm_qos(struct ufs_hba *hba, bool qos_en)
+{
+	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
+
+	if (host && host->pm_qos_init) {
+		if (qos_en)
+			pm_qos_update_request(
+				&host->req_cpu_dma_latency, 0);
+		else
+			pm_qos_update_request(
+				&host->req_cpu_dma_latency,
+				PM_QOS_DEFAULT_VALUE);
+	}
+}
+
 static int ufs_mtk_bind_mphy(struct ufs_hba *hba)
 {
 	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
@@ -623,30 +695,27 @@ static int ufs_mtk_bind_mphy(struct ufs_hba *hba)
 
 	host->mphy = devm_of_phy_get_by_index(dev, np, 0);
 
-	if (host->mphy == ERR_PTR(-EPROBE_DEFER)) {
-		/*
-		 * UFS driver might be probed before the phy driver does.
-		 * In that case we would like to return EPROBE_DEFER code.
-		 */
-		err = -EPROBE_DEFER;
-		dev_info(dev,
-			 "%s: required phy hasn't probed yet. err = %d\n",
-			__func__, err);
-	} else if (IS_ERR(host->mphy)) {
+	if (IS_ERR(host->mphy)) {
 		err = PTR_ERR(host->mphy);
-		if (err != -ENODEV)
-			dev_info(dev, "%s: PHY get failed %d\n", __func__,
-				 err);
-	}
-
-	if (err)
+		if (err == -EPROBE_DEFER)
+			dev_info(dev, "%s: ufs mphy hasn't probed yet. err = %d\n",
+				__func__, err);
+		else if (err == -ENODEV) {
+			dev_info(dev, "%s: ufs mphy is no dev. err = %d\n",
+				__func__, err);
+			/*
+			 * Allow unbound mphy because not every platform needs specific
+			 * mphy control
+			 */
+			err = 0;
+		} else {
+			dev_info(dev, "%s: ufs mphy get failed. err = %d\n",
+				__func__, err);
+		}
 		host->mphy = NULL;
-	/*
-	 * Allow unbound mphy because not every platform needs specific
-	 * mphy control
-	 */
-	if (err == -ENODEV)
-		err = 0;
+	} else {
+		dev_info(dev, "%s: ufs mphy is found.\n", __func__);
+	}
 
 	return err;
 }
@@ -662,7 +731,11 @@ static int ufs_mtk_setup_ref_clk(struct ufs_hba *hba, bool on)
 		return 0;
 
 	if (on) {
-		ufs_mtk_ref_clk_notify(on, res);
+		#if defined(CONFIG_MACH_MT6781) || defined(CONFIG_MACH_MT6785)
+			clk_buf_ctrl(CLK_BUF_UFS, on);
+		#else
+			ufs_mtk_ref_clk_notify(on, res);
+		#endif
 		ufshcd_delay_us(host->ref_clk_ungating_wait_us, 10);
 	}
 
@@ -713,7 +786,11 @@ out:
 	host->ref_clk_enabled = on;
 	if (!on) {
 		ufshcd_delay_us(host->ref_clk_gating_wait_us, 10);
+	#if defined(CONFIG_MACH_MT6781) || defined(CONFIG_MACH_MT6785)
+		clk_buf_ctrl(CLK_BUF_UFS, on);
+	#else
 		ufs_mtk_ref_clk_notify(on, res);
+	#endif
 	}
 
 	return 0;
@@ -802,6 +879,301 @@ out:
 	return ret;
 }
 
+static void ufs_mtk_get_controller_version(struct ufs_hba *hba)
+{
+	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
+	int ret, ver = 0;
+
+	if (host->hw_ver.major)
+		return;
+
+	/* Set default (minimum) version anyway */
+	host->hw_ver.major = 2;
+
+	ret = ufshcd_dme_get(hba, UIC_ARG_MIB(PA_LOCALVERINFO), &ver);
+	if (!ret) {
+		if (ver >= UFS_UNIPRO_VER_1_8)
+			host->hw_ver.major = 3;
+	}
+}
+
+static int ufs_mtk_host_clk_get(struct device *dev, const char *name,
+				struct clk **clk_out)
+{
+	struct clk *clk;
+	int err = 0;
+
+	clk = devm_clk_get(dev, name);
+	if (IS_ERR(clk))
+		err = PTR_ERR(clk);
+	else
+		*clk_out = clk;
+
+	return err;
+}
+static bool ufs_mtk_is_data_write_cmd(char cmd_op, bool isolation)
+{
+	if (cmd_op == WRITE_10 || cmd_op == WRITE_16 || cmd_op == WRITE_6)
+		return true;
+
+	if (isolation) {
+		if ((cmd_op == WRITE_BUFFER) ||
+			(cmd_op == UNMAP) ||
+			(cmd_op == FORMAT_UNIT) ||
+			(cmd_op == SECURITY_PROTOCOL_OUT))
+			return true;
+	}
+
+#if defined(CONFIG_SCSI_UFS_HPB) || defined(CONFIG_SCSI_SKHPB)
+	/* All data out operation need check */
+	if (isolation) {
+		if (cmd_op == UFSHPB_WRITE_BUFFER)
+			return true;
+		}
+#endif
+	return false;
+}
+
+static bool ufs_mtk_is_data_cmd(char cmd_op, bool isolation)
+{
+	if (cmd_op == WRITE_10 || cmd_op == READ_10 ||
+		cmd_op == WRITE_16 || cmd_op == READ_16 ||
+		cmd_op == WRITE_6 || cmd_op == READ_6)
+		return true;
+	if (isolation) {
+		if ((cmd_op == WRITE_BUFFER) ||
+			(cmd_op == UNMAP) ||
+			(cmd_op == FORMAT_UNIT) ||
+			(cmd_op == SECURITY_PROTOCOL_OUT))
+			return true;
+		}
+#if defined(CONFIG_SCSI_UFS_HPB) || defined(CONFIG_SCSI_SKHPB)
+		if (cmd_op == UFSHPB_READ_BUFFER || cmd_op == UFSHPB_WRITE_BUFFER)
+			return true;
+#endif
+	return false;
+}
+
+int ufs_mtk_perf_heurisic_if_allow_cmd(struct ufs_hba *hba, struct scsi_cmnd *cmd)
+{
+	if (!(hba->quirks & UFS_MTK_HOST_QUIRK_UFS_HCI_PERF_HEURISTIC))
+		return 0;
+
+	/* Check rw commands only and allow all other commands. */
+	if (ufs_mtk_is_data_cmd(cmd->cmnd[0], true)) {
+		if (!hba->ufs_mtk_qcmd_r_cmd_cnt &&
+			!hba->ufs_mtk_qcmd_w_cmd_cnt) {
+			/* Case: no on-going r or w commands. */
+			if (ufs_mtk_is_data_write_cmd(cmd->cmnd[0], true))
+				hba->ufs_mtk_qcmd_w_cmd_cnt++;
+			else
+				hba->ufs_mtk_qcmd_r_cmd_cnt++;
+		} else {
+			if (ufs_mtk_is_data_write_cmd(cmd->cmnd[0], true)) {
+				if (hba->ufs_mtk_qcmd_r_cmd_cnt)
+					return 1;
+				hba->ufs_mtk_qcmd_w_cmd_cnt++;
+			} else {
+				if (hba->ufs_mtk_qcmd_w_cmd_cnt)
+					return 1;
+				hba->ufs_mtk_qcmd_r_cmd_cnt++;
+			}
+		}
+	}
+	return 0;
+}
+
+void ufs_mtk_perf_heurisic_req_done(struct ufs_hba *hba, struct scsi_cmnd *cmd)
+{
+	if (!(hba->quirks & UFS_MTK_HOST_QUIRK_UFS_HCI_PERF_HEURISTIC))
+		return;
+	if (ufs_mtk_is_data_cmd(cmd->cmnd[0], true)) {
+		if (ufs_mtk_is_data_write_cmd(cmd->cmnd[0], true))
+			hba->ufs_mtk_qcmd_w_cmd_cnt--;
+		else
+			hba->ufs_mtk_qcmd_r_cmd_cnt--;
+	}
+}
+
+bool ufs_mtk_perf_is_supported(struct ufs_mtk_host *host)
+{
+	if (!host->crypto_clk_mux ||
+	    !host->crypto_parent_clk_normal ||
+	    !host->crypto_parent_clk_perf ||
+	    !host->req_vcore ||
+	    host->crypto_vcore_opp < 0)
+		return false;
+	else
+		return true;
+}
+
+int ufs_mtk_perf_setup_req(struct ufs_mtk_host *host, bool perf)
+{
+	int err = 0;
+
+	err = clk_prepare_enable(host->crypto_clk_mux);
+	if (err) {
+		dev_info(host->hba->dev, "%s: clk_prepare_enable(): %d\n",
+			 __func__, err);
+		goto out;
+	}
+
+	if (perf) {
+		mtk_pm_qos_update_request(host->req_vcore,
+					host->crypto_vcore_opp);
+		err = clk_set_parent(host->crypto_clk_mux,
+					host->crypto_parent_clk_perf);
+	} else {
+		err = clk_set_parent(host->crypto_clk_mux,
+					host->crypto_parent_clk_normal);
+		mtk_pm_qos_update_request(host->req_vcore,
+					MTK_PM_QOS_VCORE_OPP_DEFAULT_VALUE);
+	}
+
+	if (err)
+		dev_info(host->hba->dev, "%s: clk_set_parent(): %d\n",
+			 __func__, err);
+
+	clk_disable_unprepare(host->crypto_clk_mux);
+
+out:
+	ufs_mtk_dbg_add_trace(dev_name(host->hba->dev), "perf_mode", perf,
+			0, (u32) err, 0, 0, 0, 0, 0);
+
+	return err;
+}
+
+int ufs_mtk_perf_setup_crypto_clk(struct ufs_mtk_host *host, bool perf)
+{
+	int err = 0;
+	bool rpm_resumed = false;
+	bool clk_prepared = false;
+
+	if (!ufs_mtk_perf_is_supported(host)) {
+		dev_info(host->hba->dev, "%s: perf mode is unsupported\n", __func__);
+		err = -ENOTSUPP;
+		goto out;
+	}
+
+	/* runtime resume shall be prior to blocking requests */
+	pm_runtime_get_sync(host->hba->dev);
+	rpm_resumed = true;
+
+	/*
+	 * reuse clk scaling preparation function to wait until all
+	 * on-going commands are done, and then block future commands
+	 */
+	err = ufshcd_clock_scaling_prepare(host->hba);
+	if (err) {
+		dev_info(host->hba->dev, "%s: ufshcd_clock_scaling_prepare(): %d\n",
+			 __func__, err);
+		goto out;
+	}
+
+	clk_prepared = true;
+	err = ufs_mtk_perf_setup_req(host, perf);
+out:
+	/*
+	 * add event before any possible incoming commands
+	 * by unblocking requests in ufshcd_clock_scaling_unprepare()
+	 */
+	dev_info(host->hba->dev, "perf mode: request %s %s\n",
+		 perf ? "enable" : "disable",
+		 err ? "failed" : "ok");
+
+	if (clk_prepared)
+		ufshcd_clock_scaling_unprepare(host->hba);
+
+	if (rpm_resumed)
+		pm_runtime_put_sync(host->hba->dev);
+
+	return err;
+}
+
+int ufs_mtk_perf_setup(struct ufs_mtk_host *host, bool perf)
+{
+	int err = 0;
+
+	if (!ufs_mtk_perf_is_supported(host) ||
+		(host->perf_mode != PERF_AUTO)) {
+		/* return without error */
+		return 0;
+	}
+
+	err = ufs_mtk_perf_setup_req(host, perf);
+	if (!err)
+		host->perf_enable = perf;
+	else
+		dev_info(host->hba->dev, "%s: %s perf mode fail %d\n",
+				__func__, perf ? "enable":"disable", err);
+
+	return err;
+}
+
+static int ufs_mtk_perf_init_crypto(struct ufs_hba *hba)
+{
+	int err = 0;
+	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
+	struct device_node *np = hba->dev->of_node;
+
+	err = ufs_mtk_host_clk_get(hba->dev,
+				   "ufs-vendor-crypto-clk-mux",
+				   &host->crypto_clk_mux);
+	if (err) {
+		dev_info(hba->dev,
+			"%s: failed to get ufs-vendor-crypto-clk-mux, err: %d",
+			__func__, err);
+		goto out;
+	}
+
+	err = ufs_mtk_host_clk_get(hba->dev,
+				   "ufs-vendor-crypto-normal-parent-clk",
+				   &host->crypto_parent_clk_normal);
+	if (err) {
+		dev_info(hba->dev,
+			"%s: failed to get ufs-vendor-crypto-normal-parent-clk, err: %d",
+			__func__, err);
+		goto out;
+	}
+
+	err = ufs_mtk_host_clk_get(hba->dev,
+				   "ufs-vendor-crypto-perf-parent-clk",
+				   &host->crypto_parent_clk_perf);
+	if (err) {
+		dev_info(hba->dev,
+			"%s: failed to get ufs-vendor-crypto-perf-parent-clk, err: %d",
+			__func__, err);
+		goto out;
+	}
+
+	err = of_property_read_s32(np, "mediatek,perf-crypto-vcore",
+				   &host->crypto_vcore_opp);
+	if (err) {
+		dev_info(hba->dev,
+			"%s: failed to get mediatek,perf-crypto-vcore",
+			__func__);
+		host->crypto_vcore_opp = -1;
+		goto out;
+	}
+
+	/* init VCORE QOS */
+	host->req_vcore = devm_kzalloc(hba->dev, sizeof(*host->req_vcore),
+				       GFP_KERNEL);
+	if (!host->req_vcore) {
+		err = -ENOMEM;
+		goto out;
+	}
+
+	mtk_pm_qos_add_request(host->req_vcore, MTK_PM_QOS_VCORE_OPP,
+				MTK_PM_QOS_VCORE_OPP_DEFAULT_VALUE);
+out:
+	if (!err)
+		host->perf_mode = PERF_AUTO;
+	else
+		host->perf_mode = PERF_FORCE_DISABLE;
+	return err;
+}
+
 /**
  * ufs_mtk_setup_clocks - enables/disable clocks
  * @hba: host controller instance
@@ -840,15 +1212,26 @@ static int ufs_mtk_setup_clocks(struct ufs_hba *hba, bool on,
 						      VS_LINK_HIBERN8,
 						      15);
 			if (!ret) {
+				ret = ufs_mtk_perf_setup(host, false);
+				if (ret)
+					goto out;
+				ufs_mtk_pm_qos(hba, on);
 				ufs_mtk_setup_ref_clk(hba, on);
 				phy_power_off(mphy);
 			}
 		}
+		if (host && host->qos_enabled)
+			ufs_mtk_biolog_clk_gating(true);
 	} else if (on && status == POST_CHANGE) {
 		phy_power_on(mphy);
 		ufs_mtk_setup_ref_clk(hba, on);
+		ufs_mtk_pm_qos(hba, on);
+		ufs_mtk_perf_setup(host, true);
+		if (host && host->qos_enabled)
+			ufs_mtk_biolog_clk_gating(false);
 	}
 
+out:
 	return ret;
 }
 
@@ -868,6 +1251,7 @@ static int ufs_mtk_init(struct ufs_hba *hba)
 	struct device *dev = hba->dev;
 	struct ufs_mtk_host *host;
 	int err = 0;
+	struct platform_device *pdev;
 
 	host = devm_kzalloc(dev, sizeof(*host), GFP_KERNEL);
 	if (!host) {
@@ -892,6 +1276,15 @@ static int ufs_mtk_init(struct ufs_hba *hba)
 		if (host->cfg->quirks & UFS_MTK_HOST_QUIRK_BROKEN_AUTO_HIBERN8)
 			host->auto_hibern_enabled = true;
 	}
+
+	/* Rename device to unify device path for booting storage device. */
+	device_rename(hba->dev, "bootdevice");
+	/*
+	 * fix uaf(use afer free) issue: modify pdev->name,
+	 * device_rename will free pdev->name
+	 */
+	pdev = to_platform_device(hba->dev);
+	pdev->name = pdev->dev.kobj.name;
 
 	err = ufs_mtk_bind_mphy(hba);
 	if (err)
@@ -921,6 +1314,14 @@ static int ufs_mtk_init(struct ufs_hba *hba)
 	ufs_mtk_mphy_power_on(hba, true);
 	ufs_mtk_setup_clocks(hba, true, POST_CHANGE);
 
+	ufs_mtk_perf_init_crypto(hba);
+
+	pm_qos_add_request(&host->req_cpu_dma_latency, PM_QOS_CPU_DMA_LATENCY,
+			   PM_QOS_DEFAULT_VALUE);
+	host->pm_qos_init = true;
+
+	ufs_mtk_biolog_init(host->qos_allowed);
+
 	ufsdbg_register(hba->dev);
 
 	goto out;
@@ -929,6 +1330,65 @@ out_variant_clear:
 	ufshcd_set_variant(hba, NULL);
 out:
 	return err;
+}
+
+/**
+ * ufs_mtk_exit - release resource
+ * @hba: host controller instance
+ */
+void ufs_mtk_exit(struct ufs_hba *hba)
+{
+	struct ufs_mtk_host *host;
+
+	host = ufshcd_get_variant(hba);
+
+	if (host && host->pm_qos_init) {
+		/* remove pm_qos when exit */
+		mtk_pm_qos_remove_request(host->req_vcore);
+		pm_qos_remove_request(&host->req_cpu_dma_latency);
+		host->pm_qos_init = false;
+	}
+
+	/* prevent pointer is used after hba is freed */
+	ufs_mtk_hba = NULL;
+}
+
+void ufs_mtk_wait_idle_state(struct ufs_hba *hba, unsigned long retry_ms)
+{
+	u64 timeout, time_checked;
+	u32 val, sm;
+	bool wait_idle;
+
+	timeout = sched_clock() + retry_ms * 1000000UL;
+
+	/* wait a specific time after check base */
+	udelay(10);
+	wait_idle = false;
+
+	do {
+		time_checked = sched_clock();
+		ufshcd_writel(hba, 0x20, REG_UFS_MTK_DEBUG_SEL);
+		val = ufshcd_readl(hba, REG_UFS_MTK_PROBE);
+
+		sm = val & 0x1f;
+
+		/*
+		 * if state is in H8 enter and H8 enter confirm
+		 * wait until return to idle state.
+		 */
+		if ((sm >= 0x8) && (sm <= 0xd)) {
+			wait_idle = true;
+			udelay(50);
+			continue;
+		} else if (!wait_idle)
+			break;
+
+		if (wait_idle && (sm == 0x1))
+			break;
+	} while (time_checked < timeout);
+
+	if (wait_idle && sm != 1)
+		dev_info(hba->dev, "wait idle tmo: 0x%x\n", val);
 }
 
 static void _ufs_mtk_auto_hibern8_update(struct ufs_hba *hba, bool enable)
@@ -945,6 +1405,10 @@ static void _ufs_mtk_auto_hibern8_update(struct ufs_hba *hba, bool enable)
 	ufshcd_writel(hba, (enable) ? hba->ahit : 0,
 		REG_AUTO_HIBERNATE_IDLE_TIMER);
 	host->auto_hibern_enabled = enable;
+
+	/* wait host return to idle state when ah8 off */
+	if (!enable)
+		ufs_mtk_wait_idle_state(hba, 5);
 }
 
 static void ufs_mtk_auto_hibern8_update(struct ufs_hba *hba, bool enable)
@@ -960,7 +1424,9 @@ static int ufs_mtk_pre_pwr_change(struct ufs_hba *hba,
 				  struct ufs_pa_layer_attr *dev_max_params,
 				  struct ufs_pa_layer_attr *dev_req_params)
 {
+	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
 	struct ufs_dev_params host_cap;
+	u32 adapt_val;
 	int ret;
 
 	if (ufs_mtk_has_broken_auto_hibern8(hba))
@@ -988,6 +1454,18 @@ static int ufs_mtk_pre_pwr_change(struct ufs_hba *hba,
 			__func__);
 	}
 
+	if (host->hw_ver.major >= 3) {
+		if (dev_req_params->gear_tx == UFS_HS_G4)
+			adapt_val = PA_INITIAL_ADAPT;
+		else
+			adapt_val = PA_NO_ADAPT;
+#ifndef CONFIG_MACH_MT6877
+		// TODO: temporary disable the action to avoid boot fail for MT6877
+		ufshcd_dme_set(hba,
+					UIC_ARG_MIB(PA_TXHSADAPTTYPE),
+					adapt_val);
+#endif
+	}
 	return ret;
 }
 
@@ -1037,6 +1515,8 @@ static int ufs_mtk_pre_link(struct ufs_hba *hba)
 {
 	int ret;
 	u32 tmp;
+
+	ufs_mtk_get_controller_version(hba);
 
 	ret = ufs_mtk_unipro_set_pm(hba, false);
 	if (ret)
@@ -1121,6 +1601,9 @@ static void ufs_mtk_device_reset(struct ufs_hba *hba)
 {
 	struct arm_smccc_res res;
 
+	/* disable hba before device reset */
+	ufshcd_hba_stop(hba, true);
+
 	ufs_mtk_device_reset_ctrl(0, res);
 
 	/*
@@ -1185,15 +1668,21 @@ static int ufs_mtk_link_set_lpm(struct ufs_hba *hba)
 
 static void ufs_mtk_vreg_set_lpm(struct ufs_hba *hba, bool lpm)
 {
-	if (!hba->vreg_info.vccq2)
-		return;
+	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
 
-	if (lpm & !hba->vreg_info.vcc->enabled)
-		regulator_set_mode(hba->vreg_info.vccq2->reg,
-				   REGULATOR_MODE_IDLE);
-	else if (!lpm)
-		regulator_set_mode(hba->vreg_info.vccq2->reg,
-				   REGULATOR_MODE_NORMAL);
+	if (lpm & !hba->vreg_info.vcc->enabled) {
+		if (hba->vreg_info.vccq2)
+			regulator_set_mode(hba->vreg_info.vccq2->reg,
+								REGULATOR_MODE_IDLE);
+		else if (host->vreg_lpm_supported)
+			ufs_mtk_vufs_set_lpm(1);
+	} else if (!lpm) {
+		if (hba->vreg_info.vccq2)
+			regulator_set_mode(hba->vreg_info.vccq2->reg,
+								REGULATOR_MODE_NORMAL);
+		else if (host->vreg_lpm_supported)
+			ufs_mtk_vufs_set_lpm(0);
+	}
 }
 
 static int ufs_mtk_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op)
@@ -1324,9 +1813,43 @@ static void ufs_mtk_handle_broken_auto_hibern8(struct ufs_hba *hba,
 		_ufs_mtk_auto_hibern8_update(hba, enable);
 }
 
+static void ufs_mtk_event_notify(struct ufs_hba *hba,
+				 enum ufs_event_type evt, void *data)
+{
+	static bool skip_first_dev_reset = true;
+	unsigned int val = *(u32 *)data;
+
+	/* Ignore the first device reset during initialization */
+	if ((hba->lanes_per_direction == 2) &&
+	    (evt == UFS_EVT_DEV_RESET) &&
+	    skip_first_dev_reset) {
+		skip_first_dev_reset = false;
+		return;
+	}
+
+	if ((evt == UFS_EVT_SUSPEND_ERR && val == -EAGAIN) ||
+		(evt == UFS_EVT_PERF_WARN))
+		return;
+
+	trace_ufs_mtk_event(evt, val);
+}
+
 static void ufs_mtk_setup_xfer_req(struct ufs_hba *hba, int tag,
 				   bool is_scsi_cmd)
 {
+	struct ufshcd_lrb *lrbp;
+	struct scsi_cmnd *cmd;
+
+	if (is_scsi_cmd) {
+		lrbp = &hba->lrb[tag];
+		cmd = lrbp->cmd;
+
+		if (!ufs_mtk_is_data_cmd(cmd->cmnd[0], false))
+			return;
+
+		ufs_mtk_biolog_send_command(tag, cmd);
+		ufs_mtk_biolog_check(hba->outstanding_reqs | (1 << tag));
+	}
 	if (!ufs_mtk_has_broken_auto_hibern8(hba))
 		return;
 	ufs_mtk_handle_broken_auto_hibern8(hba, hba->outstanding_reqs, false);
@@ -1336,6 +1859,22 @@ static void ufs_mtk_compl_xfer_req(struct ufs_hba *hba, int tag,
 				   unsigned long completed_reqs,
 				   bool is_scsi_cmd)
 {
+	struct ufshcd_lrb *lrbp;
+	struct scsi_cmnd *cmd;
+	unsigned long req_mask;
+
+	if (is_scsi_cmd) {
+		lrbp = &hba->lrb[tag];
+		cmd = lrbp->cmd;
+
+		if (!ufs_mtk_is_data_cmd(cmd->cmnd[0], false))
+			return;
+
+		req_mask = hba->outstanding_reqs &
+			   ~(1 << tag);
+		ufs_mtk_biolog_transfer_req_compl(tag, req_mask);
+		ufs_mtk_biolog_check(req_mask);
+	}
 	if (!ufs_mtk_has_broken_auto_hibern8(hba))
 		return;
 	ufs_mtk_handle_broken_auto_hibern8(hba,
@@ -1376,6 +1915,20 @@ static void ufs_mtk_hibern8_notify(struct ufs_hba *hba, enum uic_cmd_dme cmd,
 	}
 }
 
+static bool ufs_mtk_has_vcc_always_on(struct ufs_hba *hba) {
+	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
+
+	return (host && host->cfg
+		&& (host->cfg->quirks & UFS_MTK_HOST_QUIRK_UFS_VCC_ALWAYS_ON));
+}
+
+static bool ufs_mtk_has_ufshci_perf_heuristic(struct ufs_hba *hba) {
+	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
+
+	return (host && host->cfg
+		&& (host->cfg->quirks & UFS_MTK_HOST_QUIRK_UFS_HCI_PERF_HEURISTIC));
+}
+
 /**
  * struct ufs_hba_mtk_vops - UFS MTK specific variant operations
  *
@@ -1385,6 +1938,7 @@ static void ufs_mtk_hibern8_notify(struct ufs_hba *hba, enum uic_cmd_dme cmd,
 static struct ufs_hba_variant_ops ufs_hba_mtk_vops = {
 	.name                = "mediatek.ufshci",
 	.init                = ufs_mtk_init,
+	.exit                = ufs_mtk_exit,
 	.setup_clocks        = ufs_mtk_setup_clocks,
 	.hce_enable_notify   = ufs_mtk_hce_enable_notify,
 	.link_startup_notify = ufs_mtk_link_startup_notify,
@@ -1400,7 +1954,44 @@ static struct ufs_hba_variant_ops ufs_hba_mtk_vops = {
 	.dbg_register_dump   = ufs_mtk_dbg_register_dump,
 	.device_reset        = ufs_mtk_device_reset,
 	.abort_handler       = ufs_mtk_abort_handler,
+	.event_notify        = ufs_mtk_event_notify,
+	.has_vcc_always_on   = ufs_mtk_has_vcc_always_on,
+	.has_ufshci_perf_heuristic = ufs_mtk_has_ufshci_perf_heuristic,
 };
+
+struct tag_bootmode {
+		u32 size;
+		u32 tag;
+		u32 bootmode;
+		u32 boottype;
+};
+
+unsigned int ufs_mtk_get_boot_type(void)
+{
+	struct tag_bootmode *tags = NULL;
+	struct device_node *node = NULL;
+	unsigned long size = 0;
+	int ret = BOOTDEV_UFS;
+
+	node = of_find_node_by_path("/chosen");
+	if (!node)
+		node = of_find_node_by_path("/chosen@0");
+	if (node) {
+		tags = (struct tag_bootmode *)of_get_property(node,
+				"atag,boot", (int *)&size);
+	} else
+		pr_notice("[%s] of_chosen not found\n", __func__);
+
+	if (tags) {
+		ret = tags->boottype;
+		if ((ret > 2) || (ret < 0))
+			ret = BOOTDEV_SDMMC;
+	} else {
+		pr_notice("[%s] 'atag,boot' is not found\n", __func__);
+	}
+
+	return ret;
+}
 
 /**
  * ufs_mtk_probe - probe routine of the driver
@@ -1411,9 +2002,13 @@ static struct ufs_hba_variant_ops ufs_hba_mtk_vops = {
 static int ufs_mtk_probe(struct platform_device *pdev)
 {
 	int err;
+	int boot_type;
 	struct device *dev = &pdev->dev;
 
-	ufs_mtk_biolog_init();
+	/* Add get_boot_type check and return ENODEV if not ufs boot */
+	boot_type = ufs_mtk_get_boot_type();
+	if (boot_type != BOOTDEV_UFS)
+		return -ENODEV;
 
 	/* perform generic probe */
 	err = ufshcd_pltfrm_init(pdev, &ufs_hba_mtk_vops);

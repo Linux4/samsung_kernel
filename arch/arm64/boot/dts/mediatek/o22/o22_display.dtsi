@@ -1,0 +1,74 @@
+&odm {
+    lcd_bias:lcd_bias {
+        compatible = "mediatek,gpio_lcd_bias";
+    };
+    panel: panel@0 {
+        compatible = "mediatek,lcm-panel";
+        gpio_lcd_rst = <&pio 45 0>;
+        pinctrl-names = "tp_rst_low", "tp_rst_high";
+        pinctrl-0 = <&tp_rst_low>;
+        pinctrl-1 = <&tp_rst_high>;
+    };
+
+};
+
+&lcd_bias {
+    pinctrl-names = "default", "lcd_bias_gpio_enp0", "lcd_bias_gpio_enp1", "lcd_bias_gpio_enn0", "lcd_bias_gpio_enn1";
+    pinctrl-0 = <&lcd_bias_pins_default>;
+    pinctrl-1 = <&lcd_bias_pins_enp0>;
+    pinctrl-2 = <&lcd_bias_pins_enp1>;
+    pinctrl-3 = <&lcd_bias_pins_enn0>;
+    pinctrl-4 = <&lcd_bias_pins_enn1>;
+    status = "okay";
+};
+
+&pio {
+    tp_rst_low: tp_rst_low {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO98__FUNC_GPIO98>;
+            output-low;
+        };
+    };
+
+    tp_rst_high: tp_rst_high {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO98__FUNC_GPIO98>;
+            output-high;
+        };
+    };
+
+    lcd_bias_pins_enp0: lcd_bias_pins_enp0 {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO169__FUNC_GPIO169>;
+            slew-rate = <1>;
+            output-low;
+        };
+    };
+
+    lcd_bias_pins_enp1: lcd_bias_pins_enp1 {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO169__FUNC_GPIO169>;
+            slew-rate = <1>;
+            output-high;
+        };
+    };
+
+    lcd_bias_pins_enn0: lcd_bias_pins_enn0 {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO165__FUNC_GPIO165>;
+            slew-rate = <1>;
+            output-low;
+        };
+    };
+
+    lcd_bias_pins_enn1: lcd_bias_pins_enn1 {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO165__FUNC_GPIO165>;
+            slew-rate = <1>;
+            output-high;
+        };
+    };
+
+    lcd_bias_pins_default: lcd_bias_pins_default {
+    };
+};

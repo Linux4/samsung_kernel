@@ -1020,6 +1020,9 @@ void load_lcm_resources_from_DT(struct LCM_DRIVER *lcm_drv)
 }
 #endif
 
+/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 start*/
+#ifdef CONFIG_HQ_PROJECT_OT8
+/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 end*/
 struct disp_lcm_handle *disp_lcm_probe(char *plcm_name,
 	enum LCM_INTERFACE_ID lcm_id, int is_lcm_inited)
 {
@@ -1173,6 +1176,321 @@ FAIL:
 	kfree(lcm_param);
 	return NULL;
 }
+#endif
+
+/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 start*/
+#ifdef CONFIG_HQ_PROJECT_HS03S
+struct disp_lcm_handle *disp_lcm_probe(char *plcm_name,
+	enum LCM_INTERFACE_ID lcm_id, int is_lcm_inited)
+{
+	int lcmindex = 0;
+	bool isLCMFound = false;
+	bool isLCMInited = false;
+
+#if defined(MTK_LCM_DEVICE_TREE_SUPPORT)
+	bool isLCMDtFound = false;
+#endif
+
+	struct LCM_DRIVER *lcm_drv = NULL;
+	struct LCM_PARAMS *lcm_param = NULL;
+	struct disp_lcm_handle *plcm = NULL;
+
+	DISPFUNC();
+	DISPCHECK("plcm_name=%s is_lcm_inited %d\n", plcm_name, is_lcm_inited);
+
+#if defined(MTK_LCM_DEVICE_TREE_SUPPORT)
+	if (check_lcm_node_from_DT() == 0) {
+		lcm_drv = &lcm_common_drv;
+		lcm_drv->name = lcm_name_list[0];
+		if (strcmp(lcm_drv->name, plcm_name)) {
+			DISPERR(
+				"FATAL ERROR!!!LCM Driver defined in kernel(%s) is different with LK(%s)\n",
+			     lcm_drv->name, plcm_name);
+			return NULL;
+		}
+
+		isLCMInited = true;
+		isLCMFound = true;
+		isLCMDtFound = true;
+
+		if (!is_lcm_inited) {
+			isLCMFound = true;
+			isLCMInited = false;
+			DISPCHECK("LCM not init\n");
+		}
+
+		lcmindex = 0;
+	} else
+#endif
+	if (_lcm_count() == 0) {
+		DISPERR("no lcm driver defined in linux kernel driver\n");
+		return NULL;
+	} else if (_lcm_count() == 1) {
+		if (plcm_name == NULL) {
+			lcm_drv = lcm_driver_list[0];
+
+			isLCMFound = true;
+			isLCMInited = false;
+			DISPCHECK("LCM Name NULL\n");
+		} else {
+			lcm_drv = lcm_driver_list[0];
+			if (strcmp(lcm_drv->name, plcm_name)) {
+				DISPERR(
+					"FATAL ERROR!!!LCM Driver defined in kernel(%s) is different with LK(%s)\n",
+				    lcm_drv->name, plcm_name);
+				return NULL;
+			}
+
+			isLCMInited = true;
+			isLCMFound = true;
+		}
+
+		if (!is_lcm_inited) {
+			isLCMFound = true;
+			isLCMInited = false;
+			DISPCHECK("LCM not init\n");
+		}
+
+		lcmindex = 0;
+	} else {
+		if (plcm_name == NULL) {
+			/* TODO: we need to detect all the lcm driver */
+		} else {
+			int i = 0;
+
+			for (i = 0; i < _lcm_count(); i++) {
+				lcm_drv = lcm_driver_list[i];
+				if (!strcmp(lcm_drv->name, plcm_name)) {
+					isLCMFound = true;
+					isLCMInited = true;
+					lcmindex = i;
+					break;
+				}
+			}
+			if (!isLCMFound) {
+				DISPERR(
+					"FATAL ERROR: can't found lcm driver:%s in linux kernel driver\n",
+				    plcm_name);
+			} else if (!is_lcm_inited) {
+				isLCMInited = false;
+				DISPCHECK("LCM not init\n");
+			}
+		}
+		/* TODO: */
+	}
+
+	if (isLCMFound == false) {
+		DISPERR("FATAL ERROR!!!No LCM Driver defined\n");
+		return NULL;
+	}
+
+	plcm = kzalloc(sizeof(uint8_t *) *
+		sizeof(struct disp_lcm_handle), GFP_KERNEL);
+	lcm_param = kzalloc(sizeof(uint8_t *) * sizeof(struct LCM_PARAMS),
+		GFP_KERNEL);
+	if (plcm && lcm_param) {
+		plcm->params = lcm_param;
+		plcm->drv = lcm_drv;
+		plcm->is_inited = isLCMInited;
+		plcm->index = lcmindex;
+	} else {
+		DISPERR("FATAL ERROR!!!kzalloc plcm and plcm->params failed\n");
+		goto FAIL;
+	}
+
+#if defined(MTK_LCM_DEVICE_TREE_SUPPORT)
+	if (isLCMDtFound == true)
+		load_lcm_resources_from_DT(plcm->drv);
+#endif
+
+	plcm->drv->get_params(plcm->params);
+	plcm->lcm_if_id = plcm->params->lcm_if;
+
+	/* below code is for lcm driver forward compatible */
+	if (plcm->params->type == LCM_TYPE_DSI
+	    && plcm->params->lcm_if == LCM_INTERFACE_NOTDEFINED)
+		plcm->lcm_if_id = LCM_INTERFACE_DSI0;
+	if (plcm->params->type == LCM_TYPE_DPI
+	    && plcm->params->lcm_if == LCM_INTERFACE_NOTDEFINED)
+		plcm->lcm_if_id = LCM_INTERFACE_DPI0;
+	if (plcm->params->type == LCM_TYPE_DBI
+	    && plcm->params->lcm_if == LCM_INTERFACE_NOTDEFINED)
+		plcm->lcm_if_id = LCM_INTERFACE_DBI0;
+
+	if ((lcm_id == LCM_INTERFACE_NOTDEFINED) || lcm_id == plcm->lcm_if_id) {
+		plcm->lcm_original_width = plcm->params->width;
+		plcm->lcm_original_height = plcm->params->height;
+		_dump_lcm_info(plcm);
+		return plcm;
+	}
+
+	DISPERR(
+		"the specific LCM Interface [%d] didn't define any lcm driver\n",
+		lcm_id);
+FAIL:
+
+	kfree(plcm);
+	kfree(lcm_param);
+	return NULL;
+}
+#endif
+
+#ifdef CONFIG_HQ_PROJECT_HS04
+struct disp_lcm_handle *disp_lcm_probe(char *plcm_name,
+	enum LCM_INTERFACE_ID lcm_id, int is_lcm_inited)
+{
+	int lcmindex = 0;
+	bool isLCMFound = false;
+	bool isLCMInited = false;
+
+#if defined(MTK_LCM_DEVICE_TREE_SUPPORT)
+	bool isLCMDtFound = false;
+#endif
+
+	struct LCM_DRIVER *lcm_drv = NULL;
+	struct LCM_PARAMS *lcm_param = NULL;
+	struct disp_lcm_handle *plcm = NULL;
+
+	DISPFUNC();
+	DISPCHECK("plcm_name=%s is_lcm_inited %d\n", plcm_name, is_lcm_inited);
+
+#if defined(MTK_LCM_DEVICE_TREE_SUPPORT)
+	if (check_lcm_node_from_DT() == 0) {
+		lcm_drv = &lcm_common_drv;
+		lcm_drv->name = lcm_name_list[0];
+		if (strcmp(lcm_drv->name, plcm_name)) {
+			DISPERR(
+				"FATAL ERROR!!!LCM Driver defined in kernel(%s) is different with LK(%s)\n",
+			     lcm_drv->name, plcm_name);
+			return NULL;
+		}
+
+		isLCMInited = true;
+		isLCMFound = true;
+		isLCMDtFound = true;
+
+		if (!is_lcm_inited) {
+			isLCMFound = true;
+			isLCMInited = false;
+			DISPCHECK("LCM not init\n");
+		}
+
+		lcmindex = 0;
+	} else
+#endif
+	if (_lcm_count() == 0) {
+		DISPERR("no lcm driver defined in linux kernel driver\n");
+		return NULL;
+	} else if (_lcm_count() == 1) {
+		if (plcm_name == NULL) {
+			lcm_drv = hs04_lcm_driver_list[0];
+
+			isLCMFound = true;
+			isLCMInited = false;
+			DISPCHECK("LCM Name NULL\n");
+		} else {
+			lcm_drv = hs04_lcm_driver_list[0];
+			if (strcmp(lcm_drv->name, plcm_name)) {
+				DISPERR(
+					"FATAL ERROR!!!LCM Driver defined in kernel(%s) is different with LK(%s)\n",
+				    lcm_drv->name, plcm_name);
+				return NULL;
+			}
+
+			isLCMInited = true;
+			isLCMFound = true;
+		}
+
+		if (!is_lcm_inited) {
+			isLCMFound = true;
+			isLCMInited = false;
+			DISPCHECK("LCM not init\n");
+		}
+
+		lcmindex = 0;
+	} else {
+		if (plcm_name == NULL) {
+			/* TODO: we need to detect all the lcm driver */
+		} else {
+			int i = 0;
+
+			for (i = 0; i < _lcm_count(); i++) {
+				lcm_drv = hs04_lcm_driver_list[i];
+				if (!strcmp(lcm_drv->name, plcm_name)) {
+					isLCMFound = true;
+					isLCMInited = true;
+					lcmindex = i;
+					break;
+				}
+			}
+			if (!isLCMFound) {
+				DISPERR(
+					"FATAL ERROR: can't found lcm driver:%s in linux kernel driver\n",
+				    plcm_name);
+			} else if (!is_lcm_inited) {
+				isLCMInited = false;
+				DISPCHECK("LCM not init\n");
+			}
+		}
+		/* TODO: */
+	}
+
+	if (isLCMFound == false) {
+		DISPERR("FATAL ERROR!!!No LCM Driver defined\n");
+		return NULL;
+	}
+
+	plcm = kzalloc(sizeof(uint8_t *) *
+		sizeof(struct disp_lcm_handle), GFP_KERNEL);
+	lcm_param = kzalloc(sizeof(uint8_t *) * sizeof(struct LCM_PARAMS),
+		GFP_KERNEL);
+	if (plcm && lcm_param) {
+		plcm->params = lcm_param;
+		plcm->drv = lcm_drv;
+		plcm->is_inited = isLCMInited;
+		plcm->index = lcmindex;
+	} else {
+		DISPERR("FATAL ERROR!!!kzalloc plcm and plcm->params failed\n");
+		goto FAIL;
+	}
+
+#if defined(MTK_LCM_DEVICE_TREE_SUPPORT)
+	if (isLCMDtFound == true)
+		load_lcm_resources_from_DT(plcm->drv);
+#endif
+
+	plcm->drv->get_params(plcm->params);
+	plcm->lcm_if_id = plcm->params->lcm_if;
+
+	/* below code is for lcm driver forward compatible */
+	if (plcm->params->type == LCM_TYPE_DSI
+	    && plcm->params->lcm_if == LCM_INTERFACE_NOTDEFINED)
+		plcm->lcm_if_id = LCM_INTERFACE_DSI0;
+	if (plcm->params->type == LCM_TYPE_DPI
+	    && plcm->params->lcm_if == LCM_INTERFACE_NOTDEFINED)
+		plcm->lcm_if_id = LCM_INTERFACE_DPI0;
+	if (plcm->params->type == LCM_TYPE_DBI
+	    && plcm->params->lcm_if == LCM_INTERFACE_NOTDEFINED)
+		plcm->lcm_if_id = LCM_INTERFACE_DBI0;
+
+	if ((lcm_id == LCM_INTERFACE_NOTDEFINED) || lcm_id == plcm->lcm_if_id) {
+		plcm->lcm_original_width = plcm->params->width;
+		plcm->lcm_original_height = plcm->params->height;
+		_dump_lcm_info(plcm);
+		return plcm;
+	}
+
+	DISPERR(
+		"the specific LCM Interface [%d] didn't define any lcm driver\n",
+		lcm_id);
+FAIL:
+
+	kfree(plcm);
+	kfree(lcm_param);
+	return NULL;
+}
+#endif
+/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 end*/
 
 struct disp_lcm_handle *disp_ext_lcm_probe(char *plcm_name,
 	enum LCM_INTERFACE_ID lcm_id, int is_lcm_inited)
@@ -1390,11 +1708,10 @@ int disp_lcm_esd_recover(struct disp_lcm_handle *plcm)
 		} else {
 			disp_lcm_init(plcm, 1);
 			/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 start */
-			#ifdef HQ_PROJECT_OT8
+#if 0
 				DISPCHECK("%s, Send Platform default BL cmd(103) again!\n", __func__);
-			#else
+#endif
 				DISPDBG("%s, Send Platform default BL cmd(103) again!\n", __func__);
-			#endif
 			disp_lcm_set_backlight(plcm, NULL, 103);
 			/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 end */
 		}
@@ -1405,7 +1722,7 @@ int disp_lcm_esd_recover(struct disp_lcm_handle *plcm)
 	return -1;
 }
 
-#ifdef HQ_PROJECT_OT8
+#if 0
 extern int mtk_tpd_smart_wakeup_support(void);
 #endif
 
@@ -1422,7 +1739,7 @@ int disp_lcm_suspend(struct disp_lcm_handle *plcm)
 			DISPERR("FATAL ERROR, lcm_drv->suspend is null\n");
 			return -1;
 		}
-#ifdef HQ_PROJECT_OT8
+#if 0
 		if(!mtk_tpd_smart_wakeup_support()){
 			if (lcm_drv->suspend_power)
 				lcm_drv->suspend_power();
@@ -1441,7 +1758,7 @@ int disp_lcm_resume(struct disp_lcm_handle *plcm)
 	DISPFUNC();
 	if (_is_lcm_inited(plcm)) {
 		lcm_drv = plcm->drv;
-#ifdef HQ_PROJECT_OT8
+#if 0
 		if(!mtk_tpd_smart_wakeup_support()){
 			if (lcm_drv->resume_power)
 				lcm_drv->resume_power();
@@ -1502,8 +1819,6 @@ int disp_lcm_disable(struct disp_lcm_handle *plcm)
 	DISPERR("lcm_drv is null\n");
 	return -1;
 }
-#else
-    /* modify code for O6 */
 #endif
 
 int disp_lcm_is_support_adjust_fps(struct disp_lcm_handle *plcm)
@@ -1870,7 +2185,7 @@ bool disp_lcm_need_send_cmd(
 	if (from_level < 0 ||
 		to_level < 0)
 		return false;
-	return	lcm_drv->dfps_need_send_cmd(from_level, to_level);
+	return	lcm_drv->dfps_need_send_cmd(from_level, to_level, lcm_param);
 }
 
 void disp_lcm_dynfps_send_cmd(
@@ -1908,7 +2223,7 @@ void disp_lcm_dynfps_send_cmd(
 			to_level = (dfps_params[j]).level;
 	}
 	lcm_drv->dfps_send_lcm_cmd(cmdq_handle,
-		from_level, to_level);
+		from_level, to_level, lcm_param);
 done:
 	DISPCHECK("%s,add done\n", __func__);
 }

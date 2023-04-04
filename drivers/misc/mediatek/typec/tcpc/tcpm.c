@@ -351,6 +351,20 @@ uint32_t tcpm_inquire_dpm_flags(struct tcpc_device *tcpc)
 	return pd_port->pe_data.dpm_flags;
 }
 
+inline bool tcpm_is_src_usb_suspend_support(struct tcpc_device *tcpc_dev)
+{
+	struct pd_port *pd_port = &tcpc_dev->pd_port;
+
+	return !!(pd_port->pe_data.dpm_flags & DPM_FLAGS_PARTNER_USB_SUSPEND);
+}
+
+bool tcpm_is_src_usb_communication_capable(struct tcpc_device *tcpc_dev)
+{
+	struct pd_port *pd_port = &tcpc_dev->pd_port;
+
+	return !!(pd_port->pe_data.dpm_flags & DPM_FLAGS_PARTNER_USB_COMM);
+}
+
 uint32_t tcpm_inquire_dpm_caps(struct tcpc_device *tcpc)
 {
 	struct pd_port *pd_port = &tcpc->pd_port;

@@ -132,7 +132,6 @@ static struct LCM_setting_table lcm_diming_disable_setting[] = {
     {0x53, 0x01, {0x24}}
 };
 
-/*
 static struct LCM_setting_table lcm_normal_suspend_setting[] = {
     {0x28, 0, {} },
     {REGFLAG_DELAY, 20, {} },
@@ -142,7 +141,7 @@ static struct LCM_setting_table lcm_normal_suspend_setting[] = {
     {0xB1,0x01,{0x11}},
     {0xB9,0x03,{0x00,0x00,0x00}}
 };
-*/
+
 static struct LCM_setting_table lcm_aot_suspend_setting[] = {
     {0x28, 0, {} },
     {REGFLAG_DELAY, 20, {} },
@@ -386,18 +385,18 @@ extern int mtk_tpd_smart_wakeup_support(void);
 static void lcm_suspend(void)
 {
     pr_notice("%s [Kernel/LCM] %s enter\n", LCM_NAME, __func__);
-/*
+
     if (!mtk_tpd_smart_wakeup_support()) {
         push_table(NULL,
             lcm_normal_suspend_setting,
             sizeof(lcm_normal_suspend_setting) / sizeof(struct LCM_setting_table),
             1);
-    } else {*/
+    } else {
         push_table(NULL,
             lcm_aot_suspend_setting,
             sizeof(lcm_aot_suspend_setting) / sizeof(struct LCM_setting_table),
             1);
- //   }
+    }
 
     MDELAY(10);
 

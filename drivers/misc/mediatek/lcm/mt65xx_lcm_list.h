@@ -123,6 +123,9 @@ extern struct LCM_DRIVER nt35516_qhd_rav4_lcm_drv;
 extern struct LCM_DRIVER r63311_fhd_dsi_vdo_sharp_lcm_drv;
 extern struct LCM_DRIVER r81592_hvga_dsi_cmd_drv;
 extern struct LCM_DRIVER rm68190_dsi_vdo_lcm_drv;
+extern struct LCM_DRIVER nt35521_hd_dsi_vdo_truly_nt50358_lcm_drv;
+extern struct LCM_DRIVER nt35521_hd_dsi_vdo_truly_nt50358_fwvga_lcm_drv;
+extern struct LCM_DRIVER nt35521_hd_dsi_vdo_truly_nt50358_qhd_lcm_drv;
 extern struct LCM_DRIVER nt35596_fhd_dsi_vdo_truly_lcm_drv;
 extern struct LCM_DRIVER nt35595_fhd_dsi_vdo_truly_lcm_drv;
 extern struct LCM_DRIVER nt35595_fhd_dsi_cmd_truly_lcm_drv;
@@ -291,14 +294,22 @@ extern struct LCM_DRIVER ili9881c_hdp_dsi_vdo_ilitek_rt5081_lcm_drv;
 extern struct LCM_DRIVER nt51021_wuxga_dsi_vdo_mt8173_lcm_drv;
 extern struct LCM_DRIVER ili9881c_hdp_dsi_vdo_ilitek_rt5081_lcm_drv_ebbg;
 extern struct LCM_DRIVER hx8394f_hd720_dsi_vdo_tianma_lcm_drv;
+extern struct LCM_DRIVER jd9365_hd720_dsi_lcm_drv;
 extern struct LCM_DRIVER nt36672_fhdp_dsi_vdo_auo_lcm_drv;
 extern struct LCM_DRIVER nt36672_fhdp_dsi_vdo_auo_laneswap_lcm_drv;
+extern struct LCM_DRIVER nt36672c_fhdp_dsi_vdo_60hz_wo_dsc_shenchao_lcm_drv;
+extern struct LCM_DRIVER nt35521_hd_dsi_vdo_truly_nt50358_lcm_drv;
 extern struct LCM_DRIVER ili9881h_hdp_dsi_vdo_ilitek_rt5081_19_9_lcm_drv;
 extern struct LCM_DRIVER ili9881h_hdp_dsi_vdo_ilitek_rt5081_19_9_90hz_lcm_drv;
+extern struct LCM_DRIVER ili9881c_hd_dsi_vdo_ilitek_nt50358_lcm_drv;
 extern struct LCM_DRIVER hx83112b_fhdp_dsi_cmd_auo_rt4801_lcm_drv;
 extern struct LCM_DRIVER hx83112b_fhdp_dsi_cmd_fhd_auo_rt4801_lcm_drv;
 extern struct LCM_DRIVER hx83112b_fhdp_dsi_vdo_auo_rt4801_lcm_drv;
 extern struct LCM_DRIVER hx83112b_fhdp_dsi_cmd_auo_rt5081_lcm_drv;
+extern struct LCM_DRIVER hx83112b_fhdp_dsi_vdo_auo_rt5081_lcm_drv;
+extern struct LCM_DRIVER hx83112b_fhdp_dsi_cmd_auo_rt5081_hdp_lcm_drv;
+extern struct LCM_DRIVER hx83112b_fhdp_dsi_vdo_auo_rt5081_hdp_lcm_drv;
+extern struct LCM_DRIVER es6311_anx6585_zigzag_wxga_lcm_drv;
 extern struct LCM_DRIVER ft8201_wxga_vdo_incell_boe_lcm_drv;
 extern struct LCM_DRIVER nt51021h_wuxga_vdo_oncell_boe_lcm_drv;
 extern struct LCM_DRIVER nt36672ah_hdp_dsi_vdo_tcl_csot_lcm_drv;
@@ -310,9 +321,23 @@ extern struct LCM_DRIVER nt36672c_fhdp_dsi_vdo_auo_cphy_90hz_tianma_lcm_drv;
 #endif
 
 extern struct LCM_DRIVER oppo_tianma_td4310_fhdp_dsi_vdo_rt5081_lcm_drv;
+extern struct LCM_DRIVER nt36672c_fhdp_dsi_vdo_60hz_shenchao_lcm_drv;
+extern struct LCM_DRIVER nt36672c_fhdp_dsi_vdo_90hz_shenchao_lcm_drv;
+extern struct LCM_DRIVER nt36672c_fhdp_dsi_vdo_90hz_shenchao_6382_lcm_drv;
+extern struct LCM_DRIVER r66451_fhdp_dsi_cmd_tianma_lcm_drv;
+
+extern struct LCM_DRIVER td4320_fhdp_dsi_vdo_auo_rt5081_lcm_drv;
+/*6768 otm */
+extern struct LCM_DRIVER otm1911a_fhdp_dsi_vdo_truly_rt5081_lcm_drv;
+extern struct LCM_DRIVER otm1911a_fhdp_dsi_vdo_truly_rt5081_hdp_lcm_drv;
+extern struct LCM_DRIVER hx83102p_wxga_vdo_incell_boe_lcm_drv;
+extern struct LCM_DRIVER otm1911a_fhdp_dsi_vdo_truly_rt4801_lcm_drv;
 
 extern struct LCM_DRIVER td4150_hdp_dsi_lm36274_lcm_drv;
 extern struct LCM_DRIVER ili9882n_hdp_dsi_vdo_ilitek_lm36274_lcm_drv;
+extern struct LCM_DRIVER s6e3fc3_fhdp_cmd_lcm_drv;
+extern struct LCM_DRIVER s6e3fc3_fhdp_cmd_a22_lte_lcm_drv;
+extern struct LCM_DRIVER s6e3fc3_hdp_cmd_a22_lte_lcm_drv;
 
 /* HS03S code added for SR-AL5625-01-310 by gaozhengwei at 20210423 start */
 extern struct LCM_DRIVER hx83112a_hdplus1600_dsi_vdo_ls_boe_9mask_55nm_lcm_drv;
@@ -335,7 +360,7 @@ extern struct LCM_DRIVER lcd_gc7202_ls_hsd_mipi_hdp_video_lcm_drv;
 /* hs03s_NM code added for SR-AL5625-01-644 by fengzhigang at 20220414 end */
 extern struct LCM_DRIVER hs03s_hdplus1600_dsi_default_vdo_lcm_drv;
 /* HS03S code added for SR-AL5625-01-310 by gaozhengwei at 20210423 end */
-
+extern struct LCM_DRIVER hs04_hdplus1600_dsi_default_vdo_lcm_drv;
 /*TabA7 Lite code for SR-AX3565-01-91 by gaozhengwei at 20201210 start*/
 extern struct LCM_DRIVER hx83102e_hlt_hsd_fhdplus2408_lcm_drv;
 extern struct LCM_DRIVER hx83102e_boe_boe_dsi_vdo_hdp_wxga_lcm_drv;
@@ -368,6 +393,34 @@ extern struct LCM_DRIVER hx83102e_gx_hsd_incell_vdo_lcm_drv;
 extern struct LCM_DRIVER nt36523b_txd_mdt_incell_vdo_lcm_drv;
 extern struct LCM_DRIVER hx83102e_hy_mdt_incell_vdo_lcm_drv;
 /*TabA7 Lite code for OT8-5317 by huangzhongjie at 20220217 end*/
+
+#ifdef CONFIG_HQ_PROJECT_O22
+/*hs14 code for SR-AL6528A-01-406 by tangzhen at 20220907 start*/
+extern struct LCM_DRIVER lcd_hx83112f_txd_boe_mipi_fhd_video_lcm_drv;
+/*hs14 code for SR-AL6528A-01-406 by tangzhen at 20220907 end*/
+/*hs14 code for SR-AL6528A-01-413 by duanyaoming at 20220910 start*/
+extern struct LCM_DRIVER lcd_td4375_cw_inx_mipi_fhd_video_lcm_drv;
+/*hs14 code for SR-AL6528A-01-413 by duanyaoming at 20220910 end*/
+/*hs14 code for SR-AL6528A-01-420 by duanyaoming at 20220907 start*/
+extern struct LCM_DRIVER lcd_jd9522t_xx_boe_mipi_fhd_video_lcm_drv;
+/*hs14 code for SR-AL6528A-01-420 by duanyaoming at 20220907 end*/
+/*hs14 code for SR-AL6528A-01-427 by tangzhen at 20220913 start*/
+extern struct LCM_DRIVER lcd_nl9922c_jz_tm_mipi_fhd_video_lcm_drv;
+/*hs14 code for SR-AL6528A-01-427 by tangzhen at 20220913 end*/
+/* A14 code for AL6528A-4 by duanyaoming at 20220829 start */
+extern struct LCM_DRIVER lcd_td4375_txd_jdi_mipi_fhd_video_lcm_drv;
+/* A14 code for AL6528A-4 by duanyaoming at 20220829 end */
+/*hs14 code for AL6528A-20 by duanyaoming at 20220906 start*/
+extern struct LCM_DRIVER lcd_default_mipi_fhd_video_lcm_drv;
+/*hs14 code for AL6528A-20 by duanyaoming at 20220906 end*/
+#endif
+
+/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 start*/
+extern struct LCM_DRIVER lcd_nl9911c_hlt_hkc_mipi_hdp_video_lcm_drv;
+extern struct LCM_DRIVER lcd_jd9365t_txd_boe_mipi_hdp_video_lcm_drv;
+extern struct LCM_DRIVER lcd_nl9911c_hr_hr_mipi_hdp_video_lcm_drv;
+extern struct LCM_DRIVER lcd_jd9365t_txd_ctc_jbpd_mipi_hdp_video_lcm_drv;
+/*hs04 code for DEAL6398A-1875 by zhawei at 20221017 end*/
 
 #ifdef BUILD_LK
 extern void mdelay(unsigned long msec);
