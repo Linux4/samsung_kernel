@@ -100,57 +100,80 @@ s32 cmdq_sec_mtee_allocate_wsm(struct cmdq_sec_mtee_context *tee,
 		return -EINVAL;
 
 	/* region_id = 0, mapAry = NULL for continuous */
-	*wsm_buffer = kzalloc(size, GFP_KERNEL);
-	if (!*wsm_buffer)
-		return -ENOMEM;
-
-	tee->wsm_param.size = size;
-	tee->wsm_param.buffer = (void *)(u64)virt_to_phys(*wsm_buffer);
-	status = KREE_RegisterSharedmem(tee->wsm_pHandle,
-		&tee->wsm_handle, &tee->wsm_param);
-	if (status != TZ_RESULT_SUCCESS) {
-		cmdq_err("%s: session:%#x handle:%#x size:%#x buffer:%p:%p",
-			__func__, tee->wsm_pHandle, tee->wsm_handle,
-			tee->wsm_param.size, *wsm_buffer, *wsm_buffer);
-		return status;
+	if (!*wsm_buffer) {
+		*wsm_buffer = kzalloc(size, GFP_KERNEL);
+		if (!*wsm_buffer)
+			return -ENOMEM;
 	}
-	cmdq_log("%s: session:%#x handle:%#x size:%#x buffer:%p:%p",
-		__func__, tee->wsm_pHandle, tee->wsm_handle,
-		tee->wsm_param.size, *wsm_buffer, *wsm_buffer);
 
-	*wsm_buf_ex = kzalloc(size_ex, GFP_KERNEL);
-	if (!*wsm_buf_ex)
-		return -ENOMEM;
+	if (tee->wsm_param.size != size) {
+		tee->wsm_param.size = size;
+		tee->wsm_param.buffer = (void *)(u64)virt_to_phys(*wsm_buffer);
+		status = KREE_RegisterSharedmem(tee->wsm_pHandle,
+			&tee->wsm_handle, &tee->wsm_param);
+		if (status != TZ_RESULT_SUCCESS)
+			cmdq_err(
+				"%s: session:%#x handle:%#x size:%#x buffer:%p:%#x",
+				__func__, tee->wsm_pHandle, tee->wsm_handle,
+				tee->wsm_param.size, *wsm_buffer, *wsm_buffer);
+		else
+			cmdq_log(
+				"%s: session:%#x handle:%#x size:%#x buffer:%p:%#x",
+				__func__, tee->wsm_pHandle, tee->wsm_handle,
+				tee->wsm_param.size, *wsm_buffer, *wsm_buffer);
+	}
 
-	tee->wsm_ex_param.size = size_ex;
-	tee->wsm_ex_param.buffer = (void *)(u64)virt_to_phys(*wsm_buf_ex);
-	status = KREE_RegisterSharedmem(tee->wsm_pHandle,
-		&tee->wsm_ex_handle, &tee->wsm_ex_param);
-	if (status != TZ_RESULT_SUCCESS)
-		cmdq_err("%s: session:%#x handle:%#x size:%#x buffer:%p:%p",
-			__func__, tee->wsm_pHandle, tee->wsm_ex_handle,
-			tee->wsm_ex_param.size, *wsm_buf_ex, *wsm_buf_ex);
-	else
-		cmdq_log("%s: session:%#x handle:%#x size:%#x buffer:%p:%p",
-			__func__, tee->wsm_pHandle, tee->wsm_ex_handle,
-			tee->wsm_ex_param.size, *wsm_buf_ex, *wsm_buf_ex);
+	if (!*wsm_buf_ex) {
+		*wsm_buf_ex = kzalloc(size_ex, GFP_KERNEL);
+		if (!*wsm_buf_ex)
+			return -ENOMEM;
+	}
 
-	*wsm_buf_ex2 = kzalloc(size_ex2, GFP_KERNEL);
-	if (!*wsm_buf_ex2)
-		return -ENOMEM;
+	if (tee->wsm_ex_param.size != size_ex) {
+		tee->wsm_ex_param.size = size_ex;
+		tee->wsm_ex_param.buffer =
+			(void *)(u64)virt_to_phys(*wsm_buf_ex);
+		status = KREE_RegisterSharedmem(tee->wsm_pHandle,
+			&tee->wsm_ex_handle, &tee->wsm_ex_param);
+		if (status != TZ_RESULT_SUCCESS)
+			cmdq_err(
+				"%s: session:%#x handle:%#x size:%#x buffer:%p:%#x",
+				__func__, tee->wsm_pHandle, tee->wsm_ex_handle,
+				tee->wsm_ex_param.size,
+				*wsm_buf_ex, *wsm_buf_ex);
+		else
+			cmdq_log(
+				"%s: session:%#x handle:%#x size:%#x buffer:%p:%#x",
+				__func__, tee->wsm_pHandle, tee->wsm_ex_handle,
+				tee->wsm_ex_param.size,
+				*wsm_buf_ex, *wsm_buf_ex);
+	}
 
-	tee->wsm_ex2_param.size = size_ex2;
-	tee->wsm_ex2_param.buffer = (void *)(u64)virt_to_phys(*wsm_buf_ex2);
-	status = KREE_RegisterSharedmem(tee->wsm_pHandle,
-		&tee->wsm_ex2_handle, &tee->wsm_ex2_param);
-	if (status != TZ_RESULT_SUCCESS)
-		cmdq_err("%s: session:%#x handle:%#x size:%#x buffer:%p:%p",
-			__func__, tee->wsm_pHandle, tee->wsm_ex2_handle,
-			tee->wsm_ex2_param.size, *wsm_buf_ex2, *wsm_buf_ex2);
-	else
-		cmdq_log("%s: session:%#x handle:%#x size:%#x buffer:%p:%p",
-			__func__, tee->wsm_pHandle, tee->wsm_ex2_handle,
-			tee->wsm_ex2_param.size, *wsm_buf_ex2, *wsm_buf_ex2);
+	if (!*wsm_buf_ex2) {
+		*wsm_buf_ex2 = kzalloc(size_ex2, GFP_KERNEL);
+		if (!*wsm_buf_ex2)
+			return -ENOMEM;
+	}
+
+	if (tee->wsm_ex2_param.size != size_ex2) {
+		tee->wsm_ex2_param.size = size_ex2;
+		tee->wsm_ex2_param.buffer =
+			(void *)(u64)virt_to_phys(*wsm_buf_ex2);
+		status = KREE_RegisterSharedmem(tee->wsm_pHandle,
+			&tee->wsm_ex2_handle, &tee->wsm_ex2_param);
+		if (status != TZ_RESULT_SUCCESS)
+			cmdq_err(
+				"%s: session:%#x handle:%#x size:%#x buffer:%p:%#x",
+				__func__, tee->wsm_pHandle, tee->wsm_ex2_handle,
+				tee->wsm_ex2_param.size,
+				*wsm_buf_ex2, *wsm_buf_ex2);
+		else
+			cmdq_log(
+				"%s: session:%#x handle:%#x size:%#x buffer:%p:%#x",
+				__func__, tee->wsm_pHandle, tee->wsm_ex2_handle,
+				tee->wsm_ex2_param.size,
+				*wsm_buf_ex2, *wsm_buf_ex2);
+	}
 
 	return status;
 }

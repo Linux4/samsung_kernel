@@ -273,13 +273,13 @@ int gcore_parse_mp_test_ini(struct gcore_mp_data *mp_data)
 		return -EPERM;
 	}
 
-	if (lcm_name == 14){
+	if (g_lcm_name == 14){
 		f = filp_open(MP_TEST_INI, O_RDONLY, 644);
 		if (IS_ERR_OR_NULL(f)) {
 			GTP_ERROR("open mp test ini file fail!");
 			return -EPERM;
 		}
-	}else if (lcm_name == 15) {
+	}else if (g_lcm_name == 15) {
 		f = filp_open(MP_TEST_LC_INI, O_RDONLY, 644);
 		if (IS_ERR_OR_NULL(f)) {
 			GTP_ERROR("open mp test ini file fail!");
@@ -1800,12 +1800,12 @@ int gcore_mp_bin_update(void)
 		return -EPERM;
 	}
 
-	if (lcm_name == 14){
+	if (g_lcm_name == 14){
 		if (request_firmware(&fw, MP_BIN_NAME, &g_mp_data->gdev->bus_device->dev)) {
 			GTP_ERROR("request firmware fail");
 			goto fail1;
 		}
-	}else if (lcm_name == 15) {
+	}else if (g_lcm_name == 15) {
 		if (request_firmware(&fw, MP_BIN_LC_NAME, &g_mp_data->gdev->bus_device->dev)) {
 			GTP_ERROR("request firmware fail");
 			goto fail1;
@@ -1906,12 +1906,12 @@ int gcore_start_mp_test(void)
 #if GCORE_WDT_RECOVERY_ENABLE
 	cancel_delayed_work_sync(&mp_data->gdev->wdt_work);
 #endif
-	if(lcm_name == 14) {
+	if(g_lcm_name == 14) {
 		empty_place[0] = 0;
 		empty_place[1] = 17;
 		empty_place[2] = -1;
 		empty_place[3] = -1;
-	}else if (lcm_name == 15) {
+	}else if (g_lcm_name == 15) {
 		empty_place[0] = 8;
 		empty_place[1] = 9;
 		empty_place[2] = -1;

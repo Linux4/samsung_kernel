@@ -96,8 +96,13 @@ static void xhci_free_segments_for_ring(struct xhci_hcd *xhci,
  * DMA address of the next segment.  The caller needs to set any Link TRB
  * related flags, such as End TRB, Toggle Cycle, and no snoop.
  */
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+void xhci_link_segments(struct xhci_hcd *xhci, struct xhci_segment *prev,
+		struct xhci_segment *next, enum xhci_ring_type type)
+#else
 static void xhci_link_segments(struct xhci_hcd *xhci, struct xhci_segment *prev,
 		struct xhci_segment *next, enum xhci_ring_type type)
+#endif
 {
 	u32 val;
 
@@ -290,8 +295,13 @@ void xhci_ring_free(struct xhci_hcd *xhci, struct xhci_ring *ring)
 	kfree(ring);
 }
 
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+void xhci_initialize_ring_info(struct xhci_ring *ring,
+					unsigned int cycle_state)
+#else
 static void xhci_initialize_ring_info(struct xhci_ring *ring,
 					unsigned int cycle_state)
+#endif
 {
 	/* The ring is empty, so the enqueue pointer == dequeue pointer */
 	ring->enqueue = ring->first_seg->trbs;
@@ -352,6 +362,56 @@ static int xhci_alloc_segments_for_ring(struct xhci_hcd *xhci,
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+static void xhci_vendor_free_container_ctx(struct xhci_hcd *xhci, struct xhci_container_ctx *ctx)
+{
+	struct xhci_vendor_ops *ops = xhci_vendor_get_ops(xhci);
+
+	if (ops && ops->free_container_ctx)
+		ops->free_container_ctx(xhci, ctx);
+}
+
+static void xhci_vendor_alloc_container_ctx(struct xhci_hcd *xhci, struct xhci_container_ctx *ctx,
+					    int type, gfp_t flags)
+{
+	struct xhci_vendor_ops *ops = xhci_vendor_get_ops(xhci);
+
+	if (ops && ops->alloc_container_ctx)
+		ops->alloc_container_ctx(xhci, ctx, type, flags);
+}
+
+static struct xhci_ring *xhci_vendor_alloc_transfer_ring(struct xhci_hcd *xhci,
+		u32 endpoint_type, enum xhci_ring_type ring_type,
+		unsigned int max_packet, gfp_t mem_flags)
+{
+	struct xhci_vendor_ops *ops = xhci_vendor_get_ops(xhci);
+
+	if (ops && ops->alloc_transfer_ring)
+		return ops->alloc_transfer_ring(xhci, endpoint_type, ring_type,
+				max_packet, mem_flags);
+	return 0;
+}
+
+void xhci_vendor_free_transfer_ring(struct xhci_hcd *xhci,
+		struct xhci_virt_device *virt_dev, unsigned int ep_index)
+{
+	struct xhci_vendor_ops *ops = xhci_vendor_get_ops(xhci);
+
+	if (ops && ops->free_transfer_ring)
+		ops->free_transfer_ring(xhci, virt_dev, ep_index);
+}
+
+bool xhci_vendor_is_usb_offload_enabled(struct xhci_hcd *xhci,
+		struct xhci_virt_device *virt_dev, unsigned int ep_index)
+{
+	struct xhci_vendor_ops *ops = xhci_vendor_get_ops(xhci);
+
+	if (ops && ops->is_usb_offload_enabled)
+		return ops->is_usb_offload_enabled(xhci, virt_dev, ep_index);
+	return false;
+}
+#endif
+
 /**
  * Create a new ring with zero or more segments.
  *
@@ -403,7 +463,14 @@ void xhci_free_endpoint_ring(struct xhci_hcd *xhci,
 		struct xhci_virt_device *virt_dev,
 		unsigned int ep_index)
 {
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	if (xhci_vendor_is_usb_offload_enabled(xhci, virt_dev, ep_index))
+		xhci_vendor_free_transfer_ring(xhci, virt_dev, ep_index);
+	else
+		xhci_ring_free(xhci, virt_dev->eps[ep_index].ring);
+#else
 	xhci_ring_free(xhci, virt_dev->eps[ep_index].ring);
+#endif
 	virt_dev->eps[ep_index].ring = NULL;
 }
 
@@ -462,6 +529,9 @@ struct xhci_container_ctx *xhci_alloc_container_ctx(struct xhci_hcd *xhci,
 {
 	struct xhci_container_ctx *ctx;
 	struct device *dev = xhci_to_hcd(xhci)->self.sysdev;
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	struct xhci_vendor_ops *ops = xhci_vendor_get_ops(xhci);
+#endif
 
 	if ((type != XHCI_CTX_TYPE_DEVICE) && (type != XHCI_CTX_TYPE_INPUT))
 		return NULL;
@@ -475,7 +545,15 @@ struct xhci_container_ctx *xhci_alloc_container_ctx(struct xhci_hcd *xhci,
 	if (type == XHCI_CTX_TYPE_INPUT)
 		ctx->size += CTX_SIZE(xhci->hcc_params);
 
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	if (xhci_vendor_is_usb_offload_enabled(xhci, NULL, 0) &&
+	    (ops && ops->alloc_container_ctx))
+		xhci_vendor_alloc_container_ctx(xhci, ctx, type, flags);
+	else
+		ctx->bytes = dma_pool_zalloc(xhci->device_pool, flags, &ctx->dma);
+#else
 	ctx->bytes = dma_pool_zalloc(xhci->device_pool, flags, &ctx->dma);
+#endif
 	if (!ctx->bytes) {
 		kfree(ctx);
 		return NULL;
@@ -486,9 +564,20 @@ struct xhci_container_ctx *xhci_alloc_container_ctx(struct xhci_hcd *xhci,
 void xhci_free_container_ctx(struct xhci_hcd *xhci,
 			     struct xhci_container_ctx *ctx)
 {
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	struct xhci_vendor_ops *ops = xhci_vendor_get_ops(xhci);
+#endif
 	if (!ctx)
 		return;
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	if (xhci_vendor_is_usb_offload_enabled(xhci, NULL, 0) &&
+	    (ops && ops->free_container_ctx))
+		xhci_vendor_free_container_ctx(xhci, ctx);
+	else
+		dma_pool_free(xhci->device_pool, ctx->bytes, ctx->dma);
+#else
 	dma_pool_free(xhci->device_pool, ctx->bytes, ctx->dma);
+#endif
 	kfree(ctx);
 }
 
@@ -897,7 +986,11 @@ void xhci_free_virt_device(struct xhci_hcd *xhci, int slot_id)
 
 	for (i = 0; i < 31; i++) {
 		if (dev->eps[i].ring)
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+			xhci_free_endpoint_ring(xhci, dev, i);
+#else
 			xhci_ring_free(xhci, dev->eps[i].ring);
+#endif
 		if (dev->eps[i].stream_info)
 			xhci_free_stream_info(xhci,
 					dev->eps[i].stream_info);
@@ -1492,8 +1585,20 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 		mult = 0;
 
 	/* Set up the endpoint ring */
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	if (xhci_vendor_is_usb_offload_enabled(xhci, virt_dev, ep_index) &&
+	    usb_endpoint_xfer_isoc(&ep->desc)) {
+		virt_dev->eps[ep_index].new_ring =
+			xhci_vendor_alloc_transfer_ring(xhci, endpoint_type, ring_type,
+							max_packet, mem_flags);
+	} else {
+		virt_dev->eps[ep_index].new_ring =
+			xhci_ring_alloc(xhci, 2, 1, ring_type, max_packet, mem_flags);
+	}
+#else
 	virt_dev->eps[ep_index].new_ring =
 		xhci_ring_alloc(xhci, 2, 1, ring_type, max_packet, mem_flags);
+#endif
 	if (!virt_dev->eps[ep_index].new_ring)
 		return -ENOMEM;
 
@@ -1837,6 +1942,26 @@ void xhci_free_erst(struct xhci_hcd *xhci, struct xhci_erst *erst)
 	erst->entries = NULL;
 }
 
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+static struct xhci_device_context_array *xhci_vendor_alloc_dcbaa(
+		struct xhci_hcd *xhci, gfp_t flags)
+{
+	struct xhci_vendor_ops *ops = xhci_vendor_get_ops(xhci);
+
+	if (ops && ops->alloc_dcbaa)
+		return ops->alloc_dcbaa(xhci, flags);
+	return 0;
+}
+
+static void xhci_vendor_free_dcbaa(struct xhci_hcd *xhci)
+{
+	struct xhci_vendor_ops *ops = xhci_vendor_get_ops(xhci);
+
+	if (ops && ops->free_dcbaa)
+		ops->free_dcbaa(xhci);
+}
+#endif
+
 void xhci_handle_sec_intr_events(struct xhci_hcd *xhci, int intr_num)
 {
 	union xhci_trb *erdp_trb, *current_trb;
@@ -2017,9 +2142,19 @@ void xhci_mem_cleanup(struct xhci_hcd *xhci)
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
 			"Freed medium stream array pool");
 
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	if (xhci_vendor_is_usb_offload_enabled(xhci, NULL, 0)) {
+		xhci_vendor_free_dcbaa(xhci);
+	} else {
+		if (xhci->dcbaa)
+			dma_free_coherent(dev, sizeof(*xhci->dcbaa),
+					xhci->dcbaa, xhci->dcbaa->dma);
+	}
+#else
 	if (xhci->dcbaa)
 		dma_free_coherent(dev, sizeof(*xhci->dcbaa),
 				xhci->dcbaa, xhci->dcbaa->dma);
+#endif
 	xhci->dcbaa = NULL;
 
 	scratchpad_free(xhci);
@@ -2691,17 +2826,35 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	 * xHCI section 5.4.6 - doorbell array must be
 	 * "physically contiguous and 64-byte (cache line) aligned".
 	 */
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	if (xhci_vendor_is_usb_offload_enabled(xhci, NULL, 0)) {
+		xhci->dcbaa = xhci_vendor_alloc_dcbaa(xhci, flags);
+		if (!xhci->dcbaa)
+			goto fail;
+	} else {
+		xhci->dcbaa = dma_alloc_coherent(dev, sizeof(*xhci->dcbaa), &dma,
+				flags);
+		if (!xhci->dcbaa)
+			goto fail;
+		memset(xhci->dcbaa, 0, sizeof *(xhci->dcbaa));
+		xhci->dcbaa->dma = dma;
+	}
+#else
 	xhci->dcbaa = dma_alloc_coherent(dev, sizeof(*xhci->dcbaa), &dma,
 			flags);
 	if (!xhci->dcbaa)
 		goto fail;
 	memset(xhci->dcbaa, 0, sizeof *(xhci->dcbaa));
 	xhci->dcbaa->dma = dma;
+#endif
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
 			"// Device context base array address = 0x%llx (DMA), %p (virt)",
 			(unsigned long long)xhci->dcbaa->dma, xhci->dcbaa);
+#if IS_ENABLED(CONFIG_MTK_USB_OFFLOAD)
+	xhci_write_64(xhci, xhci->dcbaa->dma, &xhci->op_regs->dcbaa_ptr);
+#else
 	xhci_write_64(xhci, dma, &xhci->op_regs->dcbaa_ptr);
-
+#endif
 	/*
 	 * Initialize the ring segment pool.  The ring must be a contiguous
 	 * structure comprised of TRBs.  The TRBs must be 16 byte aligned,

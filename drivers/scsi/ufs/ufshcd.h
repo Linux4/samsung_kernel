@@ -84,6 +84,9 @@
 
 struct ufs_hba;
 
+/* unique number */
+#define UFS_UN_20_DIGITS 20
+
 enum dev_cmd_type {
 	DEV_CMD_TYPE_NOP		= 0x0,
 	DEV_CMD_TYPE_QUERY		= 0x1,
@@ -287,6 +290,7 @@ struct ufs_desc_size {
 	int unit_desc;
 	int conf_desc;
 	int hlth_desc;
+	int str_desc;
 };
 
 /**
@@ -848,6 +852,9 @@ struct ufs_hba {
 	struct ufs_desc_size desc_size;
 	atomic_t scsi_block_reqs_cnt;
 
+	char unique_number[UFS_UN_20_DIGITS + 1];
+	u8 lifetime;
+
 	struct device		bsg_dev;
 	struct request_queue	*bsg_queue;
 #if defined(CONFIG_SCSI_UFS_FEATURE)
@@ -1101,6 +1108,7 @@ int ufshcd_query_attr(struct ufs_hba *hba, enum query_opcode opcode,
 		      enum attr_idn idn, u8 index, u8 selector, u32 *attr_val);
 int ufshcd_query_flag(struct ufs_hba *hba, enum query_opcode opcode,
 	enum flag_idn idn, bool *flag_res);
+int ufshcd_read_health_desc(struct ufs_hba *hba, u8 *buf, u32 size);
 
 void ufshcd_auto_hibern8_enable(struct ufs_hba *hba);
 void ufshcd_auto_hibern8_update(struct ufs_hba *hba, u32 ahit);
@@ -1295,6 +1303,10 @@ static inline void ufshcd_vops_dbg_register_dump(struct ufs_hba *hba)
 {
 	if (hba->vops && hba->vops->dbg_register_dump)
 		hba->vops->dbg_register_dump(hba);
+#if defined(CONFIG_SCSI_UFS_TEST_MODE)
+	/* do not recover system if test mode is enabled */
+	BUG();
+#endif
 }
 
 static inline void ufshcd_vops_device_reset(struct ufs_hba *hba)

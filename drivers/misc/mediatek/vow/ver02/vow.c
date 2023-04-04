@@ -516,6 +516,8 @@ static void vow_service_Init(void)
 		spin_unlock(&vowdrv_lock);
 		vowserv.force_phase_stage = NO_FORCE;
 		vowserv.swip_log_enable = true;
+		memset((void *)&vowserv.vow_eint_data_struct, 0,
+					sizeof(vowserv.vow_eint_data_struct));
 		vowserv.voicedata_user_addr = 0;
 		vowserv.voicedata_user_size = 0;
 		vowserv.voicedata_user_return_size_addr = 0;
@@ -527,8 +529,10 @@ static void vow_service_Init(void)
 			vowserv.vow_speaker_model[I].flag = 0;
 			vowserv.vow_speaker_model[I].enabled = 0;
 		}
+		/* extra data memory locate */
 		mutex_lock(&vow_extradata_mutex);
-		vowserv.extradata_mem_ptr = NULL;
+		if (vowserv.extradata_mem_ptr == NULL)
+			vowserv.extradata_mem_ptr = vmalloc(VOW_EXTRA_DATA_SIZE);
 		mutex_unlock(&vow_extradata_mutex);
 		vowserv.extradata_bytelen = 0;
 #ifdef CONFIG_MTK_VOW_1STSTAGE_PCMCALLBACK
@@ -555,9 +559,9 @@ static void vow_service_Init(void)
 		vow_pcm_dump_init();
 		vowserv.scp_dual_mic_switch = VOW_ENABLE_DUAL_MIC;
 		vowserv.mtkif_type = 0;
-		//set default value to platform identifier and version
+		/* set meaningless default value to platform identifier and version */
 		memset(vowserv.google_engine_arch, 0, VOW_ENGINE_INFO_LENGTH_BYTE);
-		if (sprintf(vowserv.google_engine_arch, "32fe89be-5205-3d4b-b8cf-55d650d9d200") < 0)
+		if (sprintf(vowserv.google_engine_arch, "12345678-1234-1234-1234-123456789012") < 0)
 			VOWDRV_DEBUG("%s(), sprintf fail", __func__);
 		vowserv.google_engine_version = DEFAULT_GOOGLE_ENGINE_VER;
 		memset(vowserv.alexa_engine_version, 0, VOW_ENGINE_INFO_LENGTH_BYTE);
@@ -828,6 +832,16 @@ static bool vow_service_SetSpeakerModel(unsigned long arg)
 		      *(short *)&ptr8[160], *(int *)&ptr8[7960]);
 
 	ret = vow_service_SendSpeakerModel(I, VOW_SET_MODEL);
+	/* if IPI send fail, then just clean this model information */
+	if (ret == false) {
+		VOWDRV_DEBUG("vow ipi fail, then ignore this load model\n");
+		vowserv.vow_speaker_model[I].model_ptr = NULL;
+		vowserv.vow_speaker_model[I].uuid = 0;
+		vowserv.vow_speaker_model[I].id = -1;
+		vowserv.vow_speaker_model[I].keyword = -1;
+		vowserv.vow_speaker_model[I].flag = 0;
+		vowserv.vow_speaker_model[I].enabled = 0;
+	}
 #else
 	VOWDRV_DEBUG("%s(), vow: SCP no support\n\r", __func__);
 #endif
@@ -1141,14 +1155,6 @@ static bool vow_service_Enable(void)
 	bool ret = false;
 
 	VOWDRV_DEBUG("+%s()\n", __func__);
-
-	/* extra data memory locate */
-	mutex_lock(&vow_extradata_mutex);
-	if (vowserv.extradata_mem_ptr == NULL) {
-		vowserv.extradata_mem_ptr =
-		    vmalloc(VOW_EXTRA_DATA_SIZE);
-	}
-	mutex_unlock(&vow_extradata_mutex);
 	ret = vow_ipi_send(IPIMSG_VOW_ENABLE,
 			   0,
 			   NULL,
@@ -1168,14 +1174,6 @@ static bool vow_service_Disable(void)
 			   0,
 			   NULL,
 			   VOW_IPI_BYPASS_ACK);
-
-	/* extra data memory release */
-	mutex_lock(&vow_extradata_mutex);
-	if (vowserv.extradata_mem_ptr != NULL) {
-		vfree(vowserv.extradata_mem_ptr);
-		vowserv.extradata_mem_ptr = NULL;
-	}
-	mutex_unlock(&vow_extradata_mutex);
 
 	/* release lock */
 	if (vowserv.suspend_lock == 1) {
@@ -1526,6 +1524,18 @@ static void vow_service_ReadVoiceData(void)
 	}
 }
 
+static void vow_hal_reboot(void)
+{
+	bool ret = false;
+
+	VOWDRV_DEBUG("%s(), Send VOW_HAL_REBOOT ipi\n", __func__);
+
+	ret = vow_ipi_send(IPIMSG_VOW_HAL_REBOOT, 0, NULL,
+			   VOW_IPI_BYPASS_ACK);
+	if (ret == 0)
+		VOWDRV_DEBUG("IPIMSG_VOW_HAL_REBOOT ipi send error\n\r");
+}
+
 static void vow_service_reset(void)
 {
 	int I;
@@ -1533,6 +1543,7 @@ static void vow_service_reset(void)
 	bool ret = false;
 
 	VOWDRV_DEBUG("+%s()\n", __func__);
+	vow_hal_reboot();
 	for (I = 0; I < MAX_VOW_SPEAKER_MODEL; I++) {
 		if (vowserv.vow_speaker_model[I].enabled  == 1) {
 			int uuid;
@@ -2474,6 +2485,10 @@ static long VowDrv_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 			ret = -EFAULT;
 		break;
 	case VOW_CHECK_STATUS:
+		if (arg != 0) {
+			VOWDRV_DEBUG("VOW_CHECK_STATUS(%lu) para err, break", arg);
+			break;
+		}
 		/* VOW disable already, then bypass second one */
 		VowDrv_ChangeStatus();
 		VOWDRV_DEBUG("VOW_CHECK_STATUS(%lu)", arg);
@@ -2788,12 +2803,18 @@ static ssize_t VowDrv_read(struct file *fp,
 		  vowserv.scp_command_keywordid);
 	if (slot < 0) {
 		/* there is no pair id */
-		VOWDRV_DEBUG("%s(), search ID fail, not keyword event, exit\n",
-			     __func__);
+		VOWDRV_DEBUG("%s(), search ID fail, not keyword event, eint=%d, exit\n",
+						__func__,
+						VowDrv_QueryVowEINTStatus());
 		vowserv.scp_command_id =  0;
+		vowserv.confidence_level = 0;
+		goto exit;
 	} else {
 		vowserv.scp_command_id = vowserv.vow_speaker_model[slot].id;
 	}
+
+	memset((void *)&vowserv.vow_eint_data_struct, 0,
+					sizeof(vowserv.vow_eint_data_struct));
 	vowserv.vow_eint_data_struct.id = vowserv.scp_command_id;
 	vowserv.vow_eint_data_struct.eint_status = VowDrv_QueryVowEINTStatus();
 	vowserv.vow_eint_data_struct.data[0] = (char)vowserv.confidence_level;
@@ -2806,10 +2827,16 @@ static ssize_t VowDrv_read(struct file *fp,
 
 		dsp_inform_tx_flag = false;
 
-		if (vowserv.extradata_mem_ptr == NULL)
+		mutex_lock(&vow_extradata_mutex);
+		if (vowserv.extradata_mem_ptr == NULL) {
+			mutex_unlock(&vow_extradata_mutex);
 			goto exit;
-		if (vowserv.extradata_ptr == NULL)
+		}
+		if (vowserv.extradata_ptr == NULL) {
+			mutex_unlock(&vow_extradata_mutex);
 			goto exit;
+		}
+		mutex_unlock(&vow_extradata_mutex);
 		if (vowserv.vow_speaker_model[slot].rx_inform_size_addr == 0)
 			goto exit;
 		if (vowserv.vow_speaker_model[slot].rx_inform_addr == 0)
@@ -2866,7 +2893,13 @@ exit:
 
 static int VowDrv_flush(struct file *flip, fl_owner_t id)
 {
-	VOWDRV_DEBUG("%s()\n", __func__);
+	bool ret = false;
+
+	VOWDRV_DEBUG("%s(), Send VOW_FLUSH ipi\n", __func__);
+
+	ret = vow_ipi_send(IPIMSG_VOW_FLUSH, 0, NULL, VOW_IPI_BYPASS_ACK);
+	if (ret == 0)
+		VOWDRV_DEBUG("IPIMSG_VOW_FLUSH ipi send error\n\r");
 	return 0;
 }
 
@@ -3218,6 +3251,13 @@ static void __exit VowDrv_mod_exit(void)
 	wakeup_source_unregister(vow_suspend_lock);
 	wakeup_source_unregister(vow_ipi_suspend_lock);
 	vow_pcm_dump_deinit();
+	/* extra data memory release */
+	mutex_lock(&vow_extradata_mutex);
+	if (vowserv.extradata_mem_ptr != NULL) {
+		vfree(vowserv.extradata_mem_ptr);
+		vowserv.extradata_mem_ptr = NULL;
+	}
+	mutex_unlock(&vow_extradata_mutex);
 	VOWDRV_DEBUG("-%s()\n", __func__);
 }
 late_initcall(VowDrv_mod_init);

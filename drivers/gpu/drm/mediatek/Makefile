@@ -10,6 +10,8 @@ mediatek-drm-y := mtk_drm_drv.o \
 		  mtk_disp_rdma.o \
 		  mtk_disp_rsz.o \
 		  mtk_disp_wdma.o \
+		  mtk_notify.o \
+		  mtk_cust.o \
 		  mtk_drm_crtc.o \
 		  mtk_drm_ddp.o \
 		  mtk_drm_ddp_addon.o \
@@ -136,3 +138,9 @@ ccflags-y += -DNOT_SUPPORT_CABC_HW
 ccflags-y += -DDISP_MDP_COLOR_ON
 ccflags-y += -DCCORR_SUPPORT
 endif
+
+ifneq ($(filter "tb8791tp1_64_titan_javan_tiger" "tb8791tp1_64_titan_javan_tiger_wifi", \
+			$(CONFIG_ARCH_MTK_PROJECT)),)
+ccflags-y += -DCONFIG_TB8791TP1_TITAN_JAVAN_TIGER
+endif
+

@@ -18,6 +18,7 @@ void mtk_pdc_plugout(struct charger_manager *info)
 	info->pdc.pd_reset_idx = -1;
 	info->pdc.pd_boost_idx = 0;
 	info->pdc.pd_buck_idx = 0;
+	g_pd_work_status = 0; //Bug518556,churui1.wt,ADD,20220808, Charging pd flag
 }
 
 int mtk_pdc_set_mivr(struct charger_manager *info, int uV)
@@ -282,6 +283,10 @@ int mtk_pdc_setup(struct charger_manager *info, int idx)
 					force_update = true;
 			}
 		}
+	}
+//zhaosidong.wt, Samsung mutiport adapter
+	if (pd->cap.nr_old != pd->cap.nr) {
+		force_update = true;
 	}
 
 	if (pd->pd_idx != idx || force_update) {
@@ -549,6 +554,8 @@ void mtk_pdc_init_table(struct charger_manager *info)
 {
 	struct mtk_pdc *pd = &info->pdc;
 
+//zhaosidong.wt, samsung multiport adapter
+	pd->cap.nr_old = pd->cap.nr;
 	pd->cap.nr = 0;
 	pd->cap.selected_cap_idx = -1;
 
@@ -557,7 +564,7 @@ void mtk_pdc_init_table(struct charger_manager *info)
 	else
 		chr_err("mtk_is_pdc_ready is fail\n");
 
-	chr_err("[%s] nr:%d default:%d\n", __func__, pd->cap.nr,
+	chr_err("[%s] nr:%d nr_old:%d default:%d\n", __func__, pd->cap.nr, pd->cap.nr_old,
 	pd->cap.selected_cap_idx);
 }
 

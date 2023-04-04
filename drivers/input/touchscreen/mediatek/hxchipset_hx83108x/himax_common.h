@@ -43,7 +43,7 @@
 	#include <linux/of_gpio.h>
 #endif
 
-#define HIMAX_DRIVER_VER "2.1.0.4_N26_01"
+#define HIMAX_DRIVER_VER "2.1.0.4_N26_02"
 
 #define FLASH_DUMP_FILE "/sdcard/HX_Flash_Dump.bin"
 
@@ -250,7 +250,7 @@ enum HX_TS_PATH {
 	HX_REPORT_COORD_RAWDATA,
 };
 #define HX_ALL0_EXCPT_TIMES 2
-#define HX_ALL0_EXCPT_DD_TIMES 4
+#define HX_ALL0_EXCPT_DD_TIMES 3
 enum HX_TS_STATUS {
 	HX_TS_GET_DATA_FAIL = -4,
 	HX_EXCP_EVENT,
@@ -467,6 +467,7 @@ struct himax_ts_data {
 	int use_irq;
 	int (*power)(int on);
 	int pre_finger_data[10][2];
+	int hx_headset_flag;
 
 	struct device *dev;
 	struct workqueue_struct *himax_wq;
@@ -636,3 +637,4 @@ extern int hx_open_file(char *file_name);
 extern int hx_write_file(char *write_data, uint32_t write_size, loff_t pos);
 extern int hx_close_file(void);
 #endif
+int himax_headset_notifier_callback(struct notifier_block *self, unsigned long event, void *data);

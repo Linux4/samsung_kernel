@@ -1082,6 +1082,8 @@ free_req:
 	if (alg)
 		crypto_free_shash(alg);
 	kfree(sdesc);
+	kfree(digest);
+	kfree(sign);
 	LOG_DBG_MUST("%s-\n", __func__);
 	return ret;
 }
@@ -1416,22 +1418,6 @@ int ccu_i2c_ctrl(unsigned char i2c_write_id, int transfer_len)
 	LOG_DBG("-:%s\n", __func__);
 
 	return 0;
-}
-
-int ccu_read_info_reg(int regNo)
-{
-	int *offset;
-
-	if ((regNo < 0) || (regNo > 32)) {
-		LOG_ERR("Invalid regNo : %d\n", regNo);
-		return 0;
-	}
-
-	offset = (int *)(uintptr_t)(ccu_base + 0x60 + regNo * 4);
-
-	LOG_DBG("ccu_read_info_reg: %x\n", (unsigned int)(*offset));
-
-	return *offset;
 }
 
 void ccu_set_sensor_info(int32_t sensorType, struct ccu_sensor_info *info)

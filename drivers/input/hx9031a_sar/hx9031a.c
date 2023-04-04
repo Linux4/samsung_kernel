@@ -40,7 +40,9 @@
 #endif
 #include "hx9031a.h"
 #include <linux/hardware_info.h>
-
+#ifdef ANFR_TEST
+#define MAX_INT_COUNT 20
+#endif
 #define LOG_TAG "<TYHX_LOG>"
 #define LOG_INFO(fmt, args...)  pr_info(LOG_TAG "[INFO]" "<%s><%d>"fmt, __func__, __LINE__, ##args)
 static struct i2c_client *hx9031a_i2c_client = NULL;
@@ -56,6 +58,7 @@ static int16_t data_diff[HX9031A_CH_NUM] = {0};
 static int16_t data_lp[HX9031A_CH_NUM] = {0};
 static int16_t data_bl[HX9031A_CH_NUM] = {0};
 static uint16_t data_offset_dac[HX9031A_CH_NUM] = {0};
+static uint8_t force_report_far = 1;
 
 //hx9023E
 static struct hx9031a_near_far_threshold hx9031a_ch_thres_default_hx9023e[HX9031A_CH_NUM] = {
@@ -669,7 +672,12 @@ static void hx9031a_get_prox_state(int16_t *data_compare, uint8_t ch_num)
         PRINT_ERR("hx9031a_read failed\n");
     }
     hx9031a_pdata.prox_state_reg = buf[0];
-
+	#ifdef ANFR_TEST
+	if(hx9031a_pdata.prox_state_reg != hx9031a_pdata.prox_state_reg_pre)
+		hx9031a_pdata.interrupt_count++;
+	if(hx9031a_pdata.interrupt_count > MAX_INT_COUNT)
+		hx9031a_pdata.interrupt_count = MAX_INT_COUNT + 1;
+	#endif
     for(ii = 0; ii < ch_num; ii++) {
         near = hx9031a_get_thres_near(ii);
         far = hx9031a_get_thres_far(ii);
@@ -789,6 +797,39 @@ static void hx9031a_sample(void)//输出raw bl diff lp offse五组数据，默�
     PRINT_DBG("BL    , %-8d, %-8d, %-8d, %-8d\n", data_bl[0], data_bl[1], data_bl[2], data_bl[3]);
     PRINT_DBG("LP    , %-8d, %-8d, %-8d, %-8d\n", data_lp[0], data_lp[1], data_lp[2], data_lp[3]);
 }
+static uint16_t read_ch0_offset(void)
+{
+	uint16_t result;
+	uint8_t rx_buf[2] = {0};
+	hx9031a_data_lock(HX9031A_DATA_LOCK);
+	hx9031a_read(RA_OFFSET_DAC0_7_0_0x15, rx_buf, 2);
+	result = ((rx_buf[1] << 8) | (rx_buf[0])) & 0xFFF;
+	hx9031a_data_lock(HX9031A_DATA_UNLOCK);
+	PRINT_INF("read_ch0_offset=%d\n",result);
+	return result;
+}
+static uint16_t read_ch1_offset(void)
+{
+	uint16_t result;
+	uint8_t rx_buf[2] = {0};
+	hx9031a_data_lock(HX9031A_DATA_LOCK);
+	hx9031a_read(RA_OFFSET_DAC0_7_0_0x15+2, rx_buf, 2);
+	result = ((rx_buf[1] << 8) | (rx_buf[0])) & 0xFFF;
+	hx9031a_data_lock(HX9031A_DATA_UNLOCK);
+	PRINT_INF("read_ch1_offset=%d\n",result);
+	return result;;
+}
+static uint16_t read_ch2_offset(void)
+{
+	uint16_t result;
+	uint8_t rx_buf[2] = {0};
+	hx9031a_data_lock(HX9031A_DATA_LOCK);
+	hx9031a_read(RA_OFFSET_DAC0_7_0_0x15+4, rx_buf, 2);
+	result = ((rx_buf[1] << 8) | (rx_buf[0])) & 0xFFF;
+	hx9031a_data_lock(HX9031A_DATA_UNLOCK);
+	PRINT_INF("read_ch2_offset=%d\n",result);
+	return result;
+}
 
 static void hx9031a_input_report(void)
 {
@@ -797,20 +838,16 @@ static void hx9031a_input_report(void)
     int num_channels = 0;
     struct input_dev *input = NULL;
     struct hx9031a_channel_info *channel_p  = NULL;
-
+	static uint16_t ch_result[3]={0};
+	struct hx9031a_platform_data *this = &hx9031a_pdata;
+	int ret = 0;
+	uint8_t tx_buf[1]={0};
     num_channels = ARRAY_SIZE(hx9031a_channels);
 
     if (unlikely(NULL == hx9031a_channels)) {
         PRINT_ERR("hx9031a_channels==NULL!!!\n");
         return;
     }
-
-#if defined(CONFIG_SENSORS)
-	if (hx9031a_pdata.skip_data == true) {
-	    PRINT_INF("%s - skip grip event\n", __func__);
-	    return;
-	}
-#endif
 
     for (ii = 0; ii < num_channels; ii++) {
         if (false == hx9031a_channels[ii].enabled) { //enabled表示该通道已经被开启。
@@ -838,8 +875,45 @@ static void hx9031a_input_report(void)
         //touch_state = hx9031a_ch_near_state[ii];
         touch_state = (hx9031a_pdata.prox_state_reg >> ii) & 0x1;
         //touch_state = (hx9031a_pdata.prox_state_cmp >> ii) & 0x1;
+		if(!force_report_far){
+			input_report_rel(input, REL_MISC, 2);
+            input_sync(input);
+		}else{
+			#ifdef ANFR_TEST
+			if(this->hx_first_boot)
+			{
+				hx9031a_read_offset_dac();
+				if (true == hx9031a_channels[0].enabled)
+		    		ch_result[0] = read_ch0_offset();
+        		if (true == hx9031a_channels[1].enabled)
+		    		ch_result[1] = read_ch1_offset();
+       		 	if (true == hx9031a_channels[2].enabled)
+		    		ch_result[2] = read_ch2_offset();
 
-        if (BODYACTIVE == touch_state) {
+				LOG_INFO("chx_back_cap %d, %d, %d\n", hx9031a_pdata.back_cap[0],hx9031a_pdata.back_cap[1],hx9031a_pdata.back_cap[2]);
+	    		LOG_INFO("chx_result %d, %d, %d\n", ch_result[0],ch_result[1],ch_result[2]);
+	    		LOG_INFO("interrupt_count is %d, this->ps_is_present=%d\n", this->interrupt_count, this->ps_is_present);
+				if ((this->interrupt_count <= MAX_INT_COUNT) && 
+        		(ch_result[0] >= hx9031a_pdata.back_cap[0]) && (ch_result[1] >= hx9031a_pdata.back_cap[1]) && (ch_result[2] >= hx9031a_pdata.back_cap[2]))
+	    		{
+		    		LOG_INFO("force all channel State=Near\n");
+
+		    		for (ii = 0; ii < 3; ii++) {
+                		input_report_rel(hx9031a_channels[ii].hx9031a_input_dev, REL_MISC, 1);
+                		input_sync(hx9031a_channels[ii].hx9031a_input_dev);
+            		}
+		    		return;
+	    		}
+
+        		tx_buf[0] = 0x08;
+        		ret = hx9031a_write(RA_CALI_DIFF_CFG_0x3b, tx_buf, 1);
+        		if(0 != ret) {
+            		PRINT_ERR("hx9031a_write failed\n");
+        		}
+    		}			
+			this->hx_first_boot = false;
+			#endif
+			if (BODYACTIVE == touch_state) {
             if (channel_p->state == BODYACTIVE)
                 PRINT_DBG("%s already BODYACTIVE, nothing report\n", channel_p->name);
             else {
@@ -884,6 +958,8 @@ static void hx9031a_input_report(void)
         } else {
             PRINT_ERR("unknow touch state! touch_state=%d\n", touch_state);
         }
+		}
+       
     }
 }
 
@@ -989,6 +1065,9 @@ static int hx9031a_ch_en(uint8_t ch_id, uint8_t en)
 {
     int ret = 0;
     uint8_t tx_buf[1] = {0};
+	uint8_t rx_buf[2] = {0};
+	int i = 0;
+	
 
     if(ch_enable_status > 0) {
         if(1 == en) {
@@ -1050,7 +1129,18 @@ static int hx9031a_ch_en(uint8_t ch_id, uint8_t en)
             PRINT_INF("all channels disabled already\n");
         }
     }
-
+	#ifdef ANFR_TEST	
+	if((ch_id == 0)&&(en == 1))
+	{
+		schedule_delayed_work(&hx9031a_pdata.report_ch0_work, msecs_to_jiffies(50));
+	}else if((ch_id == 1)&&(en == 1))
+	{
+		schedule_delayed_work(&hx9031a_pdata.report_ch1_work, msecs_to_jiffies(50));
+	}else if((ch_id == 2)&&(en == 1))
+	{
+		schedule_delayed_work(&hx9031a_pdata.report_ch2_work, msecs_to_jiffies(50));
+	}
+	#endif
     return ret;
 }
 
@@ -1122,9 +1212,15 @@ static int hx9031a_set_enable(struct sensors_classdev *sensors_cdev, unsigned in
                     __pm_wakeup_event(&hx9031a_wake_lock, 1000);
     #else
                     wake_lock_timeout(&hx9031a_wake_lock, HZ * 1);
-    #endif
-                    input_report_rel(hx9031a_channels[ii].hx9031a_input_dev, REL_MISC, 2);
-                    input_sync(hx9031a_channels[ii].hx9031a_input_dev);
+    #endif			
+					#ifdef ANFR_TEST
+						input_report_rel(hx9031a_channels[ii].hx9031a_input_dev, REL_MISC, 1);
+	                    input_sync(hx9031a_channels[ii].hx9031a_input_dev);
+					#else
+						input_report_rel(hx9031a_channels[ii].hx9031a_input_dev, REL_MISC, 2);
+						input_sync(hx9031a_channels[ii].hx9031a_input_dev);
+					#endif
+
                     //hx9031a_manual_offset_calibration(ii);//enable(en:0x24)的时候会自动校准，故此处不需要。
                 } else if (0 == enable) {
                     PRINT_INF("disable ch_%d(name:%s)\n", ii, sensors_cdev->name);
@@ -1363,7 +1459,11 @@ static ssize_t store_enable(struct device *dev,
 
     if(!strncmp(temp_input_dev->name,"grip_sensor",sizeof("grip_sensor"))){
         if (!strncmp(buf, "1", 1)){
-            hx9031a_channels[0].state = IDLE;
+            #ifdef ANFR_TEST			
+            hx9031a_channels[0].state = PROXACTIVE;
+			#else 
+			hx9031a_channels[0].state = IDLE;
+			#endif
             ret = hx9031a_ch_en(0, 1);
             if(0 != ret) {
                 PRINT_ERR("hx9031a_ch_en failed\n");
@@ -1372,18 +1472,14 @@ static ssize_t store_enable(struct device *dev,
             }
             hx9031a_channels[0].enabled = true;
             LOG_INFO("name:grip_sensor:enable\n");
-#if defined(CONFIG_SENSORS)
-            if (hx9031a_pdata.skip_data == true) {
-                LOG_INFO("%s - skip grip event\n", __func__);
-            }
-            else
-            {
-#endif
-                input_report_rel(hx9031a_channels[0].hx9031a_input_dev, REL_MISC, 2);
-                input_sync(hx9031a_channels[0].hx9031a_input_dev);
-#if defined(CONFIG_SENSORS)
-            }
-#endif
+			#ifdef ANFR_TEST
+				input_report_rel(hx9031a_channels[0].hx9031a_input_dev, REL_MISC, 1);
+				input_sync(hx9031a_channels[0].hx9031a_input_dev);
+			#else
+				input_report_rel(hx9031a_channels[0].hx9031a_input_dev, REL_MISC, 2);
+				input_sync(hx9031a_channels[0].hx9031a_input_dev);
+			#endif
+
         }else{
             ret = hx9031a_ch_en(0, 0);
             if(0 != ret) {
@@ -1399,7 +1495,11 @@ static ssize_t store_enable(struct device *dev,
 
     if(!strncmp(temp_input_dev->name,"grip_sensor_sub",sizeof("grip_sensor_sub"))){
         if (!strncmp(buf, "1", 1)){
-            hx9031a_channels[1].state = IDLE;
+            #ifdef ANFR_TEST			
+            hx9031a_channels[1].state = PROXACTIVE;
+			#else 
+			hx9031a_channels[1].state = IDLE;
+			#endif
             ret = hx9031a_ch_en(1, 1);
             if(0 != ret) {
                 PRINT_ERR("hx9031a_ch_en failed\n");
@@ -1408,18 +1508,14 @@ static ssize_t store_enable(struct device *dev,
             }
             hx9031a_channels[1].enabled = true;
             LOG_INFO("name:grip_sensor_sub:enable\n");
-#if defined(CONFIG_SENSORS)
-            if (hx9031a_pdata.skip_data == true) {
-                LOG_INFO("%s - skip grip event\n", __func__);
-            }
-            else
-            {
-#endif
-                input_report_rel(hx9031a_channels[1].hx9031a_input_dev, REL_MISC, 2);
-                input_sync(hx9031a_channels[1].hx9031a_input_dev);
-#if defined(CONFIG_SENSORS)
-            }
-#endif
+			#ifdef ANFR_TEST			
+				input_report_rel(hx9031a_channels[1].hx9031a_input_dev, REL_MISC, 1);
+				input_sync(hx9031a_channels[1].hx9031a_input_dev);
+			#else
+				input_report_rel(hx9031a_channels[1].hx9031a_input_dev, REL_MISC, 2);
+				input_sync(hx9031a_channels[1].hx9031a_input_dev);
+			#endif
+
         }else{
             ret = hx9031a_ch_en(1, 0);
             if(0 != ret) {
@@ -1435,7 +1531,11 @@ static ssize_t store_enable(struct device *dev,
 
     if(!strncmp(temp_input_dev->name,"grip_sensor_wifi",sizeof("grip_sensor_wifi"))){
         if (!strncmp(buf, "1", 1)){
-            hx9031a_channels[2].state = IDLE;
+			#ifdef ANFR_TEST			
+            hx9031a_channels[2].state = PROXACTIVE;
+			#else 
+			hx9031a_channels[2].state = IDLE;
+			#endif
             ret = hx9031a_ch_en(2, 1);
             if(0 != ret) {
                 PRINT_ERR("hx9031a_ch_en failed\n");
@@ -1444,18 +1544,14 @@ static ssize_t store_enable(struct device *dev,
             }
             hx9031a_channels[2].enabled = true;
             LOG_INFO("name:grip_sensor_wifi:enable\n");
-#if defined(CONFIG_SENSORS)
-            if (hx9031a_pdata.skip_data == true) {
-                LOG_INFO("%s - skip grip event\n", __func__);
-            }
-            else
-            {
-#endif
-                input_report_rel(hx9031a_channels[2].hx9031a_input_dev, REL_MISC, 2);
-                input_sync(hx9031a_channels[2].hx9031a_input_dev);
-#if defined(CONFIG_SENSORS)
-            }
-#endif
+			#ifdef ANFR_TEST			
+				input_report_rel(hx9031a_channels[2].hx9031a_input_dev, REL_MISC, 1);
+				input_sync(hx9031a_channels[2].hx9031a_input_dev);
+			#else 
+				input_report_rel(hx9031a_channels[2].hx9031a_input_dev, REL_MISC, 2);
+				input_sync(hx9031a_channels[2].hx9031a_input_dev);
+			#endif
+
         }else{
             ret = hx9031a_ch_en(2, 0);
             if(0 != ret) {
@@ -1529,6 +1625,49 @@ static int hx9031a_state_monitoring(uint8_t addr, uint8_t val)
 
     return 0 ;
 }
+#ifdef ANFR_TEST
+static void hx9031a_report_ch0_work_func(struct work_struct *work)
+{
+    //CH background cap
+    uint8_t rx_buf[2] = {0};
+    hx9031a_data_lock(HX9031A_DATA_LOCK);
+    hx9031a_read(RA_OFFSET_DAC0_7_0_0x15, rx_buf, 2);
+    hx9031a_pdata.back_cap[0] = ((rx_buf[1] << 8) | (rx_buf[0])) & 0xFFF;
+    hx9031a_data_lock(HX9031A_DATA_UNLOCK);
+    PRINT_INF("CH0 back_cap[0]=%d\n", hx9031a_pdata.back_cap[0]);
+    //if(hx9031a_channels[0].hx9031a_input_dev)
+        //sar_report_distance(hx9031a_channels[0].hx9031a_input_dev, ABS_DISTANCE, 0);
+    return;
+}
+
+static void hx9031a_report_ch1_work_func(struct work_struct *work)
+{
+    //CH background cap
+    uint8_t rx_buf[2] = {0};
+    hx9031a_data_lock(HX9031A_DATA_LOCK);
+    hx9031a_read(RA_OFFSET_DAC0_7_0_0x15 + 2, rx_buf, 2);
+    hx9031a_pdata.back_cap[1] = ((rx_buf[1] << 8) | (rx_buf[0])) & 0xFFF;
+    hx9031a_data_lock(HX9031A_DATA_UNLOCK);
+    PRINT_INF("CH0 back_cap[1]=%d\n", hx9031a_pdata.back_cap[1]);
+    //if(hx9031a_channels[1].hx9031a_input_dev)
+        //sar_report_distance(hx9031a_channels[1].hx9031a_input_dev, ABS_DISTANCE, 0);
+    return;
+}
+
+static void hx9031a_report_ch2_work_func(struct work_struct *work)
+{
+    //CH background cap
+    uint8_t rx_buf[2] = {0};
+    hx9031a_data_lock(HX9031A_DATA_LOCK);
+    hx9031a_read(RA_OFFSET_DAC0_7_0_0x15 + 4, rx_buf, 2);
+    hx9031a_pdata.back_cap[2] = ((rx_buf[1] << 8) | (rx_buf[0])) & 0xFFF;
+    hx9031a_data_lock(HX9031A_DATA_UNLOCK);
+    PRINT_INF("CH0 back_cap[2]=%d\n", hx9031a_pdata.back_cap[2]);
+    //if(hx9031a_channels[2].hx9031a_input_dev)
+        //sar_report_distance(hx9031a_channels[2].hx9031a_input_dev, ABS_DISTANCE, 0);
+    return;
+}
+#endif
 
 static void hx9031a_polling_work_func(struct work_struct *work)
 {
@@ -2215,42 +2354,6 @@ struct class hx9031a_class = {
     };
 
 #if defined(CONFIG_SENSORS)
-static ssize_t hx9031_onoff_show(struct device *dev,
-        struct device_attribute *attr, char *buf)
-{
-    return snprintf(buf, PAGE_SIZE, "%u\n", !hx9031a_pdata.skip_data);
-}
-
-static ssize_t hx9031_onoff_store(struct device *dev,
-        struct device_attribute *attr, const char *buf, size_t count)
-{
-    u8 val;
-    int ret;
-
-    ret = kstrtou8(buf, 2, &val);
-    if (ret) {
-        PRINT_ERR("%s - Invalid Argument\n", __func__);
-        return ret;
-    }
-
-    if (val == 0) {
-        hx9031a_pdata.skip_data = true;
-        if (hx9031a_channels[0].enabled || hx9031a_channels[1].enabled || hx9031a_channels[2].enabled) {
-            input_report_rel(hx9031a_channels[0].hx9031a_input_dev, REL_MISC, 2);
-            input_sync(hx9031a_channels[0].hx9031a_input_dev);
-            input_report_rel(hx9031a_channels[1].hx9031a_input_dev, REL_MISC, 2);
-            input_sync(hx9031a_channels[1].hx9031a_input_dev);
-            input_report_rel(hx9031a_channels[2].hx9031a_input_dev, REL_MISC, 2);
-            input_sync(hx9031a_channels[2].hx9031a_input_dev);
-        }
-    } else {
-        hx9031a_pdata.skip_data = false;
-    }
-
-    PRINT_INF("%s -%u\n", __func__, val);
-    return count;
-}
-
 static int hx9031_grip_flush(struct sensors_classdev *sensors_cdev,unsigned char val)
 {
     input_report_rel(hx9031a_channels[0].hx9031a_input_dev, REL_MAX, val);
@@ -2277,9 +2380,6 @@ static int hx9031_grip_sub_flush(struct sensors_classdev *sensors_cdev,unsigned 
     PRINT_INF("%s -%u\n", __func__, val);
     return 0;
 }
-
-static DEVICE_ATTR(onoff, S_IRUGO | S_IWUSR | S_IWGRP,
-        hx9031_onoff_show, hx9031_onoff_store);
 #endif
 
 /* +++for WT factory use,libo7.wt,add,20210824 */
@@ -2330,6 +2430,43 @@ static ssize_t ch0_cap_diff_dump_show(struct class *class,
     return (len);//return numbers of parameters
 }
 static CLASS_ATTR_RO(ch0_cap_diff_dump);
+
+static ssize_t power_enable_store(struct class *class,
+        struct class_attribute *attr,
+        const char *buf, size_t count)
+{
+	PRINT_ERR("power_enable_store buf=%s\n", *buf);
+	if(!strncmp(buf,"1",1))
+	{
+		force_report_far = 1;
+	}else if(!strncmp(buf,"0",1))
+	{
+		force_report_far = 0;
+	}
+	return count;
+}
+
+
+static ssize_t power_enable_show(struct class *class,
+        struct class_attribute *attr,
+        char *buf)
+{
+	
+
+	if(force_report_far == 1)
+    {
+		return sprintf(buf,"%s\n","1");
+	}
+	else if(force_report_far == 0)
+	{
+		return sprintf(buf,"%s\n","0");
+	}
+
+    return 0;
+}
+//static CLASS_ATTR_RW(power_enable);
+static CLASS_ATTR_RW(power_enable);
+
 
 static ssize_t ch2_cap_diff_dump_show(struct class *class,
         struct class_attribute *attr,
@@ -2457,7 +2594,7 @@ static int hx9031a_probe(struct i2c_client *client, const struct i2c_device_id *
         ret = -EIO;
         goto failed_i2c_check_functionality;
     }
-
+	
     i2c_set_clientdata(client, (&hx9031a_pdata));
     hx9031a_i2c_client = client;
     hx9031a_pdata.pdev = &client->dev;
@@ -2488,7 +2625,12 @@ static int hx9031a_probe(struct i2c_client *client, const struct i2c_device_id *
         ret = -1;
         goto failed_id_check;
     }
-
+	#ifdef ANFR_TEST
+	hx9031a_pdata.hx_first_boot = true;
+	hx9031a_pdata.back_cap[0] = 0;
+	hx9031a_pdata.back_cap[1] = 0;
+	hx9031a_pdata.back_cap[2] = 0;
+	#endif
     chip_select = hx9031a_get_board_info();
     hx9031a_reg_list_redirect(chip_select);
     hx9031a_register_init();//寄存器初始化,如果需要，也可以使用chip_select做芯片区分
@@ -2530,13 +2672,13 @@ static int hx9031a_probe(struct i2c_client *client, const struct i2c_device_id *
 			    hx9031a_channels[ii].hx9031a_sensors_classdev.sensors_flush = hx9031_grip_flush;
 #endif
 		    }
-		    else if (ii == hx9031a_pdata.grip_sensor_sub_ch){
+		    if (ii == hx9031a_pdata.grip_sensor_sub_ch){
 			    hx9031a_channels[ii].hx9031a_input_dev->name = "grip_sensor_sub";
 #if defined(CONFIG_SENSORS)
 			    hx9031a_channels[ii].hx9031a_sensors_classdev.sensors_flush = hx9031_grip_sub_flush;
 #endif
 		    }
-		    else if (ii == hx9031a_pdata.grip_sensor_wifi_ch){
+		    if (ii == hx9031a_pdata.grip_sensor_wifi_ch){
 			    hx9031a_channels[ii].hx9031a_input_dev->name = "grip_sensor_wifi";
 #if defined(CONFIG_SENSORS)
 			    hx9031a_channels[ii].hx9031a_sensors_classdev.sensors_flush = hx9031_grip_wifi_flush;
@@ -2555,9 +2697,9 @@ static int hx9031a_probe(struct i2c_client *client, const struct i2c_device_id *
 
             hx9031a_channels[ii].hx9031a_sensors_classdev.sensors_enable = hx9031a_set_enable;
             hx9031a_channels[ii].hx9031a_sensors_classdev.sensors_poll_delay = NULL;
-            hx9031a_channels[ii].hx9031a_sensors_classdev.name = hx9031a_channels[ii].hx9031a_input_dev->name;
+            hx9031a_channels[ii].hx9031a_sensors_classdev.name = "HX9031";
             hx9031a_channels[ii].hx9031a_sensors_classdev.vendor = "TianYiHeXin";
-            hx9031a_channels[ii].hx9031a_sensors_classdev.sensor_name = "HX9031";
+            hx9031a_channels[ii].hx9031a_sensors_classdev.sensor_name = hx9031a_channels[ii].hx9031a_input_dev->name;
             hx9031a_channels[ii].hx9031a_sensors_classdev.version = 1;
             hx9031a_channels[ii].hx9031a_sensors_classdev.type = SENSOR_TYPE_TYHX_CAPSENSE;//need change for your situation
             hx9031a_channels[ii].hx9031a_sensors_classdev.max_range = "5";
@@ -2574,18 +2716,17 @@ static int hx9031a_probe(struct i2c_client *client, const struct i2c_device_id *
             if (ret < 0) {
                 PRINT_ERR("create %d cap sensor_class  file failed (%d)\n", ii, ret);
             }
-
-#if defined(CONFIG_SENSORS)
-            if (ii == hx9031a_pdata.grip_sensor_ch){
-                device_create_file(hx9031a_channels[ii].hx9031a_sensors_classdev.dev, &dev_attr_onoff);
-            }
-#endif
         }
     }
 
     spin_lock_init(&hx9031a_pdata.lock);
     INIT_DELAYED_WORK(&hx9031a_pdata.polling_work, hx9031a_polling_work_func);
     INIT_DELAYED_WORK(&hx9031a_pdata.hw_monitor_work, hx9031a_hw_monitor_work_func);
+	#ifdef ANFR_TEST
+	INIT_DELAYED_WORK(&hx9031a_pdata.report_ch0_work, hx9031a_report_ch0_work_func);
+    INIT_DELAYED_WORK(&hx9031a_pdata.report_ch1_work, hx9031a_report_ch1_work_func);
+    INIT_DELAYED_WORK(&hx9031a_pdata.report_ch2_work, hx9031a_report_ch2_work_func);
+	#endif
 #if 0 //libo7.wt,20210908
     wakeup_source_init(&hx9031a_wake_lock, "hx9031a_wakelock");
 #else
@@ -2649,6 +2790,12 @@ static int hx9031a_probe(struct i2c_client *client, const struct i2c_device_id *
     ret = class_create_file(&capsense_class, &class_attr_ch3_cap_diff_dump);
     if (ret < 0) {
         PRINT_ERR("Create ch3_cap_diff_dump file failed (%d)\n", &class_attr_ch3_cap_diff_dump);
+        return ret;
+    }
+
+	ret = class_create_file(&capsense_class, &class_attr_power_enable);
+    if (ret < 0) {
+        PRINT_ERR("Create class_attr_power_enable file failed (%d)\n", &class_attr_power_enable);
         return ret;
     }
 #if 0

@@ -14,20 +14,6 @@
 #include "mtk_sd.h"
 #include "mmc-sec-sysfs.h"
 
-#define UNSTUFF_BITS(resp,start,size)					\
-	({								\
-		const int __size = size;				\
-		const u32 __mask = (__size < 32 ? 1 << __size : 0) - 1;	\
-		const int __off = 3 - ((start) / 32);			\
-		const int __shft = (start) & 31;			\
-		u32 __res;						\
-									\
-		__res = resp[__off] >> __shft;				\
-		if (__size + __shft > 32)				\
-			__res |= resp[__off-1] << ((32 - __shft) % 32);	\
-		__res & __mask;						\
-	})
-
 static inline void mmc_check_error_count(struct mmc_card_error_log *err_log,
 		unsigned long long *total_c_cnt, unsigned long long *total_t_cnt)
 {
@@ -48,8 +34,8 @@ static struct device *sdcard_sec_dev;
 /* SYSFS about SD Card Information */
 static struct device *sdinfo_sec_dev;
 
-static char un_buf[21];
 #define UN_LENGTH 20
+static char un_buf[UN_LENGTH + 1];
 static int __init un_boot_state_param(char *line)
 {
 	if (strlen(line) == UN_LENGTH)
@@ -142,7 +128,6 @@ out:
 	return total_len;
 }
 
-/* SYSFS for SD card detection */
 static ssize_t sdcard_status_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -173,7 +158,6 @@ static ssize_t sdcard_status_show(struct device *dev,
 		}
 	}
 }
-
 static ssize_t sd_cid_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -185,7 +169,6 @@ static ssize_t sd_cid_show(struct device *dev,
 		len = snprintf(buf, PAGE_SIZE, "no card\n");
 		goto out;
 	}
-
 	len = snprintf(buf, PAGE_SIZE,
 			"%08x%08x%08x%08x\n",
 			card->raw_cid[0], card->raw_cid[1],
@@ -274,8 +257,8 @@ static struct attribute_group mmc_attr_group = {
 };
 
 static struct attribute *sdcard_attributes[] = {
-	&dev_attr_err_count.attr,
 	&dev_attr_status.attr,
+	&dev_attr_err_count.attr,
 	NULL,
 };
 
@@ -315,7 +298,7 @@ void mmc_sec_init_sysfs(struct mmc_host *mmc)
 	if (host->hw->host_function == MSDC_EMMC)
 		msdc_sec_create_sysfs_group(mmc, &mmc_sec_dev,
 				&mmc_attr_group, "mmc");
-	
+
 	if (host->hw->host_function == MSDC_SD) {
 		msdc_sec_create_sysfs_group(mmc, &sdcard_sec_dev,
 				&sdcard_attr_group, "sdcard");

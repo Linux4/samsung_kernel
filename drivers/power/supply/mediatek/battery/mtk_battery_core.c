@@ -48,6 +48,9 @@
 #include <linux/math64.h>
 #include <linux/alarmtimer.h>
 
+#include <linux/of_gpio.h>
+#include <linux/gpio.h>
+
 #include <mt-plat/aee.h>
 #include <mt-plat/v1/charger_type.h>
 #include <mt-plat/v1/mtk_charger.h>
@@ -72,8 +75,12 @@
 #include <mtk_battery_table.h>
 #include "simulator_kernel.h"
 #endif
+//zhaosidong.wt, 2020/12/16, battery id detection
+#include <linux/iio/consumer.h>
+#include <linux/of_platform.h>
+#include <linux/hardware_info.h>
 
-
+static char* battery_name[] = {"W2_SCUD_4V4_5000mAh","W2_BYD_4V4_5000mAh"};
 
 /* ============================================================ */
 /* global variable */
@@ -647,11 +654,12 @@ void fgauge_get_profile_id(void)
 	}
 
 	for (id = 0; id < TOTAL_BATTERY_NUMBER; id++) {
-		if (id_volt < g_battery_id_voltage[id]) {
+		//zhaosidong.wt, 2020/12/16, battery id detection
+		if (abs(id_volt - g_battery_id_voltage[id]) < 50) {
 			gm.battery_id = id;
 			break;
 		} else if (g_battery_id_voltage[id] == -1) {
-			gm.battery_id = TOTAL_BATTERY_NUMBER - 1;
+			gm.battery_id = 0;
 		}
 	}
 
@@ -662,7 +670,39 @@ void fgauge_get_profile_id(void)
 #elif defined(MTK_GET_BATTERY_ID_BY_GPIO)
 void fgauge_get_profile_id(void)
 {
-	gm.battery_id = 0;
+	struct device_node *batterty_node;
+	int _battery_id_gpio_0, _battery_id_gpio_1;
+	int _battery_id_0, _battery_id_1;
+
+	batterty_node = of_find_node_by_name(NULL, "battery");
+	if (!batterty_node) {
+		bm_err("[%s] of_find_node_by_name fail\n", __func__);
+		return;
+	}
+
+	_battery_id_gpio_1 = of_get_named_gpio(batterty_node, "BatteryID_GPIO_1", 0);
+	_battery_id_gpio_0 = of_get_named_gpio(batterty_node, "BatteryID_GPIO", 0);
+
+	/* check batteryid gpio */
+	if (_battery_id_gpio_0 < 0) {
+		gm.battery_id = 0;
+		bm_err("[%s] cannot find BatteryID-GPIO. Default battery ID = %d\n",
+			__func__, gm.battery_id);
+		return;
+	}
+
+	_battery_id_0 = gpio_get_value(_battery_id_gpio_0);
+
+	if (_battery_id_gpio_1 < 0) {
+		gm.battery_id = _battery_id_0;
+		bm_err("[%s]GPIO Battery id (%d) (battery_id_gpio= %d)\n",
+			__func__, gm.battery_id, _battery_id_gpio_0);
+	} else {
+		_battery_id_1 = gpio_get_value(_battery_id_gpio_1);
+		gm.battery_id = (_battery_id_1 << 1) + (_battery_id_0);
+		bm_err("[%s]GPIO Battery id (%d) (battery_id_gpio= %d %d)\n",
+			__func__, gm.battery_id, _battery_id_gpio_1, _battery_id_gpio_0);
+	}
 }
 #else
 void fgauge_get_profile_id(void)
@@ -678,6 +718,41 @@ void fgauge_get_profile_id(void)
 		get_ec()->debug_bat_id_value);
 }
 #endif
+
+//zhaosidong.wt, 2020/12/16, battery id detection
+static int battery_id_read(struct seq_file *m, void *v)
+{
+	fgauge_get_profile_id();
+	seq_printf(m, "id:%d\n", gm.battery_id);
+
+	return 0;
+}
+
+static int battery_id_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, battery_id_read, PDE_DATA(inode));
+}
+
+static const struct file_operations bat_id_fops = {
+	//.owner = THIS_MODULE,
+	.open = battery_id_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+int bat_create_proc_fs(struct platform_device *pdev)
+{
+	struct proc_dir_entry *entry = NULL;
+	struct proc_dir_entry *dir_entry = NULL;
+
+	dir_entry = proc_mkdir("battery", NULL);
+	if(dir_entry){
+		entry = proc_create("battery_id",0444,dir_entry,&bat_id_fops);
+	}
+
+	return 0;
+}
 
 void fg_custom_init_from_header(void)
 {
@@ -1258,6 +1333,8 @@ void fg_custom_init_from_dts(struct platform_device *dev)
 
 	fgauge_get_profile_id();
 	bat_id = gm.battery_id;
+	//zhaosidong.wt, battery name
+	hardwareinfo_set_prop(HARDWARE_BATTERY_ID, battery_name[bat_id]);
 
 	bm_err("%s\n", __func__);
 
@@ -1647,6 +1724,10 @@ void fg_custom_init_from_dts(struct platform_device *dev)
 
 	fg_read_dts_val(np, "ACTIVE_TABLE",
 		&(fg_table_cust_data.active_table_number), 1);
+
+	/* dynamic CV */
+	fg_read_dts_val(np, "DYNAMIC_CV_FACTOR", &(fg_cust_data.dynamic_cv_factor), 1);
+	fg_read_dts_val(np, "CHARGER_IEOC", &(fg_cust_data.charger_ieoc), 1);
 
 #if defined(CONFIG_MTK_ADDITIONAL_BATTERY_TABLE)
 	if (fg_table_cust_data.active_table_number == 0)
@@ -2791,6 +2872,11 @@ void fg_drv_update_hw_status(void)
 	chr_vol = battery_get_vbus();
 	tmp = force_get_tbat(true);
 
+	bm_err("precise_soc: %d.%d\n",
+		(battery_get_precise_soc()/10), (battery_get_precise_soc()%10));
+	bm_err("precise_uisoc: %d.%d\n",
+		(battery_get_precise_uisoc()/10), (battery_get_precise_uisoc()%10));
+
 	bm_err("lbat %d %d %d %d\n",
 		gm.sw_low_battery_ht_en,
 		gm.sw_low_battery_ht_threshold,
@@ -3171,6 +3257,7 @@ void fg_daemon_comm_INT_data(char *rcv, char *ret)
 	case FG_SET_SOC:
 		{
 			gm.soc = (prcv->input + 50) / 100;
+			gm.precise_soc = (prcv->input + 5) / 10;
 		}
 		break;
 	case FG_SET_C_D0_SOC:
@@ -3259,6 +3346,14 @@ void fg_daemon_comm_INT_data(char *rcv, char *ret)
 			bm_err("set zcv_interrupt_en %d\n", zcv_intr_en);
 		}
 		break;
+	case FG_SET_DYNAMIC_CV:
+		{
+			int cv = prcv->input;
+
+			cv = cv * 100;
+			battery_set_charger_constant_voltage(cv);
+			bm_err("comm_INT:FG_SET_DYNAMIC_CV set charger cv:%d\n", cv);
+		}
 	default:
 		pret->status = -1;
 		bm_err("%s type:%d in:%d out:%d,Retun t:%d,in:%d,o:%d,s:%d\n",
@@ -3378,12 +3473,20 @@ void bmd_ctrl_cmd_from_user(void *nl_data, struct fgd_nl_msg_t *ret_msg)
 		{
 			int is_charger_exist = 0;
 
+#if defined(CONFIG_MACH_MT6877) || defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6853) \
+	|| defined(CONFIG_MACH_MT6893) || defined(CONFIG_MACH_MT6873)                         \
+	|| defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT6785)
+			if (battery_main.BAT_STATUS == POWER_SUPPLY_STATUS_CHARGING)
+				is_charger_exist = true;
+			else
+				is_charger_exist = false;
+#else
 			if (upmu_get_rgs_chrdet() == 0 ||
 				mt_usb_is_device() == 0)
 				is_charger_exist = false;
 			else
 				is_charger_exist = true;
-
+#endif
 			ret_msg->fgd_data_len += sizeof(is_charger_exist);
 			memcpy(ret_msg->fgd_data,
 				&is_charger_exist, sizeof(is_charger_exist));
@@ -4318,12 +4421,14 @@ void bmd_ctrl_cmd_from_user(void *nl_data, struct fgd_nl_msg_t *ret_msg)
 		soc_type = msg->fgd_subcmd_para1;
 
 		memcpy(&daemon_soc, &msg->fgd_data[0], sizeof(daemon_soc));
-		if (soc_type == 0)
+		if (soc_type == 0) {
 			gm.soc = (daemon_soc + 50) / 100;
+			gm.precise_soc = (daemon_soc + 5) / 10;
+		}
 
 		bm_err(
-		"[fg_res]FG_DAEMON_CMD_SET_KERNEL_SOC = %d %d, type:%d\n",
-		daemon_soc, gm.soc, soc_type);
+		"[fg_res]FG_DAEMON_CMD_SET_KERNEL_SOC = %d %d %d, type:%d\n",
+		daemon_soc, gm.soc, gm.precise_soc, soc_type);
 
 	}
 	break;
@@ -4346,26 +4451,36 @@ void bmd_ctrl_cmd_from_user(void *nl_data, struct fgd_nl_msg_t *ret_msg)
 		fg_cust_data.ui_old_soc = daemon_ui_soc;
 		old_uisoc = gm.ui_soc;
 
-		if (gm.disableGM30 == true)
+		if (gm.disableGM30 == true) {
 			gm.ui_soc = 50;
-		else
+			gm.precise_ui_soc = 50 * 10;
+		} else {
 			gm.ui_soc = (daemon_ui_soc + 50) / 100;
+			gm.precise_ui_soc = (daemon_ui_soc + 5) / 10;
+		}
+		
+#ifdef CONFIG_MTK_DISABLE_TEMP_PROTECT
+		if (gm.ui_soc < 5) {
+			bm_err("CONFIG_MTK_DISABLE_TEMP_PROTECT,  gm.ui_soc:%d\n",gm.ui_soc);
+			gm.ui_soc = 4;
+		}
+#endif
 
 		/* when UISOC changes, check the diff time for smooth */
 		if (old_uisoc != gm.ui_soc) {
 			get_monotonic_boottime(&now_time);
 			diff = timespec_sub(now_time, gm.uisoc_oldtime);
 
-			bm_debug("[fg_res] FG_DAEMON_CMD_SET_KERNEL_UISOC = %d %d GM3:%d old:%d diff=%ld\n",
-				daemon_ui_soc, gm.ui_soc,
+			bm_debug("[fg_res] FG_DAEMON_CMD_SET_KERNEL_UISOC = %d %d %d GM3:%d old:%d diff=%ld\n",
+				daemon_ui_soc, gm.ui_soc, gm.precise_ui_soc,
 				gm.disableGM30, old_uisoc, diff.tv_sec);
 			gm.uisoc_oldtime = now_time;
 
 			battery_main.BAT_CAPACITY = gm.ui_soc;
 			battery_update(&battery_main);
 		} else {
-			bm_debug("[fg_res] FG_DAEMON_CMD_SET_KERNEL_UISOC = %d %d GM3:%d\n",
-				daemon_ui_soc, gm.ui_soc, gm.disableGM30);
+			bm_debug("[fg_res] FG_DAEMON_CMD_SET_KERNEL_UISOC = %d %d %d GM3:%d\n",
+				daemon_ui_soc, gm.ui_soc, gm.precise_ui_soc, gm.disableGM30);
 			/* ac_update(&ac_main); */
 			battery_main.BAT_CAPACITY = gm.ui_soc;
 			battery_update(&battery_main);
@@ -4718,6 +4833,8 @@ void mtk_battery_init(struct platform_device *dev)
 
 	fg_bat_temp_int_init();
 	mtk_power_misc_init(dev);
+//zhaosidong.wt, 2020/12/16, battery id detection
+	bat_create_proc_fs(dev);
 
 	if (gauge_get_hw_version() >= GAUGE_HW_V1000) {
 		/* SW FG nafg */

@@ -28,6 +28,10 @@
 #define to_drm_private(x) container_of(x, struct mtk_drm_private, fb_helper)
 #define ALIGN_TO_32(x) ALIGN_TO(x, 32)
 
+/* wangcong.wt 20220630 add for hardware info */
+#include "linux/hardware_info.h"
+extern char Lcm_name[HARDWARE_MAX_ITEM_LONGTH];
+
 struct fb_info *debug_info;
 
 static inline int try_use_fb_buf(struct drm_device *dev)
@@ -232,6 +236,20 @@ static int mtk_drm_fbdev_mmap(struct fb_info *info, struct vm_area_struct *vma)
 
 #else
 
+static void mtk_drm_fbdev_vm_open(struct vm_area_struct *vma)
+{
+	struct fb_info *info = vma->vm_file->private_data;
+	struct drm_fb_helper *fb_helper = info->par;
+	struct drm_device *drm_dev = fb_helper->dev;
+	struct mtk_drm_private *priv = drm_dev->dev_private;
+
+	if (priv == NULL) {
+		DDPPR_ERR("%s: priv is NULL\n", __func__);
+		return;
+	}
+	kref_get(&priv->kref_fb_buf);
+}
+
 static void mtk_drm_fbdev_vm_close(struct vm_area_struct *vma)
 {
 	struct fb_info *info = vma->vm_file->private_data;
@@ -252,6 +270,7 @@ static int mtk_drm_fbdev_vm_split(struct vm_area_struct *area, unsigned long add
 static const struct vm_operations_struct mtk_drm_fbdev_vm_ops = {
 	.split = mtk_drm_fbdev_vm_split,
 	.close = mtk_drm_fbdev_vm_close,
+	.open = mtk_drm_fbdev_vm_open,
 };
 
 static int mtk_drm_fbdev_mmap(struct fb_info *info, struct vm_area_struct *vma)
@@ -280,7 +299,6 @@ static int mtk_drm_fbdev_mmap(struct fb_info *info, struct vm_area_struct *vma)
 	mmio_pgoff = PAGE_ALIGN((start & ~PAGE_MASK) + len) >> PAGE_SHIFT;
 	if (vma->vm_pgoff >= mmio_pgoff) {
 		if (info->var.accel_flags) {
-			mutex_unlock(&info->mm_lock);
 			return -EINVAL;
 		}
 
@@ -366,6 +384,9 @@ int _parse_tag_videolfb(unsigned int *vramsize, phys_addr_t *fb_base,
 			*vramsize = videolfb_tag->vram;
 			*fb_base = videolfb_tag->fb_base;
 			*fps = videolfb_tag->fps;
+			/* wangcong.wt 20220630 add for hardware info */
+			strncpy(Lcm_name,videolfb_tag->lcmname,strlen(videolfb_tag->lcmname)+1);
+			pr_info("project Lcm_name = %s\n",Lcm_name);
 			if (*fps == 0)
 				*fps = 6000;
 			return 0;

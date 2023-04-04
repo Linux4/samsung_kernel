@@ -413,7 +413,7 @@ static void dump_drb_queue_data(unsigned int qno)
 	u64 *data_64ptr;
 	u8 *data_8ptr;
 
-	if (!dpmaif_ctrl || qno >= DPMAIF_TXQ_NUM || qno < 0) {
+	if (!dpmaif_ctrl || qno >= DPMAIF_TXQ_NUM) {
 		CCCI_ERROR_LOG(-1, TAG,
 			"[%s] error: dpmaif_ctrl = %p; qno = %d",
 			__func__, dpmaif_ctrl, qno);
@@ -927,7 +927,12 @@ static int dpmaif_net_rx_push_thread(void *arg)
 #endif
 #ifndef CCCI_KMODULE_ENABLE
 #ifdef CCCI_SKB_TRACE
-		per_md_data->netif_rx_profile[6] = sched_clock();
+		if (per_md_data == NULL)
+			per_md_data = ccci_get_per_md_data(hif_ctrl->md_id);
+
+		if (per_md_data)
+			per_md_data->netif_rx_profile[6] = sched_clock();
+
 		if (count > 0)
 			skb->tstamp = sched_clock();
 #endif
@@ -964,10 +969,12 @@ static int dpmaif_net_rx_push_thread(void *arg)
 #endif
 #ifndef CCCI_KMODULE_ENABLE
 #ifdef CCCI_SKB_TRACE
-		per_md_data->netif_rx_profile[6] = sched_clock() -
-			per_md_data->netif_rx_profile[6];
-		per_md_data->netif_rx_profile[5] = count;
-		trace_ccci_skb_rx(per_md_data->netif_rx_profile);
+		if (per_md_data) {
+			per_md_data->netif_rx_profile[6] = sched_clock() -
+				per_md_data->netif_rx_profile[6];
+			per_md_data->netif_rx_profile[5] = count;
+			trace_ccci_skb_rx(per_md_data->netif_rx_profile);
+		}
 #endif
 #endif
 	}
@@ -2791,8 +2798,6 @@ static inline int cs_type(struct sk_buff *skb)
 			skb->ip_summed);
 		return 0;
 	} else if (packet_type == IPV4_VERSION) {
-		if (iph->check == 0)
-			return 0; /* No HW check sum */
 		if (skb->ip_summed == CHECKSUM_NONE ||
 			skb->ip_summed == CHECKSUM_UNNECESSARY ||
 			skb->ip_summed == CHECKSUM_COMPLETE)
@@ -3344,6 +3349,31 @@ static irqreturn_t dpmaif_isr(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+#ifdef ENABLE_CPU_AFFINITY
+void mtk_ccci_affinity_rta(u32 irq_cpus, u32 push_cpus, int cpu_nr)
+{
+	struct cpumask imask, tmask;
+	unsigned int i;
+
+	cpumask_clear(&imask);
+	cpumask_clear(&tmask);
+
+	for (i = 0; i < cpu_nr; i++) {
+		if (irq_cpus & (1 << i))
+			cpumask_set_cpu(i, &imask);
+		if (push_cpus & (1 << i))
+			cpumask_set_cpu(i, &tmask);
+	}
+	CCCI_REPEAT_LOG(-1, TAG, "%s: i:0x%x t:0x%x\r\n",
+			__func__, irq_cpus, push_cpus);
+
+	if (dpmaif_ctrl->dpmaif_irq_id)
+		irq_force_affinity(dpmaif_ctrl->dpmaif_irq_id, &imask);
+	if (dpmaif_ctrl->rxq[0].rx_thread)
+		sched_setaffinity(dpmaif_ctrl->rxq[0].rx_thread->pid, &tmask);
+}
+
+#endif
 /* =======================================================
  *
  * Descriptions: State part start(1/3): init(RX) -- 1.1.2 rx sw init
@@ -3753,6 +3783,13 @@ int dpmaif_late_init(unsigned char hif_id)
 			dpmaif_ctrl->dpmaif_irq_id, ret);
 		return ret;
 	}
+#ifdef MT6297
+	ret = irq_set_irq_wake(dpmaif_ctrl->dpmaif_irq_id, 1);
+	if (ret)
+		CCCI_ERROR_LOG(dpmaif_ctrl->md_id, TAG,
+			"irq_set_irq_wake dpmaif irq(%d) error %d\n",
+			dpmaif_ctrl->dpmaif_irq_id, ret);
+#endif
 	atomic_set(&dpmaif_ctrl->dpmaif_irq_enabled, 1); /* init */
 	dpmaif_disable_irq(dpmaif_ctrl);
 
@@ -4009,8 +4046,8 @@ void dpmaif_stop_hw(void)
 {
 	struct dpmaif_rx_queue *rxq = NULL;
 	struct dpmaif_tx_queue *txq = NULL;
-	unsigned int que_cnt, ret;
-	int count;
+	unsigned int que_cnt;
+	int count, ret;
 
 #ifdef DPMAIF_DEBUG_LOG
 	CCCI_HISTORY_TAG_LOG(-1, TAG, "dpmaif:stop hw\n");
@@ -4734,7 +4771,7 @@ int ccci_dpmaif_hif_init(struct device *dev)
 	register_syscore_ops(&dpmaif_sysops);
 
 #ifdef MT6297
-	//mtk_ccci_speed_monitor_init();
+	mtk_ccci_speed_monitor_init();
 #endif
 	atomic_set(&dpmaif_ctrl->suspend_flag, 0);
 

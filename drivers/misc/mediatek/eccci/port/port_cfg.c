@@ -78,7 +78,10 @@ static struct port_t md1_ccci_ports[] = {
 	{CCCI_CCMNI8_TX, CCCI_CCMNI8_RX, DATA1_TX_Q, DATA_RX_Q,
 		0xF0 | DATA_TX_ACK_Q, 0xFF, MD1_NET_HIF, 0,
 		&net_port_ops, 7, NET_IF_NAME"7",},
-
+	/* only for special use */
+	{CCCI_CCMNI9_TX, CCCI_CCMNI9_RX, DATA1_TX_Q, DATA2_RX_Q,
+		0xF0 | DATA_TX_ACK_Q, 0xFF, MD1_NET_HIF, 0,
+		&net_port_ops, 8, NET_IF_NAME"8",},
 	{CCCI_CCMNI10_TX, CCCI_CCMNI10_RX, DATA1_TX_Q, DATA2_RX_Q,
 		0xF0 | DATA_TX_ACK_Q, 0xFF, MD1_NET_HIF, 0,
 		&net_port_ops, 9, NET_IF_NAME"9",},
@@ -115,12 +118,6 @@ static struct port_t md1_ccci_ports[] = {
 	{CCCI_CCMNI21_TX, CCCI_CCMNI21_RX, DATA1_TX_Q, DATA2_RX_Q,
 		0xF0 | DATA_TX_ACK_Q, 0xFF, MD1_NET_HIF, 0,
 		&net_port_ops, 20, NET_IF_NAME"20",},
-	/*ccmni-lan port minor id should be same as ccmni_idx
-	 * in ccci_get_ccmni_channel() function
-	 */
-	{CCCI_CCMNILAN_TX, CCCI_CCMNILAN_RX, DATA_MDT_Q, DATA_MDT_Q,
-		0xF0 | DATA_MDT_Q, 0xFF, MD1_NET_HIF, 0,
-		&net_port_ops, 21, "ccmni-lan",},
 	/* char port, notes ccci_monitor must be first
 	 * for get_port_by_minor() implement
 	 */
@@ -208,6 +205,20 @@ static struct port_t md1_ccci_ports[] = {
 	{CCCI_BIP_TX, CCCI_BIP_RX, 1, 1, 0xFF, 0xFF,
 		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,
 		&char_port_ops, 27, "ccci_bip",},
+#ifdef CONFIG_MTK_SRIL_SUPPORT
+	{CCCI_RIL_IPC0_TX, CCCI_RIL_IPC0_RX, 1, 1, 0xFF, 0xFF,
+		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,
+		&char_port_ops, 28, "ccci_umts_ipc0",},
+	{CCCI_RIL_IPC1_TX, CCCI_RIL_IPC1_RX, 1, 1, 0xFF, 0xFF,
+		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,
+		&char_port_ops, 29, "ccci_umts_ipc1",},
+	{CCCI_VT_CTL_TX, CCCI_VT_CTL_RX, 1, 1, 0xFF, 0xFF,
+		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,
+		&char_port_ops, 30, "ttyC4",},
+	{CCCI_CIQ_TX, CCCI_CIQ_RX, 2, 2, 0xFF, 0xFF,
+		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,
+		&char_port_ops, 39, "ccci_ciq",},
+#endif
 	{CCCI_TCHE_TX, CCCI_TCHE_RX, DATA_TCHE, DATA_TCHE, 0xFF, 0xFF,
 		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,
 		&char_port_ops, 31, "ttyC5",},
@@ -253,24 +264,6 @@ static struct port_t md1_ccci_ports[] = {
 	{CCCI_AT_TX, CCCI_AT_RX, 1, 1, 0xFF, 0xFF,
 		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,
 		&char_port_ops, 44, "ttyC_AT",},
-#ifdef CONFIG_MTK_SRIL_SUPPORT
-	/*
-	 * ALPS07138413:
-	 * minor number 80~99 are reserved for SS items
-	 * */
-	{CCCI_RIL_IPC0_TX, CCCI_RIL_IPC0_RX, 1, 1, 0xFF, 0xFF,
-		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,
-		&char_port_ops, 80, "ccci_umts_ipc0",},
-	{CCCI_RIL_IPC1_TX, CCCI_RIL_IPC1_RX, 1, 1, 0xFF, 0xFF,
-		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,
-		&char_port_ops, 81, "ccci_umts_ipc1",},
-	{CCCI_VT_CTL_TX, CCCI_VT_CTL_RX, 1, 1, 0xFF, 0xFF,
-		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,
-		&char_port_ops, 82, "ttyC4",},
-	{CCCI_CIQ_TX, CCCI_CIQ_RX, 2, 2, 0xFF, 0xFF,
-		MD1_NORMAL_HIF, PORT_F_WITH_CHAR_NODE,
-		&char_port_ops, 83, "ccci_ciq",},
-#endif
 	/* misc kernel port */
 	{CCCI_MIPI_CHANNEL_TX, CCCI_MIPI_CHANNEL_RX, 1, 1, 0xFF, 0xFF,
 		MD1_NORMAL_HIF, 0,

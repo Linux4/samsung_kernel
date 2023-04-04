@@ -110,6 +110,9 @@ static int pd_tcp_notifier_call(struct notifier_block *pnb,
 				MTK_TYPEC_HRESET_STATUS,
 				&pinfo->enable_kpoc_shdn);
 		} else if (noti->hreset_state.state == TCP_HRESET_SIGNAL_SEND ||
+#ifdef CONFIG_KPOC_GET_SOURCE_CAP_TRY
+			noti->hreset_state.state == TCP_ERROR_RECOVERY_KPOC ||
+#endif /*CONFIG_KPOC_GET_SOURCE_CAP_TRY*/
 			noti->hreset_state.state == TCP_HRESET_SIGNAL_RECV) {
 			pinfo->enable_kpoc_shdn = false;
 			notify_adapter_event(MTK_PD_ADAPTER,

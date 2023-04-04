@@ -202,6 +202,7 @@ int scsi_ioctl(struct scsi_device *sdev, int cmd, void __user *arg)
 {
 	char scsi_cmd[MAX_COMMAND_SIZE];
 	struct scsi_sense_hdr sense_hdr;
+	struct scsi_host_template *sht = sdev->host->hostt;
 
 	/* Check for deprecated ioctls ... all the ioctls which don't
 	 * follow the new unique numbering scheme are deprecated */
@@ -264,7 +265,10 @@ int scsi_ioctl(struct scsi_device *sdev, int cmd, void __user *arg)
         case SCSI_IOCTL_GET_PCI:
                 return scsi_ioctl_get_pci(sdev, arg);
 	case SG_SCSI_RESET:
-		return scsi_ioctl_reset(sdev, arg);
+		if (!strncmp(sht->name, "ufshcd", 6))
+			return -EINVAL;
+		else
+			return scsi_ioctl_reset(sdev, arg);
 	default:
 		if (sdev->host->hostt->ioctl)
 			return sdev->host->hostt->ioctl(sdev, cmd, arg);

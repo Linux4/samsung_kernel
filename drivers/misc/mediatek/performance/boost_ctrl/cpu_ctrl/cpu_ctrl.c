@@ -49,6 +49,15 @@ int powerhal_tid;
 
 #include "eas_ctrl_plat.h"
 
+#define SCHED_NO_BOOST 0
+#define SCHED_ALL_BOOST 1
+
+#ifdef CONFIG_MACH_MT6765
+#define BIG_CLUSTER 0
+#else
+#define BIG_CLUSTER 1
+#endif
+
 #define MAX_CLUSTER_COUNT 3
 static int num_cpu;
 static struct mutex isolate_lock;
@@ -73,6 +82,7 @@ int update_userlimit_cpu_freq(int kicker, int num_cluster
 	struct ppm_limit_data *final_freq;
 	int retval = 0;
 	int i, j, len = 0, len1 = 0;
+	int sched_boost = SCHED_NO_BOOST;
 	char msg[LOG_BUF_SIZE];
 	char msg1[LOG_BUF_SIZE];
 
@@ -162,6 +172,10 @@ int update_userlimit_cpu_freq(int kicker, int num_cluster
 		}
 	}
 
+	if (final_freq[BIG_CLUSTER].min != -1) {
+		sched_boost = SCHED_ALL_BOOST;
+	}
+
 	for_each_perfmgr_clusters(i) {
 		current_freq[i].min = final_freq[i].min;
 		current_freq[i].max = final_freq[i].max;
@@ -173,6 +187,8 @@ int update_userlimit_cpu_freq(int kicker, int num_cluster
 			return -EIO;
 		}
 	}
+
+	set_sched_boost_type(sched_boost);
 
 	if (len >= 0 && len < LOG_BUF_SIZE) {
 		len1 = LOG_BUF_SIZE - len - 1;

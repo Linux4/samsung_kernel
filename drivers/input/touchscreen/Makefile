@@ -71,6 +71,15 @@ endif
 ifeq ($(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83102),y)
 obj-$(CONFIG_TOUCHSCREEN_MTK)		+= mediatek/
 endif
+ifeq ($(CONFIG_TOUCHSCREEN_FTS_FT8722),y)
+obj-$(CONFIG_TOUCHSCREEN_MTK)           += mediatek/
+endif
+ifeq ($(CONFIG_TOUCHSCREEN_ILI7807S),y)
+obj-$(CONFIG_TOUCHSCREEN_MTK)           += mediatek/
+endif
+ifeq ($(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83112),y)
+obj-$(CONFIG_TOUCHSCREEN_MTK)           += mediatek/
+endif
 obj-$(CONFIG_TOUCHSCREEN_MTK_NT36572_COMMON)   +=  nt36572_common/
 obj-$(CONFIG_TOUCHSCREEN_MIGOR)		+= migor_ts.o
 obj-$(CONFIG_TOUCHSCREEN_MMS114)	+= mms114.o
@@ -130,5 +139,11 @@ obj-$(CONFIG_TOUCHSCREEN_MTK_FOCALTECH_FHD)	+= focaltech_fhd_touch/
 obj-$(CONFIG_TOUCHSCREEN_MTK_SYNAPTICS_I2C_RMI4)	+=  synaptics_i2c_rmi4/
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_TCM) += synaptics_tcm/
 obj-$(CONFIG_TOUCHSCREEN_ILI9882N) += new_tddi_9881x/
+obj-$(CONFIG_TOUCHSCREEN_HIMAX_HX83102) += himax/himax_ic_hx83102/
+obj-$(CONFIG_TOUCHSCREEN_NT36xxx) += nt36525b_i2c/
+obj-$(CONFIG_TOUCHSCREEN_SYNA_TCM2) += synaptics_tcm2/
+obj-$(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83102J) += himax/himax_ic_hx83102j/
+obj-$(CONFIG_TOUCHSCREEN_GOODIX_9895_BRL) += gt9895/
+obj-$(CONFIG_TOUCHSCREEN_MELFAS_MSS100) += melfas_mip4/
 TOUCH_LISTS := $(subst ",,$(CONFIG_TOUCHSCREEN_MTK_TOUCH))
 obj-y += $(foreach TOUCH,$(TOUCH_LISTS),$(TOUCH)/)

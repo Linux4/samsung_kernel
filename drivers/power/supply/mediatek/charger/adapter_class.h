@@ -16,6 +16,7 @@
 struct adapter_power_cap {
 	uint8_t selected_cap_idx;
 	uint8_t nr;
+	uint8_t nr_old;
 	uint8_t pdp;
 	uint8_t pwr_limit[ADAPTER_CAP_MAX_NR];
 	int max_mv[ADAPTER_CAP_MAX_NR];

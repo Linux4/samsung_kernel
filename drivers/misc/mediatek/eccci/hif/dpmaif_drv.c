@@ -620,7 +620,7 @@ int drv_dpmaif_dl_all_queue_en(bool enable)
 	return 0;
 }
 
-unsigned int drv_dpmaif_dl_idle_check(void)
+int drv_dpmaif_dl_idle_check(void)
 {
 	unsigned int ret;
 
@@ -1460,7 +1460,7 @@ void drv_dpmaif_ul_all_queue_en(bool enable)
 #endif
 }
 
-unsigned int drv_dpmaif_ul_idle_check(void)
+int drv_dpmaif_ul_idle_check(void)
 {
 	unsigned long idle_sts;
 	unsigned int ret;

@@ -1464,7 +1464,6 @@ void shrink_dcache_parent(struct dentry *parent)
 {
 	for (;;) {
 		struct select_data data;
-		bool need_sched = true;
 
 		INIT_LIST_HEAD(&data.dispose);
 		data.start = parent;
@@ -1477,18 +1476,9 @@ void shrink_dcache_parent(struct dentry *parent)
 			continue;
 		}
 
-		if (cond_resched())
-			need_sched = false;
-
+		cond_resched();
 		if (!data.found)
 			break;
-
-		if (unlikely(need_sched)) {
-			long prev_state = current->state;
-
-			if (!schedule_timeout_uninterruptible(1))
-				set_current_state(prev_state);
-		}
 	}
 }
 EXPORT_SYMBOL(shrink_dcache_parent);

@@ -10,7 +10,7 @@
 #include "pseudo_m4u_log.h"
 
 static struct m4u_sec_gp_context m4u_gp_ta_ctx = {
-	.uuid = (struct TEEC_UUID)M4U_TA_UUID,
+	.uuid = (TYPE_STRUCT TEEC_UUID)M4U_TA_UUID,
 	.ctx_lock = __MUTEX_INITIALIZER(m4u_gp_ta_ctx.ctx_lock),
 	.ctx_type = CTX_TYPE_TA,
 };
@@ -25,7 +25,7 @@ void m4u_sec_set_context(void)
 static int m4u_exec_session(struct m4u_sec_context *ctx)
 {
 	int ret;
-	struct TEEC_Operation m4u_operation;
+	TYPE_STRUCT TEEC_Operation m4u_operation;
 	struct m4u_sec_gp_context *gp_ctx = ctx->imp;
 
 	if (!ctx->m4u_msg) {
@@ -35,7 +35,7 @@ static int m4u_exec_session(struct m4u_sec_context *ctx)
 
 	M4ULOG_HIGH("%s, Notify 0x%x\n", __func__, ctx->m4u_msg->cmd);
 
-	memset(&m4u_operation, 0, sizeof(struct TEEC_Operation));
+	memset(&m4u_operation, 0, sizeof(TYPE_STRUCT TEEC_Operation));
 	m4u_operation.paramTypes = TEEC_PARAM_TYPES(
 		TEEC_MEMREF_PARTIAL_INPUT, TEEC_NONE, TEEC_NONE, TEEC_NONE);
 	m4u_operation.params[0].memref.parent = &gp_ctx->shared_mem;
@@ -69,7 +69,7 @@ static int m4u_sec_gp_init(struct m4u_sec_context *ctx)
 	M4ULOG_HIGH("%s, ta teec_initialize_context\n", __func__);
 
 
-	memset(&gp_ctx->shared_mem, 0, sizeof(struct TEEC_SharedMemory));
+	memset(&gp_ctx->shared_mem, 0, sizeof(TYPE_STRUCT TEEC_SharedMemory));
 
 	gp_ctx->shared_mem.size = sizeof(struct m4u_msg);
 	gp_ctx->shared_mem.flags = TEEC_MEM_INPUT;

@@ -29,12 +29,21 @@
 		nvmem-names = "mt63xx-accdet-efuse";
 
 		/* moisture SW mode config start, use external resister or not.*/
+#if defined(CONFIG_SND_SOC_FS17XX)
 		//moisture-ver = <1>;
 		//moisture_use_ext_res = <1>;
 		//moisture-external-r = <470000>;
 		/* moisture of water resister ohm, SW mode by auxadc*/
 		//moisture-water-r = <50000>;
 		/* moisture SW mode config end */
+#else
+		moisture-ver = <1>;
+		moisture_use_ext_res = <1>;
+		moisture-external-r = <470000>;
+		/* moisture of water resister ohm, SW mode by auxadc*/
+		moisture-water-r = <50000>;
+		/* moisture SW mode config end */
+#endif
 		status = "okay";
 	};
 

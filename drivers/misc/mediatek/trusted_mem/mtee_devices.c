@@ -56,7 +56,7 @@ static struct tmem_device_description mtee_mchunks[] = {
 #endif
 		.u_ops_data.mtee = {.mem_type = TRUSTED_MEM_SVP},
 #if defined(CONFIG_TRUSTONIC_TEE_SUPPORT)                                     \
-	|| defined(CONFIG_MICROTRUST_TEE_SUPPORT)
+	|| defined(CONFIG_MICROTRUST_TEE_SUPPORT) || defined(CONFIG_TEEGRIS_TEE_SUPPORT)
 		.notify_remote = true,
 		.notify_remote_fn = secmem_fr_set_svp_region,
 #else

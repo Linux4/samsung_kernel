@@ -1775,13 +1775,6 @@ static struct tpd_driver_t tpd_device_driver = {
 extern char *saved_command_line;
 static int __init tpd_driver_init(void)
 {
-#ifndef CONFIG_WT_PROJECT_S96516SA1
-    if (!strstr(saved_command_line,"ft8006s_dsi_vdo_hdp_skyworth_shenchao")) {
-	FTS_ERROR("MATCH LCD ERROR\n");		
-        return  -1;
-    }
-#endif
-
     FTS_FUNC_ENTER();
     FTS_INFO("Driver version: %s", FTS_DRIVER_VERSION);
     tpd_get_dts_info();

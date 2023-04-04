@@ -16,6 +16,9 @@ else
 MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
 endif
 
+ifeq ($(WT_COMPILE_FACTORY_VERSION),yes)
+        ccflags-y += -DWT_COMPILE_FACTORY_VERSION
+endif
 
 ccflags-y += -I$(srctree)/$(MTK_MISC_INC)
 ccflags-y += -I$(srctree)/$(MTK_MISC_INC)/mt-plat
@@ -29,6 +32,8 @@ obj-$(CONFIG_SCSI_UFS_QCOM) += ufs-qcom.o
 obj-$(CONFIG_SCSI_UFSHCD) += ufshcd-core.o
 ufshcd-core-objs := ufshcd.o ufs-sysfs.o
 ufshcd-core-$(CONFIG_SCSI_UFS_BSG)	+= ufs_bsg.o
+obj-$(CONFIG_SCSI_UFSHCD) += ufs-sec-feature.o
+obj-$(CONFIG_SCSI_UFSHCD) += ufs-sec-sysfs.o
 obj-$(CONFIG_SCSI_UFS_FEATURE) += ufsfeature.o
 obj-$(CONFIG_SCSI_UFS_HPB) += ufshpb.o
 obj-$(CONFIG_SCSI_UFS_TW) += ufstw.o

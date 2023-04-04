@@ -173,6 +173,8 @@ static int mtk_usb_extcon_set_role(struct mtk_extcon_info *extcon,
 
 	/* create and prepare worker */
 	role_info = kzalloc(sizeof(*role_info), GFP_KERNEL);
+	pr_info("%s: in set role\n", __func__);
+
 	if (!role_info)
 		return -ENOMEM;
 
@@ -186,6 +188,7 @@ static int mtk_usb_extcon_set_role(struct mtk_extcon_info *extcon,
 	return 0;
 }
 
+#ifndef CONFIG_WT_PROJECT_S96902AA1 //usb if
 #if !defined(CONFIG_USB_MTK_HDRC)
 void mt_usb_connect()
 {
@@ -201,6 +204,7 @@ void mt_usb_disconnect()
 }
 EXPORT_SYMBOL(mt_usb_disconnect);
 #endif
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 
 static int mtk_usb_extcon_psy_notifier(struct notifier_block *nb,
 				unsigned long event, void *data)
@@ -314,7 +318,7 @@ static int mtk_usb_extcon_psy_init(struct mtk_extcon_info *extcon)
 	return 0;
 }
 
-#if defined ADAPT_CHARGER_V1
+#if defined ADAPT_CHARGER_V1 && defined(CONFIG_MTK_CHARGER)
 #include <mt-plat/v1/charger_class.h>
 static struct charger_device *primary_charger;
 
@@ -330,8 +334,13 @@ static int mtk_usb_extcon_set_vbus_v1(bool is_on) {
 	pr_info("%s: is_on=%d\n", __func__, is_on);
 	if (is_on) {
 		charger_dev_enable_otg(primary_charger, true);
+#if defined (CONFIG_N26_CHARGER_PRIVATE)  || defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
 		charger_dev_set_boost_current_limit(primary_charger,
-			1500000);
+			1500000); 
+#else
+		charger_dev_set_boost_current_limit(primary_charger,
+			1100000);  //churui1.wt, decrease the OTG current limit
+#endif			
 		#if 0
 		{// # workaround
 			charger_dev_kick_wdt(primary_charger);
@@ -357,28 +366,14 @@ static int mtk_usb_extcon_set_vbus_v1(bool is_on) {
 		return 0;
 }
 #endif //ADAPT_CHARGER_V1
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-static int mtk_usb_extcon_set_ibus(bool is_on)
-{
-	struct charger_device *primary_charger = get_charger_by_name("primary_chg");
-	if (!primary_charger) {
-		printc("%s; get primary charger device failed\n", __func__);
-		return -ENODEV;
-	}
-	printc("%s: is_on=%d\n", __func__, is_on);
-	if (is_on) {
-		charger_dev_set_boost_current_limit(primary_charger, 2500000);
-	}
-	return 0;
-}
-#endif
+
 static int mtk_usb_extcon_set_vbus(struct mtk_extcon_info *extcon,
 							bool is_on)
 {
-#if 0
+#ifdef CONFIG_W2_CHARGER_PRIVATE
 
 	int ret;
-#if defined ADAPT_CHARGER_V1
+#if defined ADAPT_CHARGER_V1 && defined(CONFIG_MTK_CHARGER)
 	ret = mtk_usb_extcon_set_vbus_v1(is_on);
 #else
 	struct regulator *vbus = extcon->vbus;
@@ -429,9 +424,6 @@ static int mtk_usb_extcon_set_vbus(struct mtk_extcon_info *extcon,
 #endif //ADAPT_CHARGER_V1
 	return ret;
 #else
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-	mtk_usb_extcon_set_ibus(is_on);
-#endif
 	printc("vbus turn %s\n", is_on ? "on" : "off");
 	if(NULL != extcon->chg_dev)
 		charger_dev_enable_otg(extcon->chg_dev,is_on);
@@ -519,9 +511,9 @@ static int mtk_extcon_tcpc_notifier(struct notifier_block *nb,
 		mtk_usb_extcon_set_vbus(extcon, vbus_on);
 		break;
 	case TCP_NOTIFY_TYPEC_STATE:
-		printc("old_state=%d, new_state=%d\n",
+		printc("old_state=%d, new_state=%d c_rold=%d\n",
 				noti->typec_state.old_state,
-				noti->typec_state.new_state);
+				noti->typec_state.new_state, extcon->c_role);
 
 #ifdef CONFIG_MTK_USB_TYPEC_U3_MUX
 		if ((noti->typec_state.new_state == TYPEC_ATTACHED_SRC ||
@@ -536,17 +528,18 @@ static int mtk_extcon_tcpc_notifier(struct notifier_block *nb,
 			usb3_switch_set(TYPEC_ORIENTATION_NONE);
 		}
 #endif
-		if (noti->typec_state.old_state == TYPEC_UNATTACHED &&
+		if ((noti->typec_state.old_state == TYPEC_UNATTACHED &&
+			extcon->c_role == DUAL_PROP_DR_NONE) &&
 			noti->typec_state.new_state == TYPEC_ATTACHED_SRC) {
 			printc("Type-C SRC plug in\n");
 			mtk_usb_extcon_set_role(extcon, DUAL_PROP_DR_HOST);
 		} else if (!(extcon->bypss_typec_sink) &&
-			noti->typec_state.old_state == TYPEC_UNATTACHED &&
+			(noti->typec_state.old_state == TYPEC_UNATTACHED &&
+			extcon->c_role == DUAL_PROP_DR_NONE) &&
 			(noti->typec_state.new_state == TYPEC_ATTACHED_SNK ||
 			noti->typec_state.new_state == TYPEC_ATTACHED_NORP_SRC ||
 			noti->typec_state.new_state == TYPEC_ATTACHED_CUSTOM_SRC)) {
 			printc("Type-C SINK plug in\n");
-
 #if	defined (CONFIG_N26_CHARGER_PRIVATE)		
 			if(usb_need_reconnect(extcon))
 #endif
@@ -564,12 +557,14 @@ static int mtk_extcon_tcpc_notifier(struct notifier_block *nb,
 		printc("%s dr_swap, new role=%d\n",
 				__func__, noti->swap_state.new_role);
 		if (noti->swap_state.new_role == PD_ROLE_UFP &&
-				extcon->c_role == DUAL_PROP_DR_HOST) {
+				(extcon->c_role == DUAL_PROP_DR_HOST ||
+				extcon->c_role == DUAL_PROP_DR_NONE)) {
 			printc("switch role to device\n");
 			mtk_usb_extcon_set_role(extcon, DUAL_PROP_DR_NONE);
 			mtk_usb_extcon_set_role(extcon, DUAL_PROP_DR_DEVICE);
 		} else if (noti->swap_state.new_role == PD_ROLE_DFP &&
-				extcon->c_role == DUAL_PROP_DR_DEVICE) {
+				(extcon->c_role == DUAL_PROP_DR_DEVICE ||
+				extcon->c_role == DUAL_PROP_DR_NONE)) {
 			printc("switch role to host\n");
 			mtk_usb_extcon_set_role(extcon, DUAL_PROP_DR_NONE);
 			mtk_usb_extcon_set_role(extcon, DUAL_PROP_DR_HOST);

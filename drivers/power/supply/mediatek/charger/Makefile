@@ -25,6 +25,10 @@ subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/typec/tcpc/inc
 subdir-ccflags-y += -I$(srctree)/drivers/power/supply/mediatek/misc/
 subdir-ccflags-y += -I$(srctree)/drivers/power/supply/mediatek/battery/
 
+ifeq ($(WT_COMPILE_FACTORY_VERSION),yes)
+ccflags-y += -DWT_COMPILE_FACTORY_VERSION
+endif
+
 obj-y += charger_class.o mtk_charger.o mtk_switch_charging.o mtk_pdc_intf.o\
 	 mtk_chg_type_det.o mtk_pe40_intf.o mtk_linear_charging.o\
 	 adapter_class.o mtk_pd_adapter.o\
@@ -46,3 +50,4 @@ obj-$(CONFIG_CHARGER_HL7005) += hl7005.o
 obj-$(CONFIG_CHARGER_BQ25601) += bq25601.o
 obj-$(CONFIG_LOAD_SWITCH_RT9750) += rt9750.o
 obj-$(CONFIG_CHARGER_MT6362) += mt6362-chg.o
+obj-$(CONFIG_AFC_CHARGER) += afc_charger_intf.o

@@ -8,6 +8,7 @@
 #define KPD_HAL_H
 #include <mt-plat/sync_write.h>
 /* Keypad registers */
+#define PMIC_KEY_STATUS
 extern void __iomem *kp_base;
 extern struct input_dev *kpd_input_dev;
 
@@ -39,6 +40,12 @@ void kpd_get_keymap_state(u16 state[]);
 void kpd_set_debounce(u16 val);
 void kpd_init_keymap(u32 keymap[]);
 void kpd_init_keymap_state(u16 keymap_state[]);
+#if defined(PMIC_KEY_STATUS)
+extern unsigned int mt6359_upmu_get_pwrkey_deb(void);
+extern unsigned int mt6359_upmu_get_homekey_deb(void);
+unsigned int kpd_pmic_pwrkey_status_hal(void);
+unsigned int kpd_pmic_homekey_status_hal(void);
+#endif
 void kpd_pmic_rstkey_hal(unsigned long pressed);
 void kpd_pmic_pwrkey_hal(unsigned long pressed);
 void kpd_pwrkey_handler_hal(unsigned long data);

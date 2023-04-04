@@ -110,39 +110,6 @@ static int get_md_adc_val(__attribute__((unused))unsigned int num)
 	return -1;
 }
 
-//+ExtB P210506-05247 penghui.wt add 2021/7/5 get wrong hwid
-int wt_get_md_adc_val(unsigned int num)
-{
-	int val = 0;
-	//CCCI_ERROR_LOG(0, RPC, "wt_get_md_adc_val: num=%d\n", num);
-	if (num == 2)
-	{
-		int vol = 0;
-		int ret = -1;
-
-		char* s = hw_id_vol_get();
-		//CCCI_ERROR_LOG(0, RPC, "wt_get_md_adc_val: s=%s\n", s);
-
-		ret = kstrtoint(s, 10, &vol);
-		//CCCI_ERROR_LOG(0, RPC, "wt_get_md_adc_val: ret=%d, vol=%d\n", ret ,vol);
-
-		if (ret == 0 && vol > 0)
-		{
-			val = (long long)vol * 4096 / (long long)1500000;
-			//CCCI_ERROR_LOG(0, RPC, "wt_get_md_adc_val: val=%d\n", val);
-		}
-		else
-		{
-			val = get_md_adc_val(num);
-		}
-	}
-	else
-	{
-		val = get_md_adc_val(num);
-	}
-	return val;
-}
-//-ExtB P210506-05247 penghui.wt add 2021/7/5 get wrong hwid
 
 static int get_td_eint_info(char *eint_name, unsigned int len)
 {
@@ -237,29 +204,6 @@ static int get_md_gpio_info(char *gpio_name,
 	}
 	gpio_id = get_gpio_id_from_dt(node, gpio_name, md_view_gpio_id);
 	return gpio_id;
-}
-
-static void md_drdi_gpio_status_scan(void)
-{
-	int i;
-	int size;
-	int gpio_id;
-	int gpio_md_view;
-	char *curr;
-	int val;
-
-	CCCI_BOOTUP_LOG(0, RPC, "scan didr gpio status\n");
-	for (i = 0; i < ARRAY_SIZE(gpio_mapping_table); i++) {
-		curr = gpio_mapping_table[i].gpio_name_from_md;
-		size = strlen(curr) + 1;
-		gpio_md_view = -1;
-		gpio_id = get_md_gpio_info(curr, size, &gpio_md_view);
-		if (gpio_id >= 0) {
-			val = get_md_gpio_val(gpio_id);
-			CCCI_BOOTUP_LOG(0, RPC, "GPIO[%s]%d(%d@md),val:%d\n",
-					curr, gpio_id, gpio_md_view, val);
-		}
-	}
 }
 
 static int get_dram_type_clk(int *clk, int *type)
@@ -996,13 +940,7 @@ static void ccci_rpc_work_helper(struct port_t *port, struct rpc_pkt *pkt,
 			if (p_rpc_buf->op_id == IPC_RPC_GET_GPIO_VAL_OP)
 				val = get_md_gpio_val(num);
 			else if (p_rpc_buf->op_id == IPC_RPC_GET_ADC_VAL_OP)
-//+ExtB P210506-05247 penghui.wt mod 2021/7/5 get wrong hwid
-#ifdef CONFIG_WT_PROJECT_S96717AA2
-				val = wt_get_md_adc_val(num);
-#else
 				val = get_md_adc_val(num);
-#endif
-//-ExtB P210506-05247 penghui.wt mod 2021/7/5 get wrong hwid
 			tmp_data[0] = val;
 			CCCI_DEBUG_LOG(md_id, RPC, "[0x%X]: num=%d, val=%d!\n",
 				p_rpc_buf->op_id, num, val);
@@ -1459,7 +1397,6 @@ static int port_rpc_init(struct port_t *port)
 	if (first_init) {
 		get_dtsi_eint_node(port->md_id);
 		get_md_dtsi_debug();
-		md_drdi_gpio_status_scan();
 		first_init = 0;
 	}
 	return 0;

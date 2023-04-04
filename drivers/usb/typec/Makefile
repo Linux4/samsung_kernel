@@ -11,5 +11,3 @@ obj-$(CONFIG_TYPEC)		+= mux/
 obj-$(CONFIG_TYPEC_TCPCI)	+= tcpci.o
 obj-$(CONFIG_TYPEC_RT1711H)	+= tcpci_rt1711h.o
 obj-$(CONFIG_TYPEC_MT6360)	+= tcpci_mt6360.o
-obj-$(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)		+= manager/
-obj-$(CONFIG_PDIC_NOTIFIER)		+= common/

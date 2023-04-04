@@ -2951,7 +2951,7 @@ void gcore_request_firmware_update_work(struct work_struct *work)
 
 	gdev_fwu->fw_mem = fw_buf;
 
-	if (lcm_name == 14){
+	if (g_lcm_name == 14){
 		for(gcore_up_num = 0; gcore_up_num < 3; gcore_up_num++){
 			if (request_firmware(&fw, FW_BIN_NAME, &gdev_fwu->bus_device->dev)) {
 				msleep(1000);
@@ -2963,7 +2963,7 @@ void gcore_request_firmware_update_work(struct work_struct *work)
 			GTP_ERROR("request firmware fail gcore_up_num = %d\n ", gcore_up_num);
 			return;
 		}
-	}else if (lcm_name == 15) {
+	}else if (g_lcm_name == 15) {
 		for(gcore_up_num = 0; gcore_up_num < 3; gcore_up_num++){
 			if (request_firmware(&fw, FW_BIN_LC_NAME, &gdev_fwu->bus_device->dev)) {
 				msleep(1000);
@@ -3025,10 +3025,10 @@ void gcore_request_firmware_update_work(struct work_struct *work)
 
 	GTP_ERROR("FW Ver:%d.%d.%d.%d\n",
 			 fw_read_data[1], fw_read_data[0], fw_read_data[3], fw_read_data[2]);
-	if (lcm_name == 14) {
+	if (g_lcm_name == 14) {
 		sprintf(Ctp_name,"TXD,GC7202H,FW:0x0%d",fw_read_data[2]);
 		GTP_ERROR("GC7202H_ic_get_fw_ver T00Ctp_name is : %s\n",Ctp_name);
-	} else if (lcm_name == 15){
+	} else if (g_lcm_name == 15){
 		sprintf(Ctp_name,"LC,GC7202H,FW:0x0%d",fw_read_data[2]);
 		GTP_ERROR("GC7202H_ic_get_fw_ver T00Ctp_name is : %s\n",Ctp_name);
 	}

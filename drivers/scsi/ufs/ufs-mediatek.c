@@ -47,7 +47,7 @@
 #include "mtk_clkbuf_ctl.h"
 #endif
 
-#if defined(CONFIG_SCSI_UFS_HPB)
+#if defined(CONFIG_SCSI_UFS_HPB) || defined(CONFIG_SCSI_SKHPB)
 #include "ufshpb.h"
 #endif
 
@@ -1251,6 +1251,7 @@ static int ufs_mtk_init(struct ufs_hba *hba)
 	struct device *dev = hba->dev;
 	struct ufs_mtk_host *host;
 	int err = 0;
+	struct platform_device *pdev;
 
 	host = devm_kzalloc(dev, sizeof(*host), GFP_KERNEL);
 	if (!host) {
@@ -1275,6 +1276,15 @@ static int ufs_mtk_init(struct ufs_hba *hba)
 		if (host->cfg->quirks & UFS_MTK_HOST_QUIRK_BROKEN_AUTO_HIBERN8)
 			host->auto_hibern_enabled = true;
 	}
+
+	/* Rename device to unify device path for booting storage device. */
+	device_rename(hba->dev, "bootdevice");
+	/*
+	 * fix uaf(use afer free) issue: modify pdev->name,
+	 * device_rename will free pdev->name
+	 */
+	pdev = to_platform_device(hba->dev);
+	pdev->name = pdev->dev.kobj.name;
 
 	err = ufs_mtk_bind_mphy(hba);
 	if (err)

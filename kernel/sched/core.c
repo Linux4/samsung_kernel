@@ -25,11 +25,11 @@
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched.h>
-#ifdef CONFIG_MTK_TASK_TURBO
-#include <mt-plat/turbo_common.h>
-#endif
 #ifdef CONFIG_SEC_DEBUG_EXTRA_INFO
 #include <linux/sec_debug.h>
+#endif
+#ifdef CONFIG_MTK_TASK_TURBO
+#include <mt-plat/turbo_common.h>
 #endif
 #ifdef CONFIG_MTK_QOS_FRAMEWORK
 #include <mt-plat/mtk_qos_prefetch_common.h>
@@ -1211,8 +1211,9 @@ int set_task_util_min(pid_t pid, unsigned int util_min)
 	int ret = -EINVAL;
 
 	struct sched_attr attr = {
-		.sched_flags =
-			SCHED_FLAG_KEEP_PARAMS | SCHED_FLAG_UTIL_CLAMP_MIN,
+		.sched_flags =  SCHED_FLAG_KEEP_PARAMS |
+				SCHED_FLAG_UTIL_CLAMP_MIN |
+				SCHED_FLAG_RESET_ON_FORK,
 		.sched_util_min = util_min,
 	};
 

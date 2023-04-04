@@ -23,11 +23,13 @@
 #endif
 
 /* AFDRV_XXXX be the same as AF_DRVNAME in (*af).c */
+//+bug767771,liudijin.wt,ADD,2022/07/14,add truly s5kjn1 gt9778 bringup code.
+#define AFDRV_TRULY_S5KJN1_GT9778AF "TRULY_S5KJN1_GT9778AF"
+#define AFDRV_ST_S5KJN1_GT9778AF "ST_S5KJN1_GT9778AF"
+#define AFDRV_TXD_HI5022Q_GT9778AF "TXD_HI5022Q_GT9778AF"
+//-bug767771,liudijin.wt,ADD,2022/07/14,add truly s5kjn1 gt9778 bringup code.
+
 #define AFDRV_AD5820AF "AD5820AF"
-//bug 621775 liuxiangyin.wt, add, 2021/2/23, n21 1st supply main af TXD_S5K2P6_GT9769AF porting
-#define AFDRV_TXD_S5K2P6_GT9769AF "TXD_S5K2P6_GT9769AF"
-//bug 621775,lintaicheng.wt, add, 20210208, add for n21 AF bring up
-#define AFDRV_HLT_OV16B10_ZC535BAF "HLT_OV16B10_ZC535BAF"
 #define AFDRV_AD5823 "AD5823"
 #define AFDRV_AD5823AF "AD5823AF"
 #define AFDRV_AK7345AF "AK7345AF"

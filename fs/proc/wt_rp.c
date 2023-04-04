@@ -1,4 +1,4 @@
-//+Bug 685841,songhaiyang.wt,add,20210819,add wt_rp
+//+Bug 774005,zhaocong.wt,add,20220704,add wt_rp
 #include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/proc_fs.h>
@@ -48,4 +48,4 @@ static int __init proc_rp_init(void)
 	return 0;
 }
 fs_initcall(proc_rp_init);
-//-Bug 685841,songhaiyang.wt,add,20210819,add wt_rp
+//-Bug 774005,zhaocong.wt,add,20220704,add wt_rp

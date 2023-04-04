@@ -184,6 +184,12 @@ config TEEGRIS_VERSION
 	help
 	  TEEGRIS built with specific version of SDK
 
+config TEEGRIS_VERSION_STRING
+	string "TEEGRIS(SecureOS) TZDEV version"
+	default "4.2.0"
+	help
+	  TEEGRIS built with specific version of SDK
+
 config TZDEV_CPUFREQ_TRANSITION
 	bool "CPU frequency transition to Secure OS"
 	default y

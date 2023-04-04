@@ -255,7 +255,7 @@ int trusted_mem_subsys_init(void)
 	return TMEM_OK;
 }
 
-void trusted_mem_subsys_exit(void)
+void  trusted_mem_subsys_exit(void)
 {
 	int idx;
 
@@ -270,3 +270,4 @@ void trusted_mem_subsys_exit(void)
 		}
 	}
 }
+

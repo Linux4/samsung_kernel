@@ -103,13 +103,13 @@ int ccci_get_ccmni_channel(int md_id, int ccmni_idx, struct ccmni_ch *channel)
 		channel->dl_ack = CCCI_CCMNI8_DLACK_RX;
 		channel->multiq = md_id == MD_SYS1 ? 1 : 0;
 		break;
-	case 8: /* a replica for ccmni-lan, so should not be used */
-		channel->rx = CCCI_INVALID_CH_ID;
+	case 8:
+		channel->rx = CCCI_CCMNI9_RX;
 		channel->rx_ack = 0xFF;
-		channel->tx = CCCI_INVALID_CH_ID;
+		channel->tx = CCCI_CCMNI9_TX;
 		channel->tx_ack = 0xFF;
-		channel->dl_ack = CCCI_INVALID_CH_ID;
-		channel->multiq = 0;
+		channel->dl_ack = CCCI_CCMNI9_DLACK_RX;
+		channel->multiq = md_id == MD_SYS1 ? 1 : 0;
 		break;
 	case 9:
 		channel->rx = CCCI_CCMNI10_RX;
@@ -206,14 +206,6 @@ int ccci_get_ccmni_channel(int md_id, int ccmni_idx, struct ccmni_ch *channel)
 		channel->tx_ack = 0xFF;
 		channel->dl_ack = CCCI_CCMNI21_TX;
 		channel->multiq = md_id == MD_SYS1 ? 1 : 0;
-		break;
-	case 21: /* CCMIN-LAN should always be the last one*/
-		channel->rx = CCCI_CCMNILAN_RX;
-		channel->rx_ack = 0xFF;
-		channel->tx = CCCI_CCMNILAN_TX;
-		channel->tx_ack = 0xFF;
-		channel->dl_ack = CCCI_CCMNILAN_DLACK_RX;
-		channel->multiq = 0;
 		break;
 	default:
 		CCCI_ERROR_LOG(md_id, NET,
@@ -314,13 +306,12 @@ int ccmni_napi_poll(int md_id, int ccmni_idx,
 struct ccmni_ccci_ops eccci_ccmni_ops = {
 	.ccmni_ver = CCMNI_DRV_V0,
 	.ccmni_num = 21,
-#ifdef CONFIG_MTK_SRIL_SUPPORT
+#ifdef CONFIG_MTK_SRIL_SUPPORT 
 	.name = "rmnet",
 #else
 	.name = "ccmni",
 #endif
-	.md_ability = MODEM_CAP_DATA_ACK_DVD | MODEM_CAP_CCMNI_MQ
-		| MODEM_CAP_DIRECT_TETHERING, /* CCCI_KMODULE_ENABLE: todo */
+	.md_ability = MODEM_CAP_DATA_ACK_DVD | MODEM_CAP_CCMNI_MQ,
 	.irat_md_id = -1,
 	.napi_poll_weigh = NAPI_POLL_WEIGHT,
 	.send_pkt = ccmni_send_pkt,

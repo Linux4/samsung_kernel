@@ -1486,12 +1486,7 @@ static ssize_t Battery_Temperature_store(
 	return size;
 }
 
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-signed int battery_get_debug_uisoc(void)
-{
-	return get_mtk_battery()->fixed_uisoc;
-}
-#endif
+
 
 static ssize_t UI_SOC_show(
 	struct device *dev, struct device_attribute *attr, char *buf)

@@ -57,11 +57,17 @@ extern signed int battery_get_bat_voltage(void);
 extern signed int battery_get_bat_current(void);
 extern signed int battery_get_bat_current_mA(void);
 extern signed int battery_get_soc(void);
+extern signed int battery_get_precise_soc(void);
 extern signed int battery_get_uisoc(void);
+extern signed int battery_get_precise_uisoc(void);
 extern signed int battery_get_bat_temperature(void);
 extern signed int battery_get_ibus(void);
 extern signed int battery_get_vbus(void);
 extern signed int battery_get_bat_avg_current(void);
-
-
+//Bug770431,gudi.wt, ato limit soc
+extern signed int battery_get_debug_uisoc(void);
+extern struct atomic_notifier_head charger_notifier;
+extern int register_mtk_battery_notifier(struct notifier_block *nb);
+extern void unre_mtk_battery_notifier(struct notifier_block *nb);
+unsigned int battery_get_fg_init_done(void);
 #endif /* End of _FUEL_GAUGE_GM_30_H */

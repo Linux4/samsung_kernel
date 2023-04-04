@@ -21,6 +21,7 @@
  */
 #include "firmware/ilitek_v3_fw.h"
 #include "ilitek_v3.h"
+
 /* Debug level */
 bool debug_en = DEBUG_OUTPUT;
 EXPORT_SYMBOL(debug_en);
@@ -1097,7 +1098,7 @@ int ili_reset_ctrl(int mode)
 	return ret;
 }
 
-extern uint32_t lcm_name;
+extern uint32_t g_lcm_name;
 static int ilitek_get_tp_module(void)
 {
 	/*
@@ -1105,9 +1106,9 @@ static int ilitek_get_tp_module(void)
 	 * if there are various tp modules been used in projects.
 	 */
 	 int ret = 0;
-	 if(lcm_name == 12)
+	 if(g_lcm_name == 8)
 	 	ret = MODEL_TXD;
-	 if(lcm_name == 13)
+	 if(g_lcm_name == 13)
 		ret = MODEL_TRULY;
 	return ret;
 }

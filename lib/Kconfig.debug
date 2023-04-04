@@ -29,7 +29,7 @@ config PRINTK_PREFIX_ENHANCE
 config CONSOLE_LOGLEVEL_DEFAULT
 	int "Default console loglevel (1-15)"
 	range 1 15
-	default "1"
+	default "7"
 	help
 	  Default loglevel to determine what will be printed on the console.
 

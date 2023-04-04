@@ -19,18 +19,7 @@ struct GPIO_PINCTRL gpio_pinctrl_list_cam[GPIO_CTRL_STATE_MAX_NUM_CAM] = {
 	{"vcamio_off"},
 };
 #else
-#ifdef CONFIG_MTK_96717_CAMERA
-struct GPIO_PINCTRL gpio_pinctrl_list_cam[GPIO_CTRL_STATE_MAX_NUM_CAM] = {
-	/* Main */
-	{"pnd1"},
-	{"pnd0"},
-	{"rst1"},
-	{"rst0"},
-	{"vcamd_on"},
-	{"vcamd_off"},
-	//-bug720412,qinduilin.wt,ADD,2022/1/27,n26_hi5021q_rear_truly sensor bringup
-};
-#else
+
 struct GPIO_PINCTRL gpio_pinctrl_list_cam[GPIO_CTRL_STATE_MAX_NUM_CAM] = {
 	/* Main */
 	{"pnd1"},
@@ -57,7 +46,6 @@ struct GPIO_PINCTRL gpio_pinctrl_list_cam[GPIO_CTRL_STATE_MAX_NUM_CAM] = {
 	{"rst_sub0"},
 	//-bug727089liangyiyi.wt,MODIFY,2022/3/29,modify for fix front camera have loss power when open rear camera
 };
-#endif
 #endif
 #ifdef MIPI_SWITCH
 struct GPIO_PINCTRL gpio_pinctrl_list_switch[GPIO_CTRL_STATE_MAX_NUM_SWITCH] = {
@@ -246,15 +234,7 @@ static enum IMGSENSOR_RETURN gpio_set(
 
 	return IMGSENSOR_RETURN_SUCCESS;
 }
-//bug 717431,liuxiangyin, add, 20220217, Distinguish between 2st depth camera and 3rd depth camera
-#define depthCameraId 178+73 //gpio178+ virtual offset
-int getDepthCameraIdGpioValue(void)
-{
-	int ret = -2;
-	ret = gpio_get_value(depthCameraId);
-	pr_info("[%s]get depth camera id gpio:%d, status:%d. \n", __func__, depthCameraId, ret);
-    return ret;
-}
+
 static struct IMGSENSOR_HW_DEVICE device = {
 	.pinstance = (void *)&gpio_instance,
 	.init      = gpio_init,

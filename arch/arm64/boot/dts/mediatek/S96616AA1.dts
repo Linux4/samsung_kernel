@@ -9,6 +9,9 @@
 #include <dt-bindings/pinctrl/mt6765-pinfunc.h>
 #include <dt-bindings/clock/mt6765-clk.h>
 
+/dts-v1/;
+/plugin/;
+
 /* chosen */
 &chosen {
 
@@ -124,7 +127,6 @@
 		data = <1>;
 		pwm_config = <0 0 0 0 0>;
 	};
-	/* bug715586, fengcheng.wt, add, 20220123, lcd bring up */
 	led6:led@6 {
 		compatible = "mediatek,lcd-backlight";
 		led_mode = <4>;
@@ -165,20 +167,12 @@
 };
 
 &i2c6 {
-        fs15xx@34 {
-		compatible = "foursemi,fs15xx";
-		reg = <0x34>;
-		status = "okay";
-	};
+    aw887xx@58 {
+         compatible = "awinic,aw87xxx_pa";
+         reg = <0x58>;
+         status = "okay";
+    };
 };
-
-&i2c6 {
-         fs15xx@58 {
-                 compatible = "awinic,aw87xxx_pa";
-                 reg = <0x58>;
-                 status = "okay";
-         };
- };
 
 /* CONSYS GPIO standardization */
 &pio {
@@ -334,7 +328,7 @@
 
 /* AUDIO GPIO standardization */
 &audgpio {
-        extamp-gpio = <&pio 150 0>;
+	extamp-gpio = <&pio 150 0>;
 	pinctrl-names = "aud_clk_mosi_off",
 			"aud_clk_mosi_on",
 			"aud_clk_miso_off",
@@ -594,7 +588,7 @@
 	
 	min_charge_temp = <0>;
 	min_charge_temp_plus_x_degree = <6>;
-	max_charge_temp = <50>;
+	max_charge_temp = <55>;
 	max_charge_temp_minus_x_degree = <47>;
 
 	/* charging current */
@@ -610,25 +604,14 @@
 	min_charger_voltage_2 = <4200000>;
 	max_dmivr_charger_current = <1800000>;
 };
+
 &soc_codec {
 	always_pull_down_enable = <0>; /* select 1: enable, 0: disable */
 	always_pull_low_off = <1>; /* select 1: enable, 0: disable */
 };
 /* AUDIO end */
 
-&mt6370_pmu {
-	mt6370,intr_gpio_num = <11>; /* direct defined GPIO num */
-	mt6370,intr_gpio = <&pio 11 0x0>;
-};
 
-&mt6370_typec {
-	mt6370pd,intr_gpio_num = <41>; /* direct defined GPIO num */
-	mt6370pd,intr_gpio = <&pio 41 0x0>;
-};
-
-&mt6370_chg {
-	bc12_sel = <1>;
-};
 
 &lk_charger {
 	max_charger_voltage = <10500000>;
@@ -638,10 +621,13 @@
 	mediatek,bypss-typec-sink = <0>;
 };
 
+/*+bug 798884, douyingnan.wt, add, 20220901, powerkey + volume down enter dump*/
+&mrdump_ext_rst {
+        force_mode = "SYSRST";
+};
+/*+bug 798884, douyingnan.wt, add, 20220901, powerkey + volume down enter dump*/
 #include "mediatek/S96616AA1/cust.dtsi"
 #include "mediatek/cust_mt6765_camera.dtsi"
-/*#include "mediatek/cust_mt6765_touch_1080x1920.dtsi"*/
-/*bug715586, fengcheng.wt, modify, 20220123, lcd bring up*/
 #include "mediatek/cust_mt6765_lcm_module.dtsi"
 #include "mediatek/cust_mt6765_touch_720x1600.dtsi"
 /*End of this file, DO NOT ADD ANYTHING HERE*/

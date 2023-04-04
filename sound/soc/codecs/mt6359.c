@@ -22,9 +22,11 @@
 
 #include <sound/soc.h>
 #include <sound/tlv.h>
-
-#include "registers.h"
-
+#ifdef CONFIG_MTK_PMIC_CHIP_MT6359P
+#include <linux/mfd/mt6359p/registers.h>
+#else
+#include <linux/mfd/mt6359/registers.h>
+#endif
 #ifdef CONFIG_MTK_ACCDET
 #include "accdet.h"
 #endif
@@ -45,6 +47,13 @@
 #endif
 
 #include "mt6359.h"
+/*bug 767771 chenfeng.wt add HAC 20220719*/
+#include "../mediatek/mt6833/mt6833-afe-gpio.h"
+//zhangsen
+#ifdef CONFIG_SND_SOC_FS1815N
+#include "fs1815/fsm_public.h"
+#endif
+//zhangsen
 
 enum {
 	MT6359_AIF_1 = 0,	/* dl: hp, rcv, hp+lo */
@@ -63,6 +72,8 @@ enum {
 	AUDIO_ANALOG_VOLUME_MICAMP1,
 	AUDIO_ANALOG_VOLUME_MICAMP2,
 	AUDIO_ANALOG_VOLUME_MICAMP3,
+	/*bug 767771 chenfeng.wt add HAC 20220719*/
+	AUDIO_ANALOG_VOLUME_HAC,
 	AUDIO_ANALOG_VOLUME_TYPE_MAX
 };
 
@@ -717,6 +728,9 @@ static void zcd_enable(struct mt6359_priv *priv, bool enable, int device)
 	}
 }
 
+/*bug 767771 chenfeng.wt add HAC 20220719*/
+static const char *const hac_function[] = { "Off", "On" };
+
 static void hp_main_output_ramp(struct mt6359_priv *priv, bool up)
 {
 	int i = 0, stage = 0;
@@ -867,7 +881,33 @@ static int dl_pga_get(struct snd_kcontrol *kcontrol,
 
 	return 0;
 }
+/*+bug 767771 chenfeng.wt add HAC 20220719*/
+static int aw8155_hac_get(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *cmpnt = snd_soc_kcontrol_component(kcontrol);
+	struct mt6359_priv *priv = snd_soc_component_get_drvdata(cmpnt);
+	ucontrol->value.integer.value[0] = priv->ana_gain[AUDIO_ANALOG_VOLUME_HAC];
+	dev_info(priv->dev, "%s(), get gpio_hac_status %d\n", __func__, ucontrol->value.integer.value[0]);
+	return 0;
+}
 
+static int aw8155_hac_set(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *cmpnt = snd_soc_kcontrol_component(kcontrol);
+	struct mt6359_priv *priv = snd_soc_component_get_drvdata(cmpnt);
+	priv->ana_gain[AUDIO_ANALOG_VOLUME_HAC] = ucontrol->value.integer.value[0];
+    if (ucontrol->value.integer.value[0] == 1) {
+        mt6833_afe_gpio_hac_Select(1);
+		dev_info(priv->dev, "%s(), set gpio_aud_hac_high\n", __func__);
+    } else {
+        mt6833_afe_gpio_hac_Select(0);
+		dev_info(priv->dev, "%s(), set gpio_aud_hac_low\n", __func__);
+    }
+	return 0;
+}
+/*-bug 767771 chenfeng.wt add HAC 20220719*/
 static int dl_pga_set(struct snd_kcontrol *kcontrol,
 		      struct snd_ctl_elem_value *ucontrol)
 {
@@ -992,6 +1032,8 @@ static const DECLARE_TLV_DB_SCALE(capture_tlv, 0, 600, 0);
 static const struct soc_enum dl_pga_enum[] = {
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(dl_pga_gain), dl_pga_gain),
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(hp_dl_pga_gain), hp_dl_pga_gain),
+	/*bug 767771 chenfeng.wt add HAC 20220719*/
+    SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(hac_function), hac_function),
 };
 
 #define MT_SOC_ENUM_EXT_ID(xname, xenum, xhandler_get, xhandler_put, id) \
@@ -1027,6 +1069,10 @@ static const struct snd_kcontrol_new mt6359_snd_controls[] = {
 	MT_SOC_ENUM_EXT_ID("Lineout_PGAR_GAIN", dl_pga_enum[0],
 			   dl_pga_get, dl_pga_set,
 			   AUDIO_ANALOG_VOLUME_LINEOUTR),
+	/*bug 767771 chenfeng.wt add HAC 20220719*/
+	MT_SOC_ENUM_EXT_ID("Aw8155_Hac_Switch", dl_pga_enum[2],
+			   aw8155_hac_get, aw8155_hac_set,
+			   AUDIO_ANALOG_VOLUME_HAC),
 };
 
 /* ul pga gain */
@@ -1228,6 +1274,33 @@ static SOC_VALUE_ENUM_SINGLE_DECL(lo_in_mux_map_enum,
 
 static const struct snd_kcontrol_new lo_in_mux_control =
 	SOC_DAPM_ENUM("LO Select", lo_in_mux_map_enum);
+
+/*Vow micbias MUX */
+enum {
+	VOW_MIABIAS_MUX_CLOSE = 0,
+	VOW_MIABIAS_MUX_OPEN,
+	VOW_MIABIAS_MUX_MASK,
+};
+
+static const char * const vow_micbias_mux_map[] = {
+	"Vow_micbias_off",
+	"Vow_micbias_on",
+};
+
+static int vow_micbias_mux_map_value[] = {
+	VOW_MIABIAS_MUX_CLOSE,
+	VOW_MIABIAS_MUX_OPEN,
+};
+
+static SOC_VALUE_ENUM_SINGLE_AUTODISABLE_DECL(vow_micbias_mux_map_enum,
+				  SND_SOC_NOPM,
+				  0,
+				  1,
+				  vow_micbias_mux_map,
+				  vow_micbias_mux_map_value);
+
+static const struct snd_kcontrol_new vow_micbias_mux_control =
+	SOC_DAPM_ENUM("Vow Micbias", vow_micbias_mux_map_enum);
 
 /*HP MUX */
 enum {
@@ -2449,10 +2522,10 @@ static int mt_mic_bias_0_event(struct snd_soc_dapm_widget *w,
 			break;
 		}
 
-		/* MISBIAS0 = 1P9V */
+		/* MISBIAS0 = 2P5V */
 		regmap_update_bits(priv->regmap, MT6359_AUDENC_ANA_CON15,
 				   RG_AUDMICBIAS0VREF_MASK_SFT,
-				   MIC_BIAS_1P9 << RG_AUDMICBIAS0VREF_SFT);
+				   MIC_BIAS_2P5 << RG_AUDMICBIAS0VREF_SFT);
 		/* vow low power select */
 		regmap_update_bits(priv->regmap, MT6359_AUDENC_ANA_CON15,
 				   RG_AUDMICBIAS0LOWPEN_MASK_SFT,
@@ -2535,10 +2608,10 @@ static int mt_mic_bias_2_event(struct snd_soc_dapm_widget *w,
 			break;
 		}
 
-		/* MISBIAS2 = 1P9V */
+		/* MISBIAS2 = 2P5V */
 		regmap_update_bits(priv->regmap, MT6359_AUDENC_ANA_CON17,
 				   RG_AUDMICBIAS2VREF_MASK_SFT,
-				   MIC_BIAS_1P9 << RG_AUDMICBIAS2VREF_SFT);
+				   MIC_BIAS_2P5 << RG_AUDMICBIAS2VREF_SFT);
 		/* vow low power select */
 		regmap_update_bits(priv->regmap, MT6359_AUDENC_ANA_CON17,
 				   RG_AUDMICBIAS2LOWPEN_MASK_SFT,
@@ -3900,6 +3973,9 @@ static const struct snd_soc_dapm_widget mt6359_dapm_widgets[] = {
 
 	SND_SOC_DAPM_DAC("DAC_3RD", NULL, SND_SOC_NOPM, 0, 0),
 
+	/* VOW Micbias */
+	SND_SOC_DAPM_MUX("VOW Micbias Mux", SND_SOC_NOPM, 0, 0, &vow_micbias_mux_control),
+
 	/* Headphone */
 	SND_SOC_DAPM_MUX_E("HPL Mux", SND_SOC_NOPM, 0, 0,
 			   &hpl_in_mux_control,
@@ -3953,6 +4029,7 @@ static const struct snd_soc_dapm_widget mt6359_dapm_widgets[] = {
 	SND_SOC_DAPM_OUTPUT("Headphone L Ext Spk Amp"),
 	SND_SOC_DAPM_OUTPUT("Headphone R Ext Spk Amp"),
 	SND_SOC_DAPM_OUTPUT("LINEOUT L"),
+	SND_SOC_DAPM_OUTPUT("VOW DSP"),
 
 	/* SGEN */
 	SND_SOC_DAPM_SUPPLY("SGEN DL Enable", MT6359_AFE_SGEN_CFG0,
@@ -4108,6 +4185,7 @@ static const struct snd_soc_dapm_widget mt6359_dapm_widgets[] = {
 	SND_SOC_DAPM_INPUT("AIN1"),
 	SND_SOC_DAPM_INPUT("AIN2"),
 	SND_SOC_DAPM_INPUT("AIN3"),
+	SND_SOC_DAPM_INPUT("VOW_ONLY"),
 
 	SND_SOC_DAPM_INPUT("AIN0_DMIC"),
 	SND_SOC_DAPM_INPUT("AIN2_DMIC"),
@@ -4338,6 +4416,12 @@ static const struct snd_soc_dapm_route mt6359_dapm_routes[] = {
 	{"AIN2", NULL, "MIC_BIAS_0"},
 	{"AIN2", NULL, "MIC_BIAS_2"},
 	{"AIN3", NULL, "MIC_BIAS_2"},
+
+	{"VOW DSP", NULL, "VOW Micbias Mux"},
+	{"VOW Micbias Mux", "Vow_micbias_on", "VOW_ONLY"},
+	{"VOW_ONLY", NULL, "MIC_BIAS_0"},
+	{"VOW_ONLY", NULL, "MIC_BIAS_2"},
+	{"VOW_ONLY", NULL, "AUDGLB"},
 
 	/* DL Supply */
 	{"DL Power Supply", NULL, "CLK_BUF"},
@@ -6698,6 +6782,12 @@ static int mt6359_codec_probe(struct snd_soc_component *cmpnt)
 	snd_soc_add_component_controls(cmpnt,
 				       mt6359_snd_vow_controls,
 				       ARRAY_SIZE(mt6359_snd_vow_controls));
+
+//zhangsen
+#if defined(CONFIG_SND_SOC_FS1815N)
+	fsm_add_codec_controls(cmpnt);
+#endif
+//zhangsen
 
 	mt6359_codec_init_reg(priv);
 

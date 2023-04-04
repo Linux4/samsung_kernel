@@ -13,8 +13,6 @@
 #include <linux/platform_device.h>
 #include <linux/pinctrl/pinctrl.h>
 #include "imgsensor_hw.h"
-#include <linux/of_gpio.h>//+bug 621775,liuxiangyin, add, 20210205, Distinguish between 2st depth camera and 3rd depth camera
-#include <linux/gpio.h>//+bug 621775,liuxiangyin, add, 20210205, Distinguish between 2st depth camera and 3rd depth camera
 
 extern struct mutex pinctrl_mutex;
 

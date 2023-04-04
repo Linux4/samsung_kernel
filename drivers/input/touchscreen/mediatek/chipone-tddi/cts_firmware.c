@@ -326,20 +326,20 @@ static const struct cts_firmware * cts_request_newer_driver_builtin_firmware(
     cts_info("Request driver builtin if match hwid: %06x fwid: %04x && ver > %04x",
         hwid, fwid, device_fw_ver);
 
-    if (lcm_name == 6) {
-        firmware = cts_driver_builtin_firmwares;
-        fw_size= ARRAY_SIZE(cts_driver_builtin_firmwares);
+    if (g_lcm_name == 6) {
+		firmware = cts_driver_builtin_firmwares_djn;
+		fw_size = ARRAY_SIZE(cts_driver_builtin_firmwares_djn);
     }
 
-    if (lcm_name == 8) {
+    if (g_lcm_name == 12) {
 	 firmware = cts_driver_lead_builtin_firmwares;
 	 fw_size = ARRAY_SIZE(cts_driver_lead_builtin_firmwares);
     }
-    if (lcm_name == 10) {
-		 firmware = cts_driver_builtin_firmwares_djn;
-		 fw_size = ARRAY_SIZE(cts_driver_builtin_firmwares_djn);
+    if (g_lcm_name == 11) {
+		firmware = cts_driver_builtin_firmwares;
+		fw_size= ARRAY_SIZE(cts_driver_builtin_firmwares);
     }
-    if (lcm_name == 16) {
+    if (g_lcm_name == 16) {
 		 firmware = cts_tm_driver_builtin_firmwares;
 		 fw_size = ARRAY_SIZE(cts_tm_driver_builtin_firmwares);
     }
@@ -597,7 +597,7 @@ const struct cts_firmware *cts_request_firmware(
 
 #ifdef CFG_CTS_FIRMWARE_IN_FS
     /* Check firmware in file system when probe only when build to .ko */
-    if(lcm_name == 6) {
+    if(g_lcm_name == 11) {
         if (is_filesystem_mounted(CFG_CTS_FIRMWARE_FILEPATH)) {
             firmware_from_file = cts_request_newer_firmware_from_fs( cts_dev,
                 CFG_CTS_FIRMWARE_FILEPATH,
@@ -606,7 +606,7 @@ const struct cts_firmware *cts_request_firmware(
         }
     }
 
-    if(lcm_name == 8) {
+    if(g_lcm_name == 12) {
         if (is_filesystem_mounted(CFG_CTS_LIDE_FIRMWARE_FILEPATH)) {
             firmware_from_file = cts_request_newer_firmware_from_fs( cts_dev,
                 CFG_CTS_LIDE_FIRMWARE_FILEPATH,
@@ -614,7 +614,7 @@ const struct cts_firmware *cts_request_firmware(
                                curr_firmware_ver);
         }
     }
-    if(lcm_name == 16) {
+    if(g_lcm_name == 16) {
         if (is_filesystem_mounted(CFG_CTS_TM_FIRMWARE_FILEPATH)) {
             firmware_from_file = cts_request_newer_firmware_from_fs( cts_dev,
                 CFG_CTS_TM_FIRMWARE_FILEPATH,

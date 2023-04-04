@@ -273,6 +273,38 @@
  }
  EXPORT_SYMBOL(lcm_reset_pin);
 
+void lcm_bais_enp_enable(unsigned int mode)
+{
+	pr_debug("[LCM][GPIO]lcm_bais_enp_enable mode:%d !\n",mode);
+	if((mode==0)||(mode==1)){
+		switch (mode){
+			case LOW :
+				pinctrl_select_state(_lcm_gpio, _lcm_gpio_mode[0]);
+				break;
+			case HIGH:
+				pinctrl_select_state(_lcm_gpio, _lcm_gpio_mode[1]);
+				break;
+		 }
+	}
+}
+EXPORT_SYMBOL(lcm_bais_enp_enable);
+
+void lcm_bais_enn_enable(unsigned int mode)
+{
+    pr_debug("[LCM][GPIO]lcm_bais_enn_enable mode:%d !\n",mode);
+	if((mode==0)||(mode==1)){
+		switch (mode){
+			case LOW :
+				pinctrl_select_state(_lcm_gpio, _lcm_gpio_mode[2]);
+				break;
+			case HIGH:
+				pinctrl_select_state(_lcm_gpio, _lcm_gpio_mode[3]);
+				break;
+		}
+	}
+}
+EXPORT_SYMBOL(lcm_bais_enn_enable);
+
 int wingtech_bright_to_bl(int level,int max_bright,int min_bright,int bl_max,int bl_min) {
 	if(!level){
 		return 0;

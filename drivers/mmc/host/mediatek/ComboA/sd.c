@@ -55,7 +55,7 @@
 #endif
 
 #include "dbg.h"
-//bug 717429, linaiyu.wt, add, 2022.01.25, proc file for sdcard slot detect
+//bug782977, linaiyu.wt, add, 20220727, proc file for sdcard slot detect
 #include <linux/proc_fs.h>
 #define CAPACITY_2G             (2 * 1024 * 1024 * 1024ULL)
 
@@ -698,11 +698,9 @@ static void msdc_set_busy_timeout_ms(struct msdc_host *host, u32 ms)
 	}
 	MSDC_SET_FIELD(SDC_CFG, SDC_CFG_WRDTOC, (u32)timeout);
 
-	N_MSG(OPS, "Set CMD%d busy tmo: %dms(%d x1M cycles), freq=%dKHz\n",
-		host->cmd->opcode,
+	N_MSG(OPS, "Set busy tmo: %dms(%d x1M cycles), freq=%dKHz\n",
 		(ms > host->max_busy_timeout_ms) ? host->max_busy_timeout_ms :
-		ms,
-		(u32)timeout + 1, (host->sclk / 1000));
+		ms, (u32)timeout + 1, (host->sclk / 1000));
 }
 
 static void msdc_set_timeout(struct msdc_host *host, u32 ns, u32 clks)
@@ -4672,6 +4670,7 @@ skip:
 			 * if data CRC error
 			 */
 			mrq->cmd->error = (unsigned int)-EILSEQ;
+			pr_err("saved intsts: 0x%08x\n", host->intsts);
 		} else {
 			dbg_add_host_log(host->mmc, 3, 0, 0);
 			msdc_dma_clear(host);
@@ -4964,7 +4963,7 @@ static void msdc_add_host(struct work_struct *work)
 static void msdc_dvfs_kickoff(struct work_struct *work)
 {
 }
-//+bug 717429, linaiyu.wt, add, 2022.01.25, proc file for sdcard slot detect
+//+bug782977, linaiyu.wt, add, 20220727, proc file for sdcard slot detect
 static int sim_card_status_show(struct seq_file *m, void *v)
 {
     int gpio_value = 0;
@@ -5005,7 +5004,7 @@ static void sim_card_tray_remove_proc(void)
 {
     remove_proc_entry("sd_tray_gpio_value", NULL);
 }
-//-bug 717429, linaiyu.wt, add, 2022.01.25, proc file for sdcard slot detect
+//-bug782977, linaiyu.wt, add, 20220727, proc file for sdcard slot detect
 static int msdc_drv_probe(struct platform_device *pdev)
 {
 	struct mmc_host *mmc = NULL;
@@ -5050,8 +5049,6 @@ static int msdc_drv_probe(struct platform_device *pdev)
 	if (host->hw->host_function == MSDC_EMMC)
 		mmc->caps |= MMC_CAP_CMD23;
 #endif
-//	if (host->hw->host_function == MSDC_SD)
-//		mmc->caps |= MMC_CAP_AGGRESSIVE_PM;
 
 	mmc->caps |= MMC_CAP_ERASE;
 
@@ -5065,7 +5062,10 @@ static int msdc_drv_probe(struct platform_device *pdev)
 	 * R1B will change to R1, host will not detect DAT0 busy,
 	 * next CMD may send to eMMC at busy state.
 	 */
-	mmc->max_busy_timeout = 0;
+	if (host->id == 0)
+		mmc->max_busy_timeout = 0;
+	else if (host->id == 1)
+		mmc->max_busy_timeout = SD_ERASE_TIMEOUT_MS;
 
 	/* MMC core transfer sizes tunable parameters */
 	mmc->max_segs = MAX_HW_SGMTS;
@@ -5230,7 +5230,7 @@ static int msdc_drv_probe(struct platform_device *pdev)
 
 	if (host->hw->host_function == MSDC_EMMC)
 		msdc_debug_proc_init_bootdevice();
-//+bug 717429, linaiyu.wt, add, 2022.01.25, proc file for sdcard slot detect
+//+bug782977, linaiyu.wt, add, 20220727, proc file for sdcard slot detect
         if (host->hw->host_function == MSDC_SD) {
                 if(sim_card_tray_create_proc()) {
                         dev_err(&pdev->dev, "creat proc sim_card_status failed\n");
@@ -5238,8 +5238,7 @@ static int msdc_drv_probe(struct platform_device *pdev)
                         dev_dbg(&pdev->dev, "creat proc sim_card_status successed\n");
                 }
         }
-//-bug 717429, linaiyu.wt, add, 2022.01.25, proc file for sdcard slot detect
-
+//-bug782977, linaiyu.wt, add, 20220727, proc file for sdcard slot detect
 	mmc_sec_init_sysfs(mmc);
 
 	return 0;
@@ -5285,7 +5284,7 @@ static int msdc_drv_remove(struct platform_device *pdev)
 
 	if (mem)
 		release_mem_region(mem->start, mem->end - mem->start + 1);
-//bug 717429, linaiyu.wt, add, 2022.01.25, proc file for sdcard slot detect
+//bug782977, linaiyu.wt, add, 20220727, proc file for sdcard slot detect
         if(host->hw->host_function == MSDC_SD){
                 sim_card_tray_remove_proc();
         }

@@ -5,7 +5,7 @@
 #ifndef _MT_PMIC_UPMU_SW_H_
 #define _MT_PMIC_UPMU_SW_H_
 
-#include <mach/upmu_hw.h>
+#include "upmu_hw.h"
 
 #define AUXADC_SUPPORT_IMM_CURRENT_MODE
 #define BATTERY_SW_INIT

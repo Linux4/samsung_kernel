@@ -225,6 +225,9 @@ int mtk_lp_cpuidle_prepare(struct cpuidle_driver *drv, int index)
 
 	lpmmods = this_cpu_ptr(&mtk_lpm_mods);
 
+	if (index < 0)
+		return -EINVAL;
+
 	if (lpmmods && lpmmods->mod[index])
 		lpm = lpmmods->mod[index];
 
@@ -265,6 +268,9 @@ void mtk_lp_cpuidle_resume(struct cpuidle_driver *drv, int index)
 	const int cpuid = smp_processor_id();
 
 	lpmmods = this_cpu_ptr(&mtk_lpm_mods);
+
+	if (index < 0)
+		return;
 
 	if (lpmmods && lpmmods->mod[index])
 		lpm = lpmmods->mod[index];

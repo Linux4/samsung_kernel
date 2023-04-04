@@ -214,7 +214,11 @@ static const char *const tcpc_timer_name[] = {
 #endif /* TCPC_TIMER_DBG_EN || TCPC_TIMER_INFO_EN */
 /* CONFIG_USB_PD_SAFE0V_DELAY */
 #ifdef CONFIG_TCPC_VSAFE0V_DETECT
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#define PD_TIMER_VSAFE0V_DLY_TOUT		250
+#else  /* CONFIG_WT_PROJECT_S96902AA1 */
 #define PD_TIMER_VSAFE0V_DLY_TOUT		50
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 #else
 /* #ifndef CONFIG_TCPC_VSAFE0V_DETECT (equal timeout)*/
 #define PD_TIMER_VSAFE0V_DLY_TOUT		400
@@ -247,7 +251,11 @@ DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_PS_SOURCE_OFF, 750, 920),
 DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_PS_SOURCE_ON, 390, 480),
 
 DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_PS_TRANSITION, 450, 550),
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_SENDER_RESPONSE, 26, 32),
+#else  /* CONFIG_WT_PROJECT_S96902AA1 */
 DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_SENDER_RESPONSE, 24, 30),
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_SINK_REQUEST, 100, 100),
 DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_SINK_WAIT_CAP, 310, 620),
 DECL_TCPC_TIMEOUT_RANGE(PD_TIMER_SOURCE_CAPABILITY, 100, 200),
@@ -359,6 +367,11 @@ static inline void on_pe_timer_timeout(
 		struct tcpc_device *tcpc, uint32_t timer_id)
 {
 	struct pd_event pd_event = {0};
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#ifdef CONFIG_USB_PD_CHECK_RX_PENDING_IF_SRTOUT
+	int timeout = -1;
+#endif /* CONFIG_USB_PD_CHECK_RX_PENDING_IF_SRTOUT */
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 
 	pd_event.event_type = PD_EVT_TIMER_MSG;
 	pd_event.msg = timer_id;
@@ -421,6 +434,23 @@ static inline void on_pe_timer_timeout(
 			pd_put_sent_hard_reset_event(tcpc);
 		break;
 #endif
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#ifdef CONFIG_USB_PD_CHECK_RX_PENDING_IF_SRTOUT
+	case PD_TIMER_SENDER_RESPONSE:
+		if (!tcpc->alert_done.done) {
+			/* alert thread is handling, but not sure is TXRX event
+			just for not block TXRX event ASAP */
+			TCPC_INFO("alert_pending\n");
+			timeout =
+			wait_for_completion_interruptible_timeout(&tcpc->alert_done,
+								  msecs_to_jiffies(3));
+			TCPC_INFO("timeout = %d\n", timeout);
+			/* if get rx_event, no need to put SENDER_RESPONSE event */
+			if (timeout > 0 && tcpc->is_rx_event)
+				break;
+		}
+#endif /* CONFIG_USB_PD_CHECK_RX_PENDING_IF_SRTOUT */
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 	default:
 		pd_put_event(tcpc, &pd_event, false);
 		break;

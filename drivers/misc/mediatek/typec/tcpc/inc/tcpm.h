@@ -106,7 +106,7 @@ enum {
 	TCP_NOTIFY_AMA_DP_ATTENTION,
 	TCP_NOTIFY_AMA_DP_HPD_STATE,
 	TCP_NOTIFY_DC_EN_UNLOCK,
-	TCP_NOTIFY_UVDM,//6
+	TCP_NOTIFY_UVDM,
 	TCP_NOTIFY_MODE_END = TCP_NOTIFY_UVDM,
 
 	/* TCP_NOTIFY_TYPE_VBUS */
@@ -117,7 +117,7 @@ enum {
 	TCP_NOTIFY_SINK_VBUS,
 	TCP_NOTIFY_EXT_DISCHARGE,
 	TCP_NOTIFY_ATTACHWAIT_SNK,
-	TCP_NOTIFY_ATTACHWAIT_SRC,//13
+	TCP_NOTIFY_ATTACHWAIT_SRC,
 	TCP_NOTIFY_VBUS_END = TCP_NOTIFY_ATTACHWAIT_SRC,
 
 	/* TCP_NOTIFY_TYPE_USB */
@@ -127,7 +127,7 @@ enum {
 	TCP_NOTIFY_USB_END = TCP_NOTIFY_PD_STATE,
 
 	/* TCP_NOTIFY_TYPE_MISC */
-	TCP_NOTIFY_PR_SWAP,//16
+	TCP_NOTIFY_PR_SWAP,
 	TCP_NOTIFY_MISC_START = TCP_NOTIFY_PR_SWAP,
 	TCP_NOTIFY_DR_SWAP,
 	TCP_NOTIFY_VCONN_SWAP,
@@ -257,6 +257,9 @@ enum {
 
 	/* HardReset failed because detach or error recovery */
 	TCP_HRESET_RESULT_FAIL,
+
+	/* ERROR Recovery because in power off charge not receive source cap*/
+	TCP_ERROR_RECOVERY_KPOC,
 
 	/* HardReset signal from Local Policy Engine */
 	TCP_HRESET_SIGNAL_SEND,
@@ -900,6 +903,12 @@ extern uint8_t tcpm_inquire_cable_current(
 extern uint32_t tcpm_inquire_dpm_flags(
 	struct tcpc_device *tcpc);
 
+extern bool tcpm_is_src_usb_suspend_support(
+	struct tcpc_device *tcpc_dev);
+
+extern bool tcpm_is_src_usb_communication_capable(
+	struct tcpc_device *tcpc_dev);
+
 extern uint32_t tcpm_inquire_dpm_caps(
 	struct tcpc_device *tcpc);
 
@@ -1419,6 +1428,18 @@ static inline uint8_t tcpm_inquire_cable_current(
 
 static inline uint32_t tcpm_inquire_dpm_flags(
 	struct tcpc_device *tcpc)
+{
+	return 0;
+}
+
+static inline bool tcpm_is_src_usb_suspend_support(
+	struct tcpc_device *tcpc_dev)
+{
+	return 0;
+}
+
+static inline bool tcpm_is_src_usb_communication_capable(
+	struct tcpc_device *tcpc_dev)
 {
 	return 0;
 }

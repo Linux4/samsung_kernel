@@ -3256,10 +3256,6 @@ static int mt6357_gauge_probe(struct platform_device *pdev)
 
 	bm_err("%s: done\n", __func__);
 
-//+bug 717431, liyiying.wt, add, 2021/2/21, n21s add gauge mmi message
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-	hardwareinfo_set_prop(HARDWARE_BMS_GAUGE_INFO, "MT6357");
-#endif
 //-bug 717431, liyiying.wt, add, 2021/2/21, n21s add gauge mmi messages
 #if defined (CONFIG_N23_CHARGER_PRIVATE)
 	hardwareinfo_set_prop(HARDWARE_BMS_GAUGE_INFO, "MT6357");

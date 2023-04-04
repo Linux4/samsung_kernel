@@ -99,8 +99,7 @@ struct IMGSENSOR_HW_CFG imgsensor_custom_config[] = {
 			{IMGSENSOR_HW_ID_MCLK, IMGSENSOR_HW_PIN_MCLK},
 			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_AVDD},
 			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DOVDD},
-			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DVDD},
-			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_AFVDD},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_DVDD},
 			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_PDN},
 			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_RST},
 			{IMGSENSOR_HW_ID_NONE, IMGSENSOR_HW_PIN_NONE},
@@ -111,9 +110,9 @@ struct IMGSENSOR_HW_CFG imgsensor_custom_config[] = {
 		IMGSENSOR_I2C_DEV_1,
 		{
 			{IMGSENSOR_HW_ID_MCLK, IMGSENSOR_HW_PIN_MCLK},
-			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_AVDD},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_AVDD},
 			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DOVDD},
-			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DVDD},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_DVDD},
 			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_PDN},
 			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_RST},
 			{IMGSENSOR_HW_ID_NONE, IMGSENSOR_HW_PIN_NONE},
@@ -121,14 +120,10 @@ struct IMGSENSOR_HW_CFG imgsensor_custom_config[] = {
 	},
 	{
 		IMGSENSOR_SENSOR_IDX_MAIN2,
-		#ifdef CONFIG_MTK_FLASHLIGHT_LED191
 		IMGSENSOR_I2C_DEV_2,
-		#else
-		IMGSENSOR_I2C_DEV_1,
-		#endif
 		{
 			{IMGSENSOR_HW_ID_MCLK, IMGSENSOR_HW_PIN_MCLK},
-			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_AVDD},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_AVDD},
 			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DOVDD},
 			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DVDD},
 			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_PDN},
@@ -298,7 +293,6 @@ struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[] = {
 
 /* Legacy design */
 struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
-
 //+bug682590,zhanghengyuan.wt,ADD,2021/8/12,n23_hi1336_rear_txd sensor bringup
 #if defined(N23_HI1336_REAR_TXD_MIPI_RAW)
 	{
@@ -412,7 +406,6 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 	},
 #endif
 //-bug682590, liuxiangyin.wt, ADD, 2021/8/14, n23_c2515_dep_sj sensor bringup
-
 //+bug682590, zhanghao2.wt, ADD, 2021/8/12, n23_bf2253_micro_cxt sensor bringup
 #if defined(N23_BF2253_MICRO_CXT_MIPI_RAW)
 		{
@@ -673,182 +666,7 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 	},
 #endif
 //-bug720367,liudijin.wt,ADD,2022/01/27,gc02m2 and sc201cs micro sensor bringup
-
-
-
-//+bug 717431,liuxiangyin, mod, 20220128, for N21 camera bringup
-#if defined(N21_TXD_MAIN_S5K2P6_MIPI_RAW)
-	{
-		SENSOR_DRVNAME_N21_TXD_MAIN_S5K2P6_MIPI_RAW,
-		{
-			{AVDD, Vol_2800, 0},
-			{DVDD, Vol_1000, 0},
-			{DOVDD, Vol_1800, 0},
-			{AFVDD, Vol_2800, 0},
-			{PDN, Vol_Low, 0},
-			{PDN, Vol_High, 0},
-			{RST, Vol_Low, 1},
-			{RST, Vol_High, 1},
-			{SensorMCLK, Vol_High, 0},
-		},
-	},
-#endif
-
-#if defined(N21_HLT_MAIN_OV16B10_MIPI_RAW)
-	{
-		SENSOR_DRVNAME_N21_HLT_MAIN_OV16B10_MIPI_RAW,
-		{
-			{AVDD, Vol_2800, 1},
-			{DVDD, Vol_1000, 1},
-			{DOVDD, Vol_1800, 1},
-			{AFVDD, Vol_2800, 1},
-			{PDN, Vol_Low, 1},
-			{PDN, Vol_High, 0},
-			{RST, Vol_Low, 5},
-			{RST, Vol_High, 10},
-			{SensorMCLK, Vol_High, 0},
-		},
-	},
-#endif
-#if defined(N21_TXD_SUB_S5K3L6_MIPI_RAW)
-	{
-		SENSOR_DRVNAME_N21_TXD_SUB_S5K3L6_MIPI_RAW,
-		{
-			{DOVDD, Vol_1800, 1},
-			{DVDD, Vol_1100, 5},
-			{AVDD, Vol_2800, 1},
-			{SensorMCLK, Vol_High, 0},
-			{RST, Vol_Low, 10},
-			{RST, Vol_High, 1},
-			{PDN, Vol_Low, 1},
-			{PDN, Vol_High, 0},
-		},
-	},
-#endif
-#if defined(N21_CXT_DEPTH_GC2375H_MIPI_RAW)
-	{
-		SENSOR_DRVNAME_N21_CXT_DEPTH_GC2375H_MIPI_RAW,
-		{
-			{PDN, Vol_High, 15},
-			{DOVDD, Vol_1800, 1},
-			{AVDD, Vol_2800, 1},
-			{SensorMCLK, Vol_High, 0},
-			{PDN, Vol_High, 0},
-			{PDN, Vol_Low, 0},
-			{RST, Vol_Low, 0},
-			{RST, Vol_High, 0}
-		},
-	},
-#endif
-#if defined(N21_SHINE_SUB_HI1336_MIPI_RAW)
-	{
-		SENSOR_DRVNAME_N21_SHINE_SUB_HI1336_MIPI_RAW,
-		{
-			{DOVDD, Vol_1800, 1},
-			{AVDD, Vol_2800, 1},
-			{DVDD, Vol_1100, 1},
-			{SensorMCLK, Vol_High, 5},
-			{RST, Vol_Low, 10},
-			{RST, Vol_High, 1},
-			{PDN, Vol_Low, 1},
-			{PDN, Vol_High, 0},
-		},
-	},
-#endif
-#if defined(N21_CXT_DEPTH_GC02M1B_MIPI_RAW)
-	{
-		SENSOR_DRVNAME_N21_CXT_DEPTH_GC02M1B_MIPI_RAW,
-		{
-			{PDN, Vol_Low, 15},
-			{DOVDD, Vol_1800, 1},
-			{AVDD, Vol_2800, 1},
-			{SensorMCLK, Vol_High, 0},
-			{PDN, Vol_Low, 0},
-			{PDN, Vol_High, 0},
-			{RST, Vol_Low, 0},
-			{RST, Vol_High, 0}
-		},
-	},
-#endif
-#if defined(N21_HLT_DEPTH_GC2375H_MIPI_RAW)
-	{
-		SENSOR_DRVNAME_N21_HLT_DEPTH_GC2375H_MIPI_RAW,
-		{
-			{PDN, Vol_High, 15},
-			{DOVDD, Vol_1800, 1},
-			{AVDD, Vol_2800, 1},
-			{SensorMCLK, Vol_High, 0},
-			{PDN, Vol_High, 0},
-			{PDN, Vol_Low, 0},
-			{RST, Vol_Low, 0},
-			{RST, Vol_High, 0}
-
-		},
-	},
-#endif
-
-#if defined(N21_HLT_MICRO_GC2375H_MIPI_RAW)
-	{
-		SENSOR_DRVNAME_N21_HLT_MICRO_GC2375H_MIPI_RAW,
-		{
-			{RST, Vol_High, 1},
-			{DOVDD, Vol_1800, 1},
-			{AVDD, Vol_2800, 1},
-			{SensorMCLK, Vol_High, 0},
-			{RST, Vol_High, 1},
-			{RST, Vol_Low, 0}
-
-		},
-	},
-#endif
-#if defined(N21_CXT_MICRO_GC2375H_MIPI_RAW)
-	{
-		SENSOR_DRVNAME_N21_CXT_MICRO_GC2375H_MIPI_RAW,
-		{
-			{RST, Vol_High, 1},
-			{DOVDD, Vol_1800, 1},
-			{AVDD, Vol_2800, 1},
-			{SensorMCLK, Vol_High, 0},
-			{RST, Vol_High, 1},
-			{RST, Vol_Low, 0}
-		},
-	},
-#endif
-//+bug 621775,huangzheng1, add, 20210206, add for n21 camera bring up
-#if defined(N21_SHINE_WIDE_GC8034W_MIPI_RAW)
-	{
-		SENSOR_DRVNAME_N21_SHINE_WIDE_GC8034W_MIPI_RAW,
-		{
-			{DOVDD, Vol_1800, 1},
-			{DVDD, Vol_1200, 1},
-			{AVDD, Vol_2800, 1},
-			{SensorMCLK, Vol_High, 0},
-			{RST, Vol_Low, 10},
-			{RST, Vol_High, 1},
-			{PDN, Vol_High, 1},
-			{PDN, Vol_Low, 0},
-		},
-	},
-#endif
-#if defined(N21_HLT_WIDE_GC8034W_MIPI_RAW)
-	{
-		SENSOR_DRVNAME_N21_HLT_WIDE_GC8034W_MIPI_RAW,
-		{
-			{DOVDD, Vol_1800, 1},
-			{DVDD, Vol_1200, 1},
-			{AVDD, Vol_2800, 1},
-			{SensorMCLK, Vol_High, 0},
-			{RST, Vol_Low, 10},
-			{RST, Vol_High, 1},
-			{PDN, Vol_Low, 0},
-		},
-	},
-#endif
-//-bug 621775,huangzheng1, add, 20210205, add for n21 camera bring up
 #if 0
-
-//-bug 717431,liuxiangyin, mod, 20220128, for N21 camera bringup
-
 #if defined(IMX398_MIPI_RAW)
 	{
 		SENSOR_DRVNAME_IMX398_MIPI_RAW,

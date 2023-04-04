@@ -63,9 +63,6 @@
 #include <charger_class.h>
 #endif
 #include "mtk_charger.h"
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-#include "mtk_battery_daemon.h"
-#endif
 #if defined (CONFIG_N23_CHARGER_PRIVATE)
 int mtk_chg_status = 0;
 static int pre_chg_stat = 0;
@@ -76,10 +73,6 @@ int min_soc, max_soc;
 extern bool batt_store_mode;
 extern bool battery_capacity_limit;
 extern bool batt_slate_mode;
-#endif
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-int min_soc, max_soc;
-extern bool batt_store_mode;
 #endif
 struct tag_bootmode {
 	u32 size;
@@ -502,13 +495,6 @@ static void mtk_charger_parse_dt(struct mtk_charger *info,
 #endif
 #endif
 //-Bug 715587,guoyanjun.wt,ADD,20220108,SW JEITA configuration
-
-//+bug 717431, liyiying.wt, add, 2021/2/19, n21s afc charger bring up
-#ifdef CONFIG_AFC_CHARGER
-	info->enable_afc = of_property_read_bool(np, "enable_afc");
-#endif
-//-bug 717431, liyiying.wt, add, 2021/2/19, n21s afc charger bring up
-
 #if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
 	info->data.ap_temp_above_t2_cc = AP_TEMP_ABOVE_T2_CC;
 	info->data.ap_temp_t1_to_t2_cc = AP_TEMP_T1_TO_T2_CC;
@@ -1106,6 +1092,13 @@ void do_sw_jeita_state_machine(struct mtk_charger *info)
 		sw_jeita->cv = info->data.battery_cv;
 		sw_jeita->cc = info->data.ac_charger_input_current;
 	}
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+	if (1) {
+		int cycle_fv = wt_set_batt_cycle_fv(NULL);
+		if ((cycle_fv != 0) && (sw_jeita->cv > cycle_fv))
+			sw_jeita->cv = cycle_fv;
+	}
+#endif
 	chr_err("[SW_JEITA]preState:%d newState:%d tmp:%d cv:%d cc:%d\n",
 		sw_jeita->pre_sm, sw_jeita->sm, info->battery_temp,
 		sw_jeita->cv,sw_jeita->cc);
@@ -1212,110 +1205,6 @@ void ap_thermal_machine(struct mtk_charger *info)
 		} else {
 			if ((lcmoff_data->sm == TEMP_T0_TO_T1)
 				&& (bat_temp >= info->data.ap_temp_t0_thres_minus_x_degree)) {
-				chr_err("[AP_THERMAL] AP Temperature between %d and %d !!\n",
-					info->data.ap_temp_t0_thres_minus_x_degree,
-					info->data.ap_temp_t0_thres);
-			} else {
-				chr_err("[AP_THERMAL] AP below Temperature(%d) !!\n",
-					info->data.ap_temp_t0_thres);
-				lcmoff_data->sm = TEMP_BELOW_T0;
-			}
-		}
-
-		if (lcmoff_data->sm == TEMP_T2_TO_T3) {
-			lcmoff_data->cc = info->data.ap_temp_above_t2_cc;
-		} else if (lcmoff_data->sm == TEMP_T1_TO_T2) {
-			lcmoff_data->cc = info->data.ap_temp_t1_to_t2_cc;
-		} else if (lcmoff_data->sm == TEMP_T0_TO_T1) {
-			lcmoff_data->cc = info->data.ap_temp_t0_to_t1_cc;
-		} else if (lcmoff_data->sm == TEMP_BELOW_T0) {
-			lcmoff_data->cc = info->data.ap_temp_below_t0_cc;
-		}
-
-		chr_err("[AP_THERMAL]lcd is off!!preState:%d newState:%d tmp:%d cc:%d\n",
-			lcmoff_data->pre_sm, lcmoff_data->sm, ap_temp, lcmoff_data->cc);
-	} else {
-		if(ap_temp >= info->data.ap_temp_thres_lcmon) {
-			lcmon_data->sm = TEMP_T0_TO_T1;
-			chr_err("[AP_THERMAL] AP Over Temperature(%d) !!\n",
-				info->data.ap_temp_thres_lcmon);
-		} else {
-			if((lcmon_data->sm == TEMP_T0_TO_T1)
-				&& (ap_temp >= info->data.ap_temp_thres_minus_x_degree_lcmon)) {
-				chr_err("[AP_THERMAL] AP Temperature between %d and %d !!\n",
-					info->data.ap_temp_thres_minus_x_degree_lcmon,
-					info->data.ap_temp_thres_lcmon);
-			} else {
-				lcmon_data->sm = TEMP_BELOW_T0;
-				chr_err("[AP_THERMAL] AP below Temperature(%d) !!\n",
-				info->data.ap_temp_thres_minus_x_degree_lcmon);
-			}
-		}
-
-		if (lcmon_data->sm == TEMP_BELOW_T0) {
-			lcmon_data->cc = info->data.ap_temp_low_lcmon_cc;
-		} else if (lcmon_data->sm == TEMP_T0_TO_T1) {
-			lcmon_data->cc = info->data.ap_temp_high_lcmon_cc;
-		}
-
-		chr_err("[AP_THERMAL]lcd is on!!!preState:%d newState:%d tmp:%d cc:%d\n",
-			lcmon_data->pre_sm, lcmon_data->sm, ap_temp, lcmon_data->cc);
-	}
-}
-#endif
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-extern int mtkts_bts_get_hw_temp(void);
-void ap_thermal_machine(struct mtk_charger *info)
-{
-	struct sw_jeita_data *lcmoff_data;
-	struct sw_jeita_data *lcmon_data;
-	int ap_temp;
-
-	if(info->ap_temp != 0xffff) {
-		ap_temp = info->ap_temp;
-	} else {
-		ap_temp = mtkts_bts_get_hw_temp();
-		ap_temp = ap_temp/1000;
-	}
-
-	lcmoff_data = &info->ap_thermal_lcmoff;
-	lcmoff_data->pre_sm = lcmoff_data->sm;
-	lcmon_data = &info->ap_thermal_lcmon;
-	lcmon_data->pre_sm = lcmon_data->sm;
-
-	if(info->lcmoff) {
-		if (ap_temp >= info->data.ap_temp_t2_thres) {
-			chr_err("[AP_THERMAL] AP Over %d Temperature!!\n", info->data.ap_temp_t2_thres);
-
-			lcmoff_data->sm = TEMP_T2_TO_T3;
-		} else if (ap_temp >= info->data.ap_temp_t1_thres) {
-			if ((lcmoff_data->sm == TEMP_T2_TO_T3)
-			    && (ap_temp >= info->data.ap_temp_t2_thres_minus_x_degree)) {
-				chr_err("[AP_THERMAL] AP Temperature between %d and %d!!\n",
-					info->data.ap_temp_t2_thres_minus_x_degree,
-					info->data.ap_temp_t2_thres);
-			} else {
-				chr_err("[AP_THERMAL] AP Temperature between %d and %d !!\n",
-					info->data.ap_temp_t1_thres,
-					info->data.ap_temp_t2_thres_minus_x_degree);
-
-				lcmoff_data->sm = TEMP_T1_TO_T2;
-			}
-		} else if (ap_temp >= info->data.ap_temp_t0_thres) {
-			if ((lcmoff_data->sm == TEMP_T1_TO_T2)
-			     && (ap_temp >= info->data.ap_temp_t1_thres_minus_x_degree)){
-			    chr_err("[AP_THERMAL] AP Temperature between %d and %d!!\n",
-					info->data.ap_temp_t1_thres_minus_x_degree,
-				info->data.ap_temp_t1_thres);
-			} else {
-				chr_err("[AP_THERMAL] AP Temperature between %d and %d !!\n",
-					info->data.ap_temp_t0_thres,
-					info->data.ap_temp_t1_thres_minus_x_degree);
-				lcmoff_data->sm = TEMP_T0_TO_T1;
-			}
-		} else {
-			if ((lcmoff_data->sm == TEMP_T0_TO_T1)
-				&& (ap_temp >= info->data.ap_temp_t0_thres_minus_x_degree)) {
 				chr_err("[AP_THERMAL] AP Temperature between %d and %d !!\n",
 					info->data.ap_temp_t0_thres_minus_x_degree,
 					info->data.ap_temp_t0_thres);
@@ -2017,7 +1906,7 @@ static int mtk_chg_check_term(struct mtk_charger *info)
 
 	if ((bat_sta == POWER_SUPPLY_STATUS_CHARGING)
 			&& (wt_chg_sw_term == 0)) {
-		if ((bat_vol > (chg_cv - WT_CHG_CV_HYS))			//vbat > 4375
+		if ((bat_vol > (chg_cv - WT_CHG_CV_HYS))			//vbat > 4385
 			&& (bat_cur < WT_CHG_TERM_CURRENT))
 		{
 			if (check_count > 3) {
@@ -2185,22 +2074,6 @@ static bool charger_init_algo(struct mtk_charger *info)
 	}
 	idx++;
 
-//+bug 717431, liyiying.wt, add, 2021/2/19, n21s afc charger bring up
-#ifdef CONFIG_AFC_CHARGER
-	alg = get_chg_alg_by_name("afc");
-	info->alg[idx] = alg;
-	if (alg == NULL)
-		chr_err("get afc fail\n");
-	else {
-		chr_err("get afc success\n");
-		alg->config = info->config;
-		chg_alg_init_algo(alg);
-		register_chg_alg_notifier(alg, &info->chg_alg_nb);
-	}
-	idx++;
-#endif
-//-bug 717431, liyiying.wt, add, 2021/2/19, n21s afc charger bring up
-
 	alg = get_chg_alg_by_name("pe2");
 	info->alg[idx] = alg;
 	if (alg == NULL)
@@ -2223,7 +2096,7 @@ static bool charger_init_algo(struct mtk_charger *info)
 		chg_alg_init_algo(alg);
 		register_chg_alg_notifier(alg, &info->chg_alg_nb);
 	}
-	
+
 	info->chg1_dev = get_charger_by_name("primary_chg");
 	if (info->chg1_dev)
 		chr_err("Found primary charger\n");
@@ -2284,11 +2157,8 @@ static int mtk_charger_plug_out(struct mtk_charger *info)
 
 	charger_dev_set_input_current(info->chg1_dev, 100000);
 	charger_dev_set_mivr(info->chg1_dev, info->data.min_charger_voltage);
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-	if (batt_store_mode)
-		charger_manager_enable_charging_new(info, 0, 4);
-#endif
 	charger_dev_plug_out(info->chg1_dev);
+
 	return 0;
 }
 
@@ -2368,11 +2238,13 @@ static bool mtk_is_charger_on(struct mtk_charger *info)
 	return true;
 }
 
-#if 0
 static void kpoc_power_off_check(struct mtk_charger *info)
 {
 	unsigned int boot_mode = info->bootmode;
 	int vbus = 0;
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N26_CHARGER_PRIVATE)
+	return;
+#endif
 
 	/* 8 = KERNEL_POWER_OFF_CHARGING_BOOT */
 	/* 9 = LOW_POWER_OFF_CHARGING_BOOT */
@@ -2384,7 +2256,6 @@ static void kpoc_power_off_check(struct mtk_charger *info)
 		}
 	}
 }
-#endif
 
 static char *dump_charger_type(int type)
 {
@@ -2439,22 +2310,76 @@ static void ato_charger_limit_soc(struct mtk_charger *info, int min, int max)
 		pr_err("ato_charger_limit_soc:enable charging\n");
 	}
 }
+
+//+bug 790826,yangchaojun,wt,add batt_full_capacity node
+extern int batt_full_capacity;
+void wt_batt_full_capacity_check(void)
+{
+	int uisoc = 0;
+	bool is_charger_on = false;
+	static struct mtk_charger *pinfo;
+	struct power_supply *psy;
+
+	if (pinfo == NULL) {
+		psy = power_supply_get_by_name("mtk-master-charger");
+		if (psy == NULL) {
+			chr_err("%s: psy is not ready\n", __func__);
+			return;
+		}
+
+		pinfo = (struct mtk_charger *)power_supply_get_drvdata(psy);
+		if (pinfo == NULL) {
+			chr_err("%s: mtk_charger is null\n", __func__);
+			return;
+		}
+	}
+	is_charger_on = mtk_is_charger_on(pinfo);
+	uisoc = get_uisoc(pinfo);
+	chr_err("wt_batt_full_capacity_check:%d %d %d\n",uisoc,batt_full_capacity,is_charger_on);
+	//+bug 790826,yangchaojun,wt,add batt_full_capacity node optimize
+	if(batt_full_capacity != 100) {
+		if((uisoc >= batt_full_capacity) && (is_charger_on == true)) {
+			mtk_chg_status |= 8;
+			charger_dev_hz_mode(pinfo->chg1_dev, 1);
+			charger_dev_plug_out(pinfo->chg1_dev);
+			chr_err("batt_full_capacity:disable charging\n");
+		}else if((mtk_chg_status & 8) && (uisoc <= (batt_full_capacity-2)) && (is_charger_on == true)) {
+			mtk_chg_status &= ~8;
+			if(!mtk_chg_status) {
+				charger_dev_hz_mode(pinfo->chg1_dev, 0);
+				charger_dev_plug_in(pinfo->chg1_dev);
+				chr_err("batt_full_capacity:enable charging\n");
+			}
+		}
+	}else if(mtk_chg_status & 8) {
+		mtk_chg_status &= ~8;
+		if(!mtk_chg_status) {
+			charger_dev_hz_mode(pinfo->chg1_dev, 0);
+			charger_dev_plug_in(pinfo->chg1_dev);
+			chr_err("batt_full_capacity:echo 100%\n");
+		}
+	}
+	//-bug 790826,yangchaojun,wt,add batt_full_capacity node optimize
+}
+//-bug 790826,yangchaojun,wt,add batt_full_capacity node
+
+
 #define SALE_CODE_STR_LEN  3
 static char sales_code_from_cmdline[SALE_CODE_STR_LEN + 1];
 
 static int __init sales_code_setup(char *str)
 {
-	strlcpy(sales_code_from_cmdline, str,
-	ARRAY_SIZE(sales_code_from_cmdline));
+ strlcpy(sales_code_from_cmdline, str,
+   ARRAY_SIZE(sales_code_from_cmdline));
 
-	return 1;
-}
+ return 1;
+ }
 __setup("androidboot.sales_code=", sales_code_setup);
 
 bool sales_code_is(char* str)
 {
-	return !strncmp(sales_code_from_cmdline, str,
-	SALE_CODE_STR_LEN + 1);
+ return !strncmp(sales_code_from_cmdline, str,
+   SALE_CODE_STR_LEN + 1);
 }
 
 static void batt_slate_mode_control(struct mtk_charger *info)
@@ -2464,9 +2389,9 @@ static void batt_slate_mode_control(struct mtk_charger *info)
 		charger_dev_hz_mode(info->chg1_dev, 1);
 		charger_dev_plug_out(info->chg1_dev);
 		chr_err("batt_slate_mode_control:disable charging\n");
-	} else if (mtk_chg_status & 2 && (batt_slate_mode == 0)) {
+	} else if(mtk_chg_status & 2 && (batt_slate_mode == 0)) {
 		mtk_chg_status &= ~2;
-		if (!mtk_chg_status) {
+		if(!mtk_chg_status) {
 			charger_dev_hz_mode(info->chg1_dev, 0);
 			charger_dev_plug_in(info->chg1_dev);
 			chr_err("batt_slate_mode_control:enable charging\n");
@@ -2476,45 +2401,6 @@ static void batt_slate_mode_control(struct mtk_charger *info)
 	}
 }
 #endif
-
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-#define SALE_CODE_STR_LEN  3
-static char sales_code_from_cmdline[SALE_CODE_STR_LEN + 1];
-static void ato_charger_limit_soc(struct mtk_charger *info, int min, int max)
-{
-	int limit_soc;
-
-	limit_soc = get_uisoc(info);
-
-	if (battery_get_debug_uisoc() != 0xffff)
-		limit_soc = battery_get_debug_uisoc();
-	if((limit_soc >= max)) {
-		charger_manager_enable_charging_new(info, 1, 4);
-		chr_err("charger_limit_soc:disable charging\n");
-	}
-
-	if(limit_soc <= min){
-		charger_manager_enable_charging_new(info, 0, 4);
-		chr_err("charger_limit_soc:enable charging\n");
-	}
-
-}
-
-static int __init sales_code_setup(char *str)
-{
-	strlcpy(sales_code_from_cmdline, str,
-		ARRAY_SIZE(sales_code_from_cmdline));
-	return 1;
-}
-__setup("androidboot.sales_code=", sales_code_setup);
-
-bool sales_code_is(char* str)
-{
-	return !strncmp(sales_code_from_cmdline, str,
-		SALE_CODE_STR_LEN + 1);
-}
-#endif
-
 static int charger_routine_thread(void *arg)
 {
 	struct mtk_charger *info = arg;
@@ -2588,9 +2474,9 @@ struct power_supply *bat_psy = power_supply_get_by_name("mtk_charger_type");
 				mtk_chg_status &= ~4;
 			ato_charger_limit_soc(info, 60, 80);
 	} else {
-		charger_dev_is_hz_mode(info->chg1_dev, &is_hz_mode);
-		if (is_hz_mode)
-			charger_dev_hz_mode(info->chg1_dev, 0);
+			charger_dev_is_hz_mode(info->chg1_dev, &is_hz_mode);
+			if (is_hz_mode)
+				charger_dev_hz_mode(info->chg1_dev, 0);
 	}
 #endif
 	if (is_charger_on && batt_store_mode) {
@@ -2601,14 +2487,13 @@ struct power_supply *bat_psy = power_supply_get_by_name("mtk_charger_type");
 		ato_charger_limit_soc(info, min_soc, max_soc);
 	}
 		if (is_charger_on && (batt_store_mode == 0) && (mtk_chg_status & 1)) {
-			mtk_chg_status &= ~1;
-			if (!mtk_chg_status) {
-				charger_dev_hz_mode(info->chg1_dev, 0);
-				charger_dev_plug_in(info->chg1_dev);
-				pr_err("is_charger_on and batt_store_mode == 0:enable charging\n");
-			}
+		mtk_chg_status &= ~1;
+		if (!mtk_chg_status) {
+			charger_dev_hz_mode(info->chg1_dev, 0);
+			charger_dev_plug_in(info->chg1_dev);
+			pr_err("is_charger_on and batt_store_mode == 0:enable charging\n");
+		}
 	}
-	
 	if (is_charger_on)
 		batt_slate_mode_control(info);
 
@@ -2622,14 +2507,8 @@ struct power_supply *bat_psy = power_supply_get_by_name("mtk_charger_type");
 	} else {
 			gm = get_mtk_battery();
 	}
-#endif
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-#ifdef WT_COMPILE_FACTORY_VERSION
-		if(is_charger_on)
-			ato_charger_limit_soc(info, 60, 80);
-#endif
-		if(is_charger_on && batt_store_mode)
-			ato_charger_limit_soc(info, min_soc, max_soc);
+//+bug 790826,yangchaojun,wt,add batt_full_capacity node
+	wt_batt_full_capacity_check();
 #endif
 		if (info->charger_thread_polling == true)
 			mtk_charger_start_timer(info);
@@ -2637,7 +2516,7 @@ struct power_supply *bat_psy = power_supply_get_by_name("mtk_charger_type");
 		check_battery_exist(info);
 		check_dynamic_mivr(info);
 		charger_check_status(info);
-		//kpoc_power_off_check(info);
+		kpoc_power_off_check(info);
 
 		if (is_disable_charger(info) == false &&
 			is_charger_on == true &&
@@ -3056,9 +2935,6 @@ int notify_adapter_event(struct notifier_block *notifier,
 		pinfo->pd_type = MTK_PD_CONNECT_PE_READY_SNK_PD30;
 		mutex_unlock(&pinfo->pd_lock);
 		/* PD30 is ready */
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-		_wake_up_charger(pinfo);
-#endif
 		break;
 
 	case MTK_PD_CONNECT_PE_READY_SNK_APDO:
@@ -3180,40 +3056,6 @@ int charger_manager_disable_charging_new(struct mtk_charger *info, bool en)
 }
 #endif
 
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-int charger_manager_enable_charging_new(struct mtk_charger *info, bool en, int type)
-{
-	static int cmd_type = 0;
-	/* cmd disable charging */
-	if (en) {
-		if((cmd_type&type) == type)		//already set, so skip it
-			return 1;
-		cmd_type |= type;
-		charger_dev_hz_mode(info->chg1_dev, 1);
-		_mtk_enable_charging(info, 0);
-		info->cmd_discharging = 1;
-		chr_err("charger_manager_enable_charging_new:disable charging\n");
-		return 1;
-	}else{
-		if((cmd_type&type) != type)		//already clear, so skip it
-			return 0;
-		cmd_type &= (~type);
-
-		if(cmd_type){
-			pr_err("now the dischg cmd is %d, keep discharging\n", cmd_type);
-		}else{
-			charger_dev_hz_mode(info->chg1_dev, 0);
-			_mtk_enable_charging(info, 1);
-			info->cmd_discharging = 0;
-			chr_err("charger_manager_enable_charging_new:enable charging\n");
-			return 0;
-		}
-	}
-	return 0;
-}
-EXPORT_SYMBOL_GPL(charger_manager_enable_charging_new);
-#endif
-
 static int mtk_charger_probe(struct platform_device *pdev)
 {
 	struct mtk_charger *info = NULL;
@@ -3255,6 +3097,9 @@ static int mtk_charger_probe(struct platform_device *pdev)
 		info->chg_data[i].input_current_limit_by_aicl = -1;
 	}
 	info->enable_hv_charging = true;
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+	info->sw_jeita.sm = TEMP_T2_TO_T3;
+#endif
 
 	info->psy_desc1.name = "mtk-master-charger";
 	info->psy_desc1.type = POWER_SUPPLY_TYPE_UNKNOWN;
@@ -3318,13 +3163,6 @@ static int mtk_charger_probe(struct platform_device *pdev)
 
 	info->chg_alg_nb.notifier_call = chg_alg_event;
 
-//+bug 717431, liyiying.wt, add, 2021/2/19, n21s afc charger bring up
-#ifdef CONFIG_AFC_CHARGER
-	if (afc_charge_init(info) < 0)
-		info->enable_afc = false;
-#endif
-//-bug 717431, liyiying.wt, add, 2021/2/19, n21s afc charger bring up
-
 //+bug 682591,caoyachun.wt,mod,20220318,charge current limit for AP overheat
 #if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
 	info->ap_temp = 0xffff;
@@ -3335,16 +3173,6 @@ static int mtk_charger_probe(struct platform_device *pdev)
 //-bug 682591,caoyachun.wt,mod,20220318,charge current limit for AP overheat
 	kthread_run(charger_routine_thread, info, "charger_thread");
 #if defined (CONFIG_N23_CHARGER_PRIVATE)
-	fast_charger_connect(info);
-	if (sales_code_is("VZW")) {
-		min_soc = 30;
-		max_soc = 35;
-	} else {
-		min_soc = 60;
-		max_soc = 70;
-	}
-#endif
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
 	fast_charger_connect(info);
 	if (sales_code_is("VZW")) {
 		min_soc = 30;

@@ -13,7 +13,8 @@
 		mt-tcpc,role_def = <5>;
 		mt-tcpc,rp_level = <1>; /* 0: Default, 1: 1.5, 2: 3.0 */
 		/* 0: Never, 1: Always, 2: EMarkOnly, 3: StartOnly */
-		mt-tcpc,vconn_supply  = <1>;
+//Bug 710560, liangcheng.wt,add,20220518,C to C Failed to switch,W1S does not support Vconn
+		mt-tcpc,vconn_supply  = <0>;
 #if (CONFIG_MTK_GAUGE_VERSION == 30)
 		/* the number of notifier supply */
 		mt-tcpc,notifier_supply_num = <3>;
@@ -47,24 +48,21 @@
 			pd,charging_policy= <0x31>;
 
 			pd,source-pdo-size = <1>;
-			pd,source-pdo-data = <0x00019096>; /* 5V, 1500 mA */
+			pd,source-pdo-data = <0x00019032>; /*Extb P210310-03851,lvyc,MODIFY,202104,Confiured charging current 500 mA */
 			pd,sink-pdo-size = <1>;
 			pd,sink-pdo-data = <0x000190c8>;
 
 			/*
 			 * No DP, host + device
-			 *	pd,id-vdo-size = <6>;
-			 *	pd,id-vdo-data = <0xd14029cf 0x0 0x63600000
-						  0x41800000 0x0 0x21800000>;
+			 *	pd,id-vdo-size = <3>;
+			 *	pd,id-vdo-data = <0xd10029cf 0x0 0x63600000>;
 			 * With DP
-			 *	pd,id-vdo-size = <6>;
-			 *	pd,id-vdo-data = <0xd54029cf 0x0 0x63600000
-						  0x41800000 0x0 0x21800000>;
+			 *	pd,id-vdo-size = <3>;
+			 *	pd,id-vdo-data = <0xd60029cf 0x0 0x63600000>;
 			 */
 
-			pd,id-vdo-size = <6>;
-			pd,id-vdo-data = <0xd14029cf 0x0 0x63600000
-					  0x41800000 0x0 0x21800000>;
+			pd,id-vdo-size = <3>;
+			pd,id-vdo-data = <0xd60029cf 0x0 0x63600000>;
 
 			bat,nr = <1>;
 			bat-info0 {
@@ -83,7 +81,8 @@
 			// local_high_cap;
 			// local_give_back;
 			local_no_suspend;
-			local_vconn_supply;
+//Bug 710560, liangcheng.wt,add,20220518,C to C Failed to switch,W1S does not support Vconn
+			//local_vconn_supply;
 
 			// attemp_discover_cable_dfp;
 			attemp_enter_dp_mode;
@@ -108,7 +107,7 @@
 			2nd_connection = "dfp_d";
 			signal,dp_v13;
 			//signal,dp_gen2;
-			//usbr20_not_used;
+			usbr20_not_used;
 			typec,receptacle;
 			ufp_d {
 				//pin_assignment,mode_a;
@@ -123,7 +122,7 @@
 				pin_assignment,mode_c;
 				pin_assignment,mode_d;
 				pin_assignment,mode_e;
-				//pin_assignment,mode_f;
+				pin_assignment,mode_f;
 			};
 		};
 	};

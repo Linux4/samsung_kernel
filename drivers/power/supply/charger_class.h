@@ -61,9 +61,7 @@ struct charger_ops {
 	/* enable/disable charger */
 	int (*enable)(struct charger_device *dev, bool en);
 	int (*is_enabled)(struct charger_device *dev, bool *en);
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-	int (*hz_mode)(struct charger_device *dev, bool en);
-#endif
+
 	/* enable/disable chip */
 	int (*enable_chip)(struct charger_device *dev, bool en);
 	int (*is_chip_enabled)(struct charger_device *dev, bool *en);
@@ -326,8 +324,5 @@ extern int charger_dev_notify(
 #if defined (CONFIG_N23_CHARGER_PRIVATE)
 extern int charger_dev_hz_mode(struct charger_device *chg_dev, bool en);
 extern int charger_dev_is_hz_mode(struct charger_device *chg_dev, bool *done);
-#endif
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-extern int charger_dev_hz_mode(struct charger_device *chg_dev, bool en);
 #endif
 #endif /*LINUX_POWER_CHARGER_CLASS_H*/

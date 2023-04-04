@@ -1343,6 +1343,7 @@ static void himax_excp_hw_reset(void)
 #endif
 	I("%s: START EXCEPTION Reset\n", __func__);
 #if defined(HX_ZERO_FLASH)
+	g_core_fp.fp_ic_reset(false, false);
 	result = g_core_fp.fp_0f_op_file_dirly(g_fw_boot_upgrade_name);
 	if (result)
 		E("%s: update FW fail, code[%d]!!\n", __func__, result);
@@ -1993,9 +1994,12 @@ static int himax_ts_event_check(struct himax_ts_data *ts,
 		I("Now Path=%d, Now status=%d, length=%d\n",
 				ts_path, ts_status, length);
 
-	if (ts_path == HX_REPORT_COORD || ts_path == HX_REPORT_COORD_RAWDATA) {
-		if (ic_data->HX_STYLUS_FUNC)
-			length -= STYLUS_INFO_SZ;
+	if (ts_path == HX_REPORT_COORD || ts_path == HX_REPORT_COORD_RAWDATA ||ts_path == HX_REPORT_SMWP_EVENT ) {
+		if (ic_data->HX_STYLUS_FUNC) {
+			if(length != (GEST_PTLG_ID_LEN + GEST_PTLG_HDR_LEN)) {
+				length -= STYLUS_INFO_SZ;
+			}
+		}
 		for (i = 0; i < length; i++) {
 			/* case 1 EXCEEPTION recovery flow */
 			if (buf[i] == 0xEB) {
@@ -2170,7 +2174,6 @@ static int himax_ts_event_check(struct himax_ts_data *ts,
 			himax_excp_hw_reset();
 			ret_val = HX_EXCP_EVENT;
 		} else if (shaking_ret == HX_EXCP_ZERO_DD_EVENT) {
-			HX_EXCP_DD_RESET_ACTIVATE = 1;
 			g_core_fp._ic_excp_dd_recovery();
 			ret_val = HX_EXCP_EVENT;
 		} else if (shaking_ret == HX_ZERO_EVENT_COUNT) {
@@ -3675,6 +3678,44 @@ END:
 	return 0;
 }
 
+int himax_fw_event_notify(int event)
+{
+	uint8_t tmp_addr[DATA_LEN_4] = {0};
+	uint8_t tmp_data[DATA_LEN_4] = {0};
+	I("himax_fw_event_notify:start \n");
+	if(event == 9) {
+		I("himax_fw_event_notify: plug \n");
+		himax_parse_assign_cmd(0x10007FE8, tmp_addr, DATA_LEN_4);
+		himax_parse_assign_cmd(0xA55AA55A, tmp_data, DATA_LEN_4);
+		g_core_fp.fp_register_write(tmp_addr, tmp_data, DATA_LEN_4);
+	} else if(event == 10) {
+		I("himax_fw_event_notify: unplug \n");
+		himax_parse_assign_cmd(0x10007FE8, tmp_addr, DATA_LEN_4);
+		himax_parse_assign_cmd(0x00000000, tmp_data, DATA_LEN_4);
+		g_core_fp.fp_register_write(tmp_addr, tmp_data, DATA_LEN_4);
+	}
+	I("himax_fw_event_notify:end \n");
+	return 0;
+}
+
+int himax_headset_notifier_callback(
+	struct notifier_block *self,
+	unsigned long event,
+	void *data)
+{
+	I("himax_headset_nodifier_callback start event = %d\n",event);
+	if(event == 9)
+		private_ts->hx_headset_flag = 1;
+	else if (event == 10)
+		private_ts->hx_headset_flag = 0;
+
+	if(!atomic_read(&private_ts->suspend_mode)){
+		himax_fw_event_notify(event);
+	}
+	I("himax_headset_nodifier_callback end\n");
+	return 0;
+}
+
 int himax_chip_common_resume(struct himax_ts_data *ts)
 {
 	if (ts->suspended == false) {
@@ -3721,6 +3762,14 @@ int himax_chip_common_resume(struct himax_ts_data *ts)
 	g_core_fp.fp_resume_proc(ts->suspended);
 	himax_report_all_leave_event(ts);
 	himax_int_enable(1);
+
+	if(private_ts->hx_headset_flag == 1){
+		I("himax_chip_common_resume:headset plug\n");
+		himax_fw_event_notify(9);
+	}else if (private_ts->hx_headset_flag == 0){
+		I("himax_chip_common_resume:headset unplug\n");
+		himax_fw_event_notify(10);
+	}
 /*
  *#if defined(HX_ZERO_FLASH) && defined(HX_RESUME_SET_FW)
  *ESCAPE_0F_UPDATE:

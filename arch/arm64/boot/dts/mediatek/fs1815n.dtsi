@@ -1,0 +1,9 @@
+&i2c6 {
+	fs16xx@34 {
+		compatible = "foursemi,fs16xx";
+		reg = <0x34>;
+		fsm,rst-gpio = <&pio 169 0>; // according to schematic diagram
+		status = "okay";
+	};
+
+};

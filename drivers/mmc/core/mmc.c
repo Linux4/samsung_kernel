@@ -814,10 +814,10 @@ MMC_DEV_ATTR(life_time, "0x%02x 0x%02x\n",
 	card->ext_csd.device_life_time_est_typ_a,
 	card->ext_csd.device_life_time_est_typ_b);
 
-//+bug 720069, houdujing.wt, add, 2022.2.12, add emmc flash life_time, start
+//+++bug782977, linaiyu.wt, add, 2022.07.29, add emmc life time
 MMC_DEV_ATTR(life_time_est_typ_a, "0x%x\n",card->ext_csd.device_life_time_est_typ_a);
 MMC_DEV_ATTR(life_time_est_typ_b, "0x%x\n",card->ext_csd.device_life_time_est_typ_b);
-//+bug 720069, houdujing.wt, add, 2022.2.12, add emmc flash life_time, end
+//---bug782977, linaiyu.wt, add, 2022.07.29, add emmc life time
 
 MMC_DEV_ATTR(serial, "0x%08x\n", card->cid.serial);
 MMC_DEV_ATTR(enhanced_area_offset, "%llu\n",
@@ -860,7 +860,7 @@ static ssize_t mmc_dsr_show(struct device *dev,
 }
 
 static DEVICE_ATTR(dsr, S_IRUGO, mmc_dsr_show, NULL);
-//bug 717429, linaiyu.wt, add, 2022.01.25, add emmc flash_name & vendor name, start
+//+++bug782977, linaiyu.wt, add, 2022.07.29, add emmc flash_name & vendor name
 static int calc_mem_size(void)
  {
      int temp_size;
@@ -1026,7 +1026,8 @@ static ssize_t vendor_name_show(struct device *dev, struct device_attribute *att
     return sprintf(buf, "%s\n",vendor_name);
 }
 static DEVICE_ATTR(vendor, S_IRUGO, vendor_name_show, NULL);
-//bug 717429, linaiyu.wt, add, 2022.01.25, add emmc flash_name & vendor name, end
+//---bug782977, linaiyu.wt, add, 2022.07.29, add emmc flash_name & vendor name
+
 static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_cid.attr,
 	&dev_attr_csd.attr,
@@ -1414,6 +1415,14 @@ static int mmc_select_hs400(struct mmc_card *card)
 	mmc_set_timing(host, MMC_TIMING_MMC_HS400);
 	mmc_set_bus_speed(card);
 
+	if (host->ops->execute_hs400_tuning) {
+		mmc_retune_disable(host);
+		err = host->ops->execute_hs400_tuning(host, card);
+		mmc_retune_enable(host);
+		if (err)
+			goto out_err;
+	}
+
 	if (host->ops->hs400_complete)
 		host->ops->hs400_complete(host);
 
@@ -1441,6 +1450,7 @@ int mmc_hs400_to_hs200(struct mmc_card *card)
 	int err;
 	u8 val;
 
+	dev_info(host->parent,"%s\n", __func__);
 	/* Reduce frequency to HS */
 	max_dtr = card->ext_csd.hs_max_dtr;
 	mmc_set_clock(host, max_dtr);

@@ -99,15 +99,21 @@ ifneq ($(strip $(TARGET_NO_KERNEL)),true)
     KERNEL_MAKE_PATH_OPTION := /usr/bin:/bin
     KERNEL_MAKE_OPTION += PATH=$(KERNEL_ROOT_DIR)/$(CLANG_PREBUILT_BIN):$(KERNEL_ROOT_DIR)/$(LINUX_GCC_CROSS_COMPILE_PREBUILTS_BIN):$(KERNEL_MAKE_PATH_OPTION):$$PATH
   else
+ifeq ($(strip $(WT_COMPILE_FACTORY_VERSION)),yes)
+    KERNEL_MAKE_OPTION += WT_COMPILE_FACTORY_VERSION=yes
+endif
     BUILT_KERNEL_TARGET := $(TARGET_PREBUILT_KERNEL)
   endif #TARGET_PREBUILT_KERNEL is empty
     KERNEL_MAKE_OPTION += PROJECT_DTB_NAMES='$(PROJECT_DTB_NAMES)'
-
-#+CHK SC113850, zjj.wt,ADD,20220128,ATO enable RPMB delay binding by cmd
+#+CHK SC127680 zhaocong.wt, ADD, 20220722, delay RPMB key provision in preloader
 $(warning KERNEL---- WT_COMPILE_FACTORY_VERSION version ====> $(WT_COMPILE_FACTORY_VERSION))
 ifeq ($(strip $(WT_COMPILE_FACTORY_VERSION)),yes)
   KERNEL_MAKE_OPTION += WT_COMPILE_FACTORY_VERSION=yes
 endif
-#-CHK SC113850, zjj.wt,ADD,20220128,ATO enable RPMB delay binding by cmd
-
+#-CHK SC127680 zhaocong.wt, ADD, 20220722, delay RPMB key provision in preloader
+#+CHK 127735,zhaizhenhong.wt,add,20220721, add WT_FINAL_RELEASE
+  ifeq ($(strip $(WT_FINAL_RELEASE)),yes)
+    KERNEL_MAKE_OPTION += WT_FINAL_RELEASE=yes
+  endif
+#-CHK 127735,zhaizhenhong.wt,add,20220721, add WT_FINAL_RELEASE
 endif #TARGET_NO_KERNEL

@@ -116,5 +116,5 @@ ccflags-y += -I$(srctree)/drivers/misc/tzdev
 endif # !CONFIG_BLOWFISH_TEE_SUPPORT
 
 ifeq ($(CONFIG_TEEGRIS_TEE_SUPPORT),y)
-ccflags-y += -I$(srctree)/drivers/tee/tzdev/include/tzdev
+include $(srctree)/drivers/tee/tzdev/Makefile.include
 endif # CONFIG_TEEGRIS_TEE_SUPPORT

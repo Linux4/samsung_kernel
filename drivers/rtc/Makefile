@@ -21,12 +21,11 @@ rtc-core-$(CONFIG_RTC_INTF_DEV)		+= rtc-dev.o
 rtc-core-$(CONFIG_RTC_INTF_PROC)	+= rtc-proc.o
 rtc-core-$(CONFIG_RTC_INTF_SYSFS)	+= rtc-sysfs.o
 
-# +CHK SC113850, zjj.wt,ADD,20220128,ATO enable RPMB delay binding by cmd
+#+CHK SC127680 zhaocong.wt, ADD, 20220722, delay RPMB key provision in preloader
 ifeq ($(WT_COMPILE_FACTORY_VERSION),yes)
     ccflags-y += -DWT_COMPILE_FACTORY_VERSION
 endif
-# -CHK SC113850, zjj.wt,ADD,20220128,ATO enable RPMB delay binding by cmd
-
+#-CHK SC127680 zhaocong.wt, ADD, 20220722, delay RPMB key provision in preloader
 # Keep the list ordered.
 
 obj-$(CONFIG_RTC_DRV_88PM80X)	+= rtc-88pm80x.o

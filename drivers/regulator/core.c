@@ -4953,8 +4953,12 @@ static int regulator_late_cleanup(struct device *dev, void *data)
 
 	if (!enabled)
 		goto unlock;
-	//bug 717429, linaiyu.wt, add, 2022.04.24, keep vbus detect Pen Driver after restarting
+//bug 782977, linaiyu.wt, add, 2022.08.18, keep vbus detect Pen Driver after restarting
+#if defined(CONFIG_WT_PROJECT_S96516SA1) || defined(CONFIG_WT_PROJECT_S96616AA1)
 	if (have_full_constraints()&& strcmp(rdev->desc->name, "usb-otg-vbus")) {
+#else
+	if (have_full_constraints()) {
+#endif
 		/* We log since this may kill the system if it goes
 		 * wrong. */
 		rdev_info(rdev, "disabling\n");

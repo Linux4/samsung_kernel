@@ -833,9 +833,9 @@ config CHARGER_WINGTECH
 	  WT driver.
 	  It depends on
 	  the config MTK_CHARGER.
-
-config N21_CHARGER_PRIVATE
-	bool "N21_CHARGER_PRIVATE"
+	  
+config N23_CHARGER_PRIVATE
+    bool "N23_CHARGER_PRIVATE"
 	depends on MTK_CHARGER
 	default n
 	help
@@ -861,9 +861,9 @@ config N26_CHARGER_PRIVATE
 	  WT driver.
 	  It depends on
 	  the config MTK_CHARGER.
-	  
-config N23_CHARGER_PRIVATE
-    bool "N23_CHARGER_PRIVATE"
+
+config W2_CHARGER_PRIVATE
+    bool "W2_CHARGER_PRIVATE"
 	depends on MTK_CHARGER
 	default n
 	help
@@ -949,4 +949,3 @@ endif
 
 endif # POWER_SUPPLY
 
-source "drivers/power/supply/sm/sm5714/Kconfig"

@@ -13,11 +13,10 @@
 
 #define AUX_IN0_NTC (0)
 #define AUX_IN1_NTC (1)
-
-//+bug 715587,renjiawei.wt,20220128,modify,thermal bring up
+//+chk 129980,jinyucheng.wt,add new NTC,20220728
 #define AUX_IN2_NTC (2)
 #define AUX_IN3_NTC (3)
-//+bug 715587,renjiawei.wt,20220128,modify,thermal bring up
+//-chk 129980,jinyucheng.wt,add new NTC,20220728
 
 #define BTS_RAP_PULL_UP_R		390000 /* 390K, pull up resister */
 
@@ -43,7 +42,7 @@
 
 #define BTSMDPA_RAP_ADC_CHANNEL		AUX_IN1_NTC /* default is 1 */
 
-//+bug 715587,renjiawei.wt,20210812,modify,thermal bring up
+//+chk 129980,jinyucheng.wt,add new NTC,20220728
 #define BTSFLED_EXT_RAP_PULL_UP_R	390000 /* 390K, pull up resister */
 
 #define BTSFLED_EXT_TAP_OVER_CRITICAL_LOW	4397119 /* base on 100K NTC temp default -40 deg */
@@ -52,7 +51,7 @@
 
 #define BTSFLED_EXT_RAP_NTC_TABLE	7 /* default is NCP15WF104F03RC(100K) */
 
-#define BTSFLED_EXT_RAP_ADC_CHANNEL	AUX_IN2_NTC /* default is 1 */
+#define BTSFLED_EXT_RAP_ADC_CHANNEL	AUX_IN2_NTC /* default is 2 */
 
 #define BTSCHARGER_EXT_RAP_PULL_UP_R	390000   /* 390K, pull up resister */
 
@@ -62,8 +61,8 @@
 
 #define BTSCHARGER_EXT_RAP_NTC_TABLE	7 /* default is NCP15WF104F03RC(100K) */
 
-#define BTSCHARGER_EXT_RAP_ADC_CHANNEL	AUX_IN3_NTC /* default is 1 */
-//+bug 715587,renjiawei.wt,20220128,modify,thermal bring up
+#define BTSCHARGER_EXT_RAP_ADC_CHANNEL	AUX_IN3_NTC /* default is 3 */ 
+////-chk 129980,jinyucheng.wt,add new NTC,20220728
 
 extern int IMM_GetOneChannelValue(int dwChannel, int data[4], int *rawdata);
 extern int IMM_IsAdcInitReady(void);

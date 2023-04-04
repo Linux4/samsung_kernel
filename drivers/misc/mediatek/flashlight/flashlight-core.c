@@ -132,16 +132,10 @@ static int fl_enable(struct flashlight_dev *fdev, int enable)
 #ifdef CONFIG_MTK_FLASHLIGHT_PT
 	if (pt_is_low(pt_low_vol, pt_low_bat, pt_over_cur) == 2)
 		if (enable) {
-			//+P210619-00213 , add by dengyixuan.wt , 2021/06/29 , low power flash on
-			#if defined(CONFIG_WT_PROJECT_S96717AA2)
-			enable = 1;
-			#else
 			enable = 0;
 			pr_info("Failed to enable since pt(%d,%d,%d), pt strict(%d)\n",
 					pt_low_vol, pt_low_bat,
 					pt_over_cur, pt_strict);
-			#endif
-			//-P210619-00213 , add by dengyixuan.wt , 2021/06/29 , low power flash on
 		}
 #endif
 
@@ -909,7 +903,8 @@ static int flashlight_release(struct inode *inode, struct file *file)
 
 		pr_debug("Release(%d,%d,%d)\n", fdev->dev_id.type,
 				fdev->dev_id.ct, fdev->dev_id.part);
-		fl_enable(fdev, 0);
+		if (fdev->enable != 0)
+			fl_enable(fdev, 0);
 		fdev->ops->flashlight_release();
 	}
 	mutex_unlock(&fl_mutex);
@@ -1593,7 +1588,8 @@ static int fl_uninit(void)
 		if (fdev->ops) {
 			fdev->ops->flashlight_open();
 			fdev->ops->flashlight_set_driver(1);
-			fl_enable(fdev, 0);
+			if (fdev->enable != 0)
+				fl_enable(fdev, 0);
 			fdev->ops->flashlight_set_driver(0);
 			fdev->ops->flashlight_release();
 		}

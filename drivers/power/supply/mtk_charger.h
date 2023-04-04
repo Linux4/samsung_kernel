@@ -13,11 +13,6 @@
 #if defined (CONFIG_N26_CHARGER_PRIVATE)
 #include "wingtech_charger.h"
 #endif
-//+bug 717431, liyiying.wt, add, 2021/2/19, n21s afc charger bring up
-#ifdef CONFIG_AFC_CHARGER
-#include "afc_charger_intf.h"
-#endif
-//-bug 717431, liyiying.wt, add, 2021/2/19, n21s afc charger bring up
 
 #define CHARGING_INTERVAL 10
 #define CHARGING_FULL_INTERVAL 20
@@ -25,9 +20,7 @@
 #define CHRLOG_ERROR_LEVEL	1
 #define CHRLOG_INFO_LEVEL	2
 #define CHRLOG_DEBUG_LEVEL	3
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-extern bool batt_hv_disable;
-#endif
+
 extern int chr_get_debug_level(void);
 
 #define chr_err(fmt, args...)					\
@@ -459,12 +452,6 @@ struct mtk_charger {
 
 	bool enable_dynamic_mivr;
 	struct wtchg_info *wtchg_info;
-//+bug 717431, liyiying.wt, add, 2021/2/19, n21s afc charger bring up
-#ifdef CONFIG_AFC_CHARGER
-	bool enable_afc;
-	struct afc_dev afc;
-#endif
-//-bug 717431, liyiying.wt, add, 2021/2/19, n21s afc charger bring up
 };
 
 /* functions which framework needs*/
@@ -498,8 +485,5 @@ extern int charger_manager_disable_charging_new(
 #endif
 
 extern bool fast_charger_connect(struct mtk_charger *info);//Bug 682591,wangmingyuan.wt,ADD,20210814,hv charger status
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-extern int charger_manager_enable_charging_new(struct mtk_charger *info, bool en, int type);
-#endif
 
 #endif /* __MTK_CHARGER_H */

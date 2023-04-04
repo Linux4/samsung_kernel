@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- *  drivers/usb/notify/host_notify_class.c
  *
- * Copyright (C) 2011-2021 Samsung, Inc.
+ * Copyright (C) 2011-2022 Samsung, Inc.
  * Author: Dongrak Shin <dongrak.shin@samsung.com>
  *
  */
 
- /* usb notify layer v3.6 */
+ /* usb notify layer v3.7 */
 
 #include <linux/module.h>
 #include <linux/types.h>

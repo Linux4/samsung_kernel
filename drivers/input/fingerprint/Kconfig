@@ -15,21 +15,37 @@ config MTK_FINGERPRINT_SUPPORT
 
 config MTK_FINGERPRINT_SELECT
 	string "sensor type"
-	default "GF318M"
-config EGIS_FINGERPRINT_N21
-	bool "egis Fingerprint"
-	default n
+	default "NA"
 
-config FPC_FINGERPRINT
-	bool "FPC Fingerprint"
-	default n
-	help
-	  FPC fingerprint FPC's 102x/104x device.
 config CHIPONE_FINGERPRINT
 	bool "chipone Fingerprint"
 	default n
 	help
-	  chipone fingerprint device driver
+	  chipone fingerprint device driver.
+
+config CHIPONE_FINGERPRINT_W2
+	bool "chipone Fingerprint"
+	default n
+	help
+	  chipone fingerprint device driver.
+	  
+config CHIPONE_FINGERPRINT_N23
+	bool "chipone Fingerprint"
+	default n
+	help
+	  chipone fingerprint device driver.
+
+config FPC1020_SUPPORT
+        tristate "FPC Fingerprint"
+        default y
+        help
+          Support FPC capacitive fingerprint sensor device.
+
+config SILEAD_FINGERPRINT
+	bool "silead Fingerprint"
+	default n
+	help
+	  silead fingerprint device driver.
 
 config EGIS_FINGERPRINT
 	bool "Egis Fingerprint"

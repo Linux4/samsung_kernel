@@ -686,7 +686,6 @@ static int als_set_cali(uint8_t *data, uint8_t count)
 	spin_unlock(&calibration_lock);
 	return sensor_cfg_to_hub(ID_LIGHT, data, count);
 }
-//+Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 static int als_set_lcdinfo(uint8_t *data, uint8_t count)
 {
 	int res = 0;
@@ -697,7 +696,6 @@ static int als_set_lcdinfo(uint8_t *data, uint8_t count)
 	}
 	return 0;
 }
-//-Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 static int rgbw_enable(int en)
 {
 	int res = 0;

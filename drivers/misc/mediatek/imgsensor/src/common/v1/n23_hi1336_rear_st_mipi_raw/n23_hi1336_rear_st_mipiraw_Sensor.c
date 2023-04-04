@@ -3330,7 +3330,6 @@ extern int imgSensorReadEepromData(struct stCAM_CAL_DATAINFO_STRUCT* pData,
 extern int imgSensorSetEepromData(struct stCAM_CAL_DATAINFO_STRUCT* pData);
 //-bug682590,zhanghengyuan.wt,ADD,2021/8/27,add n23_hi1336_rear_st OTP
 
-
 static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 {
 	kal_uint8 i = 0;

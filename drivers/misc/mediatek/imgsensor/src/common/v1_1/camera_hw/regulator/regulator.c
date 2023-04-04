@@ -25,11 +25,9 @@ struct REGULATOR_CTRL regulator_control[REGULATOR_TYPE_MAX_NUM] = {
 #ifdef CONFIG_REGULATOR_RT5133
 	{"vcama1"},
 #endif
-#if defined(IMGSENSOR_MT6781) || defined(IMGSENSOR_MT6877)
-	{"vcamaf"},
-#endif
 	{"vcamd"},
 	{"vcamio"},
+	{"vcamaf"},
 };
 
 static struct REGULATOR reg_instance;
@@ -108,11 +106,10 @@ static enum IMGSENSOR_RETURN regulator_set(
 	atomic_t             *enable_cnt;
 
 
-	if (pin > IMGSENSOR_HW_PIN_DOVDD   ||
+	if (pin > IMGSENSOR_HW_PIN_AFVDD   ||
 	    pin < IMGSENSOR_HW_PIN_AVDD    ||
 	    pin_state < IMGSENSOR_HW_PIN_STATE_LEVEL_0 ||
-	    pin_state >= IMGSENSOR_HW_PIN_STATE_LEVEL_HIGH ||
-	    sensor_idx < 0)
+	    pin_state >= IMGSENSOR_HW_PIN_STATE_LEVEL_HIGH)
 		return IMGSENSOR_RETURN_ERROR;
 
 	reg_type_offset = REGULATOR_TYPE_VCAMA;

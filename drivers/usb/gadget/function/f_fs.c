@@ -1741,7 +1741,6 @@ static void ffs_data_put(struct ffs_data *ffs)
 		kfree(ffs);
 	}
 }
-
 //Bug+715587,houdujing.wt,add 2022.6.8,modify for kernel init failed
 static void ffs_data_closed(struct ffs_data *ffs)
 {
@@ -1759,7 +1758,7 @@ static void ffs_data_closed(struct ffs_data *ffs)
 			ffs->epfiles = NULL;
 			spin_unlock_irqrestore(&ffs->eps_lock,
 							flags);
-			if (epfiles) 
+			if (epfiles)
 				ffs_epfiles_destroy(epfiles,
 						   ffs->eps_count);
 			if (ffs->setup_state == FFS_SETUP_PENDING)
@@ -1810,7 +1809,7 @@ static struct ffs_data *ffs_data_new(const char *dev_name)
 
 	return ffs;
 }
-//Bug+715587,houdujing.wt,add 2022.6.8,modify for kernel init failed
+//Bug-715587,houdujing.wt,add 2022.6.8,modify for kernel init failed
 static void ffs_data_clear(struct ffs_data *ffs)
 {
 	struct ffs_epfile *epfiles;
@@ -1835,12 +1834,12 @@ static void ffs_data_clear(struct ffs_data *ffs)
 		eventfd_ctx_put(ffs->ffs_eventfd);
 		ffs->ffs_eventfd = NULL;
 	}
-
+//Bug-715587,houdujing.wt,add 2022.6.8,modify for kernel init failed
 	kfree(ffs->raw_descs_data);
 	kfree(ffs->raw_strings);
 	kfree(ffs->stringtabs);
 }
-//Bug-715587,houdujing.wt,add 2022.6.8,modify for kernel init failed
+
 static void ffs_data_reset(struct ffs_data *ffs)
 {
 	ENTER();
@@ -1973,9 +1972,9 @@ static void ffs_epfiles_destroy(struct ffs_epfile *epfiles, unsigned count)
 	}
 
 	kfree(epfiles);
+	epfiles = NULL;
 }
-
-//Bug+715587,houdujing.wt,add 2022.6.8,modify for kernel init failed
+//Bug-715587,houdujing.wt,add 2022.6.8,modify for kernel init failed
 static void ffs_func_eps_disable(struct ffs_function *func)
 {
 	struct ffs_ep *ep;
@@ -2007,7 +2006,7 @@ static void ffs_func_eps_disable(struct ffs_function *func)
 }
 
 static int ffs_func_eps_enable(struct ffs_function *func)
-{	
+{
 	struct ffs_data *ffs;
 	struct ffs_ep *ep;
 	struct ffs_epfile *epfile;
@@ -3313,6 +3312,12 @@ static int ffs_func_set_alt(struct usb_function *f,
 	struct ffs_data *ffs = func->ffs;
 	int ret = 0, intf;
 
+	pr_info("%s - ffs->state:%d\n", __func__, ffs->state);
+	if (ffs->epfiles == NULL) {
+		pr_info("%s - UAF fix\n", __func__);
+		return -ENODEV;
+	}
+
 	if (alt != (unsigned)-1) {
 		intf = ffs_func_revmap_intf(func, interface);
 		if (unlikely(intf < 0))
@@ -3642,6 +3647,7 @@ static void ffs_func_unbind(struct usb_configuration *c,
 static struct usb_function *ffs_alloc(struct usb_function_instance *fi)
 {
 	struct ffs_function *func;
+	struct ffs_dev *dev;
 
 	ENTER();
 
@@ -3649,7 +3655,8 @@ static struct usb_function *ffs_alloc(struct usb_function_instance *fi)
 	if (unlikely(!func))
 		return ERR_PTR(-ENOMEM);
 
-	func->function.name    = "Function FS Gadget";
+	dev = to_f_fs_opts(fi)->dev;
+	func->function.name    = dev->name;
 
 	func->function.bind    = ffs_func_bind;
 	func->function.unbind  = ffs_func_unbind;

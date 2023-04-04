@@ -13,7 +13,8 @@
 #define EMBEDDED_SEL 0
 #define PMIC_SHUTDOWN_CURRENT 20	/* 0.01 mA */
 #define FG_METER_RESISTANCE	100
-#define CAR_TUNE_VALUE	100 /*1.00 */
+//zhaosidong.wt, MODIFY, 2021/2/22, modify for FG accuracy
+#define CAR_TUNE_VALUE	97 /*1.00 */
 #define NO_BAT_TEMP_COMPENSATE 0
 /* NO_BAT_TEMP_COMPENSATE 1 = don't need bat_temper compensate, */
 /* but fg_meter_resistance still use for SWOCV */
@@ -64,7 +65,7 @@
 #define PMIC_MIN_VOL 33500
 
 /*ui_soc related */
-#define DIFFERENCE_FULL_CV 1000 /*0.01%*/
+#define DIFFERENCE_FULL_CV 0 /*0.01%*/
 #define PSEUDO1_EN 1
 #define PSEUDO100_EN 1
 #define PSEUDO100_EN_DIS 0
@@ -72,7 +73,7 @@
 #define DIFF_SOC_SETTING 50	/* 0.01% */
 #define DIFF_BAT_TEMP_SETTING 1
 #define DIFF_BAT_TEMP_SETTING_C 10
-#define DISCHARGE_TRACKING_TIME 10
+#define DISCHARGE_TRACKING_TIME 30
 #define CHARGE_TRACKING_TIME 60
 #define DIFFERENCE_FULLOCV_VTH	1000	/* 0.1mV */
 #define CHARGE_PSEUDO_FULL_LEVEL 8000

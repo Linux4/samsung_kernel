@@ -1,4 +1,3 @@
-//+Bug 685842,songhaiyang.wt,add,20210819,add wt_em
 #include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/proc_fs.h>
@@ -48,5 +47,3 @@ static int __init proc_em_init(void)
 	return 0;
 }
 fs_initcall(proc_em_init);
-
-//-Bug 685842,songhaiyang.wt,add,20210819,add wt_em

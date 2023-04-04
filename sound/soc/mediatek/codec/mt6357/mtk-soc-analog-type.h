@@ -104,11 +104,11 @@ enum audio_analog_device_type {
 	AUDIO_ANALOG_DEVICE_2IN1_SPK = 11,
 	/* DEVICE_IN_LINEINR = 11, */
 	/* DEVICE_IN_LINEINL = 12, */
-/*pangxin01.wt,add.20220323*/
+/*zhangxingyuan.wt,add.20220725*/
 #ifdef CONFIG_SND_SOC_HAC_SUPPORT
 	AUDIO_ANALOG_DEVICE_OUT_RECEIVER_HAC = 12,
 #endif
-/*pangxin01.wt,add.20220323*/
+/*zhangxingyuan.wt,add.20220725*/
 	AUDIO_ANALOG_DEVICE_IN_ADC1 = 13,
 	AUDIO_ANALOG_DEVICE_IN_ADC2 = 14,
 	AUDIO_ANALOG_DEVICE_IN_ADC3 = 15,

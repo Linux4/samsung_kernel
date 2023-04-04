@@ -34,12 +34,6 @@ config ANDROID_VSOC
 	  a 'cuttlefish' Android image inside QEmu. The driver interacts with
 	  a QEmu ivshmem device. If built as a module, it will be called vsoc.
 
-config SAMSUNG_LMKD_DEBUG
-	bool "record lmkd kill history"
-	default y
-	help
-	  record lmkd kill history
-
 config ANDROID_INTF_ALARM_DEV
 	tristate "Android alarm driver"
 	depends on RTC_CLASS
@@ -48,6 +42,12 @@ config ANDROID_INTF_ALARM_DEV
 	  elapsed realtime, and a non-wakeup alarm on the monotonic clock.
 	  Espically for wake up alarm ioctl.
 	  Also exports the alarm interface to user-space.
+
+config SAMSUNG_LMKD_DEBUG
+	bool "record lmkd kill history"
+	default y
+	help
+	  record lmkd kill history
 
 ############################################################################
 menuconfig ION
@@ -178,11 +178,5 @@ config ION_OF
 	  If using Ion and devicetree, you should say Y here
 
 endif # if ANDROID
-
-config TIMEROUT_VIBRATOR
-	bool "vibrator path for customer"
-	default n
-	help
-	  Use for customer require to adjust vibrator enable path to timerout.
 
 endmenu

@@ -31,9 +31,7 @@ struct swtp_t {
 	unsigned int	setdebounce[MAX_PIN_NUM];
 	unsigned int	eint_type[MAX_PIN_NUM];
 	unsigned int	gpio_state[MAX_PIN_NUM];
-	//+ bug 717427  zhouxin2.wt 2022.02.10  add swtp proc start
-	unsigned int	tx_power_mode;
-	//- bug 717427  zhouxin2.wt 2022.02.10  add swtp proc start
+	int	tx_power_mode;
 	spinlock_t		spinlock;
 	struct delayed_work delayed_work;
 	struct delayed_work init_delayed_work;

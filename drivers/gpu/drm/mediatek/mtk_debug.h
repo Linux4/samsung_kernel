@@ -6,10 +6,13 @@
 #ifndef __MTKFB_DEBUG_H
 #define __MTKFB_DEBUG_H
 
-#define ERROR_BUFFER_COUNT 4
-#define FENCE_BUFFER_COUNT 22
-#define DEBUG_BUFFER_COUNT 30
-#define DUMP_BUFFER_COUNT 10
+#include "mtk_panel_ext.h"
+
+#define LOGGER_BUFFER_SIZE (16 * 1024)
+#define ERROR_BUFFER_COUNT 16
+#define FENCE_BUFFER_COUNT 80
+#define DEBUG_BUFFER_COUNT 100
+#define DUMP_BUFFER_COUNT 40
 #define STATUS_BUFFER_COUNT 1
 #if defined(CONFIG_MT_ENG_BUILD) || !defined(CONFIG_MTK_GMO_RAM_OPTIMIZE)
 #define LOGGER_BUFFER_SIZE (16 * 1024)
@@ -75,6 +78,11 @@ unsigned int mtk_dbg_get_lfr_update_value(void);
 unsigned int mtk_dbg_get_lfr_vse_dis_value(void);
 unsigned int mtk_dbg_get_lfr_skip_num_value(void);
 unsigned int mtk_dbg_get_lfr_dbg_value(void);
+int mtk_ddic_dsi_send_cmd(struct mtk_ddic_dsi_msg *cmd_msg,
+			bool blocking, bool need_lock);
+int mtk_ddic_dsi_read_cmd(struct mtk_ddic_dsi_msg *cmd_msg, bool need_lock);
+int set_lcm_wrapper(struct mtk_ddic_dsi_msg *cmd_msg, int blocking);
+int read_lcm_wrapper(struct mtk_ddic_dsi_msg *cmd_msg);
 #endif
 int mtk_disp_ioctl_debug_log_switch(struct drm_device *dev, void *data,
 	struct drm_file *file_priv);

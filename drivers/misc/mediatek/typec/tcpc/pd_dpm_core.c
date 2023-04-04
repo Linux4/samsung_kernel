@@ -1779,7 +1779,13 @@ int pd_dpm_send_source_cap_ext(struct pd_port *pd_port)
 #ifdef CONFIG_USB_PD_REV30_BAT_CAP_LOCAL
 
 static const struct pd_battery_capabilities c_invalid_bcdb = {
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+//	0, 0, 0, 0, PD_BCDB_BAT_TYPE_INVALID
+	0xffff, 0, PD_BCDB_BAT_CAP_NOT_PRESENT,
+	PD_BCDB_BAT_CAP_NOT_PRESENT, PD_BCDB_BAT_TYPE_INVALID
+#else
 	0, 0, 0, 0, PD_BCDB_BAT_TYPE_INVALID
+#endif
 };
 
 int pd_dpm_send_battery_cap(struct pd_port *pd_port)

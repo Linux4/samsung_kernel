@@ -1329,7 +1329,7 @@ static long vcodec_lockhw_venc(struct VAL_HW_LOCK_T *pHWLock, char *bLockedHW)
 
 #ifdef VCODEC_DVFS_V2
 			if (CodecHWLock.eDriverType !=
-				    VAL_DRIVER_TYPE_JPEG_ENC) {
+					VAL_DRIVER_TYPE_JPEG_ENC) {
 				mutex_lock(&VcodecDVFSLock);
 
 			if (cur_job == 0) {

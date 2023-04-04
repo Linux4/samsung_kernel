@@ -346,7 +346,7 @@ int mmc_add_card(struct mmc_card *card)
 			mmc_card_hs400es(card) ? "Enhanced strobe " : "",
 			mmc_card_ddr52(card) ? "DDR " : "",
 			uhs_bus_speed_mode, type, card->rca);
-		ST_LOG("%s: new %s%s%s%s%s%s card at address %04x\n",
+		ST_LOG("%s: new %s%s%s%s%s%s card at address %04x(clk %u)\n",
 			mmc_hostname(card->host),
 			mmc_card_uhs(card) ? "ultra high speed " :
 			(mmc_card_hs(card) ? "high speed " : ""),
@@ -354,7 +354,8 @@ int mmc_add_card(struct mmc_card *card)
 			(mmc_card_hs200(card) ? "HS200 " : ""),
 			mmc_card_hs400es(card) ? "Enhanced strobe " : "",
 			mmc_card_ddr52(card) ? "DDR " : "",
-			uhs_bus_speed_mode, type, card->rca);
+			uhs_bus_speed_mode, type, card->rca,
+			card->host->ios.clock);
 	}
 
 #ifdef CONFIG_DEBUG_FS
@@ -387,7 +388,7 @@ static void mmc_error_info_stlog(struct mmc_card *card)
 		if (err_log[i].err_type == -ETIMEDOUT && total_t_cnt < MAX_CNT_U64)
 				total_t_cnt += err_log[i].count;
 	}
-	
+
 	ST_LOG("%s: \"GE\":\"%d\",\"CC\":\"%d\",\"ECC\":\"%d\",\"WP\":\"%d\","
 		"\"OOR\":\"%d\",\"CRC\":\"%lld\",\"TMO\":\"%lld\"\n",
 		mmc_hostname(card->host),

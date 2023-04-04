@@ -1035,14 +1035,10 @@ static ssize_t devkmsg_write(struct kiocb *iocb, struct iov_iter *from)
 		return len;
 
 	/* Ratelimit when not explicitly enabled. */
-	//++CHK 115136,linyaosen.wt,modify,2022/02/17, add log avoid init log loss
-    #ifndef WT_FINAL_RELEASE
 	if (!(devkmsg_log & DEVKMSG_LOG_MASK_ON)) {
 		if (!___ratelimit(&user->rs, current->comm))
 			return ret;
 	}
-	#endif
-    //++CHK 115136,linyaosen.wt,modify,2022/02/17, add log avoid init log loss
 
 	buf = kmalloc(len+1, GFP_KERNEL);
 	if (buf == NULL)

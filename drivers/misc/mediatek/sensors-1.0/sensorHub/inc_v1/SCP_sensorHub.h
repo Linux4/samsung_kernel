@@ -546,7 +546,7 @@ int sensor_batch_to_hub(uint8_t sensorType,
 	int flag, int64_t samplingPeriodNs, int64_t maxBatchReportLatencyNs);
 int sensor_flush_to_hub(uint8_t sensorType);
 int sensor_cfg_to_hub(uint8_t sensorType, uint8_t *data, uint8_t count);
-int sensor_calibration_to_hub(uint8_t sensorType);//Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
+int sensor_calibration_to_hub(uint8_t sensorType);
 int sensor_selftest_to_hub(uint8_t sensorType);
 int sensor_set_lcdname_to_hub(uint8_t sensorType, uint8_t *data, uint8_t count);
 

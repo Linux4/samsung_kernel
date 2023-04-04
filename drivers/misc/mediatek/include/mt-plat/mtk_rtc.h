@@ -37,6 +37,7 @@ extern void rtc_disable_abb_32k(void);
 extern void rtc_enable_writeif(void);
 extern void rtc_disable_writeif(void);
 
+extern void rtc_mark_bind(void);//CHK SC127680 zhaocong.wt, ADD, 20220722, delay RPMB key provision in preloader
 extern void rtc_mark_recovery(void);
 extern void rtc_mark_kpoc(void);
 extern void rtc_mark_fast(void);
@@ -53,6 +54,7 @@ extern void mt_power_off(void);
 #elif defined(CONFIG_MT6358_MISC)
 extern void rtc_gpio_enable_32k(enum rtc_gpio_user_t user);
 extern void rtc_gpio_disable_32k(enum rtc_gpio_user_t user);
+extern void rtc_mark_bind(void);//CHK SC127680 zhaocong.wt, ADD, 20220722, delay RPMB key provision in preloader
 extern void rtc_mark_recovery(void);
 extern void rtc_mark_kpoc(void);
 extern void rtc_mark_fast(void);
@@ -66,6 +68,7 @@ extern bool crystal_exist_status(void);
 #define rtc_read_hw_time()              ({ 0; })
 #define rtc_gpio_enable_32k(user)	({ 0; })
 #define rtc_gpio_disable_32k(user)	({ 0; })
+#define rtc_mark_bind()                 ({ 0; })//CHK SC127680 zhaocong.wt, ADD, 20220722, delay RPMB key provision in preloader
 #define rtc_mark_recovery()             ({ 0; })
 #define rtc_mark_kpoc()                 ({ 0; })
 #define rtc_mark_fast()		        ({ 0; })

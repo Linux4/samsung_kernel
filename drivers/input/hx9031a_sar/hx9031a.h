@@ -220,6 +220,11 @@ struct hx9031a_platform_data {
     struct device *pdev;
     struct delayed_work polling_work;
     struct delayed_work hw_monitor_work;
+	#ifdef ANFR_TEST
+	struct delayed_work report_ch0_work;
+    struct delayed_work report_ch1_work;
+    struct delayed_work report_ch2_work;
+	#endif
     spinlock_t lock;
     uint32_t channel_used_flag;
     int irq;      //irq number
@@ -233,9 +238,12 @@ struct hx9031a_platform_data {
     uint32_t grip_sensor_ch;	
 	uint32_t grip_sensor_sub_ch;
 	uint32_t grip_sensor_wifi_ch;
-#if defined(CONFIG_SENSORS)
-	bool skip_data;
-#endif
+	#ifdef ANFR_TEST
+	uint32_t back_cap[3];
+	bool ps_is_present;
+	bool hx_first_boot;
+	int interrupt_count;
+	#endif
 };
 
 static struct hx9031a_channel_info hx9031a_channels[] = {
@@ -291,7 +299,7 @@ static struct hx9031a_addr_val_pair hx9031a_reg_init_list_hx9023e[] = {
     {RA_RAW_BL_RD_CFG_0x38,            0xf0}, //7:4 bl lp
     {RA_INTERRUPT_CFG_0x39,            0xFF}, //开启所有通道的低阈值中断、开启所有通道的高阈值中断，每个通道对应一个bit
     {RA_ANALOG_MEM0_WRDATA_7_0_0x40,   0x57}, //write default value.
-    {RA_CALI_DIFF_CFG_0x3b,            0x07}, //cali diff 16384 bit7:4 int_conversion_ready
+    {RA_CALI_DIFF_CFG_0x3b,            0x01}, //cali diff 16384 bit7:4 int_conversion_ready
     {RA_ANALOG_MOD_AMP_COMP_0x50,      0xb5}, //increase amp current
     {RA_PROX_INT_HIGH_CFG_0x6c,        0x04}, //prox int high count.  接近中断防抖
     {RA_PROX_INT_LOW_CFG_0x6d,         0x04}, //prox int low count.  远离中断防抖
@@ -359,12 +367,19 @@ static struct hx9031a_addr_val_pair hx9031a_reg_init_list_hx9031a[] = {
     {RA_RAW_BL_RD_CFG_0x38,            0xf0}, //7:4 bl lp
     {RA_INTERRUPT_CFG_0x39,            0xFF}, //开启所有通道的低阈值中断、开启所有通道的高阈值中断，每个通道对应一个bit
     {RA_ANALOG_MEM0_WRDATA_7_0_0x40,   0x57}, //write default value.
-    {RA_CALI_DIFF_CFG_0x3b,            0x07}, //cali diff 16384 bit7:4 int_conversion_ready
+    #ifdef ANFR_TEST
+    {RA_CALI_DIFF_CFG_0x3b,            0x01}, //cali diff 16384 bit7:4 int_conversion_ready
+    #else
+	{RA_CALI_DIFF_CFG_0x3b,            0x07}, //cali diff 16384 bit7:4 int_conversion_ready
+	#endif
     {RA_ANALOG_MOD_AMP_COMP_0x50,      0xb5}, //increase amp current
     {RA_PROX_INT_HIGH_CFG_0x6c,        0x04}, //prox int high count.  接近中断防抖
     {RA_PROX_INT_LOW_CFG_0x6d,         0x04}, //prox int low count.  远离中断防抖
-    {RA_CAP_INI_CFG_0x6e,              0x00}, //close cap ini calibration
-
+    #ifdef ANFR_TEST
+    {RA_CAP_INI_CFG_0x6e,              0x02}, //close cap ini calibration
+	#else 
+	{RA_CAP_INI_CFG_0x6e,              0x00}, //close cap ini calibration
+	#endif
     {RA_PROX_HIGH_DIFF_CFG_CH0_0_0x80, 0x80}, //high int 0x3FF*32
     {RA_PROX_HIGH_DIFF_CFG_CH0_1_0x81, 0x00},
     {RA_PROX_HIGH_DIFF_CFG_CH1_0_0x82, 0x80}, //high int 0x3FF*32

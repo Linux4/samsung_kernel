@@ -30,6 +30,16 @@ config TOUCHSCREEN_PHYSICAL_ROTATION_WITH_LCM
 	  the reported coordination to diagonal position.
 
 	  If unsure, say Y.
+config TOUCHSCREEN_MTK_SOLOMON
+	bool "SOLOMON for Mediatek package"
+	default n
+	help
+	  Say Y here if you have SOLOMON touch panel.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
 
 
 config TOUCHSCREEN_FOCALTECH
@@ -45,39 +55,49 @@ config TOUCHSCREEN_FOCALTECH
 
 source "drivers/input/touchscreen/mediatek/focaltech_touch/Kconfig"
 
-#+bug717431, chensibo.wt, add, 20220118, tp bring up
-config TOUCHSCREEN_MTK_ILITEK_TS
-	bool "ILITEK_TS for Mediatek package"
+config TOUCHSCREEN_MTK_GT1151
+	bool "GT1151 for Mediatek package"
 	default n
 	help
-	  Say Y here if you have ilitek_touch touch panel.
+	  Say Y here if you have GT1151 touch panel.
 
 	  If unsure, say N.
 
 	  To compile this dirver as a module, choose M here: the
 	  module will be called.
 
-source "drivers/input/touchscreen/mediatek/ilitek_tddi_touch/Kconfig"
-#-bug717431, chensibo.wt, add, 20220118, tp bring up
+source "drivers/input/touchscreen/mediatek/GT1151/Kconfig"
 
-config TOUCHSCREEN_MTK_ILITEK_9882N_N6
+config TOUCHSCREEN_FTS_FT8722
+	bool "FT8722 for Mediatek package"
+	default n
+	help
+	  Say Y here if you have FT8722 touch panel.
+
+	  If unsure, say N.
+
+	  To compile this dirver as a module, choose M here: the
+	  module will be called.
+
+source "drivers/input/touchscreen/mediatek/FT8722/Kconfig"
+
+config TOUCHSCREEN_ILI7807S
 	bool "Ilitek Touchscreen"
 	depends on SPI
 	help
 	  Say Y here if you have Focaltech touch panel.
 	  If unsure, say N.
+	  
 
-config TOUCHSCREEN_HIMAX_CHIPSET
-	bool "Himax touchpanel CHIPSET"
-	#depends on I2C
-        default n
+config TOUCHSCREEN_MTK_GSLX680
+	bool "gslX680 for Mediatek package"
 	help
-	  Say Y here if you have a Himax CHIPSET touchscreen.
-	  HIMAX controllers are multi touch controllers which can
-	  report 10 touches at a time.
+	  Say Y here if you have gslX680 touch panel.
 
-          If unsure, say N.
-source "drivers/input/touchscreen/mediatek/hxchipset/Kconfig"
+	  If unsure, say N.
+
+	  you can config it if you want to use MTK9XX_LM for
+	  touch panel.
 
 config TOUCHSCREEN_CHIPONE
 	tristate "Chipone TDDI touchscreen for Mediatek package"
@@ -91,14 +111,6 @@ config TOUCHSCREEN_CHIPONE
 	  To compile this driver as a module, choose M here: the
 	  module will be called chipone-tddi.
 
-config TOUCHSCREEN_MTK_ILITEK_TDDI_TOUCH_V3
-	bool "Ilitek TDDI Touchscreen V3"
-	default n
-	depends on SPI
-	help
-	  Say Y here if you have ilitek tddi touch panel.
-	  If unsure, say N.
-
 config TOUCHSCREEN_ILI9882Q
 	bool "Ilitek TDDI Touchscreen"
 	default n
@@ -106,24 +118,6 @@ config TOUCHSCREEN_ILI9882Q
 	help
 	  Say Y here if you have ilitek tddi touch panel.
 	  If unsure, say N.
-
-config TOUCHSCREEN_MTK_IPIO
-	bool "IPIO for Mediatek package"
-	default n
-	help
-	  Say Y here if you have IPIO touch panel.
-
-source "drivers/input/touchscreen/mediatek/GT1151/Kconfig"
-
-config TOUCHSCREEN_MTK_GSLX680
-	bool "gslX680 for Mediatek package"
-	help
-	  Say Y here if you have gslX680 touch panel.
-
-	  If unsure, say N.
-
-	  you can config it if you want to use MTK9XX_LM for
-	  touch panel.
 
 config TOUCHSCREEN_MTK_NT36xxx
 	bool "NT36xxx for Mediatek package"
@@ -255,6 +249,15 @@ config TOUCHSCREEN_GOODIX_BRL
 	  If build module, say M.
 	  If unsure, say N.
 source "drivers/input/touchscreen/mediatek/goodix_berlin_driver/Kconfig"
+
+config TOUCHSCREEN_HIMAX_CHIPSET
+	bool "Himax touchpanel CHIPSET"
+	help
+	  Say Y here if you have a Himax CHIPSET touchscreen.
+	  HIMAX controllers are multi touch controllers which can+ report 10 touches at a time.
+	  If unsure, say N.
+
+source "drivers/input/touchscreen/mediatek/hx83112f/Kconfig"
 
 config TOUCHSCREEN_HIMAX_HX83108X
 	bool "Himax touchpanel CHIPSET"

@@ -29,6 +29,10 @@ ifeq ($(CONFIG_MICROTRUST_TEE_SUPPORT), y)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include/trustzone/m4u
 include $(srctree)/drivers/tee/teei/Makefile.include
 endif
+ifeq ($(CONFIG_TEEGRIS_TEE_SUPPORT), y)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include/trustzone/m4u
+include $(srctree)/drivers/tee/tzdev/Makefile.include
+endif
 ifeq ($(CONFIG_MTK_CAM_GENIEZONE_SUPPORT), y)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include/trustzone/m4u
 endif

@@ -10,30 +10,17 @@ config SND_SOC_AW87519
 	  This is a config for speaker PA is AW87519.
 	  Generally you select "N", if unsupport it.
 
-config SND_SMARTPA_AW881XX
-	tristate "SoC Audio for awinic aw881xx series"
-	depends on I2C
-	help
-		This option enables support for aw881xx series Smart PA.
-
 config SND_SOC_HAC_SUPPORT
     bool "Support for HAC function"
     help
         Select Y if you have such device.
         If unsure select "N".
-
 config	SND_SOC_FS17XX
-	tristate "SoC Audio for awinic aw881xx series"
+	tristate "SoC Audio for FS17XX series"
 	depends on I2C
 	help
-	  This option enables support for aw881xx series Smart PA.
-
-config  SND_SOC_FS15XX
-         tristate "SoC Audio for foursemi fs1559 series"
-         depends on I2C
-         help
-           This option enables support for series PA.
-
+	  This option enables support for FS17XX series Smart PA.
+	  
 config  SND_SOC_AW87XXX
          tristate "SoC Audio for awinic aw87401 series"
          depends on I2C
@@ -462,11 +449,6 @@ config SND_SOC_MTK_AUDIO_DSP
 	  that can be used with other platforms
 	  Select Y if you have such device.
 	  If unsure select "N".
-
-config SND_SOC_SIA81XX
-        bool "SoC Audio for juxinwei sia81xx series"
-        help
-          This option enables support for sia81xx series PA
 
 config MTK_ULTRASND_PROXIMITY
 	bool "MTK ultra sound proximity support"

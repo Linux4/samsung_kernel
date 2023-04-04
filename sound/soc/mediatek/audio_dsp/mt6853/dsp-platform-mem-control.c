@@ -48,7 +48,7 @@ static struct mtk_adsp_task_attr adsp_task_attr[AUDIO_TASK_DAI_NUM] = {
 	[AUDIO_TASK_CAPTURE_UL1_ID] = {true, -1,
 				       MT6853_MEMIF_VUL12,
 				       MT6853_MEMIF_AWB2,
-				       CAPTURE_UL1_FEATURE_ID, false},
+				       CAPTURE_FEATURE_ID, false},
 	[AUDIO_TASK_A2DP_ID] = {true, -1,
 				       -1,
 				       -1,
@@ -71,6 +71,20 @@ static struct mtk_adsp_task_attr adsp_task_attr[AUDIO_TASK_DAI_NUM] = {
 				       CAPTURE_RAW_FEATURE_ID, false},
 	[AUDIO_TASK_FM_ADSP_ID] = {true, -1, MT6853_MEMIF_VUL4, -1,
 				      FM_ADSP_FEATURE_ID, false},
+	[AUDIO_TASK_UL_PROCESS_ID] = {true, -1, -1, -1,
+				      CAPTURE_FEATURE_ID, false},
+	[AUDIO_TASK_ECHO_REF_ID] = {true, -1, -1, -1,
+				    CAPTURE_FEATURE_ID, false},
+	[AUDIO_TASK_ECHO_REF_DL_ID] = {true, -1, -1, -1,
+				       AUDIO_PLAYBACK_FEATURE_ID, false},
+	[AUDIO_TASK_USBDL_ID] = {true, -1, -1, -1,
+				USB_DL_FEATURE_ID, false},
+	[AUDIO_TASK_USBUL_ID] = {true, -1, -1, -1,
+				USB_UL_FEATURE_ID, false},
+	[AUDIO_TASK_MDDL_ID] = {true, -1, -1, -1,
+				VOICE_CALL_SUB_FEATURE_ID, false},
+	[AUDIO_TASK_MDUL_ID] = {true, -1, -1, -1,
+				VOIP_FEATURE_ID, false},
 };
 
 /* task share mem block */
@@ -228,6 +242,90 @@ static struct audio_dsp_dram
 		},
 };
 
+static struct audio_dsp_dram
+	adsp_sharemem_ulproc_mblock[ADSP_TASK_SHAREMEM_NUM] = {
+		{
+			.size = 0x400, /* 1024 bytes */
+			.phy_addr = 0,
+		},
+		{
+			.size = 0x400, /* 1024 bytes */
+			.phy_addr = 0,
+		},
+};
+
+static struct audio_dsp_dram
+	adsp_sharemem_echoref_mblock[ADSP_TASK_SHAREMEM_NUM] = {
+		{
+			.size = 0x400, /* 1024 bytes */
+			.phy_addr = 0,
+		},
+		{
+			.size = 0x400, /* 1024 bytes */
+			.phy_addr = 0,
+		},
+};
+
+static struct audio_dsp_dram
+	adsp_sharemem_echodl_mblock[ADSP_TASK_SHAREMEM_NUM] = {
+		{
+			.size = 0x400, /* 1024 bytes */
+			.phy_addr = 0,
+		},
+		{
+			.size = 0x400, /* 1024 bytes */
+			.phy_addr = 0,
+		},
+};
+
+static struct audio_dsp_dram
+	adsp_sharemem_usbdl_mblock[ADSP_TASK_SHAREMEM_NUM] = {
+		{
+			.size = 0x400, /* 1024 bytes */
+			.phy_addr = 0,
+		},
+		{
+			.size = 0x400, /* 1024 bytes */
+			.phy_addr = 0,
+		},
+};
+
+static struct audio_dsp_dram
+	adsp_sharemem_usbul_mblock[ADSP_TASK_SHAREMEM_NUM] = {
+		{
+			.size = 0x400, /* 1024 bytes */
+			.phy_addr = 0,
+		},
+		{
+			.size = 0x400, /* 1024 bytes */
+			.phy_addr = 0,
+		},
+};
+
+static struct audio_dsp_dram
+	adsp_sharemem_mddl_mblock[ADSP_TASK_SHAREMEM_NUM] = {
+		{
+			.size = 0x400, /* 1024 bytes */
+			.phy_addr = 0,
+		},
+		{
+			.size = 0x400, /* 1024 bytes */
+			.phy_addr = 0,
+		},
+};
+
+static struct audio_dsp_dram
+	adsp_sharemem_mdul_mblock[ADSP_TASK_SHAREMEM_NUM] = {
+		{
+			.size = 0x400, /* 1024 bytes */
+			.phy_addr = 0,
+		},
+		{
+			.size = 0x400, /* 1024 bytes */
+			.phy_addr = 0,
+		},
+};
+
 struct audio_dsp_dram *mtk_get_adsp_sharemem_block(int audio_task_id)
 {
 	if (audio_task_id > AUDIO_TASK_DAI_NUM)
@@ -260,6 +358,20 @@ struct audio_dsp_dram *mtk_get_adsp_sharemem_block(int audio_task_id)
 		return adsp_sharemem_capture_raw_mblock;
 	case AUDIO_TASK_FM_ADSP_ID:
 		return adsp_sharemem_fm_mblock;
+	case AUDIO_TASK_UL_PROCESS_ID:
+		return adsp_sharemem_ulproc_mblock;
+	case AUDIO_TASK_ECHO_REF_ID:
+		return adsp_sharemem_echoref_mblock;
+	case AUDIO_TASK_ECHO_REF_DL_ID:
+		return adsp_sharemem_echodl_mblock;
+	case AUDIO_TASK_USBDL_ID:
+		return adsp_sharemem_usbdl_mblock;
+	case AUDIO_TASK_USBUL_ID:
+		return adsp_sharemem_usbul_mblock;
+	case AUDIO_TASK_MDDL_ID:
+		return adsp_sharemem_mddl_mblock;
+	case AUDIO_TASK_MDUL_ID:
+		return adsp_sharemem_mdul_mblock;
 	default:
 		pr_info("%s err audio_task_id = %d\n", __func__, audio_task_id);
 	}
@@ -301,6 +413,20 @@ struct mtk_adsp_task_attr *mtk_get_adsp_task_attr(int adsp_id)
 		return &adsp_task_attr[AUDIO_TASK_CAPTURE_RAW_ID];
 	case AUDIO_TASK_FM_ADSP_ID:
 		return &adsp_task_attr[AUDIO_TASK_FM_ADSP_ID];
+	case AUDIO_TASK_UL_PROCESS_ID:
+		return &adsp_task_attr[AUDIO_TASK_UL_PROCESS_ID];
+	case AUDIO_TASK_ECHO_REF_ID:
+		return &adsp_task_attr[AUDIO_TASK_ECHO_REF_ID];
+	case AUDIO_TASK_ECHO_REF_DL_ID:
+		return &adsp_task_attr[AUDIO_TASK_ECHO_REF_DL_ID];
+	case AUDIO_TASK_USBDL_ID:
+		return &adsp_task_attr[AUDIO_TASK_USBDL_ID];
+	case AUDIO_TASK_USBUL_ID:
+		return &adsp_task_attr[AUDIO_TASK_USBUL_ID];
+	case AUDIO_TASK_MDDL_ID:
+		return &adsp_task_attr[AUDIO_TASK_MDDL_ID];
+	case AUDIO_TASK_MDUL_ID:
+		return &adsp_task_attr[AUDIO_TASK_MDUL_ID];
 	default:
 		break;
 	}

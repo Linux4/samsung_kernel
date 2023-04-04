@@ -26,6 +26,7 @@
 #include <mtk_battery_internal.h>
 #include <mt-plat/mtk_auxadc_intf.h>
 #include "aee.h"
+#include <linux/hardware_info.h>
 
 /*********************** MT6359 setting *********************/
 #define UNIT_FGCURRENT     (610352)
@@ -3327,7 +3328,8 @@ static int mt6359_gauge_probe(struct platform_device *pdev)
 
 	alarm_init(&info->zcv_timer, ALARM_BOOTTIME,
 		zcv_timer_callback);
-
+	//zhaosidong.wt, gauge name
+	hardwareinfo_set_prop(HARDWARE_BMS_GAUGE_ID, "mt6365");
 	return 0;
 err_register_gauge_dev:
 	devm_kfree(&pdev->dev, info);

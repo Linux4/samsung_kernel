@@ -23,9 +23,3 @@ config MTK_LCM_DEVICE_TREE_SUPPORT
 	  Please also turn on MTK_LCM_DEVICE_TREE_SUPPORT in ProjectConfig.mk.
 	  If not define MTK_LCM_DEVICE_TREE_SUPPORT
 	  there will not connect between display driver and LCM devices.
-
-config PANEL_NOTIFIER
-	bool "notifier for ili9882q suspend"
-	default n
-	help
-	  This driver supports notifier to notify tp suspend/resume.

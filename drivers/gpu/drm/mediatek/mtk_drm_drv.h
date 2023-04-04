@@ -17,6 +17,7 @@
 #include "mtk_drm_ddp.h"
 #include "mtk_drm_session.h"
 #include "mtk_drm_helper.h"
+#include "mtk_notify.h"
 
 #define MAX_CONNECTOR 3
 
@@ -203,6 +204,8 @@ struct mtk_drm_private {
 
 	/* Due to 2nd display share 1 secure gce client, need store here */
 	struct cmdq_client *ext_sec_client;
+
+	struct mtk_uevent_dev uevent_data;
 };
 
 struct mtk_drm_property {
@@ -288,4 +291,5 @@ int lcm_fps_ctx_update(unsigned long long cur_ns,
 		unsigned int crtc_id, unsigned int mode);
 int mtk_mipi_clk_change(struct drm_crtc *crtc, unsigned int data_rate);
 void disp_drm_debug(const char *opt);
+extern int mtk_notifier_call_chain(unsigned long val, void *v);
 #endif /* MTK_DRM_DRV_H */

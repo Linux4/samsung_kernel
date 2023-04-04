@@ -109,10 +109,10 @@
 				/* regulator-microvolt-offset = <0>; */
 
 				/* optional: exist = enabled */
-				regulator-boot-on;
+				/* regulator-boot-on; */
 
 				/* optional: exist = enabled */
-				regulator-always-on;
+				/* regulator-always-on; */
 
 				/* optional */
 				/* regulator-ramp-delay = <100>; */
@@ -174,7 +174,7 @@
 							/* 1ms, 2ms, 5ms */
 
 			/* we have 11 bit resolution, quantize in driver */
-			mt,max_bled_brightness = <682>; /* maximum 2047 */
+			mt,max_bled_brightness = <512>; /* maximum 2047 */
 
 			mt,bled_curr_scale = <0>;	/* 0: 30mA, 1: 22.5mA */
 							/* 2: 20mA, 3: 17.5mA */

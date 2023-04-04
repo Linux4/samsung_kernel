@@ -16,10 +16,12 @@
 #if defined(MTK_LCM_DEVICE_TREE_SUPPORT)
 #include <linux/of.h>
 #endif
-unsigned int g_default_panel_backlight_off = 0;
 
+//+bug 782967,wanwen.wt,add,20220728,lcd bringup
+/* liutongxing.wt 20201216 add for hardware info */
 #include <linux/hardware_info.h>
 extern char Lcm_name[HARDWARE_MAX_ITEM_LONGTH];
+//-bug 782967,wanwen.wt,add,20220728,lcd bringup
 
 /* This macro and arrya is designed for multiple LCM support */
 /* for multiple LCM, we should assign I/F Port id in lcm driver, */
@@ -1042,10 +1044,11 @@ struct disp_lcm_handle *disp_lcm_probe(char *plcm_name,
 	DISPFUNC();
 	DISPCHECK("plcm_name=%s is_lcm_inited %d\n", plcm_name, is_lcm_inited);
 
+	//+bug 782967,wanwen.wt,add,20220728,lcd bringup
 	if(is_lcm_inited == 1) {
 		strncpy(Lcm_name, plcm_name, strlen(plcm_name)+1);
 	}
-
+	//-bug 782967,wanwen.wt,add,20220728,lcd bringup
 #if defined(MTK_LCM_DEVICE_TREE_SUPPORT)
 	if (check_lcm_node_from_DT() == 0) {
 		lcm_drv = &lcm_common_drv;
@@ -1321,24 +1324,15 @@ int disp_lcm_init(struct disp_lcm_handle *plcm, int force)
 	return 0;
 }
 
-struct LCM_BACKLIGHT_CUSTOM lcm_backlight_cust[6];
-unsigned int lcm_backlight_cust_count;
 struct LCM_PARAMS *disp_lcm_get_params(struct disp_lcm_handle *plcm)
 {
-    int i = 0;
 	/* DISPFUNC(); */
 
-	if (_is_lcm_inited(plcm)) {
-		g_default_panel_backlight_off = plcm->params->default_panel_bl_off;
-		for(i=0; i<6; i++)
-			lcm_backlight_cust[i] = plcm->params->backlight_cust[i];
-		lcm_backlight_cust_count = plcm->params->backlight_cust_count;
+	if (_is_lcm_inited(plcm))
 		return plcm->params;
-	}else
+	else
 		return NULL;
 }
-EXPORT_SYMBOL(lcm_backlight_cust);
-EXPORT_SYMBOL(lcm_backlight_cust_count);
 
 enum LCM_INTERFACE_ID disp_lcm_get_interface_id(struct disp_lcm_handle *plcm)
 {
@@ -1483,26 +1477,6 @@ int disp_lcm_aod(struct disp_lcm_handle *plcm, int enter)
 	return -1;
 }
 
-int disp_lcm_disable(struct disp_lcm_handle *plcm)
-{
-	struct LCM_DRIVER *lcm_drv = NULL;
-
-	DISPMSG("%s+\n", __func__);
-	if (_is_lcm_inited(plcm)) {
-		lcm_drv = plcm->drv;
-		if (lcm_drv->disable) {
-			lcm_drv->disable();
-		} else {
-			DISPERR("FATAL ERROR, lcm_drv->disable is null\n");
-			return -1;
-		}
-		return 0;
-	}
-
-	DISPERR("lcm_drv is null\n");
-	return -1;
-}
-
 int disp_lcm_is_support_adjust_fps(struct disp_lcm_handle *plcm)
 {
 	struct LCM_DRIVER *lcm_drv = NULL;
@@ -1532,10 +1506,12 @@ int disp_lcm_adjust_fps(void *cmdq, struct disp_lcm_handle *plcm, int fps)
 	DISPERR("lcm not initialied\n");
 	return -1;
 }
+
 unsigned int g_last_level;
 int get_lcm_backlight_level(void){
 	return g_last_level;
 }
+
 int disp_lcm_set_backlight(struct disp_lcm_handle *plcm,
 	void *handle, int level)
 {
@@ -1551,7 +1527,6 @@ int disp_lcm_set_backlight(struct disp_lcm_handle *plcm,
 	g_last_level = level;
 	if (lcm_drv->set_backlight_cmdq) {
 		lcm_drv->set_backlight_cmdq(handle, level);
-		DISPERR("disp_lcm_set_backlight:level:%d\n", level);
 	} else {
 		DISPERR("FATAL ERROR, lcm_drv->set_backlight is null\n");
 		return -1;
@@ -1559,51 +1534,6 @@ int disp_lcm_set_backlight(struct disp_lcm_handle *plcm,
 
 	return 0;
 }
-//+Bug 717431, chensibo.wt, ADD, 20220118, add CABC funciton
-int disp_lcm_set_cabc(struct disp_lcm_handle *plcm,
-	void *handle, int enable)
-{
-	struct LCM_DRIVER *lcm_drv = NULL;
-
-	DISPFUNC();
-	if (!_is_lcm_inited(plcm)) {
-		DISPERR("lcm_drv is null\n");
-		return -1;
-	}
-
-	lcm_drv = plcm->drv;
-	if (lcm_drv->set_cabc_cmdq) {
-		lcm_drv->set_cabc_cmdq(handle, enable);
-	} else {
-		DISPERR("FATAL ERROR, lcm_drv->set_cabc_cmdq is null\n");
-		return -1;
-	}
-
-	return 0;
-}
-
-int disp_lcm_get_cabc(struct disp_lcm_handle *plcm, int *status)
-{
-	struct LCM_DRIVER *lcm_drv = NULL;
-
-	DISPFUNC();
-	if (!_is_lcm_inited(plcm)) {
-		DISPERR("lcm_drv is null\n");
-		return -1;
-	}
-
-	lcm_drv = plcm->drv;
-	if (lcm_drv->get_cabc_status) {
-		lcm_drv->get_cabc_status(status);
-	} else {
-		DISPERR("FATAL ERROR, lcm_drv->get_cabc_status is null\n");
-		return -1;
-	}
-
-	return 0;
-}
-//-Bug 717431, chensibo.wt, ADD, 20220118, add CABC funciton
-
 
 int disp_lcm_ioctl(struct disp_lcm_handle *plcm, enum LCM_IOCTL ioctl,
 	unsigned int arg)

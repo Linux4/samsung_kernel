@@ -24,18 +24,11 @@ config FPGA_EARLY_PORTING
 	  Say Y here if you are doing FPGA early porting.
 	  If unsure, say N
 
-config MTK_96717_CAMERA
-        bool "MTK 96717 CAMERA"
-        default n
-        help
-          If 96717 CANERA, say Y
-
 config MTK_96516_CAMERA
         bool "MTK 96516 CAMERA"
         default n
         help
           If 96516 CANERA, say Y
-
 config MTK_ENG_BUILD
 	bool "MTK Engineer Build"
 	help
@@ -224,6 +217,12 @@ config MTK_UNIFY_POWER
 	  need it.
 	  If unsure, say Y.
 
+config PANEL_NOTIFIER_W2
+	bool "notifier for ili7087s suspend"
+	default n
+	help
+	  This driver supports notifier to notify tp suspend/resume.
+
 source "drivers/misc/mediatek/lpm/Kconfig"
 source "drivers/misc/mediatek/ppm_v3/Kconfig"
 source "drivers/misc/mediatek/apusys/Kconfig"
@@ -328,6 +327,7 @@ source "drivers/misc/mediatek/smi/Kconfig"
 source "drivers/misc/mediatek/jpeg/Kconfig"
 source "drivers/misc/mediatek/ccu/src/Kconfig"
 source "drivers/misc/mediatek/camera_security/Kconfig"
+source "drivers/misc/mediatek/tui/Kconfig"
 endmenu # MultiMedia
 
 menu "Sensors"
@@ -390,6 +390,7 @@ endmenu # Security
 menu "Other Peripherals"
 source "drivers/misc/mediatek/extcon/Kconfig"
 source "drivers/misc/mediatek/typec/Kconfig"
+source "drivers/misc/mediatek/usb_offload/Kconfig"
 source "drivers/misc/mediatek/leds/Kconfig"
 source "drivers/misc/mediatek/gate_ic/Kconfig"
 source "drivers/misc/mediatek/irtx/Kconfig"
@@ -589,3 +590,4 @@ menu "Misc"
 source "drivers/misc/mediatek/ext_gic/Kconfig"
 source "drivers/misc/mediatek/cirq/Kconfig"
 endmenu # Misc
+

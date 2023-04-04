@@ -562,6 +562,42 @@ static int mt6360_operate(int channel, int enable)
 	return 0;
 }
 
+//+bug584789,zhanghengyuan.wt,MODIFY,2020/12/19,Add permission for factory flashlight test
+ssize_t flashlight_store_enable_flashlight(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+
+	if(!strncmp("1",buf,1))
+	{
+		pr_info("enable_torch: torch on");
+		mt6360_operate(MT6360_CHANNEL_CH1, 0);
+		mt6360_operate(MT6360_CHANNEL_CH2, 0);
+		mt6360_set_level(MT6360_CHANNEL_CH1, 0x06);
+		mt6360_set_level(MT6360_CHANNEL_CH2, 0x0);
+		mt6360_timeout_ms[0] = 0;
+		mt6360_operate(MT6360_CHANNEL_CH1, 1);
+		mt6360_timeout_ms[1] = 0;
+		mt6360_operate(MT6360_CHANNEL_CH2, 1);
+	}
+	else if(!strncmp("0",buf,1))
+	{
+		pr_info("enable_torch: torch off");
+		mt6360_operate(MT6360_CHANNEL_CH1, 0);
+		mt6360_operate(MT6360_CHANNEL_CH2, 0);
+	}
+
+	return 1;
+}
+
+ ssize_t flashlight_show_enable_flashlight(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+
+	pr_info("flashlight_show_enable_flashlight\n");
+	return 1;
+}
+//-bug584789,zhanghengyuan.wt,MODIFY,2020/12/19,Add permission for factory flashlight test
+
 /******************************************************************************
  * Flashlight operations
  *****************************************************************************/
@@ -799,6 +835,12 @@ err_node_put:
 	return -EINVAL;
 }
 
+//+bug584789,zhanghengyuan.wt,MODIFY,2020/12/19,Add permission for factory flashlight test
+static DEVICE_ATTR(enable_flashlight, 0664,
+	flashlight_show_enable_flashlight,
+	flashlight_store_enable_flashlight);
+//-bug584789,zhanghengyuan.wt,MODIFY,2020/12/19,Add permission for factory flashlight test
+
 static int mt6360_probe(struct platform_device *pdev)
 {
 	struct mt6360_platform_data *pdata = dev_get_platdata(&pdev->dev);
@@ -872,6 +914,8 @@ static int mt6360_probe(struct platform_device *pdev)
 		if (flashlight_dev_register(MT6360_NAME, &mt6360_ops))
 			return -EFAULT;
 	}
+
+	ret = device_create_file(&pdev->dev, &dev_attr_enable_flashlight);//+bug584789,zhanghengyuan.wt,MODIFY,2020/12/23,Add permission for factory flashlight test
 
 	pr_debug("Probe done.\n");
 

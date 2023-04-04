@@ -39,7 +39,7 @@
 #include "mdp_m4u.h"
 #include "ion_sec_heap.h"
 
-#define MDP_TASK_PAENDING_TIME_MAX	100000000
+#define MDP_TASK_PAENDING_TIME_MAX	10000000
 
 /* compatible with cmdq legacy driver */
 #ifndef CMDQ_TRACE_FORCE_BEGIN

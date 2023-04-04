@@ -159,13 +159,40 @@ static inline bool pd_process_dpm_msg(
 static inline bool pd_process_hw_msg(
 	struct pd_port *pd_port, struct pd_event *pd_event)
 {
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+#if CONFIG_USB_PD_VBUS_STABLE_TOUT
+	struct tcpc_device *tcpc = pd_port->tcpc;
+#endif	/* CONFIG_USB_PD_VBUS_STABLE_TOUT */
+#endif 	/* CONFIG_WT_PROJECT_S96902AA1 */
 	switch (pd_event->msg) {
 	case PD_HW_VBUS_PRESENT:
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+		if (pd_port->pe_state_curr == PE_PRS_SNK_SRC_SOURCE_ON) {
+#if CONFIG_USB_PD_VBUS_STABLE_TOUT
+			tcpc->pd_wait_vbus_once = PD_WAIT_VBUS_STABLE_ONCE;
+			pd_enable_timer(pd_port, PD_TIMER_VBUS_STABLE);
+#else
+			pd_send_sop_ctrl_msg(pd_port, PD_CTRL_PS_RDY);
+			//return PE_MAKE_STATE_TRANSIT(PD_HW_VBUS_PRESENT);
+#endif	/* CONFIG_USB_PD_VBUS_STABLE_TOUT */
+		}
+		//return false;
+		return PE_MAKE_STATE_TRANSIT(PD_HW_VBUS_PRESENT);
+#if CONFIG_USB_PD_VBUS_STABLE_TOUT
+	case PD_HW_VBUS_STABLE:
+		if (pd_port->pe_state_curr == PE_PRS_SNK_SRC_SOURCE_ON) {
+			pd_send_sop_ctrl_msg(pd_port, PD_CTRL_PS_RDY);
+			//return PE_MAKE_STATE_TRANSIT(PD_HW_VBUS_PRESENT);
+			return true;
+		}
+		return false;
+#endif	/* CONFIG_USB_PD_VBUS_STABLE_TOUT */
+#else
 		if (pd_port->pe_state_curr == PE_PRS_SNK_SRC_SOURCE_ON)
 			pd_send_sop_ctrl_msg(pd_port, PD_CTRL_PS_RDY);
 
 		return PE_MAKE_STATE_TRANSIT(PD_HW_VBUS_PRESENT);
-
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 	case PD_HW_TX_FAILED:
 		return PE_MAKE_STATE_TRANSIT(PD_HW_TX_FAILED);
 

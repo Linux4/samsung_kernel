@@ -56,6 +56,7 @@
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
 #include <linux/reboot.h>
+
 #include "mtk_charger.h"
 #if defined (CONFIG_N23_CHARGER_PRIVATE)
 #include <mt-plat/mtk_boot_common.h>
@@ -201,6 +202,7 @@ static bool select_charging_current_limit(struct mtk_charger *info,
 			info->data.usb_charger_current;
 		is_basic = true;
 	}
+
 	if (support_fast_charging(info))
 		is_basic = false;
 	else {
@@ -490,36 +492,6 @@ done:
 	return is_basic;
 }
 
-//+bug 717431, liyiying.wt, add, 2022/7/12/, extb p210714-00451, unable charge to 100(change:458145)
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-static int wt_retrigger_full_status(struct mtk_charger *info, bool chg_done)
-{
-	static bool retrigger_full = false;
-
-	if((get_uisoc(info) < 100)
-		&& chg_done)
-	{
-		retrigger_full = true;
-		chr_err("%s ready to retrigger until soc ready 100\n", __func__);
-	}
-	else if((get_uisoc(info) == 100)
-		&& chg_done
-		&& retrigger_full)
-	{
-		charger_dev_do_event(info->chg1_dev, EVENT_FULL, 0);
-		chr_err("%s retrigger battery full\n", __func__);
-		retrigger_full = false;
-	}
-	else
-	{
-		retrigger_full = false;
-		chr_err("%s battery full, chg_done is %d\n", __func__, chg_done);
-	}
-	return 0;
-}
-#endif
-//-bug 717431, liyiying.wt, add, 2022/7/12/, extb p210714-00451, unable charge to 100(change:458145)
-
 static int do_algorithm(struct mtk_charger *info)
 {
 	struct chg_alg_device *alg;
@@ -545,12 +517,6 @@ static int do_algorithm(struct mtk_charger *info)
 		}
 	}
 
-//+bug 717431, liyiying.wt, add, 2022/7/12/, extb p210714-00451, unable charge to 100(change:458145)
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-	wt_retrigger_full_status(info, chg_done);
-#endif
-//-bug 717431, liyiying.wt, add, 2022/7/12/, extb p210714-00451, unable charge to 100(change:458145)
-
 	chr_err("%s is_basic:%d\n", __func__, is_basic);
 	if (is_basic != true) {
 		is_basic = true;
@@ -558,16 +524,10 @@ static int do_algorithm(struct mtk_charger *info)
 			alg = info->alg[i];
 			if (alg == NULL)
 				continue;
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
+
 			if (!info->enable_hv_charging ||
 			    pdata->charging_current_limit == 0 ||
-			    pdata->input_current_limit == 0 || (batt_hv_disable)) 
-#else
-			if (!info->enable_hv_charging ||
-			    pdata->charging_current_limit == 0 ||
-			    pdata->input_current_limit == 0) 
-#endif
-			{
+			    pdata->input_current_limit == 0) {
 				chg_alg_get_prop(alg, ALG_MAX_VBUS, &val);
 				if (val > 5000)
 					chg_alg_stop_algo(alg);
@@ -606,16 +566,7 @@ static int do_algorithm(struct mtk_charger *info)
 			} else if (ret == ALG_READY || ret == ALG_RUNNING) {
 				is_basic = false;
 				//chg_alg_set_setting(alg, &info->setting);
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-				ret = chg_alg_start_algo(alg);
-				if (ret == ALG_TA_NOT_SUPPORT) {
-					/* not expect charger, check another quickly */
-					is_basic = true;
-					continue;
-				}
-#else
 				chg_alg_start_algo(alg);
-#endif
 				break;
 			} else {
 				chr_err("algorithm ret is error");
@@ -751,6 +702,8 @@ static int charger_dev_event(struct notifier_block *nb, unsigned long event,
 
 	return NOTIFY_DONE;
 }
+
+
 
 int mtk_basic_charger_init(struct mtk_charger *info)
 {

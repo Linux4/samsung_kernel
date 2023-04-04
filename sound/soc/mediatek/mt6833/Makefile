@@ -28,11 +28,11 @@ endif
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/include
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(AUDIO_PLATFORM)/include
 
-# external spk amp
-ifeq ($(CONFIG_SND_SOC_AW87339),y)
-subdir-ccflags-y += -I$(srctree)/sound/soc/codecs/aw87339/$(MTK_PROJECT)/
+#zhangsen1 external spk amp
+ifeq ($(CONFIG_SND_SOC_FS1815N),y)
+subdir-ccflags-y += -I$(srctree)/sound/soc/codecs/fs1815/
 endif
-
-ifeq ($(CONFIG_SND_SOC_SIA8109),y)
-subdir-ccflags-y += -I$(srctree)/sound/soc/codecs/sia81xx/$(MTK_PROJECT)/
+#zhangsen1 external spk amp
+ifeq ($(CONFIG_SND_SOC_SIA8159),y)
+subdir-ccflags-y += -I$(srctree)/sound/soc/codecs/sia8159/
 endif

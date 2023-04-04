@@ -333,7 +333,7 @@ static int mtk_drm_idlemgr_monitor_thread(void *data)
 	struct drm_vblank_crtc *vblank = NULL;
 	int crtc_id = drm_crtc_index(crtc);
 
-	msleep(16000);
+	msleep(50000);
 	do {
 		ret = wait_event_interruptible(
 			idlemgr->idlemgr_wq,

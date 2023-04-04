@@ -4226,7 +4226,15 @@ void cmdq_core_release_handle_by_file_node(void *file_node)
 		 * immediately, but we cannot do so due to SMI hang risk.
 		 */
 		client = cmdq_clients[(u32)handle->thread];
-		cmdq_mbox_thread_remove_task(client->chan, handle->pkt);
+		if (handle->secData.is_secure) {
+			if (handle->ctrl)
+				handle->ctrl->handle_wait_result(
+					handle, handle->thread);
+			else
+				CMDQ_ERR("without ctrl: handle:%p thread:%u\n",
+					handle, handle->thread);
+		} else
+			cmdq_mbox_thread_remove_task(client->chan, handle->pkt);
 		cmdq_pkt_auto_release_task(handle);
 	}
 	mutex_unlock(&cmdq_handle_list_mutex);
@@ -4921,6 +4929,7 @@ s32 cmdq_pkt_wait_flush_ex_result(struct cmdqRecStruct *handle)
 	u32 count = 0;
 	const struct cmdq_controller *ctrl = handle->ctrl;
 	struct cmdq_client *client;
+	bool skip = false;
 
 	CMDQ_PROF_MMP(cmdq_mmp_get_event()->wait_task,
 		MMPROFILE_FLAG_PULSE, ((unsigned long)handle), handle->thread);
@@ -4942,7 +4951,22 @@ s32 cmdq_pkt_wait_flush_ex_result(struct cmdqRecStruct *handle)
 			handle->thread, client->chan->mbox,
 			client->chan->mbox->dev);
 
-	do {
+	while (!handle->pkt->task_alloc) {
+		waitq = wait_event_timeout(
+			cmdq_wait_queue[(u32)handle->thread],
+			(handle->state != TASK_STATE_BUSY &&
+			handle->state != TASK_STATE_WAITING),
+			msecs_to_jiffies(CMDQ_PREDUMP_TIMEOUT_MS));
+		if (waitq) {
+			/* task alloc failed then skip predump */
+			skip = true;
+			break;
+		}
+		CMDQ_LOG("wait before submit handle:%p pkt:%p, task_alloc:%d",
+			handle, handle->pkt, handle->pkt->task_alloc);
+	}
+
+	while (!skip) {
 		if (!handle->pkt->loop) {
 			/* wait event and pre-dump */
 			waitq = wait_event_timeout(
@@ -4993,7 +5017,8 @@ s32 cmdq_pkt_wait_flush_ex_result(struct cmdqRecStruct *handle)
 		}
 
 		count++;
-	} while (1);
+	}
+	handle->pkt->task_alloc = false;
 
 	handle->wakedUp = sched_clock();
 	CMDQ_SYSTRACE_END();
@@ -5097,6 +5122,7 @@ static s32 cmdq_pkt_flush_async_ex_impl(struct cmdqRecStruct *handle,
 	struct cmdqRecStruct **pmqos_handle_list = NULL;
 	struct ContextStruct *ctx;
 	u32 handle_count;
+	int32_t thread;
 
 	if (!handle->finalized) {
 		CMDQ_ERR("handle not finalized:0x%p scenario:%d\n",
@@ -5206,14 +5232,14 @@ static s32 cmdq_pkt_flush_async_ex_impl(struct cmdqRecStruct *handle,
 		CMDQ_LOG("cl:%p not same client:%p\n", handle->pkt->cl, client);
 		handle->pkt->cl = client;
 	}
+	thread = handle->thread;
 	err = cmdq_pkt_flush_async(handle->pkt, cmdq_pkt_flush_handler,
 		(void *)handle);
 	CMDQ_SYSTRACE_END();
 
 	if (err < 0) {
-		CMDQ_ERR("pkt flush failed err:%d pkt:0x%p\n",
-			err, handle->pkt);
-		cmdq_pkt_release_handle(handle);
+		CMDQ_ERR("pkt flush failed err:%d handle:%p thread:%d\n",
+			err, handle, thread);
 		return err;
 	}
 

@@ -762,18 +762,15 @@ static s32 cmdq_sec_session_init(struct cmdq_sec_context *context)
 #endif
 
 #ifdef CMDQ_SECURE_MTEE_SUPPORT
-		if (!context->mtee_iwc_msg ||
-			!context->mtee_iwc_ex1 || !context->mtee_iwc_ex2) {
-			err = cmdq_sec_mtee_allocate_wsm(&context->mtee,
-				&context->mtee_iwc_msg,
-				sizeof(struct iwcCmdqMessage_t),
-				&context->mtee_iwc_ex1,
-				sizeof(struct iwcCmdqMessageEx_t),
-				&context->mtee_iwc_ex2,
-				sizeof(struct iwcCmdqMessageEx2_t));
-			if (err)
-				break;
-		}
+		err = cmdq_sec_mtee_allocate_wsm(&context->mtee,
+			&context->mtee_iwc_msg,
+			sizeof(struct iwcCmdqMessage_t),
+			&context->mtee_iwc_ex1,
+			sizeof(struct iwcCmdqMessageEx_t),
+			&context->mtee_iwc_ex2,
+			sizeof(struct iwcCmdqMessageEx2_t));
+		if (err)
+			break;
 #endif
 
 		context->state = IWC_WSM_ALLOCATED;
@@ -1759,7 +1756,6 @@ static int __init cmdq_sec_init(void)
 	return err;
 }
 
-#ifdef CMDQ_GP_SUPPORT
 static s32 cmdq_sec_late_init_wsm(void *data)
 {
 	struct cmdq_sec *cmdq;
@@ -1771,8 +1767,6 @@ static s32 cmdq_sec_late_init_wsm(void *data)
 		cmdq = g_cmdq[i];
 		if (!cmdq)
 			break;
-		cmdq_msg("g_cmdq_cnt:%u g_cmdq:%u pa:%pa",
-			g_cmdq_cnt, i, &cmdq->base_pa);
 
 		if (!cmdq->context) {
 			context = kzalloc(sizeof(*cmdq->context),
@@ -1785,7 +1779,34 @@ static s32 cmdq_sec_late_init_wsm(void *data)
 			cmdq->context->state = IWC_INIT;
 			cmdq->context->tgid = current->tgid;
 		}
+		cmdq_msg("g_cmdq_cnt:%u g_cmdq:%u pa:%pa context:%p",
+			g_cmdq_cnt, i, &cmdq->base_pa, cmdq->context);
 
+#ifdef CMDQ_SECURE_MTEE_SUPPORT
+		cmdq->context->mtee_iwc_msg =
+			kzalloc(sizeof(struct iwcCmdqMessage_t), GFP_KERNEL);
+		if (!cmdq->context->mtee_iwc_msg)
+			return -ENOMEM;
+
+		cmdq->context->mtee_iwc_ex1 =
+			kzalloc(sizeof(struct iwcCmdqMessageEx_t), GFP_KERNEL);
+		if (!cmdq->context->mtee_iwc_ex1)
+			return -ENOMEM;
+
+		cmdq->context->mtee_iwc_ex2 =
+			kzalloc(sizeof(struct iwcCmdqMessageEx2_t), GFP_KERNEL);
+		if (!cmdq->context->mtee_iwc_ex2)
+			return -ENOMEM;
+
+		cmdq_msg("mtee_iwc:%p(%#x) ex1:%p(%#x) ex3:%p(%#x)",
+			cmdq->context->mtee_iwc_msg,
+			sizeof(struct iwcCmdqMessage_t),
+			cmdq->context->mtee_iwc_ex1,
+			sizeof(struct iwcCmdqMessageEx_t),
+			cmdq->context->mtee_iwc_ex2,
+			sizeof(struct iwcCmdqMessageEx2_t));
+#endif
+#ifdef CMDQ_GP_SUPPORT
 		mutex_lock(&cmdq->exec_lock);
 		if (cmdq->context->state == IWC_INIT)
 			cmdq_sec_setup_tee_context_base(cmdq->context);
@@ -1797,6 +1818,7 @@ static s32 cmdq_sec_late_init_wsm(void *data)
 			cmdq_err("session init failed:%d", err);
 			continue;
 		}
+#endif
 	} while (++i < g_cmdq_cnt);
 	return err;
 }
@@ -1811,6 +1833,5 @@ static int __init cmdq_sec_late_init(void)
 	return PTR_ERR(kthr);
 }
 late_initcall(cmdq_sec_late_init);
-#endif
 
 arch_initcall(cmdq_sec_init);

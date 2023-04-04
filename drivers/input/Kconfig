@@ -194,6 +194,26 @@ config SEC_INPUT_BOOSTER
 
 	  It's triggered in evdev module.
 
+config TYHX_HX9035
+    tristate "Support for hx9036 sar sensor"
+    default y
+    help
+      Say Y to enable support for TYHX_HX9035.
+
+config INPUT_ABOV
+    tristate "ABOV_SAR_sensor"
+    default y
+    help
+        Say Y to enable the SAR detection application, if N here not to use the
+        this SAR sensor
+
+config INPUT_ABOV_TWO_CHANNEL
+    bool "ABOV_SAR_sensor_2CH"
+    default n
+    help
+        Say Y to enable the SAR sub channel detection application, if N here not to use the
+        this SAR sub channel sensor
+
 comment "Input Device Drivers"
 
 source "drivers/input/keyboard/Kconfig"

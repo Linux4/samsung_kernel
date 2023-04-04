@@ -152,6 +152,7 @@ enum rtc_spare_enum {
 	RTC_PWRON_LOGO,
 	RTC_32K_LESS,
 	RTC_LP_DET,
+        RTC_ENABLE_BIND,//CHK SC127680 zhaocong.wt, ADD, 20220722, delay RPMB key provision in preloader
 	RTC_FG_INIT,
 	RTC_SPAR_NUM
 };
@@ -177,6 +178,7 @@ u16 rtc_spare_reg[RTC_SPAR_NUM][3] = {
 	{RTC_PDN2, 0x1, 15},
 	{RTC_SPAR0, 0x1, 6},
 	{RTC_SPAR0, 0x1, 7},
+        {RTC_SPAR0, 0x1, 8},//CHK SC127680 zhaocong.wt, ADD, 20220722, delay RPMB key provision in preloader
 	{RTC_AL_HOU, 0xff, 8}
 };
 
@@ -648,6 +650,18 @@ exit:
 	pr_err("%s error\n", __func__);
 }
 
+//+CHK SC127680 zhaocong.wt, ADD, 20220722, delay RPMB key provision in preloader
+void rtc_mark_bind(void)
+{
+        unsigned long flags;
+
+        pr_notice("%s\n", __func__);
+
+        spin_lock_irqsave(&rtc_misc->lock, flags);
+        mtk_rtc_set_spare_register(RTC_ENABLE_BIND, 0x1);
+        spin_unlock_irqrestore(&rtc_misc->lock, flags);
+}
+//-CHK SC127680 zhaocong.wt, ADD, 20220722, delay RPMB key provision in preloader
 void rtc_mark_recovery(void)
 {
 	unsigned long flags;

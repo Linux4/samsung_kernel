@@ -83,16 +83,33 @@ static struct stAF_OisPosInfo OisPosInfo;
 /* ------------------------- */
 
 static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
+	//+bug767771,liudijin.wt,ADD,2022/07/14,add truly s5kjn1 gt9778 bringup code.
+	{1, AFDRV_TRULY_S5KJN1_GT9778AF, TRULY_S5KJN1_GT9778AF_SetI2Cclient, TRULY_S5KJN1_GT9778AF_Ioctl,
+	 TRULY_S5KJN1_GT9778AF_Release, TRULY_S5KJN1_GT9778AF_GetFileName, NULL},
+	{1, AFDRV_ST_S5KJN1_GT9778AF, ST_S5KJN1_GT9778AF_SetI2Cclient, ST_S5KJN1_GT9778AF_Ioctl,
+	 ST_S5KJN1_GT9778AF_Release, ST_S5KJN1_GT9778AF_GetFileName, NULL},
+	{1, AFDRV_TXD_HI5022Q_GT9778AF, TXD_HI5022Q_GT9778AF_SetI2Cclient, TXD_HI5022Q_GT9778AF_Ioctl,
+	 TXD_HI5022Q_GT9778AF_Release, TXD_HI5022Q_GT9778AF_GetFileName, NULL},
+	//-bug767771,liudijin.wt,ADD,2022/07/14,add truly s5kjn1 gt9778 bringup code.
+	//+bug682590,zhanghengyuan.wt,ADD,2021/8/27,n23_hi1336_rear af sensor bringup
+	{1, AFDRV_TXD_GT9772AF, TXD_GT9772AF_SetI2Cclient, TXD_GT9772AF_Ioctl,
+	 TXD_GT9772AF_Release, TXD_GT9772AF_GetFileName, NULL},
+	{1, AFDRV_ST_GT9772AF, ST_GT9772AF_SetI2Cclient, ST_GT9772AF_Ioctl,
+	 ST_GT9772AF_Release, ST_GT9772AF_GetFileName, NULL},
+	//-bug682590,zhanghengyuan.wt,ADD,2021/8/27,n23_hi1336_rear af sensor bringup
+	//+bug720367,qinduilin.wt,ADD,2022/2/9,n26_hi5021q_rear_truly af bringup
+	{1, AFDRV_TRULY_HI5021Q_GT9778AF, TRULY_HI5021Q_GT9778AF_SetI2Cclient, TRULY_HI5021Q_GT9778AF_Ioctl,
+	 TRULY_HI5021Q_GT9778AF_Release, TRULY_HI5021Q_GT9778AF_GetFileName, NULL},
+	{1, AFDRV_ST_HI5021Q_AW8601WAF, ST_HI5021Q_AW8601WAF_SetI2Cclient, ST_HI5021Q_AW8601WAF_Ioctl,
+	 ST_HI5021Q_AW8601WAF_Release, ST_HI5021Q_AW8601WAF_GetFileName, NULL},
+	{1, AFDRV_TXD_S5KJN1_GT9778AF, TXD_S5KJN1_GT9778AF_SetI2Cclient, TXD_S5KJN1_GT9778AF_Ioctl,
+	 TXD_S5KJN1_GT9778AF_Release, TXD_S5KJN1_GT9778AF_GetFileName, NULL},
+	{1, AFDRV_DELTA_HI5021Q_GT9778AF, DELTA_HI5021Q_GT9778AF_SetI2Cclient, DELTA_HI5021Q_GT9778AF_Ioctl,
+	 DELTA_HI5021Q_GT9778AF_Release, DELTA_HI5021Q_GT9778AF_GetFileName, NULL},
+	//-bug720367,qinduilin.wt,ADD,2022/2/9,n26_hi5021q_rear_truly af bringup
+	#if 0
 	{1, AFDRV_DW9718TAF, DW9718TAF_SetI2Cclient, DW9718TAF_Ioctl,
 	 DW9718TAF_Release, DW9718TAF_GetFileName, NULL},
-	//+bug 621775 liuxiangyin.wt, add, 2021/2/23, n21 1st supply main af TXD_S5K2P6_GT9769AF porting
-	{1, AFDRV_TXD_S5K2P6_GT9769AF, TXD_S5K2P6_GT9769AF_SetI2Cclient, TXD_S5K2P6_GT9769AF_Ioctl,
-	 TXD_S5K2P6_GT9769AF_Release, TXD_S5K2P6_GT9769AF_GetFileName, NULL},
-	//-bug 621775 liuxiangyin.wt, add, 2021/2/23, n21 1st supply main af TXD_S5K2P6_GT9769AF porting
-	//+bug 621775,lintaicheng.wt, add, 20210208, add for n21 AF bring up
-	{1, AFDRV_HLT_OV16B10_ZC535BAF, HLT_OV16B10_ZC535BAF_SetI2Cclient, HLT_OV16B10_ZC535BAF_Ioctl,
-	 HLT_OV16B10_ZC535BAF_Release, HLT_OV16B10_ZC535BAF_GetFileName, NULL},
-	//-bug 621775,lintaicheng.wt, add, 20210208, add for n21 AF bring up
 	{1, AFDRV_AK7371AF, AK7371AF_SetI2Cclient, AK7371AF_Ioctl,
 	 AK7371AF_Release, AK7371AF_GetFileName, NULL},
 	{1, AFDRV_BU6424AF, BU6424AF_SetI2Cclient, BU6424AF_Ioctl,
@@ -136,13 +153,6 @@ static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
 	 DW9718AF_Release, DW9718AF_GetFileName, NULL},
 	{1, AFDRV_GT9764AF, GT9764AF_SetI2Cclient, GT9764AF_Ioctl,
 	GT9764AF_Release, GT9764AF_GetFileName, NULL},
-	//+bug682590,zhanghengyuan.wt,ADD,2021/8/27,n23_hi1336_rear af sensor bringup
-	{1, AFDRV_TXD_GT9772AF, TXD_GT9772AF_SetI2Cclient, TXD_GT9772AF_Ioctl,
-	 TXD_GT9772AF_Release, TXD_GT9772AF_GetFileName, NULL},
-	{1, AFDRV_ST_GT9772AF, ST_GT9772AF_SetI2Cclient, ST_GT9772AF_Ioctl,
-	 ST_GT9772AF_Release, ST_GT9772AF_GetFileName, NULL},
-	//-bug682590,zhanghengyuan.wt,ADD,2021/8/27,n23_hi1336_rear af sensor bringup
-#if 0
 	{1, AFDRV_LC898212AF, LC898212AF_SetI2Cclient, LC898212AF_Ioctl,
 	 LC898212AF_Release, LC898212AF_GetFileName, NULL},
 	{1, AFDRV_LC898214AF, LC898214AF_SetI2Cclient, LC898214AF_Ioctl,
@@ -161,17 +171,7 @@ static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
 	 LC898122AF_Release, LC898122AF_GetFileName, NULL},
 	{1, AFDRV_WV511AAF, WV511AAF_SetI2Cclient, WV511AAF_Ioctl,
 	 WV511AAF_Release, WV511AAF_GetFileName, NULL},
-#endif
-	//+bug720367,qinduilin.wt,ADD,2022/2/9,n26_hi5021q_rear_truly af bringup
-	{1, AFDRV_TRULY_HI5021Q_GT9778AF, TRULY_HI5021Q_GT9778AF_SetI2Cclient, TRULY_HI5021Q_GT9778AF_Ioctl,
-	 TRULY_HI5021Q_GT9778AF_Release, TRULY_HI5021Q_GT9778AF_GetFileName, NULL},
-	{1, AFDRV_ST_HI5021Q_AW8601WAF, ST_HI5021Q_AW8601WAF_SetI2Cclient, ST_HI5021Q_AW8601WAF_Ioctl,
-	 ST_HI5021Q_AW8601WAF_Release, ST_HI5021Q_AW8601WAF_GetFileName, NULL},
-	{1, AFDRV_TXD_S5KJN1_GT9778AF, TXD_S5KJN1_GT9778AF_SetI2Cclient, TXD_S5KJN1_GT9778AF_Ioctl,
-	 TXD_S5KJN1_GT9778AF_Release, TXD_S5KJN1_GT9778AF_GetFileName, NULL},
-	{1, AFDRV_DELTA_HI5021Q_GT9778AF, DELTA_HI5021Q_GT9778AF_SetI2Cclient, DELTA_HI5021Q_GT9778AF_Ioctl,
-	 DELTA_HI5021Q_GT9778AF_Release, DELTA_HI5021Q_GT9778AF_GetFileName, NULL},
-	//-bug720367,qinduilin.wt,ADD,2022/2/9,n26_hi5021q_rear_truly af bringup
+	#endif
 };
 
 static struct stAF_DrvList *g_pstAF_CurDrv;
@@ -192,7 +192,7 @@ static struct pinctrl *vcamaf_pio;
 static struct pinctrl_state *vcamaf_pio_on;
 static struct pinctrl_state *vcamaf_pio_off;
 
-#define CAMAF_PMIC     "vldo28"
+#define CAMAF_PMIC     "camaf_m1_pmic"
 #define CAMAF_GPIO_ON  "camaf_m1_gpio_on"
 #define CAMAF_GPIO_OFF "camaf_m1_gpio_off"
 

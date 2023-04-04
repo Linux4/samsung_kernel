@@ -1,8 +1,34 @@
-// SPDX-License-Identifier: GPL-2.0
-/*
- * Copyright (c) 2019 MediaTek Inc.
- */
 
+/* Copyright Statement:
+*
+* This software/firmware and related documentation ("MediaTek Software") are
+* protected under relevant copyright laws. The information contained herein
+* is confidential and proprietary to MediaTek Inc. and/or its licensors.
+* Without the prior written permission of MediaTek inc. and/or its licensors,
+* any reproduction, modification, use or disclosure of MediaTek Software,
+* and information contained herein, in whole or in part, shall be strictly prohibited.
+*/
+/* MediaTek Inc. (C) 2015. All rights reserved.
+*
+* BY OPENING THIS FILE, RECEIVER HEREBY UNEQUIVOCALLY ACKNOWLEDGES AND AGREES
+* THAT THE SOFTWARE/FIRMWARE AND ITS DOCUMENTATIONS ("MEDIATEK SOFTWARE")
+* RECEIVED FROM MEDIATEK AND/OR ITS REPRESENTATIVES ARE PROVIDED TO RECEIVER ON
+* AN "AS-IS" BASIS ONLY. MEDIATEK EXPRESSLY DISCLAIMS ANY AND ALL WARRANTIES,
+* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF
+* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NONINFRINGEMENT.
+* NEITHER DOES MEDIATEK PROVIDE ANY WARRANTY WHATSOEVER WITH RESPECT TO THE
+* SOFTWARE OF ANY THIRD PARTY WHICH MAY BE USED BY, INCORPORATED IN, OR
+* SUPPLIED WITH THE MEDIATEK SOFTWARE, AND RECEIVER AGREES TO LOOK ONLY TO SUCH
+* THIRD PARTY FOR ANY WARRANTY CLAIM RELATING THERETO. RECEIVER EXPRESSLY ACKNOWLEDGES
+* THAT IT IS RECEIVER'S SOLE RESPONSIBILITY TO OBTAIN FROM ANY THIRD PARTY ALL PROPER LICENSES
+* CONTAINED IN MEDIATEK SOFTWARE. MEDIATEK SHALL ALSO NOT BE RESPONSIBLE FOR ANY MEDIATEK
+* SOFTWARE RELEASES MADE TO RECEIVER'S SPECIFICATION OR TO CONFORM TO A PARTICULAR
+* STANDARD OR OPEN FORUM. RECEIVER'S SOLE AND EXCLUSIVE REMEDY AND MEDIATEK'S ENTIRE AND
+* CUMULATIVE LIABILITY WITH RESPECT TO THE MEDIATEK SOFTWARE RELEASED HEREUNDER WILL BE,
+* AT MEDIATEK'S OPTION, TO REVISE OR REPLACE THE MEDIATEK SOFTWARE AT ISSUE,
+* OR REFUND ANY SOFTWARE LICENSE FEES OR SERVICE CHARGE PAID BY RECEIVER TO
+* MEDIATEK FOR SUCH MEDIATEK SOFTWARE AT ISSUE.
+*/
 #define LOG_TAG "LCM"
 #ifndef BUILD_LK
 #include <linux/string.h>
@@ -85,6 +111,9 @@ static struct LCM_UTIL_FUNCS lcm_util;
 #define FALSE 0
 #endif
 
+extern void lcm_bais_enn_enable(unsigned int mode);
+extern void lcm_bais_enp_enable(unsigned int mode);
+
 struct LCM_setting_table {
 	unsigned int cmd;
 	unsigned char count;
@@ -93,7 +122,7 @@ struct LCM_setting_table {
 
 static struct LCM_setting_table lcm_suspend_setting[] = {
 	//{ 0xFF, 0x03, {0x98, 0x82, 0x00} },
-	{REGFLAG_DELAY, 3, {} },
+	{REGFLAG_DELAY, 5, {} },
 	{0x28, 0, {} },
 	{REGFLAG_DELAY, 20, {} },
 	{0x10, 0, {} },
@@ -428,12 +457,15 @@ static void lcm_suspend_power(void)
 	if(gestrue_status == 1){
 		printk("[ILITEK]lcm_suspend_power gesture_status = 1\n ");
 	} else {
-		int ret  = 0;
+		//int ret  = 0;
 		printk("[ILITEK]lcm_suspend_power gestrue_status = 0\n ");
 		pr_debug("[LCM] ili9882q truly lcm_suspend_power !\n");
 		//lcm_reset_pin(LOW);
 		MDELAY(2);
-		ret = lcm_power_disable();
+		//ret = lcm_power_disable();
+		lcm_bais_enn_enable(LOW);
+		MDELAY(10);
+		lcm_bais_enp_enable(LOW);
 		MDELAY(10);
 	}
 }

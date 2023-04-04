@@ -30,36 +30,25 @@ endif
 obj-$(CONFIG_SND_SOC_MTK_BTCVSD) += common/
 obj-$(CONFIG_SND_SOC_MEDIATEK) += common/
 obj-$(CONFIG_SND_SOC_MT2701) += mt2701/
-#obj-$(CONFIG_SND_SOC_MT6768) += mt6768/
-#obj-$(CONFIG_SND_SOC_MT6785) += mt6785/
+obj-$(CONFIG_SND_SOC_MT6768) += mt6768/
+obj-$(CONFIG_SND_SOC_MT6785) += mt6785/
 obj-$(CONFIG_SND_SOC_MT6797) += mt6797/
 obj-$(CONFIG_SND_SOC_MT6779) += mt6779/
 obj-$(CONFIG_SND_SOC_MT8173) += mt8173/
-#obj-$(CONFIG_SND_SOC_MT6877) += mt6877/
-#obj-$(CONFIG_SND_SOC_MT6873) += mt6873/
+obj-$(CONFIG_SND_SOC_MT6877) += mt6877/
+obj-$(CONFIG_SND_SOC_MT6873) += mt6873/
 obj-$(CONFIG_SND_SOC_MT6853) += mt6853/
 obj-$(CONFIG_SND_SOC_MT6833) += mt6833/
-#obj-$(CONFIG_SND_SOC_MT6885) += mt6885/
-#obj-$(CONFIG_SND_SOC_MT6781) += mt6781/
+obj-$(CONFIG_SND_SOC_MT6885) += mt6885/
+obj-$(CONFIG_SND_SOC_MT6781) += mt6781/
 obj-$(CONFIG_SND_SOC_AW87519) += aw87519/
 
-#pangxin01.wt,add,20220219,mk for smartpa src
+#zhangxingyuan.wt,add,20220721,mk for smartpa src
 obj-$(CONFIG_SND_SOC_FS17XX) += fs17xx/
 # include path
 subdir-ccflags-$(CONFIG_SND_SOC_FS17XX) += -Werror -I$(srctree)/sound/soc/mediatek/fs17xx/
-
-#Bug717428, qiuyonghui.wt, add, 20220113, add, audio bringup
-obj-$(CONFIG_SND_SMARTPA_AW881XX) += aw881xx/
-
-#Bug715586 daisiqing.wt, add, 20220127, add, audio bringup
-obj-$(CONFIG_SND_SOC_SIA81XX) += sia81xx/
-#Bug715586 daisiqing.wt, add, 20220420, add, audio PA fs1599
-obj-$(CONFIG_SND_SOC_FS15XX) += fs15xx/
-subdir-ccflags-$(CONFIG_SND_SOC_FS15XX) += -Werror -I$(srctree)/sound/soc/mediatek/fs15xx/
-
-#Bug715586 daisiqing.wt, add, 20220420, add, audio PA aw87401
+#Bug794085 wuyong.wt, add, 20220825, add audio PA aw87401
 obj-$(CONFIG_SND_SOC_AW87XXX) += aw87xxx/
-
 # mtk new arch
 ifeq ($(CONFIG_MTK_SND_SOC_NEW_ARCH),)
 # MTK Codec Chip Support

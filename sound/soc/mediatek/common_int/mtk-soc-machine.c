@@ -85,16 +85,12 @@
 #include <sound/soc-dapm.h>
 #include "mtk-soc-speaker-amp.h"
 
-#include "../sia81xx/sia81xx_aux_dev_if.h"
-
 #if defined(CONFIG_SND_SOC_CS43130)
 #include "mtk-cs43130-machine-ops.h"
 #endif
 #if defined(CONFIG_SND_SOC_CS35L35)
 #include "mtk-cs35l35-machine-ops.h"
 #endif
-
-#include "../sia81xx/sia81xx_aux_dev_if.h"
 
 #ifdef CONFIG_DEBUG_FS
 #include <linux/debugfs.h>
@@ -672,11 +668,6 @@ static struct snd_soc_dai_link mt_soc_extspk_dai[] = {
 		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_CBS_CFS |
 			   SND_SOC_DAIFMT_NB_NF,
 		.ops = &cs35l35_ops,
-//+Bug717428, qiuyonghui.wt, add, 20220113, add, audio bringup
-#elif defined(CONFIG_SND_SMARTPA_AW881XX)
-        .codec_dai_name = "aw881xx-aif-6-34",
-        .codec_name = "aw881xx_smartpa.6-0034",
-//-Bug717428, qiuyonghui.wt, add, 20220113, add, audio bringup
 #else
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
@@ -770,14 +761,6 @@ static int mt_soc_snd_probe(struct platform_device *pdev)
 
 	card->dev = &pdev->dev;
 	platform_set_drvdata(pdev, card);
- //Bug daisiqing.wt -Audio bring up code 20220119
-#ifdef CONFIG_SND_SOC_SIA81XX
-	ret = soc_aux_init_only_sia81xx(pdev, card);
-	if (ret)
-		 dev_err(&pdev->dev, "%s soc_aux_init_only_sia81xx fail %d\n",
-			__func__, ret);
-#endif
- //Bug  daisiqing.wt -Audio bring up code 20220119
 
 #ifdef CONFIG_SND_SOC_MT6357_ACCDET
 	mtk_aux_devs.codec_of_node = of_parse_phandle(pdev->dev.of_node,

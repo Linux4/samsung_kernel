@@ -734,8 +734,10 @@ struct simulator_log {
 #define SHUTDOWN_TIME 40
 #define AVGVBAT_ARRAY_SIZE 30
 #define INIT_VOLTAGE 3450
-#if defined (CONFIG_N26_CHARGER_PRIVATE) || defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
 #define BATTERY_SHUTDOWN_TEMPERATURE 88  //Bug493176,guoyanjun.wt,MODIFY,20220111,88 degrsee trigger shutdown
+#elif defined (CONFIG_N26_CHARGER_PRIVATE)
+#define BATTERY_SHUTDOWN_TEMPERATURE 68
 #else
 #define BATTERY_SHUTDOWN_TEMPERATURE 60
 #endif
@@ -1035,17 +1037,11 @@ extern void do_fg_algo(struct mtk_battery *gm, unsigned int intr_num);
 extern void fg_bat_temp_int_internal(struct mtk_battery *gm);
 /* mtk_battery_algo.c end */
 
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-extern int wt_set_batt_cycle_fv(void);
-extern int wt_get_afc_work_status(void);
-#endif
-
 #if defined (CONFIG_N23_CHARGER_PRIVATE)
 extern struct atomic_notifier_head charger_notifier;
 extern int register_mtk_battery_notifier(struct notifier_block *nb);
 extern void unre_mtk_battery_notifier(struct notifier_block *nb);
 
-extern int wt_set_batt_cycle_fv(void);
+extern int wt_set_batt_cycle_fv(struct mtk_battery *gm);
 #endif
-
 #endif /* __MTK_BATTERY_INTF_H__ */

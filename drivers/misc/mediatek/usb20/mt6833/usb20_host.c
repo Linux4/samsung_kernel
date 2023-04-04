@@ -245,7 +245,11 @@ void mt_usb_host_disconnect(int delay)
 }
 EXPORT_SYMBOL(mt_usb_host_disconnect);
 
+#if defined(CONFIG_CABLE_TYPE_NOTIFIER)
+bool musb_is_host(void)
+#else
 static bool musb_is_host(void)
+#endif
 {
 	bool host_mode = 0;
 
@@ -451,8 +455,7 @@ static void do_host_work(struct work_struct *data)
 		/* setup fifo for host mode */
 		ep_config_from_table_for_host(mtk_musb);
 
-		if (!mtk_musb->host_suspend)
-			__pm_stay_awake(mtk_musb->usb_lock);
+		__pm_stay_awake(mtk_musb->usb_lock);
 
 
 		/* this make PHY operation workable */

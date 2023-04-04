@@ -204,9 +204,17 @@ static bool pd_vdm_state_transit(
 
 	if (vdm_cmdt == CMDT_INIT) {	/* Recv */
 		if (!vdm_is_state_transition_available(
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+			//pd_port, true, state_transition))
+			//return false;
+			pd_port, true, state_transition)) {
+			PE_TRANSIT_STATE(pd_port, PE_UFP_VDM_SEND_NAK);
+			return true;
+		}
+#else  /* CONFIG_WT_PROJECT_S96902AA1 */
 			pd_port, true, state_transition))
 			return false;
-
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 		return pd_vdm_state_transit_rx(pd_port, state_transition);
 	}
 

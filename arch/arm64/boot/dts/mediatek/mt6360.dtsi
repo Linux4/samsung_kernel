@@ -185,7 +185,7 @@
 		mt_pmic_vtp_ldo_reg: ldo2 {
 			regulator-compatible = "LDO2";
 			regulator-name = "VTP";
-			regulator-min-microvolt = <1200000>;
+			regulator-min-microvolt = <2800000>;
 			regulator-max-microvolt = <3600000>;
 		};
 		mt_pmic_vmc_ldo_reg: ldo3 {

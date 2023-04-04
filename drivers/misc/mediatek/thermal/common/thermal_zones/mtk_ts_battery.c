@@ -123,8 +123,17 @@ static int polling_factor1 = 5000;
 static int polling_factor2 = 10000;
 
 /* static int battery_write_flag=0; */
-
-#define mtktsbattery_TEMP_CRIT 60000	/* 60.000 degree Celsius */
+//+bug793013 , yexiaojun.wt, modify, 20220829, modify the threshold of thermal shutdownBatteryTemperature to 70 degree for S96901AA1
+#if defined(CONFIG_WT_PROJECT_S96901AA1)
+	#define mtktsbattery_TEMP_CRIT 70000    /* 70.000 degree Celsius */
+#elif defined(CONFIG_WT_PROJECT_S96901WA1)
+	#define mtktsbattery_TEMP_CRIT 70000    /* 70.000 degree Celsius */
+#elif defined(CONFIG_WT_PROJECT_S96902AA1)
+	#define mtktsbattery_TEMP_CRIT 90000    /* 90.000 degree Celsius */
+#else
+	#define mtktsbattery_TEMP_CRIT 70000	/* 70.000 degree Celsius */
+#endif
+//-bug793013 , yexiaojun.wt, modify, 20220829, modify the threshold of thermal shutdownBatteryTemperature to 70 degree for S96901AA1
 
 #define mtktsbattery_dprintk(fmt, args...)   \
 do {                                    \

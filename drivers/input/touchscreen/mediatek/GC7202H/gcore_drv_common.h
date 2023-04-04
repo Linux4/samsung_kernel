@@ -180,7 +180,7 @@
 #define ENABLE     1
 #define DISABLE   0
 
-extern uint32_t lcm_name;
+extern uint32_t g_lcm_name;
 extern int gtp_charger_flag;
 
 static const struct of_device_id tpd_of_match[] = {

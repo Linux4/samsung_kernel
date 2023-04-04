@@ -5,7 +5,8 @@
 #ifndef __IMGSENSOR_PLATFORM_H__
 #define __IMGSENSOR_PLATFORM_H__
 
-#define MIPI_SWITCH
+//bug767771,liangyiyi.wt,DEL,2022/07/28,the w2 project don't need to configure MIPI_SWITCH
+//#define MIPI_SWITCH
 
 enum IMGSENSOR_HW_ID {
 	IMGSENSOR_HW_ID_MCLK,

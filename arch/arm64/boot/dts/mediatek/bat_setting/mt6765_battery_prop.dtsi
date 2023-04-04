@@ -100,20 +100,15 @@
 #ifdef CONFIG_N23_CHARGER_PRIVATE
 #include "battery_N23_SDI_4V4_5000mAh.dtsi"
 #include "battery_N23_BYD_4V4_5000mAh.dtsi"
-#endif
-
-#ifdef CONFIG_N21_CHARGER_PRIVATE
-	EMBEDDED_SEL = <(1)>;
-	/* Pseudo 100% percentage at T0 */
-	g_FG_PSEUDO100_T1 = <(98)>;
-	/* Pseudo 100% percentage at T1 */
-	g_FG_PSEUDO100_T2 = <(98)>;
-	/* Pseudo 100% percentage at T2 */
-	g_FG_PSEUDO100_T3 = <(98)>;
-	/* Pseudo 100% percentage at T3 */
-	g_FG_PSEUDO100_T4 = <(98)>;
-#include "battery_N21_NVT_4V4_4000mah.dtsi"
-#include "battery_N21_SCUD_4V4_4000mah.dtsi"
-#include "battery_N21_SCUD_SDI_4V4_4000mah.dtsi"
+#include "battery_N23_SDI_4V4_5000mAh_cv4272.dtsi"
+#include "battery_N23_SDI_4V4_5000mAh_cv4304.dtsi"
+#include "battery_N23_SDI_4V4_5000mAh_cv4336.dtsi"
+#include "battery_N23_SDI_4V4_5000mAh_cv4368.dtsi"
+#include "battery_N23_SDI_4V4_5000mAh_cv4400.dtsi"
+#include "battery_N23_BYD_4V4_5000mAh_cv4272.dtsi"
+#include "battery_N23_BYD_4V4_5000mAh_cv4304.dtsi"
+#include "battery_N23_BYD_4V4_5000mAh_cv4336.dtsi"
+#include "battery_N23_BYD_4V4_5000mAh_cv4368.dtsi"
+#include "battery_N23_BYD_4V4_5000mAh_cv4400.dtsi"
 #endif
 };

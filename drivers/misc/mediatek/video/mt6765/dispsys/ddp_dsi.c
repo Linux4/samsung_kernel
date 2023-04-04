@@ -187,7 +187,7 @@ struct DSI_VM_CMDQ_REGS *DSI_VM_CMD_REG[DSI_INTERFACE_NUM];
 
 static int def_data_rate;
 static int def_dsi_hbp;
-static int def_dsi_hfp;
+static int def_dsi_hfp;   //bug782967,wanwen2.wt,add,20220827,Add a flag
 static int dsi_currect_mode;
 static int dsi_force_config;
 static int dsi0_te_enable = 1;
@@ -1011,26 +1011,32 @@ void DSI_DPHY_Calc_VDO_Timing(enum DISP_MODULE_ENUM module,
 		t_hsa = ALIGN_TO(t_hsa * dsiTmpBufBpp - 4, 4);
 		ASSERT((t_hbp +	t_hsa) * dsiTmpBufBpp > 9);
 		t_hbp = ALIGN_TO((t_hbp + t_hsa) * dsiTmpBufBpp - 10, 4);
+		//+bug782967,wanwen2.wt,add,20220827,Add a flag
 		if(mipi_clk_change_sta)
 			def_dsi_hbp = t_hbp;
 		else
 			def_dsi_hbp = 0;
+		//-bug782967,wanwen2.wt,add,20220827,Add a flag
 	} else {
 		ASSERT(t_hsa * dsiTmpBufBpp > 9);
 		t_hsa = ALIGN_TO(t_hsa * dsiTmpBufBpp - 10, 4);
 		ASSERT(t_hbp * dsiTmpBufBpp > 9);
 		t_hbp = ALIGN_TO(t_hbp * dsiTmpBufBpp - 10, 4);
+		//+bug782967,wanwen2.wt,add,20220827,Add a flag
 		if(mipi_clk_change_sta)
 			def_dsi_hbp = t_hbp;
 		else
 			def_dsi_hbp = 0;
+		//-bug782967,wanwen2.wt,add,20220827,Add a flag
 	}
 	ASSERT(t_hfp * dsiTmpBufBpp > 11);
 	t_hfp = ALIGN_TO(t_hfp * dsiTmpBufBpp - 12, 4);
+	//-bug782967,wanwen2.wt,add,20220827,Add a flag
 	if(mipi_clk_change_sta)
 		def_dsi_hfp = t_hfp;
 	else
 		def_dsi_hfp = 0;
+	//-bug782967,wanwen2.wt,add,20220827,Add a flag
 	t_hbllp = ALIGN_TO(dsi_params->horizontal_bllp * dsiTmpBufBpp, 4);
 	for (i = DSI_MODULE_BEGIN(module); i <= DSI_MODULE_END(module); i++) {
 		_dsi_context[i].vsa = t_vsa;
@@ -3599,7 +3605,7 @@ UINT32 DSI_dcs_read_lcm_reg_v3(enum DISP_MODULE_ENUM module,
 }
 
 void DSI_set_cmdq_V2(enum DISP_MODULE_ENUM module, struct cmdqRecStruct *cmdq,
-	unsigned int cmd, unsigned char count, unsigned char *para_list,
+	unsigned int cmd, unsigned int count, unsigned char *para_list,
 	unsigned char force_update)
 {
 	UINT32 i = 0;
@@ -3875,7 +3881,8 @@ void DSI_set_cmdq_V3(enum DISP_MODULE_ENUM module, struct cmdqRecStruct *cmdq,
 	/* DSI_T1_INS t1; */
 	struct DSI_T2_INS t2;
 	UINT32 index = 0;
-	unsigned char data_id, cmd, count;
+	unsigned char data_id, cmd;
+	unsigned int count;
 	unsigned char *para_list;
 	UINT32 d;
 
@@ -4034,7 +4041,7 @@ void DSI_set_cmdq_V4(enum DISP_MODULE_ENUM module,
 	unsigned int d = 0;
 	unsigned long goto_addr, mask_para, set_para;
 	unsigned int cmd;
-	unsigned char count;
+	unsigned int count;
 	unsigned char *para_list;
 	unsigned char virtual_channel;
 	struct DSI_T0_INS t0;
@@ -4059,7 +4066,7 @@ void DSI_set_cmdq_V4(enum DISP_MODULE_ENUM module,
 	}
 
 	cmd = cmds->dtype;
-	count = (unsigned char)cmds->dlen;
+	count = cmds->dlen;
 	para_list = cmds->payload;
 	virtual_channel = (unsigned char)cmds->vc;
 
@@ -5026,21 +5033,21 @@ void DSI_set_cmdq_V11_wrapper_DSI1(void *cmdq, unsigned int *pdata,
 	DSI_set_cmdq(DISP_MODULE_DSI1, cmdq, pdata, queue_size, force_update);
 }
 
-void DSI_set_cmdq_V2_DSI0(void *cmdq, unsigned int cmd, unsigned char count,
+void DSI_set_cmdq_V2_DSI0(void *cmdq, unsigned int cmd, unsigned int count,
 	unsigned char *para_list, unsigned char force_update)
 {
 	DSI_set_cmdq_V2(DISP_MODULE_DSI0, cmdq, cmd, count, para_list,
 		force_update);
 }
 
-void DSI_set_cmdq_V2_DSI1(void *cmdq, unsigned int cmd, unsigned char count,
+void DSI_set_cmdq_V2_DSI1(void *cmdq, unsigned int cmd, unsigned int count,
 	unsigned char *para_list, unsigned char force_update)
 {
 	DSI_set_cmdq_V2(DISP_MODULE_DSI1, cmdq, cmd, count, para_list,
 		force_update);
 }
 
-void DSI_set_cmdq_V2_DSIDual(void *cmdq, unsigned int cmd, unsigned char count,
+void DSI_set_cmdq_V2_DSIDual(void *cmdq, unsigned int cmd, unsigned int count,
 	unsigned char *para_list, unsigned char force_update)
 {
 	DSI_set_cmdq_V2(DISP_MODULE_DSIDUAL, cmdq, cmd, count, para_list,
@@ -5062,21 +5069,21 @@ void DSI_set_cmdq_V4_DSIDual(void *cmdq, struct dsi_cmd_desc *cmds)
 	DSI_set_cmdq_V4(DISP_MODULE_DSIDUAL, cmdq, cmds);
 }
 
-void DSI_set_cmdq_V2_Wrapper_DSI0(unsigned int cmd, unsigned char count,
+void DSI_set_cmdq_V2_Wrapper_DSI0(unsigned int cmd, unsigned int count,
 	unsigned char *para_list, unsigned char force_update)
 {
 	DSI_set_cmdq_V2(DISP_MODULE_DSI0, NULL, cmd, count, para_list,
 		force_update);
 }
 
-void DSI_set_cmdq_V2_Wrapper_DSI1(unsigned int cmd, unsigned char count,
+void DSI_set_cmdq_V2_Wrapper_DSI1(unsigned int cmd, unsigned int count,
 	unsigned char *para_list, unsigned char force_update)
 {
 	DSI_set_cmdq_V2(DISP_MODULE_DSI1, NULL, cmd, count, para_list,
 		force_update);
 }
 
-void DSI_set_cmdq_V2_Wrapper_DSIDual(unsigned int cmd, unsigned char count,
+void DSI_set_cmdq_V2_Wrapper_DSIDual(unsigned int cmd, unsigned int count,
 	unsigned char *para_list, unsigned char force_update)
 {
 	DSI_set_cmdq_V2(DISP_MODULE_DSIDUAL, NULL, cmd, count, para_list,
@@ -7242,7 +7249,7 @@ int ddp_dsi_read_lcm_cmdq_v1(enum DISP_MODULE_ENUM module,
 
 int ddp_dsi_write_lcm_cmdq(enum DISP_MODULE_ENUM module,
 	struct cmdqRecStruct *cmdq, unsigned  char cmd_char,
-	unsigned char count, unsigned char *para_list)
+	unsigned int count, unsigned char *para_list)
 {
 	UINT32 i = 0;
 	int d = 0;

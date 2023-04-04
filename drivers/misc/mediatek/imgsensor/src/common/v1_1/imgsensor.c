@@ -52,15 +52,113 @@
 #include "imgsensor_ca.h"
 #endif
 
+//+bug604664,zhouyikuan.wt,ADD,2020/12/17,add wide angle info for mmigroup apk
+#include <linux/hardware_info.h>
+//-bug604664,zhouyikuan.wt,ADD,2020/12/17,add wide angle info for mmigroup apk
+#include <linux/pinctrl/pinctrl.h>//bug 767771,liangyiyi.wt,modify,2022/8/2,fix front sc1300mcs sensor current leak
+
 static DEFINE_MUTEX(gimgsensor_mutex);
 static DEFINE_MUTEX(gimgsensor_open_mutex);
 
 struct IMGSENSOR gimgsensor;
 MUINT32 last_id;
+//+bug767771 liudijin.wt, add, 2022/07/22, distinguish depth camera params for dualcam
+kal_uint32 main_sensor_id = 0xffffffff;
+//+bug767771 liudijin.wt, add, 2022/07/22, distinguish depth camera params for dualcam
 
 /******************************************************************************
  * Profiling
  ******************************************************************************/
+//+bug 767771,liangyiyi.wt,modify,2022/8/2,fix front sc1300mcs sensor current leak
+struct mutex cam1_pinctrl_mutex;
+struct pinctrl       *cam1_pinctrl = NULL;
+struct pinctrl_state *cam1_vcamd_1v2_pin_en0 = NULL;
+struct pinctrl_state *cam1_vcamd_1v1_pin_en1 = NULL;
+struct pinctrl_state *cam1_vcamd_pin_en0 = NULL;
+struct pinctrl_state *cam1_vcamd_pin_en1 = NULL;
+struct pinctrl_state *cam1_rst_pin_en0 = NULL;
+struct pinctrl_state *cam1_rst_pin_en1 = NULL;
+int sc1300mcs_is_alive = 0;
+//+bug 788904,liangyiyi.wt,modify,2022/8/6,modify for fix open double camera exception
+int sc1300mcs_power_off(enum IMGSENSOR_SENSOR_IDX sensor_idx)
+{
+    int ret = -1;
+    pr_info("sc1300mcs_power_off enter\n");
+    if(!IS_ERR(cam1_pinctrl))
+    {
+        if(sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN3)
+        {
+            if(!IS_ERR(cam1_vcamd_1v2_pin_en0))
+            {
+                ret = pinctrl_select_state(cam1_pinctrl, cam1_vcamd_1v2_pin_en0);
+                if(ret < 0){
+                    pr_err("%s pinctrl_select_state cam1_vcamd_1v2_pin_en0  failed ! \n", __func__);
+                    return ret;
+                } else {
+                    PK_DBG("%s pinctrl_select_state cam1_vcamd_1v2_pin_en0 succeed ! \n", __func__);
+                }
+            }
+            if(!IS_ERR(cam1_vcamd_pin_en1))
+            {
+                ret = pinctrl_select_state(cam1_pinctrl, cam1_vcamd_pin_en1);
+                if(ret < 0){
+                    pr_err("%s pinctrl_select_state cam1_vcamd_pin_en1  failed ! \n", __func__);
+                    return ret;
+                } else {
+                    PK_DBG("%s pinctrl_select_state cam1_vcamd_pin_en1 succeed ! \n", __func__);
+                }
+            }
+            mdelay(1);
+        }
+        if(!IS_ERR(cam1_rst_pin_en1))
+        {
+            ret = pinctrl_select_state(cam1_pinctrl, cam1_rst_pin_en1);
+            if(ret < 0){
+                pr_err("%s pinctrl_select_state cam1_rst_pin_en1  failed ! \n", __func__);
+                return ret;
+            } else {
+                PK_DBG("%s pinctrl_select_state cam1_rst_pin_en1 succeed ! \n", __func__);
+            }
+        }
+        mdelay(2);
+        if(!IS_ERR(cam1_rst_pin_en0))
+        {
+            ret = pinctrl_select_state(cam1_pinctrl, cam1_rst_pin_en0);
+            if(ret < 0){
+                pr_err("%s pinctrl_select_state cam1_rst_pin_en0  failed ! \n", __func__);
+                return ret;
+            } else {
+                PK_DBG("%s pinctrl_select_state cam1_rst_pin_en0 succeed ! \n", __func__);
+            }
+        }
+        mdelay(1);
+        if(sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN3)
+        {
+            if(!IS_ERR(cam1_vcamd_pin_en0))
+            {
+                ret = pinctrl_select_state(cam1_pinctrl, cam1_vcamd_pin_en0);
+                if(ret < 0){
+                    pr_err("%s pinctrl_select_state cam1_vcamd_pin_en0  failed ! \n", __func__);
+                    return ret;
+                } else {
+                    PK_DBG("%s pinctrl_select_state cam1_vcamd_pin_en0 succeed ! \n", __func__);
+                }
+            }
+        }
+        mdelay(1);
+        if(ret < 0){
+        pr_err("sc1300mcs_power_off failed\n");
+        }else{
+            pr_info("sc1300mcs_power_off succeed\n");
+        }
+    }else{
+        pr_err("sc1300mcs_power_off failed\n");
+    }
+    return ret;
+}
+//-bug 788904,liangyiyi.wt,modify,2022/8/6,modify for fix open double camera exception
+//-bug 767771,liangyiyi.wt,modify,2022/8/2,fix front sc1300mcs sensor current leak
+
 #define IMGSENSOR_PROF 1
 #if IMGSENSOR_PROF
 void IMGSENSOR_PROFILE_INIT(struct timeval *ptv)
@@ -99,8 +197,7 @@ void IMGSENSOR_PROFILE(struct timeval *ptv, char *tag)
 struct IMGSENSOR_SENSOR
 *imgsensor_sensor_get_inst(enum IMGSENSOR_SENSOR_IDX idx)
 {
-	if (idx < IMGSENSOR_SENSOR_IDX_MIN_NUM ||
-		idx >= IMGSENSOR_SENSOR_IDX_MAX_NUM)
+	if (idx >= IMGSENSOR_SENSOR_IDX_MAX_NUM)
 		return NULL;
 	else
 		return &gimgsensor.sensor[idx];
@@ -170,10 +267,20 @@ MINT32 imgsensor_sensor_open(struct IMGSENSOR_SENSOR *psensor)
 
 		/* turn on power */
 		IMGSENSOR_PROFILE_INIT(&psensor_inst->profile_time);
-
+		//+bug 767771,liangyiyi.wt,modify,2022/11/8,fix ANR problems caused by poweron
+		mutex_lock(&cam1_pinctrl_mutex);
 		ret = imgsensor_hw_power(&pimgsensor->hw,
 				psensor,
 				IMGSENSOR_HW_POWER_STATUS_ON);
+		mutex_unlock(&cam1_pinctrl_mutex);
+		//-bug 767771,liangyiyi.wt,modify,2022/11/8,fix ANR problems caused by poweron
+        //+bug 767771,liangyiyi.wt,modify,2022/8/2,fix front sc1300mcs sensor current leak
+        if(psensor_inst->sensor_idx != IMGSENSOR_SENSOR_IDX_SUB && (sc1300mcs_is_alive == 1)){
+            mutex_lock(&cam1_pinctrl_mutex);
+            sc1300mcs_power_off(psensor_inst->sensor_idx);
+            mutex_unlock(&cam1_pinctrl_mutex);
+        }
+        //-bug 767771,liangyiyi.wt,modify,2022/8/2,fix front sc1300mcs sensor current leak
 
 		if (ret != IMGSENSOR_RETURN_SUCCESS) {
 			PK_PR_ERR("[%s]", __func__);
@@ -530,9 +637,20 @@ static inline int imgsensor_check_is_alive(struct IMGSENSOR_SENSOR *psensor)
 	struct IMGSENSOR_SENSOR_INST *psensor_inst = &psensor->inst;
 
 	IMGSENSOR_PROFILE_INIT(&psensor_inst->profile_time);
+	//+bug 767771,liangyiyi.wt,modify,2022/11/8,fix ANR problems caused by poweron
+	mutex_lock(&cam1_pinctrl_mutex);
 	ret = imgsensor_hw_power(&pimgsensor->hw,
 			psensor,
 			IMGSENSOR_HW_POWER_STATUS_ON);
+	mutex_unlock(&cam1_pinctrl_mutex);
+	//-bug 767771,liangyiyi.wt,modify,2022/11/8,fix ANR problems caused by poweron
+    //+bug 767771,liangyiyi.wt,modify,2022/8/2,fix front sc1300mcs sensor current leak
+    if(psensor_inst->sensor_idx != IMGSENSOR_SENSOR_IDX_SUB && (sc1300mcs_is_alive == 1)){
+        mutex_lock(&cam1_pinctrl_mutex);
+        sc1300mcs_power_off(psensor_inst->sensor_idx);
+        mutex_unlock(&cam1_pinctrl_mutex);
+    }
+    //-bug 767771,liangyiyi.wt,modify,2022/8/2,fix front sc1300mcs sensor current leak
 
 	if (ret != IMGSENSOR_RETURN_SUCCESS)
 		return ERROR_SENSOR_CONNECT_FAIL;
@@ -546,8 +664,75 @@ static inline int imgsensor_check_is_alive(struct IMGSENSOR_SENSOR *psensor)
 		PK_DBG("Fail to get sensor ID %x\n", sensorID);
 		err = ERROR_SENSOR_CONNECT_FAIL;
 	} else {
-		PK_DBG("Sensor found ID = 0x%x\n", sensorID);
+		pr_info("Sensor found ID = 0x%x\n", sensorID);
 		err = ERROR_NONE;
+		//+bug767771 liudijin.wt, add, 2022/07/22, distinguish depth camera params for dualcam
+		if((W2S5KJN1REARTRULY_SENSOR_ID == sensorID) || (W2S5KJN1REARST_SENSOR_ID == sensorID) || (W2HI5022QREARTXD_SENSOR_ID == sensorID)){
+			main_sensor_id = sensorID;
+			pr_info("the deveice main_sensor_id:0x%x",main_sensor_id);
+		}
+		//-bug767771 liudijin.wt, add, 2022/07/22, distinguish depth camera params for dualcam
+		//+bug767771,liangyiyi.wt,ADD,2022/07/12,add hi1336 bringup code.
+		//+bug604664,zhouyikuan.wt,ADD,2020/12/17,add wide angle info for mmigroup apk
+		pr_info("using the S96901AA1 camera module info for mmigroup senso_name:%s\n", psensor_inst->psensor_list->name);
+		if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN){
+			hardwareinfo_set_prop(HARDWARE_BACK_CAM, psensor_inst->psensor_list->name);
+			if(!strcmp(psensor_inst->psensor_list->name, "w2s5kjn1reartruly_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "TRULY");
+			else if(!strcmp(psensor_inst->psensor_list->name, "w2s5kjn1rearst_mipi_raw"))
+		//+ExtB P220916-09945,wuwenhao2.wt,ADD,2022/09/20, modify camera_Main_modID.
+				hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "SHENGTAI");
+		//-ExtB P220916-09945,wuwenhao2.wt,ADD,2022/09/20, modify camera_Main_modID.
+			else if(!strcmp(psensor_inst->psensor_list->name, "w2hi5022qreartxd_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_CAM_MOUDULE_ID, "TXD");
+		}else if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_SUB){
+			hardwareinfo_set_prop(HARDWARE_FRONT_CAM, psensor_inst->psensor_list->name);
+            //+bug 767771,liangyiyi.wt,modify,2022/8/2,fix front sc1300mcs sensor current leak
+			if(!strcmp(psensor_inst->psensor_list->name, "w2sc501csfrontsy_mipi_raw")){
+				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "SHUNYU");
+				sc1300mcs_is_alive = 0;
+            }
+			else if(!strcmp(psensor_inst->psensor_list->name, "w2hi1336fronttruly_mipi_raw")){
+				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "TRULY");
+				sc1300mcs_is_alive = 0;
+            }
+			else if(!strcmp(psensor_inst->psensor_list->name, "w2sc1300mcsfronttxd_mipi_raw")){
+				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "TXD");
+				sc1300mcs_is_alive = 1;
+            }
+            else if(!strcmp(psensor_inst->psensor_list->name, "w2sc1300mcsfrontst_mipi_raw")){
+				hardwareinfo_set_prop(HARDWARE_FRONT_CAM_MOUDULE_ID, "SHENGTAI");
+				sc1300mcs_is_alive = 1;
+            }
+            //+bug 767771,liangyiyi.wt,modify,2022/8/2,fix front sc1300mcs sensor current leak
+		}else if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN2){
+			hardwareinfo_set_prop(HARDWARE_BACK_SUB_CAM, psensor_inst->psensor_list->name);
+			//+bug604664,zhouyikuan.wt,ADD,2020/12/19,add depth camera info for mmigroup apk
+			if(!strcmp(psensor_inst->psensor_list->name, "w2sc202csdeplh_mipi_mono"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "LHYX");
+			else if(!strcmp(psensor_inst->psensor_list->name, "w2sc202csdeplh2_mipi_mono"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "LHYX");
+			else if(!strcmp(psensor_inst->psensor_list->name, "w2c2519depcxt_mipi_mono"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "CXT");
+			else if(!strcmp(psensor_inst->psensor_list->name, "w2c2519depcxt2_mipi_mono"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "CXT");
+			else if(!strcmp(psensor_inst->psensor_list->name, "w2gc02m1depsj_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_BACK_SUBCAM_MOUDULE_ID, "SHIJIA");
+		}else if(psensor_inst->sensor_idx == IMGSENSOR_SENSOR_IDX_MAIN3){
+			hardwareinfo_set_prop(HARDWARE_MICRO_CAM, psensor_inst->psensor_list->name);
+			if(!strcmp(psensor_inst->psensor_list->name, "w2sc202csmicrolh_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_MICRO_CAM_MOUDULE_ID, "LHYX");
+			else if(!strcmp(psensor_inst->psensor_list->name, "w2gc02m1microcxt_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_MICRO_CAM_MOUDULE_ID, "CXT");
+			else if(!strcmp(psensor_inst->psensor_list->name, "w2bf2253lmicrosj_mipi_raw"))
+				hardwareinfo_set_prop(HARDWARE_MICRO_CAM_MOUDULE_ID, "SHIJIA");
+            //+bug767771,zhujianjia.wt,ADD,2022/08/10,add w2c2599microdelta bringup code.
+            else if(!strcmp(psensor_inst->psensor_list->name, "w2c2599microdelta_mipi_raw"))
+                hardwareinfo_set_prop(HARDWARE_MICRO_CAM_MOUDULE_ID, "DELTA");
+           //-bug767771,zhujianjia.wt,ADD,2022/08/10,add w2c2599microdelta bringup code.
+		}
+		//-bug604664,zhouyikuan.wt,ADD,2020/12/17,add wide angle info for mmigroup apk
+		//-bug767771,liangyiyi.wt,ADD,2022/07/12,add hi1336 bringup code.
 	}
 
 	imgsensor_hw_power(&pimgsensor->hw,
@@ -1077,7 +1262,9 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 		struct IMGSENSOR_SENSOR_LIST *psensor_list =
 			(struct IMGSENSOR_SENSOR_LIST *)pFeaturePara;
 
-		if (FeatureParaLen < 1 * sizeof(struct IMGSENSOR_SENSOR_LIST)) {
+		/* NOTICE: MUINT32 (*init)(struct SENSOR_FUNCTION_STRUCT **pfFunc) */
+		/* Not used and don't use due to A32+K64 no support ioctl of address type */
+		if (FeatureParaLen < (1 * sizeof(MUINT32) + 32 * sizeof(MUINT8))) {
 			PK_DBG("FeatureParaLen is too small %d\n", FeatureParaLen);
 			kfree(pFeaturePara);
 			return -EINVAL;
@@ -1105,7 +1292,7 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 		pSensorSyncInfo =
 			(struct ACDK_KD_SENSOR_SYNC_STRUCT *) pFeaturePara;
 
-		if (FeatureParaLen < 1 * sizeof(struct ACDK_KD_SENSOR_SYNC_STRUCT)) {
+		if (FeatureParaLen < 4 * sizeof(unsigned long long)) {
 			PK_DBG("FeatureParaLen is too small %d\n", FeatureParaLen);
 			kfree(pFeaturePara);
 			return -EINVAL;
@@ -1868,7 +2055,7 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 			/* buffer size exam */
 			if ((sizeof(kal_uint8) * u4RegLen) >
 			    IMGSENSOR_FEATURE_PARA_LEN_MAX ||
-			    (u4RegLen > LSC_TBL_DATA_SIZE || u4RegLen < 0)) {
+			    (u4RegLen > LSC_TBL_DATA_SIZE)) {
 				kfree(pFeaturePara);
 				PK_PR_ERR(" buffer size (%u) is too large\n",
 					u4RegLen);
@@ -2249,6 +2436,8 @@ static long imgsensor_ioctl(
 			goto CAMERA_HW_Ioctl_EXIT;
 		}
 
+		memset(pBuff, 0x0, _IOC_SIZE(a_u4Command));
+
 		if (_IOC_WRITE & _IOC_DIR(a_u4Command)) {
 			if (copy_from_user(pBuff, (void *)a_u4Param,
 			_IOC_SIZE(a_u4Command))) {
@@ -2408,6 +2597,59 @@ static int imgsensor_probe(struct platform_device *pplatform_device)
 	}
 
 	phw->common.pplatform_device = pplatform_device;
+
+    //+bug 767771,liangyiyi.wt,modify,2022/8/2,fix front sc1300mcs sensor current leak
+    mutex_init(&cam1_pinctrl_mutex);
+    cam1_pinctrl = devm_pinctrl_get(&(phw->common.pplatform_device->dev));
+    if(IS_ERR(cam1_pinctrl)){
+        pr_err("cam1_pinctrl get pinctrl failed !");
+        //return -1;
+    } else {
+        PK_DBG("cam1_pinctrl get pinctrl succeed");
+        cam1_vcamd_1v2_pin_en0 = pinctrl_lookup_state(cam1_pinctrl, "cam1_vcamd_1v2_en0");
+        if (IS_ERR(cam1_vcamd_1v2_pin_en0)) {
+            pr_err("cam1_pinctrl pinctrl_lookup_state cam1_vcamd_1v2_pin_en0 failed !");
+            //return -1;
+        } else {
+            PK_DBG("cam1_pinctrl pinctrl_lookup_state cam1_vcamd_1v2_pin_en0 succeed");
+        }
+        cam1_vcamd_1v1_pin_en1 = pinctrl_lookup_state(cam1_pinctrl, "cam1_vcamd_1v1_en1");
+        if (IS_ERR(cam1_vcamd_1v1_pin_en1)) {
+            pr_err("cam1_pinctrl pinctrl_lookup_state cam1_vcamd_1v1_pin_en1 failed !");
+            //return -1;
+        } else {
+            PK_DBG("cam1_pinctrl pinctrl_lookup_state cam1_vcamd_1v1_pin_en1 succeed");
+        }
+        cam1_vcamd_pin_en0 = pinctrl_lookup_state(cam1_pinctrl, "cam1_vcamd_en0");
+        if (IS_ERR(cam1_vcamd_pin_en0)) {
+            pr_err("cam1_pinctrl pinctrl_lookup_state cam1_vcamd_pin_en0 failed !");
+            //return -1;
+        } else {
+            PK_DBG("cam1_pinctrl pinctrl_lookup_state cam1_vcamd_pin_en0 succeed");
+        }
+        cam1_vcamd_pin_en1 = pinctrl_lookup_state(cam1_pinctrl, "cam1_vcamd_en1");
+        if (IS_ERR(cam1_vcamd_pin_en1)) {
+            pr_err("cam1_pinctrl pinctrl_lookup_state cam1_vcamd_pin_en1 failed !");
+            //return -1;
+        } else {
+            PK_DBG("cam1_pinctrl pinctrl_lookup_state cam1_vcamd_pin_en1 succeed");
+        }
+        cam1_rst_pin_en0 = pinctrl_lookup_state(cam1_pinctrl, "cam1_rst_en0");
+        if (IS_ERR(cam1_rst_pin_en0)) {
+            pr_err("cam1_pinctrl pinctrl_lookup_state cam1_rst_pin_en0 failed !");
+            //return -1;
+        } else {
+            PK_DBG("cam1_pinctrl pinctrl_lookup_state cam1_rst_pin_en0 succeed");
+        }
+        cam1_rst_pin_en1 = pinctrl_lookup_state(cam1_pinctrl, "cam1_rst_en1");
+        if (IS_ERR(cam1_rst_pin_en1)) {
+            pr_err("cam1_pinctrl pinctrl_lookup_state cam1_rst_pin_en1 failed !");
+            //return -1;
+        } else {
+            PK_DBG("cam1_pinctrl pinctrl_lookup_state cam1_rst_pin_en1 succeed");
+        }
+    }
+    //-bug 767771,liangyiyi.wt,modify,2022/8/2,fix front sc1300mcs sensor current leak
 
 	imgsensor_hw_init(phw);
 	imgsensor_i2c_create();

@@ -81,12 +81,6 @@ static struct power_supply *batt_psy;
 static int count = 0;
 extern int mtk_chg_status;
 #endif
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-bool otg_enabled;
-static struct delayed_work batt_work;
-static struct power_supply *batt_psy;
-static int count = 0;
-#endif
 struct mtk_charger_type {
 	struct mt6397_chip *chip;
 	struct regmap *regmap;
@@ -138,23 +132,11 @@ static enum power_supply_property mt_usb_properties[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 	POWER_SUPPLY_PROP_CURRENT_MAX,
 	POWER_SUPPLY_PROP_VOLTAGE_MAX,
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-	POWER_SUPPLY_PROP_TYPEC_CC_ORIENTATION,
-#endif
-#ifdef CONFIG_AFC_CHARGER
-	POWER_SUPPLY_PROP_AFC_FLAG,
-#endif
 #if defined (CONFIG_N23_CHARGER_PRIVATE)
 	POWER_SUPPLY_PROP_TYPEC_CC_ORIENTATION,
 	POWER_SUPPLY_PROP_REAL_TYPE,
 #endif
 };
-
-//+bug 717431, liyiying.wt, add, 2021/2/19, n21s afc charger bring up
-#ifdef CONFIG_AFC_CHARGER
-extern int g_afc_work_status;
-#endif
-//-bug 717431, liyiying.wt, add, 2021/2/19, n21s afc charger bring up
 
 void bc11_set_register_value(struct regmap *map,
 	unsigned int addr,
@@ -627,11 +609,6 @@ static int get_vbus_voltage(struct mtk_charger_type *info,
 	return ret;
 }
 
-//+bug 717431, liyiying.wt, add, 2021/2/14, n21s charger bring up
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-extern int cc_polarity;
-#endif
-//-bug 717431, liyiying.wt, add, 2021/2/14, n21s charger bring up
 
 #if defined (CONFIG_N23_CHARGER_PRIVATE)
 extern int polarity_state;
@@ -667,7 +644,6 @@ void do_charger_detect(struct mtk_charger_type *info, bool en)
 {
 	union power_supply_propval prop_online, prop_type, prop_usb_type;
 	int ret = 0;
-
 #if defined (CONFIG_N23_CHARGER_PRIVATE)
 	struct charger_device *primary_charger;
 	bool is_hz_mode = false;
@@ -724,14 +700,7 @@ if(1){
 		if (is_hz_mode)
 			charger_dev_hz_mode(primary_charger, 0);
 	}
-#endif
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-	if (otg_enabled == true) {
-		pr_err("%s otg enabled, return\n", __func__);
-		return;
-	} else {
-		pr_info("not otg mode ! continue\n");
-	}
+
 #endif
 
 	prop_online.intval = en;
@@ -758,11 +727,6 @@ if(1){
 	} else {
 		info->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
 		info->type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
-//+bug 717431, liyiying.wt, add, 2021/2/14, n21s charger bring up
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-		cc_polarity = 0;
-#endif
-//-bug 717431, liyiying.wt, add, 2021/2/14, n21s charger bring up
 #if defined (CONFIG_N23_CHARGER_PRIVATE)
 		polarity_state = 0;
 		count = 0;
@@ -908,16 +872,6 @@ int psy_chr_type_set_property(struct power_supply *psy,
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
 		info->type = get_charger_type(info);
-//+bug 717431, liyiying.wt, mod, 2021/1/26, n21s charger bring up
-#ifdef CONFIG_MT6370_PMU_CHARGER
-		if(val->intval == 0)
-		{
-			info->type = POWER_SUPPLY_USB_TYPE_UNKNOWN;
-			info->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
-		}
-#endif
-//-bug 717431, liyiying.wt, mod, 2021/1/26, n21s charger bring up
-
 #if defined (CONFIG_N23_CHARGER_PRIVATE)
 		if (val->intval == true) {
 			info->type = get_charger_type(info);
@@ -1015,6 +969,7 @@ static int mt_usb_get_property(struct power_supply *psy,
 	enum power_supply_property psp, union power_supply_propval *val)
 {
 	struct mtk_charger_type *info;
+
 	info = (struct mtk_charger_type *)power_supply_get_drvdata(psy);
 
 	switch (psp) {
@@ -1031,21 +986,6 @@ static int mt_usb_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
 		val->intval = 5000000;
 		break;
-//+bug 717431, liyiying.wt, add, 2021/2/14, n21s charger bring up
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-	case POWER_SUPPLY_PROP_TYPEC_CC_ORIENTATION:
-		val->intval = cc_polarity;
-		break;
-#endif
-//-bug 717431, liyiying.wt, add, 2021/2/14, n21s charger bring up
-//+bug 717431, liyiying.wt, add, 2021/2/19, n21s afc charger bring up
-#ifdef CONFIG_AFC_CHARGER
-	case POWER_SUPPLY_PROP_AFC_FLAG:
-		val->intval = g_afc_work_status;
-		break;
-#endif
-//-bug 717431, liyiying.wt, add, 2021/2/19, n21s afc charger bring up
-
 #if defined (CONFIG_N23_CHARGER_PRIVATE)
 	case POWER_SUPPLY_PROP_TYPEC_CC_ORIENTATION:
 		val->intval = polarity_state;
@@ -1068,14 +1008,6 @@ static int mt_usb_get_property(struct power_supply *psy,
 
 	return 0;
 }
-
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-int wt_get_afc_work_status(void)
-{
-        return g_afc_work_status;
-
-}
-#endif
 
 static int psy_charger_type_property_is_writeable(struct power_supply *psy,
 					       enum power_supply_property psp)
@@ -1106,7 +1038,6 @@ static void battery_current_monitoring_work(struct work_struct *data)
 {
 	struct mtk_charger_type *info;
 	union power_supply_propval val;
-	
 	int ret= 0;
 #if defined (CONFIG_N21_CHARGER_PRIVATE)
 	struct power_supply *psy, *psy_master;
@@ -1308,8 +1239,6 @@ static int mt6357_charger_type_probe(struct platform_device *pdev)
 		}
 #endif
 		INIT_WORK(&info->chr_work, do_charger_detection_work);
-//+bug 717431, liyiying.wt, add, 2021/1/26, n21s charger bring up
-#ifndef CONFIG_MT6370_PMU_CHARGER
 		schedule_work(&info->chr_work);
 
 		ret = devm_request_threaded_irq(&pdev->dev,
@@ -1317,14 +1246,8 @@ static int mt6357_charger_type_probe(struct platform_device *pdev)
 			chrdet_int_handler, IRQF_TRIGGER_HIGH, "chrdet", info);
 		if (ret < 0)
 			pr_notice("%s request chrdet irq fail\n", __func__);
-#else
-		ret = 0;
-#endif
-//-bug 717431, liyiying.wt, add, 2021/1/26, n21s charger bring up
 	}
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-	INIT_DELAYED_WORK(&batt_work, battery_current_monitoring_work);
-#endif
+
 #if defined (CONFIG_N23_CHARGER_PRIVATE)
 	INIT_DELAYED_WORK(&batt_work, battery_current_monitoring_work);
 	INIT_DELAYED_WORK(&info->typec_det_work, typec_detect_work);

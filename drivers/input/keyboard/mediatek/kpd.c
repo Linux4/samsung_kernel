@@ -142,6 +142,28 @@ void vol_down_long_press(unsigned long pressed)
 #endif
 /*****************************************/
 
+#if defined(PMIC_KEY_STATUS)
+unsigned int kpd_pwrkey_pmic_status(void)
+{
+	unsigned int pressed;
+
+	pressed = kpd_pmic_pwrkey_status_hal();
+	kpd_info("[%s] %s power key\n", __func__, pressed ? "pressed" : "released");
+
+	return pressed;
+}
+
+unsigned int kpd_homekey_pmic_status(void)
+{
+	unsigned int pressed;
+
+	pressed = kpd_pmic_homekey_status_hal();
+	kpd_info("[%s] %s home key\n", __func__, pressed ? "pressed" : "released");
+
+	return pressed;
+}
+#endif
+
 #ifdef CONFIG_KPD_PWRKEY_USE_PMIC
 void kpd_pwrkey_pmic_handler(unsigned long pressed)
 {
@@ -162,6 +184,11 @@ void kpd_pmic_rstkey_handler(unsigned long pressed)
 		return;
 	}
 	kpd_pmic_rstkey_hal(pressed);
+}
+
+void kpd_pwk_event(int pressed)
+{	
+	kpd_pmic_pwrkey_hal(pressed);
 }
 
 static void kpd_keymap_handler(unsigned long data)

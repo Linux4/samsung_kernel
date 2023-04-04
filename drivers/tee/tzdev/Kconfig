@@ -1,11 +1,30 @@
 menuconfig TZDEV
 	tristate "Samsung TZ Based Secure OS Support"
 	default n
-	depends on (ARM || ARM64) && TEEGRIS_TEE_SUPPORT
+	depends on ARM || ARM64
 	help
 	  Samsung TZ Based Secure OS interface driver.
 
 if TZDEV
+
+config TZDEV_TVM
+	bool "TZDEV TVM"
+	depends on TZDEV
+	default n
+	help
+	  Enable Trusted virtual machine support.
+
+config TZDEV_GUNYAH
+	bool "TZDEV GUNYAH"
+	depends on TZDEV_TVM
+	default n
+
+config SAMSUNG_GKI_KERNEL
+	bool "GKI mode definitions enabled"
+	default n
+	help
+	  Opens including for GKI Linux kernel.
+
 config TZDEV_SK_PFNS_64BIT
 	bool "Secure kernel works with 64-bit PFNs"
 	default n
@@ -49,6 +68,18 @@ config TZLOG
 	help
 	  Enable support for Samsung Secure OS Logger.
 
+config TZDEV_SMC_CHANNEL_PERSISTENT_PAGES
+	int "TZDEV SMC CHANNEL number of persistent pages in a smc channel"
+	default 10
+	help
+	  Number of persistent pages in a smc channel.
+
+config TZDEV_IW_EVENTS_MAX_EVENTS
+	int "TZDEV IW EVENTS maximum number of iw events"
+	default 65535
+	help
+	  Maximum number of iw events that can be registered at one moment.
+
 config TZLOG_POLLING
 	bool "TZDEV LOGGER polling"
 	depends on TZLOG
@@ -77,9 +108,25 @@ config TZDEV_SK_MULTICORE
 	help
 	  Define if secure kernel can work in multicore mode.
 
+config TZDEV_OFFLOAD_CPU0
+	bool "Offload CPU0"
+	depends on TZDEV_SK_MULTICORE
+	default n
+	help
+	  Offload CPU0 to minimize impact on NWd interrupts processing delays.
+	  This option needs the corresponding option (CONFIG_OFFLOAD_CPU0) in secure
+	  kernel configuration be enabled.
+
+config DMABUF_HEAP_FD2PHYS
+	bool "Use DMABUF HEAP instead of ION for FD2PHYS"
+	default n
+	help
+	  Implement FD2PHYS kernel driver using new DMABUF HEAP library instead of
+	  old ION library, which is absent in Linux kernels with version >=5.10.
+
 config ION_FD2PHYS
 	bool "ION FD to physical address converter"
-	depends on ION && (ARCH_EXYNOS || ARCH_MSM || ARCH_WHALE || ARCH_MT6755 || ARCH_MT6735 || ARCH_RANCHU || MACH_MT6757 || MACH_MT6853)
+	depends on ION && (ARCH_EXYNOS || ARCH_MSM || ARCH_WHALE || ARCH_MT6755 || ARCH_MT6735 || ARCH_RANCHU || MACH_MT6757 || MACH_MT6853 || MACH_MT6739 || MACH_MT6768)
 	default y
 	help
 	  Provide a method for userspace to get physical address from ION buffer
@@ -133,6 +180,27 @@ config TZDEV_BOOST_CLUSTER
 	help
 	  Select which cluster is high performance cluster.
 
+config TZDEV_BOOST_CLUSTER_0
+	bool "Boost performance of cluster 0"
+	depends on TZDEV_BOOST
+	default n
+	help
+	  Select to boost cluster 0.
+
+config TZDEV_BOOST_CLUSTER_1
+	bool "Boost performance of cluster 1"
+	depends on TZDEV_BOOST
+	default y
+	help
+	  Select to boost cluster 1.
+
+config TZDEV_BOOST_CLUSTER_2
+	bool "Boost performance of cluster 2"
+	depends on TZDEV_BOOST
+	default n
+	help
+	  Select to boost cluster 2.
+
 config TZ_BOOT_LOG
 	bool "TZ boot stage log"
 	default n
@@ -166,12 +234,6 @@ config TZDEV_DEBUG
 	help
 	  Debug extensions for samsung TZ Based Secure OS interface driver.
 
-config TZ_NWFS
-	bool "Normal world file system interface driver"
-	default n
-	help
-	  Normal world file system interface driver.
-
 config TZ_SCMA
 	bool "Secure contiguous memory allocator"
 	default n
@@ -187,6 +249,12 @@ config TZDEV_DEPLOY_TZAR
 config TEEGRIS_VERSION
 	int "TEEGRIS(SecureOS) version"
 	default 2
+	help
+	  TEEGRIS built with specific version of SDK
+
+config TEEGRIS_VERSION_STRING
+	string "TEEGRIS(SecureOS) TZDEV version"
+	default "4.2.0"
 	help
 	  TEEGRIS built with specific version of SDK
 

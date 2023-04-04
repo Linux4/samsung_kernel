@@ -21,6 +21,7 @@
 #include "himax_ic_core.h"
 #include <linux/power_supply.h>
 #include "../../../drivers/misc/mediatek/extcon/extcon-mtk-usb.h"
+#include "../../../../misc/mediatek/lcm/inc/panel_notifier.h"
 
 int i2c_error_count;
 bool ic_boot_done;
@@ -28,6 +29,7 @@ bool ic_boot_done;
 #define ENABLE 1
 bool himax_gesture_status = DISABLE;
 static struct notifier_block himax_charger_notifier;
+static struct notifier_block himax_headset_notifier;
 
 const struct of_device_id himax_match_table[] = {
 	{.compatible = "mediatek,cap_touch" },
@@ -688,6 +690,10 @@ static int himax_common_probe_spi(struct spi_device *spi)
 	}
 #endif
 #endif
+	himax_headset_notifier.notifier_call = himax_headset_notifier_callback;
+	if(panel_register_client(&himax_headset_notifier))
+			I("gcore_headset_nodifier register notifier failed!");
+
 	himax_charger_notifier.notifier_call = himax_charger_notifier_callback;
 	ret = power_supply_reg_notifier(&himax_charger_notifier);
 	if (ret) {

@@ -3546,6 +3546,19 @@ mtk_ovl_config_trigger(struct mtk_ddp_comp *comp, struct cmdq_pkt *pkt,
 		       enum mtk_ddp_comp_trigger_flag flag)
 {
 	switch (flag) {
+	case MTK_TRIG_FLAG_PRE_TRIGGER:
+	{
+		/* not access HW which in blank mode */
+		if (comp->blank_mode)
+			break;
+
+		cmdq_pkt_write(pkt, comp->cmdq_base,
+			comp->regs_pa + DISP_REG_OVL_RST, 0x1, 0x1);
+		cmdq_pkt_write(pkt, comp->cmdq_base,
+			comp->regs_pa + DISP_REG_OVL_RST, 0x0, 0x1);
+
+		break;
+	}
 	case MTK_TRIG_FLAG_LAYER_REC:
 	{
 		u32 offset = 0;

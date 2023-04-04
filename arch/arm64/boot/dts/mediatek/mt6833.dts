@@ -30,7 +30,7 @@
 	/* chosen */
 	chosen: chosen {
 		bootargs = "console=tty0 console=ttyS0,921600n1 root=/dev/ram \
-		vmalloc=400M slub_debug=OFZPU swiotlb=noforce \
+		vmalloc=400M swiotlb=noforce \
 		firmware_class.path=/vendor/firmware \
 		androidboot.hardware=mt6833 \
 		page_owner=on loop.max_part=7";
@@ -548,12 +548,39 @@
 		#size-cells = <2>;
 		ranges;
 
+#if defined(CONFIG_SEC_DEBUG)
+		sec-log-reserve-memory@0x46C00000 {
+			reg = <0 0x46C00000 0 0x200000>;
+		};
+
+		sec-lastklog@0x46E00000 {
+			reg = <0 0x46E00000 0 0x200000>;
+		};
+
+		sec-logger-reserve-memory@0x47000000 {
+			reg = <0 0x47000000 0 0x400000>;
+		};
+
+		sec-autocomment-reserve-memory@0x47400000 {
+			reg = <0 0x47400000 0 0x10000>;
+		};
+		
+		sec-extrainfo-reserve-memory@0x47410000 {
+			reg = <0 0x47410000 0 0x1F0000>;
+		};
+#endif
+
 		ssmr_cma_mem: ssmr-reserved-cma_memory {
 			compatible = "shared-dma-pool";
 			reusable;
 			size = <0 0x10000000>;
 			alignment = <0 0x1000000>;
 			alloc-range = <0 0xc0000000 0 0x10000000>;
+		};
+
+		cccimdee-reserved-memory {
+			compatible = "mediatek,ccci-md-ee-dump";
+			reg = <0 0x4AE3E000 0 0x1c2000>;/* 1800KB */
 		};
 
 		reserve-memory-scp_share {
@@ -609,7 +636,7 @@
 		consys_mem: consys-reserve-memory {
 			compatible = "mediatek,consys-reserve-memory";
 			no-map;
-			size = <0 0x500000>;
+			size = <0 0x540000>;
 			alignment = <0 0x1000000>;
 			alloc-ranges = <0 0x40000000 0 0x80000000>;
 		};
@@ -1876,7 +1903,7 @@
 	};
 
 	touch:touch {
-		compatible = "goodix,touch";
+		compatible = "mediatek,touch";
 	};
 
 	ap_ccif0@10209000 {
@@ -1888,6 +1915,20 @@
 	goodix_fp: fingerprint {
 		compatible = "mediatek,goodix-fp";
 	};
+ 
+	finger_fp:finger_fp {
+                compatible = "mediatek,finger-chipone",
+			     "sil,silead_fp-pins";
+        };
+
+        fpsensor_fp_eint:fpsensor_fp_eint{
+                compatible = "mediatek,fpsensor_fp_eint";
+                int-gpios = <&pio 18 0>;
+        };
+
+        fpc1020_fp:fpc1020_fp {
+                compatible = "fpc,fpc1020";
+        };
 
 	accdet: accdet {
 		compatible = "mediatek,pmic-accdet";
@@ -3020,6 +3061,25 @@
 		io-channels = <&auxadc 2>;
 		io-channel-names = "thermistor-ch2";
 	};
+        /*[+Chk 127645,songyuanqiao@wingtech.com,add the thermal ntc 20220704]*/
+	tboard_thermistor4: thermal-sensor4 {
+		compatible = "mediatek,mtboard-thermistor4";
+		io-channels = <&auxadc 3>;
+		io-channel-names = "thermistor-ch3";
+	};
+	
+	tboard_thermistor5: thermal-sensor5 {
+		compatible = "mediatek,mtboard-thermistor5";
+		io-channels = <&auxadc 4>;
+		io-channel-names = "thermistor-ch4";
+	};
+	
+	tboard_thermistor7: thermal-sensor7 {
+		compatible = "mediatek,mtboard-thermistor7";
+		io-channels = <&auxadc 6>;
+		io-channel-names = "thermistor-ch6";
+	};
+        /*[-Chk 127645,songyuanqiao@wingtech.com,add the thermal ntc 20220704]*/
 	usb: usb0@11200000 {
 		compatible = "mediatek,mt6833-usb20";
 		reg = <0 0x11200000 0 0x10000>,
@@ -3277,8 +3337,10 @@
 				"aud_gpio_i2s3_off",
 				"aud_gpio_i2s3_on",
 				"aud_gpio_i2s5_off",
-				"aud_gpio_i2s5_on";
-
+				"aud_gpio_i2s5_on",
+				/*bug 767771 chenfeng.wt add HAC 20220719*/
+				"hacamp_pullhigh",
+				"hacamp_pulllow";
 		pinctrl-0 = <&aud_clk_mosi_off>;
 		pinctrl-1 = <&aud_clk_mosi_on>;
 		pinctrl-2 = <&aud_dat_mosi_off>;
@@ -3303,6 +3365,9 @@
 		pinctrl-21 = <&aud_gpio_i2s3_on>;
 		pinctrl-22 = <&aud_gpio_i2s5_off>;
 		pinctrl-23 = <&aud_gpio_i2s5_on>;
+		/*bug 767771 chenfeng.wt add HAC 20220719*/
+		pinctrl-24 = <&aud_pins_hacamp_high>;
+		pinctrl-25 = <&aud_pins_hacamp_low>;
 	};
 
 	mt6359_snd: mt6359_snd {
@@ -3700,7 +3765,7 @@
 		larb0 = <8 7 8 8>;
 		larb1 = <7 8 8 9 8>;
 		larb2 = <7 7 7 7 8>;
-		larb4 = <3 7 4 7 7 7 7 7 7 6 7 4>;
+		larb4 = <3 7 4 7 7 7 7 7 7 6 4 7>;
 		larb7 = <7 8 8 8 7 7 7 7 7 7 7 7 8>;
 		larb9 = <7 7 7 7 7 7 8 8 8 8 7 7 8 9 8 6 6 7
 			7 7 7 7 7 7 8 8 8 8 7>;
@@ -4074,7 +4139,7 @@
 			<0>, /*MTK_DRM_OPT_SODI_SUPPORT*/
 			<1>, /*MTK_DRM_OPT_IDLE_MGR*/
 			<0>, /*MTK_DRM_OPT_IDLEMGR_SWTCH_DECOUPLE*/
-			<1>, /*MTK_DRM_OPT_IDLEMGR_BY_REPAINT*/
+			<0>, /*MTK_DRM_OPT_IDLEMGR_BY_REPAINT*/
 			<0>, /*MTK_DRM_OPT_IDLEMGR_ENTER_ULPS*/
 			<0>, /*MTK_DRM_OPT_IDLEMGR_KEEP_LP11*/
 			<0>, /*MTK_DRM_OPT_DYNAMIC_RDMA_GOLDEN_SETTING*/
@@ -4296,7 +4361,23 @@
 		phys = <&mipi_tx_config0>;
 		phy-names = "dphy";
 	};
-
+      /*Bug767767  chenduoyin.wt  20220622 Add swtp feature begin*/
+        swtp: swtp {
+               compatible = "mediatek, swtp-eint";
+         };
+        swtp_1: swtp_1 {
+               compatible = "mediatek, swtp1-eint";
+         };
+        swtp_2: swtp_2 {
+               compatible = "mediatek, swtp2-eint";
+         };
+        swtp_3: swtp_3 {
+               compatible = "mediatek, swtp3-eint";
+         };
+        swtp_4: swtp_4 {
+               compatible = "mediatek, swtp4-eint";
+         };
+       /*Bug767767  chenduoyin.wt  20220622 Add swtp feature end*/
 	dsi_te: dsi_te {
 		compatible = "mediatek, dsi_te-eint";
 		status = "disabled";
@@ -5588,6 +5669,7 @@
 
 	gps: gps@18c00000 {
 		compatible = "mediatek,gps";
+		b13b14-status-addr = <0x10003328>;
 	};
 
 	odm: odm {
@@ -5606,7 +5688,8 @@
 		2d_fr-size = <0 0>;
 #endif
 #if defined(CONFIG_TRUSTONIC_TRUSTED_UI) || \
-	defined(CONFIG_BLOWFISH_TUI_SUPPORT)
+	defined(CONFIG_BLOWFISH_TUI_SUPPORT) || \
+	defined(CONFIG_TEEGRIS_TUI)
 		tui-size = <0 0x4000000>;
 #endif
 #ifdef CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT
@@ -5687,7 +5770,7 @@
 
 	spi5: spi5@11019000 {
 		compatible = "mediatek,mt6765-spi";
-		mediatek,pad-select = <0>;
+		mediatek,pad-select = <0>,<1>,<2>;
 		reg = <0 0x11019000 0 0x100>;
 		interrupts = <GIC_SPI 164 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&topckgen CLK_TOP_MAINPLL_D5_D4>,
@@ -5983,6 +6066,12 @@
 		interrupts = <GIC_SPI 83 IRQ_TYPE_EDGE_RISING>;
 	};
 
+	teegris {
+		compatible = "samsung,teegris";
+		interrupts = <GIC_SPI 302 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI 303 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
 	tee_sanity {
 		compatible = "mediatek,tee_sanity";
 		interrupts = <GIC_SPI 84 IRQ_TYPE_EDGE_RISING>;
@@ -6041,7 +6130,9 @@
 		/* enable_pe_4; */
 		enable_type_c;
 		power_path_support;
+#ifndef CONFIG_WT_PROJECT_S96902AA1 //usb if
 		enable_dynamic_mivr;
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 		bootmode = <&chosen>;
 
 		/* common */
@@ -6058,7 +6149,11 @@
 		usb_charger_current_suspend = <0>;
 		usb_charger_current_unconfigured = <70000>;
 		usb_charger_current_configured = <500000>;
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+		usb_charger_current = <100000>;
+#else
 		usb_charger_current = <500000>;
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 		ac_charger_current = <2050000>;
 		ac_charger_input_current = <3200000>;
 		non_std_ac_charger_current = <500000>;
@@ -6170,7 +6265,8 @@
 
 	mrdump_ext_rst: mrdump_ext_rst {
 		compatible = "mediatek, mrdump_ext_rst-eint";
-		mode = "IRQ";
+		force_mode = "SYSRST";
+		mode = "RST";
 		status = "okay";
 	};
 
@@ -6264,7 +6360,7 @@
 		compatible = "mediatek,speaker_amp";
 		#sound-dai-cells = <0>;
 		reg = <0x34>;
-		status = "okay";
+		status = "disabled";
 	};
 };
 
@@ -6457,6 +6553,246 @@
 	aud_gpio_i2s5_off: aud_gpio_i2s5_off {
 	};
 	aud_gpio_i2s5_on: aud_gpio_i2s5_on {
+	};
+	/*+bug 767771 chenfeng.wt add HAC 20220719*/
+	aud_pins_hacamp_high: aud_pins_hacamp_high  {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO98__FUNC_GPIO98>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	aud_pins_hacamp_low: aud_pins_hacamp_low {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO98__FUNC_GPIO98>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	/*-bug 767771 chenfeng.wt add HAC 20220719*/
+	input_booster {
+		status = "okay";
+		compatible = "input_booster";
+		resValcount = "2";
+		max_resource_count = "2";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		/* < CPU, DDR > */
+		ib_release_values = "-1, 16";
+
+		booster_key@1 {
+			input_booster,label = "key";
+			input_booster,type = <0>;	/* BOOSTER_DEVICE_KEY */
+
+			/* Time table */
+			input_booster,head_time = <200>;
+			input_booster,tail_time = <0>;
+
+			/* Resource Table Sequentially identified with index
+			 * CPU's ID & Index : 0
+			 * DDR's ID & Index : 1
+			*/
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1274000 0>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+			};
+		};
+
+		booster_key@2 {
+			input_booster,label = "touchkey";
+			input_booster,type = <1>;	/* BOOSTER_DEVICE_TOUCHKEY */
+
+			/* Time table */
+			input_booster,head_time = <1>;
+			input_booster,tail_time = <300>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <0 1042000>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+			};
+		};
+
+		booster_key@3 {
+			input_booster,label = "touch";
+			input_booster,type = <2>;	/* BOOSTER_DEVICE_TOUCH */
+
+			/* Time table */
+			input_booster,head_time = <130>;
+			input_booster,tail_time = <500>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1274000 1042000>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <4266 4266>;
+				};
+			};
+		};
+
+		booster_key@4 {
+			input_booster,label = "multitouch";
+			input_booster,type = <3>;	/* BOOSTER_DEVICE_MULTITOUCH */
+
+			/* Time table */
+			input_booster,head_time = <1000>;
+			input_booster,tail_time = <500>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1534000 1274000>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+			};
+		};
+
+		booster_key@5 {
+			input_booster,label = "keyboard";
+			input_booster,type = <4>;	/* BOOSTER_DEVICE_KEYBOARD */
+
+			/* Time table */
+			input_booster,head_time = <130>;
+			input_booster,tail_time = <130>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1042000 1042000>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+			};
+		};
+
+		booster_key@6 {
+			input_booster,label = "mouse";
+			input_booster,type = <5>;	/* BOOSTER_DEVICE_MOUSE */
+
+			/* Time table */
+			input_booster,head_time = <200>;
+			input_booster,tail_time = <300>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1274000 1042000>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+			};
+		};
+
+		booster_key@7 {
+			input_booster,label = "mouse_wheel";
+			input_booster,type = <6>;	/* BOOSTER_DEVICE_MOUSE */
+
+			/* Time table */
+			input_booster,head_time = <200>;
+			input_booster,tail_time = <0>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1274000 0>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+			};
+		};
+
+		booster_key@8 {
+			input_booster,label = "pen_hover";
+			input_booster,type = <7>;	/* BOOSTER_DEVICE_MOUSE */
+
+			/* Time table */
+			input_booster,head_time = <200>;
+			input_booster,tail_time = <300>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1274000 1042000>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+			};
+		};
+
+		booster_key@9 {
+			input_booster,label = "pen";
+			input_booster,type = <8>;	/* BOOSTER_DEVICE_MOUSE */
+
+			/* Time table */
+			input_booster,head_time = <200>;
+			input_booster,tail_time = <600>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1719000 1042000>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+			};
+		};
+		/* If you need to add new key type, add it this position */
 	};
 };
 

@@ -144,6 +144,9 @@ int disp_pwm_get_cust_led(unsigned int *clocksource, unsigned int *clockdiv)
 	int led_mode;
 	int pwm_config[5] = { 0 };
 
+	if (pled_dtsi)
+		return ret;
+
 	led_node = of_find_compatible_node(NULL, NULL,
 		"mediatek,lcd-backlight");
 	if (!led_node) {

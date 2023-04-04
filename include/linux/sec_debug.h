@@ -656,35 +656,6 @@ extern void sec_debug_avc_log(char *fmt, ...);
 #define sec_debug_avc_log(a, ...)		do { } while(0)
 #endif
 
-/**
- * sec_debug_tsp_log : Leave tsp log in tsp_msg file.
- * ( Timestamp + Tsp logs )
- * sec_debug_tsp_log_msg : Leave tsp log in tsp_msg file and
- * add additional message between timestamp and tsp log.
- * ( Timestamp + additional Message + Tsp logs )
- */
-#ifdef CONFIG_SEC_DEBUG_TSP_LOG
-extern void sec_debug_tsp_log(char *fmt, ...);
-extern void sec_debug_tsp_log_msg(char *msg, char *fmt, ...);
-extern void sec_debug_tsp_raw_data(char *fmt, ...);
-extern void sec_debug_tsp_raw_data_msg(char *msg, char *fmt, ...);
-extern void sec_tsp_raw_data_clear(void);
-extern void sec_debug_tsp_command_history(char *buf);
-#else
-#define sec_debug_tsp_log(a, ...)		do { } while (0)
-#define sec_debug_tsp_log_msg(a, b, ...)		do { } while (0)
-#define sec_debug_tsp_raw_data(a, ...)			do { } while (0)
-#define sec_debug_tsp_raw_data_msg(a, b, ...)		do { } while (0)
-#define sec_tsp_raw_data_clear()			do { } while (0)
-#define sec_debug_tsp_command_history(a)	do { } while (0)
-#endif /* CONFIG_SEC_DEBUG_TSP_LOG */
-
-#ifdef CONFIG_TOUCHSCREEN_DUMP_MODE
-struct tsp_dump_callbacks {
-	void (*inform_dump)(void);
-};
-#endif
-
 #ifdef CONFIG_SEC_DEBUG_LAST_KMSG
 extern void sec_debug_save_last_kmsg(unsigned char* head_ptr, unsigned char* curr_ptr);
 #else

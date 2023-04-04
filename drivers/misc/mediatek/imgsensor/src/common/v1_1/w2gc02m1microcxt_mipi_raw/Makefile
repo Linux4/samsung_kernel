@@ -1,0 +1,1 @@
+obj-y += w2gc02m1microcxt_mipi_raw_Sensor.o

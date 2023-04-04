@@ -707,6 +707,8 @@ struct mtk_drm_crtc {
 
 	atomic_t already_config;
 
+	int config_cnt;
+
 	bool layer_rec_en;
 	unsigned int fps_change_index;
 
@@ -734,6 +736,11 @@ struct mtk_drm_crtc {
 	struct cmdq_cb_data cb_data;
 	atomic_t cmdq_done;
 	wait_queue_head_t signal_fence_task_wq;
+
+	int need_lock_tid;
+	int customer_lock_tid;
+
+	int frame_update_cnt;
 };
 
 struct mtk_crtc_state {

@@ -134,6 +134,10 @@ static DEFINE_MUTEX(sd_ref_mutex);
 static struct kmem_cache *sd_cdb_cache;
 static mempool_t *sd_cdb_pool;
 static mempool_t *sd_page_pool;
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+#define SD_NUM 3
+extern struct gendisk *ufs_disk[];
+#endif
 
 static const char *sd_cache_types[] = {
 	"write through", "none", "write back",
@@ -3416,7 +3420,9 @@ static int sd_probe(struct device *dev)
 	struct gendisk *gd;
 	int index;
 	int error;
-
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+	static int num = 0;
+#endif
 	scsi_autopm_get_device(sdp);
 	error = -ENODEV;
 	if (sdp->type != TYPE_DISK &&
@@ -3452,7 +3458,10 @@ static int sd_probe(struct device *dev)
 		sdev_printk(KERN_WARNING, sdp, "SCSI disk (sd) name length exceeded.\n");
 		goto out_free_index;
 	}
-
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+	if(num < SD_NUM)
+		ufs_disk[num++] = gd;
+#endif
 	sdkp->device = sdp;
 	sdkp->driver = &sd_template;
 	sdkp->disk = gd;

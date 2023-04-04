@@ -686,6 +686,9 @@ static int vidioc_venc_g_parm(struct file *file, void *priv,
 static struct mtk_q_data *mtk_venc_get_q_data(struct mtk_vcodec_ctx *ctx,
 					      enum v4l2_buf_type type)
 {
+	if (ctx == NULL)
+		return NULL;
+
 	if (V4L2_TYPE_IS_OUTPUT(type))
 		return &ctx->q_data[MTK_Q_DATA_SRC];
 
@@ -1645,14 +1648,23 @@ static int vb2ops_venc_queue_setup(struct vb2_queue *vq,
 				   unsigned int sizes[],
 				   struct device *alloc_devs[])
 {
-	struct mtk_vcodec_ctx *ctx = vb2_get_drv_priv(vq);
+	struct mtk_vcodec_ctx *ctx;
 	struct mtk_q_data *q_data;
 	unsigned int i;
 
-	q_data = mtk_venc_get_q_data(ctx, vq->type);
-
-	if (q_data == NULL)
+	if (IS_ERR_OR_NULL(vq) || IS_ERR_OR_NULL(nbuffers) ||
+	    IS_ERR_OR_NULL(nplanes) || IS_ERR_OR_NULL(alloc_devs)) {
+		mtk_v4l2_err("vq %p, nbuffers %p, nplanes %p, alloc_devs %p",
+			vq, nbuffers, nplanes, alloc_devs);
 		return -EINVAL;
+	}
+
+	ctx = vb2_get_drv_priv(vq);
+	q_data = mtk_venc_get_q_data(ctx, vq->type);
+	if (q_data == NULL || (*nplanes) > MTK_VCODEC_MAX_PLANES) {
+		mtk_v4l2_err("vq->type=%d nplanes %d err", vq->type, *nplanes);
+		return -EINVAL;
+	}
 
 	if (*nplanes) {
 		for (i = 0; i < *nplanes; i++)
@@ -3000,10 +3012,10 @@ int mtk_vcodec_enc_ctrls_setup(struct mtk_vcodec_ctx *ctx)
 	cfg.type = V4L2_CTRL_TYPE_INTEGER;
 	cfg.flags = V4L2_CTRL_FLAG_WRITE_ONLY;
 	cfg.name = "Video Encoder frame level QP";
-	cfg.min = 0;
+	cfg.min = -1;
 	cfg.max = 51;
 	cfg.step = 1;
-	cfg.def = 0;
+	cfg.def = -1;
 	cfg.ops = ops;
 	ctrl = v4l2_ctrl_new_custom(handler, &cfg, NULL);
 

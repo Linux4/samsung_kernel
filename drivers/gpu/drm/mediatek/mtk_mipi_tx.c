@@ -218,6 +218,8 @@
 #define MIPITX_CK_SW_LPTX_PRE_OE	(0x0348UL)
 #define MIPITX_CKC_SW_LPTX_PRE_OE	(0x0368UL)
 
+extern char *saved_command_line;
+
 enum MIPITX_PAD_VALUE {
 	PAD_D2P_T0A = 0,
 	PAD_D2N_T0B,
@@ -1153,7 +1155,17 @@ static int mtk_mipi_tx_pll_cphy_prepare_mt6873(struct clk_hw *hw)
 		return -EINVAL;
 	}
 	/*set volate*/
-	writel(0x4444236A, mipi_tx->regs + MIPITX_VOLTAGE_SEL);
+	//writel(0x444421AA, mipi_tx->regs + MIPITX_VOLTAGE_SEL);//0x4444236A
+	if(strstr(saved_command_line, "ft8722_fhdp_wt_dsi_vdo_cphy_90hz_txd"))
+	{
+#if defined(CONFIG_WT_PROJECT_S96902AA1)
+		writel(0x4444222A, mipi_tx->regs + MIPITX_VOLTAGE_SEL);
+#else
+		writel(0x4444236A, mipi_tx->regs + MIPITX_VOLTAGE_SEL);
+#endif
+	} else {
+		writel(0x4444236A, mipi_tx->regs + MIPITX_VOLTAGE_SEL);
+	}
 
 	/* change the mipi_volt */
 	if (mipi_volt) {

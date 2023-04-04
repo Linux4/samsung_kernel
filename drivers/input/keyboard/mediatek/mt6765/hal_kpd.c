@@ -53,29 +53,6 @@ void long_press_reboot_function_setting(void)
 #ifdef CONFIG_MTK_PMIC_NEW_ARCH /*for pmic not ready*/
 	if (kpd_enable_lprst && kpd_dts_data.boot_mode == NORMAL_BOOT) {
 		kpd_info("Normal Boot long press reboot selection\n");
-#ifdef CONFIG_N21_CHARGER_PRIVATE
-#if 0
-		kpd_info("Enable normal mode LPRST\n");
-#ifdef CONFIG_ONEKEY_REBOOT_NORMAL_MODE
-		pmic_set_register_value(PMIC_RG_PWRKEY_RST_EN, 0x01);
-		pmic_set_register_value(PMIC_RG_HOMEKEY_RST_EN, 0x00);
-		pmic_set_register_value(PMIC_RG_PWRKEY_RST_TD,
-			CONFIG_KPD_PMIC_LPRST_TD);
-#endif
-
-#ifdef CONFIG_TWOKEY_REBOOT_NORMAL_MODE
-		pmic_set_register_value(PMIC_RG_PWRKEY_RST_EN, 0x01);
-		pmic_set_register_value(PMIC_RG_HOMEKEY_RST_EN, 0x01);
-		pmic_set_register_value(PMIC_RG_PWRKEY_RST_TD,
-			CONFIG_KPD_PMIC_LPRST_TD);
-#endif
-#else
-		kpd_info("disable normal mode LPRST\n");
-		pmic_set_register_value(PMIC_RG_PWRKEY_RST_EN, 0x00);
-		pmic_set_register_value(PMIC_RG_HOMEKEY_RST_EN, 0x00);
-
-#endif
-#else
 #ifdef CONFIG_KPD_PMIC_LPRST_TD
 		kpd_info("Enable normal mode LPRST\n");
 #ifdef CONFIG_ONEKEY_REBOOT_NORMAL_MODE
@@ -96,7 +73,6 @@ void long_press_reboot_function_setting(void)
 		pmic_set_register_value(PMIC_RG_PWRKEY_RST_EN, 0x00);
 		pmic_set_register_value(PMIC_RG_HOMEKEY_RST_EN, 0x00);
 
-#endif
 #endif
 	} else {
 		kpd_info("Other Boot Mode long press reboot selection\n");

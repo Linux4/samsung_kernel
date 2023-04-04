@@ -74,6 +74,8 @@ static struct SSMR_Feature _ssmr_feats[__MAX_NR_SSMR_FEATURES] = {
 		.cmd_online = "svp=on",
 		.cmd_offline = "svp=off",
 #if IS_ENABLED(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) ||\
+	IS_ENABLED(CONFIG_MTK_TEE_GP_SUPPORT) ||\
+	IS_ENABLED(CONFIG_MTK_SVP_ON_MTEE_SUPPORT) ||\
 	IS_ENABLED(CONFIG_TRUSTONIC_TEE_SUPPORT) ||\
 	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) ||\
 	IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT)
@@ -178,7 +180,8 @@ static struct SSMR_Feature _ssmr_feats[__MAX_NR_SSMR_FEATURES] = {
 		.cmd_online = "tui=on",
 		.cmd_offline = "tui=off",
 #if IS_ENABLED(CONFIG_TRUSTONIC_TRUSTED_UI) ||\
-	IS_ENABLED(CONFIG_BLOWFISH_TUI_SUPPORT)
+	IS_ENABLED(CONFIG_BLOWFISH_TUI_SUPPORT) ||\
+	IS_ENABLED(CONFIG_TEEGRIS_TUI)
 		.enable = "on",
 #else
 		.enable = "off",
@@ -191,8 +194,10 @@ static struct SSMR_Feature _ssmr_feats[__MAX_NR_SSMR_FEATURES] = {
 struct SSMR_HEAP_INFO _ssmr_heap_info[__MAX_NR_SSMR_FEATURES];
 
 #if IS_ENABLED(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) ||\
+	IS_ENABLED(CONFIG_MTK_TEE_GP_SUPPORT) ||\
 	IS_ENABLED(CONFIG_TRUSTONIC_TEE_SUPPORT) ||\
-	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT)
+	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) ||\
+	IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT)
 static int __init dedicate_svp_memory(struct reserved_mem *rmem)
 {
 	struct SSMR_Feature *feature;
@@ -598,7 +603,7 @@ static int memory_region_offline(struct SSMR_Feature *feature, phys_addr_t *pa,
 	do {
 		pr_info("[SSMR-ALLOCATION]: retry: %d\n", offline_retry);
 		feature->virt_addr = dma_alloc_attrs(ssmr_dev, alloc_size,
-					&feature->phy_addr, GFP_KERNEL, 0);
+					&feature->phy_addr, GFP_KERNEL, DMA_ATTR_FORCE_CONTIGUOUS);
 		if (!feature->phy_addr) {
 			offline_retry++;
 			msleep(100);
@@ -900,8 +905,10 @@ int ssmr_probe(struct platform_device *pdev)
 	finalize_scenario_size();
 
 #if IS_ENABLED(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) ||\
+	IS_ENABLED(CONFIG_MTK_TEE_GP_SUPPORT) ||\
 	IS_ENABLED(CONFIG_TRUSTONIC_TEE_SUPPORT) ||\
-	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT)
+	IS_ENABLED(CONFIG_MICROTRUST_TEE_SUPPORT) ||\
+	IS_ENABLED(CONFIG_TEEGRIS_TEE_SUPPORT)
 	/* check svp statis reserved status */
 	get_svp_memory_info();
 #endif

@@ -7208,7 +7208,7 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
          imgsensor.i2c_write_id = imgsensor_info.i2c_addr_table[i];
          spin_unlock(&imgsensor_drv_lock);
          do {
-             *sensor_id = return_sensor_id()+1;
+             *sensor_id = return_sensor_id()+3;
              if (*sensor_id == imgsensor_info.sensor_id) {
              LOG_INF("st i2c write id : 0x%x, sensor id: 0x%x\n",imgsensor.i2c_write_id, *sensor_id);
                   if((n26_hi5021q_rear_st_eeprom_data.sensorVendorid >> 24) != hi5021q_read_eeprom(0x0001)){
@@ -7302,7 +7302,7 @@ static kal_uint32 open(void)
          imgsensor.i2c_write_id = imgsensor_info.i2c_addr_table[i];
          spin_unlock(&imgsensor_drv_lock);
          do {
-             sensor_id = return_sensor_id()+1;
+             sensor_id = return_sensor_id()+3;
              if (sensor_id == imgsensor_info.sensor_id) {
                  LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n",
                      imgsensor.i2c_write_id, sensor_id);

@@ -206,7 +206,11 @@ struct usb_function {
 	struct usb_descriptor_header	**ssp_descriptors;
 
 	struct usb_configuration	*config;
-
+#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
+	int (*set_intf_num)(struct usb_function *f,
+			int intf_num, int index_num);
+	int (*set_config_desc)(int conf_num);
+#endif
 	struct usb_os_desc_table	*os_desc_table;
 	unsigned			os_desc_n;
 

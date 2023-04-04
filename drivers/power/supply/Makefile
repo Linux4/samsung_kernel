@@ -145,5 +145,6 @@ obj-$(CONFIG_AXP288_CHARGER)	+= axp288_charger.o
 ifeq ($(CONFIG_CUSTOM_BATTERY_EXTERNAL_CHANNEL),y)
 	obj-y += k6885v1_64_alpha/
 endif
+
 obj-$(CONFIG_CHARGER_SM5714) += sm/sm5714/
 

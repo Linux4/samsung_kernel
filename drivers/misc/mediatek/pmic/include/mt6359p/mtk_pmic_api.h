@@ -194,4 +194,7 @@ extern unsigned int mt6359_upmu_set_rg_vcn33_2_bt_vosel(unsigned int val);
 extern unsigned int mt6359_upmu_get_rg_vcn33_2_bt_vosel(void);
 extern unsigned int mt6359_upmu_set_rg_vcn33_2_wifi_vosel(unsigned int val);
 extern unsigned int mt6359_upmu_get_rg_vcn33_2_wifi_vosel(void);
+extern unsigned int mt6359_upmu_get_pwrkey_deb(void);
+extern unsigned int mt6359_upmu_get_homekey_deb(void);
+
 #endif		/* _MT_PMIC_API_H_ */

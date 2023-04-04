@@ -1202,6 +1202,14 @@ static int rt1711_tcpc_deinit(struct tcpc_device *tcpc)
 	if (chip->vid == HUSB311_VID) {
 		rt1711_i2c_write8(tcpc,
 			RT1711H_REG_I2CRST_CTRL, 0x08);
+
+		tcpci_alert_status_clear(tcpc, 0xffffff);//0x10 0x11 0x98
+
+		rt1711_write_word(chip->client, TCPC_V10_REG_ALERT_MASK, 0x0); //0x12 0x13
+		rt1711_i2c_write8(tcpc, TCPC_V10_REG_POWER_STATUS_MASK, 0x0); //0x14
+		rt1711_i2c_write8(tcpc, RT1711H_REG_RT_MASK, 0x0); //0x99
+		rt1711_i2c_write8(tcpc, RT1711H_REG_BMC_CTRL, 0x0); //0x90
+
 	} else {
 		rt1711_i2c_write8(tcpc,
 			RT1711H_REG_I2CRST_CTRL,

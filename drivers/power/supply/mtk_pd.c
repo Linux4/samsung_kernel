@@ -152,10 +152,7 @@ static int _pd_is_algo_ready(struct chg_alg_device *alg)
 		if (ret_value == ALG_READY) {
 			uisoc = pd_hal_get_uisoc(alg);
 			if (pd->input_current_limit1 != -1 ||
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-#else
 				pd->charging_current_limit1 != -1 ||
-#endif
 				pd->input_current_limit2 != -1 ||
 				pd->charging_current_limit2 != -1 ||
 				uisoc >= pd->pd_stop_battery_soc)
@@ -662,17 +659,10 @@ static int pd_sc_set_charger(struct chg_alg_device *alg)
 
 	mutex_lock(&pd->data_lock);
 	if (pd->charging_current_limit1 != -1) {
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-	if (pd->charging_current_limit1 <=
-		pd->sc_charger_current)
-		pd->charging_current1 =
-			pd->charging_current_limit1;
-#else
 		if (pd->charging_current_limit1 <
 			pd->sc_charger_current)
 			pd->charging_current1 =
 				pd->charging_current_limit1;
-#endif
 		ret = pd_hal_get_min_charging_current(alg, CHG1, &ichg1_min);
 		if (ret != -ENOTSUPP &&
 			pd->charging_current_limit1 < ichg1_min)
@@ -904,11 +894,7 @@ static int _pd_start_algo(struct chg_alg_device *alg)
 			else if (ret_value == ALG_READY) {
 				uisoc = pd_hal_get_uisoc(alg);
 				if (pd->input_current_limit1 != -1 ||
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-#else
-
 					pd->charging_current_limit1 != -1 ||
-#endif
 					pd->input_current_limit2 != -1 ||
 					pd->charging_current_limit2 != -1 ||
 					uisoc >= pd->pd_stop_battery_soc)

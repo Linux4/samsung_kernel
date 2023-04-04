@@ -97,7 +97,7 @@ static ssize_t sensors_name_show(struct device *dev,
 {
 	struct sensors_classdev *sensors_cdev = dev_get_drvdata(dev);
 
-	return snprintf(buf, PAGE_SIZE, "%s\n", sensors_cdev->sensor_name);
+	return snprintf(buf, PAGE_SIZE, "%s\n", sensors_cdev->name); // wangjianlong add sensor name support
 }
 
 static ssize_t sensors_vendor_show(struct device *dev,
@@ -204,7 +204,7 @@ static ssize_t sensors_enable_store(struct device *dev,
 	struct sensors_classdev *sensors_cdev = dev_get_drvdata(dev);
 	ssize_t ret = -EINVAL;
 	unsigned long data = 0;
-
+      printk("abov sensors_enable_store \n");
 	ret = kstrtoul(buf, 10, &data);
 	if (ret)
 		return ret;
@@ -224,6 +224,7 @@ static ssize_t sensors_enable_store(struct device *dev,
 	sensors_cdev->enabled = data;
 	return size;
 }
+
 
 static ssize_t sensors_enable_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -513,8 +514,8 @@ int sensors_classdev_register(struct device *parent,
 				struct sensors_classdev *sensors_cdev)
 {
 	sensors_cdev->dev = device_create(sensors_class, parent, 0,
-				      sensors_cdev, "%s", sensors_cdev->name);
-	if (IS_ERR(sensors_cdev->dev))
+				      sensors_cdev, "%s", sensors_cdev->sensor_name); //bug 492320,20191119,gaojingxuan.wt,add,use SS hal
+    if (IS_ERR(sensors_cdev->dev))
 		return PTR_ERR(sensors_cdev->dev);
 
 	down_write(&sensors_list_lock);
@@ -522,7 +523,7 @@ int sensors_classdev_register(struct device *parent,
 	up_write(&sensors_list_lock);
 
 	pr_debug("Registered sensors device: %s\n",
-			sensors_cdev->name);
+			sensors_cdev->sensor_name);
 	return 0;
 }
 EXPORT_SYMBOL(sensors_classdev_register);

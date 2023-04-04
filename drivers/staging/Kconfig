@@ -21,6 +21,11 @@ menuconfig STAGING
 
 	  If in doubt, say N here.
 
+config TOUCHSCREEN_MTK
+	bool "for samsong driver"
+	default y
+	help
+	 This test
 
 if STAGING
 

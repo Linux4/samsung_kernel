@@ -10,32 +10,41 @@
 #define _LENS_LIST_H
 
 extern void MAIN2AF_PowerDown(void);
+//+bug767771,liudijin.wt,ADD,2022/07/14,add truly s5kjn1 gt9778 bringup code.
+#define TRULY_S5KJN1_GT9778AF_SetI2Cclient TRULY_S5KJN1_GT9778AF_SetI2Cclient_Main
+#define TRULY_S5KJN1_GT9778AF_Ioctl TRULY_S5KJN1_GT9778AF_Ioctl_Main
+#define TRULY_S5KJN1_GT9778AF_Release TRULY_S5KJN1_GT9778AF_Release_Main
+#define TRULY_S5KJN1_GT9778AF_PowerDown TRULY_S5KJN1_GT9778AF_PowerDown_Main
+#define TRULY_S5KJN1_GT9778AF_GetFileName TRULY_S5KJN1_GT9778AF_GetFileName_Main
+extern int TRULY_S5KJN1_GT9778AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient, spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long TRULY_S5KJN1_GT9778AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,unsigned long a_u4Param);
+extern int TRULY_S5KJN1_GT9778AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int TRULY_S5KJN1_GT9778AF_PowerDown(struct i2c_client *pstAF_I2Cclient, int *pAF_Opened);
+extern int TRULY_S5KJN1_GT9778AF_GetFileName(unsigned char *pFileName);
+//-bug767771,liudijin.wt,ADD,2022/07/14,add truly s5kjn1 gt9778 bringup code.
 
-//+bug 621775 liuxiangyin.wt, add, 2021/2/23,  n21 1st supply main af TXD_S5K2P6_GT9769AF porting
-#define TXD_S5K2P6_GT9769AF_SetI2Cclient TXD_S5K2P6_GT9769AF_SetI2Cclient_Main
-#define TXD_S5K2P6_GT9769AF_Ioctl TXD_S5K2P6_GT9769AF_Ioctl_Main
-#define TXD_S5K2P6_GT9769AF_Release TXD_S5K2P6_GT9769AF_Release_Main
-#define TXD_S5K2P6_GT9769AF_GetFileName TXD_S5K2P6_GT9769AF_GetFileName_Main
-extern int TXD_S5K2P6_GT9769AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
-				 spinlock_t *pAF_SpinLock, int *pAF_Opened);
-extern long TXD_S5K2P6_GT9769AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
-			   unsigned long a_u4Param);
-extern int TXD_S5K2P6_GT9769AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
-extern int TXD_S5K2P6_GT9769AF_GetFileName(unsigned char *pFileName);
-//-bug 621775 liuxiangyin.wt, add, 2021/2/23,  n21 1st supply main af TXD_S5K2P6_GT9769AF porting
-//+bug 621775,lintaicheng.wt, add, 20210208, add for n21 AF bring up
+#define ST_S5KJN1_GT9778AF_SetI2Cclient ST_S5KJN1_GT9778AF_SetI2Cclient_Main
+#define ST_S5KJN1_GT9778AF_Ioctl ST_S5KJN1_GT9778AF_Ioctl_Main
+#define ST_S5KJN1_GT9778AF_Release ST_S5KJN1_GT9778AF_Release_Main
+#define ST_S5KJN1_GT9778AF_PowerDown ST_S5KJN1_GT9778AF_PowerDown_Main
+#define ST_S5KJN1_GT9778AF_GetFileName ST_S5KJN1_GT9778AF_GetFileName_Main
+extern int ST_S5KJN1_GT9778AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient, spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long ST_S5KJN1_GT9778AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,unsigned long a_u4Param);
+extern int ST_S5KJN1_GT9778AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int ST_S5KJN1_GT9778AF_PowerDown(struct i2c_client *pstAF_I2Cclient, int *pAF_Opened);
+extern int ST_S5KJN1_GT9778AF_GetFileName(unsigned char *pFileName);
 
-#define HLT_OV16B10_ZC535BAF_SetI2Cclient HLT_OV16B10_ZC535BAF_SetI2Cclient_Main
-#define HLT_OV16B10_ZC535BAF_Ioctl HLT_OV16B10_ZC535BAF_Ioctl_Main
-#define HLT_OV16B10_ZC535BAF_Release HLT_OV16B10_ZC535BAF_Release_Main
-#define HLT_OV16B10_ZC535BAF_GetFileName HLT_OV16B10_ZC535BAF_GetFileName_Main
-extern int HLT_OV16B10_ZC535BAF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
-                                 spinlock_t *pAF_SpinLock, int *pAF_Opened);
-extern long HLT_OV16B10_ZC535BAF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
-                           unsigned long a_u4Param);
-extern int HLT_OV16B10_ZC535BAF_Release(struct inode *a_pstInode, struct file *a_pstFile);
-extern int HLT_OV16B10_ZC535BAF_GetFileName(unsigned char *pFileName);
-//-bug 621775,lintaicheng.wt, add, 20210208, add for n21 AF bring up
+#define TXD_HI5022Q_GT9778AF_SetI2Cclient TXD_HI5022Q_GT9778AF_SetI2Cclient_Main
+#define TXD_HI5022Q_GT9778AF_Ioctl TXD_HI5022Q_GT9778AF_Ioctl_Main
+#define TXD_HI5022Q_GT9778AF_Release TXD_HI5022Q_GT9778AF_Release_Main
+#define TXD_HI5022Q_GT9778AF_PowerDown TXD_HI5022Q_GT9778AF_PowerDown_Main
+#define TXD_HI5022Q_GT9778AF_GetFileName TXD_HI5022Q_GT9778AF_GetFileName_Main
+extern int TXD_HI5022Q_GT9778AF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient, spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long TXD_HI5022Q_GT9778AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,unsigned long a_u4Param);
+extern int TXD_HI5022Q_GT9778AF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int TXD_HI5022Q_GT9778AF_PowerDown(struct i2c_client *pstAF_I2Cclient, int *pAF_Opened);
+extern int TXD_HI5022Q_GT9778AF_GetFileName(unsigned char *pFileName);
+
 #define AK7371AF_SetI2Cclient AK7371AF_SetI2Cclient_Main
 #define AK7371AF_Ioctl AK7371AF_Ioctl_Main
 #define AK7371AF_Release AK7371AF_Release_Main

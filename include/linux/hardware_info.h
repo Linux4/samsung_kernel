@@ -10,12 +10,10 @@ enum{
 	HARDWARE_FRONT_CAM,
 	HARDWARE_BACK_CAM,
 	HARDWARE_BACK_SUB_CAM,
-	//+bug717431, wangmingli,.wt, ADD, 2022/2/9, add camera module info for factory apk
+	//+bug604664,zhouyikuan.wt,ADD,2020/12/17,add wide angle info for mmigroup apk
 	HARDWARE_WIDE_ANGLE_CAM,
-	//-bug717431, wangmingli,.wt, ADD, 2022/2/9, add camera module info for factory apk
-	//+bug720062, qinduilin.wt, ADD, 2022/2/7, add camera module info for factory apk
-	HARDWARE_MACRO_CAM,
-	//-bug720062, qinduilin.wt, ADD, 2022/2/7, add camera module info for factory apk
+	//bug604664,liangyiyi.wt,ADD,2022/7/1,add micro info for mmigroup apk
+	HARDWARE_MICRO_CAM,
 	HARDWARE_BT,
 	HARDWARE_WIFI,
 	HARDWARE_ACCELEROMETER,
@@ -25,27 +23,24 @@ enum{
 	HARDWARE_SAR,//bug 417945 , add sar info, chenrongli.wt, 20181218
 	HARDWARE_GPS,
 	HARDWARE_FM,
-	HARDWARE_NFC, //ExtB#P220510-06627 add NFC info jinzhao 20220511
+        HARDWARE_NFC,//bug 604665,lulinliang.wt,2020.12.18,add nfc info
 	HARDWARE_BATTERY_ID,
-	HARDWARE_SMARTPA_ID,
 	HARDWARE_CHARGER_IC_INFO,  //bug 436809  modify getian.wt 20190403 Add charger IC model information in factory mode
 	//bug 717431, liyiying.wt, add, 2021/2/21, n21s add gauge mmi message
 	HARDWARE_BMS_GAUGE_INFO,
 	HARDWARE_BACK_CAM_MOUDULE_ID,
 	HARDWARE_BACK_SUBCAM_MOUDULE_ID,
 	HARDWARE_FRONT_CAM_MOUDULE_ID,
-	//+bug717431, wangmingli,.wt, ADD, 2022/2/9, add camera module info for factory apk
+	//+bug604664,zhouyikuan.wt,ADD,2020/12/17,add wide angle info for mmigroup apk
 	HARDWARE_WIDE_ANGLE_CAM_MOUDULE_ID,
-	//-bug717431, wangmingli,.wt, ADD, 2022/2/9, add camera module info for factory apk
-	//+bug720367, qinduilin.wt, ADD, 2022/2/7, add camera module info for factory apk
-	HARDWARE_MACRO_CAM_MODULE_ID,
-	//-bug720367, qinduilin.wt, ADD, 2022/2/7, add camera module info for factory apk
+	//bug604664,liangyiyi.wt,ADD,2022/7/1,add micro info for mmigroup apk
+	HARDWARE_MICRO_CAM_MOUDULE_ID,
 	HARDWARE_BOARD_ID,
 	HARDWARE_HARDWARE_ID,
-	// Bug 717428,qiuyonghui.wt,add,20220216,add hardware info
-	HARDWARE_SMART_PA_ID,
-    /*bug682591, fanchenchen.wt, add, 20210221, get lcm serialnum */
-    HARDWARE_LCD_SERIALNUM,
+	// ckl,zhangxingyuan.wt,add,20220722,add hardware info
+  	HARDWARE_SMART_PA_ID,
+	HARDWARE_BMS_GAUGE_ID, //zhaosidong.wt, add bms id
+	HARDWARE_LCD_SERIALNUM,/*get lcm serialnum */
 	HARDWARE_MAX_ITEM
 };
 
@@ -91,26 +86,22 @@ enum{
 #define HARDWARE_FRONT_SUBCAM_SENSORID_GET        _IOWR(HARDWARE_ID, 0x32, char[HARDWARE_MAX_ITEM_LONGTH])      //  前副摄sensorId
 //bug 349613,20180409,huwei2,add Sar in hardwareInfo
 #define HARDWARE_SAR_GET                          _IOWR(HARDWARE_ID, 0x33, char[HARDWARE_MAX_ITEM_LONGTH])      //sar
-//+bug 621775 liuxiangyin.wt, add, 2021/3/2, n21 add hardware info for factory mode
-#define HARDWARE_WIDE_ANGLE_CAM_GET                     _IOWR(HARDWARE_ID, 0x34, char[HARDWARE_MAX_ITEM_LONGTH])      //  ??CAM
-#define HARDWARE_WIDE_ANGLE_CAM_MOUDULE_ID_GET          _IOWR(HARDWARE_ID, 0x35, char[HARDWARE_MAX_ITEM_LONGTH])      //  ??CAM???
-#define HARDWARE_WIDE_ANGLE_CAM_EFUSEID_GET             _IOWR(HARDWARE_ID, 0x36, char[HARDWARE_MAX_ITEM_LONGTH])      //  ??CAM efuseId
-#define HARDWARE_WIDE_ANGLE_CAM_SENSORID_GET            _IOWR(HARDWARE_ID, 0x37, char[HARDWARE_MAX_ITEM_LONGTH])      //  ??CAM sensorId
 
-#define HARDWARE_IR_CAM_GET                       _IOWR(HARDWARE_ID, 0x38, char[HARDWARE_MAX_ITEM_LONGTH])      //  ??CAM
-#define HARDWARE_IR_CAM_MOUDULE_ID_GET            _IOWR(HARDWARE_ID, 0x39, char[HARDWARE_MAX_ITEM_LONGTH])      //  ??CAM???
-#define HARDWARE_IR_CAM_EFUSEID_GET               _IOWR(HARDWARE_ID, 0x3A, char[HARDWARE_MAX_ITEM_LONGTH])      //  ??CAM efuseId
-#define HARDWARE_IR_CAM_SENSORID_GET              _IOWR(HARDWARE_ID, 0x3B, char[HARDWARE_MAX_ITEM_LONGTH])      //  ??CAM sensor
+//+bug604664,zhouyikuan.wt,ADD,2020/12/17,add wide angle info for mmigroup apk
+#define HARDWARE_WIDE_ANGLE_CAM_GET                     _IOWR(HARDWARE_ID, 0x34, char[HARDWARE_MAX_ITEM_LONGTH])      //  广角CAM
+#define HARDWARE_WIDE_ANGLE_CAM_MOUDULE_ID_GET          _IOWR(HARDWARE_ID, 0x35, char[HARDWARE_MAX_ITEM_LONGTH])      //  广角CAM模组厂
+#define HARDWARE_WIDE_ANGLE_CAM_EFUSEID_GET             _IOWR(HARDWARE_ID, 0x36, char[HARDWARE_MAX_ITEM_LONGTH])      //  广角CAM efuseId
+#define HARDWARE_WIDE_ANGLE_CAM_SENSORID_GET            _IOWR(HARDWARE_ID, 0x37, char[HARDWARE_MAX_ITEM_LONGTH])      //  广角CAM sensorId
+//-bug604664,zhouyikuan.wt,ADD,2020/12/17,add wide angle info for mmigroup apk
 
-//+bug720062, qinduilin.wt, ADD, 2022/2/7, add camera module info for factory apk
-#define HARDWARE_MACRO_CAM_GET                    _IOWR(HARDWARE_ID, 0x3C, char[HARDWARE_MAX_ITEM_LONGTH])      //  微距CAM
-#define HARDWARE_MACRO_CAM_MOUDULEID_GET          _IOWR(HARDWARE_ID, 0x3D, char[HARDWARE_MAX_ITEM_LONGTH])      //  微距CAM模组厂
-//-bug720062, qinduilin.wt, ADD, 2022/2/7, add camera module info for factory apk
-#define HARDWARE_MACRO_CAM_EFUSEID_GET            _IOWR(HARDWARE_ID, 0x3E, char[HARDWARE_MAX_ITEM_LONGTH])      //  ??CAM efuseId
-#define HARDWARE_MACRO_CAM_SENSORID_GET           _IOWR(HARDWARE_ID, 0x3F, char[HARDWARE_MAX_ITEM_LONGTH])      //  ??CAM sensorId
-//-bug 621775 liuxiangyin.wt, add, 2021/3/2, n21 add hardware info for factory mode
+//+bug604664,liangyiyi.wt,ADD,2022/7/1,add macro info for mmigroup apk
+#define HARDWARE_MACRO_CAM_GET                      _IOWR(HARDWARE_ID, 0x3C, char[HARDWARE_MAX_ITEM_LONGTH])      //  微距CAM
+#define HARDWARE_MACRO_CAM_MOUDULE_ID_GET           _IOWR(HARDWARE_ID, 0x3D, char[HARDWARE_MAX_ITEM_LONGTH])      //  微距CAM模组厂
+#define HARDWARE_MACRO_CAM_EFUSEID_GET              _IOWR(HARDWARE_ID, 0x3E, char[HARDWARE_MAX_ITEM_LONGTH])      //  微距CAM efuseId
+#define HARDWARE_MACRO_CAM_SENSORID_GET             _IOWR(HARDWARE_ID, 0x3F, char[HARDWARE_MAX_ITEM_LONGTH])      //  微距CAM sensorId
+//+bug604664,liangyiyi.wt,ADD,2022/7/1,add macro info for mmigroup apk
 
-// Bug 717428,qiuyonghui.wt,add,20220216,add hardware info
+// ckl,zhangxingyuan.wt,add,20220722,add hardware info
 #define HARDWARE_SMARTPA_IC_GET                   _IOWR(HARDWARE_ID, 0x40, char[HARDWARE_MAX_ITEM_LONGTH])
 #define HARDWARE_BACK_CAM_MOUDULE_ID_SET          _IOWR(HARDWARE_ID, 0x81, char[HARDWARE_MAX_ITEM_LONGTH])
 #define HARDWARE_FRONT_CAM_MODULE_ID_SET          _IOWR(HARDWARE_ID, 0x82, char[HARDWARE_MAX_ITEM_LONGTH])
@@ -118,11 +109,10 @@ enum{
 #define HARDWARE_FINGER_GET                       _IOWR(HARDWARE_ID, 0x84, char[HARDWARE_MAX_ITEM_LONGTH])
 
 
-
 /*+Bug 313110 -  guojunbo.wt;add;20171026;add for lg sku */
 #define HARDWARE_SKU_INFO_GET                     _IOWR(HARDWARE_ID, 0x85, char[HARDWARE_MAX_ITEM_LONGTH])
 #define HARDWARE_CHARGER_IC_INFO_GET              _IOWR(HARDWARE_ID, 0x86, char[HARDWARE_MAX_ITEM_LONGTH])
-
+#define HARDWARE_BMS_GAUGE_GET                    _IOWR(HARDWARE_ID, 0x41, char[HARDWARE_MAX_ITEM_LONGTH])
 /*-Bug 313110 -  guojunbo.wt;add;20171026;add for lg sku */
 
 //+bug 717431, liyiying.wt, add, 2021/2/21, n21s add gauge mmi message
@@ -131,10 +121,8 @@ enum{
 
 #define HARDWARE_SECURE_INFO_GET                  _IOWR(HARDWARE_ID, 0x87, char[HARDWARE_MAX_ITEM_LONGTH])
 #define SOFTWARE_SECURE_INFO_GET                  _IOWR(HARDWARE_ID, 0x88, char[HARDWARE_MAX_ITEM_LONGTH])
-/*bug682591, fanchenchen.wt, add, 20220221, get lcm serialnum */
-#define HARDWARE_LCD_SERIALNUM_GET                _IOWR(HARDWARE_ID, 0x89, char[HARDWARE_MAX_ITEM_LONGTH]) //获取lcm的serialnum
 
-
+#define HARDWARE_LCD_SERIALNUM_GET                _IOWR(HARDWARE_ID, 0x89, char[HARDWARE_MAX_ITEM_LONGTH]) //get lcm serialnum
 
 
 

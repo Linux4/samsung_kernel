@@ -87,7 +87,8 @@ struct mtk_nanohub_device {
 	int32_t acc_config_data[6];
 	int32_t gyro_config_data[12];
 	int32_t mag_config_data[9];
-	int32_t light_config_data[1];
+	//bug767771,huchangchang01.wt,modify,20220808,distinguish als-parameters according to lcd type
+	int32_t light_config_data[2];
 	int32_t proximity_config_data[2];
 	int32_t pressure_config_data[2];
 	int32_t sar_config_data[4];
@@ -1997,6 +1998,9 @@ static int mtk_nanohub_config(struct hf_device *hfdev,
 		spin_lock(&config_data_lock);
 		memcpy(device->light_config_data, data, length);
 		spin_unlock(&config_data_lock);
+		//bug767771,huchangchang01.wt,modify,20220808,distinguish als-parameters according to lcd type
+                pr_info("light_config_data [%d] [%d]\n",
+                device->light_config_data[0], device->light_config_data[1]);
 		break;
 	case ID_PROXIMITY:
 		if (sizeof(device->proximity_config_data) < length)

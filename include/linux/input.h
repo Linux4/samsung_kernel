@@ -23,10 +23,6 @@
 #include <linux/fs.h>
 #include <linux/timer.h>
 #include <linux/mod_devicetable.h>
-#define KEY_CAP_CS0             0x270
-#define KEY_CAP_CS1             0x271
-#define KEY_CAP_CS2             0x272
-#define KEY_CAP_COMB            0x272
 
 /**
  * struct input_value - input value representation

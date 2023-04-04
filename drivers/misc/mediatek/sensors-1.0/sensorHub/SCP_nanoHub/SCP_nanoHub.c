@@ -1438,7 +1438,6 @@ int sensor_cfg_to_hub(uint8_t handle, uint8_t *data, uint8_t count)
 	}
 	return ret;
 }
-//+Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 int sensor_set_lcdname_to_hub(uint8_t handle, uint8_t *data, uint8_t count)
 {
 	struct ConfigCmd *cmd = NULL;
@@ -1465,7 +1464,6 @@ int sensor_set_lcdname_to_hub(uint8_t handle, uint8_t *data, uint8_t count)
 	}
 	return ret;
 }
-//-Bug725045,wangyun4.wt,MOD,20220308,S96516SA1  add Distinguish als parmeter according to lcd type
 int sensor_calibration_to_hub(uint8_t handle)
 {
 	uint8_t sensor_type = handle + ID_OFFSET;
@@ -1995,7 +1993,6 @@ int sensor_set_cmd_to_hub(uint8_t sensorType,
 			len = offsetof(struct SCP_SENSOR_HUB_SET_CUST_REQ,
 				custData) + sizeof(req.set_cust_req.getInfo);
 			break;
-//+Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 		case CUST_ACTION_SET_CALI:
 			req.set_cust_req.getInfo.action = CUST_ACTION_SET_CALI;
 			req.set_cust_req.setCali.int32_data[SCP_SENSOR_HUB_X]
@@ -2005,7 +2002,6 @@ int sensor_set_cmd_to_hub(uint8_t sensorType,
 			len = offsetof(struct SCP_SENSOR_HUB_SET_CUST_REQ,
 			    custData) + sizeof(req.set_cust_req.setCali);
 			break;
-//-Bug725061,wangyun4.wt,MOD,20220223,S96516SA1  add baro sensor cali function
 		default:
 			return -1;
 		}

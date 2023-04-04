@@ -13,7 +13,7 @@
 #define IMGSENSOR_DEV_NAME "kd_camera_hw"
 
 //bug727089 liangyiyi.wt,MODIFY,2022/3/29,modify for fix front camera have loss power when open rear camera
-#define IMGSENSOR_HW_POWER_INFO_MAX	15 
+#define IMGSENSOR_HW_POWER_INFO_MAX	15
 #define IMGSENSOR_HW_SENSOR_MAX_NUM	23//bug 612420,huangguoyong.wt,add,2020/12/23,add for n6 camera bring up
 
 enum IMGSENSOR_HW_PIN {
@@ -78,6 +78,7 @@ enum IMGSENSOR_HW_PIN_STATE {
 #define	RST_SUB IMGSENSOR_HW_PIN_RST_SUB
 //-bug727089 liangyiyi.wt,MODIFY,2022/3/29,modify for fix front camera have loss power when open rear camera
 #define	VDD_None  IMGSENSOR_HW_PIN_NONE
+
 	/* For backward compatible */
 #define	SensorMCLK  IMGSENSOR_HW_PIN_MCLK
 

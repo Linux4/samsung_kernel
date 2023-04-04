@@ -33,6 +33,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/slab.h>
 
+#include <drm/drm_dsc.h>
 #include <video/mipi_display.h>
 
 /**
@@ -213,8 +214,11 @@ mipi_dsi_device_register_full(struct mipi_dsi_host *host,
 		dev_err(dev, "invalid mipi_dsi_device_info pointer\n");
 		return ERR_PTR(-EINVAL);
 	}
-
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+	if (info->channel > 5) {
+#else
 	if (info->channel > 3) {
+#endif
 		dev_err(dev, "invalid virtual channel: %u\n", info->channel);
 		return ERR_PTR(-EINVAL);
 	}
@@ -232,7 +236,8 @@ mipi_dsi_device_register_full(struct mipi_dsi_host *host,
 
 	ret = mipi_dsi_device_add(dsi);
 	if (ret) {
-		dev_err(dev, "failed to add DSI device %d\n", ret);
+		dev_err(dev, "failed to add DSI device:%s ret:%d\n",
+			dsi->name, ret);
 		kfree(dsi);
 		return ERR_PTR(ret);
 	}
@@ -551,6 +556,56 @@ int mipi_dsi_set_maximum_return_packet_size(struct mipi_dsi_device *dsi,
 	return (ret < 0) ? ret : 0;
 }
 EXPORT_SYMBOL(mipi_dsi_set_maximum_return_packet_size);
+
+/**
+ * mipi_dsi_compression_mode() - enable/disable DSC on the peripheral
+ * @dsi: DSI peripheral device
+ * @enable: Whether to enable or disable the DSC
+ *
+ * Enable or disable Display Stream Compression on the peripheral using the
+ * default Picture Parameter Set and VESA DSC 1.1 algorithm.
+ *
+ * Return: 0 on success or a negative error code on failure.
+ */
+ssize_t mipi_dsi_compression_mode(struct mipi_dsi_device *dsi, bool enable)
+{
+	/* Note: Needs updating for non-default PPS or algorithm */
+	u8 tx[2] = { enable << 0, 0 };
+	struct mipi_dsi_msg msg = {
+		.channel = dsi->channel,
+		.type = MIPI_DSI_COMPRESSION_MODE,
+		.tx_len = sizeof(tx),
+		.tx_buf = tx,
+	};
+	int ret = mipi_dsi_device_transfer(dsi, &msg);
+
+	return (ret < 0) ? ret : 0;
+}
+EXPORT_SYMBOL(mipi_dsi_compression_mode);
+
+/**
+ * mipi_dsi_picture_parameter_set() - transmit the DSC PPS to the peripheral
+ * @dsi: DSI peripheral device
+ * @pps: VESA DSC 1.1 Picture Parameter Set
+ *
+ * Transmit the VESA DSC 1.1 Picture Parameter Set to the peripheral.
+ *
+ * Return: 0 on success or a negative error code on failure.
+ */
+ssize_t mipi_dsi_picture_parameter_set(struct mipi_dsi_device *dsi,
+				       const struct drm_dsc_picture_parameter_set *pps)
+{
+	struct mipi_dsi_msg msg = {
+		.channel = dsi->channel,
+		.type = MIPI_DSI_PICTURE_PARAMETER_SET,
+		.tx_len = sizeof(*pps),
+		.tx_buf = pps,
+	};
+	int ret = mipi_dsi_device_transfer(dsi, &msg);
+
+	return (ret < 0) ? ret : 0;
+}
+EXPORT_SYMBOL(mipi_dsi_picture_parameter_set);
 
 /**
  * mipi_dsi_generic_write() - transmit data using a generic write packet

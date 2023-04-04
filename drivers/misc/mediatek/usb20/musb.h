@@ -188,5 +188,10 @@ struct otg_switch_mtk {
 	u32 sw_state;
 	enum usb_role latest_role;
 	enum mt_usb_dr_operation_mode op_mode;
+#if defined(CONFIG_WT_PROJECT_S96902AA1) //usb if
+	struct tcpc_device *tcpc_dev;
+	struct notifier_block tcpc_nb;
+	struct delayed_work register_otg_work;
+#endif /* CONFIG_WT_PROJECT_S96902AA1 */
 };
 #endif				/* __LINUX_USB_MUSB_H */

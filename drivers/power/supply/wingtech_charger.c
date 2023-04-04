@@ -2145,7 +2145,7 @@ static ssize_t batt_current_ua_now_show(struct device *dev,
 		printc("Couldn't get mtchg_info\n");
 		return sprintf(buf, "%d\n",ret);
 	}
-	ret = get_battery_current(mtchg_info);
+	ret = get_battery_current(mtchg_info) * 1000;
 	return sprintf(buf, "%d\n",ret);
 }
 static ssize_t hv_disable_show(struct device *dev,
@@ -2411,6 +2411,16 @@ static ssize_t shipmode_store(struct device *dev,
 	return size;
 }
 #endif
+static ssize_t voltage_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	int vbus = 0;
+	struct wtchg_info *info = wt_get_wtchg_info();
+	struct mtk_charger *mtchg_info = (struct mtk_charger *)info->mtk_charger;
+		if(!IS_ERR_OR_NULL(mtchg_info))
+			vbus = get_vbus(mtchg_info);
+	return sprintf(buf, "%d\n",vbus);
+}
 
 static DEVICE_ATTR_RW(batt_slate_mode);
 static DEVICE_ATTR_RO(typec_cc_orientation);
@@ -2430,6 +2440,7 @@ static DEVICE_ATTR_RO(batt_misc_event);
 static DEVICE_ATTR_RW(batt_full_capacity);
 //static DEVICE_ATTR_RO(time_to_full_now);
 static DEVICE_ATTR_RO(shipmode);
+static DEVICE_ATTR_RO(voltage);
 
 #ifdef CHG_WITH_STEP_CURRENT
 static void wtchg_set_current_work_handler(struct work_struct *data)
@@ -2485,11 +2496,12 @@ static void wtchg_lateinit_work_handler(struct work_struct *data)
 			device_create_file(&info->bat_psy->dev,&dev_attr_batt_full_capacity);
 			//device_create_file(&info->bat_psy->dev,&dev_attr_time_to_full_now);
 			device_create_file(&info->bat_psy->dev,&dev_attr_shipmode);
+			device_create_file(&info->bat_psy->dev,&dev_attr_voltage);
 			info->batsys_created = true;
 		}else
 			printc("batsys_created\n");
-	} 
-	
+	}
+
 	info->usb_psy = power_supply_get_by_name("usb");
 	if (IS_ERR_OR_NULL(info->usb_psy)) {
 		printc("Couldn't get usb_psy\n");

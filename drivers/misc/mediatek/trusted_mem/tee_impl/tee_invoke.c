@@ -48,7 +48,8 @@ enum mtk_iommu_sec_id {
 #define TEE_CMD_UNLOCK() mutex_unlock(&tee_lock)
 static DEFINE_MUTEX(tee_lock);
 
-#if defined(CONFIG_TRUSTONIC_TEE_SUPPORT) || defined(CONFIG_MICROTRUST_TEE_SUPPORT)
+#if defined(CONFIG_TRUSTONIC_TEE_SUPPORT) || defined(CONFIG_MICROTRUST_TEE_SUPPORT) || \
+defined(CONFIG_TEEGRIS_TEE_SUPPORT)
 static struct trusted_driver_operations *tee_ops;
 static void *tee_session_data;
 
@@ -96,6 +97,7 @@ int tee_directly_invoke_cmd(struct trusted_driver_cmd_params *invoke_params)
 
 #if defined(CONFIG_TRUSTONIC_TEE_SUPPORT) \
 	|| defined(CONFIG_MICROTRUST_TEE_SUPPORT) \
+	|| defined(CONFIG_TEEGRIS_TEE_SUPPORT)\
 	&& defined(CONFIG_MTK_SVP_ON_MTEE_SUPPORT)
 int secmem_fr_set_svp_region(u64 pa, u32 size, int remote_region_type)
 {

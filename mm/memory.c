@@ -3008,7 +3008,8 @@ static vm_fault_t do_wp_page(struct vm_fault *vmf)
 {
 	struct vm_area_struct *vma = vmf->vma;
 
-vmf->page = vm_normal_page(vma, vmf->address, vmf->orig_pte);
+	vmf->page = __vm_normal_page(vma, vmf->address, vmf->orig_pte, false,
+				     vmf->vma_flags);
 	if (!vmf->page) {
 		/*
 		 * VM_MIXEDMAP !pfn_valid() case, or VM_SOFTDIRTY clear on a
@@ -3017,7 +3018,7 @@ vmf->page = vm_normal_page(vma, vmf->address, vmf->orig_pte);
 		 * We should not cow pages in a shared writeable mapping.
 		 * Just mark the pages writable and/or call ops->pfn_mkwrite.
 		 */
-if ((vma->vm_flags & (VM_WRITE|VM_SHARED)) ==
+		if ((vmf->vma_flags & (VM_WRITE|VM_SHARED)) ==
 				     (VM_WRITE|VM_SHARED))
 			return wp_pfn_shared(vmf);
 
@@ -3029,31 +3030,47 @@ if ((vma->vm_flags & (VM_WRITE|VM_SHARED)) ==
 	 * Take out anonymous pages first, anonymous shared vmas are
 	 * not dirty accountable.
 	 */
-	if (PageAnon(vmf->page)) {
-		struct page *page = vmf->page;
+	if (PageAnon(vmf->page) && !PageKsm(vmf->page)) {
+		int total_map_swapcount;
 
-		/* PageKsm() doesn't necessarily raise the page refcount */
-		if (PageKsm(page) || page_count(page) != 1)
-			goto copy;
-		if (!trylock_page(page))
-			goto copy;
-		if (PageKsm(page) || page_mapcount(page) != 1 || page_count(page) != 1) {
-			unlock_page(page);
-			goto copy;
+		if (!trylock_page(vmf->page)) {
+			get_page(vmf->page);
+			pte_unmap_unlock(vmf->pte, vmf->ptl);
+			lock_page(vmf->page);
+			if (!pte_map_lock(vmf)) {
+				unlock_page(vmf->page);
+				put_page(vmf->page);
+				return VM_FAULT_RETRY;
+			}
+			if (!pte_same(*vmf->pte, vmf->orig_pte)) {
+				unlock_page(vmf->page);
+				pte_unmap_unlock(vmf->pte, vmf->ptl);
+				put_page(vmf->page);
+				return 0;
+			}
+			put_page(vmf->page);
 		}
-		/*
-		 * Ok, we've got the only map reference, and the only
-		 * page count reference, and the page is locked,
-		 * it's dark out, and we're wearing sunglasses. Hit it.
-		 */
-		unlock_page(page);
-		wp_page_reuse(vmf);
-		return VM_FAULT_WRITE;
+		if (reuse_swap_page(vmf->page, &total_map_swapcount)) {
+			if (total_map_swapcount == 1) {
+				/*
+				 * The page is all ours. Move it to
+				 * our anon_vma so the rmap code will
+				 * not search our parent or siblings.
+				 * Protected against the rmap code by
+				 * the page lock.
+				 */
+				page_move_anon_rmap(vmf->page, vma);
+			}
+			unlock_page(vmf->page);
+			wp_page_reuse(vmf);
+			return VM_FAULT_WRITE;
+		}
+		unlock_page(vmf->page);
 	} else if (unlikely((vmf->vma_flags & (VM_WRITE|VM_SHARED)) ==
 					(VM_WRITE|VM_SHARED))) {
 		return wp_page_shared(vmf);
 	}
-copy:
+
 	/*
 	 * Ok, we need to copy. Oh, well..
 	 */

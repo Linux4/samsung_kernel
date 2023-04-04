@@ -24,6 +24,34 @@
 
 #include "scsi_priv.h"
 #include "scsi_logging.h"
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+#include <linux/mm.h>
+
+#define SD_NUM  3
+/* get ddr size  */
+#define WT_GET_DDR_SIZE_ZERO             0
+#define WT_GET_DDR_SIZE_1GB              1
+#define WT_GET_DDR_SIZE_2GB              2
+#define WT_GET_DDR_SIZE_3GB              3
+#define WT_GET_DDR_SIZE_4GB              4
+#define WT_GET_DDR_SIZE_6GB              6
+#define WT_GET_DDR_SIZE_8GB              8
+#define WT_GET_DDR_SIZE_10GB             10
+#define WT_GET_DDR_SIZE_12GB             12
+#define WT_GET_DDR_SIZE_14GB             14
+#define WT_GET_DDR_SIZE_16GB             16
+/* get ufs size */
+#define WT_GET_UFS_SIZE_ZERO             0
+#define WT_GET_UFS_SIZE_16GB             16
+#define WT_GET_UFS_SIZE_32GB             32
+#define WT_GET_UFS_SIZE_64GB             64
+#define WT_GET_UFS_SIZE_128GB            128
+#define WT_GET_UFS_SIZE_256GB            256
+#define WT_GET_UFS_SIZE_512GB            512
+#define WT_GET_UFS_SIZE_1TB              1024
+#define WT_GET_UFS_SIZE_2TB              2048
+struct gendisk *ufs_disk[SD_NUM] = {NULL, NULL, NULL};
+#endif
 
 static struct device_type scsi_dev_type;
 
@@ -378,6 +406,130 @@ shost_rd_attr(prot_capabilities, "%u\n");
 shost_rd_attr(prot_guard_type, "%hd\n");
 shost_rd_attr2(proc_name, hostt->proc_name, "%s\n");
 
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+static int calc_ddr_size(void)
+{
+	int temp_size;
+	temp_size = (int)totalram_pages/1024; //page size 4K
+
+	if ((temp_size > 0*256) && (temp_size <= 1*256))
+		return WT_GET_DDR_SIZE_1GB;
+	else if ((temp_size > 1*256) && (temp_size <= 2*256))
+		return WT_GET_DDR_SIZE_2GB;
+	else if ((temp_size > 2*256) && (temp_size <= 3*256))
+		return WT_GET_DDR_SIZE_3GB;
+	else if ((temp_size > 3*256) && (temp_size <= 4*256))
+		return WT_GET_DDR_SIZE_4GB;
+	else if ((temp_size > 4*256) && (temp_size <= 6*256))
+		return WT_GET_DDR_SIZE_6GB;
+	else if ((temp_size > 6*256) && (temp_size <= 8*256))
+		return WT_GET_DDR_SIZE_8GB;
+	else if ((temp_size > 8*256) && (temp_size <= 10*256))
+		return WT_GET_DDR_SIZE_10GB;
+	else if ((temp_size > 10*256) && (temp_size <= 12*256))
+		return WT_GET_DDR_SIZE_12GB;
+	else if ((temp_size > 12*256) && (temp_size <= 16*256))
+		return WT_GET_DDR_SIZE_16GB;
+	else
+		return WT_GET_DDR_SIZE_ZERO;
+}
+
+static int calc_ufs_size(unsigned long long size)
+{
+	int temp_size;
+	temp_size = (int)size/2/1024/1024; //sector size 512B
+
+	if ((temp_size > 8) && (temp_size <= 16))
+		return WT_GET_UFS_SIZE_16GB;
+	else if ((temp_size > 16) && (temp_size <= 32))
+		return WT_GET_UFS_SIZE_32GB;
+	else if ((temp_size > 32) && (temp_size <= 64))
+		return WT_GET_UFS_SIZE_64GB;
+	else if ((temp_size > 64) && (temp_size <= 128))
+		return WT_GET_UFS_SIZE_128GB;
+	else if ((temp_size > 128) && (temp_size <= 256))
+		return WT_GET_UFS_SIZE_256GB;
+	else if ((temp_size > 256) && (temp_size <= 512))
+		return WT_GET_UFS_SIZE_512GB;
+	else if ((temp_size > 512) && (temp_size <= 1024))
+		return WT_GET_UFS_SIZE_1TB;
+	else
+		return WT_GET_UFS_SIZE_ZERO;
+}
+
+static ssize_t
+show_flash_name(struct device *dev, struct device_attribute *attr,
+        char *buf)
+{
+	struct scsi_device *sdev;
+	struct hd_struct *p = NULL;
+	struct gendisk **gd_t = ufs_disk;
+	unsigned long long ufs_size = 0;
+	int ret = 0;
+	char vendor_name[32] = {0};
+	char model_name[32] = {0};
+
+	sdev = to_scsi_device(dev);
+
+	for(; *gd_t!=NULL; gd_t++)
+	{
+		p = &((*gd_t)->part0);
+		printk("(*gd_t)->disk_name is %s, p->nr_sects = %llu, (unsigned long long)part_nr_sects_read(p) = %llu\n", (*gd_t)->disk_name, p->nr_sects, (unsigned long long)part_nr_sects_read(p));
+		if ((strcmp((*gd_t)->disk_name, "sda") == 0) || (strcmp((*gd_t)->disk_name, "sdb") == 0) || (strcmp((*gd_t)->disk_name, "sdc") == 0))
+		ufs_size += (unsigned long long)part_nr_sects_read(p);
+	}
+
+	printk("%s: wt ufs sects num is <%llu>\n", __func__, ufs_size);
+	ret = sscanf(sdev->vendor, "%8s", vendor_name);
+	if (ret != 1)
+		return -EINVAL;
+
+	ret = sscanf(sdev->model, "%16s", model_name);
+	if (ret != 1)
+		return -EINVAL;
+
+	if (strcmp(model_name, "eUFS2.2_128") == 0)
+		return sprintf(buf, "%s_PSUF22H17-A128SS_%dGB_%dGB\n",vendor_name,
+			calc_ddr_size(), calc_ufs_size(ufs_size));
+	else if (strcmp(model_name, "eUFS2.2_064") == 0)
+		return sprintf(buf, "%s_PSUF22H17-A064SS_%dGB_%dGB\n",vendor_name,
+			calc_ddr_size(), calc_ufs_size(ufs_size));
+	else
+		return sprintf(buf, "%s_%s_%dGB_%dGB\n",vendor_name, model_name,
+			calc_ddr_size(), calc_ufs_size(ufs_size));
+}
+
+static DEVICE_ATTR(flash_name, S_IRUGO, show_flash_name, NULL);
+
+static ssize_t
+show_ram_size(struct device *dev, struct device_attribute *attr,
+        char *buf)
+{
+    return sprintf(buf, "%dGB\n",calc_ddr_size());
+}
+
+static DEVICE_ATTR(ram_size, S_IRUGO, show_ram_size, NULL);
+
+static ssize_t
+show_rom_size(struct device *dev, struct device_attribute *attr,
+        char *buf)
+{
+	struct hd_struct *p = NULL;
+	struct gendisk **gd_t = ufs_disk;
+	unsigned long long ufs_size = 0;
+	for(; *gd_t!=NULL; gd_t++)
+	{
+		p = &((*gd_t)->part0);
+		printk("(*gd_t)->disk_name is %s, p->nr_sects = %llu, (unsigned long long)part_nr_sects_read(p) = %llu\n", (*gd_t)->disk_name, p->nr_sects, (unsigned long long)part_nr_sects_read(p));
+		if ((strcmp((*gd_t)->disk_name, "sda") == 0) || (strcmp((*gd_t)->disk_name, "sdb") == 0) || (strcmp((*gd_t)->disk_name, "sdc") == 0))
+		ufs_size += (unsigned long long)part_nr_sects_read(p);
+	}
+	return sprintf(buf, "%dGB\n",calc_ufs_size(ufs_size));
+}
+
+static DEVICE_ATTR(rom_size, S_IRUGO, show_rom_size, NULL);
+#endif
+
 static ssize_t
 show_host_busy(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -636,7 +788,11 @@ sdev_rd_attr (type, "%d\n");
 sdev_rd_attr (scsi_level, "%d\n");
 sdev_rd_attr (vendor, "%.8s\n");
 sdev_rd_attr (model, "%.16s\n");
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+sdev_rd_attr (rev, "0x%.4s\n");
+#else
 sdev_rd_attr (rev, "%.4s\n");
+#endif
 
 static ssize_t
 sdev_show_device_busy(struct device *dev, struct device_attribute *attr,
@@ -1218,6 +1374,11 @@ static struct attribute *scsi_sdev_attrs[] = {
 	&dev_attr_dh_state.attr,
 	&dev_attr_access_state.attr,
 	&dev_attr_preferred_path.attr,
+#endif
+#if defined(CONFIG_WT_PROJECT_S96901AA1) || defined(CONFIG_WT_PROJECT_S96902AA1) || defined(CONFIG_WT_PROJECT_S96901WA1)
+	&dev_attr_flash_name.attr,
+	&dev_attr_ram_size.attr,
+	&dev_attr_rom_size.attr,
 #endif
 	&dev_attr_queue_ramp_up_period.attr,
 	REF_EVT(media_change),

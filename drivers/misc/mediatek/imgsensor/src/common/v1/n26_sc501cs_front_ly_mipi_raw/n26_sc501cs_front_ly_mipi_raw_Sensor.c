@@ -1784,7 +1784,7 @@ static int sc501cs_sensor_otp_info(kal_uint8 threshold)
 	//Get LSC data
 	if(VALID_OTP_FLAG == read_cmos_sensor(LSC_GROUP2_FLAG)) {
 		ret = read_sc501cs_lsc_info(LSC_GROUP2_FLAG,threshold);
-		if(ret != 1){
+			if(ret != 1){
 			LOG_INF("=== read_sc501cs_lsc_info(LSC_GROUP2_FLAG) checksum error ===\n");
 			total_ret = total_ret & 0xfb;
 		}

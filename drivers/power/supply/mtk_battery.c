@@ -55,24 +55,16 @@ static int usb_low_current = 0;
 #define SEC_BAT_CURRENT_EVENT_USB_100MA   0x00040
 
 #define SEC_BAT_CURRENT_EVENT_SLATE   0x00800
+//+bug 790826,yangchaojun,wt,add batt_full_capacity node
+#define BATT_MISC_EVENT_FULL_CAPACITY  0x01000000
+
 #define GPIO_SWITCH_BATTERY_ID    (0)
 #define GPIO_SWITCH_IBUS          (1)
 int g_ibus_current;
-#endif
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-#define SEC_BAT_CURRENT_EVENT_SLATE   0x00800
-#define SEC_BAT_CURRENT_EVENT_HV_DISABLE	0x010000
-#define SEC_BAT_CURRENT_EVENT_NONE   0x00000
-#define SEC_BAT_CURRENT_EVENT_AFC   0x00001  // fast charging
-#define SEC_BAT_CURRENT_EVENT_CHARGE_DISABLE  0x00002
-#define SEC_BAT_CURRENT_EVENT_LOW_TEMP_SWELLING  0x00010
-#define SEC_BAT_CURRENT_EVENT_HIGH_TEMP_SWELLING 0x00020
-#define SEC_BAT_CURRENT_EVENT_USB_100MA   0x00040
-bool batt_hv_disable = 0;
-bool batt_store_mode = 0;
-static int usb_low_current = 0;
-static struct charger_device *primary_charger;
-static bool batt_slate_mode = 0;
+//+bug 790826,yangchaojun,wt,add batt_full_capacity node
+int batt_full_capacity = 100;
+extern void wt_batt_full_capacity_check(void);
+//-bug 790826,yangchaojun,wt,add batt_full_capacity node
 #endif
 struct tag_bootmode {
 	u32 size;
@@ -351,6 +343,31 @@ int Get_get_charger()
 #endif
 //-Bug682591,caoyachun.wt,ADD,20220322,battery misc event
 
+
+//+Bug805088,yangchaojun.wt,add,high temperature charging cannot be fully charged
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+#define jeita_hightemp_cv 4200000
+int get_jeita_cv(void)
+{
+	struct mtk_charger *info;
+	struct power_supply *psy;
+	int ret;
+	psy = power_supply_get_by_name("mtk-master-charger");
+	if (psy == NULL || IS_ERR(psy)) {
+		pr_notice("%s Couldn't get psy\n", __func__);
+		return -1;
+	} else {
+		info = (struct mtk_charger *)power_supply_get_drvdata(psy);
+	}
+	ret = info->sw_jeita.cv;
+	bm_err("jeita_hightemp_cv: %d\n", ret);
+	return ret;
+}
+#endif
+//-Bug805088,yangchaojun.wt,add,high temperature charging cannot be fully charged
+
+
+
 int wakeup_fg_algo_cmd(
 	struct mtk_battery *gm, unsigned int flow_state, int cmd, int para1)
 {
@@ -440,18 +457,6 @@ static enum power_supply_property battery_props[] = {
 	POWER_SUPPLY_PROP_TIME_TO_FULL_NOW,
 #endif
 	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-	POWER_SUPPLY_PROP_BATT_MISC_EVENT,
-	POWER_SUPPLY_PROP_BATT_CURRENT_UA_NOW,
-	POWER_SUPPLY_PROP_NEW_CHARGE_TYPE,
-	POWER_SUPPLY_PROP_ONLINE,
-	POWER_SUPPLY_PROP_HV_CHARGER_STATUS,
-	POWER_SUPPLY_PROP_STORE_MODE,
-	POWER_SUPPLY_PROP_BATT_SLATE_MODE,
-	POWER_SUPPLY_PROP_BATT_CURRENT_EVENT,
-	POWER_SUPPLY_PROP_HV_DISABLE,
-	POWER_SUPPLY_PROP_BATTERY_CYCLE,
-#endif
 #if defined (CONFIG_N23_CHARGER_PRIVATE)
 	POWER_SUPPLY_PROP_VOLTAGE,
 	POWER_SUPPLY_PROP_BATT_MISC_EVENT,
@@ -464,6 +469,8 @@ static enum power_supply_property battery_props[] = {
 	POWER_SUPPLY_PROP_BATT_CURRENT_EVENT,
 	POWER_SUPPLY_PROP_CHARGE_TYPE,
 	POWER_SUPPLY_PROP_BATTERY_CYCLE,
+//+bug 790826,yangchaojun,wt,add batt_full_capacity node
+	POWER_SUPPLY_PROP_BATT_FULL_CAPACITY,	
 #endif
 #if defined (CONFIG_N26_CHARGER_PRIVATE)
 	POWER_SUPPLY_PROP_ONLINE,
@@ -476,23 +483,6 @@ static enum power_supply_property otg_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 };
 #endif
-
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-static int gm_get_charger_type(struct mtk_battery *gm)
-{
-	union power_supply_propval prop_type;
-	struct power_supply *chg_psy = devm_power_supply_get_by_phandle(&gm->gauge->pdev->dev,"charger");
-	if (IS_ERR_OR_NULL(chg_psy)) {
-		prop_type.intval = 0;
-		bm_err("chg psy is null or error !!\n");
-		return 0;
-	}
-	power_supply_get_property(chg_psy,POWER_SUPPLY_PROP_TYPE, &prop_type);
-	bm_err("%s get charger type = %d\n", __func__, prop_type.intval);
-	return prop_type.intval;
-}
-#endif
-
 static int battery_psy_get_property(struct power_supply *psy,
 	enum power_supply_property psp,
 	union power_supply_propval *val)
@@ -555,7 +545,6 @@ static int battery_psy_get_property(struct power_supply *psy,
 		val->intval = 1;
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
-		//+ bug 732952,guoyanjun.wt,ADD,20220316,Fixed an issue which battery was always 75% in Meta mode
 #ifndef	CONFIG_N26_CHARGER_PRIVATE
 		/* 1 = META_BOOT, 4 = FACTORY_BOOT 5=ADVMETA_BOOT */
 		/* 6= ATE_factory_boot */
@@ -565,7 +554,6 @@ static int battery_psy_get_property(struct power_supply *psy,
 			break;
 		}
 #endif
-		//- bug 732952,guoyanjun.wt,ADD,20220316,Fixed an issue which battery was always 75% in Meta mode
 		if (gm->fixed_uisoc != 0xffff)
 			val->intval = gm->fixed_uisoc;
 		else
@@ -669,6 +657,11 @@ static int battery_psy_get_property(struct power_supply *psy,
 		} else {
 			val->intval = 0;
 		}
+//+bug 790826,yangchaojun,wt,add batt_full_capacity node
+		bm_err("ddd %d\n", bs_data->bat_status);
+		if ((batt_full_capacity != 100) && (bs_data->bat_status == POWER_SUPPLY_STATUS_NOT_CHARGING))
+			val->intval = BATT_MISC_EVENT_FULL_CAPACITY;
+//-bug 790826,yangchaojun,wt,add batt_full_capacity node		
 		break;
 	case POWER_SUPPLY_PROP_NEW_CHARGE_TYPE:
  		if (1000 > (gauge_get_int_property(GAUGE_PROP_BATTERY_CURRENT) / 10))
@@ -701,17 +694,22 @@ static int battery_psy_get_property(struct power_supply *psy,
 			val->intval = 0;
 		}
 		break;
+//+bug 790826,yangchaojun,wt,add batt_full_capacity node
+	case POWER_SUPPLY_PROP_BATT_FULL_CAPACITY:
+		val->intval = batt_full_capacity;
+		break;
+//-bug 790826,yangchaojun,wt,add batt_full_capacity node	
 	case POWER_SUPPLY_PROP_STORE_MODE:
-		if (batt_store_mode)
+		if(batt_store_mode)
 			val->intval = 1;
 		else
 			val->intval = 0;
 		break;
 	case POWER_SUPPLY_PROP_BATT_CURRENT_EVENT:
-		val->intval = SEC_BAT_CURRENT_EVENT_NONE;
+		val->intval=SEC_BAT_CURRENT_EVENT_NONE;
 		bm_info("%s SEC_BAT_CURRENT_EVENT_NONE:%d\n", __func__, bs_data->bat_batt_temp);
 		chr_type = Get_get_charger();
-		if ((POWER_SUPPLY_TYPE_UNKNOWN != chr_type)&&(POWER_SUPPLY_STATUS_CHARGING == bs_data->bat_status)){
+		if((POWER_SUPPLY_TYPE_UNKNOWN != chr_type)&&(POWER_SUPPLY_STATUS_CHARGING == bs_data->bat_status)){
 			val->intval |= SEC_BAT_CURRENT_EVENT_AFC;
 		}
 
@@ -734,7 +732,7 @@ static int battery_psy_get_property(struct power_supply *psy,
 		}
 		break;
 	case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
-		if (batt_slate_mode)
+		if(batt_slate_mode)
 			val->intval = 1;
 		else
 			val->intval = 0;
@@ -760,110 +758,6 @@ static int battery_psy_get_property(struct power_supply *psy,
 		pr_err("slow charge ibus = %d count = %d chg_type = %d is_slow_chg = %d\n",
 			g_ibus_current, slow_chg_cnt, chr_type, val->intval);
 	break;
-#endif
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-	case POWER_SUPPLY_PROP_BATT_MISC_EVENT:
-		chr_type = gm_get_charger_type(gm);
-		if (POWER_SUPPLY_TYPE_USB_FLOAT == chr_type){
-			val->intval = 4;
-		}else{
-			val->intval = 0;
-		}
-		break;
-	case POWER_SUPPLY_PROP_NEW_CHARGE_TYPE:
-		if (1000 > (gauge_get_int_property(GAUGE_PROP_BATTERY_CURRENT) / 10))
-			val->strval = "Slow";
-		else
-			val->strval = "Fast";
-		break;
-	case POWER_SUPPLY_PROP_ONLINE:
-		chr_type = gm_get_charger_type(gm);
-		if (POWER_SUPPLY_TYPE_UNKNOWN == chr_type) {
-			val->intval = 1;
-		} else if ((POWER_SUPPLY_USB_TYPE_CDP == chr_type) ||
-			(POWER_SUPPLY_TYPE_USB == chr_type)) {
-			val->intval = 4;
-		} else if (POWER_SUPPLY_TYPE_USB_DCP == chr_type) {
-			val->intval = 3;
-		} else if (POWER_SUPPLY_TYPE_USB_FLOAT == chr_type) {
-			val->intval = 0;
-		}
-		break;
-	case POWER_SUPPLY_PROP_HV_CHARGER_STATUS:
-		psy_m = power_supply_get_by_name("mtk-master-charger");
-		if (psy_m == NULL || IS_ERR(psy_m)) {
-			pr_notice("%s Couldn't get psy\n", __func__);
-			val->intval = 0;
-			break;
-		} else {
-			info = (struct mtk_charger *)power_supply_get_drvdata(psy_m);
-		}
-		chr_type = gm_get_charger_type(gm);
-		if (POWER_SUPPLY_TYPE_USB_DCP == chr_type) {
-			if (fast_charger_connect(info) == true){
-				val->intval = 1;
-			}
-#ifdef CONFIG_AFC_CHARGER
-			else if(wt_get_afc_work_status() == 1)
-				val->intval = 1;
-#endif
-			else{
-				val->intval = 0;
-			}
-		} else {
-				val->intval = 0;
-		}
-		break;
-	case POWER_SUPPLY_PROP_STORE_MODE:
-		if(batt_store_mode)
-			val->intval = 1;
-		else
-			val->intval = 0;
-		break;
-	case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
-		if(batt_slate_mode)
-			val->intval = 1;
-		else
-			val->intval = 0;
-		break;
-	case POWER_SUPPLY_PROP_BATT_CURRENT_EVENT:
-		val->intval = SEC_BAT_CURRENT_EVENT_NONE;
-
-		chr_type = gm_get_charger_type(gm);
-		if((POWER_SUPPLY_TYPE_UNKNOWN != chr_type)&&(POWER_SUPPLY_STATUS_CHARGING == bs_data->bat_status)){
-			val->intval += SEC_BAT_CURRENT_EVENT_AFC;
-		}
-
-		if((POWER_SUPPLY_TYPE_UNKNOWN != chr_type)&&(POWER_SUPPLY_STATUS_CHARGING != bs_data->bat_status)){
-			val->intval += SEC_BAT_CURRENT_EVENT_CHARGE_DISABLE;
-		}
-
-		if (bs_data->bat_batt_temp < 10) {
-			val->intval += SEC_BAT_CURRENT_EVENT_LOW_TEMP_SWELLING;
-		} else if (bs_data->bat_batt_temp > 45) {
-			val->intval += SEC_BAT_CURRENT_EVENT_HIGH_TEMP_SWELLING;
-		}
-
-		if (64 == usb_low_current) {
-			val->intval += SEC_BAT_CURRENT_EVENT_USB_100MA;
-		}
-
-		if (batt_slate_mode) {
-			val->intval += SEC_BAT_CURRENT_EVENT_SLATE;
-		}
-		if (batt_hv_disable) {
-			val->intval += SEC_BAT_CURRENT_EVENT_HV_DISABLE;
-		}
-		break;
-	case POWER_SUPPLY_PROP_HV_DISABLE:
-		if(batt_hv_disable)
-			val->intval = 1;
-		else
-			val->intval = 0;
-		break;
-	case POWER_SUPPLY_PROP_BATTERY_CYCLE:
-		val->intval = gm->bat_cycle;
-		break;
 #endif
 	default:
 		ret = -EINVAL;
@@ -892,13 +786,7 @@ static void mtk_battery_external_power_changed(struct power_supply *psy)
 
 	gm = psy->drv_data;
 	bs_data = &gm->bs_data;
-//+bug 717431, liyiying.wt, add, 2021/1/26, n21s charger bring up
-#ifdef CONFIG_MT6370_PMU_CHARGER
-	chg_psy = power_supply_get_by_name("mt6370_pmu_charger");
-#else
 	chg_psy = bs_data->chg_psy;
-#endif
-//-bug 717431, liyiying.wt, add, 2021/1/26, n21s charger bring up
 
 #if defined (CONFIG_N23_CHARGER_PRIVATE)
 	if (IS_ERR_OR_NULL(chg_psy))
@@ -966,9 +854,22 @@ static void mtk_battery_external_power_changed(struct power_supply *psy)
 
 		if (status.intval == POWER_SUPPLY_STATUS_FULL
 			&& gm->b_EOC != true) {
+//+Bug805088,yangchaojun.wt,add,high temperature charging cannot be fully charged		
+#if defined (CONFIG_N23_CHARGER_PRIVATE)		
+			if(get_jeita_cv() == jeita_hightemp_cv) {
+				gm->b_EOC = false;
+				bm_err("jeita_hightemp_cv\n");
+			} else {
+				bm_err("POWER_SUPPLY_STATUS_FULL\n");
+				gm->b_EOC = true;
+				notify_fg_chr_full(gm);
+			}
+#else
 			bm_err("POWER_SUPPLY_STATUS_FULL\n");
 			gm->b_EOC = true;
 			notify_fg_chr_full(gm);
+#endif
+//-Bug805088,yangchaojun.wt,add,high temperature charging cannot be fully charged
 		} else
 			gm->b_EOC = false;
 
@@ -1072,6 +973,7 @@ static int battery_psy_set_property(struct power_supply *psy,
 		}
 		pr_err("HV wired charging mode is %s\n",
 				(pval ? "Disabled" : "Enabled"));
+
 		if (pval)
 			batt_hv_disable = true;
 		else
@@ -1113,7 +1015,7 @@ static int battery_psy_set_property(struct power_supply *psy,
 	switch (psp) {
 
 	case POWER_SUPPLY_PROP_STORE_MODE:
-		if (pval) {
+		if(pval) {
 			store_mode_current = STORE_MODE_CHRCURRENT;
 			batt_store_mode = 1;
 			pr_err("store mode enable\n");
@@ -1122,9 +1024,10 @@ static int battery_psy_set_property(struct power_supply *psy,
 			batt_store_mode = 0;
 			pr_err("store mode disable\n");
 		}
+
 		break;
 	case POWER_SUPPLY_PROP_BATT_SLATE_MODE:
-		if (pval)
+		if(pval)
 			batt_slate_mode = true;
 		else
 			batt_slate_mode = false;
@@ -1132,6 +1035,13 @@ static int battery_psy_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_BATT_CURRENT_EVENT:
 		usb_low_current = val->intval;
 		break;
+//+bug 790826,yangchaojun,wt,add batt_full_capacity node
+	case POWER_SUPPLY_PROP_BATT_FULL_CAPACITY:
+		batt_full_capacity = val->intval;
+		wt_batt_full_capacity_check();
+		break;
+//-bug 790826,yangchaojun,wt,add batt_full_capacity node
+	
 	default:
 		ret = -EINVAL;
 		break;
@@ -1147,6 +1057,7 @@ static int battery_props_is_writeable(struct power_supply *psy,
 
 	case POWER_SUPPLY_PROP_STORE_MODE:
 	case POWER_SUPPLY_PROP_BATT_SLATE_MODE://Bug 682591,wangmingyuan.wt,ADD,20210816,battery Current event and slate mode
+	case POWER_SUPPLY_PROP_BATT_FULL_CAPACITY:
 		return 1;
 	default:
 		break;
@@ -1185,7 +1096,7 @@ void battery_service_data_init(struct mtk_battery *gm)
 	gm->fixed_uisoc = 0xffff;
 }
 
-#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
 //+Bug682591,yangyuhang.wt,ADD,20210812,OTG status
 static int otg_get_property(struct power_supply *psy,
 	enum power_supply_property psp,
@@ -1194,8 +1105,13 @@ static int otg_get_property(struct power_supply *psy,
 	int ret = 0;
 
 	switch (psp) {
+//+Bug789327,yangchaojun.wt,ADD,OTG status
+	case POWER_SUPPLY_PROP_TYPE:
+		val->intval = 1;
+		break;
+//-Bug789327,yangchaojun.wt,ADD,OTG status
 	case POWER_SUPPLY_PROP_PRESENT:
-			val->intval = 1;
+		val->intval = 1;
 		break;
 	default:
 		ret = -EINVAL;
@@ -1282,21 +1198,17 @@ int BattThermistorConverTemp(struct mtk_battery *gm, int Res)
 	ptable = gm->tmp_table;
 	if (Res >= ptable[0].TemperatureR) {
 		TBatt_Value = -400;
-#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N26_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N26_CHARGER_PRIVATE)
 	} else if (Res <= ptable[28].TemperatureR) {
 #else
 	} else if (Res <= ptable[20].TemperatureR) {
 #endif
-#if defined (CONFIG_N21_CHARGER_PRIVATE)
-		TBatt_Value = 1000;
-#else
 		TBatt_Value = 600;
-#endif
 	} else {
 		RES1 = ptable[0].TemperatureR;
 		TMP1 = ptable[0].BatteryTemp;
 
-#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N26_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N26_CHARGER_PRIVATE)
 		for (i = 0; i <= 28; i++) {
 #else
 		for (i = 0; i <= 20; i++) {
@@ -1634,7 +1546,7 @@ int gauge_set_property(enum gauge_property gp,
 /* ============================================================ */
 /* load .h/dtsi */
 /* ============================================================ */
-#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
 int wt_set_batt_cycle_fv()
 {
 	int i,cycle;
@@ -1655,6 +1567,31 @@ int wt_set_batt_cycle_fv()
 	return 0;
 }
 EXPORT_SYMBOL_GPL(wt_set_batt_cycle_fv);
+#elif defined (CONFIG_N23_CHARGER_PRIVATE)
+int wt_set_batt_cycle_fv(struct mtk_battery *gm)
+{
+	int i, cycle = 0;
+	static int cycle_fv = 0;
+
+	if (gm == NULL)
+		return cycle_fv;
+
+	if (gm->bat_cycle >= 0 && gm->bat_cycle < 999999)
+		cycle = gm->bat_cycle;
+
+	bm_err("WT cycle %d\n", cycle);
+	if (gm->batt_cycle_fv_cfg && gm->fv_levels) {
+		for (i = 0; i < gm->fv_levels; i += 3) {
+			if ((cycle >= gm->batt_cycle_fv_cfg[i]) && (cycle <= gm->batt_cycle_fv_cfg[i + 1])) {
+				chr_err("WT set cv = %d\n", gm->batt_cycle_fv_cfg[i + 2]);
+				cycle_fv = gm->batt_cycle_fv_cfg[i + 2];
+				return gm->batt_cycle_fv_cfg[i + 2];
+			}
+		}
+	}
+	return 0;
+}
+EXPORT_SYMBOL_GPL(wt_set_batt_cycle_fv);
 #endif
 
 void fg_custom_init_from_header(struct mtk_battery *gm)
@@ -1663,7 +1600,7 @@ void fg_custom_init_from_header(struct mtk_battery *gm)
 	struct fuel_gauge_custom_data *fg_cust_data;
 	struct fuel_gauge_table_custom_data *fg_table_cust_data;
 	int version = 0;
-#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
 	int cycle_fv;
 #endif
 	fg_cust_data = &gm->fg_cust_data;
@@ -1973,7 +1910,7 @@ void fg_custom_init_from_header(struct mtk_battery *gm)
 	memcpy(&fg_table_cust_data->fg_profile[9].fg_profile,
 			&fg_profile_t9[gm->battery_id],
 			sizeof(fg_profile_t9[gm->battery_id]));
-#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
 	if (wt_set_batt_cycle_fv()!=0){
 		cycle_fv = wt_set_batt_cycle_fv();
 	}
@@ -1991,7 +1928,7 @@ void fg_custom_init_from_header(struct mtk_battery *gm)
 			g_Q_MAX_H_CURRENT[i][gm->battery_id];
 		fg_table_cust_data->fg_profile[i].pseudo1 =
 			UNIT_TRANS_100 * g_FG_PSEUDO1[i][gm->battery_id];
-#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
 		if(i == 1 || i == 2 || i == 3){
 			switch(cycle_fv){
 				case 4400000:
@@ -2213,7 +2150,7 @@ void fg_custom_init_from_dts(struct platform_device *dev,
 	char node_name[128];
 	struct fuel_gauge_custom_data *fg_cust_data;
 	struct fuel_gauge_table_custom_data *fg_table_cust_data;
-#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
+#if defined (CONFIG_N21_CHARGER_PRIVATE)
 	int byte_len;
 	struct platform_device *pdev;
 	if (of_find_property(np, "wt,batt-cycle-ranges", &byte_len)) {
@@ -2232,6 +2169,26 @@ void fg_custom_init_from_dts(struct platform_device *dev,
 			}
 		}
 	}
+#elif defined (CONFIG_N23_CHARGER_PRIVATE)
+	int cycle_fv, byte_len;
+
+	if (of_find_property(np, "wt,batt-cycle-ranges", &byte_len)) {
+		gm->batt_cycle_fv_cfg = devm_kzalloc(&dev->dev, byte_len,
+			GFP_KERNEL);
+		if (gm->batt_cycle_fv_cfg) {
+			gm->fv_levels = byte_len / sizeof(u32);
+			ret = of_property_read_u32_array(np,
+				"wt,batt-cycle-ranges",
+				gm->batt_cycle_fv_cfg,
+				gm->fv_levels);
+			if (ret < 0) {
+				bm_err("Couldn't read battery protect limits ret = %d\n", ret);
+				gm->batt_cycle_fv_cfg = NULL;
+			}
+		}
+	}
+
+	cycle_fv = wt_set_batt_cycle_fv(gm);
 #endif
 	gm->battery_id = fgauge_get_profile_id();
 	bm_err("battery id = %d\n", gm->battery_id);
@@ -2723,13 +2680,19 @@ void fg_custom_init_from_dts(struct platform_device *dev,
 				__func__, node_name, column);
 			/* correction */
 			column = 3;
-	}
+		}
 
-		sprintf(node_name, "battery%d_profile_t%d", bat_id, i);
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+		if (cycle_fv != 0)
+			sprintf(node_name, "battery%d_profile_t%d_cv%d", bat_id, i, cycle_fv / 1000);
+		else
+#endif
+			sprintf(node_name, "battery%d_profile_t%d", bat_id, i);
+
 		fg_custom_parse_table(gm, np, node_name,
 			fg_table_cust_data->fg_profile[i].fg_profile, column);
 	}
-		}
+}
 
 #endif	/* end of CONFIG_OF */
 
@@ -2748,7 +2711,7 @@ void battery_update(struct mtk_battery *gm)
 {
 	struct battery_data *bat_data = &gm->bs_data;
 	struct power_supply *bat_psy = bat_data->psy;
-#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE) || defined (CONFIG_N26_CHARGER_PRIVATE)
 	struct mtk_charger *info;
 	struct power_supply *psy;
 	psy = power_supply_get_by_name("mtk-master-charger");
@@ -2772,7 +2735,7 @@ void battery_update(struct mtk_battery *gm)
 
 	if (battery_get_int_property(BAT_PROP_DISABLE))
 		bat_data->bat_capacity = 50;
-#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE)
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N21_CHARGER_PRIVATE) || defined (CONFIG_N26_CHARGER_PRIVATE)
 	if((NULL != psy) && (NULL != info)) {
 		if(info->notify_code & CHG_BAT_OT_STATUS) {
 			bat_data->bat_health = POWER_SUPPLY_HEALTH_OVERHEAT;
@@ -3326,7 +3289,7 @@ void fg_nafg_monitor(struct mtk_battery *gm)
 void fg_drv_update_hw_status(struct mtk_battery *gm)
 {
 	ktime_t ktime;
-#if defined (CONFIG_N23_CHARGER_PRIVATE)
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N26_CHARGER_PRIVATE)
 	static int pre_tmp;
 	int curr_tmp = 0;
 
@@ -3351,7 +3314,7 @@ void fg_drv_update_hw_status(struct mtk_battery *gm)
 	if (gm->algo.active == true)
 		battery_update(gm);
 
-#if defined (CONFIG_N23_CHARGER_PRIVATE)
+#if defined (CONFIG_N23_CHARGER_PRIVATE) || defined (CONFIG_N26_CHARGER_PRIVATE)
 	if (pre_tmp != curr_tmp && curr_tmp >= 60) {
 		bm_err("%s battery temp too high %d\n", __func__, curr_tmp);
 		battery_update(gm);
@@ -3957,10 +3920,16 @@ static int mtk_power_misc_psy_event(
 				nb, struct shutdown_controller, psy_nb);
 			if (gm->cur_bat_temp >= BATTERY_SHUTDOWN_TEMPERATURE) {
 				bm_debug(
-					"%d battery temperature >= %d,shutdown",
-					gm->cur_bat_temp, tmp);
-
+					"%d battery temperature >= %d, bootmode = %d, shutdown",
+					gm->cur_bat_temp, tmp, gm->bootmode);
+#if defined (CONFIG_N26_CHARGER_PRIVATE)
+			if (gm->bootmode == 8)
+				bm_debug("power off,not charging!\n");
+			else
 				wake_up_overheat(sdc);
+#else
+				wake_up_overheat(sdc);
+#endif
 			}
 		}
 	}
@@ -4080,7 +4049,11 @@ int battery_psy_init(struct platform_device *pdev)
 	bm_err("[BAT_probe] power_supply_register Battery Success !!\n");
 	return 0;
 }
-
+//+bug 767787, yangchaojun.wt, power off charging DCP insert animation not responding 
+#if defined (CONFIG_N23_CHARGER_PRIVATE)
+extern int net_wireledss_boot_mode;
+#endif
+//-bug 767787, yangchaojun.wt, power off charging DCP insert animation not responding 
 void fg_check_bootmode(struct device *dev,
 	struct mtk_battery *gm)
 {
@@ -4100,6 +4073,11 @@ void fg_check_bootmode(struct device *dev,
 				__func__, tag->size, tag->tag,
 				tag->bootmode, tag->boottype);
 			gm->bootmode = tag->bootmode;
+//+bug 767787, yangchaojun.wt, power off charging DCP insert animation not responding 			
+#if defined (CONFIG_N23_CHARGER_PRIVATE)			
+			net_wireledss_boot_mode = tag->bootmode;
+#endif
+//-bug 767787, yangchaojun.wt, power off charging DCP insert animation not responding 
 			gm->boottype = tag->boottype;
 		}
 	}

@@ -110,14 +110,14 @@ int msdc_regulator_set_and_enable(struct regulator *reg, int powerVolt)
 #endif
 }
 
-//bug 715587,houdujing.wt,2022/2/18,add for sdcard power off quickly,start
+//bug 782977,linaiyu.wt,2022/8/16,add for sdcard power off quickly,start
 void msdc_sd_power_off_quick(void)
 {
 	regmap_update_bits(regmap,MT6357_RG_LDO_VMCH_SW_OP_EN_ADDR,MT6357_RG_LDO_VMCH_SW_OP_EN_MASK,1);
 	regmap_update_bits(regmap,MT6357_RG_LDO_VMCH_EN_ADDR,MT6357_RG_LDO_VMCH_EN_MASK,0);
 	pr_err("sdcard removed and power off VMCH first");
 }
-//bug 715587,houdujing.wt,2022/2/18,add for sdcard power off quickly,end
+//bug 782977,linaiyu.wt,2022/8/16,add for sdcard power off quickly,end
 
 void msdc_ldo_power(u32 on, struct regulator *reg, int voltage_mv, u32 *status)
 {

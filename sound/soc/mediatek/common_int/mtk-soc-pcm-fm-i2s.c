@@ -101,12 +101,13 @@ static int Audio_fm_mute_get(struct snd_kcontrol *kcontrol,
 }
 int Audio_fm_mute_event(unsigned int value)
 {
-	if (value == 1)
-		SetFmI2sConnection(Soc_Aud_InterCon_DisConnect);
-	else
-		SetFmI2sConnection(Soc_Aud_InterCon_Connection);
-
-	pr_debug("%s fm_mute (%d)\n", __func__, value);
+	if (GetFmI2sInPathEnable() == true) {
+		if (value == 1)
+			SetFmI2sConnection(Soc_Aud_InterCon_DisConnect);
+		else
+			SetFmI2sConnection(Soc_Aud_InterCon_Connection);
+	} else
+		pr_debug("%s fm not enable fm_mute do nothing (%d)\n", __func__, value);
 
 	return 0;
 }

@@ -1889,13 +1889,12 @@ static void mmc_blk_read_single(struct mmc_queue *mq, struct request *req)
 			mmc_blk_rw_rq_prep(mqrq, card, 1, mq);
 
 			mmc_wait_for_req(host, mrq);
-
 			err = mmc_send_status(card, &status);
 			if (err)
 				goto error_exit;
-
+			
 			if (!mmc_host_is_spi(host) &&
-			    !mmc_blk_in_tran_state(status)) {
+				!mmc_blk_in_tran_state(status)) {
 				err = mmc_blk_fix_state(card, req);
 				if (err)
 					goto error_exit;
@@ -1903,6 +1902,7 @@ static void mmc_blk_read_single(struct mmc_queue *mq, struct request *req)
 
 			if (!mrq->cmd->error)
 				break;
+
 		}
 
 		if (mrq->cmd->error ||
@@ -2375,7 +2375,7 @@ static int mmc_blk_mq_issue_rw_rq(struct mmc_queue *mq,
 		(host->caps2 & MMC_CAP2_NO_MMC)) {
 		mt_bio_queue_alloc(current, req->q, true);
 		mt_biolog_mmcqd_req_check(true);
-		mt_biolog_mmcqd_req_start(host, true);
+		mt_biolog_mmcqd_req_start(host, req, true);
 	}
 
 	mmc_blk_rw_rq_prep(mqrq, mq->card, 0, mq);
@@ -2472,11 +2472,6 @@ static int mmc_blk_swcq_issue_rw_rq(struct mmc_queue *mq,
 	int index = 0;
 	struct mmc_async_req *new_areq = &mqrq->areq;
 	struct mmc_card *card = mq->card;
-	struct sched_param scheduler_params = {0};
-
-	/* Set as RT priority */
-	scheduler_params.sched_priority = 1;
-	sched_setscheduler(current, SCHED_FIFO, &scheduler_params);
 
 	if (atomic_read(&host->areq_cnt) < card->ext_csd.cmdq_depth) {
 		index = mmc_get_cmdq_index(mq);
@@ -2491,12 +2486,11 @@ static int mmc_blk_swcq_issue_rw_rq(struct mmc_queue *mq,
 	if (req) {
 		mt_bio_queue_alloc(current, req->q, false);
 		mt_biolog_mmcqd_req_check(false);
-		mt_biolog_mmcqd_req_start(host, false);
+		mt_biolog_mmcqd_req_start(host, req, false);
 	}
 	mq->mqrq[index].req = req;
 	atomic_set(&mqrq->index, index + 1);
 	atomic_set(&mq->mqrq[index].index, index + 1);
-	atomic_inc(&card->host->areq_cnt);
 
 	mmc_blk_rw_rq_prep(mqrq, mq->card, 0, mq);
 
@@ -3274,8 +3268,8 @@ static int mmc_blk_probe(struct mmc_card *card)
 		md->disk->disk_name, mmc_card_id(card), mmc_card_name(card),
 		cap_str, md->read_only ? "(ro)" : "");
 	ST_LOG("%s: %s %s %s %s\n",
-			md->disk->disk_name, mmc_card_id(card), mmc_card_name(card),
-			cap_str, md->read_only ? "(ro)" : "");
+		md->disk->disk_name, mmc_card_id(card), mmc_card_name(card),
+		cap_str, md->read_only ? "(ro)" : "");
 
 	if (mmc_blk_alloc_parts(card, md))
 		goto out;

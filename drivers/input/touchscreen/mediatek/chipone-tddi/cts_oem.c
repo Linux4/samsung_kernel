@@ -1248,16 +1248,16 @@ static int32_t selftest_proc_open(struct inode *inode, struct file *file)
     cts_info("Open '/proc/" OEM_SELFTEST_PROC_FILENAME "'");
 
     if (!oem_data->test_config_from_dt_has_parsed) {
-        if (lcm_name == 6) {
-            ret = parse_selftest_dt(oem_data, cts_data->spi_client->dev.of_node);
-        }
-        if (lcm_name == 8) {
-            ret = parse_selftest_dt_lead(oem_data, cts_data->spi_client->dev.of_node);
-        }
-        if (lcm_name == 10) {
+        if (g_lcm_name == 6) {
             ret = parse_selftest_dt_djn(oem_data, cts_data->spi_client->dev.of_node);
         }
-        if (lcm_name == 16) {
+        if (g_lcm_name == 12) {
+            ret = parse_selftest_dt_lead(oem_data, cts_data->spi_client->dev.of_node);
+        }
+        if (g_lcm_name == 11) {
+            ret = parse_selftest_dt(oem_data, cts_data->spi_client->dev.of_node);
+        }
+        if (g_lcm_name == 16) {
             ret = parse_selftest_dt_tm(oem_data, cts_data->spi_client->dev.of_node);
         }
         if (ret) {

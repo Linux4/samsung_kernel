@@ -2216,7 +2216,7 @@ static void himax_mcu_ic_reset(uint8_t loadconfig, uint8_t int_off)
 {
 	struct himax_ts_data *ts = private_ts;
 
-	HX_HW_RESET_ACTIVATE = 0;
+	HX_HW_RESET_ACTIVATE = 1;
 	I("%s,status: loadconfig=%d,int_off=%d\n", __func__,
 			loadconfig, int_off);
 

@@ -58,6 +58,4 @@ source "drivers/nfc/st-nci/Kconfig"
 source "drivers/nfc/nxp-nci/Kconfig"
 source "drivers/nfc/s3fwrn5/Kconfig"
 source "drivers/nfc/st95hf/Kconfig"
-#+bug 717439,jinzhao.wt,20220209,add,NFC bring up
-source "drivers/nfc/samsung/Kconfig"
 endmenu

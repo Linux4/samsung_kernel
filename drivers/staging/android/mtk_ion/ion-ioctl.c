@@ -98,15 +98,14 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		heap_mask = data.allocation.heap_id_mask;
 
 		handle = __ion_alloc(client, data.allocation.len,
-				   data.allocation.align,
-				   data.allocation.heap_id_mask,
+				     data.allocation.align,
+				     data.allocation.heap_id_mask,
 				     data.allocation.flags, true);
 
 		if (IS_ERR(handle)) {
 			IONMSG("IOC_ALLOC handle invalid. ret = %d\n", ret);
 			return PTR_ERR(handle);
 		}
-
 		data.allocation.handle = handle->id;
 		cleanup_handle = handle;
 		pass_to_user(handle);
@@ -130,7 +129,7 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		if (IS_ERR(handle)) {
 			mutex_unlock(&client->lock);
 			IONDBG("ION_IOC_FREE handle is invalid. handle = %d, ret = %d.\n",
-				  data.handle.handle, ret);
+			       data.handle.handle, ret);
 			return PTR_ERR(handle);
 		}
 		user_ion_free_nolock(client, handle);

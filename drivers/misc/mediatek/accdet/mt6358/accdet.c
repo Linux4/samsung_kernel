@@ -39,6 +39,9 @@
 #endif
 #include "pmic_auxadc.h"
 #endif /* end of #if PMIC_ACCDET_KERNEL */
+#ifdef CONFIG_SND_SOC_SAMSUNG_AUDIO
+#include "sec_accdet_sysfs_cb.h"
+#endif
 
 /********************grobal variable definitions******************/
 #if PMIC_ACCDET_CTP
@@ -62,6 +65,38 @@
 #define __pm_relax(a)
 
 #endif /* end of #if PMIC_ACCDET_CTP */
+
+#ifdef CONFIG_ACCDET_EINT
+#define ACCDET_SW_MOISTURE_V1	1 /* for titan */
+#define NO_USE_COMPARATOR	1
+#else
+#define ACCDET_SW_MOISTURE_V1	0
+#define NO_USE_COMPARATOR	1
+#endif
+
+#if ACCDET_SW_MOISTURE_V1
+struct moist_l_det_threshold {/* mv */
+	unsigned int hp_water;
+	unsigned int water_open;
+};
+static struct moist_l_det_threshold l_det_th;
+#endif
+#if NO_USE_COMPARATOR
+/* for headset pole type definition  */
+#define TYPE_AB_00		(0x00)/* 3-pole or hook_switch */
+#define TYPE_AB_01		(0x01)/* 4-pole */
+#define TYPE_AB_11		(0x03)/* plug-out */
+#define TYPE_AB_10		(0x02)/* Illegal state */
+struct Vol_Set {/* mv */
+	unsigned int vol_min_3pole;
+	unsigned int vol_max_3pole;
+	unsigned int vol_min_4pole;
+	unsigned int vol_max_4pole;
+	unsigned int vol_bias;/* >2500: 2800; others: 2500 */
+};
+static struct Vol_Set cust_vol_set;
+#endif
+
 #define REGISTER_VAL(x)	(x - 1)
 
 /* for accdet_read_audio_res, less than 5k ohm, return -1 , otherwise ret 0 */
@@ -154,17 +189,35 @@ static void delay_init_timerhandler(struct timer_list *t);
 static struct wakeup_source *accdet_irq_lock;
 static struct wakeup_source *accdet_timer_lock;
 static DEFINE_MUTEX(accdet_eint_irq_sync_mutex);
+static DEFINE_MUTEX(accdet_moist_sync_mutex);
 #endif /* end of #if PMIC_ACCDET_KERNEL */
 /* accdet customized info by dts*/
 static struct head_dts_data accdet_dts;
 struct pwm_deb_settings *cust_pwm_deb;
 
+#define ACCDET_OPEN_CABLE_TIMER   (1 * HZ)
+static struct timer_list  accdet_open_cable_timer;
+static void check_open_cable_timerhandler(struct timer_list *t);
 #ifdef CONFIG_ACCDET_EINT
+#define ACCDET_MOIST_TIMER   (1 * HZ)
+static struct timer_list  accdet_moist_timer;
+static void check_moist_timerhandler(struct timer_list *t);
 static struct pinctrl *accdet_pinctrl;
 static struct pinctrl_state *pins_eint;
-static u32 gpiopin, gpio_headset_deb;
+static struct pinctrl_state *pins_moisteint;
+static u32 gpiopin, gpio_plugin_deb;
+static u32 gpio_plugout_deb;
+static u32 moist_gpiopin, moist_gpio_plugin_deb;
+static u32 gpio_moist_plugout_deb;
 static u32 accdet_irq;
+static u32 moist_irq;
+static u32 pre_eint_state = EINT_PIN_PLUG_OUT;
+static u32 accdet_moist_eint_type = IRQ_TYPE_LEVEL_LOW;
 #endif
+#if ACCDET_SW_MOISTURE_V1
+static int hw_rev = 0xff;
+#endif
+static int moisture_ver = 0xff;
 
 /* accdet FSM State & lock*/
 static bool eint_accdet_sync_flag;
@@ -207,6 +260,9 @@ static int moisture_ext_r = 470000;
 static bool debug_thread_en;
 static bool dump_reg;
 static struct task_struct *thread;
+#ifdef CONFIG_SND_SOC_SAMSUNG_AUDIO
+static struct jack_pdata accdet_pdata;
+#endif
 
 static void accdet_init_once(void);
 static inline void accdet_init(void);
@@ -214,7 +270,13 @@ static void send_accdet_status_event(u32 cable_type, u32 status);
 #if defined CONFIG_ACCDET_EINT_IRQ || defined CONFIG_ACCDET_EINT
 static u32 moisture_detect(void);
 #endif
+#if ACCDET_SW_MOISTURE_V1
+static void eint_work_callback(void);
+#endif
 static inline void check_cable_type(void);
+#if NO_USE_COMPARATOR
+static unsigned int check_pole_type(void);
+#endif
 
 #if !defined CONFIG_MTK_PMIC_NEW_ARCH
 enum PMIC_FAKE_IRQ_ENUM {
@@ -744,6 +806,14 @@ static u32 accdet_get_auxadc(int deCount)
 #endif
 }
 
+#ifdef CONFIG_SND_SOC_SAMSUNG_AUDIO
+u32 accdet_get_adc(void)
+{
+	return accdet_get_auxadc(1);
+}
+EXPORT_SYMBOL_GPL(accdet_get_auxadc);
+#endif
+
 static void accdet_get_efuse(void)
 {
 	u32 efuseval = 0;
@@ -814,7 +884,7 @@ static void accdet_get_efuse(void)
 		pr_info("%s internal moisture_vm=%d mv\n", __func__,
 			moisture_vm);
 	} else if (accdet_dts.moisture_use_ext_res == 0x1) {
-		if (moisture_vm == 50) {
+		if (moisture_vm == 0x0) {
 			moisture_vm = (2800 + moisture_vdd_offset);
 			moisture_vm = moisture_vm * water_r;
 			moisture_vm = moisture_vm / (water_r + moisture_ext_r);
@@ -829,7 +899,7 @@ static void accdet_get_efuse(void)
 static void accdet_get_efuse_4key(void)
 {
 	u32 tmp_val = 0;
-	u32 tmp_8bit = 0
+	u32 tmp_8bit = 0;
 	int efuse_idx = 0;
 	int efuse[2][2] = {{111, 112},
 			   {116, 117} };
@@ -906,9 +976,9 @@ static void send_key_event(u32 keycode, u32 flag)
 		pr_debug("accdet KEY_VOLUMEUP %d\n", flag);
 		break;
 	case MD_KEY:
-		input_report_key(accdet_input_dev, KEY_PLAYPAUSE, flag);
+		input_report_key(accdet_input_dev, KEY_MEDIA, flag);
 		input_sync(accdet_input_dev);
-		pr_debug("accdet KEY_PLAYPAUSE %d\n", flag);
+		pr_debug("accdet KEY_MEDIA %d\n", flag);
 		break;
 	case AS_KEY:
 		input_report_key(accdet_input_dev, KEY_VOICECOMMAND, flag);
@@ -916,6 +986,9 @@ static void send_key_event(u32 keycode, u32 flag)
 		pr_debug("accdet KEY_VOICECOMMAND %d\n", flag);
 		break;
 	}
+#ifdef CONFIG_SND_SOC_SAMSUNG_AUDIO
+	accdet_pdata.buttons_pressed = (flag) ? 1 : 0;
+#endif
 }
 
 static void send_accdet_status_event(u32 cable_type, u32 status)
@@ -966,6 +1039,12 @@ static void send_accdet_status_event(u32 cable_type, u32 status)
 	default:
 		pr_info("%s Invalid cableType\n", __func__);
 	}
+#ifdef CONFIG_SND_SOC_SAMSUNG_AUDIO
+	if (status == 0)
+		accdet_pdata.hph_status = NO_DEVICE;
+	else
+		accdet_pdata.hph_status = cable_type;
+#endif
 }
 #else
 u64 accdet_get_current_time(void)
@@ -1245,11 +1324,14 @@ static void dis_micbias_work_callback(struct work_struct *work)
 	}
 }
 #endif /* end of #if PMIC_ACCDET_KERNEL */
-
+#if ACCDET_SW_MOISTURE_V1
+static void eint_work_callback(void)
+#else
 #if PMIC_ACCDET_KERNEL
 static void eint_work_callback(struct work_struct *work)
 #else
 static void eint_work_callback(void)
+#endif
 #endif
 {
 	pr_info("accdet %s(),DCC EINT func\n", __func__);
@@ -1276,8 +1358,24 @@ static void eint_work_callback(void)
 #elif defined CONFIG_ACCDET_SUPPORT_BI_EINT
 		enable_accdet(ACCDET_EINT_PWM_IDLE_B11_12 | ACCDET_PWM_EN);
 #endif
+#if NO_USE_COMPARATOR
+		msleep(180);/* may be need delay more, relevant to Bias vol. */
+		check_cable_type();
+		if (accdet_status == MIC_BIAS)
+			cali_voltage = accdet_get_auxadc(1);
+		mod_timer(&accdet_open_cable_timer,
+			jiffies + ACCDET_OPEN_CABLE_TIMER);
+#endif
 #else
 		enable_accdet(ACCDET_PWM_EN);
+#if NO_USE_COMPARATOR
+		msleep(180);/* may be need delay more, relevant to Bias vol. */
+		check_cable_type();
+		if (accdet_status == MIC_BIAS)
+			cali_voltage = accdet_get_auxadc(1);
+		mod_timer(&accdet_open_cable_timer,
+			jiffies + ACCDET_OPEN_CABLE_TIMER);
+#endif
 #endif
 	} else {
 		pr_info("accdet cur:plug-out, cur_eint_state = %d\n",
@@ -1295,8 +1393,7 @@ static void eint_work_callback(void)
 	}
 
 #ifdef CONFIG_ACCDET_EINT
-	enable_irq(accdet_irq);
-	pr_info("accdet %s enable_irq !!\n", __func__);
+	pr_info("accdet %s done !!\n", __func__);
 #endif
 }
 
@@ -1326,15 +1423,43 @@ void accdet_set_debounce(int state, unsigned int debounce)
 	}
 }
 
+#if NO_USE_COMPARATOR
+static unsigned int check_pole_type(void)
+{
+	unsigned int vol = 0;
+
+	vol = accdet_get_auxadc(1);
+	if ((vol < (cust_vol_set.vol_max_4pole + 1)) &&
+		(vol > (cust_vol_set.vol_min_4pole - 1))) {
+		pr_notice("[accdet] pole check:%d mv, AB=%d\n",
+			vol, TYPE_AB_01);
+		return TYPE_AB_01;
+	} else if ((vol < (cust_vol_set.vol_max_3pole + 1)) &&
+			(vol > cust_vol_set.vol_min_3pole)) {
+		pr_notice("[accdet] pole check:%d mv, AB=%d\n",
+			vol, TYPE_AB_00);
+		return TYPE_AB_00;
+	}
+	/* illegal state */
+	pr_notice("[accdet] pole check:%d mv, AB=%d\n", vol, TYPE_AB_10);
+	return TYPE_AB_10;
+}
+#endif
+
 static inline void check_cable_type(void)
 {
 	u32 cur_AB;
 
+#if NO_USE_COMPARATOR
+	cur_AB = check_pole_type();
+	pr_notice("accdet %s(), cur_status:%s current AB = %d\n", __func__,
+		     accdet_status_str[accdet_status], cur_AB);
+#else
 	cur_AB = pmic_read(ACCDET_STATE_RG) >> ACCDET_STATE_MEM_IN_OFFSET;
 	cur_AB = cur_AB & ACCDET_STATE_AB_MASK;
 	pr_notice("accdet %s(), cur_status:%s current AB = %d\n", __func__,
 		     accdet_status_str[accdet_status], cur_AB);
-
+#endif
 	s_button_status = 0;
 	pre_status = accdet_status;
 
@@ -1523,7 +1648,7 @@ static int pmic_eint_queue_work(int eintID)
 #ifdef CONFIG_ACCDET_SUPPORT_EINT0
 	if (eintID == PMIC_EINT0) {
 		if (cur_eint_state == EINT_PIN_PLUG_IN) {
-			eint_debounce_set(eintID, ACCDET_EINT0_DEB_IN_256);
+			eint_debounce_set(eintID, ACCDET_EINT0_DEB_512);
 			accdet_set_debounce(accdet_state110,
 				cust_pwm_deb->debounce3);
 			cur_eint_state = EINT_PIN_PLUG_OUT;
@@ -1677,6 +1802,8 @@ void accdet_irq_handle(void)
 	irq_status = pmic_read(ACCDET_IRQ_STS);
 
 	if ((irq_status & ACCDET_IRQ_B0) && (eintID == 0)) {
+		/* delete open cable timer if normal HP in */
+		del_timer_sync(&accdet_open_cable_timer);
 		clear_accdet_int();
 		accdet_queue_work();
 		clear_accdet_int_check();
@@ -1740,11 +1867,72 @@ static void accdet_eint_handler(void)
 }
 #endif
 
-#ifdef CONFIG_ACCDET_EINT
-static irqreturn_t ex_eint_handler(int irq, void *data)
+static void check_open_cable_timerhandler(struct timer_list *t)
 {
-	int ret = 0;
+	int ret;
 
+	ret = queue_work(accdet_workqueue, &accdet_work);
+	if (!ret)
+		pr_info("%s return:%d!\n", __func__, ret);
+}
+
+#ifdef CONFIG_ACCDET_EINT
+static void check_moist_timerhandler(struct timer_list *t)
+{
+	if (cur_eint_state == EINT_PIN_THING_IN)
+		cur_eint_state = EINT_PIN_MOISTURE_DETECTED;
+	pr_info("%s Moisture in detectecd!, cur_eint_state=%d\n",
+				__func__, cur_eint_state);
+}
+
+static irqreturn_t ex_eint_handler_00(int irq, void *data)
+{
+	unsigned int moisture_vol = 0;
+
+	__pm_stay_awake(accdet_irq_lock);
+
+	/* moisture detection */
+	if (water_r != 0) {
+		if (cur_eint_state == EINT_PIN_MOISTURE_DETECTED) {
+			if (accdet_eint_type == IRQ_TYPE_LEVEL_HIGH) {
+				irq_set_irq_type(accdet_irq,
+						IRQ_TYPE_LEVEL_LOW);
+			} else {
+				irq_set_irq_type(accdet_irq,
+						IRQ_TYPE_LEVEL_HIGH);
+			}
+			pr_info("%s Moisture out detectecd\n", __func__);
+			cur_eint_state = EINT_PIN_PLUG_OUT;
+			__pm_relax(accdet_irq_lock);
+			return IRQ_HANDLED;
+		}
+
+		if (cur_eint_state == EINT_PIN_PLUG_OUT) {
+			pr_info("%s now check moisture\n", __func__);
+			moisture_vol = moisture_detect();
+			if (moisture_vol < l_det_th.hp_water) {
+				pr_info("%s normal plug in.\n", __func__);
+			} else if ((moisture_vol < l_det_th.water_open) &&
+				(moisture_vol >= l_det_th.hp_water)) {
+				pr_info("%s Moisture in detectecd!\n",
+					__func__);
+				if (accdet_eint_type == IRQ_TYPE_LEVEL_HIGH) {
+					irq_set_irq_type(accdet_irq,
+							IRQ_TYPE_LEVEL_LOW);
+				} else {
+					irq_set_irq_type(accdet_irq,
+							IRQ_TYPE_LEVEL_HIGH);
+				}
+				cur_eint_state = EINT_PIN_MOISTURE_DETECTED;
+				__pm_relax(accdet_irq_lock);
+				return IRQ_HANDLED;
+			} else if (moisture_vol >= l_det_th.water_open) {
+				/* pr_info("%s open state.\n", __func__); */
+				__pm_relax(accdet_irq_lock);
+				return IRQ_HANDLED;
+			}
+		}
+	}
 	if (cur_eint_state == EINT_PIN_PLUG_IN) {
 		/* To trigger EINT when the headset was plugged in
 		 * We set the polarity back as we initialed.
@@ -1753,9 +1941,11 @@ static irqreturn_t ex_eint_handler(int irq, void *data)
 			irq_set_irq_type(accdet_irq, IRQ_TYPE_LEVEL_HIGH);
 		else
 			irq_set_irq_type(accdet_irq, IRQ_TYPE_LEVEL_LOW);
-		gpio_set_debounce(gpiopin, gpio_headset_deb);
 
 		cur_eint_state = EINT_PIN_PLUG_OUT;
+		eint_work_callback();
+
+		gpio_set_debounce(gpiopin, gpio_plugin_deb);
 	} else {
 		/* To trigger EINT when the headset was plugged out
 		 * We set the opposite polarity to what we initialed.
@@ -1765,23 +1955,156 @@ static irqreturn_t ex_eint_handler(int irq, void *data)
 		else
 			irq_set_irq_type(accdet_irq, IRQ_TYPE_LEVEL_HIGH);
 
-		gpio_set_debounce(gpiopin, accdet_dts.plugout_deb * 1000);
-
 		cur_eint_state = EINT_PIN_PLUG_IN;
-
+		eint_work_callback();
 		mod_timer(&micbias_timer, jiffies + MICBIAS_DISABLE_TIMER);
+
+		gpio_set_debounce(gpiopin, gpio_plugout_deb);
 	}
 
-	disable_irq_nosync(accdet_irq);
 	pr_info("accdet %s(), cur_eint_state=%d\n", __func__, cur_eint_state);
-	ret = queue_work(eint_workqueue, &eint_work);
+	__pm_relax(accdet_irq_lock);
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t ex_eint_handler_01(int irq, void *data)
+{
+	__pm_stay_awake(accdet_irq_lock);
+	mutex_lock(&accdet_moist_sync_mutex);
+
+	/* moisture detection */
+	if (water_r != 0) {
+		if ((cur_eint_state == EINT_PIN_MOISTURE_DETECTED) ||
+			(cur_eint_state == EINT_PIN_THING_IN)) {
+			if (accdet_eint_type == IRQ_TYPE_LEVEL_HIGH) {
+				irq_set_irq_type(accdet_irq,
+						IRQ_TYPE_LEVEL_HIGH);
+			} else {
+				irq_set_irq_type(accdet_irq,
+						IRQ_TYPE_LEVEL_LOW);
+			}
+			pr_info("%s Moisture out or open detectecd\n",
+				__func__);
+			del_timer_sync(&accdet_moist_timer);
+			cur_eint_state = EINT_PIN_PLUG_OUT;
+		} else if (pre_eint_state == EINT_PIN_PLUG_OUT) {
+			pr_info("%s now check moisture\n", __func__);
+			if (accdet_eint_type == IRQ_TYPE_LEVEL_HIGH) {
+				irq_set_irq_type(accdet_irq,
+						IRQ_TYPE_LEVEL_LOW);
+			} else {
+				irq_set_irq_type(accdet_irq,
+						IRQ_TYPE_LEVEL_HIGH);
+			}
+			/* adjust debounce for plug out */
+			gpio_set_debounce(gpiopin, gpio_plugout_deb);
+			mod_timer(&accdet_moist_timer,
+				jiffies + ACCDET_MOIST_TIMER);
+			cur_eint_state = EINT_PIN_THING_IN;
+			irq_set_irq_type(moist_irq, IRQ_TYPE_LEVEL_LOW);
+			pr_info("%s check moisture done, cur_eint_state=%d\n",
+					__func__, cur_eint_state);
+		} else if (pre_eint_state == EINT_PIN_PLUG_IN) {
+			pr_info("%s() wait to plugout, cur_eint_state=%d\n",
+					__func__, cur_eint_state);
+			/* To trigger EINT when the headset was plugged in
+			 * We set the polarity back as we initialed.
+			 */
+			if (accdet_moist_eint_type == IRQ_TYPE_LEVEL_HIGH) {
+				irq_set_irq_type(moist_irq,
+						IRQ_TYPE_LEVEL_HIGH);
+			} else {
+				irq_set_irq_type(moist_irq,
+						IRQ_TYPE_LEVEL_LOW);
+			}
+			gpio_set_debounce(moist_gpiopin,
+					moist_gpio_plugin_deb);
+
+			cur_eint_state = EINT_PIN_PLUG_OUT;
+
+			eint_work_callback();
+			pr_info("accdet %s(), cur_eint_state=%d\n",
+					__func__, cur_eint_state);
+			if (accdet_eint_type == IRQ_TYPE_LEVEL_HIGH) {
+				irq_set_irq_type(accdet_irq,
+						IRQ_TYPE_LEVEL_HIGH);
+			} else {
+				irq_set_irq_type(accdet_irq,
+						IRQ_TYPE_LEVEL_LOW);
+			}
+			/* adjust debounce for plug in */
+			gpio_set_debounce(gpiopin, gpio_plugin_deb);
+			pre_eint_state = EINT_PIN_PLUG_OUT;
+			enable_irq(moist_irq);
+			pr_info("%s plug out detectecd.\n", __func__);
+		}
+	}
+	mutex_unlock(&accdet_moist_sync_mutex);
+	__pm_relax(accdet_irq_lock);
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t ex_eint_handler(int irq, void *data)
+{
+	if (moisture_ver != 0x1)
+		return ex_eint_handler_01(irq, data);
+	else
+		return ex_eint_handler_00(irq, data);
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t ex_moisteint_handler(int irq, void *data)
+{
+	__pm_stay_awake(accdet_irq_lock);
+	mutex_lock(&accdet_moist_sync_mutex);
+
+	if ((cur_eint_state == EINT_PIN_THING_IN) ||
+		(cur_eint_state == EINT_PIN_MOISTURE_DETECTED)) {
+		del_timer_sync(&accdet_moist_timer);
+		/* To trigger EINT when the headset was plugged out
+		 * We set the opposite polarity to what we initialed.
+		 */
+		if (accdet_moist_eint_type == IRQ_TYPE_LEVEL_HIGH)
+			irq_set_irq_type(moist_irq, IRQ_TYPE_LEVEL_LOW);
+		else
+			irq_set_irq_type(moist_irq, IRQ_TYPE_LEVEL_HIGH);
+
+		gpio_set_debounce(moist_gpiopin,
+				gpio_moist_plugout_deb);
+
+		cur_eint_state = EINT_PIN_PLUG_IN;
+		pre_eint_state = cur_eint_state;
+
+		mod_timer(&micbias_timer, jiffies + MICBIAS_DISABLE_TIMER);
+
+		eint_work_callback();
+		disable_irq_nosync(moist_irq);
+		pr_info("accdet %s(), cur_eint_state=%d\n",
+				__func__, cur_eint_state);
+	} else if (cur_eint_state == EINT_PIN_PLUG_OUT) {
+		if (accdet_moist_eint_type == IRQ_TYPE_LEVEL_HIGH)
+			irq_set_irq_type(moist_irq, IRQ_TYPE_LEVEL_LOW);
+		else
+			irq_set_irq_type(moist_irq, IRQ_TYPE_LEVEL_HIGH);
+		pr_info("%s() wait thing in interrupt, cur_eint_state=%d\n",
+				__func__, cur_eint_state);
+	} else {
+		pr_notice("%s() invalid interrupt, cur_eint_state=%d\n",
+				__func__, cur_eint_state);
+	}
+	mutex_unlock(&accdet_moist_sync_mutex);
+	__pm_relax(accdet_irq_lock);
+
 	return IRQ_HANDLED;
 }
 
 static inline int ext_eint_setup(struct platform_device *platform_device)
 {
 	int ret = 0;
-	u32 ints[4] = { 0 };
+	u32 ints[8] = { 0 };
 	struct device_node *node = NULL;
 	struct pinctrl_state *pins_default = NULL;
 
@@ -1789,7 +2112,8 @@ static inline int ext_eint_setup(struct platform_device *platform_device)
 	accdet_pinctrl = devm_pinctrl_get(&platform_device->dev);
 	if (IS_ERR(accdet_pinctrl)) {
 		ret = PTR_ERR(accdet_pinctrl);
-		dev_notice(&platform_device->dev, "get accdet_pinctrl fail.\n");
+		dev_notice(&platform_device->dev,
+			"get accdet_pinctrl fail.\n");
 		return ret;
 	}
 
@@ -1815,17 +2139,27 @@ static inline int ext_eint_setup(struct platform_device *platform_device)
 	}
 
 	gpiopin = of_get_named_gpio(node, "deb-gpios", 0);
-	ret = of_property_read_u32(node, "debounce", &gpio_headset_deb);
+	ret = of_property_read_u32(node, "plugin-debounce", &gpio_plugin_deb);
 	if (ret < 0) {
-		pr_notice("accdet %s gpiodebounce not found,ret:%d\n",
+		pr_notice("accdet %s gpio plugin deb not found,ret:%d\n",
 			__func__, ret);
 		return ret;
 	}
-	gpio_set_debounce(gpiopin, gpio_headset_deb);
+	ret = of_property_read_u32(node, "plugout-debounce", &gpio_plugout_deb);
+	if (ret < 0) {
+		pr_notice("accdet %s gpio plugout deb not found,ret:%d\n",
+			__func__, ret);
+		return ret;
+	}
+	gpio_set_debounce(gpiopin, gpio_plugin_deb);
 
-	accdet_irq = irq_of_parse_and_map(node, 0);
-	ret = of_property_read_u32_array(node, "interrupts", ints,
+	accdet_irq = platform_get_irq(platform_device, 0);
+	if (moisture_ver != 0x1)
+		ret = of_property_read_u32_array(node, "interrupts", ints,
 			ARRAY_SIZE(ints));
+	else
+		ret = of_property_read_u32_array(node, "interrupts", ints, 4);
+
 	if (ret) {
 		pr_notice("accdet %s interrupts not found,ret:%d\n",
 			__func__, ret);
@@ -1834,17 +2168,66 @@ static inline int ext_eint_setup(struct platform_device *platform_device)
 	accdet_eint_type = ints[1];
 	pr_info("accdet set gpio EINT, gpiopin=%d, accdet_eint_type=%d\n",
 			gpiopin, accdet_eint_type);
-	ret = request_irq(accdet_irq, ex_eint_handler, IRQF_TRIGGER_NONE,
-		"accdet-eint", NULL);
+	ret = devm_request_threaded_irq(&platform_device->dev, accdet_irq,
+			NULL, ex_eint_handler,
+			IRQF_TRIGGER_LOW | IRQF_ONESHOT, "hp-eint", NULL);
 	if (ret) {
 		pr_notice("accdet %s request_irq fail, ret:%d.\n", __func__,
 			ret);
 		return ret;
 	}
+	if (moisture_ver != 0x1) {
+		pins_moisteint = pinctrl_lookup_state(accdet_pinctrl,
+				"state_moisteint");
+		if (IS_ERR(pins_moisteint)) {
+			ret = PTR_ERR(pins_moisteint);
+			dev_notice(&platform_device->dev,
+				"lookup moisteint pinctrl fail\n");
+			return ret;
+		}
+		pinctrl_select_state(accdet_pinctrl, pins_moisteint);
 
-	pr_info("accdet set gpio EINT finished, irq=%d, gpio_headset_deb=%d\n",
-			accdet_irq, gpio_headset_deb);
-
+		moist_gpiopin = of_get_named_gpio(node, "moist-deb-gpios", 0);
+		ret = of_property_read_u32(node, "moist-plugin-debounce",
+				&moist_gpio_plugin_deb);
+		if (ret < 0) {
+			pr_notice("accdet %s moist in deb not found,ret:%d\n",
+				__func__, ret);
+			return ret;
+		}
+		ret = of_property_read_u32(node, "moist-plugout-debounce",
+				&gpio_moist_plugout_deb);
+		if (ret < 0) {
+			pr_notice("accdet %s moist out deb not found,ret:%d\n",
+				__func__, ret);
+			return ret;
+		}
+		gpio_set_debounce(moist_gpiopin, moist_gpio_plugin_deb);
+		moist_irq = platform_get_irq(platform_device, 1);
+		accdet_moist_eint_type = ints[5];
+		ret = devm_request_threaded_irq(&platform_device->dev,
+				moist_irq,
+				NULL, ex_moisteint_handler,
+				IRQF_TRIGGER_LOW | IRQF_ONESHOT,
+				"moist-eint", NULL);
+		if (ret) {
+			pr_notice("accdet_moist %s request_irq fail, ret:%d.\n",
+				__func__, ret);
+			return ret;
+		}
+		pr_info("accdet set gpio EINT finished. ");
+		pr_info("gpiopin=%d, accdet_eint_type=%d ",
+				gpiopin, accdet_eint_type);
+		pr_info("irq=%d, gpio_plugin_deb=%d, ",
+				accdet_irq, gpio_plugin_deb);
+		pr_info("moist_gpiopin=moist accdet_moist_eint_type=%d\n",
+				moist_gpiopin, accdet_moist_eint_type);
+		pr_info("moist_irq=%d, moist_gpio_plugin_deb=%d\n", moist_irq,
+				moist_gpio_plugin_deb);
+	} else {
+		pr_info("accdet set gpio EINT finished, irq=%d, gpio_deb=%d\n",
+				accdet_irq, gpio_plugin_deb);
+	}
 	return 0;
 }
 #endif
@@ -1857,11 +2240,20 @@ static int accdet_get_dts_data(void)
 #if PMIC_ACCDET_KERNEL
 	int ret;
 	struct device_node *node = NULL;
+#if ACCDET_SW_MOISTURE_V1
+	struct device_node *rootnode = NULL;
+#endif
 	int pwm_deb[8];
 #ifdef CONFIG_FOUR_KEY_HEADSET
 	int four_key[5];
 #else
 	int three_key[4];
+#endif
+#if NO_USE_COMPARATOR
+	unsigned int vol_thresh[5] = { 0 };
+#endif
+#if ACCDET_SW_MOISTURE_V1
+	unsigned int l_det_threshold[3] = { 0 };
 #endif
 
 	pr_debug("%s\n", __func__);
@@ -1879,6 +2271,16 @@ static int accdet_get_dts_data(void)
 		return -EINVAL;
 	}
 #endif
+#if ACCDET_SW_MOISTURE_V1
+	rootnode = of_find_node_by_path("/");
+	if (IS_ERR_OR_NULL(rootnode)) {
+		pr_notice("root dev node is NULL\n");
+		return -1;
+	}
+	ret = of_property_read_u32(rootnode, "dtbo-hw_rev", &hw_rev);
+	if (ret)
+		hw_rev = 0x2;
+#endif
 	node = of_find_matching_node(node, accdet_of_match);
 	if (!node) {
 		pr_notice("%s can't find compatible dts node\n", __func__);
@@ -1889,6 +2291,9 @@ static int accdet_get_dts_data(void)
 	if (ret)
 		accdet_pmic = 0x0;
 
+	ret = of_property_read_u32(node, "moisture-ver", &moisture_ver);
+	if (ret)
+		moisture_ver = 0x2;
 	ret = of_property_read_u32(node, "moisture-water-r", &water_r);
 	if (ret) {
 		/* no moisture detection */
@@ -1911,10 +2316,20 @@ static int accdet_get_dts_data(void)
 		pr_info("Moisture_INT support water_r=%d, int_r=%d\n",
 		     water_r, moisture_int_r);
 	}
+#if ACCDET_SW_MOISTURE_V1
+	ret = of_property_read_u32_array(node, "moisture-plug-in-threshold",
+		l_det_threshold, ARRAY_SIZE(l_det_threshold));
+	if (!ret)
+		memcpy(&l_det_th, l_det_threshold+1,
+				sizeof(struct moist_l_det_threshold));
+	else {
+		pr_info("accdet get moist plug in threshold fail\n");
+	}
+#endif
 	ret = of_property_read_u32(node, "moisture-vm", &moisture_vm);
 	if (ret) {
 		/* moisture_vm threshold */
-		moisture_vm = 50;
+		moisture_vm = 0x0;
 	}
 	of_property_read_u32(node, "accdet-mic-vol", &accdet_dts.mic_vol);
 	of_property_read_u32(node, "accdet-plugout-debounce",
@@ -1961,6 +2376,26 @@ static int accdet_get_dts_data(void)
 			     accdet_dts.three_key.down);
 #endif
 
+#if NO_USE_COMPARATOR
+	ret = of_property_read_u32_array(node, "headset-vol-threshold",
+			vol_thresh, ARRAY_SIZE(vol_thresh));
+	if (!ret)
+		memcpy(&cust_vol_set, vol_thresh, sizeof(vol_thresh));
+	else
+		pr_info("accdet get headset-vol-thrsh fail\n");
+
+	pr_info("[Accdet] min_3pole = %d, max_3pole = %d\n",
+		cust_vol_set.vol_min_3pole, cust_vol_set.vol_max_3pole);
+	pr_info("[Accdet] min_4pole = %d, max_4pole = %d\n",
+		cust_vol_set.vol_min_4pole, cust_vol_set.vol_max_4pole);
+	if (cust_vol_set.vol_bias > 2600) {
+		cust_vol_set.vol_bias = 2600;/* 2600mv */
+		pr_notice("[Accdet]bias vol set %d mv--->2600 mv\n",
+				cust_vol_set.vol_bias);
+	} else {
+		pr_info("[Accdet]bias vol set %d mv\n", cust_vol_set.vol_bias);
+	}
+#endif
 	ret = of_property_read_u32_array(node, "headset-mode-setting", pwm_deb,
 			ARRAY_SIZE(pwm_deb));
 	/* debounce8(auxadc debounce) is default, needn't get from dts */
@@ -2242,6 +2677,8 @@ static void accdet_init_once(void)
 		pmic_read(ACCDET_CTRL) | ACCDET_EINT_EN_B2_4);
 #endif
 	accdet_eint_high_level_support();
+	/* extend plug in debounce time to 512ms, default is 256ms */
+	eint_debounce_set(PMIC_EINT0, ACCDET_EINT0_DEB_512);
 #endif
 	pr_info("%s() done.\n", __func__);
 #if PMIC_ACCDET_DEBUG
@@ -2362,7 +2799,7 @@ int mt_accdet_probe(struct platform_device *dev)
 	}
 
 	__set_bit(EV_KEY, accdet_input_dev->evbit);
-	__set_bit(KEY_PLAYPAUSE, accdet_input_dev->keybit);
+	__set_bit(KEY_MEDIA, accdet_input_dev->keybit);
 	__set_bit(KEY_VOLUMEDOWN, accdet_input_dev->keybit);
 	__set_bit(KEY_VOLUMEUP, accdet_input_dev->keybit);
 	__set_bit(KEY_VOICECOMMAND, accdet_input_dev->keybit);
@@ -2393,6 +2830,13 @@ int mt_accdet_probe(struct platform_device *dev)
 	timer_setup(&accdet_init_timer, delay_init_timerhandler, 0);
 	micbias_timer.expires = jiffies + MICBIAS_DISABLE_TIMER;
 	accdet_init_timer.expires = jiffies + ACCDET_INIT_WAIT_TIMER;
+#ifdef CONFIG_ACCDET_EINT
+	timer_setup(&accdet_moist_timer, check_moist_timerhandler, 0);
+	accdet_moist_timer.expires = jiffies + ACCDET_MOIST_TIMER;
+#endif
+	timer_setup(&accdet_open_cable_timer,
+			check_open_cable_timerhandler, 0);
+	accdet_open_cable_timer.expires = jiffies + ACCDET_OPEN_CABLE_TIMER;
 	/* the third argument may include TIMER_* flags */
 
 	/* wake lock */
@@ -2442,6 +2886,7 @@ int mt_accdet_probe(struct platform_device *dev)
 		pr_notice("%s create dis micbias workqueue fail.\n", __func__);
 		goto err;
 	}
+#ifdef CONFIG_ACCDET_EINT_IRQ
 	eint_workqueue = create_singlethread_workqueue("accdet_eint");
 	INIT_WORK(&eint_work, eint_work_callback);
 	if (!eint_workqueue) {
@@ -2449,7 +2894,7 @@ int mt_accdet_probe(struct platform_device *dev)
 		pr_notice("%s create eint workqueue fail.\n", __func__);
 		goto err_create_workqueue;
 	}
-
+#endif
 #ifdef CONFIG_ACCDET_EINT
 	ret = ext_eint_setup(dev);
 	if (ret) {
@@ -2476,6 +2921,9 @@ int mt_accdet_probe(struct platform_device *dev)
 	pmic_enable_interrupt(INT_ACCDET_EINT0, 1, "ACCDET_EINT0");
 	pmic_enable_interrupt(INT_ACCDET_EINT1, 1, "ACCDET_EINT1");
 #endif
+#endif
+#ifdef CONFIG_SND_SOC_SAMSUNG_AUDIO
+	register_accdet_jack_cb(&accdet_pdata);
 #endif
 	pr_info("%s done!\n", __func__);
 	return 0;

@@ -382,20 +382,20 @@ static struct BTS_TEMPERATURE BTS_Temperature_Table6[] = {
 static struct BTS_TEMPERATURE BTS_Temperature_Table7[] = {
 	{-40, 4397119},
 	{-35, 3088599},
-	{-30, 2197225},
-	{-25, 1581881},
-	{-20, 1151037},
-	{-15, 846579},
-	{-10, 628988},
-	{-5, 471632},
-	{0, 357012},
-	{5, 272500},
-	{10, 209710},
-	{15, 162651},
-	{20, 127080},
+	{-30, 2197860},
+	{-25, 1583660},
+	{-20, 1153370},
+	{-15, 848600},
+	{-10, 630470},
+	{-5, 472780},
+	{0, 357700},
+	{5, 272930},
+	{10, 209950},
+	{15, 162770},
+	{20, 127130},
 	{25, 100000},		/* 100K */
-	{30, 79222},
-	{35, 63167},
+	{30, 79200},
+	{35, 63140},
 #if defined(APPLY_PRECISE_NTC_TABLE)
 	{40, 50677},
 	{41, 48528},
@@ -449,25 +449,25 @@ static struct BTS_TEMPERATURE BTS_Temperature_Table7[] = {
 	{89,  7738},
 	{90,  7481},
 #else
-	{40, 50677},
-	{45, 40904},
-	{50, 33195},
-	{55, 27091},
-	{60, 22224},
-	{65, 18323},
-	{70, 15184},
-	{75, 12635},
-	{80, 10566},
-	{85, 8873},
-	{90, 7481},
+	{40, 50650},
+	{45, 40880},
+	{50, 33190},
+	{55, 27090},
+	{60, 22230},
+	{65, 18340},
+	{70, 15210},
+	{75, 12670},
+	{80, 10600},
+	{85, 8910},
+	{90, 7520},
 #endif
-	{95, 6337},
-	{100, 5384},
-	{105, 4594},
-	{110, 3934},
-	{115, 3380},
-	{120, 2916},
-	{125, 2522}
+	{95, 6370},
+	{100, 5420},
+	{105, 4360},
+	{110, 3970},
+	{115, 3420},
+	{120, 2950},
+	{125, 2560}
 };
 
 
@@ -581,8 +581,6 @@ static __s32 mtk_ts_bts_volt_to_temp(__u32 dwVolt)
 
 static int get_hw_bts_temp(void)
 {
-
-
 #if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
 	int val = 0;
 	int ret = 0, output;
@@ -590,6 +588,21 @@ static int get_hw_bts_temp(void)
 	int ret = 0, data[4], i, ret_value = 0, ret_temp = 0, output;
 	int times = 1, Channel = g_RAP_ADC_channel; /* 6752=0(AUX_IN0_NTC) */
 	static int valid_temp;
+	#if defined(APPLY_AUXADC_CALI_DATA)
+	int auxadc_cali_temp;
+	#endif
+#endif
+#ifdef CONFIG_OF
+	struct device_node *dev_node;
+
+	dev_node = of_find_compatible_node(NULL, NULL, "mediatek,mtboard-thermistor1");
+
+	if (dev_node) {
+		if (of_property_read_bool(dev_node, "fixed_thermal")) {
+			mtkts_bts_printk("[%s] Bypass thermal check\n", __func__);
+			return 40;
+		}
+	}
 #endif
 
 #if defined(CONFIG_MEDIATEK_MT6577_AUXADC)
@@ -606,10 +619,6 @@ static int get_hw_bts_temp(void)
 #endif
 
 #else
-#if defined(APPLY_AUXADC_CALI_DATA)
-	int auxadc_cali_temp;
-#endif
-
 	if (IMM_IsAdcInitReady() == 0) {
 		mtkts_bts_printk(
 			"[thermal_auxadc_get_data]: AUXADC is not ready\n");
