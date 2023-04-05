@@ -2,6 +2,6 @@
 
 #define topckgen_clk topckgen
 #define infracfg_ao_clk infracfg_ao
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6833/ap_mtk_mt6833.a13x_usa.04.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6833/ap_mtk_mt6833.a13x_usa.04.dtsi */
 #include "../../mediatek/k6833v1_64_titan_hinterwald/Board_00.dts"
 #include "../../mediatek/k6833v1_64_titan_hinterwald/gpio_04.dtsi"

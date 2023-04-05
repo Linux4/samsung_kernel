@@ -132,7 +132,7 @@
 		novatek,enable_sysinput_enabled;
 	};
 };
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/novatek/nt36523_spi/dts/input-mtk-tsp-nt36523-spi.a13x.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/novatek/nt36523_spi/dts/input-mtk-tsp-nt36523-spi.a13x.dtsi */
 &pio {
 	nt36523_tsp_id1_default: nt36523_tsp_id1_default {
 		pins_cmd_dat {

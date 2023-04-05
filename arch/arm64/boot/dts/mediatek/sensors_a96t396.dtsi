@@ -167,7 +167,7 @@
 	};
 };
 #endif
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensors/a96t396/dts/a96t396.a13x.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensors/a96t396/dts/a96t396.a13x.dtsi */
 &grip_i2c_sda {
 	GPIO_CONFIG_PUD_DRV(AP,pio,112, FUNC_INPUT, PULL_UP, DRV_LV1);
 };

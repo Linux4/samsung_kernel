@@ -825,7 +825,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/fuelgauge/mtk_fuelgauge/mtk_fuelgauge.a13x.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/fuelgauge/mtk_fuelgauge/mtk_fuelgauge.a13x.dtsi */
 &smd {
 	battery {
 		battery,fuelgauge_name = "mtk-fg-battery";
@@ -2933,7 +2933,7 @@ g_FG_PSEUDO100 =
 
 #define topckgen_clk topckgen
 #define infracfg_ao_clk infracfg_ao
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6833/ap_mtk_mt6833.a13x_usa.00.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6833/ap_mtk_mt6833.a13x_usa.00.dtsi */
 #include "../../mediatek/k6833v1_64_titan_hinterwald/Board_00.dts"
 #include "../../mediatek/k6833v1_64_titan_hinterwald/gpio_00.dtsi"
 
@@ -3171,7 +3171,7 @@ g_FG_PSEUDO100 =
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6833_shub/dts/sensorhub_mt6833_shub.a13x.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensorhub/mtk/mt6833_shub/dts/sensorhub_mt6833_shub.a13x.dtsi */
 / {
 	fragment@model {
 		target-path = "/";
@@ -3323,7 +3323,7 @@ g_FG_PSEUDO100 =
 		novatek,enable_sysinput_enabled;
 	};
 };
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/novatek/nt36523_spi/dts/input-mtk-tsp-nt36523-spi.a13x.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/novatek/nt36523_spi/dts/input-mtk-tsp-nt36523-spi.a13x.dtsi */
 &pio {
 	nt36523_tsp_id1_default: nt36523_tsp_id1_default {
 		pins_cmd_dat {
@@ -3536,7 +3536,7 @@ g_FG_PSEUDO100 =
 };
 
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/ovt/td4150_spi/dts/input-mtk-tsp-td4150_spi.a13x.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/ovt/td4150_spi/dts/input-mtk-tsp-td4150_spi.a13x.dtsi */
 &pio {
 	ovt_tsp_id1_default: ovt_tsp_id1_default {
 		pins_cmd_dat {
@@ -3680,7 +3680,7 @@ g_FG_PSEUDO100 =
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/hwmon/sec_thermistor/sec_thermistor_mtk.a13x.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/hwmon/sec_thermistor/sec_thermistor_mtk.a13x.dtsi */
 &sec_ap_thermistor {
 	use_iio_processed;
 	adc_array = <108 124 177 209 254 308 373 442 525 590
@@ -4194,7 +4194,7 @@ g_FG_PSEUDO100 =
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/himax/hx83xxx_spi/dts/input-mtk-tsp-hx83xxx_spi.a13x.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/input/touchscreen/himax/hx83xxx_spi/dts/input-mtk-tsp-hx83xxx_spi.a13x.dtsi */
 &pio {
 	himax_tsp_id1_default: himax_tsp_id1_default {
 		pins_cmd_dat {
@@ -4430,7 +4430,7 @@ g_FG_PSEUDO100 =
 	};
 };
 #endif
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/sensors/a96t396/dts/a96t396.a13x.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensors/a96t396/dts/a96t396.a13x.dtsi */
 &grip_i2c_sda {
 	GPIO_CONFIG_PUD_DRV(AP,pio,112, FUNC_INPUT, PULL_UP, DRV_LV1);
 };
@@ -4755,7 +4755,7 @@ g_FG_PSEUDO100 =
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/common/dts/battery_common.a13x.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/common/dts/battery_common.a13x.dtsi */
 &sec_battery {
 		pinctrl-names = "default";
 
