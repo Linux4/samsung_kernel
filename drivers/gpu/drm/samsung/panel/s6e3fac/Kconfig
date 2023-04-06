@@ -1,0 +1,9 @@
+menuconfig EXYNOS_DECON_LCD_S6E3FAC
+	tristate "S6E3FAC DDI Panel Driver"
+	depends on MCD_PANEL
+	default n
+	help
+		This enables S6E3FAC DDI dependent panel drivers of
+		common panel driver. say Y, if you have a panel based on
+		the S6E3FAC DDI.
+
