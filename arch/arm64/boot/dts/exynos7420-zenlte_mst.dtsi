@@ -1,0 +1,51 @@
+/* Copyright (c) 2013, Samsung Electronics Corporation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/ {
+	sec-mst{
+		compatible = "sec-mst";
+		sec-mst,mst-pwr-gpio = <&gpf3 2 0>;
+		sec-mst,secure-indicator = <&gpj0 0 0>;
+		sec-mst,mst-pd-gpio = <&gpj0 1 0>;
+		sec-mst,mst-md-gpio = <&gpj0 2 0>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&mst_pwr &mst_indicator &mst_data_b &mst_data_a>;
+	};
+
+	pinctrl@14870000 {
+		mst_pwr: sec-mst,mst-pwr-gpio {
+			samsung,pins ="gpf3-2";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <1>;
+		};
+	};
+
+	pinctrl@14CD0000 {
+		mst_indicator: sec-mst,secure-indicator {
+			samsung,pins ="gpj0-0";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <1>;
+		};
+		mst_data_b: sec-mst,mst-pd-gpio {
+			samsung,pins ="gpj0-1";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <1>;
+		};
+		mst_data_a: sec-mst,mst-md-gpio {
+			samsung,pins ="gpj0-2";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <1>;
+		};
+	};
+};
+

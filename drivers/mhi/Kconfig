@@ -1,0 +1,10 @@
+config MHI
+	bool "MHI driver"
+
+config MHI_RMNET_DUMP
+	bool "MHI RMNET DUMP"
+	default y
+
+config DEBUG_PKTLOG
+	bool "IPC pcap logging feature"
+	default n

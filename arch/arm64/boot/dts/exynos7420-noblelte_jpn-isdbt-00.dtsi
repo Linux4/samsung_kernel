@@ -1,0 +1,70 @@
+ /* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/{
+/*
+	hsi2c_2: hsi2c@14E60000 {
+		status = "okay";
+		isdb_fc8300@58 {
+			compatible = "isdb,isdb_fc8300";
+			reg = <0x58>;
+		};
+	};
+*/
+	i2c@50 { /* gpr2-3 gpr2-4 */
+		status = "disabled";
+	};
+
+	spi_5: spi@14d90000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		num-cs = <1>;
+
+		dma-mode;
+		dmas = <&pdma1 11
+			&pdma1 10>;
+		dma-names = "tx", "rx";
+
+		swap-mode;
+		status = "ok";
+		spi-clkoff-time = <100>;
+
+		isdbt-spi@0 {
+			compatible = "isdbt_spi_comp";
+			reg = <0>;
+			spi-max-frequency = <50000000>;
+			controller-data {
+				cs-gpio = <&gpf2 1 0>;
+				samsung,spi-feedback-delay = <3>;
+			};
+		};
+	};
+
+	isdbt_fc8300_data {
+		compatible = "isdb_fc8300_pdata";
+		isdbt,isdb-gpio-pwr-en = <&gpr2 4 0>;
+		isdbt,isdb-gpio-rst = <&gpf1 0 0>;
+		isdbt,isdb-gpio-irq = <&gpr2 3 0x01>;
+		/* isdbt,isdb-gpio-i2c_sda = <&gpd0 2 0>; */
+		/* isdbt,isdb-gpio-i2c_scl = <&gpd0 3 0>; */
+		isdbt,isdb-gpio-spi_do = <&gpf2 3 0>;
+		isdbt,isdb-gpio-spi_di = <&gpf2 2 0>;
+		isdbt,isdb-gpio-spi_cs = <&gpf2 1 0>;
+		isdbt,isdb-gpio-spi_clk = <&gpf2 0 0>;
+		isdbt,isdb-bbm-xtal-freq = <24000>;
+		isdbt,ldo_vdd_1p8 = "VDD_1.8V_ESE"; /* LDO 23 */
+
+		clocks = <&clock 45>;
+		clock-names = "isdbt_clkout";
+	};
+
+};

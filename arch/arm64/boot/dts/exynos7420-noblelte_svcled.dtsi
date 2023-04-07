@@ -1,0 +1,45 @@
+/*
+ * SAMSUNG UNIVERSAL7420 board device tree source
+ *
+ * Copyright (c) 2014 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/ {
+	rgb {
+		device_type = <2>;
+		normal_powermode_current = <10>;
+		low_powermode_current = <2>;
+		br_ratio_r = <130>;
+		br_ratio_g = <40>;
+		br_ratio_b = <240>;
+
+		normal_powermode_current_wh = <10>;
+		low_powermode_current_wh = <2>;
+		br_ratio_r_wh = <220>;
+		br_ratio_g_wh = <70>;
+		br_ratio_b_wh = <320>;
+
+		normal_powermode_current_bk = <10>;
+		low_powermode_current_bk = <2>;
+		br_ratio_r_bk = <140>;
+		br_ratio_g_bk = <20>;
+		br_ratio_b_bk = <70>;
+
+		normal_powermode_current_gd = <10>;
+		low_powermode_current_gd = <2>;
+		br_ratio_r_gd = <160>;
+		br_ratio_g_gd = <50>;
+		br_ratio_b_gd = <320>;
+
+		normal_powermode_current_sv = <10>;
+		low_powermode_current_sv = <2>;
+		br_ratio_r_sv = <50>;
+		br_ratio_g_sv = <10>;
+		br_ratio_b_sv = <70>;
+	};
+};

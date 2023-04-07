@@ -1,0 +1,58 @@
+/*
+ * SAMSUNG UNIVERSAL5433 board device tree source
+ *
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+#include "exynos7420-noblelte_common_battery_09.dtsi"
+/ {
+	battery {
+		battery,sub_det = <&gpf4 7 0>;
+
+		battery,input_current_limit = <1800 450 450 1800 500 900 1000 460 1000 450 900 1000 900 1900 1800 450 450 400 700 1300 300 1000 1500 450 1675 1000 1675 80 1800 1675 1400 1000 1000 1800>;
+		battery,fast_charging_current = <2100 0 0 2100 800 1200 1000 460 1200 0 1400 2100 1400 1600 2100 0 0 400 700 1300 300 1000 1500 0 3000 1000 3000 80 1800 1000 1400 0 1000 2100>;
+		battery,full_check_current_1st = <300 0 0 300 300 300 300 300 300 0 300 300 300 300 300 0 0 300 300 300 300 300 300 0 300 300 300 0 300 300 300 0 300 300>;
+		battery,full_check_current_2nd = <150 0 0 150 150 150 150 150 150 0 150 150 150 150 150 0 0 150 150 150 150 150 150 0 150 150 150 0 150 150 150 0 150 150>;
+
+		battery,temp_highlimit_threshold_event = <800>;
+		battery,temp_highlimit_recovery_event = <750>;
+		battery,temp_high_threshold_event = <580>;
+		battery,temp_high_recovery_event = <530>;
+		battery,temp_low_threshold_event = <(-50)>;
+		battery,temp_low_recovery_event = <0>;
+		battery,temp_highlimit_threshold_normal = <800>;
+		battery,temp_highlimit_recovery_normal = <750>;
+		battery,temp_high_threshold_normal = <580>;
+		battery,temp_high_recovery_normal = <530>;
+		battery,temp_low_threshold_normal = <(-50)>;
+		battery,temp_low_recovery_normal = <0>;
+		battery,temp_highlimit_threshold_lpm = <800>;
+		battery,temp_highlimit_recovery_lpm = <750>;
+		battery,temp_high_threshold_lpm = <580>;
+		battery,temp_high_recovery_lpm = <530>;
+		battery,temp_low_threshold_lpm = <(-50)>;
+		battery,temp_low_recovery_lpm = <0>;
+		battery,wpc_high_threshold_normal = <580>;
+		battery,wpc_high_recovery_normal = <530>;
+		battery,wpc_low_threshold_normal = <(-50)>;
+		battery,wpc_low_recovery_normal = <0>;
+
+		battery,wpc_charging_limit_current = <700>;
+
+		battery,swelling_high_temp_block = <500>;
+		battery,swelling_high_temp_recov = <450>;
+		battery,swelling_low_temp_block = <50>;
+		battery,swelling_low_temp_recov = <100>;
+		battery,swelling_chg_current = <1500>;
+		battery,swelling_drop_float_voltage = <4200>;
+		battery,swelling_high_rechg_voltage = <4150>;
+		battery,swelling_low_rechg_voltage = <4050>;
+		battery,swelling_block_time = <600>;
+		battery,swelling_wc_chg_current = <1500>;
+	};
+};
