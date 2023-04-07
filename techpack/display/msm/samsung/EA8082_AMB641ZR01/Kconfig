@@ -1,0 +1,6 @@
+config PANEL_EA8082_AMB641ZR01_FHD
+	depends on DISPLAY_SAMSUNG
+	bool "MAGNA EA8082 LDI"
+	default n
+	---help---
+	MAGNA EA8082 LDI 1080_2340 R9
