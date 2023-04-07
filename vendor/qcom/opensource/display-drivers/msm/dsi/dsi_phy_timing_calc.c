@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "dsi_phy_timing_calc.h"
 
 static const u32 bits_per_pixel[DSI_PIXEL_FORMAT_MAX] = {
-	16, 18, 18, 24, 3, 8, 12 };
+	16, 18, 18, 24, 3, 8, 12, 30 };
 
 static int dsi_phy_cmn_validate_and_set(struct timing_entry *t,
 	char const *t_name)
@@ -994,6 +995,8 @@ int dsi_phy_timing_calc_init(struct dsi_phy_hw *phy,
 	case DSI_PHY_VERSION_4_1:
 	case DSI_PHY_VERSION_4_2:
 	case DSI_PHY_VERSION_4_3:
+	case DSI_PHY_VERSION_4_3_2:
+	case DSI_PHY_VERSION_5_2:
 		ops->get_default_phy_params =
 			dsi_phy_hw_v4_0_get_default_phy_params;
 		ops->calc_clk_zero =

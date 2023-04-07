@@ -588,6 +588,13 @@ static int sde_hw_rc_check_mask_cfg(
 		return -EINVAL;
 	}
 
+	if (hw_cfg->panel_height != rc_mask_cfg->height ||
+		rc_mask_cfg->width != hw_cfg->panel_width) {
+		SDE_ERROR("RC mask Layer: h %d w %d panel: h %d w %d mismatch\n",
+				rc_mask_cfg->height, rc_mask_cfg->width,
+				hw_cfg->panel_height, hw_cfg->panel_width);
+		return -EINVAL;
+	}
 	flags = rc_mask_cfg->flags;
 	cfg_param_01 = rc_mask_cfg->cfg_param_01;
 	cfg_param_02 = rc_mask_cfg->cfg_param_02;
@@ -728,7 +735,8 @@ int sde_hw_rc_check_mask(struct sde_hw_dspp *hw_dspp, void *cfg)
 
 	if (hw_cfg->len != sizeof(struct drm_msm_rc_mask_cfg) ||
 			!hw_cfg->payload) {
-		SDE_ERROR("invalid payload\n");
+		SDE_ERROR("invalid payload len %d exp %zd\n", hw_cfg->len,
+				sizeof(struct drm_msm_rc_mask_cfg));
 		return -EINVAL;
 	}
 
@@ -773,6 +781,7 @@ int sde_hw_rc_check_pu_roi(struct sde_hw_dspp *hw_dspp, void *cfg)
 	roi_list = hw_cfg->payload;
 	if (!roi_list) {
 		SDE_DEBUG("full frame update\n");
+		memset(&empty_roi_list, 0, sizeof(struct msm_roi_list));
 		roi_list = &empty_roi_list;
 	}
 
@@ -835,6 +844,7 @@ int sde_hw_rc_setup_pu_roi(struct sde_hw_dspp *hw_dspp, void *cfg)
 	roi_list = hw_cfg->payload;
 	if (!roi_list) {
 		SDE_DEBUG("full frame update\n");
+		memset(&empty_roi_list, 0, sizeof(struct msm_roi_list));
 		roi_list = &empty_roi_list;
 	}
 
@@ -904,6 +914,9 @@ int sde_hw_rc_setup_mask(struct sde_hw_dspp *hw_dspp, void *cfg)
 		memset(RC_STATE(hw_dspp).last_rc_mask_cfg, 0,
 				sizeof(struct drm_msm_rc_mask_cfg));
 		RC_STATE(hw_dspp).mask_programmed = false;
+		memset(RC_STATE(hw_dspp).last_roi_list, 0,
+				sizeof(struct msm_roi_list));
+		RC_STATE(hw_dspp).roi_programmed = false;
 
 		return 0;
 	}

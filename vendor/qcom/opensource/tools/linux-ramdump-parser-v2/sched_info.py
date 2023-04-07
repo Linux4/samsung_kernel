@@ -1,4 +1,5 @@
 # Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -138,11 +139,28 @@ def dump_rq_lock_information(ramdump):
             print_out_str("\n cpu {0} ->rq_lock owner cpu {1}".format(i,hex(lock_owner_cpu)))
         print_out_str("\n ")
 
+def dump_isolation_data(ramdump):
+    try:
+        cpus_paused_by_us = ramdump.read_word('cpus_paused_by_us')
+        cpus_in_max_cooling_level = ramdump.read_word('cpus_in_max_cooling_level')
+        the_hcd = ramdump.read_word('the_hcd')
+        our_paused_cpus = ramdump.read_structure_field(the_hcd, 'struct hyp_core_ctl_data', 'our_paused_cpus.bits')
+        print_out_str("hyp_core_ctl_data->our_paused_cpus: {0:08b}".format(our_paused_cpus))
+        if our_paused_cpus == 0x60:
+            print_out_str('cpus 5 and 6 are isolated because Secondary VM is running)\n')
+        print_out_str("core isolated by thermal: {0:08b}".format(cpus_in_max_cooling_level))
+        if cpus_in_max_cooling_level == 0x0:
+            print_out_str("thermal has not isolated any cpus\n")
+        print_out_str("core_ctl cpus_paused_by_us: {0:08b}".format(cpus_paused_by_us))
+        if cpus_paused_by_us == 0x0:
+            print_out_str("core_ctl realizes that there is load in the system and hence has asked to UNisolate all the cpus\n")
+    except Exception as err:
+        pass
+
 def dump_cpufreq_data(ramdump):
     cpufreq_data_addr = ramdump.address_of('cpufreq_cpu_data')
     cpuinfo_off = ramdump.field_offset('struct cpufreq_policy', 'cpuinfo')
     runqueues_addr = ramdump.address_of('runqueues')
-
     print_out_str("\nCPU Frequency information:\n" + "-" * 10)
     for i in ramdump.iter_cpus():
         cpu_data_addr = ramdump.read_u64(cpufreq_data_addr + ramdump.per_cpu_offset(i))
@@ -165,13 +183,18 @@ def dump_cpufreq_data(ramdump):
             thermal_pressure = ramdump.read_u64(ramdump.address_of('thermal_pressure') + ramdump.per_cpu_offset(i))
             thermal_cap = max_thermal_cap - thermal_pressure
         else:
-            thermal_cap = ramdump.read_word(ramdump.array_index(ramdump.address_of('thermal_cap_cpu'), 'unsigned long', i))
-
-        arch_scale = ramdump.read_int(ramdump.address_of('cpu_scale') + ramdump.per_cpu_offset(i))
+            try:
+                thermal_cap = ramdump.read_word(ramdump.array_index(ramdump.address_of('thermal_cap_cpu'), 'unsigned long', i))
+            except Exception as err:
+                print(err)
 
         print_out_str("CPU:{0}\tGovernor:{1}\t cur_freq:{2}, max_freq:{3}, min_freq{4}  cpuinfo: min_freq:{5}, max_freq:{6}"
                     .format(i, gov_name, cur_freq, max_freq, min_freq, cpuinfo_min_freq, cpuinfo_max_freq))
-        print_out_str("\tCapacity: capacity_orig:{0}, cur_cap:{1}, arch_scale:{2}\n".format(cap_orig, curr_cap, arch_scale))
+        try:
+            arch_scale = ramdump.read_int(ramdump.address_of('cpu_scale') + ramdump.per_cpu_offset(i))
+            print_out_str("\tCapacity: capacity_orig:{0}, cur_cap:{1}, arch_scale:{2}\n".format(cap_orig, curr_cap, arch_scale))
+        except Exception as err:
+            print(err)
 
 
 @register_parser('--sched-info', 'Verify scheduler\'s various parameter status')
@@ -219,16 +242,20 @@ class Schedinfo(RamParser):
         rd_offset = self.ramdump.field_offset('struct rq', 'rd')
         sd_offset = self.ramdump.field_offset('struct rq', 'sd')
         def_rd_addr = self.ramdump.address_of('def_root_domain')
-        for cpu in (mask_bitset_pos(cpu_online_bits)):
-            rq_addr = runqueues_addr + self.ramdump.per_cpu_offset(cpu)
-            rd = self.ramdump.read_word(rq_addr + rd_offset)
-            sd = self.ramdump.read_word(rq_addr + sd_offset)
-            if rd == def_rd_addr :
-                print_out_str("*" * 5 + " WARNING:" + "\n")
-                print_out_str("Online cpu:{0} has attached to default sched root domain {1:x}\n".format(cpu, def_rd_addr))
-            if sd == 0 or sd == None:
-                print_out_str("*" * 5 + " WARNING:" + "\n")
-                print_out_str("Online cpu:{0} has Null sched_domain!!\n".format(cpu))
+
+        try:
+            for cpu in (mask_bitset_pos(cpu_online_bits)):
+                rq_addr = runqueues_addr + self.ramdump.per_cpu_offset(cpu)
+                rd = self.ramdump.read_word(rq_addr + rd_offset)
+                sd = self.ramdump.read_word(rq_addr + sd_offset)
+                if rd == def_rd_addr :
+                    print_out_str("*" * 5 + " WARNING:" + "\n")
+                    print_out_str("Online cpu:{0} has attached to default sched root domain {1:x}\n".format(cpu, def_rd_addr))
+                if sd == 0 or sd == None:
+                    print_out_str("*" * 5 + " WARNING:" + "\n")
+                    print_out_str("Online cpu:{0} has Null sched_domain!!\n".format(cpu))
+        except Exception as err:
+            print(err)
 
         # verify uclamp_util_max/min
         sched_uclamp_util_min = self.ramdump.read_u32('sysctl_sched_uclamp_util_min')
@@ -238,3 +265,4 @@ class Schedinfo(RamParser):
             print_out_str("\t\t sysctl_sched_uclamp_util_min Default:{0} and Value in dump:{1}\n".format(SCHED_CAPACITY_SCALE, sched_uclamp_util_min))
             print_out_str("\t\t sysctl_sched_uclamp_util_max Default:{0} and Value in dump:{1}\n".format(SCHED_CAPACITY_SCALE, sched_uclamp_util_max))
         dump_rq_lock_information(self.ramdump)
+        dump_isolation_data(self.ramdump)

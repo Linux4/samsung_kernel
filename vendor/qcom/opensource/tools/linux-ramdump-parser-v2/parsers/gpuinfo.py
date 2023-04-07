@@ -31,7 +31,7 @@ class GpuParser(RamParser):
         if (self.ramdump.kernel_version == (0, 0, 0) or
            self.ramdump.kernel_version >= (5, 10, 0)):
             self.parser = GpuParser_510(self.ramdump)
-        elif self.ramdump.kernel_version >= (4, 19, 0):
+        elif self.ramdump.kernel_version >= (4, 9, 0):
             self.parser = GpuParser_54(self.ramdump)
         else:
             print_out_str(

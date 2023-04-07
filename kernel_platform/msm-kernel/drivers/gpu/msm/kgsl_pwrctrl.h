@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2010-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __KGSL_PWRCTRL_H
 #define __KGSL_PWRCTRL_H
@@ -67,6 +68,8 @@ struct kgsl_pwrlevel {
 	unsigned int bus_min;
 	unsigned int bus_max;
 	unsigned int acd_level;
+	/** @cx_level: CX vote */
+	u32 cx_level;
 	/** @voltage_level: Voltage level used by the GMU to vote RPMh */
 	u32 voltage_level;
 };
@@ -137,6 +140,7 @@ struct kgsl_pwrctrl {
 	unsigned int bus_percent_ab;
 	unsigned int bus_width;
 	unsigned long bus_ab_mbytes;
+	u32 ddr_stall_percent;
 	/** @ddr_table: List of the DDR bandwidths in KBps for the target */
 	u32 *ddr_table;
 	/** @ddr_table_count: Number of objects in @ddr_table */
@@ -225,6 +229,13 @@ int kgsl_pwrctrl_set_default_gpu_pwrlevel(struct kgsl_device *device);
  * @state: Power state requested
  */
 void kgsl_pwrctrl_request_state(struct kgsl_device *device, u32 state);
+
+/**
+ *kgsl_pwrctrl_set_state - Set a specific power state
+ *@device: Pointer to the kgsl device
+ *@state : Power state requested
+ */
+void kgsl_pwrctrl_set_state(struct kgsl_device* device, u32 state);
 
 /**
  * kgsl_pwrctrl_axi - Propagate bus votes during slumber entry and exit

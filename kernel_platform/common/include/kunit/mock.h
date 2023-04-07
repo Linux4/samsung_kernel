@@ -102,26 +102,6 @@ struct mock_method {
 	struct list_head expectations;
 };
 
-enum mock_type {
-	MOCK_TYPE_NICE,
-	MOCK_TYPE_NAGGY,
-	MOCK_TYPE_STRICT
-};
-
-struct mock {
-	struct kunit_post_condition parent;
-	struct kunit *test;
-	struct list_head methods;
-	enum mock_type type;
-	/* TODO(brendanhiggins@google.com): add locking to do_expect. */
-	const void *(*do_expect)(struct mock *mock,
-				 const char *method_name,
-				 const void *method_ptr,
-				 const char * const *param_types,
-				 const void **params,
-				 int len);
-};
-
 #define DEFAULT_MOCK_TYPE MOCK_TYPE_NAGGY
 
 void mock_init_ctrl(struct kunit *test, struct mock *mock);
@@ -153,7 +133,11 @@ void mock_unregister_formatter(struct mock_param_formatter *formatter);
 
 #define MOCK(name) name##_mock
 
+#if IS_ENABLED(CONFIG_UML)
 struct mock *mock_get_global_mock(void);
+#else
+struct mock *mock_get_global_mock(struct kunit *test);
+#endif /* CONFIG_UML */
 
 /**
  * STRICT_MOCK() - sets the mock to be strict and returns the mock
@@ -760,8 +744,11 @@ int mock_in_sequence(struct kunit *test, struct mock_expectation *first, ...);
 						 void,			       \
 						 NO_RETURN,		       \
 						 param_types)
-
+#if IS_ENABLED(CONFIG_UML)
 #define FUNC_MOCK_SOURCE(ctx, handle_index) mock_get_global_mock()
+#else
+#define FUNC_MOCK_SOURCE(ctx, handle_index) mock_get_global_mock(test)
+#endif /* CONFIG_UML */
 #define DEFINE_MOCK_FUNC_CLIENT_COMMON(name,				       \
 				       return_type,			       \
 				       RETURN,				       \
@@ -819,8 +806,12 @@ int mock_in_sequence(struct kunit *test, struct mock_expectation *first, ...);
 					  ctrl_index,			       \
 					  CLASS_MOCK_MASTER_SOURCE,	       \
 					  param_types)
-
+#if IS_ENABLED(CONFIG_UML)
 #define FUNC_MOCK_CLIENT_SOURCE(ctrl_index) mock_get_global_mock()
+#else
+#define FUNC_MOCK_CLIENT_SOURCE(ctrl_index) mock_get_global_mock(test)
+#endif /* CONFIG_UML */
+
 #define DEFINE_MOCK_FUNC_MASTER(name, param_types...)			       \
 		DEFINE_MOCK_MASTER_COMMON(name,				       \
 					  MOCK_MAX_PARAMS,		       \

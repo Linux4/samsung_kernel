@@ -116,7 +116,7 @@ enum sde_dbg_dump_context {
  * sysfs node or panic. This prevents kernel log from evtlog message
  * flood.
  */
-#define SDE_EVTLOG_PRINT_ENTRY	256
+#define SDE_EVTLOG_PRINT_ENTRY	1024
 
 /*
  * evtlog keeps this number of entries in memory for debug purpose. This

@@ -640,7 +640,7 @@ int nvt_ts_check_fw_reset_state(struct nvt_ts_data *ts, RST_COMPLETE_STATE reset
 		retry++;
 	}
 
-	if (unlikely(retry > 100)) {
+	if (unlikely(retry > 60)) {
 		input_err(true, &ts->client->dev, "%s: Time over\n", __func__);
 		ret = -EPERM;
 	}

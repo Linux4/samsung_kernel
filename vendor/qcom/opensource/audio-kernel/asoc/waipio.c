@@ -15,6 +15,7 @@
 #include <linux/of_device.h>
 #include <linux/soc/qcom/fsa4480-i2c.h>
 #include <linux/pm_qos.h>
+#include <linux/nvmem-consumer.h>
 #include <sound/control.h>
 #include <sound/core.h>
 #include <sound/soc.h>
@@ -45,7 +46,33 @@
 #include <sound/cirrus/big_data.h>
 #include <sound/samsung/bigdata_cirrus_sysfs_cb.h>
 #endif
+#ifdef CONFIG_SND_SOC_HYBRID_AMP
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#include <linux/sti/abc_common.h>
+#include <sound/cirrus/core.h>
+#endif
 
+SND_SOC_DAILINK_DEFS(cirrus_pri_tdm_rx_0,
+	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
+	DAILINK_COMP_ARRAY(
+		COMP_CODEC("aw882xx_smartpa.18-0034", "aw882xx-aif-18-34"),
+		COMP_CODEC("cs35l41.18-0040", "cs35l41-pcm"),
+		COMP_CODEC("cs35l41.18-0041", "cs35l41-pcm")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+
+SND_SOC_DAILINK_DEFS(cirrus_pri_tdm_tx_0,
+	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
+	DAILINK_COMP_ARRAY(
+		COMP_CODEC("aw882xx_smartpa.18-0034", "aw882xx-aif-18-34"),
+		COMP_CODEC("cs35l41.18-0040", "cs35l41-pcm"),
+		COMP_CODEC("cs35l41.18-0041", "cs35l41-pcm")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+
+static const struct snd_soc_dapm_route cs35l41_routes[] = {
+	{ "AMP0 SPK", NULL, "Left AMP SPK" },
+	{ "AMP1 SPK", NULL, "Right AMP SPK" },
+};
+#else
 #ifdef CONFIG_USE_CS35L41
 #if IS_ENABLED(CONFIG_SEC_ABC)
 #include <linux/sti/abc_common.h>
@@ -86,6 +113,7 @@ SND_SOC_DAILINK_DEFS(cirrus_pri_tdm_tx_0,
 		COMP_CODEC("cs35l45.18-0033", "cs35l45")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
 #endif
+#endif /* CONFIG_SND_SOC_HYBRID_AMP */
 
 #define DRV_NAME "waipio-asoc-snd"
 #define __CHIPSET__ "WAIPIO "
@@ -96,9 +124,6 @@ SND_SOC_DAILINK_DEFS(cirrus_pri_tdm_tx_0,
 #define CODEC_EXT_CLK_RATE          9600000
 #define DEV_NAME_STR_LEN            32
 #define WCD_MBHC_HS_V_MAX           1600
-
-#define MSM_LL_QOS_VALUE	300 /* time in us to ensure LPM doesn't go in C3/C4 */
-
 
 #define WCN_CDC_SLIM_RX_CH_MAX 2
 #define WCN_CDC_SLIM_TX_CH_MAX 2
@@ -134,12 +159,28 @@ static struct snd_soc_card snd_soc_card_waipio_msm;
 static int dmic_0_1_gpio_cnt;
 static int dmic_2_3_gpio_cnt;
 static int dmic_4_5_gpio_cnt;
+static int sub_pcb_conn;
 
 static void *def_wcd_mbhc_cal(void);
 
 static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime*);
 static int msm_int_wsa_init(struct snd_soc_pcm_runtime*);
-
+#ifdef CONFIG_SND_SOC_HYBRID_AMP
+static struct snd_soc_codec_conf cs35l41_conf[] = {
+	{
+		.dlc.name = "aw882xx_smartpa.18-0034",
+		.name_prefix = "RCV",
+	},
+	{
+		.dlc.name = "cs35l41.18-0040",
+		.name_prefix = "Right",
+	},
+	{
+		.dlc.name = "cs35l41.18-0041",
+		.name_prefix = "Left",
+	}
+};
+#else
 #ifdef CONFIG_USE_CS35L41
 static struct snd_soc_codec_conf cs35l41_conf[] = {
 	{
@@ -152,7 +193,6 @@ static struct snd_soc_codec_conf cs35l41_conf[] = {
 	}
 };
 #endif /* CONFIG_USE_CS35L41 */
-
 #ifdef CONFIG_USE_CS35L45
 static struct snd_soc_codec_conf cs35l45_conf[] = {
 	{
@@ -173,6 +213,7 @@ static struct snd_soc_codec_conf cs35l45_conf[] = {
 	}
 };
 #endif /* CONFIG_USE_CS35L45 */
+#endif /* CONFIG_SND_SOC_HYBRIND_AMP */
 
 #ifdef CONFIG_COMMON_AMP_CIRRUS
 /*
@@ -233,53 +274,6 @@ static struct wcd_mbhc_config wcd_mbhc_cfg = {
 	.enable_anc_mic_detect = false,
 	.moisture_duty_cycle_en = true,
 };
-
-/* set audio task affinity to core 1 & 2 */
-static const unsigned int audio_core_list[] = {1, 2};
-static cpumask_t audio_cpu_map = CPU_MASK_NONE;
-static struct dev_pm_qos_request *msm_audio_req = NULL;
-
-static void msm_audio_add_qos_request()
-{
-	int i;
-	int cpu = 0;
-
-	msm_audio_req = kzalloc(sizeof(struct dev_pm_qos_request) * NR_CPUS,
-				 GFP_KERNEL);
-	if (!msm_audio_req) {
-		pr_err("%s failed to alloc mem for qos req.\n", __func__);
-		return;
-	}
-
-	for (i = 0; i < ARRAY_SIZE(audio_core_list); i++) {
-		if (audio_core_list[i] >= NR_CPUS)
-			pr_err("%s incorrect cpu id: %d specified.\n", __func__, audio_core_list[i]);
-		else
-			cpumask_set_cpu(audio_core_list[i], &audio_cpu_map);
-	}
-
-	for_each_cpu(cpu, &audio_cpu_map) {
-		dev_pm_qos_add_request(get_cpu_device(cpu),
-			&msm_audio_req[cpu],
-			DEV_PM_QOS_RESUME_LATENCY,
-			PM_QOS_CPU_LATENCY_DEFAULT_VALUE);
-		pr_debug("%s set cpu affinity to core %d.\n", __func__, cpu);
-	}
-}
-
-static void msm_audio_remove_qos_request()
-{
-	int cpu = 0;
-
-	if (msm_audio_req) {
-		for_each_cpu(cpu, &audio_cpu_map) {
-			dev_pm_qos_remove_request(
-				&msm_audio_req[cpu]);
-			pr_debug("%s remove cpu affinity of core %d.\n", __func__, cpu);
-		}
-		kfree(msm_audio_req);
-	}
-}
 
 #ifdef CONFIG_COMMON_AMP_CIRRUS
 static int codec_clk_src_get(struct snd_kcontrol *kcontrol,
@@ -741,11 +735,6 @@ static void msm_parse_upd_configuration(struct platform_device *pdev,
 		return;
 	}
 
-	if (!strcmp(pdata->upd_config.backend_used, "wsa"))
-		pdata->get_dev_num = wsa883x_codec_get_dev_num;
-	else
-		pdata->get_dev_num = wcd938x_codec_get_dev_num;
-
 	ret = of_property_read_u32_array(pdev->dev.of_node,
 			"qcom,upd_lpass_reg_addr", dt_values, MAX_EARPA_REG);
 	if (ret) {
@@ -771,7 +760,6 @@ static void msm_set_upd_config(struct snd_soc_pcm_runtime *rtd)
 {
 	int val1 = 0, val2 = 0, ret = 0;
 	u8  dev_num = 0;
-	char cdc_name[DEV_NAME_STR_LEN];
 	struct snd_soc_component *component = NULL;
 	struct msm_asoc_mach_data *pdata = NULL;
 
@@ -785,10 +773,6 @@ static void msm_set_upd_config(struct snd_soc_pcm_runtime *rtd)
 		pr_err("%s: pdata is NULL\n", __func__);
 		return;
 	}
-	if (!pdata->get_dev_num) {
-		pr_err("%s: get_dev_num is NULL\n", __func__);
-		return;
-	}
 
 	if (!pdata->upd_config.ear_pa_hw_reg_cfg.lpass_cdc_rx0_rx_path_ctl_phy_addr ||
 		!pdata->upd_config.ear_pa_hw_reg_cfg.lpass_wr_fifo_reg_phy_addr ||
@@ -797,18 +781,43 @@ static void msm_set_upd_config(struct snd_soc_pcm_runtime *rtd)
 		return;
 	}
 
-	memset(cdc_name, '\0', DEV_NAME_STR_LEN);
 	if (!strcmp(pdata->upd_config.backend_used, "wsa")) {
-		if (pdata->wsa_max_devs > 0)
-			memcpy(cdc_name, "wsa-codec.1", strlen("wsa-codec.1"));
+		if (pdata->wsa_max_devs > 0) {
+			component = snd_soc_rtdcom_lookup(rtd, "wsa-codec.1");
+			if (!component) {
+				pr_err("%s: %s component is NULL\n", __func__,
+					"wsa-codec.1");
+				return;
+			}
+		} else {
+			pr_info("%s wsa_max_devs are NULL\n", __func__);
+			return;
+		}
+	} else {
+		component = snd_soc_rtdcom_lookup(rtd, WCD938X_DRV_NAME);
+		if (!component) {
+			component = snd_soc_rtdcom_lookup(rtd, WCD937X_DRV_NAME);
+			if (!component) {
+				pr_err("%s component is NULL\n", __func__);
+				return;
+			}
+		}
 	}
-	else
-		memcpy(cdc_name, WCD938X_DRV_NAME, sizeof(WCD938X_DRV_NAME));
 
-	component = snd_soc_rtdcom_lookup(rtd, cdc_name);
-	if (!component) {
-		pr_err("%s: %s component is NULL\n", __func__,
-			cdc_name);
+	if (!strcmp(pdata->upd_config.backend_used, "wsa")) {
+		pdata->get_dev_num = wsa883x_codec_get_dev_num;
+	} else {
+		if (!strncmp(component->driver->name, WCD937X_DRV_NAME,
+				strlen(WCD937X_DRV_NAME))){
+			pdata->get_dev_num = wcd937x_codec_get_dev_num;
+		} else if (!strncmp(component->driver->name, WCD938X_DRV_NAME,
+				strlen(WCD938X_DRV_NAME))){
+			pdata->get_dev_num = wcd938x_codec_get_dev_num;
+		}
+	}
+
+	if (!pdata->get_dev_num) {
+		pr_err("%s: get_dev_num is NULL\n", __func__);
 		return;
 	}
 
@@ -990,33 +999,50 @@ void cs35l41_amp_fail_event(const char *suffix)
 
 static int waipio_tdm_cirrus_init(struct snd_soc_pcm_runtime *rtd)
 {
+#ifdef CONFIG_SND_SOC_HYBRID_AMP
+	struct snd_soc_dai *codec_dai_rcv = asoc_rtd_to_codec(rtd, 0);
+	struct snd_soc_dapm_context *rcv_dapm =
+		snd_soc_component_get_dapm(codec_dai_rcv->component);
+	struct snd_soc_dai *codec_dai_left = asoc_rtd_to_codec(rtd, 2);
+	struct snd_soc_dapm_context *left_dapm =
+		snd_soc_component_get_dapm(codec_dai_left->component);
+	struct snd_soc_dai *codec_dai_right = asoc_rtd_to_codec(rtd, 1);
+	struct snd_soc_dapm_context *right_dapm =
+		snd_soc_component_get_dapm(codec_dai_right->component);
+#else
 	struct snd_soc_dai *codec_dai_left = asoc_rtd_to_codec(rtd, 1);
 	struct snd_soc_dapm_context *left_dapm =
 		snd_soc_component_get_dapm(codec_dai_left->component);
 	struct snd_soc_dai *codec_dai_right = asoc_rtd_to_codec(rtd, 0);
 	struct snd_soc_dapm_context *right_dapm =
 		snd_soc_component_get_dapm(codec_dai_right->component);
+#endif
 
 	pr_info("%s: ++\n", __func__);
-	snd_soc_dapm_ignore_suspend(left_dapm, "Left AMP Capture");
-	snd_soc_dapm_ignore_suspend(left_dapm, "Left AMP Playback");
-	snd_soc_dapm_ignore_suspend(left_dapm, "Left AMP SPK");
-	snd_soc_dapm_ignore_suspend(left_dapm, "Left VP");
-	snd_soc_dapm_ignore_suspend(left_dapm, "Left VBST");
-	snd_soc_dapm_ignore_suspend(left_dapm, "Left ISENSE");
-	snd_soc_dapm_ignore_suspend(left_dapm, "Left VSENSE");
-	snd_soc_dapm_ignore_suspend(left_dapm, "Left TEMP");
+	snd_soc_dapm_ignore_suspend(left_dapm, "AMP Capture");
+	snd_soc_dapm_ignore_suspend(left_dapm, "AMP Playback");
+	snd_soc_dapm_ignore_suspend(left_dapm, "AMP SPK");
+	snd_soc_dapm_ignore_suspend(left_dapm, "VP");
+	snd_soc_dapm_ignore_suspend(left_dapm, "VBST");
+	snd_soc_dapm_ignore_suspend(left_dapm, "ISENSE");
+	snd_soc_dapm_ignore_suspend(left_dapm, "VSENSE");
+	snd_soc_dapm_ignore_suspend(left_dapm, "TEMP");
 	snd_soc_dapm_sync(left_dapm);
 
-	snd_soc_dapm_ignore_suspend(right_dapm, "Right AMP Capture");
-	snd_soc_dapm_ignore_suspend(right_dapm, "Right AMP Playback");
-	snd_soc_dapm_ignore_suspend(right_dapm, "Right AMP SPK");
-	snd_soc_dapm_ignore_suspend(right_dapm, "Right VP");
-	snd_soc_dapm_ignore_suspend(right_dapm, "Right VBST");
-	snd_soc_dapm_ignore_suspend(right_dapm, "Right ISENSE");
-	snd_soc_dapm_ignore_suspend(right_dapm, "Right VSENSE");
-	snd_soc_dapm_ignore_suspend(right_dapm, "Right TEMP");
+	snd_soc_dapm_ignore_suspend(right_dapm, "AMP Capture");
+	snd_soc_dapm_ignore_suspend(right_dapm, "AMP Playback");
+	snd_soc_dapm_ignore_suspend(right_dapm, "AMP SPK");
+	snd_soc_dapm_ignore_suspend(right_dapm, "VP");
+	snd_soc_dapm_ignore_suspend(right_dapm, "VBST");
+	snd_soc_dapm_ignore_suspend(right_dapm, "ISENSE");
+	snd_soc_dapm_ignore_suspend(right_dapm, "VSENSE");
+	snd_soc_dapm_ignore_suspend(right_dapm, "TEMP");
 	snd_soc_dapm_sync(right_dapm);
+
+#ifdef CONFIG_SND_SOC_HYBRID_AMP
+	snd_soc_dapm_ignore_suspend(rcv_dapm, "Speaker_Playback-18-34");
+	snd_soc_dapm_sync(rcv_dapm);
+#endif
 
 	register_cirrus_bigdata_cb(codec_dai_right->component);
 
@@ -1047,40 +1073,40 @@ static int waipio_tdm_cirrus_init(struct snd_soc_pcm_runtime *rtd)
 		snd_soc_component_get_dapm(codec_dai_rear_right->component);
 
 	pr_info("%s: ++\n", __func__);
-	snd_soc_dapm_ignore_suspend(front_left_dapm, "FL Capture");
-	snd_soc_dapm_ignore_suspend(front_left_dapm, "FL Playback");
-	snd_soc_dapm_ignore_suspend(front_left_dapm, "FL SPK");
-	snd_soc_dapm_ignore_suspend(front_left_dapm, "FL AP");
-	snd_soc_dapm_ignore_suspend(front_left_dapm, "FL AMP Enable");
-	snd_soc_dapm_ignore_suspend(front_left_dapm, "FL Entry");
-	snd_soc_dapm_ignore_suspend(front_left_dapm, "FL Exit");
+	snd_soc_dapm_ignore_suspend(front_left_dapm, "Capture");
+	snd_soc_dapm_ignore_suspend(front_left_dapm, "Playback");
+	snd_soc_dapm_ignore_suspend(front_left_dapm, "SPK");
+	snd_soc_dapm_ignore_suspend(front_left_dapm, "AP");
+	snd_soc_dapm_ignore_suspend(front_left_dapm, "AMP Enable");
+	snd_soc_dapm_ignore_suspend(front_left_dapm, "Entry");
+	snd_soc_dapm_ignore_suspend(front_left_dapm, "Exit");
 	snd_soc_dapm_sync(front_left_dapm);
 
-	snd_soc_dapm_ignore_suspend(front_right_dapm, "FR Capture");
-	snd_soc_dapm_ignore_suspend(front_right_dapm, "FR Playback");
-	snd_soc_dapm_ignore_suspend(front_right_dapm, "FR SPK");
-	snd_soc_dapm_ignore_suspend(front_right_dapm, "FR AP");
-	snd_soc_dapm_ignore_suspend(front_right_dapm, "FR AMP Enable");
-	snd_soc_dapm_ignore_suspend(front_right_dapm, "FR Entry");
-	snd_soc_dapm_ignore_suspend(front_right_dapm, "FR Exit");
+	snd_soc_dapm_ignore_suspend(front_right_dapm, "Capture");
+	snd_soc_dapm_ignore_suspend(front_right_dapm, "Playback");
+	snd_soc_dapm_ignore_suspend(front_right_dapm, "SPK");
+	snd_soc_dapm_ignore_suspend(front_right_dapm, "AP");
+	snd_soc_dapm_ignore_suspend(front_right_dapm, "AMP Enable");
+	snd_soc_dapm_ignore_suspend(front_right_dapm, "Entry");
+	snd_soc_dapm_ignore_suspend(front_right_dapm, "Exit");
 	snd_soc_dapm_sync(front_right_dapm);
 
-	snd_soc_dapm_ignore_suspend(rear_left_dapm, "RL Capture");
-	snd_soc_dapm_ignore_suspend(rear_left_dapm, "RL Playback");
-	snd_soc_dapm_ignore_suspend(rear_left_dapm, "RL SPK");
-	snd_soc_dapm_ignore_suspend(rear_left_dapm, "RL AP");
-	snd_soc_dapm_ignore_suspend(rear_left_dapm, "RL AMP Enable");
-	snd_soc_dapm_ignore_suspend(rear_left_dapm, "RL Entry");
-	snd_soc_dapm_ignore_suspend(rear_left_dapm, "RL Exit");
+	snd_soc_dapm_ignore_suspend(rear_left_dapm, "Capture");
+	snd_soc_dapm_ignore_suspend(rear_left_dapm, "Playback");
+	snd_soc_dapm_ignore_suspend(rear_left_dapm, "SPK");
+	snd_soc_dapm_ignore_suspend(rear_left_dapm, "AP");
+	snd_soc_dapm_ignore_suspend(rear_left_dapm, "AMP Enable");
+	snd_soc_dapm_ignore_suspend(rear_left_dapm, "Entry");
+	snd_soc_dapm_ignore_suspend(rear_left_dapm, "Exit");
 	snd_soc_dapm_sync(rear_left_dapm);
 
-	snd_soc_dapm_ignore_suspend(rear_right_dapm, "RR Capture");
-	snd_soc_dapm_ignore_suspend(rear_right_dapm, "RR Playback");
-	snd_soc_dapm_ignore_suspend(rear_right_dapm, "RR SPK");
-	snd_soc_dapm_ignore_suspend(rear_right_dapm, "RR AP");
-	snd_soc_dapm_ignore_suspend(rear_right_dapm, "RR AMP Enable");
-	snd_soc_dapm_ignore_suspend(rear_right_dapm, "RR Entry");
-	snd_soc_dapm_ignore_suspend(rear_right_dapm, "RR Exit");
+	snd_soc_dapm_ignore_suspend(rear_right_dapm, "Capture");
+	snd_soc_dapm_ignore_suspend(rear_right_dapm, "Playback");
+	snd_soc_dapm_ignore_suspend(rear_right_dapm, "SPK");
+	snd_soc_dapm_ignore_suspend(rear_right_dapm, "AP");
+	snd_soc_dapm_ignore_suspend(rear_right_dapm, "AMP Enable");
+	snd_soc_dapm_ignore_suspend(rear_right_dapm, "Entry");
+	snd_soc_dapm_ignore_suspend(rear_right_dapm, "Exit");
 	snd_soc_dapm_sync(rear_right_dapm);
 
 	register_cirrus_bigdata_cb(codec_dai_rear_right->component);
@@ -2024,6 +2050,27 @@ err_hs_detect:
 	return ret;
 }
 
+#if defined(CONFIG_SND_SOC_HYBRID_AMP) && defined(CONFIG_SEC_FACTORY)
+// gpio level high means c2c dettached, low menas c2c attached. 
+static int upper_c2c_check(struct device *dev)
+{
+	int subpcb_upper_gpio = -1;
+	int gpio_upper_level = 0;
+
+	subpcb_upper_gpio = of_get_named_gpio(dev->of_node, 
+		"subpcb-det-upper-gpio", 0);
+
+	if (gpio_is_valid(subpcb_upper_gpio)) {
+		gpio_upper_level = gpio_get_value(subpcb_upper_gpio);
+
+		dev_info(dev, "%s: subpcb_upper_gpio(%d) is %s\n",
+				__func__, subpcb_upper_gpio, gpio_upper_level ? 
+				"disconnected":"connected");
+	}
+	return gpio_upper_level;
+}
+#endif
+
 static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev, int wsa_max_devs)
 {
 	struct snd_soc_card *card = NULL;
@@ -2039,6 +2086,10 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev, int w
 			__func__);
 		return NULL;
 	}
+
+#if defined(CONFIG_SND_SOC_HYBRID_AMP) && defined(CONFIG_SEC_FACTORY)
+	sub_pcb_conn = upper_c2c_check(dev);
+#endif
 
 	if (!strcmp(match->data, "codec")) {
 		card = &snd_soc_card_waipio_msm;
@@ -2088,7 +2139,7 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev, int w
 
 		rc = of_property_read_u32(dev->of_node,
 				"qcom,mi2s-audio-intf", &val);
-		if (!rc && val) {
+		if (!rc && val && !sub_pcb_conn) {
 			memcpy(msm_waipio_dai_links + total_links,
 					msm_mi2s_dai_links,
 					sizeof(msm_mi2s_dai_links));
@@ -2097,7 +2148,9 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev, int w
 
 		rc = of_property_read_u32(dev->of_node,
 				"qcom,tdm-audio-intf", &val);
-		if (!rc && val) {
+		if (!rc && val && !sub_pcb_conn) {
+			dev_dbg(dev, "%s(): TDM support present\n",
+							__func__);
 			memcpy(msm_waipio_dai_links + total_links,
 					msm_tdm_dai_links,
 					sizeof(msm_tdm_dai_links));
@@ -2116,7 +2169,7 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev, int w
 		}
 
 		rc = of_property_read_u32(dev->of_node, "qcom,wcn-bt", &val);
-		if (!rc && val) {
+		if (!rc && val && !sub_pcb_conn) {
 			dev_dbg(dev, "%s(): WCN BT support present\n",
 				__func__);
 			memcpy(msm_waipio_dai_links + total_links,
@@ -2235,6 +2288,9 @@ static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_soc_dapm_context *dapm = NULL;
 	struct snd_info_entry *entry = NULL;
 	struct snd_card *card = NULL;
+#if IS_ENABLED(CONFIG_SND_SOC_HYBRID_AMP)
+	struct snd_soc_card *rtd_card = rtd->card;
+#endif
 	struct msm_asoc_mach_data *pdata =
 				snd_soc_card_get_drvdata(rtd->card);
 	int ret = 0;
@@ -2260,6 +2316,18 @@ static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
 
 	snd_soc_dapm_new_controls(dapm, msm_int_dapm_widgets,
 				ARRAY_SIZE(msm_int_dapm_widgets));
+
+#if IS_ENABLED(CONFIG_SND_SOC_HYBRID_AMP)
+	if(!sub_pcb_conn) {
+		ret = snd_soc_dapm_add_routes(&rtd_card->dapm, cs35l41_routes,
+				ARRAY_SIZE(cs35l41_routes));
+		if (ret) {
+			pr_err("%s: add amp route error: %d\n", __func__,
+					ret);
+			return ret;
+		}
+	}
+#endif
 
 	snd_soc_dapm_ignore_suspend(dapm, "Digital Mic0");
 	snd_soc_dapm_ignore_suspend(dapm, "Digital Mic1");
@@ -2513,6 +2581,49 @@ void msm_common_set_pdata(struct snd_soc_card *card,
 	pdata->common_pdata = common_pdata;
 }
 
+static int msm_asoc_parse_soundcard_name(struct platform_device *pdev,
+					 struct snd_soc_card *card)
+{
+	struct nvmem_cell *cell = NULL;
+	size_t len = 0;
+	u32 *buf = NULL;
+	u32 adsp_var_idx = 0;
+	int ret = 0;
+
+	/* get adsp variant idx */
+	cell = nvmem_cell_get(&pdev->dev, "adsp_variant");
+	if (IS_ERR_OR_NULL(cell)) {
+		dev_dbg(&pdev->dev, "%s: FAILED to get nvmem cell \n", __func__);
+		goto parse;
+	}
+	buf = nvmem_cell_read(cell, &len);
+	nvmem_cell_put(cell);
+	if (IS_ERR_OR_NULL(buf)) {
+		dev_dbg(&pdev->dev, "%s: FAILED to read nvmem cell \n", __func__);
+		goto parse;
+	}
+	if (len <= 0 || len > sizeof(u32)) {
+		dev_dbg(&pdev->dev, "%s: nvmem cell length out of range: %d\n",
+			__func__, len);
+		kfree(buf);
+		goto parse;
+	}
+	memcpy(&adsp_var_idx, buf, len);
+	kfree(buf);
+
+parse:
+	if(adsp_var_idx)
+		ret = snd_soc_of_parse_card_name(card, "qcom,sku-model");
+	else
+		ret = snd_soc_of_parse_card_name(card, "qcom,model");
+
+	if (ret)
+		dev_err(&pdev->dev, "%s: parse card name failed, err:%d\n",
+			__func__, ret);
+
+	return ret;
+}
+
 static int msm_asoc_machine_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = NULL;
@@ -2556,9 +2667,9 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, card);
 	snd_soc_card_set_drvdata(card, pdata);
 
-	ret = snd_soc_of_parse_card_name(card, "qcom,model");
+	ret = msm_asoc_parse_soundcard_name(pdev, card);
 	if (ret) {
-		dev_err(&pdev->dev, "%s: parse card name failed, err:%d\n",
+		dev_err(&pdev->dev, "%s: parse soundcard name failed, err:%d\n",
 			__func__, ret);
 		goto err;
 	}
@@ -2647,9 +2758,6 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 
 	is_initial_boot = true;
 
-	/* Add QoS request for audio tasks */
-	msm_audio_add_qos_request();
-
 	/* change card status to ONLINE */
 	dev_dbg(&pdev->dev, "%s: setting snd_card to ONLINE\n", __func__);
 	snd_card_set_card_status(SND_CARD_STATUS_ONLINE);
@@ -2675,7 +2783,6 @@ static int msm_asoc_machine_remove(struct platform_device *pdev)
 	msm_common_snd_deinit(common_pdata);
 	snd_event_master_deregister(&pdev->dev);
 	snd_soc_unregister_card(card);
-	msm_audio_remove_qos_request();
 
 	return 0;
 }

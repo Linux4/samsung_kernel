@@ -986,13 +986,13 @@ int dhd_send_twt_info_suspend(dhd_pub_t *dhdp, bool suspend)
 	ret = bcm_pack_xtlv_entry(&pbuf, &param_len, WL_TWT_CMD_INFO,
 			sizeof(ti), (uint8 *)&ti, BCM_XTLV_OPTION_ALIGN32);
 	if (ret != BCME_OK) {
-		DHD_ERROR(("%s : parameter packing error \n", __FUNCTION__));
+		DHD_ERROR_MEM(("%s : parameter packing error \n", __FUNCTION__));
 		return ret;
 	}
 
 	ret = dhd_iovar(dhdp, 0, "twt", buf, sizeof(buf) - param_len, NULL, 0, TRUE);
 	if (ret) {
-		DHD_ERROR(("%s : TWT info failed ret : %d\n", __FUNCTION__, ret));
+		DHD_ERROR_MEM(("%s : TWT info failed ret : %d\n", __FUNCTION__, ret));
 	}
 	return ret;
 
@@ -5011,7 +5011,7 @@ dhd_add_monitor_if(dhd_info_t *dhd)
 	if (FW_SUPPORTED((&dhd->pub), monitor)) {
 #ifdef DHD_PCIE_RUNTIMEPM
 		/* Disable RuntimePM in monitor mode */
-		DHD_DISABLE_RUNTIME_PM(&dhd->pub);
+		DHD_STOP_RPM_TIMER(&dhd->pub);
 		DHD_ERROR(("%s : disable runtime PM in monitor mode\n", __FUNCTION__));
 #endif /* DHD_PCIE_RUNTIME_PM */
 		scan_suppress = TRUE;
@@ -5057,7 +5057,7 @@ dhd_del_monitor_if(dhd_info_t *dhd)
 	if (FW_SUPPORTED((&dhd->pub), monitor)) {
 #ifdef DHD_PCIE_RUNTIMEPM
 		/* Enable RuntimePM */
-		DHD_ENABLE_RUNTIME_PM(&dhd->pub);
+		DHD_START_RPM_TIMER(&dhd->pub);
 		DHD_ERROR(("%s : enabled runtime PM\n", __FUNCTION__));
 #endif /* DHD_PCIE_RUNTIME_PM */
 		scan_suppress = FALSE;

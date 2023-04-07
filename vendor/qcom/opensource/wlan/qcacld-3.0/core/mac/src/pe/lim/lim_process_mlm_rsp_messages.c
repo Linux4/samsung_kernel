@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -585,8 +586,12 @@ void lim_process_mlm_auth_cnf(struct mac_context *mac_ctx, uint32_t *msg)
 			 * password is used. Then AP will still reject the
 			 * authentication even correct password is used unless
 			 * STA send deauth to AP upon authentication failure.
+			 *
+			 * Do not send deauth mgmt frame when already in Deauth
+			 * state while joining.
 			 */
-			if (auth_type == eSIR_AUTH_TYPE_SAE) {
+			if (auth_type == eSIR_AUTH_TYPE_SAE &&
+			    auth_cnf->resultCode != eSIR_SME_DEAUTH_WHILE_JOIN) {
 				pe_debug("Send deauth for SAE auth failure");
 				lim_send_deauth_mgmt_frame(mac_ctx,
 						       auth_cnf->protStatusCode,
@@ -1261,6 +1266,7 @@ QDF_STATUS lim_sta_handle_connect_fail(join_params *param)
 	struct pe_session *session;
 	struct mac_context *mac_ctx;
 	tpDphHashNode sta_ds = NULL;
+	QDF_STATUS status;
 
 	if (!param) {
 		pe_err("param is NULL");
@@ -1310,37 +1316,14 @@ QDF_STATUS lim_sta_handle_connect_fail(join_params *param)
 	session->lim_join_req = NULL;
 
 error:
-	/*
-	 * Delete the session if JOIN failure occurred.
-	 * if the peer is not created, then there is no
-	 * need to send down the set link state which will
-	 * try to delete the peer. Instead a join response
-	 * failure should be sent to the upper layers.
-	 */
-	if (param->result_code != eSIR_SME_PEER_CREATE_FAILED) {
-		QDF_STATUS status;
+	session->prot_status_code = param->prot_status_code;
+	session->result_code = param->result_code;
 
-		session->prot_status_code = param->prot_status_code;
-		session->result_code = param->result_code;
+	status = wma_send_vdev_stop(session->smeSessionId);
+	if (QDF_IS_STATUS_ERROR(status))
+		lim_join_result_callback(mac_ctx, session->smeSessionId);
 
-		status = wma_send_vdev_stop(session->smeSessionId);
-		if (QDF_IS_STATUS_ERROR(status)) {
-			lim_join_result_callback(mac_ctx,
-						 session->smeSessionId);
-		}
-
-		return status;
-	}
-
-
-	lim_send_sme_join_reassoc_rsp(mac_ctx, eWNI_SME_JOIN_RSP,
-				      param->result_code,
-				      param->prot_status_code,
-				      session, session->smeSessionId);
-	if (param->result_code == eSIR_SME_PEER_CREATE_FAILED)
-		pe_delete_session(mac_ctx, session);
-
-	return QDF_STATUS_SUCCESS;
+	return status;
 }
 
 /**
@@ -2316,6 +2299,7 @@ void lim_handle_add_bss_rsp(struct mac_context *mac_ctx,
 	enum bss_type bss_type;
 	struct wlan_lmac_if_reg_tx_ops *tx_ops;
 	struct vdev_mlme_obj *mlme_obj;
+	struct pe_session *sta_session;
 
 	if (!add_bss_rsp) {
 		pe_err("add_bss_rsp is NULL");
@@ -2355,6 +2339,24 @@ void lim_handle_add_bss_rsp(struct mac_context *mac_ctx,
 				tx_ops->set_tpc_power(mac_ctx->psoc,
 						      session_entry->vdev_id,
 						      &mlme_obj->reg_tpc_obj);
+			if (wlan_get_tpc_update_required_for_sta(
+							session_entry->vdev)) {
+				sta_session =
+					lim_get_concurrent_session(mac_ctx,
+							   session_entry->vdev_id,
+							   session_entry->opmode);
+				if (!sta_session) {
+					pe_err("TPC update required is set, but concurrent session doesn't exist");
+					wlan_set_tpc_update_required_for_sta(
+							session_entry->vdev,
+							false);
+				} else {
+					lim_update_tx_power(mac_ctx,
+							    session_entry,
+							    sta_session,
+							    false);
+				}
+			}
 		}
 	}
 	bss_type = session_entry->bssType;
@@ -2720,6 +2722,7 @@ static void lim_process_switch_channel_join_req(
 	struct vdev_mlme_obj *mlme_obj;
 	struct wlan_lmac_if_reg_tx_ops *tx_ops;
 	bool tpe_change = false;
+	struct pe_session *sap_session;
 
 	if (status != QDF_STATUS_SUCCESS) {
 		pe_err("Change channel failed!!");
@@ -2787,10 +2790,11 @@ static void lim_process_switch_channel_join_req(
 			pe_debug("MLO: Generate and process assoc rsp for link vdev");
 
 			if (QDF_IS_STATUS_SUCCESS(
-				util_gen_link_assoc_rsp(assoc_rsp.ptr,
-							assoc_rsp.len,
-							sta_link_addr,
-							link_assoc_rsp.ptr))) {
+				util_gen_link_assoc_rsp(
+					assoc_rsp.ptr, assoc_rsp.len - 24,
+					false, sta_link_addr,
+					link_assoc_rsp.ptr, assoc_rsp.len,
+					(qdf_size_t *)&link_assoc_rsp.len))) {
 				pe_debug("MLO: process assoc rsp for link vdev");
 				lim_process_assoc_rsp_frame(mac_ctx,
 							    link_assoc_rsp.ptr,
@@ -2882,7 +2886,23 @@ static void lim_process_switch_channel_join_req(
 		goto error;
 	}
 
-	if (wlan_reg_is_ext_tpc_supported(mac_ctx->psoc)) {
+	sap_session =
+		lim_get_concurrent_session(mac_ctx, session_entry->vdev_id,
+					   session_entry->opmode);
+
+	/*
+	 * STA LPI + SAP VLP is supported. For this, STA should move to
+	 * VLP power.
+	 * If there is a concurrent SAP operating on VLP in the same channel,
+	 * then do not update the TPC if the connecting AP is in LPI.
+	 */
+	if (sap_session &&
+	    lim_is_power_change_required_for_sta(mac_ctx, session_entry,
+						 sap_session))
+		lim_update_tx_power(mac_ctx, sap_session, session_entry, false);
+
+	if (wlan_reg_is_ext_tpc_supported(mac_ctx->psoc) &&
+	    !session_entry->sta_follows_sap_power) {
 		tx_ops = wlan_reg_get_tx_ops(mac_ctx->psoc);
 
 		lim_process_tpe_ie_from_beacon(mac_ctx, session_entry, bss,
@@ -3081,6 +3101,7 @@ void lim_process_switch_channel_rsp(struct mac_context *mac,
 		 */
 		policy_mgr_update_connection_info(mac->psoc,
 						pe_session->smeSessionId);
+		lim_check_conc_power_for_csa(mac, pe_session);
 		break;
 	case LIM_SWITCH_CHANNEL_MONITOR:
 		lim_handle_mon_switch_channel_rsp(pe_session, status);

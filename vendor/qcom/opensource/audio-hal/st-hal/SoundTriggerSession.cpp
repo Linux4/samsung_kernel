@@ -59,6 +59,20 @@ SoundTriggerSession::SoundTriggerSession(sound_model_handle_t handle,
     rec_config_payload_ = nullptr;
     rec_config_ = nullptr;
     hal_callback_ = callback;
+    pal_handle_ = nullptr;
+}
+
+SoundTriggerSession::~SoundTriggerSession()
+{
+    if (pal_handle_ && state_ != IDLE)
+        pal_stream_close(pal_handle_);
+    pal_handle_ = nullptr;
+
+    if (rec_config_payload_) {
+        free(rec_config_payload_);
+        rec_config_payload_ = nullptr;
+    }
+    rec_config_ = nullptr;
 }
 
 int SoundTriggerSession::pal_callback(
@@ -469,8 +483,8 @@ int SoundTriggerSession::UnloadSoundModel()
     if (status) {
         ALOGE("%s: error, failed to close pal stream, status = %d",
               __func__, status);
-        goto exit;
     }
+    pal_handle_ = nullptr;
     if (rec_config_payload_) {
         free(rec_config_payload_);
         rec_config_payload_ = nullptr;
@@ -615,8 +629,9 @@ int SoundTriggerSession::StartRecognition(
         ss_param->ctrl_LPSD = 0;
         ss_param->ctrl_VT = 0;
         ss_param->ctrl_hist_buf_time = backlog_size;
-        ALOGD("%s: ss_param->ctrl_SVT_MODE %d, ss_param->ctrl_hist_buf_time %d",
-            __func__, ss_param->ctrl_SVT_MODE, ss_param->ctrl_hist_buf_time);
+        rec_config_->capture_handle = AUDIO_IO_HANDLE_NONE;
+        ALOGD("%s: ss_param->ctrl_SVT_MODE %d, ss_param->ctrl_hist_buf_time %d, rec_config_->capture_handle = %d",
+            __func__, ss_param->ctrl_SVT_MODE, ss_param->ctrl_hist_buf_time, rec_config_->capture_handle);
     } else {
 #endif
     if (version == SOUND_TRIGGER_DEVICE_API_VERSION_1_3) {
@@ -751,17 +766,12 @@ int SoundTriggerSession::GetModuleVersion(char version[])
 
     status = pal_stream_get_param(pal_handle_,
         PAL_PARAM_ID_WAKEUP_MODULE_VERSION, &param_payload);
-    if (status) {
+    if (status || param_payload == NULL) {
         ALOGE("%s: Failed to get version, status = %d", __func__, status);
         goto exit;
     }
 
     version_payload = (struct version_arch_payload *)param_payload;
-#ifdef SEC_AUDIO_SOUND_TRIGGER_TYPE
-    if (version_payload == nullptr){
-        goto exit;
-    }
-#endif
     snprintf(version, SOUND_TRIGGER_MAX_STRING_LEN, "%d, %s",
         version_payload->version, version_payload->arch);
 
@@ -772,7 +782,10 @@ exit:
             ALOGE("%s: error, failed to close pal stream, status = %d",
                 __func__, status);
         }
+        pal_handle_ = nullptr;
     }
+    if (param_payload != NULL)
+        delete param_payload;
     ALOGV("%s: Exit", __func__);
     return 0;
 }

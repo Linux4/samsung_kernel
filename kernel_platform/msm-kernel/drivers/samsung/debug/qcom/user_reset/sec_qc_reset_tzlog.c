@@ -112,8 +112,8 @@ static int sec_qc_reset_tzlog_proc_open(struct inode *inode, struct file *file)
 
 	mutex_lock(&reset_tzlog->lock);
 
-	if (reset_tzlog->ref) {
-		reset_tzlog->ref++;
+	if (reset_tzlog->ref_cnt) {
+		reset_tzlog->ref_cnt++;
 		goto already_cached;
 	}
 
@@ -129,7 +129,7 @@ static int sec_qc_reset_tzlog_proc_open(struct inode *inode, struct file *file)
 		goto err_buf;
 	}
 
-	reset_tzlog->ref++;
+	reset_tzlog->ref_cnt++;
 
 	mutex_unlock(&reset_tzlog->lock);
 
@@ -173,8 +173,8 @@ static int sec_qc_reset_tzlog_proc_release(struct inode *inode,
 
 	mutex_lock(&reset_tzlog->lock);
 
-	reset_tzlog->ref--;
-	if (reset_tzlog->ref)
+	reset_tzlog->ref_cnt--;
+	if (reset_tzlog->ref_cnt)
 		goto still_used;
 
 	reset_tzlog->len = 0;

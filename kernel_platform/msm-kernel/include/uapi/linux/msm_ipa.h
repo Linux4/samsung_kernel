@@ -133,11 +133,16 @@
 #define IPA_IOCTL_PDN_CONFIG                    80
 #define IPA_IOCTL_SET_MAC_FLT                   81
 #define IPA_IOCTL_GET_PHERIPHERAL_EP_INFO       82
+#define IPA_IOCTL_ADD_UC_ACT_ENTRY              83
+#define IPA_IOCTL_DEL_UC_ACT_ENTRY              84
 #define IPA_IOCTL_SET_SW_FLT                    85
 #define IPA_IOCTL_SET_PKT_THRESHOLD             87
 #define IPA_IOCTL_ADD_EoGRE_MAPPING             88
 #define IPA_IOCTL_DEL_EoGRE_MAPPING             89
 #define IPA_IOCTL_SET_IPPT_SW_FLT               90
+#define IPA_IOCTL_ADD_MACSEC_MAPPING            92
+#define IPA_IOCTL_DEL_MACSEC_MAPPING            93
+#define IPA_IOCTL_QUERY_CACHED_DRIVER_MSG	94
 
 /**
  * max size of the header to be inserted
@@ -296,6 +301,8 @@
 /* IPA Linux mhip instance stats structures */
 #define IPA_LNX_MHIP_INSTANCE_INFO_STRUCT_LEN (16 + 112 + 120)
 #define IPA_LNX_MHIP_INST_STATS_STRUCT_LEN (8 + 248)
+/* IPA Linux consolidated stats structure */
+#define IPA_LNX_CONSOLIDATED_STATS_STRUCT_LEN (8 + 48)
 /* IPA Linux Instance allocation info structures */
 #define IPA_LNX_EACH_INST_ALLOC_INFO_STRUCT_LEN (24 + 12 + 12 + 16)
 #define IPA_LNX_STATS_ALL_INFO_STRUCT_LEN (32 + 128 + 128 + 128)
@@ -904,7 +911,20 @@ enum ipa_ippt_sw_flt_event {
 #define IPA_IPPT_SW_FLT_EVENT_MAX IPA_IPPT_SW_FLT_EVENT_MAX
 };
 
-#define IPA_EVENT_MAX_NUM (IPA_IPPT_SW_FLT_EVENT_MAX)
+enum ipa_macsec_event {
+	IPA_MACSEC_ADD_EVENT = IPA_IPPT_SW_FLT_EVENT_MAX,
+	IPA_MACSEC_DEL_EVENT,
+	IPA_MACSEC_EVENT_MAX
+#define IPA_MACSEC_EVENT_MAX IPA_MACSEC_EVENT_MAX
+};
+
+enum ipa_done_restore_event {
+	IPA_DONE_RESTORE_EVENT = IPA_MACSEC_EVENT_MAX,
+	IPA_DONE_RESTORE_EVENT_MAX
+	#define IPA_DONE_RESTORE_EVENT_MAX IPA_DONE_RESTORE_EVENT_MAX
+};
+
+#define IPA_EVENT_MAX_NUM (IPA_DONE_RESTORE_EVENT_MAX)
 #define IPA_EVENT_MAX ((int)IPA_EVENT_MAX_NUM)
 
 /**
@@ -995,8 +1015,9 @@ enum ipa_hw_type {
 	IPA_HW_v4_11 = 20,
 	IPA_HW_v5_0 = 21,
 	IPA_HW_v5_1 = 22,
+	IPA_HW_v5_2 = 23,
 };
-#define IPA_HW_MAX (IPA_HW_v5_1 + 1)
+#define IPA_HW_MAX (IPA_HW_v5_2 + 1)
 
 #define IPA_HW_v4_0 IPA_HW_v4_0
 #define IPA_HW_v4_1 IPA_HW_v4_1
@@ -1007,6 +1028,7 @@ enum ipa_hw_type {
 #define IPA_HW_v4_11 IPA_HW_v4_11
 #define IPA_HW_v5_0 IPA_HW_v5_0
 #define IPA_HW_v5_1 IPA_HW_v5_1
+#define IPA_HW_v5_2 IPA_HW_v5_2
 
 /**
  * struct ipa_rule_attrib - attributes of a routing/filtering
@@ -2804,6 +2826,163 @@ struct ipa_wan_msg {
 	uint32_t ipv6_addr_gw[IPA_WAN_MSG_IPv6_ADDR_GW_LEN];
 };
 
+/* uc activation command Ids */
+#define IPA_SOCKSV5_ADD_COM_ID		15
+#define IPA_IPv6_NAT_COM_ID		16
+
+/**
+ * ipa_kernel_tests_socksv5_uc_tmpl - uc activation entry info
+ * @cmd_id: uc command id
+ * @cmd_param: uC command param
+ * @ipa_kernel_tests_ip_hdr_temp: ip header
+ * @src_port: source port
+ * @dst_port: destination port
+ * @ipa_sockv5_mask: uc attribute mask for options/etc
+ * @out_irs: 4B/4B Seq/Ack/SACK
+ * @out_iss
+ * @in_irs
+ * @in_iss
+ * @out_ircv_tsval: timestamp attributes
+ * @in_ircv_tsecr
+ * @out_ircv_tsecr
+ * @in_ircv_tsval
+ * @in_isnd_wscale: window scale attributes
+ * @out_isnd_wscale
+ * @in_ircv_wscale
+ * @out_ircv_wscale
+ * @direction: 1 for UL 0 for DL
+ * @handle: uc activation table index
+ */
+struct ipa_kernel_tests_socksv5_uc_tmpl {
+	/* direction 1 = UL, 0 = DL */
+	__u8 direction;
+	__u8 padding1;
+	/* output: handle (index) */
+	__u16 handle;
+	__u16 cmd_id;
+	__u16 padding2;
+	__u32 cmd_param;
+
+	__be32 ip_src_addr;
+	__be32 ip_dst_addr;
+	__be32 ipv6_src_addr[4];
+	__be32 ipv6_dst_addr[4];
+
+	/* 2B src/dst port */
+	__u16 src_port;
+	__u16 dst_port;
+
+	/* attribute mask */
+	__u32 ipa_sockv5_mask;
+
+	/* required update 4B/4B Seq/Ack/SACK */
+	__u32 out_irs;
+	__u32 out_iss;
+	__u32 in_irs;
+	__u32 in_iss;
+
+	/* option 10B: time-stamp */
+	__u32 out_ircv_tsval;
+	__u32 in_ircv_tsecr;
+	__u32 out_ircv_tsecr;
+	__u32 in_ircv_tsval;
+
+	/* option 2B: window-scaling/dynamic */
+	__u16 in_isnd_wscale : 4;
+	__u16 out_isnd_wscale : 4;
+	__u16 in_ircv_wscale : 4;
+	__u16 out_ircv_wscale : 4;
+	__u32 padding3;
+
+};
+
+/**
+ * struct ipacm_socksv5_info - To hold information about socksv5 connections
+ * @ip_type: ip type
+ * @ipv4_src: ipv4 src address
+ * @ipv4_dst: ipv4 dst address
+ * @ipv6_src: ipv6 src address
+ * @ipv6_dst: ipv6 dst address
+ * @src_port: src port number
+ * @dst_port: dst port number
+ * @index: the uc activation tbl index
+ */
+
+struct ipacm_socksv5_info {
+	/* ip-type */
+	enum ipa_ip_type ip_type;
+
+	/* ipv4 */
+	__u32 ipv4_src;
+	__u32 ipv4_dst;
+
+	/* ipv6 */
+	__u32 ipv6_src[4];
+	__u32 ipv6_dst[4];
+
+	/* 2B src/dst port */
+	__u16 src_port;
+	__u16 dst_port;
+
+	/* uc-tbl index */
+	__u16 index;
+	__u16 padding;
+};
+
+/**
+ * struct ipa_socksv5_msg - To hold information about socksv5 client
+ * @ul_in: uplink connection info
+ * @dl_in: downlink connection info
+ * @handle: used for ipacm to distinguish connections
+ *
+ * CnE need to pass the name of default wan iface when connected/disconnected.
+ * CNE need to pass the gw info in wlan AP+STA mode.
+ * netmgr need to pass the name of wan eMBMS iface when connected.
+ */
+struct ipa_socksv5_msg {
+	struct ipacm_socksv5_info ul_in;
+	struct ipacm_socksv5_info dl_in;
+
+	/* handle (index) */
+	__u16 handle;
+	__u16 padding;
+};
+
+/**
+ * struct ipa_ioc_ipv6_nat_uc_act_entry - To hold information about IPv6 NAT
+ *	uC entry
+ * @cmd_id[in]: IPv6 NAT uC CMD ID - used for identifying uc activation type
+ * @private_address_lsb[in]: client private address lsb
+ * @private_address_msb[in]: client private address msbst
+ * @public_address_lsb[in]: client public address lsb
+ * @public_address_msb[in]: client public address msb
+ * @private_port[in]: client private port
+ * @public_port[in]: client public port
+ * @index[out]: uC activation entry index
+ */
+struct ipa_ioc_ipv6_nat_uc_act_entry {
+	__u16 cmd_id;
+	__u16 index;
+	__u32 padding;
+	__u32 private_port;
+	__u32 public_port;
+	__u64 private_address_lsb;
+	__u64 private_address_msb;
+	__u64 public_address_lsb;
+	__u64 public_address_msb;
+};
+
+/**
+ * union ipa_ioc_uc_activation_entry - To hold information about uC activation
+ *	entry
+ * @socks[in]: fill here if entry is Socksv5 entry
+ * @ipv6_nat[in]: fill here if entry is IPv6 NAT entry
+ */
+union ipa_ioc_uc_activation_entry {
+	struct ipa_kernel_tests_socksv5_uc_tmpl socks;
+	struct ipa_ioc_ipv6_nat_uc_act_entry ipv6_nat;
+};
+
 /**
  * struct ipa_ioc_rm_dependency - parameters for add/delete dependency
  * @resource_name: name of dependent resource
@@ -3154,6 +3333,29 @@ struct ipa_ioc_sw_flt_list_type {
 };
 
 /**
+ * struct ipa_macsec_map - mapping between ethX to macsecY
+ * @phy_name: name of the physical NIC (ethX)
+ *	- must be equal to an existing physical NIC name
+ * @macsec_name: name of the macsec NIC (macsecY)
+ */
+struct ipa_macsec_map {
+	char phy_name[IPA_RESOURCE_NAME_MAX];
+	char macsec_name[IPA_RESOURCE_NAME_MAX];
+};
+
+/**
+ * struct ipa_ioc_macsec_info - provide macsec info
+ * @ioctl_ptr: has to be typecasted to (__u64)(uintptr_t)
+ * @ioctl_data_size:
+ * Eg: For ipa_macsec_map = sizeof(ipa_macsec_map)
+ */
+struct ipa_ioc_macsec_info {
+	__u64 ioctl_ptr;
+	__u32 ioctl_data_size;
+	__u32 padding;
+};
+
+/**
  *   actual IOCTLs supported by IPA driver
  */
 #define IPA_IOC_ADD_HDR _IOWR(IPA_IOC_MAGIC, \
@@ -3426,6 +3628,16 @@ struct ipa_ioc_sw_flt_list_type {
 				IPA_IOCTL_GET_PHERIPHERAL_EP_INFO, \
 				struct ipa_ioc_get_ep_info)
 
+#define IPA_IOC_ADD_UC_ACT_ENTRY _IOWR(IPA_IOC_MAGIC, \
+				IPA_IOCTL_ADD_UC_ACT_ENTRY, \
+				union ipa_ioc_uc_activation_entry)
+
+#define IPA_IOC_DEL_UC_ACT_ENTRY _IOWR(IPA_IOC_MAGIC, \
+				IPA_IOCTL_DEL_UC_ACT_ENTRY, \
+				__u16)
+#define IPA_IOC_QUERY_CACHED_DRIVER_MSG _IO(IPA_IOC_MAGIC,\
+				IPA_IOCTL_QUERY_CACHED_DRIVER_MSG)
+
 #define IPA_IOC_SET_SW_FLT _IOWR(IPA_IOC_MAGIC, \
 				IPA_IOCTL_SET_SW_FLT, \
 				struct ipa_ioc_sw_flt_list_type)
@@ -3444,6 +3656,14 @@ struct ipa_ioc_sw_flt_list_type {
 #define IPA_IOC_SET_IPPT_SW_FLT _IOWR(IPA_IOC_MAGIC, \
 				IPA_IOCTL_SET_IPPT_SW_FLT, \
 				struct ipa_ioc_sw_flt_list_type)
+
+#define IPA_IOC_ADD_MACSEC_MAPPING _IOWR(IPA_IOC_MAGIC,	\
+				IPA_IOCTL_ADD_MACSEC_MAPPING, \
+				struct ipa_ioc_macsec_info)
+#define IPA_IOC_DEL_MACSEC_MAPPING _IOWR(IPA_IOC_MAGIC, \
+				IPA_IOCTL_DEL_MACSEC_MAPPING, \
+				struct ipa_ioc_macsec_info)
+
 /*
  * unique magic number of the Tethering bridge ioctls
  */

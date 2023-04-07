@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -212,7 +213,7 @@ int32_t StreamInCall::start()
 {
     int32_t status = 0;
 
-    PAL_DBG(LOG_TAG, "Enter. session handle - %pK mStreamAttr->direction - %d state %d",
+    PAL_INFO(LOG_TAG, "Enter. session handle - %pK mStreamAttr->direction - %d state %d",
               session, mStreamAttr->direction, currentState);
     mStreamMutex.lock();
     if (rm->cardState == CARD_STATUS_OFFLINE) {
@@ -418,52 +419,48 @@ exit:
     return status;
 }
 
-//TBD: move this to Stream, why duplicate code?
-int32_t  StreamInCall::setVolume(struct pal_volume_data *volume)
+int32_t StreamInCall::setVolume(struct pal_volume_data *volume)
 {
     int32_t status = 0;
+    uint8_t volSize = 0;
+
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
-    if (!volume) {
-        PAL_ERR(LOG_TAG, "Wrong volume data");
-        status = -EINVAL;
-        goto exit;
-    }
-    if (volume->no_of_volpair == 0) {
-        PAL_ERR(LOG_TAG, "Error no of vol pair is %d", (volume->no_of_volpair));
-        status = -EINVAL;
-        goto exit;
+    if (!volume || (volume->no_of_volpair == 0)) {
+       PAL_ERR(LOG_TAG, "Invalid arguments");
+       status = -EINVAL;
+       goto exit;
     }
 
-    /*if already allocated free and reallocate */
+    // if already allocated free and reallocate
     if (mVolumeData) {
         free(mVolumeData);
+        mVolumeData = NULL;
     }
 
-    mVolumeData = (struct pal_volume_data *)calloc(1, (sizeof(uint32_t) +
-                      (sizeof(struct pal_channel_vol_kv) * (volume->no_of_volpair))));
+    volSize = sizeof(uint32_t) + (sizeof(struct pal_channel_vol_kv) * (volume->no_of_volpair));
+    mVolumeData = (struct pal_volume_data *)calloc(1, volSize);
     if (!mVolumeData) {
         status = -ENOMEM;
-        PAL_ERR(LOG_TAG, "mVolumeData malloc failed %s", strerror(errno));
+        PAL_ERR(LOG_TAG, "failed to calloc for volume data");
         goto exit;
     }
 
-    //mStreamMutex.lock();
-    ar_mem_cpy (mVolumeData, (sizeof(uint32_t) +
-                      (sizeof(struct pal_channel_vol_kv) *
-                      (volume->no_of_volpair))), volume, (sizeof(uint32_t) +
-                      (sizeof(struct pal_channel_vol_kv) *
-                      (volume->no_of_volpair))));
-    //mStreamMutex.unlock();
-    for(int32_t i=0; i < (mVolumeData->no_of_volpair); i++) {
+    /* Allow caching of stream volume as part of mVolumeData
+     * till the pcm_open is not done or if sound card is offline.
+     */
+    ar_mem_cpy(mVolumeData, volSize, volume, volSize);
+    for (int32_t i=0; i < (mVolumeData->no_of_volpair); i++) {
         PAL_INFO(LOG_TAG, "Volume payload mask:%x vol:%f",
                       (mVolumeData->volume_pair[i].channel_mask), (mVolumeData->volume_pair[i].vol));
     }
-    /* Allow caching of stream volume as part of mVolumeData
-     * till the pcm_open is not done or if sound card is
-     * offline.
-     */
-    if (rm->cardState == CARD_STATUS_ONLINE && currentState != STREAM_IDLE
-        && currentState != STREAM_INIT) {
+
+    if (a2dpMuted) {
+        PAL_DBG(LOG_TAG, "a2dp muted, just cache volume update");
+        goto exit;
+    }
+
+    if ((rm->cardState == CARD_STATUS_ONLINE) && (currentState != STREAM_IDLE)
+            && (currentState != STREAM_INIT)) {
         status = session->setConfig(this, CALIBRATION, TAG_STREAM_VOLUME);
         if (0 != status) {
             PAL_ERR(LOG_TAG, "session setConfig for VOLUME_TAG failed with status %d",
@@ -471,11 +468,13 @@ int32_t  StreamInCall::setVolume(struct pal_volume_data *volume)
             goto exit;
         }
     }
-    PAL_DBG(LOG_TAG, "Volume payload No.of vol pair:%d ch mask:%x gain:%f",
-                      (volume->no_of_volpair), (volume->volume_pair->channel_mask),
-                      (volume->volume_pair->vol));
+
 exit:
-    PAL_DBG(LOG_TAG, "Exit status: %d", status);
+    if (volume) {
+        PAL_DBG(LOG_TAG, "Exit. Volume payload No.of vol pair:%d ch mask:%x gain:%f",
+                         (volume->no_of_volpair), (volume->volume_pair->channel_mask),
+                         (volume->volume_pair->vol));
+    }
     return status;
 }
 
@@ -486,6 +485,7 @@ int32_t  StreamInCall::read(struct pal_buffer* buf)
     PAL_VERBOSE(LOG_TAG, "Enter. session handle - %pK, state %d",
             session, currentState);
 
+    mStreamMutex.lock();
     if ((rm->cardState == CARD_STATUS_OFFLINE) || cachedState != STREAM_IDLE) {
        /* calculate sleep time based on buf->size, sleep and return buf->size */
         uint32_t streamSize;
@@ -535,9 +535,11 @@ int32_t  StreamInCall::read(struct pal_buffer* buf)
         status = -EINVAL;
         goto exit;
     }
+    mStreamMutex.unlock();
     PAL_VERBOSE(LOG_TAG, "Exit. session read successful size - %d", size);
     return size;
 exit :
+    mStreamMutex.unlock();
     PAL_VERBOSE(LOG_TAG, "Exit session read failed status %d", status);
     return status;
 }
@@ -648,6 +650,11 @@ int32_t  StreamInCall::setParameters(uint32_t param_id, void *payload)
     PAL_DBG(LOG_TAG, "start, set parameter %u, session handle - %p", param_id, session);
 
     mStreamMutex.lock();
+    if (currentState == STREAM_IDLE) {
+        PAL_ERR(LOG_TAG, "Invalid stream state: IDLE for param ID: %d", param_id);
+        mStreamMutex.unlock();
+        return -EINVAL;
+    }
     // Stream may not know about tags, so use setParameters instead of setConfig
     switch (param_id) {
         default:
@@ -666,9 +673,17 @@ int32_t StreamInCall::mute_l(bool state)
 {
     int32_t status = 0;
 
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+    PAL_INFO(LOG_TAG, "Enter. session handle - %pK state %d", session, state);
+#else
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d", session, state);
+#endif
     status = session->setConfig(this, MODULE, (state ? MUTE_TAG : UNMUTE_TAG), TX_HOSTLESS);
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+    PAL_INFO(LOG_TAG, "Exit status: %d", status);
+#else
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
+#endif
     return status;
 }
 

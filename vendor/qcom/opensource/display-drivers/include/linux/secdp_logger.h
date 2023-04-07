@@ -66,13 +66,4 @@ int secdp_logger_init(void);
 #endif
 
 
-/*#define SECDP_FUNC_TRACE*/
-#ifdef SECDP_FUNC_TRACE
-#define DP_ENTER(fmt, ...) pr_debug("+++ " pr_fmt(fmt), ##__VA_ARGS__)
-#define DP_LEAVE(fmt, ...) pr_debug("--- " pr_fmt(fmt), ##__VA_ARGS__) 
-#else
-#define DP_ENTER(fmt, ...) do {} while(0)
-#define DP_LEAVE(fmt, ...) do {} while(0)
-#endif
-
 #endif/*_SECDP_LOGGER_H_*/

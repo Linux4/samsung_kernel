@@ -535,7 +535,7 @@ int IPACM_Config::AddNatIfaces(char *dev_name, ipa_ip_type ip_type)
 		}
 	}
 
-	IPACMDBG_H("Add iface %s to NAT-ifaces, origin it has %d nat ifaces\n",
+	IPACMDBG_H_LOG("Add iface %s to NAT-ifaces, origin it has %d nat ifaces\n",
 					          dev_name, ipa_nat_iface_entries);
 	ipa_nat_iface_entries++;
 

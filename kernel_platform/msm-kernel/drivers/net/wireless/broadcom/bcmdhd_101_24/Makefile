@@ -564,6 +564,8 @@ endif
 
 # NAN-Ranging BW private command
   DHDCFLAGS += -DSUPPORT_NAN_RANGING_TEST_BW
+# NAN customer discovery cache nubmer
+  DHDCFLAGS += -DCUSTOM_NAN_MAX_CACHE_DISC_RESULT=160
 
 ifeq ($(CONFIG_ARCH_QCOM),y)
 # Due to GKI config, Exynos has ARCH_QCOM & ARCH_EXYNOS, MSM has ARCH_QCOM only, Temporary solution
@@ -863,6 +865,7 @@ ifeq ($(CONFIG_SEC_FACTORY_INTERPOSER),y)
   DHDCFLAGS += -DENABLE_NOT_LOAD_DHD_MODULE
 endif # CONFIG_SEC_FACTORY_INTERPOSER
   DHDCFLAGS += -DMAX_PFN_LIST_COUNT=16
+  DHDCFLAGS += -DAP_LESS_BCAST
 endif # CONFIG_BCM4389
 
 ifneq ($(filter y m,$(CONFIG_BCM4375)),)
@@ -908,6 +911,8 @@ endif
 
 # NAN-Ranging BW private command
  DHDCFLAGS += -DSUPPORT_NAN_RANGING_TEST_BW
+# NAN customer discovery cache nubmer
+  DHDCFLAGS += -DCUSTOM_NAN_MAX_CACHE_DISC_RESULT=40
 
 ifeq ($(CONFIG_ARCH_QCOM),y)
 # Due to GKI config, Exynos has ARCH_QCOM & ARCH_EXYNOS, MSM has ARCH_QCOM only, Temporary solution

@@ -12,7 +12,7 @@
 
 #define CAM_IFE_CSID_VER_1_0  0x100
 #define CAM_IFE_CSID_VER_2_0  0x200
-#define CAM_IFE_CSID_MAX_ERR_COUNT  100
+#define CAM_IFE_CSID_MAX_ERR_COUNT  1
 
 #define CAM_IFE_CSID_HW_CAP_IPP                           0x1
 #define CAM_IFE_CSID_HW_CAP_RDI                           0x2
@@ -227,6 +227,7 @@ struct cam_ife_csid_csi2_rx_reg_info {
 	uint32_t fatal_err_mask;
 	uint32_t part_fatal_err_mask;
 	uint32_t non_fatal_err_mask;
+	uint32_t phy_recovery_mask;
 	uint32_t debug_irq_mask;
 	uint32_t top_irq_mask;
 };

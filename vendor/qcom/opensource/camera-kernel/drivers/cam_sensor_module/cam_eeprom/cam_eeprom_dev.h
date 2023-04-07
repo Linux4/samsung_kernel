@@ -354,7 +354,7 @@ extern char rear3_sensor_id[FROM_SENSOR_ID_SIZE + 1];
 extern DualTilt_t rear3_dual;
 #endif
 
-#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_Q4Q_PROJECT)
 extern char rear3_fw_factory_ver[SYSFS_FW_VER_SIZE];
 extern char rear3_fw_user_ver[SYSFS_FW_VER_SIZE];
 #endif
@@ -409,9 +409,6 @@ extern uint8_t front2_dual_cal[FROM_FRONT_DUAL_CAL_SIZE + 1];
 extern DualTilt_t front2_dual;
 #endif
 extern char module_info[SYSFS_MODULE_INFO_SIZE];
-
-/* phone fw info */
-extern uint32_t CAMERA_NORMAL_CAL_CRC;
 
 #if !defined(CONFIG_SAMSUNG_FRONT_TOP_EEPROM)
 extern uint32_t front_af_cal_pan;
@@ -649,6 +646,7 @@ struct eebin_info {
  * @is_multimodule_mode :   To identify multimodule node
  * @wr_settings         :   I2C write settings
  * @eebin_info          :   EEBIN address, size info
+  * @camera_normal_cal_crc:  phone fw info
  */
 struct cam_eeprom_ctrl_t {
 	char device_name[CAM_CTX_DEV_NAME_MAX_LENGTH];
@@ -670,6 +668,7 @@ struct cam_eeprom_ctrl_t {
 	struct i2c_settings_array wr_settings;
 	struct eebin_info eebin_info;
 	uint32_t is_supported;
+	uint32_t camera_normal_cal_crc;
 };
 
 typedef enum{

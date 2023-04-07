@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -3856,7 +3857,8 @@ csr_roam_chk_lnk_set_ctx_rsp(struct mac_context *mac_ctx, tSirSmeRsp *msg_ptr)
 		csr_roam_substate_change(mac_ctx, eCSR_ROAM_SUBSTATE_NONE,
 					 sessionId);
 		cm_stop_wait_for_key_timer(mac_ctx->psoc, sessionId);
-		cm_roam_start_init_on_connect(mac_ctx->pdev, sessionId);
+		if (!wlan_vdev_mlme_get_is_mlo_vdev(mac_ctx->psoc, sessionId))
+			cm_roam_start_init_on_connect(mac_ctx->pdev, sessionId);
 	}
 	if (eSIR_SME_SUCCESS == pRsp->status_code) {
 		qdf_copy_macaddr(&roam_info->peerMac, &pRsp->peer_macaddr);
@@ -5024,7 +5026,7 @@ csr_compute_mode_and_band(struct mac_context *mac_ctx,
 #ifdef WLAN_FEATURE_11BE
 	case eCSR_CFG_DOT11_MODE_11BE:
 	case eCSR_CFG_DOT11_MODE_11BE_ONLY:
-		if (IS_FEATURE_SUPPORTED_BY_FW(DOT11BE)) {
+		if (IS_FEATURE_11BE_SUPPORTED_BY_FW) {
 			*dot11_mode = mac_ctx->roam.configParam.uCfgDot11Mode;
 		} else if (IS_FEATURE_SUPPORTED_BY_FW(DOT11AX)) {
 			*dot11_mode = eCSR_CFG_DOT11_MODE_11AX;
@@ -5047,7 +5049,7 @@ csr_compute_mode_and_band(struct mac_context *mac_ctx,
 #endif
 	case eCSR_CFG_DOT11_MODE_AUTO:
 #ifdef WLAN_FEATURE_11BE
-		if (IS_FEATURE_SUPPORTED_BY_FW(DOT11BE)) {
+		if (IS_FEATURE_11BE_SUPPORTED_BY_FW) {
 			*dot11_mode = eCSR_CFG_DOT11_MODE_11BE;
 		} else
 #endif
@@ -5191,7 +5193,7 @@ csr_roam_get_phy_mode_band_for_bss(struct mac_context *mac_ctx,
 		  profile->privacy, bss_op_ch_freq,
 		  IS_FEATURE_SUPPORTED_BY_FW(DOT11AX));
 #ifdef WLAN_FEATURE_11BE
-	sme_debug("BE :%d", IS_FEATURE_SUPPORTED_BY_FW(DOT11BE));
+	sme_debug("BE :%d", IS_FEATURE_11BE_SUPPORTED_BY_FW);
 #endif
 	return cfg_dot11_mode;
 }
@@ -8011,24 +8013,12 @@ QDF_STATUS csr_csa_restart(struct mac_context *mac_ctx, uint8_t session_id)
 	return status;
 }
 
-/**
- * csr_roam_send_chan_sw_ie_request() - Request to transmit CSA IE
- * @mac_ctx:        Global MAC context
- * @bssid:          BSSID
- * @target_chan_freq: Channel frequency on which to send the IE
- * @csa_ie_reqd:    Include/Exclude CSA IE.
- * @ch_params:  operating Channel related information
- *
- * This function sends request to transmit channel switch announcement
- * IE to lower layers
- *
- * Return: success or failure
- **/
 QDF_STATUS csr_roam_send_chan_sw_ie_request(struct mac_context *mac_ctx,
 					    struct qdf_mac_addr bssid,
 					    uint32_t target_chan_freq,
 					    uint8_t csa_ie_reqd,
-					    struct ch_params *ch_params)
+					    struct ch_params *ch_params,
+					    uint32_t new_cac_ms)
 {
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
 	tSirDfsCsaIeRequest *msg;
@@ -8047,6 +8037,7 @@ QDF_STATUS csr_roam_send_chan_sw_ie_request(struct mac_context *mac_ctx,
 	msg->ch_switch_mode = mac_ctx->sap.SapDfsInfo.sap_ch_switch_mode;
 	msg->dfs_ch_switch_disable =
 		mac_ctx->sap.SapDfsInfo.disable_dfs_ch_switch;
+	msg->new_chan_cac_ms = new_cac_ms;
 	qdf_mem_copy(msg->bssid, bssid.bytes, QDF_MAC_ADDR_SIZE);
 	qdf_mem_copy(&msg->ch_params, ch_params, sizeof(struct ch_params));
 

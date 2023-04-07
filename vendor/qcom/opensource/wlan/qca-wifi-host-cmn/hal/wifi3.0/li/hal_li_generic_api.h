@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -907,6 +908,7 @@ hal_rx_status_get_tlv_info_generic_li(void *rx_tlv_hdr, void *ppduinfo,
 #ifdef QCA_WIFI_QCA6390
 		case TARGET_TYPE_QCA6390:
 #endif
+		case TARGET_TYPE_QCA6490:
 			ppdu_info->rx_status.is_stbc =
 				HAL_RX_GET(vht_sig_a_info,
 					   VHT_SIG_A_INFO_0, STBC);
@@ -935,7 +937,6 @@ hal_rx_status_get_tlv_info_generic_li(void *rx_tlv_hdr, void *ppduinfo,
 			ppdu_info->rx_status.nss = 0;
 #endif
 			break;
-		case TARGET_TYPE_QCA6490:
 		case TARGET_TYPE_QCA6750:
 			ppdu_info->rx_status.nss = 0;
 			break;
@@ -2130,6 +2131,17 @@ void hal_reo_setup_generic_li(struct hal_soc *soc, void *reoparams)
 	 * 7: NOT_USED.
 	 */
 	if (reo_params->rx_hash_enabled) {
+		if (reo_params->remap0)
+			HAL_REG_WRITE(soc,
+				      HWIO_REO_R0_DESTINATION_RING_CTRL_IX_0_ADDR(
+				      SEQ_WCSS_UMAC_REO_REG_OFFSET),
+				      reo_params->remap0);
+
+		hal_debug("HWIO_REO_R0_DESTINATION_RING_CTRL_IX_0_ADDR 0x%x",
+			  HAL_REG_READ(soc,
+				       HWIO_REO_R0_DESTINATION_RING_CTRL_IX_0_ADDR(
+				       SEQ_WCSS_UMAC_REO_REG_OFFSET)));
+
 		HAL_REG_WRITE(soc,
 			      HWIO_REO_R0_DESTINATION_RING_CTRL_IX_2_ADDR(
 			      SEQ_WCSS_UMAC_REO_REG_OFFSET),

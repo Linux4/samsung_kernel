@@ -1,4 +1,4 @@
-# Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
+# Copyright (c) 2018-2019, 2021 The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -19,7 +19,7 @@ from re import finditer
 #len1 = 0x20000
 CBMC_CURSOR_MASK = ((1 << 28) - 1)
 CBMC_OVERFLOW = (1 << 31)
-COREBOOT_BOOTBLOCK = 'coreboot-[^\n]* bootblock starting.*\\.\\.\\.\n'
+COREBOOT_BOOTBLOCK = b'coreboot-[^\n]* bootblock starting.*\\.\\.\\.\n'
 
 @register_parser('--cbmem', 'Print the coreboot console log', shortopt='-z')
 class CBMEM(RamParser):

@@ -48,6 +48,15 @@
 #define DP_DEBUG(fmt, ...) pr_debug(fmt, ##__VA_ARGS__)
 #endif
 
+/*#define SECDP_FUNC_TRACE*/
+#ifdef SECDP_FUNC_TRACE
+#define DP_ENTER(fmt, ...) pr_debug("+++ " pr_fmt(fmt), ##__VA_ARGS__)
+#define DP_LEAVE(fmt, ...) pr_debug("--- " pr_fmt(fmt), ##__VA_ARGS__) 
+#else
+#define DP_ENTER(fmt, ...) do {} while(0)
+#define DP_LEAVE(fmt, ...) do {} while(0)
+#endif
+
 #define DEFAULT_DISCONNECT_DELAY_MS 0
 #define MAX_DISCONNECT_DELAY_MS 10000
 #define DEFAULT_CONNECT_NOTIFICATION_DELAY_MS 150

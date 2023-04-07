@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
@@ -58,7 +59,9 @@
 #include <linux/qcom-iommu-util.h>
 #include "soc/qcom/secure_buffer.h"
 #include <linux/qtee_shmbridge.h>
+#ifdef CONFIG_DRM_SDE_VM
 #include <linux/gunyah/gh_irq_lend.h>
+#endif
 
 #define CREATE_TRACE_POINTS
 #include "sde_trace.h"
@@ -1325,6 +1328,7 @@ static void sde_kms_cancel_delayed_work(struct drm_crtc *crtc)
 	struct drm_connector_list_iter iter;
 	struct drm_encoder *encoder;
 
+	SDE_EVT32(0x1111);
 	/* Cancel CRTC work */
 	sde_crtc_cancel_delayed_work(crtc);
 
@@ -1350,11 +1354,13 @@ int sde_kms_vm_pre_release(struct sde_kms *sde_kms,
 	struct drm_crtc *crtc;
 	struct drm_encoder *encoder;
 	int rc = 0;
+	struct msm_drm_private *priv;
 
 	crtc = sde_kms_vm_get_vm_crtc(state);
 	if (!crtc)
 		return 0;
 
+	priv = crtc->dev->dev_private;
 	/* if vm_req is enabled, once CRTC on the commit is guaranteed */
 	sde_kms_wait_for_frame_transfer_complete(&sde_kms->base, crtc);
 
@@ -1379,6 +1385,12 @@ int sde_kms_vm_pre_release(struct sde_kms *sde_kms,
 		/* reset sw state */
 		sde_crtc_reset_sw_state(crtc);
 	}
+
+	/*
+	 * Flush event thread queue for any pending events as vblank work
+	 * might get scheduled from drm_crtc_vblank_off
+	 */
+	kthread_flush_worker(&priv->event_thread[crtc->index].worker);
 
 	return rc;
 }
@@ -1486,6 +1498,8 @@ int sde_kms_vm_primary_post_commit(struct sde_kms *sde_kms,
 			SDE_ERROR("sde vm assign failed, rc=%d\n", rc);
 	}
 	sde_vm_unlock(sde_kms);
+
+	_sde_crtc_vm_release_notify(crtc);
 
 exit:
 	return rc;
@@ -2517,6 +2531,7 @@ static int sde_kms_set_crtc_for_conn(struct drm_device *dev,
 	}
 
 	crtc_state->active = true;
+	crtc_state->enable = true;
 	ret = drm_atomic_set_crtc_for_connector(conn_state, enc->crtc);
 	if (ret)
 		SDE_ERROR("error %d setting the crtc\n", ret);
@@ -2624,6 +2639,11 @@ error:
 
 		list_del_init(&fb->filp_head);
 		drm_framebuffer_put(fb);
+	}
+
+	drm_for_each_crtc(crtc, dev) {
+		if (!ret && crtc_mask & drm_crtc_mask(crtc))
+			sde_kms_cancel_delayed_work(crtc);
 	}
 
 end:
@@ -2910,7 +2930,7 @@ static int sde_kms_check_vm_request(struct msm_kms *kms,
 	struct sde_vm_ops *vm_ops;
 	enum sde_crtc_vm_req old_vm_req = VM_REQ_NONE, new_vm_req = VM_REQ_NONE;
 	int i, rc = 0;
-	bool vm_req_active = false;
+	bool vm_req_active = false, prev_vm_req = false;
 	bool vm_owns_hw;
 
 	if (!kms || !state)
@@ -2923,6 +2943,14 @@ static int sde_kms_check_vm_request(struct msm_kms *kms,
 
 	if (!vm_ops->vm_request_valid || !vm_ops->vm_owns_hw || !vm_ops->vm_acquire)
 		return -EINVAL;
+
+	drm_for_each_crtc(crtc, state->dev) {
+		if (crtc->state && (sde_crtc_get_property(to_sde_crtc_state(crtc->state),
+				CRTC_PROP_VM_REQ_STATE) == VM_REQ_RELEASE)) {
+			prev_vm_req = true;
+			break;
+		}
+	}
 
 	/* check for an active vm request */
 	for_each_oldnew_crtc_in_state(state, crtc, old_cstate, new_cstate, i) {
@@ -2937,8 +2965,12 @@ static int sde_kms_check_vm_request(struct msm_kms *kms,
 		old_state = to_sde_crtc_state(old_cstate);
 		old_vm_req = sde_crtc_get_property(old_state, CRTC_PROP_VM_REQ_STATE);
 
-		/* No active request if the transition is from VM_REQ_NONE to VM_REQ_NONE */
-		if (old_vm_req || new_vm_req) {
+		/*
+		 * VM request should be validated in the following usecases
+		 * - There is a vm request(other than VM_REQ_NONE) on current/prev crtc state.
+		 * - Previously, vm transition has taken place on one of the crtc's.
+		 */
+		if (old_vm_req || new_vm_req || prev_vm_req) {
 			if (!vm_req_active) {
 				sde_vm_lock(sde_kms);
 				vm_owns_hw = sde_vm_owns_hw(sde_kms);
@@ -3721,7 +3753,7 @@ static int sde_kms_get_dsc_count(const struct msm_kms *kms,
 	return 0;
 }
 
-static void _sde_kms_null_commit(struct drm_device *dev,
+static int _sde_kms_null_commit(struct drm_device *dev,
 		struct drm_encoder *enc)
 {
 	struct drm_modeset_acquire_ctx ctx;
@@ -3764,6 +3796,8 @@ end:
 
 	drm_modeset_drop_locks(&ctx);
 	drm_modeset_acquire_fini(&ctx);
+
+	return ret;
 }
 
 
@@ -3792,11 +3826,55 @@ void sde_kms_display_early_wakeup(struct drm_device *dev,
 
 	drm_connector_list_iter_end(&conn_iter);
 }
+static int sde_kms_trigger_null_flush(struct msm_kms *kms)
+{
+	struct sde_kms *sde_kms;
+	struct sde_splash_display *splash_display;
+	struct drm_crtc *crtc;
+	int i, rc = 0;
+
+	if (!kms) {
+		SDE_ERROR("invalid kms\n");
+		return -EINVAL;
+	}
+
+	sde_kms = to_sde_kms(kms);
+
+	/* If splash handoff is done, early return*/
+	if (!sde_kms->splash_data.num_splash_displays)
+		return 0;
+
+	/* If all builtin-displays are having cont splash enabled, ignore lastclose*/
+	if (sde_kms->dsi_display_count == sde_kms->splash_data.num_splash_displays)
+		return -EINVAL;
+
+	/* Trigger NULL flush if built-in secondary/primary is stuck in splash
+	 * while the  primary/secondary is running respectively before lastclose.
+	 */
+	for (i = 0; i < MAX_DSI_DISPLAYS; i++) {
+		splash_display = &sde_kms->splash_data.splash_display[i];
+
+		if (splash_display->cont_splash_enabled && splash_display->encoder) {
+			crtc = splash_display->encoder->crtc;
+			SDE_DEBUG("triggering null commit on enc:%d\n",
+					DRMID(splash_display->encoder));
+			SDE_EVT32(DRMID(splash_display->encoder), SDE_EVTLOG_FUNC_ENTRY);
+			rc = _sde_kms_null_commit(sde_kms->dev, splash_display->encoder);
+
+			if (!rc && crtc)
+				sde_kms_cancel_delayed_work(crtc);
+			if (rc)
+				DRM_ERROR("null flush commit failure during lastclose\n");
+		}
+	}
+
+	return 0;
+}
 
 static void _sde_kms_pm_suspend_idle_helper(struct sde_kms *sde_kms,
 	struct device *dev)
 {
-	int i, ret, crtc_id = 0;
+	int ret, crtc_id = 0;
 	struct drm_device *ddev = dev_get_drvdata(dev);
 	struct drm_connector *conn;
 	struct drm_connector_list_iter conn_iter;
@@ -3833,15 +3911,7 @@ static void _sde_kms_pm_suspend_idle_helper(struct sde_kms *sde_kms,
 	}
 	drm_connector_list_iter_end(&conn_iter);
 
-	for (i = 0; i < priv->num_crtcs; i++) {
-		if (priv->disp_thread[i].thread)
-			kthread_flush_worker(
-				&priv->disp_thread[i].worker);
-		if (priv->event_thread[i].thread)
-			kthread_flush_worker(
-				&priv->event_thread[i].worker);
-	}
-	kthread_flush_worker(&priv->pp_event_worker);
+	msm_atomic_flush_display_threads(priv);
 }
 
 struct msm_display_mode *sde_kms_get_msm_mode(struct drm_connector_state *conn_state)
@@ -3879,10 +3949,17 @@ static int sde_kms_pm_suspend(struct device *dev)
 	/* disable hot-plug polling */
 	drm_kms_helper_poll_disable(ddev);
 
-	/* if a display stuck in CS trigger a null commit to complete handoff */
+	/* if any built-in display is stuck in CS, skip PM suspend entry to
+	 * avoid driver SW state changes. With speculative fence enabled, HAL depends
+	 * on power_on notification for the first commit to exit the Wait completion
+	 * instead of retire fence signal.
+	 */
 	drm_for_each_encoder(enc, ddev) {
-		if (sde_encoder_in_cont_splash(enc) && enc->crtc)
-			_sde_kms_null_commit(ddev, enc);
+		if (sde_encoder_in_cont_splash(enc) && enc->crtc) {
+			SDE_DEBUG("skip PM suspend, splash is enabled on enc:%d\n", DRMID(enc));
+			SDE_EVT32(DRMID(enc), SDE_EVTLOG_FUNC_EXIT);
+			return -EINVAL;
+		}
 	}
 
 	/* acquire modeset lock(s) */
@@ -4006,6 +4083,7 @@ static int sde_kms_pm_resume(struct device *dev)
 {
 	struct drm_device *ddev;
 	struct sde_kms *sde_kms;
+	struct drm_encoder *enc;
 	struct drm_modeset_acquire_ctx ctx;
 	int ret, i;
 
@@ -4019,6 +4097,14 @@ static int sde_kms_pm_resume(struct device *dev)
 	sde_kms = to_sde_kms(ddev_to_msm_kms(ddev));
 
 	SDE_EVT32(sde_kms->suspend_state != NULL);
+	/* if a display is in cont splash early exit */
+	drm_for_each_encoder(enc, ddev) {
+		if (sde_encoder_in_cont_splash(enc) && enc->crtc) {
+			SDE_DEBUG("skip PM resume entry splash is enabled on enc:%d\n", DRMID(enc));
+			SDE_EVT32(DRMID(enc), SDE_EVTLOG_FUNC_EXIT);
+			return -EINVAL;
+		}
+	}
 
 	drm_mode_config_reset(ddev);
 
@@ -4093,6 +4179,7 @@ static const struct msm_kms_funcs kms_funcs = {
 	.get_address_space_device = _sde_kms_get_address_space_device,
 	.postopen = _sde_kms_post_open,
 	.check_for_splash = sde_kms_check_for_splash,
+	.trigger_null_flush = sde_kms_trigger_null_flush,
 	.get_mixer_count = sde_kms_get_mixer_count,
 	.get_dsc_count = sde_kms_get_dsc_count,
 };
@@ -4876,6 +4963,7 @@ parse_fail:
 	return rc;
 }
 
+#ifdef CONFIG_DRM_SDE_VM
 int sde_kms_get_io_resources(struct sde_kms *sde_kms, struct msm_io_res *io_res)
 {
 	struct platform_device *pdev = to_platform_device(sde_kms->dev->dev);
@@ -4907,6 +4995,7 @@ int sde_kms_get_io_resources(struct sde_kms *sde_kms, struct msm_io_res *io_res)
 
 	return rc;
 }
+#endif
 
 static int sde_kms_hw_init(struct msm_kms *kms)
 {

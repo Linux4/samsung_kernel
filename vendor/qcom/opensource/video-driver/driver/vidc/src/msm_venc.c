@@ -31,6 +31,7 @@ static const u32 msm_venc_output_set_prop[] = {
 	HFI_PROP_CROP_OFFSETS,
 	HFI_PROP_BUFFER_HOST_MAX_COUNT,
 	HFI_PROP_CSC,
+	HFI_PROP_DISABLE_VUI_TIMING_INFO,
 };
 
 static const u32 msm_venc_input_subscribe_for_properties[] = {
@@ -162,7 +163,8 @@ static int msm_venc_set_stride_scanline(struct msm_vidc_inst *inst,
 	stride_y = inst->fmts[INPUT_PORT].fmt.pix_mp.width;
 	scanline_y = inst->fmts[INPUT_PORT].fmt.pix_mp.height;
 	if (color_format == MSM_VIDC_FMT_NV12 ||
-		color_format == MSM_VIDC_FMT_P010) {
+		color_format == MSM_VIDC_FMT_P010 ||
+		color_format == MSM_VIDC_FMT_NV21) {
 		stride_uv = stride_y;
 		scanline_uv = scanline_y / 2;
 	}
@@ -420,6 +422,28 @@ static int msm_venc_set_csc(struct msm_vidc_inst* inst,
 	return 0;
 }
 
+static int msm_venc_set_disable_vui_timing_info(struct msm_vidc_inst *inst,
+	enum msm_vidc_port_type port)
+{
+	int rc = 0;
+	u32 enable = 0;
+	if (port != OUTPUT_PORT) {
+		i_vpr_e(inst, "%s: invalid port %d\n", __func__, port);
+		return -EINVAL;
+	}
+	enable = inst->capabilities->cap[DISABLE_VUI_TIMING_INFO].value;
+	i_vpr_h(inst, "%s: DISABLE_VUI_TIMING_INFO: %u\n", __func__, enable);
+	rc = venus_hfi_session_property(inst,
+		HFI_PROP_DISABLE_VUI_TIMING_INFO,
+		HFI_HOST_FLAGS_NONE,
+		get_hfi_port(inst, port),
+		HFI_PAYLOAD_U32,
+		&enable,
+		sizeof(u32));
+	if (rc)
+		return rc;
+	return 0;
+}
 static int msm_venc_set_quality_mode(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
@@ -494,6 +518,7 @@ static int msm_venc_set_output_properties(struct msm_vidc_inst *inst)
 		{HFI_PROP_CROP_OFFSETS,               msm_venc_set_crop_offsets            },
 		{HFI_PROP_BUFFER_HOST_MAX_COUNT,      msm_venc_set_host_max_buf_count      },
 		{HFI_PROP_CSC,                        msm_venc_set_csc                     },
+		{HFI_PROP_DISABLE_VUI_TIMING_INFO,    msm_venc_set_disable_vui_timing_info },
 	};
 
 	if (!inst) {
@@ -543,13 +568,11 @@ static int msm_venc_set_internal_properties(struct msm_vidc_inst *inst)
 static int msm_venc_get_input_internal_buffers(struct msm_vidc_inst *inst)
 {
 	int i, rc = 0;
-	struct msm_vidc_core *core;
 
-	if (!inst || !inst->core) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	core = inst->core;
 
 	for (i = 0; i < ARRAY_SIZE(msm_venc_input_internal_buffer_type); i++) {
 		rc = msm_vidc_get_internal_buffers(inst,
@@ -662,16 +685,14 @@ static int msm_venc_property_subscription(struct msm_vidc_inst *inst,
 	enum msm_vidc_port_type port)
 {
 	int rc = 0;
-	struct msm_vidc_core *core;
 	u32 payload[32] = {0};
 	u32 i;
 	u32 payload_size = 0;
 
-	if (!inst || !inst->core) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	core = inst->core;
 	i_vpr_h(inst, "%s()\n", __func__);
 
 	payload[0] = HFI_MODE_PROPERTY;
@@ -752,7 +773,6 @@ static int msm_venc_metadata_subscription(struct msm_vidc_inst *inst,
 	enum msm_vidc_port_type port)
 {
 	int rc = 0;
-	struct msm_vidc_core *core;
 	u32 payload[32] = {0};
 	u32 i, count = 0;
 	struct msm_vidc_inst_capability *capability;
@@ -765,11 +785,10 @@ static int msm_venc_metadata_subscription(struct msm_vidc_inst *inst,
 		META_ENC_QP_METADATA,
 	};
 
-	if (!inst || !inst->core) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	core = inst->core;
 	i_vpr_h(inst, "%s()\n", __func__);
 
 	capability = inst->capabilities;
@@ -1052,15 +1071,13 @@ error:
 int msm_venc_try_fmt(struct msm_vidc_inst *inst, struct v4l2_format *f)
 {
 	int rc = 0;
-	struct msm_vidc_core *core;
 	struct v4l2_pix_format_mplane *pixmp = &f->fmt.pix_mp;
 	u32 pix_fmt;
 
-	if (!inst || !inst->core) {
+	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
-	core = inst->core;
 
 	memset(pixmp->reserved, 0, sizeof(pixmp->reserved));
 
@@ -1618,7 +1635,7 @@ int msm_venc_s_param(struct msm_vidc_inst *inst,
 	input_rate = (u64)USEC_PER_SEC;
 	do_div(input_rate, us_per_frame);
 
-	i_vpr_h(inst, "%s: type %s, %s value %d\n",
+	i_vpr_h(inst, "%s: type %s, %s value %llu\n",
 		__func__, v4l2_type_name(s_parm->type),
 		is_frame_rate ? "frame rate" : "operating rate", input_rate);
 
@@ -1635,7 +1652,7 @@ int msm_venc_s_param(struct msm_vidc_inst *inst,
 		}
 		rc = input_rate > max_rate;
 		if (rc) {
-			i_vpr_e(inst, "%s: unsupported rate %u, max %u\n", __func__,
+			i_vpr_e(inst, "%s: unsupported rate %llu, max %u\n", __func__,
 				input_rate, max_rate);
 			rc = -ENOMEM;
 			goto reset_rate;
@@ -1673,7 +1690,7 @@ int msm_venc_s_param(struct msm_vidc_inst *inst,
 
 reset_rate:
 	if (rc) {
-		i_vpr_e(inst, "%s: setting rate %u failed, reset to %u\n", __func__,
+		i_vpr_e(inst, "%s: setting rate %llu failed, reset to %u\n", __func__,
 			input_rate, default_rate);
 		msm_vidc_update_cap_value(inst, is_frame_rate ? FRAME_RATE : OPERATING_RATE,
 			default_rate << 16, __func__);

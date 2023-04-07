@@ -566,12 +566,12 @@ bool IPACM_Filtering::AddWanDLFilteringRule(struct ipa_ioc_add_flt_rule const *r
 	if(rule_table_v4 != NULL)
 	{
 		num_rules += rule_table_v4->num_rules;
-		IPACMDBG_H("Get %d WAN DL IPv4 filtering rules.\n", rule_table_v4->num_rules);
+		IPACMDBG_H_LOG("Get %d WAN DL IPv4 filtering rules.\n", rule_table_v4->num_rules);
 	}
 	if(rule_table_v6 != NULL)
 	{
 		num_rules += rule_table_v6->num_rules;
-		IPACMDBG_H("Get %d WAN DL IPv6 filtering rules.\n", rule_table_v6->num_rules);
+		IPACMDBG_H_LOG("Get %d WAN DL IPv6 filtering rules.\n", rule_table_v6->num_rules);
 	}
 
 	/* if it is not IPA v3, use old QMI format */
@@ -597,7 +597,7 @@ bool IPACM_Filtering::AddWanDLFilteringRule(struct ipa_ioc_add_flt_rule const *r
 			qmi_rule_msg.filter_spec_list_len = num_rules;
 			qmi_rule_msg.source_pipe_index_valid = 0;
 
-			IPACMDBG_H("Get %d WAN DL filtering rules in total.\n", num_rules);
+			IPACMDBG_H_LOG("Get %d WAN DL filtering rules in total.\n", num_rules);
 
 			if(rule_table_v4 != NULL)
 			{
@@ -682,7 +682,7 @@ bool IPACM_Filtering::AddWanDLFilteringRule(struct ipa_ioc_add_flt_rule const *r
 			qmi_rule_ex_msg.filter_spec_ex_list_len = num_rules;
 			qmi_rule_ex_msg.source_pipe_index_valid = 0;
 
-			IPACMDBG_H("Get %d WAN DL filtering rules in total.\n", num_rules);
+			IPACMDBG_H_LOG("Get %d WAN DL filtering rules in total.\n", num_rules);
 
 			if(rule_table_v4 != NULL)
 			{
@@ -706,7 +706,7 @@ bool IPACM_Filtering::AddWanDLFilteringRule(struct ipa_ioc_add_flt_rule const *r
 					}
 					else
 					{
-						IPACMERR(" QMI only support max %d rules, current (%d)\n ",QMI_IPA_MAX_FILTERS_EX_V01, pos);
+						IPACMERR_LOG(" QMI only support max %d rules, current (%d)\n ",QMI_IPA_MAX_FILTERS_EX_V01, pos);
 					}
 				}
 			}
@@ -733,7 +733,7 @@ bool IPACM_Filtering::AddWanDLFilteringRule(struct ipa_ioc_add_flt_rule const *r
 					}
 					else
 					{
-						IPACMERR(" QMI only support max %d rules, current (%d)\n ",QMI_IPA_MAX_FILTERS_EX_V01, pos);
+						IPACMERR_LOG(" QMI only support max %d rules, current (%d)\n ",QMI_IPA_MAX_FILTERS_EX_V01, pos);
 					}
 				}
 			}

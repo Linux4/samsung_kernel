@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -102,7 +103,7 @@ static u8 tx_mode_bit[] = {
 };
 
 static const DECLARE_TLV_DB_SCALE(line_gain, 0, 7, 1);
-static const DECLARE_TLV_DB_SCALE(analog_gain, 0, 25, 1);
+static const DECLARE_TLV_DB_SCALE(analog_gain, 0, 27, 1);
 
 static int wcd938x_handle_post_irq(void *data);
 static int wcd938x_reset(struct device *dev);
@@ -142,6 +143,7 @@ static struct regmap_irq_chip wcd938x_regmap_irq_chip = {
 	.type_base = WCD938X_DIGITAL_INTR_LEVEL_0,
 	.ack_base = WCD938X_DIGITAL_INTR_CLEAR_0,
 	.use_ack = 1,
+	.mask_writeonly = 1,
 	.runtime_pm = false,
 	.handle_post_irq = wcd938x_handle_post_irq,
 	.irq_drv_data = NULL,
@@ -1628,10 +1630,11 @@ static int wcd938x_tx_swr_ctrl(struct snd_soc_dapm_widget *w,
 		/* Check AMIC2 is connected to ADC2 to take an action on BCS */
 		if (w->shift == ADC2 && !(snd_soc_component_read(component,
 			WCD938X_TX_NEW_AMIC_MUX_CFG) & 0x80)) {
-			if (!wcd938x->bcs_dis)
+			if (!wcd938x->bcs_dis) {
 				wcd938x_tx_connect_port(component, MBHC,
 					SWR_CLK_RATE_4P8MHZ, true);
-			set_bit(AMIC2_BCS_ENABLE, &wcd938x->status_mask);
+				set_bit(AMIC2_BCS_ENABLE, &wcd938x->status_mask);
+			}
 		}
 		if (strnstr(w->name, "ADC", sizeof("ADC"))) {
 			set_bit(w->shift - ADC1, &wcd938x->status_mask);
@@ -1831,8 +1834,7 @@ static int wcd938x_codec_enable_adc(struct snd_soc_dapm_widget *w,
 		wcd938x_tx_connect_port(component, ADC1 + w->shift, 0, false);
 		if (w->shift + ADC1 == ADC2 &&
 			test_bit(AMIC2_BCS_ENABLE, &wcd938x->status_mask)) {
-			if (!wcd938x->bcs_dis)
-				wcd938x_tx_connect_port(component, MBHC, 0,
+			wcd938x_tx_connect_port(component, MBHC, 0,
 					false);
 			clear_bit(AMIC2_BCS_ENABLE, &wcd938x->status_mask);
 		}
@@ -3107,13 +3109,13 @@ static const struct snd_kcontrol_new wcd938x_snd_controls[] = {
 
 	SOC_SINGLE_TLV("HPHL Volume", WCD938X_HPH_L_EN, 0, 20, 1, line_gain),
 	SOC_SINGLE_TLV("HPHR Volume", WCD938X_HPH_R_EN, 0, 20, 1, line_gain),
-	SOC_SINGLE_TLV("ADC1 Volume", WCD938X_ANA_TX_CH1, 0, 20, 0,
+	SOC_SINGLE_TLV("ADC1 Volume", WCD938X_ANA_TX_CH1, 0, 26, 0,
 			analog_gain),
-	SOC_SINGLE_TLV("ADC2 Volume", WCD938X_ANA_TX_CH2, 0, 20, 0,
+	SOC_SINGLE_TLV("ADC2 Volume", WCD938X_ANA_TX_CH2, 0, 26, 0,
 			analog_gain),
-	SOC_SINGLE_TLV("ADC3 Volume", WCD938X_ANA_TX_CH3, 0, 20, 0,
+	SOC_SINGLE_TLV("ADC3 Volume", WCD938X_ANA_TX_CH3, 0, 26, 0,
 			analog_gain),
-	SOC_SINGLE_TLV("ADC4 Volume", WCD938X_ANA_TX_CH4, 0, 20, 0,
+	SOC_SINGLE_TLV("ADC4 Volume", WCD938X_ANA_TX_CH4, 0, 26, 0,
 			analog_gain),
 
 	SOC_ENUM_EXT("ADC1 ChMap", tx_master_ch_enum,

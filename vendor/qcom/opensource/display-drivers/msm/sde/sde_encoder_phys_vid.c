@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2021, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -53,6 +53,16 @@ static void drm_mode_to_intf_timing_params(
 		struct intf_timing_params *timing)
 {
 	const struct sde_encoder_phys *phys_enc = &vid_enc->base;
+	bool fsc_mode = false;
+	struct sde_connector_state *c_state = NULL;
+
+	if (phys_enc->connector && phys_enc->connector->state) {
+		c_state = to_sde_connector_state(phys_enc->connector->state);
+		if (!c_state) {
+			SDE_ERROR("invalid connector state\n");
+			return;
+		}
+	}
 
 	memset(timing, 0, sizeof(*timing));
 
@@ -81,9 +91,11 @@ static void drm_mode_to_intf_timing_params(
 	 * <----------------- [hv]sync_end ------->
 	 * <---------------------------- [hv]total ------------->
 	 */
+	fsc_mode = c_state ? msm_is_mode_fsc(&c_state->msm_mode) : false;
+
 	timing->poms_align_vsync = phys_enc->poms_align_vsync;
-	timing->width = mode->hdisplay;	/* active width */
-	timing->height = mode->vdisplay;	/* active height */
+	timing->width = GET_MODE_WIDTH(fsc_mode, mode);/* active width */
+	timing->height = GET_MODE_HEIGHT(fsc_mode, mode);/* active height */
 	timing->xres = timing->width;
 	timing->yres = timing->height;
 	timing->h_back_porch = mode->htotal - mode->hsync_end;
@@ -641,7 +653,7 @@ static void sde_encoder_phys_vid_underrun_irq(void *arg, int irq_idx)
 #if IS_ENABLED(CONFIG_SEC_DEBUG)
 		if (vdd && sec_debug_is_enabled() && ss_panel_attach_get(vdd)) {
 			SDE_EVT32(DRMID(phys_enc->parent), SDE_EVTLOG_FATAL);
-			SDE_DBG_DUMP_WQ(SDE_DBG_BUILT_IN_ALL, "panic");
+			/*SDE_DBG_DUMP_WQ(SDE_DBG_BUILT_IN_ALL, "panic");*/
 		}
 #endif
 	}
@@ -686,7 +698,7 @@ static void sde_encoder_phys_vid_cont_splash_mode_set(
 static void sde_encoder_phys_vid_mode_set(
 		struct sde_encoder_phys *phys_enc,
 		struct drm_display_mode *mode,
-		struct drm_display_mode *adj_mode)
+		struct drm_display_mode *adj_mode, bool *reinit_mixers)
 {
 	struct sde_rm *rm;
 	struct sde_rm_hw_iter iter;
@@ -712,8 +724,14 @@ static void sde_encoder_phys_vid_mode_set(
 	/* Retrieve previously allocated HW Resources. Shouldn't fail */
 	sde_rm_init_hw_iter(&iter, phys_enc->parent->base.id, SDE_HW_BLK_CTL);
 	for (i = 0; i <= instance; i++) {
-		if (sde_rm_get_hw(rm, &iter))
+		if (sde_rm_get_hw(rm, &iter)) {
+			if (phys_enc->hw_ctl && phys_enc->hw_ctl != iter.hw) {
+				*reinit_mixers =  true;
+				SDE_EVT32(phys_enc->hw_ctl->idx,
+					((struct sde_hw_ctl *)iter.hw)->idx);
+			}
 			phys_enc->hw_ctl = (struct sde_hw_ctl *)iter.hw;
+		}
 	}
 	if (IS_ERR_OR_NULL(phys_enc->hw_ctl)) {
 		SDE_ERROR_VIDENC(vid_enc, "failed to init ctl, %ld\n",

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -1855,23 +1856,19 @@ int ipa_drop_stats_init(void)
 			pipe_bitmask[reg_idx] |= mask;
 		}
 
-		if (ipa3_ctx->use_tput_est_ep) {
+	} else {
+		/* ADPL pipe hw stats is now taken care by IPA Q6 */
+		if (ipa3_ctx->ipa_hw_type < IPA_HW_v5_0) {
 			mask = ipa_hw_stats_get_ep_bit_n_idx(
-				IPA_CLIENT_TPUT_CONS,
+				IPA_CLIENT_USB_DPL_CONS,
 				&reg_idx);
 			pipe_bitmask[reg_idx] |= mask;
 
+			mask = ipa_hw_stats_get_ep_bit_n_idx(
+				IPA_CLIENT_ODL_DPL_CONS,
+				&reg_idx);
+			pipe_bitmask[reg_idx] |= mask;
 		}
-	} else {
-		mask = ipa_hw_stats_get_ep_bit_n_idx(
-			IPA_CLIENT_USB_DPL_CONS,
-			&reg_idx);
-		pipe_bitmask[reg_idx] |= mask;
-
-		mask = ipa_hw_stats_get_ep_bit_n_idx(
-			IPA_CLIENT_ODL_DPL_CONS,
-			&reg_idx);
-		pipe_bitmask[reg_idx] |= mask;
 	}
 
 	/* Currently we have option to enable drop stats using debugfs.
@@ -1894,7 +1891,7 @@ int ipa_init_drop_stats(u32 *pipe_bitmask)
 	struct ipahal_imm_cmd_pyld *drop_mask_pyld[IPAHAL_IPA5_PIPE_REG_NUM] =
 		{0};
 	struct ipahal_imm_cmd_pyld *coal_cmd_pyld = NULL;
-	struct ipa3_desc desc[IPA_INIT_DROP_STATS_MAX_CMD_NUM] = { {0} };
+	struct ipa3_desc *desc = NULL;
 	struct ipa_hw_stats_drop tmp_drop;
 	dma_addr_t dma_address;
 	int ret, i;
@@ -1905,6 +1902,12 @@ int ipa_init_drop_stats(u32 *pipe_bitmask)
 
 	if (!pipe_bitmask)
 		return -EPERM;
+
+	desc = kzalloc(sizeof(*desc) * IPA_INIT_DROP_STATS_MAX_CMD_NUM, GFP_KERNEL);
+	if (!desc) {
+		IPAERR("failed to allocate memory\n");
+		return -ENOMEM;
+	}
 
 	/* check if IPA has enough space for # of pipes drop stats enabled*/
 	memset(&tmp_drop, 0, sizeof(tmp_drop));
@@ -1917,7 +1920,8 @@ int ipa_init_drop_stats(u32 *pipe_bitmask)
 		&tmp_drop.init, false);
 	if (!pyld) {
 		IPAERR("failed to generate pyld\n");
-		return -EPERM;
+		ret = -EPERM;
+		goto fail_free_desc;
 	}
 
 	if (pyld->len > IPA_MEM_PART(stats_drop_size)) {
@@ -2071,6 +2075,8 @@ unmap:
 	dma_unmap_single(ipa3_ctx->pdev, dma_address, pyld->len, DMA_TO_DEVICE);
 destroy_init_pyld:
 	ipahal_destroy_stats_init_pyld(pyld);
+fail_free_desc:
+		kfree(desc);
 	return ret;
 }
 
@@ -2693,6 +2699,7 @@ static ssize_t ipa_debugfs_enable_disable_drop_stats(struct file *file,
 	int i, j;
 	bool is_pipe = false;
 	ssize_t ret;
+	int pipe_num_temp;
 
 	if (ipa3_ctx->hw_stats && ipa3_ctx->hw_stats->enabled) {
 		for (i = 0; i < IPAHAL_IPA5_PIPE_REG_NUM; i++) {
@@ -2734,10 +2741,19 @@ static ssize_t ipa_debugfs_enable_disable_drop_stats(struct file *file,
 			pipe_ep_reg_bit = ipahal_get_ep_bit(pipe_num);
 			is_pipe = true;
 		}
+		pipe_num_temp = ipa3_get_client_by_pipe(pipe_num);
 		if (dbg_buff[i] == seprator) {
-			if (pipe_num >= 0 && pipe_num < ipa3_ctx->ipa_num_pipes
-				&& ipa3_get_client_by_pipe(pipe_num) <
-				IPA_CLIENT_MAX) {
+			/* Removing ADPL and ODL stats as Q6 supports it from IPA_5_0 */
+			if ((pipe_num_temp == IPA_CLIENT_USB_DPL_CONS ||
+				pipe_num_temp == IPA_CLIENT_ODL_DPL_CONS) &&
+				ipa3_ctx->ipa_hw_type >= IPA_HW_v5_0) {
+				pipe_num = 0;
+				is_pipe = false;
+				continue;
+			}
+
+			else if (pipe_num >= 0 && pipe_num < ipa3_ctx->ipa_num_pipes
+				&& pipe_num_temp < IPA_CLIENT_MAX) {
 				IPADBG("pipe number %u\n", pipe_num);
 				if (enable_pipe)
 					pipe_bitmask[pipe_ep_reg_idx] |=
@@ -2750,7 +2766,13 @@ static ssize_t ipa_debugfs_enable_disable_drop_stats(struct file *file,
 			is_pipe = false;
 		}
 	}
-	if (is_pipe && pipe_num >= 0 && pipe_num < ipa3_ctx->ipa_num_pipes &&
+	pipe_num_temp = ipa3_get_client_by_pipe(pipe_num);
+	/* Removing ADPL and ODL stats as Q6 supports it from IPA_5_0 */
+	if (ipa3_ctx->ipa_hw_type >= IPA_HW_v5_0 &&
+		(pipe_num_temp == IPA_CLIENT_USB_DPL_CONS ||
+		pipe_num_temp == IPA_CLIENT_ODL_DPL_CONS)) {
+		IPAERR("Enable/Disable hw stats on DPL is not supported");
+	} else if (is_pipe && pipe_num >= 0 && pipe_num < ipa3_ctx->ipa_num_pipes &&
 		ipa3_get_client_by_pipe(pipe_num) < IPA_CLIENT_MAX) {
 		IPADBG("pipe number %u\n", pipe_num);
 		if (enable_pipe)

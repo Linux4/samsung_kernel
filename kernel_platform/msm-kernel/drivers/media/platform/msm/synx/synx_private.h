@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __SYNX_PRIVATE_H__
@@ -85,11 +86,13 @@ struct error_node {
  *
  * @key  : Unique key used to hash to table
  * @data : Data to be saved
+ * @refcount : Refcount for node entry
  * @node : Hash list member used to append this node to table
  */
 struct hash_key_data {
 	u32 key;
 	void *data;
+	struct kref refcount;
 	struct hlist_node node;
 };
 
@@ -239,6 +242,7 @@ struct synx_device;
  * @import_refcount   : References for external clients for import
  * @id                : Synx object handle for the client
  * @key               : Key for import authentication
+ * @rel_count         : No of allowed release counts
  */
 struct synx_handle_coredata {
 	struct synx_client *client;
@@ -247,6 +251,7 @@ struct synx_handle_coredata {
 	struct kref import_refcount;
 	u32 handle;
 	u16 key;
+	u32 rel_count;
 };
 
 /**

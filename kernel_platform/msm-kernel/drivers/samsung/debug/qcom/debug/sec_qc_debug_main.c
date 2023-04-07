@@ -94,6 +94,17 @@ static int __qc_debug_parse_dt(struct builder *bd)
 			ARRAY_SIZE(__qc_debug_dt_builder));
 }
 
+static int __qc_debug_probe_epilog(struct builder *bd)
+{
+	struct qc_debug_drvdata *drvdata =
+			container_of(bd, struct qc_debug_drvdata, bd);
+	struct device *dev = bd->dev;
+
+	dev_set_drvdata(dev, drvdata);
+
+	return 0;
+}
+
 static const struct dev_builder __qc_debug_dev_builder[] = {
 	DEVICE_BUILDER(__qc_debug_parse_dt, NULL),
 	DEVICE_BUILDER(sec_qc_cp_dump_encrypt_init, NULL),
@@ -101,6 +112,7 @@ static const struct dev_builder __qc_debug_dev_builder[] = {
 	DEVICE_BUILDER(sec_qc_debug_reboot_init, sec_qc_debug_reboot_exit),
 	DEVICE_BUILDER(sec_qc_force_err_init, sec_qc_force_err_exit),
 	DEVICE_BUILDER(sec_qc_boot_stat_init, sec_qc_boot_stat_exit),
+	DEVICE_BUILDER(__qc_debug_probe_epilog, NULL),
 };
 
 static int __qc_debug_probe(struct platform_device *pdev,

@@ -176,11 +176,11 @@ private:
   bool mIsSsrHappened;
   bool mIsWifiOnly;
   bool mPendingSetParam;
+  bool mSentCI;
   // SEC_GPS >
 
   // Below two member variables are for elapsedRealTime calculation
   ElapsedRealtimeEstimator mMeasElapsedRealTimeCal;
-  ElapsedRealtimeEstimator mPositionElapsedRealTimeCal;
 
   /* Convert event mask from loc eng to loc_api_v02 format */
   static locClientEventMaskType convertMask(LOC_API_ADAPTER_EVENT_MASK_T mask);

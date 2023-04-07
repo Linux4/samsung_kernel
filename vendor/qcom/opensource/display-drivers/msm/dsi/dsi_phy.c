@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/of_device.h>
@@ -71,6 +72,22 @@ static const struct dsi_ver_spec_info dsi_phy_v4_3 = {
 	.timing_cfg_count = 14,
 };
 
+static const struct dsi_ver_spec_info dsi_phy_v4_3_2 = {
+	.version = DSI_PHY_VERSION_4_3_2,
+	.lane_cfg_count = 4,
+	.strength_cfg_count = 2,
+	.regulator_cfg_count = 0,
+	.timing_cfg_count = 14,
+};
+
+static const struct dsi_ver_spec_info dsi_phy_v5_2 = {
+	.version = DSI_PHY_VERSION_5_2,
+	.lane_cfg_count = 4,
+	.strength_cfg_count = 2,
+	.regulator_cfg_count = 0,
+	.timing_cfg_count = 14,
+};
+
 static const struct of_device_id msm_dsi_phy_of_match[] = {
 	{ .compatible = "qcom,dsi-phy-v3.0",
 	  .data = &dsi_phy_v3_0,},
@@ -82,6 +99,10 @@ static const struct of_device_id msm_dsi_phy_of_match[] = {
 	  .data = &dsi_phy_v4_2,},
 	{ .compatible = "qcom,dsi-phy-v4.3",
 	  .data = &dsi_phy_v4_3,},
+	{ .compatible = "qcom,dsi-phy-v4.3.2",
+	  .data = &dsi_phy_v4_3_2,},
+	{ .compatible = "qcom,dsi-phy-v5.2",
+	  .data = &dsi_phy_v5_2,},
 	{}
 };
 
@@ -765,6 +786,40 @@ error:
 }
 
 /**
+ * dsi_phy_get_data_lanes_count() -   Count the data lines need to be configured
+ * @dsi_phy:                          DSI PHY handle.
+ *
+ * Return:                            Count of data lanes being used
+ */
+static inline int dsi_phy_get_data_lanes_count(struct msm_dsi_phy *phy)
+{
+	int num_of_lanes = 0;
+	enum dsi_data_lanes dlanes;
+
+	dlanes = phy->data_lanes;
+
+	/**
+	  * For split link use case effective data lines need to be used
+	  * rather than total lanes on PHY for clock calculation and hence we
+	  * fall back pll->lanes to lanes_per_sublink rather than total
+	  * lanes.
+	  */
+	if (phy->cfg.split_link.enabled)
+		return phy->cfg.split_link.lanes_per_sublink;
+
+	if (dlanes & DSI_DATA_LANE_0)
+		num_of_lanes++;
+	if (dlanes & DSI_DATA_LANE_1)
+		num_of_lanes++;
+	if (dlanes & DSI_DATA_LANE_2)
+		num_of_lanes++;
+	if (dlanes & DSI_DATA_LANE_3)
+		num_of_lanes++;
+
+	return num_of_lanes;
+}
+
+/**
  * dsi_phy_configure() -   Configure DSI PHY PLL
  * @dsi_phy:               DSI PHY handle.
  * @commit:                boolean to specify if calculated PHY configuration
@@ -779,7 +834,8 @@ int dsi_phy_configure(struct msm_dsi_phy *phy, bool commit)
 
 	phy->pll->type = phy->cfg.phy_type;
 	phy->pll->bpp = dsi_pixel_format_to_bpp(phy->dst_format);
-	phy->pll->lanes = dsi_get_num_of_data_lanes(phy->data_lanes);
+	phy->pll->lanes = dsi_phy_get_data_lanes_count(phy);
+
 	if (phy->hw.ops.configure)
 		rc = phy->hw.ops.configure(phy->pll, commit);
 
@@ -1390,6 +1446,30 @@ void dsi_phy_store_str(struct msm_dsi_phy *phy, u32 *val)
 	if (phy->hw.ops.store_str)
 		phy->hw.ops.store_str(&phy->hw, val);
 }
+u32 dsi_phy_show_str(struct msm_dsi_phy *phy)
+{
+	u32 ret = 0;
+
+	if (phy->hw.ops.show_str)
+		ret = phy->hw.ops.show_str(&phy->hw);
+
+	return ret;
+}
+void dsi_phy_store_vreg(struct msm_dsi_phy *phy, u32 *val)
+{
+	if (phy->hw.ops.store_vreg)
+		phy->hw.ops.store_vreg(&phy->hw, val);
+}
+u32 dsi_phy_show_vreg(struct msm_dsi_phy *phy)
+{
+	u32 ret = 0;
+
+	if (phy->hw.ops.show_vreg)
+		ret = phy->hw.ops.show_vreg(&phy->hw);
+
+	return ret;
+}
+
 void dsi_phy_store_emphasis(struct msm_dsi_phy *phy, u32 *val)
 {
 	if (phy->hw.ops.store_emphasis)

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -46,6 +47,7 @@
 #include "wlan_mlme_ucfg_api.h"
 #include "wlan_connectivity_logging.h"
 #include <lim_mlo.h>
+#include "parser_api.h"
 
 /**
  * lim_update_stads_htcap() - Updates station Descriptor HT capability
@@ -141,6 +143,7 @@ void lim_update_assoc_sta_datas(struct mac_context *mac_ctx,
 	tDot11fIEhe_cap *he_cap = NULL;
 	tDot11fIEeht_cap *eht_cap = NULL;
 	struct bss_description *bss_desc = NULL;
+	tDot11fIEVHTOperation *vht_oper = NULL;
 
 	lim_get_phy_mode(mac_ctx, &phy_mode, session_entry);
 	sta_ds->staType = STA_ENTRY_SELF;
@@ -157,10 +160,13 @@ void lim_update_assoc_sta_datas(struct mac_context *mac_ctx,
 		lim_update_stads_htcap(mac_ctx, sta_ds, assoc_rsp,
 				       session_entry);
 
-	if (assoc_rsp->VHTCaps.present)
+	if (assoc_rsp->VHTCaps.present) {
 		vht_caps = &assoc_rsp->VHTCaps;
-	else if (assoc_rsp->vendor_vht_ie.VHTCaps.present)
+		vht_oper = &assoc_rsp->VHTOperation;
+	} else if (assoc_rsp->vendor_vht_ie.VHTCaps.present) {
 		vht_caps = &assoc_rsp->vendor_vht_ie.VHTCaps;
+		vht_oper = &assoc_rsp->vendor_vht_ie.VHTOperation;
+	}
 
 	if (session_entry->vhtCapability && (vht_caps && vht_caps->present)) {
 		sta_ds->mlmStaContext.vhtCapability =
@@ -173,13 +179,16 @@ void lim_update_assoc_sta_datas(struct mac_context *mac_ctx,
 		 */
 		sta_ds->htMaxRxAMpduFactor = vht_caps->maxAMPDULenExp;
 		if (session_entry->htSupportedChannelWidthSet) {
-			if (assoc_rsp->VHTOperation.present)
+			if (vht_oper && vht_oper->present)
 				sta_ds->vhtSupportedChannelWidthSet =
-					assoc_rsp->VHTOperation.chanWidth;
+				       lim_get_vht_ch_width(vht_caps,
+							    vht_oper,
+							    &assoc_rsp->HTInfo);
 			else
 				sta_ds->vhtSupportedChannelWidthSet =
-					eHT_CHANNEL_WIDTH_40MHZ;
+					WNI_CFG_VHT_CHANNEL_WIDTH_20_40MHZ;
 		}
+
 		sta_ds->vht_mcs_10_11_supp = 0;
 		if (mac_ctx->mlme_cfg->vht_caps.vht_cap_info.
 		    vht_mcs_10_11_supp &&
@@ -295,6 +304,14 @@ void lim_update_assoc_sta_datas(struct mac_context *mac_ctx,
 	}
 	if (session_entry->limRmfEnabled)
 		sta_ds->rmfEnabled = 1;
+
+	if (session_entry->vhtCapability && assoc_rsp->oper_mode_ntf.present) {
+		/**
+		 * OMN IE is present in the Assoc response, but the channel
+		 * width/Rx NSS update will happen through the peer_assoc cmd.
+		 */
+		pe_debug("OMN IE is present in the assoc response frame");
+	}
 }
 
 /**
@@ -743,36 +760,6 @@ lim_update_iot_aggr_sz(struct mac_context *mac_ctx, uint8_t *ie_ptr,
 		pe_err("Failed to set iot amsdu size: %d", ret);
 }
 
-#ifdef WLAN_FEATURE_11BE_MLO
-static void lim_update_ml_partner_info(struct pe_session *session_entry,
-				       tpSirAssocRsp assoc_rsp)
-{
-	int i;
-	tDot11fIEmlo_ie ie;
-	struct mlo_partner_info partner_info;
-
-	if (!assoc_rsp || !session_entry)
-		return;
-
-	session_entry->ml_partner_info.num_partner_links =
-				     assoc_rsp->mlo_ie.mlo_ie.num_sta_profile;
-	ie = assoc_rsp->mlo_ie.mlo_ie;
-	partner_info = session_entry->ml_partner_info;
-
-	partner_info.num_partner_links = ie.num_sta_profile;
-	pe_err("copying partner info from join req to join rsp, num_partner_links %d",
-	       partner_info.num_partner_links);
-
-	for (i = 0; i < partner_info.num_partner_links; i++) {
-		partner_info.partner_link_info[i].link_id =
-			ie.sta_profile[i].link_id;
-		qdf_mem_copy(&partner_info.partner_link_info[i].link_addr,
-			     ie.sta_profile[i].sta_mac_addr.info.sta_mac_addr,
-			     QDF_MAC_ADDR_SIZE);
-	}
-}
-#endif
-
 /**
  * hdd_cm_update_mcs_rate_set() - Update MCS rate set from HT capability
  * @vdev: Pointer to vdev boject
@@ -866,6 +853,7 @@ lim_process_assoc_rsp_frame(struct mac_context *mac_ctx, uint8_t *rx_pkt_info,
 	tLimMlmAssocCnf assoc_cnf;
 	tSchBeaconStruct *beacon;
 	uint8_t ap_nss;
+	uint16_t aid;
 	int8_t rssi;
 	QDF_STATUS status;
 	enum ani_akm_type auth_type;
@@ -917,6 +905,8 @@ lim_process_assoc_rsp_frame(struct mac_context *mac_ctx, uint8_t *rx_pkt_info,
 		(session_entry->limMlmState != eLIM_MLM_WT_ASSOC_RSP_STATE)) ||
 		((subtype == LIM_REASSOC) &&
 		 !lim_is_roam_synch_in_progress(mac_ctx->psoc, session_entry) &&
+		 !MLME_IS_MLO_ROAM_SYNCH_IN_PROGRESS(mac_ctx->psoc,
+						     session_entry->vdev_id) &&
 		((session_entry->limMlmState != eLIM_MLM_WT_REASSOC_RSP_STATE)
 		&& (session_entry->limMlmState !=
 		eLIM_MLM_WT_FT_REASSOC_RSP_STATE)
@@ -1013,9 +1003,10 @@ lim_process_assoc_rsp_frame(struct mac_context *mac_ctx, uint8_t *rx_pkt_info,
 			session_entry->assocRspLen = frame_len;
 		}
 	}
-#ifdef WLAN_FEATURE_11BE_MLO
-	lim_update_ml_partner_info(session_entry, assoc_rsp);
-#endif
+	dot11f_parse_assoc_rsp_mlo_partner_info(session_entry,
+						session_entry->assocRsp,
+						frame_len);
+
 	lim_update_ric_data(mac_ctx, session_entry, assoc_rsp);
 
 	lim_set_r0kh(assoc_rsp, session_entry);
@@ -1136,8 +1127,8 @@ lim_process_assoc_rsp_frame(struct mac_context *mac_ctx, uint8_t *rx_pkt_info,
 				&assoc_rsp->obss_scanparams);
 
 	if (lim_is_session_he_capable(session_entry))
-		mlme_set_twt_peer_capabilities(
-				mac_ctx->psoc,
+		lim_set_twt_peer_capabilities(
+				mac_ctx,
 				(struct qdf_mac_addr *)current_bssid,
 				&assoc_rsp->he_cap,
 				&assoc_rsp->he_op);
@@ -1147,12 +1138,14 @@ lim_process_assoc_rsp_frame(struct mac_context *mac_ctx, uint8_t *rx_pkt_info,
 			      (assoc_rsp->status_code ? QDF_STATUS_E_FAILURE :
 			       QDF_STATUS_SUCCESS), assoc_rsp->status_code);
 
-	if (subtype != LIM_REASSOC)
+	if (subtype != LIM_REASSOC) {
+		aid = assoc_rsp->aid & 0x3FFF;
 		wlan_connectivity_mgmt_event((struct wlan_frame_hdr *)hdr,
 					     session_entry->vdev_id,
 					     assoc_rsp->status_code, 0, rssi,
-					     0, 0, 0,
+					     0, 0, 0, aid,
 					     WLAN_ASSOC_RSP);
+	}
 
 	ap_nss = lim_get_nss_supported_by_ap(&assoc_rsp->VHTCaps,
 					     &assoc_rsp->HTCaps,

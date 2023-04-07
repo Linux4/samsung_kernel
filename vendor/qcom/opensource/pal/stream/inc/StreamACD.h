@@ -458,6 +458,8 @@ class StreamACD : public Stream {
     ACDState *cur_state_;
     ACDState *prev_state_;
     acd_state_id_t state_for_restore_;
+    bool notificationInProgress = false;
+    bool deferredNotification = false;
 
     std::map<uint32_t, ACDState*> acd_states_;
     bool use_lpi_;

@@ -17,6 +17,17 @@ AC_CONFIG_SRCDIR([src/snd-card-parser.c])
 # defines some macros variable to be included by source
 AC_CONFIG_MACRO_DIR([m4])
 
+#basemachine
+AC_MSG_CHECKING([which base machine to use])
+AC_ARG_WITH([basemachine],
+            [AS_HELP_STRING([--with-basemachine],
+            [Specify the base machine])],
+            [machine_selected="$withval"],
+            [machine_selected=none])
+
+AC_MSG_RESULT([$machine_selected])
+AC_SUBST([MACHINE_ENABLED],[$machine_selected])
+
 # Checks for programs.
 AC_PROG_CC
 AM_PROG_CC_C_O

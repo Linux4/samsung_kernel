@@ -11,7 +11,7 @@
 #if defined(CONFIG_SECDP)
 #include "secdp.h"
 
-struct dp_parser *g_dp_parser;
+static struct dp_parser *g_dp_parser;
 #endif
 
 static void dp_parser_unmap_io_resources(struct dp_parser *parser)
@@ -392,7 +392,7 @@ static int dp_parser_get_vreg(struct dp_parser *parser,
 #endif
 	supply_root_node = of_get_child_by_name(of_node, pm_supply_name);
 	if (!supply_root_node) {
-		DP_WARN("no supply entry present: %s\n", pm_supply_name);
+		DP_DEBUG("no supply entry present: %s\n", pm_supply_name);
 		goto novreg;
 	}
 
@@ -503,8 +503,6 @@ static void dp_parser_put_vreg_data(struct device *dev,
 }
 
 #if defined(CONFIG_SECDP)
-struct regulator *aux_pullup_vreg;
-
 static struct regulator *secdp_get_aux_pullup_vreg(struct device *dev)
 {
 	struct regulator *vreg = NULL;
@@ -540,7 +538,7 @@ static int dp_parser_regulator(struct dp_parser *parser)
 	}
 
 #if defined(CONFIG_SECDP)
-	aux_pullup_vreg = secdp_get_aux_pullup_vreg(&pdev->dev);
+	parser->aux_pullup_vreg = secdp_get_aux_pullup_vreg(&pdev->dev);
 #endif
 
 	return rc;
@@ -846,6 +844,26 @@ static void dp_parser_dsc(struct dp_parser *parser)
 			parser->dsc_continuous_pps);
 }
 
+static void dp_parser_qos(struct dp_parser *parser)
+{
+	struct device *dev = &parser->pdev->dev;
+	u32 mask, latency;
+	int rc;
+
+	rc = of_property_read_u32(dev->of_node, "qcom,qos-cpu-latency-us", &latency);
+	if (rc)
+		return;
+
+	rc = of_property_read_u32(dev->of_node, "qcom,qos-cpu-mask", &mask);
+	if (rc)
+		return;
+
+	parser->qos_cpu_mask = mask;
+	parser->qos_cpu_latency = latency;
+
+	DP_DEBUG("qos parsing successful. mask:%x latency:%ld\n", mask, latency);
+}
+
 static void dp_parser_fec(struct dp_parser *parser)
 {
 	struct device *dev = &parser->pdev->dev;
@@ -920,6 +938,10 @@ static void secdp_parse_misc(struct dp_parser *parser)
 	parser->prefer_support = of_property_read_bool(dev->of_node,
 			"secdp,prefer-res");
 	DP_DEBUG("secdp,prefer-res: %d\n", parser->prefer_support);
+
+	parser->mrr_fps_nolimit = of_property_read_bool(dev->of_node,
+			"secdp,mrr-fps-nolimit");
+	DP_DEBUG("secdp,mrr_fps_nolimit: %d\n", parser->mrr_fps_nolimit);
 }
 
 static const char *secdp_get_phy_pre_emphasis(u32 lvl)
@@ -1977,6 +1999,7 @@ static int dp_parser_parse(struct dp_parser *parser)
 	dp_parser_dsc(parser);
 	dp_parser_fec(parser);
 	dp_parser_widebus(parser);
+	dp_parser_qos(parser);
 #if defined(CONFIG_SECDP)
 	secdp_parse_misc(parser);
 #endif

@@ -14,7 +14,6 @@ u64 msm_vidc_calc_freq_iris2(struct msm_vidc_inst *inst, u32 data_size)
 {
 	u64 freq = 0;
 	struct msm_vidc_core* core;
-	struct msm_vidc_power* power;
 	u64 vsp_cycles = 0, vpp_cycles = 0, fw_cycles = 0;
 	u64 fw_vpp_cycles = 0, bitrate = 0;
 	u32 vpp_cycles_per_mb;
@@ -30,7 +29,6 @@ u64 msm_vidc_calc_freq_iris2(struct msm_vidc_inst *inst, u32 data_size)
 		return freq;
 	}
 
-	power = &inst->power;
 	core = inst->core;
 	if (!core->dt) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -166,7 +164,7 @@ u64 msm_vidc_calc_freq_iris2(struct msm_vidc_inst *inst, u32 data_size)
 		vsp_cycles += mbs_per_second * base_cycles;
 
 		/* Add 25 percent extra for 960fps use case */
-		if (fps >= MAXIMUM_FPS)
+		if (fps >= 960)
 			vsp_cycles += div_u64(vpp_cycles * 25, 100);
 
 		if (inst->codec == MSM_VIDC_VP9 &&
@@ -294,8 +292,16 @@ static u64 __calculate_decoder(struct vidc_bus_vote_data *d)
 	dpb_factor = FP(1, 50, 100);
 	dpb_write_factor = FP(1, 5, 100);
 
-	tnbr_per_lcu = lcu_size == 16 ? 128 :
-		lcu_size == 32 ? 64 : 128;
+	/* This change is applicable for all IRIS2 targets,
+	 * But currently being done only for IRIS2 with 2 pipe
+	 * and 1 pipe due to timeline constraints.
+	 */
+	if (num_vpp_pipes != 4)
+		tnbr_per_lcu = lcu_size == 16 ? 64 :
+			lcu_size == 32 ? 64 : 128;
+	else
+		tnbr_per_lcu = lcu_size == 16 ? 128 :
+			lcu_size == 32 ? 64 : 128;
 
 	/* .... For DDR & LLC  ...... */
 	ddr.vsp_read = fp_div(fp_mult(FP_INT(bitrate),
@@ -345,14 +351,7 @@ static u64 __calculate_decoder(struct vidc_bus_vote_data *d)
 	ddr.line_buffer_read =
 		fp_div(FP_INT(tnbr_per_lcu * lcu_per_frame * fps),
 			FP_INT(bps(1)));
-	/* This change is applicable for all IRIS2 targets,
-	 * but currently being done for IRIS2 with 2 pipes
-	 * only due to timeline constraints.
-	 */
-	if((num_vpp_pipes == 2) && (is_h264_category))
-		ddr.line_buffer_write = fp_div(ddr.line_buffer_read,FP_INT(2));
-	else
-		ddr.line_buffer_write = ddr.line_buffer_read;
+	ddr.line_buffer_write = ddr.line_buffer_read;
 	if (llc_top_line_buf_enabled) {
 		llc.line_buffer_read = ddr.line_buffer_read;
 		llc.line_buffer_write = ddr.line_buffer_write;
@@ -372,7 +371,7 @@ static u64 __calculate_decoder(struct vidc_bus_vote_data *d)
 			llc.line_buffer_write + ddr.total;
 
 	/* Add 25 percent extra for 960fps use case */
-	if (fps >= MAXIMUM_FPS) {
+	if (fps >= 960) {
 		ddr.total += div_u64(ddr.total * 25, 100);
 		llc.total += div_u64(llc.total * 25, 100);
 	}

@@ -2,7 +2,7 @@
 /*
  * drivers/mmc/host/sdhci-msm.c - Qualcomm SDHCI Platform driver
  *
- * Copyright (c) 2013-2014,2020. The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2014,2020-2021 The Linux Foundation. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -24,7 +24,7 @@
 #include <linux/interrupt.h>
 #include <linux/of.h>
 #include <linux/reset.h>
-
+#include <linux/ipc_logging.h>
 
 #include "sdhci-pltfm.h"
 #include "cqhci.h"
@@ -77,6 +77,7 @@
 
 #define CORE_DDR_CAL_EN		BIT(0)
 #define CORE_FLL_CYCLE_CNT	BIT(18)
+#define CORE_LOW_FREQ_MODE	BIT(19)
 #define CORE_DLL_CLOCK_DISABLE	BIT(21)
 
 #define DLL_USR_CTL_POR_VAL	0x10800
@@ -98,6 +99,7 @@
 #define CORE_HC_SELECT_IN_EN	BIT(18)
 #define CORE_HC_SELECT_IN_HS400	(6 << 19)
 #define CORE_HC_SELECT_IN_MASK	(7 << 19)
+#define CORE_HC_SELECT_IN_SDR50	(4 << 19)
 
 #define CORE_8_BIT_SUPPORT	BIT(18)
 #define CORE_3_0V_SUPPORT	BIT(25)
@@ -170,6 +172,26 @@
 /* Max load for eMMC Vdd-io supply */
 #define MMC_VQMMC_MAX_LOAD_UA	325000
 
+/*
+ * Due to level shifter insertion, HS mode frequency is reduced to 37.5MHz
+ * but clk's driver supply 37MHz only and uses ceil ops. So vote for
+ * 37MHz to avoid picking next ceil value.
+ */
+#define LEVEL_SHIFTER_HIGH_SPEED_FREQ	37000000
+
+/* Max number of log pages */
+#define SDHCI_MSM_MAX_LOG_SZ	10
+#define sdhci_msm_log_str(host, fmt, ...)	\
+	do {	\
+		if (host->sdhci_msm_ipc_log_ctx && host->dbg_en)	\
+			ipc_log_string(host->sdhci_msm_ipc_log_ctx,	\
+					"%s: " fmt, __func__, ##__VA_ARGS__);\
+	} while (0)
+
+#define VS_CAPABILITIES_SDR_50_SUPPORT BIT(0)
+#define VS_CAPABILITIES_SDR_104_SUPPORT BIT(1)
+#define VS_CAPABILITIES_DDR_50_SUPPORT BIT(2)
+
 #define msm_host_readl(msm_host, host, offset) \
 	msm_host->var_ops->msm_readl_relaxed(host, offset)
 
@@ -205,6 +227,7 @@ struct sdhci_msm_offset {
 	u32 core_vendor_spec_adma_err_addr1;
 	u32 core_vendor_spec_func2;
 	u32 core_vendor_spec_capabilities0;
+	u32 core_vendor_spec_capabilities1;
 	u32 core_ddr_200_cfg;
 	u32 core_vendor_spec3;
 	u32 core_dll_config_2;
@@ -236,6 +259,7 @@ static const struct sdhci_msm_offset sdhci_msm_v5_offset = {
 	.core_vendor_spec_adma_err_addr1 = 0x218,
 	.core_vendor_spec_func2 = 0x210,
 	.core_vendor_spec_capabilities0 = 0x21c,
+	.core_vendor_spec_capabilities1 = 0x220,
 	.core_ddr_200_cfg = 0x224,
 	.core_vendor_spec3 = 0x250,
 	.core_dll_config_2 = 0x254,
@@ -374,6 +398,7 @@ enum dll_init_context {
 
 /* This structure keeps information per regulator */
 struct sdhci_msm_reg_data {
+	struct sdhci_msm_host *msm_host;
 	/* voltage regulator handle */
 	struct regulator *reg;
 	/* regulator name */
@@ -493,10 +518,14 @@ struct sdhci_msm_host {
 	u32 ice_clk_min;
 	u32 ice_clk_rate;
 	bool uses_tassadar_dll;
+	bool uses_level_shifter;
 	u32 dll_config;
 	u32 ddr_config;
 	u16 last_cmd;
 	bool vqmmc_enabled;
+	void *sdhci_msm_ipc_log_ctx;
+	bool dbg_en;
+	bool err_occurred;
 };
 
 static struct sdhci_msm_host *sdhci_slot[2];
@@ -582,6 +611,11 @@ static void msm_set_clock_rate_for_bus_mode(struct sdhci_host *host,
 	int rc;
 
 	clock = msm_get_clock_rate_for_bus_mode(host, clock);
+
+	if (curr_ios.timing == MMC_TIMING_SD_HS &&
+			msm_host->uses_level_shifter)
+		clock = LEVEL_SHIFTER_HIGH_SPEED_FREQ;
+
 	rc = dev_pm_opp_set_rate(mmc_dev(host->mmc), clock);
 	if (rc) {
 		pr_err("%s: Failed to set clock at rate %u at timing %d\n",
@@ -593,6 +627,8 @@ static void msm_set_clock_rate_for_bus_mode(struct sdhci_host *host,
 	pr_debug("%s: Setting clock at rate %lu at timing %d\n",
 		 mmc_hostname(host->mmc), clk_get_rate(core_clk),
 		 curr_ios.timing);
+	sdhci_msm_log_str(msm_host, "Setting clock at rate %lu at timing %d\n",
+			clk_get_rate(core_clk), curr_ios.timing);
 }
 
 /* Platform specific tuning */
@@ -832,6 +868,7 @@ static int msm_init_cm_dll(struct sdhci_host *host,
 	struct mmc_host *mmc = host->mmc;
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_msm_host *msm_host = sdhci_pltfm_priv(pltfm_host);
+	struct mmc_ios curr_ios = mmc->ios;
 	int wait_cnt = 50;
 	int rc = 0;
 	unsigned long flags, dll_clock = 0;
@@ -936,13 +973,22 @@ static int msm_init_cm_dll(struct sdhci_host *host,
 					& CORE_FLL_CYCLE_CNT ? 8 : 4;
 
 			mclk_freq = ROUND(dll_clock * cycle_cnt, TCXO_FREQ);
-			if (dll_clock < 192000000)
+			if (dll_clock < 100000000)
 				pr_err("%s: %s: Non standard clk freq =%u\n",
 				mmc_hostname(mmc), __func__, dll_clock);
 			writel_relaxed(((readl_relaxed(host->ioaddr +
 				msm_offset->core_dll_config_2)
 				& ~(0xFF << 10)) | (mclk_freq << 10)),
 				host->ioaddr + msm_offset->core_dll_config_2);
+		}
+
+
+		if (curr_ios.timing == MMC_TIMING_UHS_SDR104 &&
+			msm_host->uses_level_shifter) {
+			writel_relaxed((readl_relaxed(host->ioaddr +
+				msm_offset->core_dll_config_2)
+				| CORE_LOW_FREQ_MODE), host->ioaddr +
+				msm_offset->core_dll_config_2);
 		}
 		/* wait for 5us before enabling DLL clock */
 		udelay(5);
@@ -1413,6 +1459,10 @@ static bool sdhci_msm_is_tuning_needed(struct sdhci_host *host)
 {
 	struct mmc_ios *ios = &host->mmc->ios;
 
+	if (ios->timing == MMC_TIMING_UHS_SDR50 &&
+			host->flags & SDHCI_SDR50_NEEDS_TUNING)
+		return true;
+
 	/*
 	 * Tuning is required for SDR104, HS200 and HS400 cards and
 	 * if clock frequency is greater than 100MHz in these modes.
@@ -1478,9 +1528,11 @@ static int sdhci_msm_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	int tuning_seq_cnt = 10;
 	u8 phase, tuned_phases[16], tuned_phase_cnt = 0;
 	int rc;
+	u32 config;
 	struct mmc_ios ios = host->mmc->ios;
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_msm_host *msm_host = sdhci_pltfm_priv(pltfm_host);
+	const struct sdhci_msm_offset *msm_offset = msm_host->offset;
 
 	if (!sdhci_msm_is_tuning_needed(host)) {
 		msm_host->use_cdr = false;
@@ -1496,6 +1548,14 @@ static int sdhci_msm_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	 * HS400 settings.
 	 */
 	msm_host->tuning_done = 0;
+
+	if (ios.timing == MMC_TIMING_UHS_SDR50 &&
+			host->flags & SDHCI_SDR50_NEEDS_TUNING) {
+		config = readl_relaxed(host->ioaddr + msm_offset->core_vendor_spec);
+		config |= CORE_HC_SELECT_IN_EN;
+		config |= CORE_HC_SELECT_IN_SDR50;
+		writel_relaxed(config, host->ioaddr + msm_offset->core_vendor_spec);
+	}
 
 	/*
 	 * For HS400 tuning in HS200 timing requires:
@@ -1567,12 +1627,15 @@ retry:
 #endif
 		dev_dbg(mmc_dev(mmc), "%s: Setting the tuning phase to %d\n",
 			 mmc_hostname(mmc), phase);
+		sdhci_msm_log_str(msm_host, "Setting the tuning phase to %d\n",
+				phase);
 	} else {
 		if (--tuning_seq_cnt)
 			goto retry;
 		/* Tuning failed */
 		dev_dbg(mmc_dev(mmc), "%s: No tuning point found\n",
 		       mmc_hostname(mmc));
+		sdhci_msm_log_str(msm_host, "No tuning point found\n");
 		rc = -EIO;
 	}
 
@@ -1701,6 +1764,9 @@ static int sdhci_msm_dt_parse_vreg_info(struct device *dev,
 	char prop_name[MAX_PROP_SIZE];
 	struct sdhci_msm_reg_data *vreg;
 	struct device_node *np = dev->of_node;
+	struct sdhci_host *host = dev_get_drvdata(dev);
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_msm_host *msm_host = sdhci_pltfm_priv(pltfm_host);
 
 	snprintf(prop_name, MAX_PROP_SIZE, "%s-supply", vreg_name);
 	if (!of_parse_phandle(np, prop_name, 0)) {
@@ -1714,6 +1780,7 @@ static int sdhci_msm_dt_parse_vreg_info(struct device *dev,
 		return ret;
 	}
 
+	vreg->msm_host = msm_host;
 	vreg->name = vreg_name;
 
 	snprintf(prop_name, MAX_PROP_SIZE,
@@ -1846,6 +1913,9 @@ static bool sdhci_msm_populate_pdata(struct device *dev,
 
 	msm_host->regs_restore.is_supported =
 		of_property_read_bool(np, "qcom,restore-after-cx-collapse");
+
+	msm_host->uses_level_shifter =
+		of_property_read_bool(np, "qcom,uses_level_shifter");
 
 	if (sdhci_msm_dt_parse_hsr_info(dev, msm_host))
 		goto out;
@@ -1996,6 +2066,9 @@ static void sdhci_msm_check_power_status(struct sdhci_host *host, u32 req_type)
 			mmc_hostname(host->mmc), __func__, req_type,
 			msm_host->curr_pwr_state, msm_host->curr_io_level);
 
+	sdhci_msm_log_str(msm_host, "request %d curr_pwr_state %x curr_io_level %x\n",
+				req_type, msm_host->curr_pwr_state,
+				msm_host->curr_io_level);
 	/*
 	 * The power interrupt will not be generated for signal voltage
 	 * switches if SWITCHABLE_SIGNALING_VOLTAGE in MCI_GENERICS is not set.
@@ -2057,6 +2130,8 @@ static void sdhci_msm_check_power_status(struct sdhci_host *host, u32 req_type)
 
 	pr_debug("%s: %s: request %d done\n", mmc_hostname(host->mmc),
 			__func__, req_type);
+
+	sdhci_msm_log_str(msm_host, "request %d done\n", req_type);
 }
 
 static void sdhci_msm_dump_pwr_ctrl_regs(struct sdhci_host *host)
@@ -2157,6 +2232,8 @@ static int sdhci_msm_vreg_set_optimum_mode(struct sdhci_msm_reg_data
 {
 	int ret = 0;
 
+	sdhci_msm_log_str(vreg->msm_host, "reg=%s uA_load=%d\n",
+			vreg->name, uA_load);
 	/*
 	 * regulators that do not support regulator_set_voltage also
 	 * do not support regulator_set_optimum_mode
@@ -2180,6 +2257,9 @@ static int sdhci_msm_vreg_set_voltage(struct sdhci_msm_reg_data *vreg,
 					int min_uV, int max_uV)
 {
 	int ret = 0;
+
+	sdhci_msm_log_str(vreg->msm_host, "reg=%s min_uV=%d max_uV=%d\n",
+			vreg->name, min_uV, max_uV);
 
 	if (vreg->set_voltage_sup) {
 		ret = regulator_set_voltage(vreg->reg, min_uV, max_uV);
@@ -2260,6 +2340,9 @@ static int sdhci_msm_setup_vreg(struct sdhci_msm_host *msm_host,
 	struct sdhci_msm_vreg_data *curr_slot;
 	struct sdhci_msm_reg_data *vreg_table[2];
 	struct mmc_host *mmc = msm_host->mmc;
+
+	sdhci_msm_log_str(msm_host, "%s regulators\n",
+			enable ? "Enabling" : "Disabling");
 
 	curr_slot = msm_host->vreg_data;
 	if (!curr_slot) {
@@ -2376,6 +2459,9 @@ static void sdhci_msm_handle_pwr_irq(struct sdhci_host *host, int irq)
 	irq_status = msm_host_readl(msm_host, host,
 			msm_offset->core_pwrctl_status);
 	irq_status &= INT_MASK;
+
+	sdhci_msm_log_str(msm_host, "Received IRQ(%d), irq_status=0x%x\n",
+			irq, irq_status);
 
 	msm_host_writel(msm_host, irq_status, host,
 			msm_offset->core_pwrctl_clear);
@@ -2535,6 +2621,9 @@ static void sdhci_msm_handle_pwr_irq(struct sdhci_host *host, int irq)
 	dev_dbg(mmc_dev(mmc), "%s: %s: Handled IRQ(%d), irq_status=0x%x, ack=0x%x\n",
 		mmc_hostname(msm_host->mmc), __func__, irq, irq_status,
 		irq_ack);
+
+	sdhci_msm_log_str(msm_host, "Handled IRQ(%d), irq_status=0x%x, ack=0x%x\n",
+			irq, irq_status, irq_ack);
 }
 
 static irqreturn_t sdhci_msm_pwr_irq(int irq, void *data)
@@ -2917,10 +3006,20 @@ void sdhci_msm_ice_disable(struct sdhci_msm_host *msm_host)
  *                                                                           *
 \*****************************************************************************/
 
+static void sdhci_msm_log_irq(struct sdhci_host *host, u32 intmask)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_msm_host *msm_host = sdhci_pltfm_priv(pltfm_host);
+
+	sdhci_msm_log_str(msm_host, "intmask: 0x%x\n", intmask);
+}
+
 static u32 sdhci_msm_cqe_irq(struct sdhci_host *host, u32 intmask)
 {
 	int cmd_error = 0;
 	int data_error = 0;
+
+	sdhci_msm_log_irq(host, intmask);
 
 	if (!sdhci_cqe_irq(host, intmask, &cmd_error, &data_error))
 		return intmask;
@@ -2970,12 +3069,47 @@ static void sdhci_msm_cqe_disable(struct mmc_host *mmc, bool recovery)
 	sdhci_cqe_disable(mmc, recovery);
 }
 
+static void sdhci_msm_set_timeout(struct sdhci_host *host, struct mmc_command *cmd)
+{
+	u32 count, start = 15;
+
+	/*
+	 * Qcom SoC hardware data timeout value was calculated
+	 * using 4 * MCLK * 2^(count + 13). where MCLK = 1 / host->clock.
+	 */
+
+	host->timeout_clk = host->mmc->actual_clock ?
+				host->mmc->actual_clock / 1000 :
+				host->clock / 1000;
+	host->timeout_clk /= 4;
+
+	__sdhci_set_timeout(host, cmd);
+	count = sdhci_readb(host, SDHCI_TIMEOUT_CONTROL);
+
+	/*
+	 * Update software timeout value if its value is less than hardware data
+	 * timeout value.
+	 */
+	if (cmd && cmd->data && host->clock > 400000 &&
+	    host->clock <= 50000000 &&
+	    ((1 << (count + start)) > (10 * host->clock)))
+		host->data_timeout = 22LL * NSEC_PER_SEC;
+}
+
+void sdhci_msm_cqe_sdhci_dumpregs(struct mmc_host *mmc)
+{
+	struct sdhci_host *host = mmc_priv(mmc);
+
+	sdhci_dumpregs(host);
+}
+
 static const struct cqhci_host_ops sdhci_msm_cqhci_ops = {
 	.enable		= sdhci_msm_cqe_enable,
 	.disable	= sdhci_msm_cqe_disable,
 #ifdef CONFIG_MMC_CRYPTO
 	.program_key	= sdhci_msm_program_key,
 #endif
+	.dumpregs		= sdhci_msm_cqe_sdhci_dumpregs,
 };
 
 static int sdhci_msm_cqe_add_host(struct sdhci_host *host,
@@ -3116,6 +3250,8 @@ static void sdhci_msm_registers_save(struct sdhci_host *host)
 		mmc_hostname(host->mmc), __func__,
 		readl_relaxed(host->ioaddr +
 			msm_offset->core_pwrctl_mask));
+
+	sdhci_msm_log_str(msm_host, "Registers saved\n");
 }
 
 static void sdhci_msm_registers_restore(struct sdhci_host *host)
@@ -3205,6 +3341,8 @@ static void sdhci_msm_registers_restore(struct sdhci_host *host)
 		mmc_hostname(host->mmc), __func__,
 		readl_relaxed(host->ioaddr +
 			msm_offset->core_pwrctl_mask));
+
+	sdhci_msm_log_str(msm_host, "Registers restored\n");
 }
 
 /*
@@ -3734,6 +3872,8 @@ static void sdhci_msm_dump_vendor_regs(struct sdhci_host *host)
 	u32 test_bus_val = 0;
 	u32 debug_reg[MAX_TEST_BUS] = {0};
 
+	msm_host->err_occurred = true;
+
 	SDHCI_MSM_DUMP("----------- VENDOR REGISTER DUMP -----------\n");
 
 	if (msm_host->cq_host)
@@ -3796,6 +3936,8 @@ static void sdhci_msm_dump_vendor_regs(struct sdhci_host *host)
 				" Test bus[%d to %d]: 0x%08x 0x%08x 0x%08x 0x%08x\n",
 				i, i + 3, debug_reg[i], debug_reg[i+1],
 				debug_reg[i+2], debug_reg[i+3]);
+
+	msm_host->dbg_en = false;
 }
 
 static const struct sdhci_msm_variant_ops mci_var_ops = {
@@ -3873,10 +4015,12 @@ static void sdhci_msm_hw_reset(struct sdhci_host *host)
 	if (ret)
 		dev_err(&pdev->dev, "%s: core_reset deassert failed, err = %d\n",
 				__func__, ret);
+	usleep_range(200, 210);
 
 	sdhci_msm_registers_restore(host);
 	msm_host->reg_store = false;
 
+	sdhci_msm_log_str(msm_host, "HW reset done\n");
 #if defined(CONFIG_SDC_QTI)
 	if (host->mmc->card)
 		mmc_power_cycle(host->mmc, host->mmc->card->ocr);
@@ -3910,6 +4054,7 @@ static const struct sdhci_ops sdhci_msm_ops = {
 	.dump_vendor_regs = sdhci_msm_dump_vendor_regs,
 	.set_power = sdhci_set_power_noreg,
 	.hw_reset = sdhci_msm_hw_reset,
+	.set_timeout = sdhci_msm_set_timeout,
 #if IS_ENABLED(CONFIG_SEC_MMC_FEATURE)
 	.request_done = sdhci_msm_sec_request_done,
 #endif
@@ -4001,6 +4146,7 @@ static void sdhci_msm_clkgate_bus_delayed_work(struct work_struct *work)
 	dev_pm_opp_set_rate(&msm_host->pdev->dev, 0);
 	clk_bulk_disable_unprepare(ARRAY_SIZE(msm_host->bulk_clks),
 					msm_host->bulk_clks);
+	sdhci_msm_log_str(msm_host, "Clocks gated\n");
 	sdhci_msm_bus_voting(host, false);
 }
 
@@ -4039,6 +4185,9 @@ static int sdhci_msm_update_qos_constraints(struct qos_cpu_group *qcg,
 
 	if (qcg->curr_vote == vote)
 		return 0;
+
+	sdhci_msm_log_str(qcg->host, "mask: 0x%08x type: %d vote: %u\n",
+			qcg->mask, type, vote);
 
 	for_each_cpu(cpu, &qcg->mask) {
 		err = dev_pm_qos_update_request(qos_req, vote);
@@ -4362,6 +4511,80 @@ out_vote_err:
 	msm_host->sdhci_qos = NULL;
 }
 
+static ssize_t dbg_state_store(struct device *dev,
+			struct device_attribute *attr,
+			const char *buf, size_t count)
+{
+	struct sdhci_host *host = dev_get_drvdata(dev);
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_msm_host *msm_host = sdhci_pltfm_priv(pltfm_host);
+	bool v;
+
+	if (!capable(CAP_SYS_ADMIN))
+		return -EACCES;
+
+	if (kstrtobool(buf, &v))
+		return -EINVAL;
+
+	msm_host->dbg_en = v;
+
+	return count;
+}
+
+static ssize_t dbg_state_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct sdhci_host *host = dev_get_drvdata(dev);
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_msm_host *msm_host = sdhci_pltfm_priv(pltfm_host);
+
+#if defined(CONFIG_SDHCI_MSM_DBG)
+	msm_host->dbg_en = true;
+#endif
+
+	return scnprintf(buf, PAGE_SIZE, "%d\n", msm_host->dbg_en);
+}
+
+static DEVICE_ATTR_RW(dbg_state);
+
+static ssize_t err_state_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct sdhci_host *host = dev_get_drvdata(dev);
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_msm_host *msm_host = sdhci_pltfm_priv(pltfm_host);
+
+	if (!host || !host->mmc)
+		return -EINVAL;
+
+	return scnprintf(buf, PAGE_SIZE, "%d\n", !!msm_host->err_occurred);
+}
+
+static DEVICE_ATTR_RO(err_state);
+
+static struct attribute *sdhci_msm_sysfs_attrs[] = {
+	&dev_attr_dbg_state.attr,
+	&dev_attr_err_state.attr,
+	NULL
+};
+
+static const struct attribute_group sdhci_msm_sysfs_group = {
+	.name = "qcom",
+	.attrs = sdhci_msm_sysfs_attrs,
+};
+
+static int sdhci_msm_init_sysfs(struct device *dev)
+{
+	int ret;
+
+	ret = sysfs_create_group(&dev->kobj, &sdhci_msm_sysfs_group);
+	if (ret)
+		dev_err(dev, "%s: Failed to create qcom sysfs group (err = %d)\n",
+				 __func__, ret);
+
+	return ret;
+}
+
 static ssize_t show_sdhci_msm_clk_gating(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -4489,6 +4712,23 @@ static void sdhci_msm_set_caps(struct sdhci_msm_host *msm_host)
 	msm_host->mmc->caps |= MMC_CAP_AGGRESSIVE_PM | MMC_CAP_SYNC_RUNTIME_PM;
 	msm_host->mmc->caps |= MMC_CAP_WAIT_WHILE_BUSY | MMC_CAP_NEED_RSP_BUSY;
 }
+/* RUMI W/A for SD card */
+static void sdhci_msm_set_rumi_bus_mode(struct sdhci_host *host)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_msm_host *msm_host = sdhci_pltfm_priv(pltfm_host);
+	const struct sdhci_msm_offset *msm_offset = msm_host->offset;
+	u32 config = readl_relaxed(host->ioaddr +
+			msm_offset->core_vendor_spec_capabilities1);
+
+	if (!(host->mmc->caps & MMC_CAP_NONREMOVABLE)) {
+		config &= ~(VS_CAPABILITIES_SDR_104_SUPPORT |
+				VS_CAPABILITIES_DDR_50_SUPPORT |
+				VS_CAPABILITIES_SDR_50_SUPPORT);
+		writel_relaxed(config, host->ioaddr +
+				msm_offset->core_vendor_spec_capabilities1);
+	}
+}
 
 static int sdhci_msm_probe(struct platform_device *pdev)
 {
@@ -4515,6 +4755,16 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	msm_host->mmc = host->mmc;
 	msm_host->pdev = pdev;
 
+	sdhci_msm_init_sysfs(dev);
+#if defined(CONFIG_SDHCI_MSM_DBG)
+	msm_host->dbg_en = true;
+#endif
+
+	msm_host->sdhci_msm_ipc_log_ctx = ipc_log_context_create(SDHCI_MSM_MAX_LOG_SZ,
+							dev_name(&host->mmc->class_dev), 0);
+	if (!msm_host->sdhci_msm_ipc_log_ctx)
+		dev_warn(dev, "IPC Log init - failed\n");
+
 	/**
 	 * System resume triggers a card detect interrupt even when there's no
 	 * card inserted. Core layer acquires the registered wakeup source for
@@ -4531,11 +4781,11 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 		goto pltfm_free;
 
 	if (pdev->dev.of_node) {
-		ret = of_alias_get_id(pdev->dev.of_node, "sdhc");
-		if (ret <= 0)
+		ret = of_alias_get_id(pdev->dev.of_node, "mmc");
+		if (ret < 0)
 			dev_err(&pdev->dev, "get slot index failed %d\n", ret);
-		else if (ret <= 2)
-			sdhci_slot[ret-1] = msm_host;
+		else if (ret <= 1)
+			sdhci_slot[ret] = msm_host;
 	}
 
 	/*
@@ -4705,6 +4955,9 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 				msm_offset->core_hc_mode);
 	}
 
+	if (of_property_read_bool(node, "is_rumi"))
+		sdhci_msm_set_rumi_bus_mode(host);
+
 	host_version = readw_relaxed((host->ioaddr + SDHCI_HOST_VERSION));
 	dev_dbg(&pdev->dev, "Host Version: 0x%x Vendor Version 0x%x\n",
 		host_version, ((host_version & SDHCI_VENDOR_VER_MASK) >>
@@ -4777,8 +5030,6 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	}
 
 	sdhci_msm_set_caps(msm_host);
-
-	msm_host->pltfm_init_done = true;
 
 	sdhci_msm_setup_pm(pdev, msm_host);
 
@@ -4907,6 +5158,7 @@ static __maybe_unused int sdhci_msm_runtime_suspend(struct device *dev)
 	struct sdhci_msm_host *msm_host = sdhci_pltfm_priv(pltfm_host);
 	struct sdhci_msm_qos_req *qos_req = msm_host->sdhci_qos;
 
+	sdhci_msm_log_str(msm_host, "Enter\n");
 	if (!qos_req)
 		goto skip_qos;
 	queue_delayed_work(msm_host->workq,
@@ -4928,6 +5180,7 @@ static __maybe_unused int sdhci_msm_runtime_resume(struct device *dev)
 	struct sdhci_msm_qos_req *qos_req = msm_host->sdhci_qos;
 	int ret;
 
+	sdhci_msm_log_str(msm_host, "Enter\n");
 	ret = cancel_delayed_work_sync(&msm_host->clk_gating_work);
 	if (!ret) {
 		sdhci_msm_bus_voting(host, true);
@@ -4966,6 +5219,7 @@ static int sdhci_msm_suspend_late(struct device *dev)
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_msm_host *msm_host = sdhci_pltfm_priv(pltfm_host);
 
+	sdhci_msm_log_str(msm_host, "Enter\n");
 	if (!msm_host->sdhci_qos)
 		goto skip_qos;
 

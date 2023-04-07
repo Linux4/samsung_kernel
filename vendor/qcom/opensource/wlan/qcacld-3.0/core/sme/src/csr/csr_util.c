@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -35,6 +36,8 @@
 #include "wlan_crypto_global_api.h"
 #include "wlan_cm_roam_api.h"
 #include <../../core/src/wlan_cm_vdev_api.h>
+#include <wlan_mlo_mgr_public_structs.h>
+#include "wlan_objmgr_vdev_obj.h"
 
 #define CASE_RETURN_STR(n) {\
 	case (n): return (# n);\
@@ -614,7 +617,7 @@ static void csr_handle_conc_chnl_overlap_for_sap_go(
  */
 uint16_t csr_check_concurrent_channel_overlap(struct mac_context *mac_ctx,
 			uint32_t sap_ch_freq, eCsrPhyMode sap_phymode,
-			uint8_t cc_switch_mode)
+			uint8_t cc_switch_mode, uint8_t vdev_id)
 {
 	struct csr_roam_session *session = NULL;
 	uint8_t i = 0, chb = PHY_SINGLE_CHANNEL_CENTERED;
@@ -708,24 +711,9 @@ uint16_t csr_check_concurrent_channel_overlap(struct mac_context *mac_ctx,
 			intf_ch_freq = 0;
 	} else if (intf_ch_freq && sap_ch_freq != intf_ch_freq &&
 		   (policy_mgr_is_force_scc(mac_ctx->psoc))) {
-		if (!((intf_ch_freq <= wlan_reg_ch_to_freq(CHAN_ENUM_2484) &&
-		       sap_ch_freq <= wlan_reg_ch_to_freq(CHAN_ENUM_2484)) ||
-		     (intf_ch_freq > wlan_reg_ch_to_freq(CHAN_ENUM_2484) &&
-		      sap_ch_freq > wlan_reg_ch_to_freq(CHAN_ENUM_2484)))) {
-			if (policy_mgr_is_hw_dbs_capable(mac_ctx->psoc) ||
-			    cc_switch_mode ==
-			    QDF_MCC_TO_SCC_WITH_PREFERRED_BAND)
-				intf_ch_freq = 0;
-		} else if (policy_mgr_is_hw_dbs_capable(mac_ctx->psoc) &&
-			   cc_switch_mode ==
-				QDF_MCC_TO_SCC_SWITCH_WITH_FAVORITE_CHANNEL) {
-			status = policy_mgr_get_sap_mandatory_channel(
-					mac_ctx->psoc, sap_ch_freq,
-					&intf_ch_freq);
-			if (QDF_IS_STATUS_ERROR(status))
-				sme_err("no mandatory channels (%d, %d)",
-					sap_ch_freq, intf_ch_freq);
-		}
+		policy_mgr_check_scc_sbs_channel(mac_ctx->psoc, &intf_ch_freq,
+						 sap_ch_freq, vdev_id,
+						 cc_switch_mode);
 	} else if ((intf_ch_freq == sap_ch_freq) && (cc_switch_mode ==
 				QDF_MCC_TO_SCC_SWITCH_WITH_FAVORITE_CHANNEL)) {
 		if (WLAN_REG_IS_24GHZ_CH_FREQ(intf_ch_freq) ||
@@ -840,7 +828,7 @@ uint32_t csr_translate_to_wni_cfg_dot11_mode(struct mac_context *mac,
 	switch (csrDot11Mode) {
 	case eCSR_CFG_DOT11_MODE_AUTO:
 #ifdef WLAN_FEATURE_11BE
-		if (IS_FEATURE_SUPPORTED_BY_FW(DOT11BE))
+		if (IS_FEATURE_11BE_SUPPORTED_BY_FW)
 			ret = MLME_DOT11_MODE_11BE;
 		else
 #endif
@@ -899,7 +887,7 @@ uint32_t csr_translate_to_wni_cfg_dot11_mode(struct mac_context *mac,
 		break;
 #ifdef WLAN_FEATURE_11BE
 	case eCSR_CFG_DOT11_MODE_11BE_ONLY:
-		if (IS_FEATURE_SUPPORTED_BY_FW(DOT11BE))
+		if (IS_FEATURE_11BE_SUPPORTED_BY_FW)
 			ret = MLME_DOT11_MODE_11BE_ONLY;
 		else if (IS_FEATURE_SUPPORTED_BY_FW(DOT11AX))
 			ret = MLME_DOT11_MODE_11AX_ONLY;
@@ -909,7 +897,7 @@ uint32_t csr_translate_to_wni_cfg_dot11_mode(struct mac_context *mac,
 			ret = MLME_DOT11_MODE_11N;
 		break;
 	case eCSR_CFG_DOT11_MODE_11BE:
-		if (IS_FEATURE_SUPPORTED_BY_FW(DOT11BE))
+		if (IS_FEATURE_11BE_SUPPORTED_BY_FW)
 			ret = MLME_DOT11_MODE_11BE;
 		else if (IS_FEATURE_SUPPORTED_BY_FW(DOT11AX))
 			ret = MLME_DOT11_MODE_11AX;
@@ -1198,7 +1186,7 @@ csr_get_cfg_dot11_mode_from_csr_phy_mode(struct csr_roam_profile *pProfile,
 		break;
 #ifdef WLAN_FEATURE_11BE
 	case eCSR_DOT11_MODE_11be:
-		if (IS_FEATURE_SUPPORTED_BY_FW(DOT11BE))
+		if (IS_FEATURE_11BE_SUPPORTED_BY_FW)
 			cfgDot11Mode = eCSR_CFG_DOT11_MODE_11BE;
 		else if (IS_FEATURE_SUPPORTED_BY_FW(DOT11AX))
 			cfgDot11Mode = eCSR_CFG_DOT11_MODE_11AX;
@@ -1208,7 +1196,7 @@ csr_get_cfg_dot11_mode_from_csr_phy_mode(struct csr_roam_profile *pProfile,
 			cfgDot11Mode = eCSR_CFG_DOT11_MODE_11N;
 		break;
 	case eCSR_DOT11_MODE_11be_ONLY:
-		if (IS_FEATURE_SUPPORTED_BY_FW(DOT11BE))
+		if (IS_FEATURE_11BE_SUPPORTED_BY_FW)
 			cfgDot11Mode = eCSR_CFG_DOT11_MODE_11BE_ONLY;
 		else if (IS_FEATURE_SUPPORTED_BY_FW(DOT11AX))
 			cfgDot11Mode = eCSR_CFG_DOT11_MODE_11AX_ONLY;

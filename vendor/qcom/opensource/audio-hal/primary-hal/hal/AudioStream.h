@@ -44,26 +44,17 @@
 #include <audio_extn/AudioExtn.h>
 #include <mutex>
 #include <map>
+#include <unordered_set>
 
 #ifdef SEC_AUDIO_COMMON
 #include "SecAudioStream.h"
 #endif
 
 #define LOW_LATENCY_PLATFORM_DELAY (13*1000LL)
-#ifdef SEC_AUDIO_COMMON
 #define DEEP_BUFFER_PLATFORM_DELAY (29*1000LL)
-#else
-#define DEEP_BUFFER_PLATFORM_DELAY (70*1000LL)
-#endif
 #define PCM_OFFLOAD_PLATFORM_DELAY (30*1000LL)
 #define MMAP_PLATFORM_DELAY        (3*1000LL)
 #define ULL_PLATFORM_DELAY         (4*1000LL)
-
-//Need to confirm audio source delay values from adsp team
-#define DEEP_BUFFER_PLATFORM_CAPTURE_DELAY (40*1000LL)
-#define LOW_LATENCY_PLATFORM_CAPTURE_DELAY (40*1000LL)
-#define VOIP_TX_PLATFORM_CAPTURE_DELAY (40*1000LL)
-#define RAW_STREAM_PLATFORM_CAPTURE_DELAY (40*1000LL)
 
 #ifdef SEC_AUDIO_COMMON
 #define DEEP_BUFFER_OUTPUT_PERIOD_DURATION 20
@@ -97,7 +88,7 @@
 #else
 #define ULL_PERIOD_MULTIPLIER 3
 #endif
-#define BUF_SIZE_PLAYBACK 1024
+#define BUF_SIZE_PLAYBACK 960
 #define BUF_SIZE_CAPTURE 960
 #define NO_OF_BUF 4
 #define LOW_LATENCY_CAPTURE_SAMPLE_RATE 48000
@@ -111,7 +102,7 @@
 #define MMAP_PERIOD_COUNT_MAX 512
 #define MMAP_PERIOD_COUNT_DEFAULT (MMAP_PERIOD_COUNT_MAX)
 #define CODEC_BACKEND_DEFAULT_BIT_WIDTH 16
-#if 0//def SEC_AUDIO_DSM_AMP
+#ifdef SEC_AUDIO_DSM_AMP
 #define CODEC_BACKEND_FEEDBACK_BIT_WIDTH 16
 #endif
 #ifdef SEC_AUDIO_OFFLOAD
@@ -475,6 +466,7 @@ public:
     audio_format_t  GetFormat();
     audio_channel_mask_t GetChannelMask();
     int getPalDeviceIds(const std::set<audio_devices_t> &halDeviceIds, pal_device_id_t* palOutDeviceIds);
+    int setPalStreamEffectParams(uint32_t tag_id, pal_effect_custom_payload_t *payload, uint32_t payload_size);
     audio_io_handle_t GetHandle();
     int             GetUseCase();
     std::mutex write_wait_mutex_;
@@ -496,13 +488,14 @@ public:
 #ifdef SEC_AUDIO_CALL_VOIP
     pal_stream_attributes getStreamAttributes() { return streamAttributes_; }
 #endif
-#ifdef SEC_AUDIO_KARAOKE
+#ifdef SEC_AUDIO_COMMON
     bool HasPalStreamHandle() { return (pal_stream_handle_ != NULL) ? true : false; }
 #endif
 protected:
     struct pal_stream_attributes streamAttributes_;
 #ifdef SEC_AUDIO_DSM_AMP
     struct pal_stream_attributes mStreamFeedback;
+    bool   use_feedback_stream;
 #endif
     pal_stream_handle_t*      pal_stream_handle_;
     audio_io_handle_t         handle_;
@@ -514,7 +507,8 @@ protected:
     int usecase_;
     struct pal_volume_data *volume_; /* used to cache volume */
     std::map <audio_devices_t, pal_device_id_t> mAndroidDeviceMap;
-
+    int mmap_shared_memory_fd;
+    pal_param_device_capability_t *device_cap_query_;
 };
 
 #ifdef SEC_AUDIO_COMMON
@@ -526,7 +520,7 @@ private:
     // Helper function for write to open pal stream & configure.
     ssize_t configurePalOutputStream();
     //Helper method to standby streams upon write failures and sleep for buffer duration.
-    ssize_t onWriteError(size_t bytes, size_t ret);
+    ssize_t onWriteError(size_t bytes, ssize_t ret);
     struct pal_device* mPalOutDevice;
     pal_device_id_t* mPalOutDeviceIds;
     std::set<audio_devices_t> mAndroidOutDevices;
@@ -549,7 +543,7 @@ public:
                      );
 
     ~StreamOutPrimary();
-    bool sendGaplessMetadata = false;
+    bool sendGaplessMetadata = true;
     bool isCompressMetadataAvail = false;
     int Standby();
     int SetVolume(float left, float right);
@@ -585,6 +579,7 @@ public:
     bool isDeviceAvailable(pal_device_id_t deviceId);
     int RouteStream(const std::set<audio_devices_t>&, bool force_device_switch = false);
     ssize_t splitAndWriteAudioHapticsStream(const void *buffer, size_t bytes);
+    bool period_size_is_plausible_for_low_latency(int period_size);
 #ifdef SEC_AUDIO_COMMON
     std::shared_ptr<SecAudioStreamOut> sec_stream_out_;
     std::shared_ptr<SecAudioStreamOut> SecStreamOutInit();
@@ -593,10 +588,16 @@ public:
 #endif
 #ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
     int UpdateListenback(bool on);
+    void CheckAndSwitchListenbackMode(bool on);
 #endif
 #ifdef SEC_AUDIO_COMMON
     void lock_output_stream() { stream_mutex_.lock(); }
     void unlock_output_stream() { stream_mutex_.unlock(); }
+#endif
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    source_metadata_t btSourceMetadata;
+    std::vector<playback_track_metadata_t> tracks;
+    int SetAggregateSourceMetadata(bool voice_active);
 #endif
 protected:
 #ifdef SEC_AUDIO_DSM_AMP
@@ -686,7 +687,6 @@ public:
     int addRemoveAudioEffect(const struct audio_stream *stream, effect_handle_t effect,bool enable);
     int SetParameters(const char *kvpairs);
     bool is_st_session;
-    bool is_st_session_active;
     audio_input_flags_t                 flags_;
     int CreateMmapBuffer(int32_t min_size_frames, struct audio_mmap_buffer_info *info);
     int GetMmapPosition(struct audio_mmap_position *position);
@@ -705,6 +705,11 @@ public:
 #ifdef SEC_AUDIO_SAMSUNGRECORD
     std::shared_ptr<AudioPreProcess> PreProcessInit();
 #endif
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    sink_metadata_t btSinkMetadata;
+    std::vector<record_track_metadata_t> tracks;
+    int SetAggregateSinkMetadata(bool voice_active);
+#endif
 protected:
     struct timespec readAt;
     uint32_t fragments_ = 0;
@@ -717,6 +722,7 @@ protected:
     friend class SecAudioStreamIn;
 #endif
     uint64_t mBytesRead = 0; /* total bytes read, not cleared when entering standby */
+    std::unordered_set<effect_handle_t> isECEnabledSet;
     bool isECEnabled = false;
     bool isNSEnabled = false;
     bool effects_applied_ = true;

@@ -67,6 +67,7 @@
 
 #define gw3x_SPI_BAUD_RATE 9600000
 #define TANSFER_MAX_LEN (512*1024)
+#define SPI_TRANSFER_DELAY 5
 
 enum gf_netlink_cmd {
 	GF_NETLINK_TEST = 0,

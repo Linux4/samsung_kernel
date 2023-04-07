@@ -1,4 +1,5 @@
 /* Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -81,7 +82,8 @@ struct rmnet_map_header {
 struct rmnet_map_v5_csum_header {
 	u8  next_hdr:1;
 	u8  header_type:7;
-	u8  hw_reserved:5;
+	u8  hw_reserved:4;
+	u8  aps_prio:1;
 	u8  priority:1;
 	u8  hw_reserved_bit:1;
 	u8  csum_valid_required:1;
@@ -293,8 +295,7 @@ int rmnet_map_dl_ind_deregister(struct rmnet_port *port,
 				struct rmnet_map_dl_ind *dl_ind);
 void rmnet_map_cmd_exit(struct rmnet_port *port);
 void rmnet_map_tx_qmap_cmd(struct sk_buff *qmap_skb, u8 ch, bool flush);
-void rmnet_map_send_agg_skb(struct rmnet_aggregation_state *state,
-			    unsigned long flags);
+void rmnet_map_send_agg_skb(struct rmnet_aggregation_state *state);
 int rmnet_map_add_tso_header(struct sk_buff *skb, struct rmnet_port *port,
 			      struct net_device *orig_dev);
 #endif /* _RMNET_MAP_H_ */

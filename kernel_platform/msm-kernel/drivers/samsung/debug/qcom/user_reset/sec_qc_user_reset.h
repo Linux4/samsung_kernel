@@ -18,7 +18,7 @@ struct qc_reset_rwc_proc {
 
 struct qc_user_reset_proc {
 	struct mutex lock;
-	unsigned int ref;
+	unsigned int ref_cnt;
 	struct debug_reset_header *reset_header;
 	const char *buf;
 	size_t len;

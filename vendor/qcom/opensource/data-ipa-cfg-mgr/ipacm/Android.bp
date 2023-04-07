@@ -3,7 +3,8 @@ cc_binary {
     name: "ipacm",
 
     local_include_dirs: ["src"] + ["inc"],
-	header_libs: ["device_kernel_headers"]+["qti_kernel_headers"],
+    header_libs: ["device_kernel_headers"]+["qti_kernel_headers",
+	"libutils_headers", "libcutils_headers"],
 
     cflags: ["-v"] + ["-DFEATURE_IPA_ANDROID"] + ["-DFEATURE_IPACM_RESTART"] + [
         "-DFEATURE_IPACM_HAL",

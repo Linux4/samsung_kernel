@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -40,6 +41,12 @@
 #define CE_COUNT_MAX 12
 #else
 #define CE_COUNT_MAX 8
+#endif
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+#ifndef CHIP_VERSION
+#define CHIP_VERSION CNSS_CHIP_VER_ANY
+#endif
 #endif
 
 /**
@@ -632,7 +639,7 @@ static struct pci_device_id pld_pcie_id_table[] = {
 	{ 0x17cb, 0x1101, PCI_ANY_ID, PCI_ANY_ID },
 #elif defined(QCA_WIFI_QCA6490)
 	{ 0x17cb, 0x1103, PCI_ANY_ID, PCI_ANY_ID },
-#elif defined(QCA_WIFI_WCN7850)
+#elif defined(QCA_WIFI_KIWI)
 	{ 0x17cb, 0x1107, PCI_ANY_ID, PCI_ANY_ID },
 #elif defined(QCN7605_SUPPORT)
 	{ 0x17cb, 0x1102, PCI_ANY_ID, PCI_ANY_ID },
@@ -657,6 +664,35 @@ struct cnss_wlan_runtime_ops runtime_pm_ops = {
 	.runtime_suspend = pld_pcie_runtime_suspend,
 	.runtime_resume = pld_pcie_runtime_resume,
 };
+#endif
+
+#ifdef FEATURE_WLAN_FULL_POWER_DOWN_SUPPORT
+static enum cnss_suspend_mode pld_pcie_suspend_mode = CNSS_SUSPEND_LEGACY;
+
+int pld_pcie_set_suspend_mode(enum pld_suspend_mode mode)
+{
+	struct pld_context *pld_ctx =  pld_get_global_context();
+	enum cnss_suspend_mode suspend_mode;
+
+	if (!pld_ctx)
+		return -ENOMEM;
+
+	switch (pld_ctx->suspend_mode) {
+	case PLD_SUSPEND:
+		suspend_mode = CNSS_SUSPEND_LEGACY;
+		break;
+	case PLD_FULL_POWER_DOWN:
+		suspend_mode = CNSS_SUSPEND_POWER_DOWN;
+		break;
+	default:
+		suspend_mode = CNSS_SUSPEND_LEGACY;
+		break;
+	}
+
+	pld_pcie_suspend_mode = suspend_mode;
+
+	return 0;
+}
 #endif
 
 struct cnss_wlan_driver pld_pcie_ops = {
@@ -685,6 +721,12 @@ struct cnss_wlan_driver pld_pcie_ops = {
 #endif
 #ifdef FEATURE_GET_DRIVER_MODE
 	.get_driver_mode  = pld_pcie_get_mode,
+#endif
+#ifdef FEATURE_WLAN_FULL_POWER_DOWN_SUPPORT
+	.suspend_mode = &pld_pcie_suspend_mode,
+#endif
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+	.chip_version = CHIP_VERSION,
 #endif
 };
 

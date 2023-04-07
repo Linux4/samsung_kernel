@@ -562,6 +562,33 @@ void IPACM_Wlan::event_callback(ipa_cm_event_id event, void *param)
 		if(ipa_interface_index == ipa_if_num)
 		{
 			IPACMDBG_H("Received IPA_DOWNSTREAM_ADD event.\n");
+
+			/* Delete any existing downstream before adding a new one*/
+			if(is_downstream_set[data->prefix.iptype] == true)
+			{
+				if (ipv6_prefix[0] != data->prefix.v6Addr[0] ||
+					ipv6_prefix[1] != data->prefix.v6Addr[1])
+				{
+					IPACMDBG_H("Del existing downstream for IP iptype %d.\n", data->prefix.iptype);
+					is_downstream_set[data->prefix.iptype] = false;
+					store_downstream_state(false, data->prefix.iptype);
+					if(is_upstream_set[data->prefix.iptype] == true)
+					{
+						IPACMDBG_H("Upstream was set before, deleting UL rules.\n");
+						if (data->prefix.iptype == IPA_IP_v4)
+						{
+							/* LTE STA */
+							handle_wan_down(IPACM_Wan::backhaul_mode);
+						} else {
+							handle_wlan_client_reset_rt(IPA_IP_v6);
+
+							/* LTE STA */
+							handle_wan_down_v6(IPACM_Wan::backhaul_mode);
+						}
+					}
+				}
+			}
+
 			if(data->prefix.iptype < IPA_IP_MAX && is_downstream_set[data->prefix.iptype] == false)
 			{
 				IPACMDBG_H("Add downstream for IP iptype %d.\n", data->prefix.iptype);
@@ -615,18 +642,23 @@ void IPACM_Wlan::event_callback(ipa_cm_event_id event, void *param)
 			IPACMDBG_H("Received IPA_DOWNSTREAM_DEL event.\n");
 			if(is_downstream_set[data->prefix.iptype] == true)
 			{
-				IPACMDBG_H("Del downstream for IP iptype %d.\n", data->prefix.iptype);
-				is_downstream_set[data->prefix.iptype] = false;
-				store_downstream_state(false, data->prefix.iptype);
-				if(is_upstream_set[data->prefix.iptype] == true)
+				/* Handle downstream del event only when the prefix matches */
+				if (ipv6_prefix[0] == data->prefix.v6Addr[0] &&
+					ipv6_prefix[1] == data->prefix.v6Addr[1])
 				{
-					IPACMDBG_H("Upstream was set before, deleting UL rules.\n");
-					if (data->prefix.iptype == IPA_IP_v4)
+					IPACMDBG_H("Del downstream for IP iptype %d.\n", data->prefix.iptype);
+					is_downstream_set[data->prefix.iptype] = false;
+					store_downstream_state(false, data->prefix.iptype);
+					if(is_upstream_set[data->prefix.iptype] == true)
 					{
-						handle_wan_down(IPACM_Wan::backhaul_mode); /* LTE STA */
-					} else {
-						handle_wlan_client_reset_rt(IPA_IP_v6);
-						handle_wan_down_v6(IPACM_Wan::backhaul_mode); /* LTE STA */
+						IPACMDBG_H("Upstream was set before, deleting UL rules.\n");
+						if (data->prefix.iptype == IPA_IP_v4)
+						{
+							handle_wan_down(IPACM_Wan::backhaul_mode); /* LTE STA */
+						} else {
+							handle_wlan_client_reset_rt(IPA_IP_v6);
+							handle_wan_down_v6(IPACM_Wan::backhaul_mode); /* LTE STA */
+						}
 					}
 				}
 			}

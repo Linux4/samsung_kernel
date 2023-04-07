@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -165,13 +165,18 @@ static void hal_rx_mon_hw_desc_get_mpdu_status_6490(void *hw_desc_addr,
 
 	rs->ant_signal_db = HAL_RX_GET(rx_msdu_start,
 				RX_MSDU_START_5, USER_RSSI);
-	rs->is_stbc = HAL_RX_GET(rx_msdu_start, RX_MSDU_START_5, STBC);
+	if (!rs->vht_flags) {
+		rs->is_stbc = HAL_RX_GET(rx_msdu_start,
+					 RX_MSDU_START_5, STBC);
 
-	reg_value = HAL_RX_GET(rx_msdu_start, RX_MSDU_START_5, SGI);
-	rs->sgi = sgi_hw_to_cdp[reg_value];
+		reg_value = HAL_RX_GET(rx_msdu_start, RX_MSDU_START_5, SGI);
+		rs->sgi = sgi_hw_to_cdp[reg_value];
 
-	reg_value = HAL_RX_GET(rx_msdu_start, RX_MSDU_START_5, RECEPTION_TYPE);
-	rs->beamformed = (reg_value == HAL_RX_RECEPTION_TYPE_MU_MIMO) ? 1 : 0;
+		reg_value = HAL_RX_GET(rx_msdu_start, RX_MSDU_START_5,
+				       RECEPTION_TYPE);
+		rs->beamformed =
+			(reg_value == HAL_RX_RECEPTION_TYPE_MU_MIMO) ? 1 : 0;
+	}
 	/* TODO: rs->beamformed should be set for SU beamforming also */
 }
 
@@ -1676,6 +1681,41 @@ void hal_compute_reo_remap_ix2_ix3_6490(uint32_t *ring, uint32_t num_rings,
 	}
 }
 
+static
+void hal_compute_reo_remap_ix0_6490(uint32_t *remap0)
+{
+	*remap0 = HAL_REO_REMAP_IX0(REO_REMAP_SW1, 0) |
+			HAL_REO_REMAP_IX0(REO_REMAP_SW1, 1) |
+			HAL_REO_REMAP_IX0(REO_REMAP_SW2, 2) |
+			HAL_REO_REMAP_IX0(REO_REMAP_SW3, 3) |
+			HAL_REO_REMAP_IX0(REO_REMAP_SW2, 4) |
+			HAL_REO_REMAP_IX0(REO_REMAP_RELEASE, 5) |
+			HAL_REO_REMAP_IX0(REO_REMAP_FW, 6) |
+			HAL_REO_REMAP_IX0(REO_REMAP_FW, 7);
+}
+
+#ifdef WLAN_FEATURE_MARK_FIRST_WAKEUP_PACKET
+/**
+ * hal_get_first_wow_wakeup_packet_6490(): Function to retrieve
+ *					   rx_msdu_end_1_reserved_1a
+ *
+ * reserved_1a is used by target to tag the first packet that wakes up host from
+ * WoW
+ *
+ * @buf: Network buffer
+ *
+ * Returns: 1 to indicate it is first packet received that wakes up host from
+ *	    WoW. Otherwise 0
+ */
+static uint8_t hal_get_first_wow_wakeup_packet_6490(uint8_t *buf)
+{
+	struct rx_pkt_tlvs *pkt_tlvs = hal_rx_get_pkt_tlvs(buf);
+	struct rx_msdu_end *msdu_end = &pkt_tlvs->msdu_end_tlv.rx_msdu_end;
+
+	return HAL_RX_MSDU_END_RESERVED_1A_GET(msdu_end);
+}
+#endif
+
 static void hal_hw_txrx_ops_attach_qca6490(struct hal_soc *hal_soc)
 {
 	/* init and setup */
@@ -1773,6 +1813,8 @@ static void hal_hw_txrx_ops_attach_qca6490(struct hal_soc *hal_soc)
 					hal_rx_get_mpdu_mac_ad4_valid_6490;
 	hal_soc->ops->hal_rx_mpdu_start_sw_peer_id_get =
 		hal_rx_mpdu_start_sw_peer_id_get_6490;
+	hal_soc->ops->hal_rx_mpdu_peer_meta_data_get =
+		hal_rx_mpdu_peer_meta_data_get_li;
 	hal_soc->ops->hal_rx_mpdu_get_to_ds = hal_rx_mpdu_get_to_ds_6490;
 	hal_soc->ops->hal_rx_mpdu_get_fr_ds = hal_rx_mpdu_get_fr_ds_6490;
 	hal_soc->ops->hal_rx_get_mpdu_frame_control_valid =
@@ -1808,6 +1850,8 @@ static void hal_hw_txrx_ops_attach_qca6490(struct hal_soc *hal_soc)
 					hal_rx_msdu_flow_idx_timeout_6490;
 	hal_soc->ops->hal_rx_msdu_fse_metadata_get =
 					hal_rx_msdu_fse_metadata_get_6490;
+	hal_soc->ops->hal_rx_msdu_cce_match_get =
+					hal_rx_msdu_cce_match_get_li;
 	hal_soc->ops->hal_rx_msdu_cce_metadata_get =
 					hal_rx_msdu_cce_metadata_get_6490;
 	hal_soc->ops->hal_rx_msdu_get_flow_params =
@@ -1857,6 +1901,12 @@ static void hal_hw_txrx_ops_attach_qca6490(struct hal_soc *hal_soc)
 		hal_rx_msdu_get_reo_destination_indication_6490;
 	hal_soc->ops->hal_setup_link_idle_list =
 				hal_setup_link_idle_list_generic_li;
+	hal_soc->ops->hal_compute_reo_remap_ix0 =
+					hal_compute_reo_remap_ix0_6490;
+#ifdef WLAN_FEATURE_MARK_FIRST_WAKEUP_PACKET
+	hal_soc->ops->hal_get_first_wow_wakeup_packet =
+		hal_get_first_wow_wakeup_packet_6490;
+#endif
 };
 
 struct hal_hw_srng_config hw_srng_table_6490[] = {
@@ -2142,7 +2192,8 @@ struct hal_hw_srng_config hw_srng_table_6490[] = {
 	},
 	{ /* WBM2SW_RELEASE */
 		.start_ring_id = HAL_SRNG_WBM2SW0_RELEASE,
-#if defined(IPA_WDI3_TX_TWO_PIPES) || defined(TX_MULTI_TCL)
+#if defined(IPA_WDI3_TX_TWO_PIPES) || defined(TX_MULTI_TCL) || \
+	defined(CONFIG_PLD_PCIE_FW_SIM)
 		.max_rings = 5,
 #else
 		.max_rings = 4,

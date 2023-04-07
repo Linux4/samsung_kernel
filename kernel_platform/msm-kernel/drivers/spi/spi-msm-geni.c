@@ -24,6 +24,7 @@
 #define SPI_NUM_CHIPSELECT	(4)
 #define SPI_XFER_TIMEOUT_MS	(250)
 #define SPI_AUTO_SUSPEND_DELAY	(250)
+#define SPI_XFER_TIMEOUT_OFFSET  (250)
 /* SPI SE specific registers */
 #define SE_SPI_CPHA		(0x224)
 #define SE_SPI_LOOPBACK		(0x22C)
@@ -1547,6 +1548,7 @@ static int spi_geni_transfer_one(struct spi_master *spi,
 	int ret = 0;
 	struct spi_geni_master *mas = spi_master_get_devdata(spi);
 	unsigned long timeout;
+	unsigned long tx_timeout;
 
 	if ((xfer->tx_buf == NULL) && (xfer->rx_buf == NULL)) {
 		dev_err(mas->dev, "Invalid xfer both tx rx are NULL\n");
@@ -1570,6 +1572,9 @@ static int spi_geni_transfer_one(struct spi_master *spi,
 		return -EACCES;
 	}
 
+	tx_timeout = (1000 * xfer->len * BITS_PER_BYTE) / xfer->speed_hz;
+	tx_timeout += SPI_XFER_TIMEOUT_OFFSET;
+
 	if (mas->cur_xfer_mode != GSI_DMA) {
 		reinit_completion(&mas->xfer_done);
 		ret = setup_fifo_xfer(xfer, mas, slv->mode, spi);
@@ -1581,7 +1586,7 @@ static int spi_geni_transfer_one(struct spi_master *spi,
 		}
 
 		timeout = wait_for_completion_timeout(&mas->xfer_done,
-					msecs_to_jiffies(SPI_XFER_TIMEOUT_MS));
+					msecs_to_jiffies(tx_timeout));
 		if (!timeout) {
 			SPI_LOG_ERR(mas->ipc, true, mas->dev,
 				"Xfer[len %d tx %pK rx %pK n %d] timed out.\n",
@@ -1624,7 +1629,7 @@ static int spi_geni_transfer_one(struct spi_master *spi,
 				timeout =
 				wait_for_completion_timeout(
 					&mas->tx_cb,
-					msecs_to_jiffies(SPI_XFER_TIMEOUT_MS));
+					msecs_to_jiffies(tx_timeout));
 				if (timeout <= 0) {
 					SPI_LOG_ERR(mas->ipc, true, mas->dev,
 					"Tx[%d] timeout%lu\n", i, timeout);
@@ -1636,7 +1641,7 @@ static int spi_geni_transfer_one(struct spi_master *spi,
 				timeout =
 				wait_for_completion_timeout(
 					&mas->rx_cb,
-					msecs_to_jiffies(SPI_XFER_TIMEOUT_MS));
+					msecs_to_jiffies(tx_timeout));
 				if (timeout <= 0) {
 					SPI_LOG_ERR(mas->ipc, true, mas->dev,
 					 "Rx[%d] timeout%lu\n", i, timeout);
@@ -2103,31 +2108,68 @@ static int spi_geni_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int spi_geni_gpi_pause_resume(struct spi_geni_master *geni_mas, bool flag)
+{
+	int tx_ret = 0, rx_ret = 0;
+
+	if ((geni_mas->tx != NULL) && (geni_mas->rx != NULL)) {
+		if (flag) {
+			tx_ret = dmaengine_pause(geni_mas->tx);
+			rx_ret = dmaengine_pause(geni_mas->rx);
+		} else {
+			tx_ret = dmaengine_resume(geni_mas->tx);
+			rx_ret = dmaengine_resume(geni_mas->rx);
+		}
+
+		if (tx_ret || rx_ret) {
+			SPI_LOG_ERR(geni_mas->ipc, true, geni_mas->dev,
+			"%s failed: tx:%d rx:%d flag:%d\n",
+			__func__, tx_ret, rx_ret, flag);
+			return -EINVAL;
+		}
+	}
+	return 0;
+}
+
 #if IS_ENABLED(CONFIG_PM)
+
+static int spi_geni_levm_suspend_proc(struct spi_geni_master *geni_mas, struct spi_master *spi)
+{
+	int ret = 0;
+
+	spi_geni_unlock_bus(spi);
+
+	if (geni_mas->gsi_mode) {
+		ret = spi_geni_gpi_pause_resume(geni_mas, true);
+		if (ret) {
+			SPI_LOG_DBG(geni_mas->ipc, false, geni_mas->dev, "%s:\n", __func__);
+			return ret;
+		}
+	}
+	SPI_LOG_DBG(geni_mas->ipc, false, geni_mas->dev, "%s:\n", __func__);
+	return 0;
+}
+
 static int spi_geni_runtime_suspend(struct device *dev)
 {
 	int ret = 0;
 	struct spi_master *spi = get_spi_master(dev);
 	struct spi_geni_master *geni_mas = spi_master_get_devdata(spi);
 
-	if (geni_mas->is_le_vm) {
-		spi_geni_unlock_bus(spi);
-		return 0;
-	}
+	if (geni_mas->is_le_vm)
+		return spi_geni_levm_suspend_proc(geni_mas, spi);
 
 	SPI_LOG_DBG(geni_mas->ipc, false, geni_mas->dev, "%s:\n", __func__);
 
-	if (geni_mas->shared_se) {
-		if (geni_mas->tx != NULL) {
-			ret = dmaengine_pause(geni_mas->tx);
-			if (ret) {
-				SPI_LOG_ERR(geni_mas->ipc, true, geni_mas->dev,
-				"%s dmaengine_pause failed: %d\n", __func__, ret);
-			}
-			SPI_LOG_DBG(geni_mas->ipc, false, geni_mas->dev,
-			"%s: Shared_SE dma_pause\n", __func__);
-		}
+	if (geni_mas->gsi_mode) {
+		ret = spi_geni_gpi_pause_resume(geni_mas, true);
+		if (ret)
+			return ret;
 	}
+
+	/* For tui usecase LA should control clk/gpio/icb */
+	if (geni_mas->is_la_vm)
+		goto exit_rt_suspend;
 
 	/* Do not unconfigure the GPIOs for a shared_se usecase */
 	if (geni_mas->shared_ee && !geni_mas->shared_se)
@@ -2146,60 +2188,75 @@ exit_rt_suspend:
 	return ret;
 }
 
+static int spi_geni_levm_resume_proc(struct spi_geni_master *geni_mas, struct spi_master *spi)
+{
+	int ret = 0;
+
+	if (!geni_mas->setup) {
+		ret = spi_geni_mas_setup(spi);
+		if (ret) {
+			SPI_LOG_ERR(geni_mas->ipc, true, geni_mas->dev,
+			"%s mas_setup failed: %d\n", __func__, ret);
+			return ret;
+		}
+	}
+
+	if (geni_mas->gsi_mode) {
+		ret = spi_geni_gpi_pause_resume(geni_mas, false);
+		if (ret) {
+			SPI_LOG_ERR(geni_mas->ipc, false, geni_mas->dev, "%s:\n", __func__);
+			return ret;
+		}
+	}
+
+	ret = spi_geni_lock_bus(spi);
+	if (ret) {
+		SPI_LOG_ERR(geni_mas->ipc, true, geni_mas->dev,
+			"%s lock_bus failed: %d\n", __func__, ret);
+		return ret;
+	}
+	SPI_LOG_DBG(geni_mas->ipc, false, geni_mas->dev, "%s:\n", __func__);
+	/* Return here as LE VM doesn't need resourc/clock management */
+	return ret;
+}
+
 static int spi_geni_runtime_resume(struct device *dev)
 {
 	int ret = 0;
 	struct spi_master *spi = get_spi_master(dev);
 	struct spi_geni_master *geni_mas = spi_master_get_devdata(spi);
 
-	if (geni_mas->is_le_vm) {
-		if (!geni_mas->setup) {
-			ret = spi_geni_mas_setup(spi);
-			if (ret) {
-				SPI_LOG_ERR(geni_mas->ipc, true, geni_mas->dev,
-				"%s mas_setup failed: %d\n", __func__, ret);
-				return ret;
-			}
-		}
-
-		ret = spi_geni_lock_bus(spi);
-		if (ret) {
-			SPI_LOG_ERR(geni_mas->ipc, true, geni_mas->dev,
-				"%s lock_bus failed: %d\n", __func__, ret);
-			return ret;
-		}
-		/* Return here as LE VM doesn't need resourc/clock management */
-		return ret;
-	}
+	if (geni_mas->is_le_vm)
+		return spi_geni_levm_resume_proc(geni_mas, spi);
 
 	SPI_LOG_DBG(geni_mas->ipc, false, geni_mas->dev, "%s:\n", __func__);
 
-	if (geni_mas->shared_se) {
-		/* very first time mas->tx channel is not getting updated */
-		if (geni_mas->tx != NULL) {
-			ret = dmaengine_resume(geni_mas->tx);
-			if (ret) {
-				SPI_LOG_ERR(geni_mas->ipc, true, geni_mas->dev,
-				"%s dmaengine_resume failed: %d\n", __func__, ret);
-			}
-			SPI_LOG_DBG(geni_mas->ipc, false, geni_mas->dev,
-			"%s: Shared_SE dma_resume call\n", __func__);
-		}
-	}
-
-	if (geni_mas->shared_ee)
+	if (geni_mas->shared_ee || geni_mas->is_la_vm)
 		goto exit_rt_resume;
 
 	if (geni_mas->gsi_mode) {
 		ret = se_geni_clks_on(&geni_mas->spi_rsc);
-		if (ret)
+		if (ret) {
 			SPI_LOG_ERR(geni_mas->ipc, false, geni_mas->dev,
 			"%s: Error %d turning on clocks\n", __func__, ret);
+			return ret;
+		}
+
+		ret = spi_geni_gpi_pause_resume(geni_mas, false);
 		return ret;
 	}
 
 exit_rt_resume:
 	ret = se_geni_resources_on(&geni_mas->spi_rsc);
+	if (ret) {
+		SPI_LOG_ERR(geni_mas->ipc, false, geni_mas->dev,
+		"%s: Error %d turning on clocks\n", __func__, ret);
+		return ret;
+	}
+
+	if (geni_mas->gsi_mode)
+		ret = spi_geni_gpi_pause_resume(geni_mas, false);
+
 	return ret;
 }
 

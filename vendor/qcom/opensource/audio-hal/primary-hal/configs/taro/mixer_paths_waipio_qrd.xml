@@ -1886,9 +1886,9 @@
         <ctl name="TX_AIF1_CAP Mixer DEC0" value="1" />
         <ctl name="ADC2 MUX" value="INP2" />
         <ctl name="ADC2 ChMap" value="SWRM_TX2_CH2" />
-        <ctl name="MBHC ChMap" value="SWRM_TX3_CH3" />
+        <ctl name="MBHC ChMap" value="SWRM_TX1_CH3" />
         <ctl name="TX1 MODE" value="ADC_LP" />
-        <ctl name="BCS Channel" value="CH10" />
+        <ctl name="BCS Channel" value="CH2" />
         <ctl name="HDR12 MUX" value="NO_HDR12" />
         <ctl name="ADC2_MIXER Switch" value="1" />
         <ctl name="AMIC2_MIXER Switch" value="1" />
@@ -2156,6 +2156,7 @@
         <ctl name="SpkrLeft VISENSE Switch" value="1" />
         <ctl name="SpkrLeft SWR DAC_Port Switch" value="1" />
         <ctl name="EAR SPKR PA Gain" value="G_6_DB" />
+        <ctl name="WSA_RX0 Digital Volume" value="60" />
     </path>
 
     <path name="handset-mic">
@@ -2244,6 +2245,10 @@
     </path>
 
     <path name="voice-handset-tmus">
+        <path name="handset" />
+    </path>
+
+    <path name="voice-handset-hac">
         <path name="handset" />
     </path>
 
@@ -2440,9 +2445,9 @@
         <ctl name="TX2 MODE" value="ADC_LP" />
         <ctl name="ADC3 MUX" value="INP4" />
         <ctl name="VA SMIC MUX0" value="SWR_MIC4" />
-        <ctl name="VA SMIC MUX1" value="SWR_MIC9" />
+        <ctl name="VA SMIC MUX1" value="SWR_MIC8" />
         <ctl name="ADC1 ChMap" value="SWRM_TX2_CH1" />
-        <ctl name="ADC3 ChMap" value="SWRM_TX3_CH2" />
+        <ctl name="ADC3 ChMap" value="SWRM_TX3_CH1" />
         <ctl name="ADC1_MIXER Switch" value="1" />
         <ctl name="ADC3_MIXER Switch" value="1" />
         <ctl name="VA_AMIC1_MIXER Switch" value="1" />

@@ -10,7 +10,7 @@
 #include <linux/platform_device.h>
 #include <linux/types.h>
 #include <linux/clk.h>
-
+#include <linux/clk-provider.h>
 #define MAX_STRING_LEN 32
 #define MAX_DSI_CTRL 2
 

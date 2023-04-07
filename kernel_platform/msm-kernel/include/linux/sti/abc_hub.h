@@ -102,6 +102,7 @@ int abc_hub_bootc_init(struct device *dev);
 void abc_hub_bootc_enable(struct device *dev, int enable);
 #endif
 
+extern struct abc_hub_info *abc_hub_pinfo;
 /****************** Common *****************/
 void abc_hub_send_event(char *str);
 int abc_hub_get_enabled(void);

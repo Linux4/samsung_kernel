@@ -382,6 +382,8 @@ static android_custom_dwell_time_t custom_scan_dwell[] =
 /* CUSTOMER_HW4's value differs from BRCM FW value for enable/disable */
 #define CUSTOMER_HW4_ENABLE		0
 #define CUSTOMER_HW4_DISABLE	-1
+#define CUSTOMER_HW4_FCC_OPT1	1
+#define CUSTOMER_HW4_FCC_OPT2	2
 #endif /* FCC_PWR_LIMIT_2G */
 #define CUSTOMER_HW4_EN_CONVERT(i)	(i += 1)
 #endif /* CUSTOMER_HW4_PRIVATE_CMD */
@@ -1167,6 +1169,11 @@ static int wl_android_uwbcx_get_prepare_time(struct net_device *dev, char *comma
 static int wl_android_set_softap_bw(struct net_device *ndev, char *command);
 static int wl_android_get_softap_bw(struct net_device *ndev, char *command, int total_len);
 #endif /* LIMIT_AP_BW */
+
+#if defined(AP_LESS_BCAST)
+#define CMD_SET_LESS_BCAST "CMD_SET_AP_LESS_BCAST"
+static int wl_android_set_ap_less_bcast(struct net_device *ndev, char *command);
+#endif /* AP_LESS_BCAST */
 
 /**
  * Local (static) functions and variables
@@ -4097,26 +4104,54 @@ wl_android_set_fcc_pwr_limit_2g(struct net_device *dev, char *command)
 {
 	int error = 0;
 	int enable = 0;
+	int option = 0;
 
-	sscanf(command+sizeof("SET_FCC_CHANNEL"), "%d", &enable);
+	sscanf(command+sizeof("SET_FCC_CHANNEL"), "%d", &option);
 
-	if ((enable != CUSTOMER_HW4_ENABLE) && (enable != CUSTOMER_HW4_DISABLE)) {
-		DHD_ERROR(("wl_android_set_fcc_pwr_limit_2g: Invalid data\n"));
+	if ((option > CUSTOMER_HW4_FCC_OPT2) || (option < CUSTOMER_HW4_DISABLE)) {
+		WL_ERR(("wl_android_set_fcc_pwr_limit_2g: Invalid data\n"));
 		return BCME_ERROR;
 	}
 
-	CUSTOMER_HW4_EN_CONVERT(enable);
+	/*
+	* SET_FCC_CHANNEL 2   2.4GHz 12/13 recovery + 6GHz disable
+	* SET_FCC_CHANNEL 1   2.4GHz 12/13 reduction + 6GHz enable
+	* SET_FCC_CHANNEL 0   2.4GHz 12/13 reduction + 6GHz disable
+	* SET_FCC_CHANNEL -1  2.4GHz 12/13 recovery + 6GHz enable
+	*/
 
-	DHD_ERROR(("wl_android_set_fcc_pwr_limit_2g: fccpwrlimit2g set (%d)\n", enable));
+	WL_ERR(("wl_android_set_fcc_pwr_limit_2g: fccpwrlimit2g set (%d)\n", option));
+
+	if (option == CUSTOMER_HW4_FCC_OPT1)
+		enable = 1;
+	else if (option == CUSTOMER_HW4_FCC_OPT2)
+		enable = 0;
+	else {
+		enable = option;
+		CUSTOMER_HW4_EN_CONVERT(enable);
+	}
 	error = wldev_iovar_setint(dev, "fccpwrlimit2g", enable);
 	if (error) {
-		DHD_ERROR(("wl_android_set_fcc_pwr_limit_2g: fccpwrlimit2g"
+		WL_ERR(("wl_android_set_fcc_pwr_limit_2g: fccpwrlimit2g"
 			" set returned (%d)\n", error));
 		return BCME_ERROR;
 	}
 
 #if defined(CUSTOM_CONTROL_HE_6G_FEATURES)
+	if (option == CUSTOMER_HW4_FCC_OPT1)
+		enable = 0;
+	else if (option == CUSTOMER_HW4_FCC_OPT2)
+		enable = 1;
+	else {
+		enable = option;
+		CUSTOMER_HW4_EN_CONVERT(enable);
+	}
 	error = wl_android_set_he_6g_band(dev, (enable == 0) ? TRUE : FALSE);
+	if (error) {
+		WL_ERR(("wl_android_set_fcc_pwr_limit_2g: he_6g_band"
+			" set returned (%d)\n", error));
+		return BCME_ERROR;
+	}
 #endif /* CUSTOM_CONTROL_HE_6G_FEATURES */
 	return error;
 }
@@ -13923,6 +13958,11 @@ wl_handle_private_cmd(struct net_device *net, char *command, u32 cmd_len)
 			priv_cmd.total_len);
 	}
 #endif /* LIMIT_AP_BW */
+#if defined(AP_LESS_BCAST)
+	else if (strnicmp(command, CMD_SET_LESS_BCAST, strlen(CMD_SET_LESS_BCAST)) == 0) {
+		bytes_written = wl_android_set_ap_less_bcast(net, command);
+	}
+#endif /* AP_LESS_BCAST */
 	else {
 		DHD_ERROR(("Unknown PRIVATE command %s - ignored\n", command));
 		bytes_written = BCME_UNSUPPORTED;
@@ -15591,3 +15631,60 @@ exit:
 	return bytes_written;
 }
 #endif /* SUPPORT_AP_INIT_BWCONF */
+
+#if defined(AP_LESS_BCAST)
+static int
+wl_android_set_ap_less_bcast(struct net_device *ndev, char *command)
+{
+	struct bcm_cfg80211 *cfg = NULL;
+	int err = BCME_OK;
+	char *token, *pos;
+	char name[IFNAMSIZ + 1];
+	int enable = 0;
+
+	if (!ndev || (!(cfg = wl_get_cfg(ndev)))) {
+		WL_ERR((CMD_SET_LESS_BCAST ":cannot find bcmcfg\n"));
+		err = -EINVAL;
+		goto exit;
+	}
+
+	pos = command;
+
+	/* drop command */
+	token = bcmstrtok(&pos, " ", NULL);
+
+	/* get interface name */
+	token = bcmstrtok(&pos, " ", NULL);
+	if (!token) {
+		WL_ERR((CMD_SET_LESS_BCAST ": interface name is not specified\n"));
+		err = -EINVAL;
+		goto exit;
+	}
+	bzero(name, sizeof(name));
+	bcm_strncpy_s(name, IFNAMSIZ, token, MIN(IFNAMSIZ, strlen(token)));
+
+	/* Enable */
+	token = bcmstrtok(&pos, " ", NULL);
+	if (!token){
+		WL_ERR((CMD_SET_LESS_BCAST ": control is not specified\n"));
+		err = -EINVAL;
+		goto exit;
+	}
+
+	enable = bcm_atoi(token);
+
+	if (enable > APLB_BI_MAX || enable < 0) {
+		WL_ERR(("INVALID enable: %d\n", enable));
+		err = -EINVAL;
+		goto exit;
+	}
+	err = wl_cfg80211_set_softap_less_bcast(cfg, name, enable);
+	WL_INFORM_MEM((CMD_SET_LESS_BCAST ": req = %d, ret = %d\n", enable, err));
+	if (err != BCME_OK) {
+		err = -EINVAL;
+	}
+
+exit:
+	return err;
+}
+#endif /* AP_LESS_BCAST */
