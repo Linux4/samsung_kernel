@@ -74,7 +74,10 @@
  */
 uint32_t lim_cmp_ssid(tSirMacSSid *rx_ssid, struct pe_session *session_entry)
 {
-	return qdf_mem_cmp(rx_ssid, &session_entry->ssId,
+	if (session_entry->ssId.length != rx_ssid->length)
+		return true;
+
+	return qdf_mem_cmp(rx_ssid->ssId, &session_entry->ssId.ssId,
 				session_entry->ssId.length);
 }
 

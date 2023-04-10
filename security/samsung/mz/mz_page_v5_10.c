@@ -6,9 +6,7 @@
  * as published by the Free Software Foundation.
  */
 
-#include <asm/mmu_context.h>
 #include <linux/atomic.h>
-#include <linux/delay.h>
 #include <linux/list.h>
 #include <linux/migrate.h>
 #include <linux/mmzone.h>
@@ -142,18 +140,10 @@ MzResult mz_get_user_pages(struct task_struct *task, struct mm_struct *mm, unsig
 	if (res <= 0) {
 		MZ_LOG(err_level_error, "%s gup fail %d\n", __func__, res);
 		mz_ret = MZ_PAGE_FAIL;
-		goto fail;
-	}
-
-	if (!after_mig)
+	} else if (!after_mig)
 		atomic64_inc(&(mm->pinned_vm));
 
 	MZ_LOG(err_level_debug, "%s end\n", __func__);
-
-	return MZ_SUCCESS;
-
-fail:
-	put_page(target_page[0]);
 
 	return mz_ret;
 }
@@ -188,15 +178,18 @@ MzResult mz_migrate_and_pin(struct page *target_page, unsigned long va, uint8_t 
 		MZ_LOG(err_level_debug, "%s target_page is CMA\n", __func__);
 #endif
 
-	mz_ret = mz_get_user_pages(task, mm, va, &new_page[0], 0, buf);
-	if (mz_ret != MZ_SUCCESS)
+	//pin
+	mz_ret = mz_get_user_pages(task, mm, va, &(new_page[0]), 0, buf);
+	if (mz_ret != MZ_SUCCESS) {
+		put_page(new_page[0]);
 		goto out_pfns;
+	}
 
 	if (mz_get_migratetype(new_page[0]) == MIGRATE_CMA) {
 		mig_temp = alloc_page(GFP_KERNEL);
 		if (!mig_temp) {
 			MZ_LOG(err_level_error, "%s alloc_page fail\n", __func__);
-			goto out_pfns;
+			goto out_pin;
 		}
 		move_page_data(target_page, mig_temp);
 
@@ -204,9 +197,11 @@ MzResult mz_migrate_and_pin(struct page *target_page, unsigned long va, uint8_t 
 		if (mz_ret != MZ_SUCCESS)
 			goto out_pin;
 
-		mz_ret = mz_get_user_pages(task, mm, va, &new_page[0], 1, buf);
-		if (mz_ret != MZ_SUCCESS)
+		mz_ret = mz_get_user_pages(task, mm, va, &(new_page[0]), 1, buf);
+		if (mz_ret != MZ_SUCCESS) {
+			put_page(new_page[0]);
 			goto out_pin;
+		}
 
 		res = mz_verify_migration_page(new_page[0]);
 		if (res != 0) {
@@ -238,13 +233,12 @@ MzResult mz_migrate_and_pin(struct page *target_page, unsigned long va, uint8_t 
 	list_add_tail(&(cur_page->list), &(mz_pt_list[tgid].mz_list_head_page));
 	mutex_unlock(&page_list_lock);
 
+	mmput(mm);
+
 	return mz_ret;
 
 out_pin:
-	put_page(new_page[0]);
-	down_write(&mm->mmap_lock);
 	atomic64_dec(&(mm->pinned_vm));
-	up_write(&mm->mmap_lock);
 out_pfns:
 	up_write(&mm->mmap_lock);
 	kfree(new_page);
