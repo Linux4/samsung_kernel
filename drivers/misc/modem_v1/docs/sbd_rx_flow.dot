@@ -1,0 +1,178 @@
+digraph mem_rx {
+graph [
+	label="\n<RX Flow of Memory-type Interface>\n\n"
+	labelloc="top"
+	fontname="Helvetica"
+	fontsize=20
+];
+
+node [shape=box fontname="Helvetica"];
+
+edge [fontname="Helvetica"];
+
+node []
+	subgraph irq_handling {
+	node []
+		mem_irq_handler [
+			label="mem_irq_handler"
+			URL="@ref mem_irq_handler"
+		];
+
+		mem_rx_task [
+			label="mem_rx_task"
+			URL="@ref mem_rx_task"
+		];
+
+		udl_rx_work [
+			label="udl_rx_work"
+			URL="@ref udl_rx_work"
+		];
+
+		ipc_rx_func [
+			label="ipc_rx_func"
+			URL="@ref ipc_rx_func"
+		];
+
+	edge [color="red:green4:blue" fontcolor=black];
+		mem_irq_handler -> mem_rx_task [
+			label="Tasklet"
+		];
+
+	edge [color=blue fontcolor=blue];
+		mem_rx_task -> udl_rx_work [
+			label="Delayed\nWork"
+			arrowhead=vee
+			style=dotted
+		];
+
+		udl_rx_work -> ipc_rx_func [
+			label="Process\nContext"
+		];
+
+	edge [color="red:green4" fontcolor=brown];
+		mem_rx_task -> ipc_rx_func [
+			label="Tasklet\nContext"
+		];
+	}
+
+	subgraph rx_processing {
+	node []
+		mem_cmd_handler [
+			label="mem_cmd_handler"
+			URL="@ref mem_cmd_handler"
+		];
+
+		recv_ipc_frames [
+			label="recv_ipc_frames"
+			URL="@ref recv_ipc_frames"
+		];
+
+		rx_frames_from_dev [
+			label="rx_frames_from_dev"
+			URL="@ref rx_frames_from_dev"
+		];
+
+		rxq_read [
+			label="rxq_read"
+			URL="@ref rxq_read"
+		];
+
+		schedule_link_to_demux [
+			label="schedule_link_to_demux"
+			URL="@ref schedule_link_to_demux"
+		];
+
+		link_to_demux_work [
+			label="link_to_demux_work"
+			URL="@ref link_to_demux_work"
+		];
+
+		pass_skb_to_demux [
+			label="pass_skb_to_demux"
+			URL="@ref pass_skb_to_demux"
+		];
+
+		skb_rxq [
+			shape=record
+			label="<f0>| |skb_rxq| |<f1>"
+			color=green4
+			fontcolor=green4
+		];
+
+	edge [color=black fontcolor=black];
+		ipc_rx_func -> mem_cmd_handler [
+			label="command"
+		];
+
+	edge [color="red:green4:blue" fontcolor=black];
+		ipc_rx_func -> recv_ipc_frames [
+			label="while (msb)"
+		];
+
+		recv_ipc_frames -> rx_frames_from_dev [
+			label="1. for (each IPC device)"
+		];
+
+		rx_frames_from_dev -> rxq_read [
+			label="2.\nwhile (rcvd < size)"
+		];
+
+	edge [color=blue fontcolor=blue];
+		rxq_read -> rx_frames_from_dev [
+			label="2-1.\nUDL skb\n[process]"
+		];
+
+		rx_frames_from_dev -> pass_skb_to_demux [
+			label="2-2.\nUDL skb\n[process]"
+		];
+
+	edge [color="red:green4" fontcolor=brown];
+		rxq_read -> rx_frames_from_dev [
+			label="2-1.\nFMT skb\nRFS skb\nPS skb\n[tasklet]"
+		];
+
+	edge [color=red fontcolor=red];
+		rx_frames_from_dev -> pass_skb_to_demux [
+			label="2-2.\nFMT skb\nRFS skb\n[tasklet]"
+		];
+
+	edge [color=green4 fontcolor=green4];
+		rx_frames_from_dev -> skb_rxq:f1 [
+			label="2-2.\nPS skb\n[tasklet]"
+			arrowhead=vee
+			style=dashed
+		];
+
+	edge [color="red:green4" fontcolor=brown];
+		rx_frames_from_dev -> recv_ipc_frames [
+			label="3. Return"
+		];
+
+	edge [color=green4 fontcolor=green4];
+		recv_ipc_frames -> schedule_link_to_demux [
+			label="4. Scheduling"
+		];
+
+	edge [color="red:green4" fontcolor=brown];
+		recv_ipc_frames -> ipc_rx_func [
+			label="5. Return"
+		];
+
+	edge [color=green4 fontcolor=green4];
+		schedule_link_to_demux -> link_to_demux_work [
+			label="6. Delayed\nwork\n[process]"
+			arrowhead=vee
+			style=dotted
+		];
+
+		skb_rxq:f0 -> link_to_demux_work [
+			label="6-1.\nPS skb"
+			arrowhead=vee
+			style=dashed
+		];
+
+		link_to_demux_work -> pass_skb_to_demux [
+			label="6-2.\nPS skb"
+		];
+	}
+}
