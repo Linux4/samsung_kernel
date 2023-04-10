@@ -142,7 +142,7 @@ static QDF_STATUS extract_dbr_buf_release_fixed_tlv(wmi_unified_t wmi_handle,
 	    param_buf->num_meta_data < ev->num_meta_data_entry) {
 		wmi_err("actual num of meta data entries less than provided entries");
 		return QDF_STATUS_E_INVAL;
-	}	
+	}
 	param->num_meta_data_entry = ev->num_meta_data_entry;
 	WMI_LOGD("%s:pdev id %d mod id %d num buf release entry %d", __func__,
 		 param->pdev_id, param->mod_id, param->num_buf_release_entry);
