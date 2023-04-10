@@ -31,6 +31,9 @@ struct qcom_rproc_glink {
 	struct device *dev;
 	struct device_node *node;
 	struct qcom_glink *edge;
+
+	struct notifier_block nb;
+	void *notifier_handle;
 };
 
 struct qcom_rproc_subdev {
@@ -68,6 +71,7 @@ void qcom_remove_smd_subdev(struct rproc *rproc, struct qcom_rproc_subdev *smd);
 
 void qcom_add_ssr_subdev(struct rproc *rproc, struct qcom_rproc_ssr *ssr,
 			 const char *ssr_name);
+void qcom_notify_early_ssr_clients(struct rproc_subdev *subdev);
 void qcom_remove_ssr_subdev(struct rproc *rproc, struct qcom_rproc_ssr *ssr);
 
 #if IS_ENABLED(CONFIG_QCOM_SYSMON)

@@ -124,6 +124,16 @@ config BATTERY_AGE_FORECAST
 	  it include some charging scenario for aged batteries.
 	  it need age forecast charging tables.
 
+config BATTERY_AGE_FORECAST_DETACHABLE
+	tristate "battery age forecast for detachable"
+	default n
+	select BATTERY_AGE_FORECAST
+	help
+	  Say Y here to enable
+	  support AGE FORECAST functions for detachable model.
+	  it include some charging scenario for aged batteries.
+	  it need age forecast charging tables.
+
 config BATTERY_AGE_FORECAST_B2B
 	tristate "battery age forecast for B2B"
 	default n
@@ -290,7 +300,7 @@ config SEC_BATTERY_TTF_TEST
           for sec_battery_ttf_test
 
 config SEC_STEP_CHARGING_TEST
-	bool "KUnit test for sec_step_charging_test"
+	tristate "KUnit test for sec_step_charging_test"
 	depends on SEC_KUNIT
 	help
     	  Say Y here to enable

@@ -8,7 +8,7 @@ extern ssize_t sec_qc_dbg_part_get_size(size_t index);
 extern bool sec_qc_dbg_part_read(size_t index, void *value);
 extern bool sec_qc_dbg_part_write(size_t index, const void *value);
 #else
-static ssize_t sec_qc_dbg_part_get_size(size_t index) { return -ENODEV; }
+static inline ssize_t sec_qc_dbg_part_get_size(size_t index) { return -ENODEV; }
 static inline bool sec_qc_dbg_part_read(size_t index, void *value) { return false; }
 static inline bool sec_qc_dbg_part_write(size_t index, const void *value) { return false; }
 #endif

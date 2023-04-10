@@ -40,10 +40,6 @@
 
 #define AID_VENDOR_QRTR	KGIDT_INIT(2906)
 
-#if defined(CONFIG_RPMSG_QCOM_GLINK_NATIVE)
-extern bool glink_resume_pkt;
-#endif
-
 /**
  * struct qrtr_hdr_v1 - (I|R)PCrouter packet header version 1
  * @version: protocol version
@@ -112,6 +108,12 @@ struct qrtr_sock {
 	struct sockaddr_qrtr peer;
 
 	int state;
+
+#if IS_ENABLED(CONFIG_QRTR_WS_DEBUG)
+	/* qrtr_ws debugging */
+	char sent_name[TASK_COMM_LEN];
+	pid_t sent_pid;
+#endif
 };
 
 static inline struct qrtr_sock *qrtr_sk(struct sock *sk)
@@ -189,7 +191,10 @@ struct qrtr_node {
 	struct kthread_work say_hello;
 
 	struct wakeup_source *ws;
+	const char *ws_name;
 	void *ilc;
+
+	struct xarray no_wake_svc; /* services that will not wake up APPS */
 };
 
 struct qrtr_tx_flow_waiter {
@@ -274,25 +279,6 @@ static void qrtr_log_tx_msg(struct qrtr_node *node, struct qrtr_hdr_v1 *hdr,
 	}
 }
 
-#if defined(CONFIG_RPMSG_QCOM_GLINK_NATIVE)
-static void qrtr_log_resume_pkt(struct qrtr_cb *cb, u64 pl_buf)
-{
-	int service_id;
-
-	if (glink_resume_pkt) {
-		glink_resume_pkt = false;
-		service_id = qrtr_get_service_id(cb->src_node, cb->src_port);
-		if (service_id < 0)
-			service_id = qrtr_get_service_id(cb->dst_node, cb->dst_port);
-		pr_info("[QRTR RESUME PKT]:src[0x%x:0x%x] dst[0x%x:0x%x] [%08x %08x]: service[0x%x]\n",
-			cb->src_node, cb->src_port,
-			cb->dst_node, cb->dst_port,
-			(unsigned int)pl_buf, (unsigned int)(pl_buf >> 32),
-			service_id);
-	}
-}
-#endif
-
 static void qrtr_log_rx_msg(struct qrtr_node *node, struct sk_buff *skb)
 {
 	struct qrtr_ctrl_pkt pkt = {0,};
@@ -312,9 +298,6 @@ static void qrtr_log_rx_msg(struct qrtr_node *node, struct sk_buff *skb)
 			cb->dst_node, cb->dst_port,
 			(unsigned int)pl_buf, (unsigned int)(pl_buf >> 32),
 			node, node->ep);
-#if defined(CONFIG_RPMSG_QCOM_GLINK_NATIVE)
-		qrtr_log_resume_pkt(cb, pl_buf);
-#endif
 	} else {
 		skb_copy_bits(skb, 0, &pkt, sizeof(pkt));
 		if (cb->type == QRTR_TYPE_NEW_SERVER ||
@@ -338,6 +321,64 @@ static void qrtr_log_rx_msg(struct qrtr_node *node, struct sk_buff *skb)
 				cb->type, cb->src_node, node, node->ep);
 	}
 }
+
+void qrtr_print_wakeup_reason(const void *data)
+{
+	const struct qrtr_hdr_v1 *v1;
+	const struct qrtr_hdr_v2 *v2;
+	struct qrtr_cb cb;
+	unsigned int size;
+	unsigned int ver;
+	int service_id;
+	size_t hdrlen;
+	u64 preview = 0;
+
+	ver = *(u8 *)data;
+	switch (ver) {
+	case QRTR_PROTO_VER_1:
+		v1 = data;
+		hdrlen = sizeof(*v1);
+		cb.src_node = le32_to_cpu(v1->src_node_id);
+		cb.src_port = le32_to_cpu(v1->src_port_id);
+		cb.dst_node = le32_to_cpu(v1->dst_node_id);
+		cb.dst_port = le32_to_cpu(v1->dst_port_id);
+
+		size = le32_to_cpu(v1->size);
+		break;
+	case QRTR_PROTO_VER_2:
+		v2 = data;
+		hdrlen = sizeof(*v2) + v2->optlen;
+		cb.src_node = le16_to_cpu(v2->src_node_id);
+		cb.src_port = le16_to_cpu(v2->src_port_id);
+		cb.dst_node = le16_to_cpu(v2->dst_node_id);
+		cb.dst_port = le16_to_cpu(v2->dst_port_id);
+
+		if (cb.src_port == (u16)QRTR_PORT_CTRL)
+			cb.src_port = QRTR_PORT_CTRL;
+		if (cb.dst_port == (u16)QRTR_PORT_CTRL)
+			cb.dst_port = QRTR_PORT_CTRL;
+
+		size = le32_to_cpu(v2->size);
+		break;
+	default:
+		return;
+	}
+
+	service_id = qrtr_get_service_id(cb.src_node, cb.src_port);
+	if (service_id < 0)
+		service_id = qrtr_get_service_id(cb.dst_node, cb.dst_port);
+
+	size = (sizeof(preview) > size) ? size : sizeof(preview);
+	memcpy(&preview, data + hdrlen, size);
+
+	pr_info("%s: src[0x%x:0x%x] dst[0x%x:0x%x] [%08x %08x] service[0x%x]\n",
+		__func__,
+		cb.src_node, cb.src_port,
+		cb.dst_node, cb.dst_port,
+		(unsigned int)preview, (unsigned int)(preview >> 32),
+		service_id);
+}
+EXPORT_SYMBOL(qrtr_print_wakeup_reason);
 
 static bool refcount_dec_and_rwsem_lock(refcount_t *r,
 					struct rw_semaphore *sem)
@@ -573,8 +614,9 @@ static int qrtr_tx_wait(struct qrtr_node *node, struct sockaddr_qrtr *to,
 		mutex_unlock(&node->qrtr_tx_lock);
 
 		ret = wait_event_interruptible_timeout(node->resume_tx,
-				(!node->ep || READ_ONCE(flow->tx_failed) || atomic_read(&flow->pending) < QRTR_TX_FLOW_HIGH),
-				 timeo);
+				(!node->ep || READ_ONCE(flow->tx_failed) ||
+			atomic_read(&flow->pending) < QRTR_TX_FLOW_HIGH),
+			timeo);
 		if (ret < 0)
 			return ret;
 		if (!node->ep)
@@ -607,6 +649,98 @@ static void qrtr_tx_flow_failed(struct qrtr_node *node, int dest_node,
 	if (flow)
 		WRITE_ONCE(flow->tx_failed, 1);
 	mutex_unlock(&node->qrtr_tx_lock);
+}
+
+static int qrtr_pad_word_pskb(struct sk_buff *skb)
+{
+	unsigned int padding_len;
+	unsigned int padto;
+	int nfrags;
+	int count;
+	int i;
+
+	padto = ALIGN(skb->len, 4);
+	padding_len = padto - skb->len;
+	if (!padding_len)
+		return 0;
+
+	count = skb_headlen(skb);
+	nfrags = skb_shinfo(skb)->nr_frags;
+	for (i = 0; i < nfrags; i++) {
+		u32 p_off, p_len, copied;
+		u32 f_off, f_len;
+		u32 d_off, d_len;
+		skb_frag_t *frag;
+		struct page *p;
+		u8 *vaddr;
+
+		frag = &skb_shinfo(skb)->frags[i];
+		f_off = skb_frag_off(frag);
+		f_len = skb_frag_size(frag);
+		if (count + f_len < skb->len) {
+			count += f_len;
+			continue;
+		}
+
+		/* fragment can fit all padding */
+		if (count + f_len >= padto) {
+			skb_frag_foreach_page(frag, f_off, f_len, p, p_off,
+					      p_len, copied) {
+				if (count + p_len < padto) {
+					count += p_len;
+					continue;
+				}
+
+				d_off = skb->len - count;
+				vaddr = kmap_atomic(p);
+				memset(vaddr + p_off + d_off, 0, padding_len);
+				kunmap_atomic(vaddr);
+				count += d_off + padding_len;
+				skb->len = padto;
+				skb->data_len += padding_len;
+				break;
+			}
+		} else {
+			 /* messy case, padding split between pages */
+			skb_frag_foreach_page(frag, f_off, f_len, p, p_off,
+					      p_len, copied) {
+				if (count + p_len < skb->len) {
+					count += p_len;
+					continue;
+				}
+
+				/* need to add padding into next page */
+				if (count + p_len < padto) {
+					d_off = skb->len - count;
+					d_len = p_len - d_off;
+
+					vaddr = kmap_atomic(p);
+					memset(vaddr + p_off + d_off, 0, d_len);
+					kunmap_atomic(vaddr);
+
+					count += p_len;
+					padding_len -= d_len;
+					skb->len += d_len;
+					skb->data_len += padding_len;
+					continue;
+				}
+
+				d_off = (count < skb->len) ? skb->len - count : 0;
+				vaddr = kmap_atomic(p);
+				memset(vaddr + p_off + d_off, 0, padding_len);
+				kunmap_atomic(vaddr);
+				count += d_off + padding_len;
+				skb->len += padding_len;
+				skb->data_len += padding_len;
+			}
+		}
+
+		if (skb->len == padto)
+			break;
+	}
+	WARN_ON(skb->len != padto);
+
+	return 0;
 }
 
 /* Pass an outgoing packet socket buffer to the endpoint driver. */
@@ -656,10 +790,15 @@ static int qrtr_node_enqueue(struct qrtr_node *node, struct sk_buff *skb,
 	hdr->confirm_rx = !!confirm_rx;
 
 	qrtr_log_tx_msg(node, hdr, skb);
-	rc = skb_put_padto(skb, ALIGN(len, 4) + sizeof(*hdr));
+	/* word align the data and pad with 0s */
+	if (skb_is_nonlinear(skb))
+		rc = qrtr_pad_word_pskb(skb);
+	else
+		rc = skb_put_padto(skb, ALIGN(len, 4) + sizeof(*hdr));
+
 	if (rc) {
 		pr_err("%s: failed to pad size %lu to %lu rc:%d\n", __func__,
-		       len, ALIGN(len, 4) + sizeof(*hdr), rc);
+		       skb->len, ALIGN(skb->len, 4), rc);
 		return rc;
 	}
 
@@ -828,6 +967,40 @@ static void qrtr_backup_deinit(void)
 	skb_queue_purge(&qrtr_backup_hi);
 }
 
+#if IS_ENABLED(CONFIG_QRTR_WS_DEBUG)
+/**
+ * change qrtr_ws name to last changed one who's net_id/port
+ */
+#define MAX_QRTR_WS_NAME	64
+
+static void qrtr_debug_change_ws_name(struct qrtr_node *node,
+							int src_node, int src_port,
+							int dst_node, int dst_port,
+							char *sent_name, pid_t sent_pid)
+{
+	if (node->ws->name != node->ws_name) {
+		pr_err("qrtr: alloc new buffer for ws name(%d)\n", !!node->ws_name);
+
+		if (node->ws_name)
+			kfree_const(node->ws_name);
+
+		node->ws_name = kmalloc(MAX_QRTR_WS_NAME, GFP_KERNEL);
+		if (!node->ws_name) {
+			pr_err("qrtr: couldn't alloc enough memory for ws name\n");
+			return;
+		}
+
+		kfree_const(node->ws->name);
+		node->ws->name = node->ws_name;
+	}
+
+	snprintf((char *)node->ws_name, MAX_QRTR_WS_NAME - 1,
+			"qrtr_ws_src_%d_%d_dst_%d_%d_sent_%d_%s",
+			src_node, src_port, dst_node, dst_port,
+			sent_pid, (sent_name ? sent_name : ""));
+}
+#endif
+
 /**
  * qrtr_endpoint_post() - post incoming data
  * @ep: endpoint handle
@@ -845,10 +1018,11 @@ int qrtr_endpoint_post(struct qrtr_endpoint *ep, const void *data, size_t len)
 	struct qrtr_sock *ipc;
 	struct sk_buff *skb;
 	struct qrtr_cb *cb;
-	unsigned int size;
+	size_t size;
 	unsigned int ver;
 	size_t hdrlen;
 	int errcode;
+	int svc_id;
 
 	if (len == 0 || len & 3)
 		return -EINVAL;
@@ -912,7 +1086,7 @@ int qrtr_endpoint_post(struct qrtr_endpoint *ep, const void *data, size_t len)
 	if (cb->dst_port == QRTR_PORT_CTRL_LEGACY)
 		cb->dst_port = QRTR_PORT_CTRL;
 
-	if (len != ALIGN(size, 4) + hdrlen)
+	if (!size || len != ALIGN(size, 4) + hdrlen)
 		goto err;
 
 	if (cb->dst_port != QRTR_PORT_CTRL && cb->type != QRTR_TYPE_DATA &&
@@ -933,11 +1107,20 @@ int qrtr_endpoint_post(struct qrtr_endpoint *ep, const void *data, size_t len)
 	/* All control packets and non-local destined data packets should be
 	 * queued to the worker for forwarding handling.
 	 */
+	svc_id = qrtr_get_service_id(cb->src_node, cb->src_port);
 	if (cb->type != QRTR_TYPE_DATA || cb->dst_node != qrtr_local_nid) {
+#if IS_ENABLED(CONFIG_QRTR_WS_DEBUG)
+		qrtr_debug_change_ws_name(node, cb->src_node, cb->src_port,
+						cb->dst_node, cb->dst_port,
+						NULL, -1);
+#endif
 		skb_queue_tail(&node->rx_queue, skb);
 		kthread_queue_work(&node->kworker, &node->read_data);
 		pm_wakeup_ws_event(node->ws, qrtr_wakeup_ms, true);
 	} else {
+#if IS_ENABLED(CONFIG_QRTR_WS_DEBUG)
+		struct qrtr_cb copied_cb = *cb;
+#endif
 		ipc = qrtr_port_lookup(cb->dst_port);
 		if (!ipc) {
 			kfree_skb(skb);
@@ -949,9 +1132,18 @@ int qrtr_endpoint_post(struct qrtr_endpoint *ep, const void *data, size_t len)
 			goto err;
 		}
 
-		/* Force wakeup for all packets except for sensors */
-		if (node->nid != 9)
+		/* Force wakeup based on services */
+		if (!xa_load(&node->no_wake_svc, svc_id)) {
+#if IS_ENABLED(CONFIG_QRTR_WS_DEBUG)
+			qrtr_debug_change_ws_name(node, copied_cb.src_node,
+							copied_cb.src_port,
+							copied_cb.dst_node,
+							copied_cb.dst_port,
+							ipc->sent_name,
+							ipc->sent_pid);
+#endif
 			pm_wakeup_ws_event(node->ws, qrtr_wakeup_ms, true);
+		}
 
 		qrtr_port_put(ipc);
 	}
@@ -1156,13 +1348,16 @@ static void qrtr_hello_work(struct kthread_work *work)
  * @ep: endpoint to register
  * @nid: desired node id; may be QRTR_EP_NID_AUTO for auto-assignment
  * @rt: flag to notify real time low latency endpoint
+ * @no_wake: array of services to not wake up
  * Return: 0 on success; negative error code on failure
  *
  * The specified endpoint must have the xmit function pointer set on call.
  */
 int qrtr_endpoint_register(struct qrtr_endpoint *ep, unsigned int net_id,
-			   bool rt)
+			   bool rt, struct qrtr_array *no_wake)
 {
+	int rc, i;
+	size_t size;
 	struct qrtr_node *node;
 	struct sched_param param = {.sched_priority = 1};
 
@@ -1191,6 +1386,17 @@ int qrtr_endpoint_register(struct qrtr_endpoint *ep, unsigned int net_id,
 	}
 	if (rt)
 		sched_setscheduler(node->task, SCHED_FIFO, &param);
+
+	xa_init(&node->no_wake_svc);
+	size = no_wake ? no_wake->size : 0;
+	for (i = 0; i < size; i++) {
+		rc = xa_insert(&node->no_wake_svc, no_wake->arr[i], node,
+			       GFP_KERNEL);
+		if (rc) {
+			kfree(node);
+			return rc;
+		}
+	}
 
 	mutex_init(&node->qrtr_tx_lock);
 	INIT_RADIX_TREE(&node->qrtr_tx_flow, GFP_KERNEL);
@@ -1576,6 +1782,8 @@ static int qrtr_local_enqueue(struct qrtr_node *node, struct sk_buff *skb,
 		return 0;
 	}
 	if (!ipc || &ipc->sk == skb->sk) { /* do not send to self */
+		if (ipc)
+			qrtr_port_put(ipc);
 		kfree_skb(skb);
 		return -ENODEV;
 	}
@@ -1643,6 +1851,8 @@ static int qrtr_sendmsg(struct socket *sock, struct msghdr *msg, size_t len)
 	struct qrtr_node *node;
 	struct qrtr_node *srv_node;
 	struct sk_buff *skb;
+	int pdata_len = 0;
+	int data_len = 0;
 	size_t plen;
 	u32 type;
 	int rc;
@@ -1703,8 +1913,17 @@ static int qrtr_sendmsg(struct socket *sock, struct msghdr *msg, size_t len)
 	}
 
 	plen = (len + 3) & ~3;
-	skb = sock_alloc_send_skb(sk, plen + QRTR_HDR_MAX_SIZE,
-				  msg->msg_flags & MSG_DONTWAIT, &rc);
+	if (plen > SKB_MAX_ALLOC) {
+		data_len = min_t(size_t,
+				 plen - SKB_MAX_ALLOC,
+				 MAX_SKB_FRAGS * PAGE_SIZE);
+		pdata_len = PAGE_ALIGN(data_len);
+
+		BUILD_BUG_ON(SKB_MAX_ALLOC < PAGE_SIZE);
+	}
+	skb = sock_alloc_send_pskb(sk, QRTR_HDR_MAX_SIZE + (plen - data_len),
+				   pdata_len, msg->msg_flags & MSG_DONTWAIT,
+				   &rc, PAGE_ALLOC_COSTLY_ORDER);
 	if (!skb) {
 		rc = -ENOMEM;
 		goto out_node;
@@ -1712,7 +1931,13 @@ static int qrtr_sendmsg(struct socket *sock, struct msghdr *msg, size_t len)
 
 	skb_reserve(skb, QRTR_HDR_MAX_SIZE);
 
-	rc = memcpy_from_msg(skb_put(skb, len), msg, len);
+	/* len is used by the enqueue functions and should remain accurate
+	 * regardless of padding or allocation size
+	 */
+	skb_put(skb, len - data_len);
+	skb->data_len = data_len;
+	skb->len = len;
+	rc = skb_copy_datagram_from_iter(skb, 0, &msg->msg_iter, len);
 	if (rc) {
 		kfree_skb(skb);
 		goto out_node;
@@ -1745,6 +1970,12 @@ static int qrtr_sendmsg(struct socket *sock, struct msghdr *msg, size_t len)
 		}
 		qrtr_node_release(srv_node);
 	}
+
+#if IS_ENABLED(CONFIG_QRTR_WS_DEBUG)
+	/* store who sent ipc */
+	strncpy(ipc->sent_name, current->comm, TASK_COMM_LEN - 1);
+	ipc->sent_pid = current->pid;
+#endif
 
 	rc = enqueue_fn(node, skb, type, &ipc->us, addr, msg->msg_flags);
 	if (rc >= 0)

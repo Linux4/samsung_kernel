@@ -229,3 +229,10 @@ config SCSI_UFS_TEST_MODE
 
 	 If unsure, say N.
 
+config UFS_DATA_LOG
+	bool "Samsung UFS DATA logging"
+	depends on SEC_UFS_FEATURE
+	help
+	  This feature support for UFS Data logging.
+	  Select this option if this feature is needed on working.
+

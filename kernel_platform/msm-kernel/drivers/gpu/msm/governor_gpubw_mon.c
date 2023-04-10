@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/devfreq.h>
@@ -116,6 +117,9 @@ static int devfreq_gpubw_get_target(struct devfreq *df,
 	stats->private_data = &b;
 
 	result = devfreq_update_stats(df);
+	/* Return if devfreq is not enabled */
+	if (result)
+		return result;
 
 	*freq = stats->current_frequency;
 
@@ -152,13 +156,16 @@ static int devfreq_gpubw_get_target(struct devfreq *df,
 		act_level = (act_level < 0) ? 0 : act_level;
 		act_level = (act_level >= priv->bus.num) ?
 		(priv->bus.num - 1) : act_level;
-		if ((norm_cycles > priv->bus.up[act_level] ||
+		if (((norm_cycles > priv->bus.up[act_level] ||
 				wait_active_percent > WAIT_THRESHOLD) &&
-			  gpu_percent > CAP)
+				gpu_percent > CAP) || (b.gpu_minfreq == *freq
+				&& wait_active_percent > 80))
 			bus_profile->flag = DEVFREQ_FLAG_FAST_HINT;
 		else if (norm_cycles < priv->bus.down[act_level] && b.buslevel)
 			bus_profile->flag = DEVFREQ_FLAG_SLOW_HINT;
 	}
+
+	bus_profile->wait_active_percent = wait_active_percent;
 
 	/* Calculate the AB vote based on bus width if defined */
 	if (priv->bus.width) {

@@ -12,6 +12,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 
 #include <trace/hooks/debug.h>
@@ -221,7 +222,9 @@ static int __ap_context_alloc_client(struct builder *bd)
 		return -EBUSY;
 
 	client = sec_dbg_region_alloc(drvdata->unique_id, size);
-	if (!client)
+	if (PTR_ERR(client) == -EBUSY)
+		return -EPROBE_DEFER;
+	else if (IS_ERR_OR_NULL(client))
 		return -ENOMEM;
 
 	client->name = drvdata->name;
@@ -525,7 +528,7 @@ static int __init sec_ap_context_init(void)
 {
 	return platform_driver_register(&sec_ap_context_driver);
 }
-module_init(sec_ap_context_init);
+arch_initcall(sec_ap_context_init);
 
 static void __exit sec_ap_context_exit(void)
 {

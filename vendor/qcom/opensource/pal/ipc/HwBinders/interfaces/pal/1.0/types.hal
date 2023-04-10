@@ -43,7 +43,7 @@ enum PalStreamType : uint32_t {
     PAL_STREAM_VOICE_CALL_MUSIC = 7,      /**< :incall music */
     PAL_STREAM_GENERIC = 8,               /**< :generic playback audio*/
     PAL_STREAM_RAW = 9,                   /**< pcm no post processing*/
-    PAL_STREAM_VOICE_ACTIVATION = 10,     /**< voice activation*/
+    PAL_STREAM_VOICE_RECOGNITION = 10,     /**< voice recognition*/
     PAL_STREAM_VOICE_CALL_RECORD = 11,    /**< incall record */
     PAL_STREAM_VOICE_CALL_TX = 12,        /**< incall record, uplink */
     PAL_STREAM_VOICE_CALL_RX_TX = 13,     /**< incall record, uplink & Downlink */
@@ -204,6 +204,9 @@ enum PalParamId : uint32_t {
     PAL_PARAM_ID_HIFI_PCM_FILTER = 52,
     PAL_PARAM_ID_CHARGER_STATE = 53,
     PAL_PARAM_ID_BT_SCO_NREC = 54,
+    PAL_PARAM_ID_VOLUME_USING_SET_PARAM = 55,
+    PAL_PARAM_ID_UHQA_FLAG = 56,
+    PAL_PARAM_ID_STREAM_ATTRIBUTES = 57,
 };
 
 /**< PAL stream attributes to be specified, used in pal_stream_open cmd */

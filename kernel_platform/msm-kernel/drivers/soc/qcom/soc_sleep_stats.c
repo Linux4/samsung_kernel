@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2011-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
  */
 
 #include <linux/debugfs.h>
+#include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/io.h>
 #include <linux/mailbox_client.h>
@@ -17,6 +20,9 @@
 #include <linux/soc/qcom/smem.h>
 #include <soc/qcom/soc_sleep_stats.h>
 #include <clocksource/arm_arch_timer.h>
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
+#include <linux/sec_pm_log.h>
+#endif
 
 #if IS_ENABLED(CONFIG_SEC_PM)
 #include <trace/events/power.h>
@@ -51,7 +57,7 @@ static DEFINE_MUTEX(sleep_stats_mutex);
 #define DDR_STATS_COUNT_ADDR		0x4
 #define DDR_STATS_DURATION_ADDR		0x8
 
-#if IS_ENABLED(CONFIG_QCOM_SMEM)
+#if IS_ENABLED(CONFIG_DEBUG_FS) && IS_ENABLED(CONFIG_QCOM_SMEM)
 struct subsystem_data {
 	const char *name;
 	u32 smem_item;
@@ -93,6 +99,7 @@ struct stats_prv_data {
 struct ddr_stats_g_data {
 	bool read_vote_info;
 	void __iomem *ddr_reg;
+	u32 freq_count;
 	u32 entry_count;
 	struct mutex ddr_stats_lock;
 	struct mbox_chan *stats_mbox_ch;
@@ -113,6 +120,8 @@ struct appended_stats {
 };
 
 struct ddr_stats_g_data *ddr_gdata;
+bool ddr_freq_update;
+ktime_t send_msg_time;
 
 #define DSP_SLEEP_DEBUG_ON
 
@@ -155,7 +164,7 @@ static void print_sleep_stats(struct seq_file *s, struct sleep_stats *stat)
 
 static int subsystem_sleep_stats_show(struct seq_file *s, void *d)
 {
-#if IS_ENABLED(CONFIG_QCOM_SMEM)
+#if IS_ENABLED(CONFIG_DEBUG_FS) && IS_ENABLED(CONFIG_QCOM_SMEM)
 	struct subsystem_data *subsystem = s->private;
 	struct sleep_stats *stat;
 
@@ -221,8 +230,30 @@ static void  print_ddr_stats(struct seq_file *s, int *count,
 			return;
 
 		seq_printf(s,
-		"Freq %dMhz:\tCP IDX:%u\tcount:%u\tDuration (ticks):%ld (~%d%%)\n",
-			name, cp_idx, data->count, data->duration, duration);
+		"Freq %dMhz:\tCP IDX:%u\tDuration (ticks):%ld (~%d%%)\n",
+			name, cp_idx, data->duration, duration);
+	}
+}
+
+static bool ddr_stats_is_freq_overtime(struct stats_entry *data)
+{
+	if ((data->count == 0) && (ddr_freq_update))
+		return true;
+
+	return false;
+}
+
+static void ddr_stats_fill_data(void __iomem *reg, u32 entry_count,
+					struct stats_entry *data, u64 *accumulated_duration)
+{
+	int i;
+
+	for (i = 0; i < entry_count; i++) {
+		data[i].count = readl_relaxed(reg + DDR_STATS_COUNT_ADDR);
+		data[i].name = readl_relaxed(reg + DDR_STATS_NAME_ADDR);
+		data[i].duration = readq_relaxed(reg + DDR_STATS_DURATION_ADDR);
+		*accumulated_duration += data[i].duration;
+		reg += sizeof(struct stats_entry);
 	}
 }
 
@@ -241,25 +272,120 @@ static int ddr_stats_show(struct seq_file *s, void *d)
 	}
 
 	reg += DDR_STATS_NUM_MODES_ADDR + 0x4;
+	ddr_stats_fill_data(reg, DDR_STATS_NUM_MODES_ADDR, data, &accumulated_duration);
+	for (i = 0; i < DDR_STATS_NUM_MODES_ADDR; i++)
+		print_ddr_stats(s, &lpm_count, &data[i], accumulated_duration);
 
-	for (i = 0; i < entry_count; i++) {
+	accumulated_duration = 0;
+	reg += sizeof(struct stats_entry) * 0x4;
+	for (i = DDR_STATS_NUM_MODES_ADDR; i < entry_count; i++) {
 		data[i].count = readl_relaxed(reg + DDR_STATS_COUNT_ADDR);
-
+		if (ddr_stats_is_freq_overtime(&data[i])) {
+			seq_puts(s, "ddr_stats: Freq update failed.\n");
+			return 0;
+		}
 		data[i].name = readl_relaxed(reg + DDR_STATS_NAME_ADDR);
-
 		data[i].duration = readq_relaxed(reg + DDR_STATS_DURATION_ADDR);
-
 		accumulated_duration += data[i].duration;
 		reg += sizeof(struct stats_entry);
 	}
 
-	for (i = 0; i < entry_count; i++)
+	for (i = DDR_STATS_NUM_MODES_ADDR; i < entry_count; i++)
 		print_ddr_stats(s, &lpm_count, &data[i], accumulated_duration);
 
 	return 0;
 }
 
 DEFINE_SHOW_ATTRIBUTE(ddr_stats);
+
+int ddr_stats_freq_sync_send_msg(void)
+{
+	char buf[MAX_MSG_LEN] = {};
+	struct qmp_pkt pkt;
+	int ret = 0;
+
+	mutex_lock(&ddr_gdata->ddr_stats_lock);
+	ret = scnprintf(buf, MAX_MSG_LEN, "{class: ddr, action: freqsync}");
+	pkt.size = (ret + 0x3) & ~0x3;
+	pkt.data = buf;
+
+	ret = mbox_send_message(ddr_gdata->stats_mbox_ch, &pkt);
+	if (ret < 0) {
+		pr_err("Error sending mbox message: %d\n", ret);
+		mutex_unlock(&ddr_gdata->ddr_stats_lock);
+		return ret;
+	}
+	mutex_unlock(&ddr_gdata->ddr_stats_lock);
+
+	send_msg_time = ktime_get_boottime();
+
+	return ret;
+}
+EXPORT_SYMBOL(ddr_stats_freq_sync_send_msg);
+
+int ddr_stats_get_freq_count(void)
+{
+	if (!ddr_gdata)
+		return -ENODEV;
+
+	return ddr_gdata->freq_count;
+}
+EXPORT_SYMBOL(ddr_stats_get_freq_count);
+
+int ddr_stats_get_residency(int freq_count, struct ddr_freq_residency *data)
+{
+	void __iomem *reg;
+	u32 name;
+	int i, j, num;
+	uint64_t duration = 0;
+	ktime_t now;
+	struct stats_entry stats_data[DDR_STATS_MAX_NUM_MODES];
+
+	if (freq_count < 0 || !data || !ddr_gdata || !ddr_gdata->ddr_reg)
+		return -EINVAL;
+
+	if (!ddr_gdata->entry_count)
+		return -EINVAL;
+
+	now = ktime_get_boottime();
+	while (now < send_msg_time) {
+		udelay(500);
+		now = ktime_get_boottime();
+	}
+
+	mutex_lock(&ddr_gdata->ddr_stats_lock);
+	num = freq_count > ddr_gdata->freq_count ? ddr_gdata->freq_count : freq_count;
+	reg = ddr_gdata->ddr_reg + DDR_STATS_NUM_MODES_ADDR + 0x4;
+
+	ddr_stats_fill_data(reg, ddr_gdata->entry_count, stats_data, &duration);
+
+	/* Before get ddr residency, check ddr freq's count. */
+	for (i = 0; i < ddr_gdata->entry_count; i++) {
+		name = stats_data[i].name;
+		if ((((name >> 8) & 0xFF) == 0x1) &&
+				ddr_stats_is_freq_overtime(&stats_data[i])) {
+			pr_err("ddr_stats: Freq update failed\n");
+			mutex_unlock(&ddr_gdata->ddr_stats_lock);
+			return -EINVAL;
+		}
+	}
+
+	for (i = 0, j = 0; i < ddr_gdata->entry_count; i++) {
+		name = stats_data[i].name;
+		if (((name >> 8) & 0xFF) == 0x1) {
+			data[j].freq = name >> 16;
+			data[j].residency = stats_data[i].duration;
+			if (++j > num)
+				break;
+		}
+		reg += sizeof(struct stats_entry);
+	}
+
+	mutex_unlock(&ddr_gdata->ddr_stats_lock);
+
+	return j;
+}
+EXPORT_SYMBOL(ddr_stats_get_residency);
 
 int ddr_stats_get_ss_count(void)
 {
@@ -320,6 +446,7 @@ int ddr_stats_get_ss_vote_info(int ss_count,
 }
 EXPORT_SYMBOL(ddr_stats_get_ss_vote_info);
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 static struct dentry *create_debugfs_entries(void __iomem *reg,
 					     void __iomem *ddr_reg,
 					     struct stats_prv_data *prv_data,
@@ -365,7 +492,6 @@ static struct dentry *create_debugfs_entries(void __iomem *reg,
 				break;
 			}
 		}
-
 	}
 
 	if (!ddr_reg)
@@ -379,14 +505,11 @@ static struct dentry *create_debugfs_entries(void __iomem *reg,
 exit:
 	return root;
 }
+#endif
 
 #if IS_ENABLED(CONFIG_SEC_PM)
-extern int _debug_vx_show(void);
-extern int aop_lpm_mon_enable(bool enable);
-struct delayed_work restart_work;
-int restart_flag;
 u64 last_accumulated[5];
-static void __iomem *global_reg;
+static void __iomem *global_reg_base;
 static struct stats_prv_data *global_prv_data;
 struct device_node *global_node;
 static bool smem_init = true;
@@ -396,6 +519,11 @@ static void sec_sleep_stats_show(const char *annotation)
 	char buf[MAX_BUF_LEN];
 	char *buf_ptr = buf;
 	unsigned int duration_sec, duration_msec;
+
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
+	char pm_log_buf[MAX_BUF_LEN];
+	char *pm_log_buf_ptr = pm_log_buf;
+#endif
 
 #if defined(DSP_SLEEP_DEBUG_ON)
 	struct _dsp_entry *dsp_entry = NULL;
@@ -413,6 +541,9 @@ static void sec_sleep_stats_show(const char *annotation)
 
 	/* sleep_stats */
 	buf_ptr += sprintf(buf_ptr, "PM: %s: ", annotation);
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
+	pm_log_buf_ptr += sprintf(pm_log_buf_ptr, "soc: %s: ", (is_exit ? "ex" : "en"));
+#endif
 	for (i = 0; i < global_prv_data[0].config->num_records; i++) {
 		struct sleep_stats stat;
 		u64 accumulated;
@@ -422,7 +553,7 @@ static void sec_sleep_stats_show(const char *annotation)
 		if (global_prv_data[0].config->appended_stats_avail)
 			offset += i * sizeof(struct appended_stats);
 
-		global_prv_data[i].reg = global_reg + offset;
+		global_prv_data[i].reg = global_reg_base + offset;
 
 		type = readl_relaxed(global_prv_data[i].reg);
 		memcpy(stat_type, &type, sizeof(u32));
@@ -438,11 +569,8 @@ static void sec_sleep_stats_show(const char *annotation)
 			accumulated += arch_timer_read_counter()
 					- stat.last_entered_at;
 
-		if (is_exit && accumulated == last_accumulated[i]) {
+		if (is_exit && accumulated == last_accumulated[i])
 			buf_ptr += sprintf(buf_ptr, "*");
-			if (!(strcmp("cxsd", stat_type)))
-				restart_flag = _debug_vx_show();
-		}
 		last_accumulated[i] = accumulated;
 
 		duration_sec = GET_SEC(accumulated);
@@ -452,12 +580,20 @@ static void sec_sleep_stats_show(const char *annotation)
 				stat_type,
 				stat.count,
 				duration_sec, duration_msec);
+
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
+		pm_log_buf_ptr += sprintf(pm_log_buf_ptr, "(%d, %u.%u)",
+					stat.count, duration_sec, (duration_msec / 100));
+#endif
 	}
 	buf_ptr += sprintf(buf_ptr, "\n");
 
 	/* subsystem stats */
 	if (smem_init) {
 		buf_ptr += sprintf(buf_ptr, "PM: %s: ", annotation);
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
+		pm_log_buf_ptr += sprintf(pm_log_buf_ptr, "/");
+#endif
 		n_subsystems = of_property_count_strings(global_node, "ss-name");
 		if (n_subsystems < 0) {
 			pr_err("%s: n_subsystems is under 0, ret=%d\n", __func__, n_subsystems);
@@ -470,11 +606,11 @@ static void sec_sleep_stats_show(const char *annotation)
 
 			for (j = 0; j < ARRAY_SIZE(subsystems); j++) {
 				if (!strcmp(subsystems[j].name, name)) {
-#if IS_ENABLED(CONFIG_QCOM_SMEM)
+#if IS_ENABLED(CONFIG_DEBUG_FS) && IS_ENABLED(CONFIG_QCOM_SMEM)
 					struct subsystem_data *subsystem = &subsystems[j];
 					struct sleep_stats *stat;
 					u64 accumulated;
-			
+
 					stat = qcom_smem_get(subsystem->pid, subsystem->smem_item, NULL);
 					if (IS_ERR(stat)) {
 						pr_err("%s: Failed to get qcom_smem, ret=%d\n", __func__, PTR_ERR(stat));
@@ -525,6 +661,10 @@ static void sec_sleep_stats_show(const char *annotation)
 							subsystems[j].name,
 							stat->count,
 							duration_sec, duration_msec);
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
+					pm_log_buf_ptr += sprintf(pm_log_buf_ptr, "(%d, %u.%u)",
+								stat->count, duration_sec, (duration_msec / 100));
+#endif
 #endif
 					break;
 				}
@@ -537,6 +677,10 @@ static void sec_sleep_stats_show(const char *annotation)
 		buf_ptr--;
 		buf_ptr--;
 		buf_ptr += sprintf(buf_ptr, "\n");
+
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
+		ss_power_print("%s\n", pm_log_buf);
+#endif
 	}
 
 	mutex_unlock(&sleep_stats_mutex);
@@ -575,21 +719,9 @@ static void sec_sleep_stats_show(const char *annotation)
 #endif
 }
 
-static void do_restart_work(struct work_struct *work)
-{
-	aop_lpm_mon_enable(true);
-}
-
 static void soc_sleep_stats_debug_suspend_trace_probe(void *unused,
 					const char *action, int val, bool start)
 {
-	/*
-		SUSPEND
-		start(1), val(1), action(suspend_enter)
-	*/
-	if (start && val > 0 && !strcmp("suspend_enter", action))
-		cancel_delayed_work_sync(&restart_work);
-
 	/*
 		SUSPEND
 		start(1), val(1), action(machine_suspend)
@@ -603,27 +735,23 @@ static void soc_sleep_stats_debug_suspend_trace_probe(void *unused,
 	*/
 	if (!start && val > 0 && !strcmp("machine_suspend", action))
 		sec_sleep_stats_show("exit");
-
-	/*
-		RESUME
-		start(0), val(1), action(resume_console)
-	*/
-	if ((restart_flag == 1) && !strcmp("resume_console", action))
-		schedule_delayed_work(&restart_work, msecs_to_jiffies(100));
 }
 #endif
 
 static int soc_sleep_stats_probe(struct platform_device *pdev)
 {
 	struct resource *res;
-	void __iomem *reg;
+	void __iomem *reg_base, *reg;
 	void __iomem *offset_addr;
 	phys_addr_t stats_base;
 	resource_size_t stats_size;
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	struct dentry *root;
+#endif
 	const struct stats_config *config;
 	struct stats_prv_data *prv_data;
 	int i;
+	u32 name;
 #if IS_ENABLED(CONFIG_SEC_PM)
 	int ret;
 
@@ -652,8 +780,8 @@ static int soc_sleep_stats_probe(struct platform_device *pdev)
 	stats_size = resource_size(res);
 	iounmap(offset_addr);
 
-	reg = devm_ioremap(&pdev->dev, stats_base, stats_size);
-	if (!reg)
+	reg_base = devm_ioremap(&pdev->dev, stats_base, stats_size);
+	if (!reg_base)
 		return -ENOMEM;
 
 	prv_data = devm_kzalloc(&pdev->dev, config->num_records *
@@ -692,6 +820,16 @@ static int soc_sleep_stats_probe(struct platform_device *pdev)
 		goto skip_ddr_stats;
 	}
 
+	reg = ddr_gdata->ddr_reg + DDR_STATS_NUM_MODES_ADDR + 0x4;
+	for (i = 0; i < ddr_gdata->entry_count; i++) {
+		name = readl_relaxed(reg + DDR_STATS_NAME_ADDR);
+		name = (name >> 8) & 0xFF;
+		if (name == 0x1)
+			ddr_gdata->freq_count++;
+
+		reg += sizeof(struct stats_entry);
+	}
+
 	ddr_gdata->stats_mbox_cl.dev = &pdev->dev;
 	ddr_gdata->stats_mbox_cl.tx_block = true;
 	ddr_gdata->stats_mbox_cl.tx_tout = 1000;
@@ -702,16 +840,18 @@ static int soc_sleep_stats_probe(struct platform_device *pdev)
 		goto skip_ddr_stats;
 
 	ddr_gdata->read_vote_info = true;
-
-	INIT_DELAYED_WORK(&restart_work, do_restart_work);
+	ddr_freq_update = of_property_read_bool(pdev->dev.of_node,
+							"ddr-freq-update");
 
 skip_ddr_stats:
-	root = create_debugfs_entries(reg, ddr_gdata->ddr_reg,  prv_data,
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+	root = create_debugfs_entries(reg_base, ddr_gdata->ddr_reg, prv_data,
 				      pdev->dev.of_node);
 	platform_set_drvdata(pdev, root);
+#endif
 
 #if IS_ENABLED(CONFIG_SEC_PM)
-	global_reg = reg;
+	global_reg_base = reg_base;
 	global_prv_data = prv_data;
 	global_node = pdev->dev.of_node;
 #endif
@@ -726,16 +866,16 @@ skip_ddr_stats:
 
 static int soc_sleep_stats_remove(struct platform_device *pdev)
 {
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	struct dentry *root = platform_get_drvdata(pdev);
-#if IS_ENABLED(CONFIG_SEC_PM)
-	int ret;
-
-	ret = unregister_trace_suspend_resume(
-		soc_sleep_stats_debug_suspend_trace_probe, NULL);
-#endif
 
 	debugfs_remove_recursive(root);
+#endif
 
+#if IS_ENABLED(CONFIG_SEC_PM)
+	unregister_trace_suspend_resume(
+		soc_sleep_stats_debug_suspend_trace_probe, NULL);
+#endif
 	return 0;
 }
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 // Copyright (c) 2011-2017, 2020-2021, The Linux Foundation. All rights reserved.
 // Copyright (c) 2018, Linaro Limited
+// Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 
 #include <linux/irq.h>
 #include <linux/kernel.h>
@@ -199,6 +200,7 @@ struct qcom_slim_ngd_ctrl {
 	struct completion qmi_up;
 	spinlock_t tx_buf_lock;
 	struct mutex tx_lock;
+	struct mutex suspend_resume_lock;
 	struct mutex ssr_lock;
 	struct notifier_block nb;
 	void *notifier;
@@ -215,8 +217,11 @@ struct qcom_slim_ngd_ctrl {
 	int default_ipc_log_mask;
 	int ipc_log_mask;
 	bool sysfs_created;
+	bool wait_for_adsp_up;
 	void *ipc_slimbus_log;
 	void *ipc_slimbus_log_err;
+	unsigned int irq;
+	bool irq_disabled;
 };
 
 enum slimbus_mode_enum_type_v01 {
@@ -422,6 +427,7 @@ static int qcom_slim_qmi_send_select_inst_req(struct qcom_slim_ngd_ctrl *ctrl,
 		return -EREMOTEIO;
 	}
 
+	SLIM_INFO(ctrl, "%s end\n", __func__);
 	return 0;
 }
 
@@ -472,6 +478,7 @@ static int qcom_slim_qmi_send_power_request(struct qcom_slim_ngd_ctrl *ctrl,
 		return -EREMOTEIO;
 	}
 
+	SLIM_INFO(ctrl, "%s end %d\n", __func__, req->pm_req);
 	return 0;
 }
 
@@ -574,7 +581,8 @@ static u32 *qcom_slim_ngd_tx_msg_get(struct qcom_slim_ngd_ctrl *ctrl, int len,
 
 	spin_lock_irqsave(&ctrl->tx_buf_lock, flags);
 
-	if ((ctrl->tx_tail + 1) % QCOM_SLIM_NGD_DESC_NUM == ctrl->tx_head) {
+	if (((ctrl->tx_tail + 1) % QCOM_SLIM_NGD_DESC_NUM == ctrl->tx_head)
+				|| !ctrl->tx_base) {
 		spin_unlock_irqrestore(&ctrl->tx_buf_lock, flags);
 		return NULL;
 	}
@@ -827,6 +835,24 @@ static int qcom_slim_ngd_init_dma(struct qcom_slim_ngd_ctrl *ctrl)
 	return ret;
 }
 
+static void qcom_slim_ngd_enable_irq(struct qcom_slim_ngd_ctrl *ctrl)
+{
+	if (ctrl->irq_disabled) {
+		enable_irq(ctrl->irq);
+		ctrl->irq_disabled = false;
+		SLIM_INFO(ctrl, "Slim ngd IRQ enabled\n");
+	}
+}
+
+static void qcom_slim_ngd_disable_irq(struct qcom_slim_ngd_ctrl *ctrl)
+{
+	if (!ctrl->irq_disabled) {
+		disable_irq(ctrl->irq);
+		ctrl->irq_disabled = true;
+		SLIM_INFO(ctrl, "Slim ngd IRQ disabled\n");
+	}
+}
+
 static irqreturn_t qcom_slim_ngd_interrupt(int irq, void *d)
 {
 	struct qcom_slim_ngd_ctrl *ctrl = d;
@@ -834,10 +860,12 @@ static irqreturn_t qcom_slim_ngd_interrupt(int irq, void *d)
 	u32 stat;
 
 	if (pm_runtime_suspended(ctrl->ctrl.dev)) {
-		SLIM_INFO(ctrl, "Slimbus is in suspend state\n");
+		SLIM_INFO(ctrl, "Slimbus is in suspend state %d\n",
+			ctrl->irq_disabled);
 		return IRQ_HANDLED;
 	}
 
+	SLIM_INFO(ctrl, "%s start\n", __func__);
 	stat = readl(base + NGD_INT_STAT);
 
 	if ((stat & NGD_INT_MSG_BUF_CONTE) ||
@@ -888,6 +916,12 @@ static int check_hw_state(struct qcom_slim_ngd_ctrl *ctrl, struct slim_msg_txn *
 				mc < SLIM_USR_MC_DISCONNECT_PORT)))
 				return -EREMOTEIO;
 
+			if (!ctrl->wait_for_adsp_up) {
+				SLIM_INFO(ctrl, "Not waiting for ADSP up MC:0x%x,mt:0x%x\n",
+					mc, txn->mt);
+				return -EREMOTEIO;
+			}
+
 			reinit_completion(&ctrl->ctrl_up);
 			timeout = wait_for_completion_timeout(&ctrl->ctrl_up, HZ);
 			if (!timeout) {
@@ -935,11 +969,14 @@ static int qcom_slim_ngd_xfer_msg(struct slim_controller *sctrl,
 		return ret;
 	}
 
+	mutex_lock(&ctrl->tx_lock);
 	pbuf = qcom_slim_ngd_tx_msg_get(ctrl, txn->rl, &tx_sent);
 	if (!pbuf) {
 		SLIM_ERR(ctrl, "Message buffer unavailable\n");
+		mutex_unlock(&ctrl->tx_lock);
 		return -ENOMEM;
 	}
+	mutex_unlock(&ctrl->tx_lock);
 
 	if (txn->mt == SLIM_MSG_MT_CORE &&
 		(txn->mc == SLIM_MSG_MC_CONNECT_SOURCE ||
@@ -1416,6 +1453,7 @@ static int qcom_slim_ngd_power_up(struct qcom_slim_ngd_ctrl *ctrl)
 
 	if (ctrl->state == QCOM_SLIM_NGD_CTRL_ASLEEP ||
 		ctrl->state == QCOM_SLIM_NGD_CTRL_DOWN) {
+		SLIM_INFO(ctrl, "Sending QMI power on request\n");
 		ret = qcom_slim_qmi_power_request(ctrl, true);
 		if (ret) {
 			SLIM_ERR(ctrl, "SLIM QMI power request failed:%d\n",
@@ -1553,11 +1591,15 @@ static int qcom_slim_ngd_runtime_resume(struct device *dev)
 	int ret = 0;
 
 	SLIM_INFO(ctrl, "Slim runtime resume\n");
-	if (!ctrl->qmi.handle)
-		return 0;
 
-	if (!ctrl->qmi.handle)
+	mutex_lock(&ctrl->suspend_resume_lock);
+	if (!ctrl->qmi.handle) {
+		SLIM_WARN(ctrl, "%s QMI handle is NULL\n", __func__);
+		mutex_unlock(&ctrl->suspend_resume_lock);
 		return 0;
+	}
+
+	qcom_slim_ngd_enable_irq(ctrl);
 
 	if (ctrl->state >= QCOM_SLIM_NGD_CTRL_ASLEEP)
 		ret = qcom_slim_ngd_power_up(ctrl);
@@ -1571,7 +1613,9 @@ static int qcom_slim_ngd_runtime_resume(struct device *dev)
 		ctrl->state = QCOM_SLIM_NGD_CTRL_AWAKE;
 	}
 
-	SLIM_INFO(ctrl, "Slim runtime resume: ret %d\n", ret);
+	mutex_unlock(&ctrl->suspend_resume_lock);
+	SLIM_INFO(ctrl, "Slim runtime resume: ret %d irq_disabled %d\n",
+			ret, ctrl->irq_disabled);
 	return 0;
 }
 
@@ -1716,6 +1760,7 @@ static int qcom_slim_ngd_ssr_pdr_notify(struct qcom_slim_ngd_ctrl *ctrl,
 	case QCOM_SSR_BEFORE_SHUTDOWN:
 	case SERVREG_SERVICE_STATE_DOWN:
 		/* Make sure the last dma xfer is finished */
+		mutex_lock(&ctrl->suspend_resume_lock);
 		mutex_lock(&ctrl->tx_lock);
 		if (ctrl->state != QCOM_SLIM_NGD_CTRL_DOWN) {
 			pm_runtime_get_noresume(ctrl->ctrl.dev);
@@ -1727,6 +1772,7 @@ static int qcom_slim_ngd_ssr_pdr_notify(struct qcom_slim_ngd_ctrl *ctrl,
 			SLIM_INFO(ctrl, "SLIM SSR down\n");
 		}
 		mutex_unlock(&ctrl->tx_lock);
+		mutex_unlock(&ctrl->suspend_resume_lock);
 		break;
 	case QCOM_SSR_AFTER_POWERUP:
 	case SERVREG_SERVICE_STATE_UP:
@@ -1851,11 +1897,6 @@ static int qcom_slim_ngd_probe(struct platform_device *pdev)
 	pm_runtime_get_noresume(dev);
 	SLIM_INFO(ctrl, "SLIM %s:PM get_noresume count:%d\n", __func__,
 		atomic_read(&ctrl->ctrl.dev->power.usage_count));
-	ret = qcom_slim_ngd_qmi_svc_event_init(ctrl);
-	if (ret) {
-		dev_err(&pdev->dev, "QMI service registration failed:%d", ret);
-		goto err;
-	}
 
 	INIT_WORK(&ctrl->m_work, qcom_slim_ngd_master_worker);
 	INIT_WORK(&ctrl->ngd_up_work, qcom_slim_ngd_up_worker);
@@ -1864,6 +1905,12 @@ static int qcom_slim_ngd_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Failed to start master worker\n");
 		ret = -ENOMEM;
 		goto wq_err;
+	}
+	ret = qcom_slim_ngd_qmi_svc_event_init(ctrl);
+	if (ret) {
+		dev_err(&pdev->dev,
+			"QMI service registration failed:%d\n", ret);
+		goto err;
 	}
 
 	return 0;
@@ -1902,6 +1949,7 @@ static int qcom_slim_ngd_ctrl_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "no slimbus IRQ resource\n");
 		return -ENODEV;
 	}
+	ctrl->irq = res->start;
 
 	ctrl->r_mem.is_r_mem = false;
 	remote_res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
@@ -1929,12 +1977,16 @@ static int qcom_slim_ngd_ctrl_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "no Remote mem\n");
 	}
 
-	ret = devm_request_irq(dev, res->start, qcom_slim_ngd_interrupt,
+	ret = devm_request_irq(dev, ctrl->irq, qcom_slim_ngd_interrupt,
 			       IRQF_TRIGGER_HIGH, "slim-ngd", ctrl);
 	if (ret) {
 		dev_err(&pdev->dev, "request IRQ failed\n");
 		return ret;
 	}
+	ctrl->irq_disabled = false;
+
+	ctrl->wait_for_adsp_up = of_property_read_bool(pdev->dev.of_node,
+					"qcom,wait_for_adsp_up");
 
 	/* Create IPC log context */
 	ctrl->ipc_slimbus_log = ipc_log_context_create(IPC_SLIMBUS_LOG_PAGES,
@@ -1994,6 +2046,7 @@ static int qcom_slim_ngd_ctrl_probe(struct platform_device *pdev)
 	ctrl->state = QCOM_SLIM_NGD_CTRL_DOWN;
 
 	mutex_init(&ctrl->tx_lock);
+	mutex_init(&ctrl->suspend_resume_lock);
 	mutex_init(&ctrl->ssr_lock);
 	spin_lock_init(&ctrl->tx_buf_lock);
 	init_completion(&ctrl->reconf);
@@ -2015,13 +2068,13 @@ static int qcom_slim_ngd_ctrl_probe(struct platform_device *pdev)
 		goto pdr_release;
 	}
 
-	platform_driver_register(&qcom_slim_ngd_driver);
 	ret = of_qcom_slim_ngd_register(dev, ctrl);
 	if (ret) {
 		SLIM_ERR(ctrl, "qcom_slim_ngd_register failed ret:%d\n", ret);
 		goto pdr_release;
 	}
 
+	platform_driver_register(&qcom_slim_ngd_driver);
 	SLIM_INFO(ctrl, "NGD SB controller is up!\n");
 	return 0;
 
@@ -2095,18 +2148,27 @@ static int __maybe_unused qcom_slim_ngd_runtime_suspend(struct device *dev)
 	 * Need reset dma for every suspend/resume to have a clean
 	 * HW reset on remote slimbus side.
 	 */
+	mutex_lock(&ctrl->suspend_resume_lock);
 	qcom_slim_ngd_exit_dma(ctrl);
 
-	if (!ctrl->qmi.handle)
-		return 0;
+	qcom_slim_ngd_disable_irq(ctrl);
 
+	if (!ctrl->qmi.handle) {
+		SLIM_WARN(ctrl, "%s QMI handle is NULL\n", __func__);
+		mutex_unlock(&ctrl->suspend_resume_lock);
+		return 0;
+	}
+
+	SLIM_INFO(ctrl, "Sending QMI power off request\n");
 	ret = qcom_slim_qmi_power_request(ctrl, false);
 	if (ret && ret != -EBUSY)
 		SLIM_INFO(ctrl, "slim resource not idle:%d\n", ret);
 	if (!ret || ret == -ETIMEDOUT)
 		ctrl->state = QCOM_SLIM_NGD_CTRL_ASLEEP;
 
-	SLIM_INFO(ctrl, "Slim runtime suspend: ret %d\n", ret);
+	mutex_unlock(&ctrl->suspend_resume_lock);
+	SLIM_INFO(ctrl, "Slim runtime suspend: ret %d irq_disabled %d\n",
+				ret, ctrl->irq_disabled);
 	return ret;
 }
 

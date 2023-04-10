@@ -152,15 +152,17 @@ DECLARE_EVENT_CLASS(relinquish_req_msg_class,
 	TP_STRUCT__entry(
 		__string(msg_type, msg_type_to_str(rel_req->hdr.msg_type))
 		__field(gh_memparcel_handle_t, hdl)
+		__field(u32, txn_id)
 	),
 
 	TP_fast_assign(
 		__assign_str(msg_type, msg_type_to_str(rel_req->hdr.msg_type));
 		__entry->hdl = rel_req->hdl;
+		__entry->txn_id = rel_req->hdr.txn_id;
 	),
 
-	TP_printk("msg_type: %s memparcel_hdl: 0x%x", __get_str(msg_type),
-		  __entry->hdl)
+	TP_printk("msg_type: %s memparcel_hdl: 0x%x txn_id: 0x%x",
+		  __get_str(msg_type), __entry->hdl, __entry->txn_id)
 );
 
 DEFINE_EVENT(relinquish_req_msg_class, send_relinquish_msg,
@@ -217,6 +219,42 @@ DEFINE_EVENT(alloc_resp_class, receive_alloc_resp_msg,
 
 	TP_ARGS(resp)
 );
+
+DECLARE_EVENT_CLASS(relinquish_resp_class,
+
+	TP_PROTO(struct mem_buf_alloc_relinquish *resp),
+
+	TP_ARGS(resp),
+
+	TP_STRUCT__entry(
+		__field(u32, txn_id)
+		__string(msg_type, msg_type_to_str(resp->hdr.msg_type))
+	),
+
+	TP_fast_assign(
+		__entry->txn_id = resp->hdr.txn_id;
+		__assign_str(msg_type, msg_type_to_str(resp->hdr.msg_type));
+	),
+
+	TP_printk("txn_id: %d msg_type: %s",
+		  __entry->txn_id, __get_str(msg_type)
+	)
+);
+
+DEFINE_EVENT(relinquish_resp_class, send_relinquish_resp_msg,
+
+	TP_PROTO(struct mem_buf_alloc_relinquish *resp),
+
+	TP_ARGS(resp)
+);
+
+DEFINE_EVENT(relinquish_resp_class, receive_relinquish_resp_msg,
+
+	TP_PROTO(struct mem_buf_alloc_relinquish *resp),
+
+	TP_ARGS(resp)
+);
+
 
 TRACE_EVENT(lookup_sgl,
 

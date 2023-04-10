@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020,2021 The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -741,6 +741,18 @@ namespace implementation {
 			95000,
 			true,
 		},
+	};
+
+	std::vector<struct target_therm_cfg>  waipio_specific = {
+		{
+			TemperatureType::BCL_CURRENT,
+			{ "pm8350b-ibat-lvl0" },
+			"ibat",
+			6000,
+			7500,
+			6000,
+			true,
+		},
 		{
 			TemperatureType::SKIN,
 			{ "xo-therm" },
@@ -752,14 +764,169 @@ namespace implementation {
 		},
 	};
 
-	std::vector<struct target_therm_cfg>  waipio_specific = {
+	std::vector<struct target_therm_cfg>  diwali_specific = {
 		{
 			TemperatureType::BCL_CURRENT,
-			{ "pm8350b-ibat-lvl0" },
+			{ "pm7250b-ibat-lvl0" },
+			"ibat",
+			9000,
+			9500,
+			9000,
+			true,
+		},
+		{
+			TemperatureType::SKIN,
+			{ "quiet-therm" },
+			"skin",
+			40000,
+			95000,
+			40000,
+			true,
+		},
+	};
+
+	std::vector<std::string> cpu_sensors_neo =
+	{
+		"cpu-0-0",
+		"cpu-0-1",
+		"cpu-0-2",
+		"cpu-0-3",
+	};
+
+	std::vector<struct target_therm_cfg>  neo_common = {
+		{
+			TemperatureType::CPU,
+			cpu_sensors_neo,
+			"",
+			95000,
+			115000,
+			95000,
+			true,
+		},
+		{
+			TemperatureType::GPU,
+			{ "gpuss-0" },
+			"GPU0",
+			95000,
+			115000,
+			95000,
+			true,
+		},
+		{
+			TemperatureType::GPU,
+			{ "gpuss-1" },
+			"GPU1",
+			95000,
+			115000,
+			95000,
+			true,
+		},
+		{
+			TemperatureType::NPU,
+			{ "nspss-0" },
+			"nsp0",
+			95000,
+			115000,
+			95000,
+			true,
+		},
+		{
+			TemperatureType::NPU,
+			{ "nspss-1" },
+			"nsp1",
+			95000,
+			115000,
+			95000,
+			true,
+		},
+		{
+			TemperatureType::NPU,
+			{ "nspss-2" },
+			"nsp2",
+			95000,
+			115000,
+			95000,
+			true,
+		},
+	};
+
+	std::vector<std::string> cpu_sensors_parrot =
+	{
+		"cpu-0-0",
+		"cpu-0-1",
+		"cpu-0-2",
+		"cpu-0-3",
+		"cpu-1-0",
+		"cpu-1-2",
+		"cpu-1-4",
+		"cpu-1-6",
+	};
+
+	std::vector<struct target_therm_cfg>  parrot_common = {
+		{
+			TemperatureType::CPU,
+			cpu_sensors_parrot,
+			"",
+			95000,
+			115000,
+			95000,
+			true,
+		},
+		{
+			TemperatureType::GPU,
+			{ "gpuss-0" },
+			"GPU0",
+			95000,
+			115000,
+			95000,
+			true,
+		},
+		{
+			TemperatureType::GPU,
+			{ "gpuss-1" },
+			"GPU1",
+			95000,
+			115000,
+			95000,
+			true,
+		},
+		{
+			TemperatureType::NPU,
+			{ "nspss-0" },
+			"nsp0",
+			95000,
+			115000,
+			95000,
+			true,
+		},
+		{
+			TemperatureType::NPU,
+			{ "nspss-1" },
+			"nsp1",
+			95000,
+			115000,
+			95000,
+			true,
+		},
+	};
+
+	std::vector<struct target_therm_cfg>  parrot_specific = {
+		{
+			TemperatureType::BCL_CURRENT,
+			{ "pm7250b-ibat-lvl0" },
 			"ibat",
 			6000,
 			7500,
 			6000,
+			true,
+		},
+		{
+			TemperatureType::SKIN,
+			{ "xo-therm" },
+			"skin",
+			55000,
+			95000,
+			55000,
 			true,
 		},
 	};
@@ -831,6 +998,16 @@ namespace implementation {
 		{515, sensor_cfg_yupik}, // YUPIK-LTE
 		{457, waipio_common}, //Waipio
 		{482, waipio_common}, //Waipio
+		{552, waipio_common}, //Waipio-LTE
+		{506, waipio_common}, //diwali
+		{547, waipio_common}, //diwali
+		{564, waipio_common}, //diwali-LTE
+		{530, waipio_common}, // cape
+		{531, waipio_common}, // cape
+		{540, waipio_common}, // cape
+		{525, neo_common},
+		{554, neo_common},
+		{537, parrot_common},
 	};
 
 	const std::unordered_map<int, std::vector<struct target_therm_cfg>>
@@ -844,6 +1021,14 @@ namespace implementation {
 		{450, shima_specific}, // shima
 		{457, waipio_specific}, //Waipio
 		{482, waipio_specific}, //Waipio
+		{552, waipio_specific}, //Waipio-LTE
+		{506, diwali_specific}, //diwali
+		{547, diwali_specific}, //diwali
+		{564, diwali_specific}, //diwali-LTE
+		{530, waipio_specific}, // cape
+		{531, waipio_specific}, // cape
+		{540, waipio_specific}, // cape
+		{537, parrot_specific},
 	};
 
 	std::vector<struct target_therm_cfg> add_target_config(

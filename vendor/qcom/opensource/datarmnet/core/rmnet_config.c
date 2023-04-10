@@ -1,4 +1,5 @@
 /* Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -274,9 +275,9 @@ static void rmnet_dellink(struct net_device *dev, struct list_head *head)
 	ep = rmnet_get_endpoint(port, mux_id);
 	if (ep) {
 		hlist_del_init_rcu(&ep->hlnode);
+		synchronize_rcu();
 		rmnet_unregister_bridge(dev, port);
 		rmnet_vnd_dellink(mux_id, port, ep);
-		synchronize_rcu();
 		kfree(ep);
 	}
 
@@ -670,6 +671,7 @@ EXPORT_SYMBOL(rmnet_init_qmi_pt);
 
 void rmnet_get_packets(void *port, u64 *rx, u64 *tx)
 {
+	struct net_device *dev;
 	struct rmnet_priv *priv;
 	struct rmnet_pcpu_stats *ps;
 	unsigned int cpu, start;
@@ -683,8 +685,12 @@ void rmnet_get_packets(void *port, u64 *rx, u64 *tx)
 	*tx = 0;
 	*rx = 0;
 	rcu_read_lock();
-	hash_for_each(((struct rmnet_port *)port)->muxed_ep, bkt, ep, hlnode) {
-		priv = netdev_priv(ep->egress_dev);
+	hash_for_each_rcu(((struct rmnet_port *)port)->muxed_ep, bkt, ep,
+			  hlnode) {
+		dev = ep->egress_dev;
+		if (!dev)
+			continue;
+		priv = netdev_priv(dev);
 		for_each_possible_cpu(cpu) {
 			ps = per_cpu_ptr(priv->pcpu_stats, cpu);
 			do {

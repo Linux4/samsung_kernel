@@ -21,14 +21,19 @@
 #include <linux/slab.h>
 #endif
 
+//#define OIS_MCU_TS_OFFSET_CORRECTION
+
 #define OIS_READ_BUFFER_MODULE_NUM_OFFSET          0
 #define OIS_READ_BUFFER_VALID_SAMPLE_OFFSET        1
 #define OIS_READ_BUFFER_TIMESTAMP_OFFSET           2
-#define OIS_READ_BUFFER_OIS_MCU_DEBUG_INFO_OFFSET  10
+#define OIS_READ_BUFFER_MCU_DEBUG_INFO_OFFSET_HAL  10
+#define OIS_READ_BUFFER_MCU_DEBUG_INFO_OFFSET_MCU  6
 #define OIS_READ_BUFFER_VALID_SAMPLE_NUM_MAX       12
 
 #define SAMSUNG_OIS_DATA_LITTLE_ENDIAN
 #define OIS_RW_OP_TIME_CHECK_MAX_NS         4000000
+#define OIS_MCU_TS_OFFSET_MIN_US            (-2000)
+#define OIS_MCU_TS_OFFSET_MAX_US            (2000)
 
 static uint64_t stored_timestamp = 0;
 
@@ -409,10 +414,15 @@ static int cam_ois_convert_timestamp(
 	uint32_t                  buff_length = 0;
 
 	uint32_t                  byte_to_bit = 8;
+#if defined(CONFIG_SEC_Q4Q_PROJECT) || defined(CONFIG_SEC_B4Q_PROJECT)
+	uint32_t                  timestamp_fw_size = 2;
+	int16_t                   timestamp_ois_us = 0;
+#else
 	uint32_t                  timestamp_fw_size = 4;
+	int32_t                   timestamp_ois_us = 0;
+#endif
 	uint32_t                  timestamp_qtimer_size = 8;
 	uint32_t                  timestamp_buff_offset = OIS_READ_BUFFER_TIMESTAMP_OFFSET;
-	int32_t                   timestamp_ois_us = 0;
 	int32_t                   timestamp_tmp_us = 0;
 	int64_t                   timestamp_ois_ns = 0;
 	uint64_t                  timestamp_stored_ns = stored_timestamp;
@@ -447,21 +457,29 @@ static int cam_ois_convert_timestamp(
 		*valid_num = read_buff[OIS_READ_BUFFER_VALID_SAMPLE_OFFSET];
 
 		for (i = 0; i < 4; i++) {
-			ois_mcu_debug_info[i] = read_buff[timestamp_buff_offset + timestamp_fw_size + i];
+			ois_mcu_debug_info[i] = read_buff[OIS_READ_BUFFER_MCU_DEBUG_INFO_OFFSET_MCU + i];
 			mcu_debug_info[i] = ois_mcu_debug_info[i];
-			read_buff[timestamp_buff_offset + timestamp_fw_size + i] = 0;
+			read_buff[OIS_READ_BUFFER_MCU_DEBUG_INFO_OFFSET_MCU + i] = 0;
 
 			if (read_buff[OIS_READ_BUFFER_VALID_SAMPLE_OFFSET] == 0) {
-				read_buff[OIS_READ_BUFFER_OIS_MCU_DEBUG_INFO_OFFSET + i] = ois_mcu_debug_info[i];
+				read_buff[OIS_READ_BUFFER_MCU_DEBUG_INFO_OFFSET_HAL + i] = ois_mcu_debug_info[i];
 			}
 		}
 
+#ifdef OIS_MCU_TS_OFFSET_CORRECTION
+		if ((timestamp_ois_us >= OIS_MCU_TS_OFFSET_MIN_US) && (timestamp_ois_us <= OIS_MCU_TS_OFFSET_MAX_US)) {
+			timestamp_ois_ns = (int64_t)timestamp_ois_us * 1000;
+		} else {
+			timestamp_ois_ns = 0;
+		}
+#else
 		timestamp_ois_ns = (int64_t)timestamp_ois_us * 1000;
+#endif
 		calibrated_timestamp_ns = timestamp_stored_ns + timestamp_ois_ns;
 
 		*calibrated_ts = calibrated_timestamp_ns;
 		*stored_ts = timestamp_stored_ns;
-		*ois_ts = timestamp_ois_us;
+		*ois_ts = (int32_t)timestamp_ois_us;
 
 		for (i = 0; i < timestamp_qtimer_size; i++) {
 #ifdef SAMSUNG_OIS_DATA_LITTLE_ENDIAN
@@ -1195,8 +1213,8 @@ static int cam_ois_pkt_parse(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 			return rc;
 		}
 
-		CAM_DBG(CAM_OIS, "[QIS][K] (2) convert timestamp (cal_ts: %lld = stored_ts: %lld + ois_ts: %lld (rcv %d))", \
-			calibrated_ts, stored_ts, (uint64_t)(ois_ts * 1000), ois_ts);
+		CAM_DBG(CAM_OIS, "[QIS][K] (2) convert timestamp (cal_ts: %lld = stored_ts: %lld + ois_ts: %d000 (rcv %d))", \
+			calibrated_ts, stored_ts, ois_ts, ois_ts);
 
 		rc = cam_sensor_util_get_current_qtimer_ns(&end_ts);
 		if (rc < 0) {
@@ -1207,12 +1225,13 @@ static int cam_ois_pkt_parse(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 			op_time = 0;
 		}
 
-		if ((op_time > OIS_RW_OP_TIME_CHECK_MAX_NS) || (valid_num == 0) || (valid_num >= OIS_READ_BUFFER_VALID_SAMPLE_NUM_MAX)) {
-			CAM_INFO(CAM_OIS, "[QIS][K] (E) ois[%d] mcu_debug_info = 0x%x, 0x%x, 0x%x, 0x%x (valid_num = %d, op_time = %lld us)", \
-				module_num, mcu_debug_info[0], mcu_debug_info[1], mcu_debug_info[2], mcu_debug_info[3], valid_num, (op_time/1000));
+		if ((ois_ts < OIS_MCU_TS_OFFSET_MIN_US) || (ois_ts >= OIS_MCU_TS_OFFSET_MAX_US) ||
+			(op_time > OIS_RW_OP_TIME_CHECK_MAX_NS) || (valid_num == 0) || (valid_num >= OIS_READ_BUFFER_VALID_SAMPLE_NUM_MAX)) {
+			CAM_INFO(CAM_OIS, "[QIS][K] (E) ois[%d] mcu_debug_info = 0x%x, 0x%x, 0x%x, 0x%x (valid_num = %d, op_time = %lld us, ois_ts = %d us)", \
+				module_num, mcu_debug_info[0], mcu_debug_info[1], mcu_debug_info[2], mcu_debug_info[3], valid_num, (op_time/1000), ois_ts);
 		} else {
-			CAM_DBG(CAM_OIS, "[QIS][K] (3) ois[%d] mcu_debug_info = 0x%x, 0x%x, 0x%x, 0x%x (valid_num = %d, op_time = %lld us)", \
-				module_num, mcu_debug_info[0], mcu_debug_info[1], mcu_debug_info[2], mcu_debug_info[3], valid_num, (op_time/1000));
+			CAM_DBG(CAM_OIS, "[QIS][K] (3) ois[%d] mcu_debug_info = 0x%x, 0x%x, 0x%x, 0x%x (valid_num = %d, op_time = %lld us, ois_ts = %d us)", \
+				module_num, mcu_debug_info[0], mcu_debug_info[1], mcu_debug_info[2], mcu_debug_info[3], valid_num, (op_time/1000), ois_ts);
 		}
 
 		if (csl_packet->num_io_configs > 1) {

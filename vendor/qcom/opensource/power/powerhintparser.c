@@ -34,7 +34,9 @@
 #include <libxml/tree.h>
 #include <unistd.h>
 #include "powerhintparser.h"
+#ifndef LOG_TAG
 #define LOG_TAG "QTI PowerHAL"
+#endif
 
 int parsePowerhintXML() {
 

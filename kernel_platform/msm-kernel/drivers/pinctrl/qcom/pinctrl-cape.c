@@ -13,25 +13,6 @@
 #include "pinctrl-msm.h"
 #include "pinctrl-cape.h"
 
-static const struct msm_gpio_wakeirq_map cape_pdc_map[] = {
-	{ 2, 70 }, { 3, 77 }, { 7, 52 }, { 8, 108 }, { 10, 128 }, { 11, 53 },
-	{ 12, 129 }, { 13, 130 }, { 14, 131 }, { 15, 67 }, { 19, 69 }, { 21, 132 },
-	{ 23, 54 }, { 26, 56 }, { 27, 71 }, { 28, 57 }, { 31, 55 }, { 32, 58 },
-	{ 34, 72 }, { 35, 43 }, { 36, 78 }, { 38, 79 }, { 39, 62 }, { 40, 80 },
-	{ 41, 133 }, { 43, 81 }, { 44, 87 }, { 45, 134 }, { 46, 66 }, { 47, 63 },
-	{ 50, 88 }, { 51, 89 }, { 55, 90 }, { 56, 59 }, { 59, 82 }, { 60, 60 },
-	{ 62, 135 }, { 63, 91 }, { 66, 136 }, { 67, 44 }, { 69, 137 }, { 71, 97 },
-	{ 75, 73 }, { 79, 74 }, { 80, 96 }, { 81, 98 }, { 82, 45 }, { 83, 99 },
-	{ 84, 94 }, { 85, 100 }, { 86, 101 }, { 87, 102 }, { 88, 92 }, { 89, 83 },
-	{ 90, 84 }, { 91, 85 }, { 92, 46 }, { 95, 103 }, { 96, 104 }, { 98, 105 },
-	{ 99, 106 }, { 115, 95 }, { 116, 76 }, { 117, 75 }, { 118, 86 }, { 119, 93 },
-	{ 133, 47 }, { 137, 42 }, { 148, 61 }, { 150, 68 }, { 153, 65 }, { 154, 48 },
-	{ 155, 49 }, { 156, 64 }, { 159, 50 }, { 162, 51 }, { 166, 111 }, { 169, 114 },
-	{ 171, 115 }, { 172, 116 }, { 174, 117 }, { 176, 107 }, { 181, 109 }, { 182, 110 },
-	{ 185, 112 }, { 187, 113 }, { 188, 118 }, { 190, 122 }, { 192, 123 }, { 195, 124 },
-	{ 201, 119 }, { 203, 120 }, { 205, 121 },
-};
-
 static const struct msm_pinctrl_soc_data cape_pinctrl = {
 	.pins = cape_pins,
 	.npins = ARRAY_SIZE(cape_pins),
@@ -46,13 +27,41 @@ static const struct msm_pinctrl_soc_data cape_pinctrl = {
 	.nwakeirq_map = ARRAY_SIZE(cape_pdc_map),
 };
 
+static const struct msm_pinctrl_soc_data cape_vm_pinctrl = {
+	.pins = cape_pins,
+	.npins = ARRAY_SIZE(cape_pins),
+	.functions = cape_functions,
+	.nfunctions = ARRAY_SIZE(cape_functions),
+	.groups = cape_groups,
+	.ngroups = ARRAY_SIZE(cape_groups),
+	.ngpios = 211,
+};
+
+static void qcom_trace_gpio_read(void *unused, struct gpio_device *gdev,
+				 bool *block_gpio_read)
+{
+	*block_gpio_read = true;
+}
+
 static int cape_pinctrl_probe(struct platform_device *pdev)
 {
-	return msm_pinctrl_probe(pdev, &cape_pinctrl);
+	const struct msm_pinctrl_soc_data *pinctrl_data;
+	struct device *dev = &pdev->dev;
+
+	pinctrl_data = of_device_get_match_data(&pdev->dev);
+	if (!pinctrl_data)
+		return -EINVAL;
+
+	if (of_device_is_compatible(dev->of_node, "qcom,cape-vm-pinctrl"))
+		register_trace_android_vh_gpio_block_read(qcom_trace_gpio_read,
+							  NULL);
+
+	return msm_pinctrl_probe(pdev, pinctrl_data);
 }
 
 static const struct of_device_id cape_pinctrl_of_match[] = {
 	{ .compatible = "qcom,cape-pinctrl", .data = &cape_pinctrl},
+	{ .compatible = "qcom,cape-vm-pinctrl", .data = &cape_vm_pinctrl},
 	{ },
 };
 
@@ -80,3 +89,4 @@ module_exit(cape_pinctrl_exit);
 MODULE_DESCRIPTION("QTI cape pinctrl driver");
 MODULE_LICENSE("GPL v2");
 MODULE_DEVICE_TABLE(of, cape_pinctrl_of_match);
+MODULE_SOFTDEP("pre: qcom_tlmm_vm_irqchip");

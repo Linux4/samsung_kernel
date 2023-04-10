@@ -323,6 +323,7 @@ int32_t  StreamNonTunnel::read(struct pal_buffer* buf)
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK, state %d",
             session, currentState);
 
+    mStreamMutex.lock();
     if ((rm->cardState == CARD_STATUS_OFFLINE) || ssrInNTMode == true) {
          PAL_ERR(LOG_TAG, "Sound card offline currentState %d",
                 currentState);
@@ -354,9 +355,11 @@ int32_t  StreamNonTunnel::read(struct pal_buffer* buf)
         status = -EINVAL;
         goto exit;
     }
+    mStreamMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit. session read successful size - %d", size);
     return size;
 exit :
+    mStreamMutex.unlock();
     PAL_DBG(LOG_TAG, "session read failed status %d", status);
     return status;
 }
@@ -464,6 +467,11 @@ int32_t  StreamNonTunnel::setParameters(uint32_t param_id, void *payload)
     }
 
     mStreamMutex.lock();
+    if (currentState == STREAM_IDLE) {
+        PAL_ERR(LOG_TAG, "Invalid stream state: IDLE for param ID: %d", param_id);
+        mStreamMutex.unlock();
+        return -EINVAL;
+    }
     if ((rm->cardState == CARD_STATUS_OFFLINE) || ssrInNTMode == true) {
          PAL_ERR(LOG_TAG, "Sound card offline currentState %d",
                 currentState);

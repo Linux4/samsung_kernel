@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -497,7 +498,9 @@ static void sde_encoder_phys_wb_setup_fb(struct sde_encoder_phys *phys_enc,
 				wb_cfg->dest.plane_addr[2],
 				wb_cfg->dest.plane_size[2],
 				wb_cfg->dest.plane_addr[3],
-				wb_cfg->dest.plane_size[3]);
+				wb_cfg->dest.plane_size[3],
+				wb_cfg->roi.x, wb_cfg->roi.y,
+				wb_cfg->roi.w, wb_cfg->roi.h);
 		hw_wb->ops.setup_outaddress(hw_wb, wb_cfg);
 	}
 }
@@ -511,6 +514,7 @@ static void _sde_encoder_phys_wb_setup_cwb(struct sde_encoder_phys *phys_enc,
 	struct sde_crtc *crtc = to_sde_crtc(wb_enc->crtc);
 	struct sde_hw_pingpong *hw_pp = phys_enc->hw_pp;
 	bool need_merge = (crtc->num_mixers > 1);
+	enum sde_dcwb;
 	int i = 0;
 
 	if (!phys_enc->in_clone_mode) {
@@ -529,10 +533,13 @@ static void _sde_encoder_phys_wb_setup_cwb(struct sde_encoder_phys *phys_enc,
 			test_bit(SDE_WB_DCWB_CTRL, &hw_wb->caps->features))) {
 		struct sde_hw_intf_cfg_v1 intf_cfg = { 0, };
 
-		for (i = 0; i < crtc->num_mixers; i++)
-			intf_cfg.cwb[intf_cfg.cwb_count++] = (enum sde_cwb)
-				(test_bit(SDE_WB_DCWB_CTRL, &hw_wb->caps->features) ?
-					((hw_pp->idx % 2) + i) : (hw_pp->idx + i));
+		for (i = 0; i < crtc->num_mixers; i++) {
+			if (test_bit(SDE_WB_DCWB_CTRL, &hw_wb->caps->features))
+				intf_cfg.cwb[intf_cfg.cwb_count++] =
+						(enum sde_cwb)(hw_pp->dcwb_idx + i);
+			else
+				intf_cfg.cwb[intf_cfg.cwb_count++] = (enum sde_cwb)(hw_pp->idx + i);
+		}
 
 		if (hw_pp->merge_3d && (intf_cfg.merge_3d_count <
 				MAX_MERGE_3D_PER_CTL_V1) && need_merge)
@@ -770,9 +777,10 @@ static int _sde_enc_phys_wb_validate_cwb(struct sde_encoder_phys *phys_enc,
 	}
 
 	if (((wb_roi.w < out_width) || (wb_roi.h < out_height)) &&
-			(wb_roi.w * wb_roi.h * fmt->bpp) % 256) {
-		SDE_ERROR("invalid stride w = %d h = %d bpp =%d out_width = %d, out_height = %d\n",
-				wb_roi.w, wb_roi.h, fmt->bpp, out_width, out_height);
+			((wb_roi.w * wb_roi.h * fmt->bpp) % 256) && !SDE_FORMAT_IS_LINEAR(fmt)) {
+		SDE_ERROR("invalid stride w=%d h=%d bpp=%d out_width=%d, out_height=%d lin=%d\n",
+				wb_roi.w, wb_roi.h, fmt->bpp, out_width, out_height,
+				SDE_FORMAT_IS_LINEAR(fmt));
 		return -EINVAL;
 	}
 
@@ -1014,7 +1022,7 @@ static void _sde_encoder_phys_wb_update_cwb_flush(
 	need_merge = (crtc->num_mixers > 1) ? true : false;
 
 	if (test_bit(SDE_WB_DCWB_CTRL, &hw_wb->caps->features)) {
-		dcwb_idx = (enum sde_dcwb) ((hw_pp->idx % 2) + i);
+		dcwb_idx = hw_pp->dcwb_idx;
 		if ((dcwb_idx + crtc->num_mixers) > DCWB_MAX) {
 			SDE_ERROR("invalid hw config for DCWB. dcwb_idx=%d, num_mixers=%d\n",
 				dcwb_idx, crtc->num_mixers);
@@ -1056,7 +1064,7 @@ static void _sde_encoder_phys_wb_update_cwb_flush(
 			src_pp_idx = (enum sde_cwb) (src_pp_idx + i);
 
 			if (test_bit(SDE_WB_DCWB_CTRL, &hw_wb->caps->features)) {
-				dcwb_idx = (enum sde_dcwb) ((hw_pp->idx % 2) + i);
+				dcwb_idx = hw_pp->dcwb_idx + i;
 				if (test_bit(SDE_WB_CWB_DITHER_CTRL, &hw_wb->caps->features)) {
 					if (hw_wb->ops.program_cwb_dither_ctrl)
 						hw_wb->ops.program_cwb_dither_ctrl(hw_wb,
@@ -1361,7 +1369,7 @@ static void sde_encoder_phys_wb_irq_ctrl(
 static void sde_encoder_phys_wb_mode_set(
 		struct sde_encoder_phys *phys_enc,
 		struct drm_display_mode *mode,
-		struct drm_display_mode *adj_mode)
+		struct drm_display_mode *adj_mode, bool *reinit_mixers)
 {
 	struct sde_encoder_phys_wb *wb_enc = to_sde_encoder_phys_wb(phys_enc);
 	struct sde_rm *rm = &phys_enc->sde_kms->rm;
@@ -1383,8 +1391,14 @@ static void sde_encoder_phys_wb_mode_set(
 	sde_rm_init_hw_iter(&iter, phys_enc->parent->base.id, SDE_HW_BLK_CTL);
 	for (i = 0; i <= instance; i++) {
 		sde_rm_get_hw(rm, &iter);
-		if (i == instance)
+		if (i == instance) {
+			if (phys_enc->hw_ctl && phys_enc->hw_ctl != iter.hw) {
+				*reinit_mixers =  true;
+				SDE_EVT32(phys_enc->hw_ctl->idx,
+					((struct sde_hw_ctl *)iter.hw)->idx);
+			}
 			phys_enc->hw_ctl = (struct sde_hw_ctl *) iter.hw;
+		}
 	}
 
 	if (IS_ERR_OR_NULL(phys_enc->hw_ctl)) {

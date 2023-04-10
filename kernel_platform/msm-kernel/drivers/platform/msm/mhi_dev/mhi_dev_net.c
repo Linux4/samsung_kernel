@@ -280,7 +280,7 @@ static ssize_t mhi_dev_net_client_read(struct mhi_dev_net_client *mhi_handle)
 				struct mhi_req, list);
 		list_del_init(&req->list);
 		spin_unlock_irqrestore(&mhi_handle->rd_lock, flags);
-		skb = alloc_skb(MHI_NET_DEFAULT_MTU, GFP_ATOMIC);
+		skb = alloc_skb(MHI_NET_DEFAULT_MTU, GFP_KERNEL);
 		if (skb == NULL) {
 			pr_err("%s(): skb alloc failed\n", __func__);
 			spin_lock_irqsave(&mhi_handle->rd_lock, flags);
@@ -296,6 +296,7 @@ static ssize_t mhi_dev_net_client_read(struct mhi_dev_net_client *mhi_handle)
 		req->len = MHI_NET_DEFAULT_MTU;
 		req->context = skb;
 		req->mode = DMA_ASYNC;
+		req->snd_cmpl = 0;
 		bytes_avail = mhi_net_ctxt.dev_ops->read_channel(req);
 
 		if (bytes_avail < 0) {
@@ -698,7 +699,7 @@ static void mhi_dev_net_state_cb(struct mhi_dev_client_cb_data *cb_data)
 int mhi_dev_net_interface_init(struct mhi_dev_ops *dev_ops)
 {
 	int ret_val = 0, index = 0;
-	bool out_channel_started = false;
+	uint32_t info_out_ch = 0;
 	struct mhi_dev_net_client *mhi_net_client = NULL;
 
 	if (mhi_net_ctxt.client_handle) {
@@ -753,10 +754,7 @@ int mhi_dev_net_interface_init(struct mhi_dev_ops *dev_ops)
 	}
 	ret_val = dev_ops->register_state_cb(mhi_dev_net_state_cb,
 				mhi_net_client, MHI_CLIENT_IP_SW_4_OUT);
-	/* -EEXIST indicates success and channel is already open */
-	if (ret_val == -EEXIST)
-		out_channel_started = true;
-	else if (ret_val < 0)
+	if (ret_val < 0 && ret_val != -EEXIST)
 		goto register_state_cb_fail;
 
 	ret_val = dev_ops->register_state_cb(mhi_dev_net_state_cb,
@@ -773,13 +771,16 @@ int mhi_dev_net_interface_init(struct mhi_dev_ops *dev_ops)
 		 * with mhi_dev_net_open_chan_create_netif().
 		 */
 		ret_val = 0;
-		if (out_channel_started) {
-			ret_val = mhi_dev_net_open_chan_create_netif
-							(mhi_net_client);
-			if (ret_val < 0) {
-				mhi_dev_net_log(MHI_ERROR,
-					"Failed to open channels\n");
-				goto channel_open_fail;
+		if (!mhi_net_ctxt.dev_ops->ctrl_state_info(mhi_net_client->out_chan,
+					&info_out_ch)) {
+			if (info_out_ch == MHI_STATE_CONNECTED) {
+				ret_val = mhi_dev_net_open_chan_create_netif
+					(mhi_net_client);
+				if (ret_val < 0) {
+					mhi_dev_net_log(MHI_ERROR,
+							"Failed to open channels\n");
+					goto channel_open_fail;
+				}
 			}
 		}
 	} else if (ret_val < 0) {

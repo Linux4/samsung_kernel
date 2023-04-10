@@ -735,7 +735,7 @@ skip_notify:
 		gpio_set_value(pp_data->ic_data->vbus_dischar_gpio, 1);
 		val2 = gpio_get_value(pp_data->ic_data->vbus_dischar_gpio);
 		schedule_delayed_work
-			(&pp_data->dischar_work, msecs_to_jiffies(120));
+			(&pp_data->dischar_work, msecs_to_jiffies(160));
 		pr_info("%s vbus_discharging %d->%d\n", __func__, val1, val2);
 	}
 err:
@@ -854,16 +854,16 @@ static void process_policy_cc_active(struct pdic_policy *pp_data, int msg)
 {
 	if (msg == MSG_CC1) {
 		pp_data->cc_direction = PP_CC1;
-		PDIC_POLICY_SEND_NOTI(pp_data, PDIC_NOTIFY_DEV_CCIC,
+		PDIC_POLICY_SEND_NOTI(pp_data, PDIC_NOTIFY_DEV_PDIC,
 			PDIC_NOTIFY_ID_CC_PIN_STATUS, PDIC_NOTIFY_PIN_STATUS_CC1_ACTIVE,
 			0, 0);
 	} else if (msg == MSG_CC2) {
 		pp_data->cc_direction = PP_CC2;
-		PDIC_POLICY_SEND_NOTI(pp_data, PDIC_NOTIFY_DEV_CCIC,
+		PDIC_POLICY_SEND_NOTI(pp_data, PDIC_NOTIFY_DEV_PDIC,
 			PDIC_NOTIFY_ID_CC_PIN_STATUS, PDIC_NOTIFY_PIN_STATUS_CC2_ACTIVE,
 			0, 0);
 	} else if (msg == MSG_NOCC_WAKE) {
-		PDIC_POLICY_SEND_NOTI(pp_data, PDIC_NOTIFY_DEV_CCIC,
+		PDIC_POLICY_SEND_NOTI(pp_data, PDIC_NOTIFY_DEV_PDIC,
 			PDIC_NOTIFY_ID_CC_PIN_STATUS, PDIC_NOTIFY_PIN_STATUS_NOCC_USB_ACTIVE,
 			0, 0);
 	} else
@@ -1233,7 +1233,7 @@ static void process_policy_cc_detach(struct pdic_policy *pp_data)
 		0/*attach*/, 0/*rprd*/, 0);
 	PDIC_POLICY_SEND_NOTI(pp_data, PDIC_NOTIFY_DEV_USB, PDIC_NOTIFY_ID_USB,
 		0/*attach*/, USB_STATUS_NOTIFY_DETACH/*drp*/, 0);
-	PDIC_POLICY_SEND_NOTI(pp_data, PDIC_NOTIFY_DEV_CCIC,
+	PDIC_POLICY_SEND_NOTI(pp_data, PDIC_NOTIFY_DEV_PDIC,
 		PDIC_NOTIFY_ID_CC_PIN_STATUS, PDIC_NOTIFY_PIN_STATUS_NO_DETERMINATION,
 		0, 0);
 	if (pp_data->temp_alt_mode_stop) {

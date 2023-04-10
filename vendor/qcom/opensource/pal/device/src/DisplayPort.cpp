@@ -201,7 +201,7 @@ int DisplayPort::configureDpEndpoint()
 
     rm->getBackendName(deviceAttr.id, backEndName);
     dev = Device::getInstance(&deviceAttr, rm);
-    status = rm->getActiveStream_l(dev, activestreams);
+    status = rm->getActiveStream_l(activestreams, dev);
     if ((0 != status) || (activestreams.size() == 0)) {
         PAL_ERR(LOG_TAG, "no active stream available");
         status = -EINVAL;
@@ -884,10 +884,6 @@ bool DisplayPort::isSupportedBps(unsigned char bpsByte, int bps)
     case 24:
         PAL_VERBOSE(LOG_TAG,"24bit");
         result = (bpsByte & BIT(2));
-        break;
-    case 20:
-        PAL_VERBOSE(LOG_TAG,"20bit");
-        result = (bpsByte & BIT(1));
         break;
     case 16:
         PAL_VERBOSE(LOG_TAG,"16bit");
@@ -1856,10 +1852,6 @@ int DisplayPort::getHighestSupportedBps()
             if (isSupportedBps(bpsMask, 24)) {
                 highestBps = 24;
                 break;
-            }
-            else if (isSupportedBps(bpsMask, 20)) {
-                if (highestBps < 20)
-                    highestBps = 20;
             }
             else if (isSupportedBps(bpsMask, BITWIDTH_16))
                 if (highestBps < BITWIDTH_16)

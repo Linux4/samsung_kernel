@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -189,6 +190,18 @@ void ucfg_dcs_reset_user_stats(struct wlan_objmgr_psoc *psoc, uint8_t mac_id);
  */
 void ucfg_dcs_set_user_request(struct wlan_objmgr_psoc *psoc, uint8_t mac_id,
 			       uint32_t user_request_count);
+
+/**
+ * ucfg_dcs_get_ch_util() - API to get channel interference values
+ * @psoc: pointer to psoc object
+ * @mac_id: mac id
+ * @dcs_stats: pointer to wlan_host_dcs_ch_util_stats
+ *
+ * Return: Integer
+ */
+QDF_STATUS ucfg_dcs_get_ch_util(struct wlan_objmgr_psoc *psoc, uint8_t mac_id,
+				struct wlan_host_dcs_ch_util_stats *dcs_stats);
+
 #else
 static inline void
 ucfg_dcs_register_cb(struct wlan_objmgr_psoc *psoc, dcs_callback cbk, void *arg)
@@ -249,6 +262,13 @@ static inline void
 ucfg_dcs_set_user_request(struct wlan_objmgr_psoc *psoc, uint8_t mac_id,
 			  uint32_t user_request_count)
 {
+}
+
+static inline QDF_STATUS
+ucfg_dcs_get_ch_util(struct wlan_objmgr_psoc *psoc, uint8_t mac_id,
+		     struct wlan_host_dcs_ch_util_stats *dcs_stats)
+{
+	return QDF_STATUS_SUCCESS;
 }
 #endif
 #endif /* _WLAN_DCS_UCFG_API_H_ */

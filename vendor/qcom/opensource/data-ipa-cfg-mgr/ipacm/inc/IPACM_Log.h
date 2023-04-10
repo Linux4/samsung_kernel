@@ -53,6 +53,7 @@ extern "C"
 #define MAX_BUF_LEN 256
 
 #ifdef FEATURE_IPA_ANDROID
+#include <android/log.h>
 #define IPACMLOG_FILE "/dev/socket/ipacm_log_file"
 #else/* defined(FEATURE_IPA_ANDROID) */
 #define IPACMLOG_FILE "/etc/ipacm_log_file"
@@ -75,6 +76,22 @@ static char dmesg_cmd[MAX_BUF_LEN];
 								 snprintf(dmesg_cmd, MAX_BUF_LEN, "echo %s > /dev/kmsg", buffer_send);\
 								 system(dmesg_cmd);
 #ifdef DEBUG
+#define PERROR_LOG(fmt)   memset(buffer_send, 0, MAX_BUF_LEN);\
+					  snprintf(buffer_send,MAX_BUF_LEN,"%s:%d %s()", __FILE__, __LINE__, __FUNCTION__);\
+					  ipacm_log_send (buffer_send); \
+                      perror(fmt); \
+					__android_log_print(ANDROID_LOG_ERROR, "IPACM", fmt);
+
+#define IPACMERR_LOG(fmt, ...)	memset(buffer_send, 0, MAX_BUF_LEN);\
+							snprintf(buffer_send,MAX_BUF_LEN,"ERROR: %s:%d %s() " fmt, __FILE__,  __LINE__, __FUNCTION__, ##__VA_ARGS__);\
+							ipacm_log_send (buffer_send);\
+							printf("ERROR: %s:%d %s() " fmt, __FILE__,  __LINE__, __FUNCTION__, ##__VA_ARGS__); \
+						__android_log_print(ANDROID_LOG_ERROR, "IPACM", "ERROR: %s:%d %s() " fmt, __FILE__,  __LINE__, __FUNCTION__, ##__VA_ARGS__);
+#define IPACMDBG_H_LOG(fmt, ...) memset(buffer_send, 0, MAX_BUF_LEN);\
+							 snprintf(buffer_send,MAX_BUF_LEN,"%s:%d %s() " fmt, __FILE__,  __LINE__, __FUNCTION__, ##__VA_ARGS__);\
+							 ipacm_log_send (buffer_send);\
+							 printf("%s:%d %s() " fmt, __FILE__,  __LINE__, __FUNCTION__, ##__VA_ARGS__); \
+					__android_log_print(ANDROID_LOG_DEBUG, "IPACM","%s:%d %s() " fmt, __FILE__,  __LINE__, __FUNCTION__, ##__VA_ARGS__);
 #define PERROR(fmt)   memset(buffer_send, 0, MAX_BUF_LEN);\
 					  snprintf(buffer_send,MAX_BUF_LEN,"%s:%d %s()", __FILE__, __LINE__, __FUNCTION__);\
 					  ipacm_log_send (buffer_send); \
@@ -89,6 +106,9 @@ static char dmesg_cmd[MAX_BUF_LEN];
 							 printf("%s:%d %s() " fmt, __FILE__,  __LINE__, __FUNCTION__, ##__VA_ARGS__);
 #else
 #define PERROR(fmt)   perror(fmt)
+#define IPACMERR_LOG(fmt, ...)   printf("ERR: %s:%d %s() " fmt, __FILE__,  __LINE__, __FUNCTION__, ##__VA_ARGS__);
+#define IPACMDBG_H_LOG(fmt, ...) printf("%s:%d %s() " fmt, __FILE__,  __LINE__, __FUNCTION__, ##__VA_ARGS__);
+#define PERROR_LOG(fmt)   perror(fmt)
 #define IPACMERR(fmt, ...)   printf("ERR: %s:%d %s() " fmt, __FILE__,  __LINE__, __FUNCTION__, ##__VA_ARGS__);
 #define IPACMDBG_H(fmt, ...) printf("%s:%d %s() " fmt, __FILE__,  __LINE__, __FUNCTION__, ##__VA_ARGS__);
 #endif

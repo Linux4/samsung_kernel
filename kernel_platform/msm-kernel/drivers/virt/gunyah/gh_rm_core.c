@@ -56,14 +56,24 @@ struct gh_rm_notif_validate {
 	struct gh_rm_connection *conn;
 	struct work_struct validate_work;
 };
+const static struct {
+	enum gh_vm_names val;
+	const char *image_name;
+	const char *vm_name;
+} vm_name_map[] = {
+	{GH_PRIMARY_VM, "pvm", ""},
+	{GH_TRUSTED_VM, "trustedvm", "qcom,trustedvm"},
+	{GH_CPUSYS_VM, "cpusys_vm", "qcom,cpusysvm"},
+	{GH_OEM_VM, "oem_vm", "qcom,oemvm"},
+};
 
 static struct task_struct *gh_rm_drv_recv_task;
 static struct gh_msgq_desc *gh_rm_msgq_desc;
 static gh_virtio_mmio_cb_t gh_virtio_mmio_fn;
-static gh_vcpu_affinity_set_cb_t gh_vcpu_affinity_set_fn;
-static gh_vcpu_affinity_reset_cb_t gh_vcpu_affinity_reset_fn;
-static gh_vpm_grp_set_cb_t gh_vpm_grp_set_fn;
-static gh_vpm_grp_reset_cb_t gh_vpm_grp_reset_fn;
+static gh_vcpu_affinity_set_cb_t gh_vcpu_affinity_set_fn[GH_VM_MAX];
+static gh_vcpu_affinity_reset_cb_t gh_vcpu_affinity_reset_fn[GH_VM_MAX];
+static gh_vpm_grp_set_cb_t gh_vpm_grp_set_fn[GH_VM_MAX];
+static gh_vpm_grp_reset_cb_t gh_vpm_grp_reset_fn[GH_VM_MAX];
 
 static DEFINE_MUTEX(gh_rm_call_idr_lock);
 static DEFINE_MUTEX(gh_virtio_mmio_fn_lock);
@@ -81,6 +91,32 @@ bool gh_rm_core_initialized;
 
 static void gh_rm_get_svm_res_work_fn(struct work_struct *work);
 static DECLARE_WORK(gh_rm_get_svm_res_work, gh_rm_get_svm_res_work_fn);
+
+enum gh_vm_names gh_get_image_name(const char *str)
+{
+	int vmid;
+
+	for (vmid = 0; vmid < ARRAY_SIZE(vm_name_map); ++vmid) {
+		if (!strcmp(str, vm_name_map[vmid].image_name))
+			return vm_name_map[vmid].val;
+	}
+	pr_err("Can find vm index for image name %s\n", str);
+	return GH_VM_MAX;
+}
+EXPORT_SYMBOL(gh_get_image_name);
+
+enum gh_vm_names gh_get_vm_name(const char *str)
+{
+	int vmid;
+
+	for (vmid = 0; vmid < ARRAY_SIZE(vm_name_map); ++vmid) {
+		if (!strcmp(str, vm_name_map[vmid].vm_name))
+			return vm_name_map[vmid].val;
+	}
+	pr_err("Can find vm index for vm name %s\n", str);
+	return GH_VM_MAX;
+}
+EXPORT_SYMBOL(gh_get_vm_name);
 
 static struct gh_rm_connection *gh_rm_alloc_connection(u32 msg_id,
 							bool needed)
@@ -702,6 +738,7 @@ void *gh_rm_call(gh_rm_msgid_t message_id,
 		pr_err("%s: Reply for seq:%d failed with RM err: %d\n",
 			__func__, connection->seq, connection->reply_err_code);
 		ret = ERR_PTR(gh_remap_error(connection->reply_err_code));
+		kfree(connection->recv_buff);
 		goto out;
 	}
 
@@ -793,13 +830,14 @@ static int gh_rm_get_irq(struct gh_vm_get_hyp_res_resp_entry *res_entry)
  * The function encodes the error codes via ERR_PTR. Hence, the caller is
  * responsible to check it with IS_ERR_OR_NULL().
  */
-int gh_rm_get_vm_id_info(enum gh_vm_names vm_name, gh_vmid_t vmid)
+int gh_rm_get_vm_id_info(gh_vmid_t vmid)
 {
-	struct gh_vm_get_id_resp_entry *id_entries = NULL;
+	struct gh_vm_get_id_resp_entry *id_entries = NULL, *entry;
 	struct gh_vm_property vm_prop = {0};
 	void *info = NULL;
 	int ret = 0;
 	u32 n_id, i;
+	enum gh_vm_names vm_name;
 
 	id_entries = gh_rm_vm_get_id(vmid, &n_id);
 	if (IS_ERR_OR_NULL(id_entries))
@@ -808,24 +846,27 @@ int gh_rm_get_vm_id_info(enum gh_vm_names vm_name, gh_vmid_t vmid)
 	pr_debug("%s: %d Info are associated with vmid %d\n",
 		 __func__, n_id, vmid);
 
+	entry = id_entries;
 	for (i = 0; i < n_id; i++) {
 		pr_debug("%s: idx:%d id_type %d reserved %d id_size %d\n",
 			__func__, i,
-			id_entries[i].id_type,
-			id_entries[i].reserved,
-			id_entries[i].id_size);
+			entry->id_type,
+			entry->reserved,
+			entry->id_size);
 
-		info = kmemdup_nul(id_entries[i].id_info,
-			id_entries[i].id_size, GFP_KERNEL);
+		info = kzalloc(entry->id_size % 4 ? entry->id_size + 1 :
+							entry->id_size,
+			GFP_KERNEL);
 
 		if (!info) {
-			pr_err("%s: Couldn't copy id type: %u\n",
-					__func__, id_entries[i].id_type);
-			ret = PTR_ERR(info);
-			continue;
+			ret = -ENOMEM;
+			break;
 		}
 
-		switch (id_entries[i].id_type) {
+		memcpy(info, entry->id_info, entry->id_size);
+
+		pr_debug("%s: idx:%d id_info %s\n", __func__, i, info);
+		switch (entry->id_type) {
 		case GH_RM_ID_TYPE_GUID:
 			vm_prop.guid = info;
 		break;
@@ -840,14 +881,28 @@ int gh_rm_get_vm_id_info(enum gh_vm_names vm_name, gh_vmid_t vmid)
 		break;
 		default:
 			pr_err("%s: Unknown id type: %u\n",
-				__func__, id_entries[i].id_type);
+				__func__, entry->id_type);
 			ret = -EINVAL;
+			kfree(info);
 		}
-		pr_debug("%s: idx:%d id_info %s\n", __func__, i, info);
+		entry = (void *)entry + sizeof(*entry) +
+			     round_up(entry->id_size, 4);
 	}
 
-	if (!ret)
-		ret = gh_update_vm_prop_table(vm_name, &vm_prop);
+	if (!ret) {
+		vm_prop.vmid = vmid;
+		if (vm_prop.name)
+			vm_name = gh_get_vm_name(vm_prop.name);
+		else
+			vm_name = GH_VM_MAX;
+		if (vm_name == GH_VM_MAX) {
+			pr_err("Invalid vm name %s of VMID %d\n", vm_prop.name,
+			       vmid);
+			ret = -EINVAL;
+		} else {
+			ret = gh_update_vm_prop_table(vm_name, &vm_prop);
+		}
+	}
 
 	kfree(id_entries);
 	return ret;
@@ -869,6 +924,7 @@ int gh_rm_populate_hyp_res(gh_vmid_t vmid, const char *vm_name)
 	gh_label_t label;
 	u32 n_res, i;
 	u64 base = 0, size = 0;
+	enum gh_vm_names vm_name_index;
 
 	res_entries = gh_rm_vm_get_hyp_res(vmid, &n_res);
 	if (IS_ERR_OR_NULL(res_entries))
@@ -917,8 +973,16 @@ int gh_rm_populate_hyp_res(gh_vmid_t vmid, const char *vm_name)
 					GH_MSGQ_DIRECTION_RX, linux_irq);
 				break;
 			case GH_RM_RES_TYPE_VCPU:
-				if (gh_vcpu_affinity_set_fn)
-					ret = (*gh_vcpu_affinity_set_fn)(vmid, label, cap_id);
+				ret = gh_rm_get_vm_name(vmid, &vm_name_index);
+				if (ret) {
+					pr_err("Fail to find vmname index for vmid%d\n",
+					       vmid);
+					break;
+				}
+				if (gh_vcpu_affinity_set_fn[vm_name_index])
+					ret = gh_vcpu_affinity_set_fn
+						[vm_name_index](vmid, label,
+								cap_id);
 				break;
 			case GH_RM_RES_TYPE_DB_TX:
 				ret = gh_dbl_populate_cap_info(label, cap_id,
@@ -929,8 +993,15 @@ int gh_rm_populate_hyp_res(gh_vmid_t vmid, const char *vm_name)
 					GH_MSGQ_DIRECTION_RX, linux_irq);
 				break;
 			case GH_RM_RES_TYPE_VPMGRP:
-				if (gh_vpm_grp_set_fn)
-					ret = (*gh_vpm_grp_set_fn)(vmid, cap_id, linux_irq);
+				ret = gh_rm_get_vm_name(vmid, &vm_name_index);
+				if (ret) {
+					pr_err("Fail to find vmname index for vmid%d\n",
+					       vmid);
+					break;
+				}
+				if (gh_vpm_grp_set_fn[vm_name_index])
+					ret = gh_vpm_grp_set_fn[vm_name_index](
+						vmid, cap_id, linux_irq);
 				break;
 			case GH_RM_RES_TYPE_VIRTIO_MMIO:
 				mutex_lock(&gh_virtio_mmio_fn_lock);
@@ -983,6 +1054,7 @@ int gh_rm_unpopulate_hyp_res(gh_vmid_t vmid, const char *vm_name)
 	gh_label_t label;
 	u32 n_res, i;
 	int ret = 0, irq = -1;
+	enum gh_vm_names vm_name_index;
 
 	res_entries = gh_rm_vm_get_hyp_res(vmid, &n_res);
 	if (IS_ERR_OR_NULL(res_entries))
@@ -1010,15 +1082,29 @@ int gh_rm_unpopulate_hyp_res(gh_vmid_t vmid, const char *vm_name)
 						GH_RM_RES_TYPE_DB_RX, &irq);
 			break;
 		case GH_RM_RES_TYPE_VCPU:
-			if (gh_vcpu_affinity_reset_fn)
-				ret = (*gh_vcpu_affinity_reset_fn)(vmid, label);
+			ret = gh_rm_get_vm_name(vmid, &vm_name_index);
+			if (ret) {
+				pr_err("Fail to find vmname index for vmid%d\n",
+				       vmid);
+				break;
+			}
+			if (gh_vcpu_affinity_reset_fn[vm_name_index])
+				ret = gh_vcpu_affinity_reset_fn[vm_name_index](
+					vmid, label);
 			break;
 		case GH_RM_RES_TYPE_VIRTIO_MMIO:
 			/* Virtio cleanup is handled in gh_virtio_mmio_exit() */
 			break;
 		case GH_RM_RES_TYPE_VPMGRP:
-			if (gh_vpm_grp_reset_fn)
-				ret = (*gh_vpm_grp_reset_fn)(vmid, &irq);
+			ret = gh_rm_get_vm_name(vmid, &vm_name_index);
+			if (ret) {
+				pr_err("Fail to find vmname index for vmid%d\n",
+				       vmid);
+				break;
+			}
+			if (gh_vpm_grp_reset_fn[vm_name_index])
+				ret = gh_vpm_grp_reset_fn[vm_name_index](vmid,
+									 &irq);
 			break;
 		default:
 			pr_err("%s: Unknown resource type: %u\n",
@@ -1087,6 +1173,7 @@ EXPORT_SYMBOL(gh_rm_unset_virtio_mmio_cb);
 
 /**
  * gh_rm_set_vcpu_affinity_cb: Set callback that handles vcpu affinity
+ * @vm_name_index: index of VM which will trigger the callback function
  * @fnptr: Pointer to callback function
  *
  * @fnptr callback is invoked providing details of the vcpu resource.
@@ -1096,15 +1183,16 @@ EXPORT_SYMBOL(gh_rm_unset_virtio_mmio_cb);
  *	-EINVAL -> Indicates invalid input argument
  *	-EBUSY	-> Indicates that a callback is already set
  */
-int gh_rm_set_vcpu_affinity_cb(gh_vcpu_affinity_set_cb_t fnptr)
+int gh_rm_set_vcpu_affinity_cb(enum gh_vm_names vm_name_index,
+			       gh_vcpu_affinity_set_cb_t fnptr)
 {
 	if (!fnptr)
 		return -EINVAL;
 
-	if (gh_vcpu_affinity_set_fn)
+	if (gh_vcpu_affinity_set_fn[vm_name_index])
 		return -EBUSY;
 
-	gh_vcpu_affinity_set_fn = fnptr;
+	gh_vcpu_affinity_set_fn[vm_name_index] = fnptr;
 
 	return 0;
 }
@@ -1112,6 +1200,7 @@ EXPORT_SYMBOL(gh_rm_set_vcpu_affinity_cb);
 
 /**
  * gh_rm_reset_vcpu_affinity_cb: Reset callback that handles vcpu affinity
+ * @vm_name_index: index of VM which will trigger the callback function
  * @fnptr: Pointer to callback function
  *
  * @fnptr callback is invoked providing details of the vcpu resource.
@@ -1121,15 +1210,16 @@ EXPORT_SYMBOL(gh_rm_set_vcpu_affinity_cb);
  *	-EINVAL -> Indicates invalid input argument
  *	-EBUSY	-> Indicates that a callback is already set
  */
-int gh_rm_reset_vcpu_affinity_cb(gh_vcpu_affinity_reset_cb_t fnptr)
+int gh_rm_reset_vcpu_affinity_cb(enum gh_vm_names vm_name_index,
+				 gh_vcpu_affinity_reset_cb_t fnptr)
 {
 	if (!fnptr)
 		return -EINVAL;
 
-	if (gh_vcpu_affinity_reset_fn)
+	if (gh_vcpu_affinity_reset_fn[vm_name_index])
 		return -EBUSY;
 
-	gh_vcpu_affinity_reset_fn = fnptr;
+	gh_vcpu_affinity_reset_fn[vm_name_index] = fnptr;
 
 	return 0;
 }
@@ -1137,6 +1227,7 @@ EXPORT_SYMBOL(gh_rm_reset_vcpu_affinity_cb);
 
 /**
  * gh_rm_set_vpm_grp_cb: Set callback that handles vpm grp state
+ * @vm_name_index: index of VM which will trigger the callback function
  * @fnptr: Pointer to callback function
  *
  * @fnptr callback is invoked providing details of the vcpu grp state IRQ.
@@ -1146,15 +1237,15 @@ EXPORT_SYMBOL(gh_rm_reset_vcpu_affinity_cb);
  *	-EINVAL -> Indicates invalid input argument
  *	-EBUSY	-> Indicates that a callback is already set
  */
-int gh_rm_set_vpm_grp_cb(gh_vpm_grp_set_cb_t fnptr)
+int gh_rm_set_vpm_grp_cb(enum gh_vm_names vm_name_index, gh_vpm_grp_set_cb_t fnptr)
 {
 	if (!fnptr)
 		return -EINVAL;
 
-	if (gh_vpm_grp_set_fn)
+	if (gh_vpm_grp_set_fn[vm_name_index])
 		return -EBUSY;
 
-	gh_vpm_grp_set_fn = fnptr;
+	gh_vpm_grp_set_fn[vm_name_index] = fnptr;
 
 	return 0;
 }
@@ -1162,6 +1253,7 @@ EXPORT_SYMBOL(gh_rm_set_vpm_grp_cb);
 
 /**
  * gh_rm_reset_vpm_grp_cb: Reset callback that handles vpm grp state
+ * @vm_name_index: index of VM which will trigger the callback function
  * @fnptr: Pointer to callback function
  *
  * @fnptr callback is invoked providing details of the vcpu grp state IRQ.
@@ -1171,15 +1263,15 @@ EXPORT_SYMBOL(gh_rm_set_vpm_grp_cb);
  *	-EINVAL -> Indicates invalid input argument
  *	-EBUSY	-> Indicates that a callback is already set
  */
-int gh_rm_reset_vpm_grp_cb(gh_vpm_grp_reset_cb_t fnptr)
+int gh_rm_reset_vpm_grp_cb(enum gh_vm_names vm_name_index, gh_vpm_grp_reset_cb_t fnptr)
 {
 	if (!fnptr)
 		return -EINVAL;
 
-	if (gh_vpm_grp_reset_fn)
+	if (gh_vpm_grp_reset_fn[vm_name_index])
 		return -EBUSY;
 
-	gh_vpm_grp_reset_fn = fnptr;
+	gh_vpm_grp_reset_fn[vm_name_index] = fnptr;
 
 	return 0;
 }
@@ -1198,11 +1290,159 @@ static void gh_rm_get_svm_res_work_fn(struct work_struct *work)
 		gh_rm_populate_hyp_res(vmid, NULL);
 }
 
+static int gh_vm_status_nb_handler(struct notifier_block *this,
+					unsigned long cmd, void *data)
+{
+	struct gh_rm_notif_vm_status_payload *vm_status_payload = data;
+	struct gh_vminfo vm_info = {0};
+	enum gh_vm_names vm_name;
+	u8 vm_status = vm_status_payload->vm_status;
+	int ret;
+
+	if (cmd != GH_RM_NOTIF_VM_STATUS)
+		return NOTIFY_DONE;
+
+	switch (vm_status) {
+	case GH_RM_VM_STATUS_READY:
+		pr_err("vm(%d) is ready\n", vm_status_payload->vmid);
+		ret = gh_rm_get_vm_id_info(vm_status_payload->vmid);
+		if (ret < 0) {
+			pr_err("Failed to get vmid info for vmid = %d ret = %d\n",
+				vm_status_payload->vmid, ret);
+			return NOTIFY_DONE;
+		}
+		ret = gh_rm_get_vm_name(vm_status_payload->vmid, &vm_name);
+		if (ret < 0) {
+			pr_err("Failed to get vm name for vmid = %d ret = %d\n",
+			       vm_status_payload->vmid, ret);
+			return NOTIFY_DONE;
+		}
+		ret = gh_rm_get_vminfo(vm_name, &vm_info);
+		if (ret < 0)
+			pr_err("Failed to get vminfo of vmname = %s\n", vm_name);
+		ret = gh_rm_populate_hyp_res(vm_status_payload->vmid,
+					     vm_info.name);
+		if (ret < 0) {
+			pr_err("Failed to get hyp resources for vmid = %d vmname = %s ret = %d\n",
+			       vm_status_payload->vmid, vm_name, ret);
+			return NOTIFY_DONE;
+		}
+		break;
+	case GH_RM_VM_STATUS_RUNNING:
+		pr_err("vm(%d) started running\n", vm_status_payload->vmid);
+		break;
+	default:
+		pr_err("Unknown notification receieved for vmid = %d vm_status = %d\n",
+				vm_status_payload->vmid, vm_status);
+	}
+
+	return NOTIFY_DONE;
+}
+
+
+static struct notifier_block gh_vm_status_nb = {
+	.notifier_call = gh_vm_status_nb_handler
+};
+
+
+static void gh_vm_check_peer(struct device *dev, struct device_node *rm_root)
+{
+	int peers_cnt, ret, i;
+	const char **peers_array = NULL;
+	const char *peer, *peer_data;
+	gh_vmid_t vmid;
+	enum gh_vm_names vm_name_index;
+	struct gh_vminfo vm_info;
+	uuid_t vm_guid;
+
+	peers_cnt = of_property_count_strings(rm_root, "qcom,peers");
+	peers_array = kcalloc(peers_cnt, sizeof(char *), GFP_KERNEL);
+	if (!peers_array) {
+		dev_err(dev, "Failed to allocate memory\n");
+		ret = -ENOMEM;
+		return;
+	}
+
+	ret = of_property_read_string_array(rm_root, "qcom,peers", peers_array,
+					    peers_cnt);
+	if (ret < 0) {
+		dev_err(dev, "Failed to find qcom,peers\n");
+		ret = -ENODEV;
+		goto out;
+	}
+
+	for (i = 0; i < peers_cnt; i++) {
+		peer = peers_array[i];
+		if (peer == NULL)
+			continue;
+		if (strnstr(peer, "vm-name:", strlen("vm-name:")) != NULL) {
+			peer_data = peer + strlen("vm-name:");
+			dev_dbg(dev, "Trying to lookup name %s\n", peer_data);
+			ret = gh_rm_vm_lookup(GH_VM_LOOKUP_NAME, peer_data,
+					      strlen(peer_data), &vmid);
+		} else if (strnstr(peer, "vm-uri:", strlen("vm-uri:")) !=
+			   NULL) {
+			peer_data = peer + strlen("vm-uri:");
+			dev_dbg(dev, "Trying to lookup uri %s\n", peer_data);
+			ret = gh_rm_vm_lookup(GH_VM_LOOKUP_URI, peer_data,
+					      strlen(peer_data), &vmid);
+		} else if (strnstr(peer, "vm-guid:", strlen("vm-guid:")) !=
+			   NULL) {
+			peer_data = peer + strlen("vm-guid:");
+			dev_dbg(dev, "Trying to lookup guid %s\n", peer_data);
+			ret = uuid_parse(peer_data, &vm_guid);
+			if (ret != 0)
+				dev_err(dev, "Invalid GUID:%s\n",
+					peer + strlen("vm-guid:"));
+			else
+				ret = gh_rm_vm_lookup(GH_VM_LOOKUP_GUID,
+						      (char *)&vm_guid,
+						      sizeof(vm_guid), &vmid);
+		} else {
+			dev_err(dev, "Unknown peer type:%s\n", peer);
+			continue;
+		}
+		if (ret < 0) {
+			dev_err(dev,
+				"lookup %s failed, VM is not running ret=%d\n",
+				peer, ret);
+			continue;
+		}
+		ret = gh_rm_get_vm_id_info(vmid);
+		if (ret < 0) {
+			dev_err(dev,
+				"Failed to get vmid info for vmid = %d ret = %d\n",
+				vmid, ret);
+			continue;
+		}
+		ret = gh_rm_get_vm_name(vmid, &vm_name_index);
+		if (ret < 0) {
+			dev_err(dev,
+				"Failed to get vmid info for vmid = %d ret = %d\n",
+				vmid, ret);
+			continue;
+		}
+		gh_rm_get_vminfo(vm_name_index, &vm_info);
+		ret = gh_rm_populate_hyp_res(vmid, vm_info.name);
+		if (ret < 0) {
+			dev_err(dev,
+				"Failed to get hyp resources for vmid = %d ret = %d\n",
+				vmid, ret);
+			continue;
+		}
+	}
+out:
+	kfree(peers_array);
+}
+
 static int gh_vm_probe(struct device *dev, struct device_node *hyp_root)
 {
 	struct device_node *node;
 	struct gh_vm_property temp_property = {0};
 	int vmid, owner_vmid, ret;
+	const char *vm_name;
+	enum gh_vm_names vm_name_index;
+
 
 	gh_init_vm_prop_table();
 
@@ -1226,13 +1466,37 @@ static int gh_vm_probe(struct device *dev, struct device_node *hyp_root)
 		/* We must be GH_PRIMARY_VM */
 		temp_property.vmid = vmid;
 		gh_update_vm_prop_table(GH_PRIMARY_VM, &temp_property);
+		gh_rm_core_initialized = true;
 	} else {
-		/* We must be GH_TRUSTED_VM */
+		ret = of_property_read_string(node, "qcom,image-name",
+					      &vm_name);
+		if (ret) {
+			/* Just for compatible, if image-name cannot be found */
+			/* Assume we are trusted VM */
+			dev_dbg(dev,
+				"Could not find qcom,image-name assume we are trustedvm\n");
+			vm_name_index = GH_TRUSTED_VM;
+		} else {
+			vm_name_index = gh_get_vm_name(vm_name);
+			if (vm_name_index == GH_VM_MAX) {
+				dev_dbg(dev,
+					"Could not find vm_name:%s assume we are trustedvm\n",
+					vm_name);
+				vm_name_index = GH_TRUSTED_VM;
+			} else {
+				dev_dbg(dev, "VM name index is %d\n",
+					vm_name_index);
+			}
+		}
 		temp_property.vmid = vmid;
-		gh_update_vm_prop_table(GH_TRUSTED_VM, &temp_property);
+		gh_update_vm_prop_table(vm_name_index, &temp_property);
 		temp_property.vmid = owner_vmid;
 		gh_update_vm_prop_table(GH_PRIMARY_VM, &temp_property);
 
+		/* check peer to see if any VM has been bootup */
+		gh_vm_check_peer(dev, node);
+		gh_rm_register_notifier(&gh_vm_status_nb);
+		gh_rm_core_initialized = true;
 		/* Query RM for available resources */
 		schedule_work(&gh_rm_get_svm_res_work);
 	}
@@ -1293,7 +1557,6 @@ static int gh_rm_drv_probe(struct platform_device *pdev)
 	if (ret < 0 && ret != -ENODEV)
 		goto err_recv_task;
 
-	gh_rm_core_initialized = true;
 	return 0;
 
 err_recv_task:

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _GEN7_REG_H
@@ -138,6 +139,7 @@
 #define GEN7_CP_SQE_AC_UCODE_DBG_DATA    0xb28
 #define GEN7_CP_SQE_AC_STAT_ADDR         0xb29
 #define GEN7_CP_SQE_AC_STAT_DATA         0xb2a
+#define GEN7_CP_LPAC_CHICKEN_DBG         0xb30
 #define GEN7_CP_LPAC_APRIV_CNTL          0xb31
 #define GEN7_CP_LPAC_ROQ_DBG_DATA        0xb35
 #define GEN7_CP_LPAC_FIFO_DBG_DATA       0xb36
@@ -546,6 +548,8 @@
 #define GEN7_RBBM_PERFCTR_RBBM_SEL_2             0x509
 #define GEN7_RBBM_PERFCTR_RBBM_SEL_3             0x50a
 #define GEN7_RBBM_PERFCTR_GPU_BUSY_MASKED        0x50b
+#define GEN7_RBBM_PERFCTR_SRAM_INIT_CMD          0x50e
+#define GEN7_RBBM_PERFCTR_SRAM_INIT_STATUS       0x50f
 
 #define GEN7_RBBM_ISDB_CNT                       0x533
 #define GEN7_RBBM_NC_MODE_CNTL                   0x534
@@ -709,6 +713,7 @@
 #define GEN7_RB_PERFCTR_CCU_SEL_2           0x8e1a
 #define GEN7_RB_PERFCTR_CCU_SEL_3           0x8e1b
 #define GEN7_RB_PERFCTR_CCU_SEL_4           0x8e1c
+#define GEN7_RB_CMP_DBG_ECO_CNTL            0x8e28
 #define GEN7_RB_PERFCTR_CMP_SEL_0           0x8e2c
 #define GEN7_RB_PERFCTR_CMP_SEL_1           0x8e2d
 #define GEN7_RB_PERFCTR_CMP_SEL_2           0x8e2e

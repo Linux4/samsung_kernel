@@ -73,37 +73,38 @@ bool set_next_state(struct integrity_iint_cache *iint,
 			   struct task_integrity *integrity,
 			   struct task_verification_result *result);
 
-static void five_state_task_integrity_state_str_test(struct test *test)
+static void five_state_task_integrity_state_str_test(struct kunit *test)
 {
-	EXPECT_STREQ(test, task_integrity_state_str(
+	KUNIT_EXPECT_STREQ(test, task_integrity_state_str(
 		STATE_CAUSE_FSV_PROTECTED + 100), "unknown");
 }
 
-static void five_state_to_reason_cause_test(struct test *test)
+static void five_state_to_reason_cause_test(struct kunit *test)
 {
-	EXPECT_EQ(test, state_to_reason_cause(CAUSE_MAX + 100), CAUSE_UNSET);
+	KUNIT_EXPECT_EQ(test,
+		(int)state_to_reason_cause(CAUSE_MAX + 100), CAUSE_UNSET);
 }
 
-static void five_state_is_system_label_test(struct test *test)
+static void five_state_is_system_label_test(struct kunit *test)
 {
 	DECLARE_NEW(test, struct integrity_label, label);
 
-	EXPECT_EQ(test, is_system_label(NULL), 0);
+	KUNIT_EXPECT_EQ(test, is_system_label(NULL), 0);
 	label->len = LABEL_SIZE;
-	EXPECT_EQ(test, is_system_label(label), 0);
+	KUNIT_EXPECT_EQ(test, is_system_label(label), 0);
 	label->len = 0;
-	EXPECT_EQ(test, is_system_label(label), 1);
+	KUNIT_EXPECT_EQ(test, is_system_label(label), 1);
 }
 
-static void five_state_integrity_label_cmp_test(struct test *test)
+static void five_state_integrity_label_cmp_test(struct kunit *test)
 {
 	DECLARE_NEW(test, struct integrity_label, l1);
 	DECLARE_NEW(test, struct integrity_label, l2);
 
-	EXPECT_EQ(test, integrity_label_cmp(l1, l2), 0);
+	KUNIT_EXPECT_EQ(test, integrity_label_cmp(l1, l2), 0);
 }
 
-static void five_state_verify_or_update_label_test(struct test *test)
+static void five_state_verify_or_update_label_test(struct kunit *test)
 {
 	int i;
 	struct integrity_label {
@@ -118,32 +119,38 @@ static void five_state_verify_or_update_label_test(struct test *test)
 	for (i = 0; i < LABEL_SIZE; ++i)
 		int_l.data[i] = i+1;
 	iint->five_label = NULL;
-	EXPECT_EQ(test, verify_or_update_label(NULL, iint), 0);
+	KUNIT_EXPECT_EQ(test, verify_or_update_label(NULL, iint), 0);
 
 	iint->five_label = (void *)&int_l;
 	int_l.len = 0;
-	EXPECT_EQ(test, verify_or_update_label(NULL, iint), 0);
+	KUNIT_EXPECT_EQ(test, verify_or_update_label(NULL, iint), 0);
 
 	int_l.len = LABEL_SIZE;
 	intg->label = (void *)intg_label;
-	EXPECT_EQ(test, verify_or_update_label(intg, iint), 0);
-	EXPECT_EQ(test, intg->label->len, 0);
+	KUNIT_EXPECT_EQ(test, verify_or_update_label(intg, iint), 0);
+	KUNIT_EXPECT_EQ(test, intg->label->len, (uint16_t)0);
 
 	intg->label = NULL;
-	EXPECT_EQ(test, verify_or_update_label(intg, iint), 0);
-	EXPECT_EQ(test, intg->label->len, LABEL_SIZE);
+	KUNIT_EXPECT_EQ(test, verify_or_update_label(intg, iint), 0);
+	KUNIT_EXPECT_EQ(test, intg->label->len, (uint16_t)LABEL_SIZE);
 	for (i = 0; i < LABEL_SIZE; ++i)
-		EXPECT_EQ(test, intg->label->data[i], i+1);
+		KUNIT_EXPECT_EQ(test,
+			(uint8_t)intg->label->data[i], (uint8_t)(i+1));
 }
 
-#define EXPECT_EQ_RESULT(intg_value, res_cause, res_prevtint, res_newtint) do {\
-	EXPECT_EQ(test, task_integrity_read(intg), intg_value);\
-	EXPECT_EQ(test, result->cause, res_cause);\
-	EXPECT_EQ(test, result->prev_tint, res_prevtint);\
-	EXPECT_EQ(test, result->new_tint, res_newtint);\
+#define KUNIT_EXPECT_EQ_RESULT(\
+		intg_value, res_cause, res_prevtint, res_newtint) do {\
+	KUNIT_EXPECT_EQ(test, task_integrity_read(intg),\
+		(enum task_integrity_value)intg_value);\
+	KUNIT_EXPECT_EQ(test, result->cause, \
+		(enum task_integrity_state_cause)res_cause);\
+	KUNIT_EXPECT_EQ(test, result->prev_tint,\
+		(enum task_integrity_value)res_prevtint);\
+	KUNIT_EXPECT_EQ(test, result->new_tint,\
+		(enum task_integrity_value)res_newtint);\
 	} while (0)
 
-static void five_state_set_first_state_test(struct test *test)
+static void five_state_set_first_state_test(struct kunit *test)
 {
 	DECLARE_NEW(test, struct task_integrity, intg);
 	DECLARE_NEW(test, struct integrity_iint_cache, iint);
@@ -156,80 +163,83 @@ static void five_state_set_first_state_test(struct test *test)
 	iint->five_status = FIVE_FILE_RSA;
 	iint->five_flags = (unsigned long)-1;
 	task_integrity_set(intg, FAKE_ITEGRITY_VALUE);
-	EXPECT_TRUE(test, set_first_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_PRELOAD_ALLOW_SIGN, STATE_CAUSE_TRUSTED,
+	KUNIT_EXPECT_TRUE(test, set_first_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(
+		INTEGRITY_PRELOAD_ALLOW_SIGN, STATE_CAUSE_TRUSTED,
 		FAKE_ITEGRITY_VALUE, INTEGRITY_PRELOAD_ALLOW_SIGN);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_status = FIVE_FILE_RSA;
 	iint->five_flags = 0;
 	task_integrity_set(intg, FAKE_ITEGRITY_VALUE + 1);
-	EXPECT_TRUE(test, set_first_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_PRELOAD, STATE_CAUSE_DIGSIG,
+	KUNIT_EXPECT_TRUE(test, set_first_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_PRELOAD, STATE_CAUSE_DIGSIG,
 		FAKE_ITEGRITY_VALUE + 1, INTEGRITY_PRELOAD);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_status = FIVE_FILE_FSVERITY;
 	iint->five_flags = (unsigned long)-1;
 	task_integrity_set(intg, FAKE_ITEGRITY_VALUE + 2);
-	EXPECT_TRUE(test, set_first_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_DMVERITY_ALLOW_SIGN, STATE_CAUSE_TRUSTED,
+	KUNIT_EXPECT_TRUE(test, set_first_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(
+		INTEGRITY_DMVERITY_ALLOW_SIGN, STATE_CAUSE_TRUSTED,
 		FAKE_ITEGRITY_VALUE + 2, INTEGRITY_DMVERITY_ALLOW_SIGN);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_status = FIVE_FILE_FSVERITY;
 	iint->five_flags = 0;
 	task_integrity_set(intg, FAKE_ITEGRITY_VALUE + 3);
-	EXPECT_TRUE(test, set_first_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_DMVERITY, STATE_CAUSE_FSV_PROTECTED,
+	KUNIT_EXPECT_TRUE(test, set_first_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_DMVERITY, STATE_CAUSE_FSV_PROTECTED,
 		FAKE_ITEGRITY_VALUE + 3, INTEGRITY_DMVERITY);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_status = FIVE_FILE_DMVERITY;
 	iint->five_flags = (unsigned long)-1;
 	task_integrity_set(intg, FAKE_ITEGRITY_VALUE + 4);
-	EXPECT_TRUE(test, set_first_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_DMVERITY_ALLOW_SIGN, STATE_CAUSE_TRUSTED,
+	KUNIT_EXPECT_TRUE(test, set_first_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(
+		INTEGRITY_DMVERITY_ALLOW_SIGN, STATE_CAUSE_TRUSTED,
 		FAKE_ITEGRITY_VALUE + 4, INTEGRITY_DMVERITY_ALLOW_SIGN);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_status = FIVE_FILE_DMVERITY;
 	iint->five_flags = 0;
 	task_integrity_set(intg, FAKE_ITEGRITY_VALUE + 5);
-	EXPECT_TRUE(test, set_first_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_DMVERITY, STATE_CAUSE_DMV_PROTECTED,
+	KUNIT_EXPECT_TRUE(test, set_first_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_DMVERITY, STATE_CAUSE_DMV_PROTECTED,
 		FAKE_ITEGRITY_VALUE + 5, INTEGRITY_DMVERITY);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_status = FIVE_FILE_HMAC;
 	task_integrity_set(intg, FAKE_ITEGRITY_VALUE + 6);
-	EXPECT_TRUE(test, set_first_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_MIXED, STATE_CAUSE_HMAC,
+	KUNIT_EXPECT_TRUE(test, set_first_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_MIXED, STATE_CAUSE_HMAC,
 		FAKE_ITEGRITY_VALUE + 6, INTEGRITY_MIXED);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_status = FIVE_FILE_HMAC;
 	task_integrity_set(intg, FAKE_ITEGRITY_VALUE + 7);
-	EXPECT_TRUE(test, set_first_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_MIXED, STATE_CAUSE_HMAC,
+	KUNIT_EXPECT_TRUE(test, set_first_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_MIXED, STATE_CAUSE_HMAC,
 		FAKE_ITEGRITY_VALUE + 7, INTEGRITY_MIXED);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_status = FIVE_FILE_FAIL;
 	task_integrity_set(intg, FAKE_ITEGRITY_VALUE + 8);
-	EXPECT_TRUE(test, set_first_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_NONE, STATE_CAUSE_TAMPERED,
+	KUNIT_EXPECT_TRUE(test, set_first_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_NONE, STATE_CAUSE_TAMPERED,
 		FAKE_ITEGRITY_VALUE + 8, INTEGRITY_NONE);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_status = FIVE_FILE_UNKNOWN + 100;
 	task_integrity_set(intg, FAKE_ITEGRITY_VALUE + 9);
-	EXPECT_TRUE(test, set_first_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_NONE, STATE_CAUSE_NOCERT,
+	KUNIT_EXPECT_TRUE(test, set_first_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_NONE, STATE_CAUSE_NOCERT,
 		FAKE_ITEGRITY_VALUE + 9, INTEGRITY_NONE);
 }
 
-static void five_state_set_next_state_test(struct test *test)
+static void five_state_set_next_state_test(struct kunit *test)
 {
 	DECLARE_NEW(test, struct task_integrity, intg);
 	DECLARE_NEW(test, struct integrity_iint_cache, iint);
@@ -241,37 +251,37 @@ static void five_state_set_next_state_test(struct test *test)
 
 	iint->five_status = FIVE_FILE_RSA;
 	task_integrity_set(intg, FAKE_ITEGRITY_VALUE);
-	EXPECT_FALSE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(FAKE_ITEGRITY_VALUE, 0,
+	KUNIT_EXPECT_FALSE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(FAKE_ITEGRITY_VALUE, 0,
 		FAKE_ITEGRITY_VALUE, FAKE_ITEGRITY_VALUE);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_status = FIVE_FILE_UNKNOWN;
 	task_integrity_set(intg, FAKE_ITEGRITY_VALUE + 1);
-	EXPECT_TRUE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_NONE, STATE_CAUSE_NOCERT,
+	KUNIT_EXPECT_TRUE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_NONE, STATE_CAUSE_NOCERT,
 		FAKE_ITEGRITY_VALUE + 1, INTEGRITY_NONE);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_status = FIVE_FILE_FAIL;
 	task_integrity_set(intg, FAKE_ITEGRITY_VALUE + 2);
-	EXPECT_TRUE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_NONE, STATE_CAUSE_TAMPERED,
+	KUNIT_EXPECT_TRUE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_NONE, STATE_CAUSE_TAMPERED,
 		 FAKE_ITEGRITY_VALUE + 2, INTEGRITY_NONE);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_status = FIVE_FILE_DMVERITY;
 	task_integrity_set(intg, INTEGRITY_PRELOAD_ALLOW_SIGN);
-	EXPECT_TRUE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_DMVERITY_ALLOW_SIGN,
+	KUNIT_EXPECT_TRUE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_DMVERITY_ALLOW_SIGN,
 		STATE_CAUSE_DMV_PROTECTED, INTEGRITY_PRELOAD_ALLOW_SIGN,
 		INTEGRITY_DMVERITY_ALLOW_SIGN);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_status = FIVE_FILE_FSVERITY;
 	task_integrity_set(intg, INTEGRITY_PRELOAD_ALLOW_SIGN);
-	EXPECT_TRUE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_DMVERITY_ALLOW_SIGN,
+	KUNIT_EXPECT_TRUE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_DMVERITY_ALLOW_SIGN,
 		STATE_CAUSE_FSV_PROTECTED, INTEGRITY_PRELOAD_ALLOW_SIGN,
 		INTEGRITY_DMVERITY_ALLOW_SIGN);
 
@@ -281,144 +291,146 @@ static void five_state_set_next_state_test(struct test *test)
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_status = FIVE_FILE_HMAC;
 	task_integrity_set(intg, INTEGRITY_PRELOAD_ALLOW_SIGN);
-	EXPECT_TRUE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_MIXED_ALLOW_SIGN, STATE_CAUSE_SYSTEM_LABEL,
+	KUNIT_EXPECT_TRUE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(
+		INTEGRITY_MIXED_ALLOW_SIGN, STATE_CAUSE_SYSTEM_LABEL,
 		INTEGRITY_PRELOAD_ALLOW_SIGN, INTEGRITY_MIXED_ALLOW_SIGN);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_label->len = 1;
 	iint->five_status = FIVE_FILE_HMAC;
 	task_integrity_set(intg, INTEGRITY_PRELOAD_ALLOW_SIGN);
-	EXPECT_TRUE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_MIXED, STATE_CAUSE_HMAC,
+	KUNIT_EXPECT_TRUE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_MIXED, STATE_CAUSE_HMAC,
 		INTEGRITY_PRELOAD_ALLOW_SIGN, INTEGRITY_MIXED);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_status = FIVE_FILE_DMVERITY;
 	task_integrity_set(intg, INTEGRITY_PRELOAD);
-	EXPECT_TRUE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_DMVERITY, STATE_CAUSE_DMV_PROTECTED,
+	KUNIT_EXPECT_TRUE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_DMVERITY, STATE_CAUSE_DMV_PROTECTED,
 		INTEGRITY_PRELOAD, INTEGRITY_DMVERITY);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_status = FIVE_FILE_FSVERITY;
 	task_integrity_set(intg, INTEGRITY_PRELOAD);
-	EXPECT_TRUE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_DMVERITY, STATE_CAUSE_FSV_PROTECTED,
+	KUNIT_EXPECT_TRUE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_DMVERITY, STATE_CAUSE_FSV_PROTECTED,
 		INTEGRITY_PRELOAD, INTEGRITY_DMVERITY);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_status = FIVE_FILE_HMAC;
 	task_integrity_set(intg, INTEGRITY_PRELOAD);
-	EXPECT_TRUE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_MIXED, STATE_CAUSE_HMAC,
+	KUNIT_EXPECT_TRUE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_MIXED, STATE_CAUSE_HMAC,
 		INTEGRITY_PRELOAD, INTEGRITY_MIXED);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_label->len = 0;
 	iint->five_status = FIVE_FILE_HMAC;
 	task_integrity_set(intg, INTEGRITY_PRELOAD);
-	EXPECT_TRUE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_MIXED, STATE_CAUSE_HMAC,
+	KUNIT_EXPECT_TRUE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_MIXED, STATE_CAUSE_HMAC,
 		INTEGRITY_PRELOAD, INTEGRITY_MIXED);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_label->len = 1;
 	iint->five_status = FIVE_FILE_HMAC;
 	task_integrity_set(intg, INTEGRITY_MIXED_ALLOW_SIGN);
-	EXPECT_TRUE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_MIXED, STATE_CAUSE_HMAC,
+	KUNIT_EXPECT_TRUE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_MIXED, STATE_CAUSE_HMAC,
 		INTEGRITY_MIXED_ALLOW_SIGN, INTEGRITY_MIXED);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_label->len = 0;
 	iint->five_status = FIVE_FILE_HMAC;
 	task_integrity_set(intg, INTEGRITY_MIXED_ALLOW_SIGN);
-	EXPECT_FALSE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_MIXED_ALLOW_SIGN, 0,
+	KUNIT_EXPECT_FALSE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_MIXED_ALLOW_SIGN, 0,
 		INTEGRITY_MIXED_ALLOW_SIGN, INTEGRITY_MIXED_ALLOW_SIGN);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_label->len = 1;
 	iint->five_status = FIVE_FILE_DMVERITY;
 	task_integrity_set(intg, INTEGRITY_MIXED_ALLOW_SIGN);
-	EXPECT_FALSE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_MIXED_ALLOW_SIGN, 0,
+	KUNIT_EXPECT_FALSE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_MIXED_ALLOW_SIGN, 0,
 		INTEGRITY_MIXED_ALLOW_SIGN, INTEGRITY_MIXED_ALLOW_SIGN);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_label->len = 1;
 	iint->five_status = FIVE_FILE_FSVERITY;
 	task_integrity_set(intg, INTEGRITY_MIXED_ALLOW_SIGN);
-	EXPECT_FALSE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_MIXED_ALLOW_SIGN, 0,
+	KUNIT_EXPECT_FALSE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_MIXED_ALLOW_SIGN, 0,
 		INTEGRITY_MIXED_ALLOW_SIGN, INTEGRITY_MIXED_ALLOW_SIGN);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_status = FIVE_FILE_HMAC;
 	task_integrity_set(intg, INTEGRITY_DMVERITY);
-	EXPECT_TRUE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_MIXED, STATE_CAUSE_HMAC,
+	KUNIT_EXPECT_TRUE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_MIXED, STATE_CAUSE_HMAC,
 		INTEGRITY_DMVERITY, INTEGRITY_MIXED);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_status = FIVE_FILE_DMVERITY;
 	task_integrity_set(intg, INTEGRITY_DMVERITY);
-	EXPECT_FALSE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_DMVERITY, 0,
+	KUNIT_EXPECT_FALSE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_DMVERITY, 0,
 		INTEGRITY_DMVERITY, INTEGRITY_DMVERITY);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_status = FIVE_FILE_FSVERITY;
 	task_integrity_set(intg, INTEGRITY_DMVERITY);
-	EXPECT_FALSE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_DMVERITY, 0,
+	KUNIT_EXPECT_FALSE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_DMVERITY, 0,
 		INTEGRITY_DMVERITY, INTEGRITY_DMVERITY);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_label->len = 0;
 	iint->five_status = FIVE_FILE_HMAC;
 	task_integrity_set(intg, INTEGRITY_DMVERITY_ALLOW_SIGN);
-	EXPECT_TRUE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_MIXED_ALLOW_SIGN, STATE_CAUSE_SYSTEM_LABEL,
+	KUNIT_EXPECT_TRUE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(
+		INTEGRITY_MIXED_ALLOW_SIGN, STATE_CAUSE_SYSTEM_LABEL,
 		INTEGRITY_DMVERITY_ALLOW_SIGN, INTEGRITY_MIXED_ALLOW_SIGN);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_label->len = 1;
 	iint->five_status = FIVE_FILE_HMAC;
 	task_integrity_set(intg, INTEGRITY_DMVERITY_ALLOW_SIGN);
-	EXPECT_TRUE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_MIXED, STATE_CAUSE_HMAC,
+	KUNIT_EXPECT_TRUE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_MIXED, STATE_CAUSE_HMAC,
 		INTEGRITY_DMVERITY_ALLOW_SIGN, INTEGRITY_MIXED);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_status = FIVE_FILE_DMVERITY;
 	task_integrity_set(intg, INTEGRITY_DMVERITY_ALLOW_SIGN);
-	EXPECT_FALSE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_DMVERITY_ALLOW_SIGN, 0,
+	KUNIT_EXPECT_FALSE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_DMVERITY_ALLOW_SIGN, 0,
 		INTEGRITY_DMVERITY_ALLOW_SIGN, INTEGRITY_DMVERITY_ALLOW_SIGN);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	iint->five_status = FIVE_FILE_FSVERITY;
 	task_integrity_set(intg, INTEGRITY_DMVERITY_ALLOW_SIGN);
-	EXPECT_FALSE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_DMVERITY_ALLOW_SIGN, 0,
+	KUNIT_EXPECT_FALSE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_DMVERITY_ALLOW_SIGN, 0,
 		INTEGRITY_DMVERITY_ALLOW_SIGN, INTEGRITY_DMVERITY_ALLOW_SIGN);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	task_integrity_set(intg, INTEGRITY_MIXED);
-	EXPECT_FALSE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_MIXED, 0,
+	KUNIT_EXPECT_FALSE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_MIXED, 0,
 		INTEGRITY_MIXED, INTEGRITY_MIXED);
 
 	memset(result, 0, sizeof(struct task_verification_result));
 	task_integrity_set(intg, INTEGRITY_NONE);
-	EXPECT_FALSE(test, set_next_state(iint, intg, result));
-	EXPECT_EQ_RESULT(INTEGRITY_NONE, 0,
+	KUNIT_EXPECT_FALSE(test, set_next_state(iint, intg, result));
+	KUNIT_EXPECT_EQ_RESULT(INTEGRITY_NONE, 0,
 		INTEGRITY_NONE, INTEGRITY_NONE);
 }
 
-static void five_state_proceed_no_iint_test(struct test *test)
+static void five_state_proceed_no_iint_test(struct kunit *test)
 {
 	DECLARE_NEW(test, struct file_verification_result, file_result);
 
@@ -428,7 +440,7 @@ static void five_state_proceed_no_iint_test(struct test *test)
 }
 
 static void five_state_proceed_set_next_state_returns_false_test(
-	struct test *test)
+	struct kunit *test)
 {
 	DECLARE_NEW(test, struct task_integrity, intg);
 	DECLARE_NEW(test, struct integrity_iint_cache, iint);
@@ -446,7 +458,7 @@ static void five_state_proceed_set_next_state_returns_false_test(
 }
 
 static void five_state_proceed_set_first_state_not_ret_intg_none_test(
-	struct test *test)
+	struct kunit *test)
 {
 	DECLARE_NEW(test, struct task_integrity, intg);
 	DECLARE_NEW(test, struct integrity_iint_cache, iint);
@@ -466,7 +478,7 @@ static void five_state_proceed_set_first_state_not_ret_intg_none_test(
 	file_result->file = NEW(test, struct file);
 	file_result->five_result = FIVE_RESULT;
 
-	Returns(EXPECT_CALL(five_audit_verbose(
+	KunitReturns(KUNIT_EXPECT_CALL(five_audit_verbose(
 		ptr_eq(test, file_result->task),
 		ptr_eq(test, file_result->file),
 		streq(test, five_get_string_fn(file_result->fn)),
@@ -478,7 +490,7 @@ static void five_state_proceed_set_first_state_not_ret_intg_none_test(
 }
 
 static void five_state_proceed_set_first_state_returns_intg_none_test(
-	struct test *test)
+	struct kunit *test)
 {
 	DECLARE_NEW(test, struct task_integrity, intg);
 	DECLARE_NEW(test, struct integrity_iint_cache, iint);
@@ -499,13 +511,13 @@ static void five_state_proceed_set_first_state_returns_intg_none_test(
 	file_result->file = NEW(test, struct file);
 	file_result->five_result = FIVE_RESULT;
 
-	Returns(EXPECT_CALL(five_hook_integrity_reset(
+	KunitReturns(KUNIT_EXPECT_CALL(five_hook_integrity_reset(
 		ptr_eq(test, file_result->task),
 		ptr_eq(test, file_result->file),
 		int_eq(test, CAUSE_NO_CERT))),
 		int_return(test, 0));
 
-	Returns(EXPECT_CALL(five_audit_verbose(
+	KunitReturns(KUNIT_EXPECT_CALL(five_audit_verbose(
 		ptr_eq(test, file_result->task),
 		ptr_eq(test, file_result->file),
 		streq(test, five_get_string_fn(file_result->fn)),
@@ -515,12 +527,12 @@ static void five_state_proceed_set_first_state_returns_intg_none_test(
 
 	five_state_proceed(intg, file_result);
 
-	EXPECT_EQ(test,
+	KUNIT_EXPECT_EQ(test,
 		intg->reset_cause, state_to_reason_cause(STATE_CAUSE_NOCERT));
 }
 
 static void five_state_proceed_set_next_state_returns_intg_none_test(
-	struct test *test)
+	struct kunit *test)
 {
 	char pathname[] = "yyy";
 	char comm[TASK_COMM_LEN] = "zzz";
@@ -547,13 +559,13 @@ static void five_state_proceed_set_next_state_returns_intg_none_test(
 	file_result->file = NEW(test, struct file);
 	file_result->five_result = FIVE_RESULT;
 
-	Returns(EXPECT_CALL(five_hook_integrity_reset(
+	KunitReturns(KUNIT_EXPECT_CALL(five_hook_integrity_reset(
 		ptr_eq(test, file_result->task),
 		ptr_eq(test, file_result->file),
 		int_eq(test, CAUSE_TAMPERED))),
 		int_return(test, 0));
 
-	Returns(EXPECT_CALL(five_audit_verbose(
+	KunitReturns(KUNIT_EXPECT_CALL(five_audit_verbose(
 		ptr_eq(test, file_result->task),
 		ptr_eq(test, file_result->file),
 		streq(test, five_get_string_fn(file_result->fn)),
@@ -561,52 +573,54 @@ static void five_state_proceed_set_next_state_returns_intg_none_test(
 		int_eq(test, file_result->five_result))),
 		ptr_return(test, 0));
 
-	Returns(EXPECT_CALL(five_d_path(
+	KunitReturns(KUNIT_EXPECT_CALL(five_d_path(
 		ptr_eq(test, &file_result->file->f_path),
 		any(test), any(test))),
 		ptr_return(test, pathname));
 
-	Returns(EXPECT_CALL(call_crc16(
+	KunitReturns(KUNIT_EXPECT_CALL(call_crc16(
 		int_eq(test, 0), streq(test, dsms_msg),
 		int_eq(test, msg_size))),
 		u32_return(test, CRC_VALUE_NO_MATTER));
 
 	five_state_proceed(intg, file_result);
 
-	EXPECT_EQ(test, intg->reset_cause,
+	KUNIT_EXPECT_EQ(test, intg->reset_cause,
 		state_to_reason_cause(STATE_CAUSE_TAMPERED));
 }
 
-static struct test_case five_state_test_cases[] = {
-	TEST_CASE(five_state_task_integrity_state_str_test),
-	TEST_CASE(five_state_to_reason_cause_test),
-	TEST_CASE(five_state_is_system_label_test),
-	TEST_CASE(five_state_integrity_label_cmp_test),
-	TEST_CASE(five_state_verify_or_update_label_test),
-	TEST_CASE(five_state_set_first_state_test),
-	TEST_CASE(five_state_set_next_state_test),
-	TEST_CASE(five_state_proceed_no_iint_test),
-	TEST_CASE(five_state_proceed_set_next_state_returns_false_test),
-	TEST_CASE(five_state_proceed_set_first_state_not_ret_intg_none_test),
-	TEST_CASE(five_state_proceed_set_first_state_returns_intg_none_test),
-	TEST_CASE(five_state_proceed_set_next_state_returns_intg_none_test),
+static struct kunit_case five_state_test_cases[] = {
+	KUNIT_CASE(five_state_task_integrity_state_str_test),
+	KUNIT_CASE(five_state_to_reason_cause_test),
+	KUNIT_CASE(five_state_is_system_label_test),
+	KUNIT_CASE(five_state_integrity_label_cmp_test),
+	KUNIT_CASE(five_state_verify_or_update_label_test),
+	KUNIT_CASE(five_state_set_first_state_test),
+	KUNIT_CASE(five_state_set_next_state_test),
+	KUNIT_CASE(five_state_proceed_no_iint_test),
+	KUNIT_CASE(five_state_proceed_set_next_state_returns_false_test),
+	KUNIT_CASE(five_state_proceed_set_first_state_not_ret_intg_none_test),
+	KUNIT_CASE(five_state_proceed_set_first_state_returns_intg_none_test),
+	KUNIT_CASE(five_state_proceed_set_next_state_returns_intg_none_test),
 	{},
 };
 
-static int five_state_test_init(struct test *test)
+static int five_state_test_init(struct kunit *test)
 {
 	return 0;
 }
 
-static void five_state_test_exit(struct test *test)
+static void five_state_test_exit(struct kunit *test)
 {
 }
 
-static struct test_module five_state_test_module = {
+static struct kunit_suite five_state_test_module = {
 	.name = "five_state_test",
 	.init = five_state_test_init,
 	.exit = five_state_test_exit,
 	.test_cases = five_state_test_cases,
 };
 
-module_test(five_state_test_module);
+kunit_test_suites(&five_state_test_module);
+
+MODULE_LICENSE("GPL v2");

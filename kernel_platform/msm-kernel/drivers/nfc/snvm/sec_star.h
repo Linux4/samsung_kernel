@@ -20,6 +20,12 @@
 
 #include <linux/types.h>
 
+/* #define FEATURE_STAR_WAKELOCK */
+
+#ifdef FEATURE_STAR_WAKELOCK
+#include "snvm_wakelock.h"
+#endif
+
 enum sec_hal_e {
 	SEC_HAL_I2C = 0,
 	SEC_HAL_SPI,
@@ -38,7 +44,7 @@ typedef struct sec_star_s {
 	star_dev_t *dev;
 	struct mutex lock;
 #ifdef FEATURE_STAR_WAKELOCK
-	struct wakeup_source wake;
+	struct snvm_wake_lock snvm_wake_lock;
 #endif
 	struct miscdevice misc;
 	void *hal;

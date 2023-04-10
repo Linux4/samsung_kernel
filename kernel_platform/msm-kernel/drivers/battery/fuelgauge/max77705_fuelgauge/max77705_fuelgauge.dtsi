@@ -27,7 +27,12 @@
 					>;
 #endif
 #if 0
-			    fuelgauge,sub_bat_id_gpio = <SEC_GPIO_REF(${sub_bat_id_gpio}) 0>; /* SUB_BAT_ID */
+			    fuelgauge,sub_bat_id_gpio = <
+#if 0
+					SEC_GPIO_REF(${sub_bat_id_gpio_2}) 0 /* SUB_BAT_ID_GPIO 1 */
+#endif
+					SEC_GPIO_REF(${sub_bat_id_gpio}) 0 /* SUB_BAT_ID_GPIO 0 */
+					>;
 #endif
 			    battery_params {
 				/* battery0 : default */

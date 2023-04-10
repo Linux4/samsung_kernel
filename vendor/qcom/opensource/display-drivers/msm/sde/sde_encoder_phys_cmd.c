@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -248,6 +249,7 @@ static void sde_encoder_phys_cmd_te_rd_ptr_irq(void *arg, int irq_idx)
 	struct sde_hw_pp_vsync_info info[MAX_CHANNELS_PER_ENC] = {{0}};
 	struct sde_encoder_phys_cmd_te_timestamp *te_timestamp;
 	unsigned long lock_flags;
+	struct drm_display_mode *mode;
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	struct drm_connector *conn = phys_enc ? phys_enc->connector : NULL;
 	struct sde_connector *sde_conn;
@@ -303,13 +305,18 @@ static void sde_encoder_phys_cmd_te_rd_ptr_irq(void *arg, int irq_idx)
 		info[1].wr_ptr_line_count, info[1].intf_frame_count,
 		scheduler_status);
 
+	mode = &phys_enc->cached_mode;
+	if (!mode || info[0].wr_ptr_line_count == mode->vdisplay ||
+			!info[0].wr_ptr_line_count)
+		atomic_add_unless(&cmd_enc->frame_trigger_count, -1, 0);
+
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	/* case 05295952: detect MDP clock underflow that causes line noise */
-	if (vdd && info[0].wr_ptr_line_count > (phys_enc->cached_mode.vdisplay/3) &&
+	if (vdd && ctrl->ctrl && info[0].wr_ptr_line_count > (phys_enc->cached_mode.vdisplay/3) &&
 			info[0].wr_ptr_line_count < ctrl->ctrl->roi.h) {
 		SS_XLOG(info[0].wr_ptr_line_count, ++vdd->cnt_mdp_clk_underflow);
-		SDE_ERROR("mdp clock underrun: wr: %d, cnt: %d, roi.h=%d\n",
-				info[0].wr_ptr_line_count, vdd->cnt_mdp_clk_underflow, ctrl->ctrl->roi.h);
+		SDE_INFO("mdp wr_ptr_line_count check : cnt [%d] [%d / %d]\n",
+				vdd->cnt_mdp_clk_underflow, info[0].wr_ptr_line_count, ctrl->ctrl->roi.h);
 	}
 
 	if (vdd && vdd->vrr.support_te_mod && vdd->vrr.te_mod_on && vdd->vrr.te_mod_divider > 0) {
@@ -345,12 +352,16 @@ static void sde_encoder_phys_cmd_wr_ptr_irq(void *arg, int irq_idx)
 	struct sde_hw_ctl *ctl;
 	u32 event = 0;
 	struct sde_hw_pp_vsync_info info[MAX_CHANNELS_PER_ENC] = {{0}};
+	struct sde_encoder_phys_cmd *cmd_enc;
 
 	if (!phys_enc || !phys_enc->hw_ctl)
 		return;
 
 	SDE_ATRACE_BEGIN("wr_ptr_irq");
 	ctl = phys_enc->hw_ctl;
+	cmd_enc = to_sde_encoder_phys_cmd(phys_enc);
+
+	atomic_inc(&cmd_enc->frame_trigger_count);
 
 	if (atomic_add_unless(&phys_enc->pending_retire_fence_cnt, -1, 0)) {
 		event = SDE_ENCODER_FRAME_EVENT_SIGNAL_RETIRE_FENCE;
@@ -469,7 +480,7 @@ static void sde_encoder_phys_cmd_cont_splash_mode_set(
 static void sde_encoder_phys_cmd_mode_set(
 		struct sde_encoder_phys *phys_enc,
 		struct drm_display_mode *mode,
-		struct drm_display_mode *adj_mode)
+		struct drm_display_mode *adj_mode, bool *reinit_mixers)
 {
 	struct sde_encoder_phys_cmd *cmd_enc =
 		to_sde_encoder_phys_cmd(phys_enc);
@@ -490,8 +501,14 @@ static void sde_encoder_phys_cmd_mode_set(
 	/* Retrieve previously allocated HW Resources. Shouldn't fail */
 	sde_rm_init_hw_iter(&iter, phys_enc->parent->base.id, SDE_HW_BLK_CTL);
 	for (i = 0; i <= instance; i++) {
-		if (sde_rm_get_hw(rm, &iter))
+		if (sde_rm_get_hw(rm, &iter)) {
+			if (phys_enc->hw_ctl && phys_enc->hw_ctl != iter.hw) {
+				*reinit_mixers =  true;
+				SDE_EVT32(phys_enc->hw_ctl->idx,
+					((struct sde_hw_ctl *)iter.hw)->idx);
+			}
 			phys_enc->hw_ctl = (struct sde_hw_ctl *)iter.hw;
+		}
 	}
 
 	if (IS_ERR_OR_NULL(phys_enc->hw_ctl)) {
@@ -1237,6 +1254,24 @@ skip_flush:
 	return;
 }
 
+static void sde_encoder_phys_cmd_reset_tear_init_line_val(struct sde_encoder_phys *phys_enc)
+{
+	u32 tear_init_val;
+	struct sde_hw_intf *hw_intf;
+
+	if (!phys_enc->hw_intf || !phys_enc->cached_mode.vdisplay)
+		return;
+
+	hw_intf = phys_enc->hw_intf;
+	tear_init_val = phys_enc->cached_mode.vdisplay + DEFAULT_TEARCHECK_SYNC_THRESH_START + 1;
+
+	SDE_EVT32(DRMID(phys_enc->parent), tear_init_val);
+
+	/* this reset will be needed to avoid any spurious rd_ptr_irq from tearcheck block*/
+	if (hw_intf->ops.reset_tear_init_line_val)
+		hw_intf->ops.reset_tear_init_line_val(hw_intf, tear_init_val);
+}
+
 static void sde_encoder_phys_cmd_enable(struct sde_encoder_phys *phys_enc)
 {
 	struct sde_encoder_phys_cmd *cmd_enc =
@@ -1257,6 +1292,7 @@ static void sde_encoder_phys_cmd_enable(struct sde_encoder_phys *phys_enc)
 
 	sde_encoder_phys_cmd_enable_helper(phys_enc);
 	phys_enc->enable_state = SDE_ENC_ENABLED;
+	sde_encoder_phys_cmd_reset_tear_init_line_val(phys_enc);
 }
 
 static bool sde_encoder_phys_cmd_is_autorefresh_enabled(
@@ -1963,9 +1999,33 @@ static void sde_encoder_phys_cmd_trigger_start(
 	struct sde_encoder_phys_cmd *cmd_enc =
 			to_sde_encoder_phys_cmd(phys_enc);
 	u32 frame_cnt;
+	struct drm_connector *conn;
+	int threshold_lines, curr_rd_ptr_line_count;
+	struct sde_hw_pp_vsync_info info[MAX_CHANNELS_PER_ENC] = {{0}};
+	struct drm_display_mode *mode;
 
 	if (!phys_enc)
 		return;
+
+	conn = phys_enc->connector;
+	mode = &phys_enc->cached_mode;
+	if (mode && sde_connector_get_qsync_mode(conn)) {
+		threshold_lines = _get_tearcheck_threshold(phys_enc);
+		sde_encoder_helper_get_pp_line_count(phys_enc->parent, info);
+		curr_rd_ptr_line_count = info[0].rd_ptr_line_count;
+
+		/*
+		 * Vsync wait is required only if both the below conditions satisfy
+		 * - current rd_ptr linecount is within the start threshold window
+		 * - frame trigger already happened in this TE interval
+		 */
+		if ((curr_rd_ptr_line_count < mode->vdisplay + threshold_lines) &&
+			atomic_read(&cmd_enc->frame_trigger_count)) {
+			SDE_EVT32(curr_rd_ptr_line_count, mode->vdisplay + threshold_lines,
+				atomic_read(&cmd_enc->frame_trigger_count), 0xebad);
+			sde_encoder_phys_cmd_wait_for_vblank(phys_enc);
+		}
+	}
 
 	/* we don't issue CTL_START when using autorefresh */
 	frame_cnt = _sde_encoder_phys_cmd_get_autorefresh_property(phys_enc);
@@ -2049,6 +2109,7 @@ static void sde_encoder_phys_cmd_init_ops(struct sde_encoder_phys_ops *ops)
 	ops->setup_misr = sde_encoder_helper_setup_misr;
 	ops->collect_misr = sde_encoder_helper_collect_misr;
 	ops->add_to_minidump = sde_encoder_phys_cmd_add_enc_to_minidump;
+	ops->reset_tearcheck_rd_ptr = sde_encoder_phys_cmd_reset_tear_init_line_val;
 }
 
 static inline bool sde_encoder_phys_cmd_intf_te_supported(

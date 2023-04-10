@@ -17,6 +17,8 @@
 #define MAX_MODULE_NUM      (3)
 #if defined(CONFIG_SAMSUNG_REAR_QUADRA)
 #define CUR_MODULE_NUM      (3)
+#elif defined(CONFIG_SAMSUNG_REAR_DUAL) && defined(CONFIG_SEC_B4Q_PROJECT)
+#define CUR_MODULE_NUM      (1)
 #else
 #define CUR_MODULE_NUM      (2)
 #endif
@@ -236,6 +238,7 @@ typedef struct
 #define BOOT_I2C_FULL_ERASE_TMOUT       (flash_full_erase_time)
 #define BOOT_I2C_PAGE_ERASE_TMOUT(n)    (flash_page_erase_time * n)
 #define BOOT_I2C_WAIT_RESP_TMOUT        (30)
+#define BOOT_I2C_WAIT_MAX_RESP_TMOUT    (1500)
 #define BOOT_I2C_WAIT_RESP_POLL_TMOUT   (500)
 #define BOOT_I2C_WAIT_RESP_POLL_INTVL   (3)
 #define BOOT_I2C_WAIT_RESP_POLL_RETRY   (BOOT_I2C_WAIT_RESP_POLL_TMOUT / BOOT_I2C_WAIT_RESP_POLL_INTVL)

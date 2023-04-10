@@ -6,6 +6,7 @@
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
 
 #include <linux/kernel.h>
+#include <linux/memblock.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/of.h>
@@ -66,6 +67,7 @@ struct pmsg_drvdata {
 	struct reserved_mem *rmem;
 	phys_addr_t paddr;
 	size_t size;
+	bool nomap;
 	struct pstore_info *pstore;
 	struct pmsg_logger *logger;
 	struct pmsg_buffer __percpu *buf;
@@ -87,6 +89,10 @@ static void notrace ____pmsg_memcpy_toio(void *dst, const void *src, size_t cnt)
 static void notrace ____pmsg_memcpy(void *dst, const void *src, size_t cnt)
 {
 	memcpy(dst, src, cnt);
+}
+
+static void notrace ____pmsg_memcpy_dummy(void *dst, const void *src, size_t cnt)
+{
 }
 
 static inline void __pmsg_logger(const char *buf, size_t size)
@@ -444,8 +450,77 @@ static int __pmsg_parse_dt_test_no_map(struct builder *bd,
 	if (!of_property_read_bool(mem_np, "no-map")) {
 		pmsg_buf = phys_to_virt(drvdata->paddr);
 		__pmsg_memcpy_toio = ____pmsg_memcpy;
+		drvdata->nomap = false;
 	} else {
 		__pmsg_memcpy_toio = ____pmsg_memcpy_toio;
+		drvdata->nomap = true;
+	}
+
+	return 0;
+}
+
+#if IS_BUILTIN(CONFIG_SEC_PMSG)
+static __always_inline unsigned long __free_reserved_area(void *start, void *end, int poison, const char *s)
+{
+	return free_reserved_area(start, end, poison, s);
+}
+#else
+/* FIXME: this is a copy of 'free_reserved_area' of 'page_alloc.c' */
+static unsigned long __free_reserved_area(void *start, void *end, int poison, const char *s)
+{
+	void *pos;
+	unsigned long pages = 0;
+
+	start = (void *)PAGE_ALIGN((unsigned long)start);
+	end = (void *)((unsigned long)end & PAGE_MASK);
+	for (pos = start; pos < end; pos += PAGE_SIZE, pages++) {
+		struct page *page = virt_to_page(pos);
+		void *direct_map_addr;
+
+		direct_map_addr = page_address(page);
+
+		direct_map_addr = kasan_reset_tag(direct_map_addr);
+		if ((unsigned int)poison <= 0xFF)
+			memset(direct_map_addr, poison, PAGE_SIZE);
+
+		free_reserved_page(page);
+	}
+
+	if (pages && s)
+		pr_info("Freeing %s memory: %ldK\n",
+			s, pages << (PAGE_SHIFT - 10));
+
+	return pages;
+}
+#endif
+
+static void __pmsg_free_reserved_area(struct pmsg_drvdata *drvdata)
+{
+	struct device *dev = drvdata->bd.dev;
+	uint8_t *start;
+
+	if (drvdata->nomap) {
+		dev_warn(dev, "reserved_mem has 'no-map' and can't be freed\n");
+		return;
+	}
+
+	start = (uint8_t *)phys_to_virt(drvdata->paddr);
+
+	__free_reserved_area(start, start + drvdata->size, -1, "sec_pmsg");
+}
+
+static int __pmsg_parse_dt_check_debug_level(struct builder *bd,
+		struct device_node *np)
+{
+	struct pmsg_drvdata *drvdata =
+			container_of(bd, struct pmsg_drvdata, bd);
+	unsigned int sec_dbg_level = sec_debug_level();
+	int err;
+
+	err = sec_of_test_debug_level(np, "sec,debug_level", sec_dbg_level);
+	if (err == -EINVAL) {
+		__pmsg_free_reserved_area(drvdata);
+		__pmsg_memcpy_toio = ____pmsg_memcpy_dummy;
 	}
 
 	return 0;
@@ -455,6 +530,7 @@ static const struct dt_builder __pmsg_dt_builder[] = {
 	DT_BUILDER(__pmsg_parse_dt_memory_region),
 	DT_BUILDER(__pmsg_parse_dt_splitted_reserved_mem),
 	DT_BUILDER(__pmsg_parse_dt_test_no_map),
+	DT_BUILDER(__pmsg_parse_dt_check_debug_level),
 };
 
 static int __pmsg_parse_dt(struct builder *bd)

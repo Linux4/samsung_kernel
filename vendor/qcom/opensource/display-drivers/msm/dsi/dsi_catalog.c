@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/errno.h>
@@ -65,6 +66,7 @@ static void dsi_catalog_cmn_init(struct dsi_ctrl_hw *ctrl,
 		dsi_ctrl_hw_cmn_wait4dynamic_refresh_done;
 	ctrl->ops.hs_req_sel = dsi_ctrl_hw_cmn_hs_req_sel;
 	ctrl->ops.vid_engine_busy = dsi_ctrl_hw_cmn_vid_engine_busy;
+	ctrl->ops.init_cmddma_trig_ctrl = dsi_ctrl_hw_cmn_init_cmddma_trig_ctrl;
 
 	switch (version) {
 	case DSI_CTRL_VERSION_2_2:
@@ -72,6 +74,7 @@ static void dsi_catalog_cmn_init(struct dsi_ctrl_hw *ctrl,
 	case DSI_CTRL_VERSION_2_4:
 	case DSI_CTRL_VERSION_2_5:
 	case DSI_CTRL_VERSION_2_6:
+	case DSI_CTRL_VERSION_2_7:
 		ctrl->ops.phy_reset_config = dsi_ctrl_hw_22_phy_reset_config;
 		ctrl->ops.config_clk_gating = dsi_ctrl_hw_22_config_clk_gating;
 		ctrl->ops.setup_lane_map = dsi_ctrl_hw_22_setup_lane_map;
@@ -142,6 +145,7 @@ int dsi_catalog_ctrl_setup(struct dsi_ctrl_hw *ctrl,
 		break;
 	case DSI_CTRL_VERSION_2_5:
 	case DSI_CTRL_VERSION_2_6:
+	case DSI_CTRL_VERSION_2_7:
 		ctrl->widebus_support = true;
 		ctrl->phy_isolation_enabled = phy_isolation_enabled;
 		dsi_catalog_cmn_init(ctrl, version);
@@ -230,6 +234,9 @@ static void dsi_catalog_phy_4_0_init(struct dsi_phy_hw *phy)
 
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	phy->ops.store_str = dsi_phy_hw_v4_0_store_str;
+	phy->ops.show_str = dsi_phy_hw_v4_0_show_str;	
+	phy->ops.store_vreg = dsi_phy_hw_v4_0_store_vreg;
+	phy->ops.show_vreg = dsi_phy_hw_v4_0_show_vreg;
 	phy->ops.store_emphasis = dsi_phy_hw_v4_0_store_emphasis;
 #endif
 }
@@ -270,6 +277,8 @@ int dsi_catalog_phy_setup(struct dsi_phy_hw *phy,
 	case DSI_PHY_VERSION_4_1:
 	case DSI_PHY_VERSION_4_2:
 	case DSI_PHY_VERSION_4_3:
+	case DSI_PHY_VERSION_4_3_2:
+	case DSI_PHY_VERSION_5_2:
 		dsi_catalog_phy_4_0_init(phy);
 		break;
 	default:

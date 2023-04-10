@@ -1,5 +1,6 @@
 /*
 ** Copyright (c) 2019, The Linux Foundation. All rights reserved.
+** Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
 ** modification, are permitted provided that the following conditions are
@@ -1137,6 +1138,7 @@ android::status_t BnAgmService::onTransact(uint32_t code,
                                 blob.data(), blob_size);
          blob.release();
          rc = ipc_agm_session_register_for_events(session_id, evt_reg_cfg);
+         free(evt_reg_cfg);
          reply->writeInt32(rc);
          break; }
 

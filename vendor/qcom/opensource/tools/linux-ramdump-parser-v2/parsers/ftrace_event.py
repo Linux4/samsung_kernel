@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021 The Linux Foundation. All rights reserved.
+# Copyright (c) 2020-2022 The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -83,19 +83,13 @@ class FtraceParser_Event(object):
         atomic64_t_counter_offset = self.ramdump.field_offset(
             'struct atomic64_t', 'counter')"""
 
-
-
         #local_t_commita = self.ramdump.read_u64(buffer_data_page_commit + local_t_commita_offset)
         #commit = self.ramdump.read_u64(local_t_commita + atomic64_t_counter_offset)
         commit = buffer_data_page_commit
         
         if commit and commit > 0:
             buffer_data_page_end = buffer_data_page + commit
-            if self.ramdump.arm64:
-                timestamp = self.ramdump.read_u64(buffer_data_page + buffer_data_page_time_stamp_offset)
-            else:
-                timestamp = self.ramdump.read_u32(buffer_data_page + buffer_data_page_time_stamp_offset)
-
+            timestamp = self.ramdump.read_u64(buffer_data_page + buffer_data_page_time_stamp_offset)
             rb_event = buffer_data_page + buffer_data_page_data_offset
             #print "buffer_data_page_end = {0}".format(hex(buffer_data_page_end))
             #print "rb_event = {0}".format(hex(rb_event))
@@ -195,6 +189,8 @@ class FtraceParser_Event(object):
         space_count = 25
         local_timestamp = time
         t = local_timestamp / 1000000000.0
+        if not (t in self.ftrace_time_data):
+            self.ftrace_time_data[t] = []
         #print "type = {0}".format(type)
         if str(type) not in self.ftrace_event_type:
             print_out_str("unknown event type = {0}".format(str(type)))
@@ -267,7 +263,7 @@ class FtraceParser_Event(object):
                 temp_data = "                {9}   {0}  {1:.6f}: scm_call_start:{2}func id={3}:(args:{4}, {5}, {6}  ,{7}  ,{8})\n".format(self.cpu, round(local_timestamp/1000000000.0,6),
                                                                                                                                        space_data,hex(x0),hex(arginfo),arr[0],arr[1],arr[2],hex(x5),curr_com)
                 #print "temp_data = {0}".format(temp_data)
-                self.ftrace_time_data[t] = temp_data
+                self.ftrace_time_data[t].append(temp_data)
         elif event_name == "scm_call_end":
                 
                 #print "ftrace_raw_entry  of scm_call_start = {0}".format(hex(ftrace_raw_entry))
@@ -316,7 +312,7 @@ class FtraceParser_Event(object):
                 temp_data = "                {6}   {0}  {1:.6f}: scm_call_end:{2}ret:{3}, {4}, {5}\n)\n".format(self.cpu, round(local_timestamp/1000000000.0,6),
                                                                                                                                        space_data,arr[0],arr[1],arr[2],curr_com)
                 #print "temp_data = {0}".format(temp_data)
-                self.ftrace_time_data[t] = temp_data
+                self.ftrace_time_data[t].append(temp_data)
         elif event_name == "sched_switch":
                 trace_event_raw_offset = self.ramdump.field_offset('struct ' + struct_type, "prev_state")
                 trace_event_raw_next_comm = self.ramdump.field_offset('struct ' + struct_type, "next_comm")
@@ -372,10 +368,10 @@ class FtraceParser_Event(object):
                 ##t = local_timestamp / 1000000000.0
                 temp_data = "                {10}   {0}  {1:.6f}: sched_switch:{2}{3}:{4}     [{5}]     {6} ==> {7}:{8}     [{9}]\n".format(self.cpu, round(local_timestamp/1000000000.0,6),
                                                                                                                                        space_data,prev_comm,prev_pid,prev_prio,prev_state_info,next_comm,next_pid,next_prio,curr_com)
-                temp_data1 = "                {9}   {0}  {1:.6f}: sched_switch: prev_comm={2} prev_pid={3} prev_prio={4} prev_state={5} ==> next_comm={6} next_pid={7} next_prio={8}\n"                                                                                                                   .format(self.cpu, round(local_timestamp/1000000000.0,6),
+                temp_data1 = "                {9}   {0}  {1:.6f}: sched_switch: prev_comm={2} prev_pid={3} prev_prio={4} prev_state={5} ==> next_comm={6} next_pid={7} next_prio={8}\n".format(self.cpu, round(local_timestamp/1000000000.0,6),
                                                                                                                                        prev_comm,prev_pid,prev_prio,prev_state_info,next_comm,next_pid,next_prio,curr_com)
 
-                self.ftrace_time_data[t] = temp_data1
+                self.ftrace_time_data[t].append(temp_data1)
         elif event_name == "softirq_raise":
                 trace_event_softirq_vec_offset = self.ramdump.field_offset('struct ' + 'trace_event_raw_softirq', "vec")
                 if trace_event_softirq_vec_offset:
@@ -391,7 +387,7 @@ class FtraceParser_Event(object):
                     except Exception as err:
                         print_out_str("failed vetor =  {0}".format(vector))
                         temp_data = "                {4}     {0}  {1:.6f}: softirq_raise:        vec={2} [action={3}]\n".format(self.cpu, local_timestamp / 1000000000.0,vector,"softirq unknonw vector",curr_com)
-                    self.ftrace_time_data[t] = temp_data
+                    self.ftrace_time_data[t].append(temp_data)
         elif event_name == "workqueue_activate_work":
                 #trace_event_raw_wqfunction_offset = self.ramdump.field_offset('struct ' + struct_type, "function")
                 #wq_function = self.ramdump.read_u32(ftrace_raw_entry + trace_event_raw_wqfunction_offset)
@@ -412,7 +408,7 @@ class FtraceParser_Event(object):
                                                                                                                                       local_timestamp/1000000000.0,space_data,
                                                                                                                                       str(hex(work)).replace("L",""),curr_com)
 
-                    self.ftrace_time_data[t] = temp_data
+                    self.ftrace_time_data[t].append(temp_data)
         elif event_name == "regulator_set_voltage":
             #print "new event meachanism= {0}".format(event_name)
             event_data = self.fromat_event_map[event_name]
@@ -448,7 +444,7 @@ class FtraceParser_Event(object):
             #t = "name={0} ({1}-{2})".format(temp_a[0],temp_a[1],temp_a[2])
             temp_data = "               {3}    {0}  {1:.6f}: regulator_set_voltage: {2}\n".format(self.cpu,local_timestamp/1000000000.0,t,curr_com)
 
-            self.ftrace_time_data[t] = temp_data
+            self.ftrace_time_data[t].append(temp_data)
         elif event_name == "bprint":
                 print_entry_ip_offset = self.ramdump.field_offset('struct bprint_entry' , "ip")
                 print_entry_buf_offset = self.ramdump.field_offset('struct bprint_entry', "buf")
@@ -511,7 +507,7 @@ class FtraceParser_Event(object):
                                                                                                               print_entry_fmt_data
                                                                                                                ,curr_com)
                 #t = local_timestamp / 1000000000.0
-                self.ftrace_time_data[t] = temp_data
+                self.ftrace_time_data[t].append(temp_data)
         elif event_name == "print":
                 #print "ftrace_raw_entry = {0}".format(hex(ftrace_raw_entry))
                 print_entry_ip_offset = self.ramdump.field_offset('struct print_entry' , "ip")
@@ -531,7 +527,7 @@ class FtraceParser_Event(object):
                                                                                                           print_buffer
                                                                                                            ,curr_com)
                 #t = local_timestamp / 1000000000.0
-                self.ftrace_time_data[t] = temp_data
+                self.ftrace_time_data[t].append(temp_data)
         else:
             pid_offset = self.ramdump.field_offset("struct trace_entry" , "pid")
             preempt_count_offset = self.ramdump.field_offset("struct trace_entry", "preempt_count")
@@ -607,7 +603,7 @@ class FtraceParser_Event(object):
                     elif 'char' in type_str:
                         v = self.ramdump.read_byte(ftrace_raw_entry + offset)
                         fmt_name_value_map[item] = v
-                    elif 'unsigned long' in type_str or 'u64' in type_str or 'void *' in type_str:
+                    elif 'unsigned long' in type_str or 'u64' in type_str or '*' in type_str:
                         if self.ramdump.arm64:
                             v = self.ramdump.read_u64(ftrace_raw_entry + offset)
                         else:
@@ -662,7 +658,7 @@ class FtraceParser_Event(object):
                     temp = temp + "\n"
                     temp_data = "                {4}    {0}   {1:.6f}:  {2}   {3}".format(self.cpu, round(local_timestamp / 1000000000.0, 6),event_name,temp,curr_com)
                     t = local_timestamp / 1000000000.0
-                    self.ftrace_time_data[t] = temp_data
+                    self.ftrace_time_data[t].append(temp_data)
                     temp = ""
                 except Exception as err:
                     print_out_str("missing event = {0} err = {1}".format(event_name,str(err)))

@@ -125,6 +125,11 @@ struct sec_qc_summary_data {
 	struct sec_qc_summary_simple_var_mon var_mon;
 };
 
+struct sec_qc_summary_data_modem_ext_log {
+	uint32_t idx;
+	uint8_t log[0];
+};
+
 struct sec_qc_summary_data_modem {
 	unsigned int magic;
 	char name[16];
@@ -133,6 +138,10 @@ struct sec_qc_summary_data_modem {
 	struct sec_qc_summary_excp excp;
 	struct sec_qc_summary_simple_var_mon var_mon;
 	unsigned int separate_debug;
+	union {
+		struct sec_qc_summary_data_modem_ext_log ext_log;
+		uint8_t __reserved_0[1024];
+	};
 };
 
 struct sec_qc_summary_avc_log {
@@ -359,11 +368,5 @@ struct sec_qc_summary {
 	uint64_t secure_app_size;
 	struct sec_qc_summary_private priv;
 };
-
-#if IS_ENABLED(CONFIG_SEC_QC_SUMMARY)
-extern struct sec_qc_summary_data_modem *sec_qc_summary_get_modem(void);
-#else
-static inline struct sec_qc_summary_data_modem *sec_qc_summary_get_modem(void) { return ERR_PTR(-ENODEV); }
-#endif
 
 #endif	/* __SEC_QC_SUMMARY_TYPE_H__ */

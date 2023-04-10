@@ -10,12 +10,12 @@ struct sec_dbg_region_client {
 	struct list_head list;
 	uint32_t magic;
 	uint32_t unique_id;
+	phys_addr_t __client;	/* physical address of myself */
 	phys_addr_t phys;
 	size_t size;
 	unsigned long virt;
 	const char *name;
 } __packed __aligned(1);
-
 
 #if IS_ENABLED(CONFIG_SEC_DEBUG_REGION)
 extern struct sec_dbg_region_client *sec_dbg_region_alloc(uint32_t unique_id, size_t size);

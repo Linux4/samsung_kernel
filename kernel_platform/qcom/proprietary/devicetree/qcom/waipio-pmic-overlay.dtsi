@@ -17,6 +17,7 @@
 		compatible = "qcom,pm8998-pon";
 		reg = <0x1300>, <0x800>;
 		reg-names = "pon_hlos", "pon_pbs";
+		qcom,log-kpd-event;
 
 		pwrkey {
 			compatible = "qcom,pmk8350-pwrkey";
@@ -457,12 +458,6 @@
 				temperature = <80000>;
 				hysteresis = <10000>;
 				type = "passive";
-			};
-
-			xo_config2: xo-config2 {
-				temperature = <90000>;
-				hysteresis = <10000>;
-				type = "critical";
 			};
 
 			display_test_config1: display-test-config1 {

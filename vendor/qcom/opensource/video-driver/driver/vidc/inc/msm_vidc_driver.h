@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_DRIVER_H_
@@ -11,6 +12,7 @@
 #include "msm_vidc_internal.h"
 #include "msm_vidc_core.h"
 #include "msm_vidc_inst.h"
+#include "msm_vidc_platform.h"
 
 #define MSM_VIDC_SESSION_INACTIVE_THRESHOLD_MS 1000
 #define HEIC_GRID_DIMENSION 512
@@ -195,11 +197,6 @@ static inline bool is_rgba_colorformat(enum msm_vidc_colorformat_type colorforma
 		colorformat == MSM_VIDC_FMT_RGBA8888C;
 }
 
-static inline bool is_secondary_output_mode(struct msm_vidc_inst *inst)
-{
-	return false; // TODO: inst->stream_output_mode == HAL_VIDEO_DECODER_SECONDARY;
-}
-
 static inline bool is_thumbnail_session(struct msm_vidc_inst *inst)
 {
 	return !!(inst->capabilities->cap[THUMBNAIL_MODE].value);
@@ -288,6 +285,8 @@ const char *allow_name(enum msm_vidc_allow allow);
 const char *state_name(enum msm_vidc_inst_state state);
 int msm_vidc_change_inst_state(struct msm_vidc_inst *inst,
 	enum msm_vidc_inst_state request_state, const char *func);
+int msm_vidc_create_internal_buffer(struct msm_vidc_inst *inst,
+	enum msm_vidc_buffer_type buffer_type, u32 index);
 int msm_vidc_get_internal_buffers(struct msm_vidc_inst *inst,
 	enum msm_vidc_buffer_type buffer_type);
 int msm_vidc_create_internal_buffers(struct msm_vidc_inst *inst,
@@ -326,7 +325,10 @@ int msm_vidc_smmu_fault_handler(struct iommu_domain *domain,
 int msm_vidc_trigger_ssr(struct msm_vidc_core *core,
 		u64 trigger_ssr_val);
 void msm_vidc_ssr_handler(struct work_struct *work);
-void msm_vidc_pm_work_handler(struct work_struct *work);
+int msm_vidc_trigger_stability(struct msm_vidc_core *core,
+		u64 trigger_stability_val);
+void msm_vidc_stability_handler(struct work_struct *work);
+int cancel_stability_work_sync(struct msm_vidc_inst *inst);
 void msm_vidc_fw_unload_handler(struct work_struct *work);
 int msm_vidc_suspend(struct msm_vidc_core *core);
 void msm_vidc_batch_handler(struct work_struct *work);
@@ -448,5 +450,6 @@ bool res_is_less_than(u32 width, u32 height,
 bool res_is_less_than_or_equal_to(u32 width, u32 height,
 	u32 ref_width, u32 ref_height);
 int msm_vidc_get_properties(struct msm_vidc_inst *inst);
+int msm_vidc_get_src_clk_scaling_ratio(struct msm_vidc_core *core);
 #endif // _MSM_VIDC_DRIVER_H_
 

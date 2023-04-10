@@ -89,6 +89,9 @@
         <stream_type>PAL_STREAM_ACD</stream_type>
         <stream_type>PAL_STREAM_ULTRASOUND</stream_type>
     </low_power_vote_streams>
+    <spkr_temp_ctls>
+        <temp_ctrl spkr_posn="SPKR_RIGHT" ctrl="BB_TEMP"/>
+    </spkr_temp_ctls>
     <device_profile>
         <in-device>
             <id>PAL_DEVICE_IN_HANDSET_MIC</id>
@@ -216,6 +219,15 @@
                 <id>PAL_DEVICE_OUT_HANDSET</id>
                 <id>PAL_DEVICE_OUT_BLUETOOTH_A2DP</id>
             </ec_rx_device>
+        </in-device>
+        <in-device>
+            <id>PAL_DEVICE_IN_VI_FEEDBACK</id>
+            <back_end_name>MI2S-LPAIF_RXTX-TX-PRIMARY</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>2</channels>
+            <bit_width>16</bit_width>
+            <samplerate>48000</samplerate>
+            <snd_device_name>vi-feedback</snd_device_name>
         </in-device>
         <in-device>
             <id>PAL_DEVICE_IN_BLUETOOTH_A2DP</id>

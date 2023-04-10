@@ -159,6 +159,7 @@ exit:
 
 static int mmrm_test_probe(struct platform_device *pdev)
 {
+	bool is_mmrm_supported = false;
 	int soc_id;
 	int rc;
 
@@ -166,6 +167,12 @@ static int mmrm_test_probe(struct platform_device *pdev)
 	if (!of_device_is_compatible(pdev->dev.of_node, "qcom,msm-mmrm-test")) {
 		dev_info(&pdev->dev, "No compatible device node\n");
 		return 1;
+	}
+
+	is_mmrm_supported = mmrm_client_check_scaling_supported(MMRM_CLIENT_CLOCK, 0);
+	if (!is_mmrm_supported) {
+		pr_info("%s: MMRM not supported on %s\n", __func__, socinfo_get_id_string());
+		return 0;
 	}
 
 	test_drv_data = kzalloc(sizeof(*test_drv_data), GFP_KERNEL);
@@ -188,13 +195,18 @@ static int mmrm_test_probe(struct platform_device *pdev)
 	soc_id = socinfo_get_id();
 	switch (soc_id) {
 	case 415: /* LAHAINA */
-		test_mmrm_client(pdev, MMRM_TEST_LAHAINA, MMRM_TEST_LAHAINA_NUM_CLK_CLIENTS);
+		test_mmrm_client(pdev, MMRM_TEST_LAHAINA_NUM_CLK_CLIENTS);
 //		test_mmrm_concurrent_client_cases(pdev, all_lahaina_testcases);
 		break;
 	case 457: /* WAIPIO */
-		test_mmrm_client(pdev, MMRM_TEST_WAIPIO, MMRM_TEST_WAIPIO_NUM_CLK_CLIENTS);
+		test_mmrm_client(pdev, MMRM_TEST_WAIPIO_NUM_CLK_CLIENTS);
 		test_mmrm_concurrent_client_cases(pdev, waipio_testcases, waipio_testcases_count);
 		test_mmrm_switch_volt_corner_client_testcases(pdev, waipio_cornercase_testcases, waipio_cornercase_testcases_count);
+		break;
+	case 554: /* NEO */
+		test_mmrm_client(pdev, MMRM_TEST_NEO_NUM_CLK_CLIENTS);
+		test_mmrm_concurrent_client_cases(pdev, neo_testcases, neo_testcases_count);
+		test_mmrm_switch_volt_corner_client_testcases(pdev, neo_cornercase_testcases, neo_cornercase_testcases_count);
 		break;
 	default:
 		pr_info("%s: Not supported for soc_id %d [Target %s]\n",

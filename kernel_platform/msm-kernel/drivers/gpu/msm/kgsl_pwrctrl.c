@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2010-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/interconnect.h>
@@ -48,8 +49,6 @@ static const char * const clocks[] = {
 static void kgsl_pwrctrl_clk(struct kgsl_device *device, bool state,
 					int requested_state);
 static int kgsl_pwrctrl_pwrrail(struct kgsl_device *device, bool state);
-static void kgsl_pwrctrl_set_state(struct kgsl_device *device,
-				unsigned int state);
 static int _isense_clk_set_rate(struct kgsl_pwrctrl *pwr, int level);
 static int kgsl_pwrctrl_clk_set_rate(struct clk *grp_clk, unsigned int freq,
 				const char *name);
@@ -231,6 +230,7 @@ void kgsl_pwrctrl_pwrlevel_change(struct kgsl_device *device,
 	if (pwr->bus_mod < 0 || new_level < old_level) {
 		pwr->bus_mod = 0;
 		pwr->bus_percent_ab = 0;
+		pwr->ddr_stall_percent = 0;
 	}
 	/*
 	 * Update the bus before the GPU clock to prevent underrun during
@@ -1628,8 +1628,6 @@ void kgsl_pwrctrl_close(struct kgsl_device *device)
 
 	pwr->power_flags = 0;
 
-	kgsl_bus_close(device);
-
 	if (dev_pm_qos_request_active(&pwr->sysfs_thermal_req))
 		dev_pm_qos_remove_request(&pwr->sysfs_thermal_req);
 
@@ -2159,7 +2157,7 @@ int kgsl_pwrctrl_change_state(struct kgsl_device *device, int state)
 	return status;
 }
 
-static void kgsl_pwrctrl_set_state(struct kgsl_device *device,
+void kgsl_pwrctrl_set_state(struct kgsl_device* device,
 				unsigned int state)
 {
 	trace_kgsl_pwr_set_state(device, state);

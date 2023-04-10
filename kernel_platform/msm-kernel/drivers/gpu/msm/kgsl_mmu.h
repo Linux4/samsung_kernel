@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2002,2007-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __KGSL_MMU_H
 #define __KGSL_MMU_H
@@ -108,6 +109,7 @@ struct kgsl_mmu_ops {
 			unsigned long name);
 	void (*mmu_map_global)(struct kgsl_mmu *mmu,
 		struct kgsl_memdesc *memdesc, u32 padding);
+	void (*mmu_flush_tlb)(struct kgsl_mmu *mmu);
 };
 
 struct kgsl_mmu_pt_ops {
@@ -136,7 +138,7 @@ struct kgsl_mmu_pt_ops {
 	int (*svm_range)(struct kgsl_pagetable *pt, uint64_t *lo, uint64_t *hi,
 			uint64_t memflags);
 	bool (*addr_in_range)(struct kgsl_pagetable *pagetable,
-			uint64_t gpuaddr);
+			uint64_t gpuaddr, uint64_t size);
 };
 
 enum kgsl_mmu_feature {
@@ -214,7 +216,8 @@ int kgsl_mmu_unmap_range(struct kgsl_pagetable *pt,
 		struct kgsl_memdesc *memdesc, u64 offset, u64 length);
 unsigned int kgsl_mmu_log_fault_addr(struct kgsl_mmu *mmu,
 		u64 ttbr0, uint64_t addr);
-bool kgsl_mmu_gpuaddr_in_range(struct kgsl_pagetable *pt, uint64_t gpuaddr);
+bool kgsl_mmu_gpuaddr_in_range(struct kgsl_pagetable *pt, uint64_t gpuaddr,
+		uint64_t size);
 
 int kgsl_mmu_get_region(struct kgsl_pagetable *pagetable,
 		uint64_t gpuaddr, uint64_t size);
@@ -353,6 +356,15 @@ kgsl_mmu_pagetable_get_ttbr0(struct kgsl_pagetable *pagetable)
 		return pagetable->pt_ops->get_ttbr0(pagetable);
 
 	return 0;
+}
+
+static inline void kgsl_mmu_flush_tlb(struct kgsl_mmu *mmu)
+{
+	if (!test_bit(KGSL_MMU_IOPGTABLE, &mmu->features))
+		return;
+
+	if (MMU_OP_VALID(mmu, mmu_flush_tlb))
+		return mmu->mmu_ops->mmu_flush_tlb(mmu);
 }
 
 /**

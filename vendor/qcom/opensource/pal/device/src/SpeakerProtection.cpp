@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -92,11 +93,32 @@ struct pcm * SpeakerProtection::rxPcm = NULL;
 struct pcm * SpeakerProtection::txPcm = NULL;
 struct param_id_sp_th_vi_calib_res_cfg_t * SpeakerProtection::callback_data;
 int SpeakerProtection::numberOfChannels;
+struct pal_device_info SpeakerProtection::vi_device;
 int SpeakerProtection::calibrationCallbackStatus;
 int SpeakerProtection::numberOfRequest;
 bool SpeakerProtection::mDspCallbackRcvd;
 std::shared_ptr<Device> SpeakerFeedback::obj = nullptr;
 int SpeakerFeedback::numSpeaker;
+
+std::string getDefaultSpkrTempCtrl(uint8_t spkr_pos)
+{
+    switch(spkr_pos)
+    {
+        case SPKR_LEFT:
+            return std::string(SPKR_LEFT_WSA_TEMP);
+        break;
+        case SPKR_RIGHT:
+            [[fallthrough]];
+        default:
+            return std::string(SPKR_RIGHT_WSA_TEMP);
+    }
+}
+
+cps_reg_wr_values_t sp_cps_thrsh_values = {
+    .value_normal_threshold = {0x8E003049, 0x1000304A, 0x0F003472},
+    .value_lower_threshold_1 = {0x8F003049, 0xD000304A, 0x0F003472},
+    .value_lower_threshold_2 = {0x8F003049, 0xD000304A, 0x18003472}
+};
 
 /* Function to check if Speaker is in use or not.
  * It returns the time as well for which speaker is not in use.
@@ -213,7 +235,7 @@ int SpeakerProtection::getCpsDevNumber(std::string mixer_name)
 int SpeakerProtection::getSpeakerTemperature(int spkr_pos)
 {
     struct mixer_ctl *ctl;
-    const char *mixer_ctl_name;
+    std::string mixer_ctl_name;
     int status = 0;
     /**
      * It is assumed that for Mono speakers only right speaker will be there.
@@ -221,24 +243,17 @@ int SpeakerProtection::getSpeakerTemperature(int spkr_pos)
      * TODO: Get the channel from RM.xml
      */
     PAL_DBG(LOG_TAG, "Enter Speaker Get Temperature %d", spkr_pos);
-
-    switch(spkr_pos)
-    {
-        case WSA_SPKR_RIGHT:
-            mixer_ctl_name = SPKR_RIGHT_WSA_TEMP;
-        break;
-        case WSA_SPKR_LEFT:
-            mixer_ctl_name = SPKR_LEFT_WSA_TEMP;
-        break;
-        default:
-            mixer_ctl_name = SPKR_RIGHT_WSA_TEMP;
+    mixer_ctl_name = rm->getSpkrTempCtrl(spkr_pos);
+    if (mixer_ctl_name.empty()) {
+        PAL_DBG(LOG_TAG, "Using default mixer control");
+        mixer_ctl_name = getDefaultSpkrTempCtrl(spkr_pos);
     }
 
     PAL_DBG(LOG_TAG, "audio_mixer %pK", hwMixer);
 
-    ctl = mixer_get_ctl_by_name(hwMixer, mixer_ctl_name);
+    ctl = mixer_get_ctl_by_name(hwMixer, mixer_ctl_name.c_str());
     if (!ctl) {
-        PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", mixer_ctl_name);
+        PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", mixer_ctl_name.c_str());
         status = -EINVAL;
         return status;
     }
@@ -372,8 +387,8 @@ int SpeakerProtection::spkrStartCalibration()
     }
 
     // Configure device attribute
-    rm->getChannelMap(&(ch_info.ch_map[0]), numberOfChannels);
-    switch (numberOfChannels) {
+    rm->getChannelMap(&(ch_info.ch_map[0]), vi_device.channels);
+    switch (vi_device.channels) {
         case 1 :
             ch_info.channels = CHANNELS_1;
         break;
@@ -387,10 +402,9 @@ int SpeakerProtection::spkrStartCalibration()
     }
 
     device.config.ch_info = ch_info;
-    // TODO: Check if we can move it to rm.xml
-    device.config.sample_rate = SAMPLINGRATE_48K;
-    device.config.bit_width = BITWIDTH_32;
-    device.config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S32_LE;
+    device.config.sample_rate = vi_device.samplerate;
+    device.config.bit_width = vi_device.bit_width;
+    device.config.aud_fmt_id = rm->getAudioFmt(vi_device.bit_width);
 
     // Setup TX path
     ret = rm->getAudioRoute(&audioRoute);
@@ -493,10 +507,24 @@ int SpeakerProtection::spkrStartCalibration()
 
     isTxFeandBeConnected = true;
 
-    // TODO: Try to set it from RM.xml
-    config.rate = SAMPLINGRATE_48K;
-    config.format = PCM_FORMAT_S32_LE;
-    switch (numberOfChannels) {
+    config.rate = vi_device.samplerate;
+    switch (vi_device.bit_width) {
+        case 32 :
+            config.format = PCM_FORMAT_S32_LE;
+        break;
+        case 24 :
+            config.format = PCM_FORMAT_S24_LE;
+        break;
+        case 16:
+            config.format = PCM_FORMAT_S16_LE;
+        break;
+        default:
+            PAL_DBG(LOG_TAG, "Unsupported bit width. Set default as 16");
+            config.format = PCM_FORMAT_S16_LE;
+        break;
+    }
+
+    switch (vi_device.channels) {
         case 1 :
             config.channels = CHANNELS_1;
         break;
@@ -877,20 +905,20 @@ err_pcm_open :
         if (status) {
             PAL_ERR(LOG_TAG, "Failed to deregister callback to rm");
         }
-        disableDevice(audioRoute, mSndDeviceName_vi);
         if (isTxStarted)
             pcm_stop(txPcm);
 
         pcm_close(txPcm);
+        disableDevice(audioRoute, mSndDeviceName_vi);
 
         txPcm = NULL;
     }
 
     if (rxPcm) {
-        disableDevice(audioRoute, mSndDeviceName_rx);
         if (isRxStarted)
             pcm_stop(rxPcm);
         pcm_close(rxPcm);
+        disableDevice(audioRoute, mSndDeviceName_rx);
         rxPcm = NULL;
     }
 
@@ -1077,6 +1105,9 @@ SpeakerProtection::SpeakerProtection(struct pal_device *device,
     numberOfChannels = devinfo.channels;
     PAL_DBG(LOG_TAG, "Number of Channels %d", numberOfChannels);
 
+    rm->getDeviceInfo(PAL_DEVICE_IN_VI_FEEDBACK, PAL_STREAM_PROXY, "", &vi_device);
+    PAL_DBG(LOG_TAG, "Number of Channels for VI path is %d", vi_device.channels);
+
     spkerTempList = new int [numberOfChannels];
     // Get current time
     clock_gettime(CLOCK_BOOTTIME, &spkrLastTimeUsed);
@@ -1109,6 +1140,8 @@ SpeakerProtection::SpeakerProtection(struct pal_device *device,
 
 SpeakerProtection::~SpeakerProtection()
 {
+    if (spkerTempList)
+        delete[] spkerTempList;
 }
 
 /*
@@ -1121,9 +1154,10 @@ void SpeakerProtection::updateCpsCustomPayload(int miid)
     size_t payloadSize = 0;
     lpass_swr_hw_reg_cfg_t *cpsRegCfg = NULL;
     pkd_reg_addr_t pkedRegAddr[numberOfChannels];
+    cps_reg_wr_values_t *cps_thrsh_values;
+    param_id_cps_lpass_swr_thresholds_cfg_t *cps_thrsh_cfg;
     int dev_num;
     int val, ret = 0;
-
 
     memset(&pkedRegAddr, 0, sizeof(pkd_reg_addr_t) * numberOfChannels);
     // Payload for ParamID : PARAM_ID_CPS_LPASS_HW_INTF_CFG
@@ -1137,6 +1171,20 @@ void SpeakerProtection::updateCpsCustomPayload(int miid)
     cpsRegCfg->lpass_wr_cmd_reg_phy_addr = LPASS_WR_CMD_REG_PHY_ADDR;
     cpsRegCfg->lpass_rd_cmd_reg_phy_addr = LPASS_RD_CMD_REG_PHY_ADDR;
     cpsRegCfg->lpass_rd_fifo_reg_phy_addr = LPASS_RD_FIFO_REG_PHY_ADDR;
+
+    // Payload for ParamID : PARAM_ID_CPS_LPASS_SWR_THRESHOLDS_CFG
+    cps_thrsh_cfg = (param_id_cps_lpass_swr_thresholds_cfg_t*) calloc(1,
+                       sizeof(param_id_cps_lpass_swr_thresholds_cfg_t)
+                       + (sizeof(cps_reg_wr_values_t) * numberOfChannels));
+    if (cps_thrsh_cfg == NULL) {
+        PAL_ERR(LOG_TAG,"Unable to allocate Memory for CPS SWR Threshold config\n");
+        goto exit;
+    }
+    cps_thrsh_cfg->num_spkr = numberOfChannels;
+    cps_thrsh_cfg->vbatt_lower_threshold_1 = CPS_WSA_VBATT_LOWER_THRESHOLD_1;
+    cps_thrsh_cfg->vbatt_lower_threshold_2 = CPS_WSA_VBATT_LOWER_THRESHOLD_2;
+    cps_thrsh_values = (cps_reg_wr_values_t *)((uint8_t*)cps_thrsh_cfg
+                         + sizeof(param_id_cps_lpass_swr_thresholds_cfg_t));
 
     for (int i = 0; i < numberOfChannels; i++) {
         switch (i)
@@ -1172,6 +1220,20 @@ void SpeakerProtection::updateCpsCustomPayload(int miid)
         val |= ((i*2)+1) << 16;
 
         pkedRegAddr[i].temp_pkd_reg_addr |= val;
+
+        /* payload for PARAM_ID_CPS_LPASS_SWR_THRESHOLDS_CFG.*/
+        memcpy(cps_thrsh_values, &sp_cps_thrsh_values, sizeof(cps_reg_wr_values_t));
+        /* Retain dev_num from val */
+        val &= 0x00F00000;
+        for (int j = 0;j < CPS_NUM_VBATT_THRESHOLD_VALUES;j++) {
+            val &= 0xFFF0FFFF;
+            /* Update cmd id and dev_num to the payload.*/
+            val |= ((i * 3) + j) << 16;
+            cps_thrsh_values->value_normal_threshold[j] |= val;
+            cps_thrsh_values->value_lower_threshold_1[j] |= val;
+            cps_thrsh_values->value_lower_threshold_2[j] |= val;
+        }
+        cps_thrsh_values++;
     }
     memcpy(cpsRegCfg->pkd_reg_addr, pkedRegAddr, sizeof(pkd_reg_addr_t) *
                     numberOfChannels);
@@ -1184,6 +1246,20 @@ void SpeakerProtection::updateCpsCustomPayload(int miid)
         ret = updateCustomPayload(payload, payloadSize);
         free(payload);
         free(cpsRegCfg);
+        if (0 != ret) {
+            PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
+        }
+    }
+
+    // Payload builder for ParamID : PARAM_ID_CPS_LPASS_SWR_THRESHOLDS_CFG
+    payloadSize = 0;
+    payload = NULL;
+    builder->payloadSPConfig(&payload, &payloadSize, miid,
+            PARAM_ID_CPS_LPASS_SWR_THRESHOLDS_CFG,(void *)cps_thrsh_cfg);
+    if (payloadSize) {
+        ret = updateCustomPayload(payload, payloadSize);
+        free(payload);
+        free(cps_thrsh_cfg);
         if (0 != ret) {
             PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
         }
@@ -1226,6 +1302,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
     std::vector <std::pair<int, int>> calVector;
     std::shared_ptr<ResourceManager> rm;
     std::ostringstream connectCtrlNameBeVI;
+    std::ostringstream connectCtrlNameBeSP;
     std::ostringstream connectCtrlName;
     param_id_sp_th_vi_r0t0_cfg_t *spR0T0confg;
     param_id_sp_vi_op_mode_cfg_t modeConfg;
@@ -1256,7 +1333,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         }
         numberOfRequest++;
         if (numberOfRequest > 1) {
-            // R0T0 already set, we don't need to process the request.
+            // R0T0 already set, we don't need to process the request
             goto exit;
         }
         PAL_DBG(LOG_TAG, "Custom payload size %zu, Payload %p", customPayloadSize,
@@ -1294,7 +1371,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         }
 
         // Configure device attribute
-       if (numberOfChannels > 1) {
+       if (vi_device.channels > 1) {
             ch_info.channels = CHANNELS_2;
             ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FL;
             ch_info.ch_map[1] = PAL_CHMAP_CHANNEL_FR;
@@ -1304,9 +1381,9 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
             ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FR;
         }
 
-        rm->getChannelMap(&(ch_info.ch_map[0]), numberOfChannels);
+        rm->getChannelMap(&(ch_info.ch_map[0]), vi_device.channels);
 
-        switch (numberOfChannels) {
+        switch (vi_device.channels) {
             case 1 :
                 ch_info.channels = CHANNELS_1;
             break;
@@ -1320,10 +1397,9 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         }
 
         device.config.ch_info = ch_info;
-        // TODO: Check if we can move it to rm.xml instead of hardcoding
-        device.config.sample_rate = SAMPLINGRATE_48K;
-        device.config.bit_width = BITWIDTH_32;
-        device.config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S32_LE;
+        device.config.sample_rate = vi_device.samplerate;
+        device.config.bit_width = vi_device.bit_width;
+        device.config.aud_fmt_id = rm->getAudioFmt(vi_device.bit_width);
 
         // Setup TX path
         device.id = PAL_DEVICE_IN_VI_FEEDBACK;
@@ -1428,9 +1504,24 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
 
         isTxFeandBeConnected = true;
 
-        config.rate = SAMPLINGRATE_48K;
-        config.format = PCM_FORMAT_S16_LE;
-        switch (numberOfChannels) {
+        config.rate = vi_device.samplerate;
+        switch (vi_device.bit_width) {
+            case 32 :
+                config.format = PCM_FORMAT_S32_LE;
+            break;
+            case 24 :
+                config.format = PCM_FORMAT_S24_LE;
+            break;
+            case 16 :
+                config.format = PCM_FORMAT_S16_LE;
+            break;
+            default:
+                PAL_DBG(LOG_TAG, "Unsupported bit width. Set default as 16");
+                config.format = PCM_FORMAT_S16_LE;
+            break;
+        }
+
+        switch (vi_device.channels) {
             case 1 :
                 config.channels = CHANNELS_1;
             break;
@@ -1645,7 +1736,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
 
         dev = Device::getInstance(&mDeviceAttr, rm);
 
-        ret = rm->getActiveStream_l(dev, activeStreams);
+        ret = rm->getActiveStream_l(activeStreams, dev);
         if ((0 != ret) || (activeStreams.size() == 0)) {
             PAL_ERR(LOG_TAG, " no active stream available");
             ret = -EINVAL;
@@ -1701,7 +1792,6 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         PAL_DBG(LOG_TAG, "pcm start for TX");
         if (pcm_start(txPcm) < 0) {
             PAL_ERR(LOG_TAG, "pcm start failed for TX path");
-            disableDevice(audioRoute, mSndDeviceName_vi);
             goto err_pcm_open;
         }
 
@@ -1728,26 +1818,42 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
             }
 
             ret = rm->getSndDeviceName(device.id , mSndDeviceName_vi);
-            disableDevice(audioRoute, mSndDeviceName_vi);
             rm->getBackendName(device.id, backEndName);
             if (!strlen(backEndName.c_str())) {
                 PAL_ERR(LOG_TAG, "Failed to obtain tx backend name for %d", device.id);
                 goto exit;
             }
             pcm_stop(txPcm);
+            if (pcmDevIdTx.size() != 0) {
+                if (isTxFeandBeConnected) {
+                    disconnectFeandBe(pcmDevIdTx, backEndName);
+                }
+                rm->freeFrontEndIds(pcmDevIdTx, sAttr, dir);
+                pcmDevIdTx.clear();
+            }
             pcm_close(txPcm);
+            disableDevice(audioRoute, mSndDeviceName_vi);
             txPcm = NULL;
             sAttr.type = PAL_STREAM_LOW_LATENCY;
             sAttr.direction = PAL_AUDIO_INPUT_OUTPUT;
-            goto free_fe;
+            goto exit;
         }
     }
 
 err_pcm_open :
+    if (pcmDevIdTx.size() != 0) {
+        if (isTxFeandBeConnected) {
+            disconnectFeandBe(pcmDevIdTx, backEndName);
+        }
+        rm->freeFrontEndIds(pcmDevIdTx, sAttr, dir);
+        pcmDevIdTx.clear();
+    }
     if (txPcm) {
         pcm_close(txPcm);
+        disableDevice(audioRoute, mSndDeviceName_vi);
         txPcm = NULL;
     }
+    goto exit;
 
 free_fe:
     if (pcmDevIdTx.size() != 0) {
@@ -1781,7 +1887,7 @@ void SpeakerProtection::updateSPcustomPayload()
 
     rm->getBackendName(mDeviceAttr.id, backEndName);
     dev = Device::getInstance(&mDeviceAttr, rm);
-    ret = rm->getActiveStream_l(dev, activeStreams);
+    ret = rm->getActiveStream_l(activeStreams, dev);
     if ((0 != ret) || (activeStreams.size() == 0)) {
         PAL_ERR(LOG_TAG, " no active stream available");
         goto exit;
@@ -2166,7 +2272,7 @@ void SpeakerFeedback::updateVIcustomPayload()
 
     rm->getBackendName(mDeviceAttr.id, backEndName);
     dev = Device::getInstance(&mDeviceAttr, rm);
-    ret = rm->getActiveStream_l(dev, activeStreams);
+    ret = rm->getActiveStream_l(activeStreams, dev);
     if ((0 != ret) || (activeStreams.size() == 0)) {
         PAL_ERR(LOG_TAG, " no active stream available");
         goto exit;
@@ -2288,7 +2394,9 @@ int32_t SpeakerFeedback::start()
     ResourceManager::isVIRecordStarted = true;
     // Do the customPayload configuration for VI path and call the Device::start
     PAL_DBG(LOG_TAG," Feedback start\n");
-    updateVIcustomPayload();
+    if (rm->isSpeakerProtectionEnabled)
+        updateVIcustomPayload();
+    
     Device::start();
 
     return 0;
@@ -2311,5 +2419,10 @@ std::shared_ptr<Device> SpeakerFeedback::getInstance(struct pal_device *device,
         std::shared_ptr<Device> sp(new SpeakerFeedback(device, Rm));
         obj = sp;
     }
+    return obj;
+}
+
+std::shared_ptr<Device> SpeakerFeedback::getObject()
+{
     return obj;
 }

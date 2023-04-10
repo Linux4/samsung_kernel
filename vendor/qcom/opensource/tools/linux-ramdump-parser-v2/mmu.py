@@ -563,7 +563,7 @@ class Armv8MMU(MMU):
         #print hex(table_index)
         #print input_addr_split
         #print block_split
-        descriptor, addr = self.do_level_lookupel2(
+        descriptor, addr = self.do_level_lookupel2v2(
             table_base_address, table_index,
             input_addr_split)
         #print "descriptor do_fl_sl_level_lookupel2"
@@ -773,14 +773,14 @@ class Armv8MMU(MMU):
     def page_table_walkel2(self, virt):
         #print "page_table_walkel2 virt address = {0}".format(hex(virt))
         virt_r = Register(virt,
-            zl_index=(47,39),
-            fl_index=(38,30),
+            zl_index=(47,37),
+            fl_index=(36,30),
             sl_index=(29,21),
             tl_index=(20,12),
             page_index=(11,0))
         #print "page_table_walk entry"
         try:
-          fl_desc = self.do_fl_sl_level_lookupel2(self.vttbr, virt_r.fl_index, 12, 30)
+          fl_desc = self.do_fl_sl_level_lookupel2(self.vttbr, virt_r.fl_index, 9, 30)
           #print "fl_desc.."
           #print fl_desc
           #print fl_desc.dtype

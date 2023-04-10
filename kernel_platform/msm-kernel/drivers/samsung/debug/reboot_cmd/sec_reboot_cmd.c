@@ -74,7 +74,7 @@ static inline int __rbcmd_add_cmd(enum sec_rbcmd_stage s,
 int sec_rbcmd_add_cmd(enum sec_rbcmd_stage s, struct sec_reboot_cmd *rc)
 {
 	if (!__rbcmd_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	return __rbcmd_add_cmd(s, rc);
 }
@@ -97,7 +97,7 @@ static inline int __rbcmd_del_cmd(enum sec_rbcmd_stage s,
 int sec_rbcmd_del_cmd(enum sec_rbcmd_stage s, struct sec_reboot_cmd *rc)
 {
 	if (!__rbcmd_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	return __rbcmd_del_cmd(s, rc);
 }
@@ -127,7 +127,7 @@ int sec_rbcmd_set_default_cmd(enum sec_rbcmd_stage s,
 		struct sec_reboot_cmd *rc)
 {
 	if (!__rbcmd_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	return __rbcmd_set_default_cmd(s, rc);
 }
@@ -159,7 +159,7 @@ int sec_rbcmd_unset_default_cmd(enum sec_rbcmd_stage s,
 		struct sec_reboot_cmd *rc)
 {
 	if (!__rbcmd_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	return __rbcmd_unset_default_cmd(s, rc);
 }
@@ -301,25 +301,18 @@ static int sec_rbcmd_notifier_call(struct notifier_block *this,
 		break;
 	}
 
-#if !IS_ENABLED(CONFIG_UML)
+#if IS_BUILTIN(CONFIG_SEC_REBOOT_CMD)
 	flush_cache_all();
+#else
+	dsb(sy);
+#endif
+
 #if !IS_ENABLED(CONFIG_ARM64)
 	outer_flush_all();
-#endif
 #endif
 
 	return ret;
 }
-
-#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
-int kunit_rbcmd_mock_notifier_call(enum sec_rbcmd_stage s,
-		unsigned long type, void *data)
-{
-	struct reboot_cmd_stage *stage = __rbcmd_get_stage(s, reboot_cmd);
-
-	return sec_rbcmd_notifier_call(&stage->nb, type, data);
-}
-#endif
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
 static void __rbcmd_dbgfs_show_each_cmd_locked(struct seq_file *m,
@@ -364,12 +357,13 @@ static void __rbcmd_dbgfs_show_each_stage(struct seq_file *m,
 
 static int sec_rbcmd_dbgfs_show_all(struct seq_file *m, void *unsed)
 {
+	struct reboot_cmd_drvdata *drvdata = m->private;
 	struct reboot_cmd_stage *stage;
 	enum sec_rbcmd_stage s;
 
 	for (s = SEC_RBCMD_STAGE_1ST; s < SEC_RBCMD_STAGE_MAX; s++) {
 		seq_printf(m, "* STAGE : %s\n\n", rbcmd_stage_name[s]);
-		stage = __rbcmd_get_stage(s, reboot_cmd);
+		stage = __rbcmd_get_stage(s, drvdata);
 		__rbcmd_dbgfs_show_each_stage(m, stage);
 	}
 
@@ -394,7 +388,7 @@ static int __rbcmd_debugfs_create(struct builder *bd)
 			container_of(bd, struct reboot_cmd_drvdata, bd);
 
 	drvdata->dbgfs = debugfs_create_file("sec_reboot_cmd", 0440,
-			NULL, NULL, &sec_rbcmd_dgbfs_fops);
+			NULL, drvdata, &sec_rbcmd_dgbfs_fops);
 
 	return 0;
 }
@@ -567,31 +561,11 @@ static void __rbcmd_remove_prolog(struct builder *bd)
 	reboot_cmd = NULL;
 }
 
-static void __rbcmd_populate_child(struct platform_device *pdev)
-{
-	struct device *dev = &pdev->dev;
-	struct device_node *parent;
-	struct device_node *child;
-
-	parent = pdev->dev.of_node;
-
-	for_each_available_child_of_node(parent, child) {
-		struct platform_device *cpdev;
-
-		cpdev = of_platform_device_create(child, NULL, &pdev->dev);
-		if (!cpdev) {
-			dev_warn(dev, "failed to create %s\n!", child->name);
-			of_node_put(child);
-		}
-	}
-}
-
 static int __rbcmd_probe(struct platform_device *pdev,
 		const struct dev_builder *builder, ssize_t n)
 {
 	struct device *dev = &pdev->dev;
 	struct reboot_cmd_drvdata *drvdata;
-	int err;
 
 	drvdata = devm_kzalloc(dev, sizeof(*drvdata), GFP_KERNEL);
 	if (!drvdata)
@@ -599,13 +573,7 @@ static int __rbcmd_probe(struct platform_device *pdev,
 
 	drvdata->bd.dev = dev;
 
-	err = sec_director_probe_dev(&drvdata->bd, builder, n);
-	if (err)
-		return err;
-
-	__rbcmd_populate_child(pdev);
-
-	return 0;
+	return sec_director_probe_dev(&drvdata->bd, builder, n);
 }
 
 static int __rbcmd_remove(struct platform_device *pdev,
@@ -617,25 +585,6 @@ static int __rbcmd_remove(struct platform_device *pdev,
 
 	return 0;
 }
-
-#if IS_ENABLED(CONFIG_KUNIT) && IS_ENABLED(CONFIG_UML)
-static const struct dev_builder __rbcmd_mock_dev_builder[] = {
-	DEVICE_BUILDER(__rbcmd_probe_prolog, NULL),
-	DEVICE_BUILDER(__rbcmd_probe_epilog, __rbcmd_remove_prolog),
-};
-
-int kunit_rbcmd_mock_probe(struct platform_device *pdev)
-{
-	return __rbcmd_probe(pdev, __rbcmd_mock_dev_builder,
-			ARRAY_SIZE(__rbcmd_mock_dev_builder));
-}
-
-int kunit_rbcmd_mock_remove(struct platform_device *pdev)
-{
-	return __rbcmd_remove(pdev, __rbcmd_mock_dev_builder,
-			ARRAY_SIZE(__rbcmd_mock_dev_builder));
-}
-#endif
 
 static const struct dev_builder __rbcmd_dev_builder[] = {
 	DEVICE_BUILDER(__rbcmd_parse_dt, NULL),
@@ -686,11 +635,7 @@ static __init int sec_rbcmd_init(void)
 
 	return platform_driver_register(&sec_rbcmd_driver);
 }
-#if IS_BUILTIN(CONFIG_SEC_REBOOT_CMD)
-pure_initcall(sec_rbcmd_init);
-#else
-module_init(sec_rbcmd_init);
-#endif
+core_initcall(sec_rbcmd_init);
 
 static __exit void sec_rbcmd_exit(void)
 {

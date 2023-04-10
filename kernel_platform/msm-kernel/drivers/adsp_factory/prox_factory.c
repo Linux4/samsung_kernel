@@ -15,7 +15,12 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include "adsp.h"
+#if IS_ENABLED(CONFIG_SUPPORT_CONTROL_PROX_LED_GPIO)
+#include <linux/gpio.h>
+#include <linux/sec-pinmux.h>
 
+#define PROX_LED_EN_GPIO 113
+#endif
 #define PROX_AVG_COUNT 40
 #define PROX_ALERT_THRESHOLD 200
 #define PROX_TH_READ 0
@@ -73,6 +78,9 @@ void prox_send_cal_data(struct adsp_data *data, bool fac_cal)
 {
 	uint16_t prox_idx = get_prox_sidx(data);
 	int32_t msg = -1, cnt = 0;
+#if IS_ENABLED(CONFIG_SUPPORT_CONTROL_PROX_LED_GPIO)
+	int led_gpio, ret;
+#endif
 
 	if (!fac_cal || (data->prox_cal == 0)) {
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
@@ -107,6 +115,22 @@ void prox_send_cal_data(struct adsp_data *data, bool fac_cal)
 	} else {
 		pr_info("[SSC_FAC] %s: No cal data\n", __func__);
 	}
+
+#if IS_ENABLED(CONFIG_SUPPORT_CONTROL_PROX_LED_GPIO)
+#if IS_ENABLED(CONFIG_SEC_PM)
+	led_gpio = PROX_LED_EN_GPIO + get_msm_gpio_chip_base();
+#else
+	led_gpio = PROX_LED_EN_GPIO + 308;
+#endif
+	ret = gpio_request(led_gpio, NULL);
+	if (ret < 0) {
+		pr_err("[SSC_FAC] %s - gpio_request fail (%d)\n",
+			__func__, ret);
+		return;
+	}
+	gpio_direction_output(led_gpio, 1);
+	gpio_free(led_gpio);
+#endif
 }
 
 void prox_cal_init_work(struct adsp_data *data)

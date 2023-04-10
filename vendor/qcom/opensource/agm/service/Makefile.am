@@ -31,10 +31,10 @@ h_sources = ${top_srcdir}/inc/public/agm/agm_api.h \
             ${top_srcdir}/inc/private/agm/session_obj.h \
             ${top_srcdir}/inc/private/agm/device.h
 
-AM_CFLAGS = -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/spf
+AM_CFLAGS = @SPF_CFLAGS@
 AM_CFLAGS += -I ${top_srcdir}/inc/public
 AM_CFLAGS += -I ${top_srcdir}/inc/private
-AM_CFLAGS += -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/acdbdata
+AM_CFLAGS += @MMHEADERS_CFLAGS@
 AM_CFLAGS += -DDYNAMIC_LOG_ENABLED
 
 library_include_HEADERS = $(h_sources)
@@ -64,5 +64,5 @@ if BUILDSYSTEM_OPENWRT
 libagm_la_LIBADD += -lglib-2.0
 endif
 libagm_la_CFLAGS += -D__unused=__attribute__\(\(__unused__\)\)
-libagm_la_CFLAGS += $(GLIB_CFLAGS) -Dstrlcpy=g_strlcpy -Dstrlcat=g_strlcat -include glib.h
+libagm_la_CFLAGS += @GLIB_CFLAGS@ -Dstrlcpy=g_strlcpy -Dstrlcat=g_strlcat -include glib.h
 libagm_la_LDFLAGS = -module -shared -avoid-version

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_INTERNAL_H_
@@ -22,28 +23,14 @@
 #define MAX_BIAS_COEFFS   3
 #define MAX_LIMIT_COEFFS  6
 #define MAX_DEBUGFS_NAME  50
-#define DEFAULT_TIMEOUT   3
 #define DEFAULT_HEIGHT    240
 #define DEFAULT_WIDTH     320
-#define MAX_HEIGHT        4320
-#define MAX_WIDTH         8192
-#define MIN_SUPPORTED_WIDTH   32
-#define MIN_SUPPORTED_HEIGHT  32
 #define DEFAULT_FPS       30
-#define MINIMUM_FPS       1
-#define MAXIMUM_FPS       960
 #define MAXIMUM_VP9_FPS   60
-#define SINGLE_INPUT_BUFFER   1
-#define SINGLE_OUTPUT_BUFFER  1
-#define MAX_NUM_INPUT_BUFFERS    VIDEO_MAX_FRAME // same as VB2_MAX_FRAME
-#define MAX_NUM_OUTPUT_BUFFERS   VIDEO_MAX_FRAME // same as VB2_MAX_FRAME
 #define MAX_SUPPORTED_INSTANCES  16
-#define MAX_BSE_VPP_DELAY        6
 #define DEFAULT_BSE_VPP_DELAY    2
 #define MAX_CAP_PARENTS          20
 #define MAX_CAP_CHILDREN         20
-#define DEFAULT_BITSTREM_ALIGNMENT  16
-#define H265_BITSTREM_ALIGNMENT     32
 #define DEFAULT_MAX_HOST_BUF_COUNT  64
 #define DEFAULT_MAX_HOST_BURST_BUF_COUNT 256
 #define BIT_DEPTH_8 (8 << 16 | 8)
@@ -74,11 +61,7 @@
 #define DCVS_WINDOW 16
 #define ENC_FPS_WINDOW 3
 #define DEC_FPS_WINDOW 10
-/* Superframe can have maximum of 32 frames */
-#define VIDC_SUPERFRAME_MAX 32
-#define COLOR_RANGE_UNSPECIFIED (-1)
 
-#define V4L2_EVENT_VIDC_BASE  10
 #define INPUT_MPLANE V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE
 #define OUTPUT_MPLANE V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE
 #define INPUT_META_PLANE V4L2_BUF_TYPE_META_OUTPUT
@@ -102,7 +85,9 @@
 	V4L2_CTRL_DRIVER_PRIV(idx))
 
 #define BUFFER_ALIGNMENT_SIZE(x) x
+#define NUM_MBS_360P (((480 + 15) >> 4) * ((360 + 15) >> 4))
 #define NUM_MBS_720P (((1280 + 15) >> 4) * ((720 + 15) >> 4))
+#define NUM_MBS_FHD (((1920 + 15) >> 4) * ((1080 + 15) >> 4))
 #define NUM_MBS_4k (((4096 + 15) >> 4) * ((2304 + 15) >> 4))
 #define MB_SIZE_IN_PIXEL (16 * 16)
 
@@ -341,6 +326,7 @@ enum msm_vidc_core_capability_type {
 	CLK_FREQ_THRESHOLD,
 	NON_FATAL_FAULTS,
 	ENC_AUTO_FRAMERATE,
+	MMRM,
 	CORE_CAP_MAX,
 };
 
@@ -379,6 +365,7 @@ enum msm_vidc_inst_capability_type {
 	SLICE_INTERFACE,
 	HEADER_MODE,
 	PREPEND_SPSPPS_TO_IDR,
+	DISABLE_VUI_TIMING_INFO,
 	META_SEQ_HDR_NAL,
 	WITHOUT_STARTCODE,
 	NAL_LENGTH_FIELD,
@@ -559,6 +546,11 @@ enum msm_vidc_ssr_trigger_type {
 	SSR_HW_WDOG_IRQ,
 };
 
+enum msm_vidc_stability_trigger_type {
+	STABILITY_VCODEC_HUNG = 1,
+	STABILITY_ENC_BUFFER_FULL,
+};
+
 enum msm_vidc_cache_op {
 	MSM_VIDC_CACHE_CLEAN,
 	MSM_VIDC_CACHE_INVALIDATE,
@@ -711,6 +703,7 @@ struct msm_vidc_subscription_params {
 struct msm_vidc_hfi_frame_info {
 	u32                    picture_type;
 	u32                    no_output;
+	u32                    subframe_input;
 	u32                    cr;
 	u32                    cf;
 	u32                    data_corrupt;
@@ -830,7 +823,7 @@ struct msm_vidc_buffers {
 
 struct msm_vidc_sort {
 	struct list_head       list;
-	u64                    val;
+	s64                    val;
 };
 
 struct msm_vidc_timestamp {
@@ -870,6 +863,12 @@ struct msm_vidc_ssr {
 	enum msm_vidc_ssr_trigger_type     ssr_type;
 	u32                                sub_client_id;
 	u32                                test_addr;
+};
+
+struct msm_vidc_stability {
+	enum msm_vidc_stability_trigger_type     stability_type;
+	u32                                      sub_client_id;
+	u32                                      value;
 };
 
 struct msm_vidc_sfr {
