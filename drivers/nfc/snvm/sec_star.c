@@ -26,9 +26,6 @@
 #include <linux/uaccess.h>
 #include <linux/delay.h>
 #include <linux/io.h>
-#ifdef FEATURE_STAR_WAKELOCK
-#include <linux/pm_wakeup.h>
-#endif
 #include <linux/miscdevice.h>
 #include <linux/mutex.h>
 #include <linux/regulator/consumer.h>
@@ -216,17 +213,19 @@ static int star_dev_open(struct inode *inode, struct file *filp)
 
 	if (star->access == 0) {
 #ifdef FEATURE_STAR_WAKELOCK
-		__pm_stay_awake(&star->wake);
-		INFO("called to __pm_stay_awake\n");
+		if (!wake_lock_active(&star->snvm_wake_lock)) {
+			wake_lock(&star->snvm_wake_lock);
+			INFO("called to snvm_wake_lock\n");
+		}
 #endif
 		iso7816_t1_reset(star->protocol);
 
 		ret = star->dev->power_on();
 		if (ret < 0) {
 #ifdef FEATURE_STAR_WAKELOCK
-			if (star->wake.active) {
-				__pm_relax(&star->wake);
-				INFO("called to __pm_relax\n");
+			if (wake_lock_active(&star->snvm_wake_lock)) {
+				wake_unlock(&star->snvm_wake_lock);
+				INFO("called to snvm_wake_unlock\n");
 			}
 #endif
 			ERR("%s :failed to open star", __func__);
@@ -257,22 +256,20 @@ static int star_dev_close(struct inode *inode, struct file *filp)
 	star->access--;
 
 	if (star->access == 0) {
+		ret = star->dev->power_off();
+		if (ret < 0)
+			ERR("%s :failed power_off", __func__);
+
 #ifdef FEATURE_STAR_WAKELOCK
-		if (star->wake.active) {
-			__pm_relax(&star->wake);
-			INFO("called to __pm_relax\n");
+		if (wake_lock_active(&star->snvm_wake_lock)) {
+			wake_unlock(&star->snvm_wake_lock);
+			INFO("called to snvm_wake_unlock\n");
 		}
 #endif
-		ret = star->dev->power_off();
-		if (ret < 0) {
-			ERR("%s :failed to open star", __func__);
-			mutex_unlock(&(star->lock));
-			return ret;
-		}
 	}
 
 	mutex_unlock(&(star->lock));
-	return 0;
+	return ret;
 }
 
 static long star_dev_ioctl(struct file *filp, unsigned int cmd,
@@ -489,7 +486,7 @@ sec_star_t *star_open(star_dev_t *dev)
 
 	mutex_init(&(star->lock));
 #ifdef FEATURE_STAR_WAKELOCK
-	wakeup_source_init(&(star->wake), "star_wake_lock");
+	wake_lock_init(&star->snvm_wake_lock, WAKE_LOCK_SUSPEND, "star_wake_lock");
 #endif
 
 	star->misc.minor = MISC_DYNAMIC_MINOR;
@@ -499,7 +496,7 @@ sec_star_t *star_open(star_dev_t *dev)
 	if (ret < 0) {
 		ERR("misc_register failed! %d\n", ret);
 #ifdef FEATURE_STAR_WAKELOCK
-		wakeup_source_destroy(&star->wake);
+		wake_lock_destroy(&star->snvm_wake_lock);
 #endif
 		mutex_destroy(&(star->lock));
 		ESE_FREE(star);
@@ -523,7 +520,7 @@ void star_close(sec_star_t *star)
 	iso7816_t1_deinit(star->protocol);
 	ese_hal_release(star->hal);
 #ifdef FEATURE_STAR_WAKELOCK
-	wakeup_source_destroy(&star->wake);
+	wake_lock_destroy(&star->snvm_wake_lock);
 #endif
 	mutex_destroy(&(star->lock));
 	ESE_FREE(star);

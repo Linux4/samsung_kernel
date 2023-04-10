@@ -107,7 +107,7 @@ int pdic_core_register_chip(ppdic_data_t ppdic_data)
 	int ret = 0;
 
 	pr_info("%s+\n", __func__);
-	if (IS_ERR(pdic_device)) {
+	if (IS_ERR_OR_NULL(pdic_device)) {
 		pr_err("%s pdic_device is not present try again\n", __func__);
 		ret = -ENODEV;
 		goto out;
@@ -151,7 +151,7 @@ int pdic_core_init(void)
 	pdic_device = sec_device_create(NULL, "ccic");
 #endif
 
-	if (IS_ERR(pdic_device)) {
+	if (IS_ERR_OR_NULL(pdic_device)) {
 		pr_err("%s Failed to create device(switch)!\n", __func__);
 		ret = -ENODEV;
 		goto out;

@@ -268,7 +268,7 @@ config SEC_BATTERY_TTF_TEST
           for sec_battery_ttf_test
 
 config SEC_STEP_CHARGING_TEST
-	bool "KUnit test for sec_step_charging_test"
+	tristate "KUnit test for sec_step_charging_test"
 	depends on SEC_KUNIT
 	help
     	  Say Y here to enable

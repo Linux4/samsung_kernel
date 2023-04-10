@@ -570,6 +570,7 @@ static ssize_t akm_selftest_show(struct device *dev,
 			input_err(true, &info->client->dev, "%s: failed to write reg: %02X ret: %d\n", __func__, reg, ret);
 			return ret;
 		}
+		input_info(true, &info->client->dev, "%s: set thd: reg:%02X: %02X %02X %02X %02X\n", __func__, reg, data[0], data[1], data[2], data[3]);
 	}
 	input_info(true, &info->client->dev, "%s: set threshold\n", __func__);
 
@@ -596,7 +597,6 @@ static struct attribute *akm_attrs[] = {
 static struct attribute_group akm_attrs_group = {
 	.attrs = akm_attrs,
 };
-
 
 static int akm_setup_device_control(struct akm_info *info)
 {
@@ -704,14 +704,6 @@ static int akm_setup_device_control(struct akm_info *info)
 	ret = akm_read(info, &reg, 4, data);
 	input_info(true, &info->client->dev, "%s; ret: %d, (2) V: %02X %02X %02X %02X\n", __func__, ret, data[0], data[1], data[2], data[3]);
 
-	info->cal_value[0] = info->pdata->bop_x;
-	info->cal_value[1] = info->pdata->brp_x;
-
-	info->cal_value[2] = info->pdata->bop_y;
-	info->cal_value[3] = info->pdata->brp_y;
-
-	info->cal_value[4] = info->pdata->bop_z;
-	info->cal_value[5] = info->pdata->brp_z;
 	return 0;
 
 }
@@ -929,6 +921,15 @@ static int akm_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	akm_power_control(info, true);
 
 	akm_setup_input_device(info);
+
+	info->cal_value[0] = info->pdata->bop_x;
+	info->cal_value[1] = info->pdata->brp_x;
+
+	info->cal_value[2] = info->pdata->bop_y;
+	info->cal_value[3] = info->pdata->brp_y;
+
+	info->cal_value[4] = info->pdata->bop_z;
+	info->cal_value[5] = info->pdata->brp_z;
 
 	akm_setup_device_control(info);
 

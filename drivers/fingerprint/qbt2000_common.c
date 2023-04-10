@@ -559,10 +559,13 @@ static long qbt2000_ioctl(
 			rc = -EFAULT;
 			goto ioctl_failed;
 		}
+		pr_info("CPU_SPEEDUP %d\n", data);
+		/*
 		if (data)
 			rc = cpu_speedup_enable(drvdata->boosting);
 		else
 			rc = cpu_speedup_disable(drvdata->boosting);
+		*/
 		break;
 	case QBT2000_SET_SENSOR_TYPE:
 		if (copy_from_user(&data, (void *)arg, sizeof(int)) != 0) {

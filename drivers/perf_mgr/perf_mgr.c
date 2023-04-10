@@ -130,9 +130,14 @@ static long perf_mgr_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 			rcu_read_unlock();
 		} else {
 			//Drawing Flag OFF on Task Struct
+			rcu_read_lock();
 			task = find_task_by_vpid(target_tid);
-			if (task != NULL)
+			if (task != NULL) {
+				get_task_struct(task);
 				task->drawing_flag = 0;
+				put_task_struct(task);
+			}
+			rcu_read_unlock();
 
 			fi = get_target_task(target_tid);
 			if (fi == NULL)

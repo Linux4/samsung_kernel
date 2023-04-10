@@ -28,7 +28,7 @@
 #include <linux/usb/typec/common/pdic_sysfs.h>
 #include <linux/usb/typec/common/pdic_notifier.h>
 #endif
-#include <linux/muic/muic.h>
+#include <linux/muic/common/muic.h>
 #include <linux/usb/typec/maxim/max77705-muic.h>
 #include <linux/usb/typec/maxim/max77705_usbc.h>
 #include <linux/usb/typec/maxim/max77705_alternate.h>
@@ -1483,7 +1483,9 @@ static ssize_t max77705_sysfs_set_prop(struct _pdic_data_t *ppdic_data,
 			tok = strsep(&p, ",");
 			if (tok) {
 				sz = strlen(tok);
-				kstrtouint(tok, 10, &num_hmd);
+				ret = kstrtouint(tok, 10, &num_hmd);
+				if (ret)
+				msg_maxim("fail to convert %s! ret:%d", tok, ret);
 			}
 
 			msg_maxim("HMD num: %d, sz:%d", num_hmd, sz);
@@ -1636,8 +1638,10 @@ static void max77705_init_opcode
 	max77705_usbc_disable_auto_vbus(usbc_data);
 	if (pdata && pdata->support_audio)
 		max77705_usbc_enable_audio(usbc_data);
-	if (reset)
+	if (reset) {
 		max77705_set_enable_alternate_mode(ALTERNATE_MODE_START);
+		max77705_muic_enable_detecting_short(usbc_data->muic_data);
+	}
 }
 
 static bool max77705_check_recover_opcode(u8 opcode)
@@ -1648,6 +1652,7 @@ static bool max77705_check_recover_opcode(u8 opcode)
 	case OPCODE_CCCTRL1_W:
 	case OPCODE_SAMSUNG_FACTORY_TEST:
 	case OPCODE_SET_ALTERNATEMODE:
+	case OPCODE_ENABLE_DETECTING_SHORT:
 		ret = true;
 		break;
 	default:
@@ -1679,6 +1684,10 @@ static void max77705_recover_opcode
 			case OPCODE_SET_ALTERNATEMODE:
 				max77705_set_enable_alternate_mode
 					(usbc_data->set_altmode);
+				break;
+			case OPCODE_ENABLE_DETECTING_SHORT:
+				max77705_muic_enable_detecting_short
+					(usbc_data->muic_data);
 				break;
 			default:
 				break;
@@ -3014,10 +3023,26 @@ void max77705_usbc_check_sysmsg(struct max77705_usbc_platform_data *usbc_data, u
 	case SYSMSG_PD_CCx_5V_SHORT:
 		msg_maxim("PD_CC-VBUS SHORT");
 		usbc_data->pd_data->cc_sbu_short = true;
+#if defined(CONFIG_USB_HW_PARAM)
+		if (o_notify)
+			inc_hw_param(o_notify, USB_CCIC_VBUS_CC_SHORT_COUNT);
+#endif
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+		event = NOTIFY_EXTRA_SYSMSG_CC_SHORT;
+		store_usblog_notify(NOTIFY_EXTRA, (void *)&event, NULL);
+#endif
 		break;
 	case SYSMSG_PD_SBUx_5V_SHORT:
 		msg_maxim("PD_SBU-VBUS SHORT");
 		usbc_data->pd_data->cc_sbu_short = true;
+#if defined(CONFIG_USB_HW_PARAM)
+		if (o_notify)
+			inc_hw_param(o_notify, USB_CCIC_VBUS_SBU_SHORT_COUNT);
+#endif
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+		event = NOTIFY_EXTRA_SYSMSG_SBU_VBUS_SHORT;
+		store_usblog_notify(NOTIFY_EXTRA, (void *)&event, NULL);
+#endif
 		break;
 	case SYSMSG_PD_SHORT_NONE:
 		msg_maxim("Cable detach");
