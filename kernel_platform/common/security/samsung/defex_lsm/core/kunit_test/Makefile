@@ -35,12 +35,16 @@ defex-y += defex_rules_proc_test.o
 # Immutable Feature is applied with permissive mode first.
 DEFEX_DEFINES := -DDEFEX_PERMISSIVE_IM
 
+# Integrity Feature is applied with permissive mode first.
+DEFEX_DEFINES += -DDEFEX_PERMISSIVE_INT
+
 ifeq ($(CONFIG_DEFEX_KERNEL_ONLY), y)
     DEFEX_DEFINES += -DDEFEX_KERNEL_ONLY
     ifeq ($(CONFIG_SAMSUNG_PRODUCT_SHIP), y)
         $(warning [DEFEX-KUNIT] Kernel_only & Ship)
     else
         $(warning [DEFEX-KUNIT] Kernel_only & Noship)
+        DEFEX_DEFINES += -DDEFEX_PERMISSIVE_INT
         DEFEX_DEFINES += -DDEFEX_PERMISSIVE_SP
         DEFEX_DEFINES += -DDEFEX_PERMISSIVE_IM
         DEFEX_DEFINES += -DDEFEX_PERMISSIVE_LP
@@ -92,6 +96,7 @@ endif
 endif
 
 ifneq (,$(filter userdebug eng, $(TARGET_BUILD_VARIANT)))
+    DEFEX_DEFINES += -DDEFEX_PERMISSIVE_INT
     DEFEX_DEFINES += -DDEFEX_PERMISSIVE_SP
     DEFEX_DEFINES += -DDEFEX_PERMISSIVE_IM
     DEFEX_DEFINES += -DDEFEX_PERMISSIVE_LP

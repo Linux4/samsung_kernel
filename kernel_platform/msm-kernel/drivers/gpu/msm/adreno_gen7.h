@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _ADRENO_GEN7_H_
@@ -10,6 +11,11 @@
 
 #include "gen7_reg.h"
 #include "adreno_gen7_gmu.h"
+
+#define PIPE_NONE 0
+#define PIPE_BR 1
+#define PIPE_BV 2
+#define PIPE_LPAC 3
 
 extern const struct adreno_power_ops gen7_gmu_power_ops;
 extern const struct adreno_power_ops gen7_hwsched_power_ops;
@@ -85,6 +91,8 @@ struct adreno_gen7_core {
 	u64 ctxt_record_size;
 	/** @highest_bank_bit: Highest bank bit value */
 	u32 highest_bank_bit;
+	/** @gmu_hub_clk_freq: Gmu hub interface clock frequency */
+	u64 gmu_hub_clk_freq;
 };
 
 /**
@@ -210,19 +218,6 @@ static inline bool gen7_is_smmu_stalled(struct kgsl_device *device)
 	return val & BIT(24);
 }
 
-/**
- * gen7_cx_regulator_disable_wait - Disable a cx regulator and wait for it
- * @reg: A &struct regulator handle
- * @device: kgsl device struct
- * @timeout: Time to wait (in milliseconds)
- *
- * Disable the regulator and wait @timeout milliseconds for it to enter the
- * disabled state.
- *
- */
-void gen7_cx_regulator_disable_wait(struct regulator *reg,
-		struct kgsl_device *device, u32 timeout);
-
 /* Preemption functions */
 void gen7_preemption_trigger(struct adreno_device *adreno_dev, bool atomic);
 void gen7_preemption_schedule(struct adreno_device *adreno_dev);
@@ -337,11 +332,12 @@ void gen7_spin_idle_debug(struct adreno_device *adreno_dev,
  * @adreno_dev: An Adreno GPU handle
  * @reg: Perfcounter reg struct to add/remove to the list
  * @update_reg: true if the perfcounter needs to be programmed by the CPU
+ * @pipe: pipe id for CP aperture control
  *
  * Return: 0 on success or -EBUSY if the lock couldn't be taken
  */
 int gen7_perfcounter_update(struct adreno_device *adreno_dev,
-	struct adreno_perfcount_register *reg, bool update_reg);
+	struct adreno_perfcount_register *reg, bool update_reg, u32 pipe);
 
 /*
  * gen7_ringbuffer_init - Initialize the ringbuffers

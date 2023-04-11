@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -50,6 +51,8 @@ static const char *ipahal_pkt_status_exception_to_str
 	__stringify(IPAHAL_PKT_STATUS_EXCEPTION_NAT),
 	__stringify(IPAHAL_PKT_STATUS_EXCEPTION_IPV6CT),
 	__stringify(IPAHAL_PKT_STATUS_EXCEPTION_UCP),
+	__stringify(IPAHAL_PKT_STATUS_EXCEPTION_INVALID_PIPE),
+	__stringify(IPAHAL_PKT_STATUS_EXCEPTION_HDRI),
 	__stringify(IPAHAL_PKT_STATUS_EXCEPTION_CSUM),
 };
 
@@ -1164,8 +1167,14 @@ static enum ipahal_pkt_status_exception pkt_status_parse_exception(
 			exception_type = IPAHAL_PKT_STATUS_EXCEPTION_NAT;
 		break;
 	case 128:
-                exception_type = IPAHAL_PKT_STATUS_EXCEPTION_UCP;
-                break;
+		exception_type = IPAHAL_PKT_STATUS_EXCEPTION_UCP;
+		break;
+	case 129:
+		exception_type = IPAHAL_PKT_STATUS_EXCEPTION_INVALID_PIPE;
+		break;
+	case 136:
+		exception_type = IPAHAL_PKT_STATUS_EXCEPTION_HDRI;
+		break;
 	case 229:
 		exception_type = IPAHAL_PKT_STATUS_EXCEPTION_CSUM;
 		break;
@@ -1739,8 +1748,6 @@ static void ipahal_cp_hdr_to_hw_buff_v3(void *const base, u32 offset,
  * @base: dma base address
  * @offset: offset from base address where the data will be copied
  * @hdr_len: the length of the header
- * @is_hdr_proc_ctx: header is located in phys_base (true) or hdr_base_addr
- * @phys_base: memory location in DDR
  * @hdr_base_addr: base address in table
  * @offset_entry: offset from hdr_base_addr in table
  * @l2tp_params: l2tp parameters
@@ -1750,8 +1757,7 @@ static void ipahal_cp_hdr_to_hw_buff_v3(void *const base, u32 offset,
  */
 static int ipahal_cp_proc_ctx_to_hw_buff_v3(enum ipa_hdr_proc_type type,
 		void *const base, u32 offset,
-		u32 hdr_len, bool is_hdr_proc_ctx,
-		dma_addr_t phys_base, u64 hdr_base_addr,
+		u32 hdr_len, u64 hdr_base_addr,
 		struct ipa_hdr_offset_entry *offset_entry,
 		struct ipa_l2tp_hdr_proc_ctx_params *l2tp_params,
 		struct ipa_eogre_hdr_proc_ctx_params *eogre_params,
@@ -1768,8 +1774,7 @@ static int ipahal_cp_proc_ctx_to_hw_buff_v3(enum ipa_hdr_proc_type type,
 		ctx->hdr_add.tlv.type = IPA_PROC_CTX_TLV_TYPE_HDR_ADD;
 		ctx->hdr_add.tlv.length = 2;
 		ctx->hdr_add.tlv.value = hdr_len;
-		hdr_addr = is_hdr_proc_ctx ? phys_base :
-			hdr_base_addr + offset_entry->offset;
+		hdr_addr = hdr_base_addr + offset_entry->offset;
 		IPAHAL_DBG("header address 0x%llx\n",
 			hdr_addr);
 		IPAHAL_CP_PROC_CTX_HEADER_UPDATE(ctx->hdr_add.hdr_addr,
@@ -1788,8 +1793,7 @@ static int ipahal_cp_proc_ctx_to_hw_buff_v3(enum ipa_hdr_proc_type type,
 		ctx->hdr_add.tlv.type = IPA_PROC_CTX_TLV_TYPE_HDR_ADD;
 		ctx->hdr_add.tlv.length = 2;
 		ctx->hdr_add.tlv.value = hdr_len;
-		hdr_addr = is_hdr_proc_ctx ? phys_base :
-			hdr_base_addr + offset_entry->offset;
+		hdr_addr = hdr_base_addr + offset_entry->offset;
 		IPAHAL_DBG("header address 0x%llx\n",
 			hdr_addr);
 		IPAHAL_CP_PROC_CTX_HEADER_UPDATE(ctx->hdr_add.hdr_addr,
@@ -1825,8 +1829,7 @@ static int ipahal_cp_proc_ctx_to_hw_buff_v3(enum ipa_hdr_proc_type type,
 		ctx->hdr_add.tlv.type = IPA_PROC_CTX_TLV_TYPE_HDR_ADD;
 		ctx->hdr_add.tlv.length = 2;
 		ctx->hdr_add.tlv.value = hdr_len;
-		hdr_addr = is_hdr_proc_ctx ? phys_base :
-			hdr_base_addr + offset_entry->offset;
+		hdr_addr = hdr_base_addr + offset_entry->offset;
 		IPAHAL_DBG("header address 0x%llx length %d\n",
 			hdr_addr, ctx->hdr_add.tlv.value);
 		IPAHAL_CP_PROC_CTX_HEADER_UPDATE(ctx->hdr_add.hdr_addr,
@@ -1866,8 +1869,7 @@ static int ipahal_cp_proc_ctx_to_hw_buff_v3(enum ipa_hdr_proc_type type,
 		ctx->hdr_add.tlv.length = 2;
 		if (l2tp_params->hdr_remove_param.eth_hdr_retained) {
 			ctx->hdr_add.tlv.value = hdr_len;
-			hdr_addr = is_hdr_proc_ctx ? phys_base :
-				hdr_base_addr + offset_entry->offset;
+			hdr_addr = hdr_base_addr + offset_entry->offset;
 			IPAHAL_DBG("header address 0x%llx length %d\n",
 				hdr_addr, ctx->hdr_add.tlv.value);
 			IPAHAL_CP_PROC_CTX_HEADER_UPDATE(ctx->hdr_add.hdr_addr,
@@ -1910,8 +1912,7 @@ static int ipahal_cp_proc_ctx_to_hw_buff_v3(enum ipa_hdr_proc_type type,
 		ctx->hdr_add.tlv.type = IPA_PROC_CTX_TLV_TYPE_HDR_ADD;
 		ctx->hdr_add.tlv.length = 2;
 		ctx->hdr_add.tlv.value = hdr_len;
-		hdr_addr = is_hdr_proc_ctx ? phys_base :
-			hdr_base_addr + offset_entry->offset;
+		hdr_addr = hdr_base_addr + offset_entry->offset;
 		IPAHAL_DBG("header address 0x%x\n",
 			ctx->hdr_add.hdr_addr);
 		IPAHAL_CP_PROC_CTX_HEADER_UPDATE(ctx->hdr_add.hdr_addr,
@@ -1940,8 +1941,7 @@ static int ipahal_cp_proc_ctx_to_hw_buff_v3(enum ipa_hdr_proc_type type,
 		ctx->hdr_add.tlv.type = IPA_PROC_CTX_TLV_TYPE_HDR_ADD;
 		ctx->hdr_add.tlv.length = 2;
 		ctx->hdr_add.tlv.value = hdr_len;
-		hdr_addr = is_hdr_proc_ctx ? phys_base :
-			hdr_base_addr + offset_entry->offset;
+		hdr_addr = hdr_base_addr + offset_entry->offset;
 		IPAHAL_DBG("header address 0x%llx\n",
 			hdr_addr);
 		IPAHAL_CP_PROC_CTX_HEADER_UPDATE(ctx->hdr_add.hdr_addr,
@@ -1976,8 +1976,7 @@ static int ipahal_cp_proc_ctx_to_hw_buff_v3(enum ipa_hdr_proc_type type,
 		ctx->hdr_add.tlv.type = IPA_PROC_CTX_TLV_TYPE_HDR_ADD;
 		ctx->hdr_add.tlv.length = 2;
 		ctx->hdr_add.tlv.value = hdr_len;
-		hdr_addr = is_hdr_proc_ctx ? phys_base :
-			hdr_base_addr + offset_entry->offset;
+		hdr_addr = hdr_base_addr + offset_entry->offset;
 		IPAHAL_DBG("header address 0x%llx length %d\n",
 				   hdr_addr, ctx->hdr_add.tlv.value);
 		IPAHAL_CP_PROC_CTX_HEADER_UPDATE(
@@ -2001,8 +2000,7 @@ static int ipahal_cp_proc_ctx_to_hw_buff_v3(enum ipa_hdr_proc_type type,
 		ctx->hdr_add.tlv.type = IPA_PROC_CTX_TLV_TYPE_HDR_ADD;
 		ctx->hdr_add.tlv.length = 2;
 		ctx->hdr_add.tlv.value = hdr_len;
-		hdr_addr = is_hdr_proc_ctx ? phys_base :
-			hdr_base_addr + offset_entry->offset;
+		hdr_addr = hdr_base_addr + offset_entry->offset;
 		IPAHAL_DBG("header address 0x%llx\n",
 			hdr_addr);
 		IPAHAL_CP_PROC_CTX_HEADER_UPDATE(ctx->hdr_add.hdr_addr,
@@ -2106,7 +2104,6 @@ struct ipahal_hdr_funcs {
 
 	int (*ipahal_cp_proc_ctx_to_hw_buff)(enum ipa_hdr_proc_type type,
 			void *const base, u32 offset, u32 hdr_len,
-			bool is_hdr_proc_ctx, dma_addr_t phys_base,
 			u64 hdr_base_addr,
 			struct ipa_hdr_offset_entry *offset_entry,
 			struct ipa_l2tp_hdr_proc_ctx_params *l2tp_params,
@@ -2174,8 +2171,6 @@ void ipahal_cp_hdr_to_hw_buff(void *base, u32 offset, u8 *const hdr,
  * @base: dma base address
  * @offset: offset from base address where the data will be copied
  * @hdr_len: the length of the header
- * @is_hdr_proc_ctx: header is located in phys_base (true) or hdr_base_addr
- * @phys_base: memory location in DDR
  * @hdr_base_addr: base address in table
  * @offset_entry: offset from hdr_base_addr in table
  * @l2tp_params: l2tp parameters
@@ -2185,7 +2180,6 @@ void ipahal_cp_hdr_to_hw_buff(void *base, u32 offset, u8 *const hdr,
  */
 int ipahal_cp_proc_ctx_to_hw_buff(enum ipa_hdr_proc_type type,
 		void *const base, u32 offset, u32 hdr_len,
-		bool is_hdr_proc_ctx, dma_addr_t phys_base,
 		u64 hdr_base_addr, struct ipa_hdr_offset_entry *offset_entry,
 		struct ipa_l2tp_hdr_proc_ctx_params *l2tp_params,
 		struct ipa_eogre_hdr_proc_ctx_params *eogre_params,
@@ -2193,24 +2187,18 @@ int ipahal_cp_proc_ctx_to_hw_buff(enum ipa_hdr_proc_type type,
 		bool is_64)
 {
 	IPAHAL_DBG(
-		"type %d, base %pK, offset %d, hdr_len %d, is_hdr_proc_ctx %d, hdr_base_addr %llu, offset_entry %pK, bool %d\n"
-			, type, base, offset, hdr_len, is_hdr_proc_ctx,
-			hdr_base_addr, offset_entry, is_64);
+		"type %d, base %pK, offset %d, hdr_len %d, hdr_base_addr %llu, offset_entry %pK, bool %d\n"
+			, type, base, offset, hdr_len, hdr_base_addr, offset_entry, is_64);
 
-	if (!base ||
-		(is_hdr_proc_ctx && !phys_base) ||
-		(!is_hdr_proc_ctx && !offset_entry) ||
-		(!is_hdr_proc_ctx && !hdr_base_addr)) {
+	if (!base || !offset_entry || !hdr_base_addr) {
 		IPAHAL_ERR(
-			"invalid input: hdr_len:%u phys_base:%pad hdr_base_addr:%llu is_hdr_proc_ctx:%d offset_entry:%pK\n"
-			, hdr_len, &phys_base, hdr_base_addr
-			, is_hdr_proc_ctx, offset_entry);
+			"invalid input: hdr_len:%u hdr_base_addr:%llu offset_entry:%pK\n",
+			hdr_len, hdr_base_addr, offset_entry);
 		return -EINVAL;
 	}
 
 	return hdr_funcs.ipahal_cp_proc_ctx_to_hw_buff(type, base, offset,
-			hdr_len, is_hdr_proc_ctx, phys_base,
-			hdr_base_addr, offset_entry, l2tp_params,
+			hdr_len, hdr_base_addr, offset_entry, l2tp_params,
 			eogre_params, generic_params, is_64);
 }
 
@@ -2318,7 +2306,7 @@ int ipahal_init(enum ipa_hw_type ipa_hw_type, void __iomem *base,
 
 	/* create an IPC buffer for the registers dump */
 	ipahal_ctx->regdumpbuf = ipc_log_context_create(IPAHAL_IPC_LOG_PAGES,
-		"ipa_regs", 0);
+		"ipa_regs", MINIDUMP_MASK);
 	if (ipahal_ctx->regdumpbuf == NULL)
 		IPAHAL_ERR("failed to create IPA regdump log, continue...\n");
 

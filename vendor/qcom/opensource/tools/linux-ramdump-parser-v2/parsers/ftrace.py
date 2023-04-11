@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+# Copyright (c) 2017-2022, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -228,7 +228,7 @@ class FtraceParser(RamParser):
                               "#              | |       |   ||||       |         |\n"
                 ftrace_out.write(header_data)
             else:
-                ftrace_out = self.ramdump.open_file('ftrace_' + trace_name + '.txt','w')
+                ftrace_out = self.ramdump.open_file('ftrace_parser/' + 'ftrace_' + trace_name + '.txt','w')
 
             ftrace_time_data = {}
             nr_total_buffer_pages = 0
@@ -291,23 +291,23 @@ class FtraceParser(RamParser):
             switch_map = {}
             ftrace_file_map = {}
             if trace_name is None or trace_name == 0x0 or trace_name == "0x0" or trace_name == "None" or trace_name == "null" or len(trace_name) < 1:
-                ftrace_core0_fd = self.ramdump.open_file('ftrace_core0.txt','w')
-                ftrace_core1_fd = self.ramdump.open_file('ftrace_core1.txt','w')
-                ftrace_core2_fd = self.ramdump.open_file('ftrace_core2.txt','w')
-                ftrace_core3_fd = self.ramdump.open_file('ftrace_core3.txt','w')
-                ftrace_core4_fd = self.ramdump.open_file('ftrace_core4.txt','w')
-                ftrace_core5_fd = self.ramdump.open_file('ftrace_core5.txt','w')
-                ftrace_core6_fd = self.ramdump.open_file('ftrace_core6.txt','w')
-                ftrace_core7_fd = self.ramdump.open_file('ftrace_core7.txt','w')
+                ftrace_core0_fd = self.ramdump.open_file('ftrace_core0.txt', 'w')
+                ftrace_core1_fd = self.ramdump.open_file('ftrace_core1.txt', 'w')
+                ftrace_core2_fd = self.ramdump.open_file('ftrace_core2.txt', 'w')
+                ftrace_core3_fd = self.ramdump.open_file('ftrace_core3.txt', 'w')
+                ftrace_core4_fd = self.ramdump.open_file('ftrace_core4.txt', 'w')
+                ftrace_core5_fd = self.ramdump.open_file('ftrace_core5.txt', 'w')
+                ftrace_core6_fd = self.ramdump.open_file('ftrace_core6.txt', 'w')
+                ftrace_core7_fd = self.ramdump.open_file('ftrace_core7.txt', 'w')
             else:
-                ftrace_core0_fd = self.ramdump.open_file('ftrace_' + trace_name + '_core0.txt','w')
-                ftrace_core1_fd = self.ramdump.open_file('ftrace_' + trace_name + '_core1.txt','w')
-                ftrace_core2_fd = self.ramdump.open_file('ftrace_' + trace_name + '_core2.txt','w')
-                ftrace_core3_fd = self.ramdump.open_file('ftrace_' + trace_name + '_core3.txt','w')
-                ftrace_core4_fd = self.ramdump.open_file('ftrace_' + trace_name + '_core4.txt','w')
-                ftrace_core5_fd = self.ramdump.open_file('ftrace_' + trace_name + '_core5.txt','w')
-                ftrace_core6_fd = self.ramdump.open_file('ftrace_' + trace_name + '_core6.txt','w')
-                ftrace_core7_fd = self.ramdump.open_file('ftrace_' + trace_name + '_core7.txt','w')
+                ftrace_core0_fd = self.ramdump.open_file('ftrace_parser/' + 'ftrace_' + trace_name + '_core0.txt','w')
+                ftrace_core1_fd = self.ramdump.open_file('ftrace_parser/' + 'ftrace_' + trace_name + '_core1.txt','w')
+                ftrace_core2_fd = self.ramdump.open_file('ftrace_parser/' + 'ftrace_' + trace_name + '_core2.txt','w')
+                ftrace_core3_fd = self.ramdump.open_file('ftrace_parser/' + 'ftrace_' + trace_name + '_core3.txt','w')
+                ftrace_core4_fd = self.ramdump.open_file('ftrace_parser/' + 'ftrace_' + trace_name + '_core4.txt','w')
+                ftrace_core5_fd = self.ramdump.open_file('ftrace_parser/' + 'ftrace_' + trace_name + '_core5.txt','w')
+                ftrace_core6_fd = self.ramdump.open_file('ftrace_parser/' + 'ftrace_' + trace_name + '_core6.txt','w')
+                ftrace_core7_fd = self.ramdump.open_file('ftrace_parser/' + 'ftrace_' + trace_name + '_core7.txt','w')
 
             ftrace_file_map["000"] = ftrace_core0_fd
             ftrace_file_map["001"] = ftrace_core1_fd
@@ -320,77 +320,78 @@ class FtraceParser(RamParser):
 
             sorted_dict = {k: ftrace_time_data[k] for k in sorted(ftrace_time_data)}
             for key in sorted(sorted_dict.keys()):
-                line = str(ftrace_time_data[key])
-                if "sched_switch:" in line:
-                    cpu_number = line.split("[")[1]
-                    cpu_number = cpu_number.split("]")[0].replace("]","")
-                    swapper_entry =  True
-                    comm_flag = False
-                    comm_flag_dash = False
-                    prev_comm = line.split("prev_comm=")[1].split(" ")[0]
-                    prev_id = line.split("prev_pid=")[1].split(" ")[0]
-
-                    curr_comm = line.split("next_comm=")[1].split(" ")[0]
-                    curr_id = line.split("next_pid=")[1].split(" ")[0]
-
-                    switch_map[cpu_number] = curr_comm + "-" + curr_id
-                    if "swapper" not in prev_comm:
-                        #pid = prev_comm.split(":")[1]
-                        temp_prev_comm = prev_comm
-                        pid = prev_id
-
-                        if pendig_process == False:
-                            for pi in pending_update_list:
-                                #print "pending line process ++ = {0}".format(pi)
-                                if "swapper" in temp_prev_comm:
-                                    ftrace_out.write(pi.replace("<TBD>", "<idle>-0"))
-                                    ftrace_file_map[str(cpu_number)].write(pi.replace("<TBD>", "<idle>-0"))
-                                else:
-                                    ftrace_out.write(pi.replace("<TBD>", temp_prev_comm+pid))
-                                    ftrace_file_map[str(cpu_number)].write(pi.replace("<TBD>", temp_prev_comm + "-" + pid))
-
-                            pendig_process = True
-                            pending_update_list = []
-                        if "swapper" in temp_prev_comm:
-                            ftrace_out.write(pi.replace("<TBD>", "<idle>-0"))
-                            ftrace_file_map[str(cpu_number)].write(line.replace("<TBD>", "<idle>-0"))
-                        else:
-                            ftrace_out.write(line.replace("<TBD>", temp_prev_comm + "-" + pid))
-                            ftrace_file_map[str(cpu_number)].write(line.replace("<TBD>", temp_prev_comm + "-" + pid))
-
-                    else:
-                        #pid = prev_comm.split(":")
-                        #ftrace_out.write(line.replace("next_pid", pid))
-                        if pendig_process == False:
-                            for pi in pending_update_list:
-                                #print "pending line process && = {0}".format(pi)
-                                ftrace_out.write(pi.replace("<TBD>", "<idle>-0"))
-                                ftrace_file_map[str(cpu_number)].write(pi.replace("<TBD>", "<idle>-0"))
-                            pendig_process = True
-                            pending_update_list = []
-                        ftrace_out.write(line.replace("<TBD>", "<idle>-0"))
-                        ftrace_file_map[str(cpu_number)].write(line.replace("<TBD>", "<idle>-0"))
-                        #ctask = "<idle>-" + str(pid)
-                        #switch_map[cpu_number] = ctask
-                else:
-                    if "[" in line:
+                for i in range(0,len(ftrace_time_data[key])):
+                    line = str(ftrace_time_data[key][i])
+                    if "sched_switch:" in line:
                         cpu_number = line.split("[")[1]
                         cpu_number = cpu_number.split("]")[0].replace("]","")
-                        if cpu_number in switch_map:
-                            currcomm_ctask = switch_map[cpu_number]
+                        swapper_entry =  True
+                        comm_flag = False
+                        comm_flag_dash = False
+                        prev_comm = line.split("prev_comm=")[1].split(" ")[0]
+                        prev_id = line.split("prev_pid=")[1].split(" ")[0]
+
+                        curr_comm = line.split("next_comm=")[1].split(" ")[0]
+                        curr_id = line.split("next_pid=")[1].split(" ")[0]
+
+                        switch_map[cpu_number] = curr_comm + "-" + curr_id
+                        if "swapper" not in prev_comm:
+                            #pid = prev_comm.split(":")[1]
+                            temp_prev_comm = prev_comm
+                            pid = prev_id
+
+                            if pendig_process == False:
+                                for pi in pending_update_list:
+                                    #print "pending line process ++ = {0}".format(pi)
+                                    if "swapper" in temp_prev_comm:
+                                        ftrace_out.write(pi.replace("<TBD>", "<idle>-0"))
+                                        ftrace_file_map[str(cpu_number)].write(pi.replace("<TBD>", "<idle>-0"))
+                                    else:
+                                        ftrace_out.write(pi.replace("<TBD>", temp_prev_comm+pid))
+                                        ftrace_file_map[str(cpu_number)].write(pi.replace("<TBD>", temp_prev_comm + "-" + pid))
+
+                                pendig_process = True
+                                pending_update_list = []
+                            if "swapper" in temp_prev_comm:
+                                ftrace_out.write(pi.replace("<TBD>", "<idle>-0"))
+                                ftrace_file_map[str(cpu_number)].write(line.replace("<TBD>", "<idle>-0"))
+                            else:
+                                ftrace_out.write(line.replace("<TBD>", temp_prev_comm + "-" + pid))
+                                ftrace_file_map[str(cpu_number)].write(line.replace("<TBD>", temp_prev_comm + "-" + pid))
+
                         else:
-                            currcomm_ctask = '<idle>-0'
-                        temp_curr_comm = currcomm_ctask
-                        if swapper_entry and currcomm_ctask:
-                            if "swapper" not in currcomm_ctask:
-                                ftrace_out.write(line.replace("<TBD>", temp_curr_comm))
-                                ftrace_file_map[str(cpu_number)].write(line.replace("<TBD>", temp_curr_comm))
+                            #pid = prev_comm.split(":")
+                            #ftrace_out.write(line.replace("next_pid", pid))
+                            if pendig_process == False:
+                                for pi in pending_update_list:
+                                    #print "pending line process && = {0}".format(pi)
+                                    ftrace_out.write(pi.replace("<TBD>", "<idle>-0"))
+                                    ftrace_file_map[str(cpu_number)].write(pi.replace("<TBD>", "<idle>-0"))
+                                pendig_process = True
+                                pending_update_list = []
+                            ftrace_out.write(line.replace("<TBD>", "<idle>-0"))
+                            ftrace_file_map[str(cpu_number)].write(line.replace("<TBD>", "<idle>-0"))
+                            #ctask = "<idle>-" + str(pid)
+                            #switch_map[cpu_number] = ctask
+                    else:
+                        if "[" in line:
+                            cpu_number = line.split("[")[1]
+                            cpu_number = cpu_number.split("]")[0].replace("]","")
+                            if cpu_number in switch_map:
+                                currcomm_ctask = switch_map[cpu_number]
+                            else:
+                                currcomm_ctask = '<idle>-0'
+                            temp_curr_comm = currcomm_ctask
+                            if swapper_entry and currcomm_ctask:
+                                if "swapper" not in currcomm_ctask:
+                                    ftrace_out.write(line.replace("<TBD>", temp_curr_comm))
+                                    ftrace_file_map[str(cpu_number)].write(line.replace("<TBD>", temp_curr_comm))
+                                else:
+                                    ftrace_out.write(line.replace("<TBD>", "<idle>-0"))
+                                    ftrace_file_map[str(cpu_number)].write(line.replace("<TBD>", "<idle>-0"))
                             else:
                                 ftrace_out.write(line.replace("<TBD>", "<idle>-0"))
                                 ftrace_file_map[str(cpu_number)].write(line.replace("<TBD>", "<idle>-0"))
-                        else:
-                            ftrace_out.write(line.replace("<TBD>", "<idle>-0"))
-                            ftrace_file_map[str(cpu_number)].write(line.replace("<TBD>", "<idle>-0"))
 
     def parse(self):
         if parser_util.get_system_type() != 'Linux':

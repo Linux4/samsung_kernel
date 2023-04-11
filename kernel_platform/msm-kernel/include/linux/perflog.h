@@ -30,8 +30,6 @@ typedef unsigned int  uint32;
 #define PERFLOG_BUFF_STR_MAX_SIZE 		(PERFLOG_PACKET_SIZE - PERFLOG_HEADER_SIZE)
 #define PERFLOG_BUFF_STR_MAX_SIZE_FOR_MULTILINE	4096
 #define PERFLOG_BUFF_STR_MAX_SIZE_FOR_EVTI	PERFLOG_BUFF_STR_MAX_SIZE - PERFLOG_UINT16_SIZE
-#define PERFLOG_BUFF_STR_MAX_SIZE_FOR_EVTII	PERFLOG_BUFF_STR_MAX_SIZE - PERFLOG_UINT16_SIZE - PERFLOG_UINT16_SIZE
-#define PERFLOG_BUFF_STR_MAX_SIZE_FOR_EVTIII	PERFLOG_BUFF_STR_MAX_SIZE - PERFLOG_INT_SIZE - PERFLOG_INT_SIZE
 #define PERFLOG_UINT16_SIZE			2
 #define PERFLOG_INT_SIZE			4
 
@@ -115,10 +113,6 @@ int perflog_write(char const * fmt, ...);
 int perflog_write_log(uint16 type, uint16 logid, char const * fmt, ...);
 
 int perflog_write_evt(uint16 maintype, uint16 logid, uint16 param1, char const * fmt, ...);
-
-int perflog_write_evt_iis(uint16 maintype, uint16 logid, uint16 param1, uint16 param2, char const * fmt, ...);
-
-int perflog_write_evt_IIS(uint16 maintype, uint16 logid, int param1, int param2, char const * fmt, ...);
 
 // int perflog_getlog(char **buff);
 // End API

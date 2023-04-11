@@ -225,7 +225,7 @@ struct drm_connector *connector, struct sde_edid_ctrl *edid_ctrl)
 }
 
 #if (defined(CONFIG_SECDP) && IS_ENABLED(CONFIG_SWITCH))
-struct sde_edid_ctrl *g_edid_ctrl;
+static struct sde_edid_ctrl *g_edid_ctrl;
 
 int secdp_get_audio_ch(void)
 {
@@ -683,20 +683,26 @@ void sde_parse_edid(void *input)
 	}
 }
 
+#if defined(CONFIG_SECDP)
+extern void secdp_replace_edid(u8* edid);
+#endif
+
 void sde_get_edid(struct drm_connector *connector,
 				  struct i2c_adapter *adapter, void **input)
 {
 	struct sde_edid_ctrl *edid_ctrl = (struct sde_edid_ctrl *)(*input);
 
 	edid_ctrl->edid = drm_get_edid(connector, adapter);
-	SDE_EDID_DEBUG("%s +\n", __func__);
-
-	if (!edid_ctrl->edid)
-		SDE_ERROR("EDID read failed\n");
 #if defined(CONFIG_SECDP)
-	else {
-		int i, num_extension = edid_ctrl->edid->extensions;
+	if (edid_ctrl->edid) {
+		int i, num_extension;
 
+		if (edid_ctrl->custom_edid) {
+			pr_info("[secdp] use custom edid\n");
+			secdp_replace_edid((u8*)edid_ctrl->edid);
+		}
+
+		num_extension = edid_ctrl->edid->extensions;
 		for (i = 0; i <= num_extension; i++) {
 			print_hex_dump(KERN_DEBUG, "secdp_EDID: ",
 				DUMP_PREFIX_NONE, 16, 1, edid_ctrl->edid + i,
@@ -709,6 +715,11 @@ void sde_get_edid(struct drm_connector *connector,
 	g_edid_ctrl = edid_ctrl;
 #endif
 #endif/*CONFIG_SECDP*/
+
+	SDE_EDID_DEBUG("%s +\n", __func__);
+
+	if (!edid_ctrl->edid)
+		SDE_ERROR("EDID read failed\n");
 
 	if (edid_ctrl->edid)
 		sde_parse_edid(edid_ctrl);

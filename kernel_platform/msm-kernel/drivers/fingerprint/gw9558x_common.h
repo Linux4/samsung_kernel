@@ -42,6 +42,7 @@
 #define G3S_MCU_ID 0x1231
 #define GW9558_SPI_BAUD_RATE 25000000
 #define TANSFER_MAX_LEN (512*1024)
+#define SPI_TRANSFER_DELAY 5
 
 #define GF_DEV_NAME "goodix_fp"
 #define GF_DEV_MAJOR 0	/* assigned */

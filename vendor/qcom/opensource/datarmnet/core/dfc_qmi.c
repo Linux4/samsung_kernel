@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -46,6 +47,7 @@ struct dfc_ack_cmd {
 } __aligned(1);
 
 static void dfc_svc_init(struct work_struct *work);
+extern int dfc_ps_ext;
 
 /* **************************************************** */
 #define DFC_SERVICE_ID_V01 0x4E
@@ -777,8 +779,11 @@ dfc_indication_register_req(struct qmi_handle *dfc_handle,
 
 	req->report_flow_status_valid = 1;
 	req->report_flow_status = reg;
-	req->report_tx_link_status_valid = 1;
-	req->report_tx_link_status = reg;
+
+	if (!dfc_ps_ext) {
+		req->report_tx_link_status_valid = 1;
+		req->report_tx_link_status = reg;
+	}
 
 	ret = qmi_send_request(dfc_handle, ssctl, &txn,
 			       QMI_DFC_INDICATION_REGISTER_REQ_V01,
@@ -1012,7 +1017,9 @@ static int dfc_update_fc_map(struct net_device *dev, struct qos_info *qos,
 	u32 adjusted_grant;
 
 	itm = qmi_rmnet_get_bearer_map(qos, fc_info->bearer_id);
-	if (!itm)
+
+	/* cache the bearer assuming it is a new bearer */
+	if (unlikely(!itm && !is_query && fc_info->num_bytes))
 		itm = qmi_rmnet_get_bearer_noref(qos, fc_info->bearer_id);
 
 	if (itm) {
@@ -1028,6 +1035,14 @@ static int dfc_update_fc_map(struct net_device *dev, struct qos_info *qos,
 		/* If TX is OFF but we received grant, ignore it */
 		if (itm->tx_off  && fc_info->num_bytes > 0)
 			return 0;
+
+		if (fc_info->ll_status &&
+		    itm->ch_switch.current_ch != RMNET_CH_LL) {
+			itm->ch_switch.current_ch = RMNET_CH_LL;
+			itm->ch_switch.auto_switched = true;
+			if (itm->mq_idx < MAX_MQ_NUM)
+				qos->mq[itm->mq_idx].is_ll_ch = RMNET_CH_LL;
+		}
 
 		/* Adjuste grant for query */
 		if (dfc_qmap && is_query) {

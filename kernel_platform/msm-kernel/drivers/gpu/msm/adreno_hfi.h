@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __ADRENO_HFI_H
 #define __ADRENO_HFI_H
@@ -68,6 +69,8 @@
 #define HFI_FEATURE_DBQ		19
 #define HFI_FEATURE_MINBW	20
 #define HFI_FEATURE_CLX		21
+#define HFI_FEATURE_LSR		23
+
 
 /* A6xx uses a different value for KPROF */
 #define HFI_FEATURE_A6XX_KPROF	14
@@ -179,6 +182,27 @@ enum hfi_mem_kind {
 	HFI_MEMKIND_USER_PROFILE_IBS,
 	/** @MEMKIND_CMD_BUFFER: Used for composing ringbuffer content */
 	HFI_MEMKIND_CMD_BUFFER,
+	/**
+	 * @HFI_MEMKIND_GPU_BUSY_DATA_BUFFER: Used for GPU busy buffer for
+	 * all the contexts
+	 */
+	HFI_MEMKIND_GPU_BUSY_DATA_BUFFER,
+	/** @HFI_MEMKIND_GPU_BUSY_CMD_BUFFER: Used for GPU busy cmd buffer
+	 * (Only readable to GPU)
+	 */
+	HFI_MEMKIND_GPU_BUSY_CMD_BUFFER,
+	/**
+	 *@MEMKIND_MMIO_IPC_CORE: Used for IPC_core region mapping to GMU space
+	 * for EVA to GPU communication.
+	 */
+	HFI_MEMKIND_MMIO_IPC_CORE,
+	/** @HFIMEMKIND_MMIO_IPCC_AOSS: Used for IPCC AOSS, second memory region */
+	HFI_MEMKIND_MMIO_IPCC_AOSS,
+	/**
+	 * @MEMKIND_CSW_LPAC_PRIV_NON_SECURE: Used for privileged nonsecure
+	 * memory for LPAC context record
+	 */
+	HFI_MEMKIND_CSW_LPAC_PRIV_NON_SECURE,
 	HFI_MEMKIND_MAX,
 };
 
@@ -200,6 +224,12 @@ static const char * const hfi_memkind_strings[] = {
 	[HFI_MEMKIND_PROFILE] = "GMU KERNEL PROFILING",
 	[HFI_MEMKIND_USER_PROFILE_IBS] = "GMU USER PROFILING",
 	[HFI_MEMKIND_CMD_BUFFER] = "GMU CMD BUFFER",
+	[HFI_MEMKIND_GPU_BUSY_DATA_BUFFER] = "GMU BUSY DATA BUFFER",
+	[HFI_MEMKIND_GPU_BUSY_CMD_BUFFER] = "GMU BUSY CMD BUFFER",
+	[HFI_MEMKIND_MMIO_IPC_CORE] = "GMU MMIO IPC",
+	[HFI_MEMKIND_MMIO_IPCC_AOSS] = "GMU MMIO IPCC AOSS",
+	[HFI_MEMKIND_CSW_LPAC_PRIV_NON_SECURE] = "GMU CSW LPAC PRIV NON SECURE",
+	[HFI_MEMKIND_MAX] = "GMU UNKNOWN",
 };
 
 /* CP/GFX pipeline can access */
@@ -361,6 +391,7 @@ struct hfi_queue_table {
 #define F2H_MSG_TS_RETIRE		133
 #define H2F_MSG_CONTEXT_POINTERS	134
 #define H2F_MSG_CONTEXT_RULE		140 /* AKA constraint */
+#define H2F_MSG_ISSUE_RECURRING_CMD	141
 #define F2H_MSG_CONTEXT_BAD		150
 
 /* H2F */
@@ -394,7 +425,8 @@ struct hfi_bwtable_cmd {
 
 struct opp_gx_desc {
 	u32 vote;
-	u32 acd;
+	/* This is 'acdLvl' in gmu fw which is now repurposed for cx vote */
+	u32 cx_vote;
 	u32 freq;
 } __packed;
 
@@ -625,6 +657,9 @@ struct hfi_ts_notify_cmd {
 #define CMDBATCH_SKIP		3
 
 #define CMDBATCH_PROFILING  BIT(4)
+#define CMDBATCH_RECURRING_START   BIT(18)
+#define CMDBATCH_RECURRING_STOP   BIT(19)
+
 
 /* F2H */
 struct hfi_ts_retire_cmd {

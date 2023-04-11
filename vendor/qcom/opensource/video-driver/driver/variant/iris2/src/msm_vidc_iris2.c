@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2020-2021,, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "msm_vidc_iris2.h"
@@ -15,6 +16,7 @@
 #include "msm_vidc_internal.h"
 #include "msm_vidc_buffer.h"
 #include "msm_vidc_debug.h"
+#include "msm_vidc_platform.h"
 
 #define VIDEO_ARCH_LX 1
 
@@ -107,6 +109,8 @@
 
 #define WRAPPER_DEBUG_BRIDGE_LPI_CONTROL_IRIS2	(WRAPPER_BASE_OFFS_IRIS2 + 0x54)
 #define WRAPPER_DEBUG_BRIDGE_LPI_STATUS_IRIS2	(WRAPPER_BASE_OFFS_IRIS2 + 0x58)
+#define WRAPPER_IRIS_CPU_NOC_LPI_CONTROL	(WRAPPER_BASE_OFFS_IRIS2 + 0x5C)
+#define WRAPPER_IRIS_CPU_NOC_LPI_STATUS		(WRAPPER_BASE_OFFS_IRIS2 + 0x60)
 #define WRAPPER_CORE_CLOCK_CONFIG_IRIS2		(WRAPPER_BASE_OFFS_IRIS2 + 0x88)
 
 /*
@@ -117,6 +121,8 @@
 #define WRAPPER_TZ_BASE_OFFS	0x000C0000
 #define WRAPPER_TZ_CPU_CLOCK_CONFIG	(WRAPPER_TZ_BASE_OFFS)
 #define WRAPPER_TZ_CPU_STATUS	(WRAPPER_TZ_BASE_OFFS + 0x10)
+#define WRAPPER_TZ_CTL_AXI_CLOCK_CONFIG	(WRAPPER_TZ_BASE_OFFS + 0x14)
+#define WRAPPER_TZ_QNS4PDXFIFO_RESET	(WRAPPER_TZ_BASE_OFFS + 0x18)
 
 #define CTRL_INIT_IRIS2		CPU_CS_SCIACMD_IRIS2
 
@@ -210,7 +216,7 @@ static int __disable_unprepare_clock_iris2(struct msm_vidc_core *core,
 static int __prepare_enable_clock_iris2(struct msm_vidc_core *core,
 		const char *clk_name)
 {
-	int rc = 0;
+	int rc = 0, src_clk_scale_ratio = 1;
 	struct clock_info *cl;
 	bool found;
 	u64 rate = 0;
@@ -241,7 +247,8 @@ static int __prepare_enable_clock_iris2(struct msm_vidc_core *core,
 			 * attempts to multiply again. So divide scaling ratio before calling
 			 * __set_clk_rate.
 			 */
-			rate = rate / MSM_VIDC_CLOCK_SOURCE_SCALING_RATIO;
+			src_clk_scale_ratio = msm_vidc_get_src_clk_scaling_ratio(core);
+			rate = rate / src_clk_scale_ratio;
 			__set_clk_rate(core, cl, rate);
 		}
 
@@ -296,7 +303,7 @@ static int __disable_regulator_iris2(struct msm_vidc_core *core,
 		rc = __acquire_regulator(core, rinfo);
 		if (rc) {
 			d_vpr_e("%s: failed to acquire %s, rc = %d\n",
-				rinfo->name, rc);
+				__func__, rinfo->name, rc);
 			/* Bring attention to this issue */
 			WARN_ON(true);
 			return rc;
@@ -306,7 +313,7 @@ static int __disable_regulator_iris2(struct msm_vidc_core *core,
 		rc = regulator_disable(rinfo->regulator);
 		if (rc) {
 			d_vpr_e("%s: failed to disable %s, rc = %d\n",
-				rinfo->name, rc);
+				__func__, rinfo->name, rc);
 			return rc;
 		}
 		d_vpr_h("%s: disabled regulator %s\n", __func__, rinfo->name);
@@ -422,17 +429,6 @@ static int __setup_ucregion_memory_map_iris2(struct msm_vidc_core *vidc_core)
 	if (rc)
 		return rc;
 
-	/* update queues vaddr for debug purpose */
-	value = (u32)((u64)core->iface_q_table.align_virtual_addr);
-	rc = __write_register(core, CPU_CS_VCICMDARG0_IRIS2, value);
-	if (rc)
-		return rc;
-
-	value = (u32)((u64)core->iface_q_table.align_virtual_addr >> 32);
-	rc = __write_register(core, CPU_CS_VCICMDARG1_IRIS2, value);
-	if (rc)
-		return rc;
-
 	if (core->sfr.align_device_addr) {
 		value = (u32)core->sfr.align_device_addr + VIDEO_ARCH_LX;
 		rc = __write_register(core, SFR_ADDR_IRIS2, value);
@@ -481,6 +477,9 @@ static int __power_off_iris2_hardware(struct msm_vidc_core *core)
 				__func__, i, value);
 	}
 
+	if (core->platform->data.vpu_ver == VPU_VERSION_IRIS2_1PIPE)
+		goto skip_aon_mvp_noc;
+
 	/* Apply partial reset on MSF interface and wait for ACK */
 	rc = __write_register(core, AON_WRAPPER_MVP_NOC_RESET_REQ, 0x3);
 	if (rc)
@@ -505,6 +504,7 @@ static int __power_off_iris2_hardware(struct msm_vidc_core *core)
 	 * Reset both sides of 2 ahb2ahb_bridges (TZ and non-TZ)
 	 * do we need to check status register here?
 	 */
+skip_aon_mvp_noc:
 	rc = __write_register(core, CPU_CS_AHB_BRIDGE_SYNC_RESET, 0x3);
 	if (rc)
 		return rc;
@@ -517,15 +517,22 @@ static int __power_off_iris2_hardware(struct msm_vidc_core *core)
 
 disable_power:
 	/* power down process */
+	rc = __disable_unprepare_clock_iris2(core, "vcodec_clk");
+	if (rc) {
+		d_vpr_e("%s: disable unprepare vcodec_clk failed\n", __func__);
+		rc = 0;
+	}
 	rc = __disable_regulator_iris2(core, "vcodec");
 	if (rc) {
 		d_vpr_e("%s: disable regulator vcodec failed\n", __func__);
 		rc = 0;
 	}
-	rc = __disable_unprepare_clock_iris2(core, "vcodec_clk");
-	if (rc) {
-		d_vpr_e("%s: disable unprepare vcodec_clk failed\n", __func__);
-		rc = 0;
+	if (core->platform->data.vpu_ver == VPU_VERSION_IRIS2_1PIPE) {
+		rc = __disable_unprepare_clock_iris2(core, "video_mvs0_axi_clk");
+		if (rc) {
+			d_vpr_e("%s: disable unprepare video_mvs0_axi_clk failed\n", __func__);
+			rc = 0;
+		}
 	}
 
 	return rc;
@@ -543,6 +550,9 @@ static int __power_off_iris2_controller(struct msm_vidc_core *core)
 	if (rc)
 		return rc;
 
+	if (core->platform->data.vpu_ver == VPU_VERSION_IRIS2_1PIPE)
+		goto skip_aon_mvp_noc;
+
 	/* set MNoC to low power, set PD_NOC_QREQ (bit 0) */
 	rc = __write_register_masked(core, AON_WRAPPER_MVP_NOC_LPI_CONTROL,
 			0x1, BIT(0));
@@ -554,7 +564,23 @@ static int __power_off_iris2_controller(struct msm_vidc_core *core)
 	if (rc)
 		d_vpr_h("%s: AON_WRAPPER_MVP_NOC_LPI_CONTROL failed\n", __func__);
 
+	if (core->platform->data.vpu_ver != VPU_VERSION_IRIS2)
+		goto skip_cpu_noc;
+
+	/* Set Iris CPU NoC to Low power */
+	rc = __write_register_masked(core, WRAPPER_IRIS_CPU_NOC_LPI_CONTROL,
+			0x1, BIT(0));
+	if (rc)
+		return rc;
+
+	rc = __read_register_with_poll_timeout(core, WRAPPER_IRIS_CPU_NOC_LPI_STATUS,
+			0x1, 0x1, 200, 2000);
+	if (rc)
+		d_vpr_h("%s: WRAPPER_IRIS_CPU_NOC_LPI_CONTROL failed\n", __func__);
+
 	/* Set Debug bridge Low power */
+skip_cpu_noc:
+skip_aon_mvp_noc:
 	rc = __write_register(core, WRAPPER_DEBUG_BRIDGE_LPI_CONTROL_IRIS2, 0x7);
 	if (rc)
 		return rc;
@@ -574,6 +600,34 @@ static int __power_off_iris2_controller(struct msm_vidc_core *core)
 	if (rc)
 		d_vpr_h("%s: debug bridge release failed\n", __func__);
 
+#if defined(CONFIG_MSM_VIDC_NEO)
+	/* Reset MVP QNS4PDXFIFO */
+	rc = __write_register(core, WRAPPER_TZ_CTL_AXI_CLOCK_CONFIG, 0x3);
+	if (rc)
+		return rc;
+
+	rc = __write_register(core, WRAPPER_TZ_QNS4PDXFIFO_RESET, 0x1);
+	if (rc)
+		return rc;
+
+	rc = __write_register(core, WRAPPER_TZ_QNS4PDXFIFO_RESET, 0x0);
+	if (rc)
+		return rc;
+
+	rc = __write_register(core, WRAPPER_TZ_CTL_AXI_CLOCK_CONFIG, 0x0);
+	if (rc)
+		return rc;
+#endif
+
+	/* Disable VIDEO_CC_VENUS_AHB_CLK clock */
+	if (core->platform->data.vpu_ver == VPU_VERSION_IRIS2_1PIPE) {
+		rc = __disable_unprepare_clock_iris2(core, "iface_clk");
+		if (rc) {
+			d_vpr_e("%s: disable unprepare iface_clk failed\n", __func__);
+			rc = 0;
+		}
+	}
+
 	/* Turn off MVP MVS0C core clock */
 	rc = __disable_unprepare_clock_iris2(core, "core_clk");
 	if (rc) {
@@ -581,10 +635,10 @@ static int __power_off_iris2_controller(struct msm_vidc_core *core)
 		rc = 0;
 	}
 
-	/* Disable GCC_VIDEO_AXI0_CLK clock */
-	rc = __disable_unprepare_clock_iris2(core, "gcc_video_axi0");
+	/* Disable VIDEO_CTL_AXI0_CLK clock */
+	rc = __disable_unprepare_clock_iris2(core, "video_ctl_axi0_clk");
 	if (rc) {
-		d_vpr_e("%s: disable unprepare gcc_video_axi0 failed\n", __func__);
+		d_vpr_e("%s: disable unprepare video_ctl_axi0_clk failed\n", __func__);
 		rc = 0;
 	}
 
@@ -608,13 +662,21 @@ static int __power_off_iris2(struct msm_vidc_core *core)
 {
 	int rc = 0;
 
-	if (!core || !core->capabilities) {
+	if (!core || !core->capabilities || !core->platform) {
 		d_vpr_e("%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 
 	if (!core->power_enabled)
 		return 0;
+
+	/**
+	 * Reset video_cc_mvs0_clk_src value to resolve MMRM high video
+	 * clock projection issue.
+	 */
+	rc = __set_clocks(core, 0);
+	if (rc)
+		d_vpr_e("%s: resetting clocks failed\n", __func__);
 
 	if (__power_off_iris2_hardware(core))
 		d_vpr_e("%s: failed to power off hardware\n", __func__);
@@ -646,7 +708,7 @@ static int __power_on_iris2_controller(struct msm_vidc_core *core)
 	if (rc)
 		goto fail_reset_ahb2axi;
 
-	rc = __prepare_enable_clock_iris2(core, "gcc_video_axi0");
+	rc = __prepare_enable_clock_iris2(core, "video_ctl_axi0_clk");
 	if (rc)
 		goto fail_clk_axi;
 
@@ -654,10 +716,18 @@ static int __power_on_iris2_controller(struct msm_vidc_core *core)
 	if (rc)
 		goto fail_clk_controller;
 
+	if (core->platform->data.vpu_ver == VPU_VERSION_IRIS2_1PIPE) {
+		rc = __prepare_enable_clock_iris2(core, "iface_clk");
+		if (rc)
+			goto fail_iface_clk;
+	}
+
 	return 0;
 
+fail_iface_clk:
+	__disable_unprepare_clock_iris2(core, "core_clk");
 fail_clk_controller:
-	__disable_unprepare_clock_iris2(core, "gcc_video_axi0");
+	__disable_unprepare_clock_iris2(core, "video_ctl_axi0_clk");
 fail_clk_axi:
 fail_reset_ahb2axi:
 	__disable_regulator_iris2(core, "iris-ctl");
@@ -673,6 +743,12 @@ static int __power_on_iris2_hardware(struct msm_vidc_core *core)
 	if (rc)
 		goto fail_regulator;
 
+	if (core->platform->data.vpu_ver == VPU_VERSION_IRIS2_1PIPE) {
+		rc = __prepare_enable_clock_iris2(core, "video_mvs0_axi_clk");
+		if (rc)
+			goto fail_clk_axi;
+	}
+
 	rc = __prepare_enable_clock_iris2(core, "vcodec_clk");
 	if (rc)
 		goto fail_clk_controller;
@@ -680,6 +756,9 @@ static int __power_on_iris2_hardware(struct msm_vidc_core *core)
 	return 0;
 
 fail_clk_controller:
+	if (core->platform->data.vpu_ver == VPU_VERSION_IRIS2_1PIPE)
+		__disable_unprepare_clock_iris2(core, "video_mvs0_axi_clk");
+fail_clk_axi:
 	__disable_regulator_iris2(core, "vcodec");
 fail_regulator:
 	return rc;
@@ -688,6 +767,11 @@ fail_regulator:
 static int __power_on_iris2(struct msm_vidc_core *core)
 {
 	int rc = 0;
+
+	if (!core || !core->platform) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
 
 	if (core->power_enabled)
 		return 0;
@@ -1051,12 +1135,8 @@ int msm_vidc_decide_work_route_iris2(struct msm_vidc_inst* inst)
 				CODED_FRAMES_INTERLACE)
 			work_route = MSM_VIDC_PIPE_1;
 	} else if (is_encode_session(inst)) {
-		u32 slice_mode, width, height;
-		struct v4l2_format* f;
+		u32 slice_mode;
 
-		f = &inst->fmts[INPUT_PORT];
-		height = f->fmt.pix_mp.height;
-		width = f->fmt.pix_mp.width;
 		slice_mode = inst->capabilities->cap[SLICE_MODE].value;
 
 		/*TODO Pipe=1 for legacy CBR*/

@@ -49,20 +49,22 @@ extern struct key *five_keyring;
 
 // test 'NULL five_keyring' scenario
 static void five_keyring_request_asymmetric_key_wo_five_keyring_test(
-		struct test *test)
+		struct kunit *test)
 {
 	struct key *five_keyring_tmp = five_keyring;
 
 	five_keyring = NULL;
 
-	EXPECT_EQ(test, five_request_asymmetric_key(KEY_ID), ERR_PTR(-ENOKEY));
-	EXPECT_EQ(test, five_request_asymmetric_key(KEY_ID), ERR_PTR(-ENOKEY));
+	KUNIT_EXPECT_PTR_EQ(test,
+		(void *)five_request_asymmetric_key(KEY_ID), ERR_PTR(-ENOKEY));
+	KUNIT_EXPECT_PTR_EQ(test,
+		(void *)five_request_asymmetric_key(KEY_ID), ERR_PTR(-ENOKEY));
 	five_keyring = five_keyring_tmp;
 }
 
 // test 'non-NULL five_keyring', 'keyring_search returns error' scenario
 static void five_keyring_keyring_search_returns_error_test(
-		struct test *test)
+		struct kunit *test)
 {
 	char name[12];
 	struct key foo_keyring;
@@ -70,21 +72,21 @@ static void five_keyring_keyring_search_returns_error_test(
 	five_keyring = &foo_keyring;
 	snprintf(name, sizeof(name), "id:%08x", KEY_ID);
 
-	Returns(EXPECT_CALL(call_keyring_search(
+	KunitReturns(KUNIT_EXPECT_CALL(call_keyring_search(
 		ptr_eq(test, make_key_ref(five_keyring, 1)),
 		any(test),
 		streq(test, name),
-		bool_eq(test, true)
+		int_eq(test, true)
 		)),
-		ptr_return(test, (void *)WRONG_PTR));
+		ptr_return(test, (key_ref_t)WRONG_PTR));
 
-	EXPECT_EQ(test,
-		five_request_asymmetric_key(KEY_ID), (void *)WRONG_PTR);
+	KUNIT_EXPECT_PTR_EQ(test,
+		five_request_asymmetric_key(KEY_ID), (struct key *)WRONG_PTR);
 }
 
 // test 'non-NULL five_keyring', 'keyring_search returns specific error' scenario
 static void five_keyring_keyring_search_returns_error_eacces_test(
-		struct test *test)
+		struct kunit *test)
 {
 	char name[12];
 	struct key foo_keyring;
@@ -92,20 +94,21 @@ static void five_keyring_keyring_search_returns_error_eacces_test(
 	five_keyring = &foo_keyring;
 	snprintf(name, sizeof(name), "id:%08x", KEY_ID);
 
-	Returns(EXPECT_CALL(call_keyring_search(
+	KunitReturns(KUNIT_EXPECT_CALL(call_keyring_search(
 		ptr_eq(test, make_key_ref(five_keyring, 1)),
 		any(test),
 		streq(test, name),
-		bool_eq(test, true)
+		int_eq(test, true)
 		)),
 		ptr_return(test, (void *)-EACCES));
 
-	EXPECT_EQ(test, five_request_asymmetric_key(KEY_ID), ERR_PTR(-ENOKEY));
+	KUNIT_EXPECT_PTR_EQ(test, (void *)five_request_asymmetric_key(KEY_ID),
+		(void *)ERR_PTR(-ENOKEY));
 }
 
 // test 'non-NULL five_keyring', 'keyring_search returns specific error' scenario
 static void five_keyring_keyring_search_returns_error_enotdir_test(
-		struct test *test)
+		struct kunit *test)
 {
 	char name[12];
 	struct key foo_keyring;
@@ -113,20 +116,21 @@ static void five_keyring_keyring_search_returns_error_enotdir_test(
 	five_keyring = &foo_keyring;
 	snprintf(name, sizeof(name), "id:%08x", KEY_ID);
 
-	Returns(EXPECT_CALL(call_keyring_search(
+	KunitReturns(KUNIT_EXPECT_CALL(call_keyring_search(
 		ptr_eq(test, make_key_ref(five_keyring, 1)),
 		any(test),
 		streq(test, name),
-		bool_eq(test, true)
+		int_eq(test, true)
 		)),
 		ptr_return(test, (void *)-ENOTDIR));
 
-	EXPECT_EQ(test, five_request_asymmetric_key(KEY_ID), ERR_PTR(-ENOKEY));
+	KUNIT_EXPECT_PTR_EQ(test, (void *)five_request_asymmetric_key(KEY_ID),
+		(void *)ERR_PTR(-ENOKEY));
 }
 
 // test 'non-NULL five_keyring', 'keyring_search returns specific error' scenario
 static void five_keyring_keyring_search_returns_error_eagain_test(
-		struct test *test)
+		struct kunit *test)
 {
 	char name[12];
 	struct key foo_keyring;
@@ -134,47 +138,51 @@ static void five_keyring_keyring_search_returns_error_eagain_test(
 	five_keyring = &foo_keyring;
 	snprintf(name, sizeof(name), "id:%08x", KEY_ID);
 
-	Returns(EXPECT_CALL(call_keyring_search(
+	KunitReturns(KUNIT_EXPECT_CALL(call_keyring_search(
 		ptr_eq(test, make_key_ref(five_keyring, 1)),
 		any(test),
 		streq(test, name),
-		bool_eq(test, true)
+		int_eq(test, true)
 		)),
 		ptr_return(test, (void *)-EAGAIN));
 
-	EXPECT_EQ(test, five_request_asymmetric_key(KEY_ID), ERR_PTR(-ENOKEY));
+	KUNIT_EXPECT_PTR_EQ(test, (void *)five_request_asymmetric_key(KEY_ID),
+		(void *)ERR_PTR(-ENOKEY));
 }
 
-static void five_keyring_load_x509_wrong_five_keyring_test(struct test *test)
+static void five_keyring_load_x509_wrong_five_keyring_test(struct kunit *test)
 {
 	five_keyring = NULL;
-	EXPECT_EQ(test, five_load_x509_from_mem(NULL, CORRECT_SIZE), -EINVAL);
+	KUNIT_EXPECT_EQ(test,
+		five_load_x509_from_mem(NULL, CORRECT_SIZE), -EINVAL);
 }
 
-static void five_keyring_load_x509_wrong_size_test(struct test *test)
+static void five_keyring_load_x509_wrong_size_test(struct kunit *test)
 {
 	struct key foo_keyring;
 
 	five_keyring = &foo_keyring;
-	EXPECT_EQ(test, five_load_x509_from_mem(NULL, WRONG_SIZE), -EINVAL);
+	KUNIT_EXPECT_EQ(test,
+		five_load_x509_from_mem(NULL, WRONG_SIZE), -EINVAL);
 }
 
-static void five_keyring_request_key_returns_err_test(struct test *test)
+static void five_keyring_request_key_returns_err_test(struct kunit *test)
 {
 	five_keyring = NULL;
-	Returns(EXPECT_CALL(call_request_key(
+	KunitReturns(KUNIT_EXPECT_CALL(call_request_key(
 		any(test),
 		streq(test, five_keyring_name),
 		ptr_eq(test, NULL)
 		)),
 		ptr_return(test, (void *)WRONG_PTR));
-	EXPECT_EQ(test, five_digsig_verify(NULL, NULL, 0), WRONG_PTR);
-	EXPECT_EQ(test, five_keyring, NULL);
+	KUNIT_EXPECT_EQ(test,
+		five_digsig_verify(NULL, NULL, 0), (int)WRONG_PTR);
+	KUNIT_EXPECT_PTR_EQ(test, five_keyring, (struct key *)NULL);
 }
 
 // test 'request_key returns correct key' and 'wrong_hash_algo' scenario
 static void five_keyring_request_key_returns_success_test(
-		struct test *test)
+		struct kunit *test)
 {
 	struct five_cert_header *header;
 	struct {
@@ -188,19 +196,19 @@ static void five_keyring_request_key_returns_success_test(
 	header->hash_algo = HASH_ALGO__LAST;
 	five_keyring = NULL;
 
-	Returns(EXPECT_CALL(call_request_key(
+	KunitReturns(KUNIT_EXPECT_CALL(call_request_key(
 		any(test),
 		streq(test, five_keyring_name),
 		ptr_eq(test, NULL)
 		)),
 		ptr_return(test, (void *)CORRECT_PTR));
-	EXPECT_EQ(test, five_digsig_verify(cert, NULL, 0), -ENOPKG);
-	EXPECT_EQ(test, five_keyring, (void *)CORRECT_PTR);
+	KUNIT_EXPECT_EQ(test, five_digsig_verify(cert, NULL, 0), (int)-ENOPKG);
+	KUNIT_EXPECT_PTR_EQ(test, five_keyring, (struct key *)CORRECT_PTR);
 }
 
 // test 'asymmetric_verify with existing five_keyring' and 'request_asymmetric_key returns error' scenario
 static void five_keyring_request_asymmetric_key_return_error_test(
-		struct test *test)
+		struct kunit *test)
 {
 	struct key foo_keyring;
 	struct five_cert_header *header;
@@ -218,20 +226,21 @@ static void five_keyring_request_asymmetric_key_return_error_test(
 	snprintf(name, sizeof(name), "id:%08x", __be32_to_cpu(header->key_id));
 	five_keyring = &foo_keyring;
 
-	Returns(EXPECT_CALL(call_keyring_search(
+	KunitReturns(KUNIT_EXPECT_CALL(call_keyring_search(
 		ptr_eq(test, make_key_ref(five_keyring, 1)),
 		any(test),
 		streq(test, name),
-		bool_eq(test, true)
+		int_eq(test, true)
 		)),
 		ptr_return(test, (void *)WRONG_PTR));
 
-	EXPECT_EQ(test, five_digsig_verify(cert, NULL, 0), WRONG_PTR);
+	KUNIT_EXPECT_EQ(test,
+		five_digsig_verify(cert, NULL, 0), (int)WRONG_PTR);
 }
 
 // test 'asymmetric_verify with existing five_keyring' and 'request_asymmetric_key returns success' scenario
 static void five_keyring_request_asymmetric_key_returns_success_test(
-		struct test *test)
+		struct kunit *test)
 {
 	char digest[] = "didgest";
 	struct public_key_signature pks;
@@ -254,15 +263,15 @@ static void five_keyring_request_asymmetric_key_returns_success_test(
 	pks.digest = (u8 *)digest;
 	pks.digest_size = DIGEST_SIZE;
 
-	Returns(EXPECT_CALL(call_keyring_search(
+	KunitReturns(KUNIT_EXPECT_CALL(call_keyring_search(
 		ptr_eq(test, make_key_ref(five_keyring, 1)),
 		any(test),
 		streq(test, name),
-		bool_eq(test, true)
+		int_eq(test, true)
 		)),
 		ptr_return(test, (void *)CORRECT_PTR));
 
-	Returns(EXPECT_CALL(call_five_verify_signature(
+	KunitReturns(KUNIT_EXPECT_CALL(call_five_verify_signature(
 		ptr_eq(test, (void *)CORRECT_PTR),
 		memeq(test, (void *)&pks, sizeof(pks)),
 		ptr_eq(test, cert),
@@ -270,43 +279,45 @@ static void five_keyring_request_asymmetric_key_returns_success_test(
 		)),
 		int_return(test, VERIFY_SIGNATURE_RET));
 
-	Returns(EXPECT_CALL(call_key_put(
+	KunitReturns(KUNIT_EXPECT_CALL(call_key_put(
 		ptr_eq(test, (void *)CORRECT_PTR))), int_return(test, 0));
 
-	EXPECT_EQ(test, five_digsig_verify(
+	KUNIT_EXPECT_EQ(test, five_digsig_verify(
 		cert, digest, DIGEST_SIZE), VERIFY_SIGNATURE_RET);
 }
 
-static struct test_case five_keyring_test_cases[] = {
-	TEST_CASE(five_keyring_request_asymmetric_key_wo_five_keyring_test),
-	TEST_CASE(five_keyring_keyring_search_returns_error_test),
-	TEST_CASE(five_keyring_keyring_search_returns_error_eacces_test),
-	TEST_CASE(five_keyring_keyring_search_returns_error_enotdir_test),
-	TEST_CASE(five_keyring_keyring_search_returns_error_eagain_test),
-	TEST_CASE(five_keyring_load_x509_wrong_five_keyring_test),
-	TEST_CASE(five_keyring_load_x509_wrong_size_test),
-	TEST_CASE(five_keyring_request_key_returns_err_test),
-	TEST_CASE(five_keyring_request_key_returns_success_test),
-	TEST_CASE(five_keyring_request_asymmetric_key_return_error_test),
-	TEST_CASE(five_keyring_request_asymmetric_key_returns_success_test),
+static struct kunit_case five_keyring_test_cases[] = {
+	KUNIT_CASE(five_keyring_request_asymmetric_key_wo_five_keyring_test),
+	KUNIT_CASE(five_keyring_keyring_search_returns_error_test),
+	KUNIT_CASE(five_keyring_keyring_search_returns_error_eacces_test),
+	KUNIT_CASE(five_keyring_keyring_search_returns_error_enotdir_test),
+	KUNIT_CASE(five_keyring_keyring_search_returns_error_eagain_test),
+	KUNIT_CASE(five_keyring_load_x509_wrong_five_keyring_test),
+	KUNIT_CASE(five_keyring_load_x509_wrong_size_test),
+	KUNIT_CASE(five_keyring_request_key_returns_err_test),
+	KUNIT_CASE(five_keyring_request_key_returns_success_test),
+	KUNIT_CASE(five_keyring_request_asymmetric_key_return_error_test),
+	KUNIT_CASE(five_keyring_request_asymmetric_key_returns_success_test),
 	{},
 };
 
-static int five_keyring_test_init(struct test *test)
+static int five_keyring_test_init(struct kunit *test)
 {
 	return 0;
 }
 
-static void five_keyring_test_exit(struct test *test)
+static void five_keyring_test_exit(struct kunit *test)
 {
 	return;
 }
 
-static struct test_module five_keyring_test_module = {
+static struct kunit_suite five_keyring_test_module = {
 	.name = "five_keyring_test",
 	.init = five_keyring_test_init,
 	.exit = five_keyring_test_exit,
 	.test_cases = five_keyring_test_cases,
 };
 
-module_test(five_keyring_test_module);
+kunit_test_suites(&five_keyring_test_module);
+
+MODULE_LICENSE("GPL v2");

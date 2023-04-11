@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -147,6 +148,7 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
             mStreamMutex.unlock();
             throw std::runtime_error("failed to create device object");
         }
+        mPalDevice.push_back(dattr[i]);
         mStreamMutex.unlock();
         isDeviceConfigUpdated = rm->updateDeviceConfig(&dev, &dattr[i], sattr);
         mStreamMutex.lock();
@@ -158,7 +160,6 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
         /* this will have issues if same device is being currently used by different stream */
        // dev->setDeviceAttributes((struct pal_device)dattr[i]);
         mDevices.push_back(dev);
-        mPalDevice.push_back(dattr[i]);
         dev = nullptr;
     }
 
@@ -342,7 +343,8 @@ StreamPCM::~StreamPCM()
 //TBD: move this to Stream, why duplicate code?
 int32_t StreamPCM::start()
 {
-    int32_t status = 0, devStatus = 0;
+    int32_t status = 0, devStatus = 0, cachedStatus = 0;
+    int32_t tmp = 0;
     bool a2dpSuspend = false;
 
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK mStreamAttr->direction - %d state %d",
@@ -368,16 +370,39 @@ int32_t StreamPCM::start()
                 goto exit;
 
             rm->lockGraph();
+            /* Any device start success will be treated as positive status.
+             * This allows stream be played even if one of devices failed to start.
+             */
+            status = -EINVAL;
             for (int32_t i=0; i < mDevices.size(); i++) {
-                status = mDevices[i]->start();
-                if (0 != status) {
-                    PAL_ERR(LOG_TAG, "Rx device start is failed with status %d",
-                            status);
-                    rm->unlockGraph();
-                    goto exit;
+                devStatus = mDevices[i]->start();
+                if (devStatus == 0) {
+                    status = 0;
+                } else {
+                    cachedStatus = devStatus;
+
+                    tmp = session->disconnectSessionDevice(this, mStreamAttr->type, mDevices[i]);
+                    if (0 != tmp) {
+                        PAL_ERR(LOG_TAG, "disconnectSessionDevice failed:%d", tmp);
+                    }
+
+                    tmp = mDevices[i]->close();
+                    if (0 != tmp) {
+                        PAL_ERR(LOG_TAG, "device close failed with status %d", tmp);
+                    }
+                    mDevices.erase(mDevices.begin() + i);
+                    i--;
                 }
             }
-            PAL_VERBOSE(LOG_TAG, "devices started successfully");
+            if (0 != status) {
+                status = cachedStatus;
+                PAL_ERR(LOG_TAG, "Rx device start failed with status %d", status);
+                rm->unlockGraph();
+                goto exit;
+            } else {
+                PAL_VERBOSE(LOG_TAG, "devices started successfully");
+            }
+
             status = session->prepare(this);
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Rx session prepare is failed with status %d",
@@ -425,11 +450,17 @@ int32_t StreamPCM::start()
             PAL_VERBOSE(LOG_TAG, "Inside PAL_AUDIO_INPUT device count - %zu",
                         mDevices.size());
 
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            rm->lockGraph();
+#endif
             for (int32_t i=0; i < mDevices.size(); i++) {
                 status = mDevices[i]->start();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "Tx device start is failed with status %d",
                             status);
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+                    rm->unlockGraph();
+#endif
                     goto exit;
                 }
             }
@@ -438,6 +469,9 @@ int32_t StreamPCM::start()
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Tx session prepare is failed with status %d",
                         status);
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+                rm->unlockGraph();
+#endif
                 goto session_fail;
             }
             PAL_VERBOSE(LOG_TAG, "session prepare successful");
@@ -450,13 +484,22 @@ int32_t StreamPCM::start()
                 }
                 status = 0;
                 cachedState = STREAM_STARTED;
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+                rm->unlockGraph();
+#endif
                 goto session_fail;
             }
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Tx session start is failed with status %d",
                         status);
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+                rm->unlockGraph();
+#endif
                 goto session_fail;
             }
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            rm->unlockGraph();
+#endif
             PAL_VERBOSE(LOG_TAG, "session start successful");
             break;
         case PAL_AUDIO_OUTPUT | PAL_AUDIO_INPUT:
@@ -484,6 +527,26 @@ int32_t StreamPCM::start()
                 status = mDevices[i]->start();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "Tx device start is failed with status %d", status);
+
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+                    /* In case of a voice call, if OUT dev started successfully
+                     * but IN dev failed to start then stop OUT dev before closing it
+                     */
+                    for (int32_t i = 0; i < mDevices.size(); i++) {
+                      int32_t dev_id = mDevices[i]->getSndDeviceId();
+
+                      if (dev_id <= PAL_DEVICE_OUT_MIN || dev_id >= PAL_DEVICE_OUT_MAX)
+                          continue;
+
+                      int32_t tempStatus = mDevices[i]->stop();
+                      if (0 != tempStatus) {
+                          PAL_ERR(LOG_TAG, "Rx device stop is failed with status %d",
+                                                              tempStatus);
+                          goto exit;
+                      }
+                    }
+                    PAL_VERBOSE(LOG_TAG, "RX devices stop successful");
+#endif
                     goto exit;
                 }
             }
@@ -517,9 +580,13 @@ int32_t StreamPCM::start()
             PAL_ERR(LOG_TAG, "Stream type is not supported, status %d", status);
             break;
         }
+        mStreamMutex.unlock();
+        rm->lockActiveStream();
+        mStreamMutex.lock();
         for (int i = 0; i < mDevices.size(); i++) {
             rm->registerDevice(mDevices[i], this);
         }
+        rm->unlockActiveStream();
         /*pcm_open and pcm_start done at once here,
          *so directly jump to STREAM_STARTED state.
          */
@@ -538,7 +605,6 @@ session_fail:
         devStatus = mDevices[i]->stop();
         if (devStatus)
             status = devStatus;
-        rm->deregisterDevice(mDevices[i], this);
     }
 exit:
     PAL_DBG(LOG_TAG, "Exit. state %d, status %d", currentState, status);
@@ -556,9 +622,14 @@ int32_t StreamPCM::stop()
                 session, mStreamAttr->direction, currentState);
 
     if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
+        mStreamMutex.unlock();
+        rm->lockActiveStream();
+        mStreamMutex.lock();
+        currentState = STREAM_STOPPED;
         for (int i = 0; i < mDevices.size(); i++) {
             rm->deregisterDevice(mDevices[i], this);
         }
+        rm->unlockActiveStream();
         switch (mStreamAttr->direction) {
         case PAL_AUDIO_OUTPUT:
             PAL_VERBOSE(LOG_TAG, "In PAL_AUDIO_OUTPUT case, device count - %zu",
@@ -586,7 +657,9 @@ int32_t StreamPCM::stop()
         case PAL_AUDIO_INPUT:
             PAL_ERR(LOG_TAG, "In PAL_AUDIO_INPUT case, device count - %zu",
                         mDevices.size());
-
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            rm->lockGraph();
+#endif
             for (int32_t i=0; i < mDevices.size(); i++) {
                 status = mDevices[i]->stop();
                 if (0 != status) {
@@ -598,8 +671,14 @@ int32_t StreamPCM::stop()
             status = session->stop(this);
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Tx session stop failed with status %d", status);
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+                rm->unlockGraph();
+#endif
                 goto exit;
             }
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            rm->unlockGraph();
+#endif
             PAL_VERBOSE(LOG_TAG, "session stop successful");
             break;
 
@@ -641,7 +720,6 @@ int32_t StreamPCM::stop()
             PAL_ERR(LOG_TAG, "Stream type is not supported with status %d", status);
             break;
         }
-        currentState = STREAM_STOPPED;
     } else if (currentState == STREAM_STOPPED || currentState == STREAM_IDLE) {
         PAL_INFO(LOG_TAG, "Stream is already in Stopped state %d", currentState);
         goto exit;
@@ -703,67 +781,61 @@ exit:
     return status;
 }
 
-//TBD: move this to Stream, why duplicate code?
-int32_t  StreamPCM::setVolume(struct pal_volume_data *volume)
+int32_t StreamPCM::setVolume(struct pal_volume_data *volume)
 {
     int32_t status = 0;
     struct volume_set_param_info vol_set_param_info;
     uint8_t volSize = 0;
 
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
-    if (!volume) {
-        PAL_ERR(LOG_TAG, "Wrong volume data");
-        status = -EINVAL;
-        goto exit;
-    }
-    if (volume->no_of_volpair == 0) {
-        PAL_ERR(LOG_TAG, "Error no of vol pair is %d", (volume->no_of_volpair));
-        status = -EINVAL;
-        goto exit;
+    if (!volume || (volume->no_of_volpair == 0)) {
+       PAL_ERR(LOG_TAG, "Invalid arguments");
+       status = -EINVAL;
+       goto exit;
     }
 
-    /*if already allocated free and reallocate */
+    // if already allocated free and reallocate
     if (mVolumeData) {
         free(mVolumeData);
+        mVolumeData = NULL;
     }
 
-    mVolumeData = (struct pal_volume_data *)calloc(1, (sizeof(uint32_t) +
-                      (sizeof(struct pal_channel_vol_kv) * (volume->no_of_volpair))));
+    volSize = sizeof(uint32_t) + (sizeof(struct pal_channel_vol_kv) * (volume->no_of_volpair));
+    mVolumeData = (struct pal_volume_data *)calloc(1, volSize);
     if (!mVolumeData) {
         status = -ENOMEM;
-        PAL_ERR(LOG_TAG, "mVolumeData malloc failed %s", strerror(errno));
+        PAL_ERR(LOG_TAG, "failed to calloc for volume data");
         goto exit;
     }
 
-    //mStreamMutex.lock();
-    volSize = (sizeof(uint32_t) + (sizeof(struct pal_channel_vol_kv) * (volume->no_of_volpair)));
-    ar_mem_cpy (mVolumeData, volSize,
-                      volume, (sizeof(uint32_t) +
-                      (sizeof(struct pal_channel_vol_kv) *
-                      (volume->no_of_volpair))));
-    //mStreamMutex.unlock();
-    for(int32_t i=0; i < (mVolumeData->no_of_volpair); i++) {
+    /* Allow caching of stream volume as part of mVolumeData
+     * till the stream_start is not done or if sound card is offline.
+     */
+    ar_mem_cpy(mVolumeData, volSize, volume, volSize);
+    for (int32_t i=0; i < (mVolumeData->no_of_volpair); i++) {
         PAL_INFO(LOG_TAG, "Volume payload mask:%x vol:%f",
                       (mVolumeData->volume_pair[i].channel_mask), (mVolumeData->volume_pair[i].vol));
     }
-    /* Allow caching of stream volume as part of mVolumeData
-     * till the pcm_open is not done or if sound card is
-     * offline.
-     */
+
+    if (a2dpMuted) {
+        PAL_DBG(LOG_TAG, "a2dp muted, just cache volume update");
+        goto exit;
+    }
+
     memset(&vol_set_param_info, 0, sizeof(struct volume_set_param_info));
     rm->getVolumeSetParamInfo(&vol_set_param_info);
-    if (rm->cardState == CARD_STATUS_ONLINE && currentState != STREAM_IDLE
-        && currentState != STREAM_INIT) {
+    if ((rm->cardState == CARD_STATUS_ONLINE) && (currentState != STREAM_IDLE)
+            && (currentState != STREAM_INIT)) {
         bool isStreamAvail = (find(vol_set_param_info.streams_.begin(),
                     vol_set_param_info.streams_.end(), mStreamAttr->type) !=
                     vol_set_param_info.streams_.end());
         if (isStreamAvail && vol_set_param_info.isVolumeUsingSetParam) {
-            uint8_t *volPayload = new uint8_t[sizeof(pal_param_payload) +
-                volSize]();
+            uint8_t *volPayload = new uint8_t[sizeof(pal_param_payload) + volSize]();
             pal_param_payload *pld = (pal_param_payload *)volPayload;
             pld->payload_size = sizeof(struct pal_volume_data);
             memcpy(pld->payload, mVolumeData, volSize);
-            status = setParameters(PAL_PARAM_ID_VOLUME_USING_SET_PARAM, (void *)pld);
+            status = session->setParameters(this, TAG_STREAM_VOLUME,
+                    PAL_PARAM_ID_VOLUME_USING_SET_PARAM, (void *)pld);
             delete[] volPayload;
         } else {
             status = session->setConfig(this, CALIBRATION, TAG_STREAM_VOLUME);
@@ -774,10 +846,13 @@ int32_t  StreamPCM::setVolume(struct pal_volume_data *volume)
             goto exit;
         }
     }
-    PAL_DBG(LOG_TAG, "Exit. Volume payload No.of vol pair:%d ch mask:%x gain:%f",
-                      (volume->no_of_volpair), (volume->volume_pair->channel_mask),
-                      (volume->volume_pair->vol));
+
 exit:
+    if (volume) {
+        PAL_DBG(LOG_TAG, "Exit. Volume payload No.of vol pair:%d ch mask:%x gain:%f",
+                          (volume->no_of_volpair), (volume->volume_pair->channel_mask),
+                          (volume->volume_pair->vol));
+    }
     return status;
 }
 
@@ -788,6 +863,7 @@ int32_t  StreamPCM::read(struct pal_buffer* buf)
     PAL_VERBOSE(LOG_TAG, "Enter. session handle - %pK, state %d",
             session, currentState);
 
+    mStreamMutex.lock();
     if ((rm->cardState == CARD_STATUS_OFFLINE) || cachedState != STREAM_IDLE) {
        /* calculate sleep time based on buf->size, sleep and return buf->size */
         uint32_t streamSize;
@@ -836,9 +912,11 @@ int32_t  StreamPCM::read(struct pal_buffer* buf)
         status = -EINVAL;
         goto exit;
     }
+    mStreamMutex.unlock();
     PAL_VERBOSE(LOG_TAG, "Exit. session read successful size - %d", size);
     return size;
 exit :
+    mStreamMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit. session read failed status %d", status);
     return status;
 }
@@ -860,7 +938,13 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
 
     mStreamMutex.lock();
     for (int i = 0; i < mDevices.size(); i++) {
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+        if (mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
+            mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_BLE ||
+            mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST)
+#else
         if (mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_BLUETOOTH_A2DP)
+#endif
             isA2dp = true;
         if (mDevices[i]->getSndDeviceId() == PAL_DEVICE_OUT_SPEAKER)
             isSpkr = true;
@@ -875,10 +959,21 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
                 NULL);
         if (!ret && paramA2dp)
             isA2dpSuspended = paramA2dp->a2dp_suspended;
+#ifdef SEC_PATCH_FIXME
+        if (isA2dpSuspended) {
+            PAL_ERR(LOG_TAG, "A2DP in suspended state");
+            mStreamMutex.unlock();
+            status = -EIO;
+            goto exit;
+        }
+#endif
     }
 
     // If cached state is not STREAM_IDLE, we are still processing SSR up.
-    if (isA2dpSuspended || (mDevices.size() == 0)
+    if ((mDevices.size() == 0)
+#ifdef SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD
+            || isA2dpSuspended
+#endif
             || (rm->cardState == CARD_STATUS_OFFLINE)
             || cachedState != STREAM_IDLE) {
         byteWidth = mStreamAttr->out_media_config.bit_width / 8;
@@ -900,8 +995,8 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
         return size;
     }
 
-    //we should allow writes to go through in Start/Pause state as well.
-    if ( (currentState == STREAM_STARTED) ||
+    // we should allow writes to go through in Start/Pause state as well.
+    if ((currentState == STREAM_STARTED) ||
         (currentState == STREAM_PAUSED) ) {
 #ifdef SEC_AUDIO_DUMP
         sec_pal_write_pcm(mStreamAttr, buf->buffer, buf->size, PCM_DUMP_PURE);
@@ -928,6 +1023,15 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
             } else {
                 goto exit;
             }
+        } else if (currentState == STREAM_PAUSED && !isPaused) {
+            rm->lockActiveStream();
+            mStreamMutex.lock();
+            for (int i = 0; i < mDevices.size(); i++) {
+                rm->registerDevice(mDevices[i], this);
+            }
+            mStreamMutex.unlock();
+            rm->unlockActiveStream();
+            currentState = STREAM_STARTED;
         }
         PAL_VERBOSE(LOG_TAG, "Exit. session write successful size - %d", size);
         return size;
@@ -976,11 +1080,13 @@ int32_t StreamPCM::getParameters(uint32_t param_id, void ** payload)
             int status = 0;
             PAL_INFO(LOG_TAG, "PAL_PARAM_ID_UIEFFECT tagId(0x%x) paramId(0x%x)",
                                 effectPayload->tag, effectCustomPayload->paramId);
-            if (effectPayload->tag == TAG_ECHOREF_NO_KEY
-                    && mStreamAttr->type == PAL_STREAM_VOICE_CALL) {
-                status = session->getParameters(this, effectPayload->tag, param_id, payload);
-                if (0 != status) {
-                    PAL_ERR(LOG_TAG, "getParameters(tagId 0x%x) Failed", effectPayload->tag);
+            if (effectPayload->tag == TAG_ECHOREF_NO_KEY) {
+                if (((effectCustomPayload->paramId == PARAM_ID_ECHOREF_MUTE_DETECT_PARAM) && (mStreamAttr->type == PAL_STREAM_VOIP_TX))
+                        || mStreamAttr->type == PAL_STREAM_VOICE_CALL) {
+                    status = session->getParameters(this, effectPayload->tag, param_id, payload);
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG, "getParameters(tagId 0x%x) Failed", effectPayload->tag);
+                    }
                 }
             }
             break;
@@ -1003,6 +1109,7 @@ error:
 int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
 {
     int32_t status = 0;
+    int32_t setConfigStatus = 0;
     pal_param_payload *param_payload = NULL;
     effect_pal_payload_t *effectPalPayload = nullptr;
 
@@ -1016,6 +1123,11 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
     }
 
     mStreamMutex.lock();
+    if (currentState == STREAM_IDLE) {
+        PAL_ERR(LOG_TAG, "Invalid stream state: IDLE for param ID: %d", param_id);
+        mStreamMutex.unlock();
+        return -EINVAL;
+    }
     // Stream may not know about tags, so use setParameters instead of setConfig
     switch (param_id) {
         case PAL_PARAM_ID_UIEFFECT:
@@ -1052,9 +1164,21 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
         {
             // Call Session for Setting the parameter.
             if (NULL != session) {
+                /* To avoid pop while switching channels, it is required to mute
+                   the playback first and then swap the channel and unmute */
+                setConfigStatus = session->setConfig(this, MODULE, DEVICEPP_MUTE);
+                if (setConfigStatus) {
+                    PAL_INFO(LOG_TAG, "DevicePP Mute failed");
+                }
+                usleep(MUTE_RAMP_PERIOD); // Wait for Mute ramp down to happen
                 status = session->setParameters(this, 0,
                                                 PAL_PARAM_ID_DEVICE_ROTATION,
                                                 payload);
+                usleep(MUTE_RAMP_PERIOD); // Wait for channel swap to take affect
+                setConfigStatus = session->setConfig(this, MODULE, DEVICEPP_UNMUTE);
+                if (setConfigStatus) {
+                    PAL_INFO(LOG_TAG, "DevicePP Unmute failed");
+                }
             } else {
                 PAL_ERR(LOG_TAG, "Session is null");
                 status = -EINVAL;
@@ -1093,15 +1217,6 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
                        status);
             break;
         }
-        case PAL_PARAM_ID_VOLUME_USING_SET_PARAM:
-        {
-            status = session->setParameters(this, PAL_PARAM_ID_VOLUME_USING_SET_PARAM,
-                                            param_id, payload);
-            if (status)
-               PAL_ERR(LOG_TAG, "setParam for volume failed with %d",
-                       status);
-            break;
-        }
         default:
             PAL_ERR(LOG_TAG, "Unsupported param id %u", param_id);
             status = -EINVAL;
@@ -1118,9 +1233,17 @@ int32_t StreamPCM::mute_l(bool state)
 {
     int32_t status = 0;
 
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+    PAL_INFO(LOG_TAG, "Enter. session handle - %pK state %d", session, state);
+#else
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d", session, state);
+#endif
     status = session->setConfig(this, MODULE, state ? MUTE_TAG : UNMUTE_TAG);
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+    PAL_INFO(LOG_TAG, "Exit status: %d", status);
+#else
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
+#endif
     return status;
 }
 
@@ -1197,8 +1320,8 @@ int32_t StreamPCM::resume_l()
                 status);
         goto exit;
     }
+
     isPaused = false;
-    currentState = STREAM_STARTED;
     PAL_DBG(LOG_TAG, "session setConfig successful");
 exit:
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
@@ -1235,6 +1358,14 @@ int32_t StreamPCM::flush()
         PAL_ERR(LOG_TAG, "Already flushed, state %d", currentState);
         goto exit;
     }
+
+    mStreamMutex.unlock();
+    rm->lockActiveStream();
+    mStreamMutex.lock();
+    for (int i = 0; i < mDevices.size(); i++) {
+        rm->deregisterDevice(mDevices[i], this);
+    }
+    rm->unlockActiveStream();
 
     status = session->flush();
 exit:
@@ -1394,7 +1525,9 @@ int32_t StreamPCM::ssrDownHandler()
         }
     } else if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
         mStreamMutex.unlock();
+        rm->unlockActiveStream();
         status = stop();
+        rm->lockActiveStream();
         if (0 != status)
             PAL_ERR(LOG_TAG, "stream stop failed. status %d",  status);
         status = close();
@@ -1436,7 +1569,9 @@ int32_t StreamPCM::ssrUpHandler()
             PAL_ERR(LOG_TAG, "stream open failed. status %d", status);
             goto exit;
         }
+        rm->unlockActiveStream();
         status = start();
+        rm->lockActiveStream();
         if (0 != status) {
             PAL_ERR(LOG_TAG, "stream start failed. status %d", status);
             goto exit;
@@ -1455,7 +1590,9 @@ int32_t StreamPCM::ssrUpHandler()
             PAL_ERR(LOG_TAG, "stream open failed. status %d", status);
             goto exit;
         }
+        rm->unlockActiveStream();
         status = start();
+        rm->lockActiveStream();
         if (0 != status) {
             PAL_ERR(LOG_TAG, "stream start failed. status %d", status);
             goto exit;
@@ -1471,8 +1608,8 @@ int32_t StreamPCM::ssrUpHandler()
         mStreamMutex.unlock();
         PAL_ERR(LOG_TAG, "stream not in correct state to handle %d", cachedState);
     }
-    cachedState = STREAM_IDLE;
 exit :
+    cachedState = STREAM_IDLE;
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }

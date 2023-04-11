@@ -92,7 +92,18 @@ enum power_src_pos {
 	BT_VDD_IO_LDO_CURRENT,
 	BT_VDD_LDO_CURRENT,
 	BT_VDD_RFA_0p8_CURRENT,
-	BT_VDD_RFACMN_CURRENT
+	BT_VDD_RFACMN_CURRENT,
+	BT_VDD_IPA_2p2,
+	BT_VDD_IPA_2p2_CURRENT,
+	/* The below bucks are voted for HW WAR on some platform which supports
+	 * WNC39xx.
+	 */
+	BT_VDD_SMPS,
+	BT_VDD_SMPS_CURRENT,
+	/* New entries need to be added before PWR_SRC_SIZE.
+	 * Its hold the max size of power sources states.
+	 */
+	BT_POWER_SRC_SIZE,
 };
 
 // Regulator structure for QCA6174/QCA9377/QCA9379 BT SoC series
@@ -105,8 +116,8 @@ static struct bt_power_vreg_data bt_vregs_info_qca61x4_937x[] = {
 		{BT_VDD_CORE_LDO, BT_VDD_CORE_LDO_CURRENT}},
 };
 
-// Regulator structure for QCA6390 and QCA6490 BT SoC series
-static struct bt_power_vreg_data bt_vregs_info_qca6x9x[] = {
+// Regulator structure for QCA6390,QCA6490 and WCN6750 BT SoC series
+static struct bt_power_vreg_data bt_vregs_info_qca6xx0[] = {
 	{NULL, "qcom,bt-vdd-io",      1800000, 1800000, 0, false, true,
 		{BT_VDD_IO_LDO, BT_VDD_IO_LDO_CURRENT}},
 	{NULL, "qcom,bt-vdd-aon",     966000,  966000,  0, false, true,
@@ -124,11 +135,13 @@ static struct bt_power_vreg_data bt_vregs_info_qca6x9x[] = {
 		{BT_VDD_RFA2_LDO, BT_VDD_RFA2_LDO_CURRENT}},
 	{NULL, "qcom,bt-vdd-asd",      2800000, 2800000, 0, false, true,
 		{BT_VDD_ASD_LDO, BT_VDD_ASD_LDO_CURRENT}},
+	{NULL, "qcom,bt-vdd-ipa-2p2",  2200000, 2210000, 0, false, true,
+		{BT_VDD_IPA_2p2, BT_VDD_IPA_2p2_CURRENT}},
 };
 
 
 // Regulator structure for WCN7850 BT SoC series
-static struct bt_power_vreg_data bt_vregs_info_wcn7850[] = {
+static struct bt_power_vreg_data bt_vregs_info_kiwi[] = {
 	{NULL, "qcom,bt-vdd-io",      1800000, 1800000, 0, false, true,
 		{BT_VDD_IO_LDO, BT_VDD_IO_LDO_CURRENT}},
 	{NULL, "qcom,bt-vdd-aon",     950000,  950000,  0, false, true,
@@ -150,6 +163,8 @@ static struct bt_power_vreg_data bt_vregs_info_wcn7850[] = {
 static struct bt_power bt_vreg_info_wcn399x = {
 	.compatible = "qcom,wcn3990",
 	.vregs = (struct bt_power_vreg_data []) {
+		{NULL, "qcom,bt-vdd-smps", 984000,  984000, 0, false, false,
+			{BT_VDD_SMPS, BT_VDD_SMPS_CURRENT}},
 		{NULL, "qcom,bt-vdd-io",   1700000, 1900000, 0, false, false,
 			{BT_VDD_IO_LDO, BT_VDD_IO_LDO_CURRENT}},
 		{NULL, "qcom,bt-vdd-core", 1304000, 1304000, 0, false, false,
@@ -159,8 +174,9 @@ static struct bt_power bt_vreg_info_wcn399x = {
 		{NULL, "qcom,bt-vdd-xtal", 1700000, 1900000, 0, false, false,
 			{BT_VDD_XTAL_LDO, BT_VDD_XTAL_LDO_CURRENT}},
 	},
-	.num_vregs = 4,
+	.num_vregs = 5,
 };
+
 
 static struct bt_power bt_vreg_info_qca6174 = {
 	.compatible = "qcom,qca6174",
@@ -170,20 +186,27 @@ static struct bt_power bt_vreg_info_qca6174 = {
 
 static struct bt_power bt_vreg_info_qca6390 = {
 	.compatible = "qcom,qca6390",
-	.vregs = bt_vregs_info_qca6x9x,
-	.num_vregs = ARRAY_SIZE(bt_vregs_info_qca6x9x),
+	.vregs = bt_vregs_info_qca6xx0,
+	.num_vregs = ARRAY_SIZE(bt_vregs_info_qca6xx0),
 };
 
 static struct bt_power bt_vreg_info_qca6490 = {
 	.compatible = "qcom,qca6490",
-	.vregs = bt_vregs_info_qca6x9x,
-	.num_vregs = ARRAY_SIZE(bt_vregs_info_qca6x9x),
+	.vregs = bt_vregs_info_qca6xx0,
+	.num_vregs = ARRAY_SIZE(bt_vregs_info_qca6xx0),
 };
 
-static struct bt_power bt_vreg_info_wcn7850 = {
-	.compatible = "qcom,wcn7850",
-	.vregs = bt_vregs_info_wcn7850,
-	.num_vregs = ARRAY_SIZE(bt_vregs_info_wcn7850),
+static struct bt_power bt_vreg_info_kiwi = {
+	.compatible = "qcom,kiwi",
+	.vregs = bt_vregs_info_kiwi,
+	.num_vregs = ARRAY_SIZE(bt_vregs_info_kiwi),
+};
+
+
+static struct bt_power bt_vreg_info_wcn6750 = {
+	.compatible = "qcom,wcn6750-bt",
+	.vregs = bt_vregs_info_qca6xx0,
+	.num_vregs = ARRAY_SIZE(bt_vregs_info_qca6xx0),
 };
 
 static const struct of_device_id bt_power_match_table[] = {
@@ -191,7 +214,8 @@ static const struct of_device_id bt_power_match_table[] = {
 	{	.compatible = "qcom,wcn3990", .data = &bt_vreg_info_wcn399x},
 	{	.compatible = "qcom,qca6390", .data = &bt_vreg_info_qca6390},
 	{	.compatible = "qcom,qca6490", .data = &bt_vreg_info_qca6490},
-	{	.compatible = "qcom,wcn7850", .data = &bt_vreg_info_wcn7850},
+	{	.compatible = "qcom,kiwi",    .data = &bt_vreg_info_kiwi},
+	{	.compatible = "qcom,wcn6750-bt", .data = &bt_vreg_info_wcn6750},
 	{},
 };
 
@@ -205,6 +229,42 @@ static int pwr_state;
 static struct class *bt_class;
 static int bt_major;
 static int soc_id;
+
+#ifdef CONFIG_MSM_BT_OOBS
+static void btpower_uart_transport_locked(struct btpower_platform_data *drvdata,
+					  bool locked)
+{
+	pr_debug("%s: %s\n", __func__, (locked ? "busy" : "idle"));
+}
+
+static irqreturn_t btpower_host_wake_isr(int irq, void *data)
+{
+	struct btpower_platform_data *drvdata = data;
+	int host_waking = gpio_get_value(drvdata->bt_gpio_host_wake);
+	struct kernel_siginfo siginfo;
+	int rc = 0;
+
+	pr_debug("%s: bt-hostwake-gpio(%d) IRQ(%d) value(%d)\n", __func__,
+		drvdata->bt_gpio_host_wake, drvdata->irq, host_waking);
+
+	if (drvdata->reftask_obs == NULL) {
+		pr_info("%s: ignore BT-HOSTWAKE IRQ\n", __func__);
+		return IRQ_HANDLED;
+	}
+
+	// Sending signal to HAL layer
+	memset(&siginfo, 0, sizeof(siginfo));
+	siginfo.si_signo = SIGIO;
+	siginfo.si_code = SI_QUEUE;
+	siginfo.si_int = host_waking;
+	rc = send_sig_info(siginfo.si_signo, &siginfo, drvdata->reftask_obs);
+	if (rc < 0) {
+		pr_err("%s: failed (%d) to send SIG to HAL(%d)\n", __func__,
+			rc, drvdata->reftask_obs->pid);
+	}
+	return IRQ_HANDLED;
+}
+#endif
 
 static int bt_vreg_enable(struct bt_power_vreg_data *vreg)
 {
@@ -236,7 +296,7 @@ static int bt_vreg_enable(struct bt_power_vreg_data *vreg)
 
 		rc = regulator_enable(vreg->reg);
 		if (rc < 0) {
-			pr_err("regulator_enable(%s) failed. rc=%d\n",
+			pr_err("%s: regulator_enable(%s) failed. rc=%d\n",
 					__func__, vreg->name, rc);
 			goto out;
 		}
@@ -399,6 +459,47 @@ retry_gpio_req:
 	gpio_free(xo_clk_gpio);
 }
 
+#ifdef CONFIG_MSM_BT_OOBS
+void bt_configure_wakeup_gpios(int on)
+{
+	int bt_gpio_dev_wake = bt_power_pdata->bt_gpio_dev_wake;
+	int bt_host_wake_gpio = bt_power_pdata->bt_gpio_host_wake;
+	int rc;
+
+	if (on) {
+		if (gpio_is_valid(bt_gpio_dev_wake)) {
+			gpio_set_value(bt_gpio_dev_wake, 1);
+			pr_debug("%s: BT-ON asserting BT_WAKE(%d)\n", __func__,
+				 bt_gpio_dev_wake);
+		}
+
+		if (gpio_is_valid(bt_host_wake_gpio)) {
+			bt_power_pdata->irq = gpio_to_irq(bt_host_wake_gpio);
+			pr_debug("%s: BT-ON bt-host_wake-gpio(%d) IRQ(%d)\n",
+				__func__, bt_host_wake_gpio, bt_power_pdata->irq);
+			rc = request_irq(bt_power_pdata->irq,
+					 btpower_host_wake_isr,
+					 IRQF_TRIGGER_FALLING |
+					 IRQF_TRIGGER_RISING,
+					 "btpower_hostwake_isr", bt_power_pdata);
+			if (rc)
+				pr_err("%s: unable to request IRQ %d (%d)\n",
+				__func__, bt_host_wake_gpio, rc);
+		}
+	} else {
+		if (gpio_is_valid(bt_host_wake_gpio)) {
+			pr_debug("%s: BT-OFF bt-hostwake-gpio(%d) IRQ(%d) value(%d)\n",
+				 __func__, bt_host_wake_gpio, bt_power_pdata->irq,
+				 gpio_get_value(bt_host_wake_gpio));
+			free_irq(bt_power_pdata->irq, bt_power_pdata);
+		}
+
+		if (gpio_is_valid(bt_gpio_dev_wake))
+			gpio_set_value(bt_gpio_dev_wake, 0);
+	}
+}
+#endif
+
 static int bt_configure_gpios(int on)
 {
 	int rc = 0;
@@ -416,6 +517,9 @@ static int bt_configure_gpios(int on)
 			return rc;
 		}
 
+		pr_info("BTON:Turn Bt OFF asserting BT_EN to low\n");
+		pr_info("bt-reset-gpio(%d) value(%d)\n", bt_reset_gpio,
+			gpio_get_value(bt_reset_gpio));
 		rc = gpio_direction_output(bt_reset_gpio, 0);
 		if (rc) {
 			pr_err("%s: Unable to set direction\n", __func__);
@@ -424,25 +528,26 @@ static int bt_configure_gpios(int on)
 		bt_power_src_status[BT_RESET_GPIO] =
 			gpio_get_value(bt_reset_gpio);
 		msleep(50);
-		pr_info("BTON:Turn Bt Off bt-reset-gpio(%d) value(%d)\n",
-			bt_reset_gpio, gpio_get_value(bt_reset_gpio));
+		pr_info("BTON:Turn Bt OFF post asserting BT_EN to low\n");
+		pr_info("bt-reset-gpio(%d) value(%d)\n", bt_reset_gpio,
+			gpio_get_value(bt_reset_gpio));
+
 		if (bt_sw_ctrl_gpio >= 0) {
-			pr_info("BTON:Turn Bt Off\n");
 			bt_power_src_status[BT_SW_CTRL_GPIO] =
 			gpio_get_value(bt_sw_ctrl_gpio);
-			pr_info("bt-sw-ctrl-gpio(%d) value(%d)\n",
+			pr_info("BTON:Turn Bt OFF bt-sw-ctrl-gpio(%d) value(%d)\n",
 				bt_sw_ctrl_gpio,
 				bt_power_src_status[BT_SW_CTRL_GPIO]);
 		}
 		if (wl_reset_gpio >= 0)
-			pr_info("BTON:Turn Bt On wl-reset-gpio(%d) value(%d)\n",
+			pr_info("BTON:Turn Bt ON wl-reset-gpio(%d) value(%d)\n",
 				wl_reset_gpio, gpio_get_value(wl_reset_gpio));
 
 		if ((wl_reset_gpio < 0) ||
 			((wl_reset_gpio >= 0) && gpio_get_value(wl_reset_gpio))) {
 
 			btpower_set_xo_clk_gpio_state(true);
-			pr_info("%s: BTON: Asserting BT_EN\n", __func__);
+			pr_info("BTON: WLAN ON Asserting BT_EN to high\n");
 			rc = gpio_direction_output(bt_reset_gpio, 1);
 			if (rc) {
 				pr_err("%s: Unable to set direction\n", __func__);
@@ -454,19 +559,21 @@ static int bt_configure_gpios(int on)
 		}
 		if ((wl_reset_gpio >= 0) && (gpio_get_value(wl_reset_gpio) == 0)) {
 			if (gpio_get_value(bt_reset_gpio)) {
-				pr_info("%s: Wlan Off and BT On too close\n", __func__);
-				pr_info("%s: reset BT_EN, enable it after delay\n", __func__);
+				pr_info("BTON: WLAN OFF and BT ON are too close\n");
+				pr_info("reset BT_EN, enable it after delay\n");
 				rc = gpio_direction_output(bt_reset_gpio, 0);
 				if (rc) {
-					pr_err("%s: Unable to set direction\n", __func__);
+					pr_err("%s: Unable to set direction\n",
+						 __func__);
 					return rc;
 				}
 				bt_power_src_status[BT_RESET_GPIO] =
 					gpio_get_value(bt_reset_gpio);
 			}
-			pr_info("%s:add 100ms delay for AON output to fully discharge\n",
-				 __func__);
+			pr_info("BTON: WLAN OFF waiting for 100ms delay\n");
+			pr_info("for AON output to fully discharge\n");
 			msleep(100);
+			pr_info("BTON: WLAN OFF Asserting BT_EN to high\n");
 			btpower_set_xo_clk_gpio_state(true);
 			rc = gpio_direction_output(bt_reset_gpio, 1);
 			if (rc) {
@@ -477,7 +584,27 @@ static int bt_configure_gpios(int on)
 				gpio_get_value(bt_reset_gpio);
 			btpower_set_xo_clk_gpio_state(false);
 		}
+		/* Below block of code executes if WL_EN is pulled high when
+		 * BT_EN is about to pull high. so above two if conditions are
+		 * not executed.
+		 */
+		if (!gpio_get_value(bt_reset_gpio)) {
+			btpower_set_xo_clk_gpio_state(true);
+			pr_info("BTON: WLAN ON and BT ON are too close\n");
+			pr_info("Asserting BT_EN to high\n");
+			rc = gpio_direction_output(bt_reset_gpio, 1);
+			if (rc) {
+				pr_err("%s: Unable to set direction\n", __func__);
+				return rc;
+			}
+			bt_power_src_status[BT_RESET_GPIO] =
+				gpio_get_value(bt_reset_gpio);
+			btpower_set_xo_clk_gpio_state(false);
+		}
 		msleep(50);
+#ifdef CONFIG_MSM_BT_OOBS
+		bt_configure_wakeup_gpios(on);
+#endif
 		/*  Check  if  SW_CTRL  is  asserted  */
 		if  (bt_sw_ctrl_gpio  >=  0)  {
 			rc  =  gpio_direction_input(bt_sw_ctrl_gpio);
@@ -504,14 +631,16 @@ static int bt_configure_gpios(int on)
 		pr_info("BTON:Turn Bt On bt-reset-gpio(%d) value(%d)\n",
 			bt_reset_gpio, gpio_get_value(bt_reset_gpio));
 		if (bt_sw_ctrl_gpio >= 0) {
-			pr_info("BTON:Turn Bt On\n");
 			bt_power_src_status[BT_SW_CTRL_GPIO] =
 			gpio_get_value(bt_sw_ctrl_gpio);
-			pr_info("bt-sw-ctrl-gpio(%d) value(%d)\n",
+			pr_info("BTON: Turn BT ON bt-sw-ctrl-gpio(%d) value(%d)\n",
 				bt_sw_ctrl_gpio,
 				bt_power_src_status[BT_SW_CTRL_GPIO]);
 		}
 	} else {
+#ifdef CONFIG_MSM_BT_OOBS
+		bt_configure_wakeup_gpios(on);
+#endif
 		gpio_set_value(bt_reset_gpio, 0);
 		msleep(100);
 		pr_info("BT-OFF:bt-reset-gpio(%d) value(%d)\n",
@@ -891,6 +1020,22 @@ static int bt_power_populate_dt_pinfo(struct platform_device *pdev)
 		if (rc < 0)
 			pr_warn("%s: clock not provided in device tree\n",
 				__func__);
+#ifdef CONFIG_MSM_BT_OOBS
+		bt_power_pdata->bt_gpio_dev_wake =
+			of_get_named_gpio(pdev->dev.of_node,
+					  "qcom,btwake_gpio", 0);
+		if (bt_power_pdata->bt_gpio_dev_wake < 0)
+			pr_warn("%s: btwake-gpio not provided in device tree\n",
+				__func__);
+
+
+		bt_power_pdata->bt_gpio_host_wake =
+			of_get_named_gpio(pdev->dev.of_node,
+					  "qcom,bthostwake_gpio", 0);
+		if (bt_power_pdata->bt_gpio_host_wake < 0)
+			pr_warn("%s: bthostwake_gpio not provided in device tree\n",
+				__func__);
+#endif
 	}
 
 	bt_power_pdata->bt_power_setup = bluetooth_power;
@@ -1000,7 +1145,7 @@ static void  set_pwr_srcs_status(struct bt_power_vreg_data *handle)
 			(regulator_is_enabled(handle->reg))) {
 			bt_power_src_status[ldo_index] =
 				(int)regulator_get_voltage(handle->reg);
-			pr_err("%s(%d) value(%d)\n", handle->name,
+			pr_err("%s(%p) value(%d)\n", handle->name,
 				handle, bt_power_src_status[ldo_index]);
 		} else {
 			pr_err("%s:%s is_enabled: %d\n",
@@ -1032,7 +1177,9 @@ static long bt_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	int chipset_version = 0;
 	int itr, num_vregs;
 	struct bt_power_vreg_data *vreg_info = NULL;
-
+#ifdef CONFIG_MSM_BT_OOBS
+	enum btpower_obs_param clk_cntrl;
+#endif
 	if(!bt_power_pdata){
 		pr_err("Bt_power not probed");
 		ret = -EINVAL;
@@ -1040,6 +1187,48 @@ static long bt_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	}
 
 	switch (cmd) {
+#ifdef CONFIG_MSM_BT_OOBS
+	case BT_CMD_OBS_SIGNAL_TASK:
+		bt_power_pdata->reffilp_obs = file;
+		bt_power_pdata->reftask_obs = get_current();
+		pr_info("%s: BT_CMD_OBS_SIGNAL_TASK tid %d file %pK\n",
+			__func__, bt_power_pdata->reftask_obs->pid, file);
+		break;
+	case BT_CMD_OBS_VOTE_CLOCK:
+		if (!gpio_is_valid(bt_power_pdata->bt_gpio_dev_wake)) {
+			pr_debug("%s: BT_CMD_OBS_VOTE_CLOCK bt_dev_wake_n(%d) not configured\n",
+				__func__, bt_power_pdata->bt_gpio_dev_wake);
+			return -EIO;
+		}
+		clk_cntrl = (enum btpower_obs_param)arg;
+		switch (clk_cntrl) {
+		case BTPOWER_OBS_CLK_OFF:
+			btpower_uart_transport_locked(bt_power_pdata, false);
+			ret = 0;
+			break;
+		case BTPOWER_OBS_CLK_ON:
+			btpower_uart_transport_locked(bt_power_pdata, true);
+			ret = 0;
+			break;
+		case BTPOWER_OBS_DEV_OFF:
+			gpio_set_value(bt_power_pdata->bt_gpio_dev_wake, 0);
+			ret = 0;
+			break;
+		case BTPOWER_OBS_DEV_ON:
+			gpio_set_value(bt_power_pdata->bt_gpio_dev_wake, 1);
+			ret = 0;
+			break;
+		default:
+			pr_debug("%s: BT_CMD_OBS_VOTE_CLOCK clk_cntrl(%d)\n",
+				__func__, clk_cntrl);
+			return -EINVAL;
+		}
+		pr_debug("%s: BT_CMD_OBS_VOTE_CLOCK clk_cntrl(%d) %s\n",
+			__func__, clk_cntrl,
+			gpio_get_value(bt_power_pdata->bt_gpio_dev_wake) ?
+				"Assert" : "Deassert");
+		break;
+#endif
 	case BT_CMD_SLIM_TEST:
 #if (defined CONFIG_BT_SLIM_QCA6390 || \
 	defined CONFIG_BT_SLIM_QCA6490 || \

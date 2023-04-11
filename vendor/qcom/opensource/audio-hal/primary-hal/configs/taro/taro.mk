@@ -88,6 +88,9 @@ AUDIO_FEATURE_ENABLED_SND_MONITOR := true
 AUDIO_FEATURE_ENABLED_USB_BURST_MODE := true
 AUDIO_FEATURE_ENABLED_SVA_MULTI_STAGE := true
 AUDIO_FEATURE_ENABLED_BATTERY_LISTENER := true
+BUILD_AUDIO_TECHPACK_SOURCE := true
+AUDIO_FEATURE_ENABLED_MCS := true
+
 #qcom original audio feature]
 ############################################
 else
@@ -153,8 +156,8 @@ BOARD_SUPPORTS_OPENSOURCE_STHAL := true
 AUDIO_HARDWARE := audio.a2dp.default
 AUDIO_HARDWARE += audio.usb.default
 AUDIO_HARDWARE += audio.r_submix.default
-AUDIO_HARDWARE += audio.primary.taro
-AUDIO_HARDWARE += sound_trigger.primary.taro
+AUDIO_HARDWARE += audio.primary.$(TARGET_BOARD_PLATFORM)
+AUDIO_HARDWARE += sound_trigger.primary.$(TARGET_BOARD_PLATFORM)
 
 #HAL Wrapper
 AUDIO_WRAPPER := libqahw
@@ -185,6 +188,10 @@ PRODUCT_PACKAGES += $(AUDIO_WRAPPER)
 PRODUCT_PACKAGES += $(AUDIO_HAL_TEST_APPS)
 PRODUCT_PACKAGES += ftm_test_config
 PRODUCT_PACKAGES += ftm_test_config_waipio-qrd-snd-card
+PRODUCT_PACKAGES += ftm_test_config_diwali-idp-snd-card
+PRODUCT_PACKAGES += ftm_test_config_diwali-qrd-snd-card
+PRODUCT_PACKAGES += ftm_test_config_diwali-idp-sku1-snd-card
+PRODUCT_PACKAGES += ftm_test_config_diwali-qrd-sku1-snd-card
 PRODUCT_PACKAGES += audioadsprpcd
 PRODUCT_PACKAGES += vendor.qti.audio-adsprpc-service.rc
 PRODUCT_PACKAGES += android.hardware.audio.service_64
@@ -197,6 +204,16 @@ PRODUCT_PACKAGES += QRD_acdb_cal.acdb
 PRODUCT_PACKAGES += QRD_workspaceFileXml.qwsp
 PRODUCT_PACKAGES += IDP_UPD_acdb_cal.acdb
 PRODUCT_PACKAGES += IDP_UPD_workspaceFileXml.qwsp
+PRODUCT_PACKAGES += IDP_UPD_diwali_acdb_cal.acdb
+PRODUCT_PACKAGES += IDP_UPD_diwali_workspaceFileXml.qwsp
+PRODUCT_PACKAGES += IDP_diwali_acdb_cal.acdb
+PRODUCT_PACKAGES += IDP_diwali_workspaceFileXml.qwsp
+PRODUCT_PACKAGES += QRD_diwali_acdb_cal.acdb
+PRODUCT_PACKAGES += QRD_diwali_workspaceFileXml.qwsp
+PRODUCT_PACKAGES += IDP_diwali_sku1_acdb_cal.acdb
+PRODUCT_PACKAGES += IDP_diwali_sku1_workspaceFileXml.qwsp
+PRODUCT_PACKAGES += QRD_diwali_sku1_acdb_cal.acdb
+PRODUCT_PACKAGES += QRD_diwali_sku1_workspaceFileXml.qwsp
 PRODUCT_PACKAGES += fai__2.3.0_0.1__3.0.0_0.0__eai_1.10.pmd
 PRODUCT_PACKAGES += fai__2.3.0_0.1__3.0.0_0.0__eai_1.36_enpu2_comp.pmd
 PRODUCT_PACKAGES += fai__2.0.0_0.1__3.0.0_0.0__eai_1.36_enpu2.pmd
@@ -208,7 +225,9 @@ PRODUCT_PACKAGES += event.eai
 PRODUCT_PACKAGES += music.eai
 PRODUCT_PACKAGES += speech.eai
 PRODUCT_PACKAGES += libqtigefar
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_MCS)), true)
 PRODUCT_PACKAGES += libmcs
+endif
 
 ifeq (1,0)
 ############################################
@@ -260,6 +279,10 @@ PRODUCT_COPY_FILES += \
 PRODUCT_COPY_FILES += \
     vendor/qcom/opensource/audio-hal/primary-hal/configs/taro/init.audio.samsung.rc:$(TARGET_COPY_OUT_VENDOR)/etc/init/init.audio.samsung.rc
 
+PRODUCT_COPY_FILES += \
+$(foreach DEVICE_SKU, $(QCV_FAMILY_SKUS), \
+    $(CONFIG_HAL_SRC_DIR)/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio/sku_$(DEVICE_SKU)_qssi/audio_policy_configuration.xml)
+
 ifeq (1,0)
 ############################################
 #[samsung audio feature - unused
@@ -273,7 +296,147 @@ PRODUCT_COPY_FILES += \
 $(foreach DEVICE_SKU, $(QCV_FAMILY_SKUS), \
     $(CONFIG_HAL_SRC_DIR)/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio/sku_$(DEVICE_SKU)_qssi/audio_policy_configuration.xml)
 endif
+#qcom original audio feature]
+############################################
+else
+############################################
+#[samsung audio feature - used
+#Audio configuration xml's common to Taro family
+PRODUCT_COPY_FILES += \
+$(foreach DEVICE_SKU, $(QCV_FAMILY_SKUS), \
+    $(CONFIG_HAL_SRC_DIR)/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio/sku_$(DEVICE_SKU)_qssi/audio_policy_configuration.xml)
+#samsung audio feature]
+############################################
+endif
 
+# Audio configuration xml's related to Diwali
+QCV_FAMILY_SKUS := diwali
+DEVICE_SKU := diwali
+
+CONFIG_SKU_OUT_DIR := $(TARGET_COPY_OUT_VENDOR)/etc/audio/sku_$(DEVICE_SKU)
+
+PRODUCT_COPY_FILES += \
+    $(CONFIG_HAL_SRC_DIR)/audio_effects.conf:$(CONFIG_SKU_OUT_DIR)/audio_effects.conf \
+    $(CONFIG_HAL_SRC_DIR)/audio_effects.xml:$(CONFIG_SKU_OUT_DIR)/audio_effects.xml \
+    $(CONFIG_PAL_SRC_DIR)/resourcemanager_upd.xml:$(CONFIG_SKU_OUT_DIR)/resourcemanager_upd.xml \
+    $(CONFIG_HAL_SRC_DIR)/mixer_paths_diwali_idp.xml:$(CONFIG_SKU_OUT_DIR)/mixer_paths_diwali_idp.xml \
+    $(CONFIG_HAL_SRC_DIR)/mixer_paths_diwali_qrd.xml:$(CONFIG_SKU_OUT_DIR)/mixer_paths_diwali_qrd.xml \
+    $(CONFIG_PAL_SRC_DIR)/resourcemanager_diwali_idp.xml:$(CONFIG_SKU_OUT_DIR)/resourcemanager_diwali_idp.xml \
+    $(CONFIG_PAL_SRC_DIR)/resourcemanager_diwali_qrd.xml:$(CONFIG_SKU_OUT_DIR)/resourcemanager_diwali_qrd.xml \
+    $(CONFIG_HAL_SRC_DIR)/mixer_paths_diwali_idp_sku1.xml:$(CONFIG_SKU_OUT_DIR)/mixer_paths_diwali_idp_sku1.xml \
+    $(CONFIG_HAL_SRC_DIR)/mixer_paths_diwali_qrd_sku1.xml:$(CONFIG_SKU_OUT_DIR)/mixer_paths_diwali_qrd_sku1.xml \
+    $(CONFIG_PAL_SRC_DIR)/resourcemanager_diwali_idp_sku1.xml:$(CONFIG_SKU_OUT_DIR)/resourcemanager_diwali_idp_sku1.xml \
+    $(CONFIG_PAL_SRC_DIR)/resourcemanager_diwali_qrd_sku1.xml:$(CONFIG_SKU_OUT_DIR)/resourcemanager_diwali_qrd_sku1.xml
+
+ifeq (1,0)
+############################################
+#[samsung audio feature - unused
+#XML Audio configuration files
+ifneq ($(TARGET_USES_AOSP_FOR_AUDIO), true)
+PRODUCT_COPY_FILES += \
+    $(CONFIG_HAL_SRC_DIR)/audio_policy_configuration.xml:$(CONFIG_SKU_OUT_DIR)/audio_policy_configuration.xml
+
+#Audio configuration xml's common to Taro family
+PRODUCT_COPY_FILES += \
+$(foreach DEVICE_SKU, $(QCV_FAMILY_SKUS), \
+    $(CONFIG_HAL_SRC_DIR)/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio/sku_$(DEVICE_SKU)_qssi/audio_policy_configuration.xml)
+endif
+#qcom original audio feature]
+############################################
+else
+############################################
+#[samsung audio feature - used
+PRODUCT_COPY_FILES += \
+$(foreach DEVICE_SKU, $(QCV_FAMILY_SKUS), \
+    $(CONFIG_HAL_SRC_DIR)/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio/sku_$(DEVICE_SKU)_qssi/audio_policy_configuration.xml)
+#samsung audio feature]
+############################################
+endif
+
+# Audio configuration xml's related to Cape
+QCV_FAMILY_SKUS := cape
+DEVICE_SKU := cape
+
+CONFIG_SKU_OUT_DIR := $(TARGET_COPY_OUT_VENDOR)/etc/audio/sku_$(DEVICE_SKU)
+
+PRODUCT_COPY_FILES += \
+    $(CONFIG_HAL_SRC_DIR)/audio_effects.conf:$(CONFIG_SKU_OUT_DIR)/audio_effects.conf \
+    $(CONFIG_HAL_SRC_DIR)/audio_effects.xml:$(CONFIG_SKU_OUT_DIR)/audio_effects.xml \
+    $(CONFIG_HAL_SRC_DIR)/mixer_paths_waipio_qrd.xml:$(CONFIG_SKU_OUT_DIR)/mixer_paths_waipio_qrd.xml \
+    $(CONFIG_HAL_SRC_DIR)/mixer_paths_waipio_mtp.xml:$(CONFIG_SKU_OUT_DIR)/mixer_paths_waipio_mtp.xml \
+    $(CONFIG_HAL_SRC_DIR)/mixer_paths_waipio_cdp.xml:$(CONFIG_SKU_OUT_DIR)/mixer_paths_waipio_cdp.xml \
+    $(CONFIG_PAL_SRC_DIR)/resourcemanager_waipio_qrd.xml:$(CONFIG_SKU_OUT_DIR)/resourcemanager_waipio_qrd.xml \
+    $(CONFIG_PAL_SRC_DIR)/resourcemanager_waipio_mtp.xml:$(CONFIG_SKU_OUT_DIR)/resourcemanager_waipio_mtp.xml \
+    $(CONFIG_PAL_SRC_DIR)/resourcemanager_waipio_cdp.xml:$(CONFIG_SKU_OUT_DIR)/resourcemanager_waipio_cdp.xml \
+    $(CONFIG_PAL_SRC_DIR)/resourcemanager_upd.xml:$(CONFIG_SKU_OUT_DIR)/resourcemanager_upd.xml \
+    $(CONFIG_HAL_SRC_DIR)/audconf/$(PROJECT_NAME)/$(TARGET_PRODUCT)/mixer_paths.xml:$(CONFIG_SKU_OUT_DIR)/mixer_paths.xml \
+    $(CONFIG_HAL_SRC_DIR)/audconf/$(PROJECT_NAME)/resourcemanager.xml:$(CONFIG_SKU_OUT_DIR)/resourcemanager.xml
+
+ifeq (1,0)
+############################################
+#[samsung audio feature - unused
+#XML Audio configuration files
+ifneq ($(TARGET_USES_AOSP_FOR_AUDIO), true)
+PRODUCT_COPY_FILES += \
+    $(CONFIG_HAL_SRC_DIR)/audio_policy_configuration.xml:$(CONFIG_SKU_OUT_DIR)/audio_policy_configuration.xml
+
+#Audio configuration xml's common to Taro family
+PRODUCT_COPY_FILES += \
+$(foreach DEVICE_SKU, $(QCV_FAMILY_SKUS), \
+    $(CONFIG_HAL_SRC_DIR)/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio/sku_$(DEVICE_SKU)_qssi/audio_policy_configuration.xml)
+endif
+#qcom original audio feature]
+############################################
+else
+############################################
+#[samsung audio feature - used
+PRODUCT_COPY_FILES += \
+$(foreach DEVICE_SKU, $(QCV_FAMILY_SKUS), \
+    $(CONFIG_HAL_SRC_DIR)/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio/sku_$(DEVICE_SKU)_qssi/audio_policy_configuration.xml)
+#samsung audio feature]
+############################################
+endif
+
+# Audio configuration xml's related to parrot
+QCV_FAMILY_SKUS := parrot
+DEVICE_SKU := parrot
+
+CONFIG_SKU_OUT_DIR := $(TARGET_COPY_OUT_VENDOR)/etc/audio/sku_$(DEVICE_SKU)
+
+PRODUCT_COPY_FILES += \
+    $(CONFIG_HAL_SRC_DIR)/audio_effects.conf:$(CONFIG_SKU_OUT_DIR)/audio_effects.conf \
+    $(CONFIG_HAL_SRC_DIR)/audio_effects.xml:$(CONFIG_SKU_OUT_DIR)/audio_effects.xml \
+    $(CONFIG_PAL_SRC_DIR)/resourcemanager_upd.xml:$(CONFIG_SKU_OUT_DIR)/resourcemanager_upd.xml \
+    $(CONFIG_HAL_SRC_DIR)/mixer_paths_diwali_idp.xml:$(CONFIG_SKU_OUT_DIR)/mixer_paths_diwali_idp.xml \
+    $(CONFIG_HAL_SRC_DIR)/mixer_paths_diwali_qrd.xml:$(CONFIG_SKU_OUT_DIR)/mixer_paths_diwali_qrd.xml \
+    $(CONFIG_PAL_SRC_DIR)/resourcemanager_diwali_idp.xml:$(CONFIG_SKU_OUT_DIR)/resourcemanager_diwali_idp.xml \
+    $(CONFIG_PAL_SRC_DIR)/resourcemanager_diwali_qrd.xml:$(CONFIG_SKU_OUT_DIR)/resourcemanager_diwali_qrd.xml \
+    $(CONFIG_HAL_SRC_DIR)/mixer_paths_diwali_idp_sku1.xml:$(CONFIG_SKU_OUT_DIR)/mixer_paths_diwali_idp_sku1.xml \
+    $(CONFIG_HAL_SRC_DIR)/mixer_paths_diwali_qrd_sku1.xml:$(CONFIG_SKU_OUT_DIR)/mixer_paths_diwali_qrd_sku1.xml \
+    $(CONFIG_PAL_SRC_DIR)/resourcemanager_diwali_idp_sku1.xml:$(CONFIG_SKU_OUT_DIR)/resourcemanager_diwali_idp_sku1.xml \
+    $(CONFIG_PAL_SRC_DIR)/resourcemanager_diwali_qrd_sku1.xml:$(CONFIG_SKU_OUT_DIR)/resourcemanager_diwali_qrd_sku1.xml
+
+#XML Audio configuration files
+ifneq ($(TARGET_USES_AOSP_FOR_AUDIO), true)
+ifeq (1,0)
+############################################
+#[samsung audio feature - unused
+PRODUCT_COPY_FILES += \
+    $(CONFIG_HAL_SRC_DIR)/audio_policy_configuration.xml:$(CONFIG_SKU_OUT_DIR)/audio_policy_configuration.xml
+#qcom original audio feature]
+############################################
+endif
+
+#Audio configuration xml's common to Taro family
+PRODUCT_COPY_FILES += \
+$(foreach DEVICE_SKU, $(QCV_FAMILY_SKUS), \
+    $(CONFIG_HAL_SRC_DIR)/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio/sku_$(DEVICE_SKU)_qssi/audio_policy_configuration.xml)
+
+endif
+
+ifeq (1,0)
+############################################
+#[samsung audio feature - unused
 PRODUCT_COPY_FILES += \
     $(TOPDIR)vendor/qcom/opensource/audio-hal/primary-hal/configs/common/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy_configuration.xml \
     $(TOPDIR)frameworks/av/services/audiopolicy/config/a2dp_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/a2dp_audio_policy_configuration.xml \
@@ -291,12 +454,6 @@ else
 PRODUCT_COPY_FILES += \
     $(TOPDIR)vendor/qcom/opensource/audio-hal/primary-hal/configs/common/bluetooth_qti_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/bluetooth_qti_audio_policy_configuration.xml \
     $(TOPDIR)vendor/qcom/opensource/audio-hal/primary-hal/configs/common/bluetooth_qti_hearing_aid_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/bluetooth_qti_hearing_aid_audio_policy_configuration.xml
-
-#Audio configuration xml's common to Taro family
-PRODUCT_COPY_FILES += \
-$(foreach DEVICE_SKU, $(QCV_FAMILY_SKUS), \
-    $(CONFIG_HAL_SRC_DIR)/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio/sku_$(DEVICE_SKU)_qssi/audio_policy_configuration.xml)
-
 #samsung audio feature]
 ############################################
 endif

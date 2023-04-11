@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -35,6 +36,82 @@
 #include <wlan_dfs_utils_api.h>
 #include <wlan_vdev_mgr_ucfg_api.h>
 #include <qdf_module.h>
+#include <cdp_txrx_ctrl.h>
+#ifdef WLAN_FEATURE_11BE_MLO
+#include <wlan_mlo_mgr_ap.h>
+#endif
+#include <wlan_vdev_mgr_utils_api.h>
+
+#ifdef QCA_VDEV_STATS_HW_OFFLOAD_SUPPORT
+/**
+ * vdev_mgr_alloc_vdev_stats_id() - Allocate vdev stats id for vdev
+ * @vdev - pointer to vdev
+ * @param - pointer to vdev create params
+ *
+ * Return: none
+ */
+static void vdev_mgr_alloc_vdev_stats_id(struct wlan_objmgr_vdev *vdev,
+					 struct vdev_create_params *param)
+{
+	struct wlan_objmgr_psoc *psoc;
+	uint8_t vdev_stats_id = CDP_INVALID_VDEV_STATS_ID;
+
+	if ((param->type == WLAN_VDEV_MLME_TYPE_MONITOR) ||
+	    (param->subtype == WLAN_VDEV_MLME_SUBTYPE_SMART_MONITOR) ||
+	    (param->special_vdev_mode)) {
+		param->vdev_stats_id = CDP_INVALID_VDEV_STATS_ID;
+		return;
+	}
+	psoc = wlan_vdev_get_psoc(vdev);
+	if (!psoc || !wlan_psoc_get_dp_handle(psoc)) {
+		mlme_err("PSOC or PSOC DP Handle is NULL");
+		param->vdev_stats_id = CDP_INVALID_VDEV_STATS_ID;
+		return;
+	}
+
+	/* Get vdev_stats_id from dp_soc via cdp call */
+	cdp_vdev_alloc_vdev_stats_id(wlan_psoc_get_dp_handle(psoc),
+				     &vdev_stats_id);
+
+	param->vdev_stats_id = vdev_stats_id;
+}
+
+/**
+ * vdev_mgr_reset_vdev_stats_id() -Reset vdev stats id
+ * @vdev - pointer to vdev
+ * @vdev_stats_id - Value of vdev_stats_id
+ *
+ * Return: none
+ */
+static void vdev_mgr_reset_vdev_stats_id(struct wlan_objmgr_vdev *vdev,
+					 uint8_t vdev_stats_id)
+{
+	struct wlan_objmgr_psoc *psoc;
+
+	if (vdev_stats_id == CDP_INVALID_VDEV_STATS_ID)
+		return;
+
+	psoc = wlan_vdev_get_psoc(vdev);
+	if (!psoc || !wlan_psoc_get_dp_handle(psoc)) {
+		mlme_err("PSOC or PSOC DP Handle is NULL");
+		return;
+	}
+
+	cdp_vdev_reset_vdev_stats_id(wlan_psoc_get_dp_handle(psoc),
+				     vdev_stats_id);
+}
+#else
+static void vdev_mgr_alloc_vdev_stats_id(struct wlan_objmgr_vdev *vdev,
+					 struct vdev_create_params *param)
+{
+	/* Assign Invalid vdev_stats_id */
+	param->vdev_stats_id = CDP_INVALID_VDEV_STATS_ID;
+}
+
+static void vdev_mgr_reset_vdev_stats_id(struct wlan_objmgr_vdev *vdev,
+					 uint8_t vdev_stats_id)
+{}
+#endif /* QCA_VDEV_STATS_HW_OFFLOAD_SUPPORT */
 
 static QDF_STATUS vdev_mgr_create_param_update(
 					struct vdev_mlme_obj *mlme_obj,
@@ -66,6 +143,10 @@ static QDF_STATUS vdev_mgr_create_param_update(
 	param->mbssid_flags = mbss->mbssid_flags;
 	param->vdevid_trans = mbss->vdevid_trans;
 	param->special_vdev_mode = mlme_obj->mgmt.generic.special_vdev_mode;
+
+	vdev_mgr_alloc_vdev_stats_id(vdev, param);
+	param->vdev_stats_id_valid =
+	((param->vdev_stats_id != CDP_INVALID_VDEV_STATS_ID) ? true : false);
 #ifdef WLAN_FEATURE_11BE_MLO
 	WLAN_ADDR_COPY(param->mlo_mac, wlan_vdev_mlme_get_mldaddr(vdev));
 #endif
@@ -90,7 +171,11 @@ QDF_STATUS vdev_mgr_create_send(struct vdev_mlme_obj *mlme_obj)
 	}
 
 	status = tgt_vdev_mgr_create_send(mlme_obj, &param);
-
+	if (QDF_IS_STATUS_ERROR(status)) {
+		/* Reset the vdev_stats_id */
+		vdev_mgr_reset_vdev_stats_id(mlme_obj->vdev,
+					     param.vdev_stats_id);
+	}
 	return status;
 }
 
@@ -124,12 +209,12 @@ vdev_mgr_start_param_update_11be(struct vdev_mlme_obj *mlme_obj,
 				 struct wlan_channel *des_chan)
 {
 	param->eht_ops = mlme_obj->proto.eht_ops_info.eht_ops;
-	param->channel.puncture_pattern = des_chan->puncture_bitmap;
+	param->channel.puncture_bitmap = des_chan->puncture_bitmap;
 }
 
 static inline void
-vdev_mgr_set_cur_chan_punc_pattern(struct wlan_channel *des_chan,
-				   uint16_t *puncture_bitmap)
+vdev_mgr_set_cur_chan_punc_bitmap(struct wlan_channel *des_chan,
+				  uint16_t *puncture_bitmap)
 {
 	*puncture_bitmap = des_chan->puncture_bitmap;
 }
@@ -142,14 +227,70 @@ vdev_mgr_start_param_update_11be(struct vdev_mlme_obj *mlme_obj,
 }
 
 static inline void
-vdev_mgr_set_cur_chan_punc_pattern(struct wlan_channel *des_chan,
-				   uint16_t *puncture_bitmap)
+vdev_mgr_set_cur_chan_punc_bitmap(struct wlan_channel *des_chan,
+				  uint16_t *puncture_bitmap)
 {
 	*puncture_bitmap = 0;
 }
 #endif
 
 #ifdef WLAN_FEATURE_11BE_MLO
+#ifdef WLAN_MCAST_MLO
+static inline void
+vdev_mgr_start_param_update_mlo_mcast(struct wlan_objmgr_vdev *vdev,
+				      struct vdev_start_params *param)
+{
+	if (wlan_vdev_mlme_is_mlo_mcast_vdev(vdev))
+		param->mlo_flags.mlo_mcast_vdev = 1;
+}
+#else
+#define vdev_mgr_start_param_update_mlo_mcast(vdev, param)
+#endif
+
+static void
+vdev_mgr_start_param_update_mlo_partner(struct wlan_objmgr_vdev *vdev,
+					struct vdev_start_params *param)
+{
+	struct wlan_objmgr_pdev *pdev;
+	struct mlo_vdev_start_partner_links *mlo_ptr = &param->mlo_partner;
+	struct wlan_objmgr_vdev *vdev_list[WLAN_UMAC_MLO_MAX_VDEVS] = {NULL};
+	uint16_t num_links = 0;
+	uint8_t i = 0, p_idx = 0;
+
+	mlo_ap_get_vdev_list(vdev, &num_links, vdev_list);
+	if (!num_links) {
+		mlme_err("No VDEVs under AP-MLD");
+		return;
+	}
+
+	if (num_links > QDF_ARRAY_SIZE(vdev_list)) {
+		mlme_err("Invalid number of VDEVs under AP-MLD num_links:%u",
+			 num_links);
+		for (i = 0; i < QDF_ARRAY_SIZE(vdev_list); i++)
+			mlo_release_vdev_ref(vdev_list[i]);
+		return;
+	}
+
+	for (i = 0; i < num_links; i++) {
+		if (vdev_list[i] == vdev) {
+			mlo_release_vdev_ref(vdev_list[i]);
+			continue;
+		}
+
+		pdev = wlan_vdev_get_pdev(vdev_list[i]);
+		mlo_ptr->partner_info[p_idx].vdev_id =
+			wlan_vdev_get_id(vdev_list[i]);
+		mlo_ptr->partner_info[p_idx].hw_mld_link_id =
+			wlan_mlo_get_pdev_hw_link_id(pdev);
+		qdf_mem_copy(mlo_ptr->partner_info[p_idx].mac_addr,
+			     wlan_vdev_mlme_get_macaddr(vdev_list[i]),
+			     QDF_MAC_ADDR_SIZE);
+		mlo_release_vdev_ref(vdev_list[i]);
+		p_idx++;
+	}
+	mlo_ptr->num_links = p_idx;
+}
+
 static void
 vdev_mgr_start_param_update_mlo(struct vdev_mlme_obj *mlme_obj,
 				struct vdev_start_params *param)
@@ -167,13 +308,35 @@ vdev_mgr_start_param_update_mlo(struct vdev_mlme_obj *mlme_obj,
 
 	param->mlo_flags.mlo_enabled = 1;
 
-	if (!wlan_vdev_mlme_is_mlo_link_vdev(vdev))
+	if (wlan_vdev_mlme_get_opmode(vdev) == QDF_STA_MODE &&
+	    !wlan_vdev_mlme_is_mlo_link_vdev(vdev))
 		param->mlo_flags.mlo_assoc_link = 1;
+
+	vdev_mgr_start_param_update_mlo_mcast(vdev, param);
+
+	if (wlan_vdev_mlme_get_opmode(vdev) == QDF_SAP_MODE)
+		vdev_mgr_start_param_update_mlo_partner(vdev, param);
 }
 #else
 static void
 vdev_mgr_start_param_update_mlo(struct vdev_mlme_obj *mlme_obj,
 				struct vdev_start_params *param)
+{
+}
+#endif
+
+#ifdef MOBILE_DFS_SUPPORT
+static void
+vdev_mgr_start_param_update_cac_ms(struct wlan_objmgr_vdev *vdev,
+				   struct vdev_start_params *param)
+{
+	param->cac_duration_ms =
+			wlan_util_vdev_mgr_get_cac_timeout_for_vdev(vdev);
+}
+#else
+static void
+vdev_mgr_start_param_update_cac_ms(struct wlan_objmgr_vdev *vdev,
+				   struct vdev_start_params *param)
 {
 }
 #endif
@@ -216,7 +379,7 @@ static QDF_STATUS vdev_mgr_start_param_update(
 	op_mode = wlan_vdev_mlme_get_opmode(vdev);
 	if (vdev_mgr_is_opmode_sap_or_p2p_go(op_mode) &&
 	    vdev_mgr_is_49G_5G_chan_freq(des_chan->ch_freq)) {
-		vdev_mgr_set_cur_chan_punc_pattern(des_chan, &puncture_bitmap);
+		vdev_mgr_set_cur_chan_punc_bitmap(des_chan, &puncture_bitmap);
 		tgt_dfs_set_current_channel_for_freq(pdev, des_chan->ch_freq,
 						     des_chan->ch_flags,
 						     des_chan->ch_flagext,
@@ -291,7 +454,7 @@ static QDF_STATUS vdev_mgr_start_param_update(
 
 	if (mlme_obj->mgmt.generic.type == WLAN_VDEV_MLME_TYPE_AP) {
 		param->hidden_ssid = mlme_obj->mgmt.ap.hidden_ssid;
-		param->cac_duration_ms = mlme_obj->mgmt.ap.cac_duration_ms;
+		vdev_mgr_start_param_update_cac_ms(vdev, param);
 	}
 	wlan_vdev_mlme_get_ssid(vdev, param->ssid.ssid, &param->ssid.length);
 
@@ -489,6 +652,12 @@ QDF_STATUS vdev_mgr_up_send(struct vdev_mlme_obj *mlme_obj)
 	status = tgt_vdev_mgr_up_send(mlme_obj, &param);
 	if (QDF_IS_STATUS_ERROR(status))
 		return status;
+
+	/* Reset the max channel switch time and last beacon sent time as the
+	 * VDEV UP command sent to FW.
+	 */
+	mlme_obj->mgmt.ap.max_chan_switch_time = 0;
+	mlme_obj->mgmt.ap.last_bcn_ts_ms = 0;
 
 	is_6g_sap_fd_enabled = wlan_vdev_mlme_feat_ext_cap_get(vdev,
 					WLAN_VDEV_FEXT_FILS_DISC_6G_SAP);
@@ -727,3 +896,21 @@ QDF_STATUS vdev_mgr_peer_delete_all_send(struct vdev_mlme_obj *mlme_obj)
 	return status;
 }
 
+#ifdef WLAN_FEATURE_DYNAMIC_MAC_ADDR_UPDATE
+QDF_STATUS vdev_mgr_send_set_mac_addr(struct qdf_mac_addr mac_addr,
+				      struct qdf_mac_addr mld_addr,
+				      struct wlan_objmgr_vdev *vdev)
+{
+	return tgt_vdev_mgr_send_set_mac_addr(mac_addr, mld_addr, vdev);
+}
+
+QDF_STATUS vdev_mgr_cdp_vdev_attach(struct vdev_mlme_obj *mlme_obj)
+{
+	return tgt_vdev_mgr_cdp_vdev_attach(mlme_obj);
+}
+
+QDF_STATUS vdev_mgr_cdp_vdev_detach(struct vdev_mlme_obj *mlme_obj)
+{
+	return tgt_vdev_mgr_cdp_vdev_detach(mlme_obj);
+}
+#endif

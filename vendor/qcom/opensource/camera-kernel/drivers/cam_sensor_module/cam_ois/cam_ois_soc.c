@@ -46,11 +46,17 @@ static int cam_ois_get_dt_data(struct cam_ois_ctrl_t *o_ctrl)
 		soc_info->rgltr[i] = devm_regulator_get(soc_info->dev,
 					soc_info->rgltr_name[i]);
 		if (IS_ERR_OR_NULL(soc_info->rgltr[i])) {
+#if defined(CONFIG_SEC_Q4Q_PROJECT)
+			CAM_WARN(CAM_OIS,"Regulator: %s get failed",
+				soc_info->rgltr_name[i]);
+			soc_info->rgltr[i] = NULL;		
+#else
 			rc = PTR_ERR(soc_info->rgltr[i]);
 			rc = rc ? rc : -EINVAL;
 			CAM_ERR(CAM_OIS, "get failed for regulator %s",
 				 soc_info->rgltr_name[i]);
 			return rc;
+#endif
 		}
 		CAM_DBG(CAM_OIS, "get for regulator %s",
 			soc_info->rgltr_name[i]);

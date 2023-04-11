@@ -1096,10 +1096,11 @@ static bool zram_should_writeback(struct zram *zram,
 	if (min_writtenback_ratio < writtenback_ratio)
 		ret = false;
 
-	if (zram->disksize < SZ_4G)
-		min_stored_byte = SZ_512M;
-	else
+	if (zram->disksize / 4 > SZ_1G)
 		min_stored_byte = SZ_1G;
+	else
+		min_stored_byte = zram->disksize / 4;
+
 	if ((stored << PAGE_SHIFT) < min_stored_byte)
 		ret = false;
 
@@ -1906,6 +1907,7 @@ static void zram_handle_remain(struct zram *zram, struct page *page,
 	struct zram_wb_header *zhdr;
 	unsigned long alloced_pages;
 	unsigned long handle;
+	unsigned long flags;
 	unsigned int offset = 0;
 	unsigned int size;
 	u32 index;
@@ -1943,7 +1945,8 @@ static void zram_handle_remain(struct zram *zram, struct page *page,
 				__GFP_KSWAPD_RECLAIM |
 				__GFP_NOWARN |
 				__GFP_HIGHMEM |
-				__GFP_MOVABLE);
+				__GFP_MOVABLE |
+				__GFP_CMA);
 		if (!handle) {
 			zram_slot_unlock(zram, index);
 			break;
@@ -1960,6 +1963,11 @@ static void zram_handle_remain(struct zram *zram, struct page *page,
 		zram_free_page(zram, index);
 		zram_set_element(zram, index, handle);
 		zram_set_obj_size(zram, index, size);
+		spin_lock_irqsave(&zram->list_lock, flags);
+		list_add_tail(&zram->table[index].lru_list, &zram->list);
+		spin_unlock_irqrestore(&zram->list_lock, flags);
+		zram_set_flag(zram, index, ZRAM_LRU);
+		atomic64_inc(&zram->stats.lru_pages);
 		zram_slot_unlock(zram, index);
 		atomic64_inc(&zram->stats.pages_stored);
 next:
@@ -2174,7 +2182,7 @@ static ssize_t read_block_state(struct file *file, char __user *buf,
 			zram_test_flag(zram, index, ZRAM_HUGE) ? 'h' : '.',
 			zram_test_flag(zram, index, ZRAM_IDLE) ? 'i' : '.');
 
-		if (count < copied) {
+		if (count <= copied) {
 			zram_slot_unlock(zram, index);
 			break;
 		}
@@ -2639,7 +2647,7 @@ static int __zram_bvec_read(struct zram *zram, struct page *page, u32 index,
 	}
 
 	/* Should NEVER happen. BUG() if it does. */
-	if (WARN_ON(ret)) {
+	if (unlikely(ret)) {
 		pr_err("%s Decompression failed! err=%d, page=%u, len=%u, vaddr=0x%px\n",
 			zram->compressor, ret, index, size, src);
 		print_hex_dump(KERN_ERR, "", DUMP_PREFIX_OFFSET, 16, 1, src, size, 1);

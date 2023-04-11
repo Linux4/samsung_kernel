@@ -792,6 +792,37 @@ __visible_for_testing ssize_t motor_type_show(struct device *dev, struct device_
 	return ret;
 }
 
+__visible_for_testing ssize_t use_sep_index_store(struct device *dev, struct device_attribute *attr,
+	const char *buf, size_t size)
+{
+	struct sec_vibrator_drvdata *ddata = g_ddata;
+	int ret = 0;
+	bool use_sep_index;
+
+	if (!is_valid_params(dev, attr, buf, ddata))
+		return -ENODATA;
+	
+	ret = kstrtobool(buf, &use_sep_index);
+	if (ret < 0) {
+		pr_err("%s kstrtobool error : %d\n", __func__, ret);
+		goto err;
+	}
+	
+	pr_info("%s use_sep_index:%d\n", __func__, use_sep_index);
+	
+	if (ddata->vib_ops->set_use_sep_index) {
+		ret = ddata->vib_ops->set_use_sep_index(ddata->dev, use_sep_index);
+		if (ret) {
+			pr_err("%s set_use_sep_index error : %d\n", __func__, ret);
+			goto err;
+		}
+	} else {
+		pr_info("%s this model doesn't need use_sep_index\n", __func__);
+	}
+err:
+	return ret ? ret : size;
+}
+
 __visible_for_testing ssize_t num_waves_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct sec_vibrator_drvdata *ddata = g_ddata;
@@ -1035,6 +1066,7 @@ static DEVICE_ATTR_RO(virtual_composite_indexes);
 static DEVICE_ATTR_RO(virtual_pwle_indexes);
 static DEVICE_ATTR_RW(enable);
 static DEVICE_ATTR_RO(motor_type);
+static DEVICE_ATTR_WO(use_sep_index);
 static DEVICE_ATTR_RO(num_waves);
 static DEVICE_ATTR_RO(intensities);
 static DEVICE_ATTR_RO(haptic_intensities);
@@ -1044,6 +1076,7 @@ static DEVICE_ATTR_RW(event_cmd);
 static struct attribute *sec_vibrator_attributes[] = {
 	&dev_attr_enable.attr,
 	&dev_attr_motor_type.attr,
+	&dev_attr_use_sep_index.attr,
 	NULL,
 };
 

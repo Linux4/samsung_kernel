@@ -158,7 +158,7 @@ int SessionAlsaUtils::setMixerCtlData(struct mixer_ctl *ctl, MixerCtlType id, vo
     int rc = -EINVAL;
 
     if (!ctl || !data || size == 0) {
-        PAL_ERR(LOG_TAG,"invalid mixer ctrl data passed");
+        PAL_ERR(LOG_TAG, "invalid mixer ctrl data passed");
         goto error;
     }
 
@@ -242,7 +242,7 @@ int SessionAlsaUtils::getTagMetadata(int32_t tagsent, std::vector <std::pair<int
 {
     int status = 0;
     if (tkv.size() == 0 || !tagConfig) {
-        PAL_ERR(LOG_TAG,"invalid key values passed");
+        PAL_ERR(LOG_TAG, "invalid key values passed");
         status = -EINVAL;
         goto error;
     }
@@ -263,7 +263,7 @@ int SessionAlsaUtils::getCalMetadata(std::vector <std::pair<int,int>> &ckv, stru
 {
     int status = 0;
     if (ckv.size() == 0 || !calConfig) {
-        PAL_ERR(LOG_TAG,"invalid key values passed");
+        PAL_ERR(LOG_TAG, "invalid key values passed");
         status = -EINVAL;
         goto error;
     }
@@ -295,7 +295,7 @@ struct mixer_ctl *SessionAlsaUtils::getFeMixerControl(struct mixer *am, std::str
     std::ostringstream cntrlName;
 
     cntrlName << feName << feCtrlNames[idx];
-    PAL_DBG(LOG_TAG,"mixer control %s", cntrlName.str().data());
+    PAL_DBG(LOG_TAG, "mixer control %s", cntrlName.str().data());
     return mixer_get_ctl_by_name(am, cntrlName.str().data());
 }
 
@@ -305,7 +305,7 @@ struct mixer_ctl *SessionAlsaUtils::getBeMixerControl(struct mixer *am, std::str
     std::ostringstream cntrlName;
 
     cntrlName << beName << beCtrlNames[idx];
-    PAL_DBG(LOG_TAG,"mixer control %s", cntrlName.str().data());
+    PAL_DBG(LOG_TAG, "mixer control %s", cntrlName.str().data());
     return mixer_get_ctl_by_name(am, cntrlName.str().data());
 }
 
@@ -317,6 +317,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     std::vector <std::pair<int, int>> streamDeviceKV;
     std::vector <std::pair<int, int>> deviceKV;
     std::vector <std::pair<int, int>> devicePPCKV;
+    std::vector <std::pair<int, int>> deviceCKV;
     std::vector <std::pair<int, int>> emptyKV;
     int status = 0;
     struct pal_stream_attributes sAttr;
@@ -337,12 +338,12 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     struct pal_device dAttr;
     PayloadBuilder* builder = nullptr;
 
-    PAL_DBG(LOG_TAG,"Entry \n");
+    PAL_DBG(LOG_TAG, "Entry \n");
 
     memset(&dAttr, 0, sizeof(pal_device));
     status = streamHandle->getStreamAttributes(&sAttr);
     if(0 != status) {
-        PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
+        PAL_ERR(LOG_TAG, "getStreamAttributes Failed \n");
         goto exit;
     }
 
@@ -360,16 +361,32 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         PAL_ERR(LOG_TAG, "get stream KV failed %d", status);
         goto exit;
     }
-    if (sAttr.type != PAL_STREAM_ACD &&
-        sAttr.type != PAL_STREAM_CONTEXT_PROXY &&
-        sAttr.type != PAL_STREAM_SENSOR_PCM_DATA) {
-        status = builder->populateStreamCkv(streamHandle, streamCKV, 0,
-                (struct pal_volume_data **)nullptr);
-        if (status) {
-            PAL_ERR(LOG_TAG, "get stream ckv failed %d", status);
-            goto exit;
-        }
+
+    switch (sAttr.type) {
+        case PAL_STREAM_ACD :
+        case PAL_STREAM_CONTEXT_PROXY :
+        case PAL_STREAM_SENSOR_PCM_DATA:
+            // No need to set volume ckv
+        break;
+        case PAL_STREAM_LOOPBACK:
+            if ((sAttr.info.opt_stream_info.loopback_type ==
+                            PAL_STREAM_LOOPBACK_PLAYBACK_ONLY) ||
+                (sAttr.info.opt_stream_info.loopback_type ==
+                            PAL_STREAM_LOOPBACK_CAPTURE_ONLY)) {
+                // Will continue without setting volume CKV
+                break;
+            }
+            [[fallthrough]]; //Intentional fallthrough
+        default:
+            // Set the volume CKV
+            status = builder->populateStreamCkv(streamHandle, streamCKV, 0,
+                    (struct pal_volume_data **)nullptr);
+            if (status) {
+                PAL_ERR(LOG_TAG, "get stream ckv failed %d", status);
+                goto exit;
+            }
     }
+
     if ((streamKV.size() > 0) || (streamCKV.size() > 0)) {
         getAgmMetaData(streamKV, streamCKV, (struct prop_data *)streamPropId,
                 streamMetaData);
@@ -419,7 +436,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
                 }
             }
             if (i >= associatedDevices.size() ) {
-                PAL_ERR(LOG_TAG,"could not find associated device kv cannot be set");
+                PAL_ERR(LOG_TAG, "could not find associated device kv cannot be set");
 
             } else{
                 rmHandle->getDeviceInfo((pal_device_id_t)be->first, sAttr.type,
@@ -444,37 +461,22 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
             status = 0; /**< ignore stream device KV failures */
         }
 
+        deviceCKV.clear();
+
         if (ResourceManager::isSpeakerProtectionEnabled) {
             PAL_DBG(LOG_TAG, "Speaker protection enabled");
-            for (int i = 0; i < associatedDevices.size(); i++) {
-                if (associatedDevices[i]->getSndDeviceId() ==
-                            PAL_DEVICE_OUT_SPEAKER) {
-                    status = builder->populateCalKeyVector(streamHandle, emptyKV,
-                                    SPKR_PROT_ENABLE);
-                    if (status != 0) {
-                        PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
-                        status = 0; /**< ignore device SP CKV failures */
-                    }
-                    break;
-                }
-                else if (associatedDevices[i]->getSndDeviceId() ==
-                                PAL_DEVICE_IN_VI_FEEDBACK) {
-                    status = builder->populateCalKeyVector(streamHandle, emptyKV,
-                                    SPKR_VI_ENABLE);
-                    if (status != 0) {
-                        PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
-                        status = 0; /**< ignore device SP CKV failures */
-                    }
-                    break;
+            if (be->first == PAL_DEVICE_OUT_SPEAKER) {
+                status = builder->populateCalKeyVector(streamHandle, deviceCKV,
+                                SPKR_PROT_ENABLE);
+                if (status != 0) {
+                    PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
+                    status = 0; /**< ignore device SP CKV failures */
                 }
             }
         }
-        else {
-            // Not setting CKV as SP is disabled by default.
-            PAL_DBG(LOG_TAG, "Speaker protection disabled");
-        }
+
         if (deviceKV.size() > 0) {
-            getAgmMetaData(deviceKV, emptyKV, (struct prop_data *)devicePropId,
+            getAgmMetaData(deviceKV, deviceCKV, (struct prop_data *)devicePropId,
                     deviceMetaData);
             if (!deviceMetaData.size) {
                 PAL_ERR(LOG_TAG, "device metadata is zero");
@@ -482,6 +484,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
                 goto freeMetaData;
             }
         }
+
         if (streamDeviceKV.size() > 0 || devicePPCKV.size() > 0) {
             getAgmMetaData(streamDeviceKV, devicePPCKV, (struct prop_data *)streamDevicePropId,
                     streamDeviceMetaData);
@@ -493,7 +496,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         }
         beMetaDataMixerCtrl = SessionAlsaUtils::getBeMixerControl(mixerHandle, be->second, BE_METADATA);
         if (!beMetaDataMixerCtrl) {
-            PAL_ERR(LOG_TAG, "invalid mixer control: %s %s", be->second.data(),
+            PAL_FATAL(LOG_TAG, "invalid mixer control: %s %s", be->second.data(),
                     beCtrlNames[BE_METADATA]);
             status = -EINVAL;
             goto freeMetaData;
@@ -530,7 +533,7 @@ exit:
        delete builder;
        builder = NULL;
     }
-    PAL_DBG(LOG_TAG,"Exit, status %d", status);
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
@@ -779,6 +782,7 @@ int SessionAlsaUtils::setDeviceMediaConfig(std::shared_ptr<ResourceManager> rmHa
         PAL_INFO(LOG_TAG, "%s rate ch fmt data_fmt slot_mask %ld %ld %ld %ld %ld\n", truncatedBeName.c_str(),
                 aif_group_atrr_config[0], aif_group_atrr_config[1], aif_group_atrr_config[2],
                 aif_group_atrr_config[3], aif_group_atrr_config[4]);
+        rmHandle->currentGroupDevConfig = rmHandle->activeGroupDevConfig;
     }
     ctl = SessionAlsaUtils::getBeMixerControl(mixerHandle, backEndName , BE_MEDIAFMT);
     if (!ctl) {
@@ -804,7 +808,7 @@ int SessionAlsaUtils::getTimestamp(struct mixer *mixer, const std::vector<int> &
     std::ostringstream CntrlName;
     struct mixer_ctl *ctl;
     struct param_id_spr_session_time_t *spr_session_time;
-    uint8_t* payload = NULL;
+    std::shared_ptr<std::vector<uint8_t>> payload = nullptr;
     size_t payloadSize = 0;
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
@@ -827,20 +831,25 @@ int SessionAlsaUtils::getTimestamp(struct mixer *mixer, const std::vector<int> &
     }
 
     PayloadBuilder* builder = new PayloadBuilder();
-    builder->payloadTimestamp(&payload, &payloadSize, spr_miid);
-    status = mixer_ctl_set_array(ctl, payload, payloadSize);
+    builder->payloadTimestamp(payload, &payloadSize, spr_miid);
+    if (!payload) {
+        PAL_ERR(LOG_TAG, "Timestamp payload formation failed");
+        status = -EINVAL;
+        goto exit;
+    }
+    status = mixer_ctl_set_array(ctl, payload->data(), payloadSize);
     if (0 != status) {
          PAL_ERR(LOG_TAG, "Set failed status = %d", status);
          goto exit;
     }
-    memset(payload, 0, payloadSize);
-    status = mixer_ctl_get_array(ctl, payload, payloadSize);
+    memset(payload->data(), 0, payloadSize);
+    status = mixer_ctl_get_array(ctl, payload->data(), payloadSize);
     if (0 != status) {
          PAL_ERR(LOG_TAG, "Get failed status = %d", status);
          goto exit;
     }
     spr_session_time = (struct param_id_spr_session_time_t *)
-                     (payload + sizeof(struct apm_module_param_data_t));
+                     (payload->data() + sizeof(struct apm_module_param_data_t));
     stime->session_time.value_lsw = spr_session_time->session_time.value_lsw;
     stime->session_time.value_msw = spr_session_time->session_time.value_msw;
     stime->absolute_time.value_lsw = spr_session_time->absolute_time.value_lsw;
@@ -849,9 +858,6 @@ int SessionAlsaUtils::getTimestamp(struct mixer *mixer, const std::vector<int> &
     stime->timestamp.value_msw = spr_session_time->timestamp.value_msw;
     //flags from Spf are igonred
 exit:
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
-    delete [] payload;
-#endif
     if(builder) {
        delete builder;
        builder = NULL;
@@ -932,10 +938,6 @@ int SessionAlsaUtils::getModuleInstanceId(struct mixer *mixer, int device, const
                  break;
             }
         }
-    }
-    if (*miid == 0) {
-         ret =  -EINVAL;
-         PAL_ERR(LOG_TAG, "No matching MIID found for tag: 0x%x, error:%d", tag_id, ret);
     }
 
     if (*miid == 0) {
@@ -1026,7 +1028,6 @@ int SessionAlsaUtils::setMixerParameter(struct mixer *mixer, int device,
     ctl_len = strlen(pcmDeviceName) + 1 + strlen(control) + 1;
     mixer_str = (char *)calloc(1, ctl_len);
     if (!mixer_str) {
-        free(payload);
         return -ENOMEM;
     }
     snprintf(mixer_str, ctl_len, "%s %s", pcmDeviceName, control);
@@ -1063,7 +1064,7 @@ int SessionAlsaUtils::setStreamMetadataType(struct mixer *mixer, int device, con
     mixer_str = (char *)calloc(1, ctl_len);
     if(mixer_str == NULL) {
         ret = -ENOMEM;
-        PAL_ERR(LOG_TAG,"calloc failed");
+        PAL_ERR(LOG_TAG, "calloc failed");
         return ret;
     }
     snprintf(mixer_str, ctl_len, "%s %s", pcmDeviceName, control);
@@ -1155,7 +1156,7 @@ int SessionAlsaUtils::setECRefPath(struct mixer *mixer, int device, const char *
     mixer_str = (char *)calloc(1, ctl_len);
     if(mixer_str == NULL) {
         ret = -ENOMEM;
-        PAL_ERR(LOG_TAG,"calloc failed");
+        PAL_ERR(LOG_TAG, "calloc failed");
         return ret;
     }
     snprintf(mixer_str, ctl_len, "%s %s", pcmDeviceName, control);
@@ -1221,6 +1222,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     std::vector <std::pair<int, int>> streamRxCKV, streamTxCKV;
     std::vector <std::pair<int, int>> streamDeviceRxKV, streamDeviceTxKV;
     std::vector <std::pair<int, int>> deviceRxKV, deviceTxKV;
+    std::vector <std::pair<int, int>> deviceCKV;
     // Using as empty key vector pairs
     std::vector <std::pair<int, int>> emptyKV;
     int status = 0;
@@ -1246,6 +1248,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     struct vsid_info vsidinfo = {};
     sidetone_mode_t sidetoneMode = SIDETONE_OFF;
     struct pal_device dAttr;
+    bool isDeviceFound = false;
 
     if (RxDevIds.empty() || TxDevIds.empty()) {
         PAL_ERR(LOG_TAG, "RX and TX FE Dev Ids are empty");
@@ -1253,13 +1256,13 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     }
     status = streamHandle->getStreamAttributes(&sAttr);
     if(0 != status) {
-        PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
+        PAL_ERR(LOG_TAG, "getStreamAttributes Failed \n");
         return status;
     }
 
     status = streamHandle->getAssociatedDevices(associatedDevices);
     if(0 != status) {
-        PAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
+        PAL_ERR(LOG_TAG, "getAssociatedDevices Failed \n");
         return status;
     }
     if (associatedDevices.size() != 2) {
@@ -1275,14 +1278,16 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     for (i = 0; i < associatedDevices.size(); i++) {
         associatedDevices[i]->getDeviceAttributes(&dAttr);
         if (txBackEnds[0].first == dAttr.id) {
+            isDeviceFound = true;
             break;
         }
     }
-    if (i >= associatedDevices.size() ) {
-        PAL_ERR(LOG_TAG,"could not find associated device kv cannot be set");
-    } else{
+    if (isDeviceFound) {
         rmHandle->getDeviceInfo((pal_device_id_t)txBackEnds[0].first, sAttr.type,
-                                dAttr.custom_config.custom_key, &devinfo);
+                dAttr.custom_config.custom_key, &devinfo);
+    }
+    else {
+        PAL_ERR(LOG_TAG, "could not find associated device kv cannot be set");
     }
 
     if(sAttr.type == PAL_STREAM_VOICE_CALL){
@@ -1340,35 +1345,6 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         status = 0; /**< ignore stream device KV failures */
     }
 
-    if (ResourceManager::isSpeakerProtectionEnabled) {
-        PAL_DBG(LOG_TAG, "Speaker protection enabled");
-        for (int i = 0; i < associatedDevices.size(); i++) {
-            if (associatedDevices[i]->getSndDeviceId() ==
-                        PAL_DEVICE_OUT_SPEAKER) {
-                status = builder->populateCalKeyVector(streamHandle, emptyKV,
-                                SPKR_PROT_ENABLE);
-                if (status != 0) {
-                    PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
-                    status = 0; /**< ignore device SP CKV failures */
-                }
-                break;
-            }
-            else if (associatedDevices[i]->getSndDeviceId() ==
-                            PAL_DEVICE_IN_VI_FEEDBACK) {
-                status = builder->populateCalKeyVector(streamHandle, emptyKV,
-                                SPKR_VI_ENABLE);
-                if (status != 0) {
-                    PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
-                    status = 0; /**< ignore device SP CKV failures */
-                }
-                break;
-            }
-        }
-    }
-    else {
-        // Not setting CKV as SP is disabled by default.
-        PAL_DBG(LOG_TAG, "Speaker protection disabled");
-    }
     // get audio mixer
     if ((streamRxKV.size() > 0) || (streamRxCKV.size() > 0)) {
         SessionAlsaUtils::getAgmMetaData(streamRxKV, streamRxCKV,
@@ -1379,8 +1355,21 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
             goto freeRxMetaData;
         }
     }
+    deviceCKV.clear();
+    if (ResourceManager::isSpeakerProtectionEnabled) {
+        PAL_DBG(LOG_TAG, "Speaker protection enabled");
+        if (rxBackEnds[0].first == PAL_DEVICE_OUT_SPEAKER) {
+            status = builder->populateCalKeyVector(streamHandle, deviceCKV,
+                            SPKR_PROT_ENABLE);
+            if (status != 0) {
+                PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
+                status = 0; /**< ignore device SP CKV failures */
+            }
+        }
+    }
+
     if (deviceRxKV.size() > 0) {
-        SessionAlsaUtils::getAgmMetaData(deviceRxKV, emptyKV,
+        SessionAlsaUtils::getAgmMetaData(deviceRxKV, deviceCKV,
                 (struct prop_data *)devicePropId, deviceRxMetaData);
         if (!deviceRxMetaData.size) {
             PAL_ERR(LOG_TAG, "device RX metadata is zero");
@@ -1645,7 +1634,7 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
 
     status = streamHandle->getStreamAttributes(&sAttr);
     if(0 != status) {
-        PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
+        PAL_ERR(LOG_TAG, "getStreamAttributes Failed \n");
         goto exit;
     }
     if (sAttr.type != PAL_STREAM_VOICE_CALL_RECORD && sAttr.type != PAL_STREAM_VOICE_CALL_MUSIC) {
@@ -1840,10 +1829,18 @@ int SessionAlsaUtils::disconnectSessionDevice(Stream* streamHandle, pal_stream_t
                 sub = 1;
             else
                 sub = 2;
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            if (dAttr.id > PAL_DEVICE_OUT_MIN && dAttr.id < PAL_DEVICE_OUT_MAX) {
+#else
             if (dAttr.id >= PAL_DEVICE_OUT_HANDSET && dAttr.id <= PAL_DEVICE_OUT_HEARING_AID) {
+#endif
                 feName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "p";
                 disconnectCtrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "p" << " disconnect";
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            } else if (dAttr.id > PAL_DEVICE_IN_MIN && dAttr.id < PAL_DEVICE_IN_MAX) {
+#else
             } else if (dAttr.id >= PAL_DEVICE_IN_HANDSET_MIC && dAttr.id <= PAL_DEVICE_IN_PROXY) {
+#endif
                 feName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "c";
                 disconnectCtrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "c" << " disconnect";
             }
@@ -1930,6 +1927,7 @@ int SessionAlsaUtils::disconnectSessionDevice(Stream* streamHandle, pal_stream_t
 
     switch (streamType) {
          case PAL_STREAM_ULTRASOUND:
+         case PAL_STREAM_LOOPBACK:
              status = rmHandle->getVirtualAudioMixer(&mixerHandle);
              txFeName << PCM_SND_DEV_NAME_PREFIX << pcmTxDevIds.at(0);
              txFeMixerCtrls[FE_LOOPBACK] = getFeMixerControl(mixerHandle, txFeName.str(), FE_LOOPBACK);
@@ -1940,8 +1938,12 @@ int SessionAlsaUtils::disconnectSessionDevice(Stream* streamHandle, pal_stream_t
                  return status;
              }
              mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_LOOPBACK], "ZERO");
-             disconnectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmRxDevIds.at(0) << " disconnect";
-             break;
+             if (dAttr.id > PAL_DEVICE_OUT_MIN && dAttr.id < PAL_DEVICE_OUT_MAX) {
+                 disconnectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmRxDevIds.at(0) << " disconnect";
+             } else if (dAttr.id > PAL_DEVICE_IN_MIN && dAttr.id < PAL_DEVICE_IN_MAX) {
+                 disconnectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmTxDevIds.at(0) << " disconnect";
+             }
+            break;
         default:
             disconnectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmRxDevIds.at(0) << " disconnect";
             break;
@@ -1969,6 +1971,8 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
     int status = 0;
     std::ostringstream connectCtrlName;
     struct pal_stream_attributes sAttr;
+    uint8_t* payload = NULL;
+    size_t payloadSize = 0;
     int sub = 1;
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
@@ -1994,9 +1998,17 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
             else
                 sub = 2;
 
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            if (dAttr.id > PAL_DEVICE_OUT_MIN && dAttr.id < PAL_DEVICE_OUT_MAX) {
+#else
             if (dAttr.id >= PAL_DEVICE_OUT_HANDSET && dAttr.id <= PAL_DEVICE_OUT_HEARING_AID) {
+#endif
                 connectCtrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "p" << " connect";
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            } else if (dAttr.id > PAL_DEVICE_IN_MIN && dAttr.id < PAL_DEVICE_IN_MAX) {
+#else
             } else if (dAttr.id >= PAL_DEVICE_IN_HANDSET_MIC && dAttr.id <= PAL_DEVICE_IN_PROXY) {
+#endif
                 connectCtrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "c" << " connect";
             }
             break;
@@ -2013,7 +2025,20 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
             if (sess) {
                 sess->configureMFC(rmHandle, sAttr, dAttr, pcmDevIds,
                                     aifBackEndsToConnect[0].second.data());
+                sess->getCustomPayload(&payload, &payloadSize);
+                if (payload) {
+                    status = SessionAlsaUtils::setMixerParameter(mixerHandle, pcmDevIds.at(0),
+                                                             payload, payloadSize);
+                    sess->freeCustomPayload();
+                    payload = NULL;
+                    payloadSize = 0;
+                    if (status != 0) {
+                        PAL_ERR(LOG_TAG, "setMixerParameter failed");
+                        goto exit;
+                    }
+                }
             } else {
+                PAL_ERR(LOG_TAG, "invalid session audio object");
                 status = -EINVAL;
                 goto exit;
             }
@@ -2021,6 +2046,11 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
     } else if (!(SessionAlsaUtils::isMmapUsecase(sAttr))) {
         if (sess) {
             SessionAlsaVoice *voiceSession = dynamic_cast<SessionAlsaVoice *>(sess);
+            if (!voiceSession) {
+                PAL_ERR(LOG_TAG, "invalid session voice object");
+                status = -EINVAL;
+                goto exit;
+            }
             if (SessionAlsaUtils::isRxDevice(aifBackEndsToConnect[0].first)) {
                 voiceSession->setSessionParameters(streamHandle, RX_HOSTLESS);
             } else {
@@ -2057,20 +2087,41 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
     struct mixer_ctl *txFeMixerCtrls[FE_MAX_NUM_MIXER_CONTROLS] = { nullptr };
     std::ostringstream txFeName,rxFeName;
     struct pal_stream_attributes sAttr;
+    uint8_t* payload = NULL;
+    size_t payloadSize = 0;
+    bool is_out_dev = false;
 
-    connectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmRxDevIds.at(0) << " connect";
+    if (dAttr.id > PAL_DEVICE_OUT_MIN && dAttr.id < PAL_DEVICE_OUT_MAX) {
+        is_out_dev = true;
+        connectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmRxDevIds.at(0) << " connect";
+    } else if (dAttr.id > PAL_DEVICE_IN_MIN && dAttr.id < PAL_DEVICE_IN_MAX) {
+        connectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmTxDevIds.at(0) << " connect";
+    }
 
     status = rmHandle->getVirtualAudioMixer(&mixerHandle);
     if (status) {
         PAL_ERR(LOG_TAG, "get mixer handle failed %d", status);
         goto exit;
     }
-    if (((dAttr.id == PAL_DEVICE_OUT_SPEAKER) ||
-        (rmHandle->activeGroupDevConfig && dAttr.id == PAL_DEVICE_OUT_ULTRASOUND))&&
-        streamType == PAL_STREAM_ULTRASOUND) {
+    if ((((dAttr.id == PAL_DEVICE_OUT_SPEAKER) ||
+          (rmHandle->activeGroupDevConfig && dAttr.id == PAL_DEVICE_OUT_ULTRASOUND))&&
+          (streamType == PAL_STREAM_ULTRASOUND)) ||
+        (is_out_dev && streamType == PAL_STREAM_LOOPBACK)) {
         if (sess) {
             sess->configureMFC(rmHandle,sAttr, dAttr, pcmRxDevIds,
                                 aifBackEndsToConnect[0].second.data());
+            sess->getCustomPayload(&payload, &payloadSize);
+            if (payload) {
+                status = SessionAlsaUtils::setMixerParameter(mixerHandle, pcmRxDevIds.at(0),
+                                                         payload, payloadSize);
+                sess->freeCustomPayload();
+                payload = NULL;
+                payloadSize = 0;
+                if (status != 0) {
+                    PAL_ERR(LOG_TAG, "setMixerParameter failed");
+                    goto exit;
+                }
+            }
         } else {
             PAL_ERR(LOG_TAG, "invalid session ultrasound object");
             status = -EINVAL;
@@ -2089,6 +2140,7 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
 
     switch (streamType) {
          case PAL_STREAM_ULTRASOUND:
+         case PAL_STREAM_LOOPBACK:
              status = rmHandle->getVirtualAudioMixer(&mixerHandle);
              txFeName << PCM_SND_DEV_NAME_PREFIX << pcmTxDevIds.at(0);
              rxFeName << PCM_SND_DEV_NAME_PREFIX << pcmRxDevIds.at(0);
@@ -2123,6 +2175,7 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, pal_stream_type_t
     std::vector <std::pair<int, int>> streamDeviceKV;
     std::vector <std::pair<int, int>> deviceKV;
     std::vector <std::pair<int, int>> emptyKV;
+    std::vector <std::pair<int, int>> deviceCKV;
     std::vector <std::pair<int, int>> devicePPCKV;
     int status = 0;
     struct agmMetaData deviceMetaData(nullptr, 0);
@@ -2149,7 +2202,7 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, pal_stream_type_t
 
     status = streamHandle->getStreamAttributes(&sAttr);
     if(0 != status) {
-        PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
+        PAL_ERR(LOG_TAG, "getStreamAttributes Failed \n");
         goto exit;
     }
 
@@ -2200,32 +2253,22 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, pal_stream_type_t
         status = 0; /** ignore error */
     }
 
+    deviceCKV.clear();
+
     if (ResourceManager::isSpeakerProtectionEnabled) {
         PAL_DBG(LOG_TAG, "Speaker protection enabled");
-        if (dAttr.id == PAL_DEVICE_OUT_SPEAKER) {
-            status = builder->populateCalKeyVector(streamHandle, emptyKV,
-                                SPKR_PROT_ENABLE);
+        if (aifBackEndsToConnect[0].first == PAL_DEVICE_OUT_SPEAKER) {
+            status = builder->populateCalKeyVector(streamHandle, deviceCKV,
+                            SPKR_PROT_ENABLE);
             if (status != 0) {
                 PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
                 status = 0; /**< ignore device SP CKV failures */
             }
-         }
-         else if (dAttr.id == PAL_DEVICE_IN_VI_FEEDBACK) {
-            status = builder->populateCalKeyVector(streamHandle, emptyKV,
-                                SPKR_VI_ENABLE);
-            if (status != 0) {
-                PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
-                status = 0; /**< ignore device SP CKV failures */
-            }
-         }
-    }
-    else {
-        // Not setting CKV as SP is disabled by default.
-        PAL_DBG(LOG_TAG, "Speaker protection disabled");
+        }
     }
 
     if (deviceKV.size() > 0) {
-        SessionAlsaUtils::getAgmMetaData(deviceKV, emptyKV, (struct prop_data *)devicePropId,
+        SessionAlsaUtils::getAgmMetaData(deviceKV, deviceCKV, (struct prop_data *)devicePropId,
                 deviceMetaData);
         if (!deviceMetaData.size) {
             PAL_ERR(LOG_TAG, "device meta data is zero");
@@ -2233,6 +2276,7 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, pal_stream_type_t
             goto freeMetaData;
         }
     }
+
     status = builder->populateDevicePPCkv(streamHandle, devicePPCKV);
     if (status) {
         PAL_ERR(LOG_TAG, "populateDevicePP Ckv failed %d", status);
@@ -2269,11 +2313,19 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, pal_stream_type_t
             else
                 sub = 2;
 
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            if (dAttr.id > PAL_DEVICE_OUT_MIN && dAttr.id < PAL_DEVICE_OUT_MAX) {
+#else
             if (dAttr.id >= PAL_DEVICE_OUT_HANDSET && dAttr.id <= PAL_DEVICE_OUT_HEARING_AID) {
+#endif
                 cntrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "p" << " control";
                 aifMdName << aifBackEndsToConnect[0].second.data() << " metadata";
                 feMdName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "p" << " metadata";
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            } else if (dAttr.id > PAL_DEVICE_IN_MIN && dAttr.id < PAL_DEVICE_IN_MAX) {
+#else
             } else if (dAttr.id >= PAL_DEVICE_IN_HANDSET_MIC && dAttr.id <= PAL_DEVICE_IN_PROXY) {
+#endif
                 cntrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "c" << " control";
                 aifMdName << aifBackEndsToConnect[0].second.data() << " metadata";
                 feMdName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "c" << " metadata";
@@ -2290,7 +2342,7 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, pal_stream_type_t
     status = rmHandle->getVirtualAudioMixer(&mixerHandle);
 
     aifMdCtrl = mixer_get_ctl_by_name(mixerHandle, aifMdName.str().data());
-    PAL_DBG(LOG_TAG,"mixer control %s", aifMdName.str().data());
+    PAL_DBG(LOG_TAG, "mixer control %s", aifMdName.str().data());
     if (!aifMdCtrl) {
         PAL_ERR(LOG_TAG, "invalid mixer control: %s", aifMdName.str().data());
         status = -EINVAL;
@@ -2300,7 +2352,7 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, pal_stream_type_t
         mixer_ctl_set_array(aifMdCtrl, (void *)deviceMetaData.buf, deviceMetaData.size);
 
     feCtrl = mixer_get_ctl_by_name(mixerHandle, cntrlName.str().data());
-    PAL_DBG(LOG_TAG,"mixer control %s", cntrlName.str().data());
+    PAL_DBG(LOG_TAG, "mixer control %s", cntrlName.str().data());
     if (!feCtrl) {
         PAL_ERR(LOG_TAG, "invalid mixer control: %s", cntrlName.str().data());
         status = -EINVAL;
@@ -2309,7 +2361,7 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, pal_stream_type_t
     mixer_ctl_set_enum_by_string(feCtrl, aifBackEndsToConnect[0].second.data());
 
     feMdCtrl = mixer_get_ctl_by_name(mixerHandle, feMdName.str().data());
-    PAL_DBG(LOG_TAG,"mixer control %s", feMdName.str().data());
+    PAL_DBG(LOG_TAG, "mixer control %s", feMdName.str().data());
     if (!feMdCtrl) {
         PAL_ERR(LOG_TAG, "invalid mixer control: %s", feMdName.str().data());
         status = -EINVAL;

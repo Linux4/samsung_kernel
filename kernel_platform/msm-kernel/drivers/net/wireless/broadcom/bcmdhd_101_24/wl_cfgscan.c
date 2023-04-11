@@ -1226,8 +1226,16 @@ s32 wl_cfgscan_pfn_handler(struct bcm_cfg80211 *cfg, wl_pfn_scanresult_v3_1_t *p
 			"or invalid bss_info length\n"));
 		goto exit;
 	}
-
+	preempt_disable();
+#ifdef ESCAN_CHANNEL_CACHE
+	add_roam_cache(cfg, bi);
+#endif /* ESCAN_CHANNEL_CACHE */
 	err = wl_inform_single_bss(cfg, bi, false);
+	if (unlikely(err)) {
+		WL_ERR(("bss inform failed\n"));
+	}
+	preempt_enable();
+	WL_MEM(("cfg80211 scan cache updated\n"));
 exit:
 	return err;
 }
@@ -3563,6 +3571,11 @@ wl_cfg80211_scan_mac_disable(struct net_device *dev)
 #define PNO_FREQ_EXPO_MAX           2u
 #define PNO_ADAPTIVE_SCAN_LIMIT     80u
 #define ADP_PNO_REPEAT_DEFAULT      2u
+#ifndef WL_DUAL_STA
+#define PNO_SCAN_MAX_UNASSOC_SEC    PNO_SCAN_MAX_FW_SEC
+#define PNO_SCAN_MAX_ASSOC_SEC      3600
+#endif /* !WL_DUAL_STA */
+
 static bool
 is_ssid_in_list(struct cfg80211_ssid *ssid, struct cfg80211_ssid *ssid_list, int count)
 {
@@ -3652,6 +3665,23 @@ wl_cfg80211_sched_scan_start(struct wiphy *wiphy,
 		/* use host provided values */
 		pno_time = request->scan_plans->interval;
 	}
+
+#ifndef WL_DUAL_STA
+	{
+		uint32 max_scan_freq = PNO_SCAN_MAX_UNASSOC_SEC;
+
+		if (wl_get_drv_status(cfg, CONNECTED, dev)) {
+			max_scan_freq = PNO_SCAN_MAX_ASSOC_SEC;
+		}
+
+		if (pno_time < PNO_SCAN_MIN_FW_SEC ||
+			pno_time > max_scan_freq) {
+			WL_ERR(("Invalid pno scan interval:%d, max pno scan interval:%d\n",
+				pno_time, max_scan_freq));
+			return -EINVAL;
+		}
+	}
+#endif /* !WL_DUAL_STA */
 
 	if (!request->n_ssids || !request->n_match_sets) {
 		WL_ERR(("Invalid sched scan req!! n_ssids:%d, request->n_match_sets:%d \n",

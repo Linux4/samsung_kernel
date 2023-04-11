@@ -78,6 +78,7 @@ struct cam_hw_param_collector {
 	struct cam_hw_param iris_hwparam;
 	struct cam_hw_param rear2_hwparam;
 	struct cam_hw_param rear3_hwparam;
+	struct cam_hw_param rear4_hwparam;
 	struct cam_hw_param front2_hwparam;
 	struct cam_hw_param front3_hwparam;
 } __attribute__((__packed__));
@@ -89,15 +90,17 @@ void msm_is_sec_copy_err_cnt_from_file(void);
 void msm_is_sec_copy_err_cnt_to_file(void);
 
 int msm_is_sec_file_exist(char *filename, hw_params_check_type chktype);
-int msm_is_sec_get_sensor_position(uint32_t **sensor_position);
+int msm_is_sec_get_sensor_position(uint32_t *sensor_position);
 int msm_is_sec_get_sensor_comp_mode(uint32_t **sensor_comp_mode);
 int msm_is_sec_get_rear_hw_param(struct cam_hw_param **hw_param);
 int msm_is_sec_get_front_hw_param(struct cam_hw_param **hw_param);
 int msm_is_sec_get_iris_hw_param(struct cam_hw_param **hw_param);
 int msm_is_sec_get_rear2_hw_param(struct cam_hw_param **hw_param);
 int msm_is_sec_get_rear3_hw_param(struct cam_hw_param **hw_param);
+int msm_is_sec_get_rear4_hw_param(struct cam_hw_param **hw_param);
 int msm_is_sec_get_front2_hw_param(struct cam_hw_param **hw_param);
 int msm_is_sec_get_front3_hw_param(struct cam_hw_param **hw_param);
+int msm_is_sec_get_hw_param(uint32_t camera_id, struct cam_hw_param **hw_param);
 #endif
 
 enum camera_flash_opcode {

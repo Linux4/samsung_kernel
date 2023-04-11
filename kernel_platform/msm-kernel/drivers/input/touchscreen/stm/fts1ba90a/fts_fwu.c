@@ -415,7 +415,7 @@ int fts_fw_wait_for_echo_event(struct fts_ts_info *info, u8 *cmd, u8 cmd_cnt, in
 				break;
 		}
 
-		if (retry++ > FTS_RETRY_COUNT * 50) {
+		if (retry++ > FTS_RETRY_COUNT * 25) {
 			input_err(true, &info->client->dev, "%s: Time Over (%02X,%02X,%02X,%02X,%02X,%02X)\n",
 				__func__, data[0], data[1], data[2], data[3], data[4], data[5]);
 			break;
@@ -494,7 +494,11 @@ int fts_execute_autotune(struct fts_ts_info *info, bool IsSaving)
 
 	input_info(true, &info->client->dev, "%s: start\n", __func__);
 
-	info->fts_command(info, FTS_CMD_CLEAR_ALL_EVENT, true);
+	rc = info->fts_command(info, FTS_CMD_CLEAR_ALL_EVENT, true);
+	if (rc < 0) {
+		info->factory_position = OFFSET_FAC_NOSAVE;
+		return rc;
+	}
 
 	fts_interrupt_set(info, INT_DISABLE);
 
@@ -559,6 +563,8 @@ static const int fts_fw_updater(struct fts_ts_info *info, u8 *fw_data)
 		return -ENODEV;
 	}
 
+	atomic_set(&info->fw_update_is_running, 1);
+
 	header = (struct fts_header *)fw_data;
 	fw_main_version = (u16)header->ext_release_ver;
 
@@ -604,6 +610,8 @@ static const int fts_fw_updater(struct fts_ts_info *info, u8 *fw_data)
 		}
 	}
 	fts_interrupt_set(info, INT_ENABLE);
+
+	atomic_set(&info->fw_update_is_running, 0);
 
 	return retval;
 }
@@ -689,6 +697,15 @@ int fts_fw_update_on_probe(struct fts_ts_info *info)
 		retval = FTS_NEED_FW_UPDATE;
 	else
 		retval = FTS_NOT_ERROR;
+
+	if ((info->board->bringup == 3) &&
+			((info->fw_main_version_of_ic != info->fw_main_version_of_bin)
+			|| (info->config_version_of_ic != info->config_version_of_bin)
+			|| (info->fw_version_of_ic != info->fw_version_of_bin))) {
+		input_info(true, &info->client->dev,
+				"%s: bringup 3, force update because version is different\n", __func__);
+		retval = FTS_NEED_FW_UPDATE;
+	}
 
 	/* ic fw ver > bin fw ver && force is false */
 	if (retval != FTS_NEED_FW_UPDATE) {

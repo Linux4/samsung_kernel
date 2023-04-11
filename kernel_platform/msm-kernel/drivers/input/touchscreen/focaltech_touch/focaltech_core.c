@@ -1226,6 +1226,12 @@ static void fts_ts_dt_parse_trusted_touch_info(struct fts_ts_data *fts_data)
 	const char *selection;
 	const char *environment;
 
+#ifdef CONFIG_ARCH_QTI_VM
+	fts_data->touch_environment = "tvm";
+#else
+	fts_data->touch_environment = "pvm";
+#endif
+
 	rc = of_property_read_string(np, "focaltech,trusted-touch-mode",
 								&selection);
 	if (rc) {
@@ -1949,6 +1955,14 @@ static irqreturn_t fts_irq_handler(int irq, void *data)
 	if (!mutex_trylock(&fts_data->transition_lock))
 		return IRQ_HANDLED;
 
+#ifdef CONFIG_FTS_TRUSTED_TOUCH
+#ifndef CONFIG_ARCH_QTI_VM
+	if (atomic_read(&fts_data->trusted_touch_enabled) == 1) {
+		mutex_unlock(&fts_data->transition_lock);
+		return IRQ_HANDLED;
+	}
+#endif
+#endif
 	fts_irq_read_report();
 	mutex_unlock(&fts_data->transition_lock);
 

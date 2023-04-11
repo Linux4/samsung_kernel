@@ -150,12 +150,7 @@ StreamACD::StreamACD(struct pal_stream_attributes *sattr,
         &disable_concurrency_count);
 
     // check if lpi should be used
-    if (rm->IsLPISupported(PAL_STREAM_ACD) &&
-        !(rm->isNLPISwitchSupported(PAL_STREAM_ACD) && enable_concurrency_count)) {
-        use_lpi_ = true;
-    } else {
-        use_lpi_ = false;
-    }
+    use_lpi_ = rm->getLPIUsage();
 
     /*
      * When voice/voip/record is active and concurrency is not
@@ -536,17 +531,45 @@ exit:
 
 void StreamACD::SendCachedEventData()
 {
-    size_t event_size = cached_event_data_->data_size + sizeof(struct pal_st_recognition_event);
     struct acd_context_event *context_event = NULL;
+    uint32_t *ev_payload = NULL;
 
     if (callback_) {
+notify:
+        size_t event_size = cached_event_data_->data_size + sizeof(struct pal_st_recognition_event);
         context_event = (struct acd_context_event *)(((uint8_t*) cached_event_data_) + sizeof(struct pal_st_recognition_event) + sizeof(struct st_param_header));
         PAL_INFO(LOG_TAG, "Notify cached detection event to client with no of contexts=%d", context_event->num_contexts);
-        callback_((pal_stream_handle_t *)this, 0, (uint32_t *)cached_event_data_,
-                  event_size, cookie_);
+        ev_payload = (uint32_t *)calloc(1, event_size);
+        if (!ev_payload) {
+            ALOGE("memory allocation for ev_payload failed");
+            free(cached_event_data_);
+            cached_event_data_ = NULL;
+            return;
+        }
+        memcpy(ev_payload, cached_event_data_, event_size);
+        free(cached_event_data_);
+        cached_event_data_ = NULL;
+        /* SendCachedEventData() is always called with mutex_ lock acquired.
+         *  Unlock it before calling callback */
+        notificationInProgress = true;
+        mutex_.unlock();
+        callback_((pal_stream_handle_t *)this, 0, ev_payload, event_size, cookie_);
+        free(ev_payload);
+        ev_payload = NULL;
+        mutex_.lock();
+        notificationInProgress = false;
+        /* If mutex_ lock is acquired by other thread handling detection event before
+         * this thread, then cv_.notify_one will not be handled. Handle it here and
+         * notify client if there is pending notification to be sent to client.
+         */
+        if (deferredNotification == true && cached_event_data_ != NULL) {
+            deferredNotification = false;
+            goto notify;
+        }
+    } else {
+        free(cached_event_data_);
+        cached_event_data_ = NULL;
     }
-    free(cached_event_data_);
-    cached_event_data_ = NULL;
 }
 
 void StreamACD::SetEngineDetectionData(struct acd_context_event *event)
@@ -1446,7 +1469,10 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             std::unique_lock<std::mutex> lck(acd_stream_.mutex_);
             acd_stream_.CacheEventData((struct acd_context_event *)data->data_);
             if (acd_stream_.cached_event_data_) {
-                acd_stream_.cv_.notify_one();
+                if (acd_stream_.notificationInProgress == true)
+                    acd_stream_.deferredNotification = true;
+                else
+                    acd_stream_.cv_.notify_one();
                 TransitTo(ACD_STATE_DETECTED);
             }
             break;
@@ -1679,12 +1705,8 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                 acd_stream_.state_for_restore_ = ACD_STATE_ACTIVE;
             }
             std::shared_ptr<ACDEventConfig> ev_cfg1(
-                new ACDStopRecognitionEventConfig(false));
-            status = acd_stream_.ProcessInternalEvent(ev_cfg1);
-
-            std::shared_ptr<ACDEventConfig> ev_cfg2(
                 new ACDUnloadEventConfig());
-            status = acd_stream_.ProcessInternalEvent(ev_cfg2);
+            status = acd_stream_.ProcessInternalEvent(ev_cfg1);
             TransitTo(ACD_STATE_SSR);
             break;
         }
@@ -1720,7 +1742,10 @@ int32_t StreamACD::ACDDetected::ProcessEvent(
             /* notify client if events are present , else move to active */
             std::unique_lock<std::mutex> lck(acd_stream_.mutex_);
             if (acd_stream_.cached_event_data_) {
-                acd_stream_.cv_.notify_one();
+                if (acd_stream_.notificationInProgress == true)
+                    acd_stream_.deferredNotification = true;
+                else
+                    acd_stream_.cv_.notify_one();
             } else {
                 TransitTo(ACD_STATE_ACTIVE);
             }
@@ -1746,12 +1771,18 @@ int32_t StreamACD::ACDDetected::ProcessEvent(
             if (status)
                 PAL_ERR(LOG_TAG, "Error:%d Failed to process event %d", status, ev_cfg->id_);
             break;
+        case ACD_EV_SSR_OFFLINE:
+            TransitTo(ACD_STATE_ACTIVE);
+            status = acd_stream_.ProcessInternalEvent(ev_cfg);
+            if (status)
+                PAL_ERR(LOG_TAG, "Error:%d Failed to process event %d", status, ev_cfg->id_);
+            acd_stream_.state_for_restore_ = ACD_STATE_DETECTED;
+            break;
         case ACD_EV_RECOGNITION_CONFIG:
         case ACD_EV_CONTEXT_CONFIG:
         case ACD_EV_EC_REF:
         case ACD_EV_DEVICE_DISCONNECTED:
         case ACD_EV_DEVICE_CONNECTED:
-        case ACD_EV_SSR_OFFLINE:
         case ACD_EV_CONCURRENT_STREAM:
         case ACD_EV_PAUSE:
             acd_stream_.state_for_restore_ = ACD_STATE_DETECTED;
@@ -1872,12 +1903,8 @@ int32_t StreamACD::ACDSSR::ProcessEvent(std::shared_ptr<ACDEventConfig> ev_cfg)
         }
 
         case ACD_EV_START_RECOGNITION: {
-            if (acd_stream_.state_for_restore_ != ACD_STATE_LOADED ||
-                acd_stream_.state_for_restore_ != ACD_STATE_DETECTED) {
-                PAL_ERR(LOG_TAG, "Invalid operation, client state = %d now",
-                    acd_stream_.state_for_restore_);
-                status = -EINVAL;
-            } else {
+            if (acd_stream_.state_for_restore_ == ACD_STATE_LOADED ||
+                acd_stream_.state_for_restore_ == ACD_STATE_DETECTED) {
                 ACDStartRecognitionEventConfigData *data =
                     (ACDStartRecognitionEventConfigData *)ev_cfg->data_.get();
                 if (!acd_stream_.rec_config_) {
@@ -1885,14 +1912,17 @@ int32_t StreamACD::ACDSSR::ProcessEvent(std::shared_ptr<ACDEventConfig> ev_cfg)
                     status = -EINVAL;
                     break;
                 }
-
-            if ((acd_stream_.state_for_restore_ == ACD_STATE_DETECTED) &&
-                (acd_stream_.cached_event_data_ != NULL)) {
-                std::unique_lock<std::mutex> lck(acd_stream_.mutex_);
-                acd_stream_.cv_.notify_one();
-            }
-            else
-                acd_stream_.state_for_restore_ = ACD_STATE_ACTIVE;
+                if ((acd_stream_.state_for_restore_ == ACD_STATE_DETECTED) &&
+                    (acd_stream_.cached_event_data_ != NULL)) {
+                    std::unique_lock<std::mutex> lck(acd_stream_.mutex_);
+                    acd_stream_.cv_.notify_one();
+                } else {
+                    acd_stream_.state_for_restore_ = ACD_STATE_ACTIVE;
+                }
+            } else {
+                PAL_ERR(LOG_TAG, "Invalid operation, client state = %d now",
+                        acd_stream_.state_for_restore_);
+                status = -EINVAL;
             }
             break;
         }

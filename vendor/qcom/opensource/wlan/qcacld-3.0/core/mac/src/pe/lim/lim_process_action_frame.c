@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -52,6 +53,7 @@
 #include <cdp_txrx_peer_ops.h>
 #include "dot11f.h"
 #include "wlan_p2p_cfg_api.h"
+#include "son_api.h"
 
 #define SA_QUERY_REQ_MIN_LEN \
 (DOT11F_FF_CATEGORY_LEN + DOT11F_FF_ACTION_LEN + DOT11F_FF_TRANSACTIONID_LEN)
@@ -243,10 +245,7 @@ static void __lim_process_operating_mode_action_frame(struct mac_context *mac_ct
 	uint32_t status;
 	tpDphHashNode sta_ptr;
 	uint16_t aid;
-	uint8_t oper_mode;
-	uint8_t cb_mode;
 	uint8_t ch_bw = 0;
-	uint8_t skip_opmode_update = false;
 
 	mac_hdr = WMA_GET_RX_MAC_HEADER(rx_pkt_info);
 	body_ptr = WMA_GET_RX_MPDU_DATA(rx_pkt_info);
@@ -286,87 +285,17 @@ static void __lim_process_operating_mode_action_frame(struct mac_context *mac_ct
 		goto end;
 	}
 
-	if (wlan_reg_is_24ghz_ch_freq(session->curr_op_freq))
-		cb_mode = mac_ctx->roam.configParam.channelBondingMode24GHz;
-	else
-		cb_mode = mac_ctx->roam.configParam.channelBondingMode5GHz;
-	/*
-	 * Do not update the channel bonding mode if channel bonding
-	 * mode is disabled in INI.
-	 */
-	if (WNI_CFG_CHANNEL_BONDING_MODE_DISABLE == cb_mode) {
-		pe_debug("channel bonding disabled");
-		goto update_nss;
-	}
+	lim_update_nss(mac_ctx, sta_ptr,
+		       operating_mode_frm->OperatingMode.rxNSS,
+		       session);
 
-	if (sta_ptr->htSupportedChannelWidthSet) {
-		if (WNI_CFG_VHT_CHANNEL_WIDTH_80MHZ <
-				sta_ptr->vhtSupportedChannelWidthSet)
-			oper_mode = eHT_CHANNEL_WIDTH_160MHZ;
-		else
-			oper_mode = sta_ptr->vhtSupportedChannelWidthSet + 1;
-	} else {
-		oper_mode = eHT_CHANNEL_WIDTH_20MHZ;
-	}
-
-	if ((oper_mode == eHT_CHANNEL_WIDTH_80MHZ) &&
-			(operating_mode_frm->OperatingMode.chanWidth >
-				eHT_CHANNEL_WIDTH_80MHZ))
-		skip_opmode_update = true;
-
-	if (!skip_opmode_update && (oper_mode !=
-		operating_mode_frm->OperatingMode.chanWidth)) {
-		uint32_t fw_vht_ch_wd = wma_get_vht_ch_width();
-
-		pe_debug("received Chanwidth: %d",
-			 operating_mode_frm->OperatingMode.chanWidth);
-
-		pe_debug(" MAC: %0x:%0x:%0x:%0x:%0x:%0x",
-			mac_hdr->sa[0], mac_hdr->sa[1], mac_hdr->sa[2],
-			mac_hdr->sa[3], mac_hdr->sa[4], mac_hdr->sa[5]);
-
-		if (operating_mode_frm->OperatingMode.chanWidth >=
-				eHT_CHANNEL_WIDTH_160MHZ
-				&& (fw_vht_ch_wd >= eHT_CHANNEL_WIDTH_160MHZ)) {
-			sta_ptr->vhtSupportedChannelWidthSet =
-				WNI_CFG_VHT_CHANNEL_WIDTH_160MHZ;
-			sta_ptr->htSupportedChannelWidthSet =
-				eHT_CHANNEL_WIDTH_40MHZ;
-			ch_bw = eHT_CHANNEL_WIDTH_160MHZ;
-		} else if (operating_mode_frm->OperatingMode.chanWidth >=
-				eHT_CHANNEL_WIDTH_80MHZ) {
-			sta_ptr->vhtSupportedChannelWidthSet =
-				WNI_CFG_VHT_CHANNEL_WIDTH_80MHZ;
-			sta_ptr->htSupportedChannelWidthSet =
-				eHT_CHANNEL_WIDTH_40MHZ;
-			ch_bw = eHT_CHANNEL_WIDTH_80MHZ;
-		} else if (operating_mode_frm->OperatingMode.chanWidth ==
-				eHT_CHANNEL_WIDTH_40MHZ) {
-			sta_ptr->vhtSupportedChannelWidthSet =
-				WNI_CFG_VHT_CHANNEL_WIDTH_20_40MHZ;
-			sta_ptr->htSupportedChannelWidthSet =
-				eHT_CHANNEL_WIDTH_40MHZ;
-			ch_bw = eHT_CHANNEL_WIDTH_40MHZ;
-		} else if (operating_mode_frm->OperatingMode.chanWidth ==
-				eHT_CHANNEL_WIDTH_20MHZ) {
-			sta_ptr->vhtSupportedChannelWidthSet =
-				WNI_CFG_VHT_CHANNEL_WIDTH_20_40MHZ;
-			sta_ptr->htSupportedChannelWidthSet =
-				eHT_CHANNEL_WIDTH_20MHZ;
-			ch_bw = eHT_CHANNEL_WIDTH_20MHZ;
-		}
-		lim_check_vht_op_mode_change(mac_ctx, session, ch_bw,
-					     mac_hdr->sa);
-	}
-
-update_nss:
-	if (sta_ptr->vhtSupportedRxNss !=
-			(operating_mode_frm->OperatingMode.rxNSS + 1)) {
-		sta_ptr->vhtSupportedRxNss =
-			operating_mode_frm->OperatingMode.rxNSS + 1;
-		lim_set_nss_change(mac_ctx, session, sta_ptr->vhtSupportedRxNss,
-			mac_hdr->sa);
-	}
+	if (lim_update_channel_width(mac_ctx, sta_ptr, session,
+				 operating_mode_frm->OperatingMode.chanWidth,
+				 &ch_bw))
+		wlan_son_deliver_opmode(session->vdev,
+					ch_bw,
+					sta_ptr->vhtSupportedRxNss,
+					mac_hdr->sa);
 
 end:
 	qdf_mem_free(operating_mode_frm);
@@ -1128,6 +1057,9 @@ __lim_process_sm_power_save_update(struct mac_context *mac, uint8_t *pRxPacketIn
 	pSta->htMIMOPSState = state;
 	lim_post_sm_state_update(mac, pSta->htMIMOPSState,
 				 pSta->staAddr, pe_session->smeSessionId);
+	wlan_son_deliver_smps(pe_session->vdev,
+			      (eSIR_HT_MIMO_PS_STATIC == state) ? 1 : 0,
+			      pSta->staAddr);
 }
 
 
@@ -1225,8 +1157,12 @@ __lim_process_link_measurement_req(struct mac_context *mac, uint8_t *pRxPacketIn
 		pe_debug("There were warnings while unpacking a Link Measure request (0x%08x, %d bytes):",
 			nStatus, frameLen);
 	}
-	/* Call rrm function to handle the request. */
 
+	if (pe_session->sta_follows_sap_power) {
+		pe_debug("STA power has changed, reject the link measurement request");
+		return QDF_STATUS_E_FAILURE;
+	}
+	/* Call rrm function to handle the request. */
 	return rrm_process_link_measurement_request(mac, pRxPacketInfo, &frm,
 					     pe_session);
 
@@ -1609,7 +1545,7 @@ static void lim_process_delba_req(struct mac_context *mac_ctx, uint8_t *rx_pkt_i
 	body_ptr = WMA_GET_RX_MPDU_DATA(rx_pkt_info);
 	frame_len = WMA_GET_RX_PAYLOAD_LEN(rx_pkt_info);
 
-	QDF_TRACE_HEX_DUMP(QDF_MODULE_ID_PE, QDF_TRACE_LEVEL_INFO,
+	QDF_TRACE_HEX_DUMP(QDF_MODULE_ID_PE, QDF_TRACE_LEVEL_DEBUG,
 			   body_ptr, frame_len);
 
 	delba_req = qdf_mem_malloc(sizeof(*delba_req));
@@ -1633,7 +1569,7 @@ static void lim_process_delba_req(struct mac_context *mac_ctx, uint8_t *rx_pkt_i
 			delba_req->delba_param_set.tid, delba_req->Reason.code);
 
 	if (QDF_STATUS_SUCCESS != qdf_status)
-		pe_err("Failed to process delba request");
+		pe_err_rl("Failed to process delba request");
 
 error:
 	qdf_mem_free(delba_req);
@@ -1824,6 +1760,17 @@ void lim_process_action_frame(struct mac_context *mac_ctx,
 		break;
 
 	case ACTION_CATEGORY_RRM:
+
+		if (mac_ctx->rrm.rrmPEContext.rrmEnable &&
+		    LIM_IS_AP_ROLE(session) &&
+		    action_hdr->actionID == RRM_RADIO_MEASURE_RPT) {
+			mac_hdr = WMA_GET_RX_MAC_HEADER(rx_pkt_info);
+			wlan_son_deliver_rrm_rpt(session->vdev,
+				 mac_hdr->sa,
+				 body_ptr + sizeof(tSirMacActionFrameHdr),
+				 frame_len - sizeof(tSirMacActionFrameHdr));
+		}
+
 		/* Ignore RRM measurement request until DHCP is set */
 		if (mac_ctx->rrm.rrmPEContext.rrmEnable &&
 		    mac_ctx->roam.roamSession[session->smeSessionId].dhcp_done) {

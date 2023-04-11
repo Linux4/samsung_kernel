@@ -24,7 +24,13 @@ else ifneq ($(filter b0q%, $(TARGET_PRODUCT)),)
 PRODUCT_COPY_FILES += vendor/qcom/opensource/power/config/taro/powerhint_b0q.xml:$(TARGET_COPY_OUT_VENDOR)/etc/powerhint.xml
 else ifneq ($(filter gts8%, $(TARGET_PRODUCT)),)
 PRODUCT_COPY_FILES += vendor/qcom/opensource/power/config/taro/powerhint_gts8p.xml:$(TARGET_COPY_OUT_VENDOR)/etc/powerhint.xml
+else ifneq ($(filter v4q% q4q%, $(TARGET_PRODUCT)),)
+PRODUCT_COPY_FILES += vendor/qcom/opensource/power/config/taro/powerhint_q4q.xml:$(TARGET_COPY_OUT_VENDOR)/etc/powerhint.xml
+else ifneq ($(filter e4q% b4q%, $(TARGET_PRODUCT)),)
+PRODUCT_COPY_FILES += vendor/qcom/opensource/power/config/taro/powerhint_b4q.xml:$(TARGET_COPY_OUT_VENDOR)/etc/powerhint.xml
 else
 PRODUCT_COPY_FILES += vendor/qcom/opensource/power/config/taro/powerhint.xml:$(TARGET_COPY_OUT_VENDOR)/etc/powerhint.xml
+else ifeq ($(TARGET_BOARD_PLATFORM),kalama)
+PRODUCT_COPY_FILES += vendor/qcom/opensource/power/config/kalama/powerhint.xml:$(TARGET_COPY_OUT_VENDOR)/etc/powerhint.xml
 endif
 endif

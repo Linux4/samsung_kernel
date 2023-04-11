@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -501,7 +502,6 @@ dp_rx_deliver_raw(struct dp_vdev *vdev, qdf_nbuf_t nbuf_list,
 }
 
 #ifndef QCA_HOST_MODE_WIFI_DISABLED
-
 #ifndef FEATURE_WDS
 void dp_rx_da_learn(struct dp_soc *soc, uint8_t *rx_tlv_hdr,
 		    struct dp_peer *ta_peer, qdf_nbuf_t nbuf)
@@ -510,169 +510,113 @@ void dp_rx_da_learn(struct dp_soc *soc, uint8_t *rx_tlv_hdr,
 #endif
 
 /*
- * dp_rx_intrabss_fwd() - Implements the Intra-BSS forwarding logic
+ * dp_rx_intrabss_mcbc_fwd() - Does intrabss forward for mcast packets
  *
  * @soc: core txrx main context
  * @ta_peer	: source peer entry
  * @rx_tlv_hdr	: start address of rx tlvs
  * @nbuf	: nbuf that has to be intrabss forwarded
+ * @tid_stats	: tid stats pointer
  *
  * Return: bool: true if it is forwarded else false
  */
-bool
-dp_rx_intrabss_fwd(struct dp_soc *soc,
-			struct dp_peer *ta_peer,
-			uint8_t *rx_tlv_hdr,
-			qdf_nbuf_t nbuf,
-			struct hal_rx_msdu_metadata msdu_metadata)
+bool dp_rx_intrabss_mcbc_fwd(struct dp_soc *soc, struct dp_peer *ta_peer,
+			     uint8_t *rx_tlv_hdr, qdf_nbuf_t nbuf,
+			     struct cdp_tid_rx_stats *tid_stats)
 {
 	uint16_t len;
-	uint8_t is_frag;
-	uint16_t da_peer_id = HTT_INVALID_PEER;
-	struct dp_peer *da_peer = NULL;
-	bool is_da_bss_peer = false;
-	struct dp_ast_entry *ast_entry;
 	qdf_nbuf_t nbuf_copy;
-	uint8_t tid = qdf_nbuf_get_tid_val(nbuf);
-	uint8_t ring_id = QDF_NBUF_CB_RX_CTX_ID(nbuf);
-	struct cdp_tid_rx_stats *tid_stats = &ta_peer->vdev->pdev->stats.
-					tid_stats.tid_rx_stats[ring_id][tid];
 
-	/* check if the destination peer is available in peer table
-	 * and also check if the source peer and destination peer
-	 * belong to the same vap and destination peer is not bss peer.
+	if (dp_rx_intrabss_eapol_drop_check(soc, ta_peer, rx_tlv_hdr,
+					    nbuf))
+		return true;
+
+	if (!dp_rx_check_ndi_mdns_fwding(ta_peer, nbuf))
+		return false;
+
+	/* If the source peer in the isolation list
+	 * then dont forward instead push to bridge stack
 	 */
+	if (dp_get_peer_isolation(ta_peer))
+		return false;
 
-	if ((qdf_nbuf_is_da_valid(nbuf) && !qdf_nbuf_is_da_mcbc(nbuf))) {
-		if (dp_rx_intrabss_eapol_drop_check(soc, ta_peer, rx_tlv_hdr,
-						    nbuf))
-			return true;
+	nbuf_copy = qdf_nbuf_copy(nbuf);
+	if (!nbuf_copy)
+		return false;
 
-		ast_entry = soc->ast_table[msdu_metadata.da_idx];
-		if (!ast_entry)
-			return false;
-
-		if (ast_entry->type == CDP_TXRX_AST_TYPE_DA) {
-			ast_entry->is_active = TRUE;
-			return false;
-		}
-
-		da_peer_id = ast_entry->peer_id;
-
-		if (da_peer_id == HTT_INVALID_PEER)
-			return false;
-		/* TA peer cannot be same as peer(DA) on which AST is present
-		 * this indicates a change in topology and that AST entries
-		 * are yet to be updated.
-		 */
-		if (da_peer_id == ta_peer->peer_id)
-			return false;
-
-		if (ast_entry->vdev_id != ta_peer->vdev->vdev_id)
-			return false;
-
-		da_peer = dp_peer_get_ref_by_id(soc, da_peer_id,
-						DP_MOD_ID_RX);
-		if (!da_peer)
-			return false;
-
-		/* If the source or destination peer in the isolation
-		 * list then dont forward instead push to bridge stack.
-		 */
-		if (dp_get_peer_isolation(ta_peer) ||
-		    dp_get_peer_isolation(da_peer)) {
-			dp_peer_unref_delete(da_peer, DP_MOD_ID_RX);
-			return false;
-		}
-
-		is_da_bss_peer = da_peer->bss_peer;
-		dp_peer_unref_delete(da_peer, DP_MOD_ID_RX);
-
-		if (!is_da_bss_peer) {
-			len = QDF_NBUF_CB_RX_PKT_LEN(nbuf);
-			is_frag = qdf_nbuf_is_frag(nbuf);
-			memset(nbuf->cb, 0x0, sizeof(nbuf->cb));
-
-			/* linearize the nbuf just before we send to
-			 * dp_tx_send()
-			 */
-			if (qdf_unlikely(is_frag)) {
-				if (qdf_nbuf_linearize(nbuf) == -ENOMEM)
-					return false;
-
-				nbuf = qdf_nbuf_unshare(nbuf);
-				if (!nbuf) {
-					DP_STATS_INC_PKT(ta_peer,
-							 rx.intra_bss.fail,
-							 1,
-							 len);
-					/* return true even though the pkt is
-					 * not forwarded. Basically skb_unshare
-					 * failed and we want to continue with
-					 * next nbuf.
-					 */
-					tid_stats->fail_cnt[INTRABSS_DROP]++;
-					return true;
-				}
-			}
-
-			if (!dp_tx_send((struct cdp_soc_t *)soc,
-					ta_peer->vdev->vdev_id, nbuf)) {
-				DP_STATS_INC_PKT(ta_peer, rx.intra_bss.pkts, 1,
-						 len);
-				return true;
-			} else {
-				DP_STATS_INC_PKT(ta_peer, rx.intra_bss.fail, 1,
-						len);
-				tid_stats->fail_cnt[INTRABSS_DROP]++;
-				return false;
-			}
-		}
+	len = QDF_NBUF_CB_RX_PKT_LEN(nbuf);
+	/* set TX notify flag 0 to avoid unnecessary TX comp callback */
+	qdf_nbuf_tx_notify_comp_set(nbuf_copy, 0);
+	if (dp_tx_send((struct cdp_soc_t *)soc,
+		       ta_peer->vdev->vdev_id, nbuf_copy)) {
+		DP_STATS_INC_PKT(ta_peer, rx.intra_bss.fail, 1, len);
+		tid_stats->fail_cnt[INTRABSS_DROP]++;
+		qdf_nbuf_free(nbuf_copy);
+	} else {
+		DP_STATS_INC_PKT(ta_peer, rx.intra_bss.pkts, 1, len);
+		tid_stats->intrabss_cnt++;
 	}
-	/* if it is a broadcast pkt (eg: ARP) and it is not its own
-	 * source, then clone the pkt and send the cloned pkt for
-	 * intra BSS forwarding and original pkt up the network stack
-	 * Note: how do we handle multicast pkts. do we forward
-	 * all multicast pkts as is or let a higher layer module
-	 * like igmpsnoop decide whether to forward or not with
-	 * Mcast enhancement.
-	 */
-	else if (qdf_unlikely((qdf_nbuf_is_da_mcbc(nbuf) &&
-			       !ta_peer->bss_peer))) {
-		if (dp_rx_intrabss_eapol_drop_check(soc, ta_peer, rx_tlv_hdr,
-						    nbuf))
-			return true;
-
-		if (!dp_rx_check_ndi_mdns_fwding(ta_peer, nbuf))
-			goto end;
-
-		/* If the source peer in the isolation list
-		 * then dont forward instead push to bridge stack
-		 */
-		if (dp_get_peer_isolation(ta_peer))
-			goto end;
-
-		nbuf_copy = qdf_nbuf_copy(nbuf);
-		if (!nbuf_copy)
-			goto end;
-
-		len = QDF_NBUF_CB_RX_PKT_LEN(nbuf);
-		if (dp_tx_send((struct cdp_soc_t *)soc,
-			       ta_peer->vdev->vdev_id, nbuf_copy)) {
-			DP_STATS_INC_PKT(ta_peer, rx.intra_bss.fail, 1, len);
-			tid_stats->fail_cnt[INTRABSS_DROP]++;
-			qdf_nbuf_free(nbuf_copy);
-		} else {
-			DP_STATS_INC_PKT(ta_peer, rx.intra_bss.pkts, 1, len);
-			tid_stats->intrabss_cnt++;
-		}
-	}
-
-end:
-	/* return false as we have to still send the original pkt
-	 * up the stack
-	 */
 	return false;
+}
+
+/*
+ * dp_rx_intrabss_ucast_fwd() - Does intrabss forward for unicast packets
+ *
+ * @soc: core txrx main context
+ * @ta_peer: source peer entry
+ * @tx_vdev_id: VDEV ID for Intra-BSS TX
+ * @rx_tlv_hdr: start address of rx tlvs
+ * @nbuf: nbuf that has to be intrabss forwarded
+ * @tid_stats: tid stats pointer
+ *
+ * Return: bool: true if it is forwarded else false
+ */
+bool dp_rx_intrabss_ucast_fwd(struct dp_soc *soc, struct dp_peer *ta_peer,
+			      uint8_t tx_vdev_id,
+			      uint8_t *rx_tlv_hdr, qdf_nbuf_t nbuf,
+			      struct cdp_tid_rx_stats *tid_stats)
+{
+	uint16_t len;
+
+	if (dp_rx_intrabss_eapol_drop_check(soc, ta_peer, rx_tlv_hdr,
+					    nbuf))
+		return true;
+
+	len = QDF_NBUF_CB_RX_PKT_LEN(nbuf);
+
+	/* linearize the nbuf just before we send to
+	 * dp_tx_send()
+	 */
+	if (qdf_unlikely(qdf_nbuf_is_frag(nbuf))) {
+		if (qdf_nbuf_linearize(nbuf) == -ENOMEM)
+			return false;
+
+		nbuf = qdf_nbuf_unshare(nbuf);
+		if (!nbuf) {
+			DP_STATS_INC_PKT(ta_peer,
+					 rx.intra_bss.fail, 1, len);
+			/* return true even though the pkt is
+			 * not forwarded. Basically skb_unshare
+			 * failed and we want to continue with
+			 * next nbuf.
+			 */
+			tid_stats->fail_cnt[INTRABSS_DROP]++;
+			return false;
+		}
+	}
+
+	if (!dp_tx_send((struct cdp_soc_t *)soc,
+			tx_vdev_id, nbuf)) {
+		DP_STATS_INC_PKT(ta_peer, rx.intra_bss.pkts, 1,
+				 len);
+	} else {
+		DP_STATS_INC_PKT(ta_peer, rx.intra_bss.fail, 1,
+				 len);
+		tid_stats->fail_cnt[INTRABSS_DROP]++;
+		return false;
+	}
+
+	return true;
 }
 
 #endif /* QCA_HOST_MODE_WIFI_DISABLED */
@@ -1320,8 +1264,10 @@ void dp_rx_compute_delay(struct dp_vdev *vdev, qdf_nbuf_t nbuf)
 	uint8_t tid = qdf_nbuf_get_tid_val(nbuf);
 	uint32_t interframe_delay =
 		(uint32_t)(current_ts - vdev->prev_rx_deliver_tstamp);
+	struct cdp_tid_rx_stats *rstats =
+		&vdev->pdev->stats.tid_stats.tid_rx_stats[ring_id][tid];
 
-	dp_update_delay_stats(vdev->pdev, to_stack, tid,
+	dp_update_delay_stats(NULL, rstats, to_stack, tid,
 			      CDP_DELAY_STATS_REAP_STACK, ring_id);
 	/*
 	 * Update interframe delay stats calculated at deliver_data_ol point.
@@ -1330,7 +1276,7 @@ void dp_rx_compute_delay(struct dp_vdev *vdev, qdf_nbuf_t nbuf)
 	 * On the other side, this will help in avoiding extra per packet check
 	 * of vdev->prev_rx_deliver_tstamp.
 	 */
-	dp_update_delay_stats(vdev->pdev, interframe_delay, tid,
+	dp_update_delay_stats(NULL, rstats, interframe_delay, tid,
 			      CDP_DELAY_STATS_RX_INTERFRAME, ring_id);
 	vdev->prev_rx_deliver_tstamp = current_ts;
 }
@@ -1653,7 +1599,8 @@ dp_rx_validate_rx_callbacks(struct dp_soc *soc,
 		} else {
 			num_nbuf = dp_rx_drop_nbuf_list(vdev->pdev,
 							nbuf_head);
-			DP_STATS_DEC(peer, rx.to_stack.num, num_nbuf);
+			DP_PEER_TO_STACK_DECC(peer, num_nbuf,
+					      vdev->pdev->enhanced_stats_en);
 		}
 		return QDF_STATUS_E_FAILURE;
 	}
@@ -1744,6 +1691,7 @@ void dp_rx_msdu_stats_update(struct dp_soc *soc, qdf_nbuf_t nbuf,
 	bool is_ampdu, is_not_amsdu;
 	uint32_t sgi, mcs, tid, nss, bw, reception_type, pkt_type;
 	struct dp_vdev *vdev = peer->vdev;
+	bool enh_flag;
 	qdf_ether_header_t *eh;
 	uint16_t msdu_len = QDF_NBUF_CB_RX_PKT_LEN(nbuf);
 
@@ -1760,10 +1708,11 @@ void dp_rx_msdu_stats_update(struct dp_soc *soc, qdf_nbuf_t nbuf,
 	if (qdf_unlikely(qdf_nbuf_is_da_mcbc(nbuf) &&
 			 (vdev->rx_decap_type == htt_cmn_pkt_type_ethernet))) {
 		eh = (qdf_ether_header_t *)qdf_nbuf_data(nbuf);
-		DP_STATS_INC_PKT(peer, rx.multicast, 1, msdu_len);
+		enh_flag = vdev->pdev->enhanced_stats_en;
+		DP_PEER_MC_INCC_PKT(peer, 1, msdu_len, enh_flag);
 		tid_stats->mcast_msdu_cnt++;
 		if (QDF_IS_ADDR_BROADCAST(eh->ether_dhost)) {
-			DP_STATS_INC_PKT(peer, rx.bcast, 1, msdu_len);
+			DP_PEER_BC_INCC_PKT(peer, 1, msdu_len, enh_flag);
 			tid_stats->bcast_msdu_cnt++;
 		}
 	}
@@ -1778,7 +1727,7 @@ void dp_rx_msdu_stats_update(struct dp_soc *soc, qdf_nbuf_t nbuf,
 	peer->stats.rx.last_rx_ts = qdf_system_ticks();
 
 	/*
-	 * TODO - For WCN7850 this field is present in ring_desc
+	 * TODO - For KIWI this field is present in ring_desc
 	 * Try to use ring desc instead of tlv.
 	 */
 	is_ampdu = hal_rx_mpdu_info_ampdu_flag_get(soc->hal_soc, rx_tlv_hdr);
@@ -1921,7 +1870,7 @@ void dp_rx_deliver_to_stack_no_peer(struct dp_soc *soc, qdf_nbuf_t nbuf)
 				FRAME_MASK_IPV4_EAPOL | FRAME_MASK_IPV6_DHCP;
 
 	peer_id = QDF_NBUF_CB_RX_PEER_ID(nbuf);
-	if (peer_id > soc->max_peers)
+	if (peer_id > soc->max_peer_id)
 		goto deliver_fail;
 
 	vdev_id = QDF_NBUF_CB_RX_VDEV_ID(nbuf);
@@ -2623,5 +2572,23 @@ bool dp_rx_deliver_special_frame(struct dp_soc *soc, struct dp_peer *peer,
 	}
 
 	return false;
+}
+#endif
+
+#ifdef WLAN_FEATURE_MARK_FIRST_WAKEUP_PACKET
+void dp_rx_mark_first_packet_after_wow_wakeup(struct dp_pdev *pdev,
+					      uint8_t *rx_tlv,
+					      qdf_nbuf_t nbuf)
+{
+	struct dp_soc *soc;
+
+	if (!pdev->is_first_wakeup_packet)
+		return;
+
+	soc = pdev->soc;
+	if (hal_get_first_wow_wakeup_packet(soc->hal_soc, rx_tlv)) {
+		qdf_nbuf_mark_wakeup_frame(nbuf);
+		dp_info("First packet after WOW Wakeup rcvd");
+	}
 }
 #endif

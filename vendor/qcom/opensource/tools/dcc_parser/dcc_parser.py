@@ -163,7 +163,7 @@ def read_config(config_pt):
             if loop_offset == 0:
                 continue
             try:
-                loop_nr = list_nr[-1] - list_nr[-loop_offset]
+                loop_nr = list_nr[-1] - list_nr[-loop_offset//2 - 1]
                 list_nr.append(loop_nr * loop_count + list_nr[-1])
                 count = count + 1
                 add_loop_addr(loop_nr, loop_count)

@@ -32,3 +32,7 @@ service android.thermal-hal /vendor/bin/hw/android.hardware.thermal@2.0-service.
 	class hal
 	user root
 	group root
+
+on boot
+    wait /sys/kernel/boot_adsp/boot
+    restart android.thermal-hal

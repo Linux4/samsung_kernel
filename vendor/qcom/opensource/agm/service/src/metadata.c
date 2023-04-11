@@ -268,8 +268,7 @@ int metadata_copy(struct agm_meta_data_gsl *dest, uint32_t size __unused,
     int ret = 0;
 
     if (!metadata) {
-        AGM_LOGE("Invalid metadata passed\n");
-        ret = -EINVAL;
+        AGM_LOGI("NULL metadata passed, ignoring\n");
         return ret;
     }
     dest->gkv.num_kvs = NUM_GKV(metadata);

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  *
  * Permission to use, copy, modify, and/or distribute this software for
@@ -153,7 +154,7 @@ extern const struct chan_map channel_map_china[];
 extern const struct chan_map channel_map_global[];
 
 #ifdef WLAN_FEATURE_11BE
-#define ALL_SCHANS_PUNC 0x0000 /* all subchannels punctured */
+#define ALL_SCHANS_PUNC 0xFFFF /* all subchannels punctured */
 #endif
 
 #ifdef CONFIG_AFC_SUPPORT
@@ -852,14 +853,14 @@ enum channel_state reg_get_channel_state_from_secondary_list_for_freq(
  * 5G bonded channel using the channel frequency
  * @pdev: Pointer to pdev
  * @freq: channel center frequency.
- * @bw: channel band width
+ * @ch_params: channel parameters
  *
  * Return: channel state
  */
 enum channel_state
 reg_get_5g_bonded_channel_state_for_freq(struct wlan_objmgr_pdev *pdev,
 					 qdf_freq_t freq,
-					 enum phy_ch_width bw);
+					 struct ch_params *ch_params);
 
 /**
  * reg_get_2g_bonded_channel_state_for_freq() - Get channel state for 2G
@@ -918,6 +919,30 @@ reg_fill_channel_list(struct wlan_objmgr_pdev *pdev,
 		      enum phy_ch_width ch_width,
 		      qdf_freq_t band_center_320,
 		      struct reg_channel_list *chan_list);
+
+/**
+ * reg_is_punc_bitmap_valid() - is puncture bitmap valid or not
+ * @bw: Input channel width.
+ * @puncture_bitmap Input puncture bitmap.
+ *
+ * Return: true if given puncture bitmap is valid
+ */
+bool reg_is_punc_bitmap_valid(enum phy_ch_width bw, uint16_t puncture_bitmap);
+
+/**
+ * reg_set_create_punc_bitmap() - set is_create_punc_bitmap of ch_params
+ * @ch_params: ch_params to set
+ * @is_create_punc_bitmap: is create punc bitmap
+ *
+ * Return: NULL
+ */
+void reg_set_create_punc_bitmap(struct ch_params *ch_params,
+				bool is_create_punc_bitmap);
+#else
+static inline void reg_set_create_punc_bitmap(struct ch_params *ch_params,
+					      bool is_create_punc_bitmap)
+{
+}
 #endif
 /**
  * reg_get_channel_reg_power_for_freq() - Get the txpower for the given channel
@@ -1068,6 +1093,17 @@ bool reg_is_disable_for_freq(struct wlan_objmgr_pdev *pdev, qdf_freq_t freq);
  */
 bool reg_is_disable_in_secondary_list_for_freq(struct wlan_objmgr_pdev *pdev,
 					       qdf_freq_t freq);
+
+/**
+ * reg_is_enable_in_secondary_list_for_freq() - Check if the given channel
+ * frequency is in enable state
+ * @pdev: Pointer to pdev
+ * @freq: Channel frequency
+ *
+ * Return: True if channel state is enabled, else false
+ */
+bool reg_is_enable_in_secondary_list_for_freq(struct wlan_objmgr_pdev *pdev,
+					      qdf_freq_t freq);
 #endif
 
 /**
@@ -1385,7 +1421,7 @@ QDF_STATUS reg_get_6g_chan_ap_power(struct wlan_objmgr_pdev *pdev,
  *
  * This function is meant to be called to find the channel frequency power
  * information for a client when the device is operating as a client. It will
- * fill in the parameter is_psd, tx_power, and eirp_psd_power. eirp_psd_power
+ * fill in the parameters tx_power and eirp_psd_power. eirp_psd_power
  * will only be filled if the channel is PSD.
  *
  * Return: QDF_STATUS
@@ -1393,7 +1429,7 @@ QDF_STATUS reg_get_6g_chan_ap_power(struct wlan_objmgr_pdev *pdev,
 QDF_STATUS reg_get_client_power_for_connecting_ap(struct wlan_objmgr_pdev *pdev,
 						  enum reg_6g_ap_type ap_type,
 						  qdf_freq_t chan_freq,
-						  bool *is_psd,
+						  bool is_psd,
 						  uint16_t *tx_power,
 						  uint16_t *eirp_psd_power);
 
@@ -1523,11 +1559,10 @@ static inline
 QDF_STATUS reg_get_client_power_for_connecting_ap(struct wlan_objmgr_pdev *pdev,
 						  enum reg_6g_ap_type ap_type,
 						  qdf_freq_t chan_freq,
-						  bool *is_psd,
+						  bool is_psd,
 						  uint16_t *tx_power,
 						  uint16_t *eirp_psd_power)
 {
-	*is_psd = false;
 	*tx_power = 0;
 	*eirp_psd_power = 0;
 	return QDF_STATUS_E_NOSUPPORT;
@@ -1739,12 +1774,43 @@ bool reg_is_upper_6g_edge_ch_disabled(struct wlan_objmgr_psoc *psoc);
 QDF_STATUS
 reg_process_ch_avoid_ext_event(struct wlan_objmgr_psoc *psoc,
 			       struct ch_avoid_ind_type *ch_avoid_event);
+/**
+ * reg_check_coex_unsafe_nb_user_prefer() - get coex unsafe nb
+ * user prefer ini
+ * @psoc: pointer to psoc
+ *
+ * Return: bool
+ */
+
+bool reg_check_coex_unsafe_nb_user_prefer(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * reg_disable_coex_unsafe_channel() - get reg channel disable for
+ * for coex unsafe channels
+ * @psoc: pointer to psoc
+ *
+ * Return: bool
+ */
+
+bool reg_check_coex_unsafe_chan_reg_disable(struct wlan_objmgr_psoc *psoc);
 #else
 static inline QDF_STATUS
 reg_process_ch_avoid_ext_event(struct wlan_objmgr_psoc *psoc,
 			       struct ch_avoid_ind_type *ch_avoid_event)
 {
 	return QDF_STATUS_SUCCESS;
+}
+
+static inline
+bool reg_check_coex_unsafe_nb_user_prefer(struct wlan_objmgr_psoc *psoc)
+{
+	return false;
+}
+
+static inline
+bool reg_check_coex_unsafe_chan_reg_disable(struct wlan_objmgr_psoc *psoc)
+{
+	return false;
 }
 #endif
 
@@ -1823,4 +1889,14 @@ void reg_dmn_set_afc_req_id(struct wlan_afc_host_partial_request *afc_req,
 QDF_STATUS reg_is_chwidth_supported(struct wlan_objmgr_pdev *pdev,
 				    enum phy_ch_width ch_width,
 				    bool *is_supported);
+
+/**
+ * reg_is_state_allowed() - Check the state of the regulatory channel if it
+ * is invalid or disabled.
+ * @chan_state: Channel state.
+ *
+ * Return bool: true if the channel is not an invalid channel or disabled
+ * channel.
+ */
+bool reg_is_state_allowed(enum channel_state chan_state);
 #endif

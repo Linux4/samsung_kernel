@@ -68,6 +68,7 @@ static void get_chip_vendor(void *device_data);
 static void get_chip_name(void *device_data);
 static void run_jitter_test(void *device_data);
 static void run_factory_miscalibration(void *device_data);
+static void run_factory_miscalibration_read_all(void *device_data);
 static void run_miscalibration(void *device_data);
 static void get_wet_mode(void *device_data);
 static void get_x_num(void *device_data);
@@ -99,6 +100,7 @@ static void get_cx_all_data(void *device_data);
 static void run_cx_gap_data_x_all(void *device_data);
 static void run_cx_gap_data_y_all(void *device_data);
 static void get_strength_all_data(void *device_data);
+static void run_high_frequency_rawcap_read_all(void *device_data);
 static void run_snr_non_touched(void *device_data);
 static void run_snr_touched(void *device_data);
 
@@ -156,6 +158,7 @@ struct sec_cmd ft_commands[] = {
 	{SEC_CMD("get_chip_name", get_chip_name),},
 	{SEC_CMD("run_jitter_test", run_jitter_test),},
 	{SEC_CMD("run_factory_miscalibration", run_factory_miscalibration),},
+	{SEC_CMD("run_factory_miscalibration_read_all", run_factory_miscalibration_read_all),},
 	{SEC_CMD("run_miscalibration", run_miscalibration),},
 	{SEC_CMD("get_wet_mode", get_wet_mode),},
 	{SEC_CMD("get_module_vendor", not_support_cmd),},
@@ -191,6 +194,7 @@ struct sec_cmd ft_commands[] = {
 	{SEC_CMD("run_cx_gap_data_x_all", run_cx_gap_data_x_all),},
 	{SEC_CMD("run_cx_gap_data_y_all", run_cx_gap_data_y_all),},
 	{SEC_CMD("get_strength_all_data", get_strength_all_data),},
+	{SEC_CMD("run_high_frequency_rawcap_read_all", run_high_frequency_rawcap_read_all),},
 	{SEC_CMD("run_snr_non_touched", run_snr_non_touched),},
 	{SEC_CMD("run_snr_touched", run_snr_touched),},
 	{SEC_CMD("set_tsp_test_result", set_tsp_test_result),},
@@ -406,7 +410,7 @@ static ssize_t read_vendor_show(struct device *dev,
 	if (info->board->firmware_name)
 		snprintf(buffer, 9, "%s", info->board->firmware_name + 8);
 	else
-		snprintf(buffer, 9, "FTS");
+		snprintf(buffer, 9, "FST");
 
 	return snprintf(buf, SEC_CMD_BUF_SIZE, "STM_%s", buffer);
 }
@@ -586,8 +590,16 @@ static ssize_t read_support_feature(struct device *dev,
 	if (info->board->support_mis_calibration_test)
 		feature |= INPUT_FEATURE_SUPPORT_MIS_CALIBRATION_TEST;
 
+	if (info->board->enable_sysinput_enabled)
+		feature |= INPUT_FEATURE_ENABLE_SYSINPUT_ENABLED;
+
 	snprintf(buff, sizeof(buff), "%d", feature);
-	input_info(true, &info->client->dev, "%s: %s\n", __func__, buff);
+	input_info(true, &info->client->dev, "%s: %s%s%s%s%s%s\n", __func__, buff,
+		feature & INPUT_FEATURE_ENABLE_SETTINGS_AOT ? " AOT" : "",
+		feature & INPUT_FEATURE_ENABLE_SYNC_RR120 ? " RR120hz" : "",
+		feature & INPUT_FEATURE_SUPPORT_OPEN_SHORT_TEST ? " openshort" : "",
+		feature & INPUT_FEATURE_SUPPORT_MIS_CALIBRATION_TEST ? " miscal" : "",
+		feature & INPUT_FEATURE_ENABLE_SYSINPUT_ENABLED ? " SE" : "");
 
 	return snprintf(buf, SEC_CMD_BUF_SIZE, "%s", buff);
 }
@@ -732,7 +744,7 @@ static ssize_t fts_fod_info_show(struct device *dev,
 
 	if (!info->board->support_fod) {
 		input_err(true, &info->client->dev, "%s: fod is not supported\n", __func__);
-		return snprintf(buf, SEC_CMD_BUF_SIZE, "NG");
+		return snprintf(buf, SEC_CMD_BUF_SIZE, "NA");
 	}
 
 	input_info(true, &info->client->dev, "%s: x:%d/%d y:%d/%d size:%d\n",
@@ -755,7 +767,7 @@ static ssize_t fts_fod_position_show(struct device *dev,
 
 	if (!info->board->support_fod) {
 		input_err(true, &info->client->dev, "%s: fod is not supported\n", __func__);
-		return snprintf(buf, SEC_CMD_BUF_SIZE, "NG");
+		return snprintf(buf, SEC_CMD_BUF_SIZE, "NA");
 	}
 
 	if (!info->fod_vi_size) {
@@ -777,6 +789,78 @@ static ssize_t fts_fod_position_show(struct device *dev,
 	return strlen(buf);
 }
 
+static ssize_t enabled_show(struct device *dev, struct device_attribute *attr,
+					char *buf)
+{
+	struct sec_cmd_data *sec = dev_get_drvdata(dev);
+	struct fts_ts_info *ts = container_of(sec, struct fts_ts_info, sec);
+
+	if (!ts->board->enable_sysinput_enabled)
+		return -EINVAL;
+
+	input_info(true, &ts->client->dev, "%s: %d\n", __func__, ts->board->enabled);
+
+	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d", ts->board->enabled);
+}
+
+static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	struct sec_cmd_data *sec = dev_get_drvdata(dev);
+	struct fts_ts_info *ts = container_of(sec, struct fts_ts_info, sec);
+	struct input_dev *input_dev = ts->board->input_dev;
+	int buff[2];
+	int ret;
+
+	if (!ts->board->enable_sysinput_enabled)
+		return -EINVAL;
+
+	ret = sscanf(buf, "%d,%d", &buff[0], &buff[1]);
+	if (ret != 2) {
+		input_err(true, &ts->client->dev,
+				"%s: failed read params [%d]\n", __func__, ret);
+		return -EINVAL;
+	}
+
+	if (buff[0] == DISPLAY_STATE_ON && buff[1] == DISPLAY_EVENT_LATE) {
+		if (ts->board->enabled) {
+			input_err(true, &ts->client->dev, "%s: device already enabled\n", __func__);
+			goto out;
+		}
+
+		ret = sec_input_enable_device(input_dev);
+	} else if (buff[0] == DISPLAY_STATE_OFF && buff[1] == DISPLAY_EVENT_EARLY) {
+		if (!ts->board->enabled) {
+			input_err(true, &ts->client->dev, "%s: device already disabled\n", __func__);
+			goto out;
+		}
+
+		ret = sec_input_disable_device(input_dev);
+	} else if (buff[0] == DISPLAY_STATE_FORCE_ON) {
+		if (ts->board->enabled) {
+			input_err(true, &ts->client->dev, "%s: device already enabled\n", __func__);
+			goto out;
+		}
+
+		ret = sec_input_enable_device(input_dev);
+		input_info(true, &ts->client->dev,"%s: DISPLAY_STATE_FORCE_ON(%d)\n", __func__, ret);
+	} else if (buff[0] == DISPLAY_STATE_FORCE_OFF) {
+		if (!ts->board->enabled) {
+			input_err(true, &ts->client->dev, "%s: device already disabled\n", __func__);
+			goto out;
+		}
+
+		ret = sec_input_disable_device(input_dev);
+		input_info(true, &ts->client->dev,"%s: DISPLAY_STATE_FORCE_OFF(%d)\n", __func__, ret);
+	}
+
+	if (ret)
+		return ret;
+
+out:
+	return count;
+}
+
 static DEVICE_ATTR(ito_check, 0444, read_ito_check_show, NULL);
 static DEVICE_ATTR(raw_check, 0444, read_raw_check_show, NULL);
 static DEVICE_ATTR(multi_count, 0644, read_multi_count_show, clear_multi_count_store);
@@ -795,6 +879,7 @@ static DEVICE_ATTR(get_lp_dump, 0444, get_lp_dump, NULL);
 static DEVICE_ATTR(prox_power_off, 0664, prox_power_off_show, prox_power_off_store);
 static DEVICE_ATTR(fod_info, 0444, fts_fod_info_show, NULL);
 static DEVICE_ATTR(fod_pos, 0444, fts_fod_position_show, NULL);
+static DEVICE_ATTR(enabled, 0664, enabled_show, enabled_store);
 
 static struct attribute *sec_touch_facotry_attributes[] = {
 	&dev_attr_scrub_pos.attr,
@@ -815,6 +900,7 @@ static struct attribute *sec_touch_facotry_attributes[] = {
 	&dev_attr_prox_power_off.attr,
 	&dev_attr_fod_info.attr,
 	&dev_attr_fod_pos.attr,
+	&dev_attr_enabled.attr,
 	NULL,
 };
 
@@ -1638,6 +1724,55 @@ static void run_factory_miscalibration(void *device_data)
 	sec->cmd_state = SEC_CMD_STATUS_OK;
 }
 
+static void run_factory_miscalibration_read_all(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct fts_ts_info *info = container_of(sec, struct fts_ts_info, sec);
+	char buff[SEC_CMD_STR_LEN];
+	int i, j, ret;
+	short min = 0x7FFF, max = 0x8000;
+	char *all_strbuff;
+
+	sec_cmd_set_default_result(sec);
+	if (info->fts_power_state == FTS_POWER_STATE_POWERDOWN) {
+		input_err(true, &info->client->dev, "%s: [ERROR] Touch is stopped\n",
+				__func__);
+		goto NG;
+	}
+
+	all_strbuff = kzalloc(info->ForceChannelLength * info->SenseChannelLength * 7 + 1, GFP_KERNEL);
+	if (!all_strbuff) {
+		input_err(true, &info->client->dev, "%s: alloc failed\n", __func__);
+		goto NG;
+	}
+
+	input_raw_info(true, &info->client->dev, "%s\n", __func__);
+
+	ret = fts_get_miscal_data(info, &min, &max);
+	if (ret < 0) {
+		input_err(true, &info->client->dev, "%s: failed to get miscal data\n", __func__);
+		kfree(all_strbuff);
+		goto NG;
+	}
+
+	for (j = 0; j < info->ForceChannelLength; j++) {
+		for (i = 0; i < info->SenseChannelLength; i++) {
+			snprintf(buff, sizeof(buff), "%d,", info->pFrame[j * info->SenseChannelLength + i]);
+			strlcat(all_strbuff, buff, info->ForceChannelLength * info->SenseChannelLength * 7);
+		}
+	}
+
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	sec_cmd_set_cmd_result(sec, all_strbuff, strlen(all_strbuff));
+	input_info(true, &info->client->dev, "%s: %ld\n", __func__, strlen(all_strbuff));
+	kfree(all_strbuff);
+	return;
+NG:
+	snprintf(buff, sizeof(buff), "NG");
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+}
+
 static void run_miscalibration(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -2087,7 +2222,7 @@ static void get_chip_name(void *device_data)
 	if (info->firmware_name)
 		memcpy(buff, info->firmware_name + 8, 9);
 	else
-		snprintf(buff, 10, "FTS");
+		snprintf(buff, 10, "FST");
 
 	sec_cmd_set_default_result(sec);
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
@@ -2208,7 +2343,7 @@ static void check_fw_corruption(void *device_data)
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
 	struct fts_ts_info *info = container_of(sec, struct fts_ts_info, sec);
 	char buff[16] = { 0 };
-	int rc;
+	int rc = 0;
 
 	sec_cmd_set_default_result(sec);
 
@@ -2222,7 +2357,10 @@ static void check_fw_corruption(void *device_data)
 	input_err(true, &info->client->dev,
 			"%s: do autotune and retry check corruption\n", __func__);
 
-	fts_execute_autotune(info, true);
+	if (fts_execute_autotune(info, true) < 0) {
+		if (rc == FTS_ERROR_FW_CORRUPTION)
+			goto out;
+	}
 
 	rc = fts_fw_corruption_check(info);
 out:
@@ -2961,9 +3099,10 @@ static void fts_read_self_raw_frame(struct fts_ts_info *info, bool allnode)
 
 	if (allnode == true) {
 		char *mbuff;
+		int buffsize = (info->ForceChannelLength + info->SenseChannelLength + 2) * 10;
 		char temp[10] = { 0 };
 
-		mbuff = kzalloc((info->ForceChannelLength + info->SenseChannelLength + 2) * 10, GFP_KERNEL);
+		mbuff = kzalloc(buffsize, GFP_KERNEL);
 		if (!mbuff) {
 			snprintf(buff, sizeof(buff), "NG");
 			sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -2972,14 +3111,14 @@ static void fts_read_self_raw_frame(struct fts_ts_info *info, bool allnode)
 
 		for (i = 0; i < (info->ForceChannelLength); i++) {
 			snprintf(temp, sizeof(temp), "%d,", (s16)self_force_raw_data[i]);
-			strlcat(mbuff, temp, sizeof(mbuff));
+			strlcat(mbuff, temp, buffsize);
 		}
 		for (i = 0; i < (info->SenseChannelLength); i++) {
 			snprintf(temp, sizeof(temp), "%d,", (s16)self_sense_raw_data[i]);
-			strlcat(mbuff, temp, sizeof(mbuff));
+			strlcat(mbuff, temp, buffsize);
 		}
 
-		sec_cmd_set_cmd_result(sec, mbuff, sizeof(mbuff));
+		sec_cmd_set_cmd_result(sec, mbuff, buffsize);
 		sec->cmd_state = SEC_CMD_STATUS_OK;
 		kfree(mbuff);
 		kfree(data);
@@ -3417,6 +3556,53 @@ static void run_cx_gap_data_y_all(void *device_data)
 	kfree(buff);
 }
 
+static void run_high_frequency_rawcap_read_all(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct fts_ts_info *info = container_of(sec, struct fts_ts_info, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	char *all_strbuff;
+	int i, j, ret;
+
+	sec_cmd_set_default_result(sec);
+	if (info->fts_power_state == FTS_POWER_STATE_POWERDOWN) {
+		input_err(true, &info->client->dev, "%s: [ERROR] Touch is stopped\n",
+				__func__);
+		goto NG;
+	}
+
+	all_strbuff = kzalloc(info->ForceChannelLength * info->SenseChannelLength * 7 + 1, GFP_KERNEL);
+	if (!all_strbuff) {
+		input_err(true, &info->client->dev, "%s: alloc failed\n", __func__);
+		goto NG;
+	}
+
+	input_raw_info(true, &info->client->dev, "%s\n", __func__);
+
+	ret = fts_get_hf_data(info);
+	if (ret < 0) {
+		kfree(all_strbuff);
+		goto NG;
+	}
+
+	for (j = 0; j < info->ForceChannelLength; j++) {
+		for (i = 0; i < info->SenseChannelLength; i++) {
+			snprintf(buff, sizeof(buff), "%d,", info->pFrame[j * info->SenseChannelLength + i]);
+			strlcat(all_strbuff, buff, info->ForceChannelLength * info->SenseChannelLength * 7);
+		}
+	}
+
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	sec_cmd_set_cmd_result(sec, all_strbuff, strlen(all_strbuff));
+	input_info(true, &info->client->dev, "%s: %ld\n", __func__, strlen(all_strbuff));
+	kfree(all_strbuff);
+	return;
+NG:
+	snprintf(buff, sizeof(buff), "NG");
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+}
+
 static void factory_cmd_result_all(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -3454,6 +3640,8 @@ static void factory_cmd_result_all(void *device_data)
 	run_cx_data_read(sec);
 	get_cx_gap_data(sec);
 	run_ix_data_read(sec);
+
+	get_wet_mode(sec);
 
 	/* do not systemreset in COB type */
 	if (info->board->chip_on_board)
@@ -4383,6 +4571,11 @@ void fts_set_grip_data_to_ic(struct fts_ts_info *info, u8 flag)
 {
 	u8 data[4] = { 0 };
 	u8 regAdd[11] = {FTS_CMD_SET_FUNCTION_ONOFF, };
+
+	if (info->fts_power_state == FTS_POWER_STATE_POWERDOWN) {
+		input_err(true, &info->client->dev, "%s: ic power is off\n", __func__);
+		return;
+	}
 
 	input_info(true, &info->client->dev, "%s: flag: %02X (clr,lan,nor,edg,han)\n", __func__, flag);
 

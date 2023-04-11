@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _DSI_CTRL_HW_H_
@@ -49,6 +50,7 @@
  * @DSI_CTRL_VERSION_2_4:     DSI host v2.4 controller
  * @DSI_CTRL_VERSION_2_5:     DSI host v2.5 controller
  * @DSI_CTRL_VERSION_2_6:     DSI host v2.6 controller
+ * @DSI_CTRL_VERSION_2_7:     DSI host v2.7 controller
  * @DSI_CTRL_VERSION_MAX:     max version
  */
 enum dsi_ctrl_version {
@@ -58,6 +60,7 @@ enum dsi_ctrl_version {
 	DSI_CTRL_VERSION_2_4,
 	DSI_CTRL_VERSION_2_5,
 	DSI_CTRL_VERSION_2_6,
+	DSI_CTRL_VERSION_2_7,
 	DSI_CTRL_VERSION_MAX
 };
 
@@ -873,6 +876,15 @@ struct dsi_ctrl_hw_ops {
 	 * @cfg:	Common configuration parameters.
 	 */
 	void (*reset_trig_ctrl)(struct dsi_ctrl_hw *ctrl,
+			struct dsi_host_common_cfg *cfg);
+
+	/**
+	 * hw.ops.init_cmddma_trig_ctrl() - Initialize the default trigger used
+	 *                             for command mode DMA path.
+	 * @ctrl:	Pointer to the controller host hardware.
+	 * @cfg:	Common configuration parameters.
+	 */
+	void (*init_cmddma_trig_ctrl)(struct dsi_ctrl_hw *ctrl,
 			struct dsi_host_common_cfg *cfg);
 
 	/**

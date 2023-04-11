@@ -27,6 +27,58 @@ static u64 gen7_counter_read_norestore(struct adreno_device *adreno_dev,
 	return ((((u64) hi) << 32) | lo) + reg->value;
 }
 
+static int gen7_counter_br_enable(struct adreno_device *adreno_dev,
+		const struct adreno_perfcount_group *group,
+		unsigned int counter, unsigned int countable)
+{
+	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	struct adreno_perfcount_register *reg = &group->regs[counter];
+	int ret = 0;
+	u32 val = 0;
+
+	kgsl_regread(device, GEN7_CP_APERTURE_CNTL_HOST, &val);
+	kgsl_regwrite(device, GEN7_CP_APERTURE_CNTL_HOST, FIELD_PREP(GENMASK(13, 12), PIPE_BR));
+
+	if (group->flags & ADRENO_PERFCOUNTER_GROUP_RESTORE)
+		ret = gen7_perfcounter_update(adreno_dev, reg, true,
+						FIELD_PREP(GENMASK(13, 12), PIPE_BR));
+	else
+		kgsl_regwrite(device, reg->select, countable);
+
+	kgsl_regwrite(device, GEN7_CP_APERTURE_CNTL_HOST, val);
+
+	if (!ret)
+		reg->value = 0;
+
+	return ret;
+}
+
+static int gen7_counter_bv_enable(struct adreno_device *adreno_dev,
+		const struct adreno_perfcount_group *group,
+		unsigned int counter, unsigned int countable)
+{
+	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	struct adreno_perfcount_register *reg = &group->regs[counter];
+	int ret = 0;
+	u32 val = 0;
+
+	kgsl_regread(device, GEN7_CP_APERTURE_CNTL_HOST, &val);
+	kgsl_regwrite(device, GEN7_CP_APERTURE_CNTL_HOST, FIELD_PREP(GENMASK(13, 12), PIPE_BV));
+
+	if (group->flags & ADRENO_PERFCOUNTER_GROUP_RESTORE)
+		ret = gen7_perfcounter_update(adreno_dev, reg, true,
+						FIELD_PREP(GENMASK(13, 12), PIPE_BV));
+	else
+		kgsl_regwrite(device, reg->select, countable);
+
+	kgsl_regwrite(device, GEN7_CP_APERTURE_CNTL_HOST, val);
+
+	if (!ret)
+		reg->value = 0;
+
+	return ret;
+}
+
 static int gen7_counter_enable(struct adreno_device *adreno_dev,
 		const struct adreno_perfcount_group *group,
 		unsigned int counter, unsigned int countable)
@@ -36,70 +88,10 @@ static int gen7_counter_enable(struct adreno_device *adreno_dev,
 	int ret = 0;
 
 	if (group->flags & ADRENO_PERFCOUNTER_GROUP_RESTORE)
-		ret = gen7_perfcounter_update(adreno_dev, reg, true);
+		ret = gen7_perfcounter_update(adreno_dev, reg, true,
+						FIELD_PREP(GENMASK(13, 12), PIPE_NONE));
 	else
 		kgsl_regwrite(device, reg->select, countable);
-
-	if (!ret)
-		reg->value = 0;
-
-	return ret;
-}
-
-static int gen7_counter_inline_enable(struct adreno_device *adreno_dev,
-		const struct adreno_perfcount_group *group,
-		unsigned int counter, unsigned int countable)
-{
-	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-	struct adreno_perfcount_register *reg = &group->regs[counter];
-	struct adreno_ringbuffer *rb = &adreno_dev->ringbuffers[0];
-	u32 cmds[3];
-	int ret;
-
-	if (!(device->state == KGSL_STATE_ACTIVE))
-		return gen7_counter_enable(adreno_dev, group, counter,
-			countable);
-
-	if (group->flags & ADRENO_PERFCOUNTER_GROUP_RESTORE)
-		gen7_perfcounter_update(adreno_dev, reg, false);
-
-	cmds[0] = cp_type7_packet(CP_WAIT_FOR_IDLE, 0);
-	cmds[1] = cp_type4_packet(reg->select, 1);
-	cmds[2] = countable;
-
-	/* submit to highest priority RB always */
-	ret = gen7_ringbuffer_addcmds(adreno_dev, rb, NULL,
-		F_NOTPROTECTED, cmds, 3, 0, NULL);
-	if (ret)
-		return ret;
-
-	/*
-	 * schedule dispatcher to make sure rb[0] is run, because
-	 * if the current RB is not rb[0] and gpu is idle then
-	 * rb[0] will not get scheduled to run
-	 */
-	if (adreno_dev->cur_rb != rb)
-		adreno_dispatcher_schedule(device);
-
-	/* wait for the above commands submitted to complete */
-	ret = adreno_ringbuffer_waittimestamp(rb, rb->timestamp,
-		ADRENO_IDLE_TIMEOUT);
-
-	if (ret) {
-		/*
-		 * If we were woken up because of cancelling rb events
-		 * either due to soft reset or adreno_stop, ignore the
-		 * error and return 0 here. The perfcounter is already
-		 * set up in software and it will be programmed in
-		 * hardware when we wake up or come up after soft reset
-		 */
-		if (ret == -EAGAIN)
-			ret = 0;
-		else
-			dev_err(device->dev,
-				"Perfcounter %s/%u/%u start via commands failed %d\n",
-				group->name, counter, countable, ret);
-	}
 
 	if (!ret)
 		reg->value = 0;
@@ -431,6 +423,21 @@ static struct adreno_perfcount_register gen7_perfcounters_hlsq[] = {
 		GEN7_RBBM_PERFCTR_HLSQ_5_HI, -1, GEN7_SP_PERFCTR_HLSQ_SEL_5 },
 };
 
+static struct adreno_perfcount_register gen7_perfcounters_bv_hlsq[] = {
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, GEN7_RBBM_PERFCTR2_HLSQ_0_LO,
+		GEN7_RBBM_PERFCTR2_HLSQ_0_HI, -1, GEN7_SP_PERFCTR_HLSQ_SEL_0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, GEN7_RBBM_PERFCTR2_HLSQ_1_LO,
+		GEN7_RBBM_PERFCTR2_HLSQ_1_HI, -1, GEN7_SP_PERFCTR_HLSQ_SEL_1 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, GEN7_RBBM_PERFCTR2_HLSQ_2_LO,
+		GEN7_RBBM_PERFCTR2_HLSQ_2_HI, -1, GEN7_SP_PERFCTR_HLSQ_SEL_2 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, GEN7_RBBM_PERFCTR2_HLSQ_3_LO,
+		GEN7_RBBM_PERFCTR2_HLSQ_3_HI, -1, GEN7_SP_PERFCTR_HLSQ_SEL_3 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, GEN7_RBBM_PERFCTR2_HLSQ_4_LO,
+		GEN7_RBBM_PERFCTR2_HLSQ_4_HI, -1, GEN7_SP_PERFCTR_HLSQ_SEL_4 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, GEN7_RBBM_PERFCTR2_HLSQ_5_LO,
+		GEN7_RBBM_PERFCTR2_HLSQ_5_HI, -1, GEN7_SP_PERFCTR_HLSQ_SEL_5 },
+};
+
 static struct adreno_perfcount_register gen7_perfcounters_vpc[] = {
 	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, GEN7_RBBM_PERFCTR_VPC_0_LO,
 		GEN7_RBBM_PERFCTR_VPC_0_HI, -1, GEN7_VPC_PERFCTR_VPC_SEL_0 },
@@ -485,6 +492,17 @@ static struct adreno_perfcount_register gen7_perfcounters_tse[] = {
 		GEN7_RBBM_PERFCTR_TSE_3_HI, -1, GEN7_GRAS_PERFCTR_TSE_SEL_3 },
 };
 
+static struct adreno_perfcount_register gen7_perfcounters_bv_tse[] = {
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, GEN7_RBBM_PERFCTR_BV_TSE_0_LO,
+		GEN7_RBBM_PERFCTR_BV_TSE_0_HI, -1, GEN7_GRAS_PERFCTR_TSE_SEL_0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, GEN7_RBBM_PERFCTR_BV_TSE_1_LO,
+		GEN7_RBBM_PERFCTR_BV_TSE_1_HI, -1, GEN7_GRAS_PERFCTR_TSE_SEL_1 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, GEN7_RBBM_PERFCTR_BV_TSE_2_LO,
+		GEN7_RBBM_PERFCTR_BV_TSE_2_HI, -1, GEN7_GRAS_PERFCTR_TSE_SEL_2 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, GEN7_RBBM_PERFCTR_BV_TSE_3_LO,
+		GEN7_RBBM_PERFCTR_BV_TSE_3_HI, -1, GEN7_GRAS_PERFCTR_TSE_SEL_3 },
+};
+
 static struct adreno_perfcount_register gen7_perfcounters_ras[] = {
 	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, GEN7_RBBM_PERFCTR_RAS_0_LO,
 		GEN7_RBBM_PERFCTR_RAS_0_HI, -1, GEN7_GRAS_PERFCTR_RAS_SEL_0 },
@@ -494,6 +512,17 @@ static struct adreno_perfcount_register gen7_perfcounters_ras[] = {
 		GEN7_RBBM_PERFCTR_RAS_2_HI, -1, GEN7_GRAS_PERFCTR_RAS_SEL_2 },
 	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, GEN7_RBBM_PERFCTR_RAS_3_LO,
 		GEN7_RBBM_PERFCTR_RAS_3_HI, -1, GEN7_GRAS_PERFCTR_RAS_SEL_3 },
+};
+
+static struct adreno_perfcount_register gen7_perfcounters_bv_ras[] = {
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, GEN7_RBBM_PERFCTR_BV_RAS_0_LO,
+		GEN7_RBBM_PERFCTR_BV_RAS_0_HI, -1, GEN7_GRAS_PERFCTR_RAS_SEL_0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, GEN7_RBBM_PERFCTR_BV_RAS_1_LO,
+		GEN7_RBBM_PERFCTR_BV_RAS_1_HI, -1, GEN7_GRAS_PERFCTR_RAS_SEL_1 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, GEN7_RBBM_PERFCTR_BV_RAS_2_LO,
+		GEN7_RBBM_PERFCTR_BV_RAS_2_HI, -1, GEN7_GRAS_PERFCTR_RAS_SEL_2 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, GEN7_RBBM_PERFCTR_BV_RAS_3_LO,
+		GEN7_RBBM_PERFCTR_BV_RAS_3_HI, -1, GEN7_GRAS_PERFCTR_RAS_SEL_3 },
 };
 
 static struct adreno_perfcount_register gen7_perfcounters_uche[] = {
@@ -682,6 +711,17 @@ static struct adreno_perfcount_register gen7_perfcounters_lrz[] = {
 		GEN7_RBBM_PERFCTR_LRZ_3_HI, -1, GEN7_GRAS_PERFCTR_LRZ_SEL_3 },
 };
 
+static struct adreno_perfcount_register gen7_perfcounters_bv_lrz[] = {
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, GEN7_RBBM_PERFCTR_BV_LRZ_0_LO,
+		GEN7_RBBM_PERFCTR_BV_LRZ_0_HI, -1, GEN7_GRAS_PERFCTR_LRZ_SEL_0 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, GEN7_RBBM_PERFCTR_BV_LRZ_1_LO,
+		GEN7_RBBM_PERFCTR_BV_LRZ_1_HI, -1, GEN7_GRAS_PERFCTR_LRZ_SEL_1 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, GEN7_RBBM_PERFCTR_BV_LRZ_2_LO,
+		GEN7_RBBM_PERFCTR_BV_LRZ_2_HI, -1, GEN7_GRAS_PERFCTR_LRZ_SEL_2 },
+	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, GEN7_RBBM_PERFCTR_BV_LRZ_3_LO,
+		GEN7_RBBM_PERFCTR_BV_LRZ_3_HI, -1, GEN7_GRAS_PERFCTR_LRZ_SEL_3 },
+};
+
 static struct adreno_perfcount_register gen7_perfcounters_cmp[] = {
 	{ KGSL_PERFCOUNTER_NOT_USED, 0, 0, GEN7_RBBM_PERFCTR_CMP_0_LO,
 		GEN7_RBBM_PERFCTR_CMP_0_HI, -1, GEN7_RB_PERFCTR_CMP_SEL_0 },
@@ -849,19 +889,16 @@ static const struct adreno_perfcount_group gen7_perfcounter_groups
 		gen7_counter_enable, gen7_counter_read),
 	GEN7_REGULAR_PERFCOUNTER_GROUP(PC, pc),
 	GEN7_REGULAR_PERFCOUNTER_GROUP(VFD, vfd),
-	GEN7_PERFCOUNTER_GROUP(HLSQ, hlsq,
-		gen7_counter_inline_enable, gen7_counter_read),
+	GEN7_PERFCOUNTER_GROUP(HLSQ, hlsq, gen7_counter_br_enable, gen7_counter_read),
 	GEN7_REGULAR_PERFCOUNTER_GROUP(VPC, vpc),
 	GEN7_REGULAR_PERFCOUNTER_GROUP(CCU, ccu),
 	GEN7_REGULAR_PERFCOUNTER_GROUP(CMP, cmp),
-	GEN7_REGULAR_PERFCOUNTER_GROUP(TSE, tse),
-	GEN7_REGULAR_PERFCOUNTER_GROUP(RAS, ras),
-	GEN7_REGULAR_PERFCOUNTER_GROUP(LRZ, lrz),
+	GEN7_PERFCOUNTER_GROUP(TSE, tse, gen7_counter_br_enable, gen7_counter_read),
+	GEN7_PERFCOUNTER_GROUP(RAS, ras, gen7_counter_br_enable, gen7_counter_read),
+	GEN7_PERFCOUNTER_GROUP(LRZ, lrz, gen7_counter_br_enable, gen7_counter_read),
 	GEN7_REGULAR_PERFCOUNTER_GROUP(UCHE, uche),
-	GEN7_PERFCOUNTER_GROUP(TP, tp,
-		gen7_counter_inline_enable, gen7_counter_read),
-	GEN7_PERFCOUNTER_GROUP(SP, sp,
-		gen7_counter_inline_enable, gen7_counter_read),
+	GEN7_REGULAR_PERFCOUNTER_GROUP(TP, tp),
+	GEN7_REGULAR_PERFCOUNTER_GROUP(SP, sp),
 	GEN7_REGULAR_PERFCOUNTER_GROUP(RB, rb),
 	GEN7_REGULAR_PERFCOUNTER_GROUP(VSC, vsc),
 	GEN7_PERFCOUNTER_GROUP_FLAGS(gen7, VBIF, gbif, 0,
@@ -883,11 +920,13 @@ static const struct adreno_perfcount_group gen7_perfcounter_groups
 	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(PC, pc),
 	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(VFD, vfd),
 	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(VPC, vpc),
-	GEN7_BV_PERFCOUNTER_GROUP(TP, tp,
-		gen7_counter_inline_enable, gen7_counter_read),
-	GEN7_BV_PERFCOUNTER_GROUP(SP, sp,
-		gen7_counter_inline_enable, gen7_counter_read),
+	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(TP, tp),
+	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(SP, sp),
 	GEN7_BV_REGULAR_PERFCOUNTER_GROUP(UFC, ufc),
+	GEN7_BV_PERFCOUNTER_GROUP(TSE, tse, gen7_counter_bv_enable, gen7_counter_read),
+	GEN7_BV_PERFCOUNTER_GROUP(RAS, ras, gen7_counter_bv_enable, gen7_counter_read),
+	GEN7_BV_PERFCOUNTER_GROUP(LRZ, lrz, gen7_counter_bv_enable, gen7_counter_read),
+	GEN7_BV_PERFCOUNTER_GROUP(HLSQ, hlsq, gen7_counter_bv_enable, gen7_counter_read),
 };
 
 const struct adreno_perfcounters adreno_gen7_perfcounters = {

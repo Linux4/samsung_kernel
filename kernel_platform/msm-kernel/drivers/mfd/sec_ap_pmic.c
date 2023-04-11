@@ -27,81 +27,6 @@
 #include <linux/samsung/debug/sec_crashkey_long.h>
 #include <linux/mfd/sec_ap_pmic.h>
 #include <trace/events/power.h>
-#include <linux/kernel.h>
-#include <linux/mailbox_client.h>
-#include <linux/mailbox/qmp.h>
-#include <linux/uaccess.h>
-#include <linux/mailbox_controller.h>
-
-/* Changes to send aop messages + */
-#define MAX_MSG_SIZE 96 /* Imposed by the remote*/
-
-struct qmp_debug_data {
-	struct qmp_pkt pkt;
-	char buf[MAX_MSG_SIZE + 1];
-};
-
-static struct qmp_debug_data _data_pkt[MBOX_TX_QUEUE_LEN];
-static struct mbox_chan *sec_chan;
-static struct mbox_client *sec_cl;
-static bool lpm_mon_active;
-static const char aop_start_lpm_mon_msg[] = "{class: lpm_mon, type: cxpc, dur: 1000, flush: 10, ts_adj: 1}";
-
-static DEFINE_MUTEX(qmp_debug_mutex);
-
-int aop_lpm_mon_enable(bool enable)
-{
-	static int count;
-	const char *msg = NULL;
-	size_t len = 0;
-	int err = 0;
-
-	if (enable) {
-		mutex_lock(&qmp_debug_mutex);
-
-		if (count >= MBOX_TX_QUEUE_LEN)
-			count = 0;
-
-		memset(&(_data_pkt[count]), 0, sizeof(_data_pkt[count]));
-
-		msg = aop_start_lpm_mon_msg;
-		len = strlen(aop_start_lpm_mon_msg);
-		strncpy(_data_pkt[count].buf, msg, len);
-
-		_data_pkt[count].pkt.size = (len + 0x3) & ~0x3;
-		_data_pkt[count].pkt.data = _data_pkt[count].buf;
-
-		err = mbox_send_message(sec_chan, &(_data_pkt[count].pkt));
-		if (err < 0)
-			pr_err("%s: Failed to send qmp request (%d)\n", __func__, err);
-		else
-			count++;
-
-		mutex_unlock(&qmp_debug_mutex);
-	}
-
-	lpm_mon_active = enable;
-
-	pr_info("%s: %s\n", __func__, lpm_mon_active ? "enabled" : "disabled");
-	return err;
-}
-EXPORT_SYMBOL(aop_lpm_mon_enable);
-
-#if IS_ENABLED(CONFIG_QTI_SYS_PM_VX)
-extern int debug_vx_show(void);
-#endif /* CONFIG_QTI_SYS_PM_VX */
-
-int _debug_vx_show(void)
-{
-	int ret = 0;
-#if IS_ENABLED(CONFIG_QTI_SYS_PM_VX)
-	if (lpm_mon_active)
-		ret = debug_vx_show();
-#endif /* CONFIG_QTI_SYS_PM_VX */
-	return ret;
-}
-EXPORT_SYMBOL(_debug_vx_show);
-/* Changes to send aop messages -*/
 
 /* for enable/disable manual reset, from retail group's request */
 extern int sec_get_s2_reset(enum sec_pon_type type);
@@ -212,6 +137,7 @@ static ssize_t volkey_wakeup_store(struct device *in_dev,
 }
 static DEVICE_ATTR_RW(volkey_wakeup);
 
+extern void vx_debug_enable(bool enable);
 static bool gpio_dump_enabled;
 static ssize_t gpio_dump_show(struct device *in_dev,
 				struct device_attribute *attr, char *buf)
@@ -222,7 +148,7 @@ static ssize_t gpio_dump_show(struct device *in_dev,
 static ssize_t gpio_dump_store(struct device *in_dev,
 		struct device_attribute *attr, const char *buf, size_t len)
 {
-	int onoff, ret;
+	int onoff;
 
 	if (kstrtoint(buf, 10, &onoff) < 0)
 		return -EINVAL;
@@ -230,11 +156,7 @@ static ssize_t gpio_dump_store(struct device *in_dev,
 	pr_info("%s: onoff=%d\n", __func__, onoff);
 	gpio_dump_enabled = (onoff) ? true : false;
 
-	ret = aop_lpm_mon_enable(gpio_dump_enabled);
-	if (ret) {
-		pr_err("Unable to set aop_lpm_mon_enable: %d\n", ret);
-		return ret;
-	}
+	vx_debug_enable(gpio_dump_enabled);
 
 	return len;
 }
@@ -371,23 +293,6 @@ static int sec_ap_pmic_probe(struct platform_device *pdev)
 
 	info->chg_det_gpio = of_get_named_gpio(node, "chg_det_gpio", 0);
 
-	/* Setup mailbox to send aop message + */
-	sec_cl = devm_kzalloc(&pdev->dev, sizeof(*sec_cl), GFP_KERNEL);
-	if (!sec_cl)
-		return -ENOMEM;
-
-	sec_cl->dev = &pdev->dev;
-	sec_cl->tx_block = true;
-	sec_cl->tx_tout = 1000;
-	sec_cl->knows_txdone = false;
-
-	sec_chan = mbox_request_channel(sec_cl, 0);
-	if (IS_ERR(sec_chan)) {
-		dev_err(&pdev->dev, "Failed to acquire mbox channel (%d)\n", PTR_ERR(sec_chan));
-		return PTR_ERR(sec_chan);
-	}
-	/* Setup mailbox to send aop message - */
-
 #if IS_ENABLED(CONFIG_SEC_CLASS)
 	sec_ap_pmic_dev = sec_device_create(NULL, "ap_pmic");
 
@@ -420,10 +325,6 @@ static int sec_ap_pmic_probe(struct platform_device *pdev)
 #if IS_ENABLED(CONFIG_SEC_CLASS)
 err_device_create:
 	sec_device_destroy(sec_ap_pmic_dev->devt);
-	/* Free mailbox to send aop message + */
-	mbox_free_channel(sec_chan);
-	sec_chan = NULL;
-	/* Free mailbox to send aop message - */
 	return err;
 #endif
 }

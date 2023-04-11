@@ -1,5 +1,5 @@
-#ifndef __INTERNAL__SEC_QC_LOG_BUF_H__
-#define __INTERNAL__SEC_QC_LOG_BUF_H__
+#ifndef __INTERNAL__SEC_QC_DEBUG_H__
+#define __INTERNAL__SEC_QC_DEBUG_H__
 
 #include <linux/notifier.h>
 
@@ -35,4 +35,4 @@ extern void sec_qc_boot_stat_exit(struct builder *bd);
 /* sec_qc_cp_dump_encrypt.c */
 extern int sec_qc_cp_dump_encrypt_init(struct builder *bd);
 
-#endif /* __INTERNAL__SEC_QC_LOG_BUF_H__ */
+#endif /* __INTERNAL__SEC_QC_DEBUG_H__ */

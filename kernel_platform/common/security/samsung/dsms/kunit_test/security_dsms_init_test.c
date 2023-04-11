@@ -29,9 +29,9 @@
  * is_dsms_initialized_flag.
  * Expected: Function should return True value.
  */
-static void security_dsms_is_initialized_test(struct test *test)
+static void security_dsms_is_initialized_test(struct kunit *test)
 {
-	EXPECT_TRUE(test, dsms_is_initialized());
+	KUNIT_EXPECT_TRUE(test, dsms_is_initialized());
 }
 
 /* ------------------------------------------------------------------------- */
@@ -44,9 +44,9 @@ static void security_dsms_is_initialized_test(struct test *test)
  * Expected: Function returns 0 if executed correctly, any other value if an
  * error is triggered.
  */
-static void security_dsms_init_test(struct test *test)
+static void security_dsms_init_test(struct kunit *test)
 {
-	EXPECT_EQ(test, dsms_init(), 0);
+	KUNIT_EXPECT_EQ(test, dsms_init(), 0);
 }
 
 /* ------------------------------------------------------------------------- */
@@ -58,29 +58,29 @@ static void security_dsms_init_test(struct test *test)
  * Test dsms init module.
  * Expected: After execution dsms_is_initialized must be 0 (false).
  */
-static void security_dsms_exit_test(struct test *test)
+static void security_dsms_exit_test(struct kunit *test)
 {
-	ASSERT_TRUE(test, dsms_is_initialized());
+	KUNIT_ASSERT_TRUE(test, dsms_is_initialized());
 //	dsms_exit();
-//	EXPECT_FALSE(test, dsms_is_initialized());
+//	KUNIT_EXPECT_FALSE(test, dsms_is_initialized());
 //	/* restore DSMS to continue tests */
-//	EXPECT_EQ(test, dsms_init(), 0);
-	EXPECT_TRUE(test, dsms_is_initialized());
+//	KUNIT_EXPECT_EQ(test, dsms_init(), 0);
+	KUNIT_EXPECT_TRUE(test, dsms_is_initialized());
 }
 
 /* ------------------------------------------------------------------------- */
 /* Module definition                                                         */
 /* ------------------------------------------------------------------------- */
 
-static struct test_case security_dsms_init_test_cases[] = {
-	TEST_CASE(security_dsms_is_initialized_test),
-	TEST_CASE(security_dsms_init_test),
-	TEST_CASE(security_dsms_exit_test),
+static struct kunit_case security_dsms_init_test_cases[] = {
+	KUNIT_CASE(security_dsms_is_initialized_test),
+	KUNIT_CASE(security_dsms_init_test),
+	KUNIT_CASE(security_dsms_exit_test),
 	{},
 };
 
-static struct test_module security_dsms_init_test_module = {
+static struct kunit_suite security_dsms_init_test_module = {
 	.name = "security-dsms-init-test",
 	.test_cases = security_dsms_init_test_cases,
 };
-module_test(security_dsms_init_test_module);
+kunit_test_suites(&security_dsms_init_test_module);

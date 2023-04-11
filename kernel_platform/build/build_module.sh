@@ -177,12 +177,15 @@ fi
 
 # KERNEL_KIT should be explicitly defined, but default it to something sensible
 KERNEL_KIT="${KERNEL_KIT:-${COMMON_OUT_DIR}}"
+HOST_DIR="${KERNEL_KIT}/host"
 
 if [ ! -e "${KERNEL_KIT}/.config" ]; then
   # Try a couple reasonable/reliable fallback locations
   if [ -e "${KERNEL_KIT}/dist/.config" ]; then
+    HOST_DIR="${KERNEL_KIT}/host"
     KERNEL_KIT="${KERNEL_KIT}/dist"
   elif [ -e "${KERNEL_KIT}/${KERNEL_DIR}/.config" ]; then
+    HOST_DIR="${KERNEL_KIT}/host"
     KERNEL_KIT="${KERNEL_KIT}/${KERNEL_DIR}"
   fi
 fi
@@ -190,6 +193,7 @@ if [ ! -e "${KERNEL_KIT}/.config" ]; then
   echo "ERROR! Could not find prebuilt kernel artifacts in ${KERNEL_KIT}"
   exit 1
 fi
+
 
 if [ ! -e "${OUT_DIR}/Makefile" -o -z "${EXT_MODULES}" ]; then
   echo "========================================================"
@@ -199,11 +203,11 @@ if [ ! -e "${OUT_DIR}/Makefile" -o -z "${EXT_MODULES}" ]; then
   mkdir -p ${OUT_DIR}/
   cp ${KERNEL_KIT}/.config ${KERNEL_KIT}/Module.symvers ${OUT_DIR}/
 
-  if [ -z "${EXT_MODULES}" -a ! ${KERNEL_KIT}/host -ef ${COMMON_OUT_DIR}/host ]; then
+  if [ -z "${EXT_MODULES}" -a ! ${HOST_DIR} -ef ${COMMON_OUT_DIR}/host ]; then
     rm -rf ${COMMON_OUT_DIR}/host
   fi
-  if [ -e ${KERNEL_KIT}/host -a ! -e ${COMMON_OUT_DIR}/host ]; then
-    cp -r ${KERNEL_KIT}/host ${COMMON_OUT_DIR}
+  if [ -e ${HOST_DIR} -a ! -e ${COMMON_OUT_DIR}/host ]; then
+    cp -r ${HOST_DIR} ${COMMON_OUT_DIR}
   fi
 
   # Install .config from kernel platform
@@ -211,6 +215,10 @@ if [ ! -e "${OUT_DIR}/Makefile" -o -z "${EXT_MODULES}" ]; then
     cd "${KERNEL_DIR}"
     make O="${OUT_DIR}" "${TOOL_ARGS[@]}" ${MAKE_ARGS} olddefconfig
   )
+  set +x
+
+  GENERATED_CONFIG=$(mktemp)
+  cp ${OUT_DIR}/.config ${GENERATED_CONFIG}
 
   # To guard against .config silently diverging from the one kernel platform created,
   # set KCONFIG_NOSILENTUPDATE=1. If doing an incremental build, this also guards against
@@ -218,11 +226,19 @@ if [ ! -e "${OUT_DIR}/Makefile" -o -z "${EXT_MODULES}" ]; then
   # in OUT_DIR. To get around this valid change, do "make olddefconfig", copy the .config again,
   # then do the NOSILENTUPDATE check
   cp ${KERNEL_KIT}/.config ${OUT_DIR}/
-  (
-    cd "${KERNEL_DIR}"
-    KCONFIG_NOSILENTUPDATE=1 make O="${OUT_DIR}" "${TOOL_ARGS[@]}" ${MAKE_ARGS} modules_prepare
-  )
-  set +x
+
+  if ! KCONFIG_NOSILENTUPDATE=1 make -C "${KERNEL_DIR}" O="${OUT_DIR}" "${TOOL_ARGS[@]}" \
+      ${MAKE_ARGS} modules_prepare ; then
+    if [ -n "$(${ROOT_DIR}/${KERNEL_DIR}/scripts/diffconfig ${KERNEL_KIT}/.config ${GENERATED_CONFIG})" ]; then
+      echo "ERROR! Current kernel platform sources did not generate expected .config"
+      echo "Possibly kernel sources do not match those which generated kernel output?"
+      echo "Kernel platform sources differ from the prebuilt .config:"
+      ${ROOT_DIR}/${KERNEL_DIR}/scripts/diffconfig ${KERNEL_KIT}/.config ${GENERATED_CONFIG}
+    fi
+    rm ${GENERATED_CONFIG}
+    exit 1
+  fi
+  rm ${GENERATED_CONFIG}
 fi
 # Set KBUILD_MIXED_TREE in case an out-of-tree Makefile does "make all". This causes
 # kbuild to also want to compile vmlinux

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -201,7 +202,7 @@ static bool sde_hw_setup_clk_force_ctrl(struct sde_hw_mdp *mdp,
 }
 
 static int sde_hw_get_clk_ctrl_status(struct sde_hw_mdp *mdp,
-		enum sde_clk_ctrl_type clk_ctrl, bool *status)
+		enum sde_clk_ctrl_type clk_ctrl)
 {
 	struct sde_hw_blk_reg_map *c;
 	u32 reg_off, bit_off;
@@ -218,8 +219,7 @@ static int sde_hw_get_clk_ctrl_status(struct sde_hw_mdp *mdp,
 	reg_off = mdp->caps->clk_status[clk_ctrl].reg_off;
 	bit_off = mdp->caps->clk_status[clk_ctrl].bit_off;
 
-	*status = SDE_REG_READ(c, reg_off) & BIT(bit_off);
-	return 0;
+	return SDE_REG_READ(c, reg_off) & BIT(bit_off);
 }
 
 static void _update_vsync_source(struct sde_hw_mdp *mdp,
@@ -312,7 +312,8 @@ static void sde_hw_setup_vsync_source_v1(struct sde_hw_mdp *mdp,
 void sde_hw_reset_ubwc(struct sde_hw_mdp *mdp, struct sde_mdss_cfg *m)
 {
 	struct sde_hw_blk_reg_map c;
-	u32 ubwc_version;
+	u32 ubwc_dec_version;
+	u32 ubwc_enc_version;
 
 	if (!mdp || !m)
 		return;
@@ -320,17 +321,18 @@ void sde_hw_reset_ubwc(struct sde_hw_mdp *mdp, struct sde_mdss_cfg *m)
 	/* force blk offset to zero to access beginning of register region */
 	c = mdp->hw;
 	c.blk_off = 0x0;
-	ubwc_version = SDE_REG_READ(&c, UBWC_DEC_HW_VERSION);
+	ubwc_dec_version = SDE_REG_READ(&c, UBWC_DEC_HW_VERSION);
+	ubwc_enc_version = m->ubwc_version;
 
-	if (IS_UBWC_40_SUPPORTED(ubwc_version)) {
-		u32 ver = 2;
+	if (IS_UBWC_40_SUPPORTED(ubwc_dec_version) || IS_UBWC_43_SUPPORTED(ubwc_dec_version)) {
+		u32 ver = IS_UBWC_43_SUPPORTED(ubwc_dec_version) ? 3 : 2;
 		u32 mode = 1;
 		u32 reg = (m->mdp[0].ubwc_swizzle & 0x7) |
 			((m->mdp[0].ubwc_static & 0x1) << 3) |
 			((m->mdp[0].highest_bank_bit & 0x7) << 4) |
 			((m->macrotile_mode & 0x1) << 12);
 
-		if (IS_UBWC_30_SUPPORTED(m->ubwc_version)) {
+		if (IS_UBWC_30_SUPPORTED(ubwc_enc_version)) {
 			ver = 1;
 			mode = 0;
 		}
@@ -338,22 +340,22 @@ void sde_hw_reset_ubwc(struct sde_hw_mdp *mdp, struct sde_mdss_cfg *m)
 		SDE_REG_WRITE(&c, UBWC_STATIC, reg);
 		SDE_REG_WRITE(&c, UBWC_CTRL_2, ver);
 		SDE_REG_WRITE(&c, UBWC_PREDICTION_MODE, mode);
-	} else if (IS_UBWC_20_SUPPORTED(ubwc_version)) {
+	} else if (IS_UBWC_20_SUPPORTED(ubwc_dec_version)) {
 		SDE_REG_WRITE(&c, UBWC_STATIC, m->mdp[0].ubwc_static);
-	} else if (IS_UBWC_30_SUPPORTED(ubwc_version)) {
+	} else if (IS_UBWC_30_SUPPORTED(ubwc_dec_version)) {
 		u32 reg = m->mdp[0].ubwc_static |
 			(m->mdp[0].ubwc_swizzle & 0x1) |
 			((m->mdp[0].highest_bank_bit & 0x3) << 4) |
 			((m->macrotile_mode & 0x1) << 12);
 
-		if (IS_UBWC_30_SUPPORTED(m->ubwc_version))
+		if (IS_UBWC_30_SUPPORTED(ubwc_enc_version))
 			reg |= BIT(10);
-		if (IS_UBWC_10_SUPPORTED(m->ubwc_version))
+		if (IS_UBWC_10_SUPPORTED(ubwc_enc_version))
 			reg |= BIT(8);
 
 		SDE_REG_WRITE(&c, UBWC_STATIC, reg);
 	} else {
-		SDE_ERROR("Unsupported UBWC version 0x%08x\n", ubwc_version);
+		SDE_ERROR("unsupported ubwc decoder version 0x%08x\n", ubwc_dec_version);
 	}
 }
 
@@ -415,9 +417,9 @@ void sde_hw_set_sspp_sid(struct sde_hw_sid *sid, u32 pipe, u32 vm)
 	if (!sid)
 		return;
 
-	if ((pipe >= SSPP_VIG0) && (pipe <= SSPP_VIG3))
+	if (SDE_SSPP_VALID_VIG(pipe))
 		offset = MDP_SID_VIG0 + ((pipe - SSPP_VIG0) * 4);
-	else if ((pipe >= SSPP_DMA0) && (pipe <= SSPP_DMA3))
+	else if (SDE_SSPP_VALID_DMA(pipe))
 		offset = MDP_SID_DMA0 + ((pipe - SSPP_DMA0) * 4);
 	else
 		return;

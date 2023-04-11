@@ -6,10 +6,9 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/qcom-iommu-util.h>
+#include <linux/qcom-io-pgtable.h>
 #include <linux/dma-mapping-fast.h>
 #include "qcom-dma-iommu-generic.h"
-#include "qcom-io-pgtable.h"
-
 
 struct qcom_iommu_range_prop_cb_data {
 	int (*range_prop_entry_cb_fn)(const __be32 *p, int naddr, int nsize, void *arg);
@@ -431,10 +430,11 @@ void *qcom_io_pgtable_alloc_pages(const struct qcom_iommu_pgtable_ops *ops,
 }
 
 void qcom_io_pgtable_free_pages(const struct qcom_iommu_pgtable_ops *ops,
-				void *cookie, void *virt, int order)
+				void *cookie, void *virt, int order,
+				bool deferred_free)
 {
 	if (ops)
-		ops->free(cookie, virt, order);
+		ops->free(cookie, virt, order, deferred_free);
 	else
 		free_pages((unsigned long)virt, order);
 }
@@ -451,7 +451,7 @@ static initcall_t init_table[] __initdata = {
 };
 
 static exitcall_t exit_table[] = {
-	dma_mapping_fast_exit,
+	NULL, /* dma_mapping_fast */
 	qcom_dma_iommu_generic_driver_exit,
 	NULL, /* lpae_do_selftests */
 	NULL,

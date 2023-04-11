@@ -132,8 +132,8 @@ static int sec_qc_reset_klog_proc_open(struct inode *inode, struct file *file)
 
 	mutex_lock(&reset_klog->lock);
 
-	if (reset_klog->ref) {
-		reset_klog->ref++;
+	if (reset_klog->ref_cnt) {
+		reset_klog->ref_cnt++;
 		goto already_cached;
 	}
 
@@ -149,7 +149,7 @@ static int sec_qc_reset_klog_proc_open(struct inode *inode, struct file *file)
 		goto err_buf;
 	}
 
-	reset_klog->ref++;
+	reset_klog->ref_cnt++;
 
 	mutex_unlock(&reset_klog->lock);
 
@@ -193,8 +193,8 @@ static int sec_qc_reset_klog_proc_release(struct inode *inode,
 
 	mutex_lock(&reset_klog->lock);
 
-	reset_klog->ref--;
-	if (reset_klog->ref)
+	reset_klog->ref_cnt--;
+	if (reset_klog->ref_cnt)
 		goto still_used;
 
 	reset_klog->len = 0;

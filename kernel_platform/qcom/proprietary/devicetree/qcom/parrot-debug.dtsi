@@ -1,0 +1,879 @@
+#include <dt-bindings/soc/qcom,dcc_v2.h>
+
+&reserved_memory {
+	#address-cells = <2>;
+	#size-cells = <2>;
+	ranges;
+
+	dump_mem: mem_dump_region {
+		compatible = "shared-dma-pool";
+		alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
+		reusable;
+		alignment = <0x0 0x400000>;
+		size = <0x0 0xc00000>;
+	};
+};
+
+&soc {
+	dcc: dcc_v2@100ff000 {
+		compatible = "qcom,dcc-v2";
+		reg = <0x100ff000 0x1000>,
+		      <0x10080000 0x18000>;
+
+		qcom,transaction_timeout = <0>;
+
+		reg-names = "dcc-base", "dcc-ram-base";
+		dcc-ram-offset = <0>;
+
+		link_list_0 {
+			qcom,curr-link-list = <6>;
+			qcom,data-sink = "sram";
+			qcom,link-list = <DCC_READ 0x19080024 1 0>,
+				<DCC_READ 0x1908002C 1 0>,
+				<DCC_READ 0x19080034 1 0>,
+				<DCC_READ 0x1908003C 1 0>,
+				<DCC_READ 0x19080044 1 0>,
+				<DCC_READ 0x1908004C 1 0>,
+				<DCC_READ 0x19080054 1 0>,
+				<DCC_READ 0x1908005C 1 0>,
+				<DCC_READ 0x1908012C 1 0>,
+				<DCC_READ 0x19080144 1 0>,
+				<DCC_READ 0x1908014C 1 0>,
+				<DCC_READ 0x19080164 1 0>,
+				<DCC_READ 0x19080174 1 0>,
+				<DCC_READ 0x1908017C 1 0>,
+				<DCC_READ 0x19080184 1 0>,
+				<DCC_READ 0x1908018C 1 0>,
+				<DCC_READ 0x19080194 1 0>,
+				<DCC_READ 0x1908019C 1 0>,
+				<DCC_READ 0x190801A4 1 0>,
+				<DCC_READ 0x190801AC 1 0>,
+				<DCC_READ 0x190801B4 1 0>,
+				<DCC_READ 0x19083004 1 0>,
+				<DCC_READ 0x19091000 1 0>,
+				<DCC_READ 0x19092000 1 0>,
+				<DCC_READ 0x19093000 1 0>,
+				<DCC_READ 0x19093104 1 0>,
+				<DCC_READ 0x19094000 1 0>,
+				<DCC_READ 0x19094104 1 0>,
+				<DCC_READ 0x19095220 1 0>,
+				<DCC_READ 0x190A8804 1 0>,
+				<DCC_READ 0x190A880C 1 0>,
+				<DCC_READ 0x190A8834 1 0>,
+				<DCC_READ 0x190A8840 1 0>,
+				<DCC_READ 0x190A8844 1 0>,
+				<DCC_READ 0x190A8854 1 0>,
+				<DCC_READ 0x190A8860 1 0>,
+				<DCC_READ 0x190A8864 1 0>,
+				<DCC_READ 0x190A8868 1 0>,
+				<DCC_READ 0x190A8878 1 0>,
+				<DCC_READ 0x190A888C 1 0>,
+				<DCC_READ 0x190A9140 1 0>,
+				<DCC_READ 0x190A9144 1 0>,
+				<DCC_READ 0x190A9148 1 0>,
+				<DCC_READ 0x190A914C 1 0>,
+				<DCC_READ 0x190A9150 1 0>,
+				<DCC_READ 0x190A9154 1 0>,
+				<DCC_READ 0x190A9158 1 0>,
+				<DCC_READ 0x190A915C 1 0>,
+				<DCC_READ 0x190A9160 1 0>,
+				<DCC_READ 0x190A9164 1 0>,
+				<DCC_READ 0x190A9188 1 0>,
+				<DCC_READ 0x190A918C 1 0>,
+				<DCC_READ 0x190A9198 1 0>,
+				<DCC_READ 0x190A919C 1 0>,
+				<DCC_READ 0x190A91AC 1 0>,
+				<DCC_READ 0x190A91B4 1 0>,
+				<DCC_READ 0x190A91C4 1 0>,
+				<DCC_READ 0x190A91C8 1 0>,
+				<DCC_READ 0x190A91D0 1 0>,
+				<DCC_READ 0x190A91E4 1 0>,
+				<DCC_READ 0x190AA034 1 0>,
+				<DCC_READ 0x190AA038 1 0>,
+				<DCC_READ 0x190AA03C 1 0>,
+				<DCC_READ 0x190AA040 1 0>,
+				<DCC_READ 0x190AA04C 1 0>,
+				<DCC_READ 0x190AA058 1 0>,
+				<DCC_READ 0x190AA064 1 0>,
+				<DCC_READ 0x190AA070 1 0>,
+				<DCC_READ 0x19243400 1 0>,
+				<DCC_READ 0x19243404 1 0>,
+				<DCC_READ 0x19243408 1 0>,
+				<DCC_READ 0x1924340C 1 0>,
+				<DCC_READ 0x19243410 1 0>,
+				<DCC_READ 0x19243414 1 0>,
+				<DCC_READ 0x19243418 1 0>,
+				<DCC_READ 0x19243420 1 0>,
+				<DCC_READ 0x19243424 1 0>,
+				<DCC_READ 0x19243430 1 0>,
+				<DCC_READ 0x19243434 1 0>,
+				<DCC_READ 0x19243438 1 0>,
+				<DCC_READ 0x1924343C 1 0>,
+				<DCC_READ 0x19243440 1 0>,
+				<DCC_READ 0x19243460 1 0>,
+				<DCC_READ 0x19243464 1 0>,
+				<DCC_READ 0x19243468 1 0>,
+				<DCC_READ 0x1924346C 1 0>,
+				<DCC_READ 0x19243470 1 0>,
+				<DCC_READ 0x1924390C 1 0>,
+				<DCC_READ 0x19243920 1 0>,
+				<DCC_READ 0x19250400 1 0>,
+				<DCC_READ 0x19250404 1 0>,
+				<DCC_READ 0x19250410 1 0>,
+				<DCC_READ 0x19250414 1 0>,
+				<DCC_READ 0x19250418 1 0>,
+				<DCC_READ 0x19250420 1 0>,
+				<DCC_READ 0x19250424 1 0>,
+				<DCC_READ 0x19250430 1 0>,
+				<DCC_READ 0x19250440 1 0>,
+				<DCC_READ 0x19250448 1 0>,
+				<DCC_READ 0x192504A0 1 0>,
+				<DCC_READ 0x192504B0 1 0>,
+				<DCC_READ 0x192504B4 1 0>,
+				<DCC_READ 0x192504B8 1 0>,
+				<DCC_READ 0x192504BC 1 0>,
+				<DCC_READ 0x192504D0 1 0>,
+				<DCC_READ 0x192504D4 1 0>,
+				<DCC_READ 0x192504E0 1 0>,
+				<DCC_READ 0x19252400 1 0>,
+				<DCC_READ 0x19252404 1 0>,
+				<DCC_READ 0x19252410 1 0>,
+				<DCC_READ 0x19252418 1 0>,
+				<DCC_READ 0x19252450 1 0>,
+				<DCC_READ 0x19252454 1 0>,
+				<DCC_READ 0x19252458 1 0>,
+				<DCC_READ 0x1925245C 1 0>,
+				<DCC_READ 0x19252460 1 0>,
+				<DCC_READ 0x19252464 1 0>,
+				<DCC_READ 0x19252468 1 0>,
+				<DCC_READ 0x1925246C 1 0>,
+				<DCC_READ 0x19252470 1 0>,
+				<DCC_READ 0x19253400 1 0>,
+				<DCC_READ 0x19253404 1 0>,
+				<DCC_READ 0x19253408 1 0>,
+				<DCC_READ 0x1925340C 1 0>,
+				<DCC_READ 0x19253410 1 0>,
+				<DCC_READ 0x19253414 1 0>,
+				<DCC_READ 0x19253418 1 0>,
+				<DCC_READ 0x1925341C 1 0>,
+				<DCC_READ 0x19253420 1 0>,
+				<DCC_READ 0x19255110 1 0>,
+				<DCC_READ 0x19255210 1 0>,
+				<DCC_READ 0x19255230 1 0>,
+				<DCC_READ 0x192553B0 1 0>,
+				<DCC_READ 0x192553B4 1 0>,
+				<DCC_READ 0x19255840 1 0>,
+				<DCC_READ 0x19255920 1 0>,
+				<DCC_READ 0x19255924 1 0>,
+				<DCC_READ 0x19255928 1 0>,
+				<DCC_READ 0x1925592C 1 0>,
+				<DCC_READ 0x19255B00 1 0>,
+				<DCC_READ 0x19255B04 1 0>,
+				<DCC_READ 0x19255B08 1 0>,
+				<DCC_READ 0x19255B0C 1 0>,
+				<DCC_READ 0x19255B10 1 0>,
+				<DCC_READ 0x19255B14 1 0>,
+				<DCC_READ 0x19255B18 1 0>,
+				<DCC_READ 0x19255B1C 1 0>,
+				<DCC_READ 0x19255B28 1 0>,
+				<DCC_READ 0x19255B2C 1 0>,
+				<DCC_READ 0x19255B30 1 0>,
+				<DCC_READ 0x19255B34 1 0>,
+				<DCC_READ 0x19255B38 1 0>,
+				<DCC_READ 0x19255B3C 1 0>,
+				<DCC_READ 0x19255B40 1 0>,
+				<DCC_READ 0x19255B44 1 0>,
+				<DCC_READ 0x19255B48 1 0>,
+				<DCC_READ 0x19256400 1 0>,
+				<DCC_READ 0x19256410 1 0>,
+				<DCC_READ 0x19256414 1 0>,
+				<DCC_READ 0x19256418 1 0>,
+				<DCC_READ 0x1925641C 1 0>,
+				<DCC_READ 0x19256420 1 0>,
+				<DCC_READ 0x19259100 1 0>,
+				<DCC_READ 0x19260304 1 0>,
+				<DCC_READ 0x19260400 1 0>,
+				<DCC_READ 0x19260404 1 0>,
+				<DCC_READ 0x19260410 1 0>,
+				<DCC_READ 0x19260414 1 0>,
+				<DCC_READ 0x19260418 1 0>,
+				<DCC_READ 0x1926041C 1 0>,
+				<DCC_READ 0x19260420 1 0>,
+				<DCC_READ 0x19260424 1 0>,
+				<DCC_READ 0x19260430 1 0>,
+				<DCC_READ 0x19260440 1 0>,
+				<DCC_READ 0x19260448 1 0>,
+				<DCC_READ 0x192604A0 1 0>,
+				<DCC_READ 0x192604B0 1 0>,
+				<DCC_READ 0x192604B4 1 0>,
+				<DCC_READ 0x192604B8 1 0>,
+				<DCC_READ 0x192604BC 1 0>,
+				<DCC_READ 0x192604D0 1 0>,
+				<DCC_READ 0x192604D4 1 0>,
+				<DCC_READ 0x192604E0 1 0>,
+				<DCC_READ 0x19262400 1 0>,
+				<DCC_READ 0x19262404 1 0>,
+				<DCC_READ 0x19262410 1 0>,
+				<DCC_READ 0x19262418 1 0>,
+				<DCC_READ 0x19262420 1 0>,
+				<DCC_READ 0x19262424 1 0>,
+				<DCC_READ 0x19262428 1 0>,
+				<DCC_READ 0x1926242C 1 0>,
+				<DCC_READ 0x19262430 1 0>,
+				<DCC_READ 0x19262434 1 0>,
+				<DCC_READ 0x19262438 1 0>,
+				<DCC_READ 0x1926243C 1 0>,
+				<DCC_READ 0x19262440 1 0>,
+				<DCC_READ 0x19262444 1 0>,
+				<DCC_READ 0x19262448 1 0>,
+				<DCC_READ 0x1926244C 1 0>,
+				<DCC_READ 0x19262450 1 0>,
+				<DCC_READ 0x19262454 1 0>,
+				<DCC_READ 0x19262458 1 0>,
+				<DCC_READ 0x1926245C 1 0>,
+				<DCC_READ 0x19262460 1 0>,
+				<DCC_READ 0x19262464 1 0>,
+				<DCC_READ 0x19262468 1 0>,
+				<DCC_READ 0x1926246C 1 0>,
+				<DCC_READ 0x19262470 1 0>,
+				<DCC_READ 0x19262474 1 0>,
+				<DCC_READ 0x19262478 1 0>,
+				<DCC_READ 0x1926247C 1 0>,
+				<DCC_READ 0x19262480 1 0>,
+				<DCC_READ 0x19262484 1 0>,
+				<DCC_READ 0x19262488 1 0>,
+				<DCC_READ 0x1926248C 1 0>,
+				<DCC_READ 0x19262490 1 0>,
+				<DCC_READ 0x19263400 1 0>,
+				<DCC_READ 0x19263404 1 0>,
+				<DCC_READ 0x19263408 1 0>,
+				<DCC_READ 0x1926340C 1 0>,
+				<DCC_READ 0x19263410 1 0>,
+				<DCC_READ 0x19263414 1 0>,
+				<DCC_READ 0x19263418 1 0>,
+				<DCC_READ 0x1926341C 1 0>,
+				<DCC_READ 0x19263420 1 0>,
+				<DCC_READ 0x19263424 1 0>,
+				<DCC_READ 0x19263428 1 0>,
+				<DCC_READ 0x19265110 1 0>,
+				<DCC_READ 0x19265210 1 0>,
+				<DCC_READ 0x19265230 1 0>,
+				<DCC_READ 0x192653B0 1 0>,
+				<DCC_READ 0x192653B4 1 0>,
+				<DCC_READ 0x19265C00 1 0>,
+				<DCC_READ 0x19265C04 1 0>,
+				<DCC_READ 0x19265C08 1 0>,
+				<DCC_READ 0x19265C0C 1 0>,
+				<DCC_READ 0x19265C10 1 0>,
+				<DCC_READ 0x19265C14 1 0>,
+				<DCC_READ 0x19265C18 1 0>,
+				<DCC_READ 0x19265C1C 1 0>,
+				<DCC_READ 0x19265C28 1 0>,
+				<DCC_READ 0x19265C2C 1 0>,
+				<DCC_READ 0x19265C30 1 0>,
+				<DCC_READ 0x19265C34 1 0>,
+				<DCC_READ 0x19265C38 1 0>,
+				<DCC_READ 0x19265C3C 1 0>,
+				<DCC_READ 0x19265C40 1 0>,
+				<DCC_READ 0x19265C44 1 0>,
+				<DCC_READ 0x19265C4C 1 0>,
+				<DCC_READ 0x19265C50 1 0>,
+				<DCC_READ 0x19265C54 1 0>,
+				<DCC_READ 0x19265C58 1 0>,
+				<DCC_READ 0x19265C5C 1 0>,
+				<DCC_READ 0x19265C60 1 0>,
+				<DCC_READ 0x19265C70 1 0>,
+				<DCC_READ 0x19265C74 1 0>,
+				<DCC_READ 0x19265C78 1 0>,
+				<DCC_READ 0x19265C7C 1 0>,
+				<DCC_READ 0x19265C80 1 0>,
+				<DCC_READ 0x19265C84 1 0>,
+				<DCC_READ 0x19265C88 1 0>,
+				<DCC_READ 0x19265C8C 1 0>,
+				<DCC_READ 0x19265C90 1 0>,
+				<DCC_READ 0x19265C94 1 0>,
+				<DCC_READ 0x19265C98 1 0>,
+				<DCC_READ 0x19265C9C 1 0>,
+				<DCC_READ 0x19265CA0 1 0>,
+				<DCC_READ 0x19265CA4 1 0>,
+				<DCC_READ 0x19265CA8 1 0>,
+				<DCC_READ 0x19265CAC 1 0>,
+				<DCC_READ 0x19265CB0 1 0>,
+				<DCC_READ 0x19265CB4 1 0>,
+				<DCC_READ 0x19266400 1 0>,
+				<DCC_READ 0x19266410 1 0>,
+				<DCC_READ 0x19266418 1 0>,
+				<DCC_READ 0x1926641C 1 0>,
+				<DCC_READ 0x19266420 1 0>,
+				<DCC_READ 0x19269100 1 0>,
+				<DCC_READ 0x19281814 1 0>,
+				<DCC_READ 0x19283814 1 0>,
+				<DCC_READ 0x19285014 1 0>,
+				<DCC_READ 0x19286C04 1 0>,
+				<DCC_READ 0x19286D04 1 0>,
+				<DCC_READ 0x1928729C 1 0>,
+				<DCC_READ 0x192872A8 1 0>,
+				<DCC_READ 0x1928759C 1 0>,
+				<DCC_READ 0x192875A8 1 0>,
+				<DCC_READ 0x192E0610 1 0>,
+				<DCC_READ 0x192E0614 1 0>,
+				<DCC_READ 0x192E0618 1 0>,
+				<DCC_READ 0x192E061C 1 0>,
+				<DCC_READ 0x192E0624 1 0>,
+				<DCC_READ 0x192E0628 1 0>,
+				<DCC_READ 0x192E062C 1 0>,
+				<DCC_READ 0x192E0630 1 0>,
+				<DCC_READ 0x192E0634 1 0>,
+				<DCC_READ 0x192E0640 1 0>,
+				<DCC_READ 0x192E0650 1 0>,
+				<DCC_READ 0x192E0654 1 0>,
+				<DCC_READ 0x192E0658 1 0>,
+				<DCC_READ 0x192E065C 1 0>,
+				<DCC_READ 0x192E0670 1 0>,
+				<DCC_READ 0x192E0680 1 0>,
+				<DCC_READ 0x192E0684 1 0>,
+				<DCC_READ 0x192E0688 1 0>,
+				<DCC_READ 0x192E068C 1 0>,
+				<DCC_READ 0x19343400 1 0>,
+				<DCC_READ 0x19343404 1 0>,
+				<DCC_READ 0x19343408 1 0>,
+				<DCC_READ 0x1934340C 1 0>,
+				<DCC_READ 0x19343410 1 0>,
+				<DCC_READ 0x19343414 1 0>,
+				<DCC_READ 0x19343418 1 0>,
+				<DCC_READ 0x19343420 1 0>,
+				<DCC_READ 0x19343424 1 0>,
+				<DCC_READ 0x19343430 1 0>,
+				<DCC_READ 0x19343434 1 0>,
+				<DCC_READ 0x19343438 1 0>,
+				<DCC_READ 0x1934343C 1 0>,
+				<DCC_READ 0x19343440 1 0>,
+				<DCC_READ 0x19343460 1 0>,
+				<DCC_READ 0x19343464 1 0>,
+				<DCC_READ 0x19343468 1 0>,
+				<DCC_READ 0x1934346C 1 0>,
+				<DCC_READ 0x19343470 1 0>,
+				<DCC_READ 0x1934390C 1 0>,
+				<DCC_READ 0x19343920 1 0>,
+				<DCC_READ 0x19350400 1 0>,
+				<DCC_READ 0x19350404 1 0>,
+				<DCC_READ 0x19350410 1 0>,
+				<DCC_READ 0x19350414 1 0>,
+				<DCC_READ 0x19350418 1 0>,
+				<DCC_READ 0x19350420 1 0>,
+				<DCC_READ 0x19350424 1 0>,
+				<DCC_READ 0x19350430 1 0>,
+				<DCC_READ 0x19350440 1 0>,
+				<DCC_READ 0x19350448 1 0>,
+				<DCC_READ 0x193504A0 1 0>,
+				<DCC_READ 0x193504B0 1 0>,
+				<DCC_READ 0x193504B4 1 0>,
+				<DCC_READ 0x193504B8 1 0>,
+				<DCC_READ 0x193504BC 1 0>,
+				<DCC_READ 0x193504D0 1 0>,
+				<DCC_READ 0x193504D4 1 0>,
+				<DCC_READ 0x193504E0 1 0>,
+				<DCC_READ 0x19352400 1 0>,
+				<DCC_READ 0x19352404 1 0>,
+				<DCC_READ 0x19352410 1 0>,
+				<DCC_READ 0x19352418 1 0>,
+				<DCC_READ 0x19352450 1 0>,
+				<DCC_READ 0x19352454 1 0>,
+				<DCC_READ 0x19352458 1 0>,
+				<DCC_READ 0x1935245C 1 0>,
+				<DCC_READ 0x19352460 1 0>,
+				<DCC_READ 0x19352464 1 0>,
+				<DCC_READ 0x19352468 1 0>,
+				<DCC_READ 0x1935246C 1 0>,
+				<DCC_READ 0x19352470 1 0>,
+				<DCC_READ 0x19353400 1 0>,
+				<DCC_READ 0x19353404 1 0>,
+				<DCC_READ 0x19353408 1 0>,
+				<DCC_READ 0x1935340C 1 0>,
+				<DCC_READ 0x19353410 1 0>,
+				<DCC_READ 0x19353414 1 0>,
+				<DCC_READ 0x19353418 1 0>,
+				<DCC_READ 0x1935341C 1 0>,
+				<DCC_READ 0x19353420 1 0>,
+				<DCC_READ 0x19355110 1 0>,
+				<DCC_READ 0x19355210 1 0>,
+				<DCC_READ 0x19355230 1 0>,
+				<DCC_READ 0x193553B0 1 0>,
+				<DCC_READ 0x193553B4 1 0>,
+				<DCC_READ 0x19355840 1 0>,
+				<DCC_READ 0x19355920 1 0>,
+				<DCC_READ 0x19355924 1 0>,
+				<DCC_READ 0x19355928 1 0>,
+				<DCC_READ 0x1935592C 1 0>,
+				<DCC_READ 0x19355B00 1 0>,
+				<DCC_READ 0x19355B04 1 0>,
+				<DCC_READ 0x19355B08 1 0>,
+				<DCC_READ 0x19355B0C 1 0>,
+				<DCC_READ 0x19355B10 1 0>,
+				<DCC_READ 0x19355B14 1 0>,
+				<DCC_READ 0x19355B18 1 0>,
+				<DCC_READ 0x19355B1C 1 0>,
+				<DCC_READ 0x19355B28 1 0>,
+				<DCC_READ 0x19355B2C 1 0>,
+				<DCC_READ 0x19355B30 1 0>,
+				<DCC_READ 0x19355B34 1 0>,
+				<DCC_READ 0x19355B38 1 0>,
+				<DCC_READ 0x19355B3C 1 0>,
+				<DCC_READ 0x19355B40 1 0>,
+				<DCC_READ 0x19355B44 1 0>,
+				<DCC_READ 0x19355B48 1 0>,
+				<DCC_READ 0x19356400 1 0>,
+				<DCC_READ 0x19356410 1 0>,
+				<DCC_READ 0x19356414 1 0>,
+				<DCC_READ 0x19356418 1 0>,
+				<DCC_READ 0x1935641C 1 0>,
+				<DCC_READ 0x19356420 1 0>,
+				<DCC_READ 0x19359100 1 0>,
+				<DCC_READ 0x19360304 1 0>,
+				<DCC_READ 0x19360400 1 0>,
+				<DCC_READ 0x19360404 1 0>,
+				<DCC_READ 0x19360410 1 0>,
+				<DCC_READ 0x19360414 1 0>,
+				<DCC_READ 0x19360418 1 0>,
+				<DCC_READ 0x1936041C 1 0>,
+				<DCC_READ 0x19360420 1 0>,
+				<DCC_READ 0x19360424 1 0>,
+				<DCC_READ 0x19360430 1 0>,
+				<DCC_READ 0x19360440 1 0>,
+				<DCC_READ 0x19360448 1 0>,
+				<DCC_READ 0x193604A0 1 0>,
+				<DCC_READ 0x193604B0 1 0>,
+				<DCC_READ 0x193604B4 1 0>,
+				<DCC_READ 0x193604B8 1 0>,
+				<DCC_READ 0x193604BC 1 0>,
+				<DCC_READ 0x193604D0 1 0>,
+				<DCC_READ 0x193604D4 1 0>,
+				<DCC_READ 0x193604E0 1 0>,
+				<DCC_READ 0x19362400 1 0>,
+				<DCC_READ 0x19362404 1 0>,
+				<DCC_READ 0x19362410 1 0>,
+				<DCC_READ 0x19362418 1 0>,
+				<DCC_READ 0x19362420 1 0>,
+				<DCC_READ 0x19362424 1 0>,
+				<DCC_READ 0x19362428 1 0>,
+				<DCC_READ 0x1936242C 1 0>,
+				<DCC_READ 0x19362430 1 0>,
+				<DCC_READ 0x19362434 1 0>,
+				<DCC_READ 0x19362438 1 0>,
+				<DCC_READ 0x1936243C 1 0>,
+				<DCC_READ 0x19362440 1 0>,
+				<DCC_READ 0x19362444 1 0>,
+				<DCC_READ 0x19362448 1 0>,
+				<DCC_READ 0x1936244C 1 0>,
+				<DCC_READ 0x19362450 1 0>,
+				<DCC_READ 0x19362454 1 0>,
+				<DCC_READ 0x19362458 1 0>,
+				<DCC_READ 0x1936245C 1 0>,
+				<DCC_READ 0x19362460 1 0>,
+				<DCC_READ 0x19362464 1 0>,
+				<DCC_READ 0x19362468 1 0>,
+				<DCC_READ 0x1936246C 1 0>,
+				<DCC_READ 0x19362470 1 0>,
+				<DCC_READ 0x19362474 1 0>,
+				<DCC_READ 0x19362478 1 0>,
+				<DCC_READ 0x1936247C 1 0>,
+				<DCC_READ 0x19362480 1 0>,
+				<DCC_READ 0x19362484 1 0>,
+				<DCC_READ 0x19362488 1 0>,
+				<DCC_READ 0x1936248C 1 0>,
+				<DCC_READ 0x19362490 1 0>,
+				<DCC_READ 0x19363400 1 0>,
+				<DCC_READ 0x19363404 1 0>,
+				<DCC_READ 0x19363408 1 0>,
+				<DCC_READ 0x1936340C 1 0>,
+				<DCC_READ 0x19363410 1 0>,
+				<DCC_READ 0x19363414 1 0>,
+				<DCC_READ 0x19363418 1 0>,
+				<DCC_READ 0x1936341C 1 0>,
+				<DCC_READ 0x19363420 1 0>,
+				<DCC_READ 0x19363424 1 0>,
+				<DCC_READ 0x19363428 1 0>,
+				<DCC_READ 0x19365110 1 0>,
+				<DCC_READ 0x19365210 1 0>,
+				<DCC_READ 0x19365230 1 0>,
+				<DCC_READ 0x193653B0 1 0>,
+				<DCC_READ 0x193653B4 1 0>,
+				<DCC_READ 0x19365C00 1 0>,
+				<DCC_READ 0x19365C04 1 0>,
+				<DCC_READ 0x19365C08 1 0>,
+				<DCC_READ 0x19365C0C 1 0>,
+				<DCC_READ 0x19365C10 1 0>,
+				<DCC_READ 0x19365C14 1 0>,
+				<DCC_READ 0x19365C18 1 0>,
+				<DCC_READ 0x19365C1C 1 0>,
+				<DCC_READ 0x19365C28 1 0>,
+				<DCC_READ 0x19365C2C 1 0>,
+				<DCC_READ 0x19365C30 1 0>,
+				<DCC_READ 0x19365C34 1 0>,
+				<DCC_READ 0x19365C38 1 0>,
+				<DCC_READ 0x19365C3C 1 0>,
+				<DCC_READ 0x19365C40 1 0>,
+				<DCC_READ 0x19365C44 1 0>,
+				<DCC_READ 0x19365C4C 1 0>,
+				<DCC_READ 0x19365C50 1 0>,
+				<DCC_READ 0x19365C54 1 0>,
+				<DCC_READ 0x19365C58 1 0>,
+				<DCC_READ 0x19365C5C 1 0>,
+				<DCC_READ 0x19365C60 1 0>,
+				<DCC_READ 0x19365C70 1 0>,
+				<DCC_READ 0x19365C74 1 0>,
+				<DCC_READ 0x19365C78 1 0>,
+				<DCC_READ 0x19365C7C 1 0>,
+				<DCC_READ 0x19365C80 1 0>,
+				<DCC_READ 0x19365C84 1 0>,
+				<DCC_READ 0x19365C88 1 0>,
+				<DCC_READ 0x19365C8C 1 0>,
+				<DCC_READ 0x19365C90 1 0>,
+				<DCC_READ 0x19365C94 1 0>,
+				<DCC_READ 0x19365C98 1 0>,
+				<DCC_READ 0x19365C9C 1 0>,
+				<DCC_READ 0x19365CA0 1 0>,
+				<DCC_READ 0x19365CA4 1 0>,
+				<DCC_READ 0x19365CA8 1 0>,
+				<DCC_READ 0x19365CAC 1 0>,
+				<DCC_READ 0x19365CB0 1 0>,
+				<DCC_READ 0x19365CB4 1 0>,
+				<DCC_READ 0x19366400 1 0>,
+				<DCC_READ 0x19366410 1 0>,
+				<DCC_READ 0x19366418 1 0>,
+				<DCC_READ 0x1936641C 1 0>,
+				<DCC_READ 0x19366420 1 0>,
+				<DCC_READ 0x19369100 1 0>,
+				<DCC_READ 0x19381814 1 0>,
+				<DCC_READ 0x19383814 1 0>,
+				<DCC_READ 0x19385014 1 0>,
+				<DCC_READ 0x19386C04 1 0>,
+				<DCC_READ 0x19386D04 1 0>,
+				<DCC_READ 0x1938729C 1 0>,
+				<DCC_READ 0x193872A8 1 0>,
+				<DCC_READ 0x1938759C 1 0>,
+				<DCC_READ 0x193875A8 1 0>,
+				<DCC_READ 0x193E0610 1 0>,
+				<DCC_READ 0x193E0614 1 0>,
+				<DCC_READ 0x193E0618 1 0>,
+				<DCC_READ 0x193E061C 1 0>,
+				<DCC_READ 0x193E0624 1 0>,
+				<DCC_READ 0x193E0628 1 0>,
+				<DCC_READ 0x193E062C 1 0>,
+				<DCC_READ 0x193E0630 1 0>,
+				<DCC_READ 0x193E0634 1 0>,
+				<DCC_READ 0x193E0640 1 0>,
+				<DCC_READ 0x193E0650 1 0>,
+				<DCC_READ 0x193E0654 1 0>,
+				<DCC_READ 0x193E0658 1 0>,
+				<DCC_READ 0x193E065C 1 0>,
+				<DCC_READ 0x193E0670 1 0>,
+				<DCC_READ 0x193E0680 1 0>,
+				<DCC_READ 0x193E0684 1 0>,
+				<DCC_READ 0x193E0688 1 0>,
+				<DCC_READ 0x193E068C 1 0>,
+				<DCC_READ 0x1908E008 1 0>,
+				<DCC_READ 0x1908E01C 1 0>,
+				<DCC_READ 0x1908E030 1 0>,
+				<DCC_READ 0x1908E050 1 0>,
+				<DCC_READ 0x1908E070 1 0>,
+				<DCC_READ 0x1908E948 1 0>,
+				<DCC_READ 0x1908F04C 1 0>;
+		};
+	};
+
+	mem_dump {
+		compatible = "qcom,mem-dump";
+		memory-region = <&dump_mem>;
+
+		c0_context {
+			qcom,dump-size = <0x800>;
+			qcom,dump-id = <0x0>;
+		};
+
+		c100_context {
+			qcom,dump-size = <0x800>;
+			qcom,dump-id = <0x1>;
+		};
+
+		c200_context {
+			qcom,dump-size = <0x800>;
+			qcom,dump-id = <0x2>;
+		};
+
+		c300_context {
+			qcom,dump-size = <0x800>;
+			qcom,dump-id = <0x3>;
+		};
+
+		c400_context {
+			qcom,dump-size = <0x800>;
+			qcom,dump-id = <0x4>;
+		};
+
+		c500_context {
+			qcom,dump-size = <0x800>;
+			qcom,dump-id = <0x5>;
+		};
+
+		c600_context {
+			qcom,dump-size = <0x800>;
+			qcom,dump-id = <0x6>;
+		};
+
+		c700_context {
+			qcom,dump-size = <0x800>;
+			qcom,dump-id = <0x7>;
+		};
+
+		cpuss_reg {
+			qcom,dump-size = <0x30000>;
+			qcom,dump-id = <0xef>;
+		};
+
+		l1_icache0 {
+			qcom,dump-size = <0x10900>;
+			qcom,dump-id = <0x60>;
+		};
+
+		l1_icache100 {
+			qcom,dump-size = <0x10900>;
+			qcom,dump-id = <0x61>;
+		};
+
+		l1_icache200 {
+			qcom,dump-size = <0x10900>;
+			qcom,dump-id = <0x62>;
+		};
+
+		l1_icache300 {
+			qcom,dump-size = <0x10900>;
+			qcom,dump-id = <0x63>;
+		};
+
+		l1_icache400 {
+			qcom,dump-size = <0x15100>;
+			qcom,dump-id = <0x64>;
+		};
+
+		l1_icache500 {
+			qcom,dump-size = <0x15100>;
+			qcom,dump-id = <0x65>;
+		};
+
+		l1_icache600 {
+			qcom,dump-size = <0x15100>;
+			qcom,dump-id = <0x66>;
+		};
+
+		l1_icache700 {
+			qcom,dump-size = <0x32100>;
+			qcom,dump-id = <0x67>;
+		};
+
+		l1_dcache0 {
+			qcom,dump-size = <0x9100>;
+			qcom,dump-id = <0x80>;
+		};
+
+		l1_dcache100 {
+			qcom,dump-size = <0x9100>;
+			qcom,dump-id = <0x81>;
+		};
+
+		l1_dcache200 {
+			qcom,dump-size = <0x9100>;
+			qcom,dump-id = <0x82>;
+		};
+
+		l1_dcache300 {
+			qcom,dump-size = <0x9100>;
+			qcom,dump-id = <0x83>;
+		};
+
+		l1_dcache400 {
+			qcom,dump-size = <0x9100>;
+			qcom,dump-id = <0x84>;
+		};
+
+		l1_dcache500 {
+			qcom,dump-size = <0x9100>;
+			qcom,dump-id = <0x85>;
+		};
+
+		l1_dcache600 {
+			qcom,dump-size = <0x9100>;
+			qcom,dump-id = <0x86>;
+		};
+
+		l1_dcache700 {
+			qcom,dump-size = <0x12100>;
+			qcom,dump-id = <0x87>;
+		};
+
+		l1_itlb400 {
+			qcom,dump-size = <0x300>;
+			qcom,dump-id = <0x24>;
+		};
+
+		l1_itlb500 {
+			qcom,dump-size = <0x300>;
+			qcom,dump-id = <0x25>;
+		};
+
+		l1_itlb600 {
+			qcom,dump-size = <0x300>;
+			qcom,dump-id = <0x26>;
+		};
+
+		l1_itlb700 {
+			qcom,dump-size = <0x400>;
+			qcom,dump-id = <0x27>;
+		};
+
+		l1_dtlb400 {
+			qcom,dump-size = <0x300>;
+			qcom,dump-id = <0x44>;
+		};
+
+		l1_dtlb500 {
+			qcom,dump-size = <0x300>;
+			qcom,dump-id = <0x45>;
+		};
+
+		l1_dtlb600 {
+			qcom,dump-size = <0x300>;
+			qcom,dump-id = <0x46>;
+		};
+
+		l1_dtlb700 {
+			qcom,dump-size = <0x3a0>;
+			qcom,dump-id = <0x47>;
+		};
+
+		l2_cache400 {
+			qcom,dump-size = <0x90100>;
+			qcom,dump-id = <0xc4>;
+		};
+
+		l2_cache500 {
+			qcom,dump-size = <0x90100>;
+			qcom,dump-id = <0xc5>;
+		};
+
+		l2_cache600 {
+			qcom,dump-size = <0x90100>;
+			qcom,dump-id = <0xc6>;
+		};
+
+		l2_cache700 {
+			qcom,dump-size = <0x120100>;
+			qcom,dump-id = <0xc7>;
+		};
+
+		l2_tlb0 {
+			qcom,dump-size = <0x5b00>;
+			qcom,dump-id = <0x120>;
+		};
+
+		l2_tlb100 {
+			qcom,dump-size = <0x5b00>;
+			qcom,dump-id = <0x121>;
+		};
+
+		l2_tlb200 {
+			qcom,dump-size = <0x5b00>;
+			qcom,dump-id = <0x122>;
+		};
+
+		l2_tlb300 {
+			qcom,dump-size = <0x5b00>;
+			qcom,dump-id = <0x123>;
+		};
+
+		l2_tlb400 {
+			qcom,dump-size = <0x6100>;
+			qcom,dump-id = <0x124>;
+		};
+
+		l2_tlb500 {
+			qcom,dump-size = <0x6100>;
+			qcom,dump-id = <0x125>;
+		};
+
+		l2_tlb600 {
+			qcom,dump-size = <0x6100>;
+			qcom,dump-id = <0x126>;
+		};
+
+		l2_tlb700 {
+			qcom,dump-size = <0xc100>;
+			qcom,dump-id = <0x127>;
+		};
+
+		rpmh {
+			qcom,dump-size = <0x400000>;
+			qcom,dump-id = <0xec>;
+		};
+
+		rpm_sw {
+			qcom,dump-size = <0x28000>;
+			qcom,dump-id = <0xea>;
+		};
+
+		pmic {
+			qcom,dump-size = <0x200000>;
+			qcom,dump-id = <0xe4>;
+		};
+
+		fcm {
+			qcom,dump-size = <0x8400>;
+			qcom,dump-id = <0xee>;
+		};
+
+		etf_swao {
+			qcom,dump-size = <0x10000>;
+			qcom,dump-id = <0xf1>;
+		};
+
+		etr_reg {
+			qcom,dump-size = <0x1000>;
+			qcom,dump-id = <0x100>;
+		};
+
+		etfswao_reg {
+			qcom,dump-size = <0x1000>;
+			qcom,dump-id = <0x102>;
+		};
+
+		misc_data {
+			qcom,dump-size = <0x1000>;
+			qcom,dump-id = <0xe8>;
+		};
+
+		etf_lpass {
+			qcom,dump-size = <0x4000>;
+			qcom,dump-id = <0xf4>;
+		};
+
+		etflpass_reg {
+			qcom,dump-size = <0x1000>;
+			qcom,dump-id = <0x104>;
+		};
+
+		osm_reg {
+			qcom,dump-size = <0x400>;
+			qcom,dump-id = <0x163>;
+		};
+
+		pcu_reg {
+			qcom,dump-size = <0x400>;
+			qcom,dump-id = <0x164>;
+		};
+
+		fsm_data {
+			qcom,dump-size = <0x400>;
+			qcom,dump-id = <0x165>;
+		};
+	};
+};

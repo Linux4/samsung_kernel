@@ -111,3 +111,6 @@ on post-fs-data
 # SSRM Amp temperature
     chown system system /sys/class/audio/amp/surface_temperature_0
     chown system system /sys/class/audio/amp/surface_temperature_1
+
+# Awinic amp
+    chown system audio /sys/class/aw882xx/reinit

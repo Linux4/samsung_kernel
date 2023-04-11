@@ -487,6 +487,17 @@ function create_modules_staging() {
       exit 1
     fi
 
+    if [ "${SEC_BUILD_OPTION_KUNIT}" == "true" ]; then
+      modules_blocklist_file_kunit="${ROOT_DIR}/msm-kernel/modules.vendor_blocklist.kunit"
+      if [ -e "${modules_blocklist_file_kunit}" ]; then
+        chmod +w "${modules_blocklist_file}"
+        echo >> "${modules_blocklist_file}"
+        cat "${modules_blocklist_file_kunit}" >> "${modules_blocklist_file}"
+        chmod -w "${modules_blocklist_file}"
+        cat "${modules_blocklist_file}"
+      fi
+    fi
+
     cp ${modules_blocklist_file} ${dest_dir}/modules.blocklist
   fi
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * COPYRIGHT(C) 2006-2021 Samsung Electronics Co., Ltd. All Right Reserved.
+ * COPYRIGHT(C) 2006-2022 Samsung Electronics Co., Ltd. All Right Reserved.
  */
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s() " fmt, __func__
@@ -22,7 +22,7 @@ ap_health_t *__qc_ap_health_data_read(struct qc_user_reset_drvdata *drvdata)
 ap_health_t *sec_qc_ap_health_data_read(void)
 {
 	if (!__qc_user_reset_is_probed())
-		return ERR_PTR(-ENODEV);
+		return ERR_PTR(-EBUSY);
 
 	return __qc_ap_health_data_read(qc_user_reset);
 }
@@ -47,7 +47,7 @@ int __qc_ap_health_data_write(struct qc_user_reset_drvdata *drvdata,
 int sec_qc_ap_health_data_write(ap_health_t *data)
 {
 	if (!__qc_user_reset_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	return __qc_ap_health_data_write(qc_user_reset, data);
 }
@@ -80,7 +80,7 @@ void __qc_ap_health_data_write_delayed(struct qc_user_reset_drvdata *drvdata,
 int sec_qc_ap_health_data_write_delayed(ap_health_t *data)
 {
 	if (!__qc_user_reset_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	__qc_ap_health_data_write_delayed(qc_user_reset, data);
 

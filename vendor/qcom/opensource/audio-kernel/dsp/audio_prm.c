@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -84,12 +85,12 @@ static int prm_gpr_send_pkt(struct gpr_pkt *pkt, wait_queue_head_t *wait)
 	int ret = 0;
 	int retry;
 
+	mutex_lock(&g_prm.lock);
+	pr_debug("%s: enter",__func__);
+
 	if (wait)
 		atomic_set(&g_prm.state, 1);
 	atomic_set(&g_prm.status, 0);
-
-	mutex_lock(&g_prm.lock);
-	pr_debug("%s: enter",__func__);
 
 	if (g_prm.adev == NULL) {
 		pr_err("%s: apr is unregistered\n", __func__);
@@ -100,9 +101,9 @@ static int prm_gpr_send_pkt(struct gpr_pkt *pkt, wait_queue_head_t *wait)
 			(gpr_get_q6_state() == GPR_SUBSYS_LOADED)) {
 		pr_info("%s: apm ready check not done\n", __func__);
 		retry = 0;
-		while (!spf_core_is_apm_ready() || retry < MAX_RETRY_COUNT) {
+		while (!spf_core_is_apm_ready() && retry < MAX_RETRY_COUNT) {
 			msleep(APM_READY_WAIT_DURATION);
-			retry++;
+			++retry;
 		}
 		is_apm_ready_check_done = true;
 		pr_info("%s: apm ready check done\n", __func__);
@@ -430,6 +431,12 @@ static struct notifier_block service_nb = {
 static int audio_prm_probe(struct gpr_device *adev)
 {
 	int ret = 0;
+
+	if (!audio_notifier_probe_status()) {
+		pr_err("%s: Audio notify probe not completed, defer audio prm probe\n",
+				__func__);
+		return -EPROBE_DEFER;
+	}
 
 	ret = audio_notifier_register("audio_prm", AUDIO_NOTIFIER_ADSP_DOMAIN,
 				      &service_nb);

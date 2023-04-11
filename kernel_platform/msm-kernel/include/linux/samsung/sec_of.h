@@ -37,8 +37,30 @@ static inline int sec_of_parse_reg_prop(struct device_node *np,
 
 	return 0;
 }
+
+static inline int sec_of_test_debug_level(const struct device_node *np,
+		const char *node_name, unsigned int sec_dbg_level)
+{
+	int nr_dbg_level;
+	int i;
+
+	nr_dbg_level = (int)of_property_count_u32_elems(np, node_name);
+	if (nr_dbg_level <= 0)
+		return -ENOENT;
+
+	for (i = 0; i < nr_dbg_level; i++) {
+		u32 dbg_level;
+
+		of_property_read_u32_index(np, node_name, i, &dbg_level);
+		if (sec_dbg_level == (unsigned int)dbg_level)
+			return 0;
+	}
+
+	return -EINVAL;
+}
 #else
 static inline int sec_of_parse_reg_prop(struct device_node *np, phys_addr_t *base, phys_addr_t *size) { return -ENODEV; }
+static inline int sec_of_test_debug_level(const struct device_node *np, const char *node_name, unsigned int sec_dbg_level) { return -ENODEV; };
 #endif
 
 #endif /* __SEC_OF_H__ */

@@ -34,6 +34,8 @@
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/msm_ep_pcie.h>
+#include <linux/platform_device.h>
+
 #include "../dmaengine.h"
 
 /* global logging macros */
@@ -291,6 +293,8 @@ struct edma_dev {
 	void	*ipc_log_irq;
 	enum	debug_log_lvl ipc_log_lvl;
 	enum	debug_log_lvl klog_lvl;
+	/* resetting the channel is required or not */
+	int	is_reset_wa_req;
 };
 
 /* eDMA physical channels */
@@ -316,7 +320,8 @@ struct edmac_dev {
 	/* # of available DE in current TL (excludes LE) */
 	u32	n_de_avail;
 	/* processing tasklet */
-	struct	tasklet_struct proc_task;
+	struct workqueue_struct		*pending_process_wq;
+	struct work_struct		pending_work;
 	char	label[EDMA_LABEL_SIZE];
 	void	*ipc_log;
 	enum	debug_log_lvl ipc_log_lvl;
@@ -330,6 +335,7 @@ struct edmac_dev {
 	void	__iomem *llp_low_reg;
 	void	__iomem *llp_high_reg;
 	void	__iomem *db_reg;
+	int	is_channel_db_rang;
 };
 
 /* eDMA virtual channels */
@@ -368,6 +374,9 @@ struct edma_desc {
 	struct	edma_desc **dl_next;
 };
 
+static void edma_issue_descriptor(struct edmac_dev *ec_dev,
+			struct edma_desc *desc);
+
 static void edma_set_clear(void __iomem *addr, u32 set,
 				u32 clear)
 {
@@ -396,23 +405,102 @@ static struct edmav_dev *to_edmav_dev(struct dma_chan *dma_ch)
 	return container_of(dma_ch, struct edmav_dev, dma_ch);
 }
 
-static void edmac_process_tasklet(unsigned long data)
+static dma_cookie_t edma_submit(struct dma_async_tx_descriptor *desc)
 {
-	struct edmac_dev *ec_dev = (struct edmac_dev *)data;
+	dma_cookie_t cookie = {0};
+	struct edmav_dev *ev_dev = to_edmav_dev(desc->chan);
+	struct edmac_dev *ec_dev = ev_dev->ec_dev;
+	struct edma_desc *edma_desc = container_of(desc, struct edma_desc, tx);
+
+	spin_lock(&ec_dev->edma_lock);
+	EDMAC_VERB(ev_dev->ec_dev, ev_dev->ch_id, "enter\n");
+
+	/* insert the descriptor to client descriptor list */
+	list_add_tail(&edma_desc->node, &ev_dev->dl);
+
+	EDMAC_VERB(ev_dev->ec_dev, ev_dev->ch_id, "exit\n");
+	spin_unlock(&ec_dev->edma_lock);
+	return cookie;
+}
+
+static void edma_submit_pending_transfers(struct edmav_dev *ev_dev)
+{
+	struct edmac_dev *ec_dev = ev_dev->ec_dev;
+	struct edma_desc *desc;
+	enum edma_hw_state state;
+
+	if (unlikely(list_empty(&ev_dev->dl))) {
+		EDMAC_VERB(ec_dev, ev_dev->ch_id, "No descriptor to issue\n");
+		return;
+	}
+
+	/* Skip queuing descriptors to controller in case DB is already rang */
+	if (ec_dev->is_channel_db_rang == true)
+		return;
+
+	/*
+	 * Skip submitting new elements to linked list,
+	 * if the channel is in Active state
+	 */
+	state = edma_get_hw_state(ec_dev);
+	if (state == EDMA_HW_STATE_ACTIVE) {
+		EDMAC_VERB(ec_dev, ev_dev->ch_id, "Channel is in active state\n");
+		return;
+	}
+
+	list_for_each_entry(desc, &ev_dev->dl, node)
+		edma_issue_descriptor(ec_dev, desc);
+	list_del_init(&ev_dev->dl);
+
+	if (e_dev_info->is_reset_wa_req) {
+		/* Disable Engine and enable it back */
+		writel_relaxed(false, ec_dev->engine_en_reg);
+		writel_relaxed(true, ec_dev->engine_en_reg);
+		EDMAC_VERB(ec_dev, ev_dev->ch_id,
+			"Channel stopped: Disable Engine and enable back\n");
+		/* Ensure that engine is restarted */
+		mb();
+
+		/*
+		 * From spec, when channel is stopped,
+		 * require to write llp reg to start edma transaction
+		 */
+		writel_relaxed(
+			readl_relaxed(ec_dev->llp_low_reg),
+			ec_dev->llp_low_reg);
+		writel_relaxed(
+			readl_relaxed(ec_dev->llp_high_reg),
+			ec_dev->llp_high_reg);
+		/* Ensure LLP registers are properly updated */
+		mb();
+	}
+	/* To start the edma transaction, ring channel doorbell */
+	EDMAC_VERB(ec_dev, EDMAV_NO_CH_ID, "ringing doorbell\n");
+	writel_relaxed(ec_dev->ch_id, ec_dev->db_reg);
+	ec_dev->is_channel_db_rang = true;
+	/* Ensure DB register is properly updated */
+	mb();
+}
+
+static void edmac_process_workqueue(struct work_struct *work)
+{
+
+	struct edmac_dev *ec_dev = container_of(work, struct edmac_dev, pending_work);
 	struct edma_dev *e_dev = ec_dev->e_dev;
 	dma_addr_t llp_low, llp_high, llp;
-	unsigned long flags;
+	struct edma_desc *desc;
+	struct edmav_dev *ev_dev = NULL;
 
-	spin_lock_irqsave(&ec_dev->edma_lock, flags);
+	spin_lock(&ec_dev->edma_lock);
 	EDMAC_VERB(ec_dev, EDMAV_NO_CH_ID, "enter\n");
 
+	ec_dev->is_channel_db_rang = false;
 	llp_low = readl_relaxed(ec_dev->llp_low_reg);
 	llp_high = readl_relaxed(ec_dev->llp_high_reg);
 	llp = (u64)(llp_high << 32) | llp_low;
 	EDMAC_VERB(ec_dev, EDMAV_NO_CH_ID, "Start: DMA_LLP = %pad\n", &llp);
 
 	while (ec_dev->tl_dma_rd_p != llp) {
-		struct edma_desc *desc;
 
 		/* current element is a link element. Need to jump and free */
 		if (ec_dev->tl_rd_p->ch_ctrl & EDMA_CH_CONTROL1_LLP) {
@@ -439,16 +527,25 @@ static void edmac_process_tasklet(unsigned long data)
 		ec_dev->tl_rd_p++;
 		ec_dev->dl_rd_p++;
 		if (desc) {
+
+			/*
+			 * struct edmav_dev address is taken from edma_desc
+			 * structure. And if it is update for first time is
+			 * sufficient.
+			 */
+			if (ev_dev == NULL)
+				ev_dev = desc->ev_dev;
+
 			/*
 			 * Clients might queue descriptors in the call back
 			 * context. Release spinlock to avoid deadlock scenarios
 			 * as we use same lock duing descriptor queuing.
 			 */
-			spin_unlock_irqrestore(&ec_dev->edma_lock, flags);
+			spin_unlock(&ec_dev->edma_lock);
 			dmaengine_desc_get_callback_invoke(&desc->tx, NULL);
 
 			/* Acquire spinlock again to continue edma operations */
-			spin_lock_irqsave(&ec_dev->edma_lock, flags);
+			spin_lock(&ec_dev->edma_lock);
 			kfree(desc);
 		} else {
 			EDMAC_VERB(ec_dev, EDMAV_NO_CH_ID,
@@ -456,9 +553,19 @@ static void edmac_process_tasklet(unsigned long data)
 		}
 	}
 
-	edma_set_clear(ec_dev->int_mask_reg, 0, BIT(ec_dev->ch_id));
+
+	if (ev_dev == NULL) {
+		EDMAC_VERB(ec_dev, EDMAV_NO_CH_ID, "ev_dev is NULL\n");
+		goto exit;
+	}
+
+	edma_submit_pending_transfers(ev_dev);
+
+exit:
 	EDMAC_VERB(ec_dev, EDMAV_NO_CH_ID, "exit\n");
-	spin_unlock_irqrestore(&ec_dev->edma_lock, flags);
+	edma_set_clear(ec_dev->int_mask_reg, 0, BIT(ec_dev->ch_id));
+	spin_unlock(&ec_dev->edma_lock);
+	return;
 }
 
 static irqreturn_t handle_edma_irq(int irq, void *data)
@@ -488,7 +595,7 @@ static irqreturn_t handle_edma_irq(int irq, void *data)
 
 			edma_set_clear(ec_dev->int_mask_reg,
 					BIT(ec_dev->ch_id), 0);
-			tasklet_schedule(&ec_dev->proc_task);
+			queue_work(ec_dev->pending_process_wq, &ec_dev->pending_work);
 		}
 		wr_int_status >>= 1;
 		i++;
@@ -501,7 +608,7 @@ static irqreturn_t handle_edma_irq(int irq, void *data)
 
 			edma_set_clear(ec_dev->int_mask_reg,
 					BIT(ec_dev->ch_id), 0);
-			tasklet_schedule(&ec_dev->proc_task);
+			queue_work(ec_dev->pending_process_wq, &ec_dev->pending_work);
 		}
 		rd_int_status >>= 1;
 		i++;
@@ -636,7 +743,7 @@ static void edma_free_chan_resources(struct dma_chan *chan)
 		return;
 
 	/* get ldesc of desc */
-	ldesc = ec_dev->dl_wr_p + ec_dev->n_de_avail + 1;
+	ldesc = ec_dev->dl_wr_p + ec_dev->n_de_avail;
 	while (ldesc) {
 		struct edma_desc *ldesc_t = *ldesc;
 
@@ -727,6 +834,7 @@ static struct edma_desc *edma_alloc_descriptor(struct edmav_dev *ev_dev)
 	ev_dev->n_de++;
 
 	dma_async_tx_descriptor_init(&desc->tx, &ev_dev->dma_ch);
+	desc->tx.tx_submit = edma_submit;
 
 	return desc;
 }
@@ -737,9 +845,8 @@ struct dma_async_tx_descriptor *edma_prep_dma_memcpy(struct dma_chan *chan,
 {
 	struct edmav_dev *ev_dev = to_edmav_dev(chan);
 	struct edma_desc *desc;
-	unsigned long l_flags;
 
-	spin_lock_irqsave(&ev_dev->ec_dev->edma_lock, l_flags);
+	spin_lock(&ev_dev->ec_dev->edma_lock);
 	EDMAC_VERB(ev_dev->ec_dev, ev_dev->ch_id, "enter\n");
 
 	desc = edma_alloc_descriptor(ev_dev);
@@ -748,17 +855,14 @@ struct dma_async_tx_descriptor *edma_prep_dma_memcpy(struct dma_chan *chan,
 
 	edma_compose_data_element(ev_dev, desc->de, dst, src, len, flags);
 
-	/* insert the descriptor to client descriptor list */
-	list_add_tail(&desc->node, &ev_dev->dl);
-
 	EDMAC_VERB(ev_dev->ec_dev, ev_dev->ch_id, "exit\n");
-	spin_unlock_irqrestore(&ev_dev->ec_dev->edma_lock, l_flags);
+	spin_unlock(&ev_dev->ec_dev->edma_lock);
 
 	return &desc->tx;
 err:
 	EDMAC_VERB(ev_dev->ec_dev, ev_dev->ch_id,
 		"edma alloc descriptor failed for channel:%d\n", ev_dev->ch_id);
-	spin_unlock_irqrestore(&ev_dev->ec_dev->edma_lock, l_flags);
+	spin_unlock(&ev_dev->ec_dev->edma_lock);
 	return NULL;
 }
 
@@ -813,63 +917,15 @@ static void edma_issue_pending(struct dma_chan *chan)
 {
 	struct edmav_dev *ev_dev = to_edmav_dev(chan);
 	struct edmac_dev *ec_dev = ev_dev->ec_dev;
-	struct edma_desc *desc;
-	enum edma_hw_state hw_state;
-	unsigned long flags;
 
-	spin_lock_irqsave(&ec_dev->edma_lock, flags);
+	spin_lock(&ec_dev->edma_lock);
 	EDMAC_VERB(ec_dev, ev_dev->ch_id, "enter\n");
 
-	if (unlikely(list_empty(&ev_dev->dl))) {
-		EDMAC_VERB(ec_dev, ev_dev->ch_id, "No descriptor to issue\n");
-		spin_unlock_irqrestore(&ec_dev->edma_lock, flags);
-		return;
-	}
-
-	list_for_each_entry(desc, &ev_dev->dl, node)
-		edma_issue_descriptor(ec_dev, desc);
-
-	list_del_init(&ev_dev->dl);
-
-	hw_state = edma_get_hw_state(ec_dev);
-	if ((hw_state == EDMA_HW_STATE_STOPPED) ||
-		(hw_state == EDMA_HW_STATE_INIT)) {
-		/* Disable Engine and enable it back */
-		writel_relaxed(false, ec_dev->engine_en_reg);
-		writel_relaxed(true, ec_dev->engine_en_reg);
-		EDMAC_VERB(ec_dev, ev_dev->ch_id,
-			"Channel stopped: Disable Engine and enable back\n");
-		/* Ensure that engine is restarted */
-		mb();
-
-		/*
-		 * From spec, when channel is stopped,
-		 * require to write llp reg to start edma transaction
-		 */
-		writel_relaxed(
-			readl_relaxed(ec_dev->llp_low_reg),
-			ec_dev->llp_low_reg);
-		writel_relaxed(
-			readl_relaxed(ec_dev->llp_high_reg),
-			ec_dev->llp_high_reg);
-		/* Ensure LLP registers are properly updated */
-		mb();
-
-		/*
-		 * As Channel is stopped, to start edma transaction,
-		 * ring channel doorbell
-		 */
-		EDMAC_VERB(ec_dev, EDMAV_NO_CH_ID, "ringing doorbell\n");
-		writel_relaxed(ec_dev->ch_id, ec_dev->db_reg);
-		ec_dev->hw_state = EDMA_HW_STATE_ACTIVE;
-		/* Ensure DB register is properly updated */
-		mb();
-	} else {
-		EDMAC_VERB(ec_dev, ev_dev->ch_id, "EDMA Channel is Active\n");
-	}
+	edma_submit_pending_transfers(ev_dev);
 
 	EDMAC_VERB(ec_dev, ev_dev->ch_id, "exit\n");
-	spin_unlock_irqrestore(&ec_dev->edma_lock, flags);
+	spin_unlock(&ec_dev->edma_lock);
+	return;
 }
 
 static int edma_config(struct dma_chan *chan, struct dma_slave_config *config)
@@ -885,6 +941,25 @@ static int edma_terminate_all(struct dma_chan *chan)
 static int edma_pause(struct dma_chan *chan)
 {
 	return -EINVAL;
+}
+
+static enum dma_status edma_tx_status(struct dma_chan *chan,
+	dma_cookie_t cookie, struct dma_tx_state *txstate)
+{
+	struct edmav_dev *ev_dev = to_edmav_dev(chan);
+	struct edmac_dev *ec_dev = ev_dev->ec_dev;
+	enum dma_status status = DMA_IN_PROGRESS;
+	enum edma_hw_state hw_state;
+
+	hw_state = edma_get_hw_state(ec_dev);
+	spin_lock(&ec_dev->edma_lock);
+
+	if (unlikely(list_empty(&ev_dev->dl)) &&
+		((hw_state ==  EDMA_HW_STATE_INIT) ||
+			(hw_state ==  EDMA_HW_STATE_STOPPED)))
+		status =  DMA_COMPLETE;
+	spin_unlock(&ec_dev->edma_lock);
+	return status;
 }
 
 static int edma_resume(struct dma_chan *chan)
@@ -942,9 +1017,10 @@ static void edma_init_log(struct edma_dev *e_dev, struct edmac_dev *ec_dev)
 	}
 }
 
-static void edma_init_channels(struct edma_dev *e_dev)
+static int edma_init_channels(struct edma_dev *e_dev)
 {
-	int i;
+	int i, ret = 0;
+	char wq_name[30];
 
 	/* setup physical channels */
 	for (i = 0; i < e_dev->n_max_ec_ch; i++) {
@@ -982,12 +1058,23 @@ static void edma_init_channels(struct edma_dev *e_dev)
 		ec_dev->ch_id = ch_id;
 		ec_dev->dir = dir;
 		ec_dev->hw_state = EDMA_HW_STATE_INIT;
+		ec_dev->is_channel_db_rang = false;
 
 		edma_init_log(e_dev, ec_dev);
 
 		INIT_LIST_HEAD(&ec_dev->ev_list);
-		tasklet_init(&ec_dev->proc_task, edmac_process_tasklet,
-			     (unsigned long)ec_dev);
+		if (ec_dev->dir == EDMA_WR_CH)
+			scnprintf(wq_name, 30, "edma_pending_wq_wr_%u", ec_dev->ch_id);
+		else
+			scnprintf(wq_name, 30, "edma_pending_wq_rd_%u", ec_dev->ch_id);
+
+		ec_dev->pending_process_wq = alloc_workqueue(wq_name, WQ_HIGHPRI | WQ_UNBOUND, 1);
+		if (!ec_dev->pending_process_wq) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		INIT_WORK(&ec_dev->pending_work, edmac_process_workqueue);
 
 		EDMA_LOG(e_dev, "EC_DIR: %s EC_INDEX: %d EC_ADDR: 0x%pK\n",
 			TO_EDMA_DIR_CH_STR(ec_dev->dir), ec_dev->ch_id, ec_dev);
@@ -1015,6 +1102,7 @@ static void edma_init_channels(struct edma_dev *e_dev)
 
 		EDMA_LOG(e_dev, "EV_INDEX: %d EV_ADDR: 0x%pK\n", i, ev_dev);
 	}
+	return ret;
 }
 
 static void edma_init_dma_device(struct edma_dev *e_dev)
@@ -1034,7 +1122,7 @@ static void edma_init_dma_device(struct edma_dev *e_dev)
 		edma_free_chan_resources;
 	e_dev->dma_device.device_prep_dma_memcpy = edma_prep_dma_memcpy;
 	e_dev->dma_device.device_issue_pending = edma_issue_pending;
-	e_dev->dma_device.device_tx_status = dma_cookie_status;
+	e_dev->dma_device.device_tx_status = edma_tx_status;
 }
 
 void edma_dump(void)
@@ -1158,6 +1246,12 @@ int qcom_edma_init(struct device *dev)
 		"number of elements for transfer and descriptor list: %d\n",
 		e_dev->n_tl_ele);
 
+	e_dev->is_reset_wa_req = false;
+	e_dev->is_reset_wa_req = of_property_read_bool(e_dev->of_node,
+				"qcom,channel-reset-wa-is-required");
+	if (e_dev->is_reset_wa_req)
+		EDMA_LOG(e_dev, "Channel reset is required\n");
+
 	e_dev->ec_wr_devs = devm_kcalloc(e_dev->dev, e_dev->n_wr_ch,
 				sizeof(*e_dev->ec_wr_devs), GFP_KERNEL);
 	if (!e_dev->ec_wr_devs)
@@ -1174,7 +1268,9 @@ int qcom_edma_init(struct device *dev)
 		return -ENOMEM;
 
 	INIT_LIST_HEAD(&e_dev->dma_device.channels);
-	edma_init_channels(e_dev);
+	ret = edma_init_channels(e_dev);
+	if (ret)
+		return ret;
 
 	ret = edma_init_irq(e_dev);
 	if (ret)
@@ -1200,6 +1296,46 @@ int qcom_edma_init(struct device *dev)
 	return 0;
 }
 EXPORT_SYMBOL(qcom_edma_init);
+
+static int edma_dev_probe(struct platform_device *pdev)
+{
+	pr_debug("%s\n", __func__);
+	return 0;
+}
+
+static int edma_dev_remove(struct platform_device *pdev)
+{
+	platform_set_drvdata(pdev, NULL);
+	return 0;
+}
+
+static const struct of_device_id edma_dev_match_table[] = {
+	{	.compatible = "qcom,pci-edma" },
+	{}
+};
+
+static struct platform_driver edma_dev_driver = {
+	.driver		= {
+		.name	= "qcom,pci-edma",
+		.of_match_table = edma_dev_match_table,
+	},
+	.probe		= edma_dev_probe,
+	.remove		= edma_dev_remove,
+};
+
+static int __init edma_dev_init(void)
+{
+	pr_debug("%s\n", __func__);
+	return platform_driver_register(&edma_dev_driver);
+}
+subsys_initcall(edma_dev_init);
+
+static void __exit edma_dev_exit(void)
+{
+	pr_debug("%s\n", __func__);
+	platform_driver_unregister(&edma_dev_driver);
+}
+module_exit(edma_dev_exit);
 
 MODULE_DESCRIPTION("QTI PCIe eDMA driver");
 MODULE_LICENSE("GPL v2");

@@ -1148,6 +1148,31 @@ static int goodix_parse_dt(struct device *dev, struct goodix_ts_core *core_data)
 }
 #endif
 
+static void goodix_ts_handler_wait_resume_work(struct work_struct *work)
+{
+	struct goodix_ts_core *core_data = container_of(work, struct goodix_ts_core, irq_work);
+	struct irq_desc *desc = irq_to_desc(core_data->irq);
+	int ret;
+
+	ret = wait_for_completion_interruptible_timeout(&core_data->resume_done,
+			msecs_to_jiffies(SEC_TS_WAKE_LOCK_TIME));
+	if (ret == 0) {
+		ts_err("LPM: pm resume is not handled");
+		goto out;
+	}
+	if (ret < 0) {
+		ts_err("LPM: -ERESTARTSYS if interrupted, %d", ret);
+		goto out;
+	}
+
+	if (desc && desc->action && desc->action->thread_fn) {
+		ts_info("run irq thread");
+		desc->action->thread_fn(core_data->irq, desc->action->dev_id);
+	}
+out:
+	core_data->hw_ops->irq_enable_for_handler(core_data, true);
+}
+
 /**
  * goodix_ts_threadirq_func - Bottom half of interrupt
  * This functions is excuted in thread context,
@@ -1172,18 +1197,18 @@ static irqreturn_t goodix_ts_threadirq_func(int irq, void *data)
 	if (atomic_read(&core_data->suspended)) {
 		__pm_wakeup_event(core_data->sec_ws, SEC_TS_WAKE_LOCK_TIME);
 
-		ret = wait_for_completion_interruptible_timeout(&core_data->resume_done, msecs_to_jiffies(500));
-		if (ret == 0) {
-			ts_err("LPM: pm resume is not handled");
+		if (!core_data->resume_done.done) {
+			if (!IS_ERR_OR_NULL(core_data->irq_workqueue)) {
+				ts_info("disable irq and queue waiting work");
+				hw_ops->irq_enable_for_handler(core_data, false);
+				queue_work(core_data->irq_workqueue, &core_data->irq_work);
+			} else {
+				ts_info("irq_workqueue not exist");
+			}
 			return IRQ_HANDLED;
 		}
 
-		if (ret < 0) {
-			ts_err("LPM: -ERESTARTSYS if interrupted, %d", ret);
-			return IRQ_HANDLED;
-		}
-
-		ts_info("run LPM interrupt handler, %d", ret);
+		ts_info("run LPM interrupt handler");
 		if (core_data->plat_data->power_state == SEC_INPUT_STATE_LPM) {
 			mutex_lock(&goodix_modules.mutex);
 			list_for_each_entry_safe(ext_module, next,
@@ -1268,6 +1293,14 @@ static int goodix_ts_irq_setup(struct goodix_ts_core *core_data)
 	if (core_data->irq < 0) {
 		ts_err("failed get irq num %d", core_data->irq);
 		return -EINVAL;
+	}
+
+	core_data->irq_workqueue = create_singlethread_workqueue("goodix_ts_irq_wq");
+	if (!IS_ERR_OR_NULL(core_data->irq_workqueue)) {
+		INIT_WORK(&core_data->irq_work, goodix_ts_handler_wait_resume_work);
+		ts_info("set goodix_ts_handler_wait_resume_work");
+	} else {
+		ts_err("failed to create irq_workqueue, err: %ld", PTR_ERR(core_data->irq_workqueue));
 	}
 
 	ts_info("IRQ:%u,flags:0x%X", core_data->irq, core_data->plat_data->irq_flag);
@@ -1563,7 +1596,7 @@ void goodix_ts_reinit(void *data)
 		goodix_set_fod_rect(core_data);
 
 	if (core_data->plat_data->power_state == SEC_INPUT_STATE_LPM) {
-//		core_data->plat_data->lpmode(core_data, TO_LOWPOWER_MODE);
+		core_data->plat_data->lpmode(core_data, TO_LOWPOWER_MODE);
 		if (core_data->plat_data->lowpower_mode & SEC_TS_MODE_SPONGE_AOD)
 			goodix_set_aod_rect(core_data);
 	} else {
@@ -1672,6 +1705,8 @@ static int goodix_ts_input_open(struct input_dev *dev)
 
 	cancel_delayed_work_sync(&core_data->work_read_info);
 
+	mutex_lock(&core_data->modechange_mutex);
+
 	ts_info("called");
 	core_data->plat_data->enabled = true;
 	core_data->plat_data->prox_power_off = 0;
@@ -1680,6 +1715,9 @@ static int goodix_ts_input_open(struct input_dev *dev)
 	cancel_delayed_work(&core_data->work_print_info);
 	core_data->plat_data->print_info_cnt_open = 0;
 	core_data->plat_data->print_info_cnt_release = 0;
+
+	mutex_unlock(&core_data->modechange_mutex);
+
 	if (!core_data->plat_data->shutdown_called)
 		schedule_work(&core_data->work_print_info.work);
 
@@ -1700,6 +1738,8 @@ static void goodix_ts_input_close(struct input_dev *dev)
 		return;
 	}
 
+	mutex_lock(&core_data->modechange_mutex);
+
 	ts_info("called");
 	core_data->plat_data->enabled = false;
 
@@ -1710,6 +1750,8 @@ static void goodix_ts_input_close(struct input_dev *dev)
 	sec_input_print_info(core_data->bus->dev, NULL);
 
 	goodix_ts_suspend(core_data);
+
+	mutex_unlock(&core_data->modechange_mutex);
 }
 
 #ifdef CONFIG_PM
@@ -1722,7 +1764,7 @@ static int goodix_ts_pm_suspend(struct device *dev)
 	struct goodix_ts_core *core_data =
 		dev_get_drvdata(dev);
 
-	ts_info("enter");
+	//ts_info("enter");
 	reinit_completion(&core_data->resume_done);
 	return 0;
 }
@@ -1735,7 +1777,7 @@ static int goodix_ts_pm_resume(struct device *dev)
 	struct goodix_ts_core *core_data =
 		dev_get_drvdata(dev);
 
-	ts_info("enter");
+	//ts_info("enter");
 	complete_all(&core_data->resume_done);
 	return 0;
 }
@@ -1932,6 +1974,11 @@ int goodix_fw_update(struct goodix_ts_core *cd, int update_type, bool force_upda
 
 	switch (update_type) {
 	case TSP_BUILT_IN:
+		if (cd->plat_data->bringup == 1) {
+			ts_info("skip fw update because bringup 1");
+			ret = 0;
+			goto skip_update;
+		}
 		if (!cd->plat_data->firmware_name) {
 			ts_err("firmware name is null");
 			return -EINVAL;
@@ -2058,7 +2105,8 @@ skip_update:
 	ts_info("done");
 
 out:
-	release_firmware(firmware);
+	if (cd->plat_data->bringup != 1)
+		release_firmware(firmware);
 	return ret;
 }
 
@@ -2179,7 +2227,7 @@ static int goodix_set_pen_mode(struct goodix_ts_core *core_data, bool pen_in)
 	else
 		temp_cmd.data[0] = 0;
 
-	ret = core_data->hw_ops->send_cmd(core_data, &temp_cmd);
+	ret = core_data->hw_ops->send_cmd_delay(core_data, &temp_cmd, 0);
 	if (ret < 0)
 		ts_err("send pen mode cmd failed");
 
@@ -2449,6 +2497,7 @@ static int goodix_ts_probe(struct platform_device *pdev)
 	core_data->plat_data->set_grip_data = goodix_set_grip_data_to_ic;
 	core_data->plat_data->init = goodix_ts_reinit;
 	core_data->plat_data->power = sec_input_power;
+	core_data->plat_data->lpmode = gsx_set_lowpowermode;
 
 	platform_set_drvdata(pdev, core_data);
 

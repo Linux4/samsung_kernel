@@ -73,6 +73,13 @@
 #define WL_HE_FEATURES_HE_P2P		0x20
 #define WL_HE_FEATURES_6G		0x80u
 
+/* LESS BROADCAST */
+#define APLB_BI_STEP	100u	/* Beacon Interval control step in TU */
+#define APLB_BI_MIN	1u	/* Beacon Interval Control MIN = 1 * 100 */
+#define APLB_BI_MAX	9u	/* Beacon Interval Control MAX = 9 * 100 */
+#define APLB_FD_NONE	0u	/* NO FILS DISCO frame TX */
+#define APLB_FD_FOREVER	255u	/* FD TX forever */
+
 extern bool wl_cfg80211_check_vif_in_use(struct net_device *ndev);
 
 extern int wl_cfg80211_set_mgmt_vndr_ies(struct bcm_cfg80211 *cfg,
@@ -257,4 +264,7 @@ chanspec_t wl_cfg80211_get_ap_bw_limited_chspec(struct bcm_cfg80211 *cfg,
 	uint32 band, chanspec_t candidate);
 int wl_cfg80211_set_softap_bw(struct bcm_cfg80211 *cfg, uint32 band, uint32 limit);
 #endif /* LIMIT_AP_BW */
+#if defined(AP_LESS_BCAST)
+int wl_cfg80211_set_softap_less_bcast(struct bcm_cfg80211 *cfg, char *ifname, int enable);
+#endif /* AP_LESS_BCAST */
 #endif /* _wl_cfgvif_h_ */

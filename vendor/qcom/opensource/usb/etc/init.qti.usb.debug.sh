@@ -62,5 +62,10 @@ if [ -d $tracefs ]; then
     echo 1 > $tracefs/instances/usb/events/gadget/usb_gadget_connect/enable
     echo 1 > $tracefs/instances/usb/events/gadget/usb_gadget_vbus_draw/enable
 
+    #DWC3 core runtime
+    echo 'name=="a600000.dwc3"' > $tracefs/instances/usb/events/rpm/filter
+    echo 1 > $tracefs/instances/usb/events/rpm/rpm_resume/enable
+    echo 1 > $tracefs/instances/usb/events/rpm/rpm_suspend/enable
+    echo 1 > $tracefs/instances/usb/events/rpm/rpm_return_int/enable
     echo 1 > $tracefs/instances/usb/tracing_on
 fi

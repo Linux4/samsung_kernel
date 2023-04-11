@@ -95,9 +95,11 @@ enum dpui_key {
 	/* GPU */
 	DPUI_KEY_QCT_GPU_PF,	/* GPU Page Fault Count */
 
-	DPUI_KEY_UB_CON,	/* UB con detect */
+	DPUI_KEY_UB_CON,		/* UB con detect */
+	DPUI_KEY_SUB_UB_CON,	/* SUB UB con detect */
 
 	DPUI_KEY_ECC_ERR,	/* ECC Error */
+	DPUI_KEY_FLASH_LOAD,	/* Flash loading failure count */
 
 	MAX_DPUI_KEY,
 };
@@ -181,8 +183,12 @@ static const char * const dpui_key_name[] = {
 
 	/* ub con detect */
 	[DPUI_KEY_UB_CON] = "UB_CON",
+	[DPUI_KEY_SUB_UB_CON] = "SUB_UB_CON",
 
 	[DPUI_KEY_ECC_ERR] = "ECC_ERR",
+
+	/* Flash loading failure count */
+	[DPUI_KEY_FLASH_LOAD] = "FLASH_LOAD",
 };
 
 static const char * const dpui_type_name[] = {
@@ -281,9 +287,17 @@ static struct dpui_info dpui = {
 		DPUI_FIELD_INIT(DPUI_LOG_LEVEL_INFO, DPUI_TYPE_PANEL,
 			DPUI_VAR_U32, DPUI_AUTO_CLEAR_ON, "0", DPUI_KEY_UB_CON),
 
+		/* SUB UB CON */
+		DPUI_FIELD_INIT(DPUI_LOG_LEVEL_INFO, DPUI_TYPE_PANEL,
+			DPUI_VAR_U32, DPUI_AUTO_CLEAR_ON, "0", DPUI_KEY_SUB_UB_CON),
+
 		/* ECC Error */
 		DPUI_FIELD_INIT(DPUI_LOG_LEVEL_INFO, DPUI_TYPE_PANEL,
 			DPUI_VAR_U32, DPUI_AUTO_CLEAR_ON, "0", DPUI_KEY_ECC_ERR),
+
+		/* Flash loading failure count */
+		DPUI_FIELD_INIT(DPUI_LOG_LEVEL_INFO, DPUI_TYPE_PANEL,
+			DPUI_VAR_U32, DPUI_AUTO_CLEAR_ON, "0", DPUI_KEY_FLASH_LOAD),
 	},
 };
 int dpui_logging_register(struct notifier_block *n, enum dpui_type type);

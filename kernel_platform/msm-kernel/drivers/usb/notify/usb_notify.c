@@ -742,6 +742,11 @@ static void reserve_state_check(struct work_struct *work)
 	u_noti->o_notify->booting_delay_sec = 0;
 	pr_info("%s booting delay finished\n", __func__);
 
+	if (u_noti->o_notify->booting_delay_sync_usb) {
+		pr_info("%s wait dwc3 probe done\n", __func__);
+		return;
+	}
+
 	if (u_noti->b_delay.reserve_state != NOTIFY_EVENT_NONE) {
 		pr_info("%s event=%s(%lu) enable=%d\n", __func__,
 				event_string(state), state, enable);
@@ -2268,6 +2273,31 @@ void set_con_dev_max_speed(struct otg_notify *n, int speed)
 }
 EXPORT_SYMBOL(set_con_dev_max_speed);
 
+void set_request_action(struct otg_notify *n, unsigned request_action)
+{
+	struct usb_notify *u_notify = NULL;
+
+	if (!n) {
+		pr_err("%s o_notify is null\n", __func__);
+		goto err;
+	}
+	u_notify = (struct usb_notify *)(n->u_notify);
+
+	if (!u_notify) {
+		pr_err("%s u_notify structure is null\n",
+			__func__);
+		goto err;
+	}
+
+	pr_info("%s prev action = %u set action as=%u\n", 
+		__func__, u_notify->udev.request_action, request_action);
+
+	u_notify->udev.request_action = request_action;
+err:
+	return;
+}
+EXPORT_SYMBOL(set_request_action);
+
 struct dev_table {
 	struct usb_device_id dev;
 	int index;
@@ -2911,6 +2941,35 @@ void put_otg_notify(struct otg_notify *n)
 	kfree(u_notify);
 }
 EXPORT_SYMBOL(put_otg_notify);
+
+void enable_usb_notify(void)
+{
+	struct otg_notify *o_notify = get_otg_notify();
+	struct usb_notify *u_notify = NULL;
+
+	if (!o_notify) {
+		pr_err("%s o_notify is null\n", __func__);
+		return;
+	}
+	u_notify = (struct usb_notify *)(o_notify->u_notify);
+
+	if (!u_notify) {
+		pr_err("%s u_notify structure is null\n",
+			__func__);
+		return;
+	}
+
+	if (!o_notify->booting_delay_sync_usb) {
+		pr_err("%s booting_delay_sync_usb is not setting\n",
+			__func__);
+		return;
+	}
+
+	o_notify->booting_delay_sync_usb = 0;
+	if(!u_notify->o_notify->booting_delay_sec)
+		schedule_delayed_work(&u_notify->b_delay.booting_work, 0);
+}
+EXPORT_SYMBOL(enable_usb_notify);
 
 static int __init usb_notify_init(void)
 {

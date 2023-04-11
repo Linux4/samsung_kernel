@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ *
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _IPA_LNX_STATS_I_H_
@@ -40,6 +42,10 @@
 #define IPA_LNX_IOC_GET_MHIP_INST_STATS _IOWR(IPA_LNX_STATS_IOC_MAGIC, \
 	IPA_LNX_CMD_MHIP_INST_STATS, \
 	struct ipa_lnx_mhip_inst_stats)
+
+#define IPA_LNX_IOC_GET_CONSOLIDATED_STATS _IOWR(IPA_LNX_STATS_IOC_MAGIC, \
+	IPA_LNX_CMD_CONSOLIDATED_STATS, \
+	struct ipa_lnx_consolidated_stats)
 
 #define IPA_LNX_STATS_SUCCESS 0
 #define IPA_LNX_STATS_FAILURE -1
@@ -334,6 +340,18 @@ struct ipa_lnx_mhip_inst_stats {
 };
 #define IPA_LNX_MHIP_INST_STATS_STRUCT_LEN_INT (8 + 248)
 
+
+struct ipa_lnx_consolidated_stats {
+	uint64_t log_type_mask;
+	struct ipa_lnx_generic_stats *generic_stats;
+	struct ipa_lnx_clock_stats *clock_stats;
+	struct ipa_lnx_wlan_inst_stats *wlan_stats;
+	struct ipa_lnx_eth_inst_stats *eth_stats;
+	struct ipa_lnx_usb_inst_stats *usb_stats;
+	struct ipa_lnx_mhip_inst_stats *mhip_stats;
+};
+#define IPA_LNX_CONSOLIDATED_STATS_STRUCT_LEN_INT (8 + 48)
+
 /* Explain below structures */
 struct ipa_lnx_each_inst_alloc_info {
 	uint32_t pipes_client_type[SPEARHEAD_NUM_MAX_PIPES];
@@ -374,359 +392,239 @@ struct ipa_lnx_stats_spearhead_ctx {
  */
 enum ipa_lnx_stats_ioc_cmd_type {
 	IPA_LNX_CMD_GET_ALLOC_INFO,
-	/**
-	 * IPA_LNX_CMD_GENERIC_STATS - Includes following fields (in bytes)
-	 *							(min - 296 bytes, max - 300 bytes)
-	 *
-	 * tx_dma_pkts(4)		- Packets sent to IPA with IP_PACKET_INIT command
-	 * tx_hw_pkts(4)		- Packets sent to IPA without PACKET_INIT.
-	 *							These packets go through IPA HW processing
-	 * tx_non_linear(4)		- Non linear TX packets
-	 * tx_pkts_compl(4)		- No of TX packets processed by IPA
-	 * stats_compl(4)		- No of TX commands and LAN packets processed by IPA
-	 * active_eps(4)		- No of active end points
-	 * wan_rx_empty(4) 		- No of times WAN_CONS/COAL pipes have buffers less than threshold of 32
-	 * wan_repl_rx_empty(4)	- No of times there are no pages in temp cache for WAN pipe
-	 * lan_rx_empty(4)		- No of times LAN_CONS pipe has buffers less than threshold of 32
-	 * lan_repl_rx_empty(4)	- No of times LAN_CONS pipe has replinished buffers
-	 * pg_recycle_stats(32)	- Page recycling stats
-	 *		|______	coal_total_repl_buff(8)	- Total no of buffers replenished for coal pipe
-	 *				coal_temp_repl_buff(8)	- Total no of buffers replenished from temp cache
-	 *				def_total_repl_buff(8)	- Total no of buffers replenished for default pipe
-	 *				def_temp_repl_buff(8)	- Total no of buffers replenished from temp cache
-	 * exception_stats(40)	- Exception path stats
-	 *		|______	excptn_type_none(4)	- No of packets with exception type as None
-	 *				excptn_type_deaggr(4)- No of packets with exception type as deaggr
-	 *				excptn_type_iptype(4)- No of packets with exception type as IP type
-	 *				excptn_type_pkt_len(4)- No of packets with exception type as packet length
-	 *				excptn_type_pkt_thrshld(4)- No of packets with exception type as packet threshold
-	 *				excptn_type_frag_rule_miss(4)- No of packets with exception type as frag rule
-	 *				excptn_type_sw_flt(4)- No of packets with exception type as sw filter
-	 *				excptn_type_nat(4)- No of packets with exception type as NAT
-	 *				excptn_type_ipv6_ct(4)- No of packets with exception type as IPv6 CT
-	 *				excptn_type_csum(4)- No of packets with exception type as checksum
-	 * odl_stats(16)		- ODL stats
-	 *		|______	rx_pkt(4)		- Total no of packets received
-	 *				processed_pkt(4)- Total no of processed packets
-	 *				dropped_pkt(4)	- Total no of dropped packets
-	 *				num_queue_pkt(4)- Total no of packets in queue
-	 * holb_stats(168+)	- HOLB stats
-	 *		|______	num_pipes(4)			- Total num of pipes for which HOLB is enabled(currently 5)
-	 *		|______	num_holb_mon_clients(4)	- Total num of pipes for which HOLB is enabled(currently 5)
-	 *		|______	holb_discard_stats(80)	- HOLB Discard Stats
-	 *		|				|______ client_type(4)	- IPA Client type
-	 *		|						num_drp_cnt(4)	- Total number of dropped pkts
-	 *		|						num_drp_bytes(4)- Total number of dropped bytes
-	 *		|						reserved(4)	- Reserved.
-	 *		|______	holb_monitor_stats(80)	- No of clients for which HOLB monitrng is enabled(currently 5)
-	 *						|______ client_type(4)	- IPA Client type
-	 *								curr_index(4)	- Current HOLB monitoring index
-	 *								num_en_cnt(4)	- Number of times peripheral went to bad state
-	 *								num_dis_cnt(4)	- Number of times peripheral was recovered
-	 */
 	IPA_LNX_CMD_GENERIC_STATS,
-	/**
-	 * IPA_LNX_CMD_CLOCK_STATS - Includes following fields (in bytes)
-	 *							(min - 888 bytes, max - 900 bytes)
-	 *
-	 * active_clients(4)	- No of active clock votes
-	 * scale_thresh_svs(4)	- BW threshold value to be met for voting for SVS
-	 * scale_thresh_nom(4)	- BW threshold value to be met for voting for nominal
-	 * scale_thresh_tur(4)	- BW threshold value to be met for voting for turbo
-	 * aggr_bw(4)			- Total BW required from the clients for caculating the vote.
-	 * curr_clk_vote(4)		- Current active clock vote
-	 * pm_client_stats(864+)	- Power Management stats (36 clients)
-	 *		|______	pm_client_state(4)	- State of the PM client
-	 *				pm_client_group(4)	- Group of the PM client
-	 *				pm_client_bw(4)		- BW requested by PM client
-	 *				pm_client_hdl(4)	- PM Client hdl
-	 *				pm_client_type(4)	- Client type of the PM client
-	 *				reserved(4)			- Reserved.
-	 */
 	IPA_LNX_CMD_CLOCK_STATS,
-	/**
-	 * IPA_LNX_CMD_WLAN_INST_STATS - Includes following fields (in bytes)
-	 *							(min - 558 bytes, max - 600 bytes)
-	 *
-	 * num_wlan_instance(4)		- No of WLAN attaches
-	 * reserved(4)				- Reserved.
-	 * wlan_instance_info(550)	- Each WLAN Instance Info
-	 *		|______	instance_id(4)	- Instance id of the WLAN
-	 *		|		wdi_ver(4)		- WDI version in use
-	 *		|		wlan_mode(4)	- Indicates the WLAN mode
-	 *		|		wdi_over_gsi(4)	- Indicates whether communication is over GSI or uC
-	 *		|		dbs_mode(4)		- Indicates whether DBS mode is enabled
-	 *		|		pm_bandwidth(4)	- Bandwidth voted by the client
-	 *		|		num_pipes(4)	- Number of pipes associated with WLAN
-	 *		|		reserved(4)		- Reserved.
-	 *		|______ pipe_info(360)	- Pipe Information (120 x 3 pipes)
-	 *		|				|______ gsi_chan_ring_bp(8)	- Gsi channel ring base pointer address
-	 *		|						gsi_chan_ring_rp(8)	- Transfer Ring Current read pointer address
-	 *		|						gsi_chan_ring_wp(8)	- Transfer Ring Current write pointer address
-	 *		|						gsi_evt_ring_bp(8)	- Event ring base pointer address
-	 *		|						gsi_evt_ring_rp(8)	- Event Ring Current read pointer address
-	 *		|						gsi_evt_ring_wp(8)	- Event Ring Current write pointer address
-	 *		|						gsi_evt_ring_len(4)	- Transfer Ring length
-	 *		|						gsi_chan_ring_len(4)- Transfer Ring length
-	 *		|						buff_size(4)	- Size of buffer
-	 *		|						num_free_buff(4)- Number of free credits with HW
-	 *		|						gsi_ipa_if_tlv(4)	- Number of IPA_IF TLV
-	 *		|						gsi_ipa_if_aos(4)	- Number of IPA_IF AOS
-	 *		|						gsi_desc_size(4)	- Descriptor Size
-	 *		|						pipe_num(4)	- Pipe number of the client
-	 *		|						direction(4)	- Pipe direction(0 – IPA Consumer, 1 – IPA Producer)
-	 *		|						client_type(4)	- Client type
-	 *		|						gsi_chan_num(4)	- GSI channel number associated with Pipe
-	 *		|						gsi_evt_num(4)	- GSI event number associated with Pipe
-	 *		|						is_common_evt_ring(4)- Indicates whether common evt ring is used
-	 *		|						gsi_prot_type(4)- GSI Protocol type
-	 *		|						gsi_chan_state(4)-GSI Channel state
-	 *		|						gsi_chan_stop_stm(4)- GSI channel stop state machine
-	 *		|						gsi_poll_mode(4)- GSI Current Mode:- Polling/Interrupt
-	 *		|						gsi_db_in_bytes(4)	- Indicates whether DB in bytes
-	 *		|______ gsi_debug_stats(158)- GSI debug information
-	 *						|______ num_tx_instances(4)	- Number of tx instances
-	 *						|______ num_rx_instances(4)	- Number of rx instances
-	 *						|______	gsi_tx_debug_stats(102)- GSI TX Debug Stats Info (2 X 56)
-	 *						|			|______ tx_client(4) - TX client type
-	 *						|					num_tx_ring_100_perc_with_cred(4) - Total number of times the ring is full of free credits
-	 *						|					num_tx_ring_0_perc_with_cred(4) - Total number of times the ring has empty credits
-	 *						|					num_tx_ring_above_75_perc_cred(4) - Total number of times ring has > 75% free credits
-	 *						|					num_tx_ring_above_25_perc_cred(4) - Total number of times ring has < 25% of free credits
-	 *						|					num_tx_ring_stats_polled(4) - Total number of times TX ring stats are counted
-	 *						|					num_tx_oob(4) - Number of times GSI encountered OOB
-	 *						|					num_tx_oob_time(4) - Total time GSI was in OOB state i.e no credits available
-	 *						|					gsi_debug1(4) - Additional GSI Debug information
-	 *						|					gsi_debug2(4) - Additional GSI Debug information
-	 *						|					gsi_debug3(4) - Additional GSI Debug information
-	 *						|					gsi_debug4(4) - Additional GSI Debug information
-	 *						|					tx_summary(4) - 1 – Peripheral is bad in replenishing credits, 2 – IPA is not giving packets fast enough
-	 *						|					reserved(4)	- Reserved.
-	 *						|______	gsi_rx_debug_stats(48)- GSI RX Debug Stats Info (1 X 48)
-	 *									|______ rx_client(4) - RX client type
-	 *											num_rx_ring_100_perc_with_pack(4) - Total number of times the ring is full of packets
-	 *											num_rx_ring_0_perc_with_pack(4) - Total number of times the ring has 0 packets
-	 *											num_rx_ring_above_75_perc_pack(4) - Total number of times ring has > 75% packets
-	 *											num_rx_ring_above_25_perc_pack(4) - Total number of times ring has < 25% packets
-	 *											num_rx_ring_stats_polled(4) - Total number of times RX ring stats are counted
-	 *											num_rx_drop_stats(4) - Total number of times GSI dropped packets
-	 *											gsi_debug1(4) - Additional GSI Debug information
-	 *											gsi_debug2(4) - Additional GSI Debug information
-	 *											gsi_debug3(4) - Additional GSI Debug information
-	 *											gsi_debug4(4) - Additional GSI Debug information
-	 *											rx_summary(4) - 1 – Peripheral is bad in providing packets, 2 – IPA is not processing packets fast enough
-	 */
 	IPA_LNX_CMD_WLAN_INST_STATS,
-	/**
-	 * IPA_LNX_CMD_ETH_INST_STATS - Includes following fields (in bytes)
-	 *							(min - 724 bytes, max - 800 bytes)
-	 *
-	 * num_eth_instance(4)		- No of ETH attaches
-	 * reserved(4)				- Reserved.
-	 * eth_instance_info(716)	- Each ETH Instance Info (358 x 2)
-	 *		|______	instance_id(4)	- Instance id of the ETH
-	 *		|		eth_mode(4)		- Ethernet mode
-	 *		|		pm_bandwidth(4)	- Bandwidth voted by the client
-	 *		|		num_pipes(4)	- Number of pipes associated with ETH
-	 *		|______ pipe_info(240)	- Pipe Information (120 x 2 pipes)
-	 *		|				|______ gsi_chan_ring_bp(8)	- Gsi channel ring base pointer address
-	 *		|						gsi_chan_ring_rp(8)	- Transfer Ring Current read pointer address
-	 *		|						gsi_chan_ring_wp(8)	- Transfer Ring Current write pointer address
-	 *		|						gsi_evt_ring_bp(8)	- Event ring base pointer address
-	 *		|						gsi_evt_ring_rp(8)	- Event Ring Current read pointer address
-	 *		|						gsi_evt_ring_wp(8)	- Event Ring Current write pointer address
-	 *		|						gsi_evt_ring_len(4)	- Transfer Ring length
-	 *		|						gsi_chan_ring_len(4)- Transfer Ring length
-	 *		|						buff_size(4)	- Size of buffer
-	 *		|						num_free_buff(4)- Number of free credits with HW
-	 *		|						gsi_ipa_if_tlv(4)	- Number of IPA_IF TLV
-	 *		|						gsi_ipa_if_aos(4)	- Number of IPA_IF AOS
-	 *		|						gsi_desc_size(4)	- Descriptor Size
-	 *		|						pipe_num(4)	- Pipe number of the client
-	 *		|						direction(4)	- Pipe direction(0 – IPA Consumer, 1 – IPA Producer)
-	 *		|						client_type(4)	- Client type
-	 *		|						gsi_chan_num(4)	- GSI channel number associated with Pipe
-	 *		|						gsi_evt_num(4)	- GSI event number associated with Pipe
-	 *		|						is_common_evt_ring(4)- Indicates whether common evt ring is used
-	 *		|						gsi_prot_type(4)- GSI Protocol type
-	 *		|						gsi_chan_state(4)-GSI Channel state
-	 *		|						gsi_chan_stop_stm(4)- GSI channel stop state machine
-	 *		|						gsi_poll_mode(4)- GSI Current Mode:- Polling/Interrupt
-	 *		|						gsi_db_in_bytes(4)	- Indicates whether DB in bytes
-	 *		|______ gsi_debug_stats(102)- GSI debug information
-	 *						|______ num_tx_instances(4)	- Number of tx instances
-	 *						|______ num_rx_instances(4)	- Number of rx instances
-	 *						|______	gsi_tx_debug_stats(56)- GSI TX Debug Stats Info (1 X 56)
-	 *						|			|______ tx_client(4) - TX client type
-	 *						|					num_tx_ring_100_perc_with_cred(4) - Total number of times the ring is full of free credits
-	 *						|					num_tx_ring_0_perc_with_cred(4) - Total number of times the ring has empty credits
-	 *						|					num_tx_ring_above_75_perc_cred(4) - Total number of times ring has > 75% free credits
-	 *						|					num_tx_ring_above_25_perc_cred(4) - Total number of times ring has < 25% of free credits
-	 *						|					num_tx_ring_stats_polled(4) - Total number of times TX ring stats are counted
-	 *						|					num_tx_oob(4) - Number of times GSI encountered OOB
-	 *						|					num_tx_oob_time(4) - Total time GSI was in OOB state i.e no credits available
-	 *						|					gsi_debug1(4) - Additional GSI Debug information
-	 *						|					gsi_debug2(4) - Additional GSI Debug information
-	 *						|					gsi_debug3(4) - Additional GSI Debug information
-	 *						|					gsi_debug4(4) - Additional GSI Debug information
-	 *						|					tx_summary(4) - 1 – Peripheral is bad in replenishing credits, 2 – IPA is not giving packets fast enough
-	 *						|					reserved(4)	- Reserved.
-	 *						|______	gsi_rx_debug_stats(48)- GSI RX Debug Stats Info (1 X 48)
-	 *									|______ rx_client(4) - RX client type
-	 *											num_rx_ring_100_perc_with_pack(4) - Total number of times the ring is full of packets
-	 *											num_rx_ring_0_perc_with_pack(4) - Total number of times the ring has 0 packets
-	 *											num_rx_ring_above_75_perc_pack(4) - Total number of times ring has > 75% packets
-	 *											num_rx_ring_above_25_perc_pack(4) - Total number of times ring has < 25% packets
-	 *											num_rx_ring_stats_polled(4) - Total number of times RX ring stats are counted
-	 *											num_rx_drop_stats(4) - Total number of times GSI dropped packets
-	 *											gsi_debug1(4) - Additional GSI Debug information
-	 *											gsi_debug2(4) - Additional GSI Debug information
-	 *											gsi_debug3(4) - Additional GSI Debug information
-	 *											gsi_debug4(4) - Additional GSI Debug information
-	 *											rx_summary(4) - 1 – Peripheral is bad in providing packets, 2 – IPA is not processing packets fast enough
-	 */
 	IPA_LNX_CMD_ETH_INST_STATS,
-	/**
-	 * IPA_LNX_CMD_USB_INST_STATS - Includes following fields (in bytes)
-	 *							(min - 366 bytes, max - 400 bytes)
-	 *
-	 * num_usb_instance(4)	- No of USB attaches
-	 * reserved(4)			- Reserved.
-	 * usb_instance_info(358)	- Each USB Instance Info
-	 *		|______	instance_id(4)	- Instance id of the USB
-	 *		|		usb_mode(4)		- USB mode
-	 *		|		pm_bandwidth(4)	- Bandwidth voted by the client
-	 *		|		num_pipes(4)	- Number of pipes associated with USB
-	 *		|______ pipe_info(240)	- Pipe Information (120 x 2 pipes)
-	 *		|				|______ gsi_chan_ring_bp(8)	- Gsi channel ring base pointer address
-	 *		|						gsi_chan_ring_rp(8)	- Transfer Ring Current read pointer address
-	 *		|						gsi_chan_ring_wp(8)	- Transfer Ring Current write pointer address
-	 *		|						gsi_evt_ring_bp(8)	- Event ring base pointer address
-	 *		|						gsi_evt_ring_rp(8)	- Event Ring Current read pointer address
-	 *		|						gsi_evt_ring_wp(8)	- Event Ring Current write pointer address
-	 *		|						gsi_evt_ring_len(4)	- Transfer Ring length
-	 *		|						gsi_chan_ring_len(4)- Transfer Ring length
-	 *		|						buff_size(4)	- Size of buffer
-	 *		|						num_free_buff(4)- Number of free credits with HW
-	 *		|						gsi_ipa_if_tlv(4)	- Number of IPA_IF TLV
-	 *		|						gsi_ipa_if_aos(4)	- Number of IPA_IF AOS
-	 *		|						gsi_desc_size(4)	- Descriptor Size
-	 *		|						pipe_num(4)	- Pipe number of the client
-	 *		|						direction(4)	- Pipe direction(0 – IPA Consumer, 1 – IPA Producer)
-	 *		|						client_type(4)	- Client type
-	 *		|						gsi_chan_num(4)	- GSI channel number associated with Pipe
-	 *		|						gsi_evt_num(4)	- GSI event number associated with Pipe
-	 *		|						is_common_evt_ring(4)- Indicates whether common evt ring is used
-	 *		|						gsi_prot_type(4)- GSI Protocol type
-	 *		|						gsi_chan_state(4)-GSI Channel state
-	 *		|						gsi_chan_stop_stm(4)- GSI channel stop state machine
-	 *		|						gsi_poll_mode(4)- GSI Current Mode:- Polling/Interrupt
-	 *		|						gsi_db_in_bytes(4)	- Indicates whether DB in bytes
-	 *		|______ gsi_debug_stats(102)- GSI debug information
-	 *						|______ num_tx_instances(4)	- Number of tx instances
-	 *						|______ num_rx_instances(4)	- Number of rx instances
-	 *						|______	gsi_tx_debug_stats(56)- GSI TX Debug Stats Info (1 X 56)
-	 *						|			|______ tx_client(4) - TX client type
-	 *						|					num_tx_ring_100_perc_with_cred(4) - Total number of times the ring is full of free credits
-	 *						|					num_tx_ring_0_perc_with_cred(4) - Total number of times the ring has empty credits
-	 *						|					num_tx_ring_above_75_perc_cred(4) - Total number of times ring has > 75% free credits
-	 *						|					num_tx_ring_above_25_perc_cred(4) - Total number of times ring has < 25% of free credits
-	 *						|					num_tx_ring_stats_polled(4) - Total number of times TX ring stats are counted
-	 *						|					num_tx_oob(4) - Number of times GSI encountered OOB
-	 *						|					num_tx_oob_time(4) - Total time GSI was in OOB state i.e no credits available
-	 *						|					gsi_debug1(4) - Additional GSI Debug information
-	 *						|					gsi_debug2(4) - Additional GSI Debug information
-	 *						|					gsi_debug3(4) - Additional GSI Debug information
-	 *						|					gsi_debug4(4) - Additional GSI Debug information
-	 *						|					tx_summary(4) - 1 – Peripheral is bad in replenishing credits, 2 – IPA is not giving packets fast enough
-	 *						|					reserved(4)	- Reserved.
-	 *						|______	gsi_rx_debug_stats(48)- GSI RX Debug Stats Info (1 X 48)
-	 *									|______ rx_client(4) - RX client type
-	 *											num_rx_ring_100_perc_with_pack(4) - Total number of times the ring is full of packets
-	 *											num_rx_ring_0_perc_with_pack(4) - Total number of times the ring has 0 packets
-	 *											num_rx_ring_above_75_perc_pack(4) - Total number of times ring has > 75% packets
-	 *											num_rx_ring_above_25_perc_pack(4) - Total number of times ring has < 25% packets
-	 *											num_rx_ring_stats_polled(4) - Total number of times RX ring stats are counted
-	 *											num_rx_drop_stats(4) - Total number of times GSI dropped packets
-	 *											gsi_debug1(4) - Additional GSI Debug information
-	 *											gsi_debug2(4) - Additional GSI Debug information
-	 *											gsi_debug3(4) - Additional GSI Debug information
-	 *											gsi_debug4(4) - Additional GSI Debug information
-	 *											rx_summary(4) - 1 – Peripheral is bad in providing packets, 2 – IPA is not processing packets fast enough
-	 */
 	IPA_LNX_CMD_USB_INST_STATS,
-	/**
-	 * IPA_LNX_CMD_MHIP_INST_STATS - Includes following fields (in bytes)
-	 *							(min - 710 bytes, max - 800 bytes)
-	 *
-	 * num_mhip_instance(4)	- No of MHIP attaches
-	 * reserved(4)			- Reserved.
-	 * mhip_instance_info(702)	- Each MHIP Instance Info
-	 *		|______	instance_id(4)	- Instance id of the MHIP
-	 *		|		mhip_mode(4)	- MHIP mode
-	 *		|		pm_bandwidth(4)	- Bandwidth voted by the client
-	 *		|		num_pipes(4)	- Number of pipes associated with USB
-	 *		|______ pipe_info(480)	- Pipe Information (120 x 4 pipes)
-	 *		|				|______ gsi_chan_ring_bp(8)	- Gsi channel ring base pointer address
-	 *		|						gsi_chan_ring_rp(8)	- Transfer Ring Current read pointer address
-	 *		|						gsi_chan_ring_wp(8)	- Transfer Ring Current write pointer address
-	 *		|						gsi_evt_ring_bp(8)	- Event ring base pointer address
-	 *		|						gsi_evt_ring_rp(8)	- Event Ring Current read pointer address
-	 *		|						gsi_evt_ring_wp(8)	- Event Ring Current write pointer address
-	 *		|						gsi_evt_ring_len(4)	- Transfer Ring length
-	 *		|						gsi_chan_ring_len(4)- Transfer Ring length
-	 *		|						buff_size(4)	- Size of buffer
-	 *		|						num_free_buff(4)- Number of free credits with HW
-	 *		|						gsi_ipa_if_tlv(4)	- Number of IPA_IF TLV
-	 *		|						gsi_ipa_if_aos(4)	- Number of IPA_IF AOS
-	 *		|						gsi_desc_size(4)	- Descriptor Size
-	 *		|						pipe_num(4)	- Pipe number of the client
-	 *		|						direction(4)	- Pipe direction(0 – IPA Consumer, 1 – IPA Producer)
-	 *		|						client_type(4)	- Client type
-	 *		|						gsi_chan_num(4)	- GSI channel number associated with Pipe
-	 *		|						gsi_evt_num(4)	- GSI event number associated with Pipe
-	 *		|						is_common_evt_ring(4)- Indicates whether common evt ring is used
-	 *		|						gsi_prot_type(4)- GSI Protocol type
-	 *		|						gsi_chan_state(4)-GSI Channel state
-	 *		|						gsi_chan_stop_stm(4)- GSI channel stop state machine
-	 *		|						gsi_poll_mode(4)- GSI Current Mode:- Polling/Interrupt
-	 *		|						gsi_db_in_bytes(4)	- Indicates whether DB in bytes
-	 *		|______ gsi_debug_stats(206)- GSI debug information
-	 *						|______ num_tx_instances(4)	- Number of tx instances
-	 *						|______ num_rx_instances(4)	- Number of rx instances
-	 *						|______	gsi_tx_debug_stats(102)- GSI TX Debug Stats Info (2 X 56)
-	 *						|			|______ tx_client(4) - TX client type
-	 *						|					num_tx_ring_100_perc_with_cred(4) - Total number of times the ring is full of free credits
-	 *						|					num_tx_ring_0_perc_with_cred(4) - Total number of times the ring has empty credits
-	 *						|					num_tx_ring_above_75_perc_cred(4) - Total number of times ring has > 75% free credits
-	 *						|					num_tx_ring_above_25_perc_cred(4) - Total number of times ring has < 25% of free credits
-	 *						|					num_tx_ring_stats_polled(4) - Total number of times TX ring stats are counted
-	 *						|					num_tx_oob(4) - Number of times GSI encountered OOB
-	 *						|					num_tx_oob_time(4) - Total time GSI was in OOB state i.e no credits available
-	 *						|					gsi_debug1(4) - Additional GSI Debug information
-	 *						|					gsi_debug2(4) - Additional GSI Debug information
-	 *						|					gsi_debug3(4) - Additional GSI Debug information
-	 *						|					gsi_debug4(4) - Additional GSI Debug information
-	 *						|					tx_summary(4) - 1 – Peripheral is bad in replenishing credits, 2 – IPA is not giving packets fast enough
-	 *						|					reserved(4)	- Reserved.
-	 *						|______	gsi_rx_debug_stats(96)- GSI RX Debug Stats Info (2 X 48)
-	 *									|______ rx_client(4) - RX client type
-	 *											num_rx_ring_100_perc_with_pack(4) - Total number of times the ring is full of packets
-	 *											num_rx_ring_0_perc_with_pack(4) - Total number of times the ring has 0 packets
-	 *											num_rx_ring_above_75_perc_pack(4) - Total number of times ring has > 75% packets
-	 *											num_rx_ring_above_25_perc_pack(4) - Total number of times ring has < 25% packets
-	 *											num_rx_ring_stats_polled(4) - Total number of times RX ring stats are counted
-	 *											num_rx_drop_stats(4) - Total number of times GSI dropped packets
-	 *											gsi_debug1(4) - Additional GSI Debug information
-	 *											gsi_debug2(4) - Additional GSI Debug information
-	 *											gsi_debug3(4) - Additional GSI Debug information
-	 *											gsi_debug4(4) - Additional GSI Debug information
-	 *											rx_summary(4) - 1 – Peripheral is bad in providing packets, 2 – IPA is not processing packets fast enough
-	 */
 	IPA_LNX_CMD_MHIP_INST_STATS,
+	IPA_LNX_CMD_CONSOLIDATED_STATS,
 	IPA_LNX_CMD_STATS_MAX,
 };
 
 int ipa_spearhead_stats_init(void);
+
+/* Peripheral stats for Q6, should be in the same order, defined by Q6 */
+struct ipa_peripheral_mdm_stats {
+	uint32_t canary;
+
+	uint16_t num_entries;
+	uint16_t reserved;
+
+	/* TLV for number of peripherals connected to APROC */
+	/* value = IPA_PER_STATS_TYPE_NUM_PERS */
+	uint16_t periph_id;
+	uint16_t periph_len;
+	uint32_t periph_val;
+
+	/* TLV for number of periphers from/to traffic flowing from modem */
+	/* value = IPA_PER_STATS_TYPE_NUM_PERS_WWAN */
+	uint16_t periph_wwan_id;
+	uint16_t periph_wwan_len;
+	uint32_t periph_wwan_val;
+
+	/* TLV for bitmask for active/connected peripherals */
+	/* value = IPA_PER_STATS_TYPE_PER_TYPE */
+	uint16_t periph_type_id;
+	uint16_t periph_type_len;
+	uint32_t periph_type_val;
+
+	/* TLV for Current gen info if PCIe interconnect is valid */
+	/* value = IPA_PER_STATS_TYPE_PCIE_GEN */
+	uint16_t pcie_gen_type_id;
+	uint16_t pcie_gen_type_len;
+	uint32_t pcie_gen_type_val;
+
+	/* TLV for Current width info if PCIe interconnect is valid */
+	/* value = IPA_PER_STATS_TYPE_PCIE_WIDTH */
+	uint16_t pcie_width_type_id;
+	uint16_t pcie_width_type_len;
+	uint32_t pcie_width_type_val;
+
+	/* TLV for Max PCIe speed in current gen in Mbps */
+	/* value = IPA_PER_STATS_TYPE_PCIE_MAX_SPEED */
+	uint16_t pcie_max_speed_id;
+	uint16_t pcie_max_speed_len;
+	uint32_t pcie_max_speed_val;
+
+	/* TLV for number PCIe LPM transitions */
+	/* value = IPA_PER_STATS_TYPE_PCIE_NUM_LPM */
+	uint16_t pcie_num_lpm_trans_id;
+	uint16_t pcie_num_lpm_trans_len;
+	uint16_t pcie_num_lpm_trans_d3;
+	uint16_t pcie_num_lpm_trans_m1;
+	uint16_t pcie_num_lpm_trans_m2;
+	uint16_t pcie_num_lpm_trans_m0;
+
+	/* TLV for USB enumeration type */
+	/* value = IPA_PER_STATS_TYPE_USB_TYPE */
+	uint16_t usb_enum_id;
+	uint16_t usb_enum_len;
+	uint32_t usb_enum_value;
+
+	/* TLV for Current USB protocol enumeration if active */
+	/* value = IPA_PER_STATS_TYPE_USB_PROT */
+	uint16_t usb_prot_enum_id;
+	uint16_t usb_prot_enum_len;
+	uint32_t usb_prot_enum_value;
+
+	/* TLV for Max USB speed in current gen in Mbps */
+	/* value = IPA_PER_STATS_TYPE_USB_MAX_SPEED */
+	uint16_t usb_max_speed_id;
+	uint16_t usb_max_speed_len;
+	uint32_t usb_max_speed_val;
+
+	/* TLV for Total number of USB plug in/outs */
+	/* value = IPA_PER_STATS_TYPE_USB_PIPO */
+	uint16_t usb_pipo_id;
+	uint16_t usb_pipo_len;
+	uint32_t usb_pipo_val;
+
+	/* TLV for Wifi enumeration type*/
+	/* value = IPA_PER_STATS_TYPE_WIFI_ENUM_TYPE */
+	uint16_t wifi_enum_type_id;
+	uint16_t wifi_enum_type_len;
+	uint32_t wifi_enum_type_val;
+
+	/* TLV for Theoritical Max WLAN speed in current gen in Mbps (pipe for 5GHz in case of dual band) */
+	/* value = IPA_PER_STATS_TYPE_WIFI_MAX_SPEED */
+	uint16_t wifi_max_speed_id;
+	uint16_t wifi_max_speed_len;
+	uint32_t wifi_max_speed_val;
+
+	/* TLV for Theoretical Max WLAN speed on the 2.4GHz pipe, value of 0 means disabled */
+	/* value = IPA_PER_STATS_TYPE_WIFI_DUAL_BAND_EN */
+	uint16_t wifi_dual_band_enabled_id;
+	uint16_t wifi_dual_band_enabled_len;
+	uint32_t wifi_dual_band_enabled_val;
+
+	/* TLV for the type of ethernet client - Realtek/AQC */
+	/* value = IPA_PER_STATS_TYPE_ETH_CLIENT */
+	uint16_t eth_client_id;
+	uint16_t eth_client_len;
+	uint32_t eth_client_val;
+
+	/* TLV for Max Eth link speed */
+	/* value = IPA_PER_STATS_TYPE_ETH_MAX_SPEED */
+	uint16_t eth_max_speed_id;
+	uint16_t eth_max_speed_len;
+	uint32_t eth_max_speed_val;
+
+	/* TLV for Total number of bytes txferred through IPA DMA channels over PCIe */
+	/* For cases where GSI used for QDSS direct DMA, need to extract bytes stats from GSI FW */
+	/* value = IPA_PER_STATS_TYPE_IPA_DMA_BYTES */
+	uint16_t ipa_dma_bytes_id;
+	uint16_t ipa_dma_bytes_len;
+	uint32_t ipa_dma_bytes_val;
+
+	/* TLV for number of wifi peripherals connected to APROC */
+	/* value = IPA_PER_STATS_TYPE_WIFI_HOLB_UC */
+	uint16_t wifi_holb_uc_stats_id;
+	uint16_t wifi_holb_uc_stats_len;
+	uint16_t wifi_holb_uc_stats_num_periph_bad;
+	uint16_t wifi_holb_uc_stats_num_periph_recovered;
+
+	/* TLV for number of eth peripherals connected to APROC */
+	/* value = IPA_PER_STATS_TYPE_ETH_HOLB_UC */
+	uint16_t eth_holb_uc_stats_id;
+	uint16_t eth_holb_uc_stats_len;
+	uint16_t eth_holb_uc_stats_num_periph_bad;
+	uint16_t eth_holb_uc_stats_num_periph_recovered;
+
+	/* TLV for number of usb peripherals connected to APROC */
+	/* value = IPA_PER_STATS_TYPE_USB_HOLB_UC */
+	uint16_t usb_holb_uc_stats_id;
+	uint16_t usb_holb_uc_stats_len;
+	uint16_t usb_holb_uc_stats_num_periph_bad;
+	uint16_t usb_holb_uc_stats_num_periph_recovered;
+};
+
+struct ipa_peripheral_msm_stats {
+	uint32_t canary;
+
+	uint16_t num_entries;
+	uint16_t reserved;
+
+	/* TLV for number of peripherals connected to APROC */
+	/* value = IPA_PER_STATS_TYPE_NUM_PERS */
+	uint16_t periph_id;
+	uint16_t periph_len;
+	uint32_t periph_val;
+
+	/* TLV for number of periphers from/to traffic flowing from modem */
+	/* value = IPA_PER_STATS_TYPE_NUM_PERS_WWAN */
+	uint16_t periph_wwan_id;
+	uint16_t periph_wwan_len;
+	uint32_t periph_wwan_val;
+
+	/* TLV for bitmask for active/connected peripherals */
+	/* value = IPA_PER_STATS_TYPE_PER_TYPE */
+	uint16_t periph_type_id;
+	uint16_t periph_type_len;
+	uint32_t periph_type_val;
+
+	/* TLV for USB enumeration type */
+	/* value = IPA_PER_STATS_TYPE_USB_TYPE */
+	uint16_t usb_enum_id;
+	uint16_t usb_enum_len;
+	uint32_t usb_enum_value;
+
+	/* TLV for Current USB protocol enumeration if active */
+	/* value = IPA_PER_STATS_TYPE_USB_PROT */
+	uint16_t usb_prot_enum_id;
+	uint16_t usb_prot_enum_len;
+	uint32_t usb_prot_enum_value;
+
+	/* TLV for Max USB speed in current gen in Mbps */
+	/* value = IPA_PER_STATS_TYPE_USB_MAX_SPEED */
+	uint16_t usb_max_speed_id;
+	uint16_t usb_max_speed_len;
+	uint32_t usb_max_speed_val;
+
+	/* TLV for Total number of USB plug in/outs */
+	/* value = IPA_PER_STATS_TYPE_USB_PIPO */
+	uint16_t usb_pipo_id;
+	uint16_t usb_pipo_len;
+	uint32_t usb_pipo_val;
+
+	/* TLV for Wifi enumeration type*/
+	/* value = IPA_PER_STATS_TYPE_WIFI_ENUM_TYPE */
+	uint16_t wifi_enum_type_id;
+	uint16_t wifi_enum_type_len;
+	uint32_t wifi_enum_type_val;
+
+	/* TLV for Theoritical Max WLAN speed in current gen in Mbps (pipe for 5GHz in case of dual band) */
+	/* value = IPA_PER_STATS_TYPE_WIFI_MAX_SPEED */
+	uint16_t wifi_max_speed_id;
+	uint16_t wifi_max_speed_len;
+	uint32_t wifi_max_speed_val;
+
+	/* TLV for Theoretical Max WLAN speed on the 2.4GHz pipe, value of 0 means disabled */
+	/* value = IPA_PER_STATS_TYPE_WIFI_DUAL_BAND_EN */
+	uint16_t wifi_dual_band_enabled_id;
+	uint16_t wifi_dual_band_enabled_len;
+	uint32_t wifi_dual_band_enabled_val;
+
+	/* TLV for number of wifi peripherals connected to APROC */
+	/* value = IPA_PER_STATS_TYPE_WIFI_HOLB_UC */
+	uint16_t wifi_holb_uc_stats_id;
+	uint16_t wifi_holb_uc_stats_len;
+	uint16_t wifi_holb_uc_stats_num_periph_bad;
+	uint16_t wifi_holb_uc_stats_num_periph_recovered;
+
+	/* TLV for number of usb peripherals connected to APROC */
+	/* value = IPA_PER_STATS_TYPE_USB_HOLB_UC */
+	uint16_t usb_holb_uc_stats_id;
+	uint16_t usb_holb_uc_stats_len;
+	uint16_t usb_holb_uc_stats_num_periph_bad;
+	uint16_t usb_holb_uc_stats_num_periph_recovered;
+};
+
+union ipa_peripheral_stats {
+	struct ipa_peripheral_mdm_stats mdm;
+	struct ipa_peripheral_msm_stats msm;
+};
+
+int ipa3_peripheral_stats_init(union ipa_peripheral_stats *smem_addr);
 
 #endif // _UAPI_IPA_LNX_STATS_H_

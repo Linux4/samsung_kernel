@@ -729,10 +729,8 @@ static void uevent_event(uint32_t /*epevents*/, struct data *payload) {
                               "usb\\d/\\d-\\d(?:/[\\d\\.-]+)*)");
   static std::regex bind_regex("bind@(/devices/platform/soc/.*dwc3/xhci-hcd\\.\\d\\.auto/"
                                "usb\\d/\\d-\\d(?:/[\\d\\.-]+)*)/([^/]*:[^/]*)");
-  static std::regex host_regex("add@/devices/platform/soc/.*" + gadgetName +
-                               "/xhci-hcd\\.\\d\\.auto");
-  static std::regex peripheral_regex("remove@/devices/platform/soc/.*" + gadgetName +
-                                     "/xhci-hcd\\.\\d\\.auto");
+  static std::regex udc_regex("(add|remove)@/devices/platform/soc/.*/" + gadgetName +
+                              "/udc/" + gadgetName);
 
   n = uevent_kernel_multicast_recv(payload->uevent_fd, msg, UEVENT_MSG_LEN);
   if (n <= 0) return;
@@ -759,10 +757,27 @@ static void uevent_event(uint32_t /*epevents*/, struct data *payload) {
       std::csub_match intfpath = match[2];
       checkUsbInterfaceAutoSuspend("/sys" + devpath.str(), intfpath.str());
     }
-  } else   if (std::regex_match(msg, host_regex)) {
-    SetProperty(VENDOR_USB_ADB_DISABLED_PROP, "1");
-  } else   if (std::regex_match(msg, peripheral_regex)) {
-    SetProperty(VENDOR_USB_ADB_DISABLED_PROP, "0");
+  } else if (std::regex_match(msg, match, udc_regex)) {
+    if (!strncmp(msg, "add", 3)) {
+      // Allow ADBD to resume its FFS monitor thread
+      SetProperty(VENDOR_USB_ADB_DISABLED_PROP, "0");
+
+      // In case ADB is not enabled, we need to manually re-bind the UDC to
+      // ConfigFS since ADBD is not there to trigger it (sys.usb.ffs.ready=1)
+      if (GetProperty("init.svc.adbd", "") != "running") {
+        ALOGI("Binding UDC %s to ConfigFS", gadgetName.c_str());
+        writeFile("/config/usb_gadget/g1/UDC", gadgetName);
+      }
+
+    } else {
+      // When the UDC is removed, the ConfigFS gadget will no longer be
+      // bound. If ADBD is running it would keep opening/writing to its
+      // FFS EP0 file but since FUNCTIONFS_BIND doesn't happen it will
+      // just keep repeating this in a 1 second retry loop. Each iteration
+      // will re-trigger a ConfigFS UDC bind which will keep failing.
+      // Setting this property stops ADBD from proceeding with the retry.
+      SetProperty(VENDOR_USB_ADB_DISABLED_PROP, "1");
+    }
   }
 }
 

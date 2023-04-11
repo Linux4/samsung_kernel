@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -572,6 +573,7 @@ struct drm_msm_ltm_buffer {
 #define SPR_INIT_PARAM_SIZE_3 16
 #define SPR_INIT_PARAM_SIZE_4 24
 #define SPR_INIT_PARAM_SIZE_5 32
+#define SPR_FLAG_BYPASS (1 << 0)
 
 /**
  * struct drm_msm_spr_init_cfg - SPR initial configuration structure
@@ -681,6 +683,8 @@ struct drm_msm_rc_mask_cfg {
 	__u64 cfg_param_07;
 	__u32 cfg_param_08;
 	__u64 cfg_param_09[RC_DATA_SIZE_MAX];
+	__u32 height;
+	__u32 width;
 };
 
 #define FP16_SUPPORTED
@@ -719,6 +723,8 @@ struct drm_msm_fp16_csc {
 	__u32 cfg_param_1[FP16_CSC_CFG1_PARAM_LEN];
 };
 
+#define DIMMING_ENABLE (1 << 0)
+#define DIMMING_MIN_BL_VALID (1 << 1)
 struct drm_msm_backlight_info {
 	__u32 brightness_max;
 	__u32 brightness;
@@ -726,6 +732,10 @@ struct drm_msm_backlight_info {
 	__u32 bl_level;
 	__u32 bl_scale;
 	__u32 bl_scale_sv;
+	__u32 status;
+	__u32 min_bl;
+	__u32 bl_scale_max;
+	__u32 bl_scale_sv_max;
 };
 
 #define DIMMING_BL_LUT_LEN 8192

@@ -26,8 +26,20 @@ struct qrtr_endpoint {
 	struct qrtr_node *node;
 };
 
+/**
+ * struct qrtr_array - array with size
+ * @arr: elements in the array
+ * @size: number of elements
+ *
+ * An array with its size provided.
+ */
+struct qrtr_array {
+	u32 *arr;
+	size_t size;
+};
+
 int qrtr_endpoint_register(struct qrtr_endpoint *ep, unsigned int net_id,
-			   bool rt);
+			   bool rt, struct qrtr_array *no_wake);
 
 void qrtr_endpoint_unregister(struct qrtr_endpoint *ep);
 
@@ -42,4 +54,6 @@ void qrtr_ns_remove(void);
 int qrtr_peek_pkt_size(const void *data);
 
 int qrtr_get_service_id(unsigned int node_id, unsigned int port_id);
+
+void qrtr_print_wakeup_reason(const void *data);
 #endif
