@@ -1,0 +1,23 @@
+#
+# BTS device driver Kernel Configuration
+#
+
+menuconfig EXYNOS_BTS
+	tristate "BTS device driver support"
+	default n
+	help
+	  Enables BTS(Bus Traffic Shaper) device driver support
+	  BTS device driver will set BTS and request DVFS for
+	  controlling system bus traffic. Default setting of BTS
+	  should be different to chipset because of hardware characteristics.
+
+if EXYNOS_BTS
+
+config EXYNOS3830_BTS
+        tristate "Bus traffic shaper support for exynos3830"
+        default y
+        depends on SOC_EXYNOS3830
+        help
+          Enable BTS (Bus traffic shaper) support for exynos3830
+
+endif
