@@ -47,17 +47,27 @@
 #ifdef CONFIG_OF
 #include <linux/of_gpio.h>
 #endif
-
+#ifdef CONFIG_SENSORS_A96T3X6_HALL_NOTIFIER
+#include <linux/hall.h>
+#endif
 #include "a96t3x6.h"
 
 struct a96t3x6_data {
 	struct i2c_client *client;
 	struct input_dev *input_dev;
+	struct input_dev *noti_input_dev;
 	struct device *dev;
 	struct mutex lock;
 	struct delayed_work debug_work;
 	struct delayed_work firmware_work;
-	struct delayed_work notify_work;
+#if defined(CONFIG_SENSORS_A96T3X6_HALL_NOTIFIER)
+	struct delayed_work reset_work;
+#endif
+#if defined(CONFIG_CCIC_NOTIFIER) || defined(CONFIG_PDIC_NOTIFIER) \
+	|| defined(CONFIG_MUIC_NOTIFIER) || defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+	struct work_struct cmdon_work;
+	struct work_struct cmdoff_work;
+#endif
 
 	atomic_t enable;
 
@@ -66,6 +76,7 @@ struct a96t3x6_data {
 	char phys[32];
 	long firm_size;
 	int irq;
+	int noti_enable;
 	struct wake_lock grip_wake_lock;
 	u16 grip_p_thd;
 	u16 grip_r_thd;
@@ -103,7 +114,10 @@ struct a96t3x6_data {
 	u8 fw_write_result;
 	bool skip_event;
 	bool resume_called;
+	bool first_working;
 
+	s16 is_unknown_mode;
+	s16 motion;
 	int ldo_en;			/* ldo_en pin gpio */
 	int grip_int;			/* irq pin gpio */
 	const char *dvdd_vreg_name;		/* regulator name */
@@ -122,6 +136,9 @@ struct a96t3x6_data {
 #if defined(CONFIG_CCIC_NOTIFIER)
 	struct notifier_block cpuidle_ccic_nb;
 #endif
+#if defined(CONFIG_SENSORS_A96T3X6_HALL_NOTIFIER)
+	struct notifier_block hall_nb;
+#endif
 #ifdef CONFIG_SENSORS_A96T3X6_2CH
 	u16 grip_p_thd_2ch;
 	u16 grip_r_thd_2ch;
@@ -132,6 +149,8 @@ struct a96t3x6_data {
 	u16 diff_2ch;
 	u16 diff_d_2ch;
 	u16 grip_event_2ch;
+	int is_unknown_mode_2ch;
+	bool first_working_2ch;
 #endif
 };
 
@@ -466,6 +485,40 @@ static void a96t3x6_2ch_diff_getdata(struct a96t3x6_data *data)
 }
 #endif
 
+static void a96t3x6_enter_unknown_mode(struct a96t3x6_data *data, int type)
+{
+	if (data->noti_enable && !data->skip_event) {
+		data->motion = 0;
+		data->first_working = false;
+		if (data->is_unknown_mode == UNKNOWN_OFF) {
+			data->is_unknown_mode = UNKNOWN_ON;
+			if (!data->skip_event) {
+				input_report_rel(data->input_dev, REL_X, data->is_unknown_mode);
+				input_sync(data->input_dev);
+			}
+			GRIP_INFO("UNKNOWN Re-enter\n");
+		} else {
+			GRIP_INFO("already UNKNOWN\n");
+		}
+		
+#ifdef CONFIG_SENSORS_A96T3X6_2CH
+		data->first_working_2ch = false;
+		if (data->is_unknown_mode_2ch == UNKNOWN_OFF) {
+			data->is_unknown_mode_2ch = UNKNOWN_ON;
+			if (!data->skip_event) {
+				input_report_rel(data->input_dev, REL_Y, data->is_unknown_mode_2ch);
+				input_sync(data->input_dev);
+			}
+			GRIP_INFO("2ch UNKNOWN Re-enter\n");
+		} else {
+			GRIP_INFO("2ch already UNKNOWN\n");
+		}
+#endif
+		input_report_rel(data->noti_input_dev, REL_X, type);
+		input_sync(data->noti_input_dev);
+	}
+}
+
 static void a96t3x6_check_first_status(struct a96t3x6_data *data, int enable)
 {
 	u8 r_buf[2];
@@ -499,6 +552,10 @@ static void a96t3x6_check_first_status(struct a96t3x6_data *data, int enable)
 	} else {
 		input_report_rel(data->input_dev, REL_DIAL, 2);
 	}
+#endif
+	input_report_rel(data->input_dev, REL_X, data->is_unknown_mode);
+#ifdef CONFIG_SENSORS_A96T3X6_2CH
+	input_report_rel(data->input_dev, REL_Y, data->is_unknown_mode_2ch);
 #endif
 	input_sync(data->input_dev);
 }
@@ -577,6 +634,15 @@ exit:
 
 	return hall_state;
 }
+#if defined(CONFIG_SENSORS_A96T3X6_HALL_NOTIFIER)
+static void a96t3x6_reset_work_func(struct work_struct *work)
+{
+	struct a96t3x6_data *data = container_of((struct delayed_work *)work,
+		struct a96t3x6_data, reset_work);
+
+	a96t3x6_grip_sw_reset(data);
+}
+#endif
 #ifdef CONFIG_SENSORS_FW_VENDOR
 static void a96t3x6_firmware_work_func(struct work_struct *work)
 {
@@ -602,6 +668,191 @@ static void a96t3x6_firmware_work_func(struct work_struct *work)
 	}
 }
 #endif
+#if defined(CONFIG_CCIC_NOTIFIER) || defined(CONFIG_PDIC_NOTIFIER) \
+	|| defined(CONFIG_MUIC_NOTIFIER) || defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+static void cmdon_work_func(struct work_struct *work)
+{
+	struct a96t3x6_data *grip_data = container_of((struct work_struct *)work,
+						struct a96t3x6_data, cmdon_work);
+	u8 cmd = CMD_ON;
+
+	if (grip_data != NULL)
+		a96t3x6_i2c_write(grip_data->client, REG_TSPTA, &cmd);
+}
+static void cmdoff_work_func(struct work_struct *work)
+{
+	struct a96t3x6_data *grip_data = container_of((struct work_struct *)work,
+						struct a96t3x6_data, cmdoff_work);
+	u8 cmd = CMD_OFF;
+
+	if (grip_data != NULL)
+		a96t3x6_i2c_write(grip_data->client, REG_TSPTA, &cmd);
+}
+#endif
+#if defined(CONFIG_CCIC_NOTIFIER) && defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+static int a96t3x6_ccic_handle_notification(struct notifier_block *nb,
+	unsigned long action, void *data) {
+
+	CC_NOTI_ATTACH_TYPEDEF usb_typec_info =
+		*(CC_NOTI_ATTACH_TYPEDEF *)data;
+	struct a96t3x6_data *grip_data =
+		container_of(nb, struct a96t3x6_data, cpuidle_ccic_nb);
+	static int pre_attach = -1;
+	u8 cmd = CMD_ON;
+
+	GRIP_INFO("src = %d, id = %d, attach = %d",
+			usb_typec_info.src, usb_typec_info.id, usb_typec_info.attach);
+
+	if (pre_attach == usb_typec_info.attach)
+		return 0;
+
+	if (usb_typec_info.src == CCIC_NOTIFY_DEV_CCIC &&
+		usb_typec_info.dest == CCIC_NOTIFY_DEV_BATTERY) { /*for PD TA*/
+#if defined(CONFIG_SENSORS_SKIP_CABLE_RESET) && defined(CONFIG_TABLET_MODEL_CONCEPT)
+		GRIP_INFO("grip reset skip for tablet");
+#else
+		if (usb_typec_info.id == CCIC_NOTIFY_ID_ATTACH &&
+			usb_typec_info.attach == MUIC_NOTIFY_CMD_DETACH) {
+			cmd = CMD_ON;
+			schedule_work(&grip_data->cmdon_work);
+#if !defined(CONFIG_TABLET_MODEL_CONCEPT)
+			a96t3x6_enter_unknown_mode(grip_data, TYPE_USB);
+#endif
+		} else if (usb_typec_info.id == CCIC_NOTIFY_ID_POWER_STATUS &&
+			usb_typec_info.attach == MUIC_NOTIFY_CMD_ATTACH) {
+			cmd = CMD_OFF;
+			schedule_work(&grip_data->cmdoff_work);
+#if !defined(CONFIG_TABLET_MODEL_CONCEPT)
+			a96t3x6_enter_unknown_mode(grip_data, TYPE_USB);
+#endif
+		} else {
+			return 0;
+		}
+#endif
+		GRIP_INFO("PDTA id = %d, attach = %d, cmd = %d",
+			usb_typec_info.id, usb_typec_info.attach, cmd);
+	} else if (usb_typec_info.src == CCIC_NOTIFY_DEV_MUIC &&
+		usb_typec_info.dest == CCIC_NOTIFY_DEV_BATTERY) {
+		switch (usb_typec_info.cable_type) {
+		case ATTACHED_DEV_NONE_MUIC:
+		case ATTACHED_DEV_JIG_UART_OFF_MUIC:
+		case ATTACHED_DEV_JIG_UART_OFF_VB_MUIC:	/* VBUS enabled */
+		case ATTACHED_DEV_JIG_UART_OFF_VB_OTG_MUIC:	/* for otg test */
+		case ATTACHED_DEV_JIG_UART_OFF_VB_FG_MUIC:	/* for fuelgauge test */
+		case ATTACHED_DEV_JIG_UART_ON_MUIC:
+		case ATTACHED_DEV_JIG_UART_ON_VB_MUIC:	/* VBUS enabled */
+		case ATTACHED_DEV_JIG_USB_OFF_MUIC:
+		case ATTACHED_DEV_JIG_USB_ON_MUIC:
+#ifdef CONFIG_SENSORS_A96T3X6_UNSUPPORT_OTG
+		case ATTACHED_DEV_OTG_MUIC:
+#endif
+			GRIP_INFO("skip cable = %d, attach = %d\n",
+				usb_typec_info.cable_type, usb_typec_info.attach);
+			break;
+		default:
+#if defined(CONFIG_SENSORS_SKIP_CABLE_RESET) && defined(CONFIG_TABLET_MODEL_CONCEPT)
+			GRIP_INFO("grip reset skip for tablet");
+#else
+			if (usb_typec_info.attach == MUIC_NOTIFY_CMD_DETACH) {
+				cmd = CMD_ON;
+				schedule_work(&grip_data->cmdon_work);
+			} else if (usb_typec_info.attach == MUIC_NOTIFY_CMD_ATTACH) {
+				cmd = CMD_OFF;
+				schedule_work(&grip_data->cmdoff_work);
+			} else
+				schedule_work(&grip_data->cmdon_work);
+
+			a96t3x6_enter_unknown_mode(grip_data, TYPE_USB);
+#endif
+			GRIP_INFO("attach = %d, cmd = %d", usb_typec_info.attach, cmd);
+			break;
+		}
+	} else {
+		return 0;
+	}
+
+	pre_attach = usb_typec_info.attach;
+	return 0;
+}
+#endif
+#if defined(CONFIG_SENSORS_A96T3X6_HALL_NOTIFIER)
+static int a96t3x6_hall_ic_notify(struct notifier_block *nb,
+		unsigned long flip_cover, void *v) 
+{
+#if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+	struct hall_notifier_context *hall_notifier = v;
+#endif
+	struct a96t3x6_data *data = container_of(nb, struct a96t3x6_data,
+					hall_nb);
+	if (data == NULL) {
+		GRIP_ERR("data is null\n");
+		return 0;
+	}
+
+#ifdef CONFIG_SENSORS_A96T3X6_2CH
+	GRIP_INFO("set flip unknown mode(flip %s,prev %d %d)\n",
+		flip_cover ? "close" : "open", data->is_unknown_mode, data->is_unknown_mode_2ch);
+#else
+	GRIP_INFO("set flip unknown mode(flip %s,prev %d)\n",
+		flip_cover ? "close" : "open", data->is_unknown_mode);
+#endif
+
+#if IS_ENABLED(CONFIG_TABLET_MODEL_CONCEPT)
+	if (flip_cover) {
+		GRIP_INFO("%s attach\n", hall_notifier->name);
+		if (strncmp(hall_notifier->name, "certify_hall", sizeof("certify_hall") - 1) == 0 ||
+            strncmp(hall_notifier->name, "hall_wacom", sizeof("hall_wacom") - 1) == 0) {
+			schedule_delayed_work(&data->reset_work, msecs_to_jiffies(1));
+            GRIP_INFO("reset only without unknown, %s\n", hall_notifier->name);
+		} else if (strncmp(hall_notifier->name, "hall", sizeof("hall") - 1) == 0)
+            GRIP_INFO("reset skip, %s\n", hall_notifier->name);
+		else
+            GRIP_INFO("%s is not defined, hall_notifier_name\n", hall_notifier->name);
+	}
+#else
+	if (flip_cover)
+		schedule_delayed_work(&data->reset_work, msecs_to_jiffies(1));
+	a96t3x6_enter_unknown_mode(data, TYPE_HALL);
+#endif
+	return 0;
+}
+#endif
+
+static void a96t3x6_check_first_working(struct a96t3x6_data *data, int channel_num)
+{
+	if (data->noti_enable && data->motion) {
+		if (channel_num == 1) {
+			if (data->grip_p_thd < data->diff) {
+				if (!data->first_working) {
+					data->first_working = true;
+					GRIP_INFO("first working detected %d\n", data->diff);
+				}
+			} else {
+				if (data->first_working &&
+					(data->is_unknown_mode == UNKNOWN_ON)) {
+					data->is_unknown_mode = UNKNOWN_OFF;
+					GRIP_INFO("Release detected %d, unknown mode off\n", data->diff);
+				}
+			}
+		}
+#ifdef CONFIG_SENSORS_A96T3X6_2CH
+		else if (channel_num == 2) {
+			if (data->grip_p_thd_2ch < data->diff_2ch) {
+				if (!data->first_working_2ch) {
+					data->first_working_2ch = true;
+					GRIP_INFO("2ch first working detected %d\n", data->diff_2ch);
+				}
+			} else {
+				if (data->first_working_2ch &&
+					(data->is_unknown_mode_2ch == UNKNOWN_ON)) {
+					data->is_unknown_mode_2ch = UNKNOWN_OFF;
+					GRIP_INFO("2ch Release detected %d, unknown mode off\n", data->diff_2ch);
+				}
+			}
+		}
+#endif
+	}
+}
 static void a96t3x6_debug_work_func(struct work_struct *work)
 {
 	struct a96t3x6_data *data = container_of((struct delayed_work *)work,
@@ -609,9 +860,12 @@ static void a96t3x6_debug_work_func(struct work_struct *work)
 
 	static int hall_prev_state, cert_hall_prev_state;
 	int hall_state, cert_hall_state;
-
+#if defined(CONFIG_CCIC_NOTIFIER) && defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+	static int ret = -1;
+#endif
+#ifdef CONFIG_SEC_FACTORY
 	int enable = atomic_read(&data->enable);
-
+#endif
 	if (data->resume_called == true) {
 		data->resume_called = false;
 		a96t3x6_sar_only_mode(data, 0);
@@ -626,35 +880,51 @@ static void a96t3x6_debug_work_func(struct work_struct *work)
 		GRIP_INFO("%s - hall is closed %d %d\n", __func__, hall_state, cert_hall_state);
 		a96t3x6_grip_sw_reset(data);
 	}
+
+	if ((hall_prev_state != hall_state)
+		|| (cert_hall_prev_state != cert_hall_state)
+		) {
+		a96t3x6_enter_unknown_mode(data, TYPE_HALL);
+	}
 	hall_prev_state = hall_state;
 	cert_hall_prev_state = cert_hall_state;
 
-	if (enable) {
 #ifdef CONFIG_SEC_FACTORY
+	if (enable) {
 		if (data->abnormal_mode) {
 			a96t3x6_diff_getdata(data);
 			if (data->max_normal_diff < data->diff)
 				data->max_normal_diff = data->diff;
 #ifdef CONFIG_SENSORS_A96T3X6_2CH
+			a96t3x6_2ch_diff_getdata(data);
 			if (data->max_normal_diff_2ch < data->diff_2ch)
 				data->max_normal_diff_2ch = data->diff_2ch;
 #endif
-		} else {
-#endif
-			if (data->debug_count >= GRIP_LOG_TIME) {
-				a96t3x6_diff_getdata(data);
-#ifdef CONFIG_SENSORS_A96T3X6_2CH
-				a96t3x6_2ch_diff_getdata(data);
-#endif
-				data->debug_count = 0;
-			} else {
-				data->debug_count++;
-			}
-#ifdef CONFIG_SEC_FACTORY
 		}
+	}
 #endif
+
+	if (data->debug_count >= GRIP_LOG_TIME) {
+		a96t3x6_diff_getdata(data);
+		if (data->is_unknown_mode == UNKNOWN_ON && data->motion)
+			a96t3x6_check_first_working(data, 1);
+		data->debug_count = 0;
+	} else {
+		if (data->is_unknown_mode == UNKNOWN_ON && data->motion) {
+			a96t3x6_diff_getdata(data);
+			a96t3x6_check_first_working(data, 1);
+		}
+		data->debug_count++;
 	}
 
+#if defined(CONFIG_CCIC_NOTIFIER) && defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+	if (ret < 0) {
+		ret = manager_notifier_register(&data->cpuidle_ccic_nb,
+					a96t3x6_ccic_handle_notification,
+					MANAGER_NOTIFY_CCIC_SENSORHUB);
+		GRIP_INFO("notifier register ret = %d\n", ret);
+	}
+#endif
 	schedule_delayed_work(&data->debug_work, msecs_to_jiffies(2000));
 }
 
@@ -686,18 +956,6 @@ static void a96t3x6_set_firmware_work(struct a96t3x6_data *data, u8 enable,
 	}
 }
 #endif
-static void a96t3x6_set_notify_work(struct a96t3x6_data *data, u8 enable,
-	unsigned int time_ms)
-{
-	GRIP_INFO("%s\n", __func__, enable ? "enabled": "disabled");
-	
-	if (enable == 1) {
-		schedule_delayed_work(&data->notify_work,
-			msecs_to_jiffies(time_ms));
-	} else {
-		cancel_delayed_work_sync(&data->notify_work);
-	}
-}
 static irqreturn_t a96t3x6_interrupt(int irq, void *dev_id)
 {
 	struct a96t3x6_data *data = dev_id;
@@ -743,10 +1001,22 @@ static irqreturn_t a96t3x6_interrupt(int irq, void *dev_id)
 		if (data->skip_event) {
 			GRIP_INFO("int was generated, but event skipped\n");
 		} else {
-			if (grip_press)
+			if (grip_press) {
 				input_report_rel(data->input_dev, REL_MISC, 1);
-			else
+				if (data->is_unknown_mode == UNKNOWN_ON && data->motion)
+					data->first_working = true;
+			} else {
 				input_report_rel(data->input_dev, REL_MISC, 2);
+				if (data->is_unknown_mode == UNKNOWN_ON && data->motion) {
+					if (data->first_working) {
+						GRIP_INFO("unknown mode off\n");
+						data->is_unknown_mode = UNKNOWN_OFF;
+					}
+				}
+			}
+
+			input_report_rel(data->input_dev, REL_X, data->is_unknown_mode);
+
 			input_sync(data->input_dev);
 			data->grip_event = grip_press;
 		}
@@ -870,7 +1140,12 @@ static ssize_t grip_sar_enable_store(struct device *dev,
 	/* enable 0:off, 1:on, 2:skip event , 3:cancel skip event */
 	if (enable == 2) {
 		data->skip_event = true;
+		data->motion = 1;
+		data->is_unknown_mode = UNKNOWN_OFF;
+		data->first_working = false;
+
 		input_report_rel(data->input_dev, REL_MISC, 2);
+		input_report_rel(data->input_dev, REL_X, UNKNOWN_OFF);
 #ifdef CONFIG_SENSORS_A96T3X6_2CH
 		input_report_rel(data->input_dev, REL_DIAL, 2);
 #endif
@@ -991,7 +1266,12 @@ static ssize_t grip_baseline_show(struct device *dev,
 	}
 	data->grip_baseline = (r_buf[0] << 8) | r_buf[1];
 
+#ifdef DEBUG_FACTORY_APP_ENABLE
+	return snprintf(buf, PAGE_SIZE, "%u/%s\n", data->grip_baseline,
+		(data->motion) ? "MOTION_DETECT" : "MOTION_NON_DETECT");
+#else
 	return snprintf(buf, PAGE_SIZE, "%u\n", data->grip_baseline);
+#endif
 }
 
 static ssize_t grip_raw_show(struct device *dev,
@@ -1004,8 +1284,14 @@ static ssize_t grip_raw_show(struct device *dev,
 	if (ret < 0)
 		return sprintf(buf, "%d\n", 0);
 	else
+#ifdef DEBUG_FACTORY_APP_ENABLE
+		return sprintf(buf, "%u/%s,%u\n", data->grip_raw,
+				(data->is_unknown_mode == 1) ? "UNKNOWN" : "NORMAL",
+				data->grip_raw_d);
+#else
 		return sprintf(buf, "%u,%u\n", data->grip_raw,
 				data->grip_raw_d);
+#endif
 }
 
 static ssize_t grip_gain_show(struct device *dev,
@@ -1260,6 +1546,10 @@ static ssize_t grip_sensing_change(struct device *dev,
 			data->grip_event_2ch = 0;
 			input_report_rel(data->input_dev, REL_DIAL, 2);
 #endif
+			if (data->skip_event)
+				input_report_rel(data->input_dev, REL_X, UNKNOWN_OFF);
+			else
+				input_report_rel(data->input_dev, REL_X, data->is_unknown_mode);
 			input_sync(data->input_dev);
 		} else {
 			a96t3x6_grip_sw_reset(data);
@@ -2374,6 +2664,108 @@ static ssize_t a96t3x6_enable_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", enable);
 }
 
+static ssize_t grip_motion_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct a96t3x6_data *data = dev_get_drvdata(dev);
+
+	if (data->motion)
+		return snprintf(buf, PAGE_SIZE, "motion_detect\n");
+	else
+		return snprintf(buf, PAGE_SIZE, "motion_non_detect\n");
+}
+
+static ssize_t grip_motion_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int val;
+	int ret;
+	struct a96t3x6_data *data = dev_get_drvdata(dev);
+
+	ret = kstrtoint(buf, 10, &val);
+	if (ret) {
+		GRIP_INFO("Invalid Argument\n");
+		return ret;
+	}
+
+	if (val == 0) {
+		GRIP_INFO("motion event off\n");
+		data->motion = val;
+	} else if (val == 1) {
+		GRIP_INFO("motion event\n");
+		data->motion = val;
+	} else {
+		GRIP_INFO("Invalid Argument : %u\n", val);
+	}
+
+	GRIP_INFO("%u\n", val);
+	return count;
+}
+
+static ssize_t grip_unknown_state_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct a96t3x6_data *data = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%s\n",
+		(data->is_unknown_mode == 1) ? "UNKNOWN" : "NORMAL");
+}
+
+static ssize_t grip_unknown_state_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int val;
+	int ret;
+	struct a96t3x6_data *data = dev_get_drvdata(dev);
+
+	ret = kstrtoint(buf, 10, &val);
+	if (ret) {
+		GRIP_INFO("Invalid Argument\n");
+		return ret;
+	}
+
+	if (val == 1)
+		a96t3x6_enter_unknown_mode(data, TYPE_FORCE);
+	else if (val == 0)
+		data->is_unknown_mode = UNKNOWN_OFF;
+	else
+		GRIP_INFO("Invalid Argument(%d)\n", val);
+
+	GRIP_INFO("%u\n", val);
+	return count;
+}
+
+static ssize_t a96t3x6_noti_enable_store(struct device *dev,
+				     struct device_attribute *attr, const char *buf, size_t size)
+{
+	int ret;
+	u8 enable;
+	struct a96t3x6_data *data = dev_get_drvdata(dev);
+
+	ret = kstrtou8(buf, 2, &enable);
+	if (ret) {
+		GRIP_ERR("invalid argument\n");
+		return size;
+	}
+
+	data->noti_enable = enable;
+	GRIP_INFO("new_value=%d\n", (int)enable);
+
+	if (data->noti_enable)
+		a96t3x6_enter_unknown_mode(data, TYPE_BOOT);
+
+	return size;
+}
+
+static ssize_t a96t3x6_noti_enable_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	struct a96t3x6_data *data = dev_get_drvdata(dev);
+
+	GRIP_INFO("noti_enable = %d\n", data->noti_enable);
+
+	return sprintf(buf, "%d\n", data->noti_enable);
+}
 static DEVICE_ATTR(grip_threshold, 0444, grip_threshold_show, NULL);
 static DEVICE_ATTR(grip_total_cap, 0444, grip_total_cap_show, NULL);
 static DEVICE_ATTR(grip_sar_enable, 0664, grip_sar_enable_show,
@@ -2417,6 +2809,10 @@ static DEVICE_ATTR(grip_irq_state, 0444, grip_irq_state_show, NULL);
 static DEVICE_ATTR(grip_irq_en_cnt, 0444, grip_irq_en_cnt_show, NULL);
 static DEVICE_ATTR(grip_reg_rw, 0664, grip_reg_show, grip_reg_store);
 static DEVICE_ATTR(grip_crc_check, 0444, grip_crc_check_show, NULL);
+static DEVICE_ATTR(motion, 0664, grip_motion_show, grip_motion_store);
+static DEVICE_ATTR(unknown_state, 0664,
+	grip_unknown_state_show, grip_unknown_state_store);
+static DEVICE_ATTR(noti_enable, 0664, a96t3x6_noti_enable_show, a96t3x6_noti_enable_store);
 #ifdef CONFIG_SENSORS_A96T3X6_2CH
 static DEVICE_ATTR(ch_count, 0444, grip_ch_count_show, NULL);
 static DEVICE_ATTR(grip_threshold_2ch, 0444, grip_2ch_threshold_show, NULL);
@@ -2473,6 +2869,9 @@ static struct device_attribute *grip_sensor_attributes[] = {
 	&dev_attr_grip_raw_2ch,
 	&dev_attr_grip_check_2ch,
 #endif
+	&dev_attr_motion,
+	&dev_attr_unknown_state,
+	&dev_attr_noti_enable,
 	NULL,
 };
 
@@ -2687,101 +3086,13 @@ static int a96t3x6_parse_dt(struct a96t3x6_data *data, struct device *dev)
 
 	return 0;
 }
-#if defined(CONFIG_CCIC_NOTIFIER) && defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
-static int a96t3x6_ccic_handle_notification(struct notifier_block *nb,
-	unsigned long action, void *data)
-{
-	CC_NOTI_ATTACH_TYPEDEF usb_typec_info = *(CC_NOTI_ATTACH_TYPEDEF *)data;
-	struct a96t3x6_data *grip_data =
-		container_of(nb, struct a96t3x6_data, cpuidle_ccic_nb);
-	u8 cmd = CMD_ON;
 
-	GRIP_INFO("%s: (%ld) %01x, %01x, %02x, %04x, %04x, %04x\n",
-		__func__, action, usb_typec_info.src, usb_typec_info.dest, 
-		usb_typec_info.id, usb_typec_info.attach, usb_typec_info.rprd,
-		usb_typec_info.cable_type);
-
-	if (usb_typec_info.cable_type == 0)
-		return 0;
-
-	switch (usb_typec_info.cable_type) {
-	case NOTIFY_CABLE_TA:
-	case NOTIFY_CABLE_USB_NORMAL:
-	case NOTIFY_CABLE_USB_FAST:
-	case NOTIFY_CABLE_TA_FAC:
-	case NOTIFY_CABLE_OTG:
-		if (usb_typec_info.attach == MUIC_NOTIFY_CMD_ATTACH) {
-			cmd = CMD_OFF;
-			a96t3x6_i2c_write(grip_data->client, REG_TSPTA, &cmd);
-			GRIP_INFO("TA/USB is inserted\n");
-		} else if (usb_typec_info.attach == MUIC_NOTIFY_CMD_DETACH) {
-			cmd = CMD_ON;
-			a96t3x6_i2c_write(grip_data->client, REG_TSPTA, &cmd);
-			GRIP_INFO("TA/USB is removed\n");
-		}
-		break;
-	default:
-		GRIP_INFO("unsupported\n");
-		break;
-	}
-
-	return 0;
-}
-#elif defined(CONFIG_MUIC_NOTIFIER)
-static int a96t3x6_cpuidle_muic_notifier(struct notifier_block *nb,
-	unsigned long action, void *data)
-{
-	struct a96t3x6_data *grip_data;
-	u8 cmd = CMD_ON;
-
-	muic_attached_dev_t attached_dev = *(muic_attached_dev_t *)data;
-
-	grip_data = container_of(nb, struct a96t3x6_data, cpuidle_muic_nb);
-	switch (attached_dev) {
-	case ATTACHED_DEV_OTG_MUIC:
-	case ATTACHED_DEV_USB_MUIC:
-	case ATTACHED_DEV_TA_MUIC:
-	case ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC:
-	case ATTACHED_DEV_AFC_CHARGER_9V_MUIC:
-		if (action == MUIC_NOTIFY_CMD_ATTACH) {
-			cmd = CMD_OFF;
-			GRIP_INFO("TA/USB is inserted\n");
-		}
-		else if (action == MUIC_NOTIFY_CMD_DETACH) {
-			cmd = CMD_ON;
-			GRIP_INFO("TA/USB is removed\n");
-		}
-		a96t3x6_i2c_write(grip_data->client, REG_TSPTA, &cmd);
-		break;
-	default:
-		break;
-	}
-
-	GRIP_INFO("dev=%d, action=%lu\n", attached_dev, action);
-
-	return NOTIFY_DONE;
-}
-#endif
-static void a96t3x6_notify_work_func(struct work_struct *work)
-{
-	struct a96t3x6_data *data = container_of((struct delayed_work *)work,
-		struct a96t3x6_data, notify_work);
-
-	GRIP_INFO("called\n");
-
-#if defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER) && defined(CONFIG_CCIC_NOTIFIER)
-	manager_notifier_register(&data->cpuidle_ccic_nb,
-		a96t3x6_ccic_handle_notification, MANAGER_NOTIFY_CCIC_BATTERY);
-#elif defined(CONFIG_MUIC_NOTIFIER)
-	muic_notifier_register(&data->cpuidle_muic_nb,
-		a96t3x6_cpuidle_muic_notifier, MUIC_NOTIFY_DEV_CPUIDLE);
-#endif
-}
 static int a96t3x6_probe(struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
 	struct a96t3x6_data *data;
 	struct input_dev *input_dev;
+	struct input_dev *noti_input_dev;
 	int ret;
 #ifdef CONFIG_SENSORS_FW_VENDOR
 	u8 buf;
@@ -2808,23 +3119,39 @@ static int a96t3x6_probe(struct i2c_client *client,
 		goto err_input_alloc;
 	}
 
+	noti_input_dev = input_allocate_device();
+	if (!noti_input_dev) {
+		GRIP_ERR("Failed to allocate memory for input device\n");
+		ret = -ENOMEM;
+		input_free_device(input_dev);
+		goto err_noti_input_alloc;
+	}
+
 	data->client = client;
 	data->input_dev = input_dev;
+	data->noti_input_dev = noti_input_dev;
 	data->probe_done = false;
 	data->earjack = 0;
 	data->skip_event = false;
 	data->sar_mode = false;
+	data->is_unknown_mode = UNKNOWN_ON;
+	data->first_working = false;
+	data->motion = 0;
 	wake_lock_init(&data->grip_wake_lock, WAKE_LOCK_SUSPEND, "grip wake lock");
 
 	ret = a96t3x6_parse_dt(data, &client->dev);
 	if (ret) {
 		GRIP_ERR("failed to a96t3x6_parse_dt\n");
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_config;
 	}
 
 	ret = a96t3x6_irq_init(&client->dev, data);
 	if (ret) {
 		GRIP_ERR("failed to init reg\n");
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto pwr_config;
 	}
 
@@ -2842,6 +3169,8 @@ static int a96t3x6_probe(struct i2c_client *client,
 	ret = a96t3x6_fw_check(data);
 	if (ret) {
 		GRIP_ERR("failed to firmware check (%d)\n", ret);
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_reg_input_dev;
 	}
 #else
@@ -2852,6 +3181,8 @@ static int a96t3x6_probe(struct i2c_client *client,
 	ret = a96t3x6_i2c_read(client, REG_MODEL_NO, &buf, 1);
 	if (ret) {
 		GRIP_ERR("i2c is failed %d\n", ret);
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_reg_input_dev;
 	} else {
 		GRIP_INFO("i2c is normal, model_no = 0x%2x\n", buf);
@@ -2860,6 +3191,7 @@ static int a96t3x6_probe(struct i2c_client *client,
 	input_dev->name = MODULE_NAME;
 	input_dev->id.bustype = BUS_I2C;
 
+	input_set_capability(input_dev, EV_REL, REL_X);
 	input_set_capability(input_dev, EV_REL, REL_MISC);
 #ifdef CONFIG_SENSORS_A96T3X6_2CH
 	input_set_capability(input_dev, EV_REL, REL_DIAL);
@@ -2870,12 +3202,20 @@ static int a96t3x6_probe(struct i2c_client *client,
 #ifdef CONFIG_SENSORS_FW_VENDOR	
 	INIT_DELAYED_WORK(&data->firmware_work, a96t3x6_firmware_work_func);
 #endif
-	INIT_DELAYED_WORK(&data->notify_work, a96t3x6_notify_work_func);
-
+#if defined(CONFIG_SENSORS_A96T3X6_HALL_NOTIFIER)
+	INIT_DELAYED_WORK(&data->reset_work, a96t3x6_reset_work_func);
+#endif
+#if defined(CONFIG_CCIC_NOTIFIER) || defined(CONFIG_PDIC_NOTIFIER) \
+	|| defined(CONFIG_MUIC_NOTIFIER) || defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+	INIT_WORK(&data->cmdon_work, cmdon_work_func);
+	INIT_WORK(&data->cmdoff_work, cmdoff_work_func);
+#endif
 	ret = input_register_device(input_dev);
 	if (ret) {
 		GRIP_ERR("failed to register input dev (%d)\n",
 			ret);
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_reg_input_dev;
 	}
 
@@ -2883,6 +3223,7 @@ static int a96t3x6_probe(struct i2c_client *client,
 					data->input_dev->name);
 	if (ret < 0) {
 		GRIP_ERR("Failed to create sysfs symlink\n");
+		input_free_device(noti_input_dev);
 		goto err_sysfs_symlink;
 	}
 
@@ -2890,7 +3231,22 @@ static int a96t3x6_probe(struct i2c_client *client,
 				&a96t3x6_attribute_group);
 	if (ret < 0) {
 		GRIP_ERR("Failed to create sysfs group\n");
+		input_free_device(noti_input_dev);
 		goto err_sysfs_group;
+	}
+
+	noti_input_dev->name = MODULE_NOTIFIER_NAME;
+	noti_input_dev->id.bustype = BUS_I2C;
+
+	input_set_capability(noti_input_dev, EV_REL, REL_X);
+	input_set_drvdata(noti_input_dev, data);
+
+	ret = input_register_device(noti_input_dev);
+	if (ret) {
+		GRIP_ERR("failed to register input dev (%d)\n",
+			ret);
+		input_free_device(noti_input_dev);
+		goto err_reg_noti_input_dev;
 	}
 
 	ret = sensors_register(&data->dev, data, grip_sensor_attributes,
@@ -2918,7 +3274,14 @@ static int a96t3x6_probe(struct i2c_client *client,
 #ifdef CONFIG_SENSORS_FW_VENDOR
 	a96t3x6_set_firmware_work(data, 1, 1);
 #endif
-	a96t3x6_set_notify_work(data, 1, 2000);
+#ifdef CONFIG_SENSORS_A96T3X6_HALL_NOTIFIER
+	data->hall_nb.priority = 1;
+	data->hall_nb.notifier_call = a96t3x6_hall_ic_notify;
+	hall_ic_register_notify(&data->hall_nb);
+#endif
+	data->motion = 1;
+	data->first_working = false;
+	data->is_unknown_mode = UNKNOWN_OFF;
 
 	GRIP_INFO("done\n");
 	data->probe_done = true;
@@ -2928,6 +3291,8 @@ static int a96t3x6_probe(struct i2c_client *client,
 err_req_irq:
 	sensors_unregister(data->dev, grip_sensor_attributes);
 err_sensor_register:
+	input_unregister_device(noti_input_dev);
+err_reg_noti_input_dev:
 	sysfs_remove_group(&data->input_dev->dev.kobj,
 			&a96t3x6_attribute_group);
 err_sysfs_group:
@@ -2946,7 +3311,7 @@ err_reg_input_dev:
 pwr_config:
 err_config:
 	wake_lock_destroy(&data->grip_wake_lock);
-	input_free_device(input_dev);
+err_noti_input_alloc:
 err_input_alloc:
 	kfree(data);
 err_alloc:
@@ -2959,18 +3324,33 @@ static int a96t3x6_remove(struct i2c_client *client)
 	struct a96t3x6_data *data = i2c_get_clientdata(client);
 
 	data->power(data, false);
-
+#ifdef CONFIG_SENSORS_A96T3X6_HALL_NOTIFIER
+	hall_ic_unregister_notify(&data->hall_nb);
+#endif
 	device_init_wakeup(&client->dev, false);
 	wake_lock_destroy(&data->grip_wake_lock);
 	cancel_delayed_work_sync(&data->debug_work);
 #ifdef CONFIG_SENSORS_FW_VENDOR
 	cancel_delayed_work_sync(&data->firmware_work);
 #endif
-	cancel_delayed_work_sync(&data->notify_work);
+#if defined(CONFIG_SENSORS_A96T3X6_HALL_NOTIFIER)
+	cancel_delayed_work_sync(&data->reset_work);
+#endif
 
+#if defined(CONFIG_CCIC_NOTIFIER) || defined(CONFIG_PDIC_NOTIFIER) \
+	|| defined(CONFIG_MUIC_NOTIFIER) || defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+	cancel_work_sync(&data->cmdoff_work);
+	cancel_work_sync(&data->cmdon_work);
+#endif
 	if (data->irq >= 0)
 		free_irq(data->irq, data);
 	sensors_unregister(data->dev, grip_sensor_attributes);
+	sysfs_remove_group(&data->noti_input_dev->dev.kobj,
+				&a96t3x6_attribute_group);
+	sensors_remove_symlink(&data->noti_input_dev->dev.kobj,
+				data->noti_input_dev->name);
+	input_unregister_device(data->noti_input_dev);
+	input_free_device(data->input_dev);
 	sysfs_remove_group(&data->input_dev->dev.kobj,
 				&a96t3x6_attribute_group);
 	sensors_remove_symlink(&data->input_dev->dev.kobj,
@@ -3008,7 +3388,11 @@ static int a96t3x6_resume(struct device *dev)
 static void a96t3x6_shutdown(struct i2c_client *client)
 {
 	struct a96t3x6_data *data = i2c_get_clientdata(client);
-
+#if defined(CONFIG_CCIC_NOTIFIER) || defined(CONFIG_PDIC_NOTIFIER) \
+	|| defined(CONFIG_MUIC_NOTIFIER) || defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+	cancel_work_sync(&data->cmdoff_work);
+	cancel_work_sync(&data->cmdon_work);
+#endif
 	a96t3x6_set_debug_work(data, 0, 1000);
 
 	disable_irq(data->irq);

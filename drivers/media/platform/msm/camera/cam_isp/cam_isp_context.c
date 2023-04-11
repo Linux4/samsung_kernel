@@ -1755,7 +1755,7 @@ static int __cam_isp_ctx_apply_req_in_activated_state(
 		goto end;
 	}
 
-	CAM_INFO(CAM_REQ, "Apply request %lld in substate %d ctx %u act_req_cnt %d",
+	CAM_DBG(CAM_REQ, "Apply request %lld in substate %d ctx %u act_req_cnt %d",
 		req->request_id, ctx_isp->substate_activated, ctx->ctx_id,
 		ctx_isp->active_req_cnt);
 	req_isp = (struct cam_isp_ctx_req *) req->req_priv;
@@ -1805,7 +1805,7 @@ static int __cam_isp_ctx_apply_req_in_activated_state(
 		ctx_isp->last_applied_req_id = apply->request_id;
 		list_del_init(&req->list);
 		list_add_tail(&req->list, &ctx->wait_req_list);
-		CAM_INFO(CAM_ISP, "new substate state %d, applied req %lld",
+		CAM_DBG(CAM_ISP, "new substate state %d, applied req %lld",
 			next_state, ctx_isp->last_applied_req_id);
 		spin_unlock_bh(&ctx->lock);
 	}
