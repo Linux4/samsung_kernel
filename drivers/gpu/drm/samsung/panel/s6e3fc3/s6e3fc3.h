@@ -150,7 +150,7 @@
 #define S6E3FC3_CMDLOG_LEN			0x80
 #endif
 
-#ifdef CONFIG_DYNAMIC_FREQ
+#ifdef CONFIG_PANEL_FREQ_HOP
 #define S6E3FC3_MAX_MIPI_FREQ			3
 #define S6E3FC3_DEFAULT_MIPI_FREQ		0
 enum {
@@ -427,19 +427,19 @@ enum {
 #endif
 };
 
-__visible_for_testing int show_rddpm(struct dumpinfo *info);
-__visible_for_testing int show_rddpm_before_sleep_in(struct dumpinfo *info);
-__visible_for_testing int show_rddsm(struct dumpinfo *info);
-__visible_for_testing int show_err(struct dumpinfo *info);
-__visible_for_testing int show_err_fg(struct dumpinfo *info);
-__visible_for_testing int show_dsi_err(struct dumpinfo *info);
-__visible_for_testing int show_self_diag(struct dumpinfo *info);
+int show_rddpm(struct dumpinfo *info);
+int show_rddpm_before_sleep_in(struct dumpinfo *info);
+int show_rddsm(struct dumpinfo *info);
+int show_err(struct dumpinfo *info);
+int show_err_fg(struct dumpinfo *info);
+int show_dsi_err(struct dumpinfo *info);
+int show_self_diag(struct dumpinfo *info);
 #ifdef CONFIG_SUPPORT_DDI_CMDLOG
-__visible_for_testing int show_cmdlog(struct dumpinfo *info);
+int show_cmdlog(struct dumpinfo *info);
 #endif
-__visible_for_testing int show_self_mask_crc(struct dumpinfo *info);
+int show_self_mask_crc(struct dumpinfo *info);
 #ifdef CONFIG_SUPPORT_PANEL_DECODER_TEST
-__visible_for_testing int s6e3fc3_decoder_test(struct panel_device *panel, void *data, u32 len);
+int s6e3fc3_decoder_test(struct panel_device *panel, void *data, u32 len);
 #endif
 
 static struct dumpinfo s6e3fc3_dmptbl[] = {
@@ -522,70 +522,70 @@ enum {
 	MAX_S6E3FC3_HS_CLK
 };
 
-__visible_for_testing int init_common_table(struct maptbl *tbl);
+int init_common_table(struct maptbl *tbl);
 #ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
-__visible_for_testing int getidx_common_maptbl(struct maptbl *tbl);
+int getidx_common_maptbl(struct maptbl *tbl);
 #endif
-__visible_for_testing int init_gamma_mode2_brt_table(struct maptbl *tbl);
-__visible_for_testing int getidx_gamma_mode2_brt_table(struct maptbl *tbl);
-__visible_for_testing int getidx_hbm_transition_table(struct maptbl *tbl);
-__visible_for_testing int getidx_smooth_transition_table(struct maptbl *tbl);
+int init_gamma_mode2_brt_table(struct maptbl *tbl);
+int getidx_gamma_mode2_brt_table(struct maptbl *tbl);
+int getidx_hbm_transition_table(struct maptbl *tbl);
+int getidx_smooth_transition_table(struct maptbl *tbl);
 
-__visible_for_testing int getidx_acl_opr_table(struct maptbl *tbl);
-__visible_for_testing int getidx_hbm_onoff_table(struct maptbl *);
-__visible_for_testing int getidx_acl_onoff_table(struct maptbl *);
-__visible_for_testing int getidx_acl_dim_onoff_table(struct maptbl *tbl);
+int getidx_acl_opr_table(struct maptbl *tbl);
+int getidx_hbm_onoff_table(struct maptbl *);
+int getidx_acl_onoff_table(struct maptbl *);
+int getidx_acl_dim_onoff_table(struct maptbl *tbl);
 
-__visible_for_testing int init_lpm_brt_table(struct maptbl *tbl);
-__visible_for_testing int getidx_lpm_brt_table(struct maptbl *tbl);
+int init_lpm_brt_table(struct maptbl *tbl);
+int getidx_lpm_brt_table(struct maptbl *tbl);
 
 #ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
-__visible_for_testing void copy_dummy_maptbl(struct maptbl *tbl, u8 *dst);
+void copy_dummy_maptbl(struct maptbl *tbl, u8 *dst);
 #endif
-__visible_for_testing void copy_common_maptbl(struct maptbl *tbl, u8 *dst);
-__visible_for_testing void copy_tset_maptbl(struct maptbl *tbl, u8 *dst);
+void copy_common_maptbl(struct maptbl *tbl, u8 *dst);
+void copy_tset_maptbl(struct maptbl *tbl, u8 *dst);
 #ifdef CONFIG_SUPPORT_XTALK_MODE
-__visible_for_testing int getidx_vgh_table(struct maptbl *tbl);
+int getidx_vgh_table(struct maptbl *tbl);
 #endif
 #if defined(CONFIG_MCD_PANEL_FACTORY) && defined(CONFIG_SUPPORT_FAST_DISCHARGE)
-__visible_for_testing int getidx_fast_discharge_table(struct maptbl *tbl);
+int getidx_fast_discharge_table(struct maptbl *tbl);
 #endif
-__visible_for_testing int getidx_vrr_fps_table(struct maptbl *);
+int getidx_vrr_fps_table(struct maptbl *);
 #if defined(__PANEL_NOT_USED_VARIABLE__)
-__visible_for_testing int getidx_vrr_gamma_table(struct maptbl *);
+int getidx_vrr_gamma_table(struct maptbl *);
 #endif
 
 #ifdef CONFIG_SUPPORT_MASK_LAYER
-__visible_for_testing bool s6e3fc3_is_120hz(struct panel_device *panel);
-__visible_for_testing bool s6e3fc3_is_60hz(struct panel_device *panel);
+bool s6e3fc3_is_120hz(struct panel_device *panel);
+bool s6e3fc3_is_60hz(struct panel_device *panel);
 #endif
 
 #ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
-__visible_for_testing int init_color_blind_table(struct maptbl *tbl);
-__visible_for_testing int getidx_mdnie_scenario_maptbl(struct maptbl *tbl);
-__visible_for_testing int getidx_mdnie_hdr_maptbl(struct maptbl *tbl);
-__visible_for_testing int init_mdnie_night_mode_table(struct maptbl *tbl);
-__visible_for_testing int getidx_mdnie_night_mode_maptbl(struct maptbl *tbl);
-__visible_for_testing int init_mdnie_color_lens_table(struct maptbl *tbl);
-__visible_for_testing int getidx_color_lens_maptbl(struct maptbl *tbl);
-__visible_for_testing int init_color_coordinate_table(struct maptbl *tbl);
-__visible_for_testing int init_sensor_rgb_table(struct maptbl *tbl);
-__visible_for_testing int getidx_adjust_ldu_maptbl(struct maptbl *tbl);
-__visible_for_testing int getidx_color_coordinate_maptbl(struct maptbl *tbl);
-__visible_for_testing void copy_scr_white_maptbl(struct maptbl *tbl, u8 *dst);
-__visible_for_testing int getidx_mdnie_0_maptbl(struct pkt_update_info *pktui);
-__visible_for_testing int getidx_mdnie_1_maptbl(struct pkt_update_info *pktui);
-__visible_for_testing int getidx_mdnie_2_maptbl(struct pkt_update_info *pktui);
-__visible_for_testing int getidx_mdnie_3_maptbl(struct pkt_update_info *pktui);
+int init_color_blind_table(struct maptbl *tbl);
+int getidx_mdnie_scenario_maptbl(struct maptbl *tbl);
+int getidx_mdnie_hdr_maptbl(struct maptbl *tbl);
+int init_mdnie_night_mode_table(struct maptbl *tbl);
+int getidx_mdnie_night_mode_maptbl(struct maptbl *tbl);
+int init_mdnie_color_lens_table(struct maptbl *tbl);
+int getidx_color_lens_maptbl(struct maptbl *tbl);
+int init_color_coordinate_table(struct maptbl *tbl);
+int init_sensor_rgb_table(struct maptbl *tbl);
+int getidx_adjust_ldu_maptbl(struct maptbl *tbl);
+int getidx_color_coordinate_maptbl(struct maptbl *tbl);
+void copy_scr_white_maptbl(struct maptbl *tbl, u8 *dst);
+int getidx_mdnie_0_maptbl(struct pkt_update_info *pktui);
+int getidx_mdnie_1_maptbl(struct pkt_update_info *pktui);
+int getidx_mdnie_2_maptbl(struct pkt_update_info *pktui);
+int getidx_mdnie_3_maptbl(struct pkt_update_info *pktui);
 
 #if defined(__PANEL_NOT_USED_VARIABLE__)
-__visible_for_testing int init_gamma_mtp_all_table(struct maptbl *tbl);
+int init_gamma_mtp_all_table(struct maptbl *tbl);
 #endif
 
-__visible_for_testing int getidx_mdnie_scr_white_maptbl(struct pkt_update_info *pktui);
-__visible_for_testing void update_current_scr_white(struct maptbl *tbl, u8 *dst);
+int getidx_mdnie_scr_white_maptbl(struct pkt_update_info *pktui);
+void update_current_scr_white(struct maptbl *tbl, u8 *dst);
 #endif /* CONFIG_EXYNOS_DECON_MDNIE_LITE */
-__visible_for_testing bool is_panel_state_not_lpm(struct panel_device *panel);
+bool is_panel_state_not_lpm(struct panel_device *panel);
 static inline bool is_panel_state_lpm(struct panel_device *panel) {
 	return !is_panel_state_not_lpm(panel);
 };

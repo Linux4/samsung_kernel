@@ -252,7 +252,6 @@ source "drivers/regulator/pmic_class/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO 
 source "drivers/usb/typec/slsi/common/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 source "drivers/misc/drb/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 source "drivers/gpu/drm/samsung/panel/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
-source "drivers/gpu/drm/samsung/panel/tft_common/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 source "drivers/vibrator/common/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 source "drivers/samsung/debug/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 source "drivers/gpu/drm/samsung/panel/s6e3fc3/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT

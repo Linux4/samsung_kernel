@@ -76,7 +76,6 @@ enum is_resourcemgr_state {
 };
 
 enum is_dvfs_state {
-	IS_DVFS_SEL_TABLE,
 	IS_DVFS_TMU_THROTT,
 	IS_DVFS_TICK_THROTT
 };
@@ -122,8 +121,6 @@ struct is_dvfs_ctrl {
 	u32 cur_lv[IS_DVFS_END];
 	int cur_hpg_qos;
 	int cur_hmp_bst;
-	u32 dvfs_table_idx;
-	u32 dvfs_table_max;
 	u32 dvfs_scenario;
 	u32 dvfs_rec_size;
 	ulong state;
@@ -131,6 +128,10 @@ struct is_dvfs_ctrl {
 
 	struct is_dvfs_scenario_ctrl *static_ctrl;
 	struct is_dvfs_scenario_ctrl *dynamic_ctrl;
+
+	u32 cur_instance;
+	u32 dec_dtime;
+	struct delayed_work dec_dwork;
 
 	bool bundle_operating;
 };

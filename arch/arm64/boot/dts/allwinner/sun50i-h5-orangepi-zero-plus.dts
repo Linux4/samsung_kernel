@@ -511,7 +511,7 @@
 			pinctrl-0 = <0x10>;
 			phy-supply = <0x11>;
 			phy-handle = <0x12>;
-			phy-mode = "rgmii";
+			phy-mode = "rgmii-id";
 			phandle = <0x48>;
 
 			mdio {
@@ -1117,7 +1117,7 @@
 			};
 		};
 
-		gpu_thermal {
+		gpu-thermal {
 			polling-delay-passive = <0x00>;
 			polling-delay = <0x00>;
 			thermal-sensors = <0x29 0x01>;

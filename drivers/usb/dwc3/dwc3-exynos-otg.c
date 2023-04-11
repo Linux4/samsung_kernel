@@ -885,9 +885,12 @@ void dwc3_otg_run_sm(struct otg_fsm *fsm)
 
 	mutex_lock(&fsm->lock);
 
-	do {
+	for (i = 0; i < MAX_STATE_MACHINE_CNT; i++) {
 		state_changed = dwc3_otg_statemachine(fsm);
-	} while (state_changed > 0);
+		if (state_changed <= 0) break; // success
+	}
+	if (i == MAX_STATE_MACHINE_CNT)
+		pr_info("%s may be failed\n", __func__);
 
 	mutex_unlock(&fsm->lock);
 	mutex_unlock(&dwc->mutex);

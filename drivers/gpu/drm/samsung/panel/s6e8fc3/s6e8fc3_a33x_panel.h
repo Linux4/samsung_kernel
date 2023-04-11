@@ -16,6 +16,7 @@
 #include "../panel.h"
 #include "../panel_drv.h"
 #include "s6e8fc3.h"
+#include "s6e8fc3_a33x.h"
 #include "s6e8fc3_dimming.h"
 #ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
 #include "s6e8fc3_a33x_panel_mdnie.h"
@@ -503,10 +504,15 @@ static u8 A33X_FFC_DEFAULT[] = {
 static DEFINE_STATIC_PACKET(a33x_ffc_default, DSI_PKT_TYPE_WR, A33X_FFC_DEFAULT, 0);
 
 #ifdef CONFIG_SUPPORT_CCD_TEST
-static u8 A33X_CCD_ENABLE[] = { 0xEA, 0x5C, 0x51, 0x01 };
-static u8 A33X_CCD_DISABLE[] = { 0xEA, 0x5C, 0x51, 0x00 };
+static u8 A33X_CCD_ENABLE[] = { 0xEA, 0x5C, 0x51, 0x01, 0x00 };
+static u8 A33X_CCD_DISABLE[] = { 0xEA, 0x5C, 0x51, 0x00, 0x00 };
 static DEFINE_STATIC_PACKET(a33x_ccd_test_enable, DSI_PKT_TYPE_WR, A33X_CCD_ENABLE, 0x00);
 static DEFINE_STATIC_PACKET(a33x_ccd_test_disable, DSI_PKT_TYPE_WR, A33X_CCD_DISABLE, 0x00);
+
+static u8 A33X_CCD_F1_ENABLE[] = { 0xF1, 0x5A, 0x5A };
+static u8 A33X_CCD_F1_DISABLE[] = { 0xF1, 0xA5, 0xA5 };
+static DEFINE_STATIC_PACKET(a33x_ccd_f1_enable, DSI_PKT_TYPE_WR, A33X_CCD_F1_ENABLE, 0x00);
+static DEFINE_STATIC_PACKET(a33x_ccd_f1_disable, DSI_PKT_TYPE_WR, A33X_CCD_F1_DISABLE, 0x00);
 #endif
 
 static DEFINE_SETPROP_VALUE(a33x_set_wait_tx_done_property_off, PANEL_OBJ_PROPERTY_WAIT_TX_DONE, WAIT_TX_DONE_MANUAL_OFF);
@@ -783,12 +789,14 @@ static void *a33x_mask_layer_after_cmdtbl[] = {
 
 #ifdef CONFIG_SUPPORT_CCD_TEST
 static void *a33x_ccd_test_cmdtbl[] = {
-	&KEYINFO(a33x_level2_key_enable),
+	&PKTINFO(a33x_ccd_f1_enable),
+	&KEYINFO(a33x_level3_key_enable),
 	&PKTINFO(a33x_ccd_test_enable),
 	&DLYINFO(a33x_wait_1_vsync),
 	&s6e8fc3_restbl[RES_CCD_STATE],
 	&PKTINFO(a33x_ccd_test_disable),
-	&KEYINFO(a33x_level2_key_disable),
+	&PKTINFO(a33x_ccd_f1_disable),
+	&KEYINFO(a33x_level3_key_disable),
 };
 #endif
 

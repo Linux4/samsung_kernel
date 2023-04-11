@@ -207,9 +207,14 @@
 /*i2c regmap init setting */
 #define REG_MAX         0x2A
 #define HL7132_I2C_NAME "hl7132"
-#define HL7132_MODULE_VERSION "1.0.13.06032022"
+#define HL7132_MODULE_VERSION "1.4.15.12232022"
 
 #define CONFIG_HALO_PASS_THROUGH
+//#define CONFIG_FG_READING_FOR_CVMODE
+
+#ifdef CONFIG_FG_READING_FOR_CVMODE
+#define HL7132_CVMODE_FG_READING_CHECK_T    2000            //2 seconds
+#endif
 
 /*Input Current Limit Default Setting*/
 #define HL7132_IIN_CFG_DFT                  2000000         // 2A
@@ -275,6 +280,9 @@
 /* Preset TA VOLtage offset*/
 #define HL7132_TA_VOL_PRE_OFFSET            300000  // 300mV
 
+/* CCMODE Charging Current offset */
+#define HL7132_IIN_CFG_OFFSET_CC            50000   //50mA
+
 /* Denominator for TA Voltage and Current setting*/
 #define HL7132_SEC_DENOM_U_M                1000 // 1000, denominator
 /* PPS request Delay Time */
@@ -291,6 +299,8 @@
 /* TDIE STEP for register setting */
 #define HL7132_TDIE_STEP                    25    // 0.25degreeC (0 ~ 125)
 #define HL7132_TDIE_DENOM                   10   // 10, denomitor
+/* VOUT STEP for register setting */
+#define HL7132_VOUT_STEP					5000	//5mV (0 ~ 5.115V)
 
 /* Workqueue delay time for VBATMIN */
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
@@ -306,7 +316,8 @@
 #define HL7132_CVMODE_CHECK_T 	            10000	// 10000ms
 
 /* Delay Time after PDMSG */
-#define HL7132_PDMSG_WAIT_T	                200		// 200ms
+/* change it to 300ms due to SM USB-PD issue */
+#define HL7132_PDMSG_WAIT_T	                300		// 300ms
 
 /* Delay Time for WDT */
 #define HL7132_BATT_WDT_CONTROL_T           30000   //30S
@@ -331,7 +342,14 @@
 #define HL7132_PT_ACTIVE_DELAY_T            150     // 150ms
 /* Workqueue delay time for pass through mode */
 #define HL7132_PTMODE_DELAY_T               10000	// 10000ms
+/* Workqueu Delay time for unpluged detection issue in pass through mode */
+#define HL7132_PTMODE_UNPLUGED_DETECTION_T	1000	// 1000ms
 #endif
+
+/* IIN Range for FSW setting */
+#define HL7132_CHECK_IIN_FOR_DEFAULT		1900000 //1.9A
+#define HL7132_CHECK_IIN_FOR_800KHZ		1700000 //1.7A
+#define HL7132_CHECK_IIN_FOR_600KHZ		1100000 //1.1A
 
 /*STEP CHARGING SETTING */
 //#define HL7132_STEP_CHARGING
@@ -515,8 +533,10 @@ struct hl7132_platform_data{
 	char *sec_dc_name;
 #endif
 #ifdef CONFIG_HALO_PASS_THROUGH
-	bool pass_through_mode;
+	int pass_through_mode;
 #endif
+	/* Switching Frequency */
+	unsigned int fsw_set;
 };
 
 /* DEV - CHIP DATA*/
@@ -555,6 +575,7 @@ struct hl7132_charger{
 	int adc_vbat;
 	int adc_vts;
 	int adc_tdie;
+	int adc_vout;
 
 	unsigned int iin_cc;
 	unsigned int ta_cur;
@@ -610,8 +631,11 @@ struct hl7132_charger{
 	int health_status;
 #endif
 #ifdef CONFIG_HALO_PASS_THROUGH
-	bool pass_through_mode;
+	int pass_through_mode;
 	bool req_pt_mode;
+#endif
+#ifdef CONFIG_FG_READING_FOR_CVMODE
+	int vbat_fg;
 #endif
 };
 

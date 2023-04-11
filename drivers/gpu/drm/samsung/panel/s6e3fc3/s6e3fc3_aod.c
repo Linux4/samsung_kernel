@@ -14,11 +14,6 @@
 #include "../panel_debug.h"
 #include "s6e3fc3_aod.h"
 
-#ifdef PANEL_PR_TAG
-#undef PANEL_PR_TAG
-#define PANEL_PR_TAG	"self"
-#endif
-
 void s6e3fc3_copy_self_mask_ctrl(struct maptbl *tbl, u8 *dst)
 {
 	panel_info("was called\n");

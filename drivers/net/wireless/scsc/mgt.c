@@ -1622,10 +1622,7 @@ static int slsi_mib_open_file(struct slsi_dev *sdev, struct slsi_dev_mib_info *m
 
 #if defined SCSC_SEP_VERSION
 	ret = scsc_mx_service_phandle_property_read_u32(sdev->service, "samsung,wlbt_hcf", "hcf_rev", &value, ret);
-	/* hcf revision version 0 then only XXXX.hcf.rev0 will be loaded.
-	 * else defult file XXXX.hcf will be loaded.
-	 */
-	if (ret == 0 && value == 0) {
+	if (ret == 0) {
 		memset(filename, 0, MX_WLAN_FILE_LEN_MAX);
 		scnprintf(filename, sizeof(filename), "%s.rev%d", mib_file_name, value);
 		r = mx140_file_request_conf(sdev->maxwell_core, &e, "wlan", filename);

@@ -1388,10 +1388,6 @@ int slsi_connect(struct wiphy *wiphy, struct net_device *dev,
 	struct ieee80211_channel *channel;
 	u8                  peer_address[ETH_ALEN] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 	u16                 center_freq = 0;
-	u16                 center_freq_hint = 0;
-	int                 pairwise = 0;
-	int                 group = 0;
-	int                 akm_suite = 0;
 
 	if (slsi_is_test_mode_enabled()) {
 		SLSI_NET_INFO(dev, "Skip sending signal, WlanLite FW does not support MLME_CONNECT.request\n");
@@ -1552,16 +1548,7 @@ int slsi_connect(struct wiphy *wiphy, struct net_device *dev,
 
 	slsi_config_rsn_ie(dev, sme);
 
-	center_freq_hint = sme->channel_hint ? sme->channel_hint->center_freq : 0;
-	if (sme->crypto.n_ciphers_pairwise)
-		pairwise = sme->crypto.ciphers_pairwise[0];
-	group = sme->crypto.cipher_group;
-	if (sme->crypto.n_akm_suites)
-		akm_suite = sme->crypto.akm_suites[0];
-
-	slsi_conn_log2us_connecting(sdev, dev, sme->ssid, (int)sme->ssid_len, bssid, sme->bssid_hint,
-				    center_freq, center_freq_hint, pairwise, group, akm_suite,
-				    sme->auth_type, sme->ie, sme->ie_len);
+	slsi_conn_log2us_connecting(sdev, dev, sme);
 
 	r = slsi_mlme_connect(sdev, dev, sme, channel, bssid);
 	if (r != 0) {

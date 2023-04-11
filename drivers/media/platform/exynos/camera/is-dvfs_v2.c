@@ -48,6 +48,16 @@ static int is_hw_dvfs_get_frame_tick(int id)
 	return is_dvfs_dt_arr[scenario_idx[id]].keep_frame_tick;
 }
 
+static void is_dvfs_dec_dwork_fn(struct work_struct *data)
+{
+	struct is_dvfs_ctrl *dvfs_ctrl
+		= container_of((void *)data, struct is_dvfs_ctrl, dec_dwork);
+	struct is_device_ischain *idi = is_get_ischain_device(dvfs_ctrl->cur_instance);
+
+	if (idi)
+		pablo_set_static_dvfs(idi, "", IS_DVFS_SN_END, IS_DVFS_PATH_OTF);
+}
+
 int is_dvfs_init(struct is_resourcemgr *resourcemgr)
 {
 	int ret = 0;
@@ -87,57 +97,13 @@ int is_dvfs_init(struct is_resourcemgr *resourcemgr)
 		return -EINVAL;
 	}
 
-	/* default value is 0 */
-	dvfs_ctrl->dvfs_table_idx = 0;
-	clear_bit(IS_DVFS_SEL_TABLE, &dvfs_ctrl->state);
+	dvfs_ctrl->dec_dtime = IS_DVFS_DEC_DTIME;
+	INIT_DELAYED_WORK(&dvfs_ctrl->dec_dwork, is_dvfs_dec_dwork_fn);
 
 	/* initialize bundle operating variable */
 	dvfs_ctrl->bundle_operating = false;
 
 	return 0;
-}
-
-int is_dvfs_sel_table(struct is_resourcemgr *resourcemgr)
-{
-	int ret = 0;
-	struct is_dvfs_ctrl *dvfs_ctrl;
-	u32 dvfs_table_idx = 0;
-
-	FIMC_BUG(!resourcemgr);
-
-	dvfs_ctrl = &resourcemgr->dvfs_ctrl;
-
-	if (test_bit(IS_DVFS_SEL_TABLE, &dvfs_ctrl->state))
-		return 0;
-
-#if defined(EXPANSION_DVFS_TABLE)
-	switch(resourcemgr->hal_version) {
-	case IS_HAL_VER_1_0:
-		dvfs_table_idx = 0;
-		break;
-	case IS_HAL_VER_3_2:
-		dvfs_table_idx = 1;
-		break;
-	default:
-		err("hal version is unknown");
-		dvfs_table_idx = 0;
-		ret = -EINVAL;
-		break;
-	}
-#endif
-
-	if (dvfs_table_idx >= dvfs_ctrl->dvfs_table_max) {
-		err("dvfs index(%d) is invalid", dvfs_table_idx);
-		ret = -EINVAL;
-		goto p_err;
-	}
-
-	resourcemgr->dvfs_ctrl.dvfs_table_idx = dvfs_table_idx;
-	set_bit(IS_DVFS_SEL_TABLE, &dvfs_ctrl->state);
-
-p_err:
-	info("[RSC] %s(%d):%d\n", __func__, dvfs_table_idx, ret);
-	return ret;
 }
 
 int is_dvfs_sel_static(struct is_device_ischain *device)
@@ -153,11 +119,6 @@ int is_dvfs_sel_static(struct is_device_ischain *device)
 	resourcemgr = device->resourcemgr;
 	dvfs_ctrl = &(resourcemgr->dvfs_ctrl);
 	static_ctrl = dvfs_ctrl->static_ctrl;
-
-	if (!test_bit(IS_DVFS_SEL_TABLE, &dvfs_ctrl->state)) {
-		err("dvfs table is NOT selected");
-		return -EINVAL;
-	}
 
 	/* static scenario */
 	if (!static_ctrl) {
@@ -178,7 +139,7 @@ int is_dvfs_sel_static(struct is_device_ischain *device)
 	static_ctrl->cur_frame_tick = -1;
 	static_ctrl->scenario_nm = is_hw_dvfs_get_scenario_name(scenario_id);
 
-	return  scenario_id;
+	return scenario_id;
 }
 
 int is_dvfs_sel_dynamic(struct is_device_ischain *device, struct is_group *group, struct is_frame *frame)
@@ -200,11 +161,6 @@ int is_dvfs_sel_dynamic(struct is_device_ischain *device, struct is_group *group
 	dvfs_ctrl = &(resourcemgr->dvfs_ctrl);
 	dynamic_ctrl = dvfs_ctrl->dynamic_ctrl;
 	static_ctrl = dvfs_ctrl->static_ctrl;
-
-	if (!test_bit(IS_DVFS_SEL_TABLE, &dvfs_ctrl->state)) {
-		err("dvfs table is NOT selected");
-		return -EINVAL;
-	}
 
 	/* dynamic scenario */
 	if (!dynamic_ctrl) {
@@ -289,8 +245,7 @@ int is_dvfs_get_freq(u32 dvfs_t)
 
 static inline int is_get_qos_lv(struct is_core *core, u32 type, u32 scenario_id)
 {
-	struct exynos_platform_is	*pdata = NULL;
-	u32 dvfs_idx = core->resourcemgr.dvfs_ctrl.dvfs_table_idx;
+	struct exynos_platform_is *pdata = NULL;
 
 	pdata = core->pdata;
 	if (pdata == NULL) {
@@ -308,12 +263,7 @@ static inline int is_get_qos_lv(struct is_core *core, u32 type, u32 scenario_id)
 		return -EINVAL;
 	}
 
-	if (dvfs_idx >= IS_DVFS_TABLE_IDX_MAX) {
-		err("invalid dvfs index(%d)", dvfs_idx);
-		dvfs_idx = 0;
-	}
-
-	return pdata->dvfs_data[dvfs_idx][scenario_id][type];
+	return pdata->dvfs_data[scenario_id][type];
 }
 
 static inline u32 *is_get_qos_table(struct is_core *core, u32 type, u32 scenario_id)
@@ -344,7 +294,6 @@ static inline u32 *is_get_qos_table(struct is_core *core, u32 type, u32 scenario
 static inline const char *is_get_cpus(struct is_core *core, u32 scenario_id)
 {
 	struct exynos_platform_is *pdata;
-	u32 dvfs_idx = core->resourcemgr.dvfs_ctrl.dvfs_table_idx;
 
 	pdata = core->pdata;
 	if (pdata == NULL) {
@@ -357,12 +306,7 @@ static inline const char *is_get_cpus(struct is_core *core, u32 scenario_id)
 		return NULL;
 	}
 
-	if (dvfs_idx >= IS_DVFS_TABLE_IDX_MAX) {
-		err("invalid dvfs index(%d)", dvfs_idx);
-		dvfs_idx = 0;
-	}
-
-	return pdata->dvfs_cpu[dvfs_idx][scenario_id];
+	return pdata->dvfs_cpu[scenario_id];
 }
 
 static inline void _is_add_dvfs(struct is_core *core, int scenario_id,
@@ -465,8 +409,7 @@ int is_remove_dvfs(struct is_core *core, int scenario_id)
 	return 0;
 }
 
-static void is_pm_qos_update_bundle(struct is_core *core,
-		struct is_device_ischain *device, u32 scenario_id)
+static void is_pm_qos_update_bundle(struct is_core *core, u32 scenario_id)
 {
 	struct is_dvfs_ctrl *dvfs_ctrl;
 	u32 nums = 0;
@@ -480,7 +423,7 @@ static void is_pm_qos_update_bundle(struct is_core *core,
 	if (is_hw_dvfs_get_bundle_update_seq(scenario_id, &nums, types,
 				scns, &dvfs_ctrl->bundle_operating)) {
 		for (i = 0; i < nums; i++) {
-			minfo("DVFS bundle[%d]: ", device, i);
+			info("DVFS bundle[%d]: ", i);
 			qos_tb = is_get_qos_table(core, types[i], scns[i]);
 			_is_set_dvfs(dvfs_ctrl, qos_tb, types[i]);
 		}
@@ -504,42 +447,36 @@ static bool _is_get_enabled_thrott_domain(struct is_dvfs_ctrl *dvfs_ctrl, u32 dv
 	return false;
 }
 
-int is_set_dvfs(struct is_core *core, struct is_device_ischain *device, int scenario_id)
+static int is_set_dvfs_by_path(struct is_device_ischain *device, int scenario_id, bool otf_path)
 {
-	int ret = 0;
+	struct is_sysfs_debug *sysfs_debug = is_get_sysfs_debug();
 	u32 dvfs_t;
 	u32 *qos_tb[IS_DVFS_END];
-	int hpg_qos;
-	const char *cpus;
 	struct is_resourcemgr *resourcemgr;
 	struct is_dvfs_ctrl *dvfs_ctrl;
-	struct is_pm_qos_request *exynos_isp_pm_qos;
-	struct emstune_mode_request *emstune_req;
 	u32 lv;
+	struct is_core *core = is_get_is_core();
 
-	if (core == NULL) {
-		err("core is NULL\n");
+	if (!IS_ENABLED(ENABLE_DVFS) || !sysfs_debug->en_dvfs)
 		return -EINVAL;
-	}
 
-	if (scenario_id < 0) {
-		err("scenario is not valid\n");
+	if (is_pm_qos_request_active(&device->user_qos))
 		return -EINVAL;
-	}
 
-	if (device)
-		is_pm_qos_update_bundle(core, device, scenario_id);
+	is_pm_qos_update_bundle(core, scenario_id);
 
 	resourcemgr = &core->resourcemgr;
 	dvfs_ctrl = &(resourcemgr->dvfs_ctrl);
-	exynos_isp_pm_qos = is_get_pm_qos();
 
 	memset(qos_tb, 0, sizeof(qos_tb));
 
-	info("[RSC:%d] %s", device ? device->instance : 0, __func__);
+	minfo("%s", device, __func__);
 
 	/* General PM QOS */
 	for (dvfs_t = 0; dvfs_t < IS_DVFS_END; dvfs_t++) {
+		if (core->pdata->qos_otf[dvfs_t] != otf_path)
+			continue;
+
 		if (!core->pdata->qos_name[dvfs_t])
 			continue;
 
@@ -549,6 +486,14 @@ int is_set_dvfs(struct is_core *core, struct is_device_ischain *device, int scen
 		qos_tb[dvfs_t] = is_get_qos_table(core, dvfs_t, scenario_id);
 		if (!qos_tb[dvfs_t]) {
 			lv = is_hw_dvfs_get_lv(device, dvfs_t);
+
+			if (otf_path && lv > dvfs_ctrl->cur_lv[dvfs_t] + 1) {
+				lv = dvfs_ctrl->cur_lv[dvfs_t] + 1;
+				dvfs_ctrl->cur_instance = device->instance;
+				schedule_delayed_work(&dvfs_ctrl->dec_dwork,
+						msecs_to_jiffies(dvfs_ctrl->dec_dtime));
+			}
+
 			if (lv < IS_DVFS_LV_END) {
 				qos_tb[dvfs_t] = core->pdata->qos_tb[dvfs_t][lv];
 				pr_cont("[%s(%d:%d)]", core->pdata->qos_name[dvfs_t],
@@ -559,6 +504,30 @@ int is_set_dvfs(struct is_core *core, struct is_device_ischain *device, int scen
 
 	for (dvfs_t = 0; dvfs_t < IS_DVFS_END; dvfs_t++)
 		_is_set_dvfs(dvfs_ctrl, qos_tb[dvfs_t], dvfs_t);
+
+	return 0;
+}
+
+int is_set_dvfs_otf(struct is_device_ischain *device, int scenario_id)
+{
+	return is_set_dvfs_by_path(device, scenario_id, true);
+}
+
+int is_set_dvfs_m2m(struct is_device_ischain *device, int scenario_id)
+{
+	struct is_core *core = is_get_is_core();
+	int hpg_qos;
+	const char *cpus;
+	struct is_resourcemgr *resourcemgr;
+	struct is_dvfs_ctrl *dvfs_ctrl;
+#if IS_ENABLED(CONFIG_SCHED_EMS_TUNE)
+	struct emstune_mode_request *emstune_req;
+#endif
+
+	is_set_dvfs_by_path(device, scenario_id, false);
+
+	resourcemgr = &core->resourcemgr;
+	dvfs_ctrl = &(resourcemgr->dvfs_ctrl);
 
 	/* Others */
 	hpg_qos = is_get_qos_lv(core, IS_DVFS_HPG, scenario_id);
@@ -595,59 +564,50 @@ int is_set_dvfs(struct is_core *core, struct is_device_ischain *device, int scen
 		cpus ? cpus : "",
 		resourcemgr->limited_fps);
 
-	return ret;
+	return 0;
 }
 
-void is_set_static_dvfs(struct is_device_ischain *device, bool stream_on, bool sensor_only)
+int pablo_set_static_dvfs(struct is_device_ischain *device,
+			  const char *suffix, int force_scn, int path)
 {
-	int ret;
-	struct is_sysfs_debug *sysfs_debug = is_get_sysfs_debug();
-	struct is_resourcemgr *resourcemgr = device->resourcemgr;
-	struct is_dvfs_ctrl *dvfs_ctrl;
-	int scenario_id  = 0;
+	struct is_dvfs_ctrl *dvfs_ctrl = &device->resourcemgr->dvfs_ctrl;
+	int scn;
 
-	if (IS_ENABLED(ENABLE_DVFS) &&
-	    !is_pm_qos_request_active(&device->user_qos) && sysfs_debug->en_dvfs) {
-		ret = is_dvfs_sel_table(resourcemgr);
-		if (ret) {
-			merr("is_dvfs_sel_table is fail(%d)", device, ret);
-			return;
-		}
+	mutex_lock(&dvfs_ctrl->lock);
 
-		dvfs_ctrl = &resourcemgr->dvfs_ctrl;
+	scn = is_dvfs_sel_static(device);
+	if (scn >= IS_DVFS_SN_DEFAULT) {
+		minfo("[ISC:D] static scenario(%d)-[%s%s]\n", device, scn,
+				dvfs_ctrl->static_ctrl->scenario_nm, suffix);
 
-		mutex_lock(&dvfs_ctrl->lock);
+		if (path == IS_DVFS_PATH_OTF)
+			is_set_dvfs_otf(device, scn); /* TODO: OTF scenario */
+		else
+			is_set_dvfs_m2m(device, force_scn < IS_DVFS_SN_END ? force_scn : scn);
 
-		/* try to find static scenario to apply */
-		scenario_id = is_dvfs_sel_static(device);
-		if (scenario_id >= 0) {
+		if (force_scn < IS_DVFS_SN_END)
 			dvfs_ctrl->dynamic_ctrl->cur_frame_tick = KEEP_FRAME_TICK_FAST_LAUNCH;
-			if (stream_on) {
-#ifdef DISABLE_FAST_LAUNCH
-				minfo("[ISC:D] tbl[%d] static scenario(%d)-[%s]\n", device,
-					dvfs_ctrl->dvfs_table_idx, scenario_id,
-					dvfs_ctrl->static_ctrl->scenario_nm);
-
-				is_set_dvfs((struct is_core *)device->interface->core, device,
-					scenario_id);
-#else
-				minfo("[ISC:D] tbl[%d] static scenario(%d)-[%s%s]\n", device,
-					dvfs_ctrl->dvfs_table_idx, scenario_id,
-					dvfs_ctrl->static_ctrl->scenario_nm,
-					sensor_only ? "" : "FAST_LAUNCH");
-
-				is_set_dvfs((struct is_core *)device->interface->core, device,
-					sensor_only ? scenario_id : IS_DVFS_SN_DEFAULT);
-#endif
-			}
-		}
-
-		mutex_unlock(&dvfs_ctrl->lock);
 	}
 
-	/* set bts_scen by scenario */
-	if (stream_on)
-		is_hw_configure_bts_scen(resourcemgr, scenario_id);
+	mutex_unlock(&dvfs_ctrl->lock);
+
+	return scn;
+}
+
+void is_set_static_dvfs(struct is_device_ischain *device, bool stream_on)
+{
+	struct is_resourcemgr *rscmgr = device->resourcemgr;
+	int scn;
+
+	if (stream_on) {
+		scn = pablo_set_static_dvfs(device, "FAST_LAUNCH", IS_DVFS_SN_DEFAULT,
+					IS_DVFS_PATH_M2M);
+
+		/* set bts_scen by scenario, even though it is error value */
+		is_hw_configure_bts_scen(rscmgr, scn);
+	} else {
+		pablo_set_static_dvfs(device, "", IS_DVFS_SN_DEFAULT, IS_DVFS_PATH_OTF);
+	}
 }
 
 unsigned int is_get_bit_count(unsigned long bits)

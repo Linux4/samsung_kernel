@@ -2062,6 +2062,7 @@ static int isg5320a_probe(struct i2c_client *client,
 	noti_input_dev = input_allocate_device();
 	if (!noti_input_dev) {
 		pr_err("[GRIP_%d] input_allocate_device failed\n", data->ic_num);
+		input_free_device(input_dev);
 		goto err_noti_input_alloc;
 	}
 
@@ -2077,6 +2078,8 @@ static int isg5320a_probe(struct i2c_client *client,
 	ret = isg5320a_reset(data);
 	if (ret < 0) {
 		GRIP_ERR("IMAGIS reset failed\n");
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_soft_reset;
 	}
 
@@ -2111,6 +2114,8 @@ static int isg5320a_probe(struct i2c_client *client,
 				   IRQF_TRIGGER_FALLING | IRQF_ONESHOT, isg5320a_device_name[data->ic_num], data);
 	if (ret < 0) {
 		GRIP_ERR("failed to register interrupt\n");
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_irq;
 	}
 	disable_irq(client->irq);
@@ -2118,15 +2123,16 @@ static int isg5320a_probe(struct i2c_client *client,
 
 	ret = input_register_device(input_dev);
 	if (ret) {
-		input_free_device(input_dev);
 		GRIP_ERR("failed to register input dev (%d)\n", ret);
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_register_input_dev;
 	}
 
 	ret = input_register_device(noti_input_dev);
 	if (ret) {
-		input_free_device(noti_input_dev);
 		GRIP_ERR("failed to register input dev for noti (%d)\n", ret);
+		input_free_device(noti_input_dev);
 		goto err_register_input_dev_noti;
 	}
 

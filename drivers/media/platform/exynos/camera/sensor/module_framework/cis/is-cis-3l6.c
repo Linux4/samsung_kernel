@@ -1225,7 +1225,9 @@ int sensor_3l6_cis_get_min_analog_gain(struct v4l2_subdev *subdev, u32 *min_agai
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
 
+#if 0
 	u16 read_value = 0;
+#endif
 
 #ifdef DEBUG_SENSOR_TIME
 	struct timeval st, end;
@@ -1256,7 +1258,7 @@ int sensor_3l6_cis_get_min_analog_gain(struct v4l2_subdev *subdev, u32 *min_agai
 #endif
 	cis_data->min_analog_gain[0] = 0x0020;//read_value;
 
-	cis_data->min_analog_gain[1] = sensor_cis_calc_again_permile(read_value);
+	cis_data->min_analog_gain[1] = sensor_cis_calc_again_permile(cis_data->min_analog_gain[0]);
 
 	*min_again = cis_data->min_analog_gain[1];
 
@@ -1279,7 +1281,9 @@ int sensor_3l6_cis_get_max_analog_gain(struct v4l2_subdev *subdev, u32 *max_agai
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
 
+#if 0
 	u16 read_value = 0;
+#endif
 
 #ifdef DEBUG_SENSOR_TIME
 	struct timeval st, end;
@@ -1310,7 +1314,7 @@ int sensor_3l6_cis_get_max_analog_gain(struct v4l2_subdev *subdev, u32 *max_agai
 #endif
 	cis_data->max_analog_gain[0] = 0x0200;//read_value;
 
-	cis_data->max_analog_gain[1] = sensor_cis_calc_again_permile(read_value);
+	cis_data->max_analog_gain[1] = sensor_cis_calc_again_permile(cis_data->max_analog_gain[0]);
 
 	*max_again = cis_data->max_analog_gain[1];
 

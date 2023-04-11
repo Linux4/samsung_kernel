@@ -384,11 +384,10 @@ int el7xx_write_register(struct el7xx_data *etspi, u8 addr, u8 buf)
 	etspi->buf[2] = buf;
 	retval = el7xx_spi_sync(etspi, spi_len);
 
-	if (retval == 0) {
+	if (retval == 0)
 		pr_info("address = %x\n", addr);
-	} else {
+	else
 		pr_err("read data error retval = %d\n", retval);
-	}
 
 	return retval;
 }

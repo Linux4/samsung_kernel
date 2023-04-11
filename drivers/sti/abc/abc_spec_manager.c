@@ -64,7 +64,7 @@ int sec_abc_get_normal_token_value(char *dst, char *src, char *token)
 	int token_len = strlen(token);
 
 	if (strncmp(src, token, token_len) || !*(src + token_len)) {
-		ABC_PRINT("Invalid input : src-%s, token-%s", src, token);
+		ABC_DEBUG("Invalid input : src-%s, token-%s", src, token);
 		return -EINVAL;
 	}
 
@@ -148,7 +148,7 @@ int sec_abc_make_key_data(struct abc_key_data *key_data, char *str)
 	char *c, *p;
 	int idx = 0, i;
 
-	ABC_PRINT("start : %s", str);
+	ABC_DEBUG("start : %s", str);
 
 	strlcpy(temp, str, ABC_BUFFER_MAX);
 	p = temp;
@@ -180,7 +180,7 @@ int sec_abc_make_key_data(struct abc_key_data *key_data, char *str)
 
 	key_data->cur_time = sec_abc_get_ktime_ms();
 
-	ABC_PRINT("Module(%s) Level(%s) Event(%s) EXT_LOG(%s) cur_time(%d)",
+	ABC_DEBUG("Module(%s) Level(%s) Event(%s) EXT_LOG(%s) cur_time(%d)",
 			  key_data->event_module,
 			  key_data->event_type,
 			  key_data->event_name,
@@ -216,7 +216,7 @@ void sec_abc_enqueue_event_data(struct abc_key_data *key_data)
 	if (!common_spec || !strcmp(key_data->event_type, "INFO")) {
 		ABC_PRINT_KUNIT("There is no matched buffer");
 	} else {
-		ABC_PRINT_KUNIT("There is a matched buffer. Enqueue data");
+		ABC_DEBUG_KUNIT("There is a matched buffer. Enqueue data");
 		sec_abc_enqueue_event_data_type1(common_spec, key_data->cur_time);
 	}
 
@@ -348,6 +348,7 @@ void sec_abc_change_spec(const char *str)
 
 	if (!strncmp(str, "reset", 5)) {
 		sec_abc_reset_all_spec();
+		sec_abc_enable_all_spec();
 		ABC_PRINT("end : %s", str);
 		return;
 	}
@@ -388,6 +389,15 @@ void sec_abc_reset_all_spec(void)
 	}
 }
 EXPORT_SYMBOL_KUNIT(sec_abc_reset_all_spec);
+
+void sec_abc_enable_all_spec(void)
+{
+	int i;
+
+	for (i = 0; i < REGISTERED_ABC_EVENT_TOTAL; i++)
+		abc_event_list[i].enabled = true;
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_enable_all_spec);
 
 int sec_abc_read_spec(char *buf)
 {

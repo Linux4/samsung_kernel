@@ -21,7 +21,9 @@
 #include "panel_bl.h"
 #include "panel_dimming.h"
 #include "maptbl.h"
-
+#if defined(CONFIG_PANEL_FREQ_HOP)
+#include "panel_freq_hop.h"
+#endif
 #ifdef CONFIG_EXYNOS_DECON_LCD_SPI
 #include "spi.h"
 #endif
@@ -38,9 +40,9 @@ const char *cmd_type_name[MAX_CMD_TYPE] = {
 	[CMD_TYPE_VSYNC_DELAY] = "VSYNC_DELAY",
 	[CMD_TYPE_TIMER_DELAY] = "TIMER_DELAY",
 	[CMD_TYPE_TIMER_DELAY_BEGIN] = "TIMER_DELAY_BEGIN",
-	[CMD_TYPE_VARIABLE_DELAY] = "VARIABLE_DELAY",
-	[CMD_TYPE_VARIABLE_DELAY_MARK] = "VARIABLE_DELAY_MARK",
-	[CMD_TYPE_PINCTL] = "PINCTL",
+	[CMD_TYPE_VARIABLE_DELAY] = "VAR_DELAY",
+	[CMD_TYPE_VARIABLE_DELAY_MARK] = "VAR_DELAY_MARK",
+	[CMD_TYPE_PINCTL] = "PINCTRL",
 	[CMD_PKT_TYPE_NONE] = "PKT_NONE",
 	[SPI_PKT_TYPE_WR] = "SPI_WR",
 	[DSI_PKT_TYPE_WR] = "DSI_WR",
@@ -58,13 +60,20 @@ const char *cmd_type_name[MAX_CMD_TYPE] = {
 	[CMD_TYPE_RES] = "RES",
 	[CMD_TYPE_SEQ] = "SEQ",
 	[CMD_TYPE_KEY] = "KEY",
-	[CMD_TYPE_MAP] = "MAP",
+	[CMD_TYPE_MAP] = "MAPTBL",
 	[CMD_TYPE_DMP] = "DUMP",
 	[CMD_TYPE_COND_IF] = "COND_IF",
 	[CMD_TYPE_COND_EL] = "COND_EL",
 	[CMD_TYPE_COND_FI] = "COND_FI",
+	[CMD_TYPE_PCTRL] = "PWRCTRL",
 	[CMD_TYPE_PROP] = "PROP",
 };
+
+const char *pnobj_type_to_string(u32 type)
+{
+	return (type < MAX_CMD_TYPE) ?
+		cmd_type_name[type] : cmd_type_name[CMD_TYPE_NONE];
+}
 
 #define MAX_PRINT_DATA_LEN 1024
 void print_data(char *data, int size)
@@ -304,16 +313,31 @@ find_panel_power_ctrl_node(struct panel_device *panel, u32 id)
 
 const char *get_panel_lut_dqe_suffix(struct panel_device *panel, u32 id)
 {
-    struct panel_dt_lut *lut_info;
+	struct panel_dt_lut *lut_info;
 
-    lut_info = find_panel_lut(panel, id);
-    if (IS_ERR_OR_NULL(lut_info)) {
-        panel_err("failed to find panel lookup table\n");
-        return NULL;
-    }
+	lut_info = find_panel_lut(panel, id);
+	if (IS_ERR_OR_NULL(lut_info)) {
+		panel_err("failed to find panel lookup table\n");
+		return NULL;
+	}
 
-    return lut_info->dqe_suffix;
+	return lut_info->dqe_suffix;
 }
+
+#ifdef CONFIG_PANEL_FREQ_HOP
+struct device_node *get_panel_lut_freq_hop_node(struct panel_device *panel, u32 id)
+{
+	struct panel_dt_lut *lut_info;
+
+	lut_info = find_panel_lut(panel, id);
+	if (IS_ERR_OR_NULL(lut_info)) {
+		panel_err("failed to find panel lookup table\n");
+		return NULL;
+	}
+
+	return lut_info->freq_hop_node;
+}
+#endif
 
 struct seqinfo *find_panel_seqtbl(struct panel_info *panel_data, char *name)
 {
@@ -847,13 +871,8 @@ static int panel_dsi_write_data(struct panel_device *panel,
 		u8 cmd_id, const u8 *buf, u32 ofs, int size, bool block)
 {
 	u32 option = 0;
-	void *ctx;
 
-	if (unlikely(!panel || !panel->mipi_drv.write))
-		return -EINVAL;
-
-	ctx = get_ctrl_interface(panel);
-	if (!ctx)
+	if (!panel)
 		return -EINVAL;
 
 	if ((panel->panel_data.ddi_props.gpara &
@@ -866,20 +885,15 @@ static int panel_dsi_write_data(struct panel_device *panel,
 	if (block)
 		option |= DSIM_OPTION_WAIT_TX_DONE;
 
-	return panel->mipi_drv.write(ctx, cmd_id, buf, ofs, size, option);
+	return call_panel_adapter_func(panel, write, cmd_id, buf, ofs, size, option);
 }
 
 static int panel_dsi_write_table(struct panel_device *panel,
 	const struct cmd_set *cmd, int size, bool block)
 {
 	u32 option = 0;
-	void *ctx;
 
-	if (unlikely(!panel || !panel->mipi_drv.write_table))
-		return -EINVAL;
-
-	ctx = get_ctrl_interface(panel);
-	if (!ctx)
+	if (!panel)
 		return -EINVAL;
 
 	if ((panel->panel_data.ddi_props.gpara &
@@ -892,7 +906,7 @@ static int panel_dsi_write_table(struct panel_device *panel,
 	if (block)
 		option |= DSIM_OPTION_WAIT_TX_DONE;
 
-	return panel->mipi_drv.write_table(ctx, cmd, size, option);
+	return call_panel_adapter_func(panel, write_table, cmd, size, option);
 }
 
 static int panel_cmdq_is_empty(struct panel_device *panel)
@@ -937,7 +951,7 @@ __visible_for_testing int panel_set_property(struct panel_device *panel, struct 
 	return ret;
 }
 
-__visible_for_testing unsigned int panel_get_property_value(struct panel_device *panel, char *name)
+__visible_for_testing int panel_get_property_value(struct panel_device *panel, char *name)
 {
 	if (panel == NULL) {
 		panel_err("got null ptr\n");
@@ -961,10 +975,13 @@ int REAL_ID(panel_cmdq_flush)(struct panel_device *panel)
 	if (unlikely(!panel))
 		return -EINVAL;
 
+	if (unlikely(!panel || !panel->adapter.funcs))
+		return -EINVAL;
+
 	if (panel_cmdq_is_empty(panel))
 		return 0;
 
-	if (panel->mipi_drv.write_table != NULL) {
+	if (panel->adapter.funcs->write_table != NULL) {
 		if (panel_get_property_value(panel, PANEL_OBJ_PROPERTY_WAIT_TX_DONE) == WAIT_TX_DONE_MANUAL_OFF)
 			tx_done_wait = false;
 
@@ -972,7 +989,7 @@ int REAL_ID(panel_cmdq_flush)(struct panel_device *panel)
 				panel_cmdq_get_size(panel), tx_done_wait);
 		if (ret < 0)
 			panel_err("failed to panel_dsi_write_table %d\n", ret);
-	} else if (panel->mipi_drv.write != NULL) {
+	} else if (panel->adapter.funcs->write != NULL) {
 		for (i = 0; i < panel_cmdq_get_size(panel); i++) {
 			if (panel_get_property_value(panel, PANEL_OBJ_PROPERTY_WAIT_TX_DONE) == WAIT_TX_DONE_MANUAL_OFF)
 				tx_done_wait = false;
@@ -1109,24 +1126,13 @@ static int panel_dsi_write_cmd(struct panel_device *panel,
 static int panel_dsi_sr_write_data(struct panel_device *panel,
 		u8 cmd_id, const u8 *buf, u32 ofs, int size, u32 option)
 {
-	void *ctx;
-
-	if (unlikely(!panel || !panel->mipi_drv.sr_write))
-		return -EINVAL;
-
-	ctx = get_ctrl_interface(panel);
-	if (!ctx)
-		return -EINVAL;
-
-	return panel->mipi_drv.sr_write(ctx, cmd_id, buf, ofs, size, option);
+	return call_panel_adapter_func(panel, sr_write, cmd_id, buf, ofs, size, option);
 }
 
-/* Todo need to move dt file */
-#define DSI_IMG_FIFO_SIZE (2048)
-
-static inline u32 get_write_fifo_size(u32 props_fifo, u32 option)
+static u32 get_write_fifo_size(u32 adapter_fifo,
+		u32 props_fifo, u32 option)
 {
-	u32 fifo = DSI_IMG_FIFO_SIZE;
+	u32 fifo = adapter_fifo;
 
 	if (props_fifo > 0)
 		fifo = min(fifo, props_fifo);
@@ -1164,18 +1170,32 @@ __visible_for_testing int panel_dsi_write_img(struct panel_device *panel,
 		u8 cmd_id, const u8 *buf, u32 ofs, int size, u32 option)
 {
 	u8 c_start = 0, c_next = 0;
-	u8 cmdbuf[DSI_IMG_FIFO_SIZE];
 	int data_size, ret, len = 0, cmd_size;
-	u32 fifo_size, align;
+	u32 fifo_size, adapter_fifo_size, align;
 	int remained, padding;
 	bool block = (option & PKT_OPTION_CHECK_TX_DONE) ? true : false;
+	u8 *cmdbuf;
 
-	if (unlikely(!panel) || unlikely(!buf) || unlikely(size < 1))
+	if (!panel || !buf || size < 1)
 		return -EINVAL;
+
+	cmdbuf = panel->cmdbuf;
+	if (!cmdbuf) {
+		panel_err("command buffer is null\n");
+		return -EINVAL;
+	}
+
+	adapter_fifo_size = get_panel_adapter_fifo_size(panel);
+	if (!adapter_fifo_size) {
+		panel_err("invalid panel adapter fifo size(%d)\n",
+				adapter_fifo_size);
+		return -EINVAL;
+	}
 
 	remained = size;
 
-	fifo_size = get_write_fifo_size(panel->panel_data.ddi_props.img_fifo_size, option);
+	fifo_size = get_write_fifo_size(adapter_fifo_size,
+			panel->panel_data.ddi_props.img_fifo_size, option);
 	align = get_write_img_align(option);
 
 	if (cmd_id == MIPI_DSI_WR_GRAM_CMD) {
@@ -1195,6 +1215,7 @@ __visible_for_testing int panel_dsi_write_img(struct panel_device *panel,
 	}
 
 	do {
+		mutex_lock(&panel->cmdq.lock);
 		cmdbuf[0] = (size == remained) ? c_start : c_next;
 
 		/* set cmd size less then (fifo - 1) */
@@ -1209,7 +1230,6 @@ __visible_for_testing int panel_dsi_write_img(struct panel_device *panel,
 		if (padding)
 			memset(cmdbuf + 1 + data_size, 0, padding);
 
-		mutex_lock(&panel->cmdq.lock);
 		ret = panel_cmdq_push(panel, MIPI_DSI_WR_GEN_CMD, cmdbuf, data_size + padding + 1);
 		if (ret < 0) {
 			panel_err("failed to panel_cmdq_push %d\n", ret);
@@ -1239,7 +1259,8 @@ static int panel_dsi_fast_write_mem(struct panel_device *panel,
 {
 	int ret;
 
-	if (unlikely(!panel || !panel->mipi_drv.sr_write))
+	if (unlikely(!panel || !panel->adapter.funcs ||
+				!panel->adapter.funcs->sr_write))
 		return -EINVAL;
 
 	mutex_lock(&panel->cmdq.lock);
@@ -1256,13 +1277,8 @@ static int panel_dsi_read_data(struct panel_device *panel,
 {
 	u32 option = 0;
 	int ret;
-	void *ctx;
 
-	if (unlikely(!panel || !panel->mipi_drv.read))
-		return -EINVAL;
-
-	ctx = get_ctrl_interface(panel);
-	if (!ctx)
+	if (!panel)
 		return -EINVAL;
 
 	if ((panel->panel_data.ddi_props.gpara &
@@ -1274,7 +1290,7 @@ static int panel_dsi_read_data(struct panel_device *panel,
 
 	mutex_lock(&panel->cmdq.lock);
 	panel_cmdq_flush(panel);
-	ret = panel->mipi_drv.read(ctx, addr, ofs, buf, size, option);
+	ret = call_panel_adapter_func(panel, read, addr, ofs, buf, size, option);
 	mutex_unlock(&panel->cmdq.lock);
 
 	return ret;
@@ -1282,171 +1298,80 @@ static int panel_dsi_read_data(struct panel_device *panel,
 
 static int panel_dsi_get_state(struct panel_device *panel)
 {
-	void *ctx;
-
-	if (unlikely(!panel || !panel->mipi_drv.get_state))
-		return -EINVAL;
-
-	ctx = get_ctrl_interface(panel);
-	if (!ctx)
-		return -EINVAL;
-
-	return panel->mipi_drv.get_state(ctx);
+	return call_panel_adapter_func(panel, get_state);
 }
 
 int panel_dsi_wait_for_vsync(struct panel_device *panel, u32 timeout)
 {
-	void *ctx;
-
-	if (unlikely(!panel || !panel->mipi_drv.wait_for_vsync))
-		return -EINVAL;
-
-	ctx = get_ctrl_interface(panel);
-	if (!ctx)
-		return -EINVAL;
-
-	return panel->mipi_drv.wait_for_vsync(ctx, timeout);
+	return call_panel_adapter_func(panel, wait_for_vsync, timeout);
 }
 
 int panel_dsi_set_bypass(struct panel_device *panel, bool on)
 {
-	void *ctx;
-
-	if (unlikely(!panel || !panel->mipi_drv.set_bypass))
-		return -EINVAL;
-
-	ctx = get_ctrl_interface(panel);
-	if (!ctx)
-		return -EINVAL;
-
-	return panel->mipi_drv.set_bypass(ctx, on);
+	return call_panel_adapter_func(panel, set_bypass, on);
 }
 
 int panel_dsi_get_bypass(struct panel_device *panel)
 {
-	void *ctx;
-
-	if (unlikely(!panel || !panel->mipi_drv.get_bypass))
-		return -EINVAL;
-
-	ctx = get_ctrl_interface(panel);
-	if (!ctx)
-		return -EINVAL;
-
-	return panel->mipi_drv.get_bypass(ctx);
+	return call_panel_adapter_func(panel, get_bypass);
 }
 
 int panel_dsi_set_commit_retry(struct panel_device *panel, bool on)
 {
-	void *ctx;
-
-	if (unlikely(!panel || !panel->mipi_drv.set_commit_retry))
-		return -EINVAL;
-
-	ctx = get_ctrl_interface(panel);
-	if (!ctx)
-		return -EINVAL;
-
-	return panel->mipi_drv.set_commit_retry(ctx, on);
+	return call_panel_adapter_func(panel, set_commit_retry, on);
 }
 
 int panel_dsi_dump_dpu_register(struct panel_device *panel)
 {
-	void *ctx;
-
-	if (unlikely(!panel || !panel->mipi_drv.dpu_register_dump))
-		return -EINVAL;
-
-	ctx = get_ctrl_interface(panel);
-	if (!ctx)
-		return -EINVAL;
-
-	return panel->mipi_drv.dpu_register_dump(ctx);
+	return call_panel_adapter_func(panel, dpu_register_dump);
 }
 
 int panel_dsi_print_dpu_event_log(struct panel_device *panel)
 {
-	void *ctx;
-
-	if (unlikely(!panel || !panel->mipi_drv.dpu_event_log_print))
-		return -EINVAL;
-
-	ctx = get_ctrl_interface(panel);
-	if (!ctx)
-		return -EINVAL;
-
-	return panel->mipi_drv.dpu_event_log_print(ctx);
+	return call_panel_adapter_func(panel, dpu_event_log_print);
 }
 
 int panel_dsi_set_lpdt(struct panel_device *panel, bool on)
 {
-	void *ctx;
-
-	if (unlikely(!panel || !panel->mipi_drv.set_lpdt))
-		return -EINVAL;
-
-	ctx = get_ctrl_interface(panel);
-	if (!ctx)
-		return -EINVAL;
-
-	return panel->mipi_drv.set_lpdt(ctx, on);
+	return call_panel_adapter_func(panel, set_lpdt, on);
 }
 
 int panel_wake_lock(struct panel_device *panel, unsigned long timeout)
 {
-	void *ctx;
-
-	if (unlikely(!panel || !panel->mipi_drv.wake_lock))
-		return -EINVAL;
-
-	ctx = get_ctrl_interface(panel);
-	if (!ctx)
-		return -EINVAL;
-
-	return panel->mipi_drv.wake_lock(ctx, timeout);
+	return call_panel_adapter_func(panel, wake_lock, timeout);
 }
 
 int panel_wake_unlock(struct panel_device *panel)
 {
-	void *ctx;
-
-	if (unlikely(!panel || !panel->mipi_drv.wake_unlock))
-		return -EINVAL;
-
-	ctx = get_ctrl_interface(panel);
-	if (!ctx)
-		return -EINVAL;
-
-	return panel->mipi_drv.wake_unlock(ctx);
+	return call_panel_adapter_func(panel, wake_unlock);
 }
 
 int panel_emergency_off(struct panel_device *panel)
 {
-	void *ctx;
-
-	if (unlikely(!panel || !panel->mipi_drv.emergency_off))
-		return -EINVAL;
-
-	ctx = get_ctrl_interface(panel);
-	if (!ctx)
-		return -EINVAL;
-
-	return panel->mipi_drv.emergency_off(ctx);
+	return call_panel_adapter_func(panel, emergency_off);
 }
-
 
 int panel_flush_image(struct panel_device *panel)
 {
-	void *ctx;
+	return call_panel_adapter_func(panel, flush_image);
+}
 
-	if (unlikely(!panel || !panel->mipi_drv.flush_image))
+#if defined(CONFIG_PANEL_FREQ_HOP)
+int panel_set_freq_hop(struct panel_device *panel, struct freq_hop_elem *elem)
+{
+	if (!elem)
 		return -EINVAL;
 
-	ctx = get_ctrl_interface(panel);
-	if (!ctx)
+	return call_panel_adapter_func(panel, set_freq_hop, elem);
+}
+#endif
+
+int panel_parse_ap_vendor_node(struct panel_device *panel, struct device_node *node)
+{
+	if (!node)
 		return -EINVAL;
 
-	return panel->mipi_drv.flush_image(ctx);
+	return call_panel_adapter_func(panel, parse_dt, node);
 }
 
 int panel_set_key(struct panel_device *panel, int level, bool on)
@@ -1915,7 +1840,8 @@ static int _panel_do_seqtbl(struct panel_device *panel,
 			break;
 		}
 
-		panel_dbg("SEQ: %s %s %s+ %s\n", seqtbl->name, cmd_type_name[type],
+		panel_dbg("SEQ: %s %s %s+ %s\n", seqtbl->name,
+				pnobj_type_to_string(type),
 				(((struct cmdinfo *)cmdtbl[i])->name ?
 				((struct cmdinfo *)cmdtbl[i])->name : "none"),
 				(condition ? "" : "skipped"));
@@ -2067,7 +1993,8 @@ static int _panel_do_seqtbl(struct panel_device *panel,
 
 		if (ret < 0) {
 			panel_err("failed to do(seq:%s type:%s cmd:%s)\n",
-					seqtbl->name, cmd_type_name[type],
+					seqtbl->name,
+					pnobj_type_to_string(type),
 					(((struct cmdinfo *)cmdtbl[i])->name ?
 					 ((struct cmdinfo *)cmdtbl[i])->name : "none"));
 
@@ -2081,9 +2008,10 @@ static int _panel_do_seqtbl(struct panel_device *panel,
 
 		s_time = ktime_get();
 
-		panel_dbg("SEQ: %s %s %s- %s\n", seqtbl->name, cmd_type_name[type],
+		panel_dbg("SEQ: %s %s %s- %s\n", seqtbl->name,
+				pnobj_type_to_string(type),
 				(((struct cmdinfo *)cmdtbl[i])->name ?
-				((struct cmdinfo *)cmdtbl[i])->name : "none"),
+				 ((struct cmdinfo *)cmdtbl[i])->name : "none"),
 				(condition ? "" : "skipped"));
 	}
 
@@ -2526,8 +2454,15 @@ int panel_tx_nbytes(struct panel_device *panel,
 	return ret;
 }
 
-
-#if IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_TFT_COMMON)
+/*
+ * ID READ REG Features:
+ * Read 1 byte from each registers if DADBDC or ADAEAF feature is set.
+ * It works also for compatibility if REG_04 feature is NOT set and LCD_TFT_COMMON feature is set.
+ * Other cases, read 3 bytes from 04h.
+ */
+#if IS_ENABLED(CONFIG_PANEL_ID_READ_REG_DADBDC) || \
+	IS_ENABLED(CONFIG_PANEL_ID_READ_REG_ADAEAF) || \
+	(!IS_ENABLED(CONFIG_PANEL_ID_READ_REG_04) && IS_ENABLED(CONFIG_EXYNOS_DECON_LCD_TFT_COMMON))
 int read_panel_id(struct panel_device *panel, u8 *buf)
 {
 	int len, ret = 0;
@@ -2541,6 +2476,7 @@ int read_panel_id(struct panel_device *panel, u8 *buf)
 	if (!IS_PANEL_ACTIVE(panel))
 		return -ENODEV;
 
+	panel_info("id read from 0x%02X\n", PANEL_ID_REG);
 	mutex_lock(&panel->op_lock);
 	for (i = 0; i < PANEL_ID_LEN; i++) {
 		len = panel_rx_nbytes(panel, DSI_PKT_TYPE_RD, buf + i, PANEL_ID_REG + i, 0, 1);
@@ -2568,6 +2504,7 @@ int read_panel_id(struct panel_device *panel, u8 *buf)
 	if (!IS_PANEL_ACTIVE(panel))
 		return -ENODEV;
 
+	panel_info("id read from 0x%02X 3bytes\n", PANEL_ID_REG);
 	mutex_lock(&panel->op_lock);
 	panel_set_key(panel, 3, true);
 	len = panel_rx_nbytes(panel, DSI_PKT_TYPE_RD, buf, PANEL_ID_REG, 0, 3);

@@ -130,17 +130,8 @@
 #define S6E8FC3_CCD_STATE_REG				0xE7
 #define S6E8FC3_CCD_STATE_OFS				0
 #define S6E8FC3_CCD_STATE_LEN				1
+#define S6E8FC3_CCD_STATE_PASS_LIST_LEN				2
 #endif
-
-#ifdef CONFIG_DYNAMIC_FREQ
-#define S6E8FC3_MAX_MIPI_FREQ			3
-#define S6E8FC3_DEFAULT_MIPI_FREQ		0
-enum {
-	S6E8FC3_OSC_DEFAULT,
-	MAX_S6E8FC3_OSC,
-};
-#endif
-
 
 enum {
 	GAMMA_MAPTBL,
@@ -211,11 +202,6 @@ enum {
 #ifdef CONFIG_SUPPORT_TDMB_TUNE
 	TDMB_TUNE_MAPTBL,
 #endif
-#ifdef CONFIG_DYNAMIC_FREQ
-	DYN_FFC_1_MAPTBL,
-	DYN_FFC_2_MAPTBL,
-#endif
-
 #ifdef CONFIG_SUPPORT_GRAYSPOT_TEST
 	GRAYSPOT_CAL_MAPTBL,
 #endif
@@ -320,7 +306,7 @@ enum {
 #endif
 #ifdef CONFIG_SUPPORT_CCD_TEST
 	RES_CCD_STATE,
-	RES_CCD_CHKSUM_FAIL,
+	RES_CCD_CHKSUM_PASS_LIST,
 #endif
 #ifdef CONFIG_SUPPORT_GRAYSPOT_TEST
 	RES_GRAYSPOT_CAL,
@@ -374,6 +360,7 @@ static u8 S6E8FC3_SELF_MASK_CHECKSUM[S6E8FC3_SELF_MASK_CHECKSUM_LEN];
 static u8 S6E8FC3_SELF_MASK_CRC[S6E8FC3_SELF_MASK_CRC_LEN];
 #ifdef CONFIG_SUPPORT_CCD_TEST
 static u8 S6E8FC3_CCD_STATE[S6E8FC3_CCD_STATE_LEN];
+static u8 S6E8FC3_CCD_CHKSUM_PASS_LIST[S6E8FC3_CCD_STATE_PASS_LIST_LEN] = { 0x20, 0x00, };
 #endif
 
 static struct rdinfo s6e8fc3_rditbl[MAX_READTBL] = {
@@ -437,6 +424,15 @@ static struct resinfo s6e8fc3_restbl[MAX_RESTBL] = {
 	[RES_SELF_DIAG] = RESINFO_INIT(self_diag, S6E8FC3_SELF_DIAG, RESUI(self_diag)),
 #ifdef CONFIG_SUPPORT_CCD_TEST
 	[RES_CCD_STATE] = RESINFO_INIT(ccd_state, S6E8FC3_CCD_STATE, RESUI(ccd_state)),
+	[RES_CCD_CHKSUM_PASS_LIST] = {
+		.name = "ccd_chksum_pass_list",
+		.type = CMD_TYPE_RES,
+		.state = RES_UNINITIALIZED,
+		.data = S6E8FC3_CCD_CHKSUM_PASS_LIST,
+		.dlen = ARRAY_SIZE(S6E8FC3_CCD_CHKSUM_PASS_LIST),
+		.resui = NULL,
+		.nr_resui = 0,
+	},
 #endif
 	[RES_SELF_MASK_CHECKSUM] = RESINFO_INIT(self_mask_checksum, S6E8FC3_SELF_MASK_CHECKSUM, RESUI(self_mask_checksum)),
 	[RES_SELF_MASK_CRC] = RESINFO_INIT(self_mask_crc, S6E8FC3_SELF_MASK_CRC, RESUI(self_mask_crc)),
@@ -456,17 +452,17 @@ enum {
 #endif
 };
 
-__visible_for_testing int show_rddpm(struct dumpinfo *info);
-__visible_for_testing int show_rddpm_before_sleep_in(struct dumpinfo *info);
-__visible_for_testing int show_rddsm(struct dumpinfo *info);
-__visible_for_testing int show_err(struct dumpinfo *info);
-__visible_for_testing int show_err_fg(struct dumpinfo *info);
-__visible_for_testing int show_dsi_err(struct dumpinfo *info);
-__visible_for_testing int show_self_diag(struct dumpinfo *info);
+int show_rddpm(struct dumpinfo *info);
+int show_rddpm_before_sleep_in(struct dumpinfo *info);
+int show_rddsm(struct dumpinfo *info);
+int show_err(struct dumpinfo *info);
+int show_err_fg(struct dumpinfo *info);
+int show_dsi_err(struct dumpinfo *info);
+int show_self_diag(struct dumpinfo *info);
 #ifdef CONFIG_SUPPORT_DDI_CMDLOG
-__visible_for_testing int show_cmdlog(struct dumpinfo *info);
+int show_cmdlog(struct dumpinfo *info);
 #endif
-__visible_for_testing int show_self_mask_crc(struct dumpinfo *info);
+int show_self_mask_crc(struct dumpinfo *info);
 
 static struct dumpinfo s6e8fc3_dmptbl[] = {
 	[DUMP_RDDPM] = DUMPINFO_INIT(rddpm, &s6e8fc3_restbl[RES_RDDPM], show_rddpm),
@@ -521,63 +517,60 @@ enum {
 	MAX_S6E8FC3_VRR_KEY,
 };
 
-__visible_for_testing int init_common_table(struct maptbl *tbl);
+int init_common_table(struct maptbl *tbl);
 #ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
-__visible_for_testing int getidx_common_maptbl(struct maptbl *tbl);
+int getidx_common_maptbl(struct maptbl *tbl);
 #endif
-__visible_for_testing int init_gamma_mode2_brt_table(struct maptbl *tbl);
-__visible_for_testing int getidx_gamma_mode2_brt_table(struct maptbl *tbl);
-__visible_for_testing int getidx_hbm_transition_table(struct maptbl *tbl);
-__visible_for_testing int getidx_smooth_transition_table(struct maptbl *tbl);
+int init_gamma_mode2_brt_table(struct maptbl *tbl);
+int getidx_gamma_mode2_brt_table(struct maptbl *tbl);
+int getidx_hbm_transition_table(struct maptbl *tbl);
+int getidx_smooth_transition_table(struct maptbl *tbl);
 
-__visible_for_testing int getidx_acl_opr_table(struct maptbl *tbl);
-__visible_for_testing int getidx_hbm_onoff_table(struct maptbl *);
-__visible_for_testing int getidx_acl_onoff_table(struct maptbl *);
-__visible_for_testing int getidx_acl_dim_onoff_table(struct maptbl *tbl);
+int getidx_acl_opr_table(struct maptbl *tbl);
+int getidx_hbm_onoff_table(struct maptbl *);
+int getidx_acl_onoff_table(struct maptbl *);
+int getidx_acl_dim_onoff_table(struct maptbl *tbl);
 
 #ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
-__visible_for_testing void copy_dummy_maptbl(struct maptbl *tbl, u8 *dst);
+void copy_dummy_maptbl(struct maptbl *tbl, u8 *dst);
 #endif
-__visible_for_testing void copy_common_maptbl(struct maptbl *tbl, u8 *dst);
-__visible_for_testing void copy_tset_maptbl(struct maptbl *tbl, u8 *dst);
+void copy_common_maptbl(struct maptbl *tbl, u8 *dst);
+void copy_tset_maptbl(struct maptbl *tbl, u8 *dst);
 #if defined(CONFIG_MCD_PANEL_FACTORY) && defined(CONFIG_SUPPORT_FAST_DISCHARGE)
-__visible_for_testing int getidx_fast_discharge_table(struct maptbl *tbl);
+int getidx_fast_discharge_table(struct maptbl *tbl);
 #endif
-__visible_for_testing int getidx_vrr_fps_table(struct maptbl *);
+int getidx_vrr_fps_table(struct maptbl *);
 #if defined(__PANEL_NOT_USED_VARIABLE__)
-__visible_for_testing int getidx_vrr_gamma_table(struct maptbl *);
+int getidx_vrr_gamma_table(struct maptbl *);
 #endif
-__visible_for_testing bool s6e8fc3_is_90hz(struct panel_device *panel);
-__visible_for_testing bool s6e8fc3_is_60hz(struct panel_device *panel);
+bool s6e8fc3_is_90hz(struct panel_device *panel);
+bool s6e8fc3_is_60hz(struct panel_device *panel);
 #ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
-__visible_for_testing int init_color_blind_table(struct maptbl *tbl);
-__visible_for_testing int getidx_mdnie_scenario_maptbl(struct maptbl *tbl);
-__visible_for_testing int getidx_mdnie_hdr_maptbl(struct maptbl *tbl);
-__visible_for_testing int init_mdnie_night_mode_table(struct maptbl *tbl);
-__visible_for_testing int getidx_mdnie_night_mode_maptbl(struct maptbl *tbl);
-__visible_for_testing int init_mdnie_color_lens_table(struct maptbl *tbl);
-__visible_for_testing int getidx_color_lens_maptbl(struct maptbl *tbl);
-__visible_for_testing int init_color_coordinate_table(struct maptbl *tbl);
-__visible_for_testing int init_sensor_rgb_table(struct maptbl *tbl);
-__visible_for_testing int getidx_adjust_ldu_maptbl(struct maptbl *tbl);
-__visible_for_testing int getidx_color_coordinate_maptbl(struct maptbl *tbl);
-__visible_for_testing void copy_scr_white_maptbl(struct maptbl *tbl, u8 *dst);
-__visible_for_testing int getidx_mdnie_0_maptbl(struct pkt_update_info *pktui);
-__visible_for_testing int getidx_mdnie_1_maptbl(struct pkt_update_info *pktui);
+int init_color_blind_table(struct maptbl *tbl);
+int getidx_mdnie_scenario_maptbl(struct maptbl *tbl);
+int getidx_mdnie_hdr_maptbl(struct maptbl *tbl);
+int init_mdnie_night_mode_table(struct maptbl *tbl);
+int getidx_mdnie_night_mode_maptbl(struct maptbl *tbl);
+int init_mdnie_color_lens_table(struct maptbl *tbl);
+int getidx_color_lens_maptbl(struct maptbl *tbl);
+int init_color_coordinate_table(struct maptbl *tbl);
+int init_sensor_rgb_table(struct maptbl *tbl);
+int getidx_adjust_ldu_maptbl(struct maptbl *tbl);
+int getidx_color_coordinate_maptbl(struct maptbl *tbl);
+void copy_scr_white_maptbl(struct maptbl *tbl, u8 *dst);
+int getidx_mdnie_0_maptbl(struct pkt_update_info *pktui);
+int getidx_mdnie_1_maptbl(struct pkt_update_info *pktui);
 
 #if defined(__PANEL_NOT_USED_VARIABLE__)
-__visible_for_testing int init_gamma_mtp_all_table(struct maptbl *tbl);
+int init_gamma_mtp_all_table(struct maptbl *tbl);
 #endif
 
-__visible_for_testing int getidx_mdnie_scr_white_maptbl(struct pkt_update_info *pktui);
-__visible_for_testing void update_current_scr_white(struct maptbl *tbl, u8 *dst);
+int getidx_mdnie_scr_white_maptbl(struct pkt_update_info *pktui);
+void update_current_scr_white(struct maptbl *tbl, u8 *dst);
 #endif /* CONFIG_EXYNOS_DECON_MDNIE_LITE */
-#ifdef CONFIG_DYNAMIC_FREQ
-__visible_for_testing int getidx_dyn_ffc_table(struct maptbl *tbl);
-#endif
-__visible_for_testing bool is_panel_state_not_lpm(struct panel_device *panel);
-__visible_for_testing bool s6e8fc3_a33_is_bringup_panel(struct panel_device *panel);
-__visible_for_testing bool s6e8fc3_a33_is_real_panel(struct panel_device *panel);
-__visible_for_testing bool s6e8fc3_a33_is_real_panel_rev04(struct panel_device *panel);
+bool is_panel_state_not_lpm(struct panel_device *panel);
+bool s6e8fc3_a33_is_bringup_panel(struct panel_device *panel);
+bool s6e8fc3_a33_is_real_panel(struct panel_device *panel);
+bool s6e8fc3_a33_is_real_panel_rev04(struct panel_device *panel);
 
 #endif /* __S6E8FC3_H__ */

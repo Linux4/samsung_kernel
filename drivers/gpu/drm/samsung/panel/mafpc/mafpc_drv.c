@@ -20,11 +20,6 @@
 #include "../panel_drv.h"
 #include "mafpc_drv.h"
 
-#ifdef PANEL_PR_TAG
-#undef PANEL_PR_TAG
-#define PANEL_PR_TAG "mafpc"
-#endif
-
 static int abc_fops_open(struct inode *inode, struct file *file)
 {
 	int ret = 0;

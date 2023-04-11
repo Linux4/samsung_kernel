@@ -77,6 +77,10 @@ extern struct device *ptsp;
 #define GOODIX_GLOVE_MODE_ADDR		0x72
 #define GOODIX_COVER_MODE_ADDR		0x78
 #define GOODIX_ED_MODE_ADDR			0x93
+#define GOODIX_LS_MODE_ADDR			0x40
+#define WATCH_DOG_REG			0xD040
+#define GIO_REG_BD				0xC804
+#define GIO_REG_BB				0xC808
 
 /* SEC status type */
 #define TYPE_STATUS_EVENT_CMD_DRIVEN	0
@@ -472,6 +476,7 @@ struct goodix_ts_hw_ops {
 	int (*gesture)(struct goodix_ts_core *cd, bool enable);
 	int (*reset)(struct goodix_ts_core *cd, int delay_ms);
 	int (*irq_enable)(struct goodix_ts_core *cd, bool enable);
+	int (*irq_enable_for_handler)(struct goodix_ts_core *cd, bool enable);
 	int (*read)(struct goodix_ts_core *cd, unsigned int addr,
 			unsigned char *data, unsigned int len);
 	int (*write)(struct goodix_ts_core *cd, unsigned int addr,
@@ -629,6 +634,8 @@ struct goodix_ts_core {
 	atomic_t suspended;
 	struct completion resume_done;
 	struct wakeup_source *sec_ws;
+	struct work_struct irq_work;
+	struct workqueue_struct *irq_workqueue;
 	struct delayed_work work_print_info;
 	struct delayed_work work_read_info;
 	/* for debugging */

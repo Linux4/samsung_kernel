@@ -13,8 +13,9 @@
 #include <linux/platform_device.h>
 #include <linux/cpumask.h>
 #include <linux/thermal.h>
-#include <linux/ems.h>
 #include <soc/samsung/freq-qos-tracer.h>
+#include "../../../kernel/sched/sched.h"
+#include "../../../kernel/sched/ems/ems.h"
 
 #include "xperf.h"
 
@@ -50,6 +51,7 @@ static int gov_thread(void *data)
 	int freq;
 	int next_mgn;
 	int util_ratio;
+	unsigned long power;
 
 	if (gov)
 		return 0;
@@ -67,7 +69,8 @@ static int gov_thread(void *data)
 			cl_idx = get_cl_idx(cpu);
 			freq = cpu_cur[cl_idx] * 1000;
 			f_idx = get_f_idx(cl_idx, freq);
-			cpu_power = util_ratio * (cls[cl_idx].freqs[f_idx].power / 100);
+			power = cls[cl_idx].freqs[f_idx].dyn_power + et_freq_to_spower(cpu, freq);
+			cpu_power = util_ratio * power / 100;
 			power_total += cpu_power;
 		}
 		next_mgn = (power_total > power_limit) ? -1 : 1;

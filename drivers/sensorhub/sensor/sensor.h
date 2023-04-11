@@ -50,5 +50,6 @@ int init_device_orientation(bool en);
 int init_device_orientation_wu(bool en);
 int init_sar_backoff_motion(bool en);
 int init_pogo_request_handler(bool en);
-
+int init_aois(bool en);
+int init_light_seamless(bool en);
 #endif

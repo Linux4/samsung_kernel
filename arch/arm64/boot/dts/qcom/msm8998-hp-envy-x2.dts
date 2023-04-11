@@ -358,7 +358,7 @@
 				arm,psci-suspend-param = <0x02>;
 				entry-latency-us = <0x51>;
 				exit-latency-us = <0x56>;
-				min-residency-us = <0xc8>;
+				min-residency-us = <0x1f8>;
 				phandle = <0x86>;
 			};
 
@@ -366,9 +366,9 @@
 				compatible = "arm,idle-state";
 				idle-state-name = "little-power-collapse";
 				arm,psci-suspend-param = <0x40000003>;
-				entry-latency-us = <0x111>;
-				exit-latency-us = <0x264>;
-				min-residency-us = <0x3e8>;
+				entry-latency-us = <0x32e>;
+				exit-latency-us = <0x11d2>;
+				min-residency-us = <0x23df>;
 				local-timer-stop;
 				phandle = <0x02>;
 			};
@@ -379,7 +379,7 @@
 				arm,psci-suspend-param = <0x02>;
 				entry-latency-us = <0x4f>;
 				exit-latency-us = <0x52>;
-				min-residency-us = <0xc8>;
+				min-residency-us = <0x516>;
 				phandle = <0x87>;
 			};
 
@@ -387,9 +387,9 @@
 				compatible = "arm,idle-state";
 				idle-state-name = "big-power-collapse";
 				arm,psci-suspend-param = <0x40000003>;
-				entry-latency-us = <0x150>;
-				exit-latency-us = <0x20d>;
-				min-residency-us = <0x3e8>;
+				entry-latency-us = <0x2d4>;
+				exit-latency-us = <0x7eb>;
+				min-residency-us = <0x24cb>;
 				local-timer-stop;
 				phandle = <0x04>;
 			};

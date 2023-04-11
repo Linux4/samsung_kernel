@@ -1544,7 +1544,7 @@
 				phandle = <0xde>;
 
 				power-on@800 {
-					compatible = "qcom,pm8916-pon";
+					compatible = "qcom,pm8998-pon";
 					reg = <0x800>;
 					phandle = <0xdf>;
 
@@ -2960,7 +2960,7 @@
 			};
 		};
 
-		interconnect@18591000 {
+		interconnect@18590000 {
 			compatible = "qcom,sm8250-epss-l3";
 			reg = <0x00 0x18590000 0x00 0x1000>;
 			clocks = <0x0f 0x00 0x14 0x00>;
@@ -4072,7 +4072,7 @@
 		vreg_l5f_cam_avdd0_2p85 = "/soc@0/rsc@18200000/pm8009-rpmh-regulators/ldo5";
 		vreg_l6f_cam_avdd1_2p85 = "/soc@0/rsc@18200000/pm8009-rpmh-regulators/ldo6";
 		vreg_l7f_1p8 = "/soc@0/rsc@18200000/pm8009-rpmh-regulators/ldo7";
-		epss_l3 = "/soc@0/interconnect@18591000";
+		epss_l3 = "/soc@0/interconnect@18590000";
 		cpufreq_hw = "/soc@0/cpufreq@18591000";
 		cpu0_alert0 = "/thermal-zones/cpu0-thermal/trips/trip-point0";
 		cpu0_alert1 = "/thermal-zones/cpu0-thermal/trips/trip-point1";

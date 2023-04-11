@@ -79,8 +79,8 @@
 #include <drivers/input/sec_input/sec_input.h>
 #endif
 
-#ifdef CONFIG_DYNAMIC_MIPI
-#include "./dynamic_mipi/dynamic_mipi.h"
+#if defined(CONFIG_PANEL_FREQ_HOP)
+#include "panel_freq_hop.h"
 #endif
 
 __visible_for_testing struct class *lcd_class;
@@ -1385,7 +1385,7 @@ static struct common_panel_info *panel_detect(struct panel_device *panel)
 	panel_data = &panel->panel_data;
 
 	memset(id, 0, sizeof(id));
-#if IS_ENABLED(CONFIG_DRM_SAMSUNG_DPU) && (!defined(CONFIG_SUPPORT_PANEL_SWAP) || IS_ENABLED(CONFIG_UNSUPPORT_INIT_READ))
+#if !defined(CONFIG_SUPPORT_PANEL_SWAP) || IS_ENABLED(CONFIG_UNSUPPORT_INIT_READ)
 	panel_info("use BL panel id : 0x%06x\n", boot_panel_id);
 	id[0] = (boot_panel_id >> 16) & 0xFF;
 	id[1] = (boot_panel_id >> 8) & 0xFF;
@@ -1393,11 +1393,17 @@ static struct common_panel_info *panel_detect(struct panel_device *panel)
 	ret = 0;
 	detect = true;
 #else
+#if IS_ENABLED(CONFIG_PANEL_ID_READ_BY_LPDT)
+	panel_dsi_set_lpdt(panel, true);
+#endif
 	ret = read_panel_id(panel, id);
 	if (unlikely(ret < 0)) {
 		panel_err("failed to read id(ret %d)\n", ret);
 		detect = false;
 	}
+#if IS_ENABLED(CONFIG_PANEL_ID_READ_BY_LPDT)
+	panel_dsi_set_lpdt(panel, false);
+#endif
 #endif
 	panel_id = (id[0] << 16) | (id[1] << 8) | id[2];
 	memcpy(panel_data->id, id, sizeof(id));
@@ -1419,6 +1425,29 @@ static struct common_panel_info *panel_detect(struct panel_device *panel)
 	return info;
 }
 
+static int panel_alloc_command_buffer(struct panel_device *panel)
+{
+	int fifo_size;
+
+	fifo_size = get_panel_adapter_fifo_size(panel);
+	if (fifo_size <= 0) {
+		panel_err("invalid fifo_size(%d)\n", fifo_size);
+		return -EINVAL;
+	}
+
+	if (fifo_size > SZ_8K) {
+		panel_warn("fifo_size(%d) is too big\n", fifo_size);
+		fifo_size = SZ_8K;
+	}
+	panel_info("fifo_size %d\n", fifo_size);
+
+	panel->cmdbuf = kmalloc(fifo_size, GFP_KERNEL);
+	if (!panel->cmdbuf)
+		return -ENOMEM;
+
+	return 0;
+}
+
 static int panel_prepare(struct panel_device *panel, struct common_panel_info *info)
 {
 	int i;
@@ -1429,6 +1458,17 @@ static int panel_prepare(struct panel_device *panel, struct common_panel_info *i
 
 	panel_data = &panel->panel_data;
 	mutex_lock(&panel->op_lock);
+
+	if (!panel->cmdbuf) {
+		int ret;
+
+		ret = panel_alloc_command_buffer(panel);
+		if (ret < 0) {
+			panel_err("failed to alloc command buffer\n");
+			mutex_unlock(&panel->op_lock);
+			return ret;
+		}
+	}
 
 	panel_data->props.panel_partial_disp =
 		(info->ddi_props.support_partial_disp) ? 0 : -1;
@@ -1483,7 +1523,9 @@ static int panel_prepare(struct panel_device *panel, struct common_panel_info *i
 	panel_data->blic_data_tbl = info->blic_data_tbl;
 	panel_data->nr_blic_data_tbl = info->nr_blic_data_tbl;
 #endif
-
+#ifdef CONFIG_MCD_PANEL_RCD
+	panel_data->rcd_data = info->rcd_data;
+#endif
 	/* panel vendor name */
 	memcpy(panel_data->vendor, info->vendor,
 			sizeof(panel_data->vendor));
@@ -2423,8 +2465,9 @@ int panel_probe(struct panel_device *panel)
 	}
 #endif
 
-#ifdef CONFIG_DYNAMIC_MIPI
-	ret = dynamic_mipi_probe(panel, info->dm_total_band);
+#if defined(CONFIG_PANEL_FREQ_HOP)
+	ret = panel_freq_hop_probe(panel,
+			info->freq_hop_elems, info->nr_freq_hop_elems);
 	if (ret)
 		panel_err("failed to register dynamic mipi module\n");
 #endif
@@ -2491,7 +2534,7 @@ int panel_remove(struct panel_device *panel)
 		flush_delayed_work(&panel->work[PANEL_WORK_DIM_FLASH].dwork);
 #endif
 
-#ifdef CONFIG_DYNAMIC_MIPI
+#if defined(CONFIG_PANEL_FREQ_HOP)
 	/* TODO: remove dynamic_freq */
 #endif
 
@@ -2987,6 +3030,27 @@ int panel_vrr_cb(struct panel_device *panel)
 
 	return ret;
 }
+
+#ifdef CONFIG_MCD_PANEL_RCD
+int panel_get_rcd_info(struct panel_device *panel, void *arg)
+{
+	struct panel_rcd_data **rcd_info = arg;
+
+	if (!panel || !rcd_info) {
+		panel_err("invalid argument\n");
+		return -EINVAL;
+	}
+
+	if (!panel->panel_data.rcd_data) {
+		panel_info("rcd_data is empty\n");
+		return -ENODATA;
+	}
+
+	*rcd_info = panel->panel_data.rcd_data;
+
+	return 0;
+}
+#endif
 
 #if defined(CONFIG_PANEL_DISPLAY_MODE)
 int panel_get_display_mode(struct panel_device *panel, void *arg)
@@ -3545,7 +3609,7 @@ do_exit:
 
 static inline int panel_set_ffc_seq(struct panel_device *panel, u32 dsi_freq)
 {
-	int ret = 0;
+	int ret;
 	struct panel_properties *props = &panel->panel_data.props;
 	u32 origin = props->dsi_freq;
 
@@ -3563,12 +3627,12 @@ static inline int panel_set_ffc_seq(struct panel_device *panel, u32 dsi_freq)
 		props->dsi_freq = origin;
 		return ret;
 	}
-	return ret;
+
+	return 0;
 }
 
 static inline int panel_set_osc_seq(struct panel_device *panel, u32 osc_freq)
 {
-	int ret = 0;
 	struct panel_properties *props = &panel->panel_data.props;
 
 	if ((props->osc_freq == 0) ||
@@ -3579,13 +3643,13 @@ static inline int panel_set_osc_seq(struct panel_device *panel, u32 osc_freq)
 
 	props->osc_freq = osc_freq;
 
-	return ret;
+	return 0;
 }
 
 static int panel_request_set_clock(struct panel_device *panel, void *arg)
 {
 	int ret = 0;
-	struct panel_clock_info *info = (struct panel_clock_info *)arg;
+	struct panel_clock_info *info = arg;
 
 	switch (info->clock_id) {
 	case CLOCK_ID_DSI:
@@ -3595,7 +3659,7 @@ static int panel_request_set_clock(struct panel_device *panel, void *arg)
 		ret = panel_set_osc_seq(panel, info->clock_rate);
 		break;
 	default:
-		panel_err("ERR: Invalid clock id: %d\n", info->clock_id);
+		panel_err("Invalid clock id: %d\n", info->clock_id);
 		ret = -EINVAL;
 	}
 
@@ -3612,28 +3676,16 @@ static int panel_get_ddi_props(struct panel_device *panel, void *arg)
 	return 0;
 }
 
-int panel_ioctl_dsim_probe(struct panel_device *panel, void *arg)
+int panel_ioctl_attach_adapter(struct panel_device *panel, void *arg)
 {
 	if (!panel || !arg) {
 		panel_err("invalid argument\n");
 		return -EINVAL;
 	}
 
-	panel->ctrl_interface = (void *)arg;
+	memcpy(&panel->adapter, arg, sizeof(panel->adapter));
 
-	return call_panel_drv_func(panel, parse_lcd_info);
-}
-
-int panel_ioctl_dsi_ops(struct panel_device *panel, void *arg)
-{
-	struct mipi_drv_ops *ops = arg;
-
-	if (!panel || !ops)
-		return -EINVAL;
-
-	memcpy(&panel->mipi_drv, ops, sizeof(*ops));
-
-	return 0;
+	return panel_parse_lcd_info(panel);
 }
 
 int panel_ioctl_get_panel_state(struct panel_device *panel, void *arg)
@@ -3874,33 +3926,9 @@ int panel_ioctl_event_vsync(struct panel_device *panel, void *arg)
 	return 0;
 }
 
-#ifdef CONFIG_DYNAMIC_MIPI
-int panel_get_dynamic_mipi_info(struct panel_device *panel, void *arg)
+int panel_drv_attach_adapter_ioctl(struct panel_device *panel, void *arg)
 {
-	struct dynamic_mipi_info **dm = arg;
-
-	if (!panel || !dm)
-		return -EINVAL;
-
-	*dm = &panel->dynamic_mipi;
-
-	return 0;
-}
-#endif
-
-int panel_drv_dsim_probe_ioctl(struct panel_device *panel, void *arg)
-{
-	return call_panel_drv_func(panel, dsim_probe, arg);
-}
-
-int panel_drv_parse_lcd_info_ioctl(struct panel_device *panel, void *arg)
-{
-	return call_panel_drv_func(panel, parse_lcd_info);
-}
-
-int panel_drv_dsim_put_mipi_ops_ioctl(struct panel_device *panel, void *arg)
-{
-	return call_panel_drv_func(panel, set_dsi_ops, arg);
+	return call_panel_drv_func(panel, attach_adapter, arg);
 }
 
 int panel_drv_get_panel_state_ioctl(struct panel_device *panel, void *arg)
@@ -4011,56 +4039,6 @@ int panel_drv_reg_vrr_cb_ioctl(struct panel_device *panel, void *arg)
 int panel_drv_set_mask_layer_ioctl(struct panel_device *panel, void *arg)
 {
 	return call_panel_drv_func(panel, set_mask_layer, arg);
-}
-#endif
-
-#ifdef CONFIG_DYNAMIC_MIPI
-int panel_drv_dm_get_info_ioctl(struct panel_device *panel, void *arg)
-{
-	return call_panel_drv_func(panel, get_dynamic_mipi_info, arg);
-}
-
-int panel_drv_dm_set_panel_ffc_ioctl(struct panel_device *panel, void *arg)
-{
-	return call_panel_drv_func(panel, ffc_on);
-}
-
-int panel_drv_dm_off_panel_ffc_ioctl(struct panel_device *panel, void *arg)
-{
-	return call_panel_drv_func(panel, ffc_off);
-}
-#endif
-
-#if !IS_ENABLED(CONFIG_DRM_SAMSUNG_DPU)
-static long panel_v4l2_sd_core_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
-{
-	struct panel_device *panel = container_of(sd, struct panel_device, sd);
-
-	return panel_ioctl(panel, cmd, arg);
-}
-
-static const struct v4l2_subdev_core_ops panel_v4l2_sd_core_ops = {
-	.ioctl = panel_v4l2_sd_core_ioctl,
-};
-
-static const struct v4l2_subdev_ops panel_subdev_ops = {
-	.core = &panel_v4l2_sd_core_ops,
-};
-
-void panel_init_v4l2_subdev(struct panel_device *panel)
-{
-	struct v4l2_subdev *sd;
-
-	if (!panel)
-		return;
-
-	sd = &panel->sd;
-
-	v4l2_subdev_init(sd, &panel_subdev_ops);
-	sd->owner = THIS_MODULE;
-	sd->grp_id = 0;
-	snprintf(sd->name, sizeof(sd->name), "%s.%d", "panel-sd", panel->id);
-	v4l2_set_subdevdata(sd, panel);
 }
 #endif
 
@@ -4465,16 +4443,11 @@ int panel_parse_lcd_info(struct panel_device *panel)
 	struct device_node *node;
 	struct device *dev;
 	int ret = 0;
-	void *ctx;
 
 	if (!panel || !(panel->dev))
 		return -EINVAL;
 
 	dev = panel->dev;
-
-	ctx = get_ctrl_interface(panel);
-	if (!ctx)
-		return -EINVAL;
 
 	panel_info("PANEL_INFO:panel id : %x\n", boot_panel_id);
 
@@ -4522,14 +4495,15 @@ int panel_parse_lcd_info(struct panel_device *panel)
 	}
 	panel->ddi_node = node;
 
-	panel->panel_data.dqe_suffix = get_panel_lut_dqe_suffix(panel, boot_panel_id);
+	panel->panel_data.dqe_suffix =
+		get_panel_lut_dqe_suffix(panel, boot_panel_id);
 
-	if (!panel->mipi_drv.parse_dt) {
-		panel_err("parse_dt not exist\n");
-		return -EINVAL;
-	}
+#if defined(CONFIG_PANEL_FREQ_HOP)
+	panel->freq_hop_node =
+		get_panel_lut_freq_hop_node(panel, boot_panel_id);
+#endif
 
-	panel->mipi_drv.parse_dt(ctx, node);
+	panel_parse_ap_vendor_node(panel, node);
 
 	return 0;
 }
@@ -4597,6 +4571,16 @@ static int panel_parse_panel_lookup(struct panel_device *panel)
 		} else {
 			panel_info("found dqe-suffix:%s\n", lut->dqe_suffix);
 		}
+
+#if defined(CONFIG_PANEL_FREQ_HOP)
+		node = of_parse_phandle(panel_np, DT_NAME_FREQ_TABLE, 0);
+		if (!node) {
+			panel_err("failed to get phandle of %s\n", DT_NAME_FREQ_TABLE);
+			return -EINVAL;
+		}
+		lut->freq_hop_node = node;
+		of_node_put(node);
+#endif
 
 		sz = of_property_count_u32_elems(panel_np, "id-mask");
 		if (sz <= 0) {
@@ -5290,12 +5274,10 @@ int panel_device_register_notifiers(struct panel_device *panel)
 }
 
 struct panel_drv_funcs panel_drv_funcs = {
-	.parse_lcd_info = panel_parse_lcd_info,
-	.set_dsi_ops = panel_ioctl_dsi_ops,
 	.register_error_cb = panel_register_error_cb,
 	.register_cb = panel_register_cb,
 	.get_panel_state = panel_ioctl_get_panel_state,
-	.dsim_probe = panel_ioctl_dsim_probe,
+	.attach_adapter = panel_ioctl_attach_adapter,
 
 	.probe = panel_probe,
 	.sleep_in = panel_sleep_in,
@@ -5324,13 +5306,9 @@ struct panel_drv_funcs panel_drv_funcs = {
 #ifdef CONFIG_SUPPORT_MASK_LAYER
 	.set_mask_layer = panel_set_mask_layer,
 #endif
-#ifdef CONFIG_DYNAMIC_MIPI
-	.get_dynamic_mipi_info = panel_get_dynamic_mipi_info,
-	.ffc_on = panel_dm_set_ffc,
-	.ffc_off = panel_dm_off_ffc,
-#endif
 	.req_set_clock = panel_request_set_clock,
 	.get_ddi_props = panel_get_ddi_props,
+	.get_rcd_info = panel_get_rcd_info,
 };
 
 int panel_device_init(struct panel_device *panel)
@@ -5399,10 +5377,6 @@ int panel_device_init(struct panel_device *panel)
 	}
 
 	panel_drv_set_gpios(panel);
-#if !IS_ENABLED(CONFIG_DRM_SAMSUNG_DPU)
-	panel_init_v4l2_subdev(panel);
-#endif
-
 	panel_drv_init_work(panel);
 	panel_create_thread(panel);
 
@@ -5508,6 +5482,7 @@ int panel_device_exit(struct panel_device *panel)
 	panel_destroy_debugfs(panel);
 #endif
 #endif
+	kfree(panel->cmdbuf);
 
 	return 0;
 }
@@ -5618,11 +5593,7 @@ module_init(panel_drv_init);
 #endif
 module_exit(panel_drv_exit);
 
-#if !IS_ENABLED(CONFIG_DRM_SAMSUNG_DPU)
-MODULE_SOFTDEP("pre: s2dos05_regulator s2mps24-regulator spi-s3c64xx");
-#else
 MODULE_SOFTDEP("pre: s2dos05-regulator i2c-exynos5");
-#endif
 MODULE_DESCRIPTION("Samsung's Panel Driver");
 MODULE_AUTHOR("<minwoo7945.kim@samsung.com>");
 MODULE_LICENSE("GPL");
