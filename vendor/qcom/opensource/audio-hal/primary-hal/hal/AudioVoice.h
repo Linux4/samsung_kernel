@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -85,6 +86,9 @@ public:
             bool hd_voice;
             struct pal_volume_data *pal_vol_data;
             pal_device_mute_t device_mute;
+#ifndef SEC_AUDIO_CALL_HAC
+            bool hac;
+#endif
     };
     struct voice_t {
             voice_session_t session[MAX_VOICE_SESSIONS];
@@ -104,10 +108,12 @@ public:
     bool is_valid_call_state(int call_state);
     bool is_valid_vsid(uint32_t vsid);
     int max_voice_sessions_;
+    std::mutex voice_mutex_;
     int SetMode(const audio_mode_t mode);
     int VoiceStart(voice_session_t *session);
     int VoiceStop(voice_session_t *session);
     int VoiceSetDevice(voice_session_t *session);
+    int SetDeviceMute(voice_session_t *session);
     int UpdateCallState(uint32_t vsid, int call_state);
     int UpdateCalls(voice_session_t *pSession);
     int SetMicMute(bool mute);

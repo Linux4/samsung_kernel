@@ -142,7 +142,6 @@
 				6000000 5500000 5000000 4500000 4000000 3500000
 				3000000 2500000 2000000 1500000 1000000 500000>;
 	qcom,wireless-fw-name = "idt9415.bin";
-	qcom,shutdown-voltage = <3100>;
 };
 
 &qupv3_se9_i2c {
@@ -278,6 +277,47 @@
 		port {
 			usb_port0_connector: endpoint {
 				remote-endpoint = <&usb_port0>;
+			};
+		};
+	};
+};
+
+&thermal_zones {
+	mmw_pa2 {
+		trips {
+			qtm_config0: qtm-config0 {
+				temperature = <59500>;
+				hysteresis = <3000>;
+				type = "passive";
+			};
+
+			qtm_config1: qtm-config1 {
+				temperature = <63500>;
+				hysteresis = <3000>;
+				type = "passive";
+			};
+
+			qtm_config2: qtm-config2 {
+				temperature = <75000>;
+				hysteresis = <2000>;
+				type = "passive";
+			};
+		};
+
+		cooling-maps {
+			mmw2_cdev0 {
+				trip = <&qtm_config0>;
+				cooling-device = <&mmw2_dsc 1 1>;
+			};
+
+			mmw2_cdev1 {
+				trip = <&qtm_config1>;
+				cooling-device = <&mmw2_dsc 3 3>;
+			};
+
+			mmw2_cdev2 {
+				trip = <&qtm_config2>;
+				cooling-device = <&mmw2_dsc 4 4>;
 			};
 		};
 	};

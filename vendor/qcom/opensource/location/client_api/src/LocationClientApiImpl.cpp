@@ -232,6 +232,13 @@ static void parseLocation(const ::Location &halLocation, Location& location) {
     location.verticalAccuracy = halLocation.verticalAccuracy;
     location.speedAccuracy = halLocation.speedAccuracy;
     location.bearingAccuracy = halLocation.bearingAccuracy;
+#ifndef FEATURE_EXTERNAL_AP
+    location.elapsedRealTimeNs = halLocation.elapsedRealTime;
+    location.elapsedRealTimeUncNs = halLocation.elapsedRealTimeUnc;
+#else
+    location.elapsedRealTimeNs = 0;
+    location.elapsedRealTimeUncNs = 0;
+#endif
 
     if (0 != halLocation.timestamp) {
         flags |= LOCATION_HAS_TIMESTAMP_BIT;
@@ -260,6 +267,12 @@ static void parseLocation(const ::Location &halLocation, Location& location) {
     if (::LOCATION_HAS_BEARING_ACCURACY_BIT & halLocation.flags) {
         flags |= LOCATION_HAS_BEARING_ACCURACY_BIT;
     }
+#ifndef FEATURE_EXTERNAL_AP
+    if (::LOCATION_HAS_ELAPSED_REAL_TIME_BIT & halLocation.flags) {
+        flags |= LOCATION_HAS_ELAPSED_REAL_TIME_BIT;
+        flags |= LOCATION_HAS_ELAPSED_REAL_TIME_UNC_BIT;
+    }
+#endif
     location.flags = (LocationFlagsMask)flags;
 
     flags = 0;
@@ -1079,42 +1092,60 @@ public:
 /******************************************************************************
 LocIpcQrtrWatcher override
 ******************************************************************************/
-class IpcQrtrWatcher : public LocIpcQrtrWatcher {
+class HalDaemonQrtrWatcher : public LocIpcQrtrWatcher {
     const weak_ptr<IpcListener> mIpcListener;
     const weak_ptr<LocIpcSender> mIpcSender;
     LocIpcQrtrWatcher::ServiceStatus mKnownStatus;
     LocationApiPbMsgConv mPbufMsgConv;
+    MsgTask& mMsgTask;
+
 public:
-    inline IpcQrtrWatcher(shared_ptr<IpcListener>& listener, shared_ptr<LocIpcSender>& sender,
-            LocationApiPbMsgConv& pbMsgConv) :
+    inline HalDaemonQrtrWatcher(shared_ptr<IpcListener>& listener, shared_ptr<LocIpcSender>& sender,
+                          LocationApiPbMsgConv& pbMsgConv, MsgTask& msgTask) :
             LocIpcQrtrWatcher({LOCATION_CLIENT_API_QSOCKET_HALDAEMON_SERVICE_ID}),
             mIpcListener(listener), mIpcSender(sender), mPbufMsgConv(pbMsgConv),
-            mKnownStatus(LocIpcQrtrWatcher::ServiceStatus::DOWN) {
+            mMsgTask(msgTask), mKnownStatus(LocIpcQrtrWatcher::ServiceStatus::DOWN) {
     }
     inline virtual void onServiceStatusChange(int serviceId, int instanceId,
             LocIpcQrtrWatcher::ServiceStatus status, const LocIpcSender& refSender) {
-        if (LOCATION_CLIENT_API_QSOCKET_HALDAEMON_SERVICE_ID == serviceId &&
-            LOCATION_CLIENT_API_QSOCKET_HALDAEMON_INSTANCE_ID == instanceId) {
-            if (mKnownStatus != status) {
-                mKnownStatus = status;
-                if (LocIpcQrtrWatcher::ServiceStatus::UP == status) {
-                    LOC_LOGv("case LocIpcQrtrWatcher::ServiceStatus::UP");
-                    auto sender = mIpcSender.lock();
-                    if (nullptr != sender) {
-                        sender->copyDestAddrFrom(refSender);
-                    }
-                    auto listener = mIpcListener.lock();
-                    if (nullptr != listener) {
-                        LocAPIHalReadyIndMsg msg(SERVICE_NAME, &mPbufMsgConv);
-                        string pbStr;
-                        if (msg.serializeToProtobuf(pbStr)) {
-                            listener->onReceive(pbStr.c_str(), pbStr.size(), nullptr);
-                        } else {
-                            LOC_LOGe("LocAPIHalReadyIndMsg serializeToProtobuf failed");
+
+        struct onHalServiceStatusChangeHandler : public LocMsg {
+            onHalServiceStatusChangeHandler(HalDaemonQrtrWatcher& watcher,
+                                            LocIpcQrtrWatcher::ServiceStatus status,
+                                            const LocIpcSender& refSender) :
+                mWatcher(watcher), mStatus(status), mRefSender(refSender) {}
+
+            virtual ~onHalServiceStatusChangeHandler() {}
+            void proc() const {
+                if (LocIpcQrtrWatcher::ServiceStatus::UP == mStatus) {
+                    LOC_LOGi("LocIpcQrtrWatcher:: HAL Daemon ServiceStatus::UP");
+                    auto sender = mWatcher.mIpcSender.lock();
+                    if (nullptr != sender && sender->copyDestAddrFrom(mRefSender)) {
+                        sleep(2);
+                        auto listener = mWatcher.mIpcListener.lock();
+                        if (nullptr != listener) {
+                            LocAPIHalReadyIndMsg msg(SERVICE_NAME, &mWatcher.mPbufMsgConv);
+                            string pbStr;
+                            if (msg.serializeToProtobuf(pbStr)) {
+                                listener->onReceive(pbStr.c_str(), pbStr.size(), nullptr);
+                            } else {
+                                LOC_LOGe("LocAPIHalReadyIndMsg serializeToProtobuf failed");
+                            }
                         }
                     }
                 }
+                mWatcher.mKnownStatus = mStatus;
             }
+
+            HalDaemonQrtrWatcher& mWatcher;
+            LocIpcQrtrWatcher::ServiceStatus mStatus;
+            const LocIpcSender& mRefSender;
+        };
+
+        if (LOCATION_CLIENT_API_QSOCKET_HALDAEMON_SERVICE_ID == serviceId &&
+            LOCATION_CLIENT_API_QSOCKET_HALDAEMON_INSTANCE_ID == instanceId) {
+            mMsgTask.sendMsg(new (nothrow)
+                     onHalServiceStatusChangeHandler(*this, status, refSender));
         }
     }
 };
@@ -1217,7 +1248,7 @@ LocationClientApiImpl::LocationClientApiImpl(CapabilitiesCb capabitiescb) :
     shared_ptr<IpcListener> listener(make_shared<IpcListener>(*this, mMsgTask, SockNode::Eap));
     unique_ptr<LocIpcRecver> recver = LocIpc::getLocIpcQrtrRecver(listener,
             sock.getId1(), sock.getId2(),
-            make_shared<IpcQrtrWatcher>(listener, mIpcSender, mPbufMsgConv));
+            make_shared<HalDaemonQrtrWatcher>(listener, mIpcSender, mPbufMsgConv, *mMsgTask));
 #else
     // get clientId
     lock_guard<mutex> lock(mMutex);
@@ -2401,6 +2432,8 @@ void IpcListener::onReceive(const char* data, uint32_t length,
                     gnssLocation.speedAccuracy      = location.speedAccuracy;
                     gnssLocation.bearingAccuracy    = location.bearingAccuracy;
                     gnssLocation.techMask           = location.techMask;
+                    gnssLocation.elapsedRealTimeNs  = location.elapsedRealTimeNs;
+                    gnssLocation.elapsedRealTimeUncNs = location.elapsedRealTimeUncNs;
 
                     mApiImpl.mLogger.log(gnssLocation, mApiImpl.mCapsMask);
                 }
@@ -2582,7 +2615,7 @@ void IpcListener::onReceive(const char* data, uint32_t length,
                     const LocAPINmeaIndMsg* pNmeaIndMsg = (LocAPINmeaIndMsg*)(&msg);
                     uint64_t timestamp = pNmeaIndMsg->gnssNmeaNotification.timestamp;
                     std::string nmea(pNmeaIndMsg->gnssNmeaNotification.nmea);
-                    LOC_LOGd("<<< message = nmea[%s]", nmea.c_str());
+                    LOC_LOGv("<<< message = nmea[%s]", nmea.c_str());
                     std::stringstream ss(nmea);
                     std::string each;
                     while(std::getline(ss, each, '\n')) {

@@ -198,22 +198,25 @@ class RunQueues(RamParser):
     def print_md_latest_call_stack(self):
         text_start_addr = self.ramdump.address_of('_text')
         text_end_addr = self.ramdump.address_of('_etext')
-        core_stack_addr = self.ramdump.address_of('md_stack_data')
-        if core_stack_addr is None:
-            print_out_str("\nCurrent call stack support is not present\n")
-            return
+        minidump_stack_addr = next((s for s in self.ramdump.elffile.iter_sections() if s.name == 'KSTACK0_0'), None)
+        if minidump_stack_addr is None:
+            core_stack_addr = self.ramdump.address_of('md_stack_data')
+            if core_stack_addr is None:
+                print_out_str("\nCurrent call stack support is not present\n")
+                return
         print_out_str('\ncurrent callstack is maybe\n')
         no_of_cpus = self.ramdump.get_num_cpus()
         index = 0
         while index < no_of_cpus:
-            md_stack_addr = core_stack_addr + self.ramdump.per_cpu_offset(index)
-            if self.ramdump.arm64:
-                md_stack_addr = (md_stack_addr & 0xffffffffffffffff)
-            else:
-                md_stack_addr = (md_stack_addr & 0xffffffff)
-            stack_mdr = md_stack_addr + self.ramdump.field_offset('struct md_stack_cpu_data', 'stack_mdr')
-            stack_virt_addr = stack_mdr + self.ramdump.field_offset('struct md_region', 'virt_addr')
-            stack_virt_addr = self.ramdump.read_u64(stack_virt_addr)
+            if minidump_stack_addr is None:
+                md_stack_addr = core_stack_addr + self.ramdump.per_cpu_offset(index)
+                if self.ramdump.arm64:
+                    md_stack_addr = (md_stack_addr & 0xffffffffffffffff)
+                else:
+                    md_stack_addr = (md_stack_addr & 0xffffffff)
+                stack_mdr = md_stack_addr + self.ramdump.field_offset('struct md_stack_cpu_data', 'stack_mdr')
+                stack_virt_addr = stack_mdr + self.ramdump.field_offset('struct md_region', 'virt_addr')
+                stack_virt_addr = self.ramdump.read_u64(stack_virt_addr)
 
             if self.ramdump.arm64:
                 stack_align = 8
@@ -225,6 +228,10 @@ class RunQueues(RamParser):
                 loop = 2
             print_out_str('\nCore_{} call stack :\n'.format(index))
             for i in range(loop):
+                if minidump_stack_addr is not None:
+                    section_name = 'KSTACK{0}_{1}'.format(index, i)
+                    minidump_stack_addr = next((s for s in self.ramdump.elffile.iter_sections() if s.name == section_name), None)
+                    stack_virt_addr = minidump_stack_addr['sh_addr']
                 for j in range(stack_virt_addr, stack_virt_addr + stack_size, stack_align):
                     callstack_addr = self.ramdump.read_word(j)
                     if callstack_addr is None:
@@ -233,9 +240,10 @@ class RunQueues(RamParser):
                         wname = self.ramdump.unwind_lookup(callstack_addr)
                         if wname is not None:
                             print_out_str('0x{0:x}:{1}'.format(j, wname))
-                stack_mdr = stack_mdr + self.ramdump.sizeof('struct md_region')
-                stack_virt_addr = stack_mdr + self.ramdump.field_offset('struct md_region', 'virt_addr')
-                stack_virt_addr = self.ramdump.read_u64(stack_virt_addr)
+                if minidump_stack_addr is None:
+                    stack_mdr = stack_mdr + self.ramdump.sizeof('struct md_region')
+                    stack_virt_addr = stack_mdr + self.ramdump.field_offset('struct md_region', 'virt_addr')
+                    stack_virt_addr = self.ramdump.read_u64(stack_virt_addr)
             index = index + 1
 
 
@@ -256,10 +264,7 @@ class RunQueues(RamParser):
             else:
                 stack_addr = stack_addr & 0xFFFFFFFF
 
-            if self.ramdump.kernel_version >= (5, 10, 0) and self.ramdump.minidump:
-                stack_addr = stack_addr
-            else:
-                stack_addr = self.ramdump.read_u64(stack_addr)
+            stack_addr = self.ramdump.read_u64(stack_addr)
 
             if self.ramdump.arm64:
                 stack_align = 8

@@ -32,7 +32,8 @@
  * We add __GFP_NOWARN for order 4 allocations since the core mm/ framework
  * makes no guarantee of these allocations succeeding.
  */
-static gfp_t order_flags[] = {HIGH_ORDER_GFP, HIGH_ORDER_GFP, LOW_ORDER_GFP};
+static gfp_t order_flags[] = {HIGH_ORDER_GFP, HIGH_ORDER_GFP,
+			      LOW_ORDER_GFP};
 #if defined(CONFIG_IOMMU_IO_PGTABLE_ARMV7S) && !defined(CONFIG_64BIT) && !defined(CONFIG_ARM_LPAE)
 static const unsigned int orders[] = {8, 4, 0};
 #else
@@ -61,7 +62,7 @@ typedef enum dynamic_pool_callback_ret (*prerelease_callback)(struct dynamic_pag
  * @last_low_watermark_ktime:	most recent time at which the zone watermarks were
  *				low
  * @refill_worker:		kthread used to refill a pool, if applicable
- * @mutex:			lock protecting this struct and especially the count
+ * @lock:			lock protecting this struct and especially the count
  *				item list
  * @gfp_mask:			gfp_mask to use from alloc
  * @order:			order of pages in the pool
@@ -83,7 +84,7 @@ struct dynamic_page_pool {
 	struct list_head low_items;
 	ktime_t last_low_watermark_ktime;
 	struct task_struct *refill_worker;
-	struct mutex mutex;
+	spinlock_t lock;
 	gfp_t gfp_mask;
 	unsigned int order;
 	struct list_head list;

@@ -90,16 +90,19 @@ SoCs:
   compatible = "qcom,waipio", "qcom,waipiop"
 
 - DIWALI
-  compatible = "qcom,diwali"
+  compatible = "qcom,diwali", "qcom,diwalip", "qcom,diwali-lte"
 
 - CAPE
-  compatible = "qcom,cape", "qcom,cape-v2"
+  compatible = "qcom,cape", "qcom,cape-v2", "qcom,capep"
 
 - NEO
   compatible = "qcom,neo"
 
 - PARROT
   compatible = "qcom,parrot"
+
+- ANORAK
+  compatible = "qcom,anorak"
 
 Generic board variants:
 
@@ -266,12 +269,25 @@ compatible = "qcom,waipiop-qrd"
 compatible = "qcom,cape-mtp"
 compatible = "qcom,cape-atp"
 compatible = "qcom,cape-cdp"
+compatible = "qcom,cape-qrd"
 compatible = "qcom,cape-v2-mtp"
 compatible = "qcom,cape-v2-atp"
 compatible = "qcom,cape-v2-cdp"
+compatible = "qcom,cape-v2-qrd"
+compatible = "qcom,capep-mtp"
+compatible = "qcom,capep-atp"
+compatible = "qcom,capep-cdp"
 compatible = "qcom,diwali-rumi"
 compatible = "qcom,diwali-idp"
 compatible = "qcom,diwali-qrd"
 compatible = "qcom,diwali-atp"
+compatible = "qcom,diwalip-idp"
+compatible = "qcom,diwalip-qrd"
+compatible = "qcom,diwalip-atp"
+compatible = "qcom,diwali-lte-idp"
+compatible = "qcom,diwali-lte-qrd"
+compatible = "qcom,diwali-lte-atp"
 compatible = "qcom,neo-rumi"
 compatible = "qcom,parrot-rumi"
+compatible = "qcom,anorak-rumi"
+compatible = "qcom,anorak-idp"

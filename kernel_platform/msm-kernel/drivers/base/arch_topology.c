@@ -22,6 +22,11 @@
 #include <linux/smp.h>
 #include <trace/hooks/topology.h>
 
+#if IS_ENABLED(CONFIG_CPU_CAPACITY_FIXUP)
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
+#endif
+
 bool topology_scale_freq_invariant(void)
 {
 	return cpufreq_supports_freq_invariance() ||
@@ -81,11 +86,67 @@ void topology_set_thermal_pressure(const struct cpumask *cpus,
 }
 EXPORT_SYMBOL_GPL(topology_set_thermal_pressure);
 
+#if IS_ENABLED(CONFIG_CPU_CAPACITY_FIXUP)
+static char cpu_cap_fixup_target[TASK_COMM_LEN];
+
+static int proc_cpu_capacity_fixup_target_show(struct seq_file *m, void *data)
+{
+	seq_printf(m, "%s\n", cpu_cap_fixup_target);
+	return 0;
+}
+
+static int proc_cpu_capacity_fixup_target_open(struct inode *inode,
+		struct file *file)
+{
+	return single_open(file, proc_cpu_capacity_fixup_target_show, NULL);
+}
+
+static ssize_t proc_cpu_capacity_fixup_target_write(struct file *file,
+		const char __user *buf, size_t count, loff_t *offs)
+{
+	char temp[TASK_COMM_LEN];
+	const size_t maxlen = sizeof(temp) - 1;
+
+	memset(temp, 0, sizeof(temp));
+	if (copy_from_user(temp, buf, count > maxlen ? maxlen : count))
+		return -EFAULT;
+
+	if (temp[strlen(temp) - 1] == '\n')
+		temp[strlen(temp) - 1] = '\0';
+
+	strlcpy(cpu_cap_fixup_target, temp, sizeof(cpu_cap_fixup_target));
+
+	return count;
+}
+
+static const struct proc_ops proc_cpu_capacity_fixup_target_op = {
+	.proc_open = proc_cpu_capacity_fixup_target_open,
+	.proc_write = proc_cpu_capacity_fixup_target_write,
+	.proc_read = seq_read,
+	.proc_lseek = seq_lseek,
+	.proc_release = single_release,
+};
+#endif
+
 static ssize_t cpu_capacity_show(struct device *dev,
 				 struct device_attribute *attr,
 				 char *buf)
 {
 	struct cpu *cpu = container_of(dev, struct cpu, dev);
+
+#if IS_ENABLED(CONFIG_CPU_CAPACITY_FIXUP)
+	if (strncmp(current->comm, cpu_cap_fixup_target,
+			strnlen(current->comm, TASK_COMM_LEN)) == 0) {
+		unsigned long curr, left, right;
+
+		curr = topology_get_cpu_scale(cpu->dev.id);
+		left = topology_get_cpu_scale(0);
+		right = topology_get_cpu_scale(num_possible_cpus() - 1);
+
+		if (curr != left && curr != right)
+			return sysfs_emit(buf, "%lu\n", left > right ? left : right);
+	}
+#endif
 
 	return sysfs_emit(buf, "%lu\n", topology_get_cpu_scale(cpu->dev.id));
 }
@@ -109,6 +170,13 @@ static int register_cpu_capacity_sysctl(void)
 		}
 		device_create_file(cpu, &dev_attr_cpu_capacity);
 	}
+
+#if IS_ENABLED(CONFIG_CPU_CAPACITY_FIXUP)
+	memset(cpu_cap_fixup_target, 0, sizeof(cpu_cap_fixup_target));
+	if (!proc_create("cpu_capacity_fixup_target",
+			0660, NULL, &proc_cpu_capacity_fixup_target_op))
+		pr_err("Failed to register 'cpu_capacity_fixup_target'\n");
+#endif
 
 	return 0;
 }

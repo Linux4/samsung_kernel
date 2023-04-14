@@ -54,7 +54,7 @@ typedef enum {
 
 class SoundTriggerSession {
  public:
-    ~SoundTriggerSession() {}
+    ~SoundTriggerSession();
     SoundTriggerSession(sound_model_handle_t handle,
         audio_hw_call_back_t callback);
     int LoadSoundModel(struct sound_trigger_sound_model *sound_model);

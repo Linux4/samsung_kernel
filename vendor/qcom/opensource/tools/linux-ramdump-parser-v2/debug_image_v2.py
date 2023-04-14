@@ -1,4 +1,5 @@
 # Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -63,6 +64,9 @@ msm_dump_regset_ids[22] = 'MSM_DUMP_REGSET_IDS_AARCH64_VM_EL2'
 msm_dump_regset_ids[23] = 'MSM_DUMP_REGSET_IDS_AARCH64_EL3'
 msm_dump_regset_ids[24] = 'MSM_DUMP_REGSET_IDS_AARCH64_DBG_EL1'
 msm_dump_regset_ids[25] = 'MSM_DUMP_REGSET_IDS_AARCH64_CNTV_EL10'
+msm_dump_regset_ids[26]	= 'MSM_DUMP_REGSET_IDS_AARCH64_CNTP_EL10'
+msm_dump_regset_ids[27] = 'MSM_DUMP_REGSET_IDS_AARCH64_CNT_EL2'
+
 
 
 class client(object):

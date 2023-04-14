@@ -36,10 +36,10 @@ static u64 start_ms;
  * Check the correct return value for max messages per round.
  * Expected: Function should return value of MAX_MESSAGES_PER_ROUND.
  */
-static void security_dsms_get_max_messages_per_round_test(struct test *test)
+static void security_dsms_get_max_messages_per_round_test(struct kunit *test)
 {
-	EXPECT_TRUE(test, dsms_get_max_messages_per_round() > 0);
-	EXPECT_EQ(test, MAX_MESSAGES_PER_ROUND, dsms_get_max_messages_per_round());
+	KUNIT_EXPECT_TRUE(test, dsms_get_max_messages_per_round() > 0);
+	KUNIT_EXPECT_EQ(test, MAX_MESSAGES_PER_ROUND, dsms_get_max_messages_per_round());
 }
 
 /* ------------------------------------------------------------------------- */
@@ -52,9 +52,9 @@ static void security_dsms_get_max_messages_per_round_test(struct test *test)
  * Expected: Function should return the round end time, which is equal
  * to the start time plus the round duration.
  */
-static void security_dsms_round_end_ms_test(struct test *test)
+static void security_dsms_round_end_ms_test(struct kunit *test)
 {
-	EXPECT_EQ(test, start_ms + ROUND_DURATION_MS, round_end_ms(start_ms));
+	KUNIT_EXPECT_EQ(test, start_ms + ROUND_DURATION_MS, round_end_ms(start_ms));
 }
 
 /* ------------------------------------------------------------------------- */
@@ -68,12 +68,12 @@ static void security_dsms_round_end_ms_test(struct test *test)
  * Expected: Function should return 0 if a new round has not started, else should
  * return 1.
  */
-static void security_dsms_is_new_round_test(struct test *test)
+static void security_dsms_is_new_round_test(struct kunit *test)
 {
 	u64 now_ms = dsms_get_time_ms();
 
-	EXPECT_EQ(test, 0, is_new_round(now_ms, start_ms));
-	EXPECT_EQ(test, 1, is_new_round(start_ms + ROUND_DURATION_MS + 1, start_ms));
+	KUNIT_EXPECT_EQ(test, 0, is_new_round(now_ms, start_ms));
+	KUNIT_EXPECT_EQ(test, 1, is_new_round(start_ms + ROUND_DURATION_MS + 1, start_ms));
 }
 
 /* ------------------------------------------------------------------------- */
@@ -85,14 +85,14 @@ static void security_dsms_is_new_round_test(struct test *test)
  * Test case when the message rate is higher than the max rate per round.
  * Expected: Function should return DSMS_DENY if the rate limit is reached.
  */
-static void security_dsms_check_message_rate_limit_deny_test(struct test *test)
+static void security_dsms_check_message_rate_limit_deny_test(struct kunit *test)
 {
 	int failed = 0, i;
 
 	for (i = dsms_get_max_messages_per_round(); i >= 0; --i)
 		if (dsms_check_message_rate_limit() == DSMS_DENY)
 			failed = 1;
-	EXPECT_TRUE(test, failed);
+	KUNIT_EXPECT_TRUE(test, failed);
 }
 
 /*
@@ -101,9 +101,9 @@ static void security_dsms_check_message_rate_limit_deny_test(struct test *test)
  * Expected: Function should return DSMS_SUCCESS if the rate limit is not
  * reached.
  */
-static void security_dsms_check_message_rate_limit_success_test(struct test *test)
+static void security_dsms_check_message_rate_limit_success_test(struct kunit *test)
 {
-	EXPECT_EQ(test, DSMS_SUCCESS, dsms_check_message_rate_limit());
+	KUNIT_EXPECT_EQ(test, DSMS_SUCCESS, dsms_check_message_rate_limit());
 }
 
 /*
@@ -112,17 +112,17 @@ static void security_dsms_check_message_rate_limit_success_test(struct test *tes
  * Expected: Function should return DSMS_SUCCESS and reset the message count
  * to zero.
  */
-static void security_dsms_check_message_rate_limit_boundary_test(struct test *test)
+static void security_dsms_check_message_rate_limit_boundary_test(struct kunit *test)
 {
 	int old_count;
 
 	dsms_round_start_ms -= 10;
-	EXPECT_EQ(test, DSMS_SUCCESS, dsms_check_message_rate_limit());
+	KUNIT_EXPECT_EQ(test, DSMS_SUCCESS, dsms_check_message_rate_limit());
 	old_count = dsms_message_count;
 	dsms_round_start_ms = 0;
 	dsms_message_count = dsms_get_max_messages_per_round() + 1;
-	EXPECT_EQ(test, DSMS_SUCCESS, dsms_check_message_rate_limit());
-	EXPECT_EQ(test, dsms_message_count, 0);
+	KUNIT_EXPECT_EQ(test, DSMS_SUCCESS, dsms_check_message_rate_limit());
+	KUNIT_EXPECT_EQ(test, dsms_message_count, 0);
 	dsms_message_count = old_count;
 }
 
@@ -134,18 +134,18 @@ static void security_dsms_check_message_rate_limit_boundary_test(struct test *te
  * Expected: Function should return DSMS_SUCCESS and reset the message count
  * to zero.
  */
-static void security_dsms_check_message_rate_limit_reset_test(struct test *test)
+static void security_dsms_check_message_rate_limit_reset_test(struct kunit *test)
 {
 	dsms_round_start_ms = -1;
-	EXPECT_EQ(test, DSMS_SUCCESS, dsms_check_message_rate_limit());
-	EXPECT_EQ(test, dsms_message_count, 1);
+	KUNIT_EXPECT_EQ(test, DSMS_SUCCESS, dsms_check_message_rate_limit());
+	KUNIT_EXPECT_EQ(test, dsms_message_count, 1);
 }
 
 /* ------------------------------------------------------------------------- */
 /* Module initialization and exit functions                                  */
 /* ------------------------------------------------------------------------- */
 
-static int security_dsms_rate_test_init(struct test *test)
+static int security_dsms_rate_test_init(struct kunit *test)
 {
 	dsms_rate_limit_init();
 	start_ms = dsms_get_time_ms();
@@ -156,20 +156,20 @@ static int security_dsms_rate_test_init(struct test *test)
 /* Module definition                                                         */
 /* ------------------------------------------------------------------------- */
 
-static struct test_case security_dsms_rate_test_cases[] = {
-	TEST_CASE(security_dsms_get_max_messages_per_round_test),
-	TEST_CASE(security_dsms_round_end_ms_test),
-	TEST_CASE(security_dsms_is_new_round_test),
-	TEST_CASE(security_dsms_check_message_rate_limit_deny_test),
-	TEST_CASE(security_dsms_check_message_rate_limit_success_test),
-	TEST_CASE(security_dsms_check_message_rate_limit_boundary_test),
-	TEST_CASE(security_dsms_check_message_rate_limit_reset_test),
+static struct kunit_case security_dsms_rate_test_cases[] = {
+	KUNIT_CASE(security_dsms_get_max_messages_per_round_test),
+	KUNIT_CASE(security_dsms_round_end_ms_test),
+	KUNIT_CASE(security_dsms_is_new_round_test),
+	KUNIT_CASE(security_dsms_check_message_rate_limit_deny_test),
+	KUNIT_CASE(security_dsms_check_message_rate_limit_success_test),
+	KUNIT_CASE(security_dsms_check_message_rate_limit_boundary_test),
+	KUNIT_CASE(security_dsms_check_message_rate_limit_reset_test),
 	{},
 };
 
-static struct test_module security_dsms_rate_test_module = {
+static struct kunit_suite security_dsms_rate_test_module = {
 	.name = "security-dsms-rate-limit-test",
 	.init = security_dsms_rate_test_init,
 	.test_cases = security_dsms_rate_test_cases,
 };
-module_test(security_dsms_rate_test_module);
+kunit_test_suites(&security_dsms_rate_test_module);

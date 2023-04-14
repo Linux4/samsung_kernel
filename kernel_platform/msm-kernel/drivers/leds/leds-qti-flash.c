@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ *
+ * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #define pr_fmt(fmt)	"qti-flash: %s: " fmt, __func__
 
@@ -239,6 +241,22 @@ static int current_to_code(u32 target_curr_ma, u32 ires_ua)
 	return DIV_ROUND_CLOSEST(target_curr_ma * 1000, ires_ua) - 1;
 }
 
+static bool is_channel_configured(struct flash_node_data *fnode)
+{
+	int i;
+
+	for (i = 0; i < fnode->led->num_fnodes; i++) {
+		if (fnode->led->fnode[i].id == fnode->id &&
+		    fnode->led->fnode[i].type != fnode->type &&
+		    fnode->led->fnode[i].configured) {
+			pr_debug("Channel %d for %s is already configured by %s\n", fnode->id,
+				fnode->fdev.led_cdev.name, fnode->led->fnode[i].fdev.led_cdev.name);
+			return true;
+		}
+	}
+	return false;
+}
+
 static int qti_flash_led_read(struct qti_flash_led *led, u16 offset,
 				u8 *data, u8 len)
 {
@@ -326,13 +344,18 @@ static int qti_flash_lmh_mitigation_config(struct qti_flash_led *led,
 	u8 val = enable ? FLASH_LED_LMH_MITIGATION_SW_EN : 0;
 	int rc;
 
+	if (enable == led->trigger_lmh)
+		return 0;
+
 	rc = qti_flash_led_write(led, FLASH_LED_MITIGATION_SW, &val, 1);
-	if (rc < 0)
+	if (rc < 0) {
 		pr_err("Failed to %s LMH mitigation, rc=%d\n",
 			enable ? "enable" : "disable", rc);
-	else
+	} else {
 		pr_debug("%s LMH mitigation\n",
 			enable ? "enabled" : "disabled");
+		led->trigger_lmh = enable;
+	}
 
 	return rc;
 }
@@ -363,15 +386,6 @@ static int qti_flash_led_strobe(struct qti_flash_led *led,
 					HRTIMER_MODE_REL);
 		}
 
-		if (led->trigger_lmh) {
-			rc = qti_flash_lmh_mitigation_config(led, true);
-			if (rc < 0)
-				goto error;
-
-			/* Wait for LMH mitigation to take effect */
-			udelay(500);
-		}
-
 		rc = qti_flash_led_masked_write(led, FLASH_EN_LED_CTRL,
 				mask, value);
 		if (rc < 0)
@@ -391,8 +405,6 @@ static int qti_flash_led_strobe(struct qti_flash_led *led,
 			rc = qti_flash_lmh_mitigation_config(led, false);
 			if (rc < 0)
 				goto error;
-
-			led->trigger_lmh = false;
 		}
 
 		rc = qti_flash_led_module_control(led, enable);
@@ -640,6 +652,9 @@ static void qti_flash_led_brightness_set(struct led_classdev *led_cdev,
 	fnode = container_of(fdev, struct flash_node_data, fdev);
 	led = fnode->led;
 
+	if (is_channel_configured(fnode))
+		return;
+
 	rc = __qti_flash_led_brightness_set(led_cdev, brightness);
 	if (!rc)
 		fnode->user_current_ma = brightness;
@@ -657,10 +672,13 @@ static void qti_flash_led_brightness_set(struct led_classdev *led_cdev,
 	}
 }
 
+#define FLASH_LMH_TRIGGER_LIMIT_MA 1000
+
 static int qti_flash_switch_enable(struct flash_switch_data *snode)
 {
 	struct qti_flash_led *led = snode->led;
-	int rc = 0, i;
+	int rc = 0, total_curr_ma = 0, i;
+	enum flash_led_type type = FLASH_LED_TYPE_UNKNOWN;
 	u8 led_en = 0;
 
 	/* If symmetry enabled switch, then turn ON all its LEDs */
@@ -683,7 +701,30 @@ static int qti_flash_switch_enable(struct flash_switch_data *snode)
 			!led->fnode[i].configured)
 			continue;
 
+		/*
+		 * For flash, LMH mitigation needs to be enabled
+		 * if total current used is greater than or
+		 * equal to 1A.
+		 */
+
+		type = led->fnode[i].type;
+		if (type == FLASH_LED_TYPE_FLASH)
+			total_curr_ma += led->fnode[i].user_current_ma;
+
 		led_en |= (1 << led->fnode[i].id);
+	}
+
+	if (total_curr_ma >= FLASH_LMH_TRIGGER_LIMIT_MA) {
+		rc = qti_flash_lmh_mitigation_config(led, true);
+		if (rc < 0)
+			return rc;
+
+		/* Wait for lmh mitigation to take effect */
+		udelay(500);
+	} else if (led->trigger_lmh) {
+		rc = qti_flash_lmh_mitigation_config(led, false);
+		if (rc < 0)
+			return rc;
 	}
 
 	return qti_flash_led_strobe(led, snode, snode->led_mask, led_en);
@@ -940,19 +981,6 @@ static int qti_flash_led_calc_max_avail_current(
 	voltage_hdrm_mv = qti_flash_led_get_voltage_headroom(led);
 	vflash_vdip = VDIP_THRESH_DEFAULT_UV;
 
-	if (!led->trigger_lmh) {
-		rc = qti_flash_lmh_mitigation_config(led, true);
-		if (rc < 0)
-			return rc;
-
-		/* Wait for lmh mitigation to take effect */
-		udelay(100);
-
-		led->trigger_lmh = true;
-		return qti_flash_led_calc_max_avail_current(led,
-					max_current_ma);
-	}
-
 	ibatt_safe_ua = DIV_ROUND_CLOSEST((ocv_uv -
 				(vflash_vdip + VFLASH_DIP_MARGIN_UV)) * UCONV,
 				rbatt_uohm);
@@ -1029,7 +1057,6 @@ static int qti_flash_led_get_max_avail_current(
 {
 	int thermal_current_limit = 0, rc;
 
-	led->trigger_lmh = false;
 	rc = qti_flash_led_calc_max_avail_current(led, max_current_ma);
 	if (rc < 0) {
 		pr_err("Failed to calculate max avail current, rc=%d\n", rc);

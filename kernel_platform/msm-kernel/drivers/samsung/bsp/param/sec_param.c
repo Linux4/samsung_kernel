@@ -67,6 +67,9 @@ EXPORT_SYMBOL(sec_param_set);
 
 int sec_param_register_operations(struct sec_param_operations *ops)
 {
+	if (!__param_is_probed())
+		return -EBUSY;
+
 	if (sec_param->ops) {
 		dev_warn(sec_param->bd.dev, "ops is already set (%p)\n",
 				sec_param->ops);

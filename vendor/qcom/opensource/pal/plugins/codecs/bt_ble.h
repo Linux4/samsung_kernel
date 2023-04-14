@@ -76,6 +76,8 @@ typedef struct lc3_decoder_cfg_s {
 typedef struct audio_lc3_codec_cfg_s {
     lc3_encoder_cfg_t enc_cfg;
     lc3_decoder_cfg_t dec_cfg;
+    bool is_enc_config_set;
+    bool is_dec_config_set;
 } audio_lc3_codec_cfg_t;
 
 static uint32_t audio_location_map_array[] = {

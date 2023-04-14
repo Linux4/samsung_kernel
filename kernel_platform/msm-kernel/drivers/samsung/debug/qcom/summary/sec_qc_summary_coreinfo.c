@@ -21,6 +21,7 @@
 
 #include "sec_qc_summary.h"
 #include "sec_qc_summary_coreinfo.h"
+#include "sec_qc_summary_external.h"
 
 static char *summary_coreinfo_data;
 static int32_t summary_coreinfo_size;
@@ -134,7 +135,12 @@ struct mod_tree_root {
 static void __summary_coreinfo_append_module_data(
 		struct qc_summary_drvdata *drvdata)
 {
+#if IS_BUILTIN(CONFIG_SEC_QC_SUMMARY)
+	sec_qc_summary_coreinfo_append_str("SYMBOL(%s)=0x%llx\n",
+			"mod_tree", (unsigned long long)sec_qc_summary_mod_tree);
+#else
 	QC_SUMMARY_COREINFO_KALLSYMS(drvdata, mod_tree);
+#endif
 
 	QC_SUMMARY_COREINFO_OFFSET(mod_tree_root, root);
 	QC_SUMMARY_COREINFO_OFFSET(mod_tree_root, addr_min);

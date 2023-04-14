@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #undef TRACE_SYSTEM
@@ -815,7 +816,7 @@ TRACE_EVENT(walt_nohz_balance_kick,
 		__entry->nr_cfs_running	= rq->cfs.h_nr_running;
 	),
 
-	TP_printk("cpu=%d nr_running=%u nr_cfs_running=%u\n",
+	TP_printk("cpu=%d nr_running=%u nr_cfs_running=%u",
 			__entry->cpu, __entry->nr_running,
 			__entry->nr_cfs_running)
 );
@@ -852,7 +853,7 @@ TRACE_EVENT(walt_newidle_balance,
 		__entry->overload	= cpu_rq(this_cpu)->rd->overload;
 	),
 
-	TP_printk("cpu=%d busy_cpu=%d pulled=%d nr_running=%u rt_nr_running=%u nr_iowait=%d help_min_cap=%d avg_idle=%llu enough_idle=%d overload=%d\n",
+	TP_printk("cpu=%d busy_cpu=%d pulled=%d nr_running=%u rt_nr_running=%u nr_iowait=%d help_min_cap=%d avg_idle=%llu enough_idle=%d overload=%d",
 			__entry->cpu, __entry->busy_cpu, __entry->pulled,
 			__entry->nr_running, __entry->rt_nr_running,
 			__entry->nr_iowait, __entry->help_min_cap,
@@ -903,9 +904,9 @@ TRACE_EVENT(sched_cpu_util,
 		__field(unsigned int,	nr_running)
 		__field(long,		cpu_util)
 		__field(long,		cpu_util_cum)
-		__field(unsigned int,	capacity_curr)
-		__field(unsigned int,	capacity)
-		__field(unsigned int,	capacity_orig)
+		__field(unsigned long,	capacity_curr)
+		__field(unsigned long,	capacity)
+		__field(unsigned long,	capacity_orig)
 		__field(unsigned int,	idle_exit_latency)
 		__field(u64,		irqload)
 		__field(int,		online)
@@ -935,7 +936,7 @@ TRACE_EVENT(sched_cpu_util,
 		__entry->prs_gprs	= wrq->prev_runnable_sum + wrq->grp_time.prev_runnable_sum;
 	),
 
-	TP_printk("cpu=%d nr_running=%d cpu_util=%ld cpu_util_cum=%ld capacity_curr=%u capacity=%u capacity_orig=%u idle_exit_latency=%u irqload=%llu online=%u, inactive=%u, reserved=%u, high_irq_load=%u nr_rtg_hp=%u prs_gprs=%llu",
+	TP_printk("cpu=%d nr_running=%d cpu_util=%ld cpu_util_cum=%ld capacity_curr=%lu capacity=%lu capacity_orig=%lu idle_exit_latency=%u irqload=%llu online=%u, inactive=%u, reserved=%u, high_irq_load=%u nr_rtg_hp=%u prs_gprs=%llu",
 		__entry->cpu, __entry->nr_running, __entry->cpu_util,
 		__entry->cpu_util_cum, __entry->capacity_curr,
 		__entry->capacity, __entry->capacity_orig,
@@ -975,9 +976,9 @@ TRACE_EVENT(sched_compute_energy,
 		__field(unsigned long,	m0)
 		__field(unsigned long,	m1)
 		__field(unsigned long,	m2)
-		__field(u16,	c0)
-		__field(u16,	c1)
-		__field(u16,	c2)
+		__field(unsigned long,	c0)
+		__field(unsigned long,	c1)
+		__field(unsigned long,	c2)
 	),
 
 	TP_fast_assign(
@@ -1091,11 +1092,13 @@ TRACE_EVENT(sched_find_best_target,
 		 unsigned long candidates,
 		 int most_spare_cap,
 		 int order_index, int end_index,
-		 int skip, bool running),
+		 int skip, bool running,
+		 int most_spare_rq_cpu, unsigned int cpu_rq_runnable_cnt),
 
 	TP_ARGS(tsk, min_util, start_cpu, candidates,
 		most_spare_cap,
-		order_index, end_index, skip, running),
+		order_index, end_index, skip, running,
+		most_spare_rq_cpu, cpu_rq_runnable_cnt),
 
 	TP_STRUCT__entry(
 		__array(char,		comm, TASK_COMM_LEN)
@@ -1108,6 +1111,8 @@ TRACE_EVENT(sched_find_best_target,
 		__field(int,		end_index)
 		__field(int,		skip)
 		__field(bool,		running)
+		__field(int,		most_spare_rq_cpu)
+		__field(unsigned int,	cpu_rq_runnable_cnt)
 		),
 
 	TP_fast_assign(
@@ -1121,9 +1126,11 @@ TRACE_EVENT(sched_find_best_target,
 		__entry->end_index	= end_index;
 		__entry->skip		= skip;
 		__entry->running	= running;
+		__entry->most_spare_rq_cpu	= most_spare_rq_cpu;
+		__entry->cpu_rq_runnable_cnt	= cpu_rq_runnable_cnt;
 		),
 
-	TP_printk("pid=%d comm=%s start_cpu=%d candidates=%#lx most_spare_cap=%d order_index=%d end_index=%d skip=%d running=%d",
+	TP_printk("pid=%d comm=%s start_cpu=%d candidates=%#lx most_spare_cap=%d order_index=%d end_index=%d skip=%d running=%d min_util=%lu spare_rq_cpu=%d min_runnable=%u",
 		  __entry->pid, __entry->comm,
 		  __entry->start_cpu,
 		  __entry->candidates,
@@ -1131,7 +1138,10 @@ TRACE_EVENT(sched_find_best_target,
 		  __entry->order_index,
 		  __entry->end_index,
 		  __entry->skip,
-		  __entry->running)
+		  __entry->running,
+		  __entry->min_util,
+		  __entry->most_spare_rq_cpu,
+		  __entry->cpu_rq_runnable_cnt)
 );
 
 TRACE_EVENT(sched_enq_deq_task,
@@ -1297,6 +1307,44 @@ TRACE_EVENT(sched_cgroup_attach,
 			__entry->grp_id, __entry->ret)
 
 );
+
+TRACE_EVENT(update_cpu_capacity,
+
+	TP_PROTO(int cpu, unsigned long rt_pressure, unsigned long capacity),
+
+	TP_ARGS(cpu, rt_pressure, capacity),
+
+	TP_STRUCT__entry(
+		__field(int, cpu)
+		__field(unsigned long, rt_pressure)
+		__field(unsigned long, capacity)
+		__field(unsigned long, arch_capacity)
+		__field(unsigned long, thermal_cap)
+		__field(unsigned long, max_possible_freq)
+		__field(unsigned long, max_freq)
+	),
+
+	TP_fast_assign(
+		struct walt_sched_cluster *cluster = cpu_cluster(cpu);
+
+		__entry->cpu = cpu;
+		__entry->rt_pressure = rt_pressure;
+		__entry->capacity = capacity;
+		__entry->arch_capacity = arch_scale_cpu_capacity(cpu);
+		__entry->thermal_cap = arch_scale_cpu_capacity(cpu) -
+					arch_scale_thermal_pressure(cpu);
+		__entry->max_freq = cluster->max_freq;
+		__entry->max_possible_freq = cluster->max_freq;
+	),
+
+	TP_printk("cpu=%d arch_capacity=%lu thermal_cap=%lu rt_pressure=%lu max_freq=%lu max_possible_freq=%lu capacity=%lu",
+			__entry->cpu, __entry->arch_capacity,
+			__entry->thermal_cap, __entry->rt_pressure,
+			__entry->max_freq, __entry->max_possible_freq,
+			__entry->capacity)
+
+);
+
 #endif /* _TRACE_WALT_H */
 
 #undef TRACE_INCLUDE_PATH

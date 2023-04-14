@@ -13,6 +13,7 @@
 #include <linux/module.h>
 #include <linux/notifier.h>
 #include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/pm_wakeup.h>
 #include <linux/slab.h>
@@ -20,6 +21,7 @@
 #include <linux/version.h>
 
 #include <linux/samsung/builder_pattern.h>
+#include <linux/samsung/of_early_populate.h>
 #include <linux/samsung/bsp/sec_key_notifier.h>
 #include <linux/samsung/debug/sec_debug.h>
 #include <linux/samsung/debug/sec_crashkey_long.h>
@@ -55,16 +57,17 @@ static __always_inline bool __crashkey_long_is_probed(void)
 	return !!crashkey_long;
 }
 
-static inline int __crashkey_long_add_preparing_panic(struct notifier_block *nb)
+static inline int __crashkey_long_add_preparing_panic(
+		struct crashkey_long_drvdata *drvdata, struct notifier_block *nb)
 {
 	struct crashkey_long_notify *notify;
 	int err;
 
-	notify = &crashkey_long->notify;
+	notify = &drvdata->notify;
 
 	err = atomic_notifier_chain_register(&notify->list, nb);
 	if (err) {
-		struct device *dev = crashkey_long->bd.dev;
+		struct device *dev = drvdata->bd.dev;
 
 		dev_warn(dev, "failed to add a notifier!\n");
 		dev_warn(dev, "Caller is %pS\n", __builtin_return_address(0));
@@ -76,22 +79,23 @@ static inline int __crashkey_long_add_preparing_panic(struct notifier_block *nb)
 int sec_crashkey_long_add_preparing_panic(struct notifier_block *nb)
 {
 	if (!__crashkey_long_is_probed())
-		return 0;
+		return -EBUSY;
 
-	return __crashkey_long_add_preparing_panic(nb);
+	return __crashkey_long_add_preparing_panic(crashkey_long, nb);
 }
 EXPORT_SYMBOL(sec_crashkey_long_add_preparing_panic);
 
-static inline int __crashkey_long_del_preparing_panic(struct notifier_block *nb)
+static inline int __crashkey_long_del_preparing_panic(
+		struct crashkey_long_drvdata *drvdata, struct notifier_block *nb)
 {
 	struct crashkey_long_notify *notify;
 	int err;
 
-	notify = &crashkey_long->notify;
+	notify = &drvdata->notify;
 
 	err = atomic_notifier_chain_unregister(&notify->list, nb);
 	if (err) {
-		struct device *dev = crashkey_long->bd.dev;
+		struct device *dev = drvdata->bd.dev;
 
 		dev_warn(dev, "failed to remove a notifier for!\n");
 		dev_warn(dev, "Caller is %pS\n", __builtin_return_address(0));
@@ -103,9 +107,9 @@ static inline int __crashkey_long_del_preparing_panic(struct notifier_block *nb)
 int sec_crashkey_long_del_preparing_panic(struct notifier_block *nb)
 {
 	if (!__crashkey_long_is_probed())
-		return 0;
+		return -EPROBE_DEFER;
 
-	return __crashkey_long_del_preparing_panic(nb);
+	return __crashkey_long_del_preparing_panic(crashkey_long, nb);
 }
 EXPORT_SYMBOL(sec_crashkey_long_del_preparing_panic);
 
@@ -132,10 +136,11 @@ already_connected:
 
 	return ret;
 }
+
 int sec_crashkey_long_connect_to_input_evnet(void)
 {
 	if (!__crashkey_long_is_probed())
-		return 0;
+		return -EBUSY;
 
 	return __crashkey_long_connect_to_input_evnet();
 }
@@ -173,7 +178,7 @@ already_disconnected:
 int sec_crashkey_long_disconnect_from_input_event(void)
 {
 	if (!__crashkey_long_is_probed())
-		return 0;
+		return -EBUSY;
 
 	return __crashkey_long_disconnect_from_input_event();
 }
@@ -415,7 +420,7 @@ static int __crashkey_long_set_panic_on_expired(struct builder *bd)
 	notify->panic.notifier_call = __crashkey_long_panic_on_expired;
 	notify->panic.priority = INT_MIN;
 
-	err = sec_crashkey_long_add_preparing_panic(&notify->panic);
+	err = __crashkey_long_add_preparing_panic(drvdata, &notify->panic);
 	if (err)
 		return err;
 
@@ -428,7 +433,7 @@ static void __crashkey_long_unset_panic_on_expired(struct builder *bd)
 			container_of(bd, struct crashkey_long_drvdata, bd);
 	struct crashkey_long_notify *notify = &drvdata->notify;
 
-	sec_crashkey_long_del_preparing_panic(&notify->panic);
+	__crashkey_long_del_preparing_panic(drvdata, &notify->panic);
 }
 
 static int __crashkey_long_install_keyboard_notifier(struct builder *bd)
@@ -616,9 +621,19 @@ static struct platform_driver sec_crashkey_long_driver = {
 
 static int __init sec_crashkey_long_init(void)
 {
-	return platform_driver_register(&sec_crashkey_long_driver);
+	int err;
+
+	err = platform_driver_register(&sec_crashkey_long_driver);
+	if (err)
+		return err;
+
+	err = __of_platform_early_populate_init(sec_crashkeylong_match_table);
+	if (err)
+		return err;
+
+	return 0;
 }
-core_initcall_sync(sec_crashkey_long_init);
+core_initcall(sec_crashkey_long_init);
 
 static void __exit sec_crashkey_long_exit(void)
 {

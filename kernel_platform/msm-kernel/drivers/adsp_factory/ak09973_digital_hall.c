@@ -164,7 +164,7 @@ static ssize_t digital_hall_selftest_show(struct device *dev,
 
 	while (!(data->ready_flag[MSG_TYPE_ST_SHOW_DATA] & 1 << MSG_DIGITAL_HALL) &&
 		cnt++ < TIMEOUT_CNT)
-		msleep(20);
+		msleep(26);
 
 	data->ready_flag[MSG_TYPE_ST_SHOW_DATA] &= ~(1 << MSG_DIGITAL_HALL);
 	mutex_unlock(&data->digital_hall_mutex);

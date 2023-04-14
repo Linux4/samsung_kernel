@@ -24,6 +24,8 @@ enum thermal_pause_levels {
 };
 
 #define THERMAL_PAUSE_RETRY_COUNT 5
+
+/* minimum 160mS of time to allow for retry mechanism */
 #define DELAYED_WORK_TICKS 2
 #define THERMAL_PAUSE_DELAYED_RETRY_COUNT 20
 
@@ -236,7 +238,7 @@ retry:
 		retcnt = THERMAL_PAUSE_RETRY_COUNT;
 		goto retry;
 	}
- 
+
 	if (ret < 0) {
 		/* after local retries, still failed.  queue delayed work */
 		if (thermal_pause_cdev->delayed_work_retries > 0) {
@@ -427,6 +429,7 @@ static int thermal_pause_probe(struct platform_device *pdev)
 		thermal_pause_cdev->thermal_pause_level = false;
 		thermal_pause_cdev->cdev = NULL;
 		thermal_pause_cdev->np = subsys_np;
+		thermal_pause_cdev->delayed_work_retries = -1;
 		cpumask_copy(&thermal_pause_cdev->cpu_mask, &cpu_mask);
 
 		INIT_WORK(&thermal_pause_cdev->reg_work, thermal_pause_register_cdev);

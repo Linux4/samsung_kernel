@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 // Copyright (c) 2011-2017, 2020-2021, The Linux Foundation. All rights reserved.
 // Copyright (c) 2018, Linaro Limited
+// Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 
 #include <linux/irq.h>
 #include <linux/kernel.h>
@@ -215,6 +216,7 @@ struct qcom_slim_ngd_ctrl {
 	int default_ipc_log_mask;
 	int ipc_log_mask;
 	bool sysfs_created;
+	bool wait_for_adsp_up;
 	void *ipc_slimbus_log;
 	void *ipc_slimbus_log_err;
 };
@@ -422,6 +424,7 @@ static int qcom_slim_qmi_send_select_inst_req(struct qcom_slim_ngd_ctrl *ctrl,
 		return -EREMOTEIO;
 	}
 
+	SLIM_INFO(ctrl, "%s end\n", __func__);
 	return 0;
 }
 
@@ -472,6 +475,7 @@ static int qcom_slim_qmi_send_power_request(struct qcom_slim_ngd_ctrl *ctrl,
 		return -EREMOTEIO;
 	}
 
+	SLIM_INFO(ctrl, "%s end %d\n", __func__, req->pm_req);
 	return 0;
 }
 
@@ -574,7 +578,8 @@ static u32 *qcom_slim_ngd_tx_msg_get(struct qcom_slim_ngd_ctrl *ctrl, int len,
 
 	spin_lock_irqsave(&ctrl->tx_buf_lock, flags);
 
-	if ((ctrl->tx_tail + 1) % QCOM_SLIM_NGD_DESC_NUM == ctrl->tx_head) {
+	if (((ctrl->tx_tail + 1) % QCOM_SLIM_NGD_DESC_NUM == ctrl->tx_head)
+				|| !ctrl->tx_base) {
 		spin_unlock_irqrestore(&ctrl->tx_buf_lock, flags);
 		return NULL;
 	}
@@ -838,6 +843,7 @@ static irqreturn_t qcom_slim_ngd_interrupt(int irq, void *d)
 		return IRQ_HANDLED;
 	}
 
+	SLIM_INFO(ctrl, "%s start\n", __func__);
 	stat = readl(base + NGD_INT_STAT);
 
 	if ((stat & NGD_INT_MSG_BUF_CONTE) ||
@@ -887,6 +893,12 @@ static int check_hw_state(struct qcom_slim_ngd_ctrl *ctrl, struct slim_msg_txn *
 				((mc >= SLIM_USR_MC_DEFINE_CHAN &&
 				mc < SLIM_USR_MC_DISCONNECT_PORT)))
 				return -EREMOTEIO;
+
+			if (!ctrl->wait_for_adsp_up) {
+				SLIM_INFO(ctrl, "Not waiting for ADSP up MC:0x%x,mt:0x%x\n",
+					mc, txn->mt);
+				return -EREMOTEIO;
+			}
 
 			reinit_completion(&ctrl->ctrl_up);
 			timeout = wait_for_completion_timeout(&ctrl->ctrl_up, HZ);
@@ -1416,6 +1428,7 @@ static int qcom_slim_ngd_power_up(struct qcom_slim_ngd_ctrl *ctrl)
 
 	if (ctrl->state == QCOM_SLIM_NGD_CTRL_ASLEEP ||
 		ctrl->state == QCOM_SLIM_NGD_CTRL_DOWN) {
+		SLIM_INFO(ctrl, "Sending QMI power on request\n");
 		ret = qcom_slim_qmi_power_request(ctrl, true);
 		if (ret) {
 			SLIM_ERR(ctrl, "SLIM QMI power request failed:%d\n",
@@ -1936,6 +1949,9 @@ static int qcom_slim_ngd_ctrl_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	ctrl->wait_for_adsp_up = of_property_read_bool(pdev->dev.of_node,
+					"qcom,wait_for_adsp_up");
+
 	/* Create IPC log context */
 	ctrl->ipc_slimbus_log = ipc_log_context_create(IPC_SLIMBUS_LOG_PAGES,
 						dev_name(&pdev->dev), 0);
@@ -2100,6 +2116,7 @@ static int __maybe_unused qcom_slim_ngd_runtime_suspend(struct device *dev)
 	if (!ctrl->qmi.handle)
 		return 0;
 
+	SLIM_INFO(ctrl, "Sending QMI power off request\n");
 	ret = qcom_slim_qmi_power_request(ctrl, false);
 	if (ret && ret != -EBUSY)
 		SLIM_INFO(ctrl, "slim resource not idle:%d\n", ret);

@@ -611,8 +611,13 @@ void ACDEngine::AddEventInfoForStream(Stream *s, struct acd_recognition_cfg *rec
             context_info->threshold = context_cfg[i].threshold;
             context_info->step_size = context_cfg[i].step_size;
             stream_ctx_data->insert(std::make_pair(s, context_info));
+#ifndef LINUX_ENABLED
             contextinfo_stream_map_.insert(std::make_pair(context_cfg[i].context_id,
                 stream_ctx_data));
+#else
+            uint32_t ctx_id = context_cfg[i].context_id;
+            contextinfo_stream_map_.insert(std::make_pair(ctx_id, stream_ctx_data));
+#endif
         }
 
         /* update/add cumulative contextinfo per context id */
@@ -636,8 +641,13 @@ void ACDEngine::AddEventInfoForStream(Stream *s, struct acd_recognition_cfg *rec
 
             context_info->threshold = context_cfg[i].threshold;
             context_info->step_size = context_cfg[i].step_size;
+#ifndef LINUX_ENABLED
             cumulative_contextinfo_map_.insert(std::make_pair(context_cfg[i].context_id,
                 context_info));
+#else
+            uint32_t ctx_id = context_cfg[i].context_id;
+            cumulative_contextinfo_map_.insert(std::make_pair(ctx_id, context_info));
+#endif
             is_confidence_value_updated_ = true;
         }
     }
@@ -722,8 +732,13 @@ void ACDEngine::UpdateEventInfoForStream(Stream *s, struct acd_recognition_cfg *
             context_info->threshold = context_cfg[i].threshold;
             context_info->step_size = context_cfg[i].step_size;
             stream_ctx_data->insert(std::make_pair(s, context_info));
+#ifndef LINUX_ENABLED
             contextinfo_stream_map_.insert(std::make_pair(context_cfg[i].context_id,
                 stream_ctx_data));
+#else
+            uint32_t ctx_id = context_cfg[i].context_id;
+            contextinfo_stream_map_.insert(std::make_pair(ctx_id, stream_ctx_data));
+#endif
             PAL_INFO(LOG_TAG, "Added Context id 0x%x, Threshold %d, step_size %d",
                          context_cfg[i].context_id, context_info->threshold, context_info->step_size);
         }
@@ -776,8 +791,13 @@ void ACDEngine::UpdateEventInfoForStream(Stream *s, struct acd_recognition_cfg *
 
                 context_info->threshold = context_cfg[i].threshold;
                 context_info->step_size = context_cfg[i].step_size;
+#ifndef LINUX_ENABLED
                 cumulative_contextinfo_map_.insert(std::make_pair(context_cfg[i].context_id,
                     context_info));
+#else
+                uint32_t ctx_id = context_cfg[i].context_id;
+                cumulative_contextinfo_map_.insert(std::make_pair(ctx_id, context_info));
+#endif
                 PAL_INFO(LOG_TAG, "Added context id 0x%x from cumulative contextinfo map", context_id);
                 is_confidence_value_updated_ = true;
             }

@@ -34,6 +34,8 @@
 #define INPUT_PRODUCT_ID_POGO_KEYBOARD		0xA035
 
 #define STM32_KPC_DATA_PRESS			1
+#define STM32_GAMEPAD_KEY_START		304
+#define STM32_GAMEPAD_KEY_END		318
 
 #define STM32_CHECK_LED(STM32, IS_LED_ENABLED, LED) do {		\
 	if (test_bit(LED, (STM32)->input_dev->led))			\
@@ -226,6 +228,8 @@ static int stm32_keypad_set_input_dev(struct stm32_keypad_dev *device_data, stru
 	__set_bit(LED_CAPSL, device_data->input_dev->ledbit);
 
 	for (i = 0; i < STM32_KEY_MAX; i++) {
+		if (i >= STM32_GAMEPAD_KEY_START && i <= STM32_GAMEPAD_KEY_END)
+			continue;
 		set_bit(i, input_dev->keybit);
 		device_data->key_state[i] = 0;
 	}

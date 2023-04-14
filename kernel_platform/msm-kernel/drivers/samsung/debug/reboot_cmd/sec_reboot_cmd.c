@@ -74,7 +74,7 @@ static inline int __rbcmd_add_cmd(enum sec_rbcmd_stage s,
 int sec_rbcmd_add_cmd(enum sec_rbcmd_stage s, struct sec_reboot_cmd *rc)
 {
 	if (!__rbcmd_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	return __rbcmd_add_cmd(s, rc);
 }
@@ -97,7 +97,7 @@ static inline int __rbcmd_del_cmd(enum sec_rbcmd_stage s,
 int sec_rbcmd_del_cmd(enum sec_rbcmd_stage s, struct sec_reboot_cmd *rc)
 {
 	if (!__rbcmd_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	return __rbcmd_del_cmd(s, rc);
 }
@@ -127,7 +127,7 @@ int sec_rbcmd_set_default_cmd(enum sec_rbcmd_stage s,
 		struct sec_reboot_cmd *rc)
 {
 	if (!__rbcmd_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	return __rbcmd_set_default_cmd(s, rc);
 }
@@ -159,7 +159,7 @@ int sec_rbcmd_unset_default_cmd(enum sec_rbcmd_stage s,
 		struct sec_reboot_cmd *rc)
 {
 	if (!__rbcmd_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	return __rbcmd_unset_default_cmd(s, rc);
 }
@@ -364,12 +364,13 @@ static void __rbcmd_dbgfs_show_each_stage(struct seq_file *m,
 
 static int sec_rbcmd_dbgfs_show_all(struct seq_file *m, void *unsed)
 {
+	struct reboot_cmd_drvdata *drvdata = m->private;
 	struct reboot_cmd_stage *stage;
 	enum sec_rbcmd_stage s;
 
 	for (s = SEC_RBCMD_STAGE_1ST; s < SEC_RBCMD_STAGE_MAX; s++) {
 		seq_printf(m, "* STAGE : %s\n\n", rbcmd_stage_name[s]);
-		stage = __rbcmd_get_stage(s, reboot_cmd);
+		stage = __rbcmd_get_stage(s, drvdata);
 		__rbcmd_dbgfs_show_each_stage(m, stage);
 	}
 
@@ -394,7 +395,7 @@ static int __rbcmd_debugfs_create(struct builder *bd)
 			container_of(bd, struct reboot_cmd_drvdata, bd);
 
 	drvdata->dbgfs = debugfs_create_file("sec_reboot_cmd", 0440,
-			NULL, NULL, &sec_rbcmd_dgbfs_fops);
+			NULL, drvdata, &sec_rbcmd_dgbfs_fops);
 
 	return 0;
 }
@@ -686,11 +687,7 @@ static __init int sec_rbcmd_init(void)
 
 	return platform_driver_register(&sec_rbcmd_driver);
 }
-#if IS_BUILTIN(CONFIG_SEC_REBOOT_CMD)
-pure_initcall(sec_rbcmd_init);
-#else
-module_init(sec_rbcmd_init);
-#endif
+core_initcall(sec_rbcmd_init);
 
 static __exit void sec_rbcmd_exit(void)
 {

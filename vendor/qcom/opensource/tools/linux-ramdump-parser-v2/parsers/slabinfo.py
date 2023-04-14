@@ -1,4 +1,5 @@
 # Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -534,7 +535,7 @@ class Slabinfo(RamParser):
         if self.ramdump.minidump:
             for eb_file in self.ramdump.ebi_files:
                 path1 = eb_file[3]
-            path = os.path.join(path1.split("MD_S")[0], "md_SLABOWNER.bin")
+            path = os.path.join(os.path.dirname(path1), "md_SLABOWNER.bin")
             if not os.path.exists(path):
                 print_out_str(path + " not found")
                 return

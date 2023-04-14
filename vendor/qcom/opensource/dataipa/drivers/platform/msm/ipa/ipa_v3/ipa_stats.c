@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ *
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/init.h>
@@ -40,6 +42,9 @@
 		IPA_IPC_LOGGING(ipa3_get_ipc_logbuf_low(), \
 				DEV_NAME_IPA_LNX_STATS " %s:%d " fmt, ## args); \
 	} while (0)
+
+#define IPA_PERIPHERAL_STATS_MDM_NUM_ENTRIES 20
+#define IPA_PERIPHERAL_STATS_MSM_NUM_ENTRIES 12
 
 static unsigned int dev_num = 1;
 static struct cdev ipa_lnx_stats_ioctl_cdev;
@@ -120,112 +125,50 @@ static int ipa_stats_ioctl_open(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-static bool ipa_stats_struct_mismatch(enum ipa_lnx_stats_ioc_cmd_type type)
+static bool ipa_stats_struct_mismatch()
 {
-	switch (type) {
-	case IPA_LNX_CMD_GET_ALLOC_INFO:
-		if (IPA_LNX_EACH_INST_ALLOC_INFO_STRUCT_LEN_INT !=
-				IPA_LNX_EACH_INST_ALLOC_INFO_STRUCT_LEN ||
-			IPA_LNX_STATS_ALL_INFO_STRUCT_LEN_INT !=
-				IPA_LNX_STATS_ALL_INFO_STRUCT_LEN ||
-			IPA_LNX_STATS_SPEARHEAD_CTX_STRUCT_LEN_INT !=
-				IPA_LNX_STATS_SPEARHEAD_CTX_STRUCT_LEN) {
-				IPA_STATS_ERR("IPA_LNX_CMD_GET_ALLOC_INFO size mismatch");
-				return true;
-		} else return false;
-	case IPA_LNX_CMD_GENERIC_STATS:
-		if (IPA_LNX_PG_RECYCLE_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_PG_RECYCLE_STATS_STRUCT_LEN ||
-			IPA_LNX_EXCEPTION_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_EXCEPTION_STATS_STRUCT_LEN ||
-			IPA_LNX_ODL_EP_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_ODL_EP_STATS_STRUCT_LEN ||
-			IPA_LNX_HOLB_DISCARD_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_HOLB_DISCARD_STATS_STRUCT_LEN ||
-			IPA_LNX_HOLB_MONITOR_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_HOLB_MONITOR_STATS_STRUCT_LEN ||
-			IPA_LNX_HOLB_DROP_AND_MON_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_HOLB_DROP_AND_MON_STATS_STRUCT_LEN ||
-			IPA_LNX_GENERIC_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_GENERIC_STATS_STRUCT_LEN) {
-				IPA_STATS_ERR("IPA_LNX_CMD_GENERIC_STATS size mismatch");
-				return true;
-		} else return false;
-	case IPA_LNX_CMD_CLOCK_STATS:
-		if (IPA_LNX_PM_CLIENT_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_PM_CLIENT_STATS_STRUCT_LEN ||
-			IPA_LNX_CLOCK_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_CLOCK_STATS_STRUCT_LEN) {
-				IPA_STATS_ERR("IPA_LNX_CMD_CLOCK_STATS size mismatch");
-				return true;
-		} else return false;
-	case IPA_LNX_CMD_WLAN_INST_STATS:
-		if (IPA_LNX_GSI_RX_DEBUG_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_GSI_RX_DEBUG_STATS_STRUCT_LEN ||
-			IPA_LNX_GSI_TX_DEBUG_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_GSI_TX_DEBUG_STATS_STRUCT_LEN ||
-			IPA_LNX_GSI_DEBUG_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_GSI_DEBUG_STATS_STRUCT_LEN ||
-			IPA_LNX_PIPE_INFO_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_PIPE_INFO_STATS_STRUCT_LEN ||
-			IPA_LNX_WLAN_INSTANCE_INFO_STRUCT_LEN_INT !=
-				IPA_LNX_WLAN_INSTANCE_INFO_STRUCT_LEN ||
-			IPA_LNX_WLAN_INST_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_WLAN_INST_STATS_STRUCT_LEN) {
-				IPA_STATS_ERR("IPA_LNX_CMD_WLAN_INST_STATS size mismatch");
-				return true;
-		} else return false;
-	case IPA_LNX_CMD_ETH_INST_STATS:
-		if (IPA_LNX_GSI_RX_DEBUG_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_GSI_RX_DEBUG_STATS_STRUCT_LEN ||
-			IPA_LNX_GSI_TX_DEBUG_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_GSI_TX_DEBUG_STATS_STRUCT_LEN ||
-			IPA_LNX_GSI_DEBUG_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_GSI_DEBUG_STATS_STRUCT_LEN ||
-			IPA_LNX_PIPE_INFO_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_PIPE_INFO_STATS_STRUCT_LEN ||
-			IPA_LNX_ETH_INSTANCE_INFO_STRUCT_LEN_INT !=
-				IPA_LNX_ETH_INSTANCE_INFO_STRUCT_LEN ||
-			IPA_LNX_ETH_INST_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_ETH_INST_STATS_STRUCT_LEN) {
-				IPA_STATS_ERR("IPA_LNX_CMD_ETH_INST_STATS size mismatch");
-				return true;
-		} else return false;
-	case IPA_LNX_CMD_USB_INST_STATS:
-		if (IPA_LNX_GSI_RX_DEBUG_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_GSI_RX_DEBUG_STATS_STRUCT_LEN ||
-			IPA_LNX_GSI_TX_DEBUG_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_GSI_TX_DEBUG_STATS_STRUCT_LEN ||
-			IPA_LNX_GSI_DEBUG_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_GSI_DEBUG_STATS_STRUCT_LEN ||
-			IPA_LNX_PIPE_INFO_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_PIPE_INFO_STATS_STRUCT_LEN ||
-			IPA_LNX_USB_INSTANCE_INFO_STRUCT_LEN_INT !=
-				IPA_LNX_USB_INSTANCE_INFO_STRUCT_LEN ||
-			IPA_LNX_USB_INST_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_USB_INST_STATS_STRUCT_LEN) {
-				IPA_STATS_ERR("IPA_LNX_CMD_USB_INST_STATS ize mismatch");
-				return true;
-		} else return false;
-	case IPA_LNX_CMD_MHIP_INST_STATS:
-		if (IPA_LNX_GSI_RX_DEBUG_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_GSI_RX_DEBUG_STATS_STRUCT_LEN ||
-			IPA_LNX_GSI_TX_DEBUG_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_GSI_TX_DEBUG_STATS_STRUCT_LEN ||
-			IPA_LNX_GSI_DEBUG_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_GSI_DEBUG_STATS_STRUCT_LEN ||
-			IPA_LNX_PIPE_INFO_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_PIPE_INFO_STATS_STRUCT_LEN ||
-			IPA_LNX_MHIP_INSTANCE_INFO_STRUCT_LEN_INT !=
-				IPA_LNX_MHIP_INSTANCE_INFO_STRUCT_LEN ||
-			IPA_LNX_MHIP_INST_STATS_STRUCT_LEN_INT !=
-				IPA_LNX_MHIP_INST_STATS_STRUCT_LEN) {
-				IPA_STATS_ERR("IPA_LNX_CMD_MHIP_INST_STATS size mismatch");
-				return true;
-		} else return false;
-	default:
-		return true;
-	}
+	if (IPA_LNX_EACH_INST_ALLOC_INFO_STRUCT_LEN_INT != IPA_LNX_EACH_INST_ALLOC_INFO_STRUCT_LEN ||
+		IPA_LNX_STATS_ALL_INFO_STRUCT_LEN_INT != IPA_LNX_STATS_ALL_INFO_STRUCT_LEN ||
+		IPA_LNX_STATS_SPEARHEAD_CTX_STRUCT_LEN_INT != IPA_LNX_STATS_SPEARHEAD_CTX_STRUCT_LEN) {
+			IPA_STATS_ERR("IPA_LNX_CMD_GET_ALLOC_INFO structure size mismatch\n");
+			return true;
+	} else if (IPA_LNX_CONSOLIDATED_STATS_STRUCT_LEN_INT != IPA_LNX_CONSOLIDATED_STATS_STRUCT_LEN) {
+			IPA_STATS_ERR("IPA_LNX_CMD_GET_CONSOLIDATED_STATS structure size mismatch\n");
+			return true;
+	} else if (IPA_LNX_PG_RECYCLE_STATS_STRUCT_LEN_INT != IPA_LNX_PG_RECYCLE_STATS_STRUCT_LEN ||
+		IPA_LNX_EXCEPTION_STATS_STRUCT_LEN_INT != IPA_LNX_EXCEPTION_STATS_STRUCT_LEN ||
+		IPA_LNX_ODL_EP_STATS_STRUCT_LEN_INT != IPA_LNX_ODL_EP_STATS_STRUCT_LEN ||
+		IPA_LNX_HOLB_DISCARD_STATS_STRUCT_LEN_INT != IPA_LNX_HOLB_DISCARD_STATS_STRUCT_LEN ||
+		IPA_LNX_HOLB_MONITOR_STATS_STRUCT_LEN_INT != IPA_LNX_HOLB_MONITOR_STATS_STRUCT_LEN ||
+		IPA_LNX_HOLB_DROP_AND_MON_STATS_STRUCT_LEN_INT != IPA_LNX_HOLB_DROP_AND_MON_STATS_STRUCT_LEN ||
+		IPA_LNX_GENERIC_STATS_STRUCT_LEN_INT != IPA_LNX_GENERIC_STATS_STRUCT_LEN) {
+			IPA_STATS_ERR("IPA_LNX_CMD_GENERIC_STATS structure size mismatch\n");
+			return true;
+	} else if (IPA_LNX_PM_CLIENT_STATS_STRUCT_LEN_INT != IPA_LNX_PM_CLIENT_STATS_STRUCT_LEN ||
+		IPA_LNX_CLOCK_STATS_STRUCT_LEN_INT != IPA_LNX_CLOCK_STATS_STRUCT_LEN) {
+			IPA_STATS_ERR("IPA_LNX_CMD_CLOCK_STATS structure size mismatch\n");
+			return true;
+	} else if (IPA_LNX_GSI_RX_DEBUG_STATS_STRUCT_LEN_INT != IPA_LNX_GSI_RX_DEBUG_STATS_STRUCT_LEN ||
+		IPA_LNX_GSI_TX_DEBUG_STATS_STRUCT_LEN_INT != IPA_LNX_GSI_TX_DEBUG_STATS_STRUCT_LEN ||
+		IPA_LNX_GSI_DEBUG_STATS_STRUCT_LEN_INT != IPA_LNX_GSI_DEBUG_STATS_STRUCT_LEN ||
+		IPA_LNX_PIPE_INFO_STATS_STRUCT_LEN_INT != IPA_LNX_PIPE_INFO_STATS_STRUCT_LEN ||
+		IPA_LNX_WLAN_INSTANCE_INFO_STRUCT_LEN_INT != IPA_LNX_WLAN_INSTANCE_INFO_STRUCT_LEN ||
+		IPA_LNX_WLAN_INST_STATS_STRUCT_LEN_INT != IPA_LNX_WLAN_INST_STATS_STRUCT_LEN) {
+			IPA_STATS_ERR("IPA_LNX_CMD_WLAN_INST_STATS structure size mismatch\n");
+			return true;
+	} else if (IPA_LNX_ETH_INSTANCE_INFO_STRUCT_LEN_INT != IPA_LNX_ETH_INSTANCE_INFO_STRUCT_LEN ||
+		IPA_LNX_ETH_INST_STATS_STRUCT_LEN_INT != IPA_LNX_ETH_INST_STATS_STRUCT_LEN) {
+			IPA_STATS_ERR("IPA_LNX_CMD_ETH_INST_STATS structure size mismatch\n");
+			return true;
+	} else if (IPA_LNX_USB_INSTANCE_INFO_STRUCT_LEN_INT != IPA_LNX_USB_INSTANCE_INFO_STRUCT_LEN ||
+		IPA_LNX_USB_INST_STATS_STRUCT_LEN_INT != IPA_LNX_USB_INST_STATS_STRUCT_LEN) {
+			IPA_STATS_ERR("IPA_LNX_CMD_USB_INST_STATS structure size mismatch\n");
+			return true;
+	} else if (IPA_LNX_MHIP_INSTANCE_INFO_STRUCT_LEN_INT != IPA_LNX_MHIP_INSTANCE_INFO_STRUCT_LEN ||
+		IPA_LNX_MHIP_INST_STATS_STRUCT_LEN_INT != IPA_LNX_MHIP_INST_STATS_STRUCT_LEN) {
+			IPA_STATS_ERR("IPA_LNX_CMD_MHIP_INST_STATS structure size mismatch\n");
+			return true;
+	} else return false;
 }
 
 static int ipa_get_generic_stats(unsigned long arg)
@@ -239,6 +182,11 @@ static int ipa_get_generic_stats(unsigned long arg)
 	struct ipa_uc_holb_client_info *holb_client;
 	struct holb_discard_stats *holb_disc_stats_ptr;
 	struct holb_monitor_stats *holb_mon_stats_ptr;
+
+	if(!(ipa_lnx_agent_ctx.log_type_mask & SPRHD_IPA_LOG_TYPE_GENERIC_STATS)) {
+		IPA_STATS_ERR("Log type GENERIC mask not set\n");
+		return -EFAULT;
+	}
 
 	alloc_size = sizeof(struct ipa_lnx_generic_stats) +
 		(sizeof(struct holb_discard_stats) *
@@ -394,6 +342,11 @@ static int ipa_get_clock_stats(unsigned long arg)
 	int i;
 	int alloc_size;
 	struct pm_client_stats *pm_stats_ptr;
+
+	if(!(ipa_lnx_agent_ctx.log_type_mask & SPRHD_IPA_LOG_TYPE_CLOCK_STATS)) {
+		IPA_STATS_ERR("Log type CLOCK mask not set\n");
+		return -EFAULT;
+	}
 
 	alloc_size = sizeof(struct ipa_lnx_clock_stats) +
 		(sizeof(struct pm_client_stats) *
@@ -707,6 +660,11 @@ static int ipa_get_wlan_inst_stats(unsigned long arg)
 	struct wlan_instance_info *instance_ptr = NULL;
 	struct ipa_uc_dbg_ring_stats stats;
 
+	if(!(ipa_lnx_agent_ctx.log_type_mask & SPRHD_IPA_LOG_TYPE_WLAN_STATS)) {
+		IPA_STATS_ERR("Log type WLAN mask not set\n");
+		return -EFAULT;
+	}
+
 	alloc_size = sizeof(struct ipa_lnx_wlan_inst_stats) +
 			(ipa_lnx_agent_ctx.alloc_info.num_wlan_instances *
 			sizeof(struct wlan_instance_info));
@@ -887,6 +845,11 @@ static int ipa_get_eth_inst_stats(unsigned long arg)
 	struct eth_instance_info *instance_ptr = NULL;
 	struct ipa_uc_dbg_ring_stats stats;
 
+	if(!(ipa_lnx_agent_ctx.log_type_mask & SPRHD_IPA_LOG_TYPE_ETH_STATS)) {
+		IPA_STATS_ERR("Log type ETH mask not set\n");
+		return -EFAULT;
+	}
+
 	alloc_size = sizeof(struct ipa_lnx_eth_inst_stats) +
 			(ipa_lnx_agent_ctx.alloc_info.num_eth_instances *
 				sizeof(struct eth_instance_info));
@@ -937,9 +900,16 @@ static int ipa_get_eth_inst_stats(unsigned long arg)
 			if (instance_ptr->eth_mode == IPA_ETH_CLIENT_AQC107 ||
 				instance_ptr->eth_mode == IPA_ETH_CLIENT_AQC113 ||
 				instance_ptr->eth_mode == IPA_ETH_CLIENT_NTN ||
+#if IPA_ETH_API_VER >= 2
+				instance_ptr->eth_mode == IPA_ETH_CLIENT_NTN3 ||
+#endif
 				instance_ptr->eth_mode == IPA_ETH_CLIENT_EMAC) {
 
-				if(instance_ptr->eth_mode == IPA_ETH_CLIENT_NTN) {
+				if(instance_ptr->eth_mode == IPA_ETH_CLIENT_NTN
+#if IPA_ETH_API_VER >= 2
+					|| instance_ptr->eth_mode == IPA_ETH_CLIENT_NTN3
+#endif
+					) {
 					if(ipa3_get_ntn_gsi_stats(&stats)) {
 						instance_ptr = (struct eth_instance_info *)((
 							uint64_t)instance_ptr +
@@ -971,8 +941,17 @@ static int ipa_get_eth_inst_stats(unsigned long arg)
 					instance_ptr->eth_mode == IPA_ETH_CLIENT_EMAC)
 					tx_instance_ptr_local->tx_client =
 						IPA_CLIENT_ETHERNET_CONS;
-				else tx_instance_ptr_local->tx_client =
+				else
+					tx_instance_ptr_local->tx_client =
 						IPA_CLIENT_AQC_ETHERNET_CONS;
+#if IPA_ETH_API_VER >= 2
+				/* Get the client pipe info[0] from the allocation info context only if it is NTN3 */
+				if ((instance_ptr->eth_mode == IPA_ETH_CLIENT_NTN3)) {
+						tx_instance_ptr_local->tx_client =
+							ipa_lnx_agent_ctx.alloc_info.eth_inst_info[
+							i].pipes_client_type[0];
+				}
+#endif
 				client_type = tx_instance_ptr_local->tx_client;
 				instance_ptr->pm_bandwidth =
 					ipa_pm_get_pm_clnt_throughput(client_type);
@@ -1052,14 +1031,26 @@ static int ipa_get_eth_inst_stats(unsigned long arg)
 			if ((instance_ptr->eth_mode == IPA_ETH_CLIENT_AQC107 ||
 				instance_ptr->eth_mode == IPA_ETH_CLIENT_AQC113 ||
 				instance_ptr->eth_mode == IPA_ETH_CLIENT_NTN ||
+#if IPA_ETH_API_VER >= 2
+				instance_ptr->eth_mode == IPA_ETH_CLIENT_NTN3 ||
+#endif
 				instance_ptr->eth_mode == IPA_ETH_CLIENT_EMAC)) {
 
 				if (instance_ptr->eth_mode == IPA_ETH_CLIENT_NTN ||
 					instance_ptr->eth_mode == IPA_ETH_CLIENT_EMAC)
 					rx_instance_ptr_local->rx_client =
 					IPA_CLIENT_ETHERNET_PROD;
-				else rx_instance_ptr_local->rx_client =
+				else
+					rx_instance_ptr_local->rx_client =
 						IPA_CLIENT_AQC_ETHERNET_PROD;
+#if IPA_ETH_API_VER >= 2
+				/* Get the client pipe info[1] from the allocation info context only if it is NTN3 */
+				if ((instance_ptr->eth_mode == IPA_ETH_CLIENT_NTN3)) {
+						rx_instance_ptr_local->rx_client =
+							ipa_lnx_agent_ctx.alloc_info.eth_inst_info[
+							i].pipes_client_type[1];
+				}
+#endif
 				client_type = rx_instance_ptr_local->rx_client;
 				rx_instance_ptr_local->num_rx_ring_100_perc_with_pack =
 					stats.u.ring[0].ringFull;
@@ -1165,6 +1156,11 @@ static int ipa_get_usb_inst_stats(unsigned long arg)
 	struct ipa_lnx_gsi_rx_debug_stats *rx_instance_ptr_local = NULL;
 	struct usb_instance_info *instance_ptr = NULL;
 	struct ipa_uc_dbg_ring_stats stats;
+
+	if(!(ipa_lnx_agent_ctx.log_type_mask & SPRHD_IPA_LOG_TYPE_USB_STATS)) {
+		IPA_STATS_ERR("Log type USB mask not set\n");
+		return -EFAULT;
+	}
 
 	alloc_size = sizeof(struct ipa_lnx_usb_inst_stats) +
 			(ipa_lnx_agent_ctx.alloc_info.num_usb_instances *
@@ -1340,6 +1336,11 @@ static int ipa_get_mhip_inst_stats(unsigned long arg)
 	struct mhip_instance_info *instance_ptr = NULL;
 	struct ipa_uc_dbg_ring_stats stats;
 
+	if(!(ipa_lnx_agent_ctx.log_type_mask & SPRHD_IPA_LOG_TYPE_MHIP_STATS)) {
+		IPA_STATS_ERR("Log type MHIP mask not set\n");
+		return -EFAULT;
+	}
+
 	alloc_size = sizeof(struct ipa_lnx_mhip_inst_stats) +
 			(ipa_lnx_agent_ctx.alloc_info.num_mhip_instances *
 				sizeof(struct mhip_instance_info));
@@ -1508,6 +1509,7 @@ static int ipa_stats_get_alloc_info(unsigned long arg)
 	int ipa_client_type;
 	int reg_idx;
 	int index;
+	int eth_instance_id;
 
 	if (copy_from_user(&ipa_lnx_agent_ctx, u64_to_user_ptr((u64) arg),
 		sizeof(struct ipa_lnx_stats_spearhead_ctx))) {
@@ -1589,34 +1591,42 @@ static int ipa_stats_get_alloc_info(unsigned long arg)
 			k = 0;
 			for (j = 0; (j < IPA_ETH_CLIENT_MAX) &&
 				(k < SPEARHEAD_NUM_MAX_TX_INSTANCES); j++) {
-				if (ipa_eth_client_exist(j, i)) {
-					ipa_lnx_agent_ctx.alloc_info.eth_inst_info[i].num_pipes =
+				if (ipa_eth_client_exist(j, i) &&
+					(ipa_lnx_agent_ctx.alloc_info.num_eth_instances < 2)) {
+					eth_instance_id = ipa_lnx_agent_ctx.alloc_info.num_eth_instances;
+					ipa_lnx_agent_ctx.alloc_info.eth_inst_info[eth_instance_id].num_pipes =
 						ipa_lnx_agent_ctx.alloc_info.eth_inst_info[
-							i].num_pipes + 2;
+							eth_instance_id].num_pipes + 2;
 					ipa_lnx_agent_ctx.alloc_info.eth_inst_info[
-						i].num_tx_instances++;
+						eth_instance_id].num_tx_instances++;
 					ipa_lnx_agent_ctx.alloc_info.eth_inst_info[
-						i].num_rx_instances++;
+						eth_instance_id].num_rx_instances++;
 					ipa_lnx_agent_ctx.alloc_info.eth_inst_info[
-						i].tx_inst_client_type[k] = j;
+						eth_instance_id].tx_inst_client_type[k] = j;
 					ipa_client_type =
 						ipa_eth_get_ipa_client_type_from_eth_type(
 							j, IPA_ETH_PIPE_DIR_TX);
-					if (ipa_client_type >= IPA_CLIENT_MAX) {
+					if (ipa_client_type >= IPA_CLIENT_MAX)
 						IPA_STATS_ERR("Eth tx client type not found");
-						ipa_assert();
-					}
+#if IPA_ETH_API_VER >= 2
+					/* Overwrite client type if it is NTN3 and 2nd instance */
+					if ((j == IPA_ETH_CLIENT_NTN3) && (i == 1))
+						ipa_client_type = IPA_CLIENT_ETHERNET2_CONS;
+#endif
 					ipa_lnx_agent_ctx.alloc_info.eth_inst_info[
-						i].pipes_client_type[k*2] = ipa_client_type;
+						eth_instance_id].pipes_client_type[k*2] = ipa_client_type;
 					ipa_client_type =
 						ipa_eth_get_ipa_client_type_from_eth_type(
 							j, IPA_ETH_PIPE_DIR_RX);
-					if (ipa_client_type >= IPA_CLIENT_MAX) {
+					if (ipa_client_type >= IPA_CLIENT_MAX)
 						IPA_STATS_ERR("Eth rx client type not found");
-						ipa_assert();
-					}
+#if IPA_ETH_API_VER >= 2
+					/* Overwrite client type if it is NTN3 and 2nd instance */
+					if ((j == IPA_ETH_CLIENT_NTN3) && (i == 1))
+						ipa_client_type = IPA_CLIENT_ETHERNET2_PROD;
+#endif
 					ipa_lnx_agent_ctx.alloc_info.eth_inst_info[
-						i].pipes_client_type[(k*2) + 1] = ipa_client_type;
+						eth_instance_id].pipes_client_type[(k*2) + 1] = ipa_client_type;
 					ipa_lnx_agent_ctx.alloc_info.num_eth_instances++;
 					k++;
 				}
@@ -1681,6 +1691,10 @@ static int ipa_stats_get_alloc_info(unsigned long arg)
 	/* For MHIP instance */
 	if (ipa_lnx_agent_ctx.log_type_mask & SPRHD_IPA_LOG_TYPE_MHIP_STATS) {
 #if IS_ENABLED(CONFIG_IPA3_MHI_PRIME_MANAGER)
+		if (!ipa3_ctx->mhip_ctx.dbg_stats.uc_dbg_stats_mmio) {
+			ipa_lnx_agent_ctx.alloc_info.num_mhip_instances = 0;
+			goto success;
+		}
 		if (ipa_usb_is_teth_prot_connected(IPA_USB_RNDIS))
 			ipa_lnx_agent_ctx.usb_teth_prot[0] = IPA_USB_RNDIS;
 		else if(ipa_usb_is_teth_prot_connected(IPA_USB_RMNET))
@@ -1712,6 +1726,7 @@ static int ipa_stats_get_alloc_info(unsigned long arg)
 #endif
 	}
 
+success:
 	if(copy_to_user((u8 *)arg,
 		&ipa_lnx_agent_ctx,
 		sizeof(struct ipa_lnx_stats_spearhead_ctx))) {
@@ -1725,8 +1740,8 @@ static long ipa_lnx_stats_ioctl(struct file *filp,
 	unsigned int cmd,
 	unsigned long arg)
 {
-	int retval = 0;
-	u8 *param = NULL;
+	int retval = IPA_LNX_STATS_SUCCESS;
+	struct ipa_lnx_consolidated_stats *consolidated_stats;
 
 	if (_IOC_TYPE(cmd) != IPA_LNX_STATS_IOC_MAGIC) {
 		IPA_STATS_ERR("IOC type mismatch %d\n", cmd);
@@ -1740,79 +1755,100 @@ static long ipa_lnx_stats_ioctl(struct file *filp,
 
 	switch (cmd) {
 	case IPA_LNX_IOC_GET_ALLOC_INFO:
-		if (!ipa_stats_struct_mismatch(IPA_LNX_CMD_GET_ALLOC_INFO)) {
-			retval = ipa_stats_get_alloc_info(arg);
-			if (retval) {
-				IPA_STATS_ERR("ipa get alloc info fail");
-				break;
-			}
-		}
-		else retval = -EPERM;
+		retval = ipa_stats_get_alloc_info(arg);
+		if (retval)
+			IPA_STATS_ERR("ipa get alloc info fail");
 		break;
 	case IPA_LNX_IOC_GET_GENERIC_STATS:
-		if (!ipa_stats_struct_mismatch(IPA_LNX_CMD_GENERIC_STATS)) {
-			retval = ipa_get_generic_stats(arg);
+		retval = ipa_get_generic_stats(arg);
+		if (retval)
+			IPA_STATS_ERR("ipa get generic stats fail");
+		break;
+	case IPA_LNX_IOC_GET_CLOCK_STATS:
+		retval = ipa_get_clock_stats(arg);
+		if (retval)
+			IPA_STATS_ERR("ipa get clock stats fail");
+		break;
+	case IPA_LNX_IOC_GET_WLAN_INST_STATS:
+		retval = ipa_get_wlan_inst_stats(arg);
+		if (retval)
+			IPA_STATS_ERR("ipa get wlan inst stats fail");
+		break;
+	case IPA_LNX_IOC_GET_ETH_INST_STATS:
+		retval = ipa_get_eth_inst_stats(arg);
+		if (retval)
+			IPA_STATS_ERR("ipa get eth inst stats fail");
+		break;
+	case IPA_LNX_IOC_GET_USB_INST_STATS:
+		retval = ipa_get_usb_inst_stats(arg);
+		if (retval)
+			IPA_STATS_ERR("ipa get usb inst stats fail");
+		break;
+	case IPA_LNX_IOC_GET_MHIP_INST_STATS:
+#if IS_ENABLED(CONFIG_IPA3_MHI_PRIME_MANAGER)
+		retval = ipa_get_mhip_inst_stats(arg);
+		if (retval)
+			IPA_STATS_ERR("ipa get mhip inst stats fail");
+#else
+		retval = IPA_LNX_STATS_SUCCESS;
+#endif
+		break;
+	case IPA_LNX_IOC_GET_CONSOLIDATED_STATS:
+		consolidated_stats = (struct ipa_lnx_consolidated_stats *) memdup_user((
+				const void __user *)arg, sizeof(struct ipa_lnx_consolidated_stats));
+		if (IS_ERR(consolidated_stats)) {
+			IPA_STATS_ERR("copy from user failed");
+			return -ENOMEM;
+		}
+
+		if (consolidated_stats->log_type_mask & SPRHD_IPA_LOG_TYPE_GENERIC_STATS) {
+			retval = ipa_get_generic_stats((unsigned long) consolidated_stats->generic_stats);
 			if (retval) {
 				IPA_STATS_ERR("ipa get generic stats fail");
 				break;
 			}
 		}
-		else retval = -EPERM;
-		break;
-	case IPA_LNX_IOC_GET_CLOCK_STATS:
-		if (!ipa_stats_struct_mismatch(IPA_LNX_CMD_CLOCK_STATS)) {
-			retval = ipa_get_clock_stats(arg);
+		if (consolidated_stats->log_type_mask & SPRHD_IPA_LOG_TYPE_CLOCK_STATS) {
+			retval = ipa_get_clock_stats((unsigned long) consolidated_stats->clock_stats);
 			if (retval) {
 				IPA_STATS_ERR("ipa get clock stats fail");
 				break;
 			}
-		} else retval = -EPERM;
-		break;
-	case IPA_LNX_IOC_GET_WLAN_INST_STATS:
-		if (!ipa_stats_struct_mismatch(IPA_LNX_CMD_WLAN_INST_STATS)) {
-			retval = ipa_get_wlan_inst_stats(arg);
+		}
+		if (consolidated_stats->log_type_mask & SPRHD_IPA_LOG_TYPE_WLAN_STATS) {
+			retval = ipa_get_wlan_inst_stats((unsigned long) consolidated_stats->wlan_stats);
 			if (retval) {
 				IPA_STATS_ERR("ipa get wlan inst stats fail");
 				break;
 			}
-		} else retval = -EPERM;
-		break;
-	case IPA_LNX_IOC_GET_ETH_INST_STATS:
-		if (!ipa_stats_struct_mismatch(IPA_LNX_CMD_ETH_INST_STATS)) {
-			retval = ipa_get_eth_inst_stats(arg);
+		}
+		if (consolidated_stats->log_type_mask & SPRHD_IPA_LOG_TYPE_ETH_STATS) {
+			retval = ipa_get_eth_inst_stats((unsigned long) consolidated_stats->eth_stats);
 			if (retval) {
 				IPA_STATS_ERR("ipa get eth inst stats fail");
 				break;
 			}
-		} else retval = -EPERM;
-		break;
-	case IPA_LNX_IOC_GET_USB_INST_STATS:
-		if (!ipa_stats_struct_mismatch(IPA_LNX_CMD_USB_INST_STATS)) {
-			retval = ipa_get_usb_inst_stats(arg);
+		}
+		if (consolidated_stats->log_type_mask & SPRHD_IPA_LOG_TYPE_USB_STATS) {
+			retval = ipa_get_usb_inst_stats((unsigned long) consolidated_stats->usb_stats);
 			if (retval) {
 				IPA_STATS_ERR("ipa get usb inst stats fail");
 				break;
 			}
-		} else retval = -EPERM;
-		break;
-	case IPA_LNX_IOC_GET_MHIP_INST_STATS:
+		}
+		if (consolidated_stats->log_type_mask & SPRHD_IPA_LOG_TYPE_MHIP_STATS) {
 #if IS_ENABLED(CONFIG_IPA3_MHI_PRIME_MANAGER)
-		if (!ipa_stats_struct_mismatch(IPA_LNX_CMD_MHIP_INST_STATS)) {
-			retval = ipa_get_mhip_inst_stats(arg);
+			retval = ipa_get_mhip_inst_stats((unsigned long) consolidated_stats->mhip_stats);
 			if (retval) {
 				IPA_STATS_ERR("ipa get mhip inst stats fail");
 				break;
 			}
-		} else retval = -EPERM;
-#else
-		retval = IPA_LNX_STATS_SUCCESS;
 #endif
+		}
 		break;
 	default:
 		retval = -ENOTTY;
 	}
-	if (param)
-		vfree(param);
 	return retval;
 }
 
@@ -1876,6 +1912,11 @@ int ipa_spearhead_stats_init()
 {
 	int ret;
 
+	if (ipa_stats_struct_mismatch()) {
+		IPA_STATS_ERR("ipa stats structure mismatch\n");
+		return -1;
+	}
+
 	ret = ipa_spearhead_stats_ioctl_init();
 	if(ret) {
 		IPA_STATS_ERR("IPA_LNX_STATS_IOCTL init failure = %d\n", ret);
@@ -1883,6 +1924,322 @@ int ipa_spearhead_stats_init()
 	}
 	memset(&poll_pack_and_cred_info, 0, sizeof(poll_pack_and_cred_info));
 	IPA_STATS_ERR("IPA_LNX_STATS_IOCTL init success\n");
+
+	return 0;
+}
+
+/* Non periodic/Event based stats update */
+int ipa3_update_usb_per_stats(enum ipa_per_stats_type_e stats_type, uint32_t data) {
+	union ipa_peripheral_stats *peripheral_stats =
+		(union ipa_peripheral_stats *) ipa3_ctx->per_stats_smem_va;
+	if (ipa3_ctx->platform_type == IPA_PLAT_TYPE_MDM) {
+		peripheral_stats->mdm.usb_enum_value = IPA_PER_USB_ENUM_TYPE_INVALID;
+		peripheral_stats->mdm.usb_prot_enum_value = IPA_PER_USB_PROT_TYPE_INVALID;
+		peripheral_stats->mdm.usb_max_speed_val = 0;
+		peripheral_stats->mdm.usb_pipo_val = 0;
+	} else if (ipa3_ctx->platform_type == IPA_PLAT_TYPE_MSM) {
+		peripheral_stats->msm.usb_enum_value = IPA_PER_USB_ENUM_TYPE_INVALID;
+		peripheral_stats->msm.usb_prot_enum_value = IPA_PER_USB_PROT_TYPE_INVALID;
+		peripheral_stats->msm.usb_max_speed_val = 0;
+		peripheral_stats->msm.usb_pipo_val = 0;
+	}
+	return 0;
+}
+
+int ipa3_update_pcie_per_stats(enum ipa_per_stats_type_e stats_type, uint32_t data) {
+	union ipa_peripheral_stats *peripheral_stats =
+		(union ipa_peripheral_stats *) ipa3_ctx->per_stats_smem_va;
+	if (ipa3_ctx->platform_type == IPA_PLAT_TYPE_MDM) {
+		peripheral_stats->mdm.pcie_gen_type_val = 0;
+		peripheral_stats->mdm.pcie_width_type_val = PCIE_LINK_WIDTH_DEF;
+		peripheral_stats->mdm.pcie_max_speed_val = 0;
+		peripheral_stats->mdm.pcie_num_lpm_trans_d3 = 0;
+		peripheral_stats->mdm.pcie_num_lpm_trans_m1 = 0;
+		peripheral_stats->mdm.pcie_num_lpm_trans_m2 = 0;
+		peripheral_stats->mdm.pcie_num_lpm_trans_m0 = 0;
+	}
+	return 0;
+}
+
+int ipa3_update_wifi_per_stats(enum ipa_per_stats_type_e stats_type, uint32_t data) {
+	union ipa_peripheral_stats *peripheral_stats =
+		(union ipa_peripheral_stats *) ipa3_ctx->per_stats_smem_va;
+	if (ipa3_ctx->platform_type == IPA_PLAT_TYPE_MDM) {
+		peripheral_stats->mdm.wifi_enum_type_val = IPA_PER_WIFI_ENUM_TYPE_INVALID;
+		peripheral_stats->mdm.wifi_max_speed_val = 0;
+		peripheral_stats->mdm.wifi_dual_band_enabled_val = 0;
+	} else if (ipa3_ctx->platform_type == IPA_PLAT_TYPE_MSM) {
+		peripheral_stats->msm.wifi_enum_type_val = IPA_PER_WIFI_ENUM_TYPE_INVALID;
+		peripheral_stats->msm.wifi_max_speed_val = 0;
+		peripheral_stats->msm.wifi_dual_band_enabled_val = 0;
+	}
+	return 0;
+}
+
+int ipa3_update_eth_per_stats(enum ipa_per_stats_type_e stats_type, uint32_t data) {
+	union ipa_peripheral_stats *peripheral_stats =
+		(union ipa_peripheral_stats *) ipa3_ctx->per_stats_smem_va;
+	if (ipa3_ctx->platform_type == IPA_PLAT_TYPE_MDM) {
+		peripheral_stats->mdm.eth_client_val = 0;
+		peripheral_stats->mdm.eth_max_speed_val = 0;
+	}
+	return 0;
+}
+
+int ipa3_update_apps_per_stats(enum ipa_per_stats_type_e stats_type, uint32_t data) {
+	union ipa_peripheral_stats *peripheral_stats =
+		(union ipa_peripheral_stats *) ipa3_ctx->per_stats_smem_va;
+	if (ipa3_ctx->platform_type == IPA_PLAT_TYPE_MDM) {
+		peripheral_stats->mdm.periph_val = 0;
+		peripheral_stats->mdm.periph_wwan_val = 0;
+		peripheral_stats->mdm.periph_type_val = IPA_PER_TYPE_BITMASK_NONE;
+	} else if (ipa3_ctx->platform_type == IPA_PLAT_TYPE_MSM) {
+		peripheral_stats->msm.periph_val = 0;
+		peripheral_stats->msm.periph_wwan_val = 0;
+		peripheral_stats->msm.periph_type_val = IPA_PER_TYPE_BITMASK_NONE;
+	}
+	return 0;
+}
+
+/* Periodic stats update */
+int ipa3_update_client_holb_per_stats(enum ipa_per_stats_type_e stats_type, uint32_t data) {
+	union ipa_peripheral_stats *peripheral_stats =
+		(union ipa_peripheral_stats *) ipa3_ctx->per_stats_smem_va;
+	if (ipa3_ctx->platform_type == IPA_PLAT_TYPE_MDM) {
+		peripheral_stats->mdm.wifi_holb_uc_stats_num_periph_bad = 0;
+		peripheral_stats->mdm.wifi_holb_uc_stats_num_periph_recovered = 0;
+
+		peripheral_stats->mdm.eth_holb_uc_stats_num_periph_bad = 0;
+		peripheral_stats->mdm.eth_holb_uc_stats_num_periph_recovered = 0;
+
+		peripheral_stats->mdm.usb_holb_uc_stats_num_periph_bad = 0;
+		peripheral_stats->mdm.usb_holb_uc_stats_num_periph_recovered = 0;
+	} else if (ipa3_ctx->platform_type == IPA_PLAT_TYPE_MSM) {
+		peripheral_stats->msm.wifi_holb_uc_stats_num_periph_bad = 0;
+		peripheral_stats->msm.wifi_holb_uc_stats_num_periph_recovered = 0;
+
+		peripheral_stats->msm.usb_holb_uc_stats_num_periph_bad = 0;
+		peripheral_stats->msm.usb_holb_uc_stats_num_periph_recovered = 0;
+	}
+	return 0;
+}
+
+int ipa3_update_dma_per_stats(enum ipa_per_stats_type_e stats_type, uint32_t data) {
+	union ipa_peripheral_stats *peripheral_stats =
+		(union ipa_peripheral_stats *) ipa3_ctx->per_stats_smem_va;
+	peripheral_stats->mdm.ipa_dma_bytes_val = 0;
+	return 0;
+}
+
+int ipa3_peripheral_stats_init(union ipa_peripheral_stats *peripheral_stats) {
+
+	if (ipa3_ctx->platform_type == IPA_PLAT_TYPE_MDM) {
+		peripheral_stats->mdm.num_entries = IPA_PERIPHERAL_STATS_MDM_NUM_ENTRIES;
+
+		/* TLV for number of peripherals connected to APROC */
+		/* value = IPA_PER_STATS_TYPE_NUM_PERS */
+		peripheral_stats->mdm.periph_id = IPA_PER_STATS_TYPE_NUM_PERS;
+		peripheral_stats->mdm.periph_len = 4;
+		peripheral_stats->mdm.periph_val = 0;
+
+		/* TLV for number of periphers from/to traffic flowing from modem */
+		/* value = IPA_PER_STATS_TYPE_NUM_PERS_WWAN */
+		peripheral_stats->mdm.periph_wwan_id = IPA_PER_STATS_TYPE_NUM_PERS_WWAN;
+		peripheral_stats->mdm.periph_wwan_len = 4;
+		peripheral_stats->mdm.periph_wwan_val = 0;
+
+		/* TLV for bitmask for active/connected peripherals */
+		/* value = IPA_PER_STATS_TYPE_ACT_PER_TYPE */
+		peripheral_stats->mdm.periph_type_id = IPA_PER_STATS_TYPE_ACT_PER_TYPE;
+		peripheral_stats->mdm.periph_type_len = 4;
+		peripheral_stats->mdm.periph_type_val = IPA_PER_TYPE_BITMASK_NONE;
+
+		/* TLV for Current gen info if PCIe interconnect is valid */
+		/* value = IPA_PER_STATS_TYPE_PCIE_GEN */
+		peripheral_stats->mdm.pcie_gen_type_id = IPA_PER_STATS_TYPE_PCIE_GEN;
+		peripheral_stats->mdm.pcie_gen_type_len = 4;
+		peripheral_stats->mdm.pcie_gen_type_val = 0;
+
+		/* TLV for Current gen info if PCIe interconnect is valid */
+		/* value = IPA_PER_STATS_TYPE_PCIE_GEN */
+		peripheral_stats->mdm.pcie_width_type_id = IPA_PER_STATS_TYPE_PCIE_WIDTH;
+		peripheral_stats->mdm.pcie_width_type_len = 4;
+		peripheral_stats->mdm.pcie_width_type_val = PCIE_LINK_WIDTH_DEF;
+
+		/* TLV for Max PCIe speed in current gen in Mbps */
+		/* value = IPA_PER_STATS_TYPE_PCIE_MAX_SPEED */
+		peripheral_stats->mdm.pcie_max_speed_id = IPA_PER_STATS_TYPE_PCIE_MAX_SPEED;
+		peripheral_stats->mdm.pcie_max_speed_len = 4;
+		peripheral_stats->mdm.pcie_max_speed_val = 0;
+
+		/* TLV for number PCIe LPM transitions */
+		/* value = IPA_PER_STATS_TYPE_PCIE_NUM_LPM */
+		peripheral_stats->mdm.pcie_num_lpm_trans_id = IPA_PER_STATS_TYPE_PCIE_NUM_LPM;
+		peripheral_stats->mdm.pcie_num_lpm_trans_len = 8;
+		peripheral_stats->mdm.pcie_num_lpm_trans_d3 = 0;
+		peripheral_stats->mdm.pcie_num_lpm_trans_m1 = 0;
+		peripheral_stats->mdm.pcie_num_lpm_trans_m2 = 0;
+		peripheral_stats->mdm.pcie_num_lpm_trans_m0 = 0;
+
+		/* TLV for USB enumeration type */
+		/* value = IPA_PER_STATS_TYPE_USB_TYPE */
+		peripheral_stats->mdm.usb_enum_id = IPA_PER_STATS_TYPE_USB_TYPE;
+		peripheral_stats->mdm.usb_enum_len = 4;
+		peripheral_stats->mdm.usb_enum_value = IPA_PER_USB_ENUM_TYPE_INVALID;
+
+		/* TLV for Current USB protocol enumeration if active */
+		/* value = IPA_PER_STATS_TYPE_USB_PROT */
+		peripheral_stats->mdm.usb_prot_enum_id = IPA_PER_STATS_TYPE_USB_PROT;
+		peripheral_stats->mdm.usb_prot_enum_len = 4;
+		peripheral_stats->mdm.usb_prot_enum_value = IPA_PER_USB_PROT_TYPE_INVALID;
+
+		/* TLV for Max USB speed in current gen in Mbps */
+		/* value = IPA_PER_STATS_TYPE_USB_MAX_SPEED */
+		peripheral_stats->mdm.usb_max_speed_id = IPA_PER_STATS_TYPE_USB_MAX_SPEED;
+		peripheral_stats->mdm.usb_max_speed_len = 4;
+		peripheral_stats->mdm.usb_max_speed_val = 0;
+
+		/* TLV for Total number of USB plug in/outs, count is only plug ins */
+		/* value = IPA_PER_STATS_TYPE_USB_PIPO */
+		peripheral_stats->mdm.usb_pipo_id = IPA_PER_STATS_TYPE_USB_PIPO;
+		peripheral_stats->mdm.usb_pipo_len = 4;
+		peripheral_stats->mdm.usb_pipo_val = 0;
+
+		/* TLV for Wifi enumeration type*/
+		/* value = IPA_PER_STATS_TYPE_WIFI_ENUM_TYPE */
+		peripheral_stats->mdm.wifi_enum_type_id = IPA_PER_STATS_TYPE_WIFI_ENUM_TYPE;
+		peripheral_stats->mdm.wifi_enum_type_len = 4;
+		peripheral_stats->mdm.wifi_enum_type_val = IPA_PER_WIFI_ENUM_TYPE_INVALID;
+
+		/* TLV for Theoritical Max WLAN speed in current gen in Mbps (pipe for 5GHz in case of dual band) */
+		/* value = IPA_PER_STATS_TYPE_WIFI_MAX_SPEED */
+		peripheral_stats->mdm.wifi_max_speed_id = IPA_PER_STATS_TYPE_WIFI_MAX_SPEED;
+		peripheral_stats->mdm.wifi_max_speed_len = 4;
+		peripheral_stats->mdm.wifi_max_speed_val = 0;
+
+		/* TLV for Theoretical Max WLAN speed on the 2.4GHz pipe, value of 0 means disabled */
+		/* value = IPA_PER_STATS_TYPE_WIFI_DUAL_BAND_EN */
+		peripheral_stats->mdm.wifi_dual_band_enabled_id = IPA_PER_STATS_TYPE_WIFI_DUAL_BAND_EN;
+		peripheral_stats->mdm.wifi_dual_band_enabled_len = 4;
+		peripheral_stats->mdm.wifi_dual_band_enabled_val = 0;
+
+		/* TLV for the type of ethernet client - Realtek/AQC */
+		/* value = IPA_PER_STATS_TYPE_ETH_CLIENT */
+		peripheral_stats->mdm.eth_client_id = IPA_PER_STATS_TYPE_ETH_CLIENT;
+		peripheral_stats->mdm.eth_client_len = 4;
+		peripheral_stats->mdm.eth_client_val = 0;
+
+		/* TLV for Max Eth link speed */
+		/* value = IPA_PER_STATS_TYPE_ETH_MAX_SPEED */
+		peripheral_stats->mdm.eth_max_speed_id = IPA_PER_STATS_TYPE_ETH_MAX_SPEED;
+		peripheral_stats->mdm.eth_max_speed_len = 4;
+		peripheral_stats->mdm.eth_max_speed_val = 0;
+
+		/* TLV for Total number of bytes txferred through IPA DMA channels over PCIe */
+		/* For cases where GSI used for QDSS direct DMA, need to extract bytes stat from GSI FW */
+		/* value = IPA_PER_STATS_TYPE_IPA_DMA_BYTES */
+		peripheral_stats->mdm.ipa_dma_bytes_id = IPA_PER_STATS_TYPE_IPA_DMA_BYTES;
+		peripheral_stats->mdm.ipa_dma_bytes_len = 4;
+		peripheral_stats->mdm.ipa_dma_bytes_val = 0;
+
+		/* TLV for number of wifi peripherals connected to APROC */
+		/* value = IPA_PER_STATS_TYPE_WIFI_HOLB_UC */
+		peripheral_stats->mdm.wifi_holb_uc_stats_id = IPA_PER_STATS_TYPE_WIFI_HOLB_UC;
+		peripheral_stats->mdm.wifi_holb_uc_stats_len = 4;
+		peripheral_stats->mdm.wifi_holb_uc_stats_num_periph_bad = 0;
+		peripheral_stats->mdm.wifi_holb_uc_stats_num_periph_recovered = 0;
+
+		/* TLV for number of eth peripherals connected to APROC */
+		/* value = IPA_PER_STATS_TYPE_ETH_HOLB_UC */
+		peripheral_stats->mdm.eth_holb_uc_stats_id = IPA_PER_STATS_TYPE_ETH_HOLB_UC;
+		peripheral_stats->mdm.eth_holb_uc_stats_len = 4;
+		peripheral_stats->mdm.eth_holb_uc_stats_num_periph_bad = 0;
+		peripheral_stats->mdm.eth_holb_uc_stats_num_periph_recovered = 0;
+
+		/* TLV for number of usb peripherals connected to APROC */
+		/* value = IPA_PER_STATS_TYPE_USB_HOLB_UC */
+		peripheral_stats->mdm.usb_holb_uc_stats_id = IPA_PER_STATS_TYPE_USB_HOLB_UC;
+		peripheral_stats->mdm.usb_holb_uc_stats_len = 4;
+		peripheral_stats->mdm.usb_holb_uc_stats_num_periph_bad = 0;
+		peripheral_stats->mdm.usb_holb_uc_stats_num_periph_recovered = 0;
+
+	} else if (ipa3_ctx->platform_type == IPA_PLAT_TYPE_MSM) {
+		peripheral_stats->msm.num_entries = IPA_PERIPHERAL_STATS_MSM_NUM_ENTRIES;
+
+		/* TLV for number of peripherals connected to APROC */
+		/* value = IPA_PER_STATS_TYPE_NUM_PERS */
+		peripheral_stats->msm.periph_id = IPA_PER_STATS_TYPE_NUM_PERS;
+		peripheral_stats->msm.periph_len = 4;
+		peripheral_stats->msm.periph_val = 0;
+
+		/* TLV for number of periphers from/to traffic flowing from modem */
+		/* value = IPA_PER_STATS_TYPE_NUM_PERS_WWAN */
+		peripheral_stats->msm.periph_wwan_id = IPA_PER_STATS_TYPE_NUM_PERS_WWAN;
+		peripheral_stats->msm.periph_wwan_len = 4;
+		peripheral_stats->msm.periph_wwan_val = 0;
+
+		/* TLV for bitmask for active/connected peripherals */
+		/* value = IPA_PER_STATS_TYPE_ACT_PER_TYPE */
+		peripheral_stats->msm.periph_type_id = IPA_PER_STATS_TYPE_ACT_PER_TYPE;
+		peripheral_stats->msm.periph_type_len = 4;
+		peripheral_stats->msm.periph_type_val = IPA_PER_TYPE_BITMASK_NONE;
+
+		/* TLV for USB enumeration type */
+		/* value = IPA_PER_STATS_TYPE_USB_TYPE */
+		peripheral_stats->msm.usb_enum_id = IPA_PER_STATS_TYPE_USB_TYPE;
+		peripheral_stats->msm.usb_enum_len = 4;
+		peripheral_stats->msm.usb_enum_value = IPA_PER_USB_ENUM_TYPE_INVALID;
+
+		/* TLV for Current USB protocol enumeration if active */
+		/* value = IPA_PER_STATS_TYPE_USB_PROT */
+		peripheral_stats->msm.usb_prot_enum_id = IPA_PER_STATS_TYPE_USB_PROT;
+		peripheral_stats->msm.usb_prot_enum_len = 4;
+		peripheral_stats->msm.usb_prot_enum_value = IPA_PER_USB_PROT_TYPE_INVALID;
+
+		/* TLV for Max USB speed in current gen in Mbps */
+		/* value = IPA_PER_STATS_TYPE_USB_MAX_SPEED */
+		peripheral_stats->msm.usb_max_speed_id = IPA_PER_STATS_TYPE_USB_MAX_SPEED;
+		peripheral_stats->msm.usb_max_speed_len = 4;
+		peripheral_stats->msm.usb_max_speed_val = 0;
+
+		/* TLV for Total number of USB plug in/outs, count is only plug ins */
+		/* value = IPA_PER_STATS_TYPE_USB_PIPO */
+		peripheral_stats->msm.usb_pipo_id = IPA_PER_STATS_TYPE_USB_PIPO;
+		peripheral_stats->msm.usb_pipo_len = 4;
+		peripheral_stats->msm.usb_pipo_val = 0;
+
+		/* TLV for Wifi enumeration type*/
+		/* value = IPA_PER_STATS_TYPE_WIFI_ENUM_TYPE */
+		peripheral_stats->msm.wifi_enum_type_id = IPA_PER_STATS_TYPE_WIFI_ENUM_TYPE;
+		peripheral_stats->msm.wifi_enum_type_len = 4;
+		peripheral_stats->msm.wifi_enum_type_val = IPA_PER_WIFI_ENUM_TYPE_INVALID;
+
+		/* TLV for Theoritical Max WLAN speed in current gen in Mbps (pipe for 5GHz in case of dual band) */
+		/* value = IPA_PER_STATS_TYPE_WIFI_MAX_SPEED */
+		peripheral_stats->msm.wifi_max_speed_id = IPA_PER_STATS_TYPE_WIFI_MAX_SPEED;
+		peripheral_stats->msm.wifi_max_speed_len = 4;
+		peripheral_stats->msm.wifi_max_speed_val = 0;
+
+		/* TLV for Theoretical Max WLAN speed on the 2.4GHz pipe, value of 0 means disabled */
+		/* value = IPA_PER_STATS_TYPE_WIFI_DUAL_BAND_EN */
+		peripheral_stats->msm.wifi_dual_band_enabled_id = IPA_PER_STATS_TYPE_WIFI_DUAL_BAND_EN;
+		peripheral_stats->msm.wifi_dual_band_enabled_len = 4;
+		peripheral_stats->msm.wifi_dual_band_enabled_val = 0;
+
+		/* TLV for number of wifi peripherals connected to APROC */
+		/* value = IPA_PER_STATS_TYPE_WIFI_HOLB_UC */
+		peripheral_stats->msm.wifi_holb_uc_stats_id = IPA_PER_STATS_TYPE_WIFI_HOLB_UC;
+		peripheral_stats->msm.wifi_holb_uc_stats_len = 4;
+		peripheral_stats->msm.wifi_holb_uc_stats_num_periph_bad = 0;
+		peripheral_stats->msm.wifi_holb_uc_stats_num_periph_recovered = 0;
+
+		/* TLV for number of usb peripherals connected to APROC */
+		/* value = IPA_PER_STATS_TYPE_USB_HOLB_UC */
+		peripheral_stats->msm.usb_holb_uc_stats_id = IPA_PER_STATS_TYPE_USB_HOLB_UC;
+		peripheral_stats->msm.usb_holb_uc_stats_len = 4;
+		peripheral_stats->msm.usb_holb_uc_stats_num_periph_bad = 0;
+		peripheral_stats->msm.usb_holb_uc_stats_num_periph_recovered = 0;
+	}
 
 	return 0;
 }

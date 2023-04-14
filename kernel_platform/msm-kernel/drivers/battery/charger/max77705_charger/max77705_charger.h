@@ -324,6 +324,8 @@ ssize_t max77705_chg_store_attrs(struct device *dev,
 
 #define WC_DEFAULT_CURRENT 0x10
 
+#define DPM_MISC 0x4000	/* BATT_MISC_EVENT_DIRECT_POWER_MODE = 0x00004000 */
+
 typedef struct max77705_charger_platform_data {
 	/* wirelss charger */
 	char *wireless_charger_name;
@@ -340,8 +342,12 @@ typedef struct max77705_charger_platform_data {
 	int fac_vsys;
 	bool enable_noise_wa;
 	bool factory_wcin_irq;
+	bool user_wcin_irq;
 	bool enable_sysovlo_irq;
 	int fsw;
+	bool enable_dpm;
+	int disqbat;
+	int dpm_icl;
 
 	/* OVP/UVLO check */
 	int ovp_uvlo_check_type;
@@ -398,6 +404,7 @@ struct max77705_charger_data {
 	u8		cnfg00_mode;
 	int		fsw_now;
 
+	bool		bat_det;
 	int		irq_bypass;
 	int		irq_batp;
 #if defined(CONFIG_MAX77705_CHECK_B2SOVRC)
@@ -425,6 +432,8 @@ struct max77705_charger_data {
 
 	int misalign_cnt;
 	bool hp_otg;
+
+	int dpm_last_icl;
 
 	max77705_charger_platform_data_t *pdata;
 };

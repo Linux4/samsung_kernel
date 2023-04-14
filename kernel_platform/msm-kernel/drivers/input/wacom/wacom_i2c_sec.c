@@ -338,6 +338,20 @@ int wacom_open_test(struct wacom_i2c *wac_i2c, int test_mode)
 
 	input_info(true, &client->dev, "%s : start (%d)\n", __func__, test_mode);
 
+	if (test_mode == WACOM_GARAGE_TEST) {
+		wac_i2c->garage_connection_check = false;
+		wac_i2c->garage_fail_channel = 0;
+		wac_i2c->garage_min_adc_val = 0;
+		wac_i2c->garage_error_cal = 0;
+		wac_i2c->garage_min_cal_val = 0;
+	} else if (test_mode == WACOM_DIGITIZER_TEST) {
+		wac_i2c->connection_check = false;
+		wac_i2c->fail_channel = 0;
+		wac_i2c->min_adc_val = 0;
+		wac_i2c->error_cal = 0;
+		wac_i2c->min_cal_val = 0;
+	}
+
 	if(!wac_i2c->pdata->support_garage_open_test && test_mode == WACOM_GARAGE_TEST){
 		input_err(true, &client->dev, "%s: not support garage open test", __func__);
 		retval = EPEN_OPEN_TEST_NOTSUPPORT;
@@ -364,21 +378,8 @@ int wacom_open_test(struct wacom_i2c *wac_i2c, int test_mode)
 	wacom_enable_irq(wac_i2c, false);
 
 	if (test_mode == WACOM_GARAGE_TEST) {
-		wac_i2c->garage_connection_check = false;
-		wac_i2c->garage_fail_channel = 0;
-		wac_i2c->garage_min_adc_val = 0;
-		wac_i2c->garage_error_cal = 0;
-		wac_i2c->garage_min_cal_val = 0;
-
 		cmd = COM_GARAGE_TEST_MODE;
-
 	} else if (test_mode == WACOM_DIGITIZER_TEST) {
-		wac_i2c->connection_check = false;
-		wac_i2c->fail_channel = 0;
-		wac_i2c->min_adc_val = 0;
-		wac_i2c->error_cal = 0;
-		wac_i2c->min_cal_val = 0;
-
 		cmd = COM_DIGITIZER_TEST_MODE;
 	}
 
@@ -1071,7 +1072,7 @@ out_save_result:
 				goto out_ble_charging;
 
 			memset(wac_i2c->ble_hist1, 0x00, WACOM_BLE_HISTORY1_SIZE);
-			memcpy(wac_i2c->ble_hist1, buffer, len);
+			memcpy(wac_i2c->ble_hist1, buffer, WACOM_BLE_HISTORY1_SIZE);
 		}
 	}
 
@@ -1453,10 +1454,10 @@ static ssize_t epen_ble_hist_show(struct device *dev,
 	if (!wac_i2c->ble_hist1)
 		return -ENODEV;
 
-	size1 = strlen(wac_i2c->ble_hist1);
+	size1 = strnlen(wac_i2c->ble_hist1, WACOM_BLE_HISTORY1_SIZE);
 	memcpy(buf, wac_i2c->ble_hist1, size1);
 
-	size = strlen(wac_i2c->ble_hist);
+	size = strnlen(wac_i2c->ble_hist, WACOM_BLE_HISTORY_SIZE);
 	memcpy(buf + size1, wac_i2c->ble_hist, size);
 
 	return size + size1;
@@ -2047,6 +2048,32 @@ static void print_spec_data(struct wacom_i2c *wac_i2c)
 	for (i = 0; i < edata->max_y_ch; i++) {
 		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ",
 				edata->dryx_edg_spec[i] * power(edata->shift_value) / POWER_OFFSET);
+		strlcat(buff, tmp_buf, buff_size);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
+	}
+
+	input_info(true, &client->dev, "%s\n", buff);
+	memset(buff, 0x00, buff_size);
+
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "xx_self_spec: ");
+	strlcat(buff, tmp_buf, buff_size);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
+
+	for (i = 0; i < edata->max_x_ch; i++) {
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ", edata->xx_self_spec[i]);
+		strlcat(buff, tmp_buf, buff_size);
+		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
+	}
+
+	input_info(true, &client->dev, "%s\n", buff);
+	memset(buff, 0x00, buff_size);
+
+	snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "yy_self_spec: ");
+	strlcat(buff, tmp_buf, buff_size);
+	memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
+
+	for (i = 0; i < edata->max_y_ch; i++) {
+		snprintf(tmp_buf, WACOM_CMD_RESULT_WORD_LEN, "%lld ", edata->yy_self_spec[i]);
 		strlcat(buff, tmp_buf, buff_size);
 		memset(tmp_buf, 0x00, WACOM_CMD_RESULT_WORD_LEN);
 	}

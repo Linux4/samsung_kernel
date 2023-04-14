@@ -1256,7 +1256,7 @@ static int wm_coeff_tlv_get(struct snd_kcontrol *kctl,
 
 	mutex_lock(&ctl->dsp->pwr_lock);
 
-	ret = wm_coeff_read_ctrl_raw(ctl, ctl->cache, size);
+	ret = wm_coeff_read_ctrl(ctl, ctl->cache, size);
 
 	if (!ret && copy_to_user(bytes, ctl->cache, size))
 		ret = -EFAULT;
@@ -4019,7 +4019,7 @@ static int wm_adsp_write_data_word(struct wm_adsp *dsp, int mem_type,
 				   unsigned int mem_addr, u32 data)
 {
 	struct wm_adsp_region const *mem = wm_adsp_find_region(dsp, mem_type);
-	__be32 val = cpu_to_be32(data);
+	__be32 val = cpu_to_be32(data & 0x00ffffffu);
 	unsigned int reg;
 
 	if (!mem)

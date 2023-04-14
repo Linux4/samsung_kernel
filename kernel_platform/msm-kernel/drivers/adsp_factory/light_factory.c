@@ -30,14 +30,14 @@ struct device_id_t {
 static const struct device_id_t device_list[DEVICE_LIST_NUM] = {
 	/* ID, Vendor,      Name */
 	{0x00, "Unknown",   "Unknown"},
-	{0x18, "AMS", "TCS3701"},
+	{0x18, "AMS",       "TCS3701"},
 	{0x61, "SensorTek", "STK33911"},
 	{0x62, "SensorTek", "STK33917"},
 	{0x63, "SensorTek", "STK33910"},
 	{0x65, "SensorTek", "STK33915"},
 	{0x66, "SensorTek", "STK31610"},
-	{0x70, "Capella", "VEML3235"},
-	{0x71, "Capella", "VEML3328"},
+	{0x70, "Capella",   "VEML3235"},
+	{0x71, "Capella",   "VEML3328"},
 };
 
 #define ASCII_TO_DEC(x) (x - 48)
@@ -445,6 +445,11 @@ int light_panel_data_notify(struct notifier_block *nb,
 		if (data->brightness_info[0] == data->pre_bl_level)
 			return 0;
 #endif
+		if (data->brightness_info[0] <= 1 || data->pre_bl_level <= 1)
+			pr_info("[SSC_FAC] %s: br: %d(inx: %d)\n", __func__,
+				data->brightness_info[0],
+				data->brightness_info[2]);
+
 		data->pre_bl_level = data->brightness_info[0];
 		data->pre_display_idx = data->brightness_info[2];
 
@@ -478,8 +483,13 @@ int light_panel_data_notify(struct notifier_block *nb,
 			(data->pre_panel_idx == evdata->display_idx)))
 			return 0;
 
-		data->brightness_info[5] = data->pre_panel_state = panel_state;
+		data->pre_panel_state = panel_state;
 		data->pre_panel_idx = evdata->display_idx;
+#if !IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
+		if (evdata->display_idx == 0)
+#endif
+			data->brightness_info[5] = panel_state;
+
 		msg_buf[0] = OPTION_TYPE_SET_PANEL_STATE;
 		msg_buf[1] = panel_state;
 		msg_buf[2] = evdata->display_idx;
@@ -496,21 +506,22 @@ int light_panel_data_notify(struct notifier_block *nb,
 		mutex_unlock(&data->light_factory_mutex);
 	} else if (val == PANEL_EVENT_TEST_MODE_CHANGED) {
 		struct panel_test_mode_data *test_data = v;
-		int32_t msg_buf[2];
+		int32_t msg_buf[3];
 
-		if ((test_data->display_idx > 1) ||
-			(pre_test_state == (int32_t)test_data->state))
+		if (test_data->display_idx > 1)
 			return 0;
 
 		pre_test_state = (int32_t)test_data->state;
 		msg_buf[0] = OPTION_TYPE_SET_PANEL_TEST_STATE;
 		msg_buf[1] = (int32_t)test_data->state;
+		msg_buf[2] = test_data->display_idx;
 
 		light_idx = get_light_display_sidx(test_data->display_idx);
 
 		mutex_lock(&data->light_factory_mutex);
-		pr_info("[SSC_FAC] %s: panel test state %d\n",
-			__func__, (int)test_data->state);
+		pr_info("[SSC_FAC] %s: panel test state %d (%d)\n",
+			__func__, (int)test_data->state,
+			test_data->display_idx);
 
 		adsp_unicast(msg_buf, sizeof(msg_buf),
 			light_idx, 0, MSG_TYPE_OPTION_DEFINE);
@@ -530,7 +541,7 @@ int light_panel_data_notify(struct notifier_block *nb,
 		light_idx = get_light_display_sidx(screen_data->display_idx);
 
 		mutex_lock(&data->light_factory_mutex);
-		pr_info("[SSC_FAC] %s: panel screen mode %d %d\n",
+		pr_info("[SSC_FAC] %s: panel screen mode %d (%d)\n",
 			__func__, screen_data->mode, screen_data->display_idx);
 
 		adsp_unicast(msg_buf, sizeof(msg_buf),
@@ -594,7 +605,13 @@ static ssize_t light_lcd_onoff_store(struct device *dev,
 	else
 		return size;
 
-	pr_info("[SSC_FAC] %s: new_value %d\n", __func__, new_value);
+#if IS_ENABLED(CONFIG_SUPPORT_PANEL_STATE_NOTIFY_FOR_LIGHT_SENSOR) && IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
+	if (data->pre_panel_idx >= 0)
+		light_idx = get_light_display_sidx(data->pre_panel_idx);
+#endif
+	pr_info("[SSC_FAC] %s: new_value %d(idx: %d)\n",
+		__func__, new_value, data->pre_panel_idx);
+
 	data->pre_bl_level = -1;
 	msg_buf[0] = OPTION_TYPE_LCD_ONOFF;
 	msg_buf[1] = new_value;
@@ -1218,27 +1235,48 @@ static ssize_t light_cal_store(struct device *dev,
 			data->msg_buf[light_idx][3]);
 
 		if (data->msg_buf[light_idx][0] == LIGHT_CAL_PASS) {
-			data->light_cal_result = data->msg_buf[light_idx][0];
-			data->light_cal1 = data->msg_buf[light_idx][1];
-			data->light_cal2 = data->msg_buf[light_idx][2];
-			data->copr_w = data->msg_buf[light_idx][3];
+			if (light_idx == MSG_LIGHT) {
+				data->light_cal_result = data->msg_buf[light_idx][0];
+				data->light_cal1 = data->msg_buf[light_idx][1];
+				data->light_cal2 = data->msg_buf[light_idx][2];
+				data->copr_w = data->msg_buf[light_idx][3];
+			} else {
+				data->sub_light_cal_result = data->msg_buf[light_idx][0];
+				data->sub_light_cal1 = data->msg_buf[light_idx][1];
+				data->sub_light_cal2 = data->msg_buf[light_idx][2];
+				data->sub_copr_w = data->msg_buf[light_idx][3];
+			}
 		} else {
 			mutex_unlock(&data->light_factory_mutex);
 			return size;
 		}
 	} else {
-		data->light_cal_result = LIGHT_CAL_FAIL;
-		data->light_cal1 = 0;
-		data->light_cal2 = 0;
-		data->copr_w = 0;
+		if (light_idx == MSG_LIGHT) {
+			data->light_cal_result = LIGHT_CAL_FAIL;
+			data->light_cal1 = 0;
+			data->light_cal2 = 0;
+			data->copr_w = 0;
+		} else {
+			data->sub_light_cal_result = LIGHT_CAL_FAIL;
+			data->sub_light_cal1 = 0;
+			data->sub_light_cal2 = 0;
+			data->sub_copr_w = 0;
+		}
 	}
 
 	cnt = 0;
 	msg_buf[0] = OPTION_TYPE_SAVE_LIGHT_CAL;
-	msg_buf[1] = data->light_cal_result;
-	msg_buf[2] = data->light_cal1;
-	msg_buf[3] = data->light_cal2;
-	msg_buf[4] = data->copr_w;
+	if (light_idx == MSG_LIGHT) {
+		msg_buf[1] = data->light_cal_result;
+		msg_buf[2] = data->light_cal1;
+		msg_buf[3] = data->light_cal2;
+		msg_buf[4] = data->copr_w;
+	} else {
+		msg_buf[1] = data->sub_light_cal_result;
+		msg_buf[2] = data->sub_light_cal1;
+		msg_buf[3] = data->sub_light_cal2;
+		msg_buf[4] = data->sub_copr_w;
+	}
 	adsp_unicast(msg_buf, sizeof(msg_buf),
 		light_idx, 0, MSG_TYPE_SET_TEMPORARY_MSG);
 

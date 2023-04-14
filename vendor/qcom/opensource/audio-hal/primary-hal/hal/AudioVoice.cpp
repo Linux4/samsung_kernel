@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -45,6 +46,9 @@
 
 int AudioVoice::SetMode(const audio_mode_t mode) {
     int ret = 0;
+#ifdef SEC_AUDIO_COMMON
+    std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
+#endif
 
     AHAL_DBG("Enter: mode: %d", mode);
     if (mode_ != mode) {
@@ -61,6 +65,21 @@ int AudioVoice::SetMode(const audio_mode_t mode) {
                 session->state.new_ = CALL_ACTIVE;
                 AHAL_DBG("new state is ACTIVE for vsid:%x", session->vsid);
             }
+            if (adevice->factory_ &&
+                    (adevice->factory_->factory.state != FACTORY_TEST_INACTIVE)) {
+                adevice->factory_->InitState();
+                AHAL_DBG("%s: initialize factory state before starting call", __func__);
+            }
+#ifdef SEC_AUDIO_FMRADIO
+            if (adevice->sec_device_->fm.on) {
+                AHAL_DBG("%s: FM force stop for call", __func__);
+                adevice->sec_device_->fm.on = false;
+                struct str_parms *fm_parms = str_parms_create();
+                str_parms_add_int(fm_parms, AUDIO_PARAMETER_KEY_HANDLE_FM,
+                                      (int)(AUDIO_DEVICE_NONE|AUDIO_DEVICE_OUT_SPEAKER));
+                AudioExtn::audio_extn_fm_set_parameters(adevice, fm_parms);
+            }
+#endif
         }
 #endif
         /*start a new session for full voice call*/
@@ -71,19 +90,25 @@ int AudioVoice::SetMode(const audio_mode_t mode) {
             VoiceSetDevice(voice_.session);
         } else {
 #ifdef SEC_AUDIO_CALL_VOIP
-            /* duo mt call : voicestream > mode 3, hac custom key setting error */
-            std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
-            bool mode_change = false;
-            if (mode_ != mode) {
-                mode_change = true;
+            if (mode_== AUDIO_MODE_IN_COMMUNICATION) {
+                std::shared_ptr<StreamOutPrimary> astream_out = adevice->OutGetStream(PAL_STREAM_VOIP_RX);
+                if (astream_out && astream_out->HasPalStreamHandle() && sec_voice_->cng_enable)
+                    sec_voice_->SetCNGForEchoRefMute(false);
             }
 #endif
             mode_ = mode;
 
 #ifdef SEC_AUDIO_CALL_VOIP
-            if (mode_change && (mode == AUDIO_MODE_IN_COMMUNICATION)) {
+            if (mode == AUDIO_MODE_IN_COMMUNICATION) {
+                // P220608-06439, cp call mute top of the whatsapp call on dual sim model
+                if (voice_.in_call && voice_.session->pal_voice_handle == NULL) {
+                    ret = StopCall();
+                }
                 std::shared_ptr<StreamOutPrimary> astream_out = adevice->OutGetStream(PAL_STREAM_VOIP_RX);
                 if (astream_out) {
+                    if (astream_out->HasPalStreamHandle() && sec_voice_->cng_enable)
+                        sec_voice_->SetCNGForEchoRefMute(true);
+                    /* duo mt call : voicestream > mode 3, hac custom key setting error */
                     astream_out->ForceRouteStream({AUDIO_DEVICE_NONE});
                 }
             }
@@ -109,6 +134,9 @@ int AudioVoice::VoiceSetParameters(const char *kvpairs) {
     bool volume_boost;
     bool slow_talk;
     bool hd_voice;
+#ifndef SEC_AUDIO_CALL_HAC
+    bool hac;
+#endif
 #ifdef SEC_AUDIO_CALL
     std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
 #endif
@@ -270,7 +298,7 @@ int AudioVoice::VoiceSetParameters(const char *kvpairs) {
                 voice_.session[i].hd_voice = hd_voice;
                 if (IsCallActive(&voice_.session[i])) {
                     pal_stream_set_param(voice_.session[i].pal_voice_handle,
-                                         PAL_PARAM_ID_SLOW_TALK, params);
+                                         PAL_PARAM_ID_HD_VOICE, params);
                 }
             }
             free(params);
@@ -326,6 +354,22 @@ int AudioVoice::VoiceSetParameters(const char *kvpairs) {
         }
     }
 
+#ifndef SEC_AUDIO_CALL_HAC
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_HAC, c_value, sizeof(c_value));
+    if (err >= 0) {
+        hac = false;
+        if (strcmp(c_value, AUDIO_PARAMETER_VALUE_HAC_ON) == 0)
+            hac = true;
+        for ( i = 0; i < max_voice_sessions_; i++) {
+            if (voice_.session[i].hac != hac) {
+                voice_.session[i].hac = hac;
+                if (IsCallActive(&voice_.session[i])) {
+                    ret = VoiceSetDevice(&voice_.session[i]);
+                }
+            }
+        }
+    }
+#endif
 done:
     str_parms_destroy(parms);
     AHAL_DBG("Exit ret: %d", ret);
@@ -337,6 +381,10 @@ void AudioVoice::VoiceGetParameters(struct str_parms *query, struct str_parms *r
     uint32_t tty_mode = 0;
     int ret = 0;
     char value[256]={0};
+#ifdef SEC_AUDIO_CALL
+    std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
+    pal_effect_custom_payload_t *custom_payload = NULL;
+#endif
 
     ret = str_parms_get_str(query, AUDIO_PARAMETER_KEY_TTY_MODE,
                             value, sizeof(value));
@@ -363,6 +411,33 @@ void AudioVoice::VoiceGetParameters(struct str_parms *query, struct str_parms *r
             AHAL_ERR("Error happened for getting TTY mode");
         }
     }
+
+#ifdef SEC_AUDIO_CALL
+    ret = str_parms_get_str(query, AUDIO_PARAMETER_SEC_GLOBAL_FACTORY_ECHOREF_MUTE_DETECT, value, sizeof(value));
+    if (ret >= 0) {
+        uint32_t echoref_mute_status = 0;
+        uint32_t custom_data_sz = DEFAULT_PARAM_LEN * sizeof(uint32_t);
+        custom_payload = (pal_effect_custom_payload_t *) calloc (1,
+                                           sizeof(pal_effect_custom_payload_t) +
+                                           custom_data_sz);
+        if (!custom_payload) {
+             AHAL_ERR("calloc failed for size %d", custom_data_sz);
+             ret = -ENOMEM;
+             return;
+        }
+
+        custom_payload->paramId = PARAM_ID_ECHOREF_MUTE_DETECT_PARAM;
+        custom_payload->data[0] = echoref_mute_status;
+
+        adevice->effect_->get_custom_payload_effect(TAG_ECHOREF_NO_KEY, custom_payload, custom_data_sz);
+        str_parms_add_int(reply, AUDIO_PARAMETER_SEC_GLOBAL_FACTORY_ECHOREF_MUTE_VALUE, custom_payload->data[0]);
+        AHAL_INFO("echoref mute detect %d", custom_payload->data[0]);
+
+        free(custom_payload);
+        custom_payload = NULL;
+    }
+#endif
+
     return;
 }
 
@@ -431,7 +506,6 @@ int AudioVoice::RouteStream(const std::set<audio_devices_t>& rx_devices) {
     pal_device_id_t pal_tx_device = (pal_device_id_t) NULL;
     pal_device_id_t* pal_device_ids = NULL;
     uint16_t device_count = 0;
-    bool same_dev = false;
 #ifdef SEC_AUDIO_COMMON
     std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
 #endif
@@ -444,6 +518,18 @@ int AudioVoice::RouteStream(const std::set<audio_devices_t>& rx_devices) {
     }
 
     GetMatchingTxDevices(rx_devices, tx_devices);
+
+    /**
+     * if device_none is in Tx/Rx devices,
+     * which is invalid, teardown the usecase.
+     */
+    if (tx_devices.find(AUDIO_DEVICE_NONE) != tx_devices.end() ||
+        rx_devices.find(AUDIO_DEVICE_NONE) != rx_devices.end()) {
+        AHAL_ERR("Invalid Tx/Rx device");
+        ret = 0;
+        goto exit;
+    }
+
     device_count = tx_devices.size() > rx_devices.size() ? tx_devices.size() : rx_devices.size();
 
     pal_device_ids = (pal_device_id_t *)calloc(1, device_count * sizeof(pal_device_id_t));
@@ -471,9 +557,10 @@ int AudioVoice::RouteStream(const std::set<audio_devices_t>& rx_devices) {
     }
 #endif
 
-    same_dev = pal_voice_rx_device_id_ == pal_rx_device;
     pal_voice_rx_device_id_ = pal_rx_device;
     pal_voice_tx_device_id_ = pal_tx_device;
+
+    voice_mutex_.lock();
 
 #ifdef SEC_AUDIO_SUPPORT_REMOTE_MIC
     if (adevice->sec_device_->aas_on) {
@@ -500,36 +587,41 @@ int AudioVoice::RouteStream(const std::set<audio_devices_t>& rx_devices) {
                     adevice->voice_->SetMicMute(true);
                     sec_voice_->SetVoiceRxMute(true);
                 }
+#ifdef SEC_AUDIO_VOICE_TX_FOR_INCALL_MUSIC
+                else if(sec_voice_->screen_call){
+                    sec_voice_->SetVoiceRxMute(true);
+                }
+#endif
             }
 #endif
         }
     } else {
         //do device switch here
-        if (!same_dev) {
-            for (int i = 0; i < max_voice_sessions_; i++) {
-                ret = VoiceSetDevice(&voice_.session[i]);
-                if (ret) {
-                    AHAL_ERR("Device switch failed for session[%d]", i);
-                }
+        for (int i = 0; i < max_voice_sessions_; i++) {
+             ret = VoiceSetDevice(&voice_.session[i]);
+             if (ret) {
+                 AHAL_ERR("Device switch failed for session[%d]", i);
+             }
 #ifdef SEC_AUDIO_CALL
-                else {
-                    voice_session_t *session = &voice_.session[i];
-                    if (session && session->pal_voice_handle &&
-                            session->pal_vol_data && sec_voice_->volume != -1.0f) {
-                        session->pal_vol_data->volume_pair[0].vol = sec_voice_->volume;
-                        ret = pal_stream_set_volume(session->pal_voice_handle,
-                                session->pal_vol_data);
-                        if (ret)
-                            AHAL_ERR("Failed to apply volume on voice session %d, status %x", i, ret);
-                    }
+             else {
+                voice_session_t *session = &voice_.session[i];
+                if (session && session->pal_voice_handle &&
+                        session->pal_vol_data && sec_voice_->volume != -1.0f) {
+                    session->pal_vol_data->volume_pair[0].vol = sec_voice_->volume;
+                    ret = pal_stream_set_volume(session->pal_voice_handle,
+                            session->pal_vol_data);
+                    if (ret)
+                        AHAL_ERR("Failed to apply volume on voice session %d, status %x", i, ret);
                 }
+             }
 #endif
-            }
         }
     }
 #ifdef SEC_AUDIO_SPK_AMP_MUTE
     adevice->sec_device_->SetSpeakerMute(false);
 #endif
+
+    voice_mutex_.unlock();
 
     free(pal_device_ids);
 exit:
@@ -539,7 +631,7 @@ exit:
 
 int AudioVoice::UpdateCallState(uint32_t vsid, int call_state) {
     voice_session_t *session = NULL;
-    int i = 0, ret;
+    int i, ret = 0;
     bool is_call_active;
 
 
@@ -550,6 +642,7 @@ int AudioVoice::UpdateCallState(uint32_t vsid, int call_state) {
         }
     }
 
+    voice_mutex_.lock();
     if (session) {
         session->state.new_ = call_state;
         is_call_active = IsCallActive(session);
@@ -560,10 +653,11 @@ int AudioVoice::UpdateCallState(uint32_t vsid, int call_state) {
             ret = UpdateCalls(voice_.session);
         }
     } else {
-        return -EINVAL;
+        ret = -EINVAL;
     }
+    voice_mutex_.unlock();
 
-    return 0;
+    return ret;
 }
 
 int AudioVoice::UpdateCalls(voice_session_t *pSession) {
@@ -625,7 +719,7 @@ int AudioVoice::UpdateCalls(voice_session_t *pSession) {
 }
 
 int AudioVoice::StopCall() {
-    int i, ret = 0;;
+    int i, ret = 0;
 
     AHAL_DBG("Enter");
     voice_.in_call = false;
@@ -661,6 +755,11 @@ int AudioVoice::VoiceStart(voice_session_t *session) {
     struct pal_channel_info out_ch_info = {0, {0}}, in_ch_info = {0, {0}};
     pal_param_payload *param_payload = nullptr;
 
+    if (!session) {
+        AHAL_ERR("Invalid session");
+        return -EINVAL;
+    }
+
     AHAL_DBG("Enter");
 
     in_ch_info.channels = 1;
@@ -690,7 +789,6 @@ int AudioVoice::VoiceStart(voice_session_t *session) {
     streamAttributes.type = PAL_STREAM_VOICE_CALL;
     streamAttributes.info.voice_call_info.VSID = session->vsid;
     streamAttributes.info.voice_call_info.tty_mode = session->tty_mode;
-
     /*device overrides for specific use cases*/
     if (mode_ == AUDIO_MODE_CALL_SCREEN) {
         AHAL_DBG("in call screen mode");
@@ -753,6 +851,17 @@ int AudioVoice::VoiceStart(voice_session_t *session) {
     streamAttributes.out_media_config.bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
     streamAttributes.out_media_config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE; // TODO: need to convert this from output format
 
+#ifndef SEC_AUDIO_CALL_HAC
+    /*set custom key for hac mode*/
+    if (session && session->hac && palDevices[1].id ==
+        PAL_DEVICE_OUT_HANDSET) {
+        strlcpy(palDevices[0].custom_config.custom_key, "HAC",
+                    sizeof(palDevices[0].custom_config.custom_key));
+        strlcpy(palDevices[1].custom_config.custom_key, "HAC",
+                    sizeof(palDevices[1].custom_config.custom_key));
+        AHAL_INFO("Setting custom key as %s", palDevices[0].custom_config.custom_key);
+    }
+#endif
     //streamAttributes.in_media_config.ch_info = ch_info;
     ret = pal_stream_open(&streamAttributes,
                           2,
@@ -829,6 +938,14 @@ int AudioVoice::VoiceStart(voice_session_t *session) {
     /* apply cached volume set by APM */
     if (session->pal_voice_handle && session->pal_vol_data &&
         session->pal_vol_data->volume_pair[0].vol != -1.0) {
+#ifdef SEC_AUDIO_CALL
+        if ((sec_voice_->volume != -1.0f) &&
+                (session->pal_vol_data->volume_pair[0].vol != sec_voice_->volume)) {
+            AHAL_DBG("apply sec_voice_->volume(%f) instead of cached volume(%f)",
+                        sec_voice_->volume, session->pal_vol_data->volume_pair[0].vol);
+            session->pal_vol_data->volume_pair[0].vol = sec_voice_->volume;
+        }
+#endif
         ret = pal_stream_set_volume(session->pal_voice_handle, session->pal_vol_data);
         if (ret)
             AHAL_ERR("Failed to apply volume on voice session %x", ret);
@@ -848,7 +965,7 @@ int AudioVoice::VoiceStart(voice_session_t *session) {
            session->pal_voice_handle = NULL;
            ret = -EINVAL;
     } else {
-      AHAL_DBG("Pal Stream Start Success");
+        AHAL_DBG("Pal Stream Start Success");
     }
 
 #ifdef SEC_AUDIO_ENFORCED_AUDIBLE
@@ -856,34 +973,19 @@ int AudioVoice::VoiceStart(voice_session_t *session) {
         session->device_mute.mute = false;
 #endif
 
-    /*apply device mute if needed */
+    /*Apply device mute if needed*/
     if (session->device_mute.mute) {
-        param_payload = (pal_param_payload *)calloc(1, sizeof(pal_param_payload) +
-                                               sizeof(session->device_mute));
-       if (!param_payload) {
-           AHAL_ERR("calloc failed for size %zu",
-                    sizeof(pal_param_payload) + sizeof(session->device_mute));
-       } else {
-           param_payload->payload_size = sizeof(session->device_mute);
-           memcpy(param_payload->payload, &(session->device_mute), param_payload->payload_size);
-           ret = pal_stream_set_param(session->pal_voice_handle, PAL_PARAM_ID_DEVICE_MUTE,
-                                      param_payload);
-           if (ret)
-               AHAL_ERR("Voice Device mute failed %x", ret);
-           free(param_payload);
-           param_payload = nullptr;
-       }
+        ret = SetDeviceMute(session);
     }
-    /*apply chached mic mute*/
+
+    /*apply cached mic mute*/
     if (adevice->mute_) {
         pal_stream_set_mute(session->pal_voice_handle, adevice->mute_);
     }
 
 #ifdef SEC_AUDIO_DYNAMIC_NREC
-    if (adevice->effect_) {
-        // reset dsp aec mixer when entering cp call
-        adevice->effect_->SetECNS(true);
-    }
+    // reset dsp aec mixer when entering cp call
+    sec_voice_->SetECNS(true);
 #endif
 
 #ifdef SEC_AUDIO_CALL
@@ -892,6 +994,9 @@ int AudioVoice::VoiceStart(voice_session_t *session) {
 #ifdef SEC_AUDIO_ADAPT_SOUND
         sec_voice_->SetDHAData(adevice, NULL, DHA_SET);
 #endif
+        if (sec_voice_->cng_enable) {
+            sec_voice_->SetCNGForEchoRefMute(true);
+        }
         sec_voice_->SetDeviceInfo(palDevices[1].id);
     }
 #endif
@@ -901,11 +1006,51 @@ error_open:
     return ret;
 }
 
+int AudioVoice::SetDeviceMute(voice_session_t *session) {
+    int ret = 0;
+    pal_param_payload *param_payload = nullptr;
+
+    if (!session) {
+        AHAL_ERR("Invalid Session");
+        return -EINVAL;
+    }
+
+    param_payload = (pal_param_payload *)calloc(1, sizeof(pal_param_payload) +
+                        sizeof(session->device_mute));
+    if (!param_payload) {
+        AHAL_ERR("calloc failed for size %zu",
+                sizeof(pal_param_payload) + sizeof(session->device_mute));
+        ret = -EINVAL;
+    } else {
+        param_payload->payload_size = sizeof(session->device_mute);
+        memcpy(param_payload->payload, &(session->device_mute), param_payload->payload_size);
+        ret = pal_stream_set_param(session->pal_voice_handle, PAL_PARAM_ID_DEVICE_MUTE,
+                                param_payload);
+        if (ret)
+            AHAL_ERR("Voice Device mute failed %x", ret);
+        free(param_payload);
+        param_payload = nullptr;
+    }
+
+   AHAL_DBG("Exit ret: %d", ret);
+   return ret;
+}
+
 int AudioVoice::VoiceStop(voice_session_t *session) {
     int ret = 0;
 
     AHAL_DBG("Enter");
     if (session && session->pal_voice_handle) {
+#ifdef SEC_AUDIO_ADAPT_SOUND
+        std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
+        if (adevice->factory_->factory.loopback_type == LOOPBACK_OFF)
+            sec_voice_->SetDHAData(adevice, NULL, DHA_RESET);
+#endif
+#ifdef SEC_AUDIO_CALL
+        if (sec_voice_->cng_enable) {
+            sec_voice_->SetCNGForEchoRefMute(false);
+        }
+#endif
         ret = pal_stream_stop(session->pal_voice_handle);
         if (ret)
             AHAL_ERR("Pal Stream stop failed %x", ret);
@@ -914,12 +1059,6 @@ int AudioVoice::VoiceStop(voice_session_t *session) {
             AHAL_ERR("Pal Stream close failed %x", ret);
         session->pal_voice_handle = NULL;
     }
-
-#ifdef SEC_AUDIO_ADAPT_SOUND
-    std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
-    if (adevice->factory_->factory.loopback_type == LOOPBACK_OFF)
-        sec_voice_->SetDHAData(adevice, NULL, DHA_RESET);
-#endif
 
 #ifdef SEC_AUDIO_CALL
     sec_voice_->pre_device_type = VOICE_DEVICE_INVALID;
@@ -937,6 +1076,11 @@ int AudioVoice::VoiceSetDevice(voice_session_t *session) {
     struct pal_channel_info out_ch_info = {0, {0}}, in_ch_info = {0, {0}};
     std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
     pal_param_payload *param_payload = nullptr;
+
+    if (!session) {
+        AHAL_ERR("Invalid session");
+        return -EINVAL;
+    }
 
     AHAL_DBG("Enter");
     in_ch_info.channels = 1;
@@ -1018,44 +1162,45 @@ int AudioVoice::VoiceSetDevice(voice_session_t *session) {
                 param_payload = nullptr;
             }
     }
-
+#ifndef SEC_AUDIO_CALL_HAC
+    /*set or remove custom key for hac mode*/
+    if (session && session->hac && palDevices[1].id ==
+        PAL_DEVICE_OUT_HANDSET) {
+        strlcpy(palDevices[0].custom_config.custom_key, "HAC",
+                    sizeof(palDevices[0].custom_config.custom_key));
+        strlcpy(palDevices[1].custom_config.custom_key, "HAC",
+                    sizeof(palDevices[1].custom_config.custom_key));
+            AHAL_INFO("Setting custom key as %s", palDevices[0].custom_config.custom_key);
+    } else {
+        strlcpy(palDevices[0].custom_config.custom_key, "",
+                sizeof(palDevices[0].custom_config.custom_key));
+    }
+#endif
 #ifdef SEC_AUDIO_CALL
     sec_voice_->SetCustomKey(adevice, palDevices);
 #endif
 
     if (session && session->pal_voice_handle) {
         ret = pal_stream_set_device(session->pal_voice_handle, 2, palDevices);
-        if (ret)
+        if (ret) {
             AHAL_ERR("Pal Stream Set Device failed %x", ret);
+            ret = -EINVAL;
+            goto exit;
+        }
 #ifdef SEC_AUDIO_CALL
-            sec_voice_->SetDeviceInfo(palDevices[1].id);
+        sec_voice_->SetDeviceInfo(palDevices[1].id);
 #endif
     } else {
         AHAL_ERR("Voice handle not found");
     }
 
-    /*reapply device mute if needed*/
+    // (SEC_TEMP) check SEC_AUDIO_ENFORCED_AUDIBLE case
+    /* apply device mute if needed*/
     if (session->device_mute.mute) {
-        param_payload = (pal_param_payload *)calloc(1, sizeof(pal_param_payload) +
-                                           sizeof(session->device_mute));
-        if (!param_payload) {
-            AHAL_ERR("calloc failed for size %zu",
-                    sizeof(pal_param_payload) + sizeof(session->device_mute));
-        } else {
-            param_payload->payload_size = sizeof(session->device_mute);
-            memcpy(param_payload->payload, &(session->device_mute), param_payload->payload_size);
-            ret = pal_stream_set_param(session->pal_voice_handle, PAL_PARAM_ID_DEVICE_MUTE,
-                                      param_payload);
-            if (ret)
-               AHAL_ERR("Voice Device mute failed %x", ret);
-            free(param_payload);
-            param_payload = nullptr;
-        }
+        ret = SetDeviceMute(session);
     }
 
-    if (ret)
-        ret = -EINVAL;
-
+exit:
     AHAL_DBG("Exit ret: %d", ret);
     return ret;
 }
@@ -1126,6 +1271,17 @@ int AudioVoice::SetVoiceVolume(float volume) {
             }
         }
     }
+
+#ifdef SEC_AUDIO_CALL_VOIP
+    if (mode_ == AUDIO_MODE_IN_COMMUNICATION) {
+        std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
+        std::shared_ptr<StreamOutPrimary> astream_out = adevice->OutGetStream(PAL_STREAM_VOIP_RX);
+        if (astream_out && astream_out->HasPalStreamHandle()) {
+            astream_out->SetVolume(volume, volume);
+        }
+    }
+#endif
+
     AHAL_DBG("Exit ret: %d", ret);
     return ret;
 }
@@ -1158,6 +1314,9 @@ AudioVoice::AudioVoice() {
         voice_.session[i].pal_vol_data = pal_vol_;
         voice_.session[i].device_mute.dir = PAL_AUDIO_OUTPUT;
         voice_.session[i].device_mute.mute = false;
+#ifndef SEC_AUDIO_CALL_HAC
+        voice_.session[i].hac = false;
+#endif
     }
 
     voice_.session[MMODE1_SESS_IDX].vsid = VOICEMMODE1_VSID;
@@ -1185,6 +1344,9 @@ AudioVoice::~AudioVoice() {
         voice_.session[i].pal_voice_handle = NULL;
         voice_.session[i].hd_voice = false;
         voice_.session[i].pal_vol_data = NULL;
+#ifndef SEC_AUDIO_CALL_HAC
+        voice_.session[i].hac = false;
+#endif
     }
 
     voice_.session[MMODE1_SESS_IDX].vsid = VOICEMMODE1_VSID;

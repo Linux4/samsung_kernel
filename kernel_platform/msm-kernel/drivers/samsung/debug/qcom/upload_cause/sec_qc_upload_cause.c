@@ -19,6 +19,12 @@
 #include <linux/samsung/debug/sec_upload_cause.h>
 #include <linux/samsung/debug/qcom/sec_qc_upload_cause.h>
 
+struct qc_upldc_drvdata {
+	struct builder bd;
+};
+
+static struct qc_upldc_drvdata *qc_upldc;
+
 /* This is shared with msm-power off module. */
 static void __iomem *qcom_upload_cause;
 
@@ -28,7 +34,7 @@ static unsigned long kunit_upload_cause;
 
 static __always_inline bool __qc_upldc_is_probed(void)
 {
-	return !!qcom_upload_cause;
+	return !!qc_upldc;
 }
 
 static void __qc_upldc_write_cause(unsigned int type)
@@ -105,7 +111,7 @@ EXPORT_SYMBOL(sec_qc_upldc_type_to_cause);
 #define SEC_QC_UPLC_STRNCASECMP(__cause, __type) \
 	SEC_QC_UPLC(__cause, __type, sec_qc_upldc_strncasecmp)
 
-static int sec_qc_upldc_strncmp(const struct sec_upload_cause *uc,
+static int __used sec_qc_upldc_strncmp(const struct sec_upload_cause *uc,
 		const char *cause)
 {
 	if (strncmp(cause, uc->cause, strlen(uc->cause)))
@@ -116,7 +122,7 @@ static int sec_qc_upldc_strncmp(const struct sec_upload_cause *uc,
 	return SEC_UPLOAD_CAUSE_HANDLE_OK;
 }
 
-static int sec_qc_upldc_strnstr(const struct sec_upload_cause *uc,
+static int __used sec_qc_upldc_strnstr(const struct sec_upload_cause *uc,
 		const char *cause)
 {
 	if (!strnstr(cause, uc->cause, strlen(cause)))
@@ -127,7 +133,7 @@ static int sec_qc_upldc_strnstr(const struct sec_upload_cause *uc,
 	return SEC_UPLOAD_CAUSE_HANDLE_OK;
 }
 
-static int sec_qc_upldc_strncasecmp(const struct sec_upload_cause *uc,
+static int __used sec_qc_upldc_strncasecmp(const struct sec_upload_cause *uc,
 		const char *cause)
 {
 	if (strncasecmp(cause, uc->cause, strlen(uc->cause)))
@@ -196,11 +202,6 @@ static struct sec_upload_cause __qc_upldc_strnstr[] = {
 			    UPLOAD_CAUSE_PF_WD_BITE),
 };
 
-static struct sec_upload_cause __qc_upldc_strncasecmp[] = {
-	SEC_QC_UPLC_STRNCASECMP("subsys",
-				UPLOAD_CAUSE_PERIPHERAL_ERR),
-};
-
 struct sec_upload_cause_suite {
 	struct sec_upload_cause *uc;
 	size_t nr_cause;
@@ -214,10 +215,6 @@ static struct sec_upload_cause_suite qc_upldc_suite[] = {
 	{
 		.uc = __qc_upldc_strnstr,
 		.nr_cause = ARRAY_SIZE(__qc_upldc_strnstr),
-	},
-	{
-		.uc = __qc_upldc_strncasecmp,
-		.nr_cause = ARRAY_SIZE(__qc_upldc_strncasecmp),
 	},
 };
 
@@ -241,6 +238,9 @@ static int __qc_upldc_add_for_each(struct sec_upload_cause *uc, ssize_t n)
 
 err_add_cause:
 	__qc_upldc_del_for_each(uc, last_failed);
+	if (err == -EBUSY)
+		return -EPROBE_DEFER;
+
 	return err;
 }
 
@@ -337,7 +337,12 @@ static struct sec_upload_cause sec_qc_upldc_default_handle = {
 
 static int __qc_upldc_set_default_cause(struct builder *bd)
 {
-	return sec_upldc_set_default_cause(&sec_qc_upldc_default_handle);
+	int err = sec_upldc_set_default_cause(&sec_qc_upldc_default_handle);
+
+	if (err == -EBUSY)
+		return -EPROBE_DEFER;
+
+	return err;
 }
 
 static void __qc_upldc_unset_default_cause(struct builder *bd)
@@ -351,8 +356,13 @@ static struct notifier_block sec_qc_upldc_crashkey_long_handle = {
 
 static int __qc_upldc_register_crashkey_long_handle(struct builder *bd)
 {
-	return sec_crashkey_long_add_preparing_panic(
+	int err = sec_crashkey_long_add_preparing_panic(
 			&sec_qc_upldc_crashkey_long_handle);
+
+	if (err == -EBUSY)
+		return -EPROBE_DEFER;
+
+	return err;
 }
 
 static void __qc_upldc_unregister_crashkey_long_handle(struct builder *bd)
@@ -412,24 +422,73 @@ static void __qc_upldc_del_upload_cause_suite(struct builder *bd)
 			       ARRAY_SIZE(qc_upldc_suite));
 }
 
+static int __qc_upldc_set_drvdata(struct builder *bd)
+{
+	struct qc_upldc_drvdata *drvdata =
+			container_of(bd, struct qc_upldc_drvdata, bd);
+	struct device *dev = bd->dev;
+
+	dev_set_drvdata(dev, drvdata);
+
+	return 0;
+}
+
+static int __qc_upldc_probe_epilog(struct builder *bd)
+{
+	struct qc_upldc_drvdata *drvdata =
+			container_of(bd, struct qc_upldc_drvdata, bd);
+
+	qc_upldc = drvdata;
+
+	return 0;
+}
+
+static void __qc_upldc_remove_prolog(struct builder *bd)
+{
+	qc_upldc = NULL;
+}
+
 static int __qc_upldc_probe(struct platform_device *pdev,
 		const struct dev_builder *builder, ssize_t n)
 {
 	struct device *dev = &pdev->dev;
-	struct builder __dummy_bd = { .dev = dev, };
-	struct builder *bd = &__dummy_bd;
+	struct qc_upldc_drvdata *drvdata;
 
-	return sec_director_probe_dev(bd, builder, n);
+	drvdata = devm_kzalloc(dev, sizeof(*drvdata), GFP_KERNEL);
+	if (!drvdata)
+		return -ENOMEM;
+
+	drvdata->bd.dev = dev;
+
+	return sec_director_probe_dev(&drvdata->bd, builder, n);
+}
+
+static int __qc_upldc_probe_threaded(struct platform_device *pdev,
+		const struct dev_builder *builder, ssize_t n)
+{
+	struct qc_upldc_drvdata *drvdata = platform_get_drvdata(pdev);
+
+	return sec_director_probe_dev_threaded(&drvdata->bd, builder, n,
+			"qc_upldc");
 }
 
 static int __qc_upldc_remove(struct platform_device *pdev,
 		const struct dev_builder *builder, ssize_t n)
 {
-	struct device *dev = &pdev->dev;
-	struct builder __dummy_bd = {.dev = dev, };
-	struct builder *bd = &__dummy_bd;
+	struct qc_upldc_drvdata *drvdata = platform_get_drvdata(pdev);
 
-	sec_director_destruct_dev(bd, builder, n, n);
+	sec_director_destruct_dev(&drvdata->bd, builder, n, n);
+
+	return 0;
+}
+
+static int __qc_upldc_remove_threaded(struct platform_device *pdev,
+		const struct dev_builder *builder, ssize_t n)
+{
+	struct qc_upldc_drvdata *drvdata = platform_get_drvdata(pdev);
+	struct director_threaded *drct = drvdata->bd.drct;
+
+	sec_director_destruct_dev_threaded(drct);
 
 	return 0;
 }
@@ -470,24 +529,41 @@ int kunit_qc_upldc_mock_remove(struct platform_device *pdev)
 static const struct dev_builder __qc_upldc_dev_builder[] = {
 	DEVICE_BUILDER(__qc_upldc_ioremap_qcom_upload_cause,
 		       __qc_upldc_iounmap_qcom_upload_cause),
+	DEVICE_BUILDER(__qc_upldc_set_drvdata, NULL),
+};
+
+static const struct dev_builder __qc_upldc_dev_builder_threaded[] = {
 	DEVICE_BUILDER(__qc_upldc_add_upload_cause_suite,
 		       __qc_upldc_del_upload_cause_suite),
 	DEVICE_BUILDER(__qc_upldc_set_default_cause,
 		       __qc_upldc_unset_default_cause),
 	DEVICE_BUILDER(__qc_upldc_register_crashkey_long_handle,
 		       __qc_upldc_unregister_crashkey_long_handle),
+	DEVICE_BUILDER(__qc_upldc_probe_epilog, __qc_upldc_remove_prolog),
 };
 
 static int sec_qc_upldc_probe(struct platform_device *pdev)
 {
-	return __qc_upldc_probe(pdev, __qc_upldc_dev_builder,
+	int err;
+
+	err = __qc_upldc_probe(pdev, __qc_upldc_dev_builder,
 			ARRAY_SIZE(__qc_upldc_dev_builder));
+	if (err)
+		return err;
+
+	return __qc_upldc_probe_threaded(pdev, __qc_upldc_dev_builder_threaded,
+			ARRAY_SIZE(__qc_upldc_dev_builder_threaded));
 }
 
 static int sec_qc_upldc_remove(struct platform_device *pdev)
 {
-	return __qc_upldc_remove(pdev, __qc_upldc_dev_builder,
+	__qc_upldc_remove_threaded(pdev, __qc_upldc_dev_builder_threaded,
+			ARRAY_SIZE(__qc_upldc_dev_builder_threaded));
+
+	__qc_upldc_remove(pdev, __qc_upldc_dev_builder,
 			ARRAY_SIZE(__qc_upldc_dev_builder));
+
+	return 0;
 }
 
 static const struct of_device_id sec_qc_upldc_match_table[] = {
@@ -509,7 +585,7 @@ static int __init sec_qc_upldc_init(void)
 {
 	return platform_driver_register(&sec_qc_upldc_driver);
 }
-subsys_initcall_sync(sec_qc_upldc_init);
+arch_initcall(sec_qc_upldc_init);
 
 static void __exit sec_qc_upldc_exit(void)
 {

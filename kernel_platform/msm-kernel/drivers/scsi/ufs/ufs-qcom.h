@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /* Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef UFS_QCOM_H_
@@ -9,6 +10,7 @@
 #include <linux/reset.h>
 #include <linux/phy/phy.h>
 #include <linux/pm_qos.h>
+#include <linux/nvmem-consumer.h>
 #include "ufshcd.h"
 #include "unipro.h"
 
@@ -52,11 +54,20 @@
 #define UFS_QCOM_LIMIT_HS_RATE		PA_HS_MODE_B
 #define UFS_QCOM_LIMIT_DESIRED_MODE	FAST
 #define UFS_QCOM_LIMIT_PHY_SUBMODE	UFS_QCOM_PHY_SUBMODE_G4
+#define UFS_QCOM_DEFAULT_TURBO_FREQ     300000000
+#define UFS_QCOM_DEFAULT_TURBO_L1_FREQ  300000000
+#define UFS_NOM_THRES_FREQ	300000000
 
 /* default value of auto suspend is 3 seconds */
 #define UFS_QCOM_AUTO_SUSPEND_DELAY	3000
 #define UFS_QCOM_CLK_GATING_DELAY_MS_PWR_SAVE	20
 #define UFS_QCOM_CLK_GATING_DELAY_MS_PERF	50
+
+/* QCOM ICE registers */
+#define REG_UFS_ICE_CONTROL	0x00
+
+/* bit definitions for QCOM_ICE_REG_CONTROL register */
+#define ICE_CONTROL	BIT(1)
 
 /* QCOM UFS host controller vendor specific registers */
 enum {
@@ -184,8 +195,14 @@ enum ufs_qcom_phy_init_type {
 
 #define PA_VS_CLK_CFG_REG	0x9004
 #define PA_VS_CLK_CFG_REG_MASK	0x1FF
+#define PA_VS_CLK_CFG_REG_MASK1 0xFF
+
 #define DME_VS_CORE_CLK_CTRL_MAX_CORE_CLK_1US_CYCLES_MASK_V4	0xFFF
 #define DME_VS_CORE_CLK_CTRL_MAX_CORE_CLK_1US_CYCLES_OFFSET_V4	0x10
+
+#define PA_VS_CLK_CFG_REG_MASK_TURBO 0x100
+#define ATTR_HW_CGC_EN_TURBO 0x100
+#define ATTR_HW_CGC_EN_NON_TURBO 0x000
 
 #define PA_VS_CORE_CLK_40NS_CYCLES	0x9007
 #define PA_VS_CORE_CLK_40NS_CYCLES_MASK	0xF
@@ -200,6 +217,10 @@ enum ufs_qcom_phy_init_type {
 #define DME_VS_CORE_CLK_CTRL_MAX_CORE_CLK_1US_CYCLES_MASK	0xFF
 #define DME_VS_CORE_CLK_CTRL_CORE_CLK_DIV_EN_BIT		BIT(8)
 #define DME_VS_CORE_CLK_CTRL_DME_HW_CGC_EN			BIT(9)
+
+#define TEST_BUS_CTRL_2_HCI_SEL_TURBO_MASK 0x010
+#define TEST_BUS_CTRL_2_HCI_SEL_TURBO 0x010
+#define TEST_BUS_CTRL_2_HCI_SEL_NONTURBO 0x000
 
 /* Device Quirks */
 /*
@@ -388,6 +409,7 @@ struct ufs_qcom_host {
 	int limit_rx_pwm_gear;
 	int limit_rate;
 	int limit_phy_submode;
+	int ufs_dev_types;
 
 	bool disable_lpm;
 	struct qcom_bus_scale_data *qbsd;
@@ -418,6 +440,31 @@ struct ufs_qcom_host {
 	int config_cpu;
 	void *ufs_ipc_log_ctx;
 	bool dbg_en;
+	struct nvmem_cell *nvmem_cell;
+
+	/* Multi level clk scaling Support */
+	bool ml_scale_sup;
+	bool is_turbo_enabled;
+	/* threshold count to scale down from turbo to NOM */
+	u32 turbo_down_thres_cnt;
+	/* turbo freq for UFS clocks read from DT */
+	u32 axi_turbo_clk_freq;
+	u32 axi_turbo_l1_clk_freq;
+	u32 ice_turbo_clk_freq;
+	u32 ice_turbo_l1_clk_freq;
+	u32 unipro_turbo_clk_freq;
+	u32 unipro_turbo_l1_clk_freq;
+	bool turbo_unipro_attr_applied;
+	/* some target need additional setting to support turbo mode*/
+	bool turbo_additional_conf_req;
+	/* current UFS clocks freq */
+	u32 curr_axi_freq;
+	u32 curr_ice_freq;
+	u32 curr_unipro_freq;
+	/* Indicates curr and next clk mode */
+	u32 clk_next_mode;
+	u32 clk_curr_mode;
+	bool is_clk_scale_enabled;
 
 	bool skip_flush;
 };
@@ -482,6 +529,16 @@ static inline int ufshcd_dme_rmw(struct ufs_hba *hba, u32 mask,
 
 out:
 	return err;
+}
+
+static inline void ufshcd_ice_rmwl(struct ufs_qcom_host *host, u32 mask, u32 val, u32 reg)
+{
+	u32 tmp;
+
+	tmp = readl_relaxed((host)->ice_mmio + (reg));
+	tmp &= ~mask;
+	tmp |= (val & mask);
+	writel_relaxed(tmp, (host)->ice_mmio + (reg));
 }
 
 /*

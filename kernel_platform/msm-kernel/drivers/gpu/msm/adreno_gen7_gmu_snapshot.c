@@ -87,6 +87,9 @@ static size_t gen7_snapshot_gmu_mem(struct kgsl_device *device,
 		(buf + sizeof(*mem_hdr));
 	struct gmu_mem_type_desc *desc = priv;
 
+	if (priv == NULL || desc->memdesc->hostptr == NULL)
+		return 0;
+
 	if (remain < desc->memdesc->size + sizeof(*mem_hdr)) {
 		dev_err(device->dev,
 			"snapshot: Not enough memory for the gmu section %d\n",
@@ -302,7 +305,7 @@ void gen7_gmu_device_snapshot(struct kgsl_device *device,
 	kgsl_snapshot_add_section(device, KGSL_SNAPSHOT_SECTION_REGS_V2, snapshot,
 		gen7_snapshot_rscc_registers, (void *) gen7_rscc_registers);
 
-	if (!gen7_gmu_gx_is_on(device))
+	if (!gen7_gmu_gx_is_on(adreno_dev))
 		goto dtcm;
 
 	/* Set fence to ALLOW mode so registers can be read */

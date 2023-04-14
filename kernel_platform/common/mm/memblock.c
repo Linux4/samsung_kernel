@@ -967,7 +967,8 @@ static bool should_skip_region(struct memblock_type *type,
 		return true;
 
 	/* skip hotpluggable memory regions if needed */
-	if (movable_node_is_enabled() && memblock_is_hotpluggable(m))
+	if (movable_node_is_enabled() && memblock_is_hotpluggable(m) &&
+	    !(flags & MEMBLOCK_HOTPLUG))
 		return true;
 
 	/* if we want mirror memory skip non-mirror memory regions */
@@ -1931,7 +1932,7 @@ struct memsize_rgn_struct {
 	char		name[NAME_SIZE];	/* 30/32 byte */
 };
 
-#define MAX_MEMSIZE_RGN	64
+#define MAX_MEMSIZE_RGN	70
 static struct memsize_rgn_struct memsize_rgn[MAX_MEMSIZE_RGN];
 static int memsize_rgn_count;
 static long kernel_init_size;
@@ -2317,17 +2318,9 @@ static int memblock_memsize_show(struct seq_file *m, void *private)
 		end = base + size;
 
 		seq_printf(m, "0x%09lx-0x%09lx 0x%08lx ( %7lu KB ) %s %s %s\n",
-#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 			   0UL, 0UL,
-#else
-			   (unsigned long)base, (unsigned long)end,
-#endif
 			   size, DIV_ROUND_UP(size, SZ_1K),
-#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 			   "xxxxx",
-#else
-			   rgn->nomap ? "nomap" : "  map",
-#endif
 			   rgn->reusable ? "reusable" : "unusable",
 			   rgn->name);
 		if (rgn->reusable)

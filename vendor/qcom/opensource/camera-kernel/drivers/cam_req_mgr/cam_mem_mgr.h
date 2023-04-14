@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_MEM_MGR_H_
@@ -51,7 +52,8 @@ struct cam_presil_dmabuf_params {
  * @active:         state of the buffer
  * @is_imported:    Flag indicating if buffer is imported from an FD in user space
  * @is_internal:    Flag indicating kernel allocated buffer
- * @timestamp:      Timestamp at which this entry in tbl was made
+ * @map_timestamp:  Timestamp at which this entry in tbl was made on mapping
+ * @unmap_timestamp Timestamp at which unmap is made
  * @presil_params:  Parameters specific to presil environment
  */
 struct cam_mem_buf_queue {
@@ -70,7 +72,8 @@ struct cam_mem_buf_queue {
 	bool active;
 	bool is_imported;
 	bool is_internal;
-	struct timespec64 timestamp;
+	struct timespec64 map_timestamp;
+	struct timespec64 unmap_timestamp;
 
 #ifdef CONFIG_CAM_PRESIL
 	struct cam_presil_dmabuf_params presil_params;

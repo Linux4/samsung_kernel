@@ -262,7 +262,7 @@ retry:
 				goto next;
 			}
 
-			err = f2fs_get_node_info(sbi, dn.nid, &ni);
+			err = f2fs_get_node_info(sbi, dn.nid, &ni, false);
 			if (err) {
 				f2fs_put_dnode(&dn);
 				return err;
@@ -485,7 +485,7 @@ int f2fs_commit_inmem_pages(struct inode *inode)
 
 	f2fs_balance_fs(sbi, true);
 
-	down_write(&fi->i_gc_rwsem[WRITE]);
+	f2fs_down_write(&fi->i_gc_rwsem[WRITE]);
 
 	f2fs_lock_op(sbi);
 	set_inode_flag(inode, FI_ATOMIC_COMMIT);
@@ -497,7 +497,7 @@ int f2fs_commit_inmem_pages(struct inode *inode)
 	clear_inode_flag(inode, FI_ATOMIC_COMMIT);
 
 	f2fs_unlock_op(sbi);
-	up_write(&fi->i_gc_rwsem[WRITE]);
+	f2fs_up_write(&fi->i_gc_rwsem[WRITE]);
 
 	return err;
 }
@@ -535,7 +535,7 @@ void f2fs_balance_fs(struct f2fs_sb_info *sbi, bool need)
 			io_schedule();
 			finish_wait(&sbi->gc_thread->fggc_wq, &wait);
 		} else {
-			down_write(&sbi->gc_lock);
+			f2fs_down_write(&sbi->gc_lock);
 			f2fs_gc(sbi, false, false, false, NULL_SEGNO);
 		}
 	}
@@ -565,7 +565,7 @@ void f2fs_balance_fs_bg(struct f2fs_sb_info *sbi, bool from_bg)
 
 	/* there is background inflight IO or foreground operation recently */
 	if (is_inflight_io(sbi, REQ_TIME) ||
-		(!f2fs_time_over(sbi, REQ_TIME) && rwsem_is_locked(&sbi->cp_rwsem)))
+		(!f2fs_time_over(sbi, REQ_TIME) && f2fs_rwsem_is_locked(&sbi->cp_rwsem)))
 		return;
 
 	/* exceed periodical checkpoint timeout threshold */
@@ -1471,6 +1471,21 @@ static int __queue_discard_cmd(struct f2fs_sb_info *sbi,
 	return 0;
 }
 
+static bool __should_flush_discard(struct f2fs_sb_info *sbi)
+{
+	struct discard_cmd_control *dcc = SM_I(sbi)->dcc_info;
+
+	/* undisacrd_blks : number of 4KB blocks */
+	if (dcc->undiscard_blks > dcc->undiscard_thresh_blks)
+		return true;
+
+	if (atomic_read(&dcc->discard_cmd_cnt) >
+			dcc->discard_cmd_slab_thresh_cnt)
+		return true;
+
+	return false;
+}
+
 static unsigned int __issue_discard_cmd_orderly(struct f2fs_sb_info *sbi,
 					struct discard_policy *dpolicy)
 {
@@ -1501,7 +1516,8 @@ static unsigned int __issue_discard_cmd_orderly(struct f2fs_sb_info *sbi,
 		if (dc->state != D_PREP)
 			goto next;
 
-		if (dpolicy->io_aware && !is_idle(sbi, DISCARD_TIME)) {
+		if (dpolicy->io_aware && !is_idle(sbi, DISCARD_TIME) &&
+					!__should_flush_discard(sbi)) {
 			io_interrupted = true;
 			break;
 		}
@@ -1532,21 +1548,6 @@ next:
 }
 static unsigned int __wait_all_discard_cmd(struct f2fs_sb_info *sbi,
 					struct discard_policy *dpolicy);
-
-static bool __should_flush_discard(struct f2fs_sb_info *sbi)
-{
-	struct discard_cmd_control *dcc = SM_I(sbi)->dcc_info;
-
-	/* undisacrd_blks : number of 4KB blocks */
-	if (dcc->undiscard_blks > dcc->undiscard_thresh_blks)
-		return true;
-
-	if (atomic_read(&dcc->discard_cmd_cnt) >
-			dcc->discard_cmd_slab_thresh_cnt)
-		return true;
-
-	return false;
-}
 
 static int __issue_discard_cmd(struct f2fs_sb_info *sbi,
 					struct discard_policy *dpolicy)
@@ -2790,7 +2791,7 @@ static void __f2fs_init_atgc_curseg(struct f2fs_sb_info *sbi)
 	if (!sbi->am.atgc_enabled)
 		return;
 
-	down_read(&SM_I(sbi)->curseg_lock);
+	f2fs_down_read(&SM_I(sbi)->curseg_lock);
 
 	mutex_lock(&curseg->curseg_mutex);
 	down_write(&SIT_I(sbi)->sentry_lock);
@@ -2800,7 +2801,7 @@ static void __f2fs_init_atgc_curseg(struct f2fs_sb_info *sbi)
 	up_write(&SIT_I(sbi)->sentry_lock);
 	mutex_unlock(&curseg->curseg_mutex);
 
-	up_read(&SM_I(sbi)->curseg_lock);
+	f2fs_up_read(&SM_I(sbi)->curseg_lock);
 
 }
 void f2fs_init_inmem_curseg(struct f2fs_sb_info *sbi)
@@ -2952,7 +2953,7 @@ void f2fs_allocate_segment_for_resize(struct f2fs_sb_info *sbi, int type,
 	struct curseg_info *curseg = CURSEG_I(sbi, type);
 	unsigned int segno;
 
-	down_read(&SM_I(sbi)->curseg_lock);
+	f2fs_down_read(&SM_I(sbi)->curseg_lock);
 	mutex_lock(&curseg->curseg_mutex);
 	down_write(&SIT_I(sbi)->sentry_lock);
 
@@ -2976,7 +2977,7 @@ unlock:
 			    type, segno, curseg->segno);
 
 	mutex_unlock(&curseg->curseg_mutex);
-	up_read(&SM_I(sbi)->curseg_lock);
+	f2fs_up_read(&SM_I(sbi)->curseg_lock);
 }
 
 static void __allocate_new_segment(struct f2fs_sb_info *sbi, int type,
@@ -3008,23 +3009,23 @@ static void __allocate_new_section(struct f2fs_sb_info *sbi,
 
 void f2fs_allocate_new_section(struct f2fs_sb_info *sbi, int type, bool force)
 {
-	down_read(&SM_I(sbi)->curseg_lock);
+	f2fs_down_read(&SM_I(sbi)->curseg_lock);
 	down_write(&SIT_I(sbi)->sentry_lock);
 	__allocate_new_section(sbi, type, force);
 	up_write(&SIT_I(sbi)->sentry_lock);
-	up_read(&SM_I(sbi)->curseg_lock);
+	f2fs_up_read(&SM_I(sbi)->curseg_lock);
 }
 
 void f2fs_allocate_new_segments(struct f2fs_sb_info *sbi)
 {
 	int i;
 
-	down_read(&SM_I(sbi)->curseg_lock);
+	f2fs_down_read(&SM_I(sbi)->curseg_lock);
 	down_write(&SIT_I(sbi)->sentry_lock);
 	for (i = CURSEG_HOT_DATA; i <= CURSEG_COLD_DATA; i++)
 		__allocate_new_segment(sbi, i, false, false);
 	up_write(&SIT_I(sbi)->sentry_lock);
-	up_read(&SM_I(sbi)->curseg_lock);
+	f2fs_up_read(&SM_I(sbi)->curseg_lock);
 }
 
 static const struct segment_allocation default_salloc_ops = {
@@ -3162,9 +3163,9 @@ int f2fs_trim_fs(struct f2fs_sb_info *sbi, struct fstrim_range *range)
 	if (sbi->discard_blks == 0)
 		goto out;
 
-	down_write(&sbi->gc_lock);
+	f2fs_down_write(&sbi->gc_lock);
 	err = f2fs_write_checkpoint(sbi, &cpc);
-	up_write(&sbi->gc_lock);
+	f2fs_up_write(&sbi->gc_lock);
 	if (err)
 		goto out;
 
@@ -3401,7 +3402,7 @@ void f2fs_allocate_data_block(struct f2fs_sb_info *sbi, struct page *page,
 	bool from_gc = (type == CURSEG_ALL_DATA_ATGC);
 	struct seg_entry *se = NULL;
 
-	down_read(&SM_I(sbi)->curseg_lock);
+	f2fs_down_read(&SM_I(sbi)->curseg_lock);
 
 	mutex_lock(&curseg->curseg_mutex);
 	down_write(&sit_i->sentry_lock);
@@ -3485,7 +3486,7 @@ void f2fs_allocate_data_block(struct f2fs_sb_info *sbi, struct page *page,
 
 	mutex_unlock(&curseg->curseg_mutex);
 
-	up_read(&SM_I(sbi)->curseg_lock);
+	f2fs_up_read(&SM_I(sbi)->curseg_lock);
 }
 
 static void update_device_state(struct f2fs_io_info *fio)
@@ -3515,7 +3516,7 @@ static void do_write_page(struct f2fs_summary *sum, struct f2fs_io_info *fio)
 	bool keep_order = (f2fs_lfs_mode(fio->sbi) && type == CURSEG_COLD_DATA);
 
 	if (keep_order)
-		down_read(&fio->sbi->io_order_lock);
+		f2fs_down_read(&fio->sbi->io_order_lock);
 reallocate:
 	f2fs_allocate_data_block(fio->sbi, fio->page, fio->old_blkaddr,
 			&fio->new_blkaddr, sum, type, fio);
@@ -3535,7 +3536,7 @@ reallocate:
 	update_device_state(fio);
 
 	if (keep_order)
-		up_read(&fio->sbi->io_order_lock);
+		f2fs_up_read(&fio->sbi->io_order_lock);
 }
 
 void f2fs_do_write_meta_page(struct f2fs_sb_info *sbi, struct page *page,
@@ -3616,6 +3617,9 @@ int f2fs_inplace_write_data(struct f2fs_io_info *fio)
 		goto drop_bio;
 	}
 
+	invalidate_mapping_pages(META_MAPPING(sbi),
+				fio->new_blkaddr, fio->new_blkaddr);
+
 	stat_inc_inplace_blocks(fio->sbi);
 	atomic64_inc(&(sbi->sec_stat.inplace_count));
 
@@ -3669,7 +3673,7 @@ void f2fs_do_replace_block(struct f2fs_sb_info *sbi, struct f2fs_summary *sum,
 	se = get_seg_entry(sbi, segno);
 	type = se->type;
 
-	down_write(&SM_I(sbi)->curseg_lock);
+	f2fs_down_write(&SM_I(sbi)->curseg_lock);
 
 	if (!recover_curseg) {
 		/* for recovery flow */
@@ -3738,7 +3742,7 @@ void f2fs_do_replace_block(struct f2fs_sb_info *sbi, struct f2fs_summary *sum,
 
 	up_write(&sit_i->sentry_lock);
 	mutex_unlock(&curseg->curseg_mutex);
-	up_write(&SM_I(sbi)->curseg_lock);
+	f2fs_up_write(&SM_I(sbi)->curseg_lock);
 }
 
 void f2fs_replace_block(struct f2fs_sb_info *sbi, struct dnode_of_data *dn,
@@ -3769,7 +3773,7 @@ void __update_summary_of_block(struct f2fs_sb_info *sbi,
 	/* Get segment information of block */
 	segno = GET_SEGNO(sbi, blkaddr);
 
-	down_write(&SM_I(sbi)->curseg_lock);
+	f2fs_down_write(&SM_I(sbi)->curseg_lock);
 
 	if (IS_CURSEG(sbi, segno)) {
 		type = __f2fs_get_curseg(sbi, segno);
@@ -3807,7 +3811,7 @@ void __update_summary_of_block(struct f2fs_sb_info *sbi,
 
 	up_write(&sit_i->sentry_lock);
 	mutex_unlock(&curseg->curseg_mutex);
-	up_write(&SM_I(sbi)->curseg_lock);
+	f2fs_up_write(&SM_I(sbi)->curseg_lock);
 }
 
 void f2fs_relocate_ofs_in_node_of_block(struct f2fs_sb_info *sbi,
@@ -5296,7 +5300,7 @@ int f2fs_build_segment_manager(struct f2fs_sb_info *sbi)
 
 	INIT_LIST_HEAD(&sm_info->sit_entry_set);
 
-	init_rwsem(&sm_info->curseg_lock);
+	init_f2fs_rwsem(&sm_info->curseg_lock);
 
 	if (!f2fs_readonly(sbi->sb)) {
 		err = f2fs_create_flush_cmd_control(sbi);

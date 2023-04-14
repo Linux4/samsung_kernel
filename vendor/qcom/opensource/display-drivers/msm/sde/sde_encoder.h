@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
@@ -53,6 +54,13 @@
 
 /* below this fps limit, timeouts are adjusted based on fps */
 #define DEFAULT_TIMEOUT_FPS_THRESHOLD            24
+
+#define NUM_FSC_FIELDS 3
+#define PLANAR_RGB_PACKING 3
+#define GET_MODE_WIDTH(fsc_mode, mode) \
+	(fsc_mode ? mode->hdisplay / PLANAR_RGB_PACKING : mode->hdisplay)
+#define GET_MODE_HEIGHT(fsc_mode, mode) \
+	(fsc_mode ? mode->vdisplay * NUM_FSC_FIELDS : mode->vdisplay)
 
 /**
  * Encoder functions and data types
@@ -267,6 +275,12 @@ struct sde_encoder_virt {
 void sde_encoder_get_hw_resources(struct drm_encoder *encoder,
 		struct sde_encoder_hw_resources *hw_res,
 		struct drm_connector_state *conn_state);
+
+/**
+ * sde_encoder_trigger_rsc_state_change - rsc state change.
+ * @encoder:	encoder pointer
+ */
+void sde_encoder_trigger_rsc_state_change(struct drm_encoder *drm_enc);
 
 /**
  * sde_encoder_early_wakeup - early wake up display

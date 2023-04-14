@@ -162,7 +162,7 @@ struct a6xx_cp_smmu_info {
 		(ilog2(KGSL_RB_DWORDS >> 1) & 0x3F))
 
 /* Size of the CP_INIT pm4 stream in dwords */
-#define A6XX_CP_INIT_DWORDS 12
+#define A6XX_CP_INIT_DWORDS 11
 
 #define A6XX_INT_MASK \
 	((1 << A6XX_INT_CP_AHB_ERROR) |			\
@@ -183,7 +183,6 @@ struct a6xx_cp_smmu_info {
 #define A6XX_HWSCHED_INT_MASK \
 	((1 << A6XX_INT_CP_AHB_ERROR) |			\
 	 (1 << A6XX_INT_ATB_ASYNCFIFO_OVERFLOW) |	\
-	 (1 << A6XX_INT_RBBM_GPC_ERROR) |		\
 	 (1 << A6XX_INT_RBBM_ATB_BUS_OVERFLOW) |	\
 	 (1 << A6XX_INT_UCHE_OOB_ACCESS) |		\
 	 (1 << A6XX_INT_UCHE_TRAP_INTR) |		\
@@ -218,18 +217,6 @@ static inline bool a6xx_is_smmu_stalled(struct kgsl_device *device)
 
 	return val & BIT(24);
 }
-
-/**
- * a6xx_cx_regulator_disable_wait - Disable a cx regulator and wait for it
- * @reg: A &struct regulator handle
- * @device: kgsl device struct
- * @timeout: Time to wait (in milliseconds)
- *
- * Disable the regulator and wait @timeout milliseconds for it to enter the
- * disabled state.
- */
-void a6xx_cx_regulator_disable_wait(struct regulator *reg,
-				struct kgsl_device *device, u32 timeout);
 
 /* Preemption functions */
 void a6xx_preemption_trigger(struct adreno_device *adreno_dev, bool atomic);
@@ -274,6 +261,7 @@ void a6xx_crashdump_init(struct adreno_device *adreno_dev);
 int a6xx_gmu_sptprac_enable(struct adreno_device *adreno_dev);
 void a6xx_gmu_sptprac_disable(struct adreno_device *adreno_dev);
 bool a6xx_gmu_sptprac_is_on(struct adreno_device *adreno_dev);
+bool a619_holi_gx_is_on(struct adreno_device *adreno_dev);
 
 /**
  * a6xx_read_alwayson - Read the current always on clock value

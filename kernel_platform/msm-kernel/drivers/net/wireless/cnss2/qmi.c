@@ -185,7 +185,7 @@ qmi_registered:
 static void cnss_wlfw_host_cap_parse_mlo(struct cnss_plat_data *plat_priv,
 					 struct wlfw_host_cap_req_msg_v01 *req)
 {
-	if (plat_priv->device_id == WCN7850_DEVICE_ID) {
+	if (plat_priv->device_id == KIWI_DEVICE_ID) {
 		req->mlo_capable_valid = 1;
 		req->mlo_capable = 1;
 		req->mlo_chip_id_valid = 1;
@@ -528,15 +528,19 @@ int cnss_wlfw_tgt_cap_send_sync(struct cnss_plat_data *plat_priv)
 	else
 		plat_priv->hang_data_addr_offset = 0;
 
+	if (resp->hwid_bitmap_valid)
+		plat_priv->hwid_bitmap = resp->hwid_bitmap;
+
 	cnss_pr_dbg("Target capability: chip_id: 0x%x, chip_family: 0x%x, board_id: 0x%x, soc_id: 0x%x, otp_version: 0x%x\n",
 		    plat_priv->chip_info.chip_id,
 		    plat_priv->chip_info.chip_family,
 		    plat_priv->board_info.board_id, plat_priv->soc_info.soc_id,
 		    plat_priv->otp_version);
-	cnss_pr_dbg("fw_version: 0x%x, fw_build_timestamp: %s, fw_build_id: %s\n",
+	cnss_pr_dbg("fw_version: 0x%x, fw_build_timestamp: %s, fw_build_id: %s, hwid_bitmap:0x%x\n",
 		    plat_priv->fw_version_info.fw_version,
 		    plat_priv->fw_version_info.fw_build_timestamp,
-		    plat_priv->fw_build_id);
+		    plat_priv->fw_build_id,
+		    plat_priv->hwid_bitmap);
 	cnss_pr_dbg("Hang event params, Length: 0x%x, Offset Address: 0x%x\n",
 		    plat_priv->hang_event_data_len,
 		    plat_priv->hang_data_addr_offset);
@@ -1009,7 +1013,7 @@ int cnss_wlfw_qdss_data_send_sync(struct cnss_plat_data *plat_priv, char *file_n
 			goto fail;
 		}
 
-		ret = qmi_txn_wait(&txn, plat_priv->ctrl_params.qmi_timeout);
+		ret = qmi_txn_wait(&txn, QMI_WLFW_TIMEOUT_JF);
 
 		if (ret < 0) {
 			cnss_pr_err("QDSS trace resp wait failed with rc %d\n",
@@ -1086,7 +1090,7 @@ void cnss_get_qdss_cfg_filename(struct cnss_plat_data *plat_priv,
 	char filename_tmp[MAX_FIRMWARE_NAME_LEN];
 	char *debug_str = QDSS_DEBUG_FILE_STR;
 
-	if (plat_priv->device_id == WCN7850_DEVICE_ID)
+	if (plat_priv->device_id == KIWI_DEVICE_ID)
 		debug_str = "";
 
 	if (plat_priv->device_version.major_version == FW_V2_NUMBER)
@@ -1176,7 +1180,7 @@ int cnss_wlfw_qdss_dnld_send_sync(struct cnss_plat_data *plat_priv)
 			goto err_send;
 		}
 
-		ret = qmi_txn_wait(&txn, plat_priv->ctrl_params.qmi_timeout);
+		ret = qmi_txn_wait(&txn, QMI_WLFW_TIMEOUT_JF);
 		if (ret < 0) {
 			cnss_pr_err("Failed to wait for response of QDSS download request, err: %d\n",
 				    ret);
@@ -1266,7 +1270,7 @@ static int wlfw_send_qdss_trace_mode_req
 		goto out;
 	}
 
-	rc = qmi_txn_wait(&txn, plat_priv->ctrl_params.qmi_timeout);
+	rc = qmi_txn_wait(&txn, QMI_WLFW_TIMEOUT_JF);
 	if (rc < 0) {
 		cnss_pr_err("QDSS Mode resp wait failed with rc %d\n",
 			    rc);

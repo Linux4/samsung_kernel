@@ -492,7 +492,7 @@ static int sensors_ssc_probe(struct platform_device *pdev)
 	int ret;
 
 	prop = of_find_property(pdev->dev.of_node, "qcom,rproc-handle",
-		&size);
+				&size);
 	if (!prop) {
 		dev_err(&pdev->dev, "Missing remotproc handle\n");
 		return -ENOPARAM;

@@ -90,6 +90,12 @@
 #define FASTRPC_INIT_CREATE_STATIC  2
 #define FASTRPC_INIT_ATTACH_SENSORS 3
 
+/*Retrives method attribute from the scalars parameter*/
+#define REMOTE_SCALARS_METHOD_ATTR(dwScalars)   (((dwScalars) >> 29) & 0x7)
+
+/*Retrives method index from the scalars parameter*/
+#define REMOTE_SCALARS_METHOD(dwScalars)        (((dwScalars) >> 24) & 0x1f)
+
 /* Retrives number of input buffers from the scalars parameter */
 #define REMOTE_SCALARS_INBUFS(sc)        (((sc) >> 16) & 0x0ff)
 
@@ -537,6 +543,12 @@ enum fastrpc_response_flags {
 	POLL_MODE = 5,
 };
 
+enum fastrpc_process_create_state {
+	PROCESS_CREATE_DEFAULT = 0,			/* Process is not created */
+	PROCESS_CREATE_IS_INPROGRESS = 1,	/* Process creation is in progress */
+	PROCESS_CREATE_SUCCESS = 2,			/* Process creation is successful */
+};
+
 struct smq_invoke_rspv2 {
 	uint64_t ctx;		  /* invoke caller context */
 	int retval;		  /* invoke return value */
@@ -558,6 +570,19 @@ struct smq_notif_rspv3 {
 	uint32_t type;        /* Notification type */
 	int pid;		      /* user process pid */
 	uint32_t status;	  /* userpd status notification */
+};
+
+enum fastrpc_process_exit_states {
+	/* Process Default State */
+	FASTRPC_PROCESS_DEFAULT_STATE				= 0,
+	/* Process exit initiated */
+	FASTRPC_PROCESS_EXIT_START				= 1,
+	/* Process exit issued to DSP */
+	FASTRPC_PROCESS_DSP_EXIT_INIT				= 2,
+	/* Process exit in DSP complete */
+	FASTRPC_PROCESS_DSP_EXIT_COMPLETE			= 3,
+	/* Process exit in DSP error */
+	FASTRPC_PROCESS_DSP_EXIT_ERROR				= 4,
 };
 
 static inline struct smq_invoke_buf *smq_invoke_buf_start(remote_arg64_t *pra,

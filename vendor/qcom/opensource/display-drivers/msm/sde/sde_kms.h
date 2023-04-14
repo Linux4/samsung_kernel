@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
@@ -36,6 +37,7 @@
 #include "sde_hw_wb.h"
 #include "sde_hw_top.h"
 #include "sde_hw_uidle.h"
+#include "sde_hw_vbif.h"
 #include "sde_rm.h"
 #include "sde_power_handle.h"
 #include "sde_irq.h"
@@ -293,6 +295,7 @@ struct sde_kms {
 	struct sde_rm rm;
 	bool rm_init;
 	struct sde_splash_data splash_data;
+	struct sde_vbif_clk_client vbif_clk_clients[SDE_CLK_CTRL_MAX];
 	struct sde_hw_vbif *hw_vbif[VBIF_MAX];
 	struct sde_hw_mdp *hw_mdp;
 	struct sde_hw_uidle *hw_uidle;
@@ -489,11 +492,11 @@ void *sde_debugfs_get_root(struct sde_kms *sde_kms);
  * These functions/definitions allow for building up a 'sde_info' structure
  * containing one or more "key=value\n" entries.
  */
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-/* SS display modes are too many to cover all mode info with given 4K size, so increased */
-#define SDE_KMS_INFO_MAX_SIZE	(4096 * 3)
+
+#if IS_ENABLED(CONFIG_DRM_LOW_MSM_MEM_FOOTPRINT)
+#define SDE_KMS_INFO_MAX_SIZE	(1 << 12)
 #else
-#define SDE_KMS_INFO_MAX_SIZE	4096
+#define SDE_KMS_INFO_MAX_SIZE	(1 << 14)
 #endif
 
 /**

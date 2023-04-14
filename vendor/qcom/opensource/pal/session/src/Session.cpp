@@ -61,11 +61,34 @@ Session::~Session()
 
 }
 
+void Session::setPmQosMixerCtl(pmQosVote vote)
+{
+    struct mixer *hwMixer;
+    struct mixer_ctl *ctl;
+
+    if (0 == rm->getHwAudioMixer(&hwMixer)) {
+        ctl = mixer_get_ctl_by_name(hwMixer, "PM_QOS Vote");
+        if (!ctl) {
+            PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n",
+                                               "PM_QOS Vote");
+        } else {
+            if (vote == PM_QOS_VOTE_DISABLE) {
+                mixer_ctl_set_enum_by_string(ctl, "Disable");
+                PAL_DBG(LOG_TAG,"mixer control disabled for PM_QOS Vote \n");
+            } else if (vote == PM_QOS_VOTE_ENABLE) {
+                mixer_ctl_set_enum_by_string(ctl, "Enable");
+                PAL_DBG(LOG_TAG,"mixer control enabled for PM_QOS Vote \n");
+            }
+        }
+    }
+    else
+        PAL_ERR(LOG_TAG,"could not get hwMixer, not setting mixer control for PM_QOS \n");
+}
 
 Session* Session::makeSession(const std::shared_ptr<ResourceManager>& rm, const struct pal_stream_attributes *sAttr)
 {
     if (!rm || !sAttr) {
-        PAL_ERR(LOG_TAG,"Invalid parameters passed");
+        PAL_ERR(LOG_TAG, "Invalid parameters passed");
         return nullptr;
     }
 
@@ -323,7 +346,7 @@ exit:
 
 int Session::updateCustomPayload(void *payload, size_t size)
 {
-    if (!customPayloadSize) {
+    if (!customPayloadSize || !customPayload) {
         customPayload = calloc(1, size);
     } else {
         customPayload = realloc(customPayload, customPayloadSize + size);
@@ -340,7 +363,17 @@ int Session::updateCustomPayload(void *payload, size_t size)
     return 0;
 }
 
-int Session::freeCustomPayload(uint8_t **payload, size_t *payloadSize) {
+int Session::getCustomPayload(uint8_t **payload, size_t *payloadSize)
+{
+    if (customPayloadSize) {
+        *payload = (uint8_t *)customPayload;
+        *payloadSize = customPayloadSize;
+    }
+    return 0;
+}
+
+int Session::freeCustomPayload(uint8_t **payload, size_t *payloadSize)
+{
     if (*payload) {
         free(*payload);
         *payload = NULL;
@@ -349,7 +382,8 @@ int Session::freeCustomPayload(uint8_t **payload, size_t *payloadSize) {
     return 0;
 }
 
-int Session::freeCustomPayload() {
+int Session::freeCustomPayload()
+{
     if (customPayload) {
         free(customPayload);
         customPayload = NULL;
@@ -379,24 +413,25 @@ int Session::handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_
     uint32_t miid = 0;
     uint8_t* alsaParamData = NULL;
     size_t alsaPayloadSize = 0;
+    int mfc_tag = TAG_MFC_SPEAKER_SWAP;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
-        PAL_ERR(LOG_TAG,"stream get attributes failed");
+        PAL_ERR(LOG_TAG, "stream get attributes failed");
         return status;
     }
 
     if (PAL_AUDIO_OUTPUT== sAttr.direction) {
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {
-            PAL_ERR(LOG_TAG,"getAssociatedDevices Failed\n");
+            PAL_ERR(LOG_TAG, "getAssociatedDevices Failed\n");
             return status;
         }
 
         for (int i = 0; i < associatedDevices.size(); i++) {
              status = associatedDevices[i]->getDeviceAttributes(&dAttr);
              if (0 != status) {
-                 PAL_ERR(LOG_TAG,"get Device Attributes Failed\n");
+                 PAL_ERR(LOG_TAG, "get Device Attributes Failed\n");
                  return status;
              }
 
@@ -406,14 +441,20 @@ int Session::handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_
                  /* This has to be done after sending all mixer controls and
                   * before connect
                   */
+                if (sAttr.type == PAL_STREAM_ULTRA_LOW_LATENCY) {
+                    /* ULL playback don't have PP module. Thus we need to swap
+                       channels in PSPD MFC
+                    */
+                    mfc_tag = TAG_DEVICE_MFC_SR;
+                    PAL_INFO(LOG_TAG, "Speake Swap in ULL use case");
+                }
                 status =
                         SessionAlsaUtils::getModuleInstanceId(mixer,
                                                               device,
                                                               rxAifBackEnds[i].second.data(),
-                                                              TAG_MFC_SPEAKER_SWAP,
-                                                              &miid);
+                                                              mfc_tag, &miid);
                 if (status != 0) {
-                    PAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+                    PAL_ERR(LOG_TAG, "getModuleInstanceId failed");
                     return status;
                 }
                 PAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
@@ -441,7 +482,7 @@ int Session::handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_
                     delete alsaParamData;
 #endif
                     if (0 != status) {
-                        PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
+                        PAL_ERR(LOG_TAG, "updateCustomPayload Failed\n");
                         return status;
                     }
                 }
@@ -449,8 +490,9 @@ int Session::handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_
                                                              device,
                                                              customPayload,
                                                              customPayloadSize);
+                freeCustomPayload();
                 if (status != 0) {
-                    PAL_ERR(LOG_TAG,"setMixerParameter failed");
+                    PAL_ERR(LOG_TAG, "setMixerParameter failed");
                     return status;
                 }
             }
@@ -529,7 +571,7 @@ int Session::setSlotMask(const std::shared_ptr<ResourceManager>& rm, struct pal_
     tkv_size = tkv.size()*sizeof(struct agm_key_value);
     status = mixer_ctl_set_array(ctl, tagConfig, sizeof(struct agm_tag_config) + tkv_size);
     if (status != 0) {
-        PAL_ERR(LOG_TAG,"failed to set the tag calibration %d", status);
+        PAL_ERR(LOG_TAG, "failed to set the tag calibration %d", status);
     }
 
 exit:
@@ -589,17 +631,13 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
                 goto exit;
             }
             status = updateCustomPayload(payload, payloadSize);
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
-            free(payload);
-#else
-            delete payload;
-#endif
+            freeCustomPayload(&payload, &payloadSize);
             if (0 != status) {
-                PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
+                PAL_ERR(LOG_TAG, "updateCustomPayload Failed\n");
                 goto exit;
             }
         } else {
-            PAL_INFO(LOG_TAG,"deviePP MFC doesn't exist for stream %d \n", sAttr.type);
+            PAL_INFO(LOG_TAG, "deviePP MFC doesn't exist for stream %d \n", sAttr.type);
             devicePPMFCSet = false;
         }
 
@@ -626,7 +664,7 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
             }
             status = dev->getCodecConfig(&codecConfig);
             if(0 != status) {
-                PAL_ERR(LOG_TAG,"getCodecConfig Failed \n");
+                PAL_ERR(LOG_TAG, "getCodecConfig Failed \n");
                 goto exit;
             }
             mfcData.bitWidth = codecConfig.bit_width;
@@ -669,17 +707,13 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
         }
 
         status = updateCustomPayload(payload, payloadSize);
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
-        free(payload);
-#else
-        delete payload;
-#endif
+        freeCustomPayload(&payload, &payloadSize);
         if (0 != status) {
-            PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
+            PAL_ERR(LOG_TAG, "updateCustomPayload Failed\n");
             goto exit;
         }
     } else {
-        PAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+        PAL_ERR(LOG_TAG, "getModuleInstanceId failed");
         if (sAttr.direction == (PAL_AUDIO_INPUT | PAL_AUDIO_OUTPUT))
             status = 0;
     }
@@ -689,6 +723,7 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
     if ((sAttr.type == PAL_STREAM_COMPRESSED) &&
         (dAttr.id == PAL_DEVICE_OUT_SPEAKER ||
             dAttr.id == PAL_DEVICE_OUT_USB_HEADSET ||
+            dAttr.id == PAL_DEVICE_OUT_AUX_DIGITAL ||
             dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
 
         struct sessionToPayloadParam preMfcData;
@@ -733,17 +768,6 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
     }
 #endif
 
-    // set devicePP MFC(if exists) and PSPD MFC configuration
-    if (customPayload) {
-        status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0),
-                                                 customPayload, customPayloadSize);
-        freeCustomPayload();
-        if (status != 0) {
-            PAL_ERR(LOG_TAG,"setMixerParameter failed");
-            goto exit;
-        }
-    }
-
 exit:
     if (builder) {
         delete builder;
@@ -764,13 +788,13 @@ int Session::checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm,
     std::vector <std::string> extEcbackendNames;
     struct pal_device device = {};
 
-    PAL_DBG(LOG_TAG, "Enter.");
+    PAL_INFO(LOG_TAG, "Enter. %d (extECRefCnt %d)", is_enable, extECRefCnt);
 
     std::lock_guard<std::mutex> lock(extECMutex);
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
         PAL_ERR(LOG_TAG,"stream get attributes failed");
-        goto exit;
+        return -EINVAL;
     }
 
     device.id = PAL_DEVICE_IN_EXT_EC_REF;
@@ -780,7 +804,30 @@ int Session::checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm,
         PAL_ERR(LOG_TAG, "dev get instance failed");
         return -EINVAL;
     }
+    
+#ifdef SEC_AUDIO_COMMON
+    if (rm->ssrStarted) {
+        PAL_INFO(LOG_TAG, "ssrStarted. %d (extECRefCnt %d)", is_enable, extECRefCnt);
+        extECRefCnt = 0;
+        if (pcmEcTx) {
+            status = pcm_stop(pcmEcTx);
+            if (status) {
+                PAL_ERR(LOG_TAG, "pcm_stop - ec_tx failed %d", status);
+            }
+            dev->stop();
 
+            status = pcm_close(pcmEcTx);
+            if (status) {
+                PAL_ERR(LOG_TAG, "pcm_close - ec_tx failed %d", status);
+            }
+            dev->close();
+
+            rm->freeFrontEndEcTxIds(pcmDevEcTxIds);
+            pcmEcTx = NULL;
+        }
+        rm->ssrStarted = false;
+    }
+#endif    
     if (!is_enable) {
         if (extECRefCnt > 0)
             extECRefCnt --;
@@ -805,10 +852,13 @@ int Session::checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm,
     } else {
         extECRefCnt ++;
         if (extECRefCnt == 1) {
+            rm->disableInternalECRefs(s);
+
             extEcTxDeviceList.push_back(dev);
             pcmDevEcTxIds = rm->allocateFrontEndExtEcIds();
             if (pcmDevEcTxIds.size() == 0) {
                 PAL_ERR(LOG_TAG, "ResourceManager::getBackEndNames returned no EXT_EC device Ids");
+                status = -EINVAL;
                 goto exit;
             }
             status = dev->open();
@@ -874,6 +924,10 @@ int Session::checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm,
     }
 
 exit:
+    if (is_enable && (status < 0)) {
+        PAL_ERR(LOG_TAG, "Reset extECRefCnt as EXT EC graph fails to setup");
+        extECRefCnt = 0;
+    }
     PAL_DBG(LOG_TAG, "Exit.");
     return status;
 }
@@ -928,7 +982,7 @@ int setConfig(Stream * s, pal_stream_type_t sType, configType type, uint32_t tag
             tkv_size = tkv.size() * sizeof(struct agm_key_value);
             status = mixer_ctl_set_array(ctl, tagConfig, sizeof(struct agm_tag_config) + tkv_size);
             if (status != 0) {
-                PAL_ERR(LOG_TAG,"failed to set the tag calibration %d", status);
+                PAL_ERR(LOG_TAG, "failed to set the tag calibration %d", status);
                 goto exit;
             }
             ctl = NULL;

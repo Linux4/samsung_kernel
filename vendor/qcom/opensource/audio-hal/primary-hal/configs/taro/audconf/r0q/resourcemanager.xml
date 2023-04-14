@@ -728,21 +728,29 @@
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOIP_RX</name>
-                <priority>3</priority>
-                <snd_device_name>voip-comm-speaker</snd_device_name>
+                <priority>4</priority>
+                <custom-config key="voip_comm">
+                    <priority>3</priority>
+                    <snd_device_name>voip-comm-speaker</snd_device_name>
+                </custom-config>
                 <custom-config key="dex">
+                    <priority>3</priority>
                     <snd_device_name>voip-comm-dex-speaker</snd_device_name>
                 </custom-config>
                 <custom-config key="voip_gaming">
+                    <priority>3</priority>
                     <snd_device_name>voip-gaming-speaker</snd_device_name>
                 </custom-config>
                 <custom-config key="voip_tv">
+                    <priority>3</priority>
                     <snd_device_name>voip-comm-tv-speaker</snd_device_name>
                 </custom-config>
                 <custom-config key="wifi_call">
+                    <priority>3</priority>
                     <snd_device_name>wifi-call-speaker</snd_device_name>
                 </custom-config>
                 <custom-config key="wifi_call_dex">
+                    <priority>3</priority>
                     <snd_device_name>wifi-call-dex-speaker</snd_device_name>
                 </custom-config>
             </usecase>
@@ -790,15 +798,21 @@
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOIP_RX</name>
-                <priority>3</priority>
-                <snd_device_name>voip-comm-handset</snd_device_name>
+                <priority>4</priority>
+                <custom-config key="voip_comm">
+                    <priority>3</priority>
+                    <snd_device_name>voip-comm-handset</snd_device_name>
+                </custom-config>
                 <custom-config key="hac">
+                    <priority>3</priority>
                     <snd_device_name>voip-comm-handset-hac</snd_device_name>
                 </custom-config>
                 <custom-config key="wifi_call">
+                    <priority>3</priority>
                     <snd_device_name>wifi-call-handset</snd_device_name>
                 </custom-config>
                 <custom-config key="wifi_call_hac">
+                    <priority>3</priority>
                     <snd_device_name>wifi-call-handset-hac</snd_device_name>
                 </custom-config>
             </usecase>
@@ -898,11 +912,15 @@
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOIP_RX</name>
-                <priority>2</priority>
+                <priority>3</priority>
                 <samplerate>48000</samplerate>
                 <bit_width>16</bit_width>
-                <snd_device_name>voip-comm-headset</snd_device_name>
+                <custom-config key="voip_comm">
+                    <priority>2</priority>
+                    <snd_device_name>voip-comm-headset</snd_device_name>
+                </custom-config>
                 <custom-config key="wifi_call">
+                    <priority>2</priority>
                     <snd_device_name>wifi-call-headset</snd_device_name>
                 </custom-config>
             </usecase>
@@ -987,7 +1005,10 @@
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOIP_RX</name>
-                <priority>2</priority>
+                <priority>4</priority>
+                <custom-config key="voip_comm">
+                    <priority>2</priority>
+                </custom-config>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
@@ -1105,7 +1126,10 @@
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOIP_RX</name>
-                <priority>2</priority>
+                <priority>3</priority>
+                <custom-config key="voip_comm">
+                    <priority>2</priority>
+                </custom-config>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
@@ -1149,8 +1173,32 @@
                 </custom-config>
             </usecase>
             <usecase>
+                <name>PAL_STREAM_LOW_LATENCY</name>
+                <priority>4</priority>
+                <custom-config key="speaker_and_usb_headphones">
+                    <snd_device_name>speaker-and-usb-headphones</snd_device_name>
+                </custom-config>
+            </usecase>
+            <usecase>
                 <name>PAL_STREAM_DEEP_BUFFER</name>
                 <priority>4</priority>
+                <custom-config key="speaker_and_usb_headphones">
+                    <snd_device_name>speaker-and-usb-headphones</snd_device_name>
+                </custom-config>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_COMPRESSED</name>
+                <priority>4</priority>
+                <custom-config key="speaker_and_usb_headphones">
+                    <snd_device_name>speaker-and-usb-headphones</snd_device_name>
+                </custom-config>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
+                <priority>4</priority>
+                <custom-config key="speaker_and_usb_headphones">
+                    <snd_device_name>speaker-and-usb-headphones</snd_device_name>
+                </custom-config>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
@@ -1166,9 +1214,13 @@
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOIP_RX</name>
-                <priority>2</priority>
-                <snd_device_name>voip-comm-usb-headset</snd_device_name>
+                <priority>4</priority>
+                <custom-config key="voip_comm">
+                    <priority>2</priority>
+                    <snd_device_name>voip-comm-usb-headset</snd_device_name>
+                </custom-config>
                 <custom-config key="wifi_call">
+                    <priority>2</priority>
                     <snd_device_name>wifi-call-usb-headset</snd_device_name>
                 </custom-config>
             </usecase>
@@ -1246,7 +1298,10 @@
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOIP_RX</name>
-                <priority>2</priority>
+                <priority>3</priority>
+                <custom-config key="voip_comm">
+                    <priority>2</priority>
+                </custom-config>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
@@ -1299,6 +1354,8 @@
                     <ec_ref>
                         <disabled_stream>PAL_STREAM_LOW_LATENCY</disabled_stream>
                         <disabled_stream>PAL_STREAM_GENERIC</disabled_stream>
+                        <disabled_stream>PAL_STREAM_COMPRESSED</disabled_stream>
+                        <disabled_stream>PAL_STREAM_DEEP_BUFFER</disabled_stream>
                     </ec_ref>
                 </policies>
         </in_stream>

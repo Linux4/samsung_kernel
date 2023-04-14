@@ -23,8 +23,7 @@
 #include <linux/spinlock.h>
 #include <linux/types.h>
 #include <linux/qcom-iommu-util.h>
-
-#include "../../qcom-io-pgtable.h"
+#include <linux/qcom-io-pgtable.h>
 
 /* Configuration registers */
 #define ARM_SMMU_GR0_sCR0		0x0
@@ -378,7 +377,7 @@ struct arm_smmu_device {
 #define ARM_SMMU_OPT_3LVL_TABLES	(1 << 2)
 #define ARM_SMMU_OPT_NO_ASID_RETENTION	(1 << 3)
 #define ARM_SMMU_OPT_DISABLE_ATOS	(1 << 4)
-#define ARM_SMMU_OPT_WAIPIO_CONTEXT_FAULT_RETRY	(1 << 5)
+#define ARM_SMMU_OPT_CONTEXT_FAULT_RETRY	(1 << 5)
 	u32				options;
 	enum arm_smmu_arch_version	version;
 	enum arm_smmu_implementation	model;
@@ -425,6 +424,9 @@ struct arm_smmu_device {
 	phys_addr_t                     phys_addr;
 
 	unsigned long			sync_timed_out;
+
+	/* power ref count for the atomic clients. */
+	unsigned int			atomic_pwr_refcount;
 };
 
 struct qsmmuv500_tbu_device {
@@ -443,6 +445,7 @@ struct qsmmuv500_tbu_device {
 	u32				halt_count;
 
 	bool				has_micro_idle;
+	unsigned int			*irqs;
 };
 
 enum arm_smmu_context_fmt {
@@ -517,7 +520,7 @@ struct arm_smmu_domain {
 	 */
 	spinlock_t			iotlb_gather_lock;
 	struct list_head		iotlb_gather_freelist;
-	struct iommu_iotlb_gather	iotlb_gather;
+	bool				deferred_flush;
 
 	struct iommu_debug_attachment	*logger;
 	struct iommu_domain		domain;
@@ -527,7 +530,7 @@ struct arm_smmu_domain {
 	 */
 	bool				rpm_always_on;
 
-#ifdef CONFIG_ARM_SMMU_WAIPIO_CONTEXT_FAULT_RETRY
+#ifdef CONFIG_ARM_SMMU_CONTEXT_FAULT_RETRY
 	u64				prev_fault_address;
 	u32				fault_retry_counter;
 #endif

@@ -34,6 +34,8 @@
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/msm_ep_pcie.h>
+#include <linux/platform_device.h>
+
 #include "../dmaengine.h"
 
 /* global logging macros */
@@ -316,7 +318,8 @@ struct edmac_dev {
 	/* # of available DE in current TL (excludes LE) */
 	u32	n_de_avail;
 	/* processing tasklet */
-	struct	tasklet_struct proc_task;
+	struct workqueue_struct		*pending_process_wq;
+	struct work_struct		pending_work;
 	char	label[EDMA_LABEL_SIZE];
 	void	*ipc_log;
 	enum	debug_log_lvl ipc_log_lvl;
@@ -396,9 +399,10 @@ static struct edmav_dev *to_edmav_dev(struct dma_chan *dma_ch)
 	return container_of(dma_ch, struct edmav_dev, dma_ch);
 }
 
-static void edmac_process_tasklet(unsigned long data)
+static void edmac_process_workqueue(struct work_struct *work)
 {
-	struct edmac_dev *ec_dev = (struct edmac_dev *)data;
+
+	struct edmac_dev *ec_dev = container_of(work, struct edmac_dev, pending_work);
 	struct edma_dev *e_dev = ec_dev->e_dev;
 	dma_addr_t llp_low, llp_high, llp;
 	unsigned long flags;
@@ -488,7 +492,7 @@ static irqreturn_t handle_edma_irq(int irq, void *data)
 
 			edma_set_clear(ec_dev->int_mask_reg,
 					BIT(ec_dev->ch_id), 0);
-			tasklet_schedule(&ec_dev->proc_task);
+			queue_work(ec_dev->pending_process_wq, &ec_dev->pending_work);
 		}
 		wr_int_status >>= 1;
 		i++;
@@ -501,7 +505,7 @@ static irqreturn_t handle_edma_irq(int irq, void *data)
 
 			edma_set_clear(ec_dev->int_mask_reg,
 					BIT(ec_dev->ch_id), 0);
-			tasklet_schedule(&ec_dev->proc_task);
+			queue_work(ec_dev->pending_process_wq, &ec_dev->pending_work);
 		}
 		rd_int_status >>= 1;
 		i++;
@@ -942,9 +946,10 @@ static void edma_init_log(struct edma_dev *e_dev, struct edmac_dev *ec_dev)
 	}
 }
 
-static void edma_init_channels(struct edma_dev *e_dev)
+static int edma_init_channels(struct edma_dev *e_dev)
 {
-	int i;
+	int i, ret = 0;
+	char wq_name[30];
 
 	/* setup physical channels */
 	for (i = 0; i < e_dev->n_max_ec_ch; i++) {
@@ -986,8 +991,18 @@ static void edma_init_channels(struct edma_dev *e_dev)
 		edma_init_log(e_dev, ec_dev);
 
 		INIT_LIST_HEAD(&ec_dev->ev_list);
-		tasklet_init(&ec_dev->proc_task, edmac_process_tasklet,
-			     (unsigned long)ec_dev);
+		if (ec_dev->dir == EDMA_WR_CH)
+			scnprintf(wq_name, 30, "edma_pending_wq_wr_%u", ec_dev->ch_id);
+		else
+			scnprintf(wq_name, 30, "edma_pending_wq_rd_%u", ec_dev->ch_id);
+
+		ec_dev->pending_process_wq = alloc_workqueue(wq_name, WQ_HIGHPRI | WQ_UNBOUND, 1);
+		if (!ec_dev->pending_process_wq) {
+			ret = -ENOMEM;
+			return ret;
+		}
+
+		INIT_WORK(&ec_dev->pending_work, edmac_process_workqueue);
 
 		EDMA_LOG(e_dev, "EC_DIR: %s EC_INDEX: %d EC_ADDR: 0x%pK\n",
 			TO_EDMA_DIR_CH_STR(ec_dev->dir), ec_dev->ch_id, ec_dev);
@@ -1015,6 +1030,7 @@ static void edma_init_channels(struct edma_dev *e_dev)
 
 		EDMA_LOG(e_dev, "EV_INDEX: %d EV_ADDR: 0x%pK\n", i, ev_dev);
 	}
+	return ret;
 }
 
 static void edma_init_dma_device(struct edma_dev *e_dev)
@@ -1174,7 +1190,9 @@ int qcom_edma_init(struct device *dev)
 		return -ENOMEM;
 
 	INIT_LIST_HEAD(&e_dev->dma_device.channels);
-	edma_init_channels(e_dev);
+	ret = edma_init_channels(e_dev);
+	if (ret)
+		return ret;
 
 	ret = edma_init_irq(e_dev);
 	if (ret)
@@ -1200,6 +1218,46 @@ int qcom_edma_init(struct device *dev)
 	return 0;
 }
 EXPORT_SYMBOL(qcom_edma_init);
+
+static int edma_dev_probe(struct platform_device *pdev)
+{
+	pr_debug("%s\n", __func__);
+	return 0;
+}
+
+static int edma_dev_remove(struct platform_device *pdev)
+{
+	platform_set_drvdata(pdev, NULL);
+	return 0;
+}
+
+static const struct of_device_id edma_dev_match_table[] = {
+	{	.compatible = "qcom,pci-edma" },
+	{}
+};
+
+static struct platform_driver edma_dev_driver = {
+	.driver		= {
+		.name	= "qcom,pci-edma",
+		.of_match_table = edma_dev_match_table,
+	},
+	.probe		= edma_dev_probe,
+	.remove		= edma_dev_remove,
+};
+
+static int __init edma_dev_init(void)
+{
+	pr_debug("%s\n", __func__);
+	return platform_driver_register(&edma_dev_driver);
+}
+subsys_initcall(edma_dev_init);
+
+static void __exit edma_dev_exit(void)
+{
+	pr_debug("%s\n", __func__);
+	platform_driver_unregister(&edma_dev_driver);
+}
+module_exit(edma_dev_exit);
 
 MODULE_DESCRIPTION("QTI PCIe eDMA driver");
 MODULE_LICENSE("GPL v2");

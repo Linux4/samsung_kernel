@@ -195,7 +195,7 @@ int sec_input_set_temperature(struct device *dev, int state)
 	bool bforced = false;
 
 	if (pdata->set_temperature == NULL) {
-		input_dbg(true, dev, "%s: vendor function is not allocated\n", __func__);
+		input_dbg(false, dev, "%s: vendor function is not allocated\n", __func__);
 		return SEC_ERROR;
 	}
 
@@ -345,7 +345,7 @@ ssize_t sec_input_get_fod_info(struct device *dev, char *buf)
 
 	if (!pdata->support_fod) {
 		input_err(true, dev, "%s: fod is not supported\n", __func__);
-		return snprintf(buf, SEC_CMD_BUF_SIZE, "NG");
+		return snprintf(buf, SEC_CMD_BUF_SIZE, "NA");
 	}
 
 	if (pdata->x_node_num <= 0 || pdata->y_node_num <= 0) {
@@ -577,6 +577,8 @@ void sec_input_gesture_report(struct device *dev, int id, int x, int y)
 		snprintf(buff, sizeof(buff), "SCAN UNBLOCK");
 	} else if (id == SPONGE_EVENT_TYPE_TSP_SCAN_BLOCK) {
 		snprintf(buff, sizeof(buff), "SCAN BLOCK");
+	} else if (id == SPONGE_EVENT_TYPE_LONG_PRESS) {
+		snprintf(buff, sizeof(buff), "LONG PRESS");
 	} else {
 		snprintf(buff, sizeof(buff), "");
 	}
@@ -654,7 +656,7 @@ static void sec_input_coord_log(struct device *dev, u8 t_id, int action)
 	if (action == SEC_TS_COORDINATE_ACTION_PRESS) {
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 		input_info(true, dev,
-				"[P] tID:%d.%d x:%d y:%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d\n",
+				"[P] tID:%d.%d x:%d y:%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d, fid:%d\n",
 				t_id, (pdata->input_dev->mt->trkid - 1) & TRKID_MAX,
 				pdata->coord[t_id].x, pdata->coord[t_id].y, pdata->coord[t_id].z,
 				pdata->coord[t_id].major, pdata->coord[t_id].minor,
@@ -662,23 +664,25 @@ static void sec_input_coord_log(struct device *dev, u8 t_id, int action)
 				pdata->coord[t_id].ttype,
 				pdata->coord[t_id].noise_status, pdata->touch_noise_status,
 				pdata->touch_pre_noise_status, pdata->coord[t_id].noise_level,
-				pdata->coord[t_id].max_strength, pdata->coord[t_id].hover_id_num);
+				pdata->coord[t_id].max_strength, pdata->coord[t_id].hover_id_num,
+				pdata->coord[t_id].freq_id);
 #else
 		input_info(true, dev,
-				"[P] tID:%d.%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d\n",
+				"[P] tID:%d.%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d, fid:%d\n",
 				t_id, (pdata->input_dev->mt->trkid - 1) & TRKID_MAX,
 				pdata->coord[t_id].z, pdata->coord[t_id].major,
 				pdata->coord[t_id].minor, pdata->location, pdata->touch_count,
 				pdata->coord[t_id].ttype,
 				pdata->coord[t_id].noise_status, pdata->touch_noise_status,
 				pdata->touch_pre_noise_status, pdata->coord[t_id].noise_level,
-				pdata->coord[t_id].max_strength, pdata->coord[t_id].hover_id_num);
+				pdata->coord[t_id].max_strength, pdata->coord[t_id].hover_id_num,
+				pdata->coord[t_id].freq_id);
 #endif
 
 	} else if (action == SEC_TS_COORDINATE_ACTION_MOVE) {
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 		input_info(true, dev,
-				"[M] tID:%d.%d x:%d y:%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d\n",
+				"[M] tID:%d.%d x:%d y:%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d, fid:%d\n",
 				t_id, pdata->input_dev->mt->trkid & TRKID_MAX,
 				pdata->coord[t_id].x, pdata->coord[t_id].y, pdata->coord[t_id].z,
 				pdata->coord[t_id].major, pdata->coord[t_id].minor,
@@ -686,22 +690,22 @@ static void sec_input_coord_log(struct device *dev, u8 t_id, int action)
 				pdata->coord[t_id].ttype, pdata->coord[t_id].noise_status,
 				pdata->touch_noise_status, pdata->touch_pre_noise_status,
 				pdata->coord[t_id].noise_level, pdata->coord[t_id].max_strength,
-				pdata->coord[t_id].hover_id_num);
+				pdata->coord[t_id].hover_id_num, pdata->coord[t_id].freq_id);
 #else
 		input_info(true, dev,
-				"[M] tID:%d.%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d\n",
+				"[M] tID:%d.%d z:%d major:%d minor:%d loc:%s tc:%d type:%X noise:(%x,%d%d), nlvl:%d, maxS:%d, hid:%d, fid:%d\n",
 				t_id, pdata->input_dev->mt->trkid & TRKID_MAX, pdata->coord[t_id].z,
 				pdata->coord[t_id].major, pdata->coord[t_id].minor,
 				pdata->location, pdata->touch_count,
 				pdata->coord[t_id].ttype, pdata->coord[t_id].noise_status,
 				pdata->touch_noise_status, pdata->touch_pre_noise_status,
 				pdata->coord[t_id].noise_level, pdata->coord[t_id].max_strength,
-				pdata->coord[t_id].hover_id_num);
+				pdata->coord[t_id].hover_id_num, pdata->coord[t_id].freq_id);
 #endif
 	} else if (action == SEC_TS_COORDINATE_ACTION_RELEASE || action == SEC_TS_COORDINATE_ACTION_FORCE_RELEASE) {
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
 		input_info(true, dev,
-				"[R%s] tID:%d loc:%s dd:%d,%d mc:%d tc:%d lx:%d ly:%d p:%d noise:(%x,%d%d) nlvl:%d, maxS:%d, hid:%d\n",
+				"[R%s] tID:%d loc:%s dd:%d,%d mc:%d tc:%d lx:%d ly:%d p:%d noise:(%x,%d%d) nlvl:%d, maxS:%d, hid:%d, fid:%d\n",
 				action == SEC_TS_COORDINATE_ACTION_FORCE_RELEASE ? "A" : "",
 				t_id, pdata->location,
 				pdata->coord[t_id].x - pdata->coord[t_id].p_x,
@@ -711,10 +715,11 @@ static void sec_input_coord_log(struct device *dev, u8 t_id, int action)
 				pdata->coord[t_id].palm_count,
 				pdata->coord[t_id].noise_status, pdata->touch_noise_status,
 				pdata->touch_pre_noise_status, pdata->coord[t_id].noise_level,
-				pdata->coord[t_id].max_strength, pdata->coord[t_id].hover_id_num);
+				pdata->coord[t_id].max_strength, pdata->coord[t_id].hover_id_num,
+				pdata->coord[t_id].freq_id);
 #else
 		input_info(true, dev,
-				"[R%s] tID:%d loc:%s dd:%d,%d mc:%d tc:%d p:%d noise:(%x,%d%d) nlvl:%d, maxS:%d, hid:%d\n",
+				"[R%s] tID:%d loc:%s dd:%d,%d mc:%d tc:%d p:%d noise:(%x,%d%d) nlvl:%d, maxS:%d, hid:%d, fid:%d\n",
 				action == SEC_TS_COORDINATE_ACTION_FORCE_RELEASE ? "A" : "",
 				t_id, pdata->location,
 				pdata->coord[t_id].x - pdata->coord[t_id].p_x,
@@ -723,7 +728,8 @@ static void sec_input_coord_log(struct device *dev, u8 t_id, int action)
 				pdata->coord[t_id].palm_count,
 				pdata->coord[t_id].noise_status, pdata->touch_noise_status,
 				pdata->touch_pre_noise_status, pdata->coord[t_id].noise_level,
-				pdata->coord[t_id].max_strength, pdata->coord[t_id].hover_id_num);
+				pdata->coord[t_id].max_strength, pdata->coord[t_id].hover_id_num,
+				pdata->coord[t_id].freq_id);
 #endif
 	}
 }
@@ -842,7 +848,89 @@ static void sec_input_set_prop(struct device *dev, struct input_dev *input_dev, 
 	struct sec_ts_plat_data *pdata = dev->platform_data;
 	static char sec_input_phys[64] = { 0 };
 
-	snprintf(sec_input_phys, sizeof(sec_input_phys), "%s/input1", input_dev->name);
+	snprintf(sec_input_phys, sizeof(sec_input_phys), "%s", input_dev->name);
+	input_dev->phys = sec_input_phys;
+	input_dev->id.bustype = BUS_I2C;
+	input_dev->dev.parent = dev;
+
+	set_bit(EV_SYN, input_dev->evbit);
+	set_bit(EV_KEY, input_dev->evbit);
+	set_bit(EV_ABS, input_dev->evbit);
+	set_bit(EV_SW, input_dev->evbit);
+	set_bit(BTN_TOUCH, input_dev->keybit);
+	set_bit(BTN_TOOL_FINGER, input_dev->keybit);
+	set_bit(BTN_PALM, input_dev->keybit);
+	set_bit(BTN_LARGE_PALM, input_dev->keybit);
+	set_bit(KEY_BLACK_UI_GESTURE, input_dev->keybit);
+	set_bit(KEY_INT_CANCEL, input_dev->keybit);
+
+	set_bit(propbit, input_dev->propbit);
+	set_bit(KEY_WAKEUP, input_dev->keybit);
+	set_bit(KEY_WATCH, input_dev->keybit);
+
+	input_set_abs_params(input_dev, ABS_MT_POSITION_X, 0, pdata->max_x, 0, 0);
+	input_set_abs_params(input_dev, ABS_MT_POSITION_Y, 0, pdata->max_y, 0, 0);
+	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR, 0, 255, 0, 0);
+	input_set_abs_params(input_dev, ABS_MT_TOUCH_MINOR, 0, 255, 0, 0);
+	if (pdata->support_mt_pressure)
+		input_set_abs_params(input_dev, ABS_MT_PRESSURE, 0, 255, 0, 0);
+
+	if (propbit == INPUT_PROP_POINTER)
+		input_mt_init_slots(input_dev, SEC_TS_SUPPORT_TOUCH_COUNT, INPUT_MT_POINTER);
+	else
+		input_mt_init_slots(input_dev, SEC_TS_SUPPORT_TOUCH_COUNT, INPUT_MT_DIRECT);
+
+	input_set_drvdata(input_dev, data);
+}
+
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
+static void sec_input_set_prop2(struct device *dev, struct input_dev *input_dev, u8 propbit, void *data)
+{
+	struct sec_ts_plat_data *pdata = dev->platform_data;
+	static char sec_input_phys[64] = { 0 };
+
+	snprintf(sec_input_phys, sizeof(sec_input_phys), "%s", input_dev->name);
+	input_dev->phys = sec_input_phys;
+	input_dev->id.bustype = BUS_I2C;
+	input_dev->dev.parent = dev;
+
+	set_bit(EV_SYN, input_dev->evbit);
+	set_bit(EV_KEY, input_dev->evbit);
+	set_bit(EV_ABS, input_dev->evbit);
+	set_bit(EV_SW, input_dev->evbit);
+	set_bit(BTN_TOUCH, input_dev->keybit);
+	set_bit(BTN_TOOL_FINGER, input_dev->keybit);
+	set_bit(BTN_PALM, input_dev->keybit);
+	set_bit(BTN_LARGE_PALM, input_dev->keybit);
+	set_bit(KEY_BLACK_UI_GESTURE, input_dev->keybit);
+	set_bit(KEY_INT_CANCEL, input_dev->keybit);
+
+	set_bit(propbit, input_dev->propbit);
+	set_bit(KEY_WAKEUP, input_dev->keybit);
+	set_bit(KEY_WATCH, input_dev->keybit);
+
+	input_set_abs_params(input_dev, ABS_MT_POSITION_X, 0, pdata->max_x, 0, 0);
+	input_set_abs_params(input_dev, ABS_MT_POSITION_Y, 0, pdata->max_y, 0, 0);
+	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR, 0, 255, 0, 0);
+	input_set_abs_params(input_dev, ABS_MT_TOUCH_MINOR, 0, 255, 0, 0);
+	if (pdata->support_mt_pressure)
+		input_set_abs_params(input_dev, ABS_MT_PRESSURE, 0, 255, 0, 0);
+
+	if (propbit == INPUT_PROP_POINTER)
+		input_mt_init_slots(input_dev, SEC_TS_SUPPORT_TOUCH_COUNT, INPUT_MT_POINTER);
+	else
+		input_mt_init_slots(input_dev, SEC_TS_SUPPORT_TOUCH_COUNT, INPUT_MT_DIRECT);
+
+	input_set_drvdata(input_dev, data);
+}
+#endif
+
+static void sec_input_set_prop_pad(struct device *dev, struct input_dev *input_dev, u8 propbit, void *data)
+{
+	struct sec_ts_plat_data *pdata = dev->platform_data;
+	static char sec_input_phys[64] = { 0 };
+
+	snprintf(sec_input_phys, sizeof(sec_input_phys), "%s", input_dev->name);
 	input_dev->phys = sec_input_phys;
 	input_dev->id.bustype = BUS_I2C;
 	input_dev->dev.parent = dev;
@@ -908,13 +996,17 @@ int sec_input_device_register(struct device *dev, void *data)
 	}
 
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
-	if (pdata->support_dual_foldable == SUB_TOUCH)
+	if (pdata->support_dual_foldable == SUB_TOUCH) {
 		pdata->input_dev->name = "sec_touchscreen2";
-	else 
-#endif
+		sec_input_set_prop2(dev, pdata->input_dev, INPUT_PROP_DIRECT, data);
+	} else {
 		pdata->input_dev->name = "sec_touchscreen";
-
+		sec_input_set_prop(dev, pdata->input_dev, INPUT_PROP_DIRECT, data);
+	}
+#else
+	pdata->input_dev->name = "sec_touchscreen";
 	sec_input_set_prop(dev, pdata->input_dev, INPUT_PROP_DIRECT, data);
+#endif
 	ret = input_register_device(pdata->input_dev);
 	if (ret) {
 		input_err(true, dev, "%s: Unable to register %s input device\n",
@@ -931,7 +1023,7 @@ int sec_input_device_register(struct device *dev, void *data)
 		}
 
 		pdata->input_dev_pad->name = "sec_touchpad";
-		sec_input_set_prop(dev, pdata->input_dev_pad, INPUT_PROP_POINTER, data);
+		sec_input_set_prop_pad(dev, pdata->input_dev_pad, INPUT_PROP_POINTER, data);
 		ret = input_register_device(pdata->input_dev_pad);
 		if (ret) {
 			input_err(true, dev, "%s: Unable to register %s input device\n",
@@ -1050,18 +1142,30 @@ int sec_input_parse_dt(struct device *dev)
 	u32 ic_match_value;
 	u32 px_zone[3] = { 0 };
 	int lcd_type = 0, lcd_type_unload = 0;
+	u32 bitmask[2] = { 0 };
 
 	if (of_property_read_u32(np, "sec,support_dual_foldable", &pdata->support_dual_foldable) < 0)
 		pdata->support_dual_foldable = 0;
+
+	pdata->chip_on_board = of_property_read_bool(np, "chip_on_board");
 
 	lcd_type = sec_input_get_lcd_id(dev);
 #if !defined(DUAL_FOLDABLE_GKI)
 	if (lcd_type < 0) {
 		input_err(true, dev, "%s: lcd is not attached\n", __func__);
-		return -ENODEV;
+		if (!pdata->chip_on_board)
+			return -ENODEV;
 	}
 #endif
 	input_info(true, dev, "%s: lcdtype 0x%08X\n", __func__, lcd_type);
+
+	if (!of_property_read_u32_array(np, "sec,bitmask_unload", bitmask, 2)) {
+		if ((lcd_type != 0) && ((lcd_type >> bitmask[0]) == bitmask[1])) {
+			input_err(true, dev, "%s: do not load lcdtype:0x%08X bitmask:0x%08X\n", __func__,
+						lcd_type >> bitmask[0], bitmask[1]);
+			return -ENODEV;
+		}
+	}
 
 	if (!of_property_read_u32(np, "sec,lcd_type_unload", &lcd_type_unload)) {
 		if ((lcd_type != 0) && (lcd_type == lcd_type_unload)) {
@@ -1229,10 +1333,10 @@ int sec_input_parse_dt(struct device *dev)
 	pdata->support_mis_calibration_test = of_property_read_bool(np, "support_mis_calibration_test");
 	pdata->support_wireless_tx = of_property_read_bool(np, "support_wireless_tx");
 	pdata->support_input_monitor = of_property_read_bool(np, "support_input_monitor");
-	pdata->chip_on_board = of_property_read_bool(np, "chip_on_board");
 	pdata->disable_vsync_scan = of_property_read_bool(np, "disable_vsync_scan");
 	pdata->unuse_dvdd_power = of_property_read_bool(np, "sec,unuse_dvdd_power");
 	pdata->sense_off_when_cover_closed = of_property_read_bool(np, "sense_off_when_cover_closed");
+	pdata->not_support_temp_noti = of_property_read_bool(np, "not_support_temp_noti");	
 	of_property_read_u32(np, "support_rawdata_map_num", &pdata->support_rawdata_map_num);
 
 	if (of_property_read_u32(np, "sec,support_sensor_hall", &pdata->support_sensor_hall) < 0)
@@ -1245,6 +1349,13 @@ int sec_input_parse_dt(struct device *dev)
 	pdata->enable_sysinput_enabled = of_property_read_bool(np, "sec,enable_sysinput_enabled");
 	input_info(true, dev, "%s: Sysinput enabled %s\n",
 				__func__, pdata->enable_sysinput_enabled ? "ON" : "OFF");
+
+	pdata->support_rawdata_motion_aivf = of_property_read_bool(np, "sec,support_rawdata_motion_aivf");
+	input_info(true, dev, "%s: motion aivf %s\n",
+				__func__, pdata->support_rawdata_motion_aivf ? "ON" : "OFF");
+	pdata->support_rawdata_motion_palm = of_property_read_bool(np, "sec,support_rawdata_motion_palm");
+	input_info(true, dev, "%s: motion palm %s\n",
+				__func__, pdata->support_rawdata_motion_palm ? "ON" : "OFF");
 
 	if (of_property_read_u32_array(np, "sec,area-size", px_zone, 3)) {
 		input_info(true, dev, "Failed to get zone's size\n");
@@ -1266,15 +1377,17 @@ int sec_input_parse_dt(struct device *dev)
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
 	pdata->support_mt_pressure = true;
 #endif
-	input_err(true, dev, "%s: i2c buffer limit: %d, lcd_id:%06X, bringup:%d,"
+	input_info(true, dev, "%s: i2c buffer limit: %d, lcd_id:%06X, bringup:%d,"
 			" id:%d,%d, dex:%d, max(%d/%d), FOD:%d, AOT:%d, ED:%d, FLM:%d,"
-			" COB:%d, disable_vsync_scan:%d, unuse_dvdd_power:%d\n",
+			" COB:%d, disable_vsync_scan:%d, unuse_dvdd_power:%d,"
+			" not_support_temp_noti:%d\n",
 			__func__, pdata->i2c_burstmax, lcd_type, pdata->bringup,
 			pdata->tsp_id, pdata->tsp_icid,
 			pdata->support_dex, pdata->max_x, pdata->max_y,
 			pdata->support_fod, pdata->enable_settings_aot,
 			pdata->support_ear_detect, pdata->support_fod_lp_mode,
-			pdata->chip_on_board, pdata->disable_vsync_scan, pdata->unuse_dvdd_power);
+			pdata->chip_on_board, pdata->disable_vsync_scan, pdata->unuse_dvdd_power,
+			pdata->not_support_temp_noti);
 	return ret;
 }
 EXPORT_SYMBOL(sec_input_parse_dt);
@@ -1441,6 +1554,9 @@ __visible_for_testing ssize_t sec_input_enabled_show(struct device *dev,
 
 	return scnprintf(buf, PAGE_SIZE, "%d\n", pdata->enabled);
 }
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+EXPORT_SYMBOL_KUNIT(sec_input_enabled_show);
+#endif
 
 __visible_for_testing ssize_t sec_input_enabled_store(struct device *dev,
 					struct device_attribute *attr,
@@ -1472,6 +1588,9 @@ __visible_for_testing ssize_t sec_input_enabled_store(struct device *dev,
 out:
 	return size;
 }
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+EXPORT_SYMBOL_KUNIT(sec_input_enabled_store);
+#endif
 
 static DEVICE_ATTR(enabled, 0664, sec_input_enabled_show, sec_input_enabled_store);
 
@@ -1512,4 +1631,3 @@ EXPORT_SYMBOL(sec_input_sysfs_remove);
 
 MODULE_DESCRIPTION("Samsung common functions");
 MODULE_LICENSE("GPL");
-

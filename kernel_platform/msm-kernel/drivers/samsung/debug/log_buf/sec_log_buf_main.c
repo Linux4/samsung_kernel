@@ -15,12 +15,8 @@
 #include <linux/of_platform.h>
 #include <linux/of_reserved_mem.h>
 #include <linux/platform_device.h>
-#include <linux/proc_fs.h>
 #include <linux/slab.h>
-#include <linux/uaccess.h>
-#include <linux/vmalloc.h>
 
-#include <linux/samsung/of_early_populate.h>
 #include <linux/samsung/sec_of.h>
 
 #include "sec_log_buf.h"
@@ -48,125 +44,33 @@ static void notrace ____log_buf_memcpy(void *dst, const void *src, size_t cnt)
 	memcpy(dst, src, cnt);
 }
 
+const struct sec_log_buf_head *__log_buf_get_header(void)
+{
+	return s_log_buf;
+}
+
 const struct sec_log_buf_head *sec_log_buf_get_header(void)
 {
 	if (!__log_buf_is_probed())
-		return ERR_PTR(-ENODEV);
+		return ERR_PTR(-EBUSY);
 
-	return s_log_buf;
+	return __log_buf_get_header();
 }
 EXPORT_SYMBOL(sec_log_buf_get_header);
+
+ssize_t ___log_buf_get_buf_size(void)
+{
+	return sec_log_buf_size;
+}
 
 ssize_t sec_log_buf_get_buf_size(void)
 {
 	if (!__log_buf_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
-	return sec_log_buf_size;
+	return ___log_buf_get_buf_size();
 }
 EXPORT_SYMBOL(sec_log_buf_get_buf_size);
-
-static int __last_kmsg_alloc_buffer(struct builder *bd)
-{
-	struct log_buf_drvdata *drvdata =
-			container_of(bd, struct log_buf_drvdata, bd);
-	struct last_kmsg_data *last_kmsg = &drvdata->last_kmsg;
-
-	last_kmsg->buf = vmalloc(sec_log_buf_size);
-	if (!last_kmsg->buf)
-		return -ENOMEM;
-
-	return 0;
-}
-
-static void __last_kmsg_free_buffer(struct builder *bd)
-{
-	struct log_buf_drvdata *drvdata =
-			container_of(bd, struct log_buf_drvdata, bd);
-	struct last_kmsg_data *last_kmsg = &drvdata->last_kmsg;
-
-	vfree(last_kmsg->buf);
-}
-
-static int __last_kmsg_pull_last_log(struct builder *bd)
-{
-	struct log_buf_drvdata *drvdata =
-			container_of(bd, struct log_buf_drvdata, bd);
-	struct last_kmsg_data *last_kmsg = &drvdata->last_kmsg;
-	char *buf = last_kmsg->buf;
-	const size_t max_size = sec_log_buf_size;
-	size_t head;
-
-	if (s_log_buf->idx > max_size) {
-		head = (size_t)s_log_buf->idx % sec_log_buf_size;
-		__log_buf_memcpy_fromio(buf, &s_log_buf->buf[head],
-				sec_log_buf_size - head);
-		if (head != 0)
-			__log_buf_memcpy_fromio(&buf[sec_log_buf_size - head],
-					s_log_buf->buf, head);
-		last_kmsg->size = max_size;
-	} else {
-		__log_buf_memcpy_fromio(buf, s_log_buf->buf, s_log_buf->idx);
-		last_kmsg->size = s_log_buf->idx;
-	}
-
-	return 0;
-}
-
-static ssize_t sec_last_kmsg_buf_read(struct file *file, char __user *buf,
-		size_t len, loff_t *offset)
-{
-	struct last_kmsg_data *last_kmsg = PDE_DATA(file_inode(file));
-	loff_t pos = *offset;
-	ssize_t count;
-
-	if (pos >= last_kmsg->size || !last_kmsg->buf) {
-		pr_warn("pos %lld, size %zu\n", pos, last_kmsg->size);
-		return 0;
-	}
-
-	count = min(len, (size_t)(last_kmsg->size - pos));
-	if (copy_to_user(buf, last_kmsg->buf + pos, count))
-		return -EFAULT;
-
-	*offset += count;
-
-	return count;
-}
-
-static const struct proc_ops last_kmsg_buf_pops = {
-	.proc_read = sec_last_kmsg_buf_read,
-};
-
-#define LAST_LOG_BUF_NODE		"last_kmsg"
-
-static int __last_kmsg_procfs_create(struct builder *bd)
-{
-	struct log_buf_drvdata *drvdata =
-			container_of(bd, struct log_buf_drvdata, bd);
-	struct device *dev = bd->dev;
-	struct last_kmsg_data *last_kmsg = &drvdata->last_kmsg;
-
-	last_kmsg->proc = proc_create_data(LAST_LOG_BUF_NODE, 0444,
-			NULL, &last_kmsg_buf_pops, last_kmsg);
-	if (!last_kmsg->proc) {
-		dev_warn(dev, "failed to create proc entry. ram console may be present\n");
-		return -ENODEV;
-	}
-
-	proc_set_size(last_kmsg->proc, last_kmsg->size);
-
-	return 0;
-}
-
-static void __last_kmsg_procfs_remove(struct builder *bd)
-{
-	struct log_buf_drvdata *drvdata =
-			container_of(bd, struct log_buf_drvdata, bd);
-	struct last_kmsg_data *last_kmsg = &drvdata->last_kmsg;
-
-	proc_remove(last_kmsg->proc);
-}
 
 void notrace __log_buf_write(const char *s, size_t count)
 {
@@ -462,11 +366,40 @@ static int __log_buf_parse_dt_test_no_map(struct builder *bd,
 	return 0;
 }
 
+static int __last_kmsg_parse_dt_use_last_kmsg_compression(struct builder *bd,
+		struct device_node *np)
+{
+	struct log_buf_drvdata *drvdata =
+			container_of(bd, struct log_buf_drvdata, bd);
+	struct last_kmsg_data *last_kmsg = &drvdata->last_kmsg;
+
+	last_kmsg->use_compression =
+			of_property_read_bool(np, "sec,use-last_kmsg_compression");
+
+	return 0;
+}
+
+static int __last_kmsg_parse_dt_last_kmsg_compressor(struct builder *bd,
+		struct device_node *np)
+{
+	struct log_buf_drvdata *drvdata =
+			container_of(bd, struct log_buf_drvdata, bd);
+	struct last_kmsg_data *last_kmsg = &drvdata->last_kmsg;
+
+	if (!last_kmsg->use_compression)
+		return 0;
+
+	return of_property_read_string(np, "sec,last_kmsg_compressor",
+			&last_kmsg->compressor);
+}
+
 static const struct dt_builder __log_buf_dt_builder[] = {
 	DT_BUILDER(__log_buf_parse_dt_strategy),
 	DT_BUILDER(__log_buf_parse_dt_memory_region),
 	DT_BUILDER(__log_buf_parse_dt_partial_reserved_mem),
 	DT_BUILDER(__log_buf_parse_dt_test_no_map),
+	DT_BUILDER(__last_kmsg_parse_dt_use_last_kmsg_compression),
+	DT_BUILDER(__last_kmsg_parse_dt_last_kmsg_compressor),
 };
 
 static int __log_buf_parse_dt(struct builder *bd)
@@ -603,12 +536,32 @@ static int __log_buf_probe(struct platform_device *pdev,
 	return sec_director_probe_dev(&drvdata->bd, builder, n);
 }
 
+static int __log_buf_probe_threaded(struct platform_device *pdev,
+		const struct dev_builder *builder, ssize_t n)
+{
+	struct log_buf_drvdata *drvdata = platform_get_drvdata(pdev);
+
+	return sec_director_probe_dev_threaded(&drvdata->bd, builder, n,
+			"log_buf");
+}
+
 static int __log_buf_remove(struct platform_device *pdev,
 		const struct dev_builder *builder, ssize_t n)
 {
 	struct log_buf_drvdata *drvdata = platform_get_drvdata(pdev);
 
 	sec_director_destruct_dev(&drvdata->bd, builder, n, n);
+
+	return 0;
+}
+
+static int __log_buf_remove_threaded(struct platform_device *pdev,
+		const struct dev_builder *builder, ssize_t n)
+{
+	struct log_buf_drvdata *drvdata = platform_get_drvdata(pdev);
+	struct director_threaded *drct = drvdata->bd.drct;
+
+	sec_director_destruct_dev_threaded(drct);
 
 	return 0;
 }
@@ -624,16 +577,35 @@ static const struct dev_builder __log_buf_dev_builder[] = {
 	DEVICE_BUILDER(__log_buf_probe_epilog, __log_buf_remove_prolog),
 };
 
+static const struct dev_builder __log_buf_dev_builder_threaded[] = {
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+	DEVICE_BUILDER(__log_buf_debugfs_create, __log_buf_debugfs_remove),
+#endif
+	DEVICE_BUILDER(__last_kmsg_init_compression, __last_kmsg_exit_compression),
+};
+
 static int sec_log_buf_probe(struct platform_device *pdev)
 {
-	return __log_buf_probe(pdev, __log_buf_dev_builder,
+	int err;
+
+	err = __log_buf_probe(pdev, __log_buf_dev_builder,
 			ARRAY_SIZE(__log_buf_dev_builder));
+	if (err)
+		return err;
+
+	return __log_buf_probe_threaded(pdev, __log_buf_dev_builder_threaded,
+			ARRAY_SIZE(__log_buf_dev_builder_threaded));
 }
 
 static int sec_log_buf_remove(struct platform_device *pdev)
 {
-	return __log_buf_remove(pdev, __log_buf_dev_builder,
+	__log_buf_remove_threaded(pdev, __log_buf_dev_builder_threaded,
+			ARRAY_SIZE(__log_buf_dev_builder_threaded));
+
+	__log_buf_remove(pdev, __log_buf_dev_builder,
 			ARRAY_SIZE(__log_buf_dev_builder));
+
+	return 0;
 }
 
 static const struct of_device_id sec_log_buf_match_table[] = {
@@ -653,23 +625,10 @@ static struct platform_driver sec_log_buf_driver = {
 
 static int __init sec_log_buf_init(void)
 {
-	int err;
-
-	err = platform_driver_register(&sec_log_buf_driver);
-	if (err)
-		return err;
-
-	err = __of_platform_early_populate_init(sec_log_buf_match_table);
-	if (err)
-		return err;
-
-	return 0;
+	return platform_driver_register(&sec_log_buf_driver);
 }
-#if IS_BUILTIN(CONFIG_SEC_LOG_BUF)
-core_initcall_sync(sec_log_buf_init);
-#else
-module_init(sec_log_buf_init);
-#endif
+/* NOTE: all compression algorithms are registered in 'subsys_initcall' stage. */
+subsys_initcall_sync(sec_log_buf_init);
 
 static void __exit sec_log_buf_exit(void)
 {

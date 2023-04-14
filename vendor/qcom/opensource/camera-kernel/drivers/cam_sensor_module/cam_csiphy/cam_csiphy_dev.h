@@ -34,7 +34,7 @@
 
 #define MAX_LANES                   5
 #define MAX_SETTINGS_PER_LANE       50
-#define MAX_DATA_RATES              12
+#define MAX_DATA_RATES              25
 #define MAX_DATA_RATE_REGS          30
 
 #define CAMX_CSIPHY_DEV_NAME "cam-csiphy-driver"
@@ -51,6 +51,7 @@
 #define CSIPHY_2PH_COMBO_REGS            8
 #define CSIPHY_3PH_COMBO_REGS            9
 #define CSIPHY_2PH_3PH_COMBO_REGS        10
+#define CSIPHY_AUXILLARY_SETTING         11
 
 #define CSIPHY_MAX_INSTANCES_PER_PHY     3
 
@@ -335,6 +336,7 @@ struct csiphy_device {
 	uint8_t                        cphy_dphy_combo_mode;
 	uint8_t                        rx_clk_src_idx;
 	uint8_t                        is_divisor_32_comp;
+	uint32_t                       curr_data_rate_idx;
 	enum cam_csiphy_state          csiphy_state;
 	struct csiphy_ctrl_t          *ctrl_reg;
 	struct msm_cam_clk_info        csiphy_3p_clk_info[2];

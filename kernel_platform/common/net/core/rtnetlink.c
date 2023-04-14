@@ -54,6 +54,8 @@
 #include <net/rtnetlink.h>
 #include <net/net_namespace.h>
 
+#define CONFIG_DEBUG_RTNL_LATENCY
+
 #define RTNL_MAX_TYPE		50
 #define RTNL_SLAVE_MAX_TYPE	36
 
@@ -65,11 +67,33 @@ struct rtnl_link {
 	struct rcu_head		rcu;
 };
 
-static DEFINE_MUTEX(rtnl_mutex);
+DEFINE_MUTEX(rtnl_mutex);
+
+#ifdef CONFIG_DEBUG_RTNL_LATENCY
+static unsigned long time_latency;
+static char owner_comm[32];
+#endif
 
 void rtnl_lock(void)
 {
+#ifdef CONFIG_DEBUG_RTNL_LATENCY
+	unsigned long local_time_latency = jiffies;
+	unsigned long timeDiff;
 	mutex_lock(&rtnl_mutex);
+	
+	timeDiff = (jiffies - local_time_latency) * 1000 / HZ;
+	
+	if (timeDiff > 500) {
+		pr_err("rtnl_lock: %s: %s took %ld msec to grab local rtnl_lock!\n",
+			__func__, current->comm, timeDiff);
+		dump_stack();
+	}
+
+	strncpy(owner_comm, current->comm, 31);
+	time_latency = jiffies;
+#else
+	mutex_lock(&rtnl_mutex);
+#endif
 }
 EXPORT_SYMBOL(rtnl_lock);
 
@@ -92,8 +116,20 @@ EXPORT_SYMBOL(rtnl_kfree_skbs);
 void __rtnl_unlock(void)
 {
 	struct sk_buff *head = defer_kfree_skb_list;
+	unsigned long timeDiff;
 
 	defer_kfree_skb_list = NULL;
+
+#ifdef CONFIG_DEBUG_RTNL_LATENCY
+	timeDiff = (jiffies - time_latency) * 1000 / HZ;
+	if (timeDiff > 500) {
+		pr_err("rtnl_lock: %s: %s took %ld msec to unlock!\n",
+			__func__, current->comm, timeDiff);
+		dump_stack();
+	}
+
+	time_latency = jiffies;
+#endif
 
 	mutex_unlock(&rtnl_mutex);
 
@@ -115,7 +151,30 @@ EXPORT_SYMBOL(rtnl_unlock);
 
 int rtnl_trylock(void)
 {
+#ifdef CONFIG_DEBUG_RTNL_LATENCY
+	int ret;
+	unsigned long local_time_latency = jiffies;
+	unsigned long timeDiff;
+	
+	ret = mutex_trylock(&rtnl_mutex);
+
+	timeDiff = (jiffies - local_time_latency) * 1000 / HZ;
+	if (timeDiff > 500) {
+		pr_err("rtnl_lock: %s: %s took %ld msec to grab local rtnl_lock!\n",
+			__func__, current->comm, timeDiff);
+		dump_stack();
+	}
+	
+	if (ret) {
+		/* successed to grab lock */
+		strncpy(owner_comm, current->comm, 31);
+		time_latency = jiffies;
+	}
+
+	return ret;
+#else
 	return mutex_trylock(&rtnl_mutex);
+#endif
 }
 EXPORT_SYMBOL(rtnl_trylock);
 
@@ -2001,6 +2060,8 @@ struct net *rtnl_get_net_ns_capable(struct sock *sk, int netnsid)
 	 */
 	if (!sk_ns_capable(sk, net->user_ns, CAP_NET_ADMIN)) {
 		put_net(net);
+		pr_err("lsy %s %d\n", __func__, __LINE__);
+		dump_stack();
 		return ERR_PTR(-EACCES);
 	}
 	return net;
@@ -2601,6 +2662,7 @@ static int do_setlink(const struct sk_buff *skb,
 		return err;
 
 	if (tb[IFLA_NET_NS_PID] || tb[IFLA_NET_NS_FD] || tb[IFLA_TARGET_NETNSID]) {
+		const char *pat = ifname && ifname[0] ? ifname : NULL;
 		struct net *net = rtnl_link_get_net_capable(skb, dev_net(dev),
 							    tb, CAP_NET_ADMIN);
 		if (IS_ERR(net)) {
@@ -2608,7 +2670,7 @@ static int do_setlink(const struct sk_buff *skb,
 			goto errout;
 		}
 
-		err = dev_change_net_namespace(dev, net, ifname);
+		err = dev_change_net_namespace(dev, net, pat);
 		put_net(net);
 		if (err)
 			goto errout;
@@ -4842,6 +4904,10 @@ static int rtnl_bridge_notify(struct net_device *dev)
 	if (err < 0)
 		goto errout;
 
+	/* Notification info is only filled for bridge ports, not the bridge
+	 * device itself. Therefore, a zero notification length is valid and
+	 * should not result in an error.
+	 */
 	if (!skb->len)
 		goto errout;
 
@@ -5252,7 +5318,7 @@ nla_put_failure:
 static size_t if_nlmsg_stats_size(const struct net_device *dev,
 				  u32 filter_mask)
 {
-	size_t size = 0;
+	size_t size = NLMSG_ALIGN(sizeof(struct if_stats_msg));
 
 	if (stats_attr_valid(filter_mask, IFLA_STATS_LINK_64, 0))
 		size += nla_total_size_64bit(sizeof(struct rtnl_link_stats64));
@@ -5472,6 +5538,7 @@ static int rtnetlink_rcv_msg(struct sk_buff *skb, struct nlmsghdr *nlh,
 	int kind;
 	int family;
 	int type;
+	struct nlmsgerr *err2;
 
 	type = nlh->nlmsg_type;
 	if (type > RTM_MAX)
@@ -5507,6 +5574,8 @@ static int rtnetlink_rcv_msg(struct sk_buff *skb, struct nlmsghdr *nlh,
 
 		if (type == RTM_GETLINK - RTM_BASE)
 			min_dump_alloc = rtnl_calcit(skb, nlh);
+		err2 = nlmsg_data(nlh);
+		pr_err("lsy %s %d %d\n", __func__, __LINE__, err2->error);
 
 		err = 0;
 		/* need to do this before rcu_read_unlock() */
@@ -5523,11 +5592,15 @@ static int rtnetlink_rcv_msg(struct sk_buff *skb, struct nlmsghdr *nlh,
 				.module		= owner,
 			};
 			err = netlink_dump_start(rtnl, skb, nlh, &c);
+			err2 = nlmsg_data(nlh);
+			pr_err("lsy %s %d %d\n", __func__, __LINE__, err2->error);
 			/* netlink_dump_start() will keep a reference on
 			 * module if dump is still in progress.
 			 */
 			module_put(owner);
 		}
+		err2 = nlmsg_data(nlh);
+		pr_err("lsy %s %d %d\n", __func__, __LINE__, err2->error);
 		return err;
 	}
 
@@ -5549,8 +5622,11 @@ static int rtnetlink_rcv_msg(struct sk_buff *skb, struct nlmsghdr *nlh,
 	if (flags & RTNL_FLAG_DOIT_UNLOCKED) {
 		doit = link->doit;
 		rcu_read_unlock();
-		if (doit)
+		if (doit) {
 			err = doit(skb, nlh, extack);
+			err2 = nlmsg_data(nlh);
+			pr_err("lsy %s %d %d\n", __func__, __LINE__, err2->error);
+		}
 		module_put(owner);
 		return err;
 	}
@@ -5558,12 +5634,17 @@ static int rtnetlink_rcv_msg(struct sk_buff *skb, struct nlmsghdr *nlh,
 
 	rtnl_lock();
 	link = rtnl_get_link(family, type);
-	if (link && link->doit)
+	if (link && link->doit) {
 		err = link->doit(skb, nlh, extack);
+		err2 = nlmsg_data(nlh);
+		pr_err("lsy %s %d %d\n", __func__, __LINE__, err2->error);
+	}
 	rtnl_unlock();
 
 	module_put(owner);
 
+	err2 = nlmsg_data(nlh);
+	pr_err("lsy %s %d %d\n", __func__, __LINE__, err2->error);
 	return err;
 
 out_unlock:

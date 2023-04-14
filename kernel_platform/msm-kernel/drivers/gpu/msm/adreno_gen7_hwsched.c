@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/clk.h>
@@ -312,6 +313,9 @@ static int gen7_hwsched_gmu_first_boot(struct adreno_device *adreno_dev)
 	if (ADRENO_FEATURE(adreno_dev, ADRENO_BCL))
 		adreno_dev->bcl_enabled = true;
 
+	if (ADRENO_FEATURE(adreno_dev, ADRENO_LSR))
+		adreno_dev->lsr_enabled = true;
+
 	trace_kgsl_pwr_set_state(device, KGSL_STATE_AWARE);
 
 	return 0;
@@ -329,8 +333,7 @@ clks_gdsc_off:
 	clk_bulk_disable_unprepare(gmu->num_clks, gmu->clks);
 
 gdsc_off:
-	/* Poll to make sure that the CX is off */
-	gen7_cx_regulator_disable_wait(gmu->cx_gdsc, device, 5000);
+	gen7_gmu_disable_gdsc(adreno_dev);
 
 	gen7_rdpm_cx_freq_update(gmu, 0);
 
@@ -352,6 +355,13 @@ static int gen7_hwsched_gmu_boot(struct adreno_device *adreno_dev)
 	ret = gen7_gmu_enable_clks(adreno_dev);
 	if (ret)
 		goto gdsc_off;
+
+	/*
+	 * TLB operations are skipped during slumber. Incase CX doesn't
+	 * go down, it can result in incorrect translations due to stale
+	 * TLB entries. Flush TLB before boot up to ensure fresh start.
+	 */
+	kgsl_mmu_flush_tlb(&device->mmu);
 
 	ret = gen7_rscc_wakeup_sequence(adreno_dev);
 	if (ret)
@@ -391,8 +401,7 @@ clks_gdsc_off:
 	clk_bulk_disable_unprepare(gmu->num_clks, gmu->clks);
 
 gdsc_off:
-	/* Poll to make sure that the CX is off */
-	gen7_cx_regulator_disable_wait(gmu->cx_gdsc, device, 5000);
+	gen7_gmu_disable_gdsc(adreno_dev);
 
 	gen7_rdpm_cx_freq_update(gmu, 0);
 
@@ -479,8 +488,7 @@ static int gen7_hwsched_gmu_power_off(struct adreno_device *adreno_dev)
 
 	clk_bulk_disable_unprepare(gmu->num_clks, gmu->clks);
 
-	/* Poll to make sure that the CX is off */
-	gen7_cx_regulator_disable_wait(gmu->cx_gdsc, device, 5000);
+	gen7_gmu_disable_gdsc(adreno_dev);
 
 	gen7_rdpm_cx_freq_update(gmu, 0);
 

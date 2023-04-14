@@ -118,6 +118,9 @@ enum {
 struct battery_data_t {
 	u8 battery_id;
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
+#if defined(CONFIG_ID_USING_BAT_SUBBAT)
+	u8 main_battery_id;
+#endif
 	u8 sub_battery_id;
 #endif
 	u32 V_empty;
@@ -133,6 +136,10 @@ struct battery_data_t {
 	u32 ichgterm_2nd;
 	u32 misccfg_2nd;
 	u32 fullsocthr_2nd;
+	u32 coff_origin;
+	u32 coff_charging;
+	u32 cgain_origin;
+	u32 cgain_charging;
 };
 
 /* FullCap learning setting */
@@ -163,7 +170,8 @@ typedef struct max77705_fuelgauge_platform_data {
 	int bat_id_gpio[BAT_GPIO_NO];
 	int bat_gpio_cnt;
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
-	int sub_bat_id_gpio;
+	int sub_bat_id_gpio[BAT_GPIO_NO];
+	int sub_bat_gpio_cnt;
 #endif
 	int thermal_source;
 
@@ -279,7 +287,8 @@ struct max77705_fuelgauge_data {
 	unsigned int verify_selected_reg_length;
 	u32 data_ver;
 	bool skip_fg_verify;
-
+	u32 err_cnt;
+	u32 q_res_table[4]; /* QResidual Table */
 
 #if defined(CONFIG_BATTERY_CISD)
 	bool valert_count_flag;

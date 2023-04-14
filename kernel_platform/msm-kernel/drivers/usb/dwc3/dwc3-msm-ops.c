@@ -21,9 +21,8 @@
 #endif
 
 struct kprobe_data {
-	void *x0;
-	void *x1;
-	void *x2;
+	struct dwc3 *dwc;
+	int xi0;
 };
 
 static int entry_dwc3_gadget_run_stop(struct kretprobe_instance *ri,
@@ -96,9 +95,8 @@ static int entry_dwc3_gadget_conndone_interrupt(struct kretprobe_instance *ri,
 				   struct pt_regs *regs)
 {
 	struct kprobe_data *data = (struct kprobe_data *)ri->data;
-	struct dwc3 *dwc = (struct dwc3 *)regs->regs[0];
 
-	data->x0 = dwc;
+	data->dwc = (struct dwc3 *)regs->regs[0];
 	return 0;
 }
 
@@ -106,11 +104,10 @@ static int exit_dwc3_gadget_conndone_interrupt(struct kretprobe_instance *ri,
 				   struct pt_regs *regs)
 {
 	struct kprobe_data *data = (struct kprobe_data *)ri->data;
-	struct dwc3 *dwc = (struct dwc3 *)data->x0;
 
-	dwc3_msm_notify_event(dwc, DWC3_CONTROLLER_CONNDONE_EVENT, 0);
+	dwc3_msm_notify_event(data->dwc, DWC3_CONTROLLER_CONNDONE_EVENT, 0);
 
-	switch (dwc->speed) {
+	switch (data->dwc->speed) {
 	case DWC3_DSTS_SUPERSPEED_PLUS:
 #if defined(CONFIG_USB_NOTIFY_PROC_LOG)
 		store_usblog_notify(NOTIFY_USBSTATE,

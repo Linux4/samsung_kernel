@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -129,6 +130,7 @@ struct sde_encoder_virt_ops {
  * @update_split_role:		Update the split role of the phys enc
  * @control_te:			Interface to control the vsync_enable status
  * @restore:			Restore all the encoder configs.
+ * @reset_tearcheck_rd_ptr:	Reset the tearcheck rd_ptr_line_count from 0 to init_val
  * @is_autorefresh_enabled:	provides the autorefresh current
  *                              enable/disable state.
  * @get_line_count:		Obtain current internal vertical line count
@@ -151,7 +153,7 @@ struct sde_encoder_phys_ops {
 			struct drm_display_mode *adjusted_mode);
 	void (*mode_set)(struct sde_encoder_phys *encoder,
 			struct drm_display_mode *mode,
-			struct drm_display_mode *adjusted_mode);
+			struct drm_display_mode *adjusted_mode, bool *reinit_mixers);
 	void (*cont_splash_mode_set)(struct sde_encoder_phys *encoder,
 			struct drm_display_mode *adjusted_mode);
 	void (*enable)(struct sde_encoder_phys *encoder);
@@ -184,6 +186,7 @@ struct sde_encoder_phys_ops {
 			enum sde_enc_split_role role);
 	void (*control_te)(struct sde_encoder_phys *phys_enc, bool enable);
 	void (*restore)(struct sde_encoder_phys *phys);
+	void (*reset_tearcheck_rd_ptr)(struct sde_encoder_phys *phys);
 	bool (*is_autorefresh_enabled)(struct sde_encoder_phys *phys);
 	int (*get_line_count)(struct sde_encoder_phys *phys);
 	bool (*wait_dma_trigger)(struct sde_encoder_phys *phys);
@@ -403,6 +406,7 @@ struct sde_encoder_phys_cmd_te_timestamp {
  * @wr_ptr_wait_success: log wr_ptr_wait success for release fence trigger
  * @te_timestamp_list: List head for the TE timestamp list
  * @te_timestamp: Array of size MAX_TE_PROFILE_COUNT te_timestamp_list elements
+ * @frame_trigger_count: atomic counter tracking number of frame triggers per TE interval
  */
 struct sde_encoder_phys_cmd {
 	struct sde_encoder_phys base;
@@ -415,6 +419,7 @@ struct sde_encoder_phys_cmd {
 	struct list_head te_timestamp_list;
 	struct sde_encoder_phys_cmd_te_timestamp
 			te_timestamp[MAX_TE_PROFILE_COUNT];
+	atomic_t frame_trigger_count;
 };
 
 /**

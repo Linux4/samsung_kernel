@@ -1,5 +1,6 @@
 """
 Copyright (c) 2016, 2018, 2020-2021 The Linux Foundation. All rights reserved.
+Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -225,7 +226,7 @@ def get_bufs(self, task, bufs, ion_info, ramdump):
             ctime = ramdump.read_word(dmabuf + ctime_offset)
             ctime = ctime // 1000000000
             time = stime - ctime
-        name = ramdump.read_word(dmabuf + self.name_offset)
+        name = ramdump.read_word(dmabuf + self.exp_name_offset)
         if not name:
             name = "None"
         else:
@@ -606,6 +607,7 @@ class DumpIonBuffer(RamParser):
         self.name_offset = self.ramdump.field_offset('struct dma_buf', 'buf_name')
         if self.name_offset is None:
             self.name_offset = self.ramdump.field_offset('struct dma_buf', 'name')
+        self.exp_name_offset = self.ramdump.field_offset('struct dma_buf', 'exp_name')
         self.stime_offset = self.ramdump.field_offset('struct timekeeper',
                                                 'ktime_sec')
 

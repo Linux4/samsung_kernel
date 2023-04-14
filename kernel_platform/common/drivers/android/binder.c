@@ -80,6 +80,8 @@
 #include <linux/freecess.h>
 #endif
 
+int system_server_pid = 0;
+
 #include <trace/hooks/binder.h>
 
 static HLIST_HEAD(binder_deferred_list);
@@ -496,6 +498,11 @@ static void binder_inc_node_tmpref_ilocked(struct binder_node *node);
 static bool binder_has_work_ilocked(struct binder_thread *thread,
 				    bool do_proc_work)
 {
+	int ret = 0;
+
+	trace_android_vh_binder_has_work_ilocked(thread, do_proc_work, &ret);
+	if (ret)
+		return true;
 	return thread->process_todo ||
 		thread->looper_need_return ||
 		(do_proc_work &&
@@ -2000,7 +2007,7 @@ static void binder_transaction_buffer_release(struct binder_proc *proc,
 		binder_dec_node(buffer->target_node, 1, 0);
 
 	off_start_offset = ALIGN(buffer->data_size, sizeof(void *));
-	off_end_offset = is_failure ? failed_at :
+	off_end_offset = is_failure && failed_at ? failed_at :
 				off_start_offset + buffer->offsets_size;
 	for (buffer_offset = off_start_offset; buffer_offset < off_end_offset;
 	     buffer_offset += sizeof(binder_size_t)) {
@@ -2086,9 +2093,8 @@ static void binder_transaction_buffer_release(struct binder_proc *proc,
 			binder_size_t fd_buf_size;
 			binder_size_t num_valid;
 
-			if (proc->tsk != current->group_leader) {
+			if (is_failure) {
 				/*
-				 * Nothing to do if running in sender context
 				 * The fd fixups have not been applied so no
 				 * fds need to be closed.
 				 */
@@ -2186,7 +2192,8 @@ static int binder_translate_binder(struct flat_binder_object *fp,
 		ret = -EINVAL;
 		goto done;
 	}
-	if (security_binder_transfer_binder(proc->tsk, target_proc->tsk)) {
+	if (security_binder_transfer_binder(binder_get_cred(proc),
+					    binder_get_cred(target_proc))) {
 		ret = -EPERM;
 		goto done;
 	}
@@ -2232,7 +2239,8 @@ static int binder_translate_handle(struct flat_binder_object *fp,
 				  proc->pid, thread->pid, fp->handle);
 		return -EINVAL;
 	}
-	if (security_binder_transfer_binder(proc->tsk, target_proc->tsk)) {
+	if (security_binder_transfer_binder(binder_get_cred(proc),
+					    binder_get_cred(target_proc))) {
 		ret = -EPERM;
 		goto done;
 	}
@@ -2320,7 +2328,8 @@ static int binder_translate_fd(u32 fd, binder_size_t fd_offset,
 		ret = -EBADF;
 		goto err_fget;
 	}
-	ret = security_binder_transfer_file(proc->tsk, target_proc->tsk, file);
+	ret = security_binder_transfer_file(binder_get_cred(proc),
+					    binder_get_cred(target_proc), file);
 	if (ret < 0) {
 		ret = -EPERM;
 		goto err_security;
@@ -2406,6 +2415,46 @@ static int binder_translate_fd_array(struct binder_fd_array_object *fda,
 	return 0;
 }
 
+// [ @SystemFW
+static void print_binder_proc_inner(struct binder_proc *proc) 
+{
+	struct rb_node *pn;
+	struct binder_thread *p_thread;
+	struct binder_transaction *t;
+	struct binder_buffer *buffer;
+	uint32_t cnt = 1; 
+
+	binder_inner_proc_lock(proc);
+	for (pn = rb_first(&proc->threads); pn != NULL; pn = rb_next(pn)) {
+		p_thread = rb_entry(pn, struct binder_thread, rb_node);
+		t = p_thread->transaction_stack;
+		if (t) {
+			spin_lock(&t->lock);  
+			if (t->from != p_thread && t->to_thread == p_thread) { //incoming transaction
+				buffer = t->buffer;
+				if (buffer != NULL) {
+					pr_info("[%d] from %d:%d to %d:%d size %zd:%zd\n",
+							cnt, t->from ? t->from->proc->pid : 0,
+							t->from ? t->from->pid : 0,
+							t->to_proc ? t->to_proc->pid : 0,
+							t->to_thread ? t->to_thread->pid : 0,
+							buffer->data_size, buffer->offsets_size);
+				} else {
+					pr_info("[%d] from %d:%d to %d:%d\n",
+							cnt, t->from ? t->from->proc->pid : 0,
+							t->from ? t->from->pid : 0,
+							t->to_proc ? t->to_proc->pid : 0,
+							t->to_thread ? t->to_thread->pid : 0);
+				}
+				cnt++;
+			}
+			spin_unlock(&t->lock);
+		}
+	}
+	binder_inner_proc_unlock(proc);
+}
+// ] @SystemFW
+
 static int binder_fixup_parent(struct binder_transaction *t,
 			       struct binder_thread *thread,
 			       struct binder_buffer_object *bp,
@@ -2488,6 +2537,7 @@ static int binder_proc_transaction(struct binder_transaction *t,
 	struct binder_priority node_prio;
 	bool oneway = !!(t->flags & TF_ONE_WAY);
 	bool pending_async = false;
+	bool skip = false;
 
 	BUG_ON(!node);
 	binder_node_lock(node);
@@ -2515,7 +2565,10 @@ static int binder_proc_transaction(struct binder_transaction *t,
 		return proc->is_frozen ? BR_FROZEN_REPLY : BR_DEAD_REPLY;
 	}
 
-	if (!thread && !pending_async)
+	trace_android_vh_binder_proc_transaction_entry(proc, t,
+		&thread, node->debug_id, pending_async, !oneway, &skip);
+
+	if (!thread && !pending_async && !skip)
 		thread = binder_select_thread_ilocked(proc);
 
 	trace_android_vh_binder_proc_transaction(current, proc->tsk,
@@ -2530,6 +2583,9 @@ static int binder_proc_transaction(struct binder_transaction *t,
 	} else {
 		binder_enqueue_work_ilocked(&t->work, &node->async_todo);
 	}
+
+	trace_android_vh_binder_proc_transaction_end(current, proc->tsk,
+		thread ? thread->task : NULL, t->code, pending_async, !oneway);
 
 	if (!pending_async)
 		binder_wakeup_thread_ilocked(proc, thread, !oneway /* sync */);
@@ -2803,8 +2859,8 @@ static void binder_transaction(struct binder_proc *proc,
 		freecess_sync_binder_report(proc, target_proc, tr);
 #endif
 
-		if (security_binder_transaction(proc->tsk,
-						target_proc->tsk) < 0) {
+		if (security_binder_transaction(binder_get_cred(proc),
+					binder_get_cred(target_proc)) < 0) {
 			return_error = BR_FAILED_REPLY;
 			return_error_param = -EPERM;
 			return_error_line = __LINE__;
@@ -2872,6 +2928,7 @@ static void binder_transaction(struct binder_proc *proc,
 	if (target_thread)
 		e->to_thread = target_thread->pid;
 	e->to_proc = target_proc->pid;
+	trace_android_rvh_binder_transaction(target_proc, proc, thread, tr);
 
 	/* TODO: reuse incoming transaction for reply */
 	t = kzalloc(sizeof(*t), GFP_KERNEL);
@@ -2940,7 +2997,7 @@ static void binder_transaction(struct binder_proc *proc,
 		size_t added_size;
 		int max_retries = 100;
 
-		security_task_getsecid(proc->tsk, &secid);
+		security_cred_getsecid(binder_get_cred(proc), &secid);
  retry_alloc:
 		ret = security_secid_to_secctx(secid, &secctx, &secctx_sz);
 		if (ret == -ENOMEM && max_retries-- > 0) {
@@ -2991,6 +3048,13 @@ static void binder_transaction(struct binder_proc *proc,
 			BR_DEAD_REPLY : BR_FAILED_REPLY;
 		return_error_line = __LINE__;
 		t->buffer = NULL;
+		// [ @SystemFW
+		if (return_error_param == -ENOSPC) {
+			mutex_lock(&binder_procs_lock);
+			print_binder_proc_inner(target_proc);
+			mutex_unlock(&binder_procs_lock);
+		}
+		// ] @SystemFW
 		goto err_binder_alloc_buf_failed;
 	}
 	if (secctx) {
@@ -3419,6 +3483,7 @@ err_invalid_target_handle:
  * binder_free_buf() - free the specified buffer
  * @proc:	binder proc that owns buffer
  * @buffer:	buffer to be freed
+ * @is_failure:	failed to send transaction
  *
  * If buffer for an async transaction, enqueue the next async
  * transaction from the node.
@@ -3428,7 +3493,7 @@ err_invalid_target_handle:
 static void
 binder_free_buf(struct binder_proc *proc,
 		struct binder_thread *thread,
-		struct binder_buffer *buffer)
+		struct binder_buffer *buffer, bool is_failure)
 {
 	binder_inner_proc_lock(proc);
 	if (buffer->transaction) {
@@ -3456,7 +3521,7 @@ binder_free_buf(struct binder_proc *proc,
 		binder_node_inner_unlock(buf_node);
 	}
 	trace_binder_transaction_buffer_release(buffer);
-	binder_transaction_buffer_release(proc, thread, buffer, 0, false);
+	binder_transaction_buffer_release(proc, thread, buffer, 0, is_failure);
 	binder_alloc_free_buf(&proc->alloc, buffer);
 }
 
@@ -3650,7 +3715,7 @@ static int binder_thread_write(struct binder_proc *proc,
 				     proc->pid, thread->pid, (u64)data_ptr,
 				     buffer->debug_id,
 				     buffer->transaction ? "active" : "finished");
-			binder_free_buf(proc, thread, buffer);
+			binder_free_buf(proc, thread, buffer, false);
 			break;
 		}
 
@@ -3696,6 +3761,7 @@ static int binder_thread_write(struct binder_proc *proc,
 			}
 			thread->looper |= BINDER_LOOPER_STATE_REGISTERED;
 			binder_inner_proc_unlock(proc);
+			trace_android_vh_binder_looper_state_registered(thread, proc);
 			break;
 		case BC_ENTER_LOOPER:
 			binder_debug(BINDER_DEBUG_THREADS,
@@ -4102,6 +4168,10 @@ retry:
 		size_t trsize = sizeof(*trd);
 
 		binder_inner_proc_lock(proc);
+		trace_android_vh_binder_select_worklist_ilocked(&list, thread,
+						proc, wait_for_proc_work);
+		if (list)
+			goto skip;
 		if (!binder_worklist_empty_ilocked(&thread->todo))
 			list = &thread->todo;
 		else if (!binder_worklist_empty_ilocked(&proc->todo) &&
@@ -4115,11 +4185,12 @@ retry:
 				goto retry;
 			break;
 		}
-
+skip:
 		if (end - ptr < sizeof(tr) + 4) {
 			binder_inner_proc_unlock(proc);
 			break;
 		}
+		trace_android_vh_binder_thread_read(&list, proc, thread);
 		w = binder_dequeue_work_head_ilocked(list);
 		if (binder_worklist_empty_ilocked(&thread->todo))
 			thread->process_todo = false;
@@ -4344,7 +4415,7 @@ retry:
 			buffer->transaction = NULL;
 			binder_cleanup_transaction(t, "fd fixups failed",
 						   BR_FAILED_REPLY);
-			binder_free_buf(proc, thread, buffer);
+			binder_free_buf(proc, thread, buffer, true);
 			binder_debug(BINDER_DEBUG_FAILED_TRANSACTION,
 				     "%d:%d %stransaction %d fd fixups failed %d/%d, line %d\n",
 				     proc->pid, thread->pid,
@@ -4569,6 +4640,8 @@ static struct binder_thread *binder_get_thread(struct binder_proc *proc)
 static void binder_free_proc(struct binder_proc *proc)
 {
 	struct binder_device *device;
+	struct binder_proc_ext *eproc =
+		container_of(proc, struct binder_proc_ext, proc);
 
 	BUG_ON(!list_empty(&proc->todo));
 	BUG_ON(!list_empty(&proc->delivered_death));
@@ -4582,8 +4655,10 @@ static void binder_free_proc(struct binder_proc *proc)
 	}
 	binder_alloc_deferred_release(&proc->alloc);
 	put_task_struct(proc->tsk);
+	put_cred(eproc->cred);
 	binder_stats_deleted(BINDER_STAT_PROC);
-	kfree(proc);
+	trace_android_vh_binder_free_proc(proc);
+	kfree(eproc);
 }
 
 static void binder_free_thread(struct binder_thread *thread)
@@ -4660,23 +4735,20 @@ static int binder_thread_release(struct binder_proc *proc,
 	__release(&t->lock);
 
 	/*
-	 * If this thread used poll, make sure we remove the waitqueue
-	 * from any epoll data structures holding it with POLLFREE.
-	 * waitqueue_active() is safe to use here because we're holding
-	 * the inner lock.
+	 * If this thread used poll, make sure we remove the waitqueue from any
+	 * poll data structures holding it.
 	 */
-	if ((thread->looper & BINDER_LOOPER_STATE_POLL) &&
-	    waitqueue_active(&thread->wait)) {
-		wake_up_poll(&thread->wait, EPOLLHUP | POLLFREE);
-	}
+	if (thread->looper & BINDER_LOOPER_STATE_POLL)
+		wake_up_pollfree(&thread->wait);
 
 	binder_inner_proc_unlock(thread->proc);
 
 	/*
-	 * This is needed to avoid races between wake_up_poll() above and
-	 * and ep_remove_waitqueue() called for other reasons (eg the epoll file
-	 * descriptor being closed); ep_remove_waitqueue() holds an RCU read
-	 * lock, so we can be sure it's done after calling synchronize_rcu().
+	 * This is needed to avoid races between wake_up_pollfree() above and
+	 * someone else removing the last entry from the queue for other reasons
+	 * (e.g. ep_remove_wait_queue() being called due to an epoll file
+	 * descriptor being closed).  Such other users hold an RCU read lock, so
+	 * we can be sure they're done after we call synchronize_rcu().
 	 */
 	if (thread->looper & BINDER_LOOPER_STATE_POLL)
 		synchronize_rcu();
@@ -4684,6 +4756,7 @@ static int binder_thread_release(struct binder_proc *proc,
 	if (send_reply)
 		binder_send_failed_reply(send_reply, BR_DEAD_REPLY);
 	binder_release_work(proc, &thread->todo);
+	trace_android_vh_binder_thread_release(proc, thread);
 	binder_thread_dec_tmpref(thread);
 	return active_transactions;
 }
@@ -4760,6 +4833,7 @@ static int binder_ioctl_write_read(struct file *filp,
 		if (!binder_worklist_empty_ilocked(&proc->todo))
 			binder_wakeup_proc_ilocked(proc);
 		binder_inner_proc_unlock(proc);
+		trace_android_vh_binder_read_done(proc, thread);
 		if (ret < 0) {
 			if (copy_to_user(ubuf, &bwr, sizeof(bwr)))
 				ret = -EFAULT;
@@ -4794,7 +4868,7 @@ static int binder_ioctl_set_ctx_mgr(struct file *filp,
 		ret = -EBUSY;
 		goto out;
 	}
-	ret = security_binder_set_context_mgr(proc->tsk);
+	ret = security_binder_set_context_mgr(binder_get_cred(proc));
 	if (ret < 0)
 		goto out;
 	if (uid_valid(context->binder_context_mgr_uid)) {
@@ -5190,6 +5264,15 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		binder_inner_proc_unlock(proc);
 		break;
 	}
+	// [ @SystemFW
+	case BINDER_SET_SYSTEM_SERVER_PID: {
+		if (copy_from_user(&system_server_pid, ubuf, sizeof(system_server_pid))) {
+			ret = -EINVAL;
+			goto err;
+		}
+		break;
+	}
+	// ] @SystemFW
 	default:
 		ret = -EINVAL;
 		goto err;
@@ -5270,6 +5353,7 @@ static int binder_mmap(struct file *filp, struct vm_area_struct *vma)
 static int binder_open(struct inode *nodp, struct file *filp)
 {
 	struct binder_proc *proc, *itr;
+	struct binder_proc_ext *eproc;
 	struct binder_device *binder_dev;
 	struct binderfs_info *info;
 	struct dentry *binder_binderfs_dir_entry_proc = NULL;
@@ -5278,13 +5362,15 @@ static int binder_open(struct inode *nodp, struct file *filp)
 	binder_debug(BINDER_DEBUG_OPEN_CLOSE, "%s: %d:%d\n", __func__,
 		     current->group_leader->pid, current->pid);
 
-	proc = kzalloc(sizeof(*proc), GFP_KERNEL);
+	eproc = kzalloc(sizeof(*eproc), GFP_KERNEL);
+	proc = &eproc->proc;
 	if (proc == NULL)
 		return -ENOMEM;
 	spin_lock_init(&proc->inner_lock);
 	spin_lock_init(&proc->outer_lock);
 	get_task_struct(current->group_leader);
 	proc->tsk = current->group_leader;
+	eproc->cred = get_cred(filp->f_cred);
 	INIT_LIST_HEAD(&proc->todo);
 	init_waitqueue_head(&proc->freeze_wait);
 	if (binder_supported_policy(current->policy)) {

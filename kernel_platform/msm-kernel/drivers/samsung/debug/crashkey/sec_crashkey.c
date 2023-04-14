@@ -14,6 +14,7 @@
 #include <linux/mutex.h>
 #include <linux/notifier.h>
 #include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/ratelimit.h>
 #include <linux/slab.h>
@@ -23,6 +24,8 @@
 #include <linux/samsung/builder_pattern.h>
 #include <linux/samsung/debug/sec_debug.h>
 #include <linux/samsung/debug/sec_log_buf.h>
+#include <linux/samsung/of_early_populate.h>
+#include <linux/samsung/sec_of.h>
 
 #define CRASHKEY_MOCK_NAME	"Mock Crash Key"
 
@@ -252,27 +255,18 @@ static int __crashkey_parse_dt_check_debug_level(struct builder *bd,
 	struct crashkey_drvdata *drvdata =
 			container_of(bd, struct crashkey_drvdata, bd);
 	struct device *dev = bd->dev;
-	int nr_dbg_level;
-	unsigned int sec_dbg_level;
-	u32 dbg_level;
-	int i;
+	unsigned int sec_dbg_level = sec_debug_level();
+	int err;
 
-	nr_dbg_level = of_property_count_u32_elems(np, "sec,debug_level");
-	if (nr_dbg_level <= 0) {
+	err = sec_of_test_debug_level(np, "sec,debug_level", sec_dbg_level);
+	if (err == -ENOENT) {
 		dev_warn(dev, "this crashkey_dev (%s) will be enabled all sec debug levels!\n",
 				drvdata->name);
 		return 0;
-	}
+	} else if (err < 0)
+		return -ENODEV;
 
-	sec_dbg_level = sec_debug_level();
-	for (i = 0; i < nr_dbg_level; i++) {
-		of_property_read_u32_index(np, "sec,debug_level", i,
-				&dbg_level);
-		if (sec_dbg_level == (unsigned int)dbg_level)
-			return 0;
-	}
-
-	return -ENODEV;
+	return 0;
 }
 
 static int __crashkey_parse_dt_panic_msg(struct builder *bd,
@@ -682,11 +676,15 @@ static int __init sec_crashkey_init(void)
 	if (err)
 		return err;
 
+	err = __of_platform_early_populate_init(sec_crashkey_match_table);
+	if (err)
+		return err;
+
 	register_syscore_ops(&sec_crashkey_syscore_ops);
 
 	return 0;
 }
-core_initcall_sync(sec_crashkey_init);
+core_initcall(sec_crashkey_init);
 
 static void __exit sec_crashkey_exit(void)
 {

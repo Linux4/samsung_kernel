@@ -177,3 +177,4 @@ module_exit(sec_sysup_exit);
 MODULE_AUTHOR("Samsung Electronics");
 MODULE_DESCRIPTION("Samsung System Update");
 MODULE_LICENSE("GPL v2");
+MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);	/* NOTE: OK. I know it. */

@@ -56,10 +56,6 @@
 #include "AudioEffect.h"
 #endif
 
-#define COMPRESS_VOIP_IO_BUF_SIZE_NB 320
-#define COMPRESS_VOIP_IO_BUF_SIZE_WB 640
-#define COMPRESS_VOIP_IO_BUF_SIZE_SWB 1280
-#define COMPRESS_VOIP_IO_BUF_SIZE_FB 1920
 #define MAX_PERF_LOCK_OPTS 20
 
 #ifdef SEC_AUDIO_HIDL
@@ -200,7 +196,9 @@ public:
     pal_speaker_rotation_type current_rotation;
     static card_status_t sndCardState;
     std::mutex adev_init_mutex;
+    std::mutex adev_perf_mutex;
     uint32_t adev_init_ref_count = 0;
+    int32_t perf_lock_acquire_cnt = 0;
     hw_device_t *GetAudioDeviceCommon();
     int perf_lock_handle;
     int perf_lock_opts[MAX_PERF_LOCK_OPTS];
@@ -220,7 +218,7 @@ public:
     static snd_device_to_mic_map_t microphone_maps[PAL_MAX_INPUT_DEVICES];
     static bool find_enum_by_string(const struct audio_string_to_enum * table, const char * name,
                                     int32_t len, unsigned int *value);
-    static bool set_microphone_characteristic(struct audio_microphone_characteristic_t mic);
+    static bool set_microphone_characteristic(struct audio_microphone_characteristic_t *mic);
     static int32_t get_microphones(struct audio_microphone_characteristic_t *mic_array, size_t *mic_count);
     static void process_microphone_characteristics(const XML_Char **attr);
     static bool is_input_pal_dev_id(int deviceId);
@@ -246,9 +244,11 @@ public:
     bool USBConnected(void);
 #endif
 #ifdef SEC_AUDIO_COMMON
-    void SetForceRouteOutStream(const std::set<audio_devices_t>& new_devices);
+    void SetForceRouteOutStream(const std::set<audio_devices_t>& new_devices, bool force = false);
     void SetForceRouteInStream(const std::set<audio_devices_t>& new_devices);
     std::shared_ptr<StreamInPrimary> GetActiveInStream();
+    std::shared_ptr<StreamInPrimary> GetActiveInStreamByUseCase(int UseCase);
+    std::shared_ptr<StreamInPrimary> GetActiveInStreamByInputSource(audio_source_t input_source);
     std::shared_ptr<StreamOutPrimary> OutGetStream(pal_stream_type_t pal_stream_type);
 #endif
 #ifdef SEC_AUDIO_HIDL
@@ -276,6 +276,7 @@ protected:
     std::mutex in_list_mutex;
     std::mutex patch_map_mutex;
     btsco_lc3_cfg_t btsco_lc3_cfg;
+    bool bt_lc3_speech_enabled;
     void *offload_effects_lib_;
 #ifdef SEC_AUDIO_OFFLOAD
     offload_effects_update_output fnp_offload_effect_update_output_ = nullptr;
@@ -291,5 +292,39 @@ protected:
     std::map<audio_patch_handle_t, AudioPatch*> patch_map_;
     int add_input_headset_if_usb_out_headset(int *device_count,  pal_device_id_t** pal_device_ids);
 };
+
+static inline uint32_t lcm(uint32_t num1, uint32_t num2)
+{
+    uint32_t high = num1, low = num2, temp = 0;
+
+    if (!num1 || !num2)
+        return 0;
+
+    if (num1 < num2) {
+         high = num2;
+         low = num1;
+    }
+
+    while (low != 0) {
+        temp = low;
+        low = high % low;
+        high = temp;
+    }
+    return (num1 * num2)/high;
+}
+
+static inline uint32_t nearest_multiple(uint32_t num, uint32_t multiplier)
+{
+    uint32_t remainder = 0;
+
+    if (!multiplier)
+        return num;
+
+    remainder = num % multiplier;
+    if (remainder)
+        num += (multiplier - remainder);
+
+    return num;
+}
 
 #endif //ANDROID_HARDWARE_AHAL_ADEVICE_H_

@@ -393,7 +393,7 @@ void PayloadBuilder::payloadMFCConfig(uint8_t** payload, size_t* size,
 
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
-    PAL_DBG(LOG_TAG, "sample_rate:%d bit_width:%d num_channels:%d Miid:%d",
+    PAL_INFO(LOG_TAG, "sample_rate:%d bit_width:%d num_channels:%d Miid:%d",
                       mfcConf->sampling_rate, mfcConf->bit_width,
                       mfcConf->num_channels, header->module_instance_id);
     PAL_DBG(LOG_TAG, "customPayload address %pK and size %zu", payloadInfo,
@@ -857,20 +857,20 @@ done:
     return ret;
 }
 
-void PayloadBuilder::payloadTimestamp(uint8_t **payload, size_t *size, uint32_t moduleId)
+void PayloadBuilder::payloadTimestamp(std::shared_ptr<std::vector<uint8_t>>& payload,
+                                      size_t *size, uint32_t moduleId)
 {
     size_t payloadSize, padBytes;
-    uint8_t *payloadInfo = NULL;
     struct apm_module_param_data_t* header;
     payloadSize = sizeof(struct apm_module_param_data_t) +
                   sizeof(struct param_id_spr_session_time_t);
     padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
-    payloadInfo = new uint8_t[payloadSize + padBytes]();
-    if (!payloadInfo) {
-        PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+    payload = std::make_shared<std::vector<uint8_t>>(payloadSize + padBytes);
+    if (!payload) {
+        PAL_ERR(LOG_TAG, "payload malloc failed %s", strerror(errno));
         return;
     }
-    header = (struct apm_module_param_data_t*)payloadInfo;
+    header = (struct apm_module_param_data_t*)payload->data();
     header->module_instance_id = moduleId;
     header->param_id = PARAM_ID_SPR_SESSION_TIME;
     header->error_code = 0x0;
@@ -878,9 +878,8 @@ void PayloadBuilder::payloadTimestamp(uint8_t **payload, size_t *size, uint32_t 
     PAL_VERBOSE(LOG_TAG, "header params IID:%x param_id:%x error_code:%d param_size:%d",
                   header->module_instance_id, header->param_id,
                   header->error_code, header->param_size);
-    *size = payloadSize + padBytes;;
-    *payload = payloadInfo;
-    PAL_DBG(LOG_TAG, "payload %pK size %zu", *payload, *size);
+    *size = payloadSize + padBytes;
+    PAL_DBG(LOG_TAG, "payload %pK size %zu", payload->data(), *size);
 }
 
 int PayloadBuilder::payloadACDBParam(uint8_t **alsaPayload, size_t *size,
@@ -898,6 +897,9 @@ int PayloadBuilder::payloadACDBParam(uint8_t **alsaPayload, size_t *size,
     uint8_t *ptrDst = nullptr;
     uint32_t *ptr = nullptr;
     pal_effect_custom_payload_t *effectCustomPayload = nullptr;
+    uint32_t totalPaddedSize = 0;
+    uint32_t parsedSize = 0;
+    struct agm_acdb_param *repackedData = nullptr;
 
     if (!acdbParam)
         return -EINVAL;
@@ -907,14 +909,6 @@ int PayloadBuilder::payloadACDBParam(uint8_t **alsaPayload, size_t *size,
                     sampleRate);
         return -EINVAL;
     }
-
-    // step 1: get param data size = blob size - kv size - param id size
-    payloadSize = acdbParam->blob_size -
-                    acdbParam->num_kvs * sizeof(struct gsl_key_value_pair)
-                    - sizeof(pal_effect_custom_payload_t);
-
-    paddedSize = PAL_ALIGN_8BYTE(payloadSize);
-    PAL_INFO(LOG_TAG, "payloadSize=%d paddedSize=%x", payloadSize, paddedSize);
 
     if (sampleRate) {
         //CKV
@@ -936,56 +930,148 @@ int PayloadBuilder::payloadACDBParam(uint8_t **alsaPayload, size_t *size,
         appendSampleRateInCKV = 0;
     }
 
-    payloadInfo = (struct agm_acdb_param *)calloc(1,
-        sizeof(struct agm_acdb_param) +
-        (acdbParam->num_kvs + appendSampleRateInCKV) *
-        sizeof(struct gsl_key_value_pair) +
-        sizeof(struct apm_module_param_data_t) + paddedSize -
-        sizeof(pal_effect_custom_payload_t));
-
-    if (!payloadInfo) {
-        PAL_ERR(LOG_TAG, "failed to allocate memory.");
-        return -ENOMEM;
-    }
-
-    // copy acdb meta + kv
+    // multipl param check by param id
     dataLength = sizeof(struct agm_acdb_param) +
                     acdbParam->num_kvs * sizeof(struct gsl_key_value_pair);
-    ar_mem_cpy((uint8_t *)payloadInfo, dataLength,
-                (uint8_t *)acdbParam, dataLength);
-    //update blob size
-    payloadInfo->blob_size = payloadInfo->blob_size +
-                            sizeof(struct apm_module_param_data_t) -
-                            sizeof(pal_effect_custom_payload_t) +
-                            appendSampleRateInCKV * sizeof(struct gsl_key_value_pair)
-                            + paddedSize - payloadSize;
-    payloadInfo->num_kvs = payloadInfo->num_kvs + appendSampleRateInCKV;
-    if (appendSampleRateInCKV) {
-        ptr = (uint32_t *)((uint8_t *)payloadInfo + dataLength);
-        *ptr++ = SAMPLINGRATE;
-        *ptr = sampleRate;
-        header = (struct apm_module_param_data_t *)((uint8_t *)payloadInfo +
-                    dataLength + sizeof(struct gsl_key_value_pair));
-    } else {
-        header = (struct apm_module_param_data_t *)
-                    ((uint8_t *)payloadInfo + dataLength);
-    }
-
     effectCustomPayload = (pal_effect_custom_payload_t *)
                                 ((uint8_t *)acdbParam + dataLength);
-    header->module_instance_id = moduleInstanceId;
-    header->param_id = effectCustomPayload->paramId;
-    header->param_size = payloadSize;
-    header->error_code = 0x0;
+    if (effectCustomPayload->paramId) {
+        // step 1: get param data size = blob size - kv size - param id size
+        payloadSize = acdbParam->blob_size -
+                        acdbParam->num_kvs * sizeof(struct gsl_key_value_pair)
+                        - sizeof(pal_effect_custom_payload_t);
+        paddedSize = PAL_ALIGN_8BYTE(payloadSize);
+        PAL_INFO(LOG_TAG, "payloadSize=%d paddedSize=%x", payloadSize, paddedSize);
+        payloadInfo = (struct agm_acdb_param *)calloc(1,
+            sizeof(struct agm_acdb_param) +
+            (acdbParam->num_kvs + appendSampleRateInCKV) *
+            sizeof(struct gsl_key_value_pair) +
+            sizeof(struct apm_module_param_data_t) + paddedSize);
+        if (!payloadInfo) {
+            PAL_ERR(LOG_TAG, "failed to allocate memory.");
+            return -ENOMEM;
+        }
 
-    if (paddedSize) {
-        ptrDst = (uint8_t *)header + sizeof(struct apm_module_param_data_t);
-        ptrSrc = (uint8_t *)effectCustomPayload->data;
-        // padded bytes are zereo by calloc. no need to copy.
-        ar_mem_cpy(ptrDst, payloadSize, ptrSrc, payloadSize);
+        // copy acdb meta + kv
+        dataLength = sizeof(struct agm_acdb_param) +
+                        acdbParam->num_kvs * sizeof(struct gsl_key_value_pair);
+        ar_mem_cpy((uint8_t *)payloadInfo, dataLength,
+                    (uint8_t *)acdbParam, dataLength);
+        //update blob size
+        payloadInfo->blob_size = payloadInfo->blob_size +
+                                sizeof(struct apm_module_param_data_t) -
+                                sizeof(pal_effect_custom_payload_t) +
+                                appendSampleRateInCKV * sizeof(struct gsl_key_value_pair)
+                                + paddedSize - payloadSize;
+        payloadInfo->num_kvs = payloadInfo->num_kvs + appendSampleRateInCKV;
+        if (appendSampleRateInCKV) {
+            ptr = (uint32_t *)((uint8_t *)payloadInfo + dataLength);
+            *ptr++ = SAMPLINGRATE;
+            *ptr = sampleRate;
+            header = (struct apm_module_param_data_t *)((uint8_t *)payloadInfo +
+                        dataLength + sizeof(struct gsl_key_value_pair));
+        } else {
+            header = (struct apm_module_param_data_t *)
+                        ((uint8_t *)payloadInfo + dataLength);
+        }
+
+        effectCustomPayload = (pal_effect_custom_payload_t *)
+                                    ((uint8_t *)acdbParam + dataLength);
+        header->module_instance_id = moduleInstanceId;
+        header->param_id = effectCustomPayload->paramId;
+        header->param_size = payloadSize;
+        header->error_code = 0x0;
+
+        /* padded size = payload size + appended sze */
+        if (paddedSize) {
+            ptrDst = (uint8_t *)header + sizeof(struct apm_module_param_data_t);
+            ptrSrc = (uint8_t *)effectCustomPayload->data;
+            // padded bytes are zereo by calloc. no need to copy.
+            ar_mem_cpy(ptrDst, payloadSize, ptrSrc, payloadSize);
+        }
+        *size = dataLength + paddedSize + sizeof(struct apm_module_param_data_t) +
+                    appendSampleRateInCKV * sizeof(struct gsl_key_value_pair);
+        *alsaPayload = (uint8_t *)payloadInfo;
+
+    } else {
+        // step 1: get param data size = blob size - kv size - param id size
+        payloadSize = acdbParam->blob_size -
+                        acdbParam->num_kvs * sizeof(struct gsl_key_value_pair)
+                        - sizeof(pal_effect_custom_payload_t);
+
+        repackedData =
+                (struct agm_acdb_param *)calloc(1,
+                    sizeof(struct agm_acdb_param) +
+                    (acdbParam->num_kvs + appendSampleRateInCKV) *
+                    sizeof(struct gsl_key_value_pair) +
+                    sizeof(struct apm_module_param_data_t) + payloadSize * 2);
+
+        if (!repackedData) {
+                PAL_ERR(LOG_TAG, "failed to allocate memory of 0x%x bytes",
+                                        payloadSize * 2);
+                return -ENOMEM;
+        }
+
+        legacyGefParamHeader *gefMultipleParamHeader = NULL;
+        // copy acdb meta + kv
+        dataLength = sizeof(struct agm_acdb_param) +
+                        acdbParam->num_kvs * sizeof(struct gsl_key_value_pair);
+
+        ar_mem_cpy((uint8_t *)repackedData, dataLength,
+                    (uint8_t *)acdbParam, dataLength);
+
+        repackedData->num_kvs = acdbParam->num_kvs + appendSampleRateInCKV;
+        if (appendSampleRateInCKV) {
+            ptr = (uint32_t *)((uint8_t *)repackedData + dataLength);
+            *ptr++ = SAMPLINGRATE;
+            *ptr = sampleRate;
+            header = (struct apm_module_param_data_t *)((uint8_t *)repackedData +
+                        dataLength + sizeof(struct gsl_key_value_pair));
+        } else {
+            header = (struct apm_module_param_data_t *)
+                        ((uint8_t *)repackedData + dataLength);
+        }
+
+        while (parsedSize < payloadSize) {
+            PAL_DBG(LOG_TAG, "parsed size = 0x%x", parsedSize);
+            gefMultipleParamHeader =
+                (legacyGefParamHeader *)
+                ((uint8_t *)(effectCustomPayload->data) + parsedSize);
+            paddedSize= PAL_ALIGN_8BYTE(sizeof(struct apm_module_param_data_t)
+                                                + gefMultipleParamHeader->length);
+            PAL_DBG(LOG_TAG, "total padded size = 0x%x paddedSize=0x%x",
+                        totalPaddedSize, paddedSize);
+            PAL_DBG(LOG_TAG, "current param value length = 0x%x",
+                        gefMultipleParamHeader->length);
+            header->module_instance_id = moduleInstanceId;
+            header->param_id = gefMultipleParamHeader->paramId;
+            header->error_code = 0x0;
+            header->param_size = gefMultipleParamHeader->length;
+            PAL_DBG(LOG_TAG, "miid=0x%x param id = 0x%x length=0x%x",
+                        header->module_instance_id, header->param_id, header->param_size);
+            if (gefMultipleParamHeader->length) {
+                ar_mem_cpy((uint8_t *)header + sizeof(struct apm_module_param_data_t),
+                                 gefMultipleParamHeader->length,
+                                 (uint8_t *)gefMultipleParamHeader + sizeof(legacyGefParamHeader),
+                                 gefMultipleParamHeader->length);
+            }
+            // offset to output data
+            totalPaddedSize += paddedSize;
+            // offset to input data
+            parsedSize += sizeof(legacyGefParamHeader) +
+                            gefMultipleParamHeader->length;
+            PAL_DBG(LOG_TAG, "parsed size=0x%x total padded size=0x%x",
+                                parsedSize, totalPaddedSize);
+            header = (struct apm_module_param_data_t*)((uint8_t *)header + paddedSize);
+        }
+
+        repackedData->blob_size = acdbParam->num_kvs * sizeof(struct gsl_key_value_pair)
+                                    + totalPaddedSize;
+        *size = dataLength + totalPaddedSize +
+                    appendSampleRateInCKV * sizeof(struct gsl_key_value_pair);
+        *alsaPayload = (uint8_t *)repackedData;
     }
-    *size = dataLength + paddedSize + sizeof(struct apm_module_param_data_t);
-    *alsaPayload = (uint8_t *)payloadInfo;
+
     PAL_DBG(LOG_TAG, "ALSA payload %pK size %zu", *alsaPayload, *size);
 
     return 0;
@@ -997,27 +1083,74 @@ int PayloadBuilder::payloadCustomParam(uint8_t **alsaPayload, size_t *size,
     struct apm_module_param_data_t* header;
     uint8_t* payloadInfo = NULL;
     size_t alsaPayloadSize = 0;
+    uint32_t totalPaddedSize = 0;
+    uint32_t parsedSize = 0;
 
-    alsaPayloadSize = PAL_ALIGN_8BYTE(sizeof(struct apm_module_param_data_t)
-                                        + customPayloadSize);
-    payloadInfo = (uint8_t *)calloc(1, (size_t)alsaPayloadSize);
-    if (!payloadInfo) {
-        PAL_ERR(LOG_TAG, "failed to allocate memory.");
-        return -ENOMEM;
+    PAL_DBG(LOG_TAG, "param id = 0x%x", paramId);
+    if (paramId) {
+        alsaPayloadSize = PAL_ALIGN_8BYTE(sizeof(struct apm_module_param_data_t)
+                                            + customPayloadSize);
+        payloadInfo = (uint8_t *)calloc(1, (size_t)alsaPayloadSize);
+        if (!payloadInfo) {
+            PAL_ERR(LOG_TAG, "failed to allocate memory.");
+            return -ENOMEM;
+        }
+
+        header = (struct apm_module_param_data_t*)payloadInfo;
+        header->module_instance_id = moduleInstanceId;
+        header->param_id = paramId;
+        header->error_code = 0x0;
+        header->param_size = customPayloadSize;
+        if (customPayloadSize)
+            ar_mem_cpy(payloadInfo + sizeof(struct apm_module_param_data_t),
+                             customPayloadSize,
+                             customPayload,
+                             customPayloadSize);
+        *size = alsaPayloadSize;
+        *alsaPayload = payloadInfo;
+    } else {
+        // make sure memory is big enough to handle padding
+        uint8_t *repackedData = (uint8_t *)calloc(1, customPayloadSize * 2);
+        if (!repackedData) {
+            PAL_ERR(LOG_TAG, "failed to allocate memory of 0x%x bytes",
+                        customPayloadSize * 2);
+            return -ENOMEM;
+        }
+        legacyGefParamHeader *gefMultipleParamHeader = NULL;
+        PAL_DBG(LOG_TAG, "custom payloadsize=0x%x", customPayloadSize);
+
+        while (parsedSize < customPayloadSize) {
+            gefMultipleParamHeader =
+                (legacyGefParamHeader *)((uint8_t *)customPayload + parsedSize);
+            alsaPayloadSize = PAL_ALIGN_8BYTE(sizeof(struct apm_module_param_data_t)
+                                                + gefMultipleParamHeader->length);
+            PAL_DBG(LOG_TAG, "total padded size = 0x%x alsapayloadsize=0x%x",
+                        totalPaddedSize, alsaPayloadSize);
+            PAL_DBG(LOG_TAG, "current param length = 0x%x",
+                        gefMultipleParamHeader->length);
+            payloadInfo = repackedData + totalPaddedSize;
+            header = (struct apm_module_param_data_t*)payloadInfo;
+            header->module_instance_id = moduleInstanceId;
+            header->param_id = gefMultipleParamHeader->paramId;
+            header->error_code = 0x0;
+            header->param_size = gefMultipleParamHeader->length;
+
+            if (gefMultipleParamHeader->length)
+                ar_mem_cpy(payloadInfo + sizeof(struct apm_module_param_data_t),
+                                 gefMultipleParamHeader->length,
+                                 (uint8_t *)customPayload + parsedSize +
+                                 sizeof(legacyGefParamHeader),
+                                 gefMultipleParamHeader->length);
+
+            totalPaddedSize += alsaPayloadSize;
+            parsedSize += sizeof(legacyGefParamHeader) +
+                            gefMultipleParamHeader->length;
+            PAL_DBG(LOG_TAG, "parsed size=0x%x total padded size=0x%x",
+                                parsedSize, totalPaddedSize);
+        }
+        *size = totalPaddedSize;
+        *alsaPayload = repackedData;
     }
-
-    header = (struct apm_module_param_data_t*)payloadInfo;
-    header->module_instance_id = moduleInstanceId;
-    header->param_id = paramId;
-    header->error_code = 0x0;
-    header->param_size = customPayloadSize;
-    if (customPayloadSize)
-        ar_mem_cpy(payloadInfo + sizeof(struct apm_module_param_data_t),
-                         customPayloadSize,
-                         customPayload,
-                         customPayloadSize);
-    *size = alsaPayloadSize;
-    *alsaPayload = payloadInfo;
 
     PAL_DBG(LOG_TAG, "ALSA payload %pK size %zu", *alsaPayload, *size);
 
@@ -2442,20 +2575,6 @@ exit:
     return status;
 }
 
-bool PayloadBuilder::isBtDevice(int32_t beDevId)
-{
-    switch (beDevId) {
-        case PAL_DEVICE_OUT_BLUETOOTH_A2DP:
-        case PAL_DEVICE_IN_BLUETOOTH_A2DP:
-        case PAL_DEVICE_OUT_BLUETOOTH_SCO:
-        case PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
-            return true;
-        default:
-            return false;
-    }
-}
-
-
 int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
         std::vector <std::pair<int,int>> &keyVector)
 {
@@ -2465,12 +2584,24 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
     struct pal_device dAttr;
     std::shared_ptr<Device> dev = nullptr;
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
+    uint32_t soundCardId = 0;
+
+    if (s)
+        soundCardId = s->getSoundCardId();
 
     PAL_INFO(LOG_TAG, "Enter device id:%d", beDevId);
 
     /* For BT devices, device KV will be populated from Bluetooth device only so skip here */
-    if (isBtDevice(beDevId))
+    if (rm->isBtDevice((pal_device_id_t)beDevId)) {
+        if (DUMMY_SND_CARD == soundCardId) {
+            PAL_INFO(LOG_TAG, "Use default value for BT ACDB case.");
+            keyVector.push_back(std::make_pair(DEVICERX, BT_RX));
+            keyVector.push_back(std::make_pair(BT_PROFILE, A2DP));
+            keyVector.push_back(std::make_pair(BT_FORMAT, GENERIC));
+        }
         goto exit;
+    }
+
 
     if (beDevId > 0) {
         memset (&dAttr, 0, sizeof(struct pal_device));
@@ -2552,10 +2683,10 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
                 keyVectorRx);
         }
     }
+
     filled_selector_pairs.clear();
     selectors.clear();
-    filled_selector_pairs.clear();
-    selectors.clear();
+
     /* Populate Tx Device PP KV */
     if (txBeDevId > 0) {
         PAL_INFO(LOG_TAG, "Tx device id:%d", txBeDevId);
@@ -2582,6 +2713,8 @@ int PayloadBuilder::populateStreamCkv(Stream *s,
 {
     int status = 0;
     struct pal_stream_attributes sAttr;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
+    struct volume_set_param_info vol_set_param_info;
 
     PAL_DBG(LOG_TAG, "Enter");
     memset(&sAttr, 0, sizeof(struct pal_stream_attributes));
@@ -2605,8 +2738,16 @@ int PayloadBuilder::populateStreamCkv(Stream *s,
              * down while setting the desired volume. Thus avoiding glitch
              * TODO: Decide what to send as ckv in graph open
              */
-            keyVector.push_back(std::make_pair(VOLUME,LEVEL_15));
-            PAL_DBG(LOG_TAG, "Entered default %x %x", VOLUME, LEVEL_15);
+            memset(&vol_set_param_info, 0, sizeof(struct volume_set_param_info));
+            rm->getVolumeSetParamInfo(&vol_set_param_info);
+            bool isStreamAvail = (find(vol_set_param_info.streams_.begin(),
+                    vol_set_param_info.streams_.end(), sAttr.type) !=
+                    vol_set_param_info.streams_.end());
+            if ((vol_set_param_info.isVolumeUsingSetParam == false) ||
+                ((vol_set_param_info.isVolumeUsingSetParam == true) && !isStreamAvail)) {
+                keyVector.push_back(std::make_pair(VOLUME,LEVEL_15));
+                PAL_DBG(LOG_TAG, "Entered default %x %x", VOLUME, LEVEL_15);
+            }
             break;
      }
 exit:
@@ -2754,7 +2895,7 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
         return status;
     }
 
-    float voldB = 0.0f;
+    long voldB = 0;
     struct pal_volume_data *voldata = NULL;
     voldata = (struct pal_volume_data *)calloc(1, (sizeof(uint32_t) +
                       (sizeof(struct pal_channel_vol_kv) * (0xFFFF))));
@@ -2770,7 +2911,8 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
     }
 
     PAL_VERBOSE(LOG_TAG,"volume sent:%f \n",(voldata->volume_pair[0].vol));
-    voldB = (voldata->volume_pair[0].vol);
+    /*scaling the volume by PLAYBACK_VOLUME_MAX factor*/
+    voldB = (long)((voldata->volume_pair[0].vol) * (PLAYBACK_VOLUME_MAX*1.0));
 
     switch (static_cast<uint32_t>(tag)) {
     case TAG_STREAM_VOLUME:
@@ -2778,84 +2920,82 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
         if (sAttr.type == PAL_STREAM_VOIP ||
             sAttr.type == PAL_STREAM_VOIP_RX ||
             sAttr.type == PAL_STREAM_VOIP_TX) { // level 8
-            if (voldB == 0.0f) {
+            if (voldB == 0L) {
                 ckv.push_back(std::make_pair(VOLUME,LEVEL_8));
             }
-            else if (voldB <= 0.125000f) {
+            else if (voldB <= 1024L) {
                 ckv.push_back(std::make_pair(VOLUME,LEVEL_7));
             }
-            else if (voldB <= 0.250000f) {
+            else if (voldB <= 2048L) {
                 ckv.push_back(std::make_pair(VOLUME,LEVEL_6));
             }
-            else if (voldB <= 0.375000f) {
+            else if (voldB <= 3072L) {
                 ckv.push_back(std::make_pair(VOLUME,LEVEL_5));
             }
-            else if (voldB <= 0.500000f) {
+            else if (voldB <= 4096L) {
                 ckv.push_back(std::make_pair(VOLUME,LEVEL_4));
             }
-            else if (voldB <= 0.6250000f) {
+            else if (voldB <= 5120L) {
                 ckv.push_back(std::make_pair(VOLUME,LEVEL_3));
             }
-            else if (voldB <= 0.750000f) {
+            else if (voldB <= 6144L) {
                 ckv.push_back(std::make_pair(VOLUME,LEVEL_2));
             }
-            else if (voldB <= 0.875000f) {
+            else if (voldB <= 7168L) {
                 ckv.push_back(std::make_pair(VOLUME,LEVEL_1));
             }
-            else if (voldB <= 1.0f) {
+            else if (voldB <= 8192L) {
                 ckv.push_back(std::make_pair(VOLUME,LEVEL_0));
             }
         } else
 #endif
-        {
-            if (voldB == 0.0f) {
-                ckv.push_back(std::make_pair(VOLUME,LEVEL_15));
-            }
-            else if (voldB <= 0.002172f) {
-                ckv.push_back(std::make_pair(VOLUME,LEVEL_14));
-            }
-            else if (voldB <= 0.004660f) {
-                ckv.push_back(std::make_pair(VOLUME,LEVEL_13));
-            }
-            else if (voldB <= 0.01f) {
-                ckv.push_back(std::make_pair(VOLUME,LEVEL_12));
-            }
-            else if (voldB <= 0.014877f) {
-                ckv.push_back(std::make_pair(VOLUME,LEVEL_11));
-            }
-            else if (voldB <= 0.023646f) {
-                ckv.push_back(std::make_pair(VOLUME,LEVEL_10));
-            }
-            else if (voldB <= 0.037584f) {
-                ckv.push_back(std::make_pair(VOLUME,LEVEL_9));
-            }
-            else if (voldB <= 0.055912f) {
-                ckv.push_back(std::make_pair(VOLUME,LEVEL_8));
-            }
-            else if (voldB <= 0.088869f) {
-                ckv.push_back(std::make_pair(VOLUME,LEVEL_7));
-            }
-            else if (voldB <= 0.141254f) {
-                ckv.push_back(std::make_pair(VOLUME,LEVEL_6));
-            }
-            else if (voldB <= 0.189453f) {
-                ckv.push_back(std::make_pair(VOLUME,LEVEL_5));
-            }
-            else if (voldB <= 0.266840f) {
-                ckv.push_back(std::make_pair(VOLUME,LEVEL_4));
-            }
-            else if (voldB <= 0.375838f) {
-                ckv.push_back(std::make_pair(VOLUME,LEVEL_3));
-            }
-            else if (voldB <= 0.504081f) {
-                ckv.push_back(std::make_pair(VOLUME,LEVEL_2));
-            }
-            else if (voldB <= 0.709987f) {
-                ckv.push_back(std::make_pair(VOLUME,LEVEL_1));
-            }
-            else if (voldB <= 1.0f) {
-                ckv.push_back(std::make_pair(VOLUME,LEVEL_0));
-            }
+        if (voldB == 0L) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_15));
+        }
+        else if (voldB <= 17L) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_14));
+        }
+        else if (voldB <= 38L) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_13));
+        }
+        else if (voldB <= 81L) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_12));
+        }
+        else if (voldB <= 121L) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_11));
+        }
+        else if (voldB <= 193L) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_10));
+        }
+        else if (voldB <= 307L) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_9));
+        }
+        else if (voldB <= 458L) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_8));
+        }
+        else if (voldB <= 728L) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_7));
+        }
+        else if (voldB <= 1157L) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_6));
+        }
+        else if (voldB <= 1551L) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_5));
+        }
+        else if (voldB <= 2185L) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_4));
+        }
+        else if (voldB <= 3078L) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_3));
+        }
+        else if (voldB <= 4129L) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_2));
+        }
+        else if (voldB <= 5816L) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_1));
+        }
+        else if (voldB <= 8192L) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_0));
         }
         break;
     case TAG_DEVICE_PP_MBDRC:
@@ -3142,6 +3282,14 @@ int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,i
        tkv.push_back(std::make_pair(MUTE,OFF));
        *gsltag = TAG_DEV_MUTE;
        break;
+   case DEVICEPP_MUTE:
+       tkv.push_back(std::make_pair(MUTE,ON));
+       *gsltag = TAG_DEVPP_MUTE;
+       break;
+   case DEVICEPP_UNMUTE:
+       tkv.push_back(std::make_pair(MUTE,OFF));
+       *gsltag = TAG_DEVPP_MUTE;
+       break;
     default:
        PAL_ERR(LOG_TAG,"Tag not supported \n");
        break;
@@ -3413,6 +3561,29 @@ void PayloadBuilder::payloadSPConfig(uint8_t** payload, size_t* size, uint32_t m
 
                 memcpy(cfgPayload, data, sizeof(lpass_swr_hw_reg_cfg_t) +
                                 sizeof(pkd_reg_addr_t) * data->num_spkr);
+            }
+        break;
+        case PARAM_ID_CPS_LPASS_SWR_THRESHOLDS_CFG:
+            {
+                param_id_cps_lpass_swr_thresholds_cfg_t *data = NULL;
+                param_id_cps_lpass_swr_thresholds_cfg_t *spThrshConf = NULL;
+                data = (param_id_cps_lpass_swr_thresholds_cfg_t *) param;
+                payloadSize = sizeof(struct apm_module_param_data_t) +
+                                    sizeof(param_id_cps_lpass_swr_thresholds_cfg_t) +
+                                    (sizeof(cps_reg_wr_values_t) * data->num_spkr);
+                padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
+
+                payloadInfo = (uint8_t*) calloc(1, payloadSize + padBytes);
+                if (!payloadInfo) {
+                    PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+                    return;
+                }
+                header = (struct apm_module_param_data_t*) payloadInfo;
+                spThrshConf = (param_id_cps_lpass_swr_thresholds_cfg_t *) (payloadInfo +
+                                sizeof(struct apm_module_param_data_t));
+
+                memcpy(spThrshConf, data, sizeof(param_id_cps_lpass_swr_thresholds_cfg_t) +
+                                (sizeof(cps_reg_wr_values_t) * data->num_spkr));
             }
         break;
         default:

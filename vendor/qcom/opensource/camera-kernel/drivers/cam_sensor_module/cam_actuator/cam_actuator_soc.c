@@ -77,11 +77,17 @@ int32_t cam_actuator_parse_dt(struct cam_actuator_ctrl_t *a_ctrl,
 		soc_info->rgltr[i] = devm_regulator_get(soc_info->dev,
 					soc_info->rgltr_name[i]);
 		if (IS_ERR_OR_NULL(soc_info->rgltr[i])) {
+#if defined(CONFIG_SEC_Q4Q_PROJECT)
+			CAM_WARN(CAM_ACTUATOR,"Regulator: %s get failed",
+				soc_info->rgltr_name[i]);
+			soc_info->rgltr[i] = NULL;		
+#else
 			rc = PTR_ERR(soc_info->rgltr[i]);
 			rc = rc ? rc : -EINVAL;
 			CAM_ERR(CAM_ACTUATOR, "get failed for regulator %s %d",
 				 soc_info->rgltr_name[i], rc);
 			return rc;
+#endif
 		}
 		CAM_DBG(CAM_ACTUATOR, "get for regulator %s",
 			soc_info->rgltr_name[i]);

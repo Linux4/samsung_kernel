@@ -393,17 +393,8 @@ static int qrtr_gunyah_share_mem(struct qrtr_gunyah_dev *qdev, gh_vmid_t self,
 	sgl->sgl_entries[0].ipa_base = qdev->res.start;
 	sgl->sgl_entries[0].size = resource_size(&qdev->res);
 
-	/* gh_rm_mem_qcom_lookup_sgl is no longer supported and is replaced with
-	 * gh_rm_mem_share. To ease this transition, fall back to the later on error.
-	 */
-	ret = gh_rm_mem_qcom_lookup_sgl(GH_RM_MEM_TYPE_NORMAL,
-					qdev->label,
-					acl, sgl, NULL,
-					&qdev->memparcel);
-	if (ret) {
-		ret = gh_rm_mem_share(GH_RM_MEM_TYPE_NORMAL, 0, qdev->label,
-				      acl, sgl, NULL, &qdev->memparcel);
-	}
+	ret = gh_rm_mem_share(GH_RM_MEM_TYPE_NORMAL, 0, qdev->label,
+			      acl, sgl, NULL, &qdev->memparcel);
 	if (ret) {
 		pr_err("%s: gh_rm_mem_share failed addr=%x size=%u err=%d\n",
 		       __func__, qdev->res.start, qdev->size, ret);
@@ -653,6 +644,14 @@ static int qrtr_gunyah_probe(struct platform_device *pdev)
 	}
 	INIT_WORK(&qdev->work, qrtr_gunyah_retry_work);
 
+	qdev->ep.xmit = qrtr_gunyah_send;
+	if (!qdev->master) {
+		ret = qrtr_endpoint_register(&qdev->ep, QRTR_EP_NET_ID_AUTO,
+					     false);
+		if (ret)
+			goto register_fail;
+	}
+
 	qdev->rx_dbl = gh_dbl_rx_register(dbl_label, qrtr_gunyah_cb, qdev);
 	if (IS_ERR_OR_NULL(qdev->rx_dbl)) {
 		ret = PTR_ERR(qdev->rx_dbl);
@@ -660,21 +659,14 @@ static int qrtr_gunyah_probe(struct platform_device *pdev)
 		goto fail_rx_dbl;
 	}
 
-	qdev->ep.xmit = qrtr_gunyah_send;
-	if (!qdev->master) {
-		ret = qrtr_endpoint_register(&qdev->ep, QRTR_EP_NET_ID_AUTO, false);
-		if (ret)
-			goto register_fail;
-
-		if (gunyah_rx_avail(&qdev->rx_pipe))
-			qrtr_gunyah_read(qdev);
-	}
+	if (!qdev->master && gunyah_rx_avail(&qdev->rx_pipe))
+		qrtr_gunyah_read(qdev);
 
 	return 0;
 
-register_fail:
-	gh_dbl_rx_unregister(qdev->rx_dbl);
 fail_rx_dbl:
+	qrtr_endpoint_unregister(&qdev->ep);
+register_fail:
 	cancel_work_sync(&qdev->work);
 	gh_dbl_tx_unregister(qdev->tx_dbl);
 

@@ -394,8 +394,6 @@ int32_t ContextManager::StreamProxyCallback (pal_stream_handle_t *stream_handle,
     std::unique_lock<std::mutex> lck(cm->request_queue_mtx);
     request_command = RequestCommandFactory::RequestCommandCreate(event_id, event_data);
     cm->request_cmd_queue.push(request_command);
-    //Manual unlock to avoid waking up the waiting thread only to block again
-    lck.unlock();
     cm->request_queue_cv.notify_one();
 
     PAL_VERBOSE(LOG_TAG, "Exit");
@@ -488,11 +486,12 @@ void ContextManager::CommandThreadRunner(ContextManager& cm)
     std::unique_lock<std::mutex> lck(cm.request_queue_mtx);
     while (!cm.exit_cmd_thread_) {
         // wait until we have a command to process.
-        cm.request_queue_cv.wait(lck);
-
-        // Continue so that we can terminate properly
         if (cm.request_cmd_queue.empty()) {
-            continue;
+            cm.request_queue_cv.wait(lck);
+            if (cm.exit_cmd_thread_) {
+                PAL_DBG(LOG_TAG, "Received exit request");
+                continue;
+            }
         }
 
         request_command = cm.request_cmd_queue.front();

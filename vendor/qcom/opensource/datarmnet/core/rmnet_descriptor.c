@@ -1,4 +1,5 @@
 /* Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -879,6 +880,18 @@ add_frag:
 		}
 	}
 
+	skb_walk_frags(head_skb, skb) {
+		/* All secondary SKBs must have frags and may not have a
+		 * frag_list pointer.
+		 */
+		if (!skb_shinfo(skb)->nr_frags || skb_shinfo(skb)->frag_list) {
+			/* Make sure these pointers are available for debug */
+			pr_err("%s(): head_skb 0x%llx, frag_desc: 0x%llx\n",
+					__func__, (u64)head_skb, (u64)frag_desc);
+			BUG_ON(1);
+		}
+	}
+
 skip_frags:
 	head_skb->dev = frag_desc->dev;
 	rmnet_set_skb_proto(head_skb);
@@ -1558,7 +1571,7 @@ static int rmnet_frag_checksum_pkt(struct rmnet_frag_descriptor *frag_desc)
 
 		csum_len -= frag_desc->ip_len;
 		/* IPv4 checksum must be valid */
-		if (ip_fast_csum((u8 *)iph, frag_desc->ip_len)) {
+		if (ip_fast_csum((u8 *)iph, iph->ihl)) {
 			priv->stats.csum_sw++;
 			return 0;
 		}

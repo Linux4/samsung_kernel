@@ -7,32 +7,18 @@
 
 #include <linux/cpu.h>
 #include <linux/cpumask.h>
-#include <linux/debugfs.h>
 #include <linux/delay.h>
-#include <linux/hashtable.h>
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/module.h>
-#include <linux/mutex.h>
 #include <linux/slab.h>
 
 #include <linux/samsung/builder_pattern.h>
 #include <linux/samsung/debug/sec_force_err.h>
 
-#define FORCE_ERR_HASH_BITS	3
-
-struct force_err_drvdata {
-	struct mutex lock;
-	DECLARE_HASHTABLE(htbl, FORCE_ERR_HASH_BITS);
-#if IS_ENABLED(CONFIG_DEBUG_FS)
-	struct dentry *dbgfs;
-#endif
-};
-
-static struct force_err_drvdata __force_err;
-static struct force_err_drvdata *force_err = &__force_err;
+#include "sec_debug.h"
 
 static u32 __force_err_hash(const char *val)
 {
@@ -44,7 +30,8 @@ static u32 __force_err_hash(const char *val)
 	return hash;
 }
 
-static struct force_err_handle *__force_err_find_handle_locked(const char *val)
+static struct force_err_handle *__force_err_find_handle_locked(
+		struct force_err *force_err, const char *val)
 {
 	struct force_err_handle *h;
 	size_t len = strlen(val) + 1;
@@ -58,7 +45,8 @@ static struct force_err_handle *__force_err_find_handle_locked(const char *val)
 	return ERR_PTR(-ENOENT);
 }
 
-int sec_force_err_add_custom_handle(struct force_err_handle *h)
+static inline int __force_err_add_custom_handle(struct force_err *force_err,
+		struct force_err_handle *h)
 {
 	struct force_err_handle *h_old;
 	u32 key = __force_err_hash(h->val);
@@ -67,7 +55,7 @@ int sec_force_err_add_custom_handle(struct force_err_handle *h)
 	mutex_lock(&force_err->lock);
 
 	if (hash_empty(force_err->htbl)) {
-		ret = -ENODEV;
+		ret = -EBUSY;
 		goto not_initialized;
 	}
 
@@ -76,7 +64,7 @@ int sec_force_err_add_custom_handle(struct force_err_handle *h)
 		goto already_added;
 	}
 
-	h_old = __force_err_find_handle_locked(h->val);
+	h_old = __force_err_find_handle_locked(force_err, h->val);
 	if (!IS_ERR(h_old)) {
 		pr_warn("A same handler for %s is regitered before. I'll be removed.\n",
 				h->val);
@@ -90,16 +78,25 @@ not_initialized:
 	mutex_unlock(&force_err->lock);
 	return ret;
 }
+
+int sec_force_err_add_custom_handle(struct force_err_handle *h)
+{
+	if (!__debug_is_probed())
+		return -EBUSY;
+
+	return __force_err_add_custom_handle(&sec_debug->force_err, h);
+}
 EXPORT_SYMBOL(sec_force_err_add_custom_handle);
 
-int sec_force_err_del_custom_handle(struct force_err_handle *h)
+static inline __force_err_del_custom_handle(struct force_err *force_err,
+		struct force_err_handle *h)
 {
 	int ret = 0;
 
 	mutex_lock(&force_err->lock);
 
 	if (hash_empty(force_err->htbl)) {
-		ret = -ENODEV;
+		ret = -EBUSY;
 		goto not_initialized;
 	}
 
@@ -112,6 +109,14 @@ already_removed:
 not_initialized:
 	mutex_unlock(&force_err->lock);
 	return ret;
+}
+
+int sec_force_err_del_custom_handle(struct force_err_handle *h)
+{
+	if (!__debug_is_probed())
+		return -EBUSY;
+
+	return __force_err_del_custom_handle(&sec_debug->force_err, h);
 }
 EXPORT_SYMBOL(sec_force_err_del_custom_handle);
 
@@ -191,7 +196,7 @@ static void __simulate_pabort(struct force_err_handle *h)
 
 static void __simulate_undef(struct force_err_handle *h)
 {
-	BUG();
+	asm volatile(".word 0xDEADBEEF");
 }
 
 static void __simulate_dblfree(struct force_err_handle *h)
@@ -259,7 +264,7 @@ static struct force_err_handle __force_err_default[] = {
 			__simulate_apps_wdog_bark),
 };
 
-static long __force_error(const char *val, bool is_kunit)
+static long __force_error(struct force_err *force_err, const char *val, bool is_kunit)
 {
 	struct force_err_handle *h;
 	long err = 0;
@@ -268,7 +273,7 @@ static long __force_error(const char *val, bool is_kunit)
 
 	mutex_lock(&force_err->lock);
 
-	h = __force_err_find_handle_locked(val);
+	h = __force_err_find_handle_locked(force_err, val);
 	if (IS_ERR(h)) {
 		pr_warn("%s is not supported!\n", val);
 		mutex_unlock(&force_err->lock);
@@ -290,6 +295,9 @@ static int force_error(const char *val, const struct kernel_param *kp)
 	char *__trimed_val, *trimed_val;
 	int err;
 
+	if (!__debug_is_probed())
+		return -EBUSY;
+
 	__trimed_val = kstrdup(val, GFP_KERNEL);
 	if (!__trimed_val) {
 		pr_err("Not enough memory!\n");
@@ -297,7 +305,7 @@ static int force_error(const char *val, const struct kernel_param *kp)
 	}
 	trimed_val = strim(__trimed_val);
 
-	err = (int)__force_error(trimed_val, false);
+	err = (int)__force_error(&sec_debug->force_err, trimed_val, false);
 
 	kfree(__trimed_val);
 
@@ -312,21 +320,32 @@ long kunit_force_error(const char *val)
 }
 #endif
 
-static int __force_err_probe_prolog(struct builder *bd)
+int sec_force_err_probe_prolog(struct builder *bd)
 {
+	struct sec_debug_drvdata *drvdata =
+			container_of(bd, struct sec_debug_drvdata, bd);
+	struct force_err *force_err = &drvdata->force_err;
+
 	mutex_init(&force_err->lock);
 	hash_init(force_err->htbl);
 
 	return 0;
 }
 
-static void __force_err_remove_epilog(struct builder *bd)
+void sec_force_err_remove_epilog(struct builder *bd)
 {
+	struct sec_debug_drvdata *drvdata =
+			container_of(bd, struct sec_debug_drvdata, bd);
+	struct force_err *force_err = &drvdata->force_err;
+
 	mutex_destroy(&force_err->lock);
 }
 
-static int __force_err_build_htbl(struct builder *bd)
+int sec_force_err_build_htbl(struct builder *bd)
 {
+	struct sec_debug_drvdata *drvdata =
+			container_of(bd, struct sec_debug_drvdata, bd);
+	struct force_err *force_err = &drvdata->force_err;
 	struct force_err_handle *h;
 	u32 key;
 	size_t i;
@@ -356,6 +375,7 @@ static void __force_err_dbgfs_show_each_locked(struct seq_file *m,
 
 static int sec_force_err_dbgfs_show_all(struct seq_file *m, void *unsed)
 {
+	struct force_err *force_err = m->private;
 	struct force_err_handle *h;
 	int bkt;
 
@@ -381,48 +401,27 @@ static const struct file_operations sec_force_err_dgbfs_fops = {
 	.release = seq_release,
 };
 
-static int __force_err_debugfs_create(struct builder *bd)
+int sec_force_err_debugfs_create(struct builder *bd)
 {
+	struct sec_debug_drvdata *drvdata =
+			container_of(bd, struct sec_debug_drvdata, bd);
+	struct force_err *force_err = &drvdata->force_err;
+
 	force_err->dbgfs = debugfs_create_file("sec_force_err", 0440,
-			NULL, NULL, &sec_force_err_dgbfs_fops);
+			NULL, force_err, &sec_force_err_dgbfs_fops);
 
 	return 0;
 }
 
-static void __force_err_debugfs_remove(struct builder *bd)
+void sec_force_err_debugfs_remove(struct builder *bd)
 {
+	struct sec_debug_drvdata *drvdata =
+			container_of(bd, struct sec_debug_drvdata, bd);
+	struct force_err *force_err = &drvdata->force_err;
+
 	debugfs_remove(force_err->dbgfs);
 }
 #else
-static int __force_err_debugfs_create(struct builder *bd) { return 0; }
-static void __force_err_debugfs_remove(struct builder *bd) {}
+int sec_force_err_debugfs_create(struct builder *bd) { return 0; }
+void sec_force_err_debugfs_remove(struct builder *bd) {}
 #endif /* IS_ENABLED(CONFIG_DEBUG_FS) */
-
-static const struct dev_builder __force_err_dev_builder[] = {
-	DEVICE_BUILDER(__force_err_probe_prolog, __force_err_remove_epilog),
-	DEVICE_BUILDER(__force_err_build_htbl, NULL),
-	DEVICE_BUILDER(__force_err_debugfs_create, __force_err_debugfs_remove),
-};
-
-int sec_force_err_init(struct builder *bd)
-{
-	struct builder bd_dummy = { .dev = NULL, };
-
-	if (!IS_ENABLED(CONFIG_SEC_FORCE_ERR))
-		return 0;
-
-	return sec_director_probe_dev(&bd_dummy, __force_err_dev_builder,
-			ARRAY_SIZE(__force_err_dev_builder));
-}
-
-void sec_force_err_exit(struct builder *bd)
-{
-	struct builder bd_dummy = { .dev = NULL, };
-
-	if (!IS_ENABLED(CONFIG_SEC_FORCE_ERR))
-		return;
-
-	sec_director_destruct_dev(&bd_dummy, __force_err_dev_builder,
-			ARRAY_SIZE(__force_err_dev_builder),
-			ARRAY_SIZE(__force_err_dev_builder));
-}

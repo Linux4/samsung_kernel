@@ -108,13 +108,9 @@ void store_battery_log(const char *fmt, ...)
 	if (!batterylog_root.init)
 		return;
 
-	pr_err("%s\n", __func__);
-
 	mutex_lock(&batterylog_root.battery_log_lock);
 	tnsec = local_clock();
 	rem_nsec = do_div(tnsec, 1000000000);
-
-	pr_info("%s\n", __func__);
 
 	logger_get_time_of_the_day_in_hr_min_sec(temp, BATTERYLOG_MAX_STRING_SIZE);
 	string_len = strlen(temp);
@@ -143,9 +139,6 @@ void store_battery_log(const char *fmt, ...)
 	if (rem_buf < string_len)
 		target_index = 0;
 
-	pr_info("%s string len = %d, before index(%lu) , time = %llu\n",
-			__func__, string_len, target_index, tnsec);
-
 	bat_buf = &batterylog_root.batterylog_buffer->batstr_buffer[target_index];
 	if (bat_buf == NULL) {
 		pr_err("%s target_buffer error\n", __func__);
@@ -160,25 +153,31 @@ void store_battery_log(const char *fmt, ...)
 
 	batterylog_root.batterylog_buffer->log_index = target_index;
 
-	pr_info("%s after index(%lu)\n", __func__, target_index);
-
 err:
 	mutex_unlock(&batterylog_root.battery_log_lock);
-
-	pr_err("%s end\n", __func__);
 }
+EXPORT_SYMBOL(store_battery_log);
 
 static int batterylog_proc_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, batterylog_proc_show, NULL);
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0))
 static const struct proc_ops batterylog_proc_fops = {
 	.proc_open	= batterylog_proc_open,
 	.proc_read	= seq_read,
 	.proc_lseek	= seq_lseek,
 	.proc_release	= single_release,
 };
+#else
+static const struct file_operations batterylog_proc_fops = {
+	.open		= batterylog_proc_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+#endif
 
 int register_batterylog_proc(void)
 {

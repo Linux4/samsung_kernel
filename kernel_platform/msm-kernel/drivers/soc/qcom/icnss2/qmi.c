@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define pr_fmt(fmt) "icnss2_qmi: " fmt
@@ -24,6 +25,7 @@
 #include <soc/qcom/icnss2.h>
 #include <soc/qcom/service-locator.h>
 #include <soc/qcom/service-notifier.h>
+#include <soc/qcom/of_common.h>
 #include "wlan_firmware_service_v01.h"
 #include "main.h"
 #include "qmi.h"
@@ -39,16 +41,19 @@
 #define ELF_BDF_FILE_NAME		"bdwlan.elf"
 #define ELF_BDF_FILE_NAME_PREFIX	"bdwlan.e"
 #define BIN_BDF_FILE_NAME		"bdwlan.bin"
-#define BIN_BDF_FILE_NAME_PREFIX	"bdwlan.b"
+#define BIN_BDF_FILE_NAME_PREFIX	"bdwlan."
 #define REGDB_FILE_NAME			"regdb.bin"
 #define DUMMY_BDF_FILE_NAME		"bdwlan.dmy"
 
 #define QDSS_TRACE_CONFIG_FILE "qdss_trace_config.cfg"
 
+#define WLAN_BOARD_ID_INDEX		0x100
 #define DEVICE_BAR_SIZE			0x200000
 #define M3_SEGMENT_ADDR_MASK		0xFFFFFFFF
 #define DMS_QMI_MAX_MSG_LEN		SZ_256
 #define DMS_MAC_NOT_PROVISIONED		16
+#define BDWLAN_SIZE			6
+#define UMC_CHIP_ID                    0x4320
 
 #ifdef CONFIG_ICNSS2_DEBUG
 bool ignore_fw_timeout;
@@ -614,6 +619,74 @@ qmi_registered:
 	return ret;
 }
 
+int wlfw_cal_report_req(struct icnss_priv *priv)
+{
+	int ret;
+	struct wlfw_cal_report_req_msg_v01 *req;
+	struct wlfw_cal_report_resp_msg_v01 *resp;
+	struct qmi_txn txn;
+
+	if (!priv)
+		return -ENODEV;
+
+	if (test_bit(ICNSS_FW_DOWN, &priv->state))
+		return -EINVAL;
+
+	icnss_pr_info("Sending cal report request, state: 0x%lx\n",
+		      priv->state);
+
+	req = kzalloc(sizeof(*req), GFP_KERNEL);
+	if (!req)
+		return -ENOMEM;
+
+	resp = kzalloc(sizeof(*resp), GFP_KERNEL);
+	if (!resp) {
+		kfree(req);
+		return -ENOMEM;
+	}
+	req->meta_data_len = 0;
+
+	ret = qmi_txn_init(&priv->qmi, &txn,
+			   wlfw_cal_report_resp_msg_v01_ei, resp);
+	if (ret < 0) {
+		icnss_qmi_fatal_err("Fail to init txn for cal report req %d\n",
+				    ret);
+		goto out;
+	}
+
+	ret = qmi_send_request(&priv->qmi, NULL, &txn,
+			       QMI_WLFW_CAL_REPORT_REQ_V01,
+			       WLFW_CAL_REPORT_REQ_MSG_V01_MAX_MSG_LEN,
+			       wlfw_cal_report_req_msg_v01_ei, req);
+	if (ret < 0) {
+		qmi_txn_cancel(&txn);
+		icnss_qmi_fatal_err("Fail to send cal report req %d\n", ret);
+		goto out;
+	}
+
+	ret = qmi_txn_wait(&txn,
+			   priv->ctrl_params.qmi_timeout);
+
+	if (ret < 0) {
+		icnss_qmi_fatal_err("Cal report wait failed with ret %d\n",
+				    ret);
+		goto out;
+	} else if (resp->resp.result != QMI_RESULT_SUCCESS_V01) {
+		icnss_qmi_fatal_err("QMI cal report request rejected, result:%d error:%d\n",
+				    resp->resp.result, resp->resp.error);
+		ret = -resp->resp.result;
+		goto out;
+	}
+
+	kfree(resp);
+	kfree(req);
+
+	return 0;
+
+out:
+	return ret;
+}
+
 int wlfw_cap_send_sync_msg(struct icnss_priv *priv)
 {
 	int ret;
@@ -656,7 +729,9 @@ int wlfw_cap_send_sync_msg(struct icnss_priv *priv)
 		goto out;
 	}
 
-	ret = qmi_txn_wait(&txn, priv->ctrl_params.qmi_timeout);
+	ret = qmi_txn_wait(&txn,
+			   priv->ctrl_params.qmi_timeout +
+			   msecs_to_jiffies(priv->wlan_en_delay_ms));
 	if (ret < 0) {
 		icnss_qmi_fatal_err("Capability resp wait failed with ret %d\n",
 				    ret);
@@ -708,9 +783,16 @@ int wlfw_cap_send_sync_msg(struct icnss_priv *priv)
 	    resp->rd_card_chain_cap == WLFW_RD_CARD_CHAIN_CAP_1x1_V01)
 		priv->is_chain1_supported = false;
 
-	icnss_pr_dbg("Capability, chip_id: 0x%x, chip_family: 0x%x, board_id: 0x%x, soc_id: 0x%x, fw_version: 0x%x, fw_build_timestamp: %s, fw_build_id: %s",
+	if (resp->foundry_name_valid)
+		priv->foundry_name = resp->foundry_name[0];
+	else if (resp->chip_info_valid && priv->chip_info.chip_id == UMC_CHIP_ID)
+		priv->foundry_name = 'u';
+
+	icnss_pr_dbg("Capability, chip_id: 0x%x, chip_family: 0x%x, board_id: 0x%x, soc_id: 0x%x",
 		     priv->chip_info.chip_id, priv->chip_info.chip_family,
-		     priv->board_id, priv->soc_id,
+		     priv->board_id, priv->soc_id);
+
+	icnss_pr_dbg("fw_version: 0x%x, fw_build_timestamp: %s, fw_build_id: %s",
 		     priv->fw_version_info.fw_version,
 		     priv->fw_version_info.fw_build_timestamp,
 		     priv->fw_build_id);
@@ -926,6 +1008,7 @@ static int icnss_get_bdf_file_name(struct icnss_priv *priv,
 				   u32 filename_len)
 {
 	char filename_tmp[ICNSS_MAX_FILE_NAME];
+	char foundry_specific_filename[ICNSS_MAX_FILE_NAME];
 	int ret = 0;
 
 	switch (bdf_type) {
@@ -945,15 +1028,23 @@ static int icnss_get_bdf_file_name(struct icnss_priv *priv,
 	case ICNSS_BDF_BIN:
 		if (priv->board_id == 0xFF)
 			snprintf(filename_tmp, filename_len, BIN_BDF_FILE_NAME);
-		else if (priv->board_id < 0xFF)
+		else if (priv->board_id >= WLAN_BOARD_ID_INDEX)
 			snprintf(filename_tmp, filename_len,
-				 BIN_BDF_FILE_NAME_PREFIX "%02x",
+				 BIN_BDF_FILE_NAME_PREFIX "%03x",
 				 priv->board_id);
 		else
 			snprintf(filename_tmp, filename_len,
-				 BDF_FILE_NAME_PREFIX "%02x.b%02x",
-				 priv->board_id >> 8 & 0xFF,
-				 priv->board_id & 0xFF);
+				 BIN_BDF_FILE_NAME_PREFIX "b%02x",
+				 priv->board_id);
+		if (priv->foundry_name) {
+			strlcpy(foundry_specific_filename, filename_tmp, ICNSS_MAX_FILE_NAME);
+			memmove(foundry_specific_filename + BDWLAN_SIZE + 1,
+				foundry_specific_filename + BDWLAN_SIZE,
+				BDWLAN_SIZE - 1);
+			foundry_specific_filename[BDWLAN_SIZE] = priv->foundry_name;
+			foundry_specific_filename[ICNSS_MAX_FILE_NAME - 1] = '\0';
+			strlcpy(filename_tmp, foundry_specific_filename, ICNSS_MAX_FILE_NAME);
+		}
 		break;
 	case ICNSS_BDF_REGDB:
 		snprintf(filename_tmp, filename_len, REGDB_FILE_NAME);
@@ -1045,7 +1136,7 @@ bypass_bdf:
 		req->file_id_valid = 1;
 		req->file_id = priv->board_id;
 		req->total_size_valid = 1;
-		req->total_size = remaining;
+		req->total_size = fw_entry->size;
 		req->seg_id_valid = 1;
 		req->data_valid = 1;
 		req->end_valid = 1;
@@ -1409,7 +1500,9 @@ int wlfw_wlan_mode_send_sync_msg(struct icnss_priv *priv,
 		goto out;
 	}
 
-	ret = qmi_txn_wait(&txn, priv->ctrl_params.qmi_timeout);
+	ret = qmi_txn_wait(&txn,
+			   priv->ctrl_params.qmi_timeout +
+			   msecs_to_jiffies(priv->wlan_en_delay_ms));
 	if (ret < 0) {
 		icnss_qmi_fatal_err("Mode resp wait failed with ret %d\n", ret);
 		goto out;
@@ -3082,6 +3175,8 @@ int wlfw_host_cap_send_sync(struct icnss_priv *priv)
 	struct wlfw_host_cap_req_msg_v01 *req;
 	struct wlfw_host_cap_resp_msg_v01 *resp;
 	struct qmi_txn txn;
+	int ddr_type;
+	u32 gpio;
 	int ret = 0;
 	u64 iova_start = 0, iova_size = 0,
 	    iova_ipa_start = 0, iova_ipa_size = 0;
@@ -3100,12 +3195,7 @@ int wlfw_host_cap_send_sync(struct icnss_priv *priv)
 	}
 
 	req->num_clients_valid = 1;
-	if (test_bit(ENABLE_DAEMON_SUPPORT,
-		     &priv->ctrl_params.quirks))
-		req->num_clients = 2;
-	else
-		req->num_clients = 1;
-	icnss_pr_dbg("Number of clients is %d\n", req->num_clients);
+	req->num_clients = 1;
 
 	req->bdf_support_valid = 1;
 	req->bdf_support = 1;
@@ -3131,6 +3221,63 @@ int wlfw_host_cap_send_sync(struct icnss_priv *priv)
 
 	req->host_build_type_valid = 1;
 	req->host_build_type = icnss_get_host_build_type();
+
+	if (priv->wlan_en_delay_ms >= 100) {
+		icnss_pr_dbg("Setting WLAN_EN delay: %d ms\n",
+			     priv->wlan_en_delay_ms);
+		req->wlan_enable_delay_valid = 1;
+		req->wlan_enable_delay = priv->wlan_en_delay_ms;
+	}
+
+	/* ddr_type = 7(LPDDR4) and 8(LPDDR5) */
+	ddr_type = of_fdt_get_ddrtype();
+	if (ddr_type > 0) {
+		icnss_pr_dbg("DDR Type: %d\n", ddr_type);
+		req->ddr_type_valid = 1;
+		req->ddr_type = ddr_type;
+	}
+
+	ret = of_property_read_u32(priv->pdev->dev.of_node, "wlan-en-gpio",
+				   &gpio);
+	if (!ret) {
+		icnss_pr_dbg("WLAN_EN_GPIO modified through DT: %d\n", gpio);
+		req->gpio_info_valid = 1;
+		req->gpio_info[WLAN_EN_GPIO_V01] = gpio;
+	} else {
+		req->gpio_info[WLAN_EN_GPIO_V01] = 0xFFFF;
+	}
+
+	ret = of_property_read_u32(priv->pdev->dev.of_node, "bt-en-gpio",
+				   &gpio);
+	if (!ret) {
+		icnss_pr_dbg("BT_EN_GPIO modified through DT: %d\n", gpio);
+		req->gpio_info_valid = 1;
+		req->gpio_info[BT_EN_GPIO_V01] = gpio;
+	} else {
+		req->gpio_info[BT_EN_GPIO_V01] = 0xFFFF;
+	}
+
+	ret = of_property_read_u32(priv->pdev->dev.of_node, "host-sol-gpio",
+				   &gpio);
+	if (!ret) {
+		icnss_pr_dbg("HOST_SOL_GPIO modified through DT: %d\n", gpio);
+		req->gpio_info_valid = 1;
+		req->gpio_info[HOST_SOL_GPIO_V01] = gpio;
+	} else {
+		req->gpio_info[HOST_SOL_GPIO_V01] = 0xFFFF;
+	}
+
+	ret = of_property_read_u32(priv->pdev->dev.of_node, "target-sol-gpio",
+				   &gpio);
+	if (!ret) {
+		icnss_pr_dbg("TARGET_SOL_GPIO modified through DT: %d\n", gpio);
+		req->gpio_info_valid = 1;
+		req->gpio_info[TARGET_SOL_GPIO_V01] = gpio;
+	} else {
+		req->gpio_info[TARGET_SOL_GPIO_V01] = 0xFFFF;
+	}
+
+	req->gpio_info_len = GPIO_TYPE_MAX_V01;
 
 	ret = qmi_txn_init(&priv->qmi, &txn,
 			   wlfw_host_cap_resp_msg_v01_ei, resp);
@@ -3244,5 +3391,79 @@ int icnss_wlfw_get_info_send_sync(struct icnss_priv *plat_priv, int type,
 out:
 	kfree(req);
 	kfree(resp);
+	return ret;
+}
+
+int wlfw_subsys_restart_level_msg(struct icnss_priv *penv, uint8_t restart_level)
+{
+	int ret;
+	struct wlfw_subsys_restart_level_req_msg_v01 *req;
+	struct wlfw_subsys_restart_level_resp_msg_v01 *resp;
+	struct qmi_txn txn;
+
+	if (!penv)
+		return -ENODEV;
+
+	if (test_bit(ICNSS_FW_DOWN, &penv->state))
+		return -EINVAL;
+
+	icnss_pr_dbg("Sending subsystem restart level: 0x%x\n", restart_level);
+
+	req = kzalloc(sizeof(*req), GFP_KERNEL);
+	if (!req)
+		return -ENOMEM;
+
+	resp = kzalloc(sizeof(*resp), GFP_KERNEL);
+	if (!resp) {
+		kfree(req);
+		return -ENOMEM;
+	}
+
+	req->restart_level_type_valid = 1;
+	req->restart_level_type = restart_level;
+
+	penv->stats.restart_level_req++;
+
+	ret = qmi_txn_init(&penv->qmi, &txn,
+			   wlfw_subsys_restart_level_resp_msg_v01_ei, resp);
+	if (ret < 0) {
+		icnss_pr_err("Fail to init txn for subsystem restart level, resp %d\n",
+			     ret);
+		goto out;
+	}
+
+	ret = qmi_send_request(&penv->qmi, NULL, &txn,
+			       QMI_WLFW_SUBSYS_RESTART_LEVEL_REQ_V01,
+			       WLFW_SUBSYS_RESTART_LEVEL_REQ_MSG_V01_MAX_MSG_LEN,
+			       wlfw_subsys_restart_level_req_msg_v01_ei, req);
+	if (ret < 0) {
+		qmi_txn_cancel(&txn);
+		icnss_pr_err("Fail to send subsystem restart level %d\n",
+			     ret);
+		goto out;
+	}
+
+	ret = qmi_txn_wait(&txn, penv->ctrl_params.qmi_timeout);
+	if (ret < 0) {
+		icnss_pr_err("Subsystem restart level timed out with ret %d\n",
+			     ret);
+		goto out;
+	} else if (resp->resp.result != QMI_RESULT_SUCCESS_V01) {
+		icnss_pr_err("Subsystem restart level request rejected,result:%d error:%d\n",
+			     resp->resp.result, resp->resp.error);
+		ret = -resp->resp.result;
+		goto out;
+	}
+
+	penv->stats.restart_level_resp++;
+
+	kfree(resp);
+	kfree(req);
+	return 0;
+
+out:
+	kfree(req);
+	kfree(resp);
+	penv->stats.restart_level_err++;
 	return ret;
 }

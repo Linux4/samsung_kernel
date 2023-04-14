@@ -32,6 +32,11 @@
 
 #include "Device.h"
 
+#ifdef SEC_AUDIO_SPEAKER_AMP_RCV_BOOST_MODE
+#include "Stream.h"
+#include "SecPalDefs.h"
+#endif
+
 class Handset : public Device
 {
 protected:
@@ -45,6 +50,16 @@ public:
     static int32_t isBitWidthSupported(uint32_t bitWidth);
     static std::shared_ptr<Device> getObject();
     virtual ~Handset();
+
+#ifdef SEC_AUDIO_SPEAKER_AMP_RCV_BOOST_MODE
+    int start();
+    int stop();
+    int32_t setParameter(uint32_t param_id, void *param) override;
+private:
+    void setAmpBoostMode(bool stop = false);
+    bool call2GTdma;
+    bool ampBoostMode;
+#endif
 };
 
 

@@ -29,12 +29,13 @@
 /*defined at kmodule/usb/typec/common/pdic_core.h*/
 #define SAMSUNG_VENDOR_ID	0x04E8
 
-#define DEXDOCK_PRODUCT_ID	0xA020	/* EE-MG950, DeX station */
-#define HG950_PRODUCT_ID	0xA025	/* EE-HG950 */
-#define MPA2_PRODUCT_ID		0xA027	/* EE-P5000 */
-#define DEXPAD_PRODUCT_ID	0xA029	/* EE-M5100 */
-#define DEXCABLE_PRODUCT_ID	0xA048	/* EE-I3100 */
-#define MPA3_PRODUCT_ID		0xA056	/* EE-P3200 */
+#define DEXDOCK_PRODUCT_ID      0xA020	/* EE-MG950 DeX Station */
+#define DEXPAD_PRODUCT_ID       0xA029	/* EE-M5100 DeX Pad */
+#define DEXCABLE_PRODUCT_ID     0xA048	/* EE-I3100 DeX Cable */
+#define HG950_PRODUCT_ID        0xA025	/* EE-HG950 HDMI Adapter */
+#define MPA2_PRODUCT_ID         0xA027	/* EE-P5000 Multiport Adapter */
+#define MPA3_PRODUCT_ID         0xA056	/* EE-P3200 Multiport Adapter */
+#define MPA4_PRODUCT_ID         0xA066	/* EE-P5400 Multiport Adapter */
 
 #define SECDP_ENUM_STR(x)	#x
 
@@ -42,7 +43,6 @@
 #define SECDP_USE_WAKELOCK
 #define SECDP_MAX_HBR2
 #define SECDP_OPTIMAL_LINK_RATE	 /* use optimum link_rate, not max link_rate */
-#define SECDP_LIMIT_REFRESH_RATE /* needs to be DISABLED once android has menu for user to change DP resolution */
 /*#define SECDP_AUDIO_CTS*/
 /*#define SECDP_HDCP_DISABLE*/
 /*#define SECDP_EVENT_THREAD*/
@@ -97,12 +97,13 @@ static inline char *secdp_ev_event_to_string(int event)
 
 /* displayport self test */
 #if defined(CONFIG_SEC_DISPLAYPORT_DBG)
-/*#define SECDP_SELF_TEST*/
+#define SECDP_SELF_TEST
 #endif
 
 #ifdef SECDP_SELF_TEST
 #define ST_EDID_SIZE	256
 #define ST_ARG_CNT	20
+#define ST_TEST_EXIT	555
 
 enum {
 	ST_CLEAR_CMD,
@@ -485,9 +486,9 @@ struct secdp_misc {
 	struct delayed_work self_test_reconnect_work;
 	struct delayed_work self_test_hdcp_test_work;
 
-	void (*self_test_reconnect_callback)(void);
-	void (*self_test_hdcp_on_callback)(void);
-	void (*self_test_hdcp_off_callback)(void);
+	void (*self_test_reconnect_cb)(void);
+	void (*self_test_hdcp_on_cb)(void);
+	void (*self_test_hdcp_off_cb)(void);
 
 	u8 self_test_edid[ST_EDID_SIZE];
 #endif
@@ -515,6 +516,8 @@ void secdp_redriver_linkinfo(u32 rate, u8 v_level, u8 p_level);
 int  secdp_is_mst_receiver(void);
 
 int  secdp_power_request_gpios(struct dp_power *dp_power);
+void secdp_power_set_gpio(bool flip);
+void secdp_power_unset_gpio(void);
 void secdp_config_gpios_factory(int aux_sel, bool out_en);
 enum dp_hpd_plug_orientation secdp_get_plug_orientation(void);
 bool secdp_get_reboot_status(void);

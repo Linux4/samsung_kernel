@@ -22,7 +22,6 @@
 #include <thread>
 #include <string>
 #include <sys/stat.h>
-#include <sys/epoll.h>
 #include <log/log.h>
 #include <cutils/uevent.h>
 #include "ChargerListener.h"

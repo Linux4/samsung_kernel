@@ -25,6 +25,7 @@ enum sec_chg_dev_info {
 	SC_DEV_DIR_CHG = 0x4,
 	SC_DEV_SEC_DIR_CHG = 0x8,
 	SC_DEV_WRL_CHG = 0x10,
+	SC_DEV_SB_MFC = 0x20,
 };
 
 struct dev_init_info {
@@ -34,6 +35,7 @@ struct dev_init_info {
 
 extern int sec_chg_set_dev_init(unsigned int dev);
 extern void sec_chg_check_modprobe(void);
+extern void sec_chg_check_dev_modprobe(unsigned int dev);
 extern void sec_chg_init_gdev(void);
 
 #endif /* __SEC_CHARGING_MODPROBE_H */

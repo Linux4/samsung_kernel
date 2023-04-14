@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __ADRENO_GEN7_GMU_H
 #define __ADRENO_GEN7_GMU_H
@@ -91,6 +92,10 @@ struct gen7_gmu_device {
 	void __iomem *rdpm_mx_virt;
 	/** @num_oob_perfcntr: Number of active oob_perfcntr requests */
 	u32 num_oob_perfcntr;
+	/** @gdsc_nb: Notifier block for cx gdsc regulator */
+	struct notifier_block gdsc_nb;
+	/** @gdsc_gate: Completion to signal cx gdsc collapse status */
+	struct completion gdsc_gate;
 };
 
 /* Helper function to get to gen7 gmu device from adreno device */
@@ -115,6 +120,22 @@ struct kgsl_memdesc *gen7_reserve_gmu_kernel_block(struct gen7_gmu_device *gmu,
 		u32 addr, u32 size, u32 vma_id);
 
 /**
+ * gen7_reserve_gmu_kernel_block_fixed() - Maps phyical resource address to gmu
+ * @gmu: Pointer to the a6xx gmu device
+ * @addr: Desired gmu virtual address
+ * @size: Size of the buffer in bytes
+ * @vma_id: Target gmu vma where this buffer should be mapped
+ * @resource: Name of the resource to get the size and address to allocate
+ * @attrs: Attributes for the mapping
+ *
+ * This function maps the physcial resource address to desired gmu vma
+ *
+ * Return: Pointer to the memory descriptor or error pointer on failure
+ */
+struct kgsl_memdesc *gen7_reserve_gmu_kernel_block_fixed(struct gen7_gmu_device *gmu,
+	u32 addr, u32 size, u32 vma_id, const char *resource, int attrs);
+
+/**
  * gen7_build_rpmh_tables - Build the rpmh tables
  * @adreno_dev: Pointer to the adreno device
  *
@@ -126,12 +147,12 @@ int gen7_build_rpmh_tables(struct adreno_device *adreno_dev);
 
 /**
  * gen7_gmu_gx_is_on - Check if GX is on
- * @device: Pointer to KGSL device
+ * @adreno_dev: Pointer to the adreno device
  *
  * This function reads pwr status registers to check if GX
  * is on or off
  */
-bool gen7_gmu_gx_is_on(struct kgsl_device *device);
+bool gen7_gmu_gx_is_on(struct adreno_device *adreno_dev);
 
 /**
  * gen7_gmu_device_snapshot - GEN7 GMU snapshot function
@@ -232,6 +253,12 @@ void gen7_gmu_aop_send_acd_state(struct gen7_gmu_device *gmu, bool flag);
  * Return: 0 on success or negative error on failure
  */
 int gen7_gmu_enable_gdsc(struct adreno_device *adreno_dev);
+
+/**
+ * gen7_gmu_disable_gdsc - Disable gmu gdsc
+ * @adreno_dev: Pointer to the adreno device
+ */
+void gen7_gmu_disable_gdsc(struct adreno_device *adreno_dev);
 
 /**
  * gen7_gmu_load_fw - Load gmu firmware

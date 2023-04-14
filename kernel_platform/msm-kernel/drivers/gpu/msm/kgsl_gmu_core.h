@@ -85,8 +85,8 @@ enum gmu_pwrctrl_mode {
  * exiting IFPC is taking longer than expected. We continue
  * to retry after this until the long retry limit.
  */
-#define GMU_CORE_SHORT_WAKEUP_RETRY_LIMIT 250
-#define GMU_CORE_LONG_WAKEUP_RETRY_LIMIT 500
+#define GMU_CORE_SHORT_WAKEUP_RETRY_LIMIT 100
+#define GMU_CORE_LONG_WAKEUP_RETRY_LIMIT 200
 
 #define FENCE_STATUS_WRITEDROPPED0_MASK 0x1
 #define FENCE_STATUS_WRITEDROPPED1_MASK 0x2
@@ -205,6 +205,7 @@ enum {
 	GMU_PRIV_RSCC_SLEEP_DONE,
 	GMU_PRIV_PM_SUSPEND,
 	GMU_PRIV_PDC_RSC_LOADED,
+	GMU_PRIV_CX_GDSC_WAIT,
 };
 
 struct device_node;
@@ -214,7 +215,6 @@ struct kgsl_snapshot;
 struct gmu_dev_ops {
 	int (*oob_set)(struct kgsl_device *device, enum oob_request req);
 	void (*oob_clear)(struct kgsl_device *device, enum oob_request req);
-	bool (*gx_is_on)(struct kgsl_device *device);
 	int (*ifpc_store)(struct kgsl_device *device, unsigned int val);
 	unsigned int (*ifpc_show)(struct kgsl_device *device);
 	void (*cooperative_reset)(struct kgsl_device *device);
@@ -274,7 +274,6 @@ void gmu_core_regrmw(struct kgsl_device *device, unsigned int offsetwords,
 		unsigned int mask, unsigned int bits);
 int gmu_core_dev_oob_set(struct kgsl_device *device, enum oob_request req);
 void gmu_core_dev_oob_clear(struct kgsl_device *device, enum oob_request req);
-bool gmu_core_dev_gx_is_on(struct kgsl_device *device);
 int gmu_core_dev_ifpc_show(struct kgsl_device *device);
 int gmu_core_dev_ifpc_store(struct kgsl_device *device, unsigned int val);
 int gmu_core_dev_wait_for_active_transition(struct kgsl_device *device);

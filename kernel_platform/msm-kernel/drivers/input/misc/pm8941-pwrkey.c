@@ -497,8 +497,7 @@ static int pm8941_pwrkey_probe(struct platform_device *pdev)
 			sec_pon.key_dev[SEC_PON_KPDPWR] = pwrkey;
 			sec_pon.reset_dev = pwrkey;
 			pm8941_pwrkey_irq(pwrkey->irq, pwrkey);
-		}
-		else if (!strncmp(pwrkey->data->name, "pmic_resin", 10)) {
+		} else if (!strncmp(pwrkey->data->name, "pmic_resin", 10)) {
 			pr_info("%s: pon_resin", __func__);
 			sec_pon.key_dev[SEC_PON_RESIN] = pwrkey;
 			pm8941_pwrkey_irq(pwrkey->irq, pwrkey);
@@ -562,11 +561,22 @@ static const struct pm8941_data pon_gen3_resin_data = {
 	.has_pon_pbs = true,
 };
 
+static const struct pm8941_data pon_gen3_resin_data_flex = {
+	.status_bit = PON_GEN3_RESIN_N_SET,
+	.name = "pmic_resin_flex",
+	.phys = "pmic_resin/input0",
+	.supports_ps_hold_poff_config = false,
+	.supports_debounce_config = false,
+	.needs_sw_debounce = true,
+	.has_pon_pbs = true,
+};
+
 static const struct of_device_id pm8941_pwr_key_id_table[] = {
 	{ .compatible = "qcom,pm8941-pwrkey", .data = &pwrkey_data },
 	{ .compatible = "qcom,pm8941-resin", .data = &resin_data },
 	{ .compatible = "qcom,pmk8350-pwrkey", .data = &pon_gen3_pwrkey_data },
 	{ .compatible = "qcom,pmk8350-resin", .data = &pon_gen3_resin_data },
+	{ .compatible = "qcom,pmk8350-resin_flex", .data = &pon_gen3_resin_data_flex },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, pm8941_pwr_key_id_table);

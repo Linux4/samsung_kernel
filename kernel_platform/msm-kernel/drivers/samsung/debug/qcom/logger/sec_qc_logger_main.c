@@ -144,7 +144,9 @@ static int __qc_logger_alloc_client(struct builder *bd)
 	size = logger->get_data_size(logger);
 
 	client = sec_dbg_region_alloc(drvdata->unique_id, size);
-	if (!client)
+	if (PTR_ERR(client) == -EBUSY)
+		return -EPROBE_DEFER;
+	else if (IS_ERR_OR_NULL(client))
 		return -ENOMEM;
 
 	client->name = drvdata->name;
@@ -316,7 +318,7 @@ static int __init sec_qc_logger_init(void)
 {
 	return platform_driver_register(&sec_qc_logger_driver);
 }
-subsys_initcall_sync(sec_qc_logger_init);
+arch_initcall(sec_qc_logger_init);
 
 static void __exit sec_qc_logger_exit(void)
 {

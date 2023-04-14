@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/iommu.h>
@@ -427,7 +428,7 @@ static void process_dbgq_irq(struct adreno_device *adreno_dev)
 	if (!recovery)
 		return;
 
-	adreno_hwsched_fault(adreno_dev, ADRENO_HARD_FAULT);
+	adreno_hwsched_fault(adreno_dev, ADRENO_GMU_FAULT);
 }
 
 /* HFI interrupt handler */
@@ -606,6 +607,15 @@ int gen7_hwsched_hfi_init(struct adreno_device *adreno_dev)
 			return PTR_ERR(hw_hfi->big_ib);
 	}
 
+	if (adreno_dev->lsr_enabled && IS_ERR_OR_NULL(hw_hfi->big_ib_recurring)) {
+		hw_hfi->big_ib_recurring = gen7_reserve_gmu_kernel_block(
+				to_gen7_gmu(adreno_dev), 0,
+				HWSCHED_MAX_IBS * sizeof(struct hfi_issue_ib),
+				GMU_NONCACHED_KERNEL);
+		if (IS_ERR(hw_hfi->big_ib_recurring))
+			return PTR_ERR(hw_hfi->big_ib_recurring);
+	}
+
 	if (IS_ERR_OR_NULL(hfi->hfi_mem)) {
 		hfi->hfi_mem = gen7_reserve_gmu_kernel_block(
 				to_gen7_gmu(adreno_dev),
@@ -700,6 +710,12 @@ static struct hfi_mem_alloc_entry *get_mem_alloc_entry(
 	if (entry)
 		return entry;
 
+	if (desc->mem_kind >= HFI_MEMKIND_MAX) {
+		dev_err(&gmu->pdev->dev, "Invalid mem kind: %d\n",
+			desc->mem_kind);
+		return ERR_PTR(-EINVAL);
+	}
+
 	if (hfi->mem_alloc_entries == ARRAY_SIZE(hfi->mem_alloc_table)) {
 		dev_err(&gmu->pdev->dev,
 			"Reached max mem alloc entries\n");
@@ -722,10 +738,18 @@ static struct hfi_mem_alloc_entry *get_mem_alloc_entry(
 		flags |= KGSL_MEMFLAGS_SECURE;
 
 	if (!(desc->flags & HFI_MEMFLAG_GFX_ACC)) {
-		entry->md = gen7_reserve_gmu_kernel_block(gmu, 0,
-				desc->size,
-				(desc->flags & HFI_MEMFLAG_GMU_CACHEABLE) ?
-				GMU_CACHE : GMU_NONCACHED_KERNEL);
+		if (desc->mem_kind == HFI_MEMKIND_MMIO_IPC_CORE)
+			entry->md = gen7_reserve_gmu_kernel_block_fixed(gmu, 0,
+					desc->size,
+					(desc->flags & HFI_MEMFLAG_GMU_CACHEABLE) ?
+					GMU_CACHE : GMU_NONCACHED_KERNEL,
+					"qcom,ipc-core", get_attrs(desc->flags));
+		else
+			entry->md = gen7_reserve_gmu_kernel_block(gmu, 0,
+					desc->size,
+					(desc->flags & HFI_MEMFLAG_GMU_CACHEABLE) ?
+					GMU_CACHE : GMU_NONCACHED_KERNEL);
+
 		if (IS_ERR(entry->md)) {
 			int ret = PTR_ERR(entry->md);
 
@@ -1007,6 +1031,13 @@ int gen7_hwsched_hfi_start(struct adreno_device *adreno_dev)
 	if (ret)
 		goto err;
 
+	if (adreno_dev->lsr_enabled) {
+		ret = gen7_hfi_send_feature_ctrl(adreno_dev, HFI_FEATURE_LSR,
+				1, 0);
+		if (ret)
+			goto err;
+	}
+
 	/* Enable the long ib timeout detection */
 	if (adreno_long_ib_detect(adreno_dev)) {
 		ret = gen7_hfi_send_feature_ctrl(adreno_dev,
@@ -1277,7 +1308,7 @@ static int send_context_register(struct adreno_device *adreno_dev,
 	cmd.ctxt_id = context->id;
 	cmd.flags = HFI_CTXT_FLAG_NOTIFY | context->flags;
 	cmd.pt_addr = kgsl_mmu_pagetable_get_ttbr0(pt);
-	cmd.ctxt_idr = pid_nr(context->proc_priv->pid);
+	cmd.ctxt_idr = context->id;
 	cmd.ctxt_bank = kgsl_mmu_pagetable_get_context_bank(pt);
 
 	return gen7_hfi_send_cmd_async(adreno_dev, &cmd);
@@ -1354,13 +1385,18 @@ static void populate_ibs(struct adreno_device *adreno_dev,
 
 	if (cmdobj->numibs > HWSCHED_MAX_DISPATCH_NUMIBS) {
 		struct gen7_hwsched_hfi *hfi = to_gen7_hwsched_hfi(adreno_dev);
+		struct kgsl_memdesc *big_ib;
 
+		if (test_bit(CMDOBJ_RECURRING_START, &cmdobj->priv))
+			big_ib = hfi->big_ib_recurring;
+		else
+			big_ib = hfi->big_ib;
 		/*
 		 * The dispatcher ensures that there is only one big IB inflight
 		 */
-		cmd->big_ib_gmu_va = hfi->big_ib->gmuaddr;
+		cmd->big_ib_gmu_va = big_ib->gmuaddr;
 		cmd->flags |= CMDBATCH_INDIRECT;
-		issue_ib = hfi->big_ib->hostptr;
+		issue_ib = big_ib->hostptr;
 	} else {
 		issue_ib = (struct hfi_issue_ib *)&cmd[1];
 	}
@@ -1387,6 +1423,16 @@ int gen7_hwsched_submit_cmdobj(struct adreno_device *adreno_dev,
 	struct kgsl_drawobj *drawobj = DRAWOBJ(cmdobj);
 	struct hfi_submit_cmd *cmd;
 	struct adreno_submit_time time = {0};
+	static void *cmdbuf;
+
+	if (cmdbuf == NULL) {
+		struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+
+		cmdbuf = devm_kzalloc(&device->pdev->dev, HFI_MAX_MSG_SIZE,
+				GFP_KERNEL);
+		if (!cmdbuf)
+			return -ENOMEM;
+	}
 
 	ret = hfi_context_register(adreno_dev, drawobj->context);
 	if (ret)
@@ -1403,9 +1449,9 @@ int gen7_hwsched_submit_cmdobj(struct adreno_device *adreno_dev,
 	if (WARN_ON(cmd_sizebytes > HFI_MAX_MSG_SIZE))
 		return -EMSGSIZE;
 
-	cmd = kmalloc(cmd_sizebytes, GFP_KERNEL);
-	if (cmd == NULL)
-		return -ENOMEM;
+	memset(cmdbuf, 0x0, cmd_sizebytes);
+
+	cmd = cmdbuf;
 
 	cmd->ctxt_id = drawobj->context->id;
 	cmd->flags = HFI_CTXT_FLAG_NOTIFY;
@@ -1442,7 +1488,7 @@ skipib:
 		HFI_DSP_ID_0 + drawobj->context->gmu_dispatch_queue,
 		(u32 *)cmd);
 	if (ret)
-		goto free;
+		return ret;
 
 	add_profile_events(adreno_dev, drawobj, &time);
 
@@ -1455,9 +1501,96 @@ skipib:
 	/* Put the profiling information in the user profiling buffer */
 	adreno_profile_submit_time(&time);
 
-free:
+	return ret;
+}
+
+int gen7_hwsched_send_recurring_cmdobj(struct adreno_device *adreno_dev,
+	struct kgsl_drawobj_cmd *cmdobj)
+{
+	struct adreno_hwsched *hwsched = &adreno_dev->hwsched;
+	struct kgsl_drawobj *drawobj = DRAWOBJ(cmdobj);
+	struct gen7_hfi *hfi = to_gen7_hfi(adreno_dev);
+	struct hfi_submit_cmd *cmd;
+	struct kgsl_memobj_node *ib;
+	u32 cmd_sizebytes;
+	int ret;
+	static bool active;
+
+	if (adreno_gpu_halt(adreno_dev) || hwsched_in_fault(hwsched))
+		return -EBUSY;
+
+	if (test_bit(CMDOBJ_RECURRING_STOP, &cmdobj->priv)) {
+		cmdobj->numibs = 0;
+	} else {
+		list_for_each_entry(ib, &cmdobj->cmdlist, node)
+			cmdobj->numibs++;
+	}
+
+	if (cmdobj->numibs > HWSCHED_MAX_IBS)
+		return -EINVAL;
+
+	if (cmdobj->numibs > HWSCHED_MAX_DISPATCH_NUMIBS)
+		cmd_sizebytes = sizeof(*cmd);
+	else
+		cmd_sizebytes = sizeof(*cmd) +
+			(sizeof(struct hfi_issue_ib) * cmdobj->numibs);
+
+	if (WARN_ON(cmd_sizebytes > HFI_MAX_MSG_SIZE))
+		return -EMSGSIZE;
+
+	cmd = kzalloc(cmd_sizebytes, GFP_KERNEL);
+	if (cmd == NULL)
+		return -ENOMEM;
+
+	if (test_bit(CMDOBJ_RECURRING_START, &cmdobj->priv)) {
+		if (!active) {
+			ret = adreno_active_count_get(adreno_dev);
+			if (ret) {
+				kfree(cmd);
+				return ret;
+			}
+			active = true;
+		}
+		cmd->flags |= CMDBATCH_RECURRING_START;
+		populate_ibs(adreno_dev, cmd, cmdobj);
+	} else
+		cmd->flags |= CMDBATCH_RECURRING_STOP;
+
+	cmd->ctxt_id = drawobj->context->id;
+
+	ret = hfi_context_register(adreno_dev, drawobj->context);
+	if (ret) {
+		adreno_active_count_put(adreno_dev);
+		active = false;
+		kfree(cmd);
+		return ret;
+	}
+
+	cmd->hdr = CREATE_MSG_HDR(H2F_MSG_ISSUE_RECURRING_CMD,
+				cmd_sizebytes, HFI_MSG_CMD);
+	cmd->hdr = MSG_HDR_SET_SEQNUM(cmd->hdr,
+			atomic_inc_return(&hfi->seqnum));
+
+	ret = gen7_hfi_send_cmd_async(adreno_dev, cmd);
+
 	kfree(cmd);
 
+	if (ret) {
+		adreno_active_count_put(adreno_dev);
+		active = false;
+		return ret;
+	}
+
+	if (test_bit(CMDOBJ_RECURRING_STOP, &cmdobj->priv)) {
+		adreno_hwsched_retire_cmdobj(hwsched, hwsched->recurring_cmdobj);
+		hwsched->recurring_cmdobj = NULL;
+		if (active)
+			adreno_active_count_put(adreno_dev);
+		active = false;
+		return ret;
+	}
+
+	hwsched->recurring_cmdobj = cmdobj;
 	return ret;
 }
 
@@ -1574,7 +1707,6 @@ u32 gen7_hwsched_preempt_count_get(struct adreno_device *adreno_dev)
 	struct hfi_get_value_cmd cmd;
 	struct gen7_gmu_device *gmu = to_gen7_gmu(adreno_dev);
 	struct gen7_hwsched_hfi *hfi = to_gen7_hwsched_hfi(adreno_dev);
-	u32 seqnum = atomic_inc_return(&gmu->hfi.seqnum);
 	struct pending_cmd pending_ack;
 	int rc;
 
@@ -1585,7 +1717,8 @@ u32 gen7_hwsched_preempt_count_get(struct adreno_device *adreno_dev)
 	if (rc)
 		return 0;
 
-	cmd.hdr = MSG_HDR_SET_SEQNUM(cmd.hdr, seqnum);
+	cmd.hdr = MSG_HDR_SET_SEQNUM(cmd.hdr,
+			atomic_inc_return(&gmu->hfi.seqnum));
 	cmd.type = HFI_VALUE_PREEMPT_COUNT;
 	cmd.subtype = 0;
 

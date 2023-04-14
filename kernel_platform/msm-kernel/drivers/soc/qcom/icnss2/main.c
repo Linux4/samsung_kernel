@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2020, 2021, The Linux Foundation.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * All rights reserved.
  */
 
@@ -39,12 +40,14 @@
 #include <soc/qcom/memory_dump.h>
 #include <soc/qcom/secure_buffer.h>
 #include <soc/qcom/socinfo.h>
-#include <soc/qcom/ramdump.h>
+#include <soc/qcom/qcom_ramdump.h>
 #include <linux/soc/qcom/smem.h>
 #include <linux/soc/qcom/smem_state.h>
 #include <linux/remoteproc.h>
 #include <linux/remoteproc/qcom_rproc.h>
 #include <linux/soc/qcom/pdr.h>
+#include <linux/remoteproc.h>
+#include <trace/hooks/remoteproc.h>
 #include "main.h"
 #include "qmi.h"
 #include "debug.h"
@@ -73,7 +76,7 @@
 #define ICNSS_BDF_TYPE_DEFAULT         ICNSS_BDF_ELF
 
 #define PROBE_TIMEOUT                 15000
-
+#define SMP2P_SOC_WAKE_TIMEOUT        500
 #ifdef CONFIG_ICNSS2_DEBUG
 static unsigned long qmi_timeout = 3000;
 module_param(qmi_timeout, ulong, 0600);
@@ -94,6 +97,14 @@ uint64_t dynamic_feature_mask = ICNSS_DEFAULT_FEATURE_MASK;
 						 ICNSS_EVENT_SYNC)
 #define ICNSS_DMS_QMI_CONNECTION_WAIT_MS 50
 #define ICNSS_DMS_QMI_CONNECTION_WAIT_RETRY 200
+
+#define SMP2P_GET_MAX_RETRY		4
+#define SMP2P_GET_RETRY_DELAY_MS	500
+
+#define RAMDUMP_NUM_DEVICES		256
+#define ICNSS_RAMDUMP_NAME		"icnss_ramdump"
+
+static DEFINE_IDA(rd_minor_id);
 
 enum icnss_pdr_cause_index {
 	ICNSS_FW_CRASH,
@@ -195,6 +206,8 @@ char *icnss_driver_event_to_str(enum icnss_driver_event_type type)
 		return "M3_DUMP_UPLOAD";
 	case ICNSS_DRIVER_EVENT_QDSS_TRACE_REQ_DATA:
 		return "QDSS_TRACE_REQ_DATA";
+	case ICNSS_DRIVER_EVENT_SUBSYS_RESTART_LEVEL:
+		return "SUBSYS_RESTART_LEVEL";
 	case ICNSS_DRIVER_EVENT_MAX:
 		return "EVENT_MAX";
 	}
@@ -416,6 +429,66 @@ bool icnss_is_pdr(void)
 }
 EXPORT_SYMBOL(icnss_is_pdr);
 
+static int icnss_send_smp2p(struct icnss_priv *priv,
+			    enum icnss_smp2p_msg_id msg_id,
+			    enum smp2p_out_entry smp2p_entry)
+{
+	unsigned int value = 0;
+	int ret;
+
+	if (IS_ERR(priv->smp2p_info[smp2p_entry].smem_state))
+		return -EINVAL;
+
+	/* No Need to check FW_DOWN for ICNSS_RESET_MSG */
+	if (msg_id == ICNSS_RESET_MSG) {
+		priv->smp2p_info[smp2p_entry].seq = 0;
+		ret = qcom_smem_state_update_bits(
+				priv->smp2p_info[smp2p_entry].smem_state,
+				ICNSS_SMEM_VALUE_MASK,
+				0);
+		if (ret)
+			icnss_pr_err("Error in SMP2P sent. ret: %d, %s\n",
+				     ret, icnss_smp2p_str[smp2p_entry]);
+
+		return ret;
+	}
+
+	if (test_bit(ICNSS_FW_DOWN, &priv->state))
+		return -ENODEV;
+
+	value |= priv->smp2p_info[smp2p_entry].seq++;
+	value <<= ICNSS_SMEM_SEQ_NO_POS;
+	value |= msg_id;
+
+	icnss_pr_smp2p("Sending SMP2P value: 0x%X\n", value);
+
+	if (msg_id == ICNSS_SOC_WAKE_REQ || msg_id == ICNSS_SOC_WAKE_REL)
+		reinit_completion(&penv->smp2p_soc_wake_wait);
+
+	ret = qcom_smem_state_update_bits(
+			priv->smp2p_info[smp2p_entry].smem_state,
+			ICNSS_SMEM_VALUE_MASK,
+			value);
+	if (ret) {
+		icnss_pr_smp2p("Error in SMP2P send ret: %d, %s\n", ret,
+			       icnss_smp2p_str[smp2p_entry]);
+	} else {
+		if (msg_id == ICNSS_SOC_WAKE_REQ ||
+		    msg_id == ICNSS_SOC_WAKE_REL) {
+			if (!wait_for_completion_timeout(
+					&priv->smp2p_soc_wake_wait,
+					msecs_to_jiffies(SMP2P_SOC_WAKE_TIMEOUT))) {
+				icnss_pr_err("SMP2P Soc Wake timeout msg %d, %s\n", msg_id,
+					     icnss_smp2p_str[smp2p_entry]);
+				if (!test_bit(ICNSS_FW_DOWN, &priv->state))
+					ICNSS_ASSERT(0);
+			}
+		}
+	}
+
+	return ret;
+}
+
 static irqreturn_t fw_error_fatal_handler(int irq, void *ctx)
 {
 	struct icnss_priv *priv = ctx;
@@ -532,6 +605,58 @@ static void register_early_crash_notifications(struct device *dev)
 	priv->fw_early_crash_irq = irq;
 }
 
+static irqreturn_t fw_soc_wake_ack_handler(int irq, void *ctx)
+{
+	struct icnss_priv *priv = ctx;
+
+	if (priv)
+		complete(&priv->smp2p_soc_wake_wait);
+
+	return IRQ_HANDLED;
+}
+
+static void register_soc_wake_notif(struct device *dev)
+{
+	struct icnss_priv *priv = dev_get_drvdata(dev);
+	struct device_node *dev_node;
+	int irq = 0, ret = 0;
+
+	if (!priv)
+		return;
+
+	dev_node = of_find_node_by_name(NULL, "qcom,smp2p_map_wlan_2_in");
+	if (!dev_node) {
+		icnss_pr_err("Failed to get smp2p node for soc-wake-ack\n");
+		return;
+	}
+
+	icnss_pr_dbg("smp2p node->name=%s\n", dev_node->name);
+
+	if (strcmp("qcom,smp2p_map_wlan_2_in", dev_node->name) == 0) {
+		ret = irq = of_irq_get_byname(dev_node,
+					      "qcom,smp2p-soc-wake-ack");
+		if (ret < 0) {
+			icnss_pr_err("Unable to get soc wake ack irq %d\n",
+				     irq);
+			return;
+		}
+	}
+
+	ret = devm_request_threaded_irq(dev, irq, NULL,
+					fw_soc_wake_ack_handler,
+					IRQF_ONESHOT | IRQF_TRIGGER_RISING |
+					IRQF_TRIGGER_FALLING,
+					"wlanfw-soc-wake-ack", priv);
+	if (ret < 0) {
+		icnss_pr_err("Unable to register for SOC Wake ACK IRQ handler %d ret = %d",
+			     irq, ret);
+		return;
+	}
+	icnss_pr_dbg("FW SOC Wake ACK handler registered irq = %d\n", irq);
+	priv->fw_soc_wake_ack_irq = irq;
+}
+
+
 int icnss_call_driver_uevent(struct icnss_priv *priv,
 				    enum icnss_uevent uevent, void *data)
 {
@@ -583,6 +708,34 @@ qmi_send:
 		icnss_wlfw_wlan_mac_req_send_sync(priv, priv->dms.mac,
 						  ARRAY_SIZE(priv->dms.mac));
 	return ret;
+}
+
+static void icnss_get_smp2p_info(struct icnss_priv *priv,
+				 enum smp2p_out_entry smp2p_entry)
+{
+	int retry = 0;
+	int error;
+
+	if (priv->smp2p_info[smp2p_entry].smem_state)
+		return;
+retry:
+	priv->smp2p_info[smp2p_entry].smem_state =
+		qcom_smem_state_get(&priv->pdev->dev,
+				    icnss_smp2p_str[smp2p_entry],
+				    &priv->smp2p_info[smp2p_entry].smem_bit);
+	if (IS_ERR(priv->smp2p_info[smp2p_entry].smem_state)) {
+		if (retry++ < SMP2P_GET_MAX_RETRY) {
+			error = PTR_ERR(priv->smp2p_info[smp2p_entry].smem_state);
+			icnss_pr_err("Failed to get smem state, ret: %d Entry: %s",
+				     error, icnss_smp2p_str[smp2p_entry]);
+			msleep(SMP2P_GET_RETRY_DELAY_MS);
+			goto retry;
+		}
+		ICNSS_ASSERT(0);
+		return;
+	}
+
+	icnss_pr_dbg("smem state, Entry: %s", icnss_smp2p_str[smp2p_entry]);
 }
 
 static int icnss_driver_event_server_arrive(struct icnss_priv *priv,
@@ -686,14 +839,33 @@ static int icnss_driver_event_server_arrive(struct icnss_priv *priv,
 		icnss_pr_dbg("MHI state info Address pa: %pa, va: 0x%pK\n",
 			     &priv->mhi_state_info_pa,
 			     priv->mhi_state_info_va);
+	}
 
+	if (priv->bdf_download_support) {
 		icnss_wlfw_bdf_dnld_send_sync(priv, ICNSS_BDF_REGDB);
 
 		ret = icnss_wlfw_bdf_dnld_send_sync(priv,
 						    priv->ctrl_params.bdf_type);
+		if (ret < 0)
+			goto device_info_failure;
+	}
+
+	if (priv->device_id == WCN6750_DEVICE_ID) {
+		if (!priv->fw_soc_wake_ack_irq)
+			register_soc_wake_notif(&priv->pdev->dev);
+
+		icnss_get_smp2p_info(priv, ICNSS_SMP2P_OUT_POWER_SAVE);
+		icnss_get_smp2p_info(priv, ICNSS_SMP2P_OUT_SOC_WAKE);
+		icnss_get_smp2p_info(priv, ICNSS_SMP2P_OUT_EP_POWER_SAVE);
 	}
 
 	if (priv->device_id == ADRASTEA_DEVICE_ID) {
+		if (priv->bdf_download_support) {
+			ret = wlfw_cal_report_req(priv);
+			if (ret < 0)
+				goto device_info_failure;
+		}
+
 		wlfw_dynamic_feature_mask_send_sync_msg(priv,
 							dynamic_feature_mask);
 	}
@@ -1106,7 +1278,8 @@ static int icnss_event_soc_wake_request(struct icnss_priv *priv, void *data)
 		return 0;
 	}
 
-	ret = wlfw_send_soc_wake_msg(priv, QMI_WLFW_WAKE_REQUEST_V01);
+	ret = icnss_send_smp2p(priv, ICNSS_SOC_WAKE_REQ,
+			       ICNSS_SMP2P_OUT_SOC_WAKE);
 	if (!ret)
 		atomic_inc(&priv->soc_wake_ref_count);
 
@@ -1126,8 +1299,8 @@ static int icnss_event_soc_wake_release(struct icnss_priv *priv, void *data)
 		return 0;
 	}
 
-	ret = wlfw_send_soc_wake_msg(priv, QMI_WLFW_WAKE_RELEASE_V01);
-
+	ret = icnss_send_smp2p(priv, ICNSS_SOC_WAKE_REL,
+			       ICNSS_SMP2P_OUT_SOC_WAKE);
 	return ret;
 }
 
@@ -1287,12 +1460,12 @@ static int icnss_driver_event_pd_service_down(struct icnss_priv *priv,
 		ICNSS_ASSERT(0);
 
 	if (priv->device_id == WCN6750_DEVICE_ID) {
-		priv->smp2p_info.seq = 0;
-		if (qcom_smem_state_update_bits(
-				priv->smp2p_info.smem_state,
-				ICNSS_SMEM_VALUE_MASK,
-				0))
-			icnss_pr_dbg("Error in SMP2P sent ret: %d\n");
+		icnss_send_smp2p(priv, ICNSS_RESET_MSG,
+				 ICNSS_SMP2P_OUT_POWER_SAVE);
+		icnss_send_smp2p(priv, ICNSS_RESET_MSG,
+				 ICNSS_SMP2P_OUT_SOC_WAKE);
+		icnss_send_smp2p(priv, ICNSS_RESET_MSG,
+				 ICNSS_SMP2P_OUT_EP_POWER_SAVE);
 	}
 
 	icnss_send_hang_event_data(priv);
@@ -1394,38 +1567,50 @@ static int icnss_m3_dump_upload_req_hdlr(struct icnss_priv *priv,
 					 void *data)
 {
 	struct icnss_m3_upload_segments_req_data *event_data = data;
-	struct ramdump_segment segment;
+	struct qcom_dump_segment segment;
 	int i, status = 0, ret = 0;
+	struct list_head head;
+
+	if (!dump_enabled()) {
+		icnss_pr_info("Dump collection is not enabled\n");
+		return ret;
+	}
+
+	INIT_LIST_HEAD(&head);
 
 	for (i = 0; i < event_data->no_of_valid_segments; i++) {
 		memset(&segment, 0, sizeof(segment));
-		segment.v_address = devm_ioremap(&priv->pdev->dev,
-						event_data->m3_segment[i].addr,
-						event_data->m3_segment[i].size);
-		if (!segment.v_address) {
+
+		segment.va = devm_ioremap(&priv->pdev->dev,
+					  event_data->m3_segment[i].addr,
+					  event_data->m3_segment[i].size);
+		if (!segment.va) {
 			icnss_pr_err("Failed to ioremap M3 Dump region");
 			ret = -ENOMEM;
 			goto send_resp;
 		}
 
 		segment.size = event_data->m3_segment[i].size;
-		segment.name = event_data->m3_segment[i].name;
+
+		list_add(&segment.node, &head);
+		icnss_pr_dbg("Started Dump colletcion for %s segment",
+			     event_data->m3_segment[i].name);
 
 		switch (event_data->m3_segment[i].type) {
 		case QMI_M3_SEGMENT_PHYAREG_V01:
-			ret = do_ramdump(priv->m3_dump_dev_seg1, &segment, 1);
+			ret = qcom_dump(&head, priv->m3_dump_phyareg->dev);
 			break;
 		case QMI_M3_SEGMENT_PHYDBG_V01:
-			ret = do_ramdump(priv->m3_dump_dev_seg2, &segment, 1);
+			ret = qcom_dump(&head, priv->m3_dump_phydbg->dev);
 			break;
 		case QMI_M3_SEGMENT_WMAC0_REG_V01:
-			ret = do_ramdump(priv->m3_dump_dev_seg3, &segment, 1);
+			ret = qcom_dump(&head, priv->m3_dump_wmac0reg->dev);
 			break;
 		case QMI_M3_SEGMENT_WCSSDBG_V01:
-			ret = do_ramdump(priv->m3_dump_dev_seg4, &segment, 1);
+			ret = qcom_dump(&head, priv->m3_dump_wcssdbg->dev);
 			break;
 		case QMI_M3_SEGMENT_PHYAPDMEM_V01:
-			ret = do_ramdump(priv->m3_dump_dev_seg5, &segment, 1);
+			ret = qcom_dump(&head, priv->m3_dump_phyapdmem->dev);
 			break;
 		default:
 			icnss_pr_err("Invalid Segment type: %d",
@@ -1437,10 +1622,29 @@ static int icnss_m3_dump_upload_req_hdlr(struct icnss_priv *priv,
 			icnss_pr_err("Failed to dump m3 %s segment, err = %d\n",
 				     event_data->m3_segment[i].name, ret);
 		}
+		list_del(&segment.node);
 	}
 send_resp:
 	icnss_wlfw_m3_dump_upload_done_send_sync(priv, event_data->pdev_id,
 						 status);
+
+	return ret;
+}
+
+static int icnss_subsys_restart_level(struct icnss_priv *priv, void *data)
+{
+	int ret = 0;
+	struct icnss_subsys_restart_level_data *event_data = data;
+
+	if (!priv)
+		return -ENODEV;
+
+	if (!data)
+		return -EINVAL;
+
+	ret = wlfw_subsys_restart_level_msg(priv, event_data->restart_level);
+
+	kfree(data);
 
 	return ret;
 }
@@ -1524,6 +1728,9 @@ static void icnss_driver_event_work(struct work_struct *work)
 		case ICNSS_DRIVER_EVENT_QDSS_TRACE_REQ_DATA:
 			ret = icnss_qdss_trace_req_data_hdlr(priv,
 							     event->data);
+			break;
+		case ICNSS_DRIVER_EVENT_SUBSYS_RESTART_LEVEL:
+			ret = icnss_subsys_restart_level(priv, event->data);
 			break;
 		default:
 			icnss_pr_err("Invalid Event type: %d", event->type);
@@ -1619,12 +1826,38 @@ static void icnss_soc_wake_msg_work(struct work_struct *work)
 
 static int icnss_msa0_ramdump(struct icnss_priv *priv)
 {
-	struct ramdump_segment segment;
+	int ret = 0;
+	struct qcom_dump_segment segment;
+	struct icnss_ramdump_info *msa0_dump_dev = priv->msa0_dump_dev;
+	struct list_head head;
+
+	if (!dump_enabled()) {
+		icnss_pr_info("Dump collection is not enabled\n");
+		return ret;
+	}
+
+	INIT_LIST_HEAD(&head);
 
 	memset(&segment, 0, sizeof(segment));
-	segment.v_address = priv->msa_va;
+
+	segment.va = priv->msa_va;
 	segment.size = priv->msa_mem_size;
-	return do_ramdump(priv->msa0_dump_dev, &segment, 1);
+
+	list_add(&segment.node, &head);
+
+	if (!msa0_dump_dev->dev) {
+		icnss_pr_err("Created Dump Device not found\n");
+		return 0;
+	}
+
+	ret = qcom_dump(&head, msa0_dump_dev->dev);
+	if (ret) {
+		icnss_pr_err("Failed to dump msa0, err = %d\n", ret);
+		return ret;
+	}
+
+	list_del(&segment.node);
+	return ret;
 }
 
 static void icnss_update_state_send_modem_shutdown(struct icnss_priv *priv,
@@ -1980,54 +2213,136 @@ static void icnss_pdr_unregister_notifier(struct icnss_priv *priv)
 	pdr_handle_release(priv->pdr_handle);
 }
 
-static int icnss_create_ramdump_devices(struct icnss_priv *priv)
+static int icnss_ramdump_devnode_init(struct icnss_priv *priv)
 {
+	int ret = 0;
+
+	priv->icnss_ramdump_class = class_create(THIS_MODULE, ICNSS_RAMDUMP_NAME);
+	if (IS_ERR_OR_NULL(priv->icnss_ramdump_class)) {
+		ret = PTR_ERR(priv->icnss_ramdump_class);
+		icnss_pr_err("%s:Class create failed for ramdump devices (%d)\n", __func__, ret);
+		return ret;
+	}
+
+	ret = alloc_chrdev_region(&priv->icnss_ramdump_dev, 0, RAMDUMP_NUM_DEVICES,
+				  ICNSS_RAMDUMP_NAME);
+	if (ret < 0) {
+		icnss_pr_err("%s: Unable to allocate major\n", __func__);
+		goto fail_alloc_major;
+	}
+	return 0;
+
+fail_alloc_major:
+	class_destroy(priv->icnss_ramdump_class);
+	return ret;
+}
+
+void *icnss_create_ramdump_device(struct icnss_priv *priv, const char *dev_name)
+{
+	int ret = 0;
+	struct icnss_ramdump_info *ramdump_info;
+
+	ramdump_info = kzalloc(sizeof(*ramdump_info), GFP_KERNEL);
+
+	if (!dev_name) {
+		icnss_pr_err("%s: Invalid device name.\n", __func__);
+		return NULL;
+	}
+
+	snprintf(ramdump_info->name, ARRAY_SIZE(ramdump_info->name), "icnss_%s", dev_name);
+
+	ramdump_info->minor = ida_simple_get(&rd_minor_id, 0, RAMDUMP_NUM_DEVICES, GFP_KERNEL);
+	if (ramdump_info->minor < 0) {
+		icnss_pr_err("%s: No more minor numbers left! rc:%d\n", __func__,
+			     ramdump_info->minor);
+		ret = -ENODEV;
+		goto fail_out_of_minors;
+	}
+
+	ramdump_info->dev = device_create(priv->icnss_ramdump_class, NULL,
+					  MKDEV(MAJOR(priv->icnss_ramdump_dev),
+					  ramdump_info->minor),
+					  ramdump_info, ramdump_info->name);
+	if (IS_ERR_OR_NULL(ramdump_info->dev)) {
+		ret = PTR_ERR(ramdump_info->dev);
+		icnss_pr_err("%s: Device create failed for %s (%d)\n", __func__,
+			     ramdump_info->name, ret);
+		goto fail_device_create;
+	}
+	return (void *)ramdump_info;
+
+fail_device_create:
+	ida_simple_remove(&rd_minor_id, ramdump_info->minor);
+fail_out_of_minors:
+	kfree(ramdump_info);
+	return ERR_PTR(ret);
+}
+
+static int icnss_register_ramdump_devices(struct icnss_priv *priv)
+{
+	int ret = 0;
 
 	if (!priv || !priv->pdev) {
 		icnss_pr_err("Platform priv or pdev is NULL\n");
 		return -EINVAL;
 	}
 
-	priv->msa0_dump_dev = create_ramdump_device("wcss_msa0",
-						    &priv->pdev->dev);
-	if (!priv->msa0_dump_dev)
+	ret = icnss_ramdump_devnode_init(priv);
+	if (ret)
+		return ret;
+
+	priv->msa0_dump_dev = icnss_create_ramdump_device(priv, "wcss_msa0");
+
+	if (!priv->msa0_dump_dev->dev) {
+		icnss_pr_err("Failed to create msa0 dump device!");
 		return -ENOMEM;
+	}
 
 	if (priv->device_id == WCN6750_DEVICE_ID) {
-		priv->m3_dump_dev_seg1 = create_ramdump_device(
-					    ICNSS_M3_SEGMENT(
-						ICNSS_M3_SEGMENT_PHYAREG),
-					    &priv->pdev->dev);
-		if (!priv->m3_dump_dev_seg1)
-			return -ENOMEM;
+		priv->m3_dump_phyareg = icnss_create_ramdump_device(priv,
+						ICNSS_M3_SEGMENT(
+						ICNSS_M3_SEGMENT_PHYAREG));
 
-		priv->m3_dump_dev_seg2 = create_ramdump_device(
-					    ICNSS_M3_SEGMENT(
-						ICNSS_M3_SEGMENT_PHYA),
-					    &priv->pdev->dev);
-		if (!priv->m3_dump_dev_seg2)
+		if (!priv->m3_dump_phyareg->dev) {
+			icnss_pr_err("Failed to create m3 dump for Phyareg segment device!");
 			return -ENOMEM;
+		}
 
-		priv->m3_dump_dev_seg3 = create_ramdump_device(
-					    ICNSS_M3_SEGMENT(
-						ICNSS_M3_SEGMENT_WMACREG),
-					    &priv->pdev->dev);
-		if (!priv->m3_dump_dev_seg3)
-			return -ENOMEM;
+		priv->m3_dump_phydbg = icnss_create_ramdump_device(priv,
+						ICNSS_M3_SEGMENT(
+						ICNSS_M3_SEGMENT_PHYA));
 
-		priv->m3_dump_dev_seg4 = create_ramdump_device(
-					    ICNSS_M3_SEGMENT(
-						ICNSS_M3_SEGMENT_WCSSDBG),
-					    &priv->pdev->dev);
-		if (!priv->m3_dump_dev_seg4)
+		if (!priv->m3_dump_phydbg->dev) {
+			icnss_pr_err("Failed to create m3 dump for Phydbg segment device!");
 			return -ENOMEM;
+		}
 
-		priv->m3_dump_dev_seg5 = create_ramdump_device(
-					     ICNSS_M3_SEGMENT(
-						ICNSS_M3_SEGMENT_PHYAM3),
-					     &priv->pdev->dev);
-		if (!priv->m3_dump_dev_seg5)
+		priv->m3_dump_wmac0reg = icnss_create_ramdump_device(priv,
+						ICNSS_M3_SEGMENT(
+						ICNSS_M3_SEGMENT_WMACREG));
+
+		if (!priv->m3_dump_wmac0reg->dev) {
+			icnss_pr_err("Failed to create m3 dump for Wmac0reg segment device!");
 			return -ENOMEM;
+		}
+
+		priv->m3_dump_wcssdbg = icnss_create_ramdump_device(priv,
+						ICNSS_M3_SEGMENT(
+						ICNSS_M3_SEGMENT_WCSSDBG));
+
+		if (!priv->m3_dump_wcssdbg->dev) {
+			icnss_pr_err("Failed to create m3 dump for Wcssdbg segment device!");
+			return -ENOMEM;
+		}
+
+		priv->m3_dump_phyapdmem = icnss_create_ramdump_device(priv,
+						ICNSS_M3_SEGMENT(
+						ICNSS_M3_SEGMENT_PHYAM3));
+
+		if (!priv->m3_dump_phyapdmem->dev) {
+			icnss_pr_err("Failed to create m3 dump for Phyapdmem segment device!");
+			return -ENOMEM;
+		}
 	}
 
 	return 0;
@@ -2047,7 +2362,7 @@ static int icnss_enable_recovery(struct icnss_priv *priv)
 		goto enable_pdr;
 	}
 
-	ret = icnss_create_ramdump_devices(priv);
+	ret = icnss_register_ramdump_devices(priv);
 	if (ret)
 		return ret;
 
@@ -2071,32 +2386,20 @@ enable_pdr:
 	return 0;
 }
 
-static int icnss_send_smp2p(struct icnss_priv *priv,
-			    enum icnss_smp2p_msg_id msg_id)
+static int icnss_dev_id_match(struct icnss_priv *priv,
+			      struct device_info *dev_info)
 {
-	unsigned int value = 0;
-	int ret;
+	if (!dev_info) {
+		icnss_pr_info("WLAN driver devinfo is null, Continue driver loading");
+		return 1;
+	}
 
-	if (IS_ERR(priv->smp2p_info.smem_state))
-		return -EINVAL;
-
-	if (test_bit(ICNSS_FW_DOWN, &priv->state))
-		return -ENODEV;
-
-	value |= priv->smp2p_info.seq++;
-	value <<= ICNSS_SMEM_SEQ_NO_POS;
-	value |= msg_id;
-
-	icnss_pr_smp2p("Sending SMP2P value: 0x%X\n", value);
-
-	ret = qcom_smem_state_update_bits(
-			priv->smp2p_info.smem_state,
-			ICNSS_SMEM_VALUE_MASK,
-			value);
-	if (ret)
-		icnss_pr_smp2p("Error in SMP2P send ret: %d\n", ret);
-
-	return ret;
+	while (dev_info->device_id) {
+		if (priv->device_id == dev_info->device_id)
+			return 1;
+		dev_info++;
+	}
+	return 0;
 }
 
 static int icnss_tcdev_get_max_state(struct thermal_cooling_device *tcdev,
@@ -2291,6 +2594,12 @@ int __icnss_register_driver(struct icnss_driver_ops *ops,
 		icnss_pr_err("Driver already registered\n");
 		ret = -EEXIST;
 		goto out;
+	}
+
+	if (!icnss_dev_id_match(priv, ops->dev_info)) {
+		icnss_pr_err("WLAN driver dev name is %s, not supported by platform driver\n",
+			     ops->dev_info->name);
+		return -ENODEV;
 	}
 
 	if (!ops->probe || !ops->remove) {
@@ -3004,7 +3313,8 @@ int icnss_trigger_recovery(struct device *dev)
 
 	if (priv->device_id == WCN6750_DEVICE_ID) {
 		icnss_pr_vdbg("Initiate Root PD restart");
-		ret = icnss_send_smp2p(priv, ICNSS_TRIGGER_SSR);
+		ret = icnss_send_smp2p(priv, ICNSS_TRIGGER_SSR,
+				       ICNSS_SMP2P_OUT_POWER_SAVE);
 		if (!ret)
 			set_bit(ICNSS_HOST_TRIGGERED_PDR, &priv->state);
 		return ret;
@@ -3080,7 +3390,8 @@ int icnss_exit_power_save(struct device *dev)
 	    !test_bit(ICNSS_MODE_ON, &priv->state))
 		return 0;
 
-	return icnss_send_smp2p(priv, ICNSS_POWER_SAVE_EXIT);
+	return icnss_send_smp2p(priv, ICNSS_POWER_SAVE_EXIT,
+				ICNSS_SMP2P_OUT_POWER_SAVE);
 }
 EXPORT_SYMBOL(icnss_exit_power_save);
 
@@ -3092,7 +3403,8 @@ int icnss_prevent_l1(struct device *dev)
 	    !test_bit(ICNSS_MODE_ON, &priv->state))
 		return 0;
 
-	return icnss_send_smp2p(priv, ICNSS_PCI_EP_POWER_SAVE_EXIT);
+	return icnss_send_smp2p(priv, ICNSS_PCI_EP_POWER_SAVE_EXIT,
+				ICNSS_SMP2P_OUT_EP_POWER_SAVE);
 }
 EXPORT_SYMBOL(icnss_prevent_l1);
 
@@ -3104,7 +3416,8 @@ void icnss_allow_l1(struct device *dev)
 	    !test_bit(ICNSS_MODE_ON, &priv->state))
 		return;
 
-	icnss_send_smp2p(priv, ICNSS_PCI_EP_POWER_SAVE_ENTER);
+	icnss_send_smp2p(priv, ICNSS_PCI_EP_POWER_SAVE_ENTER,
+			 ICNSS_SMP2P_OUT_EP_POWER_SAVE);
 }
 EXPORT_SYMBOL(icnss_allow_l1);
 
@@ -3270,11 +3583,33 @@ static ssize_t wpss_boot_store(struct device *dev,
 	return count;
 }
 
+static ssize_t wlan_en_delay_store(struct device *dev,
+			       struct device_attribute *attr,
+			       const char *buf, size_t count)
+{
+	struct icnss_priv *priv = dev_get_drvdata(dev);
+	uint32_t wlan_en_delay  = 0;
+
+	if (priv->device_id != WCN6750_DEVICE_ID)
+		return count;
+
+	if (sscanf(buf, "%du", &wlan_en_delay) != 1) {
+		icnss_pr_err("Failed to read wlan_en_delay");
+		return -EINVAL;
+	}
+
+	icnss_pr_dbg("WLAN_EN delay: %dms", wlan_en_delay);
+	priv->wlan_en_delay_ms = wlan_en_delay;
+
+	return count;
+}
+
 static DEVICE_ATTR_WO(qdss_tr_start);
 static DEVICE_ATTR_WO(qdss_tr_stop);
 static DEVICE_ATTR_WO(qdss_conf_download);
 static DEVICE_ATTR_WO(hw_trc_override);
 static DEVICE_ATTR_WO(wpss_boot);
+static DEVICE_ATTR_WO(wlan_en_delay);
 
 static struct attribute *icnss_attrs[] = {
 	&dev_attr_qdss_tr_start.attr,
@@ -3282,6 +3617,7 @@ static struct attribute *icnss_attrs[] = {
 	&dev_attr_qdss_conf_download.attr,
 	&dev_attr_hw_trc_override.attr,
 	&dev_attr_wpss_boot.attr,
+	&dev_attr_wlan_en_delay.attr,
 	NULL,
 };
 
@@ -3690,8 +4026,12 @@ void icnss_add_fw_prefix_name(struct icnss_priv *priv, char *prefix_name,
 		return;
 	}
 
-	scnprintf(prefix_name, ICNSS_MAX_FILE_NAME,
-		  QCA6750_PATH_PREFIX "%s", name);
+	if (priv->device_id == ADRASTEA_DEVICE_ID)
+		scnprintf(prefix_name, ICNSS_MAX_FILE_NAME,
+			  ADRASTEA_PATH_PREFIX "%s", name);
+	else
+		scnprintf(prefix_name, ICNSS_MAX_FILE_NAME,
+			  QCA6750_PATH_PREFIX "%s", name);
 
 	icnss_pr_dbg("File added with prefix: %s\n", prefix_name);
 }
@@ -3721,23 +4061,11 @@ static void icnss_init_control_params(struct icnss_priv *priv)
 	priv->ctrl_params.bdf_type = ICNSS_BDF_TYPE_DEFAULT;
 
 	if (of_property_read_bool(priv->pdev->dev.of_node,
-				  "cnss-daemon-support")) {
-		priv->ctrl_params.quirks |= BIT(ENABLE_DAEMON_SUPPORT);
-	}
-}
+				  "bdf-download-support"))
+		priv->bdf_download_support = true;
 
-static inline void  icnss_get_smp2p_info(struct icnss_priv *priv)
-{
-
-	priv->smp2p_info.smem_state =
-			qcom_smem_state_get(&priv->pdev->dev,
-					    "wlan-smp2p-out",
-					    &priv->smp2p_info.smem_bit);
-	if (IS_ERR(priv->smp2p_info.smem_state)) {
-		icnss_pr_smp2p("Failed to get smem state %d",
-			     PTR_ERR(priv->smp2p_info.smem_state));
-	}
-
+	if (priv->bdf_download_support && priv->device_id == ADRASTEA_DEVICE_ID)
+		priv->ctrl_params.bdf_type = ICNSS_BDF_BIN;
 }
 
 static inline void icnss_runtime_pm_init(struct icnss_priv *priv)
@@ -3759,6 +4087,28 @@ static inline bool icnss_use_nv_mac(struct icnss_priv *priv)
 {
 	return of_property_read_bool(priv->pdev->dev.of_node,
 				     "use-nv-mac");
+}
+
+static void rproc_restart_level_notifier(void *data, struct rproc *rproc)
+{
+	struct icnss_subsys_restart_level_data *restart_level_data;
+
+	icnss_pr_info("rproc name: %s recovery disable: %d",
+		      rproc->name, rproc->recovery_disabled);
+
+	restart_level_data = kzalloc(sizeof(*restart_level_data), GFP_ATOMIC);
+	if (!restart_level_data)
+		return;
+
+	if (strstr(rproc->name, "wpss")) {
+		if (rproc->recovery_disabled)
+			restart_level_data->restart_level = ICNSS_DISABLE_M3_SSR;
+		else
+			restart_level_data->restart_level = ICNSS_ENABLE_M3_SSR;
+
+		icnss_driver_event_post(penv, ICNSS_DRIVER_EVENT_SUBSYS_RESTART_LEVEL,
+					0, restart_level_data);
+	}
 }
 
 static int icnss_probe(struct platform_device *pdev)
@@ -3869,14 +4219,16 @@ static int icnss_probe(struct platform_device *pdev)
 		if (ret < 0)
 			icnss_pr_err("ICNSS genl init failed %d\n", ret);
 
+		init_completion(&priv->smp2p_soc_wake_wait);
 		icnss_runtime_pm_init(priv);
-		icnss_get_cpr_info(priv);
-		icnss_get_smp2p_info(priv);
+		icnss_aop_mbox_init(priv);
 		set_bit(ICNSS_COLD_BOOT_CAL, &priv->state);
+		priv->bdf_download_support = true;
 		priv->use_nv_mac = icnss_use_nv_mac(priv);
 		icnss_pr_dbg("NV MAC feature is %s\n",
 			     priv->use_nv_mac ? "Mandatory":"Not Mandatory");
 		INIT_WORK(&wpss_loader, icnss_wpss_load);
+		register_trace_android_vh_rproc_recovery_set(rproc_restart_level_notifier, NULL);
 	}
 
 	INIT_LIST_HEAD(&priv->icnss_tcdev_list);
@@ -3898,6 +4250,15 @@ out_reset_drvdata:
 	return ret;
 }
 
+void icnss_destroy_ramdump_device(struct icnss_ramdump_info *ramdump_info)
+{
+	device_unregister(ramdump_info->dev);
+
+	ida_simple_remove(&rd_minor_id, ramdump_info->minor);
+
+	kfree(ramdump_info);
+}
+
 static int icnss_remove(struct platform_device *pdev)
 {
 	struct icnss_priv *priv = dev_get_drvdata(&pdev->dev);
@@ -3908,6 +4269,10 @@ static int icnss_remove(struct platform_device *pdev)
 		icnss_dms_deinit(priv);
 		icnss_genl_exit();
 		icnss_runtime_pm_deinit(priv);
+		if (!IS_ERR_OR_NULL(priv->mbox_chan))
+			mbox_free_channel(priv->mbox_chan);
+		unregister_trace_android_vh_rproc_recovery_set(rproc_restart_level_notifier, NULL);
+		complete_all(&priv->smp2p_soc_wake_wait);
 	}
 
 	device_init_wakeup(&priv->pdev->dev, false);
@@ -3918,20 +4283,23 @@ static int icnss_remove(struct platform_device *pdev)
 
 	complete_all(&priv->unblock_shutdown);
 
-	destroy_ramdump_device(priv->msa0_dump_dev);
+	icnss_destroy_ramdump_device(priv->msa0_dump_dev);
 
 	if (priv->device_id == WCN6750_DEVICE_ID) {
 		icnss_wpss_ssr_unregister_notifier(priv);
 		rproc_put(priv->rproc);
-		destroy_ramdump_device(priv->m3_dump_dev_seg1);
-		destroy_ramdump_device(priv->m3_dump_dev_seg2);
-		destroy_ramdump_device(priv->m3_dump_dev_seg3);
-		destroy_ramdump_device(priv->m3_dump_dev_seg4);
-		destroy_ramdump_device(priv->m3_dump_dev_seg5);
+		icnss_destroy_ramdump_device(priv->m3_dump_phyareg);
+		icnss_destroy_ramdump_device(priv->m3_dump_phydbg);
+		icnss_destroy_ramdump_device(priv->m3_dump_wmac0reg);
+		icnss_destroy_ramdump_device(priv->m3_dump_wcssdbg);
+		icnss_destroy_ramdump_device(priv->m3_dump_phyapdmem);
 	} else {
 		icnss_modem_ssr_unregister_notifier(priv);
 		icnss_pdr_unregister_notifier(priv);
 	}
+
+	class_destroy(priv->icnss_ramdump_class);
+	unregister_chrdev_region(priv->icnss_ramdump_dev, RAMDUMP_NUM_DEVICES);
 
 	icnss_unregister_fw_service(priv);
 	if (priv->event_wq)
@@ -3966,7 +4334,7 @@ static int icnss_pm_suspend(struct device *dev)
 	icnss_pr_vdbg("PM Suspend, state: 0x%lx\n", priv->state);
 
 	if (!priv->ops || !priv->ops->pm_suspend ||
-	    IS_ERR(priv->smp2p_info.smem_state) ||
+	    IS_ERR(priv->smp2p_info[ICNSS_SMP2P_OUT_POWER_SAVE].smem_state) ||
 	    !test_bit(ICNSS_DRIVER_PROBED, &priv->state))
 		return 0;
 
@@ -3978,7 +4346,8 @@ static int icnss_pm_suspend(struct device *dev)
 			    !test_bit(ICNSS_MODE_ON, &priv->state))
 				return 0;
 
-			ret = icnss_send_smp2p(priv, ICNSS_POWER_SAVE_ENTER);
+			ret = icnss_send_smp2p(priv, ICNSS_POWER_SAVE_ENTER,
+					       ICNSS_SMP2P_OUT_POWER_SAVE);
 		}
 		priv->stats.pm_suspend++;
 		set_bit(ICNSS_PM_SUSPEND, &priv->state);
@@ -4002,7 +4371,7 @@ static int icnss_pm_resume(struct device *dev)
 	icnss_pr_vdbg("PM resume, state: 0x%lx\n", priv->state);
 
 	if (!priv->ops || !priv->ops->pm_resume ||
-	    IS_ERR(priv->smp2p_info.smem_state) ||
+	    IS_ERR(priv->smp2p_info[ICNSS_SMP2P_OUT_POWER_SAVE].smem_state) ||
 	    !test_bit(ICNSS_DRIVER_PROBED, &priv->state))
 		goto out;
 
@@ -4093,7 +4462,7 @@ static int icnss_pm_runtime_suspend(struct device *dev)
 	}
 
 	if (!priv->ops || !priv->ops->runtime_suspend ||
-	    IS_ERR(priv->smp2p_info.smem_state))
+	    IS_ERR(priv->smp2p_info[ICNSS_SMP2P_OUT_POWER_SAVE].smem_state))
 		goto out;
 
 	icnss_pr_vdbg("Runtime suspend\n");
@@ -4103,7 +4472,8 @@ static int icnss_pm_runtime_suspend(struct device *dev)
 		    !test_bit(ICNSS_MODE_ON, &priv->state))
 			return 0;
 
-		ret = icnss_send_smp2p(priv, ICNSS_POWER_SAVE_ENTER);
+		ret = icnss_send_smp2p(priv, ICNSS_POWER_SAVE_ENTER,
+				       ICNSS_SMP2P_OUT_POWER_SAVE);
 	}
 out:
 	return ret;
@@ -4126,7 +4496,7 @@ static int icnss_pm_runtime_resume(struct device *dev)
 	}
 
 	if (!priv->ops || !priv->ops->runtime_resume ||
-	    IS_ERR(priv->smp2p_info.smem_state))
+	    IS_ERR(priv->smp2p_info[ICNSS_SMP2P_OUT_POWER_SAVE].smem_state))
 		goto out;
 
 	icnss_pr_vdbg("Runtime resume, state: 0x%lx\n", priv->state);

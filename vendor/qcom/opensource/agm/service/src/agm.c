@@ -25,6 +25,39 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted (subject to the limitations in the
+ * disclaimer below) provided that the following conditions are met:
+ *
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *
+ *     * Redistributions in binary form must reproduce the above
+ *       copyright notice, this list of conditions and the following
+ *       disclaimer in the documentation and/or other materials provided
+ *       with the distribution.
+ *
+ *     * Neither the name of Qualcomm Innovation Center, Inc. nor the names of its
+ *       contributors may be used to endorse or promote products derived
+ *       from this software without specific prior written permission.
+ *
+ * NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
+ * GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
+ * HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+ * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+ * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+ * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #define LOG_TAG "AGM: API"
 #include <agm/agm_api.h>
@@ -47,25 +80,28 @@
 #include <cutils/properties.h>
 // } SEC_AUDIO_BOOT_ON_ERR
 
+#define RETRY_INTERVAL_US 500 * 1000
 static bool agm_initialized = 0;
 static pthread_t ats_thread;
-static const int MAX_RETRIES = 18;
+static const int MAX_RETRIES = 120;
 
 static void *ats_init_thread(void *obj __unused)
 {
     int ret = 0;
     int retry = 0;
+
     while(retry++ < MAX_RETRIES) {
         if (agm_initialized) {
             ret = ats_init();
             if (0 != ret) {
                 AGM_LOGE("ats_init failed retry %d err %d", retry, ret);
+                usleep(RETRY_INTERVAL_US);
             } else {
                 AGM_LOGD("ATS initialized");
                 break;
             }
         }
-        sleep(10);
+        usleep(RETRY_INTERVAL_US);
     }
     return NULL;
 }
@@ -876,4 +912,10 @@ int agm_session_write_datapath_params(uint32_t session_id, struct agm_buff *buff
     }
 
     return session_obj_write_with_metadata(obj, buff, &consumed_size);
+}
+
+int agm_dump(struct agm_dump_info *dump_info __unused)
+{
+    // Placeholder for future enhancements
+    return 0;
 }

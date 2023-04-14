@@ -132,7 +132,7 @@
 		};
 
 		qcom,gpu-pwrlevel@10 {
-			reg = <10>;	
+			reg = <10>;
 			qcom,gpu-freq = <285000000>;
 			qcom,level = <RPMH_REGULATOR_LEVEL_LOW_SVS_D1>;
 

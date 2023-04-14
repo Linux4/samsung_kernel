@@ -99,11 +99,7 @@ void mock_init_ctrl(struct kunit *test, struct mock *mock)
 	list_add_tail(&mock->parent.node, &test->post_conditions);
 }
 
-struct global_mock {
-	struct mock ctrl;
-	bool is_initialized;
-};
-
+#if IS_ENABLED(CONFIG_UML)
 static struct global_mock global_mock = {
 	.is_initialized = false,
 };
@@ -126,6 +122,30 @@ static void mock_exit_global_mock(struct test_initcall *initcall)
 	global_mock.ctrl.test = NULL;
 	global_mock.is_initialized = false;
 }
+#else /* CONFIG_UML */
+static int mock_init_global_mock(struct test_initcall *initcall,
+				 struct kunit *test)
+{
+	struct global_mock *g_mock = &test->test_global_mock;
+
+	BUG_ON(g_mock->is_initialized);
+
+	mock_init_ctrl(test, &g_mock->ctrl);
+	g_mock->is_initialized = true;
+
+	return 0;
+}
+
+static void mock_exit_global_mock(struct test_initcall *initcall, struct kunit *test)
+{
+	struct global_mock *g_mock = &test->test_global_mock;
+
+	BUG_ON(!g_mock->is_initialized);
+
+	g_mock->ctrl.test = NULL;
+	g_mock->is_initialized = false;
+}
+#endif /* CONFIG_UML */
 
 static struct test_initcall global_mock_initcall = {
 	.init = mock_init_global_mock,
@@ -133,12 +153,23 @@ static struct test_initcall global_mock_initcall = {
 };
 test_register_initcall(global_mock_initcall);
 
+#if IS_ENABLED(CONFIG_UML)
 struct mock *mock_get_global_mock(void)
 {
 	BUG_ON(!global_mock.is_initialized);
 
 	return &global_mock.ctrl;
 }
+#else /* CONFIG_UML */
+struct mock *mock_get_global_mock(struct kunit *test)
+{
+	struct global_mock *g_mock = &test->test_global_mock;
+
+	BUG_ON(!g_mock->is_initialized);
+
+	return &g_mock->ctrl;
+}
+#endif /* CONFIG_UML */
 
 static struct mock_method *mock_lookup_method(struct mock *mock,
 					      const void *method_ptr)

@@ -119,6 +119,7 @@ static int heap_dt_init(struct device_node *mem_node,
 			of_reserved_mem_device_release(dev);
 		}
 	}
+	heap->is_nomap =  of_property_read_bool(mem_node, "no-map");
 
 #if defined(CONFIG_RBIN)
 	if (strncmp(rmem->name, "rbin", 4) == 0) {
@@ -168,8 +169,10 @@ struct platform_data *parse_heap_dt(struct platform_device *pdev)
 	for_each_available_child_of_node(dt_node, node)
 		num_heaps++;
 
-	if (!num_heaps)
-		return ERR_PTR(-EINVAL);
+	if (!num_heaps) {
+		pr_info("System might be booting with just system heap\n");
+		return 0;
+	}
 
 	pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
 	if (!pdata)

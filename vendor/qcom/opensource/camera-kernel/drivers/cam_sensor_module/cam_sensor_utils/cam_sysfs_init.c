@@ -168,10 +168,12 @@ static ssize_t rear_type_show(struct device *dev,
 
 #if defined(CONFIG_SEC_B0Q_PROJECT)
 	char cam_type[] = "SLSI_S5KHM3\n";
-#elif defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#elif defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_Q4Q_PROJECT)
 	char cam_type[] = "SLSI_S5KGN3\n";
 #elif defined(CONFIG_SEC_GTS8U_PROJECT) || defined(CONFIG_SEC_GTS8P_PROJECT)
 	char cam_type[] = "HYNIX_HI1337\n";
+#elif defined(CONFIG_SEC_B4Q_PROJECT)
+	char cam_type[] = "SLSI_S5K2LD\n";
 #else
 	char cam_type[] = "SONY_IMX555\n";
 #endif
@@ -191,6 +193,10 @@ static ssize_t front_camera_type_show(struct device *dev,
 	char cam_type[] = "SLSI_S5KGH1\n";
 #elif defined(CONFIG_SEC_GTS8U_PROJECT) || defined(CONFIG_SEC_GTS8P_PROJECT)
 	char cam_type[] = "HYNIX_HI1337\n";
+#elif defined(CONFIG_SEC_B4Q_PROJECT)
+	char cam_type[] = "SLSI_S5K3J1\n";
+#elif defined(CONFIG_SEC_Q4Q_PROJECT)
+	char cam_type[] = "SONY_IMX471\n";
 #else
 	char cam_type[] = "SONY_IMX374\n";
 #endif
@@ -287,7 +293,7 @@ static ssize_t rear_firmware_factory_store(struct device *dev,
 	return size;
 }
 
-#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_Q4Q_PROJECT)
 char rear3_fw_user_ver[SYSFS_FW_VER_SIZE] = "NULL\n";//multi module
 static ssize_t rear3_firmware_user_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -1598,7 +1604,7 @@ static ssize_t rear3_type_show(struct device *dev,
 	int rc = 0;
 #if defined(CONFIG_SEC_B0Q_PROJECT)
 	char cam_type[] = "SONY_IMX754\n";
-#elif defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#elif defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_Q4Q_PROJECT)
 	char cam_type[] = "SLSI_S5K3K1\n";
 #else
 	char cam_type[] = "SLSI_S5KGW2\n";
@@ -1703,7 +1709,7 @@ static ssize_t rear3_tilt_show(struct device *dev,
 }
 
 uint8_t rear3_module_id[FROM_MODULE_ID_SIZE + 1] = "\0";
-#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_Q4Q_PROJECT)
 static ssize_t rear3_moduleid_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -2014,6 +2020,8 @@ static ssize_t rear2_type_show(struct device *dev,
 	int rc = 0;
 #if defined(CONFIG_SEC_GTS8U_PROJECT) || defined(CONFIG_SEC_GTS8P_PROJECT)
 	char cam_type[] = "HYNIX_HI847\n";
+#elif defined(CONFIG_SEC_B4Q_PROJECT) || defined(CONFIG_SEC_Q4Q_PROJECT)
+	char cam_type[] = "SONY_IMX258\n";
 #else
 	char cam_type[] = "SONY_IMX563\n";
 #endif
@@ -2454,7 +2462,18 @@ static ssize_t gyro_noise_stdev_show(struct device *dev,
 	int result = 0;
 	long stdev_data_x = 0, stdev_data_y = 0;
 
+	if (!g_o_ctrl->is_power_up) {
+		CAM_INFO(CAM_OIS, "power up OIS");
+		cam_ois_power_up(g_o_ctrl);
+	}
+	msleep(20);
+	
 	result = cam_ois_gyro_sensor_noise_check(g_o_ctrl, &stdev_data_x, &stdev_data_y);
+
+	if (g_o_ctrl->is_power_up) {
+		CAM_INFO(CAM_OIS, "power down OIS");
+		cam_ois_power_down(g_o_ctrl);
+	}
 
 	if (stdev_data_x < 0 && stdev_data_y < 0) {
 		return scnprintf(buf, PAGE_SIZE, "%d,-%ld.%03ld,-%ld.%03ld\n", result, abs(stdev_data_x / 1000),
@@ -3202,6 +3221,76 @@ static ssize_t rear_actuator_power_store(struct device *dev,
 	return size;
 }
 
+#if defined(CONFIG_SAMSUNG_ACTUATOR_READ_HALL_VALUE)
+uint16_t af_hall = 0;
+
+static ssize_t rear_af_hall_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+	af_hall = 0;
+	
+	if(NULL == g_a_ctrls[SEC_WIDE_SENSOR])
+	{
+		CAM_ERR(CAM_ACTUATOR,"[AF] No actuator exists\n");
+		return 0;
+	}
+
+	if (g_a_ctrls[SEC_WIDE_SENSOR]->cam_act_state == CAM_ACTUATOR_START)
+		rc = cam_actuator_read_hall_value(g_a_ctrls[SEC_WIDE_SENSOR], &af_hall);
+	else {
+		CAM_ERR(CAM_ACTUATOR,"[AF] Actuator is not starting\n");
+		return 0;
+	}
+
+	if (rc < 0) {
+		CAM_ERR(CAM_ACTUATOR,"[AF] Hall read failed\n");
+		return 0;
+	}
+
+	CAM_INFO(CAM_ACTUATOR,"[AF] af_hall : %u\n", af_hall);
+
+	rc = scnprintf(buf, PAGE_SIZE, "%u\n", af_hall);
+
+	if (rc)
+		return rc;
+	return 0;
+}
+
+static ssize_t rear3_af_hall_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int rc = 0;
+	af_hall = 0;
+
+	if(NULL == g_a_ctrls[SEC_TELE_SENSOR])
+	{
+		CAM_ERR(CAM_ACTUATOR,"[AF] No actuator3 exists\n");
+		return 0;
+	}
+
+	if (g_a_ctrls[SEC_TELE_SENSOR]->cam_act_state == CAM_ACTUATOR_START)
+		rc = cam_actuator_read_hall_value(g_a_ctrls[SEC_TELE_SENSOR], &af_hall);
+	else {
+		CAM_ERR(CAM_ACTUATOR,"[AF] Actuator is not starting\n");
+		return 0;
+	}
+
+	if (rc < 0) {
+		CAM_ERR(CAM_ACTUATOR,"[AF] Hall read failed\n");
+		return 0;
+	}
+
+	CAM_INFO(CAM_ACTUATOR,"[AF] af_hall : %u\n", af_hall);
+
+	rc = scnprintf(buf, PAGE_SIZE, "%u\n", af_hall);
+
+	if (rc)
+		return rc;
+	return 0;
+}
+#endif
+
 #if defined(CONFIG_CAMERA_ADAPTIVE_MIPI)
 char mipi_string[20] = {0, };
 static ssize_t front_camera_mipi_clock_show(struct device *dev,
@@ -3613,6 +3702,71 @@ static ssize_t rear3_camera_hw_param_store(struct device *dev,
 }
 #endif
 
+#if defined(CONFIG_SAMSUNG_REAR_QUADRA)
+static ssize_t rear4_camera_hw_param_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	ssize_t rc = 0;
+	int16_t moduelid_chk = 0;
+	struct cam_hw_param *ec_param = NULL;
+
+	msm_is_sec_get_rear4_hw_param(&ec_param);
+
+	if (ec_param != NULL) {
+		moduelid_chk = is_hw_param_valid_module_id(rear4_module_id);
+
+		switch (moduelid_chk) {
+		case HW_PARAMS_MI_VALID:
+			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIR4_ID\":\"%c%c%c%c%cXX%02X%02X%02X\",\"I2CR4_AF\":\"%d\",\"I2CR4_COM\":\"%d\",\"I2CR4_OIS\":\"%d\","
+					"\"I2CR4_SEN\":\"%d\",\"MIPIR4_COM\":\"%d\",\"MIPIR4_SEN\":\"%d\"\n",
+					rear4_module_id[0], rear4_module_id[1], rear4_module_id[2], rear4_module_id[3],
+					rear4_module_id[4], rear4_module_id[7], rear4_module_id[8], rear4_module_id[9],
+					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
+					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
+					ec_param->mipi_sensor_err_cnt);
+			break;
+
+		case HW_PARAMS_MIR_ERR_1:
+			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIR4_ID\":\"MIR_ERR\",\"I2CR4_AF\":\"%d\",\"I2CR4_COM\":\"%d\",\"I2CR4_OIS\":\"%d\","
+					"\"I2CR4_SEN\":\"%d\",\"MIPIR4_COM\":\"%d\",\"MIPIR4_SEN\":\"%d\"\n",
+					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
+					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
+					ec_param->mipi_sensor_err_cnt);
+			break;
+
+		default:
+			rc = scnprintf(buf, PAGE_SIZE, "\"CAMIR4_ID\":\"MI_NO\",\"I2CR4_AF\":\"%d\",\"I2CR4_COM\":\"%d\",\"I2CR4_OIS\":\"%d\","
+					"\"I2CR4_SEN\":\"%d\",\"MIPIR4_COM\":\"%d\",\"MIPIR4_SEN\":\"%d\"\n",
+					ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
+					ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt,
+					ec_param->mipi_sensor_err_cnt);
+			break;
+		}
+	}
+
+	if (rc)
+		return rc;
+	return 0;
+}
+
+static ssize_t rear4_camera_hw_param_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct cam_hw_param *ec_param = NULL;
+
+	CAM_DBG(CAM_UTIL, "[R4] buf : %s\n", buf);
+
+	if (!strncmp(buf, "c", 1)) {
+		msm_is_sec_get_rear4_hw_param(&ec_param);
+		if (ec_param != NULL) {
+			msm_is_sec_init_err_cnt_file(ec_param);
+		}
+	}
+
+	return size;
+}
+#endif
+
 #if defined(CONFIG_SAMSUNG_FRONT_DUAL)
 static ssize_t front2_camera_hw_param_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -4003,7 +4157,7 @@ static DEVICE_ATTR(rear3_camfw, S_IRUGO|S_IWUSR|S_IWGRP,
 	rear3_firmware_show, rear3_firmware_store);
 static DEVICE_ATTR(rear3_camfw_full, S_IRUGO|S_IWUSR|S_IWGRP,
 	rear3_firmware_full_show, rear3_firmware_full_store);
-#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_Q4Q_PROJECT)
 static DEVICE_ATTR(rear3_checkfw_user, S_IRUGO|S_IWUSR|S_IWGRP,
 	rear3_firmware_user_show, rear3_firmware_user_store);
 static DEVICE_ATTR(rear3_checkfw_factory, S_IRUGO|S_IWUSR|S_IWGRP,
@@ -4025,7 +4179,7 @@ static DEVICE_ATTR(rear3_dualcal_size, S_IRUGO, rear3_dual_cal_size_show, NULL);
 static DEVICE_ATTR(rear3_tilt, S_IRUGO, rear3_tilt_show, NULL);
 static DEVICE_ATTR(rear3_paf_cal_check, S_IRUGO,
 	rear3_paf_cal_check_show, NULL);
-#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_Q4Q_PROJECT)
 static DEVICE_ATTR(rear3_moduleid, S_IRUGO, rear3_moduleid_show, NULL);
 static DEVICE_ATTR(SVC_rear_module3, S_IRUGO, rear3_moduleid_show, NULL);
 #endif
@@ -4105,6 +4259,10 @@ static DEVICE_ATTR(rear2_hwparam, S_IRUGO|S_IWUSR|S_IWGRP,
 static DEVICE_ATTR(rear3_hwparam, S_IRUGO|S_IWUSR|S_IWGRP,
 	rear3_camera_hw_param_show, rear3_camera_hw_param_store);
 #endif
+#if defined(CONFIG_SAMSUNG_REAR_QUADRA)
+static DEVICE_ATTR(rear4_hwparam, S_IRUGO|S_IWUSR|S_IWGRP,
+	rear4_camera_hw_param_show, rear4_camera_hw_param_store);
+#endif
 #if defined(CONFIG_SAMSUNG_FRONT_DUAL)
 static DEVICE_ATTR(front2_hwparam, S_IRUGO|S_IWUSR|S_IWGRP,
 	front2_camera_hw_param_show, front2_camera_hw_param_store);
@@ -4126,6 +4284,11 @@ static DEVICE_ATTR(front2_hwparam, S_IRUGO|S_IWUSR|S_IWGRP,
 #endif
 
 static DEVICE_ATTR(rear_actuator_power, S_IWUSR|S_IWGRP, NULL, rear_actuator_power_store);
+
+#if defined(CONFIG_SAMSUNG_ACTUATOR_READ_HALL_VALUE)
+static DEVICE_ATTR(rear_af_hall, S_IRUGO, rear_af_hall_show, NULL);
+static DEVICE_ATTR(rear3_af_hall, S_IRUGO, rear3_af_hall_show, NULL);
+#endif
 
 #if defined(CONFIG_SAMSUNG_OIS_MCU_STM32) || defined(CONFIG_SAMSUNG_OIS_RUMBA_S4)
 static DEVICE_ATTR(ois_power, S_IWUSR, NULL, ois_power_store);
@@ -4273,6 +4436,10 @@ const struct device_attribute *rear_attrs[] = {
 	&dev_attr_rear_mtf2_exif,
 	&dev_attr_ssrm_camera_info,
 	&dev_attr_rear_actuator_power,
+#if defined(CONFIG_SAMSUNG_ACTUATOR_READ_HALL_VALUE)
+	&dev_attr_rear_af_hall,
+	&dev_attr_rear3_af_hall,
+#endif
 	&dev_attr_supported_cameraIds,
 #if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
 	&dev_attr_rear3_camfw,
@@ -4287,7 +4454,7 @@ const struct device_attribute *rear_attrs[] = {
 	&dev_attr_rear3_dualcal,
 	&dev_attr_rear3_dualcal_size,
 	&dev_attr_rear3_paf_cal_check,
-#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_Q4Q_PROJECT)
 	&dev_attr_rear3_moduleid,
 	&dev_attr_rear3_checkfw_user,
 	&dev_attr_rear3_checkfw_factory,
@@ -4335,6 +4502,9 @@ const struct device_attribute *rear_attrs[] = {
 	&dev_attr_rear2_hwparam,
 #if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
 	&dev_attr_rear3_hwparam,
+#endif
+#if defined(CONFIG_SAMSUNG_REAR_QUADRA)
+	&dev_attr_rear4_hwparam,
 #endif
 #endif
 #endif
@@ -4490,7 +4660,7 @@ static struct attribute *svc_cam_attrs[] = {
 #if defined(CONFIG_SAMSUNG_REAR_DUAL)
 	&dev_attr_SVC_rear_module2.attr,
 #endif
-#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT)
+#if defined(CONFIG_SEC_B0Q_PROJECT) || defined(CONFIG_SEC_R0Q_PROJECT) || defined(CONFIG_SEC_G0Q_PROJECT) || defined(CONFIG_SEC_Q4Q_PROJECT)
 	&dev_attr_SVC_rear_module3.attr,
 #endif
 #if defined(CONFIG_SAMSUNG_REAR_QUADRA)

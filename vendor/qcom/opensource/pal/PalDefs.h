@@ -341,7 +341,7 @@ typedef enum {
     PAL_STREAM_VOICE_CALL_MUSIC = 7,      /**< :incall music */
     PAL_STREAM_GENERIC = 8,               /**< :generic playback audio*/
     PAL_STREAM_RAW = 9,                   /**< pcm no post processing*/
-    PAL_STREAM_VOICE_ACTIVATION = 10,     /**< voice activation*/
+    PAL_STREAM_VOICE_RECOGNITION = 10,     /**< voice recognition*/
     PAL_STREAM_VOICE_CALL_RECORD = 11,    /**< incall record */
     PAL_STREAM_VOICE_CALL_TX = 12,        /**< incall record, uplink */
     PAL_STREAM_VOICE_CALL_RX_TX = 13,     /**< incall record, uplink & Downlink */
@@ -427,6 +427,8 @@ typedef enum {
     PAL_STREAM_LOOPBACK_COMPRESS,
     PAL_STREAM_LOOPBACK_FM,
     PAL_STREAM_LOOPBACK_KARAOKE,
+    PAL_STREAM_LOOPBACK_PLAYBACK_ONLY,
+    PAL_STREAM_LOOPBACK_CAPTURE_ONLY,
 } pal_stream_loopback_type_t;
 
 typedef enum {
@@ -537,7 +539,7 @@ const std::map<std::string, uint32_t> usecaseIdLUT {
     {std::string{ "PAL_STREAM_VOICE_CALL_MUSIC" },         PAL_STREAM_VOICE_CALL_MUSIC},
     {std::string{ "PAL_STREAM_GENERIC" },                  PAL_STREAM_GENERIC},
     {std::string{ "PAL_STREAM_RAW" },                      PAL_STREAM_RAW},
-    {std::string{ "PAL_STREAM_VOICE_ACTIVATION" },         PAL_STREAM_VOICE_ACTIVATION},
+    {std::string{ "PAL_STREAM_VOICE_RECOGNITION" },        PAL_STREAM_VOICE_RECOGNITION},
     {std::string{ "PAL_STREAM_VOICE_CALL_RECORD" },        PAL_STREAM_VOICE_CALL_RECORD},
     {std::string{ "PAL_STREAM_VOICE_CALL_TX" },            PAL_STREAM_VOICE_CALL_TX},
     {std::string{ "PAL_STREAM_VOICE_CALL_RX_TX" },         PAL_STREAM_VOICE_CALL_RX_TX},
@@ -566,7 +568,7 @@ const std::map<uint32_t, std::string> streamNameLUT {
     {PAL_STREAM_VOICE_CALL_MUSIC,   std::string{ "PAL_STREAM_VOICE_CALL_MUSIC" } },
     {PAL_STREAM_GENERIC,            std::string{ "PAL_STREAM_GENERIC" } },
     {PAL_STREAM_RAW,                std::string{ "PAL_STREAM_RAW" } },
-    {PAL_STREAM_VOICE_ACTIVATION,   std::string{ "PAL_STREAM_VOICE_ACTIVATION" } },
+    {PAL_STREAM_VOICE_RECOGNITION,  std::string{ "PAL_STREAM_VOICE_RECOGNITION" } },
     {PAL_STREAM_VOICE_CALL_RECORD,  std::string{ "PAL_STREAM_VOICE_CALL_RECORD" } },
     {PAL_STREAM_VOICE_CALL_TX,      std::string{ "PAL_STREAM_VOICE_CALL_TX" } },
     {PAL_STREAM_VOICE_CALL_RX_TX,   std::string{ "PAL_STREAM_VOICE_CALL_RX_TX" } },
@@ -592,12 +594,14 @@ const std::map<uint32_t, std::string> vsidLUT {
 };
 
 const std::map<uint32_t, std::string> loopbackLUT {
-    {PAL_STREAM_LOOPBACK_PCM,        std::string{ "PAL_STREAM_LOOPBACK_PCM" } },
-    {PAL_STREAM_LOOPBACK_HFP_RX,     std::string{ "PAL_STREAM_LOOPBACK_HFP_RX" } },
-    {PAL_STREAM_LOOPBACK_HFP_TX,     std::string{ "PAL_STREAM_LOOPBACK_HFP_TX" } },
-    {PAL_STREAM_LOOPBACK_COMPRESS,   std::string{ "PAL_STREAM_LOOPBACK_COMPRESS" } },
-    {PAL_STREAM_LOOPBACK_FM,         std::string{ "PAL_STREAM_LOOPBACK_FM" } },
-    {PAL_STREAM_LOOPBACK_KARAOKE,    std::string{ "PAL_STREAM_LOOPBACK_KARAOKE" }},
+    {PAL_STREAM_LOOPBACK_PCM,           std::string{ "PAL_STREAM_LOOPBACK_PCM" } },
+    {PAL_STREAM_LOOPBACK_HFP_RX,        std::string{ "PAL_STREAM_LOOPBACK_HFP_RX" } },
+    {PAL_STREAM_LOOPBACK_HFP_TX,        std::string{ "PAL_STREAM_LOOPBACK_HFP_TX" } },
+    {PAL_STREAM_LOOPBACK_COMPRESS,      std::string{ "PAL_STREAM_LOOPBACK_COMPRESS" } },
+    {PAL_STREAM_LOOPBACK_FM,            std::string{ "PAL_STREAM_LOOPBACK_FM" } },
+    {PAL_STREAM_LOOPBACK_KARAOKE,       std::string{ "PAL_STREAM_LOOPBACK_KARAOKE" }},
+    {PAL_STREAM_LOOPBACK_PLAYBACK_ONLY, std::string{ "PAL_STREAM_LOOPBACK_PLAYBACK_ONLY" } },
+    {PAL_STREAM_LOOPBACK_CAPTURE_ONLY,  std::string{ "PAL_STREAM_LOOPBACK_CAPTURE_ONLY" } },
 };
 
 #endif
@@ -672,6 +676,7 @@ typedef struct dynamic_media_config {
     uint32_t sample_rate;                /**< sample rate */
     uint32_t format;                     /**< format */
     uint32_t mask;                       /**< channel mask */
+    bool jack_status;                    /**< input/output jack status*/
 } dynamic_media_config_t;
 
 /**  Available stream flags of an audio session*/
@@ -875,17 +880,22 @@ typedef enum {
     PAL_PARAM_ID_CHARGER_STATE = 53,
     PAL_PARAM_ID_BT_SCO_NREC = 54,
     PAL_PARAM_ID_VOLUME_USING_SET_PARAM = 55,
+    PAL_PARAM_ID_UHQA_FLAG = 56,
+    PAL_PARAM_ID_STREAM_ATTRIBUTES = 57,
 #ifdef SEC_AUDIO_LOOPBACK_TEST
     PAL_PARAM_ID_LOOPBACK_MODE = 1001,
 #endif
 #if defined(SEC_AUDIO_DUAL_SPEAKER) || defined(SEC_AUDIO_SCREEN_MIRRORING) // { SUPPORT_VOIP_VIA_SMART_VIEW
     PAL_PARAM_ID_SPEAKER_STATUS = 1002,
 #endif // } SUPPORT_VOIP_VIA_SMART_VIEW
-#ifdef SEC_AUDIO_SUPPORT_UHQ
+#if 0 // TEMP_FOR_FIX def SEC_AUDIO_SUPPORT_UHQ
     PAL_PARAM_ID_UHQA_FLAG = 1003,
 #endif
 #ifdef SEC_AUDIO_FMRADIO
     PAL_PARAM_ID_FMRADIO_USB_GAIN = 1004,
+#endif
+#ifdef SEC_AUDIO_SPEAKER_AMP_RCV_BOOST_MODE
+    PAL_PARAM_ID_CALL_2G_TDMA = 1006,
 #endif
 #ifdef SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD
     PAL_PARAM_ID_BT_A2DP_DYN_BITRATE = 2001,
@@ -1016,6 +1026,15 @@ typedef enum {
 typedef struct pal_param_device_rotation {
     pal_speaker_rotation_type    rotation_type;
 } pal_param_device_rotation_t;
+
+#ifndef SEC_AUDIO_SUPPORT_UHQ // use pal_param_uhqa_state define on SecPalDefs.h
+/* Payload For ID: PAL_PARAM_ID_UHQA_FLAG
+ * Description   : use to enable/disable USB high quality audio from userend
+*/
+typedef struct pal_param_uhqa_state {
+    bool uhqa_state;
+} pal_param_uhqa_t;
+#endif
 
 /* Payload For ID: PAL_PARAM_ID_BT_SCO*
  * Description   : BT SCO related device parameters

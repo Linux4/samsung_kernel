@@ -4551,6 +4551,7 @@ static int __cam_isp_ctx_flush_req_in_top_state(
 	struct cam_hw_reset_args          reset_args;
 	struct cam_req_mgr_timer_notify   timer;
 	bool                              full_recovery = false;
+	struct cam_subdev_msg_payload subdev_msg = {0};
 
 	ctx_isp = (struct cam_isp_context *) ctx->ctx_priv;
 
@@ -4625,9 +4626,11 @@ static int __cam_isp_ctx_flush_req_in_top_state(
 			CAM_INFO(CAM_ISP,
 				"CSID reset timed out in ctx: %u on link: 0x%x seeking full recovery",
 				ctx->ctx_id, ctx->link_hdl);
+
 			full_recovery = true;
+			subdev_msg.priv_data = (void *) &full_recovery;
 			cam_subdev_notify_message(CAM_SENSOR_DEVICE_TYPE,
-				CAM_SUBDEV_MESSAGE_IRQ_ERR, full_recovery);
+				CAM_SUBDEV_MESSAGE_IRQ_ERR, &subdev_msg);
 		}
 	}
 
@@ -6882,9 +6885,9 @@ static int __cam_isp_ctx_reset_and_recover(
 	struct cam_ctx_request               *req;
 	struct cam_isp_ctx_req               *req_isp;
 
-	spin_lock(&ctx->lock);
+	spin_lock_bh(&ctx->lock);
 	if (ctx_isp->active_req_cnt) {
-		spin_unlock(&ctx->lock);
+		spin_unlock_bh(&ctx->lock);
 		CAM_WARN(CAM_ISP,
 			"Active list not empty: %u in ctx: %u on link: 0x%x, retry recovery for req: %lld after buf_done",
 			ctx_isp->active_req_cnt, ctx->ctx_id,
@@ -6893,7 +6896,7 @@ static int __cam_isp_ctx_reset_and_recover(
 	}
 
 	if (ctx->state != CAM_CTX_ACTIVATED) {
-		spin_unlock(&ctx->lock);
+		spin_unlock_bh(&ctx->lock);
 		CAM_ERR(CAM_ISP,
 			"In wrong state %d, for recovery ctx: %u in link: 0x%x recovery req: %lld",
 			ctx->state, ctx->ctx_id,
@@ -6904,16 +6907,16 @@ static int __cam_isp_ctx_reset_and_recover(
 
 	if (list_empty(&ctx->pending_req_list)) {
 		/* Cannot start with no request */
-		spin_unlock(&ctx->lock);
+		spin_unlock_bh(&ctx->lock);
 		CAM_ERR(CAM_ISP,
 			"Failed to reset and recover last_applied_req: %llu in ctx: %u on link: 0x%x",
 			ctx_isp->last_applied_req_id, ctx->ctx_id, ctx->link_hdl);
 		rc = -EFAULT;
 		goto end;
 	}
-	spin_unlock(&ctx->lock);
 
 	if (!ctx_isp->hw_ctx) {
+		spin_unlock_bh(&ctx->lock);
 		CAM_ERR(CAM_ISP,
 			"Invalid hw context pointer ctx: %u on link: 0x%x",
 			ctx->ctx_id, ctx->link_hdl);
@@ -6926,6 +6929,8 @@ static int __cam_isp_ctx_reset_and_recover(
 
 	req = list_first_entry(&ctx->pending_req_list,
 		struct cam_ctx_request, list);
+	spin_unlock_bh(&ctx->lock);
+
 	req_isp = (struct cam_isp_ctx_req *) req->req_priv;
 	req_isp->bubble_detected = false;
 

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -73,6 +74,7 @@ static bool karaoke = true;
 #else
 static bool karaoke = false;
 #endif
+static bool hac_voip = false;
 
 static bool is_pcm_format(audio_format_t format)
 {
@@ -129,15 +131,32 @@ class AutoPerfLock {
 public :
     AutoPerfLock() {
         std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
-        if (adevice)
-            AudioExtn::audio_extn_perf_lock_acquire(&adevice->perf_lock_handle, 0,
-                    adevice->perf_lock_opts, adevice->perf_lock_opts_size);
+        if (adevice) {
+            adevice->adev_perf_mutex.lock();
+            ++adevice->perf_lock_acquire_cnt;
+            if (adevice->perf_lock_acquire_cnt == 1)
+                AudioExtn::audio_extn_perf_lock_acquire(&adevice->perf_lock_handle, 0,
+                        adevice->perf_lock_opts, adevice->perf_lock_opts_size);
+            AHAL_DBG("(Acquired) perf_lock_handle: 0x%x, count: %d",
+                    adevice->perf_lock_handle, adevice->perf_lock_acquire_cnt);
+            adevice->adev_perf_mutex.unlock();
+        }
     }
 
     ~AutoPerfLock() {
         std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
-        if (adevice)
-            AudioExtn::audio_extn_perf_lock_release(&adevice->perf_lock_handle);
+        if (adevice) {
+            adevice->adev_perf_mutex.lock();
+            AHAL_DBG("(release) perf_lock_handle: 0x%x, count: %d",
+                    adevice->perf_lock_handle, adevice->perf_lock_acquire_cnt);
+            if (adevice->perf_lock_acquire_cnt > 0)
+                --adevice->perf_lock_acquire_cnt;
+            if (adevice->perf_lock_acquire_cnt == 0) {
+                AHAL_DBG("Releasing perf_lock_handle: 0x%x", adevice->perf_lock_handle);
+                AudioExtn::audio_extn_perf_lock_release(&adevice->perf_lock_handle);
+            }
+            adevice->adev_perf_mutex.unlock();
+        }
     }
 };
 
@@ -224,6 +243,57 @@ bool StreamPrimary::GetSupportedConfig(bool isOutStream,
     }
 
     return found;
+}
+
+int StreamPrimary::setPalStreamEffectParams(uint32_t tag_id,
+        pal_effect_custom_payload_t *payload, uint32_t payload_size)
+{
+    int ret = 0;
+    uint32_t param_id;
+    uint8_t *payload_ptr = nullptr;
+    pal_param_payload *pal_payload = nullptr;
+    effect_pal_payload_t *effect_payload = nullptr;
+    pal_effect_custom_payload_t *custom_payload = nullptr;
+    uint32_t pal_payload_size = sizeof(pal_param_payload) +
+                                sizeof(effect_pal_payload_t) +
+                                sizeof(pal_effect_custom_payload_t) +
+                                payload_size;
+
+    if (!pal_stream_handle_) {
+        AHAL_ERR("pal stream handle not opened, cannot set param");
+        return -EINVAL;
+    }
+
+    payload_ptr = (uint8_t *)calloc(1, pal_payload_size);
+    if (!payload_ptr) {
+        AHAL_ERR("failed to alloc memory for size %d", pal_payload_size);
+        return -ENOMEM;
+    }
+
+    pal_payload = (pal_param_payload *)payload_ptr;
+    pal_payload->payload_size = sizeof(effect_pal_payload_t) +
+                                sizeof(pal_effect_custom_payload_t) +
+                                payload_size;
+    effect_payload = (effect_pal_payload_t *)(payload_ptr + sizeof(pal_param_payload));
+    effect_payload->isTKV = PARAM_NONTKV;
+    effect_payload->tag = tag_id;
+    effect_payload->payloadSize = sizeof(pal_effect_custom_payload_t) +
+                                  payload_size;
+
+    custom_payload = (pal_effect_custom_payload_t *)(payload_ptr +
+                                                   sizeof(pal_param_payload) +
+                                                   sizeof(effect_pal_payload_t));
+    custom_payload->paramId = payload->paramId;
+    memcpy(custom_payload->data, payload->data, payload_size);
+
+    ret = pal_stream_set_param(pal_stream_handle_, PAL_PARAM_ID_UIEFFECT, pal_payload);
+    if (ret)
+        AHAL_ERR("Failed to set stream param, ret %d", ret);
+
+    if (pal_payload)
+        free(pal_payload);
+
+    return ret;
 }
 
 #if 0
@@ -616,6 +686,9 @@ static uint32_t astream_get_latency(const struct audio_stream_out *stream) {
     std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
     std::shared_ptr<StreamOutPrimary> astream_out;
     uint32_t period_ms, latency = 0;
+    int trial = 0;
+    char value[PROPERTY_VALUE_MAX] = {0};
+    int low_latency_period_size = LOW_LATENCY_PLAYBACK_PERIOD_SIZE;
 
     if (adevice) {
         astream_out = adevice->OutGetStream((audio_stream_t*)stream);
@@ -648,24 +721,30 @@ static uint32_t astream_get_latency(const struct audio_stream_out *stream) {
         latency += StreamOutPrimary::GetRenderLatency(astream_out->flags_) / 1000;
         break;
     case USECASE_AUDIO_PLAYBACK_LOW_LATENCY:
+        if (property_get("vendor.audio_hal.period_size", value, NULL) > 0) {
+            trial = atoi(value);
+            if (astream_out->period_size_is_plausible_for_low_latency(trial))
+                low_latency_period_size = trial;
+        }
+        latency = (LOW_LATENCY_PLAYBACK_PERIOD_COUNT * low_latency_period_size * 1000)/ (astream_out->GetSampleRate());
+        latency += StreamOutPrimary::GetRenderLatency(astream_out->flags_) / 1000;
+        break;
 #ifndef SEC_AUDIO_SUPPORT_HAPTIC_PLAYBACK // Set the same as Generic
     case USECASE_AUDIO_PLAYBACK_WITH_HAPTICS:
-#endif
+
         latency = LOW_LATENCY_OUTPUT_PERIOD_DURATION * LOW_LATENCY_PLAYBACK_PERIOD_COUNT;
         latency += StreamOutPrimary::GetRenderLatency(astream_out->flags_) / 1000;
         break;
-    case USECASE_AUDIO_PLAYBACK_VOIP:
-#ifdef SEC_AUDIO_CALL_VOIP
-        latency += VOIP_PERIOD_COUNT_DEFAULT * DEFAULT_VOIP_BUF_DURATION_MS;
-#else
-        latency += (VOIP_PERIOD_COUNT_DEFAULT * DEFAULT_VOIP_BUF_DURATION_MS * DEFAULT_VOIP_BIT_DEPTH_BYTE)/2;
 #endif
+    case USECASE_AUDIO_PLAYBACK_VOIP:
+        latency += VOIP_PERIOD_COUNT_DEFAULT * DEFAULT_VOIP_BUF_DURATION_MS;
         break;
     default:
         latency += StreamOutPrimary::GetRenderLatency(astream_out->flags_) / 1000;
         break;
     }
 
+#ifndef SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD
     // accounts for A2DP encoding and sink latency
     pal_param_bta2dp_t *param_bt_a2dp = NULL;
     size_t size = 0;
@@ -677,7 +756,7 @@ static uint32_t astream_get_latency(const struct audio_stream_out *stream) {
         if (!ret && param_bt_a2dp)
             latency += param_bt_a2dp->latency;
     }
-
+#endif
     AHAL_VERBOSE("Latency %d", latency);
     return latency;
 }
@@ -740,18 +819,32 @@ static int out_get_render_position(const struct audio_stream_out *stream,
     if (astream_out) {
         switch (astream_out->GetPalStreamType(astream_out->flags_)) {
         case PAL_STREAM_COMPRESSED:
-           ret = astream_out->GetFrames(&frames);
-           if (ret != 0) {
-              AHAL_ERR("Get DSP Frames failed %d", ret);
-              return ret;
-           }
-           *dsp_frames = (uint32_t) frames;
-           break;
+            ret = astream_out->GetFrames(&frames);
+            if (ret != 0) {
+                AHAL_ERR("Get DSP Frames failed %d", ret);
+                return ret;
+            }
+            *dsp_frames = (uint32_t) frames;
+            break;
+        case PAL_STREAM_PCM_OFFLOAD:
+        case PAL_STREAM_LOW_LATENCY:
+        case PAL_STREAM_DEEP_BUFFER:
+#ifdef SEC_AUDIO_EARLYDROP_PATCH
+            frames =  astream_out->GetFramesWritten(NULL);
+            *dsp_frames = (uint32_t) frames;
+#else
+            ret =  astream_out->GetFramesWritten(NULL);
+            if (ret < 0) {
+                AHAL_ERR("Get DSP Frames failed %d", ret);
+                return ret;
+            }
+            *dsp_frames = ret;
+#endif
+            break;
         default:
-           break;
+            break;
         }
     }
-
     return 0;
 }
 
@@ -1112,7 +1205,9 @@ exit:
 
 int64_t StreamInPrimary::GetSourceLatency(audio_input_flags_t halStreamFlags)
 {
-    struct pal_stream_attributes streamAttributes_;
+    // check how to get dsp_latency value from platform info xml instead of hardcoding
+    return 0;
+    /*struct pal_stream_attributes streamAttributes_;
     streamAttributes_.type = StreamInPrimary::GetPalStreamType(halStreamFlags,
         config_.sample_rate);
     AHAL_VERBOSE(" type %d", streamAttributes_.type);
@@ -1128,13 +1223,12 @@ int64_t StreamInPrimary::GetSourceLatency(audio_input_flags_t halStreamFlags)
         //TODO: Add more streamtypes if available in pal
     default:
         return 0;
-    }
+    }*/
 }
 
 uint64_t StreamInPrimary::GetFramesRead(int64_t* time)
 {
     uint64_t signed_frames = 0;
-    uint64_t read_frames = 0;
     uint64_t kernel_frames = 0;
     size_t kernel_buffer_size = 0;
     int64_t dsp_latency = 0;
@@ -1144,32 +1238,13 @@ uint64_t StreamInPrimary::GetFramesRead(int64_t* time)
         return 0;
     }
 
+    //TODO: need to get this latency from xml instead of hardcoding
     stream_mutex_.lock();
-    /* This adjustment accounts for buffering after app processor
-     * It is based on estimated DSP latency per use case, rather than exact.
-     */
     dsp_latency = StreamInPrimary::GetSourceLatency(flags_);
 
-    read_frames = mBytesRead / audio_bytes_per_frame(
+    signed_frames = mBytesRead / audio_bytes_per_frame(
         audio_channel_count_from_in_mask(config_.channel_mask),
         config_.format);
-
-    /* not querying actual state of buffering in kernel as it would involve an ioctl call
-     * which then needs protection, this causes delay in TS query for pcm_offload usecase
-     * hence only estimate.
-     */
-    kernel_buffer_size = fragment_size_ * fragments_;
-    kernel_frames = kernel_buffer_size /
-        audio_bytes_per_frame(
-            audio_channel_count_from_in_mask(config_.channel_mask),
-            config_.format);
-
-
-#ifdef SEC_AUDIO_SAMSUNGRECORD  // TEMP FIX
-    signed_frames = read_frames;
-#else
-    signed_frames = read_frames + kernel_frames;
-#endif
 
     *time = (readAt.tv_sec * 1000000000LL) + readAt.tv_nsec - (dsp_latency * 1000LL);
 
@@ -1188,8 +1263,7 @@ uint64_t StreamInPrimary::GetFramesRead(int64_t* time)
     }
     stream_mutex_.unlock();
 
-    AHAL_VERBOSE("signed frames %lld read frames %lld kernel frames %lld",
-        (long long)signed_frames, (long long)read_frames, (long long)kernel_frames);
+    AHAL_VERBOSE("signed frames %lld", (long long)signed_frames);
 
     return signed_frames;
 }
@@ -1540,6 +1614,8 @@ pal_stream_type_t StreamInPrimary::GetPalStreamType(
                                         audio_input_flags_t halStreamFlags,
                                         uint32_t sample_rate) {
     pal_stream_type_t palStreamType = PAL_STREAM_LOW_LATENCY;
+    std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
+
     if ((halStreamFlags & AUDIO_INPUT_FLAG_VOIP_TX)!=0) {
          palStreamType = PAL_STREAM_VOIP_TX;
          return palStreamType;
@@ -1564,11 +1640,22 @@ pal_stream_type_t StreamInPrimary::GetPalStreamType(
     if (source_ == AUDIO_SOURCE_UNPROCESSED) {
         palStreamType = PAL_STREAM_RAW;
         return palStreamType;
+    } else if (source_ == AUDIO_SOURCE_VOICE_RECOGNITION) {
+#ifdef SEC_AUDIO_HOTWORD
+        palStreamType = PAL_STREAM_DEEP_BUFFER;
+#else
+        palStreamType = PAL_STREAM_VOICE_RECOGNITION;
+#endif
+        return palStreamType;
     }
 
     switch (halStreamFlags) {
         case AUDIO_INPUT_FLAG_FAST:
+#ifdef SEC_AUDIO_SAMSUNGRECORD
+            palStreamType = PAL_STREAM_DEEP_BUFFER;
+#else
             palStreamType = PAL_STREAM_LOW_LATENCY;
+#endif
             break;
         case AUDIO_INPUT_FLAG_RAW:
         case AUDIO_INPUT_FLAG_DIRECT:
@@ -1582,15 +1669,22 @@ pal_stream_type_t StreamInPrimary::GetPalStreamType(
             break;
         case AUDIO_INPUT_FLAG_HW_HOTWORD:
         case AUDIO_INPUT_FLAG_NONE:
-            if (isDeviceAvailable(PAL_DEVICE_IN_TELEPHONY_RX)) {
-                if (source_ == AUDIO_SOURCE_VOICE_UPLINK ||
-                    source_ == AUDIO_SOURCE_VOICE_DOWNLINK ||
-                    source_ == AUDIO_SOURCE_VOICE_CALL) {
+#ifdef SEC_AUDIO_SUPPORT_REMOTE_MIC
+        case AUDIO_INPUT_FLAG_REMOTEMIC:
+#endif
+            palStreamType = PAL_STREAM_DEEP_BUFFER;
+            if (source_ == AUDIO_SOURCE_VOICE_UPLINK ||
+                source_ == AUDIO_SOURCE_VOICE_DOWNLINK ||
+                source_ == AUDIO_SOURCE_VOICE_CALL) {
+                if (isDeviceAvailable(PAL_DEVICE_IN_TELEPHONY_RX) ||
+                   (adevice && adevice->voice_ && adevice->voice_->IsAnyCallActive())) {
                     palStreamType = PAL_STREAM_VOICE_CALL_RECORD;
-                } else
+                }
+            } else {
+                if (isDeviceAvailable(PAL_DEVICE_IN_TELEPHONY_RX)) {
                     palStreamType = PAL_STREAM_PROXY;
-            } else
-                palStreamType = PAL_STREAM_DEEP_BUFFER;
+                }
+            }
             break;
         default:
             /*
@@ -1609,14 +1703,20 @@ pal_stream_type_t StreamInPrimary::GetPalStreamType(
 pal_stream_type_t StreamOutPrimary::GetPalStreamType(
                                     audio_output_flags_t halStreamFlags) {
     pal_stream_type_t palStreamType = PAL_STREAM_LOW_LATENCY;
-#ifdef SEC_AUDIO_CALL_FORWARDING
+#ifdef SEC_AUDIO_COMMON
     std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
     std::shared_ptr<SecAudioVoice> savoice = adevice->voice_->sec_voice_;
+    if (adevice->factory_->factory.incallmusic_loopback != INCALLMUSIC_LOOPBACK_OFF) {
+        palStreamType = PAL_STREAM_VOICE_CALL_MUSIC;
+        return palStreamType;
+    }
+#ifdef SEC_AUDIO_CALL_FORWARDING
     if (savoice->IsCallForwarding() && !savoice->is_shutter_playing) {
         palStreamType = PAL_STREAM_VOICE_CALL_MUSIC;
         return palStreamType;
     }
- #endif
+#endif
+#endif
     if ((halStreamFlags & AUDIO_OUTPUT_FLAG_VOIP_RX)!=0) {
         palStreamType = PAL_STREAM_VOIP_RX;
         return palStreamType;
@@ -1777,6 +1877,7 @@ int StreamOutPrimary::CreateMmapBuffer(int32_t min_size_frames,
     info->buffer_size_frames = palMmapBuf.buffer_size_frames;
     info->burst_size_frames = palMmapBuf.burst_size_frames;
     info->flags = (audio_mmap_buffer_flag) AUDIO_MMAP_APPLICATION_SHAREABLE;
+    mmap_shared_memory_fd = info->shared_memory_fd;
 
     stream_mutex_.unlock();
     return ret;
@@ -1787,6 +1888,8 @@ int StreamOutPrimary::Stop() {
 
     AHAL_DBG("Enter");
     stream_mutex_.lock();
+    if (usecase_ == USECASE_AUDIO_PLAYBACK_VOIP)
+        hac_voip = false;
     if (usecase_ == USECASE_AUDIO_PLAYBACK_MMAP &&
             pal_stream_handle_ && stream_started_) {
 
@@ -1839,10 +1942,18 @@ int StreamOutPrimary::Pause() {
     int ret = 0;
 
     AHAL_DBG("Enter" );
-    stream_mutex_.lock();
 
+    stream_mutex_.lock();
     if (!pal_stream_handle_ || !stream_started_) {
         AHAL_DBG("Stream not started yet");
+        ret = -1;
+        goto exit;
+    }
+    // only direct stream will receive pause/resume cmd from AudioFlinger,
+    // VOIP RX is specified to direct output in qcom audio policy config,
+    // which doesn't need pause/resume actually.
+    if (streamAttributes_.type == PAL_STREAM_VOIP_RX) {
+        AHAL_DBG("no need to pause for VOIP RX: %d");
         ret = -1;
         goto exit;
     }
@@ -1866,8 +1977,8 @@ int StreamOutPrimary::Resume() {
     int ret = 0;
 
     AHAL_DBG("Enter" );
-    stream_mutex_.lock();
 
+    stream_mutex_.lock();
     if (!pal_stream_handle_ || !stream_started_) {
         AHAL_DBG("Stream not started yet");
         ret = -1;
@@ -1892,6 +2003,7 @@ exit:
 int StreamOutPrimary::Flush() {
     int ret = 0;
     AHAL_DBG("Enter");
+
     stream_mutex_.lock();
     if (pal_stream_handle_) {
         if(stream_paused_ == true)
@@ -1910,6 +2022,7 @@ int StreamOutPrimary::Flush() {
         }
         mBytesWritten = 0;
     }
+    sendGaplessMetadata = true;
     stream_mutex_.unlock();
 
     if (ret)
@@ -1959,11 +2072,17 @@ int StreamOutPrimary::Standby() {
     std::shared_ptr<StreamOutPrimary> deep_out = adevice->OutGetStream(PAL_STREAM_DEEP_BUFFER);
 #endif
     if (pal_stream_handle_) {
+#ifdef SEC_AUDIO_CALL_VOIP
+        if (adevice->voice_ && adevice->voice_->sec_voice_->cng_enable &&
+            adevice->voice_->mode_ == AUDIO_MODE_IN_COMMUNICATION &&
+            usecase_ == USECASE_AUDIO_PLAYBACK_VOIP) {
+            adevice->voice_->sec_voice_->SetCNGForEchoRefMute(false);
+        }
+#endif
         ret = pal_stream_stop(pal_stream_handle_);
         if (ret) {
             AHAL_ERR("failed to stop stream.");
             ret = -EINVAL;
-            goto exit;
         }
         if (usecase_ == USECASE_AUDIO_PLAYBACK_WITH_HAPTICS && pal_haptics_stream_handle) {
             ret = pal_stream_stop(pal_haptics_stream_handle);
@@ -1971,9 +2090,11 @@ int StreamOutPrimary::Standby() {
                 AHAL_ERR("failed to stop haptics stream.");
             }
         }
+        if (usecase_ == USECASE_AUDIO_PLAYBACK_VOIP)
+            hac_voip = false;
      }
 
-#if 0//def SEC_AUDIO_DSM_AMP
+#ifdef SEC_AUDIO_DSM_AMP
     if (feedback_stream_handle_) {
         ret = pal_stream_stop(feedback_stream_handle_);
         if (ret) {
@@ -1993,6 +2114,7 @@ int StreamOutPrimary::Standby() {
 
     stream_started_ = false;
     stream_paused_ = false;
+    sendGaplessMetadata = true;
 
 #ifndef SEC_AUDIO_OFFLOAD
     if (CheckOffloadEffectsType(streamAttributes_.type)) {
@@ -2012,6 +2134,10 @@ int StreamOutPrimary::Standby() {
                 hapticBuffer = NULL;
             }
             hapticsBufSize = 0;
+            if (hapticsDevice) {
+                free(hapticsDevice);
+                hapticsDevice = NULL;
+            }
         }
     }
 
@@ -2047,6 +2173,11 @@ int StreamOutPrimary::Standby() {
         }
     }
 
+    if (mmap_shared_memory_fd >= 0) {
+        close(mmap_shared_memory_fd);
+        mmap_shared_memory_fd = -1;
+    }
+
     if (ret)
         ret = -EINVAL;
 
@@ -2058,16 +2189,15 @@ exit:
 
 int StreamOutPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, bool force_device_switch __unused) {
     int ret = 0, noPalDevices = 0;
-    bool forceRouting = false;
-    pal_device_id_t * deviceId;
-    struct pal_device* deviceIdConfigs;
-    pal_param_device_capability_t *device_cap_query;
+    pal_device_id_t * deviceId = nullptr;
+    struct pal_device* deviceIdConfigs = nullptr;
+    pal_param_device_capability_t *device_cap_query = nullptr;
     size_t payload_size = 0;
     dynamic_media_config_t dynamic_media_config;
     std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
 
     bool isHifiFilterEnabled = false;
-    bool *param_payload = &isHifiFilterEnabled;
+    bool *payload_hifiFilter = &isHifiFilterEnabled;
     size_t param_size = 0;
 
     stream_mutex_.lock();
@@ -2084,54 +2214,58 @@ int StreamOutPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, 
              AudioExtn::get_device_types(mAndroidOutDevices),
              mAndroidOutDevices.size());
 
-    forceRouting = AudioExtn::audio_devices_cmp(new_devices, audio_is_a2dp_out_device);
-#ifdef SEC_AUDIO_DUAL_SPEAKER
-#ifdef SEC_AUDIO_FMRADIO
-    if (!adevice->sec_device_->fm.on)
-#endif
-    forceRouting |= adevice->sec_device_->speaker_status_change;
-#endif
-
 #ifdef SEC_AUDIO_FMRADIO
     sec_stream_out_->RouteFMRadioStream(this, AudioExtn::get_device_types(new_devices));
 #endif
 
-    /* Ignore routing to same device unless it's forced */
-    if (!AudioExtn::audio_devices_empty(new_devices) || forceRouting) {
+    // (SEC_TEMP) forceRouting flag removed
+    if (!AudioExtn::audio_devices_empty(new_devices)) {
         // re-allocate mPalOutDevice and mPalOutDeviceIds
         if (new_devices.size() != mAndroidOutDevices.size()) {
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
-            delete [] mPalOutDeviceIds;
-            delete [] mPalOutDevice;
-            mPalOutDeviceIds = new pal_device_id_t[new_devices.size()];
-            mPalOutDevice = new pal_device[new_devices.size()];
-#else
             deviceId = (pal_device_id_t*) realloc(mPalOutDeviceIds,
                     new_devices.size() * sizeof(pal_device_id_t));
             deviceIdConfigs = (struct pal_device*) realloc(mPalOutDevice,
                     new_devices.size() * sizeof(struct pal_device));
             if (!deviceId || !deviceIdConfigs) {
-                AHAL_ERR("Failed to allocate PalOutDeviceIds!");
+                AHAL_ERR("Failed to allocate PalOutDeviceIds or deviceIdConfigs!");
+                if (deviceId)
+                    mPalOutDeviceIds = deviceId;
+                if (deviceIdConfigs)
+                    mPalOutDevice = deviceIdConfigs;
                 ret = -ENOMEM;
                 goto done;
             }
+
+            // init deviceId and deviceIdConfigs
+            memset(deviceId, 0, new_devices.size() * sizeof(pal_device_id_t));
+            memset(deviceIdConfigs, 0, new_devices.size() * sizeof(struct pal_device));
+
             mPalOutDeviceIds = deviceId;
             mPalOutDevice = deviceIdConfigs;
-#endif
         }
 
         noPalDevices = getPalDeviceIds(new_devices, mPalOutDeviceIds);
         AHAL_DBG("noPalDevices: %d , new_devices: %zu",
                 noPalDevices, new_devices.size());
 
-        if (noPalDevices != new_devices.size()) {
+        if (noPalDevices != new_devices.size() ||
+            noPalDevices >= PAL_DEVICE_IN_MAX) {
             AHAL_ERR("Device count mismatch! Expected: %zu Got: %d",
                     new_devices.size(), noPalDevices);
             ret = -EINVAL;
             goto done;
         }
 
-        device_cap_query = (pal_param_device_capability_t *)malloc(sizeof(pal_param_device_capability_t));
+        device_cap_query = (pal_param_device_capability_t *)
+                malloc(sizeof(pal_param_device_capability_t));
+        if (!device_cap_query) {
+            AHAL_ERR("Failed to allocate device_cap_query!");
+            ret = -ENOMEM;
+            goto done;
+        }
+
+        ret = pal_get_param(PAL_PARAM_ID_HIFI_PCM_FILTER,
+                            (void **)&payload_hifiFilter, &param_size, nullptr);
 
         for (int i = 0; i < noPalDevices; i++) {
             mPalOutDevice[i].id = mPalOutDeviceIds[i];
@@ -2153,34 +2287,44 @@ int StreamOutPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, 
                         &payload_size, nullptr);
 
                 if (ret<0) {
-                    AHAL_DBG("USB device failed, falling back to Speaker");
-                    auto it = std::find(mAndroidOutDevices.begin(),mAndroidOutDevices.end(),
-                                mPalOutDevice[i].id);
-                    if (it != mAndroidOutDevices.end())
-                        mAndroidOutDevices.erase(it);
-                    mPalOutDevice[i].id =  PAL_DEVICE_OUT_SPEAKER;
-                    mPalOutDevice[i].config.bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
-                    mPalOutDevice[i].config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
-                    mPalOutDevice[i].config.sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
-                    mPalOutDevice[i].config.ch_info.channels = 2;
-                    mPalOutDevice[i].config.ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FL;
-                    mPalOutDevice[i].config.ch_info.ch_map[1] = PAL_CHMAP_CHANNEL_FR;
-                    mPalOutDevice[i].address.card_id = 0;
-                    mPalOutDevice[i].address.device_num = 0;
+                    AHAL_ERR("Error usb device is not connected");
+                    ret = -ENOSYS;
+                    goto done;
                 }
             }
 
+#ifdef SEC_AUDIO_NOT_SUPPORT_RAW_FLAG_SPEAKER
+            if ((noPalDevices > 1) &&
+                    (this->GetUseCase() == USECASE_AUDIO_PLAYBACK_ULL) &&
+                    (mPalOutDeviceIds[i] == PAL_DEVICE_OUT_SPEAKER)) {
+                // ULL combo path routing is not allowed, due to adsp crash issue
+                AHAL_ERR("Error speaker combo device is not supported for ULL");
+                ret = -ENOSYS;
+                goto done;
+            }
+#endif
+#ifndef SEC_AUDIO_COMMON
+            strlcpy(mPalOutDevice[i].custom_config.custom_key, "",
+                    sizeof(mPalOutDevice[i].custom_config.custom_key));
+#endif
             if ((AudioExtn::audio_devices_cmp(mAndroidOutDevices, AUDIO_DEVICE_OUT_SPEAKER_SAFE)) &&
                                    (mPalOutDeviceIds[i] == PAL_DEVICE_OUT_SPEAKER)) {
                 strlcpy(mPalOutDevice[i].custom_config.custom_key, "speaker-safe",
                         sizeof(mPalOutDevice[i].custom_config.custom_key));
                 AHAL_INFO("Setting custom key as %s", mPalOutDevice[i].custom_config.custom_key);
             }
-        }
 
-        if (device_cap_query) {
-            free(device_cap_query);
-            device_cap_query = NULL;
+            if (!ret && isHifiFilterEnabled &&
+                (mPalOutDevice[i].id == PAL_DEVICE_OUT_WIRED_HEADSET ||
+                 mPalOutDevice[i].id == PAL_DEVICE_OUT_WIRED_HEADPHONE) &&
+                (config_.sample_rate != 384000 && config_.sample_rate != 352800)) {
+
+                AHAL_DBG("hifi-filter custom key sent to PAL (only applicable to certain streams)\n");
+
+                strlcpy(mPalOutDevice[i].custom_config.custom_key,
+                       "hifi-filter_custom_key",
+                       sizeof(mPalOutDevice[i].custom_config.custom_key));
+            }
         }
 
 #ifdef SEC_AUDIO_SPK_AMP_MUTE
@@ -2198,21 +2342,10 @@ int StreamOutPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, 
 #endif
         mAndroidOutDevices = new_devices;
 
-    ret = pal_get_param(PAL_PARAM_ID_HIFI_PCM_FILTER,
-                        (void **)&param_payload, &param_size, nullptr);
-
-    if (!ret && isHifiFilterEnabled &&
-        (mPalOutDevice->id == PAL_DEVICE_OUT_WIRED_HEADSET ||
-         mPalOutDevice->id == PAL_DEVICE_OUT_WIRED_HEADPHONE) &&
-        (streamAttributes_.out_media_config.sample_rate != 384000 &&
-         streamAttributes_.out_media_config.sample_rate != 352800)) {
-
-        AHAL_DBG("hifi-filter custom key sent(the filter is not applicable to ALL streams)\n");
-
-        strlcpy(mPalOutDevice->custom_config.custom_key,
-                "hifi-filter_custom_key",
-                sizeof(mPalOutDevice->custom_config.custom_key));
-    }
+        if (hac_voip && (mPalOutDevice->id == PAL_DEVICE_OUT_HANDSET)) {
+             strlcpy(mPalOutDevice->custom_config.custom_key, "HAC",
+                    sizeof(mPalOutDevice->custom_config.custom_key));
+        }
 
         if (pal_stream_handle_) {
 #ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
@@ -2260,6 +2393,10 @@ int StreamOutPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, 
     }
 
 done:
+    if (device_cap_query) {
+        free(device_cap_query);
+        device_cap_query = NULL;
+    }
     stream_mutex_.unlock();
     AHAL_DBG("exit %d", ret);
     return ret;
@@ -2281,7 +2418,9 @@ int StreamOutPrimary::SetParameters(struct str_parms *parms) {
     if (ret >= 0) {
         adevice->dp_controller = controller;
         adevice->dp_stream = stream;
-        AHAL_ERR("error %d, plugin device cont %d stream %d", ret, controller, stream);
+        AHAL_INFO("ret %d, plugin device cont %d stream %d", ret, controller, stream);
+    } else {
+        AHAL_ERR("error %d, failed to get stream and controller", ret);
     }
 
     //Parse below metadata only if it is compress offload usecase.
@@ -2297,14 +2436,27 @@ int StreamOutPrimary::SetParameters(struct str_parms *parms) {
         if (ret1 >= 0 ) {
             gaplessMeta.encoderDelay = atoi(value);
             AHAL_DBG("new encoder delay %u", gaplessMeta.encoderDelay);
+        } else {
+            gaplessMeta.encoderDelay = 0;
         }
+
         ret1 = str_parms_get_str(parms, AUDIO_OFFLOAD_CODEC_PADDING_SAMPLES, value, sizeof(value));
         if (ret1 >= 0) {
             gaplessMeta.encoderPadding = atoi(value);
             AHAL_DBG("padding %u", gaplessMeta.encoderPadding);
+        } else {
+            gaplessMeta.encoderPadding = 0;
         }
-        sendGaplessMetadata = true;
     }
+
+#ifndef SEC_AUDIO_CALL_HAC
+    ret1 = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_HAC, value, sizeof(value));
+    if (ret1 >= 0) {
+        hac_voip = false;
+        if (strcmp(value, AUDIO_PARAMETER_VALUE_HAC_ON) == 0)
+            hac_voip = true;
+    }
+#endif
 error:
     AHAL_DBG("exit %d", ret);
     return ret;
@@ -2438,19 +2590,14 @@ uint64_t StreamOutPrimary::GetFramesWritten(struct timespec *timestamp)
     pal_param_bta2dp_t *param_bt_a2dp = NULL;
     size_t size = 0, kernel_buffer_size = 0;
     int32_t ret;
-    stream_mutex_.lock();
 
+    stream_mutex_.lock();
     /* This adjustment accounts for buffering after app processor
      * It is based on estimated DSP latency per use case, rather than exact.
      */
     dsp_frames = StreamOutPrimary::GetRenderLatency(flags_) *
         (streamAttributes_.out_media_config.sample_rate) / 1000000LL;
 
-    if (!timestamp) {
-       AHAL_ERR("timestamp NULL");
-       stream_mutex_.unlock();
-       return 0;
-    }
     written_frames = mBytesWritten / audio_bytes_per_frame(
         audio_channel_count_from_out_mask(config_.channel_mask),
         config_.format);
@@ -2486,9 +2633,10 @@ uint64_t StreamOutPrimary::GetFramesWritten(struct timespec *timestamp)
     stream_mutex_.unlock();
 
     if (signed_frames <= 0) {
-       clock_gettime(CLOCK_MONOTONIC, timestamp);
        signed_frames = 0;
-    } else {
+       if (timestamp != NULL)
+           clock_gettime(CLOCK_MONOTONIC, timestamp);
+    } else if (timestamp != NULL) {
        *timestamp = writeAt;
     }
 
@@ -2501,7 +2649,10 @@ uint64_t StreamOutPrimary::GetFramesWritten(struct timespec *timestamp)
 
 int StreamOutPrimary::get_compressed_buffer_size()
 {
+    char value[PROPERTY_VALUE_MAX] = {0};
     int fragment_size = COMPRESS_OFFLOAD_FRAGMENT_SIZE;
+    int fsize = 0;
+
     AHAL_DBG("config_ %x", config_.format);
     if(config_.format ==  AUDIO_FORMAT_FLAC ) {
         fragment_size = FLAC_COMPRESS_OFFLOAD_FRAGMENT_SIZE;
@@ -2511,6 +2662,14 @@ int StreamOutPrimary::get_compressed_buffer_size()
     } else {
         fragment_size =  COMPRESS_OFFLOAD_FRAGMENT_SIZE;
     }
+
+    if((property_get("vendor.audio.offload.buffer.size.kb", value, "")) &&
+            atoi(value)) {
+        fsize = atoi(value) * 1024;
+    }
+    if (fsize > fragment_size)
+        fragment_size = fsize;
+
     return fragment_size;
 }
 
@@ -2518,11 +2677,15 @@ int StreamOutPrimary::get_pcm_buffer_size()
 {
     uint8_t channels = audio_channel_count_from_out_mask(config_.channel_mask);
     uint8_t bytes_per_sample = audio_bytes_per_sample(config_.format);
+    audio_format_t src_format = config_.format;
+    audio_format_t dst_format = (audio_format_t)(getAlsaSupportedFmt.at(src_format));
+    uint32_t hal_op_bytes_per_sample = audio_bytes_per_sample(dst_format);
+    uint32_t hal_ip_bytes_per_sample = audio_bytes_per_sample(src_format);
     uint32_t fragment_size = 0;
 
-    AHAL_DBG("config_ format:%x, SR %d ch_mask 0x%x",
+    AHAL_DBG("config_ format:%x, SR %d ch_mask 0x%x, out format:%x",
             config_.format, config_.sample_rate,
-            config_.channel_mask);
+            config_.channel_mask, dst_format);
     fragment_size = PCM_OFFLOAD_OUTPUT_PERIOD_DURATION *
         config_.sample_rate * bytes_per_sample * channels;
     fragment_size /= 1000;
@@ -2534,23 +2697,21 @@ int StreamOutPrimary::get_pcm_buffer_size()
 
     fragment_size = ALIGN(fragment_size, (bytes_per_sample * channels * 32));
 
+    if ((src_format != dst_format) &&
+         hal_op_bytes_per_sample != hal_ip_bytes_per_sample) {
+
+        fragment_size =
+                  (fragment_size * hal_ip_bytes_per_sample) /
+                   hal_op_bytes_per_sample;
+        AHAL_INFO("enable conversion hal_input_fragment_size: src_format %x dst_format %x",
+               src_format, dst_format);
+    }
+
     AHAL_DBG("fragment size: %d", fragment_size);
     return fragment_size;
 }
 
-static int voip_get_buffer_size(uint32_t sample_rate)
-{
-    if (sample_rate == 48000)
-        return COMPRESS_VOIP_IO_BUF_SIZE_FB;
-    else if (sample_rate == 32000)
-        return COMPRESS_VOIP_IO_BUF_SIZE_SWB;
-    else if (sample_rate == 16000)
-        return COMPRESS_VOIP_IO_BUF_SIZE_WB;
-    else
-        return COMPRESS_VOIP_IO_BUF_SIZE_NB;
-}
-
-static bool period_size_is_plausible_for_low_latency(int period_size)
+bool StreamOutPrimary:: period_size_is_plausible_for_low_latency(int period_size)
 {
      switch (period_size) {
      case LL_PERIOD_SIZE_FRAMES_160:
@@ -2587,14 +2748,10 @@ uint32_t StreamOutPrimary::GetBufferSize() {
     streamAttributes_.type = StreamOutPrimary::GetPalStreamType(flags_);
     AHAL_DBG("type %d", streamAttributes_.type);
     if (streamAttributes_.type == PAL_STREAM_VOIP_RX) {
-#ifdef SEC_AUDIO_CALL_VOIP
-        return ((DEFAULT_VOIP_BUF_DURATION_MS *config_.sample_rate) /1000) *
+        return (DEFAULT_VOIP_BUF_DURATION_MS * config_.sample_rate / 1000) *
                audio_bytes_per_frame(
                        audio_channel_count_from_out_mask(config_.channel_mask),
                        config_.format);
-#else
-        return voip_get_buffer_size(config_.sample_rate);
-#endif
     } else if (streamAttributes_.type == PAL_STREAM_COMPRESSED) {
         return get_compressed_buffer_size();
     } else if (streamAttributes_.type == PAL_STREAM_PCM_OFFLOAD) {
@@ -2624,17 +2781,17 @@ int StreamOutPrimary::Open() {
     uint32_t outBufCount = NO_OF_BUF;
     struct pal_buffer_config outBufCfg = {0, 0, 0};
 
-    pal_param_device_capability_t *device_cap_query;
+    pal_param_device_capability_t *device_cap_query = NULL;
     size_t payload_size = 0;
     dynamic_media_config_t dynamic_media_config;
     std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
 
-#if 0//def SEC_AUDIO_DSM_AMP
+#ifdef SEC_AUDIO_DSM_AMP
     struct pal_device* feedbackDevice;
 #endif
 
     bool isHifiFilterEnabled = false;
-    bool *param_payload = &isHifiFilterEnabled;
+    bool *payload_hifiFilter = &isHifiFilterEnabled;
     size_t param_size = 0;
 
     AHAL_DBG("Enter OutPrimary ");
@@ -2669,11 +2826,10 @@ int StreamOutPrimary::Open() {
 
 #ifdef SEC_AUDIO_CALL_VOIP
     if (streamAttributes_.type == PAL_STREAM_VOIP_RX) {
-        std::shared_ptr<StreamInPrimary> astream_in = adevice->GetActiveInStream();
-        if (astream_in &&
-            (astream_in->getStreamAttributes().type == PAL_STREAM_VOIP_TX)) {
-                streamAttributes_.in_media_config.sample_rate =
-                    astream_in->getStreamAttributes().in_media_config.sample_rate;
+        std::shared_ptr<StreamInPrimary> astream_in = adevice->GetActiveInStreamByUseCase(USECASE_AUDIO_RECORD_VOIP);
+        if (astream_in) {
+            streamAttributes_.in_media_config.sample_rate =
+                astream_in->getStreamAttributes().in_media_config.sample_rate;
         } else {
             streamAttributes_.in_media_config.sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
             if (adevice->voice_->sec_voice_->vowifi_call) {
@@ -2688,40 +2844,58 @@ int StreamOutPrimary::Open() {
     }
 #endif
 
-    if (streamAttributes_.type == PAL_STREAM_COMPRESSED) {
-        streamAttributes_.flags = (pal_stream_flags_t)(PAL_STREAM_FLAG_NON_BLOCKING);
-        if (config_.offload_info.format == 0)
-            config_.offload_info.format = config_.format;
-        if (config_.offload_info.sample_rate == 0)
-            config_.offload_info.sample_rate = config_.sample_rate;
+    switch(streamAttributes_.type) {
+        case PAL_STREAM_COMPRESSED:
+            streamAttributes_.flags = (pal_stream_flags_t)(PAL_STREAM_FLAG_NON_BLOCKING);
+            if (config_.offload_info.format == 0)
+                config_.offload_info.format = config_.format;
+            if (config_.offload_info.sample_rate == 0)
+                config_.offload_info.sample_rate = config_.sample_rate;
+                streamAttributes_.out_media_config.sample_rate = config_.offload_info.sample_rate;
+            if (msample_rate)
+                streamAttributes_.out_media_config.sample_rate = msample_rate;
+            if (mchannels)
+                streamAttributes_.out_media_config.ch_info.channels = mchannels;
+            if (getAlsaSupportedFmt.find(config_.format) != getAlsaSupportedFmt.end()) {
+                halInputFormat = config_.format;
+                halOutputFormat = (audio_format_t)(getAlsaSupportedFmt.at(config_.format));
+                streamAttributes_.out_media_config.aud_fmt_id = getFormatId.at(halOutputFormat);
+                streamAttributes_.out_media_config.bit_width = format_to_bitwidth_table[halOutputFormat];
+                if (streamAttributes_.out_media_config.bit_width == 0)
+                    streamAttributes_.out_media_config.bit_width = 16;
+                streamAttributes_.type = PAL_STREAM_PCM_OFFLOAD;
+            } else {
+                streamAttributes_.out_media_config.aud_fmt_id = getFormatId.at(config_.format & AUDIO_FORMAT_MAIN_MASK);
+            }
+            break;
+        case PAL_STREAM_LOW_LATENCY:
+        case PAL_STREAM_ULTRA_LOW_LATENCY:
+        case PAL_STREAM_DEEP_BUFFER:
+        case PAL_STREAM_GENERIC:
+        case PAL_STREAM_PCM_OFFLOAD:
+            halInputFormat = config_.format;
+            halOutputFormat = (audio_format_t)(getAlsaSupportedFmt.at(halInputFormat));
+            streamAttributes_.out_media_config.aud_fmt_id = getFormatId.at(halOutputFormat);
+            streamAttributes_.out_media_config.bit_width = format_to_bitwidth_table[halOutputFormat];
+            AHAL_DBG("halInputFormat %d halOutputFormat %d palformat %d", halInputFormat,
+                     halOutputFormat, streamAttributes_.out_media_config.aud_fmt_id);
+            if (streamAttributes_.out_media_config.bit_width == 0)
+                streamAttributes_.out_media_config.bit_width = 16;
 
-        streamAttributes_.out_media_config.sample_rate = config_.offload_info.sample_rate;
-
-        if (msample_rate)
-            streamAttributes_.out_media_config.sample_rate = msample_rate;
-        if (mchannels)
-            streamAttributes_.out_media_config.ch_info.channels = mchannels;
-        streamAttributes_.out_media_config.aud_fmt_id = getFormatId.at(config_.format & AUDIO_FORMAT_MAIN_MASK);
-    } else if (streamAttributes_.type == PAL_STREAM_PCM_OFFLOAD ||
-               streamAttributes_.type == PAL_STREAM_DEEP_BUFFER) {
-        halInputFormat = config_.format;
-        halOutputFormat = (audio_format_t)(getAlsaSupportedFmt.at(halInputFormat));
-        streamAttributes_.out_media_config.aud_fmt_id = getFormatId.at(halOutputFormat);
-        streamAttributes_.out_media_config.bit_width = format_to_bitwidth_table[halOutputFormat];
-        AHAL_DBG("halInputFormat %d halOutputFormat %d palformat %d", halInputFormat,
-                 halOutputFormat, streamAttributes_.out_media_config.aud_fmt_id);
-        if (streamAttributes_.out_media_config.bit_width == 0)
-            streamAttributes_.out_media_config.bit_width = 16;
-    } else if ((streamAttributes_.type == PAL_STREAM_ULTRA_LOW_LATENCY) &&
-            (usecase_ == USECASE_AUDIO_PLAYBACK_MMAP)) {
-        streamAttributes_.flags = (pal_stream_flags_t)(PAL_STREAM_FLAG_MMAP_NO_IRQ);
-    } else if ((streamAttributes_.type == PAL_STREAM_ULTRA_LOW_LATENCY) &&
-            (usecase_ == USECASE_AUDIO_PLAYBACK_ULL)) {
-        streamAttributes_.flags = (pal_stream_flags_t)(PAL_STREAM_FLAG_MMAP);
+            if (streamAttributes_.type == PAL_STREAM_ULTRA_LOW_LATENCY) {
+                if (usecase_ == USECASE_AUDIO_PLAYBACK_MMAP) {
+                    streamAttributes_.flags = (pal_stream_flags_t)(PAL_STREAM_FLAG_MMAP_NO_IRQ);
+                } else if (usecase_ == USECASE_AUDIO_PLAYBACK_ULL) {
+                    streamAttributes_.flags = (pal_stream_flags_t)(PAL_STREAM_FLAG_MMAP);
+                }
+            }
+            break;
+        default:
+            break;
     }
 
     ret = pal_get_param(PAL_PARAM_ID_HIFI_PCM_FILTER,
-                        (void **)&param_payload, &param_size, nullptr);
+                        (void **)&payload_hifiFilter, &param_size, nullptr);
 
     if (!ret && isHifiFilterEnabled &&
         (mPalOutDevice->id == PAL_DEVICE_OUT_WIRED_HEADSET ||
@@ -2729,7 +2903,7 @@ int StreamOutPrimary::Open() {
         (streamAttributes_.out_media_config.sample_rate != 384000 &&
          streamAttributes_.out_media_config.sample_rate != 352800)) {
 
-        AHAL_DBG("hifi-filter custom key sent(the filter is not applicable to ALL streams)\n");
+        AHAL_DBG("hifi-filter custom key sent to PAL (only applicable to certain streams)\n");
 
         strlcpy(mPalOutDevice->custom_config.custom_key,
                 "hifi-filter_custom_key",
@@ -2750,29 +2924,16 @@ int StreamOutPrimary::Open() {
                 &payload_size, nullptr);
 
         if (ret<0) {
-            AHAL_DBG("USB device failed, falling back to Speaker");
-            auto it = std::find(mAndroidOutDevices.begin(),mAndroidOutDevices.end(),
-                   mPalOutDevice->id);
-            if (it != mAndroidOutDevices.end())
-                mAndroidOutDevices.erase(it);
-            mPalOutDevice->id = PAL_DEVICE_OUT_SPEAKER;
-            mAndroidOutDevices.insert(AUDIO_DEVICE_OUT_SPEAKER);
-            mPalOutDevice->address.card_id = 0;
-            mPalOutDevice->address.device_num = 0;
-            mPalOutDevice->config.sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
-            mPalOutDevice->config.bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
-            mPalOutDevice->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
-            mPalOutDevice->config.ch_info.channels = 2;
-            mPalOutDevice->config.ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FL;
-            mPalOutDevice->config.ch_info.ch_map[1] = PAL_CHMAP_CHANNEL_FR;
+            AHAL_DBG("Error usb device is not connected");
+            ret = -ENOSYS;
+            goto error_open;
         }
     }
 
-    if (device_cap_query) {
-        free(device_cap_query);
-        device_cap_query = NULL;
+    if (hac_voip && (mPalOutDevice->id == PAL_DEVICE_OUT_HANDSET)) {
+        strlcpy(mPalOutDevice->custom_config.custom_key, "HAC",
+                sizeof(mPalOutDevice->custom_config.custom_key));
     }
-
 
 #ifdef SEC_AUDIO_COMMON
     adevice->factory_->GetPalDeviceId(mPalOutDevice, IO_TYPE_OUTPUT);
@@ -2789,7 +2950,7 @@ int StreamOutPrimary::Open() {
            streamAttributes_.out_media_config.bit_width);
     AHAL_DBG("msample_rate %d mchannels %d", msample_rate, mchannels);
     AHAL_DBG("mNoOfOutDevices %zu", mAndroidOutDevices.size());
-    ret = pal_stream_open (&streamAttributes_,
+    ret = pal_stream_open(&streamAttributes_,
                           mAndroidOutDevices.size(),
                           mPalOutDevice,
                           0,
@@ -2819,29 +2980,34 @@ int StreamOutPrimary::Open() {
         hapticsStreamAttributes.out_media_config.ch_info = ch_info;
 
         if (!hapticsDevice) {
-            hapticsDevice = new pal_device;
+            hapticsDevice = (struct pal_device*) calloc(1, sizeof(struct pal_device));
+        }
+
+        if (hapticsDevice) {
             hapticsDevice->id = PAL_DEVICE_OUT_HAPTICS_DEVICE;
             hapticsDevice->config.sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
             hapticsDevice->config.bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
             hapticsDevice->config.ch_info = ch_info;
             hapticsDevice->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
-        }
 
-        ret = pal_stream_open (&hapticsStreamAttributes,
-                          1,
-                          hapticsDevice,
-                          0,
-                          NULL,
-                          &pal_callback,
-                          (uint64_t)this,
-                          &pal_haptics_stream_handle);
-        if (ret) {
-            AHAL_ERR("Pal Haptics Stream Open Error (%x)", ret);
+            ret = pal_stream_open (&hapticsStreamAttributes,
+                                   1,
+                                   hapticsDevice,
+                                   0,
+                                   NULL,
+                                   &pal_callback,
+                                   (uint64_t)this,
+                                   &pal_haptics_stream_handle);
+            if (ret)
+                AHAL_ERR("Pal Haptics Stream Open Error (%x)", ret);
+        } else {
+            AHAL_ERR("Failed to allocate memory for hapticsDevice");
         }
     }
 
-#if 0//def SEC_AUDIO_DSM_AMP
-    if (mPalOutDevice[mAndroidOutDevices.size()-1].id == PAL_DEVICE_OUT_SPEAKER) {
+#ifdef SEC_AUDIO_DSM_AMP
+    if (use_feedback_stream &&
+        mPalOutDevice[mAndroidOutDevices.size()-1].id == PAL_DEVICE_OUT_SPEAKER) {
         // Need to open feedback path for Speaker
         feedback_stream_handle_ = NULL;
         // Configuring Hostless Loopback
@@ -2863,7 +3029,7 @@ int StreamOutPrimary::Open() {
                                 0,
                                 NULL,
                                 &pal_callback,
-                                (void *) this,
+                                (uint64_t) this,
                                 &feedback_stream_handle_);
         if (ret) {
             AHAL_ERR("Pal Feedback Stream Open Error (%x)", ret);
@@ -2940,28 +3106,20 @@ int StreamOutPrimary::Open() {
         outBufCount = PCM_OFFLOAD_PLAYBACK_PERIOD_COUNT;
     else if (usecase_ == USECASE_AUDIO_PLAYBACK_DEEP_BUFFER)
         outBufCount = DEEP_BUFFER_PLAYBACK_PERIOD_COUNT;
-#ifdef SEC_AUDIO_CALL_VOIP
     else if (usecase_ == USECASE_AUDIO_PLAYBACK_VOIP)
         outBufCount = VOIP_PERIOD_COUNT_DEFAULT;
-#endif
 #ifdef SEC_AUDIO_SUPPORT_MEDIA_OUTPUT
     else if (usecase_ == USECASE_AUDIO_PLAYBACK_PRIMARY)
         outBufCount = DEEP_BUFFER_PLAYBACK_PERIOD_COUNT;
 #endif
 
     if (halInputFormat != halOutputFormat) {
-        convertBufSize =  PCM_OFFLOAD_OUTPUT_PERIOD_DURATION *
-                         config_.sample_rate * audio_bytes_per_frame(
-                         audio_channel_count_from_out_mask(config_.channel_mask),
-                         halOutputFormat);
-        convertBufSize /= 1000;
-        convertBuffer = realloc(convertBuffer, convertBufSize);
+        convertBuffer = realloc(convertBuffer, outBufSize);
         if (!convertBuffer) {
             ret = -ENOMEM;
             AHAL_ERR("convert Buffer allocation failed. ret %d", ret);
             goto error_open;
         }
-        outBufSize = convertBufSize;
         AHAL_DBG("convert buffer allocated for size %d", convertBufSize);
     }
 
@@ -2975,7 +3133,8 @@ int StreamOutPrimary::Open() {
     if (ret) {
         AHAL_ERR("Pal Stream set buffer size Error  (%x)", ret);
     }
-    if (usecase_ == USECASE_AUDIO_PLAYBACK_WITH_HAPTICS) {
+    if (usecase_ == USECASE_AUDIO_PLAYBACK_WITH_HAPTICS &&
+        pal_haptics_stream_handle) {
 #ifdef SEC_AUDIO_SUPPORT_HAPTIC_PLAYBACK // Set the same as Generic
         outBufSize = StreamOutPrimary::GetBufferSize();
 #else
@@ -3001,6 +3160,10 @@ int StreamOutPrimary::Open() {
     playback_volume_reset = false;
 #endif
 error_open:
+    if (device_cap_query) {
+        free(device_cap_query);
+        device_cap_query = NULL;
+    }
     AHAL_DBG("Exit ret: %d", ret);
     return ret;
 }
@@ -3150,7 +3313,7 @@ ssize_t StreamOutPrimary::splitAndWriteAudioHapticsStream(const void *buffer, si
      return (ret < 0 ? ret : bytes);
 }
 
-ssize_t StreamOutPrimary::onWriteError(size_t bytes, size_t ret) {
+ssize_t StreamOutPrimary::onWriteError(size_t bytes, ssize_t ret) {
     // standby streams upon write failures and sleep for buffer duration.
     AHAL_ERR("write error %d usecase(%d: %s)", ret, GetUseCase(), use_case_table[GetUseCase()]);
     Standby();
@@ -3214,7 +3377,13 @@ ssize_t StreamOutPrimary::configurePalOutputStream() {
                 pal_haptics_stream_handle = NULL;
             }
             return -EINVAL;
+        } else {
+            AHAL_INFO("notify GEF client of device config");
+            for(auto dev : mAndroidOutDevices)
+                audio_extn_gef_notify_device_config(dev, config_.channel_mask,
+                    config_.sample_rate, flags_);
         }
+
         if (usecase_ == USECASE_AUDIO_PLAYBACK_WITH_HAPTICS) {
             ret = pal_stream_start(pal_haptics_stream_handle);
             if (ret) {
@@ -3226,7 +3395,7 @@ ssize_t StreamOutPrimary::configurePalOutputStream() {
             }
         }
 
-#if 0//def SEC_AUDIO_DSM_AMP
+#ifdef SEC_AUDIO_DSM_AMP
         if (!ret && feedback_stream_handle_) {
             ret = pal_stream_start(feedback_stream_handle_);
             if (ret) {
@@ -3272,11 +3441,13 @@ ssize_t StreamOutPrimary::configurePalOutputStream() {
                 }
 #endif
             }
-            if (isDeviceAvailable(PAL_DEVICE_OUT_USB_HEADSET)) {
+            if (isDeviceAvailable(PAL_DEVICE_OUT_USB_HEADSET) ||
+                isDeviceAvailable(PAL_DEVICE_OUT_AUX_DIGITAL)) {
                 adevice->effect_->send_upscaler_enable_mode();
             }
         }
-        if (streamAttributes_.type == PAL_STREAM_DEEP_BUFFER) {
+        if (streamAttributes_.type == PAL_STREAM_DEEP_BUFFER ||
+            streamAttributes_.type == PAL_STREAM_ULTRA_LOW_LATENCY) {
             // update volume monitor parameter for DSP
             UpdateOffloadEffects(OFFLOAD_VOLUMEMONITOR_EFFECT);
         }
@@ -3317,7 +3488,29 @@ ssize_t StreamOutPrimary::configurePalOutputStream() {
         }
 #endif // } CONFIG_EFFECTS_VIDEOCALL
 #ifdef SEC_AUDIO_COMMON
+#ifdef SEC_AUDIO_CALL_VOIP
+        if (adevice->voice_ && adevice->voice_->sec_voice_->cng_enable &&
+            streamAttributes_.type == PAL_STREAM_VOIP_RX &&
+            adevice->voice_->mode_ == AUDIO_MODE_IN_COMMUNICATION) {
+            adevice->voice_->sec_voice_->SetCNGForEchoRefMute(true);
+        }
         // send volume once after pal_stream_start()
+        if (streamAttributes_.type == PAL_STREAM_VOIP_RX && volume_) {
+#ifdef SEC_AUDIO_SUPPORT_BT_RVC
+            int volRet = 0;
+            volRet = adevice->effect_->SetScoVolume(volume_->volume_pair[0].vol);
+            if (volRet == 0) {
+                AHAL_DBG("sco volume applied on voip stream status");
+            } else
+#endif
+            {
+                ret = pal_stream_set_volume(pal_stream_handle_, volume_);
+                if (ret) {
+                    AHAL_ERR("Pal Stream volume Error (%x)", ret);
+                }
+            }
+        } else
+#endif
         if (usecase_ == USECASE_AUDIO_PLAYBACK_MMAP ||
             usecase_ == USECASE_AUDIO_PLAYBACK_OFFLOAD2) {
             if (volume_) {
@@ -3326,9 +3519,8 @@ ssize_t StreamOutPrimary::configurePalOutputStream() {
                     AHAL_ERR("Pal Stream volume Error (%x)", ret);
                 }
             }
-        }
-        // send volume once and then free volume_
-        if (usecase_ == USECASE_AUDIO_PLAYBACK_ULL) {
+        } else if (usecase_ == USECASE_AUDIO_PLAYBACK_ULL) {
+            // send volume once and then free volume_
             volume_ = (struct pal_volume_data *)malloc(sizeof(struct pal_volume_data)
                         + sizeof(struct pal_channel_vol_kv));
             if (!volume_) {
@@ -3414,14 +3606,16 @@ ssize_t StreamOutPrimary::configurePalOutputStream() {
         adevice->sec_device_->speaker_status_change &&
         (AudioExtn::get_device_types(mAndroidOutDevices) == AUDIO_DEVICE_OUT_SPEAKER)) {
         // force routing to speaker
-        std::set<audio_devices_t> device_types;
-        device_types.insert(AUDIO_DEVICE_OUT_SPEAKER);
 #ifdef SEC_AUDIO_FMRADIO
         if (!adevice->sec_device_->fm.on)
 #endif
-        stream_mutex_.unlock();
-        ForceRouteStream(device_types);
-        stream_mutex_.lock();
+        {
+            std::set<audio_devices_t> device_types;
+            device_types.insert(AUDIO_DEVICE_OUT_SPEAKER);
+            stream_mutex_.unlock();
+            ForceRouteStream(device_types);
+            stream_mutex_.lock();
+        }
         adevice->sec_device_->speaker_status_change = false;
     }
 #endif
@@ -3495,6 +3689,18 @@ ssize_t StreamOutPrimary::write(const void *buffer, size_t bytes)
     } else if (usecase_ == USECASE_AUDIO_PLAYBACK_WITH_HAPTICS && pal_haptics_stream_handle) {
         ret = splitAndWriteAudioHapticsStream(buffer, bytes);
     } else {
+#ifdef SEC_AUDIO_CALL_VOIP
+        std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
+        if (usecase_ == USECASE_AUDIO_PLAYBACK_VOIP) {
+            std::shared_ptr<StreamInPrimary> astream_in = adevice->GetActiveInStreamByUseCase(USECASE_AUDIO_RECORD_VOIP);
+            if (astream_in &&
+                astream_in->getStreamAttributes().in_media_config.sample_rate != streamAttributes_.in_media_config.sample_rate) {
+                stream_mutex_.unlock();
+                Standby();
+                stream_mutex_.lock();
+            }
+        }
+#endif
         ret = pal_stream_write(pal_stream_handle_, &palBuffer);
     }
     ATRACE_END();
@@ -3546,13 +3752,13 @@ bool StreamOutPrimary::CheckOffloadEffectsType(pal_stream_type_t pal_stream_type
 int StreamOutPrimary::UpdateOffloadEffects(
                                     int offload_effect_type) {
     int ret  = 0;
-    
+
     if (offload_effect_type == OFFLOAD_EFFECT_ALL) {
         std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
         adevice->effect_->send_soundalive_lrsm_value();
         adevice->effect_->send_soundspeed_value();
     }
-    
+
     if (fnp_offload_effect_update_output_) {
         ret = fnp_offload_effect_update_output_(pal_stream_handle_, offload_effect_type);
         if (ret) {
@@ -3662,14 +3868,20 @@ StreamOutPrimary::StreamOutPrimary(
     mPalOutDeviceIds = nullptr;
     mPalOutDevice = nullptr;
     convertBuffer = NULL;
+    hapticsDevice = NULL;
     hapticBuffer = NULL;
-    hapticsDevice = nullptr;
     hapticsBufSize = 0;
     writeAt.tv_sec = 0;
     writeAt.tv_nsec = 0;
     mBytesWritten = 0;
     int noPalDevices = 0;
     int ret = 0;
+    /*Initialize the gaplessMeta value with 0*/
+    memset(&gaplessMeta,0,sizeof(struct pal_compr_gapless_mdata));
+
+#if defined (SEC_AUDIO_DSM_AMP) && defined (SEC_AUDIO_DUMP)
+    char property_value[PROPERTY_VALUE_MAX] = {0};
+#endif
 
     if (!stream_) {
         AHAL_ERR("No memory allocated for stream_");
@@ -3758,7 +3970,7 @@ StreamOutPrimary::StreamOutPrimary(
         mAndroidOutDevices.insert(AUDIO_DEVICE_OUT_DEFAULT);
     AHAL_DBG("No of Android devices %zu", mAndroidOutDevices.size());
 
-    mPalOutDeviceIds = new pal_device_id_t[mAndroidOutDevices.size()];
+    mPalOutDeviceIds = (pal_device_id_t*) calloc(mAndroidOutDevices.size(), sizeof(pal_device_id_t));
     if (!mPalOutDeviceIds) {
            goto error;
     }
@@ -3769,13 +3981,14 @@ StreamOutPrimary::StreamOutPrimary(
         goto error;
     }
 
-    mPalOutDevice = new pal_device[mAndroidOutDevices.size()];
+    mPalOutDevice = (struct pal_device*) calloc(mAndroidOutDevices.size(), sizeof(struct pal_device));
     if (!mPalOutDevice) {
         goto error;
     }
 
     /* TODO: how to update based on stream parameters and see if device is supported */
     for (int i = 0; i < mAndroidOutDevices.size(); i++) {
+        memset(mPalOutDevice[i].custom_config.custom_key, 0, sizeof(mPalOutDevice[i].custom_config.custom_key));
         mPalOutDevice[i].id = mPalOutDeviceIds[i];
         if (AudioExtn::audio_devices_cmp(mAndroidOutDevices, audio_is_usb_out_device))
             mPalOutDevice[i].config.sample_rate = config_.sample_rate;
@@ -3793,7 +4006,10 @@ StreamOutPrimary::StreamOutPrimary(
             mPalOutDevice[i].address.card_id = adevice->usb_card_id_;
             mPalOutDevice[i].address.device_num = adevice->usb_dev_num_;
         }
-
+#ifndef SEC_AUDIO_COMMON
+        strlcpy(mPalOutDevice[i].custom_config.custom_key, "",
+                sizeof(mPalOutDevice[i].custom_config.custom_key));
+#endif
         if ((AudioExtn::audio_devices_cmp(mAndroidOutDevices, AUDIO_DEVICE_OUT_SPEAKER_SAFE)) &&
                                    (mPalOutDeviceIds[i] == PAL_DEVICE_OUT_SPEAKER)) {
             strlcpy(mPalOutDevice[i].custom_config.custom_key, "speaker-safe",
@@ -3826,8 +4042,15 @@ StreamOutPrimary::StreamOutPrimary(
         audio_extn_gef_notify_device_config(dev, config_.channel_mask,
             config_.sample_rate, flags_);
 
-#if 0//def SEC_AUDIO_DSM_AMP
+#ifdef SEC_AUDIO_DSM_AMP
     feedback_stream_handle_ = NULL;
+#ifdef SEC_AUDIO_DUMP
+    if (property_get("vendor.audio.vifeedback.dump", property_value, NULL) > 0) {
+        use_feedback_stream = atoi(property_value);
+    }
+#else
+    use_feedback_stream = false;
+#endif
 #endif
 
 error:
@@ -3860,21 +4083,22 @@ StreamOutPrimary::~StreamOutPrimary() {
         }
         hapticsBufSize = 0;
     }
-    stream_mutex_.unlock();
+
     if (convertBuffer)
         free(convertBuffer);
     if (mPalOutDeviceIds) {
-        delete[] mPalOutDeviceIds;
+        free(mPalOutDeviceIds);
         mPalOutDeviceIds = NULL;
     }
     if (mPalOutDevice) {
-        delete[] mPalOutDevice;
+        free(mPalOutDevice);
         mPalOutDevice = NULL;
     }
     if (hapticsDevice) {
-        delete hapticsDevice;
+        free(hapticsDevice);
         hapticsDevice = NULL;
     }
+    stream_mutex_.unlock();
 }
 
 bool StreamInPrimary::isDeviceAvailable(pal_device_id_t deviceId)
@@ -3909,6 +4133,8 @@ int StreamInPrimary::Stop() {
     int ret = -ENOSYS;
 
     stream_mutex_.lock();
+    if (usecase_ == USECASE_AUDIO_PLAYBACK_VOIP)
+        hac_voip = false;
     if (usecase_ == USECASE_AUDIO_RECORD_MMAP &&
             pal_stream_handle_ && stream_started_) {
 
@@ -3924,7 +4150,6 @@ int StreamInPrimary::Start() {
     int ret = -ENOSYS;
 
     AHAL_DBG("Enter");
-
     stream_mutex_.lock();
     if (usecase_ == USECASE_AUDIO_RECORD_MMAP &&
             pal_stream_handle_ && !stream_started_) {
@@ -3933,8 +4158,8 @@ int StreamInPrimary::Start() {
         if (ret == 0)
             stream_started_ = true;
     }
-    AHAL_DBG("Exit ret: %d", ret);
     stream_mutex_.unlock();
+    AHAL_DBG("Exit ret: %d", ret);
     return ret;
 }
 
@@ -3971,6 +4196,7 @@ int StreamInPrimary::CreateMmapBuffer(int32_t min_size_frames,
     info->buffer_size_frames = palMmapBuf.buffer_size_frames;
     info->burst_size_frames = palMmapBuf.burst_size_frames;
     info->flags = (audio_mmap_buffer_flag)palMmapBuf.flags;
+    mmap_shared_memory_fd = info->shared_memory_fd;
 
     stream_mutex_.unlock();
     return ret;
@@ -4026,6 +4252,11 @@ int StreamInPrimary::Standby() {
         pal_stream_handle_ = NULL;
     }
 
+    if (mmap_shared_memory_fd >= 0) {
+        close(mmap_shared_memory_fd);
+        mmap_shared_memory_fd = -1;
+    }
+
     if (ret)
         ret = -EINVAL;
 
@@ -4041,6 +4272,7 @@ int StreamInPrimary::addRemoveAudioEffect(const struct audio_stream *stream __un
     int status = 0;
     effect_descriptor_t desc;
 
+    AHAL_INFO(" Current stream ==> %d && effect handle %d", this->GetHandle(), effect);
     status = (*effect)->get_descriptor(effect, &desc);
     if (status != 0)
         return status;
@@ -4048,34 +4280,55 @@ int StreamInPrimary::addRemoveAudioEffect(const struct audio_stream *stream __un
 
     if (source_ == AUDIO_SOURCE_VOICE_COMMUNICATION) {
         if (memcmp(&desc.type, FX_IID_AEC, sizeof(effect_uuid_t)) == 0) {
+
+            AHAL_INFO(" EC enabled ======> %d", isECEnabled);
             if (enable) {
                 if (isECEnabled) {
                     AHAL_ERR("EC already enabled");
+                    isECEnabledSet.insert(effect);
+                    AHAL_INFO("size of EC Enabled set ===> %d", isECEnabledSet.size());
                     goto exit;
                 } else if (isNSEnabled) {
-                    AHAL_VERBOSE("Got EC enable and NS is already active. Enabling ECNS");
+                    AHAL_INFO("Got EC enable and NS is already active. Enabling ECNS");
                     status = pal_add_remove_effect(pal_stream_handle_,PAL_AUDIO_EFFECT_ECNS,true);
+                    isECEnabledSet.insert(effect);
                     isECEnabled = true;
+                    AHAL_INFO("size of EC Enabled set ===> %d", isECEnabledSet.size());
                     goto exit;
                 } else {
-                    AHAL_VERBOSE("Got EC enable. Enabling EC");
+                    AHAL_INFO("Got EC enable. Enabling EC");
                     status = pal_add_remove_effect(pal_stream_handle_,PAL_AUDIO_EFFECT_EC,true);
+                    isECEnabledSet.insert(effect);
                     isECEnabled = true;
+                    AHAL_INFO("size of EC Enabled set ===> %d", isECEnabledSet.size());
                     goto exit;
                }
             } else {
                 if (isECEnabled) {
                     if (isNSEnabled) {
-                        AHAL_VERBOSE("ECNS is running. Disabling EC and enabling NS alone");
-                        status = pal_add_remove_effect(pal_stream_handle_,PAL_AUDIO_EFFECT_NS,true);
+                        AHAL_INFO("ECNS is running. Disabling EC and enabling NS alone");
+                        if (isECEnabledSet.find(effect) != isECEnabledSet.end())
+                            isECEnabledSet.erase(effect);
                         isECEnabled = false;
+                        AHAL_INFO("size of EC Enabled set ===> %d", isECEnabledSet.size());
+                        status = pal_add_remove_effect(pal_stream_handle_,PAL_AUDIO_EFFECT_NS,true);
+                        if (!isECEnabledSet.empty())
+                            isECEnabled = true;
                         goto exit;
                     } else {
-                        AHAL_VERBOSE("EC is running. Disabling it");
+                        AHAL_INFO("EC is running. Disabling it");
 
                         status = pal_add_remove_effect(pal_stream_handle_,PAL_AUDIO_EFFECT_ECNS,false);
 
+                        if (isECEnabledSet.find(effect) != isECEnabledSet.end())
+                            isECEnabledSet.erase(effect);
                         isECEnabled = false;
+
+                        AHAL_INFO("size of EC Enabled set ===> %d", isECEnabledSet.size());
+
+                        if (!isECEnabledSet.empty())
+                            isECEnabled = true;
+
                         goto exit;
                     }
                 } else {
@@ -4167,9 +4420,9 @@ done:
 int StreamInPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, bool force_device_switch) {
     bool is_empty, is_input;
     int ret = 0, noPalDevices = 0;
-    pal_device_id_t * deviceId;
-    struct pal_device* deviceIdConfigs;
-    pal_param_device_capability_t *device_cap_query;
+    pal_device_id_t * deviceId = nullptr;
+    struct pal_device* deviceIdConfigs = nullptr;
+    pal_param_device_capability_t *device_cap_query = nullptr;
     size_t payload_size = 0;
     dynamic_media_config_t dynamic_media_config;
     struct pal_channel_info ch_info = {0, {0}};
@@ -4202,37 +4455,46 @@ int StreamInPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, b
     /* If its the same device as what was already routed to, dont bother */
     if (!is_empty && is_input
             && ((mAndroidInDevices != new_devices) || force_device_switch)) {
-        //re-allocate mPalOutDevice and mPalOutDeviceIds
+        //re-allocate mPalInDevice and mPalInDeviceIds
         if (new_devices.size() != mAndroidInDevices.size()) {
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
-            delete [] mPalInDeviceIds;
-            delete [] mPalInDevice;
-            mPalInDeviceIds = new pal_device_id_t[new_devices.size()];
-            mPalInDevice = new pal_device[new_devices.size()];
-#else
             deviceId = (pal_device_id_t*) realloc(mPalInDeviceIds,
                     new_devices.size() * sizeof(pal_device_id_t));
             deviceIdConfigs = (struct pal_device*) realloc(mPalInDevice,
                     new_devices.size() * sizeof(struct pal_device));
             if (!deviceId || !deviceIdConfigs) {
+                AHAL_ERR("Failed to allocate PalOutDeviceIds or deviceIdConfigs!");
+                if (deviceId)
+                    mPalInDeviceIds = deviceId;
+                if (deviceIdConfigs)
+                    mPalInDevice = deviceIdConfigs;
                 ret = -ENOMEM;
                 goto done;
             }
+
+            // init deviceId and deviceIdConfigs
+            memset(deviceId, 0, new_devices.size() * sizeof(pal_device_id_t));
+            memset(deviceIdConfigs, 0, new_devices.size() * sizeof(struct pal_device));
+
             mPalInDeviceIds = deviceId;
             mPalInDevice = deviceIdConfigs;
-#endif
         }
         noPalDevices = getPalDeviceIds(new_devices, mPalInDeviceIds);
         AHAL_DBG("noPalDevices: %d , new_devices: %zu",
                 noPalDevices, new_devices.size());
-        if (noPalDevices != new_devices.size()) {
+        if (noPalDevices != new_devices.size() ||
+            noPalDevices >= PAL_DEVICE_IN_MAX) {
             AHAL_ERR("Device count mismatch! Expected: %d Got: %zu", noPalDevices, new_devices.size());
             ret = -EINVAL;
             goto done;
         }
 
-        pal_param_device_capability_t *device_cap_query = (pal_param_device_capability_t *)
+        device_cap_query = (pal_param_device_capability_t *)
                 malloc(sizeof(pal_param_device_capability_t));
+        if (!device_cap_query) {
+            AHAL_ERR("Failed to allocate device_cap_query!");
+            ret = -ENOMEM;
+            goto done;
+        }
 
         for (int i = 0; i < noPalDevices; i++) {
             mPalInDevice[i].id = mPalInDeviceIds[i];
@@ -4250,14 +4512,9 @@ int StreamInPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, b
                         &payload_size, nullptr);
 
                 if (ret<0) {
-                    AHAL_DBG("USB device failed, falling back to Speaker-mic");
-                    auto it = std::find(mAndroidInDevices.begin(),mAndroidInDevices.end(),
-                        mPalInDevice[i].id);
-                    if (it != mAndroidInDevices.end())
-                        mAndroidInDevices.erase(it);
-                    mPalInDevice[i].id = PAL_DEVICE_IN_SPEAKER_MIC;
-                    mPalInDevice[i].address.card_id = 0;
-                    mPalInDevice[i].address.device_num = 0;
+                    AHAL_ERR("Error usb device is not connected");
+                    ret = -ENOSYS;
+                    goto done;
                 }
             }
             mPalInDevice[i].config.sample_rate = mPalInDevice[0].config.sample_rate;
@@ -4269,6 +4526,10 @@ int StreamInPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, b
                 mPalInDevice[i].address.card_id = adevice->usb_card_id_;
                 mPalInDevice[i].address.device_num = adevice->usb_dev_num_;
             }
+#ifndef SEC_AUDIO_COMMON
+            strlcpy(mPalInDevice[i].custom_config.custom_key, "",
+                    sizeof(mPalInDevice[i].custom_config.custom_key));
+#endif
             /* HDR use case check */
             if (is_hdr_mode_enabled())
                 setup_hdr_usecase(&mPalInDevice[i]);
@@ -4281,13 +4542,9 @@ int StreamInPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, b
 #endif
         }
 
-        if (device_cap_query) {
-            free(device_cap_query);
-            device_cap_query = NULL;
-        }
         mAndroidInDevices = new_devices;
 
-        if(pal_stream_handle_) {
+        if (pal_stream_handle_) {
 #ifdef SEC_AUDIO_SUPPORT_AFE_LISTENBACK
             if (adevice->sec_device_->listenback_on) {
                 adevice->sec_device_->SetListenbackMode(false);
@@ -4311,9 +4568,13 @@ int StreamInPrimary::RouteStream(const std::set<audio_devices_t>& new_devices, b
     }
 
 done:
+    if (device_cap_query) {
+        free(device_cap_query);
+        device_cap_query = NULL;
+    }
     stream_mutex_.unlock();
-   AHAL_DBG("exit %d", ret);
-   return ret;
+    AHAL_DBG("exit %d", ret);
+    return ret;
 }
 
 int StreamInPrimary::SetParameters(const char* kvpairs) {
@@ -4342,7 +4603,7 @@ int StreamInPrimary::Open() {
     uint32_t inBufCount = NO_OF_BUF;
     struct pal_buffer_config inBufCfg = {0, 0, 0};
     void *handle = nullptr;
-    pal_param_device_capability_t *device_cap_query;
+    pal_param_device_capability_t *device_cap_query = NULL;
     size_t payload_size = 0;
     dynamic_media_config_t dynamic_media_config;
     std::shared_ptr<AudioDevice> adevice = AudioDevice::GetInstance();
@@ -4528,21 +4789,10 @@ int StreamInPrimary::Open() {
                 &payload_size, nullptr);
 
          if (ret<0) {
-             AHAL_DBG("USB device failed, falling back to Speaker-mic");
-             auto it = std::find(mAndroidInDevices.begin(),mAndroidInDevices.end(),
-                       mPalInDevice->id);
-             if (it != mAndroidInDevices.end())
-                 mAndroidInDevices.erase(it);
-             mPalInDevice->id = PAL_DEVICE_IN_SPEAKER_MIC;
-             mAndroidInDevices.insert(AUDIO_DEVICE_IN_BUILTIN_MIC);
-             mPalInDevice->address.card_id = 0;
-             mPalInDevice->address.device_num = 0;
+             AHAL_DBG("Error usb device is not connected");
+             ret = -ENOSYS;
+             goto exit;
          }
-    }
-
-    if (device_cap_query) {
-        free(device_cap_query);
-        device_cap_query = NULL;
     }
 
     AHAL_DBG("(%x:ret)", ret);
@@ -4582,15 +4832,6 @@ int StreamInPrimary::Open() {
     }
     stream_mutex_.lock();
 #endif
-#ifdef SEC_AUDIO_CALL_VOIP
-    if (streamAttributes_.type == PAL_STREAM_VOIP_TX) {
-        std::shared_ptr<StreamOutPrimary> astream_out = adevice->OutGetStream(PAL_STREAM_VOIP_RX);
-        if (astream_out &&
-            astream_out->getStreamAttributes().in_media_config.sample_rate != config_.sample_rate) {
-            astream_out->Standby();
-        }
-    }
-#endif
 
 set_buff_size:
     if (usecase_ == USECASE_AUDIO_RECORD_MMAP) {
@@ -4606,11 +4847,8 @@ set_buff_size:
     } else
         inBufSize = StreamInPrimary::GetBufferSize();
 
-#ifdef SEC_AUDIO_CALL_VOIP
-    if (usecase_ == USECASE_AUDIO_RECORD_VOIP) {
+    if (usecase_ == USECASE_AUDIO_RECORD_VOIP)
         inBufCount = VOIP_PERIOD_COUNT_DEFAULT;
-    }
-#endif
 
     if (!handle) {
 #ifdef SEC_AUDIO_SAMSUNGRECORD
@@ -4631,6 +4869,10 @@ set_buff_size:
     fragment_size_ = inBufSize;
 
 exit:
+    if (device_cap_query) {
+        free(device_cap_query);
+        device_cap_query = NULL;
+    }
     AHAL_DBG("Exit ret: %d", ret);
     return ret;
 }
@@ -4658,14 +4900,10 @@ uint32_t StreamInPrimary::GetBufferSize() {
     streamAttributes_.type = StreamInPrimary::GetPalStreamType(flags_,
             config_.sample_rate);
     if (streamAttributes_.type == PAL_STREAM_VOIP_TX) {
-#ifdef SEC_AUDIO_CALL_VOIP
-        return ((DEFAULT_VOIP_BUF_DURATION_MS *config_.sample_rate) /1000)*
+        return (DEFAULT_VOIP_BUF_DURATION_MS * config_.sample_rate / 1000) *
                audio_bytes_per_frame(
                        audio_channel_count_from_in_mask(config_.channel_mask),
                        config_.format);
-#else
-        return voip_get_buffer_size(config_.sample_rate);
-#endif
     } else if (streamAttributes_.type == PAL_STREAM_LOW_LATENCY) {
         return LOW_LATENCY_CAPTURE_PERIOD_SIZE *
             audio_bytes_per_frame(
@@ -4673,8 +4911,12 @@ uint32_t StreamInPrimary::GetBufferSize() {
                     config_.format);
     } else if (streamAttributes_.type == PAL_STREAM_ULTRA_LOW_LATENCY) {
         return GetBufferSizeForLowLatencyRecord();
-    } else if (streamAttributes_.type == PAL_STREAM_DEEP_BUFFER ||
-               streamAttributes_.type == PAL_STREAM_VOICE_CALL_RECORD) {
+    } else if (streamAttributes_.type == PAL_STREAM_DEEP_BUFFER) {
+        return (config_.sample_rate/ 1000) * AUDIO_CAPTURE_PERIOD_DURATION_MSEC *
+            audio_bytes_per_frame(
+                    audio_channel_count_from_in_mask(config_.channel_mask),
+                    config_.format);
+    } else if (streamAttributes_.type == PAL_STREAM_VOICE_CALL_RECORD) {
         return (config_.sample_rate * AUDIO_CAPTURE_PERIOD_DURATION_MSEC/ 1000) *
             audio_bytes_per_frame(
                     audio_channel_count_from_in_mask(config_.channel_mask),
@@ -4707,10 +4949,15 @@ int StreamInPrimary::GetInputUseCase(audio_input_flags_t halStreamFlags, audio_s
 
     if ((halStreamFlags & AUDIO_INPUT_FLAG_MMAP_NOIRQ) != 0)
         usecase = USECASE_AUDIO_RECORD_MMAP;
+#ifdef SEC_AUDIO_CALL_VOIP
+    else if ((source == AUDIO_SOURCE_VOICE_COMMUNICATION
+                || source == AUDIO_SOURCE_MIC) &&
+#else
     else if (source == AUDIO_SOURCE_VOICE_COMMUNICATION &&
+#endif
              halStreamFlags & AUDIO_INPUT_FLAG_VOIP_TX)
         usecase = USECASE_AUDIO_RECORD_VOIP;
-
+    AHAL_INFO("usecase(%d: %s)", usecase, use_case_table[usecase]);
     return usecase;
 }
 
@@ -4770,9 +5017,9 @@ ssize_t StreamInPrimary::read(const void *buffer, size_t bytes) {
 
     if (is_st_session) {
         ATRACE_BEGIN("hal: lab read");
+        memset(palBuffer.buffer, 0, palBuffer.size);
         if (!audio_extn_sound_trigger_check_session_activity(this)) {
             AHAL_DBG("sound trigger session not available");
-            memset(palBuffer.buffer, 0, palBuffer.size);
             ATRACE_END();
             goto exit;
         }
@@ -4781,14 +5028,20 @@ ssize_t StreamInPrimary::read(const void *buffer, size_t bytes) {
             stream_started_ = true;
         }
         while (retry_count--) {
-            size = pal_stream_read(pal_stream_handle_, &palBuffer);
-            if (size < 0) {
+            ret = pal_stream_read(pal_stream_handle_, &palBuffer);
+            if (ret < 0) {
                 memset(palBuffer.buffer, 0, palBuffer.size);
                 AHAL_ERR("error, failed to read data from PAL");
                 ATRACE_END();
                 goto exit;
-            } else if (size > 0) {
-                break;
+            } else {
+                size += ret;
+                if (ret < palBuffer.size) {
+                    palBuffer.buffer += ret;
+                    palBuffer.size -= ret;
+                } else {
+                    break;
+                }
             }
         }
         ATRACE_END();
@@ -4812,7 +5065,7 @@ ssize_t StreamInPrimary::read(const void *buffer, size_t bytes) {
                 AHAL_ERR("Pal Stream volume Error (%x)", ret);
             }
         }
-        /*apply chached mic mute*/
+        /*apply cached mic mute*/
         if (adevice->mute_) {
             pal_stream_set_mute(pal_stream_handle_, adevice->mute_);
         }
@@ -4821,10 +5074,10 @@ ssize_t StreamInPrimary::read(const void *buffer, size_t bytes) {
 #endif
 #ifdef SEC_AUDIO_DYNAMIC_NREC
         // not support dynamic nrec(not defined in audio_effects_sec.xml) : mic
-        if (adevice->effect_) {
+        if (adevice->voice_) {
             if (source_ == AUDIO_SOURCE_MIC &&
                 adevice->voice_->mode_ == AUDIO_MODE_IN_COMMUNICATION)
-                adevice->effect_->SetECNS(true);
+                adevice->voice_->sec_voice_->SetECNSForVoip(true);
         }
 #endif
 #ifdef SEC_AUDIO_CALL_VOIP // { CONFIG_EFFECTS_VIDEOCALL
@@ -4868,11 +5121,11 @@ ssize_t StreamInPrimary::read(const void *buffer, size_t bytes) {
     if (!effects_applied_) {
 #ifdef SEC_AUDIO_DYNAMIC_NREC
         // support dynamic nrec(defined in audio_effects_sec.xml)
-        if (adevice->effect_) {
+        if (adevice->voice_) {
             if (adevice->voice_->mode_ == AUDIO_MODE_IN_CALL)
-                adevice->effect_->SetECNS(true);
+                adevice->voice_->sec_voice_->SetECNS(true);
             else
-                adevice->effect_->SetECNS(isECEnabled);
+                adevice->voice_->sec_voice_->SetECNSForVoip(isECEnabled);
         }
 #endif
         if (isECEnabled && isNSEnabled) {
@@ -4924,7 +5177,9 @@ ssize_t StreamInPrimary::read(const void *buffer, size_t bytes) {
         stream_mutex_.lock();
     }
 #endif
-
+#ifdef SEC_AUDIO_CALL_VOIP
+    sec_audio_stream_in->RerouteForVoipHeadphone(this);
+#endif
 #ifdef SEC_AUDIO_DUMP
     sec_hal_read_pcm(this, palBuffer.buffer, palBuffer.size, PCM_DUMP_LAST);
 #endif
@@ -4938,7 +5193,7 @@ exit:
     stream_mutex_.unlock();
     clock_gettime(CLOCK_MONOTONIC, &readAt);
 
-    return (ret < 0 ? onReadError(bytes, ret) : bytes);
+    return (ret < 0 ? onReadError(bytes, ret) : (size > 0 ? size : bytes));
 }
 
 int StreamInPrimary::FillHalFnPtrs() {
@@ -4988,6 +5243,8 @@ StreamInPrimary::StreamInPrimary(audio_io_handle_t handle,
     int ret = 0;
     readAt.tv_sec = 0;
     readAt.tv_nsec = 0;
+    void *st_handle = nullptr;
+    pal_param_payload *payload = nullptr;
 
     AHAL_DBG("enter: handle (%x) format(%#x) sample_rate(%d) channel_mask(%#x) devices(%zu) flags(%#x)"\
           , handle, config->format, config->sample_rate, config->channel_mask,
@@ -5030,6 +5287,47 @@ StreamInPrimary::StreamInPrimary(audio_io_handle_t handle,
     if (!config_.format)
         config_.format = AUDIO_FORMAT_PCM_16_BIT;
 
+    /*
+     * Audio config set from client may not be same as config used in pal,
+     * update audio config here so that AudioFlinger can acquire correct
+     * config used in pal/hal and configure record buffer converter properly.
+     */
+    st_handle = audio_extn_sound_trigger_check_and_get_session(this);
+    if (st_handle) {
+        AHAL_VERBOSE("Found existing pal stream handle associated with capture handle");
+        pal_stream_handle_ = (pal_stream_handle_t *)st_handle;
+        payload = (pal_param_payload *)calloc(1,
+            sizeof(pal_param_payload) + sizeof(struct pal_stream_attributes));
+        if (!payload) {
+            AHAL_ERR("Failed to allocate memory for stream attributes");
+            goto error;
+        }
+        payload->payload_size = sizeof(struct pal_stream_attributes);
+        ret = pal_stream_get_param(pal_stream_handle_, PAL_PARAM_ID_STREAM_ATTRIBUTES, &payload);
+        if (ret) {
+            AHAL_ERR("Failed to get pal stream attributes, ret = %d", ret);
+            if (payload)
+                free(payload);
+            goto error;
+        }
+        memcpy(&streamAttributes_, payload->payload, payload->payload_size);
+
+        if (streamAttributes_.in_media_config.ch_info.channels == 1)
+            config_.channel_mask = AUDIO_CHANNEL_IN_MONO;
+        else if (streamAttributes_.in_media_config.ch_info.channels == 2)
+            config_.channel_mask = AUDIO_CHANNEL_IN_STEREO;
+        config_.format = AUDIO_FORMAT_PCM_16_BIT;
+        config_.sample_rate = streamAttributes_.in_media_config.sample_rate;
+
+        /*
+         * reset pal_stream_handle in case standby come before
+         * read as anyway it will be updated in StreamInPrimary::Open
+         */
+        if (payload)
+            free(payload);
+        pal_stream_handle_ = nullptr;
+    }
+
     AHAL_DBG("local : handle (%x) format(%#x) sample_rate(%d) channel_mask(%#x) devices(%#x) flags(%#x)"\
           , handle, config_.format, config_.sample_rate, config_.channel_mask,
           AudioExtn::get_device_types(devices), flags);
@@ -5042,7 +5340,7 @@ StreamInPrimary::StreamInPrimary(audio_io_handle_t handle,
         mAndroidInDevices.insert(AUDIO_DEVICE_IN_DEFAULT);
 
     AHAL_DBG("No of devices %zu", mAndroidInDevices.size());
-    mPalInDeviceIds = new pal_device_id_t[mAndroidInDevices.size()];
+    mPalInDeviceIds = (pal_device_id_t*) calloc(mAndroidInDevices.size(), sizeof(pal_device_id_t));
     if (!mPalInDeviceIds) {
         goto error;
     }
@@ -5052,7 +5350,7 @@ StreamInPrimary::StreamInPrimary(audio_io_handle_t handle,
         AHAL_ERR("mismatched pal %d and hal devices %zu", noPalDevices, mAndroidInDevices.size());
         goto error;
     }
-    mPalInDevice = new pal_device [mAndroidInDevices.size()];
+    mPalInDevice = (struct pal_device*) calloc(mAndroidInDevices.size(), sizeof(struct pal_device));
     if (!mPalInDevice) {
         goto error;
     }
@@ -5062,6 +5360,7 @@ StreamInPrimary::StreamInPrimary(audio_io_handle_t handle,
 #endif
 
     for (int i = 0; i < mAndroidInDevices.size(); i++) {
+        memset(mPalInDevice[i].custom_config.custom_key, 0, sizeof(mPalInDevice[i].custom_config.custom_key));
         mPalInDevice[i].id = mPalInDeviceIds[i];
         mPalInDevice[i].config.sample_rate = config->sample_rate;
         mPalInDevice[i].config.bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
@@ -5073,10 +5372,13 @@ StreamInPrimary::StreamInPrimary(audio_io_handle_t handle,
             mPalInDevice[i].address.card_id = adevice->usb_card_id_;
             mPalInDevice[i].address.device_num = adevice->usb_dev_num_;
         }
-
+#ifndef SEC_AUDIO_COMMON
+        strlcpy(mPalInDevice[i].custom_config.custom_key, "",
+                sizeof(mPalInDevice[i].custom_config.custom_key));
+#endif
         /* HDR use case check */
-        if ( (source_ == AUDIO_SOURCE_UNPROCESSED) &&
-           (config_.sample_rate == 48000) ) {
+        if ((source_ == AUDIO_SOURCE_UNPROCESSED) &&
+                (config_.sample_rate == 48000)) {
             uint8_t channels =
                 audio_channel_count_from_in_mask(config_.channel_mask);
             if (channels == 4) {
@@ -5120,15 +5422,15 @@ StreamInPrimary::~StreamInPrimary() {
         sec_hal_stop_read_pcm(this, &streamAttributes_);
 #endif
     }
-    stream_mutex_.unlock();
     if (mPalInDeviceIds) {
-        delete[] mPalInDeviceIds;
+        free(mPalInDeviceIds);
         mPalInDeviceIds = NULL;
     }
     if (mPalInDevice) {
-        delete[] mPalInDevice;
+        free(mPalInDevice);
         mPalInDevice = NULL;
     }
+    stream_mutex_.unlock();
 }
 
 StreamPrimary::StreamPrimary(audio_io_handle_t handle,
@@ -5136,7 +5438,8 @@ StreamPrimary::StreamPrimary(audio_io_handle_t handle,
     pal_stream_handle_(NULL),
     handle_(handle),
     config_(*config),
-    volume_(NULL)
+    volume_(NULL),
+    mmap_shared_memory_fd(-1)
 {
     memset(&streamAttributes_, 0, sizeof(streamAttributes_));
     memset(&address_, 0, sizeof(address_));

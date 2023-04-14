@@ -18,6 +18,7 @@
 #include <linux/slab.h>
 
 #include <linux/samsung/builder_pattern.h>
+#include <linux/samsung/of_early_populate.h>
 #include <linux/samsung/debug/sec_upload_cause.h>
 
 struct upload_cause_notify {
@@ -58,7 +59,7 @@ static inline int __upldc_add_cause(struct sec_upload_cause *uc)
 int sec_upldc_add_cause(struct sec_upload_cause *uc)
 {
 	if (!__upldc_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	return __upldc_add_cause(uc);
 }
@@ -80,7 +81,7 @@ static inline int __upldc_del_cause(struct sec_upload_cause *uc)
 int sec_upldc_del_cause(struct sec_upload_cause *uc)
 {
 	if (!__upldc_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	return __upldc_del_cause(uc);
 }
@@ -107,7 +108,7 @@ static inline int __upldc_set_default_cause(struct sec_upload_cause *uc)
 int sec_upldc_set_default_cause(struct sec_upload_cause *uc)
 {
 	if (!__upldc_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	return __upldc_set_default_cause(uc);
 }
@@ -135,7 +136,7 @@ static inline int __upldc_unset_default_cause(struct sec_upload_cause *uc)
 int sec_upldc_unset_default_cause(struct sec_upload_cause *uc)
 {
 	if (!__upldc_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	return __upldc_unset_default_cause(uc);
 }
@@ -534,13 +535,19 @@ static struct platform_driver sec_upldc_driver = {
 
 static __init int sec_upldc_init(void)
 {
-	return platform_driver_register(&sec_upldc_driver);
+	int err;
+
+	err = platform_driver_register(&sec_upldc_driver);
+	if (err)
+		return err;
+
+	err = __of_platform_early_populate_init(sec_upldc_match_table);
+	if (err)
+		return err;
+
+	return 0;
 }
-#if IS_BUILTIN(CONFIG_SEC_UPLOAD_CAUSE)
-pure_initcall(sec_upldc_init);
-#else
-module_init(sec_upldc_init);
-#endif
+core_initcall(sec_upldc_init);
 
 static __exit void sec_upldc_exit(void)
 {

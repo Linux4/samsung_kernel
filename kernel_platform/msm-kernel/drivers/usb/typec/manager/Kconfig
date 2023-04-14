@@ -18,7 +18,7 @@ config IF_CB_MANAGER
     that makes functions to callback functions
 
 config USB_TYPEC_MANAGER_NOTIFIER_TEST
-        bool "KUnit test for usb_typec_manager_notifier_test"
+        tristate "KUnit test for usb_typec_manager_notifier_test"
         depends on SEC_KUNIT
         depends on USB_TYPEC_MANAGER_NOTIFIER
         default y

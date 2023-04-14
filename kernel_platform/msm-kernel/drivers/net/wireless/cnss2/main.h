@@ -23,7 +23,7 @@
 #include <linux/platform_device.h>
 #include <linux/time64.h>
 #include <net/cnss2.h>
-#if IS_ENABLED(CONFIG_QCOM_MEMORY_DUMP_V2)
+#if IS_ENABLED(CONFIG_QCOM_MEMORY_DUMP_V2) || IS_ENABLED(CONFIG_QCOM_MINIDUMP)
 #include <soc/qcom/memory_dump.h>
 #endif
 #if IS_ENABLED(CONFIG_MSM_SUBSYSTEM_RESTART) || \
@@ -103,6 +103,7 @@ struct cnss_clk_info {
 struct cnss_pinctrl_info {
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *bootstrap_active;
+	struct pinctrl_state *sol_default;
 	struct pinctrl_state *wlan_en_active;
 	struct pinctrl_state *wlan_en_sleep;
 	int bt_en_gpio;
@@ -194,14 +195,12 @@ struct cnss_bus_bw_info {
  * struct cnss_interconnect_cfg - CNSS platform interconnect config
  * @list_head: List of interconnect path bandwidth configs
  * @path_count: Count of interconnect path configured in device tree
- * @current_bw_vote: WLAN driver provided bandwidth vote
  * @bus_bw_cfg_count: Number of bandwidth configs for voting. It is the array
  *                    size of struct cnss_bus_bw_info.cfg_table
  */
 struct cnss_interconnect_cfg {
 	struct list_head list_head;
 	u32 path_count;
-	int current_bw_vote;
 	u32 bus_bw_cfg_count;
 };
 
@@ -311,6 +310,7 @@ enum cnss_driver_state {
 	CNSS_QMI_DMS_CONNECTED = 20,
 	CNSS_DAEMON_CONNECTED,
 	CNSS_PCI_PROBE_DONE,
+	CNSS_DRIVER_REGISTER,
 };
 
 struct cnss_recovery_data {
@@ -345,7 +345,6 @@ enum cnss_debug_quirks {
 	ENABLE_WALTEST,
 	ENABLE_PCI_LINK_DOWN_PANIC,
 	FBC_BYPASS,
-	ENABLE_DAEMON_SUPPORT,
 	DISABLE_DRV,
 	DISABLE_IO_COHERENCY,
 	IGNORE_PCI_LINK_FAILURE,
@@ -422,6 +421,13 @@ enum cnss_timeout_type {
 	CNSS_TIMEOUT_DAEMON_CONNECTION,
 };
 
+struct cnss_sol_gpio {
+	int dev_sol_gpio;
+	int dev_sol_irq;
+	u32 dev_sol_counter;
+	int host_sol_gpio;
+};
+
 struct cnss_plat_data {
 	struct platform_device *plat_dev;
 	void *bus_priv;
@@ -429,6 +435,7 @@ struct cnss_plat_data {
 	struct list_head vreg_list;
 	struct list_head clk_list;
 	struct cnss_pinctrl_info pinctrl_info;
+	struct cnss_sol_gpio sol_gpio;
 #if IS_ENABLED(CONFIG_MSM_SUBSYSTEM_RESTART)
 	struct cnss_subsys_info subsys_info;
 #endif
@@ -495,6 +502,7 @@ struct cnss_plat_data {
 	u8 use_fw_path_with_prefix;
 	char firmware_name[MAX_FIRMWARE_NAME_LEN];
 	char fw_fallback_name[MAX_FIRMWARE_NAME_LEN];
+	u8 *sram_dump;
 	struct completion rddm_complete;
 	struct completion recovery_complete;
 	struct cnss_control_params ctrl_params;
@@ -521,16 +529,22 @@ struct cnss_plat_data {
 	struct mbox_client mbox_client_data;
 	struct mbox_chan *mbox_chan;
 	const char *vreg_ol_cpr, *vreg_ipa;
-    bool adsp_pc_enabled;
+	const char **pdc_init_table, **vreg_pdc_map;
+	int pdc_init_table_len, vreg_pdc_map_len;
+	bool adsp_pc_enabled;
     u64 feature_list;
 	u8 charger_mode;
-	u16 hang_event_data_len;
-	u32 hang_data_addr_offset;
+	/* WLAN driver provided bandwidth vote */
+	int current_bw_vote;
 #ifdef CONFIG_SEC_SS_CNSS_FEATURE_SYSFS
 	u8 dump_mode;
 	struct kobject *wifi_kobj;
 	struct completion macloader_done;
 #endif /* CONFIG_SEC_SS_CNSS_FEATURE_SYSFS */
+	u16 hang_event_data_len;
+	u32 hang_data_addr_offset;
+	/* bitmap to detect FEM combination */
+	u8 hwid_bitmap;
 };
 
 #if IS_ENABLED(CONFIG_ARCH_QCOM)
@@ -575,6 +589,13 @@ int cnss_get_pinctrl(struct cnss_plat_data *plat_priv);
 int cnss_power_on_device(struct cnss_plat_data *plat_priv);
 void cnss_power_off_device(struct cnss_plat_data *plat_priv);
 bool cnss_is_device_powered_on(struct cnss_plat_data *plat_priv);
+int cnss_enable_dev_sol_irq(struct cnss_plat_data *plat_priv);
+int cnss_disable_dev_sol_irq(struct cnss_plat_data *plat_priv);
+int cnss_get_dev_sol_value(struct cnss_plat_data *plat_priv);
+int cnss_init_dev_sol_irq(struct cnss_plat_data *plat_priv);
+int cnss_deinit_dev_sol_irq(struct cnss_plat_data *plat_priv);
+int cnss_set_host_sol_value(struct cnss_plat_data *plat_priv, int value);
+int cnss_get_host_sol_value(struct cnss_plat_data *plat_priv);
 int cnss_register_subsys(struct cnss_plat_data *plat_priv);
 void cnss_unregister_subsys(struct cnss_plat_data *plat_priv);
 int cnss_register_ramdump(struct cnss_plat_data *plat_priv);
@@ -597,6 +618,9 @@ int cnss_get_tcs_info(struct cnss_plat_data *plat_priv);
 unsigned int cnss_get_timeout(struct cnss_plat_data *plat_priv,
 			      enum cnss_timeout_type);
 int cnss_aop_mbox_init(struct cnss_plat_data *plat_priv);
+int cnss_aop_pdc_reconfig(struct cnss_plat_data *plat_priv);
+int cnss_aop_send_msg(struct cnss_plat_data *plat_priv, char *msg);
+void cnss_power_misc_params_init(struct cnss_plat_data *plat_priv);
 int cnss_request_firmware_direct(struct cnss_plat_data *plat_priv,
 				 const struct firmware **fw_entry,
 				 const char *filename);
@@ -605,4 +629,5 @@ int cnss_set_feature_list(struct cnss_plat_data *plat_priv,
 int cnss_get_feature_list(struct cnss_plat_data *plat_priv,
 			  u64 *feature_list);
 int cnss_get_input_gpio_value(struct cnss_plat_data *plat_priv, int gpio_num);
+bool cnss_check_driver_loading_allowed(void);
 #endif /* _CNSS_MAIN_H */
