@@ -1,0 +1,1 @@
+obj-$(CONFIG_TOUCHSCREEN_FTS_FT8722) += focaltech_test_ft8722.o
