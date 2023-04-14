@@ -673,7 +673,7 @@ void cam_video_device_cleanup(void)
 
 void cam_subdev_notify_message(u32 subdev_type,
 		enum cam_subdev_message_type_t message_type,
-		uint32_t data)
+		struct cam_subdev_msg_payload *data)
 {
 	struct v4l2_subdev *sd = NULL;
 	struct cam_subdev *csd = NULL;

@@ -40,6 +40,13 @@ fi
 
 AM_CONDITIONAL(USE_GLIB, test "x${with_glib}" = "xyes")
 
+# Checks for libraries
+PKG_CHECK_MODULES([AGM], [agm])
+AC_SUBST([AGM_CFLAGS])
+
+PKG_CHECK_MODULES([SNDPARSER], [sndparser])
+AC_SUBST([SNDPARSER_CFLAGS])
+
 AC_ARG_WITH([openwrt],
     AS_HELP_STRING([use openwrt (default is no)]),
     [with_openwrt=$withval],

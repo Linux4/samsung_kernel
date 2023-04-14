@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -195,6 +195,38 @@ ucfg_pmo_disable_ns_offload_in_fwr(struct wlan_objmgr_vdev *vdev,
 	return pmo_core_disable_ns_offload_in_fwr(vdev, trigger);
 }
 #endif /* WLAN_NS_OFFLOAD */
+
+#ifdef FEATURE_WLAN_DYNAMIC_ARP_NS_OFFLOAD
+QDF_STATUS
+ucfg_pmo_dynamic_arp_ns_offload_enable(struct wlan_objmgr_vdev *vdev)
+{
+	return pmo_core_dynamic_arp_ns_offload_enable(vdev);
+}
+
+QDF_STATUS
+ucfg_pmo_dynamic_arp_ns_offload_disable(struct wlan_objmgr_vdev *vdev)
+{
+	return pmo_core_dynamic_arp_ns_offload_disable(vdev);
+}
+
+bool
+ucfg_pmo_get_arp_ns_offload_dynamic_disable(struct wlan_objmgr_vdev *vdev)
+{
+	return pmo_core_get_dynamic_arp_ns_offload_disable(vdev);
+}
+
+void
+ucfg_pmo_dynamic_arp_ns_offload_runtime_prevent(struct wlan_objmgr_vdev *vdev)
+{
+	return pmo_core_dynamic_arp_ns_offload_runtime_prevent(vdev);
+}
+
+void
+ucfg_pmo_dynamic_arp_ns_offload_runtime_allow(struct wlan_objmgr_vdev *vdev)
+{
+	return pmo_core_dynamic_arp_ns_offload_runtime_allow(vdev);
+}
+#endif
 
 QDF_STATUS
 ucfg_pmo_get_ns_offload_params(struct wlan_objmgr_vdev *vdev,
@@ -451,6 +483,11 @@ ucfg_pmo_add_wow_user_pattern(struct wlan_objmgr_vdev *vdev,
 			      struct pmo_wow_add_pattern *ptrn)
 {
 	return pmo_core_add_wow_user_pattern(vdev, ptrn);
+}
+
+void ucfg_pmo_register_wow_default_patterns(struct wlan_objmgr_vdev *vdev)
+{
+	pmo_register_wow_default_patterns(vdev);
 }
 
 QDF_STATUS

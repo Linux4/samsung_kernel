@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -24,6 +25,7 @@
 /* Header files */
 
 #include "wma.h"
+#include "enet.h"
 #include "wma_api.h"
 #include "cds_api.h"
 #include "wmi_unified_api.h"
@@ -65,7 +67,6 @@
 #include <cdp_txrx_cfg.h>
 #include "cdp_txrx_stats.h"
 #include <cdp_txrx_misc.h>
-#include "enet.h"
 #include "wlan_mgmt_txrx_utils_api.h"
 #include "wlan_objmgr_psoc_obj.h"
 #include "wlan_objmgr_pdev_obj.h"
@@ -1031,7 +1032,7 @@ wma_data_tx_ack_comp_hdlr(void *wma_context, qdf_nbuf_t netbuf, int32_t status)
 		goto free_nbuf;
 	}
 
-	if (wma_handle && wma_handle->umac_data_ota_ack_cb) {
+	if (wma_handle->umac_data_ota_ack_cb) {
 		struct wma_tx_ack_work_ctx *ack_work;
 
 		ack_work = qdf_mem_malloc(sizeof(struct wma_tx_ack_work_ctx));
@@ -1735,6 +1736,7 @@ static QDF_STATUS wma_update_thermal_mitigation_to_fw(tp_wma_handle wma,
 	therm_data.levelconf[0].dcoffpercent =
 		wma->thermal_mgmt_info.throttle_duty_cycle_tbl[thermal_level];
 	therm_data.levelconf[0].priority = 0;
+	therm_data.num_thermal_conf = 1;
 
 	return wmi_unified_thermal_mitigation_param_cmd_send(wma->wmi_handle,
 							     &therm_data);
@@ -2274,7 +2276,6 @@ QDF_STATUS wma_tx_packet(void *wma_context, void *tx_frame, uint16_t frmLen,
 			 wma_tx_dwnld_comp_callback tx_frm_download_comp_cb,
 			 void *pData,
 			 wma_tx_ota_comp_callback tx_frm_ota_comp_cb,
-			 struct mgmt_frame_data *ota_comp_data,
 			 uint8_t tx_flag, uint8_t vdev_id, bool tdls_flag,
 			 uint16_t channel_freq, enum rateid rid,
 			 int8_t peer_rssi)
@@ -2607,12 +2608,6 @@ QDF_STATUS wma_tx_packet(void *wma_context, void *tx_frame, uint16_t frmLen,
 				GENERIC_NODOWNLD_NOACK_COMP_INDEX;
 		}
 
-		if (ota_comp_data) {
-			wma_handle->is_mgmt_data_valid = true;
-			wma_handle->mgmt_data = *ota_comp_data;
-		} else {
-			wma_handle->is_mgmt_data_valid = false;
-		}
 	}
 
 	/*
@@ -3186,5 +3181,5 @@ bool wma_is_roam_in_progress(uint32_t vdev_id)
 	if (opmode != QDF_STA_MODE && opmode != QDF_P2P_CLIENT_MODE)
 		return false;
 
-	return wlan_cm_is_vdev_roaming(wma->interfaces[vdev_id].vdev);
+	return wlan_cm_is_vdev_roam_started(wma->interfaces[vdev_id].vdev);
 }

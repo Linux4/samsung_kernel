@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/delay.h>
@@ -136,7 +137,7 @@ int a6xx_hfi_queue_write(struct adreno_device *adreno_dev, uint32_t queue_idx,
 		}
 	}
 
-	hfi_update_write_idx(hdr, write);
+	hfi_update_write_idx(&hdr->write_index, write);
 
 	return 0;
 }
@@ -220,7 +221,7 @@ int a6xx_hfi_init(struct adreno_device *adreno_dev)
 	/* Allocates & maps memory for HFI */
 	if (IS_ERR_OR_NULL(hfi->hfi_mem)) {
 		hfi->hfi_mem = reserve_gmu_kernel_block(gmu, 0, HFIMEM_SIZE,
-			GMU_NONCACHED_KERNEL);
+			GMU_NONCACHED_KERNEL, 0);
 		if (!IS_ERR(hfi->hfi_mem))
 			init_queues(adreno_dev);
 	}
@@ -345,8 +346,6 @@ static int a6xx_hfi_send_cmd_wait_inline(struct adreno_device *adreno_dev,
 	return rc;
 }
 
-#define HFI_ACK_ERROR 0xffffffff
-
 int a6xx_hfi_send_generic_req(struct adreno_device *adreno_dev, void *cmd)
 {
 	struct pending_cmd ret_cmd;
@@ -355,18 +354,22 @@ int a6xx_hfi_send_generic_req(struct adreno_device *adreno_dev, void *cmd)
 	memset(&ret_cmd, 0, sizeof(ret_cmd));
 
 	rc = a6xx_hfi_send_cmd_wait_inline(adreno_dev, cmd, &ret_cmd);
+	if (rc)
+		return rc;
 
-	if (!rc && ret_cmd.results[2] == HFI_ACK_ERROR) {
+	if (ret_cmd.results[2]) {
 		struct a6xx_gmu_device *gmu = to_a6xx_gmu(adreno_dev);
 		struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 
 		gmu_core_fault_snapshot(device);
-		dev_err(&gmu->pdev->dev, "HFI ACK failure: Req 0x%8.8X\n",
-						ret_cmd.results[1]);
+		dev_err(&gmu->pdev->dev,
+				"HFI ACK failure: Req=0x%8.8X, Result=0x%8.8X\n",
+				ret_cmd.results[1],
+				ret_cmd.results[2]);
 		return -EINVAL;
 	}
 
-	return rc;
+	return 0;
 }
 
 static int a6xx_hfi_send_gmu_init(struct adreno_device *adreno_dev)
@@ -627,7 +630,7 @@ static int a6xx_hfi_verify_fw_version(struct adreno_device *adreno_dev)
 	major = a6xx_core->gmu_major;
 	minor = a6xx_core->gmu_minor;
 
-	result = a6xx_hfi_get_fw_version(adreno_dev, GMU_VERSION(major, minor),
+	result = a6xx_hfi_get_fw_version(adreno_dev, GMU_VERSION(major, minor, 0),
 			&ver);
 	if (result) {
 		dev_err_once(&gmu->pdev->dev,

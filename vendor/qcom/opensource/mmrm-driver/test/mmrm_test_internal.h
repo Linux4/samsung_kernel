@@ -17,10 +17,9 @@
 #include <linux/platform_device.h>
 #include <linux/soc/qcom/msm_mmrm.h>
 
-#define MMRM_TEST_LAHAINA 0
 #define MMRM_TEST_LAHAINA_NUM_CLK_CLIENTS 23
-#define MMRM_TEST_WAIPIO 1
 #define MMRM_TEST_WAIPIO_NUM_CLK_CLIENTS 28
+#define MMRM_TEST_NEO_NUM_CLK_CLIENTS 23
 
 struct mmrm_test_desc {
 	struct mmrm_test_clk_client  *clk_client;
@@ -48,6 +47,9 @@ struct clock_rate {
 extern struct  mmrm_test_desc  *waipio_all_testcases[];
 extern int waipio_all_testcases_count;
 
+extern struct  mmrm_test_desc  *neo_all_testcases[];
+extern int neo_all_testcases_count;
+
 typedef struct test_case_info_s {
 	const char name[MMRM_CLK_CLIENT_NAME_SIZE];
 	int  vdd_level;
@@ -65,9 +67,15 @@ extern int waipio_testcases_count;
 extern test_case_info_t *waipio_cornercase_testcases [];
 extern int waipio_cornercase_testcases_count;
 
+extern test_case_info_t  *neo_testcases[];
+extern int neo_testcases_count;
+
+extern test_case_info_t *neo_cornercase_testcases [];
+extern int neo_cornercase_testcases_count;
+
 extern struct  mmrm_test  *all_lahaina_testcases[];
 
-void test_mmrm_client(struct platform_device *pdev, int index, int count);
+void test_mmrm_client(struct platform_device *pdev, int count);
 void test_mmrm_single_client_cases(struct platform_device *pdev,
 		int index, int count);
 void test_mmrm_concurrent_client_cases(struct platform_device *pdev,

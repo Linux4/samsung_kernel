@@ -45,6 +45,7 @@ enum {
 #define COVER_DETACH 0 // OPEN
 #define COVER_ATTACH 1 // CLOSE
 #define COVER_ATTACH_NFC_ACTIVE 2 // CLOSE
+#define COVER_ATTACH_RECOVER 3
 
 static bool fcd_available;
 static int fcd_dual_cal_matrix;
@@ -428,7 +429,7 @@ static ssize_t nfc_cover_status_show(struct device *dev,
 {
 	if (nfc_cover_status == COVER_ATTACH || nfc_cover_status == COVER_ATTACH_NFC_ACTIVE) {
 		snprintf(sysfs_cover_status, 10, "CLOSE");
-	} else if (nfc_cover_status == COVER_DETACH)  {
+	} else if (nfc_cover_status == COVER_DETACH || nfc_cover_status == COVER_ATTACH_RECOVER)  {
 		snprintf(sysfs_cover_status, 10, "OPEN");
 	}
 

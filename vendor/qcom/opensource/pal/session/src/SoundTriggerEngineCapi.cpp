@@ -324,6 +324,18 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
     }
 
 exit:
+
+    PAL_INFO(LOG_TAG, "Issuing capi_set_param for param %d",
+                   SVA_ID_REINIT_ALL);
+    rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,
+                             SVA_ID_REINIT_ALL, nullptr, nullptr);
+
+    if (CAPI_V2_EOK != rc) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "set param SVA_ID_REINIT_ALL failed, status = %d",
+                rc);
+    }
+
     process_end = std::chrono::steady_clock::now();
     process_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
         process_end - process_start).count();
@@ -588,6 +600,17 @@ exit:
         ST_DBG_FILE_CLOSE(user_verification_fd);
     }
 
+    /* Reinit the UV module */
+    PAL_DBG(LOG_TAG, "%s: Issuing capi_set_param for param %d", __func__,
+            STAGE2_UV_WRAPPER_ID_REINIT);
+    rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,
+        STAGE2_UV_WRAPPER_ID_REINIT, nullptr, nullptr);
+    if (CAPI_V2_EOK != rc) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "set_param STAGE2_UV_WRAPPER_ID_REINIT failed, status = %d",
+                status);
+    }
+
     if (reader_)
         reader_->updateState(READER_DISABLED);
 
@@ -701,6 +724,14 @@ SoundTriggerEngineCapi::SoundTriggerEngineCapi(
 
     return;
 err_exit:
+    if (capi_handle_) {
+        free(capi_handle_);
+        capi_handle_ = nullptr;
+    }
+    if (capi_lib_handle_) {
+        dlclose(capi_lib_handle_);
+        capi_lib_handle_ = nullptr;
+    }
     PAL_ERR(LOG_TAG, "constructor exit status = %d", status);
 }
 
@@ -795,14 +826,6 @@ int32_t SoundTriggerEngineCapi::StartSoundEngine()
         detection_state_ = KEYWORD_DETECTION_PENDING;
     } else if (detection_type_ == ST_SM_TYPE_USER_VERIFICATION) {
         stage2_uv_wrapper_threshold_config_t *threshold_cfg = nullptr;
-        rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,
-            STAGE2_UV_WRAPPER_ID_REINIT, nullptr, nullptr);
-        if (CAPI_V2_EOK != rc) {
-            status = -EINVAL;
-            PAL_ERR(LOG_TAG, "set_param STAGE2_UV_WRAPPER_ID_REINIT failed, status = %d",
-                    status);
-            return status;
-        }
 
         threshold_cfg = (stage2_uv_wrapper_threshold_config_t *)
             calloc(1, sizeof(stage2_uv_wrapper_threshold_config_t));
@@ -880,6 +903,12 @@ int32_t SoundTriggerEngineCapi::LoadSoundModel(Stream *s __unused,
         goto exit;
     }
 
+    if (!capi_handle_) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "Capi handle not allocated, status %d", status);
+        goto exit;
+    }
+
     sm_data_ = data;
     sm_data_size_ = data_size;
 
@@ -901,12 +930,6 @@ int32_t SoundTriggerEngineCapi::LoadSoundModel(Stream *s __unused,
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "capi_init status is %d, exiting, status %d",
                 rc, status);
-        goto exit;
-    }
-
-    if (nullptr == capi_handle_) {
-        PAL_ERR(LOG_TAG, "capi_handle is nullptr, exiting");
-        status = -EINVAL;
         goto exit;
     }
 

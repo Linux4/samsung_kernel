@@ -24,7 +24,7 @@
 #endif
 #include "sm5440_charger.h"
 
-#define SM5440_DC_VERSION  "UK1"
+#define SM5440_DC_VERSION  "VI1"
 
 static int sm5440_read_reg(struct sm5440_charger *sm5440, u8 reg, u8 *dest)
 {
@@ -354,7 +354,7 @@ static int sm5440_set_ENHIZ(struct sm5440_charger *sm5440, bool vbus, bool chg_e
 
 static int sm5440_reverse_boost_enable(struct sm5440_charger *sm5440, bool enable)
 {
-	u8 i, reg;
+	u8 i, st[5];
 
 	pr_info("%s: %d\n", __func__, enable);
 
@@ -363,9 +363,10 @@ static int sm5440_reverse_boost_enable(struct sm5440_charger *sm5440, bool enabl
 		sm5440_set_op_mode(sm5440, OP_MODE_REV_BOOST);
 		for (i = 0; i < 10; ++i) {
 			msleep(20);
-			sm5440_read_reg(sm5440, SM5440_REG_STATUS4, &reg);
-			pr_info("%s: read SM5440_REG_STATUS4=0x%x i=%d\n", __func__, reg, i);
-			if (reg & (0x1 << 6))
+			sm5440_bulk_read(sm5440, SM5440_REG_STATUS1, 4, st);
+			dev_info(sm5440->dev, "%s: status 0x%x:0x%x:0x%x:0x%x\n", __func__,
+					st[0], st[1], st[2], st[3]);
+			if (st[3] & SM5440_INT4_RVSBSTRDY && !(st[2] & SM5440_INT3_STUP_FAIL))
 				break;
 		}
 
@@ -374,13 +375,14 @@ static int sm5440_reverse_boost_enable(struct sm5440_charger *sm5440, bool enabl
 			sm5440->rev_boost = 0;
 			return -EINVAL;
 		}
-		sm5440_set_adc_mode(sm5440->i2c, SM_DC_ADC_MODE_CONTINUOUS);
 		sm5440->rev_boost = enable;
+		sm5440_set_adc_mode(sm5440->i2c, SM_DC_ADC_MODE_ONESHOT);
 		dev_info(sm5440->dev, "%s: ON\n", __func__);
 	} else if (!enable) {
 		sm5440_set_op_mode(sm5440, OP_MODE_CHG_OFF);
 		sm5440_set_adc_mode(sm5440->i2c, SM_DC_ADC_MODE_OFF);
 		sm5440->rev_boost = enable;
+		msleep(50);
 		dev_info(sm5440->dev, "%s: OFF\n", __func__);
 	}
 
@@ -400,23 +402,19 @@ static bool sm5440_check_charging_enable(struct sm5440_charger *sm5440)
 
 static int get_apdo_max_power(struct sm5440_charger *sm5440, struct sm_dc_power_source_info *ta)
 {
-	int ret, cnt;
+	int ret;
+	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5440);
 
 	ta->pdo_pos = 0;        /* set '0' else return error */
 	ta->v_max = 10000;      /* request voltage level */
 	ta->c_max = 0;
 	ta->p_max = 0;
 
-	for (cnt = 0; cnt < 3; ++cnt) {
-		ret = sec_pd_get_apdo_max_power(&ta->pdo_pos, &ta->v_max, &ta->c_max, &ta->p_max);
-		if (ret < 0)
-			dev_err(sm5440->dev, "%s: error:sec_pd_get_apdo_max_power, RETRY=%d\n", __func__, cnt);
-		else
-			break;
-	}
-
-	if (cnt == 3)
+	ret = sec_pd_get_apdo_max_power(&ta->pdo_pos, &ta->v_max, &ta->c_max, &ta->p_max);
+	if (ret < 0) {
 		dev_err(sm5440->dev, "%s: fail to get apdo_max_power(ret=%d)\n", __func__, ret);
+		sm_dc_report_error_status(sm_dc, SM_DC_ERR_SEND_PD_MSG);
+	}
 
 	dev_info(sm5440->dev, "%s: pdo_pos:%d, max_vol:%dmV, max_cur:%dmA, max_pwr:%dmW\n",
 			__func__, ta->pdo_pos, ta->v_max, ta->c_max, ta->p_max);
@@ -768,6 +766,12 @@ static int sm5440_chg_get_property(struct power_supply *psy,
 		case POWER_SUPPLY_EXT_PROP_D2D_REVERSE_OCP:
 			val->intval = sm5440_get_reverse_boost_ocp(sm5440);
 			break;
+		case POWER_SUPPLY_EXT_PROP_D2D_REVERSE_VBUS:
+			val->intval = sm5440_convert_adc(sm5440, SM5440_ADC_VBUS);
+			break;
+		case POWER_SUPPLY_EXT_PROP_DC_OP_MODE:
+			val->intval = sm5440_get_op_mode(sm5440);
+			break;
 		default:
 			return -EINVAL;
 		}
@@ -940,6 +944,20 @@ static int sm5440_chg_set_property(struct power_supply *psy,
 			break;
 		case POWER_SUPPLY_EXT_PROP_D2D_REVERSE_VOLTAGE:
 			ret = sm5440_reverse_boost_enable(sm5440, val->intval);
+			break;
+
+		case POWER_SUPPLY_EXT_PROP_ADC_MODE:
+			if (val->intval)
+				sm5440_set_adc_mode(sm5440->i2c, SM_DC_ADC_MODE_CONTINUOUS);
+			else
+				sm5440_set_adc_mode(sm5440->i2c, SM_DC_ADC_MODE_OFF);
+			break;
+
+		case POWER_SUPPLY_EXT_PROP_DC_OP_MODE:
+			if (val->intval == 1)
+				sm5440_set_op_mode(sm5440, OP_MODE_REV_BOOST);
+			else if (val->intval == 0)
+				sm5440_set_op_mode(sm5440, OP_MODE_CHG_OFF);
 			break;
 		default:
 			return -EINVAL;
@@ -1680,19 +1698,19 @@ static int sm5440_charger_probe(struct i2c_client *i2c,
 	sm5440->chg_ws = wakeup_source_register(&i2c->dev, "sm5440-charger");
 	i2c_set_clientdata(i2c, sm5440);
 
+	INIT_DELAYED_WORK(&sm5440->adc_work, sm5440_adc_work);
+	INIT_DELAYED_WORK(&sm5440->ocp_check_work, sm5440_ocp_check_work);
+
 	ret = sm5440_hw_init_config(sm5440);
 	if (ret < 0) {
 		dev_err(sm5440->dev, "%s: fail to init config(ret=%d)\n", __func__, ret);
 		goto err_devmem;
 	}
-	INIT_DELAYED_WORK(&sm5440->adc_work, sm5440_adc_work);
-	INIT_DELAYED_WORK(&sm5440->ocp_check_work, sm5440_ocp_check_work);
 
 	psy_cfg.drv_data = sm5440;
 	psy_cfg.supplied_to = sm5440_supplied_to;
-	psy_cfg.num_supplicants = ARRAY_SIZE(sm5440_supplied_to),
-		sm5440->psy_chg = power_supply_register(sm5440->dev,
-				&sm5440_charger_power_supply_desc, &psy_cfg);
+	psy_cfg.num_supplicants = ARRAY_SIZE(sm5440_supplied_to);
+	sm5440->psy_chg = power_supply_register(sm5440->dev, &sm5440_charger_power_supply_desc, &psy_cfg);
 	if (IS_ERR(sm5440->psy_chg)) {
 		dev_err(sm5440->dev, "%s: fail to register psy_chg\n", __func__);
 		ret = PTR_ERR(sm5440->psy_chg);

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -102,7 +103,7 @@
 #define QCA6750_DEVICE_ID (0x1105)
 
 /* TODO: change IDs for Hamilton */
-#define WCN7850_DEVICE_ID (0x1107)
+#define KIWI_DEVICE_ID (0x1107)
 
 #define ADRASTEA_DEVICE_ID_P2_E12 (0x7021)
 #define AR9887_DEVICE_ID    (0x0050)
@@ -183,15 +184,35 @@ struct hif_latency_detect {
  * for defined here
  */
 #if defined(HIF_CONFIG_SLUB_DEBUG_ON) || defined(HIF_CE_DEBUG_DATA_BUF)
+
+#define HIF_CE_MAX_LATEST_HIST 2
+
+struct latest_evt_history {
+	uint64_t irq_entry_ts;
+	uint64_t bh_entry_ts;
+	uint64_t bh_resched_ts;
+	uint64_t bh_exit_ts;
+	uint64_t bh_work_ts;
+	int cpu_id;
+	uint32_t ring_hp;
+	uint32_t ring_tp;
+};
+
 struct ce_desc_hist {
 	qdf_atomic_t history_index[CE_COUNT_MAX];
-	uint32_t enable[CE_COUNT_MAX];
+	bool enable[CE_COUNT_MAX];
 	bool data_enable[CE_COUNT_MAX];
 	qdf_mutex_t ce_dbg_datamem_lock[CE_COUNT_MAX];
 	uint32_t hist_index;
 	uint32_t hist_id;
 	void *hist_ev[CE_COUNT_MAX];
+	struct latest_evt_history latest_evt[HIF_CE_MAX_LATEST_HIST];
 };
+
+void hif_record_latest_evt(struct ce_desc_hist *ce_hist,
+			   uint8_t type,
+			   int ce_id, uint64_t time,
+			   uint32_t hp, uint32_t tp);
 #endif /*defined(HIF_CONFIG_SLUB_DEBUG_ON) || defined(HIF_CE_DEBUG_DATA_BUF)*/
 
 /**

@@ -17,6 +17,9 @@ enum gh_mem_notifier_tag {
 	GH_MEM_NOTIFIER_TAG_TOUCH_PRIMARY,
 	GH_MEM_NOTIFIER_TAG_TOUCH_SECONDARY,
 	GH_MEM_NOTIFIER_TAG_TLMM,
+	GH_MEM_NOTIFIER_TAG_TEST_TLMM,
+	GH_MEM_NOTIFIER_TAG_TEST_TUIVM,
+	GH_MEM_NOTIFIER_TAG_TEST_OEMVM,
 	GH_MEM_NOTIFIER_TAG_MAX
 };
 
@@ -30,14 +33,14 @@ void *gh_mem_notifier_register(enum gh_mem_notifier_tag tag,
 			       void *data);
 void gh_mem_notifier_unregister(void *cookie);
 #else
-static void *gh_mem_notifier_register(enum gh_mem_notifier_tag tag,
+static inline void *gh_mem_notifier_register(enum gh_mem_notifier_tag tag,
 				      gh_mem_notifier_handler notif_handler,
 				      void *data)
 {
 	return ERR_PTR(-ENOTSUPP);
 }
 
-static void gh_mem_notifier_unregister(void *cookie)
+static inline void gh_mem_notifier_unregister(void *cookie)
 {
 }
 #endif

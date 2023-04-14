@@ -338,6 +338,19 @@
         </props>
     </pcm-device>
 
+    <pcm-device>
+        <id>124</id>
+        <name>PCM124</name>
+        <pcm_plugin>
+            <so-name>libagm_pcm_plugin.so</so-name>
+        </pcm_plugin>
+        <props>
+            <playback>1</playback>
+            <capture>0</capture>
+            <session_mode>0</session_mode>
+        </props>
+    </pcm-device>
+
     <mixer>
         <id>1</id>
         <name>agm_mixer</name>

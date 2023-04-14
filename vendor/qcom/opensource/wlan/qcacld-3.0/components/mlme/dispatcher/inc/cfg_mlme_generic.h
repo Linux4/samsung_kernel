@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -165,9 +165,11 @@ enum wlan_wds_mode {
  * rf_test_mode_enabled - Enable rf test mode support
  * @Min: 0
  * @Max: 1
- * @Default: 1
+ * @Default: 0
  *
  * This cfg is used to set rf test mode support flag
+ * by default 6 G Hz security check will be enabled
+ * with rf test mode as disabled.
  *
  * Related: None
  *
@@ -175,7 +177,7 @@ enum wlan_wds_mode {
  */
 #define CFG_RF_TEST_MODE_SUPP_ENABLED CFG_BOOL( \
 		"rf_test_mode_enabled", \
-		1, \
+		0, \
 		"rf test mode Enable Flag")
 
 /*
@@ -901,6 +903,40 @@ enum wlan_wds_mode {
 	CFG_VALUE_OR_DEFAULT, \
 	"percentage of max retry limit")
 
+/*
+ * <ini>
+ * mgmt_frame_hw_tx_retry_count - Set hw tx retry count for mgmt action
+ * frame
+ * @Min: N/A
+ * @Max: N/A
+ * @Default: N/A
+ *
+ * Set mgmt action frame hw tx retry count, string format looks like below:
+ * frame_hw_tx_retry_count="<frame type>,<retry count>,..."
+ * frame type is enum value of mlme_cfg_frame_type.
+ * Retry count max value is 127.
+ * For example:
+ * frame_hw_tx_retry_count="0,64,2,32"
+ * The above input string means:
+ * For p2p go negotiation request fame, hw retry count 64
+ * For p2p provision discovery request, hw retry count 32
+ *
+ * Related: None.
+ *
+ * Supported Feature: STA/P2P
+ *
+ * Usage: External
+ *
+ * </ini>
+ */
+#define MGMT_FRM_HW_TX_RETRY_COUNT_STR_LEN  (64)
+#define CFG_MGMT_FRAME_HW_TX_RETRY_COUNT CFG_INI_STRING( \
+		"mgmt_frame_hw_tx_retry_count", \
+		0, \
+		MGMT_FRM_HW_TX_RETRY_COUNT_STR_LEN, \
+		"", \
+		"Set mgmt action frame hw tx retry count")
+
 #define CFG_GENERIC_ALL \
 	CFG(CFG_ENABLE_DEBUG_PACKET_LOG) \
 	CFG(CFG_PMF_SA_QUERY_MAX_RETRIES) \
@@ -936,5 +972,6 @@ enum wlan_wds_mode {
 	CFG(CFG_MONITOR_MODE_CONCURRENCY) \
 	CFG(CFG_RF_TEST_MODE_SUPP_ENABLED) \
 	CFG_WDS_MODE_ALL \
-	CFG(CFG_TX_RETRY_MULTIPLIER)
+	CFG(CFG_TX_RETRY_MULTIPLIER) \
+	CFG(CFG_MGMT_FRAME_HW_TX_RETRY_COUNT)
 #endif /* __CFG_MLME_GENERIC_H */

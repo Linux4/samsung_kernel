@@ -7,7 +7,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel_platform/kmodule/battery/suwon/charger/sm5440/sm5440_charger.gts8uwifi.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel_platform/kmodule/battery/suwon/charger/sm5440/sm5440_charger.gts8uwifi.dtsi */
 &sm5440_charger {
 	sm5440,freq_byp = <250>;
 };

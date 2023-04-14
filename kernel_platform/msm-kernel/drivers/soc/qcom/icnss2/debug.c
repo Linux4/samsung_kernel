@@ -16,6 +16,7 @@ void *icnss_ipc_log_context;
 void *icnss_ipc_log_long_context;
 void *icnss_ipc_log_smp2p_context;
 void *icnss_ipc_soc_wake_context;
+void *icnss_ipc_pon_seq_context;
 
 static ssize_t icnss_regwrite_write(struct file *fp,
 				    const char __user *user_buf,
@@ -766,7 +767,7 @@ static int icnss_control_params_debug_show(struct seq_file *s, void *data)
 
 	seq_puts(s, "\nCurrent value:\n");
 
-	seq_printf(s, "qmi_timeout: %u\n", priv->ctrl_params.qmi_timeout);
+	seq_printf(s, "qmi_timeout: %u\n", jiffies_to_msecs(priv->ctrl_params.qmi_timeout));
 
 	return 0;
 }
@@ -865,6 +866,10 @@ void icnss_debug_init(void)
 	if (!icnss_ipc_soc_wake_context)
 		icnss_pr_err("Unable to create log soc_wake context\n");
 
+	icnss_ipc_pon_seq_context = ipc_log_context_create(NUM_LOG_LONG_PAGES,
+							   "icnss_pon_seq", 0);
+	if (!icnss_ipc_pon_seq_context)
+		icnss_pr_err("Unable to create log pon_seq context\n");
 }
 
 void icnss_debug_deinit(void)
@@ -887,5 +892,10 @@ void icnss_debug_deinit(void)
 	if (icnss_ipc_soc_wake_context) {
 		ipc_log_context_destroy(icnss_ipc_soc_wake_context);
 		icnss_ipc_soc_wake_context = NULL;
+	}
+
+	if (icnss_ipc_pon_seq_context) {
+		ipc_log_context_destroy(icnss_ipc_pon_seq_context);
+		icnss_ipc_pon_seq_context = NULL;
 	}
 }

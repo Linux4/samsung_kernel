@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -342,7 +343,7 @@ static int _sde_core_perf_activate_llcc(struct sde_kms *kms,
 	struct drm_device *drm_dev;
 	struct device *dev;
 	struct platform_device *pdev;
-	u32 llcc_id[SDE_SYS_CACHE_MAX] = {LLCC_DISP};
+	u32 llcc_id[SDE_SYS_CACHE_MAX] = {LLCC_DISP, LLCC_EVALFT, LLCC_EVARGHT};
 	int rc = 0;
 
 	if (!kms || !kms->dev || !kms->dev->dev) {
@@ -682,6 +683,10 @@ void sde_core_perf_crtc_update_uidle(struct drm_crtc *crtc,
 		}
 	}
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	/* Dsiable UIDLE_PC - sometimes it causes long trasfer time of video data */
+	uidle_status = UIDLE_STATE_DISABLE;
+#endif
 	_sde_core_perf_enable_uidle(kms, crtc,
 			enable ? uidle_status : UIDLE_STATE_DISABLE);
 
@@ -861,6 +866,11 @@ void sde_core_perf_crtc_reserve_res(struct drm_crtc *crtc, u64 reserve_rate)
 	/* use current perf, which are the values voted */
 	sde_crtc = to_sde_crtc(crtc);
 	kms = _sde_crtc_get_kms(crtc);
+	if (!kms || !kms->dev) {
+		SDE_ERROR("invalid kms\n");
+		return;
+	}
+
 	priv = kms->dev->dev_private;
 
 	kms->perf.core_clk_reserve_rate = max(kms->perf.core_clk_reserve_rate, reserve_rate);
@@ -1083,6 +1093,19 @@ void sde_core_perf_crtc_update(struct drm_crtc *crtc,
 			if (vdd->vrr.support_vrr_based_bl &&
 					(vdd->vrr.running_vrr_mdp || vdd->vrr.running_vrr || vdd->vrr.keep_max_clk)) {
 				SDE_INFO("[SDE_0] During VRR (%d|%d|%d): keep max SDE core clock (%lld -> %lld hz)\n",
+						vdd->vrr.running_vrr_mdp,
+						vdd->vrr.running_vrr,
+						vdd->vrr.keep_max_clk,
+						clk_rate, kms->perf.max_core_clk_rate);
+				clk_rate = kms->perf.max_core_clk_rate;
+			}
+		}
+
+		{
+			struct samsung_display_driver_data *vdd = ss_get_vdd(SECONDARY_DISPLAY_NDX);
+			if (vdd->vrr.support_vrr_based_bl &&
+					(vdd->vrr.running_vrr_mdp || vdd->vrr.running_vrr || vdd->vrr.keep_max_clk)) {
+				SDE_INFO("[SDE_1] During VRR (%d|%d|%d): keep max SDE core clock (%lld -> %lld hz)\n",
 						vdd->vrr.running_vrr_mdp,
 						vdd->vrr.running_vrr,
 						vdd->vrr.keep_max_clk,

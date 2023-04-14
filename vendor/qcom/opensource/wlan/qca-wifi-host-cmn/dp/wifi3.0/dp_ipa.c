@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -1265,7 +1266,7 @@ static int dp_tx_ipa_uc_attach(struct dp_soc *soc, struct dp_pdev *pdev)
 		qdf_mem_dp_tx_skb_inc(qdf_nbuf_get_end_offset(nbuf));
 
 		/*
-		 * TODO - WCN7850 code can directly call the be handler
+		 * TODO - KIWI code can directly call the be handler
 		 * instead of hal soc ops.
 		 */
 		hal_rxdma_buff_addr_info_set(soc->hal_soc, ring_entry,
@@ -1490,7 +1491,7 @@ int dp_ipa_ring_resource_setup(struct dp_soc *soc,
 	 * Set DEST_RING_MAPPING_4 to SW2 as default value for
 	 * DESTINATION_RING_CTRL_IX_0.
 	 */
-	ix0_map[0] = REO_REMAP_TCL;
+	ix0_map[0] = REO_REMAP_SW1;
 	ix0_map[1] = REO_REMAP_SW1;
 	ix0_map[2] = REO_REMAP_SW2;
 	ix0_map[3] = REO_REMAP_SW3;
@@ -1718,7 +1719,7 @@ QDF_STATUS dp_ipa_enable_autonomy(struct cdp_soc_t *soc_hdl, uint8_t pdev_id)
 		return QDF_STATUS_E_AGAIN;
 
 	/* Call HAL API to remap REO rings to REO2IPA ring */
-	ix_map[0] = REO_REMAP_TCL;
+	ix_map[0] = REO_REMAP_SW1;
 	ix_map[1] = REO_REMAP_SW4;
 	ix_map[2] = REO_REMAP_SW1;
 	ix_map[3] = REO_REMAP_SW4;
@@ -1762,6 +1763,7 @@ QDF_STATUS dp_ipa_disable_autonomy(struct cdp_soc_t *soc_hdl, uint8_t pdev_id)
 		dp_get_pdev_from_soc_pdev_id_wifi3(soc, pdev_id);
 	uint8_t ix0_map[8];
 	uint32_t ix0;
+	uint32_t ix1;
 	uint32_t ix2;
 	uint32_t ix3;
 
@@ -1776,7 +1778,7 @@ QDF_STATUS dp_ipa_disable_autonomy(struct cdp_soc_t *soc_hdl, uint8_t pdev_id)
 	if (!hif_is_target_ready(HIF_GET_SOFTC(soc->hif_handle)))
 		return QDF_STATUS_E_AGAIN;
 
-	ix0_map[0] = REO_REMAP_TCL;
+	ix0_map[0] = REO_REMAP_SW1;
 	ix0_map[1] = REO_REMAP_SW1;
 	ix0_map[2] = REO_REMAP_SW2;
 	ix0_map[3] = REO_REMAP_SW3;
@@ -1790,7 +1792,7 @@ QDF_STATUS dp_ipa_disable_autonomy(struct cdp_soc_t *soc_hdl, uint8_t pdev_id)
 				    ix0_map);
 
 	if (wlan_cfg_is_rx_hash_enabled(soc->wlan_cfg_ctx)) {
-		dp_reo_remap_config(soc, &ix2, &ix3);
+		dp_reo_remap_config(soc, &ix1, &ix2, &ix3);
 
 		hal_reo_read_write_ctrl_ix(soc->hal_soc, false, &ix0, NULL,
 					   &ix2, &ix3);
@@ -1879,7 +1881,7 @@ static void dp_ipa_wdi_tx_params(struct dp_soc *soc,
 		(uint8_t *)QDF_IPA_WDI_SETUP_INFO_DESC_FORMAT_TEMPLATE(tx);
 	desc_size = sizeof(struct tcl_data_cmd);
 #ifndef DP_BE_WAR
-	/* TODO - WCN7850 does not have these fields */
+	/* TODO - KIWI does not have these fields */
 	HAL_TX_DESC_SET_TLV_HDR(desc_addr, HAL_TX_TCL_DATA_TAG, desc_size);
 #endif
 	tcl_desc_ptr = (struct tcl_data_cmd *)
@@ -1887,7 +1889,7 @@ static void dp_ipa_wdi_tx_params(struct dp_soc *soc,
 	tcl_desc_ptr->buf_addr_info.return_buffer_manager =
 		HAL_RX_BUF_RBM_SW2_BM(soc->wbm_sw0_bm_id);
 #ifndef DP_BE_WAR
-	/* TODO - WCN7850 does not have these fields */
+	/* TODO - KIWI does not have these fields */
 	tcl_desc_ptr->addrx_en = 1;	/* Address X search enable in ASE */
 	tcl_desc_ptr->encap_type = HAL_TX_ENCAP_TYPE_ETHERNET;
 	tcl_desc_ptr->packet_offset = 2;	/* padding for alignment */
@@ -1982,7 +1984,7 @@ dp_ipa_wdi_tx_smmu_params(struct dp_soc *soc,
 			tx_smmu);
 	desc_size = sizeof(struct tcl_data_cmd);
 #ifndef DP_BE_WAR
-	/* TODO - WCN7850 does not have these fields */
+	/* TODO - KIWI does not have these fields */
 	HAL_TX_DESC_SET_TLV_HDR(desc_addr, HAL_TX_TCL_DATA_TAG, desc_size);
 #endif
 	tcl_desc_ptr = (struct tcl_data_cmd *)
@@ -1990,7 +1992,7 @@ dp_ipa_wdi_tx_smmu_params(struct dp_soc *soc,
 	tcl_desc_ptr->buf_addr_info.return_buffer_manager =
 		HAL_RX_BUF_RBM_SW2_BM(soc->wbm_sw0_bm_id);
 #ifndef DP_BE_WAR
-	/* TODO - WCN7850 does not have these fields */
+	/* TODO - KIWI does not have these fields */
 	tcl_desc_ptr->addrx_en = 1;	/* Address X search enable in ASE */
 	tcl_desc_ptr->encap_type = HAL_TX_ENCAP_TYPE_ETHERNET;
 	tcl_desc_ptr->packet_offset = 2;	/* padding for alignment */

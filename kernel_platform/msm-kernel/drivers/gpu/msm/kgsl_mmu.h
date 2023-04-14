@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2002,2007-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __KGSL_MMU_H
 #define __KGSL_MMU_H
@@ -97,7 +98,7 @@ struct kgsl_mmu;
 struct kgsl_mmu_ops {
 	void (*mmu_close)(struct kgsl_mmu *mmu);
 	int (*mmu_start)(struct kgsl_mmu *mmu);
-	uint64_t (*mmu_get_current_ttbr0)(struct kgsl_mmu *mmu);
+	uint64_t (*mmu_get_current_ttbr0)(struct kgsl_mmu *mmu, struct kgsl_context *context);
 	void (*mmu_pagefault_resume)(struct kgsl_mmu *mmu, bool terminate);
 	void (*mmu_clear_fsr)(struct kgsl_mmu *mmu);
 	void (*mmu_enable_clk)(struct kgsl_mmu *mmu);
@@ -108,6 +109,7 @@ struct kgsl_mmu_ops {
 			unsigned long name);
 	void (*mmu_map_global)(struct kgsl_mmu *mmu,
 		struct kgsl_memdesc *memdesc, u32 padding);
+	void (*mmu_flush_tlb)(struct kgsl_mmu *mmu);
 };
 
 struct kgsl_mmu_pt_ops {
@@ -125,7 +127,7 @@ struct kgsl_mmu_pt_ops {
 			struct kgsl_memdesc *memdesc, u64 offset, u64 length);
 	void (*mmu_destroy_pagetable)(struct kgsl_pagetable *pt);
 	u64 (*get_ttbr0)(struct kgsl_pagetable *pt);
-	int (*get_context_bank)(struct kgsl_pagetable *pt);
+	int (*get_context_bank)(struct kgsl_pagetable *pt, struct kgsl_context *context);
 	int (*get_gpuaddr)(struct kgsl_pagetable *pt,
 				struct kgsl_memdesc *memdesc);
 	void (*put_gpuaddr)(struct kgsl_memdesc *memdesc);
@@ -136,7 +138,7 @@ struct kgsl_mmu_pt_ops {
 	int (*svm_range)(struct kgsl_pagetable *pt, uint64_t *lo, uint64_t *hi,
 			uint64_t memflags);
 	bool (*addr_in_range)(struct kgsl_pagetable *pagetable,
-			uint64_t gpuaddr);
+			uint64_t gpuaddr, uint64_t size);
 };
 
 enum kgsl_mmu_feature {
@@ -162,6 +164,8 @@ enum kgsl_mmu_feature {
 	KGSL_MMU_IOPGTABLE,
 	/** @KGSL_MMU_SUPPORT_VBO: Non-secure VBOs are supported */
 	KGSL_MMU_SUPPORT_VBO,
+	/** @KGSL_MMU_PAGEFAULT_TERMINATE: Set to make pagefaults fatal */
+	KGSL_MMU_PAGEFAULT_TERMINATE,
 };
 
 #include "kgsl_iommu.h"
@@ -214,7 +218,8 @@ int kgsl_mmu_unmap_range(struct kgsl_pagetable *pt,
 		struct kgsl_memdesc *memdesc, u64 offset, u64 length);
 unsigned int kgsl_mmu_log_fault_addr(struct kgsl_mmu *mmu,
 		u64 ttbr0, uint64_t addr);
-bool kgsl_mmu_gpuaddr_in_range(struct kgsl_pagetable *pt, uint64_t gpuaddr);
+bool kgsl_mmu_gpuaddr_in_range(struct kgsl_pagetable *pt, uint64_t gpuaddr,
+		uint64_t size);
 
 int kgsl_mmu_get_region(struct kgsl_pagetable *pagetable,
 		uint64_t gpuaddr, uint64_t size);
@@ -285,10 +290,10 @@ static inline void kgsl_mmu_put_gpuaddr(struct kgsl_pagetable *pagetable,
 		pagetable->pt_ops->put_gpuaddr(memdesc);
 }
 
-static inline u64 kgsl_mmu_get_current_ttbr0(struct kgsl_mmu *mmu)
+static inline u64 kgsl_mmu_get_current_ttbr0(struct kgsl_mmu *mmu, struct kgsl_context *context)
 {
 	if (MMU_OP_VALID(mmu, mmu_get_current_ttbr0))
-		return mmu->mmu_ops->mmu_get_current_ttbr0(mmu);
+		return mmu->mmu_ops->mmu_get_current_ttbr0(mmu, context);
 
 	return 0;
 }
@@ -355,6 +360,15 @@ kgsl_mmu_pagetable_get_ttbr0(struct kgsl_pagetable *pagetable)
 	return 0;
 }
 
+static inline void kgsl_mmu_flush_tlb(struct kgsl_mmu *mmu)
+{
+	if (!test_bit(KGSL_MMU_IOPGTABLE, &mmu->features))
+		return;
+
+	if (MMU_OP_VALID(mmu, mmu_flush_tlb))
+		return mmu->mmu_ops->mmu_flush_tlb(mmu);
+}
+
 /**
  * kgsl_mmu_map_global - Map a memdesc as a global buffer
  * @device: A KGSL GPU device handle
@@ -369,13 +383,15 @@ void kgsl_mmu_map_global(struct kgsl_device *device,
 /**
  * kgsl_mmu_pagetable_get_context_bank - Return the context bank number
  * @pagetable: A handle to a given pagetable
+ * @context : LPAC or User context
  *
  * This function will find the context number of the given pagetable
 
  * Return: The context bank number the pagetable is attached to or
  * negative error on failure.
  */
-int kgsl_mmu_pagetable_get_context_bank(struct kgsl_pagetable *pagetable);
+int kgsl_mmu_pagetable_get_context_bank(struct kgsl_pagetable *pagetable,
+			struct kgsl_context *context);
 
 void kgsl_mmu_pagetable_init(struct kgsl_mmu *mmu,
 		struct kgsl_pagetable *pagetable, u32 name);

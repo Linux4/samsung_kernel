@@ -31,6 +31,7 @@
 #include "cpastop_v570_100.h"
 #include "cpastop_v570_200.h"
 #include "cpastop_v680_100.h"
+#include "cpastop_v680_110.h"
 #include "cpastop_v165_100.h"
 #include "cpastop_v780_100.h"
 #include "cam_req_mgr_workq.h"
@@ -140,7 +141,7 @@ static const uint32_t cam_cpas_hw_version_map
 	{
 		CAM_CPAS_TITAN_680_V100,
 		0,
-		0,
+		CAM_CPAS_TITAN_680_V110,
 		0,
 		0,
 		0,
@@ -954,6 +955,10 @@ static int cam_cpastop_init_hw_version(struct cam_hw_info *cpas_hw,
 	case CAM_CPAS_TITAN_680_V100:
 		camnoc_info = &cam680_cpas100_camnoc_info;
 		qchannel_info = &cam680_cpas100_qchannel_info;
+		break;
+	case CAM_CPAS_TITAN_680_V110:
+		camnoc_info = &cam680_cpas110_camnoc_info;
+		qchannel_info = &cam680_cpas110_qchannel_info;
 		break;
 	case CAM_CPAS_TITAN_165_V100:
 		camnoc_info = &cam165_cpas100_camnoc_info;

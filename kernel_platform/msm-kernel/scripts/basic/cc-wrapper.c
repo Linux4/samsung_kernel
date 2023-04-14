@@ -51,6 +51,7 @@ struct ignored_warning {
 const struct ignored_warning ignored_warnings[] = {
 	IGNORE_WARNING("signal.c:51"),
 	IGNORE_WARNING("signal.c:95"),
+	IGNORE_WARNING("userfaultfd.c:1875"),
 	{ NULL, 0 }
 };
 
@@ -142,7 +143,7 @@ int main(int argc, char **argv)
 		goto done;
 	}
 
-	while ((len = read(pipes[0], buf, sizeof(buf))) > 0) {
+	while ((len = read(pipes[0], buf, sizeof(buf) - 1)) > 0) {
 		char *next = buf;
 
 		write(STDERR_FILENO, buf, len);

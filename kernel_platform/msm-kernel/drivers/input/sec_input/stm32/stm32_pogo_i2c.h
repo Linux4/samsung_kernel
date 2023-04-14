@@ -29,8 +29,8 @@
 #endif
 
 #if IS_ENABLED(CONFIG_MUIC_SUPPORT_KEYBOARDDOCK)
-#include <linux/muic/muic.h>
-#include <linux/muic/muic_notifier.h>
+#include <linux/muic/common/muic.h>
+#include <linux/muic/common/muic_notifier.h>
 #endif
 
 #if IS_ENABLED(CONFIG_OF)
@@ -377,9 +377,11 @@ struct stm32_dev {
 	u32					reset_count;
 
 	volatile bool				hall_closed;
+	volatile bool				enabled;
 	int					debug_flag;
 	bool					hall_flag;
 	struct completion			i2c_done;
+	bool					pogo_enable;
 	bool					firm_state;
 #if IS_ENABLED(CONFIG_QCOM_BUS_SCALING)
 	u32					stm32_bus_perf_client;

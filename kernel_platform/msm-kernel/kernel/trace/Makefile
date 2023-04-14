@@ -99,6 +99,6 @@ obj-$(CONFIG_TRACEPOINT_BENCHMARK) += trace_benchmark.o
 obj-$(CONFIG_TRACE_MMIO_ACCESS) += trace_readwrite.o
 
 obj-$(CONFIG_IPC_LOGGING) += qcom_ipc_logging.o
-qcom_ipc_logging-y := ipc_logging.o  ipc_logging_debug.o
+qcom_ipc_logging-y := ipc_logging.o ipc_logging_debug.o ipc_logging_proc.o
 
 libftrace-y := ftrace.o

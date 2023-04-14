@@ -428,6 +428,7 @@ void do_ptrauth_fault(struct pt_regs *regs, unsigned int esr)
 	 * Unexpected FPAC exception or pointer authentication failure in
 	 * the kernel: kill the task before it does any more harm.
 	 */
+	trace_android_rvh_do_ptrauth_fault(regs, esr, user_mode(regs));
 	BUG_ON(!user_mode(regs));
 	force_signal_inject(SIGILL, ILL_ILLOPN, regs->pc, esr);
 }
@@ -933,7 +934,7 @@ static struct break_hook bug_break_hook = {
 static int reserved_fault_handler(struct pt_regs *regs, unsigned int esr)
 {
 	pr_err("%s generated an invalid instruction at %pS!\n",
-		in_bpf_jit(regs) ? "BPF JIT" : "Kernel text patching",
+		"Kernel text patching",
 		(void *)instruction_pointer(regs));
 
 	/* We cannot handle this */

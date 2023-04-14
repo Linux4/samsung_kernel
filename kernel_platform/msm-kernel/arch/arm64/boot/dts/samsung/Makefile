@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0
 
-dts-dirs += galaxytab/gts8uwifi
 
 always          := $(dtb-y)
 subdir-y        := $(dts-dirs)

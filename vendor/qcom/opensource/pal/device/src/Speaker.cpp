@@ -138,7 +138,7 @@ int Speaker::stop()
     if (status == 0 && deviceCount == 0) {
         std::shared_ptr<ResourceManager> Rm = nullptr;
         Rm = ResourceManager::getInstance();
-        if (Rm->isChargeConcurrencyEnabled && Rm->getChargerOnlineState() &&
+        if (Rm && Rm->isChargeConcurrencyEnabled && Rm->getChargerOnlineState() &&
             Rm->getConcurrentBoostState()) {
             status = Rm->chargerListenerSetBoostState(false);
             if (0 != status)

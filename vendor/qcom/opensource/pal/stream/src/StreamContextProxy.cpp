@@ -65,6 +65,11 @@ int32_t  StreamContextProxy::setParameters(uint32_t param_id, void *payload)
 
     mStreamMutex.lock();
     // Stream may not know about tags, so use setParameters instead of setConfig
+    if (currentState == STREAM_IDLE) {
+        PAL_ERR(LOG_TAG, "Invalid stream state: IDLE for param ID: %d", param_id);
+        mStreamMutex.unlock();
+        return -EINVAL;
+    }
     switch (param_id) {
         case PAL_PARAM_ID_MODULE_CONFIG:
         {

@@ -234,18 +234,26 @@ int brl_pocket_mode_enable(struct goodix_ts_core *cd, int enable)
 	return ret;
 }
 
-
-#define GOODIX_GESTURE_CMD	0xA6
-int brl_gesture(struct goodix_ts_core *cd, int gesture_type)
+#define GOODIX_GESTURE_MODE_CMD		0xA6
+#define GOODIX_COORD_MODE_CMD		0xA7
+int brl_gesture(struct goodix_ts_core *cd, bool enable)
 {
 	struct goodix_ts_cmd cmd;
+	int ret;
 
-	cmd.cmd = GOODIX_GESTURE_CMD;
 	cmd.len = 4;
-	if (cd->hw_ops->send_cmd(cd, &cmd))
-		ts_err("failed send gesture cmd");
+	if (enable)
+		cmd.cmd = GOODIX_GESTURE_MODE_CMD;
+	else
+		cmd.cmd = GOODIX_COORD_MODE_CMD;
 
-	return 0;
+	ts_info("%s", enable ? "enable" : "disable");
+
+	ret = cd->hw_ops->send_cmd(cd, &cmd);
+	if (ret < 0)
+		ts_err("switch gsx mode failed");
+
+	return ret;
 }
 
 static int brl_reset(struct goodix_ts_core *cd, int delay)
@@ -274,6 +282,23 @@ static int brl_irq_enable(struct goodix_ts_core *cd, bool enable)
 		goodix_ts_blocking_notify(NOTIFY_ESD_OFF, NULL);
 		disable_irq(cd->irq);
 		ts_info("Irq disabled");
+		return 0;
+	}
+	ts_info("warnning: irq deepth inbalance!");
+	return 0;
+}
+
+static int brl_irq_enable_for_handler(struct goodix_ts_core *cd, bool enable)
+{
+	if (enable && !atomic_cmpxchg(&cd->irq_enabled, 0, 1)) {
+		enable_irq(cd->irq);
+		ts_info("Irq enabled");
+		return 0;
+	}
+
+	if (!enable && atomic_cmpxchg(&cd->irq_enabled, 1, 0)) {
+		disable_irq_nosync(cd->irq);
+		ts_info("Irq disabled (nosync)");
 		return 0;
 	}
 	ts_info("warnning: irq deepth inbalance!");
@@ -351,8 +376,8 @@ static int brl_write_to_sponge(struct goodix_ts_core *cd,
 #define GOODIX_CMD_RETRY		6
 #define CMD_ADDR				0x10174
 static DEFINE_MUTEX(cmd_mutex);
-static int brl_send_cmd(struct goodix_ts_core *cd,
-		struct goodix_ts_cmd *cmd)
+static int brl_send_cmd_with_delay(struct goodix_ts_core *cd,
+		struct goodix_ts_cmd *cmd, int delayms)
 {
 	int ret, retry, i;
 	struct goodix_ts_cmd cmd_ack;
@@ -383,7 +408,7 @@ static int brl_send_cmd(struct goodix_ts_core *cd,
 			ts_debug("cmd ack data %*ph",
 					(int)sizeof(cmd_ack), cmd_ack.buf);
 			if (cmd_ack.ack == CMD_ACK_OK) {
-				sec_delay(20);
+				sec_delay(delayms);
 				ret = 0;
 				goto out;
 			}
@@ -403,6 +428,12 @@ static int brl_send_cmd(struct goodix_ts_core *cd,
 out:
 	mutex_unlock(&cmd_mutex);
 	return ret;
+}
+
+static int brl_send_cmd(struct goodix_ts_core *cd,
+		struct goodix_ts_cmd *cmd)
+{
+	return brl_send_cmd_with_delay(cd, cmd, 20);
 }
 
 /* flash write/read interface, limit 4096 bytes */
@@ -1291,9 +1322,9 @@ static void goodix_parse_finger(struct goodix_ts_core *cd, unsigned int tid, u8 
 	u8 touch_type;
 
 	if (cd->debug_flag & GOODIX_TS_DEBUG_PRINT_ALLEVENT) {
-		ts_info("%s : ALL(%d): %02X %02X %02X %02X %02X %02X %02X %02X\n",
+		ts_info("%s : ALL(%d): %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X\n",
 			__func__, tid, buf[0], buf[1], buf[2], buf[3],
-			buf[4], buf[5], buf[6], buf[7]);
+			buf[4], buf[5], buf[6], buf[7], buf[8], buf[9], buf[10], buf[11]);
 	}
 
 	pdata->prev_coord[tid] = pdata->coord[tid];
@@ -1308,12 +1339,10 @@ static void goodix_parse_finger(struct goodix_ts_core *cd, unsigned int tid, u8 
 	pdata->coord[tid].major = buf[4];
 	pdata->coord[tid].minor = buf[5];
 	pdata->coord[tid].z = buf[6] & 0x3F;
-//	pdata->coord[tid].max_energy_flag = (buf[7] >> 5) & 0x01;
-//	pdata->coord[tid].max_strength = max(pdata->coord[tid].max_strength, p_event_coord->max_strength);
-//	pdata->coord[tid].noise_level = max(pdata->coord[tid].noise_level,
-//							p_event_coord->noise_level);
-//	pdata->coord[tid].hover_id_num = max(pdata->coord[tid].hover_id_num,
-//							(u8)p_event_coord->hover_id_num);
+	pdata->coord[tid].noise_level = max(pdata->coord[tid].noise_level, buf[8]);
+	pdata->coord[tid].max_strength = max(pdata->coord[tid].max_strength, buf[9]);
+	pdata->coord[tid].hover_id_num = max(pdata->coord[tid].hover_id_num, (u8)(buf[10] & 0x0F));
+	pdata->coord[tid].freq_id = buf[11] & 0x0F;
 
 	if (!pdata->coord[tid].palm && (pdata->coord[tid].ttype == SEC_TS_TOUCHTYPE_PALM))
 		pdata->coord[tid].palm_count++;
@@ -1557,19 +1586,31 @@ restart:
 				if (!atomic_read(&cd->suspended)) {
 					unsigned int tid = (event_data[0] & 0x3C) >> 2;
 
+					cd->lpm_coord_event_cnt = 0;
+
 					if (tid >= GOODIX_MAX_TOUCH) {
 						ts_err("invalid touch id = %d", tid);
 						break;
 					}
 					goodix_parse_finger(cd, tid, event_data);
 					goodix_ts_report_finger(cd, tid);
+				} else {
+					if (++cd->lpm_coord_event_cnt >= 5) {
+						cd->lpm_coord_event_cnt = 0;
+						/* if receive touch event, should resend gsx cmd */
+						ts_err("touch event occurred in NP mode, resend gsx cmd");
+						/* reinit */
+						cd->plat_data->init(cd);
+					}
 				}
 				break;
 			case SEC_TS_STATUS_EVENT:
+				cd->lpm_coord_event_cnt = 0;
 				goodix_parse_status(cd, event_data);
 				goodix_ts_report_status(cd, ts_event);
 				break;
 			case SEC_TS_GESTURE_EVENT:
+				cd->lpm_coord_event_cnt = 0;
 				goodix_parse_gesture(cd, event_data);
 				goodix_ts_report_gesture(cd, ts_event);
 				break;
@@ -1608,6 +1649,7 @@ static struct goodix_ts_hw_ops brl_hw_ops = {
 	.gesture = brl_gesture,
 	.reset = brl_reset,
 	.irq_enable = brl_irq_enable,
+	.irq_enable_for_handler = brl_irq_enable_for_handler,
 	.read = brl_read,
 	.write = brl_write,
 	.read_from_sponge = brl_read_from_sponge,
@@ -1615,6 +1657,7 @@ static struct goodix_ts_hw_ops brl_hw_ops = {
 	.write_to_flash = brl_write_to_flash,
 	.read_from_flash = brl_read_from_flash,
 	.send_cmd = brl_send_cmd,
+	.send_cmd_delay = brl_send_cmd_with_delay,
 	.send_config = brl_send_config,
 	.read_config = brl_read_config,
 	.read_version = brl_read_version,

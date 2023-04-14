@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _WALT_H
@@ -119,6 +120,7 @@ struct walt_rq {
 	bool			high_irqload;
 	u64			last_cc_update;
 	u64			cycles;
+	int			num_mvp_tasks;
 	struct list_head	mvp_tasks;
 };
 
@@ -135,8 +137,7 @@ struct walt_sched_cluster {
 	unsigned int		max_possible_freq;
 	unsigned int		max_freq;
 	u64			aggr_grp_load;
-
-	u16			util_to_cost[1024];
+	unsigned long		util_to_cost[1024];
 };
 
 extern struct walt_sched_cluster *sched_cluster[WALT_NR_CPUS];
@@ -151,7 +152,6 @@ extern cpumask_t __read_mostly **cpu_array;
 extern int cpu_l2_sibling[WALT_NR_CPUS];
 extern void sched_update_nr_prod(int cpu, int enq);
 extern unsigned int walt_big_tasks(int cpu);
-extern void walt_rotate_work_init(void);
 extern void walt_rotation_checkpoint(int nr_big);
 extern void walt_fill_ta_data(struct core_ctl_notif_data *data);
 extern int sched_set_group_id(struct task_struct *p, unsigned int group_id);
@@ -159,38 +159,20 @@ extern unsigned int sched_get_group_id(struct task_struct *p);
 extern void core_ctl_check(u64 wallclock);
 extern int sched_set_boost(int enable);
 extern void walt_boost_init(void);
-extern int sched_wake_up_idle_show(struct seq_file *m, void *v);
-extern ssize_t sched_wake_up_idle_write(struct file *file,
-		const char __user *buf, size_t count, loff_t *offset);
-extern int sched_wake_up_idle_open(struct inode *inode,	struct file *filp);
-extern int sched_init_task_load_show(struct seq_file *m, void *v);
-extern ssize_t sched_init_task_load_write(struct file *file, const char __user *buf,
-					size_t count, loff_t *offset);
-extern int sched_init_task_load_open(struct inode *inode, struct file *filp);
-extern int sched_group_id_show(struct seq_file *m, void *v);
-extern ssize_t sched_group_id_write(struct file *file, const char __user *buf,
-					size_t count, loff_t *offset);
-extern int sched_group_id_open(struct inode *inode, struct file *filp);
 extern int sched_pause_cpus(struct cpumask *pause_cpus);
 extern int sched_unpause_cpus(struct cpumask *unpause_cpus);
 
 extern unsigned int sched_get_cpu_util(int cpu);
 extern void sched_update_hyst_times(void);
-extern int
-sched_updown_migrate_handler(struct ctl_table *table, int write,
-			void __user *buffer, size_t *lenp, loff_t *ppos);
 extern int sched_boost_handler(struct ctl_table *table, int write,
 			void __user *buffer, size_t *lenp, loff_t *ppos);
 extern int sched_busy_hyst_handler(struct ctl_table *table, int write,
 			void __user *buffer, size_t *lenp, loff_t *ppos);
 extern u64 walt_ktime_get_ns(void);
-extern void clear_walt_request(int cpu);
 extern void walt_init_tg(struct task_group *tg);
 extern void walt_init_topapp_tg(struct task_group *tg);
 extern void walt_init_foreground_tg(struct task_group *tg);
 extern int register_walt_callback(void);
-extern void set_cpu_array(void);
-extern int core_ctl_init(void);
 extern int input_boost_init(void);
 extern int core_ctl_init(void);
 
@@ -388,6 +370,14 @@ int waltgov_register(void);
 
 extern void walt_lb_init(void);
 extern unsigned int walt_rotation_enabled;
+
+static inline bool is_mvp_task(struct rq *rq, struct task_struct *p)
+{
+	struct walt_task_struct *wts = (struct walt_task_struct *) p->android_vendor_data1;
+
+	lockdep_assert_held(&rq->lock);
+	return !list_empty(&wts->mvp_list) && wts->mvp_list.next;
+}
 
 /*
  * Returns the current capacity of cpu after applying both
@@ -916,8 +906,8 @@ static inline bool walt_fair_task(struct task_struct *p)
 	return p->prio >= MAX_RT_PRIO && !is_idle_task(p);
 }
 
-#define WALT_MVP_SLICE		3000000U
-#define WALT_MVP_LIMIT		(4 * WALT_MVP_SLICE)
+#define WALT_MVP_SLICE		30000000U
+#define WALT_MVP_LIMIT		(1 * WALT_MVP_SLICE)
 
 #define WALT_RTG_MVP		0
 #define WALT_BINDER_MVP		1
@@ -940,9 +930,68 @@ void create_util_to_cost(void);
 struct compute_energy_output {
 	unsigned long	sum_util[MAX_CLUSTERS];
 	unsigned long	max_util[MAX_CLUSTERS];
-	u16		cost[MAX_CLUSTERS];
+	unsigned long	cost[MAX_CLUSTERS];
 	unsigned int	cluster_first_cpu[MAX_CLUSTERS];
 };
+
+struct cluster_freq_relation {
+	int src_freq_scale;
+	int dst_cpu;
+	int tgt_freq_scale;
+};
+
+extern struct cluster_freq_relation cluster_arr[3][5];
+extern int sched_ignore_cluster_handler(struct ctl_table *table, int write,
+			void __user *buffer, size_t *lenp, loff_t *ppos);
+//Check to confirm if we can ignore cluster for p
+static inline bool ignore_cluster_valid(struct task_struct *p, struct rq *rq)
+{
+	cpumask_t tmp;
+	int i;
+	struct walt_rq *wrq = (struct walt_rq *)rq->android_vendor_data1;
+	int cluster = wrq->cluster->id;
+	int src_cpu = cpumask_first(&wrq->cluster->cpus);
+	int src_freq_scale = arch_scale_freq_capacity(src_cpu);
+	int tgt_scale, tgt_cpu;
+
+
+	/* if src cluster has no relationship */
+	if (cluster_arr[cluster][0].src_freq_scale <= 0)
+		return false;
+
+	/* if src cluster is below its threshold frequency */
+	if (src_freq_scale < cluster_arr[cluster][0].src_freq_scale)
+		return false;
+
+	/* if p is only affine to src cluster */
+	if (p) {
+		cpumask_andnot(&tmp, cpu_active_mask, &wrq->cluster->cpus);
+		if (!cpumask_intersects(&tmp, &p->cpus_mask))
+			return false;
+	}
+
+	for (i = 0; i < 5; i++)
+		if (cluster_arr[cluster][i].src_freq_scale > src_freq_scale)
+			break;
+	tgt_cpu = cpumask_first(&sched_cluster[cluster_arr[cluster][i - 1].dst_cpu]->cpus);
+	tgt_scale = cluster_arr[cluster][i - 1].tgt_freq_scale;
+
+	/*
+	 * In case target cluster is frequency limited to a frequency below target
+	 * scale then skip ignoring src cluster.
+	 */
+	if (capacity_orig_of(tgt_cpu) < tgt_scale)
+		return false;
+
+	/* Target cluster is above target scale */
+	if (arch_scale_freq_capacity(tgt_cpu) >= tgt_scale)
+		return false;
+
+	/* We reach here, means we need to ignore src cluster for placement */
+	return true;
+}
+
+
 
 extern void walt_task_dump(struct task_struct *p);
 extern void walt_rq_dump(int cpu);

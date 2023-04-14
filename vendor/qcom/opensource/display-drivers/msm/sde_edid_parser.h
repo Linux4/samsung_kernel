@@ -96,6 +96,7 @@ struct sde_edid_ctrl {
 	struct sde_edid_hdr_data hdr_data;
 #if defined(CONFIG_SECDP)
 	int audio_channel_info;
+	bool custom_edid;	/*SECDP_SELF_TEST*/
 #endif
 };
 

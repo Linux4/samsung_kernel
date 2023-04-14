@@ -1515,8 +1515,12 @@ static int __cam_req_mgr_check_sync_req_is_ready(
 	uint32_t trigger)
 {
 	struct cam_req_mgr_slot *sync_rd_slot = NULL;
+	struct cam_req_mgr_slot *sync_tmp_slot = NULL;
 	int64_t req_id = 0, sync_req_id = 0;
 	int sync_slot_idx = 0, sync_rd_idx = 0, rc = 0;
+	int sync_tmp_idx = 0;
+	int sync_prev_rd_idx = 0;
+	struct cam_req_mgr_slot *sync_prev_rd_slot = NULL;
 	int32_t sync_num_slots = 0;
 	uint64_t sync_frame_duration = 0;
 	uint64_t sof_timestamp_delta = 0;
@@ -1541,6 +1545,12 @@ static int __cam_req_mgr_check_sync_req_is_ready(
 	sync_rd_idx    = sync_link->req.in_q->rd_idx;
 	sync_rd_slot   = &sync_link->req.in_q->slot[sync_rd_idx];
 	sync_req_id    = sync_rd_slot->req_id;
+	sync_tmp_idx   = sync_rd_idx;
+	__cam_req_mgr_inc_idx(&sync_tmp_idx, 1, sync_num_slots);
+	sync_tmp_slot = &sync_link->req.in_q->slot[sync_tmp_idx];
+
+	sync_prev_rd_idx  = (sync_rd_idx - 1 + sync_num_slots) % sync_num_slots;
+	sync_prev_rd_slot = &sync_link->req.in_q->slot[sync_prev_rd_idx];
 
 	CAM_DBG(CAM_REQ,
 		"link_hdl %x sync link_hdl %x req %lld",
@@ -1623,7 +1633,9 @@ static int __cam_req_mgr_check_sync_req_is_ready(
 		((slot_idx_diff > 1) ||
 		((slot_idx_diff == 1) &&
 		(sync_rd_slot->status !=
-		CRM_SLOT_STATUS_REQ_APPLIED)))) {
+		CRM_SLOT_STATUS_REQ_APPLIED))) &&
+		(sync_tmp_slot->sync_mode == CAM_REQ_MGR_SYNC_MODE_SYNC)
+	   ){
 		CAM_DBG(CAM_CRM,
 			"Req: %lld [other link] not next req to be applied on link: %x",
 			req_id, sync_link->link_hdl);
@@ -1690,6 +1702,7 @@ static int __cam_req_mgr_check_sync_req_is_ready(
 		(sync_link->sof_timestamp > 0) &&
 		(sof_timestamp_delta < master_slave_diff) &&
 		(sync_rd_slot->sync_mode == CAM_REQ_MGR_SYNC_MODE_SYNC) &&
+		(sync_prev_rd_slot->sync_mode == CAM_REQ_MGR_SYNC_MODE_SYNC) &&
 		(req_id >= link->initial_sync_req) &&
 		(req_id - link->initial_sync_req >=
 		(INITIAL_IN_SYNC_REQ + link->max_delay))) {
@@ -1709,7 +1722,8 @@ static int __cam_req_mgr_check_sync_req_is_ready(
 				"link %x too quickly, skip this frame",
 				link->link_hdl);
 			return -EAGAIN;
-		} else if (req_id < sync_req_id) {
+		} else if ((req_id < sync_req_id) &&
+			(sync_rd_slot->status == CRM_SLOT_STATUS_REQ_APPLIED)) {
 			CAM_DBG(CAM_CRM,
 				"sync link %x too quickly, skip next frame of sync link",
 				sync_link->link_hdl);

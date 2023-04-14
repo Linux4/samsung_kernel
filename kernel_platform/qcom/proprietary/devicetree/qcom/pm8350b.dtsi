@@ -232,7 +232,7 @@
 
 		trips {
 			pm8350b_trip0: trip0 {
-				temperature = <95000>;
+				temperature = <90000>;
 				hysteresis = <0>;
 				type = "passive";
 			};
@@ -240,13 +240,13 @@
 			pm8350b_trip1: trip1 {
 				temperature = <115000>;
 				hysteresis = <0>;
-				type = "critical";
+				type = "passive";
 			};
 
 			pm8350b_trip2: trip2 {
 				temperature = <145000>;
 				hysteresis = <0>;
-				type = "critical";
+				type = "passive";
 			};
 		};
 	};
@@ -376,7 +376,7 @@
 			};
 
 			socd_trip:socd-trip {
-				temperature = <90>;
+				temperature = <100>;
 				hysteresis = <0>;
 				type = "passive";
 			};

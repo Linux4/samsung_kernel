@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -382,6 +383,22 @@ wmi_extract_roam_stats_event(wmi_unified_t wmi_handle,
 			     struct roam_stats_event **stats_info);
 
 /**
+ * wmi_unified_extract_roam_extract_frame_info() - Extract the roam frame
+ * info TLV from roam stats event
+ * @wmi:        wmi handle
+ * @evt_buf:    Pointer to the event buffer
+ * @dst:        Pointer to destination structure to fill data
+ * @idx:        Index of the TLV to read
+ * @num_frames: Number of TLV to read
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+wmi_unified_extract_roam_extract_frame_info(wmi_unified_t wmi, void *evt_buf,
+					    struct roam_frame_stats *dst,
+					    uint8_t idx, uint8_t num_frames);
+
+/**
  * wmi_extract_auth_offload_event  - Extract auth offload event
  * @wmi_handle: WMI handle
  * @event: Event data received from firmware
@@ -408,6 +425,19 @@ QDF_STATUS
 wmi_extract_roam_pmkid_request(wmi_unified_t wmi_handle,
 			       uint8_t *event, uint32_t data_len,
 			       struct roam_pmkid_req_event **data);
+
+/**
+ * wmi_extract_roam_candidate_frame_event() - Extract the roam candidate
+ * scan entry and update the scan db
+ * @wmi_handle: wmi handle
+ * @event: Event data received from firmware
+ * @len: Event data length received from firmware
+ * @data: Extract the event and fill in data
+ */
+QDF_STATUS
+wmi_extract_roam_candidate_frame_event(wmi_unified_t wmi_handle, uint8_t *event,
+				       uint32_t len,
+				       struct roam_scan_candidate_frame *data);
 #endif /* WLAN_FEATURE_ROAM_OFFLOAD */
 
 /**

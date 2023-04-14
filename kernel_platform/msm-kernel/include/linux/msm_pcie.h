@@ -186,6 +186,16 @@ int msm_pcie_deregister_event(struct msm_pcie_register_event *reg);
  */
 int msm_pcie_enumerate(u32 rc_idx);
 
+/**
+ * msm_pcie_deenumerate - deenumerates the Endpoints.
+ * @rc_idx:	RC that Endpoints connect to.
+ *
+ * This function de-enumerates Endpoints connected to RC.
+ *
+ * Return: 0 on success, negative value on error
+ */
+int msm_pcie_deenumerate(u32 rc_idx);
+
 /*
  * msm_pcie_debug_info - run a PCIe specific debug testcase.
  * @dev:	pci device structure
@@ -202,6 +212,17 @@ int msm_pcie_enumerate(u32 rc_idx);
  */
 int msm_pcie_debug_info(struct pci_dev *dev, u32 option, u32 base,
 			u32 offset, u32 mask, u32 value);
+
+/*
+ * msm_pcie_reg_dump - dump pcie regsters for debug
+ * @pci_dev:	pci device structure
+ * @buffer:	destination buffer address
+ * @len:		length of buffer
+ *
+ * This functions dumps PCIE registers for debug. Sould be used when
+ * link is already enabled
+ */
+int msm_pcie_reg_dump(struct pci_dev *pci_dev, u8 *buff, u32 len);
 
 #else /* !CONFIG_PCI_MSM */
 static inline int msm_pcie_pm_control(enum msm_pcie_pm_opt pm_opt, u32 busnr,
@@ -250,8 +271,18 @@ static inline int msm_pcie_enumerate(u32 rc_idx)
 	return -ENODEV;
 }
 
+static inline int msm_pcie_deenumerate(u32 rc_idx)
+{
+	return -ENODEV;
+}
+
 static inline int msm_pcie_debug_info(struct pci_dev *dev, u32 option, u32 base,
 			u32 offset, u32 mask, u32 value)
+{
+	return -ENODEV;
+}
+
+static inline int msm_pcie_reg_dump(struct pci_dev *pci_dev, u8 *buff, u32 len)
 {
 	return -ENODEV;
 }

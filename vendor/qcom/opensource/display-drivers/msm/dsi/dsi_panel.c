@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Copyright (c) 2021-2022, Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -76,6 +77,7 @@ static int dsi_vdc_create_pps_buf_cmd(struct msm_display_vdc_info *vdc,
 }
 
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+static int vreg_fail_cnt;
 static int ss_dsi_panel_vreg_check(struct dsi_panel *panel)
 {
 	int rc = 0;
@@ -105,6 +107,14 @@ error_put:
 		regulator_put(panel->power_info.vregs[i].vreg);
 		panel->power_info.vregs[i].vreg = NULL;
 	}
+
+	DSI_ERR("vreg_fail_cnt (%d) \n", vreg_fail_cnt);
+
+	if (++vreg_fail_cnt > 30) {
+		DSI_ERR("need to check vreg_fail (%d), msm_drm module init fail..\n", vreg_fail_cnt);
+		return 0;
+	}
+
 	return -EPROBE_DEFER;
 }
 #endif
@@ -524,13 +534,14 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 
 	/* Make not to turn on the panel power when ub_con_det.gpio is high (ub is not connected) */
 	if (unlikely(vdd->is_factory_mode)) {
-		if (gpio_is_valid(vdd->ub_con_det.gpio))
+		if (gpio_is_valid(vdd->ub_con_det.gpio)) {
 			LCD_INFO(vdd, "ub_con_det.gpio = %d\n", ss_gpio_get_value(vdd, vdd->ub_con_det.gpio));
 
-		vdd->ub_con_det.current_wakeup_context_gpio_status = ss_gpio_get_value(vdd, vdd->ub_con_det.gpio);
-		if (vdd->ub_con_det.current_wakeup_context_gpio_status) {
-			LCD_ERR(vdd, "Do not panel power on..\n");
-			return 0;
+			vdd->ub_con_det.current_wakeup_context_gpio_status = ss_gpio_get_value(vdd, vdd->ub_con_det.gpio);
+			if (vdd->ub_con_det.current_wakeup_context_gpio_status) {
+				LCD_ERR(vdd, "Do not panel power on..\n");
+				return 0;
+			}
 		}
 	}
 
@@ -1169,6 +1180,28 @@ static int dsi_panel_pwm_register(struct dsi_panel *panel)
 	return 0;
 }
 
+static int dsi_panel_parse_fsc_rgb_order(struct dsi_panel *panel,
+		struct dsi_parser_utils *utils)
+{
+	int rc = 0;
+	const char *fsc_rgb_order;
+
+	fsc_rgb_order = utils->get_property(utils->data,
+		"qcom,dsi-panel-fsc-rgb-order", NULL);
+	if (fsc_rgb_order) {
+		if (DSI_IS_FSC_PANEL(fsc_rgb_order)) {
+			strlcpy(panel->fsc_rgb_order, fsc_rgb_order,
+				sizeof(panel->fsc_rgb_order));
+		} else {
+			DSI_ERR("Unrecognized fsc color order-%s\n",
+				fsc_rgb_order);
+			rc = -EINVAL;
+		}
+	}
+
+	return rc;
+}
+
 static int dsi_panel_bl_register(struct dsi_panel *panel)
 {
 	int rc = 0;
@@ -1409,6 +1442,18 @@ static int dsi_panel_parse_pixel_format(struct dsi_host_common_cfg *host,
 	case 18:
 		fmt = DSI_PIXEL_FORMAT_RGB666;
 		break;
+	case 30:
+		/*
+		 * The destination pixel format (host->dst_format) depends
+		 * upon the compression, and should be RGB888 if the DSC is
+		 * enable.
+		 * The DSC status information is inside the timing modes, that
+		 * is parsed during first dsi_display_get_modes() call.
+		 * The dst_format will be updated there depending upon the
+		 * DSC status.
+		 */
+		fmt = DSI_PIXEL_FORMAT_RGB101010;
+		break;
 	case 24:
 	default:
 		fmt = DSI_PIXEL_FORMAT_RGB888;
@@ -1568,6 +1613,8 @@ static int dsi_panel_parse_triggers(struct dsi_host_common_cfg *host,
 		host->te_mode = 1;
 		rc = 0;
 	}
+	DSI_ERR("QDEBUG: mdp_cmd_trigger %d, dma_cmd_trigger %d, te_mode %d\n",
+		host->mdp_cmd_trigger, host->dma_cmd_trigger, host->te_mode);
 
 	return rc;
 }
@@ -1790,8 +1837,10 @@ static int dsi_panel_parse_qsync_caps(struct dsi_panel *panel,
 	 */
 	qsync_caps->qsync_min_fps_list_len = utils->count_u32_elems(utils->data,
 				  "qcom,dsi-supported-qsync-min-fps-list");
-	if (qsync_caps->qsync_min_fps_list_len < 1)
+	if (qsync_caps->qsync_min_fps_list_len < 1) {
+		qsync_caps->qsync_min_fps_list_len = 0;
 		goto qsync_support;
+	}
 
 	/**
 	 * qcom,dsi-supported-qsync-min-fps-list cannot be defined
@@ -2803,12 +2852,17 @@ static int dsi_panel_parse_jitter_config(
 	return 0;
 }
 
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+bool pba_regulator_control_ss;
+bool pba_regulator_control_ss_sub;
+#endif
 static int dsi_panel_parse_power_cfg(struct dsi_panel *panel)
 {
 	int rc = 0;
 	char *supply_name;
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	struct samsung_display_driver_data *vdd;
+	struct dsi_parser_utils *utils = &panel->utils;
 #endif
 
 	if (panel->host_config.ext_bridge_mode)
@@ -2817,12 +2871,28 @@ static int dsi_panel_parse_power_cfg(struct dsi_panel *panel)
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	vdd = panel->panel_private;
 
+	/* ss_pba_regulator_control:
+	 * To turn off regulator while PBA boot
+	 * Caution!, both panels should have PBA regulators if with DSI1
+	 */
+
+	if (!strcmp(panel->type, "primary")) {
+		pba_regulator_control_ss = utils->read_bool(utils->data,
+				"qcom,mdss-dsi-pba-regulator_ss");
+	} else {
+		pba_regulator_control_ss_sub = utils->read_bool(utils->data,
+				"qcom,mdss-dsi-pba-regulator_ss");
+	}
+
+	LCD_INFO(vdd, "parse qcom,mdss-dsi-pba-regulator_ss: main [%d] sub [%d]\n",
+			pba_regulator_control_ss, pba_regulator_control_ss_sub);
+
 	/* In this point, vdd->panel_attach_status has invalid data.
 	 * So, use panel name to verify PBA booting,
 	 * intead of ss_panel_attach_get().
 	 */
-	if (!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") ||
-			!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1")) {
+	if ((!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") && !pba_regulator_control_ss) ||
+		(!strcmp(panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1") && !pba_regulator_control_ss_sub)) {
 		LCD_ERR(vdd, "PBA booting, skip to parse vreg\n");
 		goto error;
 	}
@@ -3014,6 +3084,9 @@ static int dsi_panel_parse_bl_config(struct dsi_panel *panel)
 
 	panel->bl_config.bl_scale = MAX_BL_SCALE_LEVEL;
 	panel->bl_config.bl_scale_sv = MAX_SV_BL_SCALE_LEVEL;
+	panel->bl_config.dimming_min_bl = 0;
+	panel->bl_config.dimming_status = DIMMING_ENABLE;
+	panel->bl_config.user_disable_notification = false;
 
 	rc = utils->read_u32(utils->data, "qcom,mdss-dsi-bl-min-level", &val);
 	if (rc) {
@@ -4245,6 +4318,10 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 	if (rc)
 		DSI_DEBUG("failed to parse esd config, rc=%d\n", rc);
 
+	rc = dsi_panel_parse_fsc_rgb_order(panel, utils);
+	if (rc)
+		DSI_DEBUG("failed to read fsc color order, rc=%d\n", rc);
+
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	rc = ss_dsi_panel_vreg_check(panel);
 	if (rc) {
@@ -4571,6 +4648,7 @@ void dsi_panel_calc_dsi_transfer_time(struct dsi_host_common_cfg *config,
 	struct dsi_display_mode *display_mode;
 	u32 jitter_numer, jitter_denom, prefill_lines;
 	u32 min_threshold_us, prefill_time_us, max_transfer_us, packet_overhead;
+	u32 bits_per_symbol = 16, num_of_symbols = 7; /* For Cphy */
 	u16 bpp;
 
 	/* Packet overhead in bits,
@@ -4615,6 +4693,11 @@ void dsi_panel_calc_dsi_transfer_time(struct dsi_host_common_cfg *config,
 	}
 
 	timing->min_dsi_clk_hz = min_bitclk_hz;
+
+	if (config->phy_type == DSI_PHY_TYPE_CPHY) {
+		do_div(timing->min_dsi_clk_hz, bits_per_symbol);
+		timing->min_dsi_clk_hz *= num_of_symbols;
+	}
 
 	/*
 	 * Apart from prefill line time, we need to take into account RSCC mode threshold time. In
@@ -4759,6 +4842,7 @@ int dsi_panel_get_mode(struct dsi_panel *panel,
 			DSI_ERR("failed to parse panel timing, rc=%d\n", rc);
 			goto parse_fail;
 		}
+		mode->timing.fsc_mode = DSI_IS_FSC_PANEL(panel->fsc_rgb_order);
 
 		if (panel->dyn_clk_caps.dyn_clk_support) {
 			rc = dsi_panel_parse_dyn_clk_list(mode, utils);
@@ -4888,6 +4972,7 @@ int dsi_panel_get_host_cfg_for_mode(struct dsi_panel *panel,
 int dsi_panel_pre_prepare(struct dsi_panel *panel)
 {
 	int rc = 0;
+	SDE_EVT32(SDE_EVTLOG_FUNC_ENTRY);
 
 	if (!panel) {
 		DSI_ERR("invalid params\n");
@@ -4908,6 +4993,7 @@ int dsi_panel_pre_prepare(struct dsi_panel *panel)
 
 error:
 	mutex_unlock(&panel->panel_lock);
+	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT);
 	return rc;
 }
 

@@ -71,8 +71,6 @@ enum {
 struct shared_memory {
 	struct resource r;
 	u32 gunyah_label, shm_memparcel;
-	/* Remove once API transition complete */
-	bool has_lookup_sgl;
 };
 
 struct virt_machine {
@@ -632,14 +630,18 @@ loop_back:
 		if (copy_from_user(&d, argp, sizeof(d)))
 			return -EFAULT;
 
-		if (!d.label || !d.config_size || !d.config_data)
-			return -EINVAL;
-
 		vb_dev = vb_dev_get(vm, d.label);
 		if (!vb_dev)
 			return -EINVAL;
 
 		mutex_lock(&vb_dev->mutex);
+		if (!d.label || d.config_size > vb_dev->config_shared_size ||
+			!d.config_size || !d.config_data) {
+			mutex_unlock(&vb_dev->mutex);
+			vb_dev_put(vb_dev);
+			return -EINVAL;
+		}
+
 		if (!vb_dev->config_shared_buf) {
 			mutex_unlock(&vb_dev->mutex);
 			vb_dev_put(vb_dev);
@@ -809,12 +811,12 @@ static void close_vb_dev(struct virtio_backend_device *vb_dev)
 	vb_dev->vdev_event = 0;
 	vb_dev->vdev_event_data = 0;
 	vb_dev->ack_driver_ok = 0;
-	spin_unlock_irqrestore(&vb_dev->lock, flags);
 
 	if (vb_dev->config_data) {
 		free_pages((unsigned long)vb_dev->config_data, 0);
 		vb_dev->config_data = NULL;
 	}
+	spin_unlock_irqrestore(&vb_dev->lock, flags);
 }
 
 static int virtio_backend_release(struct inode *inode, struct file *filp)
@@ -1273,14 +1275,12 @@ unshare_a_vm_buffer(gh_vmid_t self, gh_vmid_t peer, struct resource *r,
 	int dst_perms[1] = {PERM_READ | PERM_WRITE | PERM_EXEC};
 	int ret;
 
-	if (!shmem->has_lookup_sgl) {
-		ret = gh_rm_mem_reclaim(shmem->shm_memparcel, 0);
-		if (ret) {
-			pr_err("%s: gh_rm_mem_reclaim failed for handle %x addr=%llx size=%lld err=%d\n",
-				VIRTIO_PRINT_MARKER, shmem->shm_memparcel, r->start,
-				resource_size(r), ret);
-			return ret;
-		}
+	ret = gh_rm_mem_reclaim(shmem->shm_memparcel, 0);
+	if (ret) {
+		pr_err("%s: gh_rm_mem_reclaim failed for handle %x addr=%llx size=%lld err=%d\n",
+			VIRTIO_PRINT_MARKER, shmem->shm_memparcel, r->start,
+			resource_size(r), ret);
+		return ret;
 	}
 
 	ret = hyp_assign_phys(r->start, resource_size(r), src_vmlist, 2,
@@ -1355,18 +1355,9 @@ static int share_a_vm_buffer(gh_vmid_t self, gh_vmid_t peer, int gunyah_label,
 	sgl->sgl_entries[0].ipa_base = r->start;
 	sgl->sgl_entries[0].size = resource_size(r);
 
-	/*
-	 * gh_rm_mem_qcom_lookup_sgl is no longer supported and is replaced with
-	 * gh_rm_mem_share. To ease this transition, fall back to the later on error.
-	 */
-	shmem->has_lookup_sgl = true;
-	ret = gh_rm_mem_qcom_lookup_sgl(GH_RM_MEM_TYPE_NORMAL,
-			gunyah_label, acl, sgl, NULL, shm_memparcel);
-	if (ret) {
-		shmem->has_lookup_sgl = false;
-		ret = gh_rm_mem_share(GH_RM_MEM_TYPE_NORMAL, 0, gunyah_label,
+
+	ret = gh_rm_mem_share(GH_RM_MEM_TYPE_NORMAL, 0, gunyah_label,
 				      acl, sgl, NULL, shm_memparcel);
-	}
 	if (ret) {
 		pr_err("%s: Sharing memory failed %d\n", VIRTIO_PRINT_MARKER, ret);
 		/* Attempt to assign resource back to HLOS */
@@ -1460,15 +1451,6 @@ VIRTIO_PRINT_MARKER, label);
 		}
 	}
 
-	if (!vb_dev->config_data || size < vb_dev->config_size) {
-		pr_err("%s: Incorrect config_data for dev %u\n",
-				VIRTIO_PRINT_MARKER, label);
-		unshare_vm_buffers(vm, vmid);
-		mutex_unlock(&vb_dev->mutex);
-		vb_dev_put(vb_dev);
-		return -EINVAL;
-	}
-
 	ret = request_irq(linux_irq, vdev_interrupt, 0,
 			vb_dev->int_name, vb_dev);
 	if (ret) {
@@ -1490,6 +1472,19 @@ VIRTIO_PRINT_MARKER, label);
 		return -ENOMEM;
 	}
 
+	spin_lock(&vb_dev->lock);
+	if (!vb_dev->config_data || size < vb_dev->config_size) {
+		pr_err("%s: Incorrect config_data for dev %u\n",
+				VIRTIO_PRINT_MARKER, label);
+		spin_unlock(&vb_dev->lock);
+		iounmap(vb_dev->config_shared_buf);
+		free_irq(linux_irq, vb_dev);
+		unshare_vm_buffers(vm, vmid);
+		mutex_unlock(&vb_dev->mutex);
+		vb_dev_put(vb_dev);
+		return -EINVAL;
+	}
+
 	p = (u32 *)vb_dev->config_shared_buf;
 	q = (u32 *)vb_dev->config_data;
 	nr_words = vb_dev->config_size / 4;
@@ -1497,6 +1492,7 @@ VIRTIO_PRINT_MARKER, label);
 	for (i = 0; i < nr_words; ++i)
 		writel_relaxed(*q++, p++);
 
+	spin_unlock(&vb_dev->lock);
 	p = (u32 *)vb_dev->config_shared_buf;
 	for (i = 0; i < nr_words; ++i)
 		pr_debug("%s: config_word %d %x\n", VIRTIO_PRINT_MARKER, i, readl_relaxed(p++));

@@ -22,20 +22,24 @@
 /* ------------------------------------------------------------------------- */
 
 /* By default kmalloc is defined as kmalloc_mock in dsms_test.h*/
-static void security_dsms_test_kmalloc_mock_test(struct test *test)
+static void security_dsms_test_kmalloc_mock_test(struct kunit *test)
 {
 	void *p;
 
 	security_dsms_test_request_kmalloc_fail_at(1);
 	security_dsms_test_request_kmalloc_fail_at(3);
 	/* kmalloc must call security_dsms_test_kmalloc_mock */
-	EXPECT_EQ(test, p = kmalloc(1, GFP_KERNEL), NULL);
+	p = kmalloc(1, GFP_KERNEL);
+	KUNIT_EXPECT_PTR_EQ(test, p, NULL);
 	kfree(p);
-	EXPECT_NE(test, p = kmalloc(1, GFP_KERNEL), NULL);
+	p = kmalloc(1, GFP_KERNEL);
+	KUNIT_EXPECT_PTR_NE(test, p, NULL);
 	kfree(p);
-	EXPECT_EQ(test, p = kmalloc(1, GFP_KERNEL), NULL);
+	p = kmalloc(1, GFP_KERNEL);
+	KUNIT_EXPECT_PTR_EQ(test, p, NULL);
 	kfree(p);
-	EXPECT_NE(test, p = kmalloc(1, GFP_KERNEL), NULL);
+	p = kmalloc(1, GFP_KERNEL);
+	KUNIT_EXPECT_PTR_NE(test, p, NULL);
 	kfree(p);
 }
 
@@ -43,13 +47,13 @@ static void security_dsms_test_kmalloc_mock_test(struct test *test)
 /* Module initialization and exit functions                                  */
 /* ------------------------------------------------------------------------- */
 
-static int security_dsms_test_utils_init(struct test *test)
+static int security_dsms_test_utils_init(struct kunit *test)
 {
 	security_dsms_test_cancel_kmalloc_fail_requests();
 	return 0;
 }
 
-static void security_dsms_test_utils_exit(struct test *test)
+static void security_dsms_test_utils_exit(struct kunit *test)
 {
 	security_dsms_test_cancel_kmalloc_fail_requests();
 }
@@ -58,15 +62,15 @@ static void security_dsms_test_utils_exit(struct test *test)
 /* Module definition                                                         */
 /* ------------------------------------------------------------------------- */
 
-static struct test_case security_dsms_test_utils_test_cases[] = {
-	TEST_CASE(security_dsms_test_kmalloc_mock_test),
+static struct kunit_case security_dsms_test_utils_test_cases[] = {
+	KUNIT_CASE(security_dsms_test_kmalloc_mock_test),
 	{},
 };
 
-static struct test_module security_dsms_test_utils_module = {
+static struct kunit_suite security_dsms_test_utils_module = {
 	.name = "security-dsms-test-utils-test",
 	.init = security_dsms_test_utils_init,
 	.exit = security_dsms_test_utils_exit,
 	.test_cases = security_dsms_test_utils_test_cases,
 };
-module_test(security_dsms_test_utils_module);
+kunit_test_suites(&security_dsms_test_utils_module);

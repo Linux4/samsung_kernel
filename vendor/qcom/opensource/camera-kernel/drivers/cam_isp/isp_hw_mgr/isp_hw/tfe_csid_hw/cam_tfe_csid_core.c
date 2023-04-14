@@ -3260,6 +3260,7 @@ irqreturn_t cam_tfe_csid_irq(int irq_num, void *data)
 	uint32_t sof_irq_debug_en = 0, log_en = 0;
 	unsigned long flags;
 	uint32_t i, val, val1;
+	struct cam_subdev_msg_payload               subdev_msg;
 
 	if (!data) {
 		CAM_ERR(CAM_ISP, "CSID: Invalid arguments");
@@ -3398,9 +3399,10 @@ handle_fatal_error:
 			csid_reg->csi2_reg->csid_csi2_rx_irq_mask_addr);
 		/* phy_sel starts from 1 and should never be zero*/
 		if (csid_hw->csi2_rx_cfg.phy_sel > 0) {
+			subdev_msg.hw_idx = csid_hw->csi2_rx_cfg.phy_sel - 1;
+			subdev_msg.priv_data = 0;
 			cam_subdev_notify_message(CAM_CSIPHY_DEVICE_TYPE,
-				CAM_SUBDEV_MESSAGE_IRQ_ERR,
-				(csid_hw->csi2_rx_cfg.phy_sel - 1));
+				CAM_SUBDEV_MESSAGE_IRQ_ERR, &subdev_msg);
 		}
 		cam_tfe_csid_handle_hw_err_irq(csid_hw,
 			CAM_ISP_HW_ERROR_CSID_FATAL, irq_status);

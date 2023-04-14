@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #define pr_fmt(fmt) "synx: " fmt
 
@@ -232,12 +233,11 @@ int synx_signal_core(struct synx_coredata *synx_obj,
 				memset(&synx_obj->bound_synxs[i], 0,
 					sizeof(struct synx_bind_desc));
 				/* clear the hash table entry */
-				entry = synx_util_retrieve_data(ext_sync_id, type);
+				entry = synx_util_release_data(ext_sync_id, type);
 				if (entry && type == SYNX_TYPE_CSL) {
 					spin_lock_bh(&camera_tbl_lock);
-					hash_del(&entry->node);
+					kref_put(&entry->refcount, synx_util_destroy_data);
 					spin_unlock_bh(&camera_tbl_lock);
-					kfree(entry);
 				} else {
 					pr_err("missing hash entry for %d in cb\n",
 						ext_sync_id);
@@ -266,12 +266,11 @@ int synx_signal_core(struct synx_coredata *synx_obj,
 		}
 
 		/* clear the hash table entry */
-		entry = synx_util_retrieve_data(sync_id, type);
+		entry = synx_util_release_data(sync_id, type);
 		if (entry && type == SYNX_TYPE_CSL) {
 			spin_lock_bh(&camera_tbl_lock);
-			hash_del(&entry->node);
+			kref_put(&entry->refcount, synx_util_destroy_data);
 			spin_unlock_bh(&camera_tbl_lock);
-			kfree(entry);
 		} else {
 			pr_err("missing hash entry for id %d\n", sync_id);
 		}
@@ -764,9 +763,9 @@ EXPORT_SYMBOL(synx_merge);
 int synx_release(struct synx_session session_id, s32 h_synx)
 {
 	int rc = 0;
+	u32 idx;
 	struct synx_client *client;
 	struct synx_handle_coredata *synx_data;
-	struct synx_coredata *synx_obj;
 
 	pr_debug("[sess: %u] Enter release from pid %d\n",
 		session_id.client_id, current->pid);
@@ -775,21 +774,31 @@ int synx_release(struct synx_session session_id, s32 h_synx)
 	if (!client)
 		return -EINVAL;
 
-	synx_data = synx_util_acquire_handle(client, h_synx);
-	synx_obj = synx_util_obtain_object(synx_data);
-	/* no need to check for fence here */
-	if (!synx_obj) {
-		pr_err("%s: [sess: %u] invalid handle access %d\n",
-			__func__, client->id, h_synx);
-		rc = -EINVAL;
-		goto fail;
+	synx_data = NULL;
+	idx = synx_util_handle_index(h_synx);
+
+	mutex_lock(&client->synx_table_lock[idx]);
+	synx_data = &client->synx_table[idx];
+	if (!synx_data->synx_obj) {
+		pr_err("[sess: %u] invalid object handle %d\n",
+			client->id, h_synx);
+	} else if (synx_data->handle != h_synx) {
+		pr_err("[sess: %u] stale object handle %d\n",
+			client->id, h_synx);
+	} else if (synx_data->rel_count == 0) {
+		pr_err("[sess: %u] released object handle %d\n",
+			client->id, h_synx);
+	} else if (!kref_read(&synx_data->internal_refcount)) {
+		pr_err("[sess: %u] destroyed object handle %d\n",
+			client->id, h_synx);
+	} else {
+		synx_data->rel_count--;
+		/* release the reference obtained at synx creation */
+		kref_put(&synx_data->internal_refcount,
+			synx_util_destroy_internal_handle);
 	}
+	mutex_unlock(&client->synx_table_lock[idx]);
 
-	/* release the reference obtained at synx creation */
-	synx_util_release_handle(synx_data);
-
-fail:
-	synx_util_release_handle(synx_data);
 	synx_put_client(client);
 	pr_debug("[sess: %u] exit release with status %d\n",
 		session_id.client_id, rc);
@@ -859,6 +868,7 @@ int synx_bind(struct synx_session session_id,
 	struct synx_coredata *synx_obj;
 	struct synx_external_data *data = NULL;
 	struct bind_operations *bind_ops = NULL;
+	struct hash_key_data *entry = NULL;
 
 	pr_debug("[sess: %u] Enter bind from pid %d\n",
 		session_id.client_id, current->pid);
@@ -938,18 +948,35 @@ int synx_bind(struct synx_session session_id,
 	synx_obj->num_bound_synxs++;
 	mutex_unlock(&synx_obj->obj_lock);
 
-	synx_util_save_data(external_sync.id[0],
-		external_sync.type, (void *)synx_obj);
-
-	rc = bind_ops->register_callback(synx_external_callback,
+	rc = synx_util_save_data(external_sync.id[0],
+			external_sync.type, (void *)synx_obj);
+	if (!rc) {
+		rc = bind_ops->register_callback(synx_external_callback,
 			data, external_sync.id[0]);
+		if (rc) {
+			pr_err("[sess: %u] callback registration failed for %d\n",
+				client->id, external_sync.id[0]);
+			entry = synx_util_release_data(external_sync.id[0],
+						external_sync.type);
+			if (entry) {
+				pr_info("[sess: %u] retrieved %u, synx obj %pK\n",
+					client->id, entry->key, entry->data);
+				spin_lock_bh(&camera_tbl_lock);
+				kref_put(&entry->refcount, synx_util_destroy_data);
+				spin_unlock_bh(&camera_tbl_lock);
+			} else {
+				pr_warn("[sess: %u] entry already cleared for %d\n",
+					client->id, external_sync.id[0]);
+			}
+		}
+	}
+
 	if (rc) {
-		pr_err("[sess: %u] callback registration failed for %d\n",
-			client->id, external_sync.id[0]);
 		mutex_lock(&synx_obj->obj_lock);
 		memset(&synx_obj->bound_synxs[bound_idx], 0,
 			sizeof(struct synx_external_desc));
-		synx_obj->num_bound_synxs--;
+		if (synx_obj->num_bound_synxs)
+			synx_obj->num_bound_synxs--;
 		goto free;
 	}
 
@@ -1042,8 +1069,10 @@ int synx_addrefcount(struct synx_session session_id, s32 h_synx, s32 count)
 	idx = synx_util_handle_index(h_synx);
 	mutex_lock(&client->synx_table_lock[idx]);
 	/* acquire additional references to handle */
-	while (count--)
+	while (count--) {
+		synx_data->rel_count++;
 		kref_get(&synx_data->internal_refcount);
+	}
 	mutex_unlock(&client->synx_table_lock[idx]);
 
 fail:
@@ -1798,7 +1827,7 @@ static void synx_ipc_signal_handler(struct work_struct *cb_dispatch)
 		container_of(cb_dispatch, struct synx_ipc_cb, cb_dispatch);
 	struct synx_ipc_msg *msg = &ipc_cb->msg;
 	struct hash_key_data *entry =
-		synx_util_retrieve_data(msg->global_key, SYNX_GLOBAL_KEY_TBL);
+		synx_util_release_data(msg->global_key, SYNX_GLOBAL_KEY_TBL);
 
 	if (entry) {
 		rc = synx_signal_handler((struct synx_coredata *)entry->data,
@@ -1807,10 +1836,8 @@ static void synx_ipc_signal_handler(struct work_struct *cb_dispatch)
 			pr_err("ipc signaling failed on key %u err: %d\n",
 				msg->global_key, rc);
 		spin_lock_bh(&global_tbl_lock);
-		hash_del(&entry->node);
+		kref_put(&entry->refcount, synx_util_destroy_data);
 		spin_unlock_bh(&global_tbl_lock);
-		synx_util_put_object((struct synx_coredata *)entry->data);
-		kfree(entry);
 	} else {
 		pr_err("ipc invalid entry for key %u\n",
 			msg->global_key);

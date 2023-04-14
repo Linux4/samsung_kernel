@@ -22,6 +22,9 @@
 #include <linux/of_gpio.h>
 #include <linux/clk/qcom.h>
 #include <linux/reset.h>
+#include <linux/reboot.h>
+#include <linux/notifier.h>
+#include <linux/kdebug.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/interconnect.h>
@@ -440,7 +443,7 @@ static int ep_pcie_clk_init(struct ep_pcie_dev_t *dev)
 
 static void ep_pcie_clk_deinit(struct ep_pcie_dev_t *dev)
 {
-	int i;
+	int i, rc;
 
 	EP_PCIE_DBG(dev, "PCIe V%d\n", dev->rev);
 
@@ -449,11 +452,10 @@ static void ep_pcie_clk_deinit(struct ep_pcie_dev_t *dev)
 			clk_disable_unprepare(dev->clk[i].hdl);
 
 	if (dev->icc_path) {
-		icc_put(dev->icc_path);
-		dev->icc_path = 0;
-			EP_PCIE_DBG(dev,
-				"PCIe V%d: relinquish bus bandwidth\n",
-				dev->rev);
+		rc = icc_set_bw(dev->icc_path, 0, 0);
+		EP_PCIE_DBG(dev,
+			"PCIe V%d: relinquish bus bandwidth returns %d\n",
+			dev->rev, rc);
 	}
 
 	if (!m2_enabled) {
@@ -558,8 +560,10 @@ static void ep_pcie_bar_init(struct ep_pcie_dev_t *dev)
 
 static void ep_pcie_config_mmio(struct ep_pcie_dev_t *dev)
 {
-	u32 mhi_status;
+	u32 mhi_status, mhi_miscoff;
 	void __iomem *mhi_status_addr;
+	struct resource *res = dev->res[EP_PCIE_RES_MMIO].resource;
+	u32 mhi_reg_size = resource_size(res);
 
 	EP_PCIE_DBG(dev,
 		"Initial version of MMIO is:0x%x\n",
@@ -588,6 +592,15 @@ static void ep_pcie_config_mmio(struct ep_pcie_dev_t *dev)
 	ep_pcie_write_reg(dev->mmio, PCIE20_MHIVER, 0x1000000);
 	ep_pcie_write_reg(dev->mmio, PCIE20_BHI_VERSION_LOWER, 0x2);
 	ep_pcie_write_reg(dev->mmio, PCIE20_BHI_VERSION_UPPER, 0x1);
+
+	/*
+	 * If this register holds an invalid value that implies bootloaders
+	 * didn't update the capabilities. And we don't support any of the
+	 * MHI capabilities so set this register to zero.
+	 */
+	mhi_miscoff = readl_relaxed(dev->mmio + PCIE20_MISCOFF);
+	if (mhi_miscoff > mhi_reg_size)
+		ep_pcie_write_reg(dev->mmio, PCIE20_MISCOFF, 0);
 
 	dev->config_mmio_init = true;
 }
@@ -660,10 +673,6 @@ static void ep_pcie_core_init(struct ep_pcie_dev_t *dev, bool configured)
 				PCIE20_LINK_CONTROL2_LINK_STATUS2,
 				0xf, dev->link_speed);
 
-		EP_PCIE_DBG2(dev, "PCIe V%d: Allow L1 after D3_COLD->D0\n",
-				dev->rev);
-		ep_pcie_write_mask(dev->parf + PCIE20_PARF_PM_CTRL, BIT(5), 0);
-
 		EP_PCIE_DBG2(dev, "PCIe V%d: Clear disconn_req after D3_COLD\n",
 			     dev->rev);
 		if (!dev->tcsr_not_supported) {
@@ -672,6 +681,11 @@ static void ep_pcie_core_init(struct ep_pcie_dev_t *dev, bool configured)
 			ep_pcie_write_reg_field(dev->tcsr_perst_en,
 						TCSR_PCIE_RST_SEPARATION, BIT(5), 0);
 		}
+	}
+
+	if (!dev->enumerated) {
+		EP_PCIE_DBG2(dev, "PCIe V%d: Clear L23 READY after enumeration\n", dev->rev);
+		ep_pcie_write_reg_field(dev->parf, PCIE20_PARF_PM_CTRL, BIT(2), 0);
 	}
 
 	if (dev->active_config) {
@@ -1388,6 +1402,11 @@ static void ep_pcie_enumeration_complete(struct ep_pcie_dev_t *dev)
 				dev->rev);
 		goto done;
 	}
+
+	spin_unlock_irqrestore(&dev->isr_lock, irqsave_flags);
+	qcom_edma_init(&dev->pdev->dev);
+	spin_lock_irqsave(&dev->isr_lock, irqsave_flags);
+
 	dev->enumerated = true;
 	dev->link_status = EP_PCIE_LINK_ENABLED;
 
@@ -1446,14 +1465,18 @@ static int ep_pcie_core_clkreq_override(bool config)
 
 	if (config) {
 		ep_pcie_write_reg_field(dev->parf, PCIE20_PARF_CLKREQ_OVERRIDE,
-			PCIE20_PARF_CLKREQ_IN_OVERRIDE_VAL, BIT(3));
+			PCIE20_PARF_CLKREQ_IN_OVERRIDE_VAL_MASK,
+			PCIE20_PARF_CLKREQ_IN_OVERRIDE_VAL_DEASSERT);
 		ep_pcie_write_reg_field(dev->parf, PCIE20_PARF_CLKREQ_OVERRIDE,
-			PCIE20_PARF_CLKREQ_IN_OVERRIDE_ENABLE, BIT(1));
+			PCIE20_PARF_CLKREQ_IN_OVERRIDE_ENABLE_MASK,
+			PCIE20_PARF_CLKREQ_IN_OVERRIDE_ENABLE_EN);
 	} else {
 		ep_pcie_write_reg_field(dev->parf, PCIE20_PARF_CLKREQ_OVERRIDE,
-			PCIE20_PARF_CLKREQ_IN_OVERRIDE_ENABLE, 0);
+			PCIE20_PARF_CLKREQ_IN_OVERRIDE_ENABLE_MASK,
+			PCIE20_PARF_CLKREQ_IN_OVERRIDE_ENABLE_DIS);
 		ep_pcie_write_reg_field(dev->parf, PCIE20_PARF_CLKREQ_OVERRIDE,
-			PCIE20_PARF_CLKREQ_IN_OVERRIDE_VAL, 0);
+			PCIE20_PARF_CLKREQ_IN_OVERRIDE_VAL_MASK,
+			PCIE20_PARF_CLKREQ_IN_OVERRIDE_VAL_ASSERT);
 	}
 
 	return 0;
@@ -1983,6 +2006,11 @@ checkbme:
 			dev->rev, retries,
 			BME_TIMEOUT_US_MIN * retries / 1000);
 		ep_pcie_enumeration_complete(dev);
+
+		EP_PCIE_DBG2(dev, "PCIe V%d: Allow L1 after BME is set\n",
+				dev->rev);
+		ep_pcie_write_mask(dev->parf + PCIE20_PARF_PM_CTRL, BIT(5), 0);
+
 		/* expose BAR to user space to identify modem */
 		ep_pcie_bar0_address =
 			readl_relaxed(dev->dm_core + PCIE20_BAR0);
@@ -1998,6 +2026,11 @@ checkbme:
 
 link_fail:
 	dev->power_on = false;
+	if (dev->phy_rev >= 3)
+		ep_pcie_write_mask(dev->parf + PCIE20_PARF_LTSSM, BIT(8), 0);
+	else
+		ep_pcie_write_mask(dev->elbi + PCIE20_ELBI_SYS_CTRL, BIT(0), 0);
+
 	if (!ep_pcie_debug_keep_resource)
 		ep_pcie_pipe_clk_deinit(dev);
 pipe_clk_fail:
@@ -2016,7 +2049,6 @@ out:
 
 int ep_pcie_core_disable_endpoint(void)
 {
-	u32 val = 0;
 	unsigned long irqsave_flags;
 	struct ep_pcie_dev_t *dev = &ep_pcie_dev;
 
@@ -2045,10 +2077,6 @@ int ep_pcie_core_disable_endpoint(void)
 			dev->rev);
 	}
 	dev->conf_ipa_msi_iatu = false;
-
-	val =  readl_relaxed(dev->elbi + PCIE20_ELBI_SYS_STTS);
-	EP_PCIE_DBG(dev, "PCIe V%d: LTSSM_STATE during disable:0x%x\n",
-		dev->rev, (val >> 0xC) & 0x3f);
 
 	if (!dev->tcsr_not_supported) {
 		EP_PCIE_DBG2(dev, "PCIe V%d: Set pcie_disconnect_req during D3_COLD\n",
@@ -2158,6 +2186,10 @@ static irqreturn_t ep_pcie_handle_bme_irq(int irq, void *data)
 				dev->rev);
 			ep_pcie_notify_event(dev, EP_PCIE_EVENT_LINKUP);
 		}
+
+		EP_PCIE_DBG2(dev, "PCIe V%d: Allow L1 after BME is set\n",
+				dev->rev);
+		ep_pcie_write_mask(dev->parf + PCIE20_PARF_PM_CTRL, BIT(5), 0);
 	} else {
 		EP_PCIE_DBG(dev,
 				"PCIe V%d:BME is still disabled\n", dev->rev);
@@ -2274,6 +2306,14 @@ static irqreturn_t ep_pcie_handle_dstate_change_irq(int irq, void *data)
 	} else if (dstate == 0) {
 		dev->l23_ready = false;
 		dev->d0_counter++;
+		/*
+		 * When device is trasistion back to D0 from D3hot
+		 * (without D3cold), REQ_EXIT_L1 bit won't get cleared.
+		 * And L1 would get blocked till next D3cold.
+		 * So clear it explicitly during D0.
+		 */
+		ep_pcie_write_mask(dev->parf + PCIE20_PARF_PM_CTRL, BIT(1), 0);
+
 		atomic_set(&dev->host_wake_pending, 0);
 		EP_PCIE_DBG(dev,
 			"PCIe V%d: No. %ld change to D0 state, clearing wake pending:%d\n",
@@ -2341,18 +2381,6 @@ static int ep_pcie_enumeration(struct ep_pcie_dev_t *dev)
 	return ret;
 }
 
-static void handle_perst_func(struct work_struct *work)
-{
-	struct ep_pcie_dev_t *dev = container_of(work, struct ep_pcie_dev_t,
-					handle_perst_work);
-
-	EP_PCIE_DBG(dev,
-		"PCIe V%d: Start enumeration due to PERST deassertion\n",
-		dev->rev);
-
-	ep_pcie_enumeration(dev);
-}
-
 static void handle_d3cold_func(struct work_struct *work)
 {
 	struct ep_pcie_dev_t *dev = container_of(work, struct ep_pcie_dev_t,
@@ -2390,6 +2418,7 @@ static irqreturn_t ep_pcie_handle_perst_irq(int irq, void *data)
 {
 	struct ep_pcie_dev_t *dev = data;
 	unsigned long irqsave_flags;
+	irqreturn_t result = IRQ_HANDLED;
 	u32 perst;
 
 	spin_lock_irqsave(&dev->isr_lock, irqsave_flags);
@@ -2414,8 +2443,11 @@ static irqreturn_t ep_pcie_handle_perst_irq(int irq, void *data)
 					"PCIe V%d: Acquired wakelock\n",
 					dev->rev);
 			}
-			/* start work for link enumeration with the host side */
-			queue_work(system_highpri_wq, &dev->handle_perst_work);
+			/*
+			 * Perform link enumeration with the host side in the
+			 * bottom half
+			 */
+			result = IRQ_WAKE_THREAD;
 		} else {
 			dev->no_notify = true;
 			/* shutdown the link if the link is already on */
@@ -2441,7 +2473,7 @@ static irqreturn_t ep_pcie_handle_perst_irq(int irq, void *data)
 		EP_PCIE_DBG(dev,
 			"PCIe V%d: No. %ld PERST deassertion\n",
 			dev->rev, dev->perst_deast_counter);
-		ep_pcie_notify_event(dev, EP_PCIE_EVENT_PM_RST_DEAST);
+		result = IRQ_WAKE_THREAD;
 	} else {
 		atomic_set(&dev->perst_deast, 0);
 		dev->perst_ast_counter++;
@@ -2466,6 +2498,22 @@ out:
 						  IRQF_TRIGGER_HIGH));
 
 	spin_unlock_irqrestore(&dev->isr_lock, irqsave_flags);
+
+	return result;
+}
+
+static irqreturn_t ep_pcie_handle_perst_deassert(int irq, void *data)
+{
+	struct ep_pcie_dev_t *dev = data;
+
+	if (!dev->enumerated) {
+		EP_PCIE_DBG(dev,
+		"PCIe V%d: Start enumeration due to PERST deassertion\n",
+		dev->rev);
+		ep_pcie_enumeration(dev);
+	} else {
+		ep_pcie_notify_event(dev, EP_PCIE_EVENT_PM_RST_DEAST);
+	}
 
 	return IRQ_HANDLED;
 }
@@ -2585,11 +2633,12 @@ int32_t ep_pcie_irq_init(struct ep_pcie_dev_t *dev)
 	EP_PCIE_DBG(dev, "PCIe V%d\n", dev->rev);
 
 	/* Initialize all works to be performed before registering for IRQs*/
-	INIT_WORK(&dev->handle_perst_work, handle_perst_func);
 	INIT_WORK(&dev->handle_bme_work, handle_bme_func);
 	INIT_WORK(&dev->handle_d3cold_work, handle_d3cold_func);
 
 	if (dev->aggregated_irq) {
+		if (!ep_pcie_dev.perst_enum)
+			irq_set_status_flags(dev->irq[EP_PCIE_INT_GLOBAL].num, IRQ_NOAUTOEN);
 		ret = devm_request_irq(pdev,
 			dev->irq[EP_PCIE_INT_GLOBAL].num,
 			ep_pcie_handle_global_irq,
@@ -2704,7 +2753,8 @@ perst_irq:
 	}
 
 	/* register handler for PERST interrupt */
-	ret = devm_request_irq(pdev, dev->perst_irq, ep_pcie_handle_perst_irq,
+	ret = devm_request_threaded_irq(pdev, dev->perst_irq, ep_pcie_handle_perst_irq,
+				ep_pcie_handle_perst_deassert,
 			       ((atomic_read(&dev->perst_deast) ?
 				 IRQF_TRIGGER_LOW : IRQF_TRIGGER_HIGH) |
 			       IRQF_EARLY_RESUME), "ep_pcie_perst", dev);
@@ -3168,6 +3218,49 @@ int ep_pcie_core_config_db_routing(struct ep_pcie_db_config chdb_cfg,
 	return 0;
 }
 
+static int ep_pcie_core_panic_reboot_callback(struct notifier_block *nb,
+					   unsigned long reason, void *arg)
+{
+	struct ep_pcie_dev_t *dev = &ep_pcie_dev;
+	u32 mhi_syserr = BIT(2)|(0xff << 8);
+	unsigned long irqsave_flags;
+
+	if (!ep_pcie_dev.avoid_reboot_in_d3hot)
+		goto out;
+
+	/* If the device is in D3hot state, bring it to D0 */
+	spin_lock_irqsave(&dev->isr_lock, irqsave_flags);
+	if (dev->l23_ready && atomic_read(&dev->perst_deast)) {
+
+		EP_PCIE_INFO(dev,
+			"PCIe V%d got %s notification while in D3hot\n",
+			dev->rev, reason ? "reboot":"panic/die");
+
+		/* Set MHI to SYSERR state */
+		if (dev->config_mmio_init)
+			ep_pcie_write_reg(dev->mmio, PCIE20_MHISTATUS,
+						mhi_syserr);
+		/* Bring device out of D3hot */
+		ep_pcie_core_issue_inband_pme();
+	}
+	spin_unlock_irqrestore(&dev->isr_lock, irqsave_flags);
+
+out:
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block ep_pcie_core_reboot_notifier = {
+	.notifier_call	= ep_pcie_core_panic_reboot_callback,
+};
+
+static struct notifier_block ep_pcie_core_die_notifier = {
+	.notifier_call	= ep_pcie_core_panic_reboot_callback,
+};
+
+static struct notifier_block ep_pcie_core_panic_notifier = {
+	.notifier_call	= ep_pcie_core_panic_reboot_callback,
+};
+
 struct ep_pcie_hw hw_drv = {
 	.register_event	= ep_pcie_core_register_event,
 	.deregister_event = ep_pcie_core_deregister_event,
@@ -3339,6 +3432,13 @@ static int ep_pcie_probe(struct platform_device *pdev)
 		"PCIe V%d: MHI M2 autonomous is %s enabled\n",
 		ep_pcie_dev.rev, ep_pcie_dev.m2_autonomous ? "" : "not");
 
+	ep_pcie_dev.avoid_reboot_in_d3hot =
+		of_property_read_bool((&pdev->dev)->of_node,
+				"qcom,avoid-reboot-in-d3hot");
+	EP_PCIE_DBG(&ep_pcie_dev,
+	"PCIe V%d: PME during reboot/panic (in D3hot) is %s needed\n",
+	ep_pcie_dev.rev, ep_pcie_dev.avoid_reboot_in_d3hot ? "" : "not");
+
 	ret = of_property_read_u32((&pdev->dev)->of_node,
 				"qcom,mhi-soc-reset-offset",
 				&ep_pcie_dev.mhi_soc_reset_offset);
@@ -3393,7 +3493,6 @@ static int ep_pcie_probe(struct platform_device *pdev)
 		EP_PCIE_ERR(&ep_pcie_dev,
 			"PCIe V%d: failed to init GPIO\n",
 			ep_pcie_dev.rev);
-		ep_pcie_release_resources(&ep_pcie_dev);
 		goto gpio_failure;
 	}
 
@@ -3402,8 +3501,6 @@ static int ep_pcie_probe(struct platform_device *pdev)
 		EP_PCIE_ERR(&ep_pcie_dev,
 			"PCIe V%d: failed to init IRQ\n",
 			ep_pcie_dev.rev);
-		ep_pcie_release_resources(&ep_pcie_dev);
-		ep_pcie_gpio_deinit(&ep_pcie_dev);
 		goto irq_failure;
 	}
 
@@ -3431,8 +3528,15 @@ static int ep_pcie_probe(struct platform_device *pdev)
 	if (ret && !ep_pcie_debug_keep_resource)
 		goto irq_deinit;
 
-	qcom_edma_init(&pdev->dev);
+	register_reboot_notifier(&ep_pcie_core_reboot_notifier);
+	/* Handler for wilful crash like BUG_ON */
+	register_die_notifier(&ep_pcie_core_die_notifier);
+	atomic_notifier_chain_register(&panic_notifier_list,
+				       &ep_pcie_core_panic_notifier);
 
+
+	if (!ep_pcie_dev.perst_enum)
+		enable_irq(ep_pcie_dev.irq[EP_PCIE_INT_GLOBAL].num);
 	return 0;
 
 irq_deinit:
@@ -3451,6 +3555,11 @@ res_failure:
 static int __exit ep_pcie_remove(struct platform_device *pdev)
 {
 	pr_debug("%s\n", __func__);
+
+	unregister_reboot_notifier(&ep_pcie_core_reboot_notifier);
+	unregister_die_notifier(&ep_pcie_core_die_notifier);
+	atomic_notifier_chain_unregister(&panic_notifier_list,
+					 &ep_pcie_core_panic_notifier);
 
 	ep_pcie_irq_deinit(&ep_pcie_dev);
 	ep_pcie_vreg_deinit(&ep_pcie_dev);

@@ -225,7 +225,7 @@ struct drm_connector *connector, struct sde_edid_ctrl *edid_ctrl)
 }
 
 #if (defined(CONFIG_SECDP) && IS_ENABLED(CONFIG_SWITCH))
-struct sde_edid_ctrl *g_edid_ctrl;
+static struct sde_edid_ctrl *g_edid_ctrl;
 
 int secdp_get_audio_ch(void)
 {
@@ -237,6 +237,47 @@ int secdp_get_audio_ch(void)
 EXPORT_SYMBOL(secdp_get_audio_ch);
 #endif
 
+#if defined(CONFIG_SECDP)
+static int secdp_copy_lpcm_audio_data_only(struct sde_edid_ctrl *edid_ctrl,
+			u8 *lpcm_adb, const u8 *adb_no_header, int len)
+{
+	u16 audio_ch = 0;
+	u32 bit_rate = 0;
+	int lpcm_size = 0;
+	const int one_adb_size = 3;
+	int adb_count;
+
+	if (len <= 0)
+		return 0;
+
+	adb_count = len / one_adb_size;
+	while(adb_count > 0) {
+		if ((adb_no_header[0] >> 3) == 1) {
+			/* to support legacy audio info */
+			audio_ch |= (1 << (adb_no_header[0] & 0x7));
+			if ((adb_no_header[0] & 0x7) > 0x04)
+				audio_ch |= 0x20;
+
+			bit_rate = adb_no_header[2] & 0x7;
+			bit_rate |= (adb_no_header[1] & 0x7F) << 3;
+
+			/* copy LPCM codec */
+			memcpy(lpcm_adb + lpcm_size,
+					adb_no_header, one_adb_size);
+			lpcm_size += one_adb_size;
+		}
+
+		adb_no_header += one_adb_size;
+		adb_count--;
+	}
+
+	edid_ctrl->audio_channel_info |= (bit_rate << 16);
+	edid_ctrl->audio_channel_info |= audio_ch;
+
+	return lpcm_size;
+}
+#endif
+
 static void _sde_edid_extract_audio_data_blocks(
 	struct sde_edid_ctrl *edid_ctrl)
 {
@@ -246,11 +287,8 @@ static void _sde_edid_extract_audio_data_blocks(
 	u32 offset = DBC_START_OFFSET;
 	u8 *cea = NULL;
 #if defined(CONFIG_SECDP)
-	u16 audio_ch = 0;
-	u32 bit_rate = 0;
-	const u8 *adb_temp = NULL;
-	u8 len_temp = 0;
 	u8 *in_buf;
+	int lpcm_size = 0;
 #endif
 
 	if (!edid_ctrl) {
@@ -293,28 +331,13 @@ static void _sde_edid_extract_audio_data_blocks(
 			continue;
 		}
 
-#if defined(CONFIG_SECDP)
-		adb_temp = adb;
-		len_temp = len;
-		while (len > 0) {
-			if (adb[1]>>3 == 1) {
-				audio_ch |= (1 << (adb[1] & 0x7));
-				if ((adb[1] & 0x7) > 0x04)
-					audio_ch |= 0x20;
-				if (adb[3] & 0x07) {
-					bit_rate = adb[3] & 0x7;
-					bit_rate |= (adb[2] & 0x7F) << 3;
-				}
-			}
-			len -= 3;
-			adb += 3;
-		}
-		adb = adb_temp;
-		len = len_temp;
-#endif
-
+#if !defined(CONFIG_SECDP)
 		memcpy(edid_ctrl->audio_data_block + edid_ctrl->adb_size,
 			adb + 1, len);
+#else
+		lpcm_size += secdp_copy_lpcm_audio_data_only(edid_ctrl, edid_ctrl->audio_data_block + lpcm_size,
+				adb + 1, len);
+#endif
 		offset = (adb - cea) + 1 + len;
 
 		edid_ctrl->adb_size += len;
@@ -322,8 +345,7 @@ static void _sde_edid_extract_audio_data_blocks(
 	} while (adb);
 
 #if defined(CONFIG_SECDP)
-	edid_ctrl->audio_channel_info |= (bit_rate << 16);
-	edid_ctrl->audio_channel_info |= audio_ch;
+	edid_ctrl->adb_size = lpcm_size;
 	pr_info("[msm-dp] %s: Audio info : 0x%x\n", __func__, edid_ctrl->audio_channel_info);
 #endif
 	SDE_EDID_DEBUG("%s -", __func__);
@@ -683,20 +705,26 @@ void sde_parse_edid(void *input)
 	}
 }
 
+#if defined(CONFIG_SECDP)
+extern void secdp_replace_edid(u8* edid);
+#endif
+
 void sde_get_edid(struct drm_connector *connector,
 				  struct i2c_adapter *adapter, void **input)
 {
 	struct sde_edid_ctrl *edid_ctrl = (struct sde_edid_ctrl *)(*input);
 
 	edid_ctrl->edid = drm_get_edid(connector, adapter);
-	SDE_EDID_DEBUG("%s +\n", __func__);
-
-	if (!edid_ctrl->edid)
-		SDE_ERROR("EDID read failed\n");
 #if defined(CONFIG_SECDP)
-	else {
-		int i, num_extension = edid_ctrl->edid->extensions;
+	if (edid_ctrl->edid) {
+		int i, num_extension;
 
+		if (edid_ctrl->custom_edid) {
+			pr_info("[secdp] use custom edid\n");
+			secdp_replace_edid((u8*)edid_ctrl->edid);
+		}
+
+		num_extension = edid_ctrl->edid->extensions;
 		for (i = 0; i <= num_extension; i++) {
 			print_hex_dump(KERN_DEBUG, "secdp_EDID: ",
 				DUMP_PREFIX_NONE, 16, 1, edid_ctrl->edid + i,
@@ -709,6 +737,11 @@ void sde_get_edid(struct drm_connector *connector,
 	g_edid_ctrl = edid_ctrl;
 #endif
 #endif/*CONFIG_SECDP*/
+
+	SDE_EDID_DEBUG("%s +\n", __func__);
+
+	if (!edid_ctrl->edid)
+		SDE_ERROR("EDID read failed\n");
 
 	if (edid_ctrl->edid)
 		sde_parse_edid(edid_ctrl);

@@ -71,7 +71,9 @@ static int ble_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
             enc_payload->channel_count = CH_STEREO;
     }
 
-    enc_payload->is_abr_enabled = true;
+    enc_payload->is_abr_enabled    = true;
+    enc_payload->is_enc_config_set = true;
+    enc_payload->is_dec_config_set = ble_bt_cfg->is_dec_config_set;
 
     for (i = 0; i < num_blks; i++) {
         blk[i] = (custom_block_t *)calloc(1, sizeof(custom_block_t));
@@ -158,11 +160,13 @@ static int ble_pack_dec_config(bt_codec_t *codec, void *src, void **dst)
         return -ENOMEM;
     }
 
-    enc_payload->bit_format     = ble_bt_cfg->dec_cfg.fromAirConfig.bit_depth;
-    enc_payload->sample_rate    = ble_bt_cfg->dec_cfg.fromAirConfig.sampling_freq;
-    enc_payload->channel_count  = ble_bt_cfg->dec_cfg.decoder_output_channel;
-    enc_payload->num_blks       = num_blks;
-    enc_payload->is_abr_enabled = true;
+    enc_payload->bit_format        = ble_bt_cfg->dec_cfg.fromAirConfig.bit_depth;
+    enc_payload->sample_rate       = ble_bt_cfg->dec_cfg.fromAirConfig.sampling_freq;
+    enc_payload->channel_count     = ble_bt_cfg->dec_cfg.decoder_output_channel;
+    enc_payload->num_blks          = num_blks;
+    enc_payload->is_abr_enabled    = true;
+    enc_payload->is_enc_config_set = ble_bt_cfg->is_enc_config_set;
+    enc_payload->is_dec_config_set = true;
 
     for (i = 0; i < num_blks; i++) {
         blk[i] = (custom_block_t *)calloc(1, sizeof(custom_block_t));

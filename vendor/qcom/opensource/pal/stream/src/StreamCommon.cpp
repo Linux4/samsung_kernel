@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -136,12 +137,7 @@ StreamCommon::StreamCommon(const struct pal_stream_attributes *sattr, struct pal
         /* Create only update device attributes first time so update here using set*/
         /* this will have issues if same device is being currently used by different stream */
         mDevices.push_back(dev);
-    }
-
-    if (dattr) {
-        for (int i=0; i < no_of_devices; i++) {
-            mPalDevice.push_back(dattr[i]);
-        }
+        mPalDevice.push_back(dattr[i]);
     }
 
     mStreamMutex.unlock();
@@ -295,9 +291,13 @@ int32_t StreamCommon::start()
         rm->unlockGraph();
         PAL_VERBOSE(LOG_TAG, "session start successful");
 
+        mStreamMutex.unlock();
+        rm->lockActiveStream();
+        mStreamMutex.lock();
         for (int i = 0; i < mDevices.size(); i++) {
             rm->registerDevice(mDevices[i], this);
         }
+        rm->unlockActiveStream();
         /*pcm_open and pcm_start done at once here,
          *so directly jump to STREAM_STARTED state.
          */
@@ -360,7 +360,6 @@ session_fail:
         devStatus = mDevices[i]->stop();
         if (devStatus)
             status = devStatus;
-        rm->deregisterDevice(mDevices[i], this);
     }
 exit:
     return status;
@@ -376,9 +375,14 @@ int32_t StreamCommon::stop()
                 session, mStreamAttr->direction, currentState);
 
     if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
+        mStreamMutex.unlock();
+        rm->lockActiveStream();
+        mStreamMutex.lock();
+        currentState = STREAM_STOPPED;
         for (int i = 0; i < mDevices.size(); i++) {
             rm->deregisterDevice(mDevices[i], this);
         }
+        rm->unlockActiveStream();
         PAL_VERBOSE(LOG_TAG, "In %s, device count - %zu",
                     GET_DIR_STR(mStreamAttr->direction), mDevices.size());
 
@@ -398,7 +402,6 @@ int32_t StreamCommon::stop()
         }
         rm->unlockGraph();
         PAL_VERBOSE(LOG_TAG, "devices stop successful");
-        currentState = STREAM_STOPPED;
     } else if (currentState == STREAM_STOPPED || currentState == STREAM_IDLE) {
         PAL_INFO(LOG_TAG, "Stream is already in Stopped state %d", currentState);
     } else {
@@ -411,53 +414,48 @@ int32_t StreamCommon::stop()
     return status;
 }
 
-//TBD: move this to Stream, why duplicate code?
-int32_t  StreamCommon::setVolume(struct pal_volume_data *volume)
+int32_t StreamCommon::setVolume(struct pal_volume_data *volume)
 {
     int32_t status = 0;
+    uint8_t volSize = 0;
+
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
-    if (!volume) {
-        PAL_ERR(LOG_TAG, "Invalid volume parameter");
-        status = -EINVAL;
-        goto exit;
+    if (!volume || (volume->no_of_volpair == 0)) {
+       PAL_ERR(LOG_TAG, "Invalid arguments");
+       status = -EINVAL;
+       goto exit;
     }
 
-    if (volume->no_of_volpair == 0) {
-        PAL_ERR(LOG_TAG, "Error no of vol pair is %d", (volume->no_of_volpair));
-        status = -EINVAL;
-        goto exit;
-    }
-
-    /*if already allocated free and reallocate */
+    // if already allocated free and reallocate
     if (mVolumeData) {
         free(mVolumeData);
+        mVolumeData = NULL;
     }
 
-    mVolumeData = (struct pal_volume_data *)calloc(1, (sizeof(uint32_t) +
-                      (sizeof(struct pal_channel_vol_kv) * (volume->no_of_volpair))));
+    volSize = sizeof(uint32_t) + (sizeof(struct pal_channel_vol_kv) * (volume->no_of_volpair));
+    mVolumeData = (struct pal_volume_data *)calloc(1, volSize);
     if (!mVolumeData) {
         status = -ENOMEM;
-        PAL_ERR(LOG_TAG, "mVolumeData malloc failed %s", strerror(errno));
+        PAL_ERR(LOG_TAG, "failed to calloc for volume data");
         goto exit;
     }
 
-    //mStreamMutex.lock();
-    ar_mem_cpy (mVolumeData, (sizeof(uint32_t) +
-                      (sizeof(struct pal_channel_vol_kv) *
-                      (volume->no_of_volpair))), volume, (sizeof(uint32_t) +
-                      (sizeof(struct pal_channel_vol_kv) *
-                      (volume->no_of_volpair))));
-    //mStreamMutex.unlock();
-    for(int32_t i=0; i < (mVolumeData->no_of_volpair); i++) {
+    /* Allow caching of stream volume as part of mVolumeData
+     * till the pcm_open is not done or if sound card is offline.
+     */
+    ar_mem_cpy(mVolumeData, volSize, volume, volSize);
+    for (int32_t i=0; i < (mVolumeData->no_of_volpair); i++) {
         PAL_INFO(LOG_TAG, "Volume payload mask:%x vol:%f",
                       (mVolumeData->volume_pair[i].channel_mask), (mVolumeData->volume_pair[i].vol));
     }
-    /* Allow caching of stream volume as part of mVolumeData
-     * till the pcm_open is not done or if sound card is
-     * offline.
-     */
-    if (rm->cardState == CARD_STATUS_ONLINE && currentState != STREAM_IDLE
-        && currentState != STREAM_INIT) {
+
+    if (a2dpMuted) {
+        PAL_DBG(LOG_TAG, "a2dp muted, just cache volume update");
+        goto exit;
+    }
+
+    if ((rm->cardState == CARD_STATUS_ONLINE) && (currentState != STREAM_IDLE)
+            && (currentState != STREAM_INIT)) {
         status = session->setConfig(this, CALIBRATION, TAG_STREAM_VOLUME);
         if (0 != status) {
             PAL_ERR(LOG_TAG, "session setConfig for VOLUME_TAG failed with status %d",
@@ -465,10 +463,13 @@ int32_t  StreamCommon::setVolume(struct pal_volume_data *volume)
             goto exit;
         }
     }
-    PAL_DBG(LOG_TAG, "Exit. Volume payload No.of vol pair:%d ch mask:%x gain:%f",
-                      (volume->no_of_volpair), (volume->volume_pair->channel_mask),
-                      (volume->volume_pair->vol));
+
 exit:
+    if (volume) {
+        PAL_DBG(LOG_TAG, "Exit. Volume payload No.of vol pair:%d ch mask:%x gain:%f",
+                          (volume->no_of_volpair), (volume->volume_pair->channel_mask),
+                          (volume->volume_pair->vol));
+    }
     return status;
 }
 
@@ -527,7 +528,9 @@ int32_t StreamCommon::ssrDownHandler()
      case STREAM_STARTED:
      case STREAM_PAUSED:
         mStreamMutex.unlock();
+        rm->unlockActiveStream();
         status = stop();
+        rm->lockActiveStream();
         if (0 != status)
             PAL_ERR(LOG_TAG, "Error:stream stop failed. status %d",  status);
         status = close();
@@ -574,7 +577,9 @@ int32_t StreamCommon::ssrUpHandler()
              PAL_ERR(LOG_TAG, "Error:stream open failed. status %d", status);
              goto exit;
          }
+         rm->unlockActiveStream();
          status = start();
+         rm->lockActiveStream();
          if (0 != status) {
              PAL_ERR(LOG_TAG, "Error:stream start failed. status %d", status);
              goto exit;

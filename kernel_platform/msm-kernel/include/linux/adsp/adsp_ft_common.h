@@ -38,7 +38,7 @@
 #define MSG_PRESSURE_TEMP_MAX	1
 #define MSG_PRESSURE_MAX	128
 #define MSG_FLIP_COVER_DETECTOR_MAX	3
-#define MSG_VOPTIC_MAX	2
+#define MSG_VOPTIC_MAX	5
 #define MSG_REG_SNS_MAX	18 /* 6 * 3 */
 #if IS_ENABLED(CONFIG_SUPPORT_AK09973) || defined(CONFIG_SUPPORT_AK09973)
 #define MSG_DIGITAL_HALL_MAX 15
@@ -175,6 +175,7 @@ enum {
 	OPTION_TYPE_SSC_AOD_LIGHT_CIRCLE,    // for AOD
 	OPTION_TYPE_SSC_LIGHT_SEAMLESS,      // for light seamless
 	OPTION_TYPE_SSC_AUTO_ROTATION_MODE,  // for auto rotation
+	OPTION_TYPE_SSC_SBM_INIT,          // for sar backoff motion
 	OPTION_TYPE_SSC_MAX
 };
 #endif

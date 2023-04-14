@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -70,8 +71,8 @@ void policy_mgr_hw_mode_transition_cb(uint32_t old_hw_mode_index,
 
 	if (mac_freq_range)
 		for (i = 0; i < num_mac_freq; i++)
-			policy_mgr_debug("pdev_id:%d start_freq:%d end_freq %d",
-					 mac_freq_range[i].pdev_id,
+			policy_mgr_debug("mac_id:%d start_freq:%d end_freq %d",
+					 mac_freq_range[i].mac_id,
 					 mac_freq_range[i].start_freq,
 					 mac_freq_range[i].end_freq);
 
@@ -2629,6 +2630,13 @@ void policy_mgr_do_go_plus_go_force_scc(struct wlan_objmgr_psoc *psoc,
 					uint32_t ch_width)
 {
 	uint8_t total_connection;
+	struct policy_mgr_psoc_priv_obj *pm_ctx;
+
+	pm_ctx = policy_mgr_get_context(psoc);
+	if (!pm_ctx) {
+		policy_mgr_err("Invalid Context");
+		return;
+	}
 
 	total_connection = policy_mgr_mode_specific_connection_count(
 						psoc, PM_P2P_GO_MODE, NULL);
@@ -2637,6 +2645,11 @@ void policy_mgr_do_go_plus_go_force_scc(struct wlan_objmgr_psoc *psoc,
 
 	/* If any p2p disconnected, don't do csa */
 	if (total_connection > 1) {
+		if (pm_ctx->hdd_cbacks.wlan_hdd_set_sap_csa_reason)
+			pm_ctx->hdd_cbacks.wlan_hdd_set_sap_csa_reason(
+				psoc, vdev_id,
+				CSA_REASON_CONCURRENT_STA_CHANGED_CHANNEL);
+
 		policy_mgr_change_sap_channel_with_csa(psoc, vdev_id,
 						       ch_freq, ch_width, true);
 	}
@@ -2738,6 +2751,77 @@ QDF_STATUS policy_mgr_set_connection_update(struct wlan_objmgr_psoc *psoc)
 	return QDF_STATUS_SUCCESS;
 }
 
+QDF_STATUS
+policy_mgr_wait_for_dual_mac_configuration(struct wlan_objmgr_psoc *psoc)
+{
+	QDF_STATUS status;
+	struct policy_mgr_psoc_priv_obj *policy_mgr_context;
+
+	policy_mgr_context = policy_mgr_get_context(psoc);
+	if (!policy_mgr_context) {
+		policy_mgr_err("Invalid context");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	status = qdf_wait_single_event(
+		   &policy_mgr_context->dual_mac_configuration_complete_evt,
+		   DUAL_MAC_CONFIG_TIMEOUT);
+
+	if (!QDF_IS_STATUS_SUCCESS(status)) {
+		policy_mgr_err("wait for event failed");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS
+policy_mgr_dual_mac_configuration_complete(struct wlan_objmgr_psoc *psoc)
+{
+	QDF_STATUS status;
+	struct policy_mgr_psoc_priv_obj *policy_mgr_context;
+
+	policy_mgr_context = policy_mgr_get_context(psoc);
+	if (!policy_mgr_context) {
+		policy_mgr_err("Invalid context");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	status = qdf_event_set(
+		   &policy_mgr_context->dual_mac_configuration_complete_evt);
+
+	if (!QDF_IS_STATUS_SUCCESS(status)) {
+		policy_mgr_err("set event failed");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	return QDF_STATUS_SUCCESS;
+}
+
+QDF_STATUS
+policy_mgr_reset_dual_mac_configuration(struct wlan_objmgr_psoc *psoc)
+{
+	QDF_STATUS status;
+	struct policy_mgr_psoc_priv_obj *policy_mgr_context;
+
+	policy_mgr_context = policy_mgr_get_context(psoc);
+	if (!policy_mgr_context) {
+		policy_mgr_err("Invalid context");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	status = qdf_event_reset(
+		&policy_mgr_context->dual_mac_configuration_complete_evt);
+
+	if (!QDF_IS_STATUS_SUCCESS(status)) {
+		policy_mgr_err("clear event failed");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	return QDF_STATUS_SUCCESS;
+}
+
+
 QDF_STATUS policy_mgr_set_chan_switch_complete_evt(
 		struct wlan_objmgr_psoc *psoc)
 {
@@ -2761,8 +2845,7 @@ QDF_STATUS policy_mgr_set_chan_switch_complete_evt(
 		return QDF_STATUS_SUCCESS;
 	}
 
-	status = qdf_event_set(
-			&pm_ctx->channel_switch_complete_evt);
+	status = qdf_event_set_all(&pm_ctx->channel_switch_complete_evt);
 
 	if (!QDF_IS_STATUS_SUCCESS(status)) {
 		policy_mgr_err("set event failed");

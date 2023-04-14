@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1275,6 +1275,21 @@ struct dual_sta_policy {
 	uint8_t primary_vdev_id;
 };
 
+/**
+ * enum mlme_cfg_frame_type  - frame type to configure mgmt hw tx retry count
+ * @CFG_GO_NEGOTIATION_REQ_FRAME_TYPE: p2p go negotiation request fame
+ * @CFG_P2P_INVITATION_REQ_FRAME_TYPE: p2p invitation request frame
+ * @CFG_PROVISION_DISCOVERY_REQ_FRAME_TYPE: p2p provision discovery request
+ */
+enum mlme_cfg_frame_type {
+	CFG_GO_NEGOTIATION_REQ_FRAME_TYPE = 0,
+	CFG_P2P_INVITATION_REQ_FRAME_TYPE = 1,
+	CFG_PROVISION_DISCOVERY_REQ_FRAME_TYPE = 2,
+	CFG_FRAME_TYPE_MAX,
+};
+
+#define MAX_MGMT_HW_TX_RETRY_COUNT 127
+
 /* struct wlan_mlme_generic - Generic CFG config items
  *
  * @band_capability: HW Band Capability - Both or 2.4G only or 5G only
@@ -1324,6 +1339,9 @@ struct dual_sta_policy {
  * @wds_mode: wds mode supported
  * @dual_sta_policy_cfg: Dual STA policies configuration
  * @tx_retry_multiplier: TX xretry extension parameter
+ * @mgmt_hw_tx_retry_count: MGMT HW tx retry count for frames
+ * @safe_mode_enable: safe mode to bypass some strict 6 GHz checks for
+ * connection, bypass strict power levels
  */
 struct wlan_mlme_generic {
 	uint32_t band_capability;
@@ -1370,6 +1388,8 @@ struct wlan_mlme_generic {
 	enum wlan_wds_mode wds_mode;
 	struct dual_sta_policy dual_sta_policy;
 	uint32_t tx_retry_multiplier;
+	uint8_t mgmt_hw_tx_retry_count[CFG_FRAME_TYPE_MAX];
+	bool safe_mode_enable;
 };
 
 /*
@@ -1585,6 +1605,7 @@ enum station_keepalive_method {
  * @allow_tpc_from_ap:              Support for AP power constraint
  * @usr_disabled_roaming:           User config for roaming disable
  * @usr_scan_probe_unicast_ra:      User config unicast probe req in scan
+ * @single_link_mlo_conn:           Single link mlo connection is configured
  */
 struct wlan_mlme_sta_cfg {
 	uint32_t sta_keep_alive_period;
@@ -1610,6 +1631,9 @@ struct wlan_mlme_sta_cfg {
 	bool usr_scan_probe_unicast_ra;
 #ifdef FEATURE_WLAN_DIAG_SUPPORT_CSR
 	host_event_wlan_status_payload_type event_payload;
+#endif
+#ifdef WLAN_FEATURE_11BE_MLO
+	bool single_link_mlo_conn;
 #endif
 };
 
@@ -1689,6 +1713,7 @@ struct fw_scan_channels {
  * @mawc_roam_enabled:              Enable/Disable MAWC during roaming
  * @enable_fast_roam_in_concurrency:Enable LFR roaming on STA during concurrency
  * @vendor_btm_param:               Vendor WTC roam trigger parameters
+ * @roam_rt_stats:                  Roam event stats vendor command parameters
  * @lfr3_roaming_offload:           Enable/disable roam offload feature
  * @lfr3_dual_sta_roaming_enabled:  Enable/Disable dual sta roaming offload
  * feature
@@ -1808,6 +1833,7 @@ struct wlan_mlme_lfr_cfg {
 	bool enable_fast_roam_in_concurrency;
 #ifdef WLAN_FEATURE_ROAM_OFFLOAD
 	struct wlan_cm_roam_vendor_btm_params vendor_btm_param;
+	struct wlan_cm_roam_rt_stats roam_rt_stats;
 	bool lfr3_roaming_offload;
 	bool lfr3_dual_sta_roaming_enabled;
 	bool enable_self_bss_roam;
@@ -2356,6 +2382,7 @@ struct wlan_mlme_btm {
  * @latency_level: WLM latency level
  * @latency_flags: WLM latency flags setting
  * @latency_host_flags: WLM latency host flags setting
+ * @multi_client_ll_support: To check whether host support multi client feature
  */
 struct wlan_mlme_fe_wlm {
 	bool latency_enable;
@@ -2363,6 +2390,9 @@ struct wlan_mlme_fe_wlm {
 	uint8_t latency_level;
 	uint32_t latency_flags[MLME_NUM_WLM_LATENCY_LEVEL];
 	uint32_t latency_host_flags[MLME_NUM_WLM_LATENCY_LEVEL];
+#ifdef MULTI_CLIENT_LL_SUPPORT
+	bool multi_client_ll_support;
+#endif
 };
 
 /**
@@ -2430,6 +2460,10 @@ enum mlme_reg_srd_master_modes {
  * list command to FW till the current scan is complete.
  * @retain_nol_across_regdmn_update: Retain the NOL list across the regdomain.
  * @enable_nan_on_indoor_channels: Enable nan on Indoor channels
+ * @coex_unsafe_chan_nb_user_prefer: Honor coex unsafe freq event from firmware
+ * or not
+ * @coex_unsafe_chan_reg_disable: To disable reg channels for received coex
+ * unsafe channels list
  */
 struct wlan_mlme_reg {
 	uint32_t self_gen_frm_pwr;
@@ -2450,6 +2484,10 @@ struct wlan_mlme_reg {
 	bool enable_pending_chan_list_req;
 	bool retain_nol_across_regdmn_update;
 	bool enable_nan_on_indoor_channels;
+#ifdef FEATURE_WLAN_CH_AVOID_EXT
+	bool coex_unsafe_chan_nb_user_prefer;
+	bool coex_unsafe_chan_reg_disable;
+#endif
 };
 
 #define IOT_AGGR_INFO_MAX_NUM 32
@@ -2644,31 +2682,4 @@ struct wlan_change_bi {
 	uint8_t session_id;
 };
 
-/**
- * struct mgmt_frame_data  - Management frame related info
- * @mac_hdr: 802.11 Frame MAC header
- * @status_code: Frame status code values as defined in
- * IEEE 802.11 - 2020 standard Table 9-41
- * @vdev_id: Vdev id
- * @frame_subtype: Frame subtype as defined in IEEE 802.11 - 2020
- * standard section 9.2.4.1.3
- * @auth_algo: Authentication algorithm number field as defined in
- * IEEE 802.11 - 2020 standard section 9.4.1.1
- * @auth_type: indicates SAE authentication frame type. Possible values are:
- * 1 - SAE commit frame
- * 2 - SAE confirm frame
- * @auth_seq: Authentication frame transaction sequence number as defined in
- * IEEE 802.11 - 2020 standard section 9.4.1.2
- * @rssi: RSSI in dBm
- */
-struct mgmt_frame_data {
-	struct wlan_frame_hdr mac_hdr;
-	uint16_t status_code;
-	uint8_t vdev_id;
-	uint8_t frame_subtype;
-	uint8_t auth_algo;
-	uint8_t auth_type;
-	uint8_t auth_seq;
-	int16_t rssi;
-};
 #endif

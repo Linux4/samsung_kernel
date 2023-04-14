@@ -1056,7 +1056,7 @@ void IPACM_Iface::config_ip_type(ipa_ip_type iptype)
 	{
 		if ((ip_type == IPA_IP_v4) || (ip_type == IPA_IP_MAX))
 		{
-			IPACMDBG_H(" interface(%s:%d) already in ip-type %d\n", dev_name, ipa_if_num, ip_type);
+			IPACMDBG_H_LOG(" interface(%s:%d) already in ip-type %d\n", dev_name, ipa_if_num, ip_type);
 			return;
 		}
 
@@ -1068,7 +1068,7 @@ void IPACM_Iface::config_ip_type(ipa_ip_type iptype)
 		{
 			ip_type = IPA_IP_v4;
 		}
-		IPACMDBG_H(" interface(%s:%d) now ip-type is %d\n", dev_name, ipa_if_num, ip_type);
+		IPACMDBG_H_LOG(" interface(%s:%d) now ip-type is %d\n", dev_name, ipa_if_num, ip_type);
 	}
 	else
 	{
@@ -1087,7 +1087,7 @@ void IPACM_Iface::config_ip_type(ipa_ip_type iptype)
 			ip_type = IPA_IP_v6;
 		}
 
-		IPACMDBG_H(" interface(%s:%d) now ip-type is %d\n", dev_name, ipa_if_num, ip_type);
+		IPACMDBG_H_LOG(" interface(%s:%d) now ip-type is %d\n", dev_name, ipa_if_num, ip_type);
 	}
 
 	return;
@@ -1131,7 +1131,7 @@ bool IPACM_Iface::is_global_ipv6_addr(uint32_t* ipv6_addr)
 		IPACMERR("IPv6 address is empty.\n");
 		return false;
 	}
-	IPACMDBG_H("Get ipv6 address with first word 0x%08x.\n", ipv6_addr[0]);
+	IPACMDBG_H_LOG("Get ipv6 address with first word 0x%08x.\n", ipv6_addr[0]);
 
 	if((ipv6_addr[0] & ipv6_link_local_prefix_mask) == (ipv6_link_local_prefix & ipv6_link_local_prefix_mask))
 	{

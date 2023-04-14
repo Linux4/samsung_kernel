@@ -99,7 +99,7 @@ bool IPACM_Routing::AddRoutingRule(struct ipa_ioc_add_rt_rule *ruleTable)
 	retval = ioctl(m_fd, IPA_IOC_ADD_RT_RULE, ruleTable);
 	if (retval)
 	{
-		IPACMERR("Failed adding routing rule %p\n", ruleTable);
+		IPACMERR_LOG("Failed adding routing rule %p\n", ruleTable);
 		return false;
 	}
 
@@ -108,7 +108,7 @@ bool IPACM_Routing::AddRoutingRule(struct ipa_ioc_add_rt_rule *ruleTable)
 		IPACMDBG("Rule:%d  dst_pipe:%d\n", cnt, ruleTable->rules[cnt].rule.dst);
 	}
 
-	IPACMDBG_H("Added routing rule %p\n", ruleTable);
+	IPACMDBG_H_LOG("Added routing rule %p\n", ruleTable);
 	return true;
 }
 
@@ -340,7 +340,7 @@ bool IPACM_Routing::DeleteRoutingHdl(uint32_t rt_rule_hdl, ipa_ip_type ip)
 	rt_rule_entry->status = -1;
 	rt_rule_entry->hdl = rt_rule_hdl;
 
-	IPACMDBG_H("Deleting Route hdl:(0x%x) with ip type: %d\n", rt_rule_entry->hdl, ip);
+	IPACMDBG_H_LOG("Deleting Route hdl:(0x%x) with ip type: %d\n", rt_rule_entry->hdl, ip);
 	if ((false == DeleteRoutingRule(rt_rule)) ||
 			(rt_rule_entry->status))
 	{

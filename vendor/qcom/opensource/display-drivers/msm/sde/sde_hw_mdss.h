@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -45,6 +46,7 @@ enum sde_format_flags {
 	SDE_FORMAT_FLAG_COMPRESSED_BIT,
 	SDE_FORMAT_FLAG_ALPHA_SWAP_BIT,
 	SDE_FORMAT_FLAG_FP16_BIT,
+	SDE_FORMAT_FLAG_FSC_BIT,
 	SDE_FORMAT_FLAG_BIT_MAX,
 };
 
@@ -53,8 +55,11 @@ enum sde_format_flags {
 #define SDE_FORMAT_FLAG_COMPRESSED	BIT(SDE_FORMAT_FLAG_COMPRESSED_BIT)
 #define SDE_FORMAT_FLAG_ALPHA_SWAP	BIT(SDE_FORMAT_FLAG_ALPHA_SWAP_BIT)
 #define SDE_FORMAT_FLAG_FP16		BIT(SDE_FORMAT_FLAG_FP16_BIT)
+#define SDE_FORMAT_FLAG_FSC		BIT(SDE_FORMAT_FLAG_FSC_BIT)
 #define SDE_FORMAT_IS_YUV(X)		\
 	(test_bit(SDE_FORMAT_FLAG_YUV_BIT, (X)->flag))
+#define SDE_FORMAT_IS_FSC(X)		\
+	(test_bit(SDE_FORMAT_FLAG_FSC_BIT, (X)->flag))
 #define SDE_FORMAT_IS_DX(X)		\
 	(test_bit(SDE_FORMAT_FLAG_DX_BIT, (X)->flag))
 #define SDE_FORMAT_IS_LINEAR(X)		((X)->fetch_mode == SDE_FETCH_LINEAR)
@@ -140,18 +145,30 @@ enum sde_sspp {
 	SSPP_VIG1,
 	SSPP_VIG2,
 	SSPP_VIG3,
+	SSPP_VIG_MAX = SSPP_VIG3,
 	SSPP_RGB0,
 	SSPP_RGB1,
 	SSPP_RGB2,
 	SSPP_RGB3,
+	SSPP_RGB_MAX = SSPP_RGB3,
 	SSPP_DMA0,
 	SSPP_DMA1,
 	SSPP_DMA2,
 	SSPP_DMA3,
+	SSPP_DMA4,
+	SSPP_DMA5,
+	SSPP_DMA_MAX = SSPP_DMA5,
 	SSPP_CURSOR0,
 	SSPP_CURSOR1,
+	SSPP_CURSOR_MAX = SSPP_CURSOR1,
 	SSPP_MAX
 };
+
+#define SDE_SSPP_VALID(x) ((x) > SSPP_NONE && (x) < SSPP_MAX)
+#define SDE_SSPP_VALID_VIG(x) ((x) >= SSPP_VIG0 && (x) <= SSPP_VIG_MAX)
+#define SDE_SSPP_VALID_RGB(x) ((x) >= SSPP_RGB0 && (x) <= SSPP_RGB_MAX)
+#define SDE_SSPP_VALID_DMA(x) ((x) >= SSPP_DMA0 && (x) <= SSPP_DMA_MAX)
+#define SDE_SSPP_VALID_CURSOR(x) ((x) >= SSPP_CURSOR0 && (x) <= SSPP_CURSOR_MAX)
 
 enum sde_sspp_type {
 	SSPP_TYPE_VIG,
@@ -588,6 +605,7 @@ struct sde_mdss_color {
  * @skip_blend_plane: plane which has been skipped staging into layer mixer
  * @skip_blend_plane_w: skip plane width
  * @skip_blend_plane_h: skip plane height
+ * @num_ds_enabled: Number of destination scalers enabled
  */
 struct sde_hw_cp_cfg {
 	void *payload;
@@ -606,6 +624,7 @@ struct sde_hw_cp_cfg {
 	enum sde_sspp skip_blend_plane;
 	u32 skip_blend_plane_w;
 	u32 skip_blend_plane_h;
+	u32 num_ds_enabled;
 };
 
 /**

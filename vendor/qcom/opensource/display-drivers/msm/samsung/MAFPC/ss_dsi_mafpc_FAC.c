@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Samsung Electronics Co., Ltd.
+ * Copyright (c) 2022 Samsung Electronics Co., Ltd.
  *	      http://www.samsung.com/
  *
  * DDI ABC operation
@@ -128,8 +128,8 @@ int ss_mafpc_make_img_mass_cmds_FAC(struct samsung_display_driver_data *vdd, cha
 		return -EINVAL;
 	}
 
-	payload_len = data_size + (data_size + MAFPC_MASS_CMD_ALIGN - 1)/MAFPC_MASS_CMD_ALIGN;
-	cmd_cnt = (payload_len + MAFPC_MAX_PAYLOAD_SIZE_MASS - 1) / MAFPC_MAX_PAYLOAD_SIZE_MASS;
+	payload_len = data_size + (data_size + MAFPC_MASS_CMD_ALIGN - 2) / (MAFPC_MASS_CMD_ALIGN - 1);
+	cmd_cnt = (payload_len + payload_len - 1) / payload_len;
 	LCD_INFO(vdd, "Command [%s], Total data size [%d], total cmd len [%d], cmd count [%d]\n",
 			ss_get_cmd_name(cmd_type), data_size, payload_len, cmd_cnt);
 
@@ -161,7 +161,7 @@ int ss_mafpc_make_img_mass_cmds_FAC(struct samsung_display_driver_data *vdd, cha
 		/* Memory Alloc for each cmds */
 		if (tcmds[c_cnt].ss_txbuf == NULL) {
 			/* HEADER TYPE 0x4C or 0x5C */
-			tcmds[c_cnt].ss_txbuf = vzalloc(MAFPC_MAX_PAYLOAD_SIZE_MASS);
+			tcmds[c_cnt].ss_txbuf = vzalloc(payload_len);
 			if (tcmds[c_cnt].ss_txbuf == NULL) {
 				LCD_ERR(vdd, "fail to vzalloc for mafpc cmds ss_txbuf \n");
 				mutex_unlock(&vdd->mafpc.vdd_mafpc_lock);
@@ -170,7 +170,7 @@ int ss_mafpc_make_img_mass_cmds_FAC(struct samsung_display_driver_data *vdd, cha
 		}
 
 		/* Copy from Data Buffer to each cmd Buffer */
-		for (p_len = 0; p_len < MAFPC_MAX_PAYLOAD_SIZE_MASS && data_idx < data_size ; p_len++) {
+		for (p_len = 0; p_len < payload_len && data_idx < data_size ; p_len++) {
 			if (p_len % MAFPC_MASS_CMD_ALIGN)
 				tcmds[c_cnt].ss_txbuf[p_len] = data[data_idx++];
 			else
@@ -213,7 +213,7 @@ void ss_mafpc_update_enable_cmds_FAC(struct samsung_display_driver_data *vdd)
 	memcpy(cmd_pload, cmd_buf, cmd_size);
 	loop = pos = 0;
 	for (loop = 0; (loop < cmd_size) && (pos < (BUF_LEN - 5)); loop++) {
-		pos += snprintf(show_buf + pos, sizeof(show_buf) - pos, "%02x ", cmd_pload[loop]);
+		pos += scnprintf(show_buf + pos, sizeof(show_buf) - pos, "%02x ", cmd_pload[loop]);
 	}
 
 	mutex_unlock(&vdd->mafpc.vdd_mafpc_lock);
@@ -262,7 +262,7 @@ struct dsi_panel_cmd_set *ss_mafpc_brightness_scale_FAC(struct samsung_display_d
 	scale_cmds->cmds[1].ss_txbuf[2] = brightness_scale_table[idx][1];
 	scale_cmds->cmds[1].ss_txbuf[3] = brightness_scale_table[idx][2];
 
-	LCD_INFO(vdd, "Brightness idx(%d), candela(%d), cmd(0x%x 0x%x 0x%x)\n",
+	LCD_DEBUG(vdd, "Brightness idx(%d), candela(%d), cmd(0x%x 0x%x 0x%x)\n",
 			idx, vdd->br_info.common_br.cd_level,
 			scale_cmds->cmds[1].ss_txbuf[1],
 			scale_cmds->cmds[1].ss_txbuf[2],

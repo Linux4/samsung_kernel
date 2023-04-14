@@ -15,8 +15,6 @@
  * These values were determined empirically and shows good E2E bi-
  * directional throughputs
  */
-#define IPA_HOLB_TMR_EN 0x1
-#define IPA_HOLB_TMR_DIS 0x0
 #define IPA_POLL_AGGR_STATE_RETRIES_NUM 3
 #define IPA_POLL_AGGR_STATE_SLEEP_USEC_MIN 1010
 #define IPA_POLL_AGGR_STATE_SLEEP_USEC_MAX 1050
@@ -71,6 +69,12 @@ int ipa3_enable_data_path(u32 clnt_hdl)
 				(ep->client == IPA_CLIENT_MHI_QDSS_CONS)) {
 			holb_cfg.en = IPA_HOLB_TMR_EN;
 			holb_cfg.tmr_val = 0;
+		} else if (ipa3_ctx->ipa_hw_type == IPA_HW_v4_11 &&
+				(ep->client == IPA_CLIENT_WLAN1_CONS ||
+				ep->client == IPA_CLIENT_WLAN2_CONS ||
+				 ep->client == IPA_CLIENT_USB_CONS)) {
+			holb_cfg.en = IPA_HOLB_TMR_EN;
+			holb_cfg.tmr_val = IPA_HOLB_TMR_VAL_4_5;
 		} else if (ipa3_ctx->ipa_hw_type >= IPA_HW_v5_1 &&
 			ipa3_ctx->platform_type == IPA_PLAT_TYPE_APQ &&
 			ep->client == IPA_CLIENT_USB_CONS) {
@@ -1481,8 +1485,10 @@ int ipa3_set_reset_client_cons_pipe_sus_holb(bool set_reset,
 			IPA_ENDP_INIT_HOL_BLOCK_EN_n,
 			pipe_idx, &ep_holb);
 
-		/* IPA4.5 issue requires HOLB_EN to be written twice */
-		if (ipa3_ctx->ipa_hw_type >= IPA_HW_v4_5)
+		/* For targets > IPA_4.0 issue requires HOLB_EN to be
+		 * written twice.
+		 */
+		if (ipa3_ctx->ipa_hw_type >= IPA_HW_v4_0)
 			ipahal_write_reg_n_fields(
 				IPA_ENDP_INIT_HOL_BLOCK_EN_n,
 				pipe_idx, &ep_holb);

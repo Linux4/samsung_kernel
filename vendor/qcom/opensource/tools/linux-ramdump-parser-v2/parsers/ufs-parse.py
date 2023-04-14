@@ -1,4 +1,5 @@
 # Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 #
 # This program is free software; you can redistribute it and/or modify
@@ -11,6 +12,7 @@
 # GNU General Public License for more details.
 
 import os
+import csv
 
 from parser_util import register_parser, RamParser
 from parsers.irqstate import IrqParse
@@ -21,6 +23,7 @@ from linux_list import ListWalker
 # Refer to the Header before changing this
 VERSION = "1.0"
 
+F_UFSIPC = "ipc_logging/ufs-qcom.txt"
 F_UFSDEBUG = "ufsreport.txt"
 UFS_HEADER = "__UFS_Dumps__"
 
@@ -36,10 +39,28 @@ def setup_out_file(path, self):
         print_out_str("Do you have write/read permissions on the path?")
 
 
-def print_out_ufs(string):
-    out_file.write((string + '\n').encode('ascii', 'ignore'))
+def print_out_ufs(string, newline=True):
+    if newline:
+        out_file.write((string + '\n').encode('ascii', 'ignore'))
+        return
+    out_file.write((string).encode('ascii', 'ignore'))
 
 class UfsHba():
+    ufs_dev_pwr_mode_l = ['INVALID_MODE', 'UFS_ACTIVE_PWR_MODE', 'UFS_SLEEP_PWR_MODE', 'UFS_POWERDOWN_PWR_MODE']
+    ufs_link_state_l = ['UIC_LINK_OFF_STATE', 'UIC_LINK_ACTIVE_STATE', 'UIC_LINK_HIBERN8_STATE']
+    ufs_pm_level_l = ['UFS_PM_LVL_0', 'UFS_PM_LVL_1', 'UFS_PM_LVL_2', 'UFS_PM_LVL_3', 'UFS_PM_LVL_4', 'UFS_PM_LVL_5']
+    ufs_ref_clk_l = ['REF_CLK_FREQ_19_2_MHZ', 'REF_CLK_FREQ_26_MHZ', 'REF_CLK_FREQ_38_4_MHZ', 'REF_CLK_FREQ_52_MHZ']
+    ufs_clk_gating_l = ['CLKS_OFF', 'CLKS_ON', 'REQ_CLKS_OFF', 'REQ_CLKS_ON']
+    ufs_bkops_status_l = ['BKOPS_STATUS_NO_OP', 'BKOPS_STATUS_NON_CRITICAL', 'BKOPS_STATUS_PERF_IMPACT',
+                            'BKOPS_STATUS_CRITICAL']
+    ufs_sdev_state_l = ['INVALID_MODE', 'SDEV_CREATED', 'SDEV_RUNNING', 'SDEV_CANCEL', 'SDEV_DEL', 'SDEV_QUIESCE',
+                                'SDEV_TRANSPORT_OFFLINE', 'SDEV_TRANSPORT_OFFLINE', 'SDEV_BLOCK', 'SDEV_CREATED_BLOCK']
+    ufs_rpm_request_l = ['RPM_REQ_NONE', 'RPM_REQ_IDLE', 'RPM_REQ_SUSPEND', 'RPM_REQ_AUTOSUSPEND', 'RPM_REQ_RESUME']
+    ufs_rpm_status_l = ['RPM_ACTIVE', 'RPM_RESUMING', 'RPM_SUSPENDED', 'RPM_SUSPENDING']
+    ufs_evt_l = ['UFS_EVT_PA_ERR', 'UFS_EVT_DL_ERR', 'UFS_EVT_NL_ERR', 'UFS_EVT_TL_ERR', 'UFS_EVT_DME_ERR',
+                   'UFS_EVT_AUTO_HIBERN8_ERR', 'UFS_EVT_FATAL_ERR', 'UFS_EVT_LINK_STARTUP_FAIL', 'UFS_EVT_RESUME_ERR',
+                   'UFS_EVT_SUSPEND_ERR', 'UFS_EVT_DEV_RESET', 'UFS_EVT_HOST_RESET', 'UFS_EVT_ABORT']
+
     def __init__(self, ramdump, ufs_hba_addr):
         self.ramdump = ramdump
         self.ufs_hba_addr = ufs_hba_addr
@@ -79,9 +100,36 @@ class UfsHba():
         except:
             print_out_ufs('\t\tactive_uic_cmd = 0x0\n\t}')
 
+    def dump_ufs_event(self, ufs_stats_addr):
+        print_out_ufs("\t\tufs_event {")
+        ufs_evt_base = ufs_stats_addr + self.ramdump.field_offset('struct ufs_stats', 'event')
+        evt_sz = self.ramdump.sizeof('struct ufs_event_hist')
+        ts_sz = self.ramdump.sizeof('ktime_t')
+        val_sz = self.ramdump.sizeof('u32')
+        for x in range(13):
+            ufs_evt_addr = ufs_evt_base + (x * evt_sz)
+            ufs_evt_cnt = self.ramdump.read_int(ufs_evt_addr + self.ramdump.field_offset(
+                                'struct ufs_event_hist', 'cnt'))
+            print_out_ufs("\t\t\t%s:" %self.ufs_evt_l[x], False)
+            print_out_ufs("\tCnt: %d" %ufs_evt_cnt)
+            if ufs_evt_cnt != 0:
+                ts_base = ufs_evt_addr + self.ramdump.field_offset('struct ufs_event_hist', 'tstamp')
+                val_base = ufs_evt_addr + self.ramdump.field_offset('struct ufs_event_hist', 'val')
+                for y in range(8):
+                    ts_addr = ts_base + (y * ts_sz)
+                    if self.ramdump.read_s64(ts_addr) != 0:
+                        print_out_ufs("\t\t\t\tval: 0x%x" %self.ramdump.read_u32(val_base + (y * val_sz)), False)
+                        print_out_ufs("\tts: %d" %self.ramdump.read_s64(ts_addr))
+
+        print_out_ufs("\t\t}")
+
     def dump_ufs_stats(self):
         ufs_stats_addr = self.ufs_hba_addr + self.ramdump.field_offset('struct ufs_hba', 'ufs_stats')
         print_out_ufs('\tstruct ufs_stats = 0x%x {' %(ufs_stats_addr))
+        print_out_ufs('\t\tlast_intr_status = %d' %(self.ramdump.read_int(
+            ufs_stats_addr + self.ramdump.field_offset('struct ufs_stats', 'last_intr_status'))))
+        print_out_ufs('\t\tlast_intr_ts = %d' %(self.ramdump.read_u64(
+            ufs_stats_addr + self.ramdump.field_offset('struct ufs_stats', 'last_intr_ts'))))
         print_out_ufs('\t\thibern8_exit_cnt = %d' %(self.ramdump.read_int(
             ufs_stats_addr + self.ramdump.field_offset('struct ufs_stats', 'hibern8_exit_cnt'))))
         print_out_ufs('\t\tlast_hibern8_exit_tstamp = %d' % (self.ramdump.read_u64(
@@ -100,11 +148,10 @@ class UfsHba():
                 ufs_stats_addr + self.ramdump.field_offset('struct ufs_stats', 'last_intr_status'))))
             print_out_ufs('\t\tlast_intr_ts = %d' % (self.ramdump.read_s64(
                 ufs_stats_addr + self.ramdump.field_offset('struct ufs_stats', 'last_intr_ts'))))
-            print_out_ufs("\t}")
         except:
             print_out_ufs('\t\tenabled = 0')
-            print_out_ufs("\t}")
-            return
+        self.dump_ufs_event(ufs_stats_addr)
+        print_out_ufs("\t}")
 
     def dump_ufs_dev_info(self):
         dev_info_addr = self.ufs_hba_addr + self.ramdump.field_offset('struct ufs_hba', 'dev_info')
@@ -137,6 +184,77 @@ class UfsHba():
         print_out_ufs("\t\ths_rate = %d" % (self.ramdump.read_int(
             drp_addr + self.ramdump.field_offset('struct ufs_pa_layer_attr', 'hs_rate'))))
         return
+
+    def get_vreg_info(self, vreg_addr, vreg):
+        vreg_p = self.ramdump.read_pointer(vreg_addr + self.ramdump.field_offset('struct ufs_vreg_info', vreg))
+        if vreg_p == 0:
+            return
+        print_out_ufs("\t\t[%s]{"%vreg)
+        print_out_ufs("\t\t\taddr = 0x%x" %vreg_p)
+        print_out_ufs("\t\t\tname = %s" %(self.ramdump.read_structure_cstring(
+                                        vreg_p, 'struct ufs_vreg', 'name')))
+        print_out_ufs("\t\t\talways_on = %d" %(self.ramdump.read_bool(vreg_p +
+                                        self.ramdump.field_offset(
+                                        'struct ufs_vreg',
+                                        'always_on'))))
+        print_out_ufs("\t\t\tenabled = %d" %(self.ramdump.read_bool(vreg_p +
+                                        self.ramdump.field_offset(
+                                        'struct ufs_vreg',
+                                        'enabled'))))
+        reg_p = self.ramdump.read_pointer(vreg_p + self.ramdump.field_offset('struct ufs_vreg', 'reg'))
+        rdev_p = self.ramdump.read_pointer(reg_p + self.ramdump.field_offset('struct regulator', 'rdev'))
+        rdesc_p = self.ramdump.read_pointer(rdev_p + self.ramdump.field_offset('struct regulator_dev', 'desc'))
+        print_out_ufs("\t\t\tregulator: %s" %(self.ramdump.read_structure_cstring(
+                                        rdesc_p, 'struct regulator_desc', 'name')))
+        print_out_ufs("\t\t\tsupply: %s" %(self.ramdump.read_structure_cstring(
+                                        rdesc_p, 'struct regulator_desc', 'supply_name')))
+        print_out_ufs("\t\t}")
+
+    def dump_ufs_vreg(self):
+        print_out_ufs("\tstruct ufs_vreg {")
+        vreg_addr = self.ufs_hba_addr + self.ramdump.field_offset('struct ufs_hba', 'vreg_info')
+        self.get_vreg_info(vreg_addr, "vcc")
+        self.get_vreg_info(vreg_addr, "vccq")
+        self.get_vreg_info(vreg_addr, "vccq2")
+        self.get_vreg_info(vreg_addr, "vdd_hba")
+        print_out_ufs("\t}")
+
+    def get_clk_info(self, clk):
+        print_out_ufs("\t\t[%s]" %(self.ramdump.read_structure_cstring(
+            clk, 'struct ufs_clk_info', 'name')))
+        print_out_ufs("\t\t\taddr = 0x%x" %clk)
+        print_out_ufs("\t\t\tmax_freq = %d" % (self.ramdump.read_u32(clk +
+                                        self.ramdump.field_offset(
+                                        'struct ufs_clk_info',
+                                        'max_freq'))))
+        print_out_ufs("\t\t\tmin_freq = %d" % (self.ramdump.read_u32(clk +
+                                        self.ramdump.field_offset(
+                                        'struct ufs_clk_info',
+                                        'min_freq'))))
+        print_out_ufs("\t\t\tcurr_freq = %d" % (self.ramdump.read_u32(clk +
+                                        self.ramdump.field_offset(
+                                        'struct ufs_clk_info',
+                                        'curr_freq'))))
+        print_out_ufs("\t\t\tkeep_link_active = %d" % (self.ramdump.read_bool(clk +
+                                        self.ramdump.field_offset(
+                                        'struct ufs_clk_info',
+                                        'keep_link_active'))))
+        print_out_ufs("\t\t\tenabled = %d" % (self.ramdump.read_bool(clk +
+                                        self.ramdump.field_offset(
+                                        'struct ufs_clk_info',
+                                        'enabled'))))
+        print_out_ufs("\t\t}")
+
+    def dump_ufs_clk(self):
+        print_out_ufs("\tstruct ufs_clk_inifo {")
+        clk_list_h = self.ufs_hba_addr + self.ramdump.field_offset('struct ufs_hba', 'clk_list_head')
+        clk_base_p = self.ramdump.read_pointer(clk_list_h + self.ramdump.field_offset('struct list_head', 'next'))
+        clk_next_p = self.ramdump.read_pointer(clk_base_p + self.ramdump.field_offset('struct list_head', 'next'))
+        self.get_clk_info(clk_base_p)
+        while clk_next_p != clk_list_h:
+            self.get_clk_info(clk_next_p)
+            clk_next_p = self.ramdump.read_pointer(clk_next_p + self.ramdump.field_offset('struct list_head', 'next'))
+        print_out_ufs("\t}")
 
     def get_scsi_cmd(self, lrbp):
         try:
@@ -187,15 +305,105 @@ class UfsHba():
             print_out_ufs("\t\t}")
         print_out_ufs("\t}")
 
-    def dump_ufs_hba_params(self):
-        ufs_dev_pwr_mode_l = ['INVALID_MODE', 'UFS_ACTIVE_PWR_MODE', 'UFS_SLEEP_PWR_MODE', 'UFS_POWERDOWN_PWR_MODE']
-        ufs_link_state_l = ['UIC_LINK_OFF_STATE', 'UIC_LINK_ACTIVE_STATE', 'UIC_LINK_HIBERN8_STATE']
-        ufs_pm_level_l = ['UFS_PM_LVL_0', 'UFS_PM_LVL_1', 'UFS_PM_LVL_2', 'UFS_PM_LVL_3', 'UFS_PM_LVL_4', 'UFS_PM_LVL_5']
-        ufs_ref_clk_l = ['REF_CLK_FREQ_19_2_MHZ', 'REF_CLK_FREQ_26_MHZ', 'REF_CLK_FREQ_38_4_MHZ', 'REF_CLK_FREQ_52_MHZ']
-        ufs_clk_gating_l = ['CLKS_OFF', 'CLKS_ON', 'REQ_CLKS_OFF', 'REQ_CLKS_ON']
-        ufs_bkops_status_l = ['BKOPS_STATUS_NO_OP', 'BKOPS_STATUS_NON_CRITICAL', 'BKOPS_STATUS_PERF_IMPACT',
-                                'BKOPS_STATUS_CRITICAL']
+    def get_pm_info(self, power):
+        print_out_ufs("\t\t\tusage_count = %d" %(self.ramdump.read_int(power + self.ramdump.field_offset(
+                                        'struct dev_pm_info', 'usage_count'))))
+        print_out_ufs("\t\t\tchild_count = %d" %(self.ramdump.read_int(power + self.ramdump.field_offset(
+                                        'struct dev_pm_info', 'child_count'))))
+        print_out_ufs("\t\t\tautosuspend_delay = %d" %(self.ramdump.read_int(power + self.ramdump.field_offset(
+                                        'struct dev_pm_info', 'autosuspend_delay'))))
+        print_out_ufs("\t\t\trequest = %s" %self.ufs_rpm_request_l[(self.ramdump.read_int(
+                                        power + self.ramdump.field_offset(
+                                        'struct dev_pm_info',
+                                        'request')))])
+        print_out_ufs("\t\t\truntime_status = %s" %self.ufs_rpm_status_l[(self.ramdump.read_int(
+                                        power + self.ramdump.field_offset(
+                                        'struct dev_pm_info',
+                                        'runtime_status')))])
 
+    def get_queue_info(self, queue):
+        print_out_ufs("\t\t\taddr = 0x%x" %queue)
+        print_out_ufs("\t\t\tqueue_flags = 0x%x" %(self.ramdump.read_u64(queue + self.ramdump.field_offset(
+                                        'struct request_queue', 'queue_flags'))))
+        print_out_ufs("\t\t\tpm_only = %d" %(self.ramdump.read_int(queue + self.ramdump.field_offset(
+                                        'struct request_queue', 'pm_only'))))
+        try:
+            print_out_ufs("\t\t\tnr_pending = %d" %(self.ramdump.read_int(queue + self.ramdump.field_offset(
+                                        'struct request_queue', 'nr_pending'))))
+            print_out_ufs("\t\t\trpm_status = %s" %self.ufs_rpm_status_l[(self.ramdump.read_int(
+                                        queue + self.ramdump.field_offset(
+                                        'struct request_queue',
+                                        'rpm_status')))])
+        except:
+            print_out_ufs("\t\t\tNo CONFIG_PM")
+
+        if self.ramdump.get_kernel_version() > (4, 20, 0):
+            hw_ctx_p = self.ramdump.read_pointer(self.ramdump.read_pointer(queue + self.ramdump.field_offset(
+                                        'struct request_queue',
+                                        'queue_hw_ctx')))
+            print_out_ufs("\t\t\tblk_mq_hw_ctx = 0x%x" %hw_ctx_p)
+            print_out_ufs("\t\t\tnr_active = %d" %(self.ramdump.read_int(queue + self.ramdump.field_offset(
+                                        'struct blk_mq_hw_ctx', 'nr_active'))))
+
+    def get_sdev_info(self, sdev):
+        print_out_ufs("\tsdev [%d] {" %(self.ramdump.read_u64(sdev + self.ramdump.field_offset(
+                                        'struct scsi_device', 'lun'))))
+        print_out_ufs("\t\taddr = 0x%x" %sdev)
+        if self.ramdump.get_kernel_version() < (5, 14, 0):
+            print_out_ufs("\t\tdevice_busy = %d" %(self.ramdump.read_int(sdev + self.ramdump.field_offset(
+                                            'struct scsi_device', 'device_busy'))))
+        print_out_ufs("\t\tdevice_blocked = %d" %(self.ramdump.read_int(sdev + self.ramdump.field_offset(
+                                        'struct scsi_device', 'device_blocked'))))
+        print_out_ufs("\t\tsdev_state = %s" %self.ufs_sdev_state_l[(self.ramdump.read_int(
+                                        sdev + self.ramdump.field_offset(
+                                        'struct scsi_device',
+                                        'sdev_state')))])
+
+        try:
+            sdev_gendev_addr = sdev + self.ramdump.field_offset(
+                                         'struct scsi_device', 'sdev_gendev')
+            print_out_ufs("\t\tname: %s" %(self.ramdump.read_structure_cstring(
+                                        sdev_gendev_addr+self.ramdump.field_offset(
+                                        'struct device', 'kobj'),
+                                        'struct kobject', 'name')))
+            power_addr = sdev_gendev_addr + self.ramdump.field_offset(
+                                         'struct device', 'power')
+            print_out_ufs("\t\tpm{")
+            self.get_pm_info(power_addr)
+        except:
+            print_out_ufs("\t\t\tdevice or power = NULL")
+        print_out_ufs("\t\t}")
+
+        print_out_ufs("\t\trequest_queue{")
+        try:
+            queue_p = self.ramdump.read_pointer(sdev + self.ramdump.field_offset(
+                                        'struct scsi_device', 'request_queue'))
+            self.get_queue_info(queue_p)
+        except:
+            print_out_ufs("\t\trequest_queue = NULL")
+        print_out_ufs("\t\t}")
+
+        print_out_ufs("\t}")
+
+    def dump_sdev_info(self):
+        shost_p = self.ramdump.read_pointer(self.ufs_hba_addr + self.ramdump.field_offset(
+                                        'struct ufs_hba', 'host'))
+        sdev_list_addr = shost_p + self.ramdump.field_offset(
+                                        'struct Scsi_Host', '__devices')
+        sdev_list_first = self.ramdump.read_pointer(sdev_list_addr + self.ramdump.field_offset(
+                                        'struct list_head', 'next'))
+        sdev_list_next = self.ramdump.read_pointer(sdev_list_first + self.ramdump.field_offset(
+                                        'struct list_head', 'next'))
+        sdev_base_p = self.get_scsi_device()
+        sdev_offest = sdev_list_first - sdev_base_p
+        self.get_sdev_info(sdev_base_p)
+
+        while sdev_list_next != sdev_list_addr:
+            self.get_sdev_info(sdev_list_next - sdev_offest)
+            sdev_list_next = self.ramdump.read_pointer(sdev_list_next + self.ramdump.field_offset(
+                                        'struct list_head', 'next'))
+
+    def dump_ufs_hba_params(self):
         print_out_ufs("struct ufs_hba = 0x%x {" % (self.ufs_hba_addr))
 
         ufs_scsi_device_addr = self.ramdump.read_pointer(
@@ -208,16 +416,16 @@ class UfsHba():
                                         ufs_scsi_device_addr, 'struct scsi_device', 'rev')))
         ufs_dev_pwr_mode = self.ramdump.read_int(
                             self.ufs_hba_addr + self.ramdump.field_offset('struct ufs_hba', 'curr_dev_pwr_mode'))
-        print_out_ufs("\tcurr_dev_pwr_mode = %s" %(ufs_dev_pwr_mode_l[ufs_dev_pwr_mode]))
+        print_out_ufs("\tcurr_dev_pwr_mode = %s" %(self.ufs_dev_pwr_mode_l[ufs_dev_pwr_mode]))
         ufs_link_state = self.ramdump.read_int(
             self.ufs_hba_addr + self.ramdump.field_offset('struct ufs_hba', 'uic_link_state'))
-        print_out_ufs("\tuic_link_state = %s" % (ufs_link_state_l[ufs_link_state]))
+        print_out_ufs("\tuic_link_state = %s" % (self.ufs_link_state_l[ufs_link_state]))
         ufs_pm_level = self.ramdump.read_int(
             self.ufs_hba_addr + self.ramdump.field_offset('struct ufs_hba', 'rpm_lvl'))
-        print_out_ufs("\trpm_lvl = %s" % (ufs_pm_level_l[ufs_pm_level]))
+        print_out_ufs("\trpm_lvl = %s" % (self.ufs_pm_level_l[ufs_pm_level]))
         ufs_pm_level = self.ramdump.read_int(
             self.ufs_hba_addr + self.ramdump.field_offset('struct ufs_hba', 'spm_lvl'))
-        print_out_ufs("\tspm_lvl = %s" % (ufs_pm_level_l[ufs_pm_level]))
+        print_out_ufs("\tspm_lvl = %s" % (self.ufs_pm_level_l[ufs_pm_level]))
         print_out_ufs("\tpm_op_in_progress = %d" %(self.ramdump.read_int(
                             self.ufs_hba_addr + self.ramdump.field_offset('struct ufs_hba', 'pm_op_in_progress'))))
         print_out_ufs("\tahit = 0x%x" % (self.ramdump.read_int(
@@ -245,7 +453,7 @@ class UfsHba():
             self.ufs_hba_addr + self.ramdump.field_offset('struct ufs_hba', 'is_irq_enabled'))))
         dev_ref_clk_freq = self.ramdump.read_int(
             self.ufs_hba_addr + self.ramdump.field_offset('struct ufs_hba', 'dev_ref_clk_freq'))
-        print_out_ufs("\tdev_ref_clk_freq = %s" % (ufs_ref_clk_l[dev_ref_clk_freq]))
+        print_out_ufs("\tdev_ref_clk_freq = %s" % (self.ufs_ref_clk_l[dev_ref_clk_freq]))
         print_out_ufs("\tquirks = 0x%x" % (self.ramdump.read_int(
             self.ufs_hba_addr + self.ramdump.field_offset('struct ufs_hba', 'quirks'))))
         print_out_ufs("\tdev_quirks = 0x%x" % (self.ramdump.read_int(
@@ -282,8 +490,9 @@ class UfsHba():
         self.dump_ufs_dev_info()
         print_out_ufs("\tauto_bkops_enabled = %d" % (self.ramdump.read_bool(
             self.ufs_hba_addr + self.ramdump.field_offset('struct ufs_hba', 'auto_bkops_enabled'))))
-        print_out_ufs("\twlun_dev_clr_ua = %d" % (self.ramdump.read_bool(
-            self.ufs_hba_addr + self.ramdump.field_offset('struct ufs_hba', 'wlun_dev_clr_ua'))))
+        if self.ramdump.get_kernel_version() < (5, 14, 0):
+            print_out_ufs("\twlun_dev_clr_ua = %d" % (self.ramdump.read_bool(
+                    self.ufs_hba_addr + self.ramdump.field_offset('struct ufs_hba', 'wlun_dev_clr_ua'))))
         print_out_ufs("\treq_abort_count = %d" % (self.ramdump.read_int(
             self.ufs_hba_addr + self.ramdump.field_offset('struct ufs_hba', 'req_abort_count'))))
         print_out_ufs("\tlanes_per_direction = %d" % (self.ramdump.read_int(
@@ -306,7 +515,7 @@ class UfsHba():
         # Clock Gating
         cg_addr = self.ufs_hba_addr + self.ramdump.field_offset('struct ufs_hba', 'clk_gating')
         print_out_ufs("\tufs_clk_gating = 0x%x {" %(cg_addr))
-        print_out_ufs("\t\tstate = %s" % (ufs_clk_gating_l[(self.ramdump.read_int(
+        print_out_ufs("\t\tstate = %s" % (self.ufs_clk_gating_l[(self.ramdump.read_int(
             cg_addr + self.ramdump.field_offset('struct ufs_clk_gating', 'state')))]))
         print_out_ufs("\t\tdelay_ms = %d" % (self.ramdump.read_ulong(
             cg_addr + self.ramdump.field_offset('struct ufs_clk_gating', 'delay_ms'))))
@@ -357,13 +566,16 @@ class UfsHba():
         print_out_ufs("\t}")
         print_out_ufs("\tis_sys_suspended = %d" % (self.ramdump.read_bool(
             self.ufs_hba_addr + self.ramdump.field_offset('struct ufs_hba', 'is_sys_suspended'))))
-        print_out_ufs("\turgent_bkops_lvl = %s" % (ufs_bkops_status_l[(self.ramdump.read_int(
+        print_out_ufs("\turgent_bkops_lvl = %s" % (self.ufs_bkops_status_l[(self.ramdump.read_int(
             self.ufs_hba_addr + self.ramdump.field_offset('struct ufs_hba', 'urgent_bkops_lvl')))]))
         print_out_ufs("\tis_urgent_bkops_lvl_checked = %d" % (self.ramdump.read_bool(
             self.ufs_hba_addr + self.ramdump.field_offset('struct ufs_hba', 'is_urgent_bkops_lvl_checked'))))
         print_out_ufs("\tscsi_block_reqs_cnt = %d" % (self.ramdump.read_int(
             self.ufs_hba_addr + self.ramdump.field_offset('struct ufs_hba', 'scsi_block_reqs_cnt'))))
+        self.dump_ufs_vreg()
+        self.dump_ufs_clk()
         self.dump_ufs_lrb()
+        self.dump_sdev_info()
         print_out_ufs("}")
         return
 
@@ -373,7 +585,84 @@ class UfsQcHost():
         self.ramdump = ramdump
         self.ufs_qc_host_addr = ufs_qc_host_addr
 
+    def get_qphy_vreg_info(self, qphy_vreg_addr):
+        if qphy_vreg_addr == 0:
+            return
+        reg_p = self.ramdump.read_pointer(qphy_vreg_addr + self.ramdump.field_offset(
+                                        'struct ufs_qcom_phy_vreg', 'reg'))
+        if reg_p == 0:
+            return
+
+        print_out_ufs("\t\tphy-vreg-%s{" %(self.ramdump.read_structure_cstring(
+                                        qphy_vreg_addr,
+                                        'struct ufs_qcom_phy_vreg',
+                                        'name')))
+        rdev_p = self.ramdump.read_pointer(reg_p + self.ramdump.field_offset(
+                                        'struct regulator', 'rdev'))
+        rdesc_p = self.ramdump.read_pointer(rdev_p + self.ramdump.field_offset(
+                                        'struct regulator_dev','desc'))
+        print_out_ufs("\t\t\tregulator: %s" %(self.ramdump.read_structure_cstring(
+                                        rdesc_p, 'struct regulator_desc', 'name')))
+        print_out_ufs("\t\t\tsupply: %s" %(self.ramdump.read_structure_cstring(
+                                        rdesc_p,
+                                        'struct regulator_desc',
+                                        'supply_name')))
+        print_out_ufs("\t\t\tenabled = %d" % (self.ramdump.read_bool(qphy_vreg_addr +
+                                        self.ramdump.field_offset(
+                                        'struct ufs_qcom_phy_vreg',
+                                        'enabled'))))
+        print_out_ufs("\t\t}")
+
+    def dump_ufs_phy(self):
+        gphy_p = self.ramdump.read_pointer(self.ufs_qc_host_addr + self.ramdump.field_offset(
+                                        'struct ufs_qcom_host',
+                                        'generic_phy'))
+        dev_addr = gphy_p + self.ramdump.field_offset('struct phy', 'dev')
+        qphy_p = self.ramdump.read_pointer(dev_addr + self.ramdump.field_offset(
+                                        'struct device',
+                                        'driver_data'))
+        print_out_ufs("\tufs_phy: %s {" %(self.ramdump.read_cstring(
+                                        qphy_p + self.ramdump.field_offset(
+                                        'struct ufs_qcom_phy',
+                                        'name'))))
+        print_out_ufs("\t\tiface_clk_enabled = %d" % (self.ramdump.read_bool(qphy_p +
+                                        self.ramdump.field_offset(
+                                        'struct ufs_qcom_phy',
+                                        'is_iface_clk_enabled'))))
+        print_out_ufs("\t\tref_clk_enabled = %d" % (self.ramdump.read_bool(qphy_p +
+                                        self.ramdump.field_offset(
+                                        'struct ufs_qcom_phy',
+                                        'is_ref_clk_enabled'))))
+        print_out_ufs("\t\tdev_ref_clk_enabled = %d" % (self.ramdump.read_bool(qphy_p +
+                                        self.ramdump.field_offset(
+                                        'struct ufs_qcom_phy',
+                                        'is_dev_ref_clk_enabled'))))
+        print_out_ufs("\t\tquirks = 0x%x" % (self.ramdump.read_s64(qphy_p +
+                                        self.ramdump.field_offset(
+                                        'struct ufs_qcom_phy',
+                                        'quirks'))))
+        print_out_ufs("\t\tlanes_per_direction = %d" % (self.ramdump.read_u32(qphy_p +
+                                        self.ramdump.field_offset(
+                                        'struct ufs_qcom_phy',
+                                        'lanes_per_direction'))))
+
+        vdda_pll_addr = qphy_p + self.ramdump.field_offset('struct ufs_qcom_phy', 'vdda_pll')
+        vdda_phy_addr = qphy_p + self.ramdump.field_offset('struct ufs_qcom_phy', 'vdda_phy')
+        vddp_ref_clk_addr = qphy_p + self.ramdump.field_offset('struct ufs_qcom_phy', 'vddp_ref_clk')
+        self.get_qphy_vreg_info(vdda_pll_addr)
+        self.get_qphy_vreg_info(vdda_phy_addr)
+        self.get_qphy_vreg_info(vddp_ref_clk_addr)
+
+        if self.ramdump.get_kernel_version() > (5, 11, 0):
+            vdd_phy_gdsc_addr = qphy_p + self.ramdump.field_offset('struct ufs_qcom_phy', 'vdd_phy_gdsc')
+            vdda_qref_addr = qphy_p + self.ramdump.field_offset('struct ufs_qcom_phy', 'vdda_qref')
+            self.get_qphy_vreg_info(vdd_phy_gdsc_addr)
+            self.get_qphy_vreg_info(vdda_qref_addr)
+
+        print_out_ufs("\t}")
+
     def dump_ufs_qc_params(self):
+
         print_out_ufs("struct ufs_qc_host = 0x%x {" % (self.ufs_qc_host_addr))
         caps_offset = self.ramdump.field_offset('struct ufs_qcom_host', 'caps')
         caps_addr = self.ufs_qc_host_addr + caps_offset
@@ -432,10 +721,13 @@ class UfsQcHost():
 
         print_out_ufs("\tdev_ref_clk_en_mask = 0x%x" %(self.ramdump.read_int(
             self.ufs_qc_host_addr + self.ramdump.field_offset('struct ufs_qcom_host', 'dev_ref_clk_en_mask'))))
-
         print_out_ufs("\tdbg_print_en = 0x%x" %(self.ramdump.read_int(
             self.ufs_qc_host_addr + self.ramdump.field_offset('struct ufs_qcom_host', 'dbg_print_en'))))
-
+        try:
+            print_out_ufs("\tmax_hs_gear = %d" % (self.ramdump.read_int(
+                self.ufs_qc_host_addr + self.ramdump.field_offset('struct ufs_qcom_host', 'max_hs_gear'))))
+        except:
+            print_out_ufs("\tskip max_hs_gear")
         print_out_ufs("\tlimit_tx_hs_gear = %d" % (self.ramdump.read_int(
             self.ufs_qc_host_addr + self.ramdump.field_offset('struct ufs_qcom_host', 'limit_tx_hs_gear'))))
         print_out_ufs("\tlimit_rx_hs_gear = %d" % (self.ramdump.read_int(
@@ -459,13 +751,63 @@ class UfsQcHost():
 
         #QoS
         print_out_ufs("\tqos = {\n\t\tNot Implemented\n\t}")
-
+        self.dump_ufs_phy()
         print_out_ufs("}")
         return
 
     def get_ufs_hba(self):
         hba_offset = self.ramdump.field_offset('struct ufs_qcom_host', 'hba')
         return self.ramdump.read_pointer(self.ufs_qc_host_addr + hba_offset)
+
+class UfsIpc():
+    phase_l = ['PRE ', 'POST ']
+    state_l = ['CLK_OFF ', 'CLK_ON ']
+    pmop_l = ['RT_PM ', 'SYS_PM', 'SHUTDOWN_PM ']
+    link_l = ['OFF ', 'ACTIVE', 'HIBERN8 ', 'BROKEN ']
+    pwrmod_l = ['NONE ', 'ACTIVE ', 'SLEEP ', 'PWRDOWN ', 'DPSLEEP ']
+
+    def __init__(self, ramdump, ufs_ipc_file):
+        self.ramdump = ramdump
+        self.ipc_file = ufs_ipc_file
+
+    def ufsipcdict(self, line2, line):
+        return{
+            '<': lambda: ' [Send cmd] ' + str(line[3]) + ' tag:' + str(line[4]) + ' DBR:' + str(line[5]) + ' size=' + str(line[6]),
+            '>': lambda: ' [Done cmd] ' + str(line[3]) + ' tag:' + str(line[4]) + ' DBR:' + str(line[5]) + ' size=' + str(line[6]),
+            '(': lambda: ' [Send uic] ' + str(line[3]) + ' arg1=' + str(line[4]) + ' arg2=' + str(line[5]) + ' arg3=' + str(line[6]),
+            ')': lambda: ' [Done uic] ' +str(line[3]) + ' arg1=' + str(line[4]) + ' arg2=' + str(line[5]) + ' arg3=' + str(line[6]),
+            '#': lambda: ' [CLK GATE] ' + self.phase_l[int(line[3])] + self.state_l[int(line[4])] + 'err=' + str(line[5]),
+            '^': lambda: ' [CLK SCALE UP] ' + self.phase_l[int(line[3])] + 'err=' + str(line[4]),
+            'v': lambda: ' [CLK SCALE DOWN] ' + self.phase_l[int(line[3])] + 'err =' + str(line[4]),
+            '@': lambda: ' [PWR CHANGE] ' + self.phase_l[int(line[3])] + 'GEAR' + str(line[4]) + ' cur_dev_pwr_mode=' + str(line[5]) + ' rate=' + str(line[6]) + ' err=' + str(line[7]),
+            '&': lambda: ' [SUSPEND] ' + self.pmop_l[int(line[3])] + 'rpm_lvl=' + str(line[4]) + ' spm_lvl=' + str(line[5]) + ' link_state: ' + self.link_l[int(line[6])]
+                                                + 'cur_dev_pwr_mode: ' + self.pwrmod_l[int(line[7])] + 'err=' + str(line[8]),
+            '$': lambda: ' [RESUME] ' +  self.pmop_l[int(line[3])] + 'rpm_lvl=' + str(line[4]) + ' spm_lvl=' + str(line[5]) + ' link_state: ' + self.link_l[int(line[6])]
+                                                + 'cur_dev_pwr_mode: ' + self.pwrmod_l[int(line[7])] + 'err = ' + str(line[8]),
+            '-': lambda: ' [HCE] ' + self.phase_l[int(line[3])] + 'err= ' + str(line[4]),
+            '*': lambda: ' [LSS] ' + self.phase_l[int(line[3])] + 'err= ' + str(line[4]),
+            '_': lambda: ' [ERROR] ' + ' hba_err=' + str(line[3]) + ' uic_err=' + str(line[4]),
+            '0xdead': lambda: ' [SHUTDOWN] ',
+        }.get(line2, None)()
+
+    def parse_ufs_ipc(self):
+        print_out_ufs('\n\n==================Parsed UFS IPC Log===========================')
+        file_path = os.path.join(self.ramdump.outdir, self.ipc_file)
+        if not os.path.exists(file_path):
+            print_out_ufs("\tThe file %s dose not exist!!!" %file_path)
+            return
+        with open(file_path) as csv_file:
+            csv_reader = csv.reader(csv_file)
+            for line in csv_reader:
+                if len(line) < 3:
+                    continue
+                try:
+                    result = str(line[0]) + ' cpu' + str(line[1])
+                    result += self.ufsipcdict(line[2], line)
+                except:
+                    print_out_ufs("\texception occurred during parsing '%s'" %str(line))
+                    continue
+                print_out_ufs("\t%s" %result)
 
 @register_parser('--ufs-parser', 'Generate UFS diagnose report', optional=True)
 
@@ -489,6 +831,10 @@ class UfsParser(RamParser):
         # struct ufs_hba dump
         ufs_hba_0 = UfsHba(self.ramdump, ufsqc_0.get_ufs_hba())
         ufs_hba_0.dump_ufs_hba_params()
+
+        # ufs ipc log parser
+        ufs_ipc_0 = UfsIpc(self.ramdump, F_UFSIPC)
+        ufs_ipc_0.parse_ufs_ipc()
 
         return
 

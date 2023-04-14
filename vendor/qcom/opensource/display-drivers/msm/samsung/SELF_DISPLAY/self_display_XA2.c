@@ -157,8 +157,8 @@ void make_mass_self_display_img_cmds_XA2(struct samsung_display_driver_data *vdd
 		return;
 	}
 
-	payload_len = data_size + (data_size + MASS_CMD_ALIGN - 1)/MASS_CMD_ALIGN;
-	cmd_cnt = (payload_len + MAX_PAYLOAD_SIZE_MASS - 1) / MAX_PAYLOAD_SIZE_MASS;
+	payload_len = data_size + (data_size + MASS_CMD_ALIGN - 2) / (MASS_CMD_ALIGN - 1);
+	cmd_cnt = (payload_len + payload_len - 1) / payload_len;
 	LCD_INFO(vdd, "[%d] total data size [%d], total cmd len[%d], cmd count [%d]\n",
 					cmd, data_size, payload_len, cmd_cnt);
 
@@ -190,7 +190,7 @@ void make_mass_self_display_img_cmds_XA2(struct samsung_display_driver_data *vdd
 		/* Memory Alloc for each cmds */
 		if (tcmds[c_cnt].ss_txbuf == NULL) {
 			/* HEADER TYPE 0x4C or 0x5C */
-			tcmds[c_cnt].ss_txbuf = vzalloc(MAX_PAYLOAD_SIZE_MASS);
+			tcmds[c_cnt].ss_txbuf = vzalloc(payload_len);
 			if (tcmds[c_cnt].ss_txbuf == NULL) {
 				LCD_ERR(vdd, "fail to vzalloc for self_mask cmds ss_txbuf \n");
 				return;
@@ -198,7 +198,7 @@ void make_mass_self_display_img_cmds_XA2(struct samsung_display_driver_data *vdd
 		}
 
 		/* Copy from Data Buffer to each cmd Buffer */
-		for (p_len = 0; p_len < MAX_PAYLOAD_SIZE_MASS && data_idx < data_size ; p_len++) {
+		for (p_len = 0; p_len < payload_len && data_idx < data_size ; p_len++) {
 			if (p_len % MASS_CMD_ALIGN)
 				tcmds[c_cnt].ss_txbuf[p_len] = data[data_idx++];
 			else
@@ -998,6 +998,37 @@ static int self_mask_on(struct samsung_display_driver_data *vdd, int enable)
 	return ret;
 }
 
+static int self_mask_udc_on(struct samsung_display_driver_data *vdd, int enable)
+{
+	int ret = 0;
+
+	if (IS_ERR_OR_NULL(vdd)) {
+		LCD_ERR(vdd, "vdd is null or error\n");
+		return -ENODEV;
+	}
+
+	if (!vdd->self_disp.is_support) {
+		LCD_ERR(vdd, "self display is not supported..(%d) \n",
+						vdd->self_disp.is_support);
+		return -EACCES;
+	}
+
+	LCD_INFO(vdd, "++ (%d)\n", enable);
+
+	mutex_lock(&vdd->self_disp.vdd_self_display_lock);
+
+	if (enable)
+		ss_send_cmd(vdd, TX_SELF_MASK_UDC_ON);
+	else
+		ss_send_cmd(vdd, TX_SELF_MASK_UDC_OFF);
+
+	mutex_unlock(&vdd->self_disp.vdd_self_display_lock);
+
+	LCD_INFO(vdd, "-- \n");
+
+	return ret;
+}
+
 #define WAIT_FRAME (2)
 
 static int self_mask_check(struct samsung_display_driver_data *vdd)
@@ -1267,6 +1298,14 @@ static int self_display_aod_exit(struct samsung_display_driver_data *vdd)
 	ss_send_cmd(vdd, TX_SELF_DISP_OFF);
 
 	self_mask_on(vdd, true);
+
+	LCD_INFO(vdd, "write self_mask_udc %s cmd \n",
+		vdd->self_disp.udc_mask_enable ? "enable" : "disable");
+
+	if (vdd->self_disp.udc_mask_enable)
+		ss_send_cmd(vdd, TX_SELF_MASK_UDC_ON);
+	else
+		ss_send_cmd(vdd, TX_SELF_MASK_UDC_OFF);
 
 	vdd->self_disp.sa_info.en = false;
 	vdd->self_disp.sd_info.en = false;
@@ -1596,14 +1635,15 @@ int self_display_init_XA2(struct samsung_display_driver_data *vdd)
 
 	vdd->self_disp.aod_enter = self_display_aod_enter;
 	vdd->self_disp.aod_exit = self_display_aod_exit;
-	vdd->self_disp.self_mask_img_write= self_mask_img_write;
-	vdd->self_disp.self_mask_on= self_mask_on;
+	vdd->self_disp.self_mask_img_write = self_mask_img_write;
+	vdd->self_disp.self_mask_on = self_mask_on;
+	vdd->self_disp.self_mask_udc_on = self_mask_udc_on;
 	vdd->self_disp.self_mask_check = self_mask_check;
 	vdd->self_disp.self_move_set = self_move_set;
-	vdd->self_disp.self_icon_set= self_icon_set;
-	vdd->self_disp.self_aclock_set= self_aclock_set;
-	vdd->self_disp.self_dclock_set= self_dclock_set;
-	vdd->self_disp.self_time_set= self_time_set;
+	vdd->self_disp.self_icon_set = self_icon_set;
+	vdd->self_disp.self_aclock_set = self_aclock_set;
+	vdd->self_disp.self_dclock_set = self_dclock_set;
+	vdd->self_disp.self_time_set = self_time_set;
 	vdd->self_disp.self_partial_hlpm_scan_set = self_partial_hlpm_scan_set;
 	vdd->self_disp.self_blinking_on = self_blinking_on;
 	vdd->self_disp.self_display_debug = self_display_debug;
