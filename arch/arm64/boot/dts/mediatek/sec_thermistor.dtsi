@@ -1,0 +1,19 @@
+/ {
+	fragment@smd {
+		target-path = "/";
+		__overlay__ {
+			samsung_mobile_device {
+				sec_ap_thermistor: sec_thermistor@0 {
+					compatible = "samsung,sec-thermistor";
+					status = "okay";
+					thermistor_name = "sec-ap-thermistor";
+					id = <0>;
+
+					io-channels = SEC_ADC(auxadc,0);
+					io-channel-names = "ap_therm";
+					io-channel-ranges;
+				};
+			};
+		};
+	};
+};

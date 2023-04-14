@@ -1,0 +1,4 @@
+#include <dt-bindings/clock/mt6877-clk.h>
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6877/ap_mtk_mt6877_T.a34x_eur.06.dtsi */
+#include "../../mediatek/k6877ttv1_64_titan_black_tiger/board_00.dts"
+#include "../../mediatek/k6877ttv1_64_titan_black_tiger/gpio_06.dtsi"

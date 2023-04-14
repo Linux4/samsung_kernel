@@ -1,0 +1,26 @@
+#if 0
+&${jtag_usb_id_parent} {
+	jtag_usb_id: jtag_usb_id {
+		GPIO_CONFIG_PUD_DRV(${jtag_usb_id_gpio}, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+#endif
+
+&smd {
+	vt_muic {
+		compatible = "samsung,vt_muic";
+		status = "okay";
+#if 0
+		pinctrl-names = "default";
+		pinctrl-0 = <&jtag_usb_id>;
+		vt_muic,usb_id = <SEC_GPIO_REF(${jtag_usb_id_gpio}) 0>;
+#endif
+#if 1
+		use_battery_notifier_callback;
+#endif
+#if 1
+		use_manager_notifier_callback;
+#endif
+	};
+};
+

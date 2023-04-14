@@ -1,0 +1,80 @@
+/*
+ * Hall ic device tree source
+ *
+ * Copyright (c) 2017 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+&smd {
+	hall_ic: hall_ic {
+		status = "okay";
+		compatible = "hall_ic";
+		pinctrl-names = "default";
+		pinctrl-0 = <
+#if 1
+		&hall_irq
+#endif
+#if 0
+		&certify_hall_irq
+#endif
+#if 0
+		&hall_wacom_irq
+#endif
+		>;
+#if 1
+		hall_ic,debounce-interval = <50>;
+#endif
+#if 1
+		hall: hall {
+			name = "hall";
+			event = <0x15>;
+			gpios = <SEC_GPIO_REF(AP,pio,6) 1>;
+		};
+#endif
+#if 0
+		certify_hall: certify_hall {
+			name = "certify_hall";
+			event = <0x1b>;
+			gpios = <SEC_GPIO_REF(${certify_hall_gpio}) 1>;
+		};
+#endif
+#if 0
+		hall_wacom: hall_wacom {
+			name = "hall_wacom";
+			event = <0x1e>;
+			gpios = <SEC_GPIO_REF(${wacom_hall_gpio}) 1>;
+		};
+#endif
+	};
+};
+
+#if 1
+&pio {
+	hall_irq: hall_irq {
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(AP,pio,6), 0)>;
+		bias-disable;
+	};
+};
+#endif
+
+#if 0
+&${certify_hall_parent} {
+	certify_hall_irq: certify_hall_irq {
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${certify_hall_gpio}), 0)>;
+		bias-disable;
+	};
+};
+#endif
+
+#if 0
+&${wacom_hall_parent} {
+	hall_wacom_irq: hall_wacom_irq {
+		pinmux = <MTK_PINMUX(SEC_GPIO_NUM(${wacom_hall_gpio}), 0)>;
+		bias-disable;
+	};
+};
+#endif

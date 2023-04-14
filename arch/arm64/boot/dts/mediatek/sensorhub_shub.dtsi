@@ -1,0 +1,44 @@
+#if 1
+&mt_pmic_vtp_ldo_reg {
+	regulator-name = "VDD_SENSOR_1P8";
+};
+#endif
+#if 0
+&${gpio_sensor_ldo_en_parent} {
+	shub_sensor_ldo_en: shub-sensor-ldo-en {
+		samsung,pins = SEC_GPIO(${gpio_sensor_ldo_en});
+		samsung,pin-function = <1>;
+		samsung,pin-pud = <0>;
+		samsung,pin-con-pdn = <3>;
+		samsung,pin-pud-pdn = <0>;
+	};
+};
+#endif
+/ {
+	fragment@model {
+		target-path = "/";
+		__overlay__ {
+			shub {
+#if 0
+    			pinctrl-names = "default";
+				pinctrl-0 = <&shub_sensor_ldo_en>;
+#endif
+#if 1
+				sensor-vdd-regulator = "VDD_SENSOR_1P8";
+#endif
+
+#if 0
+				mag-check-nfc = <SEC_GPIO_REF(${gpio_nfc_check}) 0>;
+#endif
+
+#if 0
+				pogo-int = <SEC_GPIO_REF(${gpio_pogo_int}) 0>;
+#endif
+
+#if 0
+				sensor-ldo-en = <SEC_GPIO_REF(${gpio_sensor_ldo_en}) 0>;
+#endif
+			};
+		};
+	};
+};

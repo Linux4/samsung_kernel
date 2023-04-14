@@ -1,0 +1,30 @@
+
+&smd {
+	sec-direct-charger {
+		status = "okay";
+		compatible = "samsung,sec-direct-charger";
+
+		charger,battery_name = "battery";
+		charger,main_charger = "mtk-charger";
+		charger,direct_charger = "sm5451-charger";
+
+		charger,dchg_min_current = <2000>;
+
+		charger,ta_alert_wa;
+	};
+};
+
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/common/sec_direct_charger/dts/a34x/sec_direct_charger.dtsi */
+
+&smd {
+	pass-through {
+		start_delay = <5000>; /* msec */
+		init_delay = <5000>; /* msec */
+		min_cap = <200>; /* 0.1 % */
+		fixed_sc_cap = <900>; /* 0.1 % */
+		max_icl = <3000>; /* mA */
+		vfloat = <4440>; /* mV */
+	};
+};
+

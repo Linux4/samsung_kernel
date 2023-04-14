@@ -1,0 +1,39 @@
+
+&smd {
+	mtk_charger: mtk-charger {
+		compatible = "samsung,mtk-charger";
+#if defined(CONFIG_SEC_FACTORY)
+		charger,vbus_min_charger_voltage = <4200000>;
+		charger,vbus_normal_mivr_voltage = <4200000>;
+#else
+		charger,vbus_min_charger_voltage = <4400000>;
+		charger,vbus_normal_mivr_voltage = <4400000>;
+#endif
+		charger,gpio_ilim = <&pio 140 0x0>;
+		charger,gpio_chgenb = <&pio 135 0x0>;
+		charger,max_icl = <3250>;
+		charger,ib_fcc = <100>;
+	};
+
+	battery {
+		battery,otg_name = "mtk-otg";
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/mtk_charger/mtk_charger.a34x.dtsi */
+
+&smd {
+	mtk_charger: mtk-charger {
+		charger,gpio_chgenb = <&pio 142 0x0>;
+		charger,chgilm_en = <0>;
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/mtk_charger/mtk_charger.a34x.01.dtsi */
+
+&smd {
+	mtk_charger: mtk-charger {
+		charger,gpio_chgenb = <&pio 27 0x0>;
+		charger,chgenb_en = <0>;
+	};
+};
