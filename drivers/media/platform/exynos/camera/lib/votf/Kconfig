@@ -1,0 +1,12 @@
+menuconfig VIDEO_EXYNOS_PABLO_LIB_VOTF
+	tristate "EXYNOS PABLO VOTF Driver"
+	default n
+	help
+		This is a representative exynos camera VOTF device.
+
+# TODO: deprecate CONFIG_VIDEO_EXYNOS_CAMERA_POSTPROCESS_VOTF
+menuconfig VIDEO_EXYNOS_CAMERA_POSTPROCESS_VOTF
+	tristate "EXYNOS PABLO VOTF Driver"
+	default n
+	help
+		This is a representative exynos camera VOTF device.
