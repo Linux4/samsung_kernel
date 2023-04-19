@@ -1,0 +1,19 @@
+config PABLO_ICPU
+	tristate "Exynos Pablo ICPU Driver"
+	default n
+	help
+	  This is a ICPU driver for Exynos Pablo IS.
+
+config PABLO_ICPU_HW_V1_0
+	tristate "Exynos Pablo ICPU HW V1_0"
+	default n
+	select PABLO_ICPU
+	help
+	  This is a hw variant of ICPU.
+
+config PABLO_ICPU_HW_V2_0
+	tristate "Exynos Pablo ICPU HW V2_0"
+	default n
+	select PABLO_ICPU
+	help
+	  This is a hw variant of ICPU.

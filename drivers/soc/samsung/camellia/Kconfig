@@ -1,0 +1,18 @@
+config CAMELLIA
+	tristate "Camellia mailbox userspace device api support"
+	default n
+	help
+	  This enables character device api support for camellia
+	  mailbox system.
+
+	  To compile this as a module, choose M here: the module will
+	  be called camellia-dev.
+
+	  If unsure, say N.
+
+config CAMELLIA_LOG_DMESG
+	tristate "Camellia log dmesg printing"
+	default n
+	help
+	  This enables printing camellia kernel console message and
+	  secure app log messages(included console message) on dmesg.

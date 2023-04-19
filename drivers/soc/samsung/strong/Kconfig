@@ -1,0 +1,15 @@
+#
+# Exynos Smart Secure Platform configuration
+#
+
+config EXYNOS_SSP
+	tristate "Exynos Smart Secure Platform"
+	depends on ARCH_EXYNOS
+	help
+	Support Smart Secure Platform
+
+config EXYNOS_CAMELLIA_TEST
+	tristate "Exynos Camellia test driver"
+	depends on ARCH_EXYNOS
+	help
+	Test for strong mailbox

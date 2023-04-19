@@ -1,0 +1,29 @@
+config CAMERA_PDP
+	bool "Use PDP"
+	depends on EXYNOS_DEVICE_CAMERA_MODULE
+	depends on VIDEO_EXYNOS_PABLO_ISP
+	default n
+	help
+	  Use to build PDP.
+
+config PABLO_DLFE
+	bool "Use Pablo DLFE HW Driver"
+	depends on EXYNOS_DEVICE_CAMERA_MODULE
+	depends on VIDEO_EXYNOS_PABLO_ISP
+	default n
+	help
+	  Use to build DLFE HW driver.
+
+config PABLO_HW_HELPER_V1
+	bool "HW HELPER V1"
+	default n
+	help
+	  Use HW HELPER V1.
+
+config PABLO_HW_HELPER_V2
+	bool "HW HELPER V2"
+	default n
+	help
+	  Use HW HELPER V2.
+
+source "drivers/media/platform/exynos/camera/hardware/api/Kconfig"
