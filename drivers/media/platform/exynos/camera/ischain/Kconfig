@@ -1,0 +1,233 @@
+config PABLO_V8_1_0
+	bool "Use PABLO v8.1.0"
+	depends on SOC_EXYNOS9830
+	default y
+	select EXYNOS_DEVICE_MIPI_CSIS_VER4
+	select CSIS_V5_3
+	select CAMERA_CIS_SELECT
+	select CAMERA_ACT_SELECT
+	select CAMERA_FLASH_SELECT
+	select CAMERA_PDP
+	select PDP_V1_0_0
+	select COMMON_DMA_V1_0
+	select PABLO_HW_HELPER_V1
+	help
+	  PABLO ISP version 8.1.0
+
+config PABLO_V8_10_0
+	bool "Use PABLO v8.10.0"
+	depends on SOC_EXYNOS9630
+	default y
+	select EXYNOS_DEVICE_MIPI_CSIS_VER4
+	select CSIS_V5_3
+	select CAMERA_CIS_SELECT
+	select CAMERA_ACT_SELECT
+	select CAMERA_FLASH_SELECT
+	select CAMERA_PDP
+	select PDP_V1_0_0
+	select COMMON_DMA_V1_0
+	select PABLO_HW_HELPER_V1
+	help
+	  PABLO ISP version 8.0.0
+
+config PABLO_V8_20_0
+	bool "Use PABLO v8.20.0"
+	depends on SOC_EXYNOS3830
+	default y
+	select EXYNOS_DEVICE_MIPI_CSIS_VER4
+	select CSIS_V1_2
+	select CAMERA_CIS_SELECT
+	select CAMERA_ACT_SELECT
+	select CAMERA_FLASH_SELECT
+	select COMMON_DMA_V1_0
+	select PABLO_HW_HELPER_V1
+	help
+	  PABLO ISP version 8.20.0
+
+config PABLO_V9_1_0
+	bool "Use PABLO v9.1.0"
+	depends on SOC_EXYNOS2100
+	default y
+	select EXYNOS_DEVICE_MIPI_CSIS_VER4
+	select CSIS_V5_4
+	select CAMERA_CIS_SELECT
+	select CAMERA_ACT_SELECT
+	select CAMERA_FLASH_SELECT
+	select CAMERA_PDP
+	select CAMERA_DVFS_V2
+	select CAMERA_MEM_V2
+	select PDP_V3_1
+	select YUVPP_V2_1
+	select LME_V1_1
+	select COMMON_DMA_V1_0
+	select PABLO_HW_HELPER_V1
+	help
+	  PABLO ISP version 9.1.0
+
+config PABLO_V9_10_0
+	bool "Use PABLO v9.10.0"
+	depends on SOC_S5E9815
+	default y
+	select EXYNOS_DEVICE_MIPI_CSIS_VER4
+	select CSIS_V5_4
+	select CAMERA_CIS_SELECT
+	select CAMERA_ACT_SELECT
+	select CAMERA_FLASH_SELECT
+	select CAMERA_PDP
+	select CAMERA_DVFS_V2
+	select CAMERA_MEM_V2
+	select PDP_V3_1
+	select YUVPP_V2_1
+	select LME_V1_1
+	select COMMON_DMA_V1_0
+	select PABLO_HW_HELPER_V1
+	help
+	  PABLO ISP version 9.10.0
+
+config PABLO_V10_1_0
+	bool "Use PABLO v10.1.0"
+	depends on SOC_S5E9925
+	depends on !SOC_S5E9925_EVT0
+	default y
+	select EXYNOS_DEVICE_MIPI_CSIS_VER4
+	select CSIS_V8_0
+	select PABLO_CAMIF_BNS
+	select CAMERA_CIS_SELECT
+	select CAMERA_ACT_SELECT
+	select CAMERA_FLASH_SELECT
+	select CAMERA_PDP
+	select CAMERA_DVFS_V2
+	select CAMERA_MEM_V2
+	select PDP_V4_1
+	select CSTAT_V1_1
+	select BYRP_V1_1
+	select RGBP_V1_1
+	select MCFP_V10_1
+	select YUVP_V1_1
+	select LME_V2_1
+	select COMMON_DMA_V1_0
+	select PABLO_HW_HELPER_V1
+	help
+	  PABLO ISP version 10.1.0
+
+config PABLO_V10_20_0
+	bool "Use PABLO v10.20.0"
+	depends on SOC_S5E8825
+	default y
+	select EXYNOS_DEVICE_MIPI_CSIS_VER4
+	select CSIS_V5_4
+	select CAMERA_CIS_SELECT
+	select CAMERA_ACT_SELECT
+	select CAMERA_FLASH_SELECT
+	select CAMERA_PDP
+	select CAMERA_DVFS_V2
+	select CAMERA_MEM_V2
+	select PDP_V3_1
+	select TAA_V9_20
+	select ORBMCH_V2_1
+	select MCFP_V10_20
+	select DNS_V1_20
+	select ITP_V1_20
+	select COMMON_DMA_V1_0
+	select PABLO_HW_HELPER_V1
+	help
+	  PABLO ISP version 10.20.0
+
+config PABLO_V11_0_0
+	bool "Use PABLO v11.0.0"
+	depends on SOC_S5E9935
+	default y
+	select PABLO_ICPU_HW_V1_0
+	select EXYNOS_DEVICE_MIPI_CSIS_VER4
+	select CSIS_V8_1
+	select CSIS_PDP_TOP_API
+	select CSIS_PDP_TOP_V5_0
+	select PABLO_CAMIF_BNS
+	select CAMERA_CIS_SELECT
+	select CAMERA_ACT_SELECT
+	select CAMERA_FLASH_SELECT
+	select CAMERA_PDP
+	select CAMERA_DVFS_V2
+	select CAMERA_MEM_V2
+	select PDP_V5_0
+	select CSTAT_V2_0
+	select COMMON_DMA_V2_0
+	select PABLO_HW_HELPER_V2
+	select PABLO_ICPU_ADT_V2
+	select PABLO_SENSOR_ADT
+	help
+	  PABLO ISP version 11.0.0
+
+config PABLO_V11_20_0
+	bool "Use PABLO v11.20.0"
+	depends on SOC_S5E8835
+	default y
+	select PABLO_ICPU_HW_V1_0
+	select EXYNOS_DEVICE_MIPI_CSIS_VER4
+	select CSIS_V5_4_8
+	select PABLO_CAMIF_BNS
+	select CAMERA_CIS_SELECT
+	select CAMERA_ACT_SELECT
+	select CAMERA_FLASH_SELECT
+	select CAMERA_PDP
+	select CAMERA_DVFS_V2
+	select CAMERA_MEM_V2
+	select PDP_V4_4
+	select CSTAT_V1_20
+	select COMMON_DMA_V1_0
+	select PABLO_HW_HELPER_V2
+	select PABLO_ICPU_ADT_V2
+	select PABLO_SENSOR_ADT
+	help
+	  PABLO ISP version 11.20.0
+
+config PABLO_V11_30_0
+	bool "Use PABLO v11.30.0"
+	depends on SOC_S5E8535
+	default y
+	select PABLO_ICPU_HW_V1_0
+	select EXYNOS_DEVICE_MIPI_CSIS_VER4
+	select CSIS_V5_4_8
+	select PABLO_CAMIF_BNS
+	select CAMERA_CIS_SELECT
+	select CAMERA_ACT_SELECT
+	select CAMERA_FLASH_SELECT
+	select CAMERA_PDP
+	select CAMERA_DVFS_V2
+	select CAMERA_MEM_V2
+	select PDP_V4_4
+	select CSTAT_V1_40
+	select COMMON_DMA_V1_0
+	select PABLO_HW_HELPER_V2
+	select PABLO_ICPU_ADT_V2
+	select PABLO_SENSOR_ADT
+	help
+	  PABLO ISP version 11.30.0
+
+
+config PABLO_V12_0_0
+	bool "Use PABLO v12.0.0"
+	depends on SOC_S5E9945
+	default y
+	select PABLO_ICPU_HW_V2_0
+	select EXYNOS_DEVICE_MIPI_CSIS_VER4
+	select CSIS_V6_0
+	select CSIS_PDP_TOP_API
+	select CSIS_PDP_TOP_V6_0
+	select PABLO_CAMIF_BNS
+	select CAMERA_CIS_SELECT
+	select CAMERA_ACT_SELECT
+	select CAMERA_FLASH_SELECT
+	select CAMERA_PDP
+	select CAMERA_DVFS_V2
+	select CAMERA_MEM_V2
+	select PDP_V6_0
+	select CSTAT_V3_0
+	select COMMON_DMA_V2_0
+	select PABLO_HW_HELPER_V2
+	select PABLO_ICPU_ADT_V2
+	select PABLO_SENSOR_ADT
+	select PABLO_DLFE
+	select DLFE_API_V1_0
+	help
+	  PABLO ISP version 12.0.0

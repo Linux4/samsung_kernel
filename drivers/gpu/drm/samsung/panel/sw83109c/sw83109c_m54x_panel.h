@@ -1,0 +1,910 @@
+/*
+ * linux/drivers/video/fbdev/exynos/panel/sw83109c/sw83109c_m54x_panel.h
+ *
+ * Header file for SW83109c Dimming Driver
+ *
+ * Copyright (c) 2016 Samsung Electronics
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#ifndef __SW83109C_M54X_PANEL_H__
+#define __SW83109C_M54X_PANEL_H__
+
+#include "../panel.h"
+#include "../panel_drv.h"
+#include "sw83109c.h"
+#include "sw83109c_dimming.h"
+#ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
+#include "sw83109c_m54x_panel_mdnie.h"
+#endif
+#include "sw83109c_m54x_panel_dimming.h"
+#ifdef CONFIG_SUPPORT_AOD_BL
+#include "sw83109c_m54x_panel_aod_dimming.h"
+#endif
+#ifdef CONFIG_EXTEND_LIVE_CLOCK
+#include "sw83109c_m54x_aod_panel.h"
+#include "../aod/aod_drv.h"
+#endif
+
+#include "sw83109c_m54x_resol.h"
+
+#undef __pn_name__
+#define __pn_name__	m54x
+
+#undef __PN_NAME__
+#define __PN_NAME__ M54X
+
+/* ===================================================================================== */
+/* ============================= [SW83109C READ INFO TABLE] ============================= */
+/* ===================================================================================== */
+/* <READINFO TABLE> IS DEPENDENT ON LDI. IF YOU NEED, DEFINE PANEL's RESOURCE TABLE */
+
+
+/* ===================================================================================== */
+/* ============================= [SW83109C RESOURCE TABLE] ============================== */
+/* ===================================================================================== */
+/* <RESOURCE TABLE> IS DEPENDENT ON LDI. IF YOU NEED, DEFINE PANEL's RESOURCE TABLE */
+
+
+/* ===================================================================================== */
+/* ============================== [SW83109C MAPPING TABLE] ============================== */
+/* ===================================================================================== */
+
+static u8 m54x_brt_table[SW83109C_TOTAL_STEP][2] = {
+	{ 0x00, 0x03 }, { 0x00, 0x77 }, { 0x00, 0xB2 }, { 0x00, 0xE2 }, { 0x01, 0x0B },
+	{ 0x01, 0x30 }, { 0x01, 0x52 }, { 0x01, 0x72 }, { 0x01, 0x90 }, { 0x01, 0xAD },
+	{ 0x01, 0xC8 }, { 0x01, 0xE2 }, { 0x01, 0xFB }, { 0x02, 0x14 }, { 0x02, 0x2B },
+	{ 0x02, 0x42 }, { 0x02, 0x59 }, { 0x02, 0x6E }, { 0x02, 0x84 }, { 0x02, 0x98 },
+	{ 0x02, 0xAD }, { 0x02, 0xC0 }, { 0x02, 0xD4 }, { 0x02, 0xE7 }, { 0x02, 0xFA },
+	{ 0x03, 0x0C }, { 0x03, 0x1E }, { 0x03, 0x30 }, { 0x03, 0x42 }, { 0x03, 0x53 },
+	{ 0x03, 0x64 }, { 0x03, 0x75 }, { 0x03, 0x86 }, { 0x03, 0x96 }, { 0x03, 0xA7 },
+	{ 0x03, 0xB7 }, { 0x03, 0xC7 }, { 0x03, 0xD6 }, { 0x03, 0xE6 }, { 0x03, 0xF5 },
+	{ 0x04, 0x04 }, { 0x04, 0x13 }, { 0x04, 0x22 }, { 0x04, 0x31 }, { 0x04, 0x3F },
+	{ 0x04, 0x4E }, { 0x04, 0x5C }, { 0x04, 0x6A }, { 0x04, 0x78 }, { 0x04, 0x86 },
+	{ 0x04, 0x94 }, { 0x04, 0xA2 }, { 0x04, 0xB0 }, { 0x04, 0xBD }, { 0x04, 0xCA },
+	{ 0x04, 0xD8 }, { 0x04, 0xE5 }, { 0x04, 0xF2 }, { 0x04, 0xFF }, { 0x05, 0x0C },
+	{ 0x05, 0x19 }, { 0x05, 0x25 }, { 0x05, 0x32 }, { 0x05, 0x3F }, { 0x05, 0x4B },
+	{ 0x05, 0x58 }, { 0x05, 0x64 }, { 0x05, 0x70 }, { 0x05, 0x7C }, { 0x05, 0x88 },
+	{ 0x05, 0x94 }, { 0x05, 0xA0 }, { 0x05, 0xAC }, { 0x05, 0xB8 }, { 0x05, 0xC4 },
+	{ 0x05, 0xD0 }, { 0x05, 0xDB }, { 0x05, 0xE7 }, { 0x05, 0xF2 }, { 0x05, 0xFE },
+	{ 0x06, 0x09 }, { 0x06, 0x14 }, { 0x06, 0x20 }, { 0x06, 0x2B }, { 0x06, 0x36 },
+	{ 0x06, 0x41 }, { 0x06, 0x4C }, { 0x06, 0x57 }, { 0x06, 0x62 }, { 0x06, 0x6D },
+	{ 0x06, 0x78 }, { 0x06, 0x83 }, { 0x06, 0x8D }, { 0x06, 0x98 }, { 0x06, 0xA3 },
+	{ 0x06, 0xAD }, { 0x06, 0xB8 }, { 0x06, 0xC2 }, { 0x06, 0xCD }, { 0x06, 0xD7 },
+	{ 0x06, 0xE2 }, { 0x06, 0xEC }, { 0x06, 0xF6 }, { 0x07, 0x00 }, { 0x07, 0x0B },
+	{ 0x07, 0x15 }, { 0x07, 0x1F }, { 0x07, 0x29 }, { 0x07, 0x33 }, { 0x07, 0x3D },
+	{ 0x07, 0x47 }, { 0x07, 0x51 }, { 0x07, 0x5B }, { 0x07, 0x65 }, { 0x07, 0x6F },
+	{ 0x07, 0x78 }, { 0x07, 0x82 }, { 0x07, 0x8C }, { 0x07, 0x96 }, { 0x07, 0x9F },
+	{ 0x07, 0xA9 }, { 0x07, 0xB2 }, { 0x07, 0xBC }, { 0x07, 0xC5 }, { 0x07, 0xCF },
+	{ 0x07, 0xD8 }, { 0x07, 0xE2 }, { 0x07, 0xEB }, { 0x07, 0xF5 }, { 0x07, 0xFE },
+	{ 0x08, 0x07 }, { 0x08, 0x11 }, { 0x08, 0x1A }, { 0x08, 0x23 }, { 0x08, 0x2C },
+	{ 0x08, 0x35 }, { 0x08, 0x3F }, { 0x08, 0x48 }, { 0x08, 0x51 }, { 0x08, 0x5A },
+	{ 0x08, 0x63 }, { 0x08, 0x6C }, { 0x08, 0x75 }, { 0x08, 0x7E }, { 0x08, 0x87 },
+	{ 0x08, 0x90 }, { 0x08, 0x98 }, { 0x08, 0xA1 }, { 0x08, 0xAA }, { 0x08, 0xB3 },
+	{ 0x08, 0xBC }, { 0x08, 0xC4 }, { 0x08, 0xCD }, { 0x08, 0xD6 }, { 0x08, 0xDF },
+	{ 0x08, 0xE7 }, { 0x08, 0xF0 }, { 0x08, 0xF8 }, { 0x09, 0x01 }, { 0x09, 0x0A },
+	{ 0x09, 0x12 }, { 0x09, 0x1B }, { 0x09, 0x23 }, { 0x09, 0x2C }, { 0x09, 0x34 },
+	{ 0x09, 0x3D }, { 0x09, 0x45 }, { 0x09, 0x4D }, { 0x09, 0x56 }, { 0x09, 0x5E },
+	{ 0x09, 0x66 }, { 0x09, 0x6F }, { 0x09, 0x77 }, { 0x09, 0x7F }, { 0x09, 0x88 },
+	{ 0x09, 0x90 }, { 0x09, 0x98 }, { 0x09, 0xA0 }, { 0x09, 0xA8 }, { 0x09, 0xB1 },
+	{ 0x09, 0xB9 }, { 0x09, 0xC1 }, { 0x09, 0xC9 }, { 0x09, 0xD1 }, { 0x09, 0xD9 },
+	{ 0x09, 0xE1 }, { 0x09, 0xE9 }, { 0x09, 0xF1 }, { 0x09, 0xF9 }, { 0x0A, 0x01 },
+	{ 0x0A, 0x09 }, { 0x0A, 0x11 }, { 0x0A, 0x19 }, { 0x0A, 0x21 }, { 0x0A, 0x29 },
+	{ 0x0A, 0x31 }, { 0x0A, 0x39 }, { 0x0A, 0x40 }, { 0x0A, 0x48 }, { 0x0A, 0x50 },
+	{ 0x0A, 0x58 }, { 0x0A, 0x60 }, { 0x0A, 0x67 }, { 0x0A, 0x6F }, { 0x0A, 0x77 },
+	{ 0x0A, 0x7F }, { 0x0A, 0x86 }, { 0x0A, 0x8E }, { 0x0A, 0x96 }, { 0x0A, 0x9D },
+	{ 0x0A, 0xA5 }, { 0x0A, 0xAD }, { 0x0A, 0xB4 }, { 0x0A, 0xBC }, { 0x0A, 0xC3 },
+	{ 0x0A, 0xCB }, { 0x0A, 0xD2 }, { 0x0A, 0xDA }, { 0x0A, 0xE1 }, { 0x0A, 0xE9 },
+	{ 0x0A, 0xF0 }, { 0x0A, 0xF8 }, { 0x0A, 0xFF }, { 0x0B, 0x07 }, { 0x0B, 0x0E },
+	{ 0x0B, 0x16 }, { 0x0B, 0x1D }, { 0x0B, 0x25 }, { 0x0B, 0x2C }, { 0x0B, 0x33 },
+	{ 0x0B, 0x3B }, { 0x0B, 0x42 }, { 0x0B, 0x49 }, { 0x0B, 0x51 }, { 0x0B, 0x58 },
+	{ 0x0B, 0x5F }, { 0x0B, 0x67 }, { 0x0B, 0x6E }, { 0x0B, 0x75 }, { 0x0B, 0x7C },
+	{ 0x0B, 0x84 }, { 0x0B, 0x8B }, { 0x0B, 0x92 }, { 0x0B, 0x99 }, { 0x0B, 0xA0 },
+	{ 0x0B, 0xA7 }, { 0x0B, 0xAF }, { 0x0B, 0xB6 }, { 0x0B, 0xBD }, { 0x0B, 0xC4 },
+	{ 0x0B, 0xCB }, { 0x0B, 0xD2 }, { 0x0B, 0xD9 }, { 0x0B, 0xE0 }, { 0x0B, 0xE7 },
+	{ 0x0B, 0xEF },
+	{ 0x0B, 0xFD }, { 0x0C, 0x01 }, { 0x0C, 0x06 }, { 0x0C, 0x0B }, { 0x0C, 0x0F },
+	{ 0x0C, 0x14 }, { 0x0C, 0x18 }, { 0x0C, 0x1D }, { 0x0C, 0x21 }, { 0x0C, 0x26 },
+	{ 0x0C, 0x2A }, { 0x0C, 0x2F }, { 0x0C, 0x33 }, { 0x0C, 0x38 }, { 0x0C, 0x3C },
+	{ 0x0C, 0x41 }, { 0x0C, 0x44 }, { 0x0C, 0x4A }, { 0x0C, 0x4D }, { 0x0C, 0x53 },
+	{ 0x0C, 0x56 }, { 0x0C, 0x5C }, { 0x0C, 0x5F }, { 0x0C, 0x65 }, { 0x0C, 0x68 },
+	{ 0x0C, 0x6D }, { 0x0C, 0x71 }, { 0x0C, 0x76 }, { 0x0C, 0x7A }, { 0x0C, 0x7F },
+	{ 0x0C, 0x83 }, { 0x0C, 0x88 }, { 0x0C, 0x8C }, { 0x0C, 0x91 }, { 0x0C, 0x95 },
+	{ 0x0C, 0x9A }, { 0x0C, 0x9E }, { 0x0C, 0xA3 }, { 0x0C, 0xA6 }, { 0x0C, 0xAC },
+	{ 0x0C, 0xAF }, { 0x0C, 0xB5 }, { 0x0C, 0xB8 }, { 0x0C, 0xBE }, { 0x0C, 0xC1 },
+	{ 0x0C, 0xC7 }, { 0x0C, 0xCA }, { 0x0C, 0xCF }, { 0x0C, 0xD3 }, { 0x0C, 0xD8 },
+	{ 0x0C, 0xDC }, { 0x0C, 0xE1 }, { 0x0C, 0xE5 }, { 0x0C, 0xEA }, { 0x0C, 0xEE },
+	{ 0x0C, 0xF3 }, { 0x0C, 0xF7 }, { 0x0C, 0xFC }, { 0x0D, 0x00 }, { 0x0D, 0x05 },
+	{ 0x0D, 0x08 }, { 0x0D, 0x0E }, { 0x0D, 0x11 }, { 0x0D, 0x17 }, { 0x0D, 0x1A },
+	{ 0x0D, 0x20 }, { 0x0D, 0x23 }, { 0x0D, 0x29 }, { 0x0D, 0x2C }, { 0x0D, 0x31 },
+	{ 0x0D, 0x35 }, { 0x0D, 0x3A }, { 0x0D, 0x3E }, { 0x0D, 0x43 }, { 0x0D, 0x47 },
+	{ 0x0D, 0x4C }, { 0x0D, 0x50 }, { 0x0D, 0x55 }, { 0x0D, 0x59 }, { 0x0D, 0x5E },
+	{ 0x0D, 0x62 }, { 0x0D, 0x67 }, { 0x0D, 0x6A }, { 0x0D, 0x70 }, { 0x0D, 0x73 },
+	{ 0x0D, 0x79 }, { 0x0D, 0x7C }, { 0x0D, 0x82 }, { 0x0D, 0x85 }, { 0x0D, 0x8B },
+	{ 0x0D, 0x8E }, { 0x0D, 0x93 }, { 0x0D, 0x97 }, { 0x0D, 0x9C }, { 0x0D, 0xA0 },
+	{ 0x0D, 0xA5 }, { 0x0D, 0xA9 }, { 0x0D, 0xAE }, { 0x0D, 0xB2 }, { 0x0D, 0xB7 },
+	{ 0x0D, 0xBB }, { 0x0D, 0xC0 }, { 0x0D, 0xC4 }, { 0x0D, 0xC9 }, { 0x0D, 0xCC },
+	{ 0x0D, 0xD2 }, { 0x0D, 0xD5 }, { 0x0D, 0xDB }, { 0x0D, 0xDE }, { 0x0D, 0xE4 },
+	{ 0x0D, 0xE7 }, { 0x0D, 0xED }, { 0x0D, 0xF0 }, { 0x0D, 0xF5 }, { 0x0D, 0xF9 },
+	{ 0x0D, 0xFE }, { 0x0E, 0x02 }, { 0x0E, 0x07 }, { 0x0E, 0x0D }, { 0x0E, 0x10 },
+	{ 0x0E, 0x16 }, { 0x0E, 0x19 }, { 0x0E, 0x1E }, { 0x0E, 0x22 }, { 0x0E, 0x27 },
+	{ 0x0E, 0x2B }, { 0x0E, 0x30 }, { 0x0E, 0x34 }, { 0x0E, 0x39 }, { 0x0E, 0x3D },
+	{ 0x0E, 0x42 }, { 0x0E, 0x46 }, { 0x0E, 0x4B }, { 0x0E, 0x4F }, { 0x0E, 0x54 },
+	{ 0x0E, 0x57 }, { 0x0E, 0x5D }, { 0x0E, 0x60 }, { 0x0E, 0x66 }, { 0x0E, 0x69 },
+	{ 0x0E, 0x6F }, { 0x0E, 0x72 }, { 0x0E, 0x78 }, { 0x0E, 0x7B }, { 0x0E, 0x80 },
+	{ 0x0E, 0x84 }, { 0x0E, 0x89 }, { 0x0E, 0x8D }, { 0x0E, 0x92 }, { 0x0E, 0x96 },
+	{ 0x0E, 0x9B }, { 0x0E, 0x9F }, { 0x0E, 0xA4 }, { 0x0E, 0xA8 }, { 0x0E, 0xAD },
+	{ 0x0E, 0xB1 }, { 0x0E, 0xB6 }, { 0x0E, 0xB9 }, { 0x0E, 0xBF }, { 0x0E, 0xC2 },
+	{ 0x0E, 0xC8 }, { 0x0E, 0xCB }, { 0x0E, 0xD1 }, { 0x0E, 0xD4 }, { 0x0E, 0xDA },
+	{ 0x0E, 0xDD }, { 0x0E, 0xE2 }, { 0x0E, 0xE6 }, { 0x0E, 0xEB }, { 0x0E, 0xEF },
+	{ 0x0E, 0xF4 }, { 0x0E, 0xF8 }, { 0x0E, 0xFD }, { 0x0F, 0x01 }, { 0x0F, 0x06 },
+	{ 0x0F, 0x0A }, { 0x0F, 0x0F }, { 0x0F, 0x13 }, { 0x0F, 0x18 }, { 0x0F, 0x1B },
+	{ 0x0F, 0x21 }, { 0x0F, 0x24 }, { 0x0F, 0x2A }, { 0x0F, 0x2D }, { 0x0F, 0x33 },
+	{ 0x0F, 0x36 }, { 0x0F, 0x3C }, { 0x0F, 0x3F }, { 0x0F, 0x44 }, { 0x0F, 0x48 },
+	{ 0x0F, 0x4D }, { 0x0F, 0x51 }, { 0x0F, 0x56 }, { 0x0F, 0x5A }, { 0x0F, 0x5F },
+	{ 0x0F, 0x63 }, { 0x0F, 0x68 }, { 0x0F, 0x6C }, { 0x0F, 0x71 }, { 0x0F, 0x75 },
+	{ 0x0F, 0x7A }, { 0x0F, 0x7D }, { 0x0F, 0x83 }, { 0x0F, 0x86 }, { 0x0F, 0x8C },
+	{ 0x0F, 0x8F }, { 0x0F, 0x95 }, { 0x0F, 0x98 }, { 0x0F, 0x9E }, { 0x0F, 0xA1 },
+	{ 0x0F, 0xA6 }, { 0x0F, 0xAA }, { 0x0F, 0xAF }, { 0x0F, 0xB3 }, { 0x0F, 0xB8 },
+	{ 0x0F, 0xBC }, { 0x0F, 0xC1 }, { 0x0F, 0xC5 }, { 0x0F, 0xCA }, { 0x0F, 0xCE },
+	{ 0x0F, 0xD3 }, { 0x0F, 0xD7 }, { 0x0F, 0xDC }, { 0x0F, 0xDF }, { 0x0F, 0xE5 },
+	{ 0x0F, 0xE8 }, { 0x0F, 0xEE }, { 0x0F, 0xF1 }, { 0x0F, 0xF7 }, { 0x0F, 0xFA },
+	{ 0x0F, 0xFF },
+};
+
+static u8 m54x_fps_1_table[][1] = {
+	[SW83109C_VRR_FPS_120] = { 0x8B },
+	[SW83109C_VRR_FPS_60] = { 0xAD },
+};
+
+static u8 m54x_fps_2_table[][1] = {
+	[SW83109C_VRR_FPS_120] = { 0x03 },
+	[SW83109C_VRR_FPS_60] = { 0x01 },
+};
+
+static u8 m54x_lpm_nit_table[4][2] = {
+	/* LPM 2NIT: */
+	{ 0x00, 0x03 },
+	/* LPM 10NIT */
+	{ 0x06, 0x60 },
+	/* LPM 30NIT */
+	{ 0x0B, 0xAC },
+	/* LPM 60NIT */
+	{ 0x0F, 0xFF },
+};
+
+static u8 m54x_aod_to_gm2_nit_table[4][2] = {
+	/* Normal 2NIT: */
+	{ 0x00, 0x03 },
+	/* Normal 10NIT */
+	{ 0x01, 0xFF },
+	/* Normal 30NIT */
+	{ 0x03, 0x84 },
+	/* Normal 60NIT */
+	{ 0x04, 0xE2 },
+};
+
+static u8 m54x_ffc_table[MAX_SW83109C_HS_CLK][13] = {
+	[SW83109C_HS_CLK_1443] = {
+		0x32, 0x01, 0x09, 0x01, 0x0A, 0x00, 0xFE, 0x00,
+		0xFF, 0x80, 0x8A, 0x00, 0x00,
+	},
+	[SW83109C_HS_CLK_1462] = {
+		0x32, 0x01, 0x0D, 0x01, 0x0E, 0x01, 0x02, 0x01,
+		0x03, 0x80, 0x8A, 0x00, 0x00,
+	},
+	[SW83109C_HS_CLK_1471] = {
+		0x32, 0x01, 0x0F, 0x01, 0x10, 0x01, 0x03, 0x01,
+		0x04, 0x80, 0x8A, 0x00, 0x00,
+	},
+};
+
+static u8 m54x_acl_onoff_table[MAX_SW83109C_ACL_DIM][1] = {
+	[SW83109C_ACL_DIM_OFF] = { 0x00 },
+	[SW83109C_ACL_DIM_ON] = { 0x40 },
+};
+
+static u8 m54x_acl_opr_table[MAX_SW83109C_ACL_OPR][4] = {
+	[SW83109C_ACL_OPR_0] = { },		                        // 0%
+	[SW83109C_ACL_OPR_1] = { 0x69, 0xE4, 0x60, 0xDC },		// 8%
+	[SW83109C_ACL_OPR_2] = { 0x59, 0xD3, 0x46, 0xBE },       // 15%
+};
+
+static struct maptbl m54x_maptbl[MAX_MAPTBL] = {
+	[GAMMA_MODE2_MAPTBL] = DEFINE_2D_MAPTBL(m54x_brt_table, init_gamma_mode2_brt_table, getidx_gamma_mode2_brt_table, copy_common_maptbl),
+	[TSET_MAPTBL] = DEFINE_0D_MAPTBL(m54x_tset_table, init_common_table, NULL, copy_tset_maptbl),
+	[FMEM_MAPTBL] = DEFINE_0D_MAPTBL(m54x_fmem_table, init_common_table, NULL, copy_fmem_maptbl),
+	[LPM_NIT_MAPTBL] = DEFINE_2D_MAPTBL(m54x_lpm_nit_table, init_lpm_brt_table, getidx_lpm_brt_table, copy_common_maptbl),
+	[FPS_1_MAPTBL] = DEFINE_2D_MAPTBL(m54x_fps_1_table, init_common_table, getidx_vrr_fps_table, copy_common_maptbl),
+	[FPS_2_MAPTBL] = DEFINE_2D_MAPTBL(m54x_fps_2_table, init_common_table, getidx_vrr_fps_table, copy_common_maptbl),
+	[FFC_MAPTBL] = DEFINE_2D_MAPTBL(m54x_ffc_table, init_common_table, sw83109c_getidx_ffc_table, copy_common_maptbl),
+	[ACL_ONOFF_MAPTBL] = DEFINE_2D_MAPTBL(m54x_acl_onoff_table, init_common_table, sw83109c_getidx_acl_onoff_table, copy_common_maptbl),
+	[ACL_OPR_MAPTBL] = DEFINE_2D_MAPTBL(m54x_acl_opr_table, init_common_table, sw83109c_getidx_acl_opr_table, copy_common_maptbl),
+	[AOD_TO_GAMMA_MODE2_MAPTBL] = DEFINE_2D_MAPTBL(m54x_aod_to_gm2_nit_table, init_common_table, getidx_lpm_brt_table, copy_common_maptbl),
+};
+
+
+/* ===================================================================================== */
+/* ============================== [SW83109C COMMAND TABLE] ============================== */
+/* ===================================================================================== */
+
+static unsigned char M54X_LEVEL0[] = {
+	0xB0, 0xCA
+};
+
+static unsigned char M54X_LEVEL1[] = {
+	0xB0, 0xA1
+};
+
+static unsigned char M54X_LEVEL2[] = {
+	0xB0, 0xA2
+};
+
+static unsigned char M54X_LEVEL3[] = {
+	0xB0, 0xA3
+};
+
+static unsigned char M54X_LEVEL4[] = {
+	0xB0, 0xA4
+};
+
+static unsigned char M54X_LEVEL5[] = {
+	0xB0, 0xA5
+};
+
+static unsigned char M54X_LEVEL6[] = {
+	0xB0, 0xA6
+};
+
+static unsigned char M54X_LEVEL7[] = {
+	0xB0, 0xA7
+};
+
+static unsigned char M54X_LEVEL8[] = {
+	0xB0, 0xA8
+};
+
+static DEFINE_STATIC_PACKET(m54x_level0, DSI_PKT_TYPE_WR, M54X_LEVEL0, 0);
+static DEFINE_STATIC_PACKET(m54x_level1, DSI_PKT_TYPE_WR, M54X_LEVEL1, 0);
+static DEFINE_STATIC_PACKET(m54x_level2, DSI_PKT_TYPE_WR, M54X_LEVEL2, 0);
+static DEFINE_STATIC_PACKET(m54x_level3, DSI_PKT_TYPE_WR, M54X_LEVEL3, 0);
+static DEFINE_STATIC_PACKET(m54x_level4, DSI_PKT_TYPE_WR, M54X_LEVEL4, 0);
+static DEFINE_STATIC_PACKET(m54x_level5, DSI_PKT_TYPE_WR, M54X_LEVEL5, 0);
+static DEFINE_STATIC_PACKET(m54x_level6, DSI_PKT_TYPE_WR, M54X_LEVEL6, 0);
+static DEFINE_STATIC_PACKET(m54x_level7, DSI_PKT_TYPE_WR, M54X_LEVEL7, 0);
+static DEFINE_STATIC_PACKET(m54x_level8, DSI_PKT_TYPE_WR, M54X_LEVEL8, 0);
+
+static u8 M54X_DSC[] = { 0xB6, 0x01 };
+static DEFINE_STATIC_PACKET(m54x_dsc, DSI_PKT_TYPE_WR, M54X_DSC, 0);
+
+static u8 M54X_PPS[] = {
+	//1080x2400 Slice Info : 540x60
+	0x11, 0x00, 0x00, 0x89, 0x30, 0x80, 0x09, 0x60,
+	0x04, 0x38, 0x00, 0x3C, 0x02, 0x1C, 0x02, 0x1C,
+	0x02, 0x00, 0x02, 0x0E, 0x00, 0x20, 0x05, 0xD2,
+	0x00, 0x07, 0x00, 0x0C, 0x01, 0xA1, 0x01, 0xB2,
+	0x18, 0x00, 0x10, 0xF0, 0x03, 0x0C, 0x20, 0x00,
+	0x06, 0x0B, 0x0B, 0x33, 0x0E, 0x1C, 0x2A, 0x38,
+	0x46, 0x54, 0x62, 0x69, 0x70, 0x77, 0x79, 0x7B,
+	0x7D, 0x7E, 0x01, 0x02, 0x01, 0x00, 0x09, 0x40,
+	0x09, 0xBE, 0x19, 0xFC, 0x19, 0xFA, 0x19, 0xF8,
+	0x1A, 0x38, 0x1A, 0x78, 0x1A, 0xB6, 0x2A, 0xF6,
+	0x2B, 0x34, 0x2B, 0x74, 0x3B, 0x74, 0x6B, 0xF4,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+static DEFINE_STATIC_PACKET(m54x_pps, DSI_PKT_TYPE_WR_PPS, M54X_PPS, 0);
+
+static u8 M54X_SLEEP_OUT[] = { 0x11 };
+static u8 M54X_SLEEP_IN[] = { 0x10 };
+static u8 M54X_DISPLAY_OFF[] = { 0x28 };
+static u8 M54X_DISPLAY_ON[] = { 0x29 };
+
+static u8 M54X_CASET[] = { 0x2A, 0x00, 0x00, 0x04, 0x37 };
+static u8 M54X_PASET[] = { 0x2B, 0x00, 0x00, 0x09, 0x5F };
+
+static u8 M54X_TE_ON[] = { 0x35, 0x00 };
+
+static DEFINE_STATIC_PACKET(m54x_sleep_out, DSI_PKT_TYPE_WR, M54X_SLEEP_OUT, 0);
+static DEFINE_STATIC_PACKET(m54x_sleep_in, DSI_PKT_TYPE_WR, M54X_SLEEP_IN, 0);
+static DEFINE_STATIC_PACKET(m54x_display_on, DSI_PKT_TYPE_WR, M54X_DISPLAY_ON, 0);
+static DEFINE_STATIC_PACKET(m54x_display_off, DSI_PKT_TYPE_WR, M54X_DISPLAY_OFF, 0);
+
+static DEFINE_STATIC_PACKET(m54x_caset, DSI_PKT_TYPE_WR, M54X_CASET, 0);
+static DEFINE_STATIC_PACKET(m54x_paset, DSI_PKT_TYPE_WR, M54X_PASET, 0);
+
+static DEFINE_STATIC_PACKET(m54x_te_on, DSI_PKT_TYPE_WR, M54X_TE_ON, 0);
+
+static unsigned char M54X_MIPI_DSI_CONFIG_1[] = {
+	0xB1,
+	0x11, 0x15, 0x00, 0x80, 0x00, 0x50,
+};
+static DEFINE_STATIC_PACKET(m54x_mipi_dsi_config_1, DSI_PKT_TYPE_WR, M54X_MIPI_DSI_CONFIG_1, 0);
+
+static unsigned char M54X_DISPLAY_TIME[] = {
+	0xB3,
+	0x22, 0x21, 0x22, 0x21, 0x4F, 0x4E, 0x22, 0x21,
+	0x26, 0x00, 0x09, 0x00, 0xB6, 0x09, 0x09, 0x00,
+	0x26, 0x00, 0x09, 0x00, 0x26, 0x00, 0x09, 0x00,
+	0x3B, 0x3B, 0x3C, 0x3C, 0x5F, 0x5F, 0x78, 0x78,
+	0x26, 0x00, 0x09, 0x00, 0x1E, 0x21, 0x2A, 0x00,
+	0x05, 0x00, 0x78
+};
+static DEFINE_STATIC_PACKET(m54x_display_time, DSI_PKT_TYPE_WR, M54X_DISPLAY_TIME, 0);
+
+static unsigned char M54X_PMIC_CONTROL[] = {
+	0xC1,
+	0xC0, 0x60, 0xB1, 0x3F, 0x1A, 0x99, 0x99, 0x00,
+	0x15, 0x00, 0x39, 0x07, 0x00, 0x00, 0x01, 0x01,
+	0x02, 0x99, 0x99, 0x99, 0x00, 0x00, 0x00, 0x01,
+	0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x40
+};
+static DEFINE_STATIC_PACKET(m54x_pmic_control, DSI_PKT_TYPE_WR, M54X_PMIC_CONTROL, 0);
+
+static unsigned char M54X_DYNAMIC_FRAME_RATE[] = {
+	0xCA,
+	0x00, 0xA0, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x60, 0x00, 0x01, 0x00,
+};
+static DEFINE_STATIC_PACKET(m54x_dynamic_frame_rate, DSI_PKT_TYPE_WR, M54X_DYNAMIC_FRAME_RATE, 0);
+
+static unsigned char M54X_TE_CONTROL[] = {
+	0xB9,
+	0x00, 0x30, 0x00, 0x00, 0x00, 0x41, 0x00, 0x09,
+	0x00, 0x3B, 0x00
+};
+static DEFINE_STATIC_PACKET(m54x_te_control, DSI_PKT_TYPE_WR, M54X_TE_CONTROL, 0);
+
+static unsigned char M54X_NO_OTP_LOADING[] = {
+	0xF7, 0xAC,
+};
+static DEFINE_STATIC_PACKET(m54x_no_otp_loading, DSI_PKT_TYPE_WR, M54X_NO_OTP_LOADING, 0);
+
+static unsigned char M54X_SYNC_ENABLE[] = {
+	0xFC,
+	0x04, 0x00, 0x00, 0x80, 0x81, 0xAB, 0x44,
+};
+static DEFINE_PKTUI(m54x_sync_enable, &m54x_maptbl[FPS_1_MAPTBL], 6);
+static DEFINE_VARIABLE_PACKET(m54x_sync_enable, DSI_PKT_TYPE_WR, M54X_SYNC_ENABLE, 0);
+
+static unsigned char M54X_PARTIAL_30[] = {
+	0x30,
+	0x00, 0x00, 0x09, 0x5F, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00,
+};
+static DEFINE_STATIC_PACKET(m54x_partial_30, DSI_PKT_TYPE_WR, M54X_PARTIAL_30, 0);
+
+static unsigned char M54X_PARTIAL_31[] = {
+	0x31,
+	0x00, 0x00, 0x04, 0x37,
+};
+static DEFINE_STATIC_PACKET(m54x_partial_31, DSI_PKT_TYPE_WR, M54X_PARTIAL_31, 0);
+
+static u8 M54X_TSET_SET[] = {
+	0x4D,
+	0x19,
+};
+static DEFINE_PKTUI(m54x_tset_set, &m54x_maptbl[TSET_MAPTBL], 1);
+static DEFINE_VARIABLE_PACKET(m54x_tset_set, DSI_PKT_TYPE_WR, M54X_TSET_SET, 0);
+
+static unsigned char M54X_DFR_ENABLE[] = {
+	0x3D,
+	0x00, 0x01,
+};
+static DEFINE_STATIC_PACKET(m54x_dfr_enable, DSI_PKT_TYPE_WR, M54X_DFR_ENABLE, 0);
+
+static unsigned char M54X_WRITE_CONTROL_DISPLAY_1[] = {
+	0x53,
+	0x00, 0x00,
+};
+static DEFINE_STATIC_PACKET(m54x_write_control_display_1, DSI_PKT_TYPE_WR, M54X_WRITE_CONTROL_DISPLAY_1, 0);
+
+static unsigned char M54X_WRITE_CONTROL_DISPLAY_2[] = {
+	0x55,
+	0x08, 0x00, 0x00, 0x00, 0x10, 0x00, 0x10, 0x00,
+	0x10, 0x00, 0x72, 0xD0, 0x1C, 0x70, 0xD0, 0xE1,
+};
+static DEFINE_STATIC_PACKET(m54x_write_control_display_2, DSI_PKT_TYPE_WR, M54X_WRITE_CONTROL_DISPLAY_2, 0);
+
+static unsigned char M54X_MIPI_DSI_CONFIG_2[] = {
+	0x68,
+	0x0E, 0x02,
+};
+static DEFINE_STATIC_PACKET(m54x_mipi_dsi_config_2, DSI_PKT_TYPE_WR, M54X_MIPI_DSI_CONFIG_2, 0);
+
+static unsigned char M54X_PCD2_OFF[] = {
+	0x69,
+	0x00, 0x00, 0x00, 0x00,
+};
+static DEFINE_STATIC_PACKET(m54x_pcd2_off, DSI_PKT_TYPE_WR, M54X_PCD2_OFF, 0);
+
+static unsigned char M54X_BC_DIM_ENABLE[] = {
+	0x53,
+	0x20, 0x00,
+};
+static DEFINE_STATIC_PACKET(m54x_bc_dim_enable, DSI_PKT_TYPE_WR, M54X_BC_DIM_ENABLE, 0);
+
+static unsigned char M54X_BC_DIM_DISABLE[] = {
+	0x53,
+	0x00, 0x00,
+};
+static DEFINE_STATIC_PACKET(m54x_bc_dim_disable, DSI_PKT_TYPE_WR, M54X_BC_DIM_DISABLE, 0);
+
+static unsigned char M54X_DIMMING_FRAME[] = {
+	0xB3,
+	0x20, 0xE2, 0x40, 0x00, 0x08, 0x06, 0x40, 0x00,
+};
+static DEFINE_STATIC_PACKET(m54x_dimming_frame, DSI_PKT_TYPE_WR, M54X_DIMMING_FRAME, 0);
+
+static unsigned char M54X_ACL_CONTROL[] = {
+	0x69,
+	0x40, 0x00, 0x00, 0x00
+};
+static DEFINE_PKTUI(m54x_acl_control, &m54x_maptbl[ACL_ONOFF_MAPTBL], 1);
+static DEFINE_VARIABLE_PACKET(m54x_acl_control, DSI_PKT_TYPE_WR, M54X_ACL_CONTROL, 0);
+
+static unsigned char M54X_ACL_DIM_FRAME[] = {
+	0xC7,
+	0x35, 0x0F, 0x77, 0x77, 0x77, 0x77,	0x00
+};
+static DEFINE_STATIC_PACKET(m54x_acl_dim_frame, DSI_PKT_TYPE_WR, M54X_ACL_DIM_FRAME, 0);
+
+static unsigned char M54X_ACL_MIN[] = {
+	0xC8,
+	0x05, 0xAF, 0x7F, 0xFF, 0x7F, 0xFF, 0x7F, 0xFF,
+	0x7F, 0xFF
+};
+static DEFINE_STATIC_PACKET(m54x_acl_min, DSI_PKT_TYPE_WR, M54X_ACL_MIN, 0);
+
+static unsigned char M54X_ACL_MAX[] = {
+	0xC9,
+	0x05, 0xAF,	0x7F, 0xFF, 0x7F, 0xFF, 0x69, 0xE4,
+	0x60, 0xDC
+};
+static DEFINE_PKTUI(m54x_acl_max, &m54x_maptbl[ACL_OPR_MAPTBL], 7);
+static DEFINE_VARIABLE_PACKET(m54x_acl_max, DSI_PKT_TYPE_WR, M54X_ACL_MAX, 0);
+
+static unsigned char M54X_PPA_SETTING[] = {
+	0xB1,
+	0x07, 0xF4, 0xFF, 0x3F, 0xFF, 0x3F, 0x7F, 0x87,
+	0x20, 0x80, 0x68, 0x88, 0x68, 0x89, 0x89, 0x69,
+	0x2F, 0xFF, 0x4F, 0xFF, 0x6E, 0xEE, 0xC8, 0xFF,
+	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+	0x24, 0xFF, 0xFF, 0x04, 0x04, 0x00, 0x37, 0x09,
+	0x00, 0x5F, 0xC0, 0xC0, 0x20
+};
+static DEFINE_STATIC_PACKET(m54x_ppa_setting, DSI_PKT_TYPE_WR, M54X_PPA_SETTING, 0);
+
+static unsigned char M54X_MIPI_CALIBRATION[] = {
+	0xF0,
+	0x32, 0x01, 0x09, 0x01, 0x0A, 0x00, 0xFE, 0x00,
+	0xFF, 0x80, 0x8A, 0x00, 0x00,
+};
+static DEFINE_PKTUI(m54x_mipi_calibration, &m54x_maptbl[FFC_MAPTBL], 1);
+static DEFINE_VARIABLE_PACKET(m54x_mipi_calibration, DSI_PKT_TYPE_WR, M54X_MIPI_CALIBRATION, 0);
+
+static unsigned char M54X_DIGITAL_GAMMA_ENABLE[] = {
+	0xB1,
+	0xE0, 0x00,
+};
+static DEFINE_STATIC_PACKET(m54x_digital_gamma_enable, DSI_PKT_TYPE_WR, M54X_DIGITAL_GAMMA_ENABLE, 0);
+
+static unsigned char M54X_WRITE_FR[] = {
+	0x57,
+	0x03,
+};
+static DEFINE_PKTUI(m54x_write_fr, &m54x_maptbl[FPS_2_MAPTBL], 1);
+static DEFINE_VARIABLE_PACKET(m54x_write_fr, DSI_PKT_TYPE_WR, M54X_WRITE_FR, 0);
+
+static unsigned char M54X_FMEM_TRIM_INC[] = {
+	0xEB,
+	0x7F, 0x10, 0x0F, 0xA0, 0x25, 0x2A, 0x04, 0x40,
+	0x10,
+};
+static DEFINE_PKTUI(m54x_fmem_trim_inc, &m54x_maptbl[FMEM_MAPTBL], 1);
+static DEFINE_VARIABLE_PACKET(m54x_fmem_trim_inc, DSI_PKT_TYPE_WR, M54X_FMEM_TRIM_INC, 0);
+
+static unsigned char M54X_FMEM_ERR_FLAG_INC[] = {
+	0x9F,
+	0x12, 0x10,
+};
+static DEFINE_STATIC_PACKET(m54x_fmem_err_flag_inc, DSI_PKT_TYPE_WR, M54X_FMEM_ERR_FLAG_INC, 0);
+
+static u8 M54X_WRDISBV[] = {
+	0x51, 0x04, 0xE2
+};
+static DEFINE_PKTUI(m54x_wrdisbv, &m54x_maptbl[GAMMA_MODE2_MAPTBL], 1);
+static DEFINE_VARIABLE_PACKET(m54x_wrdisbv, DSI_PKT_TYPE_WR, M54X_WRDISBV, 0);
+
+static u8 M54X_WRDISBV_AOD[] = {
+	0x51, 0x03, 0xFF
+};
+static DEFINE_PKTUI(m54x_wrdisbv_aod, &m54x_maptbl[AOD_TO_GAMMA_MODE2_MAPTBL], 1);
+static DEFINE_VARIABLE_PACKET(m54x_wrdisbv_aod, DSI_PKT_TYPE_WR, M54X_WRDISBV_AOD, 0);
+
+static u8 M54X_LPM_WRDISBV[] = {
+	0x51, 0x00, 0x03
+};
+static DEFINE_PKTUI(m54x_lpm_wrdisbv, &m54x_maptbl[LPM_NIT_MAPTBL], 1);
+static DEFINE_VARIABLE_PACKET(m54x_lpm_wrdisbv, DSI_PKT_TYPE_WR, M54X_LPM_WRDISBV, 0);
+
+static unsigned char M54X_LPM_ENTER[] = {
+	0x12,
+};
+static DEFINE_STATIC_PACKET(m54x_lpm_enter, DSI_PKT_TYPE_WR, M54X_LPM_ENTER, 0);
+
+static unsigned char M54X_LPM_EXIT[] = {
+	0x13,
+};
+static DEFINE_STATIC_PACKET(m54x_lpm_exit, DSI_PKT_TYPE_WR, M54X_LPM_EXIT, 0);
+
+static unsigned char M54X_LPM_TE_CONTROL[] = {
+	0xB9,
+	0x00, 0x30, 0x00, 0x00, 0x00, 0x41, 0x20, 0x09,
+	0x00, 0x57, 0x00
+};
+static DEFINE_STATIC_PACKET(m54x_lpm_te_control, DSI_PKT_TYPE_WR, M54X_LPM_TE_CONTROL, 0);
+
+static unsigned char M54X_MCD_ON_SET1[] = {
+	0x51,
+	0x00, 0x00
+};
+static unsigned char M54X_MCD_ON_SET2[] = {
+	0xB6,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+static unsigned char M54X_MCD_ON_SET3[] = {
+	0xB2,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+static unsigned char M54X_MCD_ON_SET4[] = {
+	0xBD,
+	0x0A, 0x0A, 0x09, 0x09, 0x07, 0x07, 0x0F, 0x12,
+	0x02, 0x02, 0x11, 0x00, 0x00, 0x11, 0x03, 0x03
+};
+static unsigned char M54X_MCD_ON_SET5[] = {
+	0xBE,
+	0x0A, 0x0A, 0x09, 0x09, 0x07, 0x07, 0x0F, 0x12,
+	0x02, 0x02, 0x11, 0x00, 0x00, 0x11, 0x03, 0x03
+};
+static unsigned char M54X_MCD_ON_SET6[] = {
+	0xB6,
+	0x90, 0x18, 0x78, 0x81, 0x88, 0x08, 0x81, 0x88,
+	0x08, 0x45, 0x73, 0x1D, 0x27, 0x53, 0x3D, 0x17,
+	0xC3, 0xCD, 0x18, 0x11, 0x7F, 0x18, 0x23, 0x6D,
+	0x18, 0x23, 0x6D, 0x18, 0x23, 0x6D
+};
+static DEFINE_STATIC_PACKET(m54x_mcd_on_set1, DSI_PKT_TYPE_WR, M54X_MCD_ON_SET1, 0);
+static DEFINE_STATIC_PACKET(m54x_mcd_on_set2, DSI_PKT_TYPE_WR, M54X_MCD_ON_SET2, 0);
+static DEFINE_STATIC_PACKET(m54x_mcd_on_set3, DSI_PKT_TYPE_WR, M54X_MCD_ON_SET3, 0);
+static DEFINE_STATIC_PACKET(m54x_mcd_on_set4, DSI_PKT_TYPE_WR, M54X_MCD_ON_SET4, 0);
+static DEFINE_STATIC_PACKET(m54x_mcd_on_set5, DSI_PKT_TYPE_WR, M54X_MCD_ON_SET5, 0);
+static DEFINE_STATIC_PACKET(m54x_mcd_on_set6, DSI_PKT_TYPE_WR, M54X_MCD_ON_SET6, 0);
+
+static unsigned char M54X_MCD_OFF_SET1[] = {
+	0x51,
+	0x0B, 0xEF
+};
+static unsigned char M54X_MCD_OFF_SET2[] = {
+	0xB2,
+	0x00, 0x10, 0xA0, 0x05, 0xA5, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+
+};
+static unsigned char M54X_MCD_OFF_SET3[] = {
+	0xBD,
+	0x0A, 0x0A, 0x09, 0x09, 0x07, 0x07, 0x12, 0x12,
+	0x02, 0x02, 0x12, 0x00, 0x00, 0x12, 0x03, 0x03
+};
+static unsigned char M54X_MCD_OFF_SET4[] = {
+	0xBE,
+	0x0A, 0x0A, 0x09, 0x09, 0x07, 0x07, 0x12, 0x12,
+	0x02, 0x02, 0x12, 0x00, 0x00, 0x12, 0x03, 0x03
+};
+static DEFINE_STATIC_PACKET(m54x_mcd_off_set1, DSI_PKT_TYPE_WR, M54X_MCD_OFF_SET1, 0);
+static DEFINE_STATIC_PACKET(m54x_mcd_off_set2, DSI_PKT_TYPE_WR, M54X_MCD_OFF_SET2, 0);
+static DEFINE_STATIC_PACKET(m54x_mcd_off_set3, DSI_PKT_TYPE_WR, M54X_MCD_OFF_SET3, 0);
+static DEFINE_STATIC_PACKET(m54x_mcd_off_set4, DSI_PKT_TYPE_WR, M54X_MCD_OFF_SET4, 0);
+
+static unsigned char M54X_BLACK_3FRAME[] = {
+	0xBA,
+	0x8F, 0x03, 0x03, 0x00, 0x00, 0x12, 0x12
+};
+static DEFINE_STATIC_PACKET(m54x_black_3frame, DSI_PKT_TYPE_WR, M54X_BLACK_3FRAME, 0);
+
+static unsigned char M54X_BLACK_OFF[] = {
+	0xBA,
+	0x8F, 0x03, 0x03, 0x00, 0x00, 0x12, 0x00
+};
+static DEFINE_STATIC_PACKET(m54x_black_off, DSI_PKT_TYPE_WR, M54X_BLACK_OFF, 0);
+
+static DEFINE_PANEL_MDELAY(m54x_wait_gamma_enable_8msec, 8);
+static DEFINE_PANEL_MDELAY(m54x_wait_pmic_42msec, 42);
+static DEFINE_PANEL_MDELAY(m54x_wait_sleep_in_83msec, 83);
+static DEFINE_PANEL_MDELAY(m54x_wait_sleep_out_50msec, 50);
+static DEFINE_PANEL_MDELAY(m54x_wait_34msec, 34);
+static DEFINE_PANEL_MDELAY(m54x_wait_8msec, 8);
+static DEFINE_PANEL_MDELAY(m54x_wait_16msec, 16);
+static DEFINE_PANEL_MDELAY(m54x_wait_5msec, 5);
+static DEFINE_PANEL_UDELAY(m54x_wait_1usec, 1);
+static DEFINE_COND(m54x_cond_is_panel_state_acl, is_panel_state_acl);
+static DEFINE_COND(m54x_cond_is_panel_state_not_lpm, is_panel_state_not_lpm);
+
+static struct seqinfo SEQINFO(m54x_set_bl_param_seq);
+#if defined(CONFIG_MCD_PANEL_FACTORY)
+static struct seqinfo SEQINFO(m54x_res_init_seq);
+#endif
+
+static void *m54x_init_cmdtbl[] = {
+	&DLYINFO(m54x_wait_5msec),
+	&PKTINFO(m54x_pps),
+	&PKTINFO(m54x_level1),
+	&PKTINFO(m54x_dsc),
+	&PKTINFO(m54x_mipi_dsi_config_1),
+	&PKTINFO(m54x_display_time),
+	&PKTINFO(m54x_black_3frame),
+	&PKTINFO(m54x_pmic_control),
+	&PKTINFO(m54x_dynamic_frame_rate),
+	&PKTINFO(m54x_level6),
+	&PKTINFO(m54x_no_otp_loading),
+	&PKTINFO(m54x_level0),
+	&PKTINFO(m54x_caset),
+	&PKTINFO(m54x_paset),
+	&PKTINFO(m54x_partial_30),
+	&PKTINFO(m54x_partial_31),
+	&PKTINFO(m54x_te_on),
+	&PKTINFO(m54x_dfr_enable),
+	&PKTINFO(m54x_tset_set),
+	&PKTINFO(m54x_write_control_display_2),
+	&PKTINFO(m54x_mipi_dsi_config_2),
+	&PKTINFO(m54x_pcd2_off),
+	&PKTINFO(m54x_te_control),
+	&PKTINFO(m54x_sleep_out),
+	&DLYINFO(m54x_wait_sleep_out_50msec),
+
+	&PKTINFO(m54x_level1),
+	&PKTINFO(m54x_mipi_calibration),
+	&PKTINFO(m54x_level3),
+	&PKTINFO(m54x_dimming_frame),
+	&PKTINFO(m54x_level7),
+	&PKTINFO(m54x_digital_gamma_enable),
+	&PKTINFO(m54x_level0),
+	&PKTINFO(m54x_bc_dim_enable),
+	&DLYINFO(m54x_wait_gamma_enable_8msec),
+
+	&PKTINFO(m54x_level0),
+	&PKTINFO(m54x_wrdisbv),
+	&PKTINFO(m54x_write_fr),
+	&PKTINFO(m54x_level6),
+	&PKTINFO(m54x_sync_enable),
+	&DLYINFO(m54x_wait_pmic_42msec),
+};
+
+static void *m54x_res_init_cmdtbl[] = {
+	&sw83109c_restbl[RES_ID],
+	&sw83109c_restbl[RES_COORDINATE],
+	&PKTINFO(m54x_level1),
+	&sw83109c_restbl[RES_DATE],
+	&PKTINFO(m54x_level6),
+	&sw83109c_restbl[RES_CODE],
+	&PKTINFO(m54x_level0),
+#ifdef CONFIG_DISPLAY_USE_INFO
+	&sw83109c_restbl[RES_ERR_FG],
+	&sw83109c_restbl[RES_DSI_ERR],
+#endif
+};
+#if defined(CONFIG_MCD_PANEL_FACTORY)
+static DEFINE_SEQINFO(m54x_res_init_seq, m54x_res_init_cmdtbl);
+#endif
+
+static void *m54x_set_bl_param_cmdtbl[] = {
+	&PKTINFO(m54x_level0),
+	&PKTINFO(m54x_bc_dim_enable),
+	&PKTINFO(m54x_level3),
+	&PKTINFO(m54x_dimming_frame),
+	&PKTINFO(m54x_wrdisbv),
+	&PKTINFO(m54x_acl_control),
+	&CONDINFO_IF(m54x_cond_is_panel_state_acl),
+		&PKTINFO(m54x_level5),
+		&PKTINFO(m54x_acl_dim_frame),
+		&PKTINFO(m54x_acl_min),
+		&PKTINFO(m54x_acl_max),
+	&CONDINFO_FI(m54x_cond_is_panel_state_acl),
+};
+
+static DEFINE_SEQINFO(m54x_set_bl_param_seq, m54x_set_bl_param_cmdtbl);
+
+static void *m54x_set_bl_cmdtbl[] = {
+	&SEQINFO(m54x_set_bl_param_seq),
+};
+
+static void *m54x_set_fps_cmdtbl[] = {
+	&CONDINFO_IF(m54x_cond_is_panel_state_not_lpm),
+		&PKTINFO(m54x_level6),
+		&PKTINFO(m54x_sync_enable),
+		&PKTINFO(m54x_level0),
+		&PKTINFO(m54x_write_fr),
+		&SEQINFO(m54x_set_bl_param_seq),
+	&CONDINFO_FI(m54x_cond_is_panel_state_not_lpm),
+};
+
+static void *m54x_fmem_test_write_cmdtbl[] = {
+	&PKTINFO(m54x_level6),
+	&sw83109c_restbl[RES_TRIM],
+	&PKTINFO(m54x_fmem_trim_inc),
+	&PKTINFO(m54x_level0),
+};
+
+static void *m54x_fmem_test_read_cmdtbl[] = {
+	&PKTINFO(m54x_level6),
+	&PKTINFO(m54x_fmem_err_flag_inc),
+	&sw83109c_restbl[RES_ERR_FLAG],
+	&PKTINFO(m54x_level0),
+};
+
+static void *m54x_display_on_cmdtbl[] = {
+	&PKTINFO(m54x_display_on),
+};
+
+static void *m54x_display_off_cmdtbl[] = {
+	&PKTINFO(m54x_display_off),
+};
+
+static void *m54x_exit_cmdtbl[] = {
+#ifdef CONFIG_DISPLAY_USE_INFO
+	&sw83109c_dmptbl[DUMP_RDDSM],
+	&sw83109c_dmptbl[DUMP_ERR_FG],
+	&sw83109c_dmptbl[DUMP_DSI_ERR],
+#endif
+	&PKTINFO(m54x_sleep_in),
+	&DLYINFO(m54x_wait_sleep_in_83msec),
+};
+
+static void *m54x_alpm_set_bl_cmdtbl[] = {
+	&PKTINFO(m54x_level1),
+	&PKTINFO(m54x_lpm_te_control),
+	&PKTINFO(m54x_black_3frame),
+	&PKTINFO(m54x_level0),
+	&PKTINFO(m54x_bc_dim_disable),
+	&PKTINFO(m54x_lpm_wrdisbv),
+	&PKTINFO(m54x_lpm_enter),
+};
+
+static void *m54x_alpm_exit_cmdtbl[] = {
+	&PKTINFO(m54x_level1),
+	&PKTINFO(m54x_te_control),
+	&PKTINFO(m54x_black_off),
+	&PKTINFO(m54x_level0),
+	&PKTINFO(m54x_wrdisbv_aod),
+	&PKTINFO(m54x_lpm_exit),
+	&DLYINFO(m54x_wait_34msec),
+};
+
+static void *m54x_alpm_exit_after_cmdtbl[] = {
+	&PKTINFO(m54x_level0),
+	&PKTINFO(m54x_bc_dim_enable),
+};
+
+static void *m54x_ffc_cmdtbl[] = {
+	&PKTINFO(m54x_level1),
+	&PKTINFO(m54x_mipi_calibration),
+};
+
+static void *m54x_dump_cmdtbl[] = {
+	&sw83109c_dmptbl[DUMP_RDDSM],
+	&sw83109c_dmptbl[DUMP_ERR_FG],
+	&sw83109c_dmptbl[DUMP_DSI_ERR],
+};
+
+static void *m54x_check_condition_cmdtbl[] = {
+};
+
+static void *m54x_dummy_cmdtbl[] = {
+	NULL,
+};
+
+static void *m54x_mcd_mode_on_cmdtbl[] = {
+	&PKTINFO(m54x_level0),
+	&PKTINFO(m54x_mcd_on_set1),
+	&PKTINFO(m54x_level3),
+	&PKTINFO(m54x_mcd_on_set2),
+	&DLYINFO(m54x_wait_8msec),
+	&PKTINFO(m54x_level2),
+	&PKTINFO(m54x_mcd_on_set3),
+	&PKTINFO(m54x_mcd_on_set4),
+	&PKTINFO(m54x_mcd_on_set5),
+	&PKTINFO(m54x_level3),
+	&PKTINFO(m54x_mcd_on_set6),
+};
+
+static void *m54x_mcd_mode_off_cmdtbl[] = {
+	&PKTINFO(m54x_level0),
+	&PKTINFO(m54x_mcd_off_set1),
+	&PKTINFO(m54x_level2),
+	&PKTINFO(m54x_mcd_off_set2),
+	&PKTINFO(m54x_mcd_off_set3),
+	&PKTINFO(m54x_mcd_off_set4),
+};
+
+static struct seqinfo m54x_seqtbl[] = {
+	SEQINFO_INIT(PANEL_INIT_SEQ, m54x_init_cmdtbl),
+	SEQINFO_INIT(PANEL_RES_INIT_SEQ, m54x_res_init_cmdtbl),
+	SEQINFO_INIT(PANEL_SET_BL_SEQ, m54x_set_bl_cmdtbl),
+	SEQINFO_INIT(PANEL_DISPLAY_ON_SEQ, m54x_display_on_cmdtbl),
+	SEQINFO_INIT(PANEL_DISPLAY_OFF_SEQ, m54x_display_off_cmdtbl),
+	SEQINFO_INIT(PANEL_EXIT_SEQ, m54x_exit_cmdtbl),
+	SEQINFO_INIT(PANEL_DISPLAY_MODE_SEQ, m54x_set_fps_cmdtbl),
+	SEQINFO_INIT(PANEL_ALPM_SET_BL_SEQ, m54x_alpm_set_bl_cmdtbl),
+	SEQINFO_INIT(PANEL_ALPM_EXIT_SEQ, m54x_alpm_exit_cmdtbl),
+	SEQINFO_INIT(PANEL_ALPM_EXIT_AFTER_SEQ, m54x_alpm_exit_after_cmdtbl),
+	SEQINFO_INIT(PANEL_FFC_SEQ, m54x_ffc_cmdtbl),
+	SEQINFO_INIT(PANEL_DUMP_SEQ, m54x_dump_cmdtbl),
+	SEQINFO_INIT(PANEL_CHECK_CONDITION_SEQ, m54x_check_condition_cmdtbl),
+	SEQINFO_INIT(PANEL_DUMMY_SEQ, m54x_dummy_cmdtbl),
+	SEQINFO_INIT(PANEL_FMEM_TEST_WRITE_SEQ, m54x_fmem_test_write_cmdtbl),
+	SEQINFO_INIT(PANEL_FMEM_TEST_READ_SEQ, m54x_fmem_test_read_cmdtbl),
+	SEQINFO_INIT(PANEL_MCD_ON_SEQ, m54x_mcd_mode_on_cmdtbl),
+	SEQINFO_INIT(PANEL_MCD_OFF_SEQ, m54x_mcd_mode_off_cmdtbl),
+};
+
+struct common_panel_info sw83109c_m54x_panel_info = {
+	.ldi_name = "sw83109c",
+	.name = "sw83109c_m54x",
+	.model = "AMS646YB01",
+	.vendor = "CSO",
+	.id = 0x022000,
+	.rev = 0,
+	.ddi_props = {
+		.err_fg_recovery = false,
+		.support_vrr = true,
+		.dft_dsi_freq = 1443000,
+	},
+	.ddi_ops = {
+		.get_cell_id = sw83109c_get_cell_id,
+		.get_manufacture_code = sw83109c_get_manufacture_code,
+		.get_manufacture_date = sw83109c_get_manufacture_date,
+	},
+#if defined(CONFIG_PANEL_DISPLAY_MODE)
+	.common_panel_modes = &sw83109c_m54x_display_modes,
+#endif
+	.mres = {
+		.nr_resol = ARRAY_SIZE(sw83109c_m54x_default_resol),
+		.resol = sw83109c_m54x_default_resol,
+	},
+	.vrrtbl = sw83109c_m54x_default_vrrtbl,
+	.nr_vrrtbl = ARRAY_SIZE(sw83109c_m54x_default_vrrtbl),
+	.maptbl = m54x_maptbl,
+	.nr_maptbl = ARRAY_SIZE(m54x_maptbl),
+	.seqtbl = m54x_seqtbl,
+	.nr_seqtbl = ARRAY_SIZE(m54x_seqtbl),
+	.rditbl = sw83109c_rditbl,
+	.nr_rditbl = ARRAY_SIZE(sw83109c_rditbl),
+	.restbl = sw83109c_restbl,
+	.nr_restbl = ARRAY_SIZE(sw83109c_restbl),
+	.dumpinfo = sw83109c_dmptbl,
+	.nr_dumpinfo = ARRAY_SIZE(sw83109c_dmptbl),
+#ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
+	.mdnie_tune = &sw83109c_m54x_mdnie_tune,
+#endif
+	.panel_dim_info = {
+		[PANEL_BL_SUBDEV_TYPE_DISP] = &sw83109c_m54x_panel_dimming_info,
+#ifdef CONFIG_SUPPORT_AOD_BL
+		[PANEL_BL_SUBDEV_TYPE_AOD] = &sw83109c_m54x_panel_aod_dimming_info,
+#endif
+	},
+#ifdef CONFIG_EXTEND_LIVE_CLOCK
+	.aod_tune = &sw83109c_m54x_aod,
+#endif
+};
+
+#endif /* __SW83109C_M54X_PANEL_H__ */
