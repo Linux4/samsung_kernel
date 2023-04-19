@@ -56,7 +56,7 @@
 #endif
 
 #ifdef CONFIG_PANEL_NOTIFY
-#include "../../video/fbdev/exynos/dpu30/panel_notify.h"
+#include <linux/panel_notify.h>
 #endif
 //#if defined (CONFIG_SENSORS_SSP_VLTE)
 //#include <linux/hall.h>

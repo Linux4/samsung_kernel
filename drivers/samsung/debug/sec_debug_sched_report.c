@@ -24,8 +24,10 @@
 #define TRACK_ADDRS_COUNT 16
 #define PRINT_LINE_MAX	512
 
+#define STORM_THREASH (100*NSEC_PER_USEC)
 #define LOCKUP_THREAH (5*NSEC_PER_SEC)
 #define BUSY_TRHEASH (20*NSEC_PER_SEC)
+#define LATEST_IRQ_THREASH NSEC_PER_SEC
 
 #define BUSY_IRQ_SET_HASH_BITS 4
 
@@ -53,6 +55,7 @@ do {										\
 
 enum sched_issue_type {
 	SCHED_ISSUE_NONE,
+	SCHED_ISSUE_IDLE,
 	SCHED_ISSUE_HOTPLUGOUT,
 	SCHED_ISSUE_ERROR,
 	SCHED_ISSUE_LOCKUP,
@@ -164,7 +167,7 @@ static void __enable_auto_comment(void *buf)
 	}
 }
 
-static void secdbg_get_busiest_irq(struct lockup_info *info, int cpu)
+static int secdbg_get_busiest_irq(struct lockup_info *info, int cpu, unsigned long long curr_time)
 {
 	long start, len, max;
 	struct irq_log *irq;
@@ -172,6 +175,7 @@ static void secdbg_get_busiest_irq(struct lockup_info *info, int cpu)
 	struct busy_irq *busiest_irq = NULL;
 	int i, alloc;
 	struct hlist_node *tmp;
+	unsigned long long avg_period;
 
 	hash_init(busy_irq_hash);
 
@@ -200,7 +204,7 @@ static void secdbg_get_busiest_irq(struct lockup_info *info, int cpu)
 			b_irq = kzalloc(sizeof(*b_irq), GFP_ATOMIC);
 
 			if (!b_irq)
-				break;
+				return -ENOMEM;
 
 			b_irq->irq = irq->irq;
 			b_irq->fn = irq->fn;
@@ -218,15 +222,23 @@ static void secdbg_get_busiest_irq(struct lockup_info *info, int cpu)
 			busiest_irq = b_irq;
 	}
 
+	avg_period = (busiest_irq->occurrences == 0) ?
+		0 : busiest_irq->total_duration / busiest_irq->occurrences;
+
+	if (avg_period > STORM_THREASH ||
+		curr_time - busiest_irq->last_time > LATEST_IRQ_THREASH)
+		return 0;
+
 	info->irq_info.irq = busiest_irq->irq;
 	info->irq_info.fn = busiest_irq->fn;
-	info->irq_info.avg_period = (busiest_irq->occurrences == 0) ?
-		0 : busiest_irq->total_duration / busiest_irq->occurrences;
+	info->irq_info.avg_period = avg_period;
 
 	hash_for_each_safe(busy_irq_hash, i, tmp, b_irq, hlist) {
 		hash_del(&b_irq->hlist);
 		kfree(b_irq);
 	}
+
+	return 1;
 }
 
 static enum sched_issue_type secdbg_sched_report_check_lockup(unsigned int cpu, struct sched_report *sr)
@@ -278,9 +290,6 @@ static enum sched_issue_type secdbg_sched_report_check_lockup(unsigned int cpu, 
 	if (!last_task)
 		return SCHED_ISSUE_ERROR;
 
-	if (last_task->pid == 0)
-		return SCHED_ISSUE_NONE;
-
 	task_delay_time = (curr_time > last_task->time) ? curr_time - last_task->time : 0;
 
 	if (last_task->time < curr_time &&
@@ -288,10 +297,12 @@ static enum sched_issue_type secdbg_sched_report_check_lockup(unsigned int cpu, 
 		li->time = last_task->time;
 		li->delay_time = task_delay_time;
 
-		if (irq_delay_time > thresh) {
+		if (irq_delay_time > thresh || secdbg_get_busiest_irq(li, cpu, curr_time) <= 0) {
 
-			if (cpu_rq(cpu)->stop == last_task->task)
+			if (irq_delay_time > thresh && cpu_rq(cpu)->stop == last_task->task)
 				return SCHED_ISSUE_HOTPLUGOUT;
+			else if (irq_delay_time <= thresh && last_task->pid == 0)
+				return SCHED_ISSUE_IDLE;
 
 			strncpy(li->task_info.task_comm,
 				last_task->task_comm,
@@ -303,7 +314,6 @@ static enum sched_issue_type secdbg_sched_report_check_lockup(unsigned int cpu, 
 			li->task_info.group_leader[TASK_COMM_LEN - 1] = '\0';
 			li->lockup_type = HL_TASK_STUCK;
 		} else {
-			secdbg_get_busiest_irq(li, cpu);
 			li->lockup_type = HL_IRQ_STORM;
 		}
 		return SCHED_ISSUE_LOCKUP;

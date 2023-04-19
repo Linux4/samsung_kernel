@@ -67,31 +67,31 @@ struct gf_ioc_transfer_raw {
 #endif
 
 /* define commands */
-#define GF_IOC_INIT             		_IOR(GF_IOC_MAGIC, 0, u8)
-#define GF_IOC_RESET            		_IO(GF_IOC_MAGIC, 2)
-#define GF_IOC_ENABLE_SPI_CLK   		_IOW(GF_IOC_MAGIC, 5, uint32_t)
-#define GF_IOC_DISABLE_SPI_CLK  		_IO(GF_IOC_MAGIC, 6)
-#define GF_IOC_ENABLE_POWER     		_IO(GF_IOC_MAGIC, 7)
-#define GF_IOC_DISABLE_POWER 			_IO(GF_IOC_MAGIC, 8)
-#define GF_IOC_GET_FW_INFO 				_IOR(GF_IOC_MAGIC, 11, u8)
+#define GF_IOC_INIT                     _IOR(GF_IOC_MAGIC, 0, u8)
+#define GF_IOC_RESET                    _IO(GF_IOC_MAGIC, 2)
+#define GF_IOC_ENABLE_SPI_CLK           _IOW(GF_IOC_MAGIC, 5, uint32_t)
+#define GF_IOC_DISABLE_SPI_CLK          _IO(GF_IOC_MAGIC, 6)
+#define GF_IOC_ENABLE_POWER             _IO(GF_IOC_MAGIC, 7)
+#define GF_IOC_DISABLE_POWER            _IO(GF_IOC_MAGIC, 8)
+#define GF_IOC_GET_FW_INFO              _IOR(GF_IOC_MAGIC, 11, u8)
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
-#define GF_IOC_TRANSFER_CMD 			_IOWR(GF_IOC_MAGIC, 15, struct gf_ioc_transfer)
-#define GF_IOC_TRANSFER_RAW_CMD 		_IOWR(GF_IOC_MAGIC, 16, struct gf_ioc_transfer_raw)
+#define GF_IOC_TRANSFER_CMD             _IOWR(GF_IOC_MAGIC, 15, struct gf_ioc_transfer)
+#define GF_IOC_TRANSFER_RAW_CMD         _IOWR(GF_IOC_MAGIC, 16, struct gf_ioc_transfer_raw)
 #else
-#define GF_IOC_SET_SENSOR_TYPE 			_IOW(GF_IOC_MAGIC, 18, unsigned int)
+#define GF_IOC_SET_SENSOR_TYPE          _IOW(GF_IOC_MAGIC, 18, unsigned int)
 #endif
-#define GF_IOC_POWER_CONTROL 			_IOW(GF_IOC_MAGIC, 19, unsigned int)
-#define GF_IOC_SPEEDUP 					_IOW(GF_IOC_MAGIC, 20, unsigned int)
-#define GF_MODEL_INFO 					_IOR(GF_IOC_MAGIC, 23, unsigned int)
-#define GF_IOC_RESERVED01 				_IO(GF_IOC_MAGIC, 1)
-#define GF_IOC_RESERVED02 				_IO(GF_IOC_MAGIC, 3)
-#define GF_IOC_RESERVED03 				_IO(GF_IOC_MAGIC, 4)
-#define GF_IOC_RESERVED04 				_IO(GF_IOC_MAGIC, 10)
-#define GF_IOC_RESERVED05 				_IO(GF_IOC_MAGIC, 12)
-#define GF_IOC_RESERVED06 				_IOW(GF_IOC_MAGIC, 21, unsigned int)
-#define GF_IOC_RESERVED07 				_IOR(GF_IOC_MAGIC, 22, unsigned int)
+#define GF_IOC_POWER_CONTROL            _IOW(GF_IOC_MAGIC, 19, unsigned int)
+#define GF_IOC_SPEEDUP                  _IOW(GF_IOC_MAGIC, 20, unsigned int)
+#define GF_MODEL_INFO                   _IOR(GF_IOC_MAGIC, 23, unsigned int)
+#define GF_IOC_RESERVED01               _IO(GF_IOC_MAGIC, 1)
+#define GF_IOC_RESERVED02               _IO(GF_IOC_MAGIC, 3)
+#define GF_IOC_RESERVED03               _IO(GF_IOC_MAGIC, 4)
+#define GF_IOC_RESERVED04               _IO(GF_IOC_MAGIC, 10)
+#define GF_IOC_RESERVED05               _IO(GF_IOC_MAGIC, 12)
+#define GF_IOC_RESERVED06               _IOW(GF_IOC_MAGIC, 21, unsigned int)
+#define GF_IOC_RESERVED07               _IOR(GF_IOC_MAGIC, 22, unsigned int)
 
-#define GF_IOC_MAXNR 					24 /* THIS MACRO IS NOT USED NOW... */
+#define GF_IOC_MAXNR                    24 /* THIS MACRO IS NOT USED NOW... */
 
 struct gf_device {
 	dev_t devno;
@@ -116,7 +116,6 @@ struct gf_device {
 #endif
 	int sensortype;
 	int reset_count;
-	int interrupt_count;
 	bool ldo_onoff;
 	bool tz_mode;
 	const char *chipid;
@@ -151,5 +150,10 @@ int gw9558_ioctl_transfer_raw_cmd(struct gf_device *gf_dev,
 int gw9558_init_buffer(struct gf_device *gf_dev);
 int gw9558_free_buffer(struct gf_device *gf_dev);
 #endif
+
+extern int fingerprint_register(struct device *dev, void *drvdata,
+	struct device_attribute *attributes[], char *name);
+extern void fingerprint_unregister(struct device *dev,
+	struct device_attribute *attributes[]);
 
 #endif	/* __GF_SPI_DRIVER_H */

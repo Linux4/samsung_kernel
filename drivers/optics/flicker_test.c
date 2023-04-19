@@ -168,6 +168,10 @@ void als_eol_set_env(bool torch, int intensity)
 	}
 	printk(KERN_INFO "%s - gpio:%d intensity:%d(%d) led_mode:%d",
 			__func__, env.gpio_led, intensity, env.led_curr, env.led_mode);
+#elif IS_ENABLED(CONFIG_LEDS_SM5714)
+	env.gpio_led = gpio_torch;
+	env.led_curr = (intensity-50)/25;
+	printk(KERN_INFO "%s - gpio:%d", __func__, env.gpio_led);
 #elif IS_ENABLED(CONFIG_LEDS_KTD2692)
 	// KTD don't use gpios
 	env.gpio_led = -1;
@@ -176,6 +180,8 @@ void als_eol_set_env(bool torch, int intensity)
 
 	printk(KERN_INFO "%s - gpio:%d intensity:%d(%d) led_mode:%d",
 			__func__, env.gpio_led, intensity, env.led_curr, env.led_mode);
+#else
+	printk(KERN_INFO "%s - env not set");
 #endif
 	env.led_state = 1;
 }
@@ -274,6 +280,9 @@ void __als_set_led_mode(int current_index)
 // KTD2692 doesn't need this func.
 #if IS_ENABLED(CONFIG_LEDS_S2MPB02)
 	s2mpb02_led_en(env.led_mode, current_index, S2MPB02_LED_TURN_WAY_GPIO);
+#elif IS_ENABLED(CONFIG_LEDS_SM5714)
+	/* 50~225mA, 25mA step */
+	sm5714_fled_torch_gpio(current_index);
 #endif
 }
 
@@ -289,7 +298,9 @@ int __als_flickering_start()
 	data->eol_state = EOL_STATE_INIT;
 	data->eol_enable = 1;
 
+#if IS_ENABLED(CONFIG_LEDS_S2MPB02)
 	__als_set_led_mode(0);
+#endif
 	__als_set_led_mode(env.led_curr);
 
 
@@ -312,7 +323,7 @@ int __als_flickering_start()
 
 void led_work_func(struct work_struct *work)
 {
-#if IS_ENABLED(CONFIG_LEDS_S2MPB02)
+#if IS_ENABLED(CONFIG_LEDS_S2MPB02) || IS_ENABLED(CONFIG_LEDS_SM5714)
 	gpio_direction_output(env.gpio_led, env.led_state);
 #elif IS_ENABLED(CONFIG_LEDS_KTD2692)
 	ktd2692_led_mode_ctrl(env.led_mode, env.led_state * env.led_curr);
@@ -354,7 +365,7 @@ int als_eol_parse_dt(void)
 		printk(KERN_ERR "Can't find led node");
 		return -ENODEV;
 	}
-#if IS_ENABLED(CONFIG_LEDS_S2MPB02)
+#if IS_ENABLED(CONFIG_LEDS_S2MPB02) || IS_ENABLED(CONFIG_LEDS_SM5714)
 	gpio_torch = of_get_named_gpio(np, "torch-gpio", 0);
 	gpio_flash = of_get_named_gpio(np, "flash-gpio", 0);
 #endif

@@ -34,71 +34,81 @@
 
 #include "nfc_logger.h"
 
-#define BUF_SIZE	SZ_256K
+#define BUF_SIZE	SZ_128K
+#define BOOT_LOG_SIZE	2400
 #define MAX_STR_LEN	160
 #define PROC_FILE_NAME	"nfclog"
 #define LOG_PREFIX	"sec-nfc"
 #define PRINT_DATE_FREQ	20
 
-static char log_buf[BUF_SIZE];
+static char nfc_log_buf[BUF_SIZE];
 static unsigned int g_curpos;
 static int is_nfc_logger_init;
 static int is_buf_full;
-static int log_max_count = -1;
+static int g_log_max_count = -1;
 static void (*print_nfc_status)(void);
 struct proc_dir_entry *g_entry;
 
 /* set max log count, if count is -1, no limit */
 void nfc_logger_set_max_count(int count)
 {
-	log_max_count = count;
+	g_log_max_count = count;
 }
 
-void nfc_logger_print_date_time(void)
+void nfc_logger_get_date_time(char *date_time, int size)
 {
-	char tmp[64] = {0x0, };
 	struct timespec64 ts;
 	struct tm tm;
 	unsigned long sec;
+	int len = 0;
 
 	ktime_get_real_ts64(&ts);
 	sec = ts.tv_sec - (sys_tz.tz_minuteswest * 60);
 	time64_to_tm(sec, 0, &tm);
-	snprintf(tmp, sizeof(tmp), "@%02d-%02d %02d:%02d:%02d.%03lu", tm.tm_mon + 1, tm.tm_mday,
+	len = snprintf(date_time, size, "%02d-%02d %02d:%02d:%02d.%03lu", tm.tm_mon + 1, tm.tm_mday,
 				tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec / 1000000);
 
 #ifdef CONFIG_SEC_NFC_LOGGER_ADD_ACPM_LOG
-	nfc_logger_print("%s, rtc: %u\n", tmp, nfc_logger_acpm_get_rtc_time());
-#else
-	nfc_logger_print("%s\n", tmp);
+	snprintf(date_time + len, size - len, ", rtc: %u", date_time,
+			nfc_logger_acpm_get_rtc_time());
 #endif
 }
 
-void nfc_logger_print(const char *fmt, ...)
+void nfc_logger_print(char *fmt, ...)
 {
 	int len;
 	va_list args;
 	char buf[MAX_STR_LEN] = {0, };
 	u64 time;
-	unsigned long nsec;
-	volatile unsigned int curpos;
+	u32 nsec;
+	unsigned int curpos;
 	static unsigned int log_count = PRINT_DATE_FREQ;
+	char date_time[64] = {0, };
+	bool date_time_print = false;
 
 	if (!is_nfc_logger_init)
 		return;
 
-	if (log_max_count == 0)
+	if (g_log_max_count == 0)
 		return;
-	else if (log_max_count > 0)
-		log_max_count--;
+	else if (g_log_max_count > 0)
+		g_log_max_count--;
 
 	if (--log_count == 0) {
-		nfc_logger_print_date_time();
+		nfc_logger_get_date_time(date_time, sizeof(date_time));
 		log_count = PRINT_DATE_FREQ;
+		date_time_print = true;
 	}
+
 	time = local_clock();
 	nsec = do_div(time, 1000000000);
-	len = snprintf(buf, sizeof(buf), "[%5lu.%06ld] ", (unsigned long)time, nsec / 1000);
+	if (g_curpos < BOOT_LOG_SIZE)
+		len = snprintf(buf, sizeof(buf), "[B%4llu.%06ld] ", time, nsec / 1000);
+	else
+		len = snprintf(buf, sizeof(buf), "[%5llu.%06ld] ", time, nsec / 1000);
+
+	if (date_time_print)
+		len += snprintf(buf + len, sizeof(buf) - len, "[%s] ", date_time);
 
 	va_start(args, fmt);
 	len += vsnprintf(buf + len, MAX_STR_LEN - len, fmt, args);
@@ -107,12 +117,12 @@ void nfc_logger_print(const char *fmt, ...)
 	if (len > MAX_STR_LEN)
 		len = MAX_STR_LEN;
 
-	curpos = g_curpos; 
-	if (curpos + len >= BUF_SIZE) { 
-		g_curpos = curpos = 0; 
+	curpos = g_curpos;
+	if (curpos + len >= BUF_SIZE) {
+		g_curpos = curpos = BOOT_LOG_SIZE;
 		is_buf_full = 1;
 	}
-	memcpy(log_buf + curpos, buf, len);
+	memcpy(nfc_log_buf + curpos, buf, len);
 	g_curpos += len;
 }
 
@@ -132,10 +142,10 @@ void nfc_print_hex_dump(void *buf, void *pref, size_t size)
 	if (!is_nfc_logger_init)
 		return;
 
-	if (log_max_count == 0)
+	if (g_log_max_count == 0)
 		return;
-	else if (log_max_count > 0)
-		log_max_count--;
+	else if (g_log_max_count > 0)
+		g_log_max_count--;
 
 	for (i = 0; i < size; i++) {
 		len = snprintf(ptmp, 4, "%02x ", *ptr++);
@@ -158,7 +168,7 @@ static ssize_t nfc_logger_read(struct file *file, char __user *buf, size_t len, 
 	loff_t pos = *offset;
 	ssize_t count;
 	size_t size;
-	volatile unsigned int curpos = g_curpos;
+	unsigned int curpos = g_curpos;
 
 	if (is_buf_full || BUF_SIZE <= curpos)
 		size = BUF_SIZE;
@@ -176,7 +186,7 @@ static ssize_t nfc_logger_read(struct file *file, char __user *buf, size_t len, 
 	if ((pos + count) > size)
 		count = size - pos;
 
-	if (copy_to_user(buf, log_buf + pos, count))
+	if (copy_to_user(buf, nfc_log_buf + pos, count))
 		return -EFAULT;
 
 	*offset += count;

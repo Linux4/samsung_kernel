@@ -267,6 +267,8 @@ enum dynamic_tcm_config_id {
 enum custom_dynamic_config_id {
 	DC_TSP_SNR_TEST_FRAMES = 0xe1,
 	DC_TSP_SET_TEMP = 0xe4,
+	DC_TSP_ENABLE_POCKET_MODE = 0xe5,
+	DC_TSP_ENABLE_LOW_SENSITIVITY_MODE = 0xe6,
 };
 
 
@@ -456,6 +458,7 @@ enum custom_command {
 	CMD_GET_FACE_AREA = 0xc3,
 	CMD_SET_GRIP = 0xe6,
 	CMD_ACCESS_CALIB_DATA_FROM_NVM = 0xe7,
+	CMD_SET_IMMEDIATE_DYNAMIC_CONFIG = 0xe8,
 };
 
 enum custom_report_type {
@@ -513,7 +516,8 @@ enum tcm_test_code {
 	TEST_PID61_MISCAL = 0x3D,
 	TEST_PID65_MISCALDATA_NORMAL = 0x41,
 	TEST_PID66_MISCALDATA_NOISE = 0x42,
-	TEST_PID67_MISCALDATA_WET = 0x43,	
+	TEST_PID67_MISCALDATA_WET = 0x43,
+	TEST_PID198_PROX_INTENSITY = 0xC6,
 	TEST_PID_MAX,
 };
 

@@ -693,12 +693,15 @@ struct synaptics_ts_data {
 	bool fw_corruption;
 	bool glove_enabled;
 	u8 brush_mode;
+	bool cover_closed;
 
 	int resolution_x;
 	int resolution_y;
 
 	u8 touch_opmode;
 	u8 scan_mode;
+
+	bool support_immediate_cmd;
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 	atomic_t secure_enabled;
@@ -769,6 +772,9 @@ struct synaptics_ts_data {
 	unsigned int delay_ms_resp);
 	int (*read_message)(struct synaptics_ts_data *ts,
 		unsigned char *status_report_code);
+	int (*write_immediate_message)(struct synaptics_ts_data *ts,
+		unsigned char command, unsigned char *payload,
+		unsigned int payload_len);
 };
 
 //temporily
@@ -1575,6 +1581,7 @@ int synaptics_ts_set_fod_rect(struct synaptics_ts_data *ts);
 int synaptics_ts_set_touchable_area(struct synaptics_ts_data *ts);
 int synaptics_ts_ear_detect_enable(struct synaptics_ts_data *ts, u8 enable);
 int synaptics_ts_pocket_mode_enable(struct synaptics_ts_data *ts, u8 enable);
+int synaptics_ts_low_sensitivity_mode_enable(struct synaptics_ts_data *ts, u8 enable);
 int synaptics_ts_set_charger_mode(struct device *dev, bool on);
 void synaptics_ts_set_cover_type(struct synaptics_ts_data *ts, bool enable);
 int synaptics_ts_set_press_property(struct synaptics_ts_data *ts);
@@ -1602,8 +1609,13 @@ int synaptics_ts_send_command(struct synaptics_ts_data *ts,
 			unsigned char command, unsigned char *payload,
 			unsigned int payload_length, unsigned char *resp_code,
 			struct synaptics_ts_buffer *resp, unsigned int delay_ms_resp);
+int synaptics_ts_send_immediate_command(struct synaptics_ts_data *ts,
+			unsigned char command, unsigned char *payload,
+			unsigned int payload_length);
 int synaptics_ts_calibration(struct synaptics_ts_data *ts);
 int synaptics_ts_set_dynamic_config(struct synaptics_ts_data *ts,
+		unsigned char id, unsigned short value);
+int synaptics_ts_set_immediate_dynamic_config(struct synaptics_ts_data *ts,
 		unsigned char id, unsigned short value);
 int synaptics_ts_clear_buffer(struct synaptics_ts_data *ts);
 int synaptics_tclm_data_read(struct i2c_client *client, int address);

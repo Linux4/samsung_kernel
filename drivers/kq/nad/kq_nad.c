@@ -358,8 +358,8 @@ static bool kq_nad_state_is_rtc_timeout(void)
 
 static bool kq_nad_state_is_nad_wdt(void)
 {
-	if ((kq_sec_nad_env.smd.inform1 == KQ_NAD_MAGIC_FIRST)
-		&& (kq_sec_nad_env.smd_second.inform1 == KQ_NAD_MAGIC_SECOND))
+	if ((((kq_sec_nad_env.smd.inform1 >> KQ_NAD_INFORM1_MAGIC) & 0xFF) == KQ_NAD_FIRST_START_MAGIC)
+		&& (((kq_sec_nad_env.smd_second.inform1 >> KQ_NAD_INFORM1_MAGIC) & 0xFF) == KQ_NAD_SECOND_START_MAGIC))
 			return true;
 	return false;
 }
@@ -1742,8 +1742,8 @@ static bool __init kq_nad_if_sudden_poweroff_set_result_pass(
 static bool __init kq_nad_if_nad_wdt_set_result_pass(
 	struct kq_nad_mparam_inform *nminfo)
 {
-	if ((nminfo->inform1 == KQ_NAD_MAGIC_FIRST)
-		|| (nminfo->inform1 == KQ_NAD_MAGIC_SECOND)) {
+	if ((((nminfo->inform1 >> KQ_NAD_INFORM1_MAGIC) & 0xFF) == KQ_NAD_FIRST_START_MAGIC)
+		|| (((nminfo->inform1 >> KQ_NAD_INFORM1_MAGIC) & 0xFF) == KQ_NAD_SECOND_START_MAGIC)) {
 		nminfo->result = KQ_NAD_RESULT_PASS;
 		nminfo->fail.das = KQ_NAD_DAS_NAME_NONE;
 		nminfo->fail.block = KQ_NAD_BLOCK_NONE;
@@ -1766,7 +1766,7 @@ static void __init kq_nad_set_update_first_fail_info(struct kq_nad_mparam_inform
 	nminfo->fail.level = (nminfo->inform1 >> 8) & 0x1F;
 	nminfo->fail.vector = (nminfo->inform1 >> 24) & 0x3F;
 #else
-#if IS_ENABLED(CONFIG_SOC_EXYNOS3830)
+#if IS_ENABLED(CONFIG_SOC_EXYNOS3830) || IS_ENABLED(CONFIG_SOC_S5E3830)
 	nminfo->fail.block = (nminfo->inform1 >> 5) & 0x7;
 #else
 	nminfo->fail.block = (nminfo->inform1 >> 8) & 0xF;
@@ -1794,7 +1794,7 @@ static void __init kq_nad_set_update_second_fail_info(struct kq_nad_mparam_infor
 	nminfo->fail.level = (nminfo->inform3 >> 8) & 0x1F;
 	nminfo->fail.vector = (nminfo->inform3 >> 24) & 0x3F;
 #else
-#if IS_ENABLED(CONFIG_SOC_EXYNOS3830)
+#if IS_ENABLED(CONFIG_SOC_EXYNOS3830) || IS_ENABLED(CONFIG_SOC_S5E3830)
 	nminfo->fail.block = (nminfo->inform1 >> 5) & 0x7;
 #else
 	nminfo->fail.block = (nminfo->inform1 >> 8) & 0xF;
@@ -1821,7 +1821,11 @@ static void __init kq_nad_set_data_result(struct kq_nad_mparam_inform *nminfo)
 
 static void __init kq_nad_set_2nd_data_result(struct kq_nad_mparam_inform *nminfo)
 {
+#if IS_ENABLED(CONFIG_SOC_EXYNOS3830) || IS_ENABLED(CONFIG_SOC_S5E3830)
+	if (nminfo->inform1 & KQ_NAD_BIT_PASS)
+#else
 	if (nminfo->inform3 & KQ_NAD_BIT_PASS)
+#endif
 		nminfo->result = KQ_NAD_RESULT_PASS;
 	else {
 		nminfo->result = KQ_NAD_RESULT_FAIL;

@@ -648,7 +648,10 @@ static void __mfc_set_enc_params_h264(struct mfc_core *core,
 	/* VUI parameter disable */
 	mfc_clear_set_bits(reg, 0x1, 30, p_264->vui_enable);
 	/* Timing info */
-	mfc_set_bits(reg, 0x1, 31, 0x1);
+	if (dev->pdata->enc_timing_dis)
+		mfc_set_bits(reg, 0x1, 31, 0x0);
+	else
+		mfc_set_bits(reg, 0x1, 31, 0x1);
 	MFC_CORE_RAW_WRITEL(reg, MFC_REG_E_H264_OPTIONS);
 
 	/* cropped height */
@@ -1298,7 +1301,10 @@ static void __mfc_set_enc_params_hevc(struct mfc_core *core,
 
 	reg = MFC_CORE_RAW_READL(MFC_REG_E_HEVC_OPTIONS_2);
 	/* Timing info */
-	mfc_set_bits(reg, 0x1, 2, 0x1);
+	if (dev->pdata->enc_timing_dis)
+		mfc_set_bits(reg, 0x1, 2, 0x0);
+	else
+		mfc_set_bits(reg, 0x1, 2, 0x1);
 	MFC_CORE_RAW_WRITEL(reg, MFC_REG_E_HEVC_OPTIONS_2);
 
 	/* refresh period */

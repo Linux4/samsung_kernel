@@ -33,8 +33,16 @@
 #define SCI_SB_LLCSTATUS			0xA0C
 
 #define ECC_INT_EN				0x934
-#define UcErrMiscInfo				0x950
-#define UcErrOverrunMiscInfo			0x964
+#define UcErrMiscInfo                           0x950
+#define UcErrOverrunMiscInfo                    0x964
+#define CorrErrSource0                          0x914
+#define CorrErrSource1                          0x918
+#define CorrErrMiscInfo                         0x91C
+#define CorrErrAddrLow                          0x920
+#define CorrErrAddrHigh                         0x924
+#define CorrErrOverrunSource0                   0x928
+#define CorrErrOverrunSource1                   0x92C
+#define CorrErrOverrunMiscInfo                  0x930
 
 /* ECC_INT_EN */
 #define SF_PARITY_SHIFT				(13)

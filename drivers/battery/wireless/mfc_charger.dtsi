@@ -70,7 +70,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/wireless/mfc_charger_gki/mfc_charger.r9s.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/wireless/mfc_charger_gki/mfc_charger.r9s.dtsi */
 &mfc_charger {
 	battery,wireless20_vout_list = <WIRELESS_VOUT_10V WIRELESS_VOUT_11V WIRELESS_VOUT_11V>;
 	battery,tx_gear_min_op_freq_delay = <4000>;

@@ -1948,7 +1948,7 @@ int synaptics_ts_fw_update_on_hidden_menu(struct synaptics_ts_data *ts, int upda
 	}
 
 	synaptics_ts_get_custom_library(ts);
-	synaptics_ts_set_custom_library(ts);
+	ts->plat_data->init(ts);
 
 	return retval;
 }
