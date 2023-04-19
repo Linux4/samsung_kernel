@@ -238,9 +238,14 @@ static int pcie_cmd_proc(struct char_drv_info *dev, unsigned char *input,
 	} else if (!strcmp("mread", cmd)) {
 		addr = args_value(PCIE_ARG_ADDR);
 		size = args_value(PCIE_ARG_SIZE);
-
+		WCN_INFO("memread addr=0x%lx size=%ld\n",
+			 addr, size);
 		replay->t = 1;
 		replay->l = size;
+		if (size > 4094)
+			WCN_ERR("memread size=%ld more than 4094\n");
+		if (!virt_addr_valid(addr))
+			WCN_ERR("the address is no in kernel space\n");
 		memcpy(replay->v, (unsigned char *)addr, replay->l);
 	} else if (!strcmp("mwrite", cmd)) {
 		addr = args_value(PCIE_ARG_ADDR);
@@ -248,6 +253,8 @@ static int pcie_cmd_proc(struct char_drv_info *dev, unsigned char *input,
 		size = args_value(PCIE_ARG_SIZE);
 		WCN_INFO("memwrite addr=0x%lx value=0x%lx size=%ld\n",
 			 addr, value, size);
+		if (!virt_addr_valid(addr))
+			WCN_ERR("the address is no in kernel space\n");
 		memcpy((char *)(addr), (char *)&value, 4);
 	} else if (!strcmp("init", cmd)) {
 		struct inbound_reg *ibreg =
