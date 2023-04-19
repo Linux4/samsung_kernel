@@ -1,0 +1,38 @@
+menu "Exynos Variant selection"
+
+choice
+	prompt "Samsung Exynos Variant"
+
+config EXYNOS_VARIANT_NONE
+	bool "None"
+
+config EXYNOS_VARIANT1
+	bool "Variant1"
+
+config EXYNOS_VARIANT2
+	bool "Variant2"
+
+config EXYNOS_VARIANT3
+	bool "Variant3"
+
+config EXYNOS_VARIANT4
+	bool "Variant4"
+
+config EXYNOS_VARIANT5
+	bool "Variant5"
+
+config EXYNOS_VARIANT6
+	bool "Variant6"
+
+config EXYNOS_VARIANT7
+	bool "Variant8"
+
+config EXYNOS_VARIANT8
+	bool "Variant8"
+
+config EXYNOS_VARIANT9
+	bool "Variant9"
+
+endchoice
+
+endmenu

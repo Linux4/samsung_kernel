@@ -1,0 +1,2081 @@
+/*
+ * linux/drivers/video/fbdev/exynos/panel/ft8720/ft8720_m14x_01_panel.h
+ *
+ * Header file for FT8720 Driver
+ *
+ * Copyright (c) 2016 Samsung Electronics
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#ifndef __FT8720_M14X_01_PANEL_H__
+#define __FT8720_M14X_01_PANEL_H__
+
+#include "../panel.h"
+#include "../panel_drv.h"
+#include "tft_common.h"
+#include "ft8720_m14x_01_resol.h"
+//#include "tft_common_m14x.h"
+
+#undef __pn_name__
+#define __pn_name__	m14x
+
+#undef __PN_NAME__
+#define __PN_NAME__ M14X
+
+#define FT8720_NR_STEP (256)
+#define FT8720_HBM_STEP (51)
+#define FT8720_TOTAL_STEP (FT8720_NR_STEP + FT8720_HBM_STEP) /* 0 ~ 306 */
+
+bool is_m14x_fps_90hz(struct panel_device *panel)
+{
+	struct panel_vrr *vrr;
+
+	vrr = get_panel_vrr(panel);
+	if (vrr == NULL)
+		return false;
+
+	if (vrr->fps == 90)
+		return true;
+	return false;
+}
+
+static unsigned int ft8720_m14x_01_brt_tbl[FT8720_TOTAL_STEP] = {
+	BRT(0),
+	BRT(1), BRT(2), BRT(3), BRT(4), BRT(5), BRT(6), BRT(7), BRT(8), BRT(9), BRT(10),
+	BRT(11), BRT(12), BRT(13), BRT(14), BRT(15), BRT(16), BRT(17), BRT(18), BRT(19), BRT(20),
+	BRT(21), BRT(22), BRT(23), BRT(24), BRT(25), BRT(26), BRT(27), BRT(28), BRT(29), BRT(30),
+	BRT(31), BRT(32), BRT(33), BRT(34), BRT(35), BRT(36), BRT(37), BRT(38), BRT(39), BRT(40),
+	BRT(41), BRT(42), BRT(43), BRT(44), BRT(45), BRT(46), BRT(47), BRT(48), BRT(49), BRT(50),
+	BRT(51), BRT(52), BRT(53), BRT(54), BRT(55), BRT(56), BRT(57), BRT(58), BRT(59), BRT(60),
+	BRT(61), BRT(62), BRT(63), BRT(64), BRT(65), BRT(66), BRT(67), BRT(68), BRT(69), BRT(70),
+	BRT(71), BRT(72), BRT(73), BRT(74), BRT(75), BRT(76), BRT(77), BRT(78), BRT(79), BRT(80),
+	BRT(81), BRT(82), BRT(83), BRT(84), BRT(85), BRT(86), BRT(87), BRT(88), BRT(89), BRT(90),
+	BRT(91), BRT(92), BRT(93), BRT(94), BRT(95), BRT(96), BRT(97), BRT(98), BRT(99), BRT(100),
+	BRT(101), BRT(102), BRT(103), BRT(104), BRT(105), BRT(106), BRT(107), BRT(108), BRT(109), BRT(110),
+	BRT(111), BRT(112), BRT(113), BRT(114), BRT(115), BRT(116), BRT(117), BRT(118), BRT(119), BRT(120),
+	BRT(121), BRT(122), BRT(123), BRT(124), BRT(125), BRT(126), BRT(127), BRT(128), BRT(129), BRT(130),
+	BRT(131), BRT(132), BRT(133), BRT(134), BRT(135), BRT(136), BRT(137), BRT(138), BRT(139), BRT(140),
+	BRT(141), BRT(142), BRT(143), BRT(144), BRT(145), BRT(146), BRT(147), BRT(148), BRT(149), BRT(150),
+	BRT(151), BRT(152), BRT(153), BRT(154), BRT(155), BRT(156), BRT(157), BRT(158), BRT(159), BRT(160),
+	BRT(161), BRT(162), BRT(163), BRT(164), BRT(165), BRT(166), BRT(167), BRT(168), BRT(169), BRT(170),
+	BRT(171), BRT(172), BRT(173), BRT(174), BRT(175), BRT(176), BRT(177), BRT(178), BRT(179), BRT(180),
+	BRT(181), BRT(182), BRT(183), BRT(184), BRT(185), BRT(186), BRT(187), BRT(188), BRT(189), BRT(190),
+	BRT(191), BRT(192), BRT(193), BRT(194), BRT(195), BRT(196), BRT(197), BRT(198), BRT(199), BRT(200),
+	BRT(201), BRT(202), BRT(203), BRT(204), BRT(205), BRT(206), BRT(207), BRT(208), BRT(209), BRT(210),
+	BRT(211), BRT(212), BRT(213), BRT(214), BRT(215), BRT(216), BRT(217), BRT(218), BRT(219), BRT(220),
+	BRT(221), BRT(222), BRT(223), BRT(224), BRT(225), BRT(226), BRT(227), BRT(228), BRT(229), BRT(230),
+	BRT(231), BRT(232), BRT(233), BRT(234), BRT(235), BRT(236), BRT(237), BRT(238), BRT(239), BRT(240),
+	BRT(241), BRT(242), BRT(243), BRT(244), BRT(245), BRT(246), BRT(247), BRT(248), BRT(249), BRT(250),
+	BRT(251), BRT(252), BRT(253), BRT(254), BRT(255),
+
+	/* HBM */
+	BRT(256), BRT(257), BRT(258), BRT(259), BRT(260),
+	BRT(261), BRT(262), BRT(263), BRT(264), BRT(265), BRT(266), BRT(267), BRT(268), BRT(269), BRT(270),
+	BRT(271), BRT(272), BRT(273), BRT(274), BRT(275), BRT(276), BRT(277), BRT(278), BRT(279), BRT(280),
+	BRT(281), BRT(282), BRT(283), BRT(284), BRT(285), BRT(286), BRT(287), BRT(288), BRT(289), BRT(290),
+	BRT(291), BRT(292), BRT(293), BRT(294), BRT(295), BRT(296), BRT(297), BRT(298), BRT(299), BRT(300),
+	BRT(301), BRT(302), BRT(303), BRT(304), BRT(305), BRT(306),
+};
+
+static unsigned int ft8720_m14x_01_step_cnt_tbl[FT8720_TOTAL_STEP] = {
+	[0 ... 255] = 1,
+	/* HBM */
+	[256 ... 306] = 1,
+};
+
+struct brightness_table ft8720_m14x_01_panel_brightness_table = {
+	.control_type = BRIGHTNESS_CONTROL_TYPE_GAMMA_MODE2,
+	.brt = ft8720_m14x_01_brt_tbl,
+	.sz_brt = ARRAY_SIZE(ft8720_m14x_01_brt_tbl),
+	.sz_ui_brt = FT8720_NR_STEP,
+	.sz_hbm_brt = FT8720_HBM_STEP,
+	.lum = ft8720_m14x_01_brt_tbl,
+	.sz_lum = ARRAY_SIZE(ft8720_m14x_01_brt_tbl),
+	.sz_ui_lum = FT8720_NR_STEP,
+	.sz_hbm_lum = FT8720_HBM_STEP,
+	.sz_ext_hbm_lum = 0,
+	.brt_to_step = NULL,
+	.sz_brt_to_step = 0,
+	.step_cnt = ft8720_m14x_01_step_cnt_tbl,
+	.sz_step_cnt = ARRAY_SIZE(ft8720_m14x_01_step_cnt_tbl),
+	.vtotal = 0,
+};
+
+static struct panel_dimming_info ft8720_m14x_01_panel_dimming_info = {
+	.name = "ft8720_m14x",
+	.dim_init_info = {
+		NULL,
+	},
+	.target_luminance = -1,
+	.nr_luminance = 0,
+	.hbm_target_luminance = -1,
+	.nr_hbm_luminance = 0,
+	.extend_hbm_target_luminance = -1,
+	.nr_extend_hbm_luminance = -1,
+	.brt_tbl = &ft8720_m14x_01_panel_brightness_table,
+	/* dimming parameters */
+	.dimming_maptbl = NULL,
+	.dim_flash_on = false,	/* read dim flash when probe or not */
+	.hbm_aor = NULL,
+};
+
+static u8 ft8720_m14x_01_brt_table[FT8720_TOTAL_STEP][1] = {
+	{0},
+	{1}, {1}, {2}, {2}, {3}, {3}, {4}, {4}, {5}, {5},
+	{6}, {6}, {7}, {7}, {8}, {8}, {9}, {9}, {10}, {10},
+	{11}, {11}, {12}, {12}, {13}, {13}, {14}, {14}, {15}, {15},
+	{16}, {16}, {17}, {17}, {18}, {19}, {19}, {20}, {20}, {21},
+	{22}, {22}, {23}, {23}, {24}, {25}, {25}, {26}, {26}, {27},
+	{28}, {28}, {29}, {29}, {30}, {31}, {31}, {32}, {32}, {33},
+	{34}, {34}, {35}, {35}, {36}, {37}, {37}, {38}, {38}, {39},
+	{40}, {40}, {41}, {41}, {42}, {43}, {43}, {44}, {44}, {45},
+	{46}, {47}, {47}, {48}, {49}, {50}, {51}, {51}, {52}, {53},
+	{54}, {55}, {55}, {56}, {57}, {58}, {58}, {59}, {60}, {61},
+	{62}, {62}, {63}, {64}, {65}, {66}, {66}, {67}, {68}, {69},
+	{70}, {70}, {71}, {72}, {73}, {74}, {74}, {75}, {76}, {77},
+	{77}, {78}, {79}, {80}, {81}, {81}, {82}, {83}, {84}, {85},
+	{86}, {87}, {88}, {89}, {90}, {91}, {92}, {93}, {94}, {95},
+	{96}, {97}, {98}, {99}, {100}, {101}, {102}, {103}, {104}, {105},
+	{106}, {107}, {108}, {109}, {110}, {111}, {112}, {113}, {114}, {116},
+	{117}, {118}, {119}, {120}, {121}, {122}, {123}, {124}, {125}, {126},
+	{127}, {128}, {129}, {130}, {131}, {132}, {133}, {134}, {135}, {136},
+	{137}, {138}, {139}, {140}, {141}, {142}, {143}, {144}, {145}, {146},
+	{147}, {148}, {149}, {150}, {151}, {152}, {153}, {154}, {155}, {156},
+	{157}, {158}, {159}, {160}, {161}, {162}, {163}, {164}, {165}, {166},
+	{167}, {168}, {169}, {170}, {171}, {172}, {173}, {174}, {175}, {176},
+	{177}, {178}, {179}, {181}, {182}, {183}, {184}, {185}, {186}, {187},
+	{188}, {189}, {190}, {191}, {192}, {193}, {194}, {195}, {196}, {197},
+	{198}, {199}, {200}, {201}, {202}, {203}, {204}, {205}, {206}, {207},
+	{208}, {209}, {210}, {211}, {212}, {213}, {214}, {215}, {215}, {216},
+	{217}, {218}, {219}, {220}, {220}, {221}, {222}, {223}, {224}, {225},
+	{225}, {226}, {227}, {228}, {229}, {230}, {231}, {231}, {232}, {233},
+	{234}, {235}, {236}, {236}, {237}, {238}, {239}, {240}, {241}, {242},
+	{242}, {243}, {244}, {245}, {246}, {247}, {247}, {248}, {249}, {250},
+	{251}, {252}, {252}, {253}, {254}, {255},
+};
+
+static struct maptbl ft8720_m14x_01_maptbl[MAX_MAPTBL] = {
+	[BRT_MAPTBL] = DEFINE_2D_MAPTBL(ft8720_m14x_01_brt_table, init_brt_table, getidx_brt_table, copy_common_maptbl),
+};
+
+static u8 SEQ_FT8720_M14X_01_SLEEP_OUT[] = {
+	0x11
+};
+
+static u8 SEQ_FT8720_M14X_01_SLEEP_IN[] = {
+	0x10
+};
+
+static u8 SEQ_FT8720_M14X_01_DISPLAY_ON[] = {
+	0x29
+};
+
+static u8 SEQ_FT8720_M14X_01_DISPLAY_OFF[] = {
+	0x28
+};
+
+static u8 SEQ_FT8720_M14X_01_BRIGHTNESS[] = {
+	0x51,
+	0xFF,
+};
+
+/* < CABC Mode control Function > */
+
+static u8 SEQ_FT8720_M14X_01_BRIGHTNESS_ON[] = {
+	0x53,
+	0x24,
+};
+
+static u8 SEQ_FT8720_M14X_01_BRIGHTNESS_MIN[] = {
+	0x51,
+	0x00,
+};
+
+/* Display config (1) */
+
+static u8 SEQ_FT8720_M14X_01_001[] = {
+	0x00,
+	0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_002[] = {
+	0xFF,
+	0x87, 0x20, 0x01,
+};
+
+static u8 SEQ_FT8720_M14X_01_003[] = {
+	0x00,
+	0x80,
+};
+
+static u8 SEQ_FT8720_M14X_01_004[] = {
+	0xFF,
+	0x87, 0x20,
+};
+
+static u8 SEQ_FT8720_M14X_01_005[] = {
+	0x00,
+	0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_006[] = {
+	0x2A,
+	0x00, 0x00, 0x04,
+};
+
+static u8 SEQ_FT8720_M14X_01_007[] = {
+	0x00,
+	0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_008[] = {
+	0x2B,
+	0x00, 0x00, 0x09, 0x67,
+};
+
+static u8 SEQ_FT8720_M14X_01_009[] = {
+	0x00,
+	0xA3,
+};
+
+static u8 SEQ_FT8720_M14X_01_010[] = {
+	0xB3,
+	0x09, 0x68, 0x00, 0x18,
+};
+
+static u8 SEQ_FT8720_M14X_01_011[] = {
+	0x00,
+	0x60,
+};
+
+static u8 SEQ_FT8720_M14X_01_012[] = {
+	0xC0,
+	0x00, 0x9E, 0x00, 0x31, 0x00, 0x11,
+};
+
+static u8 SEQ_FT8720_M14X_01_013[] = {
+	0x00,
+	0x70,
+};
+
+static u8 SEQ_FT8720_M14X_01_014[] = {
+	0xC0,
+	0x00, 0xC8, 0x00, 0xC8, 0x0D, 0x02, 0xB6,
+};
+
+static u8 SEQ_FT8720_M14X_01_015[] = {
+	0x00,
+	0x79,
+};
+
+static u8 SEQ_FT8720_M14X_01_016[] = {
+	0xC0,
+	0x15, 0x00, 0xF1,
+};
+
+static u8 SEQ_FT8720_M14X_01_017[] = {
+	0x00,
+	0x80,
+};
+
+static u8 SEQ_FT8720_M14X_01_018[] = {
+	0xC0,
+	0x00, 0x61, 0x00, 0x31, 0x00, 0x11,
+};
+
+static u8 SEQ_FT8720_M14X_01_019[] = {
+	0x00,
+	0x90,
+};
+
+static u8 SEQ_FT8720_M14X_01_020[] = {
+	0xC0,
+	0x00, 0x61, 0x00, 0x31, 0x00, 0x11,
+};
+
+static u8 SEQ_FT8720_M14X_01_021[] = {
+	0x00,
+	0xA0,
+};
+
+static u8 SEQ_FT8720_M14X_01_022[] = {
+	0xC0,
+	0x00, 0x92, 0x00, 0x31, 0x00, 0x11,
+};
+
+static u8 SEQ_FT8720_M14X_01_023[] = {
+	0x00,
+	0xB0,
+};
+
+static u8 SEQ_FT8720_M14X_01_024[] = {
+	0xC0,
+	0x00, 0x93, 0x00, 0x31, 0x11,
+};
+
+static u8 SEQ_FT8720_M14X_01_025[] = {
+	0x00,
+	0xA3,
+};
+
+static u8 SEQ_FT8720_M14X_01_026[] = {
+	0xC1,
+	0x00, 0x46, 0x00, 0x28, 0x00, 0x02,
+};
+
+static u8 SEQ_FT8720_M14X_01_027[] = {
+	0x00,
+	0x80,
+};
+
+static u8 SEQ_FT8720_M14X_01_028[] = {
+	0xCE,
+	0x01, 0x81, 0xFF, 0xFF, 0x00, 0xC8, 0x00, 0xC8,
+};
+
+static u8 SEQ_FT8720_M14X_01_029[] = {
+	0x00,
+	0x8C,
+};
+
+static u8 SEQ_FT8720_M14X_01_030[] = {
+	0xCE,
+	0x00, 0x58, 0x00, 0x88,
+};
+
+static u8 SEQ_FT8720_M14X_01_031[] = {
+	0x00,
+	0x90,
+};
+
+static u8 SEQ_FT8720_M14X_01_032[] = {
+	0xCE,
+	0x00, 0xA7, 0x10, 0x43, 0x00, 0xA7, 0x80, 0xFF, 0xFF, 0x00,
+	0x04, 0x00, 0x0C, 0x16,
+};
+
+static u8 SEQ_FT8720_M14X_01_033[] = {
+	0x00,
+	0xA0,
+};
+
+static u8 SEQ_FT8720_M14X_01_034[] = {
+	0xCE,
+	0x00, 0x00, 0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_035[] = {
+	0x00,
+	0xB0,
+};
+
+static u8 SEQ_FT8720_M14X_01_036[] = {
+	0xCE,
+	0x22, 0x00, 0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_037[] = {
+	0x00,
+	0xE1,
+};
+
+static u8 SEQ_FT8720_M14X_01_038[] = {
+	0xCE,
+	0x0A, 0x02, 0xB6, 0x02, 0xB6,
+};
+
+static u8 SEQ_FT8720_M14X_01_039[] = {
+	0x00,
+	0xF1,
+};
+
+static u8 SEQ_FT8720_M14X_01_040[] = {
+	0xCE,
+	0x1F, 0x15,
+};
+
+static u8 SEQ_FT8720_M14X_01_041[] = {
+	0x00,
+	0xF4,
+};
+
+static u8 SEQ_FT8720_M14X_01_042[] = {
+	0xCE,
+	0x01, 0x2C, 0x00, 0xED,
+};
+
+static u8 SEQ_FT8720_M14X_01_043[] = {
+	0x00,
+	0xB0,
+};
+
+static u8 SEQ_FT8720_M14X_01_044[] = {
+	0xCF,
+	0x00, 0x00, 0xAB, 0xAF,
+};
+
+static u8 SEQ_FT8720_M14X_01_045[] = {
+	0x00,
+	0xB5,
+};
+
+static u8 SEQ_FT8720_M14X_01_046[] = {
+	0xCF,
+	0x05, 0x05, 0x07, 0x0B,
+};
+
+static u8 SEQ_FT8720_M14X_01_047[] = {
+	0x00,
+	0xC0,
+};
+
+static u8 SEQ_FT8720_M14X_01_048[] = {
+	0xCF,
+	0x09, 0x09, 0x63, 0x67,
+};
+
+static u8 SEQ_FT8720_M14X_01_049[] = {
+	0x00,
+	0xC5,
+};
+
+static u8 SEQ_FT8720_M14X_01_050[] = {
+	0xCF,
+	0x09, 0x09, 0x69, 0x6D,
+};
+
+static u8 SEQ_FT8720_M14X_01_051[] = {
+	0x00,
+	0xF5,
+};
+
+static u8 SEQ_FT8720_M14X_01_052[] = {
+	0xCF,
+	0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_053[] = {
+	0x00,
+	0xD1,
+};
+
+static u8 SEQ_FT8720_M14X_01_054[] = {
+	0xC1,
+	0x08, 0x0E, 0x0B, 0x4D, 0x13, 0x6C, 0x05, 0x52, 0x07, 0x79,
+	0x0C, 0xDB,
+};
+
+static u8 SEQ_FT8720_M14X_01_055[] = {
+	0x00,
+	0xE1,
+};
+
+static u8 SEQ_FT8720_M14X_01_056[] = {
+	0xC1,
+	0x0B, 0x4D,
+};
+
+static u8 SEQ_FT8720_M14X_01_057[] = {
+	0x00,
+	0xE4,
+};
+
+static u8 SEQ_FT8720_M14X_01_058[] = {
+	0xCF,
+	0x09, 0xAD, 0x09, 0xAC, 0x09, 0xAC, 0x09, 0xAC, 0x09, 0xAC,
+	0x09, 0xAC,
+};
+
+static u8 SEQ_FT8720_M14X_01_059[] = {
+	0x00,
+	0x80,
+};
+
+static u8 SEQ_FT8720_M14X_01_060[] = {
+	0xC1,
+	0x00, 0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_061[] = {
+	0x00,
+	0x90,
+};
+
+static u8 SEQ_FT8720_M14X_01_062[] = {
+	0xC1,
+	0x03,
+};
+
+static u8 SEQ_FT8720_M14X_01_063[] = {
+	0x00,
+	0xCC,
+};
+
+static u8 SEQ_FT8720_M14X_01_064[] = {
+	0xC1,
+	0x18,
+};
+
+static u8 SEQ_FT8720_M14X_01_065[] = {
+	0x00,
+	0xE0,
+};
+
+static u8 SEQ_FT8720_M14X_01_066[] = {
+	0xC1,
+	0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_067[] = {
+	0x00,
+	0xF6,
+};
+
+static u8 SEQ_FT8720_M14X_01_068[] = {
+	0xCF,
+	0x5A,
+};
+
+static u8 SEQ_FT8720_M14X_01_069[] = {
+	0x00,
+	0x80,
+};
+
+static u8 SEQ_FT8720_M14X_01_070[] = {
+	0xC2,
+	0x82, 0x01, 0x1F, 0x1F, 0x00, 0x00, 0x00, 0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_071[] = {
+	0x00,
+	0x90,
+};
+
+static u8 SEQ_FT8720_M14X_01_072[] = {
+	0xC2,
+	0x00, 0x00, 0x00, 0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_073[] = {
+	0x00,
+	0xA0,
+};
+
+static u8 SEQ_FT8720_M14X_01_074[] = {
+	0xC2,
+	0x00, 0x00, 0x00, 0x21, 0x89, 0x01, 0x00, 0x00, 0x21, 0x89,
+	0x02, 0x00, 0x00, 0x21, 0x89,
+};
+
+static u8 SEQ_FT8720_M14X_01_075[] = {
+	0x00,
+	0xB0,
+};
+
+static u8 SEQ_FT8720_M14X_01_076[] = {
+	0xC2,
+	0x03, 0x00, 0x00, 0x21, 0x89, 0x80, 0x08, 0x03, 0x02, 0x02,
+};
+
+static u8 SEQ_FT8720_M14X_01_077[] = {
+	0x00,
+	0xCA,
+};
+
+static u8 SEQ_FT8720_M14X_01_078[] = {
+	0xC2,
+	0x84, 0x08, 0x03, 0x01, 0x81,
+};
+
+static u8 SEQ_FT8720_M14X_01_079[] = {
+	0x00,
+	0xE0,
+};
+
+static u8 SEQ_FT8720_M14X_01_080[] = {
+	0xC2,
+	0x33, 0x33, 0x70, 0x00, 0x70,
+};
+
+static u8 SEQ_FT8720_M14X_01_081[] = {
+	0x00,
+	0xE8,
+};
+
+static u8 SEQ_FT8720_M14X_01_082[] = {
+	0xC2,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_083[] = {
+	0x00,
+	0xD0,
+};
+
+static u8 SEQ_FT8720_M14X_01_084[] = {
+	0xC3,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_085[] = {
+	0x00,
+	0x80,
+};
+
+static u8 SEQ_FT8720_M14X_01_086[] = {
+	0xCB,
+	0x00, 0x01, 0x00, 0x03, 0xFD, 0x01, 0x01, 0x00, 0x00, 0x00,
+	0xFD, 0x01, 0x00, 0x03, 0x00, 0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_087[] = {
+	0x00,
+	0x90,
+};
+
+static u8 SEQ_FT8720_M14X_01_088[] = {
+	0xCB,
+	0x00, 0x00, 0x00, 0x0F, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0xFF, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_089[] = {
+	0x00,
+	0xA0,
+};
+
+static u8 SEQ_FT8720_M14X_01_090[] = {
+	0xCB,
+	0x00, 0x00, 0x00, 0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_091[] = {
+	0x00,
+	0xA4,
+};
+
+static u8 SEQ_FT8720_M14X_01_092[] = {
+	0xCB,
+	0x03, 0x00, 0x0C, 0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_093[] = {
+	0x00,
+	0xB0,
+};
+
+static u8 SEQ_FT8720_M14X_01_094[] = {
+	0xCB,
+	0x13, 0x58, 0x05, 0x30,
+};
+
+static u8 SEQ_FT8720_M14X_01_095[] = {
+	0x00,
+	0xC0,
+};
+
+static u8 SEQ_FT8720_M14X_01_096[] = {
+	0xCB,
+	0x13, 0x58, 0x05, 0x30,
+};
+
+static u8 SEQ_FT8720_M14X_01_097[] = {
+	0x00,
+	0xD5,
+};
+
+static u8 SEQ_FT8720_M14X_01_098[] = {
+	0xCB,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_099[] = {
+	0x00,
+	0xE0,
+};
+
+static u8 SEQ_FT8720_M14X_01_100[] = {
+	0xCB,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_101[] = {
+	0x00,
+	0x80,
+};
+
+static u8 SEQ_FT8720_M14X_01_102[] = {
+	0xCC,
+	0x23, 0x12, 0x23, 0x1C, 0x23, 0x0A, 0x23, 0x23, 0x09, 0x08,
+	0x07, 0x06, 0x23, 0x23, 0x23, 0x23,
+};
+
+static u8 SEQ_FT8720_M14X_01_103[] = {
+	0x00,
+	0x90,
+};
+
+static u8 SEQ_FT8720_M14X_01_104[] = {
+	0xCC,
+	0x23, 0x18, 0x16, 0x17, 0x23, 0x19, 0x1A, 0x1B,
+};
+
+static u8 SEQ_FT8720_M14X_01_105[] = {
+	0x00,
+	0xA0,
+};
+
+static u8 SEQ_FT8720_M14X_01_106[] = {
+	0xCC,
+	0x23, 0x12, 0x23, 0x1D, 0x23, 0x0E, 0x23, 0x23, 0x06, 0x07,
+	0x08, 0x09, 0x23, 0x23, 0x23, 0x23,
+};
+
+static u8 SEQ_FT8720_M14X_01_107[] = {
+	0x00,
+	0xB0,
+};
+
+static u8 SEQ_FT8720_M14X_01_108[] = {
+	0xCC,
+	0x23, 0x18, 0x16, 0x17, 0x23, 0x19, 0x1A, 0x1B,
+};
+
+static u8 SEQ_FT8720_M14X_01_109[] = {
+	0x00,
+	0x80,
+};
+
+static u8 SEQ_FT8720_M14X_01_110[] = {
+	0xCD,
+	0x23, 0x23, 0x23, 0x02, 0x23, 0x0A, 0x23, 0x23, 0x09, 0x08,
+	0x07, 0x06, 0x23, 0x23, 0x23, 0x23,
+};
+
+static u8 SEQ_FT8720_M14X_01_111[] = {
+	0x00,
+	0x90,
+};
+
+static u8 SEQ_FT8720_M14X_01_112[] = {
+	0xCD,
+	0x23, 0x18, 0x16, 0x17, 0x23, 0x19, 0x1A, 0x1B,
+};
+
+static u8 SEQ_FT8720_M14X_01_113[] = {
+	0x00,
+	0xA0,
+};
+
+static u8 SEQ_FT8720_M14X_01_114[] = {
+	0xCD,
+	0x23, 0x23, 0x23, 0x02, 0x23, 0x0E, 0x23, 0x23, 0x06, 0x07,
+	0x08, 0x09, 0x23, 0x23, 0x23, 0x23,
+};
+
+static u8 SEQ_FT8720_M14X_01_115[] = {
+	0x00,
+	0xB0,
+};
+
+static u8 SEQ_FT8720_M14X_01_116[] = {
+	0xCD,
+	0x23, 0x18, 0x16, 0x17, 0x23, 0x19, 0x1A, 0x1B,
+};
+
+static u8 SEQ_FT8720_M14X_01_117[] = {
+	0x00,
+	0x86,
+};
+
+static u8 SEQ_FT8720_M14X_01_118[] = {
+	0xC0,
+	0x00, 0x00, 0x00, 0x01, 0x19, 0x05,
+};
+
+static u8 SEQ_FT8720_M14X_01_119[] = {
+	0x00,
+	0x96,
+};
+
+static u8 SEQ_FT8720_M14X_01_120[] = {
+	0xC0,
+	0x00, 0x00, 0x00, 0x01, 0x19, 0x05,
+};
+
+static u8 SEQ_FT8720_M14X_01_121[] = {
+	0x00,
+	0xA3,
+};
+
+static u8 SEQ_FT8720_M14X_01_122[] = {
+	0xCE,
+	0x00, 0x00, 0x00, 0x01, 0x19, 0x05,
+};
+
+static u8 SEQ_FT8720_M14X_01_123[] = {
+	0x00,
+	0xB3,
+};
+
+static u8 SEQ_FT8720_M14X_01_124[] = {
+	0xCE,
+	0x00, 0x00, 0x00, 0x01, 0x19, 0x05,
+};
+
+static u8 SEQ_FT8720_M14X_01_125[] = {
+	0x00,
+	0x69,
+};
+
+static u8 SEQ_FT8720_M14X_01_126[] = {
+	0xC0,
+	0x01, 0x14, 0x01,
+};
+
+static u8 SEQ_FT8720_M14X_01_127[] = {
+	0x00,
+	0x82,
+};
+
+static u8 SEQ_FT8720_M14X_01_128[] = {
+	0xA7,
+	0x10, 0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_129[] = {
+	0x00,
+	0x8D,
+};
+
+static u8 SEQ_FT8720_M14X_01_130[] = {
+	0xA7,
+	0x01,
+};
+
+static u8 SEQ_FT8720_M14X_01_131[] = {
+	0x00,
+	0x8F,
+};
+
+static u8 SEQ_FT8720_M14X_01_132[] = {
+	0xA7,
+	0x01,
+};
+
+static u8 SEQ_FT8720_M14X_01_133[] = {
+	0x00,
+	0x93,
+};
+
+static u8 SEQ_FT8720_M14X_01_134[] = {
+	0xC5,
+	0x37,
+};
+
+static u8 SEQ_FT8720_M14X_01_135[] = {
+	0x00,
+	0x97,
+};
+
+static u8 SEQ_FT8720_M14X_01_136[] = {
+	0xC5,
+	0x37,
+};
+
+static u8 SEQ_FT8720_M14X_01_137[] = {
+	0x00,
+	0x9A,
+};
+
+static u8 SEQ_FT8720_M14X_01_138[] = {
+	0xC5,
+	0x32,
+};
+
+static u8 SEQ_FT8720_M14X_01_139[] = {
+	0x00,
+	0x9C,
+};
+
+static u8 SEQ_FT8720_M14X_01_140[] = {
+	0xC5,
+	0x32,
+};
+
+static u8 SEQ_FT8720_M14X_01_141[] = {
+	0x00,
+	0xB6,
+};
+
+static u8 SEQ_FT8720_M14X_01_142[] = {
+	0xC5,
+	0x10, 0x10, 0x0E, 0x0E, 0x10, 0x10, 0x0E, 0x0E,
+};
+
+static u8 SEQ_FT8720_M14X_01_143[] = {
+	0x00,
+	0x88,
+};
+
+static u8 SEQ_FT8720_M14X_01_144[] = {
+	0xC4,
+	0x08,
+};
+
+static u8 SEQ_FT8720_M14X_01_145[] = {
+	0x00,
+	0x80,
+};
+
+static u8 SEQ_FT8720_M14X_01_146[] = {
+	0xA7,
+	0x03,
+};
+
+static u8 SEQ_FT8720_M14X_01_147[] = {
+	0x00,
+	0xB0,
+};
+
+static u8 SEQ_FT8720_M14X_01_148[] = {
+	0xC5,
+	0xD1,
+};
+
+static u8 SEQ_FT8720_M14X_01_149[] = {
+	0x00,
+	0xB3,
+};
+
+static u8 SEQ_FT8720_M14X_01_150[] = {
+	0xC5,
+	0xD1,
+};
+
+static u8 SEQ_FT8720_M14X_01_151[] = {
+	0x00,
+	0x99,
+};
+
+static u8 SEQ_FT8720_M14X_01_152[] = {
+	0xCF,
+	0x50,
+};
+
+static u8 SEQ_FT8720_M14X_01_153[] = {
+	0x00,
+	0x8C,
+};
+
+static u8 SEQ_FT8720_M14X_01_154[] = {
+	0xC3,
+	0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_155[] = {
+	0x00,
+	0xA0,
+};
+
+static u8 SEQ_FT8720_M14X_01_156[] = {
+	0xC3,
+	0x35, 0x21,
+};
+
+static u8 SEQ_FT8720_M14X_01_157[] = {
+	0x00,
+	0xA4,
+};
+
+static u8 SEQ_FT8720_M14X_01_158[] = {
+	0xC3,
+	0x01, 0x20,
+};
+
+static u8 SEQ_FT8720_M14X_01_159[] = {
+	0x00,
+	0xAA,
+};
+
+static u8 SEQ_FT8720_M14X_01_160[] = {
+	0xC3,
+	0x21,
+};
+
+static u8 SEQ_FT8720_M14X_01_161[] = {
+	0x00,
+	0xAD,
+};
+
+static u8 SEQ_FT8720_M14X_01_162[] = {
+	0xC3,
+	0x01,
+};
+
+static u8 SEQ_FT8720_M14X_01_163[] = {
+	0x00,
+	0xAE,
+};
+
+static u8 SEQ_FT8720_M14X_01_164[] = {
+	0xC3,
+	0x20,
+};
+
+static u8 SEQ_FT8720_M14X_01_165[] = {
+	0x00,
+	0xB3,
+};
+
+static u8 SEQ_FT8720_M14X_01_166[] = {
+	0xC3,
+	0x21,
+};
+
+static u8 SEQ_FT8720_M14X_01_167[] = {
+	0x00,
+	0xB6,
+};
+
+static u8 SEQ_FT8720_M14X_01_168[] = {
+	0xC3,
+	0x01, 0x20,
+};
+
+static u8 SEQ_FT8720_M14X_01_169[] = {
+	0x00,
+	0xC3,
+};
+
+static u8 SEQ_FT8720_M14X_01_170[] = {
+	0xC5,
+	0xFF,
+};
+
+static u8 SEQ_FT8720_M14X_01_171[] = {
+	0x00,
+	0xA9,
+};
+
+static u8 SEQ_FT8720_M14X_01_172[] = {
+	0xF5,
+	0x8E,
+};
+
+static u8 SEQ_FT8720_M14X_01_173[] = {
+	0x00,
+	0xB0,
+};
+
+static u8 SEQ_FT8720_M14X_01_174[] = {
+	0xB3,
+	0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_175[] = {
+	0x00,
+	0x83,
+};
+
+static u8 SEQ_FT8720_M14X_01_176[] = {
+	0xB0,
+	0x63,
+};
+
+static u8 SEQ_FT8720_M14X_01_177[] = {
+	0x00,
+	0x93,
+};
+
+static u8 SEQ_FT8720_M14X_01_178[] = {
+	0xC4,
+	0x08,
+};
+
+static u8 SEQ_FT8720_M14X_01_179[] = {
+	0x00,
+	0x80,
+};
+
+static u8 SEQ_FT8720_M14X_01_180[] = {
+	0xB3,
+	0x22,
+};
+
+static u8 SEQ_FT8720_M14X_01_181[] = {
+	0x00,
+	0x90,
+};
+
+static u8 SEQ_FT8720_M14X_01_182[] = {
+	0xC3,
+	0x08,
+};
+
+static u8 SEQ_FT8720_M14X_01_183[] = {
+	0x00,
+	0xFA,
+};
+
+static u8 SEQ_FT8720_M14X_01_184[] = {
+	0xC2,
+	0x14,
+};
+
+static u8 SEQ_FT8720_M14X_01_185[] = {
+	0x00,
+	0xCA,
+};
+
+static u8 SEQ_FT8720_M14X_01_186[] = {
+	0xC0,
+	0x80,
+};
+
+static u8 SEQ_FT8720_M14X_01_187[] = {
+	0x00,
+	0x82,
+};
+
+static u8 SEQ_FT8720_M14X_01_188[] = {
+	0xF5,
+	0x01,
+};
+
+static u8 SEQ_FT8720_M14X_01_189[] = {
+	0x00,
+	0x93,
+};
+
+static u8 SEQ_FT8720_M14X_01_190[] = {
+	0xF5,
+	0x01,
+};
+
+static u8 SEQ_FT8720_M14X_01_191[] = {
+	0x00,
+	0x9B,
+};
+
+static u8 SEQ_FT8720_M14X_01_192[] = {
+	0xF5,
+	0x49,
+};
+
+static u8 SEQ_FT8720_M14X_01_193[] = {
+	0x00,
+	0x9D,
+};
+
+static u8 SEQ_FT8720_M14X_01_194[] = {
+	0xF5,
+	0x49,
+};
+
+static u8 SEQ_FT8720_M14X_01_195[] = {
+	0x00,
+	0xBE,
+};
+
+static u8 SEQ_FT8720_M14X_01_196[] = {
+	0xC5,
+	0xF0, 0xF0,
+};
+
+static u8 SEQ_FT8720_M14X_01_197[] = {
+	0x00,
+	0x85,
+};
+
+static u8 SEQ_FT8720_M14X_01_198[] = {
+	0xA7,
+	0x01,
+};
+
+static u8 SEQ_FT8720_M14X_01_199[] = {
+	0x00,
+	0xDC,
+};
+
+static u8 SEQ_FT8720_M14X_01_200[] = {
+	0xC3,
+	0x37,
+};
+
+static u8 SEQ_FT8720_M14X_01_201[] = {
+	0x00,
+	0x8A,
+};
+
+static u8 SEQ_FT8720_M14X_01_202[] = {
+	0xF5,
+	0xC7,
+};
+
+static u8 SEQ_FT8720_M14X_01_203[] = {
+	0x00,
+	0x99,
+};
+
+static u8 SEQ_FT8720_M14X_01_204[] = {
+	0xCF,
+	0x50,
+};
+
+static u8 SEQ_FT8720_M14X_01_205[] = {
+	0x00,
+	0x9C,
+};
+
+static u8 SEQ_FT8720_M14X_01_206[] = {
+	0xF5,
+	0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_207[] = {
+	0x00,
+	0x9E,
+};
+
+static u8 SEQ_FT8720_M14X_01_208[] = {
+	0xF5,
+	0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_209[] = {
+	0x00,
+	0xB0,
+};
+
+static u8 SEQ_FT8720_M14X_01_210[] = {
+	0xC5,
+	0xD0, 0x4A, 0x39, 0xD0, 0x4A, 0x0F,
+};
+
+static u8 SEQ_FT8720_M14X_01_211[] = {
+	0x00,
+	0xC2,
+};
+
+static u8 SEQ_FT8720_M14X_01_212[] = {
+	0xF5,
+	0x42,
+};
+
+static u8 SEQ_FT8720_M14X_01_213[] = {
+	0x00,
+	0xE8,
+};
+
+static u8 SEQ_FT8720_M14X_01_214[] = {
+	0xC0,
+	0x40,
+};
+
+static u8 SEQ_FT8720_M14X_01_215[] = {
+	0x00,
+	0xD4,
+};
+
+static u8 SEQ_FT8720_M14X_01_216[] = {
+	0xCB,
+	0x03,
+};
+
+static u8 SEQ_FT8720_M14X_01_217[] = {
+	0x00,
+	0xB0,
+};
+
+static u8 SEQ_FT8720_M14X_01_218[] = {
+	0xCA,
+	0x6B, 0x6B, 0x09,
+};
+
+static u8 SEQ_FT8720_M14X_01_219[] = {
+	0x00,
+	0xB0,
+};
+
+static u8 SEQ_FT8720_M14X_01_220[] = {
+	0xB4,
+	0x00, 0x08, 0x02, 0x00, 0x00, 0xBB, 0x00, 0x07, 0x0D, 0xB7,
+	0x0C, 0xB7, 0x10, 0xF0,
+};
+
+static u8 SEQ_FT8720_M14X_01_221[] = {
+	0x00,
+	0x80,
+};
+
+static u8 SEQ_FT8720_M14X_01_222[] = {
+	0xA4,
+	0xCA,
+};
+
+static u8 SEQ_FT8720_M14X_01_223[] = {
+	0x00,
+	0x87,
+};
+
+static u8 SEQ_FT8720_M14X_01_224[] = {
+	0xC5,
+	0x0C,
+};
+
+static u8 SEQ_FT8720_M14X_01_225[] = {
+	0x00,
+	0x89,
+};
+
+static u8 SEQ_FT8720_M14X_01_226[] = {
+	0xC5,
+	0x0C, 0x0C, 0x0C,
+};
+
+static u8 SEQ_FT8720_M14X_01_227[] = {
+	0x00,
+	0x8C,
+};
+
+static u8 SEQ_FT8720_M14X_01_228[] = {
+	0xC5,
+	0x0C, 0x0C, 0x0C,
+};
+
+static u8 SEQ_FT8720_M14X_01_229[] = {
+	0x00,
+	0xB5,
+};
+
+static u8 SEQ_FT8720_M14X_01_230[] = {
+	0xCA,
+	0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_231[] = {
+	0x00,
+	0xA0,
+};
+
+static u8 SEQ_FT8720_M14X_01_232[] = {
+	0xCA,
+	0x00, 0x00, 0x00
+};
+
+static u8 SEQ_FT8720_M14X_01_233[] = {
+	0x00,
+	0x80,
+};
+
+static u8 SEQ_FT8720_M14X_01_234[] = {
+	0xCA,
+	0xEC, 0xD6, 0xC4, 0xB8, 0xAE, 0xA4, 0x9D, 0x97,
+	0x92, 0x8C, 0x88, 0x83,
+};
+
+static u8 SEQ_FT8720_M14X_01_235[] = {
+	0x00,
+	0x90,
+};
+
+static u8 SEQ_FT8720_M14X_01_236[] = {
+	0xCA,
+	0xFE, 0xFF, 0x66, 0xFC, 0xFF, 0xCC, 0xFA, 0xFF, 0x66,
+};
+
+static u8 SEQ_FT8720_M14X_01_237[] = {
+	0x00,
+	0x00,
+};
+
+static u8 SEQ_FT8720_M14X_01_238[] = {
+	0xFF,
+	0xFF, 0xFF, 0xFF,
+};
+
+static u8 SEQ_FT8720_M14X_01_239[] = {
+	0x53,
+	0x2C,
+};
+
+static u8 SEQ_FT8720_M14X_01_240[] = {
+	0x55,
+	0x01,
+};
+
+
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_sleep_out, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_SLEEP_OUT, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_sleep_in, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_SLEEP_IN, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_display_on, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_DISPLAY_ON, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_display_off, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_DISPLAY_OFF, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_brightness_on, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_BRIGHTNESS_ON, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_brightness_min, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_BRIGHTNESS_MIN, 0);
+
+static DEFINE_PKTUI(ft8720_m14x_01_brightness, &ft8720_m14x_01_maptbl[BRT_MAPTBL], 1);
+static DEFINE_VARIABLE_PACKET(ft8720_m14x_01_brightness, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_BRIGHTNESS, 0);
+
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_001, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_001, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_002, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_002, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_003, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_003, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_004, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_004, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_005, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_005, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_006, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_006, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_007, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_007, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_008, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_008, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_009, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_009, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_010, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_010, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_011, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_011, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_012, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_012, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_013, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_013, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_014, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_014, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_015, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_015, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_016, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_016, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_017, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_017, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_018, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_018, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_019, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_019, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_020, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_020, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_021, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_021, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_022, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_022, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_023, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_023, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_024, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_024, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_025, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_025, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_026, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_026, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_027, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_027, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_028, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_028, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_029, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_029, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_030, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_030, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_031, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_031, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_032, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_032, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_033, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_033, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_034, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_034, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_035, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_035, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_036, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_036, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_037, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_037, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_038, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_038, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_039, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_039, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_040, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_040, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_041, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_041, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_042, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_042, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_043, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_043, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_044, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_044, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_045, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_045, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_046, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_046, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_047, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_047, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_048, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_048, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_049, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_049, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_050, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_050, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_051, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_051, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_052, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_052, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_053, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_053, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_054, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_054, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_055, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_055, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_056, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_056, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_057, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_057, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_058, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_058, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_059, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_059, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_060, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_060, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_061, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_061, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_062, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_062, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_063, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_063, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_064, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_064, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_065, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_065, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_066, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_066, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_067, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_067, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_068, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_068, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_069, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_069, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_070, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_070, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_071, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_071, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_072, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_072, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_073, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_073, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_074, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_074, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_075, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_075, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_076, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_076, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_077, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_077, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_078, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_078, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_079, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_079, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_080, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_080, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_081, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_081, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_082, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_082, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_083, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_083, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_084, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_084, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_085, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_085, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_086, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_086, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_087, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_087, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_088, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_088, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_089, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_089, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_090, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_090, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_091, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_091, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_092, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_092, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_093, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_093, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_094, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_094, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_095, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_095, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_096, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_096, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_097, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_097, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_098, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_098, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_099, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_099, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_100, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_100, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_101, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_101, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_102, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_102, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_103, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_103, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_104, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_104, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_105, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_105, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_106, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_106, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_107, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_107, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_108, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_108, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_109, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_109, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_110, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_110, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_111, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_111, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_112, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_112, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_113, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_113, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_114, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_114, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_115, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_115, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_116, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_116, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_117, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_117, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_118, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_118, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_119, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_119, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_120, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_120, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_121, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_121, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_122, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_122, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_123, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_123, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_124, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_124, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_125, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_125, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_126, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_126, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_127, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_127, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_128, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_128, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_129, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_129, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_130, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_130, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_131, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_131, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_132, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_132, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_133, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_133, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_134, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_134, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_135, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_135, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_136, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_136, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_137, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_137, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_138, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_138, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_139, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_139, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_140, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_140, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_141, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_141, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_142, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_142, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_143, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_143, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_144, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_144, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_145, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_145, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_146, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_146, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_147, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_147, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_148, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_148, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_149, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_149, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_150, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_150, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_151, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_151, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_152, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_152, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_153, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_153, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_154, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_154, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_155, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_155, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_156, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_156, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_157, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_157, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_158, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_158, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_159, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_159, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_160, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_160, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_161, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_161, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_162, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_162, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_163, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_163, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_164, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_164, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_165, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_165, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_166, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_166, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_167, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_167, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_168, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_168, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_169, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_169, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_170, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_170, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_171, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_171, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_172, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_172, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_173, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_173, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_174, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_174, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_175, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_175, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_176, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_176, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_177, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_177, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_178, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_178, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_179, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_179, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_180, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_180, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_181, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_181, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_182, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_182, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_183, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_183, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_184, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_184, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_185, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_185, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_186, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_186, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_187, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_187, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_188, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_188, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_189, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_189, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_190, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_190, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_191, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_191, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_192, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_192, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_193, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_193, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_194, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_194, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_195, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_195, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_196, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_196, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_197, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_197, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_198, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_198, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_199, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_199, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_200, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_200, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_201, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_201, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_202, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_202, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_203, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_203, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_204, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_204, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_205, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_205, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_206, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_206, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_207, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_207, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_208, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_208, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_209, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_209, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_210, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_210, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_211, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_211, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_212, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_212, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_213, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_213, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_214, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_214, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_215, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_215, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_216, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_216, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_217, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_217, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_218, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_218, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_219, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_219, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_220, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_220, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_221, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_221, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_222, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_222, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_223, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_223, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_224, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_224, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_225, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_225, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_226, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_226, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_227, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_227, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_228, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_228, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_229, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_229, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_230, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_230, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_231, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_231, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_232, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_232, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_233, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_233, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_234, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_234, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_235, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_235, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_236, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_236, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_237, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_237, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_238, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_238, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_239, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_239, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_240, DSI_PKT_TYPE_WR, SEQ_FT8720_M14X_01_240, 0);
+
+
+static DEFINE_PANEL_MDELAY(ft8720_m14x_01_wait_20msec, 20); /* 1 frame */
+static DEFINE_PANEL_MDELAY(ft8720_m14x_01_wait_40msec, 40);
+static DEFINE_PANEL_MDELAY(ft8720_m14x_01_wait_60msec, 60); /* 4 frame */
+static DEFINE_PANEL_MDELAY(ft8720_m14x_01_wait_120msec, 120);
+static DEFINE_PANEL_MDELAY(ft8720_m14x_01_wait_1msec, 1);
+static DEFINE_PANEL_MDELAY(ft8720_m14x_01_wait_2msec, 2);
+
+static DEFINE_COND(ft8720_m14x_01_cond_is_fps_90hz, is_m14x_fps_90hz);
+
+static void *ft8720_m14x_01_init_cmdtbl[] = {
+	&PKTINFO(ft8720_m14x_01_001),
+	&PKTINFO(ft8720_m14x_01_002),
+	&PKTINFO(ft8720_m14x_01_003),
+	&PKTINFO(ft8720_m14x_01_004),
+	&PKTINFO(ft8720_m14x_01_005),
+	&PKTINFO(ft8720_m14x_01_006),
+	&PKTINFO(ft8720_m14x_01_007),
+	&PKTINFO(ft8720_m14x_01_008),
+	&PKTINFO(ft8720_m14x_01_009),
+	&PKTINFO(ft8720_m14x_01_010),
+	&PKTINFO(ft8720_m14x_01_011),
+	&PKTINFO(ft8720_m14x_01_012),
+	&PKTINFO(ft8720_m14x_01_013),
+	&PKTINFO(ft8720_m14x_01_014),
+	&PKTINFO(ft8720_m14x_01_015),
+	&PKTINFO(ft8720_m14x_01_016),
+	&PKTINFO(ft8720_m14x_01_017),
+	&PKTINFO(ft8720_m14x_01_018),
+	&PKTINFO(ft8720_m14x_01_019),
+	&PKTINFO(ft8720_m14x_01_020),
+	&PKTINFO(ft8720_m14x_01_021),
+	&PKTINFO(ft8720_m14x_01_022),
+	&PKTINFO(ft8720_m14x_01_023),
+	&PKTINFO(ft8720_m14x_01_024),
+	&PKTINFO(ft8720_m14x_01_025),
+	&PKTINFO(ft8720_m14x_01_026),
+	&PKTINFO(ft8720_m14x_01_027),
+	&PKTINFO(ft8720_m14x_01_028),
+	&PKTINFO(ft8720_m14x_01_029),
+	&PKTINFO(ft8720_m14x_01_030),
+	&PKTINFO(ft8720_m14x_01_031),
+	&PKTINFO(ft8720_m14x_01_032),
+	&PKTINFO(ft8720_m14x_01_033),
+	&PKTINFO(ft8720_m14x_01_034),
+	&PKTINFO(ft8720_m14x_01_035),
+	&PKTINFO(ft8720_m14x_01_036),
+	&PKTINFO(ft8720_m14x_01_037),
+	&PKTINFO(ft8720_m14x_01_038),
+	&PKTINFO(ft8720_m14x_01_039),
+	&PKTINFO(ft8720_m14x_01_040),
+	&PKTINFO(ft8720_m14x_01_041),
+	&PKTINFO(ft8720_m14x_01_042),
+	&PKTINFO(ft8720_m14x_01_043),
+	&PKTINFO(ft8720_m14x_01_044),
+	&PKTINFO(ft8720_m14x_01_045),
+	&PKTINFO(ft8720_m14x_01_046),
+	&PKTINFO(ft8720_m14x_01_047),
+	&PKTINFO(ft8720_m14x_01_048),
+	&PKTINFO(ft8720_m14x_01_049),
+	&PKTINFO(ft8720_m14x_01_050),
+	&PKTINFO(ft8720_m14x_01_051),
+	&PKTINFO(ft8720_m14x_01_052),
+	&PKTINFO(ft8720_m14x_01_053),
+	&PKTINFO(ft8720_m14x_01_054),
+	&PKTINFO(ft8720_m14x_01_055),
+	&PKTINFO(ft8720_m14x_01_056),
+	&PKTINFO(ft8720_m14x_01_057),
+	&PKTINFO(ft8720_m14x_01_058),
+	&PKTINFO(ft8720_m14x_01_059),
+	&PKTINFO(ft8720_m14x_01_060),
+	&PKTINFO(ft8720_m14x_01_061),
+	&PKTINFO(ft8720_m14x_01_062),
+	&PKTINFO(ft8720_m14x_01_063),
+	&PKTINFO(ft8720_m14x_01_064),
+	&PKTINFO(ft8720_m14x_01_065),
+	&PKTINFO(ft8720_m14x_01_066),
+	&PKTINFO(ft8720_m14x_01_067),
+	&PKTINFO(ft8720_m14x_01_068),
+	&PKTINFO(ft8720_m14x_01_069),
+	&PKTINFO(ft8720_m14x_01_070),
+	&PKTINFO(ft8720_m14x_01_071),
+	&PKTINFO(ft8720_m14x_01_072),
+	&PKTINFO(ft8720_m14x_01_073),
+	&PKTINFO(ft8720_m14x_01_074),
+	&PKTINFO(ft8720_m14x_01_075),
+	&PKTINFO(ft8720_m14x_01_076),
+	&PKTINFO(ft8720_m14x_01_077),
+	&PKTINFO(ft8720_m14x_01_078),
+	&PKTINFO(ft8720_m14x_01_079),
+	&PKTINFO(ft8720_m14x_01_080),
+	&PKTINFO(ft8720_m14x_01_081),
+	&PKTINFO(ft8720_m14x_01_082),
+	&PKTINFO(ft8720_m14x_01_083),
+	&PKTINFO(ft8720_m14x_01_084),
+	&PKTINFO(ft8720_m14x_01_085),
+	&PKTINFO(ft8720_m14x_01_086),
+	&PKTINFO(ft8720_m14x_01_087),
+	&PKTINFO(ft8720_m14x_01_088),
+	&PKTINFO(ft8720_m14x_01_089),
+	&PKTINFO(ft8720_m14x_01_090),
+	&PKTINFO(ft8720_m14x_01_091),
+	&PKTINFO(ft8720_m14x_01_092),
+	&PKTINFO(ft8720_m14x_01_093),
+	&PKTINFO(ft8720_m14x_01_094),
+	&PKTINFO(ft8720_m14x_01_095),
+	&PKTINFO(ft8720_m14x_01_096),
+	&PKTINFO(ft8720_m14x_01_097),
+	&PKTINFO(ft8720_m14x_01_098),
+	&PKTINFO(ft8720_m14x_01_099),
+	&PKTINFO(ft8720_m14x_01_100),
+	&PKTINFO(ft8720_m14x_01_101),
+	&PKTINFO(ft8720_m14x_01_102),
+	&PKTINFO(ft8720_m14x_01_103),
+	&PKTINFO(ft8720_m14x_01_104),
+	&PKTINFO(ft8720_m14x_01_105),
+	&PKTINFO(ft8720_m14x_01_106),
+	&PKTINFO(ft8720_m14x_01_107),
+	&PKTINFO(ft8720_m14x_01_108),
+	&PKTINFO(ft8720_m14x_01_109),
+	&PKTINFO(ft8720_m14x_01_110),
+	&PKTINFO(ft8720_m14x_01_111),
+	&PKTINFO(ft8720_m14x_01_112),
+	&PKTINFO(ft8720_m14x_01_113),
+	&PKTINFO(ft8720_m14x_01_114),
+	&PKTINFO(ft8720_m14x_01_115),
+	&PKTINFO(ft8720_m14x_01_116),
+	&PKTINFO(ft8720_m14x_01_117),
+	&PKTINFO(ft8720_m14x_01_118),
+	&PKTINFO(ft8720_m14x_01_119),
+	&PKTINFO(ft8720_m14x_01_120),
+	&PKTINFO(ft8720_m14x_01_121),
+	&PKTINFO(ft8720_m14x_01_122),
+	&PKTINFO(ft8720_m14x_01_123),
+	&PKTINFO(ft8720_m14x_01_124),
+	&PKTINFO(ft8720_m14x_01_125),
+	&PKTINFO(ft8720_m14x_01_126),
+	&PKTINFO(ft8720_m14x_01_127),
+	&PKTINFO(ft8720_m14x_01_128),
+	&PKTINFO(ft8720_m14x_01_129),
+	&PKTINFO(ft8720_m14x_01_130),
+	&PKTINFO(ft8720_m14x_01_131),
+	&PKTINFO(ft8720_m14x_01_132),
+	&PKTINFO(ft8720_m14x_01_133),
+	&PKTINFO(ft8720_m14x_01_134),
+	&PKTINFO(ft8720_m14x_01_135),
+	&PKTINFO(ft8720_m14x_01_136),
+	&PKTINFO(ft8720_m14x_01_137),
+	&PKTINFO(ft8720_m14x_01_138),
+	&PKTINFO(ft8720_m14x_01_139),
+	&PKTINFO(ft8720_m14x_01_140),
+	&PKTINFO(ft8720_m14x_01_141),
+	&PKTINFO(ft8720_m14x_01_142),
+	&PKTINFO(ft8720_m14x_01_143),
+	&PKTINFO(ft8720_m14x_01_144),
+	&PKTINFO(ft8720_m14x_01_145),
+	&PKTINFO(ft8720_m14x_01_146),
+	&PKTINFO(ft8720_m14x_01_147),
+	&PKTINFO(ft8720_m14x_01_148),
+	&PKTINFO(ft8720_m14x_01_149),
+	&PKTINFO(ft8720_m14x_01_150),
+	&PKTINFO(ft8720_m14x_01_151),
+	&PKTINFO(ft8720_m14x_01_152),
+	&PKTINFO(ft8720_m14x_01_153),
+	&PKTINFO(ft8720_m14x_01_154),
+	&PKTINFO(ft8720_m14x_01_155),
+	&PKTINFO(ft8720_m14x_01_156),
+	&PKTINFO(ft8720_m14x_01_157),
+	&PKTINFO(ft8720_m14x_01_158),
+	&PKTINFO(ft8720_m14x_01_159),
+	&PKTINFO(ft8720_m14x_01_160),
+	&PKTINFO(ft8720_m14x_01_161),
+	&PKTINFO(ft8720_m14x_01_162),
+	&PKTINFO(ft8720_m14x_01_163),
+	&PKTINFO(ft8720_m14x_01_164),
+	&PKTINFO(ft8720_m14x_01_165),
+	&PKTINFO(ft8720_m14x_01_166),
+	&PKTINFO(ft8720_m14x_01_167),
+	&PKTINFO(ft8720_m14x_01_168),
+	&PKTINFO(ft8720_m14x_01_169),
+	&PKTINFO(ft8720_m14x_01_170),
+	&PKTINFO(ft8720_m14x_01_171),
+	&PKTINFO(ft8720_m14x_01_172),
+	&PKTINFO(ft8720_m14x_01_173),
+	&PKTINFO(ft8720_m14x_01_174),
+	&PKTINFO(ft8720_m14x_01_175),
+	&PKTINFO(ft8720_m14x_01_176),
+	&PKTINFO(ft8720_m14x_01_177),
+	&PKTINFO(ft8720_m14x_01_178),
+	&PKTINFO(ft8720_m14x_01_179),
+	&PKTINFO(ft8720_m14x_01_180),
+	&PKTINFO(ft8720_m14x_01_181),
+	&PKTINFO(ft8720_m14x_01_182),
+	&PKTINFO(ft8720_m14x_01_183),
+	&PKTINFO(ft8720_m14x_01_184),
+	&PKTINFO(ft8720_m14x_01_185),
+	&PKTINFO(ft8720_m14x_01_186),
+	&PKTINFO(ft8720_m14x_01_187),
+	&PKTINFO(ft8720_m14x_01_188),
+	&PKTINFO(ft8720_m14x_01_189),
+	&PKTINFO(ft8720_m14x_01_190),
+	&PKTINFO(ft8720_m14x_01_191),
+	&PKTINFO(ft8720_m14x_01_192),
+	&PKTINFO(ft8720_m14x_01_193),
+	&PKTINFO(ft8720_m14x_01_194),
+	&PKTINFO(ft8720_m14x_01_195),
+	&PKTINFO(ft8720_m14x_01_196),
+	&PKTINFO(ft8720_m14x_01_197),
+	&PKTINFO(ft8720_m14x_01_198),
+	&PKTINFO(ft8720_m14x_01_199),
+	&PKTINFO(ft8720_m14x_01_200),
+	&PKTINFO(ft8720_m14x_01_201),
+	&PKTINFO(ft8720_m14x_01_202),
+	&PKTINFO(ft8720_m14x_01_203),
+	&PKTINFO(ft8720_m14x_01_204),
+	&PKTINFO(ft8720_m14x_01_205),
+	&PKTINFO(ft8720_m14x_01_206),
+	&PKTINFO(ft8720_m14x_01_207),
+	&PKTINFO(ft8720_m14x_01_208),
+	&PKTINFO(ft8720_m14x_01_209),
+	&PKTINFO(ft8720_m14x_01_210),
+	&PKTINFO(ft8720_m14x_01_211),
+	&PKTINFO(ft8720_m14x_01_212),
+	&PKTINFO(ft8720_m14x_01_213),
+	&PKTINFO(ft8720_m14x_01_214),
+	&PKTINFO(ft8720_m14x_01_215),
+	&PKTINFO(ft8720_m14x_01_216),
+	&PKTINFO(ft8720_m14x_01_217),
+	&PKTINFO(ft8720_m14x_01_218),
+	&PKTINFO(ft8720_m14x_01_219),
+	&PKTINFO(ft8720_m14x_01_220),
+	&PKTINFO(ft8720_m14x_01_221),
+	&PKTINFO(ft8720_m14x_01_222),
+	&PKTINFO(ft8720_m14x_01_223),
+	&PKTINFO(ft8720_m14x_01_224),
+	&PKTINFO(ft8720_m14x_01_225),
+	&PKTINFO(ft8720_m14x_01_226),
+	&PKTINFO(ft8720_m14x_01_227),
+	&PKTINFO(ft8720_m14x_01_228),
+	&PKTINFO(ft8720_m14x_01_229),
+	&PKTINFO(ft8720_m14x_01_230),
+	&PKTINFO(ft8720_m14x_01_231),
+	&PKTINFO(ft8720_m14x_01_232),
+	&PKTINFO(ft8720_m14x_01_233),
+	&PKTINFO(ft8720_m14x_01_234),
+	&PKTINFO(ft8720_m14x_01_235),
+	&PKTINFO(ft8720_m14x_01_236),
+	&PKTINFO(ft8720_m14x_01_237),
+	&PKTINFO(ft8720_m14x_01_238),
+	&PKTINFO(ft8720_m14x_01_239),
+	&PKTINFO(ft8720_m14x_01_240),
+
+	&PKTINFO(ft8720_m14x_01_sleep_out),
+
+	&DLYINFO(ft8720_m14x_01_wait_120msec),
+	&PKTINFO(ft8720_m14x_01_brightness_min),
+	&PKTINFO(ft8720_m14x_01_display_on),
+};
+
+static void *ft8720_m14x_01_res_init_cmdtbl[] = {
+	&tft_common_restbl[RES_ID],
+};
+
+static void *ft8720_m14x_01_set_bl_cmdtbl[] = {
+	&PKTINFO(ft8720_m14x_01_brightness),
+};
+
+static void *ft8720_m14x_01_display_on_cmdtbl[] = {
+	&DLYINFO(ft8720_m14x_01_wait_40msec),
+	&PKTINFO(ft8720_m14x_01_brightness),
+	&PKTINFO(ft8720_m14x_01_brightness_on),
+};
+
+static void *ft8720_m14x_01_display_off_cmdtbl[] = {
+	&PKTINFO(ft8720_m14x_01_display_off),
+	&DLYINFO(ft8720_m14x_01_wait_20msec),
+};
+
+static void *ft8720_m14x_01_exit_cmdtbl[] = {
+	&PKTINFO(ft8720_m14x_01_sleep_in),
+};
+
+static void *ft8720_m14x_01_display_mode_cmdtbl[] = {
+	/* dummy cmd */
+	&CONDINFO_IF(ft8720_m14x_01_cond_is_fps_90hz),
+	&CONDINFO_EL(ft8720_m14x_01_cond_is_fps_90hz),
+	&CONDINFO_FI(ft8720_m14x_01_cond_is_fps_90hz),
+};
+
+static void *ft8720_m14x_01_dummy_cmdtbl[] = {
+	NULL,
+};
+
+static struct seqinfo ft8720_m14x_01_seqtbl[MAX_PANEL_SEQ] = {
+	[PANEL_INIT_SEQ] = SEQINFO_INIT("init-seq", ft8720_m14x_01_init_cmdtbl),
+	[PANEL_RES_INIT_SEQ] = SEQINFO_INIT("resource-init-seq", ft8720_m14x_01_res_init_cmdtbl),
+	[PANEL_SET_BL_SEQ] = SEQINFO_INIT("set-bl-seq", ft8720_m14x_01_set_bl_cmdtbl),
+	[PANEL_DISPLAY_MODE_SEQ] = SEQINFO_INIT("display-mode-seq", ft8720_m14x_01_display_mode_cmdtbl),
+	[PANEL_DISPLAY_ON_SEQ] = SEQINFO_INIT("display-on-seq", ft8720_m14x_01_display_on_cmdtbl),
+	[PANEL_DISPLAY_OFF_SEQ] = SEQINFO_INIT("display-off-seq", ft8720_m14x_01_display_off_cmdtbl),
+	[PANEL_EXIT_SEQ] = SEQINFO_INIT("exit-seq", ft8720_m14x_01_exit_cmdtbl),
+};
+
+
+/* BLIC SETTING START */
+static u8 FT8720_M14X_01_KTZ8864_I2C_INIT[] = {
+	0x0C, 0x24,
+	0x0D, 0x1E,
+	0x0E, 0x1E,
+	0x09, 0x99,
+	0x02, 0x6B,
+	0x03, 0x0D,
+	0x11, 0x74,
+	0x04, 0x03,
+	0x05, 0xC2,
+	0x10, 0x66,
+	0x08, 0x13,
+};
+
+static u8 FT8720_M14X_01_KTZ8864_I2C_EXIT_BLEN[] = {
+	0x08, 0x00,
+};
+
+static u8 FT8720_M14X_01_KTZ8864_I2C_DUMP[] = {
+	0x0C, 0x00,
+	0x0D, 0x00,
+	0x0E, 0x00,
+	0x09, 0x00,
+	0x09, 0x00,
+	0x02, 0x00,
+	0x03, 0x00,
+	0x11, 0x00,
+	0x04, 0x00,
+	0x05, 0x00,
+	0x10, 0x00,
+	0x08, 0x00,
+};
+
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_ktz8864_i2c_init, I2C_PKT_TYPE_WR, FT8720_M14X_01_KTZ8864_I2C_INIT, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_ktz8864_i2c_exit_blen, I2C_PKT_TYPE_WR, FT8720_M14X_01_KTZ8864_I2C_EXIT_BLEN, 0);
+static DEFINE_STATIC_PACKET(ft8720_m14x_01_ktz8864_i2c_dump, I2C_PKT_TYPE_RD, FT8720_M14X_01_KTZ8864_I2C_DUMP, 0);
+
+static DEFINE_PANEL_MDELAY(ft8720_m14x_01_blic_wait_delay, 2);
+
+static void *ft8720_m14x_01_ktz8864_init_cmdtbl[] = {
+#ifdef DEBUG_I2C_READ
+	&PKTINFO(ft8720_m14x_01_ktz8864_i2c_dump),
+#endif
+	&PKTINFO(ft8720_m14x_01_ktz8864_i2c_init),
+#ifdef DEBUG_I2C_READ
+	&PKTINFO(ft8720_m14x_01_ktz8864_i2c_dump),
+#endif
+};
+
+static void *ft8720_m14x_01_ktz8864_exit_cmdtbl[] = {
+#ifdef DEBUG_I2C_READ
+	&PKTINFO(ft8720_m14x_01_ktz8864_i2c_dump),
+#endif
+	&PKTINFO(ft8720_m14x_01_ktz8864_i2c_exit_blen),
+};
+
+static struct seqinfo ft8720_m14x_01_ktz8864_seq_tbl[MAX_PANEL_BLIC_SEQ] = {
+	[PANEL_BLIC_I2C_ON_SEQ] = SEQINFO_INIT("i2c-init-seq", ft8720_m14x_01_ktz8864_init_cmdtbl),
+	[PANEL_BLIC_I2C_OFF_SEQ] = SEQINFO_INIT("i2c-exit-seq", ft8720_m14x_01_ktz8864_exit_cmdtbl),
+};
+
+static struct blic_data ft8720_m14x_01_ktz8864_blic_data = {
+	.name = "ktz8864",
+	.seqtbl = ft8720_m14x_01_ktz8864_seq_tbl,
+};
+
+static struct blic_data *ft8720_m14x_01_blic_tbl[] = {
+	&ft8720_m14x_01_ktz8864_blic_data,
+};
+/* BLIC SETTING END */
+
+
+struct common_panel_info ft8720_m14x_01_panel_info = {
+	.ldi_name = "ft8720",
+	.name = "ft8720_m14x_01",
+	.model = "csot_6_58_inch",
+	.vendor = "DTC",
+	.id = 0x5B1270,
+	.rev = 0,
+	.ddi_props = {
+		.err_fg_recovery = false,
+		.support_vrr = true,
+		.init_seq_by_lpdt = true,
+	},
+#if defined(CONFIG_PANEL_DISPLAY_MODE)
+	.common_panel_modes = &ft8720_m14x_01_display_modes,
+#endif
+	.mres = {
+		.nr_resol = ARRAY_SIZE(ft8720_m14x_01_default_resol),
+		.resol = ft8720_m14x_01_default_resol,
+	},
+	.vrrtbl = ft8720_m14x_01_default_vrrtbl,
+	.nr_vrrtbl = ARRAY_SIZE(ft8720_m14x_01_default_vrrtbl),
+	.maptbl = ft8720_m14x_01_maptbl,
+	.nr_maptbl = ARRAY_SIZE(ft8720_m14x_01_maptbl),
+	.seqtbl = ft8720_m14x_01_seqtbl,
+	.nr_seqtbl = ARRAY_SIZE(ft8720_m14x_01_seqtbl),
+	.rditbl = tft_common_rditbl,
+	.nr_rditbl = ARRAY_SIZE(tft_common_rditbl),
+	.restbl = tft_common_restbl,
+	.nr_restbl = ARRAY_SIZE(tft_common_restbl),
+	.dumpinfo = NULL,
+	.nr_dumpinfo = 0,
+	.panel_dim_info = {
+		[PANEL_BL_SUBDEV_TYPE_DISP] = &ft8720_m14x_01_panel_dimming_info,
+	},
+	.blic_data_tbl = ft8720_m14x_01_blic_tbl,
+	.nr_blic_data_tbl = ARRAY_SIZE(ft8720_m14x_01_blic_tbl),
+};
+
+#endif /* __FT8720_M14X_01_PANEL_H__ */

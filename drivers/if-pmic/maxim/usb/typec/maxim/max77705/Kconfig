@@ -1,0 +1,73 @@
+#
+# CCIC devices
+#
+
+comment "CCIC configs"
+
+config CCIC_MAX77705
+	bool "CCIC 77705"
+	depends on I2C
+	default n
+	help
+	  If you say yes here you will get support for
+	  max77705 ccic full version chipset
+	  
+config CCIC_MAX77705_MODULE
+	tristate "CCIC 77705 module"
+	help
+	 this feature is for module build
+	 If this feature is "m", KO object will be make
+	 need modprobe for loading
+	 It is made by samsung
+
+config CCIC_MAX77705_DEBUG
+	bool "CCIC 77705 DEBUG"
+	depends on CCIC_MAX77705
+	default n
+	help
+	  If you say yes here you will get support for
+	  debugging feature with max77705 ccic chipset
+
+config MAX77705_FW_PID03_SUPPORT
+	bool "support MAX77705 FW PID 0x03"
+	depends on CCIC_MAX77705
+	default n
+	help
+	  If you say yes here you will get support for
+	  specified firmware with max77705 ccic chipset
+	  
+config MAX77705_GRL_ENABLE
+	bool "support Eye Diagram"
+	depends on CCIC_MAX77705
+	default n
+	help
+	  If you say yes here you will get support for Eye Diagram
+	  This isn't needed for MAX77705C(MD15)
+
+config MUIC_MAX77705
+        bool "Using MAX77705 MUIC"
+        depends on USE_MUIC
+        default n
+        help
+          If you say yes here you will get support for
+          the MAX77705 MUIC chip.
+	  To enable this driver,
+	  USE_MUIC should be enabled.
+
+config HV_MUIC_MAX77705_AFC
+        bool "Using MAX77705 AFC MUIC"
+        default n
+        help
+          If you say yes here you will get support for
+	  the MAX77705 AFC MUIC.
+	  To enable this driver,
+	  MUIC_MAX77705 should be enabled.
+
+config MUIC_MAX77705_CCIC
+        bool "Using MAX77705 MUIC supports CCIC chip interface"
+        default n
+        help
+          If you say yes here you will get support for
+	  the CCIC chip with MAX77705 MUIC.
+	  To enable this driver,
+	  MUIC_MAX77705 and MUIC_SUPPORT_CCIC should be enabled.
