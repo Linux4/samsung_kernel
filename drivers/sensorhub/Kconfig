@@ -14,3 +14,11 @@ config SHUB_PM_WAKEUP_LINUX_VER_5_4
 	  If you say yes here, the code of pm_wakeup is applied over linux version 5.4.
 	  To compile this driver as a module, choose M here: the
 	  module will be called ssp.
+
+config SHUB_AOIS
+	tristate "SHUB_AOIS"
+	default n
+	help
+	  This is AOIS driver for camera
+	  Set as y if the driver is used in this project
+	  use CONFIG_SHUB_AOIS

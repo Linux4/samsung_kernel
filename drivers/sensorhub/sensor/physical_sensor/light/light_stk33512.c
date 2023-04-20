@@ -27,18 +27,20 @@
 #define STK33512_NAME   "STK33512"
 #define STK33512_VENDOR "Sitronix"
 
-int init_light_variable_stk33512(struct light_data *data)
+int init_light_stk33512(void)
 {
+	struct light_data *data = get_sensor(SENSOR_TYPE_LIGHT)->data;
+
 	data->use_cal_data = true;
 
 	return 0;
 }
 
-struct light_chipset_funcs light_stk33512_ops = {
-	.init_light_variable = init_light_variable_stk33512,
+struct sensor_chipset_init_funcs light_stk33512_ops = {
+	.init = init_light_stk33512,
 };
 
-struct light_chipset_funcs *get_light_stk33512_function_pointer(char *name)
+struct sensor_chipset_init_funcs *get_light_stk33512_function_pointer(char *name)
 {
 	if (strcmp(name, STK33512_NAME) != 0)
 		return NULL;

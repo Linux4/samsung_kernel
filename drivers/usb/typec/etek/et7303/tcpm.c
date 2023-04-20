@@ -976,7 +976,8 @@ bool tcpm_inquire_during_direct_charge(struct tcpc_device *tcpc)
 #ifdef CONFIG_TCPC_VCONN_SUPPLY_MODE
 
 int tcpm_dpm_set_vconn_supply_mode(
-	struct tcpc_device *tcpc, uint8_t mode) {
+	struct tcpc_device *tcpc, uint8_t mode)
+{
 	bool keep_vconn;
 	struct pd_port *pd_port = &tcpc->pd_port;
 

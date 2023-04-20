@@ -2269,7 +2269,7 @@ static void pn547_shutdown(struct i2c_client *client)
 #ifdef CONFIG_PM
 static int pn547_suspend(struct device *dev)
 {
-	NFC_LOG_INFO("suspend!\n");
+	NFC_LOG_INFO_WITH_DATE("suspend!\n");
 	if (pn547_dev)
 		pn547_dev->clk_req_wakelock = true;
 
@@ -2278,7 +2278,7 @@ static int pn547_suspend(struct device *dev)
 
 static int pn547_resume(struct device *dev)
 {
-	NFC_LOG_INFO("resume!\n");
+	NFC_LOG_INFO_WITH_DATE("resume!\n");
 
 	return 0;
 }

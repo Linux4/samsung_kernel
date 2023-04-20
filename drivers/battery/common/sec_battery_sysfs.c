@@ -11,7 +11,7 @@
  */
 #include "sec_battery.h"
 #include "sec_battery_sysfs.h"
-#if defined(CONFIG_SEC_ABC)
+#if IS_ENABLED(CONFIG_SEC_ABC)
 #include <linux/sti/abc_common.h>
 #endif
 
@@ -108,6 +108,7 @@ static struct device_attribute sec_battery_attrs[] = {
 #endif
 	SEC_BATTERY_ATTR(set_stability_test),
 	SEC_BATTERY_ATTR(batt_capacity_max),
+	SEC_BATTERY_ATTR(batt_repcap_1st),
 	SEC_BATTERY_ATTR(batt_inbat_voltage),
 	SEC_BATTERY_ATTR(batt_inbat_voltage_ocv),
 	SEC_BATTERY_ATTR(batt_inbat_voltage_adc),
@@ -116,6 +117,9 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(batt_inbat_wireless_cs100),
 	SEC_BATTERY_ATTR(hmt_ta_connected),
 	SEC_BATTERY_ATTR(hmt_ta_charge),
+#if defined(CONFIG_SEC_FACTORY)
+	SEC_BATTERY_ATTR(afc_test_fg_mode),
+#endif
 #if defined(CONFIG_BATTERY_AGE_FORECAST)
 	SEC_BATTERY_ATTR(fg_cycle),
 	SEC_BATTERY_ATTR(fg_full_voltage),
@@ -245,10 +249,25 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(batt_sub_current_ma),
 	SEC_BATTERY_ATTR(batt_main_con_det),
 	SEC_BATTERY_ATTR(batt_sub_con_det),
+#if IS_ENABLED(CONFIG_LIMITER_S2ASL01)
+	SEC_BATTERY_ATTR(batt_main_vchg),
+	SEC_BATTERY_ATTR(batt_sub_vchg),
 	SEC_BATTERY_ATTR(batt_main_enb),
 	SEC_BATTERY_ATTR(batt_main_enb2),
 	SEC_BATTERY_ATTR(batt_sub_enb),
-	SEC_BATTERY_ATTR(batt_sub_pwr_mode2),	
+	SEC_BATTERY_ATTR(batt_sub_pwr_mode2),
+#else
+	SEC_BATTERY_ATTR(batt_main_shipmode),
+	SEC_BATTERY_ATTR(batt_sub_shipmode),
+#endif
+#if IS_ENABLED(CONFIG_DUAL_FUELGAUGE)
+	SEC_BATTERY_ATTR(batt_main_soc),
+	SEC_BATTERY_ATTR(batt_sub_soc),
+	SEC_BATTERY_ATTR(batt_main_repcap),
+	SEC_BATTERY_ATTR(batt_sub_repcap),
+	SEC_BATTERY_ATTR(batt_main_fullcaprep),
+	SEC_BATTERY_ATTR(batt_sub_fullcaprep),
+#endif
 #endif
 	SEC_BATTERY_ATTR(ext_event),
 	SEC_BATTERY_ATTR(direct_charging_status),
@@ -285,6 +304,9 @@ static struct device_attribute sec_battery_attrs[] = {
 	SEC_BATTERY_ATTR(dc_adc_mode),
 	SEC_BATTERY_ATTR(dc_vbus),
 	SEC_BATTERY_ATTR(chg_type),
+	SEC_BATTERY_ATTR(mst_en),
+	SEC_BATTERY_ATTR(spsn_test),
+	SEC_BATTERY_ATTR(chg_soc_lim),
 };
 
 static struct device_attribute sec_pogo_attrs[] = {
@@ -565,6 +587,10 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 								__func__, battery->pdata->fuelgauge_name,
 								POWER_SUPPLY_PROP_ENERGY_FULL, ret);
 					}
+#if IS_ENABLED(CONFIG_SEC_ABC) && !defined(CONFIG_SEC_FACTORY)
+					if (!value.intval)
+						sec_abc_send_event("MODULE=battery@WARN=show_fg_asoc0");
+#endif
 				}
 			}
 		}
@@ -632,7 +658,6 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 			battery->test_mode);
 		break;
-
 	case BATT_EVENT_CALL:
 		break;
 	case BATT_EVENT_2G_CALL:
@@ -704,6 +729,14 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 				POWER_SUPPLY_PROP_ENERGY_FULL_DESIGN, value);
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", value.intval);
 		break;
+	case BATT_REPCAP_1ST:
+		if (battery->pdata->soc_by_repcap_en) {
+			psy_do_property(battery->pdata->fuelgauge_name, get,
+					POWER_SUPPLY_EXT_PROP_CHARGE_FULL_REPCAP, value);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", value.intval);
+		} else
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", -1);
+		break;
 	case BATT_INBAT_VOLTAGE:
 	case BATT_INBAT_VOLTAGE_OCV:
 		ret = sec_bat_get_inbat_vol_ocv(battery);
@@ -751,6 +784,10 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 			(battery->cable_type == SEC_BATTERY_CABLE_HMT_CHARGE) ? 1 : 0);
 #endif
 		break;
+#if defined(CONFIG_SEC_FACTORY)
+	case AFC_TEST_FG_MODE:
+		break;
+#endif
 #if defined(CONFIG_BATTERY_AGE_FORECAST)
 	case FG_CYCLE:
 		value.intval = SEC_BATTERY_CAPACITY_CYCLE;
@@ -1721,7 +1758,7 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 		{
 			value.intval = SEC_DUAL_BATTERY_MAIN;
 			psy_do_property(battery->pdata->dual_battery_name, get,
-				POWER_SUPPLY_PROP_CURRENT_AVG, value);
+				POWER_SUPPLY_PROP_CURRENT_NOW, value);
 			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 				value.intval);
 		}
@@ -1730,7 +1767,7 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 		{
 			value.intval = SEC_DUAL_BATTERY_SUB;
 			psy_do_property(battery->pdata->dual_battery_name, get,
-				POWER_SUPPLY_PROP_CURRENT_AVG, value);
+				POWER_SUPPLY_PROP_CURRENT_NOW, value);
 			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 				value.intval);
 		}
@@ -1749,6 +1786,25 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 			value.intval = SEC_DUAL_BATTERY_SUB;
 			psy_do_property(battery->pdata->dual_battery_name, get,
 			POWER_SUPPLY_EXT_PROP_DUAL_BAT_DET, value);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				value.intval);
+		}
+		break;
+#if IS_ENABLED(CONFIG_LIMITER_S2ASL01)
+	case BATT_MAIN_VCHG:
+		{
+			value.intval = SEC_BATTERY_VOLTAGE_MV;
+			psy_do_property(battery->pdata->main_limiter_name, get,
+				POWER_SUPPLY_EXT_PROP_CHG_VOLTAGE, value);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				value.intval);
+		}
+		break;
+	case BATT_SUB_VCHG:
+		{
+			value.intval = SEC_BATTERY_VOLTAGE_MV;
+			psy_do_property(battery->pdata->sub_limiter_name, get,
+				POWER_SUPPLY_EXT_PROP_CHG_VOLTAGE, value);
 			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 				value.intval);
 		}
@@ -1778,13 +1834,89 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 		}
 		break;
 	case BATT_SUB_PWR_MODE2:
-		{		
+		{
 			psy_do_property(battery->pdata->sub_limiter_name, get,
 				POWER_SUPPLY_EXT_PROP_POWER_MODE2, value);
 			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 				value.intval);
 		}
 		break;
+#else /* max17333 */
+	case BATT_MAIN_SHIPMODE:
+		{
+			value.intval = 0;
+			ret = psy_do_property(battery->pdata->main_limiter_name, get,
+					POWER_SUPPLY_EXT_PROP_LIMITER_SHIPMODE, value);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				value.intval);
+		}
+		break;
+	case BATT_SUB_SHIPMODE:
+		{
+			value.intval = 0;
+			ret = psy_do_property(battery->pdata->sub_limiter_name, get,
+					POWER_SUPPLY_EXT_PROP_LIMITER_SHIPMODE, value);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				value.intval);
+		}
+		break;
+#endif
+#if IS_ENABLED(CONFIG_DUAL_FUELGAUGE)
+	case BATT_MAIN_SOC:
+		{
+			value.intval = SEC_DUAL_BATTERY_MAIN;
+			psy_do_property(battery->pdata->dual_fuelgauge_name, get,
+			POWER_SUPPLY_EXT_PROP_REPSOC, value);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				value.intval);
+		}
+		break;
+	case BATT_SUB_SOC:
+		{
+			value.intval = SEC_DUAL_BATTERY_SUB;
+			psy_do_property(battery->pdata->dual_fuelgauge_name, get,
+			POWER_SUPPLY_EXT_PROP_REPSOC, value);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				value.intval);
+		}
+		break;
+	case BATT_MAIN_REPCAP:
+		{
+			value.intval = SEC_DUAL_BATTERY_MAIN;
+			psy_do_property(battery->pdata->dual_fuelgauge_name, get,
+			POWER_SUPPLY_EXT_PROP_REPCAP, value);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				value.intval);
+		}
+		break;
+	case BATT_SUB_REPCAP:
+		{
+			value.intval = SEC_DUAL_BATTERY_SUB;
+			psy_do_property(battery->pdata->dual_fuelgauge_name, get,
+			POWER_SUPPLY_EXT_PROP_REPCAP, value);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				value.intval);
+		}
+		break;
+	case BATT_MAIN_FULLCAPREP:
+		{
+			value.intval = SEC_DUAL_BATTERY_MAIN;
+			psy_do_property(battery->pdata->dual_fuelgauge_name, get,
+			POWER_SUPPLY_EXT_PROP_FULLCAPREP, value);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				value.intval);
+		}
+		break;
+	case BATT_SUB_FULLCAPREP:
+		{
+			value.intval = SEC_DUAL_BATTERY_SUB;
+			psy_do_property(battery->pdata->dual_fuelgauge_name, get,
+			POWER_SUPPLY_EXT_PROP_FULLCAPREP, value);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				value.intval);
+		}
+		break;
+#endif
 #endif
 	case EXT_EVENT:
 		break;
@@ -1951,6 +2083,28 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 			i += scnprintf(buf + i, PAGE_SIZE - i, "%s\n", temp_buf);
 		}
 		break;
+	case MST_EN:
+		psy_do_property("battery", get,
+			POWER_SUPPLY_EXT_PROP_MST_EN, value);
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", value.intval);
+		break;
+	case SPSN_TEST:
+		/* Only MD15 supports this function (2022y 10m 12d) */
+		ret = psy_do_property(battery->pdata->charger_name, get,
+				POWER_SUPPLY_EXT_PROP_SPSN_TEST, value);
+		if (ret < 0) {
+			pr_info("%s: Does not support SPSN_TEST(%d)\n", __func__, ret);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", ret);
+		} else {
+			pr_info("%s: SPSN_DTLS: 0x%x\n", __func__, value.intval);
+			i += scnprintf(buf + i, PAGE_SIZE - i, "%x\n", value.intval);
+		}
+		break;
+	case CHG_SOC_LIM:
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%d %d\n",
+			battery->pdata->store_mode_charging_min,
+			battery->pdata->store_mode_charging_max);
+		break;
 	default:
 		i = -EINVAL;
 		break;
@@ -2094,6 +2248,7 @@ ssize_t sec_bat_store_attrs(
 			if (x == 2) {
 				sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_SLATE, SEC_BAT_CURRENT_EVENT_SLATE);
 				sec_vote(battery->chgen_vote, VOTER_SMART_SLATE, true, SEC_BAT_CHG_MODE_BUCK_OFF);
+				sec_bat_set_mfc_off(battery, WPC_EN_SLATE, false);
 #if IS_ENABLED(CONFIG_USB_FACTORY_MODE) && defined(CONFIG_SEC_FACTORY)
 				battery->usb_factory_slate_mode = true;
 #endif
@@ -2108,6 +2263,7 @@ ssize_t sec_bat_store_attrs(
 				sec_bat_set_current_event(battery, 0, SEC_BAT_CURRENT_EVENT_SLATE);
 				sec_vote(battery->chgen_vote, VOTER_SLATE, false, 0);
 				sec_vote(battery->chgen_vote, VOTER_SMART_SLATE, false, 0);
+				sec_bat_set_mfc_on(battery, WPC_EN_SLATE);
 				dev_info(battery->dev,
 					"%s: disable slate mode : %d\n", __func__, x);
 			} else {
@@ -2174,6 +2330,10 @@ ssize_t sec_bat_store_attrs(
 		if (sscanf(buf, "%d\n", &x) == 1) {
 			if (x >= 0 && x <= 100) {
 				dev_info(battery->dev, "%s: batt_asoc(%d)\n", __func__, x);
+#if IS_ENABLED(CONFIG_SEC_ABC) && !defined(CONFIG_SEC_FACTORY)
+				if (!x)
+					sec_abc_send_event("MODULE=battery@WARN=store_fg_asoc0");
+#endif
 				battery->batt_asoc = x;
 #if defined(CONFIG_BATTERY_CISD)
 				battery->cisd.data[CISD_DATA_ASOC] = x;
@@ -2555,6 +2715,29 @@ ssize_t sec_bat_store_attrs(
 			ret = count;
 		}
 		break;
+	case BATT_REPCAP_1ST:
+		if ((sscanf(buf, "%10d\n", &x) == 1) && (battery->pdata->soc_by_repcap_en)) {
+			dev_info(battery->dev,
+					"%s: BATT_REPCAP(%d), fg_reset(%d)\n", __func__, x, sec_bat_get_fgreset());
+			/* Maximum value check should be added in FG driver file */
+			if (!sec_bat_get_fgreset() && !battery->store_mode && x >= 0) {
+				value.intval = x;
+				psy_do_property(battery->pdata->fuelgauge_name, set,
+					POWER_SUPPLY_EXT_PROP_CHARGE_FULL_REPCAP, value);
+
+				/* update soc */
+				value.intval = 0;
+				psy_do_property(battery->pdata->fuelgauge_name, get,
+						POWER_SUPPLY_PROP_CAPACITY, value);
+				battery->capacity = value.intval;
+			} else {
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+				battery->fg_reset = 1;
+#endif
+			}
+			ret = count;
+		}
+		break;
 	case BATT_INBAT_VOLTAGE:
 		break;
 	case BATT_INBAT_VOLTAGE_OCV:
@@ -2657,6 +2840,16 @@ ssize_t sec_bat_store_attrs(
 #endif
 		}
 		break;
+#if defined(CONFIG_SEC_FACTORY)
+	case AFC_TEST_FG_MODE:
+		if (sscanf(buf, "%10d\n", &x) == 1) {
+			value.intval = x;
+			psy_do_property(battery->pdata->fuelgauge_name, set,
+				POWER_SUPPLY_EXT_PROP_AFC_TEST_FG_MODE, value);
+			ret = count;
+		}
+	break;
+#endif
 #if defined(CONFIG_BATTERY_AGE_FORECAST)
 	case FG_CYCLE:
 		break;
@@ -3762,6 +3955,10 @@ ssize_t sec_bat_store_attrs(
 	case BATT_MAIN_CON_DET:
 	case BATT_SUB_CON_DET:
 		break;
+#if IS_ENABLED(CONFIG_LIMITER_S2ASL01)
+	case BATT_MAIN_VCHG:
+	case BATT_SUB_VCHG:
+		break;
 	case BATT_MAIN_ENB: /* Can control This pin with 523k jig only, high active pin because it is reversed */
 		if (sscanf(buf, "%10d\n", &x) == 1) {
 			if (battery->pdata->main_bat_enb_gpio) {
@@ -3838,7 +4035,7 @@ ssize_t sec_bat_store_attrs(
 		break;
 	case BATT_SUB_PWR_MODE2:
 		if (sscanf(buf, "%10d\n", &x) == 1) {
-			union power_supply_propval value = {0, };			
+			union power_supply_propval value = {0, };
 			pr_info("%s sub pwr mode2 = %d\n", __func__, x);
 			if (x == 0) {
 				value.intval = 0;
@@ -3849,10 +4046,49 @@ ssize_t sec_bat_store_attrs(
 				psy_do_property(battery->pdata->sub_limiter_name, set,
 					POWER_SUPPLY_EXT_PROP_POWER_MODE2, value);
 			}
-			ret = count;				
+			ret = count;
 		}
-		break;		
+		break;
+#else /* max17333 */
+	case BATT_MAIN_SHIPMODE:
+		if (sscanf(buf, "%10d\n", &x) == 1) {
+			union power_supply_propval value = {0, };
+			pr_info("%s main limiter shipmode = %d\n", __func__, x);
+			if (x == 1) {
+				value.intval = 1;
+				psy_do_property(battery->pdata->main_limiter_name, set,
+					POWER_SUPPLY_EXT_PROP_LIMITER_SHIPMODE, value);
+			} else {
+				pr_info("%s wrong option for main limiter shipmode\n", __func__);
+			}
+			ret = count;
+		}
+		break;
+	case BATT_SUB_SHIPMODE:
+		if (sscanf(buf, "%10d\n", &x) == 1) {
+			union power_supply_propval value = {0, };
+			pr_info("%s sub limiter shipmode = %d\n", __func__, x);
+			if (x == 1) {
+				value.intval = 1;
+				psy_do_property(battery->pdata->sub_limiter_name, set,
+					POWER_SUPPLY_EXT_PROP_LIMITER_SHIPMODE, value);
+			} else {
+				pr_info("%s wrong option for sub limiter shipmode\n", __func__);
+			}
+			ret = count;
+		}
+		break;
 #endif
+#if IS_ENABLED(CONFIG_DUAL_FUELGAUGE)
+	case BATT_MAIN_SOC:
+	case BATT_SUB_SOC:
+	case BATT_MAIN_REPCAP:
+	case BATT_SUB_REPCAP:
+	case BATT_MAIN_FULLCAPREP:
+	case BATT_SUB_FULLCAPREP:
+		break;
+#endif
+#endif /* CONFIG_DUAL_BATTERY */
 	case EXT_EVENT:
 		if (sscanf(buf, "%10d\n", &x) == 1) {
 			pr_info("%s: ext event 0x%x\n", __func__, x);
@@ -3879,6 +4115,10 @@ ssize_t sec_bat_store_attrs(
 				direct_charging_source_status[0] = SEC_TEST_MODE;
 				direct_charging_source_status[1] =
 					(x == 0) ? SEC_CHARGING_SOURCE_SWITCHING : SEC_CHARGING_SOURCE_DIRECT;
+				if (battery->current_event & SEC_BAT_CURRENT_EVENT_HIGH_TEMP_SWELLING) {
+					direct_charging_source_status[1] = SEC_CHARGING_SOURCE_SWITCHING;
+					pr_info("%s : Change Charging Source to S/C because of Swelling\n", __func__);
+				}
 				value.strval = direct_charging_source_status;
 				psy_do_property(battery->pdata->charger_name, set,
 						POWER_SUPPLY_EXT_PROP_CHANGE_CHARGING_SOURCE, value);
@@ -4108,6 +4348,37 @@ ssize_t sec_bat_store_attrs(
 		break;
 	case CHG_TYPE:
 		break;
+	case MST_EN:
+		if (sscanf(buf, "%10d\n", &x) == 1) {
+			value.intval = x;
+			pr_info("%s: mst en(%d)\n", __func__, value.intval);
+			psy_do_property("battery", set,
+				POWER_SUPPLY_EXT_PROP_MST_EN, value);
+			ret = count;
+		}
+		break;
+	case SPSN_TEST:
+		break;
+	case CHG_SOC_LIM:
+	{
+#if defined(CONFIG_SEC_FACTORY)
+		int y = 0;
+
+		if (sscanf(buf, "%10d %10d\n", &x, &y) == 2) {
+			if (x >= y) {
+				pr_info("%s: min SOC (%d) higher/equal to max SOC (%d)\n",
+					__func__, x, y);
+			} else if (x >= 0 && y >= 0 && x <= 100 && y <= 100) {
+				battery->pdata->store_mode_charging_min = x;
+				battery->pdata->store_mode_charging_max = y;
+			} else {
+				pr_info("%s: Invalid min/max SOC (%d/%d)\n", __func__, x, y);
+			}
+			ret = count;
+		}
+#endif
+		break;
+	}
 	default:
 		ret = -EINVAL;
 		break;

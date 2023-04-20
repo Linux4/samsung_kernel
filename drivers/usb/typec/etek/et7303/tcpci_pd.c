@@ -30,7 +30,7 @@ struct tcpc_device *g_tcpc_dev;
 static void tcpc_pd_select_pdo(int num)
 {
 	struct tcpc_device *tcpc = g_tcpc_dev;
-	struct pdic_notifier_struct *pd_noti = NULL;	
+	struct pdic_notifier_struct *pd_noti = NULL;
 	struct tcpm_power_cap_val cap;
 	struct tcpm_power_cap caps;
 	int i = 0, pos = num - 1;
@@ -41,7 +41,7 @@ static void tcpc_pd_select_pdo(int num)
 	}
 
 	pd_noti = &tcpc->pd_noti;
-	
+
 	if (pd_noti->sink_status.selected_pdo_num == num) {
 #if IS_ENABLED(CONFIG_PDIC_POLICY)
 		if (tcpc->pd_port.pe_ready) {
@@ -99,7 +99,7 @@ void tcpc_pd_update_src_cap(struct tcpc_device *tcpc, struct pd_port_power_capab
 	struct dpm_pdo_info_t source;
 	struct pdic_notifier_struct *pd_noti = &tcpc->pd_noti;
 	int i, available_pdo_num = 0;
-	POWER_LIST* pPower_list;	
+	POWER_LIST *pPower_list;
 
 	for (i = 0; i < src_cap->nr; i++) {
 		DPM_INFO("SrcCap%d: 0x%08x\r\n", i + 1, src_cap->pdos[i]);
@@ -108,7 +108,7 @@ void tcpc_pd_update_src_cap(struct tcpc_device *tcpc, struct pd_port_power_capab
 		pPower_list = &pd_noti->sink_status.power_list[available_pdo_num + 1];
 
 		switch (source.type) {
-		case DPM_PDO_TYPE_FIXED:		
+		case DPM_PDO_TYPE_FIXED:
 			pPower_list->apdo = false;
 			pPower_list->pdo_type = FPDO_TYPE;
 			pPower_list->max_voltage = source.vmax;
@@ -122,7 +122,7 @@ void tcpc_pd_update_src_cap(struct tcpc_device *tcpc, struct pd_port_power_capab
 			pr_info("%s: [%d] FIXED max_voltage(%d)mV, max_current(%d)\n",
 				__func__, i+1, source.vmax, source.ma);
 			break;
-		case DPM_PDO_TYPE_VAR:			
+		case DPM_PDO_TYPE_VAR:
 			pr_info("%s: [%d] VARIABLE min_volt(%d)mV, max_volt(%d)mV, max_current(%d)mA\n",
 				__func__, i+1, source.vmin, source.vmax, source.ma);
 			break;
@@ -135,7 +135,7 @@ void tcpc_pd_update_src_cap(struct tcpc_device *tcpc, struct pd_port_power_capab
 #endif
 		default:
 			break;
-		};		
+		};
 	}
 
 	pd_noti->sink_status.available_pdo_num = available_pdo_num;

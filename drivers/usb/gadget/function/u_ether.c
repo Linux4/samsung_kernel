@@ -685,7 +685,6 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 					struct net_device *net)
 {
 	struct eth_dev		*dev = netdev_priv(net);
-	int			length = 0;
 	int			retval;
 	struct usb_request	*req = NULL;
 	unsigned long		flags;
@@ -794,7 +793,6 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 		memcpy(req->buf + req->length, skb->data, skb->len);
 		/* Increment req length by skb data length */
 		req->length = req->length + skb->len;
-		length = req->length;
 		dev_kfree_skb_any(skb);
 		req->context = NULL;
 
@@ -814,7 +812,7 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 
 		spin_unlock_irqrestore(&dev->tx_req_lock, flags);
 	} else {
-		length = skb->len;
+		req->length = skb->len;
 		req->buf = skb->data;
 		req->context = skb;
 	}
@@ -834,6 +832,7 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 		if (!dev->port_usb->multi_pkt_xfer)
 			dev_kfree_skb_any(skb);
 drop:
+		req->length = 0;
 		dev->net->stats.tx_dropped++;
 multiframe:
 		spin_lock_irqsave(&dev->tx_req_lock, flags);
@@ -1100,8 +1099,8 @@ struct eth_dev *gether_setup_name(struct usb_gadget *g,
 		free_netdev(net);
 		dev = ERR_PTR(status);
 	} else {
-		INFO(dev, "MAC %pM\n", net->dev_addr);
-		INFO(dev, "HOST MAC %pM\n", dev->host_mac);
+		DBG(dev, "MAC %pM\n", net->dev_addr);
+		DBG(dev, "HOST MAC %pM\n", dev->host_mac);
 
 		/*
 		 * two kinds of host-initiated state changes:
@@ -1189,7 +1188,8 @@ int gether_register_netdev(struct net_device *net)
 		dev_dbg(&g->dev, "register_netdev failed, %d\n", status);
 		return status;
 	} else {
-		INFO(dev, "HOST MAC %pM\n", dev->host_mac);
+		DBG(dev, "HOST MAC %pM\n", dev->host_mac);
+		DBG(dev, "MAC %pM\n", dev->dev_mac);
 
 		/* two kinds of host-initiated state changes:
 		 *  - iff DATA transfer is active, carrier is "on"
@@ -1205,7 +1205,7 @@ int gether_register_netdev(struct net_device *net)
 	if (status)
 		pr_warn("cannot set self ethernet address: %d\n", status);
 	else
-		INFO(dev, "MAC %pM\n", dev->dev_mac);
+		DBG(dev, "MAC %pM\n", dev->dev_mac);
 
 	return status;
 }

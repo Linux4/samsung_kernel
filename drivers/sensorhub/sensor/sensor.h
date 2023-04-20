@@ -26,6 +26,7 @@ int init_gyroscope_uncal(bool en);
 int init_light(bool en);
 int init_light_cct(bool en);
 int init_light_autobrightness(bool en);
+int init_light_seamless(bool en);
 int init_proximity(bool en);
 int init_proximity_raw(bool en);
 int init_proximity_calibration(bool en);
@@ -50,5 +51,7 @@ int init_device_orientation(bool en);
 int init_device_orientation_wu(bool en);
 int init_sar_backoff_motion(bool en);
 int init_pogo_request_handler(bool en);
-
+int init_aois(bool en);
+int init_rotation_vector(bool en);
+int init_game_rotation_vector(bool en);
 #endif

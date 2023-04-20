@@ -485,6 +485,17 @@ out:
 	return ret;
 }
 
+static void vt_muic_data_init(void)
+{
+	vt_muic.attached_dev = ATTACHED_DEV_NONE_MUIC;
+	vt_muic.batt_cable = -1;
+	vt_muic.rprd = 0;
+	vt_muic.afc_dev = ATTACHED_DEV_NONE_MUIC;
+	vt_muic.id_ta = 0;
+	vt_muic.buck_prev_status = -1;
+	vt_muic.is_afc_started = 0;
+}
+
 static int vt_muic_probe(struct platform_device *pdev)
 {
 	struct vt_muic_pdata *pdata = pdev->dev.platform_data;
@@ -507,6 +518,7 @@ static int vt_muic_probe(struct platform_device *pdev)
 	}
 	vt_muic.dev = &pdev->dev;
 	vt_muic.pdata = pdata;
+	vt_muic_data_init();
 	ret = vt_muic_irq_init();
 	if (ret)
 		goto out;
@@ -539,16 +551,10 @@ static int vt_muic_probe(struct platform_device *pdev)
 
 	if (pdata->use_psy_nb || pdata->use_manager_nb) {
 		muic_notifier_detach_attached_dev(ATTACHED_DEV_UNKNOWN_MUIC);
-		vt_muic.attached_dev = ATTACHED_DEV_NONE_MUIC;
-		vt_muic.batt_cable = 0;
-		vt_muic.rprd = 0;
-		vt_muic.afc_dev = ATTACHED_DEV_NONE_MUIC;
-		vt_muic.id_ta = 0;
-		vt_muic.buck_prev_status = -1;
-		vt_muic.is_afc_started = 0;
 		INIT_WORK(&vt_muic.vt_muic_work, vt_muic_work_func);
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 		if (pdata->use_psy_nb) {
+			vt_muic.batt_cable = SEC_BATTERY_CABLE_NONE;
 			vt_muic.psy_nb.notifier_call = vt_muic_psy_nb_func;
 			vt_muic.psy_nb.priority = 0;
 			ret = power_supply_reg_notifier(&vt_muic.psy_nb);

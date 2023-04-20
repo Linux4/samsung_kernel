@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2017, Samsung Electronics Co., Ltd.
+ * Copyright (C) 2019 Samsung Electronics Co., Ltd All Rights Reserved
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -122,18 +122,6 @@ static inline unsigned int irq_of_parse_and_map(struct device_node *dev, int ind
 #endif /*!defined(CONFIG_OF) */
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)
-#define sysdep_kernel_read(file, buf, size, off)	kernel_read(file, buf, size, &off)
-#else
-#define sysdep_kernel_read(file, buf, size, off)	\
-({							\
-	int ret;					\
-	ret = kernel_read(file, off, buf, size);	\
-	off += ret;					\
-	ret;						\
-})
-#endif
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
 static inline void shash_desc_zero(struct shash_desc *desc)
 {
@@ -218,6 +206,18 @@ static inline void reinit_completion(struct completion *x)
 int sysdep_idr_alloc(struct idr *idr, void *mem);
 int sysdep_idr_alloc_in_range(struct idr *idr, void *mem,
 		unsigned long start, unsigned long end);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#define sysdep_mm_down_read(mm)			down_read(&mm->mmap_lock)
+#define sysdep_mm_up_read(mm)			up_read(&mm->mmap_lock)
+#define sysdep_mm_down_write(mm)		down_write(&mm->mmap_lock)
+#define sysdep_mm_up_write(mm)			up_write(&mm->mmap_lock)
+#else
+#define sysdep_mm_down_read(mm)			down_read(&mm->mmap_sem)
+#define sysdep_mm_up_read(mm)			up_read(&mm->mmap_sem)
+#define sysdep_mm_down_write(mm)		down_write(&mm->mmap_sem)
+#define sysdep_mm_up_write(mm)			up_write(&mm->mmap_sem)
+#endif
 
 long sysdep_get_user_pages(struct task_struct *task,
 		struct mm_struct *mm, unsigned long start, unsigned long nr_pages,

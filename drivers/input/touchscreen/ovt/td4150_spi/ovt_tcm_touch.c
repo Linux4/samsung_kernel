@@ -296,18 +296,18 @@ static int touch_get_report_data(unsigned int offset,
 static int touch_parse_report(void)
 {
 	int retval;
-	bool active_only;
-	bool num_of_active_objects;
+	bool active_only = false;
+	bool num_of_active_objects = false;
 	unsigned char code;
 	unsigned int size;
-	unsigned int idx;
-	unsigned int obj;
-	unsigned int next;
+	unsigned int idx = 0;
+	unsigned int obj = 0;
+	unsigned int next = 0;
 	unsigned int data;
 	unsigned int bits;
-	unsigned int offset;
-	unsigned int objects;
-	unsigned int active_objects;
+	unsigned int offset = 0;
+	unsigned int objects = 0;
+	unsigned int active_objects = 0;
 	unsigned int report_size;
 	unsigned int config_size;
 	unsigned char *config_data;
@@ -327,13 +327,6 @@ static int touch_parse_report(void)
 	size = sizeof(*object_data) * touch_hcd->max_objects;
 	memset(touch_hcd->touch_data.object_data, 0x00, size);
 
-	num_of_active_objects = false;
-
-	idx = 0;
-	offset = 0;
-	objects = 0;
-	active_objects = 0;
-	active_only = false;
 	touch_data->display_deep_sleep_state = SLEEP_NO_CHANGE;
 
 	while (idx < config_size) {
@@ -827,9 +820,9 @@ static void touch_report(void)
 				y = temp;
 			}
 			if (bdata->x_flip)
-				x = touch_hcd->input_params.max_x - x;
+				x = (touch_hcd->input_params.max_x - x) > 0 ? (touch_hcd->input_params.max_x - x) : 0;
 			if (bdata->y_flip)
-				y = touch_hcd->input_params.max_y - y;
+				y = (touch_hcd->input_params.max_y - y) > 0 ? (touch_hcd->input_params.max_y - y) : 0;
 
 			if (object_data[idx].z == 0)
 				object_data[idx].z = 1;

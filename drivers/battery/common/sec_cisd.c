@@ -24,7 +24,7 @@ const char *cisd_data_str[] = {
 	"CHG_BATT_THM_MAX", "CHG_BATT_THM_MIN", "CHG_CHG_THM_MAX", "CHG_CHG_THM_MIN", "CHG_WPC_THM_MAX",
 	"CHG_WPC_THM_MIN", "CHG_USB_THM_MAX", "CHG_USB_THM_MIN", "USB_OVERHEAT_CHARGING", "UNSAFETY_VOLT",
 	"UNSAFETY_TEMP", "SAFETY_TIMER", "VSYS_OVP", "VBAT_OVP", "USB_OVERHEAT_RAPID_CHANGE", "ASOC",
-	"USB_OVERHEAT_ALONE", "CAP_NOM"
+	"USB_OVERHEAT_ALONE", "CAP_NOM", "RC0"
 };
 EXPORT_SYMBOL(cisd_data_str);
 
@@ -46,16 +46,15 @@ EXPORT_SYMBOL(cisd_cable_data_str);
 const char *cisd_tx_data_str[] = {"ON", "OTHER", "GEAR", "PHONE", "BUDS"};
 EXPORT_SYMBOL(cisd_tx_data_str);
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
-const char *cisd_event_data_str[] = {"DC_ERR", "TA_OCP_DET", "TA_OCP_ON", "OVP_EVENT_POWER", "OVP_EVENT_SIGNAL", "MAIN_BAT_ERR", "SUB_BAT_ERR", "WA_ERR"};
+const char *cisd_event_data_str[] = {"DC_ERR", "TA_OCP_DET", "TA_OCP_ON", "OVP_EVENT_POWER", "OVP_EVENT_SIGNAL", "OTG", "D2D", "MAIN_BAT_ERR", "SUB_BAT_ERR", "WA_ERR"};
 #else
-const char *cisd_event_data_str[] = {"DC_ERR", "TA_OCP_DET", "TA_OCP_ON", "OVP_EVENT_POWER", "OVP_EVENT_SIGNAL"};
+const char *cisd_event_data_str[] = {"DC_ERR", "TA_OCP_DET", "TA_OCP_ON", "OVP_EVENT_POWER", "OVP_EVENT_SIGNAL", "OTG", "D2D"};
 #endif
 EXPORT_SYMBOL(cisd_event_data_str);
 
 bool sec_bat_cisd_check(struct sec_battery_info *battery)
 {
-	union power_supply_propval capcurr_val = {0, };
-	union power_supply_propval vbat_val = {0, };
+	union power_supply_propval val = {0, };
 	struct cisd *pcisd = &battery->cisd;
 	bool ret = false;
 	int voltage = battery->voltage_now;
@@ -81,9 +80,9 @@ bool sec_bat_cisd_check(struct sec_battery_info *battery)
 			!(pcisd->state & CISD_STATE_OVER_VOLTAGE)) {
 			dev_info(battery->dev, "%s : [CISD] Battery Over Voltage Protection !! vbat(%d)mV\n",
 				__func__, voltage);
-			vbat_val.intval = true;
+			val.intval = true;
 			psy_do_property("battery", set, POWER_SUPPLY_EXT_PROP_VBAT_OVP,
-					vbat_val);
+					val);
 			pcisd->data[CISD_DATA_VBAT_OVP]++;
 			pcisd->data[CISD_DATA_VBAT_OVP_PER_DAY]++;
 			pcisd->state |= CISD_STATE_OVER_VOLTAGE;
@@ -163,33 +162,43 @@ bool sec_bat_cisd_check(struct sec_battery_info *battery)
 			}
 		}
 
-		capcurr_val.intval = SEC_BATTERY_CAPACITY_FULL;
+		val.intval = SEC_BATTERY_CAPACITY_FULL;
 		psy_do_property(battery->pdata->fuelgauge_name, get,
-			POWER_SUPPLY_PROP_ENERGY_NOW, capcurr_val);
-		if (capcurr_val.intval == -1) {
+			POWER_SUPPLY_PROP_ENERGY_NOW, val);
+		if (val.intval == -1) {
 			dev_info(battery->dev, "%s: [CISD] FG I2C fail. skip cisd check\n", __func__);
 			return ret;
 		}
 
-		if (capcurr_val.intval > pcisd->data[CISD_DATA_CAP_MAX])
-			pcisd->data[CISD_DATA_CAP_MAX] = capcurr_val.intval;
-		if (capcurr_val.intval < pcisd->data[CISD_DATA_CAP_MIN])
-			pcisd->data[CISD_DATA_CAP_MIN] = capcurr_val.intval;
+		if (val.intval > pcisd->data[CISD_DATA_CAP_MAX])
+			pcisd->data[CISD_DATA_CAP_MAX] = val.intval;
+		if (val.intval < pcisd->data[CISD_DATA_CAP_MIN])
+			pcisd->data[CISD_DATA_CAP_MIN] = val.intval;
 
-		if (capcurr_val.intval > pcisd->data[CISD_DATA_CAP_MAX_PER_DAY])
-			pcisd->data[CISD_DATA_CAP_MAX_PER_DAY] = capcurr_val.intval;
-		if (capcurr_val.intval < pcisd->data[CISD_DATA_CAP_MIN_PER_DAY])
-			pcisd->data[CISD_DATA_CAP_MIN_PER_DAY] = capcurr_val.intval;
+		if (val.intval > pcisd->data[CISD_DATA_CAP_MAX_PER_DAY])
+			pcisd->data[CISD_DATA_CAP_MAX_PER_DAY] = val.intval;
+		if (val.intval < pcisd->data[CISD_DATA_CAP_MIN_PER_DAY])
+			pcisd->data[CISD_DATA_CAP_MIN_PER_DAY] = val.intval;
 
-		capcurr_val.intval = SEC_BATTERY_CAPACITY_AGEDCELL;
+		val.intval = SEC_BATTERY_CAPACITY_AGEDCELL;
 		psy_do_property(battery->pdata->fuelgauge_name, get,
-			POWER_SUPPLY_PROP_ENERGY_NOW, capcurr_val);
-		if (capcurr_val.intval == -1) {
+			POWER_SUPPLY_PROP_ENERGY_NOW, val);
+		if (val.intval == -1) {
 			dev_info(battery->dev, "%s: [CISD] FG I2C fail. skip cisd check\n", __func__);
 			return ret;
 		}
-		pcisd->data[CISD_DATA_CAP_NOM] = capcurr_val.intval;
+		pcisd->data[CISD_DATA_CAP_NOM] = val.intval;
 		dev_info(battery->dev, "%s: [CISD] CAP_NOM %dmAh\n", __func__, pcisd->data[CISD_DATA_CAP_NOM]);
+
+		val.intval = SEC_BATTERY_CAPACITY_RC0;
+		psy_do_property(battery->pdata->fuelgauge_name, get,
+			POWER_SUPPLY_PROP_ENERGY_NOW, val);
+		if (val.intval == -1) {
+			dev_info(battery->dev, "%s: [CISD] FG I2C fail. skip cisd check\n", __func__);
+			return ret;
+		}
+		pcisd->data[CISD_DATA_RC0] = val.intval;
+		dev_info(battery->dev, "%s: [CISD] RC0 0x%x\n", __func__, pcisd->data[CISD_DATA_RC0]);
 	}
 
 	if (battery->temperature > pcisd->data[CISD_DATA_BATT_TEMP_MAX])
@@ -333,6 +342,7 @@ void sec_battery_cisd_init(struct sec_battery_info *battery)
 	battery->cisd.data[CISD_DATA_CHG_WPC_TEMP_MIN] = 1000;
 	battery->cisd.data[CISD_DATA_CHG_USB_TEMP_MIN] = 1000;
 	battery->cisd.data[CISD_DATA_CAP_MIN] = 0xFFFF;
+	battery->cisd.data[CISD_DATA_ASOC] = 100;
 
 	battery->cisd.data[CISD_DATA_FULL_COUNT_PER_DAY] = 1;
 	battery->cisd.data[CISD_DATA_BATT_TEMP_MAX_PER_DAY] = -300;
