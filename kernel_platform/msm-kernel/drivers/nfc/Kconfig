@@ -1,0 +1,127 @@
+#
+# Near Field Communication (NFC) devices
+#
+config SAMSUNG_NFC
+	tristate "Samsung NFC driver for module build"
+	default n
+	help
+	  Say Y here if you want to build support for NFC (Near field
+	  communication) devices.
+	  To compile this support as a module, choose M here: the module will
+	  be called nfc.
+
+config SAMSUNG_ESE_ONLY
+	tristate "Samsung ESE only driver for module build"
+	default n
+	help
+	  Say Y here if you want to build support for ESE (Embedded secure element) devices.
+	  To compile this support as a module, choose M here: the module will
+	  be called nfc.
+
+config SEC_NFC
+	bool "Samsung NFC driver"
+	default n
+	help
+	  SAMSUNG NFC Driver.
+	  This driver provides support for SAMSUNG NFC products.
+	  You should select your NFC product and interface.
+
+	  Say Y here to compile support for SAMSUNG NFC driver into the
+	  kernel.
+
+config NFC_PVDD_LATE_ENABLE
+        bool "PVDD late enable"
+        default n
+        help
+          If lpcharge value is not usable,
+          then PVDD is enabled lately by init.nfc.samsung.rc on late-init.
+          And this should be enabled from S os projects.
+
+config ESE_P3_LSI
+	bool "eSE driver"
+	depends on SPI
+	default n
+	help
+	  Oberthur Driver.
+	  This driver provides support for LSI NXP combined ESE products.
+	  You should select your NFC product and interface.
+
+	  Say Y here to compile support for eSE driver into the kernel.
+
+config ESE_COLDRESET
+	bool "eSE support coldreset"
+	depends on ESE_P3_LSI
+	default n
+	help
+	  Cold reset function supported.
+	  This function supports for LSI ESE products.
+	  You should select your NFC product and interface.
+
+	  Say Y here to compile support for eSE driver into the kernel.
+
+config ESE_USE_REGULATOR
+	bool "eSE use regulator"
+	depends on ESE_P3_LSI
+	default n
+	help
+	  ESE is on and off by regulator.
+	  This function supports for LSI ESE products.
+	  You should select your NFC product and interface.
+
+	  Say Y here to compile support for eSE driver into the kernel.
+
+config ESE_USE_TZ_API
+	bool "use tz api"
+	default n
+	help
+	  Enable when using TZ API.
+	  You should select this feature if your NFC product
+	  uses S.LSI AP and TZ API.
+	  Say Y here to compile support for TZ API.
+
+config SEC_NFC_LOGGER
+	bool "NFC logger"
+	default n
+	help
+	  Enable NFC log.
+	  NFC log will be recorded at proc folder.
+	  but will not included at dumpstate log.
+	  so need to copy this file to log folder.
+
+config SEC_NFC_DUPLICATED_IRQ_WQ
+	bool "NFC duplicated irq wq"
+	default n
+	help
+	  Enable NFC duplicated irq w/a.
+	  If the interrupt occurs twice continuously, the i2c_info.
+	  read_irq value is returned to the previous value.
+	  Apply W/A received from LSI
+
+config SEC_STAR
+        tristate "LSI star platform"
+        default n
+        help
+          LSI star platform
+          This driver provides support for LSI star platform.
+
+config STAR_MEMORY_LEAK
+        bool "memory leak test in sec-star"
+        help
+          memory leak test in sec-star.
+          All allocated memory are listed in array.
+
+config STAR_K250A
+        bool "S.LSI k250a driver"
+        help
+          S.LSI k250a driver except ISO7816 protocol layer
+          This driver provides support for S.LSI k250a product.
+
+config NFC_QTI_I2C
+        tristate "QTI NCI based NFC I2C Driver for SNxxx"
+        depends on I2C
+        help
+          This enables the NFC driver for SNxxx based devices.
+          This is for I2C connected version. NCI protocol logic
+          resides in the usermode and it has no other NFC dependencies.
+
+          If unsure, say N.

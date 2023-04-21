@@ -1,0 +1,9 @@
+################################################################################
+## Inheriting configs from msm waipio
+. ${ROOT_DIR}/common/build.config.msm.waipio
+
+################################################################################
+## Inheriting configs from samsung
+. ${KERNEL_DIR}/build.config.sec
+
+unset STOP_SHIP_TRACEPRINTK

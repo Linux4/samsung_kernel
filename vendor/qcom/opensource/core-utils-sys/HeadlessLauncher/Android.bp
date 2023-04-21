@@ -1,0 +1,10 @@
+android_app {
+    name: "HeadlessLauncher",
+    srcs: ["src/**/*.java"],
+    resource_dirs: [
+        "res",
+    ],
+    certificate: "platform",
+    sdk_version: "system_current",
+    system_ext_specific: true,
+}
