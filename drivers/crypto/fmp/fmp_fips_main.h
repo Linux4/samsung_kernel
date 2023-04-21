@@ -28,7 +28,7 @@ inline int exynos_fmp_fips_init(struct exynos_fmp *fmp)
 	return 0;
 }
 
-inline void exynos_fmp_fips_test(struct exynos_fmp *fmp);
+inline void exynos_fmp_fips_test(struct exynos_fmp *fmp)
 {
 }
 

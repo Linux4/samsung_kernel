@@ -654,6 +654,7 @@ static int s2mps24_pmic_dt_parse_pdata(struct s2mps24_dev *iodev,
 	}
 
 	pdata->regulators = rdata;
+	pdata->num_rdata = 0;
 	for_each_child_of_node(regulators_np, reg_np) {
 		if (iodev->pmic_rev) {
 			for (i = 0; i < ARRAY_SIZE(regulators); i++)
@@ -672,6 +673,7 @@ static int s2mps24_pmic_dt_parse_pdata(struct s2mps24_dev *iodev,
 					&regulators[i]);
 			rdata->reg_node = reg_np;
 			rdata++;
+			pdata->num_rdata++;
 		} else {
 			for (i = 0; i < ARRAY_SIZE(regulators_evt0); i++)
 				if (!of_node_cmp(reg_np->name, regulators_evt0[i].name))
@@ -689,6 +691,7 @@ static int s2mps24_pmic_dt_parse_pdata(struct s2mps24_dev *iodev,
 					&regulators_evt0[i]);
 			rdata->reg_node = reg_np;
 			rdata++;
+			pdata->num_rdata++;
 		}
 	}
 
@@ -1348,7 +1351,7 @@ static int s2mps24_pmic_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, s2mps24);
 
-	for (i = 0; i < pdata->num_regulators; i++) {
+	for (i = 0; i < pdata->num_rdata; i++) {
 		int id = pdata->regulators[i].id;
 		config.dev = &pdev->dev;
 		config.init_data = pdata->regulators[i].initdata;
@@ -1371,7 +1374,7 @@ static int s2mps24_pmic_probe(struct platform_device *pdev)
 		}
 	}
 
-	s2mps24->num_regulators = pdata->num_regulators;
+	s2mps24->num_regulators = pdata->num_rdata;
 
 	ret = s2mps24_set_afm_warn(s2mps24, pdata);
 	if (ret < 0) {

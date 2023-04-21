@@ -18,6 +18,7 @@ struct pmucal_pd *pmucal_blkpwr_list[PMUCAL_NUM_PDS];
 int pmucal_local_enable(unsigned int pd_id)
 {
 	int ret = 0;
+	struct pmucal_seq pd_seq;
 
 	dbg_snapshot_pmu(pd_id, __func__, DSS_FLAG_IN);
 
@@ -40,6 +41,13 @@ int pmucal_local_enable(unsigned int pd_id)
 	if (ret) {
 		pr_err("%s %s: error on handling enable sequence. (pd_id : %d)\n",
 				PMUCAL_PREFIX, __func__, pd_id);
+
+		pd_seq = pmucal_pd_list[pd_id].status[0];
+		pr_info("%s STATE(0x%x) = 0x%x IN(0x%x) = 0x%x \n",
+				PMUCAL_PREFIX, pd_seq.offset + 0x4,
+				__raw_readl(pd_seq.base_va + pd_seq.offset + 0x4),
+				pd_seq.offset + 0x20,
+				__raw_readl(pd_seq.base_va + pd_seq.offset + 0x20));
 		goto err_out;
 	}
 

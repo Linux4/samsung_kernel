@@ -19,21 +19,15 @@
 #include "npu-log.h"
 #include "interface/hardware/npu-interface.h"
 
-struct npu_if_protodrv_mbox_ops npu_if_protodrv_mbox_ops = {
-	.frame_result_available = fr_rslt_available,
-	.frame_post_request = fr_req_manager,
-	.frame_get_result = fr_rslt_manager,
-	.nw_result_available = nw_rslt_available,
-	.nw_post_request = nw_req_manager,
-	.nw_get_result = nw_rslt_manager,
-	.register_notifier = register_rslt_notifier,
-	.register_msgid_type_getter = register_msgid_get_type,
+static struct npu_if_protodrv_mbox protodrv_mbox = {
+	.dev = NULL,
+	.npu_if_protodrv_mbox_ops = &protodrv_mbox_ops,
 };
 
 int npu_mbox_op_register_notifier(protodrv_notifier sig_func)
 {
-	if (likely(npu_if_protodrv_mbox_ops.register_notifier))
-		return npu_if_protodrv_mbox_ops.register_notifier(sig_func);
+	if (likely(protodrv_mbox.npu_if_protodrv_mbox_ops->register_notifier))
+		return protodrv_mbox.npu_if_protodrv_mbox_ops->register_notifier(sig_func);
 
 	npu_warn("not defined: register_notifier()\n");
 	return 0;
@@ -42,9 +36,9 @@ int npu_mbox_op_register_notifier(protodrv_notifier sig_func)
 /* nw_mbox_ops -> Use npu-if-protodrv-mbox object stored in npu_proto_drv */
 int npu_nw_mbox_op_is_available(void)
 {
-	if (likely(npu_if_protodrv_mbox_ops.nw_result_available)) {
-		return npu_if_protodrv_mbox_ops.nw_result_available();
-	}
+	if (likely(protodrv_mbox.npu_if_protodrv_mbox_ops->nw_result_available))
+		return protodrv_mbox.npu_if_protodrv_mbox_ops->nw_result_available();
+
 	npu_warn("not defined: nw_result_available()\n");
 	return 0;
 }
@@ -54,8 +48,8 @@ int npu_nw_mbox_ops_get(struct msgid_pool *pool, struct proto_req_nw **target)
 	struct npu_nw nw;
 	int ret = 0;
 
-	if (likely(npu_if_protodrv_mbox_ops.nw_get_result))
-		ret = npu_if_protodrv_mbox_ops.nw_get_result(&msgid, &nw);
+	if (likely(protodrv_mbox.npu_if_protodrv_mbox_ops->nw_get_result))
+		ret = protodrv_mbox.npu_if_protodrv_mbox_ops->nw_get_result(&msgid, &nw);
 	else {
 		npu_warn("not defined: nw_get_result()\n");
 		*target = NULL;
@@ -74,6 +68,7 @@ int npu_nw_mbox_ops_get(struct msgid_pool *pool, struct proto_req_nw **target)
 			npu_uinfo("mbox->protodrv : NW msgid(%d)\n", &(*target)->nw, msgid);
 			(*target)->nw.msgid = -1;
 			(*target)->nw.result_code = nw.result_code;
+			(*target)->nw.result_value = nw.result_value;
 			return 1;
 		} else {
 			npu_err("failed to find request mapped with msgid[%d]\n", msgid);
@@ -96,8 +91,8 @@ int npu_nw_mbox_ops_put(struct msgid_pool *pool, struct proto_req_nw *src)
 	}
 
 	/* Generate mailbox message with given msgid and post it */
-	if (likely(npu_if_protodrv_mbox_ops.nw_post_request))
-		ret = npu_if_protodrv_mbox_ops.nw_post_request(msgid, &src->nw);
+	if (likely(protodrv_mbox.npu_if_protodrv_mbox_ops->nw_post_request))
+		ret = protodrv_mbox.npu_if_protodrv_mbox_ops->nw_post_request(msgid, &src->nw);
 	else {
 		npu_warn("not defined: nw_post_request()\n");
 		return 0;
@@ -114,8 +109,8 @@ int npu_nw_mbox_ops_put(struct msgid_pool *pool, struct proto_req_nw *src)
 /* frame_mbox_ops -> Use npu-if-protodrv-mbox object stored in npu_proto_drv */
 int npu_frame_mbox_op_is_available(void)
 {
-	if (likely(npu_if_protodrv_mbox_ops.frame_result_available))
-		return npu_if_protodrv_mbox_ops.frame_result_available();
+	if (likely(protodrv_mbox.npu_if_protodrv_mbox_ops->frame_result_available))
+		return protodrv_mbox.npu_if_protodrv_mbox_ops->frame_result_available();
 
 	npu_warn("not defined: frame_result_available()\n");
 	return 0;
@@ -126,8 +121,8 @@ int npu_frame_mbox_ops_get(struct msgid_pool *pool, struct proto_req_frame **tar
 	struct npu_frame frame;
 	int ret = 0;
 
-	if (likely(npu_if_protodrv_mbox_ops.frame_get_result))
-		ret = npu_if_protodrv_mbox_ops.frame_get_result(&msgid, &frame);
+	if (likely(protodrv_mbox.npu_if_protodrv_mbox_ops->frame_get_result))
+		ret = protodrv_mbox.npu_if_protodrv_mbox_ops->frame_get_result(&msgid, &frame);
 	else {
 		npu_warn("not defined: frame_get_result()\n");
 		*target = NULL;
@@ -168,8 +163,8 @@ int npu_frame_mbox_ops_put(struct msgid_pool *pool, struct proto_req_frame *src)
 	}
 
 	/* Generate mailbox message with given msgid and post it */
-	if (likely(npu_if_protodrv_mbox_ops.frame_post_request))
-		ret = npu_if_protodrv_mbox_ops.frame_post_request(msgid, &src->frame);
+	if (likely(protodrv_mbox.npu_if_protodrv_mbox_ops->frame_post_request))
+		ret = protodrv_mbox.npu_if_protodrv_mbox_ops->frame_post_request(msgid, &src->frame);
 	else {
 		npu_warn("not defined: frame_post_request()\n");
 		return 0;
@@ -185,8 +180,8 @@ int npu_frame_mbox_ops_put(struct msgid_pool *pool, struct proto_req_frame *src)
 
 int npu_mbox_op_register_msgid_type_getter(int (*msgid_get_type_func)(int))
 {
-	if (likely(npu_if_protodrv_mbox_ops.register_msgid_type_getter))
-		return npu_if_protodrv_mbox_ops.register_msgid_type_getter(msgid_get_type_func);
+	if (likely(protodrv_mbox.npu_if_protodrv_mbox_ops->register_msgid_type_getter))
+		return protodrv_mbox.npu_if_protodrv_mbox_ops->register_msgid_type_getter(msgid_get_type_func);
 
 	npu_warn("not defined: register_msgid_type_getter()\n");
 	return 0;

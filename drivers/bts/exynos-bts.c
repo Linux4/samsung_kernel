@@ -1090,8 +1090,8 @@ static int bts_parse_data(struct device_node *np, struct bts_device *data)
 	int ret = 0;
 
 	if (of_have_populated_dt()) {
-		data->num_scen = (unsigned int)of_property_count_strings(np, "list-scen");
-		if (!data->num_scen) {
+		data->num_scen = of_property_count_strings(np, "list-scen");
+		if (data->num_scen <= 0) {
 			BTSDBG_LOG(data->dev, "There should be at least one scenario\n");
 			ret = -EINVAL;
 			goto err;

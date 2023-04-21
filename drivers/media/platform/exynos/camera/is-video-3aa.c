@@ -803,8 +803,7 @@ static int is_3aa_video_s_ext_ctrl(struct file *file, void *priv,
 					(struct fast_ctl_capture *)&device->is_region->fast_ctl.fast_capture;
 				ret = copy_from_user(fast_capture, ext_ctrl->ptr, sizeof(struct fast_ctl_capture));
 				if (ret) {
-					merr("copy_from_user is fail(%d)", 
-								device, ret);
+					merr("copy_from_user is fail(%d)", device, ret);
 					goto p_err;
 				}
 
@@ -843,6 +842,20 @@ static int is_3aa_video_s_ext_ctrl(struct file *file, void *priv,
 		case V4L2_CID_IS_G_SETFILE_VERSION:
 			ret = is_ischain_g_ddk_setfile_version(device, ext_ctrl->ptr);
 			break;
+		case V4L2_CID_SENSOR_SET_FLASH_FASTSHOT:
+		{
+			struct is_group *head;
+
+			head = GET_HEAD_GROUP_IN_DEVICE(IS_DEVICE_ISCHAIN, &device->group_paf);
+
+			ret = copy_from_user(&head->flash_ctl, ext_ctrl->ptr, sizeof(enum camera_flash_mode));
+			if (ret) {
+				err("fail to copy_from_user, ret(%d)\n", ret);
+				goto p_err;
+			}
+			head->remainFlashCtlCount = 5;
+			break;
+		}
 		case V4L2_CID_SENSOR_SET_CAPTURE_INTENT_INFO:
 		{
 			struct is_group *head;
@@ -859,8 +872,11 @@ static int is_3aa_video_s_ext_ctrl(struct file *file, void *priv,
 			head->intent_ctl.captureIntent = info.captureIntent;
 			head->intent_ctl.vendor_captureCount = info.captureCount;
 			head->intent_ctl.vendor_captureEV = info.captureEV;
+			memcpy(&(head->intent_ctl.vendor_multiFrameEvList), &(info.captureMultiEVList),
+				EV_LIST_SIZE);
 
-			if (info.captureIntent == AA_CAPTURE_INTENT_STILL_CAPTURE_OIS_MULTI) {
+			if (info.captureIntent == AA_CAPTURE_INTENT_STILL_CAPTURE_OIS_MULTI
+				|| info.captureIntent == AA_CAPTURE_INTENT_STILL_CAPTURE_GALAXY_RAW_DYNAMIC_SHOT) {
 				head->remainIntentCount = 2 + INTENT_RETRY_CNT;
 			} else {
 				head->remainIntentCount = 0 + INTENT_RETRY_CNT;

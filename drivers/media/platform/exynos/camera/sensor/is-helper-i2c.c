@@ -214,12 +214,12 @@ p_err:
 }
 EXPORT_SYMBOL_GPL(is_sensor_read16);
 
+#define ADDR_SIZE	2
 int is_sensor_read8_size(struct i2c_client *client, void *buf,
 	u16 addr, size_t size)
 {
 	int ret = 0;
-	const u32 addr_size = 2;
-	u8 addr_buf[addr_size];
+	u8 addr_buf[ADDR_SIZE];
 
 	if (!client->adapter) {
 		pr_err("Could not find adapter!\n");
@@ -231,8 +231,8 @@ int is_sensor_read8_size(struct i2c_client *client, void *buf,
 	addr_buf[0] = ((u16)addr) >> 8;
 	addr_buf[1] = (u8)addr;
 
-	ret = i2c_master_send(client, addr_buf, addr_size);
-	if (addr_size != ret) {
+	ret = i2c_master_send(client, addr_buf, ADDR_SIZE);
+	if (ret != ADDR_SIZE) {
 		pr_err("%s: failed to i2c send(%d)\n", __func__, ret);
 		return ret;
 	}

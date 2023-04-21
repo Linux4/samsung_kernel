@@ -347,7 +347,7 @@ asv_g_spec(g3d, 11, 0x1000901C, 16);
 asv_g_spec(mif, 0, 0x10000018, 8);
 asv_g_spec(dsu, 6, 0x1000001C, 8);
 asv_g_spec(intsci, 19, 0x10000020, 8);
-asv_g_spec(modem, 10, 0x1000003c, 24);
+asv_g_spec(modem, 10, 0, 24);
 
 static struct attribute *asv_g_spec_attrs[] = {
 	asv_g_spec_attr(cpucl2),
@@ -525,11 +525,12 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 		vclk = cmucal_get_node(ACPM_VCLK_TYPE | i);
 		if (vclk == NULL)
 			continue;
+#ifdef CONFIG_EXYNOS_DEBUG_INFO
 		pr_info("domain_id : %s - id : %x\n",
 			vclk->name, fvmap_header[i].domain_id);
 		pr_info("  num_of_lv      : %d\n", fvmap_header[i].num_of_lv);
 		pr_info("  num_of_members : %d\n", fvmap_header[i].num_of_members);
-
+#endif
 		old = sram_base + fvmap_header[i].o_ratevolt;
 		new = map_base + fvmap_header[i].o_ratevolt;
 
@@ -559,13 +560,14 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 			}
 
 			vclk->list[j] = cmucal_get_id_by_addr(member_addr);
-
+#ifdef CONFIG_EXYNOS_DEBUG_INFO
 			if (vclk->list[j] == INVALID_CLK_ID)
 				pr_info("  Invalid addr :0x%x\n", member_addr);
 			else
 				pr_info("  DVFS CMU addr:0x%x\n", member_addr);
+#endif
 		}
-
+#ifdef CONFIG_EXYNOS_DEBUG_INFO
 		for (j = 0; j < fvmap_header[i].num_of_lv; j++) {
 			new->table[j].rate = old->table[j].rate;
 			new->table[j].volt = old->table[j].volt;
@@ -573,6 +575,7 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 				new->table[j].rate, new->table[j].volt * STEP_UV,
 				volt_offset_percent);
 		}
+#endif
 	}
 }
 

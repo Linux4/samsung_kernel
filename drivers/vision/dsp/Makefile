@@ -6,6 +6,7 @@ ccflags-y := -Wformat
 subdir-ccflags-y := -Wformat
 
 ccflags-y += -I$(srctree)/drivers/vision/dsp
+ccflags-y += -I$(srctree)/drivers/vision/dsp/utils
 
 dsp-objs			:= dsp-device.o
 dsp-objs			+= dsp-context.o
@@ -80,32 +81,6 @@ dsp-objs			+= hardware/common/dsp-hw-common-mailbox.o
 dsp-objs			+= hardware/common/dsp-hw-common-governor.o
 dsp-objs			+= hardware/common/dsp-hw-common-dump.o
 
-dsp-objs			+= hardware/N1/dsp-hw-n1-system.o
-dsp-objs			+= hardware/N1/dsp-hw-n1-pm.o
-dsp-objs			+= hardware/N1/dsp-hw-n1-clk.o
-dsp-objs			+= hardware/N1/dsp-hw-n1-bus.o
-dsp-objs			+= hardware/N1/dsp-hw-n1-llc.o
-dsp-objs			+= hardware/N1/dsp-hw-n1-interface.o
-dsp-objs			+= hardware/N1/dsp-hw-n1-debug.o
-dsp-objs			+= hardware/N1/dsp-hw-n1-ctrl.o
-dsp-objs			+= hardware/N1/dsp-hw-n1-memory.o
-dsp-objs			+= hardware/N1/dsp-hw-n1-mailbox.o
-dsp-objs			+= hardware/N1/dsp-hw-n1-governor.o
-dsp-objs			+= hardware/N1/dsp-hw-n1-dump.o
-
-dsp-objs			+= hardware/N3/dsp-hw-n3-system.o
-dsp-objs			+= hardware/N3/dsp-hw-n3-pm.o
-dsp-objs			+= hardware/N3/dsp-hw-n3-clk.o
-dsp-objs			+= hardware/N3/dsp-hw-n3-bus.o
-dsp-objs			+= hardware/N3/dsp-hw-n3-llc.o
-dsp-objs			+= hardware/N3/dsp-hw-n3-interface.o
-dsp-objs			+= hardware/N3/dsp-hw-n3-debug.o
-dsp-objs			+= hardware/N3/dsp-hw-n3-ctrl.o
-dsp-objs			+= hardware/N3/dsp-hw-n3-memory.o
-dsp-objs			+= hardware/N3/dsp-hw-n3-mailbox.o
-dsp-objs			+= hardware/N3/dsp-hw-n3-governor.o
-dsp-objs			+= hardware/N3/dsp-hw-n3-dump.o
-
 dsp-objs			+= hardware/O1/dsp-hw-o1-system.o
 dsp-objs			+= hardware/O1/dsp-hw-o1-pm.o
 dsp-objs			+= hardware/O1/dsp-hw-o1-clk.o
@@ -118,18 +93,5 @@ dsp-objs			+= hardware/O1/dsp-hw-o1-memory.o
 dsp-objs			+= hardware/O1/dsp-hw-o1-mailbox.o
 dsp-objs			+= hardware/O1/dsp-hw-o1-governor.o
 dsp-objs			+= hardware/O1/dsp-hw-o1-dump.o
-
-dsp-objs			+= hardware/O3/dsp-hw-o3-system.o
-dsp-objs			+= hardware/O3/dsp-hw-o3-pm.o
-dsp-objs			+= hardware/O3/dsp-hw-o3-clk.o
-dsp-objs			+= hardware/O3/dsp-hw-o3-bus.o
-dsp-objs			+= hardware/O3/dsp-hw-o3-llc.o
-dsp-objs			+= hardware/O3/dsp-hw-o3-interface.o
-dsp-objs			+= hardware/O3/dsp-hw-o3-debug.o
-dsp-objs			+= hardware/O3/dsp-hw-o3-ctrl.o
-dsp-objs			+= hardware/O3/dsp-hw-o3-memory.o
-dsp-objs			+= hardware/O3/dsp-hw-o3-mailbox.o
-dsp-objs			+= hardware/O3/dsp-hw-o3-governor.o
-dsp-objs			+= hardware/O3/dsp-hw-o3-dump.o
 
 obj-$(CONFIG_EXYNOS_DSP)	+= dsp.o

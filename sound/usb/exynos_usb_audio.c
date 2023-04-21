@@ -652,6 +652,7 @@ static int exynos_usb_audio_conn(struct usb_device *udev, int is_conn)
 	struct IPC_ERAP_MSG *erap_msg = &msg.msg.erap;
 	struct ERAP_USB_AUDIO_PARAM *erap_usb = &erap_msg->param.usbaudio;
 	int ret;
+	unsigned long left_time;
 
 	if (DEBUG)
 		pr_info("USB_AUDIO_IPC : %s\n", __func__);
@@ -667,11 +668,16 @@ static int exynos_usb_audio_conn(struct usb_device *udev, int is_conn)
 	if (!is_conn) {
 		if (usb_audio->is_audio) {
 			usb_audio->is_audio = 0;
+			usb_audio->usb_audio_state = USB_AUDIO_REMOVING;
 			ret = abox_start_ipc_transaction(dev, msg.ipcid, &msg, sizeof(msg), 0, 1);
 			if (ret) {
 				pr_err("erap usb dis_conn control failed\n");
 				return -1;
 			}
+			left_time = wait_for_completion_timeout(&usb_audio->out_conn_stop,
+						msecs_to_jiffies(200));
+			if (!left_time)
+				dev_info(dev, "%s: DISCONNECTION timeout\n", __func__);
 		} else {
 			pr_err("Is not USB Audio device\n");
 		}
@@ -682,12 +688,14 @@ static int exynos_usb_audio_conn(struct usb_device *udev, int is_conn)
 		usb_audio->fb_indeq_map_done = 0;
 		usb_audio->fb_outdeq_map_done = 0;
 		usb_audio->pcm_open_done = 0;
+		reinit_completion(&usb_audio->discon_done);
 		ret = abox_start_ipc_transaction(dev, msg.ipcid, &msg, sizeof(msg), 0, 0);
 		if (ret) {
 			pr_err("erap usb conn control failed\n");
 			return -1;
 		}
-
+		usb_audio->usb_audio_state = USB_AUDIO_CONNECT;
+		usb_audio_connection = 1;
 	}
 
 #if 0
@@ -710,6 +718,7 @@ static int exynos_usb_audio_pcm(bool is_open, bool direction)
 	struct device *dev = &pdev->dev;
 	struct IPC_ERAP_MSG *erap_msg = &msg.msg.erap;
 	struct ERAP_USB_AUDIO_PARAM *erap_usb = &erap_msg->param.usbaudio;
+	unsigned long left_time;
 	int ret;
 
 	if (DEBUG)
@@ -736,6 +745,19 @@ static int exynos_usb_audio_pcm(bool is_open, bool direction)
 	if (ret) {
 		dev_err(&usb_audio->udev->dev, "ERAP USB PCM control failed\n");
 		return -1;
+	}
+	if (!is_open) {
+		if (direction == SNDRV_PCM_STREAM_PLAYBACK) {
+			left_time = wait_for_completion_timeout(&usb_audio->out_conn_stop,
+					msecs_to_jiffies(200));
+			if (!left_time)
+				dev_info(dev, "%s: PCM OUT close timeout\n", __func__);
+		} else if (direction == SNDRV_PCM_STREAM_CAPTURE) {
+			left_time = wait_for_completion_timeout(&usb_audio->in_conn_stop,
+					msecs_to_jiffies(200));
+			if (!left_time)
+				dev_info(dev, "%s: PCM IN close timeout\n", __func__);
+		}
 	}
 
 	return 0;
@@ -780,7 +802,17 @@ static void exynos_usb_audio_work(struct work_struct *w)
 {
 	pr_info("%s\n", __func__);
 
+	/* Don't unmap in USB_AUDIO_TIMEOUT_PROBE state */
+	if (usb_audio->usb_audio_state !=
+			USB_AUDIO_REMOVING) {
+		pr_info("%s, not removing state\n", __func__);
+		return;
+	}
+
 	exynos_usb_audio_unmap_all();
+	usb_audio->usb_audio_state = USB_AUDIO_DISCONNECT;
+	usb_audio_connection = 0;
+	complete(&usb_audio->discon_done);
 }
 
 irqreturn_t exynos_usb_audio_irq_handler(int irq, void *dev_id, ABOX_IPC_MSG *msg)
@@ -800,7 +832,11 @@ irqreturn_t exynos_usb_audio_irq_handler(int irq, void *dev_id, ABOX_IPC_MSG *ms
 					pr_info("irq : %d /* param1 : 1 , IN EP task done */\n", irq);
 				} else {
 					pr_info("irq : %d /* param0 : 0 , OUT EP task done */\n", irq);
-					schedule_work(&usb_audio->usb_work);
+					/* Don't schedule in TIMEOUT_PROBE */
+					if (usb_audio->usb_audio_state ==
+							USB_AUDIO_REMOVING)
+						schedule_work(&usb_audio
+							->usb_work);
 				}
 				break;
 			case IPC_USB_STOP_DONE:
@@ -928,12 +964,15 @@ int exynos_usb_audio_init(struct device *dev, struct platform_device *pdev)
 	mutex_init(&usb_audio->lock);
 	init_completion(&usb_audio->in_conn_stop);
 	init_completion(&usb_audio->out_conn_stop);
+	init_completion(&usb_audio->discon_done);
 	usb_audio->abox = pdev_abox;
 	usb_audio->hcd_pdev = pdev;
 	usb_audio->udev = NULL;
 	usb_audio->is_audio = 0;
 	usb_audio->is_first_probe = 1;
 	usb_audio->user_scenario = AUDIO_MODE_NORMAL;
+	usb_audio->usb_audio_state = USB_AUDIO_DISCONNECT;
+	usb_audio_connection = 0;
 
 	INIT_WORK(&usb_audio->usb_work, exynos_usb_audio_work);
 
@@ -1068,6 +1107,7 @@ static int exynos_usb_audio_connect(struct usb_interface *intf)
 	struct usb_interface_descriptor *altsd;
 	struct usb_host_interface *alts;
 	struct usb_device *udev = interface_to_usbdev(intf);
+	int timeout = 0;
 
 	alts = &intf->altsetting[0];
 	altsd = get_iface_desc(alts);
@@ -1078,15 +1118,34 @@ static int exynos_usb_audio_connect(struct usb_interface *intf)
 			pr_info("USB_AUDIO_IPC : %s - MIDI device detected!\n", __func__);
 	} else {
 		pr_info("USB_AUDIO_IPC : %s - No MIDI device detected!\n", __func__);
-		if (!usb_audio->is_audio) {
+
+		if (usb_audio->usb_audio_state == USB_AUDIO_REMOVING) {
+			timeout = wait_for_completion_timeout(
+				&usb_audio->discon_done,
+				msecs_to_jiffies(DISCONNECT_TIMEOUT));
+			pr_info("%s: wait disconnect %dmsec", __func__, timeout);
+
+			if ((usb_audio->usb_audio_state == USB_AUDIO_REMOVING)
+					&& !timeout) {
+				usb_audio->usb_audio_state =
+					USB_AUDIO_TIMEOUT_PROBE;
+				pr_err("%s: timeout for disconnect\n", __func__);
+			}
+		}
+
+		if ((usb_audio->usb_audio_state == USB_AUDIO_DISCONNECT)
+			|| (usb_audio->usb_audio_state == USB_AUDIO_TIMEOUT_PROBE)) {
 			pr_info("USB_AUDIO_IPC : %s - USB Audio set!\n", __func__);
 			exynos_usb_audio_set_device(udev);
-			exynos_usb_audio_conn(udev, 1);
 			exynos_usb_audio_hcd(udev);
+			exynos_usb_audio_conn(udev, 1);
 			exynos_usb_audio_desc(udev);
 			exynos_usb_audio_map_buf(udev);
 			if (udev->do_remote_wakeup)
 				usb_enable_autosuspend(udev);
+		} else {
+			pr_err("USB audio is can not support second device!!");
+			return -EPERM;
 		}
 	}
 
@@ -1204,6 +1263,10 @@ static int exynos_usb_audio_pcm_control( struct usb_device *udev,
 		else if (direction == SNDRV_PCM_STREAM_CAPTURE)
 			reinit_completion(&usb_audio->in_conn_stop);
 
+		if (!usb_audio->pcm_open_done) {
+			pr_info("%s : pcm node was not opened!\n", __func__);
+			return 0;
+		}
 		exynos_usb_audio_pcm(0, direction);
 	}
 

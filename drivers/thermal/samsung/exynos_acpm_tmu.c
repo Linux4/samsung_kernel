@@ -85,8 +85,6 @@ static void exynos_acpm_tmu_ipc_send_data(union tmu_ipc_message *message)
 
 	acpm_ipc_err_check();
 	acpm_ipc_latency_check();
-
-	memcpy(message->data, config.cmd, sizeof(message->data));
 }
 
 /*

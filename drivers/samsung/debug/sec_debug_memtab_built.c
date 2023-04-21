@@ -57,6 +57,7 @@ DEFINE_MEMBER_TYPE(rt_mutex_owner, rt_mutex, owner);
 #endif
 DEFINE_MEMBER_TYPE(task_struct_normal_prio, task_struct, normal_prio);
 DEFINE_MEMBER_TYPE(task_struct_rt_priority, task_struct, rt_priority);
+DEFINE_MEMBER_TYPE(task_struct_cpus_ptr, task_struct, cpus_ptr);
 #ifdef CONFIG_FAST_TRACK
 DEFINE_MEMBER_TYPE(task_struct_se__ftt_mark, task_struct, se.ftt_mark);
 #endif

@@ -537,6 +537,8 @@ int mfc_core_cmd_dec_one_frame(struct mfc_core *core, struct mfc_ctx *ctx,
 		mfc_change_op_mode(ctx, MFC_OP_SWITCH_TO_SINGLE);
 	} else if (ctx->op_mode == MFC_OP_SWITCHING) {
 		mfc_err("[2CORE] It is a mode that can not operate\n");
+	} else if (ctx->op_mode == MFC_OP_SWITCH_TO_SINGLE) {
+		ctx->cmd_counter++;
 	}
 	/* If it is switched to single, interrupt lock is not needed. */
 	if (IS_SWITCH_SINGLE_MODE(ctx))

@@ -32,6 +32,7 @@
 #include <linux/nmi.h>
 #include <linux/percpu.h>
 #include <linux/kmod.h>
+#include <linux/kprobes.h>
 #include <linux/vmalloc.h>
 #include <linux/kernel_stat.h>
 #include <linux/start_kernel.h>
@@ -101,7 +102,9 @@
 #include <asm/sections.h>
 #include <asm/cacheflush.h>
 
-#include <kunit/test.h>
+#if defined(CONFIG_SEC_KUNIT) && defined(CONFIG_UML)
+extern int test_executor_init(void);
+#endif
 
 #ifdef CONFIG_RKP
 #include <linux/rkp.h>
@@ -1210,6 +1213,7 @@ static int __ref kernel_init(void *unused)
 	kernel_init_freeable();
 	/* need to finish all async __init code before freeing the memory */
 	async_synchronize_full();
+	kprobe_free_init_mem();
 	ftrace_free_init_mem();
 	free_initmem();
 	mark_readonly();
@@ -1275,7 +1279,7 @@ static noinline void __init kernel_init_freeable(void)
 	 */
 	set_mems_allowed(node_states[N_MEMORY]);
 
-	cad_pid = task_pid(current);
+	cad_pid = get_pid(task_pid(current));
 
 	smp_prepare_cpus(setup_max_cpus);
 
@@ -1295,8 +1299,9 @@ static noinline void __init kernel_init_freeable(void)
 
 	do_basic_setup();
 
+#if defined(CONFIG_SEC_KUNIT) && defined(CONFIG_UML)
 	test_executor_init();
-
+#endif
 	/* Open the /dev/console on the rootfs, this should never fail */
 	if (ksys_open((const char __user *) "/dev/console", O_RDWR, 0) < 0)
 		pr_err("Warning: unable to open an initial console.\n");

@@ -559,6 +559,7 @@ struct s2mps23_dev {
 #endif
 	/* VGPIO_RX_MONITOR */
 	void __iomem *mem_base;
+	void __iomem *sysreg_pending;
 
 	/* Work queue */
 	struct workqueue_struct *irq_wqueue;

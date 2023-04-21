@@ -1,6 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  *
- * Copyright (C) 2017-2019 Samsung Electronics
+ * Copyright (C) 2017-2021 Samsung Electronics
  *
  * Author:Wookwang Lee. <wookwang.lee@samsung.com>,
  * Author:Guneet Singh Khurana  <gs.khurana@samsung.com>,
@@ -23,6 +24,11 @@
 #include <linux/device.h>
 #include <linux/usb/typec/common/pdic_core.h>
 #include <linux/usb/typec/common/pdic_sysfs.h>
+#if defined(CONFIG_SEC_KUNIT)
+#include "kunit_test/pdic_sysfs_test.h"
+#else
+#define __visible_for_testing static
+#endif
 
 static ssize_t pdic_sysfs_show_property(struct device *dev,
 				struct device_attribute *attr, char *buf);
@@ -66,60 +72,94 @@ static struct device_attribute pdic_attributes[] = {
 	PDIC_SYSFS_ATTR(water_check),
 	PDIC_SYSFS_ATTR(15mode_watertest_type),
 	PDIC_SYSFS_ATTR(vbus_adc),
+	PDIC_SYSFS_ATTR(usb_boot_mode),
+	PDIC_SYSFS_ATTR(dp_sbu_sw_sel),
+	PDIC_SYSFS_ATTR(novbus_rp22k),
 };
 
-static ssize_t pdic_sysfs_show_property(struct device *dev,
-				struct device_attribute *attr, char *buf)
+__visible_for_testing ssize_t get_pdic_sysfs_property(ppdic_data_t ppdic_data,
+	const char *attr_name, ptrdiff_t off, char *buf)
 {
 	ssize_t ret = 0;
+	ppdic_sysfs_property_t ppdic_sysfs;
+
+	if (!ppdic_data || !attr_name || off < 0 || !buf)
+		return -EINVAL;
+
+	if (off == PDIC_SYSFS_PROP_CHIP_NAME)
+		return snprintf(buf, PAGE_SIZE, "%s\n", ppdic_data->name);
+
+	ppdic_sysfs = (ppdic_sysfs_property_t)ppdic_data->pdic_sysfs_prop;
+	ret = ppdic_sysfs->get_property(ppdic_data, off, buf);
+	if (ret < 0)
+		pr_err("%s : driver failed to report `%s' property: %zd\n",
+				__func__, attr_name, ret);
+
+	return ret;
+}
+
+static ssize_t pdic_sysfs_show_property(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
 	ppdic_data_t ppdic_data = dev_get_drvdata(dev);
-	ppdic_sysfs_property_t ppdic_sysfs =
-			(ppdic_sysfs_property_t)ppdic_data->pdic_sysfs_prop;
 	const ptrdiff_t off = attr - pdic_attributes;
 
-	if (off == PDIC_SYSFS_PROP_CHIP_NAME) {
-		return snprintf(buf, PAGE_SIZE, "%s\n",
-					ppdic_data->name);
-	} else {
-		ret = ppdic_sysfs->get_property(ppdic_data, off, buf);
-		if (ret < 0) {
-			if (ret == -ENODATA)
-				dev_info(dev,
-					"driver has no data for `%s' property\n",
-					attr->attr.name);
-			else if (ret != -ENODEV)
-				dev_err(dev,
-					"driver failed to report `%s' property: %zd\n",
-					attr->attr.name, ret);
-			return ret;
-		}
-		return ret;
-	}
+	return get_pdic_sysfs_property(ppdic_data, attr->attr.name, off, buf);
+}
+
+__visible_for_testing ssize_t set_pdic_sysfs_property(ppdic_data_t ppdic_data,
+	const char *attr_name, ptrdiff_t off, const char *buf, size_t count)
+{
+	ssize_t ret = 0;
+	ppdic_sysfs_property_t ppdic_sysfs;
+
+	if (!ppdic_data || !attr_name || off < 0 || !buf)
+		return -EINVAL;
+
+	ppdic_sysfs = (ppdic_sysfs_property_t)ppdic_data->pdic_sysfs_prop;
+	ret = ppdic_sysfs->set_property(ppdic_data, off, buf, count);
+	if (ret < 0)
+		pr_err("%s : driver failed to set `%s' property: %zd\n",
+			__func__, attr_name, ret);
+
+	return ret;
 }
 
 static ssize_t pdic_sysfs_store_property(struct device *dev,
-					struct device_attribute *attr,
-					const char *buf, size_t count)
+	struct device_attribute *attr, const char *buf, size_t count)
 {
-	ssize_t ret = 0;
 	ppdic_data_t ppdic_data = dev_get_drvdata(dev);
-	ppdic_sysfs_property_t ppdic_sysfs =
-			(ppdic_sysfs_property_t)ppdic_data->pdic_sysfs_prop;
 	const ptrdiff_t off = attr - pdic_attributes;
 
-	ret = ppdic_sysfs->set_property(ppdic_data, off, buf, count);
-	if (ret < 0) {
-		if (ret == -ENODATA)
-			dev_info(dev,
-				"driver cannot set  data for `%s' property\n",
-				attr->attr.name);
-		else if (ret != -ENODEV)
-			dev_err(dev,
-				"driver failed to set `%s' property: %zd\n",
-				attr->attr.name, ret);
-		return ret;
+	return set_pdic_sysfs_property(ppdic_data, attr->attr.name, off, buf, count);
+}
+
+__visible_for_testing umode_t get_pdic_sysfs_attr(ppdic_data_t ppdic_data,
+	int attrno)
+{
+	ppdic_sysfs_property_t ppdic_sysfs;
+	umode_t mode = RO_PERM;
+	int cnt, num_properties, property;
+
+	if (!ppdic_data || attrno < 0)
+		return 0;
+
+	ppdic_sysfs = (ppdic_sysfs_property_t)ppdic_data->pdic_sysfs_prop;
+	num_properties = ppdic_sysfs->num_properties;
+
+	for (cnt = 0; cnt < num_properties; cnt++) {
+		property = ppdic_sysfs->properties[cnt];
+		if (property != attrno)
+			continue;
+		if (ppdic_sysfs->property_is_writeable &&
+			ppdic_sysfs->property_is_writeable(ppdic_data, property))
+			mode |= WO_PERM;
+		if (ppdic_sysfs->property_is_writeonly &&
+			ppdic_sysfs->property_is_writeonly(ppdic_data, property))
+			mode = WO_PERM;
+		return mode;
 	}
-	return ret;
+	return 0;
 }
 
 static umode_t pdic_sysfs_attr_is_visible(struct kobject *kobj,
@@ -127,28 +167,8 @@ static umode_t pdic_sysfs_attr_is_visible(struct kobject *kobj,
 {
 	struct device *dev = container_of(kobj, struct device, kobj);
 	ppdic_data_t ppdic_data = dev_get_drvdata(dev);
-	ppdic_sysfs_property_t ppdic_sysfs =
-			(ppdic_sysfs_property_t)ppdic_data->pdic_sysfs_prop;
-	umode_t mode = 0444;
-	int i;
 
-	for (i = 0; i < (int)ppdic_sysfs->num_properties; i++) {
-		int property = ppdic_sysfs->properties[i];
-
-		if (property == attrno) {
-			if (ppdic_sysfs->property_is_writeable &&
-					ppdic_sysfs->property_is_writeable(
-					ppdic_data, property) > 0)
-				mode |= 0200;
-			if (ppdic_sysfs->property_is_writeonly &&
-			    ppdic_sysfs->property_is_writeonly(ppdic_data, property)
-			    > 0)
-				mode = 0200;
-			return mode;
-		}
-	}
-
-	return 0;
+	return get_pdic_sysfs_attr(ppdic_data, attrno);
 }
 
 static struct attribute *__pdic_sysfs_attrs[ARRAY_SIZE(pdic_attributes) + 1];

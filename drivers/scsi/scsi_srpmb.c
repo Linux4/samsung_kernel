@@ -124,11 +124,10 @@ static void update_rpmb_status_flag(struct rpmb_irq_ctx *ctx,
 }
 
 static int srpmb_ioctl_secu_prot_command(struct scsi_device *sdev, char *cmd,
-					Rpmb_Req *req,
+					Rpmb_Req *req, struct scsi_sense_hdr *sshdr,
 					int timeout, int retries)
 {
 	int result, dma_direction;
-	struct scsi_sense_hdr sshdr;
 	unsigned char *buf = NULL;
 	unsigned int bufflen;
 	int prot_in_out = req->cmd;
@@ -171,7 +170,7 @@ static int srpmb_ioctl_secu_prot_command(struct scsi_device *sdev, char *cmd,
 	}
 
 	result = scsi_execute_req(sdev, cmd, dma_direction, buf, bufflen,
-				  &sshdr, timeout, retries, NULL);
+				  sshdr, timeout, retries, NULL);
 
 	if (prot_in_out == SCSI_IOCTL_SECURITY_PROTOCOL_IN) {
 		memcpy(req->rpmb_data, buf, bufflen);
@@ -179,11 +178,11 @@ static int srpmb_ioctl_secu_prot_command(struct scsi_device *sdev, char *cmd,
 	SCSI_LOG_IOCTL(2, printk("Ioctl returned  0x%x\n", result));
 
 	if ((driver_byte(result) & DRIVER_SENSE) &&
-	    (scsi_sense_valid(&sshdr))) {
+	    (scsi_sense_valid(sshdr))) {
 		sdev_printk(KERN_INFO, sdev,
 			    "ioctl_secu_prot_command return code = %x\n",
 			    result);
-		scsi_print_sense_hdr(sdev, NULL, &sshdr);
+		scsi_print_sense_hdr(sdev, NULL, sshdr);
 	}
 
 	kfree(buf);
@@ -204,7 +203,8 @@ int srpmb_scsi_ioctl(struct scsi_device *sdev, Rpmb_Req *req)
 	unsigned long t_len;
 	struct scsi_target *starget_rpmb;
 	static struct scsi_device *sdev_rpmb = NULL;
-	int ret;
+	struct scsi_sense_hdr sshdr;
+	int ret, count;
 
 	if (!sdev) {
 		printk(KERN_ERR "sdev empty\n");
@@ -264,9 +264,20 @@ int srpmb_scsi_ioctl(struct scsi_device *sdev, Rpmb_Req *req)
 	scsi_cmd[9] = (unsigned char)t_len & 0xff;
 	scsi_cmd[10] = 0;
 	scsi_cmd[11] = 0;
-	return srpmb_ioctl_secu_prot_command(sdev_rpmb, scsi_cmd,
-			req,
+
+	/* Retry when UAC occurs */
+	for (count = 0; count < MAX_RETRY; count++) {
+		ret = srpmb_ioctl_secu_prot_command(sdev_rpmb, scsi_cmd,
+			req, &sshdr,
 			START_STOP_TIMEOUT, NORMAL_RETRIES);
+
+		if (sshdr.sense_key == UNIT_ATTENTION)
+			dev_warn(&sr_pdev->dev, "RPMB UAC detected: Retry! (count = %d)\n", count + 1);
+		else
+			break;
+	}
+
+	return ret;
 }
 
 static void srpmb_worker(struct work_struct *data)
@@ -486,12 +497,14 @@ static int srpmb_suspend_notifier(struct notifier_block *nb, unsigned long event
 	case PM_SUSPEND_PREPARE:
 	case PM_RESTORE_PREPARE:
 		flush_workqueue(rpmb_ctx->srpmb_queue);
-		update_rpmb_status_flag(rpmb_ctx, req, RPMB_FAIL_SUSPEND_STATUS);
+		if (req->status_flag != RPMB_PASSED)
+			update_rpmb_status_flag(rpmb_ctx, req, RPMB_FAIL_SUSPEND_STATUS);
 		break;
 	case PM_POST_SUSPEND:
 	case PM_POST_HIBERNATION:
 	case PM_POST_RESTORE:
-		update_rpmb_status_flag(rpmb_ctx, req, 0);
+		if (req->status_flag != RPMB_PASSED)
+			update_rpmb_status_flag(rpmb_ctx, req, 0);
 		break;
 	default:
 		break;
@@ -578,7 +591,7 @@ int init_wsm(struct device *dev)
 		ret = register_pm_notifier(&rpmb_ctx->pm_notifier);
 		if (ret) {
 			dev_err(&sr_pdev->dev, "Failed to setup pm notifier\n");
-			goto out_srpmb_init_fail;
+			goto out_srpmb_free_irq_req;
 		}
 
 		memset(&rpmb_ctx->wakesrc, 0, sizeof(rpmb_ctx->wakesrc));
@@ -601,7 +614,10 @@ int init_wsm(struct device *dev)
 	return 0;
 
 out_srpmb_unregister_pm:
+	wakeup_source_remove(&rpmb_ctx->wakesrc);
 	unregister_pm_notifier(&rpmb_ctx->pm_notifier);
+out_srpmb_free_irq_req:
+	free_irq(rpmb_ctx->irq, rpmb_ctx);
 out_srpmb_init_fail:
 	if (rpmb_ctx->srpmb_queue)
 		destroy_workqueue(rpmb_ctx->srpmb_queue);

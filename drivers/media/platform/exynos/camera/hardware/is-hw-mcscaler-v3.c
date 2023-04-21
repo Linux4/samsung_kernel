@@ -1395,7 +1395,7 @@ static int is_hw_mcsc_load_setfile(struct is_hw_ip *hw_ip, u32 instance, ulong h
 		}
 	}
 
-	set_bit(HW_TUNESET, &hw_ip->state);
+	hw_mcsc->tune_set[instance] = true;
 
 	return ret;
 }
@@ -1452,6 +1452,7 @@ static int is_hw_mcsc_apply_setfile(struct is_hw_ip *hw_ip, u32 scenario,
 static int is_hw_mcsc_delete_setfile(struct is_hw_ip *hw_ip, u32 instance,
 	ulong hw_map)
 {
+	struct is_hw_mcsc *hw_mcsc;
 
 	FIMC_BUG(!hw_ip);
 
@@ -1460,12 +1461,13 @@ static int is_hw_mcsc_delete_setfile(struct is_hw_ip *hw_ip, u32 instance,
 		return 0;
 	}
 
-	if (!test_bit(HW_TUNESET, &hw_ip->state)) {
+	hw_mcsc = (struct is_hw_mcsc *)hw_ip->priv_info;
+	if (hw_mcsc->tune_set[instance] == false) {
 		msdbg_hw(2, "setfile already deleted", instance, hw_ip);
 		return 0;
 	}
 
-	clear_bit(HW_TUNESET, &hw_ip->state);
+	hw_mcsc->tune_set[instance] = false;
 
 	return 0;
 }
@@ -2704,7 +2706,7 @@ int is_hw_mcsc_output_yuvrange(struct is_hw_ip *hw_ip, struct param_mcs_output *
 
 	is_scaler_set_bchs_enable(hw_ip->regs[REG_SETA], output_id, 1);
 #if !defined(USE_YUV_RANGE_BY_ISP)
-	if (test_bit(HW_TUNESET, &hw_ip->state)) {
+	if (hw_mcsc->tune_set[instance]) {
 		/* set yuv range config value by scaler_param yuv_range mode */
 		is_scaler_set_b_c(hw_ip->regs[REG_SETA], output_id,
 			setfile->sc_base[yuv].y_offset, setfile->sc_base[yuv].y_gain);
@@ -3227,15 +3229,15 @@ static void is_hw_mcsc_size_dump(struct is_hw_ip *hw_ip)
 	int i;
 	u32 input_src = 0;
 	u32 in_w, in_h = 0;
-	u32 rdma_w, rdma_h = 0;
-	u32 poly_src_w, poly_src_h = 0;
-	u32 poly_dst_w, poly_dst_h = 0;
-	u32 post_in_w, post_in_h = 0;
-	u32 post_out_w, post_out_h = 0;
+	u32 rdma_w = 0, rdma_h = 0;
+	u32 poly_src_w = 0, poly_src_h = 0;
+	u32 poly_dst_w = 0, poly_dst_h = 0;
+	u32 post_in_w = 0, post_in_h = 0;
+	u32 post_out_w = 0, post_out_h = 0;
 	u32 wdma_enable = 0;
-	u32 wdma_w, wdma_h = 0;
-	u32 rdma_y_stride, rdma_uv_stride = 0;
-	u32 wdma_y_stride, wdma_uv_stride = 0;
+	u32 wdma_w = 0, wdma_h = 0;
+	u32 rdma_y_stride = 0, rdma_uv_stride = 0;
+	u32 wdma_y_stride = 0, wdma_uv_stride = 0;
 	struct is_hw_mcsc_cap *cap;
 
 	FIMC_BUG_VOID(!hw_ip);

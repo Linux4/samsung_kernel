@@ -463,6 +463,20 @@ static u8 unbound3_a3_s0_aor_manual_value_table[MAX_S6E3HAD_UNBOUND3_ID][S6E3HAD
 	},
 };
 
+static u8 unbound3_a3_s0_read_normal_addr_table[MAX_S6E3HAD_UNBOUND3_FLASH_ADDR_ID][3] = {
+	[S6E3HAD_UNBOUND3_FLASH_ADDR_ID_LT_E3] = { 0x0E, 0x14, 0xEC },
+	[S6E3HAD_UNBOUND3_FLASH_ADDR_ID_LT_E5] = { 0x0E, 0x15, 0x32 },
+	[S6E3HAD_UNBOUND3_FLASH_ADDR_ID_LT_E8] = { 0x0E, 0x15, 0x32 },
+	[S6E3HAD_UNBOUND3_FLASH_ADDR_ID_GTE_E8] = { 0x0E, 0x15, 0xBE },
+};
+
+static u8 unbound3_a3_s0_read_hbm_addr_table[MAX_S6E3HAD_UNBOUND3_FLASH_ADDR_ID][3] = {
+	[S6E3HAD_UNBOUND3_FLASH_ADDR_ID_LT_E3] = { 0x0E, 0x15, 0x32 },
+	[S6E3HAD_UNBOUND3_FLASH_ADDR_ID_LT_E5] = { 0x0E, 0x15, 0x78 },
+	[S6E3HAD_UNBOUND3_FLASH_ADDR_ID_LT_E8] = { 0x0E, 0x15, 0xBE },
+	[S6E3HAD_UNBOUND3_FLASH_ADDR_ID_GTE_E8] = { 0x0E, 0x16, 0x04 },
+};
+
 static u8 unbound3_a3_s0_hbm_transition_table[MAX_PANEL_HBM][SMOOTH_TRANS_MAX][1] = {
 	/* HBM off */
 	{
@@ -700,6 +714,13 @@ static u8 unbound3_a3_s0_vddm_table[][1] = {
 	{0x01}, // VDDM LV
 	{0x02}, // VDDM HV
 };
+
+static u8 unbound3_a3_s0_vddm_2_table[][1] = {
+	{0x00}, // VDDM ORIGINAL
+	{0x07}, // VDDM LV
+	{0x28}, // VDDM HV
+};
+
 static u8 unbound3_a3_s0_gram_img_pattern_table[][1] = {
 	{0x00}, // GCT_PATTERN_NONE
 	{0x07}, // GCT_PATTERN_1
@@ -962,6 +983,7 @@ static struct maptbl unbound3_a3_s0_maptbl[MAX_MAPTBL] = {
 #endif
 #ifdef CONFIG_SUPPORT_GRAM_CHECKSUM
 	[VDDM_MAPTBL] = DEFINE_2D_MAPTBL(unbound3_a3_s0_vddm_table, init_common_table, s6e3had_getidx_vddm_table, copy_common_maptbl),
+	[VDDM_2_MAPTBL] = DEFINE_2D_MAPTBL(unbound3_a3_s0_vddm_2_table, init_common_table, s6e3had_getidx_vddm_table, copy_common_maptbl),
 	[GRAM_IMG_MAPTBL] = DEFINE_2D_MAPTBL(unbound3_a3_s0_gram_img_pattern_table, init_common_table, s6e3had_getidx_gram_img_pattern_table, copy_common_maptbl),
 	[GRAM_INV_IMG_MAPTBL] = DEFINE_2D_MAPTBL(unbound3_a3_s0_gram_inv_img_pattern_table, init_common_table, s6e3had_getidx_gram_img_pattern_table, copy_common_maptbl),
 #endif
@@ -973,6 +995,8 @@ static struct maptbl unbound3_a3_s0_maptbl[MAX_MAPTBL] = {
 	[MAFPC_CTRL_MAPTBL] = DEFINE_0D_MAPTBL(unbound3_a3_s0_mafpc_ctrl, init_common_table, NULL, copy_mafpc_ctrl_maptbl),
 	[MAFPC_SCALE_MAPTBL] = DEFINE_0D_MAPTBL(unbound3_a3_s0_mafpc_scale, init_common_table, NULL, copy_mafpc_scale_maptbl),
 #endif
+	[NORMAL_ADDR_MAPTBL] = DEFINE_2D_MAPTBL(unbound3_a3_s0_read_normal_addr_table, init_common_table, getidx_read_addr_table, copy_common_maptbl),
+	[HBM_ADDR_MAPTBL] = DEFINE_2D_MAPTBL(unbound3_a3_s0_read_hbm_addr_table, init_common_table, getidx_read_addr_table, copy_common_maptbl),
 	[GAMMA_WRITE_0_MAPTBL] = DEFINE_2D_MAPTBL(unbound3_a3_s0_gamma_write_96hs_0_table, init_gamma_write_96hs_0_table, getidx_gamma_mode2_brt_table, copy_common_maptbl),
 	[GAMMA_WRITE_1_MAPTBL] = DEFINE_2D_MAPTBL(unbound3_a3_s0_gamma_write_96hs_1_table, init_gamma_write_96hs_1_table, getidx_gamma_mode2_brt_table, copy_common_maptbl),
 	[GAMMA_SELECT_MAPTBL] = DEFINE_2D_MAPTBL(unbound3_a3_s0_gamma_select_table, init_common_table, getidx_vrr_fps_table, copy_common_maptbl),
@@ -1049,7 +1073,7 @@ static u8 UNBOUND3_A3_S0_TSP_HSYNC[] = {
 static u8 UNBOUND3_A3_S0_SET_TE_FRAME_SEL[] = {
 	0xB9,
 	0x09,	/* to be updated by TE_FRAME_SEL_MAPTBL */
-	0x0C, 0x81, 0x00, 0x18
+	0x0B, 0xB8, 0x00, 0x18
 };
 
 static u8 UNBOUND3_A3_S0_CLR_TE_FRAME_SEL[] = {
@@ -1194,7 +1218,7 @@ static u8 UNBOUND3_A3_S0_LPM_ELVSS_ON[] = { 0xC2, 0x2F };
 static u8 UNBOUND3_A3_S0_LPM_ELVSS_OFF[] = { 0xC2, 0x16 };
 static u8 UNBOUND3_A3_S0_LPM_LFD_OFF[] = { 0xBD, 0x40 };
 static u8 UNBOUND3_A3_S0_LPM_SWIRE_NO_PULSE[] = { 0xB1, 0x00 };
- 
+
 static u8 UNBOUND3_A3_S0_MCD_ON_01[] = { 0xF6, 0x88 };
 static u8 UNBOUND3_A3_S0_MCD_ON_02[] = { 0xF6, 0x00 };
 static u8 UNBOUND3_A3_S0_MCD_ON_03[] = { 0xF2, 0x34, 0xE1 };
@@ -1349,7 +1373,11 @@ static u8 UNBOUND3_A3_S0_DYNAMIC_HLPM_DISABLE[] = {
 
 #ifdef CONFIG_SUPPORT_GRAM_CHECKSUM
 static u8 UNBOUND3_A3_S0_VDDM_ORIG[] = { 0xD7, 0x00 };
+static u8 UNBOUND3_A3_S0_VDDM_ORIG_2[] = { 0xF4, 0x00 };
 static u8 UNBOUND3_A3_S0_VDDM_VOLT[] = { 0xD7, 0x00 };
+static u8 UNBOUND3_A3_S0_VDDM_VOLT_2[] = { 0xF4, 0x00 };
+static u8 UNBOUND3_A3_S0_VDDM_SET_1[] = { 0xFE, 0xB0 };
+static u8 UNBOUND3_A3_S0_VDDM_SET_2[] = { 0xFE, 0x30 };
 static u8 UNBOUND3_A3_S0_VDDM_INIT[] = { 0xFE, 0x14 };
 static u8 UNBOUND3_A3_S0_HOP_CHKSUM_ON[] = { 0xFE, 0x7A };
 static u8 UNBOUND3_A3_S0_GRAM_CHKSUM_START[] = { 0x2C, 0x00 };
@@ -1589,8 +1617,13 @@ static DEFINE_STATIC_PACKET(unbound3_a3_s0_sw_reset, DSI_PKT_TYPE_WR, UNBOUND3_A
 static DEFINE_STATIC_PACKET(unbound3_a3_s0_gct_dsc, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_GCT_DSC, 0);
 static DEFINE_STATIC_PACKET(unbound3_a3_s0_gct_pps, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_GCT_PPS, 0);
 static DEFINE_STATIC_PACKET(unbound3_a3_s0_vddm_orig, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_VDDM_ORIG, 0x03);
+static DEFINE_STATIC_PACKET(unbound3_a3_s0_vddm_orig_2, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_VDDM_ORIG_2, 0x10);
 static DEFINE_PKTUI(unbound3_a3_s0_vddm_volt, &unbound3_a3_s0_maptbl[VDDM_MAPTBL], 1);
 static DEFINE_VARIABLE_PACKET(unbound3_a3_s0_vddm_volt, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_VDDM_VOLT, 0x03);
+static DEFINE_PKTUI(unbound3_a3_s0_vddm_volt_2, &unbound3_a3_s0_maptbl[VDDM_2_MAPTBL], 1);
+static DEFINE_VARIABLE_PACKET(unbound3_a3_s0_vddm_volt_2, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_VDDM_VOLT_2, 0x10);
+static DEFINE_STATIC_PACKET(unbound3_a3_s0_vddm_set_1, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_VDDM_SET_1, 0);
+static DEFINE_STATIC_PACKET(unbound3_a3_s0_vddm_set_2, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_VDDM_SET_2, 0);
 static DEFINE_STATIC_PACKET(unbound3_a3_s0_vddm_init, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_VDDM_INIT, 0x0B);
 static DEFINE_STATIC_PACKET(unbound3_a3_s0_hop_chksum_on, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_HOP_CHKSUM_ON, 0x27);
 
@@ -1715,7 +1748,7 @@ static DEFINE_PANEL_KEY(unbound3_a3_s0_level2_key_disable, CMD_LEVEL_2, KEY_DISA
 static DEFINE_PANEL_KEY(unbound3_a3_s0_level3_key_disable, CMD_LEVEL_3, KEY_DISABLE, &PKTINFO(unbound3_a3_s0_level3_key_disable));
 
 static u8 UNBOUND3_A3_S0_F1_KEY_ENABLE[] = {
-	0xF1, 0x5A, 0x5A,
+	0xF1, 0xF1, 0xA2,
 };
 static u8 UNBOUND3_A3_S0_F1_KEY_DISABLE[] = {
 	0xF1, 0xA5, 0xA5,
@@ -1893,6 +1926,7 @@ static DEFINE_COND(unbound3_a3_s0_cond_is_first_set_bl, is_first_set_bl);
 static DEFINE_COND(unbound3_a3_s0_cond_is_wait_vsync_needed, is_wait_vsync_needed);
 static DEFINE_COND(unbound3_a3_s0_cond_is_vrr_96hs_mode, is_vrr_96hs_mode);
 static DEFINE_COND(unbound3_a3_s0_cond_is_vrr_96hs_hbm_enter, is_vrr_96hs_hbm_enter);
+static DEFINE_COND(unbound3_a3_s0_cond_is_gamma_select_off_brt, is_gamma_select_off_brt);
 
 #ifdef CONFIG_SUPPORT_MAFPC
 
@@ -2054,7 +2088,7 @@ static u8 UNBOUND3_A3_S0_MAFPC_ENABLE[] = {
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff	
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 };
 static DEFINE_PKTUI(unbound3_a3_s0_mafpc_enable, &unbound3_a3_s0_maptbl[MAFPC_ENA_MAPTBL], 1);
 static DEFINE_VARIABLE_PACKET(unbound3_a3_s0_mafpc_enable, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_MAFPC_ENABLE, 0);
@@ -2104,77 +2138,58 @@ static u8 UNBOUND3_A3_S0_GR_GRID_ON[] = {
 	0x7C,
 	0x00, 0x01, 0x00, 0x1F, 0x00, 0x00, 0x00, 0x00, 0x05, 0x9F, 0x0C, 0x7F
 };
-static DEFINE_STATIC_PACKET(unbound3_a3_s0_gr_grid_on, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_GR_GRID_ON, 0);
 
-static u8 UNBOUND3_A3_S0_GR_GRID_OFF[] = {
-	0x7C,
-	0x00, 0x00
+static u8 UNBOUND3_A3_S0_FR_C0_02[] = {
+	0xC0, 0x02
 };
-static DEFINE_STATIC_PACKET(unbound3_a3_s0_gr_grid_off, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_GR_GRID_OFF, 0);
+static DEFINE_STATIC_PACKET(unbound3_a3_s0_fr_c0_02, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_FR_C0_02, 0);
 
-static u8 UNBOUND3_A3_S0_GR_WRDISBV_NORMAL[] = {
-	0x51, 0x02, 0xDD
+static u8 UNBOUND3_A3_S0_FR_C0_00[] = {
+	0xC0, 0x00
 };
-static DEFINE_STATIC_PACKET(unbound3_a3_s0_gr_wrdisbv_normal, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_GR_WRDISBV_NORMAL, 0);
+static DEFINE_STATIC_PACKET(unbound3_a3_s0_fr_c0_00, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_FR_C0_00, 0);
 
-static u8 UNBOUND3_A3_S0_GR_WRDISBV_HBM[] = {
-	0x51, 0x00, 0x00
+static u8 UNBOUND3_A3_S0_FR_71[] = {
+	0x71,
+	0x03, 0x00, 0x00
 };
-static DEFINE_STATIC_PACKET(unbound3_a3_s0_gr_wrdisbv_hbm, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_GR_WRDISBV_HBM, 0);
+static DEFINE_STATIC_PACKET(unbound3_a3_s0_fr_71, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_FR_71, 0);
 
-static u8 UNBOUND3_A3_S0_GR_BRT_MODE_NORMAL[] = {
-	0x53, 0x20
+static u8 UNBOUND3_A3_S0_FR_EXECUTE[] = {
+	0xC0, 0x03
 };
-static DEFINE_STATIC_PACKET(unbound3_a3_s0_gr_brt_mode_normal, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_GR_BRT_MODE_NORMAL, 0);
+static DEFINE_STATIC_PACKET(unbound3_a3_s0_fr_execute, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_FR_EXECUTE, 0);
 
-static u8 UNBOUND3_A3_S0_GR_BRT_MODE_HBM[] = {
-	0x53, 0xE0
+static u8 UNBOUND3_A3_S0_FR_WRITE_ENABLE[] = {
+	0xC1,
+	0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00
 };
-static DEFINE_STATIC_PACKET(unbound3_a3_s0_gr_brt_mode_hbm, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_GR_BRT_MODE_HBM, 0);
+static DEFINE_STATIC_PACKET(unbound3_a3_s0_fr_write_enable, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_FR_WRITE_ENABLE, 0);
 
-static u8 UNBOUND3_A3_S0_GR_120HS_60H[] = {
-	0x60, 0x08, 0x00
+static u8 UNBOUND3_A3_S0_FR_STATUS_REG_CHANGE[] = {
+	0xC1,
+	0x00, 0x00, 0x01, 0x5C, 0x02, 0x00, 0x80, 0x00,
+	0x00
 };
-static DEFINE_STATIC_PACKET(unbound3_a3_s0_gr_120hs_60h, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_GR_120HS_60H, 0);
+static DEFINE_STATIC_PACKET(unbound3_a3_s0_fr_status_reg_change, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_FR_STATUS_REG_CHANGE, 0);
 
-static u8 UNBOUND3_A3_S0_GR_120HS_F2H_4TH[] = {
-	0xF2, 0x00
+static u8 UNBOUND3_A3_S0_FR_READ_HBM_ADDR[] = {
+	0xC1,
+	0x00, 0x00, 0x6B, 0x0E, 0x16, 0x04, 0xC0, 0x00,
+	0x46
 };
-static DEFINE_STATIC_PACKET(unbound3_a3_s0_gr_120hs_f2h_4th, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_GR_120HS_F2H_4TH, 0x03);
+static DEFINE_PKTUI(unbound3_a3_s0_fr_read_hbm_addr, &unbound3_a3_s0_maptbl[HBM_ADDR_MAPTBL], 4);
+static DEFINE_VARIABLE_PACKET(unbound3_a3_s0_fr_read_hbm_addr, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_FR_READ_HBM_ADDR, 0);
 
-static u8 UNBOUND3_A3_S0_GR_120HS_F2H_69TH[] = {
-	0xF2, 0x00
+static u8 UNBOUND3_A3_S0_FR_READ_NORMAL_ADDR[] = {
+	0xC1,
+	0x00, 0x00, 0x6B, 0x0E, 0x15, 0xBE, 0xC0, 0x00,
+	0x46
 };
-static DEFINE_STATIC_PACKET(unbound3_a3_s0_gr_120hs_f2h_69th, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_GR_120HS_F2H_69TH, 0x44);
+static DEFINE_PKTUI(unbound3_a3_s0_fr_read_normal_addr, &unbound3_a3_s0_maptbl[NORMAL_ADDR_MAPTBL], 4);
+static DEFINE_VARIABLE_PACKET(unbound3_a3_s0_fr_read_normal_addr, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_FR_READ_NORMAL_ADDR, 0);
 
-
-static void *unbound3_a3_s0_gamma_read_cmdtbl[] = {
-	&KEYINFO(unbound3_a3_s0_level1_key_enable),
-	&KEYINFO(unbound3_a3_s0_level2_key_enable),
-	&PKTINFO(unbound3_a3_s0_smooth_dimming_init),
-	&PKTINFO(unbound3_a3_s0_gr_grid_on),
-	&PKTINFO(unbound3_a3_s0_gr_120hs_60h),
-	&PKTINFO(unbound3_a3_s0_gr_120hs_f2h_4th),
-	&PKTINFO(unbound3_a3_s0_gr_120hs_f2h_69th),
-	&PKTINFO(unbound3_a3_s0_gr_wrdisbv_hbm),
-	&PKTINFO(unbound3_a3_s0_gr_brt_mode_hbm),
-	&PKTINFO(unbound3_a3_s0_gamma_update_enable),
-	&DLYINFO(unbound3_a3_s0_wait_20msec),
-	&s6e3had_restbl[RES_GAMMA_120HS_HBM],
-	&PKTINFO(unbound3_a3_s0_gr_wrdisbv_normal),
-	&PKTINFO(unbound3_a3_s0_gr_brt_mode_normal),
-	&PKTINFO(unbound3_a3_s0_gamma_update_enable),
-	&DLYINFO(unbound3_a3_s0_wait_20msec),
-	&s6e3had_restbl[RES_GAMMA_120HS],
-	&unbound3_a3_s0_maptbl[GAMMA_WRITE_0_MAPTBL],
-	&unbound3_a3_s0_maptbl[GAMMA_WRITE_1_MAPTBL],
-	&SEQINFO(unbound3_a3_s0_set_bl_param_seq),
-	&SEQINFO(unbound3_a3_s0_set_fps_param_seq),
-	&PKTINFO(unbound3_a3_s0_gamma_update_enable),
-	&PKTINFO(unbound3_a3_s0_smooth_dimming),
-	&KEYINFO(unbound3_a3_s0_level2_key_disable),
-	&KEYINFO(unbound3_a3_s0_level1_key_disable),
-};
 
 static void *unbound3_a3_s0_init_cmdtbl[] = {
 	&DLYINFO(unbound3_a3_s0_wait_10msec),
@@ -2227,6 +2242,47 @@ static void *unbound3_a3_s0_init_cmdtbl[] = {
 #endif
 };
 
+static void *unbound3_a3_s0_res_gamma_init_cmdtbl[] = {
+	&PKTINFO(unbound3_a3_s0_f1_key_enable),
+	&PKTINFO(unbound3_a3_s0_fr_c0_02),
+	&PKTINFO(unbound3_a3_s0_fr_71),
+	&DLYINFO(unbound3_a3_s0_wait_1msec),
+
+	&PKTINFO(unbound3_a3_s0_fr_write_enable),
+	&PKTINFO(unbound3_a3_s0_fr_execute),
+	&DLYINFO(unbound3_a3_s0_wait_1msec),
+
+	&PKTINFO(unbound3_a3_s0_fr_status_reg_change),
+	&PKTINFO(unbound3_a3_s0_fr_execute),
+	&DLYINFO(unbound3_a3_s0_wait_10msec),
+
+	&PKTINFO(unbound3_a3_s0_fr_read_hbm_addr),
+	&PKTINFO(unbound3_a3_s0_fr_execute),
+	&DLYINFO(unbound3_a3_s0_wait_10msec),
+	&s6e3had_restbl[RES_GAMMA_FLASH_120HS_HBM],
+
+	&PKTINFO(unbound3_a3_s0_fr_read_normal_addr),
+	&PKTINFO(unbound3_a3_s0_fr_execute),
+	&DLYINFO(unbound3_a3_s0_wait_10msec),
+	&s6e3had_restbl[RES_GAMMA_FLASH_120HS],
+
+	&PKTINFO(unbound3_a3_s0_fr_c0_00),
+	&PKTINFO(unbound3_a3_s0_f1_key_disable),
+	&unbound3_a3_s0_maptbl[GAMMA_WRITE_0_MAPTBL],
+	&unbound3_a3_s0_maptbl[GAMMA_WRITE_1_MAPTBL],
+};
+static DEFINE_SEQINFO(unbound3_a3_s0_res_gamma_init_seq, unbound3_a3_s0_res_gamma_init_cmdtbl);
+
+static void *unbound3_a3_s0_id_read_cmdtbl[] = {
+	&KEYINFO(unbound3_a3_s0_level1_key_enable),
+	&KEYINFO(unbound3_a3_s0_level2_key_enable),
+	&KEYINFO(unbound3_a3_s0_level3_key_enable),
+	&s6e3had_restbl[RES_ID],
+	&KEYINFO(unbound3_a3_s0_level3_key_disable),
+	&KEYINFO(unbound3_a3_s0_level2_key_disable),
+	&KEYINFO(unbound3_a3_s0_level1_key_disable),
+};
+
 static void *unbound3_a3_s0_res_init_cmdtbl[] = {
 	&KEYINFO(unbound3_a3_s0_level1_key_enable),
 	&KEYINFO(unbound3_a3_s0_level2_key_enable),
@@ -2249,13 +2305,13 @@ static void *unbound3_a3_s0_res_init_cmdtbl[] = {
 	&s6e3had_restbl[RES_POC_CHKSUM],
 #endif
 	&s6e3had_restbl[RES_FLASH_LOADED],
+	&SEQINFO(unbound3_a3_s0_res_gamma_init_seq),
 	&KEYINFO(unbound3_a3_s0_level3_key_disable),
 	&KEYINFO(unbound3_a3_s0_level2_key_disable),
 	&KEYINFO(unbound3_a3_s0_level1_key_disable),
 };
 
 static void *unbound3_a3_s0_wrdisbv_param_cmdtbl[] = {
-	&PKTINFO(unbound3_a3_s0_elvss),
 #ifdef CONFIG_SUPPORT_BRIGHTDOT_TEST
 	&CONDINFO_IF(unbound3_a3_s0_cond_is_brightdot_enabled),
 		&PKTINFO(unbound3_a3_s0_brightdot_aor),
@@ -2263,24 +2319,17 @@ static void *unbound3_a3_s0_wrdisbv_param_cmdtbl[] = {
 		&PKTINFO(unbound3_a3_s0_brightdot_max_brightness),
 	&CONDINFO_EL(unbound3_a3_s0_cond_is_brightdot_enabled),
 		&PKTINFO(unbound3_a3_s0_wrdisbv),
-		&PKTINFO(unbound3_a3_s0_aor_manual_value),
 	&CONDINFO_FI(unbound3_a3_s0_cond_is_brightdot_enabled),
 #else
 	&PKTINFO(unbound3_a3_s0_wrdisbv),
-	&PKTINFO(unbound3_a3_s0_aor_manual_value),
 #endif
+	&PKTINFO(unbound3_a3_s0_elvss),
 };
 static DEFINE_SEQINFO(unbound3_a3_s0_wrdisbv_param_seq, unbound3_a3_s0_wrdisbv_param_cmdtbl);
 
 static void *unbound3_a3_s0_set_bl_param_cmdtbl[] = {
-	&CONDINFO_IF(unbound3_a3_s0_cond_is_vrr_96hs_mode),
-		&CONDINFO_IF(unbound3_a3_s0_cond_is_vrr_96hs_hbm_enter),
-			&PKTINFO(unbound3_a3_s0_gamma_select_off),
-		&CONDINFO_EL(unbound3_a3_s0_cond_is_vrr_96hs_hbm_enter),
-			&PKTINFO(unbound3_a3_s0_gamma_write_0),
-			&PKTINFO(unbound3_a3_s0_gamma_write_1),
-		&CONDINFO_FI(unbound3_a3_s0_cond_is_vrr_96hs_hbm_enter),
-	&CONDINFO_FI(unbound3_a3_s0_cond_is_vrr_96hs_mode),
+	&PKTINFO(unbound3_a3_s0_gamma_select_off),
+	&SEQINFO(unbound3_a3_s0_wrdisbv_param_seq),
 
 	&CONDINFO_IF(unbound3_a3_s0_cond_is_id_gte_e5),
 		&PKTINFO(unbound3_a3_s0_sync_control),
@@ -2290,9 +2339,13 @@ static void *unbound3_a3_s0_set_bl_param_cmdtbl[] = {
 		&PKTINFO(unbound3_a3_s0_hbm_transition_lt_e5),
 	&CONDINFO_FI(unbound3_a3_s0_cond_is_id_gte_e5),
 
-	&SEQINFO(unbound3_a3_s0_wrdisbv_param_seq),
+	&PKTINFO(unbound3_a3_s0_gamma_write_0),
+	&PKTINFO(unbound3_a3_s0_gamma_write_1),
+	&PKTINFO(unbound3_a3_s0_gamma_update_enable),
 
+	&PKTINFO(unbound3_a3_s0_aor_manual_value),
 	&PKTINFO(unbound3_a3_s0_vaint),
+
 	&CONDINFO_IF(unbound3_a3_s0_cond_is_id_gte_e3),
 		&PKTINFO(unbound3_a3_s0_irc_mode),
 	&CONDINFO_EL(unbound3_a3_s0_cond_is_id_gte_e3),
@@ -2306,13 +2359,12 @@ static void *unbound3_a3_s0_set_bl_param_cmdtbl[] = {
 #ifdef CONFIG_SUPPORT_XTALK_MODE
 	&PKTINFO(unbound3_a3_s0_xtalk_vgh),
 #endif
-	&CONDINFO_IF(unbound3_a3_s0_cond_is_vrr_96hs_hbm_enter),
-		&PKTINFO(unbound3_a3_s0_gamma_update_enable),
-		&DLYINFO(unbound3_a3_s0_wait_1_vsync),
-		&PKTINFO(unbound3_a3_s0_gamma_write_0),
-		&PKTINFO(unbound3_a3_s0_gamma_write_1),
+	&CONDINFO_IF(unbound3_a3_s0_cond_is_gamma_select_off_brt),
+		&PKTINFO(unbound3_a3_s0_gamma_select_off),
+	&CONDINFO_EL(unbound3_a3_s0_cond_is_gamma_select_off_brt),
 		&PKTINFO(unbound3_a3_s0_gamma_select),
-	&CONDINFO_FI(unbound3_a3_s0_cond_is_vrr_96hs_hbm_enter),
+	&CONDINFO_FI(unbound3_a3_s0_cond_is_gamma_select_off_brt),
+	&PKTINFO(unbound3_a3_s0_gamma_update_enable),
 };
 static DEFINE_SEQINFO(unbound3_a3_s0_set_bl_param_seq, unbound3_a3_s0_set_bl_param_cmdtbl);
 
@@ -2500,6 +2552,7 @@ static void *unbound3_a3_s0_alpm_enter_cmdtbl[] = {
 	&KEYINFO(unbound3_a3_s0_level2_key_enable),
 	/* disable h/w te modulation */
 	&PKTINFO(unbound3_a3_s0_clr_te_frame_sel),
+	&PKTINFO(unbound3_a3_s0_gamma_select_off),
 	&PKTINFO(unbound3_a3_s0_lpm_enter_mode),
 	&PKTINFO(unbound3_a3_s0_lpm_control),
 	&CONDINFO_IF(unbound3_a3_s0_cond_is_id_gte_e2),
@@ -2522,7 +2575,6 @@ static void *unbound3_a3_s0_alpm_exit_cmdtbl[] = {
 	&PKTINFO(unbound3_a3_s0_lpm_swire_no_pulse),
 	&PKTINFO(unbound3_a3_s0_lpm_exit_mode),
 	&PKTINFO(unbound3_a3_s0_lpm_elvss_off),
-	&PKTINFO(unbound3_a3_s0_lpm_nit_disable),
 	&CONDINFO_IF(unbound3_a3_s0_cond_is_id_gte_e2),
 		&PKTINFO(unbound3_a3_s0_lpm_lfd_off),
 	&CONDINFO_FI(unbound3_a3_s0_cond_is_id_gte_e2),
@@ -2664,10 +2716,14 @@ static void *unbound3_a3_s0_gct_vddm_cmdtbl[] = {
 	&KEYINFO(unbound3_a3_s0_level2_key_enable),
 	&KEYINFO(unbound3_a3_s0_level3_key_enable),
 	&PKTINFO(unbound3_a3_s0_vddm_volt),
+	&DLYINFO(unbound3_a3_s0_wait_vddm_update),
+	&PKTINFO(unbound3_a3_s0_vddm_volt_2),
+	&PKTINFO(unbound3_a3_s0_vddm_set_1),
+	&PKTINFO(unbound3_a3_s0_vddm_set_2),
+	&DLYINFO(unbound3_a3_s0_wait_vddm_update),
 	&KEYINFO(unbound3_a3_s0_level3_key_disable),
 	&KEYINFO(unbound3_a3_s0_level2_key_disable),
 	&KEYINFO(unbound3_a3_s0_level1_key_disable),
-	&DLYINFO(unbound3_a3_s0_wait_vddm_update),
 };
 
 static void *unbound3_a3_s0_gct_img_0_update_cmdtbl[] = {
@@ -2707,6 +2763,9 @@ static void *unbound3_a3_s0_gct_exit_cmdtbl[] = {
 	&KEYINFO(unbound3_a3_s0_level2_key_enable),
 	&KEYINFO(unbound3_a3_s0_level3_key_enable),
 	&PKTINFO(unbound3_a3_s0_vddm_orig),
+	&PKTINFO(unbound3_a3_s0_vddm_orig_2),
+	&PKTINFO(unbound3_a3_s0_vddm_set_1),
+	&PKTINFO(unbound3_a3_s0_vddm_set_2),
 	&KEYINFO(unbound3_a3_s0_level3_key_disable),
 	&KEYINFO(unbound3_a3_s0_level2_key_disable),
 	&KEYINFO(unbound3_a3_s0_level1_key_disable),
@@ -2784,6 +2843,7 @@ static void *unbound3_a3_s0_gm2_flash_res_init_cmdtbl[] = {
 static struct seqinfo unbound3_a3_s0_seqtbl[MAX_PANEL_SEQ] = {
 	[PANEL_INIT_SEQ] = SEQINFO_INIT("init-seq", unbound3_a3_s0_init_cmdtbl),
 	[PANEL_RES_INIT_SEQ] = SEQINFO_INIT("resource-init-seq", unbound3_a3_s0_res_init_cmdtbl),
+	[PANEL_ID_READ_SEQ] = SEQINFO_INIT("id-read-seq", unbound3_a3_s0_id_read_cmdtbl),
 	[PANEL_SET_BL_SEQ] = SEQINFO_INIT("set-bl-seq", unbound3_a3_s0_set_bl_cmdtbl),
 #ifdef CONFIG_SUPPORT_HMD
 	[PANEL_HMD_ON_SEQ] = SEQINFO_INIT("hmd-on-seq", unbound3_a3_s0_hmd_on_cmdtbl),
@@ -2849,7 +2909,7 @@ static struct seqinfo unbound3_a3_s0_seqtbl[MAX_PANEL_SEQ] = {
 #ifdef CONFIG_SUPPORT_BRIGHTDOT_TEST
 	[PANEL_BRIGHTDOT_TEST_SEQ] = SEQINFO_INIT("brightdot-seq", unbound3_a3_s0_brightdot_test_cmdtbl),
 #endif
-	[PANEL_INIT_BOOT_SEQ] = SEQINFO_INIT("init-boot-seq", unbound3_a3_s0_gamma_read_cmdtbl),
+//	[PANEL_INIT_BOOT_SEQ] = SEQINFO_INIT("init-boot-seq", unbound3_a3_s0_gamma_read_cmdtbl),
 	[PANEL_DUMMY_SEQ] = SEQINFO_INIT("dummy-seq", unbound3_a3_s0_dummy_cmdtbl),
 };
 

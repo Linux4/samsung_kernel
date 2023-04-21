@@ -178,6 +178,10 @@ struct dpp_config {
 	bool hwfc_enable;
 	u32 hwfc_idx;
 #endif
+#if IS_ENABLED(CONFIG_EXYNOS_SBWC_LIBREQ)
+	bool lib_requested;
+#endif
+
 #if IS_ENABLED(CONFIG_MCD_PANEL)
 	struct mcd_dpp_config mcd_config;
 #endif
@@ -290,6 +294,13 @@ static inline void dpp_write(u32 id, u32 reg_id, u32 val)
 {
 	struct dpp_device *dpp = get_dpp_drvdata(id);
 	writel(val, dpp->res.regs + reg_id);
+}
+
+static inline void dpp_write_relaxed(u32 id, u32 reg_id, u32 val)
+{
+	struct dpp_device *dpp = get_dpp_drvdata(id);
+
+	writel_relaxed(val, dpp->res.regs + reg_id);
 }
 
 static inline void dpp_write_mask(u32 id, u32 reg_id, u32 val, u32 mask)

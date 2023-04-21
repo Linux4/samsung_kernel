@@ -18,6 +18,7 @@
 #include <linux/slab.h>
 #include <soc/samsung/debug-snapshot.h>
 #include <linux/sched/clock.h>
+#include <soc/samsung/exynos-cpupm.h>
 #include "acpm/acpm.h"
 #include "acpm/acpm_ipc.h"
 
@@ -26,6 +27,7 @@
 #define DM_EMPTY	0xFF
 static struct exynos_dm_device *exynos_dm;
 void exynos_dm_dynamic_disable(int flag);
+static int dm_idle_ip_index;
 
 /*
  * SYSFS for Debugging
@@ -972,6 +974,8 @@ int DM_CALL(int dm_type, unsigned long *target_freq)
 	mutex_lock(&exynos_dm->lock);
 	before = sched_clock();
 
+	exynos_update_ip_idle_status(dm_idle_ip_index, 0);
+
 	target_dm = &exynos_dm->dm_data[dm_type];
 
 	target_dm->governor_freq = *target_freq;
@@ -1032,6 +1036,8 @@ int DM_CALL(int dm_type, unsigned long *target_freq)
 
 out:
 	after = sched_clock();
+	exynos_update_ip_idle_status(dm_idle_ip_index, 1);
+
 	mutex_unlock(&exynos_dm->lock);
 
 	pre_time = (unsigned int)(before - pre);
@@ -1120,6 +1126,10 @@ static int exynos_dm_probe(struct platform_device *pdev)
 	}
 
 	exynos_dm = dm;
+
+	dm_idle_ip_index = exynos_get_idle_ip_index(EXYNOS_DM_MODULE_NAME, 0);
+	exynos_update_ip_idle_status(dm_idle_ip_index, 1);
+
 	platform_set_drvdata(pdev, dm);
 
 	return 0;

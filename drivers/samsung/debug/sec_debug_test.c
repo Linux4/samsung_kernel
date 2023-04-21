@@ -377,7 +377,7 @@ static void simulate_PANIC(char **argv, int argc)
 	if (argv[0] == NULL)
 		panic("simulate_panic");
 	else
-		panic(argv[0]);
+		panic("%s", argv[0]);
 }
 
 static void simulate_BUG(char **argv, int argc)
@@ -619,12 +619,13 @@ static void create_and_wakeup_thread(int cpu)
 
 static void simulate_TASK_HARD_LATENCY(char **argv, int argc)
 {
+	int ret;
 	int cpu = 0;
 
 	if (argc) {
 		cpu = str_to_num(argv[0]);
 		if (argc >= 2)
-			kstrtoul(argv[1], 10, &sec_latency);
+			ret = kstrtoul(argv[1], 10, &sec_latency);
 	}
 
 	if (!argc || cpu < 0 || cpu >= num_possible_cpus()) {
@@ -646,12 +647,13 @@ static void simulate_IRQ_HARD_LATENCY_handler(void *info)
 
 static void simulate_IRQ_HARD_LATENCY(char **argv, int argc)
 {
+	int ret;
 	int cpu = 0;
 
 	if (argc) {
 		cpu = str_to_num(argv[0]);
 		if (argc == 2)
-			kstrtoul(argv[1], 10, &sec_latency);
+			ret = kstrtoul(argv[1], 10, &sec_latency);
 	}
 
 	if (!argc || cpu < 0 || cpu >= num_possible_cpus()) {
@@ -812,7 +814,7 @@ static void simulate_UNALIGNED(char **argv, int argc)
 	u32 written;
 
 	p = (u32 *)(data + 1);
-	pr_info("%s: p->0x%08px\n", __func__, p);
+	pr_info("%s: p->0x%px\n", __func__, p);
 
 	if (*p == 0)
 		val = 0x87654321;
@@ -1492,12 +1494,13 @@ static struct notifier_block nb_pre_power_off_block = {
 
 static void simulate_POWER_OFF(char **argv, int argc)
 {
+	int ret;
 	int enable = 0;
 
 	if (argc) {
 		enable = str_to_num(argv[0]);
 		if (argc == 2)
-			kstrtoul(argv[1], 16, &off_debug_config_value);
+			ret = kstrtoul(argv[1], 16, &off_debug_config_value);
 	}
 
 	if (enable == 1) {

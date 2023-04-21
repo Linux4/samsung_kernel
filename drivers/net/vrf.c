@@ -332,8 +332,7 @@ static netdev_tx_t vrf_xmit(struct sk_buff *skb, struct net_device *dev)
 	return ret;
 }
 
-static int vrf_finish_direct(struct net *net, struct sock *sk,
-			     struct sk_buff *skb)
+static void vrf_finish_direct(struct sk_buff *skb)
 {
 	struct net_device *vrf_dev = skb->dev;
 
@@ -352,7 +351,8 @@ static int vrf_finish_direct(struct net *net, struct sock *sk,
 		skb_pull(skb, ETH_HLEN);
 	}
 
-	return 1;
+	/* reset skb device */
+	nf_reset_ct(skb);
 }
 
 #if IS_ENABLED(CONFIG_IPV6)
@@ -431,15 +431,41 @@ static struct sk_buff *vrf_ip6_out_redirect(struct net_device *vrf_dev,
 	return skb;
 }
 
+static int vrf_output6_direct_finish(struct net *net, struct sock *sk,
+				     struct sk_buff *skb)
+{
+	vrf_finish_direct(skb);
+
+	return vrf_ip6_local_out(net, sk, skb);
+}
+
 static int vrf_output6_direct(struct net *net, struct sock *sk,
 			      struct sk_buff *skb)
 {
+	int err = 1;
+
 	skb->protocol = htons(ETH_P_IPV6);
 
-	return NF_HOOK_COND(NFPROTO_IPV6, NF_INET_POST_ROUTING,
-			    net, sk, skb, NULL, skb->dev,
-			    vrf_finish_direct,
-			    !(IPCB(skb)->flags & IPSKB_REROUTED));
+	if (!(IPCB(skb)->flags & IPSKB_REROUTED))
+		err = nf_hook(NFPROTO_IPV6, NF_INET_POST_ROUTING, net, sk, skb,
+			      NULL, skb->dev, vrf_output6_direct_finish);
+
+	if (likely(err == 1))
+		vrf_finish_direct(skb);
+
+	return err;
+}
+
+static int vrf_ip6_out_direct_finish(struct net *net, struct sock *sk,
+				     struct sk_buff *skb)
+{
+	int err;
+
+	err = vrf_output6_direct(net, sk, skb);
+	if (likely(err == 1))
+		err = vrf_ip6_local_out(net, sk, skb);
+
+	return err;
 }
 
 static struct sk_buff *vrf_ip6_out_direct(struct net_device *vrf_dev,
@@ -452,18 +478,15 @@ static struct sk_buff *vrf_ip6_out_direct(struct net_device *vrf_dev,
 	skb->dev = vrf_dev;
 
 	err = nf_hook(NFPROTO_IPV6, NF_INET_LOCAL_OUT, net, sk,
-		      skb, NULL, vrf_dev, vrf_output6_direct);
+		      skb, NULL, vrf_dev, vrf_ip6_out_direct_finish);
 
 	if (likely(err == 1))
 		err = vrf_output6_direct(net, sk, skb);
 
-	/* reset skb device */
 	if (likely(err == 1))
-		nf_reset_ct(skb);
-	else
-		skb = NULL;
+		return skb;
 
-	return skb;
+	return NULL;
 }
 
 static struct sk_buff *vrf_ip6_out(struct net_device *vrf_dev,
@@ -643,15 +666,41 @@ static struct sk_buff *vrf_ip_out_redirect(struct net_device *vrf_dev,
 	return skb;
 }
 
+static int vrf_output_direct_finish(struct net *net, struct sock *sk,
+				    struct sk_buff *skb)
+{
+	vrf_finish_direct(skb);
+
+	return vrf_ip_local_out(net, sk, skb);
+}
+
 static int vrf_output_direct(struct net *net, struct sock *sk,
 			     struct sk_buff *skb)
 {
+	int err = 1;
+
 	skb->protocol = htons(ETH_P_IP);
 
-	return NF_HOOK_COND(NFPROTO_IPV4, NF_INET_POST_ROUTING,
-			    net, sk, skb, NULL, skb->dev,
-			    vrf_finish_direct,
-			    !(IPCB(skb)->flags & IPSKB_REROUTED));
+	if (!(IPCB(skb)->flags & IPSKB_REROUTED))
+		err = nf_hook(NFPROTO_IPV4, NF_INET_POST_ROUTING, net, sk, skb,
+			      NULL, skb->dev, vrf_output_direct_finish);
+
+	if (likely(err == 1))
+		vrf_finish_direct(skb);
+
+	return err;
+}
+
+static int vrf_ip_out_direct_finish(struct net *net, struct sock *sk,
+				    struct sk_buff *skb)
+{
+	int err;
+
+	err = vrf_output_direct(net, sk, skb);
+	if (likely(err == 1))
+		err = vrf_ip_local_out(net, sk, skb);
+
+	return err;
 }
 
 static struct sk_buff *vrf_ip_out_direct(struct net_device *vrf_dev,
@@ -664,18 +713,15 @@ static struct sk_buff *vrf_ip_out_direct(struct net_device *vrf_dev,
 	skb->dev = vrf_dev;
 
 	err = nf_hook(NFPROTO_IPV4, NF_INET_LOCAL_OUT, net, sk,
-		      skb, NULL, vrf_dev, vrf_output_direct);
+		      skb, NULL, vrf_dev, vrf_ip_out_direct_finish);
 
 	if (likely(err == 1))
 		err = vrf_output_direct(net, sk, skb);
 
-	/* reset skb device */
 	if (likely(err == 1))
-		nf_reset_ct(skb);
-	else
-		skb = NULL;
+		return skb;
 
-	return skb;
+	return NULL;
 }
 
 static struct sk_buff *vrf_ip_out(struct net_device *vrf_dev,
@@ -862,9 +908,6 @@ static int vrf_dev_init(struct net_device *dev)
 
 	dev->flags = IFF_MASTER | IFF_NOARP;
 
-	/* MTU is irrelevant for VRF device; set to 64k similar to lo */
-	dev->mtu = 64 * 1024;
-
 	/* similarly, oper state is irrelevant; set to up to avoid confusion */
 	dev->operstate = IF_OPER_UP;
 	return 0;
@@ -993,15 +1036,23 @@ static struct sk_buff *vrf_ip6_rcv(struct net_device *vrf_dev,
 	bool need_strict = rt6_need_strict(&ipv6_hdr(skb)->daddr);
 	bool is_ndisc = ipv6_ndisc_frame(skb);
 
+	nf_reset_ct(skb);
+
 	/* loopback, multicast & non-ND link-local traffic; do not push through
-	 * packet taps again. Reset pkt_type for upper layers to process skb
+	 * packet taps again. Reset pkt_type for upper layers to process skb.
+	 * For strict packets with a source LLA, determine the dst using the
+	 * original ifindex.
 	 */
 	if (skb->pkt_type == PACKET_LOOPBACK || (need_strict && !is_ndisc)) {
 		skb->dev = vrf_dev;
 		skb->skb_iif = vrf_dev->ifindex;
 		IP6CB(skb)->flags |= IP6SKB_L3SLAVE;
+
 		if (skb->pkt_type == PACKET_LOOPBACK)
 			skb->pkt_type = PACKET_HOST;
+		else if (ipv6_addr_type(&ipv6_hdr(skb)->saddr) & IPV6_ADDR_LINKLOCAL)
+			vrf_ip6_input_dst(skb, vrf_dev, orig_iif);
+
 		goto out;
 	}
 
@@ -1042,6 +1093,8 @@ static struct sk_buff *vrf_ip_rcv(struct net_device *vrf_dev,
 	skb->dev = vrf_dev;
 	skb->skb_iif = vrf_dev->ifindex;
 	IPCB(skb)->flags |= IPSKB_L3SLAVE;
+
+	nf_reset_ct(skb);
 
 	if (ipv4_is_multicast(ip_hdr(skb)->daddr))
 		goto out;
@@ -1291,7 +1344,8 @@ static void vrf_setup(struct net_device *dev)
 	 * which breaks networking.
 	 */
 	dev->min_mtu = IPV6_MIN_MTU;
-	dev->max_mtu = ETH_MAX_MTU;
+	dev->max_mtu = IP6_MAX_MTU;
+	dev->mtu = dev->max_mtu;
 }
 
 static int vrf_validate(struct nlattr *tb[], struct nlattr *data[],

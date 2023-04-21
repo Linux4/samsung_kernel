@@ -41,7 +41,7 @@ static int __mfc_core_init(struct mfc_core *core, struct mfc_ctx *ctx)
 	mod_timer(&core->meerkat_timer, jiffies + msecs_to_jiffies(MEERKAT_TICK_INTERVAL));
 
 	/* set MFC idle timer */
-	atomic_set(&core->hw_run_cnt, 0);
+	atomic_set(&core->hw_run_bits, 0);
 	mfc_core_change_idle_mode(core, MFC_IDLE_MODE_NONE);
 
 	/* Load the FW */
@@ -56,7 +56,7 @@ static int __mfc_core_init(struct mfc_core *core, struct mfc_ctx *ctx)
 	} else {
 		/* Request buffer protection for DRM F/W */
 		ret = exynos_smc(SMC_DRM_PPMP_MFCFW_PROT,
-				core->drm_fw_buf.daddr, 0, 0);
+				core->drm_fw_buf.daddr, core->id * PROT_MFC1, 0);
 		if (ret != DRMDRV_OK) {
 			mfc_core_err("failed MFC DRM F/W prot(%#x)\n", ret);
 			call_dop(core, dump_and_stop_debug_mode, core);
@@ -119,7 +119,7 @@ err_common_ctx:
 		core->fw.drm_status = 0;
 		/* Request buffer unprotection for DRM F/W */
 		smc_ret = exynos_smc(SMC_DRM_PPMP_MFCFW_UNPROT,
-					core->drm_fw_buf.daddr, 0, 0);
+					core->drm_fw_buf.daddr, core->id * PROT_MFC1, 0);
 		if (smc_ret != DRMDRV_OK) {
 			mfc_core_err("failed MFC DRM F/W unprot(%#x)\n", smc_ret);
 			call_dop(core, dump_and_stop_debug_mode, core);
@@ -224,7 +224,7 @@ static int __mfc_core_deinit(struct mfc_core *core, struct mfc_ctx *ctx)
 			core->fw.drm_status = 0;
 			/* Request buffer unprotection for DRM F/W */
 			ret = exynos_smc(SMC_DRM_PPMP_MFCFW_UNPROT,
-					core->drm_fw_buf.daddr, 0, 0);
+					core->drm_fw_buf.daddr, core->id * PROT_MFC1, 0);
 			if (ret != DRMDRV_OK) {
 				mfc_ctx_err("failed MFC DRM F/W unprot(%#x)\n", ret);
 				call_dop(core, dump_and_stop_debug_mode, core);
@@ -320,6 +320,7 @@ int mfc_core_instance_init(struct mfc_core *core, struct mfc_ctx *ctx)
 	core_ctx->inst_no = MFC_NO_INSTANCE_SET;
 	core->core_ctx[core_ctx->num] = core_ctx;
 
+	init_waitqueue_head(&core_ctx->drc_wq);
 	init_waitqueue_head(&core_ctx->cmd_wq);
 	mfc_core_init_listable_wq_ctx(core_ctx);
 	spin_lock_init(&core_ctx->buf_queue_lock);
@@ -679,8 +680,33 @@ void mfc_core_instance_dpb_flush(struct mfc_core *core, struct mfc_ctx *ctx)
 	ret = mfc_core_get_hwlock_ctx(core_ctx);
 	if (ret < 0) {
 		mfc_err("Failed to get hwlock\n");
-		MFC_TRACE_CTX_LT("[ERR][Release] failed to get hwlock (shutdown: %d)\n", core->shutdown);
+		MFC_TRACE_CTX_LT("[ERR][Release] failed to get hwlock (shutdown: %d)\n",
+				core->shutdown);
 		return;
+	}
+
+	if (core_ctx->state == MFCINST_RES_CHANGE_INIT ||
+			core_ctx->state == MFCINST_RES_CHANGE_FLUSH) {
+		mfc_ctx_info("[DRC] DRC is running yet (state: %d) wait while process is done\n",
+				core_ctx->state);
+		mfc_core_release_hwlock_ctx(core_ctx);
+		mfc_ctx_ready_set_bit(core_ctx, &core->work_bits);
+		if (mfc_core_is_work_to_do(core)) {
+			queue_work(core->butler_wq, &core->butler_work);
+
+			if (mfc_wait_for_done_drc(core_ctx)) {
+				mfc_err("[DRC] timed out waiting for DRC processing\n");
+				return;
+			}
+		}
+
+		ret = mfc_core_get_hwlock_ctx(core_ctx);
+		if (ret < 0) {
+			mfc_err("Failed to get hwlock after DRC\n");
+			MFC_TRACE_CTX_LT("[ERR][Release] failed to get hwlock (shutdown: %d)\n",
+					core->shutdown);
+			return;
+		}
 	}
 
 	mfc_cleanup_queue(&ctx->buf_queue_lock, &ctx->dst_buf_queue);

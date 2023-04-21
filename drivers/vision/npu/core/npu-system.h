@@ -14,6 +14,7 @@
 #define _NPU_SYSTEM_H_
 
 #include <linux/platform_device.h>
+#include <linux/of_reserved_mem.h>
 #include "npu-scheduler.h"
 #include "npu-qos.h"
 #include "npu-clock.h"
@@ -76,6 +77,13 @@ struct npu_mem_data {
 	struct npu_memory_buffer	*area_info;
 };
 
+struct npu_rmem_data {
+	const char	*heapname;
+	const char	*name;
+	struct npu_memory_buffer	*area_info;
+	struct reserved_mem *rmem;
+};
+
 struct reg_cmd_list {
 	char			*name;
 	struct reg_cmd_map	*list;
@@ -87,6 +95,8 @@ struct npu_system {
 
 	struct npu_io_data	io_area[NPU_MAX_IO_DATA];
 	struct npu_mem_data	mem_area[NPU_MAX_MEM_DATA];
+	struct npu_rmem_data	rmem_area[NPU_MAX_MEM_DATA];
+	struct iommu_domain *domain;
 
 	struct reg_cmd_list	*cmd_list;
 
@@ -157,11 +167,34 @@ static inline struct npu_mem_data *npu_get_mem_data(struct npu_system *system, c
 	else
 		return (system->mem_area + t);
 }
+
+static inline struct npu_rmem_data *npu_get_rmem_data(struct npu_system *system, const char *name)
+{
+	int i, t = -1;
+
+	for (i = 0; i < NPU_MAX_MEM_DATA && system->rmem_area[i].name != NULL; i++) {
+		if (!strcmp(name, system->rmem_area[i].name)) {
+			t = i;
+			break;
+		}
+	}
+	if (t < 0)
+		return (struct npu_rmem_data *)NULL;
+	else
+		return (system->rmem_area + t);
+}
+
 static inline struct npu_memory_buffer *npu_get_mem_area(struct npu_system *system, const char *name)
 {
 	struct npu_mem_data *t;
+	struct npu_rmem_data *tr;
 	t = npu_get_mem_data(system, name);
-	return t ? t->area_info : (struct npu_memory_buffer *)NULL;
+	if (t)
+		return t->area_info;
+	tr = npu_get_rmem_data(system, name);
+	if (tr)
+		return tr->area_info;
+	return (struct npu_memory_buffer *)NULL;
 }
 
 static inline int get_iomem_data_index(const struct npu_iomem_init_data data[], const char *name)

@@ -16,7 +16,7 @@
 #define DL_HASH_END		(0xFFFFFFFF)
 
 static unsigned int *dl_hash;
-struct dsp_tlsf *out_manager;
+static struct dsp_tlsf *out_manager;
 
 unsigned int dsp_dl_hash_get_key(char *data)
 {
@@ -171,24 +171,44 @@ int dsp_dl_out_create(struct dsp_lib *lib)
 	lib->dl_out->DM_sh.offset = offset;
 	lib->dl_out->DM_sh.size = dsp_elf32_get_mem_size(&lib->elf->DMb,
 			lib->elf);
+	if (lib->dl_out->DM_sh.size == UINT_MAX) {
+		DL_ERROR("failed to get DM_SH mem size\n");
+		return -1;
+	}
+
 	offset += lib->dl_out->DM_sh.size;
 	offset = __dsp_dl_out_offset_align(offset);
 
 	lib->dl_out->DM_local.offset = offset;
 	lib->dl_out->DM_local.size = dsp_elf32_get_mem_size(
 			&lib->elf->DMb_local, lib->elf);
+	if (lib->dl_out->DM_local.size == UINT_MAX) {
+		DL_ERROR("failed to get DM_local mem size\n");
+		return -1;
+	}
+
 	offset += lib->dl_out->DM_local.size;
 	offset = __dsp_dl_out_offset_align(offset);
 
 	lib->dl_out->TCM_sh.offset = offset;
 	lib->dl_out->TCM_sh.size = dsp_elf32_get_mem_size(&lib->elf->TCMb,
 			lib->elf);
+	if (lib->dl_out->TCM_sh.size == UINT_MAX) {
+		DL_ERROR("failed to get TCM_SH mem size\n");
+		return -1;
+	}
+
 	offset += lib->dl_out->TCM_sh.size;
 	offset = __dsp_dl_out_offset_align(offset);
 
 	lib->dl_out->TCM_local.offset = offset;
 	lib->dl_out->TCM_local.size = dsp_elf32_get_mem_size(
 			&lib->elf->TCMb_local, lib->elf);
+	if (lib->dl_out->TCM_local.size == UINT_MAX) {
+		DL_ERROR("failed to get TCM_local mem size\n");
+		return -1;
+	}
+
 	offset += lib->dl_out->TCM_local.size;
 	offset = __dsp_dl_out_offset_align(offset);
 
@@ -196,11 +216,31 @@ int dsp_dl_out_create(struct dsp_lib *lib)
 
 	lib->dl_out->sh_mem.size = dsp_elf32_get_mem_size(&lib->elf->SFRw,
 			lib->elf);
+	if (lib->dl_out->sh_mem.size == UINT_MAX) {
+		DL_ERROR("failed to get sh_mem mem size\n");
+		return -1;
+	}
+
 	return 0;
 }
 
 size_t dsp_dl_out_get_size(struct dsp_dl_out *dl_out)
 {
+	if (sizeof(*dl_out) >
+			sizeof(*dl_out) +
+			dl_out->sh_mem.offset + dl_out->sh_mem.size)
+		return UINT_MAX;
+
+	if (dl_out->sh_mem.offset >
+			sizeof(*dl_out) +
+			dl_out->sh_mem.offset + dl_out->sh_mem.size)
+		return UINT_MAX;
+
+	if (dl_out->sh_mem.size >
+			sizeof(*dl_out) +
+			dl_out->sh_mem.offset + dl_out->sh_mem.size)
+		return UINT_MAX;
+
 	return sizeof(*dl_out) + dl_out->sh_mem.offset + dl_out->sh_mem.size;
 }
 
@@ -394,6 +434,10 @@ int dsp_dl_out_alloc(struct dsp_lib *lib, int *pm_inv)
 	}
 
 	dl_out_size = dsp_dl_out_get_size(lib->dl_out);
+	if (dl_out_size == UINT_MAX) {
+		DL_ERROR("[%s] failed to get dl_out size.\n", __func__);
+		return -1;
+	}
 	DL_DEBUG("DL_out_size : %zu\n", dl_out_size);
 
 	alloc_ret = __dsp_dl_out_alloc_mem(dl_out_size, lib,
@@ -412,6 +456,7 @@ int dsp_dl_out_alloc(struct dsp_lib *lib, int *pm_inv)
 	dsp_dl_free(lib->dl_out);
 
 	lib->dl_out = (struct dsp_dl_out *)mem_addr;
+	lib->dl_out_data_size = dl_out_size - sizeof(*lib->dl_out);
 
 	strcpy(lib->dl_out->data, lib->name);
 	DL_DEBUG("lib name : %s\n", lib->dl_out->data);

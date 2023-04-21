@@ -799,7 +799,7 @@ static ssize_t brightness_table_show(struct device *dev,
 {
 	struct panel_device *panel = dev_get_drvdata(dev);
 	struct panel_bl_device *panel_bl;
-	int br, len = 0, recv_len = 0, prev_br = 0;
+	int br, len = 0, recv_len = 0, prev_br = 0, temp = 0;
 	int actual_brightness = 0, prev_actual_brightness = 0;
 	char recv_buf[50] = {0, };
 	int recv_buf_len = ARRAY_SIZE(recv_buf);
@@ -822,7 +822,7 @@ static ssize_t brightness_table_show(struct device *dev,
 		}
 		if ((prev_actual_brightness != actual_brightness) || (br == max_brightness))  {
 			if (recv_len < recv_buf_len) {
-				recv_len += snprintf(recv_buf + recv_len, recv_buf_len - recv_len,
+				temp += snprintf(recv_buf + recv_len, recv_buf_len - recv_len,
 					"~%5d %3d\n", prev_br, prev_actual_brightness);
 				len += snprintf(buf + len, PAGE_SIZE - len, "%s", recv_buf);
 			}
@@ -3280,10 +3280,17 @@ static ssize_t ccd_state_show(struct device *dev,
 		panel_err("failed to write ccd seq\n");
 		return ret;
 	}
-	resource_copy_n_clear_by_name(panel_data, ccd_state, "ccd_state");
+	ret = resource_copy_n_clear_by_name(panel_data, ccd_state, "ccd_state");
+	if (unlikely(ret < 0)) {
+		panel_err("failed to read ccd_state \n");
+		return ret;
+	}
 
-	for (ires = 0; ires < ARRAY_SIZE(ccd_resource_name); ires++)
+	for (ires = 0; ires < ARRAY_SIZE(ccd_resource_name); ires++) {
 		info = find_panel_resource(panel_data, (char *)ccd_resource_name[ires]);
+		if (info)
+			break;
+	}
 
 	if (ires != ARRAY_SIZE(ccd_resource_name)) {
 		if (info->dlen != ccd_size) {
@@ -4210,8 +4217,8 @@ int panel_sysfs_probe(struct panel_device *panel)
 	size_t i;
 	int ret = 0, retVal = 0;
 	struct device *lcd_dev;
-	struct kobject *top_kobj = &panel->panel_bl.bd->dev.kobj.kset->kobj;
-	struct kernfs_node *kn = kernfs_find_and_get(top_kobj->sd, "svc");
+	struct kobject *top_kobj = NULL;
+	struct kernfs_node *kn = NULL;
 	struct kobject *svc_kobj = NULL;
 
 	lcd_dev = panel->lcd_dev;
@@ -4219,6 +4226,11 @@ int panel_sysfs_probe(struct panel_device *panel)
 		panel_err("lcd device not exist\n");
 		retVal = -ENODEV;
 		goto exit;
+	}
+
+	if (panel->panel_bl.bd) {
+		top_kobj = &panel->panel_bl.bd->dev.kobj.kset->kobj;
+		kn = kernfs_find_and_get(top_kobj->sd, "svc");
 	}
 
 	svc_kobj = kn ? kn->priv : kobject_create_and_add("svc", top_kobj);
@@ -4260,8 +4272,8 @@ int panel_sysfs_remove(struct panel_device *panel)
 	size_t i;
 	int retVal = 0;
 	struct device *lcd_dev;
-	struct kobject *top_kobj = &panel->panel_bl.bd->dev.kobj.kset->kobj;
-	struct kernfs_node *kn = kernfs_find_and_get(top_kobj->sd, "svc");
+	struct kobject *top_kobj = NULL;
+	struct kernfs_node *kn = NULL;
 	struct kobject *svc_kobj = NULL;
 
 	// remove original sysfs
@@ -4274,6 +4286,12 @@ int panel_sysfs_remove(struct panel_device *panel)
 	for (i = 0; i < ARRAY_SIZE(panel_attrs); i++)
 		device_remove_file(lcd_dev, &panel_attrs[i]);
 	panel_info("sysfs is removed\n");
+
+
+	if (panel->panel_bl.bd) {
+		top_kobj = &panel->panel_bl.bd->dev.kobj.kset->kobj;
+		kn = kernfs_find_and_get(top_kobj->sd, "svc");
+	}
 
 	// remove sysfs link(svc/OCTA)
 	if (kn) {

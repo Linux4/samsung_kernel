@@ -26,6 +26,12 @@ static struct {
 	struct cpumask user_cpus;
 } ecs;
 
+#define MAX_ECS_STAGE	VENDOR_NR_CPUS
+
+static struct {
+	int ratio;
+} ecs_tune[MAX_ECS_STAGE];
+
 /******************************************************************************
  *                                core sparing	                              *
  ******************************************************************************/
@@ -354,6 +360,7 @@ static int ecs_mode_update_callback(struct notifier_block *nb,
 				unsigned long val, void *v)
 {
 	struct emstune_set *cur_set = (struct emstune_set *)v;
+	struct ecs_stage *stage;
 	unsigned long flags;
 
 	raw_spin_lock_irqsave(&ecs_gov_lock, flags);
@@ -363,6 +370,12 @@ static int ecs_mode_update_callback(struct notifier_block *nb,
 		ecs.stage_list = cur_set->ecs.p_stage_list;
 	else
 		ecs.stage_list = &default_stage_list;
+
+	list_for_each_entry(stage, ecs.stage_list, node) {
+		stage->busy_threshold =
+			stage->busy_threshold_orig *
+			ecs_tune[stage->id].ratio / 100;
+	}
 
 	ecs.cur_stage = first_stage();
 	update_ecs_cpus();
@@ -406,6 +419,9 @@ static ssize_t show_ecs_stage(struct kobject *kobj,
 		ret += snprintf(buf + ret, PAGE_SIZE - ret,
 				" busy threshold : %d\n",
 				stage->busy_threshold);
+		ret += snprintf(buf + ret, PAGE_SIZE - ret,
+				" busy threshold : %d (origin)\n",
+				stage->busy_threshold_orig);
 		ret += snprintf(buf + ret, PAGE_SIZE - ret,
 				"-----------------------------\n");
 	}
@@ -514,6 +530,56 @@ static ssize_t store_ecs_update_period(struct kobject *kobj,
 static struct kobj_attribute ecs_update_period =
 __ATTR(update_period, 0644, show_ecs_update_period, store_ecs_update_period);
 
+static ssize_t show_ecs_ratio(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	int ret = 0, id;
+	struct ecs_stage *stage;
+
+	list_for_each_entry(stage, ecs.stage_list, node) {
+		id = stage->id;
+		ret += snprintf(buf + ret, PAGE_SIZE - ret,
+			"id=%d ratio=%d busy-threshold=%d origin-busy-threshold=%d\n",
+			id, ecs_tune[id].ratio, stage->busy_threshold,
+			stage->busy_threshold_orig);
+	}
+
+	return ret;
+}
+
+static ssize_t store_ecs_ratio(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int id, ratio;
+	struct ecs_stage *stage;
+	unsigned long flags;
+
+	if (sscanf(buf, "%d %d", &id, &ratio) != 2)
+		return -EINVAL;
+
+	if (id < 0 || id >= MAX_ECS_STAGE)
+		return -EINVAL;
+
+	raw_spin_lock_irqsave(&ecs_gov_lock, flags);
+
+	ecs_tune[id].ratio = ratio;
+	list_for_each_entry(stage, ecs.stage_list, node) {
+		if (stage->id == id) {
+			stage->busy_threshold =
+				stage->busy_threshold_orig
+				* ecs_tune[id].ratio / 100;
+			break;
+		}
+	}
+
+	raw_spin_unlock_irqrestore(&ecs_gov_lock, flags);
+
+	return count;
+}
+
+static struct kobj_attribute ecs_ratio =
+__ATTR(ratio, 0644, show_ecs_ratio, store_ecs_ratio);
+
 static int ecs_sysfs_init(void)
 {
 	int ret;
@@ -534,6 +600,9 @@ static int ecs_sysfs_init(void)
 	if (ret)
 		pr_warn("%s: failed to create ecs sysfs\n", __func__);
 	ret = sysfs_create_file(ecs_kobj, &ecs_update_period.attr);
+	if (ret)
+		pr_warn("%s: failed to create ecs sysfs\n", __func__);
+	ret = sysfs_create_file(ecs_kobj, &ecs_ratio.attr);
 	if (ret)
 		pr_warn("%s: failed to create ecs sysfs\n", __func__);
 
@@ -608,6 +677,9 @@ int ecs_init(void)
 	ecs.cur_stage = first_stage();
 
 skip_init:
+	for (id = 0; id < MAX_ECS_STAGE; id++)
+		ecs_tune[id].ratio = 100;
+
 	ecs_sysfs_init();
 	emstune_register_mode_update_notifier(&ecs_mode_update_notifier);
 

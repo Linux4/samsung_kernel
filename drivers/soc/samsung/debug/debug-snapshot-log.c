@@ -804,7 +804,6 @@ void dbg_snapshot_print_log_report(void)
 
 #if IS_ENABLED(CONFIG_SEC_PM_LOG)
 #include <linux/proc_fs.h>
-#include <linux/sec_pm_log.h>
 
 static unsigned long curr_thermal_log_idx;
 
@@ -882,28 +881,25 @@ static const struct seq_operations thermal_log_fops = {
 	.show  = thermal_log_seq_show,
 };
 
-static void dss_sec_pm_log_work_func(struct work_struct *work)
+void dbg_snapshot_log_procfs_init(struct proc_dir_entry *parent)
 {
-	if (!sec_pm_log_parent) {
-		pr_err("%s: sec_pm_log_parent is NULL\n", __func__);
+	if (!parent) {
+		pr_err("%s: parent is NULL\n", __func__);
 		return;
 	}
 
-	proc_create_seq("thermal_log", 0, sec_pm_log_parent,
-			&thermal_log_fops);
+	proc_create_seq("thermal_log", 0, parent, &thermal_log_fops);
 }
+EXPORT_SYMBOL_GPL(dbg_snapshot_log_procfs_init);
+#endif /* CONFIG_SEC_PM_LOG */
 
-static DECLARE_DELAYED_WORK(dss_sec_pm_log_work,
-			    dss_sec_pm_log_work_func);
-
-static void dbg_snapshot_sec_pm_log_init(void)
+static void disable_all_log_itmes(void)
 {
-	schedule_delayed_work(&dss_sec_pm_log_work,
-			      msecs_to_jiffies(15000));
+	int i;
+
+	for (i = 0; i < (int)ARRAY_SIZE(dss_log_items); i++)
+		dss_log_items[i].entry.enabled = 0;
 }
-#else
-static inline void dbg_snapshot_sec_pm_log_init(void) {}
-#endif
 
 void dbg_snapshot_init_log(void)
 {
@@ -913,6 +909,11 @@ void dbg_snapshot_init_log(void)
 	struct property *prop;
 	const char *str;
 	unsigned int i = 0;
+
+	if (!item->entry.enabled || !item->entry.size) {
+		disable_all_log_itmes();
+		return;
+	}
 
 	log_item_set_filed(TASK, task);
 	log_item_set_filed(WORK, work);
@@ -940,6 +941,4 @@ void dbg_snapshot_init_log(void)
 	}
 
 	dbg_snapshot_log_output();
-
-	dbg_snapshot_sec_pm_log_init();
 }

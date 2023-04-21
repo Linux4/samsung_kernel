@@ -307,7 +307,7 @@
 #define S6E3FAB_RDDSM_OFS			0
 #define S6E3FAB_RDDSM_LEN			(PANEL_RDDSM_LEN)
 
-#define S6E3FAB_ERR_REG				0xEA
+#define S6E3FAB_ERR_REG				0xE9
 #define S6E3FAB_ERR_OFS				0
 #define S6E3FAB_ERR_LEN				5
 
@@ -375,12 +375,6 @@
 #define S6E3FAB_CCD_STATE_REG				0xCD
 #define S6E3FAB_CCD_STATE_OFS				0
 #define S6E3FAB_CCD_STATE_LEN				1
-#endif
-
-#ifdef CONFIG_SUPPORT_GRAYSPOT_TEST
-#define S6E3FAB_GRAYSPOT_CAL_REG			0xC6
-#define S6E3FAB_GRAYSPOT_CAL_OFS			7
-#define S6E3FAB_GRAYSPOT_CAL_LEN			1
 #endif
 
 #ifdef CONFIG_EXYNOS_DECON_MDNIE_LITE
@@ -481,9 +475,6 @@ enum {
 	POC_SPI_WRITE_DATA_MAPTBL,
 	POC_SPI_ERASE_ADDR_MAPTBL,
 #endif
-#ifdef CONFIG_SUPPORT_GRAYSPOT_TEST
-	GRAYSPOT_CAL_MAPTBL,
-#endif
 #ifdef CONFIG_SUPPORT_GRAM_CHECKSUM
 	VDDM_MAPTBL,
 	GRAM_IMG_MAPTBL,
@@ -564,9 +555,6 @@ enum {
 #ifdef CONFIG_SUPPORT_CCD_TEST
 	READ_CCD_STATE,
 #endif
-#ifdef CONFIG_SUPPORT_GRAYSPOT_TEST
-	READ_GRAYSPOT_CAL,
-#endif
 #ifdef CONFIG_SUPPORT_MAFPC
 	READ_MAFPC,
 	READ_MAFPC_FLASH,
@@ -634,9 +622,6 @@ enum {
 #endif
 #ifdef CONFIG_SUPPORT_GRAM_CHECKSUM
 	RES_GRAM_CHECKSUM,
-#endif
-#ifdef CONFIG_SUPPORT_GRAYSPOT_TEST
-	RES_GRAYSPOT_CAL,
 #endif
 #ifdef CONFIG_SUPPORT_MAFPC
 	RES_MAFPC,
@@ -725,9 +710,6 @@ static u8 S6E3FAB_POC_MCA_CHKSUM[S6E3FAB_POC_MCA_CHKSUM_LEN];
 #ifdef CONFIG_SUPPORT_CCD_TEST
 static u8 S6E3FAB_CCD_STATE[S6E3FAB_CCD_STATE_LEN];
 #endif
-#ifdef CONFIG_SUPPORT_GRAYSPOT_TEST
-static u8 S6E3FAB_GRAYSPOT_CAL[S6E3FAB_GRAYSPOT_CAL_LEN];
-#endif
 #ifdef CONFIG_SUPPORT_MAFPC
 static u8 S6E3FAB_MAFPC[S6E3FAB_MAFPC_LEN];
 static u8 S6E3FAB_MAFPC_FLASH[S6E3FAB_MAFPC_FLASH_LEN];
@@ -803,9 +785,6 @@ static struct rdinfo s6e3fab_rditbl[] = {
 #endif
 #ifdef CONFIG_SUPPORT_CCD_TEST
 	[READ_CCD_STATE] = RDINFO_INIT(ccd_state, DSI_PKT_TYPE_RD, S6E3FAB_CCD_STATE_REG, S6E3FAB_CCD_STATE_OFS, S6E3FAB_CCD_STATE_LEN),
-#endif
-#ifdef CONFIG_SUPPORT_GRAYSPOT_TEST
-	[READ_GRAYSPOT_CAL] = RDINFO_INIT(grayspot_cal, DSI_PKT_TYPE_RD, S6E3FAB_GRAYSPOT_CAL_REG, S6E3FAB_GRAYSPOT_CAL_OFS, S6E3FAB_GRAYSPOT_CAL_LEN),
 #endif
 #ifdef CONFIG_SUPPORT_MAFPC
 	[READ_MAFPC] = RDINFO_INIT(mafpc, DSI_PKT_TYPE_RD, S6E3FAB_MAFPC_REG, S6E3FAB_MAFPC_OFS, S6E3FAB_MAFPC_LEN),
@@ -886,10 +865,6 @@ static DEFINE_RESUI(poc_mca_chksum, &s6e3fab_rditbl[READ_POC_MCA_CHKSUM], 0);
 #ifdef CONFIG_SUPPORT_CCD_TEST
 static DEFINE_RESUI(ccd_state, &s6e3fab_rditbl[READ_CCD_STATE], 0);
 #endif
-#ifdef CONFIG_SUPPORT_GRAYSPOT_TEST
-static DEFINE_RESUI(grayspot_cal, &s6e3fab_rditbl[READ_GRAYSPOT_CAL], 0);
-#endif
-
 static DEFINE_RESUI(self_mask_checksum, &s6e3fab_rditbl[READ_SELF_MASK_CHECKSUM], 0);
 static DEFINE_RESUI(self_mask_crc, &s6e3fab_rditbl[READ_SELF_MASK_CRC], 0);
 #ifdef CONFIG_SUPPORT_MAFPC
@@ -984,7 +959,7 @@ static struct resinfo s6e3fab_restbl[] = {
 	[RES_CCD_STATE] = RESINFO_INIT(ccd_state, S6E3FAB_CCD_STATE, RESUI(ccd_state)),
 #endif
 	[RES_SELF_MASK_CHECKSUM] = RESINFO_INIT(self_mask_checksum, S6E3FAB_SELF_MASK_CHECKSUM, RESUI(self_mask_checksum)),
-	[RES_SELF_MASK_CRC] = RESINFO_INIT(self_mask_crc, S6E3FAB_SELF_MASK_CRC, RESUI(self_mask_crc)),	
+	[RES_SELF_MASK_CRC] = RESINFO_INIT(self_mask_crc, S6E3FAB_SELF_MASK_CRC, RESUI(self_mask_crc)),
 #ifdef CONFIG_SUPPORT_MAFPC
 	[RES_MAFPC] = RESINFO_INIT(mafpc, S6E3FAB_MAFPC, RESUI(mafpc)),
 	[RES_MAFPC_FLASH] = RESINFO_INIT(mafpc_flash, S6E3FAB_MAFPC_FLASH, RESUI(mafpc_flash)),
@@ -1213,9 +1188,6 @@ static void copy_dummy_maptbl(struct maptbl *tbl, u8 *dst);
 #endif
 static void copy_common_maptbl(struct maptbl *, u8 *);
 static void copy_tset_maptbl(struct maptbl *tbl, u8 *);
-#ifdef CONFIG_SUPPORT_GRAYSPOT_TEST
-static void copy_grayspot_cal_maptbl(struct maptbl *tbl, u8 *dst);
-#endif
 #ifdef CONFIG_EXYNOS_DECON_LCD_COPR
 static void copy_copr_maptbl(struct maptbl *, u8 *);
 #endif
@@ -1253,8 +1225,9 @@ static void update_current_scr_white(struct maptbl *tbl, u8 *dst);
 #endif /* CONFIG_EXYNOS_DECON_MDNIE_LITE */
 #ifdef CONFIG_SUPPORT_DDI_FLASH
 static int do_gamma_flash_checksum(struct panel_device *panel, void *data, u32 len);
-#endif
 static int s6e3fab_mtp_gamma_check(struct panel_device *panel, void *data, u32 len);
+#endif
+
 static bool is_panel_state_not_lpm(struct panel_device *panel);
 static inline bool is_id_gte_03(struct panel_device *panel);
 static bool is_first_set_bl(struct panel_device *panel);

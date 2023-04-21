@@ -40,6 +40,21 @@ struct acpm_framework *acpm_initdata;
 void __iomem *acpm_srambase;
 static u32 acpm_period = APM_PERITIMER_NS_PERIOD;
 
+unsigned int acpm_nfc_log_offset, acpm_nfc_log_len;
+
+int acpm_get_nfc_log_buf(struct nfc_clk_req_log **buf, u32 *last_ptr, u32 *len)
+{
+	if (!acpm_nfc_log_offset || !acpm_nfc_log_len)
+		return -ENOENT;
+
+	*last_ptr = __raw_readl(acpm_ipc->sram_base + acpm_nfc_log_offset);
+	*len = acpm_nfc_log_len;
+	*buf = (struct nfc_clk_req_log *)(acpm_ipc->sram_base + acpm_nfc_log_offset + 4);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(acpm_get_nfc_log_buf);
+
 #if defined(CONFIG_EXYNOS_RGT) || defined(CONFIG_EXYNOS_RGT_MODULE)
 extern void exynos_rgt_dbg_snapshot_regulator(u32 val, unsigned long long time);
 #else
@@ -217,7 +232,7 @@ void acpm_log_print(void)
 		time = acpm_debug->timestamps[index];
 
 		/* peritimer period: (1 * 256) / 24.576MHz*/
-		time += count * acpm_period;
+		time += (unsigned long long)(count * acpm_period);
 
 		/* speedy channel: [31:28] addr : [23:12], data : [11:4]*/
 		if (id == REGULATOR_INFO_ID)
@@ -964,6 +979,16 @@ int acpm_ipc_probe(struct platform_device *pdev)
 	}
 
 	dev_info(&pdev->dev, "board_info = 0x%x\n", acpm_initdata->board_info);
+
+	prop = of_get_property(node, "nfc-log-offset", &len);
+	if (prop) {
+		acpm_nfc_log_offset = be32_to_cpup(prop);
+	}
+
+	prop = of_get_property(node, "nfc-log-len", &len);
+	if (prop) {
+		acpm_nfc_log_len = be32_to_cpup(prop);
+	}
 
 	acpm_ipc->dev = &pdev->dev;
 

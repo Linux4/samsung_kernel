@@ -134,7 +134,7 @@ unsigned long cpufreq_cooling_get_level(unsigned int cpu, unsigned int freq)
 	}
 	mutex_unlock(&cooling_list_lock);
 
-	pr_err("%s: cpu:%d not part of any cooling device\n", __func__, cpu);
+	tmu_pr_err("%s: cpu:%d not part of any cooling device\n", __func__, cpu);
 	return THERMAL_CSTATE_INVALID;
 }
 EXPORT_SYMBOL_GPL(cpufreq_cooling_get_level);
@@ -192,7 +192,7 @@ static int update_freq_table(struct exynos_cpufreq_cooling_device *cpufreq_cdev,
 		 */
 		opp = dev_pm_opp_find_freq_ceil(dev, &freq);
 		if (IS_ERR(opp)) {
-			dev_err(dev, "failed to get opp for %lu frequency\n",
+			tmu_dev_err(dev, "failed to get opp for %lu frequency\n",
 				freq);
 			return -EINVAL;
 		}
@@ -464,7 +464,7 @@ static int cpufreq_set_cur_state(struct thermal_cooling_device *cdev,
 	ret = blocking_notifier_call_chain(&cpu_notifier, cpufreq_cdev->policy->cpu,
 			&cpufreq_cdev->freq_table[state].frequency);
 	if (ret != NOTIFY_OK)
-		pr_err("[thermal] %s change fail!, target: %u\n",
+		tmu_pr_err("[thermal] %s change fail!, target: %u\n",
 				cpufreq_cdev->cdev->type,
 				cpufreq_cdev->freq_table[state].frequency);
 	ret = freq_qos_update_request(&cpufreq_cdev->qos_req,
@@ -638,7 +638,7 @@ static int cpufreq_power2state(struct thermal_cooling_device *cdev,
 	cpu = cpumask_first(policy->related_cpus);
 
 	/* None of our cpus are online */
-	if (cpu >= nr_cpu_ids)
+	if (cpu >= nr_cpu_ids || num_cpus == 0)
 		return -ENODEV;
 
 	cur_freq = cpufreq_quick_get(policy->cpu);
@@ -750,7 +750,7 @@ static int parse_ect_cooling_level(struct thermal_cooling_device *cdev,
 
 		instance = get_thermal_instance(tz, cdev, i);
 		if (!instance) {
-			pr_err("%s: (%s, %d)instance isn't valid\n", __func__, tz_name, i);
+			tmu_pr_err("%s: (%s, %d)instance isn't valid\n", __func__, tz_name, i);
 			goto skip_ect;
 		}
 
@@ -762,7 +762,7 @@ static int parse_ect_cooling_level(struct thermal_cooling_device *cdev,
 
 		instance->upper = level;
 
-		pr_info("Parsed From ECT : %s: [%d] Temperature : %d, frequency : %u, level: %d\n",
+		tmu_pr_info("Parsed From ECT : %s: [%d] Temperature : %d, frequency : %u, level: %d\n",
 			tz_name, i, temperature, freq, level);
 	}
 skip_ect:
@@ -799,7 +799,7 @@ __cpufreq_cooling_register(struct device_node *np,
 	struct thermal_cooling_device_ops *cooling_ops;
 
 	if (IS_ERR_OR_NULL(policy)) {
-		pr_err("%s: cpufreq policy isn't valid: %p\n", __func__, policy);
+		tmu_pr_err("%s: cpufreq policy isn't valid: %p\n", __func__, policy);
 		return ERR_PTR(-EINVAL);
 	}
 
@@ -880,7 +880,7 @@ __cpufreq_cooling_register(struct device_node *np,
 				   &cpufreq_cdev->qos_req, FREQ_QOS_MAX,
 				   cpufreq_cdev->freq_table[0].frequency);
 	if (ret < 0) {
-		pr_err("%s: Failed to add freq constraint (%d)\n", __func__,
+		tmu_pr_err("%s: Failed to add freq constraint (%d)\n", __func__,
 		       ret);
 		cdev = ERR_PTR(ret);
 		goto remove_ida;
@@ -930,7 +930,7 @@ exynos_cpufreq_cooling_register(struct device_node *np, struct cpufreq_policy *p
 		return ERR_PTR(-EINVAL);
 
 	if (!cpu_np) {
-		pr_err("cpu_cooling: OF node not available for cpu%d\n",
+		tmu_pr_err("cpu_cooling: OF node not available for cpu%d\n",
 		       policy->cpu);
 		of_node_put(cpu_np);
 		return ERR_PTR(-EINVAL);
@@ -939,7 +939,7 @@ exynos_cpufreq_cooling_register(struct device_node *np, struct cpufreq_policy *p
 	of_node_put(cpu_np);
 
 	if (of_property_read_string(np, "tz-cooling-name", &name)) {
-		pr_err("%s: could not find tz-cooling-name\n", __func__);
+		tmu_pr_err("%s: could not find tz-cooling-name\n", __func__);
 		return ERR_PTR(-EINVAL);
 	}
 	strncpy(cooling_name, name, sizeof(cooling_name));
@@ -950,17 +950,17 @@ exynos_cpufreq_cooling_register(struct device_node *np, struct cpufreq_policy *p
 	if (!of_property_read_u32(np, "ect-coeff-index", &index)) {
 		gen_block = ect_get_block("GEN");
 		if (gen_block == NULL) {
-			pr_err("%s: Failed to get gen block from ECT\n", __func__);
+			tmu_pr_err("%s: Failed to get gen block from ECT\n", __func__);
 			goto regist;
 		}
 		pwr_coeff = ect_gen_param_get_table(gen_block, "DTM_PWR_Coeff");
 		if (pwr_coeff == NULL) {
-			pr_err("%s: Failed to get power coeff from ECT\n", __func__);
+			tmu_pr_err("%s: Failed to get power coeff from ECT\n", __func__);
 			goto regist;
 		}
 		capacitance = pwr_coeff->parameter[index];
 	} else {
-		pr_err("%s: could not find ect-coeff-index\n", __func__);
+		tmu_pr_err("%s: could not find ect-coeff-index\n", __func__);
 	}
 
 regist:

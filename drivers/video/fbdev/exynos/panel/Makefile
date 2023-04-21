@@ -31,5 +31,7 @@ mcd-panel-$(CONFIG_SUPPORT_DISPLAY_PROFILER) += \
 obj-y += s6e3fab/
 obj-y += s6e3hab/
 obj-y += s6e3had/
+obj-y += ea8082/
+obj-y += s6e3fc3/
 obj-$(CONFIG_MCD_PANEL) += mcd-panel.o
 

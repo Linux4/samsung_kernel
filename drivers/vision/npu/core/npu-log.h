@@ -21,9 +21,13 @@
 #include <linux/kfifo.h>
 #include <linux/wait.h>
 #include <linux/atomic.h>
+#include <linux/printk.h>
 #include <soc/samsung/memlogger.h>
-#include "npu-device.h"
 #include "npu-ver-info.h"
+
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#include <linux/sti/abc_common.h>
+#endif
 
 #define NPU_RING_LOG_BUFFER_MAGIC	0x3920FFAC
 #define LOG_UNIT_NUM     (1024)
@@ -55,6 +59,15 @@ typedef enum {
 #define NPU_KPTR_LOG    "%pK"
 #endif
 
+struct npu_log_ops {
+	void (*fw_rprt_manager)(void);
+	int (*npu_check_unposted_mbox)(int nCtrl);
+};
+
+struct npu_log_unit {
+	char string[1024];
+};
+
 /* Structure for log management object */
 struct npu_log {
 #ifdef NPU_EXYNOS_PRINTK
@@ -82,27 +95,18 @@ struct npu_log {
 
 	/* Wait queue to notify readers */
 	wait_queue_head_t	wq;
-};
-extern struct npu_log	npu_log;
-extern struct npu_log	fw_report;
-extern struct npu_log	fw_profile;
 
-struct npu_log_unit {
-	/* mandatory data */
-	u64 timestamp;
-	unsigned long sec;
-	unsigned long nsec;
-	/* mandatory only if is_support_uts is true */
-	struct rtc_time tm;
-	/* optional datas */
-	int init_data;
-	char string[1024];
-};
+	/* memlog for Unified Logging System*/
+	struct memlog *memlog_desc_log;
+	struct memlog *memlog_desc_array;
+	struct memlog_obj *npu_memlog_obj;
+	struct memlog_obj *npu_memfile_obj;
+	struct memlog_obj *npu_memarray_obj;
+	struct memlog_obj *npu_memarray_file_obj;
+	struct npu_log_unit *npu_log_ptr;
 
-extern struct memlog_obj *npu_memlog_obj;
-extern struct memlog_obj *npu_memfile_obj;
-extern struct memlog_obj *npu_memarray_obj;
-extern struct npu_log_unit *npu_log_ptr;
+	const struct npu_log_ops	*log_ops;
+};
 
 /*
  * Define interval mask to printout sync mark on kernel log
@@ -157,8 +161,7 @@ void npu_fw_report_deinit(void);
 void npu_fw_profile_init(char *buf_addr, const size_t size);
 void npu_fw_profile_deinit(void);
 
-struct npu_log_unit *npu_set_string(struct npu_log_unit *npu_log, const char *fmt, ...);
-
+void npu_memlog_store(npu_log_level_e loglevel, const char *fmt, ...);
 
 /* Utilities */
 s32 atoi(const char *psz_buf);
@@ -173,30 +176,19 @@ int npu_debug_memdump32_by_memcpy(u32 *start, u32 *end);
 #define ISPRINTABLE(strValue)			(isascii(strValue) && isprint(strValue) ? strValue : '.')
 
 #ifdef NPU_EXYNOS_PRINTK
-#define probe_info(fmt, ...)            dev_info(npu_log.dev, "NPU:" fmt, ##__VA_ARGS__)
-#define probe_warn(fmt, args...)        dev_warn(npu_log.dev, "NPU:[WRN]" fmt, ##args)
-#define probe_err(fmt, args...)         dev_err(npu_log.dev, "NPU:[ERR]%s:%d:" fmt, __func__, __LINE__, ##args)
-#define probe_trace(fmt, ...)           ((npu_log.pr_level <= NPU_LOG_TRACE)?dev_info(npu_log.dev, fmt, ##__VA_ARGS__):0)
+#define probe_info(fmt, ...)            pr_info("NPU:" fmt, ##__VA_ARGS__)
+#define probe_warn(fmt, args...)        pr_warn("NPU:[WRN]" fmt, ##args)
+#define probe_err(fmt, args...)         pr_err("NPU:[ERR]%s:%d:" fmt, __func__, __LINE__, ##args)
+#define probe_trace(fmt, ...)           pr_info(fmt, ##__VA_ARGS__)
 
 #ifdef DEBUG_LOG_MEMORY
 #define npu_log_on_lv_target(LV, DEV_FUNC, fmt, ...)	DEV_FUNC(npu_log.dev, fmt, ##__VA_ARGS__)
 #else
-#define npu_log_on_lv_target(LV, fmt, ...)		\
-	do {	\
-		if (npu_log.pr_level <= (LV))		\
-			memlog_write_printf(npu_memlog_obj, LV, DD_VER_STR fmt, ##__VA_ARGS__);	\
-		if ((npu_log.st_level <= (LV)) && (LV == MEMLOG_LEVEL_ERR)) {	\
-			npu_log_ptr = npu_set_string(npu_log_ptr, DD_VER_STR fmt, ##__VA_ARGS__);  \
-			memlog_write_array(npu_memarray_obj, LV, npu_log_ptr); \
-		}	\
-	} while (0)
+#define npu_log_on_lv_target(LV, fmt, ...)	\
+				((console_printk[0] > LV) ? npu_memlog_store(LV, DD_VER_STR fmt, ##__VA_ARGS__) : 0)
 #endif
 
-#define npu_err_target(fmt, ...)	\
-	do {	\
-		npu_log_on_lv_target(MEMLOG_LEVEL_CAUTION, fmt, ##__VA_ARGS__);	\
-		/*npu_log_on_error();*/	\
-	} while (0)
+#define npu_err_target(fmt, ...) npu_log_on_lv_target(MEMLOG_LEVEL_CAUTION, fmt, ##__VA_ARGS__)
 #define npu_warn_target(fmt, ...)	npu_log_on_lv_target(MEMLOG_LEVEL_CAUTION, fmt, ##__VA_ARGS__)
 #define npu_info_target(fmt, ...)	npu_log_on_lv_target(MEMLOG_LEVEL_CAUTION, fmt, ##__VA_ARGS__)
 #define npu_notice_target(fmt, ...)	npu_log_on_lv_target(MEMLOG_LEVEL_ERR, fmt, ##__VA_ARGS__)
@@ -323,5 +315,8 @@ int npu_log_close(struct npu_device *npu_device);
 int npu_log_start(struct npu_device *npu_device);
 int npu_log_stop(struct npu_device *npu_device);
 int fw_will_note(size_t len);
+int fw_will_note_to_kernel(size_t len);
+
+extern const struct npu_log_ops npu_log_ops;
 
 #endif /* _NPU_LOG_H_ */

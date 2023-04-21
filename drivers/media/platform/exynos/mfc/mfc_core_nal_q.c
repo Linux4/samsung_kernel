@@ -13,6 +13,7 @@
 #include "mfc_core_nal_q.h"
 
 #include "mfc_core_hwlock.h"
+#include "mfc_core_enc_param.h"
 #include "mfc_sync.h"
 
 #include "mfc_core_pm.h"
@@ -88,7 +89,9 @@ int mfc_core_nal_q_check_enable(struct mfc_core *core)
 					mfc_core_debug(2, "There is no dec\n");
 					return 0;
 				}
-				if ((dec->has_multiframe && CODEC_MULTIFRAME(ctx)) || dec->consumed) {
+				/* VP9, AV1 multiframe, MPEG4 PB and header + stream */
+				if ((dec->has_multiframe && CODEC_MULTIFRAME(ctx)) ||
+					dec->is_multiframe || dec->consumed) {
 					core->nal_q_stop_cause |= (1 << NALQ_STOP_MULTI_FRAME);
 					mfc_core_debug(2, "[MULTIFRAME] There is a multi frame or consumed header\n");
 					return 0;
@@ -529,7 +532,10 @@ void mfc_core_nal_q_stop_if_started(struct mfc_core *core)
 				MFC_REG_R2H_CMD_COMPLETE_QUEUE_RET)) {
 		mfc_core_err("[NALQ] Failed to stop qeueue during get hwlock\n");
 		core->logging_data->cause |= (1 << MFC_CAUSE_FAIL_STOP_NAL_Q_FOR_OTHER);
-		call_dop(core, dump_and_stop_always, core);
+		call_dop(core, dump_and_stop_debug_mode, core);
+		nal_q_handle->nal_q_state = NAL_Q_STATE_CREATED;
+		mfc_core_nal_q_cleanup_queue(core);
+		mfc_core_nal_q_cleanup_clock(core);
 	}
 
 	mfc_core_debug_leave();
@@ -597,6 +603,27 @@ static void __mfc_core_nal_q_set_enc_config_qp(struct mfc_ctx *ctx,
 		mfc_debug(6, "[NALQ][CTRLS] Dynamic QP changed %#x\n",
 				pInStr->FixedPictureQp);
 	}
+}
+
+static void __mfc_core_nal_q_set_enc_ts_delta(struct mfc_ctx *ctx,
+		EncoderInputStr *pInStr)
+{
+	struct mfc_enc *enc = ctx->enc_priv;
+	struct mfc_enc_params *p = &enc->params;
+	int ts_delta;
+
+	ts_delta = mfc_enc_get_ts_delta(ctx);
+
+	pInStr->TimeStampDelta &= ~(0xFFFF);
+	pInStr->TimeStampDelta |= (ts_delta & 0xFFFF);
+
+	if (ctx->src_ts.ts_last_interval)
+		mfc_debug(3, "[NALQ][DFR] fps %d -> %ld, delta: %d, reg: %#x\n",
+				p->rc_framerate, USEC_PER_SEC / ctx->src_ts.ts_last_interval,
+				ts_delta, pInStr->TimeStampDelta);
+	else
+		mfc_debug(3, "[NALQ][DFR] fps %d -> 0, delta: %d, reg: %#x\n",
+				p->rc_framerate, ts_delta, pInStr->TimeStampDelta);
 }
 
 static void __mfc_core_nal_q_get_hdr_plus_info(struct mfc_core *core, struct mfc_ctx *ctx,
@@ -1126,6 +1153,7 @@ static int __mfc_core_nal_q_run_in_buf_enc(struct mfc_core *core, struct mfc_cor
 
 	__mfc_core_nal_q_set_slice_mode(ctx, pInStr);
 	__mfc_core_nal_q_set_enc_config_qp(ctx, pInStr);
+	__mfc_core_nal_q_set_enc_ts_delta(ctx, pInStr);
 
 	mfc_debug_leave();
 
@@ -1309,7 +1337,7 @@ static void __mfc_core_nal_q_handle_stream_input(struct mfc_core_ctx *core_ctx,
 	if (enc_addr[0] == 0) {
 		mfc_debug(3, "[NALQ] no encoded src\n");
 
-		if (enc->dummy_src && enc->params.num_b_frame) {
+		if (enc->dummy_src && mfc_core_get_enc_bframe(ctx)) {
 			mfc_change_state(core_ctx, MFCINST_FINISHING);
 			enc->dummy_src = 0;
 			mfc_debug(2, "[NALQ] clear dummy_src and change to FINISHING\n");
@@ -1404,8 +1432,9 @@ move_buf:
 static void __mfc_core_nal_q_handle_stream_output(struct mfc_ctx *ctx, int slice_type,
 				unsigned int strm_size, EncoderOutputStr *pOutStr)
 {
+	struct mfc_dev *dev = ctx->dev;
 	struct mfc_buf *dst_mb;
-	unsigned int index;
+	unsigned int index, idr_flag = 1;
 
 	if (strm_size == 0) {
 		mfc_debug(3, "[NALQ] no encoded dst (reuse)\n");
@@ -1433,6 +1462,11 @@ static void __mfc_core_nal_q_handle_stream_output(struct mfc_ctx *ctx, int slice
 	mfc_debug(2, "[NALQ][BUFINFO] ctx[%d] get dst addr: 0x%08llx\n",
 			ctx->num, dst_mb->addr[0][0]);
 
+	if (MFC_FEATURE_SUPPORT(dev, dev->pdata->enc_idr_flag))
+		idr_flag = ((pOutStr->NalDoneInfo >> MFC_REG_E_NAL_DONE_INFO_IDR_SHIFT)
+				& MFC_REG_E_NAL_DONE_INFO_IDR_MASK);
+
+	mfc_clear_mb_flag(dst_mb);
 	dst_mb->vb.flags &= ~(V4L2_BUF_FLAG_KEYFRAME |
 				V4L2_BUF_FLAG_PFRAME |
 				V4L2_BUF_FLAG_BFRAME);
@@ -1440,6 +1474,10 @@ static void __mfc_core_nal_q_handle_stream_output(struct mfc_ctx *ctx, int slice
 	switch (slice_type) {
 	case MFC_REG_E_SLICE_TYPE_I:
 		dst_mb->vb.flags |= V4L2_BUF_FLAG_KEYFRAME;
+		if (!(CODEC_HAS_IDR(ctx) && !idr_flag)) {
+			mfc_set_mb_flag(dst_mb, MFC_FLAG_SYNC_FRAME);
+			mfc_debug(2, "[NALQ][STREAM] syncframe IDR\n");
+		}
 		break;
 	case MFC_REG_E_SLICE_TYPE_P:
 		dst_mb->vb.flags |= V4L2_BUF_FLAG_PFRAME;
@@ -1454,7 +1492,8 @@ static void __mfc_core_nal_q_handle_stream_output(struct mfc_ctx *ctx, int slice
 	mfc_debug(2, "[NALQ][STREAM] Slice type flag: %d\n", dst_mb->vb.flags);
 
 	vb2_set_plane_payload(&dst_mb->vb.vb2_buf, 0, strm_size);
-	mfc_qos_update_framerate(ctx, strm_size);
+	mfc_qos_update_bitrate(ctx, strm_size);
+	mfc_qos_update_framerate(ctx);
 
 	index = dst_mb->vb.vb2_buf.index;
 	if (call_cop(ctx, get_buf_ctrls_val_nal_q_enc, ctx,
@@ -1475,7 +1514,7 @@ static void __mfc_core_nal_q_handle_stream(struct mfc_core *core, struct mfc_cor
 
 	mfc_debug_enter();
 
-	slice_type = pOutStr->SliceType;
+	slice_type = (pOutStr->SliceType & MFC_REG_E_SLICE_TYPE_MASK);
 	strm_size = pOutStr->StreamSize;
 	pic_count = pOutStr->EncCnt;
 
@@ -1658,6 +1697,8 @@ static void __mfc_core_nal_q_handle_frame_copy_timestamp(struct mfc_ctx *ctx,
 	}
 
 	dst_mb = mfc_find_buf(ctx, &ctx->dst_buf_nal_queue, dec_y_addr);
+	if (!dst_mb)
+		dst_mb = mfc_find_buf(ctx, &ctx->dst_buf_queue, dec_y_addr);
 	if (dst_mb)
 		dst_mb->vb.vb2_buf.timestamp = src_mb->vb.vb2_buf.timestamp;
 
@@ -1868,6 +1909,11 @@ static struct mfc_buf *__mfc_core_nal_q_handle_frame_output_del(struct mfc_core 
 			mfc_debug(2, "[NALQ][QoS] framerate changed\n");
 		}
 
+		if ((IS_VP9_DEC(ctx) || IS_AV1_DEC(ctx)) && dec->has_multiframe) {
+			mfc_set_mb_flag(dst_mb, MFC_FLAG_MULTIFRAME);
+			mfc_debug(2, "[MULTIFRAME] multiframe detected\n");
+		}
+
 		for (i = 0; i < raw->num_planes; i++)
 			vb2_set_plane_payload(&dst_mb->vb.vb2_buf, i,
 					raw->plane_size[i]);
@@ -1880,9 +1926,9 @@ static struct mfc_buf *__mfc_core_nal_q_handle_frame_output_del(struct mfc_core 
 		switch (frame_type) {
 			case MFC_REG_DISPLAY_FRAME_I:
 				dst_mb->vb.flags |= V4L2_BUF_FLAG_KEYFRAME;
-				if (idr_flag) {
-					mfc_set_mb_flag(dst_mb, MFC_FLAG_IDR);
-					mfc_debug(2, "[NALQ][FRAME] keyframe IDR\n");
+				if (!(CODEC_HAS_IDR(ctx) && !idr_flag)) {
+					mfc_set_mb_flag(dst_mb, MFC_FLAG_SYNC_FRAME);
+					mfc_debug(2, "[NALQ][FRAME] syncframe IDR\n");
 				}
 				break;
 			case MFC_REG_DISPLAY_FRAME_P:
@@ -2119,6 +2165,7 @@ static void __mfc_core_nal_q_handle_frame_input(struct mfc_core *core, struct mf
 		dec->remained_size = src_mb->vb.vb2_buf.planes[0].bytesused
 			- dec->consumed;
 		dec->has_multiframe = 1;
+		dec->is_multiframe = 1;
 		core->nal_q_stop_cause |= (1 << NALQ_EXCEPTION_MULTI_FRAME);
 		core->nal_q_handle->nal_q_exception = 1;
 
@@ -2130,13 +2177,20 @@ static void __mfc_core_nal_q_handle_frame_input(struct mfc_core *core, struct mf
 
 	mfc_clear_mb_flag(src_mb);
 
+	dst_frame_status = pOutStr->DisplayStatus
+		& MFC_REG_DISP_STATUS_DISPLAY_STATUS_MASK;
+
+	if ((IS_VP9_DEC(ctx) || IS_AV1_DEC(ctx)) && dec->has_multiframe &&
+		(dst_frame_status == MFC_REG_DEC_STATUS_DECODING_ONLY)) {
+		mfc_set_mb_flag(src_mb, MFC_FLAG_CONSUMED_ONLY);
+		mfc_debug(2, "[NALQ][STREAM][MULTIFRAME] last frame is decoding only\n");
+	}
+
 	/*
 	 * VP8/VP9 decoder has decoding only frame,
 	 * it will be used for reference frame only not displayed.
 	 * So, driver inform to user this input has no destination.
 	 */
-	dst_frame_status = pOutStr->DisplayStatus
-		& MFC_REG_DISP_STATUS_DISPLAY_STATUS_MASK;
 	if ((IS_VP8_DEC(ctx) || IS_VP9_DEC(ctx)) &&
 		(dst_frame_status == MFC_REG_DEC_STATUS_DECODING_ONLY)) {
 		mfc_set_mb_flag(src_mb, MFC_FLAG_CONSUMED_ONLY);
@@ -2176,6 +2230,7 @@ static void __mfc_core_nal_q_handle_frame_input(struct mfc_core *core, struct mf
 		mfc_ctx_err("[NALQ] failed in get_buf_ctrls_val\n");
 
 	dec->consumed = 0;
+	dec->has_multiframe = 0;
 	dec->remained_size = 0;
 
 	vb2_buffer_done(&src_mb->vb.vb2_buf, VB2_BUF_STATE_DONE);
@@ -2317,6 +2372,13 @@ void __mfc_core_nal_q_handle_frame(struct mfc_core *core, struct mfc_core_ctx *c
 		break;
 	}
 
+	/* Mark source buffer as complete */
+	if (dst_frame_status != MFC_REG_DEC_STATUS_DISPLAY_ONLY)
+		__mfc_core_nal_q_handle_frame_input(core, ctx, err, pOutStr);
+	else
+		mfc_debug(2, "[NALQ][DPB] can't support display only in NAL-Q, is_dpb_full: %d\n",
+				dec->is_dpb_full);
+
 	/* A frame has been decoded and is in the buffer  */
 	if (mfc_dec_status_display(dst_frame_status))
 		mfc_buf = __mfc_core_nal_q_handle_frame_output(core, ctx, pOutStr);
@@ -2346,13 +2408,6 @@ void __mfc_core_nal_q_handle_frame(struct mfc_core *core, struct mfc_core_ctx *c
 			mfc_debug(2, "[NALQ][REFINFO] Released FD = %d will update with display buffer\n",
 					dec->ref_buf[i].fd[0]);
 	}
-
-	/* Mark source buffer as complete */
-	if (dst_frame_status != MFC_REG_DEC_STATUS_DISPLAY_ONLY)
-		__mfc_core_nal_q_handle_frame_input(core, ctx, err, pOutStr);
-	else
-		mfc_debug(2, "[NALQ][DPB] can't support display only in NAL-Q, is_dpb_full: %d\n",
-				dec->is_dpb_full);
 
 leave_handle_frame:
 	if (core->nal_q_handle->nal_q_exception == 2)
@@ -2416,6 +2471,10 @@ int __mfc_core_nal_q_handle_error(struct mfc_core *core, struct mfc_core_ctx *co
 		 * one input buffer is returned and the NAL-Q mode continues.
 		 */
 		if (err == MFC_REG_ERR_BUFFER_FULL) {
+			mfc_err("[NALQ] stream buffer size(%d) isn't enough, skip (Bitrate: %d)\n",
+				pOutStr->StreamSize,
+				MFC_CORE_RAW_READL(MFC_REG_E_RC_BIT_RATE));
+
 			src_mb = mfc_get_del_buf(ctx,&ctx->src_buf_nal_queue, MFC_BUF_NO_TOUCH_USED);
 
 			if (!src_mb)

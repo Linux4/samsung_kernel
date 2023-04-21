@@ -19,7 +19,7 @@
 struct task_struct;
 struct irq_desc;
 struct pt_regs;
-
+struct freq_log;
 /*
  * SEC DEBUG LAST KMSG
  */
@@ -35,8 +35,19 @@ extern void secdbg_lkmg_store(unsigned char *head_ptr,
 /*
  * SEC DEBUG MODE
  */
+ #if IS_ENABLED(CONFIG_SEC_DEBUG_MODE)
 extern int secdbg_mode_check_sj(void);
 extern int secdbg_mode_enter_upload(void);
+#else
+static inline int secdbg_mode_check_sj(void)
+{
+	return 0;
+}
+static inline int secdbg_mode_enter_upload(void)
+{
+	return 0;
+}
+#endif
 
 /*
  * SEC DEBUG - DEBUG SNAPSHOT BASE HOOKING
@@ -130,6 +141,10 @@ extern void secdbg_exin_set_aud(const char *str);
 extern void secdbg_exin_set_epd(const char *str);
 extern void secdbg_exin_set_asv(int bg, int mg, int lg, int g3dg, int mifg);
 extern void secdbg_exin_set_ids(int bids, int mids, int lids, int gids);
+extern void secdbg_exin_set_hardlockup_type(const char *fmt, ...);
+extern void secdbg_exin_set_hardlockup_data(const char *str);
+extern void secdbg_exin_set_hardlockup_freq(const char *domain, struct freq_log *freq);
+extern void secdbg_exin_set_hardlockup_ehld(unsigned int hl_info, unsigned int cpu);
 #else /* !CONFIG_SEC_DEBUG_EXTRA_INFO */
 #define secdbg_exin_set_finish(a)	do { } while (0)
 #define secdbg_exin_set_panic(a)	do { } while (0)
@@ -146,6 +161,10 @@ extern void secdbg_exin_set_ids(int bids, int mids, int lids, int gids);
 #define secdbg_exin_set_epd(a)		do { } while (0)
 #define secdbg_exin_set_asv(a)		do { } while (0)
 #define secdbg_exin_set_ids(a)		do { } while (0)
+#define secdbg_exin_set_hardlockup_type(a, ...)	do { } while (0)
+#define secdbg_exin_set_hardlockup_data(a)	do { } while (0)
+#define secdbg_exin_set_hardlockup_freq(a, b)	do { } while (0)
+#define secdbg_exin_set_hardlockup_ehld(a, b)	do { } while (0)
 #endif /* CONFIG_SEC_DEBUG_EXTRA_INFO */
 
 #ifdef CONFIG_SEC_DEBUG_EXTRA_INFO_BUILT_IN
@@ -182,6 +201,7 @@ extern void secdbg_exin_built_set_hint(unsigned long hint);
 extern void secdbg_exin_built_set_decon(unsigned int err);
 extern void secdbg_exin_built_set_zswap(const char *str);
 extern void secdbg_exin_built_set_aud(const char *str);
+extern void secdbg_exin_set_hardlockup_info(const char *str);
 #else /* !CONFIG_SEC_DEBUG_EXTRA_INFO_BUILT_IN */
 #define secdbg_exin_set_fault(a, b, c)	do { } while (0)
 #define secdbg_exin_set_bug(a, b)	do { } while (0)
@@ -198,6 +218,7 @@ extern void secdbg_exin_built_set_aud(const char *str);
 #define secdbg_exin_built_set_decon(a)	do { } while (0)
 #define secdbg_exin_built_set_zswap(a)	do { } while (0)
 #define secdbg_exin_built_set_aud(a)	do { } while (0)
+#define secdbg_exin_set_hardlockup_info(a)	do { } while (0)
 #endif /* CONFIG_SEC_DEBUG_EXTRA_INFO_BUILT_IN */
 
 #ifdef CONFIG_SEC_DEBUG_WATCHDOGD_FOOTPRINT
@@ -287,6 +308,12 @@ extern void secdbg_base_built_set_task_in_sync_irq(struct task_struct *task, uns
 extern void secdbg_softdog_show_info(void);
 #else
 #define secdbg_softdog_show_info()		do { } while (0)
+#endif
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG_HANDLE_BAD_STACK)
+extern void secdbg_base_built_check_handle_bad_stack(void);
+#else
+static inline void secdbg_base_built_check_handle_bad_stack(void) { }
 #endif
 
 #ifdef CONFIG_SEC_DEBUG_MEMTAB

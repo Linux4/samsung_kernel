@@ -101,10 +101,14 @@ int is_log_write(const char *str, ...)
 
 	*((int *)(ctrl_kva)) = (lib->log_ptr - debug_kva);
 
-#if IS_ENABLED(CONFIG_EXYNOS_MEMORY_LOGGER)
-	memlog_write_printf(is_debug.mobj_printf_ddk, MEMLOG_LEVEL_INFO, "[%d] %s", cpu, lib->string);
-#endif
 	spin_unlock_irqrestore(&lib->slock_debug, flag);
+
+	if (IS_ENABLED(CONFIG_EXYNOS_MEMORY_LOGGER)) {
+		if (is_debug.mobj_printf_ddk)
+			memlog_write_printf(is_debug.mobj_printf_ddk,
+					MEMLOG_LEVEL_CAUTION,
+					"[%d] %s", cpu, lib->string);
+	}
 
 	return 0;
 }
@@ -358,7 +362,7 @@ static void mblk_init(struct lib_mem_block *mblk, struct is_priv_buf *pb,
 	strlcpy(mblk->name, name, sizeof(mblk->name));
 	mblk->type = type;
 
-	info_lib("memory block %s - kva: 0x%lx, dva: %pad, size: %zu\n",
+	info_lib("memory block %s - kva: 0x%pK, dva: %pad, size: %zu\n",
 			mblk->name, mblk->kva_base,
 			&mblk->dva_base, mblk->pb->size);
 
@@ -427,7 +431,7 @@ static void *alloc_from_mblk(struct lib_mem_block *mblk, u32 size)
 		NULL,
 		NULL,
 		0,
-		"%s, %s, %d, 0x%16lx, 0x%8lx",
+		"%s, %s, %d, 0x%16lx, %pad",
 		__func__,
 		current->comm,
 		buf->size,
@@ -723,7 +727,7 @@ static void __maybe_unused is_free_dma_pb(void *kva)
 static int mblk_dva(struct lib_mem_block *mblk, ulong kva, u32 *dva)
 {
 	if ((kva < mblk->kva_base) || (kva >= (mblk->kva_base + mblk->pb->size))) {
-		err_lib("invalid DVA request - kva: 0x%lx", kva);
+		err_lib("invalid DVA request - kva: 0x%pK", kva);
 		*dva = 0;
 		WARN_ON(1);
 
@@ -892,18 +896,34 @@ void is_inv_dma(int type, ulong kva, u32 size)
 {
 	struct lib_mem_block *mblk = NULL;
 
-	mblk = (struct lib_mem_block *)is_get_dma_blk(type);
+	if (kva) {
+		/* private(internal) buffer */
+		mblk = (struct lib_mem_block *)is_get_dma_blk(type);
+		mblk_inv(mblk, kva, size);
+	} else {
+		/* user buffer */
+		u32 instance = size;
+		struct is_device_ischain *device = is_get_ischain_device(instance);
 
-	return mblk_inv(mblk, kva, size);
+		is_dq_dbuf_q(device->dbuf_q, type, DMA_FROM_DEVICE);
+	}
 }
 
 void is_clean_dma(int type, ulong kva, u32 size)
 {
 	struct lib_mem_block *mblk = NULL;
 
-	mblk = (struct lib_mem_block *)is_get_dma_blk(type);
+	if (kva) {
+		/* private(internal) buffer */
+		mblk = (struct lib_mem_block *)is_get_dma_blk(type);
+		mblk_clean(mblk, kva, size);
+	} else {
+		/* user buffer */
+		u32 instance = size;
+		struct is_device_ischain *device = is_get_ischain_device(instance);
 
-	return mblk_clean(mblk, kva, size);
+		is_dq_dbuf_q(device->dbuf_q, type, DMA_TO_DEVICE);
+	}
 }
 
 void is_inv_dma_taaisp(ulong kva, u32 size)
@@ -2215,11 +2235,6 @@ static void _get_fd_data(u32 instance,
 	struct nfd_info *fd_info = NULL;
 	unsigned long flags = 0;
 
-	if (unlikely(!lib)) {
-		err_lib("lib is NULL");
-		return;
-	}
-
 	core = (struct is_core *)platform_get_drvdata(lib->pdev);
 	if (unlikely(!core)) {
 		err_lib("core is NULL");
@@ -3330,7 +3345,7 @@ int __nocfi is_load_rta_bin(int loadType)
 		ret = is_heap_mem_alloc_dynamic(&core->resourcemgr, IS_BIN_LIB_HINT_RTA, rta_heap_size);
 		if (ret) {
 			err_lib("failed to alloc memory for RTA heap(%d)", ret);
-			goto fail;
+			goto func_exit;
 		}
 	}
 #endif
@@ -3351,6 +3366,8 @@ int __nocfi is_load_rta_bin(int loadType)
 fail:
 	carve_binary_version(IS_BIN_LIBRARY, IS_BIN_LIB_HINT_RTA, &bin);
 	release_binary(&bin);
+
+func_exit:
 	return ret;
 }
 

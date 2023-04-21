@@ -34,7 +34,7 @@
 
 config SCSI_UFSHCD
 	tristate "Universal Flash Storage Controller Driver Core"
-	depends on SCSI && SCSI_DMA
+	depends on SCSI && (SCSI_DMA || UML)
 	select PM_DEVFREQ
 	select DEVFREQ_GOV_SIMPLE_ONDEMAND
 	select NLS
@@ -209,3 +209,8 @@ config SEC_UFS_WB_FEATURE
 	 Enable Samsung Write Booster feature support
 	 Enabling this allows kernel to use SEC WB feature defined
 	 and implemented by SEC.
+
+if SEC_KUNIT
+
+
+endif # SEC_KUNIT

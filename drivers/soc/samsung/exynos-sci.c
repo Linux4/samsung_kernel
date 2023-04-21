@@ -17,6 +17,8 @@
 #include <linux/devfreq.h>
 #include <soc/samsung/debug-snapshot.h>
 #include <linux/sched/clock.h>
+#include <linux/interrupt.h>
+#include <linux/of_irq.h>
 
 #include <soc/samsung/acpm_ipc_ctrl.h>
 #include <soc/samsung/exynos-sci.h>
@@ -27,6 +29,16 @@ static struct exynos_llc_dump_addr llc_reserved;
 static struct exynos_sci_data *sci_data;
 static int exynos_llc_enable;
 static ktime_t llc_run_time;
+
+#ifdef CONFIG_LOCKUP_DETECTOR_OTHER_CPU
+static struct atomic_notifier_head hardlockup_notifier_list;
+#endif
+
+struct sci_handler {
+	unsigned int	irq;
+	char		name[16];
+	void		*handler;
+};
 
 static void print_sci_data(struct exynos_sci_data *data)
 {
@@ -42,17 +54,43 @@ static void print_sci_data(struct exynos_sci_data *data)
 	SCI_DBG("CPU minimum region: %u\n", data->cpu_min_region);
 }
 
+static irqreturn_t exynos_sci_handler(int irq, void *data)
+{
+	llc_ecc_logging();
+	return 0;
+}
+
+static void set_llc_gov_en(int enable)
+{
+	sci_data->gov_data->llc_gov_en = enable;
+}
+
 #ifdef CONFIG_OF
 static int exynos_sci_parse_dt(struct device_node *np,
 				struct exynos_sci_data *data)
 {
-	int ret;
+	struct sci_handler *sci_h;
+	int ret, i;
 	int size;
-	int i;
 	unsigned int priority;
 
 	if (!np)
 		return -ENODEV;
+
+	/* ECC irq request */
+	sci_h = kzalloc(sizeof(struct sci_handler), GFP_KERNEL);
+
+	sci_h->irq = irq_of_parse_and_map(np, 0);
+	sci_h->handler = (void *)exynos_sci_handler;
+	strcpy(sci_h->name, "sci_h");
+
+	devm_request_irq(sci_data->dev, sci_h->irq, sci_h->handler,
+#ifdef MULTI_IRQ_SUPPORT_ITMON
+			IRQF_NOBALANCING | IRQF_GIC_MULTI_TARGET,
+#else
+			IRQF_NOBALANCING,
+#endif
+			sci_h->name, NULL);
 
 	ret = of_property_read_u32(np, "use_init_llc_region",
 					&data->use_init_llc_region);
@@ -579,6 +617,12 @@ static int exynos_sci_llc_enable(struct exynos_sci_data *data,
 			return 0;
 		}
 
+		if (!sci_data->gov_data->en_cnt && sci_data->llc_on_flag) {
+			sci_data->gov_data->en_cnt = 1;
+			SCI_INFO("%s: cali en_cnt\n", __func__);
+			return 0;
+		}
+
 		if (*enable > 1) {
 			SCI_ERR("%s: Invalid Control Index: %u\n", __func__, *enable);
 			ret = -EINVAL;
@@ -637,6 +681,61 @@ int llc_get_en(void)
 	return exynos_llc_enable;
 }
 EXPORT_SYMBOL(llc_get_en);
+
+int cam_llc_enable(bool on)
+{
+	int ret;
+	unsigned int enable = on;
+
+	sci_data->llc_on_flag = on;
+
+	if (on) {
+		set_exynos_sci_llc_debug_mode(0);
+		set_llc_gov_en(0);
+	} else {
+		set_llc_gov_en(1);
+	}
+
+	ret = exynos_sci_llc_enable(sci_data, SCI_IPC_SET, &enable);
+	if (ret) {
+		SCI_ERR("%s: Failed llc enable control\n", __func__);
+		return ret;
+	}
+
+
+	return 0;
+}
+EXPORT_SYMBOL(cam_llc_enable);
+
+int llc_off_disable(bool off)
+{
+	unsigned long flags;
+	int enable = !off;
+	int ret;
+
+	if (sci_data->llc_on_flag)
+		return 0;
+
+	set_exynos_sci_llc_debug_mode(off);
+	set_llc_gov_en(!off);
+
+	spin_lock_irqsave(&sci_data->lock, flags);
+	if (off && exynos_llc_enable) {
+		sci_data->gov_data->en_cnt = off;
+
+		ret = exynos_sci_llc_enable(sci_data, SCI_IPC_SET, &enable);
+		if (ret) {
+			SCI_ERR("%s: Failed llc enable control\n", __func__);
+			spin_unlock_irqrestore(&sci_data->lock, flags);
+			return ret;
+		}
+	}
+	spin_unlock_irqrestore(&sci_data->lock, flags);
+
+	SCI_INFO("%s: off: %d\n", __func__, off);
+	return 0;
+}
+EXPORT_SYMBOL(llc_off_disable);
 
 int llc_enable(bool on)
 {
@@ -716,6 +815,7 @@ unsigned int llc_region_alloc(unsigned int region_index, bool on, unsigned int w
 {
 	int ret;
 	int enable = on;
+	unsigned long flags;
 
 #if defined(CONFIG_EXYNOS_SCI_DBG) || defined(CONFIG_EXYNOS_SCI_DBG_MODULE)
 	bool debug_mode = get_exynos_sci_llc_debug_mode();
@@ -725,16 +825,20 @@ unsigned int llc_region_alloc(unsigned int region_index, bool on, unsigned int w
 	if (region_index == LLC_REGION_DPU)
 		return 0;
 
+	spin_lock_irqsave(&sci_data->lock, flags);
 	if (enable)
 		exynos_sci_llc_enable(sci_data, SCI_IPC_SET, &enable);
 
-	if (!exynos_llc_enable)
+	if (!exynos_llc_enable) {
+		spin_unlock_irqrestore(&sci_data->lock, flags);
 		return 0;
+	}
 
 	if (region_index > LLC_REGION_CPU &&
 			way + sci_data->cpu_min_region > FULL_WAY_NUM) {
 		SCI_INFO("%s: Available num way is %u\n", __func__,
 				FULL_WAY_NUM - sci_data->cpu_min_region);
+		spin_unlock_irqrestore(&sci_data->lock, flags);
 		return way + sci_data->cpu_min_region - FULL_WAY_NUM;
 	}
 
@@ -746,11 +850,48 @@ unsigned int llc_region_alloc(unsigned int region_index, bool on, unsigned int w
 	if (!enable)
 		exynos_sci_llc_enable(sci_data, SCI_IPC_SET, &enable);
 
+	spin_unlock_irqrestore(&sci_data->lock, flags);
 	SCI_INFO("%s: region[%d]: %s\n", __func__, region_index, on ? "on" : "off");
 
 	return 0;
 }
 EXPORT_SYMBOL(llc_region_alloc);
+
+static void print_register(int offset, int ecc, int shift)
+{
+	SCI_ERR("offset: 0x%x, value: 0x%x\n", offset, ecc);
+}
+
+static void get_llcecc_info(int offset, int shift)
+{
+	int reg, ecc;
+
+	reg = __raw_readl(sci_data->sci_base + offset);
+
+	ecc = SCI_BIT_GET(reg, ERR_MASK, shift);
+	if (ecc == 0)
+		SCI_INFO("There is not ECC error\n");
+	else
+		print_register(offset, ecc, shift);
+}
+
+void llc_ecc_logging(void)
+{
+
+	unsigned long flags;
+
+	spin_lock_irqsave(&sci_data->lock, flags);
+	if (sci_data->llc_ecc_flag)
+		goto out;
+
+	get_llcecc_info(UcErrMiscInfo, UEMI_SHIFT);
+	get_llcecc_info(UcErrOverrunMiscInfo, UEOMI_SHIFT);
+
+	sci_data->llc_ecc_flag = true;
+out:
+	spin_unlock_irqrestore(&sci_data->lock, flags);
+}
+EXPORT_SYMBOL(llc_ecc_logging);
 
 /* LLC governor */
 static int sci_freq_get_handler(struct notifier_block *nb, unsigned long event,
@@ -1253,6 +1394,43 @@ static ssize_t store_llc_region_priority(struct device *dev,
 	return count;
 }
 
+static ssize_t llc_off_disable_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev,
+					struct platform_device, dev);
+	struct exynos_sci_data *data = platform_get_drvdata(pdev);
+	ssize_t count = 0;
+	bool debug_mode = get_exynos_sci_llc_debug_mode();
+
+	count += snprintf(buf + count, PAGE_SIZE, "llc_gov_en: %d\n",
+			data->gov_data->llc_gov_en);
+
+	count += snprintf(buf + count, PAGE_SIZE, "debug_mode: %d\n",
+			debug_mode);
+
+	count += snprintf(buf + count, PAGE_SIZE, "llc_en: %d\n",
+			exynos_llc_enable);
+
+	return count;
+}
+
+static ssize_t llc_off_disable_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	unsigned int off;
+	int ret;
+
+	ret = kstrtou32(buf, 0, &off);
+	if (ret)
+		return -EINVAL;
+
+	llc_off_disable(off);
+
+	return count;
+}
+
 static ssize_t show_llc_gov_en(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
@@ -1451,6 +1629,7 @@ static ssize_t store_enabled_time(struct device *dev,
 	return count;
 }
 
+static DEVICE_ATTR_RW(llc_off_disable);
 static DEVICE_ATTR(sci_data, 0440, show_sci_data, NULL);
 static DEVICE_ATTR(llc_invalidate, 0640, NULL, store_llc_invalidate);
 static DEVICE_ATTR(llc_flush, 0640, NULL, store_llc_flush);
@@ -1480,6 +1659,7 @@ static struct attribute *exynos_sci_sysfs_entries[] = {
 	&dev_attr_llc_retention.attr,
 	&dev_attr_llc_region_priority.attr,
 	&dev_attr_llc_gov_en.attr,
+	&dev_attr_llc_off_disable.attr,
 	&dev_attr_hfreq_rate.attr,
 	&dev_attr_on_time_th.attr,
 	&dev_attr_off_time_th.attr,
@@ -1506,8 +1686,18 @@ static int exynos_sci_pm_suspend(struct device *dev)
 	return 0;
 }
 
+static void exynos_ecc_int_en(void)
+{
+	int reg;
+
+	reg = __raw_readl(sci_data->sci_base + ECC_INT_EN);
+	reg &= ~(0x1 << 10);
+	__raw_writel(reg, sci_data->sci_base + ECC_INT_EN);
+}
+
 static int exynos_sci_pm_resume(struct device *dev)
 {
+	exynos_ecc_int_en();
 	return 0;
 }
 
@@ -1516,6 +1706,20 @@ static struct dev_pm_ops exynos_sci_pm_ops = {
 	.resume		= exynos_sci_pm_resume,
 };
 
+#ifdef CONFIG_LOCKUP_DETECTOR_OTHER_CPU
+static int exynos_sci_lockup_handler(struct notifier_block *nb,
+		unsigned long l, void *core)
+{
+	llc_ecc_logging();
+
+	return 0;
+}
+static struct notifier_block exynos_sci_lockup_nb = {
+	.notifier_call = exynos_sci_lockup_handler,
+};
+#endif
+
+#if IS_ENABLED(CONFIG_USE_LLC_LOG)
 static void exynos_sci_llc_dump_config(struct exynos_sci_data *data)
 {
 	data->llc_dump_addr.p_addr = llc_reserved.p_addr;
@@ -1526,11 +1730,14 @@ static void exynos_sci_llc_dump_config(struct exynos_sci_data *data)
 	dbg_snapshot_add_bl_item_info(LLC_DSS_NAME,
 			data->llc_dump_addr.p_addr, data->llc_dump_addr.p_size);
 }
+#endif
 
 static int sci_panic_handler(struct notifier_block *nb, unsigned long l,
 		void *buf)
 {
 	int ret, enable;
+
+	llc_ecc_logging();
 
 	enable = 0;
 	ret = exynos_sci_llc_enable(sci_data, SCI_IPC_GET, &enable);
@@ -1604,6 +1811,11 @@ static int exynos_sci_probe(struct platform_device *pdev)
 		goto err_acpm;
 	}
 #endif
+	data->sci_base = ioremap(SCI_BASE, SZ_4K);
+	if (IS_ERR(data->sci_base)) {
+		SCI_ERR("%s: Failed SCI base remap\n", __func__);
+		goto err_ioremap;
+	}
 
 	/* parsing dts data for SCI */
 	ret = exynos_sci_parse_dt(data->dev->of_node, data);
@@ -1670,14 +1882,17 @@ static int exynos_sci_probe(struct platform_device *pdev)
 		data->gov_data->llc_req_flag = 0;
 	}
 
+#ifdef CONFIG_LOCKUP_DETECTOR_OTHER_CPU
+	atomic_notifier_chain_register(&hardlockup_notifier_list,
+			&exynos_sci_lockup_nb);
+#endif
 
-	data->sci_base = ioremap(SCI_BASE, SZ_4K);
-	if (IS_ERR(data->sci_base)) {
-		SCI_ERR("%s: Failed SCI base remap\n", __func__);
-		goto err_ioremap;
-	}
-
+#if IS_ENABLED(CONFIG_USE_LLC_LOG)
 	exynos_sci_llc_dump_config(data);
+#else
+	carveout_reserved_mem(rmem);
+	SCI_INFO("%s: No use llc log mem\n", __func__);
+#endif
 
 	atomic_notifier_chain_register(&panic_notifier_list, &nb_sci_panic);
 	platform_set_drvdata(pdev, data);
@@ -1688,11 +1903,14 @@ static int exynos_sci_probe(struct platform_device *pdev)
 
 	INIT_DELAYED_WORK(&data->gov_data->get_noti_work, exynos_sci_get_noti);
 
+	exynos_ecc_int_en();
+	sci_data->llc_ecc_flag = false;
 	print_sci_data(data);
 
 	schedule_delayed_work(&data->gov_data->get_noti_work,
 			msecs_to_jiffies(10000));
 
+	sci_data->llc_on_flag = false;
 	sci_data->gov_data->high_time = 0;
 	sci_data->gov_data->start_time = 0;
 	sci_data->gov_data->last_time = 0;
@@ -1702,7 +1920,6 @@ static int exynos_sci_probe(struct platform_device *pdev)
 
 	return 0;
 
-err_ioremap:
 err_llc_disable:
 err_cpu_min_region:
 err_region_priority:
@@ -1710,6 +1927,7 @@ err_llc_region:
 err_plug_llc_region:
 err_ret_disable:
 err_parse_dt:
+err_ioremap:
 #if defined(CONFIG_EXYNOS_ACPM) || defined(CONFIG_EXYNOS_ACPM_MODULE)
 	acpm_ipc_release_channel(data->dev->of_node, data->ipc_ch_num);
 err_acpm:

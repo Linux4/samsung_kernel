@@ -26,20 +26,6 @@
 #include <linux/pm_wakeup.h>
 #include "../../common/sec_charging_common.h"
 
-enum sec_otg_attrs {
-	OTG_SEC_TYPE = 0,
-};
-
-ssize_t sec_otg_show_attrs(struct device *dev,
-				struct device_attribute *attr, char *buf);
-
-#define SEC_OTG_ATTR(_name)					\
-{									\
-	.attr = {.name = #_name, .mode = 0444},	\
-	.show = sec_otg_show_attrs,				\
-	.store = NULL,				\
-}
-
 enum {
 	CHIP_ID = 0,
 	DATA,
@@ -340,6 +326,8 @@ typedef struct max77705_charger_platform_data {
 	/* wirelss charger */
 	char *wireless_charger_name;
 	int wireless_cc_cv;
+	int wc_current_step;
+	unsigned int nv_wc_headroom;
 
 	/* float voltage (mV) */
 	int chg_float_voltage;
@@ -351,6 +339,9 @@ typedef struct max77705_charger_platform_data {
 	bool enable_noise_wa;
 	bool enable_sysovlo_irq;
 	int fsw;
+#if defined(CONFIG_SUPPORT_SHIP_MODE)
+	int disable_ship_mode;
+#endif
 
 	/* OVP/UVLO check */
 	int ovp_uvlo_check_type;
@@ -372,21 +363,22 @@ struct max77705_charger_data {
 	struct power_supply	*psy_otg;
 
 	struct workqueue_struct *wqueue;
-	struct delayed_work	chgin_work;
 	struct delayed_work	aicl_work;
 	struct delayed_work	isr_work;
 	struct delayed_work wc_current_work;
+	struct delayed_work wc_chg_current_work;
 
 	/* mutex */
 	struct mutex            charger_mutex;
 	struct mutex            mode_mutex;
+	struct mutex            icl_mutex;
 
 	/* wakelock */
-	struct wakeup_source *chgin_ws;
 	struct wakeup_source *wc_current_ws;
 	struct wakeup_source *aicl_ws;
 	struct wakeup_source *otg_ws;
 	struct wakeup_source *sysovlo_ws;
+	struct wakeup_source *wc_chg_current_ws;
 
 	unsigned int	is_charging;
 	unsigned int	cable_type;

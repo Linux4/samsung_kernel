@@ -262,15 +262,9 @@ typedef struct {
 
 typedef struct {
     uint32_t ir;
-    uint32_t red;
-    uint32_t green;
-    uint32_t blue;
     uint32_t clear;
     uint32_t wideband;
     uint32_t rawClear;
-    uint32_t rawRed;
-    uint32_t rawGreen;
-    uint32_t rawBlue;
     uint32_t rawWideband;
     uint32_t time_us;
     uint32_t ClearGain;
@@ -314,15 +308,9 @@ typedef struct {
 
 typedef struct {
     uint32_t ir;
-    uint32_t red;
-    uint32_t green;
-    uint32_t blue;
     uint32_t clear;
     uint32_t wideband;
     uint32_t rawClear;
-    uint32_t rawRed;
-    uint32_t rawGreen;
-    uint32_t rawBlue;
     uint32_t rawWideband;
     uint32_t time_us;
     uint32_t ClearGain;

@@ -48,14 +48,6 @@ static inline void copy_lens_udm(camera2_uctl_t *uctl, camera2_udm_t *udm)
 
 }
 
-#define CPY_MODE_UDM(item)	CPY_SHOT_UCTL_UDM(isMode, item)
-static inline void copy_mode_udm(camera2_uctl_t *uctl,
-					camera2_udm_t *udm)
-{
-	CPY_MODE_UDM(wdr_mode);
-	CPY_MODE_UDM(paf_mode);
-}
-
 int copy_ctrl_to_dm(struct camera2_shot *shot)
 {
 	/* udm */
@@ -67,8 +59,6 @@ int copy_ctrl_to_dm(struct camera2_shot *shot)
 	copy_aa_udm(&shot->uctl, &shot->udm);
 	/* lens */
 	copy_lens_udm(&shot->uctl, &shot->udm);
-	/* mode */
-	copy_mode_udm(&shot->uctl, &shot->udm);
 
 	return 0;
 }

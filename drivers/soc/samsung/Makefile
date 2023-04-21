@@ -69,7 +69,7 @@ obj-$(CONFIG_EXYNOS_CPUPM)	+= exynos-cpupm.o
 obj-$(CONFIG_EXYNOS_UFCC)	+= exynos-ufcc.o
 
 # Exynos CPU Performance
-obj-$(CONFIG_EXYNOS_PERF)	+= exynos_perf/
+obj-$(CONFIG_EXYNOS_PERF)	+= xperf/
 
 # SDM
 obj-$(CONFIG_EXYNOS_SDM)	+= exynos-sdm.o

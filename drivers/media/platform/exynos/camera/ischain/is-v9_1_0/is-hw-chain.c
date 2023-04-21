@@ -1912,41 +1912,6 @@ int is_hw_ischain_cfg(void *ischain_data)
 	return ret;
 }
 
-static void is_hw_ischain_set_wdma_mux(void)
-{
-	int i;
-	struct is_core *core;
-	struct is_device_sensor *all_sensor;
-	struct is_device_sensor *each_sensor;
-	struct is_device_csi *csi;
-
-	core = (struct is_core *)dev_get_drvdata(is_dev);
-	all_sensor = is_get_sensor_device(core);
-	for (i = 0; i < IS_SENSOR_COUNT; i++) {
-		each_sensor = &all_sensor[i];
-
-		if (!test_bit(IS_SENSOR_PROBE, &each_sensor->state))
-			continue;
-
-		if (!each_sensor->subdev_csi)
-			continue;
-
-		csi = v4l2_get_subdevdata(each_sensor->subdev_csi);
-		if (csi && csi->mux_reg[csi->scm]) {
-			u32 mux_val;
-
-			/* FIXME: It should use dt data. */
-			mux_val = csi->ch;
-
-			writel(mux_val, csi->mux_reg[0]);
-
-			minfo("[CSI%d] input(%d) --> WDMA ch(%d)\n", csi, csi->ch,
-				mux_val, each_sensor->ssvc0.dma_ch[0]);
-		}
-	}
-	is_put_sensor_device(core);
-}
-
 int is_hw_ischain_enable(struct is_device_ischain *device)
 {
 	int ret = 0;
@@ -2023,8 +1988,6 @@ int is_hw_ischain_enable(struct is_device_ischain *device)
 	is_set_affinity_irq(itf_hwip->irq[INTR_HWIP1], true);
 
 	votfitf_disable_service();
-
-	is_hw_ischain_set_wdma_mux();
 
 	info("%s: complete\n", __func__);
 
@@ -2212,11 +2175,22 @@ void is_hw_configure_llc(bool on, struct is_device_ischain *device, ulong *llc_s
 	struct is_dvfs_scenario_param param;
 	int votf, mcfp;
 
+	if (test_bit(LLC_DISABLE, llc_state)) {
+		cam_llc_enable(on);
+		minfo("[LLC] disable(%d)\n", device, on);
+		return;
+	}
+
+	is_hw_dvfs_init_face_mask(device, &param);
+	is_hw_dvfs_get_scenario_param(device, 0, &param);
+
 	/* way 1 means alloc 512K LLC */
 	if (on) {
-		is_hw_dvfs_get_scenario_param(device, 0, &param);
-
-		if (param.mode == IS_DVFS_MODE_PHOTO) {
+		if (param.sensor == IS_DVFS_SENSOR_FRONT_VT) {
+			/* Front VT not use LLC */
+			votf = is_llc_way[IS_LLC_SN_DEFAULT].votf;
+			mcfp = is_llc_way[IS_LLC_SN_DEFAULT].mcfp;
+		} else if (param.mode == IS_DVFS_MODE_PHOTO) {
 			votf = is_llc_way[IS_LLC_SN_PREVIEW].votf;
 			mcfp = is_llc_way[IS_LLC_SN_PREVIEW].mcfp;
 		} else if (param.mode == IS_DVFS_MODE_VIDEO) {
@@ -2265,7 +2239,7 @@ void is_hw_configure_llc(bool on, struct is_device_ischain *device, ulong *llc_s
 		info("[LLC] release");
 	}
 
-	llc_enable(on);
+	cam_llc_enable(on);
 #endif
 }
 
@@ -2536,6 +2510,22 @@ void * is_get_dma_blk(int type)
 	}
 
 	return (void *)mblk;
+}
+
+int is_get_dma_id(u32 vid)
+{
+	u32 dma_id;
+
+	switch (vid) {
+	case IS_VIDEO_LME0C_NUM:
+		dma_id = ID_DBUF_LMEC;
+		break;
+	default:
+		dma_id = -EINVAL;
+		break;
+	}
+
+	return dma_id;
 }
 
 int is_hw_check_changed_chain_id(struct is_hardware *hardware, u32 hw_id, u32 instance)

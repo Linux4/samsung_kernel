@@ -575,10 +575,10 @@ static s32 __is_preset_from_showcase(void)
 
 static bool npu_qos_preset_is_valid_value(int value)
 {
-	if (value >= 0)
+	if (value == NPU_QOS_DEFAULT_VALUE)
 		return true;
 
-	if (value == NPU_QOS_DEFAULT_VALUE)
+	if (value >= 0)
 		return true;
 
 	return false;

@@ -269,7 +269,6 @@ struct slsi_ts_data {
 	short *pFrame;
 
 	bool probe_done;
-	bool info_work_done;
 
 	struct delayed_work check_rawdata;
 	u8 tsp_dump_lock;
@@ -395,7 +394,7 @@ void slsi_ts_get_custom_library(struct slsi_ts_data *ts);
 int slsi_ts_set_custom_library(struct slsi_ts_data *ts);
 int slsi_ts_set_aod_rect(struct slsi_ts_data *ts);
 int slsi_ts_set_fod_rect(struct slsi_ts_data *ts);
-int slsi_ts_set_temperature(struct i2c_client *client, u8 temperature_data);
+int slsi_ts_set_temperature(struct device *dev, u8 temperature_data);
 int slsi_ts_set_touchable_area(struct slsi_ts_data *ts);
 int slsi_ts_ear_detect_enable(struct slsi_ts_data *ts, u8 enable);
 int slsi_ts_set_charger_mode(struct slsi_ts_data *ts);
@@ -415,7 +414,7 @@ int slsi_ts_raw_device_init(struct slsi_ts_data *ts);
 void slsi_ts_get_touch_function(struct work_struct *work);
 void slsi_ts_init_proc(struct slsi_ts_data *ts);
 
-void set_grip_data_to_ic(struct i2c_client *client, u8 flag);
+void slsi_set_grip_data_to_ic(struct device *dev, u8 flag);
 
 void slsi_ts_ioctl_init(struct slsi_ts_data *ts);
 void slsi_ts_ioctl_remove(struct slsi_ts_data *ts);
@@ -449,7 +448,7 @@ void slsi_ts_input_close(struct input_dev *dev);
 
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_DUMP_MODE)
 void slsi_ts_check_rawdata(struct work_struct *work);
-void dump_tsp_log(struct device *dev);
+void slsi_ts_dump_tsp_log(struct device *dev);
 void slsi_ts_sponge_dump_flush(struct slsi_ts_data *ts, int dump_area);
 #endif
 

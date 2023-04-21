@@ -1641,17 +1641,13 @@ int pktproc_create(struct platform_device *pdev, struct mem_link_device *mld,
 
 #if IS_ENABLED(CONFIG_EXYNOS_DIT)
 	ret = dit_set_buf_size(DIT_DIR_RX, ppa->max_packet_size);
-	if (ret) {
+	if (ret)
 		mif_err("dit_set_buf_size() error:%d\n", ret);
-		goto create_error;
-	}
 
 	ret = dit_set_desc_ring_len(DIT_DIR_RX,
 		ppa->q[DIT_PKTPROC_RX_QUEUE_NUM]->num_desc - 1);
-	if (ret) {
+	if (ret)
 		mif_err("dit_set_desc_ring_len() error:%d\n", ret);
-		goto create_error;
-	}
 #endif
 
 	/* Debug */

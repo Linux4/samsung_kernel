@@ -27,7 +27,7 @@ int dpu_f_evt_log_find_idx(struct decon_device *decon)
 	if (atomic_inc_return(&decon->d.f_evt_log_idx) >= decon->d.f_evt_log_cnt)
 		atomic_set(&decon->d.f_evt_log_idx, 0);
 
-	ret = atomic_read(&decon->d.f_evt_log_idx);   
+	ret = atomic_read(&decon->d.f_evt_log_idx);
 	return ret;
 }
 
@@ -54,10 +54,11 @@ int dpu_event_log_find_idx(struct decon_device *decon)
 {
 	int ret = 0;
 
-	if (atomic_inc_return(&decon->d.event_log_idx) >= decon->d.event_log_cnt)
+	ret = atomic_inc_return(&decon->d.event_log_idx);
+	if (ret >= decon->d.event_log_cnt) {
 		atomic_set(&decon->d.event_log_idx, 0);
-
-	ret = atomic_read(&decon->d.event_log_idx);
+		ret = atomic_read(&decon->d.event_log_idx);
+	}
 
 	return ret;
 }
@@ -445,12 +446,13 @@ void DPU_EVENT_LOG_UPDATE_REGION(struct v4l2_subdev *sd,
 		struct decon_frame *req_region, struct decon_frame *adj_region)
 {
 	struct decon_device *decon = container_of(sd, struct decon_device, sd);
-	int idx = dpu_event_log_find_idx(decon);
+	int idx = 0;
 	struct dpu_log *log;
 
 	if (!decon || IS_ERR_OR_NULL(decon->d.event_log))
 		return;
 
+	idx = dpu_event_log_find_idx(decon);
 	log = &decon->d.event_log[idx];
 	log->time = ktime_get();
 	log->type = DPU_EVT_WINUP_UPDATE_REGION;
@@ -464,11 +466,12 @@ void DPU_EVENT_LOG_WINUP_FLAGS(struct v4l2_subdev *sd, bool need_update,
 {
 	struct decon_device *decon = container_of(sd, struct decon_device, sd);
 	struct dpu_log *log;
-	int idx = dpu_event_log_find_idx(decon);
+	int idx = 0;
 
 	if (!decon || IS_ERR_OR_NULL(decon->d.event_log))
 		return;
 
+	idx = dpu_event_log_find_idx(decon);
 	log = &decon->d.event_log[idx];
 
 	log->time = ktime_get();
@@ -482,12 +485,13 @@ void DPU_EVENT_LOG_APPLY_REGION(struct v4l2_subdev *sd,
 		struct decon_rect *apl_rect)
 {
 	struct decon_device *decon = container_of(sd, struct decon_device, sd);
-	int idx = dpu_event_log_find_idx(decon);
+	int idx = 0;
 	struct dpu_log *log;
 
 	if (!decon || IS_ERR_OR_NULL(decon->d.event_log))
 		return;
 
+	idx = dpu_event_log_find_idx(decon);
 	log = &decon->d.event_log[idx];
 
 	log->time = ktime_get();

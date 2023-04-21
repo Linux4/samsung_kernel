@@ -81,7 +81,7 @@ static ssize_t secdbg_logb_read(struct file *file, char __user *buf,
 	}
 
 	if (!log_va) {
-		pr_crit("%s: fail to get va (%lx)\n", __func__, log_va);
+		pr_crit("%s: fail to get va\n", __func__);
 
 		ret = -EFAULT;
 		goto fail;

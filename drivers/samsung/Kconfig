@@ -16,7 +16,6 @@ menuconfig SEC_DEBUG
 
 config SEC_REBOOT
 	tristate "Enable TN reboot features"
-	depends on SEC_DEBUG
 	default n
 	help
 	  Samsung TN reboot extension Feature. Do additional work when reboot.
@@ -35,14 +34,12 @@ config SEC_PMIC_PWRKEY_DTNAME
 
 config SEC_KEY_NOTIFIER
 	tristate "Enable Samsung key event notifier"
-	depends on SEC_DEBUG
 	default n
 	help
 	  Samsung Key input event notifier
 
 config SEC_PARAM
 	tristate "Enable Param modification"
-	depends on SEC_DEBUG
 	default n
 	help
 	  Samsung TN Param Feature.
@@ -81,7 +78,7 @@ config ARGOS_CLUSTER_NUM
 comment "Samsung TN Build Options"
 config SEC_FACTORY
 	bool "SAMSUNG Factory build option"
-	depends on SEC_EXT && SEC_DEBUG
+	depends on SEC_EXT
 	default n
 	select SEC_PANIC_PCIE_ERR
 	help
@@ -98,7 +95,6 @@ config SAMSUNG_PRODUCT_SHIP
 	  In samsung build script, '-s' enables this option.
 
 endmenu
-source "drivers/samsung/debug/Kconfig"
 source "drivers/samsung/misc/Kconfig"
 source "drivers/samsung/pm/Kconfig"
 

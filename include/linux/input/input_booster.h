@@ -10,7 +10,8 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #if IS_ENABLED(CONFIG_SOC_EXYNOS2100) || \
-	IS_ENABLED(CONFIG_ARCH_LAHAINA)
+	IS_ENABLED(CONFIG_ARCH_LAHAINA) || \
+	IS_ENABLED(CONFIG_ARCH_WAIPIO)
 #include <linux/interconnect.h>
 #endif//CONFIG_SOC_EXYNOS2100 || CONFIG_ARCH_LAHAINA
 
@@ -20,7 +21,7 @@
 
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wdeclaration-after-statement"
-#define USE_HMP_BOOST     (IS_ENABLED(CONFIG_SCHED_HMP))
+#define USE_HMP_BOOST     (IS_ENABLED(CONFIG_SCHED_WALT))
 
 #ifndef ITAG
 #define ITAG	" [Input Booster] "
@@ -49,9 +50,12 @@
 			unsigned int enable_event; \
 			unsigned int debug_level; \
 			unsigned int sendevent; \
+			unsigned int ib_mode_state; \
 			enable_event = enable_event_booster; \
 			debug_level = debug_flag; \
 			sendevent = send_ev_enable; \
+			if (IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER_MODE)) \
+				ib_mode_state = u_ib_mode; \
 			ret = sprintf _ARGU_; \
 			pr_booster("[Input Booster8] %s buf : %s\n", __func__, buf); \
 			return ret; \
@@ -61,9 +65,12 @@
 			unsigned int enable_event[1] = {-1}; \
 			unsigned int debug_level[1] = {-1}; \
 			unsigned int sendevent[1] = {-1}; \
+			unsigned int ib_mode_state[1] = {0}; \
 			sscanf _ARGU_; \
 			send_ev_enable = sendevent[0]; \
 			debug_flag = debug_level[0]; \
+			if (IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER_MODE)) \
+				u_ib_mode = ib_mode_state[0]; \
 			enable_event_booster = enable_event[0]; \
 			pr_booster("[Input Booster8] %s buf : %s\n", __func__, buf); \
 			if (sscanf _ARGU_ != _COUNT_) { \
@@ -81,14 +88,17 @@
 		ssize_t return_value = 0; \
 		struct t_ib_device_tree *ib_dt = dev_get_drvdata(dev); \
 		if (ib_dt == NULL) { \
-			return  ret; \
+			return return_value; \
 		} \
 		ret = sprintf(buf, "%d", ib_dt->_ATTR_##_time); \
 		return_value += ret; \
 		buf = buf + ret; \
-		for (i = 0; i < max_resource_count; ++i) { \
+		if (allowed_resources == NULL) { \
+			return return_value; \
+		} \
+		for (i = 0; i < allowed_res_count; ++i) { \
 			pr_booster("[Input Booster8] show  i : %d, %s\n", i, #_ATTR_); \
-			ret = sprintf(buf, " %d", ib_dt->res[i]._ATTR_##_value); \
+			ret = sprintf(buf, " %d", ib_dt->res[allowed_resources[i]]._ATTR_##_value); \
 			buf = buf + ret; \
 			return_value += ret; \
 		} \
@@ -113,8 +123,11 @@
 			return count; \
 		} \
 		buf += offset; \
-		for (i = 0; i < max_resource_count; ++i) { \
-			if (!sscanf(buf, "%d%n", &values[i], &offset)) { \
+		if (allowed_resources == NULL) { \
+			return count; \
+		} \
+		for (i = 0; i < allowed_res_count; ++i) { \
+			if (!sscanf(buf, "%d%n", &values[allowed_resources[i]], &offset)) { \
 				pr_booster("### Keep this format : [time cpu_freq hmp_boost ddr_freq lpm_bias] (Ex: 200 1171200 2 1017 5###\n"); \
 				return count; \
 			} \
@@ -126,8 +139,8 @@
 			return count; \
 		} \
 		ib_dt->_ATTR_##_time = time; \
-		for (i = 0; i < MAX_RES_COUNT; ++i) { \
-			ib_dt->res[i]._ATTR_##_value = values[i]; \
+		for (i = 0; i < allowed_res_count; ++i) { \
+			ib_dt->res[allowed_resources[i]]._ATTR_##_value = values[allowed_resources[i]]; \
 		} \
 		return count; \
 	} \
@@ -255,6 +268,17 @@ struct t_ib_device_tree {
 	struct t_ib_res_info *res;
 };
 
+#if IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER_MODE)
+struct t_ib_boost_mode {
+	const char *label;
+	int type;
+	struct t_ib_device_tree *dt;
+	int dt_count;
+	unsigned int dt_mask;
+	int type_to_idx_table[MAX_DEVICE_TYPE_NUM];
+};
+#endif
+
 struct t_ddr_info {
 	long mHz;
 	long bps;
@@ -270,7 +294,11 @@ unsigned int create_uniq_id(int type, int code, int slot);
 void input_booster_init(void);
 void input_booster_exit(void);
 
+#if IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER_MODE)
+void init_sysfs_device(struct class *sysfs_class, struct device* pdev, struct t_ib_device_tree *ib_dt);
+#else
 void init_sysfs_device(struct class *sysfs_class, struct t_ib_device_tree *ib_dt);
+#endif
 
 #if IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER_QC) || \
 	IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER_SLSI) || \
@@ -288,6 +316,7 @@ extern int ib_notifier_unregister(struct notifier_block *nb);
 int set_freq_limit(unsigned long id, unsigned int freq);
 
 #if IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER_QC)
+extern void update_hyst_times_kernel(u64 ib_value);
 enum booster_res_type {
 	CPUFREQ = 0,
 	DDRFREQ,
@@ -310,6 +339,7 @@ enum booster_res_type {
 enum booster_res_type {
 	CPUFREQ = 0,
 	DDRFREQ,
+	SCHEDBOOST,
 	MAX_RES_COUNT
 };
 #endif
@@ -323,6 +353,9 @@ extern int max_cluster_count;
 extern int ib_init_succeed;
 extern unsigned int debug_flag;
 extern unsigned int enable_event_booster;
+#if IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER_MODE)
+extern unsigned int u_ib_mode;
+#endif
 
 extern int trigger_cnt;
 // @ ib_trigger : input trigger starts input booster in evdev.c.

@@ -329,7 +329,11 @@ static ssize_t proximity_default_trim_show(struct device *dev,
 	// 2: moving sum type2 
 	// 3: moving sum type3
 	if (ret != sizeof(prox_cal)) {
+#if defined(CONFIG_SENSORS_SSP_R9S)
+		ret = 2;
+#else
 		ret = 1;
+#endif
 	} else {
 		ret = prox_cal[1];
 	}
@@ -630,8 +634,11 @@ static ssize_t proximity_cal_store(struct device *dev,
 	int iRet = 0;
 	int64_t enable = 0;
 	struct ssp_data *data = dev_get_drvdata(dev);
+#if defined(CONFIG_SENSORS_SSP_R9S)
+	int cal_data[2] = {0, 2};
+#else
 	int cal_data[2] = {0, 1};
-	
+#endif
 
 	if (!(data->uSensorState & (1 << PROXIMITY_SENSOR))) {
 		pr_info("[SSP] %s - Skip this function!!!, proximity sensor is not connected(0x%llx)\n",
@@ -682,14 +689,14 @@ static ssize_t proximity_trim_check_show(struct device *dev,
 	struct ssp_msg *msg;
 	u8 buffer[8] = {0,};
 	int trim;
-
+retries:
 	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
 	msg->cmd = MSG2SSP_AP_GET_PROX_TRIM;
 	msg->length = 1;
 	msg->options = AP2HUB_READ;
 	msg->buffer = buffer;
 	msg->free_buffer = 0;
-retries:
+
 	iRet = ssp_spi_async(data, msg);
 	if (iRet != SUCCESS) {
 		pr_err("[SSP] %s fail %d\n", __func__, iRet);
@@ -775,13 +782,15 @@ void initialize_prox_factorytest(struct ssp_data *data)
 {
 	memset(&prox_manager, 0, sizeof(prox_manager));
 	push_back(&prox_manager, "DEFAULT", &prox_default);
+#ifdef CONFIG_SENSORS_STK33910
+	push_back(&prox_manager, "STK33910", get_prox_stk33910());
+#endif
 #ifdef CONFIG_SENSORS_TMD4907
 	push_back(&prox_manager, "TMD4907", get_prox_tmd4907());
 #endif
 #ifdef CONFIG_SENSORS_TMD4912
 	push_back(&prox_manager, "TMD4912", get_prox_tmd4912());
 #endif
-
 	sensors_register(data->prox_device, data,
 		prox_attrs, "proximity_sensor");
 }

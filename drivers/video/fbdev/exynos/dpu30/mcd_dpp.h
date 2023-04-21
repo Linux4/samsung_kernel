@@ -18,6 +18,6 @@ int dpp_set_mcdhdr_params(struct dpp_device *dpp, struct dpp_params_info *p);
 void dpp_stop_mcdhdr(struct dpp_device *dpp);
 #else
 static inline int dpp_set_mcdhdr_params(struct dpp_device *dpp, struct dpp_params_info *p) { return 0; }
-static inline void dpp_stop_mcdhdr(struct dpp_device *dpp) { return 0; };
+static inline void dpp_stop_mcdhdr(struct dpp_device *dpp) { return; };
 #endif
 

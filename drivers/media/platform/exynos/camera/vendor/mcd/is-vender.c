@@ -113,7 +113,6 @@ void is_sec_copy_err_cnt_to_file(void)
 {
 #ifdef USE_KERNEL_VFS_READ_WRITE
 	struct file *fp = NULL;
-	mm_segment_t old_fs;
 	long nwrite = 0;
 	bool ret = false;
 	int old_mask = 0;
@@ -121,9 +120,6 @@ void is_sec_copy_err_cnt_to_file(void)
 	info("%s\n", __func__);
 
 	if (current && current->fs) {
-		old_fs = get_fs();
-		set_fs(KERNEL_DS);
-
 		ret = sys_access(CAM_HW_ERR_CNT_FILE_PATH, 0);
 
 		if (ret != 0) {
@@ -147,10 +143,9 @@ void is_sec_copy_err_cnt_to_file(void)
 			return;
 		}
 
-		nwrite = vfs_write(fp, (char *)&cam_hwparam_collector, sizeof(struct cam_hw_param_collector), &fp->f_pos);
+		nwrite = kernel_write(fp, &cam_hwparam_collector, sizeof(struct cam_hw_param_collector), &fp->f_pos);
 
 		filp_close(fp, current->files);
-		set_fs(old_fs);
 		need_update_to_file = false;
 	}
 #endif
@@ -160,7 +155,6 @@ void is_sec_copy_err_cnt_from_file(void)
 {
 #ifdef USE_KERNEL_VFS_READ_WRITE
 	struct file *fp = NULL;
-	mm_segment_t old_fs;
 	long nread = 0;
 	bool ret = false;
 
@@ -169,9 +163,6 @@ void is_sec_copy_err_cnt_from_file(void)
 	ret = is_sec_file_exist(CAM_HW_ERR_CNT_FILE_PATH);
 
 	if (ret) {
-		old_fs = get_fs();
-		set_fs(KERNEL_DS);
-
 		fp = filp_open(CAM_HW_ERR_CNT_FILE_PATH, O_RDONLY, 0660);
 		if (IS_ERR_OR_NULL(fp)) {
 			warn("%s open failed", CAM_HW_ERR_CNT_FILE_PATH);
@@ -179,10 +170,9 @@ void is_sec_copy_err_cnt_from_file(void)
 			return;
 		}
 
-		nread = vfs_read(fp, (char *)&cam_hwparam_collector, sizeof(struct cam_hw_param_collector), &fp->f_pos);
+		nread = kernel_read(fp, &cam_hwparam_collector, sizeof(struct cam_hw_param_collector), &fp->f_pos);
 
 		filp_close(fp, current->files);
-		set_fs(old_fs);
 	}
 #endif
 }
@@ -814,6 +804,9 @@ int is_vender_probe(struct is_vender *vender)
 
 	for (i = 0; i < ROM_ID_MAX; i++) {
 		specific->eeprom_client[i] = NULL;
+#if defined(USE_CAMERA_DUALIZED)
+		specific->otprom_client[i] = NULL;
+#endif
 		specific->rom_valid[i] = false;
  	}
 
@@ -1065,6 +1058,10 @@ int is_vendor_rom_parse_dt(struct device_node *dnode, int rom_id)
 
 	struct is_rom_info *finfo;
 
+#ifdef CONFIG_SEC_CAL_ENABLE
+	struct rom_standard_cal_data *standard_cal_data;
+#endif
+
 	is_sec_get_sysfs_finfo(&finfo, rom_id);
 
 	memset(finfo, 0, sizeof(struct is_rom_info));
@@ -1310,6 +1307,36 @@ int is_vendor_rom_parse_dt(struct device_node *dnode, int rom_id)
 	DT_READ_U32_DEFAULT(dnode, "rom_xtc_cal_data_start_addr", finfo->rom_xtc_cal_data_start_addr, -1);
 	DT_READ_U32_DEFAULT(dnode, "rom_xtc_cal_data_size", finfo->rom_xtc_cal_data_size, -1);
 
+#ifdef CONFIG_SEC_CAL_ENABLE
+	finfo->use_standard_cal = of_property_read_bool(dnode, "use_standard_cal");
+
+	if (finfo->use_standard_cal) {
+		standard_cal_data = &(finfo->standard_cal_data);
+		DT_READ_U32_DEFAULT(dnode, "rom_standard_cal_start_addr", standard_cal_data->rom_standard_cal_start_addr, -1);
+		DT_READ_U32_DEFAULT(dnode, "rom_standard_cal_end_addr", standard_cal_data->rom_standard_cal_end_addr, -1);
+		DT_READ_U32_DEFAULT(dnode, "rom_standard_cal_module_crc_addr", standard_cal_data->rom_standard_cal_module_crc_addr, -1);
+		DT_READ_U32_DEFAULT(dnode, "rom_standard_cal_module_checksum_len", standard_cal_data->rom_standard_cal_module_checksum_len, -1);
+		DT_READ_U32_DEFAULT(dnode, "rom_header_standard_cal_end_addr", standard_cal_data->rom_header_standard_cal_end_addr, -1);
+		DT_READ_U32_DEFAULT(dnode, "rom_standard_cal_sec2lsi_end_addr", standard_cal_data->rom_standard_cal_sec2lsi_end_addr, -1);
+		DT_READ_U32_DEFAULT(dnode, "rom_awb_start_addr", standard_cal_data->rom_awb_start_addr, -1);
+		DT_READ_U32_DEFAULT(dnode, "rom_awb_end_addr", standard_cal_data->rom_awb_end_addr, -1);
+		DT_READ_U32_DEFAULT(dnode, "rom_shading_start_addr", standard_cal_data->rom_shading_start_addr, -1);
+		DT_READ_U32_DEFAULT(dnode, "rom_shading_end_addr", standard_cal_data->rom_shading_end_addr, -1);
+		DT_READ_U32_DEFAULT(dnode, "rom_factory_start_addr", standard_cal_data->rom_factory_start_addr, -1);
+		DT_READ_U32_DEFAULT(dnode, "rom_factory_end_addr", standard_cal_data->rom_factory_end_addr, -1);
+		DT_READ_U32_DEFAULT(dnode, "rom_header_main_shading_end_addr", standard_cal_data->rom_header_main_shading_end_addr, -1);
+		DT_READ_U32_DEFAULT(dnode, "rom_awb_sec2lsi_start_addr", standard_cal_data->rom_awb_sec2lsi_start_addr, -1);
+		DT_READ_U32_DEFAULT(dnode, "rom_awb_sec2lsi_end_addr", standard_cal_data->rom_awb_sec2lsi_end_addr, -1);
+		DT_READ_U32_DEFAULT(dnode, "rom_awb_sec2lsi_checksum_addr", standard_cal_data->rom_awb_sec2lsi_checksum_addr, -1);
+		DT_READ_U32_DEFAULT(dnode, "rom_awb_sec2lsi_checksum_len", standard_cal_data->rom_awb_sec2lsi_checksum_len, -1);
+		DT_READ_U32_DEFAULT(dnode, "rom_shading_sec2lsi_start_addr", standard_cal_data->rom_shading_sec2lsi_start_addr, -1);
+		DT_READ_U32_DEFAULT(dnode, "rom_shading_sec2lsi_end_addr", standard_cal_data->rom_shading_sec2lsi_end_addr, -1);
+		DT_READ_U32_DEFAULT(dnode, "rom_shading_sec2lsi_checksum_addr", standard_cal_data->rom_shading_sec2lsi_checksum_addr, -1);
+		DT_READ_U32_DEFAULT(dnode, "rom_shading_sec2lsi_checksum_len", standard_cal_data->rom_shading_sec2lsi_checksum_len, -1);
+		DT_READ_U32_DEFAULT(dnode, "rom_factory_sec2lsi_start_addr", standard_cal_data->rom_factory_sec2lsi_start_addr, -1);
+		memcpy(&finfo->backup_standard_cal_data, standard_cal_data, sizeof(struct rom_standard_cal_data));
+	}
+#endif
 	rom_pdxtc_cal_data_addr_list_spec = of_get_property(dnode, "rom_pdxtc_cal_data_addr_list", &finfo->rom_pdxtc_cal_data_addr_list_len);
 	if (rom_pdxtc_cal_data_addr_list_spec) {
 		finfo->rom_pdxtc_cal_data_addr_list_len /= (unsigned int)sizeof(*rom_pdxtc_cal_data_addr_list_spec);
@@ -1648,6 +1675,14 @@ int is_vender_hw_init(struct is_vender *vender)
 			ret = is_sec_run_fw_sel(i);
 			if (ret) {
 				err("is_sec_run_fw_sel for ROM_ID(%d) is fail(%d)", i, ret);
+#if defined(CAMERA_UWIDE_DUALIZED)
+				if(i == ROM_ID_REAR2) {
+					ret = is_sec_run_fw_sel(i);
+					if (ret) {
+						err("is_sec_run_fw_sel for dualized ROM_ID(%d) is fail(%d)", i, ret);
+					}
+				}
+#endif
 			}
 		}
 	}
@@ -2084,6 +2119,59 @@ int is_vendor_get_rom_id_from_position(int position)
 	return ROM_ID_NOTHING;
 }
 EXPORT_SYMBOL_GPL(is_vendor_get_rom_id_from_position);
+
+int is_vendor_get_position_from_rom_id(int rom_id)
+{
+	struct is_module_enum * module;
+	int position;
+
+	for(position = SENSOR_POSITION_REAR; position < SENSOR_POSITION_MAX; position++) {
+		is_vendor_get_module_from_position(position, &module);
+		if (module) {
+			if (module->pdata->rom_id == rom_id)
+				return position;
+		}
+	}
+	return SENSOR_POSITION_MAX;
+}
+EXPORT_SYMBOL_GPL(is_vendor_get_position_from_rom_id);
+
+int is_vendor_get_sensor_id_from_position(int position)
+{
+	struct is_core *core;
+	struct is_vender_specific *specific;
+	int sensor_id = SENSOR_NAME_NOTHING;
+
+	core = (struct is_core *)dev_get_drvdata(is_dev);
+	if (!core) {
+		err("%s: core is NULL", __func__);
+		return SENSOR_NAME_NOTHING;
+	}
+
+	specific = core->vender.private_data;
+
+	switch(position) {
+		case SENSOR_POSITION_REAR:
+			sensor_id = specific->rear_sensor_id;
+			break;
+		case SENSOR_POSITION_FRONT:
+			sensor_id = specific->front_sensor_id;
+			break;
+		case SENSOR_POSITION_REAR2:
+			sensor_id = specific->rear2_sensor_id;
+			break;
+		case SENSOR_POSITION_REAR3:
+			sensor_id = specific->rear3_sensor_id;
+			break;
+		case SENSOR_POSITION_REAR4:
+			sensor_id = specific->rear4_sensor_id;
+			break;
+		default:
+			err("unsupported sensor id: %d", position);
+	}
+	return sensor_id;
+}
+EXPORT_SYMBOL_GPL(is_vendor_get_sensor_id_from_position);
 
 void is_vendor_get_rom_info_from_position(int position,
 	int *rom_type, int *rom_id, int *rom_cal_index)

@@ -30,7 +30,6 @@ obj-$(CONFIG_CAMERA_CIS_IMX333_OBJ) += is-device-module-imx333.o
 obj-$(CONFIG_CAMERA_CIS_5E6_OBJ) += is-device-module-5e6.o
 obj-$(CONFIG_CAMERA_CIS_5F1_OBJ) += is-device-module-5f1.o
 obj-$(CONFIG_CAMERA_CIS_IMX219_OBJ) += is-device-module-imx219.o
-obj-$(CONFIG_CAMERA_CIS_IMX258_OBJ) += is-device-module-imx258.o
 obj-$(CONFIG_CAMERA_CIS_SR259_OBJ) += is-device-module-sr259.o
 obj-$(CONFIG_CAMERA_CIS_IMX241_OBJ) += is-device-module-imx241.o
 obj-$(CONFIG_CAMERA_CIS_IMX576_OBJ) += is-device-module-imx576.o

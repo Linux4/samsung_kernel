@@ -111,6 +111,7 @@ int dwc3_gadget_ep0_set_halt(struct usb_ep *ep, int value);
 int dwc3_gadget_ep0_queue(struct usb_ep *ep, struct usb_request *request,
 		gfp_t gfp_flags);
 int __dwc3_gadget_ep_set_halt(struct dwc3_ep *dep, int value, int protocol);
+void dwc3_ep0_send_delayed_status(struct dwc3 *dwc);
 int dwc3_gadget_vbus_session(struct usb_gadget *g, int is_active);
 extern int dwc3_gadget_run_stop_vbus(struct dwc3 *dwc, int is_on, int suspend);
 

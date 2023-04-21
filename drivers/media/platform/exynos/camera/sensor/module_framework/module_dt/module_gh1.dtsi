@@ -11,7 +11,7 @@
 
 #include <dt-bindings/camera/exynos_is_dt.h>
 
-/* GH1 sensor setting version - S5KGH1_EVT0_Ver_3.3_20200707 */
+/* GH1 sensor setting version - S5KGH1_EVT0_Ver_4.1 */
 /* Global setting */
 /* sensor_gh1_setfile_A_Global */
 
@@ -29,6 +29,8 @@
 /* C12	26Mhz_3968x2232_2145Msps_120FPS MIPI lane: 4, MIPI data rate(Mbps/lane): 2145, MIPI Mclk(Mhz): 26 */
 /* C15	26Mhz_3216x2208_1300Msps_30FPS MIPI lane: 4, MIPI data rate(Mbps/lane): 1300, MIPI Mclk(Mhz): 26 3rd party*/
 /* C17	26Mhz_3648x2736_1398Msps_60FPS MIPI lane: 4, MIPI data rate(Mbps/lane): 1397.5, MIPI Mclk(Mhz): 26 */
+/* C18	26Mhz_1472x1104_1300Msps_30FPS MIPI lane: 4, MIPI data rate(Mbps/lane): 1300, MIPI Mclk(Mhz): 26 */
+/* C19	26Mhz_1616x912_1300Msps_30FPS MIPI lane: 4, MIPI data rate(Mbps/lane): 1300, MIPI Mclk(Mhz): 26 */
 /* F1	26Mhz_3648x2736_1398Msps_30FPS MIPI lane: 4, MIPI data rate(Mbps/lane): 1397.5, MIPI Mclk(Mhz): 26 PD TAIL OFF, FD mode */
 /* F2	26Mhz_3648x2736_1398Msps_30FPS MIPI lane: 4, MIPI data rate(Mbps/lane): 1397.5, MIPI Mclk(Mhz): 26 PD TAIL ON, FD mode */
 
@@ -184,6 +186,22 @@
 						common = <3648 2736 60 0 15 CSI_DATA_LANES_3 1398 CSI_MODE_VC_ONLY LRTE_ENABLE PD_MSPD_TAIL>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 3648 2736	/* out */ HW_FORMAT_RAW10 VC_NOTHING 3648 2736>;
 						vc1 = </* in */ 1 HW_FORMAT_RAW10 456 2720	/* out */ HW_FORMAT_RAW10 VC_TAILPDAF 456 2720>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						option { votf = <1>; };
+					};
+					mode15 {/* C18	26Mhz_1472x1104_1300Msps_30FPS MIPI lane: 4, MIPI data rate(Mbps/lane): 1300, MIPI Mclk(Mhz): 26 */
+						common = <1472 1104 30 0 16 CSI_DATA_LANES_3 1300 CSI_MODE_VC_ONLY LRTE_ENABLE PD_MSPD_TAIL>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 1472 1104	/* out */ HW_FORMAT_RAW10 VC_NOTHING 1472 1104>;
+						vc1 = </* in */ 1 HW_FORMAT_RAW10 368 552	/* out */ HW_FORMAT_RAW10 VC_TAILPDAF 368 552>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
+						option { votf = <1>; };
+					};
+					mode16 {/* C19	26Mhz_1616x912_1300Msps_30FPS MIPI lane: 4, MIPI data rate(Mbps/lane): 1300, MIPI Mclk(Mhz): 26 */
+						common = <1616 912 30 0 17 CSI_DATA_LANES_3 1300 CSI_MODE_VC_ONLY LRTE_ENABLE PD_MSPD_TAIL>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 1616 912	/* out */ HW_FORMAT_RAW10 VC_NOTHING 1616 912>;
+						vc1 = </* in */ 1 HW_FORMAT_RAW10 404 456	/* out */ HW_FORMAT_RAW10 VC_TAILPDAF 404 456>;
 						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0	/* out */ HW_FORMAT_RAW10 VC_NOTHING 0 0>;
 						option { votf = <1>; };

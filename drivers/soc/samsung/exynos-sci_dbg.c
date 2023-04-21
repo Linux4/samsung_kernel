@@ -69,11 +69,28 @@ static u32 llc_id[6];
 static u32 llc_addr_match;
 static u32 llc_addr_mask;
 
+void carveout_reserved_mem(void *r)
+{
+	struct reserved_mem *rmem = r;
+	struct page *first = phys_to_page(rmem->base & PAGE_MASK);
+	struct page *last = phys_to_page(PAGE_ALIGN(rmem->base + rmem->size));
+	struct page *page;
+
+	for (page = first; page != last; page++)
+		free_reserved_page(page);
+}
+
+void set_exynos_sci_llc_debug_mode(int enable)
+{
+	exynos_sci_llc_debug_mode = enable;
+}
+
 bool get_exynos_sci_llc_debug_mode(void)
 {
 	return exynos_sci_llc_debug_mode;
 }
 
+#if IS_ENABLED(CONFIG_USE_PPC_LOG)
 static void sci_dump_data_save(void)
 {
 	u32 dump_entry_size = sizeof(struct exynos_sci_dbg_dump_data);
@@ -129,6 +146,7 @@ static enum hrtimer_restart count_monitor(struct hrtimer *hrtimer)
 
 	return ret;
 }
+#endif
 
 static int exynos_sci_dump_enable(struct exynos_sci_dbg_data *data,
 					unsigned int enable)
@@ -165,6 +183,7 @@ static int exynos_sci_dump_enable(struct exynos_sci_dbg_data *data,
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_USE_PPC_LOG)
 static void smc_dump_data_save(void)
 {
 	u32 dump_entry_size = sizeof(struct exynos_smc_dump_data) * 4;
@@ -229,7 +248,7 @@ static enum hrtimer_restart smc_count_monitor(struct hrtimer *hrtimer)
 
 	return ret;
 }
-
+#endif
 static int exynos_smc_dump_enable(struct exynos_sci_dbg_data *data,
 					unsigned int enable)
 {
@@ -588,7 +607,7 @@ static ssize_t show_llc_ctrl(struct device *dev,
 	struct exynos_sci_dbg_data *data = platform_get_drvdata(pdev);
 	ssize_t count = 0;
 
-	llc_ctrl = __raw_readl(data->dump_addr.sci_base + LLCControl);	// LLCControl
+	llc_ctrl = __raw_readl(data->sci_base + LLCControl);	// LLCControl
 
 	count += snprintf(buf + count, PAGE_SIZE, "LLCControl: 0x%08X\n", llc_ctrl);
 
@@ -608,7 +627,7 @@ static ssize_t store_llc_ctrl(struct device *dev,
 	if (ret != 1)
 		return -EINVAL;
 
-	__raw_writel(llc_ctrl, data->dump_addr.sci_base + LLCControl);	// LLCControl
+	__raw_writel(llc_ctrl, data->sci_base + LLCControl);	// LLCControl
 
 	return count;
 }
@@ -624,8 +643,8 @@ static ssize_t show_llc_id(struct device *dev,
 	u32 llc_alloc;
 
 	for (i = 0; i < 6; i++) {
-		llc_id[i] = __raw_readl(data->dump_addr.sci_base + LLCId_0 + (i * 0x8));	// LLCId_x
-		llc_alloc = __raw_readl(data->dump_addr.sci_base + LLCIdAllocLkup_0 + (i * 0x8));
+		llc_id[i] = __raw_readl(data->sci_base + LLCId_0 + (i * 0x8));	// LLCId_x
+		llc_alloc = __raw_readl(data->sci_base + LLCIdAllocLkup_0 + (i * 0x8));
 		count += snprintf(buf + count, PAGE_SIZE, "LLCId_%d: 0x%08X / ", i, llc_id[i]);
 		count += snprintf(buf + count, PAGE_SIZE, "LLCIdAllocLkup_%d: 0x%08X\n", i, llc_alloc);
 	}
@@ -652,8 +671,8 @@ static ssize_t store_llc_id(struct device *dev,
 
 	llc_id[id] = llc_val;
 
-	__raw_writel(llc_id[id], data->dump_addr.sci_base + LLCId_0 + (id * 0x8));// LLCId_x
-	__raw_writel(llc_alloc, data->dump_addr.sci_base + LLCIdAllocLkup_0 + (id * 0x8));	// LLCIdAllocLkup_x
+	__raw_writel(llc_id[id], data->sci_base + LLCId_0 + (id * 0x8));// LLCId_x
+	__raw_writel(llc_alloc, data->sci_base + LLCIdAllocLkup_0 + (id * 0x8));	// LLCIdAllocLkup_x
 
 	return count;
 }
@@ -666,7 +685,7 @@ static ssize_t show_llc_addr_match(struct device *dev,
 	struct exynos_sci_dbg_data *data = platform_get_drvdata(pdev);
 	ssize_t count = 0;
 
-	llc_addr_match = __raw_readl(data->dump_addr.sci_base + LLCAddrMatch);	// LLCAddrMatch
+	llc_addr_match = __raw_readl(data->sci_base + LLCAddrMatch);	// LLCAddrMatch
 
 	count += snprintf(buf + count, PAGE_SIZE, "LLCAddrMatch: 0x%08X\n", llc_addr_match);
 
@@ -686,7 +705,7 @@ static ssize_t store_llc_addr_match(struct device *dev,
 	if (ret != 1)
 		return -EINVAL;
 
-	__raw_writel(llc_addr_match, data->dump_addr.sci_base + LLCAddrMatch);	// LLCAddrMatch
+	__raw_writel(llc_addr_match, data->sci_base + LLCAddrMatch);	// LLCAddrMatch
 
 	return count;
 }
@@ -699,7 +718,7 @@ static ssize_t show_llc_addr_mask(struct device *dev,
 	struct exynos_sci_dbg_data *data = platform_get_drvdata(pdev);
 	ssize_t count = 0;
 
-	llc_addr_mask = __raw_readl(data->dump_addr.sci_base + LLCAddrMask);	// LLCAddrMask
+	llc_addr_mask = __raw_readl(data->sci_base + LLCAddrMask);	// LLCAddrMask
 
 	count += snprintf(buf + count, PAGE_SIZE, "LLCAddrMask: 0x%08X\n", llc_addr_mask);
 
@@ -719,7 +738,7 @@ static ssize_t store_llc_addr_mask(struct device *dev,
 	if (ret != 1)
 		return -EINVAL;
 
-	__raw_writel(llc_addr_mask, data->dump_addr.sci_base + LLCAddrMask);	// LLCAddrMask
+	__raw_writel(llc_addr_mask, data->sci_base + LLCAddrMask);	// LLCAddrMask
 
 	return count;
 }
@@ -1148,6 +1167,7 @@ static struct attribute_group exynos_sci_dbg_attr_group = {
 	.attrs	= exynos_sci_dbg_sysfs_entries,
 };
 
+#if IS_ENABLED(CONFIG_USE_PPC_LOG)
 static void __iomem *exynos_sci_dbg_remap(unsigned long addr, unsigned int size)
 {
 	int i;
@@ -1173,7 +1193,7 @@ static void __iomem *exynos_sci_dbg_remap(unsigned long addr, unsigned int size)
 
 	return v_addr;
 }
-
+#endif
 static int exynos_sci_dbg_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -1210,6 +1230,7 @@ static int exynos_sci_dbg_probe(struct platform_device *pdev)
 		goto err_ioremap;
 	}
 
+#if IS_ENABLED(CONFIG_USE_PPC_LOG)
 	data->dump_addr.p_addr = ppc_reserved.p_addr;
 	data->dump_addr.p_size = ppc_reserved.p_size;
 	data->dump_addr.v_addr = exynos_sci_dbg_remap(data->dump_addr.p_addr,
@@ -1219,16 +1240,13 @@ static int exynos_sci_dbg_probe(struct platform_device *pdev)
 	SCI_DBG_INFO("%s: v_addr = 0x%08X\n", __func__, data->dump_addr.v_addr);
 
 	data->dump_addr.buff_size = data->dump_addr.p_size;
+
 	dbg_snapshot_add_bl_item_info("log_ppc",
 			data->dump_addr.p_addr, data->dump_addr.p_size);
 
 	data->dump_addr.cnt_sfr_base = ioremap(PPC_DEBUG_CCI, SZ_4K);/* PPC_DEBUG_CCI */
 	data->dump_addr.trex_core_base = ioremap(SYSREG_CORE_PPC_BASE, SZ_4K);
 	data->dump_addr.sci_base = ioremap(SCI_BASE, SZ_4K);
-	data->dump_addr.trex_irps_base[0] = ioremap(TREX_IRPS0_BASE, SZ_4K);
-	data->dump_addr.trex_irps_base[1] = ioremap(TREX_IRPS1_BASE, SZ_4K);
-	data->dump_addr.trex_irps_base[2] = ioremap(TREX_IRPS2_BASE, SZ_4K);
-	data->dump_addr.trex_irps_base[3] = ioremap(TREX_IRPS3_BASE, SZ_4K);
 
 	data->dump_addr.smc_base = ioremap(SMC_ALL_BASE, SZ_4K);
 	data->dump_addr.sysreg_mif_base[0] = ioremap(SYSREG_MIF0_BASE, SZ_8K);
@@ -1247,10 +1265,6 @@ static int exynos_sci_dbg_probe(struct platform_device *pdev)
 	if (IS_ERR(data->dump_addr.cnt_sfr_base) ||
 			IS_ERR(data->dump_addr.trex_core_base) ||
 			IS_ERR(data->dump_addr.sci_base) ||
-			IS_ERR(data->dump_addr.trex_irps_base[0]) ||
-			IS_ERR(data->dump_addr.trex_irps_base[1]) ||
-			IS_ERR(data->dump_addr.trex_irps_base[2]) ||
-			IS_ERR(data->dump_addr.trex_irps_base[3]) ||
 			IS_ERR(data->dump_addr.smc_base) ||
 			IS_ERR(data->dump_addr.sysreg_mif_base[0]) ||
 			IS_ERR(data->dump_addr.sysreg_mif_base[1]) ||
@@ -1271,6 +1285,20 @@ static int exynos_sci_dbg_probe(struct platform_device *pdev)
 
 	hrtimer_init(&data->smc_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	data->smc_hrtimer.function = smc_count_monitor;
+#else
+	carveout_reserved_mem(rmem);
+	SCI_DBG_INFO("%s: No use ppc log mem\n", __func__);
+#endif
+	data->dump_addr.trex_irps_base[0] = ioremap(TREX_IRPS0_BASE, SZ_4K);
+	data->dump_addr.trex_irps_base[1] = ioremap(TREX_IRPS1_BASE, SZ_4K);
+	data->dump_addr.trex_irps_base[2] = ioremap(TREX_IRPS2_BASE, SZ_4K);
+	data->dump_addr.trex_irps_base[3] = ioremap(TREX_IRPS3_BASE, SZ_4K);
+
+	if (IS_ERR(data->dump_addr.trex_irps_base[0]) ||
+			IS_ERR(data->dump_addr.trex_irps_base[1]) ||
+			IS_ERR(data->dump_addr.trex_irps_base[2]) ||
+			IS_ERR(data->dump_addr.trex_irps_base[3]))
+		goto err_ioremap_all2;
 
 	platform_set_drvdata(pdev, data);
 
@@ -1282,14 +1310,17 @@ static int exynos_sci_dbg_probe(struct platform_device *pdev)
 
 	return 0;
 
-err_ioremap_all:
-	iounmap(data->dump_addr.cnt_sfr_base);
-	iounmap(data->dump_addr.trex_core_base);
-	iounmap(data->dump_addr.sci_base);
+err_ioremap_all2:
 	iounmap(data->dump_addr.trex_irps_base[0]);
 	iounmap(data->dump_addr.trex_irps_base[1]);
 	iounmap(data->dump_addr.trex_irps_base[2]);
 	iounmap(data->dump_addr.trex_irps_base[3]);
+
+#if IS_ENABLED(CONFIG_USE_PPC_LOG)
+err_ioremap_all:
+	iounmap(data->dump_addr.cnt_sfr_base);
+	iounmap(data->dump_addr.trex_core_base);
+	iounmap(data->dump_addr.sci_base);
 	iounmap(data->dump_addr.smc_base);
 	iounmap(data->dump_addr.sysreg_mif_base[0]);
 	iounmap(data->dump_addr.sysreg_mif_base[1]);
@@ -1303,6 +1334,7 @@ err_ioremap_all:
 	iounmap(data->dump_addr.ppc_dbg_base[1]);
 	iounmap(data->dump_addr.ppc_dbg_base[2]);
 	iounmap(data->dump_addr.ppc_dbg_base[3]);
+#endif
 
 err_ioremap:
 	kfree(data);

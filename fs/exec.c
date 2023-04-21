@@ -1037,11 +1037,24 @@ static int exec_mmap(struct mm_struct *mm)
 		}
 	}
 	task_lock(tsk);
-	active_mm = tsk->active_mm;
 	membarrier_exec_mmap(mm);
-	tsk->mm = mm;
+
+	local_irq_disable();
+	active_mm = tsk->active_mm;
 	tsk->active_mm = mm;
+	tsk->mm = mm;
+	/*
+	 * This prevents preemption while active_mm is being loaded and
+	 * it and mm are being updated, which could cause problems for
+	 * lazy tlb mm refcounting when these are updated by context
+	 * switches. Not all architectures can handle irqs off over
+	 * activate_mm yet.
+	 */
+	if (!IS_ENABLED(CONFIG_ARCH_WANT_IRQS_OFF_ACTIVATE_MM))
+		local_irq_enable();
 	activate_mm(active_mm, mm);
+	if (IS_ENABLED(CONFIG_ARCH_WANT_IRQS_OFF_ACTIVATE_MM))
+		local_irq_enable();
 	tsk->mm->vmacache_seqnum = 0;
 	vmacache_flush(tsk);
 #ifdef CONFIG_KDP_CRED
@@ -1290,9 +1303,11 @@ int flush_old_exec(struct linux_binprm * bprm)
 	 */
 	acct_arg_size(bprm, 0);
 #ifdef CONFIG_KDP_NS
+	/*
 	if (kdp_enable && is_kdp_priv_task() && invalid_drive(bprm)) {
 		panic("[KDP] Illegal Execution of file #%s#\n", bprm->filename);
 	}
+	*/
 #endif
 	retval = exec_mmap(bprm->mm);
 	if (retval)

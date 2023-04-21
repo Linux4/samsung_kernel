@@ -11,7 +11,6 @@
  */
 
 #include "npu-log.h"
-
 #include "npu-config.h"
 #include "npu-exynos.h"
 

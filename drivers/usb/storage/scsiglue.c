@@ -368,6 +368,15 @@ static int queuecommand_lck(struct scsi_cmnd *srb,
 {
 	struct us_data *us = host_to_us(srb->device->host);
 
+#ifdef CONFIG_SEC_FACTORY
+	if (srb && srb->device &&
+		srb->device->removable && srb->cmnd &&
+			srb->cmnd[0] == TEST_UNIT_READY) {
+		pr_info("usb-storage: %s TEST_UNIT_READY +\n",
+			__func__);
+	}
+#endif
+
 	/* check for state-transition errors */
 	if (us->srb != NULL) {
 		printk(KERN_ERR "usb-storage: Error in %s: us->srb = %p\n",
@@ -379,7 +388,7 @@ static int queuecommand_lck(struct scsi_cmnd *srb,
 	if (test_bit(US_FLIDX_DISCONNECTING, &us->dflags)) {
 		usb_stor_dbg(us, "Fail command during disconnect\n");
 #ifdef CONFIG_USB_DEBUG_DETAILED_LOG
-		printk(KERN_ERR "usb-storage: %s, Fail command during disconnect\n",
+		pr_err("usb-storage: %s, Fail command during disconnect\n",
 				__func__);
 #endif
 		srb->result = DID_NO_CONNECT << 16;
@@ -391,7 +400,7 @@ static int queuecommand_lck(struct scsi_cmnd *srb,
 	if (test_bit(US_FLIDX_ABORTING, &us->dflags)) {
 		usb_stor_dbg(us, "Fail command during abort\n");
 #ifdef CONFIG_USB_DEBUG_DETAILED_LOG
-		printk(KERN_ERR "usb-storage: %s, Fail command during abort\n",
+		pr_err("usb-storage: %s, Fail command during abort\n",
 				__func__);
 #endif
 		srb->result = DID_NO_CONNECT << 16;
@@ -406,6 +415,10 @@ static int queuecommand_lck(struct scsi_cmnd *srb,
 		       sizeof(usb_stor_sense_invalidCDB));
 		srb->result = SAM_STAT_CHECK_CONDITION;
 		done(srb);
+#ifdef CONFIG_SEC_FACTORY
+		pr_info("usb-storage: %s, SAM_STAT_CHECK_CONDITION\n",
+				__func__);
+#endif
 		return 0;
 	}
 
@@ -413,6 +426,14 @@ static int queuecommand_lck(struct scsi_cmnd *srb,
 	srb->scsi_done = done;
 	us->srb = srb;
 	complete(&us->cmnd_ready);
+#ifdef CONFIG_SEC_FACTORY
+	if (srb && srb->device &&
+		srb->device->removable && srb->cmnd &&
+			srb->cmnd[0] == TEST_UNIT_READY) {
+		pr_info("usb-storage: %s TEST_UNIT_READY -\n",
+			__func__);
+	}
+#endif
 
 	return 0;
 }

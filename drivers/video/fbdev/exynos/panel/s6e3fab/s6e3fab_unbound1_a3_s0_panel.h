@@ -435,8 +435,8 @@ static u8 unbound1_a3_s0_vfp_fq_high_table[][2] = {
 	[S6E3FAB_VRR_60HS_120HS_TE_HW_SKIP_1] = { 0x00, 0x10 },
 	[S6E3FAB_VRR_96HS] = { 0x02, 0x70 },
 	[S6E3FAB_VRR_48HS_96HS_TE_HW_SKIP_1] = { 0x02, 0x70 },
-	[S6E3FAB_VRR_60HS] = { 0x00, 0x10 }, 
-	[S6E3FAB_VRR_48HS] = { 0x00, 0x10 }, 
+	[S6E3FAB_VRR_60HS] = { 0x00, 0x10 },
+	[S6E3FAB_VRR_48HS] = { 0x00, 0x10 },
 };
 
 static u8 unbound1_a3_s0_osc_0_table[][2] = {
@@ -479,8 +479,8 @@ static u8 unbound1_a3_s0_aor_table[][1] = {
 	[S6E3FAB_VRR_60HS_120HS_TE_HW_SKIP_1] = { 0x00 },
 	[S6E3FAB_VRR_96HS] = { 0x03 },
 	[S6E3FAB_VRR_48HS_96HS_TE_HW_SKIP_1] = { 0x03 },
-	[S6E3FAB_VRR_60HS] = { 0x00 }, 
-	[S6E3FAB_VRR_48HS] = { 0x03 }, 
+	[S6E3FAB_VRR_60HS] = { 0x00 },
+	[S6E3FAB_VRR_48HS] = { 0x03 },
 };
 
 static u8 unbound1_a3_s0_aor_fq_low_table[][S6E3FAB_TOTAL_STEP][2] = {
@@ -562,8 +562,8 @@ static u8 unbound1_a3_s0_fast_discharge_table[][1] = {
 #ifdef CONFIG_SUPPORT_GRAM_CHECKSUM
 static u8 unbound1_a3_s0_vddm_table[][1] = {
 	{0x00}, // VDDM ORIGINAL
-	{0x0F}, // VDDM LOW VOLTAGE
-	{0x2D}, // VDDM HIGH VOLTAGE
+	{0x12}, // VDDM LOW VOLTAGE
+	{0x31}, // VDDM HIGH VOLTAGE
 };
 static u8 unbound1_a3_s0_gram_img_pattern_table[][1] = {
 	{0x00}, // GCT_PATTERN_NONE
@@ -634,9 +634,6 @@ static struct maptbl unbound1_a3_s0_maptbl[MAX_MAPTBL] = {
 	[AOR_FQ_LOW_MAPTBL] = DEFINE_3D_MAPTBL(unbound1_a3_s0_aor_fq_low_table, init_common_table, getidx_vrr_aor_fq_brt_table, copy_common_maptbl),
 	[AOR_FQ_HIGH_MAPTBL] = DEFINE_3D_MAPTBL(unbound1_a3_s0_aor_fq_high_table, init_common_table, getidx_vrr_aor_fq_brt_table, copy_common_maptbl),
 	[TE_FRAME_SEL_MAPTBL] = DEFINE_2D_MAPTBL(unbound1_a3_s0_te_frame_sel_table, init_common_table, getidx_vrr_table, copy_common_maptbl),
-#ifdef CONFIG_SUPPORT_GRAYSPOT_TEST
-	[GRAYSPOT_CAL_MAPTBL] = DEFINE_0D_MAPTBL(unbound1_a3_s0_grayspot_cal_table, init_common_table, NULL, copy_grayspot_cal_maptbl),
-#endif
 #ifdef CONFIG_SUPPORT_GRAM_CHECKSUM
 	[VDDM_MAPTBL] = DEFINE_2D_MAPTBL(unbound1_a3_s0_vddm_table, init_common_table, s6e3fab_getidx_vddm_table, copy_common_maptbl),
 	[GRAM_IMG_MAPTBL] = DEFINE_2D_MAPTBL(unbound1_a3_s0_gram_img_pattern_table, init_common_table, s6e3fab_getidx_gram_img_pattern_table, copy_common_maptbl),
@@ -1082,7 +1079,7 @@ static DEFINE_STATIC_PACKET(unbound1_a3_s0_grayspot_on_04, DSI_PKT_TYPE_WR, UNBO
 
 static DEFINE_STATIC_PACKET(unbound1_a3_s0_grayspot_off_01, DSI_PKT_TYPE_WR, UNBOUND1_A3_S0_GRAYSPOT_OFF_01, 0x13);
 static DEFINE_STATIC_PACKET(unbound1_a3_s0_grayspot_off_02, DSI_PKT_TYPE_WR, UNBOUND1_A3_S0_GRAYSPOT_OFF_02, 0);
-static DEFINE_PKTUI(unbound1_a3_s0_grayspot_off_03, &unbound1_a3_s0_maptbl[GRAYSPOT_CAL_MAPTBL], 1);
+static DEFINE_PKTUI(unbound1_a3_s0_grayspot_off_03, &unbound1_a3_s0_maptbl[TSET_MAPTBL], 1);
 static DEFINE_VARIABLE_PACKET(unbound1_a3_s0_grayspot_off_03, DSI_PKT_TYPE_WR, UNBOUND1_A3_S0_GRAYSPOT_OFF_03, 0x2D);
 static DECLARE_PKTUI(unbound1_a3_s0_grayspot_off_04) = {
 	{ .offset = 6, .maptbl = &unbound1_a3_s0_maptbl[ELVSS_MAPTBL] },
@@ -1602,6 +1599,16 @@ static void *unbound1_a3_s0_init_cmdtbl[] = {
 #endif
 };
 
+static void *unbound1_a3_s0_id_read_cmdtbl[] = {
+	&KEYINFO(unbound1_a3_s0_level1_key_enable),
+	&KEYINFO(unbound1_a3_s0_level2_key_enable),
+	&KEYINFO(unbound1_a3_s0_level3_key_enable),
+	&s6e3fab_restbl[RES_ID],
+	&KEYINFO(unbound1_a3_s0_level3_key_disable),
+	&KEYINFO(unbound1_a3_s0_level2_key_disable),
+	&KEYINFO(unbound1_a3_s0_level1_key_disable),
+};
+
 static void *unbound1_a3_s0_res_init_cmdtbl[] = {
 	&KEYINFO(unbound1_a3_s0_level1_key_enable),
 	&KEYINFO(unbound1_a3_s0_level2_key_enable),
@@ -1611,9 +1618,6 @@ static void *unbound1_a3_s0_res_init_cmdtbl[] = {
 	&s6e3fab_restbl[RES_DATE],
 	&s6e3fab_restbl[RES_OCTA_ID],
 	&s6e3fab_restbl[RES_ELVSS_CAL_OFFSET],
-#ifdef CONFIG_SUPPORT_GRAYSPOT_TEST
-	&s6e3fab_restbl[RES_GRAYSPOT_CAL],
-#endif
 #ifdef CONFIG_DISPLAY_USE_INFO
 	&s6e3fab_restbl[RES_CHIP_ID],
 	&s6e3fab_restbl[RES_SELF_DIAG],
@@ -2077,6 +2081,7 @@ static void *unbound1_a3_s0_dummy_cmdtbl[] = {
 static struct seqinfo unbound1_a3_s0_seqtbl[MAX_PANEL_SEQ] = {
 	[PANEL_INIT_SEQ] = SEQINFO_INIT("init-seq", unbound1_a3_s0_init_cmdtbl),
 	[PANEL_RES_INIT_SEQ] = SEQINFO_INIT("resource-init-seq", unbound1_a3_s0_res_init_cmdtbl),
+	[PANEL_ID_READ_SEQ] = SEQINFO_INIT("id-read-seq", unbound1_a3_s0_id_read_cmdtbl),
 	[PANEL_SET_BL_SEQ] = SEQINFO_INIT("set-bl-seq", unbound1_a3_s0_set_bl_cmdtbl),
 #ifdef CONFIG_SUPPORT_HMD
 	[PANEL_HMD_ON_SEQ] = SEQINFO_INIT("hmd-on-seq", unbound1_a3_s0_hmd_on_cmdtbl),

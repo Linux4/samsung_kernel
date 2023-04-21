@@ -90,7 +90,7 @@ static irqreturn_t exynos_mc_irq_handler(int irq, void *p)
 		tmp = __raw_readl(data->base[i])
 			<< (31 - data->bit_array[0] - data->bit_array[1])
 			>> (31 - data->bit_array[1]);
-		pr_info("[SW Trip] HwTempRange#%d: 0x%x\n", i, tmp);
+		pr_auto(ASL5, "[SW Trip] HwTempRange#%d: 0x%x\n", i, tmp);
 		if (tmp == 0x1f)
 			hot_flag = true;
 	}

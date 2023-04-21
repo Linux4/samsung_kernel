@@ -71,6 +71,16 @@ config MFC_CHARGER
 	help
 	This enables the MFC IC sysfs node
 
+config MST_PCR
+	bool "support for MST PCR mode"
+	default n
+	depends on MFC_CHARGER
+	help
+	  Say Y here to enable
+	  support for MST PCR mode
+	  It is for model using MFC IC
+	  Some MFC ICs support PCR mode.
+
 config MST_TEEGRIS
 	bool "MST running on TEEGRIS"
 	default n

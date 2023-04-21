@@ -21,7 +21,7 @@ choice
 
     config ICD_USE_TRUSTONIC
         bool "Integrity TEE Driver based on Trustonic Secure OS"
-        depends on TRUSTONIC_TEE
+        depends on TRUSTONIC_TEE || TRUSTONIC_TEE_SUPPORT
         ---help---
           Use Trustonic as base Trusted Execution Environment
 

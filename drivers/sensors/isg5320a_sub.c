@@ -292,7 +292,7 @@ static void isg5320a_force_calibration(struct isg5320a_data *data,
 	if (!only_bfcal) {
 		isg5320a_i2c_write_one(data, ISG5320A_SCANCTRL1_REG,
 				       ISG5320A_SCAN_STOP);
-
+		msleep(30);
 		isg5320a_i2c_write_one(data, ISG5320A_BS_ON_WD_REG, ISG5320A_BS_WD_OFF);
 		isg5320a_i2c_write_one(data, ISG5320A_SCANCTRL2_REG,
 				       ISG5320A_SCAN2_CLEAR);
@@ -305,12 +305,10 @@ static void isg5320a_force_calibration(struct isg5320a_data *data,
 
 		isg5320a_i2c_write_one(data, ISG5320A_SCANCTRL1_REG,
 				       ISG5320A_CFCAL_START);
-		msleep(300);
+		msleep(500);
 	}
 
 	isg5320a_i2c_write_one(data, ISG5320A_SCANCTRL2_REG, ISG5320A_BFCAL_START);
-
-	msleep(100);
 
 	mutex_unlock(&data->lock);
 }

@@ -319,6 +319,7 @@
 			interrupts = <0x00 0x23 0x04>;
 			pinctrl-names = "default";
 			pinctrl-0 = <0x0e>;
+			max-frequency = <0x8f0d180>;
 			status = "okay";
 			#address-cells = <0x01>;
 			#size-cells = <0x00>;
@@ -338,6 +339,7 @@
 			interrupts = <0x00 0x24 0x04>;
 			pinctrl-names = "default";
 			pinctrl-0 = <0x11>;
+			max-frequency = <0x8f0d180>;
 			status = "disabled";
 			#address-cells = <0x01>;
 			#size-cells = <0x00>;
@@ -354,6 +356,7 @@
 			interrupts = <0x00 0x25 0x04>;
 			pinctrl-names = "default";
 			pinctrl-0 = <0x12>;
+			max-frequency = <0x8f0d180>;
 			status = "disabled";
 			#address-cells = <0x01>;
 			#size-cells = <0x00>;
@@ -523,6 +526,8 @@
 			interrupts = <0x00 0x18 0x04>;
 			clocks = <0x08 0x6f 0x08 0x71 0x08 0x68>;
 			resets = <0x08 0x30 0x08 0x32>;
+			phys = <0x1a 0x00>;
+			phy-names = "usb";
 			status = "okay";
 			phandle = <0x40>;
 		};
@@ -533,6 +538,8 @@
 			interrupts = <0x00 0x19 0x04>;
 			clocks = <0x08 0x6f 0x08 0x68>;
 			resets = <0x08 0x30>;
+			phys = <0x1a 0x00>;
+			phy-names = "usb";
 			status = "okay";
 			phandle = <0x41>;
 		};

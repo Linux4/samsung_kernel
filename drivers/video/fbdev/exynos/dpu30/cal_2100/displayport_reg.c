@@ -9,6 +9,7 @@
  * published by the Free Software Foundation.
 */
 
+#include <linux/fb.h>
 #include "../displayport.h"
 #if defined(CONFIG_PHY_SAMSUNG_USB_CAL)
 #include "../../../../drivers/phy/samsung/phy-samsung-usb-cal.h"
@@ -59,9 +60,11 @@ struct displayport_supported_preset supported_videos[] = {
 	{V1920X1080P24,	V4L2_DV_BT_CEA_1920X1080P24,	24, SYNC_POSITIVE, SYNC_POSITIVE, 32, RATIO_16_9, "V1920X1080P24",	DEX_FHD_SUPPORT},
 	{V1920X1080P25,	V4L2_DV_BT_CEA_1920X1080P25,	25, SYNC_POSITIVE, SYNC_POSITIVE, 33, RATIO_16_9, "V1920X1080P25",	DEX_FHD_SUPPORT},
 	{V1920X1080P30,	V4L2_DV_BT_CEA_1920X1080P30,	30, SYNC_POSITIVE, SYNC_POSITIVE, 34, RATIO_16_9, "V1920X1080P30",	DEX_FHD_SUPPORT, true},
+	{V1600X900P60DTD, VIDEO_DTD_1600X900P60,	60, SYNC_POSITIVE, SYNC_POSITIVE, 0, RATIO_16_9, "V1600X900P60DTD", DEX_FHD_SUPPORT, false, FB_MODE_IS_DETAILED},
 	{V1600X900P59, V4L2_DV_BT_CVT_1600X900P59_ADDED, 59, SYNC_POSITIVE,	SYNC_POSITIVE, RATIO_16_9, 0, "V1600X900P59", DEX_FHD_SUPPORT},
 	{V1600X900P60RB, V4L2_DV_BT_DMT_1600X900P60_RB,	60, SYNC_POSITIVE, SYNC_POSITIVE, 0, RATIO_16_9, "V1600X900P60RB",	DEX_FHD_SUPPORT},
 	{V1920X1080P50,	V4L2_DV_BT_CEA_1920X1080P50,	50, SYNC_POSITIVE, SYNC_POSITIVE, 31, RATIO_16_9, "V1920X1080P50",	DEX_FHD_SUPPORT},
+	{V1920X1080P60DTD, VIDEO_DTD_1080P60, 60, SYNC_POSITIVE, SYNC_POSITIVE, 0, RATIO_16_9, "V1920X1080P60DTD", DEX_FHD_SUPPORT, false, FB_MODE_IS_DETAILED},
 	{V1920X1080P60EXT,	DISPLAYID_1080P_EXT, 60, SYNC_POSITIVE, SYNC_POSITIVE, 0, RATIO_16_9, "V1920X1080P60EXT", DEX_FHD_SUPPORT, false, DISPLAYID_EXT},
 	{V1920X1080P59,	V4L2_DV_BT_CVT_1920X1080P59_ADDED, 59, SYNC_POSITIVE, SYNC_POSITIVE, 0, RATIO_16_9, "V1920X1080P59", DEX_FHD_SUPPORT},
 	{V1920X1080P60,	V4L2_DV_BT_CEA_1920X1080P60,	60, SYNC_POSITIVE, SYNC_POSITIVE, 16, RATIO_16_9, "V1920X1080P60",	DEX_FHD_SUPPORT, true},
@@ -71,6 +74,7 @@ struct displayport_supported_preset supported_videos[] = {
 	{V2048X1536P60,	V4L2_DV_BT_CVT_2048X1536P60_ADDED, 60, SYNC_NEGATIVE, SYNC_POSITIVE, 0, RATIO_4_3, "V2048X1536P60"},
 	{V1920X1440P60,	V4L2_DV_BT_DMT_1920X1440P60,	60, SYNC_POSITIVE, SYNC_POSITIVE, 0, RATIO_4_3, "V1920X1440P60"},
 	{V2400X1200P90RELU, DISPLAYID_2400X1200P90_RELUMINO, 90, SYNC_NEGATIVE, SYNC_NEGATIVE, 0, RATIO_ETC, "V2400X1200P90RELU", DEX_NOT_SUPPORT},
+	{V2560X1440P60DTD, VIDEO_DTD_1440P60, 60, SYNC_POSITIVE, SYNC_POSITIVE, 0, RATIO_16_9, "V2560X1440P60DTD", DEX_WQHD_SUPPORT, false, FB_MODE_IS_DETAILED},
 	{V2560X1440P60EXT,	DISPLAYID_1440P_EXT, 60, SYNC_POSITIVE, SYNC_POSITIVE, 0, RATIO_16_9, "V2560X1440P60EXT", DEX_WQHD_SUPPORT, false, DISPLAYID_EXT},
 	{V2560X1440P59,	V4L2_DV_BT_CVT_2560X1440P59_ADDED, 59, SYNC_POSITIVE, SYNC_POSITIVE, 0, RATIO_16_9, "V2560X1440P59", DEX_WQHD_SUPPORT},
 	{V1440x2560P60,	V4L2_DV_BT_CVT_1440X2560P60_ADDED, 60, SYNC_POSITIVE, SYNC_POSITIVE, 0, RATIO_ETC, "V1440x2560P60"},
@@ -88,11 +92,13 @@ struct displayport_supported_preset supported_videos[] = {
 	{V4096X2160P24,	V4L2_DV_BT_CEA_4096X2160P24,	24, SYNC_POSITIVE, SYNC_POSITIVE, 98, RATIO_16_9, "V4096X2160P24"},
 	{V4096X2160P25,	V4L2_DV_BT_CEA_4096X2160P25,	25, SYNC_POSITIVE, SYNC_POSITIVE, 99, RATIO_16_9, "V4096X2160P25"},
 	{V4096X2160P30,	V4L2_DV_BT_CEA_4096X2160P30,	30, SYNC_POSITIVE, SYNC_POSITIVE, 100, RATIO_16_9, "V4096X2160P30"},
-	{V3840X2160P60EXT,	DISPLAYID_2160P_EXT, 60, SYNC_POSITIVE, SYNC_POSITIVE, 0, RATIO_16_9, "V3840X2160P60EXT", DEX_NOT_SUPPORT, false, DISPLAYID_EXT},
-	{V3840X2160P59RB, V4L2_DV_BT_CVT_3840X2160P59_ADDED, 59, SYNC_POSITIVE, SYNC_POSITIVE, 0, RATIO_16_9, "V3840X2160P59RB"},
 	{V3840X2160P50,	V4L2_DV_BT_CEA_3840X2160P50,	50, SYNC_POSITIVE, SYNC_POSITIVE, 96, RATIO_16_9, "V3840X2160P50"},
+	{V3840X2160P60DTD, VIDEO_DTD_3840X2160P60,	60, SYNC_POSITIVE, SYNC_POSITIVE, 0, RATIO_16_9, "V3840X2160P60DTD", DEX_NOT_SUPPORT, false, FB_MODE_IS_DETAILED},
+	{V3840X2160P60EXT,	DISPLAYID_2160P_EXT,	60, SYNC_POSITIVE, SYNC_POSITIVE, 0, RATIO_16_9, "V3840X2160P60EXT", DEX_NOT_SUPPORT, false, DISPLAYID_EXT},
+	{V3840X2160P59RB, V4L2_DV_BT_CVT_3840X2160P59_ADDED, 59, SYNC_POSITIVE, SYNC_POSITIVE, 0, RATIO_16_9, "V3840X2160P59RB"},
 	{V3840X2160P60,	V4L2_DV_BT_CEA_3840X2160P60,	60, SYNC_POSITIVE, SYNC_POSITIVE, 97, RATIO_16_9, "V3840X2160P60",	DEX_NOT_SUPPORT, true},
 	{V4096X2160P50, V4L2_DV_BT_CEA_4096X2160P50,	50, SYNC_POSITIVE, SYNC_POSITIVE, 101, RATIO_16_9, "V4096X2160P50"},
+	{V4096X2160P60DTD, VIDEO_DTD_4096X2160P60, 60, SYNC_POSITIVE, SYNC_POSITIVE, 0, RATIO_16_9, "V3840X2160P60DTD", DEX_NOT_SUPPORT, false, FB_MODE_IS_DETAILED},
 	{V4096X2160P60,	V4L2_DV_BT_CEA_4096X2160P60,	60, SYNC_POSITIVE, SYNC_POSITIVE, 102, RATIO_16_9, "V4096X2160P60"},
 	{V640X10P60SACRC, V4L2_DV_BT_CVT_640x10P60_ADDED, 60, SYNC_POSITIVE, SYNC_POSITIVE, 0, RATIO_ETC, "V640X10P60SACRC"},
 	{VDUMMYTIMING, V4L2_DV_BT_CVT_640x10P60_ADDED,	60, SYNC_POSITIVE, SYNC_POSITIVE,  0, RATIO_ETC, "DetailedTiming"},
@@ -675,6 +681,7 @@ void displayport_reg_video_format_register_setting(u32 sst_id,
 	val += supported_videos[video_format].dv_timings.bt.vsync;
 	val += supported_videos[video_format].dv_timings.bt.vbackporch;
 	displayport_write(SST1_VIDEO_VERTICAL_TOTAL_PIXELS + 0x1000 * sst_id, val);
+	displayport_dbg("reg set - v total: %d", val);
 
 	val = 0;
 	val += supported_videos[video_format].dv_timings.bt.width;
@@ -682,32 +689,41 @@ void displayport_reg_video_format_register_setting(u32 sst_id,
 	val += supported_videos[video_format].dv_timings.bt.hsync;
 	val += supported_videos[video_format].dv_timings.bt.hbackporch;
 	displayport_write(SST1_VIDEO_HORIZONTAL_TOTAL_PIXELS + 0x1000 * sst_id, val);
+	displayport_dbg("reg set - h total: %d", val);
 
 	val = supported_videos[video_format].dv_timings.bt.height;
 	displayport_write(SST1_VIDEO_VERTICAL_ACTIVE + 0x1000 * sst_id, val);
+	displayport_dbg("reg set - v active: %d", val);
 
 	val = supported_videos[video_format].dv_timings.bt.vfrontporch;
 	displayport_write(SST1_VIDEO_VERTICAL_FRONT_PORCH + 0x1000 * sst_id, val);
+	displayport_dbg("reg set - v front p: %d", val);
 
 	val = supported_videos[video_format].dv_timings.bt.vbackporch;
 	displayport_write(SST1_VIDEO_VERTICAL_BACK_PORCH + 0x1000 * sst_id, val);
+	displayport_dbg("reg set - v back p: %d", val);
 
 	val = supported_videos[video_format].dv_timings.bt.width;
 	displayport_write(SST1_VIDEO_HORIZONTAL_ACTIVE + 0x1000 * sst_id, val);
+	displayport_dbg("reg set - h active: %d", val);
 
 	val = supported_videos[video_format].dv_timings.bt.hfrontporch;
 	displayport_write(SST1_VIDEO_HORIZONTAL_FRONT_PORCH + 0x1000 * sst_id, val);
+	displayport_dbg("reg set - h front p: %d", val);
 
 	val = supported_videos[video_format].dv_timings.bt.hbackporch;
 	displayport_write(SST1_VIDEO_HORIZONTAL_BACK_PORCH + 0x1000 * sst_id, val);
+	displayport_dbg("reg set - h back p: %d", val);
 
 	val = supported_videos[video_format].v_sync_pol;
 	displayport_write_mask(SST1_VIDEO_CONTROL + 0x1000 * sst_id,
 			val, VSYNC_POLARITY);
+	displayport_dbg("reg set - v pol: %d", val);
 
 	val = supported_videos[video_format].h_sync_pol;
 	displayport_write_mask(SST1_VIDEO_CONTROL + 0x1000 * sst_id,
 			val, HSYNC_POLARITY);
+	displayport_dbg("reg set - h pol: %d", val);
 }
 
 u32 displayport_reg_get_video_clk(u32 sst_id)
@@ -1227,16 +1243,36 @@ int displayport_reg_edid_write(u8 edid_addr_offset, u32 length, u8 *data)
 	return ret;
 }
 
-int displayport_reg_edid_read(u8 edid_addr_offset, u32 length, u8 *data)
+#define DDC_SEGMENT_ADDR 0x30
+int displayport_reg_edid_read(u8 block_cnt, u32 length, u8 *data)
 {
 	u32 i, buf_length, length_calculation;
 	int ret;
 	struct displayport_device *displayport = get_displayport_drvdata();
 	int retry_cnt = AUX_RETRY_COUNT;
+	u8 offset = (block_cnt & 1) * EDID_BLOCK_SIZE;
 
 	mutex_lock(&displayport->aux_lock);
 
 	while(retry_cnt > 0) {
+		/* for 3rd,4th block */
+		if (block_cnt > 1) {
+			u8 segment = 1;
+
+			displayport_reg_aux_ch_buf_clr();
+			displayport_reg_aux_defer_ctrl(1);
+			displayport_reg_set_aux_reply_timeout();
+			displayport_reg_set_aux_ch_address_only_command(0);
+			displayport_dbg("read block%d\n", block_cnt);
+			displayport_reg_set_aux_ch_command(I2C_WRITE);
+			displayport_reg_set_aux_ch_address(DDC_SEGMENT_ADDR);
+			displayport_reg_set_aux_ch_length(1);
+			displayport_reg_aux_ch_send_buf(&segment, 1);
+			ret = displayport_reg_set_aux_ch_operation_enable();
+			if (ret)
+				displayport_info("sending segment failed\n");
+		}
+
 		displayport_reg_set_aux_ch_command(I2C_WRITE);
 		displayport_reg_set_aux_ch_address(EDID_ADDRESS);
 		displayport_reg_set_aux_ch_address_only_command(1);
@@ -1251,7 +1287,7 @@ int displayport_reg_edid_read(u8 edid_addr_offset, u32 length, u8 *data)
 		displayport_reg_set_aux_ch_command(I2C_WRITE);
 		displayport_reg_set_aux_ch_address(EDID_ADDRESS);
 		displayport_reg_set_aux_ch_length(1);
-		displayport_reg_aux_ch_send_buf(&edid_addr_offset, 1);
+		displayport_reg_aux_ch_send_buf(&offset, 1);
 		ret = displayport_reg_set_aux_ch_operation_enable();
 
 		displayport_dbg("EDID address command in EDID read\n");

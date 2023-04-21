@@ -12,10 +12,20 @@
 
 #define DL_PM_ALIGN	(64)
 
-struct dsp_tlsf *pm_manager;
-unsigned long dsp_pm_start_addr;
+static struct dsp_tlsf *pm_manager;
+static unsigned long dsp_pm_start_addr;
+static size_t dsp_pm_total_size;
+static struct dsp_lib *pm_init_lib;
 
-struct dsp_lib *pm_init_lib;
+unsigned long dsp_pm_manager_get_pm_start_addr(void)
+{
+	return dsp_pm_start_addr;
+}
+
+size_t dsp_pm_manager_get_pm_total_size(void)
+{
+	return dsp_pm_total_size;
+}
 
 int dsp_pm_manager_init(unsigned long start_addr, size_t size,
 	unsigned int pm_offset)
@@ -33,6 +43,8 @@ int dsp_pm_manager_init(unsigned long start_addr, size_t size,
 			"PM Boot lib");
 
 	dsp_pm_start_addr = start_addr;
+	dsp_pm_total_size = size;
+
 	ret = dsp_tlsf_init(pm_manager, start_addr, size, DL_PM_ALIGN);
 	if (ret == -1) {
 		DL_ERROR("TLSF init is failed\n");
@@ -73,7 +85,8 @@ void dsp_pm_manager_print(void)
 {
 	DL_INFO(DL_BORDER);
 	DL_INFO("Program memory manager\n");
-	DL_INFO("Start address: 0x%lx\n", dsp_pm_start_addr);
+	DL_INFO("Start address: %#lx, size %#zx\n",
+			dsp_pm_start_addr, dsp_pm_total_size);
 	DL_INFO("\n");
 	dsp_tlsf_print(pm_manager);
 }
@@ -93,6 +106,10 @@ int dsp_pm_manager_alloc_libs(struct dsp_lib **libs, int libs_size,
 			DL_DEBUG("Alloc PM for library %s\n",
 				libs[idx]->name);
 			text_size = dsp_elf32_get_text_size(libs[idx]->elf);
+			if (text_size == UINT_MAX) {
+				DL_ERROR("getting text size failed\n");
+				return -1;
+			}
 			DL_DEBUG("PM alloc libs_size : %zu\n", text_size);
 
 			ret = dsp_pm_alloc(text_size, libs[idx], pm_inv);

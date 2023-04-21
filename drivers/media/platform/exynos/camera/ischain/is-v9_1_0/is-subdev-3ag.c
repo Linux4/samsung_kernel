@@ -60,7 +60,7 @@ static int is_ischain_3ag_start(struct is_device_ischain *device,
 	}
 
 	if (flag_extra) {
-		hw_sbwc = (SBWC_BASE_ALIGN_MASK | flag_extra);
+		hw_sbwc = (SBWC_BASE_ALIGN_MASK_LLC_OFF | flag_extra);
 		chg_format = true;
 	}
 

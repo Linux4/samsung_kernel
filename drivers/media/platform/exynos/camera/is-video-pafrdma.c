@@ -47,7 +47,7 @@ int is_paf0s_video_probe(void *data)
 	struct is_core *core;
 	struct is_video *video;
 
-	BUG_ON(!data);
+	FIMC_BUG(!data);
 
 	core = (struct is_core *)data;
 	video = &core->video_paf0s;
@@ -80,7 +80,7 @@ int is_paf1s_video_probe(void *data)
 	struct is_core *core;
 	struct is_video *video;
 
-	BUG_ON(!data);
+	FIMC_BUG(!data);
 
 	core = (struct is_core *)data;
 	video = &core->video_paf1s;
@@ -113,7 +113,7 @@ int is_paf2s_video_probe(void *data)
 	struct is_core *core;
 	struct is_video *video;
 
-	BUG_ON(!data);
+	FIMC_BUG(!data);
 
 	core = (struct is_core *)data;
 	video = &core->video_paf2s;
@@ -146,7 +146,7 @@ int is_paf3s_video_probe(void *data)
 	struct is_core *core;
 	struct is_video *video;
 
-	BUG_ON(!data);
+	FIMC_BUG(!data);
 
 	core = (struct is_core *)data;
 	video = &core->video_paf3s;

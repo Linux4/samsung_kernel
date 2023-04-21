@@ -742,7 +742,7 @@ static int __isp_dma_in_cfg(struct is_device_ischain *device,
 	}
 
 	if (flag_extra)
-		hw_sbwc = (SBWC_BASE_ALIGN_MASK | flag_extra);
+		hw_sbwc = (SBWC_BASE_ALIGN_MASK_LLC_OFF | flag_extra);
 
 	/* DRC, HF, Noise, SC map have own format enum */
 	switch (node->vid) {
@@ -987,7 +987,7 @@ static int __isp_dma_out_cfg(struct is_device_ischain *device,
 	}
 
 	if (flag_extra)
-		hw_sbwc = (SBWC_BASE_ALIGN_MASK | flag_extra);
+		hw_sbwc = (SBWC_BASE_ALIGN_MASK_LLC_ON | flag_extra);
 
 	/* DRC, HF, Noise, SC map have own format enum */
 	switch (node->vid) {
@@ -1301,7 +1301,7 @@ static int is_ischain_isp_cfg(struct is_subdev *leader,
 		}
 
 		if (flag_extra) {
-			hw_sbwc = (SBWC_BASE_ALIGN_MASK | flag_extra);
+			hw_sbwc = (SBWC_BASE_ALIGN_MASK_LLC_OFF | flag_extra);
 			chg_format = true;
 		}
 

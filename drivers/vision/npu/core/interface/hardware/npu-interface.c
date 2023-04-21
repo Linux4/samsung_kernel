@@ -40,7 +40,7 @@ static const u8 strArr[][128] = {{"fid : "}, };
 static void __rprt_manager(struct work_struct *w);
 static void __profile_manager(struct work_struct *w);
 
-struct npu_interface interface = {
+static struct npu_interface interface = {
 	.mbox_hdr = NULL,
 	.sfr = NULL,
 	.sfr2 = NULL,
@@ -205,6 +205,7 @@ static void __send_interrupt(u32 cmdType, struct command *cmd)
 	case COMMAND_POWERDOWN:
 	case COMMAND_MODE:
 	case COMMAND_FW_TEST:
+	case COMMAND_CORE_CTL:
 		/* Wait clr bit from FW */
 		while (timeout && interface.sfr->grp[0].ms) {
 			timeout--;
@@ -396,12 +397,14 @@ err_exit:
 int npu_interface_close(struct npu_system *system)
 {
 	int wptr, rptr;
-	struct device *dev = &system->pdev->dev;
+	struct device *dev;
 
 	if (!system) {
 		npu_err("fail in %s\n", __func__);
 		return -EINVAL;
 	}
+
+	dev = &system->pdev->dev;
 
 	queue_work(wq, &work_report);
 	if ((wq) && (interface.mbox_hdr)) {
@@ -415,6 +418,9 @@ int npu_interface_close(struct npu_system *system)
 		destroy_workqueue(wq);
 		wq = NULL;
 	}
+
+	irq_set_affinity_hint(system->irq0, NULL);
+	irq_set_affinity_hint(system->irq1, NULL);
 
 	devm_free_irq(dev, system->irq0, NULL);
 	devm_free_irq(dev, system->irq1, NULL);
@@ -480,7 +486,7 @@ int nw_req_manager(int msgid, struct npu_nw *nw)
 	case NPU_NW_CMD_PROFILE_START:
 		cmd.c.profile_ctl.ctl = PROFILE_CTL_CODE_START;
 		cmd.payload = nw->ncp_addr.daddr;
-		cmd.length = nw->ncp_addr.size;
+		cmd.length = (u32)nw->ncp_addr.size;
 		msg.command = COMMAND_PROFILE_CTL;
 		msg.length = sizeof(struct command);
 		break;
@@ -508,6 +514,13 @@ int nw_req_manager(int msgid, struct npu_nw *nw)
 		cmd.payload = 0;
 		cmd.length = 0;
 		msg.command = COMMAND_FW_TEST;
+		msg.length = sizeof(struct command);
+		break;
+	case NPU_NW_CMD_CORE_CTL:
+		cmd.c.core_ctl.active_cores = nw->param0;
+		cmd.payload = 0;
+		cmd.length = 0;
+		msg.command = COMMAND_CORE_CTL;
 		msg.length = sizeof(struct command);
 		break;
 	case NPU_NW_CMD_END:
@@ -571,6 +584,7 @@ fr_req_err:
 	return ret;
 }
 
+/*
 void makeStructToString(struct cmd_done *done)
 {
 	u32 val;
@@ -590,6 +604,7 @@ void makeStructToString(struct cmd_done *done)
 		fwProfile.buf_size += strlen(strArr[i]) + strlen(tempbuf) + 1;
 	}
 }
+*/
 
 int nw_rslt_manager(int *ret_msgid, struct npu_nw *nw)
 {
@@ -616,14 +631,15 @@ int nw_rslt_manager(int *ret_msgid, struct npu_nw *nw)
 	}
 
 	if (msg.command == COMMAND_DONE) {
-		npu_info("COMMAND_DONE for mid: (%d)\n", msg.mid);
+		npu_info("COMMAND_DONE for mid: (%d), val(0x%x)\n", msg.mid,
+			 cmd.c.done.request_specific_value);
+		nw->result_value = cmd.c.done.request_specific_value;
 		nw->result_code = NPU_ERR_NO_ERROR;
-		makeStructToString(&(cmd.c.done));
+		// makeStructToString(&(cmd.c.done));
 	} else if (msg.command == COMMAND_NDONE) {
 		npu_err("COMMAND_NDONE for mid: (%d) error(%u/0x%08x)\n"
 			, msg.mid, cmd.c.ndone.error, cmd.c.ndone.error);
 		nw->result_code = cmd.c.ndone.error;
-		memlog_sync_to_file(npu_memlog_obj);
 	} else {
 		npu_err("invalid msg.command: (%d)\n", msg.command);
 		return FALSE;
@@ -663,16 +679,15 @@ int fr_rslt_manager(int *ret_msgid, struct npu_frame *frame)
 
 	if (msg.command == COMMAND_DONE) {
 		npu_dbg("COMMAND_DONE for mid: (%d)\n", msg.mid);
-		if (cmd.c.done.duration > 0) {
-			frame->duration	= cmd.c.done.duration;
-		}
+		if (cmd.c.done.request_specific_value > 0)
+			frame->duration	= cmd.c.done.request_specific_value;
+
 		frame->result_code = NPU_ERR_NO_ERROR;
-		makeStructToString(&(cmd.c.done));
+		// makeStructToString(&(cmd.c.done));
 	} else if (msg.command == COMMAND_NDONE) {
 		npu_err("COMMAND_NDONE for mid: (%d) error(%u/0x%08x)\n"
 			, msg.mid, cmd.c.ndone.error, cmd.c.ndone.error);
 		frame->result_code = cmd.c.ndone.error;
-		memlog_sync_to_file(npu_memlog_obj);
 	} else {
 		npu_err("invalid msg.command: (%d)\n", msg.command);
 		return FALSE;
@@ -877,6 +892,22 @@ int fr_rslt_available(void)
 		&interface.mbox_hdr->f2hctrl[0], &msg);
 	return ret;
 }
+
+const struct npu_log_ops npu_log_ops = {
+	.fw_rprt_manager = fw_rprt_manager,
+	.npu_check_unposted_mbox = npu_check_unposted_mbox,
+};
+
+const struct npu_if_protodrv_mbox_ops protodrv_mbox_ops = {
+	.frame_result_available = fr_rslt_available,
+	.frame_post_request = fr_req_manager,
+	.frame_get_result = fr_rslt_manager,
+	.nw_result_available = nw_rslt_available,
+	.nw_post_request = nw_req_manager,
+	.nw_get_result = nw_rslt_manager,
+	.register_notifier = register_rslt_notifier,
+	.register_msgid_type_getter = register_msgid_get_type,
+};
 
 /* Unit test */
 #ifdef CONFIG_VISION_UNITTEST

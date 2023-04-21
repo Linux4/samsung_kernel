@@ -47,7 +47,7 @@ int is_ypp_video_probe(void *data)
 	struct is_core *core;
 	struct is_video *video;
 
-	BUG_ON(!data);
+	FIMC_BUG(!data);
 
 	core = (struct is_core *)data;
 	video = &core->video_ypp;

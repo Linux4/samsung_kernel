@@ -147,6 +147,57 @@ void max77705_ccic_event_work(void *data, int dest, int id, int attach, int even
 }
 #endif
 
+static void max77705_set_unmask_vbus(struct max77705_usbc_platform_data *usbc_data, u8 ccstat)
+{
+	u8 bc_status = 0, vbus = 0;
+	u64 time_gap = 0;
+	usbc_cmd_data write_data;
+	int latest_idx = 0, cmp_idx = 0;
+#if defined(CONFIG_USB_HW_PARAM) && defined(CONFIG_GET_UNMASK_VBUS_HWPARAM)
+	struct otg_notify *o_notify = get_otg_notify();
+#endif
+
+	if (usbc_data->rid_check == true)
+		return;
+
+	if (ccstat == cc_SINK) {
+		max77705_read_reg(usbc_data->muic, MAX77705_USBC_REG_BC_STATUS, &bc_status);
+		vbus = (bc_status & BIT_VBUSDet) >> FFS(BIT_VBUSDet);
+
+		if (!vbus) {
+			usbc_data->time_lapse[usbc_data->lapse_idx] = get_jiffies_64();
+
+			pr_info("%s: lapse_idx: %d, time_lapse: %llu\n",
+				__func__, usbc_data->lapse_idx, usbc_data->time_lapse[usbc_data->lapse_idx]);
+
+			usbc_data->lapse_idx = (usbc_data->lapse_idx + 1) % MAX_NVCN_CNT;
+		}
+	} else if (ccstat == cc_No_Connection) {
+		if (usbc_data->time_lapse[0] == 0)
+			return;
+
+		latest_idx = (usbc_data->lapse_idx + MAX_NVCN_CNT - 1) % MAX_NVCN_CNT;
+		cmp_idx = usbc_data->lapse_idx;
+
+		time_gap = usbc_data->time_lapse[latest_idx] - usbc_data->time_lapse[cmp_idx];
+
+		if (time_gap <= (HZ * MAX_CHK_TIME)) {
+			pr_info("%s: time_gap: %llu, Opcode write 0x1f 0x30\n",
+				__func__, time_gap);
+
+			init_usbc_cmd_data(&write_data);
+			write_data.opcode = 0x1F;
+			write_data.write_length = 1;
+			write_data.write_data[0] = 0x30;
+			write_data.read_length = 0;
+			max77705_usbc_opcode_write(usbc_data, &write_data);
+#if defined(CONFIG_USB_HW_PARAM) && defined(CONFIG_GET_UNMASK_VBUS_HWPARAM)
+			inc_hw_param(o_notify, USB_CCIC_UNMASK_VBUS_COUNT);
+#endif
+		}
+	}
+}
+
 void max77705_dp_detach(void *data)
 {
 	struct max77705_usbc_platform_data *usbpd_data = data;
@@ -177,6 +228,10 @@ void max77705_notify_dr_status(struct max77705_usbc_platform_data *usbpd_data, u
 			pr_info("%s: blocked by WATER\n", __func__);
 			return;
 		}
+		if (usbpd_data->shut_down) {
+			pr_info("%s: blocked by shutdown\n", __func__);
+			return;
+		}
 		if (pd_data->current_dr == UFP) {
 			if (usbpd_data->is_host == HOST_ON) {
 				msg_maxim("pd_state:%02d,	turn off host",
@@ -187,6 +242,7 @@ void max77705_notify_dr_status(struct max77705_usbc_platform_data *usbpd_data, u
 						PDIC_NOTIFY_DEV_USB, PDIC_NOTIFY_ID_USB,
 						0/*attach*/, USB_STATUS_NOTIFY_DETACH/*drp*/, 0);
 				usbpd_data->is_host = HOST_OFF;
+				usbpd_data->send_enter_mode_req = 0;
 			}
 			if (usbpd_data->is_client == CLIENT_OFF) {
 				usbpd_data->is_client = CLIENT_ON;
@@ -208,7 +264,7 @@ void max77705_notify_dr_status(struct max77705_usbc_platform_data *usbpd_data, u
 					PDIC_NOTIFY_DEV_USB, PDIC_NOTIFY_ID_USB,
 					0/*attach*/, USB_STATUS_NOTIFY_DETACH/*drp*/, 0);
 				usbpd_data->is_client = CLIENT_OFF;
-#if IS_ENABLED(CONFIG_IF_CB_MANAGER)
+#if IS_ENABLED(CONFIG_IF_CB_MANAGER) && IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 				usb_set_vbus_current(usbpd_data->man, USB_CURRENT_CLEAR);
 #endif
 			}
@@ -370,6 +426,9 @@ static irqreturn_t max77705_ccpinstat_irq(int irq, void *data)
 					PDIC_NOTIFY_DEV_BATT, PDIC_NOTIFY_ID_WATER_CABLE,
 					PDIC_NOTIFY_DETACH, 0/*rprd*/, 0);
 			}
+			max77705_ccic_event_work(usbc_data,
+				PDIC_NOTIFY_DEV_ALL, PDIC_NOTIFY_ID_CLEAR_INFO,
+				PDIC_NOTIFY_ID_SVID_INFO, 0, 0);
 #endif
 			break;
 	case CC1_ACTIVE:
@@ -529,6 +588,9 @@ static void max77705_ccstat_irq_handler(void *data, int irq)
 		else
 			return;
 	}
+
+	max77705_set_unmask_vbus(usbc_data, ccstat);
+
 #if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 	if (ccstat == cc_No_Connection)
 		usbc_data->pd_state = max77705_State_PE_Initial_detach;
@@ -606,7 +668,9 @@ static void max77705_ccstat_irq_handler(void *data, int irq)
 			cancel_delayed_work(&usbc_data->vbus_hard_reset_work);
 			break;
 	case cc_SINK:
-			msg_maxim("ccstat : cc_SINK");
+			msg_maxim("ccstat : cc_SINK, keep awake for a second.");
+			/* keep awake during pd communication */
+			pm_wakeup_ws_event(&cc_data->ccstat_ws, 1000, false);
 			usbc_data->pd_data->cc_status = CC_SNK;
 			usbc_data->pn_flag = false;
 
@@ -698,6 +762,8 @@ int max77705_cc_init(struct max77705_usbc_platform_data *usbc_data)
 	msg_maxim("IN");
 
 	cc_data = usbc_data->cc_data;
+	cc_data->ccstat_ws.name = "max77705-ccstat";
+	wakeup_source_add(&cc_data->ccstat_ws);
 
 	cc_data->irq_vconncop = usbc_data->irq_base + MAX77705_CC_IRQ_VCONNCOP_INT;
 	if (cc_data->irq_vconncop) {

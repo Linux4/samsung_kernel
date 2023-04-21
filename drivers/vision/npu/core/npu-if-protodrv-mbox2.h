@@ -37,10 +37,10 @@ struct npu_if_protodrv_mbox_ops {
 	int (*register_msgid_type_getter)(int (*)(int));
 };
 
-#ifdef CONFIG_VISION_UNITTEST
-/* Allow replacement of interface function link for unit testing */
-extern struct npu_if_protodrv_mbox_ops npu_if_protodrv_mbox_ops;
-#endif
+struct npu_if_protodrv_mbox {
+	struct device *dev;
+	const struct npu_if_protodrv_mbox_ops *npu_if_protodrv_mbox_ops;
+};
 
 /* Exported functions */
 int npu_mbox_op_register_notifier(protodrv_notifier sig_func);
@@ -51,5 +51,7 @@ int npu_nw_mbox_ops_put(struct msgid_pool *pool, struct proto_req_nw *src);
 int npu_frame_mbox_op_is_available(void);
 int npu_frame_mbox_ops_get(struct msgid_pool *pool, struct proto_req_frame **target);
 int npu_frame_mbox_ops_put(struct msgid_pool *pool, struct proto_req_frame *src);
+
+extern const struct npu_if_protodrv_mbox_ops protodrv_mbox_ops;
 
 #endif	/* _NPU_IF_PROTODRV_MBOX_H_ */

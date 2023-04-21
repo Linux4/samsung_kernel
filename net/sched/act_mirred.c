@@ -194,8 +194,6 @@ static int tcf_mirred_init(struct net *net, struct nlattr *nla,
 		spin_lock(&mirred_list_lock);
 		list_add(&m->tcfm_list, &mirred_list);
 		spin_unlock(&mirred_list_lock);
-
-		tcf_idr_insert(tn, *a);
 	}
 
 	return ret;
@@ -262,6 +260,9 @@ static int tcf_mirred_act(struct sk_buff *skb, const struct tc_action *a,
 		if (!skb2)
 			goto out;
 	}
+
+	/* All mirred/redirected skbs should clear previous ct info */
+	nf_reset_ct(skb2);
 
 	want_ingress = tcf_mirred_act_wants_ingress(m_eaction);
 

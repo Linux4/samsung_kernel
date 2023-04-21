@@ -21,12 +21,14 @@
 #include <soc/samsung/cpu_cooling.h>
 #include <linux/suspend.h>
 #include <linux/platform_device.h>
+#include <linux/sec_pm_cpufreq.h>
 
 #include <soc/samsung/debug-snapshot.h>
 #include <soc/samsung/cal-if.h>
 #include <soc/samsung/ect_parser.h>
 #include <soc/samsung/exynos-cpupm.h>
 #include <soc/samsung/freq-qos-tracer.h>
+#include <soc/samsung/exynos-devfreq.h>
 #include <soc/samsung/exynos-dm.h>
 #include <soc/samsung/exynos-devfreq.h>
 #if IS_ENABLED(CONFIG_ARM_EXYNOS_ACME_DISABLE_BOOT_LOCK)
@@ -371,7 +373,7 @@ static int exynos_cpufreq_target(struct cpufreq_policy *policy,
 	freq = (unsigned long)target_freq;
 
 	if (policy->cpu >= 4 &&
-	   (target_freq >= 2080000 || domain->old >= 2080000))
+	    (target_freq >= 2080000 || domain->old >= 2080000))
 		exynos_alt_call_chain();
 
 	return DM_CALL(domain->dm_type, &freq);
@@ -1478,6 +1480,8 @@ static int exynos_cpufreq_probe(struct platform_device *pdev)
 			pr_info("failed to init fops with err %d\n", ret);
 			return ret;
 		}
+
+		sec_pm_cpufreq_register(policy);
 	}
 
 	cpu_cooling_notifier_register(&exynos_cpu_cooling_nb);

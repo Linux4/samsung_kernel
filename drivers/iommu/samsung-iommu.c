@@ -76,6 +76,7 @@ struct samsung_sysmmu_domain {
 };
 
 static bool sysmmu_global_init_done;
+DEFINE_MUTEX(sysmmu_global_mutex);
 static struct device sync_dev;
 static struct kmem_cache *flpt_cache, *slpt_cache;
 
@@ -766,6 +767,10 @@ static int samsung_sysmmu_add_device(struct device *dev)
 	iommu_group_put(group);
 
 	client = (struct sysmmu_clientdata *)fwspec->iommu_priv;
+	if (client->dev_link) {
+		dev_info(dev, "is already added. It's okay.\n");
+		return 0;
+	}
 	client->dev_link = kcalloc(client->sysmmu_count,
 				   sizeof(*client->dev_link), GFP_KERNEL);
 	if (!client->dev_link)
@@ -1178,13 +1183,16 @@ static int samsung_sysmmu_device_probe(struct platform_device *pdev)
 		goto err_iommu_register;
 	}
 
+	mutex_lock(&sysmmu_global_mutex);
 	if (!sysmmu_global_init_done) {
 		err = samsung_sysmmu_init_global();
 		if (err) {
 			dev_err(dev, "failed to initialize global data\n");
+			mutex_unlock(&sysmmu_global_mutex);
 			goto err_global_init;
 		}
 	}
+	mutex_unlock(&sysmmu_global_mutex);
 	pm_runtime_enable(dev);
 
 	platform_set_drvdata(pdev, data);

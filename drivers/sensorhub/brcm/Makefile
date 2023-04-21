@@ -15,12 +15,14 @@ broadcom-sensorhub-y := ssp_dev.o ssp_i2c.o ssp_data.o ssp_sysfs.o\
 						factory/accel_lsm6dso.o factory/gyro_lsm6dso.o \
 						factory/light_tmd4912.o factory/prox_tmd4912.o \
 						factory/light_tmd4907.o factory/prox_tmd4907.o factory/thermistor.o\
+						factory/light_stk33910.o factory/prox_stk33910.o\
 						factory/magnetic_ak09918c.o factory/baro_lps22hhtr.o factory/baro_lps25hhtr.o \
 						ssp_sensorhub.o ssp_misc.o	ssp_bbd.o factory/mcu_bcm4774.o \
 						bbdpl/bcm_gps_regs.o bbdpl/bcm_gps_mem.o \
 						bbdpl/bbd_rpc_lh.o bbdpl/bbd.o \
 						bbdpl/bcm_gps_spi.o
 
+broadcom-sensorhub-$(CONFIG_SENSORS_FLIP_COVER_DETECTOR)	+= factory/flip_cover_detector.o
 obj-m += broadcom-sensorhub.o
 obj-m += sensors_core.o
 #obj-$(CONFIG_SENSORS_SSP)		+= ssp_dev.o ssp_i2c.o ssp_data.o ssp_sysfs.o\

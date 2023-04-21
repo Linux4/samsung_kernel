@@ -154,6 +154,8 @@ int npu_memory_probe(struct npu_memory *memory, struct device *dev)
 	INIT_LIST_HEAD(&memory->alloc_list);
 	memory->alloc_count = 0;
 
+	memory->dma_total_used_size = 0;
+
 	return 0;
 }
 
@@ -239,20 +241,23 @@ int npu_memory_map(struct npu_memory *memory, struct npu_memory_buffer *buffer, 
 	buffer->daddr = daddr;
 
 	vaddr = dma_buf_vmap(buffer->dma_buf);
-	if (IS_ERR(vaddr)) {
+	if (IS_ERR_OR_NULL(vaddr)) {
 		npu_err("Failed to get vaddr (err %pK)\n", vaddr);
 		ret = -EFAULT;
 		goto p_err;
 	}
 	buffer->vaddr = vaddr;
 
-	npu_info("buffer[%pK], paddr[%pK], vaddr[%pK], daddr[%llx], sgt[%pK], attach[%pK], size[%zu]\n",
-		buffer, buffer->paddr, buffer->vaddr, buffer->daddr, buffer->sgt, buffer->attachment, buffer->size);
-
 	spin_lock_irqsave(&memory->map_lock, flags);
 	list_add_tail(&buffer->list, &memory->map_list);
 	memory->map_count++;
+	memory->dma_total_used_size += buffer->dma_buf->size;
 	spin_unlock_irqrestore(&memory->map_lock, flags);
+
+	npu_info("buffer[%pK], paddr[%pK], vaddr[%pK], daddr[%llx], "
+			"sgt[%pK], attach[%pK], size[%zu], dma_used[%u]\n",
+		buffer, buffer->paddr, buffer->vaddr, buffer->daddr,
+		buffer->sgt, buffer->attachment, buffer->size, memory->dma_total_used_size);
 
 	complete_suc = true;
 p_err:
@@ -269,7 +274,14 @@ void npu_memory_unmap(struct npu_memory *memory, struct npu_memory_buffer *buffe
 	BUG_ON(!memory);
 	BUG_ON(!buffer);
 
-	npu_info("Try unmapping DMABUF fd=%d size=%zu\n", buffer->fd, buffer->size);
+	if (buffer->dma_buf) {
+		memory->dma_total_used_size -= buffer->dma_buf->size;
+		if (memory->dma_total_used_size > 0x90000000)
+			memory->dma_total_used_size = 0;
+
+		npu_info("Try unmapping DMABUF fd=%d size=%zu, dma_used[%u]\n",
+				buffer->fd, buffer->size, memory->dma_total_used_size);
+	}
 	npu_trace("buffer[%pK], vaddr[%pK], daddr[%llx], sgt[%pK], attachment[%pK]\n",
 			buffer, buffer->vaddr, buffer->daddr, buffer->sgt, buffer->attachment);
 
@@ -373,7 +385,7 @@ int npu_memory_alloc(struct npu_memory *memory, struct npu_memory_buffer *buffer
 	buffer->daddr = daddr;
 
 	vaddr = dma_buf_vmap(dma_buf);
-	if (IS_ERR(vaddr)) {
+	if (IS_ERR_OR_NULL(vaddr)) {
 		npu_err("fail(err %pK) in dma_buf_vmap\n", vaddr);
 		ret = -EFAULT;
 		goto p_err;
@@ -385,10 +397,13 @@ int npu_memory_alloc(struct npu_memory *memory, struct npu_memory_buffer *buffer
 	spin_lock_irqsave(&memory->alloc_lock, flags);
 	list_add_tail(&buffer->list, &memory->alloc_list);
 	memory->alloc_count++;
+	memory->dma_total_used_size += buffer->dma_buf->size;
 	spin_unlock_irqrestore(&memory->alloc_lock, flags);
 
-	npu_info("buffer[%pK], paddr[%pK], vaddr[%pK], daddr[%llx], sgt[%pK], attach[%pK], size[%zu]\n",
-		buffer, buffer->paddr, buffer->vaddr, buffer->daddr, buffer->sgt, buffer->attachment, buffer->size);
+	npu_info("buffer[%pK], paddr[%pK], vaddr[%pK], daddr[%llx], "
+			"sgt[%pK], attach[%pK], size[%zu], dma_used[%u]\n",
+		buffer, buffer->paddr, buffer->vaddr, buffer->daddr,
+		buffer->sgt, buffer->attachment, buffer->size, memory->dma_total_used_size);
 p_err:
 	if (complete_suc != true) {
 		npu_memory_free(memory, buffer);
@@ -410,6 +425,13 @@ int npu_memory_free(struct npu_memory *memory, struct npu_memory_buffer *buffer)
 
 	npu_trace("buffer[%pK], vaddr[%pK], daddr[%llx], sgt[%pK], attachment[%pK]\n",
 		buffer, buffer->vaddr, buffer->daddr, buffer->sgt, buffer->attachment);
+
+	if (buffer->dma_buf) {
+		memory->dma_total_used_size -= buffer->dma_buf->size;
+		if (memory->dma_total_used_size > 0x90000000)
+			memory->dma_total_used_size = 0;
+		npu_info("size=%zu, dma_used[%u]\n", buffer->size, memory->dma_total_used_size);
+	}
 
 	if (!IS_ERR_OR_NULL(buffer->vaddr))
 		dma_buf_vunmap(buffer->dma_buf, buffer->vaddr);

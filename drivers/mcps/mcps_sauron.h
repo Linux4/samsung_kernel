@@ -1,5 +1,19 @@
-#ifndef MCTCP_SAURON_H
-#define MCTCP_SAURON_H
+/* SPDX-License-Identifier: GPL-2.0
+ *
+ * Copyright (C) 2019-2021 Samsung Electronics.
+ *
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ */
+#ifndef __MCPS_SAURON_H__
+#define __MCPS_SAURON_H__
 
 #include <linux/rculist.h>
 #if defined(CONFIG_MCPS_GRO_PER_SESSION)
@@ -36,8 +50,12 @@ struct eye {
 	u32 cpu;
 	u32 state;
 #if defined(CONFIG_MCPS_GRO_PER_SESSION)
+	char option;
 	u32 gro_nskb;
 	u32 gro_tog;
+
+	unsigned long t_interval;
+	unsigned long t_created;
 #endif // #if defined(CONFIG_MCPS_GRO_PER_SESSION)
 
 #if defined(CONFIG_MCPS_ICGB)
@@ -50,7 +68,7 @@ struct eye {
 	unsigned long	t_stamp;
 	unsigned long	t_capture;
 
-	int			  monitored;
+	int is_on_monitoring;
 
 	struct rcu_head rcu;
 	struct hlist_node		eye_hash_node;
@@ -72,6 +90,10 @@ struct eye {
 	struct pending_queue pendings;
 };
 
+#define FLOW_STATE_NO_GRO 0x02
+#define FLOW_STATE_FIXED_GRO 0x01
+#define FLOW_STATE_FLEX_GRO 0x00
+
 struct sauron {
 	spinlock_t sauron_eyes_lock;
 
@@ -86,7 +108,8 @@ struct sauron {
 };
 
 #define DEFAULT_MONITOR_PPS_THRESHOLD 100 // 1mbps = about 100 pps (mtu 1500)
-#define MONITOR_CONDITION(pps) (pps >= DEFAULT_MONITOR_PPS_THRESHOLD)
+#define mcps_is_satisfy_monitoring_speed(pps) ((pps) >= DEFAULT_MONITOR_PPS_THRESHOLD)
+#define mcps_is_on_monitoring(eye) ((eye)->is_on_monitoring)
 
 static inline void sauron_lock(struct sauron *s)
 {
@@ -96,36 +119,6 @@ static inline void sauron_lock(struct sauron *s)
 static inline void sauron_unlock(struct sauron *s)
 {
 	spin_unlock(&s->sauron_eyes_lock);
-}
-
-static inline void update_heavy_and_light(struct sauron  *sauron, struct eye *eye)
-{
-	int cpu = eye->cpu;
-	if (!MONITOR_CONDITION(eye->pps))
-		return;
-
-	spin_lock(&sauron->cached_eyes_lock[cpu]);
-	if (!sauron->heavy_eyes[cpu] || sauron->heavy_eyes[cpu]->pps < eye->pps) {
-		sauron->heavy_eyes[cpu] = eye;
-	}
-
-	if (!sauron->light_eyes[cpu] || sauron->light_eyes[cpu]->pps > eye->pps) {
-		sauron->light_eyes[cpu] = eye;
-	}
-	spin_unlock(&sauron->cached_eyes_lock[cpu]);
-}
-
-static inline void remove_heavy_and_light(struct sauron  *sauron, struct eye *eye)
-{
-	int cpu = eye->cpu;
-
-	spin_lock(&sauron->cached_eyes_lock[cpu]);
-	if (sauron->heavy_eyes[cpu] == eye)
-		sauron->heavy_eyes[cpu] = NULL;
-
-	if (sauron->light_eyes[cpu] == eye)
-		sauron->light_eyes[cpu] = NULL;
-	spin_unlock(&sauron->cached_eyes_lock[cpu]);
 }
 
 struct eye *pick_heavy(struct sauron  *sauron, int cpu);
@@ -146,7 +139,8 @@ struct eye_skb {
 #define EYESKB(skb) ((struct eye_skb *)((skb)->cb))
 static inline void mcps_eye_gro_stamp(struct eye *e, struct sk_buff *skb)
 {
-	e->gro_tog = (e->gro_nskb != 0) ? (e->gro_tog+1)%e->gro_nskb : 0;
+	if (++e->gro_tog >= e->gro_nskb)
+		e->gro_tog = 0;
 	EYESKB(skb)->limit = e->gro_nskb;
 	EYESKB(skb)->count = e->gro_tog;
 }
@@ -176,8 +170,8 @@ int flush_flows(int force);
 
 struct eye *search_flow(struct sauron *sauron, u32 hash);
 int _move_flow(unsigned int hash, unsigned int to);
-
+int migrate_flow_on_cpu(unsigned int from, unsigned int to, unsigned int option);
 int migrate_flow(unsigned int from, unsigned int to, unsigned int option);
 
 unsigned int light_cpu(void);
-#endif
+#endif //__MCPS_SAURON_H__

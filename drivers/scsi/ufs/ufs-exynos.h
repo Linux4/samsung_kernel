@@ -225,6 +225,7 @@ struct exynos_ufs {
 	struct work_struct resume_work;
 
 	bool skip_flush;
+	bool deep_suspended;
 	unsigned int reset_cnt;
 	u64 transferred_bytes;
 

@@ -18,6 +18,7 @@
 #include "is-device-sensor-peri.h"
 #include "is-device-sensor.h"
 #include "is-video.h"
+#include "is-ois-mcu.h"
 
 extern struct device *is_dev;
 #ifdef FIXED_SENSOR_DEBUG
@@ -395,10 +396,17 @@ void is_sensor_setting_mode_change(struct is_device_sensor_peri *sensor_peri)
 	enum is_exposure_gain_count num_data = EXPOSURE_GAIN_COUNT_INVALID;
 	u32 frame_duration = 0;
 
+	struct is_sensor_ctl *module_ctl;
+	camera2_sensor_ctl_t *sensor_ctrl = NULL;
+
 	FIMC_BUG_VOID(!sensor_peri);
 
 	device = v4l2_get_subdev_hostdata(sensor_peri->subdev_cis);
 	FIMC_BUG_VOID(!device);
+
+	/* device->fcount + 1 = frame_count at copy_sensor_ctl */
+	module_ctl = &sensor_peri->cis.sensor_ctls[(device->fcount + 1) % EXPECT_DM_NUM];
+	sensor_ctrl = &module_ctl->cur_cam20_sensor_ctrl;
 
 	num_data = sensor_peri->cis.exp_gain_cnt;
 	switch (num_data) {
@@ -478,13 +486,19 @@ void is_sensor_setting_mode_change(struct is_device_sensor_peri *sensor_peri)
 			expo.long_val, &frame_duration);
 	is_sensor_peri_s_frame_duration(device, frame_duration);
 
-	is_sensor_peri_s_analog_gain(device, again);
-	is_sensor_peri_s_digital_gain(device, dgain);
-	is_sensor_peri_s_exposure_time(device, expo);
+	if (sensor_peri->cis.use_vendor_total_gain) {
+		is_sensor_peri_s_totalgain(device, expo, again, dgain);
+	} else {
+		is_sensor_peri_s_analog_gain(device, again);
+		is_sensor_peri_s_digital_gain(device, dgain);
+		is_sensor_peri_s_exposure_time(device, expo);
+	}
 
 	is_sensor_peri_s_wb_gains(device, sensor_peri->cis.mode_chg_wb_gains);
 	is_sensor_peri_s_sensor_stats(device, false, NULL,
 			(void *)(uintptr_t)(sensor_peri->cis.sensor_stats || sensor_peri->cis.lsc_table_status));
+
+	is_sensor_set_test_pattern(device, sensor_ctrl);
 
 	sensor_peri->sensor_interface.cis_itf_ops.request_reset_expo_gain(&sensor_peri->sensor_interface,
 			num_data,
@@ -560,9 +574,13 @@ void is_sensor_flash_fire_work(struct work_struct *data)
 		    flash->flash_ae.expo[step], &frame_duration);
 		is_sensor_peri_s_frame_duration(device, frame_duration);
 
-		is_sensor_peri_s_analog_gain(device, again);
-		is_sensor_peri_s_digital_gain(device, dgain);
-		is_sensor_peri_s_exposure_time(device, expo);
+		if (sensor_peri->cis.use_vendor_total_gain) {
+			is_sensor_peri_s_totalgain(device, expo, again, dgain);
+		} else {
+			is_sensor_peri_s_analog_gain(device, again);
+			is_sensor_peri_s_digital_gain(device, dgain);
+			is_sensor_peri_s_exposure_time(device, expo);
+		}
 
 		sensor_peri->sensor_interface.cis_itf_ops.request_reset_expo_gain(&sensor_peri->sensor_interface,
 			EXPOSURE_GAIN_COUNT_3,
@@ -584,9 +602,13 @@ void is_sensor_flash_fire_work(struct work_struct *data)
 			MAX(flash->flash_ae.long_expo[step], flash->flash_ae.short_expo[step]), &frame_duration);
 		is_sensor_peri_s_frame_duration(device, frame_duration);
 
-		is_sensor_peri_s_analog_gain(device, again);
-		is_sensor_peri_s_digital_gain(device, dgain);
-		is_sensor_peri_s_exposure_time(device, expo);
+		if (sensor_peri->cis.use_vendor_total_gain) {
+			is_sensor_peri_s_totalgain(device, expo, again, dgain);
+		} else {
+			is_sensor_peri_s_analog_gain(device, again);
+			is_sensor_peri_s_digital_gain(device, dgain);
+			is_sensor_peri_s_exposure_time(device, expo);
+		}
 
 		sensor_peri->sensor_interface.cis_itf_ops.request_reset_expo_gain(&sensor_peri->sensor_interface,
 			EXPOSURE_GAIN_COUNT_3,
@@ -1432,9 +1454,13 @@ void is_sensor_long_term_mode_set_work(struct work_struct *data)
 	CALL_CISOPS(&sensor_peri->cis, cis_adjust_frame_duration, sensor_peri->subdev_cis,
 			cis->long_term_mode.expo[step], &frame_duration);
 	is_sensor_peri_s_frame_duration(device, frame_duration);
-	is_sensor_peri_s_analog_gain(device, again);
-	is_sensor_peri_s_digital_gain(device, dgain);
-	is_sensor_peri_s_exposure_time(device, expo);
+	if (sensor_peri->cis.use_vendor_total_gain) {
+		is_sensor_peri_s_totalgain(device, expo, again, dgain);
+	} else {
+		is_sensor_peri_s_analog_gain(device, again);
+		is_sensor_peri_s_digital_gain(device, dgain);
+		is_sensor_peri_s_exposure_time(device, expo);
+	}
 
 	sensor_peri->sensor_interface.cis_itf_ops.request_reset_expo_gain(&sensor_peri->sensor_interface,
 			EXPOSURE_GAIN_COUNT_3,
@@ -1863,6 +1889,51 @@ static void is_sensor_peri_ctl_dual_sync(struct is_device_sensor *device, bool o
 	}
 }
 
+bool is_sensor_peri_check_mcu_disable_condition(struct is_device_sensor *device)
+{
+	struct is_device_sensor *device_mcu = NULL;
+	struct is_core *core = NULL;
+	struct is_device_sensor_peri *sensor_peri = NULL;
+	struct v4l2_subdev *subdev_module;
+	struct is_module_enum *module;
+	bool ret = false;
+
+	core = (struct is_core *)device->private_data;
+
+	subdev_module = device->subdev_module;
+	if (!subdev_module) {
+		err("subdev_module is NULL");
+		return ret;
+	}
+
+	module = v4l2_get_subdevdata(subdev_module);
+	if (!module) {
+		err("module is NULL");
+		return ret;
+	}
+
+	sensor_peri = (struct is_device_sensor_peri *)module->private_data;
+
+	if ((device->ischain->setfile & IS_SETFILE_MASK) == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY
+		|| (device->ischain->setfile & IS_SETFILE_MASK) == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY_WDR_AUTO
+		|| (device->ischain->setfile & IS_SETFILE_MASK) == ISS_SUB_SCENARIO_VIDEO_SUPER_STEADY_WDR_ON
+		|| (sensor_peri->check_auto_framing)) {
+		device_mcu = &core->sensor[0];
+
+		if (device_mcu->mcu->off_during_uwonly_mode || sensor_peri->check_auto_framing) {
+			ret = true;
+			info("[%s] set ois disable condition.", __func__);
+
+			if (!core->mcu->need_reset_mcu) {
+				core->mcu->need_reset_mcu = true;
+				info("[%s] set ois reset flag.", __func__);
+			}
+		}
+	}
+
+	return ret;
+}
+
 int is_sensor_peri_s_stream(struct is_device_sensor *device,
 					bool on)
 {
@@ -1875,8 +1946,10 @@ int is_sensor_peri_s_stream(struct is_device_sensor *device,
 	struct is_cis *cis = NULL;
 	struct is_core *core = NULL;
 	struct is_dual_info *dual_info = NULL;
+	struct is_device_sensor *device_mcu = NULL;
 	bool skip_sub_device = false;
 	bool skip_sub_device_mcu = false;
+	bool check_mcu_disable = false;
 
 	FIMC_BUG(!device);
 
@@ -1914,12 +1987,16 @@ int is_sensor_peri_s_stream(struct is_device_sensor *device,
 
 		if (sensor_peri->mcu && !sensor_peri->mcu->support_photo_fastae)
 			skip_sub_device_mcu = true;
+		else if (sensor_peri->mcu)
+			sensor_peri->mcu->ois->ois_mode = OPTICAL_STABILIZATION_MODE_STILL;
 	}
 
 	if (cis->cis_data->is_data.scene_mode == AA_SCENE_MODE_FAST_AE
 		&& core->vender.opening_hint == IS_OPENING_HINT_FASTEN_AE_VIDEO) {
 		if (sensor_peri->mcu && sensor_peri->mcu->skip_video_fastae)
 			skip_sub_device_mcu = true;
+		else if (sensor_peri->mcu)
+			sensor_peri->mcu->ois->ois_mode = OPTICAL_STABILIZATION_MODE_VIDEO;
 	}
 
 	ret = is_sensor_peri_debug_fixed((struct is_device_sensor *)v4l2_get_subdev_hostdata(subdev_module));
@@ -1928,7 +2005,28 @@ int is_sensor_peri_s_stream(struct is_device_sensor *device,
 		goto p_err;
 	}
 
+	if (!on) {
+		if (sensor_peri->check_auto_framing) {
+			sensor_peri->check_auto_framing = false;
+			info("%s off auto framing flag", __func__);
+		}
+	}
+
+	check_mcu_disable = is_sensor_peri_check_mcu_disable_condition(device);
+
 	if (on) {
+		if (!sensor_peri->mcu && check_mcu_disable) {
+			device_mcu = &core->sensor[0];
+
+			if (device_mcu->mcu) {
+				ret = CALL_OISOPS(device_mcu->mcu->ois, ois_disable, device_mcu->subdev_mcu);
+				if (ret < 0)
+					err("v4l2_subdev_call(ois_disable) is fail(%d)", ret);
+
+				info("[%s] ois disable in case of supersteady scenario.", __func__);
+			}
+		}
+
 		if (!skip_sub_device) {
 #ifdef USE_AF_SLEEP_MODE
 #if defined(USE_TELE_OIS_AF_COMMON_INTERFACE) || defined(USE_TELE2_OIS_AF_COMMON_INTERFACE)
@@ -1957,7 +2055,7 @@ int is_sensor_peri_s_stream(struct is_device_sensor *device,
 #endif
 		}
 
-		if (!skip_sub_device_mcu) {
+		if (!skip_sub_device_mcu && !check_mcu_disable) {
 			if (sensor_peri->mcu && sensor_peri->mcu->ois)
 				schedule_work(&sensor_peri->mcu->ois->ois_set_init_work);
 		}
@@ -1987,7 +2085,7 @@ int is_sensor_peri_s_stream(struct is_device_sensor *device,
 			info("[%s] join time X", __func__);
 		}
 
-		if (!skip_sub_device_mcu) {
+		if (!skip_sub_device_mcu && !check_mcu_disable) {
 			info("[%s] mcu join time E", __func__);
 
 			if (sensor_peri->mcu && sensor_peri->mcu->ois)
@@ -2049,7 +2147,7 @@ int is_sensor_peri_s_stream(struct is_device_sensor *device,
 #endif
 		}
 
-		if (!skip_sub_device_mcu) {
+		if (!skip_sub_device_mcu && !check_mcu_disable) {
 			if (sensor_peri->mcu && sensor_peri->mcu->ois)
 				schedule_work(&sensor_peri->mcu->ois->ois_set_deinit_work);
 		}
@@ -2119,7 +2217,7 @@ int is_sensor_peri_s_stream(struct is_device_sensor *device,
 			info("[%s] join time X", __func__);
 		}
 
-		if (!skip_sub_device_mcu) {
+		if (!skip_sub_device_mcu && !check_mcu_disable) {
 			info("[%s] mcu join time E", __func__);
 
 			if (sensor_peri->mcu && sensor_peri->mcu->ois)
@@ -2484,6 +2582,66 @@ p_err:
 	return ret;
 }
 
+int is_sensor_peri_s_totalgain(struct is_device_sensor *device,
+	struct ae_param expo,
+	struct ae_param again,
+	struct ae_param dgain)
+{
+	int ret = 0;
+	struct v4l2_subdev *subdev_module;
+	struct is_module_enum *module;
+	struct is_device_sensor_peri *sensor_peri = NULL;
+
+	FIMC_BUG(!device);
+
+	subdev_module = device->subdev_module;
+	if (!subdev_module) {
+		err("subdev_module is NULL");
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+	module = v4l2_get_subdevdata(subdev_module);
+	if (!module) {
+		err("module is NULL");
+		ret = -EINVAL;
+		goto p_err;
+	}
+	sensor_peri = (struct is_device_sensor_peri *)module->private_data;
+
+#ifdef FIXED_SENSOR_DEBUG
+	if (unlikely(sysfs_sensor.is_en == true)) {
+		expo.long_val = sysfs_sensor.long_exposure_time;
+		expo.short_val = sysfs_sensor.short_exposure_time;
+		dbg_sensor(1, "exposure = %d %d\n", expo.long_val, expo.short_val);
+
+		again.long_val = sysfs_sensor.long_analog_gain * 10;
+		again.short_val = sysfs_sensor.short_analog_gain * 10;
+		dbg_sensor(1, "again = %d %d\n", sysfs_sensor.long_analog_gain, sysfs_sensor.short_analog_gain);
+
+		dgain.long_val = sysfs_sensor.long_digital_gain * 10;
+		dgain.short_val = sysfs_sensor.short_digital_gain * 10;
+		dbg_sensor(1, "dgain = %d %d\n", sysfs_sensor.long_digital_gain, sysfs_sensor.short_digital_gain);
+	}
+#endif
+
+	ret = CALL_CISOPS(&sensor_peri->cis, cis_set_totalgain, sensor_peri->subdev_cis, &expo, &again, &dgain);
+	if (ret < 0) {
+		err("err!!! ret(%d)", ret);
+		goto p_err;
+	}
+
+	device->exposure_time = expo.long_val;
+	/* 0: Previous input, 1: Current input */
+	sensor_peri->cis.cis_data->analog_gain[0] = sensor_peri->cis.cis_data->analog_gain[1];
+	sensor_peri->cis.cis_data->analog_gain[1] = again.long_val;
+	sensor_peri->cis.cis_data->digital_gain[0] = sensor_peri->cis.cis_data->digital_gain[1];
+	sensor_peri->cis.cis_data->digital_gain[1] = dgain.long_val;
+
+p_err:
+	return ret;
+}
+
 int is_sensor_peri_s_wb_gains(struct is_device_sensor *device,
 		struct wb_gains wb_gains)
 {
@@ -2509,6 +2667,36 @@ int is_sensor_peri_s_wb_gains(struct is_device_sensor *device,
 	ret = CALL_CISOPS(&sensor_peri->cis, cis_set_wb_gains, sensor_peri->subdev_cis, wb_gains);
 	if (ret < 0)
 		err("failed to set wb gains(%d)", ret);
+
+p_err:
+	return ret;
+}
+
+int is_sensor_set_test_pattern(struct is_device_sensor *device,
+				camera2_sensor_ctl_t *sensor_ctl)
+{
+	int ret = 0;
+	struct v4l2_subdev *subdev_module;
+
+	struct is_module_enum *module;
+	struct is_device_sensor_peri *sensor_peri = NULL;
+
+	BUG_ON(!device);
+	BUG_ON(!device->subdev_module);
+
+	subdev_module = device->subdev_module;
+
+	module = v4l2_get_subdevdata(subdev_module);
+	if (!module) {
+		err("module is NULL");
+		ret = -EINVAL;
+		goto p_err;
+	}
+	sensor_peri = (struct is_device_sensor_peri *)module->private_data;
+
+	ret = CALL_CISOPS(&sensor_peri->cis, cis_set_test_pattern, sensor_peri->subdev_cis, sensor_ctl);
+	if (ret < 0)
+		err("failed to set test pattern(%d)", ret);
 
 p_err:
 	return ret;

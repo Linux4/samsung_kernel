@@ -279,6 +279,7 @@ struct is_hw_mcsc {
 	u32	out_img_format[MCSC_OUTPUT_MAX];
 	bool	conv420_en[MCSC_OUTPUT_MAX];
 	bool	rep_flag[IS_STREAM_COUNT];
+	bool	tune_set[IS_STREAM_COUNT];
 	int	yuv_range;
 	u32	instance;
 	ulong	out_en;		/* This flag save whether the capture video node of MCSC is opened or not. */

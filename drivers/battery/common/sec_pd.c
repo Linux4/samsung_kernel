@@ -81,7 +81,8 @@ int sec_pd_get_apdo_max_power(unsigned int *pdo_pos, unsigned int *taMaxVol, uns
 	if (*pdo_pos == 0) {
 		/* Get the proper PDO */
 		for (i = 1; i <= g_psink_status->available_pdo_num; i++) {
-			if (g_psink_status->power_list[i].apdo) {
+			if (g_psink_status->power_list[i].apdo
+				&& g_psink_status->power_list[i].accept) {
 				if (g_psink_status->power_list[i].max_voltage >= *taMaxVol) {
 					*pdo_pos = i;
 					*taMaxVol = g_psink_status->power_list[i].max_voltage;
@@ -109,6 +110,23 @@ int sec_pd_get_apdo_max_power(unsigned int *pdo_pos, unsigned int *taMaxVol, uns
 	return ret;
 }
 EXPORT_SYMBOL(sec_pd_get_apdo_max_power);
+
+int sec_pd_get_selected_pdo(unsigned int *pdo)
+{
+	if (pdo == NULL) {
+		pr_err("%s: invalid argument\n", __func__);
+		return -1;
+	}
+
+	if (!g_psink_status) {
+		pr_err("%s: g_psink_status is NULL\n", __func__);
+		return -1;
+	}
+
+	*pdo = g_psink_status->selected_pdo_num;
+	return 0;
+}
+EXPORT_SYMBOL(sec_pd_get_selected_pdo);
 
 void sec_pd_init_data(SEC_PD_SINK_STATUS* psink_status)
 {
@@ -143,6 +161,22 @@ void sec_pd_get_vid_pid(unsigned short *vid, unsigned short *pid, unsigned int *
 	*xid = g_psink_status->xid;
 }
 EXPORT_SYMBOL(sec_pd_get_vid_pid);
+
+void sec_pd_manual_ccopen_req(int is_on)
+{
+	if (!g_psink_status) {
+		pr_err("%s: g_psink_status is NULL\n", __func__);
+		return;
+	}
+
+	if (!g_psink_status->fp_sec_pd_manual_ccopen_req) {
+		pr_err("%s: not exist\n", __func__);
+		return;
+	}
+
+	g_psink_status->fp_sec_pd_manual_ccopen_req(is_on);
+}
+EXPORT_SYMBOL(sec_pd_manual_ccopen_req);
 
 static int __init sec_pd_init(void)
 {

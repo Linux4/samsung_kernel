@@ -381,7 +381,7 @@ static int parse_ect_cooling_level(struct thermal_cooling_device *cdev,
 
 		instance = get_thermal_instance(tz, cdev, i);
 		if (!instance) {
-			pr_err("%s: (%s, %d)instance isn't valid\n", __func__, tz_name, i);
+			tmu_pr_err("%s: (%s, %d)instance isn't valid\n", __func__, tz_name, i);
 			goto skip_ect;
 		}
 
@@ -393,7 +393,7 @@ static int parse_ect_cooling_level(struct thermal_cooling_device *cdev,
 
 		instance->upper = level;
 
-		pr_info("Parsed From ECT : %s: [%d] Temperature : %d, frequency : %u, level: %d\n",
+		tmu_pr_info("Parsed From ECT : %s: [%d] Temperature : %d, frequency : %u, level: %d\n",
 			tz_name, i, temperature, freq, level);
 	}
 skip_ect:
@@ -541,13 +541,13 @@ static int isp_cooling_table_init(void)
 #if defined(CONFIG_ECT) || defined(CONFIG_ECT_MODULE)
 	thermal_block = ect_get_block(BLOCK_AP_THERMAL);
 	if (thermal_block == NULL) {
-		pr_err("Failed to get thermal block");
+		tmu_pr_err("Failed to get thermal block");
 		return -ENODEV;
 	}
 
 	function = ect_ap_thermal_get_function(thermal_block, "ISP");
 	if (function == NULL) {
-		pr_err("Failed to get ISP thermal information");
+		tmu_pr_err("Failed to get ISP thermal information");
 		return -ENODEV;
 	}
 
@@ -563,7 +563,7 @@ static int isp_cooling_table_init(void)
 		isp_fps_table[count].fps = function->range_list[i].max_frequency;
 		last_fps = isp_fps_table[count].fps;
 
-		pr_info("[ISP TMU] index : %d, fps : %d\n",
+		tmu_pr_info("[ISP TMU] index : %d, fps : %d\n",
 			isp_fps_table[count].driver_data, isp_fps_table[count].fps);
 		count++;
 	}
@@ -571,7 +571,7 @@ static int isp_cooling_table_init(void)
 	if (i == function->num_of_range)
 		isp_fps_table[count].fps = ISP_FPS_TABLE_END;
 #else
-	pr_err("[ISP cooling] could not find ECT information\n");
+	tmu_pr_err("[ISP cooling] could not find ECT information\n");
 	ret = -EINVAL;
 #endif
 	return ret;
@@ -586,21 +586,21 @@ int exynos_isp_cooling_init(void)
 	ret = isp_cooling_table_init();
 
 	if (ret) {
-		pr_err("Fail to initialize isp_cooling_table\n");
+		tmu_pr_err("Fail to initialize isp_cooling_table\n");
 		return ret;
 	}
 
 	np = of_find_node_by_name(NULL, "exynos_isp_thermal");
 
 	if (!np) {
-		pr_err("Fail to find device node\n");
+		tmu_pr_err("Fail to find device node\n");
 		return -EINVAL;
 	}
 
 	dev = of_isp_cooling_register(np, 0);
 
 	if (IS_ERR(dev)) {
-		pr_err("Fail to register isp cooling\n");
+		tmu_pr_err("Fail to register isp cooling\n");
 		return -EINVAL;
 	}
 

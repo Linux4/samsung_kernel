@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2019 Samsung Electronics.
  *
@@ -25,6 +26,8 @@
 #include <linux/pm_qos.h> //lsi
 #endif // #if defined(CONFIG_MCPS_ICB)
 
+#include "utils/mcps_cpu.h"
+#include "utils/mcps_logger.h"
 #include "mcps_sauron.h"
 #include "mcps_device.h"
 #include "mcps_buffer.h"
@@ -39,8 +42,8 @@ int create_mcps(void);
 void release_mcps(void);
 
 int mcps_enable __read_mostly;
-module_param(mcps_enable, int, 0640);
 EXPORT_SYMBOL_GPL(mcps_enable);
+module_param(mcps_enable, int, 0640);
 
 int mcps_pantry_max_capability __read_mostly = 30000;
 module_param(mcps_pantry_max_capability, int, 0640);
@@ -74,32 +77,27 @@ module_param(mcps_big_freq_qos_min_clock, int, 0640);
 
 static inline void mcps_pm_qos_activate(int class, int clock, struct pm_qos_request *qos)
 {
-	if (pm_qos_request_active(qos)) {
+	if (pm_qos_request_active(qos))
 		pm_qos_update_request(qos, clock);
-	} else {
+	else
 		pm_qos_add_request(qos, class, clock);
-	}
 }
 
 static void mcps_boost_start(struct work_struct *work)
 {
 	struct icb *picb = (struct icb *)container_of(work, struct icb, __mcps_boost_work);
 
-	if (delayed_work_pending(&picb->__mcps_boost_dwork)) {
+	if (delayed_work_pending(&picb->__mcps_boost_dwork))
 		cancel_delayed_work_sync(&picb->__mcps_boost_dwork);
-	}
 
-	if (picb->mask & 0x1) { //little
+	if (picb->mask & 0x1) //little
 		mcps_pm_qos_activate(PM_QOS_CLUSTER0_FREQ_MIN, mcps_lit_freq_qos_min_clock, &mcps_lit_freq_qos);
-	}
 
-	if (picb->mask & 0x2) { //mid
+	if (picb->mask & 0x2) //mid
 		mcps_pm_qos_activate(PM_QOS_CLUSTER1_FREQ_MIN, mcps_mid_freq_qos_min_clock, &mcps_mid_freq_qos);
-	}
 
-	if (picb->mask & 0x4) { //big
+	if (picb->mask & 0x4) //big
 		mcps_pm_qos_activate(PM_QOS_CLUSTER2_FREQ_MIN, mcps_big_freq_qos_min_clock, &mcps_big_freq_qos);
-	}
 
 	schedule_delayed_work(&picb->__mcps_boost_dwork, mcps_freq_boost_timeout);
 	picb->__mcps_boost_work_sched = 0;
@@ -107,15 +105,14 @@ static void mcps_boost_start(struct work_struct *work)
 
 static void mcps_boost_cleanup(struct work_struct *work)
 {
-	if (pm_qos_request_active(&mcps_lit_freq_qos)) {
+	if (pm_qos_request_active(&mcps_lit_freq_qos))
 		pm_qos_remove_request(&mcps_lit_freq_qos);
-	}
-	if (pm_qos_request_active(&mcps_mid_freq_qos)) {
+
+	if (pm_qos_request_active(&mcps_mid_freq_qos))
 		pm_qos_remove_request(&mcps_mid_freq_qos);
-	}
-	if (pm_qos_request_active(&mcps_big_freq_qos)) {
+
+	if (pm_qos_request_active(&mcps_big_freq_qos))
 		pm_qos_remove_request(&mcps_big_freq_qos);
-	}
 }
 
 void mcps_boost_clock(int mask)
@@ -152,18 +149,20 @@ void mcps_napi_complete(struct napi_struct *n)
 void mcps_napi_schedule(void *info)
 {
 	struct mcps_pantry *pantry = (struct mcps_pantry *)info;
+
 	__napi_schedule_irqoff(&pantry->rx_napi_struct);
 	pantry->received_arps++;
 }
 
 /* smp_call_function_single_async - Can deadlock when called with interrupts disabled.
-* We allow cpu's that are not yet online though, as no one else can
-* send smp call function interrupt to this cpu and as such deadlocks
-* can't happen.
-*/
+ * We allow cpu's that are not yet online though, as no one else can
+ * send smp call function interrupt to this cpu and as such deadlocks
+ * can't happen.
+ */
 void mcps_do_ipi_and_irq_enable(struct mcps_pantry *pantry)
 {
 	struct mcps_pantry *next = pantry->ipi_list;
+
 	if (next) {
 		pantry->ipi_list = NULL;
 
@@ -171,6 +170,7 @@ void mcps_do_ipi_and_irq_enable(struct mcps_pantry *pantry)
 
 		while (next) {
 			struct mcps_pantry *temp = next->ipi_next;
+
 			if (mcps_cpu_online(next->cpu)) {
 				PRINT_DO_IPI(next->cpu);
 
@@ -189,6 +189,7 @@ bool mcps_on_ipi_waiting(struct mcps_pantry *pantry)
 int schedule_ipi(struct napi_struct *napi, int quota)
 {
 	struct mcps_pantry *pantry = container_of(napi, struct mcps_pantry, ipi_napi_struct);
+
 	tracing_mark_writev('B', 1111, "schedule_ipi", 0);
 	if (mcps_on_ipi_waiting(pantry)) {
 		local_irq_disable();
@@ -221,11 +222,11 @@ static int process_pantry(struct napi_struct *napi, int quota)
 
 		while ((skb = __skb_dequeue(&pantry->process_queue))) {
 			__this_cpu_inc(mcps_pantries.processed);
+
 			netif_receive_skb(skb); //This function may only be called from softirq context and interrupts should be enabled. Ref.function description
 
-			if (++work >= quota) {
+			if (++work >= quota)
 				goto end;
-			}
 		}
 
 		local_irq_disable();
@@ -283,6 +284,7 @@ int enqueue_to_pantry(struct sk_buff *skb, int cpu)
 	// hp off.
 	if (pantry->offline) {
 		int hdr_cpu = 0;
+
 		pantry_unlock(pantry);
 		local_irq_restore(flags);
 
@@ -291,12 +293,12 @@ int enqueue_to_pantry(struct sk_buff *skb, int cpu)
 		if (hdr_cpu < 0) {
 			tracing_mark_writev('E', 1111, "enqueue_to_pantry", 88);
 			return NET_RX_SUCCESS;
-		} else {
-			pantry = &per_cpu(mcps_pantries, hdr_cpu);
-
-			local_irq_save(flags);
-			pantry_lock(pantry);
 		}
+
+		pantry = &per_cpu(mcps_pantries, hdr_cpu);
+
+		local_irq_save(flags);
+		pantry_lock(pantry);
 	}
 
 	qlen = skb_queue_len(&pantry->input_pkt_queue);
@@ -323,7 +325,7 @@ enqueue:
 		goto enqueue;
 	}
 
-	MCPS_DEBUG("[%d] dropped \n", cpu);
+	MCPS_DEBUG("[%d] dropped\n", cpu);
 
 	pantry->dropped++;
 	pantry_unlock(pantry);
@@ -355,7 +357,7 @@ int mcps_try_skb_internal(struct sk_buff *skb)
 		rcu_read_unlock();
 		goto error;
 	}
-	if (cpu == NR_CPUS) {
+	if (cpu == mcps_nr_cpus) {
 		rcu_read_unlock();
 		return NET_RX_SUCCESS;
 	}
@@ -420,9 +422,8 @@ int mcps_cpu_teardown_callback(unsigned int ocpu)
 	skb_queue_head_init(&queue);
 
 	cpu = light_cpu();
-	if (cpu == ocpu) {
+	if (cpu == ocpu)
 		cpu = 0;
-	}
 
 	pantry = &per_cpu(mcps_pantries, cpu);
 	oldpantry = &per_cpu(mcps_pantries, oldcpu);
@@ -478,9 +479,9 @@ int mcps_cpu_teardown_callback(unsigned int ocpu)
 	pantry_unlock(pantry);
 	local_irq_enable();
 
-	if (needsched && mcps_cpu_online(cpu)) {
+	if (needsched && mcps_cpu_online(cpu))
 		smp_call_function_single_async(pantry->cpu, &pantry->csd);
-	}
+
 	tracing_mark_writev('E', 1111, "mcps_cpu_offline", cpu);
 
 	mcps_gro_cpu_teardown_callback(ocpu);
@@ -498,7 +499,7 @@ int create_mcps(void)
 	int ret;
 	struct mcps_config *config;
 
-	config = (struct mcps_config *)kzalloc(sizeof(struct mcps_config), GFP_KERNEL);
+	config = kzalloc(sizeof(struct mcps_config), GFP_KERNEL);
 	if (!config)
 		return -ENOMEM;
 
@@ -519,7 +520,6 @@ void release_mcps(void)
 		kfree(mcps);
 	}
 }
-
 
 struct net_device *mcps_device;
 
@@ -547,39 +547,30 @@ static void mcps_dev_setup(struct net_device *dev)
 	dev->needs_free_netdev = true;
 }
 
-static int create_mcps_virtual_dev(void)
+mcps_visible_for_testing
+struct net_device *create_mcps_virtual_dev(const char *name)
 {
-	int err;
+	struct net_device *device = alloc_netdev(0, name, NET_NAME_UNKNOWN, mcps_dev_setup);
 
-	mcps_device = alloc_netdev(0, "mcps%d", NET_NAME_UNKNOWN, mcps_dev_setup);
-	if (!mcps_device)
-		return -ENOMEM;
+	if (!device)
+		return NULL;
 
-	//must change to int register_netdev(struct net_device *dev) for lock.
-	err = register_netdev(mcps_device);
-	if (err < 0)
-		goto err;
-
-	MCPS_DEBUG("Success to create mcps netdevice\n");
-	return 0;
-
-err:
-	free_netdev(mcps_device);
-	MCPS_DEBUG("Fail to create mcps netdevice\n");
-	return err;
+	return device;
 }
 
-static void release_mcps_virtual_dev(void)
+mcps_visible_for_testing
+void release_mcps_virtual_dev(struct net_device *netdev)
 {
-	if (!mcps_device)
+	if (!netdev)
 		return;
 
-	unregister_netdev(mcps_device);
+	free_netdev(netdev);
 }
 
 static int init_mcps_notifys(void)
 {
 	int ret = 0;
+
 	ret = cpuhp_setup_state(CPUHP_AP_ONLINE_DYN, "net/mcps:online",
 			mcps_cpu_startup_callback, mcps_cpu_teardown_callback);
 	if (ret < 0) { // < 0 return If fail to setup. ref) http://heim.ifi.uio.no/~knuto/kernel/4.14/core-api/cpu_hotplug.html
@@ -607,8 +598,16 @@ static int mcps_init(void)
 		return -ENOMEM;
 	}
 
-	if (create_mcps_virtual_dev()) {
+	mcps_device = create_mcps_virtual_dev("mcps%d");
+	if (!mcps_device) {
 		MCPS_DEBUG("create_mcps_virtual_dev - fail\n");
+		return -ENOMEM;
+	}
+
+	ret = register_netdev(mcps_device);
+	if (ret < 0) {
+		release_mcps_virtual_dev(mcps_device);
+		return -ENOMEM;
 	}
 
 	for_each_possible_cpu(i) {
@@ -676,13 +675,14 @@ static void mcps_exit(void)
 	release_mcps_buffer();
 	release_mcps_core();
 	release_mcps();
-	release_mcps_virtual_dev();
+	unregister_netdev(mcps_device);
+	release_mcps_virtual_dev(mcps_device);
 }
 
 module_init(mcps_init);
 module_exit(mcps_exit);
 
 MODULE_AUTHOR("yw8738.kim@samsung.com");
-MODULE_VERSION("2.0.1");
+MODULE_VERSION("3.0.6");
 MODULE_DESCRIPTION("Multi-Core Packet Scheduler");
 MODULE_LICENSE("GPL v2");

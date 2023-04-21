@@ -585,7 +585,7 @@ int is_set_dvfs(struct is_core *core, struct is_device_ischain *device, int scen
 #endif
 	if (IS_ENABLED(THROTTLING_MIF_ENABLE) && resourcemgr->limited_fps) {
 		mif_qos = THROTTLING_MIF_LEVEL;
-		if (dvfs_ctrl->thr_int_cam_qos != mif_qos) {
+		if (dvfs_ctrl->thr_mif_qos != mif_qos) {
 			is_pm_qos_update_request(&exynos_isp_qos_mem, mif_qos);
 			dvfs_ctrl->thr_mif_qos = mif_qos;
 		}

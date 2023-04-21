@@ -18,6 +18,7 @@
 #include <linux/seq_file.h>
 #include <linux/sched/clock.h>
 #include <soc/samsung/exynos_pm_qos.h>
+#include <soc/samsung/debug-snapshot-log.h>
 
 #define QOS_FUNC_NAME_LEN	32
 
@@ -48,11 +49,11 @@ static unsigned long curr_exynos_pm_qos_idx;
 
 static char pm_qos_exclusive_class[EXYNOS_PM_QOS_NUM_CLASSES] = {
 	[PM_QOS_DEVICE_THROUGHPUT] = 1,
+	[PM_QOS_DISPLAY_THROUGHPUT] = 1,
 	[PM_QOS_NETWORK_THROUGHPUT] = 1,
 };
 
 struct proc_dir_entry *sec_pm_log_parent;
-EXPORT_SYMBOL_GPL(sec_pm_log_parent);
 
 static DEFINE_SPINLOCK(exynos_pm_qos_lock);
 
@@ -246,6 +247,9 @@ static int sec_pm_log_procfs_init(struct sec_pm_log_info *info)
 
 	proc_create_seq("exynos_pm_qos", 0, sec_pm_log_parent,
 			&exynos_pm_qos_fops);
+
+	exynos_pm_qos_procfs_init(sec_pm_log_parent);
+	dbg_snapshot_log_procfs_init(sec_pm_log_parent);
 
 	return 0;
 }

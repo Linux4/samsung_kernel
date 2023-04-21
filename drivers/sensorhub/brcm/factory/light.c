@@ -432,6 +432,9 @@ void initialize_light_factorytest(struct ssp_data *data)
 {
     memset(&light_manager, 0, sizeof(light_manager));
 	push_back(&light_manager, "DEFAULT", &light_default);
+#ifdef CONFIG_SENSORS_STK33910
+    push_back(&light_manager, "STK33910", get_light_stk33910());
+#endif
 #ifdef CONFIG_SENSORS_TMD4907
     push_back(&light_manager, "TMD4907", get_light_tmd4907());
 #endif

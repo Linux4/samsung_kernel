@@ -23,6 +23,10 @@
 #include "../panel_debug.h"
 #include "../dpui.h"
 
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#include <linux/sti/abc_common.h>
+#endif
+
 #ifdef PANEL_PR_TAG
 #undef PANEL_PR_TAG
 #define PANEL_PR_TAG	"ddi"
@@ -416,7 +420,25 @@ static int getidx_common_maptbl(struct maptbl *tbl)
 }
 #endif
 
-static int gamma_ctoi(s32 (*dst)[MAX_COLOR], u8 *src)
+
+
+static int gamma_ctoi_70byte(s32 (*dst)[MAX_COLOR], u8 *src)
+{
+	static u32 TP_SIZE[S6E3HAD_NR_TP] = {
+		0xFFF, 0x7FF, 0x7FF, 0x7FF, 0x7FF, 0x7FF, 0x7FF, 0x7FF, 0x7FF, 0x7FF, 0x7FF, 0x7FF, 0x7FF, 0xFFF
+	};
+	unsigned int i;
+
+	for (i = 0; i < S6E3HAD_NR_TP; i++) {
+		dst[i][RED] = (((src[i * 5 + 0] & 0xF) << 8)  | src[i * 5 + 2]) & TP_SIZE[i];
+		dst[i][GREEN] = (((src[i * 5 + 1] & 0xF0) << 4) | src[i * 5 + 3]) & TP_SIZE[i];
+		dst[i][BLUE] = (((src[i * 5 + 1] & 0xF) << 8) | src[i * 5 + 4]) & TP_SIZE[i];
+	}
+
+	return 0;
+}
+
+static int gamma_ctoi_84byte(s32 (*dst)[MAX_COLOR], u8 *src)
 {
 	static u32 TP_SIZE[S6E3HAD_NR_TP] = {
 		0xFFF, 0x7FF, 0x7FF, 0x7FF, 0x7FF, 0x7FF, 0x7FF, 0x7FF, 0x7FF, 0x7FF, 0x7FF, 0x7FF, 0x7FF, 0xFFF
@@ -484,7 +506,7 @@ static int init_gamma_write_table(struct maptbl *tbl, int vrr_idx, int offset, i
 	struct gm2_dimming_init_info *gm2_dim_info;
 	struct gm2_dimming_lut (*dim_lut_table)[S6E3HAD_TOTAL_STEP];
 	struct gm2_dimming_lut *dim_lut;
-	int ret = 0, br_idx = 0, maptbl_idx, panel_id_idx;
+	int ret = 0, br_idx = 0, maptbl_idx, panel_id_idx, res_size;
 	u8 GAMMA_READ[S6E3HAD_GAMMA_LEN] = { 0, };
 	s32 GAMMA_COLOR_TABLE[S6E3HAD_NR_TP][MAX_COLOR] = { 0, };
 	u8 GAMMA_WRITE[S6E3HAD_GAMMA_WRITE_LEN] = { 0, };
@@ -542,7 +564,21 @@ static int init_gamma_write_table(struct maptbl *tbl, int vrr_idx, int offset, i
 			goto exit;
 		}
 
-		ret = gamma_ctoi(GAMMA_COLOR_TABLE, GAMMA_READ);
+		res_size = get_resource_size_by_name(panel_data, dim_lut->source_gamma);
+		switch (res_size) {
+		case 70:
+			ret = gamma_ctoi_70byte(GAMMA_COLOR_TABLE, GAMMA_READ);
+			break;
+		case 84:
+			ret = gamma_ctoi_84byte(GAMMA_COLOR_TABLE, GAMMA_READ);
+			break;
+		default:
+			panel_err("invalid gamma length : %d\n", res_size);
+			ret = res_size;
+			goto exit;
+			break;
+		}
+
 		if (panel_log_level > 6) {
 			panel_dbg("read res %s%s:\n",
 				dim_lut->source_gamma, (dim_lut->rgb_color_offset != NULL ? "(with offset)" : ""));
@@ -1004,6 +1040,29 @@ static int getidx_aor_manual_value_table(struct maptbl *tbl)
 
 	return maptbl_index(tbl, layer, row, 0);
 }
+
+static int getidx_read_addr_table(struct maptbl *tbl)
+{
+	struct panel_device *panel = (struct panel_device *)tbl->pdata;
+	int row = 0, layer = 0;
+	u8 id;
+
+	id = panel->panel_data.id[2] & 0xFF;
+
+	if (id < 0xE3)
+		row = S6E3HAD_UNBOUND3_FLASH_ADDR_ID_LT_E3;
+	else if (id < 0xE5)
+		row = S6E3HAD_UNBOUND3_FLASH_ADDR_ID_LT_E5;
+	else if (id < 0xE8)
+		row = S6E3HAD_UNBOUND3_FLASH_ADDR_ID_LT_E8;
+	else
+		row = S6E3HAD_UNBOUND3_FLASH_ADDR_ID_GTE_E8;
+
+	panel_info("id %02X %d\n", panel->panel_data.id[2], row);
+
+	return maptbl_index(tbl, layer, row, 0);
+}
+
 
 static int init_lpm_brt_table(struct maptbl *tbl)
 {
@@ -2105,7 +2164,7 @@ static void show_err(struct dumpinfo *info)
 	err_15_8 = err[0];
 	err_7_0 = err[1];
 
-	panel_info("========== SHOW PANEL [EAh:DSI-ERR] INFO ==========\n");
+	panel_info("========== SHOW PANEL [E9h:DSI-ERR] INFO ==========\n");
 	panel_info("* Reg Value : 0x%02x%02x, Result : %s\n", err_15_8, err_7_0,
 			(err[0] || err[1] || err[2] || err[3] || err[4]) ? "NG" : "GOOD");
 
@@ -2233,6 +2292,10 @@ static void show_dsi_err(struct dumpinfo *info)
 	panel_info("====================================================\n");
 
 	inc_dpui_u32_field(DPUI_KEY_PNDSIE, dsi_err[0]);
+#if IS_ENABLED(CONFIG_SEC_ABC)
+	if (dsi_err[0] > 0)
+		sec_abc_send_event("MODULE=display@ERROR=act_section_panel_main_dsi_error");
+#endif
 }
 
 static void show_self_diag(struct dumpinfo *info)
@@ -2328,7 +2391,7 @@ static void copy_mafpc_enable_maptbl(struct maptbl *tbl, u8 *dst)
 
 		/* default 0x20, refer abc op guide */
 		dst[S6E3HAD_MAFPC_VBP_REG] = 0x20;
-		if (panel_data->id[3] < 0xE2)
+		if (panel_data->id[2] < 0xE2)
 			dst[S6E3HAD_MAFPC_VBP_REG] = 0x1F;
 
 		if (mafpc->written & MAFPC_UPDATED_FROM_SVC)
@@ -2716,6 +2779,17 @@ static inline bool is_id_gte_e5(struct panel_device *panel)
 static inline bool is_id_gte_e7(struct panel_device *panel)
 {
 	return ((panel->panel_data.id[2] & 0xFF) >= 0xE7) ? true : false;
+}
+
+static bool is_gamma_select_off_brt(struct panel_device *panel)
+{
+	struct panel_bl_device *panel_bl = &panel->panel_bl;
+
+	if (panel_bl->props.brightness >= 256 &&
+		panel_bl->props.brightness <= 260) {
+		return true;
+	}
+	return false;
 }
 
 static bool is_first_set_bl(struct panel_device *panel)

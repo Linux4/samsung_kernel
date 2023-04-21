@@ -239,7 +239,7 @@ sec_bat_misc_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg
 {
 	int ret = 0;
 	pr_info("%s %s - cmd : %d\n", WC_AUTH_MSG, __func__, cmd);
-	ret = sec_bat_misc_ioctl(file, cmd, (unsigned long)compat_ptr(arg));
+	ret = sec_bat_misc_ioctl(file, cmd, arg);
 
 	return ret;
 }

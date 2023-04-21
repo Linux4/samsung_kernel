@@ -483,19 +483,19 @@ static int is_dbufcon_kmap(struct is_vb2_buf *vbuf, u32 plane)
 		count = vbuf->num_merged_sbufs;
 	}
 
-	if (count) {
-		if (is_dbuf)
-			goto skip_dbufcon_release;
-		else
-			return 0;
-	}
-
 	dbufcon = dma_buf_get(vb->planes[plane].m.fd);
 	if (IS_ERR_OR_NULL(dbufcon)) {
 		err("failed to get dmabuf of fd: %d, plane: %d",
 			vb->planes[plane].m.fd, plane);
 		ret = -EINVAL;
 		goto err_get_dbufcon;
+	}
+
+	if (count) {
+		if (is_dbuf)
+			goto skip_dbufcon_release;
+		else
+			return 0;
 	}
 
 	count = dmabuf_container_get_count(dbufcon);
@@ -667,8 +667,8 @@ void is_subbuf_prepare(struct is_sub_dma_buf *buf, struct v4l2_plane *plane,
 	for (p = 0; p < num_p; p++) {
 		dbuf = dma_buf_get(plane[p].m.fd);
 		if (IS_ERR_OR_NULL(dbuf)) {
-			err("[V%d][P%d]Failed to get dmabuf. fd %d ret %d",
-				buf->vid, p, plane[p].m.fd, (int)dbuf);
+			err("[V%d][P%d]Failed to get dmabuf. fd %d ret %ld",
+				buf->vid, p, plane[p].m.fd, PTR_ERR(dbuf));
 			goto err_get_dbufcon;
 		}
 
@@ -694,16 +694,16 @@ void is_subbuf_prepare(struct is_sub_dma_buf *buf, struct v4l2_plane *plane,
 				dmabuf_container_get_buffer(dbuf, b) :
 				dma_buf_get(plane[i].m.fd);
 			if (IS_ERR_OR_NULL(buf->dbuf[i])) {
-				err("[V%d][P%d]Failed to get dmabuf. fd %d ret %d",
+				err("[V%d][P%d]Failed to get dmabuf. fd %d ret %ld",
 					buf->vid, i,
-					plane[i].m.fd, (int)buf->dbuf[i]);
+					plane[i].m.fd, PTR_ERR(buf->dbuf[i]));
 				goto err_get_dbuf;
 			}
 
 			buf->atch[i] = dma_buf_attach(buf->dbuf[i], dev);
 			if (IS_ERR(buf->atch[i])) {
-				err("[V%d][P%d]Failed to attach dmabuf. ret %d",
-					buf->vid, i, (int)buf->atch[i]);
+				err("[V%d][P%d]Failed to attach dmabuf. ret %ld",
+					buf->vid, i, PTR_ERR(buf->atch[i]));
 				goto err_get_dbuf;
 			}
 
@@ -711,8 +711,8 @@ void is_subbuf_prepare(struct is_sub_dma_buf *buf, struct v4l2_plane *plane,
 				buf->sgt[i] = dma_buf_map_attachment(buf->atch[i],
 					DMA_BIDIRECTIONAL);
 				if (IS_ERR(buf->sgt[i])) {
-					err("[V%d][P%d]Failed to get sgt. ret %d (retry:%d)",
-							buf->vid, i, (int)buf->sgt[i], retry);
+					err("[V%d][P%d]Failed to get sgt. ret %d (retry:%ld)",
+						buf->vid, i,  PTR_ERR(buf->sgt[i]), retry);
 					retry++;
 					if (retry >= retry_max)
 						goto err_get_dbuf;
@@ -1008,30 +1008,14 @@ static void is_ion_sync_for_device(struct is_priv_buf *pbuf,
 		off_t offset, size_t size, enum dma_data_direction dir)
 {
 	FIMC_BUG_VOID(!pbuf);
-/* Temporary disabled due to atomic region operation */
-#if 0
-	if (((struct is_ion_ctx *)pbuf->ctx)->heapmask)
-		dma_buf_end_cpu_access_partial(pbuf->dma_buf, dir, offset, size);
-	else
-		_is_ion_sync_for_xxx(pbuf, offset, size, dir, IS_SYNC_FOR_DEVICE);
-#else
 	_is_ion_sync_for_xxx(pbuf, offset, size, dir, IS_SYNC_FOR_DEVICE);
-#endif
 }
 
 static void is_ion_sync_for_cpu(struct is_priv_buf *pbuf,
 		off_t offset, size_t size, enum dma_data_direction dir)
 {
 	FIMC_BUG_VOID(!pbuf);
-
-/* Temporary disabled due to atomic region operation */
-#if 0
-	if (((struct is_ion_ctx *)pbuf->ctx)->heapmask)
-		dma_buf_begin_cpu_access_partial(pbuf->dma_buf, dir, offset, size);
-	else
-#else
-		_is_ion_sync_for_xxx(pbuf, offset, size, dir, IS_SYNC_FOR_CPU);
-#endif
+	_is_ion_sync_for_xxx(pbuf, offset, size, dir, IS_SYNC_FOR_CPU);
 }
 
 const struct is_priv_buf_ops is_priv_buf_ops_ion = {

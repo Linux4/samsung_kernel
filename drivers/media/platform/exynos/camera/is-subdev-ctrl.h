@@ -194,15 +194,6 @@ struct is_subdev {
 	struct is_video_ctx		*vctx;
 	struct is_subdev			*leader;
 	const struct is_subdev_ops		*ops;
-
-	/*
-	 * Parameter for DMA abstraction:
-	 * This value is physical DMA & VC.
-	 * [0]: Bypass PAF HW (Use this when none PD mode is enabled.)
-	 * [1]: Processing PAF HW (Use this when PD mode is enabled.)
-	 */
-	int					dma_ch[SCM_MAX];
-	int					vc_ch[SCM_MAX];
 };
 
 int is_sensor_subdev_open(struct is_device_sensor *device,

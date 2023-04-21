@@ -61,10 +61,10 @@ int mcd_decon_set_win(struct decon_device *decon, struct fb_info *info)
 
 	return ret;
 }
+#endif /* CONFIG_MCD_PANEL */
 
-
+#if IS_ENABLED(CONFIG_RTC_LIB)
 #define MAX_RTC_STR_BUF	16
-
 int get_str_cur_rtc(char *buf, size_t size)
 {
 	int str_size;
@@ -84,5 +84,4 @@ int get_str_cur_rtc(char *buf, size_t size)
 
 	return 0;
 }
-
 #endif

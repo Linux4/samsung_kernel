@@ -49,6 +49,7 @@ struct npu_memory {
 	spinlock_t			alloc_lock;
 	struct list_head		alloc_list;
 	u32				alloc_count;
+	size_t				dma_total_used_size;
 };
 
 int npu_memory_probe(struct npu_memory *memory, struct device *dev);

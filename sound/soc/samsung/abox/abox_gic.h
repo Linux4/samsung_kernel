@@ -48,8 +48,9 @@ enum abox_gic_target {
  * @param[in]	dump	gpr dump
  * @param[in]	off	dump start offset
  * @param[in]	size	size of dump
+ * @return	error code or 0
  */
-extern void abox_gicd_dump(struct device *dev, char *dump,
+extern int abox_gicd_dump(struct device *dev, char *dump,
 		size_t off, size_t size);
 
 /**

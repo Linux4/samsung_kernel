@@ -254,7 +254,7 @@ int sec_dump_sink_init(void)
 
 	sec_map_rdx_bootdev_region();
 
-	entry = proc_create("rdx_bootdev", 0222, NULL, &sec_rdx_bootdev_fops);
+	entry = proc_create("rdx_bootdev", 0220, NULL, &sec_rdx_bootdev_fops);
 
 	if (!entry) {
 		pr_err("%s: fail to create proc entry (rdx_bootdev)\n", __func__);

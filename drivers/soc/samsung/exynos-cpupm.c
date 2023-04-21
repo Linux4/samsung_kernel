@@ -23,18 +23,16 @@
 #include <soc/samsung/exynos-pmu-if.h>
 #include <soc/samsung/exynos-pm.h>
 
-#if IS_ENABLED(CONFIG_SEC_PM)
-#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_SEC_PM) && IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 #include <linux/muic/muic.h>
 #include <linux/muic/muic_notifier.h>
 #if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 #include <linux/usb/typec/common/pdic_notifier.h>
 #endif /* CONFIG_PDIC_NOTIFIER */
-#endif /* CONFIG_MUIC_NOTIFIER */
 static void exynos_cpupm_muic_notifier_init(void);
 #else
 static inline void exynos_cpupm_muic_notifier_init(void) {}
-#endif /* !CONFIG_SEC_PM */
+#endif /* !CONFIG_SEC_PM && !CONFIG_MUIC_NOTIFIER */
 
 /*
  * State of CPUPM objects
@@ -199,12 +197,10 @@ EXPORT_SYMBOL_GPL(exynos_cpupm_notifier_register);
 
 static int exynos_cpupm_notify(int event, int v)
 {
-	int nr_calls;
 	int ret = 0;
 
 	read_lock(&notifier_lock);
-	ret = __raw_notifier_call_chain(&notifier_chain,
-			event, &v, -1, &nr_calls);
+	ret = raw_notifier_call_chain(&notifier_chain, event, &v);
 	read_unlock(&notifier_lock);
 
 	return notifier_to_errno(ret);
@@ -1478,8 +1474,7 @@ static void __exit exynos_cpupm_driver_exit(void)
 }
 module_exit(exynos_cpupm_driver_exit);
 
-#if IS_ENABLED(CONFIG_SEC_PM)
-#if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
+#if IS_ENABLED(CONFIG_SEC_PM) && IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 struct notifier_block cpuidle_muic_nb;
 
 static int exynos_cpupm_muic_notifier(struct notifier_block *nb,
@@ -1523,8 +1518,7 @@ static void exynos_cpupm_muic_notifier_init(void)
 	muic_notifier_register(&cpuidle_muic_nb, exynos_cpupm_muic_notifier,
 			MUIC_NOTIFY_DEV_CPUIDLE);
 }
-#endif /* CONFIG_MUIC_NOTIFIER */
-#endif /* CONFIG_SEC_PM */
+#endif /* CONFIG_MUIC_NOTIFIER && CONFIG_SEC_PM */
 
 MODULE_DESCRIPTION("Exynos CPUPM driver");
 MODULE_LICENSE("GPL");

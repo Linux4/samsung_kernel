@@ -69,6 +69,8 @@
 #include "is-dvfs.h"
 #include "is-interface-library.h"
 #include "hardware/is-hw-control.h"
+#include "votf/camerapp-votf.h"
+#include "is-device-camif-dma.h"
 
 #if IS_ENABLED(CONFIG_EXYNOS_MSN)
 #include <linux/ems.h>
@@ -424,7 +426,7 @@ static int is_resourcemgr_initmem(struct is_resourcemgr *resourcemgr)
 					crmem.size);
 	dbg_snapshot_add_bl_item_info(CLOG_DSS_NAME,
 					crmem.phys_addr, crmem.size);
-	probe_info("[RSC] CLOG RMEM INFO(V/P/S): 0x%lx/0x%08x/0x%08x\n",
+	probe_info("[RSC] CLOG RMEM INFO(V/P/S): 0x%pK/0x%08x/0x%08x\n",
 		resourcemgr->minfo.kvaddr_debug,
 		(unsigned int)resourcemgr->minfo.phaddr_debug,
 		(unsigned int)crmem.size);
@@ -494,14 +496,14 @@ static int is_resourcemgr_initmem(struct is_resourcemgr *resourcemgr)
 		resourcemgr->minfo.phaddr_dummy =
 			CALL_BUFOP(minfo->pb_dummy, phaddr, minfo->pb_dummy);
 
-		probe_info("[RSC] Dummy buffer: dva(0x%pad) kva(0x%lx) pha(0x%pad)\n",
+		probe_info("[RSC] Dummy buffer: dva(0x%pad) kva(0x%pK) pha(0x%pad)\n",
 			&resourcemgr->minfo.dvaddr_dummy,
 			resourcemgr->minfo.kvaddr_dummy,
 			&resourcemgr->minfo.phaddr_dummy);
 	}
 
-	probe_info("[RSC] Kernel virtual for library: %08lx\n", resourcemgr->minfo.kvaddr);
-	probe_info("[RSC] Kernel virtual for debug: %08lx\n", resourcemgr->minfo.kvaddr_debug);
+	probe_info("[RSC] Kernel virtual for library: 0x%pK\n", resourcemgr->minfo.kvaddr);
+	probe_info("[RSC] Kernel virtual for debug: 0x%pK\n", resourcemgr->minfo.kvaddr_debug);
 	probe_info("[RSC] is_init_mem done\n");
 p_err:
 	return ret;
@@ -616,30 +618,30 @@ static int is_resourcemgr_init_dynamic_mem(struct is_resourcemgr *resourcemgr)
 
 	kva = CALL_BUFOP(minfo->pb_taaisp, kvaddr, minfo->pb_taaisp);
 	dva = CALL_BUFOP(minfo->pb_taaisp, dvaddr, minfo->pb_taaisp);
-	info("[RSC] TAAISP_DMA memory kva:0x%lx, dva: %pad\n", kva, &dva);
+	info("[RSC] TAAISP_DMA memory kva:0x%pK, dva: %pad\n", kva, &dva);
 
 #if (MEDRC_DMA_SIZE > 0)
 	kva = CALL_BUFOP(minfo->pb_medrc, kvaddr, minfo->pb_medrc);
 	dva = CALL_BUFOP(minfo->pb_medrc, dvaddr, minfo->pb_medrc);
-	info("[RSC] ME_DRC memory kva:0x%lx, dva: %pad\n", kva, &dva);
+	info("[RSC] ME_DRC memory kva:0x%pK, dva: %pad\n", kva, &dva);
 #endif
 
 #if defined(ENABLE_TNR)
 	kva = CALL_BUFOP(minfo->pb_tnr, kvaddr, minfo->pb_tnr);
 	dva = CALL_BUFOP(minfo->pb_tnr, dvaddr, minfo->pb_tnr);
-	info("[RSC] TNR_DMA memory kva:0x%lx, dva: %pad\n", kva, &dva);
+	info("[RSC] TNR_DMA memory kva:0x%pK, dva: %pad\n", kva, &dva);
 #endif
 
 #if (ORBMCH_DMA_SIZE > 0)
 	kva = CALL_BUFOP(minfo->pb_orbmch, kvaddr, minfo->pb_orbmch);
 	dva = CALL_BUFOP(minfo->pb_orbmch, dvaddr, minfo->pb_orbmch);
-	info("[RSC] ORBMCH_DMA memory kva:0x%lx, dva: %pad\n", kva, &dva);
+	info("[RSC] ORBMCH_DMA memory kva:0x%pK, dva: %pad\n", kva, &dva);
 #endif
 
 #if (CLAHE_DMA_SIZE > 0)
 	kva = CALL_BUFOP(minfo->pb_clahe, kvaddr, minfo->pb_clahe);
 	dva = CALL_BUFOP(minfo->pb_clahe, dvaddr, minfo->pb_clahe);
-	info("[RSC] CLAHE_DMA memory kva:0x%lx, dva: %pad\n", kva, &dva);
+	info("[RSC] CLAHE_DMA memory kva:0x%pK, dva: %pad\n", kva, &dva);
 #endif
 
 	info("[RSC] %s done\n", __func__);
@@ -947,6 +949,9 @@ static int is_mem_map_vm(struct is_resourcemgr *resourcemgr,
 		warn("heap size is zero");
 		vfree(pages);
 		return 0;
+	} else if (!pages) {
+		probe_err("Failed to vmalloc. pages %d", npages);
+		return -ENOMEM;
 	}
 
 	pb = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx, heap_size, NULL, 0);
@@ -969,7 +974,6 @@ static int is_mem_map_vm(struct is_resourcemgr *resourcemgr,
 	}
 	if (map_vm_area(vm, prot, pages)) {
 		probe_err("failed to mapping between virt and phys for binary");
-		vunmap(vm->addr);
 		vfree(pages);
 		CALL_VOID_BUFOP(pb, free, pb);
 		return -ENOMEM;
@@ -1016,7 +1020,6 @@ static int is_lib_mem_map(struct is_resourcemgr *resourcemgr)
 
 	if (map_vm_area(&is_lib_vm, prot, pages)) {
 		probe_err("failed to mapping between virt and phys for binary");
-		vunmap(is_lib_vm.addr);
 		kfree(pages);
 		return -ENOMEM;
 	}
@@ -1040,7 +1043,7 @@ int is_heap_mem_alloc_dynamic(struct is_resourcemgr *resourcemgr,
 
 	if (type == IS_BIN_LIB_HINT_DDK) {
 		if (minfo->kvaddr_heap_ddk) {
-			info_lib("DDK heap is already allocated(addr:%lx), use it", minfo->kvaddr_heap_ddk);
+			info_lib("DDK heap is already allocated(addr:0x%pK), use it", minfo->kvaddr_heap_ddk);
 			return 0;
 		}
 
@@ -1052,10 +1055,10 @@ int is_heap_mem_alloc_dynamic(struct is_resourcemgr *resourcemgr,
 
 		minfo->kvaddr_heap_ddk = CALL_BUFOP(minfo->pb_heap_ddk, kvaddr, minfo->pb_heap_ddk);
 
-		info_lib("memory_alloc(DDK heap)(V/S): 0x%lx/0x%x", minfo->kvaddr_heap_ddk, heap_size);
+		info_lib("memory_alloc(DDK heap)(V/S): 0x%pK/0x%x", minfo->kvaddr_heap_ddk, heap_size);
 	} else if (type == IS_BIN_LIB_HINT_RTA) {
 		if (minfo->kvaddr_heap_rta) {
-			info_lib("RTA heap is already allocated(addr:%lx), use it", minfo->kvaddr_heap_rta);
+			info_lib("RTA heap is already allocated(addr:0x%pK), use it", minfo->kvaddr_heap_rta);
 			return 0;
 		}
 
@@ -1067,7 +1070,7 @@ int is_heap_mem_alloc_dynamic(struct is_resourcemgr *resourcemgr,
 
 		minfo->kvaddr_heap_rta = CALL_BUFOP(minfo->pb_heap_rta, kvaddr, minfo->pb_heap_rta);
 
-		info_lib("memory_alloc(RTA heap)(V/S): 0x%lx/0x%x", minfo->kvaddr_heap_rta, heap_size);
+		info_lib("memory_alloc(RTA heap)(V/S): 0x%pK/0x%x", minfo->kvaddr_heap_rta, heap_size);
 	}
 
 	return 0;
@@ -1078,9 +1081,8 @@ int is_heap_mem_free(struct is_resourcemgr *resourcemgr)
 	struct is_minfo *minfo = &resourcemgr->minfo;
 	int ret = 0;
 
-#if defined(DISABLE_DDK_HEAP_FREE)
-	return 0;
-#endif
+	if (IS_ENABLED(DISABLE_DDK_HEAP_FREE))
+		return 0;
 
 	if (minfo->pb_heap_ddk)
 		CALL_VOID_BUFOP(minfo->pb_heap_ddk, free, minfo->pb_heap_ddk);
@@ -1394,7 +1396,7 @@ int is_resource_cdump(void)
 	struct is_groupmgr *groupmgr;
 	struct is_device_ischain *device = NULL;
 	struct is_device_csi *csi;
-	int i, j, vc;
+	int i, j;
 
 	core = (struct is_core *)dev_get_drvdata(is_dev);
 	if (!core)
@@ -1426,11 +1428,11 @@ int is_resource_cdump(void)
 		if (!in_interrupt())
 			exynos_is_dump_clk(&core->pdev->dev);
 		cinfo("### 2. SFR DUMP ###\n");
-		cinfo("Base: 0x%lx\n", core->resourcemgr.minfo.kvaddr_debug);
+		cinfo("Base: 0x%pK\n", core->resourcemgr.minfo.kvaddr_debug);
 		core->resourcemgr.sfrdump_ptr =
 			core->resourcemgr.minfo.kvaddr_debug
 			+ DEBUG_REGION_SIZE + DEBUG_DUMP_SIZE;
-		cinfo("Dump base: 0x%lx\n", core->resourcemgr.sfrdump_ptr);
+		cinfo("Dump base: 0x%pK\n", core->resourcemgr.sfrdump_ptr);
 		break;
 	}
 
@@ -1445,18 +1447,8 @@ int is_resource_cdump(void)
 
 		if (device->sensor && !test_bit(IS_ISCHAIN_REPROCESSING, &device->state)) {
 			csi = (struct is_device_csi *)v4l2_get_subdevdata(device->sensor->subdev_csi);
-			if (csi) {
-				csi_hw_cdump(csi->base_reg);
-				csi_hw_phy_cdump(csi->phy_reg, csi->ch);
-				for (vc = CSI_VIRTUAL_CH_0; vc < CSI_VIRTUAL_CH_MAX; vc++) {
-					csi_hw_vcdma_cdump(csi->vc_reg[csi->scm][vc]);
-					csi_hw_vcdma_cmn_cdump(csi->cmn_reg[csi->scm][vc]);
-				}
-				csi_hw_common_dma_cdump(csi->csi_dma->base_reg);
-#if defined(ENABLE_PDP_STAT_DMA)
-				csi_hw_common_dma_cdump(csi->csi_dma->base_reg_stat);
-#endif
-			}
+			if (csi)
+				csi_hw_cdump_all(csi);
 		}
 
 		cinfo("### 3. DUMP frame manager ###\n");
@@ -1573,7 +1565,7 @@ int is_resource_dump(void)
 	struct is_groupmgr *groupmgr;
 	struct is_device_ischain *device = NULL;
 	struct is_device_csi *csi;
-	int i, j, vc;
+	int i, j;
 
 	core = (struct is_core *)dev_get_drvdata(is_dev);
 	if (!core)
@@ -1610,18 +1602,8 @@ int is_resource_dump(void)
 
 		if (device->sensor && !test_bit(IS_ISCHAIN_REPROCESSING, &device->state)) {
 			csi = (struct is_device_csi *)v4l2_get_subdevdata(device->sensor->subdev_csi);
-			if (csi) {
-				csi_hw_dump(csi->base_reg);
-				csi_hw_phy_dump(csi->phy_reg, csi->ch);
-				for (vc = CSI_VIRTUAL_CH_0; vc < CSI_VIRTUAL_CH_MAX; vc++) {
-					csi_hw_vcdma_dump(csi->vc_reg[csi->scm][vc]);
-					csi_hw_vcdma_cmn_dump(csi->cmn_reg[csi->scm][vc]);
-				}
-				csi_hw_common_dma_dump(csi->csi_dma->base_reg);
-#if defined(ENABLE_PDP_STAT_DMA)
-				csi_hw_common_dma_dump(csi->csi_dma->base_reg_stat);
-#endif
-			}
+			if (csi)
+				csi_hw_dump_all(csi);
 		}
 
 		/* dump all framemgr */
@@ -1998,7 +1980,7 @@ static void is_resource_reset(struct is_resourcemgr *resourcemgr)
 #endif
 	exynos_bcm_dbg_start();
 
-#if IS_ENABLED(CONFIG_EXYNOS_SCI_DBG)
+#if IS_ENABLED(CONFIG_EXYNOS_SCI_DBG_AUTO)
 	smc_ppc_enable(1);
 #endif
 
@@ -2011,6 +1993,7 @@ static void is_resource_reset(struct is_resourcemgr *resourcemgr)
 	resourcemgr->cdump_ptr = 0;
 	resourcemgr->sfrdump_ptr = 0;
 #endif
+	votfitf_init();
 }
 
 static void is_resource_clear(struct is_resourcemgr *resourcemgr)
@@ -2076,7 +2059,7 @@ static void is_resource_clear(struct is_resourcemgr *resourcemgr)
 #endif
 	exynos_bcm_dbg_stop(CAMERA_DRIVER);
 
-#if IS_ENABLED(CONFIG_EXYNOS_SCI_DBG)
+#if IS_ENABLED(CONFIG_EXYNOS_SCI_DBG_AUTO)
 	smc_ppc_enable(0);
 #endif
 
@@ -2179,8 +2162,6 @@ int is_resource_get(struct is_resourcemgr *resourcemgr, u32 rsc_type)
 			goto p_err;
 		}
 #endif
-		/* CSIS common DMA rcount set */
-		atomic_set(&core->csi_dma.rcount, 0);
 #if defined(SECURE_CAMERA_FACE)
 		mutex_init(&core->secure_state_lock);
 		core->secure_state = IS_STATE_UNSECURE;
@@ -2336,6 +2317,9 @@ int is_resource_get(struct is_resourcemgr *resourcemgr, u32 rsc_type)
 		/* when the first sensor device be opened */
 		if (rsc_type < RESOURCE_TYPE_ISCHAIN)
 			is_hw_camif_init();
+
+		/* It must be done after power on, because of accessing mux register */
+		is_camif_wdma_init();
 	}
 
 	atomic_inc(&resource->rsccount);
@@ -2418,8 +2402,11 @@ int is_resource_put(struct is_resourcemgr *resourcemgr, u32 rsc_type)
 			}
 #endif
 #if defined(SECURE_CAMERA_FACE)
-			ret = is_secure_func(core, NULL, IS_SECURE_CAMERA_FACE,
-				core->scenario, SMC_SECCAM_UNPREPARE);
+			if (is_secure_func(core, NULL,
+						IS_SECURE_CAMERA_FACE,
+						core->scenario,
+						SMC_SECCAM_UNPREPARE))
+				err("Failed to is_secure_func(FACE, UNPREPARE)");
 #endif
 			ret = is_itf_power_down(&core->interface);
 			if (ret)
@@ -2651,8 +2638,11 @@ void is_resource_set_global_param(struct is_resourcemgr *resourcemgr, void *devi
 		minfo("video mode %d\n", ischain, video_mode);
 
 #ifdef ENABLE_DVFS
-		resourcemgr->llc_state = 0;
-		is_hw_configure_llc(true, ischain, &resourcemgr->llc_state);
+		global_param->llc_state = 0;
+		if (ischain->llc_mode == false)
+			set_bit(LLC_DISABLE, &global_param->llc_state);
+
+		is_hw_configure_llc(true, ischain, &global_param->llc_state);
 #endif
 	}
 
@@ -2675,7 +2665,7 @@ void is_resource_clear_global_param(struct is_resourcemgr *resourcemgr, void *de
 		ischain->hardware->video_mode = false;
 
 #ifdef ENABLE_DVFS
-		is_hw_configure_llc(false, 0, &resourcemgr->llc_state);
+		is_hw_configure_llc(false, ischain, &global_param->llc_state);
 #endif
 	}
 
@@ -2740,4 +2730,167 @@ int is_logsync(struct is_interface *itf, u32 sync_id, u32 msg_test_id)
 	err("is_hw_msg_test(%d)", ret);
 #endif
 	return ret;
+}
+
+struct is_dbuf_q *is_init_dbuf_q(void)
+{
+	void *ret;
+	int i_id, i_list;
+	int num_list = MAX_DBUF_LIST;
+	struct is_dbuf_q *dbuf_q;
+
+	dbuf_q = vzalloc(sizeof(struct is_dbuf_q));
+	if (!dbuf_q) {
+		err("failed to allocate dbuf_q");
+		return ERR_PTR(-ENOMEM);
+	}
+
+	for (i_id = 0; i_id < ID_DBUF_MAX; i_id++) {
+		dbuf_q->dbuf_list[i_id] = vzalloc(sizeof(struct is_dbuf_list) * num_list);
+		if (!dbuf_q->dbuf_list[i_id]) {
+			err("failed to allocate dbuf_list");
+			ret = ERR_PTR(-ENOMEM);
+			goto err_alloc_list;
+		}
+
+		mutex_init(&dbuf_q->lock[i_id]);
+
+		dbuf_q->queu_count[i_id] = 0;
+		INIT_LIST_HEAD(&dbuf_q->queu_list[i_id]);
+
+		dbuf_q->free_count[i_id] = 0;
+		INIT_LIST_HEAD(&dbuf_q->free_list[i_id]);
+	}
+
+	/* set free list */
+	for (i_id = 0; i_id < ID_DBUF_MAX; i_id++) {
+		for (i_list = 0; i_list < num_list; i_list++) {
+			list_add_tail(&dbuf_q->dbuf_list[i_id][i_list].list,
+					&dbuf_q->free_list[i_id]);
+			dbuf_q->free_count[i_id]++;
+		}
+	}
+
+	return dbuf_q;
+
+err_alloc_list:
+	while (i_id-- > 0) {
+		if (dbuf_q->dbuf_list[i_id])
+			vfree(dbuf_q->dbuf_list[i_id]);
+	}
+
+	vfree(dbuf_q);
+
+	return ret;
+}
+
+/* cache maintenance for user buffer */
+void is_deinit_dbuf_q(struct is_dbuf_q *dbuf_q)
+{
+	int i_id;
+
+	for (i_id = 0; i_id < ID_DBUF_MAX; i_id++)
+		vfree(dbuf_q->dbuf_list[i_id]);
+
+	vfree(dbuf_q);
+}
+
+static void is_flush_dma_buf(struct is_dbuf_q *dbuf_q, u32 dma_id, u32 qcnt)
+{
+	struct is_dbuf_list *dbuf_list;
+
+	while (dbuf_q->queu_count[dma_id] > qcnt) {
+		/* get queue list */
+		dbuf_list = list_first_entry(&dbuf_q->queu_list[dma_id],
+					struct is_dbuf_list, list);
+		list_del(&dbuf_list->list);
+		dbuf_q->queu_count[dma_id]--;
+
+		/* put free list */
+		list_add_tail(&dbuf_list->list, &dbuf_q->free_list[dma_id]);
+		dbuf_q->free_count[dma_id]++;
+	}
+}
+
+void is_q_dbuf_q(struct is_dbuf_q *dbuf_q, struct is_sub_dma_buf *sdbuf, u32 qcnt)
+{
+	int dma_id, num_planes, p;
+	struct is_dbuf_list *dbuf_list;
+
+	dma_id = is_get_dma_id(sdbuf->vid);
+	if (dma_id < 0)
+		return;
+
+	mutex_lock(&dbuf_q->lock[dma_id]);
+
+	if (dbuf_q->queu_count[dma_id] > qcnt) {
+		info("[%s] dma_id(%d) dbuf qcnt(%d) > vb2 qcnt(%d)", __func__, dma_id,
+			dbuf_q->queu_count[dma_id], qcnt);
+
+		is_flush_dma_buf(dbuf_q, dma_id, qcnt);
+	}
+
+	if (!dbuf_q->free_count[dma_id] || list_empty(&dbuf_q->free_list[dma_id])) {
+		warn("dma_id(%d) free list is NULL[f(%d)/q(%d)]", dma_id,
+			dbuf_q->free_count[dma_id], dbuf_q->queu_count[dma_id]);
+
+		mutex_unlock(&dbuf_q->lock[dma_id]);
+		return;
+	}
+
+	/* get free list */
+	dbuf_list = list_first_entry(&dbuf_q->free_list[dma_id],
+				struct is_dbuf_list, list);
+	list_del(&dbuf_list->list);
+	dbuf_q->free_count[dma_id]--;
+
+	/* copy */
+	num_planes = sdbuf->num_plane * sdbuf->num_buffer;
+	for (p = 0; p < num_planes; p++)
+		dbuf_list->dbuf[p] = sdbuf->dbuf[p];
+
+	/* put queue list */
+	list_add_tail(&dbuf_list->list, &dbuf_q->queu_list[dma_id]);
+	dbuf_q->queu_count[dma_id]++;
+
+	mutex_unlock(&dbuf_q->lock[dma_id]);
+}
+
+void is_dq_dbuf_q(struct is_dbuf_q *dbuf_q, u32 dma_id, enum dma_data_direction dir)
+{
+	u32 p;
+	struct is_dbuf_list *dbuf_list;
+
+	mutex_lock(&dbuf_q->lock[dma_id]);
+
+	if (!dbuf_q->queu_count[dma_id] || list_empty(&dbuf_q->queu_list[dma_id])) {
+		warn("dma_id(%d) queue list is NULL[f(%d)/q(%d)]", dma_id,
+			dbuf_q->free_count[dma_id], dbuf_q->queu_count[dma_id]);
+		return;
+	}
+
+	/* get queue list */
+	dbuf_list = list_first_entry(&dbuf_q->queu_list[dma_id],
+				struct is_dbuf_list, list);
+	list_del(&dbuf_list->list);
+	dbuf_q->queu_count[dma_id]--;
+
+	/* put free list */
+	list_add_tail(&dbuf_list->list, &dbuf_q->free_list[dma_id]);
+	dbuf_q->free_count[dma_id]++;
+
+	mutex_unlock(&dbuf_q->lock[dma_id]);
+
+	/* cache maintenance */
+	for (p = 0; p < IS_MAX_PLANES && dbuf_list->dbuf[p]; p++) {
+		if (dir == DMA_FROM_DEVICE)	/* cache inv */
+			dma_buf_begin_cpu_access(dbuf_list->dbuf[p], DMA_FROM_DEVICE);
+		else if (dir == DMA_TO_DEVICE)	/* cache clean */
+			dma_buf_end_cpu_access(dbuf_list->dbuf[p], DMA_TO_DEVICE);
+		else
+			warn("invalid direction(%d), type(%d)", dir, dma_id);
+	}
+
+	if (!p)
+		warn("dbuf is NULL. dma_id(%d)", dma_id);
 }

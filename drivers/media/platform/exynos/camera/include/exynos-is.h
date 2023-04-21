@@ -143,6 +143,9 @@ struct exynos_platform_is {
 
 	/* number of available IP */
 	struct is_num_of_ip num_of_ip;
+
+	/* memlogger size : [0] Driver log buffer size, [1] DDK log buffer size */
+	u32 is_memlog_size[2];
 };
 
 extern struct device *is_dev;

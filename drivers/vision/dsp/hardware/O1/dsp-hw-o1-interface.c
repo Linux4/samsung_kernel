@@ -75,10 +75,10 @@ static int dsp_hw_o1_interface_check_irq(struct dsp_interface *itf)
 	dsp_enter();
 	spin_lock_irqsave(&itf->irq_lock, flags);
 	status = dsp_ctrl_readl(DSP_O1_SYSC_NS_MBOX_FR_CC_TO_HOST_INTR);
+	__dsp_hw_o1_interface_isr(itf);
+
 	if (!status)
 		goto p_end;
-
-	__dsp_hw_o1_interface_isr(itf);
 
 	dsp_ctrl_writel(DSP_O1_SYSC_NS_MBOX_FR_CC_TO_HOST_INTR, 0x0);
 	dsp_leave();
@@ -141,8 +141,8 @@ static void __dsp_hw_o1_interface_isr(struct dsp_interface *itf)
 	} else if (status & BIT(DSP_TO_HOST_INT_RESET_REQUEST)) {
 		__dsp_hw_o1_interface_isr_reset_request(itf);
 	} else {
-		dsp_err("interrupt status is invalid (%u)\n", status);
-		dsp_dump_ctrl();
+		dsp_dbg("interrupt status is invalid(%u)\n", status);
+		return;
 	}
 	dsp_ctrl_dhcp_writel(
 			DSP_O1_DHCP_IDX(DSP_O1_DHCP_TO_HOST_INT_STATUS), 0);
@@ -197,13 +197,15 @@ static irqreturn_t dsp_hw_o1_interface_isr4(int irq, void *data)
 {
 	struct dsp_interface *itf;
 	unsigned int status;
+	unsigned long flags;
 
 	dsp_enter();
 	itf = (struct dsp_interface *)data;
 
+	spin_lock_irqsave(&itf->irq_lock, flags);
 	status = dsp_ctrl_readl(DSP_O1_SYSC_NS_MBOX_FR_CC_TO_HOST_INTR);
 	if (!status) {
-		dsp_warn("interrupt occurred incorrectly\n");
+		dsp_warn("interrupt status is unstable\n");
 		goto p_end;
 	}
 
@@ -212,6 +214,7 @@ static irqreturn_t dsp_hw_o1_interface_isr4(int irq, void *data)
 	dsp_ctrl_writel(DSP_O1_SYSC_NS_MBOX_FR_CC_TO_HOST_INTR, 0x0);
 	dsp_leave();
 p_end:
+	spin_unlock_irqrestore(&itf->irq_lock, flags);
 	return IRQ_HANDLED;
 }
 

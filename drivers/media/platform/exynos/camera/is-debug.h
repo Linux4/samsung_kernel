@@ -167,17 +167,22 @@ void is_debug_s2d(bool en_s2d, const char *fmt, ...);
 /* Memlogger API & Macro */
 #if IS_ENABLED(CONFIG_EXYNOS_MEMORY_LOGGER)
 #define is_memlog_info(fmt, args...)	\
-	memlog_write_printf(is_debug.mobj_printf_drv, MEMLOG_LEVEL_INFO,	\
-			"[@]%s:%d " fmt "\n", __func__, __LINE__, ##args)
+	if (is_debug.mobj_printf_drv)						\
+		memlog_write_printf(is_debug.mobj_printf_drv, MEMLOG_LEVEL_INFO,\
+			"[@]%s:%d " fmt, __func__, __LINE__, ##args)
 #define is_memlog_dbg(fmt, args...)	\
-	memlog_write_printf(is_debug.mobj_printf_drv, MEMLOG_LEVEL_DEBUG,	\
-			"[@]%s:%d " fmt "\n", __func__, __LINE__, ##args)
+	if (is_debug.mobj_printf_drv)						\
+		memlog_write_printf(is_debug.mobj_printf_drv, MEMLOG_LEVEL_DEBUG,\
+			"[@]%s:%d " fmt, __func__, __LINE__, ##args)
 #define is_memlog_warn(fmt, args...)	\
-	memlog_write_printf(is_debug.mobj_printf_drv, MEMLOG_LEVEL_CAUTION,	\
-			"[@]%s:%d " fmt "\n", __func__, __LINE__, ##args)
+	if (is_debug.mobj_printf_drv)						\
+		memlog_write_printf(is_debug.mobj_printf_drv, MEMLOG_LEVEL_CAUTION,\
+			"[@]%s:%d " fmt, __func__, __LINE__, ##args)
 #define is_memlog_err(fmt, args...)	\
-	memlog_write_printf(is_debug.mobj_printf_drv, MEMLOG_LEVEL_ERR,		\
-			"[@]%s:%d " fmt "\n", __func__, __LINE__, ##args)
+	if (is_debug.mobj_printf_drv)						\
+		memlog_write_printf(is_debug.mobj_printf_drv, MEMLOG_LEVEL_ERR,	\
+			"[@]%s:%d " fmt, __func__, __LINE__, ##args)
+
 #else
 #define is_memlog_info(fmt, args...)	do { } while(0)
 #define is_memlog_dbg(fmt, args...)	do { } while(0)

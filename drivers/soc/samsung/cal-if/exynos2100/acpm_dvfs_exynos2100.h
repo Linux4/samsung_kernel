@@ -20,6 +20,7 @@ enum acpm_dvfs_id {
 	MFC0,
 	MFC1,
 	INTSCI,
+	GFX,
 };
 
 struct vclk acpm_vclk_list[] = {

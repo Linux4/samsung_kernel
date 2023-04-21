@@ -231,6 +231,8 @@ static netdev_tx_t vnet_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 	ret = ld->send(ld, iod, skb_new);
 	if (unlikely(ret < 0)) {
+		static DEFINE_RATELIMIT_STATE(_rs, HZ, 100);
+
 		if ((ret != -EBUSY) && (ret != -ENOSPC)) {
 			mif_err_limited("%s->%s: ERR! %s->send fail:%d (tx_bytes:%d len:%d)\n",
 				iod->name, mc->name, ld->name, ret,
@@ -238,7 +240,10 @@ static netdev_tx_t vnet_xmit(struct sk_buff *skb, struct net_device *ndev)
 			goto drop;
 		}
 
-		goto retry;
+		/* do 100-retry for every 1sec */
+		if (__ratelimit(&_rs))
+			goto retry;
+		goto drop;
 	}
 
 	if (ret != tx_bytes) {

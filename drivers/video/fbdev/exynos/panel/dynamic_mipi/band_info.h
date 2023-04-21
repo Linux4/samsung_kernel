@@ -97,7 +97,7 @@ enum {
 };
 
 #define MAX_DYNAMIC_FREQ		5
-#define MAX_PANEL_FFC_CMD		16
+#define MAX_PANEL_FFC_CMD		32
 
 #define MAX_OSC_CNT	2
 

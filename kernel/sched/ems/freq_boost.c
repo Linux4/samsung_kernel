@@ -24,7 +24,7 @@ struct reciprocal_value freqboost_spc_rdiv;
 /* We hold freqboost in effect for at least this long */
 #define FREQBOOST_HOLD_NS 50000000ULL
 
-#define BOOSTGROUPS_COUNT 4
+#define BOOSTGROUPS_COUNT STUNE_GROUP_COUNT
 
 /* Freqboost groups
  * Keep track of all the boost groups which impact on CPU, for example when a
@@ -151,6 +151,9 @@ freqboost_tasks_update(struct task_struct *p, int cpu, int idx, int flags, int t
 	struct boost_groups *bg = &per_cpu(cpu_boost_groups, cpu);
 	int tasks = bg->group[idx].tasks + task_count;
 
+	if (idx >= BOOSTGROUPS_COUNT)
+		return;
+
 	/* Update boosted tasks count while avoiding to make it negative */
 	bg->group[idx].tasks = max(0, tasks);
 
@@ -177,6 +180,9 @@ freqboost_tasks_update(struct task_struct *p, int cpu, int idx, int flags, int t
 bool freqboost_cpu_boost_group_active(int idx, int cpu, u64 now)
 {
 	struct boost_groups *bg = &per_cpu(cpu_boost_groups, cpu);
+
+	if (idx >= BOOSTGROUPS_COUNT)
+		return false;
 
 	/* Ignore non boostgroups not mapping a cgroup */
 	if (!bg->group[idx].valid)
@@ -258,6 +264,12 @@ int freqboost_can_attach(struct cgroup_taskset *tset)
 
 		dst_bg = css->id - 1;
 		src_bg = cpuctl_task_group_idx(task);
+
+		if (dst_bg >= BOOSTGROUPS_COUNT || src_bg >= BOOSTGROUPS_COUNT) {
+			raw_spin_unlock(&bg->lock);
+			task_rq_unlock(rq, task, &rq_flags);
+			continue;
+		}
 
 		/*
 		 * Current task is not changing boostgroup, which can

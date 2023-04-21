@@ -741,7 +741,8 @@ int __mcsc_dma_out_cfg(struct is_device_ischain *device,
 		return -EINVAL;
 	}
 	flip = mcs_output->flip;
-	if (ldr_frame->shot_ext->mcsc_flip[pindex - PARAM_MCS_OUTPUT0] != mcs_output->flip) {
+	if ((pindex >= PARAM_MCS_OUTPUT0 && pindex < PARAM_MCS_OUTPUT5) &&
+		ldr_frame->shot_ext->mcsc_flip[pindex - PARAM_MCS_OUTPUT0] != mcs_output->flip) {
 		flip = ldr_frame->shot_ext->mcsc_flip[pindex - PARAM_MCS_OUTPUT0];
 		node->flip = flip << 1;
 		mlvinfo("[F%d]flip is changed(%d->%d)\n", device,
@@ -913,7 +914,8 @@ static int is_ischain_mxp_start(struct is_device_ischain *device,
 		}
 	}
 
-	if (frame->shot_ext->mcsc_flip[index - PARAM_MCS_OUTPUT0] != mcs_output->flip) { /* per-frame control for Flip */
+	if ((index >= PARAM_MCS_OUTPUT0 && index < PARAM_MCS_OUTPUT5) &&
+		frame->shot_ext->mcsc_flip[index - PARAM_MCS_OUTPUT0] != mcs_output->flip) { /* per-frame control for Flip */
 		flip = frame->shot_ext->mcsc_flip[index - PARAM_MCS_OUTPUT0];
 		queue->framecfg.flip = flip << 1;
 		mdbg_pframe("flip is changed(%d->%d)\n",
@@ -948,7 +950,7 @@ static int is_ischain_mxp_start(struct is_device_ischain *device,
 	}
 
 	if (flag_extra) {
-		hw_sbwc = (SBWC_BASE_ALIGN_MASK | flag_extra);
+		hw_sbwc = (SBWC_BASE_ALIGN_MASK_LLC_ON | flag_extra);
 		chg_format = true;
 	}
 
@@ -1210,7 +1212,8 @@ static int is_ischain_mxp_tag(struct is_subdev *subdev,
 			change_pixelformat = !COMPARE_FORMAT(pixelformat, node->pixelformat);
 			pixelformat = node->pixelformat;
 		}
-		if (ldr_frame->shot_ext->mcsc_flip[index - PARAM_MCS_OUTPUT0] != mcs_output->flip)
+		if ((index >= PARAM_MCS_OUTPUT0 && index < PARAM_MCS_OUTPUT5) &&
+			ldr_frame->shot_ext->mcsc_flip[index - PARAM_MCS_OUTPUT0] != mcs_output->flip)
 			change_flip = true;
 
 		inparm.x = mcs_output->crop_offset_x;

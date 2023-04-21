@@ -55,7 +55,7 @@
 			no-map;
 		};
 
-		reserved@8668000 {
+		reserved@86680000 {
 			reg = <0x00 0x86680000 0x00 0x80000>;
 			no-map;
 		};
@@ -67,7 +67,7 @@
 			qcom,client-id = <0x01>;
 		};
 
-		rfsa@867e00000 {
+		rfsa@867e0000 {
 			reg = <0x00 0x867e0000 0x00 0x20000>;
 			no-map;
 		};
@@ -195,14 +195,14 @@
 
 	thermal-zones {
 
-		cpu0_1-thermal {
+		cpu0-1-thermal {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
 			thermal-sensors = <0x06 0x04>;
 
 			trips {
 
-				trip-point@0 {
+				trip-point0 {
 					temperature = <0x124f8>;
 					hysteresis = <0x7d0>;
 					type = "passive";
@@ -226,7 +226,7 @@
 			};
 		};
 
-		cpu2_3-thermal {
+		cpu2-3-thermal {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
 			thermal-sensors = <0x06 0x03>;
@@ -1061,7 +1061,7 @@
 					pinconf {
 						pins = "gpio63\0gpio64\0gpio65\0gpio66\0gpio67\0gpio68";
 						drive-strength = <0x02>;
-						bias-disable;
+						bias-pull-down;
 					};
 				};
 			};
@@ -2098,7 +2098,7 @@
 
 				codec@f000 {
 					compatible = "qcom,pm8916-wcd-analog-codec";
-					reg = <0xf000 0x200>;
+					reg = <0xf000>;
 					reg-names = "pmic-codec-core";
 					clocks = <0x10 0x9f>;
 					clock-names = "mclk";
@@ -2241,7 +2241,7 @@
 				reg = <0x1a01000 0x89000>;
 				reg-names = "mdp_phys";
 				interrupt-parent = <0x55>;
-				interrupts = <0x00 0x00>;
+				interrupts = <0x00>;
 				clocks = <0x10 0x6d 0x10 0x6e 0x10 0x71 0x10 0x73>;
 				clock-names = "iface\0bus\0core\0vsync";
 				iommus = <0x56 0x04>;
@@ -2268,7 +2268,7 @@
 				reg = <0x1a98000 0x25c>;
 				reg-names = "dsi_ctrl";
 				interrupt-parent = <0x55>;
-				interrupts = <0x04 0x00>;
+				interrupts = <0x04>;
 				assigned-clocks = <0x10 0x2b 0x10 0x2e>;
 				assigned-clock-parents = <0x58 0x00 0x58 0x01>;
 				clocks = <0x10 0x71 0x10 0x6d 0x10 0x6e 0x10 0x6f 0x10 0x72 0x10 0x70>;
@@ -3141,10 +3141,10 @@
 		CPU3 = "/cpus/cpu@3";
 		L2_0 = "/cpus/l2-cache";
 		CPU_SLEEP_0 = "/cpus/idle-states/cpu-sleep-0";
-		cpu0_1_alert0 = "/thermal-zones/cpu0_1-thermal/trips/trip-point@0";
-		cpu0_1_crit = "/thermal-zones/cpu0_1-thermal/trips/cpu_crit";
-		cpu2_3_alert0 = "/thermal-zones/cpu2_3-thermal/trips/trip-point0";
-		cpu2_3_crit = "/thermal-zones/cpu2_3-thermal/trips/cpu_crit";
+		cpu0_1_alert0 = "/thermal-zones/cpu0-1-thermal/trips/trip-point0";
+		cpu0_1_crit = "/thermal-zones/cpu0-1-thermal/trips/cpu_crit";
+		cpu2_3_alert0 = "/thermal-zones/cpu2-3-thermal/trips/trip-point0";
+		cpu2_3_crit = "/thermal-zones/cpu2-3-thermal/trips/cpu_crit";
 		gpu_alert0 = "/thermal-zones/gpu-thermal/trips/trip-point0";
 		gpu_crit = "/thermal-zones/gpu-thermal/trips/gpu_crit";
 		cam_alert0 = "/thermal-zones/camera-thermal/trips/trip-point0";

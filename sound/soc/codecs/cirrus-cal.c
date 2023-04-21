@@ -112,11 +112,6 @@ static unsigned int cirrus_cal_vpk_to_mv(unsigned int vpk)
 	return (vpk * CIRRUS_CAL_VFS_MV) >> 19;
 }
 
-static unsigned int cirrus_cal_ipk_to_ma(unsigned int ipk)
-{
-	return (ipk * CIRRUS_CAL_IFS_MA) >> 19;
-}
-
 static bool cirrus_cal_vsc_in_range(unsigned int vsc)
 {
 	return ((vsc <= CS35L41_VIMON_CAL_VSC_UB) ||
@@ -602,6 +597,51 @@ skip_vimon_cal:
 }
 EXPORT_SYMBOL_GPL(cirrus_cal_apply);
 
+int cirrus_cal_read_temp(const char *mfd_suffix)
+{
+	struct cirrus_amp *amp;
+	int reg = 0, ret;
+	unsigned int halo_state;
+	unsigned int global_en;
+
+	amp = cirrus_get_amp_from_suffix(mfd_suffix);
+
+	if (!amp)
+		goto err;
+
+	regmap_read(amp->regmap, amp->global_en, &global_en);
+
+	if ((global_en & amp->global_en_mask) == 0)
+		goto err;
+
+	regmap_read(amp->regmap, amp->mbox_sts, &halo_state);
+
+	if (halo_state != CSPL_MBOX_STS_RUNNING)
+		goto err;
+
+	if (amp_group->cal_running)
+		goto err;
+
+	ret = cirrus_cal_logger_get_variable(amp,
+			CIRRUS_CAL_RTLOG_ID_TEMP,
+			&reg);
+	if (ret == 0) {
+		if (reg == 0)
+			cirrus_cal_logger_get_variable(amp,
+				CIRRUS_CAL_RTLOG_ID_TEMP,
+				&reg);
+		dev_info(amp_group->cal_dev,
+			"Read temp: %d.%04d degrees C\n",
+			reg >> CIRRUS_CAL_RTLOG_RADIX_TEMP,
+			(reg & (((1 << CIRRUS_CAL_RTLOG_RADIX_TEMP) - 1))) *
+			10000 / (1 << CIRRUS_CAL_RTLOG_RADIX_TEMP));
+		return (reg >> CIRRUS_CAL_RTLOG_RADIX_TEMP);
+	}
+err:
+	return -1;
+}
+EXPORT_SYMBOL_GPL(cirrus_cal_read_temp);
+
 static int cirrus_cal_start(void)
 {
 	int redc_cal_start_retries, vimon_cal_retries = 0;
@@ -801,8 +841,6 @@ static ssize_t cirrus_cal_v_status_store(struct device *dev,
 	struct reg_sequence *config;
 	unsigned int vmax[CIRRUS_MAX_AMPS];
 	unsigned int vmin[CIRRUS_MAX_AMPS];
-	unsigned int imax[CIRRUS_MAX_AMPS];
-	unsigned int imin[CIRRUS_MAX_AMPS];
 	unsigned int cal_state;
 	int ret = 0, i, j, reg, prepare, retries, num_amps;
 	const char *suffix;
@@ -849,8 +887,6 @@ static ssize_t cirrus_cal_v_status_store(struct device *dev,
 
 		vmax[i] = 0;
 		vmin[i] = INT_MAX;
-		imax[i] = 0;
-		imin[i] = INT_MAX;
 
 		ret = cirrus_cal_wait_for_active(&amps[i]);
 		if (ret < 0) {
@@ -906,15 +942,6 @@ static ssize_t cirrus_cal_v_status_store(struct device *dev,
 				vmax[j] = reg;
 			if (reg < vmin[j])
 				vmin[j] = reg;
-
-			cirrus_cal_logger_get_variable(&amps[j],
-						amps[j].cal_ipk_id,
-						&reg);
-			if (reg > imax[j])
-				imax[j] = reg;
-			if (reg < imin[j])
-				imin[j] = reg;
-
 		}
 
 		cirrus_amp_read_ctl(&amp_group->amps[0], "CAL_STATUS",
@@ -938,14 +965,6 @@ static ssize_t cirrus_cal_v_status_store(struct device *dev,
 		vmin[i] = cirrus_cal_vpk_to_mv(vmin[i]);
 		dev_info(amp_group->cal_dev, "V Min: %d mV\n", vmin[i]);
 
-		dev_dbg(amp_group->cal_dev, "I Max: 0x%x\n", imax[i]);
-		imax[i] = cirrus_cal_ipk_to_ma(imax[i]);
-		dev_info(amp_group->cal_dev, "I Max: %d mA\n", imax[i]);
-
-		dev_dbg(amp_group->cal_dev, "I Min: 0x%x\n", imin[i]);
-		imin[i] = cirrus_cal_ipk_to_ma(imin[i]);
-		dev_info(amp_group->cal_dev, "I Min: %d mA\n", imin[i]);
-
 		if (vmax[i] < CIRRUS_CAL_V_VAL_UB_MV &&
 		    vmax[i] > CIRRUS_CAL_V_VAL_LB_MV) {
 			amps[i].cal.v_validation = 1;
@@ -968,7 +987,7 @@ err:
 	return size;
 }
 
-#ifdef CS35L41_FACTORY_RECOVERY_SYSFS
+#ifdef CONFIG_SND_SOC_CS35L41_REINIT_SYSFS
 static ssize_t cirrus_cal_reinit_show(struct device *dev,
 					struct device_attribute *attr,
 					char *buf)
@@ -992,15 +1011,18 @@ static ssize_t cirrus_cal_reinit_store(struct device *dev,
 	if (ret == 0 && reinit == 1) {
 		mutex_lock(&amp_group->cal_lock);
 
-		for (i = 0; i < amp_group->num_amps; i++)
-			cs35l41_reinit(amp_group->amps[i].component);
+		for (i = 0; i < amp_group->num_amps; i++) {
+			if (amp_group->amps[i].amp_reinit != NULL)
+				amp_group->amps[i].amp_reinit(
+					amp_group->amps[i].component);
+		}
 
 		mutex_unlock(&amp_group->cal_lock);
 	}
 
 	return size;
 }
-#endif /* CS35L41_FACTORY_RECOVERY_SYSFS*/
+#endif /* CONFIG_SND_SOC_CS35L41_REINIT_SYSFS*/
 
 static ssize_t cirrus_cal_vval_show(struct device *dev,
 					struct device_attribute *attr,
@@ -1046,6 +1068,14 @@ static ssize_t cirrus_cal_rdc_store(struct device *dev,
 
 	ret = kstrtos32(buf, 10, &rdc);
 	if (ret == 0 && amp) {
+		if (rdc < 0) {
+			amp->cal.efs_cache_vsc = 0;
+			amp->cal.efs_cache_isc = 0;
+			amp->cal.efs_cache_rdc = 0;
+			amp->cal.efs_cache_valid = 0;
+			return size;
+		}
+
 		amp->cal.efs_cache_rdc = rdc;
 
 		dev_info(dev, "EFS Cache RDC set: 0x%x\n", rdc);
@@ -1082,6 +1112,14 @@ static ssize_t cirrus_cal_vsc_store(struct device *dev,
 
 	ret = kstrtos32(buf, 10, &vsc);
 	if (ret == 0 && amp) {
+		if (vsc < 0) {
+			amp->cal.efs_cache_vsc = 0;
+			amp->cal.efs_cache_isc = 0;
+			amp->cal.efs_cache_rdc = 0;
+			amp->cal.efs_cache_valid = 0;
+			return size;
+		}
+
 		amp->cal.efs_cache_vsc = vsc;
 
 		dev_info(dev, "EFS Cache VSC set: 0x%x\n", vsc);
@@ -1118,6 +1156,14 @@ static ssize_t cirrus_cal_isc_store(struct device *dev,
 
 	ret = kstrtos32(buf, 10, &isc);
 	if (ret == 0 && amp) {
+		if (isc < 0) {
+			amp->cal.efs_cache_vsc = 0;
+			amp->cal.efs_cache_isc = 0;
+			amp->cal.efs_cache_rdc = 0;
+			amp->cal.efs_cache_valid = 0;
+			return size;
+		}
+
 		amp->cal.efs_cache_isc = isc;
 
 		dev_info(dev, "EFS Cache ISC set: 0x%x\n", isc);
@@ -1225,10 +1271,10 @@ static DEVICE_ATTR(status, 0664, cirrus_cal_status_show,
 				cirrus_cal_status_store);
 static DEVICE_ATTR(v_status, 0664, cirrus_cal_v_status_show,
 				cirrus_cal_v_status_store);
-#ifdef CS35L41_FACTORY_RECOVERY_SYSFS
+#ifdef CONFIG_SND_SOC_CS35L41_REINIT_SYSFS
 static DEVICE_ATTR(reinit, 0664, cirrus_cal_reinit_show,
 				cirrus_cal_reinit_store);
-#endif /* CS35L41_FACTORY_RECOVERY_SYSFS */
+#endif /* CONFIG_SND_SOC_CS35L41_REINIT_SYSFS */
 
 static struct device_attribute v_val_attribute = {
 	.attr = {.mode = VERIFY_OCTAL_PERMISSIONS(0664)},
@@ -1288,9 +1334,9 @@ static struct attribute *cirrus_cal_attr_base[] = {
 	&dev_attr_version.attr,
 	&dev_attr_status.attr,
 	&dev_attr_v_status.attr,
-#ifdef CS35L41_FACTORY_RECOVERY_SYSFS
+#ifdef CONFIG_SND_SOC_CS35L41_REINIT_SYSFS
 	&dev_attr_reinit.attr,
-#endif /* CS35L41_FACTORY_RECOVERY_SYSFS */
+#endif /* CONFIG_SND_SOC_CS35L41_REINIT_SYSFS */
 	NULL,
 };
 

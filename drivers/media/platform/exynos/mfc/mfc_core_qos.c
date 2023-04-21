@@ -12,6 +12,8 @@
 
 #include <linux/err.h>
 
+#include "mfc_core_enc_param.h"
+
 #include "mfc_core_qos.h"
 #include "mfc_utils.h"
 
@@ -390,7 +392,14 @@ static inline unsigned long __mfc_qos_get_weighted_mb(struct mfc_ctx *ctx,
 		break;
 
 	case MFC_REG_CODEC_AV1_DEC:
-		/* Todo: must be update! */
+		weight = (weight * 100) / qos_weight->weight_av1;
+		mfc_debug(3, "[QoS] av1 codec, weight: %d\n", weight / 10);
+
+		if (ctx->is_10bit) {
+			weight = (weight * 100) / qos_weight->weight_10bit;
+			mfc_debug(3, "[QoS] 10bit, weight: %d\n", weight / 10);
+		}
+		break;
 	case MFC_REG_CODEC_VP9_DEC:
 	case MFC_REG_CODEC_VP9_ENC:
 		weight = (weight * 100) / qos_weight->weight_vp8_vp9;
@@ -431,7 +440,7 @@ static inline unsigned long __mfc_qos_get_weighted_mb(struct mfc_ctx *ctx,
 
 	if (enc) {
 		p = &enc->params;
-		if ((IS_H264_ENC(ctx) || IS_HEVC_ENC(ctx)) && p->num_b_frame) {
+		if (mfc_core_get_enc_bframe(ctx)) {
 			weight = (weight * 100) / qos_weight->weight_bframe;
 			mfc_debug(3, "[QoS] B frame encoding, weight: %d\n", weight / 10);
 		} else if ((IS_H264_ENC(ctx) || IS_HEVC_ENC(ctx) || IS_VP8_ENC(ctx) ||
@@ -447,6 +456,10 @@ static inline unsigned long __mfc_qos_get_weighted_mb(struct mfc_ctx *ctx,
 		if (dec->num_of_tile_over_4) {
 			weight = (weight * 100) / qos_weight->weight_num_of_tile;
 			mfc_debug(3, "[QoS] num of tile >= 4, weight: %d\n", weight / 10);
+		}
+		if (dec->is_mbaff) {
+			weight = (weight * 100) / qos_weight->weight_mbaff;
+			mfc_debug(3, "[QoS] MBAFF, weight: %d\n", weight / 10);
 		}
 	}
 
@@ -464,13 +477,23 @@ static inline unsigned long __mfc_qos_get_weighted_mb(struct mfc_ctx *ctx,
 static inline unsigned long __mfc_qos_get_mb_per_second(struct mfc_core *core,
 		struct mfc_ctx *ctx, unsigned int max_mb)
 {
-	unsigned long mb_width, mb_height, fps, mb, qos_weighted_mb;
+	unsigned long mb_width, mb_height, fps, frame_mb, mb, qos_weighted_mb;
 
 	mb_width = (ctx->crop_width + 15) / 16;
 	mb_height = (ctx->crop_height + 15) / 16;
+	frame_mb = mb_width * mb_height;
 	fps = ctx->framerate / 1000;
 
-	mb = mb_width * mb_height * fps;
+	/* If decoder resolution is larger than HD and smaller than FHD, apply FHD for perf */
+	if ((ctx->type == MFCINST_DECODER) && (frame_mb > MFC_HD_RES_MB) &&
+			(frame_mb < MFC_FHD_RES_MB)) {
+		mfc_debug(3, "[QoS] frame MB size is changed %ld -> %ld (%dx%d)\n",
+				frame_mb, MFC_FHD_RES_MB,
+				ctx->crop_width, ctx->crop_height);
+		frame_mb = MFC_FHD_RES_MB;
+	}
+
+	mb = frame_mb * fps;
 	qos_weighted_mb = __mfc_qos_get_weighted_mb(ctx, mb);
 
 	/*
@@ -481,13 +504,13 @@ static inline unsigned long __mfc_qos_get_mb_per_second(struct mfc_core *core,
 	 *	- ts_is_full 0: mb_width * mb_height * DEC(ENC)_DEFAULT_FPS
 	 *	- ts_is_full 1: mb_width * mb_height * actual fps by timestamp / working core
 	 */
-	if (ctx->ts_is_full) {
+	if (ctx->src_ts.ts_is_full) {
 		ctx->weighted_mb = qos_weighted_mb;
 		ctx->load = ctx->weighted_mb * 100 / max_mb;
 	}
 	if (IS_MULTI_MODE(ctx)) {
 		fps = ctx->framerate / 1000 / ctx->dev->num_core;
-		mb = mb_width * mb_height * fps;
+		mb = frame_mb * fps;
 		qos_weighted_mb = __mfc_qos_get_weighted_mb(ctx, mb);
 	}
 
@@ -665,7 +688,7 @@ void mfc_core_qos_on(struct mfc_core *core, struct mfc_ctx *ctx)
 		return;
 	}
 
-	if (core->core_ctx[ctx->num]->state == MFCINST_FREE) {
+	if (core->core_ctx[ctx->num] && (core->core_ctx[ctx->num]->state == MFCINST_FREE)) {
 		mfc_ctx_info("[QoS] instance not started yet\n");
 		return;
 	}
@@ -688,6 +711,10 @@ void mfc_core_qos_on(struct mfc_core *core, struct mfc_ctx *ctx)
 	core->total_mb = 0;
 	list_for_each_entry(qos_core_ctx, &core->qos_queue, qos_list) {
 		qos_ctx = qos_core_ctx->ctx;
+		if (qos_ctx->idle_mode == MFC_IDLE_MODE_IDLE) {
+			mfc_debug(3, "[QoS][MFCIDLE] skip idle ctx [%d]\n", qos_ctx->num);
+			continue;
+		}
 		if (qos_ctx->type == MFCINST_DECODER)
 			dec_found += 1;
 		hw_mb += __mfc_qos_get_mb_per_second(core, qos_ctx, pdata->max_mb);
@@ -785,12 +812,16 @@ void mfc_core_qos_off(struct mfc_core *core, struct mfc_ctx *ctx)
 	/* get the hw macroblock */
 	core->total_mb = 0;
 	list_for_each_entry(qos_core_ctx, &core->qos_queue, qos_list) {
-		if (qos_core_ctx == core->core_ctx[ctx->num]) {
+		if ((qos_core_ctx == core->core_ctx[ctx->num]) && !ON_RES_CHANGE(qos_core_ctx)) {
 			found = 1;
 			continue;
 		}
 
 		qos_ctx = qos_core_ctx->ctx;
+		if (qos_ctx->idle_mode == MFC_IDLE_MODE_IDLE) {
+			mfc_debug(3, "[QoS][MFCIDLE] skip idle ctx [%d]\n", qos_ctx->num);
+			continue;
+		}
 		if (qos_ctx->type == MFCINST_DECODER)
 			dec_found += 1;
 		hw_mb += __mfc_qos_get_mb_per_second(core, qos_ctx, pdata->max_mb);
@@ -858,6 +889,27 @@ void mfc_core_qos_off(struct mfc_core *core, struct mfc_ctx *ctx)
 	mutex_unlock(&core->qos_mutex);
 }
 
+void __mfc_core_qos_on_idle(struct mfc_core *core)
+{
+	struct mfc_ctx *ctx;
+	int i;
+
+	mutex_lock(&core->dev->mfc_migrate_mutex);
+	if (!core->num_inst) {
+		mutex_unlock(&core->dev->mfc_migrate_mutex);
+		return;
+	}
+
+	for (i = 0; i < MFC_NUM_CONTEXTS; i++) {
+		if (core->core_ctx[i]) {
+			ctx = core->core_ctx[i]->ctx;
+			mfc_core_qos_on(core, ctx);
+			break;
+		}
+	}
+	mutex_unlock(&core->dev->mfc_migrate_mutex);
+}
+
 void __mfc_core_qos_off_all(struct mfc_core *core)
 {
 	struct mfc_core_ctx *qos_core_ctx, *tmp_core_ctx;
@@ -875,6 +927,7 @@ void __mfc_core_qos_off_all(struct mfc_core *core)
 		list_del(&qos_core_ctx->qos_list);
 
 	/* Select the opend ctx structure for QoS remove */
+	core->total_mb = 0;
 	__mfc_qos_operate(core, MFC_QOS_REMOVE, MFC_QOS_TABLE_TYPE_DEFAULT, 0);
 	mutex_unlock(&core->qos_mutex);
 }
@@ -883,15 +936,38 @@ void __mfc_core_qos_off_all(struct mfc_core *core)
 void mfc_core_qos_idle_worker(struct work_struct *work)
 {
 	struct mfc_core *core;
+	struct mfc_core_ctx *core_ctx;
+	struct mfc_ctx *ctx;
+	int is_idle = 0;
 
 	core = container_of(work, struct mfc_core, mfc_idle_work);
 
 	mutex_lock(&core->idle_qos_mutex);
+
+	/* Check idle mode for all context */
+	mutex_lock(&core->qos_mutex);
+	list_for_each_entry(core_ctx, &core->qos_queue, qos_list) {
+		ctx = core_ctx->ctx;
+		if (((atomic_read(&core->hw_run_bits) & (1 << ctx->num)) == 0) &&
+				((atomic_read(&core->dev->queued_bits) & (1 << ctx->num)) == 0)) {
+			mfc_ctx_change_idle_mode(ctx, MFC_IDLE_MODE_IDLE);
+			mfc_core_debug(3, "[MFCIDLE] ctx[%d] is idle (hw %#x Q %#x)\n", ctx->num,
+					core->hw_run_bits, core->dev->queued_bits);
+			ctx->boosting_time = 0;
+			is_idle = 1;
+		} else {
+			mfc_ctx_change_idle_mode(ctx, MFC_IDLE_MODE_NONE);
+		}
+	}
+	mutex_unlock(&core->qos_mutex);
+
 	if (core->idle_mode == MFC_IDLE_MODE_CANCEL) {
 		mfc_core_change_idle_mode(core, MFC_IDLE_MODE_NONE);
 		mfc_core_debug(2, "[QoS][MFCIDLE] idle mode is canceled\n");
-		mutex_unlock(&core->idle_qos_mutex);
-		return;
+		goto ctx_idle;
+	} else if (core->idle_mode == MFC_IDLE_MODE_NONE) {
+		mfc_core_idle_checker_start_tick(core);
+		goto ctx_idle;
 	}
 
 #ifdef CONFIG_MFC_USE_BUS_DEVFREQ
@@ -900,6 +976,16 @@ void mfc_core_qos_idle_worker(struct work_struct *work)
 	mfc_core_info("[QoS][MFCIDLE] MFC go to QoS idle mode\n");
 
 	mfc_core_change_idle_mode(core, MFC_IDLE_MODE_IDLE);
+	mutex_unlock(&core->idle_qos_mutex);
+	return;
+
+ctx_idle:
+#ifdef CONFIG_MFC_USE_BUS_DEVFREQ
+	if (is_idle) {
+		mfc_core_debug(2, "[QoS][MFCIDLE] idle mode is for ctx\n");
+		__mfc_core_qos_on_idle(core);
+	}
+#endif
 	mutex_unlock(&core->idle_qos_mutex);
 }
 
@@ -915,6 +1001,12 @@ bool mfc_core_qos_idle_trigger(struct mfc_core *core, struct mfc_ctx *ctx)
 	} else if (core->idle_mode == MFC_IDLE_MODE_RUNNING) {
 		mfc_debug(2, "[QoS][MFCIDLE] restart QoS control, cancel idle\n");
 		mfc_core_change_idle_mode(core, MFC_IDLE_MODE_CANCEL);
+		update_idle = true;
+	}
+
+	if (ctx->idle_mode == MFC_IDLE_MODE_IDLE) {
+		mfc_debug(2, "[QoS][MFCIDLE] restart QoS control for ctx\n");
+		mfc_ctx_change_idle_mode(ctx, MFC_IDLE_MODE_NONE);
 		update_idle = true;
 	}
 	mutex_unlock(&core->idle_qos_mutex);

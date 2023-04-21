@@ -33,19 +33,11 @@ EXPORT_SYMBOL_GPL(pp_set_delayed);
 EXPORT_SYMBOL_GPL(portsc_control_priority);
 EXPORT_SYMBOL_GPL(xhcioff_lock);
 
-enum usb_port_state {
-	PORT_EMPTY = 0,		/* OTG only */
-	PORT_USB2,		/* usb 2.0 device only */
-	PORT_USB3,		/* usb 3.0 device only */
-	PORT_HUB,		/* usb hub single */
-	PORT_DP			/* DP device */
-};
-
 #define DIS_RX_DETECT		(1 << 9)
 #define USB_CLASS_BILLBOARD	0x11
 #define PORT_POWER	(1 << 9)
 
-static enum usb_port_state port_state;
+enum usb_port_state port_state;
 int is_otg_only;
 
 extern struct dwc3 *g_dwc;

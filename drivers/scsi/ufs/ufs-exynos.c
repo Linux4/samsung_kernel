@@ -355,7 +355,6 @@ static void exynos_ufs_init_pmc_req(struct ufs_hba *hba,
 	struct exynos_ufs *ufs = to_exynos_ufs(hba);
 	struct uic_pwr_mode *req_pmd = &ufs->req_pmd_parm;
 	struct uic_pwr_mode *act_pmd = &ufs->act_pmd_parm;
-	struct ufs_cal_param *p = &ufs->cal_param;
 
 	/*
 	 * Exynos driver doesn't consider asymmetric lanes, e.g. rx=2, tx=1
@@ -368,8 +367,6 @@ static void exynos_ufs_init_pmc_req(struct ufs_hba *hba,
 			__func__, pwr_max->lane_rx, pwr_max->lane_tx);
 		WARN_ON(1);
 	}
-	p->connected_rx_lane = pwr_max->lane_rx;
-	p->connected_tx_lane = pwr_max->lane_tx;
 
 	/* gear change parameters to core driver */
 	pwr_req->gear_rx
@@ -1593,6 +1590,8 @@ static int exynos_ufs_link_startup_notify(struct ufs_hba *hba,
 		/* update max gear after link*/
 		exynos_ufs_update_max_gear(ufs->hba);
 
+		p->connected_tx_lane = unipro_readl(&ufs->handle, UNIP_PA_CONNECTEDTXDATALENS);
+		p->connected_rx_lane = unipro_readl(&ufs->handle, UNIP_PA_CONNECTEDRXDATALENS);
 		/* cal */
 		ret = ufs_call_cal(ufs, 0, ufs_cal_post_link);
 
@@ -1739,6 +1738,11 @@ static void exynos_ufs_compl_nexus_t_xfer_req(struct ufs_hba *hba,
 	struct ufshcd_lrb *lrbp;
 	struct scsi_cmnd *scmd;
 	u8 sense_key;
+	u8 asc = 0;
+	u8 ascq = 0;
+	u8 opcode = 0;
+	u32 lba = 0;
+	int transfer_len = 0;
 
 	/* cmd_logging */
 	if (is_scsi) {
@@ -1752,18 +1756,27 @@ static void exynos_ufs_compl_nexus_t_xfer_req(struct ufs_hba *hba,
 
 		/* sense err check */
 		sense_key = lrbp->ucd_rsp_ptr->sr.sense_data[2] & 0x0F;
+		if ((sense_key == 0x3) || (sense_key == 0x4)) {
+			asc = lrbp->ucd_rsp_ptr->sr.sense_data[12];
+			ascq = lrbp->ucd_rsp_ptr->sr.sense_data[13];
+			opcode = scmd->cmnd[0];
+			lba = (scmd->cmnd[2] << 24) | (scmd->cmnd[3] << 16) |
+						(scmd->cmnd[4] << 8) | scmd->cmnd[5];
+			transfer_len = (scmd->cmnd[7] << 8) | scmd->cmnd[8];
+
+			pr_err("UFS : sense key 0x%x(asc 0x%x, ascq 0x%x), opcode 0x%x, lba 0x%x, len 0x%x.\n",
+						sense_key, asc, ascq, opcode, lba, transfer_len);
+
 #if IS_ENABLED(CONFIG_SEC_ABC)
-		if (sense_key == 0x3)
-			sec_abc_send_event("MODULE=storage@ERROR=ufs_medium_err");
-#endif
-#if IS_ENABLED(CONFIG_SEC_DEBUG)
-		if (secdbg_mode_enter_upload()) {
 			if (sense_key == 0x3)
-				panic("ufs medium error\n");
-			else if (sense_key == 0x4)
-				panic("ufs hardware error\n");
-		}
+				sec_abc_send_event("MODULE=storage@ERROR=ufs_medium_err");
+#endif 
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
+			if (secdbg_mode_enter_upload())
+				(sense_key == 0x3)? panic("ufs medium error\n") : panic("ufs hardware error\n");
 #endif
+		}
 
 #if IS_ENABLED(CONFIG_SEC_UFS_WB_FEATURE)
 		/* sec write booster */
@@ -2567,6 +2580,11 @@ static void __ufs_resume_async(struct work_struct *work)
 
 	/* to block incoming commands prior to completion of resuming */
 	hba->ufshcd_state = UFSHCD_STATE_RESET;
+
+	/* adding delay to guarantee vcc discharge for abnormal wakeup case */
+	if (!ufs->deep_suspended)
+		msleep(8);
+
 	ret = ufshcd_system_resume(hba);
 	if (ret)
 		hba->ufshcd_state = UFSHCD_STATE_ERROR;
@@ -2688,6 +2706,8 @@ static int exynos_ufs_suspend(struct device *dev)
 	struct exynos_ufs *ufs = to_exynos_ufs(hba);
 	int ret = 0;
 
+	ufs->deep_suspended = false;
+
 	/* mainly for early wake-up cases */
 	if (work_busy(&ufs->resume_work) && work_pending(&ufs->resume_work))
 		flush_work(&ufs->resume_work);
@@ -2697,6 +2717,16 @@ static int exynos_ufs_suspend(struct device *dev)
 		hba->ufshcd_state = UFSHCD_STATE_RESET;
 
 	return ret;
+}
+
+static int exynos_ufs_suspend_noirq(struct device *dev)
+{
+	struct ufs_hba *hba = dev_get_drvdata(dev);
+	struct exynos_ufs *ufs = to_exynos_ufs(hba);
+
+	ufs->deep_suspended = true;
+
+	return 0;
 }
 
 static int exynos_ufs_resume(struct device *dev)
@@ -2711,6 +2741,7 @@ static int exynos_ufs_resume(struct device *dev)
 #else
 #define exynos_ufs_suspend	NULL
 #define exynos_ufs_resume	NULL
+#define exynos_ufs_suspend_noirq	NULL
 #endif /* CONFIG_PM_SLEEP */
 
 static void exynos_ufs_shutdown(struct platform_device *pdev)
@@ -2727,6 +2758,7 @@ static void exynos_ufs_shutdown(struct platform_device *pdev)
 static const struct dev_pm_ops exynos_ufs_dev_pm_ops = {
 	.suspend		= exynos_ufs_suspend,
 	.resume			= exynos_ufs_resume,
+	.suspend_noirq		= exynos_ufs_suspend_noirq,
 };
 
 static const struct of_device_id exynos_ufs_match[] = {

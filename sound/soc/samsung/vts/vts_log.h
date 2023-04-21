@@ -16,6 +16,13 @@
 #include <linux/device.h>
 #include "vts.h"
 
+struct vts_log_buffer {
+	char *addr;
+	unsigned int size;
+	unsigned int index_writer;
+	unsigned int index_reader;
+};
+
 /**
  * Schedule log flush sram memory to kernel memory
  * @param[in]	dev		pointer to vts device

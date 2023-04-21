@@ -162,8 +162,9 @@ struct cpuset {
 	int child_ecpus_count;
 };
 
-#define CGROUP_COUNT	15
-static struct cpuset requested_cs[CGROUP_COUNT];
+#define CS_CGROUP_COUNT	20
+static struct cpuset requested_cs[CS_CGROUP_COUNT];
+static int cs_count;
 
 #define req_cs(cs)	(requested_cs[cs->css.id - 1])
 
@@ -975,25 +976,48 @@ partition_and_rebuild_sched_domains(int ndoms_new, cpumask_var_t doms_new[],
  */
 static void rebuild_sched_domains_locked(void)
 {
+	struct cgroup_subsys_state *pos_css;
 	struct sched_domain_attr *attr;
 	cpumask_var_t *doms;
+	struct cpuset *cs;
 	int ndoms;
 
 	lockdep_assert_cpus_held();
 	percpu_rwsem_assert_held(&cpuset_rwsem);
 
 	/*
-	 * We have raced with CPU hotplug. Don't do anything to avoid
+	 * If we have raced with CPU hotplug, return early to avoid
 	 * passing doms with offlined cpu to partition_sched_domains().
-	 * Anyways, hotplug work item will rebuild sched domains.
+	 * Anyways, cpuset_hotplug_workfn() will rebuild sched domains.
+	 *
+	 * With no CPUs in any subpartitions, top_cpuset's effective CPUs
+	 * should be the same as the active CPUs, so checking only top_cpuset
+	 * is enough to detect racing CPU offlines.
 	 */
 	if (!top_cpuset.nr_subparts_cpus &&
 	    !cpumask_equal(top_cpuset.effective_cpus, cpu_active_mask))
 		return;
 
-	if (top_cpuset.nr_subparts_cpus &&
-	   !cpumask_subset(top_cpuset.effective_cpus, cpu_active_mask))
-		return;
+	/*
+	 * With subpartition CPUs, however, the effective CPUs of a partition
+	 * root should be only a subset of the active CPUs.  Since a CPU in any
+	 * partition root could be offlined, all must be checked.
+	 */
+	if (top_cpuset.nr_subparts_cpus) {
+		rcu_read_lock();
+		cpuset_for_each_descendant_pre(cs, pos_css, &top_cpuset) {
+			if (!is_partition_root(cs)) {
+				pos_css = css_rightmost_descendant(pos_css);
+				continue;
+			}
+			if (!cpumask_subset(cs->effective_cpus,
+					    cpu_active_mask)) {
+				rcu_read_unlock();
+				return;
+			}
+		}
+		rcu_read_unlock();
+	}
 
 	/* Generate domain masks and attrs */
 	ndoms = generate_sched_domains(&doms, &attr);
@@ -2695,6 +2719,11 @@ cpuset_css_alloc(struct cgroup_subsys_state *parent_css)
 {
 	struct cpuset *cs;
 
+	if (++cs_count > CS_CGROUP_COUNT) {
+		pr_err("%s: too many cpuset groups(%d)\n", __func__, cs_count);
+		return ERR_PTR(-ENOMEM);
+	}
+
 	if (!parent_css)
 		return &top_cpuset.css;
 
@@ -2889,7 +2918,7 @@ int __init cpuset_init(void)
 {
 	int i;
 
-	for (i = 0; i < CGROUP_COUNT; i++) {
+	for (i = 0; i < CS_CGROUP_COUNT; i++) {
 		BUG_ON(!alloc_cpumask_var(&requested_cs[i].cpus_allowed, GFP_KERNEL));
 		cpumask_setall(requested_cs[i].cpus_allowed);
 	}
@@ -3145,6 +3174,13 @@ static void cpuset_hotplug_workfn(struct work_struct *work)
 	 */
 	cpus_updated = !cpumask_equal(top_cpuset.effective_cpus, &new_cpus);
 	mems_updated = !nodes_equal(top_cpuset.effective_mems, new_mems);
+
+	/*
+	 * In the rare case that hotplug removes all the cpus in subparts_cpus,
+	 * we assumed that cpus are updated.
+	 */
+	if (!cpus_updated && top_cpuset.nr_subparts_cpus)
+		cpus_updated = true;
 
 	/* synchronize cpus_allowed to cpu_active_mask */
 	if (cpus_updated) {

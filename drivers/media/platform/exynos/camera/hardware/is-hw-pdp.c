@@ -103,6 +103,33 @@ static void pdp_s_one_shot_enable(void *data, unsigned long id)
 	}
 }
 
+static void pdp_rdma_wait_idle(void *data, unsigned long id)
+{
+	int ret = 0;
+	struct is_pdp *pdp;
+
+	pdp = (struct is_pdp *)data;
+	if (!pdp) {
+		err("failed to get PDP");
+		return;
+	}
+
+	info("[PDP%d] %s\n", pdp->id, __func__);
+	ret = pdp_hw_rdma_wait_idle(pdp->base);
+	if (ret)
+		err("[PDP%d] failed to pdp_hw_rdma_wait_idle", pdp->id);
+}
+
+static const struct votf_ops pdp_img_votf_ops = {
+	.s_addr		= pdp_s_rdma_addr,
+	.s_oneshot	= pdp_s_one_shot_enable,
+	.wait_idle	= pdp_rdma_wait_idle,
+};
+
+static const struct votf_ops pdp_af_votf_ops = {
+	.s_addr		= pdp_s_af_rdma_addr,
+};
+
 static int pdp_print_work_list(struct is_work_list *work_list)
 {
 	err("");
@@ -490,7 +517,7 @@ static irqreturn_t is_isr_pdp_int1(int irq, void *data)
 		is_hardware_sfr_dump(hw_ip->hardware, hw_ip->id, false);
 
 		if (pdp_hw_is_occurred(state, PE_PAF_OVERFLOW)) {
-#if IS_ENABLED(CONFIG_EXYNOS_SCI_DBG)
+#if IS_ENABLED(CONFIG_EXYNOS_SCI_DBG_AUTO)
 			smc_ppc_enable(0);
 #endif
 			print_all_hw_frame_count(hw_ip->hardware);
@@ -559,7 +586,7 @@ static irqreturn_t is_isr_pdp_int2(int irq, void *data)
 		is_hardware_sfr_dump(hw_ip->hardware, hw_ip->id, false);
 
 		if (pdp_hw_is_occurred(state, PE_PAF_OVERFLOW)) {
-#if IS_ENABLED(CONFIG_EXYNOS_SCI_DBG)
+#if IS_ENABLED(CONFIG_EXYNOS_SCI_DBG_AUTO)
 			smc_ppc_enable(0);
 #endif
 			print_all_hw_frame_count(hw_ip->hardware);
@@ -1372,6 +1399,15 @@ static int is_hw_pdp_init(struct is_hw_ip *hw_ip, u32 instance,
 				return ret;
 			}
 		}
+
+		subdev = &device->pdaf;
+		if (!test_bit(IS_SUBDEV_OPEN, &subdev->state)) {
+			ret = is_subdev_internal_open(device, IS_DEVICE_ISCHAIN, subdev);
+			if (ret) {
+				merr("is_subdev_internal_open is fail(%d)", device, ret);
+				return ret;
+			}
+		}
 	}
 
 	set_bit(HW_INIT, &hw_ip->state);
@@ -1415,6 +1451,13 @@ static int is_hw_pdp_deinit(struct is_hw_ip *hw_ip, u32 instance)
 			if (ret)
 				merr("subdev internal stop is fail(%d)", device, ret);
 
+			ret = is_subdev_internal_close(device, IS_DEVICE_ISCHAIN, subdev);
+			if (ret)
+				merr("is_subdev_internal_close is fail(%d)", device, ret);
+		}
+
+		subdev = &device->pdaf;
+		if (test_bit(IS_SUBDEV_INTERNAL_USE, &subdev->state)) {
 			ret = is_subdev_internal_close(device, IS_DEVICE_ISCHAIN, subdev);
 			if (ret)
 				merr("is_subdev_internal_close is fail(%d)", device, ret);
@@ -1616,21 +1659,15 @@ static int is_hw_pdp_enable(struct is_hw_ip *hw_ip, u32 instance, ulong hw_map)
 	if (en_votf == OTF_INPUT_COMMAND_ENABLE) {
 		struct is_group *group = hw_ip->group[instance];
 
-		ret = is_votf_register_framemgr(group, TRS, pdp, pdp_s_rdma_addr, ENTRY_PAF);
+		ret = is_votf_register_framemgr(group, TRS, pdp, &pdp_img_votf_ops, ENTRY_PAF);
 		if (ret) {
 			mserr_hw("(Bayer) is_votf_register_framemgr is failed", instance, hw_ip);
 			return ret;
 		}
 
-		ret = is_votf_register_framemgr(group, TRS, pdp, pdp_s_af_rdma_addr, ENTRY_PDAF);
+		ret = is_votf_register_framemgr(group, TRS, pdp, &pdp_af_votf_ops, ENTRY_PDAF);
 		if (ret) {
 			mserr_hw("(AF) is_votf_register_framemgr is failed", instance, hw_ip);
-			return ret;
-		}
-
-		ret = is_votf_register_oneshot(group, TRS, pdp, pdp_s_one_shot_enable, ENTRY_PAF);
-		if (ret) {
-			mserr_hw(" is_votf_register_oneshot is failed", instance, hw_ip);
 			return ret;
 		}
 	}
@@ -2150,7 +2187,7 @@ static int is_hw_pdp_change_chain(struct is_hw_ip *hw_ip, u32 instance,
 
 	curr_id = hw_ip->id - DEV_HW_PAF0;
 	if (curr_id == next_id) {
-		mswarn_hw("Same chain (curr:%d, next:%d)", instance, hw_ip,
+		msinfo_hw("[%s] Same chain (curr:%d, next:%d)", instance, hw_ip, __func__,
 			curr_id, next_id);
 		goto p_err;
 	}
@@ -2272,12 +2309,13 @@ static int pdp_get_array_val(struct device *dev, struct device_node *dnode, char
 {
 	int ret = 0;
 
-	*elems = of_property_count_u32_elems(dnode, name);
-	if (*elems < 0) {
+	ret = of_property_count_u32_elems(dnode, name);
+	if (ret < 0) {
 		dev_err(dev, "failed to get mux_val property\n");
-		ret = -EINVAL;
 		return ret;
 	}
+
+	*elems = ret;
 
 	*val = devm_kcalloc(dev, *elems, sizeof(**val), GFP_KERNEL);
 	if (!*val) {
@@ -2333,7 +2371,7 @@ static int pdp_get_resource_mem_byname(struct platform_device *pdev, char *name,
 
 static int pdp_probe(struct platform_device *pdev)
 {
-	int ret;
+	int ret = 0;
 	int id;
 	bool leader;
 	struct resource *res;
@@ -2354,6 +2392,12 @@ static int pdp_probe(struct platform_device *pdev)
 		return -EPROBE_DEFER;
 	}
 
+	core = (struct is_core *)dev_get_drvdata(is_dev);
+	if (!core) {
+		err("core is NULL");
+		return -EINVAL;
+	}
+
 	max_num_of_pdp = of_alias_get_highest_id("pdp");
 	if (max_num_of_pdp < 0) {
 		dev_err(dev, "invalid alias name\n");
@@ -2364,35 +2408,43 @@ static int pdp_probe(struct platform_device *pdev)
 	id = of_alias_get_id(dev->of_node, "pdp");
 	leader = of_property_read_bool(dev->of_node, "leader");
 
-	core = (struct is_core *)dev_get_drvdata(is_dev);
-
 	switch (id) {
 	case 0:
 		hw_id = DEV_HW_PAF0;
 		if (leader)
-			is_paf0s_video_probe(core);
+			ret = is_paf0s_video_probe(core);
 		break;
 	case 1:
 		hw_id = DEV_HW_PAF1;
 		if (leader)
-			is_paf1s_video_probe(core);
+			ret = is_paf1s_video_probe(core);
 		break;
 	case 2:
 		hw_id = DEV_HW_PAF2;
 		if (leader)
-			is_paf2s_video_probe(core);
+			ret = is_paf2s_video_probe(core);
 		break;
 	case 3:
 		hw_id = DEV_HW_PAF3;
 		if (leader)
-			is_paf3s_video_probe(core);
+			ret = is_paf3s_video_probe(core);
 		break;
 	default:
 		dev_err(dev, "invalid id (out-of-range)\n");
 		return -EINVAL;
 	}
 
+	if (ret) {
+		dev_err(dev, "is_paf%ds_video_probe fail\n", id);
+		return ret;
+	}
+
 	hw_slot = is_hw_slot_id(hw_id);
+	if (!valid_hw_slot_id(hw_slot)) {
+		dev_err(dev, "invalid next hw_slot_id [SLOT:%d]\n", hw_slot);
+		return -EINVAL;
+	}
+
 	hw_ip = &core->hardware.hw_ip[hw_slot];
 
 	pdp = devm_kzalloc(&pdev->dev, sizeof(struct is_pdp), GFP_KERNEL);

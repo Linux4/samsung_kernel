@@ -332,6 +332,9 @@ static int dpp_get_params(struct dpp_device *dpp, struct dpp_params_info *p)
 	p->votf_buffer_idx = config->votf_buf_idx;
 #endif
 
+#if IS_ENABLED(CONFIG_EXYNOS_SBWC_LIBREQ)
+	p->lib_requested = dpp->dpp_config->lib_requested;
+#endif
 	return 0;
 }
 
@@ -1096,16 +1099,47 @@ static void dpp_print_restriction(struct dpp_device *dpp)
 	dpp_info("src_h_rot_max[%d]\n", res->src_h_rot_max);
 }
 
+#if IS_ENABLED(CONFIG_MCD_PANEL)
+#define CHECK_CNT	20
+static bool dpp0_probe_is_done()
+{
+	int check_cnt = CHECK_CNT;
+
+	if (get_dpp_drvdata(0))
+		return true;
+	while (!get_dpp_drvdata(0) && check_cnt) {
+		usleep_range(1000, 1100);
+		check_cnt--;
+	}
+	if (check_cnt == 0) {
+		dpp_err("dpp0 probe is failed\n");
+		return false;
+	} else {
+		usleep_range(1000, 1100);
+		dpp_warn("dpp0 probe is late, remaining check cnt:%d \n", check_cnt);
+		return true;
+	}
+}
+#endif
+
 static void dpp_parse_dt(struct dpp_device *dpp, struct device *dev)
 {
 	struct device_node *node = dev->of_node;
-	struct dpp_device *dpp0 = get_dpp_drvdata(0);
+	struct dpp_device *dpp0;
 	struct dpp_restriction *res = &dpp->restriction;
 	int i;
 	char format_list[256] = {0, };
 	int len = 0, ret;
 
 	dpp->id = of_alias_get_id(dev->of_node, "dpp");
+
+#if IS_ENABLED(CONFIG_MCD_PANEL)
+	if (dpp->id && !dpp0_probe_is_done()) {
+		dpp_err("dpp0 probe is not finished\n");
+	}
+#endif
+	dpp0 = get_dpp_drvdata(0);
+
 	dpp_info("dpp(%d) probe start..\n", dpp->id);
 	of_property_read_u32(node, "attr", (u32 *)&dpp->attr);
 	dpp_info("attributes = 0x%lx\n", dpp->attr);
@@ -1459,6 +1493,7 @@ static int dpp_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto err;
 	}
+
 	dpp_parse_dt(dpp, dev);
 	dpp_drvdata[dpp->id] = dpp;
 

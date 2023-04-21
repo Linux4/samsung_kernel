@@ -403,7 +403,7 @@ static int nh_check_attr_group(struct net *net, struct nlattr *tb[],
 	struct nexthop_grp *nhg;
 	unsigned int i, j;
 
-	if (len & (sizeof(struct nexthop_grp) - 1)) {
+	if (!len || len & (sizeof(struct nexthop_grp) - 1)) {
 		NL_SET_ERR_MSG(extack,
 			       "Invalid length for nexthop group attribute");
 		return -EINVAL;
@@ -763,7 +763,7 @@ static void remove_nexthop_from_groups(struct net *net, struct nexthop *nh,
 		remove_nh_grp_entry(net, nhge, nlinfo);
 
 	/* make sure all see the newly published array before releasing rtnl */
-	synchronize_rcu();
+	synchronize_net();
 }
 
 static void remove_nexthop_group(struct nexthop *nh, struct nl_info *nlinfo)
@@ -1065,7 +1065,7 @@ out:
 
 /* rtnl */
 /* remove all nexthops tied to a device being deleted */
-static void nexthop_flush_dev(struct net_device *dev)
+static void nexthop_flush_dev(struct net_device *dev, unsigned long event)
 {
 	unsigned int hash = nh_dev_hashfn(dev->ifindex);
 	struct net *net = dev_net(dev);
@@ -1075,6 +1075,10 @@ static void nexthop_flush_dev(struct net_device *dev)
 
 	hlist_for_each_entry_safe(nhi, n, head, dev_hash) {
 		if (nhi->fib_nhc.nhc_dev != dev)
+			continue;
+
+		if (nhi->reject_nh &&
+		    (event == NETDEV_DOWN || event == NETDEV_CHANGE))
 			continue;
 
 		remove_nexthop(net, nhi->nh_parent, NULL);
@@ -1104,6 +1108,9 @@ static struct nexthop *nexthop_create_group(struct net *net,
 	struct nh_group *nhg;
 	struct nexthop *nh;
 	int i;
+
+	if (WARN_ON(!num_nh))
+		return ERR_PTR(-EINVAL);
 
 	nh = nexthop_alloc();
 	if (!nh)
@@ -1154,8 +1161,10 @@ static struct nexthop *nexthop_create_group(struct net *net,
 	return nh;
 
 out_no_nh:
-	for (; i >= 0; --i)
+	for (i--; i >= 0; --i) {
+		list_del(&nhg->nh_entries[i].nh_list);
 		nexthop_put(nhg->nh_entries[i].nh);
+	}
 
 	kfree(nhg->spare);
 	kfree(nhg);
@@ -1789,11 +1798,11 @@ static int nh_netdev_event(struct notifier_block *this,
 	switch (event) {
 	case NETDEV_DOWN:
 	case NETDEV_UNREGISTER:
-		nexthop_flush_dev(dev);
+		nexthop_flush_dev(dev, event);
 		break;
 	case NETDEV_CHANGE:
 		if (!(dev_get_flags(dev) & (IFF_RUNNING | IFF_LOWER_UP)))
-			nexthop_flush_dev(dev);
+			nexthop_flush_dev(dev, event);
 		break;
 	case NETDEV_CHANGEMTU:
 		info_ext = ptr;

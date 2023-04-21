@@ -23,6 +23,10 @@ typedef unsigned int uint32_t;
 typedef unsigned long long uint64_t;
 #endif
 
+#ifdef CONFIG_SEC_CAL_ENABLE
+static bool sec2lsi_conversion_done[8] = {false, false, false, false, false, false, false, false};
+#endif
+
 #define IS_CAMINFO_IOCTL_MAGIC 0xFB
 
 #define IS_CAMINFO_IOCTL_COMMAND	_IOWR(IS_CAMINFO_IOCTL_MAGIC, 0x01, caminfo_ioctl_cmd *)
@@ -40,6 +44,13 @@ enum caminfo_cmd_id
 	CAMINFO_CMD_ID_SET_EFS_DATA = 2,
 	CAMINFO_CMD_ID_GET_SENSOR_ID = 3,
 	CAMINFO_CMD_ID_GET_AWB_DATA_ADDR = 4,
+
+#ifdef CONFIG_SEC_CAL_ENABLE
+	/* Standard CAL */
+	CAMINFO_CMD_ID_GET_MODULE_INFO = 20,
+	CAMINFO_CMD_ID_GET_SEC2LSI_BUFF = 21,
+	CAMINFO_CMD_ID_SET_SEC2LSI_BUFF = 22,
+#endif
 };
 
 #define CAM_MAX_SUPPORTED_LIST	20
@@ -61,8 +72,10 @@ typedef struct
 typedef struct
 {
 	int tilt_cal_tele_efs_size;
+	int tilt_cal_tele2_efs_size;
 	int gyro_efs_size;
 	uint8_t *tilt_cal_tele_efs_buf;
+	uint8_t *tilt_cal_tele2_efs_buf;
 	uint8_t *gyro_efs_buf;
 } caminfo_efs_data;
 
@@ -100,5 +113,21 @@ typedef struct
 {
 	struct mutex	mlock;
 } is_vender_caminfo;
+
+#ifdef CONFIG_SEC_CAL_ENABLE
+typedef struct
+{
+	uint32_t camID;
+	unsigned char *secBuf;
+	unsigned char *lsiBuf;
+	unsigned char *mdInfo; //Module information data in the calmap Header area
+	uint32_t awb_size;
+	uint32_t lsc_size;
+} caminfo_romdata_sec2lsi;
+#endif
+
+#ifdef CONFIG_SEC_CAL_ENABLE
+bool is_need_use_standard_cal(uint32_t rom_id);
+#endif
 
 #endif /* IS_VENDER_CAMINFO_H */

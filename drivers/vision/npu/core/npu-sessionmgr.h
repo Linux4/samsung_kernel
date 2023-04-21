@@ -17,10 +17,16 @@
 #include "npu-session.h"
 
 #define NPU_MAX_SESSION 32
+#define NPU_MAX_CORES_ALLOWED	11 /* 1 greather than max(10) to ease indexing */
 
 struct npu_sessionmgr {
 	struct npu_session *session[NPU_MAX_SESSION];
 	unsigned long state;
+#ifdef CONFIG_NPU_ARBITRATION
+	unsigned long cumulative_flc_size;
+	unsigned long cumulative_sdma_size;
+	unsigned long count_thread_ncp[NPU_MAX_CORES_ALLOWED];
+#endif
 	atomic_t session_cnt;
 	struct mutex mlock;
 };

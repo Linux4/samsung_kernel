@@ -1285,7 +1285,7 @@ static int is_itf_close(struct is_device_ischain *device)
 	FIMC_BUG(!device->interface);
 
 	if (!test_bit(IS_ISCHAIN_OPEN_STREAM, &device->state)) {
-		mwarn("stream is already close", device);
+		minfo("[%s] stream is already close", device, __func__);
 		goto p_err;
 	}
 
@@ -1537,6 +1537,7 @@ int is_itf_i2c_lock(struct is_device_ischain *this,
 	return ret;
 }
 
+#ifdef PRINT_CAPABILITY
 static int is_itf_g_capability(struct is_device_ischain *this)
 {
 	int ret = 0;
@@ -1637,6 +1638,7 @@ static int is_itf_g_capability(struct is_device_ischain *this)
 #endif
 	return ret;
 }
+#endif
 
 int is_itf_power_down(struct is_interface *interface)
 {
@@ -2169,6 +2171,117 @@ static int is_ischain_s_path(struct is_device_ischain *device,
 	return ret;
 }
 
+static void is_ischain_calc_plane_dva(u32 planes, dma_addr_t dva[], u32 pixelformat,
+				u32 width, u32 height, u32 target_addr[])
+{
+	int i, j;
+
+	switch (pixelformat) {
+	case V4L2_PIX_FMT_NV21:
+	case V4L2_PIX_FMT_NV12:
+	case V4L2_PIX_FMT_NV16:
+	case V4L2_PIX_FMT_NV61:
+		for (i = 0; i < planes; i++) {
+			j = i * 2;
+			target_addr[j] = (typeof(*target_addr))dva[i];
+			target_addr[j + 1] = target_addr[j] + (width * height);
+		}
+		break;
+	case V4L2_PIX_FMT_YVU420M:
+		for (i = 0; i < planes; i += 3) {
+			target_addr[i] = (typeof(*target_addr))dva[i];
+			target_addr[i + 1] = (typeof(*target_addr))dva[i + 2];
+			target_addr[i + 2] = (typeof(*target_addr))dva[i + 1];
+		}
+		break;
+	case V4L2_PIX_FMT_YUV420:
+		for (i = 0; i < planes; i++) {
+			j = i * 3;
+			target_addr[j] = (typeof(*target_addr))dva[i];
+			target_addr[j + 1] = target_addr[j] + (width * height);
+			target_addr[j + 2] = target_addr[j + 1] + (width * height / 4);
+		}
+		break;
+	case V4L2_PIX_FMT_YVU420: /* AYV12 spec: The width should be aligned by 16 pixel. */
+		for (i = 0; i < planes; i++) {
+			j = i * 3;
+			target_addr[j] = (typeof(*target_addr))dva[i];
+			target_addr[j + 2] = target_addr[j] + (ALIGN(width, 16) * height);
+			target_addr[j + 1] = target_addr[j + 2] + (ALIGN(width / 2, 16) * height / 2);
+		}
+		break;
+	case V4L2_PIX_FMT_YUV422P:
+		for (i = 0; i < planes; i++) {
+			j = i * 3;
+			target_addr[j] = (typeof(*target_addr))dva[i];
+			target_addr[j + 1] = target_addr[j] + (width * height);
+			target_addr[j + 2] = target_addr[j + 1] + (width * height / 2);
+		}
+		break;
+	case V4L2_PIX_FMT_NV12M_S10B:
+	case V4L2_PIX_FMT_NV21M_S10B:
+		for (i = 0; i < planes; i += 2) {
+			j = i * 2;
+			/* Y_ADDR, UV_ADDR, Y_2BIT_ADDR, UV_2BIT_ADDR */
+			target_addr[j] = (typeof(*target_addr))dva[i];
+			target_addr[j + 1] = (typeof(*target_addr))dva[i + 1];
+			target_addr[j + 2] = target_addr[j] + NV12M_Y_SIZE(width, height);
+			target_addr[j + 3] = target_addr[j + 1] + NV12M_CBCR_SIZE(width, height);
+		}
+		break;
+	case V4L2_PIX_FMT_NV16M_S10B:
+	case V4L2_PIX_FMT_NV61M_S10B:
+		for (i = 0; i < planes; i += 2) {
+			j = i * 2;
+			/* Y_ADDR, UV_ADDR, Y_2BIT_ADDR, UV_2BIT_ADDR */
+			target_addr[j] = (typeof(*target_addr))dva[i];
+			target_addr[j + 1] = (typeof(*target_addr))dva[i + 1];
+			target_addr[j + 2] = target_addr[j] + NV16M_Y_SIZE(width, height);
+			target_addr[j + 3] = target_addr[j + 1] + NV16M_CBCR_SIZE(width, height);
+		}
+		break;
+	case V4L2_PIX_FMT_RGB24:
+		for (i = 0; i < planes; i++) {
+			j = i * 3;
+			target_addr[j + 2] = (typeof(*target_addr))dva[i];
+			target_addr[j + 1] = target_addr[j + 2] + (width * height);
+			target_addr[j] = target_addr[j + 1] + (width * height);
+		}
+		break;
+	case V4L2_PIX_FMT_BGR24:
+		for (i = 0; i < planes; i++) {
+			j = i * 3;
+			target_addr[j] = (typeof(*target_addr))dva[i];
+			target_addr[j + 1] = target_addr[j] + (width * height);
+			target_addr[j + 2] = target_addr[j + 1] + (width * height);
+		}
+		break;
+	default:
+		for (i = 0; i < planes; i++)
+			target_addr[i] = (typeof(*target_addr))dva[i];
+		break;
+	}
+}
+
+static void is_ischain_calc_plane_kva(u32 planes, ulong kva[], u32 pixelformat,
+				u32 width, u32 height, uint64_t target_addr[])
+{
+	int i;
+
+	switch (pixelformat) {
+	case V4L2_PIX_FMT_Y12:	/* Only for ME : kernel virtual addr*/
+	case V4L2_PIX_FMT_YUV32:	/* Only for 32bit data : kernel virtual addr*/
+	case V4L2_PIX_FMT_GREY:	/* Only for 1 plane, 1 byte unit custom data*/
+		for (i = 0; i < planes; i++)
+			target_addr[i] = kva[i];
+		break;
+	default:
+		for (i = 0; i < planes; i++)
+			target_addr[i] = kva[i];
+		break;
+	}
+}
+
 int is_ischain_buf_tag_input(struct is_device_ischain *device,
 	struct is_subdev *subdev,
 	struct is_frame *ldr_frame,
@@ -2178,113 +2291,26 @@ int is_ischain_buf_tag_input(struct is_device_ischain *device,
 	u32 target_addr[])
 {
 	int ret = 0;
-	int i, j;
+	int i;
 	unsigned long flags;
 	struct is_framemgr *framemgr;
 	struct is_frame *frame;
-	struct is_queue *queue;
 
 	framemgr = GET_SUBDEV_FRAMEMGR(subdev);
 	FIMC_BUG(!framemgr);
-
-	queue = GET_SUBDEV_QUEUE(subdev);
-	if (!queue) {
-		merr("queue is NULL", device);
-		ret = -EINVAL;
-		goto p_err;
-	}
 
 	framemgr_e_barrier_irqs(framemgr, FMGR_IDX_24, flags);
 
 	frame = peek_frame(framemgr, ldr_frame->state);
 	if (frame) {
-		switch (pixelformat) {
-		case V4L2_PIX_FMT_NV21:
-		case V4L2_PIX_FMT_NV12:
-		case V4L2_PIX_FMT_NV16:
-		case V4L2_PIX_FMT_NV61:
-			for (i = 0; i < frame->planes; i++) {
-				j = i * 2;
-				target_addr[j] = (typeof(*target_addr))frame->dvaddr_buffer[i];
-				target_addr[j + 1] = target_addr[j] + (width * height);
-			}
-			break;
-		case V4L2_PIX_FMT_YVU420M:
-			for (i = 0; i < frame->planes; i += 3) {
-				target_addr[i] = (typeof(*target_addr))frame->dvaddr_buffer[i];
-				target_addr[i + 1] = (typeof(*target_addr))frame->dvaddr_buffer[i + 2];
-				target_addr[i + 2] = (typeof(*target_addr))frame->dvaddr_buffer[i + 1];
-			}
-			break;
-		case V4L2_PIX_FMT_YUV420:
-			for (i = 0; i < frame->planes; i++) {
-				j = i * 3;
-				target_addr[j] = (typeof(*target_addr))frame->dvaddr_buffer[i];
-				target_addr[j + 1] = target_addr[j] + (width * height);
-				target_addr[j + 2] = target_addr[j + 1] + (width * height / 4);
-			}
-			break;
-		case V4L2_PIX_FMT_YVU420: /* AYV12 spec: The width should be aligned by 16 pixel. */
-			for (i = 0; i < frame->planes; i++) {
-				j = i * 3;
-				target_addr[j] = (typeof(*target_addr))frame->dvaddr_buffer[i];
-				target_addr[j + 2] = target_addr[j] + (ALIGN(width, 16) * height);
-				target_addr[j + 1] = target_addr[j + 2] + (ALIGN(width / 2, 16) * height / 2);
-			}
-			break;
-		case V4L2_PIX_FMT_YUV422P:
-			for (i = 0; i < frame->planes; i++) {
-				j = i * 3;
-				target_addr[j] = (typeof(*target_addr))frame->dvaddr_buffer[i];
-				target_addr[j + 1] = target_addr[j] + (width * height);
-				target_addr[j + 2] = target_addr[j + 1] + (width * height / 2);
-			}
-			break;
-		case V4L2_PIX_FMT_NV12M_S10B:
-		case V4L2_PIX_FMT_NV21M_S10B:
-			for (i = 0; i < frame->planes; i += 2) {
-				j = i * 2;
-				/* Y_ADDR, UV_ADDR, Y_2BIT_ADDR, UV_2BIT_ADDR */
-				target_addr[j] = (typeof(*target_addr))frame->dvaddr_buffer[i];
-				target_addr[j + 1] = (typeof(*target_addr))frame->dvaddr_buffer[i + 1];
-				target_addr[j + 2] = target_addr[j] + NV12M_Y_SIZE(width, height);
-				target_addr[j + 3] = target_addr[j + 1] + NV12M_CBCR_SIZE(width, height);
-			}
-			break;
-		case V4L2_PIX_FMT_NV16M_S10B:
-		case V4L2_PIX_FMT_NV61M_S10B:
-			for (i = 0; i < frame->planes; i += 2) {
-				j = i * 2;
-				/* Y_ADDR, UV_ADDR, Y_2BIT_ADDR, UV_2BIT_ADDR */
-				target_addr[j] = (typeof(*target_addr))frame->dvaddr_buffer[i];
-				target_addr[j + 1] = (typeof(*target_addr))frame->dvaddr_buffer[i + 1];
-				target_addr[j + 2] = target_addr[j] + NV16M_Y_SIZE(width, height);
-				target_addr[j + 3] = target_addr[j + 1] + NV16M_CBCR_SIZE(width, height);
-			}
-			break;
-		case V4L2_PIX_FMT_RGB24:
-			for (i = 0; i < frame->planes; i++) {
-				j = i * 3;
-				target_addr[j + 2] = (typeof(*target_addr))frame->dvaddr_buffer[i];
-				target_addr[j + 1] = target_addr[j + 2] + (width * height);
-				target_addr[j] = target_addr[j + 1] + (width * height);
-			}
-			break;
-		case V4L2_PIX_FMT_BGR24:
-			for (i = 0; i < frame->planes; i++) {
-				j = i * 3;
-				target_addr[j] = (typeof(*target_addr))frame->dvaddr_buffer[i];
-				target_addr[j + 1] = target_addr[j] + (width * height);
-				target_addr[j + 2] = target_addr[j + 1] + (width * height);
-			}
-			break;
-		default:
-			for (i = 0; i < frame->planes; i++)
-				target_addr[i] = (typeof(*target_addr))frame->dvaddr_buffer[i];
-			break;
-		}
+		is_ischain_calc_plane_dva(frame->planes, frame->dvaddr_buffer,
+					pixelformat, width, height, target_addr);
 
 		set_bit(subdev->id, &ldr_frame->out_flag);
+
+		/* for draw digit */
+		frame->width = width;
+		frame->height = height;
 	} else {
 		for (i = 0; i < IS_MAX_PLANES; i++)
 			target_addr[i] = 0;
@@ -2292,13 +2318,8 @@ int is_ischain_buf_tag_input(struct is_device_ischain *device,
 		ret = -EINVAL;
 	}
 
-	/* for draw digit */
-	frame->width = width;
-	frame->height = height;
-
 	framemgr_x_barrier_irqr(framemgr, FMGR_IDX_24, flags);
 
-p_err:
 	return ret;
 }
 
@@ -2311,125 +2332,37 @@ int is_ischain_buf_tag(struct is_device_ischain *device,
 	u32 target_addr[])
 {
 	int ret = 0;
-	int i, j;
+	int i;
 	unsigned long flags;
 	struct is_framemgr *framemgr;
 	struct is_frame *frame;
-	struct is_queue *queue;
 	struct camera2_node *capture;
 	enum is_frame_state next_state = FS_PROCESS;
 
 	framemgr = GET_SUBDEV_FRAMEMGR(subdev);
 	FIMC_BUG(!framemgr);
 
-	queue = GET_SUBDEV_QUEUE(subdev);
-	if (!queue) {
-		merr("queue is NULL", device);
-		ret = -EINVAL;
-		goto p_err;
-	}
-
 	framemgr_e_barrier_irqs(framemgr, FMGR_IDX_24, flags);
 
 	frame = peek_frame(framemgr, ldr_frame->state);
 	if (frame) {
-		if (!frame->stream) {
+		struct camera2_stream	*stream;
+
+		stream = frame->stream;
+		if (!stream) {
 			framemgr_x_barrier_irqr(framemgr, FMGR_IDX_24, flags);
 			merr("frame->stream is NULL", device);
 			BUG();
 		}
 
-		switch (pixelformat) {
-		case V4L2_PIX_FMT_NV21:
-		case V4L2_PIX_FMT_NV12:
-		case V4L2_PIX_FMT_NV16:
-		case V4L2_PIX_FMT_NV61:
-			for (i = 0; i < frame->planes; i++) {
-				j = i * 2;
-				target_addr[j] = (typeof(*target_addr))frame->dvaddr_buffer[i];
-				target_addr[j + 1] = target_addr[j] + (width * height);
-			}
-			break;
-		case V4L2_PIX_FMT_YVU420M:
-			for (i = 0; i < frame->planes; i += 3) {
-				target_addr[i] = (typeof(*target_addr))frame->dvaddr_buffer[i];
-				target_addr[i + 1] = (typeof(*target_addr))frame->dvaddr_buffer[i + 2];
-				target_addr[i + 2] = (typeof(*target_addr))frame->dvaddr_buffer[i + 1];
-			}
-			break;
-		case V4L2_PIX_FMT_YUV420:
-			for (i = 0; i < frame->planes; i++) {
-				j = i * 3;
-				target_addr[j] = (typeof(*target_addr))frame->dvaddr_buffer[i];
-				target_addr[j + 1] = target_addr[j] + (width * height);
-				target_addr[j + 2] = target_addr[j + 1] + (width * height / 4);
-			}
-			break;
-		case V4L2_PIX_FMT_YVU420: /* AYV12 spec: The width should be aligned by 16 pixel. */
-			for (i = 0; i < frame->planes; i++) {
-				j = i * 3;
-				target_addr[j] = (typeof(*target_addr))frame->dvaddr_buffer[i];
-				target_addr[j + 2] = target_addr[j] + (ALIGN(width, 16) * height);
-				target_addr[j + 1] = target_addr[j + 2] + (ALIGN(width / 2, 16) * height / 2);
-			}
-			break;
-		case V4L2_PIX_FMT_YUV422P:
-			for (i = 0; i < frame->planes; i++) {
-				j = i * 3;
-				target_addr[j] = (typeof(*target_addr))frame->dvaddr_buffer[i];
-				target_addr[j + 1] = target_addr[j] + (width * height);
-				target_addr[j + 2] = target_addr[j + 1] + (width * height / 2);
-			}
-			break;
-		case V4L2_PIX_FMT_NV12M_S10B:
-		case V4L2_PIX_FMT_NV21M_S10B:
-			for (i = 0; i < frame->planes; i += 2) {
-				j = i * 2;
-				/* Y_ADDR, UV_ADDR, Y_2BIT_ADDR, UV_2BIT_ADDR */
-				target_addr[j] = (typeof(*target_addr))frame->dvaddr_buffer[i];
-				target_addr[j + 1] = (typeof(*target_addr))frame->dvaddr_buffer[i + 1];
-				target_addr[j + 2] = target_addr[j] + NV12M_Y_SIZE(width, height);
-				target_addr[j + 3] = target_addr[j + 1] + NV12M_CBCR_SIZE(width, height);
-			}
-			break;
-		case V4L2_PIX_FMT_NV16M_S10B:
-		case V4L2_PIX_FMT_NV61M_S10B:
-			for (i = 0; i < frame->planes; i += 2) {
-				j = i * 2;
-				/* Y_ADDR, UV_ADDR, Y_2BIT_ADDR, UV_2BIT_ADDR */
-				target_addr[j] = (typeof(*target_addr))frame->dvaddr_buffer[i];
-				target_addr[j + 1] = (typeof(*target_addr))frame->dvaddr_buffer[i + 1];
-				target_addr[j + 2] = target_addr[j] + NV16M_Y_SIZE(width, height);
-				target_addr[j + 3] = target_addr[j + 1] + NV16M_CBCR_SIZE(width, height);
-			}
-			break;
-		case V4L2_PIX_FMT_RGB24:
-			for (i = 0; i < frame->planes; i++) {
-				j = i * 3;
-				target_addr[j + 2] = (typeof(*target_addr))frame->dvaddr_buffer[i];
-				target_addr[j + 1] = target_addr[j + 2] + (width * height);
-				target_addr[j] = target_addr[j + 1] + (width * height);
-			}
-			break;
-		case V4L2_PIX_FMT_BGR24:
-			for (i = 0; i < frame->planes; i++) {
-				j = i * 3;
-				target_addr[j] = (typeof(*target_addr))frame->dvaddr_buffer[i];
-				target_addr[j + 1] = target_addr[j] + (width * height);
-				target_addr[j + 2] = target_addr[j + 1] + (width * height);
-			}
-			break;
-		default:
-			for (i = 0; i < frame->planes; i++)
-				target_addr[i] = (typeof(*target_addr))frame->dvaddr_buffer[i];
-			break;
-		}
+		is_ischain_calc_plane_dva(frame->planes, frame->dvaddr_buffer,
+					pixelformat, width, height, target_addr);
 
 		capture = &ldr_frame->shot_ext->node_group.capture[subdev->cid];
 
 		frame->fcount = ldr_frame->fcount;
-		frame->stream->findex = ldr_frame->index;
-		frame->stream->fcount = ldr_frame->fcount;
+		stream->findex = ldr_frame->index;
+		stream->fcount = ldr_frame->fcount;
 
 		if (ldr_frame->stripe_info.region_num
 			&& ldr_frame->stripe_info.region_id < ldr_frame->stripe_info.region_num - 1)
@@ -2437,29 +2370,34 @@ int is_ischain_buf_tag(struct is_device_ischain *device,
 			next_state = FS_STRIPE_PROCESS;
 
 		if (likely(capture->vid == subdev->vid)) {
-			frame->stream->input_crop_region[0] = capture->input.cropRegion[0];
-			frame->stream->input_crop_region[1] = capture->input.cropRegion[1];
-			frame->stream->input_crop_region[2] = capture->input.cropRegion[2];
-			frame->stream->input_crop_region[3] = capture->input.cropRegion[3];
-			frame->stream->output_crop_region[0] = capture->output.cropRegion[0];
-			frame->stream->output_crop_region[1] = capture->output.cropRegion[1];
-			frame->stream->output_crop_region[2] = capture->output.cropRegion[2];
-			frame->stream->output_crop_region[3] = capture->output.cropRegion[3];
+			stream->input_crop_region[0] = capture->input.cropRegion[0];
+			stream->input_crop_region[1] = capture->input.cropRegion[1];
+			stream->input_crop_region[2] = capture->input.cropRegion[2];
+			stream->input_crop_region[3] = capture->input.cropRegion[3];
+			stream->output_crop_region[0] = capture->output.cropRegion[0];
+			stream->output_crop_region[1] = capture->output.cropRegion[1];
+			stream->output_crop_region[2] = capture->output.cropRegion[2];
+			stream->output_crop_region[3] = capture->output.cropRegion[3];
 		} else {
 			mserr("capture vid is changed(%d != %d)(%d)",
 				subdev, subdev, subdev->vid,
 				capture->vid, subdev->cid);
-			frame->stream->input_crop_region[0] = 0;
-			frame->stream->input_crop_region[1] = 0;
-			frame->stream->input_crop_region[2] = 0;
-			frame->stream->input_crop_region[3] = 0;
-			frame->stream->output_crop_region[0] = 0;
-			frame->stream->output_crop_region[1] = 0;
-			frame->stream->output_crop_region[2] = 0;
-			frame->stream->output_crop_region[3] = 0;
+			stream->input_crop_region[0] = 0;
+			stream->input_crop_region[1] = 0;
+			stream->input_crop_region[2] = 0;
+			stream->input_crop_region[3] = 0;
+			stream->output_crop_region[0] = 0;
+			stream->output_crop_region[1] = 0;
+			stream->output_crop_region[2] = 0;
+			stream->output_crop_region[3] = 0;
 		}
 
 		set_bit(subdev->id, &ldr_frame->out_flag);
+
+		/* for draw digit */
+		frame->width = width;
+		frame->height = height;
+
 		trans_frame(framemgr, frame, next_state);
 	} else {
 		for (i = 0; i < IS_MAX_PLANES; i++)
@@ -2468,13 +2406,8 @@ int is_ischain_buf_tag(struct is_device_ischain *device,
 		ret = -EINVAL;
 	}
 
-	/* for draw digit */
-	frame->width = width;
-	frame->height = height;
-
 	framemgr_x_barrier_irqr(framemgr, FMGR_IDX_24, flags);
 
-p_err:
 	return ret;
 }
 
@@ -2491,46 +2424,36 @@ int is_ischain_buf_tag_64bit(struct is_device_ischain *device,
 	unsigned long flags;
 	struct is_framemgr *framemgr;
 	struct is_frame *frame;
-	struct is_queue *queue;
 
 	framemgr = GET_SUBDEV_FRAMEMGR(subdev);
 	BUG_ON(!framemgr);
-
-	queue = GET_SUBDEV_QUEUE(subdev);
-	if (!queue) {
-		merr("queue is NULL", device);
-		ret = -EINVAL;
-		goto p_err;
-	}
 
 	framemgr_e_barrier_irqs(framemgr, FMGR_IDX_24, flags);
 
 	frame = peek_frame(framemgr, ldr_frame->state);
 	if (frame) {
-		if (!frame->stream) {
+		struct camera2_stream	*stream;
+
+		stream = frame->stream;
+		if (!stream) {
 			framemgr_x_barrier_irqr(framemgr, FMGR_IDX_24, flags);
 			merr("frame->stream is NULL", device);
 			BUG();
 		}
 
-		switch (pixelformat) {
-		case V4L2_PIX_FMT_Y12:	/* Only for ME : kernel virtual addr*/
-		case V4L2_PIX_FMT_YUV32:	/* Only for 32bit data : kernel virtual addr*/
-		case V4L2_PIX_FMT_GREY:	/* Only for 1 plane, 1 byte unit custom data*/
-			for (i = 0; i < frame->planes; i++)
-				target_addr[i] = frame->kvaddr_buffer[i];
-			break;
-		default:
-			for (i = 0; i < frame->planes; i++)
-				target_addr[i] = frame->kvaddr_buffer[i];
-			break;
-		}
+		is_ischain_calc_plane_kva(frame->planes, frame->kvaddr_buffer,
+					pixelformat, width, height, target_addr);
 
 		frame->fcount = ldr_frame->fcount;
-		frame->stream->findex = ldr_frame->index;
-		frame->stream->fcount = ldr_frame->fcount;
+		stream->findex = ldr_frame->index;
+		stream->fcount = ldr_frame->fcount;
 
 		set_bit(subdev->id, &ldr_frame->out_flag);
+
+		/* for draw digit */
+		frame->width = width;
+		frame->height = height;
+
 		trans_frame(framemgr, frame, FS_PROCESS);
 	} else {
 		for (i = 0; i < IS_MAX_PLANES; i++)
@@ -2539,13 +2462,8 @@ int is_ischain_buf_tag_64bit(struct is_device_ischain *device,
 		ret = -EINVAL;
 	}
 
-	/* for draw digit */
-	frame->width = width;
-	frame->height = height;
-
 	framemgr_x_barrier_irqr(framemgr, FMGR_IDX_24, flags);
 
-p_err:
 	return ret;
 }
 
@@ -2667,6 +2585,7 @@ int is_ischain_g_capability(struct is_device_ischain *device,
 	ulong user_ptr)
 {
 	int ret = 0;
+#ifdef PRINT_CAPABILITY
 	struct camera2_sm *capability;
 
 	capability = vzalloc(sizeof(struct camera2_sm));
@@ -2687,6 +2606,8 @@ int is_ischain_g_capability(struct is_device_ischain *device,
 
 p_err:
 	vfree(capability);
+#endif
+
 	return ret;
 }
 
@@ -2909,6 +2830,7 @@ static int is_ischain_open(struct is_device_ischain *device)
 	device->sensor_id	= SENSOR_NAME_NOTHING;
 	device->apply_setfile_fcount = 0;
 	device->partial_update = 0;
+	device->llc_mode = true;
 
 	offset_region = device->instance * PARAM_REGION_SIZE;
 	device->is_region	= (struct is_region *)(minfo->kvaddr_region + offset_region);
@@ -2925,6 +2847,12 @@ static int is_ischain_open(struct is_device_ischain *device)
 		is_subdev_open(&device->group_vra.leader, NULL, (void *)&init_vra_param.control,
 			device->instance);
 #endif
+
+	device->dbuf_q = is_init_dbuf_q();
+	if (IS_ERR_OR_NULL(device->dbuf_q)) {
+		merr("is_resource_get is fail", device);
+		goto p_err;
+	}
 
 	ret = is_devicemgr_open(device->devicemgr, (void *)device, IS_DEVICE_ISCHAIN);
 	if (ret) {
@@ -3005,7 +2933,7 @@ static int is_ischain_close(struct is_device_ischain *device)
 	is_subdev_close(&device->dnr);
 #endif
 #ifdef SOC_VRA
-	ret = is_hw_g_ctrl(NULL, 0, HW_G_CTRL_HAS_VRA_CH1_ONLY, (void *)&has_vra_ch1_only);
+	is_hw_g_ctrl(NULL, 0, HW_G_CTRL_HAS_VRA_CH1_ONLY, (void *)&has_vra_ch1_only);
 	if(!has_vra_ch1_only)
 		is_subdev_close(&device->group_vra.leader);
 #endif
@@ -3013,6 +2941,8 @@ static int is_ischain_close(struct is_device_ischain *device)
 	ret = is_itf_close(device);
 	if (ret)
 		merr("is_itf_close is fail", device);
+
+	is_deinit_dbuf_q(device->dbuf_q);
 
 	/* for mediaserver force close */
 	ret = is_resource_put(device->resourcemgr, RESOURCE_TYPE_ISCHAIN);
@@ -3328,7 +3258,7 @@ skip_map_sensor:
 		if (stream_type) {
 			set_bit(IS_ISCHAIN_REPROCESSING, &device->state);
 			if (stream_type == IS_OFFLINE_REPROCESSING_STREAM) {
-				ret = is_sensor_map_sensor_module(device, module_id, sensor, &sensor_id);
+				ret = is_sensor_map_sensor_module(device, module_id, &sensor_id);
 				if (ret) {
 					merr("fail to map(%d)", device, ret);
 					ret = -EINVAL;
@@ -6620,6 +6550,9 @@ static int is_ischain_paf_shot(struct is_device_ischain *device,
 			frame->shot->ctl.aa.vendor_captureCount = group->intent_ctl.vendor_captureCount;
 			frame->shot->ctl.aa.vendor_captureExposureTime = group->intent_ctl.vendor_captureExposureTime;
 			frame->shot->ctl.aa.vendor_captureEV = group->intent_ctl.vendor_captureEV;
+			memcpy(&(frame->shot->ctl.aa.vendor_multiFrameEvList),
+				&(group->intent_ctl.vendor_multiFrameEvList), EV_LIST_SIZE);
+
 			if (group->remainIntentCount > 0) {
 				group->remainIntentCount--;
 			} else {
@@ -6627,9 +6560,18 @@ static int is_ischain_paf_shot(struct is_device_ischain *device,
 				group->intent_ctl.vendor_captureCount = 0;
 				group->intent_ctl.vendor_captureExposureTime = 0;
 			}
-			minfo("frame count(%d), intent(%d), count(%d) captureExposureTime(%d) remainIntentCount(%d)\n", device, frame->fcount,
+			minfo("frame count(%d), intent(%d), count(%d) captureExposureTime(%d) remainIntentCount(%d)\n",
+				device, frame->fcount,
 				frame->shot->ctl.aa.captureIntent, frame->shot->ctl.aa.vendor_captureCount,
 				frame->shot->ctl.aa.vendor_captureExposureTime, group->remainIntentCount);
+		}
+
+		if (group->remainFlashCtlCount) {
+			frame->shot->uctl.flashMode = group->flash_ctl;
+
+			group->remainFlashCtlCount--;
+			if (group->remainFlashCtlCount == 0)
+				group->flash_ctl = CAMERA_FLASH_MODE_OFF;
 		}
 
 		/*
@@ -6850,22 +6792,26 @@ static int is_ischain_3aa_shot(struct is_device_ischain *device,
 		enum aa_capture_intent captureIntent;
 		captureIntent = group->intent_ctl.captureIntent;
 
-                if (captureIntent != AA_CAPTURE_INTENT_CUSTOM) {
-                        frame->shot->ctl.aa.captureIntent = captureIntent;
-                        frame->shot->ctl.aa.vendor_captureCount = group->intent_ctl.vendor_captureCount;
+		if (captureIntent != AA_CAPTURE_INTENT_CUSTOM) {
+			frame->shot->ctl.aa.captureIntent = captureIntent;
+			frame->shot->ctl.aa.vendor_captureCount = group->intent_ctl.vendor_captureCount;
 			frame->shot->ctl.aa.vendor_captureExposureTime = group->intent_ctl.vendor_captureExposureTime;
 			frame->shot->ctl.aa.vendor_captureEV = group->intent_ctl.vendor_captureEV;
-                        if (group->remainIntentCount > 0) {
-                                group->remainIntentCount--;
-                        } else {
-                                group->intent_ctl.captureIntent = AA_CAPTURE_INTENT_CUSTOM;
-                                group->intent_ctl.vendor_captureCount = 0;
+			memcpy(&(frame->shot->ctl.aa.vendor_multiFrameEvList),
+				&(group->intent_ctl.vendor_multiFrameEvList), EV_LIST_SIZE);
+
+			if (group->remainIntentCount > 0) {
+				group->remainIntentCount--;
+			} else {
+				group->intent_ctl.captureIntent = AA_CAPTURE_INTENT_CUSTOM;
+				group->intent_ctl.vendor_captureCount = 0;
 				group->intent_ctl.vendor_captureExposureTime = 0;
-                        }
-                        minfo("frame count(%d), intent(%d), count(%d) captureExposureTime(%d) remainIntentCount(%d)\n", device, frame->fcount,
-                                frame->shot->ctl.aa.captureIntent, frame->shot->ctl.aa.vendor_captureCount,
-                                frame->shot->ctl.aa.vendor_captureExposureTime, group->remainIntentCount);
-                }
+			}
+			minfo("frame count(%d), intent(%d), count(%d) captureExposureTime(%d) remainIntentCount(%d)\n",
+				device, frame->fcount,
+				frame->shot->ctl.aa.captureIntent, frame->shot->ctl.aa.vendor_captureCount,
+				frame->shot->ctl.aa.vendor_captureExposureTime, group->remainIntentCount);
+		}
 
 		if (group->lens_ctl.aperture != 0) {
 			frame->shot->ctl.lens.aperture = group->lens_ctl.aperture;

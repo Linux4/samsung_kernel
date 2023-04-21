@@ -56,13 +56,14 @@ void mfc_core_set_risc_base_addr(struct mfc_core *core,
 void mfc_core_cmd_host2risc(struct mfc_core *core, int cmd)
 {
 	struct mfc_core_ctx *core_ctx = core->core_ctx[core->curr_core_ctx];
+	struct mfc_ctx *ctx = core_ctx->ctx;
 	int ret = 0;
 
 	mfc_core_debug(1, "[c:%d] Issue the command: %d%s\n", core->curr_core_ctx,
 			cmd, core->cache_flush_flag ? " with cache flush" : "");
-	MFC_TRACE_CORE_CTX(">> CMD : %d, (dev:0x%lx, bits:%lx, owned:%d, wl:%d, trans:%d)\n",
+	MFC_TRACE_CORE_CTX(">> CMD : %d, (dev:0x%lx, bits:%lx, owned:%d, wl:%d, trans:%d, opmode: %d)\n",
 			cmd, core->hwlock.dev, core->hwlock.bits, core->hwlock.owned_by_irq,
-			core->hwlock.wl_count, core->hwlock.transfer_owner);
+			core->hwlock.wl_count, core->hwlock.transfer_owner, ctx->op_mode);
 	MFC_TRACE_LOG_CORE("C%d", cmd);
 
 	if (core->cache_flush_flag) {

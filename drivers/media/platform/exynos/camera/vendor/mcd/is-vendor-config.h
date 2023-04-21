@@ -27,6 +27,8 @@
 #include "is-vendor-config_usu_v02.h"
 #elif defined(CONFIG_CAMERA_USU_V03)
 #include "is-vendor-config_usu_v03.h"
+#elif defined(CONFIG_CAMERA_RSU_V09)
+#include "is-vendor-config_rsu_v09.h"
 #else
 #include "is-vendor-config_usu_v02.h" /* Default */
 #endif

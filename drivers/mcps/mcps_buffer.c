@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2019 Samsung Electronics.
  *
@@ -79,7 +80,8 @@ static void init_pinfo_queue(struct net_device *dev, struct pending_info_queue *
 struct pending_info*
 create_pending_info(unsigned int hash, unsigned int from, unsigned int to)
 {
-	struct pending_info *info = (struct pending_info *)kzalloc(sizeof(struct pending_info), GFP_ATOMIC);
+	struct pending_info *info = kzalloc(sizeof(struct pending_info), GFP_ATOMIC);
+
 	if (!info)
 		return NULL;
 
@@ -123,6 +125,7 @@ void update_pending_info(struct list_head *q, unsigned int cpu, unsigned int enq
 void splice_pending_info_2q(unsigned int cpu, struct list_head *queue)
 {
 	struct pending_info_queue *pinfo_q = &per_cpu(pqueues, cpu);
+
 	__splice_pending_info(&pinfo_q->pinfo_process_queue, queue);
 	__splice_pending_info(&pinfo_q->pinfo_input_queue, queue);
 }
@@ -130,6 +133,7 @@ void splice_pending_info_2q(unsigned int cpu, struct list_head *queue)
 void splice_pending_info_2cpu(struct list_head *queue, unsigned int cpu)
 {
 	struct pending_info_queue *pinfo_q = &per_cpu(pqueues, cpu);
+
 	__splice_pending_info(queue, &pinfo_q->pinfo_input_queue);
 }
 
@@ -137,6 +141,7 @@ void discard_buffer(struct pending_queue *q)
 {
 	struct sk_buff *skb = NULL;
 	int count = 0;
+
 	while ((skb = __skb_dequeue(&q->rx_pending_queue))) {
 		kfree_skb(skb);
 		count++;
@@ -158,6 +163,7 @@ static void flush_buffer(struct pending_info *info)
 	tracing_mark_writev('B', 1111, "flush_buffer", info->hash);
 	if (!mcps_cpu_online(info->to)) {
 		unsigned int lcpu = light_cpu();
+
 		PRINT_PINFO(info, "updated(offline) :->%2u\n", lcpu);
 		info->to = lcpu;
 	}
@@ -173,7 +179,7 @@ static void flush_buffer(struct pending_info *info)
 #endif
 
 	if (_move_flow(info->hash, info->to)) {
-		PRINT_PINFO(info, "WARN : fail to move flow \n");
+		PRINT_PINFO(info, "WARN : fail to move flow\n");
 		tracing_mark_writev('M', 1111, "flush_buffer", EINVAL);
 	}
 
@@ -191,9 +197,9 @@ static void flush_buffer(struct pending_info *info)
 	PRINT_PINFO(info, "flush starts\n");
 	lock_pendings(buf);
 	qlen = skb_queue_len(&buf->rx_pending_queue);
-	if (qlen > 0) {
+	if (qlen > 0)
 		splice_to_gro_pantry(&buf->rx_pending_queue, qlen, info->to);
-	}
+
 	buf->state = NO_PENDING;
 	unlock_pendings(buf);
 	rcu_read_unlock();
@@ -231,9 +237,9 @@ static int process_migration(struct napi_struct *napi, int quota)
 		local_irq_disable();
 		pinfo_lock(q);
 		if (list_empty(&q->pinfo_input_queue)) {
-			if (left == 0) {
+			if (left == 0)
 				mcps_napi_complete(&q->napi);
-			}
+
 			again = false;
 		} else {
 			list_splice_tail_init(&q->pinfo_input_queue, &q->pinfo_process_queue);
@@ -260,6 +266,7 @@ static inline void update_state(unsigned long from, int to, u32 gro)
 	unsigned long flag;
 
 	struct hotplug_queue *q;
+
 	if (gro)
 		q = gro_hqueue[from];
 	else
@@ -287,11 +294,11 @@ static int enqueue_to_hqueue(unsigned int old, struct sk_buff *skb, u32 gro)
 	local_irq_save(flag);
 	spin_lock(&q->lock);
 
-	if (q->state == -1) {
+	if (q->state == -1)
 		__skb_queue_tail(&q->queue, skb);
-	} else {
+	else
 		ret = q->state;
-	}
+
 
 	spin_unlock(&q->lock);
 	local_irq_restore(flag);
@@ -323,6 +330,7 @@ int pop_hqueue(unsigned int to, unsigned int from, struct sk_buff_head *queue, u
 {
 	int qlen = 0;
 	struct hotplug_queue *q;
+
 	if (gro)
 		q = gro_hqueue[from];
 	else
@@ -379,8 +387,7 @@ bool check_pending(struct pending_queue *q, struct sk_buff *skb)
  * @from - ex-core
  * @to   - a core id to be
  */
-int pending_migration
-(struct pending_queue *buf, unsigned int hash, unsigned int from, unsigned int to)
+int pending_migration(struct pending_queue *buf, unsigned int hash, unsigned int from, unsigned int to)
 {
 	struct pending_info *info;
 	struct pending_info_queue *pinfo_q;
@@ -417,16 +424,16 @@ int pending_migration
 	push_pending_info(pinfo_q, info);
 
 	// check schedule
-	if (!__test_and_set_bit(NAPI_STATE_SCHED, &pinfo_q->napi.state)) {
+	if (!__test_and_set_bit(NAPI_STATE_SCHED, &pinfo_q->napi.state))
 		smp = 1;
-	}
+
 	pinfo_unlock(pinfo_q);
 	local_irq_enable();
 
 	// schedule
-	if (smp && mcps_cpu_online(from)) {
+	if (smp && mcps_cpu_online(from))
 		smp_call_function_single_async(from, &pinfo_q->csd);
-	}
+
 	tracing_mark_writev('E', 1111, "pending_migration", hash);
 	return 0;
 }
@@ -436,13 +443,12 @@ void init_mcps_buffer(struct net_device *dev)
 	int i;
 
 	for_each_possible_cpu(i) {
-		if (VALID_CPU(i)) {
+		if (VALID_CPU(i))
 			init_pinfo_queue(dev, &per_cpu(pqueues, i));
-		}
 	}
 
 	for_each_possible_cpu(i) {
-		hqueue[i] = (struct hotplug_queue *)kzalloc(sizeof(struct hotplug_queue), GFP_KERNEL);
+		hqueue[i] = kzalloc(sizeof(struct hotplug_queue), GFP_KERNEL);
 		hqueue[i]->state = -1;
 		skb_queue_head_init(&hqueue[i]->queue);
 
@@ -450,7 +456,7 @@ void init_mcps_buffer(struct net_device *dev)
 	}
 
 	for_each_possible_cpu(i) {
-		gro_hqueue[i] = (struct hotplug_queue *)kzalloc(sizeof(struct hotplug_queue), GFP_KERNEL);
+		gro_hqueue[i] = kzalloc(sizeof(struct hotplug_queue), GFP_KERNEL);
 		gro_hqueue[i]->state = -1;
 		skb_queue_head_init(&gro_hqueue[i]->queue);
 
@@ -461,6 +467,7 @@ void init_mcps_buffer(struct net_device *dev)
 void release_mcps_buffer(void)
 {
 	int i;
+
 	for_each_possible_cpu(i) {
 		kfree(hqueue[i]);
 		kfree(gro_hqueue[i]);

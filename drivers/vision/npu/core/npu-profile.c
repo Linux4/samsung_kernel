@@ -16,7 +16,6 @@
 #include <linux/delay.h>
 #include <linux/sysfs.h>
 #include <asm/cacheflush.h>
-#include "npu-device.h"
 #include "npu-common.h"
 #include "npu-memory.h"
 #include "npu-util-statekeeper.h"
@@ -864,6 +863,7 @@ int npu_profile_release(void)
 		probe_info("profiling is GATHERING state. stopping it first.");
 		ret = npu_profile_stop(profile_ctl);
 		if (ret) {
+			mutex_unlock(&profile_ctl->lock);
 			probe_err("fail(%d) in npu_profile_relsease\n", ret);
 			goto err_exit;
 		}

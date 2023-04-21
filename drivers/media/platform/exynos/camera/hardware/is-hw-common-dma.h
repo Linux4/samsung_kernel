@@ -28,7 +28,7 @@
 	(((dma)->ops && (dma)->ops->op) ? ((dma)->ops->op(dma, args)) : 0)
 
 #define GET_COREX_OFFSET(SET_ID) \
-	((SET_ID <= COREX_SET_D && SET_ID >= COREX_SET_A) ? (0x8000 + ((SET_ID) * 0x10000)) : 0)
+	((SET_ID <= COREX_SET_D) ? (0x8000 + ((SET_ID) * 0x10000)) : 0)
 
 enum bayer_format {
 	DMA_FMT_U8BIT_PACK = 0,

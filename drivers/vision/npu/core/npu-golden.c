@@ -136,7 +136,7 @@ struct parsing_action {
 };
 
 /* Comparator function configuration map */
-struct {
+static struct {
 	const char *name;
 	golden_comparator	comparator;
 	golden_is_av_valid	is_av_valid;
@@ -194,7 +194,7 @@ static int load_golden_file(struct golden_file *obj)
 {
 	npu_err("This function is not support for gki, remove disk IO");
 	return -ENOTSUPP;
-#if 0
+/*
 	int ret;
 
 	mm_segment_t old_fs = 0;
@@ -217,14 +217,14 @@ static int load_golden_file(struct golden_file *obj)
 
 	npu_info("start in load_golden_file %s\n", obj->file_name);
 
-	/* Switch to Kernel data segmenet
-	   Ref: https://wiki.kldp.org/wiki.php/%C4%BF%B3%CE%B3%BB%BF%A1%BC%ADReadWrite%BB%E7%BF%EB%C7%CF%B1%E2
-	 */
+	// Switch to Kernel data segmenet
+	// Ref: https://wiki.kldp.org/wiki.php/%C4%BF%B3%CE%B3%BB%BF%A1%BC%ADReadWrite%BB%E7%BF%EB%C7%CF%B1%E2
+
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
 
-	/* Step 1. Determine file size */
-	fp = /* remove open */
+	// Step 1. Determine file size
+	fp = // remove open
 	if (!fp) {
 		npu_err("fail in open %s.\n", obj->file_name);
 		ret = -EBADFD;
@@ -232,14 +232,14 @@ static int load_golden_file(struct golden_file *obj)
 	} else if (IS_ERR(fp)) {
 		npu_err("fail in open(%s): errno = %ld\n",
 			obj->file_name, PTR_ERR(fp));
-		fp = NULL;	/* No need to close fp on err_exit */
+		fp = NULL;	// No need to close fp on err_exit
 		ret = -ENOENT;
 		goto err_exit;
 	}
 
-	/* Get file attributes */
+	// Get file attributes
 	// Need to add get attr of file, can`t use vfs api
-	/* Checke whether it is regular file */
+	// Checke whether it is regular file
 	if (!S_ISREG(st.mode))	{
 		npu_err("fail in regular file.\n");
 		ret = -ENOENT;
@@ -254,7 +254,7 @@ static int load_golden_file(struct golden_file *obj)
 		goto err_exit;
 	}
 
-	/* Step 2. Allocate memory */
+	// Step 2. Allocate memory
 	obj->img_vbuf = vzalloc(obj->size);
 	if (!obj->img_vbuf) {
 		npu_err("fail in memory allocation: %s, size=%lu.\n",
@@ -263,16 +263,16 @@ static int load_golden_file(struct golden_file *obj)
 		goto err_exit;
 	}
 
-	/* Step 3. Read file contents and save to the allocated buffer */
-	/* TODO : read file */
+	// Step 3. Read file contents and save to the allocated buffer
+	// TODO : read file
 
 	ret = 0;
 	goto ok_exit;
 
 err_exit:
-	/* Step 4. Clean-up */
+	// Step 4. Clean-up
 
-	/* if an error occurs, image_buf buffer should be de-allocated */
+	// if an error occurs, image_buf buffer should be de-allocated
 	if (obj->img_vbuf)
 		vfree(obj->img_vbuf);
 
@@ -281,12 +281,11 @@ err_exit:
 
 ok_exit:
 	if (fp)
-		/* remove close */
+		// remove close
 
-	/* Second parameter of close is NULL
-	   Ref: https://stackoverflow.com/questions/32442521/
-		why-can-the-posix-thread-id-be-null-in-linux-kernel-function-filp-close
-	*/
+	// Second parameter of close is NULL
+	// Ref: https://stackoverflow.com/questions/32442521/
+	// why-can-the-posix-thread-id-be-null-in-linux-kernel-function-filp-close
 	set_fs(old_fs);
 
 	switch (ret) {
@@ -301,7 +300,7 @@ ok_exit:
 		break;
 	}
 	return ret;
-#endif
+*/
 }
 
 
@@ -569,7 +568,7 @@ find_header:
 	return 0;
 }
 
-struct {
+static struct {
 	const char *header;
 	int (*value_setter)(struct parse_buf *);
 } HDR_PARSE_TABLE[] = {

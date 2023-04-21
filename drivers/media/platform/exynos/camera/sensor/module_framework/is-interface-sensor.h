@@ -374,6 +374,7 @@ typedef struct {
 	unsigned int cur_frame_us_time;
 	unsigned int cur_width;
 	unsigned int cur_height;
+	unsigned int cur_pattern_mode;
 	unsigned int pre_width;
 	unsigned int pre_height;
 
@@ -557,6 +558,7 @@ struct is_cis_ops {
 	int (*cis_set_totalgain)(struct v4l2_subdev *subdev, struct ae_param *target_exposure, struct ae_param *again, struct ae_param *dgain);
 	int (*cis_set_fake_retention)(struct v4l2_subdev *subdev, bool enable);
 	int (*cis_wait_ln_mode_delay)(struct v4l2_subdev *subdev);
+	int (*cis_set_test_pattern)(struct v4l2_subdev *subdev, camera2_sensor_ctl_t *sensor_ctl);
 };
 
 struct is_sensor_ctl
@@ -858,6 +860,7 @@ struct is_ois_ops {
 #endif
 	bool (*ois_check_fw)(struct is_core *core);
 	void (*ois_enable)(struct is_core *core);
+	int (*ois_disable)(struct v4l2_subdev *subdev);
 	bool (*ois_offset_test)(struct is_core *core, long *raw_data_x, long *raw_data_y);
 	void (*ois_get_offset_data)(struct is_core *core, long *raw_data_x, long *raw_data_y);
 	void (*ois_gyro_sleep)(struct is_core *core);
@@ -872,10 +875,13 @@ struct is_ois_ops {
 #if defined (CONFIG_CAMERA_USE_INTERNAL_MCU)
 	bool (*ois_calibration_test)(struct is_core *core, long *raw_data_x, long *raw_data_y);
 #endif
+	bool(*ois_read_gyro_noise)(struct is_core *core, long *raw_data_x, long *raw_data_y);
 	int (*ois_set_af_active)(struct v4l2_subdev *subdev, int enable);
 	int (*ois_set_af_position)(struct v4l2_subdev *subdev, u32 position);
 	void (*ois_get_hall_pos)(struct is_core *core, u16 *targetPos, u16 *hallPos);
 	int (*ois_check_cross_talk)(struct v4l2_subdev *subdev, u16 *hall_data);
+	int (*ois_check_hall_cal)(struct v4l2_subdev *subdev, u16 *hall_cal_data);
+	void (*ois_check_valid)(struct v4l2_subdev *subdev, u8 *value);
 #ifdef USE_OIS_HALL_DATA_FOR_VDIS
 	int (*ois_get_hall_data)(struct v4l2_subdev *subdev, struct is_ois_hall_data *halldata);
 #endif

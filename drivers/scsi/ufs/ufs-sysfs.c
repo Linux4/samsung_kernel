@@ -10,6 +10,10 @@
 #include "ufs.h"
 #include "ufs-sysfs.h"
 
+#if defined(CONFIG_SEC_KUNIT)
+#include <kunit/mock.h>
+#endif
+
 /* Called by FS */
 extern void (*ufs_debug_func)(void *);
 
@@ -854,7 +858,11 @@ enum {
 	UFSHCD_UIC_DL_ERROR = (1 << 6), /* Data link layer error */
 };
 
+#if !defined(CONFIG_SEC_KUNIT)
 static struct SEC_UFS_counting SEC_err_info;
+#else
+__visible_for_testing struct SEC_UFS_counting SEC_err_info;
+#endif
 
 void SEC_ufs_print_err_info(struct ufs_hba *hba)
 {
@@ -1154,11 +1162,43 @@ void SEC_scsi_sense_error_check(struct ufshcd_lrb *lrbp)
 {
 	struct SEC_UFS_counting *err_info = &SEC_err_info;
 	struct SEC_SCSI_SENSE_count *sense_err = &(err_info->sense_count);
+	struct SEC_SCSI_SENSE_err_log *sense_err_log = &(err_info->sense_err_log);
 	int sense_key = (0x0F & lrbp->sense_buffer[2]);
+	struct scsi_cmnd *cmd;
+	unsigned long lba = 0;
+	unsigned long region_bit = 0;
+	unsigned int lba_count = sense_err_log->issue_LBA_count;
+	int i = 0;
 
-	if (sense_key == 0x03)
+	if (sense_key == 0x03) {
 		sense_err->scsi_medium_err++;
-	else if (sense_key == 0x04)
+		if (lrbp->cmd)
+			cmd = lrbp->cmd;
+		else
+			return;
+
+		if (cmd->device->lun == 0) {
+			lba = (cmd->cmnd[2] << 24) | (cmd->cmnd[3] << 16) |
+				(cmd->cmnd[4] << 8) | (cmd->cmnd[5] << 0);
+
+			if (lba_count < SEC_MAX_LBA_LOGGING) {
+				for (i = 0; i < SEC_MAX_LBA_LOGGING; i++) {
+					if (sense_err_log->issue_LBA_list[i] == lba)
+						return;
+				}
+				sense_err_log->issue_LBA_list[lba_count] = lba;
+				sense_err_log->issue_LBA_count++;
+			}
+
+			region_bit = lba / SEC_ISSUE_REGION_STEP;
+			if (region_bit > 51)
+				region_bit = 52;
+		} else if (cmd->device->lun < SCSI_W_LUN_BASE) {
+			region_bit = (unsigned long)(64 - cmd->device->lun);
+		}
+
+		sense_err_log->issue_region_map |= ((u64)1 << region_bit);
+	} else if (sense_key == 0x04)
 		sense_err->scsi_hw_err++;
 }
 
@@ -1238,6 +1278,22 @@ SEC_UFS_DATA_ATTR(sense_err_count, "\"MEDIUM\":\"%u\",\"HWERR\":\"%u\"\n",
 		SEC_err_info.sense_count.scsi_medium_err,
 		SEC_err_info.sense_count.scsi_hw_err);
 
+SEC_UFS_DATA_ATTR(sense_err_logging, "\"LBA0\":\"%lx\",\"LBA1\":\"%lx\",\"LBA2\":\"%lx\""
+		",\"LBA3\":\"%lx\",\"LBA4\":\"%lx\",\"LBA5\":\"%lx\""
+		",\"LBA6\":\"%lx\",\"LBA7\":\"%lx\",\"LBA8\":\"%lx\",\"LBA9\":\"%lx\""
+		",\"REGIONMAP\":\"%016llx\"\n",
+		SEC_err_info.sense_err_log.issue_LBA_list[0],
+		SEC_err_info.sense_err_log.issue_LBA_list[1],
+		SEC_err_info.sense_err_log.issue_LBA_list[2],
+		SEC_err_info.sense_err_log.issue_LBA_list[3],
+		SEC_err_info.sense_err_log.issue_LBA_list[4],
+		SEC_err_info.sense_err_log.issue_LBA_list[5],
+		SEC_err_info.sense_err_log.issue_LBA_list[6],
+		SEC_err_info.sense_err_log.issue_LBA_list[7],
+		SEC_err_info.sense_err_log.issue_LBA_list[8],
+		SEC_err_info.sense_err_log.issue_LBA_list[9],
+		SEC_err_info.sense_err_log.issue_region_map);
+
 static struct attribute *sec_ufs_error_attributes[] = {
 	&dev_attr_SEC_UFS_op_cnt.attr,
 	&dev_attr_SEC_UFS_uic_cmd_cnt.attr,
@@ -1247,6 +1303,7 @@ static struct attribute *sec_ufs_error_attributes[] = {
 	&dev_attr_SEC_UFS_query_cnt.attr,
 	&dev_attr_SEC_UFS_err_sum.attr,
 	&dev_attr_sense_err_count.attr,
+	&dev_attr_sense_err_logging.attr,
 	NULL
 };
 

@@ -551,7 +551,7 @@ static int __ypp_dma_in_cfg(struct is_device_ischain *device,
 	flag_extra = (node->flags & PIXEL_TYPE_EXTRA_MASK)
 			>> PIXEL_TYPE_EXTRA_SHIFT;
 	if (flag_extra)
-		hw_sbwc = (SBWC_BASE_ALIGN_MASK | flag_extra);
+		hw_sbwc = (SBWC_BASE_ALIGN_MASK_LLC_ON | flag_extra);
 
 	if (test_bit(IS_GROUP_OTF_INPUT, &device->group_ypp.state)) {
 		if (test_bit(IS_GROUP_VOTF_INPUT, &device->group_ypp.state)) {
@@ -781,7 +781,7 @@ static int is_ischain_ypp_cfg(struct is_subdev *leader,
 				>> PIXEL_TYPE_EXTRA_SHIFT;
 
 		if (flag_extra) {
-			hw_sbwc = (SBWC_BASE_ALIGN_MASK | flag_extra);
+			hw_sbwc = (SBWC_BASE_ALIGN_MASK_LLC_ON | flag_extra);
 			chg_format = true;
 		}
 

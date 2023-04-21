@@ -89,7 +89,6 @@ struct votf_table_info {
 
 struct votf_dev {
 	bool				use_axi;
-	bool				ring_create;
 	int				ring_request;
 	atomic_t			ip_enable_cnt[IP_MAX];
 	atomic_t			id_enable_cnt[IP_MAX][ID_MAX];
@@ -105,6 +104,7 @@ struct votf_dev {
 
 #if IS_ENABLED(CONFIG_VIDEO_EXYNOS_CAMERA_POSTPROCESS_VOTF)
 /* common function */
+void votfitf_init(void);
 int votfitf_create_ring(void);
 int votfitf_destroy_ring(void);
 int votfitf_set_service_cfg(struct votf_info *vinfo, struct votf_service_cfg *cfg);
@@ -147,11 +147,11 @@ int votfitf_set_irq(struct votf_info *vinfo, enum votf_irq type);
 int votfitf_set_irq_clear(struct votf_info *vinfo, enum votf_irq type);
 
 /* local function */
-void votf_init(void);
 u32 get_offset(struct votf_info *vinfo, int c2s_tws, int c2s_trs, int c2a_tws, int c2a_trs);
 void votf_sfr_dump(void);
 #else
 /* common function */
+static inline void votfitf_init(void) {return;}
 static inline int votfitf_create_ring(void) {return 0;}
 static inline int votfitf_destroy_ring(void) {return 0;}
 static inline int votfitf_set_service_cfg(struct votf_info *vinfo, struct votf_service_cfg *cfg) {return 0;}
@@ -194,7 +194,6 @@ static inline int votfitf_set_irq(struct votf_info *vinfo, enum votf_irq type) {
 static inline int votfitf_set_irq_clear(struct votf_info *vinfo, enum votf_irq type) {return 0;}
 
 /* local function */
-static inline void votf_init(void) {return;}
 static inline u32 get_offset(struct votf_info *vinfo, int c2s_tws, int c2s_trs, int c2a_tws, int c2a_trs) {return 0;}
 static inline void votf_sfr_dump(void) {return;}
 #endif

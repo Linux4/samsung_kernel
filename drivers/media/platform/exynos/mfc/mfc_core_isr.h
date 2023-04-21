@@ -65,17 +65,9 @@ static inline int __mfc_core_is_err_condition(unsigned int err)
 
 static inline void mfc_handle_force_change_status(struct mfc_core_ctx *core_ctx)
 {
-	struct mfc_ctx *ctx = core_ctx->ctx;
-
 	if (core_ctx->state != MFCINST_ABORT && core_ctx->state != MFCINST_HEAD_PARSED &&
-			core_ctx->state != MFCINST_RES_CHANGE_FLUSH) {
+			core_ctx->state != MFCINST_RES_CHANGE_FLUSH)
 		mfc_change_state(core_ctx, MFCINST_RUNNING);
-		if (IS_SWITCH_SINGLE_MODE(ctx) && (ctx->stream_op_mode == MFC_OP_TWO_MODE2)) {
-			mfc_rm_set_core_num(ctx, MFC_DEC_DEFAULT_CORE);
-			mfc_change_op_mode(ctx, ctx->stream_op_mode);
-			mfc_debug(2, "[2CORE] reset multi core op_mode: %d\n", ctx->op_mode);
-		}
-	}
 }
 
 #endif /* __MFC_CORE_ISR_H */

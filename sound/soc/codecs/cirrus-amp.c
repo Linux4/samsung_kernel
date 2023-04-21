@@ -99,6 +99,8 @@ int cirrus_amp_add(const char *mfd_suffix, struct cirrus_amp_config cfg)
 					   sizeof(struct reg_sequence),
 					   GFP_KERNEL);
 
+		amp->amp_reinit = cfg.amp_reinit;
+
 		amp_group->pwr_enable |= cfg.pwr_enable;
 
 		memcpy(amp->pre_config, cfg.pre_config,

@@ -295,7 +295,7 @@ static void print_rx(u8 addr, u8 *buf, int size)
 	bool newline = false;
 
 	len = snprintf(data, ARRAY_SIZE(data), "(%02X) ", addr);
-	for (i = 0; i < min((int)size, 256); i++) {		
+	for (i = 0; i < min((int)size, 256); i++) {
 		if (newline)
 			len += snprintf(data + len, ARRAY_SIZE(data) - len, "	  ");
 		newline = (!((i + 1) % 16) || (i + 1 == size)) ? true : false;
@@ -994,6 +994,19 @@ static int common_panel_notify(struct exynos_panel_device *panel, void *data)
 	return 0;
 }
 
+static int common_panel_reset_panel(struct exynos_panel_device *panel)
+{
+	int ret;
+
+	ret = panel_drv_ioctl(panel, PANEL_IOC_PANEL_RESET, NULL);
+	if (ret) {
+		DPU_ERR_PANEL("%s: failed to reset panel\n", __func__);
+		return ret;
+	}
+
+	return 0;
+}
+
 static int common_panel_read_state(struct exynos_panel_device *panel)
 {
 	return true;
@@ -1084,19 +1097,6 @@ static int common_panel_set_display_mode(struct exynos_panel_device *panel, void
 }
 #endif
 
-static int common_panel_first_frame(struct exynos_panel_device *panel, void *data)
-{
-	int ret;
-
-	ret = panel_drv_ioctl(panel, PANEL_IOC_FIRST_FRAME, NULL);
-	if (ret < 0) {
-		DPU_ERR_PANEL("%s: failed to set PANEL_IOC_FIRST_FRAME\n", __func__);
-		return ret;
-	}
-
-	return 0;
-}
-
 struct exynos_panel_ops common_panel_ops = {
 	.init		= common_panel_init,
 	.probe		= common_panel_probe,
@@ -1113,6 +1113,7 @@ struct exynos_panel_ops common_panel_ops = {
 	.notify		= common_panel_notify,
 	.read_state	= common_panel_read_state,
 	.set_error_cb	= common_panel_set_error_cb,
+	.reset_panel = common_panel_reset_panel,
 #ifdef CONFIG_EXYNOS_DOZE
 	.doze		= common_panel_doze,
 	.doze_suspend	= common_panel_doze_suspend,
@@ -1123,5 +1124,4 @@ struct exynos_panel_ops common_panel_ops = {
 	.get_display_mode = common_panel_get_display_mode,
 	.set_display_mode = common_panel_set_display_mode,
 #endif
-	.first_frame = common_panel_first_frame,
 };

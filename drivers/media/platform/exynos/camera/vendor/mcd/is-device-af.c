@@ -330,6 +330,72 @@ int16_t is_af_move_lens(struct is_core *core, int position)
 
 	return ret;
 }
+
+int16_t is_af_move_lens_pos(struct is_core *core, int position, u32 val)
+{
+	int ret = 0;
+	struct is_actuator *actuator = NULL;
+	struct i2c_client *client = NULL;
+	struct is_device_sensor *device;
+	struct is_module_enum *module;
+	int sensor_id = 0;
+	u8 val_high = 0, val_low = 0;
+
+	is_vendor_get_module_from_position(position, &module);
+	if (!module) {
+		err("%s, module is NULL", __func__);
+		ret = -EINVAL;
+		return ret;
+	}
+
+	sensor_id = module->pdata->id;
+
+	info("[%s] is_af_move_lens : sensor_id = %d\n", __func__, sensor_id);
+
+	device = &core->sensor[sensor_id];
+	actuator = device->actuator[sensor_id];
+	client = actuator->client;
+
+	if (actuator->vendor_use_standby_mode) {
+		is_af_check_init_state(actuator, client, position);
+
+		/* Go standby mode */
+		ret = is_af_i2c_write(client, 0x02, 0x40);
+		if (ret) {
+			err("i2c write fail\n");
+		}
+
+		if (actuator->vendor_sleep_to_standby_delay) {
+			usleep_range(actuator->vendor_sleep_to_standby_delay, actuator->vendor_sleep_to_standby_delay + 10);
+		} else {
+			usleep_range(2200, 2210);
+		}
+
+		info("[%s] Set standy mode\n", __func__);
+	}
+
+	val_high = (val & 0x0FFF) >> 4;
+	val_low = (val & 0x000F) << 4;
+
+	ret = is_af_i2c_write(client, 0x00, val_high);
+	if (ret) {
+		err("i2c write fail\n");
+	}
+
+	ret = is_af_i2c_write(client, 0x01, val_low);
+	if (ret) {
+		err("i2c write fail\n");
+	}
+
+	/* Go active mode */
+	ret = is_af_i2c_write(client, 0x02, 0x00);
+	if (ret) {
+		err("i2c write fail\n");
+	}
+
+	return ret;
+}
+
 EXPORT_SYMBOL_GPL(is_af_move_lens);
 
 MODULE_DESCRIPTION("AF driver for remove noise");

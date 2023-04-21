@@ -11,6 +11,7 @@
  */
 
 #include "npu-log.h"
+#include "npu-device.h"
 #include "npu-system.h"
 
 #ifdef CONFIG_FIRMWARE_SRAM_DUMP_DEBUGFS

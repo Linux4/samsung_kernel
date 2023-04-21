@@ -479,6 +479,10 @@ static int mfc_dec_g_fmt_vid_cap_mplane(struct file *file, void *priv,
 		 */
 		if (mfc_wait_for_done_core_ctx(core_ctx,
 					MFC_REG_R2H_CMD_SEQ_DONE_RET)) {
+			if (core_ctx->int_err == MFC_REG_ERR_UNSUPPORTED_FEATURE) {
+				mfc_ctx_err("header parsing failed by unsupported feature\n");
+				return -EINVAL;
+			}
 			mfc_ctx_err("header parsing failed\n");
 			return -EAGAIN;
 		}
@@ -487,7 +491,8 @@ static int mfc_dec_g_fmt_vid_cap_mplane(struct file *file, void *priv,
 	if (core_ctx->state >= MFCINST_HEAD_PARSED &&
 	    core_ctx->state < MFCINST_ABORT) {
 		/* This is run on CAPTURE (decode output) */
-		if (IS_MULTI_MODE(ctx)) {
+		if ((ctx->stream_op_mode == MFC_OP_TWO_MODE1) ||
+				(ctx->stream_op_mode == MFC_OP_TWO_MODE2)) {
 			mfc_ctx_info("[2CORE] start the slave core\n");
 			if (mfc_rm_instance_setup(dev, ctx)) {
 				mfc_ctx_err("[2CORE] failed to setup slave core\n");
@@ -871,7 +876,10 @@ static int mfc_dec_qbuf(struct file *file, void *priv, struct v4l2_buffer *buf)
 			return -EIO;
 		}
 
-		mfc_qos_update_framerate(ctx, buf->m.planes[0].bytesused);
+		mfc_idle_update_queued(dev, ctx);
+		mfc_qos_update_bitrate(ctx, buf->m.planes[0].bytesused);
+		mfc_qos_update_bufq_framerate(ctx, MFC_TS_SRC_Q);
+		mfc_qos_update_framerate(ctx);
 		mfc_rm_qos_control(ctx, MFC_QOS_TRIGGER);
 
 		if (!buf->m.planes[0].bytesused) {
@@ -885,11 +893,12 @@ static int mfc_dec_qbuf(struct file *file, void *priv, struct v4l2_buffer *buf)
 		ret = vb2_qbuf(&ctx->vq_src, NULL, buf);
 	} else {
 		mfc_debug(4, "dec dst buf[%d] Q\n", buf->index);
+		mfc_idle_update_queued(dev, ctx);
+		mfc_qos_update_bufq_framerate(ctx, MFC_TS_DST_Q);
+		mfc_qos_update_framerate(ctx);
 		mfc_rm_qos_control(ctx, MFC_QOS_TRIGGER);
 		ret = vb2_qbuf(&ctx->vq_dst, NULL, buf);
 	}
-
-	atomic_inc(&dev->queued_cnt);
 
 	mfc_debug_leave();
 	return ret;
@@ -1019,6 +1028,7 @@ static int mfc_dec_streamoff(struct file *file, void *priv,
 		ret = vb2_streamoff(&ctx->vq_src, type);
 	} else if (type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		mfc_debug(4, "dec dst streamoff\n");
+		mfc_qos_reset_bufq_framerate(ctx);
 		ret = vb2_streamoff(&ctx->vq_dst, type);
 		if (!ret)
 			mfc_rm_qos_control(ctx, MFC_QOS_OFF);
@@ -1058,6 +1068,7 @@ static int __mfc_dec_ext_info(struct mfc_ctx *ctx)
 	val |= DEC_SET_BUF_FLAG_CTRL;
 	val |= DEC_SET_FRAME_ERR_TYPE;
 	val |= DEC_SET_OPERATING_FPS;
+	val |= DEC_SET_PRIORITY;
 
 	if (MFC_FEATURE_SUPPORT(dev, dev->pdata->skype))
 		val |= DEC_SET_SKYPE_FLAG;
@@ -1134,7 +1145,6 @@ static int __mfc_dec_get_ctrl_val(struct mfc_ctx *ctx, struct v4l2_control *ctrl
 		if (ctx->is_dpb_realloc &&
 			mfc_rm_query_state(ctx, EQUAL, MFCINST_HEAD_PARSED))
 			ctrl->value = MFCSTATE_DEC_S3D_REALLOC;
-		/* TODO SAY: DRC is not supported yet in multi core mode */
 		else if (core_ctx->state == MFCINST_RES_CHANGE_FLUSH
 				|| core_ctx->state == MFCINST_RES_CHANGE_END
 				|| core_ctx->state == MFCINST_HEAD_PARSED
@@ -1349,7 +1359,13 @@ static int mfc_dec_s_ctrl(struct file *file, void *priv,
 		break;
 	case V4L2_CID_MPEG_MFC51_VIDEO_FRAME_RATE:
 		ctx->operating_framerate = ctrl->value;
+		mfc_rm_update_real_time(ctx);
 		mfc_debug(2, "[QoS] user set the operating frame rate: %d\n", ctrl->value);
+		break;
+	case V4L2_CID_MPEG_VIDEO_PRIORITY:
+		ctx->prio = ctrl->value;
+		mfc_rm_update_real_time(ctx);
+		mfc_debug(2, "[PRIO] user set priority: %d\n", ctrl->value);
 		break;
 	default:
 		list_for_each_entry(ctx_ctrl, &ctx->ctrls, list) {

@@ -283,10 +283,7 @@ struct exynos_platform_is_sensor {
 	u32 id;
 	u32 scenario;
 	u32 csi_ch;
-	int num_of_ch_mode;
-	int *dma_ch;
-	int *vc_ch;
-	bool dma_abstract;
+	unsigned int wdma_ch_hint;
 	unsigned long internal_state;
 	u32 csi_mux;
 	u32 multi_ch;

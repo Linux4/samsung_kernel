@@ -20,6 +20,7 @@
 
 #include "npu-debug.h"
 #include "npu-log.h"
+#include "npu-device.h"
 #include "npu-ver.h"
 
 #define DEBUG_FS_ROOT_NAME "npu"

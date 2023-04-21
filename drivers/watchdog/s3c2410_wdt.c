@@ -118,6 +118,7 @@ struct s3c2410_wdt {
 	struct clk		*gate_clock;
 	void __iomem		*reg_base;
 	unsigned int		count;
+	unsigned int		shutdown_timeout;
 	spinlock_t		lock;
 	unsigned long		wtcon_save;
 	unsigned long		wtdat_save;
@@ -1152,7 +1153,7 @@ static int s3c2410wdt_reboot_handler(struct notifier_block *nb,
 	if (!s3c_wdt[0])
 		return NOTIFY_DONE;
 
-	s3c2410wdt_keepalive_emergency(true, 0, 5);
+	s3c2410wdt_keepalive_emergency(true, 0, 80);
 
 	return NOTIFY_OK;
 }
@@ -1557,6 +1558,14 @@ static int s3c2410wdt_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	if (!of_property_read_u32(dev->of_node, "shutdown_wdt_timeout",
+				&wdt->shutdown_timeout))
+		dev_err(dev, "Shutdown Watchdog timeout value is: %d\n", wdt->shutdown_timeout);
+	else {
+		wdt->shutdown_timeout = 30;
+		dev_err(dev, "Shutdown timeout value is not defined. We set it for 30secs\n");
+	}
+
 	wdt->wdt_device.min_timeout = 1;
 	wdt->wdt_device.max_timeout = s3c2410wdt_max_timeout(wdt->rate_clock);
 
@@ -1728,7 +1737,7 @@ static void s3c2410wdt_shutdown(struct platform_device *dev)
 
 #ifdef CONFIG_S3C2410_SHUTDOWN_REBOOT
 	dev_emerg(wdt->dev, "%s: watchdog is still alive\n", __func__);
-	s3c2410wdt_keepalive_emergency(true, 0, wdt->wdt_device.timeout);
+	s3c2410wdt_keepalive_emergency(true, 0, wdt->shutdown_timeout);
 #else
 	/* Only little cluster watchdog excute mask function */
 	if ((wdt->cluster == LITTLE_CLUSTER) && (wdt->drv_data->pmu_reset_func))

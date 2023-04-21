@@ -179,8 +179,8 @@ static int exynos_is_module_pin_control(struct is_module_enum *module,
 				}
 
 				if (regulator_is_enabled(is_regulator->regulator)) {
-					mwarn("[M%d] regulator(%s) is already enabled\n",
-						module, module->sensor_id, name);
+					minfo("[%s][M%d] regulator(%s) is already enabled\n",
+						module, __func__, module->sensor_id, name);
 					udelay(delay);
 					return 0;
 				}
@@ -228,8 +228,8 @@ static int exynos_is_module_pin_control(struct is_module_enum *module,
 #ifdef USE_CAMERA_SENSOR_RETENTION
 				if (!strcmp(is_regulator->name, "VDDIO_1.8V_CAM")
 				    && module->ext.use_retention_mode != SENSOR_RETENTION_INACTIVE) {
-					mwarn("[M%d] regulator(%s) is retention IO pin\n",
-						module, module->sensor_id, name);
+					minfo("[%s][M%d] regulator(%s) is retention IO pin\n",
+						module, __func__, module->sensor_id, name);
 					udelay(delay);
 					return 0;
 				}
@@ -255,7 +255,7 @@ static int exynos_is_module_pin_control(struct is_module_enum *module,
 		{
 			struct regulator *regulator = NULL;
 
-			regulator = devm_regulator_get(dev, name);
+			regulator = regulator_get_optional(dev, name);
 			if (IS_ERR_OR_NULL(regulator)) {
 				merr("[M%d] regulator_get(%s) fail\n",
 					module, module->sensor_id, name);

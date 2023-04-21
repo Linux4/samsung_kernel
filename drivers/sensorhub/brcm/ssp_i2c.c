@@ -1258,3 +1258,32 @@ int set_factory_binary_flag_to_ssp(struct ssp_data *data) {
 
 	return iRet;
 }
+#ifdef CONFIG_SENSORS_FLIP_COVER_DETECTOR
+int set_flip_cover_detector_status(struct ssp_data *data)
+{
+	struct ssp_msg *msg;
+	int8_t shub_data[5] = {0};
+	int iRet = 0;
+
+	memcpy(shub_data, &data->fcd_data.axis_update, sizeof(data->fcd_data.axis_update));
+	memcpy(shub_data + 1, &data->fcd_data.threshold_update, sizeof(data->fcd_data.threshold_update));
+
+	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	msg->cmd = MSG2SSP_AP_SET_FCD_AXIS_THRES;
+	msg->length = sizeof(shub_data);
+	msg->options = AP2HUB_WRITE;
+	msg->buffer = (u8 *)&shub_data;
+	msg->free_buffer = 0;
+	iRet = ssp_spi_async(data, msg);
+
+	pr_err("[SSP]  %s: axis=%d, threshold=%d \n", __func__, data->fcd_data.axis_update,
+		data->fcd_data.threshold_update);
+	if (iRet != SUCCESS) {
+		pr_err("[SSP]: %s - fail to %s %d\n",
+			__func__, __func__, iRet);
+		iRet = ERROR;
+	}
+
+	return iRet;
+}
+#endif

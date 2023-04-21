@@ -4,14 +4,13 @@ import argparse
 import sys
 import subprocess
 import os
-import pathlib
 
-root = pathlib.Path(__file__).parent.absolute()
-kunit_py = root / 'tools/testing/kunit/kunit.py'
+root = os.path.abspath(os.path.dirname(__file__))
+kunit_py = os.path.join(root, 'tools/testing/kunit/kunit.py')
 
 
 def run(option):
-    return subprocess.check_call([str(kunit_py), 'run'])
+    return subprocess.check_call([kunit_py, 'run'])
 
 
 def new(option):

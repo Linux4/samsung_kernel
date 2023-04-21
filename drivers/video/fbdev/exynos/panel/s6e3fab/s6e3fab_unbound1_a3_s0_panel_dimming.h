@@ -147,7 +147,13 @@ enum {
 	S6E3FAB_UNBOUND1_GAMMA_BR_2,
 	S6E3FAB_UNBOUND1_GAMMA_BR_4,
 	S6E3FAB_UNBOUND1_GAMMA_BR_5,
+	S6E3FAB_UNBOUND1_GAMMA_BR_6,
+	S6E3FAB_UNBOUND1_GAMMA_BR_7,
+	S6E3FAB_UNBOUND1_GAMMA_BR_8,
+	S6E3FAB_UNBOUND1_GAMMA_BR_9,
 	S6E3FAB_UNBOUND1_GAMMA_BR_10,
+	S6E3FAB_UNBOUND1_GAMMA_BR_11,
+	S6E3FAB_UNBOUND1_GAMMA_BR_12,
 	S6E3FAB_UNBOUND1_GAMMA_BR_13,
 	S6E3FAB_UNBOUND1_GAMMA_BR_14,
 	S6E3FAB_UNBOUND1_GAMMA_BR_15,
@@ -160,7 +166,7 @@ enum {
 };
 
 static int unbound1_a3_s0_vrr_gamma_br_range[MAX_S6E3FAB_UNBOUND1_GAMMA_BR_INDEX] = {
-	0, 2, 4, 5, 10, 13, 14, 15, 23, 87, 117, 159, 208
+	0, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 23, 87, 117, 159, 208
 };
 
 static s32 unbound1_a3_s0_ctbl_dummy[S6E3FAB_NR_TP*3] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -194,7 +200,7 @@ static s32 unbound1_a3_s0_ctbl_96hs_br4_2[S6E3FAB_NR_TP*3] = { 0, 0, 0, -9, -9, 
 static s32 unbound1_a3_s0_ctbl_96hs_br4_3[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -9, -11, -13, -7, -8, -7, -3, -3, -3, -2, -2, -2, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 static s32 unbound1_a3_s0_ctbl_96hs_br4_4[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -10, -10, -9, -8, -9, -6, -9, -6, -5, -5, -5, -3, -3, -3, -1, -2, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 static s32 unbound1_a3_s0_ctbl_96hs_br4_5[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -10, -10, -10, -10, -10, -10, -9, -9, -9, -6, -6, -6, -4, -4, -4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-static s32 unbound1_a3_s0_ctbl_96hs_br4_6[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -8, -8, -8, -8, -8, -9, -7, -6, -7, -6, -6, -6, -2, -2, -2, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br4_6[S6E3FAB_NR_TP*3] = { 0, 0, 0, -7, -6, -9, -9, -9, -8, -8, -7, -8, -7, -6, -7, -6, -7, -6, -4, -4, -4, -2, -2, -2, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 static s32 unbound1_a3_s0_ctbl_96hs_br4_7[S6E3FAB_NR_TP*3] = { 0, 0, 0, -12, -14, -12, -17, -12, -18, -14, -14, -14, -13, -13, -13, -10, -10, -10, -10, -10, -10, -7, -7, -7, -3, -3, -3, 0, 0, 0, 0, 0, 0 };
 
 static s32 unbound1_a3_s0_ctbl_96hs_br5_1[S6E3FAB_NR_TP*3] = { 0, 0, 0, -11, -10, -11, -8, -9, -8, -4, -6, -4, -1, -2, -1, 0, -1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2 };
@@ -202,39 +208,87 @@ static s32 unbound1_a3_s0_ctbl_96hs_br5_2[S6E3FAB_NR_TP*3] = { 0, 0, 0, -9, -9, 
 static s32 unbound1_a3_s0_ctbl_96hs_br5_3[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -9, -11, -13, -7, -8, -7, -3, -3, -3, -2, -2, -2, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 static s32 unbound1_a3_s0_ctbl_96hs_br5_4[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -10, -10, -9, -8, -9, -6, -9, -6, -5, -5, -5, -3, -3, -3, -1, -2, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 static s32 unbound1_a3_s0_ctbl_96hs_br5_5[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -8, -8, -8, -10, -10, -10, -6, -6, -6, -4, -4, -4, -3, -3, -3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-static s32 unbound1_a3_s0_ctbl_96hs_br5_6[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -8, -8, -8, -8, -8, -9, -7, -6, -7, -6, -6, -6, -2, -2, -2, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br5_6[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -7, -9, -11, -7, -10, -9, -8, -8, -5, -7, -5, -4, -6, -4, -1, -3, -1, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 static s32 unbound1_a3_s0_ctbl_96hs_br5_7[S6E3FAB_NR_TP*3] = { 0, 0, 0, -12, -14, -12, -10, -10, -10, -10, -10, -10, -9, -9, -9, -8, -8, -8, -7, -7, -7, -2, -2, -2, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+static s32 unbound1_a3_s0_ctbl_96hs_br6_1[S6E3FAB_NR_TP*3] = { 0, 0, 0, -11, -10, -11, -8, -9, -8, -4, -6, -4, -1, -2, -1, 0, -1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2 };
+static s32 unbound1_a3_s0_ctbl_96hs_br6_2[S6E3FAB_NR_TP*3] = { 0, 0, 0, -9, -9, -11, -9, -9, -7, -7, -6, -7, -3, -3, -3, -1, -1, -1, 0, -1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br6_3[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -9, -11, -13, -7, -8, -7, -3, -3, -3, -2, -2, -2, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br6_4[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -10, -10, -9, -8, -9, -6, -9, -6, -5, -5, -5, -3, -3, -3, -1, -2, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br6_5[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -8, -8, -8, -10, -10, -10, -6, -6, -6, -4, -4, -4, -3, -3, -3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br6_6[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -10, -7, -9, -9, -7, -8, -4, -7, -4, -4, -7, -4, 0, -2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br6_7[S6E3FAB_NR_TP*3] = { 0, 0, 0, -12, -14, -12, -10, -10, -10, -10, -10, -10, -9, -9, -9, -8, -8, -8, -7, -7, -7, -2, -2, -2, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+static s32 unbound1_a3_s0_ctbl_96hs_br7_1[S6E3FAB_NR_TP*3] = { 0, 0, 0, -11, -10, -11, -8, -9, -8, -4, -6, -4, -1, -2, -1, 0, -1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2 };
+static s32 unbound1_a3_s0_ctbl_96hs_br7_2[S6E3FAB_NR_TP*3] = { 0, 0, 0, -9, -9, -11, -9, -9, -7, -7, -6, -7, -3, -3, -3, -1, -1, -1, 0, -1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br7_3[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -9, -11, -13, -7, -8, -7, -3, -3, -3, -2, -2, -2, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br7_4[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -10, -10, -9, -8, -9, -6, -9, -6, -5, -5, -5, -3, -3, -3, -1, -2, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br7_5[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -8, -8, -8, -10, -10, -10, -6, -6, -6, -4, -4, -4, -3, -3, -3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br7_6[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -11, -8, -10, -7, -7, -8, -7, -9, -7, -6, -8, -6, -2, -2, -2, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br7_7[S6E3FAB_NR_TP*3] = { 0, 0, 0, -12, -14, -12, -10, -10, -10, -10, -10, -10, -9, -9, -9, -8, -8, -8, -7, -7, -7, -2, -2, -2, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+static s32 unbound1_a3_s0_ctbl_96hs_br8_1[S6E3FAB_NR_TP*3] = { 0, 0, 0, -11, -10, -11, -8, -9, -8, -4, -6, -4, -1, -2, -1, 0, -1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2 };
+static s32 unbound1_a3_s0_ctbl_96hs_br8_2[S6E3FAB_NR_TP*3] = { 0, 0, 0, -9, -9, -11, -9, -9, -7, -7, -6, -7, -3, -3, -3, -1, -1, -1, 0, -1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br8_3[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -9, -11, -13, -7, -8, -7, -3, -3, -3, -2, -2, -2, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br8_4[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -10, -10, -9, -8, -9, -6, -9, -6, -5, -5, -5, -3, -3, -3, -1, -2, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br8_5[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -9, -7, -10, -10, -10, -10, -6, -6, -6, -4, -4, -4, -3, -3, -3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br8_6[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -9, -7, -8, -6, -6, -7, -3, -4, -3, -3, -6, -3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br8_7[S6E3FAB_NR_TP*3] = { 0, 0, 0, -12, -14, -12, -10, -10, -10, -10, -10, -10, -9, -9, -9, -8, -8, -8, -7, -7, -7, -2, -2, -2, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+static s32 unbound1_a3_s0_ctbl_96hs_br9_1[S6E3FAB_NR_TP*3] = { 0, 0, 0, -11, -10, -11, -8, -9, -8, -4, -6, -4, -1, -2, -1, 0, -1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2 };
+static s32 unbound1_a3_s0_ctbl_96hs_br9_2[S6E3FAB_NR_TP*3] = { 0, 0, 0, -9, -9, -11, -9, -9, -7, -7, -6, -7, -3, -3, -3, -1, -1, -1, 0, -1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br9_3[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -9, -11, -13, -7, -8, -7, -3, -3, -3, -2, -2, -2, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br9_4[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -10, -10, -9, -8, -9, -6, -9, -6, -5, -5, -5, -3, -3, -3, -1, -2, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br9_5[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -9, -7, -8, -10, -10, -10, -6, -6, -6, -4, -4, -4, -3, -3, -3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br9_6[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -11, -8, -10, -7, -7, -8, -7, -9, -7, -6, -8, -6, -2, -2, -2, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br9_7[S6E3FAB_NR_TP*3] = { 0, 0, 0, -12, -14, -12, -10, -10, -10, -10, -10, -10, -9, -9, -9, -8, -8, -8, -7, -7, -7, -2, -2, -2, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 static s32 unbound1_a3_s0_ctbl_96hs_br10_1[S6E3FAB_NR_TP*3] = { 0, 0, 0, -11, -10, -11, -8, -9, -8, -4, -6, -4, -1, -2, -1, 0, -1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2 };
 static s32 unbound1_a3_s0_ctbl_96hs_br10_2[S6E3FAB_NR_TP*3] = { 0, 0, 0, -9, -9, -11, -9, -9, -7, -7, -6, -7, -3, -3, -3, -1, -1, -1, 0, -1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0 };
 static s32 unbound1_a3_s0_ctbl_96hs_br10_3[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -9, -11, -13, -7, -8, -7, -3, -3, -3, -2, -2, -2, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 static s32 unbound1_a3_s0_ctbl_96hs_br10_4[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -10, -10, -9, -8, -9, -6, -9, -6, -5, -5, -5, -3, -3, -3, -1, -2, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-static s32 unbound1_a3_s0_ctbl_96hs_br10_5[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -9, -8, -10, -9, -9, -9, -6, -6, -6, -4, -4, -4, -3, -3, -3, -2, -2, -2, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br10_5[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -12, -8, -10, -8, -9, -9, -6, -7, -6, -5, -6, -5, -3, -3, -3, -2, -2, -2, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 static s32 unbound1_a3_s0_ctbl_96hs_br10_6[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -13, -13, -13, -10, -11, -11, -9, -11, -9, -6, -7, -6, -4, -5, -4, -4, -5, -4, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 static s32 unbound1_a3_s0_ctbl_96hs_br10_7[S6E3FAB_NR_TP*3] = { 0, 0, 0, -12, -14, -12, -13, -15, -13, -13, -13, -14, -14, -14, -14, -5, -6, -5, -11, -14, -12, -5, -7, -6, -6, -6, -6, 0, 0, 0, 0, 0, 0 };
+
+static s32 unbound1_a3_s0_ctbl_96hs_br11_1[S6E3FAB_NR_TP*3] = { 0, 0, 0, -11, -10, -11, -8, -9, -8, -4, -6, -4, -1, -2, -1, 0, -1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2 };
+static s32 unbound1_a3_s0_ctbl_96hs_br11_2[S6E3FAB_NR_TP*3] = { 0, 0, 0, -9, -9, -11, -9, -9, -7, -7, -6, -7, -3, -3, -3, -1, -1, -1, 0, -1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br11_3[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -9, -11, -13, -7, -8, -7, -3, -3, -3, -2, -2, -2, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br11_4[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -10, -10, -9, -8, -9, -6, -9, -6, -5, -5, -5, -3, -3, -3, -1, -2, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br11_5[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -12, -8, -11, -8, -9, -9, -6, -7, -6, -5, -6, -5, -3, -3, -3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br11_6[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -13, -13, -13, -10, -11, -11, -9, -11, -9, -6, -7, -6, -4, -5, -4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br11_7[S6E3FAB_NR_TP*3] = { 0, 0, 0, -12, -14, -12, -13, -15, -13, -13, -13, -14, -14, -14, -14, -5, -6, -5, -11, -14, -12, -5, -7, -6, -6, -6, -6, 0, 0, 0, 0, 0, 0 };
+
+static s32 unbound1_a3_s0_ctbl_96hs_br12_1[S6E3FAB_NR_TP*3] = { 0, 0, 0, -11, -10, -11, -8, -9, -8, -4, -6, -4, -1, -2, -1, 0, -1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2 };
+static s32 unbound1_a3_s0_ctbl_96hs_br12_2[S6E3FAB_NR_TP*3] = { 0, 0, 0, -9, -9, -11, -9, -9, -7, -7, -6, -7, -3, -3, -3, -1, -1, -1, 0, -1, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br12_3[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -9, -11, -13, -7, -8, -7, -3, -3, -3, -2, -2, -2, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br12_4[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -10, -10, -9, -8, -9, -6, -9, -6, -5, -5, -5, -3, -3, -3, -1, -2, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br12_5[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -12, -8, -10, -8, -9, -9, -6, -7, -6, -5, -6, -5, -3, -3, -3, -2, -2, -2, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br12_6[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -13, -13, -13, -10, -11, -11, -9, -11, -9, -6, -7, -6, -4, -5, -4, -4, -5, -4, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br12_7[S6E3FAB_NR_TP*3] = { 0, 0, 0, -12, -14, -12, -13, -15, -13, -13, -13, -14, -14, -14, -14, -5, -6, -5, -11, -14, -12, -5, -7, -6, -6, -6, -6, 0, 0, 0, 0, 0, 0 };
 
 static s32 unbound1_a3_s0_ctbl_96hs_br13_1[S6E3FAB_NR_TP*3] = { 0, 0, 0, -11, -10, -11, -5, -7, -5, -3, -4, -3, -1, -2, -1, 0, -1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2 };
 static s32 unbound1_a3_s0_ctbl_96hs_br13_2[S6E3FAB_NR_TP*3] = { 0, 0, 0, -9, -10, -11, -6, -7, -5, -3, -5, -3, -1, -2, -1, 0, -1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0 };
 static s32 unbound1_a3_s0_ctbl_96hs_br13_3[S6E3FAB_NR_TP*3] = { 0, 0, 0, -8, -12, -10, -8, -8, -8, -5, -7, -5, -3, -3, -3, -2, -2, -2, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-static s32 unbound1_a3_s0_ctbl_96hs_br13_4[S6E3FAB_NR_TP*3] = { 0, 0, 0, -9, -8, -10, -5, -8, -7, -5, -7, -6, -3, -3, -3, -2, -2, -2, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-static s32 unbound1_a3_s0_ctbl_96hs_br13_5[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -9, -8, -8, -8, -9, -8, -6, -6, -6, -5, -5, -5, -3, -3, -3, -2, -2, -2, -2, -2, -2, 0, 0, 0, 0, 0, 0 };
-static s32 unbound1_a3_s0_ctbl_96hs_br13_6[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -13, -10, -13, -10, -10, -11, -9, -9, -9, -3, -4, -3, -3, -4, -3, 0, 0, 0, 5, 5, 5, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br13_4[S6E3FAB_NR_TP*3] = { 0, 0, 0, -9, -8, -10, -6, -8, -8, -5, -7, -6, -3, -3, -3, -2, -2, -2, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br13_5[S6E3FAB_NR_TP*3] = { 0, 0, 0, -11, -9, -11, -11, -8, -11, -8, -9, -9, -7, -7, -7, -4, -5, -4, -3, -3, -3, -2, -2, -2, -2, -2, -2, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br13_6[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -13, -10, -13, -10, -10, -11, -9, -9, -9, -1, -2, -1, -3, -4, -3, 0, 0, 0, 5, 5, 5, 0, 0, 0, 0, 0, 0 };
 static s32 unbound1_a3_s0_ctbl_96hs_br13_7[S6E3FAB_NR_TP*3] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 static s32 unbound1_a3_s0_ctbl_96hs_br14_1[S6E3FAB_NR_TP*3] = { 0, 0, 0, -11, -10, -11, -5, -7, -5, -3, -4, -3, -1, -2, -1, 0, -1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2 };
 static s32 unbound1_a3_s0_ctbl_96hs_br14_2[S6E3FAB_NR_TP*3] = { 0, 0, 0, -9, -10, -11, -6, -7, -5, -3, -5, -3, -1, -2, -1, 0, -1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0 };
 static s32 unbound1_a3_s0_ctbl_96hs_br14_3[S6E3FAB_NR_TP*3] = { 0, 0, 0, -8, -12, -10, -8, -8, -8, -5, -7, -5, -3, -3, -3, -2, -2, -2, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 static s32 unbound1_a3_s0_ctbl_96hs_br14_4[S6E3FAB_NR_TP*3] = { 0, 0, 0, -9, -8, -10, -7, -7, -7, -5, -9, -6, -3, -3, -3, -2, -2, -2, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-static s32 unbound1_a3_s0_ctbl_96hs_br14_5[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -6, -6, -7, -6, -6, -6, -5, -5, -5, -2, -2, -2, -1, -1, -1, 1, 1, 1, 4, 4, 4, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br14_5[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -7, -9, -10, -7, -8, -6, -7, -6, -5, -5, -4, -2, -3, -2, -1, -1, -1, 1, 1, 1, 4, 4, 4, 0, 0, 0, 0, 0, 0 };
 static s32 unbound1_a3_s0_ctbl_96hs_br14_6[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -13, -10, -13, -10, -10, -11, -9, -9, -9, -5, -6, -5, -3, -4, -3, 0, 0, 0, 5, 5, 5, 0, 0, 0, 0, 0, 0 };
 static s32 unbound1_a3_s0_ctbl_96hs_br14_7[S6E3FAB_NR_TP*3] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
-static s32 unbound1_a3_s0_ctbl_96hs_br15_1[S6E3FAB_NR_TP*3] = { 0, 0, 0, -11, -10, -11, -5, -7, -5, -3, -4, -3, -1, -2, -1, 0, -1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2 };
+static s32 unbound1_a3_s0_ctbl_96hs_br15_1[S6E3FAB_NR_TP*3] = { 0, 0, 0, -11, -10, -11, -5, -7, -5, -3, -4, -3, -1, -2, -1, 0, -1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2  };
 static s32 unbound1_a3_s0_ctbl_96hs_br15_2[S6E3FAB_NR_TP*3] = { 0, 0, 0, -9, -10, -11, -6, -7, -5, -3, -5, -3, -1, -2, -1, 0, -1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0 };
 static s32 unbound1_a3_s0_ctbl_96hs_br15_3[S6E3FAB_NR_TP*3] = { 0, 0, 0, -8, -12, -10, -8, -8, -8, -5, -7, -5, -3, -3, -3, -2, -2, -2, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-static s32 unbound1_a3_s0_ctbl_96hs_br15_4[S6E3FAB_NR_TP*3] = { 0, 0, 0, -9, -8, -10, -5, -8, -7, -5, -7, -6, -3, -3, -3, -2, -2, -2, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-static s32 unbound1_a3_s0_ctbl_96hs_br15_5[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -9, -8, -8, -8, -9, -8, -6, -6, -6, -5, -5, -5, -3, -3, -3, -2, -2, -2, -2, -2, -2, 0, 0, 0, 0, 0, 0 };
-static s32 unbound1_a3_s0_ctbl_96hs_br15_6[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -13, -10, -13, -10, -10, -11, -9, -9, -9, -3, -4, -3, -3, -4, -3, 0, 0, 0, 5, 5, 5, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br15_4[S6E3FAB_NR_TP*3] = { 0, 0, 0, -9, -8, -10, -6, -8, -8, -5, -7, -6, -3, -3, -3, -2, -2, -2, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br15_5[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -11, -11, -13, -10, -12, -9, -10, -9, -9, -9, -9, -5, -5, -5, -3, -3, -3, -2, -2, -2, -2, -2, -2, 0, 0, 0, 0, 0, 0 };
+static s32 unbound1_a3_s0_ctbl_96hs_br15_6[S6E3FAB_NR_TP*3] = { 0, 0, 0, -10, -9, -10, -13, -10, -13, -10, -10, -11, -9, -9, -9, -1, -2, -1, -3, -4, -3, 0, 0, 0, 5, 5, 5, 0, 0, 0, 0, 0, 0 };
 static s32 unbound1_a3_s0_ctbl_96hs_br15_7[S6E3FAB_NR_TP*3] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 static s32 unbound1_a3_s0_ctbl_96hs_br23_0[S6E3FAB_NR_TP*3] = { -7, -7, -7, -10, -10, -8, -4, -7, -5, -3, -3, -3, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 0, 0, 0 };
@@ -340,6 +394,78 @@ static struct gm2_dimming_lut unbound1_a3_s0_dimming_lut_96hs[MAX_S6E3FAB_UNBOUN
 		[S6E3FAB_FQ_LOW_6] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_6")),
 		[S6E3FAB_FQ_LOW_7] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_7")),
 	},
+	[S6E3FAB_UNBOUND1_GAMMA_BR_6] = {
+		[S6E3FAB_FQ_HIGH_0] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_120hs_0")),
+		[S6E3FAB_FQ_HIGH_1] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br6_1, RESNAME("gamma_mtp_120hs_1")),
+		[S6E3FAB_FQ_HIGH_2] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br6_2, RESNAME("gamma_mtp_120hs_2")),
+		[S6E3FAB_FQ_HIGH_3] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br6_3, RESNAME("gamma_mtp_120hs_3")),
+		[S6E3FAB_FQ_HIGH_4] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br6_4, RESNAME("gamma_mtp_120hs_4")),
+		[S6E3FAB_FQ_HIGH_5] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br6_5, RESNAME("gamma_mtp_120hs_5")),
+		[S6E3FAB_FQ_HIGH_6] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br6_6, RESNAME("gamma_mtp_120hs_6")),
+		[S6E3FAB_FQ_HIGH_7] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br6_7, RESNAME("gamma_mtp_120hs_7")),
+		[S6E3FAB_FQ_LOW_0] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_0")),
+		[S6E3FAB_FQ_LOW_1] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_1")),
+		[S6E3FAB_FQ_LOW_2] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_2")),
+		[S6E3FAB_FQ_LOW_3] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_3")),
+		[S6E3FAB_FQ_LOW_4] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_4")),
+		[S6E3FAB_FQ_LOW_5] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_5")),
+		[S6E3FAB_FQ_LOW_6] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_6")),
+		[S6E3FAB_FQ_LOW_7] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_7")),
+	},
+	[S6E3FAB_UNBOUND1_GAMMA_BR_7] = {
+		[S6E3FAB_FQ_HIGH_0] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_120hs_0")),
+		[S6E3FAB_FQ_HIGH_1] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br7_1, RESNAME("gamma_mtp_120hs_1")),
+		[S6E3FAB_FQ_HIGH_2] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br7_2, RESNAME("gamma_mtp_120hs_2")),
+		[S6E3FAB_FQ_HIGH_3] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br7_3, RESNAME("gamma_mtp_120hs_3")),
+		[S6E3FAB_FQ_HIGH_4] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br7_4, RESNAME("gamma_mtp_120hs_4")),
+		[S6E3FAB_FQ_HIGH_5] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br7_5, RESNAME("gamma_mtp_120hs_5")),
+		[S6E3FAB_FQ_HIGH_6] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br7_6, RESNAME("gamma_mtp_120hs_6")),
+		[S6E3FAB_FQ_HIGH_7] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br7_7, RESNAME("gamma_mtp_120hs_7")),
+		[S6E3FAB_FQ_LOW_0] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_0")),
+		[S6E3FAB_FQ_LOW_1] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_1")),
+		[S6E3FAB_FQ_LOW_2] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_2")),
+		[S6E3FAB_FQ_LOW_3] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_3")),
+		[S6E3FAB_FQ_LOW_4] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_4")),
+		[S6E3FAB_FQ_LOW_5] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_5")),
+		[S6E3FAB_FQ_LOW_6] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_6")),
+		[S6E3FAB_FQ_LOW_7] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_7")),
+	},
+	[S6E3FAB_UNBOUND1_GAMMA_BR_8] = {
+		[S6E3FAB_FQ_HIGH_0] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_120hs_0")),
+		[S6E3FAB_FQ_HIGH_1] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br8_1, RESNAME("gamma_mtp_120hs_1")),
+		[S6E3FAB_FQ_HIGH_2] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br8_2, RESNAME("gamma_mtp_120hs_2")),
+		[S6E3FAB_FQ_HIGH_3] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br8_3, RESNAME("gamma_mtp_120hs_3")),
+		[S6E3FAB_FQ_HIGH_4] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br8_4, RESNAME("gamma_mtp_120hs_4")),
+		[S6E3FAB_FQ_HIGH_5] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br8_5, RESNAME("gamma_mtp_120hs_5")),
+		[S6E3FAB_FQ_HIGH_6] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br8_6, RESNAME("gamma_mtp_120hs_6")),
+		[S6E3FAB_FQ_HIGH_7] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br8_7, RESNAME("gamma_mtp_120hs_7")),
+		[S6E3FAB_FQ_LOW_0] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_0")),
+		[S6E3FAB_FQ_LOW_1] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_1")),
+		[S6E3FAB_FQ_LOW_2] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_2")),
+		[S6E3FAB_FQ_LOW_3] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_3")),
+		[S6E3FAB_FQ_LOW_4] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_4")),
+		[S6E3FAB_FQ_LOW_5] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_5")),
+		[S6E3FAB_FQ_LOW_6] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_6")),
+		[S6E3FAB_FQ_LOW_7] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_7")),
+	},
+	[S6E3FAB_UNBOUND1_GAMMA_BR_9] = {
+		[S6E3FAB_FQ_HIGH_0] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_120hs_0")),
+		[S6E3FAB_FQ_HIGH_1] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br9_1, RESNAME("gamma_mtp_120hs_1")),
+		[S6E3FAB_FQ_HIGH_2] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br9_2, RESNAME("gamma_mtp_120hs_2")),
+		[S6E3FAB_FQ_HIGH_3] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br9_3, RESNAME("gamma_mtp_120hs_3")),
+		[S6E3FAB_FQ_HIGH_4] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br9_4, RESNAME("gamma_mtp_120hs_4")),
+		[S6E3FAB_FQ_HIGH_5] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br9_5, RESNAME("gamma_mtp_120hs_5")),
+		[S6E3FAB_FQ_HIGH_6] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br9_6, RESNAME("gamma_mtp_120hs_6")),
+		[S6E3FAB_FQ_HIGH_7] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br9_7, RESNAME("gamma_mtp_120hs_7")),
+		[S6E3FAB_FQ_LOW_0] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_0")),
+		[S6E3FAB_FQ_LOW_1] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_1")),
+		[S6E3FAB_FQ_LOW_2] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_2")),
+		[S6E3FAB_FQ_LOW_3] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_3")),
+		[S6E3FAB_FQ_LOW_4] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_4")),
+		[S6E3FAB_FQ_LOW_5] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_5")),
+		[S6E3FAB_FQ_LOW_6] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_6")),
+		[S6E3FAB_FQ_LOW_7] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_7")),
+	},
 	[S6E3FAB_UNBOUND1_GAMMA_BR_10] = {
 		[S6E3FAB_FQ_HIGH_0] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_120hs_0")),
 		[S6E3FAB_FQ_HIGH_1] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br10_1, RESNAME("gamma_mtp_120hs_1")),
@@ -349,6 +475,42 @@ static struct gm2_dimming_lut unbound1_a3_s0_dimming_lut_96hs[MAX_S6E3FAB_UNBOUN
 		[S6E3FAB_FQ_HIGH_5] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br10_5, RESNAME("gamma_mtp_120hs_5")),
 		[S6E3FAB_FQ_HIGH_6] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br10_6, RESNAME("gamma_mtp_120hs_6")),
 		[S6E3FAB_FQ_HIGH_7] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br10_7, RESNAME("gamma_mtp_120hs_7")),
+		[S6E3FAB_FQ_LOW_0] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_0")),
+		[S6E3FAB_FQ_LOW_1] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_1")),
+		[S6E3FAB_FQ_LOW_2] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_2")),
+		[S6E3FAB_FQ_LOW_3] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_3")),
+		[S6E3FAB_FQ_LOW_4] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_4")),
+		[S6E3FAB_FQ_LOW_5] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_5")),
+		[S6E3FAB_FQ_LOW_6] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_6")),
+		[S6E3FAB_FQ_LOW_7] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_7")),
+	},
+	[S6E3FAB_UNBOUND1_GAMMA_BR_11] = {
+		[S6E3FAB_FQ_HIGH_0] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_120hs_0")),
+		[S6E3FAB_FQ_HIGH_1] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br11_1, RESNAME("gamma_mtp_120hs_1")),
+		[S6E3FAB_FQ_HIGH_2] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br11_2, RESNAME("gamma_mtp_120hs_2")),
+		[S6E3FAB_FQ_HIGH_3] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br11_3, RESNAME("gamma_mtp_120hs_3")),
+		[S6E3FAB_FQ_HIGH_4] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br11_4, RESNAME("gamma_mtp_120hs_4")),
+		[S6E3FAB_FQ_HIGH_5] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br11_5, RESNAME("gamma_mtp_120hs_5")),
+		[S6E3FAB_FQ_HIGH_6] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br11_6, RESNAME("gamma_mtp_120hs_6")),
+		[S6E3FAB_FQ_HIGH_7] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br11_7, RESNAME("gamma_mtp_120hs_7")),
+		[S6E3FAB_FQ_LOW_0] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_0")),
+		[S6E3FAB_FQ_LOW_1] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_1")),
+		[S6E3FAB_FQ_LOW_2] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_2")),
+		[S6E3FAB_FQ_LOW_3] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_3")),
+		[S6E3FAB_FQ_LOW_4] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_4")),
+		[S6E3FAB_FQ_LOW_5] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_5")),
+		[S6E3FAB_FQ_LOW_6] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_6")),
+		[S6E3FAB_FQ_LOW_7] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_7")),
+	},
+	[S6E3FAB_UNBOUND1_GAMMA_BR_12] = {
+		[S6E3FAB_FQ_HIGH_0] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_120hs_0")),
+		[S6E3FAB_FQ_HIGH_1] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br12_1, RESNAME("gamma_mtp_120hs_1")),
+		[S6E3FAB_FQ_HIGH_2] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br12_2, RESNAME("gamma_mtp_120hs_2")),
+		[S6E3FAB_FQ_HIGH_3] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br12_3, RESNAME("gamma_mtp_120hs_3")),
+		[S6E3FAB_FQ_HIGH_4] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br12_4, RESNAME("gamma_mtp_120hs_4")),
+		[S6E3FAB_FQ_HIGH_5] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br12_5, RESNAME("gamma_mtp_120hs_5")),
+		[S6E3FAB_FQ_HIGH_6] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br12_6, RESNAME("gamma_mtp_120hs_6")),
+		[S6E3FAB_FQ_HIGH_7] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br12_7, RESNAME("gamma_mtp_120hs_7")),
 		[S6E3FAB_FQ_LOW_0] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_0")),
 		[S6E3FAB_FQ_LOW_1] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_1")),
 		[S6E3FAB_FQ_LOW_2] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_2")),
@@ -412,6 +574,7 @@ static struct gm2_dimming_lut unbound1_a3_s0_dimming_lut_96hs[MAX_S6E3FAB_UNBOUN
 		[S6E3FAB_FQ_LOW_6] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_6")),
 		[S6E3FAB_FQ_LOW_7] = GM2_LUT_V0_SRC(RESNAME("gamma_mtp_60hs_7")),
 	},
+
 	[S6E3FAB_UNBOUND1_GAMMA_BR_23 ... MAX_S6E3FAB_UNBOUND1_GAMMA_BR_INDEX - 1] = {
 		[S6E3FAB_FQ_HIGH_0] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br23_0, RESNAME("gamma_mtp_120hs_0")),
 		[S6E3FAB_FQ_HIGH_1] = GM2_LUT_V0_INIT_SRC(unbound1_a3_s0_ctbl_96hs_br23_1, RESNAME("gamma_mtp_120hs_1")),

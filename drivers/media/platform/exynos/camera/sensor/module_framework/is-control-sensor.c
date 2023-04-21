@@ -671,6 +671,28 @@ p_err:
 	return ret;
 }
 
+static int is_sensor_ctl_set_totalgain(struct is_device_sensor *device,
+					struct ae_param expo,
+					struct ae_param adj_again,
+					struct ae_param adj_dgain)
+{
+	int ret = 0;
+
+	FIMC_BUG(!device);
+
+	if (expo.val == 0 || adj_again.val == 0 || adj_dgain.val == 0) {
+		dbg_sensor(1, "[%s] Skip set total gain (%d, %d, %d))\n",
+				__func__, expo, adj_again.val, adj_dgain.val);
+		return ret;
+	}
+
+	ret = is_sensor_peri_s_totalgain(device, expo, adj_again, adj_dgain);
+	if (ret < 0)
+		err("[%s] SET totalgain fail\n", __func__);
+
+	return ret;
+}
+
 void is_sensor_ctl_frame_evt(struct is_device_sensor *device)
 {
 	int ret = 0;
@@ -779,28 +801,49 @@ void is_sensor_ctl_frame_evt(struct is_device_sensor *device)
 			err("[%s] frame number(%d) set frame duration fail\n", __func__, applied_frame_number);
 		}
 
-		/* 4. update exposureTime */
-		ret = is_sensor_ctl_set_exposure(device, expo);
-		if (ret < 0)
-			err("[%s] frame number(%d) set exposure fail\n", __func__, applied_frame_number);
-		ret = is_sensor_ctl_update_exposure(device, dm_index, expo);
-		if (ret < 0)
-			err("[%s] frame number(%d) update exposure fail\n", __func__, applied_frame_number);
+		if (sensor_peri->cis.use_vendor_total_gain) {
+			/* 4. set Total Gain : ExposureTime, Analog & Digital gain */
+			ret = is_sensor_ctl_adjust_gains(device, &applied_ae_setting, &adj_again, &adj_dgain);
+			if (ret < 0) {
+				err("[%s] frame number(%d) adjust gains fail\n", __func__, applied_frame_number);
+				goto p_err;
+			}
+			ret = is_sensor_ctl_set_totalgain(device, expo, adj_again, adj_dgain);
+			if (ret < 0)
+				err("[%s] frame number(%d) set Total gain fail\n", __func__, applied_frame_number);
 
-		/* 5. set analog & digital gains */
-		ret = is_sensor_ctl_adjust_gains(device, &applied_ae_setting, &adj_again, &adj_dgain);
-		if (ret < 0) {
-			err("[%s] frame number(%d) adjust gains fail\n", __func__, applied_frame_number);
-			goto p_err;
+			/* 5. update Total Gain : ExposureTime, Analog & Digital gain */
+			ret = is_sensor_ctl_update_exposure(device, dm_index, expo);
+			if (ret < 0)
+				err("[%s] frame number(%d) update exposure fail\n", __func__, applied_frame_number);
+
+			ret = is_sensor_ctl_update_gains(device, module_ctl, dm_index, adj_again, adj_dgain);
+			if (ret < 0)
+				err("[%s] frame number(%d) update gains fail\n", __func__, applied_frame_number);
+		} else {
+			/* 4. update exposureTime */
+			ret = is_sensor_ctl_set_exposure(device, expo);
+			if (ret < 0)
+				err("[%s] frame number(%d) set exposure fail\n", __func__, applied_frame_number);
+			ret = is_sensor_ctl_update_exposure(device, dm_index, expo);
+			if (ret < 0)
+				err("[%s] frame number(%d) update exposure fail\n", __func__, applied_frame_number);
+
+			/* 5. set analog & digital gains */
+			ret = is_sensor_ctl_adjust_gains(device, &applied_ae_setting, &adj_again, &adj_dgain);
+			if (ret < 0) {
+				err("[%s] frame number(%d) adjust gains fail\n", __func__, applied_frame_number);
+				goto p_err;
+			}
+
+			ret = is_sensor_ctl_set_gains(device, adj_again, adj_dgain);
+			if (ret < 0)
+				err("[%s] frame number(%d) set gains fail\n", __func__, applied_frame_number);
+
+			ret = is_sensor_ctl_update_gains(device, module_ctl, dm_index, adj_again, adj_dgain);
+			if (ret < 0)
+				err("[%s] frame number(%d) update gains fail\n", __func__, applied_frame_number);
 		}
-
-		ret = is_sensor_ctl_set_gains(device, adj_again, adj_dgain);
-		if (ret < 0)
-			err("[%s] frame number(%d) set gains fail\n", __func__, applied_frame_number);
-
-		ret = is_sensor_ctl_update_gains(device, module_ctl, dm_index, adj_again, adj_dgain);
-		if (ret < 0)
-			err("[%s] frame number(%d) update gains fail\n", __func__, applied_frame_number);
 
 		if (module_ctl->update_wb_gains) {
 			ret = is_sensor_peri_s_wb_gains(device, module_ctl->wb_gains);
@@ -809,6 +852,10 @@ void is_sensor_ctl_frame_evt(struct is_device_sensor *device)
 
 			module_ctl->update_wb_gains = false;
 		}
+
+		ret = is_sensor_set_test_pattern(device, sensor_ctrl);
+		if (ret < 0)
+			err("[%s] frame number(%d) set test pattern fail\n", __func__, applied_frame_number);
 
 		if (module_ctl->update_3hdr_stat || module_ctl->update_roi ||
 			module_ctl->update_tone || module_ctl->update_ev) {

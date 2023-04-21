@@ -1,3 +1,17 @@
+/* SPDX-License-Identifier: GPL-2.0
+ *
+ * Copyright (C) 2019-2021 Samsung Electronics.
+ *
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ */
 #ifndef _MCPS_FLOW_LEVEL_H
 #define _MCPS_FLOW_LEVEL_H
 
@@ -21,7 +35,7 @@ int mcps_try_skb_internal(struct sk_buff *skb);
 #endif // #if defined(CONFIG_MCPS_V2)
 
 #ifdef CONFIG_MCPS_DEBUG_PRINTK
-#define PRINT_TRY_FAIL(hash, cpu) printk(KERN_DEBUG "MCPSD %s : Skip [%u]session - reason [%d]\n", __func__, hash, cpu)
+#define PRINT_TRY_FAIL(hash, cpu) pr_debug("MCPSD %s : Skip [%u]session - reason [%d]\n", __func__, hash, cpu)
 #else
 #define PRINT_TRY_FAIL(hash, cpu) do { } while (0)
 #endif

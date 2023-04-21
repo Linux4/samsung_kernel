@@ -466,7 +466,9 @@ static int gpu_dvfs_update_asv_table(struct kbase_device *kbdev)
 #if IS_ENABLED(CONFIG_MALI_USES_LLC)
 			dvfs_table[i].llc_ways = of_data_int_array[table_idx + 8];
 #endif
+#if IS_ENABLED(CONFIG_EXYNOS_DEBUG_INFO)
 			GPU_LOG(DVFS_WARNING, DUMMY, 0u, 0u, "G3D %7dKhz ASV is %duV\n", cal_freq, cal_vol);
+#endif
 			if (platform->gpu_pmqos_cpu_cluster_num == 3) {
 				dvfs_table[i].cpu_middle_min_freq = of_data_int_array[table_idx+6];
 				dvfs_table[i].cpu_big_max_freq = (of_data_int_array[table_idx+7] ? of_data_int_array[table_idx+7]:CPU_MAX);
@@ -595,7 +597,9 @@ static int gpu_dvfs_update_asv_table(struct kbase_device *kbdev)
 					dvfs_table[j].down_staycount = of_data_int_array[table_idx+3];
 					dvfs_table[j].mem_freq = of_data_int_array[table_idx+4];
 					dvfs_table[j].cpu_little_min_freq = of_data_int_array[table_idx+5];
+#if IS_ENABLED(CONFIG_EXYNOS_DEBUG_INFO)
 					GPU_LOG(DVFS_WARNING, DUMMY, 0u, 0u, "G3D %7dKhz ASV is %duV\n", cal_freq, cal_vol);
+#endif
 					if (platform->gpu_pmqos_cpu_cluster_num == 3) {
 						dvfs_table[j].cpu_middle_min_freq = of_data_int_array[table_idx+6];
 						dvfs_table[j].cpu_big_max_freq = (of_data_int_array[table_idx+7] ? of_data_int_array[table_idx+7]:CPU_MAX);

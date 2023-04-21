@@ -7,6 +7,7 @@
 
 #include "npu-vs4l.h"
 #include "npu-log.h"
+#include "npu-device.h"
 #include "npu-common.h"
 #include "npu-session.h"
 #include "npu-qos.h"
@@ -93,7 +94,12 @@ __attribute__((unused)) static int load_fw_utc_vector(struct npu_session *sess, 
 		ret = -EINVAL;
 		goto err_exit;
 	}
-	copy_from_user(vector_path, (__user void *)param->addr, param->size);
+	ret = copy_from_user(vector_path, (__user void *)param->addr, param->size);
+	if (ret) {
+		npu_err("copy_from_user failed(%d)\n", ret);
+		ret = -EFAULT;
+		goto err_exit;
+	}
 	vector_path[param->size] = '\0';
 	npu_dbg("Loading FW test vector from : %s\n", vector_path);
 

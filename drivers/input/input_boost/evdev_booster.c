@@ -4,10 +4,13 @@
 #include <linux/input.h>
 #include <linux/module.h>
 #include <linux/init.h>
+#include <linux/device.h>
+#include <linux/syscalls.h>
 
 #if IS_ENABLED(CONFIG_SEC_INPUT_BOOSTER)
 spinlock_t ib_ev_lock;
 struct workqueue_struct *ev_unbound_wq;
+static struct device *evbst_dev;
 
 void input_booster(struct ib_event_data *ib_ev_data);
 
@@ -109,7 +112,7 @@ int get_device_type(int *device_type, unsigned int *keyId,
 	int target_idx = 0;
 
 	if (evt_cnt > MAX_EVENTS) {
-		pr_err("evdev client is null and exceed max event number");
+		dev_warn_ratelimited(evbst_dev, "Exceed max event number\n");
 		return ret_val;
 	}
 
@@ -288,18 +291,31 @@ void input_booster(struct ib_event_data *ib_ev_data)
 
 static int __init ev_boost_init(void)
 {
+	int err;
+
 	pr_info(ITAG" Input Booster Module Init\n");
 	input_booster_init();
+	pr_info(ITAG" Input Booster Module Init End\n");
 	spin_lock_init(&ib_ev_lock);
 	ib_notifier_register(&ib_event_notifier);
 	ev_unbound_wq =
 		alloc_ordered_workqueue("ev_unbound_wq", WQ_HIGHPRI);
+
+	evbst_dev = kzalloc(sizeof(struct device), GFP_KERNEL);
+	dev_set_name(evbst_dev, "evdev_booster_dev");
+	evbst_dev->release = NULL;
+	err = device_register(evbst_dev);
+	if (err)
+		pr_err(ITAG" evdev device register failed");
+
 	return 0;
 }
 
 static void __exit ev_boost_exit(void)
 {
 	ib_notifier_unregister(&ib_event_notifier);
+	device_unregister(evbst_dev);
+	kfree(evbst_dev);
 	input_booster_exit();
 }
 

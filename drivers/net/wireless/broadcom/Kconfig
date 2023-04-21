@@ -16,6 +16,7 @@ source "drivers/net/wireless/broadcom/b43/Kconfig"
 source "drivers/net/wireless/broadcom/b43legacy/Kconfig"
 source "drivers/net/wireless/broadcom/brcm80211/Kconfig"
 source "drivers/net/wireless/broadcom/bcmdhd_101_10/Kconfig"
+source "drivers/net/wireless/broadcom/bcmdhd_101_18/Kconfig"
 source "drivers/net/wireless/broadcom/bcmdhd_101_16/Kconfig"
 
 endif # BCM_DHD_WLAN

@@ -633,37 +633,16 @@ EXPORT_SYMBOL(abort_creds);
  * Install a set of temporary override subjective credentials on the current
  * process, returning the old set for later reversion.
  */
-#ifdef CONFIG_KDP_CRED
-const struct cred *kdp_override_creds(struct cred **cnew)
-#else
 const struct cred *override_creds(const struct cred *new)
-#endif
 {
 	const struct cred *old = current->cred;
-#ifdef CONFIG_KDP_CRED
-	struct cred *new = *cnew;
-#endif
 	kdebug("override_creds(%p{%d,%d})", new,
 	       atomic_read(&new->usage),
 	       read_cred_subscribers(new));
 
 	validate_creds(old);
 	validate_creds(new);
-#ifdef CONFIG_KDP_CRED
-	if (kdp_enable) {
-		volatile unsigned int kdp_use_count = kdp_get_usecount(new);
-		struct cred *new_ro;
 
-		new_ro = prepare_ro_creds(new, CMD_OVRD_CREDS, kdp_use_count);
-		*cnew = new_ro;
-		rcu_assign_pointer(current->cred, new_ro);
-		put_cred(new);
-	} else {
-		get_new_cred((struct cred *)new);
-		alter_cred_subscribers(new, 1);
-		rcu_assign_pointer(current->cred, new);
-	}
-#else
 	/*
 	 * NOTE! This uses 'get_new_cred()' rather than 'get_cred()'.
 	 *
@@ -677,8 +656,17 @@ const struct cred *override_creds(const struct cred *new)
 	 */
 	get_new_cred((struct cred *)new);
 	alter_cred_subscribers(new, 1);
-	rcu_assign_pointer(current->cred, new);
+#ifdef CONFIG_KDP_CRED
+	if (kdp_enable) {
+		volatile unsigned int kdp_use_count = kdp_get_usecount((struct cred *)new);
+		struct cred *new_ro;
+
+		new_ro = prepare_ro_creds((struct cred *)new, CMD_OVRD_CREDS, kdp_use_count);
+		GET_ROCRED_RCU(new_ro)->reflected_cred = (void *)new;
+		rcu_assign_pointer(current->cred, new_ro);
+	} else
 #endif
+	rcu_assign_pointer(current->cred, new);
 	alter_cred_subscribers(old, -1);
 
 	kdebug("override_creds() = %p{%d,%d}", old,
@@ -686,11 +674,7 @@ const struct cred *override_creds(const struct cred *new)
 	       read_cred_subscribers(old));
 	return old;
 }
-#ifdef CONFIG_KDP_CRED
-EXPORT_SYMBOL(kdp_override_creds);
-#else
 EXPORT_SYMBOL(override_creds);
-#endif
 
 /**
  * revert_creds - Revert a temporary subjective credentials override
@@ -712,6 +696,15 @@ void revert_creds(const struct cred *old)
 	alter_cred_subscribers(old, 1);
 	rcu_assign_pointer(current->cred, old);
 	alter_cred_subscribers(override, -1);
+#ifdef CONFIG_KDP_CRED
+	if (kdp_enable) {
+		if (is_kdp_protect_addr((unsigned long)override)){
+			if(GET_ROCRED_RCU(override)->reflected_cred)
+				put_cred((struct cred *)GET_ROCRED_RCU(override)->reflected_cred);
+			put_cred(override);
+		}
+	}
+#endif
 	put_cred(override);
 }
 EXPORT_SYMBOL(revert_creds);

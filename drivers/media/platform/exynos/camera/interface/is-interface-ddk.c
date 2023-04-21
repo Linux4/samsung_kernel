@@ -204,7 +204,7 @@ static void is_lib_io_callback(void *this, enum lib_cb_event_type event_id,
 		break;
 	case LIB_EVENT_ERROR_CIN_OVERFLOW:
 		is_debug_event_count(IS_EVENT_OVERFLOW_3AA);
-#if IS_ENABLED(CONFIG_EXYNOS_SCI_DBG)
+#if IS_ENABLED(CONFIG_EXYNOS_SCI_DBG_AUTO)
 		smc_ppc_enable(0);
 #endif
 		msinfo_hw("LIB_EVENT_ERROR_CIN_OVERFLOW\n", instance_id, hw_ip);

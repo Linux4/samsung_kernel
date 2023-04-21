@@ -829,54 +829,13 @@
 				scenario = <SENSOR_SCENARIO_NORMAL>;	/* Normal, Vision, OIS etc */
 				id = <0>;
 				csi_ch = <2>;
-				dma_ch = <0 0 0 0
-					0 0 0 0>;
-				vc_ch = <0 1 2 3
-					0 1 2 3>;
-				flite_ch = <FLITE_ID_NOTHING>;
-				is_bns = <0>;
 				status = "okay";
 				use_cphy = <1>;
 
 				interrupts = <0 INTREQ__CSIS2 IRQ_TYPE_LEVEL_HIGH>, /*MIPI-CSI2 */
-					<0 INTREQ__CSIS_DMA0 IRQ_TYPE_LEVEL_HIGH>,
-					<0 INTREQ__CSIS_DMA0 IRQ_TYPE_LEVEL_HIGH>,
-					<0 INTREQ__CSIS_DMA0 IRQ_TYPE_LEVEL_HIGH>,
-					<0 INTREQ__CSIS_DMA0 IRQ_TYPE_LEVEL_HIGH>,
-					<0 INTREQ__CSIS_DMA0 IRQ_TYPE_LEVEL_HIGH>,
-					<0 INTREQ__CSIS_DMA0 IRQ_TYPE_LEVEL_HIGH>,
-					<0 INTREQ__CSIS_DMA0 IRQ_TYPE_LEVEL_HIGH>,
-					<0 INTREQ__CSIS_DMA0 IRQ_TYPE_LEVEL_HIGH>;
-				interrupt-names = "csi",
-					"mode0_VC0", "mode0_VC1","mode0_VC2","mode0_VC3",
-					"mode1_VC0", "mode1_VC1","mode1_VC2","mode1_VC3";
+					<0 INTREQ__STRP_DMA0 IRQ_TYPE_LEVEL_HIGH>;
+				interrupt-names = "csi", "ebuf";
 				phys = <&mipi_phy_csis2_m0s4s4s4s4s4s2 0>;
-
-				/* without frame ID decoder */
-				sensor0_ch_mode0: sensor0-ch-mode0 {
-					reg = <0x17099000 0x100>, /* DMA0 VC0 */
-						<0x17099400 0x100>, /* DMA0 Common */
-						<0x17099100 0x100>, /* DMA0 VC1 */
-						<0x17099400 0x100>, /* DMA0 Common */
-						<0x17099200 0x100>, /* DMA0 VC2 */
-						<0x17099400 0x100>, /* DMA0 Common */
-						<0x17099300 0x100>, /* DMA0 VC3 */
-						<0x17099400 0x100>; /* DMA0 Common */
-					mux_reg = <0x17020420 0x4>; /* DMA0 input mux */
-				};
-
-				/* with frame ID decoder */
-				sensor0_ch_mode1: sensor0-ch-mode1 {
-					reg = <0x17099000 0x100>, /* DMA0 VC0 */
-						<0x17099400 0x100>, /* DMA0 Common */
-						<0x17099100 0x100>, /* DMA0 VC1 */
-						<0x17099400 0x100>, /* DMA0 Common */
-						<0x17099200 0x100>, /* DMA0 VC2 */
-						<0x17099400 0x100>, /* DMA0 Common */
-						<0x17099300 0x100>, /* DMA0 VC3 */
-						<0x17099400 0x100>; /* DMA0 Common */
-					mux_reg = <0x17020420 0x4>; /* DMA0 input mux */
-				};
 			};
 
 			/* FRONT CAMERA */
@@ -888,53 +847,12 @@
 				scenario = <SENSOR_SCENARIO_NORMAL>;    /* Normal, Vision, OIS etc */
 				id = <1>;
 				csi_ch = <0>;
-				dma_ch = <1 1 1 1
-					1 1 1 1>;
-				vc_ch = <0 1 2 3
-					0 1 2 3>;
-				flite_ch = <FLITE_ID_NOTHING>;
-				is_bns = <0>;
 				status = "okay";
 
 				interrupts = <0 INTREQ__CSIS0 IRQ_TYPE_LEVEL_HIGH>, /* MIPI-CSI0 */
-					<0 INTREQ__CSIS_DMA1 IRQ_TYPE_LEVEL_HIGH>,
-					<0 INTREQ__CSIS_DMA1 IRQ_TYPE_LEVEL_HIGH>,
-					<0 INTREQ__CSIS_DMA1 IRQ_TYPE_LEVEL_HIGH>,
-					<0 INTREQ__CSIS_DMA1 IRQ_TYPE_LEVEL_HIGH>,
-					<0 INTREQ__CSIS_DMA1 IRQ_TYPE_LEVEL_HIGH>,
-					<0 INTREQ__CSIS_DMA1 IRQ_TYPE_LEVEL_HIGH>,
-					<0 INTREQ__CSIS_DMA1 IRQ_TYPE_LEVEL_HIGH>,
-					<0 INTREQ__CSIS_DMA1 IRQ_TYPE_LEVEL_HIGH>;
-				interrupt-names = "csi",
-					"mode0_VC0", "mode0_VC1","mode0_VC2","mode0_VC3",
-					"mode1_VC0", "mode1_VC1","mode1_VC2","mode1_VC3";
+					<0 INTREQ__STRP_DMA0 IRQ_TYPE_LEVEL_HIGH>;
+				interrupt-names = "csi", "ebuf";
 				phys = <&mipi_phy_csis0_m0s4s4s4s4s4s2 0>;
-
-				/* without PAF HW */
-				sensor1_ch_mode0: sensor1-ch-mode0 {
-					reg = <0x1709A000 0x100>, /* DMA1 VC0 */
-						<0x1709A400 0x100>, /* DMA1 Common */
-						<0x1709A100 0x100>, /* DMA1 VC1 */
-						<0x1709A400 0x100>, /* DMA1 Common */
-						<0x1709A200 0x100>, /* DMA1 VC2 */
-						<0x1709A400 0x100>, /* DMA1 Common */
-						<0x1709A300 0x100>, /* DMA1 VC3 */
-						<0x1709A400 0x100>; /* DMA1 Common */
-					mux_reg = <0x17020424 0x4>; /* DMA1 input mux */
-				};
-
-				/* with PAF HW */
-				sensor1_ch_mode1: sensor1-ch-mode1 {
-					reg = <0x1709A000 0x100>, /* DMA1 VC0 */
-						<0x1709A400 0x100>, /* DMA1 Common */
-						<0x1709A100 0x100>, /* DMA1 VC1 */
-						<0x1709A400 0x100>, /* DMA1 Common */
-						<0x1709A200 0x100>, /* DMA1 VC2 */
-						<0x1709A400 0x100>, /* DMA1 Common */
-						<0x1709A300 0x100>, /* DMA1 VC3 */
-						<0x1709A400 0x100>; /* DMA1 Common */
-					mux_reg = <0x17020424 0x4>; /* DMA1 input mux */
-				};
 			};
 
 			/* Tele CAMERA */
@@ -946,54 +864,13 @@
 				scenario = <SENSOR_SCENARIO_NORMAL>;    /* Normal, Vision, OIS etc */
 				id = <2>;
 				csi_ch = <3>;
-				dma_ch = <2 2 2 2
-					2 2 2 2>;
-				vc_ch = <0 1 2 3
-					0 1 2 3>;
-				flite_ch = <FLITE_ID_NOTHING>;
-				is_bns = <0>;
 				status = "okay";
 				use_cphy = <1>;
 
 				interrupts = <0 INTREQ__CSIS3 IRQ_TYPE_LEVEL_HIGH>, /* MIPI-CSI3 */
-					<0 INTREQ__CSIS_DMA2 IRQ_TYPE_LEVEL_HIGH>,
-					<0 INTREQ__CSIS_DMA2 IRQ_TYPE_LEVEL_HIGH>,
-					<0 INTREQ__CSIS_DMA2 IRQ_TYPE_LEVEL_HIGH>,
-					<0 INTREQ__CSIS_DMA2 IRQ_TYPE_LEVEL_HIGH>,
-					<0 INTREQ__CSIS_DMA2 IRQ_TYPE_LEVEL_HIGH>,
-					<0 INTREQ__CSIS_DMA2 IRQ_TYPE_LEVEL_HIGH>,
-					<0 INTREQ__CSIS_DMA2 IRQ_TYPE_LEVEL_HIGH>,
-					<0 INTREQ__CSIS_DMA2 IRQ_TYPE_LEVEL_HIGH>;
-				interrupt-names = "csi",
-					"mode0_VC0", "mode0_VC1","mode0_VC2","mode0_VC3",
-					"mode1_VC0", "mode1_VC1","mode1_VC2","mode1_VC3";
+					<0 INTREQ__STRP_DMA0 IRQ_TYPE_LEVEL_HIGH>;
+				interrupt-names = "csi", "ebuf";
 				phys = <&mipi_phy_csis3_m0s4s4s4s4s4s2 0>;
-
-				/* without PAF HW */
-				sensor2_ch_mode0: sensor2-ch-mode0 {
-					reg = <0x1709B000 0x100>, /* DMA2 VC0 */
-						<0x1709B400 0x100>, /* DMA2 Common */
-						<0x1709B100 0x100>, /* DMA2 VC1 */
-						<0x1709B400 0x100>, /* DMA2 Common */
-						<0x1709B200 0x100>, /* DMA2 VC2 */
-						<0x1709B400 0x100>, /* DMA2 Common */
-						<0x1709B300 0x100>, /* DMA2 VC3 */
-						<0x1709B400 0x100>; /* DMA2 Common */
-					mux_reg = <0x17020428 0x4>; /* DMA2 input mux */
-				};
-
-				/* with PAF HW */
-				sensor2_ch_mode1: sensor2-ch-mode1 {
-					reg = <0x1709B000 0x100>, /* DMA2 VC0 */
-						<0x1709B400 0x100>, /* DMA2 Common */
-						<0x1709B100 0x100>, /* DMA2 VC1 */
-						<0x1709B400 0x100>, /* DMA2 Common */
-						<0x1709B200 0x100>, /* DMA2 VC2 */
-						<0x1709B400 0x100>, /* DMA2 Common */
-						<0x1709B300 0x100>, /* DMA2 VC3 */
-						<0x1709B400 0x100>; /* DMA2 Common */
-					mux_reg = <0x17020428 0x4>; /* DMA2 input mux */
-				};
 			};
 
 			/* Reseved: FRONT SUB */
@@ -1003,10 +880,6 @@
 				scenario = <SENSOR_SCENARIO_NORMAL>;    /* Normal, Vision, OIS etc */
 				id = <5>;
 				csi_ch = <1>;
-				dma_ch = <1 1 1 1>;
-				vc_ch = <0 1 2 3>;
-				flite_ch = <FLITE_ID_NOTHING>;
-				is_bns = <0>;
 				status = "disabled";
 			};
 
@@ -1019,32 +892,12 @@
 				scenario = <SENSOR_SCENARIO_NORMAL>;    /* Normal, Vision, OIS etc */
 				id = <4>;
 				csi_ch = <1>;
-				dma_ch = <3 3 3 3>;
-				vc_ch = <0 1 2 3>;
-				flite_ch = <FLITE_ID_NOTHING>;
-				is_bns = <0>;
 				status = "okay";
 				use_cphy = <1>;
 
 				interrupts = <0 INTREQ__CSIS1 IRQ_TYPE_LEVEL_HIGH>, /* MIPI-CSI1 */
-						<0 INTREQ__CSIS_DMA3 IRQ_TYPE_LEVEL_HIGH>,
-						<0 INTREQ__CSIS_DMA3 IRQ_TYPE_LEVEL_HIGH>,
-						<0 INTREQ__CSIS_DMA3 IRQ_TYPE_LEVEL_HIGH>,
-						<0 INTREQ__CSIS_DMA3 IRQ_TYPE_LEVEL_HIGH>;
+						<0 INTREQ__STRP_DMA0 IRQ_TYPE_LEVEL_HIGH>;
 				phys = <&mipi_phy_csis1_m0s4s4s4s4s4s2 0>;
-
-				/* without PAF HW */
-				sensor4_ch_mode0: sensor4-ch-mode0 {
-					reg = <0x1709C000 0x100>, /* DMA3 VC0 */
-						<0x1709C400 0x100>, /* DMA3 Common */
-						<0x1709C100 0x100>, /* DMA3 VC1 */
-						<0x1709C400 0x100>, /* DMA3 Common */
-						<0x1709C200 0x100>, /* DMA3 VC2 */
-						<0x1709C400 0x100>, /* DMA3 Common */
-						<0x1709C300 0x100>, /* DMA3 VC3 */
-						<0x1709C400 0x100>; /* DMA3 Common */
-					mux_reg = <0x1702042C 0x4>; /* DMA3 input mux */
-				};
 			};
 
 			/* REAR TOF */
@@ -1056,31 +909,11 @@
 				scenario = <SENSOR_SCENARIO_VISION>;    /* Normal, Vision, OIS etc */
 				id =  <3>;
 				csi_ch = <5>;
-				dma_ch = <3 3 3 3>;
-				vc_ch = <0 1 2 3>;
-				flite_ch = <FLITE_ID_NOTHING>;
-				is_bns = <0>;
 				status = "okay";
 
 				interrupts = <0 INTREQ__CSIS5 IRQ_TYPE_LEVEL_HIGH>, /* MIPI-CSI5 */
-						<0 INTREQ__CSIS_DMA3 IRQ_TYPE_LEVEL_HIGH>,
-						<0 INTREQ__CSIS_DMA3 IRQ_TYPE_LEVEL_HIGH>,
-						<0 INTREQ__CSIS_DMA3 IRQ_TYPE_LEVEL_HIGH>,
-						<0 INTREQ__CSIS_DMA3 IRQ_TYPE_LEVEL_HIGH>;
+						<0 INTREQ__STRP_DMA0 IRQ_TYPE_LEVEL_HIGH>;
 				phys = <&mipi_phy_csis5_m0s4s4s4s4s4s2 0>;
-
-				/* without PAF HW */
-				sensor5_ch_mode0: sensor5-ch-mode0 {
-					reg = <0x1709C000 0x100>, /* DMA3 VC0 */
-						<0x1709C400 0x100>, /* DMA3 Common */
-						<0x1709C100 0x100>, /* DMA3 VC1 */
-						<0x1709C400 0x100>, /* DMA3 Common */
-						<0x1709C200 0x100>, /* DMA3 VC2 */
-						<0x1709C400 0x100>, /* DMA3 Common */
-						<0x1709C300 0x100>, /* DMA3 VC3 */
-						<0x1709C400 0x100>; /* DMA3 Common */
-					mux_reg = <0x1702042C 0x4>; /* DMA3 input mux */
-				};
 			};
 		}; /* end of __overlay__ */
 	}; /* end of fragment */
@@ -1495,7 +1328,15 @@
 	};
 };
 
+
+&mipi_phy_csis5_m0s4s4s4s4s4s2 {
+	vdd_0p85-supply = <&l13_reg>;
+	vdd_1p8-supply = <&l19_reg>;
+};
+
 &exynos_is {
+	memlog_size = <0x0 0x0>;	/* IS_MEMLOG_PRINTF_DRV_SIZE, IS_MEMLOG_PRINTF_DDK_SIZE */
+
 	vender {
 		rear_sensor_id = <52>;	/* 2LD */
 		front_sensor_id = <38>; /* 3J1 */
@@ -1846,6 +1687,33 @@
 			rear_single_ultrawide_video_fhd30_int = <DVFS_INT_L2>;
 			rear_single_ultrawide_video_fhd30_hpg = <1>;
 			rear_single_ultrawide_video_fhd30_cpu = CPU_CL0;
+
+			rear_single_ultrawide_video_fhd30_supersteady_int_cam = <DVFS_INT_CAM_L6>;
+			rear_single_ultrawide_video_fhd30_supersteady_cam = <DVFS_CAM_L5>;
+			rear_single_ultrawide_video_fhd30_supersteady_csis = <DVFS_CSIS_L3>;
+			rear_single_ultrawide_video_fhd30_supersteady_isp = <DVFS_ISP_L5>;
+			rear_single_ultrawide_video_fhd30_supersteady_mif = <DVFS_MIF_L7>;
+			rear_single_ultrawide_video_fhd30_supersteady_int = <DVFS_INT_L3>;
+			rear_single_ultrawide_video_fhd30_supersteady_hpg = <1>;
+			rear_single_ultrawide_video_fhd30_supersteady_cpu = CPU_CL0;
+
+			rear_single_ultrawide_video_fhd30_hf_supersteady_int_cam = <DVFS_INT_CAM_L6>;
+			rear_single_ultrawide_video_fhd30_hf_supersteady_cam = <DVFS_CAM_L5>;
+			rear_single_ultrawide_video_fhd30_hf_supersteady_csis = <DVFS_CSIS_L3>;
+			rear_single_ultrawide_video_fhd30_hf_supersteady_isp = <DVFS_ISP_L6>;
+			rear_single_ultrawide_video_fhd30_hf_supersteady_mif = <DVFS_MIF_L8>;
+			rear_single_ultrawide_video_fhd30_hf_supersteady_int = <DVFS_INT_L3>;
+			rear_single_ultrawide_video_fhd30_hf_supersteady_hpg = <1>;
+			rear_single_ultrawide_video_fhd30_hf_supersteady_cpu = CPU_CL0;
+
+			rear_single_ultrawide_video_fhd60_hf_supersteady_int_cam = <DVFS_INT_CAM_L4>;
+			rear_single_ultrawide_video_fhd60_hf_supersteady_cam = <DVFS_CAM_L4>;
+			rear_single_ultrawide_video_fhd60_hf_supersteady_csis = <DVFS_CSIS_L3>;
+			rear_single_ultrawide_video_fhd60_hf_supersteady_isp = <DVFS_ISP_L6>;
+			rear_single_ultrawide_video_fhd60_hf_supersteady_mif = <DVFS_MIF_L5>;
+			rear_single_ultrawide_video_fhd60_hf_supersteady_int = <DVFS_INT_L2>;
+			rear_single_ultrawide_video_fhd60_hf_supersteady_hpg = <1>;
+			rear_single_ultrawide_video_fhd60_hf_supersteady_cpu = CPU_CL1;
 
 			rear_single_ultrawide_video_uhd30_int_cam = <DVFS_INT_CAM_L6>;
 			rear_single_ultrawide_video_uhd30_cam = <DVFS_CAM_L3>;

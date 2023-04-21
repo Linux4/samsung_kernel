@@ -62,6 +62,8 @@
 #define UFS_UPIU_WLUN_ID			(1 << 7)
 #define UFS_SENSE_SIZE				18
 
+#define MAX_RETRY				0x100
+
 struct rpmb_irq_ctx {
 	struct device *dev;
 	int irq;

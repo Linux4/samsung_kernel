@@ -142,4 +142,32 @@ int adv_tracer_s2d_set_enable(int en);
 #define adv_tracer_s2d_set_enable(a)	do { } while (0)
 #endif
 
+#if IS_ENABLED(CONFIG_EXYNOS_DEBUG_INFO)
+#define tmu_pr_info(fmt, ...)							\
+	do {									\
+		pr_info(pr_fmt(fmt), ##__VA_ARGS__);				\
+	} while (0)
+
+#define tmu_pr_err(fmt, ...)							\
+	do {									\
+		pr_err(pr_fmt(fmt), ##__VA_ARGS__);				\
+	} while (0)
+
+#define tmu_dev_info(dev, fmt, ...)						\
+	do {									\
+		dev_info(dev, pr_fmt(fmt), ##__VA_ARGS__);			\
+	} while (0)
+
+#define tmu_dev_err(dev, fmt, ...)						\
+	do {									\
+		dev_err(dev, pr_fmt(fmt), ##__VA_ARGS__);			\
+	} while (0)
+
+#else
+#define tmu_pr_info(fmt, ...)		do {} while (0)
+#define tmu_pr_err(fmt, ...)		do {} while (0)
+#define tmu_dev_info(dev, fmt, ...)	do {} while (0)
+#define tmu_dev_err(dev, fmt, ...)	do {} while (0)
+#endif
+
 #endif /* _EXYNOS_TMU_H */

@@ -609,8 +609,15 @@ static int dbg_snapshot_rmem_setup(struct device *dev)
 			continue;
 		}
 
-		dbg_snapshot_set_item_enable(rmem->name, en);
 		item = dbg_snapshot_get_item(rmem->name);
+		if (item == &dss_items[DSS_ITEM_KEVENTS_ID] && (rmem->size < sizeof(*dss_log))) {
+			dev_err(dev, "%s size is too small (%#lx/%#lx)\n",
+					item->name, rmem->size, sizeof(*dss_log));
+			dbg_snapshot_set_item_enable(rmem->name, 0);
+			continue;
+		}
+
+		dbg_snapshot_set_item_enable(rmem->name, en);
 		if (!rmem->base || !rmem->size) {
 			dev_err(dev, "%s item wrong base(0x%x) or size(0x%x)\n",
 					item->name, rmem->base, rmem->size);

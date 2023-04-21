@@ -131,6 +131,13 @@ static int __dsp_hw_o1_system_wait_task(struct dsp_system *sys,
 		timeout = wait_event_timeout(sys->task_manager.done_wq,
 				task->state == DSP_TASK_STATE_COMPLETE,
 				msecs_to_jiffies(wait_time));
+		if (!timeout) {
+			sys->interface.ops->check_irq(&sys->interface);
+			if (task->state == DSP_TASK_STATE_COMPLETE) {
+				timeout = 1;
+				dsp_warn("interrupt was unstable\n");
+			}
+		}
 	} else if (sys_sub->wait_mode == DSP_HW_O1_WAIT_MODE_BUSY_WAITING) {
 		timeout = wait_time * 1000;
 
@@ -457,6 +464,13 @@ static int __dsp_hw_o1_system_wait_boot(struct dsp_system *sys)
 		timeout = wait_event_timeout(sys->system_wq,
 				sys->system_flag & BIT(DSP_SYSTEM_BOOT),
 				msecs_to_jiffies(wait_time));
+		if (!timeout) {
+			sys->interface.ops->check_irq(&sys->interface);
+			if (sys->system_flag & BIT(DSP_SYSTEM_BOOT)) {
+				timeout = 1;
+				dsp_warn("interrupt was unstable\n");
+			}
+		}
 	} else if (sys_sub->wait_mode == DSP_HW_O1_WAIT_MODE_BUSY_WAITING) {
 		timeout = wait_time * 1000;
 
@@ -544,14 +558,9 @@ static int dsp_hw_o1_system_boot(struct dsp_system *sys)
 	sys->ctrl.ops->start(&sys->ctrl);
 	ret = __dsp_hw_o1_system_wait_boot(sys);
 	sys->pm.ops->update_devfreq_min(&sys->pm);
-	if (ret) {
-		sys->ctrl.ops->force_reset(&sys->ctrl);
-		sys->debug.ops->log_stop(&sys->debug);
-#if IS_ENABLED(CONFIG_EXYNOS_IMGLOADER)
-		imgloader_shutdown(&sys_sub->loader_desc);
-#endif
-		goto p_err;
-	}
+	if (ret)
+		goto p_err_reset;
+
 	dsp_ctrl_writel(DSP_O1_SYSC_NS_CLOCK_GATE_EN, 0xffffffff);
 
 	ret = __dsp_hw_o1_system_check_kernel_mode(sys);
@@ -588,6 +597,13 @@ static int __dsp_hw_o1_system_wait_reset(struct dsp_system *sys)
 		timeout = wait_event_timeout(sys->system_wq,
 				sys->system_flag & BIT(DSP_SYSTEM_RESET),
 				msecs_to_jiffies(wait_time));
+		if (!timeout) {
+			sys->interface.ops->check_irq(&sys->interface);
+			if (sys->system_flag & BIT(DSP_SYSTEM_RESET)) {
+				timeout = 1;
+				dsp_warn("interrupt was unstable\n");
+			}
+		}
 	} else if (sys_sub->wait_mode == DSP_HW_O1_WAIT_MODE_BUSY_WAITING) {
 		timeout = wait_time * 1000;
 
@@ -644,11 +660,6 @@ static int dsp_hw_o1_system_reset(struct dsp_system *sys)
 
 	dsp_enter();
 	sys_sub = sys->sub_data;
-
-	if (!(sys->system_flag & BIT(DSP_SYSTEM_BOOT))) {
-		dsp_warn("device is already reset(%x)\n", sys->system_flag);
-		return 0;
-	}
 
 	/* clock gating of CPU_SS is disabled because of HW bug */
 	dsp_ctrl_writel(DSP_O1_SYSC_NS_CLOCK_GATE_EN, 0xfffffffb);

@@ -19,24 +19,22 @@
 #define get16bits(d)		(*(const unsigned short *)(d))
 #endif
 
+#define DL_ERROR(fmt, args...)	dsp_err("[%-30s]" fmt, __func__, ##args)
 #define DL_INFO(fmt, args...)	dsp_info(fmt, ##args)
-#define DL_ERROR(fmt, args...)	dsp_err("[%-40s]" fmt, __func__, ##args)
-#define DL_DEBUG(fmt, args...)	dsp_dl_dbg("[%-40s]" fmt, __func__, ##args)
+#define DL_DEBUG(fmt, args...)	dsp_dl_dbg("[%-30s]" fmt, __func__, ##args)
 
 #define DL_BORDER	\
 "====================================================================\n"
 
-extern char *dsp_log_buf;
+#define DL_BUF_STR(fmt, args...)	dsp_dl_put_log_buf(fmt, ##args)
+#define DL_PRINT_BUF(level)		\
+	dsp_dl_print_log_buf(DL_LOG_##level, __func__)
 
-#define DL_LOG_BUF_MAX		(1024)
-#define DL_BUF_STR(fmt, args...)					\
-	snprintf(dsp_log_buf + strlen(dsp_log_buf), DL_LOG_BUF_MAX,	\
-		fmt, ##args)
-#define DL_PRINT_BUF(type)						\
-	do {								\
-		DL_##type("%s", dsp_log_buf);				\
-		dsp_log_buf[0] = '\0';					\
-	} while (0)
+enum dsp_dl_log_level {
+	DL_LOG_ERROR,
+	DL_LOG_INFO,
+	DL_LOG_DEBUG,
+};
 
 struct dsp_dl_lib_file {
 	void *mem;
@@ -52,6 +50,9 @@ struct dsp_dl_lib_info {
 void dsp_dl_lib_file_reset(struct dsp_dl_lib_file *file);
 int dsp_dl_lib_file_read(char *buf, unsigned int size,
 	struct dsp_dl_lib_file *file);
+
+void dsp_dl_put_log_buf(const char *fmt, ...);
+void dsp_dl_print_log_buf(int level, const char *func);
 
 void dsp_common_init(void);
 void dsp_common_free(void);

@@ -777,7 +777,8 @@ static int panel_do_frame_delay(struct panel_device *panel, struct delayinfo *in
 	return 0;
 }
 
-static int panel_do_vsync_delay(struct panel_device *panel, struct delayinfo *info)
+__visible_for_testing int __mockable
+panel_do_vsync_delay(struct panel_device *panel, struct delayinfo *info)
 {
 	int i, ret;
 	u32 timeout = PANEL_WAIT_VSYNC_TIMEOUT_MSEC;

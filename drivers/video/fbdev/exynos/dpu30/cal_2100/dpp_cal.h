@@ -54,6 +54,9 @@ struct dpp_params_info {
 	bool votf_enable;
 	u32 votf_buffer_idx;
 #endif
+#if IS_ENABLED(CONFIG_EXYNOS_SBWC_LIBREQ)
+	bool lib_requested;
+#endif
 };
 
 struct dpp_size_constraints {

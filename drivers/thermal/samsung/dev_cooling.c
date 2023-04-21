@@ -29,6 +29,7 @@
 #include <soc/samsung/ect_parser.h>
 
 #include "../thermal_core.h"
+#include "exynos_tmu.h"
 /**
  * struct dev_cooling_device - data for cooling device with dev
  * @id: unique integer value corresponding to each dev_cooling_device
@@ -191,7 +192,7 @@ static int parse_ect_cooling_level(struct thermal_cooling_device *cdev,
 
 		instance = get_thermal_instance(tz, cdev, i);
 		if (!instance) {
-			pr_err("%s: (%s, %d)instance isn't valid\n", __func__, tz_name, i);
+			tmu_pr_err("%s: (%s, %d)instance isn't valid\n", __func__, tz_name, i);
 			goto skip_ect;
 		}
 
@@ -203,7 +204,7 @@ static int parse_ect_cooling_level(struct thermal_cooling_device *cdev,
 
 		instance->upper = level;
 
-		pr_info("Parsed From ECT : %s: [%d] Temperature : %d, frequency : %u, level: %d\n",
+		tmu_pr_info("Parsed From ECT : %s: [%d] Temperature : %d, frequency : %u, level: %d\n",
 			tz_name, i, temperature, freq, level);
 	}
 skip_ect:
@@ -237,7 +238,7 @@ __dev_cooling_register(struct device_node *np, struct exynos_devfreq_data *data)
 		return ERR_PTR(-ENOMEM);
 
 	if (of_property_read_string(np, "tz-cooling-name", &name)) {
-		pr_err("%s: could not find tz-cooling-name\n", __func__);
+		tmu_pr_err("%s: could not find tz-cooling-name\n", __func__);
 		kfree(dev);
 		return ERR_PTR(-EINVAL);
 	}

@@ -116,9 +116,12 @@ int is_sec_get_ois_pinfo(struct is_ois_info **pinfo);
 #if defined(CONFIG_CAMERA_USE_INTERNAL_MCU)
 bool is_ois_gyrocal_test(struct is_core *core, long *raw_data_x, long *raw_data_y);
 #endif
+bool is_ois_gyronoise_test(struct is_core *core, long *raw_data_x, long *raw_data_y);
 void is_ois_get_hall_pos(struct is_core *core, u16 *targetPos, u16 *hallPos);
 void is_ois_set_mode(struct is_core *core, int mode);
 void is_ois_check_cross_talk(struct is_core *core, u16 *hall_data);
+void is_ois_check_hall_cal(struct is_core *core, u16 *hall_cal_data);
+void is_ois_check_valid(struct is_core *core, u8 *value);
 int is_ois_read_ext_clock(struct is_core *core, u32 *clock);
 void is_ois_init_rear2(struct is_core *core);
 void is_ois_init_factory(struct is_core *core);

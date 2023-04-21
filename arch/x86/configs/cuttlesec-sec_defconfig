@@ -4,11 +4,7 @@
 #
 
 # SEC CONFIGS
-CONFIG_SEC_REBOOT=m
-CONFIG_SEC_KEY_NOTIFIER=m
-CONFIG_SEC_PARAM=m
 CONFIG_DRV_SAMSUNG=y
-CONFIG_SEC_DEBUG_BASE=m
 
 # USB Feature
 CONFIG_GKI_USB=y
@@ -27,6 +23,9 @@ CONFIG_DMABUF_TRACE=n
 
 # disable exy
 CONFIG_VIDEO_EXYNOS_MC_FRC=n
+
+# fix mali build error
+# CONFIG_MALI_MIDGARD is not set
 
 #
 # please don't remove new line on this file

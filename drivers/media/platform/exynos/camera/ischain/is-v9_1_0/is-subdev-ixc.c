@@ -123,7 +123,7 @@ static int is_ischain_ixc_start(struct is_device_ischain *device,
 			>> PIXEL_TYPE_EXTRA_SHIFT;
 
 	if (flag_extra) {
-		hw_sbwc = (SBWC_BASE_ALIGN_MASK | flag_extra);
+		hw_sbwc = (SBWC_BASE_ALIGN_MASK_LLC_OFF | flag_extra);
 		chg_format = true;
 	}
 

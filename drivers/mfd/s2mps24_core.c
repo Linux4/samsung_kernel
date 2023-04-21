@@ -398,6 +398,7 @@ static int s2mps24_i2c_remove(struct i2c_client *i2c)
 
 	if(s2mps24->pdata->wakeup)
 		device_init_wakeup(s2mps24->dev, false);
+	s2mps24_notifier_deinit(s2mps24);
 	mfd_remove_devices(s2mps24->dev);
 	i2c_unregister_device(s2mps24->i2c);
 	mutex_destroy(&s2mps24->i2c_lock);

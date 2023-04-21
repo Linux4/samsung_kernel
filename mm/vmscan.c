@@ -89,9 +89,12 @@ struct scan_control {
 	unsigned int may_swap:1;
 
 	/*
-	 * Cgroups are not reclaimed below their configured memory.low,
-	 * unless we threaten to OOM. If any cgroups are skipped due to
-	 * memory.low and nothing was reclaimed, go back for memory.low.
+	 * Cgroup memory below memory.low is protected as long as we
+	 * don't threaten to OOM. If any cgroup is reclaimed at
+	 * reduced force or passed over entirely due to its memory.low
+	 * setting (memcg_low_skipped), and nothing is reclaimed as a
+	 * result, then go back for one more cycle that reclaims the protected
+	 * memory (memcg_low_reclaim) to avert OOM.
 	 */
 	unsigned int memcg_low_reclaim:1;
 	unsigned int memcg_low_skipped:1;
@@ -597,6 +600,10 @@ static unsigned long shrink_slab_memcg(gfp_t gfp_mask, int nid,
 	unsigned long ret, freed = 0;
 	int i;
 
+	/* allow shrink_slab_memcg for only kswapd */
+	if (!current_is_kswapd())
+		return 0;
+
 	if (!mem_cgroup_online(memcg))
 		return 0;
 
@@ -625,8 +632,10 @@ static unsigned long shrink_slab_memcg(gfp_t gfp_mask, int nid,
 
 		/* Call non-slab shrinkers even though kmem is disabled */
 		if (!memcg_kmem_enabled() &&
-		    !(shrinker->flags & SHRINKER_NONSLAB))
+		    !(shrinker->flags & SHRINKER_NONSLAB)) {
+			clear_bit(i, map->map);
 			continue;
+		}
 
 		ret = do_shrink_slab(&sc, shrinker, priority);
 		if (ret == SHRINK_EMPTY) {
@@ -1502,14 +1511,14 @@ free_it:
 			(*get_compound_page_dtor(page))(page);
 		else
 			list_add(&page->lru, &free_pages);
-		continue;
 		/*
 		 * If pagelist are from multiple zones, we should decrease
 		 * NR_ISOLATED_ANON + x on freed pages in here.
 		 */
 		if (!pgdat)
-			dec_zone_page_state(page, NR_ISOLATED_ANON +
-					page_is_file_cache(page));
+			dec_node_page_state(page, NR_ISOLATED_ANON +
+					    page_is_file_cache(page));
+		continue;
 activate_locked_split:
 		/*
 		 * The tail pages that are failed to add into swap cache
@@ -1618,8 +1627,8 @@ unsigned long reclaim_pages_from_list(struct list_head *page_list)
 	while (!list_empty(page_list)) {
 		page = lru_to_page(page_list);
 		list_del(&page->lru);
-		dec_zone_page_state(page, NR_ISOLATED_ANON +
-				page_is_file_cache(page));
+		dec_node_page_state(page, NR_ISOLATED_ANON +
+				    page_is_file_cache(page));
 		putback_lru_page(page);
 	}
 
@@ -2375,12 +2384,22 @@ static bool am_app_launch = false;
 
 #define MEM_BOOST_MAX_TIME (5 * HZ) /* 5 sec */
 
+#if CONFIG_KSWAPD_CPU
+static int set_kswapd_cpu_affinity_as_config(void);
+static int set_kswapd_cpu_affinity_as_boost(void);
+#endif
+
 #ifdef CONFIG_SYSFS
 static ssize_t mem_boost_mode_show(struct kobject *kobj,
 				    struct kobj_attribute *attr, char *buf)
 {
-	if (time_after(jiffies, last_mode_change + MEM_BOOST_MAX_TIME))
+	if (mem_boost_mode != NO_BOOST &&
+		time_after(jiffies, last_mode_change + MEM_BOOST_MAX_TIME)) {
 		mem_boost_mode = NO_BOOST;
+#ifdef CONFIG_KSWAPD_CPU
+		set_kswapd_cpu_affinity_as_config();
+#endif
+	}
 	return sprintf(buf, "%d\n", mem_boost_mode);
 }
 
@@ -2401,7 +2420,12 @@ static ssize_t mem_boost_mode_store(struct kobject *kobj,
 	if (mem_boost_mode >= BOOST_HIGH)
 		wake_ion_rbin_heap_prereclaim();
 #endif
-
+#if CONFIG_KSWAPD_CPU
+	if (mem_boost_mode >= BOOST_HIGH)
+		set_kswapd_cpu_affinity_as_boost();
+	else if (mem_boost_mode == NO_BOOST)
+		set_kswapd_cpu_affinity_as_config();
+#endif
 	return count;
 }
 
@@ -2430,12 +2454,14 @@ static inline bool is_too_low_file(struct pglist_data *pgdat)
 {
        unsigned long pgdatfile;
        if (!low_threshold) {
-               if (totalram_pages() > GB_TO_PAGES(2))
-                       low_threshold = MB_TO_PAGES(600);
-               else if (totalram_pages() > GB_TO_PAGES(1))
-                       low_threshold = MB_TO_PAGES(300);
-               else
-                       low_threshold = MB_TO_PAGES(200);
+			if (totalram_pages() > GB_TO_PAGES(4))
+				low_threshold = MB_TO_PAGES(500);
+			else if (totalram_pages() > GB_TO_PAGES(3))
+				low_threshold = MB_TO_PAGES(400);
+			else if (totalram_pages() > GB_TO_PAGES(2))
+				low_threshold = MB_TO_PAGES(300);
+			else
+				low_threshold = MB_TO_PAGES(200);
        }
 
        pgdatfile = node_page_state(pgdat, NR_ACTIVE_FILE) +
@@ -2447,10 +2473,14 @@ inline bool need_memory_boosting(struct pglist_data *pgdat)
 {
 	bool ret;
 
-	if (time_after(jiffies, last_mode_change + MEM_BOOST_MAX_TIME))
+	if (mem_boost_mode != NO_BOOST && 
+		(time_after(jiffies, last_mode_change + MEM_BOOST_MAX_TIME) ||
+		is_too_low_file(pgdat))) {
 		mem_boost_mode = NO_BOOST;
-	else if (is_too_low_file(pgdat))
-		mem_boost_mode = NO_BOOST;
+#if CONFIG_KSWAPD_CPU
+		set_kswapd_cpu_affinity_as_config();
+#endif
+	}
 
 	switch (mem_boost_mode) {
 		case BOOST_KILL:
@@ -2723,14 +2753,14 @@ out:
 	for_each_evictable_lru(lru) {
 		int file = is_file_lru(lru);
 		unsigned long lruvec_size;
+		unsigned long low, min;
 		unsigned long scan;
-		unsigned long protection;
 
 		lruvec_size = lruvec_lru_size(lruvec, lru, sc->reclaim_idx);
-		protection = mem_cgroup_protection(memcg,
-						   sc->memcg_low_reclaim);
+		mem_cgroup_protection(sc->target_mem_cgroup, memcg,
+				      &min, &low);
 
-		if (protection) {
+		if (min || low) {
 			/*
 			 * Scale a cgroup's reclaim pressure by proportioning
 			 * its current usage to its memory.low or memory.min
@@ -2761,6 +2791,15 @@ out:
 			 * hard protection.
 			 */
 			unsigned long cgroup_size = mem_cgroup_size(memcg);
+			unsigned long protection;
+
+			/* memory.low scaling, make sure we retry before OOM */
+			if (!sc->memcg_low_reclaim && low > min) {
+				protection = low;
+				sc->memcg_low_skipped = 1;
+			} else {
+				protection = min;
+			}
 
 			/* Avoid TOCTOU with earlier protection check */
 			cgroup_size = max(cgroup_size, protection);
@@ -3101,6 +3140,14 @@ static bool shrink_node(pg_data_t *pgdat, struct scan_control *sc)
 			unsigned long lru_pages;
 			unsigned long reclaimed;
 			unsigned long scanned;
+
+			/*
+			 * This loop can become CPU-bound when target memcgs
+			 * aren't eligible for reclaim - either because they
+			 * don't have any reclaimable pages, or because their
+			 * memory is explicitly protected. Avoid soft lockups.
+			 */
+			cond_resched();
 
 			switch (mem_cgroup_protected(root, memcg)) {
 			case MEMCG_PROT_MIN:
@@ -3487,8 +3534,9 @@ static bool allow_direct_reclaim(pg_data_t *pgdat)
 
 	/* kswapd must be awake if processes are being throttled */
 	if (!wmark_ok && waitqueue_active(&pgdat->kswapd_wait)) {
-		pgdat->kswapd_classzone_idx = min(pgdat->kswapd_classzone_idx,
-						(enum zone_type)ZONE_NORMAL);
+		if (READ_ONCE(pgdat->kswapd_classzone_idx) > ZONE_NORMAL)
+			WRITE_ONCE(pgdat->kswapd_classzone_idx, ZONE_NORMAL);
+
 		wake_up_interruptible(&pgdat->kswapd_wait);
 	}
 
@@ -4124,9 +4172,9 @@ out:
 static enum zone_type kswapd_classzone_idx(pg_data_t *pgdat,
 					   enum zone_type prev_classzone_idx)
 {
-	if (pgdat->kswapd_classzone_idx == MAX_NR_ZONES)
-		return prev_classzone_idx;
-	return pgdat->kswapd_classzone_idx;
+	enum zone_type curr_idx = READ_ONCE(pgdat->kswapd_classzone_idx);
+
+	return curr_idx == MAX_NR_ZONES ? prev_classzone_idx : curr_idx;
 }
 
 static void kswapd_try_to_sleep(pg_data_t *pgdat, int alloc_order, int reclaim_order,
@@ -4170,8 +4218,11 @@ static void kswapd_try_to_sleep(pg_data_t *pgdat, int alloc_order, int reclaim_o
 		 * the previous request that slept prematurely.
 		 */
 		if (remaining) {
-			pgdat->kswapd_classzone_idx = kswapd_classzone_idx(pgdat, classzone_idx);
-			pgdat->kswapd_order = max(pgdat->kswapd_order, reclaim_order);
+			WRITE_ONCE(pgdat->kswapd_classzone_idx,
+				   kswapd_classzone_idx(pgdat, classzone_idx));
+
+			if (READ_ONCE(pgdat->kswapd_order) < reclaim_order)
+				WRITE_ONCE(pgdat->kswapd_order, reclaim_order);
 		}
 
 		finish_wait(&pgdat->kswapd_wait, &wait);
@@ -4209,6 +4260,65 @@ static void kswapd_try_to_sleep(pg_data_t *pgdat, int alloc_order, int reclaim_o
 	finish_wait(&pgdat->kswapd_wait, &wait);
 }
 
+#if CONFIG_KSWAPD_CPU
+static struct cpumask kswapd_cpumask;
+
+#define KSWAPD_CPU_BIG	0xF0
+static struct cpumask kswapd_cpumask_boost;
+
+static void init_kswapd_cpumask(void)
+{
+	int i;
+
+	cpumask_clear(&kswapd_cpumask);
+	for (i = 0; i < nr_cpu_ids; i++) {
+		if (CONFIG_KSWAPD_CPU & (1 << i))
+			cpumask_set_cpu(i, &kswapd_cpumask);
+	}
+
+	cpumask_clear(&kswapd_cpumask_boost);
+	for (i = 0; i < nr_cpu_ids; i++) {
+		if (KSWAPD_CPU_BIG & (1 << i))
+			cpumask_set_cpu(i, &kswapd_cpumask_boost);
+	}
+}
+
+/* follow like kswapd_cpu_online(unsigned int cpu) */
+static int set_kswapd_cpu_affinity_as_config(void)
+{
+	int nid;
+
+	for_each_node_state(nid, N_MEMORY) {
+		pg_data_t *pgdat = NODE_DATA(nid);
+		const struct cpumask *mask;
+
+		mask = &kswapd_cpumask;
+
+		if (cpumask_any_and(cpu_online_mask, mask) < nr_cpu_ids)
+			/* One of our CPUs online: restore mask */
+			set_cpus_allowed_ptr(pgdat->kswapd, mask);
+	}
+	return 0;
+}
+
+static int set_kswapd_cpu_affinity_as_boost(void)
+{
+	int nid;
+
+	for_each_node_state(nid, N_MEMORY) {
+		pg_data_t *pgdat = NODE_DATA(nid);
+		const struct cpumask *mask;
+
+		mask = &kswapd_cpumask_boost;
+
+		if (cpumask_any_and(cpu_online_mask, mask) < nr_cpu_ids)
+			/* One of our CPUs online: restore mask */
+			set_cpus_allowed_ptr(pgdat->kswapd, mask);
+	}
+	return 0;
+}
+#endif
+
 /*
  * The background pageout daemon, started as a kernel thread
  * from the init process.
@@ -4228,7 +4338,11 @@ static int kswapd(void *p)
 	unsigned int classzone_idx = MAX_NR_ZONES - 1;
 	pg_data_t *pgdat = (pg_data_t*)p;
 	struct task_struct *tsk = current;
+#if CONFIG_KSWAPD_CPU
+	const struct cpumask *cpumask = &kswapd_cpumask;
+#else
 	const struct cpumask *cpumask = cpumask_of_node(pgdat->node_id);
+#endif
 
 	if (!cpumask_empty(cpumask))
 		set_cpus_allowed_ptr(tsk, cpumask);
@@ -4248,12 +4362,12 @@ static int kswapd(void *p)
 	tsk->flags |= PF_MEMALLOC | PF_SWAPWRITE | PF_KSWAPD;
 	set_freezable();
 
-	pgdat->kswapd_order = 0;
-	pgdat->kswapd_classzone_idx = MAX_NR_ZONES;
+	WRITE_ONCE(pgdat->kswapd_order, 0);
+	WRITE_ONCE(pgdat->kswapd_classzone_idx, MAX_NR_ZONES);
 	for ( ; ; ) {
 		bool ret;
 
-		alloc_order = reclaim_order = pgdat->kswapd_order;
+		alloc_order = reclaim_order = READ_ONCE(pgdat->kswapd_order);
 		classzone_idx = kswapd_classzone_idx(pgdat, classzone_idx);
 
 kswapd_try_sleep:
@@ -4261,10 +4375,10 @@ kswapd_try_sleep:
 					classzone_idx);
 
 		/* Read the new order and classzone_idx */
-		alloc_order = reclaim_order = pgdat->kswapd_order;
+		alloc_order = reclaim_order = READ_ONCE(pgdat->kswapd_order);
 		classzone_idx = kswapd_classzone_idx(pgdat, classzone_idx);
-		pgdat->kswapd_order = 0;
-		pgdat->kswapd_classzone_idx = MAX_NR_ZONES;
+		WRITE_ONCE(pgdat->kswapd_order, 0);
+		WRITE_ONCE(pgdat->kswapd_classzone_idx, MAX_NR_ZONES);
 
 		ret = try_to_freeze();
 		if (kthread_should_stop())
@@ -4308,20 +4422,23 @@ void wakeup_kswapd(struct zone *zone, gfp_t gfp_flags, int order,
 		   enum zone_type classzone_idx)
 {
 	pg_data_t *pgdat;
+	enum zone_type curr_idx;
 
 	if (!managed_zone(zone))
 		return;
 
 	if (!cpuset_zone_allowed(zone, gfp_flags))
 		return;
-	pgdat = zone->zone_pgdat;
 
-	if (pgdat->kswapd_classzone_idx == MAX_NR_ZONES)
-		pgdat->kswapd_classzone_idx = classzone_idx;
-	else
-		pgdat->kswapd_classzone_idx = max(pgdat->kswapd_classzone_idx,
-						  classzone_idx);
-	pgdat->kswapd_order = max(pgdat->kswapd_order, order);
+	pgdat = zone->zone_pgdat;
+	curr_idx = READ_ONCE(pgdat->kswapd_classzone_idx);
+
+	if (curr_idx == MAX_NR_ZONES || curr_idx < classzone_idx)
+		WRITE_ONCE(pgdat->kswapd_classzone_idx, classzone_idx);
+
+	if (READ_ONCE(pgdat->kswapd_order) < order)
+		WRITE_ONCE(pgdat->kswapd_order, order);
+
 	if (!waitqueue_active(&pgdat->kswapd_wait))
 		return;
 
@@ -4397,7 +4514,11 @@ static int kswapd_cpu_online(unsigned int cpu)
 		pg_data_t *pgdat = NODE_DATA(nid);
 		const struct cpumask *mask;
 
+#if CONFIG_KSWAPD_CPU
+		mask = &kswapd_cpumask;
+#else
 		mask = cpumask_of_node(pgdat->node_id);
+#endif
 
 		if (cpumask_any_and(cpu_online_mask, mask) < nr_cpu_ids)
 			/* One of our CPUs online: restore mask */
@@ -4447,6 +4568,9 @@ static int __init kswapd_init(void)
 {
 	int nid, ret;
 
+#if CONFIG_KSWAPD_CPU
+	init_kswapd_cpumask();
+#endif
 	swap_setup();
 	for_each_node_state(nid, N_MEMORY)
  		kswapd_run(nid);

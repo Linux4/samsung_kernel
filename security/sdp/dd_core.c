@@ -1653,6 +1653,19 @@ static long dd_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 		return 0;
 	}
+	/* { KNOX_SUPPORT_DAR_DUAL_DO */
+	case DD_IOCTL_GET_LOCK_STATE:
+	{
+		dd_verbose("DD_IOCTL_GET_LOCK_STATE : %u", dd_lock_state);
+
+		ioc.u.lock.state = dd_lock_state;
+		if (copy_to_user((void __user *)arg, &ioc, sizeof(unsigned int))) {
+			return -EFAULT;
+		}
+
+		return 0;
+	}
+	/* } KNOX_SUPPORT_DAR_DUAL_DO */
 #if USE_KEYRING
 	case DD_IOCTL_ADD_KEY:
 	case DD_IOCTL_EVICT_KEY:

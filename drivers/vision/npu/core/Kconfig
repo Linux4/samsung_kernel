@@ -151,4 +151,14 @@ config NPU_USE_VOTF
 
 		vOTF for internal use
 
+config NPU_ARBITRATION
+	bool "enable NPU core arbitration support"
+	default n
+	help
+		When this option is enabled, the NPU core arbitration
+		algorithm monitors the workload and allows some of the
+		NPU cores to be turned OFF for power saving.
+
+		NPU core arbitration for internal use
+
 endif

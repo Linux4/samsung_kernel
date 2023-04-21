@@ -150,18 +150,11 @@ void add_fec_off_cnt(char* dev_name){
 }
 
 void print_blks_cnt(char* dev_name){
-    int i,foc = get_fec_off_cnt();
     if(empty_b_info()){
         return;
     }
 
     pr_err("dev_name = %s,total_blks = %llu,skipped_blks = %llu,corrupted_blks = %llu,fec_correct_blks = %llu",dev_name,get_total_blks(),get_skipped_blks(),get_corrupted_blks(),get_fec_correct_blks());
-
-    if(foc > 0){
-        pr_err("fec_off_cnt = %d",foc);
-        for(i = 0 ; i < foc; i++)
-            pr_err("fec_off_dev = %s ",b_info->fec_off_list[i]);
-    }
 }
 
 void print_fc_blks_list(void){

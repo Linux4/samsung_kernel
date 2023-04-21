@@ -49,6 +49,11 @@
 #include "../dp_logger/dp_self_test.h"
 #endif
 
+#if defined(CONFIG_UML)
+int phy_status = 1;
+#endif
+
+
 #define PIXELCLK_2160P30HZ 297000000 /* UHD 30hz */
 #define PIXELCLK_1080P60HZ 148500000 /* FHD 60Hz */
 #define PIXELCLK_1080P30HZ 74250000 /* FHD 30Hz */
@@ -1670,8 +1675,12 @@ void displayport_hpd_changed(int state)
 		cancel_delayed_work_sync(&displayport->hdcp22_work);
 		cancel_delayed_work_sync(&displayport->hdcp13_integrity_check_work);
 
-		for (i = SST1; i < MAX_SST_CNT; i++)
-			displayport_off_by_hpd_low(i, displayport);
+		if (displayport->mst_cap == 0) {
+			displayport_off_by_hpd_low(sst_id, displayport);
+		} else {
+			for (i = SST1; i < MAX_SST_CNT; i++)
+				displayport_off_by_hpd_low(i, displayport);
+		}
 
 		displayport_reg_deinit();
 		displayport_reg_phy_disable();
@@ -2256,7 +2265,7 @@ static u8 displayport_get_vic(u32 sst_id)
 	return supported_videos[displayport->sst[sst_id]->cur_video].vic;
 }
 
-static int displayport_make_avi_infoframe_data(u32 sst_id,
+__visible_for_testing int displayport_make_avi_infoframe_data(u32 sst_id,
 		struct infoframe *avi_infoframe)
 {
 	int i;
@@ -2275,7 +2284,7 @@ static int displayport_make_avi_infoframe_data(u32 sst_id,
 	return 0;
 }
 
-static int displayport_make_audio_infoframe_data(struct infoframe *audio_infoframe,
+__visible_for_testing int displayport_make_audio_infoframe_data(struct infoframe *audio_infoframe,
 		struct displayport_audio_config_data *audio_config_data)
 {
 	int i;
@@ -2304,7 +2313,7 @@ static int displayport_make_audio_infoframe_data(struct infoframe *audio_infofra
 	return 0;
 }
 
-static int displayport_make_hdr_infoframe_data
+__visible_for_testing int displayport_make_hdr_infoframe_data
 	(struct infoframe *hdr_infoframe, struct exynos_hdr_static_info *hdr_info)
 {
 	int i;
@@ -2389,7 +2398,7 @@ static int displayport_set_avi_infoframe(u32 sst_id)
 	return 0;
 }
 
-static int displayport_make_spd_infoframe_data(struct infoframe *spd_infoframe)
+__visible_for_testing int displayport_make_spd_infoframe_data(struct infoframe *spd_infoframe)
 {
 	spd_infoframe->type_code = 0x83;
 	spd_infoframe->version_number = 0x1;
@@ -2445,6 +2454,11 @@ int displayport_audio_config(u32 sst_id, struct displayport_audio_config_data *a
 {
 	struct displayport_device *displayport = get_displayport_drvdata();
 	int ret = 0;
+
+	if (displayport->sst[sst_id]->state == DISPLAYPORT_STATE_OFF || !phy_status) {
+		displayport_warn("power status is off timing\n");
+		return -EINVAL;
+	}
 
 	displayport_info("SST%d audio config(%d ==> %d)\n",
 			sst_id + 1, displayport->sst[sst_id]->audio_state, audio_config_data->audio_enable);
@@ -2883,7 +2897,7 @@ static int displayport_s_dv_timings(struct v4l2_subdev *sd,
 	int ret = 0;
 	char timingstr[32] = {0x0, };
 
-	if (displayport->sst[sst_id]->state == DISPLAYPORT_STATE_OFF) {
+	if (displayport->sst[sst_id]->state == DISPLAYPORT_STATE_OFF || !phy_status) {
 		displayport_warn("power status is off timing\n");
 		return 0;
 	}
@@ -2948,7 +2962,7 @@ static int displayport_enum_dv_timings(struct v4l2_subdev *sd,
 	struct displayport_device *displayport = container_of(sd, struct displayport_device, sd);
 	u32 sst_id = displayport->cur_sst_id;
 
-	if (displayport->sst[sst_id]->state == DISPLAYPORT_STATE_OFF) {
+	if (displayport->sst[sst_id]->state == DISPLAYPORT_STATE_OFF || !phy_status) {
 		displayport_warn("power status is off timing id(%d)\n", timings->index);
 		if (timings->index == 0) {
 			timings->timings = supported_videos[timings->index].dv_timings;
@@ -3311,16 +3325,6 @@ static void displayport_check_adapter_type(struct displayport_device *displaypor
 	switch (displayport->prod_id) {
 	case 0xa029: /* PAD */
 	case 0xa020: /* Station */
-	case 0xa02a:
-	case 0xa02b:
-	case 0xa02c:
-	case 0xa02d:
-	case 0xa02e:
-	case 0xa02f:
-	case 0xa030:
-	case 0xa031:
-	case 0xa032:
-	case 0xa033:
 		displayport->dex_adapter_type = DEX_WQHD_SUPPORT;
 		break;
 	};
@@ -3352,7 +3356,9 @@ static int displayport_usb_typec_notification_proceed(struct displayport_device 
 			displayport->is_hmd_dev = false;
 #endif
 			displayport_hpd_changed(0);
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 			displayport_aux_onoff(displayport, 0);
+#endif
 			switch_state = 0;
 #ifdef CONFIG_SEC_DISPLAYPORT_BIGDATA
 			secdp_bigdata_disconnection();
@@ -3384,7 +3390,9 @@ static int displayport_usb_typec_notification_proceed(struct displayport_device 
 		displayport_info("PDIC_NOTIFY_ID_DP_LINK_CONF %x\n",
 				usb_typec_info->sub1);
 		displayport_aux_sel(displayport);
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 		displayport_aux_onoff(displayport, 1);
+#endif
 #ifdef CONFIG_SEC_DISPLAYPORT_BIGDATA
 		secdp_bigdata_save_item(BD_LINK_CONFIGURE, usb_typec_info->sub1 + 'A' - 1);
 #endif
@@ -4177,14 +4185,15 @@ static ssize_t audio_test_store(struct class *dev,
 }
 static CLASS_ATTR_RW(audio_test);
 
-static u8 edid_test_buf[257]; /* 256 + 1, 1st index is block count */
+#define TEST_BUF_SIZE	512
+static u8 edid_test_buf[TEST_BUF_SIZE + 1]; /* 1st index is block count */
 static ssize_t edid_test_show(struct class *class,
 		struct class_attribute *attr, char *buf)
 {
 	ssize_t size;
 	int i;
 
-	if (edid_test_buf[0] != 1 && edid_test_buf[0] != 2)
+	if (edid_test_buf[0] < 1 || edid_test_buf[0] > 4)
 		return sprintf(buf, "invalid size test edid(%d)\n", edid_test_buf[0]);
 
 	size = sprintf(buf, "edid size: %d\n", edid_test_buf[0]);
@@ -4206,7 +4215,7 @@ static ssize_t edid_test_store(struct class *dev,
 	int edid_idx = 1, hex_cnt = 0, buf_idx = 0;
 	u8 hex = 0;
 	u8 temp;
-	int max_size = (256 * 6); /* including comma, space and prefix like ', 0xFF' */
+	int max_size = (TEST_BUF_SIZE * 6); /* including comma, space and prefix like ', 0xFF' */
 
 	edid_test_buf[0] = 0;
 
@@ -4214,7 +4223,8 @@ static ssize_t edid_test_store(struct class *dev,
 		pr_cont("EDID test: ");
 	for (i = 0; i < size && i < max_size; i++) {
 		temp = *(buf + buf_idx++);
-		if (temp == ',' || temp == ' ') { /* value is separated by comma or space */
+		/* value is separated by comma, space or line feed*/
+		if (temp == ',' || temp == ' ' || temp == '\x0A') {
 			if (hex_cnt != 0) {
 				if (displayport_log_level >= 7) {
 					pr_cont("%02X ", hex);
@@ -4234,7 +4244,7 @@ static ssize_t edid_test_store(struct class *dev,
 			hex_cnt = 0;
 			hex = 0;
 			continue;
-		} else if (!temp || temp == '\x0A') { /* EOL, line feed */
+		} else if (!temp || temp == '\0') { /* EOL */
 			if (displayport_log_level >= 7)
 				pr_cont("%02X ", hex);
 			displayport_info("parse end. edid cnt: %d\n", edid_idx);
@@ -4253,7 +4263,7 @@ static ssize_t edid_test_store(struct class *dev,
 			return size;
 		}
 
-		if (hex_cnt > 2 || edid_idx > 256) {
+		if (hex_cnt > 2 || edid_idx > TEST_BUF_SIZE + 1) {
 			displayport_info("wrong input. %d, %d, [%c]\n", hex_cnt, edid_idx, temp);
 			return size;
 		}
@@ -4262,7 +4272,7 @@ static ssize_t edid_test_store(struct class *dev,
 	if (hex_cnt > 0)
 		edid_test_buf[edid_idx] = hex;
 
-	if (edid_idx == 128 || edid_idx == 256)
+	if (edid_idx != 1 && edid_idx % 128 == 1)
 		edid_test_buf[0] = edid_idx / 128;
 
 	displayport_info("edid size = %d\n", edid_idx);
@@ -4506,8 +4516,8 @@ static int displayport_update_hmd_list(struct displayport_device *displayport, c
 		ret = -EPERM;
 		goto exit;
 	}
-	kstrtouint(tok, 10, &num_hmd);
-	if (num_hmd > MAX_NUM_HMD) {
+	ret = kstrtouint(tok, 10, &num_hmd);
+	if (ret || num_hmd > MAX_NUM_HMD) {
 		displayport_err("invalid list num %d\n", num_hmd);
 		num_hmd = 0;
 		ret = -EPERM;
@@ -4525,14 +4535,21 @@ static int displayport_update_hmd_list(struct displayport_device *displayport, c
 		tok  = strsep(&p, ",");
 		if (tok == NULL || *tok == 0xa/*LF*/)
 			break;
-		kstrtouint(tok, 16, &val);
+		if (kstrtouint(tok, 16, &val)) {
+			ret = -EPERM;
+			break;
+		}
+
 		displayport->hmd_list[j].ven_id = val;
 
 		/* PID */
 		tok  = strsep(&p, ",");
 		if (tok == NULL || *tok == 0xa/*LF*/)
 			break;
-		kstrtouint(tok, 16, &val);
+		if (kstrtouint(tok, 16, &val)) {
+			ret = -EPERM;
+			break;
+		}
 		displayport->hmd_list[j].prod_id = val;
 
 		displayport_info("HMD%02d: %s, 0x%04x, 0x%04x\n", j,
@@ -4553,6 +4570,49 @@ not_tag_exit:
 	mutex_unlock(&displayport->hmd_lock);
 
 	return ret;
+}
+#endif
+
+#ifdef FEATURE_DEX_ADAPTER_TWEAK
+#define DEX_ADATER_TWEAK_LEN	32
+#define DEX_TAG_ADAPTER_TWEAK "SkipAdapterCheck"
+static int displayport_dex_adapter_tweak(struct displayport_device *displayport, const char *buf, size_t size)
+{
+	char str[DEX_ADATER_TWEAK_LEN] = {0,};
+	char *p, *tok;
+	static enum dex_support_type def_value;
+
+	if (size >= DEX_ADATER_TWEAK_LEN)
+		return -EINVAL;
+
+	memcpy(str, buf, size);
+	p = str;
+
+	tok = strsep(&p, ",");
+	if (strncmp(DEX_TAG_ADAPTER_TWEAK, tok, strlen(DEX_TAG_ADAPTER_TWEAK))) {
+		return -EINVAL;
+	}
+
+	tok = strsep(&p, ",");
+	if (tok == NULL || *tok == 0xa/*LF*/) {
+		displayport_info("Dex adapter tweak - Invalid value\n");
+		return 0;
+	}
+
+	if (def_value == 0)
+		def_value = displayport->dex_max_resolution;
+
+	switch (*tok) {
+	case '0':
+		displayport->dex_max_resolution = def_value;
+		break;
+	case '1':
+		displayport->dex_max_resolution = DEX_WQHD_SUPPORT;
+		break;
+	}
+	displayport_info("%s(%c)\n", __func__, *tok);
+
+	return 0;
 }
 #endif
 
@@ -4601,6 +4661,11 @@ static ssize_t dex_store(struct class *dev,
 		return size;
 	else if (ret != -EINVAL) /* try to update HMD list but error*/
 		return ret;
+#endif
+
+#ifdef FEATURE_DEX_ADAPTER_TWEAK
+	if (!displayport_dex_adapter_tweak(displayport, buf, size))
+		return size;
 #endif
 
 	if (kstrtouint(buf, 10, &val)) {
@@ -4759,7 +4824,9 @@ static ssize_t dp_sbu_sw_sel_store(struct class *dev,
 	if ((aux_sw_sel == 0 || aux_sw_sel == 1) && (aux_sw_oe == 0 || aux_sw_oe == 1)) {
 		if (gpio_is_valid(displayport->gpio_sw_sel))
 			gpio_direction_output(displayport->gpio_sw_sel, aux_sw_sel);
+#if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 		displayport_aux_onoff(displayport, !aux_sw_oe);
+#endif
 	} else
 		displayport_err("invalid aux switch parameter\n");
 
@@ -4788,7 +4855,7 @@ static ssize_t log_level_store(struct class *dev,
 }
 static CLASS_ATTR_RW(log_level);
 
-static int displayport_init_sst_info(struct displayport_device *displayport)
+__visible_for_testing int displayport_init_sst_info(struct displayport_device *displayport)
 {
 	int ret = 0;
 	int i = 0;
@@ -5086,8 +5153,9 @@ static int displayport_probe(struct platform_device *pdev)
 
 #if IS_ENABLED(CONFIG_EXYNOS_HDCP2)
 	displayport->drm_start_state = DRM_OFF;
-#endif
+
 	displayport_register_func(displayport_hdcp22_enable, displayport_dpcd_read_for_hdcp22, displayport_dpcd_write_for_hdcp22);
+#endif
 
 #if defined(CONFIG_EXTCON) && !IS_ENABLED(CONFIG_ANDROID_SWITCH)
 	dp_hpd_extcon = devm_extcon_dev_allocate(dev, dp_hpd_extcon_id);

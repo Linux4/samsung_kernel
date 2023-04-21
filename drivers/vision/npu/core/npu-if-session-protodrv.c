@@ -32,7 +32,7 @@ static struct npu_if_session_protodrv_ctx ctx = {
 };
 
 /* TODO: Link appripirate function in Session manager */
-struct npu_if_session_protodrv_ops npu_if_session_protodrv_ops = {
+const struct npu_if_session_protodrv_ops npu_if_session_protodrv_ops = {
 	.queue_done = npu_session_queue_done,
 };
 

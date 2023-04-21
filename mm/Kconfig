@@ -581,19 +581,6 @@ config ZSMALLOC
 	  returned by an alloc().  This handle must be mapped in order to
 	  access the allocated space.
 
-config PGTABLE_MAPPING
-	bool "Use page table mapping to access object in zsmalloc"
-	depends on ZSMALLOC
-	help
-	  By default, zsmalloc uses a copy-based object mapping method to
-	  access allocations that span two pages. However, if a particular
-	  architecture (ex, ARM) performs VM mapping faster than copying,
-	  then you should select this. This causes zsmalloc to use page table
-	  mapping rather than copying for object mapping.
-
-	  You can check speed with zsmalloc benchmark:
-	  https://github.com/spartacus06/zsmapbench
-
 config ZSMALLOC_STAT
 	bool "Export zsmalloc statistics"
 	depends on ZSMALLOC
@@ -725,6 +712,13 @@ config BALANCE_ANON_FILE_RECLAIM
 	  equally.
 	  Swapping anonymous pages out to memory can be efficient enough to justify
 	  treating anonymous and file backed pages equally.
+
+config KSWAPD_CPU
+	hex "Set kswapd cpu affinity by default"
+	default 0x7F
+	help
+	  Set kswapd cpu affinity by default. 0x3F means allowing CPU as 0 to 5.
+	  To disable this config, set this to 0.
 
 config MMAP_READAROUND_LIMIT
 	int "Limit mmap readaround upperbound"

@@ -26,6 +26,7 @@
 #include <linux/mfd/samsung/s2mps23-regulator.h>
 #if IS_ENABLED(CONFIG_SEC_PM)
 #include <linux/sec_class.h>
+#include <linux/sec_pm_cpufreq.h>
 #endif /* CONFIG_SEC_PM */
 
 #if IS_ENABLED(CONFIG_SEC_DEBUG_EXTRA_INFO)
@@ -561,10 +562,14 @@ static void exynos_smpl_warn_work(struct work_struct *work)
 	state = (gpio_get_value(info->smpl_warn_info) & 0x1);
 
 	if (!state) {
+		sec_pm_cpufreq_throttle_by_one_step();
+
 		queue_delayed_work(system_freezable_wq, &info->irq_work,
-				msecs_to_jiffies(100));
+				msecs_to_jiffies(10));
 	} else {
 		dev_info(info->dev, "%s: SMPL_WARN polling End!\n", __func__);
+
+		sec_pm_cpufreq_unthrottle();
 #if IS_ENABLED(CONFIG_SOC_EXYNOS9830_EVT0)
 		exynos9830_smpl_warn_sw_release();
 #endif

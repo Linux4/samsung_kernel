@@ -121,8 +121,7 @@ static int hpa_secure_protect(struct ion_buffer_prot_info *protdesc,
 			      unsigned int protalign)
 {
 	unsigned long size = protdesc->chunk_count * protdesc->chunk_size;
-	unsigned long dma_addr = 0;
-	enum drmdrv_result_t drmret = DRMDRV_OK;
+	unsigned long drmret = 0, dma_addr = 0;
 	int ret;
 
 	ret = hpa_iova_alloc(&dma_addr, size,
@@ -158,7 +157,7 @@ err_iova:
 static int hpa_secure_unprotect(struct ion_buffer_prot_info *protdesc)
 {
 	unsigned long size = protdesc->chunk_count * protdesc->chunk_size;
-	int ret;
+	unsigned long ret;
 	/*
 	 * No need to flush protdesc for unprotection because it is never
 	 * modified since the buffer is protected.

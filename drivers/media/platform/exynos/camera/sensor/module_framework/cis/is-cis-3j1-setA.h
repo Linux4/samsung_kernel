@@ -15,7 +15,9 @@
 #include "is-cis.h"
 #include "is-cis-3j1.h"
 
-/* 3J1 sensor setting version - S5K3J1S_EVT0_Ver_0.44_201111_for_vendor */
+/* 3J1 sensor setting version - S5K3J1S_EVT0_Ver_0.45_210203 */
+/* if TX Impedance or HS-TX Regulator Vref setting is required,
+   please add "post_init_setting_list" in 3j1 dts for each project */
 /* Global setting */
 /* sensor_3j1_setfile_A_Global */
 

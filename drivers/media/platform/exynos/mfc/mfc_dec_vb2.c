@@ -287,6 +287,7 @@ static int mfc_dec_start_streaming(struct vb2_queue *q, unsigned int count)
 	struct mfc_ctx *ctx = q->drv_priv;
 	struct mfc_dev *dev = ctx->dev;
 
+	mfc_rm_update_real_time(ctx);
 	mfc_rm_request_work(dev, MFC_WORK_TRY, ctx);
 
 	return 0;
@@ -337,8 +338,8 @@ static void mfc_dec_buf_queue(struct vb2_buffer *vb)
 		if (dev->debugfs.meminfo_enable == 1)
 			mfc_meminfo_add_inbuf(ctx, vb);
 
-		MFC_TRACE_CTX("Q src[%d] fd: %d, %#llx\n",
-				vb->index, vb->planes[0].m.fd, buf->addr[0][0]);
+		MFC_TRACE_CTX("Q src[%d](%d) fd: %d, %#llx\n",
+				vb->index, buf->src_index, vb->planes[0].m.fd, buf->addr[0][0]);
 	} else if (vq->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		for (i = 0; i < ctx->dst_fmt->mem_planes; i++)
 			mfc_debug(2, "[BUFINFO] ctx[%d] add dst index: %d, addr[%d]: 0x%08llx\n",

@@ -83,6 +83,4 @@ void dsp_linker_alloc_bss(struct dsp_elf32 *elf);
 int dsp_linker_link_libs(struct dsp_lib **libs, int libs_size,
 	struct dsp_lib **common_libs, int common_size);
 
-extern struct dsp_reloc_rule_list *rules;
-
 #endif

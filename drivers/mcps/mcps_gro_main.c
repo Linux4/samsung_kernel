@@ -1,5 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2019 Samsung Electronics.
+ * Copyright (C) 2019-2021 Samsung Electronics.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -31,6 +32,8 @@
 #include <net/dst_metadata.h>
 #endif // #if defined(CONFIG_MCPS_V2)
 
+#include "migration/mcps_migration.h"
+#include "utils/mcps_logger.h"
 #include "mcps_sauron.h"
 #include "mcps_device.h"
 #include "mcps_buffer.h"
@@ -53,6 +56,42 @@ module_param(mcps_gro_pantry_max_capability, int, 0640);
 #define MODEM_NAPI_QUOTA 64
 #endif
 
+void mcps_migration_handler(unsigned int from, unsigned int to, unsigned int option)
+{
+	if (option == MCPS_MIGRATION_FLOWID)
+		_move_flow(from, to);
+	else
+		migrate_flow_on_cpu(from, to, option);
+}
+
+mcps_visible_for_testing
+void mcps_gro_normal_list(struct napi_struct *napi)
+{
+	struct sk_buff *skb, *next;
+
+	list_for_each_entry_safe(skb, next, &napi->rx_list, list) {
+		skb_list_del_init(skb);
+		if (unlikely(mcps_try_skb_internal(skb)))
+			netif_receive_skb(skb);
+	}
+	INIT_LIST_HEAD(&napi->rx_list);
+	napi->rx_count = 0;
+}
+
+int mcps_gro_max_rx_list __read_mostly = 8;
+module_param(mcps_gro_max_rx_list, int, 0640);
+
+mcps_visible_for_testing
+int mcps_gro_normal_one(struct napi_struct *napi, struct sk_buff *skb, int segs)
+{
+	list_add_tail(&skb->list, &napi->rx_list);
+	napi->rx_count += segs;
+	if (napi->rx_count >= mcps_gro_max_rx_list)
+		mcps_gro_normal_list(napi);
+
+	return NET_RX_SUCCESS;
+}
+
 INDIRECT_CALLABLE_DECLARE(int inet_gro_complete(struct sk_buff *, int));
 INDIRECT_CALLABLE_DECLARE(int ipv6_gro_complete(struct sk_buff *, int));
 static int mcps_napi_gro_complete(struct napi_struct *napi, struct sk_buff *skb)
@@ -60,6 +99,7 @@ static int mcps_napi_gro_complete(struct napi_struct *napi, struct sk_buff *skb)
 	struct packet_offload *ptype;
 	__be16 type = skb->protocol;
 	int err = -ENOENT;
+
 	BUILD_BUG_ON(sizeof(struct napi_gro_cb) > sizeof(skb->cb));
 
 	if (NAPI_GRO_CB(skb)->count == 1) {
@@ -82,7 +122,7 @@ static int mcps_napi_gro_complete(struct napi_struct *napi, struct sk_buff *skb)
 	}
 
 out:
-	return mcps_try_skb_internal(skb);
+	return mcps_gro_normal_one(napi, skb, NAPI_GRO_CB(skb)->count);
 }
 
 #if defined(CONFIG_MCPS_GRO_PER_SESSION)
@@ -107,9 +147,44 @@ void mcps_napi_gro_single_flush(struct napi_struct *napi, u32 hash)
 {
 	u32 index = (hash & (GRO_HASH_BUCKETS - 1));
 
-	if (test_bit(index, &napi->gro_bitmask)) {
+	if (test_bit(index, &napi->gro_bitmask))
 		__mcps_napi_gro_single_flush_chain(napi, index, hash);
+}
+
+static int __mcps_napi_gro_light_flush_chain(struct napi_struct *napi, u32 index, u32 count)
+{
+	struct list_head *head = &napi->gro_hash[index].list;
+	struct sk_buff *skb, *p;
+	int nflush = 0;
+
+	list_for_each_entry_safe_reverse(skb, p, head, list) {
+		if (NAPI_GRO_CB(skb)->count < count) {
+			skb_list_del_init(skb);
+			mcps_napi_gro_complete(napi, skb);
+			napi->gro_hash[index].count--;
+			nflush++;
+		}
 	}
+
+	if (!napi->gro_hash[index].count)
+		__clear_bit(index, &napi->gro_bitmask);
+
+	return nflush;
+}
+
+int mcps_napi_gro_light_flush(struct napi_struct *napi, u32 count)
+{
+	unsigned long bitmask = napi->gro_bitmask;
+	unsigned int i, base = ~0U;
+	int nflush = 0;
+
+	while ((i = ffs(bitmask)) != 0) {
+		bitmask >>= i;
+		base += i;
+		nflush += __mcps_napi_gro_light_flush_chain(napi, base, count);
+	}
+
+	return nflush;
 }
 #endif // #if defined(CONFIG_MCPS_GRO_PER_SESSION)
 
@@ -200,7 +275,7 @@ static struct list_head *mcps_gro_list_prepare(struct napi_struct *napi, struct 
 	return head;
 }
 
-static void mcps_skb_gro_reset_offset(struct sk_buff *skb)
+static inline void mcps_skb_gro_reset_offset(struct sk_buff *skb, u32 nhoff)
 {
 	const struct skb_shared_info *pinfo = skb_shinfo(skb);
 	const skb_frag_t *frag0 = &pinfo->frags[0];
@@ -211,7 +286,8 @@ static void mcps_skb_gro_reset_offset(struct sk_buff *skb)
 
 	if (skb_mac_header(skb) == skb_tail_pointer(skb) &&
 		pinfo->nr_frags &&
-		!PageHighMem(skb_frag_page(frag0))) {
+		!PageHighMem(skb_frag_page(frag0)) &&
+		(!NET_IP_ALIGN || !((skb_frag_off(frag0) + nhoff) & 3))) {
 		NAPI_GRO_CB(skb)->frag0 = skb_frag_address(frag0);
 		NAPI_GRO_CB(skb)->frag0_len = min_t(unsigned int,
 		skb_frag_size(frag0),
@@ -277,6 +353,7 @@ static enum gro_result mcps_dev_gro_receive(struct napi_struct *napi, struct sk_
 	skb_reset_mac_len(skb);
 	NAPI_GRO_CB(skb)->same_flow = 0;
 	NAPI_GRO_CB(skb)->flush = skb_is_gso(skb) || skb_has_frag_list(skb);
+
 	NAPI_GRO_CB(skb)->free = 0;
 	NAPI_GRO_CB(skb)->encap_mark = 0;
 	NAPI_GRO_CB(skb)->recursion_counter = 0;
@@ -327,11 +404,11 @@ static enum gro_result mcps_dev_gro_receive(struct napi_struct *napi, struct sk_
 	if (NAPI_GRO_CB(skb)->flush)
 		goto normal;
 
-	if (unlikely(napi->gro_hash[hash].count >= MAX_GRO_SKBS)) {
+	if (unlikely(napi->gro_hash[hash].count >= MAX_GRO_SKBS))
 		mcps_gro_flush_oldest(napi, gro_head);
-	} else {
+	else
 		napi->gro_hash[hash].count++;
-	}
+
 	NAPI_GRO_CB(skb)->count = 1;
 	NAPI_GRO_CB(skb)->age = jiffies;
 	NAPI_GRO_CB(skb)->last = skb;
@@ -375,8 +452,7 @@ static gro_result_t mcps_napi_skb_finish(gro_result_t ret, struct sk_buff *skb, 
 {
 	switch (ret) {
 	case GRO_NORMAL:
-		if (mcps_try_skb_internal(skb))
-			ret = GRO_DROP;
+		mcps_gro_normal_one(napi, skb, 1);
 		break;
 
 	case GRO_DROP:
@@ -404,7 +480,7 @@ gro_result_t mcps_napi_gro_receive(struct napi_struct *napi, struct sk_buff *skb
 	gro_result_t ret;
 
 	skb_mark_napi_id(skb, napi);
-	mcps_skb_gro_reset_offset(skb);
+	mcps_skb_gro_reset_offset(skb, 0);
 
 	ret = mcps_napi_skb_finish(mcps_dev_gro_receive(napi, skb), skb, napi);
 
@@ -418,9 +494,8 @@ static int mcps_gro_flush_timer(struct mcps_pantry *pantry)
 {
 	struct timespec64 curr, diff;
 
-	if (!mcps_gro_flush_time) {
+	if (!mcps_gro_flush_time)
 		return 0;
-	}
 
 	if (unlikely(pantry->gro_flush_time.tv_sec == 0)) {
 		getnstimespec64ofday(&pantry->gro_flush_time);
@@ -435,24 +510,40 @@ static int mcps_gro_flush_timer(struct mcps_pantry *pantry)
 	return 0;
 }
 
+static unsigned int mcps_gro_light_flush_limit __read_mostly;
+module_param(mcps_gro_light_flush_limit, uint, 0640);
+
+static unsigned int mcps_max_gro_batch_count __read_mostly = 300;
+module_param(mcps_max_gro_batch_count, uint, 0640);
+
 static int flush_gro_napi_struct(struct napi_struct *napi, int quota)
 {
 	struct mcps_pantry *pantry = container_of(napi, struct mcps_pantry, gro_napi_struct);
 #if defined(CONFIG_MCPS_CHUNK_GRO)
-	if (pantry->modem_napi_work == MODEM_NAPI_QUOTA) {
+	if (pantry->modem_napi_work >= MODEM_NAPI_QUOTA) {
+		pantry->modem_napi_work_batched += pantry->modem_napi_work;
 		pantry->modem_napi_work = 0;
+
+		if (mcps_napi_gro_light_flush(&pantry->gro_napi_struct, mcps_gro_light_flush_limit)
+		|| pantry->modem_napi_work_batched >= mcps_max_gro_batch_count) {
+			pantry->modem_napi_work_batched = 0;
+			mcps_gro_normal_list(&pantry->gro_napi_struct);
+		}
+
 		local_irq_disable();
 		__napi_schedule_irqoff(&pantry->gro_napi_struct);
 		local_irq_enable();
 		return 0;
 	}
 
-	pantry->modem_napi_work = 0;
+	pantry->modem_napi_work = pantry->modem_napi_work_batched = 0;
 	mcps_napi_gro_flush(&pantry->gro_napi_struct, false);
 	getnstimespec64ofday(&pantry->gro_flush_time);
+	mcps_gro_normal_list(&pantry->gro_napi_struct);
 #else // #if defined(CONFIG_MCPS_CHUNK_GRO)
 	mcps_napi_gro_flush(&pantry->gro_napi_struct, false);
 	getnstimespec64ofday(&pantry->gro_flush_time);
+	mcps_gro_normal_list(&pantry->gro_napi_struct);
 #endif // #if defined(CONFIG_MCPS_CHUNK_GRO)
 
 	local_irq_disable();
@@ -473,38 +564,42 @@ static int process_gro_skb(struct sk_buff *skb)
 
 	tracing_mark_writev('B', 1111, "process_gro_skb", 0);
 
-	__this_cpu_inc(mcps_gro_pantries.processed);
-
 #if defined(CONFIG_MCPS_GRO_PER_SESSION)
 	if (mcps_eye_gro_skip(skb)) {
-		mcps_try_skb_internal(skb);
+		__this_cpu_inc(mcps_gro_pantries.processed);
+		if (unlikely(mcps_try_skb_internal(skb)))
+			netif_receive_skb(skb);
 	} else {
 		hash = skb_get_hash_raw(skb);
 		flush = mcps_eye_gro_flush(skb);
 		ret = mcps_napi_gro_receive(&pantry->gro_napi_struct, skb);
-		if (ret == GRO_NORMAL) {
-			getnstimespec64ofday(&pantry->gro_flush_time);
-		}
+		if (ret == GRO_NORMAL)
+			__this_cpu_inc(mcps_gro_pantries.processed);
+		else
+			__this_cpu_inc(mcps_gro_pantries.gro_processed);
 
-		if (flush) {
+		if (flush)
 			mcps_napi_gro_single_flush(&pantry->gro_napi_struct, hash);
-		}
 	}
 #else
 	ret = mcps_napi_gro_receive(&pantry->gro_napi_struct, skb);
 	if (ret == GRO_NORMAL) {
+		__this_cpu_inc(mcps_gro_pantries.processed);
 		getnstimespec64ofday(&pantry->gro_flush_time);
+	} else {
+		__this_cpu_inc(mcps_gro_pantries.gro_processed);
 	}
 #endif // #if defined(CONFIG_MCPS_GRO_PER_SESSION)
 
 	if (mcps_gro_flush_timer(pantry)) {
 		mcps_napi_gro_flush(&pantry->gro_napi_struct, false);
+		mcps_gro_normal_list(&pantry->gro_napi_struct);
 	}
 
 	local_irq_save(flags);
-	if (!__test_and_set_bit(NAPI_STATE_SCHED, &pantry->gro_napi_struct.state)) {
+	if (!__test_and_set_bit(NAPI_STATE_SCHED, &pantry->gro_napi_struct.state))
 		__napi_schedule_irqoff(&pantry->gro_napi_struct);
-	}
+
 	local_irq_restore(flags);
 
 #if defined(CONFIG_MCPS_CHUNK_GRO)
@@ -513,6 +608,29 @@ static int process_gro_skb(struct sk_buff *skb)
 	tracing_mark_writev('E', 1111, "process_gro_skb", 0);
 	return NET_RX_SUCCESS;
 }
+
+static struct timespec64 last_complete_poll_time;
+
+void mcps_complete_handler(int work, int stop)
+{
+	ktime_get_real_ts64(&last_complete_poll_time);
+}
+EXPORT_SYMBOL_GPL(mcps_complete_handler);
+
+void mcps_prepare_handler(void)
+{
+	if (!mcps_is_migration_request_empty()) {
+		struct timespec64 curr, diff;
+
+		ktime_get_real_ts64(&curr);
+		diff = timespec64_sub(curr, last_complete_poll_time);
+
+		if (mcps_is_qualified_interval(&diff))
+			mcps_run_migration();
+	}
+}
+EXPORT_SYMBOL_GPL(mcps_prepare_handler);
+
 #else // #if defined(CONFIG_MCPS_V2)
 #define mcps_napi_gro_receive(napi, skb) napi_gro_receive(napi, skb)
 #define mcps_napi_gro_flush(napi, flush_old) napi_gro_flush(napi, flush_old)
@@ -526,7 +644,8 @@ static void mcps_agro_flush_timer(struct mcps_pantry *pantry)
 	struct timespec64 curr, diff;
 
 	if (!mcps_agro_flush_time) {
-		napi_gro_flush(&pantry->rx_napi_struct, false);
+		mcps_napi_gro_flush(&pantry->rx_napi_struct, false);
+		mcps_gro_normal_list(&pantry->rx_napi_struct);
 		return;
 	}
 
@@ -536,8 +655,9 @@ static void mcps_agro_flush_timer(struct mcps_pantry *pantry)
 		getnstimespec64ofday(&(curr));
 		diff = timespec64_sub(curr, pantry->agro_flush_time);
 		if ((diff.tv_sec > 0) || (diff.tv_nsec > mcps_agro_flush_time)) {
-			napi_gro_flush(&pantry->rx_napi_struct, false);
+			mcps_napi_gro_flush(&pantry->rx_napi_struct, false);
 			getnstimespec64ofday(&pantry->agro_flush_time);
+			mcps_gro_normal_list(&pantry->rx_napi_struct);
 		}
 	}
 }
@@ -545,11 +665,14 @@ static void mcps_agro_flush_timer(struct mcps_pantry *pantry)
 void mcps_current_processor_gro_flush(void)
 {
 	struct mcps_pantry *pantry = this_cpu_ptr(&mcps_gro_pantries);
+
 	mcps_napi_gro_flush(&pantry->rx_napi_struct, false);
 	getnstimespec64ofday(&pantry->agro_flush_time);
+	mcps_gro_normal_list(&pantry->rx_napi_struct);
 #if defined(CONFIG_MCPS_V2)
 	mcps_napi_gro_flush(&pantry->gro_napi_struct, false);
 	getnstimespec64ofday(&pantry->gro_flush_time);
+	mcps_gro_normal_list(&pantry->gro_napi_struct);
 #endif // #if defined(CONFIG_MCPS_V2)
 }
 
@@ -576,36 +699,39 @@ static int process_gro_pantry(struct napi_struct *napi, int quota)
 		struct sk_buff *skb;
 
 		while ((skb = __skb_dequeue(&pantry->process_queue))) {
-			__this_cpu_inc(mcps_gro_pantries.processed);
-
 #if defined(CONFIG_MCPS_GRO_PER_SESSION)
 			if (mcps_eye_gro_skip(skb)) {
-				mcps_try_skb_internal(skb);
+				__this_cpu_inc(mcps_gro_pantries.processed);
+				if (unlikely(mcps_try_skb_internal(skb)))
+					netif_receive_skb(skb);
 			} else {
 				hash = skb_get_hash_raw(skb);
 				flush = mcps_eye_gro_flush(skb);
 				ret = mcps_napi_gro_receive(napi, skb);
 
 				if (ret == GRO_NORMAL) {
+					__this_cpu_inc(mcps_gro_pantries.processed);
 					getnstimespec64ofday(&pantry->agro_flush_time);
+				} else {
+					__this_cpu_inc(mcps_gro_pantries.gro_processed);
 				}
 
-				if (flush) {
+				if (flush)
 					mcps_napi_gro_single_flush(napi, hash);
-				}
 			}
 #else // #if defined(CONFIG_MCPS_GRO_PER_SESSION)
 			ret = mcps_napi_gro_receive(napi, skb);
-
 			if (ret == GRO_NORMAL) {
+				__this_cpu_inc(mcps_gro_pantries.processed);
 				getnstimespec64ofday(&pantry->agro_flush_time);
+			} else {
+				__this_cpu_inc(mcps_gro_pantries.gro_processed);
 			}
 #endif // #if defined(CONFIG_MCPS_GRO_PER_SESSION)
 			mcps_agro_flush_timer(pantry);
 
-			if (++work >= quota) {
+			if (++work >= quota)
 				goto end;
-			}
 		}
 
 		local_irq_disable();
@@ -622,7 +748,7 @@ static int process_gro_pantry(struct napi_struct *napi, int quota)
 
 	}
 	mcps_napi_gro_flush(&pantry->rx_napi_struct, false);
-
+	mcps_gro_normal_list(&pantry->rx_napi_struct);
 end:
 	PRINT_GRO_WORKED(pantry->cpu, work, quota);
 	tracing_mark_writev('E', 1111, "process_gro_pantry", work);
@@ -685,7 +811,7 @@ enqueue:
 		goto enqueue;
 	}
 
-	MCPS_DEBUG("[%d] dropped \n", cpu);
+	MCPS_DEBUG("[%d] dropped\n", cpu);
 
 	pantry->dropped += len;
 	pantry_unlock(pantry);
@@ -711,6 +837,7 @@ static int enqueue_to_gro_pantry(struct sk_buff *skb, int cpu)
 	// hp off.
 	if (pantry->offline) {
 		int hdr_cpu = 0;
+
 		pantry_unlock(pantry);
 		local_irq_restore(flags);
 
@@ -719,12 +846,12 @@ static int enqueue_to_gro_pantry(struct sk_buff *skb, int cpu)
 		if (hdr_cpu < 0) {
 			tracing_mark_writev('E', 1111, "enqueue_to_gro_pantry", 88);
 			return NET_RX_SUCCESS;
-		} else {
-			pantry = &per_cpu(mcps_gro_pantries, hdr_cpu);
-
-			local_irq_save(flags);
-			pantry_lock(pantry);
 		}
+
+		pantry = &per_cpu(mcps_gro_pantries, hdr_cpu);
+
+		local_irq_save(flags);
+		pantry_lock(pantry);
 	}
 
 	qlen = skb_queue_len(&pantry->input_pkt_queue);
@@ -751,7 +878,7 @@ enqueue:
 		goto enqueue;
 	}
 
-	MCPS_DEBUG("[%d] dropped \n", cpu);
+	MCPS_DEBUG("[%d] dropped\n", cpu);
 
 	pantry->dropped++;
 	pantry_unlock(pantry);
@@ -842,6 +969,7 @@ EXPORT_SYMBOL(mcps_try_gro);
 int mcps_gro_cpu_startup_callback(unsigned int ocpu)
 {
 	struct mcps_pantry *pantry = &per_cpu(mcps_gro_pantries, ocpu);
+
 	tracing_mark_writev('B', 1111, "mcps_gro_online", ocpu);
 
 	local_irq_disable();
@@ -871,9 +999,8 @@ int mcps_gro_cpu_teardown_callback(unsigned int ocpu)
 	INIT_LIST_HEAD(&pinfo_queue);
 
 	cpu = light_cpu();
-	if (cpu == ocpu) {
+	if (cpu == ocpu)
 		cpu = 0;
-	}
 
 	pantry = &per_cpu(mcps_gro_pantries, cpu);
 	oldpantry = &per_cpu(mcps_gro_pantries, oldcpu);
@@ -883,10 +1010,12 @@ int mcps_gro_cpu_teardown_callback(unsigned int ocpu)
 
 	mcps_napi_gro_flush(&oldpantry->rx_napi_struct, false);
 	getnstimespec64ofday(&oldpantry->agro_flush_time);
+	mcps_gro_normal_list(&oldpantry->rx_napi_struct);
 
 #if defined(CONFIG_MCPS_V2)
 	mcps_napi_gro_flush(&oldpantry->gro_napi_struct, false);
 	getnstimespec64ofday(&oldpantry->gro_flush_time);
+	mcps_gro_normal_list(&oldpantry->gro_napi_struct);
 #endif // #if defined(CONFIG_MCPS_V2)
 
 	//detach first.
@@ -950,9 +1079,8 @@ int mcps_gro_cpu_teardown_callback(unsigned int ocpu)
 	pantry_unlock(pantry);
 	local_irq_enable();
 
-	if (needsched && mcps_cpu_online(cpu)) {
+	if (needsched && mcps_cpu_online(cpu))
 		smp_call_function_single_async(pantry->cpu, &pantry->csd);
-	}
 
 	tracing_mark_writev('E', 1111, "mcps_gro_offline", cpu);
 	return 0;
@@ -965,6 +1093,7 @@ void mcps_gro_init(struct net_device *mcps_device)
 	for_each_possible_cpu(i) {
 		if (VALID_CPU(i)) {
 			struct mcps_pantry *pantry = &per_cpu(mcps_gro_pantries, i);
+
 			skb_queue_head_init(&pantry->input_pkt_queue);
 			skb_queue_head_init(&pantry->process_queue);
 
@@ -997,12 +1126,17 @@ void mcps_gro_init(struct net_device *mcps_device)
 			napi_enable(&pantry->gro_napi_struct);
 
 			getnstimespec64ofday(&pantry->gro_flush_time);
+
+			INIT_LIST_HEAD(&pantry->gro_napi_struct.rx_list);
+
 #endif // #if defined(CONFIG_MCPS_V2)
 			getnstimespec64ofday(&pantry->agro_flush_time);
 		}
 	}
 
-	MCPS_DEBUG("COMPLETED \n");
+	ktime_get_real_ts64(&last_complete_poll_time);
+	init_migration_manager(mcps_migration_handler);
+	MCPS_DEBUG("COMPLETED\n");
 }
 
 void mcps_gro_exit(void)
@@ -1012,6 +1146,7 @@ void mcps_gro_exit(void)
 	for_each_possible_cpu(i) {
 		if (VALID_CPU(i)) {
 			struct mcps_pantry *pantry = &per_cpu(mcps_gro_pantries, i);
+
 			napi_disable(&pantry->rx_napi_struct);
 			netif_napi_del(&pantry->rx_napi_struct);
 
@@ -1024,5 +1159,7 @@ void mcps_gro_exit(void)
 #endif // #if defined(CONFIG_MCPS_V2)
 		}
 	}
+
+	release_migration_manager();
 }
 //#endif

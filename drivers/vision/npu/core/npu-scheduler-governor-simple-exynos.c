@@ -113,7 +113,7 @@ struct npu_scheduler_governor_ops npu_governor_simple_exynos_ops = {
 	.stop = npu_governor_simple_exynos_stop,
 };
 
-struct npu_scheduler_governor npu_gov_simple_exynos = {
+static struct npu_scheduler_governor npu_gov_simple_exynos = {
 	.name = "simple-exynos",
 	.ops = &npu_governor_simple_exynos_ops,
 	.dev_list = LIST_HEAD_INIT(npu_gov_simple_exynos.dev_list),

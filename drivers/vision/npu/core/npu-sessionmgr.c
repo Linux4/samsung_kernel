@@ -20,6 +20,12 @@ int npu_sessionmgr_probe(struct npu_sessionmgr *sessionmgr)
 	for (i = 0; i < NPU_MAX_SESSION; i++) {
 		sessionmgr->session[i] = NULL;
 	}
+#ifdef CONFIG_NPU_ARBITRATION
+	sessionmgr->cumulative_flc_size = 0;
+	sessionmgr->cumulative_sdma_size = 0;
+	for (i = 0; i < NPU_MAX_CORES_ALLOWED; i++)
+		sessionmgr->count_thread_ncp[i] = 0;
+#endif
 	atomic_set(&sessionmgr->session_cnt, 0);
 
 	return 0;

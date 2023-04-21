@@ -24,7 +24,7 @@ config HDCP2_DP_ENABLE
 
 config HDCP2_IIA_ENABLE
          bool "HDCP2 HDCP protocol support"
-         default y
+         default n
          help
            Enable HDCP2 DP protocol support
 

@@ -350,7 +350,7 @@ end:
 }
 
 struct exynos_panel_ops panel_s6e3fab_ops = {
-	.id		= {0x001581, 0x001580, 0x0115A0, 0x0115A1},
+	.id		= {0x001581, 0x0315A0, 0x0115A0, 0x0115A1},
 	.suspend	= s6e3fab_suspend,
 	.displayon	= s6e3fab_displayon,
 	.mres		= s6e3fab_mres,

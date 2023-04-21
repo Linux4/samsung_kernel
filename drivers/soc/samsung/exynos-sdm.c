@@ -24,7 +24,7 @@ static int exynos_sdm_dump_secure_region(void)
 	ret = exynos_smc(SMC_CMD_DUMP_SECURE_REGION, 0, 0, 0);
 	pr_info("%s: 0x%x\n", __func__, ret);
 
-	return ret;
+	return NOTIFY_OK;
 }
 
 int exynos_sdm_flush_secdram(void)

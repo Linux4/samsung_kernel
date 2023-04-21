@@ -15,7 +15,7 @@ import kunit_parser
 
 from collections import namedtuple
 
-KunitRequest = namedtuple('KunitRequest', ['raw_output','timeout', 'jobs', 'external_config'])
+KunitRequest = namedtuple('KunitRequest', ['raw_output','timeout', 'jobs'])
 KunitResult = namedtuple('KunitResult', ['status','result'])
 
 class KunitStatus(object):
@@ -27,7 +27,6 @@ class KunitStatus(object):
 def run_tests(linux: kunit_kernel.LinuxSourceTree,
 	      request: KunitRequest) -> KunitResult:
 	config_start = time.time()
-	linux.make_external_config(request.external_config) # TODO
 	config_result = linux.build_reconfig()
 	config_end = time.time()
 	if config_result.status != kunit_kernel.ConfigStatus.SUCCESS:
@@ -122,10 +121,11 @@ def main(argv, linux):
 	if cli_args.subcommand == 'new':
 		print_test_skeletons(cli_args)
 	elif cli_args.subcommand == 'run':
+		linux.add_external_config(cli_args.external_config)
+		linux.update_config()
 		request = KunitRequest(cli_args.raw_output,
 				       cli_args.timeout,
-				       cli_args.jobs,
- 				       cli_args.external_config)
+				       cli_args.jobs)
 		result = run_tests(linux, request)
 		if result.status != KunitStatus.SUCCESS:
 			sys.exit(1)

@@ -737,7 +737,7 @@ static int parse_ect_cooling_level(struct thermal_cooling_device *cdev,
 
 		instance = get_thermal_instance(tz, cdev, i);
 		if (!instance) {
-			pr_err("%s: (%s, %d)instance isn't valid\n", __func__, tz_name, i);
+			tmu_pr_err("%s: (%s, %d)instance isn't valid\n", __func__, tz_name, i);
 			goto skip_ect;
 		}
 
@@ -749,7 +749,7 @@ static int parse_ect_cooling_level(struct thermal_cooling_device *cdev,
 
 		instance->upper = level;
 
-		pr_info("Parsed From ECT : %s: [%d] Temperature : %d, frequency : %u, level: %d\n",
+		tmu_pr_info("Parsed From ECT : %s: [%d] Temperature : %d, frequency : %u, level: %d\n",
 			tz_name, i, temperature, freq, level);
 	}
 skip_ect:
@@ -969,7 +969,7 @@ static int gpu_cooling_table_init(void)
 	num_level = gpu_dvfs_get_step();
 
 	if (num_level == 0) {
-		pr_err("Faile to get gpu_dvfs_get_step()\n");
+		tmu_pr_err("Faile to get gpu_dvfs_get_step()\n");
 		return -EINVAL;
 	}
 
@@ -990,7 +990,7 @@ static int gpu_cooling_table_init(void)
 		gpu_freq_table[count].driver_data = count;
 		gpu_freq_table[count].frequency = (unsigned int)freq;
 
-		pr_info("[GPU cooling] index : %d, frequency : %d\n",
+		tmu_pr_info("[GPU cooling] index : %d, frequency : %d\n",
 			gpu_freq_table[count].driver_data, gpu_freq_table[count].frequency);
 
 		count++;
@@ -1014,14 +1014,14 @@ int exynos_gpu_cooling_init(void)
 	ret = gpu_cooling_table_init();
 
 	if (ret) {
-		pr_err("Fail to initialize gpu_cooling_table\n");
+		tmu_pr_err("Fail to initialize gpu_cooling_table\n");
 		return ret;
 	}
 
 	np = of_find_node_by_name(NULL, "mali");
 
 	if (!np) {
-		pr_err("Fail to find device node\n");
+		tmu_pr_err("Fail to find device node\n");
 		return -EINVAL;
 	}
 
@@ -1033,24 +1033,24 @@ int exynos_gpu_cooling_init(void)
 	if (!of_property_read_u32(np, "ect-coeff-index", &index)) {
 		gen_block = ect_get_block("GEN");
 		if (gen_block == NULL) {
-			pr_err("%s: Failed to get gen block from ECT\n", __func__);
+			tmu_pr_err("%s: Failed to get gen block from ECT\n", __func__);
 			goto regist;
 		}
 		pwr_coeff = ect_gen_param_get_table(gen_block, "DTM_PWR_Coeff");
 		if (pwr_coeff == NULL) {
-			pr_err("%s: Failed to get power coeff from ECT\n", __func__);
+			tmu_pr_err("%s: Failed to get power coeff from ECT\n", __func__);
 			goto regist;
 		}
 		capacitance = pwr_coeff->parameter[index];
 	} else {
-		pr_err("%s: could not find ect-coeff-index\n", __func__);
+		tmu_pr_err("%s: could not find ect-coeff-index\n", __func__);
 	}
 
 regist:
 	dev = __gpufreq_cooling_register(np, NULL, capacitance);
 
 	if (IS_ERR(dev)) {
-		pr_err("Fail to register gpufreq cooling\n");
+		tmu_pr_err("Fail to register gpufreq cooling\n");
 		return -EINVAL;
 	}
 

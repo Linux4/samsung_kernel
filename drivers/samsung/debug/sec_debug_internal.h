@@ -42,8 +42,6 @@ struct outbuf {
 	int already;
 };
 
-void secdbg_base_write_buf(struct outbuf *obuf, int len, const char *fmt, ...);
-
 /* for sub data-structure of SDN */
 struct sec_debug_ksyms {
 	uint32_t magic;
@@ -103,7 +101,10 @@ struct sec_debug_kcnst {
 
 	uint64_t pa_text;
 	uint64_t pa_start_rodata;
-	uint64_t reserved[4];
+
+	uint64_t target_dprm_mask;
+
+	uint64_t reserved[3];
 };
 
 struct member_type {
@@ -365,6 +366,13 @@ struct sec_debug_base_param {
 	bool init_sdn_done;
 };
 
+/* SEC DEBUG HARDLOCUP INFO */
+enum ehld_types {
+	NO_INSTRET,
+	NO_INSTRUN,
+	MAX_ETYPES
+};
+
 #ifdef CONFIG_SEC_DEBUG_MEMTAB
 extern struct secdbg_member_type __start__secdbg_member_table[];
 extern struct secdbg_member_type __stop__secdbg_member_table[];
@@ -376,6 +384,7 @@ extern unsigned long secdbg_base_get_buf_base(int type);
 extern unsigned long secdbg_base_get_buf_size(int type);
 extern void *secdbg_base_get_ncva(unsigned long pa);
 extern unsigned long secdbg_base_get_end_addr(void);
+extern void *secdbg_base_get_kcnst_base(void);
 
 /* SEC DEBUG EXTAR INFO */
 #define MAX_ITEM_KEY_LEN		(16)
@@ -433,6 +442,12 @@ extern void secdbg_ksym_set_kallsyms_info(struct sec_debug_ksyms *ksyms);
 extern void secdbg_base_built_set_memtab_info(struct sec_debug_memtab *mtab);
 #else
 static inline void secdbg_base_built_set_memtab_info { }
+#endif
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG_STACKTRACE)
+extern void secdbg_stra_show_callstack_auto(struct task_struct *tsk);
+#else
+static inline void secdbg_stra_show_callstack_auto(struct task_struct *tsk) {}
 #endif
 
 #endif /* __SEC_DEBUG_INTERNAL_H__ */

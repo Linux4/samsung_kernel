@@ -80,3 +80,32 @@ config SEC_SND_ADAPTATION
 	  Say Y or M if you want to add support for external devices attached to
 	  the Samsung SoC ABOX interface. You will also need to
 	  select the audio interfaces to support below.
+
+config SND_SOC_SAMSUNG_ABOX_CHANGE_RMEM_SIZE
+	tristate "Release some reserved memory"
+	depends on SND_SOC_SAMSUNG_ABOX
+	default n
+	help
+	  change reserved memory size for abox_dbg or abox_slog
+	  check debug_level or force_upload before alloc reserved memory and change the size.
+
+config ABOX_TEST
+	bool "KUnit test for abox_test"
+	depends on SND_SOC_SAMSUNG_ABOX
+	default y if SEC_KUNIT
+	help
+	  Kunit test for Samsung SoC ABOX.
+
+config ABOX_SHM_TEST
+	bool "KUnit test for abox_shm_test"
+	depends on SND_SOC_SAMSUNG_ABOX
+	default y if SEC_KUNIT
+	help
+	  Kunit test for Samsung SoC ABOX shm.
+
+config ABOX_CMPNT_TEST
+	bool "KUnit test for abox_cmpnt_test"
+	depends on SND_SOC_SAMSUNG_ABOX
+	default y if SEC_KUNIT
+	help
+	  Kunit test for Samsung SoC ABOX cmpnt.

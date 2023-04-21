@@ -34,7 +34,7 @@ int dsp_binary_load(const char *name, char *postfix, const char *extension,
 		goto p_err_target;
 	}
 
-	ret = request_firmware(&fw_blob, full_name, dsp_global_dev);
+	ret = request_firmware_direct(&fw_blob, full_name, dsp_global_dev);
 	if (ret < 0) {
 		dsp_err("Failed to request binary[%s](%d)\n", full_name, ret);
 		goto p_err_req;
@@ -86,7 +86,7 @@ int dsp_binary_master_load(const char *name, char *postfix,
 		goto p_err_target;
 	}
 
-	ret = request_firmware(&fw_blob, full_name, dsp_global_dev);
+	ret = request_firmware_direct(&fw_blob, full_name, dsp_global_dev);
 	if (ret < 0) {
 		dsp_err("Failed to request binary[%s](%d)\n", full_name, ret);
 		goto p_err_req;
@@ -142,7 +142,7 @@ int dsp_binary_alloc_load(const char *name, char *postfix,
 		goto p_err_target;
 	}
 
-	ret = request_firmware(&fw_blob, full_name, dsp_global_dev);
+	ret = request_firmware_direct(&fw_blob, full_name, dsp_global_dev);
 	if (ret < 0) {
 		dsp_err("Failed to request binary[%s](%d)\n", full_name, ret);
 		goto p_err_req;

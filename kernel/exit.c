@@ -73,6 +73,10 @@
 #include <linux/defex.h>
 #endif
 
+#if defined(CONFIG_MEMORY_ZEROISATION)
+#include <linux/mz.h> /* for Memory zeroisation */
+#endif
+
 static void __unhash_process(struct task_struct *p, bool group_dead)
 {
 	nr_threads--;
@@ -460,7 +464,10 @@ static void exit_mm(void)
 		up_read(&mm->mmap_sem);
 
 		self.task = current;
-		self.next = xchg(&core_state->dumper.next, &self);
+		if (self.task->flags & PF_SIGNALED)
+			self.next = xchg(&core_state->dumper.next, &self);
+		else
+			self.task = NULL;
 		/*
 		 * Implies mb(), the result of xchg() must be visible
 		 * to core_state->dumper.
@@ -489,6 +496,12 @@ static void exit_mm(void)
 	mmput(mm);
 	if (test_thread_flag(TIF_MEMDIE))
 		exit_oom_victim();
+
+	/* Memory zeroisation */
+#if defined(CONFIG_MEMORY_ZEROISATION)
+	mz_exit();
+#endif
+
 }
 
 static struct task_struct *find_alive_thread(struct task_struct *p)

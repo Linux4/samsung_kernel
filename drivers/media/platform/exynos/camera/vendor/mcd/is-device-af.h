@@ -35,3 +35,4 @@ struct is_device_af {
 int is_af_i2c_read(struct i2c_client *client, u16 addr, u16 *data);
 int is_af_i2c_write(struct i2c_client *client ,u8 addr, u8 data);
 int16_t is_af_move_lens(struct is_core *core, int position);
+int16_t is_af_move_lens_pos(struct is_core *core, int position, u32 val);

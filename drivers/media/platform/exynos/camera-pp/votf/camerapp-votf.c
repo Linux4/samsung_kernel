@@ -117,7 +117,7 @@ u32 get_offset(struct votf_info *vinfo, int c2s_tws, int c2s_trs, int c2a_tws, i
 	return offset;
 }
 
-void votf_init(void)
+void votfitf_init(void)
 {
 	int ip, id;
 
@@ -125,16 +125,10 @@ void votf_init(void)
 		pr_err("%s: votf devices is NULL\n", __func__);
 		return;
 	}
-	spin_lock_init(&votfdev->votf_slock);
 
-	votfdev->ring_create = false;
 	votfdev->ring_request = 0;
-	votfdev->dev = NULL;
-
 	memset(votfdev->ring_pair, VS_DISCONNECTED, sizeof(votfdev->ring_pair));
 	memset(votfdev->votf_cfg, 0, sizeof(struct votf_service_cfg));
-	memset(votfdev->votf_module_addr, 0, sizeof(struct votf_module_type_addr));
-	memset(votfdev->votf_table, 0, sizeof(struct votf_table_info));
 
 	for (ip = 0; ip < IP_MAX; ip++) {
 		atomic_set(&votfdev->ip_enable_cnt[ip], 0);
@@ -142,6 +136,16 @@ void votf_init(void)
 		for (id = 0; id < ID_MAX; id++)
 			atomic_set(&votfdev->id_enable_cnt[ip][id], 0);
 	}
+}
+EXPORT_SYMBOL_GPL(votfitf_init);
+
+static void votf_init(void)
+{
+	votfitf_init();
+
+	spin_lock_init(&votfdev->votf_slock);
+	memset(votfdev->votf_module_addr, 0, sizeof(struct votf_module_type_addr));
+	memset(votfdev->votf_table, 0, sizeof(struct votf_table_info));
 }
 
 void votf_sfr_dump(void)
@@ -203,10 +207,9 @@ int votfitf_create_ring(void)
 		}
 	}
 
-	if (votfdev->ring_create) {
+	if (votfdev->ring_request > 1) {
 		if (!check_ring) {
 			pr_info("%s: votf reference count is mismatched, do reset\n", __func__);
-			votfdev->ring_create = false;
 			votfdev->ring_request = 1;
 			memset(votfdev->ring_pair, VS_DISCONNECTED, sizeof(votfdev->ring_pair));
 		} else {
@@ -231,9 +234,8 @@ int votfitf_create_ring(void)
 			}
 		}
 	}
-	if (do_create)
-		votfdev->ring_create = true;
-	else
+
+	if (!do_create)
 		pr_err("%s: invalid request to create votf ring\n", __func__);
 
 	spin_unlock_irqrestore(&votfdev->votf_slock, flags);
@@ -246,8 +248,8 @@ int votfitf_create_link(int src_ip, int dst_ip)
 	struct votf_info src_vinfo, dst_vinfo;
 	int src_ip_idx, dst_ip_idx;
 	int src_module, dst_module;
-	bool src_check, dst_check, force;
-	int id, ip;
+	bool src_check, dst_check;
+	int id;
 	u32 offset;
 	unsigned long flags;
 
@@ -256,7 +258,7 @@ int votfitf_create_link(int src_ip, int dst_ip)
 		return 0;
 	}
 
-	src_check = dst_check = force = false;
+	src_check = dst_check = false;
 
 	src_vinfo.service = TWS;
 	src_vinfo.ip = src_ip;
@@ -282,24 +284,7 @@ int votfitf_create_link(int src_ip, int dst_ip)
 
 	spin_lock_irqsave(&votfdev->votf_slock, flags);
 
-	if (!votfdev->ring_create && votfdev->ring_request) {
-		force = true;
-		pr_info("%s: votf create is mismatched(%d)\n", __func__,
-				votfdev->ring_request);
-		votfdev->ring_request = 0;
-		memset(votfdev->ring_pair, VS_DISCONNECTED, sizeof(votfdev->ring_pair));
-
-		for (ip = 0; ip < IP_MAX; ip++) {
-			atomic_set(&votfdev->ip_enable_cnt[ip], 0);
-
-			for (id = 0; id < ID_MAX; id++)
-				atomic_set(&votfdev->id_enable_cnt[ip][id], 0);
-		}
-	}
-
-	pr_info("%s: create_link_request(%d)\n", __func__, ++votfdev->ring_request);
-
-	if (force || !camerapp_check_votf_ring(votfdev->votf_addr[src_ip_idx],
+	if (!camerapp_check_votf_ring(votfdev->votf_addr[src_ip_idx],
 		src_module)) {
 		camerapp_hw_votf_create_ring(votfdev->votf_addr[src_ip_idx],
 				src_ip, src_module);
@@ -315,7 +300,7 @@ int votfitf_create_link(int src_ip, int dst_ip)
 
 	atomic_inc(&votfdev->ip_enable_cnt[src_ip_idx]);
 
-	if (force || !camerapp_check_votf_ring(votfdev->votf_addr[dst_ip_idx],
+	if (!camerapp_check_votf_ring(votfdev->votf_addr[dst_ip_idx],
 		dst_module)) {
 		camerapp_hw_votf_create_ring(votfdev->votf_addr[dst_ip_idx],
 				dst_ip, dst_module);
@@ -348,8 +333,6 @@ int votfitf_create_link(int src_ip, int dst_ip)
 		}
 	}
 
-	votfdev->ring_create = true;
-
 	spin_unlock_irqrestore(&votfdev->votf_slock, flags);
 
 	return 1;
@@ -370,14 +353,16 @@ int votfitf_destroy_ring(void)
 	}
 
 	spin_lock_irqsave(&votfdev->votf_slock, flags);
-	votfdev->ring_request--;
-	pr_info("%s: votf_request(%d)\n", __func__, votfdev->ring_request);
 
-	if (!votfdev->ring_create) {
+	if (!votfdev->ring_request) {
 		pr_info("%s: votf ring has already been destroyed(%d)\n", __func__, votfdev->ring_request);
 		spin_unlock_irqrestore(&votfdev->votf_slock, flags);
 		return 0;
 	}
+
+	votfdev->ring_request--;
+	pr_info("%s: votf_request(%d)\n", __func__, votfdev->ring_request);
+
 	if (votfdev->ring_request) {
 		pr_info("%s: other IPs are still using the votf ring(%d)\n", __func__, votfdev->ring_request);
 		spin_unlock_irqrestore(&votfdev->votf_slock, flags);
@@ -397,13 +382,13 @@ int votfitf_destroy_ring(void)
 			}
 		}
 	}
+
 	if (do_destroy) {
-		votfdev->ring_create = false;
-		votfdev->ring_request = 0;
 		memset(votfdev->ring_pair, VS_DISCONNECTED, sizeof(votfdev->ring_pair));
 		memset(votfdev->votf_cfg, 0, sizeof(struct votf_service_cfg));
-	} else
+	} else {
 		pr_err("%s: invalid request to destroy votf ring\n", __func__);
+	}
 
 	spin_unlock_irqrestore(&votfdev->votf_slock, flags);
 	return 1;
@@ -415,7 +400,7 @@ int votfitf_destroy_link(int src_ip, int dst_ip)
 	struct votf_info src_vinfo, dst_vinfo;
 	int src_ip_idx, dst_ip_idx;
 	int src_module, dst_module;
-	u32 src_cnt, dst_cnt;
+	int src_cnt, dst_cnt;
 	unsigned long flags;
 	int id;
 
@@ -439,47 +424,45 @@ int votfitf_destroy_link(int src_ip, int dst_ip)
 	dst_module = votfdev->votf_table[TRS][dst_ip_idx][0].module;
 
 	spin_lock_irqsave(&votfdev->votf_slock, flags);
-	votfdev->ring_request--;
-	pr_info("%s: destroy_link_request(%d)\n", __func__, votfdev->ring_request);
 
-	atomic_dec(&votfdev->ip_enable_cnt[src_ip_idx]);
-	src_cnt = atomic_read(&votfdev->ip_enable_cnt[src_ip_idx]);
+	src_cnt = atomic_dec_return(&votfdev->ip_enable_cnt[src_ip_idx]);
 	if (!src_cnt) {
 		camerapp_hw_votf_destroy_ring(votfdev->votf_addr[src_ip_idx],
 				src_ip, src_module);
-		pr_info("%s: 0x%x votf is disabled\n", __func__, src_ip);
-
 		camerapp_hw_votf_reset(votfdev->votf_addr[src_ip_idx], src_module);
-		pr_info("%s: 0x%x votf sw_reset\n", __func__, src_ip);
+		pr_info("%s: 0x%x votf disable & sw_reset\n", __func__, src_ip);
 
 		for (id = 0; id < ID_MAX; id++)
 			atomic_set(&votfdev->id_enable_cnt[src_ip_idx][id], 0);
 	} else {
-		pr_info("%s: 0x%x votf is still in use(%d)\n", __func__,
+		if (src_cnt > 0) {
+			pr_info("%s: 0x%x votf is still in use(%d)\n", __func__,
 				src_ip, src_cnt);
+		} else {
+			pr_err("%s: 0x%x votf has invalid count(%d)\n", __func__,
+				src_ip, src_cnt);
+			atomic_set(&votfdev->ip_enable_cnt[src_ip_idx], 0);
+		}
 	}
 
-	atomic_dec(&votfdev->ip_enable_cnt[dst_ip_idx]);
-	dst_cnt = atomic_read(&votfdev->ip_enable_cnt[dst_ip_idx]);
+	dst_cnt = atomic_dec_return(&votfdev->ip_enable_cnt[dst_ip_idx]);
 	if (!dst_cnt) {
 		camerapp_hw_votf_destroy_ring(votfdev->votf_addr[dst_ip_idx],
 				dst_ip, dst_module);
-		pr_info("%s: 0x%x votf is disabled\n", __func__, dst_ip);
-
 		camerapp_hw_votf_reset(votfdev->votf_addr[dst_ip_idx], dst_module);
-		pr_info("%s: 0x%x votf sw_reset\n", __func__, dst_ip);
+		pr_info("%s: 0x%x votf disable & sw_reset\n", __func__, dst_ip);
 
 		for (id = 0; id < ID_MAX; id++)
 			atomic_set(&votfdev->id_enable_cnt[dst_ip_idx][id], 0);
 	} else {
-		pr_info("%s: 0x%x votf is still in use(%d)\n", __func__,
+		if (dst_cnt > 0) {
+			pr_info("%s: 0x%x votf is still in use(%d)\n", __func__,
 				dst_ip, dst_cnt);
-	}
-
-	if (!votfdev->ring_request) {
-		votfdev->ring_create = false;
-		memset(votfdev->ring_pair, VS_DISCONNECTED, sizeof(votfdev->ring_pair));
-		memset(votfdev->votf_cfg, 0, sizeof(struct votf_service_cfg));
+		} else {
+			pr_err("%s: 0x%x votf has invalid count(%d)\n", __func__,
+				dst_ip, dst_cnt);
+			atomic_set(&votfdev->ip_enable_cnt[dst_ip_idx], 0);
+		}
 	}
 
 	spin_unlock_irqrestore(&votfdev->votf_slock, flags);
@@ -1591,8 +1574,6 @@ void votfitf_disable_service(void)
 		}
 	}
 
-	votfdev->ring_create = false;
-
 	pr_info("%s complete\n", __func__);
 }
 EXPORT_SYMBOL_GPL(votfitf_disable_service);
@@ -1767,11 +1748,23 @@ int votfitf_check_invalid_state(struct votf_info *s_vinfo, struct votf_info *d_v
 
 	/* s2d for debugging */
 	if ((tws_state & (GENMASK(3,0))) == VOTF_WAIT_TOKEN_ACK ||
-	    (tws_state & (GENMASK(3,0))) == VOTF_WAIT_RESET_ACK) {
+	    (trs_state & (GENMASK(3,0))) == VOTF_WAIT_RESET_ACK) {
 		pr_err("%s: debug state(TWS(0x%04X-%d): 0x%X, TRS(0x%04X-%d): 0x%X)\n",
 			__func__, s_ip, s_id, tws_state, d_ip, d_id, trs_state);
 
 		camerapp_debug_s2d(true, "VOTF invalid state");
+	}
+
+	/* flush votf if IDLE && busy state */
+	if (((tws_state & (GENMASK(3,0))) == VOTF_IDLE) && votfitf_get_busy(s_vinfo)) {
+		votfitf_set_flush_alone(s_vinfo);
+		pr_warn("%s: flush TWS((0x%04X-%d), invalid state (busy, state:0x%X)\n",
+			__func__, s_ip, s_id, tws_state);
+	}
+	if (((trs_state & (GENMASK(3,0))) == VOTF_IDLE) && votfitf_get_busy(d_vinfo)) {
+		votfitf_set_flush_alone(d_vinfo);
+		pr_warn("%s: flush TRS((0x%04X-%d), invalid state (busy, state:0x%X)\n",
+			__func__, d_ip, d_id, trs_state);
 	}
 
 	return 0;

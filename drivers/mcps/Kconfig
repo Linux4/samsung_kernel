@@ -83,7 +83,7 @@ config MCPS_ICGB
 
 config MCPS_KUNIT
     bool "KUnit test for mcps"
-    depends on KUNIT
+    depends on SEC_KUNIT
     help
         TODO: Describe config fully
         kunit test sets

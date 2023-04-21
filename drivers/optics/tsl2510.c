@@ -283,8 +283,8 @@ static ams_deviceIdentifier_t deviceIdentifier[] = {
     { AMS_DEVICE_ID, AMS_DEVICE_ID_MASK, AMS_REV_ID_UNTRIM, AMS_REV_ID_MASK, AMS_TSL2510_UNTRIM },
     { 0, 0, 0, 0, AMS_LAST_DEVICE }
 };
-#define coef_a 61 //  0.06061 * 1000 , scaled
-#define coef_b 45 //  0.04537 * 1000 , scaled
+#define coef_a 61ULL //  0.06061 * 1000 , scaled
+#define coef_b 45ULL //  0.04537 * 1000 , scaled
 
 deviceRegisterTable_t deviceRegisterDefinition[DEVREG_REG_MAX] = {
     {	0x40	,	0x00	},		/*	DEVREG_MOD_CHANNEL_CTRL	*/
@@ -561,21 +561,25 @@ void FFT(int32_t* data, enum fft_size size)
 // buf_r <= 16bits data
 {
     int i;
+    unsigned int hamming_interval = 1;
     int32_t buf_r[AMS_FFT_SIZE] = {0};
     int32_t buf_i[AMS_FFT_SIZE] = {0};
     int64_t out_r[AMS_FFT_SIZE] = {0};
     int64_t out_i[AMS_FFT_SIZE] = {0};
 
-    if (size > MAX_FFT_LEN >> 2) {
+    if (size > MAX_FFT_LEN >> 2 || size > AMS_FFT_SIZE || (size & 0x7f) != 0 ) { //FFT size : multiply of 128
         //@TODO add return codes so we know it failed
         return;
     }
+    if (size > 128)
+	hamming_interval = size/128;
+
     for (i = 0; i < size; i++) {
         if (!tsl2510_data->saturation && data[i] >= 0x3FFF) {
             ALS_info("DEBUG_FLICKER saturation");
             tsl2510_data->saturation = true;
         }
-        buf_r[i] = ((int64_t)data[i]*(int64_t)hamming[i]) >> 10;        // 16+16-10=22   Q6
+        buf_r[i] = ((int64_t)data[i]*(int64_t)hamming[i/hamming_interval]) >> 10;        // 16+16-10=22   Q6
         ALS_info("DEBUG_FLICKER data[%d] => %d buf[%d] => %lld", i, data[i], i, buf_r[i]);
     }
     _fft(buf_r, buf_i, out_r, out_i, size);
@@ -1077,10 +1081,10 @@ static int amsAlg_als_processData(amsAlsContext_t *ctx, amsAlsDataSet_t *inputDa
     if(ctx->results.rawWideband  == 0)
         CWRatio = 15;
 
-    if(CWRatio ==0){ // Normal lux
-        lux = ctx->results.rawClear * (((coef_a *ctx->results.rawClear) /ctx->results.rawWideband) +coef_b);
-    }else{ //CWRatio data have over 15
-        lux = ctx->results.rawClear * ((coef_a *CWRatio) +coef_b);
+    if(CWRatio == 0){ // Normal lux
+        lux = ctx->results.rawClear * (((coef_a * ctx->results.rawClear) /ctx->results.rawWideband) + coef_b);
+    } else { //CWRatio data have over 15
+        lux = ctx->results.rawClear * ((coef_a * CWRatio) + coef_b);
     }
 
     lux = lux >> 10; //devide 1024
@@ -1241,47 +1245,63 @@ static int AMS_SET_FIFO_MAP(ams_deviceCtx_t *ctx)
 
 static void tsl2510_sequencer_init(ams_deviceCtx_t *ctx)
 {
+    int ret = 0;
     ALS_dbg("%s \n",__func__) ;
     /* Assign ALS to sequencer step 0 */
-    ams_setField(ctx->portHndl,
+    ret = ams_setField(ctx->portHndl,
                    DEVREG_MEAS_SEQR_ALS_FD_1,
                    0x01,
                    TSL2510_MASK_MEASUREMENT_SEQUENCER_ALS_PATTERN );
-
+    if (ret < 0) {
+	ALS_err("%s - failed to set SEQR_ALS_FD_1",__func__);
+    }
 
     /* Assign Flicker to sequencer step 1 */
     /* Assign modulator 0 to flicker */
-    ams_setField(ctx->portHndl,
+    ret = ams_setField(ctx->portHndl,
                    DEVREG_MEAS_SEQR_FD_0,
                    0x01,
                    TSL2510_MASK_MEASUREMENT_SEQUENCER_MOD0_FD_PATTERN );
+    if (ret < 0) {
+	ALS_err("%s - failed to set SEQR_FD_0",__func__);
+    }
 
     /* Assign modulator 1 to flicker */
-    ams_setField(ctx->portHndl,
+    ret = ams_setField(ctx->portHndl,
                    DEVREG_MEAS_SEQR_FD_0,
                    0x10,
                    TSL2510_MASK_MEASUREMENT_SEQUENCER_MOD1_FD_PATTERN );
+    if (ret < 0) {
+	ALS_err("%s - failed to set SEQR_FD_0",__func__);
+    }
 }
 
 static void tsl2510_fifo_format_init(ams_deviceCtx_t *ctx)
 {
+    int ret = 0;
     /* Enable the end marker */
-    ams_setField(ctx->portHndl,
+    ret = ams_setField(ctx->portHndl,
                    DEVREG_MEAS_MODE1,
                    HIGH,
                    TSL2510_MASK_MOD_FIFO_FD_END_MARKER_WRITE_ENABLE);
+    if (ret < 0) {
+	ALS_err("%s - set FIFO_FD_END_MARKER_WRITE_ENABLE err");
+    }
 
     ctx->has_fifo_fd_end_marker = true;
 
     /* Enable the gain */
-    ams_setField(ctx->portHndl,
+    ret = ams_setField(ctx->portHndl,
                    DEVREG_MEAS_MODE1,
                    HIGH,
                    TSL2510_MASK_MOD_FIFO_FD_GAIN_WRITE_ENABLE);
 
+    if (ret < 0) {
+	ALS_err("%s - set FIFO_FD_GAIN_WRITE_ENABLE err");
+    }
+
     ctx->has_fifo_fd_gain = true;
     ALS_dbg("%s \n",__func__) ;
-
 }
 
 int ccb_flickerInit(void *dcbCtx/*, ams_ccb_als_init_t *initData*/)
@@ -1622,7 +1642,7 @@ int get_fft(ams_deviceCtx_t * ctx , uint32_t *out)
     //  int num_sample_bytes = num_samples * 4;
 
     ssize_t size = 0;
-    int i ,j =0 ;
+    unsigned int i ,j =0 ;
     uint16_t clear_gain , wideband_gain = 0;
     uint8_t fifo_mod0_gain ,fifo_mod1_gain =0;
     int ret = 0;
@@ -1643,7 +1663,7 @@ int get_fft(ams_deviceCtx_t * ctx , uint32_t *out)
     kfifo_reset(&ams_fifo);
 
     /* Separate Clear and Wideband data */
-    for (i = 0, j = 0; i < size/2; i+=2, j++) { //256 sample (clear & wide)
+    for (i = 0, j = 0; i < (int)(size/2); i+=2, j++) { //256 sample (clear & wide)
         /* Clear */
         clear_buffer[j] = buffer[i]; //seperate 128
 
@@ -2554,7 +2574,7 @@ static bool ams_deviceGetFlicker(ams_deviceCtx_t *ctx, ams_apiAlsFlicker_t *expo
 
 static void report_als(struct tsl2510_device_data *chip)
 {
-    ams_apiAls_t outData;
+    ams_apiAls_t outData = {0};
     static unsigned int als_cnt;
     int temp_ir = 0;
 
@@ -2637,7 +2657,7 @@ static void report_flicker(struct tsl2510_device_data *chip)
 static ssize_t als_ir_show(struct device *dev,
         struct device_attribute *attr, char *buf)
 {
-    ams_apiAls_t outData;
+    ams_apiAls_t outData = {0};
     struct tsl2510_device_data *chip = dev_get_drvdata(dev);
 
     ams_deviceGetAls(chip->deviceCtx, &outData);
@@ -2645,43 +2665,10 @@ static ssize_t als_ir_show(struct device *dev,
     return snprintf(buf, PAGE_SIZE, "%d\n", outData.ir);
 }
 
-static ssize_t als_red_show(struct device *dev,
-        struct device_attribute *attr, char *buf)
-{
-    ams_apiAls_t outData;
-    struct tsl2510_device_data *chip = dev_get_drvdata(dev);
-
-    ams_deviceGetAls(chip->deviceCtx, &outData);
-
-    return snprintf(buf, PAGE_SIZE, "%d\n", outData.red);
-}
-
-static ssize_t als_green_show(struct device *dev,
-        struct device_attribute *attr, char *buf)
-{
-    ams_apiAls_t outData;
-    struct tsl2510_device_data *chip = dev_get_drvdata(dev);
-
-    ams_deviceGetAls(chip->deviceCtx, &outData);
-
-    return snprintf(buf, PAGE_SIZE, "%d\n", outData.green);
-}
-
-static ssize_t als_blue_show(struct device *dev,
-        struct device_attribute *attr, char *buf)
-{
-    ams_apiAls_t outData;
-    struct tsl2510_device_data *chip = dev_get_drvdata(dev);
-
-    ams_deviceGetAls(chip->deviceCtx, &outData);
-
-    return snprintf(buf, PAGE_SIZE, "%d\n", outData.blue);
-}
-
 static ssize_t als_clear_show(struct device *dev,
         struct device_attribute *attr, char *buf)
 {
-    ams_apiAls_t outData;
+    ams_apiAls_t outData = {0};
     struct tsl2510_device_data *chip = dev_get_drvdata(dev);
 
     ams_deviceGetAls(chip->deviceCtx, &outData);
@@ -2692,7 +2679,7 @@ static ssize_t als_clear_show(struct device *dev,
 static ssize_t als_wideband_show(struct device *dev,
         struct device_attribute *attr, char *buf)
 {
-    ams_apiAls_t outData;
+    ams_apiAls_t outData = {0};
     struct tsl2510_device_data *chip = dev_get_drvdata(dev);
 
     ams_deviceGetAls(chip->deviceCtx, &outData);
@@ -2703,13 +2690,12 @@ static ssize_t als_wideband_show(struct device *dev,
 static ssize_t als_raw_data_show(struct device *dev,
         struct device_attribute *attr, char *buf)
 {
-    ams_apiAls_t outData;
+    ams_apiAls_t outData = {0};
     struct tsl2510_device_data *chip = dev_get_drvdata(dev);
 
     ams_deviceGetAls(chip->deviceCtx, &outData);
 
-    return snprintf(buf, PAGE_SIZE, "%d,%d,%d,%d,%d\n", outData.rawWideband,
-            outData.rawRed, outData.rawGreen, outData.rawBlue, outData.rawClear);
+    return snprintf(buf, PAGE_SIZE, "%d,%d\n", outData.rawWideband, outData.rawClear);
 }
 
 static size_t als_enable_set(struct tsl2510_device_data *chip, uint8_t valueToSet)
@@ -3106,8 +3092,8 @@ static ssize_t tsl2510_regs_write_store (struct device *dev,
         struct device_attribute *attr, const char *buf, size_t size)
 {
     int num = 0;
+    int ret = 0;
     u8 reg = 0x00;
-    u8 ret = 0x00;
 
     char r_value = 0x00;
     char w_value = 0x00;
@@ -3854,9 +3840,6 @@ static DEVICE_ATTR(als_factory_cmd, S_IRUGO, tsl2510_factory_cmd_show, NULL);
 static DEVICE_ATTR(als_version, S_IRUGO, tsl2510_version_show, NULL);
 static DEVICE_ATTR(sensor_info, S_IRUGO, tsl2510_sensor_info_show, NULL);
 static DEVICE_ATTR(als_ir, S_IRUGO, als_ir_show, NULL);
-static DEVICE_ATTR(als_red, S_IRUGO, als_red_show, NULL);
-static DEVICE_ATTR(als_green, S_IRUGO, als_green_show, NULL);
-static DEVICE_ATTR(als_blue, S_IRUGO, als_blue_show, NULL);
 static DEVICE_ATTR(als_clear, S_IRUGO, als_clear_show, NULL);
 static DEVICE_ATTR(als_wideband, S_IRUGO, als_wideband_show, NULL);
 static DEVICE_ATTR(als_raw_data, S_IRUGO, als_raw_data_show, NULL);
@@ -3885,9 +3868,6 @@ static struct device_attribute *tsl2510_sensor_attrs[] = {
     &dev_attr_als_version,
     &dev_attr_sensor_info,
     &dev_attr_als_ir,
-    &dev_attr_als_red,
-    &dev_attr_als_green,
-    &dev_attr_als_blue,
     &dev_attr_als_clear,
     &dev_attr_als_wideband,
     &dev_attr_als_raw_data,
@@ -4021,21 +4001,7 @@ static int ams_deviceEventHandler(ams_deviceCtx_t *ctx)
         ALS_info("%s - ctx->shadowStatus1Reg %x, status5 %x, mode %x", __func__, ctx->shadowStatus1Reg, status5, ctx->mode);
     }
 
-    if (ctx->shadowStatus1Reg != 0) {
-        /* this clears interrupt(s) and STATUS5 */
-        ret = ams_setByte(ctx->portHndl, DEVREG_STATUS, ctx->shadowStatus1Reg);
-        if (ret < 0) {
-            ALS_err("%s - failed to set DEVREG_STATUS\n", __func__);
-            return ret;
-        }
-    }
-    else {
-        //ALS_err("%s - ams_devEventHd Error Case!!!!\n", __func__);
-        //ams_setByte(ctx->portHndl, DEVREG_STATUS, 0xff);
-        return ret;
-    }
-
-#if 0
+#if 1
 loop:
 #endif
     ALS_info("%s - loop: DCB 0x%02x, STATUS 0x%02x, ALS_STATUS 0x%02x, ALS_STATUS2 0x%02x\n", __func__, ctx->mode, ctx->shadowStatus1Reg, ctx->shadowAlsStatusReg, ctx->shadowAlsStatus2Reg);
@@ -4056,9 +4022,7 @@ loop:
 #endif
 
     //    if ((ctx->shadowStatus1Reg & AINT) /*|| ctx->alwaysReadAls*/) {
-
     if ((ctx->shadowStatus2Reg & ALS_DATA_VALID) /*|| ctx->alwaysReadAls*/) {
-
         ret = ams_getByte(ctx->portHndl, DEVREG_ALS_STATUS, &ctx->shadowAlsStatusReg);
         if (ret < 0) {
             ALS_err("%s - failed to get DEVREG_ALS_STATUS\n", __func__);
@@ -4078,11 +4042,9 @@ loop:
             }
         }
     }
-    ret = ams_getByte(ctx->portHndl, DEVREG_STATUS, &ctx->shadowStatus1Reg);
-    if (ret < 0) {
-        ALS_err("%s - failed to get DEVREG_STATUS\n", __func__);
-        return ret;
-    }
+
+    /* Clear Processed Interrupt */
+    /* this clears interrupt(s) and STATUS5 */
     if (ctx->shadowStatus1Reg != 0) {
         /* this clears interrupt(s) and STATUS5 */
         ret = ams_setByte(ctx->portHndl, DEVREG_STATUS, ctx->shadowStatus1Reg);
@@ -4093,7 +4055,6 @@ loop:
     }
 
     if (status5 != 0) {
-        /* this clears interrupt(s) and STATUS5 */
         ret = ams_setByte(ctx->portHndl, DEVREG_STATUS5, status5);
         if (ret < 0) {
             ALS_err("%s - failed to set DEVREG_STATUS5\n", __func__);
@@ -4101,6 +4062,16 @@ loop:
         }
     }
 
+    /* Check Remainning Interrupt */
+    ret = ams_getByte(ctx->portHndl, DEVREG_STATUS, &ctx->shadowStatus1Reg);
+    if (ret < 0) {
+        ALS_err("%s - failed to get DEVREG_STATUS\n", __func__);
+        return ret;
+    }
+    if (ctx->shadowStatus1Reg != 0) {
+        ALS_err("%s - goto loop", __func__);
+        goto loop;
+    }
 
     /*
      *	the individual handlers may have temporarily disabled things
@@ -5254,25 +5225,13 @@ static int tsl2510_suspend(struct device *dev)
 
     ALS_dbg("%s - %d\n", __func__, data->regulator_state);
 
-    if (data->enabled != 0 ) {
-        do {
-            err = tsl2510_stop(data);
-
-            if (err < 0) {
-                break;
-            }
-            data->suspend_cnt++;
-        } while (data->enabled);
-        data->enabled = 1;
-    } else if (data->regulator_state != 0) {
-        ALS_dbg("%s - abnormal state! als not enabled", __func__);
-        do {
-            err = tsl2510_stop(data);
-
-            if (err < 0) {
-                break;
-            }
-        } while (data->regulator_state != 0);
+    while (data->regulator_state) {
+	err = tsl2510_stop(data);
+	if (err < 0) {
+	    ALS_dbg("%s - err in stop", __func__);
+	    break;
+	}
+	data->suspend_cnt++;
     }
 
     mutex_lock(&data->suspendlock);
@@ -5281,6 +5240,7 @@ static int tsl2510_suspend(struct device *dev)
     tsl2510_pin_control(data, false);
 
     mutex_unlock(&data->suspendlock);
+    ALS_dbg("%s - suspend done", __func__);
 
     return err;
 }
@@ -5295,17 +5255,20 @@ static int tsl2510_resume(struct device *dev)
     mutex_lock(&data->suspendlock);
 
     tsl2510_pin_control(data, true);
-
     data->pm_state = PM_RESUME;
 
     mutex_unlock(&data->suspendlock);
 
-    if (data->enabled != 0) {
-        do {
-            tsl2510_start(data);
-            data->suspend_cnt--;
-        } while(data->suspend_cnt > 0);
+    while(data->suspend_cnt) {
+	err = tsl2510_start(data);
+	if (err < 0) {
+	    ALS_dbg("%s - err in start", __func__);
+	    break;
+	}
+	data->suspend_cnt--;
     }
+ 
+    ALS_dbg("%s - resume done", __func__);
     return err;
 }
 

@@ -11,6 +11,7 @@
 #include <linux/ologk.h>
 #undef KPERFMON_KERNEL
 
+#include <linux/version.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/kernel.h>
@@ -23,7 +24,13 @@
 #include <linux/workqueue.h>
 #include <linux/slab.h>
 #include <linux/sec_debug.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#define KPERFMON_KERNEL
 #include <linux/perflog.h>
+#undef KPERFMON_KERNEL
+#else
+#include <linux/perflog.h>
+#endif
 #if !defined(KPERFMON_KMALLOC)
 #include <linux/vmalloc.h>
 #endif
@@ -31,6 +38,17 @@
 #include <linux/sched/signal.h>
 #include <asm/uaccess.h>
 #include <asm/stacktrace.h>
+
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#define rtc_time_to_tm(a, b) rtc_time64_to_tm(a, b)
+
+struct timeval {
+	time64_t    tv_sec;
+	long        tv_usec;
+};
+#endif
+
 
 #include "kperfmon.h"
 
@@ -57,6 +75,7 @@
 #define DIGIT_UNIT			100000000
 #endif
 
+#define KPERFMON_VERSION_LENGTH		100
 
 struct tRingBuffer buffer = {0, };
 //const struct file_operations;
@@ -177,11 +196,25 @@ void ReadBufferByPosition(struct tRingBuffer *buffer,
 {
 	if (start < end) {
 		*length = end - start;
+
+		if (*length >= PERFLOG_PACKET_SIZE) {
+			*length = 0;
+			return;
+		}
+
 		memcpy(data, buffer->data + start, *length);
-	} else {
+	} else if (buffer->length > start) {
 		*length = buffer->length - start;
+
+		if ((*length + end) >= PERFLOG_PACKET_SIZE) {
+			*length = 0;
+			return;
+		}
+
 		memcpy(data, buffer->data + start, *length);
 		memcpy(data + *length, buffer->data, end);
+	} else {
+		*length = 0;
 	}
 }
 
@@ -194,10 +227,18 @@ void GetNext(struct tRingBuffer *buffer)
 	buffer->position %= buffer->length;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+static const struct proc_ops kperfmon_fops = {
+	.proc_open = kperfmon_open,
+	.proc_read = kperfmon_read,
+	.proc_write = kperfmon_write,
+};
+#else
 static const struct file_operations kperfmon_fops = {
 	.read = kperfmon_read,
 	.write = kperfmon_write,
 };
+#endif
 
 void set_kperfmon_debugger_function(char *writebuffer)
 {
@@ -286,6 +327,11 @@ int ops_process_command(struct tRingBuffer *buffer,
 	}
 
 	return length;
+}
+
+int kperfmon_open(struct inode *finode, struct file *filp)
+{
+	return 0;
 }
 
 ssize_t kperfmon_write(struct file *filp,
@@ -421,7 +467,7 @@ ssize_t kperfmon_read(struct file *filp,
 							"%s\n",
 							before_list_cur_pos->pdata);
 
-				if (copy_to_user(data, readbuffer, length)) {
+				if (length <= 0 || copy_to_user(data, readbuffer, length)) {
 					pr_info("%s(copy_to_user(4) returned > 0)\n", __func__);
 					mutex_unlock(&buffer.mutex);
 					buffer.status = FLAG_NOTHING;
@@ -461,6 +507,13 @@ ssize_t kperfmon_read(struct file *filp,
 	mutex_unlock(&buffer.mutex);
 	//printk(KERN_INFO "kperfmon_read(length : %d)\n", (int)length);
 	//readlogpacket.stream[length++] = '\n';
+
+	if (length >= PERFLOG_PACKET_SIZE) {
+		length = PERFLOG_PACKET_SIZE - 1;
+	} else if (length == 0) {
+		return 0;
+	}
+
 	readlogpacket.stream[length] = 0;
 
 #if NOT_USED
@@ -519,7 +572,7 @@ ssize_t kperfmon_read(struct file *filp,
 
 		length += DEBUGGER_SIZE;
 	} else {
-		if (copy_to_user(data, readbuffer, length)) {
+		if (length <= 0 || copy_to_user(data, readbuffer, length)) {
 			pr_info("%s(copy_to_user(3) returned > 0)\n", __func__);
 			return 0;
 		}
@@ -535,6 +588,7 @@ ssize_t kperfmon_read(struct file *filp,
 static int __init kperfmon_init(void)
 {
 	struct proc_dir_entry *entry;
+	char kperfmon_version[KPERFMON_VERSION_LENGTH] = {0, };
 
 	CreateBuffer(&buffer, BUFFER_SIZE);
 
@@ -557,7 +611,8 @@ static int __init kperfmon_init(void)
 	before_list_cur_pos =
 		list_first_entry(&before_print_list, typeof(*before_list_cur_pos), list);
 	process_version_function("  ");
-	process_version_function("kperfmon_version [1.0]");
+	snprintf(kperfmon_version, KPERFMON_VERSION_LENGTH, "kperfmon_version [1.0.1]   kperfmon_read : 0x%x,  kperfmon_write : 0x%x", kperfmon_read, kperfmon_write);
+	process_version_function(kperfmon_version);
 
 	pr_info("%s()\n", __func__);
 

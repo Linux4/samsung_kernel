@@ -26,6 +26,74 @@
 static struct reserved_mem reserved_mem[MAX_RESERVED_REGIONS];
 static int reserved_mem_count;
 
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_ABOX_CHANGE_RMEM_SIZE)
+#define MAGIC_ABOX_RMEM_SIZE	0xab0cab0c
+#define DEBUG_LEVEL_LOW		0x4f4c
+#define FORCE_UPLOAD_DISABLED	0x0
+
+enum cmdline_check_mode {
+	DEBUG_LEVEL,
+	FORCE_UPLOAD,
+	CHK_MODE_MAX,
+};
+
+static const char *cmdline_mode_str[CHK_MODE_MAX] = {
+	[DEBUG_LEVEL] = "androidboot.debug_level=",
+	[FORCE_UPLOAD] = "androidboot.force_upload=",
+};
+
+int debug_level;
+int force_upload;
+
+static int check_cmdline(enum cmdline_check_mode mode, int *val)
+{
+	int len, i;
+	const char *bootargs;
+	char *p_val;
+	char buff_val[16];
+	int ret = 0;
+	unsigned long root, chosen;
+
+	root = of_get_flat_dt_root();
+	chosen = of_get_flat_dt_subnode_by_name(root, "chosen");
+	if (!chosen) {
+		pr_err("%s: no chosen\n", __func__);
+		return -EINVAL;
+	}
+
+	bootargs = of_get_flat_dt_prop(chosen, "bootargs", &len);
+	if (!bootargs) {
+		pr_err("%s: no bootargs\n", __func__);
+		return -EINVAL;
+	}
+
+	p_val = strstr(bootargs, cmdline_mode_str[mode]);
+	if (!p_val) {
+		pr_err("%s: invalid cmdline_mode %d\n", __func__, mode);
+		return -EINVAL;
+	}
+
+	p_val += strlen(cmdline_mode_str[mode]);
+
+	for (i = 0; i < (int) sizeof(buff_val) - 1; i++) {
+		if (p_val[i] == ' ' || p_val[i] == 0) {
+			buff_val[i] = 0;
+			break;
+		}
+		buff_val[i] = p_val[i];
+	}
+	buff_val[i] = 0;
+
+	ret = kstrtoint(buff_val, 0, val);
+	if (ret < 0)
+		pr_err("%s: str2int err (%s) %d\n", __func__, buff_val, ret);
+
+	pr_debug("%s: %s = 0x%x\n", __func__, cmdline_mode_str[mode], *val);
+
+	return ret;
+}
+#endif
+
 static int __init early_init_dt_alloc_reserved_memory_arch(phys_addr_t size,
 	phys_addr_t align, phys_addr_t start, phys_addr_t end, bool nomap,
 	phys_addr_t *res_base)
@@ -81,6 +149,10 @@ static int __init __reserved_mem_alloc_size(unsigned long node,
 	const __be32 *prop;
 	int nomap;
 	int ret;
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_ABOX_CHANGE_RMEM_SIZE)
+	int change_size = 0;
+	phys_addr_t size_min = MAGIC_ABOX_RMEM_SIZE;
+#endif
 
 	prop = of_get_flat_dt_prop(node, "size", &len);
 	if (!prop)
@@ -91,6 +163,37 @@ static int __init __reserved_mem_alloc_size(unsigned long node,
 		return -EINVAL;
 	}
 	size = dt_mem_next_cell(dt_root_size_cells, &prop);
+
+#if IS_ENABLED(CONFIG_SND_SOC_SAMSUNG_ABOX_CHANGE_RMEM_SIZE)
+	if (!strcmp(uname, "abox-dbg")) {
+		check_cmdline(FORCE_UPLOAD, &force_upload);
+		if (force_upload == FORCE_UPLOAD_DISABLED)
+			change_size = 1;
+	}
+
+	if (!strcmp(uname, "abox-slog")) {
+		check_cmdline(DEBUG_LEVEL, &debug_level);
+		pr_err("%s: debug_level 0x%x\n", __func__, debug_level);
+		if (debug_level == DEBUG_LEVEL_LOW)
+			change_size = 1;
+	}
+
+	if (change_size) {
+		pr_info("change size for %s\n", uname);
+		prop = of_get_flat_dt_prop(node, "size_min", &len);
+		if (!prop)
+			pr_err("no size_min prop in '%s' node.\n", uname);
+		else if (len != dt_root_size_cells * sizeof(__be32))
+			pr_err("invalid size_min prop in '%s' node.\n", uname);
+		else
+			size_min = dt_mem_next_cell(dt_root_size_cells, &prop);
+
+		pr_info("%s: %s size 0x%x, size_min 0x%x\n", __func__, uname, size, size_min);
+
+		if (size_min != MAGIC_ABOX_RMEM_SIZE && (size > size_min))
+			size = size_min;
+	}
+#endif
 
 	nomap = of_get_flat_dt_prop(node, "no-map", NULL) != NULL;
 
@@ -134,9 +237,9 @@ static int __init __reserved_mem_alloc_size(unsigned long node,
 			ret = early_init_dt_alloc_reserved_memory_arch(size,
 					align, start, end, nomap, &base);
 			if (ret == 0) {
-				pr_debug("allocated memory for '%s' node: base %pa, size %ld MiB\n",
+				pr_debug("allocated memory for '%s' node: base %pa, size %lu MiB\n",
 					uname, &base,
-					(unsigned long)size / SZ_1M);
+					(unsigned long)(size / SZ_1M));
 				break;
 			}
 			len -= t_len;
@@ -146,8 +249,8 @@ static int __init __reserved_mem_alloc_size(unsigned long node,
 		ret = early_init_dt_alloc_reserved_memory_arch(size, align,
 							0, 0, nomap, &base);
 		if (ret == 0)
-			pr_debug("allocated memory for '%s' node: base %pa, size %ld MiB\n",
-				uname, &base, (unsigned long)size / SZ_1M);
+			pr_debug("allocated memory for '%s' node: base %pa, size %lu MiB\n",
+				uname, &base, (unsigned long)(size / SZ_1M));
 	}
 
 	if (base == 0) {
@@ -200,6 +303,16 @@ static int __init __rmem_cmp(const void *a, const void *b)
 	if (ra->base > rb->base)
 		return 1;
 
+	/*
+	 * Put the dynamic allocations (address == 0, size == 0) before static
+	 * allocations at address 0x0 so that overlap detection works
+	 * correctly.
+	 */
+	if (ra->size < rb->size)
+		return -1;
+	if (ra->size > rb->size)
+		return 1;
+
 	return 0;
 }
 
@@ -217,8 +330,7 @@ static void __init __rmem_check_for_overlap(void)
 
 		this = &reserved_mem[i];
 		next = &reserved_mem[i + 1];
-		if (!(this->base && next->base))
-			continue;
+
 		if (this->base + this->size > next->base) {
 			phys_addr_t this_end, next_end;
 

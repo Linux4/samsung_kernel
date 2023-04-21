@@ -467,6 +467,10 @@ int sensor_cis_dump_registers(struct v4l2_subdev *subdev, const u32 *regs, const
 	for (i = 0; i < size; i += I2C_NEXT) {
 		if (regs[i + I2C_BYTE] == 0x2 && regs[i + I2C_ADDR] == 0x6028) {
 			ret = is_sensor_write16(client, regs[i + I2C_ADDR], regs[i + I2C_DATA]);
+			if (ret < 0) {
+				err("is_sensor_write16 fail, ret(%d), addr(%#x)",
+						ret, regs[i + I2C_ADDR]);
+			}
 		}
 
 		if (regs[i + I2C_BYTE] == 0x1) {
@@ -519,13 +523,13 @@ int sensor_cis_parse_dt(struct device *dev, struct v4l2_subdev *subdev)
 		rev_reg_len /= (unsigned int)sizeof(*rev_reg_spec);
 		BUG_ON(rev_reg_len > (IS_CIS_REV_MAX_LIST + 2));
 
-		ret = of_property_read_u32_array(dnode, "rev_reg", rev_reg, rev_reg_len);
-		cis->rev_valid_count = rev_reg_len - 2;
-		cis->rev_addr = rev_reg[0];
-		cis->rev_byte = rev_reg[1];
+		if (!of_property_read_u32_array(dnode, "rev_reg", rev_reg, rev_reg_len)) {
+			cis->rev_valid_count = rev_reg_len - 2;
+			cis->rev_addr = rev_reg[0];
+			cis->rev_byte = rev_reg[1];
 
-		for (i = 2; i < rev_reg_len; i++) {
-			 cis->rev_valid_values[i-2] = rev_reg[i];
+			for (i = 2; i < rev_reg_len; i++)
+				cis->rev_valid_values[i-2] = rev_reg[i];
 		}
 	} else {
 		info("rev_reg read is fail(%d)", ret);
@@ -886,3 +890,51 @@ int sensor_cis_active_test(struct v4l2_subdev *subdev)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(sensor_cis_active_test);
+
+int sensor_cis_set_test_pattern(struct v4l2_subdev *subdev, camera2_sensor_ctl_t *sensor_ctl)
+{
+	int ret = 0;
+	struct is_cis *cis;
+	struct i2c_client *client;
+
+	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
+
+	WARN_ON(!cis);
+	WARN_ON(!cis->cis_data);
+
+	client = cis->client;
+	if (unlikely(!client)) {
+		err("client is NULL");
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+	dbg_sensor(1, "[MOD:D:%d] %s, cur_pattern_mode(%d), testPatternMode(%d)\n", cis->id, __func__,
+			cis->cis_data->cur_pattern_mode, sensor_ctl->testPatternMode);
+
+	if (cis->cis_data->cur_pattern_mode != sensor_ctl->testPatternMode) {
+		cis->cis_data->cur_pattern_mode = sensor_ctl->testPatternMode;
+		if (sensor_ctl->testPatternMode == SENSOR_TEST_PATTERN_MODE_OFF) {
+			info("%s: set DEFAULT pattern! (testpatternmode : %d)\n", __func__, sensor_ctl->testPatternMode);
+
+			I2C_MUTEX_LOCK(cis->i2c_lock);
+			is_sensor_write16(client, 0x0600, 0x0000);
+			I2C_MUTEX_UNLOCK(cis->i2c_lock);
+		} else if (sensor_ctl->testPatternMode == SENSOR_TEST_PATTERN_MODE_BLACK) {
+			info("%s: set BLACK pattern! (testpatternmode :%d), Data : 0x(%x, %x, %x, %x)\n",
+				__func__, sensor_ctl->testPatternMode,
+				(unsigned short)sensor_ctl->testPatternData[0],
+				(unsigned short)sensor_ctl->testPatternData[1],
+				(unsigned short)sensor_ctl->testPatternData[2],
+				(unsigned short)sensor_ctl->testPatternData[3]);
+
+			I2C_MUTEX_LOCK(cis->i2c_lock);
+			is_sensor_write16(client, 0x0600, 0x0001);
+			I2C_MUTEX_UNLOCK(cis->i2c_lock);
+		}
+	}
+
+p_err:
+	return ret;
+}
+EXPORT_SYMBOL_GPL(sensor_cis_set_test_pattern);

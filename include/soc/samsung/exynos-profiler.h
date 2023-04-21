@@ -598,8 +598,10 @@ int init_static_cost(struct freq_table *freq_table, int size, int weight,
 		for (idx = 0; idx < size; idx++) {
 			freq_table[idx].st_cost = pwr_cost(freq_table[idx].freq,
 					freq_table[idx].volt, static_coeff, PWR_COST_CVV) / weight;
+#ifdef CONFIG_EXYNOS_DEBUG_INFO
 			pr_info("freq_idx=%2d freq=%d, volt=%d cost=%8d\n",
 					idx, freq_table[idx].freq, freq_table[idx].volt, freq_table[idx].st_cost);
+#endif
 		}
 
 		return 0;
@@ -617,9 +619,11 @@ int init_static_cost(struct freq_table *freq_table, int size, int weight,
 			cost = *(table + ((temp_size + 1) * idx + 1));
 			cost = cost / weight;
 			freq_table[freq_idx].st_cost = cost;
+#ifdef CONFIG_EXYNOS_DEBUG_INFO
 			pr_info("freq_idx=%2d freq=%d, volt=%d dtm_volt=%d, cost=%8d\n",
 					freq_idx, freq_table[freq_idx].freq, freq_table_volt,
 					dtm_volt, cost);
+#endif
 			break;
 		}
 	}

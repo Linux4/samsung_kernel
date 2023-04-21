@@ -167,6 +167,13 @@ int mfc_core_set_dec_codec_buffers(struct mfc_core_ctx *core_ctx)
 	mfc_debug(2, "Total DPB COUNT: %d, display delay: %d\n",
 			dec->total_dpb_count, dec->display_delay);
 
+	if (core_ctx->codec_buffer_allocated && buf_size &&
+			(buf_size > core_ctx->codec_buf.dma_buf->size)) {
+		mfc_ctx_info("[MEMINFO] Not enough codec buf size %d alloc size %zu\n",
+				buf_size, core_ctx->codec_buf.dma_buf->size);
+		return -ENOMEM;
+	}
+
 	/* set decoder DPB size, stride */
 	MFC_CORE_WRITEL(dec->total_dpb_count, MFC_REG_D_NUM_DPB);
 	for (i = 0; i < raw->num_planes; i++) {
@@ -264,6 +271,13 @@ int mfc_core_set_dec_codec_buffers(struct mfc_core_ctx *core_ctx)
 	frame_size_mv = ctx->mv_size;
 	MFC_CORE_WRITEL(dec->mv_count, MFC_REG_D_NUM_MV);
 	if (IS_H264_DEC(ctx) || IS_H264_MVC_DEC(ctx) || IS_HEVC_DEC(ctx) || IS_BPG_DEC(ctx) || IS_AV1_DEC(ctx)) {
+		if (ctx->mv_buffer_allocated && buf_size &&
+				(buf_size > ctx->mv_buf.dma_buf->size)) {
+			mfc_ctx_info("[MEMINFO] Not enough MV buf size %d alloc size %zu\n",
+					buf_size, ctx->mv_buf.dma_buf->size);
+			return -ENOMEM;
+		}
+
 		for (i = 0; i < dec->mv_count; i++) {
 			align_gap = buf_addr;
 			buf_addr = ALIGN(buf_addr, 16);

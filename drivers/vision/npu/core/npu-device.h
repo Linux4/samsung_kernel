@@ -64,7 +64,7 @@ struct npu_device {
 	struct npu_system system;
 	struct npu_vertex vertex;
 	struct npu_debug debug;
-	struct npu_proto_drv *proto_drv;
+	// struct npu_proto_drv *proto_drv;
 	struct npu_sessionmgr sessionmgr;
 #ifdef CONFIG_NPU_GOLDEN_MATCH
 	struct npu_golden_ctx *npu_golden_ctx;

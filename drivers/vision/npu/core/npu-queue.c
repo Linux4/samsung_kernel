@@ -12,6 +12,7 @@
 
 #include "npu-queue.h"
 #include "npu-log.h"
+#include "npu-config.h"
 
 /*
  * queue: npu_queue instance strucure

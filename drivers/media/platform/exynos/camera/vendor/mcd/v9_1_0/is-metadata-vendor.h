@@ -35,7 +35,7 @@ struct rational {
 #define CAMERA2_MAX_FACES			16
 #define CAMERA2_MAX_VENDER_LENGTH		400
 #define CAMERA2_AWB_VENDER_LENGTH		415
-#define CAMERA2_MAX_IPC_VENDER_LENGTH		3172
+#define CAMERA2_MAX_IPC_VENDER_LENGTH		3130
 #define CAMERA2_MAX_PDAF_MULTIROI_COLUMN	13
 #define CAMERA2_MAX_PDAF_MULTIROI_ROW		9
 #define CAMERA2_MAX_UCTL_VENDER_LENGTH		32
@@ -44,6 +44,8 @@ struct rational {
 #define CAMERA2_MAX_UDM_VENDOR2_LENGTH		32
 
 #define CAMERA2_MAX_STRIPE_REGION_NUM		5
+
+#define EV_LIST_SIZE						24
 
 #define OPEN_MAGIC_NUMBER			0x20202102
 #define SHOT_MAGIC_NUMBER			0x56789234
@@ -60,6 +62,7 @@ enum is_subscenario_id {
 	ISS_SUB_SCENARIO_STILL_PREVIEW_WDR_ON = 1,                                  /* 1: Single preview (HDR On) */
 	ISS_SUB_SCENARIO_STILL_FULL_PREVIEW_WDR_AUTO = 2,                           /* TODO: 2: Full resolution Preview (HDR Auto/Off) */
 	ISS_SUB_SCENARIO_SUPER_NIGHT_SHOT_PREVIEW = 3,                              /* Super night Preview (HDR Auto) */
+	ISS_SUB_SCENARIO_STILL_PREVIEW_GALAXY_RAW = 4,                              /* 4: galaxy raw preview */
 
 	ISS_SUB_SCENARIO_STILL_CAPTURE_WDR_AUTO = 10,                               /* 10: Single/Burst/Snapshot capture (HDR Auto/Off) */
 	ISS_SUB_SCENARIO_STILL_CAPTURE = 11,                                        /* 11: Single capture (HDR Off) : Pro mode	 */
@@ -79,6 +82,7 @@ enum is_subscenario_id {
 	ISS_SUB_SCENARIO_MERGED_STILL_FUSION_CAPTURE = 24,                          /* 24: fusion capture (HDR Auto/Off) */
 	ISS_SUB_SCENARIO_MERGED_STILL_CAPTURE_GFHDR_SHORT = 25,                     /* 25: GFHDR Short capture (HDR Auto/Off) */
 	ISS_SUB_SCENARIO_MERGED_STILL_CAPTURE_GFHDR_LONG = 26,                      /* 26: GFHDR Long capture (HDR Auto/Off) */
+	ISS_SUB_SCENARIO_MERGED_STILL_CAPTURE_GALAXY_RAW = 27,                      /* 27: Galaxy Raw still capture */
 
 	ISS_SUB_SCENARIO_VIDEO = 30,                                                /* 30: FHD 30fps (HDR Off) */
 	ISS_SUB_SCENARIO_VIDEO_WDR_AUTO = 31,                                       /* 31: FHD 30fps (HDR Auto) */
@@ -101,6 +105,11 @@ enum is_subscenario_id {
 	ISS_SUB_SCENARIO_8K_WDR_AUTO = 48,                                          /* TODO: 48: 8K Video 30fps (HDR Auto) */
 	ISS_SUB_SCENARIO_VIDEO_HIGH_SPEED_960FPS = 49,
 	ISS_SUB_SCENARIO_VIDEO_MERGED_HDR_AUTO = 50,                                /* 50: FHD 30fps (Video HDR Auto - AEB mode) */
+	ISS_SUB_SCENARIO_FHD_VIDEO_HDR10_WDR_AUTO_60FPS = 51,                       /* 51: FHD 60fps (Video HDR 10) */
+	ISS_SUB_SCENARIO_UHD_VIDEO_HDR10_WDR_AUTO_60FPS = 52,                       /* 52: UHD 60fps (Video HDR 10) */
+	ISS_SUB_SCENARIO_UHD_120FPS_SLOW_MOTION = 53,                               /* 53: UHD 120fps (Video slow motion) */
+	ISS_SUB_SCENARIO_VIDEO_FHD_AUTO_FPS = 54,                                   /* 54: FHD auto fps */
+	ISS_SUB_SCENARIO_MULTIVIEW_RECORDING = 55,                                  /* 55: MultiView recording */
 
 	ISS_SUB_SCENARIO_LIVE_OUTFOCUS_PREVIEW = 60,                                /* 60: Bokeh preview (HDR Off) */
 	ISS_SUB_SCENARIO_LIVE_OUTFOCUS_PREVIEW_WDR_AUTO = 61,                       /* 61: Bokeh preview (HDR Auto) */
@@ -114,6 +123,8 @@ enum is_subscenario_id {
 	ISS_SUB_SCENARIO_VIDEO_3RD_PARTY_WDR_AUTO = 68,                             /* 68: 3rd Party Video (HDR Auto) */
 	ISS_SUB_SCENARIO_STILL_CAPTURE_3RD_PARTY_WDR_AUTO = 69,                     /* 69: 3rd Party Capture (HDR Auto) */
 	ISS_SUB_SCENARIO_FRONT_SMART_STAY = 70,                                     /* 70: Smart Stay */
+	ISS_SUB_SCENARIO_FRONT_3RD_PARY_VT = 71,                                    /* 3rd Party VT call (HDR Auto) */
+	ISS_SUB_SCENARIO_VIDEO_PRO_HIGH_SPEED = 72,                                 /* 72 : Pro video 120fps */
 
 	ISS_SUB_SCENARIO_VIDEO_ISPLP_TNR = 110,                                     /* TODO: 110: ISPLT_TNR */
 	ISS_SUB_END,
@@ -166,6 +177,7 @@ enum is_dvfs_scenario_vendor {
 	IS_DVFS_SCENARIO_VENDOR_SSM = 2,
 	IS_DVFS_SCENARIO_VENDOR_VIDEO_HDR = 3,
 	IS_DVFS_SCENARIO_VENDOR_SUPER_STEADY = 4,
+	IS_DVFS_SCENARIO_VENDOR_LOW_POWER = 5,
 };
 
 #define IS_DVFS_SCENARIO_WIDTH_SHIFT        0
@@ -199,33 +211,12 @@ struct camera2_request_ctl {
 	uint32_t		frameCount;
 	uint32_t		id;
 	enum metadata_mode	metadataMode;
-
-	/* vendor feature */
-	uint32_t		vendor_frameCount;
 };
 
 struct camera2_request_dm {
 	uint32_t		frameCount;
 	uint32_t		id;
-	enum metadata_mode	metadataMode;
 	uint8_t			pipelineDepth;
-
-	/* vendor feature */
-	uint32_t		vendor_frameCount;
-};
-
-struct camera2_request_sm {
-	uint32_t	maxNumOutputStreams[3];
-	uint32_t	maxNumOutputRaw;
-	uint32_t	maxNumOutputProc;
-	uint32_t	maxNumOutputProcStalling;
-	uint32_t	maxNumInputStreams;
-	uint8_t		pipelineMaxDepth;
-	uint32_t	partialResultCount;
-	uint8_t		availableCapabilities[CAMERA2_MAX_AVAILABLE_MODE];
-	uint32_t	availableRequestKeys[CAMERA2_MAX_AVAILABLE_MODE];
-	uint32_t	availableResultKeys[CAMERA2_MAX_AVAILABLE_MODE];
-	uint32_t	availableCharacteristicsKeys[CAMERA2_MAX_AVAILABLE_MODE];
 };
 
 struct camera2_entry_ctl {
@@ -291,32 +282,9 @@ struct camera2_lens_ctl {
 
 struct camera2_lens_dm {
 	int32_t					aperture;
-	float					filterDensity;
-	float					focalLength;
 	float					focusDistance;
 	float					focusRange[2];
-	enum optical_stabilization_mode		opticalStabilizationMode;
 	enum lens_state				state;
-	float					poseRotation[4];
-	float					poseTranslation[3];
-	float					intrinsicCalibration[5];
-	float					radialDistortion[6];
-};
-
-struct camera2_lens_sm {
-	float				availableApertures[CAMERA2_MAX_AVAILABLE_MODE];
-	float				availableFilterDensities[CAMERA2_MAX_AVAILABLE_MODE];
-	float				availableFocalLength[CAMERA2_MAX_AVAILABLE_MODE];
-	uint8_t				availableOpticalStabilization[CAMERA2_MAX_AVAILABLE_MODE];
-	float				hyperfocalDistance;
-	float				minimumFocusDistance;
-	uint32_t			shadingMapSize[2];
-	enum lens_focus_distance_calibration focusDistanceCalibration;
-	enum lens_facing		facing;
-	float				poseRotation[4];
-	float				poseTranslation[3];
-	float				intrinsicCalibration[5];
-	float				radialDistortion[6];
 };
 
 /* android.sensor */
@@ -327,6 +295,7 @@ enum sensor_test_pattern_mode {
 	SENSOR_TEST_PATTERN_MODE_COLOR_BARS,
 	SENSOR_TEST_PATTERN_MODE_COLOR_BARS_FADE_TO_GRAY,
 	SENSOR_TEST_PATTERN_MODE_PN9,
+	SENSOR_TEST_PATTERN_MODE_BLACK,
 	SENSOR_TEST_PATTERN_MODE_CUSTOM1 = 257,
 };
 
@@ -389,45 +358,14 @@ struct camera2_sensor_dm {
 	float				profileHueSatMap[2][2][2][3];
 	float				profileToneCurve[32][2];
 	float				greenSplit;
-	int32_t				testPatternData[4];
-	enum sensor_test_pattern_mode	testPatternMode;
 	uint64_t			rollingShutterSkew;
 };
-
-struct camera2_sensor_sm {
-	uint32_t			activeArraySize[4];
-	uint32_t			preCorrectionActiveArraySize[4];
-	uint32_t			sensitivityRange[2];
-	enum sensor_colorfilterarrangement colorFilterArrangement;
-	uint64_t			exposureTimeRange[2];
-	uint64_t			maxFrameDuration;
-	float				physicalSize[2];
-	uint32_t			pixelArraySize[2];
-	uint32_t			whiteLevel;
-	enum sensor_timestamp_calibration timestampCalibration;
-	enum sensor_lensshading_applied	lensShadingApplied;
-	enum sensor_ref_illuminant	referenceIlluminant1;
-	enum sensor_ref_illuminant	referenceIlluminant2;
-	struct rational 		calibrationTransform1[9];
-	struct rational 		calibrationTransform2[9];
-	struct rational 		colorTransform1[9];
-	struct rational 		colorTransform2[9];
-	struct rational 		forwardMatrix1[9];
-	struct rational 		forwardMatrix2[9];
-	struct rational 		baseGainFactor;
-	uint32_t			blackLevelPattern[4];
-	uint32_t			maxAnalogSensitivity;
-	uint32_t			orientation;
-	uint32_t			profileHueSatMapDimensions[3];
-	uint32_t			availableTestPatternModes[CAMERA2_MAX_AVAILABLE_MODE];
-};
-
 
 /* android.flash */
 
 enum flash_mode {
 	CAM2_FLASH_MODE_NONE = 0,
-	CAM2_FLASH_MODE_OFF,
+	CAM2_FLASH_MODE_OFF = 1,
 	CAM2_FLASH_MODE_SINGLE,
 	CAM2_FLASH_MODE_TORCH,
 
@@ -454,6 +392,7 @@ enum capture_state {
 	CAPTURE_STATE_ZSL_LIKE = 20,
 	CAPTURE_STATE_STREAM_ON_CAPTURE = 30,
 	CAPTURE_STATE_RAW_CAPTURE = 100,
+	CAPTURE_STATE_VIDEO_RECORD_CHANGE_FPS = 200,
 };
 
 enum flash_info_available {
@@ -480,13 +419,6 @@ struct camera2_flash_dm {
 	uint32_t		vendor_flashOffReady;
 };
 
-struct camera2_flash_sm {
-	enum flash_info_available	available;
-	uint64_t			chargeDuration;
-	uint8_t				colorTemperature;
-	uint8_t				maxEnergy;
-};
-
 /* android.hotpixel */
 
 enum processing_mode {
@@ -504,14 +436,6 @@ struct camera2_hotpixel_ctl {
 	enum processing_mode	mode;
 };
 
-struct camera2_hotpixel_dm {
-	enum processing_mode	mode;
-};
-
-struct camera2_hotpixel_sm {
-	uint8_t			availableHotPixelModes[CAMERA2_MAX_AVAILABLE_MODE];
-};
-
 /* android.demosaic */
 
 enum demosaic_processing_mode {
@@ -523,10 +447,6 @@ struct camera2_demosaic_ctl {
 	enum demosaic_processing_mode	mode;
 };
 
-struct camera2_demosaic_dm {
-	enum demosaic_processing_mode	mode;
-};
-
 /* android.noiseReduction */
 
 struct camera2_noisereduction_ctl {
@@ -534,29 +454,11 @@ struct camera2_noisereduction_ctl {
 	uint8_t			strength;
 };
 
-struct camera2_noisereduction_dm {
-	enum processing_mode	mode;
-	uint8_t			strength;
-};
-
-struct camera2_noisereduction_sm {
-	uint8_t			availableNoiseReductionModes[CAMERA2_MAX_AVAILABLE_MODE];
-};
-
 /* android.shading */
 
 struct camera2_shading_ctl {
 	enum processing_mode	mode;
 	uint8_t			strength;
-};
-
-struct camera2_shading_dm {
-	enum processing_mode	mode;
-	uint8_t			strength;
-};
-
-struct camera2_shading_sm {
-	enum processing_mode	availableModes[CAMERA2_MAX_AVAILABLE_MODE];
 };
 
 /* android.colorCorrection */
@@ -581,30 +483,9 @@ struct camera2_colorcorrection_ctl {
 };
 
 struct camera2_colorcorrection_dm {
-	enum colorcorrection_mode	mode;
 	struct rational			transform[9];
 	float				gains[4];
-	enum processing_mode		aberrationCorrectionMode;
-
-	/* vendor feature */
-	uint32_t			vendor_hue;
-	uint32_t			vendor_saturation;
-	uint32_t			vendor_brightness;
-	uint32_t			vendor_contrast;
 };
-
-struct camera2_colorcorrection_sm {
-	/*assuming 10 supported modes*/
-	uint8_t			availableModes[CAMERA2_MAX_AVAILABLE_MODE];
-	uint8_t			availableAberrationCorrectionModes[CAMERA2_MAX_AVAILABLE_MODE];
-
-	/* vendor feature */
-	uint32_t		vendor_hueRange[2];
-	uint32_t		vendor_saturationRange[2];
-	uint32_t		vendor_brightnessRange[2];
-	uint32_t		vendor_contrastRange[2];
-};
-
 
 /* android.tonemap */
 
@@ -631,35 +512,11 @@ struct camera2_tonemap_ctl {
 	enum tonemap_presetCurve  	presetCurve;
 };
 
-struct camera2_tonemap_dm {
-	float				curveBlue[64];
-	float				curveGreen[64];
-	float				curveRed[64];
-	float				curve;
-	enum tonemap_mode		mode;
-	float				gamma;
-	enum tonemap_presetCurve	presetCurve;
-};
-
-struct camera2_tonemap_sm {
-	uint32_t	maxCurvePoints;
-	uint8_t		availableToneMapModes[CAMERA2_MAX_AVAILABLE_MODE];
-};
-
 /* android.edge */
 
 struct camera2_edge_ctl {
 	enum processing_mode	mode;
 	uint8_t			strength;
-};
-
-struct camera2_edge_dm {
-	enum processing_mode	mode;
-	uint8_t			strength;
-};
-
-struct camera2_edge_sm {
-	uint8_t			availableEdgeModes[CAMERA2_MAX_AVAILABLE_MODE];
 };
 
 /* android.scaler */
@@ -682,16 +539,6 @@ enum scaler_cropping_type {
 	SCALER_CROPPING_TYPE_FREEFORM,
 };
 
-struct camera2_scaler_sm {
-	float		availableMaxDigitalZoom;
-	int32_t		availableInputOutputFormatsMap;
-	uint8_t		availableStreamConfigurations[CAMERA2_MAX_AVAILABLE_MODE][4];
-	uint64_t	availableMinFrameDurations[CAMERA2_MAX_AVAILABLE_MODE][4];
-	uint64_t	availableStallDurations[CAMERA2_MAX_AVAILABLE_MODE][4];
-	int32_t		streamConfigurationMap;
-	enum scaler_cropping_type croppingType;
-};
-
 /* android.jpeg */
 struct camera2_jpeg_ctl {
 	uint8_t		gpsLocation;
@@ -702,24 +549,6 @@ struct camera2_jpeg_ctl {
 	uint8_t		quality;
 	uint8_t		thumbnailQuality;
 	uint32_t	thumbnailSize[2];
-};
-
-struct camera2_jpeg_dm {
-	uint8_t		gpsLocation;
-	double		gpsCoordinates[3];
-	uint8_t		gpsProcessingMethod[33];
-	uint64_t	gpsTimestamp;
-	uint32_t	orientation;
-	uint8_t		quality;
-	uint32_t	size;
-	uint8_t		thumbnailQuality;
-	uint32_t	thumbnailSize[2];
-};
-
-struct camera2_jpeg_sm {
-	uint32_t	availableThumbnailSizes[8][2];
-	uint32_t	maxSize;
-	/*assuming supported size=8*/
 };
 
 /* android.statistics */
@@ -816,32 +645,17 @@ struct camera2_stats_dm {
 	uint32_t			faceSrcImageSize[2];
 	uint32_t			faces[CAMERA2_MAX_FACES - 2];
 	uint32_t			histogram[3 * 256];
-	enum stats_mode 		histogramMode;
 	int32_t 			sharpnessMap[2][2][3];
-	enum stats_mode 		sharpnessMapMode;
 	uint8_t 			lensShadingCorrectionMap;
 	float				lensShadingMap[4][17][13];	/* 4channel x grid width x grid height */
 	enum stats_scene_flicker	sceneFlicker;
-	enum stats_mode 		hotPixelMapMode;
 	int32_t 			hotPixelMap[CAMERA2_MAX_AVAILABLE_MODE][2];
-	enum stats_mode 		lensShadingMapMode;
 
 	/* vendor feature */
 	uint32_t			vendor_lls_tuning_set_index;
 	uint32_t			vendor_lls_brightness_index;
 	enum stats_wdrAutoState		vendor_wdrAutoState;
 	uint32_t			vendor_rgbAvgSamples[2][4];
-};
-
-struct camera2_stats_sm {
-	uint8_t 	availableFaceDetectModes[CAMERA2_MAX_AVAILABLE_MODE];
-	uint32_t	histogramBucketCount;
-	uint32_t	maxFaceCount;
-	uint32_t	maxHistogramCount;
-	uint32_t	maxSharpnessMapValue;
-	uint32_t	sharpnessMapSize[2];
-	uint32_t	availableHotPixelMapModes[CAMERA2_MAX_AVAILABLE_MODE];
-	enum stats_mode availableLensShadingMapModes[CAMERA2_MAX_AVAILABLE_MODE];
 };
 
 /* android.control */
@@ -896,6 +710,9 @@ enum aa_capture_intent {
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SUPER_NIGHT_SHOT_TRIPOD_MAX             = 135,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SUPER_NIGHT_SHOT_EXTREME_DARK_MAX       = 136,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SR_HDR_DYNAMIC_SHOT                     = 137,
+	AA_CAPTURE_INTENT_STILL_CAPTURE_GALAXY_RAW_DYNAMIC_SHOT                 = 138,
+
+	AA_CAPTURE_INTENT_VIDEO_RECORD_CHANGE_FPS                               = 500,
 
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SPORT_MOTIONLEVEL0 = 90000,
 	AA_CAPTURE_INTENT_STILL_CAPTURE_SPORT_MOTIONLEVEL1 = 90001,
@@ -1251,6 +1068,7 @@ enum aa_dynamic_bds_mode {
 	AA_DYNAMIC_BDS_MODE_OFF = 0,
 	AA_DYNAMIC_BDS_MODE_LOW_LIGHT_ON = 1,	/* IQ controlled */
 	AA_DYNAMIC_BDS_MODE_SYSTEM_ON  = 2,	/* HAL controlled */
+	AA_DYNAMIC_BDS_MODE_VT_CALL_LOW_POWER  = 3, 	/* HAL controlled */
 };
 
 enum aa_enable_dynamicshot {
@@ -1344,20 +1162,14 @@ struct camera2_aa_ctl {
 	enum aa_cameraid		vendor_cameraId;
 	enum aa_videomode		vendor_videoMode;
 	enum aa_ae_facemode		vendor_aeFaceMode;
-	enum aa_afstate			vendor_afState;
 	int32_t				vendor_exposureValue;
-	uint32_t			vendor_touchAeDone;
-	uint32_t			vendor_touchBvChange;
 	uint32_t			vendor_captureCount;
 	uint32_t			vendor_captureExposureTime;
-	float				vendor_objectDistanceCm;
 	int32_t				vendor_colorTempKelvin;
-	int32_t				vendor_enableDynamicShotDm;
-	float				vendor_expBracketing[15];
+	enum aa_enable_dynamicshot	vendor_enableDynamicShotDm;
+	float				vendor_expBracketing[15];      // Used in mass
 	float				vendor_expBracketingCapture;
 	enum aa_supernightmode		vendor_superNightShotMode;
-	int16_t				vendor_artificialLightSource;
-	int16_t				vendor_flickerDetect;
 	struct camera2_video_output_size vendor_videoOutputSize;
 	enum aa_night_timelaps_mode	vendor_nightTimelapsMode;
 	uint32_t			vendor_personalPresetIndex;
@@ -1374,7 +1186,10 @@ struct camera2_aa_ctl {
 	uint32_t			ispHwTargetFpsRange[2];
 	uint32_t			vendor_memAvailable;
 	int32_t 			vendor_fpsHintResult;
-	uint32_t			vendor_reserved[24];
+	uint32_t			vendor_currentHyperlapseMode;   // 0 : auto, value : speed
+	char				vendor_multiFrameEvList[EV_LIST_SIZE];
+	uint32_t			vendor_zoomLockState;
+	uint32_t			vendor_reserved[16];
 };
 
 struct aa_apexInfo {
@@ -1414,110 +1229,57 @@ struct oisHallInfo {
 };
 
 struct camera2_aa_dm {
-	enum aa_ae_antibanding_mode	aeAntibandingMode;
 	int32_t				aeExpCompensation;
-	enum aa_ae_lock			aeLock;
-	enum aa_aemode			aeMode;
 	uint32_t			aeRegions[5];
-	uint32_t			aeTargetFpsRange[2];
-	enum aa_ae_precapture_trigger	aePrecaptureTrigger;
 	enum ae_state			aeState;
-	enum aa_afmode			afMode;
 	uint32_t			afRegions[5];
-	enum aa_af_trigger		afTrigger;
 	enum aa_afstate			afState;
-	enum aa_awb_lock		awbLock;
-	enum aa_awbmode			awbMode;
 	uint32_t			awbRegions[5];
-	enum aa_capture_intent		captureIntent;
 	enum awb_state			awbState;
-	enum aa_effect_mode		effectMode;
-	enum aa_mode			mode;
 	enum aa_scene_mode		sceneMode;
-	enum aa_videostabilization_mode videoStabilizationMode;
 	enum aa_af_scene_change		afSceneChange;
 
 	/* vendor feature */
-	float				vendor_aeExpCompensationStep;
-	uint32_t			vendor_afmode_option;
-	enum aa_afmode_ext		vendor_afmode_ext;
-	enum aa_ae_flashmode		vendor_aeflashMode;
-	enum aa_isomode 		vendor_isoMode;
 	uint32_t			vendor_isoValue;
-	int32_t				vendor_awbValue;
-	enum aa_cameraid		vendor_cameraId;
-	enum aa_videomode		vendor_videoMode;
-	enum aa_ae_facemode		vendor_aeFaceMode;
-	enum aa_afstate			vendor_afState;
 	int32_t				vendor_exposureValue;
 	uint32_t			vendor_touchAeDone;
 	uint32_t			vendor_touchBvChange;
-	uint32_t			vendor_captureCount;
-	uint32_t			vendor_captureExposureTime;
 	float				vendor_objectDistanceCm;
 	int32_t				vendor_colorTempKelvin;
-	float				vendor_expBracketing[15];
-	float				vendor_expBracketingCapture;
 	int32_t				vendor_dynamicShotValue[3];
 	int32_t				vendor_lightConditionValue;
 	int32_t				vendor_dynamicShotExtraInfo;
 	struct aa_apexInfo		vendor_apexInfo;
 	struct osdInfo			vendor_osdInfo;
 	int32_t				vendor_drcRatio;
-	uint32_t			vendor_colorTempIndex;	/*cu */
-	uint32_t			vendor_luxIndex;
-	float				vendor_luxStandard;
+	uint32_t			vendor_colorTempIndex;  // Used for tune
+	uint32_t			vendor_luxIndex;        // Used for tune
+	float				vendor_luxStandard;     // Used for tune
 	int32_t				vendor_multiFrameEv;
 	uint32_t			vendor_faceToneWeight;
 	float				vendor_noiseIndex;
 
-	enum aa_aemode_state	vendor_aeModeState;
-	uint32_t			vendor_linearExposureIndex;
-	uint32_t			ispDigitalGain;
-	uint32_t			vendor_previewSkipFrame;
-	uint32_t			vendor_aeDrcGain;
+	enum aa_aemode_state		vendor_aeModeState;         // Used for tune
+	uint32_t			vendor_linearExposureIndex; // Used for tune
+	uint32_t			ispDigitalGain;             // Used for tune
+	uint32_t			vendor_previewSkipFrame;    // Used in mass
+	uint32_t			vendor_aeDrcGain;           // Used in mass
 	int32_t				vendor_aeStats4VO[8];
 	int32_t				vendor_dynamicShotCaptureDuration;
-	int32_t				vendor_aeBracketingFpsHint;
 	struct oisHallInfo		vendor_oisHallData;
 	int32_t				vendor_fpsHint;
 	enum aa_dynamic_bds_mode	vendor_dynamicBdsInfo;
 	int32_t				vendor_gfHdrEv[2];
 	uint32_t			ispHwTargetFpsRange[2];
-	uint32_t			vendor_reserved[33];
+	uint32_t			vendor_aeDarkBoostGain;
+	uint32_t			vendor_reserved[32];
 
 	// For dual
 	uint32_t			vendor_wideTeleConvEv;
-	uint32_t			vendor_teleSync;
 	uint32_t			vendor_fusionCaptureAeInfo;
 	uint32_t			vendor_fusionCaptureAfInfo;
 
 	uint32_t			vendor_reserved_dual[9];
-};
-
-struct camera2_aa_sm {
-	uint8_t		aeAvailableAntibandingModes[CAMERA2_MAX_AVAILABLE_MODE];
-	uint8_t		aeAvailableModes[CAMERA2_MAX_AVAILABLE_MODE];
-	uint32_t	aeAvailableTargetFpsRanges[CAMERA2_MAX_AVAILABLE_MODE][2];
-	int32_t		aeCompensationRange[2];
-	struct rational	aeCompensationStep;
-	uint8_t		afAvailableModes[CAMERA2_MAX_AVAILABLE_MODE];
-	uint8_t		availableEffects[CAMERA2_MAX_AVAILABLE_MODE];
-	uint8_t		availableSceneModes[CAMERA2_MAX_AVAILABLE_MODE];
-	uint8_t		availableVideoStabilizationModes[4];
-	uint8_t		awbAvailableModes[CAMERA2_MAX_AVAILABLE_MODE];
-	uint32_t	maxRegions[3];
-	uint32_t	maxRegionsAe;
-	uint32_t	maxRegionsAwb;
-	uint32_t	maxRegionsAf;
-	uint8_t		sceneModeOverrides[CAMERA2_MAX_AVAILABLE_MODE][3]; /* [AE, AWB, AF] */
-	uint32_t	availableHighSpeedVideoConfigurations[CAMERA2_MAX_AVAILABLE_MODE][5];
-	enum aa_ae_lockavailable	aeLockAvailable;
-	enum aa_awb_lockavailable  	 awbLockAvailable;
-	enum aa_available_mode		availableModes;
-
-	/* vendor feature */
-	uint32_t	vendor_isoRange[2];
 };
 
 /* android.led */
@@ -1535,20 +1297,12 @@ struct camera2_led_dm {
 	enum led_transmit		transmit;
 };
 
-struct camera2_led_sm {
-	uint8_t				availableLeds[CAMERA2_MAX_AVAILABLE_MODE];
-};
-
 /* android.info */
 
 enum info_supported_hardware_level {
 	INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED = 0,
 	INFO_SUPPORTED_HARDWARE_LEVEL_FULL,
 	INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY,
-};
-
-struct camera2_info_sm {
-	enum info_supported_hardware_level	supportedHardwareLevel;
 };
 
 /* android.blacklevel */
@@ -1572,15 +1326,6 @@ struct camera2_reprocess_ctl {
 	float	effectiveExposureFactor;
 };
 
-struct camera2_reprocess_dm {
-	float	effectiveExposureFactor;
-};
-
-struct camera2_reprocess_sm {
-	uint32_t	maxCaptureStall;
-};
-
-
 /* android.depth */
 
 enum depth_available_depth_stream_config {
@@ -1591,15 +1336,6 @@ enum depth_available_depth_stream_config {
 enum depth_depth_is_exclusive {
 	DEPTH_DEPTH_IS_EXCLUSIVE_FALSE,
 	DEPTH_DEPTH_IS_EXCLUSIVE_TRUE,
-};
-
-struct camera2_depth_sm {
-
-	uint32_t	maxDepthSamples;
-	enum depth_available_depth_stream_config	availableDepthStreamConfigurations[CAMERA2_MAX_AVAILABLE_MODE][4];
-	uint64_t	availableDepthMinFrameDurations[CAMERA2_MAX_AVAILABLE_MODE][4];
-	uint64_t	availableDepthStallDurations[CAMERA2_MAX_AVAILABLE_MODE][4];
-	enum depth_depth_is_exclusive				depthIsExclusive;
 };
 
 /* android.sync */
@@ -1620,22 +1356,6 @@ struct camera2_sync_ctl {
 
 struct camera2_sync_dm {
 	int32_t				maxLatency;
-};
-
-struct camera2_lens_usm {
-	uint32_t	focusDistanceFrameDelay;
-};
-
-struct camera2_sensor_usm {
-	uint32_t	exposureTimeFrameDelay;
-	uint32_t	frameDurationFrameDelay;
-	uint32_t	sensitivityFrameDelay;
-};
-
-struct camera2_flash_usm {
-	uint32_t	flashModeFrameDelay;
-	uint32_t	firingPowerFrameDelay;
-	uint64_t	firingTimeFrameDelay;
 };
 
 struct camera2_ctl {
@@ -1666,52 +1386,18 @@ struct camera2_ctl {
 struct camera2_dm {
 	struct camera2_colorcorrection_dm	color;
 	struct camera2_aa_dm			aa;
-	struct camera2_demosaic_dm		demosaic;
-	struct camera2_edge_dm			edge;
 	struct camera2_flash_dm			flash;
-	struct camera2_hotpixel_dm		hotpixel;
-	struct camera2_jpeg_dm			jpeg;
 	struct camera2_lens_dm			lens;
-	struct camera2_noisereduction_dm	noise;
 	struct camera2_request_dm		request;
 	struct camera2_scaler_dm		scaler;
 	struct camera2_sensor_dm		sensor;
-	struct camera2_shading_dm		shading;
 	struct camera2_stats_dm			stats;
-	struct camera2_tonemap_dm		tonemap;
 	struct camera2_led_dm			led;
 	struct camera2_blacklevel_dm		blacklevel;
 	struct camera2_sync_dm			sync;
-	struct camera2_reprocess_dm	 	reprocess;
 
 	/* vendor feature */
 	struct camera2_entry_dm			vendor_entry;
-};
-
-struct camera2_sm {
-	struct camera2_colorcorrection_sm	color;
-	struct camera2_aa_sm			aa;
-	struct camera2_edge_sm			edge;
-	struct camera2_flash_sm			flash;
-	struct camera2_hotpixel_sm		hotpixel;
-	struct camera2_jpeg_sm			jpeg;
-	struct camera2_lens_sm			lens;
-	struct camera2_noisereduction_sm	noise;
-	struct camera2_request_sm		request;
-	struct camera2_scaler_sm		scaler;
-	struct camera2_sensor_sm		sensor;
-	struct camera2_shading_sm		shading;
-	struct camera2_stats_sm			stats;
-	struct camera2_tonemap_sm		tonemap;
-	struct camera2_led_sm			led;
-	struct camera2_info_sm			info;
-	struct camera2_reprocess_sm		reprocess;
-	struct camera2_depth_sm			depth;
-
-	/** User-defined(ispfw specific) static metadata. */
-	struct camera2_lens_usm			lensUd;
-	struct camera2_sensor_usm		sensorUd;
-	struct camera2_flash_usm		flashUd;
 };
 
 struct camera2_obj_af_info {
@@ -1768,7 +1454,7 @@ struct camera2_gyro_sensor_info {
 };
 
 struct camera2_gyro_sensor_history_info {
-	bool isValid;
+	bool valid;
 
 	struct camera2_gyro_sensor_info gyroData[20];
 	uint64_t gyroTimeStamp[20];
@@ -1800,13 +1486,7 @@ struct camera2_aa_uctl {
 };
 
 struct camera2_aa_udm {
-	struct camera2_obj_af_info af_data;
-	struct camera2_hrm_sensor_info hrmInfo;
-	struct camera2_illuminaion_sensor_info illuminationInfo;
 	struct camera2_gyro_sensor_info gyroInfo;
-	struct camera2_accelerometer_sensor_info accInfo;
-	struct camera2_proximity_sensor_info		proximityInfo;
-	struct camera2_temperature_info		temperatureInfo;
 };
 
 /** \brief
@@ -1831,31 +1511,11 @@ struct camera2_lens_udm {
 struct camera2_ae_udm {
 	uint32_t	vsLength;
 	uint32_t	vendorSpecific[CAMERA2_MAX_VENDER_LENGTH];
-
-	/** vendor specific2 length */
-	uint32_t	vs2Length;
-	/** vendor specific2 data array */
-	uint32_t	vendorSpecific2[CAMERA2_MAX_UDM_VENDOR2_LENGTH];
 };
 
 struct camera2_awb_udm {
 	uint32_t	vsLength;
 	uint32_t	vendorSpecific[CAMERA2_AWB_VENDER_LENGTH];
-
-	/** vendor specific2 length */
-	uint32_t	vs2Length;
-	/** vendor specific2 data array */
-	uint32_t	vendorSpecific2[CAMERA2_MAX_UDM_VENDOR2_LENGTH];
-};
-
-/** \brief
-  User-defined metadata for af.
- */
-struct camera2_af_uctl {
-	/** vendor specific length */
-	uint32_t	vs2Length;
-	/** vendor specific data array */
-	uint32_t	vendorSpecific2[CAMERA2_MAX_UCTL_VENDOR2_LENGTH];
 };
 
 struct camera2_af_udm {
@@ -1872,11 +1532,6 @@ struct camera2_af_udm {
 
 	/* Contrast Factor for MF capture best frame selection */
 	uint32_t	contrastFactor;
-};
-
-struct camera2_as_udm {
-	uint32_t vsLength;
-	uint32_t vendorSpecific[CAMERA2_MAX_VENDER_LENGTH];
 };
 
 struct camera2_ipc_udm {
@@ -1998,18 +1653,13 @@ struct camera2_flash_uctl {
 	enum flash_mode		flashMode;
 };
 
-struct camera2_flash_udm {
-	uint32_t		firingPower;
-	uint64_t		firingTime;
-	enum flash_mode		flashMode;
-};
-
 enum camera2_wdr_mode {
 	CAMERA_WDR_OFF = 1,
 	CAMERA_WDR_ON = 2,
 	CAMERA_WDR_AUTO = 3,
 	CAMERA_WDR_AUTO_LIKE = 4,
 	CAMERA_WDR_AUTO_3P = 5,
+	CAMERA_WDR_AUTO_3P_VIDEO = 6,
 	TOTALCOUNT_CAMERA_WDR,
 	CAMERA_WDR_UNKNOWN,
 };
@@ -2041,10 +1691,12 @@ enum camera_op_mode {
 	CAMERA_OP_MODE_HAL3_TW,
 	CAMERA_OP_MODE_FAC,
 	CAMERA_OP_MODE_HAL3_FAC,
-	CAMERA_OP_MODE_HAL3_SDK,
+	CAMERA_OP_MODE_HAL3_SDK,  // UNIHAL default
 	CAMERA_OP_MODE_HAL3_CAMERAX,
-	CAMERA_OP_MODE_HAL3_AVSP,
+	CAMERA_OP_MODE_HAL3_UNIHAL_VIP,
 	CAMERA_OP_MODE_HAL3_SDK_VIP,
+	CAMERA_OP_MODE_HAL3_ATTACH,
+	CAMERA_OP_MODE_HAL3_UNIHAL_VIDEO,
 };
 
 enum camera2_sensor_hdr_mode {
@@ -2091,12 +1743,6 @@ struct camera2_pdaf_udm {
 	uint16_t				lensPosResolution;
 };
 
-struct camera2_is_mode_udm {
-	enum camera2_wdr_mode wdr_mode;
-	enum camera2_paf_mode paf_mode;
-	enum camera2_disparity_mode disparity_mode;
-};
-
 struct camera2_fd_uctl {
 	enum facedetect_mode	faceDetectMode;
 	uint32_t		faceIds[CAMERA2_MAX_FACES];
@@ -2125,11 +1771,6 @@ struct camera2_fd_uctl {
 
 struct camera2_fd_udm {
 	uint32_t	faceCount;
-	uint32_t	vendorSpecific[CAMERA2_MAX_UCTL_VENDER_LENGTH];
-	/*
-	 * vendorSpecific[0] = fdSat;
-	 * vendorSpecific[1] ~ vendorSpecific[31]   : reserved
-	 */
 };
 
 struct camera2_ni_udm {
@@ -2222,7 +1863,7 @@ struct camera2_scene_detect_uctl
 	uint64_t			timeStamp;
 	enum camera2_scene_index	scene_index;
 	uint32_t			confidence_score;
-	uint32_t			object_roi[4];  /* left, top, width, height */
+	uint32_t			object_roi[RECT_IDX_MAX];  /* left, top, right, bottom */
 };
 
 struct score_info
@@ -2248,23 +1889,6 @@ enum camera_vt_mode {
 	VT_MODE_3,   /* reserved : smart stay */
 	VT_MODE_4,   /* vga ~ hd  */
 	VT_MODE_5,   /* vga ~ hd 20Fps */
-};
-
-enum camera2_is_hw_lls_mode {
-	CAMERA_HW_LLS_OFF = 0,   // default
-	CAMERA_HW_LLS_ON,
-};
-
-enum camera2_is_hw_lls_progress {
-	CAMERA_HW_LLS_FIRST_FRAME = 0,
-	CAMERA_HW_LLS_SECOND_FRAME,
-	CAMERA_HW_LLS_INTERMEDIATE_FRAME,
-	CAMERA_HW_LLS_LAST_FRAME,
-};
-
-struct camera2_is_hw_lls_uctl {
-	enum camera2_is_hw_lls_mode	hwLlsMode;
-	enum camera2_is_hw_lls_progress	hwLlsProgress;
 };
 
 #define CAMERA2_MAX_ME_MV 200
@@ -2323,6 +1947,7 @@ enum camera_client_index {
 	CAMERA_APP_CATEGORY_B612               = 17,
 	CAMERA_APP_CATEGORY_SODA               = 18,
 	CAMERA_APP_CATEGORY_FOODIE             = 19,
+	CAMERA_APP_CATEGORY_ZOOM               = 20,
 	CAMERA_APP_CATEGORY_MAX
 };
 
@@ -2336,18 +1961,14 @@ enum camera_adaptive_lens_condition
 {
     CAMERA_ADAPTIVE_LENS_UNAVAILABLE = 0,
     CAMERA_ADAPTIVE_LENS_UW_AUTO_AVAILABLE = 1,
+    CAMERA_ADAPTIVE_LENS_CONDITION_MAX,
 };
 
 enum camera_adaptive_lens_mode_state
 {
     CAMERA_ADAPTIVE_LENS_MODE_STATE_NONE = 0,
     CAMERA_ADAPTIVE_LENS_MODE_STATE_UW_AUTO_DONE = 1,
-};
-
-struct camera2_object_detect_uctl {
-	uint16_t detected;
-	uint16_t confidence_score;
-	uint16_t object_roi[4]; /* left, top, width, height */
+    CAMERA_ADAPTIVE_LENS_MODE_STATE_MAX,
 };
 
 struct camera2_meds_common_udm {
@@ -2362,17 +1983,21 @@ struct camera2_meds_common_udm {
 	uint16_t cropHeight;
 	uint16_t taaScScaleFactor;
 };
-
 struct camera2_orbds_udm {
 	uint32_t yDsScaleFactor;
 	uint16_t yDsOutputWidth;
 	uint16_t yDsOutputHeight;
 };
-
 struct camera2_lmeds_udm {
 	uint32_t yDsScaleFactor;
 	uint16_t yDsOutputWidth;
 	uint16_t yDsOutputHeight;
+};
+
+struct camera2_object_detect_uctl {
+	uint16_t detected;
+	uint16_t confidence_score;
+	uint16_t object_roi[RECT_IDX_MAX]; /* RECT_IDX_LEFT, RECT_IDX_TOP, RECT_IDX_WIDTH, RECT_IDX_HEIGHT */
 };
 
 /** \brief
@@ -2397,7 +2022,6 @@ struct camera2_uctl {
 	uint32_t			uFrameNumber;
 
 	struct camera2_aa_uctl		aaUd;
-	struct camera2_af_uctl		af;
 	struct camera2_lens_uctl	lensUd;
 	struct camera2_sensor_uctl	sensorUd;
 	struct camera2_flash_uctl	flashUd;
@@ -2416,7 +2040,6 @@ struct camera2_uctl {
 	float				zoomRatio;
 	enum camera_flash_mode		flashMode;
 	enum camera_op_mode		opMode;
-	struct camera2_is_hw_lls_uctl	hwLls_mode;
 	uint32_t			statsRoi[4];
 	enum aa_cameraMode		cameraMode;
 	enum aa_sensorPlace		masterCamera;
@@ -2424,13 +2047,12 @@ struct camera2_uctl {
 	int32_t				productColorInfo;
 	uint8_t				countryCode[4];
 	enum camera_motion_state	motionState;
-	uint32_t			cameraClientIndex;
-	uint32_t			remosaicHighResolutionMode;
-	uint8_t				frame_id[32];
+	enum camera_client_index	cameraClientIndex;
+	uint32_t			remosaicResolutionMode;
 	struct camera2_mfstill_uctl	mfInfoUd;
 	struct camera2_object_detect_uctl moonDetectInfoUd;
-	uint32_t			drcGridInfo[6];
-	uint32_t			svHistInfo[6];
+	uint32_t			drcGridInfo[6];       // Used in HAL-DDK interface
+	uint32_t			svHistInfo[6];        // Used in HAL-DDK interface
 	enum camera_adaptive_lens_condition adaptiveLensCondition;
 	enum camera_adaptive_lens_mode_state adaptiveLensModeState;
 	struct camera2_object_detect_uctl sunDetectInfoUd;
@@ -2441,23 +2063,17 @@ struct camera2_udm {
 	struct camera2_aa_udm		aa;
 	struct camera2_lens_udm		lens;
 	struct camera2_sensor_udm	sensor;
-	struct camera2_flash_udm	flash;
 	struct camera2_ae_udm		ae;
 	struct camera2_awb_udm		awb;
 	struct camera2_af_udm		af;
-	struct camera2_as_udm		as;
 	struct camera2_ipc_udm		ipc;
 	struct camera2_rta_udm		rta;
 	struct camera2_internal_udm	internal;
 	struct camera2_scaler_udm	 scaler;
-	struct camera2_is_mode_udm	isMode;
 	struct camera2_pdaf_udm		pdaf;
 	struct camera2_fd_udm		fd;
 	struct camera2_me_udm		me;
-	enum camera_vt_mode		vtMode;
 	float				zoomRatio;
-	enum camera_flash_mode		flashMode;
-	enum camera_op_mode             opMode;
 	struct camera2_ni_udm		ni;
 	struct camera2_drc_udm		drc;
 	struct camera2_rgbGamma_udm	rgbGamma;
@@ -2475,12 +2091,10 @@ struct camera2_udm {
 	struct camera2_tnr_udm		tnr;
 	uint32_t			motionIndex;
 	uint32_t			localMotionIndex;
-
-	struct camera2_meds_common_udm 	meds_common;
-	struct camera2_orbds_udm 	orbds;
-	struct camera2_lmeds_udm 	lmeds;
+	struct camera2_meds_common_udm	meds_common;       // Used in HAL-DDK interface
+	struct camera2_orbds_udm	orbds;                // Used in HAL-DDK interface
+	struct camera2_lmeds_udm	lmeds;                // Used in HAL-DDK interface
 	struct camera2_frame_info_udm frame_info;
-
 	uint32_t			reserved[2];
 };
 
@@ -2583,6 +2197,7 @@ struct camera2_node_group {
 	struct camera2_node		capture[CAPTURE_NODE_MAX];
 };
 
+typedef struct hfd_meta hfd_meta_t;
 struct hfd_meta {
 	uint32_t		hfd_enable;
 	uint32_t		faceIds[CAMERA2_MAX_FACES];
@@ -2867,52 +2482,35 @@ typedef struct camera2_entry_ctl camera2_entry_ctl_t;
 typedef struct camera2_entry_dm camera2_entry_dm_t;
 typedef struct camera2_lens_ctl camera2_lens_ctl_t;
 typedef struct camera2_lens_dm camera2_lens_dm_t;
-typedef struct camera2_lens_sm camera2_lens_sm_t;
 typedef enum sensor_colorfilterarrangement sensor_colorfilterarrangement_t;
 typedef enum sensor_lensshading_applied sensor_lensshading_applied_t;
 typedef enum sensor_ref_illuminant sensor_ref_illuminant_t;
 typedef struct camera2_sensor_ctl camera2_sensor_ctl_t;
 typedef struct camera2_sensor_dm camera2_sensor_dm_t;
-typedef struct camera2_sensor_sm camera2_sensor_sm_t;
 typedef enum flash_mode flash_mode_t;
 typedef struct camera2_flash_ctl camera2_flash_ctl_t;
 typedef struct camera2_flash_dm camera2_flash_dm_t;
-typedef struct camera2_flash_sm camera2_flash_sm_t;
 typedef enum processing_mode processing_mode_t;
 typedef struct camera2_hotpixel_ctl camera2_hotpixel_ctl_t;
-typedef struct camera2_hotpixel_dm camera2_hotpixel_dm_t;
-typedef struct camera2_hotpixel_sm camera2_hotpixel_sm_t;
 
 typedef struct camera2_demosaic_ctl camera2_demosaic_ctl_t;
-typedef struct camera2_demosaic_dm camera2_demosaic_dm_t;
 typedef struct camera2_noisereduction_ctl camera2_noisereduction_ctl_t;
-typedef struct camera2_noisereduction_dm camera2_noisereduction_dm_t;
-typedef struct camera2_noisereduction_sm camera2_noisereduction_sm_t;
 typedef struct camera2_shading_ctl camera2_shading_ctl_t;
-typedef struct camera2_shading_dm camera2_shading_dm_t;
 typedef enum colorcorrection_mode colorcorrection_mode_t;
 typedef struct camera2_colorcorrection_ctl camera2_colorcorrection_ctl_t;
 typedef struct camera2_colorcorrection_dm camera2_colorcorrection_dm_t;
-typedef struct camera2_colorcorrection_sm camera2_colorcorrection_sm_t;
 typedef enum tonemap_mode tonemap_mode_t;
 typedef enum tonemap_presetCurve tonemap_presetCurve_t;
 typedef struct camera2_tonemap_ctl camera2_tonemap_ctl_t;
-typedef struct camera2_tonemap_dm camera2_tonemap_dm_t;
-typedef struct camera2_tonemap_sm camera2_tonemap_sm_t;
 
 typedef struct camera2_edge_ctl camera2_edge_ctl_t;
-typedef struct camera2_edge_dm camera2_edge_dm_t;
-typedef struct camera2_edge_sm camera2_edge_sm_t;
 typedef struct camera2_scaler_ctl camera2_scaler_ctl_t;
 typedef struct camera2_scaler_dm camera2_scaler_dm_t;
 typedef struct camera2_jpeg_ctl camera2_jpeg_ctl_t;
-typedef struct camera2_jpeg_dm camera2_jpeg_dm_t;
-typedef struct camera2_jpeg_sm camera2_jpeg_sm_t;
 typedef enum facedetect_mode facedetect_mode_t;
 typedef enum stats_mode stats_mode_t;
 typedef struct camera2_stats_ctl camera2_stats_ctl_t;
 typedef struct camera2_stats_dm camera2_stats_dm_t;
-typedef struct camera2_stats_sm camera2_stats_sm_t;
 typedef enum aa_capture_intent aa_capture_intent_t;
 typedef enum aa_mode aa_mode_t;
 typedef enum aa_scene_mode aa_scene_mode_t;
@@ -2927,22 +2525,14 @@ typedef enum aa_awb_lockavailable aa_awb_lockavailable_t;
 typedef enum aa_available_mode aa_available_mode_t;
 typedef struct camera2_aa_ctl camera2_aa_ctl_t;
 typedef struct camera2_aa_dm camera2_aa_dm_t;
-typedef struct camera2_aa_sm camera2_aa_sm_t;
-typedef struct camera2_lens_usm camera2_lens_usm_t;
-typedef struct camera2_sensor_usm camera2_sensor_usm_t;
-typedef struct camera2_flash_usm camera2_flash_usm_t;
 typedef struct camera2_ctl camera2_ctl_t;
 typedef struct camera2_uctl camera2_uctl_t;
 typedef struct camera2_dm camera2_dm_t;
-typedef struct camera2_sm camera2_sm_t;
 
 typedef struct camera2_reprocess_ctl camera2_reprocess_ctl_t;
-typedef struct camera2_reprocess_dm camera2_reprocess_dm_t;
-typedef struct camera2_reprocess_sm camera2_reprocess_sm_t;
 typedef enum depth_available_depth_stream_config depth_available_depth_stream_config_t;
 typedef enum depth_depth_is_exclusive depth_depth_is_exclusive_t;
-typedef struct camera2_depth_sm camera2_depth_ctl_t;
-typedef struct camera2_scaler_sm camera2_scaler_sm_t;
+
 typedef struct camera2_scaler_uctl camera2_scaler_uctl_t;
 
 typedef struct camera2_fd_uctl camera2_fd_uctl_t;
@@ -2960,7 +2550,6 @@ typedef struct camera2_lens_udm camera2_lens_udm_t;
 typedef struct camera2_ae_udm camera2_ae_udm_t;
 typedef struct camera2_awb_udm camera2_awb_udm_t;
 typedef struct camera2_af_udm camera2_af_udm_t;
-typedef struct camera2_as_udm camera2_as_udm_t;
 typedef struct camera2_ipc_udm camera2_ipc_udm_t;
 typedef struct camera2_udm camera2_udm_t;
 
@@ -2968,7 +2557,6 @@ typedef struct camera2_rta_udm camera2_rta_udm_t;
 typedef struct camera2_internal_udm camera2_internal_udm_t;
 
 typedef struct camera2_flash_uctl camera2_flash_uctl_t;
-typedef struct camera2_is_mode_udm camera2_is_mode_udm_t;
 typedef struct camera2_shot camera2_shot_t;
 
 typedef struct camera2_ni_udm camera2_ni_udm_t;
@@ -2979,4 +2567,3 @@ typedef struct camera2_ccm_udm      camera2_ccm_udm_t;
 
 typedef struct camera2_me_udm camera2_me_udm_t;
 #endif
-

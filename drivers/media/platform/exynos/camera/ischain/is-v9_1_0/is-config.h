@@ -18,6 +18,14 @@
 
 /*
  * =================================================================================================
+ * CONFIG - GLOBAL OPTIONS
+ * =================================================================================================
+ */
+#define IS_SENSOR_COUNT		6
+#define IS_STREAM_COUNT		10
+
+/*
+ * =================================================================================================
  * CONFIG - Chain IP configurations
  * =================================================================================================
  */
@@ -123,7 +131,7 @@
 
 #define USE_ONE_BINARY
 #define USE_RTA_BINARY
-#define DISABLE_DDK_HEAP_FREE
+#define DISABLE_DDK_HEAP_FREE	1
 #define USE_BINARY_PADDING_DATA_ADDED	/* for DDK signature */
 #define USE_DDK_SHUT_DOWN_FUNC
 #define ENABLE_IRQ_MULTI_TARGET
@@ -193,7 +201,9 @@
 #define LIC_CHAIN_NUM		(2)
 #define LIC_CHAIN_OFFSET_NUM	(8)
 
-#define SBWC_BASE_ALIGN_MASK	(0x4)	/* 0x0: 32B_ALIGN, 0x4: 64B_ALIGN */
+/* 0x0: 32B_ALIGN, 0x4: 64B_ALIGN */
+#define SBWC_BASE_ALIGN_MASK_LLC_ON	(0x4)
+#define SBWC_BASE_ALIGN_MASK_LLC_OFF	(0x0)
 
 /*
  * =================================================================================================

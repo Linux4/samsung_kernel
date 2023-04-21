@@ -21,9 +21,6 @@
 #include <drm/drm_edid.h>
 #include <media/v4l2-subdev.h>
 #include "./panels/exynos_panel_drv.h"
-#if defined(CONFIG_EXYNOS_ALT_DVFS)
-#include <soc/samsung/exynos-alt.h>
-#endif
 #if defined(CONFIG_EXYNOS_LATENCY_MONITOR)
 #include <soc/samsung/exynos-devfreq.h>
 #endif
@@ -36,9 +33,6 @@
 //#include "../../../../soc/samsung/pwrcal/pwrcal.h"
 //#include "../../../../soc/samsung/pwrcal/S5E8890/S5E8890-vclk.h"
 #include "../../../../../kernel/irq/internals.h"
-#ifdef CONFIG_EXYNOS_ALT_DVFS
-struct task_struct *devfreq_change_task;
-#endif
 #if defined(CONFIG_EXYNOS_DECON_DQE)
 #include "dqe.h"
 #endif
@@ -194,23 +188,6 @@ irq_end:
 	spin_unlock(&decon->slock);
 	return IRQ_HANDLED;
 }
-
-#ifdef CONFIG_EXYNOS_ALT_DVFS
-static int decon_devfreq_change_task(void *data)
-{
-	while (!kthread_should_stop()) {
-		set_current_state(TASK_INTERRUPTIBLE);
-
-		schedule();
-
-		set_current_state(TASK_RUNNING);
-
-		exynos_alt_call_chain();
-	}
-
-	return 0;
-}
-#endif
 
 int decon_register_irq(struct decon_device *decon)
 {
@@ -437,10 +414,6 @@ static irqreturn_t decon_ext_irq_handler(int irq, void *dev_id)
 #endif
 
 	spin_unlock(&decon->slock);
-#ifdef CONFIG_EXYNOS_ALT_DVFS
-	if (devfreq_change_task)
-		wake_up_process(devfreq_change_task);
-#endif
 
 	return IRQ_HANDLED;
 }
@@ -477,14 +450,6 @@ int decon_register_ext_irq(struct decon_device *decon)
 			IRQF_TRIGGER_RISING, pdev->name, decon);
 
 	decon->eint_status = 1;
-
-#ifdef CONFIG_EXYNOS_ALT_DVFS
-	devfreq_change_task =
-		kthread_create(decon_devfreq_change_task, NULL,
-				"devfreq_change");
-	if (IS_ERR(devfreq_change_task))
-		return PTR_ERR(devfreq_change_task);
-#endif
 
 	return ret;
 }
@@ -1945,6 +1910,8 @@ int dpu_hw_recovery_process(struct decon_device *decon)
 	err = decon_reg_stop_inst(decon->id, dsi_idx, &psr, fps);
 	if (err < 0)
 		decon_err("%s, failed to instant_stop\n", __func__);
+	else
+		decon_reg_reset(decon->id);
 
 out:
 	decon_info("decon%d %s -\n", decon->id, __func__);

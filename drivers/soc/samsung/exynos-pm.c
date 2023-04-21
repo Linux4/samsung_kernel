@@ -397,6 +397,22 @@ static ssize_t asv_info_show(struct device *dev,
 }
 
 static DEVICE_ATTR_RO(asv_info);
+
+static ssize_t pmg_info_show(struct device *dev,
+		struct device_attribute *attr,
+		char *buf)
+{
+	int count = 0;
+
+	/* Set gfx pmg group info to buf */
+	count += sprintf(&buf[count], "%u ", asv_ids_information(gfx));
+	count += sprintf(&buf[count], "\n");
+
+	return count;
+}
+
+static DEVICE_ATTR_RO(pmg_info);
+
 #endif /* CONFIG_SEC_FACTORY */
 
 #if IS_ENABLED(CONFIG_SEC_PM_DEBUG)
@@ -630,6 +646,17 @@ static int exynos_pm_drvinit(void)
 	if (device_create_file(dev, &dev_attr_asv_info) < 0)
 		pr_err("%s %s: failed to create sysfs file\n",
 				EXYNOS_PM_PREFIX, __func__);
+
+	dev = sec_device_create(NULL, "pmg");
+	BUG_ON(!dev);
+	if (IS_ERR(dev))
+		pr_err("%s %s: failed to create sec device\n",
+				EXYNOS_PM_PREFIX, __func__);
+
+	if (device_create_file(dev, &dev_attr_pmg_info) < 0)
+		pr_err("%s %s: failed to create sysfs file\n",
+			EXYNOS_PM_PREFIX, __func__);
+
 #endif
 
 	return 0;

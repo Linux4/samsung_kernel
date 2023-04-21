@@ -34,7 +34,7 @@ struct device *sec_device_create(void *drvdata, const char *fmt)
 	}
 
 	dev = device_create(sec_class, NULL, atomic_inc_return(&sec_dev),
-			drvdata, fmt);
+			drvdata, "%s", fmt);
 	if (IS_ERR(dev))
 		pr_err("Failed to create device %s %ld\n", fmt, PTR_ERR(dev));
 	else

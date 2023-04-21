@@ -707,6 +707,7 @@ struct modem_ctl {
 
 	/* spin lock for each modem_ctl instance */
 	spinlock_t lock;
+	spinlock_t tx_timer_lock;
 
 	/* list for notify to opened iod when changed modem state */
 	struct list_head modem_state_notify_list;
@@ -860,7 +861,6 @@ struct modem_ctl {
 	void (*gpio_revers_bias_restore)(void);
 	void (*modem_complete)(struct modem_ctl *mc);
 
-	int receive_first_ipc;
 
 	struct notifier_block lcd_notifier;
 

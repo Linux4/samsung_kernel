@@ -94,7 +94,7 @@ void mfc_butler_worker(struct work_struct *work)
 			return;
 		}
 
-		if (!IS_TWO_MODE2(ctx))
+		if (!IS_MULTI_MODE(ctx))
 			return;
 
 		mfc_rm_request_work(dev, MFC_WORK_TRY, ctx);
@@ -172,7 +172,7 @@ static int __mfc_init_dec_ctx(struct mfc_ctx *ctx)
 
 	ctx->qos_ratio = 100;
 	INIT_LIST_HEAD(&ctx->bitrate_list);
-	INIT_LIST_HEAD(&ctx->ts_list);
+	INIT_LIST_HEAD(&ctx->src_ts.ts_list);
 
 	dec->display_delay = -1;
 	dec->is_interlaced = 0;
@@ -189,7 +189,6 @@ static int __mfc_init_dec_ctx(struct mfc_ctx *ctx)
 	dec->dpb_table_used = 0;
 	dec->sh_handle_dpb.fd = -1;
 	mutex_init(&dec->dpb_mutex);
-	mutex_init(&ctx->op_mode_mutex);
 
 	mfc_init_dpb_table(ctx);
 
@@ -299,7 +298,7 @@ static int __mfc_init_enc_ctx(struct mfc_ctx *ctx)
 	p->ivf_header_disable = 1;
 
 	INIT_LIST_HEAD(&ctx->bitrate_list);
-	INIT_LIST_HEAD(&ctx->ts_list);
+	INIT_LIST_HEAD(&ctx->src_ts.ts_list);
 
 	enc->sh_handle_svc.fd = -1;
 	enc->sh_handle_roi.fd = -1;
@@ -466,9 +465,17 @@ static int mfc_open(struct file *file)
 	spin_lock_init(&ctx->buf_queue_lock);
 	spin_lock_init(&ctx->meminfo_queue_lock);
 	spin_lock_init(&ctx->corelock.lock);
+	spin_lock_init(&ctx->src_ts.ts_lock);
+	spin_lock_init(&ctx->dst_q_ts.ts_lock);
+	spin_lock_init(&ctx->src_q_ts.ts_lock);
 	mutex_init(&ctx->intlock.core_mutex);
+	mutex_init(&ctx->op_mode_mutex);
 	init_waitqueue_head(&ctx->corelock.wq);
 	init_waitqueue_head(&ctx->corelock.migrate_wq);
+	INIT_LIST_HEAD(&ctx->dst_q_ts.ts_list);
+	INIT_LIST_HEAD(&ctx->src_q_ts.ts_list);
+
+	mfc_ctx_change_idle_mode(ctx, MFC_IDLE_MODE_NONE);
 
 	if (mfc_is_decoder_node(node))
 		ret = __mfc_init_dec_ctx(ctx);
@@ -488,6 +495,8 @@ static int mfc_open(struct file *file)
 		/* all of the ctx list */
 		INIT_LIST_HEAD(&dev->ctx_list);
 		spin_lock_init(&dev->ctx_list_lock);
+		/* idle mode */
+		spin_lock_init(&dev->idle_bits_lock);
 	}
 
 	ret = call_cop(ctx, init_ctx_ctrls, ctx);
@@ -791,6 +800,12 @@ static int __mfc_parse_dt(struct device_node *np, struct mfc_dev *mfc)
 			&pdata->drm_switch_predict.support, 2);
 	of_property_read_u32_array(np, "sbwc_enc_src_ctrl",
 			&pdata->sbwc_enc_src_ctrl.support, 2);
+	of_property_read_u32_array(np, "enc_idr_flag",
+			&pdata->enc_idr_flag.support, 2);
+	of_property_read_u32_array(np, "min_quality_mode",
+			&pdata->min_quality_mode.support, 2);
+	of_property_read_u32_array(np, "enc_ts_delta",
+			&pdata->enc_ts_delta.support, 2);
 
 	/* Determine whether to enable AV1 decoder */
 	of_property_read_u32(np, "support_av1_dec", &pdata->support_av1_dec);
@@ -823,6 +838,9 @@ static int __mfc_parse_dt(struct device_node *np, struct mfc_dev *mfc)
 
 	/* HDR10+ num max window */
 	of_property_read_u32(np, "display_err_type", &pdata->display_err_type);
+
+	/* output buffer Q framerate */
+	of_property_read_u32(np, "display_framerate", &pdata->display_framerate);
 
 	/* Encoder default parameter */
 	of_property_read_u32(np, "enc_param_num", &pdata->enc_param_num);
@@ -903,6 +921,8 @@ static int __mfc_parse_dt(struct device_node *np, struct mfc_dev *mfc)
 			&pdata->qos_weight.weight_h264_hevc);
 	of_property_read_u32(np, "qos_weight_vp8_vp9",
 			&pdata->qos_weight.weight_vp8_vp9);
+	of_property_read_u32(np, "qos_weight_av1",
+			&pdata->qos_weight.weight_av1);
 	of_property_read_u32(np, "qos_weight_other_codec",
 			&pdata->qos_weight.weight_other_codec);
 	of_property_read_u32(np, "qos_weight_3plane",
@@ -921,6 +941,8 @@ static int __mfc_parse_dt(struct device_node *np, struct mfc_dev *mfc)
 			&pdata->qos_weight.weight_num_of_tile);
 	of_property_read_u32(np, "qos_weight_super64_bframe",
 			&pdata->qos_weight.weight_super64_bframe);
+	of_property_read_u32(np, "qos_weight_mbaff",
+			&pdata->qos_weight.weight_mbaff);
 
 	/* Bitrate control for QoS */
 	of_property_read_u32(np, "num_mfc_freq", &pdata->num_mfc_freq);

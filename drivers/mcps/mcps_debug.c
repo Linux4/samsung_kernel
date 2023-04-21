@@ -1,5 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2019 Samsung Electronics.
+ * Copyright (C) 2019-2021 Samsung Electronics.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -41,6 +42,7 @@
 unsigned long tick_us(void)
 {
 	struct timespec time;
+
 	getnstimespec64ofday(&time);
 	return (((unsigned long)time.tv_sec % MINUTES) * USEC + time.tv_nsec / 1000);
 }
@@ -106,24 +108,31 @@ void mcps_drop_packet(unsigned int hash)
 void mcps_migrate_flow_history(struct eye *flow, int vec)
 {
 	int ret = atomic_inc_return_relaxed(&flow->mig_count);
+
 	switch (vec) {
 	case 0x5: // l2l 0101
 		atomic_inc_return_relaxed(&flow->l2l_count);
 		break;
+	case 0xD: // l2m 1101
 	case 0x9: // l2b 1001
 		atomic_inc_return_relaxed(&flow->l2b_count);
 		break;
+	case 0x7: // m2l 0111
 	case 0x6: // b2l 0110
 		atomic_inc_return_relaxed(&flow->b2l_count);
 		break;
+	case 0xF: // m2m 1111
+	case 0xE: // b2m 1110
+	case 0xB: // m2b 1011
 	case 0xA: // b2b 1010
 		atomic_inc_return_relaxed(&flow->b2b_count);
 		break;
 	}
+
 	get_monotonic_boottime(&flow->mig_last_time);
-	if (ret == 1) {
+
+	if (ret == 1)
 		get_monotonic_boottime(&flow->mig_1st_time);
-	}
 }
 
 atomic_t g_dump_refcnt = ATOMIC_INIT(0);
@@ -132,11 +141,11 @@ void do_dump(struct seq_file *s)
 	int len;
 	int idx;
 	int i = 0;
-
 	int nref = atomic_inc_return(&g_dump_refcnt);
+
 	if (nref > 1) {
 		atomic_dec(&g_dump_refcnt);
-		MCPS_INFO("ref cnt : %d -> skipped. \n", nref);
+		MCPS_INFO("ref cnt : %d -> skipped.\n", nref);
 		return;
 	}
 
@@ -152,6 +161,7 @@ void do_dump(struct seq_file *s)
 
 	for (i = 0; i < len; i++) {
 		int pi = (idx - 1) - i;
+
 		pi = pi < 0 ? len + pi : pi;
 
 		if (!_dump[pi].dst_ipv4) {
@@ -253,29 +263,28 @@ unsigned long mig_last_time_sec, unsigned int mig_last_time_ms)
 
 void dump(struct eye *flow)
 {
-	unsigned int	drop_num		  = atomic_read(&flow->drop_num);
-	unsigned int	ofo_num		   = atomic_read(&flow->ofo_num);
-	unsigned int	mig_count		 = atomic_read(&flow->mig_count);
+	unsigned int drop_num = atomic_read(&flow->drop_num);
+	unsigned int ofo_num = atomic_read(&flow->ofo_num);
+	unsigned int mig_count = atomic_read(&flow->mig_count);
 
-	unsigned long   timestamp_sec	 ;
-	unsigned int	timestamp_ms	  ;
-	struct in6_addr ipv6			  ;
-	unsigned int	ipv4			  ;
-	unsigned int	port			  ;
-	unsigned int	input_num		 ;
-	unsigned int	output_num		;
-	unsigned int	l2l_count		 ;
-	unsigned int	l2b_count		 ;
-	unsigned int	b2l_count		 ;
-	unsigned int	b2b_count		 ;
-	unsigned long   mig_1st_time_sec  ;
-	unsigned int	mig_1st_time_ms   ;
-	unsigned long   mig_last_time_sec ;
-	unsigned int	mig_last_time_ms  ;
+	unsigned long timestamp_sec;
+	unsigned int timestamp_ms;
+	struct in6_addr ipv6;
+	unsigned int ipv4;
+	unsigned int port;
+	unsigned int input_num;
+	unsigned int output_num;
+	unsigned int l2l_count;
+	unsigned int l2b_count;
+	unsigned int b2l_count;
+	unsigned int b2b_count;
+	unsigned long mig_1st_time_sec;
+	unsigned int mig_1st_time_ms;
+	unsigned long mig_last_time_sec;
+	unsigned int mig_last_time_ms;
 
-	if (!INTEGRITY(drop_num, ofo_num, mig_count)) {
+	if (!INTEGRITY(drop_num, ofo_num, mig_count))
 		return;
-	}
 
 	timestamp_sec	 = (unsigned long) flow->timestamp.tv_sec;
 	timestamp_ms	  = (unsigned int)(flow->timestamp.tv_nsec / 1000000);
@@ -306,6 +315,7 @@ void dump(struct eye *flow)
 void tracing_mark_writev(char sig, int pid, char *func, int value)
 {
 	char buf[40];
+
 	snprintf(buf, 40, "%c|%d|%s|%d", sig, pid, func, value);
 	trace_puts(buf);
 }
@@ -343,12 +353,12 @@ int init_mcps_debug_manager(void)
 
 	mcps_proc_log_file = proc_create(MCPS_PROC_LOG_FILE, 0640, mcps_proc_dir, &mcps_proc_ops);
 	if (mcps_proc_log_file == NULL) {
-		MCPS_DEBUG("Fail to create /proc/%s/%s \n", MCPS_PROC_DIR, MCPS_PROC_LOG_FILE);
+		MCPS_DEBUG("Fail to create /proc/%s/%s\n", MCPS_PROC_DIR, MCPS_PROC_LOG_FILE);
 		remove_proc_entry(MCPS_PROC_DIR, NULL);
 		return -1;
 	}
 
-	_manager = (struct mcps_debug_manager *)kzalloc(sizeof(struct mcps_debug_manager), GFP_KERNEL);
+	_manager = kzalloc(sizeof(struct mcps_debug_manager), GFP_KERNEL);
 	if (!_manager) {
 		MCPS_DEBUG("error");
 		return -1;
@@ -362,9 +372,8 @@ int init_mcps_debug_manager(void)
 
 int release_mcps_debug_manager(void)
 {
-	if (!_manager) {
+	if (!_manager)
 		return -1;
-	}
 
 	kfree(_manager);
 

@@ -841,7 +841,7 @@ enum ufs_cal_errno ufs_cal_eom(struct ufs_cal_param *p)
 
 	ufs_cal_eom_prepare(p);
 
-	repeat = (p->max_gear < GEAR_MAX) ? ufs_s_eom_repeat[p->max_gear] : 0;
+	repeat = (p->max_gear <= GEAR_MAX) ? ufs_s_eom_repeat[p->max_gear] : 0;
 	if (repeat == 0) {
 		res = UFS_CAL_ERROR;
 		goto end;

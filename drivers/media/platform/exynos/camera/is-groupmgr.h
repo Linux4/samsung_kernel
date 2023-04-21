@@ -106,6 +106,7 @@ struct is_group {
 
 	struct camera2_aa_ctl		intent_ctl;
 	struct camera2_lens_ctl		lens_ctl;
+	enum camera_flash_mode		flash_ctl;
 
 	u32				source_vid; /* source video id */
 	u32				pcount; /* program count */
@@ -137,6 +138,7 @@ struct is_group {
 #endif
 	u32				aeflashMode; /* Flash Mode Control */
 	u32				remainIntentCount;
+	u32				remainFlashCtlCount;
 #ifdef ENABLE_LOGICAL_VIDEO_NODE
 	u32				juction_vid;
 #endif

@@ -19,6 +19,7 @@
 #include "npu-common.h"
 #include "npu-config.h"
 #include "../../npu-log.h"
+#include "../../npu-device.h"
 #include "mailbox_msg.h"
 #include "../../npu-session.h"
 

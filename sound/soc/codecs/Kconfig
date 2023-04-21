@@ -525,6 +525,9 @@ config SND_SOC_CS35L41_I2C
 	select SND_SOC_CS35L41
 	select REGMAP_I2C
 
+config SND_SOC_CS35L41_REINIT_SYSFS
+	tristate "Cirrus Logic CS35L41 SysFS Reinit"
+
 config SND_SOC_CS42L42
 	tristate "Cirrus Logic CS42L42 CODEC"
 	depends on I2C

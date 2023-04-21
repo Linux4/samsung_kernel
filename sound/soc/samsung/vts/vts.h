@@ -21,6 +21,7 @@
 #include <soc/samsung/memlogger.h>
 #include <soc/samsung/sysevent.h>
 
+#include "vts_shared_info.h"
 #define TEST_WAKEUP
 
 /* SYSREG_VTS */
@@ -224,6 +225,9 @@
 #define VTS_MODEL_SVOICE_BIN_MAXSZ     (SOUND_MODEL_SVOICE_SIZE_MAX)
 #define VTS_MODEL_GOOGLE_BIN_MAXSZ     (SOUND_MODEL_GOOGLE_SIZE_MAX)
 
+#define VTS_ERR_HARD_FAULT	(0x1)
+#define VTS_ERR_BUS_FAULT	(0x3)
+
 enum ipc_state {
 	IDLE,
 	SEND_MSG,
@@ -393,6 +397,7 @@ struct vts_data {
 	const struct firmware *firmware;
 	unsigned int vtsdma_count;
 	unsigned long syssel_rate;
+	unsigned int target_sysclk;
 	unsigned long sysclk_rate;
 	struct platform_device *pdev_mailbox;
 	struct platform_device *pdev_vtsdma[2];
@@ -429,6 +434,7 @@ struct vts_data {
 	unsigned int vts_state;
 	unsigned int vts_tri_state;
 	unsigned int vts_rec_state;
+	u32 fw_logfile_enabled;
 	u32 fw_logger_enabled;
 	bool audiodump_enabled;
 	bool logdump_enabled;
@@ -454,6 +460,7 @@ struct vts_data {
 	struct sysevent_desc sysevent_desc;
 	struct sysevent_device *sysevent_dev;
 	int google_version;
+	struct vts_shared_info *shared_info;
 };
 
 struct vts_platform_data {
@@ -477,8 +484,8 @@ extern int vts_sound_machine_drv_register(void);
 extern void vts_pad_retention(bool retention);
 extern int vts_chk_dmic_clk_mode(struct device *dev);
 extern bool is_vts(struct device *dev);
+extern int vts_start_runtime_resume(struct device *dev, int skip_log);
 extern struct vts_data *vts_get_data(struct device *dev);
-extern int vts_start_runtime_resume(struct device *dev);
 extern int cmu_vts_rco_400_control(bool on);
 
 #endif /* __SND_SOC_VTS_H */

@@ -1737,6 +1737,34 @@ static struct reg_sequence cs35l41_cal_post_config[] = {
 
 #define CS35L41_CAL_N_CONFIGS	5
 
+int cs35l41_set_surface_temp(const char *suffix, int temperature)
+{
+
+	struct cirrus_amp *amp = cirrus_get_amp_from_suffix(suffix);
+	struct cs35l41_private *cs35l41;
+	unsigned int global_en;
+
+	if (!amp)
+		return -EINVAL;
+
+	cs35l41 = snd_soc_component_get_drvdata(amp->component);
+
+	if (!cs35l41)
+		return -EINVAL;
+
+	regmap_read(amp->regmap, amp->global_en, &global_en);
+
+	if (!global_en || !cs35l41->halo_routed)
+		return -EINVAL;
+
+	dev_info(cs35l41->dev, "Set Surface temp: %d degrees\n", temperature);
+	cirrus_amp_write_ctl(amp, "CSPL_SURFACE_TEMP", WMFW_ADSP2_XM,
+		     CIRRUS_AMP_ALG_ID_CSPL, temperature);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(cs35l41_set_surface_temp);
+
 static int cs35l41_cirrus_amp_probe(struct cs35l41_private *cs35l41,
 				struct snd_soc_component *component)
 {
@@ -1819,6 +1847,7 @@ static int cs35l41_cirrus_amp_probe(struct cs35l41_private *cs35l41,
 	amp_cfg.halo_alg_id = CS35L41_ALG_ID_HALO;
 	amp_cfg.cal_vpk_id = CS35L41_CAL_RTLOG_ID_V_PEAK;
 	amp_cfg.cal_ipk_id = CS35L41_CAL_RTLOG_ID_I_PEAK;
+	amp_cfg.amp_reinit = cs35l41_reinit;
 
 	ret = cirrus_amp_add(mfd_suffix, amp_cfg);
 	if (ret < 0) {
@@ -1894,8 +1923,10 @@ static int cs35l41_irq_gpio_config(struct cs35l41_private *cs35l41)
 
 	}
 
-	if (irq_gpio_cfg2->irq_src_sel ==
-			(CS35L41_GPIO_CTRL_ACTV_LO | CS35L41_VALID_PDATA))
+	if ((irq_gpio_cfg2->irq_src_sel ==
+			(CS35L41_GPIO_CTRL_ACTV_LO | CS35L41_VALID_PDATA)) ||
+		(irq_gpio_cfg2->irq_src_sel ==
+			(CS35L41_GPIO_CTRL_OPEN_INT | CS35L41_VALID_PDATA)))
 		irq_pol = IRQF_TRIGGER_LOW;
 	else if (irq_gpio_cfg2->irq_src_sel ==
 			(CS35L41_GPIO_CTRL_ACTV_HI | CS35L41_VALID_PDATA))
@@ -2426,6 +2457,19 @@ int cs35l41_reinit(struct snd_soc_component *component)
 					CS35L41_ASP_FMT_MASK,
 					cs35l41->i2s_mode ? 2 : 0 <<
 					CS35L41_ASP_FMT_SHIFT);
+
+	regmap_update_bits(cs35l41->regmap,
+			CS35L41_SP_FRAME_RX_SLOT,
+			CS35L41_ASP_RX1_SLOT_MASK,
+			((cs35l41->pdata.right_channel) ? 1 : 0)
+			 << CS35L41_ASP_RX1_SLOT_SHIFT);
+	regmap_update_bits(cs35l41->regmap,
+			CS35L41_SP_FRAME_RX_SLOT,
+			CS35L41_ASP_RX2_SLOT_MASK,
+			((cs35l41->pdata.right_channel) ? 0 : 1)
+			 << CS35L41_ASP_RX2_SLOT_SHIFT);
+	regmap_write(cs35l41->regmap, CS35L41_DSP1_RX2_SRC,
+					CS35L41_INPUT_SRC_ASPRX1);
 
 	cs35l41->pll_freq_last = 0;
 	cs35l41->pcm_source_last = CS35L41_DAC_PCM1_SRC;

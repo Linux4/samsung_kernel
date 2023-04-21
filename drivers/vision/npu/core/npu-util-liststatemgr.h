@@ -154,7 +154,7 @@ static int LSM_NAME##__lsm_init(										\
 	int (*compare)(const D_TYPE *lhs, const D_TYPE *rhs)) ;						\
 														\
 /* Initialize basic parameters from parameter in declaration macro */						\
-struct LSM_NAME##_type LSM_NAME = {										\
+static struct LSM_NAME##_type LSM_NAME = {									\
 	.lsm_data.name = PRINT_NAME,										\
 	.lsm_data.entry_num = SIZE,										\
 	.lsm_destroy = LSM_NAME##__lsm_destroy,									\

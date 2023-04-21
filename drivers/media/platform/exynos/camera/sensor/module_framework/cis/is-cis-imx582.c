@@ -250,47 +250,27 @@ int sensor_imx582_cis_cal_dump(char* name, char *buf, size_t size)
 	int ret = 0;
 #ifdef USE_KERNEL_VFS_READ_WRITE
 	struct file *fp;
-	ssize_t tx = -ENOENT;
-	int fd, old_mask;
-	loff_t pos = 0;
-	mm_segment_t old_fs;
 
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	old_mask = sys_umask(0);
-
-	sys_rmdir(name);
-	fd = sys_open(name, O_WRONLY | O_CREAT | O_TRUNC | O_SYNC, 0666);
-	if (fd < 0) {
-		err("open file error(%d): %s", fd, name);
-		sys_umask(old_mask);
-		set_fs(old_fs);
-		ret = -EINVAL;
+	fp = filp_open(name, O_WRONLY | O_CREAT | O_TRUNC | O_SYNC, 0666);
+	if (IS_ERR_OR_NULL(fp)) {
+		ret = PTR_ERR(fp);
+		err("%s(): open file error(%s), error(%d)\n", __func__, name, ret);
 		goto p_err;
 	}
 
-	fp = fget(fd);
-	if (fp) {
-		tx = vfs_write(fp, buf, size, &pos);
-		if (tx != size) {
-			err("fail to write %s. ret %zd", name, tx);
-			ret = -ENOENT;
-		}
-
-		vfs_fsync(fp, 0);
-		fput(fp);
-	} else {
-		err("fail to get file *: %s", name);
+	ret = kernel_write(fp, buf, size, &fp->f_pos);
+	if (ret < 0) {
+		err("%s(): file write fail(%s) ret(%d)", __func__,
+				name, ret);
+		goto p_err;
 	}
 
-	sys_close(fd);
-	sys_umask(old_mask);
-	set_fs(old_fs);
-
 p_err:
+	if (!IS_ERR_OR_NULL(fp))
+		filp_close(fp, NULL);
+
 #else
-	err("not support %s due to vfs_write!", __func__);
+	err("not support %s due to kernel_write!", __func__);
 	ret = -EINVAL;
 #endif
 	return ret;

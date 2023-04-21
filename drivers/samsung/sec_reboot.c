@@ -87,23 +87,24 @@ enum sec_power_flags {
 #define SEC_DUMPSINK_MASK 0x0000FFFF
 
 /* PANIC INFORM */
-#define SEC_RESET_REASON_PREFIX         0x12345670
+#define SEC_RESET_REASON_PREFIX         0x12345600
 #define SEC_RESET_SET_PREFIX            0xabc00000
 #define SEC_RESET_MULTICMD_PREFIX       0xa5600000
 enum sec_reset_reason {
-	SEC_RESET_REASON_UNKNOWN   = (SEC_RESET_REASON_PREFIX | 0x0),
-	SEC_RESET_REASON_DOWNLOAD  = (SEC_RESET_REASON_PREFIX | 0x1),
-	SEC_RESET_REASON_UPLOAD    = (SEC_RESET_REASON_PREFIX | 0x2),
-	SEC_RESET_REASON_CHARGING  = (SEC_RESET_REASON_PREFIX | 0x3),
-	SEC_RESET_REASON_RECOVERY  = (SEC_RESET_REASON_PREFIX | 0x4),
-	SEC_RESET_REASON_FOTA      = (SEC_RESET_REASON_PREFIX | 0x5),
-	SEC_RESET_REASON_FOTA_BL   = (SEC_RESET_REASON_PREFIX | 0x6), /* update bootloader */
-	SEC_RESET_REASON_SECURE    = (SEC_RESET_REASON_PREFIX | 0x7), /* image secure check fail */
-	SEC_RESET_REASON_FWUP      = (SEC_RESET_REASON_PREFIX | 0x9), /* emergency firmware update */
-	SEC_RESET_REASON_EM_FUSE   = (SEC_RESET_REASON_PREFIX | 0xa), /* EMC market fuse */
-	SEC_RESET_REASON_BOOTLOADER   = (SEC_RESET_REASON_PREFIX | 0xd), /* go to download mode */
+	SEC_RESET_REASON_UNKNOWN   = (SEC_RESET_REASON_PREFIX | 0x00),
+	SEC_RESET_REASON_DOWNLOAD  = (SEC_RESET_REASON_PREFIX | 0x01),
+	SEC_RESET_REASON_UPLOAD    = (SEC_RESET_REASON_PREFIX | 0x02),
+	SEC_RESET_REASON_CHARGING  = (SEC_RESET_REASON_PREFIX | 0x03),
+	SEC_RESET_REASON_RECOVERY  = (SEC_RESET_REASON_PREFIX | 0x04),
+	SEC_RESET_REASON_FOTA      = (SEC_RESET_REASON_PREFIX | 0x05),
+	SEC_RESET_REASON_FOTA_BL   = (SEC_RESET_REASON_PREFIX | 0x06), /* update bootloader */
+	SEC_RESET_REASON_SECURE    = (SEC_RESET_REASON_PREFIX | 0x07), /* image secure check fail */
+	SEC_RESET_REASON_FWUP      = (SEC_RESET_REASON_PREFIX | 0x09), /* emergency firmware update */
+	SEC_RESET_REASON_EM_FUSE   = (SEC_RESET_REASON_PREFIX | 0x0a), /* EMC market fuse */
+	SEC_RESET_REASON_BOOTLOADER   = (SEC_RESET_REASON_PREFIX | 0x0d), /* go to download mode */
 	SEC_RESET_REASON_EMERGENCY = 0x0,
 
+	SEC_RESET_SET_DPRM         = (SEC_RESET_SET_PREFIX | 0x20000),
 	SEC_RESET_SET_FORCE_UPLOAD = (SEC_RESET_SET_PREFIX | 0x40000),
 	SEC_RESET_SET_DEBUG        = (SEC_RESET_SET_PREFIX | 0xd0000),
 	SEC_RESET_SET_SWSEL        = (SEC_RESET_SET_PREFIX | 0xe0000),
@@ -237,7 +238,7 @@ EXPORT_SYMBOL(sec_set_reboot_magic);
 static void sec_power_off(void)
 {
 	u32 poweroff_try = 0;
-	union power_supply_propval ac_val, usb_val, wpc_val, water_val;
+	union power_supply_propval ac_val = {0, }, usb_val = {0, }, wpc_val = {0, }, water_val = {0, };
 	u32 reboot_charging = 0;
 	u32 npu_retry = 0;
 	u32 val = 0;
@@ -251,11 +252,6 @@ static void sec_power_off(void)
 	if (exynos_reboot_ops.pmic_off_main_wa) {
 		if (exynos_reboot_ops.pmic_off_main_wa() < 0)
 			pr_err("pmic_off_main_wa error\n");
-	}
-	/* PMIC EVT1: Fix off-sequence */
-	if (exynos_reboot_ops.pmic_off_seq_wa) {
-		if (exynos_reboot_ops.pmic_off_seq_wa() < 0)
-			pr_err("pmic_off_seq_wa error\n");
 	}
 
 	sec_set_reboot_magic(SEC_REBOOT_LPM, SEC_REBOOT_END_OFFSET, 0xFF);
@@ -297,6 +293,12 @@ static void sec_power_off(void)
 		if (exynos_reboot_pwrkey_status()) 
 			pr_info("PWR Key is not released (%d)(poweroff_try:%d)\n", exynos_reboot_pwrkey_status(), poweroff_try);
 		else {
+			/* PMIC EVT1: Fix off-sequence */
+			if (exynos_reboot_ops.pmic_off_seq_wa) {
+				if (exynos_reboot_ops.pmic_off_seq_wa() < 0)
+					pr_err("pmic_off_seq_wa error\n");
+			}
+
 			if (exynos_reboot_ops.acpm_reboot)
 				exynos_reboot_ops.acpm_reboot();
 			else
@@ -355,7 +357,7 @@ static int sec_reboot(struct notifier_block *this,
 
 	if (cmd) {
 		unsigned long value;
-		if (!strcmp(cmd, "fota"))
+		if (!strcmp(cmd, "recovery-update"))
 			regmap_write(pmureg, panic_inform, SEC_RESET_REASON_FOTA);
 		else if (!strcmp(cmd, "fota_bl"))
 			regmap_write(pmureg, panic_inform, SEC_RESET_REASON_FOTA_BL);
@@ -385,6 +387,8 @@ static int sec_reboot(struct notifier_block *this,
 			regmap_write(pmureg, panic_inform, SEC_RESET_SET_DUMPSINK | (SEC_DUMPSINK_MASK & value));
 		else if (!strncmp(cmd, "forceupload", 11) && !kstrtoul(cmd + 11, 0, &value))
 			regmap_write(pmureg, panic_inform, SEC_RESET_SET_FORCE_UPLOAD | value);
+		else if (!strncmp(cmd, "dprm", 4))
+			regmap_write(pmureg, panic_inform, SEC_RESET_SET_DPRM);
 		else if (!strncmp(cmd, "swsel", 5) && !kstrtoul(cmd + 5, 0, &value))
 			regmap_write(pmureg, panic_inform, SEC_RESET_SET_SWSEL | value);
 		else if (!strncmp(cmd, "sud", 3) && !kstrtoul(cmd + 3, 0, &value))

@@ -79,6 +79,8 @@ struct AP_REQ_GET_STATUS_Type {
 #define NAME_LEN_HMD	14
 #define MAX_NUM_HMD	32
 #define TAG_HMD	"HMD"
+#define MAX_NVCN_CNT	30	/* No vbus & connection */
+#define MAX_CHK_TIME	30
 
 struct max77705_hmd_power_dev {
 	uint vid;
@@ -262,6 +264,10 @@ struct max77705_usbc_platform_data {
 #if defined(CONFIG_SUPPORT_SHIP_MODE)
 	int ship_mode_en;
 #endif
+
+	bool rid_check;
+	int lapse_idx;
+	u64 time_lapse[MAX_NVCN_CNT];
 };
 
 /* Function Status from s2mm005 definition */
@@ -292,15 +298,15 @@ int max77705_i2c_opcode_read(struct max77705_usbc_platform_data *usbc_data,
 
 void init_usbc_cmd_data(usbc_cmd_data *cmd_data);
 void max77705_usbc_clear_queue(struct max77705_usbc_platform_data *usbc_data);
-void max77705_usbc_opcode_rw(struct max77705_usbc_platform_data *usbc_data,
+int max77705_usbc_opcode_rw(struct max77705_usbc_platform_data *usbc_data,
 	usbc_cmd_data *opcode_r, usbc_cmd_data *opcode_w);
-void max77705_usbc_opcode_write(struct max77705_usbc_platform_data *usbc_data,
+int max77705_usbc_opcode_write(struct max77705_usbc_platform_data *usbc_data,
 	usbc_cmd_data *write_op);
-void max77705_usbc_opcode_read(struct max77705_usbc_platform_data *usbc_data,
+int max77705_usbc_opcode_read(struct max77705_usbc_platform_data *usbc_data,
 	usbc_cmd_data *read_op);
-void max77705_usbc_opcode_push(struct max77705_usbc_platform_data *usbc_data,
+int max77705_usbc_opcode_push(struct max77705_usbc_platform_data *usbc_data,
 	usbc_cmd_data *read_op);
-void max77705_usbc_opcode_update(struct max77705_usbc_platform_data *usbc_data,
+int max77705_usbc_opcode_update(struct max77705_usbc_platform_data *usbc_data,
 	usbc_cmd_data *read_op);
 
 void max77705_ccic_event_work(void *data, int dest, int id,
@@ -315,6 +321,9 @@ void max77705_response_apdo_request(struct max77705_usbc_platform_data *usbc_dat
 		unsigned char *data);
 void max77705_response_set_pps(struct max77705_usbc_platform_data *usbc_data,
 		unsigned char *data);
+void max77705_send_new_src_cap_push(struct max77705_usbc_platform_data *pusbpd, int auth, int d2d_type);
+void max77705_response_req_pdo(struct max77705_usbc_platform_data *usbc_data,
+	unsigned char *data);
 void max77705_current_pdo(struct max77705_usbc_platform_data *usbc_data,
 		unsigned char *data);
 void max77705_check_pdo(struct max77705_usbc_platform_data *usbc_data);

@@ -41,6 +41,7 @@ typedef enum {
 	NPU_NW_CMD_PROFILE_START,
 	NPU_NW_CMD_PROFILE_STOP,
 	NPU_NW_CMD_FW_TC_EXECUTE,
+	NPU_NW_CMD_CORE_CTL,
 	NPU_NW_CMD_CLEAR_CB,
 	NPU_NW_CMD_MODE,
 	NPU_NW_CMD_END,
@@ -109,6 +110,7 @@ struct npu_nw {
 	u32			magic_tail;
 	struct addr_info ncp_addr;
 	int msgid;
+	int result_value;
 };
 
 struct mbox_process_dat {

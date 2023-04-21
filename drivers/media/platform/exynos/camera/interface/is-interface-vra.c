@@ -1219,7 +1219,6 @@ int is_lib_vra_test_image_load(struct is_lib_vra *lib_vra)
 #ifdef USE_KERNEL_VFS_READ_WRITE
 	struct file *vra_dma_image = NULL;
 	long fsize, nread;
-	mm_segment_t old_fs;
 
 	if (unlikely(!lib_vra)) {
 		err_lib("lib_vra is NULL");
@@ -1235,16 +1234,13 @@ int is_lib_vra_test_image_load(struct is_lib_vra *lib_vra)
 		return -EEXIST;
 	}
 
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
 	fsize = vra_dma_image->f_path.dentry->d_inode->i_size;
 	fsize -= 1;
 
 	info_lib("lib_vra_test_image_load: size(%ld)Bytes\n", fsize);
 	lib_vra->test_input_buffer = is_alloc_vra(fsize);
-	nread = vfs_read(vra_dma_image,
-			(char __user *)lib_vra->test_input_buffer,
+	nread = kernel_read(vra_dma_image,
+			lib_vra->test_input_buffer,
 			fsize, &vra_dma_image->f_pos);
 	if (nread != fsize) {
 		err_lib("failed to read firmware file (%ld)Bytes", nread);
@@ -1254,14 +1250,12 @@ int is_lib_vra_test_image_load(struct is_lib_vra *lib_vra)
 
 	lib_vra->image_load = true;
 
-	set_fs(old_fs);
 	return 0;
 
 buf_free:
 	is_free_vra(lib_vra->test_input_buffer);
-	set_fs(old_fs);
 #else
-	err("not support %s due to vfs_read!", __func__);
+	err("not support %s due to kernel_read!", __func__);
 	ret = -EINVAL;
 #endif
 	return ret;

@@ -367,7 +367,7 @@ void parse_lcd_info(struct device_node *np, EXYNOS_PANEL_INFO *lcd_info)
 	of_property_read_u32(np, "timing,refresh", &lcd_info->fps);
 	DPU_INFO_PANEL("LCD(%s) resolution: %dx%d@%d, %s mode\n",
 			np->name, lcd_info->xres, lcd_info->yres,
-			lcd_info->fps, lcd_info->mode ? "command" : "video");
+			lcd_info->fps, lcd_info->mode == DECON_MIPI_COMMAND_MODE ? "command" : "video");
 
 	of_property_read_u32_array(np, "size", res, 2);
 	lcd_info->width = res[0];
@@ -512,6 +512,7 @@ static long exynos_panel_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *a
 		ret = exynos_panel_register(panel, *(u32 *)arg);
 		break;
 	case EXYNOS_PANEL_IOC_RESET:
+		call_panel_ops(panel, reset_panel, panel);
 		break;
 	case EXYNOS_PANEL_IOC_DISPLAYON:
 		call_panel_ops(panel, displayon, panel);
@@ -581,9 +582,6 @@ static long exynos_panel_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *a
 		ret = call_panel_ops(panel, set_display_mode, panel, arg);
 		break;
 #endif
-	case EXYNOS_PANEL_IOC_FIRST_FRAME:
-		ret = call_panel_ops(panel, first_frame, panel, arg);
-		break;
 #endif
 	default:
 		DPU_ERR_PANEL("not supported ioctl (0x%x) by panel driver\n", cmd);

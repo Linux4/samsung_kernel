@@ -18,28 +18,26 @@
 
 int is_votf_check_wait_con(struct is_group *group);
 int is_votf_check_invalid_state(struct is_group *group);
-int is_votf_flush(struct is_group *group);
+int is_votf_create_link_sensor(struct is_group *group, u32 width, u32 height);
+int is_votf_destroy_link_sensor(struct is_group *group);
 int is_votf_create_link(struct is_group *group, u32 width, u32 height);
 int is_votf_destroy_link(struct is_group *group);
-int is_votf_change_link(struct is_group *group, u32 prev_group_id);
 struct is_framemgr *is_votf_get_framemgr(struct is_group *group, enum votf_service type,
 	unsigned long id);
 struct is_frame *is_votf_get_frame(struct is_group *group, enum votf_service type,
 	unsigned long id, u32 fcount);
 int is_votf_register_framemgr(struct is_group *group, enum votf_service type,
-	void *data, votf_s_addr fn, unsigned long id);
-int is_votf_register_oneshot(struct is_group *group, enum votf_service type,
-	void *data, votf_s_oneshot fn, unsigned long id);
+	void *data, const struct votf_ops *ops, unsigned long subdev_id);
 
 #define votf_fmgr_call(mgr, o, f, args...)				\
 	({								\
 		int __result = 0;					\
 		if (!(mgr))						\
 			__result = -ENODEV;				\
-		else if (!((mgr)->o.f))					\
+		else if (!((mgr)->o.ops) || !((mgr)->o.ops->f))		\
 			__result = -ENOIOCTLCMD;			\
 		else							\
-			(mgr)->o.f((mgr)->o.data, mgr->o.id, ##args);	\
+			(mgr)->o.ops->f((mgr)->o.data, mgr->o.id, ##args);	\
 		__result;						\
 	})
 

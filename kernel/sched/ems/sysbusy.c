@@ -150,11 +150,42 @@ static int sysbusy_find_min_util_cpu(struct tp_env *env)
 	return min_cpu;
 }
 
+#define MISFIT_TASK_UTIL_RATIO	(80)
+#define MISFIT_TASK_THRESHOLD	((SCHED_CAPACITY_SCALE * MISFIT_TASK_UTIL_RATIO) / 100)
+static int decision_somac_task(struct task_struct *p);
+static unsigned long sysbusy_find_misfit_task_util(int cpu)
+{
+	struct rq *rq = cpu_rq(cpu);
+	struct task_struct *p;
+	int task_count = 0;
+	unsigned long util, misfit_util = 0, flags;
+
+	raw_spin_lock_irqsave(&rq->lock, flags);
+	list_for_each_entry(p, &rq->cfs_tasks, se.group_node) {
+		if (decision_somac_task(p)) {
+			util = ml_task_util(p);
+			if (util > MISFIT_TASK_THRESHOLD && util > misfit_util)
+				misfit_util = util;
+		}
+
+		if (task_count++ >= TRACK_TASK_COUNT)
+			break;
+	}
+	raw_spin_unlock_irqrestore(&rq->lock, flags);
+
+	return misfit_util;
+}
+
 static bool sysbusy_need_max_perf(int busy_cpu)
 {
 	int cpu, cpu_util_sum = 0, busy_cpu_util = -1;
+	unsigned long misfit_util;
 
 	if (busy_cpu < 0)
+		return false;
+
+	misfit_util = sysbusy_find_misfit_task_util(busy_cpu);
+	if (!misfit_util)
 		return false;
 
 	for_each_cpu(cpu, cpu_active_mask) {

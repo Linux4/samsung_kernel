@@ -12,6 +12,11 @@
 #include "slsi_dev.h"
 #include "slsi_reg.h"
 
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+__visible_for_testing struct slsi_ts_data *ts_data;
+EXPORT_SYMBOL(ts_data);
+#endif
+
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 irqreturn_t secure_filter_interrupt(struct slsi_ts_data *ts)
 {
@@ -229,7 +234,7 @@ static struct attribute_group secure_attr_group = {
 extern int stui_i2c_lock(struct i2c_adapter *adap);
 extern int stui_i2c_unlock(struct i2c_adapter *adap);
 
-int stui_tsp_enter(void)
+int slsi_stui_tsp_enter(void)
 {
 	struct slsi_ts_data *ts = dev_get_drvdata(ptsp);
 	int ret = 0;
@@ -256,9 +261,8 @@ int stui_tsp_enter(void)
 
 	return 0;
 }
-EXPORT_SYMBOL(stui_tsp_enter);
 
-int stui_tsp_exit(void)
+int slsi_stui_tsp_exit(void)
 {
 	struct slsi_ts_data *ts = dev_get_drvdata(ptsp);
 	int ret = 0;
@@ -278,7 +282,11 @@ int stui_tsp_exit(void)
 
 	return ret;
 }
-EXPORT_SYMBOL(stui_tsp_exit);
+
+int slsi_stui_tsp_type(void)
+{
+	return STUI_TSP_TYPE_SLSI;
+}
 #endif
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
@@ -382,14 +390,12 @@ int slsi_ts_i2c_write(struct slsi_ts_data *ts, u8 reg, u8 *data, int len)
 		usleep_range(1 * 1000, 1 * 1000);
 
 		if (retry > 1) {
+			char result[32];
 			input_err(true, &ts->client->dev, "%s: I2C retry %d, ret:%d\n", __func__, retry + 1, ret);
 			ts->plat_data->hw_param.comm_err_count++;
-			if (ts->debug_flag & SEC_TS_DEBUG_SEND_UEVENT) {
-				char result[32];
 
-				snprintf(result, sizeof(result), "RESULT=I2C");
-				sec_cmd_send_event_to_user(&ts->sec, NULL, result);
-			}
+			snprintf(result, sizeof(result), "RESULT=I2C");
+			sec_cmd_send_event_to_user(&ts->sec, NULL, result);
 		}
 	}
 
@@ -402,7 +408,7 @@ int slsi_ts_i2c_write(struct slsi_ts_data *ts, u8 reg, u8 *data, int len)
 			schedule_delayed_work(&ts->reset_work, msecs_to_jiffies(TOUCH_RESET_DWORK_TIME));
 	}
 
-	if (ts->debug_flag & SEC_TS_DEBUG_PRINT_I2C_WRITE_CMD) {
+	if (ts->debug_flag & SEC_TS_DEBUG_PRINT_WRITE_CMD) {
 		pr_info("sec_input:i2c_cmd: W: %02X | ", reg);
 		for (i = 0; i < len; i++)
 			pr_cont("%02X ", data[i]);
@@ -488,15 +494,13 @@ int slsi_ts_i2c_read(struct slsi_ts_data *ts, u8 reg, u8 *data, int len)
 			}
 
 			if (retry > 1) {
+				char result[32];
 				input_err(true, &ts->client->dev, "%s: I2C retry %d, ret:%d\n",
 					__func__, retry + 1, ret);
 				ts->plat_data->hw_param.comm_err_count++;
-				if (ts->debug_flag & SEC_TS_DEBUG_SEND_UEVENT) {
-					char result[32];
 
-					snprintf(result, sizeof(result), "RESULT=I2C");
-					sec_cmd_send_event_to_user(&ts->sec, NULL, result);
-				}
+				snprintf(result, sizeof(result), "RESULT=I2C");
+				sec_cmd_send_event_to_user(&ts->sec, NULL, result);
 			}
 		}
 	} else {
@@ -561,7 +565,7 @@ int slsi_ts_i2c_read(struct slsi_ts_data *ts, u8 reg, u8 *data, int len)
 	}
 
 	memcpy(data, buff, len);
-	if (ts->debug_flag & SEC_TS_DEBUG_PRINT_I2C_READ_CMD) {
+	if (ts->debug_flag & SEC_TS_DEBUG_PRINT_READ_CMD) {
 		pr_info("sec_input:i2c_cmd: R: %02X | ", reg);
 		for (i = 0; i < len; i++)
 			pr_cont("%02X ", data[i]);
@@ -767,7 +771,7 @@ void slsi_ts_reinit(void *data)
 		if (ts->plat_data->lowpower_mode & SEC_TS_MODE_SPONGE_AOD)
 			slsi_ts_set_aod_rect(ts);
 	} else {
-		sec_input_set_grip_type(ts->client, ONLY_EDGE_HANDLER);
+		sec_input_set_grip_type(&ts->client->dev, ONLY_EDGE_HANDLER);
 
 		slsi_ts_set_external_noise_mode(ts, EXT_NOISE_MODE_MAX);
 
@@ -792,7 +796,7 @@ void slsi_ts_reinit(void *data)
  */
 static void slsi_ts_external_func(struct slsi_ts_data *ts)
 {
-	sec_input_set_temperature(ts->client, SEC_INPUT_SET_TEMPERATURE_IN_IRQ);
+	sec_input_set_temperature(&ts->client->dev, SEC_INPUT_SET_TEMPERATURE_IN_IRQ);
 }
 
 static void slsi_ts_coord_parsing(struct slsi_ts_data *ts, struct slsi_ts_event_coordinate *p_event_coord, u8 t_id)
@@ -840,10 +844,10 @@ static void slsi_ts_gesture_event(struct slsi_ts_data *ts, u8 *event_buff)
 	y = (p_gesture_status->gesture_data_2 << 4) | (p_gesture_status->gesture_data_3 & 0x0F);
 
 	if (p_gesture_status->stype == SLSI_TS_GESTURE_CODE_SWIPE) {
-		sec_input_gesture_report(ts->client, SPONGE_EVENT_TYPE_SPAY, 0, 0);
+		sec_input_gesture_report(&ts->client->dev, SPONGE_EVENT_TYPE_SPAY, 0, 0);
 	} else if (p_gesture_status->stype == SLSI_TS_GESTURE_CODE_DOUBLE_TAP) {
 		if (p_gesture_status->gesture_id == SLSI_TS_GESTURE_ID_AOD) {
-			sec_input_gesture_report(ts->client, SPONGE_EVENT_TYPE_AOD_DOUBLETAB, x, y);
+			sec_input_gesture_report(&ts->client->dev, SPONGE_EVENT_TYPE_AOD_DOUBLETAB, x, y);
 		} else if (p_gesture_status->gesture_id == SLSI_TS_GESTURE_ID_DOUBLETAP_TO_WAKEUP) {
 			input_info(true, &ts->client->dev, "%s: AOT\n", __func__);
 			input_report_key(ts->plat_data->input_dev, KEY_WAKEUP, 1);
@@ -852,7 +856,7 @@ static void slsi_ts_gesture_event(struct slsi_ts_data *ts, u8 *event_buff)
 			input_sync(ts->plat_data->input_dev);
 		}
 	} else if (p_gesture_status->stype  == SLSI_TS_GESTURE_CODE_SINGLE_TAP) {
-		sec_input_gesture_report(ts->client, SPONGE_EVENT_TYPE_SINGLE_TAP, x, y);
+		sec_input_gesture_report(&ts->client->dev, SPONGE_EVENT_TYPE_SINGLE_TAP, x, y);
 	} else if (p_gesture_status->stype  == SLSI_TS_GESTURE_CODE_PRESS) {
 		input_info(true, &ts->client->dev, "%s: FOD: %sPRESS\n",
 				__func__, p_gesture_status->gesture_id ? "" : "LONG");
@@ -899,7 +903,7 @@ static void slsi_ts_coordinate_event(struct slsi_ts_data *ts, u8 *event_buff)
 				|| (ts->plat_data->coord[t_id].ttype == SLSI_TS_TOUCHTYPE_PALM)
 				|| (ts->plat_data->coord[t_id].ttype == SLSI_TS_TOUCHTYPE_WET)
 				|| (ts->plat_data->coord[t_id].ttype == SLSI_TS_TOUCHTYPE_GLOVE)) {
-			sec_input_coord_event(ts->client, t_id);
+			sec_input_coord_event(&ts->client->dev, t_id);
 		} else {
 			input_err(true, &ts->client->dev,
 					"%s: do not support coordinate type(%d)\n",
@@ -953,13 +957,13 @@ static void slsi_ts_status_event(struct slsi_ts_data *ts, u8 *event_buff)
 			ts->plat_data->print_info_currnet_mode = ((event_buff[2] & 0xFF) << 8) + (event_buff[3] & 0xFF);
 
 			if (p_event_status->status_data_1 == 2 && p_event_status->status_data_2 == 2) {
-				sec_input_gesture_report(ts->client, SPONGE_EVENT_TYPE_TSP_SCAN_UNBLOCK, 0, 0);
+				sec_input_gesture_report(&ts->client->dev, SPONGE_EVENT_TYPE_TSP_SCAN_UNBLOCK, 0, 0);
 				input_info(true, &ts->client->dev, "%s: Normal changed\n", __func__);
 			} else if (p_event_status->status_data_1 == 5 && p_event_status->status_data_2 == 2) {
-				sec_input_gesture_report(ts->client, SPONGE_EVENT_TYPE_TSP_SCAN_UNBLOCK, 0, 0);
+				sec_input_gesture_report(&ts->client->dev, SPONGE_EVENT_TYPE_TSP_SCAN_UNBLOCK, 0, 0);
 				input_info(true, &ts->client->dev, "%s: lp changed\n", __func__);
 			} else if (p_event_status->status_data_1 == 6) {
-				sec_input_gesture_report(ts->client, SPONGE_EVENT_TYPE_TSP_SCAN_BLOCK, 0, 0);
+				sec_input_gesture_report(&ts->client->dev, SPONGE_EVENT_TYPE_TSP_SCAN_BLOCK, 0, 0);
 				input_info(true, &ts->client->dev, "%s: sleep changed\n", __func__);
 			}
 		} else if (p_event_status->status_id == SLSI_TS_VENDOR_ACK_NOISE_STATUS_NOTI) {
@@ -978,7 +982,7 @@ static void slsi_ts_status_event(struct slsi_ts_data *ts, u8 *event_buff)
 			input_info(true, &ts->client->dev, "%s: TSP CHARGER MODE:%d\n",
 				__func__, p_event_status->status_data_1);
 		} else if (p_event_status->status_id == STATUS_EVENT_VENDOR_PROXIMITY) {
-			sec_input_proximity_report(ts->client, p_event_status->status_data_1);
+			sec_input_proximity_report(&ts->client->dev, p_event_status->status_data_1);
 		}
 	}
 }
@@ -1073,7 +1077,7 @@ irqreturn_t slsi_ts_irq_thread(int irq, void *ptr)
 		return IRQ_HANDLED;
 #endif
 
-	ret = sec_input_handler_start(ts->client);
+	ret = sec_input_handler_start(&ts->client->dev);
 	if (ret < 0)
 		return IRQ_HANDLED;
 
@@ -1118,10 +1122,7 @@ int slsi_ts_input_open(struct input_dev *dev)
 	struct slsi_ts_data *ts = input_get_drvdata(dev);
 	int ret;
 
-	if (!ts->info_work_done) {
-		input_err(true, &ts->client->dev, "%s not finished info work\n", __func__);
-		return 0;
-	}
+	cancel_delayed_work_sync(&ts->work_read_info);
 
 	mutex_lock(&ts->modechange);
 
@@ -1134,7 +1135,7 @@ int slsi_ts_input_open(struct input_dev *dev)
 
 	if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM) {
 		ts->plat_data->lpmode(ts, TO_TOUCH_MODE);
-		sec_input_set_grip_type(ts->client, ONLY_EDGE_HANDLER);
+		sec_input_set_grip_type(&ts->client->dev, ONLY_EDGE_HANDLER);
 	} else {
 		ret = ts->plat_data->start_device(ts);
 		if (ret < 0)
@@ -1144,7 +1145,7 @@ int slsi_ts_input_open(struct input_dev *dev)
 	if (ts->fix_active_mode)
 		slsi_ts_fix_tmode(ts, TOUCH_SYSTEM_MODE_TOUCH, TOUCH_MODE_STATE_TOUCH);
 
-	sec_input_set_temperature(ts->client, SEC_INPUT_SET_TEMPERATURE_FORCE);
+	sec_input_set_temperature(&ts->client->dev, SEC_INPUT_SET_TEMPERATURE_FORCE);
 
 	mutex_unlock(&ts->modechange);
 
@@ -1160,10 +1161,8 @@ void slsi_ts_input_close(struct input_dev *dev)
 {
 	struct slsi_ts_data *ts = input_get_drvdata(dev);
 
-	if (!ts->info_work_done) {
-		input_err(true, &ts->client->dev, "%s not finished info work\n", __func__);
-		return;
-	}
+	cancel_delayed_work_sync(&ts->work_read_info);
+
 	if (ts->plat_data->shutdown_called) {
 		input_err(true, &ts->client->dev, "%s shutdown was called\n", __func__);
 		return;
@@ -1178,11 +1177,11 @@ void slsi_ts_input_close(struct input_dev *dev)
 	sec_tclm_debug_info(ts->tdata);
 #endif
 	cancel_delayed_work(&ts->work_print_info);
-	sec_input_print_info(ts->client, ts->tdata);
+	sec_input_print_info(&ts->client->dev, ts->tdata);
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 	secure_touch_stop(ts, 1);
 #endif
-#if IS_ENABLED(CONFIG_SAMSUNG_TUI) && IS_ENABLED(CONFIG_TEE_CLIENT_KAPI)
+#if IS_ENABLED(CONFIG_SAMSUNG_TUI)
 	stui_cancel_session();
 #endif
 
@@ -1215,8 +1214,8 @@ int slsi_ts_stop_device(void *data)
 
 	slsi_ts_locked_release_all_finger(ts);
 
-	ts->plat_data->power(ts->client, false);
-	ts->plat_data->pinctrl_configure(ts->client, false);
+	ts->plat_data->power(&ts->client->dev, false);
+	ts->plat_data->pinctrl_configure(&ts->client->dev, false);
 
 out:
 	mutex_unlock(&ts->device_mutex);
@@ -1230,7 +1229,7 @@ int slsi_ts_start_device(void *data)
 
 	input_info(true, &ts->client->dev, "%s\n", __func__);
 
-	ts->plat_data->pinctrl_configure(ts->client, true);
+	ts->plat_data->pinctrl_configure(&ts->client->dev, true);
 
 	mutex_lock(&ts->device_mutex);
 
@@ -1241,7 +1240,7 @@ int slsi_ts_start_device(void *data)
 
 	slsi_ts_locked_release_all_finger(ts);
 
-	ts->plat_data->power(ts->client, true);
+	ts->plat_data->power(&ts->client->dev, true);
 	sec_delay(TOUCH_POWER_ON_DWORK_TIME);
 	ts->plat_data->power_state = SEC_INPUT_STATE_POWER_ON;
 	ts->plat_data->touch_noise_status = 0;
@@ -1278,9 +1277,9 @@ static int slsi_ts_hw_init(struct i2c_client *client)
 	unsigned char deviceID[5] = { 0 };
 	unsigned char result = 0;
 
-	ts->plat_data->pinctrl_configure(ts->client, true);
+	ts->plat_data->pinctrl_configure(&ts->client->dev, true);
 
-	ts->plat_data->power(ts->client, true);
+	ts->plat_data->power(&ts->client->dev, true);
 	if (!ts->plat_data->regulator_boot_on)
 		sec_delay(TOUCH_POWER_ON_DWORK_TIME);
 
@@ -1288,9 +1287,9 @@ static int slsi_ts_hw_init(struct i2c_client *client)
 
 	ret = slsi_ts_wait_for_ready(ts, SLSI_TS_ACK_BOOT_COMPLETE, NULL, 0, 0);
 	if (ret < 0) {
-		ts->plat_data->power(ts->client, false);
+		ts->plat_data->power(&ts->client->dev, false);
 		sec_delay(30);
-		ts->plat_data->power(ts->client, true);
+		ts->plat_data->power(&ts->client->dev, true);
 		sec_delay(TOUCH_POWER_ON_DWORK_TIME);
 
 		ret = slsi_ts_wait_for_ready(ts, SLSI_TS_ACK_BOOT_COMPLETE, NULL, 0, 0);
@@ -1429,7 +1428,7 @@ static int slsi_ts_init(struct i2c_client *client)
 
 		client->dev.platform_data = pdata;
 
-		ret = sec_input_parse_dt(client);
+		ret = sec_input_parse_dt(&client->dev);
 		if (ret) {
 			input_err(true, &client->dev, "%s: Failed to parse dt\n", __func__);
 			goto error_allocate_mem;
@@ -1442,7 +1441,7 @@ static int slsi_ts_init(struct i2c_client *client)
 		}
 
 #ifdef TCLM_CONCEPT
-		sec_tclm_parse_dt(client, tdata);
+		sec_tclm_parse_dt(&client->dev, tdata);
 #endif
 	} else {
 		pdata = client->dev.platform_data;
@@ -1463,6 +1462,8 @@ static int slsi_ts_init(struct i2c_client *client)
 		goto error_allocate_mem;
 	}
 
+	client->irq = gpio_to_irq(pdata->irq_gpio);
+
 	ts->client = client;
 	ts->plat_data = pdata;
 	ts->crc_addr = 0x0001FE00;
@@ -1482,10 +1483,16 @@ static int slsi_ts_init(struct i2c_client *client)
 	ts->plat_data->stop_device = slsi_ts_stop_device;
 	ts->plat_data->init = slsi_ts_reinit;
 	ts->plat_data->lpmode = slsi_ts_set_lowpowermode;
-	ts->plat_data->set_grip_data = set_grip_data_to_ic;
+	ts->plat_data->set_grip_data = slsi_set_grip_data_to_ic;
 	ts->plat_data->set_temperature = slsi_ts_set_temperature;
 
 	ptsp = &client->dev;
+
+#if IS_ENABLED(CONFIG_SAMSUNG_TUI)
+	ts->plat_data->stui_tsp_enter = slsi_stui_tsp_enter;
+	ts->plat_data->stui_tsp_exit = slsi_stui_tsp_exit;
+	ts->plat_data->stui_tsp_type = slsi_stui_tsp_type;
+#endif
 
 	ts->tdata = tdata;
 	if (!ts->tdata) {
@@ -1523,7 +1530,7 @@ static int slsi_ts_init(struct i2c_client *client)
 
 	i2c_set_clientdata(client, ts);
 
-	ret = sec_input_device_register(client, ts);
+	ret = sec_input_device_register(&client->dev, ts);
 	if (ret) {
 		input_err(true, &ts->client->dev, "failed to register input device, %d\n", ret);
 		goto err_register_input_device;
@@ -1549,7 +1556,7 @@ static int slsi_ts_init(struct i2c_client *client)
 	sec_secure_touch_register(ts, ts->plat_data->ss_touch_num, &ts->plat_data->input_dev->dev.kobj);
 #endif
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_DUMP_MODE)
-	dump_callbacks.inform_dump = dump_tsp_log;
+	dump_callbacks.inform_dump = slsi_ts_dump_tsp_log;
 	INIT_DELAYED_WORK(&ts->check_rawdata, slsi_ts_check_rawdata);
 #endif
 #if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
@@ -1603,7 +1610,7 @@ void slsi_ts_release(struct i2c_client *client)
 	ts->plat_data->lowpower_mode = false;
 	ts->probe_done = false;
 
-	ts->plat_data->power(ts->client, false);
+	ts->plat_data->power(&ts->client->dev, false);
 
 	regulator_put(ts->plat_data->dvdd);
 	regulator_put(ts->plat_data->avdd);
@@ -1613,14 +1620,6 @@ int slsi_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	struct slsi_ts_data *ts;
 	int ret = 0;
-
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
-	if (lpcharge == 1) {
-		input_info(true, &client->dev,
-			"%s: Do not load driver due to : lpm %d\n",	__func__, lpcharge);
-		return -ENODEV;
-	}
-#endif
 
 	input_info(true, &client->dev, "%s\n", __func__);
 
@@ -1669,6 +1668,9 @@ int slsi_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	if (!ts->plat_data->shutdown_called)
 		schedule_delayed_work(&ts->work_read_info, msecs_to_jiffies(50));
 
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
+	ts_data = ts;
+#endif
 	return 0;
 }
 

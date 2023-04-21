@@ -16,9 +16,7 @@
 #include <linux/device.h>
 #include <linux/slab.h>
 
-#include "npu-log.h"
 #include "npu-util-liststatemgr.h"
-#include "npu-util-autosleepthr.h"
 
 const char *default_name = "Thr??";
 #define NL_NAME(name) ((name == NULL) ? (default_name) : (name))

@@ -14,11 +14,19 @@
 #include <linux/sysfs.h>
 //#if defined(CONFIG_SEC_SYSFS)
 //#include <linux/sec_sysfs.h>
-//#elif defined(CONFIG_DRV_SAMSUNG)
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG)
 #include <linux/sec_class.h>
+#endif
 //#else
 //extern struct class *sec_class;
 //#endif
+
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+#include <linux/hall/hall_ic_notifier.h>
+#endif
+#if IS_ENABLED(CONFIG_SUPPORT_SENSOR_FOLD)
+#include <linux/sensor/sensors_core.h>
+#endif
 
 #define SECURE_TOUCH_DEVICE_FIRST	1
 #define SECURE_TOUCH_DEVICE_SECOND	2
@@ -61,12 +69,13 @@ struct sec_secure_touch {
 	void *data;
 	struct platform_device *pdev;
 	struct device *device;
-#ifdef CONFIG_TOUCHSCREEN_DUAL_FOLDABLE
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_DUAL_FOLDABLE)
 	struct delayed_work folder_work;
 #endif
 	int hall_ic;
 	struct mutex lock;
 	struct notifier_block nb;
+	struct notifier_block nb_ssh;
 	struct sec_touch_driver touch_driver[2];
 	int device_number;
 	int current_device;

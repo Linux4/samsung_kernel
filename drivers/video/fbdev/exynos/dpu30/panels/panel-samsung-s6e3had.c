@@ -545,7 +545,7 @@ end:
 }
 
 struct exynos_panel_ops panel_s6e3had_ops = {
-	.id		= {0xE12680, 0xE22690, 0xE32690, 0xE32691},
+	.id		= {0xE12680, 0xE52691, 0xE32690, 0xE22690},
 	.suspend	= s6e3had_suspend,
 	.displayon	= s6e3had_displayon,
 	.mres		= s6e3had_mres,

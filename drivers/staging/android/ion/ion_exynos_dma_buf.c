@@ -338,7 +338,7 @@ static void dma_sync_sg_partial(struct device *dev, struct sg_table *sgt,
 				enum dma_data_direction dir, unsigned int flag)
 {
 	int i;
-	size_t size;
+	unsigned int size;
 	struct scatterlist *sg;
 
 	for_each_sg(sgt->sgl, sg, sgt->orig_nents, i) {
@@ -347,7 +347,7 @@ static void dma_sync_sg_partial(struct device *dev, struct sg_table *sgt,
 			continue;
 		}
 
-		size = min_t(size_t, len, sg->length - offset);
+		size = min_t(unsigned int, len, sg->length - offset);
 		len -= size;
 
 		if (flag & DMA_BUF_SYNC_END)

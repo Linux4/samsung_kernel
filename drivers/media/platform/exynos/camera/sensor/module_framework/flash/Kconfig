@@ -20,7 +20,7 @@ config CAMERA_FLASH_RT5033_OBJ
 
 config CAMERA_FLASH_S2MPB02_OBJ
 	tristate "Use S2MPB02"
-	depends on CAMERA_FLASH_SELECT
+	depends on CAMERA_FLASH_SELECT && MFD_S2MPB02
 	default n
 	help
 	  Use to build S2MPB02 driver.

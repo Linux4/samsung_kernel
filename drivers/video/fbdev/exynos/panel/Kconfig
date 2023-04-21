@@ -195,6 +195,19 @@ config EVASION_DISP_DET
     depends on MCD_PANEL
     default n
 
+config SUPPORT_DDI_CMDLOG
+	bool "Support DDI Command Log"
+	depends on MCD_PANEL
+	default n
+
+config SUPPORT_TIG
+    bool "Support tig enable/disable(black screen)"
+    depends on MCD_PANEL && EXYNOS_DOZE
+    default n
+
 source "drivers/video/fbdev/exynos/panel/s6e3fab/Kconfig"
 source "drivers/video/fbdev/exynos/panel/s6e3hab/Kconfig"
 source "drivers/video/fbdev/exynos/panel/s6e3had/Kconfig"
+source "drivers/video/fbdev/exynos/panel/ea8082/Kconfig"
+source "drivers/video/fbdev/exynos/panel/s6e3fc3/Kconfig"
+

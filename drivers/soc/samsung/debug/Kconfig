@@ -16,7 +16,7 @@ config DEBUG_SNAPSHOT_FREQ_DOMAIN_NUM
 
 config DEBUG_SNAPSHOT_LOG_ITEM_SIZE
 	int "Number of logging item base size"
-	range 256 1024
+	range 128 1024
 	default 1024
 
 config DEBUG_SNAPSHOT_BUILT_IN
@@ -78,4 +78,9 @@ config EXYNOS_HARDLOCKUP_DEBUG
 	tristate "Exynos Hardlockup Debugger"
 	depends on DEBUG_SNAPSHOT
 	default n
+
+config EXYNOS_SSLD
+        tristate "Exynos support S2R Scenario Lockup Detector"
+        depends on EXYNOS_DEBUG
+        default n
 endif

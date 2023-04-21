@@ -383,7 +383,7 @@ int csi_hw_s_irq_msk(u32 __iomem *base_reg, bool on, bool f_id_dec)
 	return 0;
 }
 
-static void csi_hw_g_err_types_from_err(u32 __iomem *base_reg, u32 err_src0, u32 *err_id)
+static void csi_hw_g_err_types_from_err(u32 __iomem *base_reg, u32 err_src0, ulong *err_id)
 {
 	int i = 0;
 	u32 sot_hs_err = 0;
@@ -441,7 +441,7 @@ static void csi_hw_g_err_types_from_err(u32 __iomem *base_reg, u32 err_src0, u32
 	}
 }
 
-static bool csi_hw_g_value_of_err(u32 __iomem *base_reg, u32 otf_src0, u32 otf_src1, u32 *err_id)
+static bool csi_hw_g_value_of_err(u32 __iomem *base_reg, u32 otf_src0, u32 otf_src1, ulong *err_id)
 {
 	u32 err_src0 = (otf_src0 & CSIS_ERR_MASK0);
 	u32 err_src1 = (otf_src1 & CSIS_ERR_MASK1);
@@ -481,7 +481,7 @@ int csi_hw_g_irq_src(u32 __iomem *base_reg, struct csis_irq_src *src, bool clear
 	src->otf_start = is_hw_get_field_value(fs_val, &csi_fields[CSIS_F_FRAMESTART_CH]);
 	src->otf_end = is_hw_get_field_value(fe_val, &csi_fields[CSIS_F_FRAMEEND_CH]);
 	src->line_end = is_hw_get_field_value(line_val, &csi_fields[CSIS_F_LINE_END_CH]);
-	src->err_flag = csi_hw_g_value_of_err(base_reg, otf_src0, otf_src1, (u32 *)src->err_id);
+	src->err_flag = csi_hw_g_value_of_err(base_reg, otf_src0, otf_src1, src->err_id);
 
 	return 0;
 }

@@ -9,6 +9,12 @@ config IOMMU_API
 
 if IOMMU_IOVA
 
+config IOVA_DEBUG
+	bool "IOVA debug messages"
+	default y
+	help
+	  Turns on debug messages when iova allocation failure.
+
 config IOMMU_LIMIT_IOVA_ALIGNMENT
 	bool "Limit IOVA alignment"
 	help
@@ -168,7 +174,7 @@ config AMD_IOMMU
 	select PCI_PASID
 	select IOMMU_API
 	select IOMMU_IOVA
-	depends on X86_64 && PCI && ACPI
+	depends on X86_64 && PCI && ACPI && HAVE_CMPXCHG_DOUBLE
 	---help---
 	  With this option you can enable support for AMD IOMMU hardware in
 	  your system. An IOMMU is a hardware component which provides

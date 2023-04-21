@@ -15,6 +15,7 @@
 #include <soc/samsung/exynos-sci.h>
 #include "npu-scheduler.h"
 #include "npu-log.h"
+#include "npu-device.h"
 
 /*****************************************************************************
  *****                         wrapper function                          *****

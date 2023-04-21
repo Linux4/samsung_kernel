@@ -59,6 +59,11 @@ static struct list_head buffer_list = LIST_HEAD_INIT(buffer_list);
 static struct dmabuf_trace_task head_task;
 static DEFINE_MUTEX(trace_lock);
 
+static inline int dmabuf_trace_skip(struct dma_buf *dmabuf)
+{
+	return strncmp(dmabuf->exp_name, "ion", 3);
+}
+
 #ifdef CONFIG_DEBUG_FS
 static struct dentry *dmabuf_trace_debug_root;
 
@@ -188,7 +193,7 @@ static int dmabuf_oom_notifier_fn(struct notifier_block *nb,
 			if (dma_buf_get_flags(ref->buffer->dmabuf, &flags))
 				flags = 0;
 
-			pr_cont("%8zu(%2d,%2d,%#8x,%2d,%d)", ref->buffer->dmabuf->size / 1024,
+			pr_cont("%8zu(%2lu,%2lu,%#8llx,%2d,%d)", ref->buffer->dmabuf->size / 1024,
 				ION_HEAP_MASK(flags >> ION_HEAP_PROTID_SHIFT),
 				ION_HEAP_MASK(flags >> ION_HEAP_SHIFT),
 				ION_BUFFER_MASK(flags), ref->buffer->shared_count, ref->refcount);
@@ -421,6 +426,9 @@ int dmabuf_trace_alloc(struct dma_buf *dmabuf)
 	struct dmabuf_trace_task *task;
 	struct dmabuf_trace_ref *ref;
 
+	if (dmabuf_trace_skip(dmabuf))
+		return 0;
+
 	buffer = kzalloc(sizeof(*buffer), GFP_KERNEL);
 	if (!buffer)
 		return -ENOMEM;
@@ -481,6 +489,9 @@ void dmabuf_trace_free(struct dma_buf *dmabuf)
 	struct dmabuf_trace_buffer *buffer;
 	struct dmabuf_trace_ref *ref, *tmp;
 
+	if (dmabuf_trace_skip(dmabuf))
+		return;
+
 	mutex_lock(&trace_lock);
 
 	buffer = dmabuf_trace_get_buffer(dmabuf);
@@ -511,6 +522,9 @@ int dmabuf_trace_track_buffer(struct dma_buf *dmabuf)
 	struct dmabuf_trace_task *task;
 	struct dmabuf_trace_ref *ref;
 	int ret = 0;
+
+	if (dmabuf_trace_skip(dmabuf))
+		return 0;
 
 	mutex_lock(&trace_lock);
 	task = dmabuf_trace_get_task();
@@ -565,6 +579,9 @@ int dmabuf_trace_untrack_buffer(struct dma_buf *dmabuf)
 	struct dmabuf_trace_task *task;
 	struct dmabuf_trace_ref *ref;
 	int ret;
+
+	if (dmabuf_trace_skip(dmabuf))
+		return 0;
 
 	mutex_lock(&trace_lock);
 	task = dmabuf_trace_get_task_noalloc();

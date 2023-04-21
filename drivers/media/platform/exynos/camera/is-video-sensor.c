@@ -786,6 +786,7 @@ static int is_ssx_video_s_ctrl(struct file *file, void *priv,
 	case V4L2_CID_IS_FORCE_FLASH_MODE:
 	case V4L2_CID_IS_OPENING_HINT:
 	case V4L2_CID_IS_CLOSING_HINT:
+	case V4L2_CID_IS_S_LLC_CONFIG:
 		ret = is_video_s_ctrl(file, vctx, ctrl);
 		if (ret) {
 			merr("is_video_s_ctrl is fail(%d)", device, ret);

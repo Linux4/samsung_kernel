@@ -1,5 +1,19 @@
-#ifndef _MCTCP_DEVICE_H
-#define _MCTCP_DEVICE_H
+/* SPDX-License-Identifier: GPL-2.0
+ *
+ * Copyright (C) 2019-2021 Samsung Electronics.
+ *
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ */
+#ifndef __MCPS_DEVICE_H__
+#define __MCPS_DEVICE_H__
 #include <linux/smp.h>
 #include <linux/kernel.h>
 #include <linux/version.h>
@@ -8,19 +22,20 @@
 
 #include <kunit/mock.h>
 
+#include "utils/mcps_cpu.h"
 #include "mcps_sauron.h"
 
 enum {
-	MCPS_MODE_NONE			    = 0,
-	MCPS_MODE_APP_CLUSTER	    = 1,
-	MCPS_MODE_TP_THRESHOLD	  = 2,
-	MCPS_MODE_SINGLE_MIGRATE	= 4,
-	MCPS_MODES				  = 4
+	MCPS_MODE_NONE = 0,
+	MCPS_MODE_APP_CLUSTER = 1,
+	MCPS_MODE_TP_THRESHOLD = 2,
+	MCPS_MODE_SINGLE_MIGRATE = 4,
+	MCPS_MODES = 4
 };
 
 enum {
 	// ~ NR_CPUS - 1
-	MCPS_CPU_ON_PENDING = NR_CPUS,
+	MCPS_CPU_ON_PENDING = mcps_nr_cpus,
 #if defined(CONFIG_MCPS_V2)
 	MCPS_CPU_DIRECT_GRO,
 #endif // #if defined(CONFIG_MCPS_V2)
@@ -30,7 +45,7 @@ enum {
 
 enum {
 	MCPS_ARPS_LAYER = 0,
-#if CONFIG_MCPS_GRO_ENABLE
+#if defined(CONFIG_MCPS_GRO_ENABLE)
 	MCPS_AGRO_LAYER,
 #endif
 	MCPS_TYPE_LAYER,
@@ -50,10 +65,10 @@ enum {
 #elif defined(CONFIG_SOC_EXYNOS9830) || defined(CONFIG_SOC_EXYNOS9820)
 #define CLUSTER_MAP {LIT_CLUSTER, LIT_CLUSTER, LIT_CLUSTER, LIT_CLUSTER, MID_CLUSTER, MID_CLUSTER, BIG_CLUSTER, BIG_CLUSTER}
 #else
-#define CLUSTER_MAP { [0 ... (NR_CPUS - 1)] = LIT_CLUSTER };
+#define CLUSTER_MAP { [0 ... (mcps_nr_cpus - 1)] = LIT_CLUSTER }
 #endif
 
-const static int __mcps_cpu_cluster_map[NR_CPUS] = CLUSTER_MAP;
+static const int __mcps_cpu_cluster_map[mcps_nr_cpus] = CLUSTER_MAP;
 
 #define CLUSTER(c) __mcps_cpu_cluster_map[(c)]
 
@@ -101,7 +116,8 @@ struct mcps_pantry {
 	struct napi_struct  gro_napi_struct; // never be touched by other core.
 #endif // #if defined(CONFIG_MCPS_V2)
 #if defined(CONFIG_MCPS_CHUNK_GRO)
-	int modem_napi_work;
+	unsigned int modem_napi_work;
+	unsigned int modem_napi_work_batched;
 #endif // #if defined(CONFIG_MCPS_CHUNK_GRO)
 	int				 offline;
 };
@@ -145,8 +161,8 @@ struct arps_meta {
 	struct rps_map *maps[NR_CLUSTER];
 	struct rps_map *maps_filtered[NR_CLUSTER];
 
-	cpumask_var_t mask;
-	cpumask_var_t mask_filtered;
+	cpumask_var_t mask[NR_CLUSTER];
+	cpumask_var_t mask_filtered[NR_CLUSTER];
 };
 
 #define ARPS_MAP(m, t) (m->maps[t])
@@ -174,9 +190,10 @@ struct arps_config {
 static inline void init_arps_config(struct arps_config *config)
 {
 	int i;
-	for (i = 0; i < NUM_FACTORS; i++) {
+
+	for (i = 0; i < NUM_FACTORS; i++)
 		config->weights[i] = 5;
-	}
+
 	config->weights[FACTOR_NFLO] = 2;
 }
 
@@ -215,15 +232,8 @@ static inline int smp_processor_id_safe(void)
 void mcps_boost_clock(int cluster);
 void init_mcps_icb(void);
 #else
-static inline void mcps_boost_clock(int cluster)
-{
-	return;
-}
-
-static inline void init_mcps_icb(void)
-{
-	return;
-}
+static inline void mcps_boost_clock(int cluster) { }
+static inline void init_mcps_icb(void) { }
 #endif // #if defined(CONFIG_MCPS_ICB)
 
 #if defined(CONFIG_MCPS_ICGB) && \
@@ -241,4 +251,4 @@ static inline int check_mcps_in6_addr(struct in6_addr *addr)
 	return 0;
 }
 #endif // #if defined(CONFIG_MCPS_ICGB) && !defined(CONFIG_KLAT) && (defined(CONFIG_SOC_EXYNOS9820) || defined(CONFIG_SOC_EXYNOS9630) || defined(CONFIG_SOC_EXYNOS9830))
-#endif
+#endif //__MCPS_DEVICE_H__

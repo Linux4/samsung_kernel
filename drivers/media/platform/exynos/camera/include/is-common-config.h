@@ -17,8 +17,6 @@
  * CONFIG - GLOBAL OPTIONS
  * =================================================================================================
  */
-#define IS_SENSOR_COUNT	6
-#define IS_STREAM_COUNT	9
 #define IS_STR_LEN		10
 
 #define IS_MAX_PRIO	(MAX_RT_PRIO)
@@ -66,6 +64,9 @@
 /* BUG_ON | FIMC_BUG Macro control */
 #define USE_FIMC_BUG
 
+#if !IS_ENABLED(CONFIG_USE_SIGNED_BINARY)
+#define USE_KERNEL_VFS_READ_WRITE
+#endif
 /*
  * =================================================================================================
  * CONFIG - DEBUG OPTIONS
@@ -228,34 +229,34 @@ extern int debug_lvn;
 #undef warn
 #endif
 #define warn(fmt, args...) \
-	warn_common("[WRN]", fmt "\n", ##args)
+	warn_common("[WRN]%s:%d:", fmt "\n", __func__, __LINE__, ##args)
 
 #define mwarn(fmt, object, args...) \
-	mwarn_common("[%d][WRN]", fmt "\n", object->instance, ##args)
+	mwarn_common("[%d][WRN]%s:%d:", fmt "\n", object->instance, __func__, __LINE__, ##args)
 
 #define mvwarn(fmt, object, video, args...) \
-	mwarn_common("[%d][V%02d][WRN]", fmt "\n", object->instance, video->id, ##args)
+	mwarn_common("[%d][V%02d][WRN]%s:%d:", fmt "\n", object->instance, video->id, __func__, __LINE__, ##args)
 
 #define mgwarn(fmt, object, group, args...) \
-	mwarn_common("[%d][%s][WRN]", fmt "\n", object->instance, group_id_name[group->id], ##args)
+	mwarn_common("[%d][%s][WRN]%s:%d:", fmt "\n", object->instance, group_id_name[group->id], __func__, __LINE__, ##args)
 
 #define mrwarn(fmt, object, frame, args...) \
-	mwarn_common("[%d][F%d][WRN]", fmt "\n", object->instance, frame->fcount, ##args)
+	mwarn_common("[%d][F%d][WRN]%s:%d:", fmt "\n", object->instance, frame->fcount, __func__, __LINE__, ##args)
 
 #define mswarn(fmt, object, subdev, args...) \
-	mwarn_common("[%d][%s][WRN]", fmt "\n", object->instance, subdev->name, ##args)
+	mwarn_common("[%d][%s][WRN]%s:%d:", fmt "\n", object->instance, subdev->name, __func__, __LINE__, ##args)
 
 #define mgrwarn(fmt, object, group, frame, args...) \
-	mwarn_common("[%d][%s][F%d][WRN]", fmt "\n", object->instance, group_id_name[group->id], frame->fcount, ##args)
+	mwarn_common("[%d][%s][F%d][WRN]%s:%d:", fmt "\n", object->instance, group_id_name[group->id], frame->fcount, __func__, __LINE__, ##args)
 
 #define msrwarn(fmt, object, subdev, frame, args...) \
-	mwarn_common("[%d][%s][F%d][WRN]", fmt "\n", object->instance, subdev->name, frame->fcount, ##args)
+	mwarn_common("[%d][%s][F%d][WRN]%s:%d:", fmt "\n", object->instance, subdev->name, frame->fcount, __func__, __LINE__, ##args)
 
 #define mpwarn(fmt, object, pipe, video, args...) \
-	mwarn_common("[%d][P%02d][V%02d]", fmt "\n", object->instance, pipe->id, video->id, ##args)
+	mwarn_common("[%d][P%02d][V%02d][WRN]%s:%d:", fmt "\n", object->instance, pipe->id, video->id, __func__, __LINE__, ##args)
 
 #define mlvwarn(fmt, object, vid, args...) \
-	mwarn_common("[%d][V%02d][WRN]", fmt "\n", object->instance, vn_name[vid], ##args)
+	mwarn_common("[%d][V%02d][WRN]%s:%d:", fmt "\n", object->instance, vn_name[vid], __func__, __LINE__, ##args)
 /*
  * =================================================================================================
  * LOG - INFO

@@ -720,6 +720,24 @@ static irqreturn_t exynos5_i2c_irq(int irqno, void *dev_id)
 		!(i2c->msg->flags & I2C_M_RD))
 		exynos5_i2c_stop(i2c);
 
+	/*Check read transfer done, But read bytes not enough.*/
+	if ((reg_val & HSI2C_INT_TRANSFER_DONE) &&
+		(i2c->msg_ptr < i2c->msg->len) &&
+		(i2c->msg->flags & I2C_M_RD)) {
+		while ((readl(i2c->regs + HSI2C_FIFO_STATUS) &
+			0x1000000) == 0) {
+			byte = (unsigned char)readl(i2c->regs + HSI2C_RX_DATA);
+			i2c->msg->buf[i2c->msg_ptr++] = byte;
+		}
+		if (i2c->msg_ptr >= i2c->msg->len) {
+			reg_val = readl(i2c->regs + HSI2C_INT_ENABLE);
+			reg_val &= ~(HSI2C_INT_RX_ALMOSTFULL_EN);
+			writel(reg_val, i2c->regs + HSI2C_INT_ENABLE);
+			exynos5_i2c_stop(i2c);
+		} else {
+			dev_err(i2c->dev, "Get transfer done. But Bytes not enough\n");
+		}
+	}
 out:
 	writel(reg_val, i2c->regs +  HSI2C_INT_STATUS);
 
@@ -1285,7 +1303,7 @@ static int exynos5_i2c_probe(struct platform_device *pdev)
 		}
 
 		ret = devm_request_irq(&pdev->dev, i2c->irq,
-					exynos5_i2c_irq, 0, dev_name(&pdev->dev), i2c);
+					exynos5_i2c_irq, IRQF_NO_THREAD, dev_name(&pdev->dev), i2c);
 		disable_irq(i2c->irq);
 
 		if (ret != 0) {

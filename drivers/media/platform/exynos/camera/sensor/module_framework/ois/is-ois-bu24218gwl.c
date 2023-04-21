@@ -119,16 +119,12 @@ int is_ois_cal_open(struct is_ois *ois, char *name, int offset, int size)
 	int ret = 0;
 #ifdef USE_KERNEL_VFS_READ_WRITE
 	long fsize, nread;
-	mm_segment_t old_fs;
 	struct file *fp;
 	u8 *buf = NULL;
 
 	FIMC_BUG(!ois);
 
 	info("%s: E", __func__);
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
 
 	fp = filp_open(name, O_RDONLY, 0);
 	if (IS_ERR_OR_NULL(fp)) {
@@ -153,7 +149,7 @@ int is_ois_cal_open(struct is_ois *ois, char *name, int offset, int size)
 
 	fp->f_pos = offset;
 	info("ois f_pos set offset %x", fp->f_pos);
-	nread = vfs_read(fp, (char __user *)buf, size, &fp->f_pos);
+	nread = kernel_read(fp, buf, size, &fp->f_pos);
 	if (nread != size) {
 		err("failed to read ois cal data from file, (%ld) Bytes", nread);
 		ret = -EIO;
@@ -172,11 +168,9 @@ p_err:
 	if (!IS_ERR_OR_NULL(fp))
 		filp_close(fp, NULL);
 
-	set_fs(old_fs);
-
 	info("%s: X", __func__);
 #else
-	err("not support %s due to vfs_read!", __func__);
+	err("not support %s due to kernel_read!", __func__);
 	ret = -EINVAL;
 #endif
 	return ret;

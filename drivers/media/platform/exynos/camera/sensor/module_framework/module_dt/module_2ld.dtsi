@@ -193,8 +193,16 @@
 						vc3 = </* in */ 0 HW_FORMAT_EMBEDDED_8BIT 3328 2/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						option { votf = <1>; };
 					};
-					/* Sensor setting index for EX_AEB is same with normal preview */
 					mode17 {
+						common = <2800 2100 30 0 17 CSI_DATA_LANES_3 2964 CSI_MODE_VC_DT LRTE_ENABLE PD_MOD3 EX_LIVEFOCUS>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 2800 2100	/* out */ HW_FORMAT_RAW10 VC_NOTHING 2800 2100>;
+						vc1 = </* in */ 1 HW_FORMAT_RAW10 2800 524	/* out */ HW_FORMAT_RAW10 VC_TAILPDAF 2800 524>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc3 = </* in */ 0 HW_FORMAT_EMBEDDED_8BIT 2800 2/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						option { votf = <1>; vvalid_time = <6700>; };
+					};
+					/* Sensor setting index for EX_AEB is same with normal preview */
+					mode18 {
 						common = <4032 3024 30 0 0 CSI_DATA_LANES_3 2964 CSI_MODE_VC_DT LRTE_ENABLE PD_MOD3 EX_AEB>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 4032 3024	/* out */ HW_FORMAT_RAW10 VC_NOTHING 4032 3024>;
 						vc1 = </* in */ 1 HW_FORMAT_RAW10 4032 756	/* out */ HW_FORMAT_RAW10 VC_TAILPDAF 4032 756>;
@@ -202,7 +210,7 @@
 						vc3 = </* in */ 0 HW_FORMAT_EMBEDDED_8BIT 4032 2/* out */ HW_FORMAT_EMBEDDED_8BIT VC_EMBEDDED 4032 2>;
 						option { votf = <1>; max_fps = <60>; };
 					};
-					mode18 {
+					mode19 {
 						common = <4032 2268 30 0 3 CSI_DATA_LANES_3 2964 CSI_MODE_VC_DT LRTE_ENABLE PD_MOD3 EX_AEB>;
 						vc0 = </* in */ 0 HW_FORMAT_RAW10 4032 2268 /* out */ HW_FORMAT_RAW10 VC_NOTHING 4032 2268>;
 						vc1 = </* in */ 1 HW_FORMAT_RAW10 4032 566	/* out */ HW_FORMAT_RAW10 VC_TAILPDAF 4032 566>;

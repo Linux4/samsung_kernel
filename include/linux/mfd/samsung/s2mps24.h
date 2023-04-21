@@ -101,6 +101,7 @@ struct s2mps24_platform_data {
 	u32 *control_sel;
 
 	int num_regulators;
+	int num_rdata;
 	int num_subdevs;
 	struct s2mps24_regulator_data *regulators;
 	struct sec_opmode_data *opmode;

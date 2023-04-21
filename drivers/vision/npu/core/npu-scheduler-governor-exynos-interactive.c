@@ -146,7 +146,7 @@ struct npu_scheduler_governor_ops npu_governor_exynos_interactive_ops = {
 	.stop = npu_governor_exynos_interactive_stop,
 };
 
-struct npu_scheduler_governor npu_gov_exynos_interactive = {
+static struct npu_scheduler_governor npu_gov_exynos_interactive = {
 	.name = "exynos-interactive",
 	.ops = &npu_governor_exynos_interactive_ops,
 	.dev_list = LIST_HEAD_INIT(npu_gov_exynos_interactive.dev_list),

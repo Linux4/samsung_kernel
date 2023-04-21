@@ -21,3 +21,7 @@ snd-soc-samsung-abox-$(CONFIG_SND_SOC_SAMSUNG_ABOX) += abox_util.o \
 obj-$(CONFIG_SND_SOC_SAMSUNG_ABOX) += snd-soc-samsung-abox-gic.o snd-soc-samsung-abox.o
 
 obj-$(CONFIG_SEC_SND_ADAPTATION) += abox_adaptation.o
+
+GCOV_PROFILE_abox.o	:=y
+GCOV_PROFILE_abox_shm.o	:=y
+GCOV_PROFILE_abox_cmpnt.o	:=y

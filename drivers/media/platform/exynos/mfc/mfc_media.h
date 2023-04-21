@@ -56,9 +56,6 @@ enum v4l2_mpeg_mfc51_video_frame_type {
 /* new entry for enum v4l2_mpeg_video_mpeg4_level */
 #define V4L2_MPEG_VIDEO_MPEG4_LEVEL_6			8
 
-/* new entry for enum v4l2_mpeg_video_h264_level */
-#define V4L2_MPEG_VIDEO_H264_LEVEL_5_2			16
-
 /* new entry for enum v4l2_mpeg_video_header_mode */
 #define V4L2_MPEG_VIDEO_HEADER_MODE_AT_THE_READY	2
 
@@ -150,6 +147,8 @@ enum v4l2_mpeg_mfc51_video_frame_type {
 /* AVERAGE_QP: 34 */
 #define V4L2_CID_MPEG_VIDEO_GOP_CTRL			\
 					(V4L2_CID_MPEG_MFC_BASE + 35)
+#define V4L2_CID_MPEG_VIDEO_PRIORITY			\
+					(V4L2_CID_MPEG_MFC_BASE + 36)
 
 #define V4L2_CID_MPEG_VIDEO_CHROMA_QP_OFFSET_CB		\
 					(V4L2_CID_MPEG_MFC_BASE + 38)
@@ -424,8 +423,10 @@ enum v4l2_mpeg_mfc51_video_frame_type {
 					(V4L2_CID_MPEG_MFC_BASE + 183)
 #define V4L2_CID_MPEG_VIDEO_UNCOMP_FMT				\
 					(V4L2_CID_MPEG_MFC_BASE + 184)
-#define V4L2_CID_MPEG_VIDEO_SKIP_LAZY_UNMAP				\
+#define V4L2_CID_MPEG_VIDEO_SKIP_LAZY_UNMAP			\
 					(V4L2_CID_MPEG_MFC_BASE + 185)
+#define V4L2_CID_MPEG_VIDEO_MIN_QUALITY				\
+					(V4L2_CID_MPEG_MFC_BASE + 186)
 
 /* CIDs for new common interface */
 #define V4L2_CID_MPEG_VIDEO_ROI_CONTROL				\

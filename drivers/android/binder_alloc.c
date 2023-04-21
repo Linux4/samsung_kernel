@@ -32,6 +32,11 @@
 
 struct list_lru binder_alloc_lru;
 
+#define MAX_ALLOCATION_SIZE (1024 * 1024)
+#define MAX_ASYNC_ALLOCATION_SIZE (512 * 1024)
+
+extern int system_server_pid;
+
 static DEFINE_MUTEX(binder_alloc_mmap_lock);
 
 enum {
@@ -438,10 +443,23 @@ static struct binder_buffer *binder_alloc_new_buf_locked(
 #endif
 
 	if (is_async &&
-	    alloc->free_async_space < size + sizeof(struct binder_buffer)) {
-		binder_alloc_debug(BINDER_DEBUG_BUFFER_ALLOC,
-			     "%d: binder_alloc_buf size %zd failed, no async space left\n",
-			      alloc->pid, size);
+            alloc->free_async_space < size + sizeof(struct binder_buffer)) {
+        pr_info("%d: binder_alloc_buf size %zd(%zd) failed, no async space left\n",
+                alloc->pid, size, alloc->free_async_space);
+        return ERR_PTR(-ENOSPC);
+    }
+
+    // If allocation size is more than 1M, throw it away and return ENOSPC err
+    if (MAX_ALLOCATION_SIZE <= size + sizeof(struct binder_buffer)) { // 1M
+        pr_info("%d: binder_alloc_buf size %zd failed, too large size\n",
+                alloc->pid, size);
+        return ERR_PTR(-ENOSPC);
+    }
+
+    // If allocation size for async is more than 512K, throw it away and return ENOPC
+    if (MAX_ASYNC_ALLOCATION_SIZE <= size + sizeof(struct binder_buffer) && is_async) { //512K
+        pr_info("%d: binder_alloc_buf size %zd(%zd) failed, too large async size\n",
+                alloc->pid, size, alloc->free_async_space);
 		return ERR_PTR(-ENOSPC);
 	}
 
@@ -549,6 +567,14 @@ static struct binder_buffer *binder_alloc_new_buf_locked(
 	buffer->pid = pid;
 	if (is_async) {
 		alloc->free_async_space -= size + sizeof(struct binder_buffer);
+        if ((system_server_pid == alloc->pid) && (alloc->free_async_space <= 153600)) { // 150K
+            pr_info("%d: [free_size<150K] binder_alloc_buf size %zd async free %zd\n",
+                    alloc->pid, size, alloc->free_async_space);
+        }
+        if ((system_server_pid == alloc->pid) && (size >= 122880)) { // 120K
+            pr_info("%d: [alloc_size>120K] binder_alloc_buf size %zd async free %zd\n",
+                    alloc->pid, size, alloc->free_async_space);
+        }
 		binder_alloc_debug(BINDER_DEBUG_BUFFER_ALLOC_ASYNC,
 			     "%d: binder_alloc_buf size %zd async free %zd\n",
 			      alloc->pid, size, alloc->free_async_space);
@@ -717,6 +743,8 @@ static void binder_free_buf_locked(struct binder_alloc *alloc,
 	binder_insert_free_buffer(alloc, buffer);
 }
 
+static void binder_alloc_clear_buf(struct binder_alloc *alloc,
+				   struct binder_buffer *buffer);
 /**
  * binder_alloc_free_buf() - free a binder buffer
  * @alloc:	binder_alloc for this proc
@@ -727,6 +755,18 @@ static void binder_free_buf_locked(struct binder_alloc *alloc,
 void binder_alloc_free_buf(struct binder_alloc *alloc,
 			    struct binder_buffer *buffer)
 {
+	/*
+	 * We could eliminate the call to binder_alloc_clear_buf()
+	 * from binder_alloc_deferred_release() by moving this to
+	 * binder_alloc_free_buf_locked(). However, that could
+	 * increase contention for the alloc mutex if clear_on_free
+	 * is used frequently for large buffers. The mutex is not
+	 * needed for correctness here.
+	 */
+	if (buffer->clear_on_free) {
+		binder_alloc_clear_buf(alloc, buffer);
+		buffer->clear_on_free = false;
+	}
 	mutex_lock(&alloc->mutex);
 	binder_free_buf_locked(alloc, buffer);
 	mutex_unlock(&alloc->mutex);
@@ -823,6 +863,10 @@ void binder_alloc_deferred_release(struct binder_alloc *alloc)
 		/* Transaction should already have been freed */
 		BUG_ON(buffer->transaction);
 
+		if (buffer->clear_on_free) {
+			binder_alloc_clear_buf(alloc, buffer);
+			buffer->clear_on_free = false;
+		}
 		binder_free_buf_locked(alloc, buffer);
 		buffers++;
 	}
@@ -1154,6 +1198,36 @@ static struct page *binder_alloc_get_page(struct binder_alloc *alloc,
 	lru_page = &alloc->pages[index];
 	*pgoffp = pgoff;
 	return lru_page->page_ptr;
+}
+
+/**
+ * binder_alloc_clear_buf() - zero out buffer
+ * @alloc: binder_alloc for this proc
+ * @buffer: binder buffer to be cleared
+ *
+ * memset the given buffer to 0
+ */
+static void binder_alloc_clear_buf(struct binder_alloc *alloc,
+				   struct binder_buffer *buffer)
+{
+	size_t bytes = binder_alloc_buffer_size(alloc, buffer);
+	binder_size_t buffer_offset = 0;
+
+	while (bytes) {
+		unsigned long size;
+		struct page *page;
+		pgoff_t pgoff;
+		void *kptr;
+
+		page = binder_alloc_get_page(alloc, buffer,
+					     buffer_offset, &pgoff);
+		size = min_t(size_t, bytes, PAGE_SIZE - pgoff);
+		kptr = kmap(page) + pgoff;
+		memset(kptr, 0, size);
+		kunmap(page);
+		bytes -= size;
+		buffer_offset += size;
+	}
 }
 
 /**

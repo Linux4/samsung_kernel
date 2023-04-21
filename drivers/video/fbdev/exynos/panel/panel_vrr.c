@@ -326,7 +326,7 @@ bool panel_vrr_bridge_is_reached_target(struct panel_device *panel)
 }
 
 static struct common_panel_display_mode_bridge *
-panel_display_mode_get_bridge(struct panel_device *panel, int from, int to)
+panel_display_mode_get_bridge(struct panel_device *panel, u32 from, u32 to)
 {
 	struct common_panel_display_modes *common_panel_modes =
 		panel->panel_data.common_panel_modes;

@@ -51,7 +51,7 @@ static int __init kunit_manager_init(void)
 		return -ENOMEM;
 
 
-	data->dev = sec_device_create(data, "sec_kunit");
+	data->dev = (struct device *)sec_device_create(data, "sec_kunit");
 	if (IS_ERR(data->dev)) {
 		pr_err("%s: Failed to create device!\n", __func__);
 		ret = PTR_ERR(data->dev);

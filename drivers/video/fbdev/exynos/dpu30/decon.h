@@ -485,6 +485,11 @@ struct decon_dma_buf_data {
 	dma_addr_t			dma_addr;
 	struct dma_fence		*fence;
 	int				dpp_ch;
+#if defined(CONFIG_EXYNOS_DECON_BUFFER_SANITY_CHECK)
+	void *vaddr;
+	int acq_fence;
+	u64 checksum64;
+#endif
 };
 
 struct decon_win_rect {
@@ -670,6 +675,11 @@ struct decon_reg_data {
 #if defined(CONFIG_EXYNOS_SUPPORT_HWFC)
 	bool hwfc_enable;
 	u32 hwfc_idx;
+#endif
+	bool lib_requested;
+
+#ifdef CONFIG_SUPPORT_MASK_LAYER
+	bool mask_layer;
 #endif
 };
 
@@ -1249,6 +1259,31 @@ struct bts_decon_info {
 	u32 lcd_h;
 };
 
+#if defined(CONFIG_DECON_BTS_VRR_ASYNC)
+#define DEFAULT_BTS_FPS (60)
+#define MAX_SYNC_PT_COUNT (100)
+
+struct fps_sync_pt {
+	/* vsync sequence number to be applied */
+	u64 seqno;
+	u32 fps;
+	struct list_head list;
+};
+
+struct fps_sync {
+	/* bts_fps sync point list to be applied */
+	struct list_head head;
+	u32 sync_pt_count;
+	u32 candidate_fps;
+
+	/* latest bts_fps */
+	u32 applied_fps;
+
+	/* lock protecting @head */
+	struct mutex lock;
+};
+#endif
+
 struct decon_bts {
 	bool enabled;
 	u32 resol_clk;
@@ -1261,8 +1296,7 @@ struct decon_bts {
 	u32 prev_max_disp_freq;
 	u32 fps;
 #if defined(CONFIG_DECON_BTS_VRR_ASYNC)
-	u32 next_fps;
-	u64 next_fps_vsync_count;
+	struct fps_sync fps_sync;
 #endif
 	u64 ppc;
 	u32 ppc_rotator;
@@ -1271,16 +1305,16 @@ struct decon_bts {
 	u32 delay_scaler;
 	u32 inner_width;
 	u32 bus_width;
-	u32 bus_util;
 	u32 rot_util;
 	u32 bw_weight;
 	u32 dfs_lv_cnt;
 	u32 dfs_lv[BTS_DFS_MAX];
+	u32 sbwc_lib_boost;
 #if IS_ENABLED(CONFIG_EXYNOS_BTS) || IS_ENABLED(CONFIG_EXYNOS_BTS_MODULE)
 	struct decon_bts_bw bw[BTS_DPP_MAX];
 
 	/* each decon must know other decon's BW to get overall BW */
-	u32 ch_bw[3][BTS_DPU_MAX];
+	u32 ch_bw[MAX_DECON_CNT][BTS_DPU_MAX];
 	int bw_idx;
 	u32 scen_idx[DPU_BS_MAX];
 	struct bts_decon_info bts_info;
@@ -1445,6 +1479,12 @@ struct decon_device {
 #endif
 #if defined(CONFIG_EXYNOS_DECON_DQE)
 	bool dqe_cgc_idx;
+#endif
+
+#ifdef CONFIG_SUPPORT_MASK_LAYER
+	bool cur_mask_layer;
+	u32 wait_mask_layer_trigger;
+	wait_queue_head_t wait_mask_layer_trigger_queue;
 #endif
 };
 

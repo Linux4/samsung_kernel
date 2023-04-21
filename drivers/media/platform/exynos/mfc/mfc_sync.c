@@ -15,6 +15,7 @@
 #include "mfc_perf_measure.h"
 
 #include "mfc_core_hw_reg_api.h"
+#include "mfc_core_qos.h"
 
 #include "mfc_queue.h"
 
@@ -88,7 +89,7 @@ void mfc_release_corelock_ctx(struct mfc_ctx *ctx)
 	spin_unlock_irqrestore(&ctx->corelock.lock, flags);
 }
 
-void mfc_get_corelock_migrate(struct mfc_ctx *ctx)
+int mfc_get_corelock_migrate(struct mfc_ctx *ctx)
 {
 	unsigned long flags;
 	unsigned int timeout = MFC_INT_TIMEOUT * MFC_INT_TIMEOUT_CNT;
@@ -106,8 +107,14 @@ void mfc_get_corelock_migrate(struct mfc_ctx *ctx)
 				(ctx->corelock.cnt == 0),
 				msecs_to_jiffies(timeout));
 		if (ret == 0) {
-			mfc_ctx_err("[CORELOCK] waiting corelock timed out\n");
+			spin_lock_irqsave(&ctx->corelock.lock, flags);
+			ctx->corelock.migrate = 0;
+			wake_up(&ctx->corelock.migrate_wq);
+			spin_unlock_irqrestore(&ctx->corelock.lock, flags);
+			mfc_ctx_err("[CORELOCK] waiting corelock timed out (%d)\n",
+					ctx->corelock.cnt);
 			call_dop(ctx->dev, dump_and_stop_debug_mode, ctx->dev);
+			return -EBUSY;
 		}
 
 		mfc_debug(2, "[CORELOCK] finished waiting corelock\n");
@@ -115,6 +122,8 @@ void mfc_get_corelock_migrate(struct mfc_ctx *ctx)
 	}
 
 	spin_unlock_irqrestore(&ctx->corelock.lock, flags);
+
+	return 0;
 }
 
 void mfc_release_corelock_migrate(struct mfc_ctx *ctx)
@@ -247,6 +256,31 @@ void mfc_wake_up_core_ctx(struct mfc_core_ctx *core_ctx, unsigned int reason,
 	wake_up(&core_ctx->cmd_wq);
 }
 
+/* DRC process wait queue */
+int mfc_wait_for_done_drc(struct mfc_core_ctx *core_ctx)
+{
+	struct mfc_core *core = core_ctx->core;
+	unsigned int timeout = MFC_INT_TIMEOUT;
+	int ret;
+
+	ret = wait_event_timeout(core_ctx->drc_wq,
+			(core_ctx->state == MFCINST_RES_CHANGE_END),
+			msecs_to_jiffies(timeout));
+	if (ret == 0) {
+		mfc_err("[DRC] DRC processing timed out during %dms\n", timeout);
+		core->logging_data->cause |= (1 << MFC_CAUSE_FAIL_DRC_WAIT);
+		call_dop(core, dump_and_stop_debug_mode, core);
+		return 1;
+	}
+
+	return 0;
+}
+
+void mfc_wake_up_drc_ctx(struct mfc_core_ctx *core_ctx)
+{
+	wake_up(&core_ctx->drc_wq);
+}
+
 int mfc_core_get_new_ctx(struct mfc_core *core)
 {
 	struct mfc_dev *dev = core->dev;
@@ -323,6 +357,7 @@ int __mfc_dec_ctx_ready_set_bit(struct mfc_core_ctx *core_ctx,
 	int dst_buf_queue_check_available = 0;
 	unsigned long flags;
 	int is_ready = 0;
+	unsigned int queue_cnt = 0;
 
 	mfc_debug(1, "[MFC-%d][c:%d] src = %d(ready = %d), dst = %d, src_nal = %d, dst_nal = %d, state = %d, capstat = %d, waitstat = %d\n",
 			core->id, ctx->num,
@@ -337,6 +372,12 @@ int __mfc_dec_ctx_ready_set_bit(struct mfc_core_ctx *core_ctx,
 			mfc_get_queue_count(&ctx->buf_queue_lock,
 				&ctx->dst_buf_nal_queue),
 			core_ctx->state, ctx->capture_state, ctx->wait_state);
+
+	queue_cnt += mfc_get_queue_count(&ctx->buf_queue_lock, &core_ctx->src_buf_queue);
+	queue_cnt += mfc_get_queue_count(&ctx->buf_queue_lock, &ctx->src_buf_ready_queue);
+	queue_cnt += mfc_get_queue_count(&ctx->buf_queue_lock, &ctx->dst_buf_queue);
+	queue_cnt += mfc_get_queue_count(&ctx->buf_queue_lock, &ctx->src_buf_nal_queue);
+	queue_cnt += mfc_get_queue_count(&ctx->buf_queue_lock, &ctx->dst_buf_nal_queue);
 
 	src_buf_queue_greater_than_0
 		= mfc_is_queue_count_greater(&ctx->buf_queue_lock, &core_ctx->src_buf_queue, 0);
@@ -371,7 +412,8 @@ int __mfc_dec_ctx_ready_set_bit(struct mfc_core_ctx *core_ctx,
 
 	/* Resolution change */
 	else if ((core_ctx->state == MFCINST_RES_CHANGE_INIT || core_ctx->state == MFCINST_RES_CHANGE_FLUSH) &&
-		dst_buf_queue_check_available)
+		dst_buf_queue_check_available &&
+		IS_SINGLE_MODE(ctx))
 		is_ready = 1;
 
 	else if (core_ctx->state == MFCINST_RES_CHANGE_END &&
@@ -393,6 +435,20 @@ int __mfc_dec_ctx_ready_set_bit(struct mfc_core_ctx *core_ctx,
 	}
 
 	spin_unlock_irqrestore(&data->lock, flags);
+
+	if (ctx->boosting_time && queue_cnt <= 1) {
+		u64 ktime = ktime_get_ns();
+		if ((ctx->boosting_time <= ktime) ||
+			(ctx->boosting_time - ktime) < MFC_BOOST_OFF_TIME) {
+			mfc_debug(2, "[BOOST] seeking booster terminated %ld.%06ld\n",
+				(ktime / NSEC_PER_SEC),
+				(ktime - ((ktime / NSEC_PER_SEC) * NSEC_PER_SEC)) / NSEC_PER_USEC);
+
+			ctx->boosting_time = 0;
+			ctx->framerate = ctx->last_framerate;
+			mfc_core_qos_on(core, ctx);
+		}
+	}
 
 	return is_ready;
 }

@@ -126,6 +126,7 @@ static struct modem_ctl *create_modemctl_device(struct platform_device *pdev,
 
 	INIT_LIST_HEAD(&modemctl->modem_state_notify_list);
 	spin_lock_init(&modemctl->lock);
+	spin_lock_init(&modemctl->tx_timer_lock);
 	init_completion(&modemctl->init_cmpl);
 	init_completion(&modemctl->off_cmpl);
 
@@ -806,7 +807,8 @@ static int cpif_probe(struct platform_device *pdev)
 			goto free_iod;
 		}
 
-		if (iod[i]->format == IPC_FMT || iod[i]->format == IPC_BOOT)
+		if (iod[i]->format == IPC_FMT || iod[i]->format == IPC_BOOT
+			|| iod[i]->ch == SIPC_CH_ID_CASS)
 			list_add_tail(&iod[i]->list,
 					&modemctl->modem_state_notify_list);
 

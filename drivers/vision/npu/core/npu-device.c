@@ -30,11 +30,11 @@
 #endif
 #include "npu-config.h"
 #include "vs4l.h"
-#include "npu-device.h"
 #include "vision-dev.h"
 #include "vision-ioctl.h"
 #include "npu-clock.h"
 #include "npu-log.h"
+#include "npu-device.h"
 #include "npu-debug.h"
 #include "npu-protodrv.h"
 #include "npu-util-memdump.h"
@@ -320,7 +320,7 @@ static int npu_device_probe(struct platform_device *pdev)
 #ifdef NPU_EXYNOS_PRINTK
 	/* activate exynos printk */
 	//dev_set_socdata(dev, "Exynos", "NPU");
-	npu_log.dev = dev;
+	//npu_log.dev = dev;
 #endif
 
 #ifdef CONFIG_EXYNOS_NPU_PUBLISH_NPU_BUILD_VER
@@ -515,6 +515,7 @@ int npu_system_put_req_nw(nw_cmd_e nw_cmd)
 	//req.uid = session->uid,
 	req.npu_req_id = 0,
 	req.result_code = 0,
+	req.result_value = 0;
 	//req.session = session,
 	req.cmd = nw_cmd,
 	//req.ncp_addr = session->ncp_info.ncp_addr,

@@ -4,6 +4,12 @@ config CAMERA_EEPROM_SUPPORT_REAR
         default n
         help
           Enable eeprom for rear cam.
+config CAMERA_OTPROM_SUPPORT_REAR
+        tristate "Enable otprom for rear cam"
+        depends on CAMERA_VENDER_MCD
+        default n
+        help
+          Enable otprom for rear cam.
 config CAMERA_EEPROM_SUPPORT_FRONT
         tristate "Enable eeprom for front cam"
         depends on CAMERA_VENDER_MCD
@@ -112,6 +118,12 @@ config CAMERA_USU_V03
         default n
         help
           This camera is usu_v03.
+config CAMERA_RSU_V09
+        bool "This camera is rsu_v09"
+        depends on CAMERA_VENDER_MCD
+        default n
+        help
+          This camera is rsu_v09.
 config USE_OIS_TAMODE_CONTROL
 	bool "Use ois TAMODE control"
         depends on CAMERA_VENDER_MCD

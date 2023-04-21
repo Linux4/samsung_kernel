@@ -191,4 +191,10 @@ extern s32 exynos_pm_qos_read_value(struct exynos_pm_qos_constraints *c);
 extern int exynos_pm_qos_read_req_value(int pm_qos_class, struct exynos_pm_qos_request *req);
 extern void show_exynos_pm_qos_data(int index);
 
+#include <linux/proc_fs.h>
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
+extern void exynos_pm_qos_procfs_init(struct proc_dir_entry *parent);
+#else
+static inline void exynos_pm_qos_procfs_init(struct proc_dir_entry *parent) {}
+#endif /* !CONFIG_SEC_PM_LOG */
 #endif

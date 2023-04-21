@@ -9,13 +9,11 @@
 #include <linux/types.h>
 #include <linux/smp.h>
 #include <linux/sched.h>
-#include <linux/stacktrace.h>
 #include <linux/sched/debug.h>
 #include <linux/sec_debug.h>
 
 #include "../../../kernel/sched/sched.h"
-
-#define MAX_CALL_ENTRY		128
+#include "sec_debug_internal.h"
 
 static struct task_struct *suspect;
 
@@ -39,47 +37,9 @@ static inline char get_state(struct task_struct *p)
 }
 
 #ifdef MODULE
-DEFINE_STATIC_PR_AUTO_NAME_ONCE(callstack, ASL2);
-
-static void __print_stack_trace(struct stack_trace *trace)
+static void __show_callstack(struct task_struct *task)
 {
-	unsigned int i;
-	const int spaces = 0;
-
-	if (!trace->nr_entries)
-		return;
-
-	pr_auto_name_once(callstack);
-	pr_auto_name(callstack, "Call trace:\n");
-
-	for (i = 0; i < trace->nr_entries; i++)
-		pr_auto_name(callstack, "%*c%pS\n", 1 + spaces, ' ', (void *)trace->entries[i]);
-}
-
-static void __show_callstack(struct task_struct *tsk)
-{
-	unsigned long entry[MAX_CALL_ENTRY];
-	struct stack_trace trace = {0,};
-
-	trace.max_entries = MAX_CALL_ENTRY;
-	trace.entries = entry;
-
-	if (!tsk) {
-		save_stack_trace(&trace);
-	} else {
-		trace.skip = 1;	/* skipping __switch_to */
-		save_stack_trace_tsk(tsk, &trace);
-	}
-
-	if (!trace.nr_entries) {
-		if (!tsk)
-			pr_err("no trace for current\n");
-		else
-			pr_err("no trace for [%s :%d]\n", tsk->comm, tsk->pid);
-		return;
-	}
-
-	__print_stack_trace(&trace);
+	secdbg_stra_show_callstack_auto(task);
 }
 #else /* MODULE */
 static void __show_callstack(struct task_struct *task)

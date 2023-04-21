@@ -54,7 +54,7 @@ void sec_bat_predict_wireless20_time_to_full_current(struct sec_battery_info *ba
 extern void sec_bat_time_to_full_work(struct work_struct *work);
 extern void ttf_init(struct sec_battery_info *battery);
 extern void ttf_work_start(struct sec_battery_info *battery);
-extern int ttf_display(struct sec_battery_info *battery);
+extern int ttf_display(unsigned int capacity, int bat_sts, int thermal_zone, int time);
 #ifdef CONFIG_OF
 int sec_ttf_parse_dt(struct sec_battery_info *battery);
 #endif

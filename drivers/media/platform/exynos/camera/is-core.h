@@ -290,7 +290,6 @@ struct is_core {
 
 	struct mutex				sensor_lock;
 	struct is_device_sensor		sensor[IS_SENSOR_COUNT];
-	struct is_device_csi_dma		csi_dma;
 	u32					chain_config;
 	struct is_device_ischain		ischain[IS_STREAM_COUNT];
 
@@ -400,6 +399,7 @@ int is_secure_func(struct is_core *core,
 	struct is_device_sensor *device, u32 type, u32 scenario, ulong smc_cmd);
 struct is_device_sensor *is_get_sensor_device(struct is_core *core);
 int is_put_sensor_device(struct is_core *core);
+struct is_device_ischain *is_get_ischain_device(u32 instance);
 void is_print_frame_dva(struct is_subdev *subdev);
 void is_cleanup(struct is_core *core);
 

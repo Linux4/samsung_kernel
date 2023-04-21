@@ -9,6 +9,11 @@
  * published by the Free Software Foundation.
  */
 
+#ifdef CONFIG_SND_SOC_SAMSUNG_AUDIO
+#include <kunit/test.h>
+#include <kunit/mock.h>
+#endif
+
 #include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/module.h>
@@ -3082,6 +3087,10 @@ static void abox_cleanup_sifs_cnt_val(struct abox_data *data)
 		writel_relaxed((i ? (i << 1) : 0x1) <<
 				ABOX_FUNC_CHAIN_SRC_OUT_L(r),
 				b + ABOX_SPUS_CTRL_FC_SRC(r));
+		/* set up sifs_out_sel */
+		if (i > 0)
+			writel_relaxed(r << ABOX_SIFS_OUT_SEL_L(i),
+					b + ABOX_SPUS_CTRL_SIFS_OUT_SEL(i));
 		/* set up uaif5_spk */
 		writel_relaxed((i + 1) << ABOX_ROUTE_UAIF_SPK_L(5),
 				b + ABOX_ROUTE_CTRL_UAIF_SPK(5));
@@ -4042,3 +4051,9 @@ MODULE_AUTHOR("Gyeongtaek Lee, <gt82.lee@samsung.com>");
 MODULE_DESCRIPTION("Samsung ASoC A-Box Driver");
 MODULE_ALIAS("platform:abox");
 MODULE_LICENSE("GPL");
+
+#ifdef CONFIG_SND_SOC_SAMSUNG_AUDIO
+#ifdef CONFIG_ABOX_TEST
+#include "./kunit_test/abox_test.c"
+#endif
+#endif

@@ -71,7 +71,7 @@ static void prepare_sfr_dump(struct is_hardware *hardware)
 			if (IS_ERR_OR_NULL(hw_ip->sfr_dump[i]))
 				serr_hw("sfr %d dump memory alloc fail", hw_ip, i);
 			else
-				sinfo_hw("sfr %d dump memory (V/P/S):(%p/%p/0x%X)[0x%llX~0x%llX]\n", hw_ip,
+				sinfo_hw("sfr %d dump memory (V/P/S):(%lx/%lx/0x%X)[0x%llX~0x%llX]\n", hw_ip,
 					i, hw_ip->sfr_dump[i], (void *)virt_to_phys(hw_ip->sfr_dump[i]),
 					reg_size, hw_ip->regs_start[i], hw_ip->regs_end[i]);
 		}
@@ -1197,10 +1197,11 @@ int is_hardware_grp_shot(struct is_hardware *hardware, u32 instance,
 		if (!atomic_read(&sensor_group->scount)) {
 			hw_frame = get_frame(framemgr, FS_HW_REQUEST);
 
-			msinfo_hw("OTF start [F:%d][G:0x%x][B:0x%lx][O:0x%lx]\n",
-				instance, hw_ip,
-				hw_frame->fcount, GROUP_ID(head->id),
-				hw_frame->bak_flag, hw_frame->out_flag);
+			if (hw_frame)
+				msinfo_hw("OTF start [F:%d][G:0x%x][B:0x%lx][O:0x%lx]\n",
+						instance, hw_ip,
+						hw_frame->fcount, GROUP_ID(head->id),
+						hw_frame->bak_flag, hw_frame->out_flag);
 		} else {
 			atomic_set(&hw_ip->hardware->log_count, 0);
 			framemgr_x_barrier_irqr(framemgr, 0, flags);
@@ -1339,7 +1340,7 @@ retry_get_frame:
 	}
 
 	frame = get_frame(framemgr, FS_HW_REQUEST);
-	if (IS_ERR_OR_NULL(frame)) {
+	if (!frame) {
 		framemgr_x_barrier(framemgr, 0);
 		mserr_hw("frame is null [G:0x%x]", instance, hw_ip,
 			GROUP_ID(group->id));
@@ -1466,7 +1467,7 @@ void is_hardware_frame_start(struct is_hw_ip *hw_ip, u32 instance)
 		}
 	}
 
-	if (IS_ERR_OR_NULL(frame)) {
+	if (!frame) {
 		check_frame = find_frame(framemgr, FS_HW_WAIT_DONE,
 			frame_fcount, (void *)(ulong)atomic_read(&hw_ip->fcount));
 		if (check_frame) {
@@ -1636,7 +1637,7 @@ int is_hardware_sensor_stop(struct is_hardware *hardware, u32 instance,
 			instance, hw_ip,
 			frame->fcount, frame->type, frame->out_flag, frame->core_flag,
 			framemgr->queued_count[FS_HW_WAIT_DONE]);
-		mswarn_hw(" %d com waiting...", instance, hw_ip,
+		msinfo_hw("[%s] %d com waiting...", instance, hw_ip, __func__,
 			framemgr->queued_count[FS_HW_WAIT_DONE]);
 
 		framemgr_x_barrier_irqr(framemgr, 0, flags);
@@ -1758,7 +1759,7 @@ static int flush_frames_in_instance(struct is_hw_ip *hw_ip,
 		}
 
 		framemgr_e_barrier_irqs(framemgr, 0, flags);
-		warn_hw("flushed a frame in %s, queued count: %d ",
+		info_hw("[%s] flushed a frame in %s, queued count: %d ", __func__,
 			hw_frame_state_name[frame->state], framemgr->queued_count[state]);
 
 		queued_count = framemgr->queued_count[state];
@@ -2061,13 +2062,18 @@ static int is_hardware_close_changed_chain(struct is_hardware *hardware, u32 hw_
 {
 	int ret = 0;
 	struct is_hw_ip *hw_ip = NULL;
-	int mapped_hw_id;
+	int mapped_hw_id, hw_slot;
 
 	FIMC_BUG(!hardware);
 
 	mapped_hw_id = is_hw_check_changed_chain_id(hardware, hw_id, instance);
-
 	if (mapped_hw_id) {
+		hw_slot = is_hw_slot_id(mapped_hw_id);
+		if (!valid_hw_slot_id(hw_slot)) {
+			merr_hw("[ID:%d]invalid hw_slot_id [SLOT:%d]", instance, hw_id, hw_slot);
+			return -EINVAL;
+		}
+
 		hw_ip = &(hardware->hw_ip[is_hw_slot_id(mapped_hw_id)]);
 		info("[%d] %s: hw(%d) rsccount(%d)", instance, __func__, mapped_hw_id,
 			atomic_read(&hw_ip->rsccount));
@@ -2307,7 +2313,9 @@ free_frame:
 		if (!test_bit(IS_GROUP_OTF_INPUT, &head->state)) {
 			struct is_hw_ip *hw_ip_ldr = is_get_hw_ip(head->id, hw_ip->hardware);
 
-			mshot_schedule(hw_ip_ldr);
+			if (hw_ip_ldr)
+				mshot_schedule(hw_ip_ldr);
+
 			msdbg_hw(1, "SHOT_TYPE_MULTI [F:%d][G:0x%x]\n",
 				frame->instance, hw_ip, frame->fcount, GROUP_ID(head->id));
 		}
@@ -3117,6 +3125,11 @@ int is_hardware_recovery_shot(struct is_hardware *hardware, u32 instance,
 	frame = get_frame(framemgr, FS_HW_REQUEST);
 	framemgr_x_barrier_common(framemgr, 0, flags);
 
+	if (!frame) {
+		mserr_hw("Failed to get REQUEST frame", instance, hw_ip);
+		return -EINVAL;
+	}
+
 	ret = is_hardware_shot(hardware, instance, hw_ip->group[instance],
 			frame, framemgr, hardware->hw_map[instance], frame->fcount);
 
@@ -3259,8 +3272,12 @@ int is_hardware_get_offline_data(struct is_hardware *hardware, u32 instance,
 			hw_id = hw_list[hw_index];
 			if (hw_id >= DEV_HW_3AA0 && hw_id <= DEV_HW_3AA3) {
 				hw_slot = is_hw_slot_id(hw_id);
-				hw_ip = &hardware->hw_ip[hw_slot];
-				goto get_3AA_slot;
+				if (!valid_hw_slot_id(hw_slot))
+					merr_hw("invalid slot (%d,%d)", instance, hw_id, hw_slot);
+				else {
+					hw_ip = &hardware->hw_ip[hw_slot];
+					goto get_3AA_slot;
+				}
 			}
 		}
 		child = child->parent;
@@ -3282,7 +3299,8 @@ get_3AA_slot:
 void is_hardware_debug_otf(struct is_hardware *hardware, struct is_group *group)
 {
 	struct is_group *child;
-	struct is_hw_ip *hw_ip_paf, *hw_ip_3aa;
+	struct is_hw_ip *hw_ip_paf = NULL;
+	struct is_hw_ip *hw_ip_3aa = NULL;
 
 	child = GET_HEAD_GROUP_IN_DEVICE(IS_DEVICE_ISCHAIN, group);
 	while (child) {

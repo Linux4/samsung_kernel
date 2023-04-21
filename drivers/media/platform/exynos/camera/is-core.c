@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Samsung Exynos5 SoC series FIMC-IS driver
  *
@@ -118,6 +119,7 @@ extern struct spi_driver is_spi_driver;
 extern struct platform_driver sensor_paf_pdp_platform_driver;
 extern struct platform_driver sensor_module_driver;
 extern struct i2c_driver sensor_i2c_dummy_driver;
+extern struct platform_driver is_camif_dma_driver;
 #endif
 
 struct is_device_sensor *is_get_sensor_device(struct is_core *core)
@@ -132,6 +134,18 @@ int is_put_sensor_device(struct is_core *core)
 	mutex_unlock(&core->sensor_lock);
 
 	return 0;
+}
+
+struct is_device_ischain *is_get_ischain_device(u32 instance)
+{
+	struct is_core *core;
+
+	if (instance >= IS_STREAM_COUNT)
+		return NULL;
+
+	core = (struct is_core *)dev_get_drvdata(is_dev);
+
+	return &core->ischain[instance];
 }
 
 #ifdef CONFIG_CPU_THERMAL_IPA
@@ -400,7 +414,6 @@ void __iomem *addr_d3_csis;
 static void __is_fault_handler(struct device *dev)
 {
 	u32 i, sd_index;
-	int vc;
 	struct is_core *core;
 	struct is_device_sensor *sensor;
 	struct is_device_ischain *ischain;
@@ -487,18 +500,8 @@ static void __is_fault_handler(struct device *dev)
 		framemgr = GET_FRAMEMGR(sensor->vctx);
 		if (test_bit(IS_SENSOR_OPEN, &sensor->state) && framemgr) {
 			csi = (struct is_device_csi *)v4l2_get_subdevdata(sensor->subdev_csi);
-			if (csi) {
-				csi_hw_dump(csi->base_reg);
-				csi_hw_phy_dump(csi->phy_reg, csi->ch);
-				for (vc = CSI_VIRTUAL_CH_0; vc < CSI_VIRTUAL_CH_MAX; vc++) {
-					csi_hw_vcdma_dump(csi->vc_reg[csi->scm][vc]);
-					csi_hw_vcdma_cmn_dump(csi->cmn_reg[csi->scm][vc]);
-				}
-				csi_hw_common_dma_dump(csi->csi_dma->base_reg);
-#if defined(ENABLE_PDP_STAT_DMA)
-				csi_hw_common_dma_dump(csi->csi_dma->base_reg_stat);
-#endif
-			}
+			if (csi)
+				csi_hw_dump_all(csi);
 		}
 	}
 
@@ -1505,13 +1508,6 @@ static int is_probe(struct platform_device *pdev)
 
 	mutex_init(&core->sensor_lock);
 
-	/* CSIS common dma probe */
-	ret = is_csi_dma_probe(&core->csi_dma, core->pdev);
-	if (ret) {
-		dev_err(&pdev->dev, "is_csi_dma_probe fail\n");
-		goto p_err1;
-	}
-
 	ret = is_interface_ischain_probe(&core->interface_ischain,
 		&core->hardware,
 		&core->resourcemgr,
@@ -1657,7 +1653,7 @@ static int is_probe(struct platform_device *pdev)
 		goto p_err3;
 #endif
 
-#if defined(VH_FPSIMD_API)
+#if defined(ENABLE_FPSIMD_FOR_USER) && defined(VH_FPSIMD_API)
 	ret = is_fpsimd_probe();
 	if (ret)
 		goto p_err3;
@@ -1827,6 +1823,12 @@ static int is_driver_init(void)
 	ret = i2c_add_driver(&sensor_i2c_dummy_driver);
 	if (ret) {
 		err("sensor_i2c_dummy_driver register failed(%d)", ret);
+		return ret;
+	}
+
+	ret = platform_driver_register(&is_camif_dma_driver);
+	if (ret) {
+		err("is_camif_dma_driver register failed(%d)", ret);
 		return ret;
 	}
 

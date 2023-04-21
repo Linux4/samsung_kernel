@@ -63,6 +63,11 @@ static struct sensor_info info_table[] = {
 	SENSOR_INFO_TAP_TRACKER,
 	SENSOR_INFO_SHAKE_TRACKER,
 	SENSOR_INFO_LIGHT_SEAMLESS,
+	SENSOR_INFO_AUTO_ROTATION,
+#ifdef CONFIG_SENSORS_FLIP_COVER_DETECTOR
+	SENSOR_INFO_FLIP_COVER_DETECTOR,
+#endif
+	SENSOR_INFO_SAR_BACKOFF_MOTION,
 	SENSOR_INFO_FILE_MANAGER,
 };
 
@@ -514,6 +519,43 @@ void report_light_seamless_data(struct ssp_data *data, int sensor_type,
 	report_iio_data(data, LIGHT_SEAMLESS_SENSOR, light_seamless_data);
 	wake_lock_timeout(data->ssp_wake_lock, 0.3*HZ);
 	pr_err("[SSP]: %s: %d ts: %llu", __func__, light_seamless_data->light_seamless_event, light_seamless_data->timestamp);
+}
+
+void report_auto_rotation_data(struct ssp_data *data, int sensor_type,
+		struct sensor_value *auto_rotation_data)
+{
+	report_iio_data(data, AUTO_ROTATION_SENSOR, auto_rotation_data);
+	wake_lock_timeout(data->ssp_wake_lock, 0.3*HZ);
+	pr_err("[SSP]: %s: %d ts: %llu", __func__, auto_rotation_data->auto_rotation_event, auto_rotation_data->timestamp);
+}
+
+#ifdef CONFIG_SENSORS_FLIP_COVER_DETECTOR
+void report_flip_cover_detector_data(struct ssp_data *data, int sensor_type,
+		struct sensor_value *flip_cover_detector_data)
+{
+	// Value 100 indicates factory data, so process only for factory test and skip reporting to HAL
+	if (flip_cover_detector_data->value == 100) {
+		if (data->fcd_data.factory_cover_status)
+			check_cover_detection_factory(data, flip_cover_detector_data);
+	} else {
+		report_iio_data(data, FLIP_COVER_DETECTOR, flip_cover_detector_data);
+
+		pr_info("[SSP]: %s: value = %d magx = %d stable_min_max= %d ts : %llu", __func__,
+			flip_cover_detector_data->value, flip_cover_detector_data->magX,
+			flip_cover_detector_data->stable_min_max, flip_cover_detector_data->timestamp);
+	}
+
+	wake_lock_timeout(data->ssp_wake_lock, 0.3*HZ);
+}
+#endif
+void report_sar_backoff_motion_data(struct ssp_data *data, int sensor_type,
+		struct sensor_value *sar_backoff_motion_data)
+{
+	report_iio_data(data, SAR_BACKOFF_MOTION, sar_backoff_motion_data);
+	wake_lock_timeout(data->ssp_wake_lock, 0.3*HZ);
+	pr_err("[SSP]: %s: %d ts: %llu", __func__,
+	sar_backoff_motion_data->sar_backoff_motion_event,
+	sar_backoff_motion_data->timestamp);
 }
 
 #define THM_UP		0

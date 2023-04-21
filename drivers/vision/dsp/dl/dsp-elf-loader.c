@@ -114,6 +114,17 @@ static int __dsp_elf32_check_magic(struct dsp_dl_lib_file *file)
 	return ck;
 }
 
+int dsp_elf32_check_range(struct dsp_elf32 *elf, size_t size)
+{
+	if (size > elf->size) {
+		DL_ERROR("invalid size range of elf(%zu/%zu)\n",
+				size, elf->size);
+		return -1;
+	}
+
+	return 0;
+}
+
 static void *__dsp_elf32_get_ptr(struct dsp_elf32 *elf, void *src, size_t size)
 {
 	if ((src < (void *)elf->data) ||
@@ -594,6 +605,11 @@ static unsigned int __dsp_elf32_get_section_list_size(
 		struct dsp_elf32_shdr *sec = elf->shdr + idx_node->idx;
 		unsigned int size = sec->sh_size;
 
+		if (total > total + __dsp_elf32_align_4byte(size)) {
+			DL_ERROR("Overflow happened\n");
+			return UINT_MAX;
+		}
+
 		total += __dsp_elf32_align_4byte(size);
 	}
 	return total;
@@ -608,11 +624,50 @@ unsigned int dsp_elf32_get_mem_size(struct dsp_elf32_mem *mem,
 	struct dsp_elf32 *elf)
 {
 	unsigned int total = 0;
+	unsigned int size = 0;
 
-	total += __dsp_elf32_get_section_list_size(&mem->robss, elf);
-	total += __dsp_elf32_get_section_list_size(&mem->rodata, elf);
-	total += __dsp_elf32_get_section_list_size(&mem->bss, elf);
-	total += __dsp_elf32_get_section_list_size(&mem->data, elf);
+	total = __dsp_elf32_get_section_list_size(&mem->robss, elf);
+	if (total == UINT_MAX) {
+		DL_ERROR("Overflow happened\n");
+		return UINT_MAX;
+	}
+
+	size = __dsp_elf32_get_section_list_size(&mem->rodata, elf);
+	if (size == UINT_MAX) {
+		DL_ERROR("Overflow happened\n");
+		return UINT_MAX;
+	}
+
+	if (total > total + size) {
+		DL_ERROR("Overflow happened\n");
+		return UINT_MAX;
+	}
+	total += size;
+
+	size = __dsp_elf32_get_section_list_size(&mem->bss, elf);
+	if (size == UINT_MAX) {
+		DL_ERROR("Overflow happened\n");
+		return UINT_MAX;
+	}
+
+	if (total > total + size) {
+		DL_ERROR("Overflow happened\n");
+		return UINT_MAX;
+	}
+	total += size;
+
+	size = __dsp_elf32_get_section_list_size(&mem->data, elf);
+	if (size == UINT_MAX) {
+		DL_ERROR("Overflow happened\n");
+		return UINT_MAX;
+	}
+
+	if (total > total + size) {
+		DL_ERROR("Overflow happened\n");
+		return UINT_MAX;
+	}
+	total += size;
+
 	return total;
 }
 

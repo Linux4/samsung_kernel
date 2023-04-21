@@ -12,6 +12,7 @@
 
 #include "npu-util-statekeeper.h"
 #include "npu-log.h"
+#include "interface/hardware/npu-interface.h"
 
 /*
  * Sample state

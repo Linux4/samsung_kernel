@@ -85,6 +85,11 @@ config EXYNOS_AFBC_DEBUG
         depends on EXYNOS_DPU30
         default n
 
+config EXYNOS_DECON_BUFFER_SANITY_CHECK
+	bool "Support DMA Buffer Sanity Check for Debugging"
+        depends on EXYNOS_DPU30
+        default n
+
 config EXYNOS_MULTIRESOLUTION
 	bool "Support Multi Resolution LCD"
 	depends on EXYNOS_DPU30 && EXYNOS_WINDOW_UPDATE
@@ -248,3 +253,10 @@ config MCDHDR
 	bool "Supprot HDR/WCG Driver for MCD"
 	depends on EXYNOS_DPU30
 	default n
+
+config DP_DRV_TEST
+	bool "KUnit test for dp_drv_test"
+	depends on SEC_KUNIT
+	default n
+	help
+	  enable KUNIT test for Displayport driver

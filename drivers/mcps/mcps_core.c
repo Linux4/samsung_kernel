@@ -1,5 +1,6 @@
-﻿/*
- * Copyright (C) 2019 Samsung Electronics.
+﻿// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2019-2021 Samsung Electronics.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -25,6 +26,9 @@
 #include <linux/tcp.h>
 #include <net/ip.h>
 
+#include "migration/mcps_migration.h"
+#include "utils/mcps_utils.h"
+#include "utils/mcps_cpu.h"
 #include "mcps_sauron.h"
 #include "mcps_device.h"
 #include "mcps_buffer.h"
@@ -69,6 +73,13 @@ unsigned int mcps_gro_policy1[MCPS_GRO_POLICY_SIZE] __read_mostly = {0, 0, 0, 0,
 module_param_array(mcps_gro_policy1, uint, NULL, 0640);
 unsigned int mcps_l2b_pps __read_mostly = UINT_MAX;
 module_param(mcps_l2b_pps, uint, 0640);
+
+#define MCPS_GRO_PHASE_COUNT 2
+unsigned long mcps_gro_phase_threshold __read_mostly;
+module_param(mcps_gro_phase_threshold, ulong, 0640);
+unsigned long mcps_gro_phase_intervals[MCPS_GRO_PHASE_COUNT] __read_mostly = {0, 0};
+module_param_array(mcps_gro_phase_intervals, ulong, NULL, 0640);
+#define interval_of_gro_phase(i) mcps_gro_phase_intervals[(i)]
 #endif // #if defined(CONFIG_MCPS_GRO_PER_SESSION)
 
 #if defined(CONFIG_MCPS_V2)
@@ -76,8 +87,8 @@ int mcps_agro_enable = MCPS_CPU_DIRECT_GRO;
 module_param(mcps_agro_enable, int, 0640);
 #endif
 
-#define PRINT_MOVE(HASH, TO, RESULT) MCPS_DEBUG("FLOW[%10u] -> %2u = %d \n", HASH, TO, RESULT)
-#define PRINT_MIGRATE(FROM, TO, RESULT) MCPS_DEBUG("%2u -> %2u = %d \n", FROM, TO, RESULT)
+#define PRINT_MOVE(HASH, TO, RESULT) MCPS_DEBUG("FLOW[%10u] -> %2u = %d\n", HASH, TO, RESULT)
+#define PRINT_MIGRATE(FROM, TO, RESULT) MCPS_DEBUG("%2u -> %2u = %d\n", FROM, TO, RESULT)
 
 #ifdef CONFIG_MCPS_DEBUG_PRINTK
 #define PRINT_FLOW_STAT(S) do {   \
@@ -107,51 +118,93 @@ module_param(mcps_agro_enable, int, 0640);
 struct eye *pick_heavy(struct sauron *sauron, int cpu)
 {
 	struct eye *eye = NULL;
+
 	spin_lock(&sauron->cached_eyes_lock[cpu]);
 	eye = sauron->heavy_eyes[cpu];
 	spin_unlock(&sauron->cached_eyes_lock[cpu]);
+
 	return eye;
 }
 
 struct eye *pick_light(struct sauron *sauron, int cpu)
 {
 	struct eye *eye = NULL;
+
 	spin_lock(&sauron->cached_eyes_lock[cpu]);
 	eye = sauron->light_eyes[cpu];
 	spin_unlock(&sauron->cached_eyes_lock[cpu]);
+
 	return eye;
 }
 
-void del_monitor_flow(struct sauron *sauron, struct eye *eye)
+/* This function should be nested by sauron_lock because eye should not be freed.
+ * And this function is not sync to set_flow_on_monitoring.
+ * set_flow_on_monitoring can be fail but It is not. Because some flow can be heavier than before.
+ * If so, This function will update heavy one to new one.
+ */
+mcps_visible_for_testing inline void update_heavy_and_light_monitor_flow(struct sauron  *sauron, struct eye *eye, int cpu)
 {
-	if (!eye->monitored)
-		return;
+	spin_lock(&sauron->cached_eyes_lock[cpu]);
+	if (!sauron->heavy_eyes[cpu] || sauron->heavy_eyes[cpu]->pps < eye->pps)
+		sauron->heavy_eyes[cpu] = eye;
 
+	if (!sauron->light_eyes[cpu] || sauron->light_eyes[cpu]->pps > eye->pps)
+		sauron->light_eyes[cpu] = eye;
+
+	spin_unlock(&sauron->cached_eyes_lock[cpu]);
+}
+
+/* This function should be nested by sauron_lock because eye should not be freed.
+ * And this function is not sync to set_flow_off_monitoring.
+ * set_flow_off_monitoring can be fail but It is not. Because some flow can be heavier than before.
+ * If so, This function will update heavy one to new one.
+ */
+mcps_visible_for_testing inline void remove_heavy_and_light_monitor_flow(struct sauron  *sauron, struct eye *eye, int cpu)
+{
+	spin_lock(&sauron->cached_eyes_lock[cpu]);
+	if (sauron->heavy_eyes[cpu] == eye)
+		sauron->heavy_eyes[cpu] = NULL;
+
+	if (sauron->light_eyes[cpu] == eye)
+		sauron->light_eyes[cpu] = NULL;
+	spin_unlock(&sauron->cached_eyes_lock[cpu]);
+}
+
+/* check mcps_is_on_monitoring */
+mcps_visible_for_testing inline void set_flow_off_monitoring(struct sauron *sauron, struct eye *eye)
+{
 	sauron->target_flow_cnt_by_cpus[eye->cpu]--;
-	eye->monitored = 0;
+	eye->is_on_monitoring = 0;
 }
 
-void add_monitor_flow(struct sauron *sauron, struct eye *eye)
+/* check mcps_is_on_monitoring */
+mcps_visible_for_testing inline void set_flow_on_monitoring(struct sauron *sauron, struct eye *eye)
 {
-	if (eye->monitored)
-		return;
-
 	sauron->target_flow_cnt_by_cpus[eye->cpu]++;
-	eye->monitored = 1;
+	eye->is_on_monitoring = 1;
 }
 
-void __delete_flow(struct sauron *sauron, struct eye *eye)
+/* check mcps_is_on_monitoring */
+mcps_visible_for_testing inline void move_monitoring_flow_count(struct sauron *sauron, int from, int to)
 {
-	int cpu = eye->cpu;
+	sauron->target_flow_cnt_by_cpus[from]--;
+	sauron->target_flow_cnt_by_cpus[to]++;
+}
 
+mcps_visible_for_testing inline void dec_flow_count(struct sauron *sauron, int cpu)
+{
 	sauron->flow_cnt_by_cpus[cpu]--;
 }
 
-void __add_flow(struct sauron *sauron, struct eye *eye)
+mcps_visible_for_testing inline void inc_flow_count(struct sauron *sauron, int cpu)
 {
-	int cpu = eye->cpu;
-
 	sauron->flow_cnt_by_cpus[cpu]++;
+}
+
+mcps_visible_for_testing inline void move_flow_count(struct sauron *sauron, int from, int to)
+{
+	sauron->flow_cnt_by_cpus[from]--;
+	sauron->flow_cnt_by_cpus[to]++;
 }
 
 /* search_flow - search flow node from hash table with hash value.
@@ -177,6 +230,7 @@ struct eye *search_flow(struct sauron *sauron, u32 hash)
 static void eye_rcu_call(struct rcu_head *p)
 {
 	struct eye *e = container_of(p, struct eye, rcu);
+
 	discard_buffer(&e->pendings);
 	kfree(e);
 }
@@ -184,9 +238,11 @@ static void eye_rcu_call(struct rcu_head *p)
 void delete_flow(struct sauron *sauron, struct eye *flow)
 {
 	hash_del_rcu(&flow->eye_hash_node);
-	remove_heavy_and_light(sauron, flow);
-	del_monitor_flow(sauron, flow);
-	__delete_flow(sauron, flow);
+	if (mcps_is_on_monitoring(flow)) {
+		set_flow_off_monitoring(sauron, flow);
+		remove_heavy_and_light_monitor_flow(sauron, flow, flow->cpu);
+	}
+	dec_flow_count(sauron, flow->cpu);
 	call_rcu(&flow->rcu, eye_rcu_call);
 }
 
@@ -194,33 +250,36 @@ struct pending_queue *find_pendings(unsigned long data)
 {
 	unsigned int hash = (unsigned int) data;
 	struct eye *e = NULL;
+
 	e = search_flow(&mcps->sauron, hash);
-	if (!e) {
+	if (!e)
 		return NULL;
-	}
+
 	return &e->pendings;
 }
 
 /* __move_flow - move selected flow to selected core(to)
  */
-static int __move_flow(struct sauron *sauron, unsigned int to, struct eye *flow)
+mcps_visible_for_testing
+int __move_flow(struct sauron *sauron, unsigned int to, struct eye *flow)
 {
-	#ifdef CONFIG_MCPS_DEBUG
+#ifdef CONFIG_MCPS_DEBUG
 	int vec = (CLUSTER(flow->cpu) | (CLUSTER(to) << 2));
+
 	mcps_migrate_flow_history(flow, vec);
-	#endif
+#endif
 
 	sauron_lock(sauron);
 
-	remove_heavy_and_light(sauron, flow);
-	del_monitor_flow(sauron, flow);
-	__delete_flow(sauron, flow);
+	if (mcps_is_on_monitoring(flow)) {
+		move_monitoring_flow_count(sauron, flow->cpu, to);
+		remove_heavy_and_light_monitor_flow(sauron, flow, flow->cpu);
+		update_heavy_and_light_monitor_flow(sauron, flow, to);
+	}
+
+	move_flow_count(sauron, flow->cpu, to);
 
 	flow->cpu = to;
-
-	__add_flow(sauron, flow);
-	add_monitor_flow(sauron, flow);
-	update_heavy_and_light(sauron, flow);
 
 	PRINT_MOVE(flow->hash, to, 0);
 	PRINT_FLOW_STAT(sauron);
@@ -256,53 +315,41 @@ error:
 	return ret;
 }
 
-int move_flow(unsigned int to, struct eye *flow)
+int migrate_flow_on_cpu(unsigned int from, unsigned int to, unsigned int option)
 {
-	int ret;
-	unsigned int from;
+	int ret = 0;
+	struct sauron *sauron = &mcps->sauron;
+	struct eye *flow = NULL;
+
+	if (!mcps_cpu_online(from) || !mcps_cpu_online(to) || from == to)
+		return -EINVAL;
+
+	rcu_read_lock();
+	if (option & LIGHT_FLOW)
+		flow = pick_light(sauron, from);
+	else
+		flow = pick_heavy(sauron, from);
 
 	if (!flow) {
-		PRINT_MOVE(0, to, -FNULL);
-		return -FNULL;
+		ret = -FNOCACHE;
+		goto error;
 	}
 
-	from = flow->cpu;
-
-	if (!cpu_possible(to) || from == to) {
-		PRINT_MOVE(flow->hash, to, -FWRONGCPU);
-		return -FWRONGCPU;
-	}
-
-	// move agro
-	ret = pending_migration(&flow->pendings, flow->hash, from, to);
-
+	ret = __move_flow(sauron, to, flow);
+error:
+	rcu_read_unlock();
+	PRINT_MIGRATE(from, to, ret);
 	return ret;
 }
 
 int migrate_flow(unsigned int from, unsigned int to, unsigned int option)
 {
 	int ret = 0;
-	struct eye *flow = NULL;
-	struct sauron *sauron = &mcps->sauron;
 
 	if (!mcps_cpu_online(from) || !mcps_cpu_online(to))
 		return -EINVAL;
 
-	rcu_read_lock();
-	if (option & LIGHT_FLOW) {
-		flow = pick_light(sauron, from);
-	} else {
-		flow = pick_heavy(sauron, from);
-	}
-
-	if (!flow) {
-		ret = -FNOCACHE;
-		goto pass;
-	}
-
-	ret = move_flow(to, flow);
-pass:
-	rcu_read_unlock();
+	ret = mcps_request_migration(from, to, option);
 	PRINT_MIGRATE(from, to, ret);
 	return ret;
 }
@@ -325,28 +372,27 @@ void __update_protocol_ipv4(struct sk_buff *skb, struct eye *flow)
 	unsigned int dst_port = 0;
 
 #if defined(CONFIG_MCPS_ICGB)
-	if (check_mcps_in_addr(hdr->daddr)) {
+	if (check_mcps_in_addr(hdr->daddr))
 		flow->policy = EYE_POLICY_FAST;
-	} else {
+	else
 		flow->policy = EYE_POLICY_SLOW;
-	}
 #endif // #if defined(CONFIG_MCPS_ICGB)
 
-	if (ip_is_fragment(hdr)) {
+	if (ip_is_fragment(hdr))
 		goto fragmented;
-	}
+
 	if (hdr->protocol == IPPROTO_TCP) {
 		struct tcphdr *th = NULL;
+
 		th = (struct tcphdr *)(skb_header_pointer(skb, sizeof(struct iphdr), sizeof(struct tcphdr), th));
-		if (th) {
+		if (th)
 			dst_port = (unsigned int)ntohs(th->dest);
-		}
 	} else if (hdr->protocol == IPPROTO_UDP) {
 		struct udphdr *uh = NULL;
+
 		uh = (struct udphdr *)(skb_header_pointer(skb, sizeof(struct iphdr), sizeof(struct udphdr), uh));
-		if (uh) {
+		if (uh)
 			dst_port = (unsigned int)ntohs(uh->dest);
-		}
 	}
 
 fragmented:
@@ -361,25 +407,24 @@ void __update_protocol_ipv6(struct sk_buff *skb, struct eye *flow)
 	unsigned int dst_port = 0;
 
 #if defined(CONFIG_MCPS_ICGB)
-	if (check_mcps_in6_addr(&hdr->daddr)) {
+	if (check_mcps_in6_addr(&hdr->daddr))
 		flow->policy = EYE_POLICY_FAST;
-	} else {
+	else
 		flow->policy = EYE_POLICY_SLOW;
-	}
 #endif // #if defined(CONFIG_MCPS_ICGB)
 
 	if (hdr->nexthdr == IPPROTO_TCP) {
 		struct tcphdr *th = NULL;
+
 		th = (struct tcphdr *)(skb_header_pointer(skb, sizeof(struct ipv6hdr), sizeof(struct tcphdr), th));
-		if (th) {
+		if (th)
 			dst_port = (unsigned int)ntohs(th->dest);
-		}
 	} else if (hdr->nexthdr == IPPROTO_UDP) {
 		struct udphdr *uh = NULL;
+
 		uh = (struct udphdr *)(skb_header_pointer(skb, sizeof(struct ipv6hdr), sizeof(struct udphdr), uh));
-		if (uh) {
+		if (uh)
 			dst_port = (unsigned int)ntohs(uh->dest);
-		}
 	} /*else if (hdr->nexthdr == IPPROTO_FRAGMENT) {}*/
 
 	memcpy(&flow->dst_ipv6, &hdr->daddr, sizeof(struct in6_addr));
@@ -406,13 +451,18 @@ struct eye *create_and_init_eye(struct sk_buff *skb)
 	unsigned long now = jiffies;
 	struct eye *eye = NULL;
 
-	eye = (struct eye *) kzalloc(sizeof(struct eye), GFP_ATOMIC);
-	if (!eye) {
+	eye = kzalloc(sizeof(struct eye), GFP_ATOMIC);
+	if (!eye)
 		return NULL;
-	}
 
 	eye->hash = skb->hash;
 	eye->t_stamp = eye->t_capture = now;
+
+#if defined(CONFIG_MCPS_GRO_PER_SESSION)
+	eye->t_created = now;
+	eye->t_interval = interval_of_gro_phase(0);
+	eye->option = FLOW_STATE_NO_GRO;
+#endif
 
 	init_rcu_head(&eye->rcu);
 	INIT_HLIST_NODE(&eye->eye_hash_node);
@@ -443,9 +493,8 @@ struct eye *add_flow(struct sauron *sauron, struct sk_buff *skb, int cpu)
 	unsigned int hash = skb->hash;
 	struct eye	*eye = create_and_init_eye(skb);
 
-	if (eye == NULL) {
+	if (eye == NULL)
 		return NULL;
-	}
 
 	eye->cpu = cpu;
 	eye->state = 0;
@@ -453,7 +502,7 @@ struct eye *add_flow(struct sauron *sauron, struct sk_buff *skb, int cpu)
 	idx = (unsigned int)(hash % HASH_SIZE(sauron->sauron_eyes));
 	sauron_lock(sauron);
 	hlist_add_head_rcu(&eye->eye_hash_node, &sauron->sauron_eyes[idx]);
-	__add_flow(sauron, eye);
+	inc_flow_count(sauron, eye->cpu);
 	sauron_unlock(sauron);
 	return eye;
 }
@@ -479,6 +528,7 @@ skip:
 	sauron_lock(sauron);
 	for (idx = 0; idx < HASH_SIZE(sauron->sauron_eyes); idx++) {
 		struct eye *e = NULL;
+
 		hlist_for_each_entry_rcu(e, &sauron->sauron_eyes[idx], eye_hash_node) {
 			if (e && time_after(last_flush, e->t_stamp + 10*HZ)) {
 				dump(e);
@@ -495,8 +545,9 @@ EXPORT_SYMBOL(flush_flows);
 
 static inline unsigned int app_core(unsigned int hash)
 {
-	unsigned int cpu_on_app = NR_CPUS;
+	unsigned int cpu_on_app = mcps_nr_cpus;
 	struct rps_sock_flow_table *sock_flow_table;
+
 	sock_flow_table = rcu_dereference(rps_sock_flow_table);
 
 	if (sock_flow_table) {
@@ -504,7 +555,7 @@ static inline unsigned int app_core(unsigned int hash)
 		/* First check into global flow table if there is a match */
 		ident = sock_flow_table->ents[hash & sock_flow_table->mask];
 		if ((ident ^ hash) & ~rps_cpu_mask)
-			cpu_on_app = NR_CPUS;
+			cpu_on_app = mcps_nr_cpus;
 		else
 			cpu_on_app = ident & rps_cpu_mask;
 	}
@@ -515,20 +566,10 @@ static inline unsigned int app_core(unsigned int hash)
 	return cpu_on_app;
 }
 
-static inline int
-__get_rand_cpu(struct rps_map *map, u32 hash) {
-	int cpu = -1;
+static int __last_cpu_on_cluster[NR_CLUSTER] = {-1, -1, -1, -1};
 
-	cpu = map->cpus[reciprocal_scale(hash, map->len)];
-	if (mcps_cpu_online(cpu)) {
-		return cpu;
-	}
-
-	return -1;
-}
-
-static int
-get_rand_cpu(struct arps_meta *arps, u32 hash, unsigned int cluster)
+mcps_visible_for_testing int
+get_rr_cpu(struct arps_meta *arps, unsigned int cluster)
 {
 	int cpu = 0;
 	struct rps_map *map = NULL;
@@ -539,18 +580,24 @@ get_rand_cpu(struct arps_meta *arps, u32 hash, unsigned int cluster)
 	map = ARPS_MAP_FILTERED(arps, cluster);
 	if (!map->len) {
 		map = ARPS_MAP_FILTERED(arps, ALL_CLUSTER);
+		cluster = ALL_CLUSTER;
+		if (!map->len)
+			goto no_map;
 	}
 
-	cpu = __get_rand_cpu(map, hash);
-	if (VALID_CPU(cpu))
-		return cpu;
-
-	for_each_cpu_and(cpu, arps->mask_filtered, mcps_cpu_online_mask) {
-		if (cpu < 0)
-			continue;
+	cpu = cpumask_next_and(__last_cpu_on_cluster[cluster], arps->mask[cluster], mcps_cpu_online_mask);
+	if (VALID_CPU(cpu)) {
+		__last_cpu_on_cluster[cluster] = cpu;
 		return cpu;
 	}
 
+	cpu = cpumask_next_and(-1, arps->mask[cluster], mcps_cpu_online_mask);
+	if (VALID_CPU(cpu)) {
+		__last_cpu_on_cluster[cluster] = cpu;
+		return cpu;
+	}
+
+no_map:
 	//current
 	return smp_processor_id_safe();
 }
@@ -559,6 +606,7 @@ unsigned int light_cpu(void)
 {
 	unsigned int cpu = 0;
 	struct arps_meta *arps;
+
 	rcu_read_lock();
 	arps = get_arps_rcu();
 	if (!arps) {
@@ -566,177 +614,172 @@ unsigned int light_cpu(void)
 		return 0;
 	}
 
-	cpu = get_rand_cpu(arps, (u32)jiffies, mcps_set_cluster_for_hotplug);
+	cpu = get_rr_cpu(arps, mcps_set_cluster_for_hotplug);
 	rcu_read_unlock();
 
 	return cpu;
 }
 
-void update_mask
-(struct sauron *sauron, struct arps_meta *arps, struct eye *eye, unsigned int cluster)
+void update_mask(struct sauron *sauron, struct arps_meta *arps, struct eye *eye, unsigned int cluster)
 {
-	int cpu = get_rand_cpu(arps, eye->hash, cluster);
+	int cpu = get_rr_cpu(arps, cluster);
+
 	__move_flow(sauron, cpu, eye);
 }
 
 static inline int mcps_check_overhead_avoidance(struct eye *eye)
 {
 	struct arps_meta *newflow_arps = get_newflow_rcu();
-	if (!newflow_arps) {
+
+	if (!newflow_arps)
 		return 0;
-	}
-	return cpumask_test_cpu(eye->cpu, newflow_arps->mask_filtered);
+
+	return cpumask_test_cpu(eye->cpu, newflow_arps->mask_filtered[ALL_CLUSTER]);
 }
 
 #define HALFSEC (HZ/2)
 
-static inline unsigned int __update_eye_pps(struct eye *eye)
+#define flow_pps(e) ((unsigned int)(((e)->value - (e)->capture) * HZ / ((e)->t_stamp - (e)->t_capture)))
+#if defined(CONFIG_MCPS_GRO_PER_SESSION)
+static inline void update_eye_phase(struct eye *eye)
 {
-	if (eye->t_stamp - eye->t_capture == 0) {
-		return eye->pps;
-	}
-
-	return (unsigned int)((eye->value - eye->capture) * HZ / (eye->t_stamp - eye->t_capture));
+	if (time_after(eye->t_stamp, eye->t_created + mcps_gro_phase_threshold))
+		eye->t_interval = interval_of_gro_phase(1);
 }
+#else
+#define update_eye_phase(e) do { } while (0)
+#endif
 
-static int update_eye_pps(struct eye *eye)
+mcps_visible_for_testing inline void update_eye_pps(struct eye *eye)
 {
-	struct arps_meta *arps = NULL;
-	if (!time_after(eye->t_stamp, eye->t_capture + HALFSEC)) {
-		return 0;
-	}
-
-	eye->pps = __update_eye_pps(eye);
-
+	eye->pps = flow_pps(eye);
 	eye->t_capture  = eye->t_stamp;
 	eye->capture	= eye->value;
 
-	arps = get_arps_rcu();
-	if (!arps) {
-		return 1;
-	}
+	update_eye_phase(eye);
+}
+
+static void update_eye_cpu(struct eye *eye)
+{
+	struct arps_meta *arps = get_arps_rcu();
+
+	if (!arps)
+		return;
 
 	// inter migration
 	if (!mcps_check_overhead_avoidance(eye)) {
-		if (CLUSTER(eye->cpu) == LIT_CLUSTER) {
-			move_flow(get_rand_cpu(arps, eye->hash, MID_CLUSTER), eye);
-		} else {
-			move_flow(get_rand_cpu(arps, eye->hash, LIT_CLUSTER), eye);
-		}
+		if (CLUSTER(eye->cpu) == LIT_CLUSTER)
+			mcps_request_migration(eye->hash, (unsigned int)get_rr_cpu(arps, MID_CLUSTER), MCPS_MIGRATION_FLOWID);
+		else
+			mcps_request_migration(eye->hash, (unsigned int)get_rr_cpu(arps, LIT_CLUSTER), MCPS_MIGRATION_FLOWID);
 	} else if (eye->pps > mcps_l2b_pps) {
-		if (CLUSTER(eye->cpu) == LIT_CLUSTER) {
-			move_flow(get_rand_cpu(arps, eye->hash, MID_CLUSTER), eye);
-		}
+		if (CLUSTER(eye->cpu) == LIT_CLUSTER)
+			mcps_request_migration(eye->hash, (unsigned int)get_rr_cpu(arps, MID_CLUSTER), MCPS_MIGRATION_FLOWID);
 	}
-	return 1;
 }
 
 #if defined(CONFIG_MCPS_GRO_PER_SESSION)
-static void __update_gro_policy(struct eye *eye, int updated, unsigned int policy[MCPS_GRO_POLICY_SIZE])
+mcps_visible_for_testing
+void update_eye_grosize(struct eye *eye, unsigned int pps, unsigned int policy[MCPS_GRO_POLICY_SIZE])
 {
-	unsigned int pps = eye->pps;
 	if (eye->value == policy[2]) {
 		eye->gro_nskb = policy[3];
+		eye->option = FLOW_STATE_FIXED_GRO;
 		return;
 	}
 
 	if (eye->value == policy[4]) {
-		pps = __update_eye_pps(eye);
-		goto update;
+		pps = flow_pps(eye);
+		eye->option = FLOW_STATE_FLEX_GRO;
 	}
 
-	if (!updated) {
+	if (eye->option != FLOW_STATE_FLEX_GRO)
 		return;
-	}
-update:
-	if (pps > policy[10]) {
+
+	if (pps > policy[10])
 		eye->gro_nskb = policy[11];
-	} else if (pps > policy[8]) {
+	else if (pps > policy[8])
 		eye->gro_nskb = policy[9];
-	} else if (pps > policy[6]) {
+	else if (pps > policy[6])
 		eye->gro_nskb = policy[7];
-	} else {
+	else
 		eye->gro_nskb = policy[5];
-	}
 
-	if (pps > policy[1] && eye->gro_nskb < policy[0]) {
+	if (pps > policy[1] && eye->gro_nskb < policy[0])
 		eye->gro_nskb = policy[0];
-	}
-
-	if (eye->value < policy[4]) {
-		eye->gro_nskb = policy[3];
-	}
 }
 #else //#if defined(CONFIG_MCPS_GRO_PER_SESSION)
-#define __update_gro_policy(eye, updated, policy) do { } while (0)
+#define update_eye_grosize(eye, pps, policy) do { } while (0)
 #endif // #if defined(CONFIG_MCPS_GRO_PER_SESSION)
 
 #if defined(CONFIG_MCPS_ICGB)
-static void update_gro_policy_slow(struct eye *eye, int updated)
+static inline void update_policy_slow(struct eye *eye)
 {
 #if defined(CONFIG_MCPS_ICB)
-	if (check_boost_condition(eye->value)) {
+	if (check_boost_condition(eye->value))
 		mcps_boost_clock(0x1 | 0x2);
-	}
 #endif // #if defined(CONFIG_MCPS_ICB)
-	__update_gro_policy(eye, updated, mcps_gro_policy1);
+	update_eye_grosize(eye, eye->pps, mcps_gro_policy1);
 }
 
-static void update_gro_policy_fast(struct eye *eye, int updated)
+static inline void update_policy_fast(struct eye *eye)
 {
 #if defined(CONFIG_MCPS_ICB)
-	if (check_boost_condition(eye->value)) {
+	if (check_boost_condition(eye->value))
 		mcps_boost_clock(0x1);
-	}
 #endif // #if defined(CONFIG_MCPS_ICB)
-	__update_gro_policy(eye, updated, mcps_gro_policy0);
+	update_eye_grosize(eye, eye->pps, mcps_gro_policy0);
+}
+
+static inline void update_policy(struct eye *eye)
+{
+	if (eye->policy == EYE_POLICY_SLOW)
+		update_policy_slow(eye);
+	else
+		update_policy_fast(eye);
 }
 #else // #if defined(CONFIG_MCPS_ICGB)
-static void update_gro_policy(struct eye *eye, int updated)
+static inline void update_policy(struct eye *eye)
 {
 #if defined(CONFIG_MCPS_ICB)
-	if (check_boost_condition(eye->value)) {
+	if (check_boost_condition(eye->value))
 		mcps_boost_clock(0x1);
-	}
 #endif // #if defined(CONFIG_MCPS_ICB)
-	__update_gro_policy(eye, updated, mcps_gro_policy0);
+	update_eye_grosize(eye, eye->pps, mcps_gro_policy0);
 }
 #endif // #if defined(CONFIG_MCPS_ICGB)
 
-static int update_policy(struct eye *eye)
+#if defined(CONFIG_MCPS_GRO_PER_SESSION)
+#define mcps_need_policy_update(e) (time_after((e)->t_stamp, (e)->t_capture + (e)->t_interval) || (e)->option != FLOW_STATE_FLEX_GRO)
+#else // #if defined(CONFIG_MCPS_GRO_PER_SESSION)
+#define mcps_need_policy_update(e) (time_after((e)->t_stamp, (e)->t_capture + HALFSEC))
+#endif // #if defined(CONFIG_MCPS_GRO_PER_SESSION)
+
+#define mcps_eye_inc(e) do { (e)->value++; (e)->t_stamp = jiffies; } while (0)
+
+mcps_visible_for_testing void update_eye(struct sauron *sauron, struct eye *eye)
 {
-	int updated = update_eye_pps(eye);
-#if defined(CONFIG_MCPS_ICGB)
-	if (eye->policy == EYE_POLICY_SLOW) {
-		update_gro_policy_slow(eye, updated);
-	} else {
-		update_gro_policy_fast(eye, updated);
-	}
-#else // #if defined(CONFIG_MCPS_ICGB)
-	update_gro_policy(eye, updated);
-#endif // #if defined(CONFIG_MCPS_ICGB)
+	if (eye->option == FLOW_STATE_FLEX_GRO) {
+		update_eye_pps(eye);
+		update_eye_cpu(eye);
 
-	return updated;
-}
-
-static void update_eye(struct sauron *sauron, struct eye *eye)
-{
-	eye->value++;
-	eye->t_stamp = jiffies;
-
-	if (!update_policy(eye)) {
-		return;
+		if (mcps_is_satisfy_monitoring_speed(eye->pps)) {
+			sauron_lock(sauron);
+			if (!mcps_is_on_monitoring(eye))
+				set_flow_on_monitoring(sauron, eye);
+			update_heavy_and_light_monitor_flow(sauron, eye, eye->cpu);
+			sauron_unlock(sauron);
+		} else {
+			sauron_lock(sauron);
+			if (mcps_is_on_monitoring(eye)) {
+				set_flow_off_monitoring(sauron, eye);
+				remove_heavy_and_light_monitor_flow(sauron, eye, eye->cpu);
+			}
+			sauron_unlock(sauron);
+		}
 	}
 
-	sauron_lock(sauron);
-	if (MONITOR_CONDITION(eye->pps)) {
-		add_monitor_flow(sauron, eye);
-		update_heavy_and_light(sauron, eye);
-	} else {
-		del_monitor_flow(sauron, eye);
-	}
-	sauron_unlock(sauron);
-	return;
+	update_policy(eye);
 }
 
 int get_arps_cpu(struct sauron *sauron, struct sk_buff *skb)
@@ -756,33 +799,32 @@ int get_arps_cpu(struct sauron *sauron, struct sk_buff *skb)
 		unsigned int cluster = (mcps_set_cluster_for_newflow >= NR_CLUSTER) ? CLUSTER(smp_processor_id_safe()) : mcps_set_cluster_for_newflow;
 		struct arps_meta *newflow_arps = get_newflow_rcu();
 		int rcpu = 0;
-		if (!newflow_arps) {
-			goto error;
-		}
 
-		rcpu = get_rand_cpu(newflow_arps, hash, cluster);
+		if (!newflow_arps)
+			goto error;
+
+		rcpu = get_rr_cpu(newflow_arps, cluster);
 
 		rcu_read_unlock();
 		eye = add_flow(sauron, skb, rcpu);
 		rcu_read_lock();
-		if (!eye) {
+		if (!eye)
 			goto error;
-		}
 	}
 	cpu = eye->cpu;
 
 	arps	= get_arps_rcu();
-	if (!arps) {
+	if (!arps)
 		goto error;
-	}
 
-	if (!cpumask_test_cpu(cpu, arps->mask_filtered)) {
+	if (!cpumask_test_cpu(cpu, arps->mask_filtered[ALL_CLUSTER])) {
 		update_mask(sauron, arps, eye, CLUSTER(cpu));
 		goto changed;
 	}
 
 	if (!mcps_cpu_online(cpu)) {
 		int ret = try_to_hqueue(eye->hash, cpu, skb, MCPS_ARPS_LAYER);
+
 		if (ret < 0)
 			return MCPS_CPU_ON_PENDING;
 	}
@@ -811,34 +853,31 @@ int get_agro_cpu(struct sauron *sauron, struct sk_buff *skb)
 		unsigned int cluster = (mcps_set_cluster_for_newflow >= NR_CLUSTER) ? CLUSTER(smp_processor_id_safe()) : mcps_set_cluster_for_newflow;
 		struct arps_meta *newflow_arps = get_newflow_rcu();
 		int rcpu = 0;
-		if (!newflow_arps) {
+
+		if (!newflow_arps)
 			goto error;
-		}
-		rcpu = get_rand_cpu(newflow_arps, hash, cluster);
+		rcpu = get_rr_cpu(newflow_arps, cluster);
 
 		rcu_read_unlock();
 		eye = add_flow(sauron, skb, rcpu);
 		rcu_read_lock();
-		if (!eye) {
+		if (!eye)
 			goto error;
-		}
 	}
-	update_eye(sauron, eye);
+
+	mcps_eye_inc(eye);
+	if (mcps_need_policy_update(eye))
+		update_eye(sauron, eye);
+
 	mcps_eye_gro_stamp(eye, skb);
 
-	if (!mcps_check_skb_can_gro(skb) || eye->state == MCPS_CPU_GRO_BYPASS) {
+	if (!mcps_check_skb_can_gro(skb) || eye->state == MCPS_CPU_GRO_BYPASS)
 		return MCPS_CPU_GRO_BYPASS;
-	}
 
 #if defined(CONFIG_MCPS_V2)
-	if (mcps_agro_enable == MCPS_CPU_DIRECT_GRO) {
+	if (mcps_agro_enable == MCPS_CPU_DIRECT_GRO)
 		return MCPS_CPU_DIRECT_GRO;
-	}
 #endif // #if defined(CONFIG_MCPS_V2)
-
-	if (check_pending(&eye->pendings, skb)) {
-		return MCPS_CPU_ON_PENDING;
-	}
 
 	if (!mcps_cpu_online(eye->cpu)) {
 		int ret = try_to_hqueue(eye->hash, eye->cpu, skb, MCPS_AGRO_LAYER);

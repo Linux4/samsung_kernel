@@ -120,6 +120,7 @@ u32 is_votf_get_token_size(struct votf_info *vinfo)
 int is_hw_pdp_set_votf_config(struct is_group *group, struct is_sensor_cfg *s_cfg)
 {
 	int ret = 0;
+	struct is_device_sensor *sensor;
 	struct votf_info src_info, dst_info;
 	struct is_group *src_gr;
 	unsigned int src_gr_id;
@@ -136,8 +137,14 @@ int is_hw_pdp_set_votf_config(struct is_group *group, struct is_sensor_cfg *s_cf
 	 * The sensor group id should be re calculated,
 	 * because CSIS WDMA is not matched with sensor group id.
 	 */
+	sensor = src_gr->sensor;
+	ret = v4l2_subdev_call(sensor->subdev_csi, core, ioctl,
+				SENSOR_IOCTL_G_DMA_CH, &dma_ch);
+	if (ret) {
+		mgerr("failed to get dma_ch", group, group);
+		return ret;
+	}
 
-	dma_ch = src_sd->dma_ch[s_cfg->scm];
 	src_gr_id = GROUP_ID_SS0 + dma_ch;
 
 	width = s_cfg->input[CSI_VIRTUAL_CH_0].width;
@@ -507,9 +514,11 @@ int is_votf_subdev_create_link(struct is_group *group)
 		/*********** L0 UV ***********/
 		src_info.ip = VOTF_DNS_IP;
 		src_info.id = ISP_L0_UV;
+		src_info.mode = VOTF_NORMAL;
 
 		dst_info.ip = VOTF_YUVPP_IP;
 		dst_info.id = YUVPP_YUVNR_L0_UV;
+		dst_info.mode = VOTF_NORMAL;
 
 #if defined(USE_VOTF_AXI_APB)
 		votfitf_create_link(src_info.ip, dst_info.ip);
@@ -577,7 +586,7 @@ void is_votf_subdev_destroy_link(struct is_group *group)
 	struct is_group *src_gr;
 
 	src_gr = group->prev;
-	if (src_gr->id == GROUP_ID_ISP0 && group->id == GROUP_ID_YPP)
+	if (src_gr && src_gr->id == GROUP_ID_ISP0 && group->id == GROUP_ID_YPP)
 		votfitf_destroy_link(VOTF_DNS_IP, VOTF_YUVPP_IP);
 }
 #endif

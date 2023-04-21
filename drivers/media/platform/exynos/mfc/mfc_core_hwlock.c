@@ -746,7 +746,7 @@ int mfc_core_just_run(struct mfc_core *core, int new_ctx_index)
 	int drm_switch = 0;
 	int next_ctx_index;
 
-	atomic_inc(&core->hw_run_cnt);
+	mfc_core_idle_update_hw_run(core, ctx);
 
 	if (core_ctx->state == MFCINST_RUNNING)
 		mfc_clean_core_ctx_int_flags(core_ctx);
@@ -865,7 +865,8 @@ void mfc_core_hwlock_handler_irq(struct mfc_core *core, struct mfc_ctx *ctx,
 	spin_lock_irqsave(&core->hwlock.lock, flags);
 	__mfc_print_hwlock(core);
 
-	if ((core_ctx->state == MFCINST_RUNNING) && IS_TWO_MODE2(ctx))
+	if (((core_ctx->state == MFCINST_RUNNING) && IS_TWO_MODE2(ctx)) ||
+			(core_ctx->state == MFCINST_RES_CHANGE_INIT && IS_MULTI_MODE(ctx)))
 		need_butler = 1;
 
 	if (core->hwlock.owned_by_irq) {

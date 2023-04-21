@@ -86,6 +86,7 @@ struct s2mps23_platform_data {
 	bool wakeup;
 
 	int num_regulators;
+	int num_rdata;
 	struct	s2mps23_regulator_data *regulators;
 	struct	sec_opmode_data		*opmode;
 	struct	mfd_cell *sub_devices;

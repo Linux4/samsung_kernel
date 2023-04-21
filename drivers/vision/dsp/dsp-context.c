@@ -108,19 +108,19 @@ static int __dsp_context_get_graph_info(struct dsp_context *dctx,
 				load->param_size)) {
 		ret = -EFAULT;
 		dsp_err("Failed to copy from user param_addr(%d)\n", ret);
-		goto p_err_copy;
+		goto p_err;
 	}
 
 	if (copy_from_user(kernel_name, (void __user *)load->kernel_addr,
 				load->kernel_size)) {
 		ret = -EFAULT;
 		dsp_err("Failed to copy from user kernel_addr(%d)\n", ret);
-		goto p_err_copy;
+		goto p_err;
 	}
 
 	dsp_leave();
 	return 0;
-p_err_copy:
+p_err:
 	return ret;
 }
 
@@ -128,6 +128,85 @@ static void __dsp_context_put_graph_info(struct dsp_context *dctx, void *ginfo)
 {
 	dsp_enter();
 	dsp_leave();
+}
+
+static int __dsp_context_check_graph_info(struct dsp_context *dctx,
+		struct dsp_ioc_load_graph *load, unsigned int ginfo_size,
+		unsigned int param_list_size, void *kernel_name)
+{
+	int ret;
+	unsigned int *check;
+	unsigned int idx, kernel_size;
+
+	dsp_enter();
+	ginfo_size += param_list_size;
+	if (ginfo_size < param_list_size) {
+		ret = -EINVAL;
+		dsp_err("ginfo_size(%u/%u) is overflowed\n",
+				ginfo_size, param_list_size);
+		goto p_err;
+	}
+
+	if (ginfo_size != load->param_size) {
+		ret = -EINVAL;
+		dsp_err("param_size(%u/%u) is invalid\n",
+				load->param_size, ginfo_size);
+		goto p_err;
+	}
+
+	if (load->kernel_count > DSP_MAX_KERNEL_COUNT) {
+		ret = -EINVAL;
+		dsp_err("kernel_count(%u/%u) is invalid\n",
+				load->kernel_count, DSP_MAX_KERNEL_COUNT);
+		goto p_err;
+	}
+
+	kernel_size = load->kernel_count * sizeof(int);
+	if (kernel_size < load->kernel_count) {
+		ret = -EINVAL;
+		dsp_err("kernel_size(%u/%u) is overflowed\n",
+				kernel_size, load->kernel_count);
+		goto p_err;
+	}
+
+	if (kernel_size > load->kernel_size) {
+		ret = -EINVAL;
+		dsp_err("kernel_count(%u/%u) is invalid\n",
+				load->kernel_count, load->kernel_size);
+		goto p_err;
+	}
+
+	check = kernel_name;
+	for (idx = 0; idx < load->kernel_count; ++idx) {
+		if (check[idx] == 0) {
+			ret = -EINVAL;
+			dsp_err("kernel_size(%u/%u/%u/%u) is wrong\n",
+					kernel_size, check[idx],
+					idx, load->kernel_count);
+			goto p_err;
+		}
+		kernel_size += check[idx];
+		if (kernel_size < check[idx]) {
+			ret = -EINVAL;
+			dsp_err("kernel_size(%u/%u/%u/%u) is overflowed\n",
+					kernel_size, check[idx],
+					idx, load->kernel_count);
+			goto p_err;
+		}
+	}
+
+	if (kernel_size != load->kernel_size) {
+		ret = -EINVAL;
+		dsp_err("kernel_size(%u/%u/%u) is invalid\n",
+				load->kernel_count, load->kernel_size,
+				kernel_size);
+		goto p_err;
+	}
+
+	dsp_leave();
+	return 0;
+p_err:
+	return ret;
 }
 
 static int dsp_context_load_graph(struct dsp_context *dctx,
@@ -142,7 +221,7 @@ static int dsp_context_load_graph(struct dsp_context *dctx,
 	struct dsp_common_graph_info_v2 *ginfo2;
 	struct dsp_common_graph_info_v3 *ginfo3;
 	struct dsp_graph *graph;
-	unsigned int version;
+	unsigned int version, ginfo_size, param_list_size;
 
 	dsp_enter();
 	dsp_dbg("load start\n");
@@ -158,9 +237,10 @@ static int dsp_context_load_graph(struct dsp_context *dctx,
 	sys = &dctx->core->dspdev->system;
 	version = args->version;
 
-	if (!args->kernel_size) {
+	if (!args->kernel_size || args->kernel_size > DSP_MAX_KERNEL_SIZE) {
 		ret = -EINVAL;
-		dsp_err("size for kernel_name is invalid\n");
+		dsp_err("size for kernel_name is invalid(%u/%zu)\n",
+				args->kernel_size, DSP_MAX_KERNEL_SIZE);
 		goto p_err;
 	}
 
@@ -185,6 +265,23 @@ static int dsp_context_load_graph(struct dsp_context *dctx,
 				kernel_name);
 		if (ret)
 			goto p_err_info;
+
+		ginfo_size = sizeof(*ginfo1);
+		if (args->param_size < ginfo_size) {
+			ret = -EINVAL;
+			dsp_err("param size is invalid(%u/%u)\n",
+					args->param_size, ginfo_size);
+			goto p_err_info;
+		}
+
+		param_list_size = (ginfo1->n_tsgd + ginfo1->n_param) *
+			sizeof(ginfo1->param_list[0]);
+
+		ret = __dsp_context_check_graph_info(dctx, args, ginfo_size,
+				param_list_size, kernel_name);
+		if (ret)
+			goto p_err_info;
+
 		SET_COMMON_CONTEXT_ID(&ginfo1->global_id, dctx->id);
 	} else if (version == DSP_IOC_V2) {
 		ginfo2 = pool->kva;
@@ -192,6 +289,23 @@ static int dsp_context_load_graph(struct dsp_context *dctx,
 				kernel_name);
 		if (ret)
 			goto p_err_info;
+
+		ginfo_size = sizeof(*ginfo2);
+		if (args->param_size < ginfo_size) {
+			ret = -EINVAL;
+			dsp_err("param size is invalid(%u/%u)\n",
+					args->param_size, ginfo_size);
+			goto p_err_info;
+		}
+
+		param_list_size = (ginfo2->n_tsgd + ginfo2->n_param) *
+			sizeof(ginfo2->param_list[0]);
+
+		ret = __dsp_context_check_graph_info(dctx, args, ginfo_size,
+				param_list_size, kernel_name);
+		if (ret)
+			goto p_err_info;
+
 		SET_COMMON_CONTEXT_ID(&ginfo2->global_id, dctx->id);
 	} else if (version == DSP_IOC_V3) {
 		ginfo3 = pool->kva;
@@ -199,6 +313,23 @@ static int dsp_context_load_graph(struct dsp_context *dctx,
 				kernel_name);
 		if (ret)
 			goto p_err_info;
+
+		ginfo_size = sizeof(*ginfo3);
+		if (args->param_size < ginfo_size) {
+			ret = -EINVAL;
+			dsp_err("param size is invalid(%u/%u)\n",
+					args->param_size, ginfo_size);
+			goto p_err_info;
+		}
+
+		param_list_size = (ginfo3->n_tsgd + ginfo3->n_param) *
+			sizeof(ginfo3->param_list[0]);
+
+		ret = __dsp_context_check_graph_info(dctx, args, ginfo_size,
+				param_list_size, kernel_name);
+		if (ret)
+			goto p_err_info;
+
 		SET_COMMON_CONTEXT_ID(&ginfo3->global_id, dctx->id);
 	} else {
 		ret = -EINVAL;
@@ -208,7 +339,7 @@ static int dsp_context_load_graph(struct dsp_context *dctx,
 	}
 
 	graph = dsp_graph_load(&dctx->core->graph_manager, pool,
-			kernel_name, version);
+			kernel_name, args->kernel_count, version);
 	if (IS_ERR(graph)) {
 		ret = PTR_ERR(graph);
 		goto p_err_graph;
@@ -252,9 +383,11 @@ static int dsp_context_unload_graph(struct dsp_context *dctx,
 	struct dsp_graph *graph;
 	struct dsp_mailbox_pool *pool;
 	unsigned int *global_id;
+	struct dsp_graph_manager *gmgr;
 
 	dsp_enter();
 	dsp_dbg("unload start\n");
+	gmgr = &dctx->core->graph_manager;
 	mutex_lock(&dctx->lock);
 	booted = dctx->boot_count;
 	mutex_unlock(&dctx->lock);
@@ -266,6 +399,7 @@ static int dsp_context_unload_graph(struct dsp_context *dctx,
 
 	sys = &dctx->core->dspdev->system;
 
+	mutex_lock(&gmgr->lock_for_unload);
 	SET_COMMON_CONTEXT_ID(&args->global_id, dctx->id);
 	graph = dsp_graph_get(&dctx->core->graph_manager, args->global_id);
 	if (!graph) {
@@ -287,6 +421,7 @@ static int dsp_context_unload_graph(struct dsp_context *dctx,
 
 	args->timestamp[0] = pool->time.start;
 	args->timestamp[1] = pool->time.end;
+	mutex_unlock(&gmgr->lock_for_unload);
 
 	dsp_mailbox_free_pool(pool);
 

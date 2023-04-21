@@ -10,7 +10,7 @@
 
 #ifndef __KUNIT_TEST_H__
 #define __KUNIT_TEST_H__
-#if IS_ENABLED(CONFIG_KUNIT)
+#if IS_ENABLED(CONFIG_SEC_KUNIT)
 #include <kunit/test.h>
 #include <kunit/mock.h>
 #else

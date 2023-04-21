@@ -499,6 +499,7 @@ static int tsmux_release(struct inode *inode, struct file *filp)
 	clk_disable(tsmux_dev->tsmux_clock);
 #endif
 	spin_lock_irqsave(&tsmux_dev->device_spinlock, flags);
+	g_tsmux_dev = NULL;
 
 	if (tsmux_dev->ctx_cnt == 1)
 		del_timer(&tsmux_dev->watchdog_timer);
@@ -514,8 +515,6 @@ static int tsmux_release(struct inode *inode, struct file *filp)
 		print_tsmux(TSMUX_ERR, "pm_runtime_put_sync err(%d)\n", ret);
 		return ret;
 	}
-
-	g_tsmux_dev = NULL;
 
 	print_tsmux(TSMUX_COMMON, "%s--\n", __func__);
 	return ret;
@@ -872,7 +871,6 @@ int tsmux_ioctl_m2m_run(struct tsmux_context *ctx)
 				ctx->rtp_ts_info.ts_pmt_cc++;
 				if (ctx->rtp_ts_info.ts_pmt_cc == 16)
 					ctx->rtp_ts_info.ts_pmt_cc = 0;
-				psi_data += ctx->psi_info.pmt_len;
 
 				tsmux_set_psi_info(ctx->tsmux_dev, &ctx->psi_info);
 			}
@@ -1174,7 +1172,8 @@ int tsmux_packetize(struct packetizing_param *param)
 
 		if (wait_us > 10000) {
 			print_tsmux(TSMUX_ERR, "otf_dq_buf is not finished\n");
-			break;
+			ret = -1;
+			return ret;
 		}
 
 	} while (otf_job_queued);
@@ -1324,6 +1323,7 @@ int tsmux_packetize(struct packetizing_param *param)
 		print_tsmux(TSMUX_OTF, "otf buf status: BUF_FREE -> BUF_Q, index: %d\n", index);
 		ctx->otf_job_queued = true;
 	}
+	ctx->otf_cmd_queue.out_buf[index].es_size = 0;
 
 	spin_unlock_irqrestore(&g_tsmux_dev->device_spinlock, flags);
 

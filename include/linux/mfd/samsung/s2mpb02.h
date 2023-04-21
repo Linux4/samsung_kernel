@@ -86,6 +86,7 @@ struct s2mpb02_platform_data {
 	bool wakeup;
 
 	int num_regulators;
+	int num_rdata;
 	struct s2mpb02_regulator_data *regulators;
 #if IS_ENABLED(CONFIG_LEDS_S2MPB02)
 	/* led (flash/torch) data */

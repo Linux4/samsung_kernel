@@ -107,11 +107,11 @@ struct exynos_panel_ops {
 	int (*sleepout)(struct exynos_panel_device *panel);
 	int (*notify)(struct exynos_panel_device *panel, void *data);
 	int (*set_error_cb)(struct exynos_panel_device *panel, void *data);
+	int (*reset_panel)(struct exynos_panel_device *panel);
 #if defined(CONFIG_PANEL_DISPLAY_MODE)
 	int (*get_display_mode)(struct exynos_panel_device *panel, void *data);
 	int (*set_display_mode)(struct exynos_panel_device *panel, void *data);
 #endif
-	int (*first_frame)(struct exynos_panel_device *panel, void *data);
 #endif
 };
 
@@ -202,7 +202,6 @@ int exynos_panel_calc_slice_width(u32 dsc_cnt, u32 slice_num, u32 xres);
 #define EXYNOS_PANEL_IOC_GET_DISPLAY_MODE	_IOR('P', 30, void *)
 #define EXYNOS_PANEL_IOC_SET_DISPLAY_MODE	_IOW('P', 31, void *)
 #endif
-#define EXYNOS_PANEL_IOC_FIRST_FRAME	_IOW('P', 32, u32)
 #endif
 
 #endif /* __EXYNOS_PANEL_DRV_H__ */

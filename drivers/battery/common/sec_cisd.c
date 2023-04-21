@@ -12,7 +12,7 @@
 #include "sec_battery.h"
 #include "sec_cisd.h"
 
-#if defined(CONFIG_SEC_ABC)
+#if IS_ENABLED(CONFIG_SEC_ABC)
 #include <linux/sti/abc_common.h>
 #endif
 
@@ -45,7 +45,11 @@ const char *cisd_cable_data_str[] = {"TA", "AFC", "AFC_FAIL", "QC", "QC_FAIL", "
 EXPORT_SYMBOL(cisd_cable_data_str);
 const char *cisd_tx_data_str[] = {"ON", "OTHER", "GEAR", "PHONE", "BUDS"};
 EXPORT_SYMBOL(cisd_tx_data_str);
+#if IS_ENABLED(CONFIG_DUAL_BATTERY)
+const char *cisd_event_data_str[] = {"DC_ERR", "TA_OCP_DET", "TA_OCP_ON", "OVP_EVENT_POWER", "OVP_EVENT_SIGNAL", "MAIN_BAT_ERR", "SUB_BAT_ERR", "WA_ERR"};
+#else
 const char *cisd_event_data_str[] = {"DC_ERR", "TA_OCP_DET", "TA_OCP_ON", "OVP_EVENT_POWER", "OVP_EVENT_SIGNAL"};
+#endif
 EXPORT_SYMBOL(cisd_event_data_str);
 
 bool sec_bat_cisd_check(struct sec_battery_info *battery)
@@ -61,6 +65,10 @@ bool sec_bat_cisd_check(struct sec_battery_info *battery)
 			__func__);
 		return ret;
 	}
+
+#if IS_ENABLED(CONFIG_DUAL_BATTERY)
+	voltage = max(battery->voltage_pack_main, battery->voltage_pack_sub);
+#endif
 
 	if ((battery->status == POWER_SUPPLY_STATUS_CHARGING) ||
 		(battery->status == POWER_SUPPLY_STATUS_FULL)) {
@@ -79,8 +87,12 @@ bool sec_bat_cisd_check(struct sec_battery_info *battery)
 			pcisd->data[CISD_DATA_VBAT_OVP]++;
 			pcisd->data[CISD_DATA_VBAT_OVP_PER_DAY]++;
 			pcisd->state |= CISD_STATE_OVER_VOLTAGE;
-#if defined(CONFIG_SEC_ABC)
-			sec_abc_send_event("MODULE=battery@ERROR=over_voltage");
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+			sec_abc_send_event("MODULE=battery@INFO=over_voltage");
+#else
+			sec_abc_send_event("MODULE=battery@WARN=over_voltage");
+#endif
 #endif
 		}
 
@@ -141,8 +153,12 @@ bool sec_bat_cisd_check(struct sec_battery_info *battery)
 				pcisd->data[CISD_DATA_VBAT_OVP]++;
 				pcisd->data[CISD_DATA_VBAT_OVP_PER_DAY]++;
 				pcisd->state |= CISD_STATE_OVER_VOLTAGE;
-#if defined(CONFIG_SEC_ABC)
-				sec_abc_send_event("MODULE=battery@ERROR=over_voltage");
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#if IS_ENABLED(CONFIG_SEC_FACTORY)
+				sec_abc_send_event("MODULE=battery@INFO=over_voltage");
+#else
+				sec_abc_send_event("MODULE=battery@WARN=over_voltage");
+#endif
 #endif
 			}
 		}

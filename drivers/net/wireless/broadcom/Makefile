@@ -14,7 +14,7 @@ endif
 
 ifneq ($(filter y m,$(CONFIG_BCM4389)),)
 export ANDROID_VERSION = 11.0.0
-obj-m += bcmdhd_101_10/
+obj-m += bcmdhd_101_18/
 endif
 
 ifneq ($(filter y m,$(CONFIG_BCM4375)),)

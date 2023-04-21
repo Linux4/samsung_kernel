@@ -31,7 +31,7 @@ static DEFINE_IDA(iommu_group_ida);
 static unsigned int iommu_def_domain_type __read_mostly;
 static bool iommu_dma_strict __read_mostly = true;
 static u32 iommu_cmd_line __read_mostly;
-static DEFINE_MUTEX(iommu_param_lock);
+static DEFINE_MUTEX(iommu_probe_lock);
 
 struct iommu_group {
 	struct kobject kobj;
@@ -155,33 +155,24 @@ EXPORT_SYMBOL_GPL(iommu_device_unregister);
 
 static struct iommu_param *iommu_get_dev_param(struct device *dev)
 {
-	struct iommu_param *param;
+	struct iommu_param *param = dev->iommu_param;
 
-	mutex_lock(&iommu_param_lock);
-	param = dev->iommu_param;
-	if (param) {
-		mutex_unlock(&iommu_param_lock);
+	if (param)
 		return param;
-	}
 
 	param = kzalloc(sizeof(*param), GFP_KERNEL);
-	if (!param) {
-		mutex_unlock(&iommu_param_lock);
+	if (!param)
 		return NULL;
-	}
 
 	mutex_init(&param->lock);
 	dev->iommu_param = param;
-	mutex_unlock(&iommu_param_lock);
 	return param;
 }
 
 static void iommu_free_dev_param(struct device *dev)
 {
-	mutex_lock(&iommu_param_lock);
 	kfree(dev->iommu_param);
 	dev->iommu_param = NULL;
-	mutex_unlock(&iommu_param_lock);
 }
 
 int iommu_probe_device(struct device *dev)
@@ -189,12 +180,17 @@ int iommu_probe_device(struct device *dev)
 	const struct iommu_ops *ops = dev->bus->iommu_ops;
 	int ret;
 
+	mutex_lock(&iommu_probe_lock);
 	WARN_ON(dev->iommu_group);
-	if (!ops)
-		return -EINVAL;
+	if (!ops) {
+		ret = -EINVAL;
+		goto err_unlock;
+	}
 
-	if (!iommu_get_dev_param(dev))
-		return -ENOMEM;
+	if (!iommu_get_dev_param(dev)) {
+		ret = -ENOMEM;
+		goto err_unlock;
+	}
 
 	if (!try_module_get(ops->owner)) {
 		ret = -EINVAL;
@@ -204,6 +200,7 @@ int iommu_probe_device(struct device *dev)
 	ret = ops->add_device(dev);
 	if (ret)
 		goto err_module_put;
+	mutex_unlock(&iommu_probe_lock);
 
 	return 0;
 
@@ -211,6 +208,8 @@ err_module_put:
 	module_put(ops->owner);
 err_free_dev_param:
 	iommu_free_dev_param(dev);
+err_unlock:
+	mutex_unlock(&iommu_probe_lock);
 	return ret;
 }
 
@@ -801,6 +800,9 @@ void iommu_group_remove_device(struct device *dev)
 {
 	struct iommu_group *group = dev->iommu_group;
 	struct group_device *tmp_device, *device = NULL;
+
+	if (!group)
+		return;
 
 	dev_info(dev, "Removing from iommu group %d\n", group->id);
 
@@ -1524,9 +1526,15 @@ static int iommu_bus_init(struct bus_type *bus, const struct iommu_ops *ops)
 	int err;
 	struct notifier_block *nb;
 
+	err = bus_for_each_dev(bus, NULL, NULL, add_iommu_group);
+	if (err)
+		return err;
+
 	nb = kzalloc(sizeof(struct notifier_block), GFP_KERNEL);
-	if (!nb)
-		return -ENOMEM;
+	if (!nb) {
+		err = -ENOMEM;
+		goto out_err;
+	}
 
 	nb->notifier_call = iommu_bus_notifier;
 
@@ -1534,20 +1542,14 @@ static int iommu_bus_init(struct bus_type *bus, const struct iommu_ops *ops)
 	if (err)
 		goto out_free;
 
-	err = bus_for_each_dev(bus, NULL, NULL, add_iommu_group);
-	if (err)
-		goto out_err;
-
-
 	return 0;
+
+out_free:
+	kfree(nb);
 
 out_err:
 	/* Clean up */
 	bus_for_each_dev(bus, NULL, NULL, remove_iommu_group);
-	bus_unregister_notifier(bus, nb);
-
-out_free:
-	kfree(nb);
 
 	return err;
 }

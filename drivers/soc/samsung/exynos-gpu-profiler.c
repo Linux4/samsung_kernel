@@ -138,10 +138,12 @@ static void gpupro_reset_profiler(int user)
 	sync_fcsnap_with_cur(fc, fc_snap, profiler.table_cnt);
 
 	result->queued_last_updated = exynos_stats_get_gpu_queued_last_updated();
-
+	
 	cur_queued_time = exynos_stats_get_gpu_queued_job_time();
-	for (idx = 0; idx < NUM_OF_Q; idx++)
-		result->queued_time_snap[idx] = cur_queued_time[idx];
+	if (cur_queued_time) {
+		for (idx = 0; idx < NUM_OF_Q; idx++)
+			result->queued_time_snap[idx] = cur_queued_time[idx];
+	}
 }
 
 static u32 gpupro_update_profile(int user);
@@ -229,15 +231,19 @@ static u32 gpupro_update_profile(int user)
 	cur_queued_time = exynos_stats_get_gpu_queued_job_time();
 	cur_queued_last_updated = exynos_stats_get_gpu_queued_last_updated();
 	queued_updated_delta = cur_queued_last_updated - result->queued_last_updated;
-	for (idx = 0; idx < NUM_OF_Q; idx++) {
-		ktime_t queued_time_delta = cur_queued_time[idx] - result->queued_time_snap[idx];
+	if (cur_queued_time) {
+		for (idx = 0; idx < NUM_OF_Q; idx++) {
+			ktime_t queued_time_delta = cur_queued_time[idx] - result->queued_time_snap[idx];
 
-		if (queued_updated_delta)
-			result->queued_time_ratio[idx] = (queued_time_delta * RATIO_UNIT) / queued_updated_delta;
-		else
-			result->queued_time_ratio[idx] = 0;
-		result->queued_time_ratio[idx] = min(result->queued_time_ratio[idx], (ktime_t) RATIO_UNIT);
-		result->queued_time_snap[idx] = cur_queued_time[idx];
+			if (queued_updated_delta)
+				result->queued_time_ratio[idx] =
+					(queued_time_delta * RATIO_UNIT) / queued_updated_delta;
+			else
+				result->queued_time_ratio[idx] = 0;
+			result->queued_time_ratio[idx] =
+				min_t(ktime_t, result->queued_time_ratio[idx], (ktime_t) RATIO_UNIT);
+			result->queued_time_snap[idx] = cur_queued_time[idx];
+		}
 	}
 	result->queued_last_updated = cur_queued_last_updated;
 
@@ -287,6 +293,7 @@ static int init_profile_result(struct profile_result *result, int size)
 	return 0;
 }
 
+#ifdef CONFIG_EXYNOS_DEBUG_INFO
 static void show_profiler_info(void)
 {
 	int idx;
@@ -304,6 +311,7 @@ static void show_profiler_info(void)
 	if (profiler.migov_id != -1)
 		pr_info("support migov domain(id=%d)\n", profiler.migov_id);
 }
+#endif
 
 static int exynos_gpu_profiler_probe(struct platform_device *pdev)
 {
@@ -364,7 +372,9 @@ static int exynos_gpu_profiler_probe(struct platform_device *pdev)
 
 	ret = exynos_migov_register_domain(MIGOV_GPU, &gpu_fn, &gpu_pd_fn);
 
+#ifdef CONFIG_EXYNOS_DEBUG_INFO
 	show_profiler_info();
+#endif
 
 	return ret;
 }

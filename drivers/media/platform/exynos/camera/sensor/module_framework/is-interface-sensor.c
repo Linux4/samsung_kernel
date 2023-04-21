@@ -39,10 +39,6 @@ static struct is_module_enum *get_subdev_module_enum(struct is_sensor_interface 
 
 	sensor_peri = container_of(itf, struct is_device_sensor_peri,
 			sensor_interface);
-	if (!sensor_peri) {
-		err("failed to get sensor_peri");
-		return NULL;
-	}
 
 	return sensor_peri->module;
 }
@@ -95,10 +91,6 @@ struct is_actuator *get_subdev_actuator(struct is_sensor_interface *itf)
 
 	sensor_peri = container_of(itf, struct is_device_sensor_peri,
 			sensor_interface);
-	if (!sensor_peri) {
-		err("failed to get sensor_peri");
-		return NULL;
-	}
 
 	return (struct is_actuator *)
 			v4l2_get_subdevdata(sensor_peri->subdev_actuator);
@@ -707,11 +699,6 @@ int request_exposure(struct is_sensor_interface *itf,
 
 	/* store exposure for use initial AE */
 	sensor_peri = container_of(itf, struct is_device_sensor_peri, sensor_interface);
-	if (!sensor_peri) {
-		err("[%s] sensor_peri is NULL", __func__);
-		return -EINVAL;
-	}
-
 	if (sensor_peri->cis.use_initial_ae) {
 		sensor_peri->cis.last_ae_setting.exposure = exposure[EXPOSURE_GAIN_LONG];
 		sensor_peri->cis.last_ae_setting.long_exposure = exposure[EXPOSURE_GAIN_LONG];
@@ -905,11 +892,6 @@ int request_gain(struct is_sensor_interface *itf,
 
 	/* store gain for use initial AE */
 	sensor_peri = container_of(itf, struct is_device_sensor_peri, sensor_interface);
-	if (!sensor_peri) {
-		err("[%s] sensor_peri is NULL", __func__);
-		return -EINVAL;
-	}
-
 	if (sensor_peri->cis.use_initial_ae) {
 		sensor_peri->cis.last_ae_setting.analog_gain = analog_gain[EXPOSURE_GAIN_LONG];
 		sensor_peri->cis.last_ae_setting.digital_gain = digital_gain[EXPOSURE_GAIN_LONG];
@@ -1527,6 +1509,7 @@ int get_sensor_frame_timing(struct is_sensor_interface *itf,
 	*vblank_time = 1000000U / cis_data->max_fps - *vvalid_time;
 
 	dbg_sensor(2, "[%s](%d:%d) vvalid_time(%uus), vblank_time(%uus)\n",
+		__func__, get_vsync_count(itf), get_frame_count(itf),
 		*vvalid_time, *vblank_time);
 
 	return ret;
@@ -2330,10 +2313,6 @@ int get_initial_exposure_gain_of_sensor(struct is_sensor_interface *itf,
 	FIMC_BUG(itf->magic != SENSOR_INTERFACE_MAGIC);
 
 	sensor_peri = container_of(itf, struct is_device_sensor_peri, sensor_interface);
-	if (!sensor_peri) {
-		err("[%s] sensor_peri is NULL", __func__);
-		return -EINVAL;
-	}
 
 	if (sensor_peri->cis.use_initial_ae) {
 		switch (num_data) {
@@ -3101,7 +3080,7 @@ int get_vc_dma_buf(struct is_sensor_interface *itf,
 
 		trans_frame(framemgr, frame, FS_PROCESS);
 	} else {
-		mserr("failed to get a frame: fcount: %d", subdev, subdev, frame_count);
+		msinfo("[%s] failed to get a frame: fcount: %d", subdev, subdev, __func__, frame_count);
 		ret = -EINVAL;
 		goto err_invalid_frame;
 	}
@@ -3294,7 +3273,7 @@ int get_vc_dma_buf_info(struct is_sensor_interface *itf,
 	buf_info->element_size = module->vc_extra_info[request_data_type].max_element;
 
 	if (!buf_info->width || !buf_info->height) {
-		mwarn("[M%d] Unsupported mode for vc dma buf", module, module->sensor_id);
+		minfo("[%s][M%d] Unsupported mode for vc dma buf", module, __func__, module->sensor_id);
 		return -ENODEV;
 	}
 
@@ -3685,10 +3664,6 @@ int set_paf_param(struct is_sensor_interface *itf,
 
 	sensor_peri = container_of(itf, struct is_device_sensor_peri,
 			sensor_interface);
-	if (!sensor_peri) {
-		err("failed to get sensor_peri");
-		return -ENODEV;
-	}
 
 	/* PDP */
 	if (IS_ENABLED(CONFIG_CAMERA_PDP)) {
@@ -3732,10 +3707,6 @@ int get_paf_ready(struct is_sensor_interface *itf, u32 *ready)
 
 	sensor_peri = container_of(itf, struct is_device_sensor_peri,
 			sensor_interface);
-	if (!sensor_peri) {
-		err("failed to get sensor_peri");
-		return -ENODEV;
-	}
 
 	/* PDP */
 	if (IS_ENABLED(CONFIG_CAMERA_PDP)) {
@@ -3780,10 +3751,6 @@ int register_vc_dma_notifier(struct is_sensor_interface *itf,
 
 	sensor_peri = container_of(itf, struct is_device_sensor_peri,
 			sensor_interface);
-	if (!sensor_peri) {
-		err("failed to get sensor_peri");
-		return -ENODEV;
-	}
 
 	/* PDP */
 	if (IS_ENABLED(CONFIG_CAMERA_PDP)) {
@@ -3885,10 +3852,6 @@ int get_laser_distance(struct is_sensor_interface *itf, enum itf_laser_af_type *
 
 	sensor_peri = container_of(itf, struct is_device_sensor_peri,
 			sensor_interface);
-	if (!sensor_peri) {
-		err("failed to get sensor_peri");
-		return -ENODEV;
-	}
 
 	laser_af = sensor_peri->laser_af;
 	if (!laser_af) {
@@ -4048,7 +4011,8 @@ int set_sensor_info_mfhdr_mode_change(struct is_sensor_interface *itf,
 			KERN_CONT "long_exp(%d), long_again(%d), long_dgain(%d), sensitivity(%d)\n",
 			__func__, idx,
 			expo[idx], again[idx], dgain[idx],
-			long_expo[idx], long_again[idx], long_dgain[idx], sensitivity[idx]);
+			long_expo[idx], long_again[idx], long_dgain[idx],
+			sensor_uctl->sensitivity);
 	}
 
 	return 0;

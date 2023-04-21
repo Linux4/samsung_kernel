@@ -304,75 +304,6 @@ p_err:
 	return ret;
 }
 
-/*
- * DMA abstraction:
- * A overlapped use case of DMA should be detected.
- */
-static int is_sensor_check_subdev_open(struct is_device_sensor *device,
-	struct is_subdev *subdev,
-	struct is_video_ctx *vctx)
-{
-	int i;
-	struct is_core *core;
-	struct is_device_sensor *all_sensor;
-	struct is_device_sensor *each_sensor;
-
-	FIMC_BUG(!device);
-	FIMC_BUG(!subdev);
-
-	core = device->private_data;
-	all_sensor = is_get_sensor_device(core);
-	for (i = 0; i < IS_SENSOR_COUNT; i++) {
-		each_sensor = &all_sensor[i];
-		if (each_sensor == device)
-			continue;
-
-		if (each_sensor->dma_abstract == false)
-			continue;
-
-		if (test_bit(IS_SENSOR_OPEN, &each_sensor->state)) {
-			if (test_bit(IS_SUBDEV_OPEN, &each_sensor->ssvc0.state)) {
-				if (each_sensor->ssvc0.dma_ch[0] == subdev->dma_ch[0]) {
-					merr("vc0 dma(%d) is overlapped with another sensor(I:%d).\n",
-						device, subdev->dma_ch[0], i);
-					goto err_check_vc_open;
-				}
-			}
-
-			if (test_bit(IS_SUBDEV_OPEN, &each_sensor->ssvc1.state)) {
-				if (each_sensor->ssvc1.dma_ch[0] == subdev->dma_ch[0]) {
-					merr("vc1 dma(%d) is overlapped with another sensor(I:%d).\n",
-						device, subdev->dma_ch[0], i);
-					goto err_check_vc_open;
-				}
-			}
-
-			if (test_bit(IS_SUBDEV_OPEN, &each_sensor->ssvc2.state)) {
-				if (each_sensor->ssvc2.dma_ch[0] == subdev->dma_ch[0]) {
-					merr("vc2 dma(%d) is overlapped with another sensor(I:%d).\n",
-						device, subdev->dma_ch[0], i);
-					goto err_check_vc_open;
-				}
-			}
-
-			if (test_bit(IS_SUBDEV_OPEN, &each_sensor->ssvc3.state)) {
-				if (each_sensor->ssvc3.dma_ch[0] == subdev->dma_ch[0]) {
-					merr("vc3 dma(%d) is overlapped with another sensor(I:%d).\n",
-						device, subdev->dma_ch[0], i);
-					goto err_check_vc_open;
-				}
-			}
-		}
-	}
-
-	is_put_sensor_device(core);
-
-	return 0;
-
-err_check_vc_open:
-	is_put_sensor_device(core);
-	return -EBUSY;
-}
 int is_sensor_subdev_open(struct is_device_sensor *device,
 	struct is_video_ctx *vctx)
 {
@@ -390,13 +321,6 @@ int is_sensor_subdev_open(struct is_device_sensor *device,
 		goto err_video2subdev;
 	}
 
-	ret = is_sensor_check_subdev_open(device, subdev, vctx);
-	if (ret) {
-		mserr("is_sensor_check_subdev_open is fail", subdev, subdev);
-		ret = -EINVAL;
-		goto err_check_subdev_open;
-	}
-
 	ret = is_subdev_open(subdev, vctx, NULL, device->instance);
 	if (ret) {
 		mserr("is_subdev_open is fail(%d)", subdev, subdev, ret);
@@ -408,7 +332,6 @@ int is_sensor_subdev_open(struct is_device_sensor *device,
 	return 0;
 
 err_subdev_open:
-err_check_subdev_open:
 err_video2subdev:
 	return ret;
 }
@@ -461,7 +384,7 @@ int is_subdev_close(struct is_subdev *subdev)
 	int ret = 0;
 
 	if (!test_bit(IS_SUBDEV_OPEN, &subdev->state)) {
-		mserr("subdev is already close", subdev, subdev);
+		msinfo("subdev is already close", subdev, subdev, __func__);
 		ret = -EINVAL;
 		goto p_err;
 	}
@@ -562,7 +485,7 @@ static int is_subdev_start(struct is_subdev *subdev)
 	leader = subdev->leader;
 
 	if (test_bit(IS_SUBDEV_START, &subdev->state)) {
-		mserr("already start", subdev, subdev);
+		msinfo("[%s] already start", subdev, subdev, __func__);
 		goto p_err;
 	}
 
@@ -725,7 +648,7 @@ static int is_sensor_subdev_stop(void *qdevice,
 	}
 
 	if (!test_bit(IS_SUBDEV_START, &subdev->state)) {
-		merr("already stop", device);
+		minfo("[%s]already stop", device, __func__);
 		goto p_err;
 	}
 
@@ -852,7 +775,7 @@ static int is_sensor_subdev_s_format(void *qdevice,
 	}
 
 	if (test_bit(IS_SUBDEV_INTERNAL_USE, &subdev->state)) {
-		mswarn("%s: It is sharing with internal use.", subdev, subdev, __func__);
+		msinfo("%s: It is sharing with internal use.", subdev, subdev, __func__);
 	} else {
 		ret = is_subdev_s_format(subdev, queue);
 		if (ret) {
@@ -1332,7 +1255,7 @@ static int is_subdev_internal_alloc_buffer(struct is_subdev *subdev,
 #ifdef ENABLE_LOGICAL_VIDEO_NODE
 	int k;
 	struct is_sub_node * snode = NULL;
-	u32 cap_node_num = 0;
+	int cap_node_num;
 #endif
 	u32 batch_num;
 	u32 payload_size, header_size;
@@ -1607,10 +1530,10 @@ static int is_subdev_internal_alloc_buffer(struct is_subdev *subdev,
 	}
 	is_subdev_internal_unlock_shared_framemgr(subdev);
 
-	msinfo(" %s (size: %dx%d, bpp: %d, total: %d, buffer_num: %d, batch_num: %d, shared_framemgr: 0x%lx(ref: %d))",
+	msinfo(" %s (size: %dx%d, bpp: %d, total: %d, buffer_num: %d, batch_num: %d, shared_framemgr(ref: %d))",
 		subdev, subdev, __func__,
 		width, height, subdev->bits_per_pixel,
-		total_alloc_size, subdev->buffer_num, batch_num, shared_framemgr, use_shared_framemgr);
+		total_alloc_size, subdev->buffer_num, batch_num, use_shared_framemgr);
 
 	return 0;
 
@@ -1692,7 +1615,7 @@ static int _is_subdev_internal_start(struct is_subdev *subdev)
 	unsigned long flags;
 
 	if (test_bit(IS_SUBDEV_START, &subdev->state)) {
-		mswarn(" subdev already start", subdev, subdev);
+		msinfo("[%s] subdev already start", subdev, subdev, __func__);
 		goto p_err;
 	}
 
@@ -1994,19 +1917,13 @@ int is_subdev_internal_open(void *device, enum is_device_type type, struct is_su
 	struct is_device_ischain *ischain;
 
 	if (test_bit(IS_SUBDEV_INTERNAL_USE, &subdev->state)) {
-		mswarn("already INTERNAL_USE state", subdev, subdev);
+		msinfo("[%s] already INTERNAL_USE state", subdev, subdev, __func__);
 		goto p_err;
 	}
 
 	switch (type) {
 	case IS_DEVICE_SENSOR:
 		sensor = (struct is_device_sensor *)device;
-
-		ret = is_sensor_check_subdev_open(sensor, subdev, NULL);
-		if (ret) {
-			mserr("is_sensor_check_subdev_open is fail(%d)", subdev, subdev, ret);
-			goto p_err;
-		}
 
 		if (!test_bit(IS_SUBDEV_OPEN, &subdev->state)) {
 			ret = is_subdev_open(subdev, NULL, NULL, sensor->instance);

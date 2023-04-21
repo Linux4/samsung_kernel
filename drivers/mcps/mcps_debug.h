@@ -1,3 +1,17 @@
+/* SPDX-License-Identifier: GPL-2.0
+ *
+ * Copyright (C) 2019-2021 Samsung Electronics.
+ *
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ */
 #ifndef __MCPS_DEBUG_H__
 #define __MCPS_DEBUG_H__
 
@@ -12,33 +26,32 @@
 #define DEBUG_LEVEL_ERR 4
 
 #if defined(CONFIG_MCPS_DEBUG_PRINTK) && (CONFIG_MCPS_DEBUG_PRINTK <= DEBUG_LEVEL_TOP)
-#define MCPS_VERBOSE(fmt, ...) printk(KERN_DEBUG "MCPSV %s : "fmt, __func__, ##__VA_ARGS__)
+#define MCPS_VERBOSE(fmt, ...) pr_debug("MCPSV %s : "fmt, __func__, ##__VA_ARGS__)
 #else
 #define MCPS_VERBOSE(fmt, ...) do { } while (0)
 #endif
 
 #if defined(CONFIG_MCPS_DEBUG_PRINTK) && (CONFIG_MCPS_DEBUG_PRINTK <= DEBUG_LEVEL_MID)
-#define MCPS_DEBUG(fmt, ...) printk(KERN_DEBUG "MCPSD %s : "fmt, __func__, ##__VA_ARGS__)
+#define MCPS_DEBUG(fmt, ...) pr_debug("MCPSD %s : "fmt, __func__, ##__VA_ARGS__)
 #else
 #define MCPS_DEBUG(fmt, ...) do { } while (0)
 #endif
 
 #if defined(CONFIG_MCPS_DEBUG_PRINTK) && (CONFIG_MCPS_DEBUG_PRINTK <= DEBUG_LEVEL_LOW)
-#define MCPS_INFO(fmt, ...) printk(KERN_INFO "MCPSI %s : "fmt, __func__, ##__VA_ARGS__)
+#define MCPS_INFO(fmt, ...) pr_info("MCPSI %s : "fmt, __func__, ##__VA_ARGS__)
 #else
 #define MCPS_INFO(fmt, ...) do { } while (0)
 #endif
 
 #if defined(CONFIG_MCPS_DEBUG_PRINTK) && (CONFIG_MCPS_DEBUG_PRINTK <= DEBUG_LEVEL_ERR)
-#define MCPS_ERR(fmt, ...) printk(KERN_ERR "MCPSE %s : "fmt, __func__, ##__VA_ARGS__)
+#define MCPS_ERR(fmt, ...) pr_err("MCPSE %s : "fmt, __func__, ##__VA_ARGS__)
 #else
 #define MCPS_ERR(fmt, ...) do { } while (0)
 #endif
 
-/* This struct use char cb[48] in struct sk_buff.
-*/
+// This struct use char cb[48] in struct sk_buff.
 struct mcps_flow_debug_info {
-    unsigned int index;
+	unsigned int index;
 };
 #define MCPSCB(skb) ((struct mcps_flow_debug_info *)(skb->cb))
 
@@ -48,12 +61,12 @@ unsigned long tick_us(void);
 
 static inline void get_monotonic_boottime(struct timespec64 *ts)
 {
-    *ts = ktime_to_timespec64(ktime_get_boottime());
+	*ts = ktime_to_timespec64(ktime_get_boottime());
 }
 
 static inline void getnstimespec64ofday(struct timespec64 *ts)
 {
-    ktime_get_real_ts64(ts);
+	ktime_get_real_ts64(ts);
 }
 
 #ifdef CONFIG_MCPS_DEBUG

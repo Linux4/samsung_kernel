@@ -352,6 +352,9 @@ int asv_ids_information(enum ids_info id)
 	case gids:
 		res = asv_get_ids_info(G3D);
 		break;
+	case gfx:
+		res = asv_get_ids_info(GFX);
+		break;
 	default:
 		res = 0;
 		break;

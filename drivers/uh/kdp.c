@@ -99,6 +99,7 @@ struct cred_kdp_init init_cred_use_cnt = {
 	.use_cnt					= ATOMIC_INIT(4),
 	.ro_rcu_head_init.non_rcu	= 0,
 	.ro_rcu_head_init.bp_cred	= (void *)0,
+	.ro_rcu_head_init.reflected_cred	= (void *)0,
 };
 
 struct cred_kdp init_cred_kdp __kdp_ro = {
@@ -311,6 +312,7 @@ struct cred *prepare_ro_creds(struct cred *old, int kdp_cmd, u64 p)
 	}
 
 	GET_ROCRED_RCU(new_ro)->non_rcu = old->non_rcu;
+	GET_ROCRED_RCU(new_ro)->reflected_cred = 0;
 	atomic_set(new_ro->use_cnt, 2);
 
 	set_cred_subscribers((struct cred *)new_ro, 0);
@@ -594,6 +596,7 @@ static int kdp_check_path_mismatch(struct kdp_vfsmount *vfsmnt)
 		"/com.android.conscrypt",
 		"/com.android.art",
 		"/com.android.adbd",
+		"/com.android.sdkext",
 	};
 
 	if (!vfsmnt->bp_mount) {

@@ -470,8 +470,10 @@ int nw_rslt_manager(int *ret_msgid, struct npu_nw *nw)
 	}
 
 	if (msg.command == COMMAND_DONE) {
-		npu_info("COMMAND_DONE for mid: (%d)\n", msg.mid);
+		npu_info("COMMAND_DONE for mid: (%d), val(0x%x)\n", msg.mid,
+			 cmd.c.done.request_specific_value);
 		nw->result_code = NPU_ERR_NO_ERROR;
+		nw->result_value = cmd.c.done.request_specific_value;
 	} else if (msg.command == COMMAND_NDONE) {
 		npu_err("COMMAND_NDONE for mid: (%d) error(%u/0x%08x)\n"
 			, msg.mid, cmd.c.ndone.error, cmd.c.ndone.error);

@@ -72,7 +72,8 @@ static int pktproc_send_pkt_to_cp(struct pktproc_queue_ul *q, struct sk_buff *sk
 	desc->hw_set = 0;
 	desc->lcid = skbpriv(skb)->sipc_ch;
 
-	barrier();
+	/* ensure the done_ptr ordering */
+	smp_mb();
 
 	q->done_ptr = circ_new_ptr(q->num_desc, q->done_ptr, 1);
 
@@ -484,24 +485,18 @@ int pktproc_create_ul(struct platform_device *pdev, struct mem_link_device *mld,
 
 #if IS_ENABLED(CONFIG_EXYNOS_DIT)
 	ret = dit_set_buf_size(DIT_DIR_TX, ppa_ul->max_packet_size);
-	if (ret) {
+	if (ret)
 		mif_err("dit_set_buf_size() error:%d\n", ret);
-		goto create_error;
-	}
 
 	ret = dit_set_pktproc_base(DIT_DIR_TX,
 		memaddr + ppa_ul->buff_rgn_offset + (DIT_PKTPROC_TX_QUEUE_NUM * buff_size_by_q));
-	if (ret) {
+	if (ret)
 		mif_err("dit_set_pktproc_base() error:%d\n", ret);
-		goto create_error;
-	}
 
 	ret = dit_set_desc_ring_len(DIT_DIR_TX,
 		ppa_ul->q[DIT_PKTPROC_TX_QUEUE_NUM]->num_desc);
-	if (ret) {
+	if (ret)
 		mif_err("dit_set_desc_ring_len() error:%d\n", ret);
-		goto create_error;
-	}
 #endif
 
 	/* Debug */

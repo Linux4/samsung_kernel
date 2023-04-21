@@ -16,13 +16,14 @@
 
 #include "npu-binary.h"
 #include "npu-log.h"
+#include "npu-device.h"
 #include "npu-scheduler.h"
 #include "npu-common.h"
 #ifdef CONFIG_NPU_FW_HEADER_FILE
 #include "npu-firmware.h"
 #endif
 
-#if 0
+/*
 static noinline_for_stack long __get_file_size(struct file *file)
 {
 	if (!S_ISREG(file->f_inode->i_mode)) {
@@ -30,7 +31,7 @@ static noinline_for_stack long __get_file_size(struct file *file)
 	}
 	return i_size_read(file->f_inode);
 }
-#endif
+*/
 
 int npu_imgloader_probe(struct npu_binary *binary, struct device *dev)
 {
@@ -72,7 +73,7 @@ int npu_binary_g_size(struct npu_binary *binary, size_t *size)
 	npu_err("This function is not support for gki, remove disk IO");
 	*size = 0;
 	return -ENOTSUPP;
-#if 0
+/*
 	int ret;
 	mm_segment_t old_fs;
 	struct file *fp = NULL;
@@ -80,7 +81,7 @@ int npu_binary_g_size(struct npu_binary *binary, size_t *size)
 
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
-	fp = /* remove open */
+	fp = // remove open
 	if (IS_ERR_OR_NULL(fp)) {
 		set_fs(old_fs);
 		ret = -EINVAL;
@@ -98,11 +99,11 @@ int npu_binary_g_size(struct npu_binary *binary, size_t *size)
 
 p_err:
 	if (fp)
-		/* remove close */
+		remove close
 	set_fs(old_fs);
 	*size = fsize;
 	return ret;
-#endif
+*/
 }
 
 #define MAX_SIGNATURE_LEN       128
@@ -141,7 +142,7 @@ static long __npu_binary_read(struct npu_binary *binary, void *target, size_t ta
 {
 	npu_err("This function is not support for gki, remove disk IO");
 	return -ENOTSUPP;
-#if 0
+/*
 	int ret = 0;
 	const struct firmware *fw_blob;
 	u8 *buf = NULL;
@@ -157,10 +158,10 @@ static long __npu_binary_read(struct npu_binary *binary, void *target, size_t ta
 	set_fs(KERNEL_DS);
 
 	fpath = binary->fpath1;
-	fp = /* remove open */
+	fp = // remove open
 	if (IS_ERR_OR_NULL(fp)) {
 		fpath = binary->fpath2;
-		fp = /* remove open */
+		fp = // remove open
 		if (IS_ERR_OR_NULL(fp)) {
 			set_fs(old_fs);
 			goto fw_header_file;
@@ -181,7 +182,7 @@ static long __npu_binary_read(struct npu_binary *binary, void *target, size_t ta
 		goto p_err;
 	}
 
-	/* To Do  add read image - driver should never be writing directly to the disk*/
+	// To Do  add read image - driver should never be writing directly to the disk
 	//	npu_err("fail(%ld != %ld) in \n", nread, fsize);
 	//	ret = -EIO;
 	//	goto p_err;
@@ -194,25 +195,25 @@ static long __npu_binary_read(struct npu_binary *binary, void *target, size_t ta
 	}
 
 	binary->image_size = fsize;
-	/* no cache operation, because target is sram of vpu */
+	// no cache operation, because target is sram of vpu
 #if 1//def CONFIG_EXYNOS_VPU_HARDWARE
 	memcpy(target, (void *)buf, fsize);
 #endif
 	npu_info("success of fw(%s, %ld) apply.\n", fpath, fsize);
 	ret = fsize;
 
-	/* Cache invalidation */
+	// Cache invalidation
 	//__dma_map_area(target, fsize, DMA_TO_DEVICE);
 
 p_err:
 	vfree(buf);
-	/* remove close */
+	// remove close
 	set_fs(old_fs);
 
 	return ret;
 fw_header_file:
 #ifdef CONFIG_NPU_FW_HEADER_FILE
-/* furture work
+furture work
         switch (mode) {
         case NPU_PERF_MODE_NPU_BOOST:
                 npu_fw_path = (char *)NPU_perf_bin;
@@ -233,7 +234,6 @@ fw_header_file:
         ret = fsize;
 
 //request_fw:
-*/
         binary->image_size = NPU_bin_len;
         memcpy(target, (void *)NPU_bin, NPU_bin_len);
         ret = NPU_bin_len;
@@ -290,7 +290,7 @@ fw_header_file:
 request_err:
 	release_firmware(fw_blob);
 	return ret;
-#endif
+*/
 }
 
 
@@ -338,7 +338,7 @@ int npu_binary_write(struct npu_binary *binary,
 {
 	npu_err("This function is not support for gki, remove disk IO");
 	return -ENOTSUPP;
-#if 0
+/*
 	int ret = 0;
 	struct file *fp;
 	mm_segment_t old_fs;
@@ -348,7 +348,7 @@ int npu_binary_write(struct npu_binary *binary,
 
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
-	fp = /* remove open */
+	fp = // remove open
 	if (IS_ERR_OR_NULL(fp)) {
 		set_fs(old_fs);
 		npu_err("fail(%pK) in pen\n", fp);
@@ -356,18 +356,18 @@ int npu_binary_write(struct npu_binary *binary,
 		goto p_err;
 	}
 
-	/* TODO : write file */
+	// TODO : write file
 
 	binary->image_size = target_size;
 
 	npu_info("success of binary(%s, %ld) apply.\n", binary->fpath1, target_size);
 
-	/* remove close */
+	// remove close
 	set_fs(old_fs);
 
 p_err:
 	return ret;
-#endif
+*/
 }
 
 static int npu_imgloader_memcpy(struct imgloader_desc *imgloader, const u8 *metadata, size_t size,
@@ -383,7 +383,9 @@ static int npu_imgloader_memcpy(struct imgloader_desc *imgloader, const u8 *meta
 
 	fwmem = npu_get_mem_area(system, "fwmemory");
 	memcpy(fwmem->vaddr, metadata, size);
-	npu_info("checking firmware head MAGIC(0x%08x)\n", *(u32 *)fwmem->vaddr);
+	//npu_info("checking firmware head MAGIC(0x%08x)\n", *(u32 *)fwmem->vaddr);
+	npu_info("checking firmware phys(%#llx), bin_size(%#zx), daddr(%#x++%#zx)\n",
+			fwmem->paddr, size, fwmem->daddr, fwmem->size);
 
 	*fw_phys_base = fwmem->paddr;
 	*fw_bin_size = size;

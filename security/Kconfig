@@ -314,6 +314,8 @@ source "security/samsung/defex_lsm/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NO
 source "security/samsung/proca/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 source "security/samsung/proca/gaf/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 source "security/samsung/dsms/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+source "security/samsung/mz/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 source "security/samsung/five/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+source "security/samsung/mz_tee_driver/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 endmenu
 

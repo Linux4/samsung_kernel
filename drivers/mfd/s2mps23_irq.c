@@ -243,14 +243,12 @@ static void s2mps23_irq_work_func(struct work_struct *work)
 		 irq_reg[S2MPS23_PMIC_INT7]);
 }
 
-static void s2mps23_pending_clear(void)
+static void s2mps23_pending_clear(struct s2mps23_dev *s2mps23)
 {
-	void __iomem *sysreg_pending;
-	u32 val;
+	u32 val = 0;
 
-	sysreg_pending = ioremap(SYSREG_VGPIO2AP + INTC0_IPRIO_PEND, SZ_32);
-	val = readl(sysreg_pending);
-	writel(val, sysreg_pending);
+	val = readl(s2mps23->sysreg_pending);
+	writel(val, s2mps23->sysreg_pending);
 }
 
 static irqreturn_t s2mps23_irq_thread(int irq, void *data)
@@ -261,7 +259,7 @@ static irqreturn_t s2mps23_irq_thread(int irq, void *data)
 	int i, ret;
 
 	/* Clear interrupt pending bit */
-	s2mps23_pending_clear();
+	s2mps23_pending_clear(s2mps23);
 
 	/* Read VGPIO_RX_MONITOR */
 	val = readl(s2mps23->mem_base);
@@ -318,6 +316,10 @@ static void s2mps23_set_vgpio_monitor(struct s2mps23_dev *s2mps23)
 	s2mps23->mem_base = ioremap(VGPIO_I3C_BASE + VGPIO_MONITOR_ADDR, SZ_32);
 	if (s2mps23->mem_base == NULL)
 		pr_info("%s: fail to allocate memory\n", __func__);
+
+	s2mps23->sysreg_pending = ioremap(SYSREG_VGPIO2AP + INTC0_IPRIO_PEND, SZ_32);
+	if (s2mps23->sysreg_pending == NULL)
+		pr_err("%s: fail to allocate memory\n", __func__);
 }
 
 int s2mps23_irq_init(struct s2mps23_dev *s2mps23)
@@ -408,6 +410,7 @@ void s2mps23_irq_exit(struct s2mps23_dev *s2mps23)
 		free_irq(s2mps23->irq, s2mps23);
 
 	iounmap(s2mps23->mem_base);
+	iounmap(s2mps23->sysreg_pending);
 
 	cancel_delayed_work_sync(&s2mps23->irq_work);
 	destroy_workqueue(s2mps23->irq_wqueue);

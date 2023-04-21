@@ -288,12 +288,12 @@ static int samsung_dt_node_to_map(struct pinctrl_dev *pctldev,
 	return 0;
 }
 
+static const char * const reg_names[] = {"CON", "DAT", "PUD", "DRV", "CON_PDN",
+					 "PUD_PDN"};
 #ifdef CONFIG_DEBUG_FS
 /* Forward declaration which can be used by samsung_pin_dbg_show */
 static int samsung_pinconf_get(struct pinctrl_dev *pctldev, unsigned int pin,
 					unsigned long *config);
-static const char * const reg_names[] = {"CON", "DAT", "PUD", "DRV", "CON_PDN",
-					 "PUD_PDN"};
 
 static void samsung_pin_dbg_show(struct pinctrl_dev *pctldev,
 				struct seq_file *s, unsigned int pin)
@@ -628,6 +628,80 @@ static void samsung_pinconf_group_dbg_show(struct pinctrl_dev *pctldev,
 	}
 }
 #endif
+
+static int exynos_pin_get_drvdata(unsigned int pin, const char *pin_str,
+		struct samsung_pinctrl_drv_data **drvdata_dbg)
+{
+	struct samsung_pinctrl_drv_data *drvdata;
+	struct samsung_pin_bank *pbank;
+	unsigned int i;
+	int ret = -1;
+
+	if (pin_str == NULL)
+		return ret;
+
+	drvdata = list_first_entry(&drvdata_list,
+			struct samsung_pinctrl_drv_data, node);
+
+	list_for_each_entry(drvdata, &drvdata_list, node) {
+		/* Do not access off block pinctrl drvdata */
+		if (!drvdata->resume)
+			continue;
+
+		for (i = 0; i < drvdata->nr_banks; i++) {
+			pbank = &drvdata->pin_banks[i];
+			if (!strncmp(pbank->name, pin_str,
+						strlen(pbank->name))) {
+				*drvdata_dbg = drvdata;
+				ret = 0;
+			}
+		}
+	}
+
+	return ret;
+}
+
+void exynos_pin_dbg_show(unsigned int pin, const char *pin_str)
+{
+	struct samsung_pinctrl_drv_data *drvdata_dbg = NULL;
+	unsigned long config;
+	enum pincfg_type cfg_type;
+	int ret = 0;
+
+	if (!exynos_pin_get_drvdata(pin, pin_str, &drvdata_dbg)) {
+		struct pin_desc *desc;
+		char str[sizeof(" CON_PDN(0x00)") * PINCFG_TYPE_NUM + 1];
+
+		desc = pin_desc_get(drvdata_dbg->pctl_dev, pin);
+		if (desc == NULL) {
+			pr_err("%s: Cannot find %d [%s] desc\n",
+				__func__, pin, pin_str);
+			return;
+		}
+
+		memset(str, ' ', sizeof(str));
+		str[sizeof(str) - 1] = '\0';
+
+		for (cfg_type = 0; cfg_type < PINCFG_TYPE_NUM; cfg_type++) {
+			config = PINCFG_PACK(cfg_type, 0);
+			ret = samsung_pinconf_get(drvdata_dbg->pctl_dev,
+					pin, &config);
+			if (ret < 0)
+				continue;
+
+			sprintf(str + cfg_type * 14, "%7s(0x%02lx) ",
+					reg_names[cfg_type],
+					PINCFG_UNPACK_VALUE(config));
+		}
+
+		/* protect string overflow */
+		str[sizeof(str) - 1] = '\0';
+		pr_err("%s: pin %d [%s] %s\n", __func__, pin, desc->name, str);
+	} else {
+		pr_err("%s: Cannot find %d [%s]\n", __func__, pin, pin_str);
+	}
+}
+EXPORT_SYMBOL(exynos_pin_dbg_show);
 
 /* list of pinconfig callbacks for pinconfig vertical in the pinctrl code */
 static const struct pinconf_ops samsung_pinconf_ops = {

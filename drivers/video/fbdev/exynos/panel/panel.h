@@ -476,6 +476,9 @@ struct rdinfo RDINFO(_name_) = RDINFO_INIT(_name_, _type_, _addr_, _offset_, _le
 	.rditbl = (_rditbl_),						\
 }
 
+#define DECLARE_RESUI(_name_)	\
+struct res_update_info RESUI(_name_)[]
+
 #define DEFINE_RESUI(_name_, _rditbl_, _offset_)	\
 struct res_update_info RESUI(_name_)[] =			\
 {													\
@@ -749,6 +752,7 @@ int maptbl_fill(struct maptbl *tbl, struct maptbl_pos *pos, u8 *src, size_t n);
 enum PANEL_SEQ {
 	PANEL_INIT_SEQ,
 	PANEL_EXIT_SEQ,
+	PANEL_ID_READ_SEQ,
 	PANEL_RES_INIT_SEQ,
 #ifdef CONFIG_SUPPORT_DIM_FLASH
 	PANEL_DIM_FLASH_RES_INIT_SEQ,
@@ -845,13 +849,19 @@ enum PANEL_SEQ {
 	PANEL_CHECK_CONDITION_SEQ,
 	PANEL_DIA_ONOFF_SEQ,
 #ifdef CONFIG_SUPPORT_MASK_LAYER
+	PANEL_MASK_LAYER_STOP_DIMMING_SEQ,
 	PANEL_MASK_LAYER_BEFORE_SEQ,
 	PANEL_MASK_LAYER_AFTER_SEQ,
+	PANEL_MASK_LAYER_ENTER_BR_SEQ,
+	PANEL_MASK_LAYER_EXIT_BR_SEQ,
 #endif
 #ifdef CONFIG_SUPPORT_BRIGHTDOT_TEST
 	PANEL_BRIGHTDOT_TEST_SEQ,
 #endif
-	PANEL_INIT_BOOT_SEQ,
+#ifdef CONFIG_SUPPORT_TIG
+	PANEL_TIG_ENABLE_SEQ,
+	PANEL_TIG_DISABLE_SEQ,
+#endif
 	PANEL_DUMMY_SEQ,
 	MAX_PANEL_SEQ,
 };
@@ -1013,6 +1023,7 @@ struct ddi_properties {
 	bool err_fg_powerdown;
 	bool support_vrr;
 	bool support_vrr_lfd;
+	bool after_panel_reset;			// ddi requirement (power on - lp11 - panel reset)
 };
 
 struct ddi_ops {

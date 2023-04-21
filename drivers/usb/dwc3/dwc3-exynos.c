@@ -32,6 +32,7 @@
 #include "core_exynos.h"
 #include "io.h"
 #include "gadget.h"
+#include "usb_power_notify.h"
 
 #include <linux/io.h>
 #include <linux/usb/otg-fsm.h>
@@ -689,10 +690,20 @@ int dwc3_exynos_set_bus_clock(struct device *dev, int clk_level)
 	int phy_085_voltage = 0;
 
 	if (!IS_ERR_OR_NULL(exynos->bus_clock)) {
+		dev_info(dev, "Before USB Bus clock %d phy_085: %dmV\n",
+			 clk_get_rate(exynos->bus_clock), phy_085_voltage);
 		if (clk_level < 0) {
 			dev_info(dev, "Set USB Bus clock to 66Mhz\n");
 			clk_set_rate(exynos->bus_clock, 66666666);
 			phy_085_voltage = 0.75 * 1000 * 1000;
+
+			/* Retry set_rate when clock setting failed */
+			if (clk_get_rate(exynos->bus_clock) != 66666666) {
+				clk_set_rate(exynos->bus_clock, 266625000);
+				clk_set_rate(exynos->bus_clock, 66666666);
+				dev_info(dev, "Re-try USB Bus clock %d phy_085: %dmV\n",
+						clk_get_rate(exynos->bus_clock), phy_085_voltage);
+			}
 		} else if (clk_level == 1) {
 			dev_info(dev, "Set USB Bus clock to 266Mhz\n");
 			clk_set_rate(exynos->bus_clock, 266625000);
@@ -708,6 +719,7 @@ int dwc3_exynos_set_bus_clock(struct device *dev, int clk_level)
 		exynos_usbdrd_phy_vol_set(dwc->usb2_generic_phy, phy_085_voltage);
 		dev_info(dev, "Changed USB Bus clock %d phy_085: %dmV\n",
 				clk_get_rate(exynos->bus_clock), phy_085_voltage);
+
 	}
 
 	return 0;
@@ -1143,7 +1155,14 @@ static int dwc3_exynos_resume(struct device *dev)
 		return ret;
 	}
 
+	/* Set Source clock to OSC */
 	dwc3_exynos_set_sclk_clock(dev);
+
+	/* Set BUS clock to 66MHz for power saving */
+	pr_info("[%s] port_state: %d\n", __func__, port_state);
+
+	if (port_state == PORT_USB2)
+		dwc3_exynos_set_bus_clock(dev, -1);
 
 	/* runtime set active to reflect active state. */
 	pm_runtime_disable(dev);

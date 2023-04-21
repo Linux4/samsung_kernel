@@ -160,6 +160,7 @@ struct ecs_stage {
 
 	unsigned int		id;
 	unsigned int		busy_threshold;
+	unsigned int		busy_threshold_orig;
 
 	struct cpumask		cpus;
 	struct cpumask		monitor_cpus;

@@ -122,7 +122,7 @@ static bool is_aud_on(void)
 
 	val = abox_is_on();
 
-	pr_info("%s AUD_STATUS %d\n", __func__, val);
+	tmu_pr_info("%s AUD_STATUS %d\n", __func__, val);
 
 	return val;
 }
@@ -145,7 +145,7 @@ int exynos_build_static_power_table(struct device_node *np, int **var_table,
 
 	if (of_property_read_u32(np, "cal-id", &cal_id)) {
 		if (of_property_read_u32(np, "g3d_cmu_cal_id", &cal_id)) {
-			pr_err("%s: Failed to get cal-id\n", __func__);
+			tmu_pr_err("%s: Failed to get cal-id\n", __func__);
 			return -EINVAL;
 		}
 	}
@@ -158,7 +158,7 @@ int exynos_build_static_power_table(struct device_node *np, int **var_table,
 
 	gen_block = ect_get_block("GEN");
 	if (gen_block == NULL) {
-		pr_err("%s: Failed to get gen block from ECT\n", __func__);
+		tmu_pr_err("%s: Failed to get gen block from ECT\n", __func__);
 		return ret;
 	}
 
@@ -178,7 +178,7 @@ int exynos_build_static_power_table(struct device_node *np, int **var_table,
 		ratio_table = g3d_ratio_table;
 	}
 	else {
-		pr_err("%s: Thermal zone %s does not use PIDTM\n", __func__, tz_name);
+		tmu_pr_err("%s: Thermal zone %s does not use PIDTM\n", __func__, tz_name);
 		return -EINVAL;
 	}
 
@@ -220,7 +220,7 @@ int exynos_build_static_power_table(struct device_node *np, int **var_table,
 		memcpy(*var_table, volt_temp_param->parameter,
 			sizeof(int) * volt_temp_param->num_of_row * volt_temp_param->num_of_col);
 	} else {
-		pr_err("%s: Failed to get param table from ECT\n", __func__);
+		tmu_pr_err("%s: Failed to get param table from ECT\n", __func__);
 		return -EINVAL;
 	}
 
@@ -257,7 +257,7 @@ static void exynos_report_trigger(struct exynos_tmu_data *p)
 	struct thermal_zone_device *tz = p->tzd;
 
 	if (!tz) {
-		pr_err("No thermal zone device defined\n");
+		tmu_pr_err("No thermal zone device defined\n");
 		return;
 	}
 
@@ -1052,7 +1052,7 @@ static int exynos_tmu_irq_work_init(struct platform_device *pdev)
 	thread = kthread_create(kthread_worker_fn, &data->thermal_worker,
 			"thermal_%s", data->tmu_name);
 	if (IS_ERR(thread)) {
-		dev_err(&pdev->dev, "failed to create thermal thread: %ld\n",
+		tmu_dev_err(&pdev->dev, "failed to create thermal thread: %ld\n",
 				PTR_ERR(thread));
 		return PTR_ERR(thread);
 	}
@@ -1095,44 +1095,44 @@ static int exynos_map_dt_data(struct platform_device *pdev)
 	data->np = pdev->dev.of_node;
 
 	if (of_property_read_u32(pdev->dev.of_node, "id", &data->id)) {
-		dev_err(&pdev->dev, "failed to get TMU ID\n");
+		tmu_dev_err(&pdev->dev, "failed to get TMU ID\n");
 		return -ENODEV;
 	}
 
 	data->irq = irq_of_parse_and_map(pdev->dev.of_node, 0);
 	if (data->irq <= 0) {
-		dev_err(&pdev->dev, "failed to get IRQ\n");
+		tmu_dev_err(&pdev->dev, "failed to get IRQ\n");
 		return -ENODEV;
 	}
 
 	if (of_address_to_resource(pdev->dev.of_node, 0, &res)) {
-		dev_err(&pdev->dev, "failed to get Resource 0\n");
+		tmu_dev_err(&pdev->dev, "failed to get Resource 0\n");
 		return -ENODEV;
 	}
 
 	data->base = devm_ioremap(&pdev->dev, res.start, resource_size(&res));
 	if (!data->base) {
-		dev_err(&pdev->dev, "Failed to ioremap memory\n");
+		tmu_dev_err(&pdev->dev, "Failed to ioremap memory\n");
 		return -EADDRNOTAVAIL;
 	}
 
 	if (of_property_read_string(pdev->dev.of_node, "tmu_name", &tmu_name)) {
-		dev_err(&pdev->dev, "failed to get tmu_name\n");
+		tmu_dev_err(&pdev->dev, "failed to get tmu_name\n");
 	} else
 		strncpy(data->tmu_name, tmu_name, THERMAL_NAME_LENGTH);
 
 	data->hotplug_enable = of_property_read_bool(pdev->dev.of_node, "hotplug_enable");
 	if (data->hotplug_enable) {
-		dev_info(&pdev->dev, "thermal zone use hotplug function \n");
+		tmu_dev_info(&pdev->dev, "thermal zone use hotplug function \n");
 		of_property_read_u32(pdev->dev.of_node, "hotplug_in_threshold",
 					&data->hotplug_in_threshold);
 		if (!data->hotplug_in_threshold)
-			dev_err(&pdev->dev, "No input hotplug_in_threshold \n");
+			tmu_dev_err(&pdev->dev, "No input hotplug_in_threshold \n");
 
 		of_property_read_u32(pdev->dev.of_node, "hotplug_out_threshold",
 					&data->hotplug_out_threshold);
 		if (!data->hotplug_out_threshold)
-			dev_err(&pdev->dev, "No input hotplug_out_threshold \n");
+			tmu_dev_err(&pdev->dev, "No input hotplug_out_threshold \n");
 
 		ret = of_property_read_string(pdev->dev.of_node, "cpu_domain", &buf);
 		if (!ret)
@@ -1152,17 +1152,17 @@ static int exynos_map_dt_data(struct platform_device *pdev)
 		of_property_read_u32(pdev->dev.of_node, "polling_delay_on",
 					&params->polling_delay_on);
 		if (!params->polling_delay_on)
-			dev_err(&pdev->dev, "No input polling_delay_on \n");
+			tmu_dev_err(&pdev->dev, "No input polling_delay_on \n");
 
 		of_property_read_u32(pdev->dev.of_node, "polling_delay_off",
 					&params->polling_delay_off);
 		if (!params->polling_delay_off)
-			dev_err(&pdev->dev, "No input polling_delay_off \n");
+			tmu_dev_err(&pdev->dev, "No input polling_delay_off \n");
 
 		ret = of_property_read_u32(pdev->dev.of_node, "k_po",
 					   &value);
 		if (ret < 0)
-			dev_err(&pdev->dev, "No input k_po\n");
+			tmu_dev_err(&pdev->dev, "No input k_po\n");
 		else
 			params->k_po = int_to_frac(value);
 
@@ -1170,35 +1170,35 @@ static int exynos_map_dt_data(struct platform_device *pdev)
 		ret = of_property_read_u32(pdev->dev.of_node, "k_pu",
 					   &value);
 		if (ret < 0)
-			dev_err(&pdev->dev, "No input k_pu\n");
+			tmu_dev_err(&pdev->dev, "No input k_pu\n");
 		else
 			params->k_pu = int_to_frac(value);
 
 		ret = of_property_read_u32(pdev->dev.of_node, "k_i",
 					   &value);
 		if (ret < 0)
-			dev_err(&pdev->dev, "No input k_i\n");
+			tmu_dev_err(&pdev->dev, "No input k_i\n");
 		else
 			params->k_i = int_to_frac(value);
 
 		ret = of_property_read_u32(pdev->dev.of_node, "i_max",
 					   &value);
 		if (ret < 0)
-			dev_err(&pdev->dev, "No input i_max\n");
+			tmu_dev_err(&pdev->dev, "No input i_max\n");
 		else
 			params->i_max = int_to_frac(value);
 
 		ret = of_property_read_u32(pdev->dev.of_node, "integral_cutoff",
 					   &value);
 		if (ret < 0)
-			dev_err(&pdev->dev, "No input integral_cutoff\n");
+			tmu_dev_err(&pdev->dev, "No input integral_cutoff\n");
 		else
 			params->integral_cutoff = value;
 
 		ret = of_property_read_u32(pdev->dev.of_node, "sustainable_power",
 					   &value);
 		if (ret < 0)
-			dev_err(&pdev->dev, "No input sustainable_power\n");
+			tmu_dev_err(&pdev->dev, "No input sustainable_power\n");
 		else
 			params->sustainable_power = value;
 
@@ -1471,20 +1471,20 @@ static int exynos_tmu_parse_ect(struct exynos_tmu_data *data)
 
 		thermal_block = ect_get_block(BLOCK_AP_THERMAL);
 		if (thermal_block == NULL) {
-			pr_err("Failed to get thermal block");
+			tmu_pr_err("Failed to get thermal block");
 			return -EINVAL;
 		}
 
-		pr_info("%s %d thermal zone_name = %s\n", __func__, __LINE__, tz->type);
+		tmu_pr_info("%s %d thermal zone_name = %s\n", __func__, __LINE__, tz->type);
 
 		function = ect_ap_thermal_get_function(thermal_block, tz->type);
 		if (function == NULL) {
-			pr_err("Failed to get thermal block %s", tz->type);
+			tmu_pr_err("Failed to get thermal block %s", tz->type);
 			return -EINVAL;
 		}
 
 		ntrips = of_thermal_get_ntrips(tz);
-		pr_info("Trip count parsed from ECT : %d, ntrips: %d, zone : %s",
+		tmu_pr_info("Trip count parsed from ECT : %d, ntrips: %d, zone : %s",
 			function->num_of_range, ntrips, tz->type);
 
 		for (i = 0; i < function->num_of_range; ++i) {
@@ -1492,7 +1492,7 @@ static int exynos_tmu_parse_ect(struct exynos_tmu_data *data)
 			freq = function->range_list[i].max_frequency;
 			tz->ops->set_trip_temp(tz, i, temperature  * MCELSIUS);
 
-			pr_info("Parsed From ECT : [%d] Temperature : %d, frequency : %u\n",
+			tmu_pr_info("Parsed From ECT : [%d] Temperature : %d, frequency : %u\n",
 					i, temperature, freq);
 
 			if (function->range_list[i].flag != hotplug_flag) {
@@ -1504,9 +1504,9 @@ static int exynos_tmu_parse_ect(struct exynos_tmu_data *data)
 					if (i)
 						data->hotplug_in_threshold = function->range_list[i-1].lower_bound_temperature;
 
-					pr_info("[ECT]hotplug_threshold : %d\n", hotplug_threshold_temp);
-					pr_info("[ECT]hotplug_in_threshold : %d\n", data->hotplug_in_threshold);
-					pr_info("[ECT]hotplug_out_threshold : %d\n", data->hotplug_out_threshold);
+					tmu_pr_info("[ECT]hotplug_threshold : %d\n", hotplug_threshold_temp);
+					tmu_pr_info("[ECT]hotplug_in_threshold : %d\n", data->hotplug_in_threshold);
+					tmu_pr_info("[ECT]hotplug_out_threshold : %d\n", data->hotplug_out_threshold);
 				}
 			}
 
@@ -1526,134 +1526,134 @@ static int exynos_tmu_parse_ect(struct exynos_tmu_data *data)
 
 		block = ect_get_block(BLOCK_PIDTM);
 		if (block == NULL) {
-			pr_err("Failed to get PIDTM block");
+			tmu_pr_err("Failed to get PIDTM block");
 			return -EINVAL;
 		}
 
-		pr_info("%s %d thermal zone_name = %s\n", __func__, __LINE__, tz->type);
+		tmu_pr_info("%s %d thermal zone_name = %s\n", __func__, __LINE__, tz->type);
 
 		pidtm_block = ect_pidtm_get_block(block, tz->type);
 		if (pidtm_block == NULL) {
-			pr_err("Failed to get PIDTM block %s", tz->type);
+			tmu_pr_err("Failed to get PIDTM block %s", tz->type);
 			return -EINVAL;
 		}
 
 		ntrips = of_thermal_get_ntrips(tz);
-		pr_info("Trip count parsed from ECT : %d, ntrips: %d, zone : %s",
+		tmu_pr_info("Trip count parsed from ECT : %d, ntrips: %d, zone : %s",
 			pidtm_block->num_of_temperature, ntrips, tz->type);
 
 		for (i = 0; i < pidtm_block->num_of_temperature; ++i) {
 			temperature = pidtm_block->temperature_list[i];
 			tz->ops->set_trip_temp(tz, i, temperature  * MCELSIUS);
-			pr_info("Parsed From ECT : [%d] Temperature : %d\n", i, temperature);
+			tmu_pr_info("Parsed From ECT : [%d] Temperature : %d\n", i, temperature);
 		}
 
 		params = data->pi_param;
 
 		if ((value = exynos_tmu_ect_get_param(pidtm_block, "k_po")) != -1) {
-			pr_info("Parse from ECT k_po: %d\n", value);
+			tmu_pr_info("Parse from ECT k_po: %d\n", value);
 			params->k_po = int_to_frac(value);
 		} else
-			pr_err("Fail to parse k_po parameter\n");
+			tmu_pr_err("Fail to parse k_po parameter\n");
 
 		if ((value = exynos_tmu_ect_get_param(pidtm_block, "k_pu")) != -1) {
-			pr_info("Parse from ECT k_pu: %d\n", value);
+			tmu_pr_info("Parse from ECT k_pu: %d\n", value);
 			params->k_pu = int_to_frac(value);
 		} else
-			pr_err("Fail to parse k_pu parameter\n");
+			tmu_pr_err("Fail to parse k_pu parameter\n");
 
 		if ((value = exynos_tmu_ect_get_param(pidtm_block, "k_i")) != -1) {
-			pr_info("Parse from ECT k_i: %d\n", value);
+			tmu_pr_info("Parse from ECT k_i: %d\n", value);
 			params->k_i = int_to_frac(value);
 		} else
-			pr_err("Fail to parse k_i parameter\n");
+			tmu_pr_err("Fail to parse k_i parameter\n");
 
 		/* integral_max */
 		if ((value = exynos_tmu_ect_get_param(pidtm_block, "i_max")) != -1) {
-			pr_info("Parse from ECT i_max: %d\n", value);
+			tmu_pr_info("Parse from ECT i_max: %d\n", value);
 			params->i_max = value;
 		} else
-			pr_err("Fail to parse i_max parameter\n");
+			tmu_pr_err("Fail to parse i_max parameter\n");
 
 		if ((value = exynos_tmu_ect_get_param(pidtm_block, "integral_cutoff")) != -1) {
-			pr_info("Parse from ECT integral_cutoff: %d\n", value);
+			tmu_pr_info("Parse from ECT integral_cutoff: %d\n", value);
 			params->integral_cutoff = value;
 		} else
-			pr_err("Fail to parse integral_cutoff parameter\n");
+			tmu_pr_err("Fail to parse integral_cutoff parameter\n");
 
 		if ((value = exynos_tmu_ect_get_param(pidtm_block, "p_control_t")) != -1) {
-			pr_info("Parse from ECT p_control_t: %d\n", value);
+			tmu_pr_info("Parse from ECT p_control_t: %d\n", value);
 			params->sustainable_power = value;
 		} else
-			pr_err("Fail to parse p_control_t parameter\n");
+			tmu_pr_err("Fail to parse p_control_t parameter\n");
 
 		if ((value = exynos_tmu_ect_get_param(pidtm_block, "hotplug_out_threshold")) != -1) {
-			pr_info("Parse from ECT hotplug_out_threshold: %d\n", value);
+			tmu_pr_info("Parse from ECT hotplug_out_threshold: %d\n", value);
 			hotplug_out_threshold = value;
 		}
 
 		if ((value = exynos_tmu_ect_get_param(pidtm_block, "hotplug_in_threshold")) != -1) {
-			pr_info("Parse from ECT hotplug_in_threshold: %d\n", value);
+			tmu_pr_info("Parse from ECT hotplug_in_threshold: %d\n", value);
 			hotplug_in_threshold = value;
 		}
 
 		if ((value = exynos_tmu_ect_get_param(pidtm_block, "limited_frequency")) != -1) {
-			pr_info("Parse from ECT limited_frequency: %d\n", value);
+			tmu_pr_info("Parse from ECT limited_frequency: %d\n", value);
 			limited_frequency = value;
 			data->limited_frequency = limited_frequency;
 			data->limited = false;
 		}
 
 		if ((value = exynos_tmu_ect_get_param(pidtm_block, "limited_threshold")) != -1) {
-			pr_info("Parse from ECT limited_threshold: %d\n", value);
+			tmu_pr_info("Parse from ECT limited_threshold: %d\n", value);
 			limited_threshold = value * MCELSIUS;
 			tz->ops->set_trip_temp(tz, 3, temperature  * MCELSIUS);
 			data->limited_threshold = limited_threshold;
 		}
 
 		if ((value = exynos_tmu_ect_get_param(pidtm_block, "limited_threshold_release")) != -1) {
-			pr_info("Parse from ECT limited_threshold_release: %d\n", value);
+			tmu_pr_info("Parse from ECT limited_threshold_release: %d\n", value);
 			limited_threshold_release = value * MCELSIUS;
 			data->limited_threshold_release = limited_threshold_release;
 		}
 
 		if ((value = exynos_tmu_ect_get_param(pidtm_block, "limited_frequency_1")) != -1) {
-			pr_info("Parse from ECT limited_frequency: %d\n", value);
+			tmu_pr_info("Parse from ECT limited_frequency: %d\n", value);
 			limited_frequency = value;
 			data->limited_frequency = limited_frequency;
 			data->limited = false;
 		}
 
 		if ((value = exynos_tmu_ect_get_param(pidtm_block, "limited_threshold_1")) != -1) {
-			pr_info("Parse from ECT limited_threshold: %d\n", value);
+			tmu_pr_info("Parse from ECT limited_threshold: %d\n", value);
 			limited_threshold = value * MCELSIUS;
 			tz->ops->set_trip_temp(tz, 3, temperature  * MCELSIUS);
 			data->limited_threshold = limited_threshold;
 		}
 
 		if ((value = exynos_tmu_ect_get_param(pidtm_block, "limited_threshold_release_1")) != -1) {
-			pr_info("Parse from ECT limited_threshold_release: %d\n", value);
+			tmu_pr_info("Parse from ECT limited_threshold_release: %d\n", value);
 			limited_threshold_release = value * MCELSIUS;
 			data->limited_threshold_release = limited_threshold_release;
 		}
 
 
 		if ((value = exynos_tmu_ect_get_param(pidtm_block, "limited_frequency_2")) != -1) {
-			pr_info("Parse from ECT limited_frequency: %d\n", value);
+			tmu_pr_info("Parse from ECT limited_frequency: %d\n", value);
 			limited_frequency = value;
 			data->limited_frequency_2 = limited_frequency;
 			data->limited = false;
 		}
 
 		if ((value = exynos_tmu_ect_get_param(pidtm_block, "limited_threshold_2")) != -1) {
-			pr_info("Parse from ECT limited_threshold: %d\n", value);
+			tmu_pr_info("Parse from ECT limited_threshold: %d\n", value);
 			limited_threshold = value * MCELSIUS;
 			tz->ops->set_trip_temp(tz, 4, temperature  * MCELSIUS);
 			data->limited_threshold_2 = limited_threshold;
 		}
 
 		if ((value = exynos_tmu_ect_get_param(pidtm_block, "limited_threshold_release_2")) != -1) {
-			pr_info("Parse from ECT limited_threshold_release: %d\n", value);
+			tmu_pr_info("Parse from ECT limited_threshold_release: %d\n", value);
 			limited_threshold_release = value * MCELSIUS;
 			data->limited_threshold_release_2 = limited_threshold_release;
 		}
@@ -1708,7 +1708,7 @@ static int exynos_tmu_probe(struct platform_device *pdev)
 						    &exynos_sensor_ops);
 	if (IS_ERR(data->tzd)) {
 		ret = PTR_ERR(data->tzd);
-		dev_err(&pdev->dev, "Failed to register sensor: %d\n", ret);
+		tmu_dev_err(&pdev->dev, "Failed to register sensor: %d\n", ret);
 		goto err_sensor;
 	}
 
@@ -1732,13 +1732,13 @@ static int exynos_tmu_probe(struct platform_device *pdev)
 
 	ret = exynos_tmu_initialize(pdev);
 	if (ret) {
-		dev_err(&pdev->dev, "Failed to initialize TMU\n");
+		tmu_dev_err(&pdev->dev, "Failed to initialize TMU\n");
 		goto err_thermal;
 	}
 
 	ret = exynos_tmu_irq_work_init(pdev);
 	if (ret) {
-		dev_err(&pdev->dev, "cannot exynow tmu interrupt work initialize\n");
+		tmu_dev_err(&pdev->dev, "cannot exynow tmu interrupt work initialize\n");
 		goto err_thermal;
 	}
 
@@ -1749,7 +1749,7 @@ static int exynos_tmu_probe(struct platform_device *pdev)
 	ret = devm_request_irq(&pdev->dev, data->irq, exynos_tmu_irq,
 			irq_flags, dev_name(&pdev->dev), data);
 	if (ret) {
-		dev_err(&pdev->dev, "Failed to request irq: %d\n", data->irq);
+		tmu_dev_err(&pdev->dev, "Failed to request irq: %d\n", data->irq);
 		goto err_thermal;
 	}
 
@@ -1759,7 +1759,7 @@ static int exynos_tmu_probe(struct platform_device *pdev)
 
 	ret = sysfs_create_group(&pdev->dev.kobj, &exynos_tmu_attr_group);
 	if (ret)
-		dev_err(&pdev->dev, "cannot create exynos tmu attr group");
+		tmu_dev_err(&pdev->dev, "cannot create exynos tmu attr group");
 
 	mutex_lock(&data->lock);
 	list_add_tail(&data->node, &dtm_dev_list);
@@ -1869,13 +1869,13 @@ static int exynos_tmu_suspend(struct device *dev)
 	if (cp_call_mode) {
 		if (suspended_count == num_of_devices) {
 			exynos_acpm_tmu_set_cp_call();
-			pr_info("%s: TMU suspend w/ AUD-on\n", __func__);
+			tmu_pr_info("%s: TMU suspend w/ AUD-on\n", __func__);
 		}
 	} else {
 		exynos_tmu_control(pdev, false);
 		if (suspended_count == num_of_devices) {
 			exynos_acpm_tmu_set_suspend(false);
-			pr_info("%s: TMU suspend %d\n", __func__);
+			tmu_pr_info("%s: TMU suspend %d\n", __func__);
 		}
 	}
 #else
@@ -1902,14 +1902,14 @@ static int exynos_tmu_resume(struct device *dev)
 
 	exynos_acpm_tmu_set_read_temp(data->tzd->id, &temp, &stat, NULL);
 
-	pr_info("%s: thermal zone %d temp %d stat %d\n",
+	tmu_pr_info("%s: thermal zone %d temp %d stat %d\n",
 			__func__, data->tzd->id, temp, stat);
 
 	enable_irq(data->irq);
 	suspended_count--;
 
 	if (!suspended_count)
-		pr_info("%s: TMU resume complete\n", __func__);
+		tmu_pr_info("%s: TMU resume complete\n", __func__);
 #else
 	exynos_tmu_control(pdev, true);
 #endif
@@ -2115,7 +2115,7 @@ static int exynos_thermal_create_debugfs(void)
 {
 	debugfs_root = debugfs_create_dir("exynos-thermal", NULL);
 	if (!debugfs_root) {
-		pr_err("Failed to create exynos thermal debugfs\n");
+		tmu_pr_err("Failed to create exynos thermal debugfs\n");
 		return 0;
 	}
 

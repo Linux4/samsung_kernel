@@ -24,10 +24,16 @@ struct ipc_config {
 #define ACPM_IPC_PROTOCOL_STOP			(22)
 #define ACPM_IPC_PROTOCOL_SEQ_NUM		(16)
 
+struct nfc_clk_req_log {
+	unsigned int is_on;
+	unsigned int timestamp;
+};
+
 #if defined(CONFIG_EXYNOS_ACPM) || defined(CONFIG_EXYNOS_ACPM_MODULE)
 extern unsigned int acpm_ipc_request_channel(struct device_node *np, ipc_callback handler,
 		unsigned int *id, unsigned int *size);
 extern unsigned int acpm_ipc_release_channel(struct device_node *np, unsigned int channel_id);
+extern int acpm_get_nfc_log_buf(struct nfc_clk_req_log **buf, u32 *last_ptr, u32 *len);
 extern int acpm_ipc_send_data(unsigned int channel_id, struct ipc_config *cfg);
 extern int acpm_ipc_send_data_sync(unsigned int channel_id, struct ipc_config *cfg);
 extern int acpm_ipc_send_data_lazy(unsigned int channel_id, struct ipc_config *cfg);
@@ -38,6 +44,11 @@ extern void acpm_stop_log(void);
 
 static inline unsigned int acpm_ipc_request_channel(struct device_node *np, ipc_callback handler,
 		unsigned int *id, unsigned int *size)
+{
+	return 0;
+}
+
+static inline int acpm_get_nfc_log_buf(struct nfc_clk_req_log **buf, u32 *last_ptr, u32 *len)
 {
 	return 0;
 }

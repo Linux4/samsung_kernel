@@ -128,7 +128,7 @@ int exynos_acpm_set_volt_margin(unsigned int id, int volt)
 
 #ifdef CONFIG_SEC_DEBUG
 	vclk = cmucal_get_node(id);
-	pr_auto(ASL5, "%s: [%s] +margin %d uV\n", __func__, vclk->name, volt);
+	pr_auto(ASL5, "%s: [%s] +margin %d uV\n", __func__, vclk ? vclk->name : " ", volt);
 #endif
 
 	return ret;

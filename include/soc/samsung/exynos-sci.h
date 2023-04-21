@@ -32,6 +32,25 @@
 #define PM_SCI_CTL				0x140
 #define SCI_SB_LLCSTATUS			0xA0C
 
+#define ECC_INT_EN				0x934
+#define UcErrMiscInfo				0x950
+#define UcErrOverrunMiscInfo			0x964
+
+/* ECC_INT_EN */
+#define SF_PARITY_SHIFT				(13)
+#define LLC_ECC_SHIFT				(12)
+#define PROT_ERR_SHIFT				(10)
+
+/* UcErrMiscInfo */
+#define UEMI_SHIFT				(18)
+
+/* UcErrOverrunMiscInfo */
+#define UEOMI_SHIFT				(15)
+
+#define ERR_MASK				(0xF)
+
+#define SCI_BIT_GET(value, mask, shift)		((value >> shift) & mask)
+
 #define LLC_En_Bit				(25)
 #define DisableLlc_Bit				(9)
 
@@ -175,28 +194,36 @@ struct exynos_sci_data {
 	unsigned int			plugin_init_llc_region;
 	unsigned int			llc_region_prio[LLC_REGION_MAX];
 	unsigned int			invway;
+	bool				llc_ecc_flag;
 
 	void __iomem			*sci_base;
 	struct exynos_llc_dump_addr	llc_dump_addr;
 	const char			*region_name[LLC_REGION_MAX];
 	unsigned int			region_priority[LLC_REGION_MAX];
 	struct exynos_sci_gov_data	*gov_data;
+	bool				llc_on_flag;
 };
 
 #if defined(CONFIG_EXYNOS_SCI) || defined(CONFIG_EXYNOS_SCI_MODULE)
 extern void llc_invalidate(unsigned int invway);
 extern void llc_flush(unsigned int invway);
 extern int llc_enable(bool on);
+extern int cam_llc_enable(bool on);
 extern int llc_get_en(void);
+extern void llc_ecc_logging(void);
 extern unsigned int llc_get_region_info(unsigned int region_index);
 extern unsigned int llc_region_alloc(unsigned int region_index, bool on, unsigned int way);
+extern int llc_off_disable(bool off);
 #else
 #define llc_invalidate() do {} while (0)
 #define llc_flush() do {} while (0)
 #define llc_enable(a) do {} while (0)
+#define cam_llc_enable(a) do {} while (0)
 #define llc_get_en() do {} while (0)
+#define llc_ecc_logging() do {} while (0)
 #define llc_get_region_info(a) do {} while (0)
 #define llc_region_alloc(a, b) do {} while (0)
+#define llc_off_disable(a) do {} while (0)
 #endif
 
 #endif	/* __EXYNOS_SCI_H_ */

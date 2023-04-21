@@ -28,7 +28,7 @@
 const char NPU_LOG_DUMP_MARK = (char)0x01;
 
 /* Log level to filter message written to kernel log */
-struct npu_log npu_log = {
+static struct npu_log npu_log = {
 	.pr_level = NPU_LOG_INFO,	/* To kmsg */
 	.st_level = NPU_LOG_DBG,	/* To memory buffer */
 	.st_buf = NULL,
@@ -38,6 +38,13 @@ struct npu_log npu_log = {
 	.last_dump_line_cnt = 0,
 	.last_dump_mark_pos = 0,
 	.fs_ref = ATOMIC_INIT(0),
+	.memlog_desc_log = NULL,
+	.memlog_desc_array = NULL,
+	.npu_memlog_obj = NULL,
+	.npu_memfile_obj = NULL,
+	.npu_memarray_obj = NULL,
+	.npu_memarray_file_obj = NULL,
+	.npu_log_ptr = NULL,
 };
 
 /*
@@ -45,7 +52,7 @@ struct npu_log npu_log = {
 *	this var will be used finish line when write pointer circled to start line.
 *	So, buffer in file object does not know about ...
 */
-struct npu_log fw_report = {
+static struct npu_log fw_report = {
 	.st_buf = NULL,
 	.st_size = 0,
 	.wr_pos = 0,
@@ -53,23 +60,13 @@ struct npu_log fw_report = {
 	.last_dump_line_cnt = 0,
 };
 
-struct npu_log fw_profile = {
+static struct npu_log fw_profile = {
 	.st_buf = NULL,
 	.st_size = 0,
 	.wr_pos = 0,
 	.line_cnt = 0,
 	.last_dump_line_cnt = 0,
 };
-
-struct memlog *memlog_desc_file;
-struct memlog *memlog_desc_log;
-struct memlog *memlog_desc_array;
-struct memlog *memlog_desc_array_file;
-struct memlog_obj *npu_memlog_obj;
-struct memlog_obj *npu_memfile_obj;
-struct memlog_obj *npu_memarray_obj;
-struct memlog_obj *npu_memarray_file_obj;
-struct npu_log_unit *npu_log_ptr;
 
 /* Spinlock for memory logger */
 static DEFINE_SPINLOCK(npu_log_lock);
@@ -1221,6 +1218,66 @@ static ssize_t npu_chg_log_level_store(struct device *dev, struct device_attribu
 
 static DEVICE_ATTR(log_level, 0644, npu_chg_log_level_show, npu_chg_log_level_store);
 
+int fw_will_note_to_kernel(size_t len)
+{
+	unsigned long intr_flags;
+	char *buf = NULL;
+	size_t i, pos;
+	bool bReqLegacy = FALSE;
+
+	//Gather one more time before make will note.
+	npu_log.log_ops->fw_rprt_manager();
+	spin_lock_irqsave(&fw_report_lock, intr_flags);
+
+	if (fw_report.st_buf == NULL)
+		return -ENOMEM;
+
+	//Consideration for early phase
+	if (fw_report.wr_pos < len) {
+		len = fw_report.wr_pos;
+		bReqLegacy = TRUE;
+	}
+	buf = vmalloc((len+1));
+	if (!buf) {
+		probe_err("%s() fail to alloc mem for fw_report\n", __func__);
+		spin_unlock_irqrestore(&fw_report_lock, intr_flags);
+		return -ENOMEM;
+	}
+
+	pos = 0;
+	probe_err("----------- Start will_note for npu_fw (/sys/kernel/debug/npu/fw-report )-------------\n");
+	if ((fw_report.last_dump_line_cnt != 0) && (bReqLegacy == TRUE)) {
+		for (i = fw_report.st_size - (len - fw_report.wr_pos); i < fw_report.st_size; i++) {
+			buf[pos] = fw_report.st_buf[i];
+			pos++;
+			if (fw_report.st_buf[i] == '\n') {
+				buf[pos] = '\0';
+				probe_err("%s", buf);
+				pos = 0;
+				buf[0] = '\0';
+			}
+		}
+		//Change length to current position.
+		len = fw_report.wr_pos;
+	}
+	for (i = fw_report.wr_pos - len ; i < fw_report.wr_pos; i++) {
+		buf[pos] = fw_report.st_buf[i];
+		pos++;
+		if (fw_report.st_buf[i] == '\n') {
+			buf[pos] = '\0';
+			probe_err("%s", buf);
+			pos = 0;
+			buf[0] = '\0';
+		}
+	}
+
+	probe_err("----------- End of will_note for npu_fw -------------\n");
+	spin_unlock_irqrestore(&fw_report_lock, intr_flags);
+	vfree(buf);
+
+	return 0;
+}
+
 int fw_will_note(size_t len)
 {
 	unsigned long intr_flags;
@@ -1229,7 +1286,7 @@ int fw_will_note(size_t len)
 	bool bReqLegacy = FALSE;
 
 	//Gather one more time before make will note.
-	fw_rprt_manager();
+	npu_log.log_ops->fw_rprt_manager();
 	spin_lock_irqsave(&fw_report_lock, intr_flags);
 
 	if (fw_report.st_buf == NULL)
@@ -1278,15 +1335,17 @@ int fw_will_note(size_t len)
 	spin_unlock_irqrestore(&fw_report_lock, intr_flags);
 	vfree(buf);
 	npu_err("----------- Check unposted_mbox ---------------------\n");
-	npu_check_unposted_mbox(ECTRL_LOW);
-	npu_check_unposted_mbox(ECTRL_HIGH);
-	npu_check_unposted_mbox(ECTRL_ACK);
-	npu_check_unposted_mbox(ECTRL_REPORT);
+	npu_log.log_ops->npu_check_unposted_mbox(ECTRL_LOW);
+	npu_log.log_ops->npu_check_unposted_mbox(ECTRL_HIGH);
+	npu_log.log_ops->npu_check_unposted_mbox(ECTRL_ACK);
+	npu_log.log_ops->npu_check_unposted_mbox(ECTRL_REPORT);
 	npu_err("----------- Done unposted_mbox ----------------------\n");
 
-	memlog_sync_to_file(npu_memlog_obj);
+	memlog_sync_to_file(npu_log.npu_memlog_obj);
+#if IS_ENABLED(CONFIG_SEC_ABC)
+	sec_abc_send_event("MODULE=npu@INFO=npu_fw_warning");
+#endif
 	return 0;
-
 }
 
 size_t npu_array_to_string(void *src, size_t src_size,
@@ -1300,11 +1359,11 @@ size_t npu_array_to_string(void *src, size_t src_size,
 
 	ptr = src;
 
-	ptr->sec = ptr->timestamp / 1000000000;
-	ptr->nsec = ptr->timestamp % 1000000000;
+	// ptr->sec = ptr->timestamp / 1000000000;
+	// ptr->nsec = ptr->timestamp % 1000000000;
 
-	n += scnprintf(buf + n, count - n, "[%lu.%06lu]", ptr->sec,
-								ptr->nsec / 1000);
+	// n += scnprintf(buf + n, count - n, "[%lu.%06lu]", ptr->sec,
+	// 							ptr->nsec / 1000);
 
 	n += scnprintf(buf + n, count - n, "%s", ptr->string);
 
@@ -1317,13 +1376,31 @@ struct npu_log_unit *npu_set_string(struct npu_log_unit *npu_log_ptr, const char
 {
 	va_list ap;
 
-	npu_log_ptr->timestamp = local_clock();
+	// npu_log_ptr->timestamp = local_clock();
 
 	va_start(ap, fmt);
 	vsprintf(npu_log_ptr->string, fmt, ap);
 	va_end(ap);
 
 	return npu_log_ptr;
+}
+
+void npu_memlog_store(npu_log_level_e loglevel, const char *fmt, ...)
+{
+	char npu_string[1024];
+
+	va_list ap;
+
+	va_start(ap, fmt);
+	vsprintf(npu_string, fmt, ap);
+	va_end(ap);
+
+	if (loglevel == MEMLOG_LEVEL_ERR) {
+		npu_log.npu_log_ptr = npu_set_string(npu_log.npu_log_ptr, npu_string);
+		memlog_write_array(npu_log.npu_memarray_obj, loglevel, npu_log.npu_log_ptr);
+	} else  {
+		memlog_write_printf(npu_log.npu_memlog_obj, loglevel, npu_string);
+	}
 }
 
 /* Exported functions */
@@ -1337,53 +1414,48 @@ int npu_log_probe(struct npu_device *npu_device)
 	npu_log.st_buf = NULL;
 	npu_log.st_size = 0;
 	npu_log.wr_pos = 0;
+	npu_log.dev = npu_device->dev;
+	npu_log.log_ops = &npu_log_ops;
 	init_waitqueue_head(&npu_log.wq);
 	init_waitqueue_head(&fw_report.wq);
 	init_waitqueue_head(&fw_profile.wq);
 
 	/* Register NPU Device Driver for Unified Logging */
-	ret = memlog_register("NPU_DRV0", npu_device->dev, &memlog_desc_file);
-	if (ret)
-		probe_err("memlog_register() for file failed: ret = %d\n", ret);
-
-	ret = memlog_register("NPU_DRV1", npu_device->dev, &memlog_desc_log);
+	ret = memlog_register("NPU_DRV0", npu_device->dev, &npu_log.memlog_desc_log);
 	if (ret)
 		probe_err("memlog_register() for log failed: ret = %d\n", ret);
 
-	ret = memlog_register("NPU_DRV2", npu_device->dev, &memlog_desc_array_file);
-	if (ret)
-		probe_err("memlog_register() for array file failed: ret = %d\n", ret);
-
-	ret = memlog_register("NPU_DRV3", npu_device->dev, &memlog_desc_array);
+	ret = memlog_register("NPU_DRV1", npu_device->dev, &npu_log.memlog_desc_array);
 	if (ret)
 		probe_err("memlog_register() for array failed: ret = %d\n", ret);
 
 	/* Receive allocation of memory for saving data to vendor storage */
-	npu_memfile_obj = memlog_alloc_file(memlog_desc_file, "log-fil",
+	npu_log.npu_memfile_obj = memlog_alloc_file(npu_log.memlog_desc_log, "npu-fil",
 						SZ_2M*2, SZ_2M*2, 500, 1);
-	if (npu_memfile_obj) {
-		npu_memlog_obj = memlog_alloc_printf(memlog_desc_log, SZ_2M,
-						npu_memfile_obj, "log-mem", 0);
-		if (!npu_memlog_obj)
+	if (npu_log.npu_memfile_obj) {
+		npu_log.npu_memlog_obj = memlog_alloc_printf(npu_log.memlog_desc_log, SZ_2M,
+						npu_log.npu_memfile_obj, "npu-mem", 0);
+		if (!npu_log.npu_memlog_obj)
 			probe_err("memlog_alloc_printf() failed\n");
 	} else {
 			probe_err("memlog_alloc_file() failed\n");
 	}
 
-	npu_memarray_file_obj = memlog_alloc_file(memlog_desc_array_file, "arr-fil",
-						SZ_2M*2, SZ_2M*2, 500, 1);
-	if (npu_memarray_file_obj) {
-		memlog_register_data_to_string(npu_memarray_file_obj, npu_array_to_string);
-		npu_memarray_obj = memlog_alloc_array(memlog_desc_array, LOG_UNIT_NUM*2,
-			sizeof(struct npu_log_unit), npu_memarray_file_obj, "log-arr", "npu_log_unit", 0);
-		if (npu_memarray_obj)
-			npu_log_ptr = npu_memarray_obj->vaddr;
+	npu_log.npu_memarray_file_obj = memlog_alloc_file(npu_log.memlog_desc_array, "arr-fil",
+						sizeof(struct npu_log_unit) * LOG_UNIT_NUM,
+						sizeof(struct npu_log_unit) * LOG_UNIT_NUM,
+						500, 1);
+	if (npu_log.npu_memarray_file_obj) {
+		memlog_register_data_to_string(npu_log.npu_memarray_file_obj, npu_array_to_string);
+		npu_log.npu_memarray_obj = memlog_alloc_array(npu_log.memlog_desc_array, LOG_UNIT_NUM,
+			sizeof(struct npu_log_unit), npu_log.npu_memarray_file_obj, "npu-arr", "npu_log_unit", MEMLOG_UFALG_NO_TIMESTAMP);
+		if (npu_log.npu_memarray_obj)
+			npu_log.npu_log_ptr = npu_log.npu_memarray_obj->vaddr;
 		else
 			probe_err("memlog_alloc_array() failed\n");
 	} else {
 		probe_err("memlog_alloc_file() for array failed\n");
 	}
-
 
 	/* Log level change function on sysfs */
 	ret = device_create_file(npu_device->dev, &dev_attr_log_level);

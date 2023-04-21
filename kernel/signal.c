@@ -395,16 +395,17 @@ static bool task_participate_group_stop(struct task_struct *task)
 
 void task_join_group_stop(struct task_struct *task)
 {
+	unsigned long mask = current->jobctl & JOBCTL_STOP_SIGMASK;
+	struct signal_struct *sig = current->signal;
+
+	if (sig->group_stop_count) {
+		sig->group_stop_count++;
+		mask |= JOBCTL_STOP_CONSUME;
+	} else if (!(sig->flags & SIGNAL_STOP_STOPPED))
+		return;
+
 	/* Have the new thread join an on-going signal group stop */
-	unsigned long jobctl = current->jobctl;
-	if (jobctl & JOBCTL_STOP_PENDING) {
-		struct signal_struct *sig = current->signal;
-		unsigned long signr = jobctl & JOBCTL_STOP_SIGMASK;
-		unsigned long gstop = JOBCTL_STOP_PENDING | JOBCTL_STOP_CONSUME;
-		if (task_set_jobctl_pending(task, signr | gstop)) {
-			sig->group_stop_count++;
-		}
-	}
+	task_set_jobctl_pending(task, mask | JOBCTL_STOP_PENDING);
 }
 
 /*
@@ -1215,6 +1216,17 @@ static int send_signal(int sig, struct kernel_siginfo *info, struct task_struct 
 	/* Should SIGKILL or SIGSTOP be received by a pid namespace init? */
 	bool force = false;
 
+	/* [SystemF/W, si_code is 0 : from userspace, si_code is over 0 : from kernel */
+	if (!is_si_special(info)) {
+		if ((current->pid != 1) && ((sig == SIGKILL && !strncmp("main", t->group_leader->comm, 4))
+				|| ((sig == SIGKILL || sig == SIGSEGV)
+					&& !strncmp("system_server", t->group_leader->comm, 13)))) {
+			pr_info("Send signal %d from %s(%d) to %s(%d) : %d\n",
+						sig, current->comm, current->pid, t->comm, t->pid, info->si_code);
+		}
+	}
+	/* SystemF/W]*/
+
 	if (info == SEND_SIG_NOINFO) {
 		/* Force if sent from an ancestor pid namespace */
 		force = !task_pid_nr_ns(current, task_active_pid_ns(t));
@@ -1224,14 +1236,6 @@ static int send_signal(int sig, struct kernel_siginfo *info, struct task_struct 
 	} else if (has_si_pid_and_uid(info)) {
 		/* SIGKILL and SIGSTOP is special or has ids */
 		struct user_namespace *t_user_ns;
-
-		/* [SystemF/W, si_code is 0 : from userspace, si_code is over 0 : from kernel */
-		if ((current->pid != 1) && ((sig == SIGKILL && strstr("main", t->group_leader->comm))
-				|| ((sig == SIGKILL || sig == SIGSEGV) && strstr("system_server", t->group_leader->comm)))) {
-			pr_info("Send signal %d from %s(%d) to %s(%d) : %d\n",
-						sig, current->comm, current->pid, t->comm, t->pid, info->si_code);
-		}
-		/* SystemF/W]*/
 
 		rcu_read_lock();
 		t_user_ns = task_cred_xxx(t, user_ns);

@@ -24,6 +24,7 @@
 #include <linux/mfd/samsung/s2mps24-regulator.h>
 #include <linux/notifier.h>
 #include <linux/irq.h>
+#include <linux/regulator/pmic_class.h>
 
 static struct notifier_block slave_pmic_notifier;
 static struct s2mps24_dev *s2mps24_global;
@@ -164,7 +165,6 @@ static int s2mps24_notifier_handler(struct notifier_block *nb,
 
 	if (!s2mps24) {
 		pr_err("%s: fail to load dev.\n", __func__);
-		mutex_unlock(&s2mps24->irq_lock);
 		return IRQ_HANDLED;
 	}
 
@@ -313,6 +313,74 @@ static void s2mps24_set_notifier(struct s2mps24_dev *s2mps24)
 	s2mps24_register_notifier(&slave_pmic_notifier, s2mps24);
 }
 
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG_PMIC)
+static ssize_t irq_read_show(struct device *dev,
+			      struct device_attribute *attr, char *buf)
+{
+	int i, cnt = 0;
+
+	cnt += snprintf(buf + cnt, PAGE_SIZE, "------ INTERRUPTS (/pmic/%s) ------\n",
+			dev_driver_string(s2mps24_global->dev));
+
+	for (i = 0; i < S2MPS24_BUCK_MAX; i++)
+		cnt += snprintf(buf + cnt, PAGE_SIZE, "BUCK%d_OCP_IRQ:\t\t%5d\n",
+				i + 1, s2mps24_buck_ocp_cnt[i]);
+
+	cnt += snprintf(buf + cnt, PAGE_SIZE, "BUCKBOOST_OCP_IRQ:\t%5d\n",
+			s2mps24_bb_ocp_cnt);
+
+	for (i = 0; i < S2MPS24_BUCK_MAX; i++)
+		cnt += snprintf(buf + cnt, PAGE_SIZE, "BUCK%d_OI_IRQ:\t\t%5d\n",
+				i + 1, s2mps24_buck_oi_cnt[i]);
+
+	cnt += snprintf(buf + cnt, PAGE_SIZE, "BUCKBOOST_OI_IRQ:\t%5d\n",
+			s2mps24_bb_oi_cnt);
+
+	for (i = 0; i < S2MPS24_TEMP_MAX; i++)
+		cnt += snprintf(buf + cnt, PAGE_SIZE, "TEMP_%d_IRQ:\t\t%5d\n",
+				i ? 140 : 120, s2mps24_temp_cnt[i]);
+
+	return cnt;
+}
+
+static struct pmic_device_attribute irq_attr[] = {
+	PMIC_ATTR(irq_read_all, S_IRUGO, irq_read_show, NULL),
+};
+
+static int s2mps24_create_irq_sysfs(struct s2mps24_dev *s2mps24)
+{
+	struct device *s2mps24_irq_dev;
+	struct device *dev = s2mps24->dev;
+	char device_name[32] = {0, };
+	int err = -ENODEV, i = 0;
+
+	pr_info("%s()\n", __func__);
+
+	/* Dynamic allocation for device name */
+	snprintf(device_name, sizeof(device_name) - 1, "%s-irq@%s",
+		 dev_driver_string(dev), dev_name(dev));
+
+	s2mps24_irq_dev = pmic_device_create(s2mps24, device_name);
+	s2mps24->irq_dev = s2mps24_irq_dev;
+
+	/* Create sysfs entries */
+	for (i = 0; i < ARRAY_SIZE(irq_attr); i++) {
+		err = device_create_file(s2mps24_irq_dev, &irq_attr[i].dev_attr);
+		if (err)
+			goto remove_pmic_device;
+	}
+
+	return 0;
+
+remove_pmic_device:
+	for (i--; i >= 0; i--)
+		device_remove_file(s2mps24_irq_dev, &irq_attr[i].dev_attr);
+	pmic_device_destroy(s2mps24_irq_dev->devt);
+
+	return -ENODEV;
+}
+#endif
+
 int s2mps24_notifier_init(struct s2mps24_dev *s2mps24)
 {
 	s2mps24_global = s2mps24;
@@ -333,8 +401,28 @@ int s2mps24_notifier_init(struct s2mps24_dev *s2mps24)
 		goto err;
 	}
 
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG_PMIC)
+	if (s2mps24_create_irq_sysfs(s2mps24) < 0) {
+		pr_info("%s: failed to create sysfs\n", __func__);
+		goto err;
+	}
+#endif
 	return 0;
 err:
 	return -1;
 }
 EXPORT_SYMBOL_GPL(s2mps24_notifier_init);
+
+void s2mps24_notifier_deinit(struct s2mps24_dev *s2mps24)
+{
+#if IS_ENABLED(CONFIG_DRV_SAMSUNG_PMIC)
+	struct device *s2mps24_irq_dev = s2mps24->irq_dev;
+	int i = 0;
+
+	/* Remove sysfs entries */
+	for (i = 0; i < ARRAY_SIZE(irq_attr); i++)
+		device_remove_file(s2mps24_irq_dev, &irq_attr[i].dev_attr);
+	pmic_device_destroy(s2mps24_irq_dev->devt);
+#endif
+}
+EXPORT_SYMBOL(s2mps24_notifier_deinit);

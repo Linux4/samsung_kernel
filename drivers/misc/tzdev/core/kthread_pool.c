@@ -221,7 +221,8 @@ static struct smp_hotplug_thread tz_kthread_pool_smp_hotplug = {
 static int tz_kthread_pool_post_smc_call(struct notifier_block *cb, unsigned long code, void *unused)
 {
 
-	int cpu = smp_processor_id();
+	int cpu = get_cpu();
+	put_cpu();
 
 	if (tz_iwservice_get_cpu_mask_in_atomic_preempt()) {
 		tz_kthread_pool_wake_up_all();

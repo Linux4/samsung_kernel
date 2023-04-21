@@ -28,6 +28,8 @@
 #define DEBUG_SENTENCE_MAX	300
 #define TERM_SIZE		50
 
+static size_t vision_dma_total_used_size;
+
 /*****************************************************************************
  *****                         wrapper function                          *****
  *****************************************************************************/
@@ -256,7 +258,7 @@ static int __vb_plane_size(struct vb_format *format)
 
 	for (plane = 0; plane < fmt->planes; ++plane) {
 		if (fmt->colorspace == VS4L_DF_IMAGE_NPU) {
-			format->size[plane] = (fmt->bitsperpixel[plane] / 8) *
+			format->size[plane] = (format->pixel_format / 8) *
 			format->channels * format->width * format->height;
 		} else {
 			format->size[plane] = (fmt->bitsperpixel[plane] / 8) *
@@ -276,6 +278,15 @@ static int __vb_unmap_dmabuf(struct vb_queue *q, struct vb_buffer *buffer)
 		vision_err("vb_buffer(buffer) is NULL\n");
 		ret = -EFAULT;
 		goto p_err;
+	}
+
+	if (buffer->dma_buf) {
+		if (vision_dma_total_used_size < buffer->dma_buf->size)
+			vision_dma_total_used_size = 0;
+		else
+			vision_dma_total_used_size -= buffer->dma_buf->size;
+
+		vision_info("dma_used[%u]\n", (unsigned int)vision_dma_total_used_size);
 	}
 
 	if (buffer->vaddr)
@@ -391,7 +402,7 @@ static int __vb_map_dmabuf(
 	buffer->daddr = daddr;
 
 	vaddr = dma_buf_vmap(buffer->dma_buf);
-	if (IS_ERR(vaddr)) {
+	if (IS_ERR_OR_NULL(vaddr)) {
 		vision_err("Failed to get vaddr (err 0x%pK)\n", &vaddr);
 		ret = -EFAULT;
 		goto p_err;
@@ -400,6 +411,8 @@ static int __vb_map_dmabuf(
 
 	complete_suc = true;
 
+	vision_dma_total_used_size += buffer->dma_buf->size;
+	vision_info("dma_used[%u]\n", vision_dma_total_used_size);
 	//vision_info("__vb_map_dmabuf, size(%d), daddr(0x%x), vaddr(0x%pK)\n",
 		//size, daddr, vaddr);
 p_err:
@@ -997,7 +1010,9 @@ int vb_queue_s_format(struct vb_queue *q, struct vs4l_format_list *flist)
 	if (q->format.count > VB_MAX_BUFFER) {
 		vision_err("flist->count(%d) cannot be greater to VB_MAX_BUFFER(%d)\n", q->format.count, VB_MAX_BUFFER);
 		ret = -EINVAL;
-		kfree(q->format.formats);
+		if (q->format.formats)
+			kfree(q->format.formats);
+		q->format.formats = NULL;
 		goto p_err;
 	}
 
@@ -1007,13 +1022,12 @@ int vb_queue_s_format(struct vb_queue *q, struct vs4l_format_list *flist)
 		fmt = __vb_find_format(f->format);
 		if (!fmt) {
 			vision_err("__vb_find_format is fail\n");
-			kfree(q->format.formats);
+			if (q->format.formats)
+				kfree(q->format.formats);
+			q->format.formats = NULL;
 			ret = -EINVAL;
 			goto p_err;
 		}
-
-		if (f->format == VS4L_DF_IMAGE_NPU)
-			fmt->bitsperpixel[0] = f->pixel_format;
 
 		q->format.formats[i].fmt = fmt;
 		q->format.formats[i].colorspace = f->format;
@@ -1028,7 +1042,9 @@ int vb_queue_s_format(struct vb_queue *q, struct vs4l_format_list *flist)
 
 		if (q->format.formats[i].plane >= VB_MAX_PLANES) {
 			vision_err("f->plane(%d) cannot be greater or equal to VB_MAX_PLANES(%d)\n", q->format.formats[i].plane, VB_MAX_PLANES);
-			kfree(q->format.formats);
+			if (q->format.formats)
+				kfree(q->format.formats);
+			q->format.formats = NULL;
 			ret = -EINVAL;
 			goto p_err;
 		}
@@ -1036,7 +1052,9 @@ int vb_queue_s_format(struct vb_queue *q, struct vs4l_format_list *flist)
 		ret = __vb_plane_size(&q->format.formats[i]);
 		if (ret) {
 			vision_err("__vb_plane_size is fail(%d)\n", ret);
-			kfree(q->format.formats);
+			if (q->format.formats)
+				kfree(q->format.formats);
+			q->format.formats = NULL;
 			ret = -EINVAL;
 			goto p_err;
 		}

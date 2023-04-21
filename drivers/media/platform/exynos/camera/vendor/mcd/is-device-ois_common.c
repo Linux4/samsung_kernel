@@ -235,8 +235,11 @@ int is_ois_control_gpio(struct is_core *core, int position, int onoff)
 	struct exynos_platform_is_module *module_pdata;
 	struct is_module_enum *module = NULL;
 	int i = 0;
+	struct ois_mcu_dev *mcu = NULL;
 
 	info("%s E", __func__);
+
+	mcu = core->mcu;
 	
 	for (i = 0; i < IS_SENSOR_COUNT; i++) {
 		is_search_sensor_module_with_position(&core->sensor[i], position, &module);
@@ -258,11 +261,14 @@ int is_ois_control_gpio(struct is_core *core, int position, int onoff)
 		goto p_err;
 	}
 
+	mutex_lock(&mcu->power_mutex);
+
 	ret = module_pdata->gpio_cfg(module, SENSOR_SCENARIO_OIS_FACTORY, onoff);
 	if (ret) {
 		err("gpio_cfg is fail(%d)", ret);
-		goto p_err;
 	}
+
+	mutex_unlock(&mcu->power_mutex);
 
 p_err:
 	info("%s X", __func__);
@@ -413,6 +419,17 @@ bool is_aperture_hall_test(struct is_core *core, u16 *hall_value)
 }
 #endif
 #endif
+
+bool is_ois_gyronoise_test(struct is_core *core, long *raw_data_x, long *raw_data_y)
+{
+	bool result = false;
+	struct is_device_ois *ois_device = NULL;
+
+	ois_device = is_ois_get_device(core);
+	result = CALL_OISOPS(ois_device, ois_read_gyro_noise, core, raw_data_x, raw_data_y);
+
+	return result;
+}
 
 #if !defined (CONFIG_CAMERA_USE_MCU) && !defined (CONFIG_CAMERA_USE_INTERNAL_MCU)
 bool is_ois_diff_test(struct is_core *core, int *x_diff, int *y_diff)
@@ -676,6 +693,32 @@ void is_ois_check_cross_talk(struct is_core *core, u16 *hall_data)
 	device = &core->sensor[0];
 
 	CALL_OISOPS(ois_device, ois_check_cross_talk, device->subdev_mcu, hall_data);
+
+	return;
+}
+
+void is_ois_check_hall_cal(struct is_core *core, u16 *hall_cal_data)
+{
+	struct is_device_ois *ois_device = NULL;
+	struct is_device_sensor *device = NULL;
+
+	ois_device = is_ois_get_device(core);
+	device = &core->sensor[0];
+
+	CALL_OISOPS(ois_device, ois_check_hall_cal, device->subdev_mcu, hall_cal_data);
+
+	return;
+}
+
+void is_ois_check_valid(struct is_core *core, u8 *value)
+{
+	struct is_device_ois *ois_device = NULL;
+	struct is_device_sensor *device = NULL;
+
+	ois_device = is_ois_get_device(core);
+	device = &core->sensor[0];
+
+	CALL_OISOPS(ois_device, ois_check_valid, device->subdev_mcu, value);
 
 	return;
 }

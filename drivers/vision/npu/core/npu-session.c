@@ -16,9 +16,11 @@
 #include <linux/sched.h>
 //#include "lib/vpul-ds.h"
 #include "npu-log.h"
+#include "npu-device.h"
 #include "npu-common.h"
 #include "npu-session.h"
 #include "npu-scheduler.h"
+#include "npu-util-common.h"
 
 #include <asm/cacheflush.h>
 
@@ -101,6 +103,7 @@ static int npu_session_put_nw_req(struct npu_session *session, nw_cmd_e nw_cmd)
 		.bound_id = session->sched_param.bound_id,
 		.npu_req_id = 0,
 		.result_code = 0,
+		.result_value = 0,
 		.session = session,
 		.cmd = nw_cmd,
 		.ncp_addr = session->ncp_info.ncp_addr,
@@ -709,7 +712,6 @@ int __second_parsing_ncp(
 		return -EFAULT;
 	}
 
-
 	address_vector_cnt = ncp->address_vector_cnt;
 	if (unlikely(((address_vector_cnt * sizeof(struct address_vector)) + address_vector_offset) >
 									session->ncp_mem_buf->size)) {
@@ -724,6 +726,12 @@ int __second_parsing_ncp(
 
 	memory_vector_offset = session->memory_vector_offset;
 	memory_vector_cnt = session->memory_vector_cnt;
+
+	if (address_vector_cnt > memory_vector_cnt) {
+		npu_err("address_vector_cnt(%d) should not exceed memory_vector_cnt(%d)\n",
+				address_vector_cnt, memory_vector_cnt);
+		return -EFAULT;
+	}
 
 	mv = (struct memory_vector *)(ncp_vaddr + memory_vector_offset);
 	av = (struct address_vector *)(ncp_vaddr + address_vector_offset);
@@ -744,7 +752,9 @@ int __second_parsing_ncp(
 				address_vector_index = (mv + i)->address_vector_index;
 				if (likely(!EVER_FIND_FM(&IFM_cnt, *IFM_av, address_vector_index))) {
 					(*IFM_av + IFM_cnt)->av_index = address_vector_index;
-					if (unlikely(address_vector_index >= address_vector_cnt)) {
+					if (unlikely(((address_vector_index * sizeof(struct address_vector))
+						+ address_vector_offset) > session->ncp_mem_buf->size) ||
+						unlikely(address_vector_index >= address_vector_cnt)) {
 						npu_err("address_vector_index(%d) should not exceed max addr vec count(%d)\n",
 								address_vector_index, address_vector_cnt);
 						return -EFAULT;
@@ -780,7 +790,9 @@ int __second_parsing_ncp(
 				address_vector_index = (mv + i)->address_vector_index;
 				if (likely(!EVER_FIND_FM(&OFM_cnt, *OFM_av, address_vector_index))) {
 					(*OFM_av + OFM_cnt)->av_index = address_vector_index;
-					if (unlikely(address_vector_index >= address_vector_cnt)) {
+					if (unlikely(((address_vector_index * sizeof(struct address_vector))
+						+ address_vector_offset) > session->ncp_mem_buf->size) ||
+						unlikely(address_vector_index >= address_vector_cnt)) {
 						npu_err("address_vector_index(%d) should not exceed max addr vec count(%d)\n",
 								address_vector_index, address_vector_cnt);
 						return -EFAULT;
@@ -814,7 +826,9 @@ int __second_parsing_ncp(
 				address_vector_index = (mv + i)->address_vector_index;
 				if (likely(!EVER_FIND_FM(&IMB_cnt, *IMB_av, address_vector_index))) {
 					(*IMB_av + IMB_cnt)->av_index = address_vector_index;
-					if (unlikely(address_vector_index >= address_vector_cnt)) {
+					if (unlikely(((address_vector_index * sizeof(struct address_vector))
+						+ address_vector_offset) > session->ncp_mem_buf->size) ||
+						unlikely(address_vector_index >= address_vector_cnt)) {
 						npu_err("address_vector_index(%d) should not exceed max addr vec count(%d)\n",
 								address_vector_index, address_vector_cnt);
 						return -EFAULT;
@@ -845,7 +859,9 @@ int __second_parsing_ncp(
 				}
 				// update address vector, m_addr with ncp_alloc_daddr + offset
 				address_vector_index = (mv + i)->address_vector_index;
-				if (unlikely(address_vector_index >= address_vector_cnt)) {
+				if (unlikely(((address_vector_index * sizeof(struct address_vector))
+						+ address_vector_offset) > session->ncp_mem_buf->size) ||
+						unlikely(address_vector_index >= address_vector_cnt)) {
 					npu_err("address_vector_index(%d) should not exceed max addr vec count(%d)\n",
 							address_vector_index, address_vector_cnt);
 					return -EFAULT;
@@ -1092,7 +1108,7 @@ int __ion_alloc_IMB(struct npu_session *session, struct addr_info **IMB_av)
 		(session->imb_ion_info + i)->daddr = IMB_mem_buf->daddr + addr_offset;
 		(session->imb_ion_info + i)->vaddr = ((void *)((char *)(IMB_mem_buf->vaddr)) + addr_offset);
 		(session->imb_ion_info + i)->size = (*IMB_av + i)->size;
-		addr_offset += ALIGN((*IMB_av + i)->size, (u32)NPU_IMB_ALIGN);
+		addr_offset += ALIGN((u32)(*IMB_av + i)->size, (u32)NPU_IMB_ALIGN);
 
 		npu_udbg("(IMB_mem_buf + %d)->vaddr(0x%pK), daddr(0x%pad), size(%zu)\n",
 			session, i, (session->imb_ion_info + i)->vaddr, &(session->imb_ion_info + i)->daddr, (session->imb_ion_info + i)->size);
@@ -1161,7 +1177,7 @@ int __config_session_info(struct npu_session *session)
 	session->ss_state |= BIT(NPU_SESSION_STATE_WGT_KALLOC);
 
 	if (unlikely(!IFM_av || !OFM_av || !IMB_av || !WGT_av)) {
-		npu_err("failed(%d) in __config_session_info(ENOMEM)\n", session);
+		npu_err("failed in __config_session_info(ENOMEM)\n", session);
 		ret = -ENOMEM;
 		goto p_err;
 	}
@@ -1206,6 +1222,122 @@ p_err:
 	return ret;
 }
 
+#ifdef CONFIG_NPU_ARBITRATION
+int __arbitration_session_info(struct npu_session *session)
+{
+	int ret = 0;
+	struct npu_sessionmgr *sessionmgr;
+	struct ncp_header *ncp;
+	struct group_vector *gcurr;
+	u32 isa_size;
+	int count;
+
+	sessionmgr = session->cookie;
+	ncp = (struct ncp_header *)session->ncp_mem_buf->vaddr;
+	mutex_lock(&sessionmgr->mlock);
+	session->total_flc_transfer_size = ncp->total_flc_transfer_size;
+	session->total_sdma_transfer_size = ncp->total_sdma_transfer_size;
+	sessionmgr->cumulative_flc_size += session->total_flc_transfer_size;
+	sessionmgr->cumulative_sdma_size += session->total_sdma_transfer_size;
+
+	if (ncp->group_vector_offset < session->ncp_mem_buf->size) {
+		gcurr = (struct group_vector *)((u64)ncp + ncp->group_vector_offset);
+	} else {
+		npu_err("memory vector offset(0x%x) > max size(0x%x), out of bounds\n",
+						(u32)ncp->group_vector_offset, (u32)session->ncp_mem_buf->size);
+		return -EFAULT;
+	}
+
+	isa_size = 0;
+	for (count = 0; count < ncp->group_vector_cnt; ++count, ++gcurr)
+		isa_size += gcurr->isa_size;
+
+	session->cmdq_isa_size = isa_size;
+
+	if (ncp->thread_vector_cnt > (NPU_MAX_CORES_ALLOWED-1)) {
+		npu_err("please change the macro NPU_MAX_CORES_ALLOWED to (%d + 1)\n", ncp->thread_vector_cnt);
+		return -EINVAL;
+	}
+	sessionmgr->count_thread_ncp[ncp->thread_vector_cnt]++;
+	session->inferencefreq_index = 0;
+	session->last_q_time_stamp = npu_get_time_us();
+	for (count = 0; count < NPU_Q_TIMEDIFF_WIN_MAX; count++)
+		session->inferencefreq_window[count] = 0;
+	session->inferencefreq = 0;
+	npu_trace("npu_session_start: %d %d %d %d %d %d", session->inferencefreq_window[0],
+						session->inferencefreq_window[1],
+						session->inferencefreq_window[2],
+						session->inferencefreq_window[3],
+						session->inferencefreq_window[4],
+						session->inferencefreq
+					);
+	mutex_unlock(&sessionmgr->mlock);
+
+	return ret;
+}
+
+void npu_arbitration_session_stop(struct npu_session *session)
+{
+	struct npu_sessionmgr *sessionmgr;
+	struct ncp_header *ncp;
+	int count;
+
+	sessionmgr = session->cookie;
+	ncp = (struct ncp_header *)session->ncp_mem_buf->vaddr;
+	mutex_lock(&sessionmgr->mlock);
+	sessionmgr->cumulative_flc_size -= session->total_flc_transfer_size;
+	sessionmgr->cumulative_sdma_size -= session->total_sdma_transfer_size;
+	sessionmgr->count_thread_ncp[ncp->thread_vector_cnt]--;
+	session->inferencefreq_index = 0;
+	for (count = 0; count < NPU_Q_TIMEDIFF_WIN_MAX; count++)
+		session->inferencefreq_window[count] = 0;
+	session->inferencefreq = 0;
+	npu_trace("npu_session_stop: %d %d %d %d %d %d", session->inferencefreq_window[0],
+						session->inferencefreq_window[1],
+						session->inferencefreq_window[2],
+						session->inferencefreq_window[3],
+						session->inferencefreq_window[4],
+						session->inferencefreq
+					);
+	mutex_unlock(&sessionmgr->mlock);
+}
+
+void npu_arbitration_info_update(struct npu_session *session)
+{
+	u64 now, maxvalue = -1;
+	u32 temp;
+
+	now = npu_get_time_us();
+
+	temp = session->inferencefreq * NPU_Q_TIMEDIFF_WIN_MAX - session->inferencefreq_window[session->inferencefreq_index];
+	if (now > session->last_q_time_stamp)
+		session->inferencefreq_window[session->inferencefreq_index] = (u32)(1000000/(now - session->last_q_time_stamp));
+	else
+		session->inferencefreq_window[session->inferencefreq_index] = (u32)(1000000/( (maxvalue - session->last_q_time_stamp) + now));
+
+	session->inferencefreq = (temp + session->inferencefreq_window[session->inferencefreq_index])/NPU_Q_TIMEDIFF_WIN_MAX;
+	session->last_q_time_stamp = now;
+
+	session->inferencefreq_index = (session->inferencefreq_index + 1) % NPU_Q_TIMEDIFF_WIN_MAX;
+	npu_dbg("infFreq=%d addrofInfFreq = 0x%llx window = 0x%x 0x%x 0x%x 0x%x 0x%x %llx",
+			session->inferencefreq, &session->inferencefreq,
+			session->inferencefreq_window[0],
+			session->inferencefreq_window[1],
+			session->inferencefreq_window[2],
+			session->inferencefreq_window[3],
+			session->inferencefreq_window[4],
+			session->last_q_time_stamp);
+}
+
+#else /* !CONFIG_NPU_ARBITRATION */
+
+static inline int __arbitration_session_info(struct npu_session *session) { return 0; }
+static inline void npu_arbitration_session_stop(struct npu_session *session) { }
+static inline void npu_arbitration_info_update(struct npu_session *session) { }
+
+#endif /* CONFIG_NPU_ARBITRATION */
+
+
 int npu_session_s_graph(struct npu_session *session, struct vs4l_graph *info)
 {
 	int ret = 0;
@@ -1219,6 +1351,11 @@ int npu_session_s_graph(struct npu_session *session, struct vs4l_graph *info)
 	ret = __config_session_info(session);
 	if (unlikely(ret)) {
 		npu_uerr("invalid in __config_session_info\n", session);
+		goto p_err;
+	}
+	ret = __arbitration_session_info(session);
+	if (unlikely(ret)) {
+		npu_uerr("invalid in __arbitration_session_info\n", session);
 		goto p_err;
 	}
 	return ret;
@@ -1309,6 +1446,8 @@ int npu_session_stop(struct npu_queue *queue)
 	vctx = container_of(queue, struct npu_vertex_ctx, queue);
 	session = container_of(vctx, struct npu_session, vctx);
 
+	npu_arbitration_session_stop(session);
+
 	session->ss_state |= BIT(NPU_SESSION_STATE_STOP);
 
 	return 0;
@@ -1350,6 +1489,11 @@ int npu_session_format(struct npu_queue *queue, struct vs4l_format_list *flist)
 
 	BUG_ON(!vctx);
 	BUG_ON(!session);
+
+	if (session->ncp_mem_buf == NULL) {
+		ret = -EFAULT;
+		goto p_err;
+	}
 
 	ncp_vaddr = (char *)session->ncp_mem_buf->vaddr;
 	ncp = (struct ncp_header *)ncp_vaddr;
@@ -1535,6 +1679,8 @@ static int npu_session_queue(struct npu_queue *queue, struct vb_container_list *
 		IFM_info->state = SS_BUF_STATE_QUEUE;
 		OFM_info->state = SS_BUF_STATE_QUEUE;
 	}
+
+	npu_arbitration_info_update(session);
 
 	return 0;
 p_err:

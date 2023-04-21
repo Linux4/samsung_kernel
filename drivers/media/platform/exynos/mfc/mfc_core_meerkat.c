@@ -25,7 +25,7 @@
 #include "mfc_sync.h"
 #include "mfc_queue.h"
 
-#define MFC_SFR_AREA_COUNT	22
+#define MFC_SFR_AREA_COUNT	23
 #define MFC1_SFR_AREA_COUNT	4
 static void __mfc_dump_regs(struct mfc_core *core)
 {
@@ -51,6 +51,7 @@ static void __mfc_dump_regs(struct mfc_core *core)
 		{ 0x7300, 0xFC },
 		{ 0x8000, 0x20C },
 		{ 0x9000, 0x10C },
+		{ 0x9A00, 0x200 },
 		{ 0xA000, 0x500 },
 		{ 0xB000, 0x444 },
 		{ 0xC000, 0x84 },
@@ -58,7 +59,7 @@ static void __mfc_dump_regs(struct mfc_core *core)
 	int addr1[MFC1_SFR_AREA_COUNT][2] = {
 		{ 0x3A00, 0x5CC },
 		{ 0x6200, 0x188 },
-		{ 0x9A00, 0x3F8 },
+		{ 0x9A00, 0x200 },
 		{ 0xA500, 0x6C },
 	};
 
@@ -356,9 +357,10 @@ void mfc_dump_state(struct mfc_dev *dev)
 	int i;
 
 	mfc_dev_err("-----------dumping MFC device info-----------\n");
-	mfc_dev_err("options debug_level:%d, debug_mode:%d (%d), perf_boost:%d, wait_fw_status %d\n",
+	mfc_dev_err("options debug_level:%d, debug_mode:%d (%d), perf_boost:%d, wait_fw_status %d, multi_core_bits: %#llx\n",
 			dev->debugfs.debug_level, dev->pdata->debug_mode, dev->debugfs.debug_mode_en,
-			dev->debugfs.perf_boost_mode, dev->pdata->wait_fw_status.support);
+			dev->debugfs.perf_boost_mode, dev->pdata->wait_fw_status.support,
+			dev->multi_core_inst_bits);
 
 	for (i = 0; i < MFC_NUM_CONTEXTS; i++) {
 		if (dev->ctx[i]) {
@@ -374,9 +376,11 @@ void mfc_dump_state(struct mfc_dev *dev)
 				dev->ctx[i]->operating_framerate,
 				dev->ctx[i]->crop_width, dev->ctx[i]->crop_height,
 				dev->ctx[i]->crop_left, dev->ctx[i]->crop_top);
-			mfc_dev_err("	master core: %d, op_mode: %d(stream: %d), queue_cnt(src:%d, dst:%d, ref:%d, qsrc:%d, qdst:%d)\n",
+			mfc_dev_err("	master core: %d, op_mode: %d(stream: %d), idle_mode: %d, wait_state %d, prio %d, rt %d, queue_cnt(src:%d, dst:%d, ref:%d, qsrc:%d, qdst:%d)\n",
 				dev->ctx[i]->op_core_num[MFC_CORE_MASTER],
-				dev->ctx[i]->op_mode, dev->ctx[i]->stream_op_mode,
+				dev->ctx[i]->op_mode, dev->ctx[i]->stream_op_mode, dev->ctx[i]->idle_mode,
+				dev->ctx[i]->wait_state,
+				dev->ctx[i]->prio, dev->ctx[i]->rt,
 				mfc_get_queue_count(&dev->ctx[i]->buf_queue_lock, &dev->ctx[i]->src_buf_ready_queue),
 				mfc_get_queue_count(&dev->ctx[i]->buf_queue_lock, &dev->ctx[i]->dst_buf_queue),
 				mfc_get_queue_count(&dev->ctx[i]->buf_queue_lock, &dev->ctx[i]->ref_buf_queue),
@@ -446,6 +450,15 @@ static void __mfc_dump_trace(struct mfc_core *core)
 		cnt = ((trace_cnt + MFC_TRACE_COUNT_MAX) - i) % MFC_TRACE_COUNT_MAX;
 		dev_err(core->device, "MFC trace[%d]: time=%llu, str=%s", cnt,
 				dev->mfc_trace[cnt].time, dev->mfc_trace[cnt].str);
+	}
+
+	dev_err(core->device, "-----------dumping MFC RM trace info-----------\n");
+
+	trace_cnt = atomic_read(&dev->trace_ref_rm);
+	for (i = MFC_TRACE_COUNT_PRINT - 1; i >= 0; i--) {
+		cnt = ((trace_cnt + MFC_TRACE_COUNT_MAX) - i) % MFC_TRACE_COUNT_MAX;
+		dev_err(core->device, "MFC RM trace[%d]: time=%llu, str=%s", cnt,
+				dev->mfc_trace_rm[cnt].time, dev->mfc_trace_rm[cnt].str);
 	}
 }
 

@@ -29,8 +29,8 @@ static void ssp_late_resume(struct early_suspend *handler);
 #define NORMAL_SENSOR_STATE_K	0x3FEFF
 
 #if defined(CONFIG_MUIC_NOTIFIER)
-#include <linux/muic/muic.h>
-#include <linux/muic/muic_notifier.h>
+#include <linux/muic/common/muic.h>
+#include <linux/muic/common/muic_notifier.h>
 #endif
 
 #ifdef CONFIG_SEC_VIB_NOTIFIER
@@ -219,6 +219,9 @@ static void initialize_variable(struct ssp_data *data)
 	data->prox_device = NULL;
 	data->light_device = NULL;
 	data->ges_device = NULL;
+#ifdef CONFIG_SENSORS_FLIP_COVER_DETECTOR
+	data->fcd_device = NULL;
+#endif
 	data->thermistor_device = NULL;
 
 #ifdef CONFIG_SENSORS_SSP_LIGHT_COLORID
@@ -331,6 +334,15 @@ int initialize_mcu(struct ssp_data *data)
 			goto out;
 		}
 	}
+
+#ifdef CONFIG_SENSORS_FLIP_COVER_DETECTOR
+	iRet = set_flip_cover_detector_status(data);
+
+	if (iRet < 0) {
+		pr_err("[SSP]: %s - set_flip_cover_detector_status failed\n", __func__);
+		goto out;
+	}
+#endif
 
 	data->uSensorState = get_sensor_scanning_info(data);
 	if (data->uSensorState == 0) {
@@ -561,6 +573,20 @@ static int ssp_parse_dt(struct device *dev, struct ssp_data *data)
 
 	pr_info("[SSP] detect-hi[%u] detect-low[%u]\n",
 		data->uProxHiThresh_detect, data->uProxLoThresh_detect);
+#endif
+
+#ifdef CONFIG_SENSORS_FLIP_COVER_DETECTOR
+	if (of_property_read_u8(np, "fcd-axis",
+			&data->fcd_data.axis_update))
+		data->fcd_data.axis_update = 0;
+
+	if (of_property_read_u32(np, "fcd-threshold",
+			&data->fcd_data.threshold_update))
+		data->fcd_data.threshold_update = 0;
+
+	pr_info("[SSP] FACTORY axis %d threshold %d \n",
+		data->fcd_data.axis_update,
+		data->fcd_data.threshold_update);
 #endif
 
 	data->uProxAlertHiThresh = DEFAULT_PROX_ALERT_HIGH_THRESHOLD;
@@ -874,7 +900,6 @@ static int ssp_probe(struct spi_device *spi)
 		iRet = -ENODEV;
 		goto err_setup;
 	}
-
 	data->bProbeIsDone = false;
 	data->spi = spi;
 	spi_set_drvdata(spi, data);
@@ -917,6 +942,7 @@ static int ssp_probe(struct spi_device *spi)
 	}
 
 	iRet = initialize_sysfs(data);
+
 	if (iRet < 0) {
 		pr_err("[SSP]: %s - could not create sysfs\n", __func__);
 		goto err_sysfs_create;

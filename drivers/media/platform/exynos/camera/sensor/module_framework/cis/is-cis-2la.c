@@ -71,7 +71,7 @@ static bool sensor_2la_cis_is_wdr_mode_on(cis_shared_data *cis_data)
 	if (!is_vender_wdr_mode_on(cis_data))
 		return false;
 
-	if (mode < 0 || mode >= SENSOR_2LA_MODE_MAX) {
+	if (mode >= SENSOR_2LA_MODE_MAX) {
 		err("invalid mode(%d)!!", mode);
 		return false;
 	}
@@ -811,6 +811,8 @@ int sensor_2la_cis_stream_on(struct v4l2_subdev *subdev)
 	if (cis->cis_data->dual_slave) {
 		msleep(40);
 		ret = is_sensor_write16(client, 0x0B30, 0x0100);
+		if (ret < 0)
+			err("failed to set dual_slave");
 	}
 
 	ret = sensor_2la_cis_group_param_hold_func(subdev, 0x00);

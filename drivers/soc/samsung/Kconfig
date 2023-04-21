@@ -81,6 +81,12 @@ config CAL_IF
 	help
 	Support CMU CAL for Exynos SoC.
 
+config EXYNOS_DEBUG_INFO
+	bool "Exynos Debug infromation"
+	default y
+	help
+	Support printing Exynos Debug information.
+
 config CMUCAL
 	tristate "Exynos CMU Chip Abstraction Layer"
 	default y
@@ -289,12 +295,6 @@ config EXYNOS_UFCC
 	help
 	  Control Frequency & C-state by user
 
-config EXYNOS_PERF
-	tristate "Exynos Performance management driver"
-	default m
-	help
-	  Enable Exynos Performance Profiling
-
 config EXYNOS_PM_QOS
 	tristate "Exynos PM QOS"
 	default m
@@ -313,11 +313,33 @@ config EXYNOS_SCI
 	help
 	Enable exynos sci interface driver support
 
+config USE_LLC_LOG
+	tristate "USE_LLC_LOG support"
+	default m
+	depends on EXYNOS_SCI
+	help
+	  Enable use_llc_log support
+
 config EXYNOS_SCI_DBG
 	tristate "EXYNOS SCI DBG interface driver support"
 	depends on EXYNOS_SCI
 	help
 	Enable exynos sci debug interface driver support
+
+config USE_PPC_LOG
+	tristate "USE_PPC_LOG support"
+	default m
+	depends on EXYNOS_SCI_DBG
+	help
+	  Enable use_ppc_log support
+
+config EXYNOS_SCI_DBG_AUTO
+	tristate "EXYNOS_SCI_DBG_AUTO support"
+	default m
+	depends on EXYNOS_SCI_DBG
+	depends on !(USE_SIGNED_BINARY)
+	help
+	  Enable exynos-sci_dbg_auto support
 
 config EXYNOS_BCM_DBG
 	tristate "EXYNOS_BCM_DBG driver support"
@@ -449,6 +471,7 @@ config EXYNOS_PM_DVS
 source "drivers/soc/samsung/acpm/Kconfig"
 
 source "drivers/soc/samsung/debug/Kconfig"
+source "drivers/soc/samsung/xperf/Kconfig"
 
 source "drivers/soc/samsung/cpif/Kconfig"
 source "drivers/soc/samsung/exynos-hdcp/Kconfig"

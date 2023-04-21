@@ -87,9 +87,9 @@ void ion_bltin_heap_init(struct ion_bltin_heap *bltin_heap)
 	INIT_LIST_HEAD(&bltin_heap->list);
 	mutex_init(&bltin_heap->buffer_lock);
 
-	if (!debugfs_create_file("buffers", 0444,
-				 bltin_heap->heap.debugfs_dir,
-				 bltin_heap, &debug_heap_fops))
+	if (IS_ERR(debugfs_create_file("buffers", 0444,
+				       bltin_heap->heap.debugfs_dir,
+				       bltin_heap, &debug_heap_fops)))
 		pr_err("failed to create file for %s",  bltin_heap->heap.name);
 }
 

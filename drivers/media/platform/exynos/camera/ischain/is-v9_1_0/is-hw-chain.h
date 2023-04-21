@@ -383,8 +383,8 @@ enum sysreg_lme_reg_field {
 
 /* DDK DMA: 1.418MB */
 /* 247840 bytes per 1 3AA */
-/* Max 6 instances are supported */
-#define IS_TAAISP_SIZE		(0x0016B0C0)
+/* Max 10 instances are supported */
+#define IS_TAAISP_SIZE		(0x00200000)
 
 /* TNR DMA: 158.38 MB*/
 /* Image: ((Max width * Max height * 14 / 8) + 16) * 2 * 3 */
@@ -399,7 +399,11 @@ enum sysreg_lme_reg_field {
 /* Max width: 4880, Max height: 3660 depends on scenario */
 /* Max 7 buffers, 3 instances */
 /* Total motion buffer: 0x45abc0 (4565952 bytes) */
+#ifdef IS_MAX_TNRISP_SIZE
+#define TAAISP_TNR_SIZE		(IS_MAX_TNRISP_SIZE)
+#else
 #define TAAISP_TNR_SIZE		(0x09E61BC0)
+#endif
 
 /* Secure TNR DMA: 7.3 MB*/
 #define TAAISP_TNR_S_SIZE	(0x00757B40)
@@ -473,6 +477,12 @@ enum internal_dma_map {
 	ID_DMA_TNR = 3,
 	ID_DMA_CLAHE = 4,
 	ID_DMA_MAX
+};
+
+enum cacheable_dma_map {
+	/* 0 ~ 4: reserved for DDK internal_dma_map */
+	ID_DBUF_LMEC = 5, /* LME HW output */
+	ID_DBUF_MAX
 };
 
 #define INTR_ID_BASE_OFFSET	(INTR_HWIP_MAX)

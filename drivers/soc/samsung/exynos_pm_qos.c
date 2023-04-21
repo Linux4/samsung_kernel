@@ -1277,6 +1277,45 @@ static ssize_t exynos_pm_qos_power_write(struct file *filp, const char __user *b
 	return count;
 }
 
+#if IS_ENABLED(CONFIG_SEC_PM_LOG)
+static int exynos_pm_qos_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, exynos_pm_qos_debug_show, PDE_DATA(inode));
+}
+
+static const struct file_operations exynos_pm_qos_proc_fops = {
+	.owner		= THIS_MODULE,
+	.open		= exynos_pm_qos_proc_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+void exynos_pm_qos_procfs_init(struct proc_dir_entry *parent)
+{
+	struct proc_dir_entry *d, *entry;
+	int i;
+
+	if (!parent) {
+		pr_err("%s: parent is NULL\n", __func__);
+		return;
+	}
+
+	d = proc_mkdir("current_exynos_pm_qos", parent);
+
+	for (i = PM_QOS_CPU_ONLINE_MIN; i < EXYNOS_PM_QOS_NUM_CLASSES; i++) {
+		entry = proc_create_data(exynos_pm_qos_array[i]->name, 0444,
+				d, &exynos_pm_qos_proc_fops,
+				(void *)exynos_pm_qos_array[i]);
+		if (!entry) {
+			pr_err("%s: %s: failed to create procfs node\n",
+			       __func__, exynos_pm_qos_array[i]->name);
+			return;
+		}
+	}
+}
+EXPORT_SYMBOL_GPL(exynos_pm_qos_procfs_init);
+#endif /* CONFIG_SEC_PM_LOG */
 
 static int exynos_pm_qos_power_init(void)
 {

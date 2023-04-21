@@ -1,5 +1,19 @@
-#ifndef _MCTCP_BUFFER_H
-#define _MCTCP_BUFFER_H
+/* SPDX-License-Identifier: GPL-2.0
+ *
+ * Copyright (C) 2019-2021 Samsung Electronics.
+ *
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ */
+#ifndef __MCPS_BUFFER_H__
+#define __MCPS_BUFFER_H__
 
 #include <linux/skbuff.h>
 
@@ -52,4 +66,4 @@ int pending_migration(struct pending_queue *buf, unsigned int hash, unsigned int
 void init_mcps_buffer(struct net_device *dev);
 void release_mcps_buffer(void);
 
-#endif
+#endif //__MCPS_BUFFER_H__

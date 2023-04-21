@@ -369,6 +369,7 @@ static int init_profile_result(struct profile_result *result, int size)
 	return 0;
 }
 
+#ifdef CONFIG_EXYNOS_DEBUG_INFO
 static void show_profiler_info(void)
 {
 	int idx;
@@ -386,6 +387,7 @@ static void show_profiler_info(void)
 	if (profiler.migov_id != -1)
 		pr_info("support migov domain(id=%d)\n", profiler.migov_id);
 }
+#endif
 
 static int exynos_mif_profiler_probe(struct platform_device *pdev)
 {
@@ -451,7 +453,9 @@ static int exynos_mif_profiler_probe(struct platform_device *pdev)
 
 	ret = exynos_migov_register_domain(MIGOV_MIF, &mif_fn, &mif_pd_fn);
 
+#ifdef CONFIG_EXYNOS_DEBUG_INFO
 	show_profiler_info();
+#endif
 
 	return ret;
 }

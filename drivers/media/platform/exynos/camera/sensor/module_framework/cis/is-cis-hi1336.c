@@ -45,6 +45,9 @@
 #elif defined(USE_HI1336B_SETFILE)
 #include "is-cis-hi1336B-setA.h"
 #include "is-cis-hi1336B-setB.h"
+#elif defined(USE_HI1336C_SETFILE)
+#include "is-cis-hi1336C-setA.h"
+#include "is-cis-hi1336C-setB.h"
 #else
 #include "is-cis-hi1336-setA.h"
 #include "is-cis-hi1336-setB.h"
@@ -59,8 +62,8 @@
 
 #define SENSOR_NAME "HI1336"
 
-#define POLL_TIME_MS 100
-#define STREAM_OFF_POLL_CNT 3
+#define POLL_TIME_MS 5
+#define STREAM_MAX_POLL_CNT 60
 
 static const u32 *sensor_hi1336_global;
 static u32 sensor_hi1336_global_size;
@@ -69,36 +72,6 @@ static const u32 *sensor_hi1336_setfile_sizes;
 static u32 sensor_hi1336_max_setfile_num;
 static const struct sensor_pll_info_compact **sensor_hi1336_pllinfos;
 static struct setfile_info *sensor_hi1336_setfile_fsync_info;
-
-int sensor_hi1336_cis_check_rev(struct is_cis *cis)
-{
-	int ret    = 0;
-	u16 data16 = 0;
-	struct i2c_client *client = NULL;
-
-	BUG_ON(!cis);
-	BUG_ON(!cis->cis_data);
-
-	client = cis->client;
-	if (unlikely(!client)) {
-		err("client is NULL");
-		ret = -EINVAL;
-		goto p_err;
-	}
-
-	ret = is_sensor_read16(client, SENSOR_HI1336_MODEL_ID_ADDR, &data16);
-	if (ret < 0) {
-		err("is_sensor_read16 fail, (ret %d)", ret);
-		goto p_err;
-	}
-	dbg_sensor(1, "Model ID: %#x\n", data16);
-
-	//not used
-	//cis->cis_data->cis_rev = rev;
-
-p_err:
-	return ret;
-}
 
 static void sensor_hi1336_cis_data_calculation(const struct sensor_pll_info_compact *pll_info, cis_shared_data *cis_data)
 {
@@ -119,6 +92,9 @@ static void sensor_hi1336_cis_data_calculation(const struct sensor_pll_info_comp
 	cis_data->min_frame_us_time = (1 * 1000 * 1000) / frame_rate;
 	cis_data->cur_frame_us_time = cis_data->min_frame_us_time;
 
+#ifdef CAMERA_REAR2
+	cis_data->min_sync_frame_us_time = cis_data->min_frame_us_time;
+#endif
 	dbg_sensor(1, "frame_duration(%d) - frame_rate (%d) = pixel_rate(%llu) / "
 		KERN_CONT "(pll_info->frame_length_lines(%d) * total_line_length_pck(%d))\n",
 		cis_data->min_frame_us_time, frame_rate, pixel_rate, pll_info->frame_length_lines, total_line_length_pck);
@@ -148,7 +124,7 @@ static void sensor_hi1336_cis_data_calculation(const struct sensor_pll_info_comp
 
 	dbg_sensor(1, "Fps: %d, max fps(%d)\n", frame_rate, cis_data->max_fps);
 	dbg_sensor(1, "min_frame_time(%d us)\n", cis_data->min_frame_us_time);
-	dbg_sensor(1, "Pixel rate(Mbps): %d\n", cis_data->pclk / 1000000);
+	dbg_sensor(1, "Pixel rate(Kbps): %d\n", cis_data->pclk / 1000);
 
 	/* Frame period calculation */
 	cis_data->frame_time = (cis_data->line_readOut_time * cis_data->cur_height / 1000);
@@ -215,10 +191,6 @@ int sensor_hi1336_cis_init(struct v4l2_subdev *subdev)
 	struct is_cis *cis = NULL;
 	u32 setfile_index = 0;
 	cis_setting_info setinfo;
-#ifdef USE_CAMERA_HW_BIG_DATA
-	struct cam_hw_param *hw_param = NULL;
-	struct is_device_sensor_peri *sensor_peri = NULL;
-#endif
 
 	setinfo.param = NULL;
 	setinfo.return_value = 0;
@@ -233,31 +205,26 @@ int sensor_hi1336_cis_init(struct v4l2_subdev *subdev)
 	}
 
 	FIMC_BUG(!cis->cis_data);
+#if !defined(CONFIG_CAMERA_VENDER_MCD)
 	memset(cis->cis_data, 0, sizeof(cis_shared_data));
 
-	probe_info("%s hi1336 init\n", __func__);
-	cis->rev_flag = false;
-
-	ret = sensor_hi1336_cis_check_rev(cis);
+	ret = sensor_cis_check_rev(cis);
 	if (ret < 0) {
-#ifdef USE_CAMERA_HW_BIG_DATA
-		sensor_peri = container_of(cis, struct is_device_sensor_peri, cis);
-		if (sensor_peri)
-			is_sec_get_hw_param(&hw_param, sensor_peri->module->position);
-		if (hw_param)
-			hw_param->i2c_sensor_err_cnt++;
-#endif
 		warn("sensor_hi1336_check_rev is fail when cis init");
-		cis->rev_flag = true;
-		ret = 0;
+		ret = -EINVAL;
+		goto p_err;
 	}
-
+#endif
 	cis->cis_data->product_name = cis->id;
 	cis->cis_data->cur_width = SENSOR_HI1336_MAX_WIDTH;
 	cis->cis_data->cur_height = SENSOR_HI1336_MAX_HEIGHT;
 	cis->cis_data->low_expo_start = 33000;
 	cis->need_mode_change = false;
 	cis->long_term_mode.sen_strm_off_on_step = 0;
+	cis->mipi_clock_index_cur = CAM_MIPI_NOT_INITIALIZED;
+	cis->mipi_clock_index_new = CAM_MIPI_NOT_INITIALIZED;
+
+	cis->cis_data->cur_pattern_mode = SENSOR_TEST_PATTERN_MODE_OFF;
 
 	sensor_hi1336_cis_data_calculation(sensor_hi1336_pllinfos[setfile_index], cis->cis_data);
 
@@ -313,7 +280,7 @@ int sensor_hi1336_cis_log_status(struct v4l2_subdev *subdev)
 	}
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	pr_err("[SEN:DUMP] *******************************\n");
+	info("[%s] *******************************\n", __func__);
 	ret = is_sensor_read16(client, SENSOR_HI1336_MODEL_ID_ADDR, &data16);
 	if (ret < 0) {
 		err("i2c transfer fail addr(%x) ret = %d\n",
@@ -321,7 +288,7 @@ int sensor_hi1336_cis_log_status(struct v4l2_subdev *subdev)
 		goto p_i2c_err;
 	}
 
-	pr_err("[SEN:DUMP] model_id(%x)\n", data16);
+	info("model_id(%x)\n", data16);
 	ret = is_sensor_read16(client, SENSOR_HI1336_STREAM_ONOFF_ADDR, &data16);
 	if (ret < 0) {
 		err("i2c transfer fail addr(%x) ret = %d\n",
@@ -329,7 +296,7 @@ int sensor_hi1336_cis_log_status(struct v4l2_subdev *subdev)
 		goto p_i2c_err;
 	}
 
-	pr_err("[SEN:DUMP] mode_select(streaming: %x)\n", data16);
+	info("mode_select(streaming: %x)\n", data16);
 
 	sensor_cis_dump_registers(subdev, sensor_hi1336_setfiles[0],
 			sensor_hi1336_setfile_sizes[0]);
@@ -339,7 +306,7 @@ p_i2c_err:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	pr_err("[SEN:DUMP] *******************************\n");
+	info("[%s] *******************************\n", __func__);
 
 	return ret;
 }
@@ -451,7 +418,7 @@ int sensor_hi1336_cis_set_global_setting(struct v4l2_subdev *subdev)
 		goto p_err;
 	}
 
-	dbg_sensor(1, "[%s] global setting done\n", __func__);
+	info("[%s] global setting done\n", __func__);
 
 p_err:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
@@ -476,19 +443,9 @@ int sensor_hi1336_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 		goto p_err;
 	}
 
-	/* If check_rev(Model ID) of HI1336 fail when cis_init, one more check_rev in mode_change */
-	if (cis->rev_flag == true) {
-		cis->rev_flag = false;
-		ret = sensor_hi1336_cis_check_rev(cis);
-		if (ret < 0) {
-			err("sensor_hi1336_check_rev is fail");
-			goto p_err;
-		}
-	}
-
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
-	info("[%s] mode=%d, mode change setting start\n", __func__, mode);
+	info("[%s] sensor mode(%d)\n", __func__, mode);
 	ret = sensor_cis_set_registers(subdev, sensor_hi1336_setfiles[mode], sensor_hi1336_setfile_sizes[mode]);
 	if (ret < 0) {
 		err("[%s] sensor_hi1336_set_registers fail!!", __func__);
@@ -503,8 +460,6 @@ int sensor_hi1336_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 		err("[%s] fsync normal fail\n", __func__);
 		goto p_i2c_err;
 	}
-
-	dbg_sensor(1, "[%s] mode changed(%d)\n", __func__, mode);
 
 p_i2c_err:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
@@ -556,6 +511,7 @@ p_err:
 	return ret;
 }
 
+#if 0
 int sensor_hi1336_cis_enable_frame_cnt(struct i2c_client *client, bool enable)
 {
 	int ret = -1;
@@ -593,6 +549,7 @@ int sensor_hi1336_cis_enable_frame_cnt(struct i2c_client *client, bool enable)
 p_err:
 	return ret;
 }
+#endif
 
 int sensor_hi1336_cis_stream_on(struct v4l2_subdev *subdev)
 {
@@ -601,6 +558,7 @@ int sensor_hi1336_cis_stream_on(struct v4l2_subdev *subdev)
 	struct i2c_client *client = NULL;
 	cis_shared_data *cis_data = NULL;
 	struct is_device_sensor_peri *sensor_peri = NULL;
+	struct is_device_sensor *device;
 
 #ifdef DEBUG_SENSOR_TIME
 	struct timeval st, end;
@@ -626,17 +584,21 @@ int sensor_hi1336_cis_stream_on(struct v4l2_subdev *subdev)
 
 	cis_data = cis->cis_data;
 
-	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
+	device = (struct is_device_sensor *)v4l2_get_subdev_hostdata(subdev);
+	WARN_ON(!device);
 
-	sensor_hi1336_cis_group_param_hold(subdev, true);
+	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
+	is_vendor_set_mipi_clock(device);
+
+	ret = sensor_hi1336_cis_group_param_hold(subdev, true);
+	if (ret < 0)
+		err("group_param_hold_func failed at stream on");
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
-	info("[%s] stream start\n", __func__);
-
 	/* Sensor stream on */
-	ret = is_sensor_write16(client, SENSOR_HI1336_STREAM_ONOFF_ADDR,
-			0x0001);
+	info("%s\n", __func__);
+	ret = is_sensor_write16(client, SENSOR_HI1336_STREAM_ONOFF_ADDR, 0x0001);
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 	if (ret < 0) {
 		err("i2c transfer fail addr(%x) ret = %d\n",
@@ -644,13 +606,9 @@ int sensor_hi1336_cis_stream_on(struct v4l2_subdev *subdev)
 		goto p_err;
 	}
 
-	ret = sensor_hi1336_cis_enable_frame_cnt(client, true);
-	if (ret < 0) {
-		err("%s: sensor_hi1336_cis_enable_frame_cnt failed, err[%d]", __func__,
-				ret);
-	}
-
-	sensor_hi1336_cis_group_param_hold(subdev, false);
+	ret = sensor_hi1336_cis_group_param_hold(subdev, false);
+	if (ret < 0)
+		err("group_param_hold_func failed at stream on");
 
 	cis_data->stream_on = true;
 
@@ -659,6 +617,63 @@ int sensor_hi1336_cis_stream_on(struct v4l2_subdev *subdev)
 	dbg_sensor(1, "[%s] time %lu us\n", __func__,
 			(end.tv_sec - st.tv_sec) * 1000000 + (end.tv_usec - st.tv_usec));
 #endif
+
+p_err:
+	return ret;
+}
+
+int sensor_hi1336_cis_set_test_pattern(struct v4l2_subdev *subdev, camera2_sensor_ctl_t *sensor_ctl)
+{
+	int ret = 0;
+	struct is_cis *cis;
+	struct i2c_client *client;
+
+	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
+
+	WARN_ON(!cis);
+	WARN_ON(!cis->cis_data);
+
+	client = cis->client;
+	if (unlikely(!client)) {
+		err("client is NULL");
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+	dbg_sensor(1, "[MOD:D:%d] %s, cur_pattern_mode(%d), testPatternMode(%d)\n", cis->id, __func__,
+			cis->cis_data->cur_pattern_mode, sensor_ctl->testPatternMode);
+
+	if (cis->cis_data->cur_pattern_mode != sensor_ctl->testPatternMode) {
+		cis->cis_data->cur_pattern_mode = sensor_ctl->testPatternMode;
+		if (sensor_ctl->testPatternMode == SENSOR_TEST_PATTERN_MODE_OFF) {
+			info("%s: set DEFAULT pattern! (testpatternmode : %d)\n", __func__, sensor_ctl->testPatternMode);
+
+			I2C_MUTEX_LOCK(cis->i2c_lock);
+			is_sensor_write16(client, 0x0b04, 0x037c);
+			is_sensor_write16(client, 0x0c0a, 0x0000);
+			is_sensor_write16(client, 0x0c0c, 0x0000);
+			is_sensor_write16(client, 0x0c0e, 0x0000);
+			is_sensor_write16(client, 0x0c10, 0x0000);
+			is_sensor_write16(client, 0x0c12, 0x0000);
+			I2C_MUTEX_UNLOCK(cis->i2c_lock);
+		} else if (sensor_ctl->testPatternMode == SENSOR_TEST_PATTERN_MODE_BLACK) {
+			info("%s: set BLACK pattern! (testpatternmode :%d), Data : 0x(%x, %x, %x, %x)\n",
+				__func__, sensor_ctl->testPatternMode,
+				(unsigned short)sensor_ctl->testPatternData[0],
+				(unsigned short)sensor_ctl->testPatternData[1],
+				(unsigned short)sensor_ctl->testPatternData[2],
+				(unsigned short)sensor_ctl->testPatternData[3]);
+
+			I2C_MUTEX_LOCK(cis->i2c_lock);
+			is_sensor_write16(client, 0x0b04, 0x037d);
+			is_sensor_write16(client, 0x0c0a, 0x0100);
+			is_sensor_write16(client, 0x0c0c, 0x0040);
+			is_sensor_write16(client, 0x0c0e, 0x0040);
+			is_sensor_write16(client, 0x0c10, 0x0040);
+			is_sensor_write16(client, 0x0c12, 0x0040);
+			I2C_MUTEX_UNLOCK(cis->i2c_lock);
+		}
+	}
 
 p_err:
 	return ret;
@@ -694,9 +709,12 @@ int sensor_hi1336_cis_stream_off(struct v4l2_subdev *subdev)
 
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
 
-	sensor_hi1336_cis_group_param_hold(subdev, false);
+	ret = sensor_hi1336_cis_group_param_hold(subdev, false);
+	if (ret < 0)
+		err("group_param_hold_func failed at stream off");
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
+	info("%s\n", __func__);
 	ret = is_sensor_write16(client, SENSOR_HI1336_STREAM_ONOFF_ADDR, 0x0000);
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 	if (ret < 0) {
@@ -723,7 +741,7 @@ int sensor_hi1336_cis_wait_streamoff(struct v4l2_subdev *subdev)
 	struct i2c_client *client = NULL;
 	cis_shared_data *cis_data = NULL;
 	u32 wait_cnt = 0;
-	u16 cur_frame_value = 0;
+	u16 PLL_en = 0;
 
 	BUG_ON(!subdev);
 
@@ -748,46 +766,31 @@ int sensor_hi1336_cis_wait_streamoff(struct v4l2_subdev *subdev)
 		goto p_err;
 	}
 
-	ret = is_sensor_read16(client, SENSOR_HI1336_ISP_FRAME_CNT_ADDR,
-			&cur_frame_value);
-	if (ret < 0) {
-		err("i2c transfer fail addr(%x) ret = %d\n",
-				SENSOR_HI1336_ISP_FRAME_CNT_ADDR, ret);
-		goto p_err;
-	}
-
 	do {
-		u16 next_frame_value = 0;
-		ret = is_sensor_read16(client,
-				SENSOR_HI1336_ISP_FRAME_CNT_ADDR, &next_frame_value);
+		ret = is_sensor_read16(client, SENSOR_HI1336_ISP_PLL_ENABLE_ADDR, &PLL_en);
 		if (ret < 0) {
 			err("i2c transfer fail addr(%x) ret = %d\n",
-					SENSOR_HI1336_ISP_FRAME_CNT_ADDR, ret);
+					SENSOR_HI1336_ISP_PLL_ENABLE_ADDR, ret);
 			goto p_err;
 		}
-		dbg_sensor(1, "%s: cur : %d, next : %d\n", __func__, cur_frame_value,
-				next_frame_value);
-		if (next_frame_value == cur_frame_value)
+
+		dbg_sensor(1, "%s: PLL_en 0x%x \n", __func__, PLL_en);
+		/* pll_bypass */
+		if (!(PLL_en & 0x0100))
 			break;
 
-		cur_frame_value = next_frame_value;
 		wait_cnt++;
-	} while (wait_cnt < STREAM_OFF_POLL_CNT);
+		msleep(POLL_TIME_MS);
+	} while (wait_cnt < STREAM_MAX_POLL_CNT);
 
-	if (wait_cnt < STREAM_OFF_POLL_CNT) {
-		info("%s: finished after %d ms\n", __func__,
-				(wait_cnt + 1) * POLL_TIME_MS);
+	if (wait_cnt < STREAM_MAX_POLL_CNT) {
+		info("%s: finished after %d ms\n", __func__, (wait_cnt + 1) * POLL_TIME_MS);
 	} else {
 		warn("%s: finished : polling timeout occured after %d ms\n", __func__,
 				(wait_cnt + 1) * POLL_TIME_MS);
 	}
 
 p_err:
-	ret = sensor_hi1336_cis_enable_frame_cnt(client, false);
-	if (ret < 0) {
-		err("%s: sensor_hi1336_cis_enable_frame_cnt failed\n", __func__);
-	}
-
 	return ret;
 }
 
@@ -798,7 +801,7 @@ int sensor_hi1336_cis_wait_streamon(struct v4l2_subdev *subdev)
 	struct i2c_client *client = NULL;
 	cis_shared_data *cis_data = NULL;
 	u32 wait_cnt = 0;
-	u16 cur_frame_value = 0;
+	u16 PLL_en = 0;
 
 	BUG_ON(!subdev);
 
@@ -823,35 +826,25 @@ int sensor_hi1336_cis_wait_streamon(struct v4l2_subdev *subdev)
 		goto p_err;
 	}
 
-	ret = is_sensor_read16(client, SENSOR_HI1336_ISP_FRAME_CNT_ADDR,
-			&cur_frame_value);
-	if (ret < 0) {
-		err("i2c transfer fail addr(%x) ret = %d\n",
-				SENSOR_HI1336_ISP_FRAME_CNT_ADDR, ret);
-		goto p_err;
-	}
-
 	do {
-		u16 next_frame_value = 0;
-		ret = is_sensor_read16(client,
-				SENSOR_HI1336_ISP_FRAME_CNT_ADDR, &next_frame_value);
+		ret = is_sensor_read16(client, SENSOR_HI1336_ISP_PLL_ENABLE_ADDR, &PLL_en);
 		if (ret < 0) {
 			err("i2c transfer fail addr(%x) ret = %d\n",
-					SENSOR_HI1336_ISP_FRAME_CNT_ADDR, ret);
+					SENSOR_HI1336_ISP_PLL_ENABLE_ADDR, ret);
 			goto p_err;
 		}
-		dbg_sensor(1, "%s: cur : %d, next : %d\n", __func__, cur_frame_value,
-				next_frame_value);
-		if (next_frame_value != cur_frame_value)
+
+		dbg_sensor(1, "%s: PLL_en 0x%x\n", __func__, PLL_en);
+		/* pll_enable */
+		if (PLL_en & 0x0100)
 			break;
 
-		cur_frame_value = next_frame_value;
 		wait_cnt++;
-	} while (wait_cnt < STREAM_OFF_POLL_CNT);
+		msleep(POLL_TIME_MS);
+	} while (wait_cnt < STREAM_MAX_POLL_CNT);
 
-	if (wait_cnt < STREAM_OFF_POLL_CNT) {
-		info("%s: finished after %d ms\n", __func__,
-				(wait_cnt + 1) * POLL_TIME_MS);
+	if (wait_cnt < STREAM_MAX_POLL_CNT) {
+		info("%s: finished after %d ms\n", __func__, (wait_cnt + 1) * POLL_TIME_MS);
 	} else {
 		warn("%s: finished : polling timeout occured after %d ms\n", __func__,
 				(wait_cnt + 1) * POLL_TIME_MS);
@@ -869,7 +862,7 @@ int sensor_hi1336_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 	struct is_cis *cis   = NULL;
 	cis_shared_data *cis_data = NULL;
 
-	u32 pix_rate_freq_mhz = 0;
+	u64 pix_rate_freq_khz = 0;
 	u32 line_length_pck = 0;
 	u32 coarse_integ_time = 0;
 	u32 frame_length_lines = 0;
@@ -891,13 +884,18 @@ int sensor_hi1336_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 
 	cis_data = cis->cis_data;
 
-	pix_rate_freq_mhz = cis_data->pclk / (1000 * 1000);
+	if (input_exposure_time == 0) {
+		input_exposure_time  = cis_data->min_frame_us_time;
+		info("[%s] Not proper exposure time(0), so apply min frame duration to exposure time forcely!!!(%d)\n",
+			__func__, cis_data->min_frame_us_time);
+	}
+
+	pix_rate_freq_khz = cis_data->pclk / 1000;
 	line_length_pck = cis_data->line_length_pck;
-	coarse_integ_time = ((pix_rate_freq_mhz * input_exposure_time) / line_length_pck);
+	coarse_integ_time = (u32)(((pix_rate_freq_khz * input_exposure_time) / line_length_pck) / 1000);
 	frame_length_lines = coarse_integ_time + cis_data->max_margin_coarse_integration_time;
 
-	frame_duration = (frame_length_lines * line_length_pck) / pix_rate_freq_mhz;
-	max_frame_us_time = 1000000/cis->min_fps;
+	frame_duration = (u32)((u64)((frame_length_lines * line_length_pck) / pix_rate_freq_khz) * 1000);
 
 	dbg_sensor(1, "[%s](vsync cnt = %d) input exp(%d), adj duration, frame duraion(%d), min_frame_us(%d)\n",
 			__func__, cis_data->sen_vsync_count, input_exposure_time, frame_duration, cis_data->min_frame_us_time);
@@ -907,9 +905,6 @@ int sensor_hi1336_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 	dbg_sensor(1, "[%s] requested min_fps(%d), max_fps(%d) from HAL\n", __func__, cis->min_fps, cis->max_fps);
 
 	*target_duration = MAX(frame_duration, cis_data->min_frame_us_time);
-	if(cis->min_fps == cis->max_fps) {
-		*target_duration = MIN(frame_duration, max_frame_us_time);
-	}
 
 	dbg_sensor(1, "[%s] calcurated frame_duration(%d), adjusted frame_duration(%d)\n", __func__, frame_duration, *target_duration);
 
@@ -929,7 +924,7 @@ int sensor_hi1336_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 	struct i2c_client *client = NULL;
 	cis_shared_data *cis_data = NULL;
 
-	u32 pix_rate_freq_mhz = 0;
+	u64 pix_rate_freq_khz = 0;
 	u32 line_length_pck = 0;
 	u16 frame_length_lines = 0;
 
@@ -959,14 +954,14 @@ int sensor_hi1336_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 		frame_duration = cis_data->min_frame_us_time;
 	}
 
-	pix_rate_freq_mhz = cis_data->pclk / (1000 * 1000);
+	pix_rate_freq_khz = cis_data->pclk / 1000;
 	line_length_pck = cis_data->line_length_pck;
 
-	frame_length_lines = (u16)((pix_rate_freq_mhz * frame_duration) / line_length_pck);
+	frame_length_lines = (u16)((pix_rate_freq_khz * frame_duration) / (line_length_pck * 1000));
 
-	dbg_sensor(1, "[MOD:D:%d] %s, pix_rate_freq_mhz(%#x) frame_duration = %d us,"
+	dbg_sensor(1, "[MOD:D:%d] %s, pix_rate_freq_khz(%#x) frame_duration = %d us,"
 			KERN_CONT "(line_length_pck%#x), frame_length_lines(%#x)\n",
-			cis->id, __func__, pix_rate_freq_mhz, frame_duration,
+			cis->id, __func__, pix_rate_freq_khz, frame_duration,
 			line_length_pck, frame_length_lines);
 
 	hold = sensor_hi1336_cis_group_param_hold(subdev, true);
@@ -1048,7 +1043,11 @@ int sensor_hi1336_cis_set_frame_rate(struct v4l2_subdev *subdev, u32 min_fps)
 		goto p_err;
 	}
 
+#ifdef CAMERA_REAR2
+	cis_data->min_frame_us_time = MAX(frame_duration, cis_data->min_sync_frame_us_time);
+#else
 	cis_data->min_frame_us_time = frame_duration;
+#endif
 
 #ifdef DEBUG_SENSOR_TIME
 	do_gettimeofday(&end);
@@ -1069,7 +1068,7 @@ int sensor_hi1336_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 	struct i2c_client *client = NULL;
 	cis_shared_data *cis_data = NULL;
 
-	u32 pix_rate_freq_mhz = 0;
+	u64 pix_rate_freq_khz = 0;
 	u16 coarse_int = 0;
 	u32 line_length_pck = 0;
 	u32 min_fine_int = 0;
@@ -1106,11 +1105,11 @@ int sensor_hi1336_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 	dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), target long(%d), short(%d)\n", cis->id, __func__,
 			cis_data->sen_vsync_count, target_exposure->long_val, target_exposure->short_val);
 
-	pix_rate_freq_mhz = cis_data->pclk / (1000 * 1000);
+	pix_rate_freq_khz = cis_data->pclk / 1000;
 	line_length_pck = cis_data->line_length_pck;
 	min_fine_int = cis_data->min_fine_integration_time;
 
-	coarse_int = ((target_exposure->val * pix_rate_freq_mhz) - min_fine_int) / line_length_pck;
+	coarse_int = (u16)(((target_exposure->val * pix_rate_freq_khz) - min_fine_int) / (line_length_pck * 1000));
 
 	if (coarse_int > cis_data->max_coarse_integration_time) {
 		dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), coarse(%d) max(%d)\n", cis->id, __func__,
@@ -1139,9 +1138,9 @@ int sensor_hi1336_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 		if (ret < 0)
 			goto p_i2c_err;
 
-	dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d): pix_rate_freq_mhz (%d),"
+	dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d): pix_rate_freq_khz (%d),"
 		KERN_CONT "line_length_pck(%d), frame_length_lines(%#x)\n", cis->id, __func__,
-		cis_data->sen_vsync_count, pix_rate_freq_mhz, line_length_pck, cis_data->frame_length_lines);
+		cis_data->sen_vsync_count, pix_rate_freq_khz, line_length_pck, cis_data->frame_length_lines);
 	dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d): coarse_integration_time (%#x)\n",
 		cis->id, __func__, cis_data->sen_vsync_count, coarse_int);
 
@@ -1171,7 +1170,7 @@ int sensor_hi1336_cis_get_min_exposure_time(struct v4l2_subdev *subdev, u32 *min
 	u32 min_integration_time = 0;
 	u32 min_coarse = 0;
 	u32 min_fine = 0;
-	u32 pix_rate_freq_mhz = 0;
+	u64 pix_rate_freq_khz = 0;
 	u32 line_length_pck = 0;
 
 #ifdef DEBUG_SENSOR_TIME
@@ -1189,12 +1188,16 @@ int sensor_hi1336_cis_get_min_exposure_time(struct v4l2_subdev *subdev, u32 *min
 
 	cis_data = cis->cis_data;
 
-	pix_rate_freq_mhz = cis_data->pclk / (1000 * 1000);
+	pix_rate_freq_khz = cis_data->pclk / 1000;
+	if (pix_rate_freq_khz == 0) {
+		pr_err("[MOD:D:%d] %s, Invalid pix_rate_freq_khz(%d)\n", cis->id, __func__, pix_rate_freq_khz);
+		goto p_err;
+	}
 	line_length_pck = cis_data->line_length_pck;
 	min_coarse = cis_data->min_coarse_integration_time;
 	min_fine = cis_data->min_fine_integration_time;
 
-	min_integration_time = ((line_length_pck * min_coarse) + min_fine) / pix_rate_freq_mhz;
+	min_integration_time = (u32)(((line_length_pck * min_coarse) + min_fine) * 1000 / pix_rate_freq_khz);
 	*min_expo = min_integration_time;
 
 	dbg_sensor(1, "[%s] min integration time %d\n", __func__, min_integration_time);
@@ -1204,6 +1207,7 @@ int sensor_hi1336_cis_get_min_exposure_time(struct v4l2_subdev *subdev, u32 *min
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
+p_err:
 	return ret;
 }
 
@@ -1216,7 +1220,7 @@ int sensor_hi1336_cis_get_max_exposure_time(struct v4l2_subdev *subdev, u32 *max
 	u32 max_coarse_margin = 0;
 	u32 max_coarse = 0;
 	u32 max_fine = 0;
-	u32 pix_rate_freq_mhz = 0;
+	u64 pix_rate_freq_khz = 0;
 	u32 line_length_pck = 0;
 	u32 frame_length_lines = 0;
 
@@ -1235,14 +1239,18 @@ int sensor_hi1336_cis_get_max_exposure_time(struct v4l2_subdev *subdev, u32 *max
 
 	cis_data = cis->cis_data;
 
-	pix_rate_freq_mhz = cis_data->pclk / (1000 * 1000);
+	pix_rate_freq_khz = cis_data->pclk / 1000;
+	if (pix_rate_freq_khz == 0) {
+		pr_err("[MOD:D:%d] %s, Invalid pix_rate_freq_khz(%d)\n", cis->id, __func__, pix_rate_freq_khz);
+		goto p_err;
+	}
 	line_length_pck = cis_data->line_length_pck;
 	frame_length_lines = cis_data->frame_length_lines;
 	max_coarse_margin = cis_data->max_margin_coarse_integration_time;
 	max_coarse = frame_length_lines - max_coarse_margin;
 	max_fine = cis_data->max_fine_integration_time;
 
-	max_integration_time = ((line_length_pck * max_coarse) + max_fine) / pix_rate_freq_mhz;
+	max_integration_time = (u32)(((line_length_pck * max_coarse) + max_fine) * 1000 / pix_rate_freq_khz);
 
 	*max_expo = max_integration_time;
 
@@ -1257,6 +1265,7 @@ int sensor_hi1336_cis_get_max_exposure_time(struct v4l2_subdev *subdev, u32 *max
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
+p_err:
 	return ret;
 }
 
@@ -1337,10 +1346,12 @@ int sensor_hi1336_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_para
 	analog_gain = (u8)sensor_hi1336_cis_calc_again_code(again->val);
 
 	if (analog_gain < cis->cis_data->min_analog_gain[0]) {
+		info("[%s] not proper analog_gain value, reset to min_analog_gain\n", __func__);
 		analog_gain = cis->cis_data->min_analog_gain[0];
 	}
 
 	if (analog_gain > cis->cis_data->max_analog_gain[0]) {
+		info("[%s] not proper analog_gain value, reset to max_analog_gain\n", __func__);
 		analog_gain = cis->cis_data->max_analog_gain[0];
 	}
 
@@ -1553,9 +1564,11 @@ int sensor_hi1336_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_par
 	dgain_code = (u16)sensor_hi1336_cis_calc_dgain_code(dgain->val);
 
 	if (dgain_code < cis->cis_data->min_digital_gain[0]) {
+		info("[%s] not proper dgain_code value, reset to min_analog_gain\n", __func__);
 		dgain_code = cis->cis_data->min_digital_gain[0];
 	}
 	if (dgain_code > cis->cis_data->max_digital_gain[0]) {
+		info("[%s] not proper dgain_code value, reset to min_analog_gain\n", __func__);
 		dgain_code = cis->cis_data->max_digital_gain[0];
 	}
 
@@ -1745,7 +1758,6 @@ int sensor_hi1336_cis_get_max_digital_gain(struct v4l2_subdev *subdev, u32 *max_
 
 void sensor_hi1336_cis_data_calc(struct v4l2_subdev *subdev, u32 mode)
 {
-	int ret = 0;
 	struct is_cis *cis = NULL;
 
 	FIMC_BUG_VOID(!subdev);
@@ -1757,16 +1769,6 @@ void sensor_hi1336_cis_data_calc(struct v4l2_subdev *subdev, u32 mode)
 	if (mode > sensor_hi1336_max_setfile_num) {
 		err("invalid mode(%d)!!", mode);
 		return;
-	}
-
-	/* If check_rev fail when cis_init, one more check_rev in mode_change */
-	if (cis->rev_flag == true) {
-		cis->rev_flag = false;
-		ret = sensor_hi1336_cis_check_rev(cis);
-		if (ret < 0) {
-			err("sensor_hi1336_check_rev is fail: ret(%d)", ret);
-			return;
-		}
 	}
 
 	sensor_hi1336_cis_data_calculation(sensor_hi1336_pllinfos[mode], cis->cis_data);
@@ -1781,7 +1783,7 @@ static struct is_cis_ops cis_ops_hi1336 = {
 	.cis_mode_change = sensor_hi1336_cis_mode_change,
 	.cis_stream_on = sensor_hi1336_cis_stream_on,
 	.cis_stream_off = sensor_hi1336_cis_stream_off,
-	.cis_wait_streamoff = sensor_cis_wait_streamoff_mipi_end,
+	.cis_wait_streamoff = sensor_hi1336_cis_wait_streamoff,
 	.cis_wait_streamon = sensor_hi1336_cis_wait_streamon,
 	.cis_adjust_frame_duration = sensor_hi1336_cis_adjust_frame_duration,
 	.cis_set_frame_duration = sensor_hi1336_cis_set_frame_duration,
@@ -1800,6 +1802,8 @@ static struct is_cis_ops cis_ops_hi1336 = {
 	.cis_get_max_digital_gain = sensor_hi1336_cis_get_max_digital_gain,
 	.cis_compensate_gain_for_extremely_br = sensor_cis_compensate_gain_for_extremely_br,
 	.cis_data_calculation = sensor_hi1336_cis_data_calc,
+	.cis_set_test_pattern = sensor_hi1336_cis_set_test_pattern,
+	.cis_check_rev_on_init = sensor_cis_check_rev_on_init,
 };
 
 int cis_hi1336_probe(struct i2c_client *client,
@@ -1819,6 +1823,9 @@ int cis_hi1336_probe(struct i2c_client *client,
 	struct device *dev;
 	struct device_node *dnode;
 	int i;
+	int index;
+	const int *verify_sensor_mode = NULL;
+	int verify_sensor_mode_size = 0;
 
 	FIMC_BUG(!client);
 	FIMC_BUG(!is_dev);
@@ -1880,6 +1887,8 @@ int cis_hi1336_probe(struct i2c_client *client,
 		sensor_peri->module->client = cis->client;
 		cis->i2c_lock = NULL;
 		cis->ctrl_delay = N_PLUS_TWO_FRAME;
+		cis->mipi_clock_index_cur = CAM_MIPI_NOT_INITIALIZED;
+		cis->mipi_clock_index_new = CAM_MIPI_NOT_INITIALIZED;
 
 		cis->cis_data = kzalloc(sizeof(cis_shared_data), GFP_KERNEL);
 		if (!cis->cis_data) {
@@ -1903,6 +1912,8 @@ int cis_hi1336_probe(struct i2c_client *client,
 		}
 
 		probe_info("%s f-number %d\n", __func__, cis->aperture_num);
+		cis->vendor_use_adaptive_mipi = of_property_read_bool(dnode, "vendor_use_adaptive_mipi");
+		probe_info("%s vendor_use_adaptive_mipi(%d)\n", __func__, cis->vendor_use_adaptive_mipi);
 
 		cis->use_dgain = true;
 		cis->hdr_ctrl_by_again = false;
@@ -1912,6 +1923,7 @@ int cis_hi1336_probe(struct i2c_client *client,
 		v4l2_set_subdevdata(subdev_cis, cis);
 		v4l2_set_subdev_hostdata(subdev_cis, device);
 		snprintf(subdev_cis->name, V4L2_SUBDEV_NAME_SIZE, "cis-subdev.%d", cis->id);
+		sensor_cis_parse_dt(dev, cis->subdev);
 	}
 
 	cis->use_initial_ae = of_property_read_bool(dnode, "use_initial_ae");
@@ -1932,6 +1944,10 @@ int cis_hi1336_probe(struct i2c_client *client,
 		sensor_hi1336_pllinfos = sensor_hi1336_pllinfos_A;
 		sensor_hi1336_max_setfile_num = ARRAY_SIZE(sensor_hi1336_setfiles_A);
 		sensor_hi1336_setfile_fsync_info = sensor_hi1336_setfile_A_fsync_info;
+		cis->mipi_sensor_mode = sensor_hi1336_setfile_A_mipi_sensor_mode;
+		cis->mipi_sensor_mode_size = ARRAY_SIZE(sensor_hi1336_setfile_A_mipi_sensor_mode);
+		verify_sensor_mode = sensor_hi1336_setfile_A_verify_sensor_mode;
+		verify_sensor_mode_size = ARRAY_SIZE(sensor_hi1336_setfile_A_verify_sensor_mode);
 	} else if (strcmp(setfile, "setB") == 0) {
 		probe_info("%s setfile_B\n", __func__);
 		sensor_hi1336_global = sensor_hi1336_setfile_B_Global;
@@ -1950,8 +1966,26 @@ int cis_hi1336_probe(struct i2c_client *client,
 		sensor_hi1336_pllinfos = sensor_hi1336_pllinfos_A;
 		sensor_hi1336_max_setfile_num = ARRAY_SIZE(sensor_hi1336_setfiles_A);
 		sensor_hi1336_setfile_fsync_info = sensor_hi1336_setfile_A_fsync_info;
+		cis->mipi_sensor_mode = sensor_hi1336_setfile_A_mipi_sensor_mode;
+		cis->mipi_sensor_mode_size = ARRAY_SIZE(sensor_hi1336_setfile_A_mipi_sensor_mode);
+		verify_sensor_mode = sensor_hi1336_setfile_A_verify_sensor_mode;
+		verify_sensor_mode_size = ARRAY_SIZE(sensor_hi1336_setfile_A_verify_sensor_mode);
 	}
 
+	if (cis->vendor_use_adaptive_mipi) {
+		for (i = 0; i < verify_sensor_mode_size; i++) {
+			index = verify_sensor_mode[i];
+
+			if (index >= cis->mipi_sensor_mode_size || index < 0) {
+				panic("wrong mipi_sensor_mode index");
+			}
+
+			if (is_vendor_verify_mipi_channel(cis->mipi_sensor_mode[index].mipi_channel,
+						cis->mipi_sensor_mode[index].mipi_channel_size)) {
+				panic("wrong mipi channel");
+			}
+		}
+	}
 	probe_info("%s done\n", __func__);
 
 p_err:

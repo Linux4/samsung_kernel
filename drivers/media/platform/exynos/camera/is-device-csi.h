@@ -8,6 +8,7 @@
 #include "is-framemgr.h"
 #include "is-subdev-ctrl.h"
 #include "is-work.h"
+#include "is-device-camif-dma.h"
 
 #define CSI_IRQ_NAME_LENGTH	16
 
@@ -91,11 +92,7 @@ struct is_device_csi {
 	u32				device_id;	/* pyysical sensor node id */
 	u32				sensor_id;	/* physical module enum */
 
-	enum subdev_ch_mode		scm;
 	u32 __iomem			*base_reg;
-	u32 __iomem			*vc_reg[SCM_MAX][CSI_VIRTUAL_CH_MAX];
-	u32 __iomem			*cmn_reg[SCM_MAX][CSI_VIRTUAL_CH_MAX];
-	u32 __iomem			*mux_reg[SCM_MAX];
 	u32 __iomem			*phy_reg;
 	u32 __iomem			*mcb_reg;
 	u32 __iomem			*ebuf_reg;
@@ -104,15 +101,13 @@ struct is_device_csi {
 	int				irq;
 	int				ebuf_irq;
 	char				irq_name[CSI_IRQ_NAME_LENGTH];
-	int				vc_irq[SCM_MAX][CSI_VIRTUAL_CH_MAX];
-	char				vc_irq_name[SCM_MAX][CSI_VIRTUAL_CH_MAX][CSI_IRQ_NAME_LENGTH];
-	unsigned long			vc_irq_state;
+
+	struct is_camif_wdma		*wdma;
+	int				wdma_ch;
+	unsigned int			wdma_ch_hint; /* use designated ch, if it is in DT. */
 
 	/* debug */
 	struct hw_debug_info		debug_info[DEBUG_FRAME_COUNT];
-
-	/* csi common dma */
-	struct is_device_csi_dma	*csi_dma;
 
 	/* for settle time */
 	struct is_sensor_cfg	*sensor_cfg;
@@ -146,10 +141,11 @@ struct is_device_csi {
 	struct v4l2_subdev		**subdev;
 	struct phy			*phy;
 
-	u32 error_id[CSI_VIRTUAL_CH_MAX];
+	ulong error_id[CSI_VIRTUAL_CH_MAX];
 	u32 error_id_last[CSI_VIRTUAL_CH_MAX];
 	u32 error_count;
 	u32 error_count_vc_overlap;
+	u32 tasklet_csis_end_count;
 
 	atomic_t                        vblank_count; /* Increase at CSI frame end */
 	atomic_t			vvalid; /* set 1 while vvalid period */
@@ -169,22 +165,11 @@ struct is_device_csi {
 	atomic_t			ebuf_rcount[MAX_NUM_EBUF_CH];
 };
 
-struct is_device_csi_dma {
-	u32 __iomem			*base_reg;
-	u32 __iomem			*base_reg_stat;
-	resource_size_t			regs_start;
-	resource_size_t			regs_end;
-
-	atomic_t			rcount; /* CSI stream on count check */
-	atomic_t			rcount_pwr; /* CSI power on count check */
-
-	spinlock_t			barrier;
-};
-
 void csi_frame_start_inline(struct is_device_csi *csi);
-int __must_check is_csi_dma_probe(struct is_device_csi_dma *csi_dma, struct platform_device *pdev);
+void csi_hw_cdump_all(struct is_device_csi *csi);
+void csi_hw_dump_all(struct is_device_csi *csi);
 
-int __must_check is_csi_probe(void *parent, u32 instance, u32 ch);
+int __must_check is_csi_probe(void *parent, u32 instance, u32 ch, int wdma_ch_hint);
 int __must_check is_csi_open(struct v4l2_subdev *subdev, struct is_framemgr *framemgr);
 int __must_check is_csi_close(struct v4l2_subdev *subdev);
 /* for DMA feature */

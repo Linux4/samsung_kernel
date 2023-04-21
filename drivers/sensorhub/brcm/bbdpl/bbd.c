@@ -137,7 +137,9 @@ int android_version = 11;
 static unsigned char bbd_patch_R[] = {
 #if defined(CONFIG_SENSORS_SSP_UNBOUND)	
 #include "firmware/bbd_patch_file_unbound_r.h"
-#else
+#elif defined(CONFIG_SENSORS_SSP_R9S)
+#include "firmware/bbd_patch_file_r9s_r.h"
+#else 
 #include "firmware/bbd_patch_file_unbound_r.h"
 #endif
 };

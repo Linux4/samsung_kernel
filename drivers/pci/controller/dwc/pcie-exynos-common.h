@@ -222,6 +222,7 @@ struct exynos_pcie {
 	int			phy_clk_num;
 	enum exynos_pcie_state	state;
 	int			probe_ok;
+	int			shutdown;
 	int			l1ss_enable;
 	int			linkdown_cnt;
 	int			idle_ip_index;

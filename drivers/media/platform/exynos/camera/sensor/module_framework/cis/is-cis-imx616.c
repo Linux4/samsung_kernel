@@ -42,12 +42,11 @@
 #include "is-cis-imx616-setB.h"
 
 #include "is-helper-i2c.h"
-#ifdef CONFIG_CAMERA_VENDER_MCD_V2
+#ifdef CONFIG_CAMERA_VENDER_MCD
 #include "is-sec-define.h"
 #endif
 
 #include "interface/is-interface-library.h"
-
 #define SENSOR_NAME "IMX616"
 
 static const u32 *sensor_imx616_global;
@@ -61,50 +60,56 @@ static bool sensor_imx616_cal_write_flag;
 
 extern struct is_lib_support gPtr_lib_support;
 
-int sensor_imx616_cis_check_rev(struct is_cis *cis)
+
+int sensor_imx616_cis_check_rev_on_init(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
-	u8 rev = 0, status = 0;
 	struct i2c_client *client;
+	u8 status = 0;
+	struct is_cis *cis = NULL;
 
+	FIMC_BUG(!subdev);
+
+	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
 	FIMC_BUG(!cis);
 	FIMC_BUG(!cis->cis_data);
 
 	client = cis->client;
 	if (unlikely(!client)) {
 		err("client is NULL");
-		ret = -EINVAL;
+		return -EINVAL;
 	}
 
+	memset(cis->cis_data, 0, sizeof(cis_shared_data));
+
 	I2C_MUTEX_LOCK(cis->i2c_lock);
+
 	/* Specify OTP Page Address for READ - Page127(dec) */
 	ret = is_sensor_write8(client, REG(OTP_PAGE_SETUP), 0x7F);
-	if (ret < 0)
-		err("is_sensor_read8 fail (ret %d)", ret);
 
 	/* Turn ON OTP Read MODE */
-	ret = is_sensor_write8(client, REG(OTP_READ_TRANSFER_MODE), 0x01);
-	if (ret < 0)
+	ret |= is_sensor_write8(client, REG(OTP_READ_TRANSFER_MODE), 0x01);
+	if (ret < 0) {
 		err("is_sensor_write8 fail (ret %d)", ret);
+		I2C_MUTEX_UNLOCK(cis->i2c_lock);
+		return -EAGAIN;
+	}
 
 	/* Check status - 0x01 : read ready*/
 	ret = is_sensor_read8(client, REG(OTP_STATUS_REGISTER), &status);
-	if (ret < 0)
+	if (ret < 0) {
 		err("is_sensor_read8 fail (ret %d)", ret);
+		I2C_MUTEX_UNLOCK(cis->i2c_lock);
+		return -EAGAIN;
+	}
 
 	if ((status & 0x1) == false)
-		err("status fail, (%d)", status);
-
-	/* CHIP REV 0x0018 */
-	ret = is_sensor_read8(client, REG(OTP_CHIP_REVISION), &rev);
-	if (ret < 0)
-		err("is_sensor_read8 fail (ret %d)", ret);
+		err("status fail, (%#x)", status);
 
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
-	cis->cis_data->cis_rev = rev;
-
-	probe_info("imx616 rev:%x", rev);
+	/* CHIP REV 0x0018 */
+	ret = sensor_cis_check_rev(cis);
 
 	return ret;
 }
@@ -129,13 +134,15 @@ static void sensor_imx616_set_integration_min(u32 mode, cis_shared_data *cis_dat
 
 static void sensor_imx616_cis_data_calculation(const struct sensor_pll_info_compact *pll_info, cis_shared_data *cis_data)
 {
-	u64 pixel_rate;
-	u32 frame_rate, max_fps, frame_valid_us;
+	u32 total_pixels = 0;
+	u32 pixel_rate = 0;
+	u32 frame_rate = 0, max_fps = 0, frame_valid_us = 0;
 
 	FIMC_BUG_VOID(!pll_info);
 
 	/* 1. get pclk value from pll info */
 	pixel_rate = pll_info->pclk * TOTAL_NUM_OF_IVTPX_CHANNEL;
+	total_pixels = pll_info->frame_length_lines * pll_info->line_length_pck;
 
 	/* 2. FPS calculation */
 	frame_rate = pixel_rate / (pll_info->frame_length_lines * pll_info->line_length_pck);
@@ -143,8 +150,11 @@ static void sensor_imx616_cis_data_calculation(const struct sensor_pll_info_comp
 	/* 3. the time of processing one frame calculation (us) */
 	cis_data->min_frame_us_time = (1 * 1000 * 1000) / frame_rate;
 	cis_data->cur_frame_us_time = cis_data->min_frame_us_time;
+#ifdef CAMERA_REAR2
+	cis_data->min_sync_frame_us_time = cis_data->min_frame_us_time;
+#endif
 
-	dbg_sensor(1, "frame_duration(%d) - frame_rate (%d) = pixel_rate(%llu) / "
+	dbg_sensor(1, "frame_duration(%d) - frame_rate (%d) = pixel_rate(%d) / "
 		KERN_CONT "(pll_info->frame_length_lines(%d) * pll_info->line_length_pck(%d))\n",
 		cis_data->min_frame_us_time, frame_rate, pixel_rate, pll_info->frame_length_lines, pll_info->line_length_pck);
 
@@ -156,14 +166,12 @@ static void sensor_imx616_cis_data_calculation(const struct sensor_pll_info_comp
 	cis_data->max_fps = max_fps;
 	cis_data->frame_length_lines = pll_info->frame_length_lines;
 	cis_data->line_length_pck = pll_info->line_length_pck;
-	cis_data->line_readOut_time = (u64)cis_data->line_length_pck * 1000
-					* 1000 * 1000 / cis_data->pclk;
+	cis_data->line_readOut_time = sensor_cis_do_div64((u64)cis_data->line_length_pck * (u64)(1000 * 1000 * 1000), cis_data->pclk);
 	cis_data->rolling_shutter_skew = (cis_data->cur_height - 1) * cis_data->line_readOut_time;
 
 	/* Frame valid time calcuration */
-	frame_valid_us = (u64)cis_data->cur_height * cis_data->line_length_pck
-				* 1000 * 1000 / cis_data->pclk;
-	cis_data->frame_valid_us_time = (int)frame_valid_us;
+	frame_valid_us = sensor_cis_do_div64((u64)cis_data->cur_height * (u64)cis_data->line_length_pck * (u64)(1000 * 1000), cis_data->pclk);
+	cis_data->frame_valid_us_time = (unsigned int)frame_valid_us;
 
 	dbg_sensor(1, "%s\n", __func__);
 	dbg_sensor(1, "Sensor size(%d x %d) setting: SUCCESS!\n", cis_data->cur_width, cis_data->cur_height);
@@ -245,49 +253,28 @@ int sensor_imx616_cis_cal_dump(char* name, char *buf, size_t size)
 	int ret = 0;
 #ifdef USE_KERNEL_VFS_READ_WRITE
 	struct file *fp;
-	ssize_t tx = -ENOENT;
-	int fd, old_mask;
-	loff_t pos = 0;
-	mm_segment_t old_fs;
 
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	old_mask = sys_umask(0);
-
-	sys_rmdir(name);
-	fd = sys_open(name, O_WRONLY | O_CREAT | O_TRUNC | O_SYNC, 0666);
-	if (fd < 0) {
-		err("open file error(%d): %s", fd, name);
-		sys_umask(old_mask);
-		set_fs(old_fs);
-		ret = -EINVAL;
+	fp = filp_open(name, O_WRONLY | O_CREAT | O_TRUNC | O_SYNC, 0666);
+	if (IS_ERR_OR_NULL(fp)) {
+		ret = PTR_ERR(fp);
+		err("%s(): open file error(%s), error(%d)\n", __func__, name, ret);
 		goto p_err;
 	}
 
-	fp = fget(fd);
-	if (fp) {
-		tx = vfs_write(fp, buf, size, &pos);
-		if (tx != size) {
-			err("fail to write %s. ret %zd", name, tx);
-			ret = -ENOENT;
-		}
-
-		vfs_fsync(fp, 0);
-		fput(fp);
-	} else {
-		err("fail to get file *: %s", name);
+	ret = kernel_write(fp, buf, size, &fp->f_pos);
+	if (ret < 0) {
+		err("%s(): file write fail(%s) ret(%d)", __func__,
+				name, ret);
+		goto p_err;
 	}
 
-	sys_close(fd);
-	sys_umask(old_mask);
-	set_fs(old_fs);
-
+p_err:
+	if (!IS_ERR_OR_NULL(fp))
+		filp_close(fp, NULL);
 #else
-	err("not support %s due to vfs_write!", __func__);
+	err("not support %s due to kernel_write!", __func__);
 	ret = -EINVAL;
 #endif
-p_err:
 	return ret;
 }
 #endif
@@ -295,18 +282,20 @@ p_err:
 int sensor_imx616_cis_QuadSensCal_write(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
-	struct is_cis *cis;
+	struct is_cis *cis = NULL;
+	struct is_rom_info *finfo = NULL;
 	struct i2c_client *client = NULL;
 	struct is_device_sensor_peri *sensor_peri = NULL;
 
 	int position;
-	u16 start_addr;
-	u16 data_size;
+	u8 *cal_addr;
+	u8 *cal_data = NULL;
+	size_t cal_size;
 
-	ulong cal_addr;
-	u8 cal_data[SENSOR_IMX616_QUAD_SENS_CAL_SIZE] = {0, };
+	u16 qsc_start_addr;
+	u16 qsc_data_size;
 
-#ifdef CONFIG_CAMERA_VENDER_MCD_V2
+#ifdef CONFIG_CAMERA_VENDER_MCD
 	char *rom_cal_buf = NULL;
 #else
 	struct is_lib_support *lib = &gPtr_lib_support;
@@ -329,47 +318,68 @@ int sensor_imx616_cis_QuadSensCal_write(struct v4l2_subdev *subdev)
 
 	position = sensor_peri->module->position;
 
-#ifdef CONFIG_CAMERA_VENDER_MCD_V2
-	ret = is_sec_get_cal_buf(position, &rom_cal_buf);
-
+#ifdef CONFIG_CAMERA_VENDER_MCD
+	ret = is_sec_get_sysfs_finfo(&finfo, position);
 	if (ret < 0) {
 		goto p_err;
 	}
 
-	cal_addr = (ulong)rom_cal_buf;
+	if (!test_bit(IS_ROM_STATE_CAL_READ_DONE, &finfo->rom_state)) {
+		err("eeprom read fail status, skip imx616 QSC write");
+		goto p_err;
+	}
+
+	ret = is_sec_get_cal_buf(&rom_cal_buf, position);
+	if (ret < 0) {
+		goto p_err;
+	}
+
+	cal_addr = (u8 *)rom_cal_buf;
 	 if (position == SENSOR_POSITION_FRONT) {
-		cal_addr += SENSOR_IMX616_QUAD_SENS_CAL_BASE_FRONT;
+		cal_addr += finfo->rom_xtc_cal_data_start_addr;
 	} else {
 		err("cis_imx616 position(%d) is invalid!\n", position);
 		goto p_err;
 	}
 #else
 	if (position == SENSOR_POSITION_FRONT){
-		cal_addr = lib->minfo->kvaddr_cal[position] + SENSOR_IMX616_QUAD_SENS_CAL_BASE_FRONT;
-	}else {
+		cal_addr = lib->minfo->kvaddr_cal[position] + finfo->rom_xtc_cal_data_start_addr;
+	} else {
 		err("cis_imx616 position(%d) is invalid!\n", position);
 		goto p_err;
 	}
 #endif
 
-	memcpy(cal_data, (u16 *)cal_addr, SENSOR_IMX616_QUAD_SENS_CAL_SIZE);
+	cal_size = (size_t)finfo->rom_xtc_cal_data_size;
+
+	cal_data = kzalloc(cal_size, GFP_KERNEL);
+	if (!cal_data) {
+		err("cis_imx616 memory alloc failed.");
+		kfree(cal_data);
+		goto p_err;
+	}
+
+ 	memcpy(cal_data, cal_addr, cal_size);
 
 #if SENSOR_IMX616_CAL_DEBUG
-	ret = sensor_imx616_cis_cal_dump(SENSOR_IMX616_QSC_DUMP_NAME, (char *)cal_data, (size_t)SENSOR_IMX616_QUAD_SENS_CAL_SIZE);
+	ret = sensor_imx616_cis_cal_dump(SENSOR_IMX616_QSC_DUMP_NAME, cal_addr, cal_size);
 	CHECK_ERR_GOTO(ret < 0, p_err, "cis_imx616 QSC Cal dump fail(%d)!\n", ret);
 #endif
 
-	start_addr = REG(QUAD_SENS_REG);
-	data_size = SENSOR_IMX616_QUAD_SENS_CAL_SIZE;
-
+	qsc_start_addr = REG(QUAD_SENS_REG);
+	qsc_data_size = finfo->rom_xtc_cal_data_addr_list[SENSOR_IMX616_LSC_CAL_INDEX] -
+					finfo->rom_xtc_cal_data_addr_list[SENSOR_IMX616_QSC_CAL_INDEX] + 1;
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
-	ret = is_sensor_write8_sequential(client, start_addr, cal_data, data_size);
+	ret = is_sensor_write8_sequential(client, qsc_start_addr, cal_data, qsc_data_size);
 	if (ret < 0) {
 		err("cis_imx616 QSC write Error(%d)\n", ret);
 	}
 
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
+
+	if (cal_data)
+		kfree(cal_data);
 
 p_err:
 	return ret;
@@ -444,17 +454,12 @@ int sensor_imx616_cis_get_fineIntegTime(struct is_cis *cis)
 	return ret;
 }
 
-/* CIS OPS */
 int sensor_imx616_cis_init(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
 	struct is_cis *cis;
 	u32 setfile_index = 0;
 	cis_setting_info setinfo;
-#ifdef USE_CAMERA_HW_BIG_DATA
-	struct cam_hw_param *hw_param = NULL;
-	struct is_device_sensor_peri *sensor_peri = NULL;
-#endif
 
 	setinfo.param = NULL;
 	setinfo.return_value = 0;
@@ -469,10 +474,6 @@ int sensor_imx616_cis_init(struct v4l2_subdev *subdev)
 	}
 
 	FIMC_BUG(!cis->cis_data);
-	memset(cis->cis_data, 0, sizeof(cis_shared_data));
-
-	info("[%s] init %s\n", __func__, cis->use_3hdr ? "(Use 3HDR)" : "");
-	cis->rev_flag = false;
 
 /***********************************************************************
 ***** Check that QSC and DPC Cal is written for Remosaic Capture.
@@ -481,19 +482,16 @@ int sensor_imx616_cis_init(struct v4l2_subdev *subdev)
 ***********************************************************************/
 	sensor_imx616_cal_write_flag = false;
 
-	ret = sensor_imx616_cis_check_rev(cis);
+#if !defined(CONFIG_CAMERA_VENDER_MCD)
+	memset(cis->cis_data, 0, sizeof(cis_shared_data));
+
+	ret = sensor_imx616_cis_check_rev_on_init(cis);
 	if (ret < 0) {
-#ifdef USE_CAMERA_HW_BIG_DATA
-		sensor_peri = container_of(cis, struct is_device_sensor_peri, cis);
-		if (sensor_peri)
-			is_sec_get_hw_param(&hw_param, sensor_peri->module->position);
-		if (hw_param)
-			hw_param->i2c_sensor_err_cnt++;
-#endif
-		warn("sensor_imx616_check_rev is fail when cis init");
-		cis->rev_flag = true;
-		ret = 0;
+		warn("Checking imx616 rev is failed during cis init, ret(%d)", ret);
+		ret = -EINVAL;
+		goto p_err;
 	}
+#endif
 
 	cis->cis_data->product_name = cis->id;
 	cis->cis_data->cur_width = SENSOR_IMX616_MAX_WIDTH;
@@ -503,6 +501,7 @@ int sensor_imx616_cis_init(struct v4l2_subdev *subdev)
 	cis->long_term_mode.sen_strm_off_on_step = 0;
 
 	cis->cis_data->stream_on = false;
+	cis->cis_data->cur_pattern_mode = SENSOR_TEST_PATTERN_MODE_OFF;
 
 	sensor_imx616_cis_data_calculation(sensor_imx616_pllinfos[setfile_index], cis->cis_data);
 	sensor_imx616_set_integration_max_margin(setfile_index, cis->cis_data);
@@ -530,17 +529,6 @@ int sensor_imx616_cis_init(struct v4l2_subdev *subdev)
 	setinfo.return_value = 0;
 	CALL_CISOPS(cis, cis_get_max_digital_gain, subdev, &setinfo.return_value);
 	dbg_sensor(1, "[%s] max dgain : %d\n", __func__, setinfo.return_value);
-#endif
-
-#if SENSOR_IMX616_SENSOR_CAL_FOR_REMOSAIC
-	if (sensor_imx616_cal_write_flag == false) {
-		sensor_imx616_cal_write_flag = true;
-
-		info("[%s] mode is QBC Remosaic Mode! Write QSC data.\n", __func__);
-
-		ret = sensor_imx616_cis_QuadSensCal_write(subdev);
-		CHECK_ERR_GOTO(ret < 0, p_err, "sensor_imx616_Quad_Sens_Cal_write fail!! (%d)", ret);
-	}
 #endif
 
 #ifdef DEBUG_SENSOR_TIME
@@ -577,20 +565,20 @@ int sensor_imx616_cis_log_status(struct v4l2_subdev *subdev)
 	}
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	pr_err("[SEN:DUMP] *******************************\n");
+	info("[%s] *******************************\n", __func__);
 	is_sensor_read16(client, 0x0000, &data16);
-	pr_err("[SEN:DUMP] model_id(%x)\n", data16);
+	info("model_id(0x%x)\n", data16);
 	is_sensor_read8(client, 0x0002, &data8);
-	pr_err("[SEN:DUMP] revision_number(%x)\n", data8);
+	info("revision_number(0x%x)\n", data8);
 	is_sensor_read8(client, 0x0005, &data8);
-	pr_err("[SEN:DUMP] frame_count(%x)\n", data8);
+	info("frame_count(0x%x)\n", data8);
 	is_sensor_read8(client, 0x0100, &data8);
-	pr_err("[SEN:DUMP] mode_select(%x)\n", data8);
+	info("mode_select(0x%x)\n", data8);
 
 	sensor_cis_dump_registers(subdev, sensor_imx616_setfiles[0], sensor_imx616_setfile_sizes[0]);
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
-	pr_err("[SEN:DUMP] *******************************\n");
+	info("[%s] *******************************\n", __func__);
 
 p_err:
 	return ret;
@@ -632,7 +620,6 @@ static int sensor_imx616_cis_group_param_hold_func(struct v4l2_subdev *subdev, u
 p_err:
 	return ret;
 #else
-
 	return 0;
 #endif
 }
@@ -683,7 +670,7 @@ int sensor_imx616_cis_set_global_setting(struct v4l2_subdev *subdev)
 	ret = sensor_cis_set_registers(subdev, sensor_imx616_global, sensor_imx616_global_size);
 	CHECK_ERR_GOTO(ret < 0, p_err, "sensor_imx616_set_registers fail!!");
 
-	dbg_sensor(1, "[%s] global setting done\n", __func__);
+	info("[%s] global setting done\n", __func__);
 
 p_err:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
@@ -749,15 +736,7 @@ int sensor_imx616_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 		goto p_err;
 	}
 
-	/* If check_rev(Sensor ID in OTP) of IMX616 fail when cis_init, one more check_rev in mode_change */
-	if (cis->rev_flag == true) {
-		cis->rev_flag = false;
-		ret = sensor_imx616_cis_check_rev(cis);
-		CHECK_ERR_GOTO(ret < 0, p_err, "sensor_imx616_check_rev is fail");
-		info("[%s] cis_rev=%#x\n", __func__, cis->cis_data->cis_rev);
-	}
-
-#if 0 /* SENSOR_IMX616_SENSOR_CAL_FOR_REMOSAIC */
+#if SENSOR_IMX616_SENSOR_CAL_FOR_REMOSAIC
 	if (IS_REMOSAIC(mode) && sensor_imx616_cal_write_flag == false) {
 		sensor_imx616_cal_write_flag = true;
 
@@ -773,7 +752,7 @@ int sensor_imx616_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
-	info("[%s] mode=%d, mode change setting start\n", __func__, mode);
+	info("[%s] sensor mode(%d)\n", __func__, mode);
 	ret = sensor_cis_set_registers(subdev, sensor_imx616_setfiles[mode], sensor_imx616_setfile_sizes[mode]);
 	CHECK_ERR_GOTO(ret < 0, p_i2c_err, "sensor_imx616_set_registers fail!!");
 
@@ -806,13 +785,8 @@ int sensor_imx616_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 #if SENSOR_IMX616_EBD_LINE_DISABLE
 	/* To Do :  if the mode is needed EBD, add the condition with mode. */
 	ret = sensor_imx616_set_ebd(cis);
-	if (ret < 0) {
-		err("sensor_imx616_set_registers fail!!");
-		goto p_i2c_err;
-	}
+	CHECK_ERR_GOTO(ret < 0, p_i2c_err, "Embedded line disable fail!!");
 #endif
-
-	dbg_sensor(1, "[%s] mode changed(%d)\n", __func__, mode);
 
 p_i2c_err:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
@@ -996,14 +970,13 @@ int sensor_imx616_cis_stream_on(struct v4l2_subdev *subdev)
 
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
 
-	info("[imx616] stream on\n");
 	if (IS_3HDR_MODE(cis))
 		info("[imx616] 3hdr mode start\n");
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	hold = sensor_imx616_cis_group_param_hold_func(subdev, 0x01);
 	if (hold < 0)
-		err("group_param_hold fail (hold %d)", hold);
+		err("group_param_hold_func failed at stream on");
 
 #ifdef SENSOR_IMX616_DEBUG_INFO
 	{
@@ -1047,11 +1020,12 @@ int sensor_imx616_cis_stream_on(struct v4l2_subdev *subdev)
 	}
 #endif
 	/* Sensor stream on */
+	info("%s\n", __func__);
 	is_sensor_write8(client, 0x0100, 0x01);
 
 	hold = sensor_imx616_cis_group_param_hold_func(subdev, 0x00);
 	if (hold < 0)
-		err("group_param_hold fail (hold %d)", hold);
+		err("group_param_hold_func failed at stream on");
 
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
@@ -1065,6 +1039,56 @@ int sensor_imx616_cis_stream_on(struct v4l2_subdev *subdev)
 	return ret;
 }
 
+int sensor_imx616_cis_set_test_pattern(struct v4l2_subdev *subdev, camera2_sensor_ctl_t *sensor_ctl)
+{
+	int ret = 0;
+	struct is_cis *cis;
+	struct i2c_client *client;
+
+	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
+
+	WARN_ON(!cis);
+	WARN_ON(!cis->cis_data);
+
+	client = cis->client;
+	if (unlikely(!client)) {
+		err("client is NULL");
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+	dbg_sensor(1, "[MOD:D:%d] %s, cur_pattern_mode(%d), testPatternMode(%d)\n", cis->id, __func__,
+			cis->cis_data->cur_pattern_mode, sensor_ctl->testPatternMode);
+
+	if (cis->cis_data->cur_pattern_mode != sensor_ctl->testPatternMode) {
+		info("%s REG : 0xB000 write to 0x00", __func__);
+		is_sensor_write8(client, 0xB000, 0x00);
+
+		cis->cis_data->cur_pattern_mode = sensor_ctl->testPatternMode;
+		if (sensor_ctl->testPatternMode == SENSOR_TEST_PATTERN_MODE_OFF) {
+			info("%s: set DEFAULT pattern! (testpatternmode : %d)\n", __func__, sensor_ctl->testPatternMode);
+
+			I2C_MUTEX_LOCK(cis->i2c_lock);
+			is_sensor_write16(client, 0x0600, 0x0000);
+			I2C_MUTEX_UNLOCK(cis->i2c_lock);
+		} else if (sensor_ctl->testPatternMode == SENSOR_TEST_PATTERN_MODE_BLACK) {
+			info("%s: set BLACK pattern! (testpatternmode :%d), Data : 0x(%x, %x, %x, %x)\n",
+				__func__, sensor_ctl->testPatternMode,
+				(unsigned short)sensor_ctl->testPatternData[0],
+				(unsigned short)sensor_ctl->testPatternData[1],
+				(unsigned short)sensor_ctl->testPatternData[2],
+				(unsigned short)sensor_ctl->testPatternData[3]);
+
+			I2C_MUTEX_LOCK(cis->i2c_lock);
+			is_sensor_write16(client, 0x0600, 0x0001);
+			I2C_MUTEX_UNLOCK(cis->i2c_lock);
+		}
+	}
+
+p_err:
+	return ret;
+}
+
 int sensor_imx616_cis_stream_off(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
@@ -1072,6 +1096,7 @@ int sensor_imx616_cis_stream_off(struct v4l2_subdev *subdev)
 	struct is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
+	u8 cur_frame_count = 0;
 
 #ifdef DEBUG_SENSOR_TIME
 	struct timeval st, end;
@@ -1090,13 +1115,12 @@ int sensor_imx616_cis_stream_off(struct v4l2_subdev *subdev)
 
 	cis_data = cis->cis_data;
 
-	/*dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__); */
-	info("[imx616] stream off\n");
+	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	hold = sensor_imx616_cis_group_param_hold_func(subdev, 0x00);
 	if (hold < 0)
-		err("group_param_hold fail (hold %d)", hold);
+		err("group_param_hold_func failed at stream off");
 
 #ifdef SUPPORT_SENSOR_SEAMLESS_3HDR
 	if (IS_3HDR_MODE(cis)) {
@@ -1107,11 +1131,10 @@ int sensor_imx616_cis_stream_off(struct v4l2_subdev *subdev)
 	}
 #endif
 
-	/* stream off */
-	ret = is_sensor_write8(client, 0x0100, 0x00);
-	if (ret < 0)
-		err("%s fail (ret %d)",__func__, ret);
+	is_sensor_read8(client, 0x0005, &cur_frame_count);
+	info("%s: frame_count(0x%x)\n", __func__, cur_frame_count);
 
+	is_sensor_write8(client, 0x0100, 0x00);
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 	cis_data->stream_on = false;
@@ -1153,6 +1176,12 @@ int sensor_imx616_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 	FIMC_BUG(!cis->cis_data);
 
 	cis_data = cis->cis_data;
+
+	if (input_exposure_time == 0) {
+		input_exposure_time  = cis_data->min_frame_us_time;
+		info("[%s] Not proper exposure time(0), so apply min frame duration to exposure time forcely!!!(%d)\n",
+			__func__, cis_data->min_frame_us_time);
+	}
 
 	pix_rate_freq_khz = cis_data->pclk / 1000;
 	line_length_pck = cis_data->line_length_pck;
@@ -1300,7 +1329,11 @@ int sensor_imx616_cis_set_frame_rate(struct v4l2_subdev *subdev, u32 min_fps)
 	CHECK_ERR_GOTO(ret < 0, p_err, "[MOD:D:%d] %s, set frame duration is fail(%d)\n",
 			cis->id, __func__, ret);
 
+#ifdef CAMERA_REAR2
+	cis_data->min_frame_us_time = MAX(frame_duration, cis_data->min_sync_frame_us_time);
+#else
 	cis_data->min_frame_us_time = frame_duration;
+#endif
 
 #ifdef DEBUG_SENSOR_TIME
 	do_gettimeofday(&end);
@@ -1475,6 +1508,11 @@ int sensor_imx616_cis_get_min_exposure_time(struct v4l2_subdev *subdev, u32 *min
 	cis_data = cis->cis_data;
 
 	pix_rate_freq_khz = cis_data->pclk / 1000;
+	if (pix_rate_freq_khz == 0) {
+		pr_err("[MOD:D:%d] %s, Invalid pix_rate_freq_khz(%d)\n", cis->id, __func__, pix_rate_freq_khz);
+		goto p_err;
+	}
+
 	line_length_pck = cis_data->line_length_pck;
 	min_coarse = cis_data->min_coarse_integration_time;
 	min_fine = cis_data->min_fine_integration_time;
@@ -1489,6 +1527,7 @@ int sensor_imx616_cis_get_min_exposure_time(struct v4l2_subdev *subdev, u32 *min
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
+p_err:
 	return ret;
 }
 
@@ -1521,6 +1560,10 @@ int sensor_imx616_cis_get_max_exposure_time(struct v4l2_subdev *subdev, u32 *max
 	cis_data = cis->cis_data;
 
 	pix_rate_freq_khz = cis_data->pclk / 1000;
+	if (pix_rate_freq_khz == 0) {
+		pr_err("[MOD:D:%d] %s, Invalid pix_rate_freq_khz(%d)\n", cis->id, __func__, pix_rate_freq_khz);
+		goto p_err;
+	}
 	line_length_pck = cis_data->line_length_pck;
 	frame_length_lines = cis_data->frame_length_lines;
 	max_coarse_margin = cis_data->max_margin_coarse_integration_time;
@@ -1542,6 +1585,7 @@ int sensor_imx616_cis_get_max_exposure_time(struct v4l2_subdev *subdev, u32 *max
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
+p_err:
 	return ret;
 }
 
@@ -1623,17 +1667,25 @@ int sensor_imx616_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_para
 	short_gain = (u16)sensor_imx616_cis_calc_again_code(again->short_val);
 	middle_gain = (u16)sensor_imx616_cis_calc_again_code(again->middle_val);
 
-	if (long_gain < cis_data->min_analog_gain[0])
+	if (long_gain < cis_data->min_analog_gain[0]) {
+		info("[%s] not proper long_gain value, reset to min_analog_gain\n", __func__);
 		long_gain = cis_data->min_analog_gain[0];
+	}
 
-	if (long_gain > cis_data->max_analog_gain[0])
+	if (long_gain > cis_data->max_analog_gain[0]) {
+		info("[%s] not proper long_gain value, reset to max_analog_gain\n", __func__);
 		long_gain = cis_data->max_analog_gain[0];
+	}
 
-	if (short_gain < cis_data->min_analog_gain[0])
+	if (short_gain < cis_data->min_analog_gain[0]) {
+		info("[%s] not proper short_gain value, reset to min_analog_gain\n", __func__);
 		short_gain = cis_data->min_analog_gain[0];
+	}
 
-	if (short_gain > cis_data->max_analog_gain[0])
+	if (short_gain > cis_data->max_analog_gain[0]) {
+		info("[%s] not proper short_gain value, reset to max_analog_gain\n", __func__);
 		short_gain = cis_data->max_analog_gain[0];
+	}
 
 	if (middle_gain < cis_data->min_analog_gain[0])
 		middle_gain = cis_data->min_analog_gain[0];
@@ -1873,17 +1925,25 @@ int sensor_imx616_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_par
 	short_gain = (u16)sensor_cis_calc_dgain_code(dgain->short_val);
 	middle_gain = (u16)sensor_cis_calc_dgain_code(dgain->middle_val);
 
-	if (long_gain < cis_data->min_digital_gain[0])
+	if (long_gain < cis_data->min_digital_gain[0]) {
+		info("[%s] not proper long_gain value, reset to min_digital_gain\n", __func__);
 		long_gain = cis_data->min_digital_gain[0];
+	}
 
-	if (long_gain > cis_data->max_digital_gain[0])
+	if (long_gain > cis_data->max_digital_gain[0]) {
+		info("[%s] not proper long_gain value, reset to max_digital_gain\n", __func__);
 		long_gain = cis_data->max_digital_gain[0];
+	}
 
-	if (short_gain < cis_data->min_digital_gain[0])
+	if (short_gain < cis_data->min_digital_gain[0]) {
+		info("[%s] not proper short_gain value, reset to min_digital_gain\n", __func__);
 		short_gain = cis_data->min_digital_gain[0];
+	}
 
-	if (short_gain > cis_data->max_digital_gain[0])
+	if (short_gain > cis_data->max_digital_gain[0]) {
+		info("[%s] not proper short_gain value, reset to max_digital_gain\n", __func__);
 		short_gain = cis_data->max_digital_gain[0];
+	}
 
 	if (middle_gain < cis_data->min_digital_gain[0])
 		middle_gain = cis_data->min_digital_gain[0];
@@ -2167,7 +2227,6 @@ p_i2c_err:
 
 void sensor_imx616_cis_data_calc(struct v4l2_subdev *subdev, u32 mode)
 {
-	int ret = 0;
 	struct is_cis *cis = NULL;
 
 	FIMC_BUG_VOID(!subdev);
@@ -2179,16 +2238,6 @@ void sensor_imx616_cis_data_calc(struct v4l2_subdev *subdev, u32 mode)
 	if (mode > sensor_imx616_max_setfile_num) {
 		err("invalid mode(%d)!!", mode);
 		return;
-	}
-
-	/* If check_rev fail when cis_init, one more check_rev in mode_change */
-	if (cis->rev_flag == true && cis->cis_data->stream_on == false) {
-		cis->rev_flag = false;
-		ret = sensor_imx616_cis_check_rev(cis);
-		if (ret < 0) {
-			err("sensor_imx616_check_rev is fail: ret(%d)", ret);
-			return;
-		}
 	}
 
 	sensor_imx616_cis_data_calculation(sensor_imx616_pllinfos[mode], cis->cis_data);
@@ -2758,6 +2807,9 @@ static struct is_cis_ops cis_ops_imx616 = {
 	.cis_compensate_gain_for_extremely_br = sensor_cis_compensate_gain_for_extremely_br,
 	.cis_set_wb_gains = sensor_imx616_cis_set_wb_gain,
 	.cis_data_calculation = sensor_imx616_cis_data_calc,
+	.cis_check_rev_on_init = sensor_imx616_cis_check_rev_on_init,
+	.cis_set_initial_exposure = sensor_cis_set_initial_exposure,
+	.cis_set_test_pattern = sensor_imx616_cis_set_test_pattern,
 #ifdef SUPPORT_SENSOR_SEAMLESS_3HDR
 	.cis_set_roi_stat = sensor_imx616_cis_set_roi_stat,
 	.cis_set_3hdr_stat = sensor_imx616_cis_set_3hdr_stat,
@@ -2879,6 +2931,7 @@ int cis_imx616_probe(struct i2c_client *client,
 		cis->hdr_ctrl_by_again = false;
 		cis->use_wb_gain = true;
 		cis->use_pdaf = use_pdaf;
+		probe_info("%s use_pdaf %d\n", __func__, cis->use_pdaf);
 
 		cis->use_3hdr = of_property_read_bool(dnode, "use_3hdr");
 		probe_info("%s use_3hdr(%d)\n", __func__, cis->use_3hdr);
@@ -2889,6 +2942,8 @@ int cis_imx616_probe(struct i2c_client *client,
 		v4l2_set_subdevdata(subdev_cis, cis);
 		v4l2_set_subdev_hostdata(subdev_cis, device);
 		snprintf(subdev_cis->name, V4L2_SUBDEV_NAME_SIZE, "cis-subdev.%d", cis->id);
+
+		sensor_cis_parse_dt(dev, cis->subdev);
 	}
 
 	ret = of_property_read_string(dnode, "setfile", &setfile);
@@ -2953,6 +3008,9 @@ static struct i2c_driver sensor_cis_imx616_driver = {
 	.id_table = sensor_cis_imx616_idt
 };
 
+#ifdef MODULE
+builtin_i2c_driver(sensor_cis_imx616_driver);
+#else
 static int __init sensor_cis_imx616_init(void)
 {
 	int ret;
@@ -2965,5 +3023,6 @@ static int __init sensor_cis_imx616_init(void)
 	return ret;
 }
 late_initcall_sync(sensor_cis_imx616_init);
-
+#endif
 MODULE_LICENSE("GPL");
+MODULE_SOFTDEP("pre: fimc-is");

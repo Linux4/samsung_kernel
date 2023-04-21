@@ -87,6 +87,7 @@ struct ois_mcu_dev {
 	struct device		*dev;
 	struct clk		*clk;
 	struct clk		*spi_clk;
+	struct mutex 	power_mutex;
 	int			irq;
 	void __iomem		*regs[OM_REG_MAX];
 	resource_size_t		regs_start[OM_REG_MAX];
@@ -95,6 +96,9 @@ struct ois_mcu_dev {
 	unsigned long		state;
 	atomic_t 		shared_rsc_count;
 	int			current_rsc_count;
+	bool			dev_ctrl_state;
+	bool			need_reset_mcu;
+	bool			is_mcu_active;
 };
 
 enum is_efs_state {

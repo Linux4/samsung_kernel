@@ -12,7 +12,7 @@
 #define DL_GPT_SIZE		(sizeof(unsigned int) * 3)
 #define DL_BIT_PER_BITMAP	(sizeof(unsigned int) * 8)
 
-struct dsp_gpt_manager *gpt_manager;
+static struct dsp_gpt_manager *gpt_manager;
 
 int dsp_gpt_manager_init(unsigned long start_addr, size_t max_size)
 {

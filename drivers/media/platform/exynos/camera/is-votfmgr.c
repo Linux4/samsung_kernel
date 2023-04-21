@@ -20,6 +20,7 @@
 static int is_votf_get_votf_info(struct is_group *group, struct votf_info *src_info,
 	struct votf_info *dst_info, char *caller_fn)
 {
+	int ret;
 	struct is_device_sensor *sensor;
 	struct is_group *src_gr;
 	unsigned int src_gr_id;
@@ -48,7 +49,13 @@ static int is_votf_get_votf_info(struct is_group *group, struct votf_info *src_i
 			return -EINVAL;
 		}
 
-		dma_ch = src_sd->dma_ch[sensor_cfg->scm];
+		ret = v4l2_subdev_call(sensor->subdev_csi, core, ioctl,
+			SENSOR_IOCTL_G_DMA_CH, &dma_ch);
+		if (ret) {
+			mgerr("failed to get dma_ch(%s)", group, group, caller_fn);
+			return ret;
+		}
+
 		src_gr_id = GROUP_ID_SS0 + dma_ch;
 
 		if (sensor_cfg->ex_mode == EX_DUALFPS_480 ||
@@ -81,6 +88,7 @@ static int is_votf_get_votf_info(struct is_group *group, struct votf_info *src_i
 static int is_votf_get_pd_votf_info(struct is_group *group, struct votf_info *src_info,
 	struct votf_info *dst_info, char *caller_fn)
 {
+	int ret;
 	struct is_device_sensor *sensor;
 	struct is_group *src_gr;
 	unsigned int src_gr_id;
@@ -114,7 +122,13 @@ static int is_votf_get_pd_votf_info(struct is_group *group, struct votf_info *sr
 		if (pd_mode != PD_MOD3 && pd_mode != PD_MSPD_TAIL)
 			return -ECHILD;
 
-		dma_ch = src_sd->dma_ch[sensor_cfg->scm];
+		ret = v4l2_subdev_call(sensor->subdev_csi, core, ioctl,
+			SENSOR_IOCTL_G_DMA_CH, &dma_ch);
+		if (ret) {
+			mgerr("failed to get dma_ch(%s)", group, group, caller_fn);
+			return ret;
+		}
+
 		src_gr_id = GROUP_ID_SS0 + dma_ch;
 
 		if (sensor_cfg->ex_mode == EX_DUALFPS_480 ||
@@ -141,6 +155,153 @@ static int is_votf_get_pd_votf_info(struct is_group *group, struct votf_info *sr
 		group_id_name[group->id], group->leader.name);
 
 	return 0;
+}
+
+static int is_votf_flush(struct is_group *group)
+{
+	int ret;
+	struct votf_info src_info, dst_info;
+
+	ret = is_votf_get_votf_info(group, &src_info, &dst_info, (char *)__func__);
+	if (ret)
+		return ret;
+
+	ret = __is_votf_flush(&src_info, &dst_info);
+	if (ret)
+		mgerr("__is_votf_flush is fail(%d)", group, group, ret);
+
+	if (group->prev->device_type == IS_DEVICE_SENSOR) {
+		ret = is_votf_get_pd_votf_info(group, &src_info, &dst_info, (char *)__func__);
+		if (ret) {
+			if (ret == -ECHILD)
+				return 0;
+			else
+				return ret;
+		}
+
+		ret = __is_votf_flush(&src_info, &dst_info);
+		if (ret)
+			mgerr("__is_votf_flush of subdev_pdaf is fail(%d)", group, group, ret);
+	}
+
+	is_votf_subdev_flush(group);
+
+	return 0;
+}
+
+static int is_votf_alloc_internal_buffer(struct is_group *group, u32 width, u32 height)
+{
+	int ret, ret_err;
+	struct is_subdev *leader = &group->leader;
+	struct is_device_ischain *device;
+	struct is_device_sensor *sensor;
+	struct is_sensor_cfg *sensor_cfg;
+	u32 bpp;
+	struct is_subdev *subdev_pdaf;
+	u32 pd_width, pd_height;
+	struct votf_info src_info, dst_info;
+
+	device = group->device;
+	if (!device) {
+		mgerr("failed to get devcie", group, group);
+		return -ENODEV;
+	}
+
+	set_bit(IS_SUBDEV_INTERNAL_USE, &leader->state);
+
+	sensor = device->sensor;
+	sensor_cfg = sensor->cfg;
+
+	bpp = is_subdev_internal_g_bpp(device, IS_DEVICE_ISCHAIN,
+					leader, sensor_cfg);
+
+	ret = is_subdev_internal_s_format(device, IS_DEVICE_ISCHAIN,
+					leader, width, height, bpp,
+					NUM_OF_VOTF_BUF, "VOTF");
+	if (ret) {
+		merr("is_subdev_internal_s_format is fail(%d)", device, ret);
+		return ret;
+	}
+
+	ret = is_subdev_internal_start(device, IS_DEVICE_ISCHAIN, leader);
+	if (ret) {
+		merr("subdev internal start is fail(%d)", device, ret);
+		return ret;
+	}
+
+	/* PD node */
+	ret = is_votf_get_pd_votf_info(group, &src_info, &dst_info, NULL);
+	if (ret) {
+		if (ret == -ECHILD)
+			return 0;
+		else
+			return ret;
+	}
+
+	subdev_pdaf = &device->pdaf;
+	pd_width = sensor_cfg->input[CSI_VIRTUAL_CH_1].width;
+	pd_height = sensor_cfg->input[CSI_VIRTUAL_CH_1].height;
+
+	ret = is_subdev_internal_s_format(device, 0, subdev_pdaf,
+					pd_width, pd_height, 16, NUM_OF_VOTF_BUF, "VOTF");
+	if (ret) {
+		merr("is_subdev_internal_s_format is fail(%d)", device, ret);
+		goto err_subdev_pdaf_s_format;
+	}
+
+	ret = is_subdev_internal_start(device, IS_DEVICE_ISCHAIN, subdev_pdaf);
+	if (ret) {
+		merr("subdev_pdaf internal start is fail(%d)", device, ret);
+		goto err_subdev_pdaf_start;
+	}
+
+	return 0;
+
+err_subdev_pdaf_start:
+err_subdev_pdaf_s_format:
+	ret_err = is_subdev_internal_stop(device, IS_DEVICE_ISCHAIN, leader);
+	if (ret_err)
+		merr("subdev internal stop is fail(%d)", device, ret_err);
+
+	return ret;
+}
+
+static int is_votf_free_internal_buffer(struct is_group *group)
+{
+	int ret;
+	struct is_subdev *leader = &group->leader;
+	struct is_device_ischain *device;
+	struct is_subdev *subdev_pdaf;
+	struct votf_info src_info, dst_info;
+
+	device = group->device;
+	if (!device) {
+		mgerr("failed to get devcie", group, group);
+		return -EINVAL;
+	}
+
+	ret = is_subdev_internal_stop(device, 0, leader);
+	if (ret)
+		merr("subdev internal stop is fail(%d)", device, ret);
+
+	clear_bit(IS_SUBDEV_INTERNAL_USE, &leader->state);
+
+	/* PD node */
+	ret = is_votf_get_pd_votf_info(group, &src_info, &dst_info, NULL);
+	if (ret) {
+		if (ret == -ECHILD)
+			return 0;
+		else
+			return ret;
+	}
+
+	subdev_pdaf = &device->pdaf;
+
+	ret = is_subdev_internal_stop(device, 0, subdev_pdaf);
+	if (ret)
+		merr("subdev internal stop is fail(%d)", device, ret);
+
+	return ret;
 }
 
 int is_votf_check_wait_con(struct is_group *group)
@@ -350,34 +511,90 @@ int __is_votf_force_flush(struct votf_info *src_info,
 	return 0;
 }
 
-int is_votf_flush(struct is_group *group)
+int is_votf_create_link_sensor(struct is_group *group, u32 width, u32 height)
 {
-	int ret;
+	int ret = 0;
 	struct votf_info src_info, dst_info;
+
+	if (group->prev && group->prev->device_type == IS_DEVICE_ISCHAIN)
+		return 0;
 
 	ret = is_votf_get_votf_info(group, &src_info, &dst_info, (char *)__func__);
 	if (ret)
 		return ret;
 
-	ret = __is_votf_flush(&src_info, &dst_info);
-	if (ret)
-		mgerr("__is_votf_flush is fail(%d)", group, group, ret);
+#if defined(USE_VOTF_AXI_APB)
+	votfitf_create_link(src_info.ip, dst_info.ip);
+#elif
+	votfitf_create_ring();
+#endif
 
-	if (group->prev->device_type == IS_DEVICE_SENSOR) {
-		ret = is_votf_get_pd_votf_info(group, &src_info, &dst_info, (char *)__func__);
-		if (ret) {
-			if (ret == -ECHILD)
-				return 0;
-			else
-				return ret;
-		}
+	/* is_votf_link_set_service_cfg() is moved variant part */
 
-		ret = __is_votf_flush(&src_info, &dst_info);
-		if (ret)
-			mgerr("__is_votf_flush of subdev_pdaf is fail(%d)", group, group, ret);
+	/* Allocate VOTF internal buffer */
+	ret = is_votf_alloc_internal_buffer(group, width, height);
+	if (ret) {
+		mgerr("failed to create suvdev link", group, group);
+		goto err_alloc_internal_buffer;
 	}
 
-	is_votf_subdev_flush(group);
+	return 0;
+
+err_alloc_internal_buffer:
+#if defined(USE_VOTF_AXI_APB)
+	votfitf_destroy_link(src_info.ip, dst_info.ip);
+#elif
+	votfitf_destroy_ring();
+#endif
+
+	return ret;
+}
+
+int is_votf_destroy_link_sensor(struct is_group *group)
+{
+	int ret = 0;
+	struct votf_info src_info, dst_info;
+	struct is_framemgr *votf_fmgr;
+
+	if (group->id >= GROUP_ID_MAX) {
+		mgerr("group ID is invalid(%d)", group, group);
+
+		/* Do not access C2SERV after power off */
+		return 0;
+	}
+
+	if (group->prev && group->prev->device_type == IS_DEVICE_ISCHAIN)
+		return 0;
+
+	ret = is_votf_get_votf_info(group, &src_info, &dst_info, (char *)__func__);
+	if (ret)
+		return ret;
+
+	ret = is_votf_flush(group);
+	if (ret)
+		mgerr("is_votf_flush is fail(%d)", group, group, ret);
+
+	/*
+	 * All VOTF control such as flush must be set in ring clock enable and ring enable.
+	 * So, calling votfitf_destroy_ring must be called at the last.
+	 */
+#if defined(USE_VOTF_AXI_APB)
+	votfitf_destroy_link(src_info.ip, dst_info.ip);
+#else
+	votfitf_destroy_ring();
+#endif
+
+	/*
+	 * TRS wait idle after flush
+	 * TWS wait idle is not necessary.
+	 */
+	votf_fmgr = is_votf_get_framemgr(group, TRS, group->leader.id);
+	votf_fmgr_call(votf_fmgr, slave, wait_idle);
+
+	/* Free VOTF internal buffer */
+	ret = is_votf_free_internal_buffer(group);
+	if (ret)
+		mgerr("failed to create suvdev link", group, group);
 
 	return 0;
 }
@@ -386,197 +603,88 @@ int is_votf_create_link(struct is_group *group, u32 width, u32 height)
 {
 	int ret = 0;
 	struct votf_info src_info, dst_info;
-	struct is_device_ischain *device;
-	struct is_sensor_cfg *sensor_cfg;
-	struct is_subdev *subdev_pdaf;
-	u32 pd_width, pd_height;
 	u32 change_option = VOTF_OPTION_MSK_COUNT;
+
+	if (group->prev && group->prev->device_type == IS_DEVICE_SENSOR)
+		return 0;
 
 	ret = is_votf_get_votf_info(group, &src_info, &dst_info, (char *)__func__);
 	if (ret)
 		return ret;
 
-	/* Call VOTF API */
 #if defined(USE_VOTF_AXI_APB)
 	votfitf_create_link(src_info.ip, dst_info.ip);
-#else
-	votfitf_create_ring();
+
+	ret = is_votf_subdev_create_link(group);
+	if (ret) {
+		mgerr("failed to create suvdev link", group, group);
+		goto err_subdev_create_link;
+	}
 #endif
 
-	if (group->prev->device_type == IS_DEVICE_SENSOR) {
-		ret = is_votf_get_pd_votf_info(group, &src_info, &dst_info, (char *)__func__);
-		if (ret) {
-			if (ret == -ECHILD)
-				goto p_skip;
-			else
-				return ret;
-		}
+	ret = is_votf_link_set_service_cfg(&src_info, &dst_info,
+			width, height, change_option);
+	if (ret)
+		goto err_link_set_service_cfg;
 
-		device = group->device;
-		if (!device) {
-			mgerr("failed to get devcie", group, group);
-			return -ENODEV;
-		}
-
-		sensor_cfg = group->prev->sensor->cfg;
-		subdev_pdaf = &device->pdaf;
-
-		pd_width = sensor_cfg->input[CSI_VIRTUAL_CH_1].width;
-		pd_height = sensor_cfg->input[CSI_VIRTUAL_CH_1].height;
-
-		ret = is_subdev_internal_open(device, IS_DEVICE_ISCHAIN, subdev_pdaf);
-		if (ret) {
-			merr("is_subdev_internal_open is fail(%d)", device, ret);
-			return ret;
-		}
-
-		ret = is_subdev_internal_s_format(device, 0, subdev_pdaf,
-					pd_width, pd_height, 16, NUM_OF_VOTF_BUF, "VOTF");
-		if (ret) {
-			merr("is_subdev_internal_s_format is fail(%d)", device, ret);
-			return ret;
-		}
-
-		ret = is_subdev_internal_start(device, IS_DEVICE_ISCHAIN, subdev_pdaf);
-		if (ret) {
-			merr("subdev_pdaf internal start is fail(%d)", device, ret);
-			return ret;
-		}
-	} else {
-		ret = is_votf_link_set_service_cfg(&src_info, &dst_info,
-				width, height, change_option);
-		if (ret)
-			return ret;
-
-		ret = is_votf_subdev_create_link(group);
-		if (ret) {
-			mgerr("failed to create suvdev link", group, group);
-			return ret;
-		}
+	/* Allocate VOTF internal buffer */
+	ret = is_votf_alloc_internal_buffer(group, width, height);
+	if (ret) {
+		mgerr("failed to create suvdev link", group, group);
+		goto err_alloc_internal_buffer;
 	}
 
-p_skip:
-	set_bit(IS_GROUP_VOTF_CONN_LINK, &group->state);
-
 	return 0;
+
+err_alloc_internal_buffer:
+err_link_set_service_cfg:
+#if defined(USE_VOTF_AXI_APB)
+	is_votf_subdev_destroy_link(group);
+
+err_subdev_create_link:
+	votfitf_destroy_link(src_info.ip, dst_info.ip);
+#endif
+
+	return ret;
 }
 
 int is_votf_destroy_link(struct is_group *group)
 {
 	int ret = 0;
-	struct is_device_sensor *sensor;
-	struct is_group *src_gr;
-	struct is_subdev *src_sd;
-	struct is_device_ischain *device;
-	struct is_sensor_cfg *sensor_cfg;
-	struct is_subdev *subdev_pdaf;
-	int pd_mode;
-	unsigned int src_gr_id;
-	bool need_flush = true;
-
-	FIMC_BUG(!group);
-	FIMC_BUG(!group->prev);
-	FIMC_BUG(!group->prev->junction);
-
-	mutex_lock(&group->mlock_votf);
-
-	if (!test_bit(IS_GROUP_VOTF_CONN_LINK, &group->state)) {
-		mgwarn("already destroy link", group, group);
-		goto already_destroy;
-	}
-
-	src_gr = group->prev;
-	src_sd = group->prev->junction;
-	src_gr_id = src_gr->id;
-
-	if (src_gr->device_type == IS_DEVICE_SENSOR) {
-		sensor = src_gr->sensor;
-
-		device = group->device;
-		if (!device) {
-			mgerr("failed to get devcie", group, group);
-			goto p_err;
-		}
-
-		sensor_cfg = sensor->cfg;
-		if (!sensor_cfg) {
-			mgerr("failed to get sensor_cfg", group, group);
-			goto p_err;
-		}
-
-		pd_mode = sensor_cfg->pd_mode;
-
-		if (pd_mode == PD_MOD3 || pd_mode == PD_MSPD_TAIL) {
-			subdev_pdaf = &device->pdaf;
-			ret = is_subdev_internal_stop(device, 0, subdev_pdaf);
-			if (ret)
-				merr("subdev internal stop is fail(%d)", device, ret);
-
-			ret = is_subdev_internal_close(device, IS_DEVICE_ISCHAIN, subdev_pdaf);
-			if (ret)
-				merr("is_subdev_internal_close is fail(%d)", device, ret);
-		}
-
-		src_gr_id = GROUP_ID_SS0 + src_sd->dma_ch[sensor_cfg->scm];
-
-		/* votf flush is needed only for stream with the actual sensor stopped. */
-		if (!test_and_clear_bit(IS_SENSOR_NEED_VOTF_FLUSH, &sensor->state))
-			need_flush = false;
-	}
+	struct votf_info src_info, dst_info;
 
 	if (group->id >= GROUP_ID_MAX) {
 		mgerr("group ID is invalid(%d)", group, group);
-
-		mutex_unlock(&group->mlock_votf);
 
 		/* Do not access C2SERV after power off */
 		return 0;
 	}
 
-	if (need_flush) {
-		ret = is_votf_flush(group);
-		if (ret)
-			mgerr("is_votf_flush is fail(%d)", group, group, ret);
-	}
-
-	mginfo(" VOTF destroy link(TWS[%s:%s]-TRS[%s:%s])\n",
-		group, group,
-		group_id_name[src_gr->id], src_sd->name,
-		group_id_name[group->id], group->leader.name);
-
-p_err:
-	/*
-	 * All VOTF control such as flush must be set in ring clock enable and ring enable.
-	 * So, calling votfitf_destroy_ring must be called at the last.
-	 */
-#if defined(USE_VOTF_AXI_APB)
-	votfitf_destroy_link(is_votf_ip[src_gr_id], is_votf_ip[group->id]);
-
-	is_votf_subdev_destroy_link(group);
-#else
-	votfitf_destroy_ring();
-#endif
-	clear_bit(IS_GROUP_VOTF_CONN_LINK, &group->state);
-
-already_destroy:
-	mutex_unlock(&group->mlock_votf);
-
-	return 0;
-}
-
-int is_votf_change_link(struct is_group *group, u32 prev_group_id)
-{
-	int ret;
-	struct votf_info src_info, dst_info;
+	if (group->prev && group->prev->device_type == IS_DEVICE_SENSOR)
+		return 0;
 
 	ret = is_votf_get_votf_info(group, &src_info, &dst_info, (char *)__func__);
 	if (ret)
 		return ret;
 
+	ret = is_votf_flush(group);
+	if (ret)
+		mgerr("is_votf_flush is fail(%d)", group, group, ret);
+
+	/*
+	 * All VOTF control such as flush must be set in ring clock enable and ring enable.
+	 * So, calling votfitf_destroy_ring must be called at the last.
+	 */
 #if defined(USE_VOTF_AXI_APB)
-	votfitf_destroy_link(src_info.ip, is_votf_ip[prev_group_id]);
-	votfitf_create_link(src_info.ip, dst_info.ip);
+	votfitf_destroy_link(src_info.ip, dst_info.ip);
+
+	is_votf_subdev_destroy_link(group);
 #endif
+
+	/* Free VOTF internal buffer */
+	ret = is_votf_free_internal_buffer(group);
+	if (ret)
+		mgerr("failed to create suvdev link", group, group);
 
 	return 0;
 }
@@ -635,7 +743,7 @@ struct is_frame *is_votf_get_frame(struct is_group *group,  enum votf_service ty
 }
 
 int is_votf_register_framemgr(struct is_group *group, enum votf_service type,
-	void *data, votf_s_addr fn, unsigned long subdev_id)
+	void *data, const struct votf_ops *ops, unsigned long subdev_id)
 {
 	struct is_framemgr *framemgr;
 
@@ -648,36 +756,13 @@ int is_votf_register_framemgr(struct is_group *group, enum votf_service type,
 	if (type == TWS) {
 		framemgr->master.id = subdev_id;
 		framemgr->master.data = data;
-		framemgr->master.s_addr = fn;
+		framemgr->master.ops = ops;
 		mginfo("Register VOTF master callback (subdev_id: %ld)\n", group, group, subdev_id);
 	} else {
 		framemgr->slave.id = subdev_id;
 		framemgr->slave.data = data;
-		framemgr->slave.s_addr = fn;
+		framemgr->slave.ops = ops;
 		mginfo("Register VOTF slave callback (subdev_id: %ld)\n", group, group, subdev_id);
-	}
-
-	return 0;
-}
-
-int is_votf_register_oneshot(struct is_group *group, enum votf_service type,
-	void *data, votf_s_oneshot fn, unsigned long subdev_id)
-{
-	struct is_framemgr *framemgr;
-
-	framemgr = is_votf_get_framemgr(group, type, subdev_id);
-	if (!framemgr) {
-		mgerr("framemgr is NULL. (subdev_id: %ld)\n", group, group, subdev_id);
-		return -EINVAL;
-	}
-
-	if (type == TWS) {
-		mgwarn("Invalid type for VOTF oneshot trigger register (subdev_id: %ld)\n", group, group, subdev_id);
-	} else {
-		framemgr->slave.id = subdev_id;
-		framemgr->slave.data = data;
-		framemgr->slave.s_oneshot = fn;
-		mginfo("Register VOTF slave oneshot trigger (subdev_id: %ld)\n", group, group, subdev_id);
 	}
 
 	return 0;

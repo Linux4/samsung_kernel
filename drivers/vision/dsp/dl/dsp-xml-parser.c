@@ -17,11 +17,11 @@
 #define TOKEN_MAX	(64)
 #define KERNEL_CNT_MAX	(256)
 
-struct dsp_string_tree_node *xml_str;
+static struct dsp_string_tree_node *xml_str;
 struct dsp_xml_lib_table *xml_libs;
 static char *token_value;
 
-const char *xml_strs[] = {
+static const char *const xml_strs[] = {
 	"libs",
 	"count",
 	"lib",

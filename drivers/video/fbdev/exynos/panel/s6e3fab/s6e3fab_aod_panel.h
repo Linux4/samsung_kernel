@@ -337,6 +337,7 @@ static void *s6e3fab_aod_set_time_cmdtbl[] = {
 	&PKTINFO(s6e3fab_aod_timer_rate),
 	&PKTINFO(s6e3fab_aod_timer_en),
 	&PKTINFO(s6e3fab_aod_update_time_ctrl),
+	&DLYINFO(s6e3fab_aod_time_update_delay),
 	&KEYINFO(s6e3fab_aod_l1_key_disable),
 };
 

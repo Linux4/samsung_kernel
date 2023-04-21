@@ -104,6 +104,7 @@ enum ids_info {
 	mids,
 	bids,
 	gids,
+	gfx,
 };
 
 extern int asv_ids_information(enum ids_info id);

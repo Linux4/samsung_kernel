@@ -69,6 +69,9 @@
 #define FW_ISP_COMPANY_STE		'S'
 #define FW_ISP_COMPANY_TI		'T'
 #define FW_ISP_COMPANY_DMC		'D'
+#ifdef CONFIG_SEC_CAL_ENABLE
+#define FW_ISP_COMPANY_LSI_STANDARD_CAL		'E'
+#endif
 
 #define FW_SENSOR_MAKER_SF		'F'
 #define FW_SENSOR_MAKER_SLSI		'L'			/* rear_front*/
@@ -188,10 +191,10 @@ enum fnumber_index {
 };
 
 enum is_rom_state {
-	IS_ROM_STATE_FINAL_MODULE,
+	IS_ROM_STATE_FINAL_MODULE,	/* 'A' : Development sample, 'B' : Verified sample, 'M' : PR sample */
 	IS_ROM_STATE_LATEST_MODULE,
 	IS_ROM_STATE_INVALID_ROM_VERSION,
-	IS_ROM_STATE_OTHER_VENDOR,	/* Q module */
+	IS_ROM_STATE_OTHER_VENDOR,	/* 'L' : LSI, 'Q' : QC, 'X' : Integrated, 'E' : Standard Cal */
 	IS_ROM_STATE_CAL_RELOAD,
 	IS_ROM_STATE_CAL_READ_DONE,
 	IS_ROM_STATE_FW_FIND_DONE,
@@ -212,6 +215,47 @@ enum is_crc_error {
 	IS_CRC_ERROR_HIFI_TUNNING,
 	IS_ROM_ERROR_MAX
 };
+
+#ifdef CONFIG_SEC_CAL_ENABLE
+struct rom_standard_cal_data {
+	int32_t		rom_standard_cal_start_addr;
+	int32_t		rom_standard_cal_end_addr;
+	int32_t		rom_standard_cal_module_crc_addr;
+	int32_t		rom_standard_cal_module_checksum_len;
+	int32_t		rom_standard_cal_sec2lsi_end_addr;
+
+	int32_t		rom_header_standard_cal_end_addr;
+	int32_t		rom_header_main_shading_end_addr;
+
+	int32_t		rom_awb_start_addr;
+	int32_t		rom_awb_end_addr;
+	int32_t		rom_awb_section_crc_addr;
+
+	int32_t		rom_shading_start_addr;
+	int32_t		rom_shading_end_addr;
+	int32_t		rom_shading_section_crc_addr;
+
+	int32_t		rom_factory_start_addr;
+	int32_t		rom_factory_end_addr;
+
+	int32_t		rom_awb_sec2lsi_start_addr;
+	int32_t		rom_awb_sec2lsi_end_addr;
+	int32_t		rom_awb_sec2lsi_checksum_addr;
+	int32_t		rom_awb_sec2lsi_checksum_len;
+
+	int32_t		rom_shading_sec2lsi_start_addr;
+	int32_t		rom_shading_sec2lsi_end_addr;
+	int32_t		rom_shading_sec2lsi_checksum_addr;
+	int32_t		rom_shading_sec2lsi_checksum_len;
+
+	int32_t		rom_factory_sec2lsi_start_addr;
+};
+
+bool is_sec_readcal_dump_post_sec2lsi(struct is_core *core, char *buf, int position);
+#ifdef USES_STANDARD_CAL_RELOAD
+bool is_sec_sec2lsi_check_cal_reload(void);
+#endif
+#endif
 
 struct is_rom_info {
 	unsigned long	rom_state;
@@ -259,6 +303,13 @@ struct is_rom_info {
 	int32_t		rom_paf_cal_start_addr;
 	int32_t		rom_paf_f2_cal_start_addr;
 	int32_t		rom_paf_f3_cal_start_addr;
+
+#ifdef CONFIG_SEC_CAL_ENABLE
+	/* standard cal */
+	bool		use_standard_cal;
+	struct rom_standard_cal_data standard_cal_data;
+	struct rom_standard_cal_data backup_standard_cal_data;
+#endif
 
 	int32_t		rom_header_sensor2_id_addr;
 	int32_t		rom_header_sensor2_version_start_addr;
@@ -367,6 +418,10 @@ ssize_t write_data_to_file(char *name, char *buf, size_t count, loff_t *pos);
 ssize_t read_data_rom_file(char *name, char *buf, size_t count, loff_t *pos);
 bool is_sec_file_exist(char *name);
 
+#ifdef CONFIG_SEC_CAL_ENABLE
+int is_sec_get_max_cal_size(struct is_core *core, int position);
+int is_sec_get_cal_buf_rom_data(char **buf, int rom_id);
+#endif
 int is_sec_get_sysfs_finfo(struct is_rom_info **finfo, int rom_id);
 int is_sec_get_sysfs_pinfo(struct is_rom_info **pinfo, int rom_id);
 int is_sec_get_front_cal_buf(char **buf, int rom_id);
@@ -392,6 +447,7 @@ int is_sec_read_setfile(struct is_core *core);
 int is_sec_inflate_fw(u8 **buf, unsigned long *size);
 #endif
 int is_sec_fw_sel_eeprom(int id, bool headerOnly);
+int is_sec_fw_sel_otprom(int id, bool headerOnly);
 int is_sec_write_fw(struct is_core *core);
 #if defined(CONFIG_CAMERA_FROM)
 int is_sec_readcal(struct is_core *core);
@@ -407,6 +463,9 @@ bool is_sec_check_rom_ver(struct is_core *core, int rom_id);
 bool is_sec_check_fw_crc32(char *buf, u32 checksum_seed, unsigned long size);
 bool is_sec_check_cal_crc32(char *buf, int id);
 void is_sec_make_crc32_table(u32 *table, u32 id);
+#ifdef CONFIG_SEC_CAL_ENABLE
+bool is_sec_check_awb_lsc_crc32_post_sec2lsi(char *buf, int position, int awb_length, int lsc_length);
+#endif
 
 int is_sec_gpio_enable(struct exynos_platform_is *pdata, char *name, bool on);
 int is_sec_core_voltage_select(struct device *dev, char *header_ver);
@@ -417,4 +476,7 @@ void remove_dump_fw_file(void);
 int is_get_dual_cal_buf(int slave_position, char **buf, int *size);
 int is_sec_sensor_find_front_tof_mode_id(struct is_core *core, char *buf);
 int is_sec_sensor_find_rear_tof_mode_id(struct is_core *core, char *buf);
+#if defined(CAMERA_UWIDE_DUALIZED)
+void is_sec_set_rear2_dualized_rom_probe(void);
+#endif
 #endif /* IS_SEC_DEFINE_H */

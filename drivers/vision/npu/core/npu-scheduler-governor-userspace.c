@@ -5,7 +5,7 @@
 
 #define NPU_USERSPACE_ATTR(_name)	NPU_SET_ATTR(_name, userspace)
 
-char *npu_governor_userspace_prop_name[] = {
+static char *npu_governor_userspace_prop_name[] = {
 	"init_freq",
 	"init_delay",
 	"target_freq",
@@ -85,7 +85,7 @@ struct npu_scheduler_governor_ops npu_governor_userspace_ops = {
 	.stop = npu_governor_userspace_stop,
 };
 
-struct npu_scheduler_governor npu_gov_userspace = {
+static struct npu_scheduler_governor npu_gov_userspace = {
 	.name = "userspace",
 	.ops = &npu_governor_userspace_ops,
 	.dev_list = LIST_HEAD_INIT(npu_gov_userspace.dev_list),

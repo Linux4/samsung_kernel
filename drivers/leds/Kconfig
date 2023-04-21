@@ -144,6 +144,7 @@ config LEDS_LM3530
 
 config LEDS_LM3532
 	tristate "LCD Backlight driver for LM3532"
+	select REGMAP_I2C
 	depends on LEDS_CLASS
 	depends on I2C
 	help
@@ -825,7 +826,7 @@ config LEDS_LM36274
 
 config LEDS_S2MPB02
 	tristate "LED support for the S2MPB02"
-	depends on LEDS_CLASS
+	depends on LEDS_CLASS && MFD_S2MPB02
 	help
 	  This option enables support for the LEDs on the S2MPB02.
 

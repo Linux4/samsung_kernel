@@ -232,14 +232,15 @@ static void get_starvated_cpus(struct tp_env *env, struct cpumask *starvated_cpu
 	}
 }
 
-static void get_overutil_cpus(struct tp_env *env, struct cpumask *overutil_cpus)
+static void get_overcap_cpus(struct tp_env *env, struct cpumask *overcap_cpus)
 {
 	int cpu;
 
 	for_each_cpu(cpu, cpu_active_mask) {
-		int cpu_util = env->cpu_util_with[cpu] + env->cpu_rt_util[cpu];
-		if (cpu_overutilized(capacity_cpu(cpu), cpu_util))
-			cpumask_set_cpu(cpu, overutil_cpus);
+		unsigned long cpu_util = env->cpu_util_with[cpu];
+
+		if (capacity_cpu(cpu) < cpu_util)
+			cpumask_set_cpu(cpu, overcap_cpus);
 	}
 }
 
@@ -259,25 +260,25 @@ static bool prefer_idle_cpu(int task_util, int grp_cpu, bool adv)
 static void find_energy_candidates(struct tp_env *env,
 		struct cpumask *candidates, int *min_idle_cpu)
 {
-	struct cpumask allowed_cpus, starvated_cpus, overutil_cpus, temp_cpus;
+	struct cpumask allowed_cpus, starvated_cpus, overcap_cpus, temp_cpus;
 	int grp_cpu, src_cpu = task_cpu(env->p);
 	bool adv = env->sched_policy == SCHED_POLICY_ENERGY_ADV ? true : false;
 	bool high_prio_task = env->p->prio <= IMPORT_PRIO;
 
 	cpumask_clear(candidates);
 	cpumask_clear(&allowed_cpus);
-	cpumask_clear(&overutil_cpus);
+	cpumask_clear(&overcap_cpus);
 	cpumask_clear(&starvated_cpus);
 	cpumask_clear(&temp_cpus);
 
 	/* 1. copy task_cpus_allowed (active & tsk allowed & ecs & emst) */
 	cpumask_copy(&allowed_cpus, &env->cpus_allowed);
 
-	/* 2. exclude overutil cpus */
-	get_overutil_cpus(env, &overutil_cpus);
-	cpumask_andnot(&temp_cpus, &allowed_cpus, &overutil_cpus);
+	/* 2. exclude overcap cpus */
+	get_overcap_cpus(env, &overcap_cpus);
+	cpumask_andnot(&temp_cpus, &allowed_cpus, &overcap_cpus);
 	if (cpumask_empty(&temp_cpus))
-		goto find_min_util_cpu;
+		return;
 	cpumask_copy(&allowed_cpus, &temp_cpus);
 
 	/* 3. apply ontime mask */
@@ -359,6 +360,9 @@ __find_energy_cpu(struct tp_env *env, const struct cpumask *candidates)
 {
 	int cpu, energy_cpu = -1, min_util = INT_MAX;
 	unsigned int min_energy = UINT_MAX;
+
+	if (cpumask_empty(candidates))
+		return task_cpu(env->p);
 
 	if (cpumask_weight(candidates) == 1)
 		return cpumask_first(candidates);

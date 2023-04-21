@@ -395,7 +395,7 @@ static int get_vs4l_profiler(struct vs4l_profiler *kp, struct vs4l_profiler __us
 			size = sizeof(struct vs4l_profiler_node*)*2;
 			if (!access_ok((void __user *)kp->node->child, size)) {
 				vision_err("access to profiler node ptr failed (%pK)\n",
-					kp->node->child[0]);
+					kp->node->child);
 				ret = -EFAULT;
 				goto p_err_profiler_node;
 			}
@@ -506,7 +506,7 @@ static int put_vs4l_profiler(struct vs4l_profiler *kp, struct vs4l_profiler __us
 			size = sizeof(struct vs4l_profiler_node*)*2;
 			if (!access_ok((void __user *)temp.node->child, size)) {
 				vision_err("access to profiler node ptr failed (%pK)\n",
-					kp->node->child[0]);
+					temp.node->child);
 				ret = -EFAULT;
 				goto p_err_profiler_node;
 			}
@@ -774,9 +774,11 @@ long vertex_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			break;
 		}
 
-		(*vs4l_kvar.vspr.node).duration = npu_fw_time;
-		if ((*vs4l_kvar.vspr.node).child != NULL)
-			(*vs4l_kvar.vspr.node).child[0]->duration = npu_hw_time;
+		if (vs4l_kvar.vspr.node) {
+			(*vs4l_kvar.vspr.node).duration = npu_fw_time;
+			if ((*vs4l_kvar.vspr.node).child != NULL)
+				(*vs4l_kvar.vspr.node).child[0]->duration = npu_hw_time;
+		}
 
 		ret = put_vs4l_profiler(&vs4l_kvar.vspr,
 				(struct vs4l_profiler __user *)arg);

@@ -315,6 +315,16 @@ struct npu_scheduler_info {
 	struct workqueue_struct		*sched_wq;
 	struct delayed_work		sched_work;
 	struct delayed_work		boost_off_work;
+#ifdef CONFIG_NPU_ARBITRATION
+	struct wakeup_source		*aws;
+	struct workqueue_struct		*arbitration_wq;
+	struct delayed_work		arbitration_work;
+	wait_queue_head_t		waitq;
+#endif
+	u32				fw_min_active_cores;
+	u32				num_cores_active;
+	npu_errno_t			result_code;
+	u32				result_value;
 	u32		llc_status;
 	u32		hwacg_status;
 /* ocp_warn information */

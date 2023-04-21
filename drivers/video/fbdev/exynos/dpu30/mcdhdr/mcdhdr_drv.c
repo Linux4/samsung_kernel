@@ -77,11 +77,6 @@ static int mcdhdr_update_lut(struct mcdhdr_device *mcdhdr, u32 *lut, int lut_off
 	reg_length = lut[lut_offset++];
 	mcdhdr_info("offset: %d, length: %d\n", reg_offset, reg_length);
 
-	if ((reg_length < 0) || (reg_offset < 0)) {
-		mcdhdr_err("invalid value, length: %d, offset: %d\n", reg_length, reg_offset);
-		goto exit_update;
-	}
-
 	for (i = 0; i < reg_length; i++) {
 		if (reg_offset + (i * 4) >= MCDHDR_ADDR_RANGE) {
 			mcdhdr_err("out of address range: %x(offset:%d: length:%d)\n",

@@ -22,7 +22,6 @@
 #include "npu-log.h"
 #include "npu-config.h"
 #include "npu-common.h"
-#include "npu-device.h"
 #include "npu-system.h"
 #include "npu-util-regs.h"
 #include "npu-stm-soc.h"

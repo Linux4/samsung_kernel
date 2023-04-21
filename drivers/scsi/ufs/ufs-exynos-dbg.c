@@ -7,7 +7,6 @@
  *	Kiwoong <kwmad.kim@samsung.com>
  */
 
-#include <linux/smc.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -15,6 +14,7 @@
 #include <linux/module.h>
 
 #include "ufshcd.h"
+#include <soc/samsung/exynos-smc.h>
 #include "ufs-vs-mmio.h"
 #include "ufs-vs-regs.h"
 

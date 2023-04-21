@@ -137,7 +137,7 @@ struct csis_irq_src {
 	u32			line_end;
 	u32			dma_abort;
 	bool			err_flag;
-	u32			err_id[CSI_VIRTUAL_CH_MAX];
+	ulong			err_id[CSI_VIRTUAL_CH_MAX];
 	u32			ebuf_status;
 };
 
@@ -336,6 +336,7 @@ int is_hw_get_output_slot(u32 vid);
 int is_hw_get_capture_slot(struct is_frame *frame, u32 **taddr, u64 **taddr_k, u32 vid);
 #endif
 void * is_get_dma_blk(int type);
+int is_get_dma_id(u32 vid);
 int is_hw_check_changed_chain_id(struct is_hardware *hardware, u32 hw_id, u32 instance);
 void is_hw_fill_target_address(u32 hw_id, struct is_frame *dst,	struct is_frame *src,
 	bool reset);

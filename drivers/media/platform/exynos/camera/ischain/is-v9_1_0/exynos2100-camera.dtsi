@@ -253,58 +253,75 @@
 		status = "okay";
 	};
 
+	camif_wdma0: camif-wdma-module@170E0000 {
+		compatible = "samsung,camif-wdma-module";
+		reg = <0x0 0x17090000 0x300>;
+		reg-names = "ctl";
+		channels = <&camif_wdma0_0>,
+			<&camif_wdma0_1>,
+			<&camif_wdma0_2>,
+			<&camif_wdma0_3>;
+		samsung,quirks = "has test pattern gen";
+	};
+
+	aliases {
+		wdma-module0 = &camif_wdma0;
+	};
+
 	camif_wdma0_0: camif-wdma@170A0000 {
 		compatible = "samsung,camif-wdma";
-		reg = <0x0 0x170C1400 0x100>, /* Common */
-			<0x0 0x170C1000 0x100>, /* VC0 */
-			<0x0 0x170C1100 0x100>, /* VC1 */
-			<0x0 0x170C1200 0x100>, /* VC2 */
-			<0x0 0x170C1300 0x100>; /* VC3 */
-		reg-names = "common", "ch0", "ch1", "ch2", "ch3";
+		reg = <0x0 0x17020420 0x4>,	/* input MUX */
+			<0x0 0x17099400 0x100>,	/* CTL */
+			<0x0 0x17099000 0x100>,	/* VC0 */
+			<0x0 0x17099100 0x100>,	/* VC1 */
+			<0x0 0x17099200 0x100>,	/* VC2 */
+			<0x0 0x17099300 0x100>;	/* VC3 */
+		reg-names = "mux", "ctl", "vc0", "vc1", "vc2", "vc3";
 		interrupts = <GIC_SPI INTREQ__CSIS_DMA0 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "dma";
+		module = <&camif_wdma0>;
 	};
 
 	camif_wdma0_1: camif-wdma@170B0000 {
 		compatible = "samsung,camif-wdma";
-		reg = <0x0 0x170C2400 0x100>, /* Common */
-			<0x0 0x170C2000 0x100>, /* VC0 */
-			<0x0 0x170C2100 0x100>, /* VC1 */
-			<0x0 0x170C2200 0x100>, /* VC2 */
-			<0x0 0x170C2300 0x100>; /* VC3 */
-		reg-names = "common", "ch0", "ch1", "ch2", "ch3";
+		reg = <0x0 0x17020424 0x4>,	/* input MUX */
+			<0x0 0x1709A400 0x100>,	/* CTL */
+			<0x0 0x1709A000 0x100>,	/* VC0 */
+			<0x0 0x1709A100 0x100>,	/* VC1 */
+			<0x0 0x1709A200 0x100>,	/* VC2 */
+			<0x0 0x1709A300 0x100>;	/* VC3 */
+		reg-names = "mux", "ctl", "vc0", "vc1", "vc2", "vc3";
 		interrupts = <GIC_SPI INTREQ__CSIS_DMA1 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "dma";
+		module = <&camif_wdma0>;
 	};
 
 	camif_wdma0_2: camif-wdma@170C0000 {
 		compatible = "samsung,camif-wdma";
-		reg = <0x0 0x170C3400 0x100>, /* Common */
-			<0x0 0x170C3000 0x100>, /* VC0 */
-			<0x0 0x170C3100 0x100>, /* VC1 */
-			<0x0 0x170C3200 0x100>, /* VC2 */
-			<0x0 0x170C3300 0x100>; /* VC3 */
-		reg-names = "common", "ch0", "ch1", "ch2", "ch3";
+		reg = <0x0 0x17020428 0x4>,	/* input MUX */
+			<0x0 0x1709B400 0x100>,	/* CTL */
+			<0x0 0x1709B000 0x100>,	/* VC0 */
+			<0x0 0x1709B100 0x100>,	/* VC1 */
+			<0x0 0x1709B200 0x100>,	/* VC2 */
+			<0x0 0x1709B300 0x100>;	/* VC3 */
+		reg-names = "mux", "ctl", "vc0", "vc1", "vc2", "vc3";
 		interrupts = <GIC_SPI INTREQ__CSIS_DMA2 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "dma";
+		module = <&camif_wdma0>;
 	};
 
 	camif_wdma0_3: camif-wdma@170D0000 {
 		compatible = "samsung,camif-wdma";
-		reg = <0x0 0x170C4400 0x100>, /* Common */
-			<0x0 0x170C4000 0x100>, /* VC0 */
-			<0x0 0x170C4100 0x100>, /* VC1 */
-			<0x0 0x170C4200 0x100>, /* VC2 */
-			<0x0 0x170C4300 0x100>; /* VC3 */
-		reg-names = "common", "ch0", "ch1", "ch2", "ch3";
+		reg = <0x0 0x1702042C 0x4>,	/* input MUX */
+			<0x0 0x1709C400 0x100>,	/* CTL */
+			<0x0 0x1709C000 0x100>,	/* VC0 */
+			<0x0 0x1709C100 0x100>,	/* VC1 */
+			<0x0 0x1709C200 0x100>,	/* VC2 */
+			<0x0 0x1709C300 0x100>;	/* VC3 */
+		reg-names = "mux", "ctl", "vc0", "vc1", "vc2", "vc3";
 		interrupts = <GIC_SPI INTREQ__CSIS_DMA3 IRQ_TYPE_LEVEL_HIGH>;
-	};
-
-	camif_wdma0: camif-wdma-top@170E0000 {
-		compatible = "samsung,camif-wdma-top";
-		reg = <0x0 0x170C0000 0x200>;
-		modules = <&camif_wdma0_0>,
-			<&camif_wdma0_1>,
-			<&camif_wdma0_2>,
-			<&camif_wdma0_3>;
-		samsung,has_test_pattern_gen;
+		interrupt-names = "dma";
+		module = <&camif_wdma0>;
 	};
 
 	aliases {
@@ -418,30 +435,12 @@
 			<0x0 0x170B1000 0x1000>; /* EBUF */
 		reg-names = "csi", "phy", "mcb", "ebuf";
 		interrupts = <0 INTREQ__CSIS0 IRQ_TYPE_LEVEL_HIGH>, /*MIPI-CSI0 */
-			<0 INTREQ__STRP_DMA0 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA0 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA0 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA0 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA0 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-names = "csi", "ebuf",
-			"mode0_VC0", "mode0_VC1","mode0_VC2","mode0_VC3";
+			<0 INTREQ__STRP_DMA0 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "csi", "ebuf";
 		phys = <&mipi_phy_csis0_m0s4s4s4s4s4s2 0>;
 		phy-names = "csis_dphy";
 		iommus = <&sysmmu_d0_csis>, <&sysmmu_d1_csis>;
 		samsung,iommu-group = <&iommu_group_is>;
-
-		/* without PAF HW */
-		sensor0_ch_mode0: sensor0-ch-mode0 {
-			reg = <0x17099000 0x100>, /* DMA0 VC0 */
-				<0x17099400 0x100>, /* DMA0 Common */
-				<0x17099100 0x100>, /* DMA0 VC1 */
-				<0x17099400 0x100>, /* DMA0 Common */
-				<0x17099200 0x100>, /* DMA0 VC2 */
-				<0x17099400 0x100>, /* DMA0 Common */
-				<0x17099300 0x100>, /* DMA0 VC3 */
-				<0x17099400 0x100>; /* DMA0 Common */
-			mux_reg = <0x17020420 0x4>; /* DMA0 input mux */
-		};
 	};
 
 	is_sensor1: is_sensor1@17040000 {
@@ -455,31 +454,13 @@
 			<0x0 0x170B1000 0x1000>; /* EBUF */
 		reg-names = "csi", "phy", "mcb", "ebuf";
 		interrupts = <0 INTREQ__CSIS1 IRQ_TYPE_LEVEL_HIGH>, /* MIPI-CSI1 */
-			<0 INTREQ__STRP_DMA0 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA1 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA1 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA1 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA1 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-names = "csi", "ebuf",
-			"mode0_VC0", "mode0_VC1","mode0_VC2","mode0_VC3";
+			<0 INTREQ__STRP_DMA0 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "csi", "ebuf";
 		phys = <&mipi_phy_csis1_m0s4s4s4s4s4s2 0>;
 		phy-names = "csis_dphy";
 		iommus = <&sysmmu_d0_csis>, <&sysmmu_d1_csis>;
 		samsung,iommu-group = <&iommu_group_is>;
 		samsung,tzmp;
-
-		/* without PAF HW */
-		sensor1_ch_mode0: sensor1-ch-mode0 {
-			reg = <0x1709A000 0x100>, /* DMA1 VC0 */
-				<0x1709A400 0x100>, /* DMA1 Common */
-				<0x1709A100 0x100>, /* DMA1 VC1 */
-				<0x1709A400 0x100>, /* DMA1 Common */
-				<0x1709A200 0x100>, /* DMA1 VC2 */
-				<0x1709A400 0x100>, /* DMA1 Common */
-				<0x1709A300 0x100>, /* DMA1 VC3 */
-				<0x1709A400 0x100>; /* DMA1 Common */
-			mux_reg = <0x17020424 0x4>; /* DMA0 input mux */
-		};
 	};
 
 	is_sensor2: is_sensor2@17050000 {
@@ -493,30 +474,12 @@
 			<0x0 0x170B1000 0x1000>; /* EBUF */
 		reg-names = "csi", "phy", "mcb", "ebuf";
 		interrupts = <0 INTREQ__CSIS2 IRQ_TYPE_LEVEL_HIGH>, /* MIPI-CSI2 */
-			<0 INTREQ__STRP_DMA0 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA2 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA2 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA2 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA2 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-names = "csi", "ebuf",
-			"mode0_VC0", "mode0_VC1","mode0_VC2","mode0_VC3";
+			<0 INTREQ__STRP_DMA0 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "csi", "ebuf";
 		phys = <&mipi_phy_csis2_m0s4s4s4s4s4s2 0>;
 		phy-names = "csis_dphy";
 		iommus = <&sysmmu_d0_csis>, <&sysmmu_d1_csis>;
 		samsung,iommu-group = <&iommu_group_is>;
-
-		/* without PAF HW */
-		sensor2_ch_mode0: sensor2-ch-mode0 {
-			reg = <0x1709B000 0x100>, /* DMA2 VC0 */
-				<0x1709B400 0x100>, /* DMA2 Common */
-				<0x1709B100 0x100>, /* DMA2 VC1 */
-				<0x1709B400 0x100>, /* DMA2 Common */
-				<0x1709B200 0x100>, /* DMA2 VC2 */
-				<0x1709B400 0x100>, /* DMA2 Common */
-				<0x1709B300 0x100>, /* DMA2 VC3 */
-				<0x1709B400 0x100>; /* DMA2 Common */
-			mux_reg = <0x17020428 0x4>; /* DMA2 input mux */
-		};
 	};
 
 	is_sensor3: is_sensor3@17060000 {
@@ -530,30 +493,12 @@
 			<0x0 0x170B1000 0x1000>; /* EBUF */
 		reg-names = "csi", "phy", "mcb", "ebuf";
 		interrupts = <0 INTREQ__CSIS3 IRQ_TYPE_LEVEL_HIGH>, /* MIPI-CSI3 */
-			<0 INTREQ__STRP_DMA0 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA3 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA3 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA3 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA3 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-names = "csi", "ebuf",
-			"mode0_VC0", "mode0_VC1","mode0_VC2","mode0_VC3";
+			<0 INTREQ__STRP_DMA0 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "csi", "ebuf";
 		phys = <&mipi_phy_csis3_m0s4s4s4s4s4s2 0>;
 		phy-names = "csis_dphy";
 		iommus = <&sysmmu_d0_csis>, <&sysmmu_d1_csis>;
 		samsung,iommu-group = <&iommu_group_is>;
-
-		/* without PAF HW */
-		sensor3_ch_mode0: sensor3-ch-mode0 {
-			reg = <0x1709C000 0x100>, /* DMA3 VC0 */
-				<0x1709C400 0x100>, /* DMA3 Common */
-				<0x1709C100 0x100>, /* DMA3 VC1 */
-				<0x1709C400 0x100>, /* DMA3 Common */
-				<0x1709C200 0x100>, /* DMA3 VC2 */
-				<0x1709C400 0x100>, /* DMA3 Common */
-				<0x1709C300 0x100>, /* DMA3 VC3 */
-				<0x1709C400 0x100>; /* DMA3 Common */
-			mux_reg = <0x1702042C 0x4>; /* DMA3 input mux */
-		};
 	};
 
 	is_sensor4: is_sensor4@17070000 {
@@ -567,30 +512,12 @@
 			<0x0 0x170B1000 0x1000>; /* EBUF */
 		reg-names = "csi", "phy", "mcb", "ebuf";
 		interrupts = <0 INTREQ__CSIS4 IRQ_TYPE_LEVEL_HIGH>, /* MIPI-CSI4 */
-			<0 INTREQ__STRP_DMA0 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA0 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA0 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA0 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA0 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-names = "csi", "ebuf",
-			"mode0_VC0", "mode0_VC1","mode0_VC2","mode0_VC3";
+			<0 INTREQ__STRP_DMA0 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "csi", "ebuf";
 		phys = <&mipi_phy_csis4_m0s4s4s4s4s4s2 0>;
 		phy-names = "csis_dphy";
 		iommus = <&sysmmu_d0_csis>, <&sysmmu_d1_csis>;
 		samsung,iommu-group = <&iommu_group_is>;
-
-		/* without PAF HW */
-		sensor4_ch_mode0: sensor4-ch-mode0 {
-			reg = <0x17099000 0x100>, /* DMA0 VC0 */
-				<0x17099400 0x100>, /* DMA0 Common */
-				<0x17099100 0x100>, /* DMA0 VC1 */
-				<0x17099400 0x100>, /* DMA0 Common */
-				<0x17099200 0x100>, /* DMA0 VC2 */
-				<0x17099400 0x100>, /* DMA0 Common */
-				<0x17099300 0x100>, /* DMA0 VC3 */
-				<0x17099400 0x100>; /* DMA0 Common */
-			mux_reg = <0x17020420 0x4>; /* DMA0 input mux */
-		};
 	};
 
 	is_sensor5: is_sensor5@17080000 {
@@ -604,30 +531,12 @@
 			<0x0 0x170B1000 0x1000>; /* EBUF */
 		reg-names = "csi", "phy", "mcb", "ebuf";
 		interrupts = <0 INTREQ__CSIS5 IRQ_TYPE_LEVEL_HIGH>, /* MIPI-CSI5 */
-			<0 INTREQ__STRP_DMA0 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA0 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA0 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA0 IRQ_TYPE_LEVEL_HIGH>,
-			<0 INTREQ__CSIS_DMA0 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-names = "csi", "ebuf",
-			"mode0_VC0", "mode0_VC1","mode0_VC2","mode0_VC3";
+			<0 INTREQ__STRP_DMA0 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "csi", "ebuf";
 		phys = <&mipi_phy_csis5_m0s4s4s4s4s4s2 0>;
 		phy-names = "csis_dphy";
 		iommus = <&sysmmu_d0_csis>, <&sysmmu_d1_csis>;
 		samsung,iommu-group = <&iommu_group_is>;
-
-		/* without PAF HW */
-		sensor5_ch_mode0: sensor5-ch-mode0 {
-			reg = <0x17099000 0x100>, /* DMA0 VC0 */
-				<0x17099400 0x100>, /* DMA0 Common */
-				<0x17099100 0x100>, /* DMA0 VC1 */
-				<0x17099400 0x100>, /* DMA0 Common */
-				<0x17099200 0x100>, /* DMA0 VC2 */
-				<0x17099400 0x100>, /* DMA0 Common */
-				<0x17099300 0x100>, /* DMA0 VC3 */
-				<0x17099400 0x100>; /* DMA0 Common */
-			mux_reg = <0x17020420 0x4>; /* DMA0 input mux */
-		};
 	};
 
 	lic_lut_origin: lic-lut-origin {

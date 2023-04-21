@@ -203,12 +203,13 @@ obj-y				+= samsung/
 # uH
 obj-$(CONFIG_UH)		+= uh/
 
-# grip sensor
-obj-y				+= sensors/
+#Sensor
+obj-$(CONFIG_SENSORS)		+= sensors/
 
 # SPU signature verify
 obj-$(CONFIG_SPU_VERIFY) += spu_verify/
 obj-y += regulator/pmic_class/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+obj-y += samsung/debug/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += security/samsung/icdrv/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += misc/drb/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 obj-y += vibrator/common/ # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT

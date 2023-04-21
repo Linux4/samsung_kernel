@@ -24,6 +24,7 @@
 #include "is-core.h"
 #include "is-dvfs.h"
 #include "is-interface-sensor.h"
+#include "is-device-camif-dma.h"
 
 #ifdef CONFIG_OF
 static int get_pin_lookup_state(struct pinctrl *pinctrl,
@@ -439,6 +440,14 @@ int is_parse_dt(struct platform_device *pdev)
 	probe_info("ret(%d) non_secure_mem_info(%#08lx, %#08lx)", ret,
 		core->non_secure_mem_info[0], core->non_secure_mem_info[1]);
 
+	ret = of_property_read_u32_array(np, "memlog_size", pdata->is_memlog_size, 2);
+	if (ret) {
+		pdata->is_memlog_size[0] = IS_MEMLOG_PRINTF_DRV_SIZE;
+		pdata->is_memlog_size[1] = IS_MEMLOG_PRINTF_DDK_SIZE;
+	}
+	probe_info("ret(%d) is_memlog_size(0x%#08lx, 0x%#08lx)", ret,
+		pdata->is_memlog_size[0], pdata->is_memlog_size[1]);
+
 	vender_np = of_get_child_by_name(np, "vender");
 	if (vender_np) {
 		ret = is_vender_dt(vender_np);
@@ -489,8 +498,6 @@ int is_sensor_parse_dt(struct platform_device *pdev)
 	struct exynos_platform_is_sensor *pdata;
 	struct device_node *dnode;
 	struct device *dev;
-	int elems;
-	int i;
 
 	FIMC_BUG(!pdev);
 	FIMC_BUG(!pdev->dev.of_node);
@@ -529,6 +536,12 @@ int is_sensor_parse_dt(struct platform_device *pdev)
 		goto err_read_csi_ch;
 	}
 
+	ret = of_property_read_u32(dnode, "wdma_ch_hint", &pdata->wdma_ch_hint);
+	if (ret) {
+		probe_info("skip wdma_ch_hint data read (%d)", ret);
+		pdata->wdma_ch_hint = 0xFFFF;
+	}
+
 	ret = of_property_read_u32(dnode, "csi_mux", &pdata->csi_mux);
 	if (ret) {
 		probe_info("skip phy-csi mux data read (%d)", ret);
@@ -537,55 +550,6 @@ int is_sensor_parse_dt(struct platform_device *pdev)
 	ret = of_property_read_u32(dnode, "multi_ch", &pdata->multi_ch);
 	if (ret) {
 		probe_info("skip multi_ch bool data read (%d)", ret);
-	}
-
-	elems = of_property_count_u32_elems(dnode, "dma_ch");
-	if (elems >= CSI_VIRTUAL_CH_MAX) {
-		if (elems % CSI_VIRTUAL_CH_MAX) {
-			err("the length of DMA ch. is not a multiple of VC Max");
-			ret = -EINVAL;
-			goto err_read_dma_ch;
-		}
-
-		if (elems != of_property_count_u32_elems(dnode, "vc_ch")) {
-			err("the length of DMA ch. does not match VC ch.");
-			ret = -EINVAL;
-			goto err_read_vc_ch;
-		}
-
-		pdata->dma_ch = kcalloc(elems, sizeof(*pdata->dma_ch), GFP_KERNEL);
-		if (!pdata->dma_ch) {
-			err("out of memory for DMA ch.");
-			ret = -EINVAL;
-			goto err_alloc_dma_ch;
-		}
-
-		pdata->vc_ch = kcalloc(elems, sizeof(*pdata->vc_ch), GFP_KERNEL);
-		if (!pdata->vc_ch) {
-			err("out of memory for VC ch.");
-			ret = -EINVAL;
-			goto err_alloc_vc_ch;
-		}
-
-		for (i = 0; i < elems; i++) {
-			pdata->dma_ch[i] = -1;
-			pdata->vc_ch[i] = -1;
-		}
-
-		if (!of_property_read_u32_array(dnode, "dma_ch", pdata->dma_ch,
-					elems)) {
-			if (!of_property_read_u32_array(dnode, "vc_ch",
-						pdata->vc_ch,
-						elems)) {
-				pdata->dma_abstract = true;
-				pdata->num_of_ch_mode = elems / CSI_VIRTUAL_CH_MAX;
-			} else {
-				warn("failed to read vc_ch\n");
-			}
-		} else {
-			warn("failed to read dma_ch\n");
-		}
-
 	}
 
 	ret = of_property_read_u32(dnode, "use_cphy", &pdata->use_cphy);
@@ -675,13 +639,7 @@ int is_sensor_parse_dt(struct platform_device *pdev)
 
 	return 0;
 
-err_alloc_vc_ch:
 err_read_is_bns:
-	kfree(pdata->dma_ch);
-
-err_alloc_dma_ch:
-err_read_vc_ch:
-err_read_dma_ch:
 err_read_csi_ch:
 err_read_scenario:
 err_read_id:
@@ -840,10 +798,11 @@ static int parse_modes_data(struct exynos_platform_is_module *pdata, struct devi
 		else
 			cfg->votf = 0;
 
-		if (opt_np && of_find_property(opt_np, "scm", NULL))
-			of_property_read_u32(opt_np, "scm", &cfg->scm);
-		else
-			cfg->scm = 0;
+		if (opt_np && of_find_property(opt_np, "wdma_ch_hint", NULL)) {
+			of_property_read_u32(opt_np, "wdma_ch_hint", &cfg->wdma_ch_hint);
+		} else {
+			cfg->wdma_ch_hint = 0xFFFF;
+		}
 
 		if (opt_np && of_find_property(opt_np, "max_fps", NULL))
 			of_property_read_u32(opt_np, "max_fps", &cfg->max_fps);

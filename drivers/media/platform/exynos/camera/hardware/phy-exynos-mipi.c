@@ -1311,7 +1311,7 @@ static int __set_phy_cfg_0504_8xxx_cphy(void __iomem *regs, int option, u32 *cfg
 /*
  * cfg[VERSION]
  * [0]: Front, [1]: Wide, [2]: Ultra Wide, [3]: Tele1, [4]: Tele2 => sensor
- * [5]: O1s, [6]: T2s, [7]: P3s => model
+ * [5]~[7] => model 0x1:O1s, 0x2:T2s, 0x4:P3s, 0x3:R9s
  */
 	u8 sensor = cfg[VERSION] & 0x1F;
 	u8 model = (cfg[VERSION] & 0xE0) >> 5;
@@ -1338,7 +1338,7 @@ static int __set_phy_cfg_0504_8xxx_cphy(void __iomem *regs, int option, u32 *cfg
 
 	iounmap(bias);
 
-	if (model & 0x1) {
+	if (model == 0x1) {
 		/* O1S */
 		if (sensor & 0x2) {
 			/* Wide */
@@ -1355,7 +1355,7 @@ static int __set_phy_cfg_0504_8xxx_cphy(void __iomem *regs, int option, u32 *cfg
 			crc_con1 = 0x00001533;
 			crc_con2 = 0x00000022;
 		}
-	} else if (model & 0x2) {
+	} else if (model == 0x2) {
 		/* T2S */
 		if (sensor & 0x2) {
 			/* Wide */
@@ -1372,13 +1372,25 @@ static int __set_phy_cfg_0504_8xxx_cphy(void __iomem *regs, int option, u32 *cfg
 			crc_con1 = 0x00001533;
 			crc_con2 = 0x00000022;
 		}
-	} else if (model & 0x4) {
+	} else if (model == 0x4) {
 		/* P3S */
 		if (sensor & 0x2) {
 			/* Wide */
-			ana_con0 = 0x0000007B;
-			ana_con1 = 0x0000B7F9;
-			crc_con2 = 0x00000031;
+			ana_con0 = 0x00000019;
+			ana_con1 = 0x0000B3F9;
+			ana_con2 = 0x00000004;
+			crc_con1 = 0x00001533;
+			crc_con2 = 0x00000022;
+		}
+	} else if (model == 0x3) {
+		/* R9S */
+		if (sensor & 0x2) {
+			/* Wide */
+			ana_con0 = 0x00000019;
+			ana_con1 = 0x0000B3F9;
+			ana_con2 = 0x00000004;
+			crc_con1 = 0x00001533;
+			crc_con2 = 0x00000022;
 		}
 	}
 
@@ -1410,6 +1422,124 @@ static int __set_phy_cfg_0504_8xxx_cphy(void __iomem *regs, int option, u32 *cfg
 
 		writel(crc_con1, regs + 0x0164 + (i * 0x100)); /* SD_CRC_CON1 */
 		writel(crc_con2, regs + 0x0168 + (i * 0x100)); /* SD_CRC_CON2 */
+		/* Enable should be set at last. */
+		writel(0x00000001, regs + 0x0100 + (i * 0x100)); /* SD_GNR_CON0 , Phy data enable */
+	}
+
+	usleep_range(200, 201);
+
+	return 0;
+}
+
+static int __set_phy_cfg_0504_8xxx_dphy(void __iomem *regs, int option, u32 *cfg)
+{
+	int i;
+	u32 type = LOWORD(cfg[TYPE]);
+	u32 settle_clk_sel = 1;
+	u32 skew_delay_sel = 0;
+	u32 skew_cal_en = 0;
+/*
+ * cfg[VERSION]
+ * [0]: Front, [1]: Wide, [2]: Ultra Wide, [3]: Tele1, [4]: Tele2 => sensor
+ * [5]~[7] => model 0x1:O1s, 0x2:T2s, 0x4:P3s, 0x3:R9s
+ */
+	u8 sensor = cfg[VERSION] & 0x1F;
+	u8 model = (cfg[VERSION] & 0xE0) >> 5;
+	u32 sc_ana_con0 = 0x00000001, sd_ana_con0 = 0x00000001, 
+		sc_ana_con1 = 0x0000EA40, sd_ana_con1 = 0x0000EA40, 
+		sc_ana_con2 = 0x00000002;
+
+	void __iomem *bias;
+
+	/* phy disable for analog logic reset */
+	writel(0x00000000, regs + 0x0000); /* SC_GNR_CON0, Phy clock enable */
+
+	/* phy disable for analog logic reset */
+	for (i = 0; i <= cfg[LANES]; i++)
+		writel(0x00000000, regs + 0x0100 + (i * 0x100)); /* SD_GNR_CON0 , Phy data enable */
+
+	usleep_range(200, 201);
+
+	bias = ioremap(0x170A1000, 0x1000);
+
+	/* BIAS_SET */
+	writel(0x00000010, bias + 0x0000); /* M_BIAS_CON0 */
+	writel(0x00000110, bias + 0x0004); /* M_BIAS_CON1 */
+	writel(0x00003223, bias + 0x0008); /* M_BIAS_CON2 */
+
+	iounmap(bias);
+
+	if (model == 0x1) {
+		/* O1S */
+		if (sensor & 0x1) {
+			/* Front */
+			sd_ana_con1 = 0x0000EAF0;
+		}
+	} else if (model == 0x3) {
+		/* R9S */
+		if (sensor & 0x1) {
+			/* Front */
+			sc_ana_con0 = 0x00000000; /* ana_con0(SC) */
+			sd_ana_con0 = 0x00000000; /* ana_con0(SD/CSD) */
+			sc_ana_con1 = 0x000082F2; /* ana_con1(SC) */
+			sd_ana_con1 = 0x000082F2; /* ana_con1(SD/CSD) */
+			sc_ana_con2 = 0x00000004; /* ana_con2(SC) */
+		}
+	}
+
+	printk("PHY : sensor=%d, model=%d, cfg[SPEED]=%d, cfg[SETTLE]=%d, sd_ana_con1=%x",
+			sensor, model, cfg[SPEED], cfg[SETTLE], sd_ana_con1);
+
+	/* Dphy */
+	skew_cal_en = 1; /* In DPHY, skew cal enable regardless of mipi speed */
+	if (cfg[SPEED] >= PHY_REF_SPEED) {
+		settle_clk_sel = 0;
+
+		if (cfg[SPEED] >= 4000 && cfg[SPEED] <= 6500)
+			skew_delay_sel = 0;
+		else if (cfg[SPEED] >= 3000 && cfg[SPEED] < 4000)
+			skew_delay_sel = 1;
+		else if (cfg[SPEED] >= 2000 && cfg[SPEED] < 3000)
+			skew_delay_sel = 2;
+		else if (cfg[SPEED] >= 1500 && cfg[SPEED] < 2000)
+			skew_delay_sel = 3;
+		else
+			skew_delay_sel = 0;
+	}
+
+	/* clock */
+	writel(0x00001450, regs + 0x0004); /* SC_GNR_CON1 */
+	writel(sc_ana_con0, regs + 0x0008); /* SC_ANA_CON0 */
+	writel(sc_ana_con1, regs + 0x000C); /* SC_ANA_CON1 */
+	writel(sc_ana_con2, regs + 0x0010); /* SC_ANA_CON2 */
+	writel(0x00008600, regs + 0x0014); /* SC_ANA_CON3 */
+	writel(0x00004000, regs + 0x0018); /* SC_ANA_CON4 */
+	writel(0x00000301, regs + 0x0030); /* SC_TIME_CON0 */
+	/* Enable should be set at last. */
+	writel(0x00000001, regs + 0x0000); /* SC_GNR_CON0, Phy clock enable */
+
+	for (i = 0; i <= cfg[LANES]; i++) {
+		writel(0x00001450, regs + 0x0104 + (i * 0x100)); /* SD_GNR_CON1 */
+		writel(sd_ana_con0, regs + 0x0108 + (i * 0x100)); /* SD_ANA_CON0 */
+		writel(sd_ana_con1, regs + 0x010C + (i * 0x100)); /* SD_ANA_CON1 */
+
+		writel(0x00000004, regs + 0x0110 + (i * 0x100)); /* SD_ANA_CON2 */
+		update_bits(regs + 0x0110 + (i * 0x100), 8, 2, skew_delay_sel); /* SD_ANA_CON2 */
+
+		writel(0x00008600, regs + 0x0114 + (i * 0x100)); /* SD_ANA_CON3 */
+		writel(0x00004000, regs + 0x0118 + (i * 0x100)); /* SD_ANA_CON4 */
+
+		if ((type == 0xDC) && (i < 3))
+			writel(0x00000040, regs + 0x0124 + (i * 0x100)); /* SD_ANA_CON7 */
+
+		update_bits(regs + 0x0130 + (i * 0x100), 0, 8, cfg[SETTLE]);    /* SD_TIME_CON0 */
+		update_bits(regs + 0x0130 + (i * 0x100), 8, 1, settle_clk_sel); /* SD_TIME_CON0 */
+
+		writel(0x00000003, regs + 0x0134 + (i * 0x100)); /* SD_TIME_CON1 */
+
+		update_bits(regs + 0x0140 + (i * 0x100), 0, 1, skew_cal_en); /* SD_DESKEW_CON0 */
+
+		writel(0x0000081A, regs + 0x0150 + (i * 0x100)); /* SD_DESKEW_CON4 */
 		/* Enable should be set at last. */
 		writel(0x00000001, regs + 0x0100 + (i * 0x100)); /* SD_GNR_CON0 , Phy data enable */
 	}
@@ -1528,6 +1658,13 @@ static const struct exynos_mipi_phy_cfg phy_cfg_table[] = {
 		.minor = 0x8000, /* MLB 1 : several setting version */
 		.mode = 0xC,
 		.set = __set_phy_cfg_0504_8xxx_cphy,
+	},
+	{
+		/* type : Combo(DCphy), mode : Cphy */
+		.major = 0x0504,
+		.minor = 0x8000, /* MLB 1 : several setting version */
+		.mode = 0xD,
+		.set = __set_phy_cfg_0504_8xxx_dphy,
 	},
 	{ },
 };

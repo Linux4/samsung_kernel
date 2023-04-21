@@ -1263,7 +1263,7 @@ void pdp_hw_s_pd_size(void __iomem *base, u32 width, u32 height, u32 hwformat,
 		byte_per_line = ALIGN(width * 16 / BITS_PER_BYTE, 16);
 		break;
 	default:
-		err_hw("[PDP] invalid af format (%02X)", hwformat);
+		info_hw("[%s][PDP] invalid af format (%02X)", __func__, hwformat);
 		return;
 	}
 
@@ -1481,7 +1481,11 @@ void pdp_hw_s_core(struct is_pdp *pdp, bool pd_enable, struct is_sensor_cfg *sen
 		} else if (fps >= 60) {
 			rmo = PDP_RDMA_MO_FPS60; /* This is HW guide value. */
 		} else if (position == SENSOR_POSITION_FRONT) {
+#ifdef PDP_RDMA_MO_FRONT
+			rmo = PDP_RDMA_MO_FRONT;
+#else
 			rmo = 2;
+#endif
 			info("[PDP][DBG][POS:%d] RDMA MO set %d", position, rmo);
 		}
 
@@ -1828,7 +1832,7 @@ int pdp_hw_wait_idle(void __iomem *base, unsigned long state, u32 frame_time)
 			break;
 		}
 
-		usleep_range(6, 8);
+		usleep_range(10, 11);
 	};
 
 	curr_line = PDP_GET_R(base, PDP_R_CINFIFO_OUTPUT_LINE_CNT);
@@ -1836,6 +1840,34 @@ int pdp_hw_wait_idle(void __iomem *base, unsigned long state, u32 frame_time)
 
 	info_hw("[PDP] idle status after disable (total:%d, curr:%d, idle:%d, int1:0x%X)\n",
 			total_line, curr_line, idle, int1_all);
+
+	return ret;
+}
+
+int pdp_hw_rdma_wait_idle(void __iomem *base)
+{
+	int ret = 0;
+	u32 busy_byr, busy_af;
+	u32 try_cnt = 0;
+	u32 max_try_cnt = PDP_TRY_COUNT;
+
+	busy_byr = PDP_GET_R(base, PDP_R_RDMA_BAYER_MON_STATUS3);
+	busy_af = PDP_GET_R(base, PDP_R_RDMA_AF_MON_STATUS3);
+	while (busy_byr || busy_af) {
+		busy_byr = PDP_GET_R(base, PDP_R_RDMA_BAYER_MON_STATUS3);
+		busy_af = PDP_GET_R(base, PDP_R_RDMA_AF_MON_STATUS3);
+
+		try_cnt++;
+		if (try_cnt >= max_try_cnt) {
+			err_hw("[PDP] timeout rdma waiting idle(byr:0x%x, af:0x%x)",
+				busy_byr, busy_af);
+			pdp_hw_dump(base);
+			ret = -ETIME;
+			break;
+		}
+
+		usleep_range(10, 11);
+	};
 
 	return ret;
 }

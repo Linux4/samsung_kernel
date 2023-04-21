@@ -96,6 +96,12 @@ struct id_tbl_info {
 	unsigned modem_l_modify_group:4;
 };
 
+struct hw_tune{
+	unsigned reserved0:16;
+	unsigned reserved1:8;
+	unsigned code:8;
+} gfx_power;
+
 #define ASV_INFO_ADDR_CNT	(sizeof(struct asv_tbl_info) / 4)
 #define ID_INFO_ADDR_CNT	(sizeof(struct id_tbl_info) / 4)
 
@@ -187,6 +193,9 @@ int asv_get_ids_info(unsigned int id)
 	case AUD:
 		ids = id_tbl.ids_others;
 		break;
+	case GFX:
+		ids = gfx_power.code;
+		break;
 	default:
 		pr_info("Un-support ids info %d\n", id);
 	}
@@ -273,6 +282,8 @@ int print_asv_table(char *buf)
 	r = sprintf(buf, "%s  chipid : 0x%03x%08x\n", buf, id_tbl.chip_id_1, id_tbl.chip_id_2);
 	r = sprintf(buf, "%s  main revision : %d\n", buf, id_tbl.main_rev);
 	r = sprintf(buf, "%s  sub revision : %d\n", buf, id_tbl.sub_rev);
+	r = sprintf(buf, "%s\n", buf);
+	r = sprintf(buf, "%s  gfx power : %d\n", buf, gfx_power.code);
 
 	return r;
 }
@@ -314,7 +325,6 @@ int asv_table_init(void)
 	unsigned int *p_table;
 	unsigned int *regs;
 	unsigned long tmp;
-	char buf[1023] = {0,};
 
 	p_table = (unsigned int *)&asv_tbl;
 
@@ -329,8 +339,10 @@ int asv_table_init(void)
 	for (i = 0; i < ID_INFO_ADDR_CNT; i++)
 		*(p_table + i) = (unsigned int)regs[i];
 
-	print_asv_table(buf);
-	pr_info("%s\n",buf);
+	p_table = (unsigned int *)&gfx_power;
+	regs = (unsigned int *)ioremap(ID_TABLE_BASE + 0xC308, SZ_1);
+	*p_table = *regs;
+
 	asv_debug_init();
 
 #if IS_ENABLED(CONFIG_SEC_DEBUG)

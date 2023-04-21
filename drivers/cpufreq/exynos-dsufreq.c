@@ -646,7 +646,7 @@ static int dsufreq_init_dm(struct device_node *dn)
 		return ret;
 
 	ret = exynos_dm_data_init(dsufreq.dm_type, &dsufreq,
-				dsufreq.min_freq, dsufreq.max_freq, dsufreq.cur_freq);
+				dsufreq.min_freq, dsufreq.max_freq, dsufreq.min_freq);
 	if (ret)
 		return ret;
 
@@ -676,13 +676,16 @@ static int exynos_dsufreq_probe(struct platform_device *pdev)
 		return ret;
 
 	ret = dsufreq_init_dm(dn);
-	if (ret)
-		return ret;
-
-	ret = cpufreq_register_notifier(&dsufreq_cpufreq_scale_notifier,
+	if (ret) {
+		/*
+		 * In case of failure to init dm related data,
+		 * need to get notification from CPUFreq to do DSU DVFS.
+		 */
+		ret = cpufreq_register_notifier(&dsufreq_cpufreq_scale_notifier,
 						CPUFREQ_TRANSITION_NOTIFIER);
-	if (ret)
-		return ret;
+		if (ret)
+			return ret;
+	}
 
 	ret = sysfs_create_group(&pdev->dev.kobj, &dsufreq_group);
 	if (ret)

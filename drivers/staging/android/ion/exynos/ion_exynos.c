@@ -90,9 +90,15 @@ static inline bool ion_buffer_cached(struct ion_buffer *buffer)
 
 void exynos_fdt_setup(struct device *dev, struct exynos_fdt_attrs *attrs)
 {
-	of_property_read_u32(dev->of_node, "ion,alignment", &attrs->alignment);
-	attrs->alignment = 1UL << (get_order(attrs->alignment) + PAGE_SHIFT);
+	unsigned int alignment, order;
 
+	of_property_read_u32(dev->of_node, "ion,alignment", &alignment);
+	order = get_order(alignment);
+
+	if (order > MAX_ORDER)
+		order = 0;
+
+	attrs->alignment = 1 << (order + PAGE_SHIFT);
 	attrs->secure = of_property_read_bool(dev->of_node, "ion,secure");
 	attrs->untouchable = of_property_read_bool(dev->of_node, "ion,untouchable");
 	of_property_read_u32(dev->of_node, "ion,protection_id",

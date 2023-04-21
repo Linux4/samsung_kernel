@@ -209,18 +209,6 @@ fill_cap_table(struct energy_table *table, unsigned long max_mips)
 	}
 }
 
-static void print_energy_table(struct energy_table *table, int cpu)
-{
-	int i;
-
-	pr_info("[Energy Table: cpu%d]\n", cpu);
-	for (i = 0; i < table->nr_states; i++) {
-		pr_info("[%2d] cap=%4lu power=%4lu | static-power=%4lu\n",
-			i, table->states[i].cap, table->states[i].power,
-			table->states[i].static_power);
-	}
-}
-
 static inline int
 find_nr_states(struct energy_table *table, int clipped_freq)
 {
@@ -298,14 +286,10 @@ static ssize_t show_energy_table(struct kobject *kobj,
 		table = get_energy_table(cpu);
 		for (i = 0; i < table->nr_states; i++) {
 			ret += snprintf(buf + ret, PAGE_SIZE - ret,
-				"cap=%4lu power=%4lu | static-power=%4lu | static-power-2nd=%4lu\n",
+				"cap=%lu dp=%lu | sp=%lu\n",
 				table->states[i].cap, table->states[i].power,
-				table->states[i].static_power,
-				table->states[i].static_power_2nd);
+				table->states[i].static_power);
 		}
-
-		ret += snprintf(buf + ret, PAGE_SIZE - ret,
-					"wakeup_cost=%4lu\n", table->wakeup_cost);
 
 		ret += snprintf(buf + ret, PAGE_SIZE - ret, "\n");
 	}
@@ -412,8 +396,6 @@ static void init_sched_energy_table(struct cpufreq_policy *policy)
 
 		/* 3. update per-cpu capacity variable */
 		update_capacity(table, cpu, true);
-
-		print_energy_table(get_energy_table(cpu), cpu);
 	}
 
 	init_wakeup_cost();
@@ -463,10 +445,6 @@ static int init_sched_energy_data(void)
 
 		of_node_put(cpu_phandle);
 		of_node_put(cpu_node);
-
-		pr_info("cpu%d mips_per_mhz=%d coefficient=%d mips_per_mhz_s=%d coefficient_s=%d static_coefficient=%d\n",
-			cpu, table->mips_per_mhz, table->coefficient,
-			table->mips_per_mhz_s, table->coefficient_s, table->static_coefficient);
 	}
 
 	ret = sysfs_create_file(ems_kobj, &energy_table_attr.attr);

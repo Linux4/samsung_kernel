@@ -25,6 +25,7 @@
 #define KQ_NAD_STR_NADX_FAIL "NG_3.2_L"
 
 #define KQ_NAD_INFORM4_MAGIC 0x1186084c
+#define KQ_NAD_INFORM5_MAGIC 0x11860850
 
 enum {
 	KQ_NAD_BLOCK_START = 0,
@@ -162,7 +163,7 @@ static struct kq_nad_block kq_nad_block_data[] = {
 	"NONE",     "NONE",       "NONE",       "NONE",       "NONE",
 	"NONE",     "NONE",       "NONE",       "NONE"},
 	//CP
-	{"NONE",     "CP_AUTOTEST", "CP_BOOT",  "DVFS_CPSYS", "UCPU_UNZIP",
+	{"NONE",     "AUTOTEST",     "BOOT",     "DVFS_CPSYS", "UCPU_UNZIP",
 	"LCPU_UNZIP", "NONE",        "NONE",     "NONE",       "NONE",
 	"NONE",       "NONE",        "NONE",     "NONE",       "NONE",
 	"NONE",       "NONE",        "NONE",     "NONE",       "NONE",

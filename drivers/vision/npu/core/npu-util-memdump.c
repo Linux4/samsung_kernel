@@ -11,9 +11,8 @@
  */
 
 #include "npu-common.h"
-#include "npu-log.h"
 #include "npu-debug.h"
-#include "npu-system.h"
+#include "npu-util-memdump.h"
 #include <linux/atomic.h>
 #include <linux/fs.h>
 #include <linux/types.h>
@@ -25,7 +24,7 @@ struct mem_dump_stats {
 };
 
 /* Global data storage for memory dump - Initialized from probe function */
-struct {
+static struct {
 	atomic_t registered;
 	struct npu_iomem_area	*tcu_sram;
 	struct npu_iomem_area	*idp_sram;
@@ -144,19 +143,23 @@ int ram_dump_fault_listner(struct npu_device *npu)
 	}
 	/* tcu_dump_addr and idp_dump_addr are not freed, because we expect them left on ramdump */
 
+	if (tcu_dump_addr)
+		kfree(tcu_dump_addr);
+	if (idp_dump_addr)
+		kfree(idp_dump_addr);
+
 	return ret;
 
 exit_err:
 	if (tcu_dump_addr)
 		kfree(tcu_dump_addr);
-	if (idp_dump_addr)
-		kfree(idp_dump_addr);
 	return ret;
 }
 
 int npu_util_dump_handle_error_k(struct npu_device *device)
 {
 	int ret = 0;
+	fw_will_note_to_kernel(FW_LOGSIZE);
 	npu_soc_status_report(&device->system);
 	proto_req_fault_listener();
 	mbx_rslt_fault_listener();

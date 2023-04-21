@@ -180,7 +180,7 @@ static void abox_dbg_clear_valid(int idx)
 static ssize_t abox_dbg_read_valid(struct file *file, char __user *user_buf,
 				    size_t count, loff_t *ppos)
 {
-	int idx = (int)abox_proc_data(file);
+	int idx = (int)(long)abox_proc_data(file);
 	bool valid = abox_dbg_dump_valid(idx);
 	char buf_val[4]; /* enough to store a bool and "\n\0" */
 
@@ -202,7 +202,7 @@ static const struct file_operations abox_dbg_fops_valid = {
 static ssize_t abox_dbg_read_clear(struct file *file, char __user *user_buf,
 				   size_t count, loff_t *ppos)
 {
-	int idx = (int)abox_proc_data(file);
+	int idx = (int)(long)abox_proc_data(file);
 
 	abox_dbg_clear_valid(idx);
 
@@ -213,7 +213,7 @@ static ssize_t abox_dbg_write_clear(struct file *file,
 				    const char __user *user_buf,
 				    size_t count, loff_t *ppos)
 {
-	int idx = (int)abox_proc_data(file);
+	int idx = (int)(long)abox_proc_data(file);
 
 	abox_dbg_clear_valid(idx);
 
@@ -586,6 +586,7 @@ static void abox_dbg_rmem_init(struct abox_data *data)
 				p_dump->previous_gpr = 0;
 				p_dump->previous_mem = 0;
 			}
+			p_dump->dram = NULL;
 		}
 
 		abox_dbg_dump_count = ABOX_DBG_DUMP_COUNT;
@@ -1158,146 +1159,6 @@ static void abox_dbg_create_files(struct abox_data *data)
 			NULL, PAGE_SIZE);
 }
 
-struct abox_dbg_memlog_entity {
-	const char *name;
-	struct memlog_obj *fobj;
-	struct memlog_obj *mobj;
-	enum abox_region rid;
-	size_t buf_size;
-	void *src_buf;
-};
-
-static struct abox_dbg_memlog_entity abox_dbg_memlogs[] = {
-	{ .name = "sram", .rid = ABOX_REG_SRAM, },
-	{ .name = "dram", .rid = ABOX_REG_DRAM,
-		.buf_size = DRAM_FIRMWARE_SIZE },
-	{ .name = "log", .rid = ABOX_REG_LOG, .buf_size = ABOX_LOG_SIZE },
-	{ .name = "slog", .rid = ABOX_REG_SLOG, },
-	{ .name = "sfr", .rid = ABOX_REG_SFR, },
-	{ .name = "gpr", .rid = ABOX_REG_GPR, .buf_size = SZ_128 },
-	{ .name = "gicd", .rid = ABOX_REG_GICD,
-		.buf_size = (SZ_4K / sizeof(u32))},
-};
-
-static void abox_dbg_unregister_memlog(struct abox_data *data)
-{
-	struct device *dev = data->dev;
-	size_t len = ARRAY_SIZE(abox_dbg_memlogs);
-	struct abox_dbg_memlog_entity *me;
-
-	for (me = abox_dbg_memlogs; me - abox_dbg_memlogs < len; me++) {
-		if (me->fobj)
-			memlog_free(me->fobj);
-
-		if (me->rid < ABOX_REG_DEVICE_LAST) {
-			if (me->mobj)
-				memlog_free(me->mobj);
-		} else if (me->rid < ABOX_REG_INT_LAST) {
-			if (me->src_buf)
-				devm_kfree(dev, me->src_buf);
-		}
-	}
-}
-
-static int abox_dbg_register_memlog(struct abox_data *data)
-{
-	phys_addr_t paddr;
-	char name[32] = {0,};
-	int i, ret = 0;
-
-	for (i = 0; i < ARRAY_SIZE(abox_dbg_memlogs); i++) {
-		snprintf(name, sizeof(name), "%s-file",
-				abox_dbg_memlogs[i].name);
-		paddr = (phys_addr_t)abox_get_resource_info(data,
-				abox_dbg_memlogs[i].rid,
-				false, &abox_dbg_memlogs[i].buf_size);
-		abox_dbg_memlogs[i].fobj = memlog_alloc_file(data->drvlog_desc,
-				name, abox_dbg_memlogs[i].buf_size,
-				abox_dbg_memlogs[i].buf_size, 20, 10);
-		if (!abox_dbg_memlogs[i].fobj) {
-			abox_err(data->dev, "Failed to allocate file for %s\n",
-					name);
-			ret = -ENOMEM;
-			break;
-		}
-		snprintf(name, sizeof(name), "%s-mem",
-				abox_dbg_memlogs[i].name);
-		if (abox_dbg_memlogs[i].rid < ABOX_REG_DEVICE_LAST) {
-			abox_dbg_memlogs[i].mobj =
-				memlog_alloc_dump(data->drvlog_desc,
-					abox_dbg_memlogs[i].buf_size, paddr,
-					true, abox_dbg_memlogs[i].fobj, name);
-			if (!abox_dbg_memlogs[i].mobj) {
-				abox_err(data->dev, "Fail:alloc mem for %s\n",
-						name);
-				ret = -ENOMEM;
-				break;
-			}
-		} else if (abox_dbg_memlogs[i].rid < ABOX_REG_INT_LAST) {
-			abox_dbg_memlogs[i].src_buf = devm_kzalloc(data->dev,
-					abox_dbg_memlogs[i].buf_size,
-					GFP_KERNEL);
-			if (!abox_dbg_memlogs[i].src_buf) {
-				abox_err(data->dev, "Fail:alloc mem for %s\n",
-						name);
-				ret = -ENOMEM;
-				break;
-			}
-		} else {
-			abox_dbg_memlogs[i].src_buf =
-				abox_get_resource_info(data,
-						abox_dbg_memlogs[i].rid,
-						true, NULL);
-			if (!abox_dbg_memlogs[i].src_buf) {
-				abox_err(data->dev, "Fail:alloc mem for %s\n",
-						name);
-				ret = -ENOMEM;
-				break;
-			}
-		}
-	}
-
-	if (ret < 0)
-		abox_dbg_unregister_memlog(data);
-
-	return ret;
-}
-
-void abox_dbg_dump_memlog(struct abox_data *data)
-{
-	int i;
-
-	/* dump only if power is on */
-	if (!pm_runtime_get_if_in_use(data->dev)) {
-		abox_info(data->dev, "memlog skip: no power\n");
-		return;
-	}
-
-	for (i = 0; i < ARRAY_SIZE(abox_dbg_memlogs); i++) {
-		if (abox_dbg_memlogs[i].rid < ABOX_REG_DEVICE_LAST) {
-			if (abox_dbg_memlogs[i].mobj)
-				memlog_do_dump(abox_dbg_memlogs[i].mobj,
-						MEMLOG_LEVEL_EMERG);
-		} else {
-			if (abox_dbg_memlogs[i].rid == ABOX_REG_GPR)
-				abox_core_dump_gpr(
-				(unsigned int *)abox_dbg_memlogs[i].src_buf);
-			else if (abox_dbg_memlogs[i].rid == ABOX_REG_GICD)
-				abox_gicd_dump(data->dev_gic,
-					(char *)abox_dbg_memlogs[i].src_buf, 0,
-					abox_dbg_memlogs[i].buf_size);
-			if (abox_dbg_memlogs[i].fobj) {
-				memlog_write_file(abox_dbg_memlogs[i].fobj,
-						abox_dbg_memlogs[i].src_buf,
-						abox_dbg_memlogs[i].buf_size);
-			}
-		}
-	}
-	memlog_sync_to_file(data->drv_log_obj);
-
-	pm_runtime_put(data->dev);
-}
-
 static void abox_dbg_alloc_work_func(struct work_struct *work)
 {
 	struct abox_dbg_dump_min *p_dump;
@@ -1381,10 +1242,6 @@ static int samsung_abox_debug_probe(struct platform_device *pdev)
 	}
 	if (abox_dbg_slog)
 		abox_dbg_slog_init(data);
-
-	ret = abox_dbg_register_memlog(data);
-	if (ret < 0)
-		return ret;
 
 	abox_dbg_create_files(data);
 

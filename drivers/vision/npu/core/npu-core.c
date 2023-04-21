@@ -20,6 +20,7 @@
 
 #include "npu-core.h"
 #include "npu-log.h"
+#include "npu-device.h"
 
 static int g_npu_core_num;
 static int g_npu_core_always_num;

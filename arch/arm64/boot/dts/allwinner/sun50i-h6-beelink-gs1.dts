@@ -321,6 +321,7 @@
 			interrupts = <0x00 0x23 0x04>;
 			pinctrl-names = "default";
 			pinctrl-0 = <0x10>;
+			max-frequency = <0x8f0d180>;
 			status = "okay";
 			#address-cells = <0x01>;
 			#size-cells = <0x00>;
@@ -340,6 +341,7 @@
 			interrupts = <0x00 0x24 0x04>;
 			pinctrl-names = "default";
 			pinctrl-0 = <0x12>;
+			max-frequency = <0x8f0d180>;
 			status = "disabled";
 			#address-cells = <0x01>;
 			#size-cells = <0x00>;
@@ -356,6 +358,7 @@
 			interrupts = <0x00 0x25 0x04>;
 			pinctrl-names = "default";
 			pinctrl-0 = <0x13>;
+			max-frequency = <0x8f0d180>;
 			status = "okay";
 			#address-cells = <0x01>;
 			#size-cells = <0x00>;
@@ -472,7 +475,7 @@
 			status = "okay";
 			pinctrl-names = "default";
 			pinctrl-0 = <0x1a>;
-			phy-mode = "rgmii";
+			phy-mode = "rgmii-id";
 			phy-handle = <0x1b>;
 			phy-supply = <0x1c>;
 			phandle = <0x45>;
@@ -542,6 +545,8 @@
 			interrupts = <0x00 0x18 0x04>;
 			clocks = <0x08 0x6f 0x08 0x71 0x08 0x68>;
 			resets = <0x08 0x30 0x08 0x32>;
+			phys = <0x1f 0x00>;
+			phy-names = "usb";
 			status = "okay";
 			phandle = <0x48>;
 		};
@@ -552,6 +557,8 @@
 			interrupts = <0x00 0x19 0x04>;
 			clocks = <0x08 0x6f 0x08 0x68>;
 			resets = <0x08 0x30>;
+			phys = <0x1f 0x00>;
+			phy-names = "usb";
 			status = "okay";
 			phandle = <0x49>;
 		};

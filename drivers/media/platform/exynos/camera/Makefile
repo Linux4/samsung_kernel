@@ -47,6 +47,7 @@ fimc-is-objs	:= is-core.o \
 		is-dt.o \
 		is-binary.o \
 		is-i2c-config.o \
+		is-device-camif-dma.o \
 		is-uh_call.o
 
 # lib

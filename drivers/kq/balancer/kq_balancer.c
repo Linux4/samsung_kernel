@@ -632,7 +632,6 @@ static ssize_t kq_balancer_store_manual_attr(struct device *dev,
 	int i = 0;
 	int ret = 0;
 	int freq_idx = 0;
-	int balancer_start_idx;
 	int max_buf_len = KQ_BALANCER_MAX_MANUAL_BUFFER;
 
 	if (count > max_buf_len) {

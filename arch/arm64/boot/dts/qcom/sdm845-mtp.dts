@@ -60,26 +60,26 @@
 		memory@85700000 {
 			reg = <0x00 0x85700000 0x00 0x600000>;
 			no-map;
-			phandle = <0xc4>;
+			phandle = <0xc5>;
 		};
 
 		memory@85e00000 {
 			reg = <0x00 0x85e00000 0x00 0x100000>;
 			no-map;
-			phandle = <0xc5>;
+			phandle = <0xc6>;
 		};
 
 		memory@85fc0000 {
 			reg = <0x00 0x85fc0000 0x00 0x20000>;
 			no-map;
-			phandle = <0xc6>;
+			phandle = <0xc7>;
 		};
 
 		memory@85fe0000 {
 			compatible = "qcom,cmd-db";
 			reg = <0x00 0x85fe0000 0x00 0x20000>;
 			no-map;
-			phandle = <0xc7>;
+			phandle = <0xc8>;
 		};
 
 		memory@86000000 {
@@ -91,7 +91,7 @@
 		memory@86200000 {
 			reg = <0x00 0x86200000 0x00 0x2d00000>;
 			no-map;
-			phandle = <0xc8>;
+			phandle = <0xc9>;
 		};
 
 		memory@88f00000 {
@@ -100,31 +100,31 @@
 			no-map;
 			qcom,client-id = <0x01>;
 			qcom,vmid = <0x0f>;
-			phandle = <0xc9>;
+			phandle = <0xca>;
 		};
 
 		memory@8ab00000 {
 			reg = <0x00 0x8ab00000 0x00 0x1400000>;
 			no-map;
-			phandle = <0xca>;
+			phandle = <0xcb>;
 		};
 
 		memory@8bf00000 {
 			reg = <0x00 0x8bf00000 0x00 0x500000>;
 			no-map;
-			phandle = <0xcb>;
+			phandle = <0xcc>;
 		};
 
 		memory@8c400000 {
 			reg = <0x00 0x8c400000 0x00 0x10000>;
 			no-map;
-			phandle = <0xcc>;
+			phandle = <0xcd>;
 		};
 
 		memory@8c410000 {
 			reg = <0x00 0x8c410000 0x00 0x5000>;
 			no-map;
-			phandle = <0xcd>;
+			phandle = <0xce>;
 		};
 
 		memory@8c415000 {
@@ -142,7 +142,7 @@
 		memory@8df00000 {
 			reg = <0x00 0x8df00000 0x00 0x100000>;
 			no-map;
-			phandle = <0xad>;
+			phandle = <0xae>;
 		};
 
 		memory@8e000000 {
@@ -172,13 +172,13 @@
 		memory@96700000 {
 			reg = <0x00 0x96700000 0x00 0x1400000>;
 			no-map;
-			phandle = <0xce>;
+			phandle = <0xcf>;
 		};
 
 		memory@97b00000 {
 			reg = <0x00 0x97b00000 0x00 0x100000>;
 			no-map;
-			phandle = <0xcf>;
+			phandle = <0xd0>;
 		};
 	};
 
@@ -466,14 +466,14 @@
 			#clock-cells = <0x00>;
 			clock-frequency = <0x249f000>;
 			clock-output-names = "xo_board";
-			phandle = <0xa5>;
+			phandle = <0xa6>;
 		};
 
 		sleep-clk {
 			compatible = "fixed-clock";
 			#clock-cells = <0x00>;
 			clock-frequency = <0x7ffc>;
-			phandle = <0xd0>;
+			phandle = <0xa5>;
 		};
 	};
 
@@ -3149,7 +3149,7 @@
 			reg = <0x00 0xc263000 0x00 0x1ff 0x00 0xc222000 0x00 0x1ff>;
 			#qcom,sensors = <0x0d>;
 			#thermal-sensor-cells = <0x01>;
-			phandle = <0xb2>;
+			phandle = <0xb3>;
 		};
 
 		thermal-sensor@c265000 {
@@ -3157,7 +3157,7 @@
 			reg = <0x00 0xc265000 0x00 0x1ff 0x00 0xc223000 0x00 0x1ff>;
 			#qcom,sensors = <0x08>;
 			#thermal-sensor-cells = <0x01>;
-			phandle = <0xc3>;
+			phandle = <0xc4>;
 		};
 
 		reset-controller@c2a0000 {
@@ -3222,6 +3222,12 @@
 			phandle = <0x125>;
 		};
 
+		watchdog@17980000 {
+			compatible = "qcom,apss-wdt-sdm845\0qcom,kpss-wdt";
+			reg = <0x00 0x17980000 0x00 0x1000>;
+			clocks = <0xa5>;
+		};
+
 		mailbox@17990000 {
 			compatible = "qcom,sdm845-apss-shared";
 			reg = <0x00 0x17990000 0x00 0x1000>;
@@ -3244,19 +3250,19 @@
 				compatible = "qcom,sdm845-rpmh-clk";
 				#clock-cells = <0x01>;
 				clock-names = "xo";
-				clocks = <0xa5>;
+				clocks = <0xa6>;
 				phandle = <0x1a>;
 			};
 
 			power-controller {
 				compatible = "qcom,sdm845-rpmhpd";
 				#power-domain-cells = <0x01>;
-				operating-points-v2 = <0xa6>;
+				operating-points-v2 = <0xa7>;
 				phandle = <0x64>;
 
 				opp-table {
 					compatible = "operating-points-v2";
-					phandle = <0xa6>;
+					phandle = <0xa7>;
 
 					opp1 {
 						opp-level = <0x10>;
@@ -3319,33 +3325,33 @@
 			pm8998-rpmh-regulators {
 				compatible = "qcom,pm8998-rpmh-regulators";
 				qcom,pmic-id = [61 00];
-				vdd-s1-supply = <0xa7>;
-				vdd-s2-supply = <0xa7>;
-				vdd-s3-supply = <0xa7>;
-				vdd-s4-supply = <0xa7>;
-				vdd-s5-supply = <0xa7>;
-				vdd-s6-supply = <0xa7>;
-				vdd-s7-supply = <0xa7>;
-				vdd-s8-supply = <0xa7>;
-				vdd-s9-supply = <0xa7>;
-				vdd-s10-supply = <0xa7>;
-				vdd-s11-supply = <0xa7>;
-				vdd-s12-supply = <0xa7>;
-				vdd-s13-supply = <0xa7>;
-				vdd-l1-l27-supply = <0xa8>;
-				vdd-l2-l8-l17-supply = <0xa9>;
-				vdd-l3-l11-supply = <0xa8>;
-				vdd-l4-l5-supply = <0xa8>;
-				vdd-l6-supply = <0xa7>;
-				vdd-l7-l12-l14-l15-supply = <0xaa>;
-				vdd-l9-supply = <0xab>;
-				vdd-l10-l23-l25-supply = <0xab>;
-				vdd-l13-l19-l21-supply = <0xab>;
-				vdd-l16-l28-supply = <0xab>;
-				vdd-l18-l22-supply = <0xab>;
-				vdd-l20-l24-supply = <0xab>;
-				vdd-l26-supply = <0xa9>;
-				vin-lvs-1-2-supply = <0xac>;
+				vdd-s1-supply = <0xa8>;
+				vdd-s2-supply = <0xa8>;
+				vdd-s3-supply = <0xa8>;
+				vdd-s4-supply = <0xa8>;
+				vdd-s5-supply = <0xa8>;
+				vdd-s6-supply = <0xa8>;
+				vdd-s7-supply = <0xa8>;
+				vdd-s8-supply = <0xa8>;
+				vdd-s9-supply = <0xa8>;
+				vdd-s10-supply = <0xa8>;
+				vdd-s11-supply = <0xa8>;
+				vdd-s12-supply = <0xa8>;
+				vdd-s13-supply = <0xa8>;
+				vdd-l1-l27-supply = <0xa9>;
+				vdd-l2-l8-l17-supply = <0xaa>;
+				vdd-l3-l11-supply = <0xa9>;
+				vdd-l4-l5-supply = <0xa9>;
+				vdd-l6-supply = <0xa8>;
+				vdd-l7-l12-l14-l15-supply = <0xab>;
+				vdd-l9-supply = <0xac>;
+				vdd-l10-l23-l25-supply = <0xac>;
+				vdd-l13-l19-l21-supply = <0xac>;
+				vdd-l16-l28-supply = <0xac>;
+				vdd-l18-l22-supply = <0xac>;
+				vdd-l20-l24-supply = <0xac>;
+				vdd-l26-supply = <0xaa>;
+				vin-lvs-1-2-supply = <0xad>;
 
 				smps2 {
 					regulator-min-microvolt = <0x10c8e0>;
@@ -3356,19 +3362,19 @@
 				smps3 {
 					regulator-min-microvolt = <0x14a140>;
 					regulator-max-microvolt = <0x14a140>;
-					phandle = <0xa9>;
+					phandle = <0xaa>;
 				};
 
 				smps5 {
 					regulator-min-microvolt = <0x1d0d80>;
 					regulator-max-microvolt = <0x1f20c0>;
-					phandle = <0xaa>;
+					phandle = <0xab>;
 				};
 
 				smps7 {
 					regulator-min-microvolt = <0xdbba0>;
 					regulator-max-microvolt = <0xfafa0>;
-					phandle = <0xa8>;
+					phandle = <0xa9>;
 				};
 
 				ldo1 {
@@ -3397,7 +3403,7 @@
 					regulator-min-microvolt = <0xc3500>;
 					regulator-max-microvolt = <0xc3500>;
 					regulator-initial-mode = <0x03>;
-					phandle = <0xae>;
+					phandle = <0xaf>;
 				};
 
 				ldo6 {
@@ -3411,7 +3417,7 @@
 					regulator-min-microvolt = <0x1b7740>;
 					regulator-max-microvolt = <0x1b7740>;
 					regulator-initial-mode = <0x03>;
-					phandle = <0xaf>;
+					phandle = <0xb0>;
 				};
 
 				ldo8 {
@@ -3481,7 +3487,7 @@
 					regulator-min-microvolt = <0x13e5c0>;
 					regulator-max-microvolt = <0x13e5c0>;
 					regulator-initial-mode = <0x03>;
-					phandle = <0xb0>;
+					phandle = <0xb1>;
 				};
 
 				ldo18 {
@@ -3537,7 +3543,7 @@
 					regulator-min-microvolt = <0x325aa0>;
 					regulator-max-microvolt = <0x328980>;
 					regulator-initial-mode = <0x03>;
-					phandle = <0xb1>;
+					phandle = <0xb2>;
 				};
 
 				ldo26 {
@@ -3570,24 +3576,24 @@
 			pmi8998-rpmh-regulators {
 				compatible = "qcom,pmi8998-rpmh-regulators";
 				qcom,pmic-id = [62 00];
-				vdd-bob-supply = <0xa7>;
+				vdd-bob-supply = <0xa8>;
 
 				bob {
 					regulator-min-microvolt = <0x328980>;
 					regulator-max-microvolt = <0x36ee80>;
 					regulator-initial-mode = <0x02>;
 					regulator-allow-bypass;
-					phandle = <0xab>;
+					phandle = <0xac>;
 				};
 			};
 
 			pm8005-rpmh-regulators {
 				compatible = "qcom,pm8005-rpmh-regulators";
 				qcom,pmic-id = [63 00];
-				vdd-s1-supply = <0xa7>;
-				vdd-s2-supply = <0xa7>;
-				vdd-s3-supply = <0xa7>;
-				vdd-s4-supply = <0xa7>;
+				vdd-s1-supply = <0xa8>;
+				vdd-s2-supply = <0xa8>;
+				vdd-s3-supply = <0xa8>;
+				vdd-s4-supply = <0xa8>;
 
 				smps3 {
 					regulator-min-microvolt = <0x927c0>;
@@ -3688,15 +3694,15 @@
 			status = "okay";
 			reg = <0x00 0x18800000 0x00 0x800000>;
 			reg-names = "membase";
-			memory-region = <0xad>;
+			memory-region = <0xae>;
 			clock-names = "cxo_ref_clk_pin";
 			clocks = <0x1a 0x08>;
 			interrupts = <0x00 0x19e 0x04 0x00 0x19f 0x04 0x00 0x1a0 0x04 0x00 0x1a1 0x04 0x00 0x1a2 0x04 0x00 0x1a3 0x04 0x00 0x1a4 0x04 0x00 0x1a5 0x04 0x00 0x1a6 0x04 0x00 0x1a7 0x04 0x00 0x1a8 0x04 0x00 0x1a9 0x04>;
 			iommus = <0x1e 0x40 0x01>;
-			vdd-0.8-cx-mx-supply = <0xae>;
-			vdd-1.8-xo-supply = <0xaf>;
-			vdd-1.3-rfa-supply = <0xb0>;
-			vdd-3.3-ch0-supply = <0xb1>;
+			vdd-0.8-cx-mx-supply = <0xaf>;
+			vdd-1.8-xo-supply = <0xb0>;
+			vdd-1.3-rfa-supply = <0xb1>;
+			vdd-3.3-ch0-supply = <0xb2>;
 			phandle = <0x144>;
 		};
 	};
@@ -3706,7 +3712,7 @@
 		cpu0-thermal {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
-			thermal-sensors = <0xb2 0x01>;
+			thermal-sensors = <0xb3 0x01>;
 
 			trips {
 
@@ -3714,14 +3720,14 @@
 					temperature = <0x15f90>;
 					hysteresis = <0x7d0>;
 					type = "passive";
-					phandle = <0xb3>;
+					phandle = <0xb4>;
 				};
 
 				trip-point1 {
 					temperature = <0x17318>;
 					hysteresis = <0x7d0>;
 					type = "passive";
-					phandle = <0xb4>;
+					phandle = <0xb5>;
 				};
 
 				cpu_crit {
@@ -3735,12 +3741,12 @@
 			cooling-maps {
 
 				map0 {
-					trip = <0xb3>;
+					trip = <0xb4>;
 					cooling-device = <0x11 0xffffffff 0xffffffff 0x12 0xffffffff 0xffffffff 0x13 0xffffffff 0xffffffff 0x14 0xffffffff 0xffffffff>;
 				};
 
 				map1 {
-					trip = <0xb4>;
+					trip = <0xb5>;
 					cooling-device = <0x11 0xffffffff 0xffffffff 0x12 0xffffffff 0xffffffff 0x13 0xffffffff 0xffffffff 0x14 0xffffffff 0xffffffff>;
 				};
 			};
@@ -3749,7 +3755,7 @@
 		cpu1-thermal {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
-			thermal-sensors = <0xb2 0x02>;
+			thermal-sensors = <0xb3 0x02>;
 
 			trips {
 
@@ -3757,14 +3763,14 @@
 					temperature = <0x15f90>;
 					hysteresis = <0x7d0>;
 					type = "passive";
-					phandle = <0xb5>;
+					phandle = <0xb6>;
 				};
 
 				trip-point1 {
 					temperature = <0x17318>;
 					hysteresis = <0x7d0>;
 					type = "passive";
-					phandle = <0xb6>;
+					phandle = <0xb7>;
 				};
 
 				cpu_crit {
@@ -3778,12 +3784,12 @@
 			cooling-maps {
 
 				map0 {
-					trip = <0xb5>;
+					trip = <0xb6>;
 					cooling-device = <0x11 0xffffffff 0xffffffff 0x12 0xffffffff 0xffffffff 0x13 0xffffffff 0xffffffff 0x14 0xffffffff 0xffffffff>;
 				};
 
 				map1 {
-					trip = <0xb6>;
+					trip = <0xb7>;
 					cooling-device = <0x11 0xffffffff 0xffffffff 0x12 0xffffffff 0xffffffff 0x13 0xffffffff 0xffffffff 0x14 0xffffffff 0xffffffff>;
 				};
 			};
@@ -3792,7 +3798,7 @@
 		cpu2-thermal {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
-			thermal-sensors = <0xb2 0x03>;
+			thermal-sensors = <0xb3 0x03>;
 
 			trips {
 
@@ -3800,14 +3806,14 @@
 					temperature = <0x15f90>;
 					hysteresis = <0x7d0>;
 					type = "passive";
-					phandle = <0xb7>;
+					phandle = <0xb8>;
 				};
 
 				trip-point1 {
 					temperature = <0x17318>;
 					hysteresis = <0x7d0>;
 					type = "passive";
-					phandle = <0xb8>;
+					phandle = <0xb9>;
 				};
 
 				cpu_crit {
@@ -3821,12 +3827,12 @@
 			cooling-maps {
 
 				map0 {
-					trip = <0xb7>;
+					trip = <0xb8>;
 					cooling-device = <0x11 0xffffffff 0xffffffff 0x12 0xffffffff 0xffffffff 0x13 0xffffffff 0xffffffff 0x14 0xffffffff 0xffffffff>;
 				};
 
 				map1 {
-					trip = <0xb8>;
+					trip = <0xb9>;
 					cooling-device = <0x11 0xffffffff 0xffffffff 0x12 0xffffffff 0xffffffff 0x13 0xffffffff 0xffffffff 0x14 0xffffffff 0xffffffff>;
 				};
 			};
@@ -3835,7 +3841,7 @@
 		cpu3-thermal {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
-			thermal-sensors = <0xb2 0x04>;
+			thermal-sensors = <0xb3 0x04>;
 
 			trips {
 
@@ -3843,14 +3849,14 @@
 					temperature = <0x15f90>;
 					hysteresis = <0x7d0>;
 					type = "passive";
-					phandle = <0xb9>;
+					phandle = <0xba>;
 				};
 
 				trip-point1 {
 					temperature = <0x17318>;
 					hysteresis = <0x7d0>;
 					type = "passive";
-					phandle = <0xba>;
+					phandle = <0xbb>;
 				};
 
 				cpu_crit {
@@ -3864,12 +3870,12 @@
 			cooling-maps {
 
 				map0 {
-					trip = <0xb9>;
+					trip = <0xba>;
 					cooling-device = <0x11 0xffffffff 0xffffffff 0x12 0xffffffff 0xffffffff 0x13 0xffffffff 0xffffffff 0x14 0xffffffff 0xffffffff>;
 				};
 
 				map1 {
-					trip = <0xba>;
+					trip = <0xbb>;
 					cooling-device = <0x11 0xffffffff 0xffffffff 0x12 0xffffffff 0xffffffff 0x13 0xffffffff 0xffffffff 0x14 0xffffffff 0xffffffff>;
 				};
 			};
@@ -3878,7 +3884,7 @@
 		cpu4-thermal {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
-			thermal-sensors = <0xb2 0x07>;
+			thermal-sensors = <0xb3 0x07>;
 
 			trips {
 
@@ -3886,14 +3892,14 @@
 					temperature = <0x15f90>;
 					hysteresis = <0x7d0>;
 					type = "passive";
-					phandle = <0xbb>;
+					phandle = <0xbc>;
 				};
 
 				trip-point1 {
 					temperature = <0x17318>;
 					hysteresis = <0x7d0>;
 					type = "passive";
-					phandle = <0xbc>;
+					phandle = <0xbd>;
 				};
 
 				cpu_crit {
@@ -3907,12 +3913,12 @@
 			cooling-maps {
 
 				map0 {
-					trip = <0xbb>;
+					trip = <0xbc>;
 					cooling-device = <0x15 0xffffffff 0xffffffff 0x16 0xffffffff 0xffffffff 0x17 0xffffffff 0xffffffff 0x18 0xffffffff 0xffffffff>;
 				};
 
 				map1 {
-					trip = <0xbc>;
+					trip = <0xbd>;
 					cooling-device = <0x15 0xffffffff 0xffffffff 0x16 0xffffffff 0xffffffff 0x17 0xffffffff 0xffffffff 0x18 0xffffffff 0xffffffff>;
 				};
 			};
@@ -3921,7 +3927,7 @@
 		cpu5-thermal {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
-			thermal-sensors = <0xb2 0x08>;
+			thermal-sensors = <0xb3 0x08>;
 
 			trips {
 
@@ -3929,14 +3935,14 @@
 					temperature = <0x15f90>;
 					hysteresis = <0x7d0>;
 					type = "passive";
-					phandle = <0xbd>;
+					phandle = <0xbe>;
 				};
 
 				trip-point1 {
 					temperature = <0x17318>;
 					hysteresis = <0x7d0>;
 					type = "passive";
-					phandle = <0xbe>;
+					phandle = <0xbf>;
 				};
 
 				cpu_crit {
@@ -3950,12 +3956,12 @@
 			cooling-maps {
 
 				map0 {
-					trip = <0xbd>;
+					trip = <0xbe>;
 					cooling-device = <0x15 0xffffffff 0xffffffff 0x16 0xffffffff 0xffffffff 0x17 0xffffffff 0xffffffff 0x18 0xffffffff 0xffffffff>;
 				};
 
 				map1 {
-					trip = <0xbe>;
+					trip = <0xbf>;
 					cooling-device = <0x15 0xffffffff 0xffffffff 0x16 0xffffffff 0xffffffff 0x17 0xffffffff 0xffffffff 0x18 0xffffffff 0xffffffff>;
 				};
 			};
@@ -3964,7 +3970,7 @@
 		cpu6-thermal {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
-			thermal-sensors = <0xb2 0x09>;
+			thermal-sensors = <0xb3 0x09>;
 
 			trips {
 
@@ -3972,14 +3978,14 @@
 					temperature = <0x15f90>;
 					hysteresis = <0x7d0>;
 					type = "passive";
-					phandle = <0xbf>;
+					phandle = <0xc0>;
 				};
 
 				trip-point1 {
 					temperature = <0x17318>;
 					hysteresis = <0x7d0>;
 					type = "passive";
-					phandle = <0xc0>;
+					phandle = <0xc1>;
 				};
 
 				cpu_crit {
@@ -3993,12 +3999,12 @@
 			cooling-maps {
 
 				map0 {
-					trip = <0xbf>;
+					trip = <0xc0>;
 					cooling-device = <0x15 0xffffffff 0xffffffff 0x16 0xffffffff 0xffffffff 0x17 0xffffffff 0xffffffff 0x18 0xffffffff 0xffffffff>;
 				};
 
 				map1 {
-					trip = <0xc0>;
+					trip = <0xc1>;
 					cooling-device = <0x15 0xffffffff 0xffffffff 0x16 0xffffffff 0xffffffff 0x17 0xffffffff 0xffffffff 0x18 0xffffffff 0xffffffff>;
 				};
 			};
@@ -4007,7 +4013,7 @@
 		cpu7-thermal {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
-			thermal-sensors = <0xb2 0x0a>;
+			thermal-sensors = <0xb3 0x0a>;
 
 			trips {
 
@@ -4015,14 +4021,14 @@
 					temperature = <0x15f90>;
 					hysteresis = <0x7d0>;
 					type = "passive";
-					phandle = <0xc1>;
+					phandle = <0xc2>;
 				};
 
 				trip-point1 {
 					temperature = <0x17318>;
 					hysteresis = <0x7d0>;
 					type = "passive";
-					phandle = <0xc2>;
+					phandle = <0xc3>;
 				};
 
 				cpu_crit {
@@ -4036,12 +4042,12 @@
 			cooling-maps {
 
 				map0 {
-					trip = <0xc1>;
+					trip = <0xc2>;
 					cooling-device = <0x15 0xffffffff 0xffffffff 0x16 0xffffffff 0xffffffff 0x17 0xffffffff 0xffffffff 0x18 0xffffffff 0xffffffff>;
 				};
 
 				map1 {
-					trip = <0xc2>;
+					trip = <0xc3>;
 					cooling-device = <0x15 0xffffffff 0xffffffff 0x16 0xffffffff 0xffffffff 0x17 0xffffffff 0xffffffff 0x18 0xffffffff 0xffffffff>;
 				};
 			};
@@ -4050,7 +4056,7 @@
 		aoss0-thermal {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
-			thermal-sensors = <0xb2 0x00>;
+			thermal-sensors = <0xb3 0x00>;
 
 			trips {
 
@@ -4066,7 +4072,7 @@
 		cluster0-thermal {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
-			thermal-sensors = <0xb2 0x05>;
+			thermal-sensors = <0xb3 0x05>;
 
 			trips {
 
@@ -4089,7 +4095,7 @@
 		cluster1-thermal {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
-			thermal-sensors = <0xb2 0x06>;
+			thermal-sensors = <0xb3 0x06>;
 
 			trips {
 
@@ -4112,7 +4118,7 @@
 		gpu-thermal-top {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
-			thermal-sensors = <0xb2 0x0b>;
+			thermal-sensors = <0xb3 0x0b>;
 
 			trips {
 
@@ -4128,7 +4134,7 @@
 		gpu-thermal-bottom {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
-			thermal-sensors = <0xb2 0x0c>;
+			thermal-sensors = <0xb3 0x0c>;
 
 			trips {
 
@@ -4144,7 +4150,7 @@
 		aoss1-thermal {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
-			thermal-sensors = <0xc3 0x00>;
+			thermal-sensors = <0xc4 0x00>;
 
 			trips {
 
@@ -4160,7 +4166,7 @@
 		q6-modem-thermal {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
-			thermal-sensors = <0xc3 0x01>;
+			thermal-sensors = <0xc4 0x01>;
 
 			trips {
 
@@ -4176,7 +4182,7 @@
 		mem-thermal {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
-			thermal-sensors = <0xc3 0x02>;
+			thermal-sensors = <0xc4 0x02>;
 
 			trips {
 
@@ -4192,7 +4198,7 @@
 		wlan-thermal {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
-			thermal-sensors = <0xc3 0x03>;
+			thermal-sensors = <0xc4 0x03>;
 
 			trips {
 
@@ -4208,7 +4214,7 @@
 		q6-hvx-thermal {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
-			thermal-sensors = <0xc3 0x04>;
+			thermal-sensors = <0xc4 0x04>;
 
 			trips {
 
@@ -4224,7 +4230,7 @@
 		camera-thermal {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
-			thermal-sensors = <0xc3 0x05>;
+			thermal-sensors = <0xc4 0x05>;
 
 			trips {
 
@@ -4240,7 +4246,7 @@
 		video-thermal {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
-			thermal-sensors = <0xc3 0x06>;
+			thermal-sensors = <0xc4 0x06>;
 
 			trips {
 
@@ -4256,7 +4262,7 @@
 		modem-thermal {
 			polling-delay-passive = <0xfa>;
 			polling-delay = <0x3e8>;
-			thermal-sensors = <0xc3 0x07>;
+			thermal-sensors = <0xc4 0x07>;
 
 			trips {
 
@@ -4275,7 +4281,7 @@
 		regulator-name = "vph_pwr";
 		regulator-min-microvolt = <0x387520>;
 		regulator-max-microvolt = <0x387520>;
-		phandle = <0xa7>;
+		phandle = <0xa8>;
 	};
 
 	pm8998-smps4 {
@@ -4285,8 +4291,8 @@
 		regulator-max-microvolt = <0x1b7740>;
 		regulator-always-on;
 		regulator-boot-on;
-		vin-supply = <0xa7>;
-		phandle = <0xac>;
+		vin-supply = <0xa8>;
+		phandle = <0xad>;
 	};
 
 	__symbols__ {

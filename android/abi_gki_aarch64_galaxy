@@ -3,6 +3,7 @@
   __alloc_disk_node
   __alloc_pages_nodemask
   __alloc_percpu
+  __alloc_percpu_gfp
   __alloc_skb
   __arch_clear_user
   __arch_copy_from_user
@@ -133,6 +134,7 @@
   __request_module
   __request_percpu_irq
   __request_region
+  __sbitmap_queue_get
   __scsi_device_lookup_by_target
   __scsi_execute
   __scsi_print_sense
@@ -161,9 +163,11 @@
   __tracepoint_android_vh_is_fpsimd_save
   __tracepoint_android_vh_kfree_skb
   __tracepoint_android_vh_ptype_head
+  __tracepoint_android_vh_wq_lockup_pool
   __tracepoint_device_pm_callback_end
   __tracepoint_device_pm_callback_start
   __tracepoint_gpu_mem_total
+  __tracepoint_kfree_skb
   __tracepoint_pelt_cfs_tp
   __tracepoint_suspend_resume
   __tty_alloc_driver
@@ -266,7 +270,13 @@
   blk_execute_rq_nowait
   blk_get_request
   blk_lookup_devt
+  blk_mq_bio_list_merge
   blk_mq_rq_cpu
+  blk_mq_run_hw_queue
+  blk_mq_sched_mark_restart_hctx
+  blk_mq_sched_request_inserted
+  blk_mq_sched_try_insert_merge
+  blk_mq_sched_try_merge
   blk_put_request
   blk_queue_bounce_limit
   blk_queue_max_hw_sectors
@@ -274,6 +284,7 @@
   blk_rq_map_user
   blk_rq_map_user_iov
   blk_rq_unmap_user
+  blk_stat_enable_accounting
   blk_verify_command
   blkdev_get_by_dev
   blkdev_get_by_path
@@ -954,6 +965,17 @@
   dw_pcie_read
   dw_pcie_setup_rc
   dw_pcie_write
+  elevator_alloc
+  elv_bio_merge_ok
+  elv_rb_add
+  elv_rb_del
+  elv_rb_find
+  elv_rb_former_request
+  elv_rb_latter_request
+  elv_register
+  elv_rqhash_add
+  elv_rqhash_del
+  elv_unregister
   emergency_restart
   enable_irq
   enable_percpu_irq
@@ -1082,9 +1104,11 @@
   gpiochip_generic_free
   gpiochip_generic_request
   gpiochip_get_data
+  gpiochip_irqchip_add_key
   gpiochip_line_is_valid
   gpiochip_lock_as_irq
   gpiochip_remove
+  gpiochip_set_nested_irqchip
   gpiochip_unlock_as_irq
   gpiod_direction_input
   gpiod_direction_output
@@ -1232,6 +1256,7 @@
   int_sqrt
   int_to_scsilun
   invalidate_mapping_pages
+  ioc_lookup_icq
   iomem_resource
   iommu_alloc_resv_region
   iommu_attach_device
@@ -1405,6 +1430,7 @@
   kstrtoull
   kstrtoull_from_user
   kthread_bind
+  kthread_blkcg
   kthread_cancel_delayed_work_sync
   kthread_cancel_work_sync
   kthread_create_on_node
@@ -1609,6 +1635,7 @@
   of_find_node_opts_by_path
   of_find_node_with_property
   of_find_property
+  of_find_spi_device_by_node
   of_fwnode_ops
   of_genpd_add_provider_onecell
   of_genpd_add_provider_simple
@@ -1949,6 +1976,7 @@
   regulator_unlock
   regulator_unregister_notifier
   regulatory_hint
+  regulatory_set_wiphy_regd_sync_rtnl
   release_firmware
   release_sock
   regmap_mmio_detach_clk
@@ -2007,8 +2035,17 @@
   rtnl_unlock
   rt_mutex_lock
   rt_mutex_unlock
+  runqueues
   save_stack_trace
   save_stack_trace_tsk
+  sbitmap_add_wait_queue
+  sbitmap_any_bit_set
+  sbitmap_del_wait_queue
+  sbitmap_init_node
+  sbitmap_queue_clear
+  sbitmap_queue_init_node
+  sbitmap_queue_min_shallow_depth
+  sbitmap_queue_resize
   sched_clock
   sched_setscheduler
   sched_setscheduler_nocheck
@@ -2136,6 +2173,7 @@
   smpboot_unregister_percpu_thread
   snd_card_free
   snd_card_new
+  snd_card_ref
   snd_card_register
   snd_compr_stop_error
   snd_ctl_add
@@ -2180,7 +2218,9 @@
   snd_soc_card_get_kcontrol
   snd_soc_component_async_complete
   snd_soc_component_disable_pin
+  snd_soc_component_enable_pin
   snd_soc_component_force_enable_pin
+  snd_soc_component_get_pin_status
   snd_soc_component_init_regmap
   snd_soc_component_read
   snd_soc_component_read32
@@ -2384,6 +2424,7 @@
   thermal_zone_of_sensor_register
   thermal_zone_of_sensor_unregister
   time64_to_tm
+  timer_reduce
   timespec64_to_jiffies
   touch_softlockup_watchdog
   trace_define_field
@@ -2400,6 +2441,7 @@
   trace_raw_output_prep
   trace_seq_printf
   tracepoint_probe_register
+  tracepoint_probe_unregister
   tracing_off
   truncate_inode_pages
   try_module_get

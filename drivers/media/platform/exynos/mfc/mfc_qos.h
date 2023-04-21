@@ -21,8 +21,12 @@
 #define ENC_DEFAULT_FPS			(240000)
 #define ENC_DEFAULT_CAM_CAPTURE_FPS	(60000)
 
-void mfc_qos_update_framerate(struct mfc_ctx *ctx, u32 bytesused);
+void mfc_qos_reset_ts_list(struct mfc_ts_control *ts);
+void mfc_qos_update_bitrate(struct mfc_ctx *ctx, u32 bytesused);
+void mfc_qos_update_framerate(struct mfc_ctx *ctx);
 void mfc_qos_update_last_framerate(struct mfc_ctx *ctx, u64 timestamp);
+void mfc_qos_update_bufq_framerate(struct mfc_ctx *ctx, int type);
+void mfc_qos_reset_bufq_framerate(struct mfc_ctx *ctx);
 
 static inline int __mfc_timeval_compare(const struct timeval *lhs, const struct timeval *rhs)
 {
@@ -55,5 +59,4 @@ static inline int mfc_qos_get_framerate(struct mfc_ctx *ctx)
 {
 	return ctx->framerate;
 }
-
 #endif /* __MFC_QOS_H */

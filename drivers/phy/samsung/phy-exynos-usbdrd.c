@@ -515,9 +515,6 @@ static int exynos_usbdrd_phyclk_get(struct exynos_usbdrd_phy *phy_drd)
 		return -EINVAL;
 	}
 
-	devm_kfree(dev, phyclk_ids);
-	devm_kfree(dev, clk_ids);
-
 	return 0;
 
 }

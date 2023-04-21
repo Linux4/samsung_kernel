@@ -62,6 +62,13 @@
 /* Interrupt timeout count*/
 #define MFC_INT_TIMEOUT_CNT	2
 
+/* The MAX I frame interval for boosting is 2sec */
+#define MFC_BOOST_TIME			(2)
+/* The boost mode is not applied during first 60frames */
+#define MFC_BOOST_SKIP_FRAME		(60)
+/* The boost mode is maintained at least 20msec */
+#define MFC_BOOST_OFF_TIME		((MFC_BOOST_TIME * NSEC_PER_SEC) - (20000 * NSEC_PER_USEC))
+
 /*
  * This value guarantees 299.4msec ~ 2.25sec according to MFC clock (668MHz ~ 89MHz)
  * releated with MFC_REG_TIMEOUT_VALUE
@@ -184,6 +191,8 @@
 #define IS_NO_ERROR(err)	((err) == 0 ||		\
 				(mfc_get_warn(err)	\
 				 == MFC_REG_ERR_SYNC_POINT_NOT_RECEIVED))
+#define CODEC_HAS_IDR(ctx)	(IS_H264_DEC(ctx) || IS_H264_MVC_DEC(ctx) || IS_HEVC_DEC(ctx) ||  \
+				IS_H264_ENC(ctx) || IS_HEVC_ENC(ctx))
 
 #define IS_BUFFER_BATCH_MODE(ctx)	((ctx)->batch_mode == 1)
 #define IS_NO_HEADER_GENERATE(ctx, p)			\
@@ -220,7 +229,11 @@
 
 /* FHD resolution */
 #define MFC_FHD_RES		(1920 * 1088)
+#define MFC_FHD_RES_MB		(((1920 + 15) / 16) * ((1088 + 15) / 16))
 #define UNDER_FHD_RES(ctx)	(((ctx)->crop_width * (ctx)->crop_height) <= MFC_FHD_RES)
+
+/* HD resolution */
+#define MFC_HD_RES_MB		(((1280 + 15) / 16) * ((720 + 15) / 16))
 
 #define IS_BLACKBAR_OFF(ctx)	((ctx)->crop_height > 2160)
 #define IS_SUPER64_BFRAME(ctx, size, type)	((ctx->is_10bit) && (size >= 2) && (type == 3))
@@ -259,6 +272,7 @@
 #define DEC_SET_FRAME_ERR_TYPE		(1 << 7)
 #define DEC_SET_OPERATING_FPS		(1 << 8)
 #define DEC_SET_BUF_FLAG_CTRL		(1 << 16)
+#define DEC_SET_PRIORITY		(1 << 23)
 
 /* Extra information for Encoder */
 #define	ENC_SET_RGB_INPUT		(1 << 0)
@@ -283,6 +297,7 @@
 #define ENC_SET_AVERAGE_QP		(1 << 19)
 #define ENC_SET_MV_SEARCH_MODE		(1 << 20)
 #define ENC_SET_GOP_CTRL		(1 << 21)
+#define ENC_SET_PRIORITY		(1 << 23)
 
 #define MFC_FEATURE_SUPPORT(dev, f)	((f).support && ((dev)->fw_date >= (f).version))
 

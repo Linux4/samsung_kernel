@@ -183,7 +183,7 @@ static inline void UPDATE_FREQ_PM_QOS(struct freq_qos_request *req, int class_id
 				type = FREQ_QOS_MAX;
 				break;
 			default:
-				pr_err("%s class id is invalid.\n", __func__, class_id);
+				pr_err("%s class id %d is invalid.\n", __func__, class_id);
 				return;
 			}
 

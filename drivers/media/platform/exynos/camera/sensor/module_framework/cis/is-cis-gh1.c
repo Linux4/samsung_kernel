@@ -216,6 +216,7 @@ int sensor_gh1_cis_init(struct v4l2_subdev *subdev)
 	cis->mipi_clock_index_cur = CAM_MIPI_NOT_INITIALIZED;
 	cis->mipi_clock_index_new = CAM_MIPI_NOT_INITIALIZED;
 	cis->cis_data->sens_config_index_pre = SENSOR_GH1_MODE_MAX;
+	cis->cis_data->cur_pattern_mode = SENSOR_TEST_PATTERN_MODE_OFF;
 
 	sensor_gh1_cis_data_calculation(sensor_gh1_pllinfos[setfile_index], cis->cis_data);
 
@@ -2157,6 +2158,7 @@ static struct is_cis_ops cis_ops = {
 	.cis_wait_streamon = sensor_cis_wait_streamon,
 	.cis_check_rev_on_init = sensor_cis_check_rev_on_init,
 	.cis_set_initial_exposure = sensor_cis_set_initial_exposure,
+	.cis_set_test_pattern = sensor_cis_set_test_pattern,
 };
 
 static int cis_gh1_probe(struct i2c_client *client,

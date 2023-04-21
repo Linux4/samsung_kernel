@@ -91,7 +91,7 @@ struct cmd_fw_test {
 
 struct cmd_done {
 	u32				fid;
-	u32				duration;
+	u32				request_specific_value;
 };
 
 struct cmd_ndone {
@@ -112,6 +112,11 @@ struct cmd_mode {
 	u32				llc_size;	/* llc size in bytes */
 };
 
+struct cmd_core_ctl {
+	u32				active_cores; /* number of cores to be active */
+	u32				reserved; /* for future use */
+};
+
 enum message_cmd {
 	COMMAND_LOAD,
 	COMMAND_UNLOAD,
@@ -122,6 +127,7 @@ enum message_cmd {
 	COMMAND_FW_TEST,
 	COMMAND_POLICY,
 	COMMAND_MODE,
+	COMMAND_CORE_CTL,
 	COMMAND_H2F_MAX_ID,
 	COMMAND_DONE = 100,
 	COMMAND_NDONE,
@@ -159,6 +165,7 @@ struct command {
 		struct cmd_done		done;
 		struct cmd_ndone	ndone;
 		struct cmd_group_done	gdone;
+		struct cmd_core_ctl core_ctl;
 	} c; /* specific command properties */
 
 	u32				length; /* the size of payload */

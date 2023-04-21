@@ -163,7 +163,7 @@ int mfc_mem_ion_alloc(struct mfc_dev *dev,
 	}
 
 	special_buf->vaddr = dma_buf_vmap(special_buf->dma_buf);
-	if (IS_ERR(special_buf->vaddr)) {
+	if (IS_ERR_OR_NULL(special_buf->vaddr)) {
 		mfc_dev_err("Failed to get vaddr (err 0x%p)\n",
 				&special_buf->vaddr);
 		goto err_vaddr;
@@ -305,7 +305,7 @@ void mfc_put_iovmm(struct mfc_ctx *ctx, struct dpb_table *dpb, int num_planes, i
 			index, dpb[index].fd[0], dpb[index].addr[0], dpb[index].mapcnt);
 
 	for (i = 0; i < num_planes; i++) {
-		if (dev->skip_lazy_unmap || ctx->skip_lazy_unmap) {
+		if (dpb[index].attach[i] && (dev->skip_lazy_unmap || ctx->skip_lazy_unmap)) {
 			dpb[index].attach[i]->dma_map_attrs |= DMA_ATTR_SKIP_LAZY_UNMAP;
 			mfc_debug(4, "[LAZY_UNMAP] skip for dst plane[%d]\n", i);
 		}
@@ -335,6 +335,7 @@ void mfc_put_iovmm(struct mfc_ctx *ctx, struct dpb_table *dpb, int num_planes, i
 		mfc_ctx_err("[IOVMM] DPB[%d] %#llx invalid mapcnt %d\n",
 				index, dpb[index].addr[0], dpb[index].mapcnt);
 		call_dop(dev, dump_and_stop_debug_mode, dev);
+		dpb[index].mapcnt = 0;
 	}
 }
 

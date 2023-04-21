@@ -243,11 +243,7 @@ static int is_led_cal_file_read(const char *file_name, const void *data, unsigne
 	int ret = 0;
 #ifdef USE_KERNEL_VFS_READ_WRITE
 	long fsize, nread;
-	mm_segment_t old_fs;
 	struct file *fp;
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
 
 	fp = filp_open(file_name, O_RDONLY, 0);
 	if (IS_ERR_OR_NULL(fp)) {
@@ -258,16 +254,14 @@ static int is_led_cal_file_read(const char *file_name, const void *data, unsigne
 
 	fsize = fp->f_path.dentry->d_inode->i_size;
 
-	nread = vfs_read(fp, (char __user *)data, size, &fp->f_pos);
+	nread = kernel_read(fp, data, size, &fp->f_pos);
 	info("%s(): read to file(%s) size(%ld)\n", __func__, file_name, nread);
 p_err:
 	if (!IS_ERR_OR_NULL(fp))
 		filp_close(fp, NULL);
 
-	set_fs(old_fs);
-
 #else
-	err("not support %s due to vfs_read!", __func__);
+	err("not support %s due to kernel_read!", __func__);
 	ret = -EINVAL;
 #endif
 	return ret;

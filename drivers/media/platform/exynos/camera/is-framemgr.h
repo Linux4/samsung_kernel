@@ -109,14 +109,16 @@ enum is_frame_mem_state {
 
 struct is_frame;
 
-typedef void (*votf_s_addr)(void *, unsigned long, struct is_frame *);
-typedef void (*votf_s_oneshot)(void *, unsigned long);
+struct votf_ops {
+	void (*s_addr)(void *data, unsigned long id, struct is_frame *frame); /* DMA address setting */
+	void (*s_oneshot)(void *data, unsigned long id); /* oneshot enable */
+	void (*wait_idle)(void *data, unsigned long id);
+};
 
 struct votf_action {
 	unsigned long		id;	/* enum is_subdev_id */
 	void			*data;	/* struct including HW SFR base address */
-	votf_s_addr		s_addr;	/* function for DMA address setting */
-	votf_s_oneshot		s_oneshot;	/* function for oneshot enable */
+	const struct votf_ops	*ops;
 };
 
 struct is_framemgr {

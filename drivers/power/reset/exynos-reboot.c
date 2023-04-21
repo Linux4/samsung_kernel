@@ -104,12 +104,6 @@ static void exynos_power_off(void)
 			pr_err("pmic_off_main_wa error\n");
 	}
 
-	/* PMIC EVT1: Fix off-sequence */
-	if (exynos_reboot_ops.pmic_off_seq_wa) {
-		if (exynos_reboot_ops.pmic_off_seq_wa() < 0)
-			pr_err("pmic_off_seq_wa error\n");
-	}
-
 	exynos_reboot_print_socinfo();
 
 	pr_info("Exynos reboot, PWR Key(%d)\n", exynos_reboot_pwrkey_status());
@@ -118,6 +112,13 @@ static void exynos_power_off(void)
 		 * but after exynos_acpm_reboot is called
 		 * power on status cannot be read */
 		if ((poweroff_try) || (!exynos_reboot_pwrkey_status())) {
+
+			/* PMIC EVT1: Fix off-sequence */
+			if (exynos_reboot_ops.pmic_off_seq_wa) {
+				if (exynos_reboot_ops.pmic_off_seq_wa() < 0)
+					pr_err("pmic_off_seq_wa error\n");
+			}
+
 			if (exynos_reboot_ops.acpm_reboot)
 				exynos_reboot_ops.acpm_reboot();
 			else

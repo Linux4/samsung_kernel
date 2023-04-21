@@ -655,7 +655,7 @@ static int sensor_ak737x_actuator_set_active(struct v4l2_subdev *subdev, int ena
 	WARN_ON(!actuator);
 
 	if (!actuator->vendor_use_sleep_mode) {
-		warn("There is no 'use_af_sleep_mode' in DT");
+		info("[%s] There is no 'use_af_sleep_mode' in DT", __func__);
 		return 0;
 	}
 
@@ -822,7 +822,7 @@ int sensor_ak737x_actuator_probe(struct i2c_client *client,
 	ret = of_property_read_u32(dnode, "vendor_soft_landing_seqid", &actuator->vendor_soft_landing_seqid);
 	if (ret) {
 		actuator->vendor_soft_landing_seqid = 0;
-		warn("vendor_first_pos read is empty(%d)", ret);
+		probe_info("[%s] vendor_first_pos read is empty(%d)", __func__, ret);
 	}
 
 	vendor_soft_landing_list_spec = of_get_property(dnode, "vendor_soft_landing_list", &actuator->vendor_soft_landing_list_len);
@@ -832,7 +832,7 @@ int sensor_ak737x_actuator_probe(struct i2c_client *client,
 		ret = of_property_read_u32_array(dnode, "vendor_soft_landing_list",
 											actuator->vendor_soft_landing_list, actuator->vendor_soft_landing_list_len);
 		if (ret)
-			warn("vendor_soft_landing_list is empty(%d)", ret);
+			probe_info("[%s] vendor_soft_landing_list is empty(%d)", __func__, ret);
 	} else {
 		actuator->vendor_soft_landing_list_len = 0;
 	}

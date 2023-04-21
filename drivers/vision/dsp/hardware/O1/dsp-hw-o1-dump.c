@@ -85,29 +85,6 @@ static void dsp_hw_o1_dump_ctrl(struct dsp_dump *dump)
 
 	dsp_enter();
 	dsp_dump_print_value();
-#ifdef ENABLE_DSP_O1_REG_SYSCTRL_S
-	if (dump_value & BIT(DSP_O1_DUMP_VALUE_SYSCTRL_S)) {
-		start = DSP_O1_SYSC_S_VERSION;
-		end = DSP_O1_SYSC_S_MBOX_FR_IVP3_1_TO_CC$;
-		dsp_notice("SYSCTRL_S register dump (count:%d)\n",
-				end - start + 1);
-		for (idx = start; idx <= end; ++idx)
-			dsp_ctrl_reg_print(idx);
-	}
-#endif
-
-#ifdef ENABLE_DSP_O1_REG_AAREG_S
-	if (dump_value & BIT(DSP_O1_DUMP_VALUE_AAREG_S)) {
-		start = DSP_O1_AAREG_S_SECURE_SEMAPHORE_REG$;
-		end = DSP_O1_AAREG_S_SECURE_SEMAPHORE_REG$;
-		dsp_notice("AAREG_S register dump (count:%d)\n",
-				end - start + 1);
-		for (idx = start; idx <= end; ++idx)
-			dsp_ctrl_reg_print(idx);
-	}
-#endif
-
-#ifdef ENABLE_DSP_O1_REG_SYSCTRL_NS
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_SYSCTRL_NS)) {
 		start = DSP_O1_SYSC_NS_VERSION;
 		end = DSP_O1_SYSC_NS_MBOX_FR_IVP3_1_TO_CC$;
@@ -116,9 +93,7 @@ static void dsp_hw_o1_dump_ctrl(struct dsp_dump *dump)
 		for (idx = start; idx <= end; ++idx)
 			dsp_ctrl_reg_print(idx);
 	}
-#endif
 
-#ifdef ENABLE_DSP_O1_REG_AAREG_NS
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_AAREG_NS)) {
 		start = DSP_O1_AAREG_NS_SEMAPHORE_REG$;
 		end = DSP_O1_AAREG_NS_SEMAPHORE_REG$;
@@ -127,9 +102,7 @@ static void dsp_hw_o1_dump_ctrl(struct dsp_dump *dump)
 		for (idx = start; idx <= end; ++idx)
 			dsp_ctrl_reg_print(idx);
 	}
-#endif
 
-#ifdef ENABLE_DSP_O1_REG_WDT
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_WDT)) {
 		start = DSP_O1_WDT_DSPC_WTCON;
 		end = DSP_O1_WDT_DSPC_WTMINCNT;
@@ -138,9 +111,7 @@ static void dsp_hw_o1_dump_ctrl(struct dsp_dump *dump)
 		for (idx = start; idx <= end; ++idx)
 			dsp_ctrl_reg_print(idx);
 	}
-#endif
 
-#ifdef ENABLE_DSP_O1_REG_TIMER0
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_TIMER0)) {
 		start = DSP_O1_TIMER0_PWM_CONFIG0;
 		end = DSP_O1_TIMER0_TINT_CSTAT;
@@ -149,9 +120,7 @@ static void dsp_hw_o1_dump_ctrl(struct dsp_dump *dump)
 		for (idx = start; idx <= end; ++idx)
 			dsp_ctrl_reg_print(idx);
 	}
-#endif
 
-#ifdef ENABLE_DSP_O1_REG_CPU_SS
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_CPU_SS)) {
 		start = DSP_O1_CPU_SS_DSPC_CPU_REMAPS0_NS;
 		end = DSP_O1_CPU_SS_CPU_L1RSTDISABLE;
@@ -160,9 +129,7 @@ static void dsp_hw_o1_dump_ctrl(struct dsp_dump *dump)
 		for (idx = start; idx <= end; ++idx)
 			dsp_ctrl_reg_print(idx);
 	}
-#endif
 
-#ifdef ENABLE_DSP_O1_REG_GIC
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_GIC)) {
 		start = DSP_O1_GICD_CTLR;
 		end = DSP_O1_GICC_DIR;
@@ -171,9 +138,7 @@ static void dsp_hw_o1_dump_ctrl(struct dsp_dump *dump)
 		for (idx = start; idx <= end; ++idx)
 			dsp_ctrl_reg_print(idx);
 	}
-#endif
 
-#ifdef ENABLE_DSP_O1_REG_VPD0_CTRL
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_VPD0_CTRL)) {
 		start = DSP_O1_VPD0_MCGEN;
 		end = DSP_O1_VPD0_IVP1_MSG_TH1_$;
@@ -182,9 +147,7 @@ static void dsp_hw_o1_dump_ctrl(struct dsp_dump *dump)
 		for (idx = start; idx <= end; ++idx)
 			dsp_ctrl_reg_print(idx);
 	}
-#endif
 
-#ifdef ENABLE_DSP_O1_REG_VPD1_CTRL
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_VPD1_CTRL)) {
 		start = DSP_O1_VPD1_MCGEN;
 		end = DSP_O1_VPD1_IVP1_MSG_TH1_$;
@@ -193,9 +156,7 @@ static void dsp_hw_o1_dump_ctrl(struct dsp_dump *dump)
 		for (idx = start; idx <= end; ++idx)
 			dsp_ctrl_reg_print(idx);
 	}
-#endif
 
-#ifdef ENABLE_DSP_O1_REG_SDMA_CM
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_SDMA_CM)) {
 		start = DSP_O1_SDMA_CM_SDMA_VERSION;
 		end = DSP_O1_SDMA_CM_DEBUG_REG0;
@@ -204,9 +165,7 @@ static void dsp_hw_o1_dump_ctrl(struct dsp_dump *dump)
 		for (idx = start; idx <= end; ++idx)
 			dsp_ctrl_reg_print(idx);
 	}
-#endif
 
-#ifdef ENABLE_DSP_O1_REG_STRM_CM
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_STRM_CM)) {
 		start = DSP_O1_STRM_CM_INTR_MASK_BLK_DONE_S$;
 		end = DSP_O1_STRM_CM_NODE_MTM1_LOCATION$;
@@ -215,9 +174,7 @@ static void dsp_hw_o1_dump_ctrl(struct dsp_dump *dump)
 		for (idx = start; idx <= end; ++idx)
 			dsp_ctrl_reg_print(idx);
 	}
-#endif
 
-#ifdef ENABLE_DSP_O1_REG_SDMA_ND
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_SDMA_ND)) {
 		start = DSP_O1_SDMA_ND_ENABLE_ND$;
 		end = DSP_O1_SDMA_ND_PADDING_DATA_INFO_ND$;
@@ -226,7 +183,6 @@ static void dsp_hw_o1_dump_ctrl(struct dsp_dump *dump)
 		for (idx = start; idx <= end; ++idx)
 			dsp_ctrl_reg_print(idx);
 	}
-#endif
 
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_DHCP))
 		dsp_ctrl_dhcp_dump();
@@ -251,29 +207,6 @@ static void dsp_hw_o1_dump_ctrl_user(struct dsp_dump *dump,
 	unsigned int dump_value = dump->dump_value;
 
 	dsp_enter();
-#ifdef ENABLE_DSP_O1_REG_SYSCTRL_S
-	if (dump_value & BIT(DSP_O1_DUMP_VALUE_SYSCTRL_S)) {
-		start = DSP_O1_SYSC_S_VERSION;
-		end = DSP_O1_SYSC_S_MBOX_FR_IVP3_1_TO_CC$;
-		seq_printf(file, "SYSCTRL_S register dump (count:%d)\n",
-				end - start + 1);
-		for (idx = start; idx <= end; ++idx)
-			dsp_ctrl_user_reg_print(file, idx);
-	}
-#endif
-
-#ifdef ENABLE_DSP_O1_REG_AAREG_S
-	if (dump_value & BIT(DSP_O1_DUMP_VALUE_AAREG_S)) {
-		start = DSP_O1_AAREG_S_SECURE_SEMAPHORE_REG$;
-		end = DSP_O1_AAREG_S_SECURE_SEMAPHORE_REG$;
-		seq_printf(file, "AAREG_S register dump (count:%d)\n",
-				end - start + 1);
-		for (idx = start; idx <= end; ++idx)
-			dsp_ctrl_user_reg_print(file, idx);
-	}
-#endif
-
-#ifdef ENABLE_DSP_O1_REG_SYSCTRL_NS
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_SYSCTRL_NS)) {
 		start = DSP_O1_SYSC_NS_VERSION;
 		end = DSP_O1_SYSC_NS_MBOX_FR_IVP3_1_TO_CC$;
@@ -282,9 +215,7 @@ static void dsp_hw_o1_dump_ctrl_user(struct dsp_dump *dump,
 		for (idx = start; idx <= end; ++idx)
 			dsp_ctrl_user_reg_print(file, idx);
 	}
-#endif
 
-#ifdef ENABLE_DSP_O1_REG_AAREG_NS
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_AAREG_NS)) {
 		start = DSP_O1_AAREG_NS_SEMAPHORE_REG$;
 		end = DSP_O1_AAREG_NS_SEMAPHORE_REG$;
@@ -293,9 +224,7 @@ static void dsp_hw_o1_dump_ctrl_user(struct dsp_dump *dump,
 		for (idx = start; idx <= end; ++idx)
 			dsp_ctrl_user_reg_print(file, idx);
 	}
-#endif
 
-#ifdef ENABLE_DSP_O1_REG_WDT
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_WDT)) {
 		start = DSP_O1_WDT_DSPC_WTCON;
 		end = DSP_O1_WDT_DSPC_WTMINCNT;
@@ -304,9 +233,7 @@ static void dsp_hw_o1_dump_ctrl_user(struct dsp_dump *dump,
 		for (idx = start; idx <= end; ++idx)
 			dsp_ctrl_user_reg_print(file, idx);
 	}
-#endif
 
-#ifdef ENABLE_DSP_O1_REG_TIMER0
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_TIMER0)) {
 		start = DSP_O1_TIMER0_PWM_CONFIG0;
 		end = DSP_O1_TIMER0_TINT_CSTAT;
@@ -315,9 +242,7 @@ static void dsp_hw_o1_dump_ctrl_user(struct dsp_dump *dump,
 		for (idx = start; idx <= end; ++idx)
 			dsp_ctrl_user_reg_print(file, idx);
 	}
-#endif
 
-#ifdef ENABLE_DSP_O1_REG_CPU_SS
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_CPU_SS)) {
 		start = DSP_O1_CPU_SS_DSPC_CPU_REMAPS0_NS;
 		end = DSP_O1_CPU_SS_CPU_L1RSTDISABLE;
@@ -326,9 +251,7 @@ static void dsp_hw_o1_dump_ctrl_user(struct dsp_dump *dump,
 		for (idx = start; idx <= end; ++idx)
 			dsp_ctrl_user_reg_print(file, idx);
 	}
-#endif
 
-#ifdef ENABLE_DSP_O1_REG_GIC
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_GIC)) {
 		start = DSP_O1_GICD_CTLR;
 		end = DSP_O1_GICC_DIR;
@@ -337,9 +260,7 @@ static void dsp_hw_o1_dump_ctrl_user(struct dsp_dump *dump,
 		for (idx = start; idx <= end; ++idx)
 			dsp_ctrl_user_reg_print(file, idx);
 	}
-#endif
 
-#ifdef ENABLE_DSP_O1_REG_VPD0_CTRL
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_VPD0_CTRL)) {
 		start = DSP_O1_VPD0_MCGEN;
 		end = DSP_O1_VPD0_IVP1_MSG_TH1_$;
@@ -348,9 +269,7 @@ static void dsp_hw_o1_dump_ctrl_user(struct dsp_dump *dump,
 		for (idx = start; idx <= end; ++idx)
 			dsp_ctrl_user_reg_print(file, idx);
 	}
-#endif
 
-#ifdef ENABLE_DSP_O1_REG_VPD1_CTRL
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_VPD1_CTRL)) {
 		start = DSP_O1_VPD1_MCGEN;
 		end = DSP_O1_VPD1_IVP1_MSG_TH1_$;
@@ -359,9 +278,7 @@ static void dsp_hw_o1_dump_ctrl_user(struct dsp_dump *dump,
 		for (idx = start; idx <= end; ++idx)
 			dsp_ctrl_user_reg_print(file, idx);
 	}
-#endif
 
-#ifdef ENABLE_DSP_O1_REG_SDMA_CM
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_SDMA_CM)) {
 		start = DSP_O1_SDMA_CM_SDMA_VERSION;
 		end = DSP_O1_SDMA_CM_DEBUG_REG0;
@@ -370,9 +287,7 @@ static void dsp_hw_o1_dump_ctrl_user(struct dsp_dump *dump,
 		for (idx = start; idx <= end; ++idx)
 			dsp_ctrl_user_reg_print(file, idx);
 	}
-#endif
 
-#ifdef ENABLE_DSP_O1_REG_STRM_CM
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_STRM_CM)) {
 		start = DSP_O1_STRM_CM_INTR_MASK_BLK_DONE_S$;
 		end = DSP_O1_STRM_CM_NODE_MTM1_LOCATION$;
@@ -381,9 +296,7 @@ static void dsp_hw_o1_dump_ctrl_user(struct dsp_dump *dump,
 		for (idx = start; idx <= end; ++idx)
 			dsp_ctrl_user_reg_print(file, idx);
 	}
-#endif
 
-#ifdef ENABLE_DSP_O1_REG_SDMA_ND
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_SDMA_ND)) {
 		start = DSP_O1_SDMA_ND_ENABLE_ND$;
 		end = DSP_O1_SDMA_ND_PADDING_DATA_INFO_ND$;
@@ -392,7 +305,6 @@ static void dsp_hw_o1_dump_ctrl_user(struct dsp_dump *dump,
 		for (idx = start; idx <= end; ++idx)
 			dsp_ctrl_user_reg_print(file, idx);
 	}
-#endif
 
 	if (dump_value & BIT(DSP_O1_DUMP_VALUE_DHCP))
 		dsp_ctrl_user_dhcp_dump(file);

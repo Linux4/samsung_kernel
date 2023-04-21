@@ -542,6 +542,7 @@ struct s2mps24_dev {
 	struct s2mps24_platform_data *pdata;
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG_PMIC)
 	struct device *powermeter_dev;
+	struct device *irq_dev;
 #endif
 	/* power meter */
 	struct adc_info *adc_meter;
@@ -579,6 +580,7 @@ extern int s2mps24_read_word(struct i2c_client *i2c, u8 reg);
 extern int s2mps24_update_reg(struct i2c_client *i2c, u8 reg, u8 val, u8 mask);
 extern void s2mps24_call_notifier(void);
 extern int s2mps24_notifier_init(struct s2mps24_dev *s2mps24);
+extern void s2mps24_notifier_deinit(struct s2mps24_dev *s2mps24);
 #if IS_ENABLED(CONFIG_EXYNOS_AFM)
 extern void get_s2mps24_i2c(struct i2c_client **i2c);
 #endif

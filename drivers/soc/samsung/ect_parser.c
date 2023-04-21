@@ -1175,9 +1175,7 @@ static void ect_present_test_data(char *version)
 
 	pr_info("========================================\n");
 	pr_info("=\n");
-	pr_info("= [ECT] current version is TEST VERSION!!\n");
-	pr_info("= Please be aware that error can be happen.\n");
-	pr_info("= [VERSION] : %c%c%c%c\n", version[0], version[1], version[2], version[3]);
+	pr_info("= [ECT VERSION] : %c%c%c%c\n", version[0], version[1], version[2], version[3]);
 	pr_info("=\n");
 	pr_info("========================================\n");
 }

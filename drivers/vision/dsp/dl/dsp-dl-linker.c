@@ -14,10 +14,10 @@
 #include "dl/dsp-string-tree.h"
 #include "dl/dsp-llstack.h"
 
-struct dsp_string_tree_node *gp_str;
-struct dsp_reloc_rule_list *rules;
+static struct dsp_string_tree_node *gp_str;
+static struct dsp_reloc_rule_list *rules;
 
-const char *reloc_gp_str[RELOC_GP_NUM] = {
+static const char *const reloc_gp_str[RELOC_GP_NUM] = {
 	"_segment_start_thread_local_DMb",
 	"_segment_end_thread_local_DMb",
 	"_segment_start_thread_local_TCMb",
@@ -358,6 +358,12 @@ static long long __get_linker_value(enum dsp_linker_value_type link_v,
 	long long ret;
 	struct dsp_elf32 *sym_elf = sym_info->elf;
 	struct dsp_elf32 *rela_elf = rela_info->elf;
+
+	if (rela_shdr->sh_info >= rela_elf->shdr_num) {
+		DL_ERROR("invalid sh_info(%u/%zu)\n",
+				rela_shdr->sh_info, rela_elf->shdr_num);
+		return -1;
+	}
 
 	switch (link_v) {
 	case ADDEND:
@@ -968,22 +974,45 @@ static int __process_rule(struct dsp_lib *lib, struct dsp_reloc_rule *rule,
 	struct dsp_elf32_shdr *rela_shdr, unsigned int value,
 	struct dsp_elf32_rela *rela)
 {
-	struct dsp_link_info *l_info = lib->link_info;
-	struct dsp_elf32 *elf = l_info->elf;
+	struct dsp_link_info *l_info;
+	struct dsp_elf32 *elf;
 
-	struct dsp_elf32_shdr *data_shdr = &elf->shdr[rela_shdr->sh_info];
-	char *reloc_data = elf->data + data_shdr->sh_offset + rela->r_offset;
+	struct dsp_elf32_shdr *data_shdr;
+	char *reloc_data;
 
-	int item_bit = rule->cont.type.bit_sz * rule->cont.inst_num;
-	int item_cnt = item_bit / 8 + ((item_bit % 8) ? 1 : 0);
-	int item_align = item_cnt * 8 - item_bit;
-	char item_rev = (char)(rule->cont.type.bit_sz == 8);
+	int item_bit;
+	int item_cnt;
+	int item_align;
+	char item_rev;
 
 	struct dsp_pos *pos;
 	struct dsp_reloc_info r_info;
 	struct dsp_bit_slice *sl;
 
 	struct dsp_list_node *pos_node, *bit_node;
+
+	l_info = lib->link_info;
+	elf = l_info->elf;
+
+	if (rela_shdr->sh_info >= elf->shdr_num) {
+		DL_ERROR("invalid sh_info(%u/%zu)\n",
+				rela_shdr->sh_info, elf->shdr_num);
+		return -1;
+	}
+
+	data_shdr = &elf->shdr[rela_shdr->sh_info];
+	reloc_data = elf->data + data_shdr->sh_offset + rela->r_offset;
+
+	item_bit = rule->cont.type.bit_sz * rule->cont.inst_num;
+	item_cnt = item_bit / 8 + ((item_bit % 8) ? 1 : 0);
+	item_align = item_cnt * 8 - item_bit;
+	item_rev = (char)(rule->cont.type.bit_sz == 8);
+
+	if (rule->cont.inst_num > 4) {
+		DL_ERROR("rule->const.inst_num is greater than 4(%u)\n",
+				rule->cont.inst_num);
+		return -1;
+	}
 
 	if ((reloc_data > (elf->data + elf->size)) ||
 			(reloc_data < elf->data)) {
@@ -1011,6 +1040,16 @@ static int __process_rule(struct dsp_lib *lib, struct dsp_reloc_rule *rule,
 			r_info.high = rule->type.bit_sz - 1;
 			r_info.h_ext = BIT_NONE;
 			r_info.l_ext = BIT_NONE;
+			if ((&reloc_data[r_info.idx] >
+					(elf->data + elf->size)) ||
+					(reloc_data < elf->data)) {
+				DL_ERROR(
+			"reloc_data + r_info.idx is out of range(%#lx/%#zx)\n",
+					(unsigned long)
+					(reloc_data - elf->data),
+					elf->size);
+				return -1;
+			}
 			__relocate(&r_info, reloc_data, item_rev);
 		} else {
 			dsp_list_for_each(bit_node, &pos->bit_slice_list) {
@@ -1026,6 +1065,16 @@ static int __process_rule(struct dsp_lib *lib, struct dsp_reloc_rule *rule,
 						sl->value, item_cnt,
 						item_align);
 				r_info.item_cnt = item_cnt;
+				if ((&reloc_data[r_info.idx] >
+						(elf->data + elf->size)) ||
+						(reloc_data < elf->data)) {
+					DL_ERROR(
+			"reloc_data + r_info.idx is out of range(%#lx/%#zx)\n",
+						(unsigned long)
+						(reloc_data - elf->data),
+						elf->size);
+					return -1;
+				}
 				__relocate(&r_info, reloc_data, item_rev);
 			}
 		}
@@ -1049,6 +1098,11 @@ static int __rela_relocation(struct dsp_lib *lib, struct dsp_elf32_rela *rela,
 
 	elf = lib->link_info->elf;
 	symidx = dsp_elf32_rela_get_sym_idx(rela);
+	if (symidx >= elf->symtab_num) {
+		DL_ERROR("invalid symidx(%u/%zu)\n",
+				symidx, elf->symtab_num);
+		return -1;
+	}
 	sym = &elf->symtab[symidx];
 	sym_str = elf->strtab + sym->st_name;
 
@@ -1236,7 +1290,8 @@ int dsp_linker_link_libs(struct dsp_lib **libs, int libs_size,
 				lib->link_info = dsp_link_info_create(elf);
 
 			l_info = lib->link_info;
-			text_offset = lib->pm->start_addr - dsp_pm_start_addr;
+			text_offset = lib->pm->start_addr -
+				dsp_pm_manager_get_pm_start_addr();
 
 			dsp_link_info_set_text(l_info, text_offset);
 			dsp_link_info_set_DMb(l_info, 0UL);

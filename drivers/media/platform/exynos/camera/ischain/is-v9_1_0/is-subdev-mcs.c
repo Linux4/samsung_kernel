@@ -409,7 +409,7 @@ static int is_ischain_mcs_cfg(struct is_subdev *leader,
 				>> PIXEL_TYPE_EXTRA_SHIFT;
 
 		if (flag_extra) {
-			hw_sbwc = (SBWC_BASE_ALIGN_MASK | flag_extra);
+			hw_sbwc = (SBWC_BASE_ALIGN_MASK_LLC_ON | flag_extra);
 			chg_format = true;
 		}
 		format = queue->framecfg.format;
@@ -470,7 +470,7 @@ static int is_ischain_mcs_cfg(struct is_subdev *leader,
 	leader->input.crop = *incrop;
 
 	if (test_bit(IS_ISCHAIN_REPROCESSING, &device->state)) {
-		mswarn("reprocessing cannot connect to VRA\n", device, leader);
+		msinfo("[%s] reprocessing cannot connect to VRA\n", device, leader, __func__);
 		goto p_err;
 	}
 

@@ -328,7 +328,7 @@ int is_hw_dma_create(struct is_common_dma *dma, void __iomem *base, int id,
 
 	dma->id = id;
 
-	strncpy(dma->name, name, sizeof(dma->name));
+	strncpy(dma->name, name, (sizeof(dma->name) - 1));
 	dma->available_bayer_format_map = available_bayer_format_map;
 	dma->available_yuv_format_map = available_yuv_format_map;
 	dma->available_rgb_format_map = available_rgb_format_map;

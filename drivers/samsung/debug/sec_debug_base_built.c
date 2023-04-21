@@ -237,6 +237,19 @@ void secdbg_base_built_set_unfrozen_task_count(uint64_t count)
 }
 #endif /* SEC_DEBUG_UNFROZEN_TASK */
 
+#if IS_ENABLED(CONFIG_SEC_DEBUG_HANDLE_BAD_STACK)
+static DEFINE_PER_CPU(unsigned long, secdbg_bad_stack_chk);
+
+void secdbg_base_built_check_handle_bad_stack(void)
+{
+	if (this_cpu_read(secdbg_bad_stack_chk))
+		/* reentrance handle_bad_stack */
+		cpu_park_loop();
+
+	this_cpu_write(secdbg_bad_stack_chk, 0xBAD);
+}
+#endif
+
 void *secdbg_base_built_get_debug_base(int type)
 {
 	if (secdbg_sdn_va) {
@@ -299,7 +312,7 @@ static int secdbg_base_built_probe(struct platform_device *pdev)
 	rmem = of_reserved_mem_lookup(rmem_np);
 	if (!rmem) {
 		pr_crit("%s: no such reserved mem of node name %s\n",
-				__func__, &pdev->dev.of_node->name);
+				__func__, pdev->dev.of_node->name);
 		return -ENODEV;
 	}
 
@@ -315,7 +328,7 @@ static int secdbg_base_built_probe(struct platform_device *pdev)
 	sec_debug_next_size = (unsigned int)(rmem->size);
 
 	sdn_ncva_to_pa_offset =  (unsigned long)secdbg_sdn_va - (unsigned long)rmem->base;
-	pr_info("%s: offset from va: %llx\n", __func__, sdn_ncva_to_pa_offset);
+	pr_info("%s: offset from va: %lx\n", __func__, sdn_ncva_to_pa_offset);
 
 	pr_info("%s: va: %llx ++ %x\n", __func__, (uint64_t)(rmem->priv), (unsigned int)(rmem->size));
 

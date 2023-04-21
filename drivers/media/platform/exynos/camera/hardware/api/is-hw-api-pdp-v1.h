@@ -89,6 +89,7 @@ void pdp_hw_s_af_rdma_addr(void __iomem *base, dma_addr_t *address, u32 num_buff
 void pdp_hw_s_post_frame_gap(void __iomem *base, u32 interval);
 void pdp_hw_s_fro(void __iomem *base, u32 num_buffers);
 int pdp_hw_wait_idle(void __iomem *base, unsigned long state, u32 frame_time);
+int pdp_hw_rdma_wait_idle(void __iomem *base);
 void pdp_hw_s_lic_bit_mode(void __iomem *base, u32 pixelsize);
 
 /* stat */

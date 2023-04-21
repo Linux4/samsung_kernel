@@ -56,6 +56,7 @@ struct ncp_info {
 	struct addr_info ncp_addr;
 };
 
+#define NPU_Q_TIMEDIFF_WIN_MAX 5
 struct npu_session {
 	u32 uid;
 	u32 frame_id;
@@ -110,6 +111,15 @@ struct npu_session {
 	u32 address_vector_cnt;
 	u32 memory_vector_offset;
 	u32 memory_vector_cnt;
+
+#ifdef CONFIG_NPU_ARBITRATION
+	unsigned long total_flc_transfer_size, total_sdma_transfer_size;
+	u32	cmdq_isa_size;
+	u32     inferencefreq_index;
+	u64     last_q_time_stamp;
+	u32     inferencefreq_window[NPU_Q_TIMEDIFF_WIN_MAX];        /* 0.01 unit */
+	u32     inferencefreq;/* can be max, min, avg, or avg2 depending on policy, usually avg*/
+#endif
 };
 
 typedef int (*session_cb)(struct npu_session *);

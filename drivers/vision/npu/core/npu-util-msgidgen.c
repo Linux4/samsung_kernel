@@ -13,6 +13,7 @@
 #include <linux/atomic.h>
 #include "npu-util-msgidgen.h"
 #include "npu-log.h"
+#include "interface/hardware/npu-interface.h"
 
 void msgid_pool_init(struct msgid_pool *handle)
 {

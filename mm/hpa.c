@@ -292,20 +292,18 @@ static int steal_highorder_pages_block(struct page *pages[], unsigned int order,
 	unsigned int pfn;
 	int picked = 0;
 
-	/* CMA pages should not be reclaimed. */
-	if (is_migrate_cma_page(pfn_to_page(block_pfn)))
-		return 0;
-
 	for (pfn = block_pfn; pfn < end_pfn; pfn += 1 << order) {
 		int mt = get_pageblock_migratetype(pfn_to_page(pfn));
 		int ret;
+
 		/*
+		 * CMA pages should not be reclaimed.
 		 * Isolated page blocks should not be tried again because it
 		 * causes isolated page block remained in isolated state
 		 * forever.
 		 */
-		if (is_migrate_isolate(mt))
-			break;
+		if (is_migrate_cma(mt) || is_migrate_isolate(mt))
+			return 0;
 
 		if (!is_movable_chunk(pfn, order))
 			continue;

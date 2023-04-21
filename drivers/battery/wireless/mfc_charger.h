@@ -25,19 +25,19 @@
 #include <linux/pm_wakeup.h>
 #include "../common/sec_charging_common.h"
 
-#define MFC_FW_BIN_VERSION			0x144
-#define MFC_FW_BIN_FULL_VERSION		0x01440000
+#define MFC_FW_BIN_VERSION			0x146
+#define MFC_FW_BIN_FULL_VERSION		0x01460000
 #define MFC_FW_BIN_VERSION_ADDR		0x0084 //fw rev85 address
 #define MTP_MAX_PROGRAM_SIZE 0x4000
 #define MTP_VERIFY_ADDR			0x0000
 #define MTP_VERIFY_SIZE			0x4680
-#define MTP_VERIFY_CHKSUM		0x0274
+#define MTP_VERIFY_CHKSUM		0x3B5E
 
 #define MFC_FLASH_FW_HEX_PATH		"mfc/mfc_fw_flash.bin"
 #define MFC_FW_SDCARD_BIN_PATH		"wpc_fw_sdcard.bin"
 
 /* for SPU FW update */
-#define MFC_FW_SPU_BIN_PATH		"mfc/mfc_fw_flash_p9320.bin"
+#define MFC_FW_SPU_BIN_PATH		"mfc/mfc_fw_spu_p9320.bin"
 
 #define MFC_FW_VER_OFFSET		0x86
 #define fw_ver_in_bin(v, o)		((*(v+o+1) << 8) | *(v+o))
@@ -233,6 +233,9 @@
 #define MFC_FW_TIMER_CODE_6					0xC6
 #define MFC_FW_TIMER_CODE_7					0xC7
 
+#define MFC_TX_CEP_TIMEOUT_L				0xDE
+#define MFC_TX_CEP_TIMEOUT_H				0xDF
+
 #define MFC_RPP_SCALE_COEF_REG					0xF0
 /* Parameter 1: Major and Minor Version */
 #define MFC_TX_RXID1_READ_REG					0xF2
@@ -251,11 +254,10 @@
 #define SS_ID		0x42
 #define SS_CODE		0x64
 
-
 /* Target Vrect is ReadOnly register, and updated by every 10ms
-	Its default value is 0x1A90(6800mV).
-	Target_Vrect (Iout,Vout) = {Vout + 0.05} + { Vrect(Iout,5V)-Vrect(1A,5V) } * 5/9
-	*/
+ * Its default value is 0x1A90(6800mV).
+ * Target_Vrect (Iout,Vout) = {Vout + 0.05} + { Vrect(Iout,5V)-Vrect(1A,5V) } * 5/9
+ */
 #define MFC_TARGET_VRECT_L_REG				0x015B /* default 0x90 */
 #define MFC_TARGET_VRECT_H_REG				0x015C /* default 0x1A */
 
@@ -317,6 +319,7 @@
 #define	WPC_COM_DISABLE_TX				0x19 /* Turn off UNO of TX, OFF(0xFF) */
 #define	WPC_COM_PAD_LED					0x20 /* PAD LED */
 #define	WPC_COM_OP_FREQ_SET				0xD1
+#define	WPC_COM_WDT_ERR					0xE7 /* Data Value WDT Error */
 
 /* RX Data Value 2~5 Register (Data Sending), RX_Data_Value2_5_Out : Function and Description */
 #define	RX_DATA_VAL2_5V					0x05
@@ -544,6 +547,7 @@
 #define MFC_HEADER_END_RECEIVED_POWER		0x04 /* Message Size 1 */
 #define MFC_HEADER_END_CHARGE_STATUS		0x05 /* Message Size 1 */
 #define MFC_HEADER_POWER_CTR_HOLD_OFF		0x06 /* Message Size 1 */
+#define MFC_HEADER_PROPRIETARY_1_BYTE		0x18 /* Message Size 1 */
 #define MFC_HEADER_PACKET_COUNTING			0x19 /* Message Size 1 */
 #define MFC_HEADER_AFC_CONF					0x28 /* Message Size 2 */
 #define MFC_HEADER_CONFIGURATION			0x51 /* Message Size 5 */
@@ -599,6 +603,21 @@
 #define WPC_SET_OP_FREQ_120P5KHZ	0x69	/* 120.5khz */
 
 #define MFC_FW_MSG		"@MFC_FW "
+
+#if defined(CONFIG_MST_V2)
+#define MST_MODE_ON				1		// ON Message to MFC ic
+#define MST_MODE_OFF			0		// OFF Message to MFC ic
+#define DELAY_FOR_MST			40		// IDT : 40 ms
+#define MFC_MST_LDO_CONFIG_1	0x7400
+#define MFC_MST_LDO_CONFIG_2	0x7409
+#define MFC_MST_LDO_CONFIG_3	0x7418
+#define MFC_MST_LDO_CONFIG_4	0x3014
+#define MFC_MST_LDO_CONFIG_5	0x3405
+#define MFC_MST_LDO_CONFIG_6	0x3010
+#define MFC_MST_LDO_TURN_ON		0x301c
+#define MFC_MST_LDO_CONFIG_8	0x343c
+#define MFC_MST_OVER_TEMP_INT	0x0024
+#endif
 
 /* IDT F/W Update & Verification ERROR CODES */
 enum {
@@ -665,16 +684,17 @@ enum {
 };
 
 enum {
-	MFC_VOUT_5V = 0,
-	MFC_VOUT_5_5V,	// 1
-	MFC_VOUT_6V, // 2
-	MFC_VOUT_7V, // 3
-	MFC_VOUT_8V, // 4
-	MFC_VOUT_9V, // 5
-	MFC_VOUT_10V, // 6
-	MFC_VOUT_11V, // 7
-	MFC_VOUT_12V, // 8
-	MFC_VOUT_12_5V, // 9
+	MFC_VOUT_4_5V = 0,
+	MFC_VOUT_5V,	// 1
+	MFC_VOUT_5_5V,	// 2
+	MFC_VOUT_6V, // 3
+	MFC_VOUT_7V, // 4
+	MFC_VOUT_8V, // 5
+	MFC_VOUT_9V, // 6
+	MFC_VOUT_10V, // 7
+	MFC_VOUT_11V, // 8
+	MFC_VOUT_12V, // 9
+	MFC_VOUT_12_5V, // 10
 };
 
 /* PAD Vout */
@@ -703,35 +723,6 @@ enum {
 };
 
 enum {
-	MFC_END_SIG_STRENGTH = 0,
-	MFC_END_POWER_TRANSFER,			/* 1 */
-	MFC_END_CTR_ERROR,				/* 2 */
-	MFC_END_RECEIVED_POWER,			/* 3 */
-	MFC_END_CHARGE_STATUS,			/* 4 */
-	MFC_POWER_CTR_HOLD_OFF,			/* 5 */
-	MFC_AFC_CONF_5V,				/* 6 */
-	MFC_AFC_CONF_10V,				/* 7 */
-	MFC_AFC_CONF_5V_TX,				/* 8 */
-	MFC_AFC_CONF_10V_TX,			/* 9 */
-	MFC_AFC_CONF_12V_TX,			/* 10 */
-	MFC_AFC_CONF_12_5V_TX,			/* 11 */
-	MFC_AFC_CONF_20V_TX,			/* 12 */
-	MFC_CONFIGURATION,				/* 13 */
-	MFC_IDENTIFICATION,				/* 14 */
-	MFC_EXTENDED_IDENT,				/* 15 */
-	MFC_LED_CONTROL_ON,				/* 16 */
-	MFC_LED_CONTROL_OFF,			/* 17 */
-	MFC_FAN_CONTROL_ON,				/* 18 */
-	MFC_FAN_CONTROL_OFF,			/* 19 */
-	MFC_REQUEST_AFC_TX,				/* 20 */
-	MFC_REQUEST_TX_ID,				/* 21 */
-	MFC_DISABLE_TX,					/* 22 */
-	MFC_PHM_ON, 				/* 23 */
-	MFC_LED_CONTROL_DIMMING,			/* 24 */
-	MFC_SET_OP_FREQ,			/* 25 */
-};
-
-enum {
 	MFC_ADDR = 0,
 	MFC_SIZE,
 	MFC_DATA,
@@ -741,6 +732,7 @@ enum {
 };
 
 static const u8 mfc_idt_vout_val[] = {
+	0x0A, /* MFC_VOUT_4_5V */
 	0x0F, /* MFC_VOUT_5V */
 	0x14, /* MFC_VOUT_5_5V */
 	0x19, /* MFC_VOUT_6V */
@@ -803,6 +795,8 @@ enum mfc_chip_id {
 #define MFC_HEADROOM_3	0x7F	/* 0.650V */
 #define MFC_HEADROOM_4	0x06	/* 0.030V */
 #define MFC_HEADROOM_5	0x10	/* 0.082V */
+#define MFC_HEADROOM_6	0x13	/* 0.097V */
+#define MFC_HEADROOM_7	0x8B	/* -0.600V */
 
 #define DEFAULT_PAD_ID		0
 enum mfc_fod_state {
@@ -1133,8 +1127,15 @@ struct mfc_charger_platform_data {
 	u32 gear_re_phm_delay;
 	u32 gear_min_op_freq;
 	u32 gear_min_op_freq_delay;
+	u32 cep_timeout;
 	bool wpc_vout_ctrl_lcd_on;
-
+	u32 wpc_vout_ctrl_full;
+	bool wpc_headroom_ctrl_full;
+	bool mis_align_guide;
+	u32 mis_align_target_vout;
+#if defined(CONFIG_TX_GEAR_PHM_VOUT_CTRL) || defined(CONFIG_TX_GEAR_AOV)
+	u32 phm_vout_ctrl_dev;
+#endif
 	mfc_fod_data* fod_list;
 	int fod_data_count;
 };
@@ -1144,6 +1145,7 @@ struct mfc_charger_platform_data {
 
 #define MST_MODE_0			0
 #define MST_MODE_2			1
+#define REQ_AFC_DLY	200
 
 struct mfc_charger_data {
 	struct i2c_client				*client;
@@ -1151,12 +1153,14 @@ struct mfc_charger_data {
 	mfc_charger_platform_data_t 	*pdata;
 	struct mutex io_lock;
 	struct mutex wpc_en_lock;
+	struct mutex fw_lock;
 	const struct firmware *firm_data_bin;
 
 	int wc_w_state;
 
 	struct power_supply *psy_chg;
 	struct wakeup_source *wpc_ws;
+	struct wakeup_source *wpc_det_ws;
 	struct wakeup_source *wpc_tx_ws;
 	struct wakeup_source *wpc_rx_ws;
 	struct wakeup_source *wpc_update_ws;
@@ -1167,12 +1171,12 @@ struct mfc_charger_data {
 	struct wakeup_source *wpc_vout_mode_ws;
 	struct wakeup_source *wpc_rx_connection_ws;
 	struct wakeup_source *wpc_rx_det_ws;
-	struct wakeup_source *wpc_tx_aov_phm_ws;
 	struct wakeup_source *wpc_tx_phm_ws;
 	struct wakeup_source *wpc_vrect_check_ws;
 	struct wakeup_source *wpc_tx_id_ws;
 	struct wakeup_source *wpc_cs100_ws;
 	struct wakeup_source *wpc_tx_ac_missing_ws;
+	struct wakeup_source *align_check_ws;
 	struct workqueue_struct *wqueue;
 	struct work_struct	wcin_work;
 	struct delayed_work	wpc_det_work;
@@ -1190,12 +1194,13 @@ struct mfc_charger_data {
 	struct delayed_work	wpc_rx_connection_work;
 	struct delayed_work wpc_tx_op_freq_work;
 	struct delayed_work wpc_tx_min_op_freq_work;
-	struct delayed_work wpc_tx_aov_phm_work;
 	struct delayed_work wpc_tx_phm_work;
 	struct delayed_work wpc_vrect_check_work;
 	struct delayed_work wpc_rx_power_work;
 	struct delayed_work wpc_cs100_work;
 	struct delayed_work wpc_tx_ac_missing_work;
+	struct delayed_work wpc_init_work;
+	struct delayed_work align_check_work;
 
 	struct alarm phm_alarm;
 
@@ -1244,12 +1249,19 @@ struct mfc_charger_data {
 	int i2c_error_count;
 	unsigned long gear_start_time;
 	int wpc_en_flag;
-	int tx_gear_phm;
+	bool tx_device_phm;
 
 	bool req_tx_id;
 	bool is_abnormal_pad;
+	bool afc_tx_done;
+
+	int req_afc_delay;
 
 	bool sleep_mode;
+	bool wc_checking_align;
+	struct timespec64 wc_align_check_start;
+	int vout_strength;
+	bool skip_phm_work_in_sleep;
 #if defined(CONFIG_WIRELESS_IC_PARAM)
 	unsigned int wireless_param_info;
 	unsigned int wireless_fw_ver_param;
@@ -1257,6 +1269,4 @@ struct mfc_charger_data {
 	unsigned int wireless_fw_mode_param;
 #endif
 };
-
-extern unsigned int wireless_ic;
 #endif /* __WIRELESS_CHARGER_MFC_H */

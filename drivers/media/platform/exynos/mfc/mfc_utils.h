@@ -49,7 +49,9 @@ static inline void mfc_change_state(struct mfc_core_ctx *core_ctx, enum mfc_inst
 
 static inline void mfc_change_op_mode(struct mfc_ctx *ctx, enum mfc_op_mode op_mode)
 {
-	MFC_TRACE_CTX("** op_mode : %d -> %d\n", ctx->op_mode, op_mode);
+	struct mfc_dev *dev = ctx->dev;
+
+	MFC_TRACE_RM("[c:%d] op_mode : %d -> %d\n", ctx->num, ctx->op_mode, op_mode);
 	ctx->op_mode = op_mode;
 }
 
@@ -187,8 +189,37 @@ static inline void mfc_core_idle_checker_start_tick(struct mfc_core *core)
 {
 	mod_timer(&core->mfc_idle_timer, jiffies +
 		msecs_to_jiffies(MFCIDLE_TICK_INTERVAL));
-	atomic_set(&core->hw_run_cnt, 0);
-	atomic_set(&core->dev->queued_cnt, 0);
+
+	atomic_set(&core->hw_run_bits, 0);
+	atomic_set(&core->dev->queued_bits, 0);
+}
+
+static inline void mfc_core_idle_update_hw_run(struct mfc_core *core,
+			struct mfc_ctx *ctx)
+{
+	unsigned long flags;
+	int bits;
+
+	spin_lock_irqsave(&core->dev->idle_bits_lock, flags);
+
+	bits = atomic_read(&core->hw_run_bits);
+	atomic_set(&core->hw_run_bits, (bits | (1 << ctx->num)));
+
+	spin_unlock_irqrestore(&core->dev->idle_bits_lock, flags);
+}
+
+static inline void mfc_idle_update_queued(struct mfc_dev *dev,
+			struct mfc_ctx *ctx)
+{
+	unsigned long flags;
+	int bits;
+
+	spin_lock_irqsave(&dev->idle_bits_lock, flags);
+
+	bits = atomic_read(&dev->queued_bits);
+	atomic_set(&dev->queued_bits, (bits | (1 << ctx->num)));
+
+	spin_unlock_irqrestore(&dev->idle_bits_lock, flags);
 }
 
 static inline void mfc_core_change_idle_mode(struct mfc_core *core,
@@ -201,4 +232,39 @@ static inline void mfc_core_change_idle_mode(struct mfc_core *core,
 		mfc_core_idle_checker_start_tick(core);
 }
 
+static inline void mfc_ctx_change_idle_mode(struct mfc_ctx *ctx,
+			enum mfc_idle_mode idle_mode)
+{
+	MFC_TRACE_CTX("**[c:%d] idle mode : %d\n", ctx->num, idle_mode);
+	ctx->idle_mode = idle_mode;
+}
+
+static inline int mfc_enc_get_ts_delta(struct mfc_ctx *ctx)
+{
+	struct mfc_enc *enc = ctx->enc_priv;
+	struct mfc_enc_params *p = &enc->params;
+	int ts_delta = 0;
+
+	if (!ctx->src_ts.ts_last_interval) {
+		ts_delta = p->rc_framerate_res / p->rc_framerate;
+		mfc_debug(3, "[DFR] default delta: %d\n", ts_delta);
+	} else {
+		/*
+		 * FRAME_DELTA specifies the amount of
+		 * increment of frame modulo base time.
+		 * - delta unit = framerate resolution / fps
+		 * - fps = 1000000(usec per sec) / timestamp interval
+		 * For the sophistication of calculation, we will divide later.
+		 * Excluding H.263, resolution is fixed to 10000,
+		 * so thie is also divided into pre-calculated 100.
+		 * (Preventing both overflow and calculation duplication)
+		 */
+		if (IS_H263_ENC(ctx))
+			ts_delta = ctx->src_ts.ts_last_interval *
+				p->rc_framerate_res / 1000000;
+		else
+			ts_delta = ctx->src_ts.ts_last_interval / 100;
+	}
+	return ts_delta;
+}
 #endif /* __MFC_UTILS_H */

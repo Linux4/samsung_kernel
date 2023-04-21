@@ -632,6 +632,37 @@ static int is_hw_isp_shot(struct is_hw_ip *hw_ip, struct is_frame *frame,
 			mswarn_hw("frame->shot_ext is null", instance, hw_ip);
 			param_set->tnr_mode = TNR_PROCESSING_PREVIEW_POST_ON;
 		}
+
+		if (param_set->otf_input.cmd == OTF_INPUT_COMMAND_ENABLE) {
+			struct is_hw_ip *hw_ip_3aa = NULL;
+			struct is_hw_3aa *hw_3aa = NULL;
+			enum is_hardware_id hw_id = DEV_HW_END;
+			int hw_slot = 0;
+
+			if (test_bit(DEV_HW_3AA0, &hw_map))
+				hw_id = DEV_HW_3AA0;
+			else if (test_bit(DEV_HW_3AA1, &hw_map))
+				hw_id = DEV_HW_3AA1;
+			else if (test_bit(DEV_HW_3AA2, &hw_map))
+				hw_id = DEV_HW_3AA2;
+			else if (test_bit(DEV_HW_3AA3, &hw_map))
+				hw_id = DEV_HW_3AA3;
+
+			hw_slot = is_hw_slot_id(hw_id);
+			if (valid_hw_slot_id(hw_slot)) {
+				hw_ip_3aa = &hw_ip->hardware->hw_ip[hw_slot];
+				FIMC_BUG(!hw_ip_3aa->priv_info);
+				hw_3aa = (struct is_hw_3aa *)hw_ip_3aa->priv_info;
+				param_set->taa_param = &hw_3aa->param_set[instance];
+				/* When the ISP shot is requested, DDK needs to know the size fo 3AA.
+				 * This is because DDK calculates the position of the cropped image
+				 * from the 3AA size.
+				 */
+				is_hw_3aa_update_param(hw_ip,
+					&region->parameter, param_set->taa_param,
+					lindex, hindex, instance);
+			}
+		}
 	}
 
 	is_hw_isp_update_param(hw_ip, region, param_set, lindex, hindex, instance);
@@ -864,37 +895,6 @@ config:
 		ret = is_lib_isp_set_ctrl(hw_ip, &hw_isp->lib[instance], frame);
 		if (ret)
 			mserr_hw("set_ctrl fail", instance, hw_ip);
-	}
-
-	if (param_set->otf_input.cmd == OTF_INPUT_COMMAND_ENABLE) {
-		struct is_hw_ip *hw_ip_3aa = NULL;
-		struct is_hw_3aa *hw_3aa = NULL;
-		enum is_hardware_id hw_id = DEV_HW_END;
-		int hw_slot = 0;
-
-		if (test_bit(DEV_HW_3AA0, &hw_map))
-			hw_id = DEV_HW_3AA0;
-		else if (test_bit(DEV_HW_3AA1, &hw_map))
-			hw_id = DEV_HW_3AA1;
-		else if (test_bit(DEV_HW_3AA2, &hw_map))
-			hw_id = DEV_HW_3AA2;
-		else if (test_bit(DEV_HW_3AA3, &hw_map))
-			hw_id = DEV_HW_3AA3;
-
-		hw_slot = is_hw_slot_id(hw_id);
-		if (valid_hw_slot_id(hw_slot)) {
-			hw_ip_3aa = &hw_ip->hardware->hw_ip[hw_slot];
-			FIMC_BUG(!hw_ip_3aa->priv_info);
-			hw_3aa = (struct is_hw_3aa *)hw_ip_3aa->priv_info;
-			param_set->taa_param = &hw_3aa->param_set[instance];
-			/* When the ISP shot is requested, DDK needs to know the size fo 3AA.
-			 * This is because DDK calculates the position of the cropped image
-			 * from the 3AA size.
-			 */
-			is_hw_3aa_update_param(hw_ip,
-				&region->parameter, param_set->taa_param,
-				lindex, hindex, instance);
-		}
 	}
 
 	ret = is_hw_isp_set_yuv_range(hw_ip, param_set, frame->fcount, hw_map);

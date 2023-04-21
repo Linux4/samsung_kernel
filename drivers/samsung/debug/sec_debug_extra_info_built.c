@@ -86,7 +86,7 @@ static int get_max_len(void *p)
 	return sh_buf->sec_debug_sbidx[SLOT_END].size;
 }
 
-static void *__get_item(int slot, int idx)
+static void *__get_item(int slot, unsigned int idx)
 {
 	void *p, *base;
 	unsigned int size, nr;

@@ -16,10 +16,13 @@
 
 #include <linux/proca.h>
 #include <linux/task_integrity.h>
+#include <linux/xattr.h>
 #include <linux/slab.h>
 #include <linux/fs.h>
 #include <linux/uaccess.h>
-#include <linux/xattr.h>
+
+#define XATTR_PA_SUFFIX "pa"
+#define XATTR_NAME_PA (XATTR_USER_PREFIX XATTR_PA_SUFFIX)
 
 #include "proca_porting.h"
 

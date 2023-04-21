@@ -592,16 +592,6 @@ void mfc_core_idle_checker(struct timer_list *t)
 		return;
 	}
 
-	if (atomic_read(&core->hw_run_cnt)) {
-		mfc_core_idle_checker_start_tick(core);
-		return;
-	}
-
-	if (atomic_read(&core->dev->queued_cnt)) {
-		mfc_core_idle_checker_start_tick(core);
-		return;
-	}
-
 	if (mfc_core_is_work_to_do(core)) {
 		MFC_TRACE_CORE("[MFCIDLE] there is work to do\n");
 		queue_work(core->butler_wq, &core->butler_work);
@@ -609,8 +599,10 @@ void mfc_core_idle_checker(struct timer_list *t)
 		return;
 	}
 
+	if (!atomic_read(&core->hw_run_bits) && !atomic_read(&core->dev->queued_bits))
+		mfc_core_change_idle_mode(core, MFC_IDLE_MODE_RUNNING);
+
 #ifdef CONFIG_MFC_USE_BUS_DEVFREQ
-	mfc_core_change_idle_mode(core, MFC_IDLE_MODE_RUNNING);
 	queue_work(core->mfc_idle_wq, &core->mfc_idle_work);
 #endif
 }

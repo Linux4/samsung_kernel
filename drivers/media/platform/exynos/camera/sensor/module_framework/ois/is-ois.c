@@ -28,13 +28,10 @@ int is_ois_fw_open(struct is_ois *ois, char *name)
 
 	char fw_name[100];
 	struct file *fp = NULL;
-	mm_segment_t old_fs;
 	int fw_requested = 1;
 
 	FIMC_BUG(!ois);
 
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
 #ifdef USE_KERNEL_VFS_READ_WRITE
 	snprintf(fw_name, sizeof(fw_name), "%s%s", IS_OIS_SDCARD_PATH, name);
 	fp = filp_open(fw_name, O_RDONLY, 0);
@@ -54,20 +51,19 @@ int is_ois_fw_open(struct is_ois *ois, char *name)
 		goto p_err;
 	}
 
-	nread = vfs_read(fp, (char __user *)buf, fsize, &fp->f_pos);
+	nread = kernel_read(fp, buf, fsize, &fp->f_pos);
 	if (nread != fsize) {
 		err("failed to read ois firmware file, %ld Bytes\n", nread);
 		ret = -EIO;
 		goto p_err;
 	}
 #else
-	warn("%s, not support vfs_read, use request_firmware only!");
+	warn("%s, not support kernel_read, use request_firmware only!");
 #endif
 
 request_fw:
 	if (fw_requested) {
 		snprintf(fw_name, sizeof(fw_name), "%s", name);
-		set_fs(old_fs);
 		retry_count = 3;
 		ret = request_firmware(&fw_blob, fw_name, ois->subdev->dev);
 
@@ -123,7 +119,6 @@ p_err:
 			filp_close(fp, current->files);
 		}
 #endif
-		set_fs(old_fs);
 	} else {
 		if (!IS_ERR_OR_NULL(fw_blob)) {
 			release_firmware(fw_blob);

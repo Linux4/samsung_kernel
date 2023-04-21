@@ -883,8 +883,21 @@ static int jsqz_buffer_get_and_attach(struct jsqz_dev *jsqz_device,
 							     buffer->userptr,
 							     buffer->len,
 							     &offset);
+		if (!plane->dmabuf) {
+			ret = -EINVAL;
+			dev_err(jsqz_device->dev,
+				"%s: failed to get dmabuf, err %d\n", __func__, ret);
+			goto err;
+		}
 		dev_dbg(jsqz_device->dev, "%s: dmabuf of userptr %p is %p\n"
 			, __func__, (void *) buffer->userptr, plane->dmabuf);
+	}
+
+	if (!plane->dmabuf) {
+		ret = -EINVAL;
+		dev_err(jsqz_device->dev,
+			"%s: failed to get dmabuf, err %d\n", __func__, ret);
+		goto err;
 	}
 
 	if (IS_ERR(plane->dmabuf)) {
@@ -930,7 +943,7 @@ err:
 	dev_dbg(jsqz_device->dev
 		, "%s: ERROR releasing dma resources\n", __func__);
 
-	if (!IS_ERR(plane->dmabuf)) /* release dmabuf */
+	if ((plane->dmabuf != NULL) && !IS_ERR(plane->dmabuf)) /* release dmabuf */
 		dma_buf_put(plane->dmabuf);
 
 	// NOTE: attach was not reached or did not complete,
@@ -1985,9 +1998,13 @@ static int jsqz_clk_devm_get_prepare(struct jsqz_dev *jsqz)
 	jsqz->clk_producer = devm_clk_get(dev, clk_producer_name);
 
 	if (IS_ERR(jsqz->clk_producer)) {
-		dev_err(dev, "%s clock is not present\n",
-			clk_producer_name);
-		return PTR_ERR(jsqz->clk_producer);
+		if (PTR_ERR(jsqz->clk_producer) != -ENOENT) {
+			dev_err(dev, "Failed(%ld) to get 'gate' clock\n",
+				PTR_ERR(jsqz->clk_producer));
+			return PTR_ERR(jsqz->clk_producer);
+		}
+		dev_err(dev, "%s clock is not present\n", clk_producer_name);
+		return 0;
 	}
 
 	dev_dbg(jsqz->dev, "%s: preparing the clock\n", __func__);

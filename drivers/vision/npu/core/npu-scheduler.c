@@ -12,8 +12,10 @@
 
 #include <linux/version.h>
 #include <linux/delay.h>
+#include <linux/random.h>
 #include <soc/samsung/bts.h>
 
+#include "npu-config.h"
 #include "npu-scheduler-governor.h"
 #include "npu-device.h"
 #include "npu-llc.h"
@@ -272,7 +274,7 @@ p_err:
 
 #define	HWACG_STATUS_ENABLE	(0x3A)
 #define	HWACG_STATUS_DISABLE	(0x7F)
-static void npu_scheduler_hwacg_onoff(struct npu_scheduler_info *info)
+static void  __attribute__((unused)) npu_scheduler_hwacg_onoff(struct npu_scheduler_info *info)
 {
 	int ret = 0;
 
@@ -471,8 +473,7 @@ int npu_dvfs_cmd_map(struct npu_scheduler_info *info, const char *cmd_name)
 	return npu_dvfs_cmd(info, (const struct dvfs_cmd_list *)get_npu_dvfs_cmd_map(info, cmd_name));
 }
 
-
-struct npu_scheduler_control *npu_sched_ctl_ref;
+static struct npu_scheduler_control *npu_sched_ctl_ref;
 
 /* Call-back from Protodrv */
 static int npu_scheduler_save_result(struct npu_session *dummy, struct nw_result result)
@@ -505,7 +506,8 @@ static void npu_scheduler_set_llc_policy(struct npu_scheduler_info *info,
 }
 
 /* Send mode info to FW and check its response */
-static int npu_scheduler_send_mode_to_hw(struct npu_scheduler_info *info)
+static int npu_scheduler_send_mode_to_hw(struct npu_session *session,
+					struct npu_scheduler_info *info)
 {
 	int ret;
 	struct npu_nw nw;
@@ -513,6 +515,7 @@ static int npu_scheduler_send_mode_to_hw(struct npu_scheduler_info *info)
 
 	memset(&nw, 0, sizeof(nw));
 	nw.cmd = NPU_NW_CMD_MODE;
+	nw.uid = session->uid;
 
 	/* Set callback function on completion */
 	nw.notify_func = npu_scheduler_save_result;
@@ -753,6 +756,10 @@ err_exit:
 static void npu_scheduler_work(struct work_struct *work);
 static void npu_scheduler_afm_work(struct work_struct *work);
 static void npu_scheduler_boost_off_work(struct work_struct *work);
+#ifdef CONFIG_NPU_ARBITRATION
+static void npu_arbitration_work(struct work_struct *work);
+#endif
+
 static int npu_scheduler_init_info(s64 now, struct npu_scheduler_info *info)
 {
 	int i, ret = 0;
@@ -864,6 +871,15 @@ static int npu_scheduler_init_info(s64 now, struct npu_scheduler_info *info)
 	INIT_DELAYED_WORK(&info->sched_work, npu_scheduler_work);
 	INIT_DELAYED_WORK(&info->sched_afm_work, npu_scheduler_afm_work);
 	INIT_DELAYED_WORK(&info->boost_off_work, npu_scheduler_boost_off_work);
+
+#ifdef CONFIG_NPU_ARBITRATION
+#ifdef CONFIG_PM_SLEEP
+	npu_wake_lock_init(info->dev, &info->aws,
+				NPU_WAKE_LOCK_SUSPEND, "npu-arbitration");
+#endif
+	INIT_DELAYED_WORK(&info->arbitration_work, npu_arbitration_work);
+	init_waitqueue_head(&info->waitq);
+#endif
 
 	probe_info("scheduler info init done\n");
 
@@ -1241,6 +1257,7 @@ static int npu_scheduler_set_mode_freq(struct npu_scheduler_info *info, int uid)
 	if (info->mode == NPU_PERF_MODE_NPU_BOOST_ONEXE) {
 		mutex_lock(&info->exec_lock);
 		list_for_each_entry(d, &info->ip_list, ip_list) {
+			/* no actual governor or no name */
 			if (!d->gov || !strcmp(d->gov->name, ""))
 				continue;
 
@@ -1487,6 +1504,261 @@ static void npu_scheduler_work(struct work_struct *work)
 			msecs_to_jiffies(info->period));
 }
 
+#ifdef CONFIG_NPU_ARBITRATION
+int npu_arbitration_save_result(struct npu_session *sess, struct nw_result nw_result)
+{
+	int ret = 0;
+
+	g_npu_scheduler_info->result_code = nw_result.result_code;
+	g_npu_scheduler_info->result_value = nw_result.nw.result_value;
+	wake_up_interruptible(&g_npu_scheduler_info->waitq);
+
+	return ret;
+}
+
+static u32 arbitration_algo_random_test(struct npu_scheduler_info *info)
+{
+	struct npu_system *system = &info->device->system;
+	u32 max_cores = system->max_npu_core;
+	u32 cores_tobe_active = 0;
+
+	/* random number from info->fw_min_active_cores to max_cores */
+	cores_tobe_active =
+		get_random_u32() % (max_cores + 1 - info->fw_min_active_cores)
+		       + info->fw_min_active_cores;
+
+	return cores_tobe_active;
+}
+
+static u32 arbitration_algo(struct npu_scheduler_info *info)
+{
+	struct npu_system *system = &info->device->system;
+	struct npu_sessionmgr *s_mgr;
+	struct npu_session *session;
+	u64 cumulative_tps, max_tps, min_tps, tps;
+	u64 now, total_cmdq_isa_size = 0;
+	u32 active_session, count, session_count;
+	u32 cores_tobe_active = 0, max_cores = 0;
+	u32 temp1 = 0, temp2 = 0;
+	int max_bind_core = NPU_BOUND_UNBOUND;
+	int i;
+	bool debug = false;
+
+	if (debug)
+		return arbitration_algo_random_test(info);
+
+	max_cores = system->max_npu_core;
+	s_mgr = &info->device->sessionmgr;
+
+	if (s_mgr->count_thread_ncp[max_cores]) {
+		cores_tobe_active = max_cores;
+	} else {
+		active_session = atomic_read(&info->device->vertex.start_cnt.refcount);
+
+		cumulative_tps = 0;
+		max_tps = 0;
+		min_tps = -1;
+		now = npu_get_time_us();
+		for (count = 0, session_count = 0;
+		     count < active_session && session_count < NPU_MAX_SESSION;
+		     session_count++) {
+			/* get fps, record max, record min, add cumulative.*/
+			if (!s_mgr->session[session_count]) {
+				npu_trace("session was closed\n");
+				continue;
+			}
+
+			if (s_mgr->session[session_count]->ss_state <
+			    BIT(NPU_SESSION_STATE_START)) {
+				npu_trace("session not in start state\n");
+				continue;
+			}
+
+			count++;
+
+			session = s_mgr->session[session_count];
+			/* If the last q happened 10 seconds back,
+			 * the values are too stale
+			 */
+			if (abs(now - session->last_q_time_stamp) >
+			    configs[LASTQ_TIME_THRESHOLD]) {
+				npu_trace("now = 0x%llx lastq = 0x%llx\n",
+					now, session->last_q_time_stamp);
+				continue;
+			}
+
+			if (max_bind_core < session->sched_param.bound_id)
+				max_bind_core = session->sched_param.bound_id;
+
+			tps = (session->total_flc_transfer_size +
+				session->total_sdma_transfer_size) *
+				session->inferencefreq;
+			npu_trace("count = %d flc-%ld sdma-%ld inf_freq=%d addrofInfFreq=0x%llx tps-%d\n",
+				count, session->total_flc_transfer_size,
+				session->total_sdma_transfer_size,
+				session->inferencefreq, &session->inferencefreq,
+				tps);
+
+			cumulative_tps += tps;
+
+			if (max_tps < tps)
+				max_tps = tps;
+			if (min_tps > tps)
+				min_tps = tps;
+			npu_trace("For this session, cmdq isa size = 0x%x\n",
+				session->cmdq_isa_size);
+			total_cmdq_isa_size += (session->cmdq_isa_size *
+						session->inferencefreq);
+			npu_trace("Transaction_Per_Core : %d, CMDQ_Complexity_Per_Core : %d, LastQ_Threshold : %d\n",
+				configs[TRANSACTIONS_PER_CORE],
+				configs[CMDQ_COMPLEXITY_PER_CORE],
+				configs[LASTQ_TIME_THRESHOLD]);
+		}
+
+		npu_trace("cumulative_tps = 0x%llx TRANSACTIONS_PER_CORE = 0x%llx\n",
+		cumulative_tps, configs[TRANSACTIONS_PER_CORE]);
+		npu_trace("Total cmdq isa size = 0x%llx\n", total_cmdq_isa_size);
+
+		for (i = max_cores; i > 0; i--) {
+			if (cumulative_tps > (i - 1) *
+			    configs[TRANSACTIONS_PER_CORE]) {
+				temp1 = i;
+				break;
+			}
+		}
+
+		/* Expected complexity of NCP using cmdq sizes */
+		for (i = max_cores; i > 0; i--) {
+			if (total_cmdq_isa_size > (i - 1) *
+			    configs[CMDQ_COMPLEXITY_PER_CORE]) {
+				temp2 = i;
+				break;
+			}
+		}
+
+		cores_tobe_active = (temp1 + temp2) / 2;
+	}
+
+	for (i = max_cores; i > 0; i--) {
+		if (cores_tobe_active < i && s_mgr->count_thread_ncp[i]) {
+			cores_tobe_active = i;
+			break;
+		}
+	}
+
+	if ((cores_tobe_active < (max_bind_core + 1)) &&
+	    (max_bind_core != NPU_BOUND_UNBOUND))
+		cores_tobe_active = max_bind_core + 1;
+
+	/* FW needs atleast info->fw_min_active_cores to be active */
+	if (cores_tobe_active < info->fw_min_active_cores)
+		cores_tobe_active = info->fw_min_active_cores;
+
+	return cores_tobe_active;
+}
+
+static void __npu_arbitration_work(struct npu_scheduler_info *info)
+{
+	struct npu_system *system = &info->device->system;
+	struct npu_nw req = {};
+	u32 cores_tobe_active = 0;
+	int ret = 0;
+	int prev = info->num_cores_active;
+
+	cores_tobe_active = arbitration_algo(info);
+
+	if (info->num_cores_active == cores_tobe_active)
+		return;
+
+	if (info->num_cores_active < cores_tobe_active) {
+		/* enable clocks first, then send message to FW */
+		system->core_tobe_active_num = cores_tobe_active;
+		ret = npu_core_gate(info->device, false);
+		if (ret) {
+			npu_err("fail(%d) in npu_core_gate\n", ret);
+			return;
+		}
+	}
+	/* send a firmware mailbox command and get response */
+	req.npu_req_id = 0;
+	req.result_code = 0;
+	req.cmd = NPU_NW_CMD_CORE_CTL;
+	req.notify_func = npu_arbitration_save_result;
+	req.param0 = cores_tobe_active;
+
+	info->result_code = NPU_SYSTEM_JUST_STARTED;
+	/* queue the message for sending */
+	ret = npu_ncp_mgmt_put(&req);
+	if (!ret) {
+		npu_err("fail in npu_ncp_mgmt_put\n");
+		return;
+	}
+	/* wait for response from FW */
+	wait_event_interruptible(info->waitq,
+				 info->result_code != NPU_SYSTEM_JUST_STARTED);
+
+	if (info->result_code != NPU_ERR_NO_ERROR) {
+		/* firmware failed or did not accept the change in number of
+		 * active cores. hence keep info->num_active_cores unchanged
+		 */
+		npu_err("failure response for core_ctl message\n");
+	} else {
+		/* 'info->result_value' number of cores are active in FW */
+		if (likely(info->result_value <= system->max_npu_core))
+			info->num_cores_active = info->result_value;
+	}
+
+	if (system->core_active_num > info->num_cores_active) {
+		/* either FW succeeded in disabling the cores as we asked, or
+		 * FW didn't succeed in enabling cores as we asked.
+		 * hence disable the extra cores
+		 */
+		system->core_tobe_active_num = info->num_cores_active;
+		ret = npu_core_gate(info->device, true);
+		if (ret) {
+			npu_err("fail(%d) in npu_core_gate\n", ret);
+			return;
+		}
+	}
+
+	npu_notice("core on/off changes: previous %d -> %d now active\n",
+			prev, info->num_cores_active);
+}
+
+static void npu_arbitration_work(struct work_struct *work)
+{
+	struct npu_scheduler_info *info;
+
+	/* get basic information */
+	info = container_of(work, struct npu_scheduler_info, arbitration_work.work);
+
+	__npu_arbitration_work(info);
+
+	queue_delayed_work(info->arbitration_wq, &info->arbitration_work,
+			msecs_to_jiffies(info->period));
+}
+
+static void npu_arbitration_queue_work(struct npu_scheduler_info *info)
+{
+#ifdef CONFIG_PM_SLEEP
+	npu_wake_lock_timeout(info->aws, msecs_to_jiffies(100));
+#endif
+	queue_delayed_work(info->arbitration_wq, &info->arbitration_work,
+			msecs_to_jiffies(100));
+}
+static void npu_arbitration_cancel_work(struct npu_scheduler_info *info)
+{
+	cancel_delayed_work_sync(&info->arbitration_work);
+}
+
+#else /* !CONFIG_NPU_ARBITRATION */
+
+static inline void npu_arbitration_queue_work(struct npu_scheduler_info *info) { }
+static inline void npu_arbitration_cancel_work(struct npu_scheduler_info *info) { }
+
+#endif /* CONFIG_NPU_ARBITRATION */
+
+
 static ssize_t npu_show_attrs_scheduler(struct device *dev,
 		struct device_attribute *attr, char *buf);
 static ssize_t npu_store_attrs_scheduler(struct device *dev,
@@ -1663,6 +1935,7 @@ ssize_t npu_store_attrs_scheduler(struct device *dev,
 	int x = 0;
 	int y = 0;
 	struct npu_scheduler_fps_load *l;
+	struct npu_session sess;
 
 	BUG_ON(!g_npu_scheduler_info);
 
@@ -1687,7 +1960,8 @@ ssize_t npu_store_attrs_scheduler(struct device *dev,
 				npu_scheduler_set_bts(g_npu_scheduler_info);
 				npu_set_llc(g_npu_scheduler_info);
 				npu_scheduler_hwacg_onoff(g_npu_scheduler_info);
-				npu_scheduler_send_mode_to_hw(g_npu_scheduler_info);
+				memset(&sess, 0, sizeof(struct npu_session));
+				npu_scheduler_send_mode_to_hw(&sess, g_npu_scheduler_info);
 			}
 		}
 		break;
@@ -1759,7 +2033,7 @@ ssize_t npu_store_attrs_scheduler(struct device *dev,
 	return ret;
 }
 
-struct npu_system *npu_afm_system;
+static struct npu_system *npu_afm_system;
 
 #define NPU_OCP_FEATURE		(0x0)
 #define NPU_AFM_ENABLE		(0x1)
@@ -1985,6 +2259,14 @@ int npu_scheduler_probe(struct npu_device *device)
 		ret = -EFAULT;
 		goto err_info;
 	}
+#ifdef CONFIG_NPU_ARBITRATION
+	info->arbitration_wq = create_singlethread_workqueue(dev_name(device->dev));
+	if (!info->arbitration_wq) {
+		probe_err("fail to create arbitration workqueue\n");
+		ret = -EFAULT;
+		goto err_info;
+	}
+#endif
 
 	g_npu_scheduler_info = info;
 	probe_info("done\n");
@@ -2008,15 +2290,18 @@ int npu_scheduler_release(struct npu_device *device)
 	if (ret) {
 		probe_err("fail(%d) relase ocp\n", ret);
 		ret = -EFAULT;
+		goto p_err;
 	}
 
 	ret = npu_scheduler_governor_unregister(info);
 	if (ret) {
 		probe_err("fail(%d) unregister governor\n", ret);
 		ret = -EFAULT;
+		goto p_err;
 	}
-	g_npu_scheduler_info = NULL;
 
+p_err:
+	g_npu_scheduler_info = NULL;
 	return ret;
 }
 
@@ -2218,6 +2503,9 @@ int npu_scheduler_open(struct npu_device *device)
 #endif
 	queue_delayed_work(info->sched_wq, &info->sched_work,
 			msecs_to_jiffies(100));
+
+	npu_arbitration_cancel_work(info);
+	npu_arbitration_queue_work(info);
 #endif
 	npu_info("done\n");
 	return ret;
@@ -2246,6 +2534,7 @@ int npu_scheduler_close(struct npu_device *device)
 
 #ifdef CONFIG_NPU_SCHEDULER_OPEN_CLOSE
 	cancel_delayed_work_sync(&info->sched_work);
+	npu_arbitration_cancel_work(info);
 #endif
 	npu_info("boost off (count %d)\n", info->boost_count);
 	__npu_scheduler_boost_off(info);
@@ -2290,6 +2579,9 @@ int npu_scheduler_resume(struct npu_device *device)
 #endif
 		queue_delayed_work(info->sched_wq, &info->sched_work,
 				msecs_to_jiffies(100));
+
+		npu_arbitration_cancel_work(info);
+		npu_arbitration_queue_work(info);
 	}
 
 	npu_info("done\n");
@@ -2304,8 +2596,10 @@ int npu_scheduler_suspend(struct npu_device *device)
 	BUG_ON(!device);
 	info = device->sched;
 
-	if (info->activated)
+	if (info->activated) {
 		cancel_delayed_work_sync(&info->sched_work);
+		npu_arbitration_cancel_work(info);
+	}
 
 	npu_info("done\n");
 	return ret;
@@ -2325,7 +2619,11 @@ int npu_scheduler_start(struct npu_device *device)
 #endif
 	queue_delayed_work(info->sched_wq, &info->sched_work,
 				msecs_to_jiffies(100));
+
+	npu_arbitration_cancel_work(info);
+	npu_arbitration_queue_work(info);
 #endif
+
 	npu_info("done\n");
 	return ret;
 }
@@ -2350,7 +2648,7 @@ int npu_scheduler_stop(struct npu_device *device)
 	info->tfi = 0;
 
 	cancel_delayed_work_sync(&info->sched_work);
-
+	npu_arbitration_cancel_work(info);
 #endif
 	npu_info("boost off (count %d)\n", info->boost_count);
 	__npu_scheduler_boost_off(info);
@@ -2441,7 +2739,7 @@ npu_s_param_ret npu_scheduler_param_handler(struct npu_session *sess, struct vs4
 					npu_scheduler_set_bts(g_npu_scheduler_info);
 				npu_set_llc(g_npu_scheduler_info);
 				npu_scheduler_hwacg_onoff(g_npu_scheduler_info);
-				npu_scheduler_send_mode_to_hw(g_npu_scheduler_info);
+				npu_scheduler_send_mode_to_hw(sess, g_npu_scheduler_info);
 				npu_dbg("new NPU performance mode : %s\n",
 						npu_perf_mode_name[g_npu_scheduler_info->mode]);
 			}

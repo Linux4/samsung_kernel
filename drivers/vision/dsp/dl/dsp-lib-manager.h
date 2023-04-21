@@ -24,6 +24,7 @@ struct dsp_lib {
 	struct dsp_gpt *gpt;
 
 	struct dsp_dl_out *dl_out;
+	size_t dl_out_data_size;
 	struct dsp_tlsf_mem *dl_out_mem;
 
 	struct dsp_link_info *link_info;

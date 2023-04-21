@@ -308,6 +308,7 @@ static int gather_multi_frame_sit(struct exynos_link_header *hdr, struct sk_buff
 		skb_new = alloc_skb(total_len, GFP_ATOMIC);
 		if (unlikely(skb_new == NULL)) {
 			mif_err("ERR - alloc_skb fail\n");
+			skb_dequeue_tail(multi_q);
 			skb_queue_purge(multi_q);
 			return -ENOMEM;
 		}
@@ -517,12 +518,15 @@ static int rx_multi_pdp(struct sk_buff *skb)
 	}
 #endif
 
+	napi = skbpriv(skb)->napi;
+
 #ifdef CONFIG_MCPS_MODULE
-	if (!mcps_try_gro(skb))
-		return len;
+	if (napi) {
+		if (!mcps_try_gro(skb))
+			return len;
+	}
 #endif
 
-	napi = skbpriv(skb)->napi;
 	if (!napi || !check_gro_support(skb)) {
 		ret = netif_receive_skb(skb);
 		if (ret != NET_RX_SUCCESS)
@@ -568,25 +572,20 @@ static int rx_demux(struct link_device *ld, struct sk_buff *skb)
 
 	switch (skb_ld->protocol) {
 	case PROTOCOL_SIPC:
-		if (skb_ld->is_fmt_ch(ch)) {
-			iod->mc->receive_first_ipc = 1;
+		if (skb_ld->is_fmt_ch(ch))
 			return rx_fmt_ipc(skb);
-		} else if (skb_ld->is_ps_ch(ch))
+		else if (skb_ld->is_ps_ch(ch))
 			return rx_multi_pdp(skb);
 		else
 			return rx_raw_misc(skb);
 		break;
 	case PROTOCOL_SIT:
-		if (skb_ld->is_fmt_ch(ch)) {
-			iod->mc->receive_first_ipc = 1;
+		if (skb_ld->is_fmt_ch(ch) || skb_ld->is_wfs0_ch(ch))
 			return rx_fmt_ipc(skb);
-		} else if (skb_ld->is_wfs0_ch(ch)) {
-			return rx_fmt_ipc(skb);
-		} else if (skb_ld->is_ps_ch(ch) || skb_ld->is_embms_ch(ch)) {
+		else if (skb_ld->is_ps_ch(ch) || skb_ld->is_embms_ch(ch))
 			return rx_multi_pdp(skb);
-		} else {
+		else
 			return rx_raw_misc(skb);
-		}
 		break;
 	default:
 		mif_err("protocol error %d\n", skb_ld->protocol);

@@ -29,16 +29,43 @@ typedef enum FRomPowersource{
 } FRomPowersource;
 #endif
 
+/* #define for standard calibration */
+#ifdef CONFIG_SEC_CAL_ENABLE
+#define IS_CAMINFO_IOCTL_MAGIC 			0xFB
+#define CAM_MAX_SUPPORTED_LIST			20
+
+
+#define IS_CAMINFO_IOCTL_COMMAND		_IOWR(IS_CAMINFO_IOCTL_MAGIC, 0x01, caminfo_ioctl_cmd *)
+
+#define SEC2LSI_AWB_DATA_SIZE			8
+#define SEC2LSI_LSC_DATA_SIZE			6632
+#define SEC2LSI_MODULE_INFO_SIZE		11
+#define SEC2LSI_CHECKSUM_SIZE			4
+#endif
+
 /* #define USE_ION_ALLOC */
-#define IS_COMPANION_CRC_SIZE	4
-#define I2C_RETRY_COUNT			5
-#define IS_TILT_CAL_TELE_EFS_MAX_SIZE		800
-#define IS_GYRO_EFS_MAX_SIZE		30
+#define IS_COMPANION_CRC_SIZE			4
+#define I2C_RETRY_COUNT					5
+#define IS_TILT_CAL_TELE_EFS_MAX_SIZE	800
+#define IS_GYRO_EFS_MAX_SIZE			30
 
 struct is_companion_retention {
 	int firmware_size;
 	char firmware_crc32[IS_COMPANION_CRC_SIZE];
 };
+
+#ifdef CONFIG_SEC_CAL_ENABLE
+enum is_crc32_check_list {
+	CRC32_CHECK_HEADER			= 0,
+	CRC32_CHECK					= 1,
+	CRC32_CHECK_FACTORY			= 2,
+	CRC32_CHECK_SETFILE			= 3,
+	CRC32_CHECK_FW				= 4,
+	CRC32_CHECK_FW_VER			= 5,
+	CRC32_CHECK_STANDARD_CAL	= 6,
+	CRC32_SCENARIO_MAX,
+};
+#endif
 
 struct is_vender_specific {
 	struct mutex		rom_lock;
@@ -47,6 +74,9 @@ struct is_vender_specific {
 #endif /* CONFIG_OIS_USE */
 
 	struct i2c_client	*eeprom_client[ROM_ID_MAX];
+#if defined(USE_CAMERA_DUALIZED)
+	struct i2c_client	*otprom_client[ROM_ID_MAX];
+#endif
 	bool		rom_valid[ROM_ID_MAX];
 
 	/* dt */
@@ -85,6 +115,8 @@ struct is_vender_specific {
 #endif
 	int tilt_cal_tele_efs_size;
 	uint8_t	tilt_cal_tele_efs_data[IS_TILT_CAL_TELE_EFS_MAX_SIZE];
+	int tilt_cal_tele2_efs_size;
+	uint8_t	tilt_cal_tele2_efs_data[IS_TILT_CAL_TELE_EFS_MAX_SIZE];
 	int gyro_efs_size;
 	uint8_t 	gyro_efs_data[IS_GYRO_EFS_MAX_SIZE];
 };

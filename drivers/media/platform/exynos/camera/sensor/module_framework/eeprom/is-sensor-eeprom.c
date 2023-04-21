@@ -42,10 +42,6 @@ int is_eeprom_file_write(const char *file_name, const void *data,
 	int ret = 0;
 #ifdef USE_KERNEL_VFS_READ_WRITE
 	struct file *fp;
-	mm_segment_t old_fs;
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
 
 	fp = filp_open(file_name, O_WRONLY | O_CREAT | O_TRUNC | O_SYNC, 0666);
 	if (IS_ERR_OR_NULL(fp)) {
@@ -54,7 +50,7 @@ int is_eeprom_file_write(const char *file_name, const void *data,
 		goto p_err;
 	}
 
-	ret = vfs_write(fp, (const char *)data, size, &fp->f_pos);
+	ret = kernel_write(fp, data, size, &fp->f_pos);
 	if (ret < 0) {
 		err("%s(): file write fail(%s) to EEPROM data(%d)", __func__,
 				file_name, ret);
@@ -66,9 +62,8 @@ p_err:
 	if (!IS_ERR_OR_NULL(fp))
 		filp_close(fp, NULL);
 
-	set_fs(old_fs);
 #else
-	err("not support %s due to vfs_write!", __func__);
+	err("not support %s due to kernel_write!", __func__);
 	ret = -EINVAL;
 #endif
 	return 0;
@@ -80,11 +75,7 @@ int is_eeprom_file_read(const char *file_name, const void *data,
 	int ret = 0;
 #ifdef USE_KERNEL_VFS_READ_WRITE
 	long fsize, nread;
-	mm_segment_t old_fs;
 	struct file *fp;
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
 
 	fp = filp_open(file_name, O_RDONLY, 0);
 	if (IS_ERR_OR_NULL(fp)) {
@@ -95,7 +86,7 @@ int is_eeprom_file_read(const char *file_name, const void *data,
 
 	fsize = fp->f_path.dentry->d_inode->i_size;
 
-	nread = vfs_read(fp, (char __user *)data, size, &fp->f_pos);
+	nread = kernel_read(fp, data, size, &fp->f_pos);
 	if (nread != size) {
 		err("failed to read eeprom file, (%ld) Bytes", nread);
 		ret = nread;
@@ -107,10 +98,8 @@ p_err:
 	if (!IS_ERR_OR_NULL(fp))
 		filp_close(fp, NULL);
 
-	set_fs(old_fs);
-
 #else
-	err("not support %s due to vfs_read!", __func__);
+	err("not support %s due to kernel_read!", __func__);
 	ret = -EINVAL;
 #endif
 	return ret;

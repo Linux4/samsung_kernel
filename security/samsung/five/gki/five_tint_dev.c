@@ -100,12 +100,13 @@ static struct task_struct *get_task_by_pid(pid_t pid)
 }
 
 static struct task_struct *get_tint_and_task(pid_t pid)
-{	struct task_struct *task = get_task_by_pid(pid);
+{
+	struct task_struct *task = get_task_by_pid(pid);
 
 	if (!task)
 		return NULL;
 
-	task_integrity_get(task->integrity);
+	task_integrity_get(TASK_INTEGRITY(task));
 
 	return task;
 }
@@ -115,7 +116,7 @@ static void put_tint_and_task(struct task_struct *task)
 	if (!task)
 		return;
 
-	task_integrity_put(task->integrity);
+	task_integrity_put(TASK_INTEGRITY(task));
 	put_task_struct(task);
 }
 
@@ -197,7 +198,7 @@ static long tint_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			break;
 		}
 
-		msg.data.value = task_integrity_user_read(task->integrity);
+		msg.data.value = task_integrity_user_read(TASK_INTEGRITY(task));
 
 		ret = copy_to_user(
 			(void __user *) &argp->data.value, &msg.data.value,
@@ -220,9 +221,9 @@ static long tint_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			break;
 		}
 
-		spin_lock(&task->integrity->value_lock);
-		label = task->integrity->label;
-		spin_unlock(&task->integrity->value_lock);
+		spin_lock(&TASK_INTEGRITY(task)->value_lock);
+		label = TASK_INTEGRITY(task)->label;
+		spin_unlock(&TASK_INTEGRITY(task)->value_lock);
 
 		if (!label) {
 			ret = -ENOENT;
@@ -262,7 +263,7 @@ static long tint_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			break;
 		}
 
-		reset_file = task->integrity->reset_file;
+		reset_file = TASK_INTEGRITY(task)->reset_file;
 		if (!reset_file) {
 			ret = -ENOENT;
 			put_tint_and_task(task);
@@ -271,7 +272,7 @@ static long tint_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		inode = file_inode(reset_file);
 		msg.data.reset_file.i_ino = inode->i_ino;
-		msg.data.reset_file.cause = task->integrity->reset_cause;
+		msg.data.reset_file.cause = TASK_INTEGRITY(task)->reset_cause;
 		len_buf = msg.data.reset_file.path.len_buf;
 
 		if (!len_buf || len_buf > PAGE_SIZE) {

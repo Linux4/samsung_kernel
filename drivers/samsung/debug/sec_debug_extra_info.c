@@ -18,6 +18,7 @@
 #include <linux/sched/clock.h>
 #include <linux/sec_debug.h>
 #include <asm/stacktrace.h>
+#include <soc/samsung/debug-snapshot-log.h>
 
 #include "sec_debug_internal.h"
 #include "sec_debug_extra_info_keys.c"
@@ -25,6 +26,8 @@
 #define EXTRA_VERSION	"RI25"
 
 #define MAX_EXTRA_INFO_HDR_LEN	6
+
+#define ETR_A_PROC_SIZE SZ_2K
 
 static bool exin_ready;
 static struct sec_debug_shared_buffer *sh_buf;
@@ -68,7 +71,7 @@ static int get_max_len(void *p)
 	return sh_buf->sec_debug_sbidx[SLOT_END].size;
 }
 
-static void *__get_item(int slot, int idx)
+static void *__get_item(int slot, unsigned int idx)
 {
 	void *p, *base;
 	unsigned int size, nr;
@@ -180,7 +183,7 @@ static int is_ocp;
 static int is_key_in_blocklist(const char *key)
 {
 	char blkey[][MAX_ITEM_KEY_LEN] = {
-		"KTIME", "BAT", "FTYPE", "ODR", "DDRID",
+		"KTIME", "BAT", "ODR", "DDRID",
 		"PSITE", "ASB", "ASV", "IDS",
 	};
 
@@ -286,7 +289,7 @@ static void set_item_val(const char *key, const char *fmt, ...)
 	v = get_item_val(p);
 	if (!get_val_len(v)) {
 		va_start(args, fmt);
-		vsnprintf(v, max, fmt, args);
+		vsnprintf(v, max - MAX_ITEM_KEY_LEN, fmt, args);
 		va_end(args);
 
 		set_key_order(key);
@@ -475,7 +478,7 @@ static void __init sec_debug_extra_info_copy_shared_buffer(bool mflag)
 	backup_base = secdbg_base_get_ncva(slot_base + total_size);
 
 	pr_info("%s: dst: %llx src: %llx (%x)\n",
-				__func__, backup_base, secdbg_base_get_ncva(slot_base), total_size);
+				__func__, (u64)backup_base, (u64)secdbg_base_get_ncva(slot_base), total_size);
 	memcpy(backup_base, secdbg_base_get_ncva(slot_base), total_size);
 
 	/* backup shared buffer header info */
@@ -549,7 +552,7 @@ static void sec_debug_store_extra_info(char (*keys)[MAX_ITEM_KEY_LEN], int nr_ke
 	void *p;
 	char *v, *start_addr = ptr;
 
-	memset(ptr, 0, SZ_1K);
+	memset(ptr, 0, ETR_A_PROC_SIZE);
 
 	for (i = 0; i < nr_keys; i++) {
 		p = get_bk_item(keys[i]);
@@ -565,7 +568,7 @@ static void sec_debug_store_extra_info(char (*keys)[MAX_ITEM_KEY_LEN], int nr_ke
 		len = (unsigned long)ptr + strlen(p) + get_val_len(v)
 				+ MAX_EXTRA_INFO_HDR_LEN;
 
-		max_len = (unsigned long)start_addr + SZ_1K;
+		max_len = (unsigned long)start_addr + ETR_A_PROC_SIZE;
 
 		if (len > max_len)
 			break;
@@ -976,6 +979,79 @@ char *secdbg_exin_get_unfz(void)
 }
 EXPORT_SYMBOL(secdbg_exin_get_unfz);
 
+void secdbg_exin_set_hardlockup_type(const char *fmt, ...)
+{
+	va_list args;
+	char tmp[MAX_ITEM_VAL_LEN] = {0, };
+
+	va_start(args, fmt);
+	vsnprintf(tmp, MAX_ITEM_VAL_LEN, fmt, args);
+	va_end(args);
+
+	set_item_val("HLTYPE", "%s", tmp);
+}
+EXPORT_SYMBOL(secdbg_exin_set_hardlockup_type);
+
+void secdbg_exin_set_hardlockup_data(const char *str)
+{
+	set_item_val("HLDATA", "%s", str);
+}
+EXPORT_SYMBOL(secdbg_exin_set_hardlockup_data);
+
+void secdbg_exin_set_hardlockup_freq(const char *domain, struct freq_log *freq)
+{
+	void *p;
+	char *v;
+	char tmp[MAX_ITEM_VAL_LEN] = {0, };
+	char freq_string[MAX_ITEM_VAL_LEN] = {0, };
+	int offset = 0;
+
+	p = get_item("HLFREQ");
+	if (!p) {
+		pr_crit("%s: fail to find\n", __func__);
+
+		return;
+	}
+
+	if (!get_max_len(p)) {
+		pr_crit("%s: fail to get max len\n", __func__);
+
+		return;
+	}
+
+	v = get_item_val(p);
+
+	offset = snprintf(freq_string, MAX_ITEM_VAL_LEN, "%s:%d>%d%c ",
+		domain, freq->old_freq / 1000, freq->target_freq / 1000, (freq->en == 1) ? '+' : '-');
+
+	snprintf(tmp, MAX_ITEM_VAL_LEN, "%s %s", v, freq_string);
+
+	clear_item_val("HLFREQ");
+
+	set_item_val("HLFREQ", "%s", tmp);
+}
+EXPORT_SYMBOL(secdbg_exin_set_hardlockup_freq);
+
+void secdbg_exin_set_hardlockup_ehld(unsigned int hl_info, unsigned int cpu)
+{
+	int i;
+	int offset = 0;
+	char tmp[MAX_ITEM_VAL_LEN] = {0, };
+	char tmp_per_cpu[MAX_ITEM_VAL_LEN] = {0, };
+
+	for (i = 0; i < MAX_ETYPES; i++) {
+		if ((hl_info & (1 << i)) != 0)
+			offset += scnprintf(tmp_per_cpu + offset, MAX_ITEM_VAL_LEN - offset, "1");
+		else
+			offset += scnprintf(tmp_per_cpu + offset, MAX_ITEM_VAL_LEN - offset, "0");
+	}
+
+	snprintf(tmp, MAX_ITEM_VAL_LEN, "%s_%s", get_item_val("HLEHLD"), tmp_per_cpu);
+	clear_item_val("HLEHLD");
+	set_item_val("HLEHLD", "%s", tmp);
+}
+EXPORT_SYMBOL(secdbg_exin_set_hardlockup_ehld);
+
 static int secdbg_exin_panic_handler(struct notifier_block *nb,
 				   unsigned long l, void *buf)
 {
@@ -991,7 +1067,7 @@ static struct notifier_block nb_panic_block = {
 
 static int set_debug_reset_extra_info_proc_show(struct seq_file *m, void *v)
 {
-	char buf[SZ_1K];
+	char buf[ETR_A_PROC_SIZE];
 
 	secdbg_exin_get_extra_info_A(buf);
 	seq_printf(m, "%s", buf);
@@ -1047,7 +1123,7 @@ static int __init secdbg_extra_info_init(void)
 	if (!entry)
 		return -ENOMEM;
 
-	proc_set_size(entry, SZ_1K);
+	proc_set_size(entry, ETR_A_PROC_SIZE);
 
 	sec_debug_set_extra_info_id();
 

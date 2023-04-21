@@ -133,10 +133,13 @@ static int dit_hal_set_event(enum offload_event_num event_num)
 
 struct net_device *dit_hal_get_dst_netdev(enum dit_desc_ring ring_num)
 {
-#if defined(DIT_DEBUG_LOW)
-	struct io_device *iod;
+	if (ring_num < DIT_DST_DESC_RING_0 || ring_num >= DIT_DST_DESC_RING_MAX)
+		return NULL;
 
+#if defined(DIT_DEBUG_LOW)
 	if (dc->pktgen_ch && (ring_num == DIT_DST_DESC_RING_0)) {
+		struct io_device *iod;
+
 		iod = link_get_iod_with_channel(dc->ld, dc->pktgen_ch);
 
 		return iod ? iod->ndev : NULL;
@@ -427,8 +430,7 @@ static void dit_hal_set_iod_clat_netdev(struct io_device *iod, void *args)
 			dev_put(iod->clat_ndev);
 
 		if (ndev && iod->check_udp_gro_support())
- 			ndev->features |= NETIF_F_GRO_FRAGLIST;
-
+			ndev->features |= NETIF_F_GRO_FRAGLIST;
 		iod->clat_ndev = ndev;
 		spin_unlock_irqrestore(&iod->clat_lock, flags);
 
@@ -545,9 +547,13 @@ static long dit_hal_ioctl(struct file *filp, unsigned int cmd, unsigned long arg
 		spin_unlock(&dhc->hal_lock);
 
 		dit_hal_set_event(INTERNAL_OFFLOAD_STOPPED);
-		/* init port table and take a delay to get a buffer free chance */
+
+		/* init port table and take a delay for the prior kick */
 		dit_init(NULL, false);
 		msleep(100);
+		ret = dit_manage_rx_dst_data_buffers(false);
+		if (ret)
+			mif_err("hal buffer free. ret: %d\n", ret);
 
 		/* don't call dit_hal_init() here for the last event delivery */
 		break;
@@ -615,7 +621,7 @@ static long dit_hal_ioctl(struct file *filp, unsigned int cmd, unsigned long arg
 			return -EFAULT;
 
 		if (!dit_hal_set_local_addr(&local_addr))
-			return -EPERM;
+			return -EINVAL;
 		break;
 	case OFFLOAD_IOCTL_SET_NAT_LOCAL_PORT:
 		if (copy_from_user(&local_port, (const void __user *)arg,
@@ -623,14 +629,14 @@ static long dit_hal_ioctl(struct file *filp, unsigned int cmd, unsigned long arg
 			return -EFAULT;
 
 		if (!dit_hal_set_local_port(&local_port))
-			return -EPERM;
+			return -EINVAL;
 		break;
 	case OFFLOAD_IOCTL_SET_CLAT_INFO:
 		if (copy_from_user(&clat, (const void __user *)arg, sizeof(struct clat_info)))
 			return -EFAULT;
 
 		if (!dit_hal_set_clat_info(&clat))
-			return -EPERM;
+			return -EINVAL;
 		break;
 	case OFFLOAD_IOCTL_GET_HW_INFO:
 		hw.version = dc->hw_version;
@@ -641,7 +647,7 @@ static long dit_hal_ioctl(struct file *filp, unsigned int cmd, unsigned long arg
 		break;
 	default:
 		mif_err("unknown command: 0x%X\n", cmd);
-		return -EPERM;
+		return -EINVAL;
 	}
 
 	return 0;

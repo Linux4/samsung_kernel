@@ -134,13 +134,13 @@ void slsi_ts_get_custom_library(struct slsi_ts_data *ts)
 	memset(data, 0x00, 6);
 
 	data[0] = SEC_TS_CMD_SPONGE_FOD_INFO;
-	ret = ts->slsi_ts_read_sponge(ts, data, 3);
+	ret = ts->slsi_ts_read_sponge(ts, data, 4);
 	if (ret < 0) {
 		input_err(true, &ts->client->dev, "%s: Failed to read fod info\n", __func__);
 		return;
 	}
 
-	sec_input_set_fod_info(ts->client, data[0], data[1], data[2]);
+	sec_input_set_fod_info(&ts->client->dev, data[0], data[1], data[2], data[3]);
 }
 
 int slsi_ts_wait_for_ready(struct slsi_ts_data *ts, u8 reg, u8 *data, int len, int delay)
@@ -402,7 +402,7 @@ i2c_error:
 
 void slsi_ts_unlocked_release_all_finger(struct slsi_ts_data *ts)
 {
-	sec_input_release_all_finger(ts->client);
+	sec_input_release_all_finger(&ts->client->dev);
 }
 
 void slsi_ts_locked_release_all_finger(struct slsi_ts_data *ts)
@@ -457,10 +457,8 @@ void slsi_ts_reset_work(struct work_struct *work)
 			schedule_delayed_work(&ts->reset_work, msecs_to_jiffies(TOUCH_RESET_DWORK_TIME));
 		mutex_unlock(&ts->modechange);
 
-		if (ts->debug_flag & SEC_TS_DEBUG_SEND_UEVENT) {
-			snprintf(result, sizeof(result), "RESULT=RESET");
-			sec_cmd_send_event_to_user(&ts->sec, NULL, result);
-		}
+		snprintf(result, sizeof(result), "RESULT=RESET");
+		sec_cmd_send_event_to_user(&ts->sec, NULL, result);
 
 		__pm_relax(ts->plat_data->sec_ws);
 
@@ -497,12 +495,8 @@ void slsi_ts_reset_work(struct work_struct *work)
 			slsi_ts_fix_tmode(ts, TOUCH_SYSTEM_MODE_TOUCH, TOUCH_MODE_STATE_TOUCH);
 	}
 
-	if (ts->debug_flag & SEC_TS_DEBUG_SEND_UEVENT) {
-		char result[32];
-
-		snprintf(result, sizeof(result), "RESULT=RESET");
-		sec_cmd_send_event_to_user(&ts->sec, NULL, result);
-	}
+	snprintf(result, sizeof(result), "RESULT=RESET");
+	sec_cmd_send_event_to_user(&ts->sec, NULL, result);
 
 	__pm_relax(ts->plat_data->sec_ws);
 }
@@ -518,12 +512,12 @@ void slsi_ts_print_info_work(struct work_struct *work)
 	if (!ts->client)
 		return;
 
-	sec_input_print_info(ts->client, ts->tdata);
+	sec_input_print_info(&ts->client->dev, ts->tdata);
 
 	if (ts->sec.cmd_is_running)
 		input_err(true, &ts->client->dev, "%s: skip set temperature, cmd running\n", __func__);
 	else
-		sec_input_set_temperature(ts->client, SEC_INPUT_SET_TEMPERATURE_NORMAL);
+		sec_input_set_temperature(&ts->client->dev, SEC_INPUT_SET_TEMPERATURE_NORMAL);
 
 	if (!ts->plat_data->shutdown_called)
 		schedule_delayed_work(&ts->work_print_info, msecs_to_jiffies(TOUCH_PRINT_INFO_DWORK_TIME));
@@ -566,8 +560,6 @@ void slsi_ts_read_info_work(struct work_struct *work)
 		input_err(true, &ts->client->dev, "%s: read fail-history fail : alloc fail\n", __func__);
 	}
 
-	ts->info_work_done = true;
-
 	if (ts->plat_data->shutdown_called) {
 		input_err(true, &ts->client->dev, "%s done, do not run work\n", __func__);
 		return;
@@ -584,7 +576,7 @@ int slsi_ts_set_cover_type(struct slsi_ts_data *ts, bool enable)
 	input_info(true, &ts->client->dev, "%s: %s, type:%d\n",
 			__func__, enable ? "close" : "open", ts->plat_data->cover_type);
 
-	cover_cmd = sec_input_check_cover_type(ts->client) & 0xFF;
+	cover_cmd = sec_input_check_cover_type(&ts->client->dev) & 0xFF;
 
 	if (enable)
 		ts->plat_data->touch_functions |= SLSI_TS_BIT_SETFUNC_COVER;
@@ -618,9 +610,8 @@ int slsi_ts_set_cover_type(struct slsi_ts_data *ts, bool enable)
 }
 EXPORT_SYMBOL(slsi_ts_set_cover_type);
 
-int slsi_ts_set_temperature(struct i2c_client *client, u8 temperature_data)
+int slsi_ts_set_temperature(struct device *dev, u8 temperature_data)
 {
-	struct device *dev = &client->dev;
 	struct slsi_ts_data *ts = dev_get_drvdata(dev);
 
 	return ts->slsi_ts_i2c_write(ts, SET_TS_CMD_SET_LOWTEMPERATURE_MODE, &temperature_data, 1);
@@ -745,9 +736,8 @@ int slsi_ts_set_charger_mode(struct slsi_ts_data *ts)
  *		landscape -> normal (etc) : 0xAC....  + 0xAD, 0
  */
 
-void set_grip_data_to_ic(struct i2c_client *client, u8 flag)
+void slsi_set_grip_data_to_ic(struct device *dev, u8 flag)
 {
-	struct device *dev = &client->dev;
 	struct slsi_ts_data *ts = dev_get_drvdata(dev);
 
 	u8 data[8] = { 0 };

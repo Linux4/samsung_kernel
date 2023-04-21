@@ -149,6 +149,7 @@ struct exynos_uart_port {
 	unsigned int dbg_word_len;
 	unsigned int			uart_logging;
 	struct uart_local_buf		uart_local_buf;
+
 	unsigned int wake_peer_en;
 	unsigned int wake_peer_pended;
 };

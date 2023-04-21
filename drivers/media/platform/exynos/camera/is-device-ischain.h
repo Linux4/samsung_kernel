@@ -139,6 +139,7 @@ struct is_device_ischain {
 	u32					apply_setfile_fcount;
 	u32					dvfs_scenario;
 	u32					dvfs_rec_size;
+	bool					llc_mode; /* 0: LLC off, 1: LLC on(default) */
 
 #if !defined(FAST_FDAE)
 	struct camera2_fd_uctl			fdUd;
@@ -211,6 +212,9 @@ struct is_device_ischain {
 	u32					cur_noise_idx[NI_BACKUP_MAX]; /* Noise index for N + 1 */
 	u32					next_noise_idx[NI_BACKUP_MAX]; /* Noise index for N + 2 */
 	u32					partial_update;
+
+	/* cache maintenance for user buffer */
+	struct is_dbuf_q			*dbuf_q;
 };
 
 /*global function*/

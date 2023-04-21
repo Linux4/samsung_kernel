@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * drivers/power/process.c - Functions for starting/stopping processes on 
+ * drivers/power/process.c - Functions for starting/stopping processes on
  *                           suspend transitions.
  *
  * Originally from swsusp.
@@ -40,6 +40,7 @@ static int try_to_freeze_tasks(bool user_only)
 	unsigned int elapsed_msecs;
 	bool wakeup = false;
 	int sleep_usecs = USEC_PER_MSEC;
+#ifdef CONFIG_SEC_DEBUG_EXTRA_INFO_BUILT_IN
 	const char *sys_state[SYSTEM_SUSPEND + 1] = {
 		"BOOTING",
 		"SCHEDULING",
@@ -49,6 +50,7 @@ static int try_to_freeze_tasks(bool user_only)
 		"RESTART",
 		"SUSPEND",
 	};
+#endif
 
 	start = ktime_get_boottime();
 

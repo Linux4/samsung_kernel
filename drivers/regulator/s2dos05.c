@@ -48,7 +48,6 @@ struct s2dos05_data {
 	struct s2dos05_dev *iodev;
 	int num_regulators;
 	struct regulator_dev *rdev[S2DOS05_REGULATOR_MAX];
-	int opmode[S2DOS05_REGULATOR_MAX];
 #if IS_ENABLED(CONFIG_DRV_SAMSUNG_PMIC)
 	u8 read_addr;
 	u8 read_val;
@@ -172,7 +171,7 @@ static int s2m_enable(struct regulator_dev *rdev)
 	struct i2c_client *i2c = info->iodev->i2c;
 
 	return s2dos05_update_reg(i2c, rdev->desc->enable_reg,
-				  info->opmode[rdev_get_id(rdev)],
+					rdev->desc->enable_mask,
 					rdev->desc->enable_mask);
 }
 
@@ -554,6 +553,7 @@ static int s2dos05_pmic_dt_parse_pdata(struct device *dev,
 	}
 
 	pdata->regulators = rdata;
+	pdata->num_rdata = 0;
 	for_each_child_of_node(regulators_np, reg_np) {
 		for (i = 0; i < ARRAY_SIZE(regulators); i++)
 			if (!of_node_cmp(reg_np->name,
@@ -573,6 +573,7 @@ static int s2dos05_pmic_dt_parse_pdata(struct device *dev,
 						&regulators[i]);
 		rdata->reg_node = reg_np;
 		rdata++;
+		pdata->num_rdata++;
 	}
 	of_node_put(regulators_np);
 
@@ -964,15 +965,14 @@ static int s2dos05_pmic_probe(struct i2c_client *i2c,
 
 	i2c_set_clientdata(i2c, s2dos05);
 	s2dos05->iodev = iodev;
-	s2dos05->num_regulators = pdata->num_regulators;
+	s2dos05->num_regulators = pdata->num_rdata;
 
-	for (i = 0; i < pdata->num_regulators; i++) {
+	for (i = 0; i < pdata->num_rdata; i++) {
 		int id = pdata->regulators[i].id;
 		config.dev = &i2c->dev;
 		config.init_data = pdata->regulators[i].initdata;
 		config.driver_data = s2dos05;
 		config.of_node = pdata->regulators[i].reg_node;
-		s2dos05->opmode[id] = regulators[id].enable_mask;
 		s2dos05->rdev[i] = devm_regulator_register(&i2c->dev,
 							   &regulators[id], &config);
 		if (IS_ERR(s2dos05->rdev[i])) {

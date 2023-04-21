@@ -61,6 +61,8 @@ static struct fscrypt_mode *
 select_encryption_mode(const union fscrypt_policy *policy,
 		       const struct inode *inode)
 {
+	BUILD_BUG_ON(ARRAY_SIZE(fscrypt_modes) != FSCRYPT_MODE_MAX + 1);
+
 	if (S_ISREG(inode->i_mode))
 		return &fscrypt_modes[fscrypt_policy_contents_mode(policy)];
 
@@ -140,8 +142,10 @@ int fscrypt_prepare_key(struct fscrypt_prepared_key *prep_key,
 	if (IS_ERR(tfm))
 		return PTR_ERR(tfm);
 	/*
-	 * Pairs with READ_ONCE() in fscrypt_is_key_prepared().  (Only matters
-	 * for the per-mode keys, which are shared by multiple inodes.)
+	 * Pairs with the smp_load_acquire() in fscrypt_is_key_prepared().
+	 * I.e., here we publish ->tfm with a RELEASE barrier so that
+	 * concurrent tasks can ACQUIRE it.  Note that this concurrency is only
+	 * possible for per-mode keys, not for per-file keys.
 	 */
 	smp_store_release(&prep_key->tfm, tfm);
 	return 0;
@@ -177,7 +181,7 @@ static int setup_per_mode_enc_key(struct fscrypt_info *ci,
 	unsigned int hkdf_infolen = 0;
 	int err;
 
-	if (WARN_ON(mode_num > __FSCRYPT_MODE_MAX))
+	if (WARN_ON(mode_num > FSCRYPT_MODE_MAX))
 		return -EINVAL;
 
 	prep_key = &keys[mode_num];
@@ -200,7 +204,7 @@ static int setup_per_mode_enc_key(struct fscrypt_info *ci,
 			err = -EINVAL;
 			goto out_unlock;
 		}
-		for (i = 0; i <= __FSCRYPT_MODE_MAX; i++) {
+		for (i = 0; i <= FSCRYPT_MODE_MAX; i++) {
 			if (fscrypt_is_key_prepared(&keys[i], ci)) {
 				fscrypt_warn(ci->ci_inode,
 					     "Each hardware-wrapped key can only be used with one encryption mode");
@@ -565,6 +569,25 @@ int fscrypt_get_encryption_info(struct inode *inode)
 		memcpy(&ctx, dummy_ctx, res);
 	}
 
+#if defined(CONFIG_FSCRYPT_SDP) || defined(CONFIG_DDAR)
+	switch (ctx.version) {
+	case FSCRYPT_CONTEXT_V1: {
+		if (res == offsetof(struct fscrypt_context_v1, knox_flags)) {
+			ctx.v1.knox_flags = 0;
+			res = sizeof(ctx.v1);
+		}
+		break;
+	}
+	case FSCRYPT_CONTEXT_V2: {
+		if (res == offsetof(struct fscrypt_context_v2, knox_flags)) {
+			ctx.v2.knox_flags = 0;
+			res = sizeof(ctx.v2);
+		}
+		break;
+	}
+	}
+#endif
+
 	crypt_info = kmem_cache_zalloc(fscrypt_info_cachep, GFP_NOFS);
 	if (!crypt_info)
 		return -ENOMEM;
@@ -774,7 +797,7 @@ static inline int __find_and_derive_mode_key(
 	unsigned int hkdf_infolen = 0;
 	int err;
 
-	if (WARN_ON(mode_num > __FSCRYPT_MODE_MAX))
+	if (WARN_ON(mode_num > FSCRYPT_MODE_MAX))
 		return -EINVAL;
 
 	mutex_lock(&fscrypt_mode_key_setup_mutex);
@@ -806,11 +829,8 @@ static inline int __find_and_derive_mode_key(
 		memcpy(fskey->raw, mode_key, mode->keysize);
 		fskey->size = mode->keysize;
 		memzero_explicit(mode_key, mode->keysize);
-		if (err)
-			goto out_unlock;
 	}
 
-	err = 0;
 out_unlock:
 	mutex_unlock(&fscrypt_mode_key_setup_mutex);
 	return err;

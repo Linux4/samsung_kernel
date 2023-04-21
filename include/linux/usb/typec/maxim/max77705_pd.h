@@ -26,6 +26,12 @@ enum {
 	CC_NO_CONN,
 };
 
+enum {
+	D2D_NONE	= 0,
+	D2D_SNKONLY,
+	D2D_SRCSNK,
+};
+
 typedef enum {
 	PDO_TYPE_FIXED = 0,
 	PDO_TYPE_BATTERY,
@@ -43,7 +49,7 @@ typedef union sec_pdo_object {
 					type:2;
 	} BITS_supply;
 	struct {
-		uint32_t	max_current:10,        /* 10mA units */	
+		uint32_t	max_current:10,        /* 10mA units */
 				voltage:10,            /* 50mV units */
 				peak_current:2,
 				reserved:2,
@@ -119,8 +125,16 @@ struct max77705_pd_data {
 
 	struct workqueue_struct *wqueue;
 	struct delayed_work retry_work;
+	struct delayed_work d2d_work;
+	struct delayed_work abnormal_pdo_work;
 
 	int cc_status;
+
+	int src_cap_done;
+	int auth_type;
+	int d2d_type;
+	int req_pdo_type;
+	bool psrdy_sent;
 };
 
 #endif

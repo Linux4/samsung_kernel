@@ -404,19 +404,25 @@ static ssize_t set_online_cpu_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct cpumask online_cpus;
-	char str[STR_LEN];
+	char str[STR_LEN], re_str[STR_LEN];
+	unsigned int cpumask_value;
 
 	if (strlen(buf) >= STR_LEN)
 		return -EINVAL;
 
-	if (!sscanf(buf, "%s", str))
+	if (!sscanf(buf, "%5s", str))
 		return -EINVAL;
 
-	if (str[0] == '0' && str[1] == 'x')
+	if (str[0] == '0' && toupper(str[1]) == 'X')
 		/* Move str pointer to remove "0x" */
 		cpumask_parse(str + 2, &online_cpus);
-	else
-		cpumask_parse(str, &online_cpus);
+	else {
+		if (!sscanf(str, "%d", &cpumask_value))
+			return -EINVAL;
+
+		snprintf(re_str, STR_LEN - 1, "%x", cpumask_value);
+		cpumask_parse(re_str, &online_cpus);
+	}
 
 	if (!cpumask_test_cpu(0, &online_cpus)) {
 		pr_warn("wrong format\n");

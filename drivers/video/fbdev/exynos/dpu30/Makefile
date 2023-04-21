@@ -17,10 +17,13 @@ dpu-$(CONFIG_SOC_EXYNOS9610) += ./cal_9610/dsim_reg.o ./cal_9610/dpp_reg.o ./cal
 ifdef CONFIG_EXYNOS_DISPLAYPORT_MODULE
 dpu-y += displayport_drv.o displayport_edid.o displayport_hdcp13.o decon_displayport.o displayport_hdcp22_if.o displayport_aux_client.o displayport_topology.o
 dpu-$(CONFIG_UML) += ./cal_2100/displayport_reg.o
+dpu-$(CONFIG_UML) += dp_unit_test.o
 dpu-$(CONFIG_SOC_EXYNOS2100) += ./cal_2100/displayport_reg.o
 dpu-$(CONFIG_SOC_EXYNOS9830) += ./cal_9830/displayport_reg.o
 dpu-$(CONFIG_SOC_EXYNOS9820) += ./cal_9820/displayport_reg.o
 dpu-$(CONFIG_SOC_EXYNOS9610) += ./cal_9610/displayport_reg.o
+GCOV_PROFILE_displayport_edid.o		:=y
+GCOV_PROFILE_displayport_drv.o		:=y
 endif
 ifdef CONFIG_EXYNOS_DECON_DQE
 dpu-y += dqe_drv.o

@@ -16,5 +16,15 @@
 
 extern void register_usb_power_notify(void);
 extern void unregister_usb_power_notify(void);
+
+enum usb_port_state {
+	PORT_EMPTY = 0,		/* OTG only */
+	PORT_USB2,		/* usb 2.0 device only */
+	PORT_USB3,		/* usb 3.0 device only */
+	PORT_HUB,		/* usb hub single */
+	PORT_DP			/* DP device */
+};
+
+extern enum usb_port_state port_state;
 #endif
 

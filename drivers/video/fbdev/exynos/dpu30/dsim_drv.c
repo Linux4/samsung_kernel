@@ -81,12 +81,46 @@ struct dsim_device *dsim_drvdata[MAX_DSIM_CNT];
 EXPORT_SYMBOL(dsim_drvdata);
 
 #if IS_ENABLED(CONFIG_EXYNOS_MIGOV)
+#define MIGOV_PERIOD_NSEC	100000000UL
+#define FPS_UNIT_NSEC		1000000000UL	/* 1sec */
 extern u64 frame_vsync_cnt;
 extern ktime_t frame_vsync_cnt_time;
 void get_frame_vsync_cnt(u64 *cnt, ktime_t *time)
 {
-	*cnt = frame_vsync_cnt;
-	*time = frame_vsync_cnt_time;
+	struct decon_device *decon = get_decon_drvdata(0);
+	u64 lcd_fps;
+	u64 vsync_period_nsec;
+	static u64 vsync_cnt;
+	static ktime_t prev_ktime;
+	ktime_t vsync_time;
+	ktime_t cur_ktime = ktime_get();
+	ktime_t ktime_diff;
+
+	if (!IS_ERR_OR_NULL(decon->lcd_info)) {
+		lcd_fps = decon->lcd_info->fps;
+		vsync_period_nsec = FPS_UNIT_NSEC / lcd_fps;
+
+		if (vsync_cnt) {
+			if (prev_ktime) {
+				ktime_diff = cur_ktime - prev_ktime;
+				vsync_cnt += DIV_ROUND_CLOSEST(lcd_fps * ktime_diff, FPS_UNIT_NSEC);
+			} else
+				vsync_cnt += lcd_fps * MIGOV_PERIOD_NSEC / FPS_UNIT_NSEC;
+		} else
+			vsync_cnt = frame_vsync_cnt;
+
+		if ((cur_ktime - frame_vsync_cnt_time) > vsync_period_nsec)
+			vsync_time = frame_vsync_cnt_time + vsync_period_nsec;
+		else
+			vsync_time = frame_vsync_cnt_time;
+	} else {
+		vsync_cnt = frame_vsync_cnt;
+		vsync_time = frame_vsync_cnt_time;
+	}
+
+	*cnt = vsync_cnt;
+	*time = vsync_time;
+	prev_ktime = cur_ktime;
 }
 #endif
 
@@ -405,7 +439,8 @@ int __mockable dsim_sr_write_data(struct dsim_device *dsim, const u8 *cmd, u32 s
 			if (dsim_is_fifo_empty_status(dsim))
 				break;
 			usleep_range(10, 11);
-		} while (cnt--);
+			cnt--;
+		} while (cnt);
 
 		if (!cnt) {
 			dsim_err("ID(%d): DSIM command(%x) fail\n", dsim->id, cmd[0]);
@@ -466,9 +501,11 @@ int __mockable dsim_write_cmd_set(struct dsim_device *dsim, struct exynos_dsim_c
 	int ret = 0;
 	int cnt = 5000;
 	int pl_sum;
+	u32 ph_num1, ph_num2;
 	struct decon_device *decon = get_decon_drvdata(dsim->id);
 	struct exynos_dsim_cmd *cmd;
 	struct exynos_dsim_cmd_set set;
+	struct dsim_regs regs;
 
 	decon_hiber_block_exit(decon);
 	mutex_lock(&dsim->cmd_lock);
@@ -558,6 +595,7 @@ int __mockable dsim_write_cmd_set(struct dsim_device *dsim, struct exynos_dsim_c
 			if(wait_vsync)
 				decon_wait_for_vsync(decon, VSYNC_TIMEOUT_MSEC);
 		}
+		ph_num1 = dsim_reg_get_ph_num(dsim->id);
 		/* set packet go ready*/
 		dsim_reg_set_packetgo_ready(dsim->id);
 
@@ -565,9 +603,14 @@ int __mockable dsim_write_cmd_set(struct dsim_device *dsim, struct exynos_dsim_c
 			if (dsim_is_fifo_empty_status(dsim))
 				break;
 			usleep_range(10, 11);
-		} while (cnt--);
+			cnt--;
+		} while (cnt);
 		if (!cnt) {
-			dsim_err("DSIM command set fail, cmd_cnt : %d\n", cmd_cnt);
+			ph_num2 = dsim_reg_get_ph_num(dsim->id);
+			dsim_err("DSIM command set fail, cmd_cnt: %d(ok_cnt: %d)\n",
+					cmd_cnt, (ph_num1 - ph_num2));
+			dsim_to_regs_param(dsim, &regs);
+			__dsim_dump(dsim->id, &regs);
 			ret = -EINVAL;
 			goto err_exit;
 		}
@@ -682,7 +725,8 @@ int __mockable dsim_write_data(struct dsim_device *dsim, u32 id, unsigned long d
 			if (dsim_is_fifo_empty_status(dsim))
 				break;
 			usleep_range(10, 11);
-		} while (cnt--);
+			cnt--;
+		} while (cnt);
 
 		if (!cnt) {
 			dsim_err("ID(%d): DSIM command(%lx) fail\n", id, d0);
@@ -847,7 +891,8 @@ int dsim_wait_fifo_empty(struct dsim_device *dsim, u32 frames)
 		if (dsim_is_fifo_empty_status(dsim))
 			break;
 		usleep_range(10, 11);
-	} while (cnt--);
+		cnt--;
+	} while (cnt);
 
 	return cnt;
 }
@@ -1056,6 +1101,10 @@ static int dsim_alloc_fcmd_memory(u32 id)
 	}
 
 	dsim->fcmd_buf_vaddr = dma_buf_vmap(dsim->fcmd_buf);
+	if (IS_ERR_OR_NULL(dsim->fcmd_buf_vaddr)) {
+		dev_err(dsim->dev, "dma_buf_vmap() failed\n");
+		goto err_map;
+	}
 
 	ret = dsim_map_ion_handle(dsim->dev, &dsim->fcmd_buf_data, dsim->fcmd_buf);
 	if (!ret)
@@ -1254,6 +1303,8 @@ static void dsim_underrun_info(struct dsim_device *dsim)
 	int i, decon_cnt;
 	static ktime_t bts_info_print_block_ts;
 	bool bts_info_print_blocked = true;
+	u32 line_cnt;
+	struct dsim_regs regs;
 
 	if (ktime_after(ktime_get(), bts_info_print_block_ts)) {
 		bts_info_print_block_ts = ktime_add_ms(ktime_get(),
@@ -1278,7 +1329,11 @@ static void dsim_underrun_info(struct dsim_device *dsim)
 		if (!IS_DECON_ON_STATE(decon))
 			continue;
 
-		if (decon) {
+		if (decon->dt.out_type == DECON_OUT_DSI) {
+			line_cnt = dsim_reg_get_linecount(dsim->id, dsim->panel->lcd_info.mode);
+			dsim->total_underrun_cnt++;
+			dsim_info("dsim%d underrun irq occurs(%d) at line %d\n", dsim->id,
+					dsim->total_underrun_cnt, line_cnt);
 			dsim_info("\tDECON%d: bw(%u %u), disp(%u %u), p(%u)\n",
 					decon->id,
 					decon->bts.prev_total_bw,
@@ -1295,6 +1350,10 @@ static void dsim_underrun_info(struct dsim_device *dsim)
 				show_exynos_pm_qos_data(PM_QOS_DEVICE_THROUGHPUT);
 #endif
 				dsim_bts_print_info(&decon->bts.bts_info);
+				if (!line_cnt) {
+					dsim_to_regs_param(dsim, &regs);
+					__dsim_dump(dsim->id, &regs);
+				}
 			}
 		}
 	}
@@ -1350,12 +1409,9 @@ static irqreturn_t dsim_irq_handler(int irq, void *dev_id)
 	if (int_src & DSIM_INTSRC_ERR_RX_ECC)
 		dsim_err("RX ECC Multibit error was detected!\n");
 
-	if (int_src & DSIM_INTSRC_UNDER_RUN) {
-		dsim->total_underrun_cnt++;
-		dsim_info("dsim%d underrun irq occurs(%d)\n", dsim->id,
-				dsim->total_underrun_cnt);
+	if (int_src & DSIM_INTSRC_UNDER_RUN)
 		dsim_underrun_info(dsim);
-	}
+
 	if (int_src & DSIM_INTSRC_VT_STATUS) {
 		dsim_dbg("dsim%d vt_status(vsync) irq occurs\n", dsim->id);
 #if IS_ENABLED(CONFIG_EXYNOS_MIGOV)

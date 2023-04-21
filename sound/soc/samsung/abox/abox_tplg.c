@@ -29,6 +29,7 @@
 #define ABOX_TPLG_CTL_VOLSW			0x110
 #define ABOX_TPLG_CTL_ENUM_DOUBLE		0x111
 #define ABOX_TPLG_CTL_ENUM_VALUE		0x112
+#define ABOX_TPLG_CTL_VOLSW_WRITE_ONLY		0x120
 
 static struct device *dev_abox;
 static const struct firmware *abox_tplg_fw;
@@ -668,6 +669,24 @@ static int abox_tplg_info_mixer(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int abox_tplg_get_mixer_write_only(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	struct soc_mixer_control *mc =
+			(struct soc_mixer_control *)kcontrol->private_value;
+	struct abox_tplg_kcontrol_data *kdata = mc->dobj.private;
+	struct snd_soc_component *cmpnt = kdata->cmpnt;
+	struct device *dev = cmpnt->dev;
+	int i;
+
+	abox_dbg(dev, "%s(%s)\n", __func__, kcontrol->id.name);
+
+	for (i = 0; i < kdata->count; i++)
+		ucontrol->value.integer.value[i] = 0;
+
+	return 0;
+}
+
 static int abox_tplg_get_mixer(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
@@ -879,6 +898,11 @@ static const struct snd_soc_tplg_kcontrol_ops abox_tplg_kcontrol_ops[] = {
 	}, {
 		ABOX_TPLG_CTL_VOLSW,
 		abox_tplg_get_mixer,
+		abox_tplg_put_mixer,
+		abox_tplg_info_mixer,
+	}, {
+		ABOX_TPLG_CTL_VOLSW_WRITE_ONLY,
+		abox_tplg_get_mixer_write_only,
 		abox_tplg_put_mixer,
 		abox_tplg_info_mixer,
 	}, {

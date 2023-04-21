@@ -56,16 +56,19 @@ unsigned long ml_task_util_est(struct task_struct *p)
 /*
  * ml_cpu_util - cpu utilization
  */
+unsigned int sysctl_sched_util_est_clamp = 100;
 unsigned long ml_cpu_util(int cpu)
 {
 	struct cfs_rq *cfs_rq;
-	unsigned int util;
+	unsigned int util, util_est;
 
 	cfs_rq = &cpu_rq(cpu)->cfs;
 	util = READ_ONCE(cfs_rq->avg.util_avg);
 
-	if (sched_feat(UTIL_EST))
-		util = max(util, READ_ONCE(cfs_rq->avg.util_est.enqueued));
+	if (sched_feat(UTIL_EST)) {
+		util_est = READ_ONCE(cfs_rq->avg.util_est.enqueued) * sysctl_sched_util_est_clamp / 100;
+		util = max(util, util_est);
+	}
 
 	return min_t(unsigned long, util, capacity_cpu_orig(cpu));
 }
@@ -429,4 +432,33 @@ void part_init(void)
 	}
 
 	part_initialized = 1;
+}
+
+int sysctl_sched_util_est_handler(struct ctl_table *table, int write,
+				void __user *buffer, size_t *lenp,
+				loff_t *ppos)
+{
+	unsigned int old_value;
+	int result;
+
+	old_value = sysctl_sched_util_est_clamp;
+
+	result = proc_dointvec(table, write, buffer, lenp, ppos);
+	if (result)
+		goto undo;
+	if (!write)
+		goto done;
+
+	if (sysctl_sched_util_est_clamp < 0 || sysctl_sched_util_est_clamp > 100) {
+		result = -EINVAL;
+		goto undo;
+	}
+
+	goto done;
+
+undo:
+	sysctl_sched_util_est_clamp = old_value;
+
+done:
+	return result;
 }

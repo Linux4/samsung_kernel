@@ -10,6 +10,8 @@
  * (at your option) any later version.
  */
 
+#include <linux/slab.h>
+
 #include "npu-config.h"
 #include "npu-log.h"
 
@@ -43,6 +45,9 @@ static const char *cfg_name[] = {
 	"npu_pbha_hint_01",
 	"npu_pbha_hint_10",
 	"npu_pbha_hint_11",
+	"transactions_per_core",
+	"cmdq_complexity_per_core",
+	"lastq_time_threshold",
 };
 
 static const char *dfn_name[] = {
@@ -90,6 +95,9 @@ int npu_create_config(struct device *dev)
 	configs[NPU_PBHA_HINT_01] = TMP_NPU_PBHA_HINT_01;
 	configs[NPU_PBHA_HINT_10] = TMP_NPU_PBHA_HINT_10;
 	configs[NPU_PBHA_HINT_11] = TMP_NPU_PBHA_HINT_11;
+	configs[TRANSACTIONS_PER_CORE] = TMP_TRANSACTIONS_PER_CORE;
+	configs[CMDQ_COMPLEXITY_PER_CORE] = TMP_CMDQ_COMPLEXITY_PER_CORE;
+	configs[LASTQ_TIME_THRESHOLD] = TMP_LASTQ_TIME_THRESHOLD;
 #else
 	probe_info("Start create configs from dts");
 	if (of_property_read_string(dev->of_node, "vertex_name",

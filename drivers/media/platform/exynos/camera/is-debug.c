@@ -375,7 +375,7 @@ static int is_get_carve_addr(ulong *addr, struct is_dot_info *d_info,
 
 	/* byte domain */
 	carve_addr += (bytesperline * offset_y);
-	carve_addr += (offset_x * d_info->byteperdot);
+	carve_addr += (ulong)(offset_x * (int)d_info->byteperdot);
 
 	*addr = carve_addr;
 
@@ -445,7 +445,7 @@ void is_dbg_draw_digit(struct is_debug_dma_info *dinfo, u64 digit)
 
 	if (!dinfo || !dinfo->addr) {
 		err("Invalid parameters. dinfo(0x%lx) addr(0x%lx)\n",
-				dinfo, dinfo->addr);
+				dinfo, dinfo ? dinfo->addr : 0);
 		return;
 	}
 
@@ -583,7 +583,7 @@ int is_debug_memlog_alloc_dump(phys_addr_t paddr, size_t size, const char *name)
 
 	is_debug.mobj_dump[idx].paddr = paddr;
 	is_debug.mobj_dump[idx].size = size;
-	strncpy(is_debug.mobj_dump[idx].name, name, PATH_MAX);
+	strncpy(is_debug.mobj_dump[idx].name, name, (PATH_MAX - 1));
 	atomic_inc(&is_debug.mobj_dump_nums);
 
 	info("[MEMLOG][I:%d] memlog_alloc_dump for %s(addr:0x%x, size:0x%x)",
@@ -614,6 +614,7 @@ void is_debug_memlog_dump_cr_all(int log_level)
 int is_debug_probe(void)
 {
 	int ret = 0;
+	struct exynos_platform_is *pdata;
 
 	is_debug.read_vptr = 0;
 	is_debug.minfo = NULL;
@@ -660,29 +661,15 @@ int is_debug_probe(void)
 	if (ret)
 		probe_err("failed to memlog_register for CAM (%d)", ret);
 
-	/* TEMP: not use memlogger file write operation */
-#if 0
-	is_debug.mobj_file_drv = memlog_alloc_file(is_debug.memlog_desc,
-							IS_MEMLOG_FILE_DRV_NAME,
-							SZ_2M,
-							SZ_4M,
-							500,
-							1);
+	pdata = is_dev->platform_data;
 
-	is_debug.mobj_file_ddk = memlog_alloc_file(is_debug.memlog_desc,
-							IS_MEMLOG_FILE_DDK_NAME,
-							SZ_2M,
-							SZ_4M,
-							500,
-							1);
-#endif
 	is_debug.mobj_printf_drv = memlog_alloc_printf(is_debug.memlog_desc,
-								IS_MEMLOG_PRINTF_DRV_SIZE,
+								pdata->is_memlog_size[0],
 								NULL, /* is_debug.mobj_file_drv, */
 								"ker-mem",
 								false);
 	is_debug.mobj_printf_ddk = memlog_alloc_printf(is_debug.memlog_desc,
-								IS_MEMLOG_PRINTF_DDK_SIZE,
+								pdata->is_memlog_size[1],
 								NULL, /* is_debug.mobj_file_ddk, */
 								"bin-mem",
 								false);

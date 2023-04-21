@@ -23,8 +23,9 @@ npu-objs				+= vision-core/vision-dev.o
 npu-objs				+= vision-core/vision-compat-ioctl32.o
 npu-objs				+= vision-core/vision-ioctl.o
 npu-objs				+= vision-core/vision-buffer.o
+npu-objs				+= vision-core/vision-log.o
 
-npu-objs		                += npu/core/npu-util-autosleepthr.o
+npu-objs				+= npu/core/npu-util-autosleepthr.o
 npu-objs				+= npu/core/npu-util-liststatemgr.o
 npu-objs				+= npu/core/npu-util-msgidgen.o
 npu-objs				+= npu/core/npu-util-regs.o

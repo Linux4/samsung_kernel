@@ -176,4 +176,11 @@ struct dbg_snapshot_log_misc {
 	atomic_t print_log_idx;
 	atomic_t acpm_log_idx;
 };
+
+#include <linux/proc_fs.h>
+#if IS_ENABLED(CONFIG_DEBUG_SNAPSHOT) && IS_ENABLED(CONFIG_SEC_PM_LOG)
+extern void dbg_snapshot_log_procfs_init(struct proc_dir_entry *parent);
+#else
+static void dbg_snapshot_log_procfs_init(struct proc_dir_entry *parent) {}
+#endif
 #endif

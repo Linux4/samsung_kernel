@@ -68,6 +68,20 @@ struct cpufreq_policy* cpu_cluster2_policy;
 extern struct kbase_device *pkbdev;
 
 #ifdef CONFIG_MALI_PM_QOS
+static int checked_freq_qos_update_request(struct freq_qos_request *req, s32 new_value)
+{
+	bool cpu_available =
+		(req == &g3d_req_cpu_cluster0_min_qos && cpu_online(0)) ||
+		(req == &g3d_req_cpu_cluster1_min_qos && cpu_online(4)) ||
+		(req == &g3d_req_cpu_cluster1_max_qos && cpu_online(4)) ||
+		(req == &g3d_req_cpu_cluster2_max_qos && cpu_online(7));
+
+	if (req && cpu_available)
+		return freq_qos_update_request(req, new_value);
+
+	return 0;
+}
+
 int gpu_pm_qos_command(struct exynos_context *platform, gpu_pmqos_state state)
 {
 	int idx;
@@ -171,12 +185,12 @@ int gpu_pm_qos_command(struct exynos_context *platform, gpu_pmqos_state state)
 #ifdef CONFIG_MALI_TSG
 		/* if is_pm_qos_tsg is true, it has to unlock all of cpu pmqos for joint governor */
 		if (platform->is_pm_qos_tsg == true){
-			freq_qos_update_request(&g3d_req_cpu_cluster0_min_qos, 0);
+			checked_freq_qos_update_request(&g3d_req_cpu_cluster0_min_qos, 0);
 		} else{
-			freq_qos_update_request(&g3d_req_cpu_cluster0_min_qos, platform->table[platform->step].cpu_little_min_freq);
+			checked_freq_qos_update_request(&g3d_req_cpu_cluster0_min_qos, platform->table[platform->step].cpu_little_min_freq);
 		}
 #else
-		freq_qos_update_request(&g3d_req_cpu_cluster0_min_qos, platform->table[platform->step].cpu_little_min_freq);
+		checked_freq_qos_update_request(&g3d_req_cpu_cluster0_min_qos, platform->table[platform->step].cpu_little_min_freq);
 #endif	/* CONFIG_MALI_TSG */
 		}
 
@@ -184,27 +198,27 @@ int gpu_pm_qos_command(struct exynos_context *platform, gpu_pmqos_state state)
 #ifdef CONFIG_MALI_TSG
 		/* if is_pm_qos_tsg is true, it has to unlock all of cpu pmqos for joint governor */
 		if (platform->is_pm_qos_tsg == true) {
-			freq_qos_update_request(&g3d_req_cpu_cluster1_min_qos, 0);
-			freq_qos_update_request(&g3d_req_cpu_cluster2_max_qos, PM_QOS_CLUSTER2_FREQ_MAX_DEFAULT_VALUE);
+			checked_freq_qos_update_request(&g3d_req_cpu_cluster1_min_qos, 0);
+			checked_freq_qos_update_request(&g3d_req_cpu_cluster2_max_qos, PM_QOS_CLUSTER2_FREQ_MAX_DEFAULT_VALUE);
 		} else {
-			freq_qos_update_request(&g3d_req_cpu_cluster1_min_qos, platform->table[platform->step].cpu_middle_min_freq);
-			freq_qos_update_request(&g3d_req_cpu_cluster2_max_qos, platform->table[platform->step].cpu_big_max_freq);
+			checked_freq_qos_update_request(&g3d_req_cpu_cluster1_min_qos, platform->table[platform->step].cpu_middle_min_freq);
+			checked_freq_qos_update_request(&g3d_req_cpu_cluster2_max_qos, platform->table[platform->step].cpu_big_max_freq);
 		}
 #else
-		freq_qos_update_request(&g3d_req_cpu_cluster1_min_qos, platform->table[platform->step].cpu_middle_min_freq);
-		freq_qos_update_request(&g3d_req_cpu_cluster2_max_qos, platform->table[platform->step].cpu_big_max_freq);
+		checked_freq_qos_update_request(&g3d_req_cpu_cluster1_min_qos, platform->table[platform->step].cpu_middle_min_freq);
+		checked_freq_qos_update_request(&g3d_req_cpu_cluster2_max_qos, platform->table[platform->step].cpu_big_max_freq);
 #endif	/* CONFIG_MALI_TSG */
 #if defined(CONFIG_MALI_SEC_CL_BOOST) && defined(CONFIG_MALI_CL_PMQOS)
 		if (pkbdev->pm.backend.metrics.is_full_compute_util && platform->cl_boost_disable == false) {
 			platform->gpu_operation_mode_info = CL_FULL;
 			exynos_pm_qos_update_request(&exynos5_g3d_mif_min_qos, platform->cl_pmqos_table[platform->step].mif_min_freq); /* MIF Min request  */
-			freq_qos_update_request(&g3d_req_cpu_cluster0_min_qos, platform->cl_pmqos_table[platform->step].cpu_little_min_freq);	/* LIT Min request */
+			checked_freq_qos_update_request(&g3d_req_cpu_cluster0_min_qos, platform->cl_pmqos_table[platform->step].cpu_little_min_freq);	/* LIT Min request */
 #if PM_QOS_CPU_CLUSTER_NUM == 2
-			freq_qos_update_request(&g3d_req_cpu_cluster2_max_qos, platform->cl_pmqos_table[platform->step].cpu_big_max_freq); /* BIG Max request */
+			checked_freq_qos_update_request(&g3d_req_cpu_cluster2_max_qos, platform->cl_pmqos_table[platform->step].cpu_big_max_freq); /* BIG Max request */
 #endif
 #if PM_QOS_CPU_CLUSTER_NUM == 3
-			freq_qos_update_request(&g3d_req_cpu_cluster1_min_qos, platform->cl_pmqos_table[platform->step].cpu_middle_min_freq); /* MID Min request */
-			freq_qos_update_request(&g3d_req_cpu_cluster2_max_qos, platform->cl_pmqos_table[platform->step].cpu_big_max_freq); /* BIG Max request */
+			checked_freq_qos_update_request(&g3d_req_cpu_cluster1_min_qos, platform->cl_pmqos_table[platform->step].cpu_middle_min_freq); /* MID Min request */
+			checked_freq_qos_update_request(&g3d_req_cpu_cluster2_max_qos, platform->cl_pmqos_table[platform->step].cpu_big_max_freq); /* BIG Max request */
 #endif
 		} else {
 			platform->gpu_operation_mode_info = GL_NORMAL;
@@ -213,12 +227,12 @@ int gpu_pm_qos_command(struct exynos_context *platform, gpu_pmqos_state state)
 
 #ifdef CONFIG_MALI_SEC_CL_BOOST
 		if (pkbdev->pm.backend.metrics.is_full_compute_util && platform->cl_boost_disable == false)
-			freq_qos_update_request(&g3d_req_cpu_cluster2_max_qos, PM_QOS_CLUSTER2_FREQ_MAX_DEFAULT_VALUE);
+			checked_freq_qos_update_request(&g3d_req_cpu_cluster2_max_qos, PM_QOS_CLUSTER2_FREQ_MAX_DEFAULT_VALUE);
 
 		if (platform->heavy_compute_mode & HCM_MODE_A)
-			freq_qos_update_request(&g3d_req_cpu_cluster0_min_qos, platform->gpu_heavy_compute_cpu0_min_clock);
+			checked_freq_qos_update_request(&g3d_req_cpu_cluster0_min_qos, platform->gpu_heavy_compute_cpu0_min_clock);
 		else if (platform->heavy_compute_mode & HCM_MODE_C)
-			freq_qos_update_request(&g3d_req_cpu_cluster0_min_qos, platform->gpu_heavy_compute_vk_cpu0_min_clock);
+			checked_freq_qos_update_request(&g3d_req_cpu_cluster0_min_qos, platform->gpu_heavy_compute_vk_cpu0_min_clock);
 #endif
 #endif
 		break;
@@ -230,12 +244,12 @@ int gpu_pm_qos_command(struct exynos_context *platform, gpu_pmqos_state state)
 		exynos_pm_qos_update_request(&exynos5_g3d_mif_min_qos, 0);
 		if (platform->pmqos_mif_max_clock)
 			exynos_pm_qos_update_request(&exynos5_g3d_mif_max_qos, PM_QOS_BUS_THROUGHPUT_MAX_DEFAULT_VALUE);
-		freq_qos_update_request(&g3d_req_cpu_cluster0_min_qos, 0);
-		freq_qos_update_request(&g3d_req_cpu_cluster1_max_qos, PM_QOS_CLUSTER1_FREQ_MAX_DEFAULT_VALUE);
+		checked_freq_qos_update_request(&g3d_req_cpu_cluster0_min_qos, 0);
+		checked_freq_qos_update_request(&g3d_req_cpu_cluster1_max_qos, PM_QOS_CLUSTER1_FREQ_MAX_DEFAULT_VALUE);
 		//exynos_pm_qos_update_request(&exynos5_g3d_cpu_cluster1_max_qos, PM_QOS_CLUSTER1_FREQ_MAX_DEFAULT_VALUE);
 #if PM_QOS_CPU_CLUSTER_NUM == 3
-		freq_qos_update_request(&g3d_req_cpu_cluster1_min_qos, 0);
-		freq_qos_update_request(&g3d_req_cpu_cluster2_max_qos, PM_QOS_CLUSTER2_FREQ_MAX_DEFAULT_VALUE);
+		checked_freq_qos_update_request(&g3d_req_cpu_cluster1_min_qos, 0);
+		checked_freq_qos_update_request(&g3d_req_cpu_cluster2_max_qos, PM_QOS_CLUSTER2_FREQ_MAX_DEFAULT_VALUE);
 #endif
 		break;
 	case GPU_CONTROL_PM_QOS_EGL_SET:

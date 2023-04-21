@@ -1331,6 +1331,10 @@ static ssize_t store_current_mode(struct device *dev,
 	ret = sscanf(buf, "%d", &new_mode);
 	if (ret != 1)
 		return -EINVAL;
+
+	if (new_mode < -1)
+		return -EINVAL;
+
 	__exynos_devfreq_alt_mode_change(data, new_mode);
 
 	return count;

@@ -45,6 +45,7 @@
 #include "is-vender.h"
 #include "is-vender-specific.h"
 #include "is-votfmgr.h"
+#include "is-device-camif-dma.h"
 
 #if defined(CSIS_PDP_VOTF_GLOBAL_WA)
 #define INSTANT_OFF_CNT	(1)
@@ -1018,6 +1019,11 @@ static int is_sensor_stop(struct is_device_sensor *device)
 			merr("is_itf_stream_off is fail(%d)", device, ret);
 	}
 
+	if (test_bit(IS_GROUP_VOTF_OUTPUT, &group->state) && group->next) {
+		ret = is_votf_destroy_link_sensor(group->next);
+		if (ret)
+			merr("is_votf_destroy_link_sensor is fail(%d)", device, ret);
+	}
 p_err:
 	return ret;
 }
@@ -1301,10 +1307,7 @@ static int is_sensor_notify_by_fstr(struct is_device_sensor *device, void *arg,
 			return -EINVAL;
 		}
 
-		if (dma_subdev->dma_ch[csi->scm] < 4)	/* CSISX4_PDP_DMAs */
-			frameptr = (ctrl.value) % framemgr->num_frames;
-		else					/* PDP_DMAs */
-			frameptr = (ctrl.value + 1) % framemgr->num_frames;
+		frameptr = (ctrl.value) % framemgr->num_frames;
 
 		frame = &framemgr->frames[frameptr];
 		frame->fcount = fcount;
@@ -1345,10 +1348,6 @@ static int is_sensor_notify_by_fend(struct is_device_sensor *device, void *arg,
 #endif
 	group = &device->group_sensor;
 
-	/* if OTF case, skip buffer done for sensor leader's frame */
-	if (test_bit(IS_SENSOR_OTF_OUTPUT, &device->state))
-		goto p_err;
-
 	framemgr = GET_SUBDEV_FRAMEMGR(&group->head->leader);
 	FIMC_BUG(!framemgr);
 
@@ -1356,6 +1355,20 @@ static int is_sensor_notify_by_fend(struct is_device_sensor *device, void *arg,
 
 	framemgr_e_barrier_irqs(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_PROCESS);
+	if (frame) {
+		status = *(u32 *)arg;
+		if (status) {
+			mgrinfo("[ERR] NDONE(%d, E%d)\n", group, group, frame, frame->index, status);
+			done_state = VB2_BUF_STATE_ERROR;
+			frame->result = status;
+		} else {
+			mgrdbgs(1, " DONE(%d)\n", group, group, frame, frame->index);
+		}
+	}
+
+	/* if OTF case, skip buffer done for sensor leader's frame */
+	if (test_bit(IS_SENSOR_OTF_OUTPUT, &device->state))
+		goto p_err;
 
 	/*
 	 * This processing frame's fcount should be equals to sensor device's fcount.
@@ -1377,23 +1390,15 @@ static int is_sensor_notify_by_fend(struct is_device_sensor *device, void *arg,
 #endif
 		TIME_SHOT(TMS_SDONE);
 #endif
-		status = *(u32 *)arg;
-		if (status) {
-			mgrinfo("[ERR] NDONE(%d, E%X)\n", group, group, frame, frame->index, status);
-			done_state = VB2_BUF_STATE_ERROR;
-		} else {
-			mgrdbgs(1, " DONE(%d)\n", group, group, frame, frame->index);
-		}
-
 		clear_bit(group->leader.id, &frame->out_flag);
 		is_group_done(device->groupmgr, group, frame, done_state);
 		trans_frame(framemgr, frame, FS_COMPLETE);
 		CALL_VOPS(vctx, done, frame->index, done_state);
 	}
 
+p_err:
 	framemgr_x_barrier_irqr(framemgr, 0, flags);
 
-p_err:
 	return ret;
 }
 
@@ -1662,8 +1667,7 @@ static int is_sensor_probe(struct platform_device *pdev)
 	atomic_t dev_id;
 	struct is_core *core;
 	struct is_device_sensor *device;
-	void *pdata;
-	enum subdev_ch_mode scm;
+	struct exynos_platform_is_sensor *pdata;
 
 	FIMC_BUG(!pdev);
 
@@ -1751,7 +1755,7 @@ static int is_sensor_probe(struct platform_device *pdev)
 		goto p_err;
 	}
 
-	ret = is_csi_probe(device, device_id, device->pdata->csi_ch);
+	ret = is_csi_probe(device, device_id, pdata->csi_ch, pdata->wdma_ch_hint);
 	if (ret) {
 		merr("is_csi_probe is fail(%d)", device, ret);
 		goto p_err;
@@ -1817,35 +1821,6 @@ static int is_sensor_probe(struct platform_device *pdev)
 	timer_setup(&device->dtp_timer, (void (*)(struct timer_list *))is_sensor_dtp, 0);
 #endif
 
-	/* DMA abstraction */
-	device->dma_abstract = device->pdata->dma_abstract;
-	if (device->dma_abstract) {
-		device->num_of_ch_mode = device->pdata->num_of_ch_mode;
-
-		for (scm = SCM_WO_PAF_HW;
-			(scm < device->num_of_ch_mode) && (scm < SCM_MAX); scm++) {
-			/* DMA abstraction */
-			device->ssvc0.dma_ch[scm]
-				= device->pdata->dma_ch[(scm * CSI_VIRTUAL_CH_MAX) + CSI_VIRTUAL_CH_0];
-			device->ssvc1.dma_ch[scm]
-				= device->pdata->dma_ch[(scm * CSI_VIRTUAL_CH_MAX) + CSI_VIRTUAL_CH_1];
-			device->ssvc2.dma_ch[scm]
-				= device->pdata->dma_ch[(scm * CSI_VIRTUAL_CH_MAX) + CSI_VIRTUAL_CH_2];
-			device->ssvc3.dma_ch[scm]
-				= device->pdata->dma_ch[(scm * CSI_VIRTUAL_CH_MAX) + CSI_VIRTUAL_CH_3];
-
-			/* VC abstraction */
-			device->ssvc0.vc_ch[scm]
-				= device->pdata->vc_ch[(scm * CSI_VIRTUAL_CH_MAX) + CSI_VIRTUAL_CH_0];
-			device->ssvc1.vc_ch[scm]
-				= device->pdata->vc_ch[(scm * CSI_VIRTUAL_CH_MAX) + CSI_VIRTUAL_CH_1];
-			device->ssvc2.vc_ch[scm]
-				= device->pdata->vc_ch[(scm * CSI_VIRTUAL_CH_MAX) + CSI_VIRTUAL_CH_2];
-			device->ssvc3.vc_ch[scm]
-				= device->pdata->vc_ch[(scm * CSI_VIRTUAL_CH_MAX) + CSI_VIRTUAL_CH_3];
-		}
-	}
-
 	set_bit(IS_SENSOR_PROBE, &device->state);
 
 p_err:
@@ -1888,7 +1863,6 @@ int is_sensor_open(struct is_device_sensor *device,
 	clear_bit(IS_SENSOR_WAIT_STREAMING, &device->state);
 	clear_bit(SENSOR_MODULE_GOT_INTO_TROUBLE, &device->state);
 	set_bit(IS_SENSOR_BACK_NOWAIT_STOP, &device->state);
-	clear_bit(IS_SENSOR_NEED_VOTF_FLUSH, &device->state);
 #if defined(SECURE_CAMERA_IRIS)
 	device->smc_state = IS_SENSOR_SMC_INIT;
 #endif
@@ -2230,7 +2204,7 @@ static int is_sensor_i2c_dummy_module_set(struct is_device_sensor *device, struc
 }
 
 int is_sensor_map_sensor_module(struct is_device_ischain *device, int position,
-		struct is_device_sensor *sensor, int *sensor_id)
+		int *sensor_id)
 {
 	int ret = 0;
 	struct is_core *core = (struct is_core *)dev_get_drvdata(is_dev);
@@ -2883,7 +2857,7 @@ int is_sensor_s_framerate(struct is_device_sensor *device,
 	subdev_csi = device->subdev_csi;
 
 	if (framerate == 0) {
-		mwarn("frame rate 0 request is ignored", device);
+		minfo("[%s] frame rate 0 request is ignored", device, __func__);
 		goto p_err;
 	}
 
@@ -3590,13 +3564,6 @@ static int is_sensor_back_start(void *qdevice,
 		goto p_err;
 	}
 
-	ret = is_hw_camif_cfg((void *)device);
-	if (ret) {
-		merr("hw_camif_cfg is error(%d)", device, ret);
-		ret = -EINVAL;
-		goto p_err;
-	}
-
 	ret = v4l2_subdev_call(device->subdev_module, video,
 				s_routing, 0, 0, 1);
 	if (ret) {
@@ -3719,7 +3686,7 @@ static int is_sensor_back_stop(void *qdevice,
 	group = &device->group_sensor;
 
 	if (!test_bit(IS_SENSOR_BACK_START, &device->state)) {
-		mwarn("already back stop", device);
+		minfo("[%s] already back stop", device, __func__);
 		goto p_err;
 	}
 
@@ -3930,7 +3897,7 @@ int is_sensor_front_stop(struct is_device_sensor *device, bool fstop)
 	}
 
 	if (!test_bit(IS_SENSOR_FRONT_START, &device->state)) {
-		mwarn("already front stop", device);
+		minfo("[%s] already front stop", device, __func__);
 		goto already_stopped;
 	}
 
@@ -3946,9 +3913,6 @@ int is_sensor_front_stop(struct is_device_sensor *device, bool fstop)
 
 	clear_bit(IS_SENSOR_FRONT_START, &device->state);
 	set_bit(IS_SENSOR_BACK_NOWAIT_STOP, &device->state);
-
-	if (device->cfg->votf)
-		set_bit(IS_SENSOR_NEED_VOTF_FLUSH, &device->state);
 
 reset_the_others:
 	if (!fstop && device->use_standby)
@@ -4260,6 +4224,28 @@ static int is_sensor_shot(struct is_device_ischain *ischain,
 	frame = NULL;
 	sensor = ischain->sensor;
 	group = &sensor->group_sensor;
+
+	if (!atomic_read(&group->head->scount)) {
+		ret = v4l2_subdev_call(sensor->subdev_csi, core, ioctl,
+			SENSOR_IOCTL_CSI_DMA_ATTACH, NULL);
+		if (ret) {
+			merr("v4l2_csi_call(SENSOR_IOCTL_CSI_DMA_ATTACH) is fail(%d)",
+				sensor, ret);
+			goto p_err;
+		}
+
+		if (test_bit(IS_GROUP_VOTF_OUTPUT, &group->state) && group->next) {
+			u32 width = is_sensor_g_bns_width(sensor);
+			u32 height = is_sensor_g_bns_height(sensor);
+
+			ret = is_votf_create_link_sensor(group->next, width, height);
+			if (ret) {
+				merr("is_votf_create_link_sensor is fail(%d)",
+					sensor, ret);
+				goto p_err;
+			}
+		}
+	}
 
 	framemgr = GET_HEAD_GROUP_FRAMEMGR(group, check_frame->cur_shot_idx);
 	if (!framemgr) {

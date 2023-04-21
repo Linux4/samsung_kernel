@@ -367,10 +367,8 @@ static unsigned int is_mxp_video_poll(struct file *file,
 	device = GET_DEVICE(vctx);
 
 	ret = is_video_poll(file, vctx, wait);
-#if 0 /* FIXME */
-	if (ret)
-		merr("is_video_poll is fail(%d)", device, ret);
-#endif
+	/* TODO: error handing */
+
 	return ret;
 }
 

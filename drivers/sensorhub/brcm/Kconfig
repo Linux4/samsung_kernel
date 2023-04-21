@@ -678,6 +678,17 @@ config SENSORS_SSP_UNBOUND
 	  To compile this driver as a module, choose M here: the
 	  module will be called ssp.
 
+config SENSORS_SSP_R9S
+	tristate "R9S Project"
+	default n
+	depends on SPI
+	help
+	  Binary file for ssp driver.
+          If you say yes here you get R9S project support for
+	  factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
 config SSP_MOTOR_CALLBACK
 	tristate "Sensors support motor"
 	default n
@@ -771,6 +782,10 @@ config SENSORS_TMD4907
 	bool "proximity/light tdm4907"
 	default y if SENSORS_DYNAMIC_SENSORLIST
 
+config SENSORS_STK33910
+	bool "proximity/light stk33910"
+	default y if SENSORS_DYNAMIC_SENSORLIST
+
 config SENSORS_AK09918C
 	bool "magnetometer ak09918c"
 	default y if SENSORS_DYNAMIC_SENSORLIST
@@ -782,3 +797,12 @@ config SENSORS_LPS22H
 config SENSORS_LPS25H
 	bool "barometer lps25hhtr"
 	default y if SENSORS_DYNAMIC_SENSORLIST
+
+config SENSORS_FLIP_COVER_DETECTOR
+	tristate "flip cover dectector"
+	default n
+	help
+	  this config is flip cover dectector
+	  that use mABCD algorithm
+	  this algorithm can replace hallic
+	  y is use algorithm

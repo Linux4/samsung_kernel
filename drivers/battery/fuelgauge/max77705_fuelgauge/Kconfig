@@ -29,5 +29,14 @@ config EN_OOPS
 	  MAXIM fuel-gauge only support this option.
 	  some battery data values should be defined.
 
+config FUELGAUGE_MAX77705_TEST
+	tristate "KUnit test for max77705_fuelgauge_test"
+	depends on SEC_KUNIT
+	help
+	  Say Y here to enable
+	  support to kunit test.
+	  for kunitest
+	  for max77705_fuelgauge_test
+
 endmenu
 

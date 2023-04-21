@@ -798,6 +798,7 @@ static int init_cpus_of_domain(struct domain_profiler *dompro)
 	return 0;
 }
 
+#ifdef CONFIG_EXYNOS_DEBUG_INFO
 static void show_domain_info(struct domain_profiler *dompro)
 {
 	int idx;
@@ -832,6 +833,7 @@ static void show_domain_info(struct domain_profiler *dompro)
 		}
 	}
 }
+#endif
 
 static int exynos_cpu_profiler_probe(struct platform_device *pdev)
 {
@@ -895,9 +897,11 @@ static int exynos_cpu_profiler_probe(struct platform_device *pdev)
 			"EXYNOS_MIGOV_CPU_POWER_DOWN_CONTROL",
 			NULL, cpupro_cpupm_offline);
 
+#ifdef CONFIG_EXYNOS_DEBUG_INFO
 	/* show domain information */
 	list_for_each_entry(dompro, &profiler.list, list)
 		show_domain_info(dompro);
+#endif
 
 	return 0;
 }

@@ -30,6 +30,10 @@
 #define VENDER_S_CTRL 0
 #define VENDER_G_CTRL 0
 
+#ifndef EV_LIST_SIZE
+#define EV_LIST_SIZE  24
+#endif
+
 struct is_vender {
 	char fw_path[IS_PATH_LEN];
 	char request_fw_path[IS_PATH_LEN];
@@ -109,6 +113,7 @@ struct capture_intent_info_t {
 	u16 captureIntent;
 	u16 captureCount;
 	s16 captureEV;
+	char captureMultiEVList[EV_LIST_SIZE];
 };
 
 #define TOF_CAL_SIZE_MAX 10
@@ -208,6 +213,8 @@ long is_vender_read_efs(char *efs_path, u8 *buf, int buflen);
 int is_vender_remove_dump_fw_file(void);
 int is_vendor_get_module_from_position(int position, struct is_module_enum ** module);
 int is_vendor_get_rom_id_from_position(int position);
+int is_vendor_get_sensor_id_from_position(int position);
+int is_vendor_get_position_from_rom_id(int rom_id);
 void is_vendor_get_rom_info_from_position(int position, int *rom_type, int *rom_id, int *rom_cal_index);
 void is_vendor_get_rom_dualcal_info_from_position(int position, int *rom_type, int *rom_dualcal_id, int *rom_dualcal_index);
 bool is_vendor_check_camera_running(int position);

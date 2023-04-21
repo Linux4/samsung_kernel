@@ -158,6 +158,13 @@ config CAMERA_CIS_GW2_OBJ
 	help
 	  Use to build GW2 camera sensor.
 
+config CAMERA_CIS_HI847_OBJ
+	tristate "Use HI847 camera cis"
+	depends on CAMERA_CIS_SELECT
+	default n
+	help
+	  Use to build HI847 camera sensor.
+
 config CAMERA_CIS_2L1_OBJ
 	tristate "Use 2L1 camera cis"
 	depends on CAMERA_CIS_SELECT
@@ -276,6 +283,13 @@ config CAMERA_CIS_IMX333_OBJ
 	default n
 	help
 	  Use to build IMX333 camera sensor.
+
+config CAMERA_CIS_IMX555_OBJ
+	tristate "Use IMX555 camera cis"
+	depends on CAMERA_CIS_SELECT
+	default n
+	help
+	  Use to build IMX555 camera sensor.
 
 config CAMERA_CIS_2L7_OBJ
 	tristate "Use 2L7 camera cis"

@@ -201,23 +201,11 @@ static int vts_platform_trigger(struct snd_pcm_substream *substream, int cmd)
 			result = vts_start_ipc_transaction(dev, data->vts_data,
 				VTS_IRQ_AP_STOP_COPY, &values, 1, 1);
 			data->vts_data->vts_tri_state = VTS_TRI_STATE_COPY_STOP;
-			if (IS_ENABLED(CONFIG_SOC_EXYNOS2100)) {
-				if (data->vts_data->vts_rec_state == VTS_REC_STATE_STOP)
-					vts_platform_mif_control(dev, data->vts_data, 0);
-				else
-					vts_dev_info(dev, "%s SKIP MIF Control\n", __func__);
-			}
 		} else {
 			vts_dev_dbg(dev, "%s VTS_IRQ_AP_STOP_REC\n", __func__);
 			result = vts_start_ipc_transaction(dev, data->vts_data,
 				VTS_IRQ_AP_STOP_REC, &values, 1, 1);
 			data->vts_data->vts_rec_state = VTS_REC_STATE_STOP;
-			if (IS_ENABLED(CONFIG_SOC_EXYNOS2100)) {
-				if (data->vts_data->vts_tri_state == VTS_TRI_STATE_COPY_STOP)
-					vts_platform_mif_control(dev, data->vts_data, 0);
-				else
-					vts_dev_info(dev, "%s SKIP MIF Control\n", __func__);
-			}
 		}
 		break;
 	default:
@@ -261,7 +249,7 @@ static int vts_platform_open(struct snd_pcm_substream *substream)
 
 	/* vts_try_request_firmware_interface(data->vts_data); */
 	pm_runtime_get_sync(dev);
-	vts_start_runtime_resume(dev);
+	vts_start_runtime_resume(dev, 0);
 
 	snd_soc_set_runtime_hwparams(substream, &vts_platform_hardware);
 
@@ -305,7 +293,7 @@ static int vts_platform_close(struct snd_pcm_substream *substream)
 		vts_dev_warn(dev, "%s VTS SRAM is Used for CP call\n",
 					__func__);
 		pm_runtime_get_sync(dev);
-		vts_start_runtime_resume(dev);
+		vts_start_runtime_resume(dev, 0);
 		/* vts_try_request_firmware_interface(data->vts_data); */
 		return -EBUSY;
 	}

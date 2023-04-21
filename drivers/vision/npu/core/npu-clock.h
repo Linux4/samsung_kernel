@@ -26,6 +26,7 @@ struct npu_clocks {
 };
 
 #include "npu-log.h"
+#include "npu-device.h"
 
 int npu_clk_get(struct npu_clocks *clocks, struct device *dev);
 void npu_clk_put(struct npu_clocks *clocks, struct device *dev);

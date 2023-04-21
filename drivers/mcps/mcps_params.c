@@ -1,5 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2019 Samsung Electronics.
+ * Copyright (C) 2019-2021 Samsung Electronics.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -26,6 +27,8 @@
 #include <linux/uaccess.h>
 // -- file write
 
+#include "utils/mcps_cpu.h"
+#include "utils/mcps_logger.h"
 #include "mcps_device.h"
 #include "mcps_sauron.h"
 #include "mcps_debug.h"
@@ -34,8 +37,8 @@
 	!defined(CONFIG_KLAT) && \
 	defined(CONFIG_MCPS_ON_EXYNOS)
 #define MCPS_IF_ADDR_MAX 8
-__visible_for_testing __be32 __mcps_in_addr[MCPS_IF_ADDR_MAX];
-__visible_for_testing struct in6_addr __mcps_in6_addr[MCPS_IF_ADDR_MAX];
+mcps_visible_for_testing __be32 __mcps_in_addr[MCPS_IF_ADDR_MAX];
+mcps_visible_for_testing struct in6_addr __mcps_in6_addr[MCPS_IF_ADDR_MAX];
 
 int check_mcps_in6_addr(struct in6_addr *addr)
 {
@@ -63,7 +66,7 @@ int check_mcps_in_addr(__be32 addr)
 		 );
 }
 
-__visible_for_testing int set_mcps_in_addr(const char *buf, const struct kernel_param *kp)
+mcps_visible_for_testing int set_mcps_in_addr(const char *buf, const struct kernel_param *kp)
 {
 	unsigned int num = 0;
 
@@ -104,14 +107,14 @@ error:
 	return len;
 }
 
-__visible_for_testing int get_mcps_in_addr(char *buf, const struct kernel_param *kp)
+mcps_visible_for_testing int get_mcps_in_addr(char *buf, const struct kernel_param *kp)
 {
 	int i = 0;
 	int len = 0;
 
-	for (i = 0; i < MCPS_IF_ADDR_MAX; i++) {
+	for (i = 0; i < MCPS_IF_ADDR_MAX; i++)
 		len += scnprintf(buf + len, PAGE_SIZE, "%pI4\n", &__mcps_in_addr[i]);
-	}
+
 	return len;
 };
 
@@ -128,7 +131,7 @@ module_param_cb(mcps_in_addr,
 
 int in6_pton(const char *src, int srclen, u8 *dst, int delim, const char **end);
 
-__visible_for_testing int set_mcps_in6_addr(const char *buf, const struct kernel_param *kp)
+mcps_visible_for_testing int set_mcps_in6_addr(const char *buf, const struct kernel_param *kp)
 {
 	struct in6_addr val;
 	unsigned int num = 0;
@@ -162,9 +165,9 @@ __visible_for_testing int set_mcps_in6_addr(const char *buf, const struct kernel
 		goto error;
 	}
 
-	if (in6_pton(substr, -1, val.s6_addr, -1, NULL) == 0) {
+	if (in6_pton(substr, -1, val.s6_addr, -1, NULL) == 0)
 		goto error;
-	}
+
 	__mcps_in6_addr[num] = val;
 
 error:
@@ -173,14 +176,14 @@ error:
 	return len;
 }
 
-__visible_for_testing int get_mcps_in6_addr(char *buf, const struct kernel_param *kp)
+mcps_visible_for_testing int get_mcps_in6_addr(char *buf, const struct kernel_param *kp)
 {
 	int i = 0;
 	int len = 0;
 
-	for (i = 0; i < MCPS_IF_ADDR_MAX; i++) {
+	for (i = 0; i < MCPS_IF_ADDR_MAX; i++)
 		len += scnprintf(buf + len, PAGE_SIZE, "%pI6\n", &__mcps_in6_addr[i]);
-	}
+
 	return len;
 };
 
@@ -242,9 +245,9 @@ struct arps_meta *get_arps_rcu(void)
 {
 	struct arps_meta *arps = rcu_dereference(dynamic_arps);
 
-	if (arps) {
+	if (arps)
 		return arps;
-	}
+
 	arps = rcu_dereference(static_arps);
 	return arps;
 }
@@ -253,56 +256,10 @@ struct arps_meta *get_newflow_rcu(void)
 {
 	struct arps_meta *arps = rcu_dereference(newflow_arps);
 
-	if (arps) {
+	if (arps)
 		return arps;
-	}
 
 	return get_arps_rcu();
-}
-
-static int create_andnot_arps_mask(cpumask_var_t *dst, cpumask_var_t *base, cpumask_var_t *except)
-{
-	if (!zalloc_cpumask_var(dst, GFP_KERNEL)) {
-		MCPS_DEBUG("failed to alloc kmem\n");
-		return -ENOMEM;
-	}
-
-	cpumask_andnot(*dst, *base, *except);
-	return 0;
-
-}
-
-static int create_and_copy_arps_mask(cpumask_var_t *dst, cpumask_var_t *src)
-{
-	if (!zalloc_cpumask_var(dst, GFP_KERNEL)) {
-		MCPS_DEBUG("failed to alloc kmem\n");
-		return -ENOMEM;
-	}
-
-	cpumask_copy(*dst, *src);
-	return 0;
-}
-
-static int create_arps_mask(const char *buf, cpumask_var_t *mask)
-{
-	int len, err;
-
-	if (!zalloc_cpumask_var(mask, GFP_KERNEL)) {
-		MCPS_DEBUG("failed to alloc kmem\n");
-		return -ENOMEM;
-	}
-
-	len = strlen(buf);
-	err = bitmap_parse(buf, len, cpumask_bits(*mask), NR_CPUS);
-	if (err) {
-		MCPS_DEBUG("failed to parse %s\n", buf);
-		free_cpumask_var(*mask);
-		return -EINVAL;
-	}
-
-	MCPS_DEBUG("%*pb\n", cpumask_pr_args(*mask));
-
-	return 0;
 }
 
 static struct rps_map *create_arps_map_and(cpumask_var_t mask, const cpumask_var_t ref)
@@ -347,15 +304,21 @@ static void release_arps_map(struct rps_map *maps[NR_CLUSTER])
 	kfree(maps[MID_CLUSTER]);
 }
 
-static void release_arps_meta(struct arps_meta *meta)
+mcps_visible_for_testing void release_arps_mask(cpumask_var_t mask[NR_CLUSTER])
+{
+	free_cpumask_var(mask[ALL_CLUSTER]);
+	free_cpumask_var(mask[LIT_CLUSTER]);
+	free_cpumask_var(mask[BIG_CLUSTER]);
+	free_cpumask_var(mask[MID_CLUSTER]);
+}
+
+mcps_visible_for_testing void release_arps_meta(struct arps_meta *meta)
 {
 	if (!meta)
 		return;
 
-	if (cpumask_available(meta->mask))
-		free_cpumask_var(meta->mask);
-	if (cpumask_available(meta->mask_filtered))
-		free_cpumask_var(meta->mask_filtered);
+	release_arps_mask(meta->mask);
+	release_arps_mask(meta->mask_filtered);
 
 	release_arps_map(meta->maps);
 	release_arps_map(meta->maps_filtered);
@@ -363,66 +326,79 @@ static void release_arps_meta(struct arps_meta *meta)
 	kfree(meta);
 }
 
-int init_arps_map(struct rps_map *maps[NR_CLUSTER], cpumask_var_t mask)
+int init_arps_map(struct rps_map *maps[NR_CLUSTER], cpumask_var_t mask[NR_CLUSTER])
 {
-	maps[ALL_CLUSTER] = create_arps_map(mask);
+	maps[ALL_CLUSTER] = create_arps_map(mask[ALL_CLUSTER]);
 	if (!maps[ALL_CLUSTER])
 		goto fail;
-	maps[LIT_CLUSTER] = create_arps_map_and(mask, cpu_little_mask);
+
+	maps[LIT_CLUSTER] = create_arps_map(mask[LIT_CLUSTER]);
 	if (!maps[LIT_CLUSTER])
 		goto fail;
-	maps[BIG_CLUSTER] = create_arps_map_and(mask, cpu_big_mask);
+
+	maps[BIG_CLUSTER] = create_arps_map(mask[BIG_CLUSTER]);
 	if (!maps[BIG_CLUSTER])
 		goto fail;
-	maps[MID_CLUSTER] = create_arps_map_and(mask, cpu_mid_mask);
+
+	maps[MID_CLUSTER] = create_arps_map(mask[MID_CLUSTER]);
 	if (!maps[MID_CLUSTER])
 		goto fail;
 
 	return 0;
 fail:
-	MCPS_ERR("Fail init arps map\n");
+	mcps_err("Fail init arps map");
 	return -ENOMEM;
 }
 
-// zero-weighted mask make arps_meta be NULL.
+static int init_arps_mask(cpumask_var_t masks[NR_CLUSTER], const cpumask_var_t src)
+{
+	if (mcps_alloc_cpumask_and(&masks[ALL_CLUSTER], src, cpu_possible_mask)
+		|| mcps_alloc_cpumask_and(&masks[LIT_CLUSTER], src, cpu_little_mask)
+		|| mcps_alloc_cpumask_and(&masks[BIG_CLUSTER], src, cpu_big_mask)
+		|| mcps_alloc_cpumask_and(&masks[MID_CLUSTER], src, cpu_mid_mask))
+		goto error;
+
+	if (!cpumask_weight(masks[ALL_CLUSTER])) {
+		mcps_err("cpumask weight : 0");
+		goto error;
+	}
+
+	return 0;
+error:
+	release_arps_mask(masks);
+	return -ENOMEM;
+}
+
+// zero-weighted mask make arps_meta will be NULL.
 struct arps_meta *create_arps_meta(cpumask_var_t *mask)
 {
 	cpumask_var_t mask_cp_irq;
+	cpumask_var_t mask_filtered;
 	struct arps_meta *meta = NULL;
 
-	meta = (struct arps_meta *)kzalloc(sizeof(struct arps_meta), GFP_KERNEL);
-	if (!meta) {
-		MCPS_DEBUG("Fail to zalloc\n");
+	meta = kzalloc(sizeof(struct arps_meta), GFP_KERNEL);
+	if (!meta)
 		return NULL;
-	}
 
 	if (get_mcps_cp_irq_mask(&mask_cp_irq)) {
-		MCPS_DEBUG("Fail get mcps cp irq mask\n");
+		mcps_err("Fail get mcps cp irq mask");
 		goto fail;
 	}
 
-	if (create_and_copy_arps_mask(&meta->mask, mask)) {
-		MCPS_DEBUG("Fail create_arps_mask\n");
+	if (mcps_alloc_cpumask_andnot(&mask_filtered, *mask, mask_cp_irq)) {
+		mcps_err("Fail to alloc a filtered mask with mask and not cp irq mask");
 		goto fail;
 	}
 
-	if (create_andnot_arps_mask(&meta->mask_filtered, mask, &mask_cp_irq)) {
-		MCPS_DEBUG("Fail create_arps_mask\n");
+	if (init_arps_mask(meta->mask, *mask)
+		|| init_arps_mask(meta->mask_filtered, mask_filtered)) {
+		mcps_err("Fail to init arps mask and filtered mask");
 		goto fail;
 	}
 
-	if (!cpumask_weight(meta->mask) || !cpumask_weight(meta->mask_filtered)) {
-		MCPS_DEBUG(" : Fail cpumask_weight 0\n");
-		goto fail;
-	}
-
-	if (init_arps_map(meta->maps, meta->mask)) {
-		MCPS_DEBUG("Fail init_arps_map\n");
-		goto fail;
-	}
-
-	if (init_arps_map(meta->maps_filtered, meta->mask_filtered)) {
-		MCPS_DEBUG("Fail init_arps_map filtered\n");
+	if (init_arps_map(meta->maps, meta->mask)
+		|| init_arps_map(meta->maps_filtered, meta->mask_filtered)) {
+		mcps_err("Fail to init arps map and filtered map using mask");
 		goto fail;
 	}
 
@@ -430,11 +406,15 @@ struct arps_meta *create_arps_meta(cpumask_var_t *mask)
 
 	if (cpumask_available(mask_cp_irq))
 		free_cpumask_var(mask_cp_irq);
+
 	return meta;
+
 fail:
 	if (cpumask_available(mask_cp_irq))
 		free_cpumask_var(mask_cp_irq);
+
 	release_arps_meta(meta);
+
 	return NULL;
 }
 
@@ -442,9 +422,8 @@ void __update_arps_meta(cpumask_var_t *mask, int flag)
 {
 	struct arps_meta *arps, *old = arps = NULL;
 
-	if (mask) {
+	if (mask)
 		arps = create_arps_meta(mask);
-	}
 
 	switch (flag) {
 	case MCPS_ARPS_META_STATIC:
@@ -469,9 +448,8 @@ void __update_arps_meta(cpumask_var_t *mask, int flag)
 		spin_unlock(&lock_arps_meta);
 	break;
 	default:
-		if (arps) {
+		if (arps)
 			release_arps_meta(arps);
-		}
 	break;
 	}
 
@@ -490,7 +468,7 @@ int update_arps_meta(const char *val, int flag)
 	if (!len)
 		return 0;
 
-	err = create_arps_mask(val, &mask);
+	err = mcps_parse_atocpumask(val, &mask);
 	if (err) {
 		__update_arps_meta(NULL, flag);
 	} else {
@@ -521,13 +499,14 @@ int copy_arps_mask(cpumask_var_t *dst, int flag)
 	break;
 	default:
 		arps = NULL;
+	break;
 	}
 	if (!arps) {
-		MCPS_ERR("Fail : copy arps_mask %d\n", flag);
+		mcps_err("Fail : copy arps_mask %d", flag);
 		err = -EINVAL;
 		goto fail;
 	}
-	cpumask_copy(*dst, arps->mask);
+	cpumask_copy(*dst, arps->mask[ALL_CLUSTER]);
 fail:
 	rcu_read_unlock();
 
@@ -576,13 +555,13 @@ int get_arps_meta(char *buf, int flag)
 	if (!arps)
 		goto error;
 
-	len += snprintf(buf + len, PAGE_SIZE, "%*pb\n", cpumask_pr_args(arps->mask));
+	len += snprintf(buf + len, PAGE_SIZE, "%*pb\n", cpumask_pr_args(arps->mask[ALL_CLUSTER]));
 	len += snprintf(buf + len, PAGE_SIZE, "[%d|%d|%d|%d]\n",
 		ARPS_MAP(arps, ALL_CLUSTER)->len,
 		ARPS_MAP(arps, LIT_CLUSTER)->len,
 		ARPS_MAP(arps, BIG_CLUSTER)->len,
 		ARPS_MAP(arps, MID_CLUSTER)->len);
-	len += snprintf(buf + len, PAGE_SIZE, "%*pb\n", cpumask_pr_args(arps->mask_filtered));
+	len += snprintf(buf + len, PAGE_SIZE, "%*pb\n", cpumask_pr_args(arps->mask_filtered[ALL_CLUSTER]));
 	len += snprintf(buf + len, PAGE_SIZE, "[%d|%d|%d|%d]\n",
 		ARPS_MAP_FILTERED(arps, ALL_CLUSTER)->len,
 		ARPS_MAP_FILTERED(arps, LIT_CLUSTER)->len,
@@ -591,9 +570,8 @@ int get_arps_meta(char *buf, int flag)
 
 	rcu_read_unlock();
 
-	if (PAGE_SIZE - len < 3) {
+	if (PAGE_SIZE - len < 3)
 		return -EINVAL;
-	}
 
 	return len;
 error:
@@ -609,23 +587,19 @@ void init_mcps_arps_meta(void)
 	lock_arps_meta = __SPIN_LOCK_UNLOCKED(lock_arps_meta);
 
 	//online mask
-	if (!zalloc_cpumask_var(&mcps_cpu_online_mask, GFP_KERNEL)) {
-		MCPS_INFO("Fail to zalloc mcps_cpu_online_mask\n");
-		return;
-	}
-	cpumask_copy(mcps_cpu_online_mask, cpu_online_mask);
+	mcps_alloc_cpumask_copy(&mcps_cpu_online_mask, cpu_online_mask);
 
-	create_arps_mask("04", &mcps_cp_irq_mask);
+	mcps_parse_atocpumask("04", &mcps_cp_irq_mask);
 
 	//big/lit mask
 #if defined(CONFIG_SOC_EXYNOS2100)
-	create_arps_mask("f0", &cpu_big_mask);
-	create_arps_mask("f", &cpu_little_mask);
-	create_arps_mask("70", &cpu_mid_mask);
+	mcps_parse_atocpumask("f0", &cpu_big_mask);
+	mcps_parse_atocpumask("f", &cpu_little_mask);
+	mcps_parse_atocpumask("70", &cpu_mid_mask);
 #elif defined(CONFIG_SOC_EXYNOS9830) || defined(CONFIG_SOC_EXYNOS9820)
-	create_arps_mask("f0", &cpu_big_mask);
-	create_arps_mask("f", &cpu_little_mask);
-	create_arps_mask("30", &cpu_mid_mask);
+	mcps_parse_atocpumask("f0", &cpu_big_mask);
+	mcps_parse_atocpumask("f", &cpu_little_mask);
+	mcps_parse_atocpumask("30", &cpu_mid_mask);
 #endif
 
 	//MCPS_ARPS_META_STATIC
@@ -727,11 +701,10 @@ int get_mcps_heavy_flow(char *buffer, const struct kernel_param *kp)
 	for_each_possible_cpu(cpu) {
 		struct eye *flow = pick_heavy(sauron, cpu);
 
-		if (flow) {
+		if (flow)
 			pps[cpu] = flow->pps;
-		} else {
+		else
 			pps[cpu] = -1;
-		}
 	}
 	rcu_read_unlock();
 	local_bh_enable();
@@ -772,11 +745,10 @@ int get_mcps_light_flow(char *buffer, const struct kernel_param *kp)
 	for_each_possible_cpu(cpu) {
 		struct eye *flow = pick_light(sauron, cpu);
 
-		if (flow) {
+		if (flow)
 			pps[cpu] = flow->pps;
-		} else {
+		else
 			pps[cpu] = -1;
-		}
 	}
 	rcu_read_unlock();
 	local_bh_enable();
@@ -844,7 +816,10 @@ int set_mcps_move(const char *val, const struct kernel_param *kp)
 
 	MCPS_DEBUG("%u -> %u [%u]\n", in[0], in[1], in[2]);
 
+	local_bh_disable();
 	migrate_flow(in[0], in[1], in[2]);
+	local_bh_enable();
+
 fail:
 	kfree(copy);
 end:
@@ -948,9 +923,8 @@ int set_mcps_rps_config(const char *val, const struct kernel_param *kp)
 		goto error;
 
 	ndev = dev_get_by_name(&init_net, iface);
-	if (!ndev) {
+	if (!ndev)
 		goto error;
-	}
 
 	ret = mcps_store_rps_map(ndev->_rx, mask, strlen(mask));
 	dev_put(ndev);
@@ -983,22 +957,22 @@ int set_mcps_cp_irq_mask(const char *buf)
 	cpumask_var_t mask;
 
 	if (!buf) {
-		MCPS_ERR("Fail : buffer is null\n");
+		mcps_err("Fail : buffer is null");
 		goto fail;
 	}
 
 	len = strlen(buf);
 	if (!len) {
-		MCPS_ERR("Fail : buffer length is 0\n");
+		mcps_err("Fail : buffer length is 0");
 		goto fail;
 	}
 
-	err = create_arps_mask(buf, &mask);
+	err = mcps_parse_atocpumask(buf, &mask);
 
 	if (err) {
-		MCPS_ERR("Fail to create cp irq mask. set 00 mask\n");
-		if (create_arps_mask("00", &mask)) {
-			MCPS_ERR("Fail to reset cp irq mask.\n");
+		mcps_err("Fail to create cp irq mask. set 00 mask");
+		if (mcps_parse_atocpumask("00", &mask)) {
+			mcps_err("Fail to reset cp irq mask.");
 			return -ENOMEM;
 		}
 	}
@@ -1160,7 +1134,7 @@ int set_mcps_arps_config(const char *val, const struct kernel_param *kp)
 		goto error;
 	}
 
-	config = (struct arps_config *) kzalloc(sizeof(struct arps_config), GFP_KERNEL);
+	config = kzalloc(sizeof(struct arps_config), GFP_KERNEL);
 	if (!config)
 		goto error;
 
@@ -1211,7 +1185,7 @@ int get_mcps_arps_config(char *buffer, const struct kernel_param *kp)
 	if (!config) {
 		rcu_read_unlock(); // rcu read critical section pause.
 
-		config = (struct arps_config *) kzalloc(sizeof(struct arps_config), GFP_KERNEL);
+		config = kzalloc(sizeof(struct arps_config), GFP_KERNEL);
 		if (!config)
 			return len;
 
@@ -1474,7 +1448,7 @@ static int create_and_init_mcps_mode(int mode)
 {
 	struct mcps_modes *new, *old;
 
-	new = (struct mcps_modes *)kzalloc(sizeof(struct mcps_modes), GFP_KERNEL);
+	new = kzalloc(sizeof(struct mcps_modes), GFP_KERNEL);
 	if (!new)
 		return -ENOMEM;
 
@@ -1530,7 +1504,7 @@ int set_mcps_mode(const char *val, const struct kernel_param *kp)
 int get_mcps_mode(char *buffer, const struct kernel_param *kp)
 {
 	struct mcps_modes *mode;
-	int len = 0 ;
+	int len = 0;
 
 	rcu_read_lock();
 	mode = rcu_dereference(mcps_mode);
@@ -1556,11 +1530,11 @@ module_param_cb(mcps_mode,
 		&dummy_mcps_mode,
 		0640);
 
-__visible_for_testing int create_and_init_arps_config(struct mcps_config *mcps)
+mcps_visible_for_testing int create_and_init_arps_config(struct mcps_config *mcps)
 {
 	struct arps_config *config, *old_config;
 
-	config = (struct arps_config *) kzalloc(sizeof(struct arps_config), GFP_KERNEL);
+	config = kzalloc(sizeof(struct arps_config), GFP_KERNEL);
 	if (!config)
 		return -ENOMEM;
 
@@ -1580,7 +1554,7 @@ __visible_for_testing int create_and_init_arps_config(struct mcps_config *mcps)
 	return 1;
 }
 
-__visible_for_testing int release_arps_config(struct mcps_config *mcps)
+mcps_visible_for_testing int release_arps_config(struct mcps_config *mcps)
 {
 	struct arps_config *old_config;
 
@@ -1607,9 +1581,8 @@ void init_sauron(struct sauron *sauron)
 	sauron->sauron_eyes_lock = __SPIN_LOCK_UNLOCKED(sauron_eyes_lock);
 
 	for_each_possible_cpu(i) {
-		if (VALID_CPU(i)) {
+		if (VALID_CPU(i))
 			sauron->cached_eyes_lock[i] = __SPIN_LOCK_UNLOCKED(cached_eyes_lock[i]);
-		}
 	}
 }
 
@@ -1640,15 +1613,13 @@ int init_mcps(struct mcps_config *mcps)
 
 	init_mcps_debug_manager();
 	ret = create_and_init_arps_config(mcps);
-	if (ret < 0) {
+	if (ret < 0)
 		return -EINVAL;
-	}
 
 	init_sauron(&mcps->sauron);
 	ret = create_and_init_mcps_mode(MCPS_MODE_NONE);
-	if (ret < 0) {
+	if (ret < 0)
 		return -EINVAL;
-	}
 
 	init_mcps_arps_meta();
 

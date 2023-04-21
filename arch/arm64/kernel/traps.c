@@ -918,19 +918,6 @@ asmlinkage void bad_el0_sync(struct pt_regs *regs, int reason, unsigned int esr)
 DEFINE_PER_CPU(unsigned long [OVERFLOW_STACK_SIZE/sizeof(long)], overflow_stack)
 	__aligned(16);
 
-#if IS_ENABLED(CONFIG_SEC_DEBUG)
-static DEFINE_PER_CPU(unsigned long, secdbg_bad_stack_chk);
-
-static void secdbg_check_handle_bad_stack(void)
-{
-	if (this_cpu_read(secdbg_bad_stack_chk))
-		/* reentrance handle_bad_stack */
-		cpu_park_loop();
-
-	this_cpu_write(secdbg_bad_stack_chk, 0xBAD);
-}
-#endif
-
 asmlinkage void handle_bad_stack(struct pt_regs *regs)
 {
 	unsigned long tsk_stk = (unsigned long)current->stack;
@@ -939,9 +926,7 @@ asmlinkage void handle_bad_stack(struct pt_regs *regs)
 	unsigned int esr = read_sysreg(esr_el1);
 	unsigned long far = read_sysreg(far_el1);
 
-#if IS_ENABLED(CONFIG_SEC_DEBUG)
-	secdbg_check_handle_bad_stack();
-#endif
+	secdbg_base_built_check_handle_bad_stack();
 
 	console_verbose();
 	pr_emerg("Insufficient stack space to handle exception!");

@@ -239,6 +239,7 @@ int exynos_check_cp_status(void)
 }
 #endif
 
+#if 0 // Not used node.
 static struct bus_type exynos_info_subsys = {
 	.name = "exynos_info",
 	.dev_name = "exynos_info",
@@ -289,6 +290,7 @@ static const struct attribute_group *cs_sysfs_groups[] = {
 	&cs_sysfs_group,
 	NULL,
 };
+#endif
 
 static int exynos_pmu_probe(struct platform_device *pdev)
 {
@@ -310,9 +312,11 @@ static int exynos_pmu_probe(struct platform_device *pdev)
 	}
 	spin_lock_init(&update_lock);
 
+#if 0 // Not used node.
 	if (subsys_system_register(&exynos_info_subsys,
 					cs_sysfs_groups))
 		pr_err("Fail to register exynos_info subsys\n");
+#endif
 
 	dev_info(dev, "exynos_pmu_if probe\n");
 	return 0;

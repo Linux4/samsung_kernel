@@ -16,6 +16,7 @@
 #include <linux/reboot.h>
 #include "is-groupmgr.h"
 #include "is-interface.h"
+#include "is-hw-chain.h"
 
 #if defined(CONFIG_EXYNOS_PM_QOS_MODULE)
 #include <soc/samsung/exynos_pm_qos.h>
@@ -93,7 +94,7 @@ enum is_binary_state {
 struct is_resource_rmem {
 	void *virt_addr;
 	unsigned long phys_addr;
-	unsigned long size;
+	size_t size;
 };
 #endif
 
@@ -156,9 +157,11 @@ struct is_resource {
         u32                                     private_data;
 };
 
+#define LLC_DISABLE	0
 struct is_global_param {
 	struct mutex				lock;
 	bool					video_mode;
+	ulong					llc_state;
 	ulong					state;
 };
 
@@ -249,9 +252,6 @@ struct is_resourcemgr {
 	u32					streaming_cnt;
 
 	struct list_head			regulator_list;
-
-	/* LLC */
-	ulong					llc_state;
 };
 
 int is_resourcemgr_probe(struct is_resourcemgr *resourcemgr, void *private_data, struct platform_device *pdev);
@@ -299,5 +299,29 @@ void hex_cdump(const char *level, const char *prefix_str, int prefix_type,
 	((type == RESOURCE_TYPE_SENSOR5) ? &resourcemgr->resource_sensor5 : \
 	((type == RESOURCE_TYPE_ISCHAIN) ? &resourcemgr->resource_ischain : \
 	NULL)))))))
+
+/* cache maintenance for user buffer */
+#define MAX_DBUF_LIST	10
+
+struct is_dbuf_list {
+	struct list_head	list;
+	struct dma_buf		*dbuf[IS_MAX_PLANES];
+};
+
+struct is_dbuf_q {
+	struct is_dbuf_list	*dbuf_list[ID_DBUF_MAX];
+	struct mutex		lock[ID_DBUF_MAX];
+
+	u32			queu_count[ID_DBUF_MAX];
+	struct list_head	queu_list[ID_DBUF_MAX];
+
+	u32			free_count[ID_DBUF_MAX];
+	struct list_head	free_list[ID_DBUF_MAX];
+};
+
+struct is_dbuf_q *is_init_dbuf_q(void);
+void is_deinit_dbuf_q(struct is_dbuf_q *dbuf_q);
+void is_q_dbuf_q(struct is_dbuf_q *dbuf_q, struct is_sub_dma_buf *sdbuf, u32 qcnt);
+void is_dq_dbuf_q(struct is_dbuf_q *dbuf_q, u32 dma_id, enum dma_data_direction dir);
 
 #endif

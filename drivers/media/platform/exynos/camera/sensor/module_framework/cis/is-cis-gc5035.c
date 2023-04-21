@@ -770,7 +770,7 @@ static int sensor_gc5035_cis_dpc_enable(struct v4l2_subdev *subdev) {
 		return ret;
 	}
 
-	if (cis->cis_data->cis_rev != SENSOR_GC5035_CHIP_ID_WC1XB) {
+	if (cis->cis_data->cis_rev <= SENSOR_GC5035_CHIP_ID_WC1XA) {
 		warn("[%s] Disable DPC", __func__);
 
 		return ret;

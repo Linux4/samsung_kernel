@@ -111,6 +111,14 @@
 						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
 						option { votf = <1>; };
 					};
+					mode8 {/* 1b_2_t1 */
+						common = <2800 2100 30 0 8 CSI_DATA_LANES_3 2050 CSI_MODE_VC_ONLY LRTE_ENABLE PD_NONE>;
+						vc0 = </* in */ 0 HW_FORMAT_RAW10 2800 2100	/* out */ HW_FORMAT_RAW10 VC_NOTHING 2800 2100>;
+						vc1 = </* in */ 1 HW_FORMAT_RAW10 2800 525	/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc2 = </* in */ 2 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						vc3 = </* in */ 3 HW_FORMAT_UNKNOWN 0 0		/* out */ HW_FORMAT_UNKNOWN VC_NOTHING 0 0>;
+						option { votf = <1>; vvalid_time = <6220>; req_vvalid_time = <13000>; };
+					};
 				};
 
 				power_seq {

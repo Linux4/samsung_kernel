@@ -79,6 +79,7 @@ static const struct is_bin_ver_info bin_ver_info[] = {
 };
 
 #ifdef USE_KERNEL_VFS_READ_WRITE
+MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
 static noinline_for_stack long _get_file_size(struct file *file)
 {
 	struct kstat st;
@@ -187,7 +188,7 @@ int get_filesystem_binary(const char *filename, struct is_binary *bin)
 		ret = PTR_ERR(fp);
 	}
 #else
-	err("not support %s API!", __func__);
+	info("not support %s API!", __func__);
 	ret = -EINVAL;
 #endif
 	return ret;

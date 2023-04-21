@@ -467,14 +467,18 @@ static int s3c64xx_spi_unprepare_transfer(struct spi_master *spi)
 	/* Free DMA channels */
 	if (sci->dma_mode == DMA_MODE) {
 	#ifdef CONFIG_ARM64
-		sdd->ops->release((unsigned long)sdd->rx_dma.ch,
-					&s3c64xx_spi_dma_client);
-		sdd->ops->release((unsigned long)sdd->tx_dma.ch,
+		if (sdd->rx_dma.ch)
+			sdd->ops->release((unsigned long)sdd->rx_dma.ch,
+						&s3c64xx_spi_dma_client);
+		if (sdd->tx_dma.ch)
+			sdd->ops->release((unsigned long)sdd->tx_dma.ch,
 						&s3c64xx_spi_dma_client);
 	#else
-		sdd->ops->release((enum dma_ch)sdd->rx_dma.ch,
+		if (sdd->rx_dma.ch)
+			sdd->ops->release((enum dma_ch)sdd->rx_dma.ch,
 						&s3c64xx_spi_dma_client);
-		sdd->ops->release((enum dma_ch)sdd->tx_dma.ch,
+		if (sdd->tx_dma.ch)
+			sdd->ops->release((enum dma_ch)sdd->tx_dma.ch,
 						&s3c64xx_spi_dma_client);
 	#endif
 		sdd->rx_dma.ch = NULL;
@@ -561,6 +565,7 @@ static void enable_datapath(struct s3c64xx_spi_driver_data *sdd,
 		chcfg |= S3C64XX_SPI_CH_TXCH_ON;
 		if (dma_mode) {
 			modecfg |= S3C64XX_SPI_MODE_TXDMA_ON;
+			writel(modecfg, regs + S3C64XX_SPI_MODE_CFG);
 			prepare_dma(&sdd->tx_dma, xfer->len, xfer->tx_dma);
 		} else {
 			switch (sdd->cur_bpw) {
@@ -593,11 +598,13 @@ static void enable_datapath(struct s3c64xx_spi_driver_data *sdd,
 			writel(((xfer->len * 8 / sdd->cur_bpw) & 0xffff)
 					| S3C64XX_SPI_PACKET_CNT_EN,
 					regs + S3C64XX_SPI_PACKET_CNT);
+			writel(modecfg, regs + S3C64XX_SPI_MODE_CFG);
 			prepare_dma(&sdd->rx_dma, xfer->len, xfer->rx_dma);
 		}
 	}
-
-	writel(modecfg, regs + S3C64XX_SPI_MODE_CFG);
+	if (!dma_mode)
+		writel(modecfg, regs + S3C64XX_SPI_MODE_CFG);
+	/* CH_CFG should be set at the last */
 	writel(chcfg, regs + S3C64XX_SPI_CH_CFG);
 }
 
@@ -978,7 +985,7 @@ static int s3c64xx_spi_transfer_one_message(struct spi_master *master,
 		}
 
 		/* verify cpu mode */
-		if (sci->dma_mode != DMA_MODE) {
+		if ((sci->dma_mode != DMA_MODE) || !(sdd->rx_dma.ch && sdd->tx_dma.ch)) {
 			use_dma = 0;
 
 			/* backup original tx, rx buf ptr & xfer length */
@@ -1889,14 +1896,18 @@ static int s3c64xx_spi_runtime_suspend(struct device *dev)
 	/* Free DMA channels */
 	if (sci->dma_mode == DMA_MODE && sdd->is_probed && sdd->ops != NULL) {
 	#ifdef CONFIG_ARM64
-		sdd->ops->release((unsigned long)sdd->rx_dma.ch,
-					&s3c64xx_spi_dma_client);
-		sdd->ops->release((unsigned long)sdd->tx_dma.ch,
+		if (sdd->rx_dma.ch)
+			sdd->ops->release((unsigned long)sdd->rx_dma.ch,
+				&s3c64xx_spi_dma_client);
+		if (sdd->tx_dma.ch)
+			sdd->ops->release((unsigned long)sdd->tx_dma.ch,
 						&s3c64xx_spi_dma_client);
 	#else
-		sdd->ops->release((enum dma_ch)sdd->rx_dma.ch,
+		if (sdd->rx_dma.ch)
+			sdd->ops->release((enum dma_ch)sdd->rx_dma.ch,
 						&s3c64xx_spi_dma_client);
-		sdd->ops->release((enum dma_ch)sdd->tx_dma.ch,
+		if (sdd->tx_dma.ch)
+			sdd->ops->release((enum dma_ch)sdd->tx_dma.ch,
 						&s3c64xx_spi_dma_client);
 	#endif
 		sdd->rx_dma.ch = NULL;

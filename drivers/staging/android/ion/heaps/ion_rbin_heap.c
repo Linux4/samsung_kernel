@@ -35,6 +35,7 @@
 
 #include "ion_page_pool.h"
 #include "../ion_bltin.h"
+#include "../exynos/ion_exynos_prot.h"
 
 #define ION_HEAP_TYPE_RBIN (ION_HEAP_TYPE_MAX - 1)
 
@@ -194,6 +195,12 @@ static int ion_rbin_heap_allocate(struct ion_heap *heap,
 #endif
 
 	ion_bltin_event_begin();
+
+	if (ion_buffer_protected(buffer)) {
+		pr_err("ION_EXYNOS_FLAG_PROTECTED is set to non-secure heap %s",
+		       heap->name);
+		return -EINVAL;
+	}
 
 	nr_free = rbin_heap->count - atomic_read(&rbin_allocated_pages);
 	if (size_remain > nr_free << PAGE_SHIFT)

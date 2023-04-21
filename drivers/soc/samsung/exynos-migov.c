@@ -126,6 +126,7 @@ static struct migov {
 	u64				end_fence_cnt;
 	void				(*get_frame_cnt)(u64 *cnt, ktime_t *time);
 	void				(*get_vsync_cnt)(u64 *cnt, ktime_t *time);
+	void				(*get_fence_cnt)(u64 *cnt, ktime_t *time);
 
 	s32				max_fps;
 
@@ -295,6 +296,12 @@ void exynos_migov_register_vsync_cnt(void (*fn)(u64 *cnt, ktime_t *time))
 }
 EXPORT_SYMBOL_GPL(exynos_migov_register_vsync_cnt);
 
+void exynos_migov_register_fence_cnt(void (*fn)(u64 *cnt, ktime_t *time))
+{
+	migov.get_fence_cnt = fn;
+}
+EXPORT_SYMBOL_GPL(exynos_migov_register_fence_cnt);
+
 void migov_update_fps_change(u32 new_fps)
 {
 	if (migov.max_fps != new_fps * 10) {
@@ -415,7 +422,8 @@ void migov_update_profile(void)
 	psd.profile_frame_vsync_cnt = migov.end_frame_vsync_cnt - migov.start_frame_vsync_cnt;
 	psd.frame_vsync_time_us = ktime_to_us(time);
 
-	kbase_get_create_info(&migov.end_fence_cnt, &time);
+	if (migov.get_fence_cnt)
+		migov.get_fence_cnt(&migov.end_fence_cnt, &time);
 	psd.profile_fence_cnt = migov.end_fence_cnt - migov.start_fence_cnt;
 	psd.profile_fence_time_us = ktime_to_us(time);
 
@@ -1263,15 +1271,13 @@ static s32 init_domain_data(struct device_node *root,
 
 		private->fn = private_fn;
 
-		ret |= of_property_read_s32(dn, "pm-qos-max-class",
-				&private->pm_qos_max_class);
+		ret |= of_property_read_s32(dn, "pm-qos-max-class", &private->pm_qos_max_class);
 		if (of_property_read_s32(dn, "pm-qos-max-freq", &private->pm_qos_max_freq))
-			private->pm_qos_max_freq = PM_QOS_MAX_FREQUENCY_DEFAULT_VALUE;
+			private->pm_qos_max_freq = PM_QOS_DEFAULT_VALUE;
 
-		ret |= of_property_read_s32(dn, "pm-qos-min-class",
-				&private->pm_qos_min_class);
+		ret |= of_property_read_s32(dn, "pm-qos-min-class", &private->pm_qos_min_class);
 		if (of_property_read_s32(dn, "pm-qos-min-freq", &private->pm_qos_min_freq))
-			private->pm_qos_min_freq = PM_QOS_MIN_FREQUENCY_DEFAULT_VALUE;
+			private->pm_qos_min_freq = PM_QOS_DEFAULT_VALUE;
 
 		ret |= of_property_read_s32(dn, "q0-empty-pct-thr", &val);
 		private->q0_empty_pct_thr = val;
@@ -1312,9 +1318,9 @@ static s32 init_domain_data(struct device_node *root,
 		ret |= of_property_read_s32(dn, "hp-minlock-low-limit", &private->hp_minlock_low_limit);
 
 		if (of_property_read_s32(dn, "pm-qos-max-freq", &private->pm_qos_max_freq))
-			private->pm_qos_max_freq = PM_QOS_MAX_FREQUENCY_DEFAULT_VALUE;
+			private->pm_qos_max_freq = PM_QOS_DEFAULT_VALUE;
 		if (of_property_read_s32(dn, "pm-qos-min-freq", &private->pm_qos_min_freq))
-			private->pm_qos_min_freq = PM_QOS_MIN_FREQUENCY_DEFAULT_VALUE;
+			private->pm_qos_min_freq = PM_QOS_DEFAULT_VALUE;
 
 		if (!ret) {
 			exynos_pm_qos_add_request(&private->pm_qos_min_req,

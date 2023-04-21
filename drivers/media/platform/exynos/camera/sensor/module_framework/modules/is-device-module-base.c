@@ -40,9 +40,7 @@
 #if defined(CONFIG_CAMERA_PAFSTAT)
 #include "pafstat/is-pafstat.h"
 #endif
-#ifdef CAMERA_MODULE_DUAL_CAL_AVAILABLE_VERSION
 #include "is-sec-define.h"
-#endif
 #include "is-vender-specific.h"
 
 static void update_sensor_id_by_position(u32 position, u32 module_id)
@@ -142,6 +140,7 @@ int sensor_module_power_reset(struct v4l2_subdev *subdev, struct is_device_senso
 
 	sensor_peri->mode_change_first = true;
 	sensor_peri->cis_global_complete = false;
+	sensor_peri->check_auto_framing = false;
 
 	ret = is_sensor_gpio_on(device);
 	if (ret)
@@ -167,6 +166,7 @@ int sensor_module_init(struct v4l2_subdev *subdev, u32 val)
 #ifdef USE_CAMERA_HW_BIG_DATA
 	struct cam_hw_param *hw_param = NULL;
 #endif
+	int retry = 10;
 
 	FIMC_BUG(!subdev);
 
@@ -278,8 +278,16 @@ int sensor_module_init(struct v4l2_subdev *subdev, u32 val)
 
 		ret = v4l2_subdev_call(subdev_actuator, core, init, 0);
 		if (ret) {
-			err("v4l2_actuator_call(init) is fail(%d)", ret);
-			goto p_err;
+			while (--retry && ret) {
+				msleep(100);
+				err("v4l2_actuator_call(init) is fail(%d) retry again! (%d)", ret, retry);
+				ret = v4l2_subdev_call(subdev_actuator, core, init, 0);
+			}
+
+			if (retry == 0) {
+				err("v4l2_actuator_call(init) is fail(%d) retry(%d)", ret, retry);
+				goto p_err;
+			}
 		}
 	}
 
@@ -828,6 +836,11 @@ int sensor_module_s_ctrl(struct v4l2_subdev *subdev, struct v4l2_control *ctrl)
 			ctrl->value == module->position ? DUAL_SYNC_MASTER : DUAL_SYNC_SLAVE;
 		info("[MOD:%s] Dual sync mode set to %s", module->sensor_name,
 			sensor_peri->cis.dual_sync_mode == DUAL_SYNC_MASTER ? "Master" : "Slave");
+		break;
+	case V4L2_CID_SENSOR_SET_AUTO_FRAMING:
+		sensor_peri->check_auto_framing = ctrl->value;
+		info("%s Auto framing set. val = %d, sensor id = %d", __func__,
+			sensor_peri->check_auto_framing, sensor_peri->module->sensor_id);
 		break;
 	default:
 		err("err!!! Unknown CID(%#x)", ctrl->id);

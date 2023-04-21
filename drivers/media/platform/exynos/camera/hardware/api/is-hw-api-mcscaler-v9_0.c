@@ -1120,6 +1120,8 @@ void is_scaler_set_poly_scaler_coef(void __iomem *base_addr, u32 output_id,
 	}
 
 	/* scale up case */
+	if (hratio < RATIO_X8_8)
+		h_phase_offset = hratio >> 1;
 	if (vratio < RATIO_X8_8)
 		v_phase_offset = vratio >> 1;
 
@@ -1438,6 +1440,8 @@ void is_scaler_set_post_scaler_coef(void __iomem *base_addr, u32 output_id,
 	}
 
 	/* scale up case */
+	if (hratio < RATIO_X8_8)
+		h_phase_offset = hratio >> 1;
 	if (vratio < RATIO_X8_8)
 		v_phase_offset = vratio >> 1;
 

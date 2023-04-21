@@ -129,14 +129,19 @@ static u32 gicc_xreadl(struct abox_gic_data *data, unsigned int offset)
 	return value;
 }
 
-void abox_gicd_dump(struct device *dev, char *dump, size_t off, size_t size)
+int abox_gicd_dump(struct device *dev, char *dump, size_t off, size_t size)
 {
 	struct abox_gic_data *data = dev_get_drvdata(dev);
 	size_t limit = min(off + size, data->gicd_size);
 	u32 *buf = (u32 *)dump;
 
-	for (; off < limit; off += 4)
+	if (off % 4 || size % 4)
+		return -EINVAL;
+
+	for (; off + 3 < limit; off += 4)
 		*buf++ = gicd_xreadl(data, off);
+
+	return 0;
 }
 EXPORT_SYMBOL(abox_gicd_dump);
 

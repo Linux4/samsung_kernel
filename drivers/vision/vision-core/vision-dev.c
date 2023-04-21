@@ -271,7 +271,7 @@ int vision_register_device(struct vision_device *vdev, int minor, struct module 
 		name_base = "vertex";
 		break;
 	default:
-		vision_err("%s called with unknown type: %d\n", __func__, vdev->type);
+		vprobe_err("%s called with unknown type: %d\n", __func__, vdev->type);
 		return -EINVAL;
 	}
 
@@ -285,7 +285,7 @@ int vision_register_device(struct vision_device *vdev, int minor, struct module 
 	vdev->cdev->owner = owner;
 	ret = cdev_add(vdev->cdev, MKDEV(VISION_MAJOR, minor), 1);
 	if (ret < 0) {
-		vision_err("%s: cdev_add failed\n", __func__);
+		vprobe_err("%s: cdev_add failed\n", __func__);
 		kfree(vdev->cdev);
 		vdev->cdev = NULL;
 		goto cleanup;
@@ -298,7 +298,7 @@ int vision_register_device(struct vision_device *vdev, int minor, struct module 
 	dev_set_name(&vdev->dev, "%s%d", name_base, minor);
 	ret = device_register(&vdev->dev);
 	if (ret < 0) {
-		vision_err("%s: device_register failed\n", __func__);
+		vprobe_err("%s: device_register failed\n", __func__);
 		goto cleanup;
 	}
 	/* Register the release callback that will be called when the last
@@ -306,6 +306,11 @@ int vision_register_device(struct vision_device *vdev, int minor, struct module 
 	 */
 	vdev->dev.release = vision_device_release;
 
+	ret = vision_log_probe(vdev);
+	if (ret) {
+		vprobe_err("%s: vsion_log_probe failed\n", __func__);
+		goto cleanup;
+	}
 
 	/* Part 6: Activate this minor. The char device can now be used. */
 	set_bit(VISION_FL_REGISTERED, &vdev->flags);

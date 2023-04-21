@@ -2,7 +2,7 @@
 #define SENSORS_H
 #include "../ssp.h"
 
-#define ITEM_MAX 3
+#define ITEM_MAX 10
 
 #define	PR_ABS_MAX	8388607		/* 24 bit 2'compl */
 #define	PR_ABS_MIN	-8388608
@@ -119,6 +119,10 @@ struct light_t* get_light_tmd4907(void);
 struct light_t* get_light_tmd4912(void);
 #endif
 
+#ifdef CONFIG_SENSORS_STK33910
+struct light_t* get_light_stk33910(void);
+#endif
+
 typedef struct proximity_t {
     const char *name;
     const char *vendor;
@@ -131,6 +135,10 @@ struct proximity_t* get_prox_tmd4907(void);
 
 #ifdef CONFIG_SENSORS_TMD4912
 struct proximity_t* get_prox_tmd4912(void);
+#endif
+
+#ifdef CONFIG_SENSORS_STK33910
+struct proximity_t* get_prox_stk33910(void);
 #endif
 
 typedef struct barometer_t {

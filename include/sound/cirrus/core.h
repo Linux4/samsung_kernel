@@ -58,6 +58,7 @@ struct cirrus_amp_config {
 	bool perform_vimon_cal;
 	bool calibration_disable;
 	bool pwr_enable;
+	int (*amp_reinit)(struct snd_soc_component *component);
 };
 
 struct cirrus_bd {
@@ -115,6 +116,7 @@ struct cirrus_amp {
 	bool perform_vimon_cal;
 	bool calibration_disable;
 	bool v_val_separate;
+	int (*amp_reinit)(struct snd_soc_component *component);
 };
 
 struct cirrus_amp_group {
@@ -145,6 +147,8 @@ int cirrus_amp_read_ctl(struct cirrus_amp *amp, const char *name,
 			int type, unsigned int id, unsigned int *value);
 int cirrus_amp_write_ctl(struct cirrus_amp *amp, const char *name,
 			 int type, unsigned int id, unsigned int value);
+
+int cs35l41_set_surface_temp(const char *suffix, int temperature);
 
 extern struct cirrus_amp_group *amp_group;
 

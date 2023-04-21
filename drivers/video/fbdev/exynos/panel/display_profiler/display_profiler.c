@@ -1285,7 +1285,7 @@ static ssize_t dprof_cmd_filter_store(struct device *dev,
 	char *strbuf, *tok;
 	int *data;
 	int ret;
-	u32 val;
+	int val;
 	size_t i;
 
 	p = &panel->profiler;
@@ -1316,7 +1316,7 @@ static ssize_t dprof_cmd_filter_store(struct device *dev,
 	}
 
 	while ((tok = strsep(&strbuf, ",")) != NULL) {
-		ret = kstrtouint(strim(tok), 0, &val);
+		ret = kstrtoint(strim(tok), 0, &val);
 		if (ret < 0) {
 			panel_err("invalid value %s, ret %d\n", tok, ret);
 			return ret;

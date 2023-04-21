@@ -138,9 +138,13 @@ static int npu_vertex_s_graph(struct file *file, struct vs4l_graph *sinfo)
 	}
 
 	vctx->state |= BIT(NPU_VERTEX_GRAPH);
+	mutex_unlock(lock);
+	profile_point1(PROBE_ID_DD_NW_VS4L_RET, 0, 0, NPU_NW_CMD_LOAD);
+	return ret;
 
 p_err:
 	mutex_unlock(lock);
+	vctx->state &= (~BIT(NPU_VERTEX_GRAPH));
 	profile_point1(PROBE_ID_DD_NW_VS4L_RET, 0, 0, NPU_NW_CMD_LOAD);
 	return ret;
 }
@@ -156,7 +160,6 @@ static int npu_vertex_open(struct file *file)
 	struct npu_scheduler_info *info;
 
 	info = npu_scheduler_get_info();
-	npu_scheduler_boost_on(info);
 
 	/* check npu_device emergency error */
 	ret = check_emergency(device);
@@ -329,9 +332,11 @@ static int npu_vertex_flush(struct file *file)
 	if (fatal_signal_pending(current) || (current->exit_code != 0)) {
 		mutex_lock(lock);
 		npu_info("Flush caused by forced terminated.\n");
-		ret = __force_streamoff(file);
-		if (ret)
-			npu_err("fail(%d) in flush, __force_streamoff\n", ret);
+		if (!(vctx->state & BIT(NPU_VERTEX_STREAMOFF))) {
+			ret = __force_streamoff(file);
+			if (ret)
+				npu_err("fail(%d) in flush, __force_streamoff\n", ret);
+		}
 
 		ret = npu_session_flush(session);
 		if (ret)
@@ -413,7 +418,7 @@ static int npu_vertex_s_format(struct file *file, struct vs4l_format_list *flist
 		return -ERESTARTSYS;
 	}
 
-	if (!(vctx->state & (BIT(NPU_VERTEX_GRAPH) | BIT(NPU_VERTEX_FORMAT)))) {
+	if (!(vctx->state & BIT(NPU_VERTEX_GRAPH))) {
 		npu_ierr("invalid state(%X)\n", vctx, vctx->state);
 		ret = -EINVAL;
 		goto p_err;
@@ -782,6 +787,13 @@ static int npu_vertex_streamoff(struct file *file)
 
 	if (!(vctx->state & BIT(NPU_VERTEX_STREAMON))) {
 		npu_ierr("invalid state(0x%X)\n", vctx, vctx->state);
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+	if (!(vctx->state & BIT(NPU_VERTEX_FORMAT))
+	    || !(vctx->state & BIT(NPU_VERTEX_GRAPH))) {
+		npu_ierr("invalid state(%X)\n", vctx, vctx->state);
 		ret = -EINVAL;
 		goto p_err;
 	}

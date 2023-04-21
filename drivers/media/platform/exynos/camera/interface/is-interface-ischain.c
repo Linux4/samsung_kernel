@@ -715,7 +715,7 @@ static void wq_func_subdev(struct is_subdev *leader,
 	}
 
 	if (status) {
-		msrinfo("[ERR] NDONE(%d, E%X)\n", subdev, subdev, ldr_frame, sub_frame->index, status);
+		msrinfo("[ERR] NDONE(%d, E%d)\n", subdev, subdev, ldr_frame, sub_frame->index, status);
 		done_state = VB2_BUF_STATE_ERROR;
 		sub_frame->stream->fvalid = 0;
 	} else {
@@ -1092,10 +1092,15 @@ static void wq_func_group_xxx(struct is_groupmgr *groupmgr,
 			set_bit(IS_SUBDEV_PARAM_ERR, &group->leader.state);
 	}
 
+	/* Collecting sensor group NDONE status */
+	if (test_bit(IS_GROUP_OTF_INPUT, &group->state))
+		status = status ? status : frame->result;
+
 	if (status) {
-		mgrinfo("[ERR] NDONE(%d, E%X(L%X H%X))\n", group, group, frame, frame->index, status,
+		mgrinfo("[ERR] NDONE(%d, E%d(L%X H%X))\n", group, group, frame, frame->index, status,
 			lindex, hindex);
 		done_state = VB2_BUF_STATE_ERROR;
+		frame->result = status;
 
 		if (status == IS_SHOT_OVERFLOW) {
 #ifdef OVERFLOW_PANIC_ENABLE_ISCHAIN
@@ -1111,7 +1116,6 @@ static void wq_func_group_xxx(struct is_groupmgr *groupmgr,
 	/* Cache Invalidation */
 	is_ischain_meta_invalid(frame);
 
-	frame->result = status;
 	frame->stripe_info.region_id++;
 	clear_bit(group->leader.id, &frame->out_flag);
 	is_group_done(groupmgr, group, frame, done_state);
@@ -1162,7 +1166,7 @@ void wq_func_group(struct is_device_ischain *device,
 	 * buffer is queued or overflow can be occured
 	 */
 	if (framemgr->queued_count[FS_COMPLETE] >= DIV_ROUND_UP(framemgr->num_frames, 2))
-		mgwarn(" complete bufs : %d", device, group, (framemgr->queued_count[FS_COMPLETE] + 1));
+		mginfo("[%s] complete bufs : %d", device, group, __func__, (framemgr->queued_count[FS_COMPLETE] + 1));
 
 	if (status) {
 		lindex = frame->shot->ctl.vendor_entry.lowIndexParam;

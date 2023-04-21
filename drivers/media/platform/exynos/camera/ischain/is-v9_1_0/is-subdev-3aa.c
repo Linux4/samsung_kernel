@@ -568,7 +568,7 @@ static int __taa_dma_out_cfg(struct is_device_ischain *device,
 	}
 
 	if (flag_extra)
-		hw_sbwc = (SBWC_BASE_ALIGN_MASK | flag_extra);
+		hw_sbwc = (SBWC_BASE_ALIGN_MASK_LLC_OFF | flag_extra);
 
 	/* DRC and HF WDMA have own format enum */
 	if (CHECK_TAD_ID(node->vid)) {

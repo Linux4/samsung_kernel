@@ -167,16 +167,10 @@ p_err:
 	return ret;
 }
 
-#include "hardware/N1/dsp-hw-n1-system.h"
-#include "hardware/N3/dsp-hw-n3-system.h"
 #include "hardware/O1/dsp-hw-o1-system.h"
-#include "hardware/O3/dsp-hw-o3-system.h"
 
 static int (*system_init[])(void) = {
-	dsp_hw_n1_system_init,
-	dsp_hw_n3_system_init,
 	dsp_hw_o1_system_init,
-	dsp_hw_o3_system_init,
 };
 
 int dsp_system_init(void)

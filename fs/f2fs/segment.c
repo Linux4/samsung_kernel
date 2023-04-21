@@ -2342,7 +2342,9 @@ int f2fs_npages_for_summary_flush(struct f2fs_sb_info *sbi, bool for_ra)
  */
 struct page *f2fs_get_sum_page(struct f2fs_sb_info *sbi, unsigned int segno)
 {
-	return f2fs_get_meta_page_nofail(sbi, GET_SUM_BLOCK(sbi, segno));
+	if (unlikely(f2fs_cp_error(sbi)))
+		return ERR_PTR(-EIO);
+	return f2fs_get_meta_page_retry(sbi, GET_SUM_BLOCK(sbi, segno));
 }
 
 void f2fs_update_meta_page(struct f2fs_sb_info *sbi,
@@ -2616,9 +2618,9 @@ static void change_curseg(struct f2fs_sb_info *sbi, int type)
 	sum_page = f2fs_get_sum_page(sbi, new_segno);
 	f2fs_bug_on(sbi, IS_ERR(sum_page));
 
-	/* W/A - prevent panic while shutdown */
-	if (unlikely(ignore_fs_panic && IS_ERR(sum_page))) {
-		//pr_err("%s: Ignore panic err=%ld\n", __func__, PTR_ERR(sum_page));
+	if (IS_ERR(sum_page)) {
+		/* GC won't be able to use stale summary pages by cp_error */
+		memset(curseg->sum_blk, 0, SUM_ENTRY_SIZE);
 		return;
 	}
 
@@ -2745,6 +2747,7 @@ void f2fs_allocate_new_segments(struct f2fs_sb_info *sbi, int type)
 	unsigned int old_segno;
 	int i;
 
+	down_read(&SM_I(sbi)->curseg_lock);
 	down_write(&SIT_I(sbi)->sentry_lock);
 
 	for (i = CURSEG_HOT_DATA; i <= CURSEG_COLD_DATA; i++) {
@@ -2762,6 +2765,7 @@ void f2fs_allocate_new_segments(struct f2fs_sb_info *sbi, int type)
 	}
 
 	up_write(&SIT_I(sbi)->sentry_lock);
+	up_read(&SM_I(sbi)->curseg_lock);
 }
 
 static const struct segment_allocation default_salloc_ops = {
@@ -3075,7 +3079,7 @@ static int __get_segment_type_6(struct f2fs_io_info *fio)
 		struct inode *inode = fio->page->mapping->host;
 
 		if (is_cold_data(fio->page) || file_is_cold(inode) ||
-				f2fs_compressed_file(inode))
+				f2fs_need_compress_data(inode))
 			return CURSEG_COLD_DATA;
 		if (file_is_hot(inode) ||
 				is_inode_flag_set(inode, FI_HOT_DATA) ||
@@ -3339,6 +3343,9 @@ int f2fs_inplace_write_data(struct f2fs_io_info *fio)
 		return -EFSCORRUPTED;
 	}
 
+	invalidate_mapping_pages(META_MAPPING(fio->sbi),
+				fio->old_blkaddr, fio->old_blkaddr);
+
 	stat_inc_inplace_blocks(fio->sbi);
 	atomic64_inc(&(sbi->sec_stat.inplace_count));
 
@@ -3459,6 +3466,74 @@ void f2fs_replace_block(struct f2fs_sb_info *sbi, struct dnode_of_data *dn,
 
 	f2fs_update_data_blkaddr(dn, new_addr);
 }
+
+#ifdef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
+void __update_summary_of_block(struct f2fs_sb_info *sbi,
+				struct f2fs_summary *sum, block_t blkaddr)
+{
+	struct sit_info *sit_i = SIT_I(sbi);
+	struct curseg_info *curseg;
+	unsigned int segno, old_cursegno;
+	int type;
+	unsigned short old_blkoff;
+
+	/* Get segment information of block */
+	segno = GET_SEGNO(sbi, blkaddr);
+
+	down_write(&SM_I(sbi)->curseg_lock);
+
+	if (IS_CURSEG(sbi, segno)) {
+		type = __f2fs_get_curseg(sbi, segno);
+		f2fs_bug_on(sbi, type == NO_CHECK_TYPE);
+	} else {
+		type = CURSEG_WARM_DATA;
+	}
+
+	f2fs_bug_on(sbi, !IS_DATASEG(type));
+
+	/* Get Current Segment Info */
+	curseg = CURSEG_I(sbi, type);
+
+	mutex_lock(&curseg->curseg_mutex);
+	down_write(&sit_i->sentry_lock);
+
+	old_cursegno = curseg->segno;
+	old_blkoff = curseg->next_blkoff;
+
+	/* change the current segment */
+	if (segno != curseg->segno) {
+		curseg->next_segno = segno;
+		change_curseg(sbi, type);
+	}
+
+	curseg->next_blkoff = GET_BLKOFF_FROM_SEG0(sbi, blkaddr);
+	__add_sum_entry(sbi, type, sum);
+
+	/* restore current segment */
+	if (old_cursegno != curseg->segno) {
+		curseg->next_segno = old_cursegno;
+		change_curseg(sbi, type);
+	}
+	curseg->next_blkoff = old_blkoff;
+
+	up_write(&sit_i->sentry_lock);
+	mutex_unlock(&curseg->curseg_mutex);
+	up_write(&SM_I(sbi)->curseg_lock);
+}
+
+void f2fs_relocate_ofs_in_node_of_block(struct f2fs_sb_info *sbi,
+			struct dnode_of_data *dn,
+			block_t blkaddr, unsigned char version)
+{
+	struct f2fs_summary sum;
+
+	if (blkaddr >= MAIN_BLKADDR(sbi) && blkaddr < MAX_BLKADDR(sbi)) {
+		set_summary(&sum, dn->nid, dn->ofs_in_node, version);
+		__update_summary_of_block(sbi, &sum, blkaddr);
+	}
+	f2fs_update_data_blkaddr(dn, blkaddr);
+}
+#endif
 
 void f2fs_wait_on_page_writeback(struct page *page,
 				enum page_type type, bool ordered, bool locked)
@@ -3794,7 +3869,7 @@ int f2fs_lookup_journal_in_cursum(struct f2fs_journal *journal, int type,
 static struct page *get_current_sit_page(struct f2fs_sb_info *sbi,
 					unsigned int segno)
 {
-	return f2fs_get_meta_page_nofail(sbi, current_sit_addr(sbi, segno));
+	return f2fs_get_meta_page(sbi, current_sit_addr(sbi, segno));
 }
 
 static struct page *get_next_sit_page(struct f2fs_sb_info *sbi,
@@ -4414,6 +4489,10 @@ static int sanity_check_curseg(struct f2fs_sb_info *sbi)
 		struct curseg_info *curseg = CURSEG_I(sbi, i);
 		struct seg_entry *se = get_seg_entry(sbi, curseg->segno);
 		unsigned int blkofs = curseg->next_blkoff;
+
+		if (f2fs_sb_has_readonly(sbi) &&
+			i != CURSEG_HOT_DATA && i != CURSEG_HOT_NODE)
+			continue;
 
 		if (f2fs_test_bit(blkofs, se->cur_valid_map))
 			goto out;
