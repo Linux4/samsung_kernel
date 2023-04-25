@@ -106,11 +106,11 @@
 	/* HS50 add for HS50-299 add new board_id for HS50 usb-thermal by wenyaqi at 2020/08/24 end */
 	/* HS50 add for HS50-1515 add new board_id for HS50 usb-thermal by zhangjin at 2020/09/11 end */
 	/* HS70 add for HS70-925 by chengzhi at 2019/11/08 start */
-    qcom,flash-disable-soc = <5>;
+	qcom,flash-disable-soc = <5>;
 	/* HS70 add for HS70-925 by chengzhi at 2019/11/08 end */
 	/* HS70 add for HS70-135 Distinguish HS60 and HS70 charging by gaochao at 2019/10/10 end */
 	/* HS50 add for HS50-3131 update thermal current configuration by wenyaqi at 2020/10/03 start */
 	qcom,thermal-mitigation
 		= <2700000 2500000 2300000 2000000 1500000 1200000 900000>;
-	/* HS50 add for HS50-3131 update thermal current configuration by wenyaqi at 2019/10/03 end */
+	/* HS50 add for HS50-3131 update thermal current configuration by wenyaqi at 2020/10/03 end */
 };

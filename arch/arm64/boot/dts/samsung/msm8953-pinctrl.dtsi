@@ -1724,16 +1724,16 @@
 				};
 			};
 		};
-		/* huaqin to set smartpa irq&&reset to delete defalut gpio by xuyuqing at 2019/10/31 start */
+
 		tlmm_gpio_key {
 			gpio_key_active: gpio_key_active {
 				mux {
-					pins = "gpio85";
+					pins = "gpio85", "gpio86", "gpio87";
 					function = "gpio";
 				};
 
 				config {
-					pins = "gpio85";
+					pins = "gpio85", "gpio86", "gpio87";
 					drive-strength = <2>;
 					bias-pull-up;
 				};
@@ -1741,18 +1741,17 @@
 
 			gpio_key_suspend: gpio_key_suspend {
 				mux {
-					pins = "gpio85";
+					pins = "gpio85", "gpio86", "gpio87";
 					function = "gpio";
 				};
 
 				config {
-					pins = "gpio85";
+					pins = "gpio85", "gpio86", "gpio87";
 					drive-strength = <2>;
 					bias-pull-up;
 				};
 			};
 		};
-		/* huaqin to set smartpa irq&&reset to delete defalut gpio by xuyuqing at 2019/10/31 end */
 		pmx_qdsd_clk {
 			qdsd_clk_sdcard: clk_sdcard {
 				config {

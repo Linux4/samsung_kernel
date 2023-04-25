@@ -270,7 +270,9 @@
  * if FTS_GET_MODULE_NUM >= 2, fw corrsponding with FTS_VENDOR_ID2
  * define your own fw_file, the sample one is invalid
  */
-#define FTS_UPGRADE_FW2_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x12_SPI_20200402_app.i"
+/*HS70 code for P210722-02732 by zhangkexin at 2021/12/21 start*/
+#define FTS_UPGRADE_FW2_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x14_SPI_20210831_app.i"
+/*HS70 code for P210722-02732 by zhangkexin at 2021/12/21 end*/
 
 /*
  * if FTS_GET_MODULE_NUM >= 3, fw corrsponding with FTS_VENDOR_ID3
@@ -287,14 +289,16 @@
 /*
  * module 5 to module A use the FW is same as module 2, if need update one of them, the FW file name must chage to another name
  */
-#define FTS_UPGRADE_FW5_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x12_SPI_20200402_app.i"
-#define FTS_UPGRADE_FW6_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x12_SPI_20200402_app.i"
-#define FTS_UPGRADE_FW7_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x12_SPI_20200402_app.i"
-#define FTS_UPGRADE_FW8_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x12_SPI_20200402_app.i"
-#define FTS_UPGRADE_FW9_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x12_SPI_20200402_app.i"
-#define FTS_UPGRADE_FWA_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x12_SPI_20200402_app.i"
+/*HS70 code for P210722-02732 by zhangkexin at 2021/12/21 start*/
+#define FTS_UPGRADE_FW5_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x14_SPI_20210831_app.i"
+#define FTS_UPGRADE_FW6_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x14_SPI_20210831_app.i"
+#define FTS_UPGRADE_FW7_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x14_SPI_20210831_app.i"
+#define FTS_UPGRADE_FW8_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x14_SPI_20210831_app.i"
+#define FTS_UPGRADE_FW9_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x14_SPI_20210831_app.i"
+#define FTS_UPGRADE_FWA_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x14_SPI_20210831_app.i"
 #define FTS_UPGRADE_FWB_FILE                     "include/firmware/HQ_N20_FT8615_INX6.39_Ver0x16_SPI_20200617_app.i"
-#define FTS_UPGRADE_FWC_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x12_SPI_20200402_app.i"
+#define FTS_UPGRADE_FWC_FILE                     "include/firmware/HQ_N20_FT8615_BOE_6P39_HD_Ver0x14_SPI_20210831_app.i"
+/*HS70 code for P210722-02732 by zhangkexin at 2021/12/21 end*/
 /*********************************************************/
 
 #endif /* _LINUX_FOCLATECH_CONFIG_H_ */

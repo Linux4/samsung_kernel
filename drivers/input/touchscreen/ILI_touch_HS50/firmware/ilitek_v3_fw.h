@@ -45,7 +45,7 @@ static unsigned char CTPM_FW_CSOT[] = {
 #define LS_PANDA_INI_REQUEST_PATH		"mp_csot.ini"
 #define LS_PANDA_FW_REQUEST_PATH		"ILITEK_FW_CSOT"
 static unsigned char CTPM_FW_LS_PANDA[] = {
-	#include "ILI9882H_O3_LS_PANDA_6517_0x12_AP_0x02_MP_20201230.ili"
+	#include "ILI9882H_O3_LS_PANDA_6517_0x14_AP_0x01_MP_20210401.ili"
 };
 
 /*HS50 code for HS50-1707 by gaozhengwei at 2020/09/14 start*/
@@ -54,7 +54,7 @@ static unsigned char CTPM_FW_LS_PANDA[] = {
 #define LS_PANDA_LRPOL_INI_REQUEST_PATH		"mp_csot.ini"
 #define LS_PANDA_LRPOL_FW_REQUEST_PATH		"ILITEK_FW_CSOT"
 static unsigned char CTPM_FW_LS_PANDA_LRPOL[] = {
-	#include "ILI9882H_O3_LS_PANDA_6517_0x12_AP_0x02_MP_20201230.ili"
+	#include "ILI9882H_O3_LS_PANDA_6517_0x14_AP_0x01_MP_20210401.ili"
 };
 /*HS50 code for HS50-1707 by gaozhengwei at 2020/09/14 end*/
 /*HS50 code for SR-QL3095-01-743 by fengzhigang at 2020/09/27 start*/
@@ -63,7 +63,7 @@ static unsigned char CTPM_FW_LS_PANDA_LRPOL[] = {
 #define LS_PANDA_SWID22_INI_REQUEST_PATH		"mp_csot.ini"
 #define LS_PANDA_SWID22_FW_REQUEST_PATH		"ILITEK_FW_CSOT"
 static unsigned char CTPM_FW_LS_PANDA_SWID22[] = {
-	#include "ILI9882H_O3_LS_PANDA_6517_0x12_AP_0x02_MP_20201230.ili"
+	#include "ILI9882H_O3_LS_PANDA_6517_0x14_AP_0x01_MP_20210401.ili"
 };
 /*HS50 code for SR-QL3095-01-743 by fengzhigang at 2020/09/27 end*/
 

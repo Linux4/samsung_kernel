@@ -191,7 +191,7 @@
 		i2c2 = &i2c_2;
 		i2c3 = &i2c_3;
 		i2c5 = &i2c_5;
-        i2c6 = &i2c_6;
+		i2c6 = &i2c_6;
 		spi3 = &spi_3;
 		spi6 = &spi_6;
 	};
@@ -845,6 +845,7 @@
 		dma-names = "tx", "rx";
 		status = "disabled";
 	};
+
 	i2c_6: i2c@7af6000 { /* BLSP2 QUP2 */
 		compatible = "qcom,i2c-msm-v2";
 		#address-cells = <1>;
@@ -1350,9 +1351,11 @@
 		reg = <0xb017000 0x1000>;
 		reg-names = "wdt-base";
 		interrupts = <0 3 0>, <0 4 0>;
+		/* HS70 code for P220416-00713  by wangzhaoguo at 2022/04/28 start */
 		/* HS50 code for OLYMPICO3-831  by liunianliang at 2021/02/18 start */
-		qcom,bark-time = <13000>;
+		qcom,bark-time = <18000>;
 		/* HS50 code for OLYMPICO3-831  by liunianliang at 2021/02/18 end */
+		/* HS70 code for P220416-00713  by wangzhaoguo at 2022/04/28 end */
 		qcom,pet-time = <9360>;
 		qcom,ipi-ping;
 		qcom,wakeup-enable;
@@ -2276,12 +2279,6 @@
 		compatible = "qcom,msm-ssc-sensors";
 		status = "ok";
 	};
-// HS70 Code add by tangqingyong for SR-ZQL1871-01-99 at 20191022 Start
-	sdcard-det-pin {
-		compatible = "qcom,sdcard-detect-pin";
-		qcom,sdcard-detect-pin-no = <133>;
-	};
-// HS70 Code add by tangqingyong for SR-ZQL1871-01-99 at 20191022 end
 
 };
 

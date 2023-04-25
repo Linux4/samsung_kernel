@@ -856,13 +856,11 @@ config VMAP_STACK
 	  that is incorrect if the stack is in vmalloc space.
 
 # huaqin added by lanshiming for H000001 at 20180719 start
-# HS70 code added by tangqingyong for HS70-11 at 20191008 start
 config ARCH_ZQL1695
 	default n
 	bool "Samsung ZQL1695 Project"
 	help
 	  Support for Samsung ZQL1695 Project
-# HS70 code added by tangqingyong for HS70-11 at 20191008 end
 # huaqin added by lanshiming for H000001 at 20180719 end
 # HS70 code added by tangqingyong for HS70-9 at 20191002 start
 config ARCH_ZQL1871
@@ -874,10 +872,10 @@ config ARCH_ZQL1871
 
 # HS50 code added by xudayi for SR-QL3095-01-139 at 20200714 start
 config ARCH_HS50
-        default n
-        bool "Samsung HS50 Project"
-        help
-          Support for Samsung HS50 Project
+    default n
+    bool "Samsung HS50 Project"
+    help
+        Support for Samsung HS50 Project
 # HS50 code added by xudayi for SR-QL3095-01-139 at 20200714 end
 
 # HS70 code add for HS70-120 add camera node by chengzhi at 20191002 start

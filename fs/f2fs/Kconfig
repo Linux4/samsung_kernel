@@ -121,3 +121,26 @@ config F2FS_SEC_BLOCK_OPERATIONS_DEBUG
 	  Collect block_operations() log for debugging
 
 	  If unsure, say N.
+
+config F2FS_SEC_SYSFS_DISCARD_SLAB_THRESHOLD
+	bool "F2FS discard threshold sysfs node"
+	depends on F2FS_FS
+	default n
+	help
+	  Support configurable discard slab and size threshold through sysfs
+
+config F2FS_SEC_SYSFS_DISCARD_SLAB_THRESHOLD
+	bool "F2FS discard threshold sysfs node"
+	depends on F2FS_FS
+	default n
+	help
+	  Support configurable discard slab and size threshold through sysfs
+
+config F2FS_SEC_DEBUG_NODE
+	bool "SEC DEBUG NODE"
+	depends on F2FS_FS && DEBUG_FS
+	default y
+	help
+	  Sys nodes for SEC debugging
+
+	  If unsure, say N.

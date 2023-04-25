@@ -701,6 +701,13 @@
 #define KEY_FP_GESTURE_LONG_PRESS	0x2ec
 #define KEY_FP_GESTURE_TAP		0x2ed
 
+/*HS60 code for SR-ZQL1695-01000000493 by zhanghao6 at 20190712 start*/
+#define KEY_SWTP_IN     		0x2ee
+#define KEY_SWTP_OUT    		0x2ef
+/*HS60 code for SR-ZQL1695-01000000493 by zhanghao6 at 20190712 end*/
+
+/*HS60 code for AR-ZQL1695-01000000070 by zhuqiang at 2019/7/18 start*/
+
 /* HS50 code for HS50-4050 by xiongxiaoliang at 20201031 start */
 /*HS60 code for SR-ZQL1695-01000000493 by zhanghao6 at 20190712 start*/
 #define KEY_SAR_SLOW_IN         0x2ee
@@ -709,6 +716,7 @@
 /* HS50 code for HS50-4050 by xiongxiaoliang at 20201031 end */
 
 /*HS60 code for AR-ZQL1695-01000000070/HS50EU-1 by zhuqiang at 2020/08/28 start*/
+
 #ifdef HQ_FACTORY_BUILD
 /* for top sar */
 #define KEY_SAR_CLOSE           0x2f0

@@ -14,6 +14,11 @@
 
 // vvvvv DO NOT CHANGE THESE LINES! vvvvv
 struct dsms_policy_entry dsms_policy[] = {
+{ "security/samsung/defex_lsm/core/defex_main.c", "defex_report_violation" },
+{ "security/samsung/dsms/dsms_sysfs.c", "dsms_send_message_store" },
+{ "security/samsung/five/five_audit.c", "five_audit_sign_err" },
+{ "security/samsung/five/five_dsms.c", "five_dsms_msg" },
+{ "security/dsms/kunit_test/security_dsms_kernel_api_test.c", "security_dsms_test_send_message" },
 }; // dsms_policy
 // ^^^^^ DO NOT CHANGE THESE LINES! ^^^^^
 
