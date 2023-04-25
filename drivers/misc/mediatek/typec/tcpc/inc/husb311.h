@@ -86,6 +86,13 @@
 #define HUSB311_TCPC_V10_REG_TX_DATA				(0x54)
 
 /*HUSB311 private*/
+/* hs14 code for SR-AL6528A-945 by shanxinkai at 2022/11/21 start */
+#define HUSB311_REG_CD					(0xCD)
+#define HUSB311_CFG_MODE				(0xBF)
+#define HUSB311_CFG_ENTRY				(0x33)
+#define HUSB311_CFG_EXIT				(0x00)
+#define HUSB311_CFG_START				(0xC0)
+/* hs14 code for SR-AL6528A-945 by shanxinkai at 2022/11/21 end */
 #define HUSB311_REG_CF					(0xcf)
 /*
  * Device ID

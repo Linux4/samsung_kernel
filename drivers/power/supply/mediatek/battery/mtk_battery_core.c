@@ -728,6 +728,9 @@ enum
 {
 	SS_BATTERY_BYD = 0,
 	SS_BATTERY_SDI,
+	/* hs14 code for AL6528A-1011 by zhangzhihao at 2022/11/29 start */
+	SS_BATTERY_ATL,
+	/* hs14 code for AL6528A-1011 by zhangzhihao at 2022/11/29 end */
 	SS_BATTERY_UNKNOWN,
 };
 
@@ -741,6 +744,10 @@ void fgauge_get_profile_id(void)
 		gm.battery_id = SS_BATTERY_BYD;
 	} else if (id_volt >= 810 && id_volt <= 990) {
 		gm.battery_id = SS_BATTERY_SDI;
+	/* hs14 code for AL6528A-1011 by zhangzhihao at 2022/11/29 start */
+	} else if (id_volt >= 513 && id_volt <= 627) {
+		gm.battery_id = SS_BATTERY_ATL;
+	/* hs14 code for AL6528A-1011 by zhangzhihao at 2022/11/29 end */
 	} else {
 		bm_err("bat_id get fail, load default id");
 		gm.battery_id = SS_BATTERY_BYD;

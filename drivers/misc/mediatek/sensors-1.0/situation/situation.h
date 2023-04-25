@@ -30,6 +30,16 @@ enum situation_index_table {
 	tilt_detector,
 	flat,
 	sar,
+/*hs14 code for SR-AL6528A-01-779 by xiongxiaoliang at 2022/11/23 start*/
+#ifdef CONFIG_MTK_WAKE_UP_MOTION
+	wake_up_motion,
+#endif
+/*hs14 code for SR-AL6528A-01-779 by xiongxiaoliang at 2022/11/23 start*/
+/*hs14 code for SR-AL6528A-01-778 by xiongxiaoliang at 2022/11/26 start*/
+#ifdef CONFIG_MTK_SMARTALERT_HUB
+	smart_alert,
+#endif
+/*hs14 code for SR-AL6528A-01-778 by xiongxiaoliang at 2022/11/26 end*/
 	max_situation_support,
 };
 

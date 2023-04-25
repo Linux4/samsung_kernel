@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  *
  */
-/* hs14 code for SR-AL6528A-01-321 | AL6528ADEU-722 by qiaodan at 2022/10/20 start */
+/* hs14 code for SR-AL6528A-01-321 | AL6528ADEU-722 | AL6528A-659 by qiaodan at 2022/11/08 start */
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
@@ -69,7 +69,11 @@ int send_afc_result(int res)
 			(enum power_supply_property)POWER_SUPPLY_PROP_AFC_RESULT, &value);
 	if (ret < 0)
 		pr_err("%s: POWER_SUPPLY_EXT_PROP_AFC_RESULT set failed\n", __func__);
-
+	/* hs14 code for P221214-05432 by wenyaqi at 2022/12/26 start */
+	if (!IS_ERR_OR_NULL(psy_bat)) {
+		power_supply_changed(psy_bat);
+	}
+	/* hs14 code for P221214-05432 by wenyaqi at 2022/12/26 end */
 	return 0;
 }
 
@@ -105,7 +109,7 @@ static inline u32 afc_get_vbus(void)
 /*uA*/
 static inline u32 afc_get_ibat(void)
 {
-	return battery_get_bat_current() * 1000;
+	return battery_get_bat_current() * 100;
 }
 
 /*mV*/
@@ -121,16 +125,17 @@ static int afc_send_Mping(struct afc_dev *afc)
 	unsigned long flags;
 	s64 start = 0, end = 0;
 
+	/* config gpio to output*/
 	if (!afc->pin_state) {
-		pinctrl_select_state(afc->pinctrl, afc->pin_active);
+		gpio_direction_output(gpio, 0);
 		afc->pin_state = true;
 	}
 
 	/* AFC: send mping*/
 	spin_lock_irqsave(&afc->afc_spin_lock, flags);
-	gpio_direction_output(gpio, 1);
+	gpio_set_value(gpio, 1);
 	afc_udelay(AFC_T_MPING);
-	gpio_direction_output(gpio, 0);
+	gpio_set_value(gpio, 0);
 
 	start = ktime_to_us(ktime_get());
 	spin_unlock_irqrestore(&afc->afc_spin_lock, flags);
@@ -152,12 +157,11 @@ static int afc_check_Sping(struct afc_dev *afc ,int delay)
 		return ret;
 	}
 
+	/* config gpio to input*/
 	if (afc->pin_state) {
-		pinctrl_select_state(afc->pinctrl, afc->pin_suspend);
+		gpio_direction_input(gpio);
 		afc->pin_state = false;
 	}
-	/* config gpio to input*/
-	gpio_direction_input(gpio);
 
 	spin_lock_irqsave(&afc->afc_spin_lock, flags);
 	if (delay < (AFC_T_MPING - 3*AFC_T_UI)) {
@@ -201,20 +205,20 @@ static void afc_send_parity_bit(int gpio, int data)
 
 	cnt = cnt % 2;
 
-	gpio_direction_output(gpio, !cnt);
+	gpio_set_value(gpio, !cnt);
 	afc_udelay(AFC_T_UI);
 
 	if (!cnt) {
-		gpio_direction_output(gpio, 0);
+		gpio_set_value(gpio, 0);
 		afc_udelay(AFC_T_SYNC_PULSE);
 	}
 }
 
 static void afc_sync_pulse(int gpio)
 {
-	gpio_direction_output(gpio, 1);
+	gpio_set_value(gpio, 1);
 	afc_udelay(AFC_T_SYNC_PULSE);
-	gpio_direction_output(gpio, 0);
+	gpio_set_value(gpio, 0);
 	afc_udelay(AFC_T_SYNC_PULSE);
 }
 
@@ -226,7 +230,7 @@ static int afc_send_data(struct afc_dev *afc, int data)
 	unsigned long flags;
 
 	if (!afc->pin_state) {
-		pinctrl_select_state(afc->pinctrl, afc->pin_active);
+		gpio_direction_output(gpio, 0);
 		afc->pin_state = true;
 	}
 
@@ -237,12 +241,12 @@ static int afc_send_data(struct afc_dev *afc, int data)
 	/* start transfer */
 	afc_sync_pulse(gpio);
 	if (!(data & 0x80)) {
-		gpio_direction_output(gpio, 1);
+		gpio_set_value(gpio, 1);
 		afc_udelay(AFC_T_SYNC_PULSE);
 	}
 	/* data */
 	for (i = 0x80; i > 0; i = i >> 1) {
-		gpio_direction_output(gpio, data & i);
+		gpio_set_value(gpio, data & i);
 		afc_udelay(AFC_T_UI);
 	}
 
@@ -251,9 +255,9 @@ static int afc_send_data(struct afc_dev *afc, int data)
 	afc_sync_pulse(gpio);
 
 	/* mping*/
-	gpio_direction_output(gpio, 1);
+	gpio_set_value(gpio, 1);
 	afc_udelay(AFC_T_MPING);
-	gpio_direction_output(gpio, 0);
+	gpio_set_value(gpio, 0);
 
 	start = ktime_to_us(ktime_get());
 	spin_unlock_irqrestore(&afc->afc_spin_lock, flags);
@@ -272,7 +276,7 @@ int afc_recv_data(struct afc_dev *afc, int delay)
 	unsigned long flags;
 
 	if (afc->pin_state) {
-		pinctrl_select_state(afc->pinctrl, afc->pin_suspend);
+		gpio_direction_input(gpio);
 		afc->pin_state = false;
 	}
 
@@ -489,20 +493,19 @@ void afc_set_is_enable(struct charger_manager *pinfo, bool enable)
 */
 void afc_reset(struct afc_dev *afc)
 {
-	spin_lock_irq(&afc->afc_spin_lock);
-	gpio_direction_output(afc->afc_switch_gpio, 1);
-
 	if (!afc->pin_state) {
-		pinctrl_select_state(afc->pinctrl, afc->pin_active);
+		gpio_direction_output(afc->afc_data_gpio, 0);
 		afc->pin_state = true;
 	}
 
-	gpio_direction_output(afc->afc_data_gpio, 1);
-	afc_udelay(AFC_T_RESET);
-	gpio_direction_output(afc->afc_data_gpio, 0);
+	spin_lock_irq(&afc->afc_spin_lock);
 
-	gpio_direction_output(afc->afc_switch_gpio, 0);
+	gpio_set_value(afc->afc_data_gpio, 1);
+	afc_udelay(AFC_T_RESET);
+	gpio_set_value(afc->afc_data_gpio, 0);
+
 	spin_unlock_irq(&afc->afc_spin_lock);
+	gpio_direction_output(afc->afc_switch_gpio, 0);
 }
 
 int afc_5v_to_9v(struct charger_manager *pinfo)
@@ -811,7 +814,7 @@ out:
 	afc_enable_vbus_ovp(pinfo, true);
 	charger_dev_set_input_current(pinfo->chg1_dev, pinfo->data.ac_charger_input_current);
 	pr_info("%s:not detect afc\n",__func__);
-	return 0;
+	return ret;
 }
 
 /*
@@ -1211,24 +1214,6 @@ int afc_charge_init(struct charger_manager *pinfo)
 		}
 	}
 
-	afc->pinctrl = devm_pinctrl_get(&pdev->dev);
-	if (IS_ERR_OR_NULL(afc->pinctrl)) {
-		pr_err("%s, No pinctrl config specified\n", __func__);
-		return -EINVAL;
-	}
-
-	afc->pin_active = pinctrl_lookup_state(afc->pinctrl, "active");
-	if (IS_ERR_OR_NULL(afc->pin_active)) {
-		pr_err("%s, could not get pin_active\n", __func__);
-		return -EINVAL;
-	}
-
-	afc->pin_suspend = pinctrl_lookup_state(afc->pinctrl, "sleep");
-	if (IS_ERR_OR_NULL(afc->pin_suspend)) {
-		pr_err("%s, could not get pin_suspend\n", __func__);
-		return -EINVAL;
-	}
-
 	afc_charger_parse_dt(pinfo, np);
 
 	afc->ta_vchr_org = 5000000;
@@ -1280,4 +1265,10 @@ int afc_charge_init(struct charger_manager *pinfo)
 	return 0;
 
 }
-/* hs14 code for SR-AL6528A-01-321 | AL6528ADEU-722 by qiaodan at 2022/10/20 end */
+/*
+  * Release note
+  * 20221108 for AL6528A-659
+  * Mutex will be called in gpio_ direction_output, and sleep is not allowed in spinlock
+  * Replace the gpio operation in the spinlock critical area with gpio_set_value
+  */
+/* hs14 code for SR-AL6528A-01-321 | AL6528ADEU-722 | AL6528A-659 by qiaodan at 2022/11/08 end */

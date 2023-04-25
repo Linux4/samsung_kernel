@@ -23,7 +23,7 @@
  * mt6768_mt6358_spk_amp_event()
  */
 #define EXT_SPK_AMP_W_NAME "Ext_Speaker_Amp"
-/* hs14 code for SR-AL6528A-01-392 by yingboyang at 20220918 start */
+/* hs14 code for SR-AL6528A-01-392 | AL6528ADEU-2986 by yingboyang at 20221201 start */
 #define COMPATIBLE_PA_SUPPORT
 #ifdef COMPATIBLE_PA_SUPPORT
 #include <linux/of_gpio.h>
@@ -38,12 +38,12 @@
 #define FS15XX_OPEN_MODE 4
 
 #define AW87XX_OFF_MODE 0
-#define AW87XX_OPEN_MODE 10
+#define AW87XX_OPEN_MODE 1
 #define AW87XX_PULSE_DELAY_US 2
 int ctrl_mod = 0;
 static DEFINE_SPINLOCK(fs15xx_lock);
 #endif
-/* hs14 code for SR-AL6528A-01-392 by yingboyang at 20220918 end */
+/* hs14 code for SR-AL6528A-01-392 | AL6528ADEU-2986 by yingboyang at 20221201 end */
 
 static const char *const mt6768_spk_type_str[] = {MTK_SPK_NOT_SMARTPA_STR,
 						  MTK_SPK_RICHTEK_RT5509_STR,
@@ -993,7 +993,7 @@ static int mt6768_mt6358_dev_probe(struct platform_device *pdev)
 
 	card->dev = &pdev->dev;
 
-/* hs14 code for SR-AL6528A-01-392 by yingboyang at 20220918 start */
+/* hs14 code for SR-AL6528A-01-392 || AL6528A-1042 by tangjie at 20221215 start */
 #ifdef COMPATIBLE_PA_SUPPORT
 	ctrl_mod = of_get_named_gpio(pdev->dev.of_node, "ctrl-mod", 0);
 	if (ctrl_mod < 0) {
@@ -1003,14 +1003,9 @@ static int mt6768_mt6358_dev_probe(struct platform_device *pdev)
 		if (gpio_request(ctrl_mod, "ctrl-mod") < 0) {
 			pr_err("%s(), gpio_request ctrl-mod fail\n", __func__);
 		}
-		gpio_set_value(ctrl_mod, 0);
-		udelay(20); //Tl 20
-		gpio_set_value(ctrl_mod, 1);
-		udelay(500); //Th 500
-		gpio_set_value(ctrl_mod, 0);
 	}
 #endif
-/* hs14 code for SR-AL6528A-01-392 by yingboyang at 20220918 end */
+/* hs14 code for SR-AL6528A-01-392 || AL6528A-1042 by tangjie at 20221215 end */
 
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret)

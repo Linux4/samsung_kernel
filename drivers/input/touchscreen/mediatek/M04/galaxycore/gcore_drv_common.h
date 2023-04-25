@@ -476,5 +476,8 @@ extern int gcore_ts_drm_notifier_callback(struct notifier_block *self, unsigned 
 #endif
 
 extern int gcore_start_mp_test(void);
+/*hs04 code for DEAL6398A-1923 by suyurui at 20221108 start*/
+extern void mp_wait_int_set_fail(void);
+/*hs04 code for DEAL6398A-1923 by suyurui at 20221108 end*/
 
 #endif /* GCORE_TPD_COMMON_H_  */

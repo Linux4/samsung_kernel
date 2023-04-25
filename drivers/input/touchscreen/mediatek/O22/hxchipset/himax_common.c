@@ -385,7 +385,9 @@ static ssize_t himax_self_test(struct seq_file *s, void *v)
 }
 
 /*hs14 code for SR-AL6528A-01-512 by hehaoran5 at 20220911 start*/
-static ssize_t himax_self_test_for_hq()
+/*hs14 code for AL6528A-1034 by zhangxiongyi at 20221208 start*/
+static ssize_t himax_self_test_for_tp()
+/*hs14 code for AL6528A-1034 by zhangxiongyi at 20221208 end*/
 {
 
     size_t ret = 0;
@@ -3281,7 +3283,9 @@ static ssize_t hx_ito_test_show(struct device *dev,struct device_attribute *attr
     if ((dev_mkdir(HX_RSLT_OUT_PATH, 0777)) != 0) {
         E("Failed to create directory for mp_test\n");
     }
-    ret = himax_self_test_for_hq();
+    /*hs14 code for AL6528A-1034 by zhangxiongyi at 20221208 start*/
+    ret = himax_self_test_for_tp();
+    /*hs14 code for AL6528A-1034 by zhangxiongyi at 20221208 end*/
     /*hs14 code for AL6528A-90 by hehaoran5 at 20220923 start*/
     if (ret != 1) {
         ret = 0;

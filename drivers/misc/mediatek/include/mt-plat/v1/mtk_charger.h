@@ -147,7 +147,14 @@ extern int charger_manager_set_shipmode(struct charger_consumer *consumer,
 extern int charger_manager_get_chr_type(struct charger_consumer *consumer,
 	int idx, int *chr_type);
 /* hs14 code for  SR-AL6528A-01-339 by shanxinkai at 2022/09/30 end*/
-
+/* hs14 code for SR-AL6528A-445 by shanxinkai at 2022/10/28 start */
+extern int charger_manager_dump_charger_ic(struct charger_consumer *consumer,
+	int idx);
+/* hs14 code for SR-AL6528A-445 by shanxinkai at 2022/10/28 end */
+/* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 start */
+extern int charger_manager_bypass_chgdet(struct charger_consumer *consumer,
+	int idx, bool bypass_chgdet);
+/* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 end */
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 start */
 #ifdef CONFIG_AFC_CHARGER
 extern bool ss_fast_charger_status(struct charger_manager *info);

@@ -14,8 +14,9 @@
  * Upper this line, this part is controlled by CC/CQ. DO NOT MODIFY!!
  *============================================================================
  ****************************************************************************/
-/*hs14 code for SR-AL6528A-01-88 by pengxutao at 2022-11-1 start*/
+/*hs14 code for AL6528ADEU-1011 by majunfeng at 2022-11-2 start*/
 /*hs14 code for AL6528A-348 by rongyi at 2022-10-26 start*/
+/*hs14 code for SR-AL6528A-01-60 by jianghongyan at 2022-11-08 start*/
 #include <linux/videodev2.h>
 #include <linux/i2c.h>
 #include <linux/platform_device.h>
@@ -55,7 +56,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 		.starty = 0,
 		.grabwindow_width = 4080,
 		.grabwindow_height = 3072,
-		.mipi_data_lp2hs_settle_dc = 40,
+		.mipi_data_lp2hs_settle_dc = 85,
 		.mipi_pixel_rate = 547200000,
 		.max_framerate = 300,
 	},
@@ -67,7 +68,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 		.starty = 0,
 		.grabwindow_width = 4080,
 		.grabwindow_height = 3072,
-		.mipi_data_lp2hs_settle_dc = 40,
+		.mipi_data_lp2hs_settle_dc = 85,
 		.mipi_pixel_rate = 547200000,
 		.max_framerate = 300,
 	},
@@ -79,7 +80,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 		.starty = 0,
 		.grabwindow_width = 4080,
 		.grabwindow_height = 3072,
-		.mipi_data_lp2hs_settle_dc = 40,
+		.mipi_data_lp2hs_settle_dc = 85,
 		.mipi_pixel_rate = 547200000,
 		.max_framerate = 300,
 	},
@@ -173,15 +174,17 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.ihdr_support = 0,
 	.ihdr_le_firstline = 0,
 	.sensor_mode_num = 9,////here must modify when add setting
-	.cap_delay_frame = 3,
-	.pre_delay_frame = 3,
-	.video_delay_frame = 3,
-	.hs_video_delay_frame = 3,
-	.slim_video_delay_frame = 3,
-	.custom1_delay_frame = 3,
-	.custom2_delay_frame = 3,
-	.custom3_delay_frame = 3,
-	.custom4_delay_frame = 3,
+/*hs14 code for SR-AL6528A-01-20 by renxinglin at 2022/11/17 start*/
+	.cap_delay_frame = 2,
+	.pre_delay_frame = 2,
+	.video_delay_frame = 2,
+	.hs_video_delay_frame = 2,
+	.slim_video_delay_frame = 2,
+	.custom1_delay_frame = 2,
+	.custom2_delay_frame = 2,
+	.custom3_delay_frame = 2,
+	.custom4_delay_frame = 2,
+/*hs14 code for SR-AL6528A-01-20 by renxinglin at 2022/11/17 end*/
 	.isp_driving_current = ISP_DRIVING_6MA,//ISP_DRIVING_8MA
 	.sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,
 	.mipi_sensor_type = MIPI_OPHY_NCSI2,
@@ -247,10 +250,19 @@ static struct SENSOR_VC_INFO_STRUCT SENSOR_VC_INFO[9] = {
 	{ 0x02,	  0x0A,	  0x00, 0x08, 0x40,   0x00,   0x00, 0x2B,
 	  0x0ff0, 0x0c00, 0x01, 0x00, 0x0000, 0x0000, 0x01, 0x30,
 	  0x027C, 0x0BF0, 0x03, 0x00, 0x0000, 0x0000 },
+/*hs14 code for AL6528ADEU-1829 by liluling at 2022/11/2 begin*/
 	/* custom3 mode setting */
-	{ 0x02,	  0x0A,	  0x00, 0x08, 0x40,   0x00,   0x00, 0x2B,
-	  0x0ff0, 0x0c00, 0x01, 0x00, 0x0000, 0x0000, 0x01, 0x30,
-	  0x027C, 0x0BF0, 0x03, 0x00, 0x0000, 0x0000 },
+	{ 0x02,//VC_Num
+	  0x0A,//VC_PixelNum
+	  0x00,//ModeSelect    /* 0:auto 1:direct */
+	  0x08,//EXPO_Ratio    /* 1/1, 1/2, 1/4, 1/8 */
+	  0x40,//0DValue		/* 0D Value */
+	  0x00,
+	  0x00, 0x2B,0x0ff0, 0x08F8,// VC0 Maybe image data
+	  0x01, 0x00, 0x0000, 0x0000,// VC1 MVHDR
+	  0x01, 0x30,0x027C, 0x08F0, // VC2 PDAF
+	  0x03, 0x00, 0x0000, 0x0000 },// VC3
+/*hs14 code for AL6528ADEU-1829 by liluling at 2022/11/2 end*/
 	/* custom4 mode setting */
 	{ 0x02,	  0x0A,	  0x00, 0x08, 0x40,   0x00,   0x00, 0x2B,
 	  0x0ff0, 0x0c00, 0x01, 0x00, 0x0000, 0x0000, 0x01, 0x30,
@@ -312,33 +324,33 @@ static struct SET_PD_BLOCK_INFO_T imgsensor_pd_info = {
 	.i4BlockNumY = 382,
 	.i4Crop = { {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0} },
 };
-
+/*hs14 code for AL6528ADEU-1829 by liluling at 2022/11/2 begin*/
 static struct SET_PD_BLOCK_INFO_T imgsensor_pd_info_16_9 = {
 	.i4OffsetX = 8,
-	.i4OffsetY = 4,
+	.i4OffsetY = 8,
 	.i4PitchX = 8,
 	.i4PitchY = 8,
 	.i4PairNum = 4,
 	.i4SubBlkW = 8,
 	.i4SubBlkH = 2,
 	.i4PosL = {
-		{ 9, 4 },
-		{11, 7 },
-		{15, 8 },
-		{13, 11},
+		{ 9, 8 },
+		{11, 11},
+		{15, 12},
+		{13, 15},
 	},
 	.i4PosR = {
-		{ 8, 4 },
-		{10, 7 },
-		{14, 8 },
-		{12, 11},
+		{ 8, 8 },
+		{10, 11},
+		{14, 12},
+		{12, 15},
 	},
 	.iMirrorFlip = 0,
 	.i4BlockNumX = 508,
-	.i4BlockNumY = 286,
-	.i4Crop = { {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0} },
+	.i4BlockNumY = 288,
+	.i4Crop = { {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 388}, {0, 0}, {0, 0} },
 };
-
+/*hs14 code for AL6528ADEU-1829 by liluling at 2022/11/2 end*/
 #if MULTI_WRITE
 #define I2C_BUFFER_LEN 1020 /*trans max is 255, each 3 bytes*/
 #else
@@ -548,21 +560,21 @@ static bool bNeedSetNormalMode = KAL_FALSE;
 #define SHUTTER_16 1516012 //27591
 #define SHUTTER_32 3032024
 
-static void check_output_stream_off(void)
-{
-	kal_uint16 read_count = 0, read_register0005_value = 0;
+// static void check_output_stream_off(void)
+// {
+// 	kal_uint16 read_count = 0, read_register0005_value = 0;
 
-	for (read_count = 0; read_count <= 4; read_count++) {
-		read_register0005_value = read_cmos_sensor_8(0x0005);
+// 	for (read_count = 0; read_count <= 4; read_count++) {
+// 		read_register0005_value = read_cmos_sensor_8(0x0005);
 
-		if (read_register0005_value == 0xff)
-			break;
-		mdelay(50);
+// 		if (read_register0005_value == 0xff)
+// 			break;
+// 		mdelay(50);
 
-		if (read_count == 4)
-			LOG_INF("cxc stream off error\n");
-	}
-}
+// 		if (read_count == 4)
+// 			LOG_INF("cxc stream off error\n");
+// 	}
+// }
 //cxc long exposure <
 
 /*************************************************************************
@@ -585,132 +597,70 @@ static void set_shutter(kal_uint32 shutter)
 {
 	unsigned long flags;
 	kal_uint16 realtime_fps = 0;
-	static kal_uint32 pre_shutter = 2877;
+	kal_uint32 CintR = 0;
+	kal_uint32 Time_Frame = 0;
 
-	//LOG_INF("cxc enter  shutter = %d\n", shutter);
+	//LOG_INF("---------------------------------------set_shutter---------------------------------------\n");
 
 	spin_lock_irqsave(&imgsensor_drv_lock, flags);
 	imgsensor.shutter = shutter;
 	spin_unlock_irqrestore(&imgsensor_drv_lock, flags);
 
-	if (shutter < SHUTTER_1) {
-		if (bNeedSetNormalMode) {
-			LOG_INF("exit long shutter\n");
-			write_cmos_sensor(0x6028, 0x4000);
-			write_cmos_sensor_byte(0x0100, 0x00); //stream off
-			write_cmos_sensor(0x0334, 0x0000);
-			write_cmos_sensor(0x0E00, 0x0000);
-			write_cmos_sensor(0x0E04, 0x0000);
-			write_cmos_sensor(0x0E10, 0x0000);
-			write_cmos_sensor(0x0E12, 0x0000);
-			write_cmos_sensor(0x0E14, 0x0000);
-			write_cmos_sensor(0x0E16, 0x0000);
-			write_cmos_sensor(0x0704, 0x0000);
-			write_cmos_sensor_byte(0x0100, 0x01); //stream on
-			bNeedSetNormalMode = KAL_FALSE;
-			imgsensor.current_ae_effective_frame = 2;
-		}
-		pre_shutter = shutter;
-
-		spin_lock(&imgsensor_drv_lock);
-		if (shutter >
-		    imgsensor.min_frame_length - imgsensor_info.margin)
-			imgsensor.frame_length =
-				shutter + imgsensor_info.margin;
-		else
-			imgsensor.frame_length = imgsensor.min_frame_length;
-		if (imgsensor.frame_length > imgsensor_info.max_frame_length)
-			imgsensor.frame_length =
-				imgsensor_info.max_frame_length;
-		spin_unlock(&imgsensor_drv_lock);
-		shutter = (shutter < imgsensor_info.min_shutter) ?
-				  imgsensor_info.min_shutter :
-				  shutter;
-		shutter = (shutter > (imgsensor_info.max_frame_length -
-				      imgsensor_info.margin)) ?
-				  (imgsensor_info.max_frame_length -
-				   imgsensor_info.margin) :
-				  shutter;
-		if (imgsensor.autoflicker_en) {
-			realtime_fps = imgsensor.pclk / imgsensor.line_length *
-				       10 / imgsensor.frame_length;
-			if (realtime_fps >= 297 && realtime_fps <= 305)
-				set_max_framerate(296, 0);
-			else if (realtime_fps >= 147 && realtime_fps <= 150)
-				set_max_framerate(146, 0);
-			else {
-				write_cmos_sensor(0x0340,
-						  imgsensor.frame_length &
-							  0xFFFF);
-			}
-		} else {
-			write_cmos_sensor(0x0340,
-					  imgsensor.frame_length & 0xFFFF);
-		}
-
-		write_cmos_sensor(0X0202, shutter & 0xFFFF);
-		//LOG_INF("cxc 2 enter  shutter = %d\n", shutter);
-
+	spin_lock(&imgsensor_drv_lock);
+	if (shutter > imgsensor.min_frame_length - imgsensor_info.margin) {
+		imgsensor.frame_length = shutter + imgsensor_info.margin;
 	} else {
-		LOG_INF("cxc enter long shutter\n");
-		bNeedSetNormalMode = KAL_TRUE;
-		imgsensor.ae_frm_mode.frame_mode_1 = IMGSENSOR_AE_MODE_SE;
-		imgsensor.ae_frm_mode.frame_mode_2 = IMGSENSOR_AE_MODE_SE;
-		imgsensor.current_ae_effective_frame = 2;
+		imgsensor.frame_length = imgsensor.min_frame_length;
+	}
+	if (imgsensor.frame_length > imgsensor_info.max_frame_length) {
+		imgsensor.frame_length = imgsensor_info.max_frame_length;
+	}
+	spin_unlock(&imgsensor_drv_lock);
+	if (shutter < imgsensor_info.min_shutter)
+		shutter = imgsensor_info.min_shutter;
 
-		write_cmos_sensor(0x6028, 0x4000);
-		write_cmos_sensor_byte(0x0100, 0x00); //stream off
-		check_output_stream_off();
-		write_cmos_sensor(0x0334, 0x0001);
-		write_cmos_sensor(0x0E00, 0x0201);
-		write_cmos_sensor(0x0E04, 0x0003);
-
-		//		write_cmos_sensor(0x0E10, pre_shutter); //1st frame
-		//		write_cmos_sensor(0x0E12, imgsensor.gain); //aGain 1st frame
-		write_cmos_sensor(0x0E10, ((pre_shutter * 0x05C8) / SHUTTER_1));
-		write_cmos_sensor(0x0E12, imgsensor.gain); //aGain 1st frame
-		switch (shutter) {
-		case SHUTTER_1:
-			LOG_INF("cxc shutter 1\n");
-			write_cmos_sensor(0x0E14, 0x05C8); //2nd frame
-			break;
-		case SHUTTER_2:
-			LOG_INF("cxc shutter 2\n");
-			write_cmos_sensor(0x0E14, 0x0B90); //2nd frame
-			break;
-		case SHUTTER_4:
-			LOG_INF("cxc shutter 4\n");
-			write_cmos_sensor(0x0E14, 0x1721); //2nd frame
-			break;
-		case SHUTTER_8:
-			LOG_INF("cxc shutter 8\n");
-			write_cmos_sensor(0x0E14, 0x2E42); //2nd frame
-			break;
-		case SHUTTER_16:
-			LOG_INF("cxc shutter 16\n");
-			write_cmos_sensor(0x0E14, 0x5C85); //2nd frame
-			break;
-		case SHUTTER_32:
-			LOG_INF("cxc shutter 32\n");
-			write_cmos_sensor(0x0E14, 0xB90A); //2nd frame
-			break;
-		default:
-			LOG_INF("cxc shutter > 1\n");
-			write_cmos_sensor(0x0E14, ((shutter * 0x05C8) /
-						   SHUTTER_1)); //2nd frame
-			break;
+	if (imgsensor.autoflicker_en) {
+		realtime_fps = imgsensor.pclk / imgsensor.line_length * 10 / imgsensor.frame_length;
+		if (realtime_fps >= 297 && realtime_fps <= 305) {
+			set_max_framerate(296, 0);
+		} else if (realtime_fps >= 147 && realtime_fps <= 150) {
+			set_max_framerate(146, 0);
+		} else {
+			// Extend frame length
+			write_cmos_sensor(0x0340, imgsensor.frame_length);
 		}
-		write_cmos_sensor(0x0E16, 0x0050); //aGain 2nd frame
-		write_cmos_sensor(0x0704, 0x0600); //shifter for shutter
-
-		write_cmos_sensor_byte(0x0100, 0x01); //stream on
-		pre_shutter = 0;
+	} else {
+		// Extend frame length
+		write_cmos_sensor(0x0340, imgsensor.frame_length);
 	}
 
-	//write_cmos_sensor(0X0202, shutter & 0xFFFF);
+	if (shutter > 0xFFF0) {
 
-	//LOG_INF("cxc  Exit! shutter =%d, framelength =%d\n", shutter,
-	//		imgsensor.frame_length);
+		bNeedSetNormalMode = KAL_TRUE;
+		if(shutter >= 3448275){
+			shutter = 3448275;
+		}
+		CintR = ((unsigned long long)shutter) / 128;
+		Time_Frame = CintR + 0x0002;
+		LOG_INF("[cameradebug-longexp]CintR = %d\n", CintR);
+		write_cmos_sensor(0x0340, Time_Frame & 0xFFFF);
+		write_cmos_sensor(0x0202, CintR & 0xFFFF);
+		write_cmos_sensor(0x0702, 0x0700);
+		write_cmos_sensor(0x0704, 0x0700);
+
+		LOG_INF("[cameradebug-longexp]download long shutter setting shutter = %d\n", shutter);
+	} else {
+		if (bNeedSetNormalMode == KAL_TRUE) {
+			bNeedSetNormalMode = KAL_FALSE;
+			write_cmos_sensor(0x0702, 0x0000);
+			write_cmos_sensor(0x0704, 0x0000);
+
+			LOG_INF("[cameradebug-longexp]return to normal shutter =%d, framelength =%d\n", shutter, imgsensor.frame_length);
+
+		}
+		write_cmos_sensor(0x0340, imgsensor.frame_length);
+		write_cmos_sensor(0x0202, imgsensor.shutter);
+	}
 }
 
 /*************************************************************************
@@ -1284,11 +1234,11 @@ kal_uint16 addr_data_pair_preview_s5kjn1acc[] = {
 0x030A,	0x0001,
 0x030C,	0x0000,
 0x030E,	0x0004,
-0x0310,	0x0088,
+0x0310,	0x0072,
 0x0312,	0x0000,
 0x080E,	0x0000,
-0x0340,	0x0F70,
-0x0342,	0x11E8,
+0x0340,	0x0D9E,
+0x0342,	0x1450,
 0x0702,	0x0000,
 0x0202,	0x0100,
 0x0200,	0x0100,
@@ -1865,11 +1815,11 @@ kal_uint16 addr_data_pair_capture_s5kjn1acc[] = {
 0x030A,	0x0001,
 0x030C,	0x0000,
 0x030E,	0x0004,
-0x0310,	0x0088,
+0x0310,	0x0072,
 0x0312,	0x0000,
 0x080E,	0x0000,
-0x0340,	0x0F70,
-0x0342,	0x11E8,
+0x0340,	0x0D9E,
+0x0342,	0x1450,
 0x0702,	0x0000,
 0x0202,	0x0100,
 0x0200,	0x0100,
@@ -2155,11 +2105,11 @@ kal_uint16 addr_data_pair_normal_video_s5kjn1acc[] = {
 0x030A,	0x0001,
 0x030C,	0x0000,
 0x030E,	0x0004,
-0x0310,	0x0088,
+0x0310,	0x0072,
 0x0312,	0x0000,
 0x080E,	0x0000,
-0x0340,	0x0F70,
-0x0342,	0x11E8,
+0x0340,	0x0D9E,
+0x0342,	0x1450,
 0x0702,	0x0000,
 0x0202,	0x0100,
 0x0200,	0x0100,
@@ -3233,15 +3183,19 @@ static kal_uint32 return_sensor_id(void)
 *GLOBALS AFFECTED
 *
 *************************************************************************/
+/*hs14 code for AL6528ADEU-2675 by jianghongyan at 2022-11-20 start*/
 extern int hbb_flag;
+
+#define S5KJN1_EEPROM_VENDORID 0x01
 static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 {
 	kal_uint8 i = 0;
 	kal_uint8 retry = 2;
-	//   kal_uint8 retry = 2 ,vendor_id = 0;
-
-	//	vendor_id = get_vendor_id();
-	//	LOG_INF("get_imgsensor_id  vendor_id: 0x%x\n",vendor_id);
+	kal_uint32 s5kjn1VendorId = 0;
+    spin_lock(&imgsensor_drv_lock);
+    imgsensor.i2c_write_id = S5KJN1_EEPROM_SLAVE_ADDR;
+    spin_unlock(&imgsensor_drv_lock);
+    s5kjn1VendorId = read_cmos_sensor_8(0x0002);
 	while (imgsensor_info.i2c_addr_table[i] != 0xff) {
 		spin_lock(&imgsensor_drv_lock);
 		imgsensor.i2c_write_id = imgsensor_info.i2c_addr_table[i];
@@ -3252,7 +3206,17 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 				*sensor_id);
 			if (*sensor_id == imgsensor_info.sensor_id) {
 #if EEPROM_READY //stan
-				S5KJN1_read_data_from_eeprom(S5KJN1_EEPROM_SLAVE_ADDR, 0x0000, S5KJN1_EEPROM_SIZE);
+                if(s5kjn1VendorId == S5KJN1_EEPROM_VENDORID)
+                {
+                    S5KJN1_read_data_from_eeprom(S5KJN1_EEPROM_SLAVE_ADDR, 0x0000, S5KJN1_EEPROM_SIZE);
+			        LOG_INF("[cameradebug-compatible] return vendorId=0x%x",s5kjn1VendorId);
+                }
+                else
+                {
+                    LOG_INF("[cameradebug-compatible] return vendorId error , vendorId=0x%x",s5kjn1VendorId);
+			        *sensor_id = 0xFFFFFFFF;
+                    return ERROR_SENSOR_CONNECT_FAIL;
+                }
 #endif
 				pr_info("s5kjnsacc_ofilm i2c 0x%x, sid 0x%x\n",
 					imgsensor.i2c_write_id, *sensor_id);
@@ -3276,7 +3240,7 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 	}
 	return ERROR_NONE;
 }
-
+/*hs14 code for AL6528ADEU-2675 by jianghongyan at 2022-11-20 end*/
 /*************************************************************************
 *FUNCTION
 *  open
@@ -4138,7 +4102,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 	MSDK_SENSOR_REG_INFO_STRUCT *sensor_reg_data =
 		(MSDK_SENSOR_REG_INFO_STRUCT *)feature_para;
 
-	LOG_INF("feature_id = %d, len=%d\n", feature_id, *feature_para_len);
+	LOG_INF("feature_id = %d\n", feature_id);
 	switch (feature_id) {
 	case SENSOR_FEATURE_GET_GAIN_RANGE_BY_SCENARIO:
 		*(feature_data + 1) = imgsensor_info.min_gain;
@@ -4532,10 +4496,12 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 			memcpy((void *)pvcinfo, (void *)&SENSOR_VC_INFO[5],
 			       sizeof(struct SENSOR_VC_INFO_STRUCT));
 			break;
+/*hs14 code for AL6528ADEU-1829 by liluling at 2022/11/2 begin*/
 		case MSDK_SCENARIO_ID_CUSTOM3:
-			memcpy((void *)pvcinfo, (void *)&SENSOR_VC_INFO[5],
+			memcpy((void *)pvcinfo, (void *)&SENSOR_VC_INFO[7],
 			       sizeof(struct SENSOR_VC_INFO_STRUCT));
 			break;
+/*hs14 code for AL6528ADEU-1829 by liluling at 2022/11/2 end*/
 		case MSDK_SCENARIO_ID_CUSTOM4:
 			memcpy((void *)pvcinfo, (void *)&SENSOR_VC_INFO[5],
 			       sizeof(struct SENSOR_VC_INFO_STRUCT));
@@ -4735,4 +4701,5 @@ A1401BACKS5KJN1HLT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc)
 		*pfFunc = &sensor_func;
 	return ERROR_NONE;
 } /*	S5KJN1_MIPI_RAW_SensorInit	*/
-/*hs14 code for AL6528A-348 by rongyi at 2022-10-26 end*/
+/*hs14 code for SR-AL6528A-01-60 by jianghongyan at 2022-11-08 end*/
+/*hs14 code for AL6528ADEU-1011 by majunfeng at 2022-11-2 end*/

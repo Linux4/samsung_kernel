@@ -46,11 +46,12 @@
     #define AFDRV_O2104_GT9769AF "O2104_GT9769AF"
 #endif
 /*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 end*/
-/*hs14 code for SR-AL5628-01-161 Universal macro adaptation by lisizhou at 2022/9/23 start*/
+/*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 start*/
 #define AFDRV_A1401AW8601WAF "A1401AW8601WAF"
 #define AFDRV_A1402DW9767AF "A1402DW9767AF"
 #define AFDRV_A1403GT9778AF "A1403GT9778AF"
-/*hs14 code for SR-AL5628-01-161 Universal macro adaptation by lisizhou at 2022/9/23 end*/
+#define AFDRV_A1404AW8601WAF "A1404AW8601WAF"
+/*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 end*/
 /* hs04 code for SR-AL6398A-01-16 by liluling at 2022/07/05 end */
 /*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
 

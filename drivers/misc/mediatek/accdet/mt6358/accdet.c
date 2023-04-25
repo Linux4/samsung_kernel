@@ -15,6 +15,11 @@
 #include <linux/sched/clock.h>
 #include <linux/irq.h>
 #include "reg_accdet.h"
+/* hs14 code for SR-AL6528A-01-784 by fengzhigang at 20221201 start */
+#ifdef CONFIG_SWITCH
+#include <linux/switch.h>
+#endif
+/* hs14 code for SR-AL6528A-01-784 by fengzhigang at 20221201 end */
 #if defined CONFIG_MTK_PMIC_NEW_ARCH
 #include <upmu_common.h>
 #include <mtk_auxadc_intf.h>
@@ -153,7 +158,12 @@ static struct class *accdet_class;
 static struct device *accdet_device;
 static int s_button_status;
 static int accdet_pmic;
-
+/* hs14 code for SR-AL6528A-01-784 by fengzhigang at 20221201 start */
+#ifdef CONFIG_SWITCH
+//add for switch to show the headset plug status
+static struct switch_dev accdet_data;
+#endif
+/* hs14 code for SR-AL6528A-01-784 by fengzhigang at 20221201 end */
 /* accdet input device to report cable type and key event */
 static struct input_dev *accdet_input_dev;
 
@@ -1069,6 +1079,11 @@ static void send_accdet_status_event(u32 cable_type, u32 status)
 		input_sync(accdet_input_dev);
 		pr_info("%s HEADPHONE(3-pole) %s\n", __func__,
 			status ? "PlugIn" : "PlugOut");
+/* hs14 code for SR-AL6528A-01-784 by fengzhigang at 20221201 start */
+#ifdef CONFIG_SWITCH
+		switch_set_state(&accdet_data, status == 0 ? NO_DEVICE : cable_type);
+#endif
+/* hs14 code for SR-AL6528A-01-784 by fengzhigang at 20221201 end */
 		break;
 	case HEADSET_MIC:
 		/* when plug 4-pole out, 3-pole plug out should also be
@@ -1101,6 +1116,11 @@ static void send_accdet_status_event(u32 cable_type, u32 status)
 		 * micbias, it will cause key no response
 		 */
 		del_timer_sync(&micbias_timer);
+/* hs14 code for SR-AL6528A-01-784 by fengzhigang at 20221201 start */
+#ifdef CONFIG_SWITCH
+		switch_set_state(&accdet_data, status == 0 ? NO_DEVICE : cable_type);
+#endif
+/* hs14 code for SR-AL6528A-01-784 by fengzhigang at 20221201 end */
 		break;
 	case LINE_OUT_DEVICE:
 		input_report_switch(accdet_input_dev, SW_LINEOUT_INSERT,
@@ -2824,7 +2844,18 @@ int mt_accdet_probe(struct platform_device *dev)
 	struct platform_driver accdet_driver_hal = accdet_driver_func();
 
 	pr_info("%s() begin!\n", __func__);
-
+/* hs14 code for SR-AL6528A-01-784 by fengzhigang at 20221201 start */
+#ifdef CONFIG_SWITCH
+	accdet_data.name = "earjack";
+	accdet_data.index = 0;
+	accdet_data.state = 0;
+	ret = switch_dev_register(&accdet_data);
+	if (ret) {
+		pr_notice("%s switch_dev_register fail:%d!\n", __func__, ret);
+		return -1;
+	}
+#endif
+/* hs14 code for SR-AL6528A-01-784 by fengzhigang at 20221201 end */
 	/* register char device number, Create normal device for auido use */
 	ret = alloc_chrdev_region(&accdet_devno, 0, 1, ACCDET_DEVNAME);
 	if (ret) {

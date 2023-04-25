@@ -1358,7 +1358,12 @@ static void mmc_select_driver_type(struct mmc_card *card)
 							   card->ext_csd.hs200_max_dtr,
 							   card_drv_type, &drv_type);
 
-	card->drive_strength = drive_strength;
+	// hs04 code for DEAL6398A-1104 by sunxunou at 20220929 start
+	if (card->cid.manfid == CID_MANFID_MICRON)
+		card->drive_strength = 0x01;	//strong driver strength(0x1, 33 ohm)
+	else
+		card->drive_strength = drive_strength;
+	// hs04 code for DEAL6398A-1104 by sunxunou at 20220929 end
 
 	if (drv_type)
 		mmc_set_driver_type(card->host, drv_type);

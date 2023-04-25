@@ -53,6 +53,8 @@
 #include "mtk/ion_drv_priv.h"
 /* HS03_T code for DEVAL5626T-668 by gaochao at 20220914 end */
 
+static atomic_long_t systemheap_total_allocated = ATOMIC_LONG_INIT(0);
+
 struct ion_mm_buffer_info {
 	int module_id;
 	int fix_module_id;
@@ -473,7 +475,7 @@ static int ion_mm_heap_allocate(struct ion_heap *heap,
 	caller_pid = 0;
 	caller_tid = 0;
 
-	atomic_long_add(size, &system_heap->heap.total_allocated);
+	atomic_long_add(size, &systemheap_total_allocated);
 	return 0;
 
 err1:
@@ -636,7 +638,8 @@ void ion_mm_heap_free(struct ion_buffer *buffer)
 
 	sg_free_table(table);
 	kfree(table);
-	atomic_long_sub(size, &system_heap->heap.total_allocated);
+	atomic_long_sub(size, &systemheap_total_allocated);
+
 }
 
 struct sg_table *ion_mm_heap_map_dma(struct ion_heap *heap,
@@ -1696,7 +1699,9 @@ EXPORT_SYMBOL(ion_mm_heap_total_memory);
 
 static void show_ion_system_heap_pool_size(struct seq_file *s)
 {
-	unsigned long pool_size = 0;
+	unsigned long uncached_total = 0;
+	unsigned long cached_total = 0;
+	unsigned long secure_total = 0;
 	struct ion_page_pool *pool;
 	int i;
 
@@ -1707,22 +1712,34 @@ static void show_ion_system_heap_pool_size(struct seq_file *s)
 
 	for (i = 0; i < num_orders; i++) {
 		pool = system_heap->pools[i];
-		pool_size += (1 << pool->order) * pool->high_count;
-		pool_size += (1 << pool->order) * pool->low_count;
+		uncached_total += (1 << pool->order) * PAGE_SIZE *
+			pool->high_count;
+		uncached_total += (1 << pool->order) * PAGE_SIZE *
+			pool->low_count;
+	}
+
+	for (i = 0; i < num_orders; i++) {
+		pool = system_heap->cached_pools[i];
+		cached_total += (1 << pool->order) * PAGE_SIZE *
+			pool->high_count;
+		cached_total += (1 << pool->order) * PAGE_SIZE *
+			pool->low_count;
 	}
 
 	if (s)
 		seq_printf(s, "SystemHeapPool: %8lu kB\n",
-			   (pool_size) << (PAGE_SHIFT - 10));
+			   (uncached_total + cached_total + secure_total)
+			   >> 10);
 	else
 		pr_cont("SystemHeapPool:%lukB ",
-			(pool_size) << (PAGE_SHIFT - 10));
+			(uncached_total + cached_total + secure_total) >> 10);
 }
 
-static void show_ion_system_heap_size(struct seq_file *s)
+void show_ion_system_heap_size(struct seq_file *s)
 {
 	struct ion_heap *heap;
 	unsigned long system_byte = 0;
+	unsigned long all_system_kb;
 
 	if (!system_heap) {
 		pr_err("system_heap is not ready\n");
@@ -1730,11 +1747,17 @@ static void show_ion_system_heap_size(struct seq_file *s)
 	}
 
 	heap = &system_heap->heap;
-	system_byte = (unsigned long)atomic_long_read(&heap->total_allocated);
-	if (s)
+	system_byte = (unsigned long)atomic_long_read(&systemheap_total_allocated);
+	all_system_kb = (unsigned long)(atomic64_read(&page_sz_cnt)
+							<< (PAGE_SHIFT - 10));
+	if (s) {
 		seq_printf(s, "SystemHeap:     %8lu kB\n", system_byte >> 10);
-	else
+		seq_printf(s, "AllSystemHeap:  %8lu kB\n", all_system_kb);
+	}
+	else {
 		pr_cont("SystemHeap:%lukB ", system_byte >> 10);
+		pr_cont("AllSystemHeap:%lukB ", all_system_kb);
+	}
 }
 
 

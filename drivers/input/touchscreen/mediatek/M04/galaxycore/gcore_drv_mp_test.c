@@ -48,7 +48,7 @@
 #define MP_TEST_DATA_DIR              "/data/tpdata"
 #define MP_TEST_LOG_FILEPATH          MP_TEST_DATA_DIR"/GCORE_MP_Log"
 
-
+#define NOISE_TIMEOUT 5
 #define EMPTY_NUM  4
 int empty_place[EMPTY_NUM] = { 8, 9, -1, -1 };
 
@@ -622,6 +622,22 @@ int gcore_mp_test_item_open_reply(u8 *buf, int len)
     return 0;
 }
 
+
+/*hs04 code for DEAL6398A-1923 by suyurui at 20221108 start*/
+/**
+*Name: <mp_wait_int_set_fail>
+*Author: <suyurui>
+*Date: <2022/011/07>
+*Param: <void>
+*Return: <void>
+*Purpose: <int ito test>
+*/
+void mp_wait_int_set_fail(void)
+{
+    mp_test_fn.wait_int = false;
+}
+/*hs04 code for DEAL6398A-1923 by suyurui at 20221108 end*/
+
 int gcore_mp_test_item_short(struct gcore_mp_data *mp_data)
 {
     u8 cb_high = (u8) (mp_data->short_cb >> 8);
@@ -994,8 +1010,9 @@ int gcore_mp_test_item_noise(struct gcore_mp_data *mp_data)
     }
 
     mutex_unlock(&gdev->transfer_lock);
-
-    if (!wait_for_completion_interruptible_timeout(&mp_test_complete, 3 * HZ)) {
+    /*hs04 code for DEAL6398A-1923 by suyurui at 20221108 start*/
+    if (!wait_for_completion_interruptible_timeout(&mp_test_complete, NOISE_TIMEOUT * HZ)) {
+    /*hs04 code for DEAL6398A-1923 by suyurui at 20221108 end*/
         GTP_ERROR("mp test item noise timeout.");
         mp_test_fn.wait_int = false;
         return -EPERM;

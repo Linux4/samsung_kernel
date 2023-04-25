@@ -683,18 +683,22 @@ static int enable_bottom(psx93XX_t this, unsigned int enable)
         }
         pr_info("this->channel_status = 0x%x \n",this->channel_status);
 
-        sx933x_i2c_read_16bit(this, SX933X_STAT0_REG, &i);
-        if ((i & pCurrentButton->mask) == (pCurrentButton->mask)) {
+        if (anfr_sign == 1) {
             input_report_rel(grip_sensor, REL_MISC, 1);
             input_sync(grip_sensor);
-            pCurrentButton->state = ACTIVE;
         } else {
-            input_report_rel(grip_sensor, REL_MISC, 2);
-            input_sync(grip_sensor);
-            pCurrentButton->state = IDLE;
+            sx933x_i2c_read_16bit(this, SX933X_STAT0_REG, &i);
+            if ((i & pCurrentButton->mask) == (pCurrentButton->mask)) {
+                input_report_rel(grip_sensor, REL_MISC, 1);
+                input_sync(grip_sensor);
+                pCurrentButton->state = ACTIVE;
+            } else {
+                input_report_rel(grip_sensor, REL_MISC, 2);
+                input_sync(grip_sensor);
+                pCurrentButton->state = IDLE;
+            }
+            touchProcess(this);
         }
-
-        touchProcess(this);
     } else if (enable == 0) {
         if(this->channel_status & 0x01) {
             this->channel_status &= ~0x01;
@@ -733,18 +737,22 @@ static int enable_top(psx93XX_t this, unsigned int enable)
         }
         pr_info("this->channel_status = 0x%x \n",this->channel_status);
 
-        sx933x_i2c_read_16bit(this, SX933X_STAT0_REG, &i);
-        if ((i & pCurrentButton->mask) == (pCurrentButton->mask)) {
+        if (anfr_sign == 1) {
             input_report_rel(grip_sensor_sub, REL_MISC, 1);
             input_sync(grip_sensor_sub);
-            pCurrentButton->state = ACTIVE;
         } else {
-            input_report_rel(grip_sensor_sub, REL_MISC, 2);
-            input_sync(grip_sensor_sub);
-            pCurrentButton->state = IDLE;
+            sx933x_i2c_read_16bit(this, SX933X_STAT0_REG, &i);
+            if ((i & pCurrentButton->mask) == (pCurrentButton->mask)) {
+                input_report_rel(grip_sensor_sub, REL_MISC, 1);
+                input_sync(grip_sensor_sub);
+                pCurrentButton->state = ACTIVE;
+            } else {
+                input_report_rel(grip_sensor_sub, REL_MISC, 2);
+                input_sync(grip_sensor_sub);
+                pCurrentButton->state = IDLE;
+            }
+            touchProcess(this);
         }
-
-        touchProcess(this);
     } else if (enable == 0) {
         if(this->channel_status & 0x02) {
             this->channel_status &= ~0x02;

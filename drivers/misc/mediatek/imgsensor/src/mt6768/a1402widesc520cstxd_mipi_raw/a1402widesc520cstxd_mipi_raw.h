@@ -111,6 +111,9 @@ struct imgsensor_info_struct {
 	kal_uint8  sensor_mode_num;		//support sensor mode num
 
 	kal_uint8  cap_delay_frame;		//enter capture delay frame num
+/*hs14 code for SR-AL6528A-01-60 by rongyi at 2022-11-02 start*/
+	kal_uint8  frame_time_delay_frame;  //to tell how many frames delay when framelength updates
+/*hs14 code for SR-AL6528A-01-60 by rongyi at 2022-11-02 end*/
 	kal_uint8  pre_delay_frame;		//enter preview delay frame num
 	kal_uint8  video_delay_frame; //enter video delay frame num
 	kal_uint8  hs_video_delay_frame; //enter high speed videodelayframenum

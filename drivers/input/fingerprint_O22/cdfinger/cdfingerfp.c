@@ -217,9 +217,10 @@ static struct cdfinger_data {
     struct notifier_block notifier;
 }*g_cdfinger;
 
-/*hs14 code for SR-AL6528A-01-271 by zhangziyi at 2022/10/12 start*/
+/*hs14 code for SR-AL6528A-01-271|AL6528A-947 by zhangziyi at 2022/11/21 start*/
 extern int finger_sysfs;
-/*hs14 code for SR-AL6528A-01-271 by zhangziyi at 2022/10/12 end*/
+extern int g_prox_ret;
+/*hs14 code for SR-AL6528A-01-271|AL6528A-947 by zhangziyi at 2022/11/21 end*/
 
 #ifdef CONFIG_PM_WAKELOCKS
 static inline void wakeup_source_prepare(struct wakeup_source *ws, const char *name)
@@ -587,24 +588,49 @@ static int cdfinger_parse_dts(struct cdfinger_data *cdfinger)
         }
     }
 
-    if(cdfinger->vdd_ldo_enable == 1)
-    {
-        cdfinger->fps_power_on = pinctrl_lookup_state(cdfinger->fps_pinctrl,"fingerprint_power_high");
-        if (IS_ERR(cdfinger->fps_power_on))
-        {
-            ret = PTR_ERR(cdfinger->fps_power_on);
-            CDFINGER_ERR("cdfinger->fps_power_on ret = %d\n",ret);
-            goto parse_err;
-        }
+    /*hs14 code for AL6528A-947 by zhangziyi at 2022/11/21 start*/
+    if (cdfinger->vdd_ldo_enable == 1) {
+        if (g_prox_ret) {
+            cdfinger->fps_power_on = pinctrl_lookup_state(cdfinger->fps_pinctrl,
+                                                            "fingerprint_power_high");
+            if (IS_ERR(cdfinger->fps_power_on))
+            {
+                ret = PTR_ERR(cdfinger->fps_power_on);
+                CDFINGER_ERR("cdfinger->fps_power_on ret = %d\n",ret);
+                goto parse_err;
+            }
 
-        cdfinger->fps_power_off = pinctrl_lookup_state(cdfinger->fps_pinctrl,"fingerprint_power_low");
-        if (IS_ERR(cdfinger->fps_power_off))
-        {
-            ret = PTR_ERR(cdfinger->fps_power_off);
-            CDFINGER_ERR("cdfinger->fps_power_off ret = %d\n",ret);
-            goto parse_err;
+            cdfinger->fps_power_off = pinctrl_lookup_state(cdfinger->fps_pinctrl,
+                                                            "fingerprint_power_low");
+            if (IS_ERR(cdfinger->fps_power_off))
+            {
+                ret = PTR_ERR(cdfinger->fps_power_off);
+                CDFINGER_ERR("cdfinger->fps_power_off ret = %d\n",ret);
+                goto parse_err;
+            }
+            CDFINGER_ERR("cdfinger power_use 107\n");
+        } else {
+            cdfinger->fps_power_on = pinctrl_lookup_state(cdfinger->fps_pinctrl,
+                                                            "cdfinger_ldo_enable");
+            if (IS_ERR(cdfinger->fps_power_on))
+            {
+                ret = PTR_ERR(cdfinger->fps_power_on);
+                CDFINGER_ERR("cdfinger->cdfinger_ldo_enable ret = %d\n",ret);
+                goto parse_err;
+            }
+
+            cdfinger->fps_power_off = pinctrl_lookup_state(cdfinger->fps_pinctrl,
+                                                            "cdfinger_ldo_disable");
+            if (IS_ERR(cdfinger->fps_power_off))
+            {
+                ret = PTR_ERR(cdfinger->fps_power_off);
+                CDFINGER_ERR("cdfinger->cdfinger_ldo_disable ret = %d\n",ret);
+                goto parse_err;
+            }
+            CDFINGER_ERR("cdfinger power_use 158\n");
         }
     }
+    /*hs14 code for AL6528A-947 by zhangziyi at 2022/11/21 end*/
 
     if(cdfinger->vio_ldo_enable == 1)
     {

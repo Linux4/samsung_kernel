@@ -291,6 +291,42 @@ static int dsp_a2dp_default_get(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int dsp_bledl_default_set(struct snd_kcontrol *kcontrol,
+					 struct snd_ctl_elem_value *ucontrol)
+{
+	int val = ucontrol->value.integer.value[0];
+
+	set_task_attr(AUDIO_TASK_BLEDL_ID, ADSP_TASK_ATTR_DEFAULT, val);
+	return 0;
+}
+
+static int dsp_bledl_default_get(struct snd_kcontrol *kcontrol,
+					 struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] =
+		get_task_attr(AUDIO_TASK_BLEDL_ID,
+			      ADSP_TASK_ATTR_DEFAULT);
+	return 0;
+}
+
+static int dsp_bleul_default_set(struct snd_kcontrol *kcontrol,
+					 struct snd_ctl_elem_value *ucontrol)
+{
+	int val = ucontrol->value.integer.value[0];
+
+	set_task_attr(AUDIO_TASK_BLEUL_ID, ADSP_TASK_ATTR_DEFAULT, val);
+	return 0;
+}
+
+static int dsp_bleul_default_get(struct snd_kcontrol *kcontrol,
+					 struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] =
+		get_task_attr(AUDIO_TASK_BLEUL_ID,
+			      ADSP_TASK_ATTR_DEFAULT);
+	return 0;
+}
+
 static int dsp_dataprovider_default_set(struct snd_kcontrol *kcontrol,
 					 struct snd_ctl_elem_value *ucontrol)
 {
@@ -670,6 +706,40 @@ static int dsp_a2dp_runtime_get(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int dsp_bledl_runtime_set(struct snd_kcontrol *kcontrol,
+					   struct snd_ctl_elem_value *ucontrol)
+{
+	int val = ucontrol->value.integer.value[0];
+
+	set_task_attr(AUDIO_TASK_BLEDL_ID, ADSP_TASK_ATTR_RUNTIME, val);
+	return 0;
+}
+
+static int dsp_bledl_runtime_get(struct snd_kcontrol *kcontrol,
+					   struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] =
+		get_task_attr(AUDIO_TASK_BLEDL_ID, ADSP_TASK_ATTR_RUNTIME);
+	return 0;
+}
+
+static int dsp_bleul_runtime_set(struct snd_kcontrol *kcontrol,
+					   struct snd_ctl_elem_value *ucontrol)
+{
+	int val = ucontrol->value.integer.value[0];
+
+	set_task_attr(AUDIO_TASK_BLEUL_ID, ADSP_TASK_ATTR_RUNTIME, val);
+	return 0;
+}
+
+static int dsp_bleul_runtime_get(struct snd_kcontrol *kcontrol,
+					   struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] =
+		get_task_attr(AUDIO_TASK_BLEUL_ID, ADSP_TASK_ATTR_RUNTIME);
+	return 0;
+}
+
 static int dsp_dataprovider_runtime_set(struct snd_kcontrol *kcontrol,
 					 struct snd_ctl_elem_value *ucontrol)
 {
@@ -935,6 +1005,10 @@ static const struct snd_kcontrol_new dsp_platform_kcontrols[] = {
 		       dsp_offload_default_get, dsp_offload_default_set),
 	SOC_SINGLE_EXT("dsp_a2dp_default_en", SND_SOC_NOPM, 0, 0x1, 0,
 		       dsp_a2dp_default_get, dsp_a2dp_default_set),
+	SOC_SINGLE_EXT("dsp_bledl_default_en", SND_SOC_NOPM, 0, 0x1, 0,
+		       dsp_bledl_default_get, dsp_bledl_default_set),
+	SOC_SINGLE_EXT("dsp_bleul_default_en", SND_SOC_NOPM, 0, 0x1, 0,
+		       dsp_bleul_default_get, dsp_bleul_default_set),
 	SOC_SINGLE_EXT("dsp_dataprovider_default_en", SND_SOC_NOPM, 0, 0x1, 0,
 		       dsp_dataprovider_default_get,
 		       dsp_dataprovider_default_set),
@@ -979,6 +1053,10 @@ static const struct snd_kcontrol_new dsp_platform_kcontrols[] = {
 		       dsp_offload_runtime_get, dsp_offload_runtime_set),
 	SOC_SINGLE_EXT("dsp_a2dp_runtime_en", SND_SOC_NOPM, 0, 0x1, 0,
 		       dsp_a2dp_runtime_get, dsp_a2dp_runtime_set),
+	SOC_SINGLE_EXT("dsp_bledl_runtime_en", SND_SOC_NOPM, 0, 0x1, 0,
+		       dsp_bledl_runtime_get, dsp_bledl_runtime_set),
+	SOC_SINGLE_EXT("dsp_bleul_runtime_en", SND_SOC_NOPM, 0, 0x1, 0,
+		       dsp_bleul_runtime_get, dsp_bleul_runtime_set),
 	SOC_SINGLE_EXT("dsp_dataprovider_runtime_en", SND_SOC_NOPM, 0, 0x1, 0,
 		       dsp_dataprovider_runtime_get,
 		       dsp_dataprovider_runtime_set),
@@ -1233,13 +1311,6 @@ DSP_IRQ_HANDLER_ERR:
 	return;
 }
 
-static bool is_adsp_support_audio_irq(void)
-{
-	if (ADSP_IRQ_NUM > ADSP_IRQ_AUDIO_ID)
-		return true;
-	return false;
-}
-
 static bool mtk_dsp_dl_consume_check_exception(struct mtk_base_dsp *dsp,
 			       struct ipi_msg_t *ipi_msg, int id)
 {
@@ -1285,6 +1356,7 @@ static void mtk_dsp_dl_consume_handler(struct mtk_base_dsp *dsp,
 	void *ipi_audio_buf;
 	struct mtk_base_dsp_mem *dsp_mem;
 	spinlock_t *ringbuf_lock;
+	struct snd_pcm_substream *substream;
 
 	if (id < 0 || id >= AUDIO_TASK_DAI_NUM) {
 		pr_info_ratelimited("%s id = %d, is overrange\n", __func__, id);
@@ -1304,17 +1376,21 @@ static void mtk_dsp_dl_consume_handler(struct mtk_base_dsp *dsp,
 			 dsp->dsp_mem[id].substream->runtime->status->state);
 		return;
 	}
+	substream = dsp->dsp_mem[id].substream;
 
-	/* upadte for write index*/
-	ipi_audio_buf = (void *)dsp_mem->msg_dtoa_share_buf.va_addr;
-
-	memcpy((void *)&dsp_mem->adsp_work_buf, (void *)ipi_audio_buf,
-	       sizeof(struct audio_hw_buffer));
-
-	dsp->dsp_mem[id].adsp_buf.aud_buffer.buf_bridge.pRead =
-	    dsp->dsp_mem[id].adsp_work_buf.aud_buffer.buf_bridge.pRead;
+	// handle for no restart pcm, copy audio_hw_buffer from msg payload, others from share mem
+	if ((substream->runtime->stop_threshold > substream->runtime->start_threshold) && ipi_msg) {
+		memcpy((void *)&dsp_mem->adsp_work_buf, ipi_msg->payload,
+		       sizeof(struct audio_hw_buffer));
+	} else {
+		ipi_audio_buf = (void *)dsp_mem->msg_dtoa_share_buf.va_addr;
+		memcpy((void *)&dsp_mem->adsp_work_buf, (void *)ipi_audio_buf,
+		       sizeof(struct audio_hw_buffer));
+	}
 
 	spin_lock(ringbuf_lock);
+	dsp->dsp_mem[id].adsp_buf.aud_buffer.buf_bridge.pRead =
+		dsp->dsp_mem[id].adsp_work_buf.aud_buffer.buf_bridge.pRead;
 
 #ifdef DEBUG_VERBOSE_IRQ
 	dump_rbuf_s("dl_consume before sync", &dsp->dsp_mem[id].ring_buf);
@@ -1429,8 +1505,7 @@ void mtk_dsp_handler(struct mtk_base_dsp *dsp,
 		if (mtk_dsp_dl_consume_check_exception(dsp, ipi_msg, id))
 			break;
 		// handle consume message for the platforms which not support audio IRQ
-		if (!is_adsp_support_audio_irq())
-			mtk_dsp_dl_consume_handler(dsp, NULL, id);
+		mtk_dsp_dl_consume_handler(dsp, ipi_msg, id);
 		break;
 	default:
 		break;

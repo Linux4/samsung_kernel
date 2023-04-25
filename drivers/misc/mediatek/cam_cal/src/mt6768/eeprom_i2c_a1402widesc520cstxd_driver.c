@@ -42,7 +42,9 @@ static struct i2c_client *g_pstI2CclientG;
 #define SC520CS_SYX_RET_SUCCESS		0
 #define SC520CS_SYX_RET_FAIL		1
 #define SC520CS_SYX_DEBUG_ON		0
-
+#define VENDOR_ADDR 1  //module id address in otp data
+#define VENDORID_OLD 0x52  //old module id
+#define VENDORID 0x55  //new module id
 static void write_cmos_sensor8(u16 addr, u16 para)
 {
     char pu_send_cmd[3] = {(char)(addr >> 8),
@@ -150,7 +152,6 @@ static int sc520cs_sensor_otp_read_data(unsigned int ui4_offset,unsigned int ui4
 	pr_info("sc520cs_sensor_otp_read_data success\n");
 	return SC520CS_SYX_RET_SUCCESS;
 }
-
 static int sc520cs_sensor_otp_read_module_info(unsigned char *pinputdata)
 {
 	int ret = SC520CS_SYX_RET_FAIL;
@@ -242,7 +243,7 @@ static int sc520cs_sensor_otp_read_lsc_info(unsigned char *pinputdata)
 
 	return ret;
 }
-
+/*hs14 code for AL6528ADEU-2674 by jianghongyan at 2022-11-17 start*/
 static int sc520cs_sensor_otp_read_all_data(unsigned int ui4_offset,unsigned int ui4_length, unsigned char *pinputdata)
 {
 	int ret = SC520CS_SYX_RET_FAIL;
@@ -372,9 +373,21 @@ static int sc520cs_sensor_otp_read_all_data(unsigned int ui4_offset,unsigned int
 	write_cmos_sensor8(0x440b,0xff);
 
 	write_cmos_sensor8(0x3106, 0x01);
-
+    if(pinputdata[VENDOR_ADDR] == VENDORID_OLD)
+    {
+        pr_info("[cameradebug-compatible] vendorId=0x%x this is old sensor",pinputdata[VENDOR_ADDR]);
+    }
+    else if (pinputdata[VENDOR_ADDR] == VENDORID)
+    {
+        pr_info("[cameradebug-compatible] vendorId=0x%x this is new sensor",pinputdata[VENDOR_ADDR]);
+    }
+    else
+    {
+        pr_info("[cameradebug-compatible] vendorId=0x%x return vendorId error",pinputdata[VENDOR_ADDR]);
+    }
 	return ret;
 }
+/*hs14 code for AL6528ADEU-2674 by jianghongyan at 2022-11-17 end*/
 /*hs14 code for SR-AL6528A-01-54 by liluling at 2022-9-26 end*/
 static int sc520syx_iReadData(unsigned int ui4_offset,unsigned int ui4_length, unsigned char *pinputdata)
 {

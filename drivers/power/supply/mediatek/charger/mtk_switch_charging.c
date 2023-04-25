@@ -484,6 +484,15 @@ done:
 		pdata->input_current_limit = 0;
 #endif
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
+/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
+#ifndef HQ_FACTORY_BUILD //ss version
+	if (info->batt_store_mode) {
+		pdata->charging_current_limit = min(pdata->charging_current_limit,
+			info->data.usb_charger_current);
+		chr_err("store_mode running, set ichg to %dmA\n", _uA_to_mA(pdata->charging_current_limit));
+	}
+#endif
+/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
 
 	chr_err("force:%d thermal:%d,%d pe4:%d,%d,%d setting:%d %d type:%d usb_unlimited:%d usbif:%d usbsm:%d aicl:%d atm:%d\n",
 		_uA_to_mA(pdata->force_charging_current),
@@ -681,12 +690,6 @@ static void swchg_turn_on_charging(struct charger_manager *info)
 		mtk_pe20_start_algorithm(info);
 		if (mtk_pe20_get_is_connect(info) == false)
 			mtk_pe_start_algorithm(info);
-
-/* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/23 start */
-#ifdef CONFIG_AFC_CHARGER
-		afc_start_algorithm(info);
-#endif
-/* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/23 end */
 
 		swchg_select_charging_current_limit(info);
 		if (info->chg1_data.input_current_limit == 0
@@ -993,6 +996,42 @@ static int mtk_switch_charging_current(struct charger_manager *info)
 	return 0;
 }
 
+/* hs14 code for AL6528ADEU-2119 by qiaodan at 2022/11/18 start */
+#ifdef CONFIG_AFC_CHARGER
+#ifndef HQ_FACTORY_BUILD
+static int switch_get_boot_mode(struct charger_manager *info)
+{
+	struct device *dev = NULL;
+	struct device_node *boot_node = NULL;
+	struct tag_bootmode *tag = NULL;
+	int boot_mode = 11;//UNKNOWN_BOOT
+
+	dev = &(info->pdev->dev);
+	if (dev != NULL) {
+		boot_node = of_parse_phandle(dev->of_node, "bootmode", 0);
+		if (!boot_node) {
+			chr_err("%s: failed to get boot mode phandle\n", __func__);
+		}
+		else {
+			tag = (struct tag_bootmode *)of_get_property(boot_node,
+								"atag,boot", NULL);
+			if (!tag) {
+				chr_err("%s: failed to get atag,boot\n", __func__);
+			}
+			else {
+				boot_mode = tag->bootmode;
+			}
+		}
+	}
+
+	chr_err("%s boot_mode = %d\n", __func__, boot_mode);
+
+	return boot_mode;
+}
+#endif
+#endif
+/* hs14 code for AL6528ADEU-2119 by qiaodan at 2022/11/18 end */
+
 static int mtk_switch_charging_run(struct charger_manager *info)
 {
 	struct switch_charging_alg_data *swchgalg = info->algorithm_data;
@@ -1002,11 +1041,32 @@ static int mtk_switch_charging_run(struct charger_manager *info)
 		info->pd_type,
 		swchgalg->total_charging_time);
 
-/* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 start */
+/* hs14 code for SR-AL6528A-01-321 | AL6528ADEU-2119 by qiaodan at 2022/11/18 start */
 #ifdef CONFIG_AFC_CHARGER
 	if (info->hv_disable == HV_ENABLE &&
 		info->chr_type == STANDARD_CHARGER) {
+#ifndef HQ_FACTORY_BUILD
+		if (switch_get_boot_mode(info) == KERNEL_POWER_OFF_CHARGING_BOOT ||
+			info->boot_with_dcp == true) {
+			if (afc_check_charger(info)  < 0 &&
+				info->afc.is_connect == false &&
+				info->afc.afc_loop_algo < ALGO_LOOP_MAX) {
+				afc_set_to_check_chr_type(info, true);
+				info->afc.afc_loop_algo++;
+				chr_err("%s: afc failed, loop_algo=%d\n",__func__ ,info->afc.afc_loop_algo);
+			} else if (info->afc.afc_loop_algo >= ALGO_LOOP_MAX) {
+				info->boot_with_dcp = false;
+				chr_err("%s: afc failed,try times out loop_algo=%d\n",__func__ ,info->afc.afc_loop_algo);
+			} else {
+				info->boot_with_dcp = false;
+				chr_err("%s: afc success, loop_algo = %d\n", __func__ ,info->afc.afc_loop_algo);
+			}
+		} else {
+			afc_check_charger(info);
+		}
+#else
 		afc_check_charger(info);
+#endif
 		if(info->afc_sts < AFC_5V && info->afc.afc_retry_flag == true &&
 			info->afc.afc_loop_algo < ALGO_LOOP_MAX) {
 			chr_err("afc failed %d times,try again\n", info->afc.afc_loop_algo++);
@@ -1018,11 +1078,14 @@ static int mtk_switch_charging_run(struct charger_manager *info)
 			info->afc.is_connect = true;
 		}
 	} else {
+#ifndef HQ_FACTORY_BUILD
+		info->boot_with_dcp = false;
+#endif
 		chr_err("%s: Do not start AFC, hv_disable(%d)\n",
 					__func__, info->hv_disable);
 	}
 #endif
-/* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
+/* hs14 code for SR-AL6528A-01-321 | AL6528ADEU-2119 by qiaodan at 2022/11/18 end */
 
 	if (mtk_pdc_check_charger(info) == false &&
 	    mtk_is_TA_support_pd_pps(info) == false &&
@@ -1037,10 +1100,14 @@ static int mtk_switch_charging_run(struct charger_manager *info)
 			mtk_pe40_end(info, 4, true);
 	}
 
-	/* hs14 code for AL6528ADEU-580 by gaozhengwei at 2022/10/09 start */
-	if (!ss_fast_charger_status(info))
-		charger_dev_dynamic_set_hwovp_threshold(info->chg1_dev, SC_ADAPTER_NORMAL);
-	/* hs14 code for AL6528ADEU-580 by gaozhengwei at 2022/10/09 end */
+	/* hs14 code for AL6528ADEU-580 | AL6528A-677 by qiaodan at 2022/11/10 start */
+	if (!ss_fast_charger_status(info)) {
+		chr_err("%s: not fast_chg\n", __func__);
+		// charger_dev_dynamic_set_hwovp_threshold(info->chg1_dev, SC_ADAPTER_NORMAL);
+	} else {
+		chr_err("%s: is fast_chg\n", __func__);
+	}
+	/* hs14 code for AL6528ADEU-580 | AL6528A-677 by qiaodan at 2022/11/10 end */
 
 	do {
 		switch (swchgalg->state) {

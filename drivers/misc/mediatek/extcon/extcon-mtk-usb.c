@@ -29,6 +29,10 @@
 /*hs14 code for SR-AL6528A-01-257 by chengyuanhang at 2022/09/28 start*/
 #if defined(CONFIG_HQ_PROJECT_O22)
 #include <linux/delay.h>
+/* hs14 code for P221231-00979 by gaozhengwei at 2023/01/02 start */
+#include <linux/chg-tcpc_info.h>
+extern enum tcpc_cc_supplier tcpc_info;
+/* hs14 code for P221231-00979 by gaozhengwei at 2023/01/02 end */
 #endif
 /*hs14 code for SR-AL6528A-01-257 by chengyuanhang at 2022/09/28 end*/
 #include "extcon-mtk-usb.h"
@@ -57,7 +61,10 @@
 static struct mtk_extcon_info *g_extcon;
 /*hs14 code for SR-AL6528A-01-257 by chengyuanhang at 2022/09/28 start*/
 #if defined(CONFIG_HQ_PROJECT_O22)
-static long usb_enabled = 1;
+/*hs14 code for AL6528ADEU-2606 by gaozhengwei at 2022/11/22 start*/
+bool usb_data_enabled = true;
+EXPORT_SYMBOL(usb_data_enabled);
+/*hs14 code for AL6528ADEU-2606 by gaozhengwei at 2022/11/22 end*/
 static int p_role;
 #endif
 /*hs14 code for SR-AL6528A-01-257 by chengyuanhang at 2022/09/28 end*/
@@ -81,7 +88,7 @@ static void mtk_usb_extcon_update_role(struct work_struct *work)
 	p_role = extcon->c_role;
 
 	dev_info(extcon->dev, "cur_dr(%d) new_dr(%d) p_role (%d)\n", cur_dr, new_dr, p_role);
-	if(usb_enabled == 0 && new_dr !=  DUAL_PROP_DR_NONE){
+	if(usb_data_enabled == false && new_dr !=  DUAL_PROP_DR_NONE){
 		return;
 	/* none -> device */
 	} else if (cur_dr == DUAL_PROP_DR_NONE &&
@@ -776,6 +783,14 @@ void mt_usb_disconnect_v1(void)
 	pr_info("%s  in mtk extcon\n", __func__);
 #ifdef CONFIG_TCPC_CLASS
 	/* disconnect by tcpc notifier */
+/* hs14 code for AL6528ADEU-3679|P221231-00979 by gaozhengwei at 2023/01/02 start */
+#if defined(CONFIG_HQ_PROJECT_O22)
+	if (tcpc_info == FUSB302) {
+		pr_info("%s: tcpc_info = %d\n", __func__, tcpc_info);
+		issue_connection_work(DUAL_PROP_DR_NONE);
+	}
+#endif
+/* hs14 code for AL6528ADEU-3679|P221231-00979 by gaozhengwei at 2023/01/02 end */
 #else
 	issue_connection_work(DUAL_PROP_DR_NONE);
 #endif
@@ -795,27 +810,38 @@ void set_extcon_otg_vbus(struct mtk_extcon_info *extcon, long val)
 	return;
 }
 
-void usb_notify_control(struct mtk_extcon_info *extcon, long data_enabled)
+/*hs14 code for AL6528ADEU-2606 by gaozhengwei at 2022/11/22 start*/
+void usb_notify_control(bool data_enabled)
 {
-	static long prev_mode = 1;
-	usb_enabled = data_enabled;
-	if (prev_mode != usb_enabled) {
-		prev_mode = usb_enabled;
-		if (usb_enabled == 0) {
-			mtk_usb_extcon_set_role(extcon, DUAL_PROP_DR_NONE);//close USB
-        		set_extcon_otg_vbus(extcon, usb_enabled);
+	static bool prev_mode = true;
+
+	if (!g_extcon) {
+		pr_info("g_extcon = NULL\n");
+		return;
+	}
+
+	usb_data_enabled = data_enabled;
+	if (prev_mode != usb_data_enabled) {
+		prev_mode = usb_data_enabled;
+
+		pr_err("input usb_data_enabled : %d\n", data_enabled);
+
+		if (usb_data_enabled == false) {
+			mtk_usb_extcon_set_role(g_extcon, DUAL_PROP_DR_NONE);//close USB
+        		set_extcon_otg_vbus(g_extcon, usb_data_enabled);
         		msleep(50);
 		} else {
-        		mtk_usb_extcon_set_role(extcon, p_role);//open USB
-			set_extcon_otg_vbus(extcon, usb_enabled);
+        		mtk_usb_extcon_set_role(g_extcon, p_role);//open USB
+			set_extcon_otg_vbus(g_extcon, usb_data_enabled);
 		}
 		return;
 	} else {
-		pr_info("same mode exit!\n");
+		pr_info("usb_data_enabled : %d same mode exit!\n", data_enabled);
 		return;
 	}
 }
 EXPORT_SYMBOL(usb_notify_control);
+/*hs14 code for AL6528ADEU-2606 by gaozhengwei at 2022/11/22 end*/
 #endif
 /*hs14 code for SR-AL6528A-01-257 by chengyuanhang at 2022/09/28 end*/
 
@@ -898,6 +924,9 @@ static int mtk_usb_extcon_probe(struct platform_device *pdev)
 
 	/* default initial role */
 	mtk_usb_extcon_set_role(extcon, DUAL_PROP_DR_NONE);
+	
+	g_extcon = extcon;
+	platform_set_drvdata(pdev, extcon);
 
 	/* default turn off vbus */
 	mtk_usb_extcon_set_vbus(extcon, false);
@@ -918,10 +947,6 @@ static int mtk_usb_extcon_probe(struct platform_device *pdev)
 	if (ret < 0)
 		dev_err(dev, "failed to init tcpc\n");
 #endif
-
-	g_extcon = extcon;
-
-	platform_set_drvdata(pdev, extcon);
 
 	return 0;
 }

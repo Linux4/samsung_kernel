@@ -90,15 +90,16 @@ mainaf-y  += common/o2104_gt9769af/O2104_GT9769AF.o
 endif
 ##################### M04 AF CODE END #########################
 #hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/17 end
-#hs14 code for SR-AL6528-01-161 Universal macro adaptation by renxinglin at 2022/9/27 start
+#hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 start
 ifeq ($(CONFIG_HQ_PROJECT_O22), y)
 ##################### A14 AF CODE START #########################
 mainaf-y  += common/a1401aw8601waf/A1401AW8601WAF.o
 mainaf-y  += common/a1402dw9767af/A1402DW9767AF.o
 mainaf-y  += common/a1403gt9778af/A1403GT9778AF.o
+mainaf-y  += common/a1404aw8601waf/A1404AW8601WAF.o
 ##################### A14 AF CODE START #########################
 endif
-#hs14 code for SR-AL6528-01-161 Universal macro adaptation by renxinglin at 2022/9/27 end
+#hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 end
 mainaf-y  += common/lc898212af/LC898212AF.o
 mainaf-y  += common/lc898212xdaf/LC898212XDAF.o
 mainaf-y  += common/lc898212xdaf/AfInter.o

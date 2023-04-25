@@ -956,6 +956,11 @@ struct mtk_battery {
 	struct battery_temperature_table rbat;
 
 	struct fgd_cmd_param_t_custom fg_data;
+/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
+#ifdef HQ_FACTORY_BUILD
+	int batt_cap_control;
+#endif
+/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
 };
 
 

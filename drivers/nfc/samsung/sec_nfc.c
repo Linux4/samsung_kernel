@@ -103,6 +103,14 @@ struct sec_nfc_info {
 #endif
 };
 
+/*hs14 code for AL6528A-1050 by lijun at 2022/12/30 start */
+#ifdef CONFIG_HQ_PROJECT_O22
+static struct pinctrl *pinctrl = NULL;
+static struct pinctrl_state *pin_active = NULL;
+static struct pinctrl_state *pin_suspend = NULL;
+#endif
+/*hs14 code for AL6528A-1050 by lijun at 2022/12/30 end */
+
 #ifdef CONFIG_SEC_ESE_COLDRESET
 struct mutex coldreset_mutex;
 struct mutex sleep_wake_mutex;
@@ -912,17 +920,39 @@ static int __init NFC_INFO_setup(char *str)
 
 /*hs14 code for SR-AL5625-01-462 NFC customize by lijun at 2022/09/17 end */
 
+/*hs14 code for AL6528A-1050 by lijun at 2022/12/30 start */
 static int __sec_nfc_probe(struct device *dev)
 {
     struct sec_nfc_info *info;
     struct sec_nfc_platform_data *pdata = NULL;
     int ret = 0;
 
-/*hs14 code for SR-AL5625-01-462 NFC customize by lijun at 2022/09/17 start */
 #ifdef CONFIG_HQ_PROJECT_O22
+    pinctrl = devm_pinctrl_get(dev);
+    if (IS_ERR_OR_NULL(pinctrl)) {
+        pr_err("%s, No pinctrl config specified\n", __func__);
+        return -EINVAL;
+    }
+
+    pin_active = pinctrl_lookup_state(pinctrl, "active");
+    if (IS_ERR_OR_NULL(pin_active)) {
+        pr_err("%s, could not get pin_active\n", __func__);
+        return -EINVAL;
+    }
+
+    pin_suspend = pinctrl_lookup_state(pinctrl, "sleep");
+    if (IS_ERR_OR_NULL(pin_suspend)) {
+        pr_err("%s, could not get pin_suspend\n", __func__);
+        return -EINVAL;
+    }
+
+/*hs14 code for AL6528A-1050 by lijun at 2022/12/30 end */
+
+/*hs14 code for SR-AL5625-01-462 NFC customize by lijun at 2022/09/17 start */
     __setup("androidboot.nfcinfo=", NFC_INFO_setup);
     if (strncmp(NFC_INFO_from_cmdline, "NFC_SMD",
                        strlen("NFC_SMD"))) {
+        pinctrl_select_state(pinctrl, pin_suspend);
         pr_info("%s: NFCinfo this device do not support NFC ,we ignore it \n", __func__);
         return -ENOMEM;
                 }

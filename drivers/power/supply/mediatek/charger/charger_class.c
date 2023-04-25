@@ -868,6 +868,18 @@ int charger_dev_dynamic_set_hwovp_threshold(struct charger_device *charger_dev,
 EXPORT_SYMBOL(charger_dev_dynamic_set_hwovp_threshold);
 /* hs14 code for AL6528ADEU-580 by gaozhengwei at 2022/10/09 end */
 
+/* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 start */
+int charger_dev_bypass_chgdet(struct charger_device *chg_dev,bool bypass_chgdet_en)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+	    chg_dev->ops->bypass_chgdet)
+		return chg_dev->ops->bypass_chgdet(chg_dev, bypass_chgdet_en);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_bypass_chgdet);
+/* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 end */
+
 static DEVICE_ATTR(name, 0444, charger_show_name, NULL);
 
 static struct attribute *charger_class_attrs[] = {

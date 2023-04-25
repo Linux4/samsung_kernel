@@ -219,6 +219,28 @@ static void xhci_mtk_dbg_exit(struct xhci_hcd_mtk *mtk)
 	}
 }
 
+int mtk_xhci_wakelock_lock(struct xhci_hcd_mtk *mtk)
+{
+	struct xhci_hcd *xhci = hcd_to_xhci(mtk->hcd);
+
+	pm_stay_awake(mtk->dev);
+	xhci_info(xhci, "wakelock_lock\n");
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(mtk_xhci_wakelock_lock);
+
+int mtk_xhci_wakelock_unlock(struct xhci_hcd_mtk *mtk)
+{
+	struct xhci_hcd *xhci = hcd_to_xhci(mtk->hcd);
+
+	pm_relax(mtk->dev);
+	xhci_info(xhci, "wakelock_unlock\n");
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(mtk_xhci_wakelock_unlock);
+
 static int xhci_mtk_host_enable(struct xhci_hcd_mtk *mtk)
 {
 	struct mu3c_ippc_regs __iomem *ippc = mtk->ippc_regs;
@@ -771,6 +793,10 @@ static int xhci_mtk_probe(struct platform_device *pdev)
 
 	xhci_mtk_dbg_init(mtk);
 
+	device_set_wakeup_enable(&hcd->self.root_hub->dev, 1);
+	device_set_wakeup_enable(&xhci->shared_hcd->self.root_hub->dev, 1);
+	mtk_xhci_wakelock_lock(mtk);
+
 	return 0;
 
 dealloc_usb2_hcd:
@@ -813,6 +839,8 @@ static int xhci_mtk_remove(struct platform_device *dev)
 	usb_remove_hcd(shared_hcd);
 	xhci->shared_hcd = NULL;
 	device_init_wakeup(&dev->dev, false);
+
+	mtk_xhci_wakelock_unlock(mtk);
 
 	usb_remove_hcd(hcd);
 	usb_put_hcd(shared_hcd);

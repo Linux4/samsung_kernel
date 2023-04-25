@@ -953,7 +953,13 @@ static int et7304_get_cc(struct tcpc_device *tcpc, int *cc1, int *cc2)
 	status = et7304_i2c_read8(tcpc, TCPC_V10_REG_CC_STATUS);
 	if (status < 0)
 		return status;
-
+	/* hs14 code for AL6528ADEU-2531 by qiaodan at 2022/11/16 start */
+	/*work around for A to C cable when enter standby mode*/
+	if (status == 0x10) {
+		et7304_i2c_write8(tcpc, TCPC_V10_REG_ALERT, 0x1);
+		et7304_i2c_write8(tcpc, ET7304_REG_BMC_CTRL, 0xe);
+	}
+	/* hs14 code for AL6528ADEU-2531 by qiaodan at 2022/11/16 end */
 	role_ctrl = et7304_i2c_read8(tcpc, TCPC_V10_REG_ROLE_CTRL);
 	if (role_ctrl < 0)
 		return role_ctrl;

@@ -200,7 +200,7 @@ extern int CN3927XLAF_GetFileName(unsigned char *pFileName);
 
 #endif
 /*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 end*/
-/*hs14 code for SR-AL5628-01-161 Universal macro adaptation by lisizhou at 2022/9/23 start*/
+/*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 start*/
 #ifdef CONFIG_HQ_PROJECT_O22
 #define A1401AW8601WAF_SetI2Cclient A1401AW8601WAF_SetI2Cclient_Main
 #define A1401AW8601WAF_Ioctl A1401AW8601WAF_Ioctl_Main
@@ -237,8 +237,19 @@ extern int A1403GT9778AF_Release(struct inode *a_pstInode, struct file *a_pstFil
 extern int A1403GT9778AF_PowerDown(struct i2c_client *pstAF_I2Cclient,
 				int *pAF_Opened);
 extern int A1403GT9778AF_GetFileName(unsigned char *pFileName);
+
+#define A1404AW8601WAF_SetI2Cclient A1404AW8601WAF_SetI2Cclient_Main
+#define A1404AW8601WAF_Ioctl A1404AW8601WAF_Ioctl_Main
+#define A1404AW8601WAF_Release A1404AW8601WAF_Release_Main
+#define A1404AW8601WAF_GetFileName A1404AW8601WAF_GetFileName_Main
+extern int A1404AW8601WAF_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+                spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long A1404AW8601WAF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+                unsigned long a_u4Param);
+extern int A1404AW8601WAF_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int A1404AW8601WAF_GetFileName(unsigned char *pFileName);
 #endif
-/*hs14 code for SR-AL5628-01-161 Universal macro adaptation by lisizhou at 2022/9/23 end*/
+/*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 end*/
 /* hs04 code for SR-AL6398A-01-16 by liluling at 2022/07/05 end */
 /*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
 

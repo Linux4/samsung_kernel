@@ -460,6 +460,11 @@ struct charger_manager {
 	bool enable_afc;
 	int hv_disable;
 	int afc_sts;
+/* hs14 code for AL6528ADEU-2119 by qiaodan at 2022/11/18 start */
+#ifndef HQ_FACTORY_BUILD //ss version
+	bool boot_with_dcp;
+#endif
+/* hs14 code for AL6528ADEU-2119 by qiaodan at 2022/11/18 end */
 #endif
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
 
@@ -518,10 +523,22 @@ struct charger_manager {
 #endif
 
 	/* hs14 code for AL6528ADEU-580 by gaozhengwei at 2022/10/09 start */
-	int ss_vchr;
 	bool swovp_disable;
 	int g_ovp_trigger;
 	/* hs14 code for AL6528ADEU-580 by gaozhengwei at 2022/10/09 end */
+/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
+	bool input_suspend_flag;
+	bool hiz_flag;
+#ifdef HQ_FACTORY_BUILD //factory version
+	bool batt_cap_control;
+#endif
+#ifndef HQ_FACTORY_BUILD //ss version
+	int store_mode;
+	bool batt_store_mode;
+	struct wakeup_source *charger_wakelock_app;
+	struct delayed_work retail_app_status_change_work;
+#endif
+/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
 };
 
 /* charger related module interface */
@@ -550,6 +567,9 @@ extern bool pmic_is_battery_exist(void);
 extern void ss_batt_full_flag_get(int *val);
 #endif
 /* hs14 code for SR-AL6528A-01-261 | SR-AL6528A-01-343 by chengyuanhang at 2022/10/11 end */
+/* hs14 code for P221216-05713 by shanxinkai at 2022/12/19 start */
+extern void ss_charger_check_status(struct charger_manager *info);
+/* hs14 code for P221216-05713 by shanxinkai at 2022/12/19 end */
 extern void notify_adapter_event(enum adapter_type type, enum adapter_event evt,
 	void *val);
 

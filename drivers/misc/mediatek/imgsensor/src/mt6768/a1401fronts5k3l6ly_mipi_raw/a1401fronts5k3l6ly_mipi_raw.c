@@ -209,16 +209,18 @@ static imgsensor_info_struct imgsensor_info = {
 // 	.hs_video_delay_frame = 2,	//enter high speed video  delay frame num
 // 	.slim_video_delay_frame = 2,//enter slim video delay frame num
 // #else
-	.cap_delay_frame = 3,		//enter capture delay frame num
-	.pre_delay_frame = 3, 		//enter preview delay frame num
-	.video_delay_frame = 3,		//enter video delay frame num
-	.hs_video_delay_frame = 3,	//enter high speed video  delay frame num
-	.slim_video_delay_frame = 3,//enter slim video delay frame num
-	.custom1_delay_frame = 3,
-	.custom2_delay_frame = 3,
-	.custom3_delay_frame = 3,
-	.custom4_delay_frame = 3,
-	.custom5_delay_frame = 3,
+/*hs14 code for SR-AL6528A-01-20 by renxinglin at 2022/11/17 start*/
+	.cap_delay_frame = 2,		//enter capture delay frame num
+	.pre_delay_frame = 2, 		//enter preview delay frame num
+	.video_delay_frame = 2,		//enter video delay frame num
+	.hs_video_delay_frame = 2,	//enter high speed video  delay frame num
+	.slim_video_delay_frame = 2,//enter slim video delay frame num
+	.custom1_delay_frame = 2,
+	.custom2_delay_frame = 2,
+	.custom3_delay_frame = 2,
+	.custom4_delay_frame = 2,
+	.custom5_delay_frame = 2,
+/*hs14 code for SR-AL6528A-01-20 by renxinglin at 2022/11/17 end*/
 // #endif
 
 	.isp_driving_current = ISP_DRIVING_4MA, //mclk driving current
@@ -1160,6 +1162,7 @@ static void custom2_setting(void)
 	write_cmos_sensor(0x0100, 0x0100);
 	write_cmos_sensor(0x3C1E, 0x0000);
 }
+/*hs14 code for P221122-04485 by jianghongyan at 2022-11-25 start*/
 static void custom3_setting(void)
 {
 	int i = 0;
@@ -1177,63 +1180,69 @@ static void custom3_setting(void)
 	}
 	LOG_INF("E\n");
 	//$MV1[MCLK:24,Width:1920,Height:1080,Format:MIPI_Raw10,mipi_lane:4,mipi_datarate:520,pvi_pclk_inverse:0]
-	write_cmos_sensor(0x314A, 0x5F02);
-	write_cmos_sensor(0x3064, 0xFFCF);
-	write_cmos_sensor(0x3066, 0x7E00);
-	write_cmos_sensor(0x309C, 0x0640);
-	write_cmos_sensor(0x380C, 0x0090);
-	write_cmos_sensor(0x32B2, 0x0003);
-	write_cmos_sensor(0x32B4, 0x0003);
-	write_cmos_sensor(0x32B6, 0x0003);
-	write_cmos_sensor(0x32B8, 0x0003);
-	write_cmos_sensor(0x3090, 0x8000);
-	write_cmos_sensor(0x3238, 0x000B);
-	write_cmos_sensor(0x0100, 0x0000);
-	write_cmos_sensor(0x0344, 0x0028);
-	write_cmos_sensor(0x0348, 0x1057);
-	write_cmos_sensor(0x0346, 0x0196);
-	write_cmos_sensor(0x034A, 0x0AA9);
+
+	write_cmos_sensor(0x0344, 0x0030);
+	write_cmos_sensor(0x0346, 0x0198);
+	write_cmos_sensor(0x0348, 0x104F);
+	write_cmos_sensor(0x034A, 0x0AA7);
 	write_cmos_sensor(0x034C, 0x0810);
 	write_cmos_sensor(0x034E, 0x0488);
-	write_cmos_sensor(0x0202, 0x0656);
-	write_cmos_sensor(0x3400, 0x0000);
-	write_cmos_sensor(0x3402, 0x4E46);
+	write_cmos_sensor(0x0900, 0x0122);
+	write_cmos_sensor(0x0380, 0x0001);
+	write_cmos_sensor(0x0382, 0x0001);
+	write_cmos_sensor(0x0384, 0x0001);
+	write_cmos_sensor(0x0386, 0x0003);
+	write_cmos_sensor(0x0114, 0x0330);
+	write_cmos_sensor(0x0110, 0x0002);
 	write_cmos_sensor(0x0136, 0x1800);
 	write_cmos_sensor(0x0304, 0x0004);
 	write_cmos_sensor(0x0306, 0x0077);
-	write_cmos_sensor(0x030C, 0x0004);
-	write_cmos_sensor(0x030E, 0x0064);
-	write_cmos_sensor(0x3C16, 0x0000);
+	write_cmos_sensor(0x3C1E, 0x0000);
+	write_cmos_sensor(0x030C, 0x0003);
+	write_cmos_sensor(0x030E, 0x0047);
+	write_cmos_sensor(0x3C16, 0x0001);
+	write_cmos_sensor(0x0300, 0x0006);
 	write_cmos_sensor(0x0342, 0x1320);
-	write_cmos_sensor(0x0340, 0x0CC4);
-	write_cmos_sensor(0x0900, 0x0122);
-	write_cmos_sensor(0x0386, 0x0003);
-	write_cmos_sensor(0x3452, 0x0000);
-	write_cmos_sensor(0x345A, 0x0000);
-	write_cmos_sensor(0x345C, 0x0000);
-	write_cmos_sensor(0x345E, 0x0000);
-	write_cmos_sensor(0x3460, 0x0000);
-	write_cmos_sensor(0x38C4, 0x0009);
-	write_cmos_sensor(0x38D8, 0x002A);
-	write_cmos_sensor(0x38DA, 0x000A);
-	write_cmos_sensor(0x38DC, 0x000B);
-	write_cmos_sensor(0x38C2, 0x0009);
-	write_cmos_sensor(0x38C0, 0x000E);
-	write_cmos_sensor(0x38D6, 0x000A);
-	write_cmos_sensor(0x38D4, 0x0008);
-	write_cmos_sensor(0x38B0, 0x000E);
+	write_cmos_sensor(0x0340, 0x0CBC);
+	write_cmos_sensor(0x38C4, 0x0004);
+	write_cmos_sensor(0x38D8, 0x0011);
+	write_cmos_sensor(0x38DA, 0x0005);
+	write_cmos_sensor(0x38DC, 0x0005);
+	write_cmos_sensor(0x38C2, 0x0005);
+	write_cmos_sensor(0x38C0, 0x0004);
+	write_cmos_sensor(0x38D6, 0x0004);
+	write_cmos_sensor(0x38D4, 0x0004);
+	write_cmos_sensor(0x38B0, 0x0007);
 	write_cmos_sensor(0x3932, 0x1000);
-	write_cmos_sensor(0x0820, 0x04B0);
-	write_cmos_sensor(0x3C34, 0x0008);
-	write_cmos_sensor(0x3C36, 0x3800);
+	write_cmos_sensor(0x3938, 0x000C);
+	write_cmos_sensor(0x0820, 0x0238);
+	write_cmos_sensor(0x380C, 0x0049);
+	write_cmos_sensor(0x3064, 0xFFCF);
+	write_cmos_sensor(0x309C, 0x0640);
+	write_cmos_sensor(0x3090, 0x8000);
+	write_cmos_sensor(0x3238, 0x000B);
+	write_cmos_sensor(0x314A, 0x5F02);
+	write_cmos_sensor(0x3300, 0x0000);
+	write_cmos_sensor(0x3400, 0x0000);
+	write_cmos_sensor(0x3402, 0x4E46);
+	write_cmos_sensor(0x32B2, 0x0008);
+	write_cmos_sensor(0x32B4, 0x0008);
+	write_cmos_sensor(0x32B6, 0x0008);
+	write_cmos_sensor(0x32B8, 0x0008);
+	write_cmos_sensor(0x3C34, 0x0048);
+	write_cmos_sensor(0x3C36, 0x3000);
 	write_cmos_sensor(0x3C38, 0x0020);
 	write_cmos_sensor(0x393E, 0x4000);
-	write_cmos_sensor(0x3892, 0x2EE0);
+	write_cmos_sensor(0x303A, 0x0204);
+	write_cmos_sensor(0x3034, 0x4B01);
+	write_cmos_sensor(0x3036, 0x0029);
+	write_cmos_sensor(0x3032, 0x4800);
+	write_cmos_sensor(0x320E, 0x049E);
 	write_cmos_sensor(0x3C1E, 0x0100);
 	write_cmos_sensor(0x0100, 0x0100);
 	write_cmos_sensor(0x3C1E, 0x0000);
 }
-
+/*hs14 code for P221122-04485 by jianghongyan at 2022-11-25 end*/
 static void custom4_setting(void)
 {
 	int i = 0;
@@ -2337,7 +2346,7 @@ static kal_uint32 set_test_pattern_mode(kal_bool enable)
 	spin_unlock(&imgsensor_drv_lock);
 	return ERROR_NONE;
 }
-
+/*hs14 code for SR-AL6528A-01-60 by jianghongyan at 2022-11-16 start*/
 static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 				  UINT8 *feature_para, UINT32 *feature_para_len)
 {
@@ -2418,19 +2427,19 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 		*feature_para_len = 4;
 		break;
 	case SENSOR_FEATURE_SET_FRAMERATE:
-		LOG_INF("current fps :%d\n", (UINT32)*feature_data);
+		LOG_INF("current fps :%d\n", *feature_data_32);
 		spin_lock(&imgsensor_drv_lock);
-		imgsensor.current_fps = *feature_data;
+		imgsensor.current_fps = (UINT16)*feature_data_32;
 		spin_unlock(&imgsensor_drv_lock);
 		break;
 	case SENSOR_FEATURE_SET_HDR:
-		LOG_INF("ihdr enable :%d\n", (BOOL)*feature_data);
+		LOG_INF("hdr enable :%d\n", *feature_data_32);
 		spin_lock(&imgsensor_drv_lock);
-		imgsensor.ihdr_en = (BOOL)*feature_data;
+		imgsensor.ihdr_en = (BOOL)*feature_data_32;
 		spin_unlock(&imgsensor_drv_lock);
 		break;
 	case SENSOR_FEATURE_GET_CROP_INFO:
-		//LOG_INF("SENSOR_FEATURE_GET_CROP_INFO scenarioId:%lld\n", (UINT32)*feature_data);
+		LOG_INF("SENSOR_FEATURE_GET_CROP_INFO scenarioId:%lld\n", (UINT32)*feature_data);
 
 		wininfo = (struct SENSOR_WINSIZE_INFO_STRUCT *)(uintptr_t)(
 			*(feature_data + 1));
@@ -2503,7 +2512,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 
 	return ERROR_NONE;
 } /*    feature_control()  */
-
+/*hs14 code for SR-AL6528A-01-60 by jianghongyan at 2022-11-16 end*/
 static struct SENSOR_FUNCTION_STRUCT sensor_func = {
 	open, get_info, get_resolution, feature_control, control, close
 };

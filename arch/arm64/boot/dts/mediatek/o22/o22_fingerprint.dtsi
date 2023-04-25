@@ -33,13 +33,15 @@
     /* hs14 code for SR-AL6528A-01-282|SR-AL6528A-01-292 by xiongxiaoliang at 2022/10/10 end */
 };
 
+/* hs14 code for AL6528A-947 by zhangziyi at 2022/11/21 start */
 &silead_fp {
     interrupt-parent = <&pio>;
     interrupts = <10 IRQ_TYPE_EDGE_RISING 10 0>;
 
     pinctrl-names = "default", "rst-low", "rst-high" ,
     "irq-init", "spi-default", "irq_rst-low", "irq_rst-high",
-    "avdd-enable", "avdd-disable";
+    "avdd-enable", "avdd-disable",
+    "silead-ldo-enable", "silead-ldo-disable";
     pinctrl-0 = <&silfp_default>;
     pinctrl-1 = <&silfp_rst_low>;
     pinctrl-2 = <&silfp_rst_high>;
@@ -49,6 +51,8 @@
     pinctrl-6 = <&silfp_irq_rst_high>;
     pinctrl-7 = <&silead_avdd_enable>;
     pinctrl-8 = <&silead_avdd_disable>;
+    pinctrl-9 = <&silead_ldo_enable>;
+    pinctrl-10 = <&silead_ldo_disable>;
     status = "okay";
 };
 
@@ -139,6 +143,22 @@
             output-low;
         };
     };
+
+    silead_ldo_enable: silead_ldo_enable {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO158__FUNC_GPIO158>;
+            slew-rate = <1>;
+            output-high;
+        };
+    };
+
+    silead_ldo_disable: silead_ldo_disable {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO158__FUNC_GPIO158>;
+            slew-rate = <1>;
+            output-low;
+        };
+    };
 };
 
 &focaltech_fp {
@@ -149,6 +169,7 @@
     focaltech_fp,reset-gpio = <&pio 31 0>;
     focaltech_fp,irq-gpio = <&pio 10 0>;
     focaltech_fp,vdd-gpio = <&pio 107 0>;
+    focaltech_fp,ldo-gpio = <&pio 158 0>;
 
     //focaltech_fp,power-always-on;
     //focaltech_fp,use-regulator;
@@ -223,7 +244,9 @@
         "fingerprint_spi_mosi",
         "fingerprint_spi_sck",
         "fingerprint_spi_cs",
-        "fingerprint_irq";
+        "fingerprint_irq",
+        "cdfinger_ldo_enable",
+        "cdfinger_ldo_disable";
 
     pinctrl-0 = <&fps_reset_high>;
     pinctrl-1 = <&fps_reset_low>;
@@ -236,6 +259,8 @@
     pinctrl-8 = <&fps_spi_sck>;
     pinctrl-9 = <&fps_spi_cs>;
     pinctrl-10 = <&fps_irq>;
+    pinctrl-11 = <&fps_ldo_enable>;
+    pinctrl-12 = <&fps_ldo_disable>;
     status = "okay";
 };
 
@@ -267,6 +292,22 @@
     fps_power_off: fps_power_off {
         pins_cmd_dat {
             pinmux = <PINMUX_GPIO107__FUNC_GPIO107>;
+            slew-rate = <1>;
+            bias-disable;
+            output-low;
+        };
+    };
+    fps_ldo_enable: fps_ldo_enable {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO158__FUNC_GPIO158>;
+            slew-rate = <1>;
+            bias-disable;
+            output-high;
+        };
+    };
+    fps_ldo_disable: fps_ldo_disable {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO158__FUNC_GPIO158>;
             slew-rate = <1>;
             bias-disable;
             output-low;
@@ -330,3 +371,4 @@
     };
 };
 /* hs14 code for SR-AL6528A-01-282|SR-AL6528A-01-292 by xiongxiaoliang at 2022/10/10 end */
+/* hs14 code for AL6528A-947 by zhangziyi at 2022/11/21 end */

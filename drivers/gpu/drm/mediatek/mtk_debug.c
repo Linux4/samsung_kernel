@@ -795,7 +795,6 @@ int set_lcm_wrapper(struct mtk_ddic_dsi_msg *cmd_msg, int blocking)
 	int current_tid = 0;
 	bool recursive_check = false;
 	bool need_lock = false;
-	int cmdq_available = 0;
 	struct drm_crtc *crtc;
 	struct mtk_drm_crtc *mtk_crtc;
 	struct mtk_ddp_comp *output_comp;
@@ -831,17 +830,19 @@ int set_lcm_wrapper(struct mtk_ddic_dsi_msg *cmd_msg, int blocking)
 
 	need_lock = (current_tid != mtk_crtc->customer_lock_tid);
 
-	ret = mtk_ddp_comp_io_cmd(output_comp, NULL,
-		READ_CMDQ_OPTION, &cmdq_available);
 
-	DDPMSG("%s + %d_%d_%d_%d_%d\n", __func__, current_tid, mtk_crtc->need_lock_tid,
-			mtk_crtc->customer_lock_tid, recursive_check, need_lock);
+	DDPMSG("%s + %d_%d_%d_%d_%d_%d\n", __func__, current_tid, mtk_crtc->need_lock_tid,
+			mtk_crtc->customer_lock_tid, recursive_check,
+			need_lock, mtk_crtc->set_lcm_scn);
 
 	if (recursive_check)
 		ret = mtk_ddic_dsi_send_cmd(cmd_msg, blocking, need_lock);
-	else if (cmdq_available)
+	else if (mtk_crtc->set_lcm_scn > SET_LCM_CMDQ_AVAILABLE &&
+				mtk_crtc->set_lcm_scn < SET_LCM_CMDQ_FRAME_DONE)
 		ret = mtk_ddp_comp_io_cmd(output_comp, NULL,
 		SET_LCM_CMDQ, cmd_msg);
+	else if (mtk_crtc->set_lcm_scn > SET_LCM_CMDQ_FRAME_DONE)
+		ret = mtk_ddic_dsi_send_cmd(cmd_msg, blocking, recursive_check);
 	else
 		ret = mtk_ddp_comp_io_cmd(output_comp, NULL,
 		SET_LCM_DCS_CMD, cmd_msg);
@@ -854,7 +855,6 @@ int read_lcm_wrapper(struct mtk_ddic_dsi_msg *cmd_msg)
 	int current_tid = 0;
 	bool recursive_check = false;
 	bool need_lock = false;
-	int cmdq_available = 0;
 	struct drm_crtc *crtc;
 	struct mtk_drm_crtc *mtk_crtc;
 	struct mtk_ddp_comp *output_comp;
@@ -891,15 +891,13 @@ int read_lcm_wrapper(struct mtk_ddic_dsi_msg *cmd_msg)
 
 	need_lock = (current_tid != mtk_crtc->customer_lock_tid);
 
-	DDPMSG("%s + %d_%d_%d_%d_%d\n", __func__, current_tid, mtk_crtc->need_lock_tid,
-		mtk_crtc->customer_lock_tid, recursive_check, need_lock);
-
-	ret = mtk_ddp_comp_io_cmd(output_comp, NULL,
-		READ_CMDQ_OPTION, &cmdq_available);
+	DDPMSG("%s + %d_%d_%d_%d_%d_%d\n", __func__, current_tid, mtk_crtc->need_lock_tid,
+		mtk_crtc->customer_lock_tid, recursive_check, need_lock, mtk_crtc->set_lcm_scn);
 
 	if (recursive_check)
 		ret = mtk_ddic_dsi_read_cmd(cmd_msg, need_lock);
-	else if (cmdq_available)
+	else if (mtk_crtc->set_lcm_scn > SET_LCM_CMDQ_AVAILABLE &&
+				mtk_crtc->set_lcm_scn < SET_LCM_CMDQ_FRAME_DONE)
 		ret = mtk_ddic_dsi_read_cmd(cmd_msg, recursive_check);
 	else
 		ret = mtk_ddp_comp_io_cmd(output_comp, NULL,

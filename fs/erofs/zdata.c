@@ -586,6 +586,9 @@ static int z_erofs_do_read_page(struct z_erofs_decompress_frontend *fe,
 	/* register locked file pages as online pages in pack */
 	z_erofs_onlinepage_init(page);
 
+	if (cleancache_get_page(page) == 0)
+		goto out;
+
 	spiltted = 0;
 	end = PAGE_SIZE;
 repeat:

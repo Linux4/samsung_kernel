@@ -228,7 +228,7 @@ enum power_supply_property {
 	/*HS03s for SR-AL5625-01-272 by wenyaqi at 20210427 end*/
 	/*HS03s for AL5626TDEV-224 by liuhong at 20220921 start*/
 	#ifndef HQ_FACTORY_BUILD
-	POWER_SUPPLY_PROP_BATT_FULL_CAPICITY,
+	POWER_SUPPLY_PROP_BATT_FULL_CAPACITY,
 	#endif
 	/*HS03s for AL5626TDEV-224 by liuhong at 20220921 end*/
 #elif defined(CONFIG_HQ_PROJECT_HS04)
@@ -268,7 +268,7 @@ enum power_supply_property {
 	/*HS03s for SR-AL5625-01-272 by wenyaqi at 20210427 end*/
 	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
 #ifndef HQ_FACTORY_BUILD
-	POWER_SUPPLY_PROP_BATT_FULL_CAPICITY,
+	POWER_SUPPLY_PROP_BATT_FULL_CAPACITY,
 #endif
 	POWER_SUPPLY_PROP_SHIPMODE,
 	POWER_SUPPLY_PROP_SHIPMODE_REG,
@@ -319,7 +319,7 @@ enum power_supply_property {
 	#endif
 	/*TabA7 Lite code for OT8-739 discharging over 80 by wenyaqi at 20210104 end*/
         #ifndef HQ_FACTORY_BUILD
-	POWER_SUPPLY_PROP_BATT_FULL_CAPICITY,
+	POWER_SUPPLY_PROP_BATT_FULL_CAPACITY,
         #endif
 #elif defined(CONFIG_HQ_PROJECT_O22)
 	/* hs14 code for  SR-AL6528A-01-259 by zhouyuhang at 2022/09/15 start*/
@@ -329,6 +329,9 @@ enum power_supply_property {
 	/* hs14 code for  SR-AL6528A-01-339 by shanxinkai at 20220930 start*/
 	POWER_SUPPLY_PROP_CHARGE_STATUS,
 	/* hs14 code for  SR-AL6528A-01-339 by shanxinkai at 20220930 end*/
+	/* hs14 code for SR-AL6528A-445 by shanxinkai at 2022/10/28 start */
+	POWER_SUPPLY_PROP_DUMP_CHARGER_IC,
+	/* hs14 code for SR-AL6528A-445 by shanxinkai at 2022/10/28 end */
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 start */
 #ifdef CONFIG_AFC_CHARGER
 	POWER_SUPPLY_PROP_HV_CHARGER_STATUS,
@@ -355,7 +358,15 @@ enum power_supply_property {
 	/* hs14 code for SR-AL6528A-01-242 by shanxinkai at 2022/10/12 start */
 	POWER_SUPPLY_PROP_BATT_SLATE_MODE,
 	/* hs14 code for SR-AL6528A-01-242 by shanxinkai at 2022/10/12 end */
+	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
+	POWER_SUPPLY_PROP_STORE_MODE,
+	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
 #endif
+/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
+#ifdef HQ_FACTORY_BUILD
+	POWER_SUPPLY_PROP_BATT_CAP_CONTROL,
+#endif
+/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
 #else
 // no add new power_supply
 #endif

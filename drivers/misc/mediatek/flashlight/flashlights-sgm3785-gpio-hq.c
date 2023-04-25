@@ -34,7 +34,12 @@
 #include "flashlight-dt.h"
 
 #include <mt-plat/mtk_pwm.h>
-
+/*hs14 code for AL6528ADEU-2059 by pengxutao at 2022-11-11 start*/
+#define HQ_TORCH_LEVEL_ONE   1
+#define HQ_TORCH_LEVEL_THREE   3
+#define HQ_TORCH_LEVEL_FOUR   4
+#define HQ_TORCH_LEVEL_FIVE   5
+/*hs14 code for AL6528ADEU-2059 by pengxutao at 2022-11-11 end*/
 /* define device tree */
 #define SGM3785_GPIO_DTNAME "mediatek,flashlights_sgm3785_gpio"
 
@@ -238,6 +243,7 @@ static int sgm3785_gpio_pinctrl_set(int pinType, int state)
 /******************************************************************************
  * sgm3785_set_torch_mode
  *****************************************************************************/
+/*hs14 code for AL6528ADEU-2059 by pengxutao at 2022-11-11 start*/
 static int sgm3785_set_torch_mode(int level)
 {
     int pinType = 0, state = 0;
@@ -271,11 +277,16 @@ static int sgm3785_set_torch_mode(int level)
     pinType = SGM3785_ENM_PWM_MODE;
     state = SGM3785_GPIO_PINCTRL_PINSTATE_HIGH;
     ret = sgm3785_gpio_pinctrl_set(pinType, state);
-    flashlight_config.PWM_MODE_OLD_REGS.THRESH = level * 5;
+    if (level == HQ_TORCH_LEVEL_THREE){
+        flashlight_config.PWM_MODE_OLD_REGS.THRESH = level * HQ_TORCH_LEVEL_FOUR + HQ_TORCH_LEVEL_ONE;
+    }else{
+        flashlight_config.PWM_MODE_OLD_REGS.THRESH = level * HQ_TORCH_LEVEL_FIVE;
+    }
     ret = pwm_set_spec_config(&flashlight_config);
 
     return ret;
 }
+/*hs14 code for AL6528ADEU-2059 by pengxutao at 2022-11-11 end*/
 /******************************************************************************
  * sgm3785_set_preflash_mode
  *****************************************************************************/

@@ -2473,7 +2473,7 @@ static kal_uint32 get_default_framerate_by_scenario(enum MSDK_SCENARIO_ID_ENUM s
 	}
 	return ERROR_NONE;
 }
-
+/*hs14 code for SR-AL6528A-01-60 by jianghongyan at 2022-11-16 start*/
 static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 	UINT8 *feature_para, UINT32 *feature_para_len)
 {
@@ -2581,15 +2581,15 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 		*feature_para_len = 4;
 		break;
 	case SENSOR_FEATURE_SET_FRAMERATE:
-		LOG_INF("current fps :%d\n", (UINT32)*feature_data);
+		LOG_INF("current fps :%d\n", *feature_data_32);
 		spin_lock(&imgsensor_drv_lock);
-		imgsensor.current_fps = *feature_data;
+		imgsensor.current_fps = (UINT16)*feature_data_32;
 		spin_unlock(&imgsensor_drv_lock);
 		break;
 	case SENSOR_FEATURE_SET_HDR:
-		LOG_INF("ihdr enable :%d\n", (BOOL)*feature_data);
+		LOG_INF("hdr enable :%d\n", *feature_data_32);
 		spin_lock(&imgsensor_drv_lock);
-		imgsensor.ihdr_en = (BOOL)*feature_data;
+		imgsensor.ihdr_en = (BOOL)*feature_data_32;
 		spin_unlock(&imgsensor_drv_lock);
 		break;
 /*hs14 code for SR-AL6528A-01-54 by hudongdong at 2022-10-24 start*/
@@ -2636,7 +2636,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 	}
 	return ERROR_NONE;
 }
-
+/*hs14 code for SR-AL6528A-01-60 by jianghongyan at 2022-11-16 end*/
 static struct SENSOR_FUNCTION_STRUCT sensor_func = {
 	open,
 	get_info,

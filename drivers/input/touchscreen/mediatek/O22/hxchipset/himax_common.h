@@ -163,7 +163,9 @@ extern struct drm_panel gNotifier_dummy_panel;
 /* used for 102d overlay */
 /*#define HX_CODE_OVERLAY*/
 /*Independent threads run the notification chain notification function resume*/
-/*#define HX_CONTAINER_SPEED_UP*/
+/*hs14 code for P221103-05645 by duanyaoming at 20221107 start*/
+#define HX_CONTAINER_SPEED_UP
+/*hs14 code for P221103-05645 by duanyaoming at 20221107 end*/
 #else
 #define HX_TP_PROC_GUEST_INFO
 #endif
@@ -201,7 +203,9 @@ extern uint32_t g_proj_id;
 #if defined(HX_CONTAINER_SPEED_UP)
 /*Resume queue delay work time after LCM RST (unit:ms)
  */
-#define DELAY_TIME 40
+/*hs14 code for P221103-05645 by duanyaoming at 20221107 start*/
+#define DELAY_TIME 50
+/*hs14 code for P221103-05645 by duanyaoming at 20221107 end*/
 #endif
 
 #if defined(HX_RST_PIN_FUNC)

@@ -82,6 +82,9 @@ static int silfp_input_init(struct silfp_data *fp_dev);
 #if defined(CONFIG_SILEAD_FP_PLATFORM)
 extern void silfp_spi_clk_enable(bool bonoff);
 #endif
+/*hs14 code for AL6528A-947 by zhangziyi at 2022/11/21 start*/
+extern int g_prox_ret;
+/*hs14 code for AL6528A-947 by zhangziyi at 2022/11/21 end*/
 
 /* -------------------------------------------------------------------- */
 /*                            power supply                              */
@@ -324,19 +327,39 @@ static int silfp_parse_dts(struct silfp_data* fp_dev)
 
     /* Get power settings */
 #ifdef BSP_SIL_POWER_SUPPLY_PINCTRL
-    fp_dev->pin.pins_avdd_h = pinctrl_lookup_state(fp_dev->pin.pinctrl, "avdd-enable");
-    if (IS_ERR_OR_NULL(fp_dev->pin.pins_avdd_h)) {
-        fp_dev->pin.pins_avdd_h = NULL;
-        LOG_MSG_DEBUG(ERR_LOG, "%s can't find silfp avdd-enable\n", __func__);
-        // Ignore error
-    }
+    /*hs14 code for AL6528A-947 by zhangziyi at 2022/11/21 start*/
+    if (g_prox_ret) {
+        fp_dev->pin.pins_avdd_h = pinctrl_lookup_state(fp_dev->pin.pinctrl, "avdd-enable");
+        if (IS_ERR_OR_NULL(fp_dev->pin.pins_avdd_h)) {
+            fp_dev->pin.pins_avdd_h = NULL;
+            LOG_MSG_DEBUG(ERR_LOG, "%s can't find silfp avdd-enable\n", __func__);
+            // Ignore error
+        }
 
-    fp_dev->pin.pins_avdd_l = pinctrl_lookup_state(fp_dev->pin.pinctrl, "avdd-disable");
-    if (IS_ERR_OR_NULL(fp_dev->pin.pins_avdd_l)) {
-        fp_dev->pin.pins_avdd_l = NULL;
-        LOG_MSG_DEBUG(ERR_LOG, "%s can't find silfp avdd-disable\n", __func__);
-        // Ignore error
+        fp_dev->pin.pins_avdd_l = pinctrl_lookup_state(fp_dev->pin.pinctrl, "avdd-disable");
+        if (IS_ERR_OR_NULL(fp_dev->pin.pins_avdd_l)) {
+            fp_dev->pin.pins_avdd_l = NULL;
+            LOG_MSG_DEBUG(ERR_LOG, "%s can't find silfp avdd-disable\n", __func__);
+            // Ignore error
+        }
+        LOG_MSG_DEBUG(INFO_LOG, "%s silead powe_use 107\n", __func__);
+    } else {
+        fp_dev->pin.pins_avdd_h = pinctrl_lookup_state(fp_dev->pin.pinctrl, "silead-ldo-enable");
+        if (IS_ERR_OR_NULL(fp_dev->pin.pins_avdd_h)) {
+            fp_dev->pin.pins_avdd_h = NULL;
+            LOG_MSG_DEBUG(ERR_LOG, "%s can't find silfp ldo-enable\n", __func__);
+            // Ignore error
+        }
+
+        fp_dev->pin.pins_avdd_l = pinctrl_lookup_state(fp_dev->pin.pinctrl, "silead-ldo-disable");
+        if (IS_ERR_OR_NULL(fp_dev->pin.pins_avdd_l)) {
+            fp_dev->pin.pins_avdd_l = NULL;
+            LOG_MSG_DEBUG(ERR_LOG, "%s can't find silfp ldo-disable\n", __func__);
+            // Ignore error
+        }
+        LOG_MSG_DEBUG(INFO_LOG, "%s silead powe_use 158\n", __func__);
     }
+    /*hs14 code for AL6528A-947 by zhangziyi at 2022/11/21 end*/
 
     fp_dev->pin.pins_vddio_h = pinctrl_lookup_state(fp_dev->pin.pinctrl, "vddio-enable");
     if (IS_ERR_OR_NULL(fp_dev->pin.pins_vddio_h)) {
@@ -400,8 +423,9 @@ static int silfp_set_spi(struct silfp_data *fp_dev, bool enable)
         LOG_MSG_DEBUG(ERR_LOG, "%s: not support\n", __func__);
         return ret;
     }
-
-    LOG_MSG_DEBUG(ERR_LOG, "11111 [%s]\n", __func__);
+    /*hs14 code for AL6528A-947 by zhangziyi at 2022/11/21 start*/
+    LOG_MSG_DEBUG(DBG_LOG, "spi [%s]\n", __func__);
+    /*hs14 code for AL6528A-947 by zhangziyi at 2022/11/21 end*/
     if ( enable && !atomic_read(&fp_dev->spionoff_count) ) {
         atomic_inc(&fp_dev->spionoff_count);
         /*	clk_prepare_enable(ms->clk_main); */

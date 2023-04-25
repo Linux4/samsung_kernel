@@ -190,6 +190,9 @@ struct charger_ops {
 	int (*get_vbus_status)(struct charger_device *dev);
 	int (*dynamic_set_hwovp_threshold)(struct charger_device *dev, int adapter_type);
 	/* hs14 code for AL6528ADEU-580 by gaozhengwei at 2022/10/09 end */
+	/* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 start */
+	int (*bypass_chgdet)(struct charger_device *chg_dev, bool bypass_chgdet_en);
+	/* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 end */
 };
 
 static inline void *charger_dev_get_drvdata(
@@ -397,4 +400,7 @@ extern int charger_dev_get_vbus_status(struct charger_device *charger_dev);
 extern int charger_dev_dynamic_set_hwovp_threshold(struct charger_device *charger_dev,
 				      int adapter_type);
 /* hs14 code for AL6528ADEU-580 by gaozhengwei at 2022/10/09 end */
+/* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 start */
+extern int charger_dev_bypass_chgdet(struct charger_device *chg_dev,bool bypass_chgdet_en);
+/* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 end */
 #endif /*LINUX_POWER_CHARGER_CLASS_H*/

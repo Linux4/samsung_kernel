@@ -115,8 +115,15 @@
 #define tPSHardReset			30		* TICK_SCALE_TO_MS
 #define tPSHardResetMax			34		* TICK_SCALE_TO_MS
 #define tPSTransition			500		* TICK_SCALE_TO_MS
+/* hs14 code for P221201-03712 by wenyaqi at 2022/12/09 start */
+#if defined(CONFIG_HQ_PROJECT_O22)
+#define tPSSourceOff			1400	* TICK_SCALE_TO_MS
+#define tPSSourceOn				950		* TICK_SCALE_TO_MS
+#else
 #define tPSSourceOff			835		* TICK_SCALE_TO_MS
 #define tPSSourceOn				435		* TICK_SCALE_TO_MS
+#endif
+/* hs14 code for P221201-03712 by wenyaqi at 2022/12/09 end */
 #define tVCONNSourceOn			90		* TICK_SCALE_TO_MS
 #define tVCONNTransition		20		* TICK_SCALE_TO_MS
 #define tBISTContMode			50		* TICK_SCALE_TO_MS

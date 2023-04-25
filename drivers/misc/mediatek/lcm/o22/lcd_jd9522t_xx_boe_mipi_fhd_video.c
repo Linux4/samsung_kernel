@@ -91,11 +91,11 @@ static struct LCM_UTIL_FUNCS lcm_util;
 #define REGFLAG_RESET_HIGH        0xFFFF
 
 #define LCM_ID_TD4375 0x07
-/*hs14 code for SR-AL6528A-01-435 by duanyaoming at 20220914 start*/
-/*backlight from 23ma to 20ma*/
-#define BACKLIGHT_MAX_REG_VAL   (4095/15*20)
+/*hs14 code for AL6528ADEU-2908 by tangzhen at 20221125 start*/
+/*backlight from 23ma to 19ma*/
+#define BACKLIGHT_MAX_REG_VAL   (4095/15*19)
 #define BACKLIGHT_MAX_APP_VAL   (255/15*23)
-/*hs14 code for SR-AL6528A-01-435 by duanyaoming at 20220914 end*/
+/*hs14 code for AL6528ADEU-2908 by tangzhen at 20221125 end*/
 
 #ifndef TRUE
 #define TRUE 1

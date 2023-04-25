@@ -297,17 +297,11 @@ static int mt6577_auxadc_read_raw(struct iio_dev *indio_dev,
 
 	switch (info) {
 	case IIO_CHAN_INFO_RAW:
-		/* hs14 code for SR-AL6528A-60 by shanxinkai at 2022/10/09 start*/
-		dev_notice(indio_dev->dev.parent, "get  IIO_CHAN_INFO_RAW\n");
-		/* hs14 code for SR-AL6528A-60 by shanxinkai at 2022/10/09 end*/
 		*val = mt6577_auxadc_read(indio_dev, chan);
 		if (*val < 0) {
 			dev_notice(indio_dev->dev.parent,
 				"failed to sample data on channel[%d]\n",
 				chan->channel);
-				/* hs14 code for SR-AL6528A-60 by shanxinkai at 2022/10/09 start*/
-				dump_stack();
-				/* hs14 code for SR-AL6528A-60 by shanxinkai at 2022/10/09 end*/
 			return *val;
 		}
 		if (adc_dev->dev_comp->sample_data_cali)
@@ -316,17 +310,11 @@ static int mt6577_auxadc_read_raw(struct iio_dev *indio_dev,
 		return IIO_VAL_INT;
 
 	case IIO_CHAN_INFO_PROCESSED:
-		/* hs14 code for SR-AL6528A-60 by shanxinkai at 2022/10/09 start*/
-		dev_notice(indio_dev->dev.parent, "get  IIO_CHAN_INFO_PROCESSED\n");
-		/* hs14 code for SR-AL6528A-60 by shanxinkai at 2022/10/09 end*/
 		*val = mt6577_auxadc_read(indio_dev, chan);
 		if (*val < 0) {
 			dev_notice(indio_dev->dev.parent,
 				"failed to sample data on channel[%d]\n",
 				chan->channel);
-				/* hs14 code for SR-AL6528A-60 by shanxinkai at 2022/10/09 start*/
-				dump_stack();
-				/* hs14 code for SR-AL6528A-60 by shanxinkai at 2022/10/09 end*/
 			return *val;
 		}
 		if (adc_dev->dev_comp->sample_data_cali)

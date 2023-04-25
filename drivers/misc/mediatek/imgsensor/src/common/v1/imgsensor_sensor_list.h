@@ -85,7 +85,7 @@ UINT32 O2102_GC2375HHLT_DEPTH_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT 
 UINT32 O2103_SP2507HCXT_DEPTH_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 #endif
 /*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 end*/
-/*hs14 code for SR-AL5628-01-161 Universal macro adaptation by xutengtao at 2022/9/22 start*/
+/*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 start*/
 #ifdef CONFIG_HQ_PROJECT_O22
 //add for A1401
 UINT32 A1401BACKS5KJN1HLT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
@@ -102,8 +102,10 @@ UINT32 A1403BACKHI5022QLY_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pf
 UINT32 A1403FRONTSC1301CSTXD_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 A1403WIDEOV05AHLT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 UINT32 A1403MACROGC02M1HLT_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
+//add for A1404
+UINT32 A1404BACKS5KJN1TXD_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc);
 #endif
-/*hs14 code for SR-AL5628-01-161 Universal macro adaptation by xutengtao at 2022/9/22 end*/
+/*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 end*/
 /*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
 
 /*IMX*/

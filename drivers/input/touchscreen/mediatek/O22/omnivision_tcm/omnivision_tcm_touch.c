@@ -33,7 +33,10 @@
 #include "omnivision_tcm_core.h"
 
 #define TYPE_B_PROTOCOL
-
+/*hs14 code for AL6528A-607 by hehaoran5 at 20221104 start*/
+#define REPORT_Z_VALUE
+#define MAX_Z_VALUE 1000
+/*hs14 code for AL6528A-607 by hehaoran5 at 20221104 end*/
 //#define USE_DEFAULT_TOUCH_REPORT_CONFIG
 
 #define TOUCH_REPORT_CONFIG_SIZE 128
@@ -636,6 +639,11 @@ static void touch_report(void)
     unsigned int idx;
     unsigned int x;
     unsigned int y;
+/*hs14 code for AL6528A-607 by hehaoran5 at 20221104 start*/
+#ifdef REPORT_Z_VALUE
+    unsigned int z;
+#endif
+/*hs14 code for AL6528A-607 by hehaoran5 at 20221104 end*/
     unsigned int temp;
     unsigned int status;
     unsigned int touch_count;
@@ -707,6 +715,11 @@ static void touch_report(void)
         case GLOVED_FINGER:
             x = object_data[idx].x_pos;
             y = object_data[idx].y_pos;
+/*hs14 code for AL6528A-607 by hehaoran5 at 20221104 start*/
+#ifdef REPORT_Z_VALUE
+            z = object_data[idx].z;
+#endif
+/*hs14 code for AL6528A-607 by hehaoran5 at 20221104 end*/
             if (bdata->swap_axes) {
                 temp = x;
                 x = y;
@@ -729,6 +742,12 @@ static void touch_report(void)
                     ABS_MT_POSITION_X, x);
             input_report_abs(touch_hcd->input_dev,
                     ABS_MT_POSITION_Y, y);
+/*hs14 code for AL6528A-607 by hehaoran5 at 20221104 start*/
+#ifdef REPORT_Z_VALUE
+            input_report_abs(touch_hcd->input_dev,
+                    ABS_MT_PRESSURE, z);
+#endif
+/*hs14 code for AL6528A-607 by hehaoran5 at 20221104 end*/
 #ifndef TYPE_B_PROTOCOL
             input_mt_sync(touch_hcd->input_dev);
 #endif
@@ -775,7 +794,12 @@ static int touch_set_input_params(void)
             ABS_MT_POSITION_X, 0, touch_hcd->max_x, 0, 0);
     input_set_abs_params(touch_hcd->input_dev,
             ABS_MT_POSITION_Y, 0, touch_hcd->max_y, 0, 0);
-
+/*hs14 code for AL6528A-607 by hehaoran5 at 20221104 start*/
+#ifdef REPORT_Z_VALUE
+    input_set_abs_params(touch_hcd->input_dev,
+            ABS_MT_PRESSURE, 0, MAX_Z_VALUE, 0, 0);
+#endif
+/*hs14 code for AL6528A-607 by hehaoran5 at 20221104 end*/
     input_mt_init_slots(touch_hcd->input_dev, touch_hcd->max_objects,
             INPUT_MT_DIRECT);
 

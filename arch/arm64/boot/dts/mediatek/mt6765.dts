@@ -3561,7 +3561,13 @@ firmware_class.path=/vendor/firmware";
 #if 0
 		pd_vbus_upper_bound = <5000000>;
 #endif
+/* Tab A7 lite_T for P221206-04681 by shixuanxuan at 20221224 start */
+#ifdef CONFIG_HQ_PROJECT_OT8
+		pd_vbus_upper_bound = <10000000>;
+#else
 		pd_vbus_upper_bound = <15000000>;
+#endif
+/* Tab A7 lite_T for P221206-04681 by shixuanxuan at 20221224 end */
 
 		vsys_watt = <5000000>;
 		ibus_err = <30>;

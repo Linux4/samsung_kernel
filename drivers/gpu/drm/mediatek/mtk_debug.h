@@ -50,6 +50,22 @@ enum mtk_pq_persist_property {
 	DISP_PQ_PROPERTY_MAX,
 };
 
+#define CUSTOMER_USE_SIMPLE_API 1
+enum mtk_set_lcm_sceanario {
+	SET_LCM_NONE = 0,
+	SET_LCM_POWER_MODE_SWITCH,
+
+	SET_LCM_CMDQ_AVAILABLE,
+
+	SET_LCM_FPS_CHANGE,
+
+	SET_LCM_CMDQ_FRAME_DONE,
+
+	SET_LCM_POWER_MODE_NEED_CMDQ,
+	SET_LCM_HBM_CMD,
+	SET_LCM_DISP_ON,
+};
+
 int mtk_drm_ioctl_pq_get_persist_property(struct drm_device *dev, void *data,
 	struct drm_file *file_priv);
 

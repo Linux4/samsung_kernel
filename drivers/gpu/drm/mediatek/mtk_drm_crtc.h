@@ -47,6 +47,8 @@
 
 #define pgc	_get_context()
 
+#define DISPON_FRAME 1
+
 /* TODO: BW report module should not hardcode */
 enum DISP_PMQOS_SLOT {
 	DISP_PMQOS_OVL0_BW = 0,
@@ -739,6 +741,8 @@ struct mtk_drm_crtc {
 
 	int need_lock_tid;
 	int customer_lock_tid;
+
+	enum mtk_set_lcm_sceanario set_lcm_scn;
 
 	int frame_update_cnt;
 };

@@ -34,6 +34,10 @@
 #include <mt-plat/upmu_common.h>
 /* hs14 code for SR-AL6528A-01-306 by gaozhengwei at 2022/09/06 end */
 
+/* hs14 code for SR-AL6528A-01-787 by gaozhengwei at 2022/12/06 start */
+#define I2C_RETRY_CNT       3
+/* hs14 code for SR-AL6528A-01-787 by gaozhengwei at 2022/12/06 end */
+
 enum {
     PN_SC89601D,
 };
@@ -79,15 +83,27 @@ struct sc8960x {
     /* hs14 code for SR-AL6528A-01-306 by gaozhengwei at 2022/09/06 start */
     bool vbus_gd;
     /* hs14 code for SR-AL6528A-01-306 by gaozhengwei at 2022/09/06 end */
+    /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 start */
+    bool unkown_detect;
+    /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
     /* hs14 code for AL6528ADEU-28 by gaozhengwei at 2022/09/29 start */
     bool first_force;
     /* hs14 code for AL6528ADEU-28 by gaozhengwei at 2022/09/29 end */
+    /* hs14 code for AL6528A-1023 by gaozhengwei at 2022/12/06 start */
+    bool sdp_detect;
+    /* hs14 code for AL6528A-1023 by gaozhengwei at 2022/12/06 end */
     /* hs14 code for AL6528ADEU-580 by gaozhengwei at 2022/10/09 start */
     bool vbus_stat;
     /* hs14 code for AL6528ADEU-580 by gaozhengwei at 2022/10/09 end */
     /* hs14 code for AL6528A-371 by qiaodan at 2022/10/25 start */
     int shipmode_wr_value;
     /* hs14 code for AL6528A-371 by qiaodan at 2022/10/25 end */
+    /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 start */
+    bool dpdm_done;
+    /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 start */
+    bool bypass_chgdet_en;
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 end */
 
     struct sc8960x_platform_data *platform_data;
     struct charger_device *chg_dev;
@@ -102,8 +118,21 @@ static const struct charger_properties sc8960x_chg_props = {
 static int __sc8960x_read_reg(struct sc8960x *sc, u8 reg, u8 *data)
 {
     s32 ret;
+    /* hs14 code for SR-AL6528A-01-787 by gaozhengwei at 2022/12/06 start */
+    int i;
 
-    ret = i2c_smbus_read_byte_data(sc->client, reg);
+    for (i = 0; i < I2C_RETRY_CNT; ++i) {
+
+        ret = i2c_smbus_read_byte_data(sc->client, reg);
+
+        if (ret >= 0)
+            break;
+
+        pr_info("%s reg(0x%x), ret(%d), i2c_retry_cnt(%d/%d)\n",
+            __func__, reg, ret, i + 1, I2C_RETRY_CNT);
+    }
+    /* hs14 code for SR-AL6528A-01-787 by gaozhengwei at 2022/12/06 end */
+
     if (ret < 0) {
         pr_err("i2c read fail: can't read from reg 0x%02X\n", reg);
         return ret;
@@ -117,8 +146,21 @@ static int __sc8960x_read_reg(struct sc8960x *sc, u8 reg, u8 *data)
 static int __sc8960x_write_reg(struct sc8960x *sc, int reg, u8 val)
 {
     s32 ret;
+    /* hs14 code for SR-AL6528A-01-787 by gaozhengwei at 2022/12/06 start */
+    int i;
 
-    ret = i2c_smbus_write_byte_data(sc->client, reg, val);
+    for (i = 0; i < I2C_RETRY_CNT; ++i) {
+
+        ret = i2c_smbus_write_byte_data(sc->client, reg, val);
+
+        if (ret >= 0)
+            break;
+
+        pr_info("%s reg(0x%x), ret(%d), i2c_retry_cnt(%d/%d)\n",
+            __func__, reg, ret, i + 1, I2C_RETRY_CNT);
+    }
+    /* hs14 code for SR-AL6528A-01-787 by gaozhengwei at 2022/12/06 end */
+
     if (ret < 0) {
         pr_err("i2c write fail: can't write 0x%02X to reg 0x%02X: %d\n",
             val, reg, ret);
@@ -219,39 +261,70 @@ static int sc8960x_set_key(struct sc8960x *sc)
     return sc8960x_write_byte(sc, SC8960X_REG_7D, REG7D_KEY4);
 }
 
+/* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 start */
+static int sc8960x_enable_bc12(struct sc8960x *sc, bool en)
+{
+    int ret;
+    u8 reg_val;
+
+    ret = sc8960x_read_byte(sc, SC8960X_REG_99, &reg_val);
+    if (ret) {
+        sc8960x_set_wa_key(sc);
+    }
+
+    if (en) {
+        sc8960x_write_byte(sc, SC8960X_REG_99, REG_99_BC12_enable);
+    } else {
+        sc8960x_write_byte(sc, SC8960X_REG_99, REG_99_BC12_disable);
+    }
+
+    return sc8960x_set_wa_key(sc);
+}
+
+static int sc8960x_set_dpdm_sink(struct sc8960x *sc)
+{
+    int ret;
+    u8 reg_val;
+
+    ret = sc8960x_read_byte(sc, SC8960X_REG_81, &reg_val);
+    if (ret) {
+        sc8960x_set_key(sc);
+    }
+
+    sc8960x_update_bits(sc, SC8960X_REG_80, REG80_DPDM_SINK_MASK, REG80_DPDM_SINK_HIGH);
+
+    return sc8960x_set_key(sc);
+}
+/* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
+
+/* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 start */
 static int sc8960x_enable_hvdcp(struct sc8960x *sc, bool enable)
 {
+    int ret;
+    u8 reg_val;
     u8 val = (enable == true) ?
         REG81_HVDCP_ENABLE : REG81_HVDCP_DISABLE;
 
-    sc8960x_set_key(sc);
+    ret = sc8960x_read_byte(sc, SC8960X_REG_81, &reg_val);
+    if (ret) {
+        sc8960x_set_key(sc);
+    }
 
     sc8960x_update_bits(sc, SC8960X_REG_81, REG81_HVDCP_EN_MASK,
             val << REG81_HVDCP_EN_SHIFT);
 
-    sc8960x_read_byte(sc, SC8960X_REG_81, &val);
-    pr_err("----> reg 81 = 0x%02x\n", val);
+    ret = sc8960x_read_byte(sc, SC8960X_REG_81, &val);
+    if (ret)
+        pr_err("----> reg 81 = 0x%02x\n", val);
 
     return sc8960x_set_key(sc);
 }
+/* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
 
-/* hs14 code for AL6528A-389 by wenyaqi at 2022/11/02 start */
-#ifdef HQ_FACTORY_BUILD
-// for factory test
-static void sc8960x_dump_regs(struct sc8960x *sc);
-#endif
-/* hs14 code for AL6528A-389 by wenyaqi at 2022/11/02 end */
 static int sc8960x_enable_otg(struct sc8960x *sc)
 {
     u8 val = REG01_OTG_ENABLE << REG01_OTG_CONFIG_SHIFT;
-/* hs14 code for AL6528A-389 by wenyaqi at 2022/11/02 start */
-#ifdef HQ_FACTORY_BUILD
-    // for factory test
-    pr_err("%s:factory otg test\n",__func__);
-    sc8960x_dump_regs(sc);
-#endif
-/* hs14 code for AL6528A-389 by wenyaqi at 2022/11/02 end */
     return sc8960x_update_bits(sc, SC8960X_REG_01, REG01_OTG_CONFIG_MASK,
                 val);
 
@@ -260,13 +333,6 @@ static int sc8960x_enable_otg(struct sc8960x *sc)
 static int sc8960x_disable_otg(struct sc8960x *sc)
 {
     u8 val = REG01_OTG_DISABLE << REG01_OTG_CONFIG_SHIFT;
-/* hs14 code for AL6528A-389 by wenyaqi at 2022/11/02 start */
-#ifdef HQ_FACTORY_BUILD
-    // for factory test
-    pr_err("%s:factory otg test\n",__func__);
-    sc8960x_dump_regs(sc);
-#endif
-/* hs14 code for AL6528A-389 by wenyaqi at 2022/11/02 end */
     return sc8960x_update_bits(sc, SC8960X_REG_01, REG01_OTG_CONFIG_MASK,
                 val);
 
@@ -279,13 +345,6 @@ static int sc8960x_enable_charger(struct sc8960x *sc)
 
     ret =
         sc8960x_update_bits(sc, SC8960X_REG_01, REG01_CHG_CONFIG_MASK, val);
-/* hs14 code for AL6528A-389 by wenyaqi at 2022/11/02 start */
-#ifdef HQ_FACTORY_BUILD
-    // for factory test
-    pr_err("%s:factory otg test,ret=%d\n",__func__,ret);
-    sc8960x_dump_regs(sc);
-#endif
-/* hs14 code for AL6528A-389 by wenyaqi at 2022/11/02 end */
 
     return ret;
 }
@@ -297,11 +356,6 @@ static int sc8960x_disable_charger(struct sc8960x *sc)
 
     ret =
         sc8960x_update_bits(sc, SC8960X_REG_01, REG01_CHG_CONFIG_MASK, val);
-#ifdef HQ_FACTORY_BUILD
-    // for factory test
-    pr_err("%s:factory otg test,ret=%d\n",__func__,ret);
-    sc8960x_dump_regs(sc);
-#endif
     return ret;
 }
 
@@ -699,13 +753,33 @@ static int sc8960x_set_int_mask(struct sc8960x *sc, int mask)
 }
 
 /* hs14 code for SR-AL6528A-01-306 by gaozhengwei at 2022/09/06 start */
+/* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 start */
 static int sc8960x_force_dpdm(struct sc8960x *sc)
 {
+    int ret;
+    u8 reg_val;
     const u8 val = REG07_FORCE_DPDM << REG07_FORCE_DPDM_SHIFT;
+
+    ret = sc8960x_read_byte(sc, SC8960X_REG_81, &reg_val);
+    if (ret) {
+        sc8960x_set_key(sc);
+    }
+
+    sc8960x_update_bits(sc, SC8960X_REG_81, REG81_DP_DRIVE_MASK,
+            1 << REG81_DP_DRIVE_SHIFT);
+
+    sc8960x_update_bits(sc, SC8960X_REG_81, REG81_DM_DRIVE_MASK,
+            1 << REG81_DM_DRIVE_SHIFT);
+
+    sc8960x_set_key(sc);
+    msleep(100);
+
+    pr_err("%s force dpdm\n");
 
     return sc8960x_update_bits(sc, SC8960X_REG_07, REG07_FORCE_DPDM_MASK,
                 val);
 }
+/* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
 /* hs14 code for SR-AL6528A-01-306 by gaozhengwei at 2022/09/06 end */
 
 static int sc8960x_enable_batfet(struct sc8960x *sc)
@@ -892,6 +966,18 @@ static int sc8960x_get_charger_type(struct sc8960x *sc, int *type)
         chg_type = CHARGER_UNKNOWN;
         break;
     case REG08_VBUS_TYPE_SDP:
+        /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 start */
+        /* hs14 code for AL6528A-1023 by gaozhengwei at 2022/12/06 start */
+        if (sc->sdp_detect) {
+            sc->power_good = false;
+            sc8960x_enable_bc12(sc, false);
+            Charger_Detect_Init();
+            sc8960x_force_dpdm(sc);
+            sc->sdp_detect = false;
+            return 0;
+        }
+        /* hs14 code for AL6528A-1023 by gaozhengwei at 2022/12/06 end */
+        /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
         chg_type = STANDARD_HOST;
         break;
     case REG08_VBUS_TYPE_CDP:
@@ -906,9 +992,10 @@ static int sc8960x_get_charger_type(struct sc8960x *sc, int *type)
             ret = sc8960x_enable_hvdcp(sc, true);
             if (ret)
                 pr_err("Failed to enable hvdcp\n");
-
+            /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 start */
+            Charger_Detect_Init();
+            /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
             sc->power_good = false;
-            msleep(100);
             sc8960x_force_dpdm(sc);
             sc->first_force = false;
         }
@@ -916,9 +1003,18 @@ static int sc8960x_get_charger_type(struct sc8960x *sc, int *type)
         chg_type = STANDARD_CHARGER;
         break;
     case REG08_VBUS_TYPE_UNKNOWN:
-        chg_type = NONSTANDARD_CHARGER;
-        break;
     case REG08_VBUS_TYPE_NON_STD:
+        /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 start */
+        if (sc->unkown_detect) {
+            sc->power_good = false;
+            sc8960x_enable_bc12(sc, true);
+            Charger_Detect_Init();
+            msleep(100);
+            sc8960x_force_dpdm(sc);
+            sc->unkown_detect = false;
+            return 0;
+        }
+        /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
         chg_type = NONSTANDARD_CHARGER;
         break;
     default:
@@ -926,10 +1022,15 @@ static int sc8960x_get_charger_type(struct sc8960x *sc, int *type)
         break;
     }
 
+    /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 start */
     /* hs14 code for SR-AL6528A-01-306|SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 start */
-    if (chg_type != STANDARD_CHARGER)
+    if (chg_type == STANDARD_CHARGER || chg_type == NONSTANDARD_CHARGER || chg_type == CHARGER_UNKNOWN) {
+        pr_err("dcp or unknown,hold dpdm\n");
+    } else {
         Charger_Detect_Release();
+    }
     /* hs14 code for SR-AL6528A-01-306|SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
+    /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
 
     *type = chg_type;
 
@@ -988,6 +1089,13 @@ static irqreturn_t sc8960x_irq_handler(int irq, void *data)
 
     struct sc8960x *sc = (struct sc8960x *)data;
 
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 start */
+    if (sc->bypass_chgdet_en == true) {
+        pr_err("%s:bypass_chgdet_en=%d, skip bc12\n", __func__, sc->bypass_chgdet_en);
+        return IRQ_HANDLED;
+    }
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 end */
+
     ret = sc8960x_read_byte(sc, SC8960X_REG_0A, &reg_val);
     if (ret)
         return IRQ_HANDLED;
@@ -1009,9 +1117,15 @@ static irqreturn_t sc8960x_irq_handler(int irq, void *data)
         /* hs14 code for AL6528ADEU-580 by gaozhengwei at 2022/10/09 start */
         sc->vbus_stat = true;
         /* hs14 code for AL6528ADEU-580 by gaozhengwei at 2022/10/09 end */
+        /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 start */
         pr_notice("adapter/usb inserted\n");
         Charger_Detect_Init();
         sc->first_force = true;
+        sc->unkown_detect = true;
+        /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
+        /* hs14 code for AL6528A-1023 by gaozhengwei at 2022/12/06 start */
+        sc->sdp_detect = true;
+        /* hs14 code for AL6528A-1023 by gaozhengwei at 2022/12/06 end */
     }
     else if (prev_vbus_gd && !sc->vbus_gd) {
         /* hs14 code for AL6528ADEU-580 by gaozhengwei at 2022/10/09 start */
@@ -1020,7 +1134,10 @@ static irqreturn_t sc8960x_irq_handler(int irq, void *data)
         sc->psy_usb_type = CHARGER_UNKNOWN;
         schedule_delayed_work(&sc->psy_dwork, 0);
         pr_notice("adapter/usb removed\n");
+        /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 start */
+        sc8960x_enable_bc12(sc, true);
         Charger_Detect_Release();
+        /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
         ret = sc8960x_enable_hvdcp(sc, false);
         if (ret)
             pr_err("Failed to disable hvdcp\n");
@@ -1076,6 +1193,10 @@ static int sc8960x_init_device(struct sc8960x *sc)
 {
     int ret;
 
+    /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 start */
+    sc8960x_reset_chip(sc);
+    /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
+
     sc8960x_disable_watchdog_timer(sc);
 
     ret = sc8960x_set_stat_ctrl(sc, sc->platform_data->statctrl);
@@ -1102,6 +1223,12 @@ static int sc8960x_init_device(struct sc8960x *sc)
     if (ret)
         pr_err("Failed to set acovp threshold, ret = %d\n", ret);
 
+    /* hs14 code for AL6528ADEU-1863 by wenyaqi at 2022/11/03 start */
+    ret= sc8960x_disable_safety_timer(sc);
+    if (ret)
+        pr_err("Failed to set safety_timer stop, ret = %d\n", ret);
+    /* hs14 code for AL6528ADEU-1863 by wenyaqi at 2022/11/03 end */
+
     ret = sc8960x_set_int_mask(sc,
                 REG0A_IINDPM_INT_MASK |
                 REG0A_VINDPM_INT_MASK);
@@ -1123,6 +1250,16 @@ static int sc8960x_init_device(struct sc8960x *sc)
         pr_err("Failed to set private\n");
     /* hs14 code for SR-AL6528A-01-321|AL6528ADEU-28 by gaozhengwei at 2022/09/29 end */
 
+    /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 start */
+    ret = sc8960x_set_dpdm_sink(sc);
+    if (ret)
+        pr_err("Failed to set dpdm sink\n");
+
+    ret = sc8960x_enable_bc12(sc, true);
+    if (ret)
+        pr_err("Failed to open bc12\n");
+    /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
+
     return 0;
 }
 
@@ -1133,10 +1270,6 @@ static void sc8960x_inform_prob_dwork_handler(struct work_struct *work)
                                 prob_dwork.work);
 
     sc8960x_force_dpdm(sc);
-
-    /* hs14 code for AL6528A-114 by gaozhengwei at 2022/09/26 start */
-    msleep(500);
-    /* hs14 code for AL6528A-114 by gaozhengwei at 2022/09/26 end */
 
     sc8960x_irq_handler(sc->irq, (void *) sc);
 }
@@ -1233,6 +1366,18 @@ static int sc8960x_charging(struct charger_device *chg_dev, bool enable)
     struct sc8960x *sc = dev_get_drvdata(&chg_dev->dev);
     int ret = 0;
     u8 val;
+    /* hs14 code for AL6528A-389 by wenyaqi at 2022/11/14 start */
+    bool otg_en = false;
+
+    ret = sc8960x_read_byte(sc, SC8960X_REG_01, &val);
+
+    if (!ret)
+        otg_en = !!(val & REG01_OTG_CONFIG_MASK);
+    if (otg_en == true && enable == true) {
+        pr_err("%s:otg_en=%d,skip chg_en\n", __func__, otg_en);
+        return -ENODEV;
+    }
+    /* hs14 code for AL6528A-389 by wenyaqi at 2022/11/14 end */
 
     if (enable)
         ret = sc8960x_enable_charger(sc);
@@ -1275,25 +1420,63 @@ static int sc8960x_plug_out(struct charger_device *chg_dev)
     return ret;
 }
 
-/* hs14 code for SR-AL6528A-01-255 by wenyaqi at 2022/10/26 start */
-static int sc8960x_enable_chg_type_det(struct charger_device *chg_dev, bool en)
+/* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 start */
+static int sc8960x_bypass_chgdet(struct charger_device *chg_dev, bool bypass_chgdet_en)
 {
     int ret = 0;
     struct sc8960x *sc = dev_get_drvdata(&chg_dev->dev);
 
-    dev_info(sc->dev, "%s en = %d\n", __func__, en);
-
-    if (en == true) {
-        ret = sc8960x_force_dpdm(sc);
-    } else {
-        sc8960x_irq_handler(sc->irq, (void *) sc);
-    }
-    if (ret < 0)
-        dev_notice(sc->dev, "%s en bc12 fail(%d)\n", __func__, ret);
+    sc->bypass_chgdet_en = bypass_chgdet_en;
+    dev_info(sc->dev, "%s bypass_chgdet_en = %d\n", __func__, bypass_chgdet_en);
 
     return ret;
 }
-/* hs14 code for SR-AL6528A-01-255 by wenyaqi at 2022/10/26 end */
+/* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 end */
+
+/* hs14 code for SR-AL6528A-01-255|P221117-03133 by wenyaqi at 2022/11/24 start */
+static int sc8960x_enable_chg_type_det(struct charger_device *chg_dev, bool en)
+{
+    int ret = 0;
+    struct sc8960x *sc = dev_get_drvdata(&chg_dev->dev);
+    union power_supply_propval propval;
+
+    dev_info(sc->dev, "%s en = %d\n", __func__, en);
+
+    if (!sc->psy) {
+        sc->psy = power_supply_get_by_name("charger");
+        if (!sc->psy) {
+            pr_err("%s Couldn't get psy\n", __func__);
+            return -ENODEV;
+        }
+    }
+
+    if (en == false) {
+        propval.intval = 0;
+    } else {
+        propval.intval = 1;
+    }
+
+    ret = power_supply_set_property(sc->psy,
+                    POWER_SUPPLY_PROP_ONLINE,
+                    &propval);
+    if (ret < 0)
+        pr_notice("inform power supply online failed:%d\n", ret);
+
+    if (en == false) {
+        propval.intval = CHARGER_UNKNOWN;
+    } else {
+        propval.intval = sc->psy_usb_type;
+    }
+
+    ret = power_supply_set_property(sc->psy,
+                    POWER_SUPPLY_PROP_CHARGE_TYPE,
+                    &propval);
+    if (ret < 0)
+        pr_notice("inform power supply charge type failed:%d\n", ret);
+
+    return ret;
+}
+/* hs14 code for SR-AL6528A-01-255|P221117-03133 by wenyaqi at 2022/11/24 end */
 
 static int sc8960x_dump_register(struct charger_device *chg_dev)
 {
@@ -1626,6 +1809,9 @@ static struct charger_ops sc8960x_chg_ops = {
     /* charger type detection */
     .enable_chg_type_det = sc8960x_enable_chg_type_det,
     /* hs14 code for SR-AL6528A-01-255 by wenyaqi at 2022/10/26 end */
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 start */
+    .bypass_chgdet = sc8960x_bypass_chgdet,
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 end */
 };
 
 static struct of_device_id sc8960x_charger_match_table[] = {
@@ -1689,6 +1875,9 @@ static int sc8960x_charger_probe(struct i2c_client *client,
     /* hs14 code for AL6528A-371 by qiaodan at 2022/10/25 start */
     sc->shipmode_wr_value = 0;
     /* hs14 code for AL6528A-371 by qiaodan at 2022/10/25 end */
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 start */
+    sc->bypass_chgdet_en = false;
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 end */
     sc->platform_data = sc8960x_parse_dt(node, sc);
 
     if (!sc->platform_data) {
@@ -1709,10 +1898,10 @@ static int sc8960x_charger_probe(struct i2c_client *client,
                         &sc8960x_chg_ops,
                         &sc8960x_chg_props);
     if (IS_ERR_OR_NULL(sc->chg_dev)) {
-        /* hs14 code for SR-AL6528A-01-306 by gaozhengwei at 2022/09/06 start */
+    /* hs14 code for SR-AL6528A-01-306 by gaozhengwei at 2022/09/06 start */
         cancel_delayed_work_sync(&sc->prob_dwork);
         cancel_delayed_work_sync(&sc->psy_dwork);
-        /* hs14 code for SR-AL6528A-01-306 by gaozhengwei at 2022/09/06 end */
+    /* hs14 code for SR-AL6528A-01-306 by gaozhengwei at 2022/09/06 end */
         ret = PTR_ERR(sc->chg_dev);
         return ret;
     }
@@ -1756,7 +1945,11 @@ static int sc8960x_charger_remove(struct i2c_client *client)
 
 static void sc8960x_charger_shutdown(struct i2c_client *client)
 {
+    /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 start */
+    struct sc8960x *sc = i2c_get_clientdata(client);
 
+    cancel_delayed_work_sync(&sc->psy_dwork);
+    /* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
 }
 
 static int sc8960x_suspend(struct device *dev)

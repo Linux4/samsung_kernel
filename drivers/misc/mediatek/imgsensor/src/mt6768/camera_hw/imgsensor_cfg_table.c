@@ -321,6 +321,26 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
         },
     },
 #endif
+/*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 start*/
+//4 supply
+#if defined(A1404BACKS5KJN1TXD_MIPI_RAW)
+    {
+        SENSOR_DRVNAME_A1404BACKS5KJN1TXD_MIPI_RAW,
+        {
+            {SensorMCLK, Vol_Low, 3},
+            {PDN, Vol_Low, 3},
+            {RST, Vol_Low, 3},
+            {DOVDD, Vol_1800, 5},
+            {DVDD, Vol_1100, 5},
+            {AVDD, Vol_2800, 5},
+            {AFVDD, Vol_2800, 5},
+            {SensorMCLK, Vol_High, 5},
+            {PDN, Vol_High, 5},
+            {RST, Vol_High, 10},
+        },
+    },
+#endif
+/*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 end*/
 /*hs14 code for SR-AL5628-01-161 Universal macro adaptation by lisizhou at 2022/9/23 end*/
 /*hs14 code for AL6528A-277 by chenjun at 2022-10-15 end*/
 #if defined(IMX519_MIPI_RAW)

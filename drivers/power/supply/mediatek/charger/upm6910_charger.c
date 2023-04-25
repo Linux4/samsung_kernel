@@ -41,6 +41,10 @@
 
 #include <mt-plat/upmu_common.h>
 
+/* hs14 code for SR-AL6528A-01-787 by gaozhengwei at 2022/12/06 start */
+#define I2C_RETRY_CNT       3
+/* hs14 code for SR-AL6528A-01-787 by gaozhengwei at 2022/12/06 end */
+
 enum {
     PN_UPM6910D,
 };
@@ -81,6 +85,9 @@ struct upm6910 {
     /* hs14 code for AL6528ADEU-580 by gaozhengwei at 2022/10/09 start */
     bool vbus_stat;
     /* hs14 code for AL6528ADEU-580 by gaozhengwei at 2022/10/09 end */
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 start */
+    bool bypass_chgdet_en;
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 end */
 
     struct upm6910_platform_data *platform_data;
     struct charger_device *chg_dev;
@@ -95,10 +102,9 @@ struct upm6910 {
     struct delayed_work bc12_recheck_dwork;
     /* hs14 code for AL6528ADEU-722 by qiaodan at 2022/10/20 end */
     int psy_usb_type;
-
-    /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 start */
-    bool first_detect_done;
-    /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
+    /* hs14 code for AL6528ADEU-2768 by qiaodan at 2022/11/25 start */
+    bool hiz_mode_flag;
+    /* hs14 code for AL6528ADEU-2768 by qiaodan at 2022/11/25 end */
 };
 
 static const struct charger_properties upm6910_chg_props = {
@@ -108,8 +114,21 @@ static const struct charger_properties upm6910_chg_props = {
 static int __upm6910_read_reg(struct upm6910 *upm, u8 reg, u8 *data)
 {
     s32 ret;
+    /* hs14 code for SR-AL6528A-01-787 by gaozhengwei at 2022/12/06 start */
+    int i;
 
-    ret = i2c_smbus_read_byte_data(upm->client, reg);
+    for (i = 0; i < I2C_RETRY_CNT; ++i) {
+
+        ret = i2c_smbus_read_byte_data(upm->client, reg);
+
+        if (ret >= 0)
+            break;
+
+        pr_info("%s reg(0x%x), ret(%d), i2c_retry_cnt(%d/%d)\n",
+            __func__, reg, ret, i + 1, I2C_RETRY_CNT);
+    }
+    /* hs14 code for SR-AL6528A-01-787 by gaozhengwei at 2022/12/06 end */
+
     if (ret < 0) {
         pr_err("i2c read fail: can't read from reg 0x%02X\n", reg);
         return ret;
@@ -123,8 +142,21 @@ static int __upm6910_read_reg(struct upm6910 *upm, u8 reg, u8 *data)
 static int __upm6910_write_reg(struct upm6910 *upm, int reg, u8 val)
 {
     s32 ret;
+    /* hs14 code for SR-AL6528A-01-787 by gaozhengwei at 2022/12/06 start */
+    int i;
 
-    ret = i2c_smbus_write_byte_data(upm->client, reg, val);
+    for (i = 0; i < I2C_RETRY_CNT; ++i) {
+
+        ret = i2c_smbus_write_byte_data(upm->client, reg, val);
+
+        if (ret >= 0)
+            break;
+
+        pr_info("%s reg(0x%x), ret(%d), i2c_retry_cnt(%d/%d)\n",
+            __func__, reg, ret, i + 1, I2C_RETRY_CNT);
+    }
+    /* hs14 code for SR-AL6528A-01-787 by gaozhengwei at 2022/12/06 end */
+
     if (ret < 0) {
         pr_err("i2c write fail: can't write 0x%02X to reg 0x%02X: %d\n",
                val, reg, ret);
@@ -377,40 +409,6 @@ int upm6910_exit_hiz_mode(struct upm6910 *upm)
 }
 EXPORT_SYMBOL_GPL(upm6910_exit_hiz_mode);
 
-static int upm6910_set_hiz_mode(struct charger_device *chg_dev, bool en)
-{
-    int ret;
-    struct upm6910 *upm = dev_get_drvdata(&chg_dev->dev);
-
-    if (en)
-        ret = upm6910_enter_hiz_mode(upm);
-    else
-        ret = upm6910_exit_hiz_mode(upm);
-
-    pr_err("%s hiz mode %s\n", en ? "enable" : "disable",
-            !ret ? "successfully" : "failed");
-
-    return ret;
-}
-EXPORT_SYMBOL_GPL(upm6910_set_hiz_mode);
-
-static int upm6910_get_hiz_mode(struct charger_device *chg_dev)
-{
-    int ret;
-    struct upm6910 *upm = dev_get_drvdata(&chg_dev->dev);
-    u8 val;
-    ret = upm6910_read_byte(upm, UPM6910_REG_00, &val);
-    if (ret == 0){
-        pr_err("Reg[%.2x] = 0x%.2x\n", UPM6910_REG_00, val);
-    }
-
-    ret = (val & REG00_ENHIZ_MASK) >> REG00_ENHIZ_SHIFT;
-    pr_err("%s:hiz mode %s\n",__func__, ret ? "enabled" : "disabled");
-
-    return ret;
-}
-EXPORT_SYMBOL_GPL(upm6910_get_hiz_mode);
-
 /* hs14 code for AL6528A-164|AL6528ADEU-643 by gaozhengwei|wenyaqi at 2022/10/13 start */
 static int upm6910_do_event(struct charger_device *chg_dev, u32 event, u32 args)
 {
@@ -483,7 +481,12 @@ EXPORT_SYMBOL_GPL(upm6910_set_boost_voltage);
 static int upm6910_set_acovp_threshold(struct upm6910 *upm, int volt)
 {
     u8 val;
-
+    /* hs14 code for AL6528ADEU-2768 by qiaodan at 2022/11/25 start */
+    if (upm->hiz_mode_flag == true) {
+        pr_err("%s now in hiz mode, return", __func__);
+        return 0;
+    }
+    /* hs14 code for AL6528ADEU-2768 by qiaodan at 2022/11/25 end */
     if (volt >= VAC_OVP_14000)
         val = REG06_OVP_14P0V;
     else if (volt >= VAC_OVP_10500 && volt < VAC_OVP_14000)
@@ -837,79 +840,6 @@ static bool is_hiz_mode_trigger_interrupt(struct upm6910 *upm)
     return exist;
 }
 
-static int upm6910_first_chg_type_det_workaround(struct upm6910 *upm, int *type)
-{
-    int ret = 0;
-    int vindpm_stat = 0;
-    u8 reg_val = 0;
-    int pre_ichg = 0;
-    int pre_icl = 0;
-    int pre_vindpm = 0;
-
-    if (!upm->first_detect_done) {
-        upm->first_detect_done = true;
-        if (*type == NONSTANDARD_CHARGER) {
-            /* get previous setting */
-            ret = upm6910_get_ichg(upm->chg_dev, &pre_ichg);
-            if (ret) {
-                pr_err("get ichg failed, ret:%d\n", ret);
-            }
-            ret = upm6910_get_icl(upm->chg_dev, &pre_icl);
-            if (ret) {
-                pr_err("get icl failed, ret:%d\n", ret);
-            }
-            ret = upm6910_get_input_volt_limit(upm, &pre_vindpm);
-            if (ret) {
-                pr_err("get pre_vindpm failed, ret:%d\n", ret);
-            }
-            pr_info("pre_ichg:%d, pre_icl:%d, pre_vindpm:%d\n",
-                    pre_ichg, pre_icl, pre_vindpm);
-
-            /* set a power to test adapter */
-            ret = upm6910_set_input_volt_limit(upm, POWER_DETECT_VINDPM);
-            if (ret) {
-                pr_err("set vindpm failed, ret:%d\n", ret);
-            }
-            ret = upm6910_set_chargecurrent(upm, POWER_DETECT_ICHG);
-            if (ret) {
-                pr_err("set ichg failed, ret:%d\n", ret);
-            }
-            ret = upm6910_set_input_current_limit(upm, POWER_DETECT_ICL);
-            if (ret) {
-                pr_err("set icl failed, ret:%d\n", ret);
-            }
-
-            /* if no vindpm, report DCP */
-            ret = upm6910_read_byte(upm, UPM6910_REG_0A, &reg_val);
-            if (ret) {
-                pr_err("read REG_0A failed, ret:%d\n", ret);
-            }
-            vindpm_stat = !!(reg_val & REG0A_VINDPM_STAT_MASK);
-            if (!vindpm_stat) {
-                *type = STANDARD_CHARGER;
-            }
-            pr_info("vindpm_stat:%d\n", vindpm_stat);
-
-            /* restore previous stat */
-            ret = upm6910_set_chargecurrent(upm, pre_ichg);
-            if (ret) {
-                pr_err("set ichg failed, ret:%d\n", ret);
-            }
-            ret = upm6910_set_input_current_limit(upm, pre_icl);
-            if (ret) {
-                pr_err("set icl failed, ret:%d\n", ret);
-            }
-            ret = upm6910_set_input_volt_limit(upm, pre_vindpm);
-            if (ret) {
-                pr_err("set vindpm failed, ret:%d\n", ret);
-            }
-        }
-    }
-
-    return ret;
-}
-/* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
-
 static int upm6910_get_charger_type(struct upm6910 *upm, int *type)
 {
     int ret;
@@ -955,11 +885,12 @@ static int upm6910_get_charger_type(struct upm6910 *upm, int *type)
         break;
     }
 
-    /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 start */
-    if (chg_type == NONSTANDARD_CHARGER)
-        upm6910_first_chg_type_det_workaround(upm, &chg_type);
-
-    if (chg_type != STANDARD_CHARGER) {
+    /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/10 start */
+    /* hs14 code for AL6528ADEU-2064 by lina at 2022/11/17 start */
+    if (chg_type == STANDARD_HOST ||
+        chg_type == CHARGING_HOST ||
+        chg_type == CHARGER_UNKNOWN) {
+    /*hs14 code for AL6528ADEU-2064 by lina at 2022/11/17 end*/
         Charger_Detect_Release();
     } else {
         ret = upm6910_enable_hvdcp(upm, true);
@@ -1016,19 +947,91 @@ static void upm6910_inform_psy_dwork_handler(struct work_struct *work)
 
     return;
 }
-/* hs14 code for AL6528ADEU-722 by qiaodan at 2022/10/20 start */
+/*hs14 code for AL6528ADEU-2064 by lina at 2022/11/17 start */
+static int upm6910_vbus_source_capability_detect(struct upm6910 *upm, int *type)
+{
+    int ret = 0;
+    int vindpm_stat = 0;
+    u8 reg_val = 0;
+    int pre_ichg = 0;
+    int pre_icl = 0;
+    int pre_vindpm = 0;
+
+    /* get previous setting */
+    ret |= upm6910_get_ichg(upm->chg_dev, &pre_ichg);
+    ret |= upm6910_get_icl(upm->chg_dev, &pre_icl);
+    ret |= upm6910_get_input_volt_limit(upm, &pre_vindpm);
+    pr_info("pre_ichg:%d, pre_icl:%d, pre_vindpm:%d, ret:%d\n",
+            pre_ichg, pre_icl, pre_vindpm, ret);
+
+    /* set a power to test adapter */
+    ret |= upm6910_set_input_volt_limit(upm, POWER_DETECT_VINDPM);
+    ret |= upm6910_set_chargecurrent(upm, POWER_DETECT_ICHG);
+    ret |= upm6910_set_input_current_limit(upm, POWER_DETECT_ICL);
+
+    /* if no vindpm, report DCP */
+    ret |= upm6910_read_byte(upm, UPM6910_REG_0A, &reg_val);
+    vindpm_stat = !!(reg_val & REG0A_VINDPM_STAT_MASK);
+    if (!vindpm_stat) {
+        *type = STANDARD_CHARGER;
+    } else {
+        *type =  NONSTANDARD_CHARGER;
+    }
+    pr_info("vindpm_stat:%d\n", vindpm_stat);
+
+    /* restore previous stat */
+    ret |= upm6910_set_chargecurrent(upm, pre_ichg);
+    ret |= upm6910_set_input_current_limit(upm, pre_icl);
+    ret |= upm6910_set_input_volt_limit(upm, pre_vindpm);
+    if (ret) {
+        pr_err("%s: %d\n", __func__, ret);
+    }
+
+    return ret;
+}
+/*hs14 code for AL6528ADEU-2064 by lina at 2022/11/17 end*/
 static void upm6910_bc12_recheck_dwork_handler(struct work_struct *work)
 {
     int retry_cnt = 0;
     int ret = 0;
     u8 reg_val = 0;
     int vbus_stat = 0;
-    int chg_type = CHARGER_UNKNOWN;
     /* hs14 code for AL6528ADEU-1146 by gaozhengwei at 2022/10/25 start */
     struct upm6910 *upm = container_of(work, struct upm6910,
                                 bc12_recheck_dwork.work);
     /* hs14 code for AL6528ADEU-1146 by gaozhengwei at 2022/10/25 end */
+    /*hs14 code for AL6528ADEU-2064 by lina at 2022/11/17 start */
+    union power_supply_propval propval;
+    int vbus = 0;
 
+    if (!upm->usb_psy) {
+        upm->usb_psy = power_supply_get_by_name("usb");
+        if (!upm->usb_psy) {
+            pr_err("%s Couldn't get usb psy\n", __func__);
+            return ;
+        }
+    }
+
+    ret = power_supply_get_property(upm->usb_psy,
+                POWER_SUPPLY_PROP_VOLTAGE_NOW, &propval);
+    if (!ret) {
+        vbus = propval.intval;
+        pr_info("vbus:%d", vbus);
+    }
+    if (vbus > POWER_FAST_CHARGE_VOLT_RISE) {
+        return;
+    } else {
+        ret = upm6910_enable_hvdcp(upm, true);
+        if (ret)
+            pr_err("Failed to en HVDCP, ret = %d\n", ret);
+
+        ret = upm6910_set_dp(upm, REG0C_DPDM_OUT_HIZ);
+        if (ret)
+            pr_err("Failed to set dp HIZ, ret = %d\n", ret);
+    }
+    /*hs14 code for AL6528ADEU-2064 by lina at 2022/11/17 end*/
+
+    disable_irq(upm->client->irq);
     Charger_Detect_Init();
     upm6910_dpdm_set_hidden_mode(upm);
     msleep(200);
@@ -1046,38 +1049,22 @@ static void upm6910_bc12_recheck_dwork_handler(struct work_struct *work)
         msleep(50);
     } while(retry_cnt++ < 16);
 
-    switch (vbus_stat) {
-        case REG08_VBUS_TYPE_NONE:
-            chg_type = CHARGER_UNKNOWN;
-            break;
-        case REG08_VBUS_TYPE_SDP:
-            chg_type = STANDARD_HOST;
-            break;
-        case REG08_VBUS_TYPE_CDP:
-            chg_type = CHARGING_HOST;
-            break;
-        case REG08_VBUS_TYPE_DCP:
-            chg_type = STANDARD_CHARGER;
-            break;
-        case REG08_VBUS_TYPE_UNKNOWN:
-            chg_type = NONSTANDARD_CHARGER;
-            break;
-        case REG08_VBUS_TYPE_NON_STD:
-            chg_type = STANDARD_CHARGER;
-            break;
-        default:
-            chg_type = NONSTANDARD_CHARGER;
-            break;
+/*hs14 code for AL6528ADEU-2064 by lina at 2022/11/17 start */
+    if (retry_cnt > DCD_RETRY_TIMEOUT) {
+        pr_info("bc1.2 data contact detect timeout, no DP/DM\n");
+        upm->psy_usb_type = NONSTANDARD_CHARGER;
+    } else {
+        if (vbus_stat == REG08_VBUS_TYPE_UNKNOWN)
+            upm6910_vbus_source_capability_detect(upm, &upm->psy_usb_type);
     }
 
-    if (chg_type != STANDARD_CHARGER) {
+    if (upm->psy_usb_type != STANDARD_CHARGER) {
         Charger_Detect_Release();
     } else {
         ret = upm6910_enable_hvdcp(upm, true);
-        if (ret) {
+        if (ret)
             pr_err("Failed to en HVDCP, ret = %d\n", ret);
-        }
-
+/*hs14 code for AL6528ADEU-2064 by lina at 2022/11/17 end*/
         ret = upm6910_set_dp(upm, REG0C_DPDM_OUT_0P6V);
         if (ret) {
             pr_err("Failed to set dp 0.6v, ret = %d\n", ret);
@@ -1085,22 +1072,72 @@ static void upm6910_bc12_recheck_dwork_handler(struct work_struct *work)
     }
 
     schedule_delayed_work(&upm->psy_dwork, 0);
+    enable_irq(upm->client->irq);
 }
-/* hs14 code for AL6528ADEU-722 by qiaodan at 2022/10/20 end */
+/* hs14 code for AL6528ADEU-722 by qiaodan at 2022/11/03 end */
+/* hs14 code for AL6528ADEU-2768 by qiaodan at 2022/11/25 start */
+static int upm6910_set_hiz_mode(struct charger_device *chg_dev, bool en)
+{
+    struct upm6910 *upm = dev_get_drvdata(&chg_dev->dev);
+    int ret = 0;
+
+    if (en) {
+        ret += upm6910_set_acovp_threshold(upm, VAC_OVP_6500);
+        ret += upm6910_set_input_volt_limit(upm, HIZ_CONTROL_VINDPM);
+        upm->hiz_mode_flag = true;
+    } else {
+        upm->hiz_mode_flag = false;
+        ret += upm6910_set_acovp_threshold(upm, VAC_OVP_10500);
+        ret += upm6910_set_input_volt_limit(upm, POWER_DETECT_VINDPM);
+    }
+
+    /*
+    if (en)
+        ret = upm6910_enter_hiz_mode(upm);
+    else
+        ret = upm6910_exit_hiz_mode(upm);
+    */
+
+    pr_err("%s hiz mode %s\n", en ? "enable" : "disable",
+            !ret ? "successfully" : "failed");
+
+    return ret;
+}
+EXPORT_SYMBOL_GPL(upm6910_set_hiz_mode);
+
+static int upm6910_get_hiz_mode(struct charger_device *chg_dev)
+{
+    struct upm6910 *upm = dev_get_drvdata(&chg_dev->dev);
+
+    /*
+    ret = upm6910_read_byte(upm, UPM6910_REG_00, &val);
+    if (ret == 0){
+        pr_err("Reg[%.2x] = 0x%.2x\n", UPM6910_REG_00, val);
+    }
+    */
+
+    pr_err("%s:hiz mode %s\n",__func__, upm->hiz_mode_flag ? "enabled" : "disabled");
+
+    return upm->hiz_mode_flag;
+}
+EXPORT_SYMBOL_GPL(upm6910_get_hiz_mode);
+/* hs14 code for AL6528ADEU-2768 by qiaodan at 2022/11/25 end */
 /* hs14 code for SR-AL6528A-01-259 by zhouyuhang at 2022/09/15 start*/
 static int upm6910_set_shipmode(struct charger_device *chg_dev, bool en)
 {
-    int ret;
+    int ret = 0;
     u8 val;
     struct upm6910 *upm = dev_get_drvdata(&chg_dev->dev);
-
+    /* hs14 code for AL6528ADEU-2944 by qiaodan at 2022/11/29 start */
     if (en) {
+        ret += upm6910_enter_hiz_mode(upm);
         val = REG07_BATFET_OFF << REG07_BATFET_DIS_SHIFT;
-        ret = upm6910_update_bits(upm, UPM6910_REG_07, REG07_BATFET_DIS_MASK, val);
+        ret += upm6910_update_bits(upm, UPM6910_REG_07, REG07_BATFET_DIS_MASK, val);
     } else {
         val = REG07_BATFET_ON << REG07_BATFET_DIS_SHIFT;
         ret = upm6910_update_bits(upm, UPM6910_REG_07, REG07_BATFET_DIS_MASK, val);
     }
+    /* hs14 code for AL6528ADEU-2944 by qiaodan at 2022/11/29 end */
 
     pr_err("%s shipmode %s\n", en ? "enable" : "disable",
             !ret ? "successfully" : "failed");
@@ -1172,6 +1209,13 @@ static irqreturn_t upm6910_irq_handler(int irq, void *data)
 
     struct upm6910 *upm = (struct upm6910 *)data;
 
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 start */
+    if (upm->bypass_chgdet_en == true) {
+        pr_err("%s:bypass_chgdet_en=%d, skip bc12\n", __func__, upm->bypass_chgdet_en);
+        return IRQ_HANDLED;
+    }
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 end */
+
     ret = upm6910_read_byte(upm, UPM6910_REG_0A, &reg_val);
     if (ret)
         return IRQ_HANDLED;
@@ -1206,6 +1250,9 @@ static irqreturn_t upm6910_irq_handler(int irq, void *data)
             upm->power_good = true;
             return IRQ_HANDLED;
         }
+        /*hs14 code for AL6528ADEU-2064 by lina at 2022/11/17 start */
+        cancel_delayed_work(&upm->bc12_recheck_dwork);
+        /*hs14 code for AL6528ADEU-2064 by lina at 2022/11/17 end*/
         upm->psy_usb_type = CHARGER_UNKNOWN;
         schedule_delayed_work(&upm->psy_dwork, 0);
         pr_notice("adapter/usb removed\n");
@@ -1219,10 +1266,19 @@ static irqreturn_t upm6910_irq_handler(int irq, void *data)
         ret = upm6910_get_charger_type(upm, &upm->psy_usb_type);
         if (upm->psy_usb_type == NONSTANDARD_CHARGER) {
             pr_err("start charger_redetect\n");
-            schedule_delayed_work(&upm->bc12_recheck_dwork, 0);
-        } else {
-            schedule_delayed_work(&upm->psy_dwork, 0);
+            /*hs14 code for AL6528ADEU-2064 by lina at 2022/11/17 start */
+            upm->psy_usb_type = STANDARD_CHARGER;
+            schedule_delayed_work(&upm->bc12_recheck_dwork, msecs_to_jiffies(3*1000));
+            ret = upm6910_enable_hvdcp(upm, true);
+            if (ret)
+                pr_err("Failed to en HVDCP, ret = %d\n", ret);
+
+            ret = upm6910_set_dp(upm, REG0C_DPDM_OUT_0P6V);
+            if (ret)
+                pr_err("Failed to set dp 0.6v, ret = %d\n", ret);
         }
+        schedule_delayed_work(&upm->psy_dwork, 0);
+        /*hs14 code for AL6528ADEU-2064 by lina at 2022/11/17 end*/
     }
     /* hs14 code for AL6528ADEU-722 by qiaodan at 2022/10/20 end */
 
@@ -1291,6 +1347,12 @@ static int upm6910_init_device(struct upm6910 *upm)
     ret = upm6910_set_acovp_threshold(upm, upm->platform_data->vac_ovp);
     if (ret)
         pr_err("Failed to set acovp threshold, ret = %d\n", ret);
+
+    /* hs14 code for AL6528ADEU-1863 by wenyaqi at 2022/11/03 start */
+    ret= upm6910_disable_safety_timer(upm);
+    if (ret)
+        pr_err("Failed to set safety_timer stop, ret = %d\n", ret);
+    /* hs14 code for AL6528ADEU-1863 by wenyaqi at 2022/11/03 end */
 
     ret = upm6910_set_int_mask(upm,
                    REG0A_IINDPM_INT_MASK |
@@ -1455,25 +1517,63 @@ static int upm6910_plug_out(struct charger_device *chg_dev)
     return ret;
 }
 
-/* hs14 code for SR-AL6528A-01-255 by wenyaqi at 2022/10/26 start */
-static int upm6910_enable_chg_type_det(struct charger_device *chg_dev, bool en)
+/* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 start */
+static int upm6910_bypass_chgdet(struct charger_device *chg_dev, bool bypass_chgdet_en)
 {
     int ret = 0;
     struct upm6910 *upm = dev_get_drvdata(&chg_dev->dev);
 
-    dev_info(upm->dev, "%s en = %d\n", __func__, en);
-
-    if (en == true) {
-        ret = upm6910_force_dpdm(upm);
-    } else {
-        upm6910_irq_handler(upm->irq, (void *) upm);
-    }
-    if (ret < 0)
-        dev_notice(upm->dev, "%s en bc12 fail(%d)\n", __func__, ret);
+    upm->bypass_chgdet_en = bypass_chgdet_en;
+    dev_info(upm->dev, "%s bypass_chgdet_en = %d\n", __func__, bypass_chgdet_en);
 
     return ret;
 }
-/* hs14 code for SR-AL6528A-01-255 by wenyaqi at 2022/10/26 end */
+/* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 end */
+
+/* hs14 code for SR-AL6528A-01-255|P221117-03133 by wenyaqi at 2022/11/24 start */
+static int upm6910_enable_chg_type_det(struct charger_device *chg_dev, bool en)
+{
+    int ret = 0;
+    struct upm6910 *upm = dev_get_drvdata(&chg_dev->dev);
+    union power_supply_propval propval;
+
+    dev_info(upm->dev, "%s en = %d\n", __func__, en);
+
+    if (!upm->psy) {
+        upm->psy = power_supply_get_by_name("charger");
+        if (!upm->psy) {
+            pr_err("%s Couldn't get psy\n", __func__);
+            return -ENODEV;
+        }
+    }
+
+    if (en == false) {
+        propval.intval = 0;
+    } else {
+        propval.intval = 1;
+    }
+
+    ret = power_supply_set_property(upm->psy,
+                    POWER_SUPPLY_PROP_ONLINE,
+                    &propval);
+    if (ret < 0)
+        pr_notice("inform power supply online failed:%d\n", ret);
+
+    if (en == false) {
+        propval.intval = CHARGER_UNKNOWN;
+    } else {
+        propval.intval = upm->psy_usb_type;
+    }
+
+    ret = power_supply_set_property(upm->psy,
+                    POWER_SUPPLY_PROP_CHARGE_TYPE,
+                    &propval);
+    if (ret < 0)
+        pr_notice("inform power supply charge type failed:%d\n", ret);
+
+    return ret;
+}
+/* hs14 code for SR-AL6528A-01-255|P221117-03133 by wenyaqi at 2022/11/24 end */
 
 static int upm6910_dump_register(struct charger_device *chg_dev)
 {
@@ -1556,7 +1656,12 @@ static int upm6910_set_ivl(struct charger_device *chg_dev, u32 volt)
     struct upm6910 *upm = dev_get_drvdata(&chg_dev->dev);
 
     pr_err("vindpm volt = %d\n", volt);
-
+    /* hs14 code for AL6528ADEU-2768 by qiaodan at 2022/11/25 start */
+    if (upm->hiz_mode_flag == true) {
+        pr_err("%s now in hiz mode, return", __func__);
+        return 0;
+    }
+    /* hs14 code for AL6528ADEU-2768 by qiaodan at 2022/11/25 end */
     return upm6910_set_input_volt_limit(upm, volt / 1000);
 
 }
@@ -1656,6 +1761,15 @@ static int upm6910_dynamic_set_hwovp_threshold(struct charger_device *chg_dev,
 {
     struct upm6910 *upm = dev_get_drvdata(&chg_dev->dev);
     u8 val = 0;
+    /* hs14 code for AL6528ADEU-2768 by qiaodan at 2022/11/25 start */
+    if (upm->hiz_mode_flag == true) {
+        pr_err("%s now in hiz mode, return", __func__);
+        return 0;
+    }
+    /* hs14 code for AL6528ADEU-2768 by qiaodan at 2022/11/25 end */
+    /* hs14 code for AL6528A-677 by qiaodan at 2022/11/10 start */
+    dev_info(upm->dev, "%s adapter_type =%d\n", __func__, adapter_type);
+    /* hs14 code for AL6528A-677 by qiaodan at 2022/11/10 end */
 
     if (adapter_type == SC_ADAPTER_NORMAL)
         val = REG06_OVP_6P5V;
@@ -1734,6 +1848,9 @@ static struct charger_ops upm6910_chg_ops = {
     /* charger type detection */
     .enable_chg_type_det = upm6910_enable_chg_type_det,
     /* hs14 code for SR-AL6528A-01-255 by wenyaqi at 2022/10/26 end */
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 start */
+    .bypass_chgdet = upm6910_bypass_chgdet,
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 end */
 };
 
 static struct of_device_id upm6910_charger_match_table[] = {
@@ -1764,9 +1881,6 @@ static int upm6910_charger_probe(struct i2c_client *client,
     upm->dev = &client->dev;
     upm->client = client;
 
-    /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 start */
-    upm->first_detect_done = false;
-    /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
 
     i2c_set_clientdata(client, upm);
 
@@ -1792,12 +1906,18 @@ static int upm6910_charger_probe(struct i2c_client *client,
     }
 
     upm->platform_data = upm6910_parse_dt(node, upm);
+    /* hs14 code for AL6528ADEU-2768 by qiaodan at 2022/11/25 start */
+    upm->hiz_mode_flag = false;
+    /* hs14 code for AL6528ADEU-2768 by qiaodan at 2022/11/25 end */
 
     INIT_DELAYED_WORK(&upm->psy_dwork, upm6910_inform_psy_dwork_handler);
     /* hs14 code for AL6528ADEU-722 by qiaodan at 2022/10/20 start */
     INIT_DELAYED_WORK(&upm->bc12_recheck_dwork, upm6910_bc12_recheck_dwork_handler);
     /* hs14 code for AL6528ADEU-722 by qiaodan at 2022/10/20 end */
     INIT_DELAYED_WORK(&upm->prob_dwork, upm6910_inform_prob_dwork_handler);
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 start */
+    upm->bypass_chgdet_en = false;
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 end */
 
     if (!upm->platform_data) {
         pr_err("No platform data provided.\n");

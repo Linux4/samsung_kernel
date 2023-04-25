@@ -11,22 +11,21 @@
 #include <linux/pm_qos.h>
 #include <sspm_ipi.h>
 #include <sspm_ipi_pin.h>
-//#include <helio-dvfsrc-ipi.h>
-#include <mtk_qos_ipi.h>
+#include <helio-dvfsrc-ipi.h>
 #include "mtk_gpufreq_core.h"
 #include "mtk_gpu_bw.h"
 #include <linux/soc/mediatek/mtk-pm-qos.h>
 
 static unsigned int g_cur_request_bw;
-static struct pm_qos_request gpu_qos_request;
+static struct mtk_pm_qos_request gpu_qos_request;
 
 #ifdef CONFIG_MTK_QOS_SUPPORT
 void mt_gpu_bw_toggle(int i32Restore)
 {
 	if (i32Restore) /* powered on */
-		pm_qos_update_request(&gpu_qos_request, g_cur_request_bw);
+		mtk_pm_qos_update_request(&gpu_qos_request, g_cur_request_bw);
 	else
-		pm_qos_update_request(&gpu_qos_request, 0);
+		mtk_pm_qos_update_request(&gpu_qos_request, 0);
 }
 
 uint32_t gpu_bw_pull;
@@ -34,7 +33,7 @@ void mt_gpu_bw_qos_vcore(unsigned int ui32BW)
 {
 	g_cur_request_bw = ui32BW + gpu_bw_pull;
 
-	pm_qos_update_request(&gpu_qos_request, g_cur_request_bw);
+	mtk_pm_qos_update_request(&gpu_qos_request, g_cur_request_bw);
 
 }
 EXPORT_SYMBOL(mt_gpu_bw_qos_vcore);
@@ -81,7 +80,8 @@ EXPORT_SYMBOL(mt_gpu_bw_get_BW);
 
 void mt_gpu_bw_init(void)
 {
-	pm_qos_add_request(&gpu_qos_request, PM_QOS_MEMORY_BANDWIDTH, PM_QOS_DEFAULT_VALUE);
+	mtk_pm_qos_add_request(&gpu_qos_request, MTK_PM_QOS_GPU_MEMORY_BANDWIDTH,
+		PM_QOS_DEFAULT_VALUE);
 }
 
 module_param(gpu_bw_pull, uint, 0644);

@@ -145,7 +145,7 @@ static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
      O2104_GT9769AF_Release, O2104_GT9769AF_GetFileName, NULL},
 #endif
 /*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 end*/
-/*hs14 code for SR-AL5628-01-161 Universal macro adaptation by lisizhou at 2022/9/23 start*/
+/*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 start*/
 #ifdef CONFIG_HQ_PROJECT_O22
     //ADD AF FOR A1401AW8601WAF
 	{1, AFDRV_A1401AW8601WAF, A1401AW8601WAF_SetI2Cclient, A1401AW8601WAF_Ioctl,
@@ -154,8 +154,10 @@ static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
 	 A1402DW9767AF_Release, A1402DW9767AF_GetFileName, NULL},
 	{1, AFDRV_A1403GT9778AF, A1403GT9778AF_SetI2Cclient, A1403GT9778AF_Ioctl,
 	A1403GT9778AF_Release, A1403GT9778AF_GetFileName, NULL},
+    {1, AFDRV_A1404AW8601WAF, A1404AW8601WAF_SetI2Cclient, A1404AW8601WAF_Ioctl,
+     A1404AW8601WAF_Release, A1404AW8601WAF_GetFileName, NULL},
 #endif
-/*hs14 code for SR-AL5628-01-161 Universal macro adaptation by lisizhou at 2022/9/23 end*/
+/*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 end*/
 /* hs04 code for SR-AL6398A-01-16 by liluling at 2022/07/05 end */
 /*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
 

@@ -80,6 +80,11 @@
 
 
 struct ovt_tcm_hcd *g_tcm_hcd;
+/*hs14 code for P221103-05645 by tangzhen at 20221109 start*/
+#if SPEED_UP_RESUME
+static void speedup_resume(struct work_struct *work);
+#endif
+/*hs14 code for P221103-05645 by tangzhen at 20221109 end*/
 /*hs14 code for SR-AL6528A-01-473 by hehaoran5 at 20221020 start*/
 static int update_charger_state(bool state);
 /*hs14 code for SR-AL6528A-01-473 by hehaoran5 at 20221020 end*/
@@ -2609,10 +2614,14 @@ exit:
     /*hs14 code for SR-AL6528A-01-473 by hehaoran5 at 20221020 start*/
     if (retval == 0) {
         tcm_hcd->fw_ready = true;
-        update_charger_state(tcm_hcd->charger_state);
-        /*hs14 code for AL6528ADEU-966 by liudi at 20221024 start*/
-        update_earphone_state(tcm_hcd->earphone_enable);
-        /*hs14 code for AL6528ADEU-966 by liudi at 20221024 end*/
+        /*hs14 code for AL6528A-595 by hehaoran5 at 20221103 start*/
+        if (mutex_is_locked(&tcm_hcd->extif_mutex) == false) {
+            update_charger_state(tcm_hcd->charger_state);
+            /*hs14 code for AL6528ADEU-966 by liudi at 20221024 start*/
+            update_earphone_state(tcm_hcd->earphone_enable);
+            /*hs14 code for AL6528ADEU-966 by liudi at 20221024 end*/
+        }
+        /*hs14 code for AL6528A-595 by hehaoran5 at 20221103 end*/
     } else {
         tcm_hcd->fw_ready = false;
     }
@@ -3457,6 +3466,13 @@ static int tp_earphone_notifier_callback(struct notifier_block *this,unsigned lo
 #if defined(CONFIG_PM) || defined(CONFIG_FB)
 static int ovt_tcm_resume(struct device *dev)
 {
+/*hs14 code for P221103-05645 by tangzhen at 20221109 start*/
+#if SPEED_UP_RESUME
+    struct ovt_tcm_hcd *tcm_hcd = dev_get_drvdata(dev);
+    queue_work(tcm_hcd->speed_up_resume_workqueue, &tcm_hcd->speed_up_work);
+    return 0;
+#else
+
     int retval;
     struct ovt_tcm_module_handler *mod_handler;
     struct ovt_tcm_hcd *tcm_hcd = dev_get_drvdata(dev);
@@ -3548,10 +3564,113 @@ mod_resume:
 
 exit:
     tcm_hcd->in_suspend = false;
-
     return retval;
+#endif
+/*hs14 code for P221103-05645 by tangzhen at 20221109 end*/
 }
+/*hs14 code for P221103-05645 by tangzhen at 20221109 start*/
+#if SPEED_UP_RESUME
+static void speedup_resume(struct work_struct *work)
+{
+    struct ovt_tcm_hcd *tcm_hcd = container_of(work, struct ovt_tcm_hcd, speed_up_work);
 
+    int retval;
+    struct ovt_tcm_module_handler *mod_handler;
+
+
+    LOGE(tcm_hcd->pdev->dev.parent,"speed up resume enter\n");
+    if (!tcm_hcd->in_suspend  || tcm_hcd->ovt_tcm_driver_removing)
+        return;
+
+    if (tcm_hcd->in_hdl_mode) {
+        tcm_hcd->enable_irq(tcm_hcd, true, NULL);
+        retval = ovt_tcm_wait_hdl(tcm_hcd);
+        if (retval < 0) {
+            LOGE(tcm_hcd->pdev->dev.parent,
+                    "Failed to wait for completion of host download\n");
+            goto exit;
+        }
+        goto mod_resume;
+    } else {
+        if (!tcm_hcd->wakeup_gesture_enabled)
+            tcm_hcd->enable_irq(tcm_hcd, true, NULL);
+
+#ifdef RESET_ON_RESUME
+        msleep(RESET_ON_RESUME_DELAY_MS);
+        goto do_reset;
+#endif
+    }
+
+    if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode) ||
+            tcm_hcd->app_status != APP_STATUS_OK) {
+        LOGN(tcm_hcd->pdev->dev.parent,
+                "Identifying mode = 0x%02x\n",
+                tcm_hcd->id_info.mode);
+        goto do_reset;
+    }
+
+    retval = tcm_hcd->sleep(tcm_hcd, false);
+    if (retval < 0) {
+        LOGE(tcm_hcd->pdev->dev.parent,
+                "Failed to exit deep sleep\n");
+        goto exit;
+    }
+
+    retval = ovt_tcm_rezero(tcm_hcd);
+    if (retval < 0) {
+        LOGE(tcm_hcd->pdev->dev.parent,
+                "Failed to rezero\n");
+        goto exit;
+    }
+
+    goto mod_resume;
+
+do_reset:
+    retval = tcm_hcd->reset_n_reinit(tcm_hcd, false, true);
+    if (retval < 0) {
+        LOGE(tcm_hcd->pdev->dev.parent,
+                "Failed to do reset and reinit\n");
+        goto exit;
+    }
+
+    if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode) ||
+            tcm_hcd->app_status != APP_STATUS_OK) {
+        LOGN(tcm_hcd->pdev->dev.parent,
+                "Identifying mode = 0x%02x\n",
+                tcm_hcd->id_info.mode);
+        retval = 0;
+        goto exit;
+    }
+
+mod_resume:
+    touch_resume(tcm_hcd);
+
+#ifdef WATCHDOG_SW
+    tcm_hcd->update_watchdog(tcm_hcd, true);
+#endif
+
+    mutex_lock(&mod_pool.mutex);
+
+    if (!list_empty(&mod_pool.list)) {
+        list_for_each_entry(mod_handler, &mod_pool.list, link) {
+            if (!mod_handler->insert &&
+                    !mod_handler->detach &&
+                    (mod_handler->mod_cb->resume))
+                mod_handler->mod_cb->resume(tcm_hcd);
+        }
+    }
+
+    mutex_unlock(&mod_pool.mutex);
+
+    retval = 0;
+
+exit:
+    tcm_hcd->in_suspend = false;
+    LOGE(tcm_hcd->pdev->dev.parent,"speed up resume end\n");
+    return;
+}
+#endif
+/*hs14 code for P221103-05645 by tangzhen at 20221109 end*/
 static int ovt_tcm_suspend(struct device *dev)
 {
     struct ovt_tcm_module_handler *mod_handler;
@@ -3862,7 +3981,7 @@ static void ovt_tcm_compatible_panels(struct ovt_tcm_hcd *tcm_hcd)
     if (strstr(saved_command_line, "lcd_td4375_txd_jdi_mipi_fhd_video")) {
         printk("%s:panel= lcd_td4375_txd_jdi_mipi_fhd_video\n",__func__);
         strcpy(tcm_hcd->tp_firmware_name,"td4375_txd_jdi_firmware.img");
-        strcpy(tcm_hcd->tp_module_name,"TD4376_TXD_JDI");
+        strcpy(tcm_hcd->tp_module_name,"TD4375_TXD_JDI");
         strcpy(tcm_hcd->tp_limits_name,"td4375_txd_jdi_mp_test.csv");
     } else if (strstr(saved_command_line, "lcd_td4375_cw_inx_mipi_fhd_video")) {
         printk("%s:panel= lcd_td4375_cw_inx_mipi_fhd_video\n",__func__);
@@ -4232,7 +4351,12 @@ static int ovt_tcm_probe(struct platform_device *pdev)
     tcm_hcd->helper.workqueue =
             create_singlethread_workqueue("ovt_tcm_helper");
     INIT_WORK(&tcm_hcd->helper.work, ovt_tcm_helper_work);
-
+/*hs14 code for P221103-05645 by tangzhen at 20221109 start*/
+#if SPEED_UP_RESUME
+    tcm_hcd->speed_up_resume_workqueue = create_singlethread_workqueue("speedup_resume_wq");
+    INIT_WORK(&tcm_hcd->speed_up_work, speedup_resume);
+#endif
+/*hs14 code for P221103-05645 by tangzhen at 20221109 end*/
 #ifdef WATCHDOG_SW
     tcm_hcd->watchdog.workqueue =
             create_singlethread_workqueue("ovt_tcm_watchdog");
@@ -4427,6 +4551,17 @@ static int ovt_tcm_remove(struct platform_device *pdev)
 #endif
 
 #ifdef CONFIG_FB
+    /*hs14 code for AL6528A-882 by hehaoran5 at 20221116 start*/
+    /*hs14 code for AL6528ADEU-966 by liudi at 20221024 start*/
+    headset_notifier_unregister(&tcm_hcd->earphone_notify);
+    /*hs14 code for AL6528ADEU-966 by liudi at 20221024 end*/
+    /*hs14 code for SR-AL6528A-01-473 by hehaoran5 at 20221020 start*/
+    unregister_usb_check_notifier(&tcm_hcd->tp_usb_notify);
+    /*hs14 code for SR-AL6528A-01-473 by hehaoran5 at 20221020 end*/
+    /*hs14 code for AL6528A-213 by hehaoran5 at 20221002 start*/
+    unregister_esd_tp_recovery_notifier(&tcm_hcd->esd_recovery_notifier);
+    /*hs14 code for AL6528A-213 by hehaoran5 at 20221002 end*/
+    /*hs14 code for AL6528A-882 by hehaoran5 at 20221116 end*/
     fb_unregister_client(&tcm_hcd->fb_notifier);
 #endif
 

@@ -1409,6 +1409,12 @@ void typec_set_pwr_opmode(struct typec_port *port,
 {
 	struct device *partner_dev;
 
+/* hs14 code for AL6528A-1048 by wenyaqi at 2022/12/27 start */
+	if (port == NULL) {
+		return;
+	}
+/* hs14 code for AL6528A-1048 by wenyaqi at 2022/12/27 end */
+
 	if (port->pwr_opmode == opmode)
 		return;
 

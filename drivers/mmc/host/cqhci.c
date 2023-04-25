@@ -371,8 +371,10 @@ static int cqhci_enable(struct mmc_host *mmc, struct mmc_card *card)
 	cq_host->rca = card->rca;
 
 	err = cqhci_host_alloc_tdl(cq_host);
-	if (err)
+	if (err) {
+		mmc_card_error_logging(mmc->card, NULL, CQ_EN_DIS_ERR);
 		return err;
+	}
 
 	__cqhci_enable(cq_host);
 
@@ -408,8 +410,10 @@ static void cqhci_off(struct mmc_host *mmc)
 
 	err = readx_poll_timeout(cqhci_read_ctl, cq_host, reg,
 				 reg & CQHCI_HALT, 0, CQHCI_OFF_TIMEOUT);
-	if (err < 0)
+	if (err < 0) {
 		pr_err("%s: cqhci: CQE stuck on\n", mmc_hostname(mmc));
+		mmc_card_error_logging(mmc->card, NULL, HALT_UNHALT_ERR);
+	}
 	else
 		pr_debug("%s: cqhci: CQE off\n", mmc_hostname(mmc));
 
@@ -639,6 +643,7 @@ static int cqhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 		if (cqhci_readl(cq_host, CQHCI_CTL) && CQHCI_HALT) {
 			pr_err("%s: cqhci: CQE failed to exit halt state\n",
 			       mmc_hostname(mmc));
+			mmc_card_error_logging(mmc->card, NULL, HALT_UNHALT_ERR);
 		}
 		if (cq_host->ops->enable)
 			cq_host->ops->enable(mmc);
@@ -974,8 +979,10 @@ static bool cqhci_halt(struct mmc_host *mmc, unsigned int timeout)
 
 	ret = cqhci_halted(cq_host);
 
-	if (!ret)
+	if (!ret) {
 		pr_debug("%s: cqhci: Failed to halt\n", mmc_hostname(mmc));
+		mmc_card_error_logging(mmc->card, NULL, HALT_UNHALT_ERR);
+	}
 
 	return ret;
 }

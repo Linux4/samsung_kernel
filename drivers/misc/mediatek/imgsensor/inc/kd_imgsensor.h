@@ -286,7 +286,7 @@
 #endif
 /*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 end*/
 
-/*hs14 code for SR-AL5628-01-161 Universal macro adaptation by lisizhou at 2022/9/24 start*/
+/*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/19 start*/
 #ifdef CONFIG_HQ_PROJECT_O22
     //1 supply
     #define A1401BACKS5KJN1HLT_SENSOR_ID                    0x38E1
@@ -324,9 +324,12 @@
 
     #define A1403MACROGC02M1HLT_SENSOR_ID                   0x02e0
     #define SENSOR_DRVNAME_A1403MACROGC02M1HLT_MIPI_RAW     "a1403macrogc02m1hlt_mipi_raw"
+    //4 supply
+    #define A1404BACKS5KJN1TXD_SENSOR_ID                       0x38E2
+    #define SENSOR_DRVNAME_A1404BACKS5KJN1TXD_MIPI_RAW        "a1404backs5kjn1txd_mipi_raw"
 
 #endif
-/*hs14 code for SR-AL5628-01-161 Universal macro adaptation by lisizhou at 2022/9/24 end*/
+/*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/19 end*/
 
 #define IMX499_SENSOR_ID                        0x0499
 #define IMX481_SENSOR_ID                        0x0481

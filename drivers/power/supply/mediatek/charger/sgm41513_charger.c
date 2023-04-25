@@ -46,6 +46,14 @@
 #include "sgm41513_reg.h"
 #include "sgm41513.h"
 
+/* hs14 code for AL6528A-600|AL6528A-1033 by gaozhengwei at 2022/12/09 start */
+#define BC12_DONE_TIMEOUT_CHECK_MAX_RETRY	10
+/* hs14 code for AL6528A-600|AL6528A-1033 by gaozhengwei at 2022/12/09 end */
+
+/* hs14 code for SR-AL6528A-01-787 by gaozhengwei at 2022/12/06 start */
+#define I2C_RETRY_CNT       3
+/* hs14 code for SR-AL6528A-01-787 by gaozhengwei at 2022/12/06 end */
+
 struct sgm41513 {
     struct device *dev;
     struct i2c_client *client;
@@ -75,6 +83,9 @@ struct sgm41513 {
     /* hs14 code for AL6528ADEU-580 by gaozhengwei at 2022/10/09 start */
     bool vbus_stat;
     /* hs14 code for AL6528ADEU-580 by gaozhengwei at 2022/10/09 end */
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 start */
+    bool bypass_chgdet_en;
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 end */
 
     struct sgm41513_platform_data *platform_data;
     struct charger_device *chg_dev;
@@ -82,6 +93,9 @@ struct sgm41513 {
     struct delayed_work psy_dwork;
     struct delayed_work prob_dwork;
     /* hs14 code for SR-AL6528A-01-306 by gaozhengwei at 2022/09/06 end */
+    /* hs14 code for AL6528A-1033 by gaozhengwei at 2022/12/09 start */
+    struct delayed_work charge_detect_delayed_work;
+    /* hs14 code for AL6528A-1033 by gaozhengwei at 2022/12/09 end */
     struct power_supply *psy;
 };
 
@@ -102,8 +116,21 @@ static const struct charger_properties sgm41513_chg_props = {
 static int __sgm41513_read_reg(struct sgm41513 *sgm, u8 reg, u8 *data)
 {
     s32 ret;
+    /* hs14 code for SR-AL6528A-01-787 by gaozhengwei at 2022/12/06 start */
+    int i;
 
-    ret = i2c_smbus_read_byte_data(sgm->client, reg);
+    for (i = 0; i < I2C_RETRY_CNT; ++i) {
+
+        ret = i2c_smbus_read_byte_data(sgm->client, reg);
+
+        if (ret >= 0)
+            break;
+
+        pr_info("%s reg(0x%x), ret(%d), i2c_retry_cnt(%d/%d)\n",
+            __func__, reg, ret, i + 1, I2C_RETRY_CNT);
+    }
+    /* hs14 code for SR-AL6528A-01-787 by gaozhengwei at 2022/12/06 end */
+
     if (ret < 0) {
         pr_err("i2c read fail: can't read from reg 0x%02X\n", reg);
         return ret;
@@ -117,8 +144,21 @@ static int __sgm41513_read_reg(struct sgm41513 *sgm, u8 reg, u8 *data)
 static int __sgm41513_write_reg(struct sgm41513 *sgm, int reg, u8 val)
 {
     s32 ret;
+    /* hs14 code for SR-AL6528A-01-787 by gaozhengwei at 2022/12/06 start */
+    int i;
 
-    ret = i2c_smbus_write_byte_data(sgm->client, reg, val);
+    for (i = 0; i < I2C_RETRY_CNT; ++i) {
+
+        ret = i2c_smbus_write_byte_data(sgm->client, reg, val);
+
+        if (ret >= 0)
+            break;
+
+        pr_info("%s reg(0x%x), ret(%d), i2c_retry_cnt(%d/%d)\n",
+            __func__, reg, ret, i + 1, I2C_RETRY_CNT);
+    }
+    /* hs14 code for SR-AL6528A-01-787 by gaozhengwei at 2022/12/06 end */
+
     if (ret < 0) {
         pr_err("i2c write fail: can't write 0x%02X to reg 0x%02X: %d\n",
                 val, reg, ret);
@@ -320,7 +360,6 @@ int sgm41513_set_input_current_limit(struct sgm41513 *sgm, int curr)
         curr = REG00_IINLIM_BASE;
 
     val = (curr - REG00_IINLIM_BASE) / REG00_IINLIM_LSB;
-    msleep(500);
     return sgm41513_update_bits(sgm, SGM41513_REG_00, REG00_IINLIM_MASK,
                     val << REG00_IINLIM_SHIFT);
 }
@@ -653,14 +692,13 @@ static int sgm41513_dpdm_detect_is_done(struct sgm41513 * sgm)
         dev_err(sgm->dev, "Check DPDM detecte error\n");
     }
 
-    pr_err("[%s] Reg07 = 0x%.2x\n", __func__, iindet_stat);
-    pr_err("[%s] Reg0E = 0x%.2x\n", __func__, chrg_stat);
-
     if ((iindet_stat & REG07_FORCE_DPDM_MASK) != 0) {
+        pr_err("[%s] Reg07 = 0x%.2x\n", __func__, iindet_stat);
         return false;
     }
 
     if ((chrg_stat & SGM41513_DPDM_ONGOING) != SGM41513_DPDM_ONGOING) {
+        pr_err("[%s] Reg0E = 0x%.2x\n", __func__, chrg_stat);
         return false;
     }
 
@@ -688,29 +726,32 @@ static int sgm41513_enable_hvdcp(struct sgm41513 * sgm)
 }
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 start */
 
-static int sgm41513_get_charger_type(struct sgm41513 *sgm, int *type)
+/* hs14 code for AL6528A-1033 by gaozhengwei at 2022/12/09 start */
+static void sgm41513_charger_detect_work_func(struct work_struct *work)
 {
     int ret = 0;
-
     u8 reg_val = 0;
     int vbus_stat = 0;
-#ifdef BEFORE_MTK_ANDROID_T // which is used before Android T
-    int chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
-#else
     int chg_type = CHARGER_UNKNOWN;
-#endif
+    int retry_cnt = 0;
 
-    /* hs14 code for SR-AL6528A-01-306 by gaozhengwei at 2022/09/06 start */
-    if (!sgm41513_dpdm_detect_is_done(sgm)) {
-        pr_err("%s ,DPDM detecte not done, disable charge\n", __func__);
-        return ret;
-    }
-    /* hs14 code for SR-AL6528A-01-306 by gaozhengwei at 2022/09/06 end */
+    struct sgm41513 *sgm = container_of(work, struct sgm41513,
+                                charge_detect_delayed_work.work);
+
+    do {
+        if (!sgm41513_dpdm_detect_is_done(sgm)) {
+            pr_err("[%s] DPDM detecte not done, retry_cnt:%d\n", __func__, retry_cnt);
+        } else {
+            pr_err("[%s] BC1.2 done\n", __func__);
+            break;
+        }
+        mdelay(60);
+    } while(retry_cnt++ < BC12_DONE_TIMEOUT_CHECK_MAX_RETRY);
 
     ret = sgm41513_read_byte(sgm, SGM41513_REG_08, &reg_val);
 
     if (ret)
-        return ret;
+        return;
 
     vbus_stat = (reg_val & REG08_VBUS_STAT_MASK);
     vbus_stat >>= REG08_VBUS_STAT_SHIFT;
@@ -720,29 +761,6 @@ static int sgm41513_get_charger_type(struct sgm41513 *sgm, int *type)
     /* hs14 code for SR-AL6528A-01-306 by gaozhengwei at 2022/09/06 end */
 
     switch (vbus_stat) {
-#ifdef BEFORE_MTK_ANDROID_T // which is used before Android T
-    case REG08_VBUS_TYPE_NONE:
-        chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
-        break;
-    case REG08_VBUS_TYPE_SDP:
-        chg_type = POWER_SUPPLY_TYPE_USB;
-        break;
-    case REG08_VBUS_TYPE_CDP:
-        chg_type = POWER_SUPPLY_TYPE_USB_CDP;
-        break;
-    case REG08_VBUS_TYPE_DCP:
-        chg_type = POWER_SUPPLY_TYPE_USB_DCP;
-        break;
-    case REG08_VBUS_TYPE_UNKNOWN:
-        chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
-        break;
-    case REG08_VBUS_TYPE_NON_STD:
-        chg_type = POWER_SUPPLY_TYPE_USB_FLOAT;
-        break;
-    default:
-        chg_type = POWER_SUPPLY_TYPE_USB_FLOAT;
-        break;
-#else
     case REG08_VBUS_TYPE_NONE:
         chg_type = CHARGER_UNKNOWN;
         break;
@@ -766,7 +784,6 @@ static int sgm41513_get_charger_type(struct sgm41513 *sgm, int *type)
     default:
         chg_type = NONSTANDARD_CHARGER;
         break;
-#endif
     }
 
     /* hs14 code for SR-AL6528A-01-306|SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 start */
@@ -779,10 +796,13 @@ static int sgm41513_get_charger_type(struct sgm41513 *sgm, int *type)
     }
     /* hs14 code for SR-AL6528A-01-306|SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
 
-    *type = chg_type;
+    sgm->psy_usb_type = chg_type;
 
-    return 0;
+    schedule_delayed_work(&sgm->psy_dwork, 0);
+
+    return;
 }
+/* hs14 code for AL6528A-1033 by gaozhengwei at 2022/12/09 end */
 
 /* hs14 code for SR-AL6528A-01-306 by gaozhengwei at 2022/09/06 start */
 static void sgm41513_inform_psy_dwork_handler(struct work_struct *work)
@@ -836,6 +856,13 @@ static irqreturn_t sgm41513_irq_handler(int irq, void *data)
 
     struct sgm41513 *sgm = (struct sgm41513 *)data;
 
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 start */
+    if (sgm->bypass_chgdet_en == true) {
+        pr_err("%s:bypass_chgdet_en=%d, skip bc12\n", __func__, sgm->bypass_chgdet_en);
+        return IRQ_HANDLED;
+    }
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 end */
+
     ret = sgm41513_read_byte(sgm, SGM41513_REG_0A, &reg_val);
     if (ret)
         return IRQ_HANDLED;
@@ -871,10 +898,10 @@ static irqreturn_t sgm41513_irq_handler(int irq, void *data)
     }
     /* hs14 code for AL6528ADEU-28 by gaozhengwei at 2022/09/29 end */
 
-    if (!prev_pg && sgm->power_good) {
-        sgm41513_get_charger_type(sgm, &sgm->psy_usb_type);
-        schedule_delayed_work(&sgm->psy_dwork, 0);
-    }
+    /* hs14 code for AL6528A-1033 by gaozhengwei at 2022/12/09 start */
+    if (!prev_pg && sgm->power_good)
+        schedule_delayed_work(&sgm->charge_detect_delayed_work, 0);
+    /* hs14 code for AL6528A-1033 by gaozhengwei at 2022/12/09 end */
 
     return IRQ_HANDLED;
 
@@ -1016,9 +1043,11 @@ static int sgm41513_init_device(struct sgm41513 *sgm)
     if (ret)
         pr_err("Failed to set acovp threshold, ret = %d\n", ret);
 
+    /* hs14 code for AL6528ADEU-1863 by wenyaqi at 2022/11/03 start */
     ret= sgm41513_disable_safety_timer(sgm);
     if (ret)
         pr_err("Failed to set safety_timer stop, ret = %d\n", ret);
+    /* hs14 code for AL6528ADEU-1863 by wenyaqi at 2022/11/03 end */
 
     ret = sgm41513_set_int_mask(sgm,
                     REG0A_IINDPM_INT_MASK |
@@ -1069,11 +1098,13 @@ static void sgm41513_dump_regs(struct sgm41513 *sgm)
     u8 val;
     int ret;
 
-    for (addr = 0x0; addr <= 0x0E; addr++) {
+    /* hs14 code for AL6528A-1033 by gaozhengwei at 2022/12/09 start */
+    for (addr = 0x0; addr <= 0x0B; addr++) {
         ret = sgm41513_read_byte(sgm, addr, &val);
         if (ret == 0)
             pr_err("Reg[%.2x] = 0x%.2x\n", addr, val);
     }
+    /* hs14 code for AL6528A-1033 by gaozhengwei at 2022/12/09 end */
 }
 
 static ssize_t
@@ -1181,25 +1212,63 @@ static int sgm41513_plug_out(struct charger_device *chg_dev)
     return ret;
 }
 
-/* hs14 code for SR-AL6528A-01-255 by wenyaqi at 2022/10/26 start */
-static int sgm41513_enable_chg_type_det(struct charger_device *chg_dev, bool en)
+/* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 start */
+static int sgm41513_bypass_chgdet(struct charger_device *chg_dev, bool bypass_chgdet_en)
 {
     int ret = 0;
     struct sgm41513 *sgm = dev_get_drvdata(&chg_dev->dev);
 
-    dev_info(sgm->dev, "%s en = %d\n", __func__, en);
-
-    if (en == true) {
-        ret = sgm41513_force_dpdm(sgm);
-    } else {
-        sgm41513_irq_handler(sgm->irq, (void *) sgm);
-    }
-    if (ret < 0)
-        dev_notice(sgm->dev, "%s en bc12 fail(%d)\n", __func__, ret);
+    sgm->bypass_chgdet_en = bypass_chgdet_en;
+    dev_info(sgm->dev, "%s bypass_chgdet_en = %d\n", __func__, bypass_chgdet_en);
 
     return ret;
 }
-/* hs14 code for SR-AL6528A-01-255 by wenyaqi at 2022/10/26 end */
+/* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 end */
+
+/* hs14 code for SR-AL6528A-01-255|P221117-03133 by wenyaqi at 2022/11/24 start */
+static int sgm41513_enable_chg_type_det(struct charger_device *chg_dev, bool en)
+{
+    int ret = 0;
+    struct sgm41513 *sgm = dev_get_drvdata(&chg_dev->dev);
+    union power_supply_propval propval;
+
+    dev_info(sgm->dev, "%s en = %d\n", __func__, en);
+
+    if (!sgm->psy) {
+        sgm->psy = power_supply_get_by_name("charger");
+        if (!sgm->psy) {
+            pr_err("%s Couldn't get psy\n", __func__);
+            return -ENODEV;
+        }
+    }
+
+    if (en == false) {
+        propval.intval = 0;
+    } else {
+        propval.intval = 1;
+    }
+
+    ret = power_supply_set_property(sgm->psy,
+                    POWER_SUPPLY_PROP_ONLINE,
+                    &propval);
+    if (ret < 0)
+        pr_notice("inform power supply online failed:%d\n", ret);
+
+    if (en == false) {
+        propval.intval = CHARGER_UNKNOWN;
+    } else {
+        propval.intval = sgm->psy_usb_type;
+    }
+
+    ret = power_supply_set_property(sgm->psy,
+                    POWER_SUPPLY_PROP_CHARGE_TYPE,
+                    &propval);
+    if (ret < 0)
+        pr_notice("inform power supply charge type failed:%d\n", ret);
+
+    return ret;
+}
+/* hs14 code for SR-AL6528A-01-255|P221117-03133 by wenyaqi at 2022/11/24 end */
 
 static int sgm41513_dump_register(struct charger_device *chg_dev)
 {
@@ -1631,6 +1700,9 @@ static struct charger_ops sgm41513_chg_ops = {
     /* charger type detection */
     .enable_chg_type_det = sgm41513_enable_chg_type_det,
     /* hs14 code for SR-AL6528A-01-255 by wenyaqi at 2022/10/26 end */
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 start */
+    .bypass_chgdet = sgm41513_bypass_chgdet,
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 end */
 };
 
 static struct of_device_id sgm41513_charger_match_table[] = {
@@ -1688,6 +1760,12 @@ static int sgm41513_charger_probe(struct i2c_client *client,
     INIT_DELAYED_WORK(&sgm->psy_dwork, sgm41513_inform_psy_dwork_handler);
     INIT_DELAYED_WORK(&sgm->prob_dwork, sgm41513_inform_prob_dwork_handler);
     /* hs14 code for SR-AL6528A-01-306 by gaozhengwei at 2022/09/06 end */
+    /* hs14 code for AL6528A-1033 by gaozhengwei at 2022/12/09 start */
+    INIT_DELAYED_WORK(&sgm->charge_detect_delayed_work, sgm41513_charger_detect_work_func);
+    /* hs14 code for AL6528A-1033 by gaozhengwei at 2022/12/09 end */
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 start */
+    sgm->bypass_chgdet_en = false;
+    /* hs14 code for P221116-03489 by wenyaqi at 2022/11/23 end */
 
     sgm->platform_data = sgm41513_parse_dt(node, sgm);
 
@@ -1749,9 +1827,12 @@ static int sgm41513_charger_remove(struct i2c_client *client)
 
     sysfs_remove_group(&sgm->dev->kobj, &sgm41513_attr_group);
 
+    /* hs14 code for AL6528A-1033 by gaozhengwei at 2022/12/09 start */
+    cancel_delayed_work_sync(&sgm->charge_detect_delayed_work);
+    /* hs14 code for AL6528A-1033 by gaozhengwei at 2022/12/09 end */
     /* hs14 code for SR-AL6528A-01-306 by gaozhengwei at 2022/09/06 start */
-        cancel_delayed_work_sync(&sgm->prob_dwork);
-        cancel_delayed_work_sync(&sgm->psy_dwork);
+    cancel_delayed_work_sync(&sgm->prob_dwork);
+    cancel_delayed_work_sync(&sgm->psy_dwork);
     /* hs14 code for SR-AL6528A-01-306 by gaozhengwei at 2022/09/06 end */
 
     return 0;
@@ -1759,7 +1840,17 @@ static int sgm41513_charger_remove(struct i2c_client *client)
 
 static void sgm41513_charger_shutdown(struct i2c_client *client)
 {
+    /* hs14 code for AL6528A-1033 by gaozhengwei at 2022/12/09 start */
+    struct sgm41513 *sgm = i2c_get_clientdata(client);
 
+    mutex_destroy(&sgm->i2c_rw_lock);
+
+    sysfs_remove_group(&sgm->dev->kobj, &sgm41513_attr_group);
+
+    cancel_delayed_work_sync(&sgm->charge_detect_delayed_work);
+    cancel_delayed_work_sync(&sgm->prob_dwork);
+    cancel_delayed_work_sync(&sgm->psy_dwork);
+    /* hs14 code for AL6528A-1033 by gaozhengwei at 2022/12/09 end */
 }
 
 static struct i2c_driver sgm41513_charger_driver = {

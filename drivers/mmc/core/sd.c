@@ -791,8 +791,7 @@ try_again:
 			retries--;
 			goto try_again;
 		} else if (err) {
-			retries = 0;
-			goto try_again;
+			return err;
 		}
 	}
 
@@ -1169,8 +1168,12 @@ static int mmc_sd_suspend(struct mmc_host *host)
 
 	err = _mmc_sd_suspend(host);
 	if (!err) {
-		pm_runtime_disable(&host->card->dev);
-		pm_runtime_set_suspended(&host->card->dev);
+		/* hs14 code for AL6528A-453 by gaochao at 20221108 start */
+		if (host->card) {
+			pm_runtime_disable(&host->card->dev);
+			pm_runtime_set_suspended(&host->card->dev);
+		}
+		/* hs14 code for AL6528A-453 by gaochao at 20221108 end */
 	}
 
 	return err;

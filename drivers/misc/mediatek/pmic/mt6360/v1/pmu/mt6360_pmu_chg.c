@@ -649,6 +649,7 @@ static int mt6360_detect_apple_samsung_ta(struct mt6360_pmu_chg_info *mpci)
 		0x0F,
 		0x03
 	);
+	usleep_range(100, 200);
 
 	ret = mt6360_pmu_reg_test_bit(mpci->mpi, MT6360_PMU_DPDM_CTRL2,
 				      4, &dp_0_9v);
@@ -679,6 +680,7 @@ static int mt6360_detect_apple_samsung_ta(struct mt6360_pmu_chg_info *mpci)
 		0x0F,
 		0x0B
 	);
+	usleep_range(100, 200);
 
 	ret = mt6360_pmu_reg_test_bit(mpci->mpi, MT6360_PMU_DPDM_CTRL2,
 				      5, &dp_2_3v);
@@ -692,6 +694,7 @@ static int mt6360_detect_apple_samsung_ta(struct mt6360_pmu_chg_info *mpci)
 		0x0F,
 		0x0F
 	);
+	usleep_range(100, 200);
 
 	ret = mt6360_pmu_reg_test_bit(mpci->mpi, MT6360_PMU_DPDM_CTRL2,
 				      5, &dm_2_3v);
@@ -721,6 +724,8 @@ out:
 		0x0F,
 		0x00
 	);
+	usleep_range(100, 200);
+
 	mt6360_set_usbsw_state(mpci, MT6360_USBSW_USB);
 	return ret;
 }

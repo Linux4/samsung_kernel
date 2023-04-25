@@ -377,8 +377,20 @@
 #define REG7D_KEY3                    0x54
 #define REG7D_KEY4                    0x4C
 
+/* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 start */
+#define SC8960X_REG_80                0x80
+#define REG80_DPDM_SINK_MASK          0x02
+#define REG80_DPDM_SINK_HIGH          0
+/* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
+
 #define SC8960X_REG_81                0x81
 #define REG81_HVDCP_EN_MASK           0x02
+/* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 start */
+#define REG81_DP_DRIVE_MASK           0xE0
+#define REG81_DM_DRIVE_MASK           0x1C
+#define REG81_DP_DRIVE_SHIFT          5
+#define REG81_DM_DRIVE_SHIFT          2
+/* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
 #define REG81_HVDCP_EN_SHIFT          1
 #define REG81_HVDCP_ENABLE            1
 #define REG81_HVDCP_DISABLE           0
@@ -413,6 +425,10 @@
         (0x09 - ((val & 0x80) >> 7))
 
 #define SC8960X_REG_99                0x99
+/* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 start */
+#define REG_99_BC12_enable            0x44
+#define REG_99_BC12_disable           0xC4
+/* hs14 code for AL6528ADEU-2065|AL6528ADEU-2066 by shanxinkai at 2022/11/16 end */
 #define REG99_VAL(val)                \
         (0x4C - ((val & 0x80) >> 4))
 

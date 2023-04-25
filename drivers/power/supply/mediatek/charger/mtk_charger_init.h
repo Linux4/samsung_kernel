@@ -14,6 +14,9 @@
 #define V_CHARGER_DROP 700000 /* 0.7 V */
 /* hs14 code for SR-AL6528A-01-323|AL6528ADEU-580 by gaozhengwei at 2022/10/09 end */
 #define V_CHARGER_MIN 4600000 /* 4.6 V */
+/* hs14 code for AL6528A-604 by gaozhengwei at 2022/11/07 start */
+#define HV_CHARGER_MIN 8000000 /* 8.0 V */
+/* hs14 code for AL6528A-604 by gaozhengwei at 2022/11/07 end */
 
 #define USB_CHARGER_CURRENT_SUSPEND		0 /* def CONFIG_USB_IF */
 #define USB_CHARGER_CURRENT_UNCONFIGURED	70000 /* 70mA */

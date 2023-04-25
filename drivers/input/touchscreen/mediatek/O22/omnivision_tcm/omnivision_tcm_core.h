@@ -121,6 +121,9 @@ struct ovt_tcm_board_data {
 /*hs14 code for AL6528A-16 by hehaoran5 at 20220905 start*/
 #define WAKEUP_GESTURE (1)
 /*hs14 code for AL6528A-16 by hehaoran5 at 20220905 end*/
+/*hs14 code for P221103-05645 by tangzhen at 20221109 start*/
+#define SPEED_UP_RESUME 1
+/*hs14 code for P221103-05645 by tangzhen at 20221109 end*/
 /* The chunk size RD_CHUNK_SIZE/WR_CHUNK_SIZE will not apply in HDL sensors */
 #define RD_CHUNK_SIZE 256 /* read length limit in bytes, 0 = unlimited */
 #define WR_CHUNK_SIZE 256 /* write length limit in bytes, 0 = unlimited */
@@ -562,6 +565,12 @@ struct ovt_tcm_hcd {
     struct ovt_tcm_touch_info touch_info;
     struct ovt_tcm_identification id_info;
     struct ovt_tcm_helper helper;
+/*hs14 code for P221103-05645 by tangzhen at 20221109 start*/
+#if SPEED_UP_RESUME
+    struct work_struct     speed_up_work;
+    struct workqueue_struct *speed_up_resume_workqueue;
+#endif
+/*hs14 code for P221103-05645 by tangzhen at 20221109 end*/
     struct ovt_tcm_watchdog watchdog;
     struct ovt_tcm_features features;
     const struct ovt_tcm_hw_interface *hw_if;

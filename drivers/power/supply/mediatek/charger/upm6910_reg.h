@@ -326,6 +326,13 @@
 #define POWER_DETECT_ICL		2000
 #define POWER_DETECT_VINDPM		4500
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 end */
+/*hs14 code for AL6528ADEU-2064 by lina at 2022/11/17 start */
+#define POWER_FAST_CHARGE_VOLT_RISE	7500
+#define DCD_RETRY_TIMEOUT		5
+/*hs14 code for AL6528ADEU-2064 by lina at 2022/11/17 end */
+/* hs14 code for AL6528ADEU-2768 by qiaodan at 2022/11/25 start */
+#define HIZ_CONTROL_VINDPM		5400
+/* hs14 code for AL6528ADEU-2768 by qiaodan at 2022/11/25 end */
 #endif
 
 

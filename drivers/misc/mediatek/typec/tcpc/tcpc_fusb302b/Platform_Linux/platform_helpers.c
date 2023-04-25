@@ -1073,6 +1073,13 @@ FSC_BOOL fusb_IsDeviceValid(void)
 		pr_err("FUSB  %s - Error: Could not communicate with device over I2C!\n", __func__);
 		return FALSE;
 	}
+	/* hs14 code for SR-AL6528A-01-312 by wenyaqi at 2022/12/12 start */
+	if (val != 0x91) {
+		pr_err("FUSB  %s - Error: ChipId(0x%2x) is wrong\n", __func__, val);
+		return FALSE;
+	}
+	/* hs14 code for SR-AL6528A-01-312 by wenyaqi at 2022/12/12 end */
+
 	pr_info("FUSB %s - FUSB302B ChipId is 0x%2x\n", __func__, val);
 	return TRUE;
 }
@@ -1477,9 +1484,12 @@ struct typec_port *port,
 				core_set_try_src(&chip->port);
 			else
 				core_set_drp(&chip->port);
-			/* hs14 code for SR-AL6528A-01-255 by wenyaqi at 2022/10/26 start */
-			queue_work(chip->highpri_wq, &chip->sm_worker);
-			/* hs14 code for SR-AL6528A-01-255 by wenyaqi at 2022/10/26 end */
+			/* hs14 code for SR-AL6528A-01-255|AL6528ADEU-1931 by wenyaqi at 2022/11/08 start */
+			if (!chip->queued) {
+				chip->queued = TRUE;
+				queue_work(chip->highpri_wq, &chip->sm_worker);
+			}
+			/* hs14 code for SR-AL6528A-01-255|AL6528ADEU-1931 by wenyaqi at 2022/11/08 end */
 		}
 		return 0;
 	}
@@ -1788,6 +1798,9 @@ void handle_core_event(FSC_U32 event, FSC_U8 portId,
 	}
 
 	pr_debug("FUSB %s - Notice, event=0x%x\n", __func__, event);
+	/* hs14 code for AL6528ADEU-1931 by wenyaqi at 2022/12/01 start */
+	mutex_lock(&chip->event_lock);
+	/* hs14 code for AL6528ADEU-1931 by wenyaqi at 2022/12/01 end */
 	switch (event) {
 	case CC1_ORIENT:
 	case CC2_ORIENT:
@@ -1797,7 +1810,12 @@ void handle_core_event(FSC_U32 event, FSC_U8 portId,
 			chip->port.PortConfig = chip->bak_port_config;
 		}
 		if (chip->port.ConnState == AudioAccessory) {
-			chip->partner_desc.accessory = TYPEC_ACCESSORY_AUDIO;
+			/* hs14 code for P221201-05420 by hualei at 2022/12/1 start */
+			if (chip->partner_desc.accessory != TYPEC_ACCESSORY_AUDIO) {
+				chip->partner_desc.accessory = TYPEC_ACCESSORY_AUDIO;
+				fusb_register_partner(chip);
+			}
+			/* hs14 code for P221201-05420 by hualei at 2022/12/1 end */
 		} else {
 			chip->partner_desc.accessory = TYPEC_ACCESSORY_NONE;
 			if (chip->port.sourceOrSink == SINK) {
@@ -1856,6 +1874,12 @@ void handle_core_event(FSC_U32 event, FSC_U8 portId,
 				__func__, event, chip->usb_state);
 		}
 
+		/* hs14 code for P221201-05420 by hualei at 2022/12/1 start */
+		if (chip->partner_desc.accessory == TYPEC_ACCESSORY_AUDIO) {
+			/* disable AudioAccessory connection */
+			chip->partner_desc.accessory = TYPEC_ACCESSORY_NONE;
+		}
+		/* hs14 code for P221201-05420 by hualei at 2022/12/1 end */
 		if (chip->partner) {
 			typec_unregister_partner(chip->partner);
 			chip->partner = NULL;
@@ -1999,6 +2023,9 @@ void handle_core_event(FSC_U32 event, FSC_U8 portId,
 		pr_debug("FUSB - %s:default=0x%x", __func__, event);
 		break;
 	}
+	/* hs14 code for AL6528ADEU-1931 by wenyaqi at 2022/12/01 start */
+	mutex_unlock(&chip->event_lock);
+	/* hs14 code for AL6528ADEU-1931 by wenyaqi at 2022/12/01 end */
 }
 
 static void fusb_apsd_recheck_work(struct work_struct *work)

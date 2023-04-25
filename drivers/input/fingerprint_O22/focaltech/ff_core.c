@@ -82,9 +82,10 @@ ff_context_t *g_ff_ctx;
 /* Log level can be runtime configurable by 'FF_IOC_SYNC_CONFIG'. */
 ff_log_level_t g_ff_log_level = (ff_log_level_t)(__FF_EARLY_LOG_LEVEL);
 
-/*hs14 code for SR-AL6528A-01-271 by zhangziyi at 2022/10/12 start*/
+/*hs14 code for SR-AL6528A-01-271|AL6528A-947 by zhangziyi at 2022/10/12 start*/
 extern int finger_sysfs;
-/*hs14 code for SR-AL6528A-01-271 by zhangziyi at 2022/10/12 end*/
+extern int g_prox_ret;
+/*hs14 code for SR-AL6528A-01-271|AL6528A-947 by zhangziyi at 2022/10/12 end*/
 
 
 #ifdef CONFIG_FINGERPRINT_FOCALTECH_SPI_SUPPORT
@@ -312,6 +313,62 @@ static int ff_register_input(ff_context_t *ff_ctx)
     FF_LOGD("'%s' leave.", __func__);
     return ret;
 }
+/*hs14 code for AL6528A-984 by Wentao at 2022/11/23 start*/
+/*screen on/off callback*/
+#if defined(CONFIG_FB)
+static int fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data)
+{
+    struct fb_event *evdata = data;
+    int *blank = NULL;
+    ff_context_t *ff_ctx = container_of(self, ff_context_t, fb_notif);
+    char *uevent_env[2];
+    bool this_screen_on;
+
+    FF_LOGV("'%s' enter.", __func__);
+    if (!ff_ctx || !evdata) {
+        FF_LOGE("ff_ctx/evdata is null");
+        return NOTIFY_DONE;
+    }
+
+    if (!(event == FB_EARLY_EVENT_BLANK || event == FB_EVENT_BLANK)) {
+        FF_LOGI("event(%lu) do not need process\n", event);
+        return NOTIFY_DONE;
+    }
+
+    blank = evdata->data;
+    FF_LOGD("FB event:%lu,blank:%d", event, *blank);
+    switch (*blank) {
+    case FB_BLANK_UNBLANK:
+        uevent_env[0] = "FF_SCREEN_ON";
+        this_screen_on = true;
+        break;
+    case FB_BLANK_POWERDOWN:
+        uevent_env[0] = "FF_SCREEN_OFF";
+        this_screen_on = false;
+        break;
+    default:
+        FF_LOGI("FB BLANK(%d) do not need process\n", *blank);
+        uevent_env[0] = "FF_SCREEN_??";
+        break;
+    }
+
+    if (ff_ctx->b_screen_onoff_event && (ff_ctx->b_screen_on ^ this_screen_on)) {
+        FF_LOGD("screen:%d->%d", ff_ctx->b_screen_on, this_screen_on);
+        ff_ctx->b_screen_on = this_screen_on;
+        if (ff_ctx->event_type == FF_EVENT_POLL) {
+            ff_ctx->poll_event |= this_screen_on ? FF_POLLEVT_SCREEN_ON : FF_POLLEVT_SCREEN_OFF;
+            wake_up_interruptible(&ff_ctx->wait_queue_head);
+        } else if (ff_ctx->event_type == FF_EVENT_NETLINK) {
+            uevent_env[1] = NULL;
+            kobject_uevent_env(&ff_ctx->fp_dev->kobj, KOBJ_CHANGE, uevent_env);
+        }  else FF_LOGE("unknowed event type:%d", ff_ctx->event_type);
+    }
+
+    FF_LOGV("'%s' leave.", __func__);
+    return NOTIFY_OK;
+}
+#endif
+/*hs14 code for AL6528A-984 by Wentao at 2022/11/23 end*/
 
 static int ff_ctl_init_driver(ff_context_t *ff_ctx)
 {
@@ -356,7 +413,18 @@ static int ff_ctl_init_driver(ff_context_t *ff_ctx)
         FF_LOGE("enable spi clock fails");
         goto err_enable_spiclk;
     }
-
+    /*hs14 code for AL6528A-984 by Wentao at 2022/11/23 start*/
+    if (ff_ctx->b_screen_onoff_event) {
+        ff_ctx->b_screen_on = true;
+#if defined(CONFIG_FB)
+        ff_ctx->fb_notif.notifier_call = fb_notifier_callback;
+        ret = fb_register_client(&ff_ctx->fb_notif);
+        if (ret) {
+            FF_LOGE("Unable to register fb_notifier,ret=%d", ret);
+        }
+#endif
+    }
+    /*hs14 code for AL6528A-984 by Wentao at 2022/11/23 end*/
     ff_ctx->b_driver_inited = true;
     FF_LOGD("'%s' leave.", __func__);
     return 0;
@@ -453,6 +521,14 @@ static int ff_ctl_free_driver(ff_context_t *ff_ctx)
         if (gpio_is_valid(ff_ctx->irq_gpio)) gpio_free(ff_ctx->irq_gpio);
         if (gpio_is_valid(ff_ctx->reset_gpio)) gpio_free(ff_ctx->reset_gpio);
     }
+
+    /*hs14 code for AL6528A-984 by Wentao at 2022/11/23 start*/
+    if (ff_ctx->b_screen_onoff_event) {
+#if defined(CONFIG_FB)
+            fb_unregister_client(&ff_ctx->fb_notif);
+#endif
+        }
+    /*hs14 code for AL6528A-984 by Wentao at 2022/11/23 end*/
 
     ff_ctx->b_driver_inited = false;
     /*hs14 code for SR-AL6528A-01-271 by zhangziyi at 2022/10/12 start*/
@@ -970,17 +1046,28 @@ static void ff_parse_dt(struct device *dev, ff_context_t *ff_ctx)
     ff_ctx->b_spiclk = of_property_read_bool(np, "focaltech_fp,spiclk");
 
     /*check gpios*/
+    /*hs14 code for AL6528A-947 by zhangziyi at 2022/11/21 start*/
     ff_ctx->reset_gpio = of_get_named_gpio(np, "focaltech_fp,reset-gpio", 0);
-    if (!gpio_is_valid(ff_ctx->reset_gpio))
+    if (!gpio_is_valid(ff_ctx->reset_gpio)) {
         FF_LOGD("unable to get ff reset gpio");
+    }
 
     ff_ctx->irq_gpio = of_get_named_gpio(np, "focaltech_fp,irq-gpio", 0);
-    if (!gpio_is_valid(ff_ctx->irq_gpio))
+    if (!gpio_is_valid(ff_ctx->irq_gpio)) {
         FF_LOGD("unable to get ff irq gpio");
+    }
 
-    ff_ctx->vdd_gpio = of_get_named_gpio(np, "focaltech_fp,vdd-gpio", 0);
-    if (!gpio_is_valid(ff_ctx->vdd_gpio))
+    if (g_prox_ret) {
+        ff_ctx->vdd_gpio = of_get_named_gpio(np, "focaltech_fp,vdd-gpio", 0);
+        FF_LOGD("focaltech power_use 107");
+    } else {
+        ff_ctx->vdd_gpio = of_get_named_gpio(np, "focaltech_fp,ldo-gpio", 0);
+        FF_LOGD("focaltech power_use 158");
+    }
+    /*hs14 code for AL6528A-947 by zhangziyi at 2022/11/21 end*/
+    if (!gpio_is_valid(ff_ctx->vdd_gpio)) {
         FF_LOGD("unable to get ff vdd gpio");
+    }
 
     FF_LOGI("irq gpio:%d, reset gpio:%d, vdd gpio:%d", ff_ctx->irq_gpio,
             ff_ctx->reset_gpio, ff_ctx->vdd_gpio);
@@ -1268,60 +1355,6 @@ static int ff_register_device(ff_context_t *ff_ctx)
     return 0;
 }
 
-/*screen on/off callback*/
-#if defined(CONFIG_FB)
-static int fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data)
-{
-    struct fb_event *evdata = data;
-    int *blank = NULL;
-    ff_context_t *ff_ctx = container_of(self, ff_context_t, fb_notif);
-    char *uevent_env[2];
-    bool this_screen_on;
-
-    FF_LOGV("'%s' enter.", __func__);
-    if (!ff_ctx || !evdata) {
-        FF_LOGE("ff_ctx/evdata is null");
-        return NOTIFY_DONE;
-    }
-
-    if (!(event == FB_EARLY_EVENT_BLANK || event == FB_EVENT_BLANK)) {
-        FF_LOGI("event(%lu) do not need process\n", event);
-        return NOTIFY_DONE;
-    }
-
-    blank = evdata->data;
-    FF_LOGD("FB event:%lu,blank:%d", event, *blank);
-    switch (*blank) {
-    case FB_BLANK_UNBLANK:
-        uevent_env[0] = "FF_SCREEN_ON";
-        this_screen_on = true;
-        break;
-    case FB_BLANK_POWERDOWN:
-        uevent_env[0] = "FF_SCREEN_OFF";
-        this_screen_on = false;
-        break;
-    default:
-        FF_LOGI("FB BLANK(%d) do not need process\n", *blank);
-        uevent_env[0] = "FF_SCREEN_??";
-        break;
-    }
-
-    if (ff_ctx->b_screen_onoff_event && (ff_ctx->b_screen_on ^ this_screen_on)) {
-        FF_LOGD("screen:%d->%d", ff_ctx->b_screen_on, this_screen_on);
-        ff_ctx->b_screen_on = this_screen_on;
-        if (ff_ctx->event_type == FF_EVENT_POLL) {
-            ff_ctx->poll_event |= this_screen_on ? FF_POLLEVT_SCREEN_ON : FF_POLLEVT_SCREEN_OFF;
-            wake_up_interruptible(&ff_ctx->wait_queue_head);
-        } else if (ff_ctx->event_type == FF_EVENT_NETLINK) {
-            uevent_env[1] = NULL;
-            kobject_uevent_env(&ff_ctx->fp_dev->kobj, KOBJ_CHANGE, uevent_env);
-        }  else FF_LOGE("unknowed event type:%d", ff_ctx->event_type);
-    }
-
-    FF_LOGV("'%s' leave.", __func__);
-    return NOTIFY_OK;
-}
-#endif
 
 static inline void wakeup_source_prepare(struct wakeup_source *ws, const char *name)
 {
@@ -1406,15 +1439,6 @@ static int ff_probe(struct platform_device *pdev)
     ret = sysfs_create_group(&pdev->dev.kobj, &ff_attrs_group);
     if (ret < 0) FF_LOGE("sysfs_create_group fails");
 
-    if (ff_ctx->b_screen_onoff_event) {
-        ff_ctx->b_screen_on = true;
-#if defined(CONFIG_FB)
-        ff_ctx->fb_notif.notifier_call = fb_notifier_callback;
-        ret = fb_register_client(&ff_ctx->fb_notif);
-        if (ret) FF_LOGE("Unable to register fb_notifier,ret=%d", ret);
-#endif
-    }
-
     platform_set_drvdata(pdev, ff_ctx);
     ff_ctx->b_ff_probe = true;
     g_ff_ctx = ff_ctx;
@@ -1463,11 +1487,6 @@ static void ff_unprobe(ff_context_t *ff_ctx)
 #endif
         cancel_work_sync(&ff_ctx->event_work);
 
-        if (ff_ctx->b_screen_onoff_event) {
-#if defined(CONFIG_FB)
-            fb_unregister_client(&ff_ctx->fb_notif);
-#endif
-        }
     }
     FF_LOGI("'%s' leave.", __func__);
 }
@@ -1496,12 +1515,6 @@ static int ff_remove(struct platform_device *pdev)
         wakeup_source_unregister(ff_ctx->p_ws_ctl);
 #endif
         cancel_work_sync(&ff_ctx->event_work);
-
-        if (ff_ctx->b_screen_onoff_event) {
-#if defined(CONFIG_FB)
-            fb_unregister_client(&ff_ctx->fb_notif);
-#endif
-        }
 
         platform_set_drvdata(pdev, NULL);
         kfree(ff_ctx);

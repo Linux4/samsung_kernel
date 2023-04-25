@@ -973,6 +973,36 @@ int mtk_drm_aod_setbacklight(struct drm_crtc *crtc, unsigned int level)
 	return 0;
 }
 
+int mtk_drm_crtc_hbm_set_lcm(struct drm_crtc *crtc, bool en)
+{
+	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
+	struct mtk_ddp_comp *comp = mtk_ddp_comp_request_output(mtk_crtc);
+	struct cmdq_pkt *cmdq_handle;
+	bool state = false;
+
+	if (!(comp && comp->funcs && comp->funcs->io_cmd))
+		return -EINVAL;
+
+	comp->funcs->io_cmd(comp, NULL, DSI_HBM_GET_STATE, &state);
+	if (state == en)
+		return 0;
+
+	if (!(mtk_crtc->enabled)) {
+		DDPINFO("%s: skip, slept\n", __func__);
+		return -EINVAL;
+	}
+
+	mtk_drm_idlemgr_kick(__func__, crtc, 0);
+
+	DDPINFO("%s:set_lcm hbm en:%d\n", __func__, en);
+
+	mtk_crtc->set_lcm_scn = SET_LCM_HBM_CMD;
+	comp->funcs->io_cmd(comp, cmdq_handle, DSI_HBM_SET_LCM, &en);
+	mtk_crtc->set_lcm_scn = SET_LCM_NONE;
+
+	return 0;
+}
+
 int mtk_drm_crtc_set_panel_hbm(struct drm_crtc *crtc, bool en)
 {
 	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
@@ -1031,8 +1061,7 @@ int mtk_drm_crtc_set_disp_on(struct drm_crtc *crtc)
 {
 	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
 	struct mtk_ddp_comp *comp = mtk_ddp_comp_request_output(mtk_crtc);
-	struct cmdq_pkt *cmdq_handle;
-	bool is_frame_mode;
+
 
 	if (!(comp && comp->funcs && comp->funcs->io_cmd))
 		return -EINVAL;
@@ -1042,34 +1071,11 @@ int mtk_drm_crtc_set_disp_on(struct drm_crtc *crtc)
 		return -EINVAL;
 	}
 
-	mtk_drm_idlemgr_kick(__func__, crtc, 0);
-
 	DDPINFO("%s\n", __func__);
 
-	is_frame_mode = mtk_crtc_is_frame_trigger_mode(&mtk_crtc->base);
-	cmdq_handle =
-		cmdq_pkt_create(mtk_crtc->gce_obj.client[CLIENT_CFG]);
-
-	mtk_crtc_wait_frame_done(mtk_crtc, cmdq_handle, DDP_FIRST_PATH, 0);
-
-	if (is_frame_mode) {
-		cmdq_pkt_clear_event(cmdq_handle,
-				mtk_crtc->gce_obj.event[EVENT_STREAM_BLOCK]);
-		cmdq_pkt_wfe(cmdq_handle,
-				mtk_crtc->gce_obj.event[EVENT_CABC_EOF]);
-	}
-
-	comp->funcs->io_cmd(comp, cmdq_handle, DSI_SET_DISP_ON_CMD, NULL);
-
-	if (is_frame_mode) {
-		cmdq_pkt_set_event(cmdq_handle,
-				mtk_crtc->gce_obj.event[EVENT_CABC_EOF]);
-		cmdq_pkt_set_event(cmdq_handle,
-				mtk_crtc->gce_obj.event[EVENT_STREAM_BLOCK]);
-	}
-
-	cmdq_pkt_flush(cmdq_handle);
-	cmdq_pkt_destroy(cmdq_handle);
+	mtk_crtc->set_lcm_scn = SET_LCM_DISP_ON;
+	comp->funcs->io_cmd(comp, NULL, DSI_SET_DISP_ON_CMD, NULL);
+	mtk_crtc->set_lcm_scn = SET_LCM_NONE;
 
 	return 0;
 }
@@ -2507,7 +2513,7 @@ static void mtk_crtc_update_ddp_state(struct drm_crtc *crtc,
 	int crtc_mask = 0x1 << index;
 	unsigned int prop_lye_idx;
 	unsigned int pan_disp_frame_weight = 4;
-#if defined(CONFIG_MT_ENG_BUILD)
+#if !defined(CONFIG_MT_ENG_BUILD) && !defined(CONFIG_MT_USERDEBUG_BUILD)
 	struct drm_device *dev = crtc->dev;
 #endif
 
@@ -2557,7 +2563,7 @@ static void mtk_crtc_update_ddp_state(struct drm_crtc *crtc,
 						   cmdq_handle);
 #ifndef CONFIG_MTK_DISP_NO_LK
 			if (lyeblob_ids->lye_idx == 2 && !already_free) {
-#if defined(CONFIG_MT_ENG_BUILD)
+#if !defined(CONFIG_MT_ENG_BUILD) && !defined(CONFIG_MT_USERDEBUG_BUILD)
 				/*free fb buf in second query valid*/
 				mtk_drm_fb_gem_release(dev);
 				try_free_fb_buf(dev);
@@ -6416,7 +6422,11 @@ static void mtk_drm_crtc_atomic_flush(struct drm_crtc *crtc,
 		bool hbm_en = false;
 
 		hbm_en = (bool)state->prop_val[CRTC_PROP_HBM_ENABLE];
+#if defined(CUSTOMER_USE_SIMPLE_API)
+		mtk_drm_crtc_hbm_set_lcm(crtc, hbm_en);
+#else
 		mtk_drm_crtc_set_panel_hbm(crtc, hbm_en);
+#endif
 		mtk_drm_crtc_hbm_wait(crtc, hbm_en);
 
 		if (!state->prop_val[CRTC_PROP_DOZE_ACTIVE])
@@ -6459,7 +6469,7 @@ static void mtk_drm_crtc_atomic_flush(struct drm_crtc *crtc,
 	}
 #endif
 
-	if (mtk_crtc->frame_update_cnt == 1)
+	if (mtk_crtc->frame_update_cnt == DISPON_FRAME)
 		mtk_drm_crtc_set_disp_on(crtc);
 	mtk_crtc->frame_update_cnt = (mtk_crtc->frame_update_cnt >= 2) ?
 		mtk_crtc->frame_update_cnt : (mtk_crtc->frame_update_cnt + 1);
@@ -6569,13 +6579,15 @@ static void mtk_drm_crtc_atomic_flush(struct drm_crtc *crtc,
 	}
 
 #ifdef MTK_DRM_CMDQ_ASYNC
+
+	CRTC_MMP_MARK(index, atomic_flush, (unsigned long)cmdq_handle,
+			(unsigned long)cmdq_handle->cmd_buf_size);
+
 	ret = mtk_crtc_gce_flush(crtc, ddp_cmdq_cb, cb_data, cmdq_handle);
 	if (ret) {
 		DDPPR_ERR("mtk_crtc_gce_flush failed!\n");
 		goto end;
 	}
-	CRTC_MMP_MARK(index, atomic_flush, (unsigned long)cmdq_handle,
-			(unsigned long)cmdq_handle->cmd_buf_size);
 #else
 	ret = mtk_crtc_gce_flush(crtc, NULL, NULL, cmdq_handle);
 	if (ret) {

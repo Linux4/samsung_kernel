@@ -67,7 +67,9 @@ static int update_usb_connector_state(void)
 static void vbus_ctrl_state_workq(struct work_struct *work)
 {
 	update_usb_connector_state();
-	schedule_delayed_work(&g_vbus_ctrl->vbus_ctrl_state_work, msecs_to_jiffies(USB_TERMAL_DETECT_TIMER));
+	/* hs14 code for SR-AL6528A-317 by shanxinkai at 2022/11/21 start */
+	queue_delayed_work(system_freezable_wq, &g_vbus_ctrl->vbus_ctrl_state_work, msecs_to_jiffies(USB_TERMAL_DETECT_TIMER));
+	/* hs14 code for SR-AL6528A-317 by shanxinkai at 2022/11/21 end */
 	return;
 }
 
@@ -78,7 +80,9 @@ static void vbus_ctrl_work_init_config(struct vbus_ctrl_dev *g_vbus_ctrl)
 		pr_err("[%s]g_vbus_ctrl is null\n", __func__);
 		return;
 	}
-	schedule_delayed_work(&g_vbus_ctrl->vbus_ctrl_state_work, msecs_to_jiffies(USB_TERMAL_DETECT_TIMER));
+	/* hs14 code for SR-AL6528A-317 by shanxinkai at 2022/11/21 start */
+	queue_delayed_work(system_freezable_wq, &g_vbus_ctrl->vbus_ctrl_state_work, msecs_to_jiffies(USB_TERMAL_DETECT_TIMER));
+	/* hs14 code for SR-AL6528A-317 by shanxinkai at 2022/11/21 end */
 	pr_debug("[%s]ready g_vbus_ctrl\n", __func__);
 }
 

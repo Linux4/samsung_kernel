@@ -600,7 +600,9 @@ page_owner=on loop.max_part=7";
 	};
 
 	infracfg_ao: infracfg_ao@10001000 {
-		compatible = "mediatek,infracfg_ao", "syscon";
+/* hs14 code for AL6528ADEU-2607 by tangyuhang at 2022/11/29 start */
+		compatible = "mediatek,common-infracfg_ao","mediatek,infracfg_ao","syscon";
+/* hs14 code for AL6528ADEU-2607 by tangyuhang at 2022/11/29 end */
 		reg = <0 0x10001000 0 0x1000>;
 		interrupts = <GIC_SPI 71 IRQ_TYPE_EDGE_RISING>;
 		#clock-cells = <1>;
@@ -4277,6 +4279,276 @@ defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
 		pins_cmd3_dat {
 			pinmux = <PINMUX_GPIO143__FUNC_VOW_CLK_MISO>;
 		};
+	};
+
+	input_booster {
+		status = "okay";
+		compatible = "input_booster";
+		resValcount = "2";
+		max_resource_count = "3";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		/* < CPU, DDR, SCHED_BOOST > */
+		ib_release_values = "-1, 16, 0";
+
+		booster_key@1 {
+			input_booster,label = "key";
+			input_booster,type = <0>;	/* BOOSTER_DEVICE_KEY */
+
+			/* Time table */
+			input_booster,head_time = <200>;
+			input_booster,tail_time = <200>;
+
+			/* Resource Table Sequentially identified with index
+			 * CPU's ID & Index : 0
+			 * DDR's ID & Index : 1
+			*/
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1354000 0>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+
+				resource@3 {
+					resource,label = "SCHEDBOOST";
+					resource,value = <0 0>;
+				};
+			};
+		};
+
+		booster_key@2 {
+			input_booster,label = "touchkey";
+			input_booster,type = <1>;	/* BOOSTER_DEVICE_TOUCHKEY */
+
+			/* Time table */
+			input_booster,head_time = <1>;
+			input_booster,tail_time = <300>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <0 1176000>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+
+				resource@3 {
+					resource,label = "SCHEDBOOST";
+					resource,value = <0 0>;
+				};
+			};
+		};
+
+		booster_key@3 {
+			input_booster,label = "touch";
+			input_booster,type = <2>;	/* BOOSTER_DEVICE_TOUCH */
+
+			/* Time table */
+			input_booster,head_time = <130>;
+			input_booster,tail_time = <500>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1354000 1176000>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <3600 3600>;
+				};
+
+				resource@3 {
+					resource,label = "SCHEDBOOST";
+					resource,value = <1 1>;
+				};
+			};
+		};
+
+		booster_key@4 {
+			input_booster,label = "multitouch";
+			input_booster,type = <3>;	/* BOOSTER_DEVICE_MULTITOUCH */
+
+			/* Time table */
+			input_booster,head_time = <1000>;
+			input_booster,tail_time = <500>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1354000 1176000>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+
+				resource@3 {
+					resource,label = "SCHEDBOOST";
+					resource,value = <0 0>;
+				};
+			};
+		};
+
+		booster_key@5 {
+			input_booster,label = "keyboard";
+			input_booster,type = <4>;	/* BOOSTER_DEVICE_KEYBOARD */
+
+			/* Time table */
+			input_booster,head_time = <200>;
+			input_booster,tail_time = <0>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1176000 1176000>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+
+				resource@3 {
+					resource,label = "SCHEDBOOST";
+					resource,value = <0 0>;
+				};
+			};
+		};
+
+		booster_key@6 {
+			input_booster,label = "mouse";
+			input_booster,type = <5>;	/* BOOSTER_DEVICE_MOUSE */
+
+			/* Time table */
+			input_booster,head_time = <200>;
+			input_booster,tail_time = <300>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1354000 1176000>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+
+				resource@3 {
+					resource,label = "SCHEDBOOST";
+					resource,value = <0 0>;
+				};
+			};
+		};
+
+		booster_key@7 {
+			input_booster,label = "mouse_wheel";
+			input_booster,type = <6>;	/* BOOSTER_DEVICE_MOUSE */
+
+			/* Time table */
+			input_booster,head_time = <200>;
+			input_booster,tail_time = <0>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1354000 0>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+
+				resource@3 {
+					resource,label = "SCHEDBOOST";
+					resource,value = <0 0>;
+				};
+			};
+		};
+
+		booster_key@8 {
+			input_booster,label = "pen_hover";
+			input_booster,type = <7>;	/* BOOSTER_DEVICE_MOUSE */
+
+			/* Time table */
+			input_booster,head_time = <200>;
+			input_booster,tail_time = <300>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1354000 1176000>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+
+				resource@3 {
+					resource,label = "SCHEDBOOST";
+					resource,value = <0 0>;
+				};
+			};
+		};
+
+		booster_key@9 {
+			input_booster,label = "pen";
+			input_booster,type = <8>;	/* BOOSTER_DEVICE_MOUSE */
+
+			/* Time table */
+			input_booster,head_time = <200>;
+			input_booster,tail_time = <600>;
+
+			/* Input Booster Resource Frequency */
+			inputbooster,resource {
+				compatible = "resource";
+				resource@1 {
+					resource,label = "CPU";
+					resource,value = <1354000 1176000>;
+				};
+
+				resource@2 {
+					resource,label = "DDR";
+					resource,value = <0 0>;
+				};
+
+				resource@3 {
+					resource,label = "SCHEDBOOST";
+					resource,value = <0 0>;
+				};
+			};
+		};
+		/* If you need to add new key type, add it this position */
 	};
 };
 

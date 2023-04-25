@@ -284,7 +284,17 @@ static ssize_t power_supply_store_property(struct device *dev,
 		break;
 	/*HS03s for SR-AL5625-01-277 by wenyaqi at 20210427 start*/
 #if defined(CONFIG_HQ_PROJECT_O22)
-	//not achieve for now
+	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
+	#ifndef HQ_FACTORY_BUILD	//ss version
+	case POWER_SUPPLY_PROP_STORE_MODE:
+		if (sscanf(buf, "%10d\n", &store_mode) == 1) {
+			ret = store_mode;
+		} else
+			ret = 0;
+		dev_info(dev, "buf:%s store_mode:%d\n", buf, ret);
+		break;
+	#endif
+	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
 #else
 	#ifndef HQ_FACTORY_BUILD	//ss version
 	case POWER_SUPPLY_PROP_STORE_MODE:
@@ -470,6 +480,9 @@ static struct device_attribute power_supply_attrs[] = {
 	/* hs14 code for  SR-AL6528A-01-339 by shanxinkai at 2022/09/30 start*/
 	POWER_SUPPLY_ATTR(charge_status),
 	/* hs14 code for  SR-AL6528A-01-339 by shanxinkai at 2022/09/30 end*/
+	/* hs14 code for SR-AL6528A-445 by shanxinkai at 2022/10/28 start */
+	POWER_SUPPLY_ATTR(dump_charger_ic),
+	/* hs14 code for SR-AL6528A-445 by shanxinkai at 2022/10/28 end */
 /* hs14 code for SR-AL6528A-01-321 by gaozhengwei at 2022/09/22 start */
 #ifdef CONFIG_AFC_CHARGER
 	POWER_SUPPLY_ATTR(hv_charger_status),
@@ -496,7 +509,15 @@ static struct device_attribute power_supply_attrs[] = {
 	/* hs14 code for SR-AL6528A-01-242 by shanxinkai at 2022/10/12 start */
 	POWER_SUPPLY_ATTR(batt_slate_mode),
 	/* hs14 code for SR-AL6528A-01-242 by shanxinkai at 2022/10/12 end */
+	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
+	POWER_SUPPLY_ATTR(store_mode),
+	/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
 #endif
+/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 start */
+#ifdef HQ_FACTORY_BUILD
+	POWER_SUPPLY_ATTR(batt_cap_control),
+#endif
+/* hs14 code for SR-AL6528A-01-244 by shanxinkai at 2022/11/04 end */
 #else
 	// no add new power_supply
 #endif

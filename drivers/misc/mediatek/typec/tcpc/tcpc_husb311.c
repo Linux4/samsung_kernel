@@ -1532,11 +1532,86 @@ static int husb311_tcpcdev_init(struct husb311_chip *chip, struct device *dev)
 #define HUSB311_VID	        0x2e99
 #define HUSB311_PID	        0x0311
 
+/* hs14 code for SR-AL6528A-945 by shanxinkai at 2022/11/21 start */
+/**
+* HUSB311C Register detection,Monitor leakage current.
+*/
+static inline int husb311_cfg_m6_check(struct i2c_client *client)
+{
+	int ret;
+	u8 data = 1;
+	u8 version, cfg_mode;
+	u8 data_table_cnt = 15;
+	u8 data_table[15] = \
+		{0x0,0x0,0x0,0x01,0x99,0x2E,0x11,0x03, \
+		0x00,0x00,0x24,0x0D,0x94,0x6E,0x00};
+
+	// struct husb311_chip *chip = i2c_get_clientdata(client);
+
+	ret = husb311_read_device(client, HUSB311_REG_CF, 1, &version);
+
+	if (ret < 0) {
+		dev_err(&client->dev, "read 0xcf fail(%d)\n", ret);
+		return -EIO;
+	}
+
+	if (version & BIT(7)) {
+		pr_info("%s:chip version [0xCF]=0x%x,HUSB311\n", __func__, version);
+		return 0;
+	} else {
+		pr_info("%s:chip version [0xCF]=0x%x,HUSB311C\n", __func__, version);
+	}
+
+	if ((version != 0xFF) && (version != 0x00)
+		&& ((version == 0x22) || (version == 0x30))) {
+		data = HUSB311_CFG_ENTRY;
+		ret = husb311_write_device(client, HUSB311_CFG_MODE, 1, &data);
+		if (ret < 0)
+			return ret;
+		pr_info("%s, HUSB311_CFG_MODE=0x%02x\n", __func__, data);
+		usleep_range(100, 200);
+
+		ret = husb311_read_device(client, HUSB311_CFG_MODE, 1, &cfg_mode);
+
+		if (ret < 0) {
+			dev_err(&client->dev, "read 0xbf fail(%d)\n", ret);
+			return -EIO;
+		}
+
+		if(cfg_mode != 0x01)
+			return 0;
+		usleep_range(100, 200);
+
+		ret = husb311_write_device(client, HUSB311_CFG_START, data_table_cnt, &data_table);
+
+		if (ret < 0) {
+			dev_err(&client->dev, "write HUSB311_CFG_START fail(%d)\n", ret);
+			return -EIO;
+		}
+		usleep_range(100, 200);
+
+		data = HUSB311_CFG_EXIT;
+		ret = husb311_write_device(client, HUSB311_CFG_MODE, 1, &data);
+
+		if (ret < 0)
+			return ret;
+		pr_info("%s, HUSB311_CFG_MODE=0x%02x\n", __func__, data);
+
+		usleep_range(1000, 2000);
+	}
+
+	return 0;
+}
+/* hs14 code for SR-AL6528A-945 by shanxinkai at 2022/11/21 end */
+
 static inline int husb311_check_revision(struct i2c_client *client)
 {
 	u16 vid, pid, did;
 	int ret;
 	u8 data = 1;
+	/* hs14 code for SR-AL6528A-945 by shanxinkai at 2022/11/21 start */
+	u8 tmp_reg_cd = 0;
+	/* hs14 code for SR-AL6528A-945 by shanxinkai at 2022/11/21 end */
 
 	ret = husb311_read_device(client, TCPC_V10_REG_VID, 2, &vid);
 	if (ret < 0) {
@@ -1560,6 +1635,19 @@ static inline int husb311_check_revision(struct i2c_client *client)
 		pr_info("%s failed, PID=0x%04x\n", __func__, pid);
 		return -ENODEV;
 	}
+
+	/* hs14 code for SR-AL6528A-945 by shanxinkai at 2022/11/21 start */
+	ret = husb311_read_device(client, HUSB311_REG_CD, 1, &tmp_reg_cd);
+	if (ret < 0) {
+		dev_err(&client->dev, "read 0xcd fail(%d)\n", ret);
+	}
+
+	pr_info("%s checking [0xCD]=0x%x\n", __func__, tmp_reg_cd);
+
+	if(tmp_reg_cd & BIT(0)) {
+		husb311_cfg_m6_check(client);
+	}
+	/* hs14 code for SR-AL6528A-945 by shanxinkai at 2022/11/21 end */
 
 	ret = husb311_write_device(client, HUSB311_REG_SWRESET, 1, &data);
 	if (ret < 0)
@@ -1627,7 +1715,10 @@ static int husb311_i2c_probe(struct i2c_client *client,
 	int ret = 0, chip_id;
 	bool use_dt = client->dev.of_node;
 	u8 version;
-
+	/* hs14 code for AL6528A-1013 by lina at 2022/11/30 start */
+	int soft_reset_cnt = 10;
+	u8 data = 1;
+	/* hs14 code for AL6528A-1013 by lina at 2022/11/30 end */
 #ifdef HUSB_GPIO_CFG
 	gpio_direction_output(HUSB_ATTACH_STATUS, 0);
 	gpio_direction_output(HUSB_VCONN_PWR_EN, 0);
@@ -1652,12 +1743,24 @@ static int husb311_i2c_probe(struct i2c_client *client,
 		pr_info("I2C functionality check : failuare...\n");
 
 	chip_id = husb311_check_revision(client);
-	if (chip_id < 0)
-	{
-		pr_err("%s:not match husb311 chiID, remove\n", __func__);
-		husb311_i2c_remove(client);
-		return chip_id;
+	/* hs14 code for AL6528A-1013 by lina at 2022/11/30 start */
+	if (chip_id < 0) {
+		do {
+			soft_reset_cnt--;
+			ret = husb311_write_device(client, HUSB311_REG_SWRESET, 1, &data);
+			usleep_range(1000, 2000);
+			chip_id = husb311_check_revision(client);
+		} while (soft_reset_cnt && (chip_id < 0));
+
+		if (chip_id < 0) {
+			pr_err("%s:not match husb311 chiID, remove,soft_reset_cnt=%d\n", __func__, soft_reset_cnt);
+			husb311_i2c_remove(client);
+			return chip_id;
+		} else {
+			pr_info("%s:soft_reset_cnt=%d\n", __func__, soft_reset_cnt);
+		}
 	}
+	/* hs14 code for AL6528A-1013 by lina at 2022/11/30 end */
 	/* hs14 code for SR-AL6528A-01-312 by wenyaqi at 2022/09/08 end */
 
 #if TCPC_ENABLE_ANYMSG

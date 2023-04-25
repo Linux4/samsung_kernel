@@ -9,7 +9,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-/*hs14 code for SR-AL6528A-01-379|SR-AL6528A-01-742 by duxinqi at 2022/10/12 start*/
+/*hs14 code for SR-AL6528A-01-379|SR-AL6528A-01-742|AL6528A-668 by duxinqi at 2022/11/09 start*/
 /*hs14 code for AL6528A-301 by houxin at 2022/10/14 start*/
 /* I2C device */
 &i2c5{
@@ -37,17 +37,17 @@
         0x801C 0x00000031
         0x8024 0x10000A6E
         0x8028 0x3FFE82D8
-        0x802C 0x10000A76
-        0x8030 0x3FF782C0
-        0x8034 0x10000A6E
+        0x802C 0x10000A5E
+        0x8030 0x3FF78265
+        0x8034 0x10000A5E
         0x8038 0x3FBF82C5
-        0x803C 0x10000A76
+        0x803C 0x10000A5E
         0x8040 0x3DFF82C0
-        0x8044 0x10000A96
+        0x8044 0x10000A5E
         0x8048 0x2FFF84D9
         0x804C 0x0000088E
         0x8050 0x80001EE6
-        0x8054 0x10322F00
+        0x8054 0x10322A00
         0x8058 0x20630030
         0x805C 0x00005300
         0x8060 0x00000000
@@ -63,7 +63,7 @@
         0x8088 0x00000000
         0x808C 0x00000000
         0x8090 0x10302805
-        0x8094 0x10322D05
+        0x8094 0x10322605
         0x8098 0x20630030
         0x809C 0x00005300
         0x80A0 0x00000000
@@ -110,4 +110,4 @@
     };
 };
 /*hs14 code for AL6528A-301 by houxin at 2022/10/14 end*/
-/*hs14 code for SR-AL6528A-01-379|SR-AL6528A-01-742 by duxinqi at 2022/10/08 end*/
+/*hs14 code for SR-AL6528A-01-379|SR-AL6528A-01-742|AL6528A-668 by duxinqi at 2022/11/09 end*/

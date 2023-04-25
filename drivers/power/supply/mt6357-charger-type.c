@@ -226,7 +226,13 @@ static void hw_bc11_init(struct mtk_charger_type *info)
 	int timeout = 200;
 #endif
 	/*HS03s for bugid by wangzikang at 20210731 start*/
+/* hs04 code for AL6398ADEU-199 by shixuanxuan at 20221206 start */
+#ifdef CONFIG_HQ_PROJECT_HS04
+	msleep(300);
+#else
 	msleep(200);
+#endif
+/* hs04 code for AL6398ADEU-199 by shixuanxuan at 20221206 end*/
 	/*HS03s for bugid by wangzikang at 20210731 end*/
 
 	#ifndef HQ_FACTORY_BUILD	//ss version

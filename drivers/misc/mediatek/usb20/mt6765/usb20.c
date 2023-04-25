@@ -1150,6 +1150,12 @@ static void mt_usb_enable(struct musb *musb)
 	/* only for mt6761 */
 	usb_sram_setup();
 #endif
+	/*  hs04 code for BSPAL6398A-41 by shixuanxuan at 20221206 start */
+	#ifdef CONFIG_HQ_PROJECT_HS04
+	USBPHY_SET32(0x68, (0x1 << 18));
+	mdelay(100);
+	#endif
+	/*  hs04 code for BSPAL6398A-41 by shixuanxuan at 20221206 end */
 	usb_phy_recover(musb);
 	/* update musb->power & mtk_usb_power in the same time */
 	musb->power = true;
@@ -1422,13 +1428,17 @@ void do_connection_work(struct work_struct *data)
 				usb_on, mtk_musb->power);
 exit:
 	spin_unlock_irqrestore(&mtk_musb->lock, flags);
+/* hs04_T code for AL6398ADEU-225 by shixuanxuan at 20230113 start */
 #ifdef CONFIG_PHY_MTK_TPHY
 	/* set PHY mode after spinlock released */
+	/*
 	if(phy_mode == PHY_MODE_USB_DEVICE)
 		phy_set_mode(glue->phy, PHY_MODE_USB_DEVICE);
 	else if (phy_mode == PHY_MODE_INVALID)
 		phy_set_mode(glue->phy, PHY_MODE_INVALID);
+	*/
 #endif
+/* hs04_T code for AL6398ADEU-225 by shixuanxuan at 20230113 end */
 #if defined(CONFIG_CABLE_TYPE_NOTIFIER)
 skip:
 #endif

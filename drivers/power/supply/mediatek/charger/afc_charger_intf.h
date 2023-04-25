@@ -95,6 +95,9 @@ struct afc_dev {
 };
 
 /* afc related module interface */
+/* hs14 code for AL6528ADEU-2119 by qiaodan at 2022/11/12 start */
+void afc_set_to_check_chr_type(struct charger_manager *pinfo, bool check);
+/* hs14 code for AL6528ADEU-2119 by qiaodan at 2022/11/12 end */
 extern void afc_set_is_enable(struct charger_manager *pinfo, bool enable);
 extern bool afc_get_is_connect(struct charger_manager *pinfo);
 extern bool afc_get_is_enable(struct charger_manager *pinfo);

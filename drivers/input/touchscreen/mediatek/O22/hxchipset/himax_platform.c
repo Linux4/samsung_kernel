@@ -1062,7 +1062,15 @@ int esd_recovery_notifier_callback(struct notifier_block *self, unsigned long ev
 
     switch (event) {
         case FB_BLANK_UNBLANK:
+/*hs14 code for P221103-05645 by duanyaoming at 20221107 start*/
+#if defined(HX_CONTAINER_SPEED_UP)
+            queue_delayed_work(ts->ts_int_workqueue,
+                &ts->ts_int_work,
+                msecs_to_jiffies(DELAY_TIME));
+#else
             himax_common_resume(ts->dev);
+#endif
+/*hs14 code for P221103-05645 by duanyaoming at 20221107 end*/
             break;
         case FB_BLANK_POWERDOWN:
             himax_common_suspend(ts->dev);

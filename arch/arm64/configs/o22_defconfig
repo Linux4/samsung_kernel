@@ -57,6 +57,7 @@ CONFIG_FW_LOADER_USER_HELPER=y
 CONFIG_FW_LOADER_USER_HELPER_FALLBACK=y
 # CONFIG_FW_CACHE is not set
 CONFIG_ZRAM=y
+CONFIG_KSWAPD_CPU=0x3F
 CONFIG_BLK_DEV_LOOP_MIN_COUNT=16
 CONFIG_ANDROID_DEFAULT_SETTING=y
 CONFIG_MTK_ANDROID_DEFAULT_SETTING=y
@@ -89,13 +90,17 @@ CONFIG_MTK_EXTERNAL_CHARGER_TYPE_DETECT=y
 CONFIG_MTK_PMIC_WRAP_HAL=y
 CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT=y
 CONFIG_MTK_DRM_KEY_MNG_SUPPORT=y
-#hs14 code for SR-AL5628-01-161 Universal macro adaptation by xutengtao at 2022/9/22 start
-CONFIG_CUSTOM_KERNEL_IMGSENSOR="a1401backs5kjn1hlt_mipi_raw a1401fronts5k3l6ly_mipi_raw a1401widehi556wly_mipi_raw a1401macroov02b10ly_mipi_raw a1402backhi5022qxl_mipi_raw a1402frontgc13a0xl_mipi_raw a1402widesc520cstxd_mipi_raw a1402macrosc202cscxt_mipi_raw a1403backhi5022qly_mipi_raw a1403frontsc1301cstxd_mipi_raw a1403wideov05ahlt_mipi_raw a1403macrogc02m1hlt_mipi_raw"
-#hs14 code for SR-AL5628-01-161 Universal macro adaptation by xutengtao at 2022/9/22 end
+#hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 start
+CONFIG_CUSTOM_KERNEL_IMGSENSOR="a1401backs5kjn1hlt_mipi_raw a1401fronts5k3l6ly_mipi_raw a1401widehi556wly_mipi_raw a1401macroov02b10ly_mipi_raw a1402backhi5022qxl_mipi_raw a1402frontgc13a0xl_mipi_raw a1402widesc520cstxd_mipi_raw a1402macrosc202cscxt_mipi_raw a1403backhi5022qly_mipi_raw a1403frontsc1301cstxd_mipi_raw a1403wideov05ahlt_mipi_raw a1403macrogc02m1hlt_mipi_raw a1404backs5kjn1txd_mipi_raw"
+#hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 end
 CONFIG_MTK_LCM=y
 # hs14 code for SR-AL6528A-01-427 by tangzhen at 20220913 start
 CONFIG_CUSTOM_KERNEL_LCM="lcd_hx83112f_txd_boe_mipi_fhd_video lcd_td4375_cw_inx_mipi_fhd_video lcd_jd9522t_xx_boe_mipi_fhd_video lcd_nl9922c_jz_tm_mipi_fhd_video lcd_td4375_txd_jdi_mipi_fhd_video lcd_default_mipi_fhd_video"
 # hs14 code for SR-AL6528A-01-427 by tangzhen at 20220913 end
+
+# hs14 code for SR-AL6528A-01-784 by fengzhigang at 20221201 start
+CONFIG_SWITCH=y
+# hs14 code for SR-AL6528A-01-784 by fengzhigang at 20221201 end
 CONFIG_HQ_SET_LCD_BIAS=y
 CONFIG_HQ_EXT_LCD_BIAS=y
 CONFIG_MTK_SYNC=y
@@ -146,33 +151,43 @@ CONFIG_CUSTOM_KERNEL_STEP_COUNTER=y
 CONFIG_MTK_STEPSIGNHUB=y
 CONFIG_CUSTOM_KERNEL_SITUATION=y
 CONFIG_MTK_STATHUB=y
-CONFIG_MTK_WAKEHUB=y
+#hs14 code for SR-AL6528A-01-779 by xiongxiaoliang at 2022/11/23 start
+# CONFIG_MTK_WAKEHUB is not set
+CONFIG_MTK_WAKE_UP_MOTION=y
+#hs14 code for SR-AL6528A-01-779 by xiongxiaoliang at 2022/11/23 end
 CONFIG_MTK_GLGHUB=y
 CONFIG_MTK_PICKUPHUB=y
-CONFIG_MTK_DEVICE_ORIENTATION_HUB=y
+#hs14 code for P221101-08528 by lichang at 2022/11/02 start
+#CONFIG_MTK_DEVICE_ORIENTATION_HUB is not set
 CONFIG_MTK_MOTION_DETECT_HUB=y
 CONFIG_MTK_TILTDETECTHUB=y
+#hs14 code for SR-AL6528A-01-778 by xiongxiaoliang at 2022/11/26 start
+CONFIG_MTK_SMARTALERT_HUB=y
+#hs14 code for SR-AL6528A-01-778 by xiongxiaoliang at 2022/11/26 end
 CONFIG_CUSTOM_KERNEL_SENSORHUB=y
 CONFIG_NANOHUB=y
 CONFIG_NANOHUB_MTK_IPI=y
-CONFIG_CUSTOM_KERNEL_SENSOR_FUSION=y
+# hs14 code for AL6528A-543 by xiongxiaoliang at 2022/11/06 start
+#CONFIG_CUSTOM_KERNEL_SENSOR_FUSION is not set
+# hs14 code for AL6528A-543 by xiongxiaoliang at 2022/11/06 end
 CONFIG_CUSTOM_KERNEL_GRV_SENSOR=y
 CONFIG_CUSTOM_KERNEL_GMRV_SENSOR=y
 CONFIG_CUSTOM_KERNEL_RV_SENSOR=y
 CONFIG_CUSTOM_KERNEL_LINEARACCEL_SENSOR=y
 CONFIG_CUSTOM_KERNEL_GRAVITY_SENSOR=y
-CONFIG_CUSTOM_KERNEL_UNCALI_ACC_SENSOR=y
+#CONFIG_CUSTOM_KERNEL_UNCALI_ACC_SENSOR is not set
 # CONFIG_CUSTOM_KERNEL_UNCALI_GYRO_SENSOR is not set
-CONFIG_CUSTOM_KERNEL_UNCALI_MAG_SENSOR=y
+#CONFIG_CUSTOM_KERNEL_UNCALI_MAG_SENSOR is not set
 CONFIG_SENSORS=y
 #hs14 code for SR-AL6528A-01-376 by xiongxiaoliang at 2022/09/02 start
 CONFIG_CUSTOM_KERNEL_SAR_SENSOR=y
 CONFIG_INPUT_SX933x=y
 #hs14 code for SR-AL6528A-01-376 by xiongxiaoliang at 2022/09/02 end
-CONFIG_MTK_UNCALI_MAGHUB=y
+#CONFIG_MTK_UNCALI_MAGHUB is not set
 # CONFIG_MTK_UNCALI_GYROHUB is not set
 # hs14 code for SR-AL6528A-01-387 by houxin at 2022/10/17 end
-CONFIG_MTK_UNCALI_ACCHUB=y
+#CONFIG_MTK_UNCALI_ACCHUB is not set
+#hs14 code for P221101-08528 by lichang at 2022/11/02 end
 CONFIG_MTK_CCCI_DEVICES=y
 # hs14 code for AL6528A-48 by yangxinpeng at 2022/9/20 start
 CONFIG_MTK_MD1_SUPPORT=9
@@ -231,6 +246,7 @@ CONFIG_MTK_TINYSYS_SSPM_VERSION="v1"
 
 CONFIG_MTK_MET_PLF=m
 CONFIG_MTPROF=y
+CONFIG_MTK_SCHED_MONITOR=y
 CONFIG_MTK_AEE_HANGDET=y
 CONFIG_MTK_CM_MGR_LEGACY=y
 CONFIG_MTK_VIBRATOR=y
@@ -590,7 +606,7 @@ CONFIG_CHARGER_SC8960X=y
 CONFIG_CHARGER_UPM6910=y
 # hs14 code for SR-AL6528A-01-304 by gaozhengwei at 2022/09/07 end
 #hs14 code for SR-AL6528A-01-305 by shanxinkai at 2022/09/19 start
-#CONFIG_CHARGER_VBUS is not set
+CONFIG_CHARGER_VBUS=y
 #hs14 code for SR-AL6528A-01-305 by shanxinkai at 2022/09/19 end
 #for usb
 CONFIG_TCPC_HUSB311=y
@@ -658,3 +674,7 @@ CONFIG_EXFAT_VIRTUAL_XATTR=y
 # ] SEC_SELINUX_PORTING_COMMON
 
 CONFIG_EROFS_FS=y
+
+# EPDG
+CONFIG_NET_SCH_PRIO=y
+CONFIG_NET_CLS_BASIC=y

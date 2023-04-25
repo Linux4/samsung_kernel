@@ -224,6 +224,7 @@
 
 };
 
+/*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 start*/
 &kd_camera_hw1 {
 	pinctrl-names = "default",
 			"cam0_rst0", "cam0_rst1",
@@ -297,7 +298,7 @@
 	cam2_vcamio-supply = <&mt_pmic_vcamio_ldo_reg>;
 	cam4_vcamio-supply = <&mt_pmic_vcamio_ldo_reg>;
 	cam0_vcamaf-supply = <&mt_pmic_vldo28_ldo_reg>;
-	cam0_enable_sensor = "a1401backs5kjn1hlt_mipi_raw a1402backhi5022qxl_mipi_raw a1403backhi5022qly_mipi_raw";
+	cam0_enable_sensor = "a1401backs5kjn1hlt_mipi_raw a1402backhi5022qxl_mipi_raw a1403backhi5022qly_mipi_raw a1404backs5kjn1txd_mipi_raw";
 	cam1_enable_sensor = "a1401fronts5k3l6ly_mipi_raw a1402frontgc13a0xl_mipi_raw a1403frontsc1301cstxd_mipi_raw";
 	cam2_enable_sensor = "a1401widehi556wly_mipi_raw a1402widesc520cstxd_mipi_raw a1403wideov05ahlt_mipi_raw";
 	cam4_enable_sensor = "a1401macroov02b10ly_mipi_raw a1402macrosc202cscxt_mipi_raw a1403macrogc02m1hlt_mipi_raw";
@@ -306,6 +307,7 @@
 
 };
 /* CAMERA GPIO end */
+/*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 end*/
 /*hs14 code for AL6528A-277 by chenjun at 2022-10-15 end*/
 
 /* CAMERA AF */

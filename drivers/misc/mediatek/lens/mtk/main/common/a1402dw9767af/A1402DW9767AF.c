@@ -99,6 +99,7 @@ static inline int getAFInfo(__user struct stAF_MotorInfo *pstMotorInfo)
 	return 0;
 }
 
+/*hs14 code for SR-AL6528A-01-68 by pengxutao at 2022-11-2 start*/
 static inline int moveAF(unsigned long a_u4Position)
 {
 	int ret = 0;
@@ -111,18 +112,17 @@ static inline int moveAF(unsigned long a_u4Position)
 		unsigned short InitPos;
 		char puSendCmd7[2] = { (char)(0x02), (char)(0x01) };
 		char puSendCmd1[2] = { (char)(0x02), (char)(0x00) };
-		
-		char puSendCmd2[2] = { (char)(0x06), (char)(0x0A) };
+		char puSendCmd2[2] = { (char)(0x06), (char)(0x09) };
 		char puSendCmd3[2] = { (char)(0x07), (char)(0x01) };
-		char puSendCmd4[2] = { (char)(0x08), (char)(0x28) };
-		
+		char puSendCmd4[2] = { (char)(0x08), (char)(0x08) };
+
 		i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puSendCmd7, 2);
 		i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puSendCmd1, 2);
 		msleep(1);
 		i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puSendCmd2, 2);
 		i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puSendCmd3, 2);
 		i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puSendCmd4, 2);
-	
+
 		ret = s4AF_ReadReg(&InitPos);
 
 		if (ret == 0) {
@@ -163,6 +163,7 @@ static inline int moveAF(unsigned long a_u4Position)
 
 	return 0;
 }
+/*hs14 code for SR-AL6528A-01-68 by pengxutao at 2022-11-2 end*/
 
 static inline int setAFInf(unsigned long a_u4Position)
 {

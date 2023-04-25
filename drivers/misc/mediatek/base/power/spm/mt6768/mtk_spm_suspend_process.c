@@ -25,6 +25,9 @@
 
 #define WORLD_CLK_CNTCV_L        (0x10017008)
 #define WORLD_CLK_CNTCV_H        (0x1001700C)
+/* hs14 code for AL6528A-1039 by qiaodan at 2022/12/12 start */
+#define MTK_SUSPEND_GS_DUMP_READY (0)
+/* hs14 code for AL6528A-1039 by qiaodan at 2022/12/12 end */
 
 #ifdef CONFIG_FPGA_EARLY_PORTING
 __attribute__ ((weak))
@@ -83,10 +86,12 @@ static void spm_dump_power_gs_reg(void)
 {
 }
 #endif /* SPM_PMIC_DEBUG */
-
-#if !defined(CONFIG_FPGA_EARLY_PORTING)
+/* hs14 code for AL6528A-1039 by qiaodan at 2022/12/12 start */
+// #if !defined(CONFIG_FPGA_EARLY_PORTING)
+#if MTK_SUSPEND_GS_DUMP_READY
 static int mt_power_gs_dump_suspend_count = 2;
 #endif
+/* hs14 code for AL6528A-1039 by qiaodan at 2022/12/12 end */
 void spm_suspend_pre_process(int cmd, struct pwr_ctrl *pwrctrl)
 {
 #ifdef CONFIG_MTK_TINYSYS_SSPM_SUPPORT
@@ -113,12 +118,13 @@ void spm_suspend_pre_process(int cmd, struct pwr_ctrl *pwrctrl)
 		printk_deferred("[name:spm&][SPM] ret %d", ret);
 	}
 #endif
-
-#if !defined(CONFIG_FPGA_EARLY_PORTING)
+/* hs14 code for AL6528A-1039 by qiaodan at 2022/12/12 start */
+// #if !defined(CONFIG_FPGA_EARLY_PORTING)
+#if MTK_SUSPEND_GS_DUMP_READY
 	if (slp_dump_golden_setting || --mt_power_gs_dump_suspend_count >= 0)
 		mt_power_gs_dump_suspend(slp_dump_golden_setting_type);
 #endif
-
+/* hs14 code for AL6528A-1039 by qiaodan at 2022/12/12 end*/
 	/* dvfsrc_md_scenario_update(1); */
 
 #if SPM_PMIC_DEBUG

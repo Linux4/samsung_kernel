@@ -235,7 +235,14 @@ static int ovt_tcm_get_thr_from_csvfile(void)
     //     strncat(file_path, tcm_hcd->hw_if->bdata->project_id, sizeof(file_path));
     // }
     // strncat(file_path, "cap_limits.csv", sizeof(file_path));
-    snprintf(file_path,sizeof(file_path),"%s",LIMIT_CSV_FILE_PATH);
+    /*hs14 code for AL6528A-819 by hehaoran5 at 20221114 start*/
+    if (tcm_hcd->tp_limits_name == NULL) {
+        printk("ovt tcm csv parser: %s: fail \n", __func__);
+        return -EFAULT;
+    }
+    printk("ovt tcm csv parser filename =%s\n", tcm_hcd->tp_limits_name);
+    snprintf(file_path,sizeof(file_path),"/vendor/firmware/%s",tcm_hcd->tp_limits_name);
+    /*hs14 code for AL6528A-819 by hehaoran5 at 20221114 end*/
 
     app_info = &tcm_hcd->app_info;
     rows = le2_to_uint(app_info->num_of_image_rows);

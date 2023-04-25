@@ -12,6 +12,7 @@
  */
 /*hs14 code for SR-AL6528A-01-60 by caoshiyong at 2022-10-09 start*/
 /*hs14 code for SR-AL6528A-01-88 by hudongdong at 2022-9-15 start*/
+/*hs14 code for SR-AL6528A-01-60 by rongyi at 2022-11-02 start*/
 #include <linux/videodev2.h>
 #include <linux/i2c.h>
 #include <linux/platform_device.h>
@@ -143,6 +144,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.cap_delay_frame = 3,
 	.pre_delay_frame = 3,
 	.video_delay_frame = 3,
+	.frame_time_delay_frame = 1,
 	.hs_video_delay_frame = 3,
 	.slim_video_delay_frame = 3,
 	.custom1_delay_frame = 3,
@@ -350,6 +352,64 @@ static void write_shutter(kal_uint32 shutter)
 		shutter, imgsensor.frame_length);
 }	/*	write_shutter  */
 
+static void set_shutter_frame_length(kal_uint32 shutter, kal_uint16 frame_length)
+{
+	unsigned long flags;
+	kal_uint16 realtime_fps = 0;
+	kal_int32 dummy_line = 0;
+	spin_lock_irqsave(&imgsensor_drv_lock, flags);
+	imgsensor.shutter = shutter;
+	spin_unlock_irqrestore(&imgsensor_drv_lock, flags);
+	spin_lock(&imgsensor_drv_lock);
+
+
+	if (frame_length > 1)
+		dummy_line = frame_length - imgsensor.frame_length;
+	imgsensor.frame_length = imgsensor.frame_length + dummy_line;
+
+
+	if (shutter > imgsensor.frame_length - imgsensor_info.margin)
+		imgsensor.frame_length = shutter + imgsensor_info.margin;
+
+	if (imgsensor.frame_length > imgsensor_info.max_frame_length)
+		imgsensor.frame_length = imgsensor_info.max_frame_length;
+	spin_unlock(&imgsensor_drv_lock);
+
+	shutter = (shutter < imgsensor_info.min_shutter) ?
+		imgsensor_info.min_shutter : shutter;
+	shutter = (shutter >
+		(imgsensor_info.max_frame_length - imgsensor_info.margin)) ?
+		(imgsensor_info.max_frame_length - imgsensor_info.margin) :
+		shutter;
+	if (imgsensor.autoflicker_en) {
+		realtime_fps = imgsensor.pclk * 10 /
+			(imgsensor.line_length * imgsensor.frame_length);
+		if (realtime_fps >= 297 && realtime_fps <= 305)
+			set_max_framerate(296, 0);
+		else if (realtime_fps >= 147 && realtime_fps <= 150)
+			set_max_framerate(146, 0);
+		else{
+		write_cmos_sensor8(0x320e, (imgsensor.frame_length >> 8) & 0xff);
+		write_cmos_sensor8(0x320f, imgsensor.frame_length & 0xFF);
+		}
+
+	} else{
+		// Extend frame length
+		write_cmos_sensor8(0x320e, (imgsensor.frame_length >> 8) & 0xff);
+		write_cmos_sensor8(0x320f, imgsensor.frame_length & 0xFF);
+	}
+
+	// Update Shutter
+	shutter = shutter *2;
+	//write_cmos_sensor8(0x3e20, (shutter >> 20) & 0x0F);
+	write_cmos_sensor8(0x3e00, (shutter >> 12) & 0xFF);
+	write_cmos_sensor8(0x3e01, (shutter >> 4)  & 0xFF);
+	write_cmos_sensor8(0x3e02, (shutter << 4)  & 0xF0);
+
+	pr_debug("Exit! shutter =%d, framelength =%d/%d, dummy_line=%d, \n", shutter,
+		imgsensor.frame_length, frame_length, dummy_line);
+}
+/*	set_shutter_frame_length  */
 /*************************************************************************
  * FUNCTION
  *	set_shutter
@@ -577,6 +637,7 @@ kal_uint16 addr_data_pair_init_sc520cs[] = {
 };
 #endif
 
+/*hs14 code for AL6528ADEU-3497 by pengxutao at 2022/12/12 start*/
 static void sensor_init(void)
 {
 #if MULTI_WRITE
@@ -696,9 +757,11 @@ static void sensor_init(void)
 	write_cmos_sensor8(0x5aed,0x2c);
 	write_cmos_sensor8(0x36e9,0x23);
 	write_cmos_sensor8(0x37f9,0x23);
-
+	write_cmos_sensor8(0x3652,0x33);
+	write_cmos_sensor8(0x3654,0x02);
 #endif
 }
+/*hs14 code for AL6528ADEU-3497 by pengxutao at 2022/12/12 end*/
 
 #if MULTI_WRITE
 kal_uint16 addr_data_pair_preview_sc520cs[] = {
@@ -718,6 +781,7 @@ kal_uint16 addr_data_pair_preview_sc520cs[] = {
 };
 #endif
 
+/*hs14 code for AL6528ADEU-3497 by pengxutao at 2022/12/12 start*/
 static void preview_setting(void)
 {
 #if MULTI_WRITE
@@ -754,8 +818,11 @@ static void preview_setting(void)
 	write_cmos_sensor8(0x440f,0x39);
 	write_cmos_sensor8(0x5000,0x0e);
 	write_cmos_sensor8(0x5901,0x00);
+	write_cmos_sensor8(0x3652,0x33);
+	write_cmos_sensor8(0x3654,0x02);
 #endif
 }
+/*hs14 code for AL6528ADEU-3497 by pengxutao at 2022/12/12 end*/
 
 #if MULTI_WRITE
 kal_uint16 addr_data_pair_capture_fps_sc520cs[] = {
@@ -792,7 +859,7 @@ kal_uint16 addr_data_pair_capture_30fps_sc520cs[] = {
 };
 #endif
 
-
+/*hs14 code for AL6528ADEU-3497 by pengxutao at 2022/12/12 start*/
 static void capture_setting(kal_uint16 currefps)
 {
 #if MULTI_WRITE
@@ -838,7 +905,9 @@ static void capture_setting(kal_uint16 currefps)
 	write_cmos_sensor8(0x440e,0x22);
 	write_cmos_sensor8(0x440f,0x39);
 	write_cmos_sensor8(0x5000,0x0e);
-	write_cmos_sensor8(0x5901,0x00); 
+	write_cmos_sensor8(0x5901,0x00);
+	write_cmos_sensor8(0x3652,0x33);
+	write_cmos_sensor8(0x3654,0x02);
 	} else	{
 		LOG_INF("capture_setting fps not 300\n");
     write_cmos_sensor8(0x0100,0x00);
@@ -855,10 +924,13 @@ static void capture_setting(kal_uint16 currefps)
 	write_cmos_sensor8(0x3208,0x0a);
 	write_cmos_sensor8(0x3209,0x20);
 	write_cmos_sensor8(0x3211,0x04);
+	write_cmos_sensor8(0x3652,0x33);
+	write_cmos_sensor8(0x3654,0x02);
 
 	}
 #endif
 }
+/*hs14 code for AL6528ADEU-3497 by pengxutao at 2022/12/12 end*/
 
 #if MULTI_WRITE
 kal_uint16 addr_data_pair_normal_video_sc520cs[] = {
@@ -1675,6 +1747,7 @@ static kal_uint32 get_info(enum MSDK_SCENARIO_ID_ENUM scenario_id,
 		imgsensor_info.ae_sensor_gain_delay_frame;
 	sensor_info->AEISPGainDelayFrame =
 		imgsensor_info.ae_ispGain_delay_frame;
+	sensor_info->FrameTimeDelayFrame = imgsensor_info.frame_time_delay_frame;
 	sensor_info->IHDR_Support = imgsensor_info.ihdr_support;
 	sensor_info->IHDR_LE_FirstLine =
 		imgsensor_info.ihdr_le_firstline;
@@ -2086,7 +2159,7 @@ static kal_uint32 streaming_control(kal_bool enable)
 	mdelay(10);
 	return ERROR_NONE;
 }
-
+/*hs14 code for SR-AL6528A-01-60 by jianghongyan at 2022-11-16 start*/
 static kal_uint32 feature_control(
 			MSDK_SENSOR_FEATURE_ENUM feature_id,
 			UINT8 *feature_para, UINT32 *feature_para_len)
@@ -2214,17 +2287,17 @@ static kal_uint32 feature_control(
 	    *feature_para_len = 4;
 	break;
 	case SENSOR_FEATURE_SET_FRAMERATE:
-	    LOG_INF("current fps :%d\n", (UINT32)*feature_data);
-	    spin_lock(&imgsensor_drv_lock);
-	    imgsensor.current_fps = *feature_data;
-	    spin_unlock(&imgsensor_drv_lock);
-	break;
+		LOG_INF("current fps :%d\n", *feature_data_32);
+		spin_lock(&imgsensor_drv_lock);
+		imgsensor.current_fps = (UINT16)*feature_data_32;
+		spin_unlock(&imgsensor_drv_lock);
+		break;
 
 	case SENSOR_FEATURE_SET_HDR:
-	    LOG_INF("ihdr enable :%d\n", (BOOL)*feature_data);
-	    spin_lock(&imgsensor_drv_lock);
-	    imgsensor.ihdr_en = (BOOL)*feature_data;
-	    spin_unlock(&imgsensor_drv_lock);
+		LOG_INF("hdr enable :%d\n", *feature_data_32);
+		spin_lock(&imgsensor_drv_lock);
+		imgsensor.ihdr_en = (BOOL)*feature_data_32;
+		spin_unlock(&imgsensor_drv_lock);
 	break;
 	case SENSOR_FEATURE_GET_CROP_INFO:
 	    LOG_INF("SENSOR_FEATURE_GET_CROP_INFO scenarioId:%d\n",
@@ -2407,10 +2480,15 @@ static kal_uint32 feature_control(
 		*feature_return_para_i32 = 0;
 		*feature_para_len = 4;
 	break;
+	case SENSOR_FEATURE_SET_SHUTTER_FRAME_TIME:
+		set_shutter_frame_length((UINT16) *feature_data, (UINT16) *(feature_data + 1));
+	break;
 	case SENSOR_FEATURE_SET_STREAMING_SUSPEND:
+		pr_debug("SENSOR_FEATURE_SET_STREAMING_SUSPEND\n");
 		streaming_control(KAL_FALSE);
 	break;
 	case SENSOR_FEATURE_SET_STREAMING_RESUME:
+		pr_debug("SENSOR_FEATURE_SET_STREAMING_RESUME, shutter:%llu\n", *feature_data);
 		if (*feature_data != 0)
 			set_shutter(*feature_data);
 		streaming_control(KAL_TRUE);
@@ -2421,7 +2499,7 @@ static kal_uint32 feature_control(
 
 	return ERROR_NONE;
 }    /*    feature_control()  */
-
+/*hs14 code for SR-AL6528A-01-60 by jianghongyan at 2022-11-16 end*/
 static struct SENSOR_FUNCTION_STRUCT sensor_func = {
 	open,
 	get_info,
@@ -2441,3 +2519,4 @@ UINT32 A1402WIDESC520CSTXD_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **p
 
 /*hs14 code for SR-AL6528A-01-88 by hudongdong at 2022-9-15 end*/
 /*hs14 code for SR-AL6528A-01-60 by caoshiyong at 2022-10-09 end*/
+/*hs14 code for SR-AL6528A-01-60 by rongyi at 2022-11-02 end*/

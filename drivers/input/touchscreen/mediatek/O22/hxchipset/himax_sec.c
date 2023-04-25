@@ -29,7 +29,9 @@ static void get_fw_ver_bin(void *device_data)
     struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
     printk("%s:  \n", __func__);
     sec_cmd_set_default_result(sec);
-    snprintf(buff, sizeof(buff), "HXTP_BIN=%x",ic_data->vendor_fw_ver);
+    /*hs14 code for AL6528A-1034 by zhangxiongyi at 20221208 start*/
+    snprintf(buff, sizeof(buff), "HXTP_BIN=%x",ic_data->vendor_touch_cfg_ver & 0xFF);
+    /*hs14 code for AL6528A-1034 by zhangxiongyi at 20221208 end*/
     sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
     sec->cmd_state = SEC_CMD_STATUS_OK;
     printk("%s: %s\n", __func__, buff);

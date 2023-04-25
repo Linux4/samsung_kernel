@@ -549,6 +549,7 @@ static void night_mode(kal_bool enable)
 /*No Need to implement this function*/ 
 }	/*	night_mode	*/
 /*hs14 code for SR-AL6528A-146 by liluling at 2022-10-8 start*/
+/*hs14 code for AL6528ADEU-3530 by pengxutao at 2022-12-14 start*/
 kal_uint16 addr_data_pair_init_hi556[] = {
 //0x0a00, 0x0000, // stream off
 0x0e00, 0x0102,
@@ -716,8 +717,8 @@ kal_uint16 addr_data_pair_init_hi556[] = {
 0x0f32, 0x7067,
 0x0954, 0x0009,
 0x0956, 0x0000,
-0x0958, 0xda80,
-0x095a, 0x5140,
+0x0958, 0xf980,
+0x095a, 0x5340,
 0x0c00, 0x1110,
 0x0c02, 0x0011,
 0x0c04, 0x0000,
@@ -834,7 +835,7 @@ kal_uint16 addr_data_pair_preview_hi556[] = {
 	0x091a, 0x0c0d,
 	0x091c, 0x0f09,
 	0x091e, 0x0a00,
-	0x0958, 0xda80,
+	0x0958, 0xf980,
 };
 
 
@@ -899,7 +900,7 @@ kal_uint16 addr_data_pair_capture_30fps_hi556[] = {
 	0x091a, 0x0c0d,
 	0x091c, 0x0f09,
 	0x091e, 0x0a00,
-	0x0958, 0xda80,
+	0x0958, 0xf980,
 };
 
 static void capture_setting(kal_uint16 currefps)
@@ -962,7 +963,7 @@ kal_uint16 addr_data_pair_normal_video_hi556[] = {
 	0x091a, 0x0c0d,
 	0x091c, 0x0f09,
 	0x091e, 0x0a00,
-	0x0958, 0xda80,
+	0x0958, 0xf980,
 };
 
 static void normal_video_setting(void)
@@ -1025,7 +1026,7 @@ kal_uint16 addr_data_pair_hs_video_hi556[] = {
 	0x091c, 0x0e06,
 	0x091a, 0x0708,
 	0x091e, 0x0300,
-	0x0958, 0xda80,
+	0x0958, 0xf980,
 };
 
 static void hs_video_setting(void)
@@ -1088,7 +1089,7 @@ kal_uint16 addr_data_pair_slim_video_hi556[] = {
 	0x091a, 0x0708,
 	0x091c, 0x0e06,
 	0x091e, 0x0300,
-	0x0958, 0xda80,
+	0x0958, 0xf980,
 };
 /*hs14 code for SR-AL6528A-146 by liluling at 2022-10-8 end */
 static void slim_video_setting(void)
@@ -1149,7 +1150,7 @@ kal_uint16 addr_data_pair_custom1_hi556[] = {
     0x091a, 0x0c0d,
     0x091c, 0x0f09,
     0x091e, 0x0a00,
-    0x0958, 0xbb80,
+    0x0958, 0xf980,
 };
 static void custom1_setting(void)
 {
@@ -1210,7 +1211,7 @@ kal_uint16 addr_data_pair_custom2_hi556[] = {
 	0x091c, 0x0e06,
 	0x091a, 0x0708,
 	0x091e, 0x0300,
-	0x0958, 0xda80,
+	0x0958, 0xf980,
 };
 
 static void custom2_setting(void)
@@ -1273,8 +1274,9 @@ kal_uint16 addr_data_pair_custom3_hi556[] = {
 	0x091a, 0x0708,
 	0x091c, 0x0e06,
 	0x091e, 0x0300,
-	0x0958, 0xda80,
+	0x0958, 0xf980,
 };
+/*hs14 code for AL6528ADEU-3530 by pengxutao at 2022-12-14 end*/
 
 static void custom3_setting(void)
 {
@@ -1994,7 +1996,7 @@ static kal_uint32 streaming_control(kal_bool enable)
 		write_cmos_sensor(0x0a00, 0x0000);  //stream off
 	return ERROR_NONE;
 }
-
+/*hs14 code for P221208-03106 by jianghongyan at 2022-12-12 start*/
 static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
                              UINT8 *feature_para,UINT32 *feature_para_len)
 {
@@ -2075,17 +2077,16 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
             *feature_return_para_32 = imgsensor_info.checksum_value;
             *feature_para_len=4;
             break;
-        case SENSOR_FEATURE_SET_FRAMERATE:
-            LOG_INF("current fps :%d\n", (UINT32)*feature_data);
-            spin_lock(&imgsensor_drv_lock);
-            imgsensor.current_fps = *feature_data;
-            spin_unlock(&imgsensor_drv_lock);
-            break;
-
+     case SENSOR_FEATURE_SET_FRAMERATE:
+		LOG_INF("current fps :%d\n", *feature_data_32);
+		spin_lock(&imgsensor_drv_lock);
+		imgsensor.current_fps = (UINT16)*feature_data_32;
+		spin_unlock(&imgsensor_drv_lock);
+     break;
         case SENSOR_FEATURE_SET_HDR:
-            LOG_INF("ihdr enable :%d\n", (BOOL)*feature_data);
+            LOG_INF("ihdr enable :%d\n", *feature_data_32);
             spin_lock(&imgsensor_drv_lock);
-            imgsensor.ihdr_en = (BOOL)*feature_data;
+            imgsensor.ihdr_en = (BOOL)*feature_data_32;
             spin_unlock(&imgsensor_drv_lock);
             break;
         case SENSOR_FEATURE_GET_CROP_INFO:
@@ -2120,6 +2121,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
                     memcpy((void *)wininfo,(void *)&imgsensor_winsize_info[0],sizeof(struct SENSOR_WINSIZE_INFO_STRUCT));
                     break;
             }
+			break;
         case SENSOR_FEATURE_SET_IHDR_SHUTTER_GAIN:
             LOG_INF("SENSOR_SET_SENSOR_IHDR LE=%d, SE=%d, Gain=%d\n",(UINT16)*feature_data,(UINT16)*(feature_data+1),(UINT16)*(feature_data+2));
             //ihdr_write_shutter_gain((UINT16)*feature_data,(UINT16)*(feature_data+1),(UINT16)*(feature_data+2));
@@ -2307,7 +2309,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 	}
     return ERROR_NONE;
 }    /*    feature_control()  */
-
+/*hs14 code for P221208-03106 by jianghongyan at 2022-12-12 end*/
 static struct SENSOR_FUNCTION_STRUCT sensor_func = {
 	open,
 	get_info,

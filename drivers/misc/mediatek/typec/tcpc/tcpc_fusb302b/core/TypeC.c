@@ -60,10 +60,12 @@ void StateMachineTypeC(struct Port *port)
 			*/
 		DeviceRead(port->I2cAddr, regInterrupta, 5,
 					&port->Registers.Status.byte[2]);
-		pr_info("FUSB bytes inta=%2x, intb=%2x, s0=%2x, s1=%2x, int=%2x\n",
+		/* hs14 code for AL6528ADEU-3900 by wenyaqi at 2023/01/06 start */
+		pr_info("FUSB bytes inta=%2x, intb=%2x, s0=%2x, s1=%2x, int=%2x, ConnState=%d\n",
 			port->Registers.Status.byte[2],port->Registers.Status.byte[3],
 			port->Registers.Status.byte[4],port->Registers.Status.byte[5],
-			port->Registers.Status.byte[6]);
+			port->Registers.Status.byte[6],port->ConnState);
+		/* hs14 code for AL6528ADEU-3900 by wenyaqi at 2023/01/06 end */
 	}
 
 	if (port->USBPDActive)
@@ -975,6 +977,12 @@ void StateMachineTryWaitSource(struct Port *port)
 	port->TCIdle = TRUE;
 
 	debounceCC(port);
+/* hs14 code for AL6528ADEU-3900 by wenyaqi at 2023/01/06 start */
+#ifdef HQ_FACTORY_BUILD
+	pr_info("FUSB TryWaitSource: CCTermPDDebounce=%d,VCONNTerm=%d,CCTerm=%d\n",
+		port->CCTermPDDebounce, port->VCONNTerm, port->CCTerm);
+#endif
+/* hs14 code for AL6528ADEU-3900 by wenyaqi at 2023/01/06 end */
 
 	//if (VbusVSafe0V(port))
 	if(!isVBUSOverVoltage(port, VBUS_MV_VSAFE0V + VBUS_MV_VSAFE0V))
@@ -1160,7 +1168,10 @@ void SetStateUnattached(struct Port *port)
 		port->Registers.Control.MODE = 0x2;
 	}
 
-	port->Registers.Control.TOG_RD_ONLY = 1;
+	/* hs14 code for P221201-05420 by hualei at 2022/12/1 start */
+	// port->Registers.Control.TOG_RD_ONLY = 1;
+	/* hs14 code for P221201-05420 by hualei at 2022/12/1 end */
+
 	/* Delay before re-enabling toggle */
 	platform_delay_10us(25);
 	port->Registers.Control.TOGGLE = 1;
@@ -1227,6 +1238,11 @@ void SetStateDebugAccessorySink(struct Port *port)
 
 	SetTypeCState(port, DebugAccessorySink);
 	setStateSink(port);
+
+	/* hs14 code for AL6528ADEU-3679 by gaozhengwei at 2022/12/20 start */
+	notify_observers((port->CCPin == CC1) ? CC1_ORIENT : CC2_ORIENT,
+		port->I2cAddr, 0);
+	/* hs14 code for AL6528ADEU-3679 by gaozhengwei at 2022/12/20 end */
 
 	port->Registers.Measure.MEAS_VBUS = 1;
 	port->Registers.Measure.MDAC = (port->DetachThreshold / MDAC_MV_LSB) - 1;

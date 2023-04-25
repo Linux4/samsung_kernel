@@ -249,7 +249,7 @@ struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[MAX_NUM_OF_SUPPORT_SENSOR] = {
 #endif
 /*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 end*/
 #ifdef CONFIG_HQ_PROJECT_O22
-    /*hs14 code for SR-AL5628-01-161 Universal macro adaptation by xutengtao at 2022/9/22 start*/
+    /*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 start*/
     //1 supply
     #if defined(A1401BACKS5KJN1HLT_MIPI_RAW)
         {A1401BACKS5KJN1HLT_SENSOR_ID,
@@ -313,7 +313,13 @@ struct IMGSENSOR_INIT_FUNC_LIST kdSensorList[MAX_NUM_OF_SUPPORT_SENSOR] = {
         SENSOR_DRVNAME_A1403MACROGC02M1HLT_MIPI_RAW,
         A1403MACROGC02M1HLT_MIPI_RAW_SensorInit},
     #endif
-/*hs14 code for SR-AL5628-01-161 Universal macro adaptation by xutengtao at 2022/9/22 end*/
+    //4 supply
+    #if defined(A1404BACKS5KJN1TXD_MIPI_RAW)
+        {A1404BACKS5KJN1TXD_SENSOR_ID,
+        SENSOR_DRVNAME_A1404BACKS5KJN1TXD_MIPI_RAW,
+        A1404BACKS5KJN1TXD_MIPI_RAW_SensorInit},
+    #endif
+/*hs14 code for AL6528ADEU-2675 by pengxutao at 2022/11/18 end*/
 #endif
 /*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
 

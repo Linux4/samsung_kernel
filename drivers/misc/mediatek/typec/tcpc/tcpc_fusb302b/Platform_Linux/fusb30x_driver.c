@@ -79,11 +79,12 @@ static int fusb302_i2c_suspend(struct device* dev)
 }
 
 /* hs14 code for SR-AL6528A-01-322|AL6528ADEU-342 by wenyaqi at 2022/10/12 start */
-// static void fusb_delay_init_work(struct work_struct *work)
-// {
-// 	fusb_InitializeCore();
-// }
-
+/* hs14 code for AL6528ADEU-2820 by lina at 2022/11/23 start */
+static void fusb_delay_attach_check_work(struct work_struct *work)
+{
+	fusb_InitializeCore();
+}
+/* hs14 code for AL6528ADEU-2820 by lina at 2022/11/23 end */
 enum dual_role_property fusb_drp_properties[] = {
 	DUAL_ROLE_PROP_SUPPORTED_MODES,
 	DUAL_ROLE_PROP_MODE,
@@ -262,6 +263,9 @@ static int fusb30x_probe(struct i2c_client* client,
 
 	/* Initialize the chip lock */
 	mutex_init(&chip->lock);
+	/* hs14 code for AL6528ADEU-1931 by wenyaqi at 2022/12/01 start */
+	mutex_init(&chip->event_lock);
+	/* hs14 code for AL6528ADEU-1931 by wenyaqi at 2022/12/01 end */
 
 	/* Initialize the chip's data members */
 	fusb_InitChipData();
@@ -397,12 +401,12 @@ END_USB_ROLE_SWITCH:
 
 	/* Initialize the core and enable the state machine (NOTE: timer and GPIO must be initialized by now)
 	*  Interrupt must be enabled before starting 302 initialization */
-	fusb_InitializeCore();
-	// INIT_DELAYED_WORK(&chip->delay_init_work, fusb_delay_init_work);
-	// schedule_delayed_work(&chip->delay_init_work, msecs_to_jiffies(4*1000));
+	/* hs14 code for AL6528ADEU-2820 by lina at 2022/11/23 start */
+	INIT_DELAYED_WORK(&chip->delay_attach_check_work, fusb_delay_attach_check_work);
+	schedule_delayed_work(&chip->delay_attach_check_work, msecs_to_jiffies(3*1000));
 	/* hs14 code for SR-AL6528A-01-322|AL6528ADEU-342 by wenyaqi at 2022/10/12 end */
-	pr_debug("FUSB  %s - Core is initialized!\n", __func__);
-
+	//pr_debug("FUSB  %s - Core is initialized!\n", __func__);
+	/* hs14 code for AL6528ADEU-2820 by lina at 2022/11/23 end */
 	/* hs14 code for SR-AL6528A-01-300 by wenyaqi at 2022/09/11 start */
 	chip->dev = &client->dev;
 	chip->psd.name = "typec_port";
@@ -461,7 +465,9 @@ static void fusb30x_shutdown(struct i2c_client *client)
 		pr_err("FUSB shutdown - Chip structure is NULL!\n");
 		return;
 	}
-
+	/* hs14 code for AL6528A-1048 by wenyaqi at 2022/12/27 start */
+	chip->typec_port = NULL;
+	/* hs14 code for AL6528A-1048 by wenyaqi at 2022/12/27 end */
 	core_enable_typec(&chip->port, false);
 	ret = DeviceWrite(chip->port.I2cAddr, regControl3, length, &data);
 	if (ret != 0)

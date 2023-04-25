@@ -47,8 +47,9 @@
 #define SENSOR_TYPE_ADDITIONAL_INFO                    33
 #define SENSOR_TYPE_LOW_LATENCY_OFFBODY_DETECT         34
 #define SENSOR_TYPE_ACCELEROMETER_UNCALIBRATED         35
-
-
+/*hs14 code for SR-AL6528A-01-779 by xiongxiaoliang at 2022/11/23 start*/
+#define SENSOR_TYPE_WAKE_UP_MOTION                     36
+/*hs14 code for SR-AL6528A-01-779 by xiongxiaoliang at 2022/11/23 end*/
 /* follow mtk add sensor type */
 #define SENSOR_TYPE_PEDOMETER                          55
 #define SENSOR_TYPE_IN_POCKET                          56
@@ -68,8 +69,10 @@
 #define SENSOR_TYPE_RGBW                               70
 #define SENSOR_TYPE_GYRO_TEMPERATURE                   71
 #define SENSOR_TYPE_SAR                                72
+/*hs14 code for SR-AL6528A-01-778 by xiongxiaoliang at 2022/11/26 start*/
+#define SENSOR_TYPE_SMART_ALERT                        73
 /* end sensor type */
-#define SENSOR_TYPE_MAX_NUM                            SENSOR_TYPE_SAR
+#define SENSOR_TYPE_MAX_NUM                            SENSOR_TYPE_SMART_ALERT
 #define SENSOR_TYPE_MAX_NUM_PLUS_ONE                   (SENSOR_TYPE_MAX_NUM + 1)
 
 /*---------------------------------------------------------------------------*/
@@ -120,8 +123,9 @@
 		(ID_BASE + SENSOR_TYPE_LOW_LATENCY_OFFBODY_DETECT - 1)
 #define ID_ACCELEROMETER_UNCALIBRATED   \
 		(ID_BASE + SENSOR_TYPE_ACCELEROMETER_UNCALIBRATED - 1)
-
-
+/*hs14 code for SR-AL6528A-01-779 by xiongxiaoliang at 2022/11/23 start*/
+#define ID_WAKE_UP_MOTION       (ID_BASE + SENSOR_TYPE_WAKE_UP_MOTION - 1)
+/*hs14 code for SR-AL6528A-01-779 by xiongxiaoliang at 2022/11/23 end*/
 /* follow mtk add sensor ID */
 #define ID_PEDOMETER            (ID_BASE + SENSOR_TYPE_PEDOMETER - 1)
 #define ID_IN_POCKET            (ID_BASE + SENSOR_TYPE_IN_POCKET - 1)
@@ -141,8 +145,10 @@
 #define ID_RGBW                 (ID_BASE + SENSOR_TYPE_RGBW - 1)
 #define ID_GYRO_TEMPERATURE     (ID_BASE + SENSOR_TYPE_GYRO_TEMPERATURE - 1)
 #define ID_SAR                  (ID_BASE + SENSOR_TYPE_SAR - 1)
+#define ID_SMART_ALERT          (ID_BASE + SENSOR_TYPE_SMART_ALERT - 1)
 /* end sensor ID */
-#define ID_SENSOR_MAX_HANDLE    (ID_SAR)
+#define ID_SENSOR_MAX_HANDLE    (ID_SMART_ALERT)
+/*hs14 code for SR-AL6528A-01-778 by xiongxiaoliang at 2022/11/26 end*/
 #define ID_SENSOR_MAX_HANDLE_PLUS_ONE    (ID_SENSOR_MAX_HANDLE + 1)
 
 #if (ID_SENSOR_MAX_HANDLE_PLUS_ONE != SENSOR_TYPE_MAX_NUM)

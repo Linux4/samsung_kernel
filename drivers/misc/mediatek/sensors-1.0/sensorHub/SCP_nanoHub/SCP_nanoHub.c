@@ -917,6 +917,22 @@ static void SCP_sensorHub_init_sensor_state(void)
 
 	mSensorState[SENSOR_TYPE_SAR].sensorType = SENSOR_TYPE_SAR;
 	mSensorState[SENSOR_TYPE_SAR].timestamp_filter = false;
+/*hs14 code for SR-AL6528A-01-779 by xiongxiaoliang at 2022/11/23 start*/
+#ifdef CONFIG_MTK_WAKE_UP_MOTION
+	mSensorState[SENSOR_TYPE_WAKE_UP_MOTION].sensorType =
+		SENSOR_TYPE_WAKE_UP_MOTION;
+	mSensorState[SENSOR_TYPE_WAKE_UP_MOTION].rate = SENSOR_RATE_ONCHANGE;
+	mSensorState[SENSOR_TYPE_WAKE_UP_MOTION].timestamp_filter = false;
+#endif
+/*hs14 code for SR-AL6528A-01-779 by xiongxiaoliang at 2022/11/23 end*/
+/*hs14 code for SR-AL6528A-01-778 by xiongxiaoliang at 2022/11/26 start*/
+#ifdef CONFIG_MTK_SMARTALERT_HUB
+	mSensorState[SENSOR_TYPE_SMART_ALERT].sensorType =
+		SENSOR_TYPE_SMART_ALERT;
+	mSensorState[SENSOR_TYPE_SMART_ALERT].rate = SENSOR_RATE_ONCHANGE;
+	mSensorState[SENSOR_TYPE_SMART_ALERT].timestamp_filter = false;
+#endif
+/*hs14 code for SR-AL6528A-01-778 by xiongxiaoliang at 2022/11/26 end*/
 }
 
 static void init_sensor_config_cmd(struct ConfigCmd *cmd,
@@ -1353,6 +1369,9 @@ int sensor_enable_to_hub(uint8_t handle, int enabledisable)
 			atomic64_set(&mSensorState[sensor_type].enableTime,
 							ktime_get_boot_ns());
 		init_sensor_config_cmd(&cmd, sensor_type);
+		/*hs14 code for AL6528A-486 by houxin at 2022/11/10 start*/
+		pr_err("[%s]mtkdebug mag fail registerlistener handle:%d,cmd:%d\n", __func__, handle, cmd.cmd);
+		/*hs14 code for AL6528A-486 by houxin at 2022/11/10 end*/
 		if (atomic_read(&power_status) == SENSOR_POWER_UP) {
 			ret = nanohub_external_write((const uint8_t *)&cmd,
 				sizeof(struct ConfigCmd));
@@ -1746,6 +1765,22 @@ int sensor_get_data_from_hub(uint8_t sensorType,
 		data->sar_event.data[1] = data_t->sar_event.data[1];
 		data->sar_event.data[2] = data_t->sar_event.data[2];
 		break;
+/*hs14 code for SR-AL6528A-01-779 by xiongxiaoliang at 2022/11/23 start*/
+#ifdef CONFIG_MTK_WAKE_UP_MOTION
+	case ID_WAKE_UP_MOTION:
+		data->time_stamp = data_t->time_stamp;
+		data->wakeup_event.state = data_t->wakeup_event.state;
+		break;
+#endif
+/*hs14 code for SR-AL6528A-01-779 by xiongxiaoliang at 2022/11/23 end*/
+/*hs14 code for SR-AL6528A-01-778 by xiongxiaoliang at 2022/11/26 start*/
+#ifdef CONFIG_MTK_SMARTALERT_HUB
+	case ID_SMART_ALERT:
+		data->time_stamp = data_t->time_stamp;
+		data->alert_event.state = data_t->alert_event.state;
+		break;
+#endif
+/*hs14 code for SR-AL6528A-01-778 by xiongxiaoliang at 2022/11/26 end*/
 	default:
 		err = -1;
 		break;

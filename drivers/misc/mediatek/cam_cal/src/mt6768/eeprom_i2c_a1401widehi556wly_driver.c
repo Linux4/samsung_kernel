@@ -10,6 +10,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
+/*hs14 code for AL6528ADEU-2674 by jianghongyan at 2022-11-17 start*/
 #define PFX "CAM_CAL_a1401widehi556wly"
 #define pr_fmt(fmt) PFX "[%s] " fmt, __func__
 
@@ -40,6 +41,9 @@ static struct i2c_client *g_pstI2CclientG;
 
 #define a1401widehi556wly_OTP_DEBUG  1
 #define a1401widehi556wly_I2C_ID     0x50 /*0x20*/
+#define VENDOR_ADDR 1  //module id address in otp data
+#define VENDORID_OLD 0x51  //old module id
+#define VENDORID 0x54  //new module id
 struct a1401widehi556wly_otp_struct
 {
 	int Module_Info_Flag;
@@ -127,7 +131,6 @@ static u16 OTP_read_cmos_sensor(u16 addr)
     data = read_cmos_sensor(0x0108); //OTP data read
        return data;
 }
-
 int a1401widehi556wly_iReadData(unsigned int ui4_offset,
 	unsigned int ui4_length, unsigned char *pinputdata)
 {
@@ -163,6 +166,20 @@ int a1401widehi556wly_iReadData(unsigned int ui4_offset,
 	{
 		pinputdata[i] = read_cmos_sensor(0x108);
 		checksum +=pinputdata[i];
+        if(i == VENDOR_ADDR){
+            if(pinputdata[i] == VENDORID_OLD)
+            {
+                pr_info("[cameradebug-compatible] vendorId=0x%x this is old sensor",pinputdata[VENDOR_ADDR]);
+            }
+            else if (pinputdata[i] == VENDORID)
+            {
+                pr_info("[cameradebug-compatible] vendorId=0x%x this is new sensor",pinputdata[VENDOR_ADDR]);
+            }
+            else
+            {
+                pr_info("[cameradebug-compatible] vendorId=0x%x return vendorId error",pinputdata[VENDOR_ADDR]);
+            }
+        }
 		printk("a1401widehi556wly[%d] module_ifo_data[%d] = 0x%x", i,i,pinputdata[i]);
 	}
 	for(k=0;k<5;k++){
@@ -249,41 +266,6 @@ int a1401widehi556wly_iReadData(unsigned int ui4_offset,
 		printk("a1401widehi556wly_Sensor: lsc data checksum Fail\n ");
 		}
 
-	//4. read af
-/*	a1401widehi556wly_otp.AF_FLAG = OTP_read_cmos_sensor(0x184b);
-	if (a1401widehi556wly_otp.AF_FLAG == 0x01)
-		addr = 0x184c;
-	else if (a1401widehi556wly_otp.AF_FLAG == 0x13)
-		addr = 0x1851;
-	else if (a1401widehi556wly_otp.AF_FLAG == 0x37)
-		addr = 0x1856;
-	else
-		addr = 0;
-	printk("a1401widehi556wly af start addr = 0x%x \n", addr);
-
-	write_cmos_sensor_8(0x070a, (addr >> 8) & 0xff);
-	write_cmos_sensor_8(0x070b, addr & 0xff);
-	write_cmos_sensor_8(0x0702, 0x01);
-
-	checksum = 0;
-	for (i =0; i <4; i++)
-	{
-		pinputdata[i+1898] = read_cmos_sensor(0x108);
-		checksum += pinputdata[i+1898];
-		printk("a1401widehi556wly[%d] af_data[%d] = 0x%x  ", i+1898,i,pinputdata[i+1898]);
-	}
-	af_data_checksum = read_cmos_sensor(0x708);
-	checksum = (checksum % 0xFF) + 1;
-	printk("a1401widehi556wly af_data_checksum = %d, %d  ", af_data_checksum, checksum);
-	if (checksum == af_data_checksum)
-		{
-		printk("a1401widehi556wly_Sensor: af data checksum PASS\n ");
-		}
-	else
-		{
-		printk("a1401widehi556wly_Sensor: af data checksum Fail\n ");
-		}*/
-
 	write_cmos_sensor_8(0x0a00, 0x00); //complete
 	mdelay(10);
 	write_cmos_sensor_8(0x003e, 0x00); //complete
@@ -292,7 +274,7 @@ int a1401widehi556wly_iReadData(unsigned int ui4_offset,
 	printk("%s Exit \n",__func__);
 	return 0;
 }
-
+/*hs14 code for AL6528ADEU-2674 by jianghongyan at 2022-11-17 end*/
 unsigned int a1401widehi556wly_read_region(struct i2c_client *client, unsigned int addr,
 				unsigned char *data, unsigned int size)
 {

@@ -41,9 +41,9 @@ static void get_fw_ver_ic(void *device_data)
     char buff[20] = { 0 };
     printk("%s:  \n", __func__);
     sec_cmd_set_default_result(sec);
-    /*hs14 code for AL6528A-16 by hehaoran5 at 20220905 start*/
-    snprintf(buff, sizeof(buff), "TD4375_TXD_JDI");
-    /*hs14 code for AL6528A-16 by hehaoran5 at 20220905 end*/
+    /*hs14 code for AL6528A-819 by hehaoran5 at 20221114 start*/
+    snprintf(buff, sizeof(buff), g_tcm_hcd->tp_module_name);
+    /*hs14 code for AL6528A-819 by hehaoran5 at 20221114 end*/
     sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
     sec->cmd_state = SEC_CMD_STATUS_OK;
     printk("%s: %s\n", __func__, buff);

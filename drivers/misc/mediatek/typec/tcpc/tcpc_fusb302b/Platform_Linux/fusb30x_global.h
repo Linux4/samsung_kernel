@@ -38,6 +38,9 @@
 struct fusb30x_chip									// Contains data required by this driver
 {
 	struct mutex lock;								// Synchronization lock
+	/* hs14 code for AL6528ADEU-1931 by wenyaqi at 2022/12/01 start */
+	struct mutex event_lock;
+	/* hs14 code for AL6528ADEU-1931 by wenyaqi at 2022/12/01 end */
 	struct wakeup_source fusb302_wakelock;			// wake lock
 	struct semaphore suspend_lock;
 
@@ -109,6 +112,9 @@ struct fusb30x_chip									// Contains data required by this driver
 
 	struct delayed_work apsd_recheck_work;
 	struct delayed_work delay_init_work;
+	/* hs14 code for AL6528ADEU-2820 by lina at 2022/11/23 start */
+	struct delayed_work delay_attach_check_work;
+	/* hs14 code for AL6528ADEU-2820 by lina at 2022/11/23 end */
 	int usb_state;
 
 	FSC_BOOL during_port_type_swap;

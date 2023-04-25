@@ -242,7 +242,7 @@ endif
 #obj-$(CONFIG_THERMAL) += mtk_ts_charger2.o
 
 #hs14 code for SR-AL6528A-01-305 by shanxinkai at 2022/09/06 start
-#obj-$(CONFIG_THERMAL) += mtk_ts_usb.o
+obj-$(CONFIG_THERMAL) += mtk_ts_usb.o
 #hs14 code for SR-AL6528A-01-305 by shanxinkai at 2022/09/06 end
 
 ifneq ($(CONFIG_MTK_COMBO_WIFI),)
