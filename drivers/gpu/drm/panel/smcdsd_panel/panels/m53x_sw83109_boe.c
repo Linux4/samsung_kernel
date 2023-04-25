@@ -1099,7 +1099,7 @@ static int panel_after_notifier_callback(struct notifier_block *self,
 	int fb_blank;
 
 	switch (event) {
-	case FB_EVENT_BLANK:
+	case SMCDSD_EVENT_BLANK:
 		break;
 	default:
 		return NOTIFY_DONE;

@@ -9,8 +9,6 @@
 		charger,direct_charger = "pca9468-charger";
 
 		charger,dchg_min_current = <2000>;
-		charger,dchg_temp_low_threshold = <180>;
-		charger,dchg_temp_high_threshold = <420>;
 	};
 };
 

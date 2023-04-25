@@ -1441,7 +1441,7 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	status = "okay";
-	samsung,i2c-max-bus-freq = <400000>;
+	clock-frequency = <400000>;
 	sm5714@49{
 		status = "okay";
 		compatible = "siliconmitus,sm5714mfd";
@@ -1458,7 +1458,7 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	status = "okay";
-	samsung,i2c-max-bus-freq = <400000>;
+	clock-frequency = <400000>;
 
 	usbpd-sm5714@33 {
 		status = "okay";
@@ -2120,7 +2120,11 @@
 					&nfc_check
 #endif
 					>;
-		pinctrl-1 = <&ven_nc &firm_nc &clk_req_nc &irq_nc &nfc_i2c_off>;
+		pinctrl-1 = <&ven_nc &firm_nc &clk_req_nc &irq_nc
+#if 0
+					&nfc_i2c_off
+#endif
+					>;
 		pinctrl-2 = <&nfc_i2c_off>;
 	};
 };
@@ -2897,8 +2901,6 @@
 		charger,direct_charger = "pca9468-charger";
 
 		charger,dchg_min_current = <2000>;
-		charger,dchg_temp_low_threshold = <180>;
-		charger,dchg_temp_high_threshold = <420>;
 	};
 };
 

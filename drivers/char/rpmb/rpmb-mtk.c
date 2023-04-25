@@ -3770,6 +3770,19 @@ TEEC_Result teegris_rpmb_open_session(TEEC_Context *context,
 	return res;
 }
 
+static int check_tee_return(TEEC_Result res)
+{
+	if (res == TEEC_ERROR_TARGET_DEAD) {
+#ifdef CONFIG_MTK_ENG_BUILD
+		BUG();
+#endif
+		return 1;
+	} else if (res != TEEC_SUCCESS){
+		return 1;
+	}
+	return 0;
+}
+
 TEEC_Result teegris_rpmb_run(TEEC_Context *context)
 {
 	TEEC_Result res;
@@ -3848,8 +3861,10 @@ exit:
 int teegris_rpmb_thread(void *data)
 {
 	int cnt = 0;
+	int recovery_cnt = 0;
 	TEEC_Result res = -1;
 
+recovery:
 	rpmb_gp_session =
 		kzalloc(sizeof(struct TEE_GP_SESSION_DATA), GFP_KERNEL);
 	if (!rpmb_gp_session) {
@@ -3877,14 +3892,19 @@ int teegris_rpmb_thread(void *data)
 	}
 
 	res = teegris_rpmb_run(&rpmb_gp_session->context);
-	if (res)
+	if (check_tee_return(res)) {
 		kfree(rpmb_gp_session->wsm_buffer);
+		recovery_cnt++;
+		MSG(ERR, "RPMB recovery cnt %d\n", recovery_cnt);
+	}
 
 	MSG(ERR, "TEEC_FinalizeContex\n", res);
 
 	TEEC_FinalizeContext(&rpmb_gp_session->context);
 
 	kfree(rpmb_gp_session);
+
+	goto recovery;
 
 	return (res != TEEC_SUCCESS);
 }

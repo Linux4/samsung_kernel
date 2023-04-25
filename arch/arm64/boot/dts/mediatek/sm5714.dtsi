@@ -28,7 +28,7 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	status = "okay";
-	samsung,i2c-max-bus-freq = <400000>;
+	clock-frequency = <400000>;
 	sm5714@49{
 		status = "okay";
 		compatible = "siliconmitus,sm5714mfd";
@@ -45,7 +45,7 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	status = "okay";
-	samsung,i2c-max-bus-freq = <400000>;
+	clock-frequency = <400000>;
 
 	usbpd-sm5714@33 {
 		status = "okay";

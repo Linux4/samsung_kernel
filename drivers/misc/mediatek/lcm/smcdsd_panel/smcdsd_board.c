@@ -17,6 +17,7 @@
 #include <linux/of_platform.h>
 #include <linux/regulator/consumer.h>
 #include <linux/regulator/driver.h>
+#include <linux/rtc.h>
 #include <linux/slab.h>
 #include "../../../../pinctrl/core.h"
 #include "../../../../regulator/dummy.h"
@@ -249,9 +250,9 @@ static int print_action(struct action_info *action)
 
 static int secprintf(char *buf, size_t size, s64 nsec)
 {
-	struct timeval tv = ns_to_timeval(nsec);
+	struct timespec64 ts = ns_to_timespec64(nsec);
 
-	return scnprintf(buf, size, "%lu.%06lu", (unsigned long)tv.tv_sec, tv.tv_usec);
+	return scnprintf(buf, size, "%lu.%06lu", (unsigned long)ts.tv_sec, ts.tv_nsec / 1000);
 }
 
 static void print_timer(struct timer_info *timer)
@@ -381,11 +382,13 @@ exit:
 static int is_dummy_regulator(struct regulator_bulk_data *bulk)
 {
 	struct regulator_dev *rdev = NULL;
+	const struct regulator_desc *desc;
 	int ret = 0;
 
 	rdev = bulk->consumer->rdev;
+	desc = rdev->desc;
 
-	ret = (rdev && rdev != dummy_regulator_rdev) ? 0 : 1;
+	ret = (strcmp("regulator-dummy", desc->name) == 0) ? 1 : 0;
 
 	return ret;
 }
@@ -1248,6 +1251,18 @@ struct platform_device *of_find_decon_platform_device(void)
 	return of_find_device_by_path("decon0");
 }
 
+static int __of_update_property(struct device_node *np, struct property *newprop)
+{
+	struct property *oldprop = NULL;
+	int ret = 0;
+
+	oldprop = of_find_property(np, newprop->name, NULL);
+	if (oldprop)
+		ret = of_remove_property(np, oldprop);
+
+	return of_add_property(np, newprop);
+}
+
 /**
  * of_update_phandle_property_list - update a phandle property to a device_node pointer
  * @phandle_name: to. Name of property holding a phandle value which will be updated
@@ -1367,7 +1382,7 @@ int of_update_phandle_property_list(struct device_node *from, const char *phandl
 		seq_printf(&m, "%s ", node_names[i]);
 	}
 
-	ret = of_update_property(parent, prop_new);
+	ret = __of_update_property(parent, prop_new);
 	if (ret) {
 		dbg_info("of_update_property fail: %d\n", ret);
 		kfree(prop_new->value);
@@ -1456,7 +1471,7 @@ static int __of_update_recommend(struct device_node *np, unsigned int recommend)
 		prop_new->value = "ok";
 		prop_new->length = sizeof("ok");
 
-		ret = of_update_property(np, prop_new);
+		ret = __of_update_property(np, prop_new);
 	} else {
 		struct property *prop = NULL;
 
@@ -1573,12 +1588,10 @@ static int __init panel_lut_ddi_recommend_init(void)
 
 int panel_clean_board(struct device *dev)
 {
-	int ret = 0;
-
 	if (!get_boot_lcdconnected())
 		run_list(dev, PANEL_PBA_NODE);
 
-	return ret;
+	return 0;
 }
 
 static int __init smcdsd_board_init(void)

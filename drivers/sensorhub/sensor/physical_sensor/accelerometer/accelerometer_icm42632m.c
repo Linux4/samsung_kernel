@@ -33,11 +33,11 @@ static void parse_dt_accelerometer_icm42632m(struct device *dev)
 	shub_infof("position[%d]", data->position);
 }
 
-struct accelerometer_chipset_funcs accel_icm42632m_ops = {
+struct sensor_chipset_init_funcs accel_icm42632m_ops = {
 	.parse_dt = parse_dt_accelerometer_icm42632m,
 };
 
-struct accelerometer_chipset_funcs *get_accelometer_icm42632m_function_pointer(char *name)
+struct sensor_chipset_init_funcs *get_accelometer_icm42632m_function_pointer(char *name)
 {
 	if (strcmp(name, ICM42632M_NAME) != 0)
 		return NULL;

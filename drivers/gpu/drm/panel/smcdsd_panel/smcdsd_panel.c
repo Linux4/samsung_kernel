@@ -465,12 +465,19 @@ int smcdsd_panel_dsi_clk_change(void *drvdata, unsigned int index)
 	struct mipi_dsi_lcd_common *plcd = drvdata ? drvdata : get_lcd_common(0);
 	struct drm_panel *panel = &(plcd->panel);
 	struct mtk_panel_ext *ext = find_panel_ext(panel);
+	int i;
 
-	ext->params->dyn.pll_clk = plcd->config[LCD_CONFIG_DFT].data_rate[index] / 2;
-	ext->params->dyn.switch_en = 1;
-	ext->params->dyn.data_rate = plcd->config[LCD_CONFIG_DFT].data_rate[index];
+	for (i = 0; i < LCD_CONFIG_MAX; i++) {
+		if (!plcd->config[i].drm.vrefresh)
+			continue;
+
+		plcd->config[i].ext.dyn.pll_clk = plcd->config[i].data_rate[index] / 2;
+		plcd->config[i].ext.dyn.switch_en = 1;
+		plcd->config[i].ext.dyn.data_rate = plcd->config[i].data_rate[index];
+	}
+
 	dbg_info("%s: index : %d, data rate: %d\n",
-		__func__, index, ext->params->dyn.data_rate);
+			__func__, index, ext->params->dyn.data_rate);
 	mtk_disp_mipi_ccci_callback(1, 0);
 
 	return 0;

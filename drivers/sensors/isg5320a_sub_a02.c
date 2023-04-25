@@ -45,12 +45,18 @@
 #define DEVICE_NAME             "ISG5320A_SUB"
 #define VENDOR_NAME             "IMAGIS"
 #define MODULE_NAME             "grip_sensor_sub"
+#define NOTI_MODULE_NAME        "grip_notifier"
 
 #define ISG5320A_MODE_SLEEP      0
 #define ISG5320A_MODE_NORMAL     1
 #define ISG5320A_DIFF_AVR_CNT    10
 #define ISG5320A_DISPLAY_TIME    30
 #define ISG5320A_TAG             "[ISG5320A_SUB]"
+
+#define TYPE_USB   1
+#define TYPE_HALL  2
+#define TYPE_BOOT  3
+#define TYPE_FORCE 4
 
 #define HALLIC_PATH            "/sys/class/sec/sec_key/hall_detect"
 #define HALLIC_CERT_PATH       "/sys/class/sec/sec_key/certify_hall_detect"
@@ -69,6 +75,7 @@ struct direct_info {
 struct isg5320a_data {
 	struct i2c_client *client;
 	struct input_dev *input_dev;
+	struct input_dev *noti_input_dev;
 	struct device *dev;
 	struct delayed_work debug_work;
 	struct delayed_work cal_work;
@@ -86,6 +93,7 @@ struct isg5320a_data {
 	int gpio_int;
 
 	int enable;
+	int noti_enable;
 	int state;
 
 	bool skip_data;
@@ -131,6 +139,10 @@ struct isg5320a_data {
 	int hallic_detect;
 	int hallic_cert_detect;
 	unsigned char hall_ic[6];
+
+	int is_unknown_mode;
+	int motion;
+	bool first_working;
 };
 
 static int check_hallic_state(char *file_path, unsigned char hall_ic_status[])
@@ -453,6 +465,7 @@ static void force_far_grip(struct isg5320a_data *data)
 			return;
 
 		input_report_rel(data->input_dev, REL_MISC, 2);
+		input_report_rel(data->input_dev, REL_X, data->is_unknown_mode);
 		input_sync(data->input_dev);
 		data->state = FAR;
 	}
@@ -499,11 +512,21 @@ static void report_event_data(struct isg5320a_data *data, u8 intr_msg)
 		}
 	}
 
-	if (data->state == CLOSE)
+	if (data->state == CLOSE) {
+		if (data->is_unknown_mode == UNKNOWN_ON && data->motion)
+			data->first_working = true;
 		input_report_rel(data->input_dev, REL_MISC, 1);
-	else
+	} else {
 		input_report_rel(data->input_dev, REL_MISC, 2);
-
+		if (data->is_unknown_mode == UNKNOWN_ON && data->motion) {
+			if (data->first_working) {
+				pr_info("%s unknown mode off\n", ISG5320A_TAG);
+				data->is_unknown_mode = UNKNOWN_OFF;
+				data->first_working = false;
+			}
+		}
+	}
+	input_report_rel(data->input_dev, REL_X, data->is_unknown_mode);
 	input_sync(data->input_dev);
 }
 
@@ -553,12 +576,32 @@ irq_end:
 	return IRQ_HANDLED;
 }
 
+static void isg5320a_enter_unknown_mode(struct isg5320a_data *data, int type)
+{
+	if (data->noti_enable && !data->skip_data) {
+		data->motion = 0;
+		data->first_working = false;
+		if (data->is_unknown_mode == UNKNOWN_OFF) {
+			data->is_unknown_mode = UNKNOWN_ON;
+			if (!data->skip_data) {
+				input_report_rel(data->input_dev, REL_X, data->is_unknown_mode);
+				input_sync(data->input_dev);
+			}
+			pr_info("%s UNKNOWN Re-enter\n", ISG5320A_TAG);
+		} else {
+			pr_info("%s already UNKNOWN\n", ISG5320A_TAG);
+		}
+		input_report_rel(data->noti_input_dev, REL_X, type);
+		input_sync(data->noti_input_dev);
+	}
+}
 static void isg5320a_initialize(struct isg5320a_data *data)
 {
 	int ret;
 	int i;
 	u8 val;
 	u8 buf[2];
+	u8 buf8[2] = {0, 0};
 
 	pr_info("%s %s\n", ISG5320A_TAG, __func__);
 
@@ -591,6 +634,9 @@ static void isg5320a_initialize(struct isg5320a_data *data)
 		pr_err("%s fail to read DIGITAL ACC(%d)\n", ISG5320A_TAG, ret);
 	else
 		data->cfcal_th = ISG5320A_RESET_CONDITION * val / 8;
+	
+	isg5320a_i2c_read(data, ISG5320A_B_PROXCTL3_REG, buf8, sizeof(buf8));
+	data->normal_th = ((u32)buf8[0] << 8) | (u32)buf8[1];
 
 	data->initialized = ON;
 }
@@ -635,12 +681,15 @@ static void isg5320a_set_enable(struct isg5320a_data *data, int enable)
 
 		if (data->skip_data == true) {
 			input_report_rel(data->input_dev, REL_MISC, 2);
+			input_report_rel(data->input_dev, REL_X, UNKNOWN_OFF);
 		} else if (state & (1 << ISG5320A_PROX_STATE)) {
 			data->state = CLOSE;
 			input_report_rel(data->input_dev, REL_MISC, 1);
+			input_report_rel(data->input_dev, REL_X, data->is_unknown_mode);
 		} else {
 			data->state = FAR;
 			input_report_rel(data->input_dev, REL_MISC, 2);
+			input_report_rel(data->input_dev, REL_X, data->is_unknown_mode);
 		}
 		input_sync(data->input_dev);
 
@@ -734,13 +783,18 @@ static ssize_t isg5320a_onoff_store(struct device *dev,
 
 	if (val == 0) {
 		data->skip_data = true;
+		data->is_unknown_mode = UNKNOWN_OFF;
+		data->first_working = false;
+		data->motion = 1;
 		if (data->enable == ON) {
 			data->state = FAR;
 			input_report_rel(data->input_dev, REL_MISC, 2);
+			input_report_rel(data->input_dev, REL_X, data->is_unknown_mode);
 			input_sync(data->input_dev);
 		}
 	} else {
 		data->skip_data = false;
+		isg5320a_enter_unknown_mode(data, TYPE_FORCE);
 	}
 
 	pr_info("%s %d\n", ISG5320A_TAG, (int)val);
@@ -1332,6 +1386,113 @@ static ssize_t isg5320a_irq_count_store(struct device *dev,
 	return count;
 }
 
+static ssize_t isg5320a_motion_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct isg5320a_data *data = dev_get_drvdata(dev);
+
+	if (data->motion)
+		return snprintf(buf, PAGE_SIZE, "motion_detect\n");
+	else
+		return snprintf(buf, PAGE_SIZE, "motion_non_detect\n");
+}
+
+static ssize_t isg5320a_motion_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int val;
+	int ret;
+	struct isg5320a_data *data = dev_get_drvdata(dev);
+
+	ret = kstrtoint(buf, 10, &val);
+	if (ret) {
+		pr_info("%s %s - Invalid Argument\n", ISG5320A_TAG, __func__);
+		return ret;
+	}
+
+	if (val == 0) {
+		pr_info("%s %s - motion event off\n", ISG5320A_TAG, __func__);
+		data->motion = val;
+	} else if (val == 1 || val == 11) {
+		pr_info("%s %s - motion event\n", ISG5320A_TAG, __func__);
+		data->motion = val;
+	} else {
+		pr_info("%s %s - Invalid Argument : %u\n", ISG5320A_TAG, __func__, val);
+	}
+	pr_info("%s %s - %u\n", ISG5320A_TAG, __func__, val);
+	return count;
+}
+
+static ssize_t isg5320a_unknown_state_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct isg5320a_data *data = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%s\n",
+		(data->is_unknown_mode == 1) ? "UNKNOWN" : "NORMAL");
+}
+
+static ssize_t isg5320a_unknown_state_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int val;
+	int ret;
+	struct isg5320a_data *data = dev_get_drvdata(dev);
+
+	ret = kstrtoint(buf, 10, &val);
+	if (ret) {
+		pr_info("%s %s - Invalid Argument\n", ISG5320A_TAG, __func__);
+		return ret;
+	}
+
+	if (val == 1)
+		isg5320a_enter_unknown_mode(data, TYPE_FORCE);
+	else if (val == 0)
+		data->is_unknown_mode = UNKNOWN_OFF;
+	else
+		pr_info("%s %s - Invalid Argument(%d)\n", ISG5320A_TAG, __func__, val);
+
+	pr_info("%s %s - %u\n", ISG5320A_TAG, __func__, val);
+	return count;
+}
+
+static ssize_t isg5320a_noti_enable_store(struct device *dev,
+				     struct device_attribute *attr, const char *buf, size_t size)
+{
+	int ret;
+	u8 enable;
+	struct isg5320a_data *data = dev_get_drvdata(dev);
+
+	ret = kstrtou8(buf, 2, &enable);
+	if (ret) {
+		pr_err("%s invalid argument\n", ISG5320A_TAG);
+		return size;
+	}
+
+	pr_info("%s %s - noti_enable=%d\n", ISG5320A_TAG, __func__, (int)enable);
+
+	data->noti_enable = enable;
+
+    if (data->noti_enable)
+		isg5320a_enter_unknown_mode(data, TYPE_BOOT);
+    else {
+		data->motion = 1;
+		data->first_working = false;
+		data->is_unknown_mode = UNKNOWN_OFF;
+    }
+
+	return size;
+}
+
+static ssize_t isg5320a_noti_enable_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	struct isg5320a_data *data = dev_get_drvdata(dev);
+
+	pr_info("%s %s - noti_enable = %d\n", ISG5320A_TAG, __func__, data->noti_enable);
+	return sprintf(buf, "%d\n", data->noti_enable);
+}
+
 static DEVICE_ATTR(name, 0444, isg5320a_name_show, NULL);
 static DEVICE_ATTR(vendor, 0444, isg5320a_vendor_show, NULL);
 static DEVICE_ATTR(mode, 0444, isg5320a_mode_show, NULL);
@@ -1350,6 +1511,10 @@ static DEVICE_ATTR(cdc_avg, 0444, isg5320a_cdc_avg_show, NULL);
 static DEVICE_ATTR(useful_avg, 0444, isg5320a_cdc_avg_show, NULL);
 static DEVICE_ATTR(ch_state, 0444, isg5320a_ch_state_show, NULL);
 static DEVICE_ATTR(hysteresis, 0444, isg5320a_hysteresis_show, NULL);
+static DEVICE_ATTR(motion, 0664, isg5320a_motion_show, isg5320a_motion_store);
+static DEVICE_ATTR(unknown_state, 0664, isg5320a_unknown_state_show, isg5320a_unknown_state_store);
+static DEVICE_ATTR(noti_enable, S_IRUGO | S_IWUSR | S_IWGRP,
+		   isg5320a_noti_enable_show, isg5320a_noti_enable_store);
 static DEVICE_ATTR(reg_update, 0444, isg5320a_reg_update_show, NULL);
 static DEVICE_ATTR(direct, 0664, isg5320a_direct_show,
 		   isg5320a_direct_store);
@@ -1387,6 +1552,9 @@ static struct device_attribute *sensor_attrs[] = {
 	&dev_attr_cdc_avg,
 	&dev_attr_ch_state,
 	&dev_attr_hysteresis,
+	&dev_attr_motion,
+	&dev_attr_unknown_state,
+	&dev_attr_noti_enable,
 	&dev_attr_reg_update,
 	&dev_attr_direct,
 	&dev_attr_intr_debug,
@@ -1430,6 +1598,22 @@ static void init_work_func(struct work_struct *work)
 }
 #endif
 
+
+static void isg5320a_check_first_working(struct isg5320a_data *data)
+{
+	if (data->normal_th < data->diff) {
+		if (!data->first_working) {
+			data->first_working = true;
+			pr_info("%s first working detected %d\n", ISG5320A_TAG, data->diff);
+		}
+	} else {
+		if (data->first_working) {
+			data->is_unknown_mode = UNKNOWN_OFF;
+			pr_info("%s Release detected %d, unknown mode off\n", ISG5320A_TAG, data->diff);
+		}
+	}
+}
+
 static void cal_work_func(struct work_struct *work)
 {
 
@@ -1439,14 +1623,17 @@ static void cal_work_func(struct work_struct *work)
 	bool force_cal = false;
 
 	isg5320a_get_raw_data(data, false);
+	if (data->is_unknown_mode == UNKNOWN_ON && data->motion && data->noti_enable)
+		isg5320a_check_first_working(data);
 	// check cfcal
 	if (data->cdc < data->cfcal_th) {
 		pr_info("%s cdc : %d, cfcal_th %d\n", ISG5320A_TAG, data->cdc,
 			data->cfcal_th);
 		isg5320a_force_calibration(data, false);
+		isg5320a_enter_unknown_mode(data, TYPE_FORCE);
 		force_cal = true;
 	}
-
+#if 0
 	// check bfcal
 	if (data->bfcal_chk_start) {
 		data->bfcal_chk_count++;
@@ -1461,6 +1648,7 @@ static void cal_work_func(struct work_struct *work)
 				if (((s32)data->bfcal_chk_cdc - (s32)data->cdc) >=
 				    data->bfcal_chk_diff) {
 					isg5320a_force_calibration(data, true);
+					isg5320a_enter_unknown_mode(data, TYPE_FORCE);
 					force_cal = true;
 					data->bfcal_chk_start = false;
 					data->bfcal_chk_ready = false;
@@ -1473,7 +1661,7 @@ static void cal_work_func(struct work_struct *work)
 			}
 		}
 	}
-
+#endif
 	if (force_cal)
 		schedule_delayed_work(&data->cal_work, msecs_to_jiffies(1000));
 	else
@@ -1496,9 +1684,11 @@ static void debug_work_func(struct work_struct *work)
 			if (data->hall_flag) {
 				pr_info("%s hall IC is closed\n", ISG5320A_TAG);
 				isg5320a_force_calibration(data, true);
+				isg5320a_enter_unknown_mode(data, TYPE_HALL);
 				data->hall_flag = 0;
 			}
 		} else {
+				isg5320a_enter_unknown_mode(data, TYPE_HALL);
 			data->hall_flag = 1;
 		}
 	}
@@ -1512,9 +1702,11 @@ static void debug_work_func(struct work_struct *work)
 			if (data->hall_cert_flag) {
 				pr_info("%s Cert hall IC is closed\n", ISG5320A_TAG);
 				isg5320a_force_calibration(data, true);
+				isg5320a_enter_unknown_mode(data, TYPE_HALL);
 				data->hall_cert_flag = 0;
 			}
 		} else {
+				isg5320a_enter_unknown_mode(data, TYPE_HALL);
 			data->hall_cert_flag = 1;
 		}
 	}
@@ -1575,34 +1767,32 @@ static int isg5320a_ccic_handle_notification(struct notifier_block *nb,
 static int isg5320a_cpuidle_muic_notifier(struct notifier_block *nb,
 					  unsigned long action, void *muic_data)
 {
-
 	muic_attached_dev_t attached_dev = *(muic_attached_dev_t *)muic_data;
-
 	struct isg5320a_data *data = container_of(nb, struct isg5320a_data,
 						  cpuidle_muic_nb);
+	static int pre_attach = -1;
 
 	switch (attached_dev) {
 	case ATTACHED_DEV_OTG_MUIC:
 	case ATTACHED_DEV_USB_MUIC:
+	case ATTACHED_DEV_CDP_MUIC:
 	case ATTACHED_DEV_TA_MUIC:
 	case ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC:
 	case ATTACHED_DEV_AFC_CHARGER_9V_MUIC:
-		if (action == MUIC_NOTIFY_CMD_ATTACH)
-			pr_info("%s TA/USB is inserted\n", ISG5320A_TAG);
-		else if (action == MUIC_NOTIFY_CMD_DETACH)
-			pr_info("%s TA/USB is removed\n", ISG5320A_TAG);
+		if (pre_attach == (int)action)
+			return NOTIFY_DONE;
 
-		if (data->initialized == ON)
+		if (data->initialized == ON) {
+			pr_info("%s dev=%d, action=%lu\n", ISG5320A_TAG, attached_dev, action);
+			isg5320a_enter_unknown_mode(data, TYPE_USB);
 			isg5320a_force_calibration(data, true);
-		else
-			pr_info("%s not initialized\n", ISG5320A_TAG);
+		}
 
+		pre_attach = (int)action;
 		break;
 	default:
 		break;
 	}
-
-	pr_info("%s dev=%d, action=%lu\n", ISG5320A_TAG, attached_dev, action);
 
 	return NOTIFY_DONE;
 }
@@ -1663,6 +1853,7 @@ static int isg5320a_probe(struct i2c_client *client,
 	int ret = -ENODEV;
 	struct isg5320a_data *data;
 	struct input_dev *input_dev;
+	struct input_dev *noti_input_dev;
 
 	pr_info("%s ### %s probe ###\n", ISG5320A_TAG, DEVICE_NAME);
 
@@ -1706,13 +1897,36 @@ static int isg5320a_probe(struct i2c_client *client,
 
 	input_set_capability(input_dev, EV_REL, REL_MISC);
 	input_set_capability(input_dev, EV_REL, REL_MAX);
+	input_set_capability(input_dev, EV_REL, REL_X);
 	input_set_drvdata(input_dev, data);
+
+	noti_input_dev = input_allocate_device();
+	if (!noti_input_dev) {
+		pr_err("%s input_allocate_device failed\n", ISG5320A_TAG);
+		input_free_device(input_dev);
+		goto err_noti_input_alloc;
+	}
+
+	data->dev = &client->dev;
+	data->noti_input_dev = noti_input_dev;
+
+	noti_input_dev->name = NOTI_MODULE_NAME;
+	noti_input_dev->id.bustype = BUS_I2C;
+
+	input_set_capability(noti_input_dev, EV_REL, REL_X);
+	input_set_drvdata(noti_input_dev, data);
 
 	ret = isg5320a_reset(data);
 	if (ret < 0) {
 		pr_err("%s IMAGIS reset failed\n", ISG5320A_TAG);
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_soft_reset;
 	}
+
+	data->is_unknown_mode = UNKNOWN_OFF;
+	data->first_working = false;
+	data->motion = 1;
 
 	data->skip_data = false;
 	data->state = FAR;
@@ -1740,6 +1954,8 @@ static int isg5320a_probe(struct i2c_client *client,
 				   IRQF_TRIGGER_FALLING | IRQF_ONESHOT, DEVICE_NAME, data);
 	if (ret < 0) {
 		pr_err("%s failed to register interrupt\n", ISG5320A_TAG);
+		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		goto err_irq;
 	}
 	disable_irq(client->irq);
@@ -1748,6 +1964,7 @@ static int isg5320a_probe(struct i2c_client *client,
 	ret = input_register_device(input_dev);
 	if (ret) {
 		input_free_device(input_dev);
+		input_free_device(noti_input_dev);
 		pr_err("%s failed to register input dev (%d)\n", ISG5320A_TAG, ret);
 		goto err_register_input_dev;
 	}
@@ -1756,13 +1973,22 @@ static int isg5320a_probe(struct i2c_client *client,
 				data->input_dev->name);
 	if (ret < 0) {
 		pr_err("%s failed to create symlink (%d)\n", ISG5320A_TAG, ret);
+		input_free_device(noti_input_dev);
 		goto err_create_symlink;
 	}
 
 	ret = sysfs_create_group(&input_dev->dev.kobj, &isg5320a_attribute_group);
 	if (ret < 0) {
 		pr_err("%s failed to create sysfs group (%d)\n", ISG5320A_TAG, ret);
+		input_free_device(noti_input_dev);
 		goto err_sysfs_create_group;
+	}
+
+	ret = input_register_device(noti_input_dev);
+	if (ret) {
+		input_free_device(noti_input_dev);
+		pr_err("%s failed to register input dev for noti (%d)\n", ISG5320A_TAG, ret);
+		goto err_register_input_dev_noti;
 	}
 
 	ret = sensors_register(&data->dev, data, sensor_attrs, MODULE_NAME);
@@ -1801,6 +2027,8 @@ static int isg5320a_probe(struct i2c_client *client,
 	return 0;
 
 err_sensor_register:
+	input_unregister_device(noti_input_dev);
+err_register_input_dev_noti:
 	sysfs_remove_group(&input_dev->dev.kobj, &isg5320a_attribute_group);
 err_sysfs_create_group:
 	sensors_remove_symlink(&data->input_dev->dev.kobj, input_dev->name);
@@ -1811,6 +2039,7 @@ err_register_input_dev:
 	free_irq(client->irq, data);
 err_irq:
 err_soft_reset:
+err_noti_input_alloc:
 err_input_alloc:
 	gpio_free(data->gpio_int);
 err_gpio_init:
