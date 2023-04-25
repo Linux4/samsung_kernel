@@ -1,0 +1,263 @@
+/* CMD: POWER ON PRE SETTING */
+POWER_ON_PRE_SETTING = ""
+
+/* CMD: POWER ON POST SETTING */
+POWER_ON_POST_SETTING = ""
+
+/* CMD: POWER OFF SETTTING */
+POWER_OFF_SETTTING = ""
+
+/* CMD: BRIGHTNESS SETTING */
+BRIGHTNESS_SETTING = ""
+
+/* CMD: VRR SETTING */
+VRR_SETTING = ""
+
+/* CMD: SSR SETTING */
+SSR_SETTING = ""
+
+/* CMD: Common SETTING */
+COMMON_SETTING = ""
+
+/* CMD: TE ON */
+TE_ON = ""
+
+/* CMD: TE SETTING */
+TE_SETTING = ""
+
+/* CMD: PAGE ADDRESS SET */
+PAGE_ADDRESS_SET = ""
+
+/* CMD: FFC SET 0 */
+FFC_SET_0 = ""
+
+/* CMD: FFC SET 1 */
+FFC_SET_1 = ""
+
+/* CMD: FFC SET 2 */
+FFC_SET_2 = ""
+
+/* CMD: ECC SETTING */
+ECC_SETTING = ""
+
+/* CMD: ERR FG SETTING */
+ERR_FG_SETTING = ""
+
+/* CMD: DSC SETTING */
+DSC_SETTING = ""
+
+/* CMD: FREQ MODE CHANGE SETTING */
+FREQ_MODE_CHANGE_SETTING = ""
+
+/* CMD: FIXED TE SETTING */
+FIXED_TE_SETTING = ""
+
+/* CMD: ASYNC 96HS */
+ASYNC_96HS = ""
+
+/* CMD: ASYNC 120HS */
+ASYNC_120HS = ""
+
+/* CMD: ASYNC 48NS */
+ASYNC_48NS = ""
+
+/* CMD: ASYNC 60NS */
+ASYNC_60NS = ""
+
+/* CMD: ASYNC 48HS */
+ASYNC_48HS = ""
+
+/* CMD: ASYNC 60HS */
+ASYNC_60HS = ""
+
+/* CMD: DIA SETTING */
+DIA_SETTING = ""
+
+/* CMD: SMOOTH DIMMING SETTING 1FRAME */
+SMOOTH_DIMMING_SETTING_1FRAME = ""
+
+/* CMD: SMOOTH DIMMING SETTING 24FRAME */
+SMOOTH_DIMMING_SETTING_24FRAME = ""
+
+/* CMD: VDDR BLOCK CLOCK GATING SETTING */
+VDDR_BLOCK_CLOCK_GATING_SETTING = ""
+
+/* CMD: HMD LTPS TIMING SETTING */
+HMD_LTPS_TIMING_SETTING = ""
+
+/* CMD: SANDSTORM SETTING */
+SANDSTORM_SETTING = ""
+
+/* CMD: BRIGHTNESS DIMMING SETTING */
+BRIGHTNESS_DIMMING_SETTING = ""
+
+/* CMD: ACL ON/OFF */
+ACL = ""
+
+/* CMD: GLUT OFFSET */
+GLUT_OFFSET = ""
+
+/* CMD: MAFPC */
+MAFPC = ""
+
+/* TABLE: Temperature Table */
+TEMP_TABLE = ""
+
+/* CMD: ELVSS TEMP COMPENSATION */
+ELVSS_TEMP_COMPENSATION = ""
+
+/* CMD: MANUAL AOR */
+MANUAL_AOR = ""
+
+/* CMD: HLPM AOR SETTING */
+HLPM_AOR_SETTING = ""
+
+/* CMD: HLPM ON SETTING */
+HLPM_ON_SETTING = ""
+
+/* CMD: HLPM OFF SETTING */
+HLPM_OFF_SETTING = ""
+
+/* CMD: HLPM BRIGHTNESS SETTING */
+HLPM_BRIGHTNESS_SETTING = ""
+
+/* CMD: HMD ON SETTING */
+HMD_ON_SETTING = ""
+
+/* CMD: HMD OFF SETTING */
+HMD_OFF_SETTING = ""
+
+/* CMD: HMD BRIGHTNESS SETTING */
+HMD_BRIGHTNESS_SETTING = ""
+
+/* CMD: OSC 0 (96.5MHZ) */
+OSC_0 = ""
+
+/* CMD: OSC 1 (94.5MHZ) */
+OSC_1 = ""
+
+/* CMD: ANALOG_OFFSET_1 */
+ANALOG_OFFSET_1 = ""
+
+/* CMD: ANALOG_OFFSET_2 */
+ANALOG_OFFSET_2 = ""
+
+/* CMD: ANALOG_OFFSET_3 */
+ANALOG_OFFSET_3 = ""
+
+/* TABLE: NORMAL CANDELA MAP */
+NORMAL_CANDELA_MAP = ""
+
+/* TABLE: HBM CANDELA MAP */
+HBM_CANDELA_MAP = ""
+
+/* TABLE: HMD CANDELA MAP */
+HMD_CANDELA_MAP = ""
+
+/* TABLE: AOD CANDELA MAP */
+AOD_CANDELA_MAP = ""
+
+/* TABLE: HBM CE LUX MAP */
+HBM_CE_LUX_MAP = ""
+
+/* TABLE: GLUT OFFSET 48HS */
+GLUT_OFFSET_48HS = ""
+
+/* TABLE: GLUT OFFSET 60HS */
+GLUT_OFFSET_60HS = ""
+
+/* TABLE: GLUT OFFSET 96HS */
+GLUT_OFFSET_96HS = ""
+
+/* TABLE: ANALOG OFFSET 48HS */
+ANALOG_OFFSET_48HS = ""
+
+/* TABLE: ANALOG OFFSET 60HS */
+ANALOG_OFFSET_60HS = ""
+
+/* TABLE: ANALOG OFFSET 96HS */
+ANALOG_OFFSET_96HS = ""
+
+/* TABLE: ANALOG OFFSET 120HS */
+ANALOG_OFFSET_120HS = ""
+
+/* TABLE: MANUAL AOR TABLE 120HS */
+MANUAL_AOR_TABLE_120HS = ""
+
+/* TABLE: MANUAL AOR TABLE 96HS */
+MANUAL_AOR_TABLE_96HS = ""
+
+/* TABLE: MANUAL AOR TABLE 60HS */
+MANUAL_AOR_TABLE_60HS = ""
+
+/* TABLE: MANUAL AOR TABLE 48HS */
+MANUAL_AOR_TABLE_48HS = ""
+
+/* TABLE: DYNAMIC MIPI CLOCK */
+DYNAMIC_MIPI_CLOCK = ""
+
+/* TABLE: DYNAMIC MIPI CLOCK RAT BAND */
+DYNAMIC_MIPI_CLOCK_RAT_BAND = ""
+
+/* CMD: MCD Test Mode On */
+mcd_on_tx_cmd = ""
+
+/* CMD: MCD Test Mode Off */
+mcd_off_tx_cmd = ""
+
+/* CMD: Gray Spot Test Mode On */
+gray_spot_on_tx_cmd = ""
+
+/* CMD: Gray Spot Test Mode Off */
+gray_spot_off_tx_cmd = ""
+
+/* CMD: Micro Crack Test Mode On */
+micro_crack_on_tx_cmd = ""
+
+/* CMD: Micro Crack Test Mode Off */
+micro_crack_off_tx_cmd = ""
+
+/* CMD: DDI Memory Block Test (LV Mode) */
+gct_lv_tx_cmd = ""
+
+/* CMD: DDI Memory Block Test (HV Mode) */
+gct_hv_tx_cmd = ""
+
+/* TABLE: DDI Memory Block Test Check Sum (LV, HV) */
+gct_check_sum = ""
+
+/* CMD: SSR test */
+ssr_tx_cmd = ""
+
+/* CMD: ECC check */
+gct_ecc_rx_cmd = ""
+
+/* TABLE: ECC check values (3rd, 4th, 5th) */
+ecc_check_value = ""
+
+/* CMD: X-talk Test Mode On */
+xtalk_on_tx_cmd = ""
+
+/* CMD: X-talk Test Mode Off */
+xtalk_off_tx_cmd = ""
+
+/* CMD: CCD Test Mode On */
+ccd_on_tx_cmd = ""
+
+/* CMD: CCD Test Mode Off */
+ccd_off_tx_cmd = ""
+
+/* CMD: Flash Test */
+flash_loading_check_tx_cmd = ""
+
+/* CMD: COPR Enable */
+copr_enable_tx_cmd = ""
+
+/* CMD: DDI DSC decoder CRC test */
+dsc_crc_tx_cmd = ""
+
+/* DISABLE VRR MODES */
+DISABLE_VRR_MODES = ""
+
+/* TABLE: GLUT OFFSET NIGHT DIM */
+GLUT_OFFSET_NIGHT_DIM = ""
