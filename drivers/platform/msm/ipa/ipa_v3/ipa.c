@@ -591,6 +591,8 @@ static int ipa3_send_pdn_config_msg(unsigned long usr_param)
 		return -EINVAL;
 	}
 
+	pdn_info->dev_name[sizeof(pdn_info->dev_name)-1] = '\0';
+
 	IPADBG("type %d, interface name: %s, enable:%d\n", msg_meta.msg_type,
 		pdn_info->dev_name, pdn_info->enable);
 
