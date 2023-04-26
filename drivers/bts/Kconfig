@@ -1,0 +1,24 @@
+#
+# BTS device driver Kernel Configuration
+#
+
+menuconfig EXYNOS_BTS
+	tristate "BTS device driver support"
+	help
+	  Enables BTS(Bus Traffic Shaper) device driver support
+	  BTS device driver will set BTS and request DVFS for
+	  controlling system bus traffic. Default setting of BTS
+	  should be different to chipset because of hardware characteristics.
+
+config EXYNOS_USE_SCI_LITE
+	depends on EXYNOS_BTS
+	default n
+	bool "EXYNOS_SCI_LITE support"
+	help
+	  Enable exynos-bcm_dbg time sync support
+
+config SUPPORT_DREX_BTS
+	bool "Support DREX BTS"
+	depends on EXYNOS_BTS
+	help
+	  Support Samsung SOC DREX BTS

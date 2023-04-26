@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config FLED_SAMSUNG_IFPMIC
+	tristate "common FLASH LED support"
+	depends on I2C
+	help
+	  If you say yes here you will get support for
+	  the common led chip.
+
+config LEDS_S2MU106_FLASH
+	tristate "FLASH LED support for the S2MU106"
+	depends on (MFD_S2MU106) && I2C
+	help
+	  If you say yes here you will get support for
+	  the LEDS_S2MU106_FLASH led chip.
+
+config LEDS_S2MF301_FLASH
+	tristate "FLASH LED support for the S2MF301"
+	depends on (MFD_S2MF301) && I2C
+	help
+	  If you say yes here you will get support for
+	  the LEDS_S2MF301_FLASH led chip.

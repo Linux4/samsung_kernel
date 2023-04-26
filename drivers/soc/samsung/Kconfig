@@ -1,0 +1,408 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# Samsung SoC drivers
+#
+menuconfig SOC_SAMSUNG
+	bool "Samsung SoC driver support" if COMPILE_TEST
+
+config SOC_S5E9925
+	bool "Samsung S5E9925"
+	select ARCH_EXYNOS
+	help
+	Support Samsung SOC S5E9925.
+
+config SOC_S5E9935
+	bool "Samsung S5E9935"
+	select ARCH_EXYNOS
+	help
+	Support Samsung SOC S5E9935.
+
+config SOC_S5E8535
+	bool "Samsung S5E8535"
+	select ARCH_EXYNOS
+	help
+	Support Samsung SOC S5E8535.
+
+config SOC_S5E8835
+	bool "Samsung S5E8835"
+	select ARCH_EXYNOS
+	help
+	  Support Samsung SOC S5E8835.
+
+if SOC_SAMSUNG
+
+# There is no need to enable these drivers for ARMv8
+config EXYNOS_ASV_ARM
+	bool "Exynos ASV ARMv7-specific driver extensions" if COMPILE_TEST
+	depends on EXYNOS_CHIPID
+
+config EXYNOS_CHIPID
+	bool "Exynos ChipID controller and ASV driver" if COMPILE_TEST
+	depends on ARCH_EXYNOS || COMPILE_TEST
+	select EXYNOS_ASV_ARM if ARM && ARCH_EXYNOS
+	select MFD_SYSCON
+	select SOC_BUS
+	help
+	  Support for Samsung Exynos SoC ChipID and Adaptive Supply Voltage.
+
+config EXYNOS_PMU
+	bool "Exynos PMU controller driver" if COMPILE_TEST
+	depends on ARCH_EXYNOS || ((ARM || ARM64) && COMPILE_TEST)
+	select EXYNOS_PMU_ARM_DRIVERS if ARM && ARCH_EXYNOS
+	select MFD_CORE
+
+config EXYNOS_PMU_IF
+	tristate "Exynos PMU controller Interface driver"
+	help
+	Support PMU register API for Exynos SoC.
+	select EXYNOS_PMU_ARM_DRIVERS if ARM && ARCH_EXYNOS
+
+# There is no need to enable these drivers for ARMv8
+config EXYNOS_PMU_ARM_DRIVERS
+	bool "Exynos PMU ARMv7-specific driver extensions" if COMPILE_TEST
+	depends on EXYNOS_PMU
+
+config EXYNOS_PM_DOMAINS
+	bool "Exynos PM domains" if COMPILE_TEST
+	depends on (ARCH_EXYNOS && PM_GENERIC_DOMAINS) || COMPILE_TEST
+
+config SAMSUNG_PM_DEBUG
+	bool "Samsung PM Suspend debug"
+	depends on PM && DEBUG_KERNEL
+	depends on PLAT_S3C24XX || ARCH_S3C64XX || ARCH_S5PV210
+	depends on DEBUG_S3C24XX_UART || DEBUG_S3C2410_UART
+	depends on DEBUG_LL && MMU
+	help
+	  Say Y here if you want verbose debugging from the PM Suspend and
+	  Resume code. See <file:Documentation/arm/samsung-s3c24xx/suspend.rst>
+	  for more information.
+
+config S3C_PM_DEBUG_LED_SMDK
+       bool "SMDK LED suspend/resume debugging"
+       depends on PM && (MACH_SMDK6410)
+       help
+         Say Y here to enable the use of the SMDK LEDs on the baseboard
+	 for debugging of the state of the suspend and resume process.
+
+	 Note, this currently only works for S3C64XX based SMDK boards.
+
+config SAMSUNG_PM_CHECK
+	bool "S3C2410 PM Suspend Memory CRC"
+	depends on PM && (PLAT_S3C24XX || ARCH_S3C64XX || ARCH_S5PV210)
+	select CRC32
+	help
+	  Enable the PM code's memory area checksum over sleep. This option
+	  will generate CRCs of all blocks of memory, and store them before
+	  going to sleep. The blocks are then checked on resume for any
+	  errors.
+
+	  Note, this can take several seconds depending on memory size
+	  and CPU speed.
+
+	  See <file:Documentation/arm/samsung-s3c24xx/suspend.rst>
+
+config SAMSUNG_PM_CHECK_CHUNKSIZE
+	int "S3C2410 PM Suspend CRC Chunksize (KiB)"
+	depends on PM && SAMSUNG_PM_CHECK
+	default 64
+	help
+	  Set the chunksize in Kilobytes of the CRC for checking memory
+	  corruption over suspend and resume. A smaller value will mean that
+	  the CRC data block will take more memory, but will identify any
+	  faults with better precision.
+
+	  See <file:Documentation/arm/samsung-s3c24xx/suspend.rst>
+
+config EXYNOS_REGULATOR_COUPLER
+	bool "Exynos SoC Regulator Coupler" if COMPILE_TEST
+	depends on ARCH_EXYNOS || COMPILE_TEST
+endif
+config CAL_IF
+	tristate "Exynos Chip Abstraction Layer Interface"
+	help
+	Support CMU CAL for Exynos SoC.
+
+config EXYNOS_DEBUG_INFO
+	bool "Exynos Debug infromation"
+	default y
+	help
+	Support printing Exynos Debug information.
+
+config CMUCAL
+	tristate "Exynos CMU Chip Abstraction Layer"
+	default y
+	depends on CAL_IF
+	help
+	Support CMUCAL for Exynos SoC.
+
+config CP_PMUCAL
+	tristate "Exynos PMU(for CP) Chip Abstraction Layer"
+	default n
+	depends on CAL_IF
+	help
+	Support CP_PMUCAL for Exynos SoC.
+
+config GNSS_PMUCAL
+        tristate "Exynos PMU(for GNSS) Chip Abstraction Layer"
+        depends on CAL_IF
+        help
+        Support GNSS_PMUCAL for Exynos SoC.
+
+config CHUB_PMUCAL
+        tristate "Exynos PMU(for CHUB) Chip Abstraction Layer"
+	default n
+        depends on CAL_IF
+        help
+        Support CHUB_PMUCAL for Exynos SoC.
+
+config CMUCAL_DEBUG
+	tristate "CMUCAL Debug Interface"
+	default y
+	depends on CMUCAL
+
+config CMUCAL_QCH_IGNORE_SUPPORT
+	tristate "CMUCAL QCH IGNORE Support"
+	default y
+	depends on CMUCAL
+
+config PMUCAL
+        bool "Exynos PMU Chip Abstraction Layer"
+        depends on CAL_IF
+        default y
+        help
+        Support PMUCAL for Exynos SoC.
+
+config PMUCAL_DBG
+        tristate "Exynos PMUCAL debugging interface"
+        depends on PMUCAL
+        help
+        Support PMUCAL debugging for Exynos SoC.
+
+config EXYNOS_FLEXPMU_DBG
+        tristate "Exynos FLEXPMU debugging interface"
+	depends on SOC_S5E9925
+	help
+	Support FLEXPMU for Exynos SoC.
+
+config PMUCAL_CMU_INIT
+		tristate "CMU_INIT in kernel"
+	default n
+	help
+	Support PMUCAL_CMU_INIT for Exynos SoC.
+
+config CMU_EWF
+	tristate "exynos early wakeup force enable"
+	depends on CAL_IF
+	default n
+	help
+	Support CMUEWF for Exynos SoC.
+config EXYNOS_PD
+	tristate "Exynos PM domain Support"
+        depends on CAL_IF && CMUCAL
+	depends on PM
+	select PM_GENERIC_DOMAINS
+
+config EXYNOS_PD_DBG
+	tristate "Exynos PM domain Support"
+        depends on CAL_IF && CMUCAL
+	depends on PM
+	select PM_GENERIC_DOMAINS
+
+config EXYNOS_PD_EL3
+	tristate "Exynos PD Save/Restore"
+	default m
+	help
+	Support Exynos Power Domain Save/Restore
+
+config EXYNOS_SCI
+	tristate "EXYNOS SCI interface driver support"
+	help
+	Enable exynos sci interface driver support
+
+config EXYNOS_LLCGOV
+	tristate "EXYNOS SCI governor support"
+	depends on EXYNOS_SCI
+	help
+	Enable exynos sci governor support
+
+config EXYNOS_SCI_DBG
+	tristate "EXYNOS SCI DBG interface driver support"
+	depends on EXYNOS_SCI
+	help
+	Enable exynos sci debug interface driver support
+
+config EXYNOS_BCM_DBG
+	tristate "EXYNOS_BCM_DBG driver support"
+	help
+	  Enable exynos-bcm_dbg driver support
+
+config EXYNOS_BCM_DBG_GNR
+	tristate "EXYNOS_BCM_DBG_GNR driver support"
+	help
+	  Enable exynos-bcm_dbg driver support
+
+config EXYNOS_BCM_TIME_SYNC
+	depends on EXYNOS_BCM_DBG
+	default n
+	bool "EXYNOS_BCM_TIME_SYNC support"
+	help
+	  Enable exynos-bcm_dbg time sync support
+
+config EXYNOS_BCM_DBG_AUTO
+	tristate "EXYNOS_BCM_DBG_AUTO support"
+	default n
+	depends on EXYNOS_BCM_DBG
+	depends on !(USE_SIGNED_BINARY)
+	help
+	  Enable exynos-bcm_dbg_auto support
+
+config EXYNOS_BCM_DBG_DUMP
+	tristate "EXYNOS_BCM_DBG dump support"
+	depends on EXYNOS_BCM_DBG
+	help
+	  Enable exynos-bcm_dbg dump support
+
+config EXYNOS_ACPM
+	tristate "ACPM driver support"
+	depends on ARCH_EXYNOS
+	default n
+	help
+	Support ACPM for Exynos SoC.
+
+config EXYNOS_PM_QOS
+	tristate "Exynos PM QOS"
+	default m
+	help
+	  Support Exynos PM QOS
+
+config EXYNOS_DVFS_MANAGER
+	tristate "Exynos DVFS Manager"
+	help
+	  Enable DVFS Manager for Exynos SoC.
+	  This module controls constraint between each DVFS domains.
+
+config EXYNOS_ESCA_DVFS_MANAGER
+	tristate "Exynos ESCA DVFS Manager"
+	help
+	  Enable ESCA DVFS Manager for Exynos SoC.
+	  This module controls constraint between each DVFS domains.
+
+config ACPM_DVFS
+        tristate "Exynos ACPM DVFS manager"
+        depends on CAL_IF && CMUCAL
+        default n
+        help
+        Support ACPM DVFS for Exynos SoC.
+
+config EXYNOS_WOW
+	tristate "Exynos Workload Watcher"
+	depends on ARM_EXYNOS_DEVFREQ
+	default m
+	help
+	  Exynos Workload Wather (WoW) driver support
+
+config EXYNOS_DEBUG_FREQ
+	tristate "check constraint freq and print log"
+	depends on CAL_IF
+	default n
+	help
+	  If this config is set, check constraint freq every time which cpufreq,
+
+config ECT
+	tristate "Enable Exynos Characteristic Table File"
+	default n
+	help
+	Support ECT for Exynos SoC.
+
+config ECT_LEGACY
+	bool "Enable ECT Legacy functions"
+	depends on ECT
+	default n
+	help
+	Support lehacy ECT functions for Exynos SoC.
+
+config EXYNOS_PM
+	tristate "Enable Exynos PM"
+	help
+	Support EXYNOS_PM for Exynos SoC.
+
+config EXYNOS_CPUHP
+	tristate "CPU Hotplug driver support"
+	default n
+	help
+	  Support CPU Hotplug interface for Exynos SoC.
+
+config EXYNOS_CPUPM
+	tristate "Exynos CPU Power Management driver"
+	depends on ARCH_EXYNOS && PMUCAL
+	default m
+	help
+	  Support Exynos CPU Power Control for EXYNOS SoC.
+
+config EXYNOS_UFCC
+	tristate "User Frequency & C-state Control"
+	depends on EXYNOS_CPUPM
+	default n
+	help
+	  Control Frequency & C-state by user
+
+config EXYNOS_AFM
+	tristate "Exynos AFM Handler"
+	depends on CPU_FREQ
+	default n
+	help
+	  Enable AFM handler for Exynos SoC.
+
+config EXYNOS_SEH
+	tristate "Exynos Smart Exception Handler"
+	default m
+	help
+	  Support Exynos Smart Exception Handler
+
+config EXYNOS_SECURE_LOG
+	tristate "Exynos Secure Log"
+	default m
+	help
+	Support Exynos Secure Log
+
+config EXYNOS_ICM
+	tristate "Exynos Isolated CryptoManager driver"
+	default n
+	help
+	  Support Exynos Isolated CryptoManager driver
+
+config EXYNOS_PROFILER
+	tristate "Exynos Multi IP Governor support"
+	default m
+	help
+	Support Multi IP Governor for Exynos SoC.
+
+config EXYNOS_CPU_PROFILER
+	tristate "Exynos CPU Profiler support"
+	depends on EXYNOS_PROFILER
+	default m
+	help
+	Support CPU Profiler for Exynos SoC.
+
+config EXYNOS_GPU_PROFILER
+        tristate "Exynos GPU Profiler support"
+        depends on EXYNOS_PROFILER
+        default m
+        help
+        Support GPU Profiler for Exynos SoC.
+
+config EXYNOS_MIF_PROFILER
+        tristate "Exynos MIF Profiler support"
+        depends on EXYNOS_PROFILER
+        default m
+        help
+        Support MIF Profiler for Exynos SoC.
+
+source "drivers/soc/samsung/acpm/Kconfig"
+source "drivers/soc/samsung/exynos/Kconfig"
+source "drivers/soc/samsung/xperf/Kconfig"
+source "drivers/soc/samsung/Kconfig.variant"
+source "drivers/soc/samsung/strong/Kconfig"
+source "drivers/soc/samsung/camellia/Kconfig"
+source "drivers/soc/samsung/cpif/Kconfig"
+source "drivers/soc/samsung/gnssif/Kconfig"
