@@ -10375,6 +10375,7 @@
 				goodix,gpio_irq = <0xffffffff 0x26 0x0>;
 				goodix,chip_id = "GW36T1";
 				goodix,orient = <0x1>;
+				goodix,position = "${fps_position}";
 				goodix,min_cpufreq_limit = <0x211b00>;
 				goodix,spiclk_speed = <0x7a1200>;
 			};
@@ -13529,10 +13530,6 @@
 		target = <0xffffffff>;
 
 		__overlay__ {
-
-			samsung,subsystem-sleep-debug {
-				subsystem-debug,adsp-ssr-enable;
-			};
 
 			samsung,q6audio-adaptation {
 				compatible = "samsung,q6audio-adaptation";

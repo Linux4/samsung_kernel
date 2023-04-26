@@ -196,6 +196,32 @@ static ssize_t flip_status_show(struct device *dev,
 	return strlen(buf);
 }
 
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+static ssize_t flip_status_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct hall_ic_data *hall;
+	int state;
+	int ret;
+
+	ret = kstrtoint(buf, 10, &state);
+	if (ret < 0)
+		return ret;
+
+	list_for_each_entry(hall, &hall_ic_list, list) {
+		if (hall->event != SW_FOLDER)
+			continue;
+
+		if (hall->input) {
+			input_report_switch(hall->input, hall->event, state);
+			input_sync(hall->input);
+			pr_info("[sec_input] %s: %s %d: %d\n", __func__, hall->name, hall->event, state);
+		}
+	}
+	return count;
+}
+#endif
+
 static ssize_t hall_number_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
@@ -235,7 +261,11 @@ static ssize_t hall_count_show(struct device *dev,
 static DEVICE_ATTR_RO(hall_detect);
 static DEVICE_ATTR_RO(certify_hall_detect);
 static DEVICE_ATTR_RO(hall_wacom_detect);
+#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 static DEVICE_ATTR_RO(flip_status);
+#else
+static DEVICE_ATTR_RW(flip_status);
+#endif
 static DEVICE_ATTR_RO(hall_number);
 static DEVICE_ATTR_RO(debounce);
 static DEVICE_ATTR_RO(hall_count);

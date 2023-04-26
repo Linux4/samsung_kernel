@@ -72,6 +72,14 @@ static ssize_t adm_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", DETECT_ADM);
 }
 
+static ssize_t position_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct gf_device *gf_dev = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%s\n", gf_dev->position);
+}
+
 static ssize_t intcnt_show(struct device *dev,
 			       struct device_attribute *attr, char *buf)
 {
@@ -119,6 +127,7 @@ static DEVICE_ATTR_RO(type_check);
 static DEVICE_ATTR_RO(vendor);
 static DEVICE_ATTR_RO(name);
 static DEVICE_ATTR_RO(adm);
+static DEVICE_ATTR_RO(position);
 static DEVICE_ATTR_RW(intcnt);
 static DEVICE_ATTR_RW(resetcnt);
 
@@ -128,6 +137,7 @@ static struct device_attribute *fp_attrs[] = {
 	&dev_attr_vendor,
 	&dev_attr_name,
 	&dev_attr_adm,
+	&dev_attr_position,
 	&dev_attr_intcnt,
 	&dev_attr_resetcnt,
 	NULL,
@@ -695,6 +705,11 @@ int gw3x_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 	if (of_property_read_u32(np, "goodix,orient", &gf_dev->orient))
 		gf_dev->orient = 0;
 	pr_info("orient: %d\n", gf_dev->orient);
+
+	if (of_property_read_string_index(np, "goodix,position", 0,
+			(const char **)&gf_dev->position))
+		gf_dev->position = "NA";
+	pr_info("position:%s\n", gf_dev->position);
 
 	if (of_property_read_u32(np, "goodix,spiclk_speed", &gf_dev->clk_setting->spi_speed))
 		gf_dev->clk_setting->spi_speed = gw3x_SPI_BAUD_RATE;

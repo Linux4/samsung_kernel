@@ -110,7 +110,7 @@ static void s2dos05_irq_abc_event(const char *irq_desc)
 #if IS_ENABLED(CONFIG_SEC_FACTORY)
 	type = "WARN";
 #else
-	type = "INFO";
+	type = "WARN";	/* Diamond: black screen issue in user binary */
 #endif /* CONFIG_SEC_FACTORY */
 
 	snprintf(buf, sizeof(buf), "MODULE=pmic@%s=s2dos05_%s", type, irq_desc);
