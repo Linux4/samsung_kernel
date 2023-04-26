@@ -2254,12 +2254,39 @@ retry_fodmode:
 void stm_ts_close_work(struct work_struct *work)
 {
 	struct stm_ts_data *ts = container_of(work, struct stm_ts_data, close_work.work);
-
-	mutex_lock(&ts->modechange);
+	struct timespec64 cur_ts;
+	struct rtc_time tm;
+	ktime_t calltime;
+	u64 realtime;
+	int curr_time;
 
 	if (atomic_read(&ts->trusted_touch_enabled)) {
+		calltime = ktime_get();
+		realtime = ktime_to_ns(calltime);
+		do_div(realtime, NSEC_PER_USEC);
+		curr_time = realtime / USEC_PER_MSEC;
+		ktime_get_real_ts64(&cur_ts);
+		rtc_time64_to_tm(cur_ts.tv_sec, &tm);
+		input_info(true, &ts->client->dev,
+			"%s: start waiting for trusted touch to be disable.(%d-%02d-%02d %02d:%02d:%02d.%09lu UTC/ kernel: %d)\n",
+			__func__,  tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+			tm.tm_hour, tm.tm_min, tm.tm_sec, cur_ts.tv_nsec, curr_time);
+
 		wait_for_completion_interruptible(&ts->trusted_touch_powerdown);
+
+		calltime = ktime_get();
+		realtime = ktime_to_ns(calltime);
+		do_div(realtime, NSEC_PER_USEC);
+		curr_time = realtime / USEC_PER_MSEC;
+		ktime_get_real_ts64(&cur_ts);
+		rtc_time64_to_tm(cur_ts.tv_sec, &tm);
+		input_info(true, &ts->client->dev,
+			"%s: disabling trusted touch is done(%d-%02d-%02d %02d:%02d:%02d.%09lu UTC/ kernel: %d)\n",
+			__func__,  tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+			tm.tm_hour, tm.tm_min, tm.tm_sec, cur_ts.tv_nsec, curr_time);
 	}
+
+	mutex_lock(&ts->modechange);
 
 	if (ts->flip_status_prev != ts->flip_status_current || ts->plat_data->prox_power_off) {
 		input_report_key(ts->plat_data->input_dev, KEY_INT_CANCEL, 1);

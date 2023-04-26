@@ -63,6 +63,8 @@ bool sec_bat_check_step_charging(struct sec_battery_info *battery)
 #else
 	int age_step = 0;
 #endif
+	union power_supply_propval val = {0, };
+	int fpdo_sc = 0;
 
 #if defined(CONFIG_SEC_FACTORY)
 	if (!battery->step_chg_en_in_factory)
@@ -82,9 +84,19 @@ bool sec_bat_check_step_charging(struct sec_battery_info *battery)
 	else
 		lcd_status = 0;
 
+	if (battery->cable_type == SEC_BATTERY_CABLE_FPDO_DC) {
+		psy_do_property(battery->pdata->charger_name, get,
+				POWER_SUPPLY_EXT_PROP_CHARGING_ENABLED_DC, val);
+		fpdo_sc = val.intval;
+		pr_info("%s: SC for FPDO_DC(%d)", __func__, fpdo_sc);
+
+		if (!fpdo_sc && battery->step_chg_status >= 0)
+			sec_bat_reset_step_charging(battery);
+	}
+
 	if (battery->step_chg_type & STEP_CHARGING_CONDITION_ONLINE) {
 #if IS_ENABLED(CONFIG_DIRECT_CHARGING)
-		if (is_pd_apdo_wire_type(battery->cable_type) &&
+		if ((is_pd_apdo_wire_type(battery->cable_type) && !fpdo_sc) &&
 			!((battery->current_event & SEC_BAT_CURRENT_EVENT_DC_ERR) &&
 			(battery->ta_alert_mode == OCP_NONE))) {
 			sec_vote(battery->fv_vote, VOTER_STEP_CHARGE, false, 0);
@@ -92,7 +104,8 @@ bool sec_bat_check_step_charging(struct sec_battery_info *battery)
 			return false;
 		}
 
-		if ((is_pd_apdo_wire_type(battery->cable_type) || is_pd_apdo_wire_type(battery->wire_status)) &&
+		if (((is_pd_apdo_wire_type(battery->cable_type) || is_pd_apdo_wire_type(battery->wire_status)) &&
+					!fpdo_sc) &&
 			(battery->sink_status.rp_currentlvl == RP_CURRENT_LEVEL3)) {
 			pr_info("%s: This cable type should be checked in dc step check\n", __func__);
 			sec_vote(battery->fv_vote, VOTER_STEP_CHARGE, false, 0);

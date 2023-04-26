@@ -48,6 +48,29 @@ static ssize_t ufs_sec_lt_show(struct device *dev,
 }
 static DEVICE_ATTR(lt, 0444, ufs_sec_lt_show, NULL);
 
+static ssize_t ufs_sec_flt_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ufs_hba *hba;
+
+	hba = get_vdi_member(hba);
+
+	if (!hba) {
+		dev_err(dev, "skipping ufs flt read\n");
+		get_vdi_member(flt) = 0;
+	} else if (hba->ufshcd_state == UFSHCD_STATE_OPERATIONAL) {
+		pm_runtime_get_sync(&hba->sdev_ufs_device->sdev_gendev);
+		ufs_sec_get_health_desc(hba);
+		pm_runtime_put(&hba->sdev_ufs_device->sdev_gendev);
+	} else {
+		/* return previous FLT value if not operational */
+		dev_info(hba->dev, "ufshcd_state : %d, old FLT: %u\n",
+				hba->ufshcd_state, get_vdi_member(flt));
+	}
+	return snprintf(buf, PAGE_SIZE, "%u\n", get_vdi_member(flt));
+}
+static DEVICE_ATTR(flt, 0444, ufs_sec_flt_show, NULL);
+
 static ssize_t ufs_sec_lc_info_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -88,6 +111,7 @@ static struct attribute *sec_ufs_info_attributes[] = {
 	&dev_attr_lt.attr,
 	&dev_attr_lc.attr,
 	&dev_attr_man_id.attr,
+	&dev_attr_flt.attr,
 	NULL
 };
 

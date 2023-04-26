@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -212,12 +212,14 @@ void p2p_status_update(struct p2p_soc_priv_obj *p2p_soc_obj,
  *                                  MAC address from the primary MAC address
  * @skip_dfs_channel_p2p_search:    skip DFS Channel in case of P2P Search
  * @is_random_seq_num_enabled:      Flag to generate random sequence numbers
+ * @indoor_channel_support:         support to allow GO in indoor channels
  */
 struct p2p_param {
 	uint32_t go_keepalive_period;
 	uint32_t go_link_monitor_period;
 	bool p2p_device_addr_admin;
 	bool is_random_seq_num_enabled;
+	bool indoor_channel_support;
 };
 
 /**

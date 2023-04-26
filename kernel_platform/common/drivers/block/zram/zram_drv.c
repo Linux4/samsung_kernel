@@ -837,6 +837,38 @@ out:
 		atomic64_dec(&zram->stats.bd_ppr_count);
 	free_chunk_bdev(zram, blk_to_chunk_idx(blk_idx));
 }
+
+static void zram_inc_wb_table(struct zram *zram, unsigned long blk_idx)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&zram->wb_table_lock, flags);
+	if (zram->wb_table)
+		zram->wb_table[blk_idx]++;
+	spin_unlock_irqrestore(&zram->wb_table_lock, flags);
+}
+
+static void zram_dec_wb_table(struct zram *zram, unsigned long blk_idx, bool ppr)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&zram->wb_table_lock, flags);
+	if (!zram->wb_table) {
+		spin_unlock_irqrestore(&zram->wb_table_lock, flags);
+		return;
+	}
+	zram->wb_table[blk_idx]--;
+	if (zram->wb_table[blk_idx] > 0) {
+		spin_unlock_irqrestore(&zram->wb_table_lock, flags);
+		return;
+	}
+	spin_unlock_irqrestore(&zram->wb_table_lock, flags);
+	clear_bit(blk_idx, zram->bitmap);
+	atomic64_dec(&zram->stats.bd_count);
+	if (ppr)
+		atomic64_dec(&zram->stats.bd_ppr_count);
+	free_chunk_bdev(zram, blk_to_chunk_idx(blk_idx));
+}
 #else
 static unsigned long alloc_block_bdev(struct zram *zram)
 {
@@ -1648,6 +1680,7 @@ static int zram_prefetch_entry(unsigned long index)
 	struct zram *zram = g_zram;
 	unsigned long handle;
 	unsigned long chunk_idx;
+	unsigned long blk_idx;
 
 	if (index >= (zram->disksize >> PAGE_SHIFT))
 		return -1;
@@ -1663,11 +1696,16 @@ static int zram_prefetch_entry(unsigned long index)
 		return -1;
 	}
 	handle = zram_get_element(zram, index);
-	zram_slot_unlock(zram, index);
-	chunk_idx = blk_to_chunk_idx(handle >> (PAGE_SHIFT * 2));
-	if (test_and_set_bit(chunk_idx, zram->read_req_bitmap))
+	blk_idx = handle >> (PAGE_SHIFT * 2);
+	chunk_idx = blk_to_chunk_idx(blk_idx);
+	if (test_and_set_bit(chunk_idx, zram->read_req_bitmap)) {
+		zram_slot_unlock(zram, index);
 		return -1;
-	read_comp_from_bdev(zram, NULL, handle, NULL, true);
+	}
+	zram_inc_wb_table(zram, blk_idx);
+	zram_slot_unlock(zram, index);
+	if (read_comp_from_bdev(zram, NULL, handle, NULL, true) < 0)
+		zram_dec_wb_table(zram, blk_idx, true);
 	atomic64_inc(&zram->stats.bd_ppr_reads);
 
 	return 0;
@@ -2158,6 +2196,7 @@ out:
 	if (!dst_page)
 		clear_bit(blk_to_chunk_idx(blk_idx), zram->read_req_bitmap);
 
+	zram_dec_wb_table(zram, blk_idx + page_idx, zw->nr_pages == NR_ZWBS);
 	free_zw_pages(zw);
 	kfree(zw);
 }
@@ -2166,7 +2205,10 @@ static void zram_comp_page_end_io(struct bio *bio)
 {
 	struct page *page = bio->bi_io_vec[0].bv_page;
 	struct zram_wb_work *zw = (struct zram_wb_work *)page_private(page);
+	int errno = blk_status_to_errno(bio->bi_status);
 
+	if (errno)
+		pr_info("%s errno %d\n", __func__, errno);
 	INIT_WORK(&zw->work, zram_handle_comp_page);
 	schedule_work(&zw->work);
 }
@@ -2710,6 +2752,7 @@ static int __zram_bvec_read(struct zram *zram, struct page *page, u32 index,
 	int ret;
 #ifdef CONFIG_ZRAM_LRU_WRITEBACK
 	unsigned long flags;
+	unsigned long blk_idx;
 	bool ppr;
 #endif
 
@@ -2729,11 +2772,16 @@ static int __zram_bvec_read(struct zram *zram, struct page *page, u32 index,
 			zram_set_flag(zram, index, ZRAM_EXPIRE);
 			atomic64_inc(&zram->stats.bd_expire);
 		}
-		if (((zram_get_element(zram, index) & (PAGE_SIZE - 1)) != 0) || ppr) {
+		handle = zram_get_element(zram, index);
+		if (((handle & (PAGE_SIZE - 1)) != 0) || ppr) {
 			zram_set_flag(zram, index, ZRAM_READ_BDEV);
+			blk_idx = handle >> (PAGE_SHIFT * 2);
+			zram_inc_wb_table(zram, blk_idx);
 			zram_slot_unlock(zram, index);
-			return read_comp_from_bdev(zram, &bvec,
-					zram_get_element(zram, index), bio, ppr);
+			ret = read_comp_from_bdev(zram, &bvec, handle, bio, ppr);
+			if (ret < 0)
+				zram_dec_wb_table(zram, blk_idx, ppr);
+			return ret;
 		}
 #endif
 		zram_slot_unlock(zram, index);

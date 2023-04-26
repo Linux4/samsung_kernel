@@ -1049,6 +1049,7 @@ void sec_bat_check_direct_chg_temp(struct sec_battery_info *battery, int siop_le
 void sec_bat_check_pdic_temp(struct sec_battery_info *battery, int siop_level)
 {
 	int input_current = 0, charging_current = 0;
+	bool pre_chg_limit = battery->chg_limit;
 
 	if (battery->pdata->chg_thm_info.check_type == SEC_BATTERY_TEMP_CHECK_NONE)
 		return;
@@ -1083,6 +1084,16 @@ void sec_bat_check_pdic_temp(struct sec_battery_info *battery, int siop_level)
 		battery->chg_limit = false;
 		sec_vote(battery->fcc_vote, VOTER_CHG_TEMP, false, 0);
 		sec_vote(battery->input_vote, VOTER_CHG_TEMP, false, 0);
+	}
+
+	/* FPDO DC concept */
+	if (battery->cable_type == SEC_BATTERY_CABLE_FPDO_DC && battery->chg_limit != pre_chg_limit) {
+		union power_supply_propval value = {0, };
+
+		value.intval = 0;
+		psy_do_property(battery->pdata->charger_name, set,
+				POWER_SUPPLY_EXT_PROP_REFRESH_CHARGING_SOURCE, value);
+
 	}
 }
 EXPORT_SYMBOL_KUNIT(sec_bat_check_pdic_temp);

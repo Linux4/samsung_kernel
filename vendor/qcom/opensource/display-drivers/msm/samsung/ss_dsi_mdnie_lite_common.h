@@ -36,7 +36,7 @@ Copyright (C) 2012, Samsung Electronics. All rights reserved.
 #define MDNIE_COLOR_BLINDE_CMD_SIZE 18
 #define MDNIE_COLOR_BLINDE_HBM_CMD_SIZE 24
 #define COORDINATE_DATA_SIZE 6
-#define MDNIE_SCR_CMD_SIZE 24
+#define MDNIE_SCR_CMD_SIZE 36
 #define AFC_ROI_CMD_SIZE 12
 
 extern char mdnie_app_name[][NAME_STRING_MAX];
@@ -268,6 +268,12 @@ struct mdnie_lite_tune_data {
 	char *DSI_COLOR_LENS_MDNIE_1;
 	char *DSI_COLOR_LENS_MDNIE_2;
 	char *DSI_COLOR_LENS_MDNIE_SCR;
+	char *DSI_HBM_CE_MDNIE_SCR_1;
+	char *DSI_HBM_CE_MDNIE_SCR_2;
+	char *DSI_HBM_CE_MDNIE_SCR_3;
+	char *DSI_HBM_CE_MDNIE_DIMMING_1;
+	char *DSI_HBM_CE_MDNIE_DIMMING_2;
+	char *DSI_HBM_CE_MDNIE_DIMMING_3;
 	char *DSI_AFC;
 	char *DSI_AFC_ON;
 	char *DSI_AFC_OFF;
@@ -340,16 +346,19 @@ struct mdnie_lite_tune_data {
 
 	int dsi_bypass_mdnie_size;
 	int mdnie_color_blinde_cmd_offset;
+	int mdnie_scr_cmd_offset;
 	int mdnie_step_index[MDNIE_STEP_MAX];
 	int address_scr_white[ADDRESS_SCR_WHITE_MAX];
 	int dsi_rgb_sensor_mdnie_1_size;
 	int dsi_rgb_sensor_mdnie_2_size;
 	int dsi_rgb_sensor_mdnie_3_size;
 	int dsi_trans_dimming_data_index;
+	int dsi_trans_dimming_slope_index;
 	char **dsi_adjust_ldu_table;
 	int dsi_max_adjust_ldu;
 	char *dsi_night_mode_table;
 	int dsi_max_night_mode_index;
+	char *dsi_hbm_scr_table;
 	char *dsi_color_lens_table;
 	int dsi_scr_step_index;
 	char dsi_white_default_r;
