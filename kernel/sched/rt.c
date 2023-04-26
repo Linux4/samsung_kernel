@@ -1813,8 +1813,9 @@ retry:
 
 #ifdef CONFIG_PERF_MGR
 			if (task->drawing_mig_boost) {
-				if (capacity_orig_of(cpu) < util + tutil)
+				if (capacity_orig_of(cpu) < util + tutil) {
 					continue;
+				}
 			} else {
 				if (__cpu_overutilized(cpu, util + tutil))
 					continue;

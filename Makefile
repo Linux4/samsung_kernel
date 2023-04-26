@@ -377,8 +377,7 @@ endif
 # Make variables (CC, etc...)
 AS		= $(CROSS_COMPILE)as
 LD		= $(CROSS_COMPILE)ld
-#REAL_CC		= $(CROSS_COMPILE)gcc
-REAL_CC         = $(srctree)/toolchain/llvm-arm-toolchain-ship/10.0/bin/clang
+REAL_CC		= $(CROSS_COMPILE)gcc
 LDGOLD		= $(CROSS_COMPILE)ld.gold
 CPP		= $(CC) -E
 AR		= $(CROSS_COMPILE)ar
@@ -824,7 +823,7 @@ endif
 
 ifdef CONFIG_RKP_CFP
 #CFP_CC		?= $(srctree)/../../vendor/qcom/proprietary/llvm-arm-toolchain-ship/10.0/bin/clang
-CFP_CC          ?= $(srctree)/toolchain/llvm-arm-toolchain-ship/10.0/bin/clang
+CFP_CC		= $(srctree)/toolchain/llvm-arm-toolchain-ship/10.0/bin/clang
 CC		= $(srctree)/scripts/gcc-wrapper.py $(CFP_CC)
 endif
 
@@ -1053,6 +1052,13 @@ else
       export KBUILD_FP_SENSOR_CFLAGS := -DENABLE_SENSORS_FPRINT_SECURE
     endif
   endif
+endif
+
+
+ifneq ($(shell secgetspf SEC_PRODUCT_FEATURE_COMMON_CONFIG_SEP_VERSION),)
+      SEP_MAJOR_VERSION := $(shell secgetspf SEC_PRODUCT_FEATURE_COMMON_CONFIG_SEP_VERSION | cut -f1 -d.)
+      SEP_MINOR_VERSION := $(shell secgetspf SEC_PRODUCT_FEATURE_COMMON_CONFIG_SEP_VERSION | cut -f2 -d.)
+      export KBUILD_SEP_VERSION := -DSEP_KVERSION=$(SEP_MAJOR_VERSION)$(SEP_MINOR_VERSION)
 endif
 
 # Default kernel image to build when no specific target is given.

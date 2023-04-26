@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -28,7 +28,7 @@
 
 #define KERNEL_THREAD_RETURN_TYPE int
 
-typedef int (*f_commitpkt_t)(void* ctx, void* p);
+typedef int (*f_commitpkt_t)(struct dhd_bus *bus, void* p);
 typedef bool (*f_processpkt_t)(void* p, void* arg);
 
 #define WLFC_UNSUPPORTED -9999

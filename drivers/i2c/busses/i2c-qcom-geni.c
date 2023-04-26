@@ -884,9 +884,21 @@ static int geni_i2c_xfer(struct i2c_adapter *adap,
 			}
 
 			if (!timeout) {
+#if defined(CONFIG_SEC_A82XQ_PROJECT)//OIS issue fix QC case 05110239
+				GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev,
+					"Cancel failed\n");
+				reinit_completion(&gi2c->xfer);
+ 				geni_abort_m_cmd(gi2c->base);
+				timeout =
+				wait_for_completion_timeout(&gi2c->xfer, HZ);
+				if (!timeout)
+					GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev,
+						"Abort failed\n");
+#else
 				GENI_SE_ERR(gi2c->ipcl, true, gi2c->dev,
 					"Abort\n");
 				geni_abort_m_cmd(gi2c->base);
+#endif
 			}
 		}
 		gi2c->cur_wr = 0;

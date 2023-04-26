@@ -1163,5 +1163,9 @@ struct mfc_charger_data {
 	unsigned long gear_start_time;
 	int wpc_en_flag;
 	int tx_gear_phm;
+
+	struct mutex fw_lock;
+	unsigned long fw_size;
+	u8 *fw_img;
 };
 #endif /* __WIRELESS_CHARGER_MFC_H */

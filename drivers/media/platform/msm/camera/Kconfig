@@ -185,3 +185,10 @@ config MCLK_I2C_DELAY_FOR_CAM_POWERDOWN
 	default n
 	---help---
 	Adds Delay in MCLK I2C power down Sequence for preventing Spec Out.
+
+config GC5035_MACRO_OTP_DD_AUTOLOAD
+	tristate "Macro Camera Sensor GC5035 OTP DD Autoload Support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for Macro Camera Sensor GC5035 OTP DD Autoload.

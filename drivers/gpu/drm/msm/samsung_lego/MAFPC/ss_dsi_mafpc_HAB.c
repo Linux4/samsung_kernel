@@ -270,7 +270,7 @@ static void ss_mafpc_img_write(struct samsung_display_driver_data *vdd, bool is_
 	int wait_cnt = 1000; /* 1000 * 0.5ms = 500ms */
 
 	if (!vdd->mafpc.is_support) {
-		LCD_ERR("mafpc is not supported..(%d)\n", vdd->mafpc.is_support);
+		LCD_ERR("mafpc is not supported..(%d) \n", vdd->mafpc.is_support);
 		return;
 	}
 

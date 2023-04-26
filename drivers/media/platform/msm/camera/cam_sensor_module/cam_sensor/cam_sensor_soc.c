@@ -417,6 +417,11 @@ static int32_t cam_sensor_driver_get_dt_data(struct cam_sensor_ctrl_t *s_ctrl)
 #if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
 	else if (s_ctrl->id == CAMERA_3)
 		rc = cam_sensor_get_dt_camera_info(of_node, rear3_cam_info);
+	/* Added the changes since R5 is triple camera and the macro camera id is 4 - PLM ID : P211006-06816 */
+#if defined(CONFIG_SEC_R5Q_PROJECT) 
+	else if (s_ctrl->id == CAMERA_4)
+		rc = cam_sensor_get_dt_camera_info(of_node, rear3_cam_info);
+#endif
 #endif
 #if defined(CONFIG_SEC_A71_PROJECT) || defined(CONFIG_SEC_M51_PROJECT) || defined(CONFIG_SEC_A52Q_PROJECT) || defined(CONFIG_SEC_A72Q_PROJECT) ||  defined(CONFIG_SEC_M42Q_PROJECT)
 	else if (s_ctrl->id == CAMERA_4)

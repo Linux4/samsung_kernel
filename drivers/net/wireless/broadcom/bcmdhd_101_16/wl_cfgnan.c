@@ -1,7 +1,7 @@
 /*
  * Neighbor Awareness Networking
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -55,6 +55,8 @@
 static int wl_cfgnan_cache_disc_result(struct bcm_cfg80211 *cfg, void * data,
 	u16 *disc_cache_update_flags);
 static int wl_cfgnan_remove_disc_result(struct bcm_cfg80211 * cfg, uint8 local_subid);
+static int wl_cfgnan_reset_disc_result(struct bcm_cfg80211 *cfg,
+	nan_disc_result_cache *disc_res);
 static nan_disc_result_cache * wl_cfgnan_get_disc_result(struct bcm_cfg80211 *cfg,
 	uint8 remote_pubid, struct ether_addr *peer);
 #endif /* WL_NAN_DISC_CACHE */
@@ -2960,7 +2962,7 @@ wl_cfgnan_start_handler(struct net_device *ndev, struct bcm_cfg80211 *cfg,
 	ret = wl_cfgnan_execute_ioctl(ndev, cfg, nan_buf, nan_buf_size,
 			&(cmd_data->status), (void*)resp_buf, NAN_IOCTL_BUF_SIZE);
 	if (unlikely(ret) || unlikely(cmd_data->status)) {
-		WL_ERR((" nan start handler, enable failed, ret = %d status = %d \n",
+		WL_ERR(("nan start handler, enable failed, ret = %d status = %d \n",
 				ret, cmd_data->status));
 		goto fail;
 	}
@@ -3011,7 +3013,7 @@ wl_cfgnan_start_handler(struct net_device *ndev, struct bcm_cfg80211 *cfg,
 			}
 		}
 	} else {
-		WL_ERR(("wl_cfgnan_get_capablities_handler failed, ret = %d\n", ret));
+		WL_ERR(("wl_cfgnan_get_capabilities_handler failed, ret = %d\n", ret));
 		goto fail;
 	}
 
@@ -3048,7 +3050,7 @@ wl_cfgnan_start_handler(struct net_device *ndev, struct bcm_cfg80211 *cfg,
 				0, WL_NAN_CMD_CFG_NAN_CONFIG2,
 				&(cmd_data->status), false);
 		if (unlikely(ret) || unlikely(cmd_data->status)) {
-			WL_ERR((" nan ctrl2 config flags resetting failed, ret = %d status = %d \n",
+			WL_ERR(("nan ctrl2 config flags resetting failed, ret = %d status = %d \n",
 					ret, cmd_data->status));
 			goto fail;
 		}
@@ -3060,7 +3062,7 @@ wl_cfgnan_start_handler(struct net_device *ndev, struct bcm_cfg80211 *cfg,
 			0, WL_NAN_CMD_CFG_NAN_CONFIG2,
 			&(cmd_data->status), true);
 	if (unlikely(ret) || unlikely(cmd_data->status)) {
-		WL_ERR((" nan ctrl2 config flags setting failed, ret = %d status = %d \n",
+		WL_ERR(("nan ctrl2 config flags setting failed, ret = %d status = %d \n",
 				ret, cmd_data->status));
 		goto fail;
 	}
@@ -3085,15 +3087,10 @@ wl_cfgnan_start_handler(struct net_device *ndev, struct bcm_cfg80211 *cfg,
 
 	nancfg->nan_enable = true;
 	WL_INFORM_MEM(("[NAN] Enable successfull \n"));
+	goto done;
 
 fail:
-	/* Enable back TDLS if connected interface is <= 1 */
-	wl_cfg80211_tdls_config(cfg, TDLS_STATE_IF_DELETE, false);
-
-	/* reset conditon variable */
-	nancfg->nan_event_recvd = false;
 	if (unlikely(ret) || unlikely(cmd_data->status)) {
-		nancfg->nan_enable = false;
 		mutex_lock(&cfg->if_sync);
 		ret = wl_cfg80211_delete_iface(cfg, WL_IF_TYPE_NAN);
 		if (ret != BCME_OK) {
@@ -3110,7 +3107,23 @@ fail:
 					nancfg->max_ndi_supported * sizeof(*nancfg->ndi));
 			nancfg->ndi = NULL;
 		}
+		ret = wl_cfgnan_stop_handler(ndev, cfg);
+		if (ret != BCME_OK) {
+			WL_ERR(("failed to stop nan[%d]\n", ret));
+		}
+		ret = wl_cfgnan_deinit(cfg, dhdp->up);
+		if (ret != BCME_OK) {
+			WL_ERR(("failed to de-initialize NAN[%d]\n", ret));
+		}
+
 	}
+done:
+	/* Enable back TDLS if connected interface is <= 1 */
+	wl_cfg80211_tdls_config(cfg, TDLS_STATE_IF_DELETE, false);
+
+	/* reset conditon variable */
+	nancfg->nan_event_recvd = false;
+
 	if (nan_buf) {
 		MFREE(cfg->osh, nan_buf, NAN_IOCTL_BUF_SIZE);
 	}
@@ -3268,9 +3281,8 @@ wl_cfgnan_delayed_disable(struct work_struct *work)
 	} else {
 		WL_INFORM_MEM(("nan is in disabled state\n"));
 	}
-	rtnl_unlock();
-
 	DHD_NAN_WAKE_UNLOCK(cfg->pub);
+	rtnl_unlock();
 
 	return;
 }
@@ -3290,12 +3302,6 @@ wl_cfgnan_stop_handler(struct net_device *ndev,
 
 	NAN_DBG_ENTER();
 	NAN_MUTEX_LOCK();
-
-	if (!nancfg->nan_enable) {
-		WL_INFORM(("Nan is not enabled\n"));
-		ret = BCME_OK;
-		goto fail;
-	}
 
 	if (dhdp->up != DHD_BUS_DOWN) {
 		/*
@@ -3560,6 +3566,9 @@ wl_cfgnan_config_handler(struct net_device *ndev, struct bcm_cfg80211 *cfg,
 				goto fail;
 			}
 
+			WL_INFORM_MEM(("Cluster merge : %s\n", merge_enable ?
+					"Enabled" : "Disabled"));
+
 			lwt_mode_enable = !!(cmd_data->nmi_rand_intvl &
 					NAN_NMI_RAND_AUTODAM_LWT_MODE_ENAB);
 
@@ -3577,6 +3586,9 @@ wl_cfgnan_config_handler(struct net_device *ndev, struct bcm_cfg80211 *cfg,
 				}
 				goto fail;
 			}
+
+			WL_INFORM_MEM(("LWT mode : %s\n", lwt_mode_enable ?
+					"Enabled" : "Disabled"));
 
 			/* reset pvt merge enable bits */
 			cmd_data->nmi_rand_intvl &= ~(NAN_NMI_RAND_PVT_CMD_VENDOR |
@@ -6210,10 +6222,13 @@ wl_cfgnan_get_capablities_handler(struct net_device *ndev,
 
 	NAN_DBG_ENTER();
 
+	RETURN_EIO_IF_NOT_UP(cfg);
+
 	/* Do not query fw about nan if feature is not supported */
 	if (!FW_SUPPORTED(dhdp, nan)) {
 		WL_DBG(("NAN is not supported\n"));
-		return ret;
+		ret = BCME_NOTUP;
+		goto fail;
 	}
 
 	if (cfg->nancfg->nan_init_state) {
@@ -6236,7 +6251,6 @@ wl_cfgnan_get_capablities_handler(struct net_device *ndev,
 		if (ret != BCME_OK) {
 			WL_ERR(("NAN init state: %d, failed to get capability from FW[%d]\n",
 					cfg->nancfg->nan_init_state, ret));
-			goto exit;
 		}
 		WL_ERR(("De-Initializing NAN\n"));
 		ret = wl_cfgnan_deinit(cfg, dhdp->up);
@@ -6279,6 +6293,8 @@ bool wl_cfgnan_is_enabled(struct bcm_cfg80211 *cfg)
 	if (nancfg) {
 		if (nancfg->nan_init_state && nancfg->nan_enable) {
 			return TRUE;
+		} else if (nancfg->nan_init_state && !nancfg->nan_enable) {
+			WL_ERR(("Not expected state: init state is set but enable is not set\n"));
 		}
 	}
 
@@ -8556,6 +8572,9 @@ wl_cfgnan_notify_nan_status(struct bcm_cfg80211 *cfg,
 				WL_INFORM_MEM(("WL_NAN_EVENT_DISC_CACHE_TIMEOUT peer: " MACDBG
 					" l_id:%d r_id:%d\n", MAC2STRDBG(&cache_entry->r_nmi_addr),
 					cache_entry->l_sub_id, cache_entry->r_pub_id));
+				hal_event_id = GOOGLE_NAN_EVENT_MATCH_EXPIRY;
+				nan_event_data->sub_id = cache_entry->l_sub_id;
+				nan_event_data->pub_id = cache_entry->r_pub_id;
 #ifdef RTT_SUPPORT
 				wl_cfgnan_ranging_clear_publish(cfg, &cache_entry->r_nmi_addr,
 					cache_entry->l_sub_id);
@@ -8860,20 +8879,16 @@ wl_cfgnan_cache_disc_result(struct bcm_cfg80211 *cfg, void * data,
 	u16 *disc_cache_update_flags)
 {
 	nan_event_data_t* disc = (nan_event_data_t*)data;
-	int i, add_index = 0;
+	int i, add_index = NAN_MAX_CACHE_DISC_RESULT;
 	int ret = BCME_OK;
 	wl_nancfg_t *nancfg = cfg->nancfg;
 	nan_disc_result_cache *disc_res = nancfg->nan_disc_cache;
-	*disc_cache_update_flags = 0;
+	bool new_entry = TRUE;
 
+	*disc_cache_update_flags = 0;
 	if (!nancfg->nan_enable) {
 		WL_DBG(("nan not enabled"));
 		return BCME_NOTENABLED;
-	}
-	if (nancfg->nan_disc_count == NAN_MAX_CACHE_DISC_RESULT) {
-		WL_DBG(("cache full"));
-		ret = BCME_NORESOURCE;
-		goto done;
 	}
 
 	for (i = 0; i < NAN_MAX_CACHE_DISC_RESULT; i++) {
@@ -8882,76 +8897,103 @@ wl_cfgnan_cache_disc_result(struct bcm_cfg80211 *cfg, void * data,
 			continue;
 		}
 		if (!memcmp(&disc_res[i].peer, &disc->remote_nmi, ETHER_ADDR_LEN) &&
-			!memcmp(disc_res[i].svc_hash, disc->svc_name, WL_NAN_SVC_HASH_LEN)) {
+			!memcmp(disc_res[i].svc_hash, disc->svc_name, WL_NAN_SVC_HASH_LEN) &&
+			(disc_res[i].pub_id == disc->pub_id) &&
+			(disc_res[i].sub_id == disc->sub_id)) {
 			WL_DBG(("cache entry already present, i = %d", i));
 			/* Update needed parameters here */
 			if (disc_res[i].sde_control_flag != disc->sde_control_flag) {
-				disc_res[i].sde_control_flag = disc->sde_control_flag;
 				*disc_cache_update_flags |= NAN_DISC_CACHE_PARAM_SDE_CONTROL;
 			}
-			ret = BCME_OK; /* entry already present */
-			goto done;
+			add_index = i;
+			new_entry = FALSE;
+			break;
 		}
 	}
-	WL_DBG(("adding cache entry: add_index = %d\n", add_index));
-	disc_res[add_index].valid = 1;
-	disc_res[add_index].pub_id = disc->pub_id;
-	disc_res[add_index].sub_id = disc->sub_id;
-	disc_res[add_index].publish_rssi = disc->publish_rssi;
-	disc_res[add_index].peer_cipher_suite = disc->peer_cipher_suite;
-	disc_res[add_index].sde_control_flag = disc->sde_control_flag;
-	ret = memcpy_s(&disc_res[add_index].peer, ETHER_ADDR_LEN,
-			&disc->remote_nmi, ETHER_ADDR_LEN);
-	if (ret != BCME_OK) {
-		WL_ERR(("Failed to copy remote nmi\n"));
-		goto done;
-	}
-	ret = memcpy_s(disc_res[add_index].svc_hash, WL_NAN_SVC_HASH_LEN,
-			disc->svc_name, WL_NAN_SVC_HASH_LEN);
-	if (ret != BCME_OK) {
-		WL_ERR(("Failed to copy svc hash\n"));
+
+	if (add_index == NAN_MAX_CACHE_DISC_RESULT) {
+		WL_DBG(("cache full"));
+		ret = BCME_NORESOURCE;
 		goto done;
 	}
 
+	if (new_entry) {
+		WL_DBG(("adding cache entry: add_index = %d\n", add_index));
+		disc_res[add_index].valid = 1;
+		disc_res[add_index].pub_id = disc->pub_id;
+		disc_res[add_index].sub_id = disc->sub_id;
+
+		eacopy(&disc->remote_nmi, &disc_res[add_index].peer);
+		eacopy(disc->svc_name, disc_res[add_index].svc_hash);
+	}
+
+	disc_res[add_index].publish_rssi = disc->publish_rssi;
+	disc_res[add_index].peer_cipher_suite = disc->peer_cipher_suite;
+	disc_res[add_index].sde_control_flag = disc->sde_control_flag;
 	if (disc->svc_info.dlen && disc->svc_info.data) {
-		disc_res[add_index].svc_info.dlen = disc->svc_info.dlen;
-		disc_res[add_index].svc_info.data =
-			MALLOCZ(cfg->osh, disc_res[add_index].svc_info.dlen);
+		if (disc_res[add_index].svc_info.dlen != disc->svc_info.dlen) {
+			if (disc_res[add_index].svc_info.data) {
+				MFREE(cfg->osh, disc_res[add_index].svc_info.data,
+					disc_res[add_index].svc_info.dlen);
+			}
+			disc_res[add_index].svc_info.dlen = disc->svc_info.dlen;
+			disc_res[add_index].svc_info.data =
+				MALLOCZ(cfg->osh, disc_res[add_index].svc_info.dlen);
+		}
 		if (!disc_res[add_index].svc_info.data) {
 			WL_ERR(("%s: memory allocation failed\n", __FUNCTION__));
 			disc_res[add_index].svc_info.dlen = 0;
 			ret = BCME_NOMEM;
-			goto done;
+			goto reset_entry;
 		}
 		ret = memcpy_s(disc_res[add_index].svc_info.data, disc_res[add_index].svc_info.dlen,
 				disc->svc_info.data, disc->svc_info.dlen);
 		if (ret != BCME_OK) {
 			WL_ERR(("Failed to copy svc info\n"));
-			goto done;
+			goto reset_entry;
 		}
 	}
 	if (disc->tx_match_filter.dlen && disc->tx_match_filter.data) {
-		disc_res[add_index].tx_match_filter.dlen = disc->tx_match_filter.dlen;
-		disc_res[add_index].tx_match_filter.data =
-			MALLOCZ(cfg->osh, disc_res[add_index].tx_match_filter.dlen);
+		if (disc_res[add_index].tx_match_filter.dlen != disc->tx_match_filter.dlen) {
+			if (disc_res[add_index].tx_match_filter.data) {
+				MFREE(cfg->osh, disc_res[add_index].tx_match_filter.data,
+					disc_res[add_index].tx_match_filter.dlen);
+			}
+			disc_res[add_index].tx_match_filter.dlen = disc->tx_match_filter.dlen;
+			disc_res[add_index].tx_match_filter.data =
+				MALLOCZ(cfg->osh, disc_res[add_index].tx_match_filter.dlen);
+		}
 		if (!disc_res[add_index].tx_match_filter.data) {
 			WL_ERR(("%s: memory allocation failed\n", __FUNCTION__));
 			disc_res[add_index].tx_match_filter.dlen = 0;
 			ret = BCME_NOMEM;
-			goto done;
+			goto reset_entry;
 		}
 		ret = memcpy_s(disc_res[add_index].tx_match_filter.data,
 			disc_res[add_index].tx_match_filter.dlen,
 			disc->tx_match_filter.data, disc->tx_match_filter.dlen);
 		if (ret != BCME_OK) {
 			WL_ERR(("Failed to copy tx match filter\n"));
-			goto done;
+			goto reset_entry;
 		}
 	}
-	nancfg->nan_disc_count++;
+	if (new_entry) {
+		nancfg->nan_disc_count++;
+	}
 	WL_DBG(("cfg->nan_disc_count = %d\n", nancfg->nan_disc_count));
 
 done:
+	return ret;
+
+reset_entry:
+	if (!new_entry) {
+		nancfg->nan_disc_count--;
+		*disc_cache_update_flags = 0;
+	}
+	WL_ERR(("resetting cache entry: %d, cfg->nan_disc_count = %d\n", add_index,
+			nancfg->nan_disc_count));
+	wl_cfgnan_reset_disc_result(cfg, &disc_res[add_index]);
+
 	return ret;
 }
 
@@ -9043,6 +9085,31 @@ static int wl_cfgnan_remove_disc_result(struct bcm_cfg80211 *cfg,
 		}
 	}
 	WL_DBG(("couldn't find entry\n"));
+done:
+	return ret;
+}
+
+static int wl_cfgnan_reset_disc_result(struct bcm_cfg80211 *cfg,
+		nan_disc_result_cache *disc_res)
+{
+	int ret = BCME_OK;
+
+	if (!cfg->nancfg->nan_enable) {
+		WL_DBG(("nan not enabled\n"));
+		ret = BCME_NOTENABLED;
+		goto done;
+	}
+
+	if (disc_res->tx_match_filter.data) {
+		MFREE(cfg->osh, disc_res->tx_match_filter.data,
+				disc_res->tx_match_filter.dlen);
+	}
+	if (disc_res->svc_info.data) {
+		MFREE(cfg->osh, disc_res->svc_info.data,
+				disc_res->svc_info.dlen);
+	}
+	bzero(disc_res, sizeof(*disc_res));
+
 done:
 	return ret;
 }
@@ -9324,7 +9391,7 @@ wl_nan_print_avail_stats(const uint8 *data)
 	int s_chan = 0;
 	char pbuf[NAN_IOCTL_BUF_SIZE_MED];
 	const wl_nan_stats_sched_t *sched = (const wl_nan_stats_sched_t *)data;
-#define SLOT_PRINT_SIZE 4
+#define SLOT_PRINT_SIZE 6
 
 	char *buf = pbuf;
 	int remained_len = 0, bytes_written = 0;
@@ -9352,8 +9419,10 @@ wl_nan_print_avail_stats(const uint8 *data)
 
 		buf += bytes_written;
 		remained_len -= bytes_written;
-		bytes_written = snprintf(buf, remained_len, "%03d|", s_chan);
-
+		bytes_written = snprintf(buf, remained_len, "%3u%c|",
+				s_chan, ((s_chan) &&
+				(slot->info & WL_NAN_SCHED_STAT_SLOT_COMM)) ? 'C' :
+				' ');	/* Committed */
 	}
 	WL_INFORM_MEM(("%s\n", pbuf));
 exit:

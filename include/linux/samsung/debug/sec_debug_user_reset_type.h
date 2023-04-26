@@ -285,7 +285,7 @@ struct tzdbg_t {
 		struct {
 			uint8_t reserve[512];
 
-			uint8_t num_interrupts;
+			uint32_t num_interrupts;
 
 			uint8_t reserve2[3648];
 

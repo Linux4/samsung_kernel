@@ -71,7 +71,7 @@
 				| SX9360_IRQSTAT_COMPDONE_FLAG)
 
 #if defined(CONFIG_FOLDER_HALL)
-#define HALLIC_PATH		"/sys/class/sec/sec_flip/flipStatus"
+#define HALLIC_PATH		"/sys/class/sec/hall_ic/flip_status"
 #else
 #define HALLIC_PATH		"/sys/class/sec/hall_ic/hall_detect"
 #endif
@@ -224,7 +224,7 @@ static void sx9360_initialize_register(struct sx9360_p *data)
 	u8 val = 0;
 	int idx;
 
-	for (idx = 0; idx < (sizeof(setup_reg) >> 1); idx++) {		
+	for (idx = 0; idx < (sizeof(setup_reg) >> 1); idx++) {
 		sx9360_i2c_write(data, setup_reg[idx].reg, setup_reg[idx].val);
 		pr_info("[SX9360_SUB]: %s - Write Reg: 0x%x Value: 0x%x\n",
 			__func__, setup_reg[idx].reg, setup_reg[idx].val);
@@ -240,7 +240,7 @@ static void sx9360_initialize_register(struct sx9360_p *data)
 	sx9360_i2c_read(data, SX9360_PROXCTRL4_REG, &val);
 	val = (val & 0x30) >> 4;
 
-	if(val)
+	if (val)
 		data->detect_threshold += data->detect_threshold >> (5 - val);
 
 	pr_info("[SX9360_SUB]: %s - detect threshold: %u\n", __func__, data->detect_threshold);
@@ -252,7 +252,7 @@ static void sx9360_initialize_chip(struct sx9360_p *data)
 {
 	int cnt = 0;
 
-	while((sx9360_get_nirq_state(data) == 0) && (cnt++ < 10)) {
+	while ((sx9360_get_nirq_state(data) == 0) && (cnt++ < 10)) {
 		sx9360_read_irqstate(data);
 		msleep(20);
 	}
@@ -269,7 +269,7 @@ static int sx9360_set_offset_calibration(struct sx9360_p *data)
 
 	pr_info("[SX9360_SUB]: %s\n", __func__);
 	ret = sx9360_i2c_write(data, SX9360_STAT_REG,
-                                 SX9360_STAT_COMPSTAT_ALL_FLAG);
+								SX9360_STAT_COMPSTAT_ALL_FLAG);
 
 	return ret;
 }
@@ -302,15 +302,13 @@ static void sx9360_display_data_reg(struct sx9360_p *data)
 	u8 val, reg;
 
 	pr_info("[SX9360_SUB]: ############# %d reference #############\n", 0);
-	for (reg = SX9360_REGUSEMSBPHR; reg <= SX9360_REGOFFSETLSBPHR; reg++)
-	{
+	for (reg = SX9360_REGUSEMSBPHR; reg <= SX9360_REGOFFSETLSBPHR; reg++) {
 		sx9360_i2c_read(data, reg, &val);
 		pr_info("[SX9360_SUB]: %s - Register(0x%2x) data(0x%2x)\n",
 			__func__, reg, val);
 	}
 	pr_info("[SX9360_SUB]: ############# %d Main #############\n", 0);
-	for (reg = SX9360_REGUSEMSBPHM; reg <= SX9360_REGOFFSETLSBPHM; reg++)
-	{
+	for (reg = SX9360_REGUSEMSBPHM; reg <= SX9360_REGOFFSETLSBPHM; reg++) {
 		sx9360_i2c_read(data, reg, &val);
 		pr_info("[SX9360_SUB]: %s - Register(0x%2x) data(0x%2x)\n",
 			__func__, reg, val);
@@ -320,14 +318,15 @@ static void sx9360_display_data_reg(struct sx9360_p *data)
 static void sx9360_get_gain(struct sx9360_p *data)
 {
 	u8 msByte;
-	static const int again_phm[]={7500,22500,37500,52500,60000,75000,90000,105000};  
+	static const int again_phm[] = {7500, 22500, 37500, 52500, 60000, 75000, 90000, 105000};
+
 	sx9360_i2c_read(data, SX9360_AFEPARAM1PHM_REG, &msByte);
-	msByte=(msByte>>4) & 0x07;
+	msByte = (msByte>>4) & 0x07;
 	data->again_m = again_phm[msByte];
-	
+
 	sx9360_i2c_read(data, SX9360_PROXCTRL0PHM_REG, &msByte);
-	msByte=(msByte>>3) & 0x07;
-	if(msByte)
+	msByte = (msByte>>3) & 0x07;
+	if (msByte)
 		data->dgain_m = 1 << (msByte-1);
 	else
 		data->dgain_m = 1;
@@ -348,12 +347,11 @@ static void sx9360_get_data(struct sx9360_p *data)
 
 	sx9360_get_gain(data);
 
-	while(1)
-	{
+	while (1) {
 		sx9360_i2c_read(data, SX9360_STAT_REG, &convstat);
 		convstat &= 0x01;
 
-		if(++retry > 5 || convstat == 0)
+		if (++retry > 5 || convstat == 0)
 			break;
 
 		usleep_range(10000, 11000);
@@ -386,7 +384,7 @@ static void sx9360_get_data(struct sx9360_p *data)
 	lsByte = (u8)((offset)      & 0x7F);
 
 	capMain = (((s32)msByte * 30000) + ((s32)lsByte * 500)) +
-            		(s32)(((s64)useful * data->again_m) / (data->dgain_m * 32768));
+					(s32)(((s64)useful * data->again_m) / (data->dgain_m * 32768));
 
 	/* avg read */
 	sx9360_i2c_read(data, SX9360_REGAVGMSBPHM, &msByte);
@@ -404,7 +402,7 @@ static void sx9360_get_data(struct sx9360_p *data)
 	mutex_unlock(&data->read_mutex);
 
 	pr_info("[SX9360_SUB]: %s - capMain: %ld, useful: %ld, avg: %d, diff: %d, Offset: %u\n",
-		__func__, (long int)capMain, (long int)useful, avg, diff, offset);
+		__func__, (long)capMain, (long)useful, avg, diff, offset);
 }
 
 static int sx9360_set_mode(struct sx9360_p *data, unsigned char mode)
@@ -433,7 +431,7 @@ static int sx9360_set_mode(struct sx9360_p *data, unsigned char mode)
 
 static void sx9360_check_status(struct sx9360_p *data)
 {
-	u8 status = 0;	
+	u8 status = 0;
 
 	sx9360_i2c_read(data, SX9360_STAT_REG, &status);
 
@@ -445,11 +443,10 @@ static void sx9360_check_status(struct sx9360_p *data)
 		return;
 	}
 
-	if ((status & CSX_STATUS_REG) && (data->diff > data->detect_threshold)) {
+	if ((status & CSX_STATUS_REG) && (data->diff > data->detect_threshold))
 		sx9360_send_event(data, ACTIVE);
-	} else {
+	else
 		sx9360_send_event(data, IDLE);
-	}
 }
 
 static void sx9360_set_enable(struct sx9360_p *data, int enable)
@@ -623,8 +620,7 @@ static ssize_t sx9360_raw_data_show(struct device *dev,
 	if (data->diff_cnt == 0) {
 		sum_diff = (s32)data->diff;
 		sum_useful = data->useful;
-	}
-	else {
+	} else {
 		sum_diff += (s32)data->diff;
 		sum_useful += data->useful;
 	}
@@ -950,7 +946,7 @@ static ssize_t sx9360_onoff_store(struct device *dev,
 			data->state = IDLE;
 			input_report_rel(data->input, REL_MISC, 2);
 			input_sync(data->input);
-		}		
+		}
 	} else {
 		data->skip_data = false;
 	}
@@ -1128,7 +1124,7 @@ static void sx9360_init_work_func(struct work_struct *work)
 	sx9360_read_irqstate(data);
 	msleep(20);
 
-	while(retry++ < 10) {
+	while (retry++ < 10) {
 		sx9360_get_data(data);
 		/* Defence code */
 		if (data->capMain == 0 && data->avg == 0 && data->diff == 0
@@ -1324,7 +1320,7 @@ static int sx9360_parse_dt(struct sx9360_p *data, struct device *dev)
 	if (!sx9360_read_setupreg(dNode, SX9360_REFAGAINFREQ, &val))
 		setup_reg[SX9360_REFAGAINFREQ_REG_IDX].val = (u8)val;
 	if (!sx9360_read_setupreg(dNode, SX9360_RESOLUTION, &val))
-		setup_reg[SX9360_RESOLUTION_REG_IDX].val = (u8)val;	
+		setup_reg[SX9360_RESOLUTION_REG_IDX].val = (u8)val;
 	if (!sx9360_read_setupreg(dNode, SX9360_AGAINFREQ, &val))
 		setup_reg[SX9360_AGAINFREQ_REG_IDX].val = (u8)val;
 	if (!sx9360_read_setupreg(dNode, SX9360_REFGAINRAWFILT, &val))
@@ -1412,14 +1408,13 @@ static int sx9360_check_chip_id(struct sx9360_p *data)
 {
 	int ret;
 	u8 value = 0;
-	
+
 	ret = sx9360_i2c_read(data, SX9360_WHOAMI_REG, &value);
 	if (ret < 0) {
 		pr_err("[SX9360_SUB]: whoami[0x%x] read failed %d\n", value, ret);
 		return ret;
 	}
-	if(value != WHO_AM_I)
-	{
+	if (value != WHO_AM_I) {
 		pr_err("[SX9360_SUB]: invalid whoami(%x)\n", value);
 		return -1;
 	}
@@ -1614,7 +1609,7 @@ static void sx9360_shutdown(struct i2c_client *client)
 	struct sx9360_p *data = i2c_get_clientdata(client);
 
 	pr_info("[SX9360_SUB]: %s\n", __func__);
-	sx9360_set_debug_work(data, OFF, 1000);	
+	sx9360_set_debug_work(data, OFF, 1000);
 	if (atomic_read(&data->enable) == ON)
 		sx9360_set_enable(data, OFF);
 

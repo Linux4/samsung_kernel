@@ -2308,6 +2308,12 @@ static void samsung_panel_init(struct samsung_display_driver_data *vdd)
 	vdd->poc_driver.poc_write = poc_write;
 	vdd->poc_driver.poc_read = poc_read;
 	vdd->poc_driver.poc_comp = poc_comp;
+
+#if defined(CONFIG_MACH_BEYOND2QLTE_JPN_KDI) || defined(CONFIG_MACH_BEYOND2QLTE_JPN_DCM) || defined(CONFIG_MACH_BEYOND2QLTE_JPN_DCMOLY)
+	vdd->dtsi_data.is_jpn = true;
+#else
+	vdd->dtsi_data.is_jpn = false;
+#endif
 }
 
 static int __init samsung_panel_initialize(void)

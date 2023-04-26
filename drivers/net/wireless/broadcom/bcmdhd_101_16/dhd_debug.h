@@ -1,7 +1,7 @@
 /*
  * DHD debugability header file
  *
- * Copyright (C) 2021, Broadcom.
+ * Copyright (C) 2022, Broadcom.
  *
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -406,6 +406,12 @@ typedef enum {
 
 	/* Packet free by firmware. */
 	TX_PKT_FATE_FW_PKT_FREE,
+
+	/* Firmware dropped the frame after suppress retries reached max */
+	TX_PKT_FATE_FW_MAX_SUP_RETR,
+
+	/* Firmware forced packet lifetime expiry */
+	TX_PKT_FATE_FW_FORCED_EXPIRED,
 
 	} wifi_tx_packet_fate;
 
