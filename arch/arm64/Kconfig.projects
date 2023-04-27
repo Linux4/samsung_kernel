@@ -1,0 +1,18 @@
+config SEC_R9Q_PROJECT
+        default n
+        bool "Samsung R9Q Project"
+        help
+          Support for Samsung R9Q Project
+
+config MACH_R9Q_EUR_OPENX
+        default n
+        bool "Samsung R9Q EUR OPENX"
+        help
+          Support for Samsung R9Q EUR OPENX device.
+
+config MACH_R9Q_EUR_OPENX2
+        default n
+        bool "Samsung R9Q EUR OPENX2"
+        help
+          Support for Samsung R9Q EUR OPENX2 device.
+  
