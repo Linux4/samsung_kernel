@@ -1,0 +1,51 @@
+#
+# Himax Touchscreen driver configuration
+#
+config TOUCHSCREEN_HX83102J_COMMON
+	tristate "HIMAX chipset i2c touchscreen"
+	depends on TOUCHSCREEN_HIMAX_IC_HX83102J
+	help
+		This enables support for HIMAX CHIPSET touchscreens.
+
+choice
+	prompt "HIMAX touch IC types"
+	depends on TOUCHSCREEN_HX83102J_COMMON
+	default TOUCHSCREEN_HX83102J_INCELL
+
+config TOUCHSCREEN_HIMAX_ONCELL
+	bool "HIMAX chipset on-cell function"
+	depends on TOUCHSCREEN_HX83102J_COMMON
+	help
+		This enables support for HIMAX CHIPSET of on-cell function.
+
+config TOUCHSCREEN_HX83102J_INCELL
+	bool "HIMAX chipset in-cell function"
+	depends on TOUCHSCREEN_HX83102J_COMMON
+	help
+		This enables support for HIMAX CHIPSET of in-cell function.
+endchoice
+
+# ***************** In-cell Start *****************
+config TOUCHSCREEN_HIMAX_IC_HX83102J
+	tristate "HIMAX chipset HX83102J function"
+	help
+		This enables support for HIMAX CHIPSET of HX83102J.
+# ***************** In-cell End *******************
+
+config TOUCHSCREEN_HX83102J_DEBUG
+	bool "HIMAX debug function"
+	depends on TOUCHSCREEN_HX83102J_INCELL || TOUCHSCREEN_HIMAX_ONCELL
+	help
+		This enables support for HIMAX debug function.
+
+config TOUCHSCREEN_HX83102J_INSPECT
+	bool "HIMAX inspect function"
+	depends on TOUCHSCREEN_HX83102J_INCELL || TOUCHSCREEN_HIMAX_ONCELL
+	help
+		This enables support for HIMAX inspect function.
+
+config TOUCHSCREEN_HIMAX_EMBEDDED_FIRMWARE
+	bool "HIMAX embedded firmware function"
+	depends on TOUCHSCREEN_HX83102J_INCELL || TOUCHSCREEN_HIMAX_ONCELL
+	help
+		This enables built-in FW inside kernel as binary array

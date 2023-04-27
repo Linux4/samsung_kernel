@@ -1,0 +1,16 @@
+/* hs03s code for SR-AL5625-01-168 by xiongxiaoliang at 2021/06/09 start */
+&i2c6 {
+    abov_sar@20 {
+        status = "ok";
+        compatible = "abov,abov_sar";
+        reg = <0x20>;
+        gpio-irq = <9>;
+        gpio-irq-std =<&pio 9 0x0>;
+        label = "AbovCapSense";
+        reg_array_len = <0x02>;
+        reg_array_val = <0x07 0x00 0xFB 0x01>;
+        cap,use_channel_bottom = <0x00>;
+        cap,use_channel_top = <0x01>;
+    };
+};
+/* hs03s code for SR-AL5625-01-168 by xiongxiaoliang at 2021/06/09 end */
