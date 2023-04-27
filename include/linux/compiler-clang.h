@@ -15,17 +15,12 @@
 /* all clang versions usable with the kernel support KASAN ABI version 5 */
 #define KASAN_ABI_VERSION 5
 
-/* __no_sanitize_address has been already defined compiler-gcc.h */
-#undef __no_sanitize_address
-
-#if __has_feature(address_sanitizer) || __has_feature(hwaddress_sanitizer)
 /* emulate gcc's __SANITIZE_ADDRESS__ flag */
+#if __has_feature(address_sanitizer)
 #define __SANITIZE_ADDRESS__
-#define __no_sanitize_address \
-		__attribute__((no_sanitize("address", "hwaddress")))
-#else
-#define __no_sanitize_address
 #endif
+
+#define __no_sanitize_address __attribute__((no_sanitize("address")))
 
 /*
  * Not all versions of clang implement the the type-generic versions
@@ -49,19 +44,11 @@
 #define __assume_aligned(a, ...)	\
 	__attribute__((__assume_aligned__(a, ## __VA_ARGS__)))
 
-#ifdef CONFIG_CFI_CLANG
-#define __nocfi		__attribute__((no_sanitize("cfi")))
-#endif
-
 #ifdef CONFIG_LTO_CLANG
 #ifdef CONFIG_FTRACE_MCOUNT_RECORD
 #define __norecordmcount \
 	__attribute__((__section__(".text..ftrace")))
 #endif
-#endif
 
-#if __has_feature(shadow_call_stack)
-# define __noscs	__attribute__((__no_sanitize__("shadow-call-stack")))
-#else
-# define __noscs
+#define __nocfi		__attribute__((no_sanitize("cfi")))
 #endif

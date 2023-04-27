@@ -71,10 +71,6 @@ extern int devfreq_update_status(struct devfreq *devfreq, unsigned long freq);
 
 static inline int devfreq_update_stats(struct devfreq *df)
 {
-	if (df->profile->get_dev_status)
-		return df->profile->get_dev_status(df->dev.parent,
-							 &df->last_status);
-	else
-		return -ENODEV;
+	return df->profile->get_dev_status(df->dev.parent, &df->last_status);
 }
 #endif /* _GOVERNOR_H */

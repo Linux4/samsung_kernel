@@ -70,7 +70,6 @@ struct sec_direct_charger_info {
 	unsigned int charger_mode_direct;
 	unsigned int dc_retry_cnt;
 
-
 	int cable_type;
 	int input_current;
 	int charging_current;

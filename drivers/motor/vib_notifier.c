@@ -72,6 +72,7 @@ int vib_notifier_notify(void)
 
 	return ret;
 }
+
 #if IS_ENABLED(CONFIG_VIB_NOTIFIER_TEST)
 static int vib_notifier_test_fn(struct notifier_block *nb,
 	unsigned long action, void *data)

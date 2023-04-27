@@ -29,6 +29,17 @@
 #include <linux/init.h>
 #include <linux/stddef.h>
 
+/*
+ * Struct for stacking the bottom 'n' FP/SIMD registers.
+ */
+struct fpsimd_partial_state {
+	u32		fpsr;
+	u32		fpcr;
+	u32		num_regs;
+	__uint128_t	vregs[32];
+};
+
+
 #if defined(__KERNEL__) && defined(CONFIG_COMPAT)
 /* Masks for extracting the FPSR and FPCR from the FPSCR */
 #define VFP_FPSCR_STAT_MASK	0xf800009f
@@ -150,9 +161,19 @@ static inline void sve_setup(void) { }
 
 #endif /* ! CONFIG_ARM64_SVE */
 
+extern void fpsimd_save_partial_state(struct fpsimd_partial_state *state,
+				      u32 num_regs);
+extern void fpsimd_load_partial_state(struct fpsimd_partial_state *state);
+
 /* For use by EFI runtime services calls only */
 extern void __efi_fpsimd_begin(void);
 extern void __efi_fpsimd_end(void);
+
+void fpsimd_set_task_using(struct task_struct *t);
+void fpsimd_clr_task_using(struct task_struct *t);
+
+void fpsimd_get(void);
+void fpsimd_put(void);
 
 #endif
 

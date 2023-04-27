@@ -399,6 +399,16 @@ static const struct {
 		.group_names = madera_pin_single_group_names,
 		.func = 0x157
 	},
+	{
+		.name = "aux-pdm-clk",
+		.group_names = madera_pin_single_group_names,
+		.func = 0x280
+	},
+	{
+		.name = "aux-pdm-dat",
+		.group_names = madera_pin_single_group_names,
+		.func = 0x281
+	},
 };
 
 static u16 madera_pin_make_drv_str(struct madera_pin_private *priv,
@@ -550,7 +560,7 @@ static void __maybe_unused madera_pin_dbg_show(struct pinctrl_dev *pctldev,
 	seq_printf(s, " DRV=%umA", madera_pin_unmake_drv_str(priv, conf[1]));
 
 	if (conf[0] & MADERA_GP1_IP_CFG_MASK)
-		seq_puts(s, "SCHMITT");
+		seq_puts(s, " SCHMITT");
 }
 
 
@@ -801,7 +811,7 @@ static int madera_pin_conf_get(struct pinctrl_dev *pctldev, unsigned int pin,
 			result = 1;
 		break;
 	default:
-		break;
+		return -ENOTSUPP;
 	}
 
 	*config = pinconf_to_config_packed(param, result);
@@ -905,7 +915,7 @@ static int madera_pin_conf_set(struct pinctrl_dev *pctldev, unsigned int pin,
 			conf[1] &= ~MADERA_GP1_DIR;
 			break;
 		default:
-			break;
+			return -ENOTSUPP;
 		}
 
 		++configs;
@@ -971,10 +981,10 @@ static int madera_pin_conf_group_set(struct pinctrl_dev *pctldev,
 }
 
 static const struct pinconf_ops madera_pin_conf_ops = {
+	.is_generic = true,
 	.pin_config_get = madera_pin_conf_get,
 	.pin_config_set = madera_pin_conf_set,
 	.pin_config_group_set = madera_pin_conf_group_set,
-
 };
 
 static struct pinctrl_desc madera_pin_desc = {
@@ -1007,6 +1017,10 @@ static int madera_pin_probe(struct platform_device *pdev)
 	pdev->dev.of_node = madera->dev->of_node;
 
 	switch (madera->type) {
+	case CS47L15:
+		if (IS_ENABLED(CONFIG_PINCTRL_CS47L15))
+			priv->chip = &cs47l15_pin_chip;
+		break;
 	case CS47L35:
 		if (IS_ENABLED(CONFIG_PINCTRL_CS47L35))
 			priv->chip = &cs47l35_pin_chip;
@@ -1020,6 +1034,11 @@ static int madera_pin_probe(struct platform_device *pdev)
 	case CS47L91:
 		if (IS_ENABLED(CONFIG_PINCTRL_CS47L90))
 			priv->chip = &cs47l90_pin_chip;
+		break;
+	case CS47L92:
+	case CS47L93:
+		if (IS_ENABLED(CONFIG_PINCTRL_CS47L92))
+			priv->chip = &cs47l92_pin_chip;
 		break;
 	default:
 		break;

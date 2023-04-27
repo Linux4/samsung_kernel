@@ -76,7 +76,6 @@ void msm_atomic_commit_tail(struct drm_atomic_state *state)
 
 	drm_atomic_helper_commit_modeset_enables(dev, state);
 
-
 	if (kms->funcs->commit) {
 		DRM_DEBUG_ATOMIC("triggering commit\n");
 		kms->funcs->commit(kms, state);
@@ -90,14 +89,3 @@ void msm_atomic_commit_tail(struct drm_atomic_state *state)
 
 	drm_atomic_helper_cleanup_planes(dev, state);
 }
-int msm_drm_register_client(struct notifier_block *nb)
-{
-	return 0;
-}
-EXPORT_SYMBOL(msm_drm_register_client);
-
-int msm_drm_unregister_client(struct notifier_block *nb)
-{
-	return 0;
-}
-EXPORT_SYMBOL(msm_drm_unregister_client);

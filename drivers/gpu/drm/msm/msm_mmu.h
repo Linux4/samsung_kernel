@@ -24,9 +24,9 @@ struct msm_mmu_funcs {
 	int (*attach)(struct msm_mmu *mmu, const char * const *names, int cnt);
 	void (*detach)(struct msm_mmu *mmu, const char * const *names, int cnt);
 	int (*map)(struct msm_mmu *mmu, uint64_t iova, struct sg_table *sgt,
-			unsigned int len, int prot);
+			unsigned len, int prot);
 	int (*unmap)(struct msm_mmu *mmu, uint64_t iova, struct sg_table *sgt,
-			unsigned int len);
+			unsigned len);
 	void (*destroy)(struct msm_mmu *mmu);
 };
 

@@ -43,6 +43,7 @@
 #include <linux/highmem.h>
 #include <linux/idr.h>
 #include <linux/platform_data/x86/apple.h>
+#include <linux/debug-snapshot.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/spi.h>
@@ -1230,10 +1231,15 @@ static void __spi_pump_messages(struct spi_controller *ctlr, bool in_kthread)
 		ret = ctlr->prepare_transfer_hardware(ctlr);
 		if (ret) {
 			dev_err(&ctlr->dev,
-				"failed to prepare transfer hardware\n");
+				"failed to prepare transfer hardware: %d\n",
+				ret);
 
 			if (ctlr->auto_runtime_pm)
 				pm_runtime_put(ctlr->dev.parent);
+
+			ctlr->cur_msg->status = ret;
+			spi_finalize_current_message(ctlr);
+
 			mutex_unlock(&ctlr->io_mutex);
 			return;
 		}
@@ -1260,7 +1266,10 @@ static void __spi_pump_messages(struct spi_controller *ctlr, bool in_kthread)
 		goto out;
 	}
 
+	dbg_snapshot_spi(ctlr, ctlr->cur_msg, DSS_FLAG_IN);
 	ret = ctlr->transfer_one_message(ctlr, ctlr->cur_msg);
+	dbg_snapshot_spi(ctlr, ctlr->cur_msg, DSS_FLAG_OUT);
+
 	if (ret) {
 		dev_err(&ctlr->dev,
 			"failed to transfer one message from queue\n");

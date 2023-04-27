@@ -1188,7 +1188,7 @@ void state_store_usblog_notify(int type, char *param1)
 	unsigned long *target_index;
 	char buf[256], index, index2, index3;
 	char *b, *name;
-	int usbstate;
+	int usbstate = 0;
 
 	target_count = &usblog_root.usblog_buffer->state_count;
 	target_index = &usblog_root.usblog_buffer->state_index;

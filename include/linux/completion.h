@@ -10,7 +10,7 @@
  */
 
 #include <linux/wait.h>
-
+#include <linux/sec_debug_complete_hint.h>
 /*
  * struct completion - structure used to maintain state for a "completion"
  *
@@ -23,9 +23,13 @@
  * reinit_completion(), and macros DECLARE_COMPLETION(),
  * DECLARE_COMPLETION_ONSTACK().
  */
+
 struct completion {
 	unsigned int done;
 	wait_queue_head_t wait;
+#ifdef CONFIG_SEC_DEBUG_COMPLETE_HINT
+	struct secdbg_hint hint;
+#endif
 };
 
 #define init_completion_map(x, m) __init_completion(x)
@@ -85,6 +89,9 @@ static inline void complete_release(struct completion *x) {}
 static inline void __init_completion(struct completion *x)
 {
 	x->done = 0;
+#ifdef CONFIG_SEC_DEBUG_COMPLETE_HINT
+	secdbg_hint_init(&x->hint);
+#endif	
 	init_waitqueue_head(&x->wait);
 }
 

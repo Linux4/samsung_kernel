@@ -92,6 +92,12 @@ static int fts_resume(struct i2c_client *client);
 #endif
 int fts_systemreset(struct fts_ts_info *info, unsigned int msec);
 
+#if defined(CONFIG_SAMSUNG_TUI)
+static int stui_tsp_enter(void);
+static int stui_tsp_exit(void);
+struct fts_ts_info *ts_info;
+#endif
+
 #if defined(CONFIG_INPUT_SEC_SECURE_TOUCH)
 static irqreturn_t fts_filter_interrupt(struct fts_ts_info *info);
 
@@ -302,6 +308,55 @@ static irqreturn_t fts_filter_interrupt(struct fts_ts_info *info)
 }
 #endif
 
+#if defined(CONFIG_SAMSUNG_TUI)
+extern int stui_i2c_lock(struct i2c_adapter *adap);
+extern int stui_i2c_unlock(struct i2c_adapter *adap);
+
+int stui_tsp_enter(void)
+{
+	int ret = 0;
+
+	if (!ts_info)
+		return -EINVAL;
+
+	/* synchronize_irq -> disable_irq + enable_irq
+	 * concern about timing issue.
+	 */
+	fts_fix_active_mode(ts_info, 1);
+	fts_interrupt_set(ts_info, INT_DISABLE);
+	
+	/* Release All Finger */
+	fts_release_all_finger(ts_info);
+
+	ret = stui_i2c_lock(ts_info->client->adapter);
+	if (ret) {
+		pr_err("[STUI] stui_i2c_lock failed : %d\n", ret);
+		fts_interrupt_set(ts_info, INT_ENABLE);
+		fts_fix_active_mode(ts_info, 0);
+		return -1;
+	}
+
+	return 0;
+}
+
+int stui_tsp_exit(void)
+{
+	int ret = 0;
+
+	if (!ts_info)
+		return -EINVAL;
+
+	ret = stui_i2c_unlock(ts_info->client->adapter);
+	if (ret)
+		pr_err("[STUI] stui_i2c_unlock failed : %d\n", ret);
+
+	fts_interrupt_set(ts_info, INT_ENABLE);
+	fts_fix_active_mode(ts_info, 0);
+
+	return ret;
+}
+#endif
+
 int fts_write_reg(struct fts_ts_info *info,
 		u8 *reg, u16 num_com)
 {
@@ -329,6 +384,10 @@ int fts_write_reg(struct fts_ts_info *info,
 				"%s: TSP no accessible from Linux, TUI is enabled!\n", __func__);
 		return -EIO;
 	}
+#endif
+#if defined(CONFIG_SAMSUNG_TUI)
+	if (STUI_MODE_TOUCH_SEC & stui_get_mode())
+		return -EBUSY;
 #endif
 
 	buff = kzalloc(num_com, GFP_KERNEL);
@@ -416,6 +475,10 @@ int fts_read_reg(struct fts_ts_info *info, u8 *reg, int cnum,
 				"%s: TSP no accessible from Linux, TUI is enabled!\n", __func__);
 		return -EIO;
 	}
+#endif
+#if defined(CONFIG_SAMSUNG_TUI)
+	if (STUI_MODE_TOUCH_SEC & stui_get_mode())
+		return -EBUSY;
 #endif
 
 	msg_buff = kzalloc(cnum, GFP_KERNEL);
@@ -517,6 +580,10 @@ static int fts_read_from_sponge(struct fts_ts_info *info,
 		return -EIO;
 	}
 #endif
+#if defined(CONFIG_SAMSUNG_TUI)
+	if (STUI_MODE_TOUCH_SEC & stui_get_mode())
+		return -EBUSY;
+#endif
 
 	offset += FTS_CMD_SPONGE_ACCESS;
 	sponge_reg[0] = 0xAA;
@@ -561,6 +628,11 @@ static int fts_write_to_sponge(struct fts_ts_info *info,
 		return -EIO;
 	}
 #endif
+#if defined(CONFIG_SAMSUNG_TUI)
+	if (STUI_MODE_TOUCH_SEC & stui_get_mode())
+		return -EBUSY;
+#endif
+
 	regAdd = kzalloc(3 + length, GFP_KERNEL);
 
 	offset += FTS_CMD_SPONGE_ACCESS;
@@ -2258,6 +2330,10 @@ static irqreturn_t fts_interrupt_handler(int irq, void *handle)
 		return IRQ_HANDLED;
 	}
 #endif
+#if defined(CONFIG_SAMSUNG_TUI)
+	if (STUI_MODE_TOUCH_SEC & stui_get_mode())
+		return -EBUSY;
+#endif
 
 	/* in LPM, waiting blsp block resume */
 	if (info->fts_power_state == FTS_POWER_STATE_LOWPOWER) {
@@ -3158,6 +3234,15 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 
 	fts_secure_touch_init(info);
 #endif
+#if defined(CONFIG_SAMSUNG_TUI)
+	ts_info = info;
+	retval = stui_set_info(stui_tsp_enter, stui_tsp_exit, STUI_TSP_TYPE_STM);
+	if (retval < 0) {
+			input_err(true, &info->client->dev,
+					"%s: Failed to register stui tsp type\n", __func__);
+	}
+	input_info(true, &info->client->dev, "%s: stui tsp vendor stm register\n", __func__);
+#endif
 
 	device_init_wakeup(&client->dev, true);
 
@@ -3863,6 +3948,10 @@ static void fts_reset_work(struct work_struct *work)
 				__func__);
 		return;
 	}
+#endif
+#if defined(CONFIG_SAMSUNG_TUI)
+	if (STUI_MODE_TOUCH_SEC & stui_get_mode())
+		return;
 #endif
 
 	input_info(true, &info->client->dev, "%s: Call Power-Off to recover IC\n", __func__);

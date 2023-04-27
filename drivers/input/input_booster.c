@@ -198,7 +198,6 @@ bool is_validate_uniqid(unsigned int uniq_id)
 				return false;
 			}
 		}
-
 	}
 
 	rcu_read_unlock();

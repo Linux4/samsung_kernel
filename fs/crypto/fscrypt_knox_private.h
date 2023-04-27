@@ -49,10 +49,10 @@ static inline int fscrypt_dd_flg_gid_restricted(int flags, int gid) {
 	return (flags & FSCRYPT_KNOX_FLG_DDAR_GID_RESTRICTION) ? 1:0;
 }
 
-union fscrypt_context;
+struct fscrypt_context;
 
 int dd_test_and_inherit_context(
-		union fscrypt_context *ctx,
+		struct fscrypt_context *ctx,
 		struct inode *parent, struct inode *child,
 		struct fscrypt_info *ci, void *fs_data);
 

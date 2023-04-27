@@ -1464,7 +1464,7 @@ static bool hns3_get_tx_timeo_queue_info(struct net_device *ndev)
 	int i;
 
 	/* Find the stopped queue the same way the stack does */
-	for (i = 0; i < ndev->num_tx_queues; i++) {
+	for (i = 0; i < ndev->real_num_tx_queues; i++) {
 		struct netdev_queue *q;
 		unsigned long trans_start;
 
@@ -1474,9 +1474,6 @@ static bool hns3_get_tx_timeo_queue_info(struct net_device *ndev)
 		    time_after(jiffies,
 			       (trans_start + ndev->watchdog_timeo))) {
 			timeout_queue = i;
-			netdev_info(ndev, "queue state: 0x%lx, delta msecs: %u\n",
-				    q->state,
-				    jiffies_to_msecs(jiffies - trans_start));
 			break;
 		}
 	}
@@ -1607,13 +1604,9 @@ static int hns3_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	ae_dev->dev_type = HNAE3_DEV_KNIC;
 	pci_set_drvdata(pdev, ae_dev);
 
-	ret = hnae3_register_ae_dev(ae_dev);
-	if (ret) {
-		devm_kfree(&pdev->dev, ae_dev);
-		pci_set_drvdata(pdev, NULL);
-	}
+	hnae3_register_ae_dev(ae_dev);
 
-	return ret;
+	return 0;
 }
 
 /* hns3_remove - Device removal routine
@@ -1627,7 +1620,6 @@ static void hns3_remove(struct pci_dev *pdev)
 		hns3_disable_sriov(pdev);
 
 	hnae3_unregister_ae_dev(ae_dev);
-	pci_set_drvdata(pdev, NULL);
 }
 
 /**
@@ -2374,7 +2366,7 @@ static bool hns3_get_new_int_gl(struct hns3_enet_ring_group *ring_group)
 	u32 time_passed_ms;
 	u16 new_int_gl;
 
-	if (!tqp_vector->last_jiffies)
+	if (!ring_group->coal.int_gl || !tqp_vector->last_jiffies)
 		return false;
 
 	if (ring_group->total_packets == 0) {
@@ -2605,10 +2597,9 @@ err_free_chain:
 	cur_chain = head->next;
 	while (cur_chain) {
 		chain = cur_chain->next;
-		devm_kfree(&pdev->dev, cur_chain);
+		devm_kfree(&pdev->dev, chain);
 		cur_chain = chain;
 	}
-	head->next = NULL;
 
 	return -ENOMEM;
 }
@@ -2643,7 +2634,7 @@ static int hns3_nic_init_vector_data(struct hns3_nic_priv *priv)
 	struct hnae3_handle *h = priv->ae_handle;
 	struct hns3_enet_tqp_vector *tqp_vector;
 	int ret = 0;
-	int i;
+	u16 i;
 
 	for (i = 0; i < priv->vector_num; i++) {
 		tqp_vector = &priv->tqp_vector[i];
@@ -2680,7 +2671,7 @@ static int hns3_nic_init_vector_data(struct hns3_nic_priv *priv)
 		ret = hns3_get_vector_ring_chain(tqp_vector,
 						 &vector_ring_chain);
 		if (ret)
-			goto map_ring_fail;
+			return ret;
 
 		ret = h->ae_algo->ops->map_ring_to_vector(h,
 			tqp_vector->vector_irq, &vector_ring_chain);
@@ -2688,19 +2679,13 @@ static int hns3_nic_init_vector_data(struct hns3_nic_priv *priv)
 		hns3_free_vector_ring_chain(tqp_vector, &vector_ring_chain);
 
 		if (ret)
-			goto map_ring_fail;
+			return ret;
 
 		netif_napi_add(priv->netdev, &tqp_vector->napi,
 			       hns3_nic_common_poll, NAPI_POLL_WEIGHT);
 	}
 
 	return 0;
-
-map_ring_fail:
-	while (i--)
-		netif_napi_del(&priv->tqp_vector[i].napi);
-
-	return ret;
 }
 
 static int hns3_nic_alloc_vector_data(struct hns3_nic_priv *priv)

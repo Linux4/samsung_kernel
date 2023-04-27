@@ -41,9 +41,6 @@
 #include <linux/kthread.h>
 #include <linux/init.h>
 #include <linux/mmu_notifier.h>
-#include <linux/memory_hotplug.h>
-#include <linux/show_mem_notifier.h>
-#include <linux/psi.h>
 
 #include <asm/tlb.h>
 #include "internal.h"
@@ -52,14 +49,9 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/oom.h>
 
-int sysctl_panic_on_oom =
-IS_ENABLED(CONFIG_DEBUG_PANIC_ON_OOM) ? 2 : 0;
+int sysctl_panic_on_oom;
 int sysctl_oom_kill_allocating_task;
 int sysctl_oom_dump_tasks = 1;
-int sysctl_reap_mem_on_sigkill;
-
-static int panic_on_adj_zero;
-module_param(panic_on_adj_zero, int, 0644);
 
 /*
  * Serializes oom killer invocations (out_of_memory()) from all contexts to
@@ -70,176 +62,6 @@ module_param(panic_on_adj_zero, int, 0644);
  * and mark_oom_victim
  */
 DEFINE_MUTEX(oom_lock);
-
-/*
- * If ULMK has killed a process recently,
- * we are making progress.
- */
-
-#ifdef CONFIG_HAVE_USERSPACE_LOW_MEMORY_KILLER
-
-/* The maximum amount of time to loop in should_ulmk_retry() */
-#define ULMK_TIMEOUT (20 * HZ)
-#define ULMK_EMERG_TRIG_TIMEOUT (ULMK_TIMEOUT + 10 * HZ)
-
-#define ULMK_DBG_POLICY_TRIGGER (BIT(0))
-#define ULMK_DBG_POLICY_WDOG (BIT(1))
-#define ULMK_DBG_POLICY_POSITIVE_ADJ (BIT(2))
-#define ULMK_DBG_POLICY_ALL (BIT(3) - 1)
-static unsigned int ulmk_dbg_policy;
-module_param(ulmk_dbg_policy, uint, 0644);
-
-static atomic64_t ulmk_wdog_expired = ATOMIC64_INIT(0);
-static atomic64_t ulmk_kill_jiffies = ATOMIC64_INIT(INITIAL_JIFFIES);
-static atomic64_t ulmk_watchdog_pet_jiffies = ATOMIC64_INIT(INITIAL_JIFFIES);
-static unsigned long psi_emergency_jiffies = INITIAL_JIFFIES;
-static unsigned long psi_emerg_trigger_jiffies = INITIAL_JIFFIES;
-/* Prevents contention on the mutex_trylock in psi_emergency_jiffies */
-static DEFINE_MUTEX(ulmk_retry_lock);
-
-static bool __maybe_unused ulmk_kill_possible(void)
-{
-	struct task_struct *tsk;
-	bool ret = false;
-
-	rcu_read_lock();
-	for_each_process(tsk) {
-		if (tsk->flags & PF_KTHREAD)
-			continue;
-
-		task_lock(tsk);
-		if (tsk->signal->oom_score_adj >= 0) {
-			ret = true;
-			task_unlock(tsk);
-			break;
-		}
-		task_unlock(tsk);
-	}
-	rcu_read_unlock();
-
-	return ret;
-}
-
-/*
- * If CONFIG_DEBUG_PANIC_ON_OOM is enabled, attempt to determine *why*
- * we are in this state.
- * 1) No events were sent by PSI to userspace
- * 2) PSI sent an event to userspace, but userspace was not able to
- * receive the event. Possible causes of this include waiting for a
- * mutex which is held by a process in direct relcaim. Or the userspace
- * component has crashed.
- * 3) Userspace received the event, but decided not to kill anything.
- */
-bool should_ulmk_retry(gfp_t gfp_mask)
-{
-	unsigned long now, last_kill, last_wdog_pet;
-	bool ret = true;
-	bool wdog_expired, trigger_active;
-
-	struct oom_control oc = {
-		.zonelist = node_zonelist(first_memory_node, gfp_mask),
-		.nodemask = NULL,
-		.memcg = NULL,
-		.gfp_mask = gfp_mask,
-		.order = 0,
-		/* Also causes check_panic_on_oom not to panic */
-		.only_positive_adj = true,
-	};
-
-	if (!sysctl_panic_on_oom)
-		return false;
-
-	if (gfp_mask & __GFP_RETRY_MAYFAIL)
-		return false;
-
-	/* Someone else is already checking. */
-	if (!mutex_trylock(&ulmk_retry_lock))
-		return true;
-
-	now = jiffies;
-	last_kill = atomic64_read(&ulmk_kill_jiffies);
-	last_wdog_pet = atomic64_read(&ulmk_watchdog_pet_jiffies);
-	wdog_expired = atomic64_read(&ulmk_wdog_expired);
-	trigger_active = psi_is_trigger_active();
-
-	/*
-	 * Returning True causes direct reclaim retry and false
-	 * causes to take OOM path.
-	 * Conditions check is as below:
-	 * a) If there is a kill after the previous update of
-	 *    psi_emergency_jiffies, then system kills are happening
-	 *    properly. Thus update the psi_emergency_jiffies with the
-	 *    current time and return true.
-	 *
-	 * b) If no kill have had happened in the last ULMK_TIMEOUT and
-	 *    LMKD also stuck for the last ULMK_TIMEOUT despite an
-	 *    emergency trigger in the last ULMK_EMERG_TRIG_TIMEOUT, which
-	 *    then means that system kill logic is not responding despite
-	 *    PSI events sent from kernel. Return false.
-	 *
-	 * c) Cond1: trigger = !active && wdog_expired = false:
-	 *    Then give a chance to the ULMK by raising emergnecy trigger
-	 *    which also registers a watchdog timer with timeout of
-	 *    2 * trigger's ->win_size. And thus further process entering
-	 *    gets returned with true.
-	 *
-	 *    Cond2: trigger = active && wdog_expired = true:
-	 *    This represents that the previously raised event is not
-	 *    consumed by ULMK in 2*HZ timeout. Under this condition we rely
-	 *    on OOM killer to select the positive adj task and kill. If
-	 *    the OOM killer fails to find a +ve adj task, we return false.
-	 *
-	 *    Cond3: trigger = !active && wdog_expired = true:
-	 *    This is a case of previous events to previous are yet to be
-	 *    consumed by ULMK, if triggered, thus only this process is
-	 *    asked to raise the trigger and the subsequent ones in the
-	 *    triggers ->win.size fall back to OOM.
-	 *
-	 *    Cond4: trigger = !active && wdog_expired = false:
-	 *    ULMK is perfectly working fine.
-	 */
-	if (time_after(last_kill, psi_emergency_jiffies)) {
-		psi_emergency_jiffies = now;
-		ret = true;
-	} else if (time_after(now, psi_emergency_jiffies + ULMK_TIMEOUT) &&
-		   time_after(now, last_wdog_pet + ULMK_TIMEOUT) &&
-		   time_after(psi_emerg_trigger_jiffies,
-				now - ULMK_EMERG_TRIG_TIMEOUT)) {
-		ret = false;
-	} else if (!trigger_active) {
-		BUG_ON(ulmk_dbg_policy & ULMK_DBG_POLICY_TRIGGER);
-		psi_emergency_trigger();
-		psi_emerg_trigger_jiffies = now;
-		ret = true;
-	} else if (wdog_expired) {
-		mutex_lock(&oom_lock);
-		ret = out_of_memory(&oc);
-		mutex_unlock(&oom_lock);
-		BUG_ON(!ret && ulmk_dbg_policy & ULMK_DBG_POLICY_POSITIVE_ADJ);
-	}
-
-	mutex_unlock(&ulmk_retry_lock);
-	return ret;
-}
-
-void ulmk_watchdog_fn(struct timer_list *t)
-{
-	atomic64_set(&ulmk_wdog_expired, 1);
-	BUG_ON(ulmk_dbg_policy & ULMK_DBG_POLICY_WDOG);
-}
-
-void ulmk_watchdog_pet(struct timer_list *t)
-{
-	del_timer_sync(t);
-	atomic64_set(&ulmk_wdog_expired, 0);
-	atomic64_set(&ulmk_watchdog_pet_jiffies, jiffies);
-}
-
-void ulmk_update_last_kill(void)
-{
-	atomic64_set(&ulmk_kill_jiffies, jiffies);
-}
-#endif
 
 #ifdef CONFIG_NUMA
 /**
@@ -379,8 +201,7 @@ static bool is_dump_unreclaim_slabs(void)
  * task consuming the most memory to avoid subsequent oom failures.
  */
 unsigned long oom_badness(struct task_struct *p, struct mem_cgroup *memcg,
-			  const nodemask_t *nodemask, unsigned long totalpages,
-			  bool only_positive_adj)
+			  const nodemask_t *nodemask, unsigned long totalpages)
 {
 	long points;
 	long adj;
@@ -399,7 +220,6 @@ unsigned long oom_badness(struct task_struct *p, struct mem_cgroup *memcg,
 	 */
 	adj = (long)p->signal->oom_score_adj;
 	if (adj == OOM_SCORE_ADJ_MIN ||
-			(only_positive_adj && adj < 0) ||
 			test_bit(MMF_OOM_SKIP, &p->mm->flags) ||
 			in_vfork(p)) {
 		task_unlock(p);
@@ -521,8 +341,7 @@ static int oom_evaluate_task(struct task_struct *task, void *arg)
 		goto select;
 	}
 
-	points = oom_badness(task, NULL, oc->nodemask, oc->totalpages,
-				oc->only_positive_adj);
+	points = oom_badness(task, NULL, oc->nodemask, oc->totalpages);
 	if (!points || points < oc->chosen_points)
 		goto next;
 
@@ -621,8 +440,21 @@ void dump_tasks(struct mem_cgroup *memcg, const nodemask_t *nodemask)
 	if (heaviest_rss_sum)
 		pr_info("heaviest_task:%s(%d) rss_pages:%lu\n", heaviest_comm,
 			heaviest_pid, heaviest_rss_sum);
-	ion_account_print_usage();
 }
+
+static BLOCKING_NOTIFIER_HEAD(oom_debug_notify_list);
+
+int register_oom_debug_notifier(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(&oom_debug_notify_list, nb);
+}
+EXPORT_SYMBOL_GPL(register_oom_debug_notifier);
+
+int unregister_oom_debug_notifier(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(&oom_debug_notify_list, nb);
+}
+EXPORT_SYMBOL_GPL(unregister_oom_debug_notifier);
 
 static void dump_header(struct oom_control *oc, struct task_struct *p)
 {
@@ -641,12 +473,11 @@ static void dump_header(struct oom_control *oc, struct task_struct *p)
 		show_mem(SHOW_MEM_FILTER_NODES, oc->nodemask);
 		if (is_dump_unreclaim_slabs())
 			dump_unreclaimable_slab();
-
-		show_mem_call_notifiers();
 	}
-
 	if (sysctl_oom_dump_tasks)
 		dump_tasks(oc->memcg, oc->nodemask);
+
+	blocking_notifier_call_chain(&oom_debug_notify_list, 0, NULL);
 }
 
 /*
@@ -833,21 +664,13 @@ static int oom_reaper(void *unused)
 
 static void wake_oom_reaper(struct task_struct *tsk)
 {
-	/*
-	 * Move the lock here to avoid scenario of queuing
-	 * the same task by both OOM killer and any other SIGKILL
-	 * path.
-	 */
-	spin_lock(&oom_reaper_lock);
-
 	/* mm is already queued? */
-	if (test_and_set_bit(MMF_OOM_REAP_QUEUED, &tsk->signal->oom_mm->flags)) {
-		spin_unlock(&oom_reaper_lock);
+	if (test_and_set_bit(MMF_OOM_REAP_QUEUED, &tsk->signal->oom_mm->flags))
 		return;
-	}
 
 	get_task_struct(tsk);
 
+	spin_lock(&oom_reaper_lock);
 	tsk->oom_reaper_list = oom_reaper_list;
 	oom_reaper_list = tsk;
 	spin_unlock(&oom_reaper_lock);
@@ -867,16 +690,6 @@ static inline void wake_oom_reaper(struct task_struct *tsk)
 }
 #endif /* CONFIG_MMU */
 
-static void __mark_oom_victim(struct task_struct *tsk)
-{
-	struct mm_struct *mm = tsk->mm;
-
-	if (!cmpxchg(&tsk->signal->oom_mm, NULL, mm)) {
-		mmgrab(tsk->signal->oom_mm);
-		set_bit(MMF_OOM_VICTIM, &mm->flags);
-	}
-}
-
 /**
  * mark_oom_victim - mark the given task as OOM victim
  * @tsk: task to mark
@@ -889,13 +702,18 @@ static void __mark_oom_victim(struct task_struct *tsk)
  */
 static void mark_oom_victim(struct task_struct *tsk)
 {
+	struct mm_struct *mm = tsk->mm;
+
 	WARN_ON(oom_killer_disabled);
 	/* OOM killer might race with memcg OOM */
 	if (test_and_set_tsk_thread_flag(tsk, TIF_MEMDIE))
 		return;
 
 	/* oom_mm is bound to the signal struct life time. */
-	__mark_oom_victim(tsk);
+	if (!cmpxchg(&tsk->signal->oom_mm, NULL, mm)) {
+		mmgrab(tsk->signal->oom_mm);
+		set_bit(MMF_OOM_VICTIM, &mm->flags);
+	}
 
 	/*
 	 * Make sure that the task is woken up from uninterruptible sleep
@@ -1073,12 +891,11 @@ static void __oom_kill_process(struct task_struct *victim)
 	 */
 	do_send_sig_info(SIGKILL, SEND_SIG_FORCED, victim, PIDTYPE_TGID);
 	mark_oom_victim(victim);
-	pr_err("Killed process %d (%s) total-vm:%lukB, anon-rss:%lukB, file-rss:%lukB, shmem-rss:%lukB oom_score_adj=%hd\n",
+	pr_err("Killed process %d (%s) total-vm:%lukB, anon-rss:%lukB, file-rss:%lukB, shmem-rss:%lukB\n",
 		task_pid_nr(victim), victim->comm, K(victim->mm->total_vm),
 		K(get_mm_counter(victim->mm, MM_ANONPAGES)),
 		K(get_mm_counter(victim->mm, MM_FILEPAGES)),
-		K(get_mm_counter(victim->mm, MM_SHMEMPAGES)),
-		p->signal->oom_score_adj);
+		K(get_mm_counter(victim->mm, MM_SHMEMPAGES)));
 	task_unlock(victim);
 
 	/*
@@ -1136,8 +953,7 @@ static int oom_kill_memcg_member(struct task_struct *task, void *unused)
 	return 0;
 }
 
-static void oom_kill_process(struct oom_control *oc, const char *message,
-				bool quiet)
+static void oom_kill_process(struct oom_control *oc, const char *message)
 {
 	struct task_struct *p = oc->chosen;
 	unsigned int points = oc->chosen_points;
@@ -1164,7 +980,7 @@ static void oom_kill_process(struct oom_control *oc, const char *message,
 	}
 	task_unlock(p);
 
-	if (!quiet && __ratelimit(&oom_rs))
+	if (__ratelimit(&oom_rs))
 		dump_header(oc, p);
 
 	pr_err("%s: Kill process %d (%s) score %u or sacrifice child\n",
@@ -1194,8 +1010,7 @@ static void oom_kill_process(struct oom_control *oc, const char *message,
 			 * oom_badness() returns 0 if the thread is unkillable
 			 */
 			child_points = oom_badness(child,
-				oc->memcg, oc->nodemask, oc->totalpages,
-				oc->only_positive_adj);
+				oc->memcg, oc->nodemask, oc->totalpages);
 			if (child_points > victim_points) {
 				put_task_struct(victim);
 				victim = child;
@@ -1214,12 +1029,6 @@ static void oom_kill_process(struct oom_control *oc, const char *message,
 	 */
 	oom_group = mem_cgroup_get_oom_group(victim, oc->memcg);
 
-	/*
-	 * If ->only_positive_adj = true in oom context,
-	 * consider them as kill from ulmk.
-	 */
-	if (oc->only_positive_adj)
-		ulmk_update_last_kill();
 	__oom_kill_process(victim);
 
 	/*
@@ -1250,7 +1059,7 @@ static void check_panic_on_oom(struct oom_control *oc,
 			return;
 	}
 	/* Do not panic for oom kills triggered by sysrq */
-	if (is_sysrq_oom(oc) || oc->only_positive_adj)
+	if (is_sysrq_oom(oc))
 		return;
 	dump_header(oc, NULL);
 	panic("Out of memory: %s panic_on_oom is enabled\n",
@@ -1287,12 +1096,6 @@ bool out_of_memory(struct oom_control *oc)
 
 	if (oom_killer_disabled)
 		return false;
-
-	if (try_online_one_block(numa_node_id())) {
-		/* Got some memory back */
-		WARN(1, "OOM killer had to online a memory block\n");
-		return true;
-	}
 
 	if (!is_memcg_oom(oc)) {
 		blocking_notifier_call_chain(&oom_notify_list, 0, &freed);
@@ -1336,8 +1139,7 @@ bool out_of_memory(struct oom_control *oc)
 	    current->signal->oom_score_adj != OOM_SCORE_ADJ_MIN) {
 		get_task_struct(current);
 		oc->chosen = current;
-		oom_kill_process(oc, "Out of memory (oom_kill_allocating_task)",
-				 false);
+		oom_kill_process(oc, "Out of memory (oom_kill_allocating_task)");
 		return true;
 	}
 
@@ -1351,14 +1153,12 @@ bool out_of_memory(struct oom_control *oc)
 		 * system level, we cannot survive this and will enter
 		 * an endless loop in the allocator. Bail out now.
 		 */
-		if (!is_sysrq_oom(oc) && !is_memcg_oom(oc) &&
-		    !oc->only_positive_adj)
+		if (!is_sysrq_oom(oc) && !is_memcg_oom(oc))
 			panic("System is deadlocked on memory\n");
 	}
 	if (oc->chosen && oc->chosen != (void *)-1UL)
 		oom_kill_process(oc, !is_memcg_oom(oc) ? "Out of memory" :
-				 "Memory cgroup out of memory",
-			IS_ENABLED(CONFIG_HAVE_USERSPACE_LOW_MEMORY_KILLER));
+				 "Memory cgroup out of memory");
 	return !!oc->chosen;
 }
 
@@ -1377,10 +1177,6 @@ void pagefault_out_of_memory(void)
 		.order = 0,
 	};
 
-	if (IS_ENABLED(CONFIG_HAVE_LOW_MEMORY_KILLER) ||
-	    IS_ENABLED(CONFIG_HAVE_USERSPACE_LOW_MEMORY_KILLER))
-		return;
-
 	if (mem_cgroup_oom_synchronize(true))
 		return;
 
@@ -1388,48 +1184,4 @@ void pagefault_out_of_memory(void)
 		return;
 	out_of_memory(&oc);
 	mutex_unlock(&oom_lock);
-}
-
-void add_to_oom_reaper(struct task_struct *p)
-{
-	static DEFINE_RATELIMIT_STATE(reaper_rs, DEFAULT_RATELIMIT_INTERVAL,
-						 DEFAULT_RATELIMIT_BURST);
-
-	if (!sysctl_reap_mem_on_sigkill)
-		return;
-
-	p = find_lock_task_mm(p);
-	if (!p)
-		return;
-
-	get_task_struct(p);
-	if (task_will_free_mem(p)) {
-		__mark_oom_victim(p);
-		wake_oom_reaper(p);
-	}
-
-	task_unlock(p);
-
-	if (!strcmp(current->comm, ULMK_MAGIC) && __ratelimit(&reaper_rs)
-			&& p->signal->oom_score_adj == 0) {
-		show_mem(SHOW_MEM_FILTER_NODES, NULL);
-		show_mem_call_notifiers();
-	}
-
-	put_task_struct(p);
-}
-
-/*
- * Should be called prior to sending sigkill. To guarantee that the
- * process to-be-killed is still untouched.
- */
-void check_panic_on_foreground_kill(struct task_struct *p)
-{
-	if (unlikely(!strcmp(current->comm, ULMK_MAGIC)
-			&& p->signal->oom_score_adj == 0
-			&& panic_on_adj_zero)) {
-		show_mem(SHOW_MEM_FILTER_NODES, NULL);
-		show_mem_call_notifiers();
-		panic("Attempt to kill foreground task: %s", p->comm);
-	}
 }

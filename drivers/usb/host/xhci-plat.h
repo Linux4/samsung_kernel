@@ -18,4 +18,19 @@ struct xhci_plat_priv {
 };
 
 #define hcd_to_xhci_priv(h) ((struct xhci_plat_priv *)hcd_to_xhci(h)->priv)
+
+struct usb_xhci_pre_alloc {
+	u8 *pre_dma_alloc;
+	u64 offset;
+
+	dma_addr_t	dma;
+};
+
+extern struct usb_xhci_pre_alloc xhci_pre_alloc;
+extern void __iomem *phycon_base_addr;
+
+#if defined(CONFIG_USB_DWC3_EXYNOS)
+int xhci_soc_config_after_reset(struct xhci_hcd *xhci);
+#endif
+
 #endif	/* _XHCI_PLAT_H */

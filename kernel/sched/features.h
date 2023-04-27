@@ -50,7 +50,7 @@ SCHED_FEAT(NONTASK_CAPACITY, true)
  * Queue remote wakeups on the target CPU and process them
  * using the scheduler IPI. Reduces rq->lock contention/bounces.
  */
-SCHED_FEAT(TTWU_QUEUE, false)
+SCHED_FEAT(TTWU_QUEUE, true)
 
 /*
  * When doing wakeups, attempt to limit superfluous scans of the LLC domain.
@@ -90,12 +90,11 @@ SCHED_FEAT(WA_BIAS, true)
  * UtilEstimation. Use estimated CPU utilization.
  */
 SCHED_FEAT(UTIL_EST, true)
-SCHED_FEAT(UTIL_EST_FASTUP, true)
 
 /*
  * Fast pre-selection of CPU candidates for EAS.
  */
-SCHED_FEAT(FIND_BEST_TARGET, true)
+SCHED_FEAT(FIND_BEST_TARGET, false)
 
 /*
  * Energy aware scheduling algorithm choices:
@@ -110,6 +109,17 @@ SCHED_FEAT(EAS_PREFER_IDLE, true)
  * Request max frequency from schedutil whenever a RT task is running.
  */
 SCHED_FEAT(SUGOV_RT_MAX_FREQ, false)
+
+/*
+ * Exynos Mobile Scheduler
+ */
+SCHED_FEAT(EMS, true)
+
+#ifdef CONFIG_SCHED_USE_FLUID_RT
+SCHED_FEAT(EXYNOS_FRT, true)
+#else
+SCHED_FEAT(EXYNOS_FRT, false)
+#endif
 
 /*
  * Apply schedtune boost hold to tasks of all sched classes.

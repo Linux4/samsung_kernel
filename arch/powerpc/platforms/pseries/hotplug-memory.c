@@ -101,12 +101,11 @@ static struct property *dlpar_clone_property(struct property *prop,
 	return new_prop;
 }
 
-static bool find_aa_index(struct device_node *dr_node,
-			 struct property *ala_prop,
-			 const u32 *lmb_assoc, u32 *aa_index)
+static u32 find_aa_index(struct device_node *dr_node,
+			 struct property *ala_prop, const u32 *lmb_assoc)
 {
-	u32 *assoc_arrays, new_prop_size;
-	struct property *new_prop;
+	u32 *assoc_arrays;
+	u32 aa_index;
 	int aa_arrays, aa_array_entries, aa_array_sz;
 	int i, index;
 
@@ -122,39 +121,46 @@ static bool find_aa_index(struct device_node *dr_node,
 	aa_array_entries = be32_to_cpu(assoc_arrays[1]);
 	aa_array_sz = aa_array_entries * sizeof(u32);
 
+	aa_index = -1;
 	for (i = 0; i < aa_arrays; i++) {
 		index = (i * aa_array_entries) + 2;
 
 		if (memcmp(&assoc_arrays[index], &lmb_assoc[1], aa_array_sz))
 			continue;
 
-		*aa_index = i;
-		return true;
+		aa_index = i;
+		break;
 	}
 
-	new_prop_size = ala_prop->length + aa_array_sz;
-	new_prop = dlpar_clone_property(ala_prop, new_prop_size);
-	if (!new_prop)
-		return false;
+	if (aa_index == -1) {
+		struct property *new_prop;
+		u32 new_prop_size;
 
-	assoc_arrays = new_prop->value;
+		new_prop_size = ala_prop->length + aa_array_sz;
+		new_prop = dlpar_clone_property(ala_prop, new_prop_size);
+		if (!new_prop)
+			return -1;
 
-	/* increment the number of entries in the lookup array */
-	assoc_arrays[0] = cpu_to_be32(aa_arrays + 1);
+		assoc_arrays = new_prop->value;
 
-	/* copy the new associativity into the lookup array */
-	index = aa_arrays * aa_array_entries + 2;
-	memcpy(&assoc_arrays[index], &lmb_assoc[1], aa_array_sz);
+		/* increment the number of entries in the lookup array */
+		assoc_arrays[0] = cpu_to_be32(aa_arrays + 1);
 
-	of_update_property(dr_node, new_prop);
+		/* copy the new associativity into the lookup array */
+		index = aa_arrays * aa_array_entries + 2;
+		memcpy(&assoc_arrays[index], &lmb_assoc[1], aa_array_sz);
 
-	/*
-	 * The associativity lookup array index for this lmb is
-	 * number of entries - 1 since we added its associativity
-	 * to the end of the lookup array.
-	 */
-	*aa_index = be32_to_cpu(assoc_arrays[0]) - 1;
-	return true;
+		of_update_property(dr_node, new_prop);
+
+		/*
+		 * The associativity lookup array index for this lmb is
+		 * number of entries - 1 since we added its associativity
+		 * to the end of the lookup array.
+		 */
+		aa_index = be32_to_cpu(assoc_arrays[0]) - 1;
+	}
+
+	return aa_index;
 }
 
 static int update_lmb_associativity_index(struct drmem_lmb *lmb)
@@ -163,7 +169,6 @@ static int update_lmb_associativity_index(struct drmem_lmb *lmb)
 	struct property *ala_prop;
 	const u32 *lmb_assoc;
 	u32 aa_index;
-	bool found;
 
 	parent = of_find_node_by_path("/");
 	if (!parent)
@@ -195,12 +200,11 @@ static int update_lmb_associativity_index(struct drmem_lmb *lmb)
 		return -ENODEV;
 	}
 
-	found = find_aa_index(dr_node, ala_prop, lmb_assoc, &aa_index);
+	aa_index = find_aa_index(dr_node, ala_prop, lmb_assoc);
 
-	of_node_put(dr_node);
 	dlpar_free_cc_nodes(lmb_node);
 
-	if (!found) {
+	if (aa_index < 0) {
 		pr_err("Could not find LMB associativity\n");
 		return -1;
 	}
@@ -301,7 +305,7 @@ static int pseries_remove_memblock(unsigned long base, unsigned int memblock_siz
 	nid = memory_add_physaddr_to_nid(base);
 
 	for (i = 0; i < sections_per_block; i++) {
-		__remove_memory(nid, base, MIN_MEMORY_BLOCK_SIZE);
+		remove_memory(nid, base, MIN_MEMORY_BLOCK_SIZE);
 		base += MIN_MEMORY_BLOCK_SIZE;
 	}
 
@@ -366,10 +370,8 @@ static bool lmb_is_removable(struct drmem_lmb *lmb)
 
 	for (i = 0; i < scns_per_block; i++) {
 		pfn = PFN_DOWN(phys_addr);
-		if (!pfn_present(pfn)) {
-			phys_addr += MIN_MEMORY_BLOCK_SIZE;
+		if (!pfn_present(pfn))
 			continue;
-		}
 
 		rc &= is_mem_section_removable(pfn, PAGES_PER_SECTION);
 		phys_addr += MIN_MEMORY_BLOCK_SIZE;
@@ -395,7 +397,7 @@ static int dlpar_remove_lmb(struct drmem_lmb *lmb)
 	block_sz = pseries_memory_block_size();
 	nid = memory_add_physaddr_to_nid(lmb->base_addr);
 
-	__remove_memory(nid, lmb->base_addr, block_sz);
+	remove_memory(nid, lmb->base_addr, block_sz);
 
 	/* Update memory regions for memory remove */
 	memblock_remove(lmb->base_addr, block_sz);
@@ -682,7 +684,7 @@ static int dlpar_add_lmb(struct drmem_lmb *lmb)
 
 	rc = dlpar_online_lmb(lmb);
 	if (rc) {
-		__remove_memory(nid, lmb->base_addr, block_sz);
+		remove_memory(nid, lmb->base_addr, block_sz);
 		invalidate_lmb_associativity_index(lmb);
 	} else {
 		lmb->flags |= DRCONF_MEM_ASSIGNED;

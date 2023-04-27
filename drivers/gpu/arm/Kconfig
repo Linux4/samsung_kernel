@@ -1,0 +1,80 @@
+#
+# (C) COPYRIGHT 2012 ARM Limited. All rights reserved.
+#
+# This program is free software and is provided to you under the terms of the GNU General Public License version 2
+# as published by the Free Software Foundation, and any use by you of this program is subject to the terms of such GNU licence.
+#
+# A copy of the licence is included with the program, and can also be obtained from Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+#
+#
+
+
+menu "ARM GPU Configuration"
+
+menuconfig MALI_DDK_VERSION
+	tristate "Mali support"
+	default y
+	help
+	  Enable this option to build support for the ARM Mali-T7xx GPU.
+
+	  To compile this driver as a module, choose M here:
+	  this will generate a single module, called mali_kbase.
+
+choice
+	prompt "version Configuration"
+	depends on MALI_DDK_VERSION
+	default MALI_DDK_VALHALL_R32P1 if $(SEC_BUILD_CONF_VENDOR_BUILD_OS) <= 12
+	default MALI_DDK_VALHALL_R38P1 if $(SEC_BUILD_CONF_VENDOR_BUILD_OS) >= 13
+	help
+	  Select the gpu support version.
+
+config MALI_VALHALL_R17P0
+	depends on MALI_DDK_VERSION
+	bool "Valhall r17p0 driver"
+
+config MALI_VALHALL_R19P0
+	depends on MALI_DDK_VERSION
+	bool "Valhall r19p0 driver"
+
+config MALI_VALHALL_R20P0
+	depends on MALI_DDK_VERSION
+	bool "Valhall r20p0 driver"
+
+config MALI_VALHALL_R25P1
+	depends on MALI_DDK_VERSION
+	bool "Valhall r25p1 driver"
+
+config MALI_DDK_VALHALL_R32P1
+	bool "Valhall r32p1 driver"
+
+config MALI_DDK_VALHALL_R38P1
+	bool "Valhall r38p1 driver"
+
+endchoice
+
+if MALI_VALHALL_R17P0
+source "drivers/gpu/arm/v_r17p0/Kconfig"
+endif
+
+if MALI_VALHALL_R19P0
+source "drivers/gpu/arm/v_r19p0/Kconfig"
+endif
+
+if MALI_VALHALL_R20P0
+source "drivers/gpu/arm/v_r20p0/Kconfig"
+endif
+
+if MALI_VALHALL_R25P1
+source "drivers/gpu/arm/v_r25p1/Kconfig"
+endif
+
+if MALI_DDK_VALHALL_R32P1
+source "drivers/gpu/arm/bv_r32p1/Kconfig"
+endif
+
+if MALI_DDK_VALHALL_R38P1
+source "drivers/gpu/arm/bv_r38p1/Kconfig"
+endif
+
+endmenu

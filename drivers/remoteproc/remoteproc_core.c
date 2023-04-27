@@ -1786,7 +1786,7 @@ static int __init remoteproc_init(void)
 
 	return 0;
 }
-subsys_initcall(remoteproc_init);
+module_init(remoteproc_init);
 
 static void __exit remoteproc_exit(void)
 {

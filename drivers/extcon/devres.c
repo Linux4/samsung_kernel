@@ -145,6 +145,29 @@ int devm_extcon_dev_register(struct device *dev, struct extcon_dev *edev)
 }
 EXPORT_SYMBOL_GPL(devm_extcon_dev_register);
 
+int devm_extcon_dev_register_by_name(struct device *dev, struct extcon_dev *edev,
+				const char *name)
+{
+	struct extcon_dev **ptr;
+	int ret;
+
+	ptr = devres_alloc(devm_extcon_dev_unreg, sizeof(*ptr), GFP_KERNEL);
+	if (!ptr)
+		return -ENOMEM;
+
+	ret = extcon_dev_register_by_name(edev, name);
+	if (ret) {
+		devres_free(ptr);
+		return ret;
+	}
+
+	*ptr = edev;
+	devres_add(dev, ptr);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(devm_extcon_dev_register_by_name);
+
 /**
  * devm_extcon_dev_unregister() - Resource-managed extcon_dev_unregister()
  * @dev:	the device owning the extcon device being created

@@ -255,7 +255,7 @@ int sctp_rcv(struct sk_buff *skb)
 		bh_lock_sock(sk);
 	}
 
-	if (sock_owned_by_user(sk) || !sctp_newsk_ready(sk)) {
+	if (sock_owned_by_user(sk)) {
 		if (sctp_add_backlog(sk, skb)) {
 			bh_unlock_sock(sk);
 			sctp_chunk_free(chunk);
@@ -333,7 +333,7 @@ int sctp_backlog_rcv(struct sock *sk, struct sk_buff *skb)
 		local_bh_disable();
 		bh_lock_sock(sk);
 
-		if (sock_owned_by_user(sk) || !sctp_newsk_ready(sk)) {
+		if (sock_owned_by_user(sk)) {
 			if (sk_add_backlog(sk, skb, sk->sk_rcvbuf))
 				sctp_chunk_free(chunk);
 			else
@@ -348,13 +348,7 @@ int sctp_backlog_rcv(struct sock *sk, struct sk_buff *skb)
 		if (backloged)
 			return 0;
 	} else {
-		if (!sctp_newsk_ready(sk)) {
-			if (!sk_add_backlog(sk, skb, sk->sk_rcvbuf))
-				return 0;
-			sctp_chunk_free(chunk);
-		} else {
-			sctp_inq_push(inqueue, chunk);
-		}
+		sctp_inq_push(inqueue, chunk);
 	}
 
 done:
@@ -821,7 +815,7 @@ static inline int sctp_hash_cmp(struct rhashtable_compare_arg *arg,
 	if (!sctp_transport_hold(t))
 		return err;
 
-	if (!net_eq(t->asoc->base.net, x->net))
+	if (!net_eq(sock_net(t->asoc->base.sk), x->net))
 		goto out;
 	if (x->lport != htons(t->asoc->base.bind_addr.port))
 		goto out;
@@ -836,7 +830,7 @@ static inline __u32 sctp_hash_obj(const void *data, u32 len, u32 seed)
 {
 	const struct sctp_transport *t = data;
 	const union sctp_addr *paddr = &t->ipaddr;
-	const struct net *net = t->asoc->base.net;
+	const struct net *net = sock_net(t->asoc->base.sk);
 	__be16 lport = htons(t->asoc->base.bind_addr.port);
 	__u32 addr;
 
@@ -1088,8 +1082,7 @@ static struct sctp_association *__sctp_rcv_init_lookup(struct net *net,
 		if (!af)
 			continue;
 
-		if (!af->from_addr_param(paddr, params.addr, sh->source, 0))
-			continue;
+		af->from_addr_param(paddr, params.addr, sh->source, 0);
 
 		asoc = __sctp_lookup_association(net, laddr, paddr, transportp);
 		if (asoc)
@@ -1125,9 +1118,6 @@ static struct sctp_association *__sctp_rcv_asconf_lookup(
 	union sctp_addr_param *param;
 	union sctp_addr paddr;
 
-	if (ntohs(ch->length) < sizeof(*asconf) + sizeof(struct sctp_paramhdr))
-		return NULL;
-
 	/* Skip over the ADDIP header and find the Address parameter */
 	param = (union sctp_addr_param *)(asconf + 1);
 
@@ -1135,8 +1125,7 @@ static struct sctp_association *__sctp_rcv_asconf_lookup(
 	if (unlikely(!af))
 		return NULL;
 
-	if (!af->from_addr_param(&paddr, param, peer_port, 0))
-		return NULL;
+	af->from_addr_param(&paddr, param, peer_port, 0);
 
 	return __sctp_lookup_association(net, laddr, &paddr, transportp);
 }
@@ -1207,7 +1196,7 @@ static struct sctp_association *__sctp_rcv_walk_lookup(struct net *net,
 
 		ch = (struct sctp_chunkhdr *)ch_end;
 		chunk_num++;
-	} while (ch_end + sizeof(*ch) < skb_tail_pointer(skb));
+	} while (ch_end < skb_tail_pointer(skb));
 
 	return asoc;
 }

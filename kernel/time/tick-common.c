@@ -491,6 +491,8 @@ void tick_freeze(void)
 		trace_suspend_resume(TPS("timekeeping_freeze"),
 				     smp_processor_id(), true);
 		system_state = SYSTEM_SUSPEND;
+		dbg_snapshot_suspend("timekeeping_freeze", timekeeping_suspend,
+					NULL, smp_processor_id(), DSS_FLAG_IN);
 		sched_clock_suspend();
 		timekeeping_suspend();
 	} else {
@@ -517,6 +519,8 @@ void tick_unfreeze(void)
 		timekeeping_resume();
 		sched_clock_resume();
 		system_state = SYSTEM_RUNNING;
+		dbg_snapshot_suspend("timekeeping_freeze", timekeeping_suspend,
+					NULL, smp_processor_id(), DSS_FLAG_OUT);
 		trace_suspend_resume(TPS("timekeeping_freeze"),
 				     smp_processor_id(), false);
 	} else {

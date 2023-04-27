@@ -18,7 +18,99 @@
 #include <asm/pgtable.h>
 #include <asm/tlbflush.h>
 
+#include <linux/migrate.h>
+#include <linux/mm_inline.h>
+#include <linux/mmu_notifier.h>
+#include <asm/tlbflush.h>
+
 #include "internal.h"
+
+#ifdef CONFIG_CMA
+static struct page *__alloc_nonmovable_userpage(struct page *page,
+				unsigned long private)
+{
+	return alloc_page(GFP_HIGHUSER);
+}
+
+static bool __need_migrate_cma_page(struct page *page,
+				struct vm_area_struct *vma,
+				unsigned long start, unsigned int flags)
+{
+	struct zone *zone = page_zone(page);
+
+	if (!(flags & FOLL_GET))
+		return false;
+
+	if (!(flags & FOLL_CMA))
+		return false;
+
+	if (zone_idx(zone) == ZONE_MOVABLE)
+		return true;
+
+	if (get_pageblock_migratetype(page) != MIGRATE_CMA)
+		return false;
+
+	if ((vma->vm_flags & VM_STACK_INCOMPLETE_SETUP) ==
+					VM_STACK_INCOMPLETE_SETUP)
+		return false;
+
+	migrate_prep_local();
+
+	if (!PageLRU(page))
+		return false;
+
+	return true;
+}
+
+static int __migrate_cma_pinpage(struct page *page, struct vm_area_struct *vma)
+{
+	struct zone *zone = page_zone(page);
+	struct list_head migratepages;
+	struct lruvec *lruvec;
+	int tries = 0;
+	int ret = 0;
+
+	INIT_LIST_HEAD(&migratepages);
+
+	if (__isolate_lru_page(page, 0) != 0) {
+		dump_page(page, "failed to isolate lru page");
+		return -EFAULT;
+	} else {
+		spin_lock_irq(zone_lru_lock(zone));
+		lruvec = mem_cgroup_page_lruvec(page, zone->zone_pgdat);
+		del_page_from_lru_list(page, lruvec, page_lru(page));
+		spin_unlock_irq(zone_lru_lock(zone));
+	}
+
+	list_add(&page->lru, &migratepages);
+	inc_zone_page_state(page, NR_ISOLATED_ANON + page_is_file_cache(page));
+
+	while (!list_empty(&migratepages) && tries++ < 5) {
+		ret = migrate_pages(&migratepages, __alloc_nonmovable_userpage,
+					NULL, 0, MIGRATE_SYNC, MR_CONTIG_RANGE);
+	}
+
+	if (ret < 0) {
+		putback_movable_pages(&migratepages);
+		pr_err("%s: migration failed %p[%#lx]\n", __func__,
+					page, page_to_pfn(page));
+		return -EFAULT;
+	}
+
+	return 0;
+}
+#else
+static bool __need_migrate_cma_page(struct page *page,
+				struct vm_area_struct *vma,
+				unsigned long start, unsigned int flags)
+{
+	return false;
+}
+static int __migrate_cma_pinpage(struct page *page, struct vm_area_struct *vma)
+{
+	return 0;
+}
+#endif
 
 static struct page *no_page_table(struct vm_area_struct *vma,
 		unsigned int flags)
@@ -78,6 +170,7 @@ static struct page *follow_page_pte(struct vm_area_struct *vma,
 	struct page *page;
 	spinlock_t *ptl;
 	pte_t *ptep, pte;
+	bool cma_migration;
 
 retry:
 	if (unlikely(pmd_bad(*pmd)))
@@ -139,6 +232,10 @@ retry:
 		}
 	}
 
+	cma_migration = __need_migrate_cma_page(page, vma, address, flags);
+	if (cma_migration)
+		flags |= FOLL_SPLIT;
+
 	if (flags & FOLL_SPLIT && PageTransCompound(page)) {
 		int ret;
 		get_page(page);
@@ -150,6 +247,28 @@ retry:
 		if (ret)
 			return ERR_PTR(ret);
 		goto retry;
+	}
+
+	if (cma_migration) {
+		pte_unmap_unlock(ptep, ptl);
+		if (__migrate_cma_pinpage(page, vma)) {
+			ptep = pte_offset_map_lock(mm, pmd, address, &ptl);
+		} else {
+			struct page *old_page = page;
+
+			migration_entry_wait(mm, pmd, address);
+			ptep = pte_offset_map_lock(mm, pmd, address, &ptl);
+			update_mmu_cache(vma, address, ptep);
+			pte = *ptep;
+			set_pte_at_notify(mm, address, ptep, pte);
+			page = vm_normal_page(vma, address, pte);
+			BUG_ON(!page);
+
+			pr_debug("cma: cma page %p[%#lx] migrated to new "
+					"page %p[%#lx]\n", old_page,
+					page_to_pfn(old_page),
+					page, page_to_pfn(page));
+		}
 	}
 
 	if (flags & FOLL_GET) {
@@ -678,8 +797,6 @@ static long __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 	if (!nr_pages)
 		return 0;
 
-	start = untagged_addr(start);
-
 	VM_BUG_ON(!!pages != !!(gup_flags & FOLL_GET));
 
 	/*
@@ -689,6 +806,9 @@ static long __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 	 */
 	if (!(gup_flags & FOLL_FORCE))
 		gup_flags |= FOLL_NUMA;
+
+	if ((gup_flags & FOLL_CMA) != 0)
+		migrate_prep();
 
 	do {
 		struct page *page;
@@ -833,8 +953,6 @@ int fixup_user_fault(struct task_struct *tsk, struct mm_struct *mm,
 {
 	struct vm_area_struct *vma;
 	vm_fault_t ret, major = 0;
-
-	address = untagged_addr(address);
 
 	if (unlocked)
 		fault_flags |= FAULT_FLAG_ALLOW_RETRY;

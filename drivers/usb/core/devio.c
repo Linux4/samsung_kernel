@@ -2683,7 +2683,6 @@ static long usbdev_ioctl(struct file *file, unsigned int cmd,
 		prev_ret = 0;
 	}
 #endif
-
 	return ret;
 }
 

@@ -22,8 +22,13 @@
 #include <linux/smp.h>
 #include <linux/types.h>
 #include <linux/uaccess.h>
+#include <asm/cputype.h>
+#include <asm/core_regs.h>
 
 #include "coresight-priv.h"
+#ifdef CONFIG_EXYNOS_PMU
+#include <soc/samsung/exynos-pmu.h>
+#endif
 
 #define EDPCSR				0x0A0
 #define EDCIDSR				0x0A4
@@ -82,10 +87,15 @@
 #define DEBUG_WAIT_SLEEP		1000
 #define DEBUG_WAIT_TIMEOUT		32000
 
+#define MSB_MASKING			GENMASK(15, 8)
+#define MSB_PADDING			GENMASK(31, 8)
+#define ITERATION			CONFIG_CORESIGHT_CPU_DEBUG_ITERATION
+
 struct debug_drvdata {
 	void __iomem	*base;
 	struct device	*dev;
 	int		cpu;
+	unsigned int	cpu_type;
 
 	bool		edpcsr_present;
 	bool		edcidsr_present;
@@ -98,6 +108,10 @@ struct debug_drvdata {
 	u32		edvidsr;
 	u32		edcidsr;
 };
+
+#ifdef CONFIG_LOCKUP_DETECTOR
+extern struct atomic_notifier_head hardlockup_notifier_list;
+#endif
 
 static DEFINE_MUTEX(debug_lock);
 static DEFINE_PER_CPU(struct debug_drvdata *, debug_drvdata);
@@ -241,6 +255,66 @@ out:
 	CS_LOCK(drvdata->base);
 }
 
+static void pmu_read_regs(struct debug_drvdata *drvdata)
+{
+	u32 save_edprcr;
+
+	CS_UNLOCK(drvdata->base);
+
+	/* Unlock os lock */
+	debug_os_unlock(drvdata);
+
+	CS_UNLOCK(drvdata->base + PMU_OFFSET);
+
+	/* Save EDPRCR register */
+	save_edprcr = readl_relaxed(drvdata->base + EDPRCR);
+
+	/*
+	 * Ensure CPU power domain is enabled to let registers
+	 * are accessiable.
+	 */
+	debug_force_cpu_powered_up(drvdata);
+
+	if (!debug_access_permitted(drvdata))
+		goto out;
+
+	drvdata->edpcsr = readl_relaxed(drvdata->base + PMU_OFFSET + PMUPCSR);
+
+	/*
+	 * As described in ARM DDI 0487A.k, if the processing
+	 * element (PE) is in debug state, or sample-based
+	 * profiling is prohibited, EDPCSR reads as 0xFFFFFFFF;
+	 * EDCIDSR, EDVIDSR and EDPCSR_HI registers also become
+	 * UNKNOWN state. So directly bail out for this case.
+	 */
+	if (drvdata->edpcsr == EDPCSR_PROHIBITED)
+		goto out;
+
+	/*
+	 * A read of the EDPCSR normally has the side-effect of
+	 * indirectly writing to EDCIDSR, EDVIDSR and EDPCSR_HI;
+	 * at this point it's safe to read value from them.
+	 */
+	if (IS_ENABLED(CONFIG_64BIT)) {
+		drvdata->edpcsr_hi = readl_relaxed(drvdata->base + PMU_OFFSET + PMUPCSR_HI);
+		if ((drvdata->edpcsr_hi & MSB_MASKING) == MSB_MASKING)
+			drvdata->edpcsr_hi |= MSB_PADDING;
+	}
+
+	if (drvdata->edcidsr_present)
+		drvdata->edcidsr = readl_relaxed(drvdata->base + EDCIDSR);
+
+	if (drvdata->edvidsr_present)
+		drvdata->edvidsr = readl_relaxed(drvdata->base + EDVIDSR);
+
+out:
+	/* Restore EDPRCR register */
+	writel_relaxed(save_edprcr, drvdata->base + EDPRCR);
+
+	CS_LOCK(drvdata->base + PMU_OFFSET);
+	CS_LOCK(drvdata->base);
+}
+
 #ifdef CONFIG_64BIT
 static unsigned long debug_adjust_pc(struct debug_drvdata *drvdata)
 {
@@ -329,8 +403,19 @@ static void debug_init_arch_data(void *info)
 	CS_UNLOCK(drvdata->base);
 
 	/* Read device info */
-	eddevid  = readl_relaxed(drvdata->base + EDDEVID);
-	eddevid1 = readl_relaxed(drvdata->base + EDDEVID1);
+	switch (drvdata->cpu_type) {
+	case ARM_CPU_PART_CORTEX_A55:
+	case ARM_CPU_PART_CORTEX_A76:
+	case ARM_CPU_PART_SAMSUNG_M5:
+		eddevid  = readl_relaxed(drvdata->base + PMU_OFFSET + EDDEVID);
+		eddevid1 = readl_relaxed(drvdata->base + PMU_OFFSET + EDDEVID1);
+		break;
+	default:
+		eddevid  = readl_relaxed(drvdata->base + EDDEVID);
+		eddevid1 = readl_relaxed(drvdata->base + EDDEVID1);
+		break;
+	}
+
 
 	CS_LOCK(drvdata->base);
 
@@ -376,7 +461,7 @@ static void debug_init_arch_data(void *info)
 static int debug_notifier_call(struct notifier_block *self,
 			       unsigned long v, void *p)
 {
-	int cpu;
+	int cpu, i;
 	struct debug_drvdata *drvdata;
 
 	mutex_lock(&debug_lock);
@@ -393,8 +478,74 @@ static int debug_notifier_call(struct notifier_block *self,
 			continue;
 
 		dev_emerg(drvdata->dev, "CPU[%d]:\n", drvdata->cpu);
+#ifdef CONFIG_EXYNOS_PMU
+		if (!exynos_cpu.power_state(drvdata->cpu)) {
+			dev_emerg(drvdata->dev, "cpu power off\n");
+			continue;
+		}
+#endif
 
-		debug_read_regs(drvdata);
+		for (i = 0; i < ITERATION; i++) {
+			switch (drvdata->cpu_type) {
+			case ARM_CPU_PART_CORTEX_A55:
+			case ARM_CPU_PART_CORTEX_A76:
+			case ARM_CPU_PART_SAMSUNG_M5:
+				pmu_read_regs(drvdata);
+				break;
+			default:
+				debug_read_regs(drvdata);
+				break;
+			}
+			debug_dump_regs(drvdata);
+		}
+	}
+
+skip_dump:
+	mutex_unlock(&debug_lock);
+	return 0;
+}
+
+#ifdef CONFIG_LOCKUP_DETECTOR
+/*
+ * Dump out information on hardlockup.
+ */
+static int debug_lockup_notifier_call(struct notifier_block *self,
+					unsigned long v, void *p)
+{
+	int cpu, i;
+	struct debug_drvdata *drvdata;
+
+	mutex_lock(&debug_lock);
+
+	/* Bail out if the functionality is disabled */
+	if (!debug_enable)
+		goto skip_dump;
+
+	cpu = *(int *)p;
+
+	drvdata = per_cpu(debug_drvdata, cpu);
+	if (!drvdata)
+		goto skip_dump;
+
+	dev_emerg(drvdata->dev, "CPU[%d]:\n", drvdata->cpu);
+#ifdef CONFIG_EXYNOS_PMU
+	if (!exynos_cpu.power_state(drvdata->cpu)) {
+		dev_emerg(drvdata->dev, "cpu power off\n");
+		goto skip_dump;
+	}
+#endif
+
+	for (i = 0; i < ITERATION; i++) {
+		switch (drvdata->cpu_type) {
+		case ARM_CPU_PART_CORTEX_A55:
+		case ARM_CPU_PART_CORTEX_A76:
+		case ARM_CPU_PART_SAMSUNG_M5:
+			pmu_read_regs(drvdata);
+			break;
+		default:
+			debug_read_regs(drvdata);
+			break;
+		}
 		debug_dump_regs(drvdata);
 	}
 
@@ -402,6 +553,11 @@ skip_dump:
 	mutex_unlock(&debug_lock);
 	return 0;
 }
+
+static struct notifier_block debug_lockup_notifier = {
+	.notifier_call = debug_lockup_notifier_call,
+};
+#endif
 
 static struct notifier_block debug_notifier = {
 	.notifier_call = debug_notifier_call,
@@ -552,6 +708,16 @@ static int debug_func_init(void)
 		goto err;
 	}
 
+#ifdef CONFIG_LOCKUP_DETECTOR
+	/* Register function to be called for lockup */
+	ret = atomic_notifier_chain_register(&hardlockup_notifier_list,
+					     &debug_lockup_notifier);
+	if (ret) {
+		pr_err("%s: unable to register notifier: %d\n",
+		       __func__, ret);
+		goto err;
+	}
+#endif
 	return 0;
 
 err:
@@ -587,6 +753,7 @@ static int debug_probe(struct amba_device *adev, const struct amba_id *id)
 	}
 
 	drvdata->dev = &adev->dev;
+	drvdata->cpu_type = adev->periphid & ARM_CPU_PART_MASK;
 	amba_set_drvdata(adev, drvdata);
 
 	/* Validity for the resource is already checked by the AMBA core */
@@ -660,6 +827,10 @@ static const struct amba_id debug_ids[] = {
 		.id	= 0x000bbd03,
 		.mask	= 0x000fffff,
 	},
+	{       /* Debug for Cortex-A55 */
+		.id	= 0x000bbd05,
+		.mask	= 0x000fffff,
+	},
 	{       /* Debug for Cortex-A57 */
 		.id	= 0x000bbd07,
 		.mask	= 0x000fffff,
@@ -670,6 +841,14 @@ static const struct amba_id debug_ids[] = {
 	},
 	{       /* Debug for Cortex-A73 */
 		.id	= 0x000bbd09,
+		.mask	= 0x000fffff,
+	},
+	{       /* Debug for Cortex-A76 */
+		.id	= 0x000bbd0b,
+		.mask	= 0x000fffff,
+	},
+	{       /* Debug for Samsung-M5 */
+		.id	= 0x000ce004,
 		.mask	= 0x000fffff,
 	},
 	{ 0, 0 },

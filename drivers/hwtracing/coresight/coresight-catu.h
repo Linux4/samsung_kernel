@@ -9,7 +9,6 @@
 #define _CORESIGHT_CATU_H
 
 #include "coresight-priv.h"
-#include "coresight-tmc.h"
 
 /* Register offset from base */
 #define CATU_CONTROL		0x000
@@ -110,6 +109,11 @@ static inline bool coresight_is_catu_device(struct coresight_device *csdev)
 	return true;
 }
 
+#ifdef CONFIG_CORESIGHT_CATU
 extern const struct etr_buf_operations etr_catu_buf_ops;
+#else
+/* Dummy declaration for the CATU ops */
+static const struct etr_buf_operations etr_catu_buf_ops;
+#endif
 
 #endif

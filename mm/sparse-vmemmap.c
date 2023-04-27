@@ -179,16 +179,18 @@ pmd_t * __meminit vmemmap_pmd_populate(pud_t *pud, unsigned long addr, int node)
 
 pud_t * __meminit vmemmap_pud_populate(p4d_t *p4d, unsigned long addr, int node)
 {
-	void *p = NULL;
 	pud_t *pud = pud_offset(p4d, addr);
 	if (pud_none(*pud)) {
 #ifdef CONFIG_UH_RKP
-		p = rkp_ro_alloc();
+		void *p = rkp_ro_alloc();
 #else
-		p = vmemmap_alloc_block_zero(PAGE_SIZE, node);
+		void *p = vmemmap_alloc_block_zero(PAGE_SIZE, node);
 #endif
 		if (!p)
 			return NULL;
+#ifdef CONFIG_FASTUH_RKP
+		uh_call(UH_APP_RKP, RKP_ROBUFFER_ALLOC, (u64)p, 0, 0, 0);
+#endif
 		pud_populate(&init_mm, pud, p);
 	}
 	return pud;

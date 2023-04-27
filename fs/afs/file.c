@@ -169,12 +169,11 @@ int afs_release(struct inode *inode, struct file *file)
 {
 	struct afs_vnode *vnode = AFS_FS_I(inode);
 	struct afs_file *af = file->private_data;
-	int ret = 0;
 
 	_enter("{%x:%u},", vnode->fid.vid, vnode->fid.vnode);
 
 	if ((file->f_mode & FMODE_WRITE))
-		ret = vfs_fsync(file, 0);
+		return vfs_fsync(file, 0);
 
 	file->private_data = NULL;
 	if (af->wb)
@@ -182,8 +181,8 @@ int afs_release(struct inode *inode, struct file *file)
 	key_put(af->key);
 	kfree(af);
 	afs_prune_wb_keys(vnode);
-	_leave(" = %d", ret);
-	return ret;
+	_leave(" = 0");
+	return 0;
 }
 
 /*
@@ -263,11 +262,12 @@ int afs_fetch_data(struct afs_vnode *vnode, struct key *key, struct afs_read *de
 /*
  * read page from file, directory or symlink, given a key to use
  */
-static int __afs_page_filler(struct key *key, struct page *page)
+int afs_page_filler(void *data, struct page *page)
 {
 	struct inode *inode = page->mapping->host;
 	struct afs_vnode *vnode = AFS_FS_I(inode);
 	struct afs_read *req;
+	struct key *key = data;
 	int ret;
 
 	_enter("{%x},{%lu},{%lu}", key_serial(key), inode->i_ino, page->index);
@@ -374,13 +374,6 @@ error:
 	return ret;
 }
 
-int afs_page_filler(struct file *data, struct page *page)
-{
-	struct key *key = (struct key *)data;
-
-	return __afs_page_filler(key, page);
-}
-
 /*
  * read page from file, directory or symlink, given a file to nominate the key
  * to be used
@@ -393,14 +386,14 @@ static int afs_readpage(struct file *file, struct page *page)
 	if (file) {
 		key = afs_file_key(file);
 		ASSERT(key != NULL);
-		ret = __afs_page_filler(key, page);
+		ret = afs_page_filler(key, page);
 	} else {
 		struct inode *inode = page->mapping->host;
 		key = afs_request_key(AFS_FS_S(inode->i_sb)->cell);
 		if (IS_ERR(key)) {
 			ret = PTR_ERR(key);
 		} else {
-			ret = __afs_page_filler(key, page);
+			ret = afs_page_filler(key, page);
 			key_put(key);
 		}
 	}

@@ -54,9 +54,8 @@ static int cistpl_vers_1(struct mmc_card *card, struct sdio_func *func,
 	string = (char*)(buffer + nr_strings);
 
 	for (i = 0; i < nr_strings; i++) {
-		size_t buf_len = strlen(buf);
 		buffer[i] = string;
-		strlcpy(string, buf, buf_len + 1);
+		strcpy(string, buf);
 		string += strlen(string) + 1;
 		buf += strlen(buf) + 1;
 	}

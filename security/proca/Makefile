@@ -31,7 +31,8 @@ obj-$(CONFIG_PROCA) += proca_identity.o proca_fcntl.o \
                                proca_config.o
 endif
 
-ccflags-y += -Isecurity/samsung/five/
+ccflags-y += -I$(srctree)/security/samsung/five/
+ccflags-y += -I$(srctree)/security/proca/
 
 ifdef CONFIG_PROCA_S_OS
 obj-$(CONFIG_PROCA) += s_os/proca_lsm.o

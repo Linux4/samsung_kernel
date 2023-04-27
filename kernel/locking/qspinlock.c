@@ -153,7 +153,13 @@ static __always_inline void clear_pending(struct qspinlock *lock)
  */
 static __always_inline void clear_pending_set_locked(struct qspinlock *lock)
 {
+#ifdef CONFIG_SEC_DEBUG_QSPIN_OWNER
+	u8 locked_val = __queued_spin_get_locked_val();
+
+	WRITE_ONCE(lock->locked_pending, locked_val);
+#else
 	WRITE_ONCE(lock->locked_pending, _Q_LOCKED_VAL);
+#endif
 }
 
 /*
@@ -253,7 +259,13 @@ static __always_inline u32 queued_fetch_set_pending_acquire(struct qspinlock *lo
  */
 static __always_inline void set_locked(struct qspinlock *lock)
 {
+#ifdef CONFIG_SEC_DEBUG_QSPIN_OWNER
+	u8 locked_val = __queued_spin_get_locked_val();
+
+	WRITE_ONCE(lock->locked, locked_val);
+#else
 	WRITE_ONCE(lock->locked, _Q_LOCKED_VAL);
+#endif
 }
 
 
@@ -310,6 +322,9 @@ void queued_spin_lock_slowpath(struct qspinlock *lock, u32 val)
 	struct mcs_spinlock *prev, *next, *node;
 	u32 old, tail;
 	int idx;
+#ifdef CONFIG_SEC_DEBUG_QSPIN_OWNER
+	u8 locked_val = __queued_spin_get_locked_val();
+#endif
 
 	BUILD_BUG_ON(CONFIG_NR_CPUS >= (1U << _Q_TAIL_CPU_BITS));
 
@@ -495,7 +510,11 @@ locked:
 	 * necessary acquire semantics required for locking.
 	 */
 	if (((val & _Q_TAIL_MASK) == tail) &&
+#ifdef CONFIG_SEC_DEBUG_QSPIN_OWNER
+	    atomic_try_cmpxchg_relaxed(&lock->val, &val, locked_val))
+#else
 	    atomic_try_cmpxchg_relaxed(&lock->val, &val, _Q_LOCKED_VAL))
+#endif
 		goto release; /* No contention */
 
 	/* Either somebody is queued behind us or _Q_PENDING_VAL is set */

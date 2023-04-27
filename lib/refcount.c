@@ -40,16 +40,6 @@
 #include <linux/spinlock.h>
 #include <linux/bug.h>
 
-#ifdef CONFIG_PANIC_ON_REFCOUNT_ERROR
-#define REFCOUNT_WARN_ONCE(cond, msg) \
-do { \
-	if (cond) \
-		panic(msg); \
-} while (0)
-#else
-#define REFCOUNT_WARN_ONCE(cond, msg) WARN_ONCE(cond, msg)
-#endif /* CONFIG_PANIC_ON_REFCOUNT_ERROR */
-
 /**
  * refcount_add_not_zero_checked - add a value to a refcount unless it is 0
  * @i: the value to add to the refcount
@@ -85,8 +75,7 @@ bool refcount_add_not_zero_checked(unsigned int i, refcount_t *r)
 
 	} while (!atomic_try_cmpxchg_relaxed(&r->refs, &val, new));
 
-	REFCOUNT_WARN_ONCE(new == UINT_MAX,
-			   "refcount_t: saturated; leaking memory.\n");
+	WARN_ONCE(new == UINT_MAX, "refcount_t: saturated; leaking memory.\n");
 
 	return true;
 }
@@ -110,8 +99,7 @@ EXPORT_SYMBOL(refcount_add_not_zero_checked);
  */
 void refcount_add_checked(unsigned int i, refcount_t *r)
 {
-	REFCOUNT_WARN_ONCE(!refcount_add_not_zero(i, r),
-			   "refcount_t: addition on 0; use-after-free.\n");
+	WARN_ONCE(!refcount_add_not_zero_checked(i, r), "refcount_t: addition on 0; use-after-free.\n");
 }
 EXPORT_SYMBOL(refcount_add_checked);
 
@@ -142,8 +130,7 @@ bool refcount_inc_not_zero_checked(refcount_t *r)
 
 	} while (!atomic_try_cmpxchg_relaxed(&r->refs, &val, new));
 
-	REFCOUNT_WARN_ONCE(new == UINT_MAX,
-			   "refcount_t: saturated; leaking memory.\n");
+	WARN_ONCE(new == UINT_MAX, "refcount_t: saturated; leaking memory.\n");
 
 	return true;
 }
@@ -163,8 +150,7 @@ EXPORT_SYMBOL(refcount_inc_not_zero_checked);
  */
 void refcount_inc_checked(refcount_t *r)
 {
-	REFCOUNT_WARN_ONCE(!refcount_inc_not_zero(r),
-			   "refcount_t: increment on 0; use-after-free.\n");
+	WARN_ONCE(!refcount_inc_not_zero_checked(r), "refcount_t: increment on 0; use-after-free.\n");
 }
 EXPORT_SYMBOL(refcount_inc_checked);
 
@@ -198,8 +184,7 @@ bool refcount_sub_and_test_checked(unsigned int i, refcount_t *r)
 
 		new = val - i;
 		if (new > val) {
-			REFCOUNT_WARN_ONCE(new > val,
-				"refcount_t: underflow; use-after-free.\n");
+			WARN_ONCE(new > val, "refcount_t: underflow; use-after-free.\n");
 			return false;
 		}
 
@@ -240,8 +225,7 @@ EXPORT_SYMBOL(refcount_dec_and_test_checked);
  */
 void refcount_dec_checked(refcount_t *r)
 {
-	REFCOUNT_WARN_ONCE(refcount_dec_and_test(r),
-			   "refcount_t: decrement hit 0; leaking memory.\n");
+	WARN_ONCE(refcount_dec_and_test_checked(r), "refcount_t: decrement hit 0; leaking memory.\n");
 }
 EXPORT_SYMBOL(refcount_dec_checked);
 
@@ -293,8 +277,7 @@ bool refcount_dec_not_one(refcount_t *r)
 
 		new = val - 1;
 		if (new > val) {
-			REFCOUNT_WARN_ONCE(new > val,
-				"refcount_t: underflow; use-after-free.\n");
+			WARN_ONCE(new > val, "refcount_t: underflow; use-after-free.\n");
 			return true;
 		}
 

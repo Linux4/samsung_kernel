@@ -28,7 +28,6 @@ amlogic	Amlogic, Inc.
 ampire	Ampire Co., Ltd.
 ams	AMS AG
 amstaos	AMS-Taos Inc.
-android        Google Inc.
 analogix	Analogix Semiconductor, Inc.
 andestech	Andes Technology Corporation
 apm	Applied Micro Circuits Corporation (APM)
@@ -134,7 +133,6 @@ fastrax	Fastrax Oy
 fcs	Fairchild Semiconductor
 firefly	Firefly
 focaltech	FocalTech Systems Co.,Ltd
-fpc	Fingerprint Cards AB.
 friendlyarm	Guangzhou FriendlyARM Computer Tech Co., Ltd
 fsl	Freescale Semiconductor
 fujitsu	Fujitsu Ltd.
@@ -155,7 +153,6 @@ grmn	Garmin Limited
 gumstix	Gumstix, Inc.
 gw	Gateworks Corporation
 hannstar	HannStar Display Corporation
-halo	Halo Microelectronics Co. Ltd.
 haoyu	Haoyu Microelectronic Co. Ltd.
 hardkernel	Hardkernel Co., Ltd
 hideep	HiDeep Inc.
@@ -220,7 +217,6 @@ lltc	Linear Technology Corporation
 logicpd	Logic PD, Inc.
 lsi	LSI Corp. (LSI Logic)
 lwn	Liebherr-Werk Nenzing GmbH
-lt	Lontium Semiconductor Corporation
 macnica	Macnica Americas
 marvell	Marvell Technology Group Ltd.
 maxim	Maxim Integrated Products
@@ -270,7 +266,6 @@ nintendo	Nintendo
 nlt	NLT Technologies, Ltd.
 nokia	Nokia
 nordic	Nordic Semiconductor
-novatek	Novatek Microelectronics Corporation
 nutsboard	NutsBoard
 nuvoton	Nuvoton Technology Corporation
 nvd	New Vision Display
@@ -374,7 +369,7 @@ summit	Summit microelectronics
 sunchip	Shenzhen Sunchip Technology Co., Ltd
 SUNW	Sun Microsystems, Inc
 swir	Sierra Wireless
-synaptics	Synaptics Inc.
+syna	Synaptics Inc.
 synology	Synology, Inc.
 tbs	TBS Technologies
 tbs-biometrics	Touchless Biometric Systems AG

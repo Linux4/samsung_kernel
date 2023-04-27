@@ -102,10 +102,3 @@ void timed_output_dev_unregister(struct timed_output_dev *tdev)
 	device_destroy(timed_output_class, MKDEV(0, tdev->index));
 }
 EXPORT_SYMBOL_GPL(timed_output_dev_unregister);
-#if 0 // remove redundant call create class
-static int __init timed_output_init(void)
-{
-	return create_timed_output_class();
-}
-device_initcall(timed_output_init);
-#endif

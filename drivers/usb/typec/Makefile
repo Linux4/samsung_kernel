@@ -10,3 +10,6 @@ obj-$(CONFIG_TYPEC_TPS6598X)	+= tps6598x.o
 obj-$(CONFIG_TYPEC)		+= mux/
 obj-$(CONFIG_TYPEC_TCPCI)	+= tcpci.o
 obj-$(CONFIG_TYPEC_RT1711H)	+= tcpci_rt1711h.o
+obj-$(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)		+= manager/
+obj-$(CONFIG_CCIC_NOTIFIER)		+= common/
+obj-$(CONFIG_CCIC_MAX77705)		+= maxim/

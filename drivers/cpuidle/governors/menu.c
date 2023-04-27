@@ -12,6 +12,7 @@
 
 #include <linux/kernel.h>
 #include <linux/cpuidle.h>
+#include <linux/pm_qos.h>
 #include <linux/time.h>
 #include <linux/ktime.h>
 #include <linux/hrtimer.h>
@@ -20,6 +21,7 @@
 #include <linux/sched/loadavg.h>
 #include <linux/sched/stat.h>
 #include <linux/math64.h>
+#include <linux/cpuidle-moce.h>
 
 /*
  * Please note when changing the tuning values:
@@ -175,12 +177,7 @@ static inline int performance_multiplier(unsigned long nr_iowaiters, unsigned lo
 
 	/* for higher loadavg, we are more reluctant */
 
-	/*
-	 * this doesn't work as intended - it is almost always 0, but can
-	 * sometimes, depending on workload, spike very high into the hundreds
-	 * even when the average cpu load is under 10%.
-	 */
-	/* mult += 2 * get_loadavg(); */
+	mult += 2 * get_loadavg(load);
 
 	/* for IO wait tasks (per cpu!) we add 5x each */
 	mult += 10 * nr_iowaiters;
@@ -286,9 +283,10 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 {
 	struct menu_device *data = this_cpu_ptr(&menu_devices);
 	int latency_req = cpuidle_governor_latency_req(dev->cpu);
-	int i;
+	int i, target_res_i;
 	int first_idx;
-	int idx;
+	int idx, target_res_idx;
+	unsigned int moce_ratio = exynos_moce_get_ratio(dev->cpu);
 	unsigned int interactivity_req;
 	unsigned int expected_interval;
 	unsigned long nr_iowaiters, cpu_load;
@@ -379,7 +377,11 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 			continue;
 		if (idx == -1)
 			idx = i; /* first enabled state */
-		if (s->target_residency > data->predicted_us) {
+
+		target_res_i = (s->target_residency * moce_ratio) / 100;
+		target_res_idx = (drv->states[idx].target_residency * moce_ratio) / 100;
+
+		if (target_res_i > data->predicted_us) {
 			if (data->predicted_us < TICK_USEC)
 				break;
 
@@ -390,7 +392,7 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 				 * tick in that case and let the governor run
 				 * again in the next iteration of the loop.
 				 */
-				expected_interval = drv->states[idx].target_residency;
+				expected_interval = target_res_idx;
 				break;
 			}
 
@@ -400,12 +402,12 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 			 * closest timer event, select this one to avoid getting
 			 * stuck in the shallow one for too long.
 			 */
-			if (drv->states[idx].target_residency < TICK_USEC &&
-			    s->target_residency <= ktime_to_us(delta_next))
+			if (target_res_idx < TICK_USEC && target_res_i <= ktime_to_us(delta_next))
 				idx = i;
 
 			goto out;
 		}
+
 		if (s->exit_latency > latency_req) {
 			/*
 			 * If we break out of the loop for latency reasons, use
@@ -413,7 +415,7 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 			 * expected idle duration so that the tick is retained
 			 * as long as that target residency is low enough.
 			 */
-			expected_interval = drv->states[idx].target_residency;
+			expected_interval = target_res_idx;
 			break;
 		}
 		idx = i;
@@ -432,7 +434,9 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 
 		*stop_tick = false;
 
-		if (idx > 0 && drv->states[idx].target_residency > delta_next_us) {
+		target_res_idx = (drv->states[idx].target_residency * moce_ratio) / 100;
+
+		if (idx > 0 && target_res_idx > delta_next_us) {
 			/*
 			 * The tick is not going to be stopped and the target
 			 * residency of the state to be returned is not within
@@ -445,7 +449,9 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 					continue;
 
 				idx = i;
-				if (drv->states[i].target_residency <= delta_next_us)
+				target_res_i = (drv->states[i].target_residency * moce_ratio) / 100;
+
+				if (target_res_i <= delta_next_us)
 					break;
 			}
 		}

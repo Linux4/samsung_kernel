@@ -1,6 +1,14 @@
-// SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #include <linux/kernel.h>
@@ -35,10 +43,8 @@ static long div_round_rate(struct clk_hw *hw, unsigned long rate,
 {
 	struct clk_regmap_div *divider = to_clk_regmap_div(hw);
 
-	return divider_round_rate(hw, rate, prate, divider->table,
-				  divider->width,
-				  CLK_DIVIDER_ROUND_CLOSEST |
-				  divider->flags);
+	return divider_round_rate(hw, rate, prate, NULL, divider->width,
+				  CLK_DIVIDER_ROUND_CLOSEST);
 }
 
 static int div_set_rate(struct clk_hw *hw, unsigned long rate,
@@ -48,9 +54,8 @@ static int div_set_rate(struct clk_hw *hw, unsigned long rate,
 	struct clk_regmap *clkr = &divider->clkr;
 	u32 div;
 
-	div = divider_get_val(rate, parent_rate, divider->table,
-			      divider->width, CLK_DIVIDER_ROUND_CLOSEST |
-			      divider->flags);
+	div = divider_get_val(rate, parent_rate, NULL, divider->width,
+			      CLK_DIVIDER_ROUND_CLOSEST);
 
 	return regmap_update_bits(clkr->regmap, divider->reg,
 				  (BIT(divider->width) - 1) << divider->shift,
@@ -68,9 +73,8 @@ static unsigned long div_recalc_rate(struct clk_hw *hw,
 	div >>= divider->shift;
 	div &= BIT(divider->width) - 1;
 
-	return divider_recalc_rate(hw, parent_rate, div, divider->table,
-				   CLK_DIVIDER_ROUND_CLOSEST | divider->flags,
-				   divider->width);
+	return divider_recalc_rate(hw, parent_rate, div, NULL,
+				   CLK_DIVIDER_ROUND_CLOSEST, divider->width);
 }
 
 const struct clk_ops clk_regmap_div_ops = {

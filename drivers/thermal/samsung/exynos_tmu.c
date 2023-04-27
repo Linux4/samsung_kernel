@@ -34,7 +34,7 @@
 #include <linux/of_irq.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
-
+#include <linux/debug-snapshot.h>
 #include <dt-bindings/thermal/thermal_exynos.h>
 
 #include "../thermal_core.h"
@@ -1123,6 +1123,10 @@ static int exynos_tmu_probe(struct platform_device *pdev)
 	}
 
 	exynos_tmu_control(pdev, true);
+
+	if (!IS_ERR(data->tzd))
+		data->tzd->ops->set_mode(data->tzd, THERMAL_DEVICE_ENABLED);
+
 	return 0;
 
 err_thermal:

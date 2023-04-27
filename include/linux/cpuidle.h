@@ -163,6 +163,10 @@ extern int cpuidle_play_dead(void);
 extern struct cpuidle_driver *cpuidle_get_cpu_driver(struct cpuidle_device *dev);
 static inline struct cpuidle_device *cpuidle_get_device(void)
 {return __this_cpu_read(cpuidle_devices); }
+extern unsigned int cpuidle_get_target_residency(int cpu, int state);
+extern int cpuidle_get_state_size(void);
+extern unsigned int cpuidle_get_exit_latency(int cpu, int state);
+extern bool cpuidle_check_state_enable(unsigned int cpu, int state);
 #else
 static inline void disable_cpuidle(void) { }
 static inline bool cpuidle_not_available(struct cpuidle_driver *drv,
@@ -199,6 +203,10 @@ static inline int cpuidle_play_dead(void) {return -ENODEV; }
 static inline struct cpuidle_driver *cpuidle_get_cpu_driver(
 	struct cpuidle_device *dev) {return NULL; }
 static inline struct cpuidle_device *cpuidle_get_device(void) {return NULL; }
+static inline unsigned int cpuidle_get_target_residency(int cpu, int state) {return UINT_MAX; }
+static inline int cpuidle_get_state_size(void) { return INT_MAX; }
+static inline unsigned int cpuidle_get_exit_latency(int cpu, int state) { return INT_MAX; }
+static inline bool cpuidle_check_state_enable(unsigned int cpu, int state) { return 0; }
 #endif
 
 #ifdef CONFIG_CPU_IDLE

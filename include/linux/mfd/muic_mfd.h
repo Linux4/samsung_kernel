@@ -57,7 +57,7 @@ struct muic_mfd_platform_data {
 	sec_battery_platform_data_t *fuelgauge_data;
 	int num_regulators;
 	struct max77849_regulator_data *regulators;
-#endif
+#endif	
 
 	struct mfd_cell *sub_devices;
 	int num_subdevs;

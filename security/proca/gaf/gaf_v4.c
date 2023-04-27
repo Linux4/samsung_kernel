@@ -11,7 +11,7 @@
 #include <linux/mount.h>
 #include <asm/pgtable.h>
 #include <linux/kernel_stat.h>
-#include "../../fs/mount.h"
+#include "../fs/mount.h"
 
 static struct GAForensicINFO {
 	unsigned short ver;

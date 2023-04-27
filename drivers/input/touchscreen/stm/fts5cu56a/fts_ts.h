@@ -29,6 +29,9 @@
 #ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
 #include <linux/input/sec_secure_touch.h>
 #endif
+#if defined(CONFIG_SAMSUNG_TUI)
+#include <linux/input/stui_inf.h>
+#endif
 
 #define FTS_SUPPORT_SPONGELIB
 #define USE_OPEN_CLOSE

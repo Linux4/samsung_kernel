@@ -18,6 +18,7 @@
 #include <net/xfrm.h>
 #include <linux/jhash.h>
 #include <linux/rtnetlink.h>
+#include <linux/linkforward.h>
 
 #include <net/netfilter/nf_conntrack.h>
 #include <net/netfilter/nf_conntrack_core.h>
@@ -29,6 +30,9 @@
 #include <net/netfilter/nf_conntrack_helper.h>
 #include <net/netfilter/nf_conntrack_seqadj.h>
 #include <net/netfilter/nf_conntrack_zones.h>
+#ifdef CONFIG_HW_FORWARD
+#include <soc/samsung/hw_forward.h>
+#endif
 #include <linux/netfilter/nf_nat.h>
 
 #include "nf_internals.h"
@@ -511,6 +515,16 @@ static unsigned int nf_nat_manip_pkt(struct sk_buff *skb, struct nf_conn *ct,
 	l3proto = __nf_nat_l3proto_find(target.src.l3num);
 	l4proto = __nf_nat_l4proto_find(target.src.l3num,
 					target.dst.protonum);
+
+#ifdef CONFIG_HW_FORWARD
+	if (mtype == NF_NAT_MANIP_SRC) /* ToDo: should handle both SRC and DST */
+		hw_forward_monitor(ct);
+#endif
+#ifdef CONFIG_LINK_FORWARD
+	if (mtype == NF_NAT_MANIP_SRC)
+		nf_linkforward_monitor(ct);
+#endif
+
 	if (!l3proto->manip_pkt(skb, 0, l4proto, &target, mtype))
 		return NF_DROP;
 

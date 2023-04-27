@@ -26,12 +26,7 @@ MODULE_DEVICE_TABLE(pci, ae_algovf_pci_tbl);
 static inline struct hclgevf_dev *hclgevf_ae_get_hdev(
 	struct hnae3_handle *handle)
 {
-	if (!handle->client)
-		return container_of(handle, struct hclgevf_dev, nic);
-	else if (handle->client->type == HNAE3_CLIENT_ROCE)
-		return container_of(handle, struct hclgevf_dev, roce);
-	else
-		return container_of(handle, struct hclgevf_dev, nic);
+	return container_of(handle, struct hclgevf_dev, nic);
 }
 
 static int hclgevf_tqps_update_stats(struct hnae3_handle *handle)
@@ -1957,8 +1952,7 @@ static u32 hclgevf_get_max_channels(struct hclgevf_dev *hdev)
 	struct hnae3_handle *nic = &hdev->nic;
 	struct hnae3_knic_private_info *kinfo = &nic->kinfo;
 
-	return min_t(u32, hdev->rss_size_max,
-		     hdev->num_tqps / kinfo->num_tc);
+	return min_t(u32, hdev->rss_size_max * kinfo->num_tc, hdev->num_tqps);
 }
 
 /**
@@ -1979,7 +1973,7 @@ static void hclgevf_get_channels(struct hnae3_handle *handle,
 	ch->max_combined = hclgevf_get_max_channels(hdev);
 	ch->other_count = 0;
 	ch->max_other = 0;
-	ch->combined_count = handle->kinfo.rss_size;
+	ch->combined_count = hdev->num_tqps;
 }
 
 static void hclgevf_get_tqps_and_rss_info(struct hnae3_handle *handle,

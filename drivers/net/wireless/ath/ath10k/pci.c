@@ -1613,22 +1613,11 @@ static int ath10k_pci_dump_memory_reg(struct ath10k *ar,
 {
 	struct ath10k_pci *ar_pci = ath10k_pci_priv(ar);
 	u32 i;
-	int ret;
-
-	mutex_lock(&ar->conf_mutex);
-	if (ar->state != ATH10K_STATE_ON) {
-		ath10k_warn(ar, "Skipping pci_dump_memory_reg invalid state\n");
-		ret = -EIO;
-		goto done;
-	}
 
 	for (i = 0; i < region->len; i += 4)
 		*(u32 *)(buf + i) = ioread32(ar_pci->mem + region->start + i);
 
-	ret = region->len;
-done:
-	mutex_unlock(&ar->conf_mutex);
-	return ret;
+	return region->len;
 }
 
 /* if an error happened returns < 0, otherwise the length */
@@ -1724,11 +1713,7 @@ static void ath10k_pci_dump_memory(struct ath10k *ar,
 			count = ath10k_pci_dump_memory_sram(ar, current_region, buf);
 			break;
 		case ATH10K_MEM_REGION_TYPE_IOREG:
-			ret = ath10k_pci_dump_memory_reg(ar, current_region, buf);
-			if (ret < 0)
-				break;
-
-			count = ret;
+			count = ath10k_pci_dump_memory_reg(ar, current_region, buf);
 			break;
 		default:
 			ret = ath10k_pci_dump_memory_generic(ar, current_region, buf);
@@ -2067,11 +2052,6 @@ static void ath10k_pci_hif_stop(struct ath10k *ar)
 
 	ath10k_dbg(ar, ATH10K_DBG_BOOT, "boot hif stop\n");
 
-	ath10k_pci_irq_disable(ar);
-	ath10k_pci_irq_sync(ar);
-	napi_synchronize(&ar->napi);
-	napi_disable(&ar->napi);
-
 	/* Most likely the device has HTT Rx ring configured. The only way to
 	 * prevent the device from accessing (and possible corrupting) host
 	 * memory is to reset the chip now.
@@ -2085,6 +2065,10 @@ static void ath10k_pci_hif_stop(struct ath10k *ar)
 	 */
 	ath10k_pci_safe_chip_reset(ar);
 
+	ath10k_pci_irq_disable(ar);
+	ath10k_pci_irq_sync(ar);
+	napi_synchronize(&ar->napi);
+	napi_disable(&ar->napi);
 	ath10k_pci_flush(ar);
 
 	spin_lock_irqsave(&ar_pci->ps_lock, flags);

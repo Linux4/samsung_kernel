@@ -95,7 +95,6 @@ source "drivers/usb/typec/ucsi/Kconfig"
 config TYPEC_TPS6598X
 	tristate "TI TPS6598x USB Power Delivery controller driver"
 	depends on I2C
-	select REGMAP_I2C
 	help
 	  Say Y or M here if your system has TI TPS65982 or TPS65983 USB Power
 	  Delivery controller.
@@ -106,5 +105,11 @@ config TYPEC_TPS6598X
 source "drivers/usb/typec/mux/Kconfig"
 
 source "drivers/usb/typec/altmodes/Kconfig"
+
+source "drivers/usb/typec/manager/Kconfig"
+
+source "drivers/usb/typec/common/Kconfig"
+
+source "drivers/usb/typec/maxim/Kconfig"
 
 endif # TYPEC

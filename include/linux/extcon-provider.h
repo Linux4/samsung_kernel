@@ -26,9 +26,12 @@ struct extcon_dev;
 
 /* Following APIs register/unregister the extcon device. */
 extern int extcon_dev_register(struct extcon_dev *edev);
+extern int extcon_dev_register_by_name(struct extcon_dev *edev, const char *name);
 extern void extcon_dev_unregister(struct extcon_dev *edev);
 extern int devm_extcon_dev_register(struct device *dev,
 				struct extcon_dev *edev);
+extern int devm_extcon_dev_register_by_name(struct device *dev,
+				struct extcon_dev *edev, const char *name);
 extern void devm_extcon_dev_unregister(struct device *dev,
 				struct extcon_dev *edev);
 
@@ -75,10 +78,22 @@ static inline int extcon_dev_register(struct extcon_dev *edev)
 	return 0;
 }
 
+static inline int extcon_dev_register_by_name(struct extcon_dev *edev, const char *name)
+{
+	return 0;
+}
+
+
 static inline void extcon_dev_unregister(struct extcon_dev *edev) { }
 
 static inline int devm_extcon_dev_register(struct device *dev,
 				struct extcon_dev *edev)
+{
+	return -EINVAL;
+}
+
+static inline int devm_extcon_dev_register_by_name(struct device *dev,
+				struct extcon_dev *edev, const char *name)
 {
 	return -EINVAL;
 }

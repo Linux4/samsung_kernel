@@ -487,13 +487,7 @@ static void md_submit_flush_data(struct work_struct *ws)
 	}
 }
 
-/*
- * Manages consolidation of flushes and submitting any flushes needed for
- * a bio with REQ_PREFLUSH.  Returns true if the bio is finished or is
- * being finished in another context.  Returns false if the flushing is
- * complete but still needs the I/O portion of the bio to be processed.
- */
-bool md_flush_request(struct mddev *mddev, struct bio *bio)
+void md_flush_request(struct mddev *mddev, struct bio *bio)
 {
 	ktime_t start = ktime_get_boottime();
 	spin_lock_irq(&mddev->lock);
@@ -518,10 +512,9 @@ bool md_flush_request(struct mddev *mddev, struct bio *bio)
 			bio_endio(bio);
 		else {
 			bio->bi_opf &= ~REQ_PREFLUSH;
-			return false;
+			mddev->pers->make_request(mddev, bio);
 		}
 	}
-	return true;
 }
 EXPORT_SYMBOL(md_flush_request);
 

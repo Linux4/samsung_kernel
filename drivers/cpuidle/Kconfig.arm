@@ -70,6 +70,25 @@ config ARM_EXYNOS_CPUIDLE
 	help
 	  Select this to enable cpuidle for Exynos processors
 
+config ARM64_EXYNOS_CPUIDLE
+	bool "Exynos ARM64 CPU idle Driver"
+	depends on ARCH_EXYNOS && ARM64
+	select CPU_IDLE_MULTIPLE_DRIVERS
+	select DT_IDLE_STATES
+	help
+	  Select this to enable cpuidle for ARM64 Exynos processors.
+
+config ARM64_EXYNOS_MOCE
+	bool "Exynos ARM64 MOCE Driver (Can control idle state entry)"
+	depends on ARCH_EXYNOS && ARM64 && ARM64_EXYNOS_CPUIDLE
+	help
+	  Select this to enable moce for ARM64 Exynos processors.
+	  Through certain factors such as frequency, MOCE can diversify
+	  conditions for entry into idle state.
+	  Utilization: by using factors of frequency
+		1. Set a break-even point for target residency & exit latency
+		2. Set a balance point for power-perf
+
 config ARM_MVEBU_V7_CPUIDLE
 	bool "CPU Idle Driver for mvebu v7 family processors"
 	depends on ARCH_MVEBU && !ARM64

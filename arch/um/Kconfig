@@ -195,7 +195,6 @@ config PLATFORM_MOCK
 	bool "Enable a mock architecture used for unit testing."
 	depends on KUNIT && OF
 	default n
-
 endmenu
 
 source "arch/um/drivers/Kconfig"

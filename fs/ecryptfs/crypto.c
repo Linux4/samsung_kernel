@@ -45,7 +45,6 @@
 #define DECRYPT		0
 #define ENCRYPT		1
 #ifdef CONFIG_CRYPTO_FIPS
-
 static struct crypto_rng *ecryptfs_crypto_rng;
 
 static int crypto_rng_init(void)
@@ -497,10 +496,8 @@ static int crypt_scatterlist(struct ecryptfs_crypt_stat *crypt_stat,
 	struct extent_crypt_result ecr;
 	int rc = 0;
 
-	if (!crypt_stat || !crypt_stat->tfm
-	       || !(crypt_stat->flags & ECRYPTFS_STRUCT_INITIALIZED))
-		return -EINVAL;
-
+	BUG_ON(!crypt_stat || !crypt_stat->tfm
+	       || !(crypt_stat->flags & ECRYPTFS_STRUCT_INITIALIZED));
 	if (unlikely(ecryptfs_verbosity > 0)) {
 		ecryptfs_printk(KERN_DEBUG, "Key size [%zd]; key:\n",
 				crypt_stat->key_size);
@@ -871,9 +868,9 @@ out:
 		memset(crypt_stat->root_iv, 0, crypt_stat->iv_bytes);
 		crypt_stat->flags |= ECRYPTFS_SECURITY_WARNING;
 	}
-#ifdef CONFIG_CRYPTO_FIPS
-	kfree(dst);
-#endif
+	#ifdef CONFIG_CRYPTO_FIPS
+		kfree(dst);
+	#endif
 	return rc;
 }
 static void get_random_key(u8 *data, unsigned int len)
@@ -1109,7 +1106,6 @@ static void write_ecryptfs_marker(char *page_virt, size_t *written)
 	u32 m_1, m_2;
 
 	get_random_key((u8*)&m_1, (MAGIC_ECRYPTFS_MARKER_SIZE_BYTES / 2));
-
 	m_2 = (m_1 ^ MAGIC_ECRYPTFS_MARKER);
 	put_unaligned_be32(m_1, page_virt);
 	page_virt += (MAGIC_ECRYPTFS_MARKER_SIZE_BYTES / 2);
@@ -1822,7 +1818,7 @@ ecryptfs_process_key_cipher(struct crypto_skcipher **key_tfm,
 	crypto_skcipher_set_flags(*key_tfm, CRYPTO_TFM_REQ_WEAK_KEY);
 	if (*key_size == 0)
 		*key_size = crypto_skcipher_default_keysize(*key_tfm);
-	
+
 	get_random_key(dummy_key, *key_size);
 	rc = crypto_skcipher_setkey(*key_tfm, dummy_key, *key_size);
 	if (rc) {
@@ -1870,6 +1866,7 @@ int ecryptfs_destroy_crypto(void)
 	mutex_unlock(&key_tfm_list_mutex);
 	return 0;
 }
+
 #ifdef CONFIG_CRYPTO_FIPS
 int
 ecryptfs_add_new_key_tfm(struct ecryptfs_key_tfm **key_tfm, char *cipher_name,

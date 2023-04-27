@@ -24,7 +24,7 @@
  * the best guess is to add 0.5s.
  */
 
-int rtc_hctosys(void)
+static int __init rtc_hctosys(void)
 {
 	int err = -ENODEV;
 	struct rtc_time tm;
@@ -46,12 +46,6 @@ int rtc_hctosys(void)
 		goto err_read;
 
 	}
-
-	/*
-	 * Force update rtc year time to 2019
-	 * (The release year of device)
-	 */
-	tm.tm_year = 119;
 
 	tv64.tv_sec = rtc_tm_to_time64(&tm);
 
@@ -79,3 +73,5 @@ err_open:
 
 	return err;
 }
+
+late_initcall(rtc_hctosys);

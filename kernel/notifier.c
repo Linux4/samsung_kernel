@@ -5,6 +5,7 @@
 #include <linux/rcupdate.h>
 #include <linux/vmalloc.h>
 #include <linux/reboot.h>
+#include <linux/debug-snapshot.h>
 
 /*
  *	Notifier list for kernel code which wants to be called
@@ -22,10 +23,6 @@ static int notifier_chain_register(struct notifier_block **nl,
 		struct notifier_block *n)
 {
 	while ((*nl) != NULL) {
-		if (unlikely((*nl) == n)) {
-			WARN(1, "double register detected");
-			return 0;
-		}
 		if (n->priority > (*nl)->priority)
 			break;
 		nl = &((*nl)->next);
@@ -94,7 +91,11 @@ static int notifier_call_chain(struct notifier_block **nl,
 			continue;
 		}
 #endif
+		dbg_snapshot_print_notifier_call((void **)nl,
+				(unsigned long)nb->notifier_call, DSS_FLAG_IN);
 		ret = nb->notifier_call(nb, val, v);
+		dbg_snapshot_print_notifier_call((void **)nl,
+				(unsigned long)nb->notifier_call, DSS_FLAG_OUT);
 
 		if (nr_calls)
 			(*nr_calls)++;
@@ -556,7 +557,7 @@ NOKPROBE_SYMBOL(notify_die);
 
 int register_die_notifier(struct notifier_block *nb)
 {
-	vmalloc_sync_mappings();
+	vmalloc_sync_all();
 	return atomic_notifier_chain_register(&die_chain, nb);
 }
 EXPORT_SYMBOL_GPL(register_die_notifier);

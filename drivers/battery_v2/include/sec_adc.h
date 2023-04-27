@@ -23,6 +23,10 @@
 #include "sec_battery.h"
 #include "sec_charging_common.h"
 
+#define VENDOR_UNKNOWN 0
+#define VENDOR_LSI 1
+#define VENDOR_QCOM 2
 #define RETRY_CNT 3
 
 #endif /* __SEC_ADC_H */
+

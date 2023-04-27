@@ -148,7 +148,8 @@ struct hd_struct {
 #define GENHD_FL_NO_PART_SCAN			512
 #define GENHD_FL_HIDDEN				1024
 #ifdef CONFIG_USB_STORAGE_DETECT
-#define GENHD_IF_USB	1
+#define GENHD_FL_MEDIA_PRESENT			2048
+#define GENHD_FL_IF_USB				4096
 #endif
 
 enum {
@@ -227,10 +228,6 @@ struct gendisk {
 	struct kobject integrity_kobj;
 #endif	/* CONFIG_BLK_DEV_INTEGRITY */
 	int node_id;
-#ifdef CONFIG_USB_STORAGE_DETECT
-	int media_present;
-	int interfaces;
-#endif
 	struct badblocks *bb;
 	struct lockdep_map lockdep_map;
 };

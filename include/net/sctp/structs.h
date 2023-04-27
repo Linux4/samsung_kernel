@@ -474,7 +474,7 @@ struct sctp_af {
 					 int saddr);
 	void		(*from_sk)	(union sctp_addr *,
 					 struct sock *sk);
-	bool		(*from_addr_param) (union sctp_addr *,
+	void		(*from_addr_param) (union sctp_addr *,
 					    union sctp_addr_param *,
 					    __be16 port, int iif);
 	int		(*to_addr_param) (const union sctp_addr *,
@@ -1246,9 +1246,6 @@ struct sctp_ep_common {
 
 	/* What socket does this endpoint belong to?  */
 	struct sock *sk;
-
-	/* Cache netns and it won't change once set */
-	struct net *net;
 
 	/* This is where we receive inbound chunks.  */
 	struct sctp_inq	  inqueue;

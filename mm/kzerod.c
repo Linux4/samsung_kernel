@@ -39,11 +39,24 @@ static spinlock_t prezeroed_lock;
 static unsigned long nr_prezeroed;
 static unsigned long kzerod_wmark_high;
 static unsigned long kzerod_wmark_low;
+static bool app_launch;
+
+static bool need_pause(void)
+{
+	if (app_launch || need_memory_boosting(NULL))
+		return true;
+
+	return false;
+}
+
+static void try_wake_up_kzerod(void);
+#ifdef CONFIG_HUGEPAGE_POOL
+static void try_wake_up_hugepage_kzerod(void);
+#endif
 
 static int kzerod_app_launch_notifier(struct notifier_block *nb,
 					 unsigned long action, void *data)
 {
-	static bool app_launch = false;
 	bool prev_launch;
 	static unsigned long prev_total = 0;
 	static unsigned long prev_prezero = 0;
@@ -69,6 +82,13 @@ static int kzerod_app_launch_notifier(struct notifier_block *nb,
 			     K(cur_prezero - prev_prezero),
 			     K(cur_total - prev_total),
 			     jiffies_to_msecs(jiffies - prev_jiffies));
+
+		if (kzerod_enabled) {
+			try_wake_up_kzerod();
+#ifdef CONFIG_HUGEPAGE_POOL
+			try_wake_up_hugepage_kzerod();
+#endif
+		}
 	}
 
 	return 0;
@@ -137,6 +157,18 @@ static inline void unset_kzerod_page(struct page *page)
 	__ClearPageMovable(page);
 }
 
+static void try_wake_up_kzerod(void)
+{
+	if (need_pause())
+		return;
+
+	if (!kzerod_wmark_low_ok() && (kzerod_state != KZEROD_RUNNING)) {
+		trace_printk("kzerod: %d to %d\n", kzerod_state, KZEROD_RUNNING);
+		kzerod_state = KZEROD_RUNNING,
+		wake_up(&kzerod_wait);
+	}
+}
+
 struct page *alloc_zeroed_page(void)
 {
 	struct page *page = NULL;
@@ -151,8 +183,6 @@ struct page *alloc_zeroed_page(void)
 		if (trylock_page(page)) {
 			list_del(&page->lru);
 			unset_kzerod_page(page);
-			/* The page will be served soon. Let's clean it up */
-			page->mapping = NULL;
 			unlock_page(page);
 			nr_prezeroed--;
 		} else {
@@ -161,27 +191,11 @@ struct page *alloc_zeroed_page(void)
 	}
 	spin_unlock(&prezeroed_lock);
 
-	if (!kzerod_wmark_low_ok() && (kzerod_state != KZEROD_RUNNING)) {
-		trace_printk("kzerod: %d to %d\n", kzerod_state,
-			     KZEROD_RUNNING);
-		kzerod_state = KZEROD_RUNNING,
-		wake_up(&kzerod_wait);
-	}
+	/* The page will be served soon. Let's clean it up */
+	if (page)
+		page->mapping = NULL;
 
-	/*
-	 * putback to prezereoed list and return NULL
-	 * if page is being touched by migration context
-	 */
-	if (page && page_count(page) != 1) {
-		lock_page(page);
-		spin_lock(&prezeroed_lock);
-		set_kzerod_page(page);
-		list_add_tail(&page->lru, &prezeroed_list);
-		nr_prezeroed++;
-		spin_unlock(&prezeroed_lock);
-		unlock_page(page);
-		page = NULL;
-	}
+	try_wake_up_kzerod();
 
 	return page;
 }
@@ -348,6 +362,10 @@ static int kzerod_zeroing(unsigned long *prezeroed)
 			ret = -ENODEV;
 			break;
 		}
+		if (need_pause()) {
+			ret = -ENODEV;
+			break;
+		}
 		if (kzerod_wmark_high_ok()) {
 			ret = 0;
 			break;
@@ -429,6 +447,17 @@ static spinlock_t hugepage_nonzero_list_lock[MAX_NR_ZONES];
 static unsigned long hugepage_avail_low[MAX_NR_ZONES];
 /* fill pool if available memory is above this value */
 static unsigned long hugepage_avail_high[MAX_NR_ZONES];
+
+/* If RANK_BIT position in physical address is zero, it is main rank */
+#define is_main_rank(page)	!rankid(page)
+
+static inline void rank_list_add(struct page *page, struct list_head *list)
+{
+	if (is_main_rank(page))
+		list_add(&(page)->lru, list);
+	else
+		list_add_tail(&(page)->lru, list);
+}
 
 /* default policy : 1GB@8GB, 2GB@12GB */
 static inline unsigned long get_hugepage_quota(void)
@@ -611,8 +640,11 @@ static inline bool hugepage_kzerod_required(void)
 }
 
 static unsigned long last_wakeup_stamp;
-static inline void try_wake_up_hugepage_kzerod(enum zone_type ht)
+static inline void __try_wake_up_hugepage_kzerod(enum zone_type ht)
 {
+	if (need_pause())
+		return;
+
 	if (time_is_after_jiffies(last_wakeup_stamp + 10 * HZ))
 		return;
 
@@ -625,6 +657,17 @@ static inline void try_wake_up_hugepage_kzerod(enum zone_type ht)
 #endif
 		wake_up(&hugepage_kzerod_wait);
 	}
+}
+
+static void try_wake_up_hugepage_kzerod(void)
+{
+	int i;
+	enum zone_type high_zoneidx;
+
+	high_zoneidx = gfp_zone(GFP_HIGHUSER_MOVABLE);
+
+	for (i = high_zoneidx; i >= 0; i--)
+		__try_wake_up_hugepage_kzerod(i);
 }
 
 static inline gfp_t get_gfp(enum zone_type ht)
@@ -641,7 +684,7 @@ static inline gfp_t get_gfp(enum zone_type ht)
 #endif
 	else
 		ret = 0;
-	return ret & ~__GFP_RECLAIM;
+	return (ret & ~__GFP_RECLAIM) | __GFP_NOCMA;
 }
 
 bool insert_hugepage_pool(struct page *page, int order)
@@ -683,7 +726,7 @@ void zeroing_nonzero_list(enum zone_type ht)
 		spin_lock(&hugepage_list_lock[ht]);
 		if (nr_pages_to_fill(ht)) {
 			prep_new_page(page, HUGEPAGE_ORDER, __GFP_ZERO, 0);
-			list_add(&page->lru, &hugepage_list[ht]);
+			rank_list_add(page, &hugepage_list[ht]);
 			nr_hugepages[ht]++;
 		} else
 			___free_pages_ok(page, HUGEPAGE_ORDER, true);
@@ -727,7 +770,7 @@ void fill_hugepage_pool(enum zone_type ht)
 		}
 		nr_hugepages_fill_done[ht]++;
 		spin_lock(&hugepage_list_lock[ht]);
-		list_add(&page->lru, &hugepage_list[ht]);
+		rank_list_add(page, &hugepage_list[ht]);
 		nr_hugepages[ht]++;
 		spin_unlock(&hugepage_list_lock[ht]);
 	}
@@ -749,7 +792,7 @@ struct page *alloc_zeroed_hugepage(gfp_t gfp_mask, int order, bool global_check,
 	high_zoneidx = gfp_zone(gfp_mask);
 	nr_hugepages_tried[high_zoneidx]++;
 	for (i = high_zoneidx; i >= 0; i--) {
-		try_wake_up_hugepage_kzerod(i);
+		__try_wake_up_hugepage_kzerod(i);
 		if (!nr_hugepages[i])
 			continue;
 		if (unlikely(!spin_trylock(&hugepage_list_lock[i])))
@@ -788,6 +831,9 @@ static int hugepage_kzerod(void *p)
 
 		hugepage_calculate_limits_under_zone(MAX_NR_ZONES - 1, true);
 		for (i = 0; i < MAX_NR_ZONES; i++) {
+			if (need_pause())
+				break;
+
 			zeroing_nonzero_list(i);
 			fill_hugepage_pool(i);
 		}

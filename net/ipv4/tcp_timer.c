@@ -54,45 +54,13 @@ static u32 tcp_clamp_rto_to_user_timeout(const struct sock *sk)
 		return min_t(u32, icsk->icsk_rto, msecs_to_jiffies(icsk->icsk_user_timeout - elapsed));
 }
 
-static void set_tcp_default(void)
-{
-	sysctl_tcp_delack_seg = TCP_DELACK_SEG;
-}
-
-/*sysctl handler for tcp_ack realted master control */
-int tcp_proc_delayed_ack_control(struct ctl_table *table, int write,
-				 void __user *buffer, size_t *length,
-				 loff_t *ppos)
-{
-	int ret = proc_dointvec_minmax(table, write, buffer, length, ppos);
-
-	/* The ret value will be 0 if the input validation is successful
-	 * and the values are written to sysctl table. If not, the stack
-	 * will continue to work with currently configured values
-	 */
-	return ret;
-}
-
-/*sysctl handler for tcp_ack realted master control */
-int tcp_use_userconfig_sysctl_handler(struct ctl_table *table, int write,
-				      void __user *buffer, size_t *length,
-				      loff_t *ppos)
-{
-	int ret = proc_dointvec_minmax(table, write, buffer, length, ppos);
-
-	if (write && ret == 0) {
-		if (!sysctl_tcp_use_userconfig)
-			set_tcp_default();
-	}
-	return ret;
-}
-
 /**
  *  tcp_write_err() - close socket and save error info
  *  @sk:  The socket the error has appeared on.
  *
  *  Returns: Nothing (void)
  */
+
 #ifndef CONFIG_MPTCP
 static
 #endif
@@ -277,7 +245,6 @@ int tcp_write_timeout(struct sock *sk)
 			sk_rethink_txhash(sk);
 		}
 		retry_until = icsk->icsk_syn_retries ? : net->ipv4.sysctl_tcp_syn_retries;
-
 #ifdef CONFIG_MPTCP
 		/* Stop retransmitting MP_CAPABLE options in SYN if timed out. */
 		if (tcp_sk(sk)->request_mptcp &&
@@ -287,7 +254,6 @@ int tcp_write_timeout(struct sock *sk)
 			MPTCP_INC_STATS(sock_net(sk), MPTCP_MIB_MPCAPABLERETRANSFALLBACK);
 		}
 #endif /* CONFIG_MPTCP */
-
 		expired = icsk->icsk_retransmits >= retry_until;
 	} else {
 		if (retransmits_timed_out(sk, net->ipv4.sysctl_tcp_retries1, 0)) {
@@ -390,6 +356,7 @@ static void tcp_delack_timer(struct timer_list *t)
 	bh_lock_sock(meta_sk);
 	if (!sock_owned_by_user(meta_sk)) {
 #else
+
 	bh_lock_sock(sk);
 	if (!sock_owned_by_user(sk)) {
 #endif
@@ -455,17 +422,8 @@ static void tcp_probe_timer(struct sock *sk)
 			return;
 	}
 
-	if (icsk->icsk_probes_out >= max_probes) {
-#ifdef CONFIG_MPTCP
-abort:
-		tcp_write_err(sk);
-		if (is_meta_sk(sk) &&
-		    mptcp_in_infinite_mapping_weak(tp->mpcb)) {
-			mptcp_sub_force_close_all(tp->mpcb, NULL);
-		}
-#else
+	if (icsk->icsk_probes_out > max_probes) {
 abort:		tcp_write_err(sk);
-#endif
 	} else {
 		/* Only send another probe if we didn't close things up. */
 		tcp_send_probe0(sk);
@@ -529,8 +487,10 @@ void tcp_retransmit_timer(struct sock *sk)
 		 */
 		return;
 	}
-	if (!tp->packets_out || WARN_ON_ONCE(tcp_rtx_queue_empty(sk)))
-		return;
+	if (!tp->packets_out)
+		goto out;
+
+	WARN_ON(tcp_rtx_queue_empty(sk));
 
 	tp->tlp_high_seq = 0;
 
@@ -568,12 +528,11 @@ void tcp_retransmit_timer(struct sock *sk)
 		goto out_reset_timer;
 	}
 
-	__NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPTIMEOUTS);
 	if (tcp_write_timeout(sk))
 		goto out;
 
 	if (icsk->icsk_retransmits == 0) {
-		int mib_idx = 0;
+		int mib_idx;
 
 		if (icsk->icsk_ca_state == TCP_CA_Recovery) {
 			if (tcp_is_sack(tp))
@@ -588,9 +547,10 @@ void tcp_retransmit_timer(struct sock *sk)
 				mib_idx = LINUX_MIB_TCPSACKFAILURES;
 			else
 				mib_idx = LINUX_MIB_TCPRENOFAILURES;
+		} else {
+			mib_idx = LINUX_MIB_TCPTIMEOUTS;
 		}
-		if (mib_idx)
-			__NET_INC_STATS(sock_net(sk), mib_idx);
+		__NET_INC_STATS(sock_net(sk), mib_idx);
 	}
 
 	tcp_enter_loss(sk);
@@ -708,6 +668,7 @@ static void tcp_write_timer(struct timer_list *t)
 	bh_lock_sock(meta_sk);
 	if (!sock_owned_by_user(meta_sk)) {
 #else
+
 	bh_lock_sock(sk);
 	if (!sock_owned_by_user(sk)) {
 #endif

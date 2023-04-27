@@ -20,10 +20,8 @@
 /*
  * Maximum values for blocksize and alignmask, used to allocate
  * static buffers that are big enough for any combination of
- * algs and architectures. Ciphers have a lower maximum size.
+ * ciphers and architectures.
  */
-#define MAX_ALGAPI_BLOCKSIZE		160
-#define MAX_ALGAPI_ALIGNMASK		63
 #define MAX_CIPHER_BLOCKSIZE		16
 #define MAX_CIPHER_ALIGNMASK		15
 

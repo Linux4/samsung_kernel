@@ -128,6 +128,9 @@ void *hcd_buffer_alloc(
 	if (size == 0)
 		return NULL;
 
+#if defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
+	mem_flags |= __GFP_NOWARN;
+#endif
 	/* some USB hosts just use PIO */
 	if (!IS_ENABLED(CONFIG_HAS_DMA) ||
 	    (!is_device_dma_capable(bus->sysdev) &&
@@ -136,6 +139,9 @@ void *hcd_buffer_alloc(
 		return kmalloc(size, mem_flags);
 	}
 
+#ifdef CONFIG_USB_XHCI_ALLOC_FROM_DMA_POOL
+	mem_flags &= ~(__GFP_DIRECT_RECLAIM);
+#endif
 	for (i = 0; i < HCD_BUFFER_POOLS; i++) {
 		if (size <= pool_max[i])
 			return dma_pool_alloc(hcd->pool[i], mem_flags, dma);

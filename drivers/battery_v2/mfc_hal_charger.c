@@ -34,6 +34,8 @@
 #include <linux/proc_fs.h>
 #include <linux/vmalloc.h>
 #include <linux/ctype.h>
+#include <linux/sec_batt.h>
+#include <linux/sec_ext.h>
 
 unsigned int mfc_chip_id_now;
 

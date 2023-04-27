@@ -9,8 +9,10 @@
 #include <linux/device.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
-#include <linux/property.h>
 #include <linux/slab.h>
+#if defined(CONFIG_USB_NOTIFY_LAYER)
+#include <linux/usb_notify.h>
+#endif
 
 #include "bus.h"
 
@@ -205,32 +207,15 @@ static void typec_altmode_put_partner(struct altmode *altmode)
 	put_device(&adev->dev);
 }
 
-static int typec_port_fwnode_match(struct device *dev, const void *fwnode)
-{
-	return dev_fwnode(dev) == fwnode;
-}
-
-static int typec_port_name_match(struct device *dev, const void *name)
+static int __typec_port_match(struct device *dev, const void *name)
 {
 	return !strcmp((const char *)name, dev_name(dev));
 }
 
 static void *typec_port_match(struct device_connection *con, int ep, void *data)
 {
-	struct device *dev;
-
-	/*
-	 * FIXME: Check does the fwnode supports the requested SVID. If it does
-	 * we need to return ERR_PTR(-PROBE_DEFER) when there is no device.
-	 */
-	if (con->fwnode)
-		return class_find_device(typec_class, NULL, con->fwnode,
-					 typec_port_fwnode_match);
-
-	dev = class_find_device(typec_class, NULL, con->endpoint[ep],
-				typec_port_name_match);
-
-	return dev ? dev : ERR_PTR(-EPROBE_DEFER);
+	return class_find_device(typec_class, NULL, con->endpoint[ep],
+				 __typec_port_match);
 }
 
 struct typec_altmode *
@@ -295,7 +280,7 @@ void typec_altmode_update_active(struct typec_altmode *adev, bool active)
 	if (adev->active == active)
 		return;
 
-	if (!is_typec_port(adev->dev.parent) && adev->dev.driver) {
+	if (!is_typec_port(adev->dev.parent)) {
 		if (!active)
 			module_put(adev->dev.driver->owner);
 		else
@@ -682,7 +667,6 @@ struct typec_partner *typec_register_partner(struct typec_port *port,
 	partner->dev.type = &typec_partner_dev_type;
 	dev_set_name(&partner->dev, "%s-partner", dev_name(&port->dev));
 
-	pr_info("%s\n", __func__);
 	ret = device_register(&partner->dev);
 	if (ret) {
 		dev_err(&port->dev, "failed to register partner (%d)\n", ret);
@@ -702,9 +686,16 @@ EXPORT_SYMBOL_GPL(typec_register_partner);
  */
 void typec_unregister_partner(struct typec_partner *partner)
 {
+#if defined(CONFIG_USB_NOTIFY_LAYER)
+	struct otg_notify *o_notify = get_otg_notify();
+#endif
+
 	if (!IS_ERR_OR_NULL(partner)) {
-		pr_info("%s\n", __func__);
 		device_unregister(&partner->dev);
+#if defined(CONFIG_USB_NOTIFY_LAYER)	
+		if (o_notify)
+			send_otg_notify(o_notify, NOTIFY_EVENT_PD_CONTRACT, 0);
+#endif
 	}
 }
 EXPORT_SYMBOL_GPL(typec_unregister_partner);
@@ -1019,12 +1010,9 @@ static ssize_t data_role_store(struct device *dev,
 		return -EOPNOTSUPP;
 	}
 
-	pr_info("%s %s +\n", __func__, buf);
 	ret = sysfs_match_string(typec_data_roles, buf);
-	if (ret < 0) {
-		pr_err("%s error -\n", __func__);
+	if (ret < 0)
 		return ret;
-	}
 
 	mutex_lock(&port->port_type_lock);
 	if (port->cap->data != TYPEC_PORT_DRD) {
@@ -1039,7 +1027,6 @@ static ssize_t data_role_store(struct device *dev,
 	ret = size;
 unlock_and_ret:
 	mutex_unlock(&port->port_type_lock);
-	pr_info("%s -\n", __func__);
 	return ret;
 }
 
@@ -1078,12 +1065,9 @@ static ssize_t power_role_store(struct device *dev,
 		return -EIO;
 	}
 
-	pr_info("%s %s +\n", __func__, buf);
 	ret = sysfs_match_string(typec_roles, buf);
-	if (ret < 0) {
-		pr_err("%s error -\n", __func__);
+	if (ret < 0)
 		return ret;
-	}
 
 	mutex_lock(&port->port_type_lock);
 	if (port->port_type != TYPEC_PORT_DRP) {
@@ -1100,7 +1084,6 @@ static ssize_t power_role_store(struct device *dev,
 	ret = size;
 unlock_and_ret:
 	mutex_unlock(&port->port_type_lock);
-	pr_info("%s -\n", __func__);
 	return ret;
 }
 
@@ -1139,15 +1122,14 @@ port_type_store(struct device *dev, struct device_attribute *attr,
 
 	type = ret;
 	mutex_lock(&port->port_type_lock);
-
-//temp
-#if 0
+	pr_info("%s port_type : %d, type : %d\n", 
+		__func__, port->port_type, type);
+#if 0 /* logically, we don't need to compare previous role */
 	if (port->port_type == type) {
 		ret = size;
 		goto unlock_and_ret;
 	}
 #endif
-
 	ret = port->cap->port_type_set(port->cap, type);
 	if (ret)
 		goto unlock_and_ret;
@@ -1330,7 +1312,6 @@ const struct device_type typec_port_dev_type = {
  */
 void typec_set_data_role(struct typec_port *port, enum typec_data_role role)
 {
-	pr_info("%s data_role=%d role=%d\n", __func__, port->data_role, role);
 	if (port->data_role == role)
 		return;
 
@@ -1349,7 +1330,6 @@ EXPORT_SYMBOL_GPL(typec_set_data_role);
  */
 void typec_set_pwr_role(struct typec_port *port, enum typec_role role)
 {
-	pr_info("%s pwr_role=%d role=%d\n", __func__, port->pwr_role, role);
 	if (port->pwr_role == role)
 		return;
 
@@ -1369,7 +1349,6 @@ EXPORT_SYMBOL_GPL(typec_set_pwr_role);
  */
 void typec_set_vconn_role(struct typec_port *port, enum typec_role role)
 {
-	pr_info("%s vconn_role=%d role=%d\n", __func__, port->vconn_role, role);
 	if (port->vconn_role == role)
 		return;
 
@@ -1399,7 +1378,18 @@ void typec_set_pwr_opmode(struct typec_port *port,
 {
 	struct device *partner_dev;
 
+#if defined(CONFIG_USB_NOTIFY_LAYER)
+	struct otg_notify *o_notify = get_otg_notify();
+
+	if (o_notify) {
+		if (opmode == TYPEC_PWR_MODE_PD)
+			send_otg_notify(o_notify, NOTIFY_EVENT_PD_CONTRACT, 1);
+		else
+			send_otg_notify(o_notify, NOTIFY_EVENT_PD_CONTRACT, 0);
+	}
+#endif
 	pr_info("%s pwr_opmode=%d opmode=%d\n", __func__, port->pwr_opmode, opmode);
+
 	if (port->pwr_opmode == opmode)
 		return;
 
@@ -1536,8 +1526,11 @@ typec_port_register_altmode(struct typec_port *port,
 {
 	struct typec_altmode *adev;
 	struct typec_mux *mux;
+	char id[10];
 
-	mux = typec_mux_get(&port->dev, desc);
+	sprintf(id, "id%04xm%02x", desc->svid, desc->mode);
+
+	mux = typec_mux_get(&port->dev, id);
 	if (IS_ERR(mux))
 		return ERR_CAST(mux);
 
@@ -1626,16 +1619,14 @@ struct typec_port *typec_register_port(struct device *parent,
 
 	port->sw = typec_switch_get(&port->dev);
 	if (IS_ERR(port->sw)) {
-		ret = PTR_ERR(port->sw);
 		put_device(&port->dev);
-		return ERR_PTR(ret);
+		return ERR_CAST(port->sw);
 	}
 
-	port->mux = typec_mux_get(&port->dev, NULL);
+	port->mux = typec_mux_get(&port->dev, "typec-mux");
 	if (IS_ERR(port->mux)) {
-		ret = PTR_ERR(port->mux);
 		put_device(&port->dev);
-		return ERR_PTR(ret);
+		return ERR_CAST(port->mux);
 	}
 
 	ret = device_add(&port->dev);
@@ -1670,25 +1661,13 @@ static int __init typec_init(void)
 	if (ret)
 		return ret;
 
-	ret = class_register(&typec_mux_class);
-	if (ret)
-		goto err_unregister_bus;
-
 	typec_class = class_create(THIS_MODULE, "typec");
 	if (IS_ERR(typec_class)) {
-		ret = PTR_ERR(typec_class);
-		goto err_unregister_mux_class;
+		bus_unregister(&typec_bus);
+		return PTR_ERR(typec_class);
 	}
 
 	return 0;
-
-err_unregister_mux_class:
-	class_unregister(&typec_mux_class);
-
-err_unregister_bus:
-	bus_unregister(&typec_bus);
-
-	return ret;
 }
 subsys_initcall(typec_init);
 
@@ -1697,7 +1676,6 @@ static void __exit typec_exit(void)
 	class_destroy(typec_class);
 	ida_destroy(&typec_index_ida);
 	bus_unregister(&typec_bus);
-	class_unregister(&typec_mux_class);
 }
 module_exit(typec_exit);
 

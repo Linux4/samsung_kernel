@@ -23,7 +23,6 @@
 #include <linux/i2c.h>
 #include <linux/alarmtimer.h>
 #include "../sec_charging_common.h"
-#include "../sec_battery.h"
 
 /* REGISTER MAPS */
 #define MFC_HAL_CHIP_ID_L_REG					0x00

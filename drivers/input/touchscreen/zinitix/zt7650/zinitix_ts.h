@@ -25,6 +25,9 @@
 #ifdef CONFIG_INPUT_SEC_SECURE_TOUCH
 #include <linux/input/sec_secure_touch.h>
 #endif
+#if defined(CONFIG_SAMSUNG_TUI)
+#include <linux/input/stui_inf.h>
+#endif
 
 #ifdef CONFIG_INPUT_TOUCHSCREEN_TCLMV2
 #define TCLM_CONCEPT
@@ -92,7 +95,6 @@ struct zt_ts_platform_data {
 	u8 area_indicator;
 	u8 area_navigation;
 	u8 area_edge;
-	u16 page_size;
 	u8 orientation;
 	bool support_spay;
 	bool support_aod;

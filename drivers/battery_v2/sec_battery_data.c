@@ -157,7 +157,7 @@ static void change_battery_pdata(
 		struct battery_property *batt_prop = NULL;
 		struct power_supply *psy = NULL;
 		union power_supply_propval value;
-
+		
 		batt_prop = temp_node->start_prop;
 		while (batt_prop) {
 			if (batt_prop->flag != BATTERY_DATA_FLAG_REMOVE) {

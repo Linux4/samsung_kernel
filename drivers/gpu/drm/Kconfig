@@ -9,7 +9,6 @@ menuconfig DRM
 	depends on (AGP || AGP=n) && !EMULATED_CMPXCHG && HAS_DMA
 	select DRM_PANEL_ORIENTATION_QUIRKS
 	select HDMI
-	select FB
 	select FB_CMDLINE
 	select I2C
 	select I2C_ALGOBIT
@@ -26,7 +25,7 @@ menuconfig DRM
 
 config DRM_MIPI_DSI
 	bool
-	default y if DRM
+	depends on DRM
 
 config DRM_DP_AUX_CHARDEV
 	bool "DRM DP AUX Interface"
@@ -68,7 +67,7 @@ config DRM_DEBUG_SELFTEST
 
 config DRM_KMS_HELPER
 	tristate
-	default y if DRM
+	depends on DRM
 	help
 	  CRTC helpers for KMS drivers.
 
@@ -94,7 +93,7 @@ config DRM_FBDEV_EMULATION
 	depends on DRM
 	select DRM_KMS_HELPER
 	select DRM_KMS_FB_HELPER
-	default n
+	default y
 	help
 	  Choose this option if you have a need for the legacy fbdev
 	  support. Note that this support also provides the linux console
@@ -292,9 +291,7 @@ source "drivers/gpu/drm/bochs/Kconfig"
 
 source "drivers/gpu/drm/virtio/Kconfig"
 
-source "techpack/display/msm/samsung/Kconfig"
-
-source "techpack/display/msm/dp/Kconfig"
+source "drivers/gpu/drm/msm/Kconfig"
 
 source "drivers/gpu/drm/fsl-dcu/Kconfig"
 

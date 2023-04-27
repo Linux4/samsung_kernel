@@ -1949,8 +1949,11 @@ bool dp_rx_intrabss_fwd_wrapper(struct dp_soc *soc, struct dp_peer *ta_peer,
 			 qdf_mem_cmp(qdf_nbuf_data(nbuf) +
 				     QDF_NBUF_DEST_MAC_OFFSET,
 				     ta_peer->vdev->mac_addr.raw,
-				     QDF_MAC_ADDR_SIZE)))
-		return false;
+				     QDF_MAC_ADDR_SIZE))) {
+		qdf_nbuf_free(nbuf);
+		DP_STATS_INC(soc, rx.err.intrabss_eapol_drop, 1);
+		return true;
+	}
 
 	return dp_rx_intrabss_fwd(soc, ta_peer, rx_tlv_hdr, nbuf,
 				  msdu_metadata);
@@ -2087,7 +2090,6 @@ more_data:
 		rx_buf_cookie = HAL_RX_REO_BUF_COOKIE_GET(ring_desc);
 		status = dp_rx_cookie_check_and_invalidate(ring_desc);
 		if (qdf_unlikely(QDF_IS_STATUS_ERROR(status))) {
-			DP_STATS_INC(soc, rx.err.stale_cookie, 1);
 			break;
 		}
 
@@ -2325,9 +2327,16 @@ done:
 			deliver_list_tail = NULL;
 		}
 
-		/* Get TID from struct cb->tid_val, save to tid */
-		if (qdf_nbuf_is_rx_chfrag_start(nbuf))
-			tid = qdf_nbuf_get_tid_val(nbuf);
+ 		/* Get TID from struct cb->tid_val, save to tid */
+		if (qdf_nbuf_is_rx_chfrag_start(nbuf)) {
+ 			tid = qdf_nbuf_get_tid_val(nbuf);
+			if (tid >= CDP_MAX_DATA_TIDS) {
+				DP_STATS_INC(soc, rx.err.rx_invalid_tid_err, 1);
+				qdf_nbuf_free(nbuf);
+				nbuf = next;
+				continue;
+			}
+		}
 
 		peer_id =  QDF_NBUF_CB_RX_PEER_ID(nbuf);
 
@@ -2910,7 +2919,6 @@ dp_rx_pdev_attach(struct dp_pdev *pdev)
 	rx_desc_pool = &soc->rx_desc_buf[mac_for_pdev];
 	rx_sw_desc_weight = wlan_cfg_get_dp_soc_rx_sw_desc_weight(soc->wlan_cfg_ctx);
 
-	rx_desc_pool->desc_type = DP_RX_DESC_BUF_TYPE;
 	dp_rx_desc_pool_alloc(soc, mac_for_pdev,
 			      rx_sw_desc_weight * rxdma_entries,
 			      rx_desc_pool);

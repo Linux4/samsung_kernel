@@ -40,10 +40,9 @@ static ssize_t ext4_dax_read_iter(struct kiocb *iocb, struct iov_iter *to)
 	struct inode *inode = file_inode(iocb->ki_filp);
 	ssize_t ret;
 
-	if (iocb->ki_flags & IOCB_NOWAIT) {
-		if (!inode_trylock_shared(inode))
+	if (!inode_trylock_shared(inode)) {
+		if (iocb->ki_flags & IOCB_NOWAIT)
 			return -EAGAIN;
-	} else {
 		inode_lock_shared(inode);
 	}
 	/*
@@ -191,10 +190,9 @@ ext4_dax_write_iter(struct kiocb *iocb, struct iov_iter *from)
 	struct inode *inode = file_inode(iocb->ki_filp);
 	ssize_t ret;
 
-	if (iocb->ki_flags & IOCB_NOWAIT) {
-		if (!inode_trylock(inode))
+	if (!inode_trylock(inode)) {
+		if (iocb->ki_flags & IOCB_NOWAIT)
 			return -EAGAIN;
-	} else {
 		inode_lock(inode);
 	}
 	ret = ext4_write_checks(iocb, from);
@@ -454,10 +452,6 @@ static int ext4_file_open(struct inode * inode, struct file * filp)
 		return ret;
 
 	ret = fscrypt_file_open(inode, filp);
-	if (ret)
-		return ret;
-
-	ret = fsverity_file_open(inode, filp);
 	if (ret)
 		return ret;
 

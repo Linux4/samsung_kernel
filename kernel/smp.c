@@ -19,7 +19,6 @@
 #include <linux/sched.h>
 #include <linux/sched/idle.h>
 #include <linux/hypervisor.h>
-#include <linux/suspend.h>
 
 #include "smpboot.h"
 
@@ -39,9 +38,6 @@ static DEFINE_PER_CPU_SHARED_ALIGNED(struct call_function_data, cfd_data);
 static DEFINE_PER_CPU_SHARED_ALIGNED(struct llist_head, call_single_queue);
 
 static void flush_smp_call_function_queue(bool warn_cpu_offline);
-/* CPU mask indicating which CPUs to bring online during smp_init() */
-static bool have_boot_cpu_mask;
-static cpumask_var_t boot_cpu_mask;
 
 int smpcfd_prepare_cpu(unsigned int cpu)
 {
@@ -242,6 +238,9 @@ static void flush_smp_call_function_queue(bool warn_cpu_offline)
 		smp_call_func_t func = csd->func;
 		void *info = csd->info;
 
+		/* This should be called by handle_IPI in smp.c */
+		dbg_snapshot_irq(DSS_FLAG_SMP_CALL_FN, func, NULL, 0, DSS_FLAG_IN);
+
 		/* Do we wait until *after* callback? */
 		if (csd->flags & CSD_FLAG_SYNCHRONOUS) {
 			func(info);
@@ -250,6 +249,8 @@ static void flush_smp_call_function_queue(bool warn_cpu_offline)
 			csd_unlock(csd);
 			func(info);
 		}
+
+		dbg_snapshot_irq(DSS_FLAG_SMP_CALL_FN, func, NULL, 0, DSS_FLAG_OUT);
 	}
 
 	/*
@@ -553,19 +554,6 @@ static int __init maxcpus(char *str)
 
 early_param("maxcpus", maxcpus);
 
-static int __init boot_cpus(char *str)
-{
-	alloc_bootmem_cpumask_var(&boot_cpu_mask);
-	if (cpulist_parse(str, boot_cpu_mask) < 0) {
-		pr_warn("SMP: Incorrect boot_cpus cpumask\n");
-		return -EINVAL;
-	}
-	have_boot_cpu_mask = true;
-	return 0;
-}
-
-early_param("boot_cpus", boot_cpus);
-
 /* Setup number of possible processor ids */
 unsigned int nr_cpu_ids __read_mostly = NR_CPUS;
 EXPORT_SYMBOL(nr_cpu_ids);
@@ -574,20 +562,6 @@ EXPORT_SYMBOL(nr_cpu_ids);
 void __init setup_nr_cpu_ids(void)
 {
 	nr_cpu_ids = find_last_bit(cpumask_bits(cpu_possible_mask),NR_CPUS) + 1;
-}
-
-static inline bool boot_cpu(int cpu)
-{
-	if (!have_boot_cpu_mask)
-		return true;
-
-	return cpumask_test_cpu(cpu, boot_cpu_mask);
-}
-
-static inline void free_boot_cpu_mask(void)
-{
-	if (have_boot_cpu_mask)	/* Allocated from boot_cpus() */
-		free_bootmem_cpumask_var(boot_cpu_mask);
 }
 
 /* Called by boot processor to activate the rest. */
@@ -605,10 +579,9 @@ void __init smp_init(void)
 	for_each_present_cpu(cpu) {
 		if (num_online_cpus() >= setup_max_cpus)
 			break;
-		if (!cpu_online(cpu) && boot_cpu(cpu))
+		if (!cpu_online(cpu))
 			cpu_up(cpu);
 	}
-	free_boot_cpu_mask();
 
 	num_nodes = num_online_nodes();
 	num_cpus  = num_online_cpus();
@@ -770,9 +743,8 @@ void wake_up_all_idle_cpus(void)
 	for_each_online_cpu(cpu) {
 		if (cpu == smp_processor_id())
 			continue;
-		if (s2idle_state == S2IDLE_STATE_ENTER ||
-		    !cpu_isolated(cpu))
-			wake_up_if_idle(cpu);
+
+		wake_up_if_idle(cpu);
 	}
 	preempt_enable();
 }

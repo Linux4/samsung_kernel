@@ -11,7 +11,7 @@
  *
  */
 
-#include "cs40l2x-private.h"
+#include "cs40l2x.h"
 
 const unsigned char cs40l2x_bst_k1_table[4][5] = {
 	{0x24, 0x32, 0x32, 0x4F, 0x57},
@@ -88,7 +88,6 @@ bool cs40l2x_readable_reg(struct device *dev, unsigned int reg)
 	case CS40L2X_BSTCVRT_DCM_CTRL:
 	case CS40L2X_BSTCVRT_DCM_MODE_FORCE:
 	case CS40L2X_BSTCVRT_OVERVOLT_CTRL:
-	case CS40L2X_TEST_LBST:
 	case CS40L2X_VI_VOL_POL:
 	case CS40L2X_SPKMON_RESYNC:
 	case CS40L2X_DTEMP_WARN_THLD:
