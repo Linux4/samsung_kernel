@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2014-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -38,6 +38,7 @@
 #include "wlan_hdd_hostapd.h"
 #include "osif_psoc_sync.h"
 #include "wlan_osif_features.h"
+#include "wlan_p2p_ucfg_api.h"
 
 #define REG_RULE_2412_2462    REG_RULE(2412-10, 2462+10, 40, 0, 20, 0)
 
@@ -324,6 +325,8 @@ static void reg_program_config_vars(struct hdd_context *hdd_ctx,
 	hdd_update_coex_unsafe_chan_reg_disable(hdd_ctx, config_vars);
 	config_vars->sta_sap_scc_on_indoor_channel =
 		ucfg_policy_mgr_get_sta_sap_scc_on_indoor_chnl(hdd_ctx->psoc);
+	config_vars->p2p_indoor_ch_support =
+		ucfg_p2p_get_indoor_ch_support(hdd_ctx->psoc);
 }
 
 /**

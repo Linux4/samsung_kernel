@@ -81,6 +81,7 @@ void dp_print_fisa_stats(struct dp_soc *soc)
 		return;
 
 	dp_info("invalid flow index: %u", fst->stats.invalid_flow_index);
+	dp_info("workqueue update deferred: %u", fst->stats.update_deferred);
 	dp_info("reo_mismatch: cce_match: %u",
 		fst->stats.reo_mismatch.allow_cce_match);
 	dp_info("reo_mismatch: allow_fse_metdata_mismatch: %u",
@@ -135,7 +136,7 @@ static void dp_fisa_fse_cache_flush_timer(void *arg)
 	if (!fisa_hdl)
 		return;
 
-	if (fisa_hdl->pm_suspended) {
+	if (qdf_atomic_read(&fisa_hdl->pm_suspended)) {
 		qdf_atomic_set(&fisa_hdl->fse_cache_flush_posted, 0);
 		return;
 	}
@@ -375,6 +376,7 @@ QDF_STATUS dp_rx_fst_attach(struct dp_soc *soc, struct dp_pdev *pdev)
 	soc->fisa_lru_del_enable = wlan_cfg_is_rx_fisa_lru_del_enabled(cfg);
 
 	qdf_atomic_init(&soc->skip_fisa_param.skip_fisa);
+	qdf_atomic_init(&fst->pm_suspended);
 
 	QDF_TRACE(QDF_MODULE_ID_ANY, QDF_TRACE_LEVEL_ERROR,
 		  "Rx FST attach successful, #entries:%d\n",
@@ -545,9 +547,27 @@ void dp_rx_fst_update_pm_suspend_status(struct dp_soc *soc, bool suspended)
 
 	if (!fst)
 		return;
-
-	fst->pm_suspended = suspended;
+	if (suspended)
+		qdf_atomic_set(&fst->pm_suspended, 1);
+	else
+		qdf_atomic_set(&fst->pm_suspended, 0);
 }
+
+void dp_rx_fst_requeue_wq(struct dp_soc *soc)
+{
+	struct dp_rx_fst *fst = soc->rx_fst;
+
+	if (!fst || !fst->fst_wq_defer)
+		return;
+
+	fst->fst_wq_defer = false;
+	qdf_queue_work(fst->soc_hdl->osdev,
+		       fst->fst_update_wq,
+		       &fst->fst_update_work);
+
+	dp_info("requeued defer fst update task");
+}
+
 #else /* WLAN_SUPPORT_RX_FISA */
 
 #endif /* !WLAN_SUPPORT_RX_FISA */

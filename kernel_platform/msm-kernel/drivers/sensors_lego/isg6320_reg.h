@@ -29,6 +29,7 @@
 enum ic_num {
 	MAIN_GRIP = 0,
 	SUB_GRIP,
+	SUB_GRIP2,
 	WIFI_GRIP,
 	GRIP_MAX_CNT
 };
@@ -36,12 +37,14 @@ enum ic_num {
 const char *device_name[GRIP_MAX_CNT] = {
 	"ISG6320",
 	"ISG6320_SUB",
+	"ISG6320_SUB2",
 	"ISG6320_WIFI"
 };
 
 const char *module_name[GRIP_MAX_CNT] = {
 	"grip_sensor",
 	"grip_sensor_sub",
+	"grip_sensor_sub2",
 	"grip_sensor_wifi"
 };
 #define NOTI_MODULE_NAME        "grip_notifier"

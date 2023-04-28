@@ -953,8 +953,8 @@ int cam_sensor_apply_hyperlapse_settings(
 #endif
 
 #if defined(CONFIG_SEC_DM1Q_PROJECT) || defined(CONFIG_SEC_DM2Q_PROJECT) || defined(CONFIG_SEC_DM3Q_PROJECT)
-	// SHOOTING_MODE_HYPERLAPSE = 16
-	if (s_ctrl->camera_shooting_mode == 16)
+	// SHOOTING_MODE_HYPERLAPSE = 16, SHOOTING_MODE_NIGHT = 8, SHOOTING_MODE_SUPER_NIGHT = 31
+	if ((s_ctrl->camera_shooting_mode == 16) || (s_ctrl->camera_shooting_mode == 8) || (s_ctrl->camera_shooting_mode == 31))
 	{
 		struct cam_sensor_i2c_reg_setting reg_fllsetting;
 		struct cam_sensor_i2c_reg_setting reg_streamoffsetting;

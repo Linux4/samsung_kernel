@@ -2624,7 +2624,6 @@ static void samsung_recovery(struct cs40l26_private *cs40l26)
 		cancel_work_sync(&cs40l26->vibe_start_work);
 		cancel_work_sync(&cs40l26->vibe_stop_work);
 		cancel_work_sync(&cs40l26->set_gain_work);
-		cancel_work_sync(&cs40l26->upload_work);
 		cancel_work_sync(&cs40l26->erase_work);
 	}
 
@@ -3496,6 +3495,9 @@ static int cs40l26_index_mapping(int sep_index)
 		break;
 	case 119 ... 124:
 		cirrus_index = sep_index + 16;
+		break;
+	case 126 ... 127:
+		cirrus_index = sep_index + 15;
 		break;
 	default:
 		cirrus_index = sep_index + 9;

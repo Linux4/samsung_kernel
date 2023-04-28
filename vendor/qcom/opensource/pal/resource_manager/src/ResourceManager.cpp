@@ -1357,6 +1357,11 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
                         PAL_ERR(LOG_TAG, "Ssr down handling failed for %pK ret %d",
                                           str, ret);
                     }
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+                    else {
+                        PAL_INFO(LOG_TAG, "Ssr down handling for %pK", str);
+                    }
+#endif
                     ret = str->getStreamType(&type);
                     if (type == PAL_STREAM_NON_TUNNEL) {
                         ret = voteSleepMonitor(str, false);
@@ -1370,6 +1375,11 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
                     if (0 != ret) {
                         PAL_ERR(LOG_TAG, "Ssr down handling failed for ContextManager ret %d", ret);
                     }
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+                    else {
+                        PAL_INFO(LOG_TAG, "Ssr down handling for ContextManager");
+                    }
+#endif
                     mActiveStreamMutex.lock();
                 }
                 prevState = state;
@@ -1380,6 +1390,11 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
                     if (0 != ret) {
                         PAL_ERR(LOG_TAG, "Ssr up handling failed for ContextManager ret %d", ret);
                     }
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+                    else {
+                        PAL_INFO(LOG_TAG, "Ssr up handling for ContextManager");
+                    }
+#endif
                     mActiveStreamMutex.lock();
                 }
 
@@ -1390,6 +1405,11 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
                         PAL_ERR(LOG_TAG, "Ssr up handling failed for %pK ret %d",
                                           str, ret);
                     }
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+                    else {
+                        PAL_INFO(LOG_TAG, "Ssr up handling for %pK", str);
+                    }
+#endif
                 }
                 prevState = state;
             } else {

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -84,6 +84,21 @@ struct chan_change_cbk_entry {
 	void *arg;
 };
 
+#ifdef CONFIG_REG_CLIENT
+#define MAX_INDOOR_LIST_SIZE 3
+
+/**
+ * struct indoor_concurrency_list - Active indoor station list
+ * @vdev_id: vdev ID
+ * @freq: frequency of the interface
+ * @chan_range: Range of channels based on bandwidth
+ */
+struct indoor_concurrency_list {
+	uint8_t vdev_id;
+	uint32_t freq;
+	const struct bonded_channel_freq *chan_range;
+};
+#endif
 /**
  * struct wlan_regulatory_psoc_priv_obj - wlan regulatory psoc private object
  * @mas_chan_params: master channel parameters list
@@ -122,6 +137,7 @@ struct chan_change_cbk_entry {
  * @reg_afc_dev_type: AFC device deployment type from BDF
  * @sta_sap_scc_on_indoor_channel: Value of sap+sta scc on indoor support
  * @fcc_rules_ptr : Value of fcc channel frequency and tx_power list received
+ * @p2p_indoor_ch_support: Allow P2P GO in indoor channels
  * from firmware
  */
 struct wlan_regulatory_psoc_priv_obj {
@@ -194,6 +210,7 @@ struct wlan_regulatory_psoc_priv_obj {
 	enum reg_afc_dev_deploy_type reg_afc_dev_type;
 #endif
 	bool sta_sap_scc_on_indoor_channel;
+	bool p2p_indoor_ch_support;
 #ifdef CONFIG_REG_CLIENT
 	struct cur_fcc_rule fcc_rules_ptr[MAX_NUM_FCC_RULES];
 #endif
@@ -245,6 +262,8 @@ struct wlan_regulatory_psoc_priv_obj {
  * priority during channel selection by upper layer
  * @reg_afc_dev_deployment_type: AFC device deployment type from BDF
  * @sta_sap_scc_on_indoor_channel: Value of sap+sta scc on indoor support
+ * @indoor_concurrency_list: List of current indoor station interfaces
+ * @p2p_indoor_ch_support: Allow P2P GO in indoor channels
  * @fcc_rules_ptr : Value of fcc channel frequency and tx_power list received
  * from firmware
  */
@@ -323,8 +342,10 @@ struct wlan_regulatory_pdev_priv_obj {
 	enum reg_afc_dev_deploy_type reg_afc_dev_deployment_type;
 #endif
 	bool sta_sap_scc_on_indoor_channel;
+	bool p2p_indoor_ch_support;
 #ifdef CONFIG_REG_CLIENT
 	struct cur_fcc_rule fcc_rules_ptr[MAX_NUM_FCC_RULES];
+	struct indoor_concurrency_list indoor_list[MAX_INDOOR_LIST_SIZE];
 #endif
 };
 

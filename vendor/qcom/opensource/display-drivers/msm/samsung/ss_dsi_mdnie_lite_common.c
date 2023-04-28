@@ -166,6 +166,8 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 	struct mdnie_lite_tune_data *mdnie_data;
 	enum BYPASS temp_bypass = BYPASS_ENABLE;
 
+	char *buffer_blf, *buffer_hbm;
+
 	if (vdd == NULL || !vdd->mdnie.support_mdnie)
 		return 0;
 
@@ -241,20 +243,34 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 	} else if (tune->hmt_color_temperature) {
 		tune_data_dsi =
 			mdnie_data->hmt_color_temperature_tune_value_dsi[tune->hmt_color_temperature];
-	} else if (tune->night_mode_enable == true) {
-		tune_data_dsi  = mdnie_data->DSI_NIGHT_MODE_MDNIE;
-	} else if (tune->hbm_enable) {
-		if(tune->mdnie_mode == AUTO_MODE) {
-			if (vdd->dtsi_data.hbm_ce_text_mode_support &&
-				((tune->mdnie_app == BROWSER_APP) ||
-				 (tune->mdnie_app == eBOOK_APP))) {
-				tune_data_dsi  = mdnie_data->DSI_HBM_CE_TEXT_MDNIE;
+	} else if ((tune->night_mode_enable == true) || (tune->hbm_enable == true)) {	
+		if ((tune->night_mode_enable == true) && (tune->hbm_enable == false)) { // blf enable
+			tune_data_dsi  = mdnie_data->DSI_NIGHT_MODE_MDNIE;
+			mdnie_data->DSI_HBM_CE_MDNIE_DIMMING_1[mdnie_data->dsi_trans_dimming_slope_index] = 0x08;
+			mdnie_data->DSI_HBM_CE_MDNIE_DIMMING_2[mdnie_data->dsi_trans_dimming_slope_index] = 0x08;
+			mdnie_data->DSI_HBM_CE_MDNIE_DIMMING_3[mdnie_data->dsi_trans_dimming_slope_index] = 0x08;
+		} else if ((tune->night_mode_enable == false) && (tune->hbm_enable == true)) { //hbm enable
+			buffer_hbm = &mdnie_data->dsi_hbm_scr_table[0];
+			memcpy(&mdnie_data->DSI_HBM_CE_MDNIE_SCR_1[mdnie_data->mdnie_scr_cmd_offset],buffer_hbm, MDNIE_SCR_CMD_SIZE);
+			memcpy(&mdnie_data->DSI_HBM_CE_MDNIE_SCR_2[mdnie_data->mdnie_scr_cmd_offset],buffer_hbm, MDNIE_SCR_CMD_SIZE);
+			memcpy(&mdnie_data->DSI_HBM_CE_MDNIE_SCR_3[mdnie_data->mdnie_scr_cmd_offset],buffer_hbm, MDNIE_SCR_CMD_SIZE);
+			if(tune->mdnie_mode == AUTO_MODE) {
+				if (vdd->dtsi_data.hbm_ce_text_mode_support &&
+					((tune->mdnie_app == BROWSER_APP) ||
+					 (tune->mdnie_app == eBOOK_APP))) {
+					tune_data_dsi  = mdnie_data->DSI_HBM_CE_TEXT_MDNIE;
+				} else {
+					tune_data_dsi  = mdnie_data->hbm_ce_data[tune->hbm_ce_idx];
+				}
 			} else {
 				tune_data_dsi  = mdnie_data->hbm_ce_data[tune->hbm_ce_idx];
 			}
-		} else {
-			// tune_data_dsi  = mdnie_data->DSI_HBM_CE_D65_MDNIE;
-				tune_data_dsi  = mdnie_data->hbm_ce_data[tune->hbm_ce_idx]; //TEST
+		} else { // hbm & blf enable
+			buffer_blf = &mdnie_data->dsi_night_mode_table[(MDNIE_SCR_CMD_SIZE * (tune->night_mode_index))];
+			memcpy(&mdnie_data->DSI_HBM_CE_MDNIE_SCR_1[mdnie_data->mdnie_scr_cmd_offset],buffer_blf, MDNIE_SCR_CMD_SIZE);
+			memcpy(&mdnie_data->DSI_HBM_CE_MDNIE_SCR_2[mdnie_data->mdnie_scr_cmd_offset],buffer_blf, MDNIE_SCR_CMD_SIZE);
+			memcpy(&mdnie_data->DSI_HBM_CE_MDNIE_SCR_3[mdnie_data->mdnie_scr_cmd_offset],buffer_blf, MDNIE_SCR_CMD_SIZE);
+			tune_data_dsi  = mdnie_data->hbm_ce_data[tune->hbm_ce_idx];
 		}
 	} else if (tune->hdr) {
 		tune_data_dsi = mdnie_data->hdr_tune_value_dsi[tune->hdr];
@@ -302,6 +318,11 @@ int update_dsi_tcon_mdnie_register(struct samsung_display_driver_data *vdd)
 
 	send_dsi_tcon_mdnie_register(vdd, tune_data_dsi, tune);
 
+	if ((tune->night_mode_enable == false) && (tune->hbm_enable == true)) { //hbm enable
+		mdnie_data->DSI_HBM_CE_MDNIE_DIMMING_1[mdnie_data->dsi_trans_dimming_slope_index] = 0x08;
+		mdnie_data->DSI_HBM_CE_MDNIE_DIMMING_2[mdnie_data->dsi_trans_dimming_slope_index] = 0x08;
+		mdnie_data->DSI_HBM_CE_MDNIE_DIMMING_3[mdnie_data->dsi_trans_dimming_slope_index] = 0x08;
+	}
 	return 0;
 }
 
@@ -941,11 +962,17 @@ static ssize_t night_mode_store(struct device *dev,
 			}
 			buffer = &mdnie_data->dsi_night_mode_table[(MDNIE_SCR_CMD_SIZE * idx)];
 			if (!IS_ERR_OR_NULL(mdnie_data->DSI_NIGHT_MODE_MDNIE_SCR)) {
-				memcpy(&mdnie_data->DSI_NIGHT_MODE_MDNIE_SCR[mdnie_data->mdnie_color_blinde_cmd_offset],
+				memcpy(&mdnie_data->DSI_NIGHT_MODE_MDNIE_SCR[mdnie_data->mdnie_scr_cmd_offset],
 					buffer, MDNIE_SCR_CMD_SIZE);
 				tune->night_mode_index = idx;
 			}
 		}
+	}
+
+	if(tune->hbm_enable == true) {
+		mdnie_data->DSI_HBM_CE_MDNIE_DIMMING_1[mdnie_data->dsi_trans_dimming_slope_index] = 0x04;
+		mdnie_data->DSI_HBM_CE_MDNIE_DIMMING_2[mdnie_data->dsi_trans_dimming_slope_index] = 0x04;
+		mdnie_data->DSI_HBM_CE_MDNIE_DIMMING_3[mdnie_data->dsi_trans_dimming_slope_index] = 0x04;
 	}
 
 	if (!ss_is_ready_to_send_cmd(vdd)) {
@@ -1002,7 +1029,7 @@ static ssize_t color_lens_store(struct device *dev,
 		if (!IS_ERR_OR_NULL(mdnie_data->dsi_color_lens_table)) {
 			buffer = &mdnie_data->dsi_color_lens_table[(color * MDNIE_SCR_CMD_SIZE * COLOR_LENS_LEVEL_MAX) + (MDNIE_SCR_CMD_SIZE * level)];
 			if (!IS_ERR_OR_NULL(mdnie_data->DSI_COLOR_LENS_MDNIE_SCR)) {
-				memcpy(&mdnie_data->DSI_COLOR_LENS_MDNIE_SCR[mdnie_data->mdnie_color_blinde_cmd_offset],
+				memcpy(&mdnie_data->DSI_COLOR_LENS_MDNIE_SCR[mdnie_data->mdnie_scr_cmd_offset],
 					buffer, MDNIE_SCR_CMD_SIZE);
 				tune->color_lens_color = color;
 				tune->color_lens_level = level;

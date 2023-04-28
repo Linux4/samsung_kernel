@@ -941,6 +941,13 @@ static int pca9481_set_input_current(struct pca9481_charger *pca9481, unsigned i
 	/* Add offset for input current regulation */
 	/* Check TA type */
 	if (pca9481->ta_type == TA_TYPE_USBPD_20) {
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+		if (iin < pca9481->pdata->fpdo_dc_iin_lowest_limit) {
+			pr_info("%s: IIN LOWEST LIMIT! IIN %d -> %d\n", __func__,
+					iin, pca9481->pdata->fpdo_dc_iin_lowest_limit);
+			iin = pca9481->pdata->fpdo_dc_iin_lowest_limit;
+		}
+#endif
 		/* Apply FPDO offset */
 		iin = iin + PCA9481_IIN_REG_OFFSET_FPDO;
 	} else {
@@ -1431,8 +1438,8 @@ static int pca9481_check_error(struct pca9481_charger *pca9481)
 			if (pca9481->pdata->ntc_en == 0) {
 				/* NTC protection function is disabled */
 				/* ignore it */
-				pr_err("%s: NTC_THRESHOLD - ignore\n", __func__);	/* NTC_THRESHOLD */
-				ret = 0;
+				pr_err("%s: NTC_THRESHOLD - retry\n", __func__);	/* NTC_THRESHOLD */
+				ret = -EAGAIN;
 			} else {
 				pr_err("%s: NTC_THRESHOLD\n", __func__);	/* NTC_THRESHOLD */
 				ret = -EINVAL;
@@ -2702,7 +2709,7 @@ static int pca9481_adjust_ta_current(struct pca9481_charger *pca9481)
 #endif
 						mutex_lock(&pca9481->lock);
 						pca9481->timer_id = TIMER_PDMSG_SEND;
-						pca9481->timer_period = 0;
+						pca9481->timer_period = IIN_CFG_WAIT_T;
 						mutex_unlock(&pca9481->lock);
 					} else {
 						/* Need switching frequency change */
@@ -2818,7 +2825,7 @@ static int pca9481_adjust_ta_current(struct pca9481_charger *pca9481)
 #endif
 					mutex_lock(&pca9481->lock);
 					pca9481->timer_id = TIMER_PDMSG_SEND;
-					pca9481->timer_period = 0;
+					pca9481->timer_period = IIN_CFG_WAIT_T;
 					mutex_unlock(&pca9481->lock);
 				}
 			} else {
@@ -6662,6 +6669,11 @@ static int pca9481_chg_set_property(struct power_supply *psy,
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 		pca9481->input_current = val->intval;
 		temp = pca9481->input_current * PCA9481_SEC_DENOM_U_M;
+		if (pca9481->ta_type == TA_TYPE_USBPD_20 && temp < pca9481->pdata->fpdo_dc_iin_lowest_limit) {
+			pr_info("%s: PSP_ICL, IIN LOWEST LIMIT! IIN %d -> %d\n", __func__,
+					temp, pca9481->pdata->fpdo_dc_iin_lowest_limit);
+			temp = pca9481->pdata->fpdo_dc_iin_lowest_limit;
+		}
 		if (temp != pca9481->new_iin) {
 			/* Compare with topoff current */
 			if (temp < pca9481->iin_topoff) {
@@ -6669,7 +6681,7 @@ static int pca9481_chg_set_property(struct power_supply *psy,
 				pr_err("%s: This new iin(%duA) is abnormal value\n", __func__, val->intval);
 				ret = -EINVAL;
 				break;
-			} 
+			}
 			/* request new input current */
 			pca9481->new_iin = temp;
 			/* Check the charging state */
@@ -6715,6 +6727,24 @@ static int pca9481_chg_set_property(struct power_supply *psy,
 									__func__, pca9481->charging_state);
 						}
 					}
+				}
+			}
+		} else {
+			/* Compare with topoff current */
+			if (temp < pca9481->iin_topoff) {
+				/* This new iin is abnormal input current */
+				pr_err("%s: This new iin(%duA) is abnormal value\n", __func__, val->intval);
+				ret = -EINVAL;
+			} else {
+				/* new iin is same as previous new_iin, but iin_cfg is different from it */
+				/* Check the charging state */
+				if ((pca9481->charging_state == DC_STATE_NO_CHARGING) ||
+						(pca9481->charging_state == DC_STATE_CHECK_VBAT)) {
+					/* Apply new iin when the direct charging is started */
+					pca9481->iin_cfg = pca9481->new_iin;
+					pr_info("%s: charging state=%d, new iin(%uA) and iin_cfg(%uA)\n",
+							__func__, pca9481->charging_state,
+							pca9481->new_iin, pca9481->iin_cfg);
 				}
 			}
 		}
@@ -6768,6 +6798,24 @@ static int pca9481_chg_set_property(struct power_supply *psy,
 					}
 				}
 			}
+		} else {
+			/* Compare with topoff current */
+			if (val->intval < pca9481->iin_topoff) {
+				/* This new iin is abnormal input current */
+				pr_err("%s: This new iin(%duA) is abnormal value\n", __func__, val->intval);
+				ret = -EINVAL;
+			} else {
+				/* new iin is same as previous new_iin, but iin_cfg is different from it */
+				/* Check the charging state */
+				if ((pca9481->charging_state == DC_STATE_NO_CHARGING) ||
+						(pca9481->charging_state == DC_STATE_CHECK_VBAT)) {
+					/* Apply new iin when the direct charging is started */
+					pca9481->iin_cfg = pca9481->new_iin;
+					pr_info("%s: charging state=%d, new iin(%uA) and iin_cfg(%uA)\n",
+							__func__, pca9481->charging_state,
+							pca9481->new_iin, pca9481->iin_cfg);
+				}
+			}
 		}
 #endif
 		break;
@@ -6798,6 +6846,11 @@ static int pca9481_chg_set_property(struct power_supply *psy,
 		case POWER_SUPPLY_EXT_PROP_DIRECT_CURRENT_MAX:
 			pca9481->input_current = val->intval;
 			temp = pca9481->input_current * PCA9481_SEC_DENOM_U_M;
+			if (pca9481->ta_type == TA_TYPE_USBPD_20 && temp < pca9481->pdata->fpdo_dc_iin_lowest_limit) {
+				pr_info("%s: PSP_DCM, IIN LOWEST LIMIT! IIN %d -> %d\n", __func__,
+						temp, pca9481->pdata->fpdo_dc_iin_lowest_limit);
+				temp = pca9481->pdata->fpdo_dc_iin_lowest_limit;
+			}
 			if (temp != pca9481->new_iin) {
 				/* request new input current */
 				pca9481->new_iin = temp;
@@ -7433,6 +7486,17 @@ static int pca9481_charger_parse_dt(struct device *dev,
 			pdata->vfloat = PCA9481_VBAT_REG_DFT;
 		}
 		pr_info("%s: battery,v_float is %d\n", __func__, pdata->vfloat);
+
+		/* the lowest limit to FPDO DC IIN */
+		ret = of_property_read_u32(np, "battery,fpdo_dc_charge_power",
+								   &pdata->fpdo_dc_iin_lowest_limit);
+		pdata->fpdo_dc_iin_lowest_limit *= PCA9481_SEC_DENOM_U_M;
+		pdata->fpdo_dc_iin_lowest_limit /= PCA9481_SEC_FPDO_DC_IV;
+		if (ret) {
+			pr_info("%s: battery,fpdo_dc_charge_power is Empty\n", __func__);
+			pdata->fpdo_dc_iin_lowest_limit = 10000000; /* 10A */
+		}
+		pr_info("%s: fpdo_dc_iin_lowest_limit is %d\n", __func__, pdata->fpdo_dc_iin_lowest_limit);
 	}
 #endif
 
@@ -7818,4 +7882,4 @@ module_i2c_driver(pca9481_driver);
 
 MODULE_DESCRIPTION("PCA9481 charger driver");
 MODULE_LICENSE("GPL");
-MODULE_VERSION("1.0.19S");
+MODULE_VERSION("1.0.20S");

@@ -96,7 +96,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/dm/wireless/cps4038/cps4038_charger.dm3q.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/dm/wireless/cps4038/cps4038_charger.dm3q.dtsi */
 #include <dt-bindings/battery/sec-battery.h>
 
 &cps_pdrc_default {
