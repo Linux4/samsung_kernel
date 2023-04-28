@@ -254,7 +254,7 @@
 		default-capid = <0x00>;
 	};
 
-	ldo_regulators {
+	mt6357regulator: mt6357regulator {
 		mt_pmic_vfe28_ldo_reg: ldo_vfe28 {
 			compatible = "regulator-fixed";
 			regulator-name = "vfe28";
@@ -429,7 +429,7 @@
 			regulator-max-microvolt = <3100000>;
 			regulator-enable-ramp-delay = <264>;
 		};
-	};	/* End of ldo_regulators */
+	};	/* End of mt6357regulator */
 	mt6357_misc: mt6357_misc {
 		compatible = "mediatek,mt6357-misc";
 		base = <0x580>;

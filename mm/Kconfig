@@ -896,4 +896,12 @@ config MAX_DIRTY_THRESH_PAGES
 	  It is only effective when dirty_ratio is used.
 	  (Setting dirty_bytes disables this option.)
 
+config HIGHATOMIC_PAGEBLOCKS
+	int "limit max number of highatomic pageblocks"
+	default 0
+	help
+	  By default, "1 percent of managed pages + 1 pageblock" is reserved as
+	  highatomic pageblocks.
+	  This value limits max number of highatomic pageblocks.
+
 source "mm/sec_mm/Kconfig"

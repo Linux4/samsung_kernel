@@ -134,7 +134,7 @@ static unsigned char SEQ_NT36525C_SHARP_015[] = {
 
 static unsigned char SEQ_NT36525C_SHARP_016[] = {
 	0xFF,
-	0x24,
+	0x23,
 };
 
 static unsigned char SEQ_NT36525C_SHARP_017[] = {
@@ -144,587 +144,812 @@ static unsigned char SEQ_NT36525C_SHARP_017[] = {
 
 static unsigned char SEQ_NT36525C_SHARP_018[] = {
 	0x00,
-	0x1E,
+	0x00,
 };
 
 static unsigned char SEQ_NT36525C_SHARP_019[] = {
-	0x02,
-	0x1E,
+	0x04,
+	0x00,
 };
 
 static unsigned char SEQ_NT36525C_SHARP_020[] = {
-	0x06,
-	0x08,
+	0x07,
+	0x60,
 };
 
 static unsigned char SEQ_NT36525C_SHARP_021[] = {
-	0x07,
+	0x08,
 	0x04,
 };
 
 static unsigned char SEQ_NT36525C_SHARP_022[] = {
-	0x08,
-	0x20,
+	0x09,
+	0x2F,
 };
 
 static unsigned char SEQ_NT36525C_SHARP_023[] = {
-	0x0A,
-	0x0F,
+	0x12,
+	0xB4,
 };
 
 static unsigned char SEQ_NT36525C_SHARP_024[] = {
-	0x0B,
-	0x0E,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_025[] = {
-	0x0C,
-	0x0D,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_026[] = {
-	0x0D,
-	0x0C,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_027[] = {
-	0x12,
-	0x1E,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_028[] = {
-	0x13,
-	0x1E,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_029[] = {
-	0x14,
-	0x1E,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_030[] = {
-	0x16,
-	0x1E,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_031[] = {
-	0x18,
-	0x1E,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_032[] = {
-	0x1C,
-	0x08,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_033[] = {
-	0x1D,
-	0x04,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_034[] = {
-	0x1E,
-	0x20,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_035[] = {
-	0x20,
-	0x0F,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_036[] = {
-	0x21,
-	0x0E,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_037[] = {
-	0x22,
-	0x0D,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_038[] = {
-	0x23,
-	0x0C,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_039[] = {
-	0x28,
-	0x1E,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_040[] = {
-	0x29,
-	0x1E,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_041[] = {
-	0x2A,
-	0x1E,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_042[] = {
-	0x2F,
-	0x06,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_043[] = {
-	0x37,
-	0x66,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_044[] = {
-	0x39,
-	0x00,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_045[] = {
-	0x3A,
-	0x82,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_046[] = {
-	0x3B,
-	0x90,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_047[] = {
-	0x3D,
-	0x91,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_048[] = {
-	0x3F,
-	0x47,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_049[] = {
-	0x47,
-	0x44,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_050[] = {
-	0x49,
-	0x00,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_051[] = {
-	0x4A,
-	0x82,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_052[] = {
-	0x4B,
-	0x90,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_053[] = {
-	0x4C,
-	0x91,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_054[] = {
-	0x4D,
-	0x12,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_055[] = {
-	0x4E,
-	0x34,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_056[] = {
-	0x55,
-	0x83,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_057[] = {
-	0x56,
-	0x44,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_058[] = {
-	0x5A,
-	0x82,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_059[] = {
-	0x5B,
-	0x90,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_060[] = {
-	0x5C,
-	0x00,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_061[] = {
-	0x5D,
-	0x00,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_062[] = {
-	0x5E,
-	0x06,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_063[] = {
-	0x5F,
-	0x00,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_064[] = {
-	0x60,
-	0x80,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_065[] = {
-	0x61,
-	0x90,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_066[] = {
-	0x64,
-	0x11,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_067[] = {
-	0x85,
-	0x00,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_068[] = {
-	0x86,
-	0x51,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_069[] = {
-	0x92,
-	0x91,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_070[] = {
-	0x93,
-	0x0D,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_071[] = {
-	0x94,
-	0x08,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_072[] = {
-	0xAB,
-	0x00,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_073[] = {
-	0xAC,
-	0x00,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_074[] = {
-	0xAD,
-	0x00,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_075[] = {
-	0xAF,
-	0x04,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_076[] = {
-	0xB0,
-	0x05,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_077[] = {
-	0xB1,
-	0x8C,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_078[] = {
-	0xC2,
-	0x86,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_079[] = {
-	0xFF,
-	0x25,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_080[] = {
-	0xFB,
-	0x01,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_081[] = {
-	0x02,
-	0x10,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_082[] = {
-	0x0A,
-	0x81,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_083[] = {
-	0x0B,
-	0xBD,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_084[] = {
-	0x0C,
-	0x01,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_085[] = {
-	0x17,
-	0x82,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_086[] = {
-	0x18,
-	0x06,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_087[] = {
-	0x19,
-	0x0F,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_088[] = {
-	0x58,
-	0x00,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_089[] = {
-	0x59,
-	0x00,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_090[] = {
-	0x5A,
-	0x40,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_091[] = {
-	0x5B,
-	0x80,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_092[] = {
-	0x5C,
-	0x00,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_093[] = {
-	0x5D,
-	0x82,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_094[] = {
-	0x5E,
-	0x90,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_095[] = {
-	0x5F,
-	0x82,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_096[] = {
-	0x60,
-	0x90,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_097[] = {
-	0x61,
-	0x82,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_098[] = {
-	0x62,
-	0x90,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_099[] = {
-	0x65,
-	0x05,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_100[] = {
-	0x66,
-	0x8C,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_101[] = {
-	0xC0,
-	0x03,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_102[] = {
-	0xCA,
-	0x1C,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_103[] = {
-	0xCB,
-	0x18,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_104[] = {
-	0xCC,
-	0x1C,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_105[] = {
-	0xD4,
-	0xCC,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_106[] = {
-	0xD5,
-	0x11,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_107[] = {
-	0xD6,
-	0x18,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_108[] = {
-	0xFF,
-	0x26,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_109[] = {
-	0xFB,
-	0x01,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_110[] = {
-	0x00,
-	0xA0,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_111[] = {
-	0xFF,
-	0x27,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_112[] = {
-	0xFB,
-	0x01,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_113[] = {
-	0x13,
-	0x00,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_114[] = {
-	0x15,
-	0xB4,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_115[] = {
-	0x1F,
-	0x55,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_116[] = {
-	0x26,
-	0x0F,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_117[] = {
-	0xC0,
-	0x19,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_118[] = {
-	0xC1,
-	0x3A,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_119[] = {
-	0xC2,
-	0x10,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_120[] = {
-	0xC3,
-	0x00,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_121[] = {
-	0xC4,
-	0x3A,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_122[] = {
-	0xC5,
-	0x00,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_123[] = {
-	0xC6,
-	0x00,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_124[] = {
-	0xC7,
-	0x03,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_125[] = {
-	0xFF,
-	0x23,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_126[] = {
-	0xFB,
-	0x01,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_127[] = {
-	0x12,
-	0xB4,
-};
-
-static unsigned char SEQ_NT36525C_SHARP_128[] = {
 	0x15,
 	0xE9,
 };
 
-static unsigned char SEQ_NT36525C_SHARP_129[] = {
+static unsigned char SEQ_NT36525C_SHARP_025[] = {
 	0x16,
 	0x0B,
 };
 
-static unsigned char SEQ_NT36525C_SHARP_130[] = {
-	0xFF,
+static unsigned char SEQ_NT36525C_SHARP_026[] = {
+	0x19,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_027[] = {
+	0x1A,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_028[] = {
+	0x1B,
+	0x08,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_029[] = {
+	0x1C,
+	0x0A,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_030[] = {
+	0x1D,
+	0x0C,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_031[] = {
+	0x1E,
+	0x12,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_032[] = {
+	0x1F,
+	0x16,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_033[] = {
+	0x20,
+	0x1A,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_034[] = {
+	0x21,
+	0x1C,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_035[] = {
+	0x22,
+	0x20,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_036[] = {
+	0x23,
+	0x24,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_037[] = {
+	0x24,
+	0x28,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_038[] = {
+	0x25,
+	0x2C,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_039[] = {
+	0x26,
+	0x30,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_040[] = {
+	0x27,
+	0x38,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_041[] = {
+	0x28,
+	0x3C,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_042[] = {
+	0x29,
 	0x10,
 };
 
-static unsigned char SEQ_NT36525C_SHARP_131[] = {
+static unsigned char SEQ_NT36525C_SHARP_043[] = {
+	0x30,
+	0xFF,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_044[] = {
+	0x31,
+	0xFF,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_045[] = {
+	0x32,
+	0xFE,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_046[] = {
+	0x33,
+	0xFD,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_047[] = {
+	0x34,
+	0xFD,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_048[] = {
+	0x35,
+	0xFC,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_049[] = {
+	0x36,
+	0xFB,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_050[] = {
+	0x37,
+	0xF9,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_051[] = {
+	0x38,
+	0xF7,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_052[] = {
+	0x39,
+	0xF3,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_053[] = {
+	0x3A,
+	0xEA,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_054[] = {
+	0x3B,
+	0xE6,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_055[] = {
+	0x3D,
+	0xE0,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_056[] = {
+	0x3F,
+	0xDD,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_057[] = {
+	0x40,
+	0xDB,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_058[] = {
+	0x41,
+	0xD9,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_059[] = {
+	0xFF,
+	0x24,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_060[] = {
 	0xFB,
 	0x01,
 };
 
+static unsigned char SEQ_NT36525C_SHARP_061[] = {
+	0x00,
+	0x1E,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_062[] = {
+	0x02,
+	0x1E,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_063[] = {
+	0x06,
+	0x08,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_064[] = {
+	0x07,
+	0x04,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_065[] = {
+	0x08,
+	0x20,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_066[] = {
+	0x0A,
+	0x0F,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_067[] = {
+	0x0B,
+	0x0E,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_068[] = {
+	0x0C,
+	0x0D,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_069[] = {
+	0x0D,
+	0x0C,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_070[] = {
+	0x12,
+	0x1E,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_071[] = {
+	0x13,
+	0x1E,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_072[] = {
+	0x14,
+	0x1E,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_073[] = {
+	0x16,
+	0x1E,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_074[] = {
+	0x18,
+	0x1E,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_075[] = {
+	0x1C,
+	0x08,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_076[] = {
+	0x1D,
+	0x04,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_077[] = {
+	0x1E,
+	0x20,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_078[] = {
+	0x20,
+	0x0F,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_079[] = {
+	0x21,
+	0x0E,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_080[] = {
+	0x22,
+	0x0D,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_081[] = {
+	0x23,
+	0x0C,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_082[] = {
+	0x28,
+	0x1E,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_083[] = {
+	0x29,
+	0x1E,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_084[] = {
+	0x2A,
+	0x1E,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_085[] = {
+	0x2F,
+	0x06,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_086[] = {
+	0x37,
+	0x66,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_087[] = {
+	0x39,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_088[] = {
+	0x3A,
+	0x82,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_089[] = {
+	0x3B,
+	0x90,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_090[] = {
+	0x3D,
+	0x91,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_091[] = {
+	0x3F,
+	0x47,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_092[] = {
+	0x47,
+	0x44,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_093[] = {
+	0x49,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_094[] = {
+	0x4A,
+	0x82,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_095[] = {
+	0x4B,
+	0x90,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_096[] = {
+	0x4C,
+	0x91,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_097[] = {
+	0x4D,
+	0x12,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_098[] = {
+	0x4E,
+	0x34,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_099[] = {
+	0x55,
+	0x83,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_100[] = {
+	0x56,
+	0x44,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_101[] = {
+	0x5A,
+	0x82,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_102[] = {
+	0x5B,
+	0x90,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_103[] = {
+	0x5C,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_104[] = {
+	0x5D,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_105[] = {
+	0x5E,
+	0x06,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_106[] = {
+	0x5F,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_107[] = {
+	0x60,
+	0x80,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_108[] = {
+	0x61,
+	0x90,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_109[] = {
+	0x64,
+	0x11,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_110[] = {
+	0x85,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_111[] = {
+	0x86,
+	0x51,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_112[] = {
+	0x92,
+	0x91,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_113[] = {
+	0x93,
+	0x0D,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_114[] = {
+	0x94,
+	0x08,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_115[] = {
+	0xAB,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_116[] = {
+	0xAC,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_117[] = {
+	0xAD,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_118[] = {
+	0xAF,
+	0x04,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_119[] = {
+	0xB0,
+	0x05,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_120[] = {
+	0xB1,
+	0x8C,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_121[] = {
+	0xC2,
+	0x86,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_122[] = {
+	0xFF,
+	0x25,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_123[] = {
+	0xFB,
+	0x01,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_124[] = {
+	0x02,
+	0x10,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_125[] = {
+	0x0A,
+	0x81,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_126[] = {
+	0x0B,
+	0xBD,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_127[] = {
+	0x0C,
+	0x01,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_128[] = {
+	0x17,
+	0x82,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_129[] = {
+	0x18,
+	0x06,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_130[] = {
+	0x19,
+	0x0F,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_131[] = {
+	0x58,
+	0x00,
+};
+
 static unsigned char SEQ_NT36525C_SHARP_132[] = {
+	0x59,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_133[] = {
+	0x5A,
+	0x40,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_134[] = {
+	0x5B,
+	0x80,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_135[] = {
+	0x5C,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_136[] = {
+	0x5D,
+	0x82,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_137[] = {
+	0x5E,
+	0x90,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_138[] = {
+	0x5F,
+	0x82,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_139[] = {
+	0x60,
+	0x90,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_140[] = {
+	0x61,
+	0x82,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_141[] = {
+	0x62,
+	0x90,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_142[] = {
+	0x65,
+	0x05,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_143[] = {
+	0x66,
+	0x8C,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_144[] = {
+	0xC0,
+	0x03,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_145[] = {
+	0xCA,
+	0x1C,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_146[] = {
+	0xCB,
+	0x18,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_147[] = {
+	0xCC,
+	0x1C,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_148[] = {
+	0xD4,
+	0xCC,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_149[] = {
+	0xD5,
+	0x11,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_150[] = {
+	0xD6,
+	0x18,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_151[] = {
+	0xFF,
+	0x26,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_152[] = {
+	0xFB,
+	0x01,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_153[] = {
+	0x00,
+	0xA0,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_154[] = {
+	0xFF,
+	0x27,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_155[] = {
+	0xFB,
+	0x01,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_156[] = {
+	0x13,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_157[] = {
+	0x15,
+	0xB4,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_158[] = {
+	0x1F,
+	0x55,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_159[] = {
+	0x26,
+	0x0F,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_160[] = {
+	0xC0,
+	0x19,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_161[] = {
+	0xC1,
+	0x3A,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_162[] = {
+	0xC2,
+	0x10,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_163[] = {
+	0xC3,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_164[] = {
+	0xC4,
+	0x3A,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_165[] = {
+	0xC5,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_166[] = {
+	0xC6,
+	0x00,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_167[] = {
+	0xC7,
+	0x03,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_168[] = {
+	0xFF,
+	0x23,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_169[] = {
+	0xFB,
+	0x01,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_170[] = {
+	0x12,
+	0xB4,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_171[] = {
+	0x15,
+	0xE9,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_172[] = {
+	0x16,
+	0x0B,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_173[] = {
+	0xFF,
+	0x10,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_174[] = {
+	0xFB,
+	0x01,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_175[] = {
 	0xBA,
 	0x02,
 };
 
-static unsigned char SEQ_NT36525C_SHARP_133[] = {
+static unsigned char SEQ_NT36525C_SHARP_176[] = {
 	0xBB,
 	0x13,
 };
 
-static unsigned char SEQ_NT36525C_SHARP_134[] = {
+static unsigned char SEQ_NT36525C_SHARP_177[] = {
 	0x53,
 	0x2C,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_178[] = {
+	0x55,
+	0x01,
+};
+
+static unsigned char SEQ_NT36525C_SHARP_179[] = {
+	0x68,
+	0x00, 0x01,
 };
 
 static struct lcd_seq_info LCD_SEQ_INIT_1[] = {
@@ -786,7 +1011,7 @@ static struct lcd_seq_info LCD_SEQ_INIT_1[] = {
 	{SEQ_NT36525C_SHARP_056, ARRAY_SIZE(SEQ_NT36525C_SHARP_056), 0, },
 	{SEQ_NT36525C_SHARP_057, ARRAY_SIZE(SEQ_NT36525C_SHARP_057), 0, },
 	{SEQ_NT36525C_SHARP_058, ARRAY_SIZE(SEQ_NT36525C_SHARP_058), 0, },
-	{SEQ_NT36525C_SHARP_059, ARRAY_SIZE(SEQ_NT36525C_SHARP_059), 0, },
+	{SEQ_NT36525C_SHARP_059, ARRAY_SIZE(SEQ_NT36525C_SHARP_059), 1000, },
 	{SEQ_NT36525C_SHARP_060, ARRAY_SIZE(SEQ_NT36525C_SHARP_060), 0, },
 	{SEQ_NT36525C_SHARP_061, ARRAY_SIZE(SEQ_NT36525C_SHARP_061), 0, },
 	{SEQ_NT36525C_SHARP_062, ARRAY_SIZE(SEQ_NT36525C_SHARP_062), 0, },
@@ -806,7 +1031,7 @@ static struct lcd_seq_info LCD_SEQ_INIT_1[] = {
 	{SEQ_NT36525C_SHARP_076, ARRAY_SIZE(SEQ_NT36525C_SHARP_076), 0, },
 	{SEQ_NT36525C_SHARP_077, ARRAY_SIZE(SEQ_NT36525C_SHARP_077), 0, },
 	{SEQ_NT36525C_SHARP_078, ARRAY_SIZE(SEQ_NT36525C_SHARP_078), 0, },
-	{SEQ_NT36525C_SHARP_079, ARRAY_SIZE(SEQ_NT36525C_SHARP_079), 1000, },
+	{SEQ_NT36525C_SHARP_079, ARRAY_SIZE(SEQ_NT36525C_SHARP_079), 0, },
 	{SEQ_NT36525C_SHARP_080, ARRAY_SIZE(SEQ_NT36525C_SHARP_080), 0, },
 	{SEQ_NT36525C_SHARP_081, ARRAY_SIZE(SEQ_NT36525C_SHARP_081), 0, },
 	{SEQ_NT36525C_SHARP_082, ARRAY_SIZE(SEQ_NT36525C_SHARP_082), 0, },
@@ -835,10 +1060,10 @@ static struct lcd_seq_info LCD_SEQ_INIT_1[] = {
 	{SEQ_NT36525C_SHARP_105, ARRAY_SIZE(SEQ_NT36525C_SHARP_105), 0, },
 	{SEQ_NT36525C_SHARP_106, ARRAY_SIZE(SEQ_NT36525C_SHARP_106), 0, },
 	{SEQ_NT36525C_SHARP_107, ARRAY_SIZE(SEQ_NT36525C_SHARP_107), 0, },
-	{SEQ_NT36525C_SHARP_108, ARRAY_SIZE(SEQ_NT36525C_SHARP_108), 1000, },
+	{SEQ_NT36525C_SHARP_108, ARRAY_SIZE(SEQ_NT36525C_SHARP_108), 0, },
 	{SEQ_NT36525C_SHARP_109, ARRAY_SIZE(SEQ_NT36525C_SHARP_109), 0, },
 	{SEQ_NT36525C_SHARP_110, ARRAY_SIZE(SEQ_NT36525C_SHARP_110), 0, },
-	{SEQ_NT36525C_SHARP_111, ARRAY_SIZE(SEQ_NT36525C_SHARP_111), 1000, },
+	{SEQ_NT36525C_SHARP_111, ARRAY_SIZE(SEQ_NT36525C_SHARP_111), 0, },
 	{SEQ_NT36525C_SHARP_112, ARRAY_SIZE(SEQ_NT36525C_SHARP_112), 0, },
 	{SEQ_NT36525C_SHARP_113, ARRAY_SIZE(SEQ_NT36525C_SHARP_113), 0, },
 	{SEQ_NT36525C_SHARP_114, ARRAY_SIZE(SEQ_NT36525C_SHARP_114), 0, },
@@ -849,19 +1074,64 @@ static struct lcd_seq_info LCD_SEQ_INIT_1[] = {
 	{SEQ_NT36525C_SHARP_119, ARRAY_SIZE(SEQ_NT36525C_SHARP_119), 0, },
 	{SEQ_NT36525C_SHARP_120, ARRAY_SIZE(SEQ_NT36525C_SHARP_120), 0, },
 	{SEQ_NT36525C_SHARP_121, ARRAY_SIZE(SEQ_NT36525C_SHARP_121), 0, },
-	{SEQ_NT36525C_SHARP_122, ARRAY_SIZE(SEQ_NT36525C_SHARP_122), 0, },
+	{SEQ_NT36525C_SHARP_122, ARRAY_SIZE(SEQ_NT36525C_SHARP_122), 1000, },
 	{SEQ_NT36525C_SHARP_123, ARRAY_SIZE(SEQ_NT36525C_SHARP_123), 0, },
 	{SEQ_NT36525C_SHARP_124, ARRAY_SIZE(SEQ_NT36525C_SHARP_124), 0, },
-	{SEQ_NT36525C_SHARP_125, ARRAY_SIZE(SEQ_NT36525C_SHARP_125), 1000, },
+	{SEQ_NT36525C_SHARP_125, ARRAY_SIZE(SEQ_NT36525C_SHARP_125), 0, },
 	{SEQ_NT36525C_SHARP_126, ARRAY_SIZE(SEQ_NT36525C_SHARP_126), 0, },
 	{SEQ_NT36525C_SHARP_127, ARRAY_SIZE(SEQ_NT36525C_SHARP_127), 0, },
 	{SEQ_NT36525C_SHARP_128, ARRAY_SIZE(SEQ_NT36525C_SHARP_128), 0, },
 	{SEQ_NT36525C_SHARP_129, ARRAY_SIZE(SEQ_NT36525C_SHARP_129), 0, },
-	{SEQ_NT36525C_SHARP_130, ARRAY_SIZE(SEQ_NT36525C_SHARP_130), 1000, },
+	{SEQ_NT36525C_SHARP_130, ARRAY_SIZE(SEQ_NT36525C_SHARP_130), 0, },
 	{SEQ_NT36525C_SHARP_131, ARRAY_SIZE(SEQ_NT36525C_SHARP_131), 0, },
 	{SEQ_NT36525C_SHARP_132, ARRAY_SIZE(SEQ_NT36525C_SHARP_132), 0, },
 	{SEQ_NT36525C_SHARP_133, ARRAY_SIZE(SEQ_NT36525C_SHARP_133), 0, },
 	{SEQ_NT36525C_SHARP_134, ARRAY_SIZE(SEQ_NT36525C_SHARP_134), 0, },
+	{SEQ_NT36525C_SHARP_135, ARRAY_SIZE(SEQ_NT36525C_SHARP_135), 0, },
+	{SEQ_NT36525C_SHARP_136, ARRAY_SIZE(SEQ_NT36525C_SHARP_136), 0, },
+	{SEQ_NT36525C_SHARP_137, ARRAY_SIZE(SEQ_NT36525C_SHARP_137), 0, },
+	{SEQ_NT36525C_SHARP_138, ARRAY_SIZE(SEQ_NT36525C_SHARP_138), 0, },
+	{SEQ_NT36525C_SHARP_139, ARRAY_SIZE(SEQ_NT36525C_SHARP_139), 0, },
+	{SEQ_NT36525C_SHARP_140, ARRAY_SIZE(SEQ_NT36525C_SHARP_140), 0, },
+	{SEQ_NT36525C_SHARP_141, ARRAY_SIZE(SEQ_NT36525C_SHARP_141), 0, },
+	{SEQ_NT36525C_SHARP_142, ARRAY_SIZE(SEQ_NT36525C_SHARP_142), 0, },
+	{SEQ_NT36525C_SHARP_143, ARRAY_SIZE(SEQ_NT36525C_SHARP_143), 0, },
+	{SEQ_NT36525C_SHARP_144, ARRAY_SIZE(SEQ_NT36525C_SHARP_144), 0, },
+	{SEQ_NT36525C_SHARP_145, ARRAY_SIZE(SEQ_NT36525C_SHARP_145), 0, },
+	{SEQ_NT36525C_SHARP_146, ARRAY_SIZE(SEQ_NT36525C_SHARP_146), 0, },
+	{SEQ_NT36525C_SHARP_147, ARRAY_SIZE(SEQ_NT36525C_SHARP_147), 0, },
+	{SEQ_NT36525C_SHARP_148, ARRAY_SIZE(SEQ_NT36525C_SHARP_148), 0, },
+	{SEQ_NT36525C_SHARP_149, ARRAY_SIZE(SEQ_NT36525C_SHARP_149), 0, },
+	{SEQ_NT36525C_SHARP_150, ARRAY_SIZE(SEQ_NT36525C_SHARP_150), 0, },
+	{SEQ_NT36525C_SHARP_151, ARRAY_SIZE(SEQ_NT36525C_SHARP_151), 1000, },
+	{SEQ_NT36525C_SHARP_152, ARRAY_SIZE(SEQ_NT36525C_SHARP_152), 0, },
+	{SEQ_NT36525C_SHARP_153, ARRAY_SIZE(SEQ_NT36525C_SHARP_153), 0, },
+	{SEQ_NT36525C_SHARP_154, ARRAY_SIZE(SEQ_NT36525C_SHARP_154), 1000, },
+	{SEQ_NT36525C_SHARP_155, ARRAY_SIZE(SEQ_NT36525C_SHARP_155), 0, },
+	{SEQ_NT36525C_SHARP_156, ARRAY_SIZE(SEQ_NT36525C_SHARP_156), 0, },
+	{SEQ_NT36525C_SHARP_157, ARRAY_SIZE(SEQ_NT36525C_SHARP_157), 0, },
+	{SEQ_NT36525C_SHARP_158, ARRAY_SIZE(SEQ_NT36525C_SHARP_158), 0, },
+	{SEQ_NT36525C_SHARP_159, ARRAY_SIZE(SEQ_NT36525C_SHARP_159), 0, },
+	{SEQ_NT36525C_SHARP_160, ARRAY_SIZE(SEQ_NT36525C_SHARP_160), 0, },
+	{SEQ_NT36525C_SHARP_161, ARRAY_SIZE(SEQ_NT36525C_SHARP_161), 0, },
+	{SEQ_NT36525C_SHARP_162, ARRAY_SIZE(SEQ_NT36525C_SHARP_162), 0, },
+	{SEQ_NT36525C_SHARP_163, ARRAY_SIZE(SEQ_NT36525C_SHARP_163), 0, },
+	{SEQ_NT36525C_SHARP_164, ARRAY_SIZE(SEQ_NT36525C_SHARP_164), 0, },
+	{SEQ_NT36525C_SHARP_165, ARRAY_SIZE(SEQ_NT36525C_SHARP_165), 0, },
+	{SEQ_NT36525C_SHARP_166, ARRAY_SIZE(SEQ_NT36525C_SHARP_166), 0, },
+	{SEQ_NT36525C_SHARP_167, ARRAY_SIZE(SEQ_NT36525C_SHARP_167), 0, },
+	{SEQ_NT36525C_SHARP_168, ARRAY_SIZE(SEQ_NT36525C_SHARP_168), 1000, },
+	{SEQ_NT36525C_SHARP_169, ARRAY_SIZE(SEQ_NT36525C_SHARP_169), 0, },
+	{SEQ_NT36525C_SHARP_170, ARRAY_SIZE(SEQ_NT36525C_SHARP_170), 0, },
+	{SEQ_NT36525C_SHARP_171, ARRAY_SIZE(SEQ_NT36525C_SHARP_171), 0, },
+	{SEQ_NT36525C_SHARP_172, ARRAY_SIZE(SEQ_NT36525C_SHARP_172), 0, },
+	{SEQ_NT36525C_SHARP_173, ARRAY_SIZE(SEQ_NT36525C_SHARP_173), 1000, },
+	{SEQ_NT36525C_SHARP_174, ARRAY_SIZE(SEQ_NT36525C_SHARP_174), 0, },
+	{SEQ_NT36525C_SHARP_175, ARRAY_SIZE(SEQ_NT36525C_SHARP_175), 0, },
+	{SEQ_NT36525C_SHARP_176, ARRAY_SIZE(SEQ_NT36525C_SHARP_176), 0, },
+	{SEQ_NT36525C_SHARP_177, ARRAY_SIZE(SEQ_NT36525C_SHARP_177), 0, },
+	{SEQ_NT36525C_SHARP_178, ARRAY_SIZE(SEQ_NT36525C_SHARP_178), 0, },
+	{SEQ_NT36525C_SHARP_179, ARRAY_SIZE(SEQ_NT36525C_SHARP_179), 0, },
 };
 
 /* DO NOT REMOVE: back to page 1 for setting DCS commands */

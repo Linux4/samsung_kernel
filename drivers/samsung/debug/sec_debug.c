@@ -344,6 +344,7 @@ void sec_debug_check_crash_key(unsigned int code, int value)
 	static bool volup_p;
 	static bool voldown_p;
 	static int loopcount;
+
 	if (!SEC_DEBUG_LEVEL(kernel))
 		return;
 
@@ -368,7 +369,6 @@ void sec_debug_check_crash_key(unsigned int code, int value)
 					panic("Crash Key");
 			}
 		}
-
 	} else {
 		if (code == KEY_VOLUMEUP) {
 			volup_p = false;
@@ -543,10 +543,14 @@ static void sec_dump_irq_info(void)
 	pr_info("------------------------------------------------------------------\n");
 }
 
+extern void smp_send_stop(void);
+extern void hard_reset_delay(void);
 void sec_debug_dump_info(void)
 {
+	smp_send_stop();
 	sec_dump_task_info();
 	sec_dump_irq_info();
+	hard_reset_delay();
 }
 #endif
 

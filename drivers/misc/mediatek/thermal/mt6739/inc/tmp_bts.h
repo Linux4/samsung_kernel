@@ -14,7 +14,7 @@
 #define __TMP_BTS_H__
 
 #define AUX_IN0_NTC (0)
-#define AUX_IN1_NTC (1)
+#define AUX_IN1_NTC (12)
 
 #define BTS_RAP_PULL_UP_R				390000		/* 390K,pull up resister */
 #define BTS_TAP_OVER_CRITICAL_LOW		4397119		/* base on 100K NTC temp default value -40 deg */

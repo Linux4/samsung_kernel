@@ -436,6 +436,9 @@ struct tcpc_device *tcpc_device_register(struct device *parent,
 	mutex_init(&tcpc->typec_lock);
 	mutex_init(&tcpc->timer_lock);
 	mutex_init(&tcpc->mr_lock);
+#ifdef CONFIG_WATER_DETECTION
+	mutex_init(&tcpc->wd_lock);
+#endif /* CONFIG_WATER_DETECTION */
 	sema_init(&tcpc->timer_enable_mask_lock, 1);
 	spin_lock_init(&tcpc->timer_tick_lock);
 
@@ -469,9 +472,9 @@ struct tcpc_device *tcpc_device_register(struct device *parent,
 	 * please use it instead of "WAKE_LOCK_SUSPEND"
 	 */
 	tcpc->attach_wake_lock =
-		wakeup_source_register(&tcpc->dev, "tcpc_attach_wake_lock");
+		wakeup_source_register(NULL, "tcpc_attach_wake_lock");
 	tcpc->detach_wake_lock =
-		wakeup_source_register(&tcpc->dev, "tcpc_detach_wake_lock");
+		wakeup_source_register(NULL, "tcpc_detach_wake_lock");
 
 	tcpci_timer_init(tcpc);
 #ifdef CONFIG_USB_POWER_DELIVERY

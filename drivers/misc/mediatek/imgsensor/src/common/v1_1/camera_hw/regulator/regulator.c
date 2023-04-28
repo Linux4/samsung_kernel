@@ -154,7 +154,7 @@ static enum IMGSENSOR_RETURN regulator_set(
 			atomic_inc(enable_cnt);
 		} else {
 			if (regulator_is_enabled(pregulator))
-				PK_DBG("[regulator]%d is enabled\n", pin);
+				PK_INFO("[regulator]%d is enabled\n", pin);
 
 			if (regulator_disable(pregulator)) {
 				PK_PR_ERR(
@@ -196,7 +196,7 @@ static enum IMGSENSOR_RETURN regulator_dump(void *pinstance)
 			else
 				enable = 0;
 
-			PK_DBG("[sensor_dump][regulator] index= %d, %s = %d, enable = %d\n",
+			PK_INFO("[sensor_dump][regulator] index= %d, %s = %d, enable = %d\n",
 				j,
 				regulator_control[i].pregulator_type,
 				regulator_get_voltage(preg->pregulator[j][i]),

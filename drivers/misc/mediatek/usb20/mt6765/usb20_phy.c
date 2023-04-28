@@ -809,4 +809,14 @@ void usb_phy_context_restore(void)
 #endif
 }
 
+void usb_dpdm_pullup(bool enable)
+{
+	if (enable) {
+		/* RG_USB20_EN_PU_DP, 1'b1, RG_USB20_PUPD_BIST_EN, 1'b1 */
+		USBPHY_SET32(0x1c, (0x1 << 9) | (0x1 << 12));
+	} else {
+		/* RG_USB20_EN_PU_DP, 1'b0, RG_USB20_PUPD_BIST_EN, 1'b0 */
+		USBPHY_CLR32(0x1c, (0x1 << 9) | (0x1 << 12));
+	}
+}
 #endif

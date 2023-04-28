@@ -39,6 +39,7 @@ check_adc_data_spec check_adc_data_spec_funcs[] = {
 	check_ak09918c_adc_data_spec,
 	check_mmc5633_adc_data_spec,
 	check_yas539_adc_data_spec,
+	check_mxg4300s_adc_data_spec,
 };
 
 void get_magnetometer_sensor_value_s32(struct mag_power_event *event, s32 *sensor_value)
@@ -253,6 +254,7 @@ get_chipset_dev_attrs get_mag_chipset_dev_attrs[] = {
 	get_magnetometer_ak09918c_dev_attrs,
 	get_magnetometer_mmc5633_dev_attrs,
 	get_magnetometer_yas539_dev_attrs,
+	get_magnetometer_mxg4300s_dev_attrs,
 };
 
 void initialize_magnetometer_sysfs(void)

@@ -270,7 +270,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_4CELL_Gr,
 	.mclk = 26,
 	.mipi_lane_num = SENSOR_MIPI_4_LANE,
-	.i2c_speed = 400,
+	.i2c_speed = 1000,
 
 	/* record sensor support all write id addr,
 	 * only supprt 4 must end with 0xff
@@ -312,19 +312,31 @@ static struct SENSOR_VC_INFO_STRUCT SENSOR_VC_INFO[4] = {
 	{0x02, 0x0a, 0x00, 0x08, 0x40, 0x00,
 	 0x00, 0x2b, 0x0ff0, 0x0bf4,/*VC0, 4080x3060 pixel*/
 	 0x00, 0x00, 0x0000, 0x0000,/*VC1*/
+#if defined(CONFIG_MACH_MT6833)
 	 0x01, 0x2b, 0x01fc, 0x0bf0,/*VC2, 508x3056 pixel -> 635x3056 byte*/
+#else
+	 0x01, 0x2b, 0x027b, 0x0bf0,/*VC2, 508x3056 pixel -> 635x3056 byte*/
+#endif
 	 0x00, 0x00, 0x0000, 0x0000},/*VC3*/
 	/* cap = pre mode setting */
 	{0x02, 0x0a, 0x00, 0x08, 0x40, 0x00,
 	 0x00, 0x2b, 0x0ff0, 0x0bf4,/*VC0, 4080x3060 pixel*/
 	 0x00, 0x00, 0x0000, 0x0000,/*VC1*/
+#if defined(CONFIG_MACH_MT6833)
 	 0x01, 0x2b, 0x01fc, 0x0bf0,/*VC2, 508x3056 pixel -> 635x3056 byte*/
+#else
+	 0x01, 0x2b, 0x027b, 0x0bf0,/*VC2, 508x3056 pixel -> 635x3056 byte*/
+#endif
 	 0x00, 0x00, 0x0000, 0x0000},/*VC3*/
 	/* Video mode setting */
 	{0x02, 0x0a, 0x00, 0x08, 0x40, 0x00,
 	 0x00, 0x2b, 0x0ff0, 0x08f8,/*VC0, 4080x2296 pixel*/
 	 0x00, 0x00, 0x0000, 0x0000,/*VC1*/
+#if defined(CONFIG_MACH_MT6833)
 	 0x01, 0x2b, 0x01fc, 0x08f0,/*VC2, 508x2288 pixel -> 635x2288 byte*/
+#else
+	 0x01, 0x2b, 0x027b, 0x08f0,/*VC2, 508x2288 pixel -> 635x2288 byte*/
+#endif
 	 0x00, 0x00, 0x0000, 0x0000},/*VC3*/
 	/* hs mode setting */
 	{0x01, 0x0a, 0x00, 0x08, 0x40, 0x00,
@@ -1398,6 +1410,9 @@ static kal_uint32 open(void)
 	kal_uint16 sensor_id = 0;
 
 	LOG_INF("%s", __func__);
+#if defined(CONFIG_MACH_MT6833)
+	LOG_INF("used MT6833");
+#endif
 
 	/* sensor have two i2c address 0x6c 0x6d & 0x21 0x20,
 	 * we should detect the module used i2c address

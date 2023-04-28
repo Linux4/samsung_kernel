@@ -446,19 +446,12 @@ static int common_lcd_doze_area(struct drm_panel *panel,
 #endif
 #endif
 
-static int common_lcd_crtc_state_notify(struct drm_encoder *encoder,
+static int common_lcd_crtc_state_notify(struct drm_panel *panel,
 	int active, int prepare)
 {
-	struct drm_bridge *bridge;
-	struct mipi_dsi_lcd_common *plcd;
+	//struct mipi_dsi_lcd_common *plcd = panel_to_common_lcd(panel);
 
-	if (!encoder->bridge) {
-		dbg_info("%s: bridge is null\n", __func__);
-		return 0;
-	}
-
-	bridge = encoder->bridge;
-	plcd = bridge_to_common_lcd(bridge);
+	//dbg_info("%s: dev_name(%s)\n", __func__, dev_name(plcd->dev));
 
 	smcdsd_fb_simple_notifier_call_chain(prepare ? SMCDSD_EARLY_EVENT_BLANK : SMCDSD_EVENT_BLANK, active ? FB_BLANK_UNBLANK : FB_BLANK_POWERDOWN);
 
@@ -472,12 +465,19 @@ int smcdsd_panel_dsi_clk_change(void *drvdata, unsigned int index)
 	struct mipi_dsi_lcd_common *plcd = drvdata ? drvdata : get_lcd_common(0);
 	struct drm_panel *panel = &(plcd->panel);
 	struct mtk_panel_ext *ext = find_panel_ext(panel);
+	int i;
 
-	ext->params->dyn.pll_clk = plcd->config[LCD_CONFIG_DFT].data_rate[index] / 2;
-	ext->params->dyn.switch_en = 1;
-	ext->params->dyn.data_rate = plcd->config[LCD_CONFIG_DFT].data_rate[index];
+	for (i = 0; i < LCD_CONFIG_MAX; i++) {
+		if (!plcd->config[i].drm.vrefresh)
+			continue;
+
+		plcd->config[i].ext.dyn.pll_clk = plcd->config[i].data_rate[index] / 2;
+		plcd->config[i].ext.dyn.switch_en = 1;
+		plcd->config[i].ext.dyn.data_rate = plcd->config[i].data_rate[index];
+	}
+
 	dbg_info("%s: index : %d, data rate: %d\n",
-		__func__, index, ext->params->dyn.data_rate);
+			__func__, index, ext->params->dyn.data_rate);
 	mtk_disp_mipi_ccci_callback(1, 0);
 
 	return 0;
@@ -672,7 +672,7 @@ static int common_lcd_probe(struct mipi_dsi_device *dsi)
 {
 	struct device *dev = &dsi->dev;
 	struct mipi_dsi_lcd_common *plcd = &lcd_common;
-	int ret;
+	int ret, i;
 
 	dbg_info("%s: node(%s)\n", __func__, of_node_full_name(dev->of_node));
 
@@ -687,6 +687,9 @@ static int common_lcd_probe(struct mipi_dsi_device *dsi)
 	ret = smcdsd_panel_get_config(plcd);
 	if (ret <= 1)
 		ext_funcs.ext_param_set = NULL;
+
+	for (i = 0; i < LCD_CONFIG_MAX; i++)
+		plcd->config[i].ext.dpanel = &plcd->panel;
 
 	drm_panel_init(&plcd->panel);
 	plcd->panel.dev = dev;

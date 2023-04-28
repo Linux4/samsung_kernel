@@ -547,5 +547,6 @@ bool primary_display_need_update_hrt_fps(
 
 /**************function for DynFPS end************************/
 #endif
+extern int mtk_notifier_call_chain(unsigned long val, void *v);
 
 #endif

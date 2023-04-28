@@ -29,7 +29,6 @@
  * points to a PTE. With 512 entries t is possible to map 1GB memory block.
  */
 #define PMD_ENTRIES_MAX	512
-
 /*
  * This extern the mm gfp_allowed_mask to implement restrict/restore gfp API
  * whict can restrict share buffer to not be allocted memory from CMA.

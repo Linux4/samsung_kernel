@@ -609,11 +609,18 @@ int pdc_get_setting(void)
 	pd->data.ps_rdy = 1;
 	pd->data.prev_available_pdo = pd_noti.sink_status.available_pdo_num;
 
-	pr_info("%s : pd_noti.event = %d\n", __func__, pd_noti.event);
+	pr_info("%s : pd_noti.event = %d, mt_charger_plugin:%d\n", __func__, pd_noti.event, mt_charger_plugin());
+#if IS_ENABLED(CONFIG_VIRTUAL_MUIC)
+	pdic_noti.sub1 = 1;
+#else
 	pdic_noti.sub1 = 0;
+#endif
 	pdic_noti.sub2 = 0;
 	pdic_noti.sub3 = 0;
-	pdic_notifier_notify((PD_NOTI_TYPEDEF *)&pdic_noti, &pd_noti, 0);
+	if (mt_charger_plugin())
+		pdic_notifier_notify((PD_NOTI_TYPEDEF *)&pdic_noti, &pd_noti, 0);
+	else
+		pr_info("%s : do not send pdic_noti: mt_charger_plugin:%d\n", __func__, mt_charger_plugin());
 #endif
 	chr_err("[%s] vbus:%d ibus:%d, mivr:%d\n",
 		__func__, vbus, ibus, chg1_mivr);

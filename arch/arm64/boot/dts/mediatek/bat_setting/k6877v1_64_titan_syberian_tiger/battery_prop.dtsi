@@ -112,6 +112,18 @@
 /* Multi gauge0 enable*/
 	HWOCV_OLDOCV_DIFF = <(100)>;
 /* Diff of HWOCV and SWOCV*/
+	UI_FULL_LIMIT_EN = <(1)>;
+	UI_FULL_LIMIT_SOC0 = <(9545)>;
+	UI_FULL_LIMIT_ITH0 = <(14000)>;
+	UI_FULL_LIMIT_SOC1 = <(9645)>;
+	UI_FULL_LIMIT_ITH1 = <(12500)>;
+	UI_FULL_LIMIT_SOC2 = <(9745)>;
+	UI_FULL_LIMIT_ITH2 = <(11000)>;
+	UI_FULL_LIMIT_SOC3 = <(9845)>;
+	UI_FULL_LIMIT_ITH3 = <(9500)>;
+	UI_FULL_LIMIT_SOC4 = <(9945)>;
+	UI_FULL_LIMIT_ITH4 = <(7700)>;
+/* Using current to limit uisoc in 100% case*/
 	DYNAMIC_CV_FACTOR = <(100)>;
 /* Dynamic CV offset */
 	CHARGER_IEOC = <(250)>;

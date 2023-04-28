@@ -23,6 +23,11 @@
 #include "mtk_cpufreq_hybrid.h"
 #include "mtk_cpufreq_opp_table.h"
 
+#ifdef CONFIG_CPU_FREQ_LIMIT
+#include <linux/cpufreq_limit.h>
+#endif
+
+
 /*
  * Global Variables
  */
@@ -1401,6 +1406,9 @@ static int __init _mt_cpufreq_tbl_init(void)
 			p->opp_tbl = opp_tbl_info->opp_tbl;
 			p->nr_opp_tbl = opp_tbl_info->size;
 			p->freq_tbl_for_cpufreq = table;
+#ifdef CONFIG_CPU_FREQ_LIMIT
+			cpufreq_limit_set_table(p->cpu_id, table);
+#endif
 		}
 	}
 	return 0;

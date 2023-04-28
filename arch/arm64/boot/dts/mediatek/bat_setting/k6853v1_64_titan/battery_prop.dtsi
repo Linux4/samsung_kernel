@@ -79,6 +79,18 @@
 /* Multi gauge0 enable*/
 	HWOCV_OLDOCV_DIFF = <(100)>;
 /* Diff of HWOCV and SWOCV*/
+	UI_FULL_LIMIT_EN = <(1)>;
+	UI_FULL_LIMIT_SOC0 = <(9500)>;
+	UI_FULL_LIMIT_ITH0 = <(8500)>;
+	UI_FULL_LIMIT_SOC1 = <(9600)>;
+	UI_FULL_LIMIT_ITH1 = <(7500)>;
+	UI_FULL_LIMIT_SOC2 = <(9700)>;
+	UI_FULL_LIMIT_ITH2 = <(6600)>;
+	UI_FULL_LIMIT_SOC3 = <(9800)>;
+	UI_FULL_LIMIT_ITH3 = <(6000)>;
+	UI_FULL_LIMIT_SOC4 = <(9900)>;
+	UI_FULL_LIMIT_ITH4 = <(5000)>;
+/* Using current to limit uisoc in 100% case*/
 #include "battery_table.dtsi"
 #include "battery_prop_dim2_ext.dtsi"
 };

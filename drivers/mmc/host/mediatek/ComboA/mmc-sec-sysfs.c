@@ -200,6 +200,77 @@ static ssize_t mmc_summary_show(struct device *dev,
 	}
 }
 
+static ssize_t mmc_ext_csd_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct mmc_host *host = dev_get_drvdata(dev);
+	struct mmc_card *card = host->card;
+
+	int i = 0;
+	int total_len = 0;
+	u8 ext_csd_rev = 0;
+	u8 ext_pre_eol_info = 0;
+	u8 ext_device_life_time_est = 0;
+
+	static const char *const ver_str[] = {
+		"4.0", "4.1", "4.2", "4.3", "Obsolete", "4.41", "4.5", "5.0", "5.1"
+	};
+	static const char *const eol_str[] = {
+		"Undefined",
+		"Normal",
+		"Warning (consumed 80% of reserve)",
+		"Urgent (consumed 90% of reserve)"
+	};
+	static const char *const est_str[] = {
+		"Undefined",
+		"0-10% of device lifetime used",
+		"10-20% of device lifetime used",
+		"20-30% of device lifetime used",
+		"30-40% of device lifetime used",
+		"40-50% of device lifetime used",
+		"50-60% of device lifetime used",
+		"60-70% of device lifetime used",
+		"70-80% of device lifetime used",
+		"80-90% of device lifetime used",
+		"90-100% of device lifetime used",
+		"Exceeded the maximum estimated device lifetime",
+	};
+
+	if (card) {
+		// List of interesting offsets
+		ext_csd_rev = card->ext_csd.rev;
+		total_len += snprintf(buf, PAGE_SIZE, "rev 1.%d (MMC %s)\n", ext_csd_rev,
+				(ext_csd_rev < (int)(sizeof(ver_str) / sizeof(ver_str[0])))
+					? ver_str[ext_csd_rev] : "Unknown");
+		if (ext_csd_rev < 8)
+			total_len += snprintf(buf + total_len, PAGE_SIZE - total_len,
+						"ext_csd_rev < 8\n");
+
+		ext_pre_eol_info = card->ext_csd.pre_eol_info;
+		total_len += snprintf(buf + total_len, PAGE_SIZE - total_len,
+				"PRE_EOL_INFO %d (MMC %s)\n", ext_pre_eol_info,
+				eol_str[(ext_pre_eol_info
+					< (int)(sizeof(eol_str) / sizeof(eol_str[0])))
+					? ext_pre_eol_info : 0]);
+
+		for (i = 0; i < 2; i++) {
+			ext_device_life_time_est = i
+					? card->ext_csd.device_life_time_est_typ_b
+					: card->ext_csd.device_life_time_est_typ_a;
+
+			total_len += snprintf(buf + total_len, PAGE_SIZE - total_len,
+					"DEVICE_LIFE_TIME_EST_TYP_%c %d (MMC %s)\n",
+					i + 'A',
+					ext_device_life_time_est,
+					est_str[(ext_device_life_time_est
+						< (int)(sizeof(est_str) / sizeof(est_str[0])))
+						? ext_device_life_time_est : 0]);
+		}
+		return total_len;
+	} else
+		return snprintf(buf, PAGE_SIZE, "No Card\n");
+}
+
 #ifdef CONFIG_SEC_FACTORY
 /* For checking reset pin of mmc*/
 static ssize_t mmc_hwrst_show(struct device *dev,
@@ -613,6 +684,7 @@ static ssize_t sd_data_store(struct device *dev, struct device_attribute *attr,
 
 static DEVICE_ATTR(un, 0440, mmc_gen_unique_number_show, NULL);
 static DEVICE_ATTR(mmc_summary, 0444, mmc_summary_show, NULL);
+static DEVICE_ATTR(mmc_ecsd, 0444, mmc_ext_csd_show, NULL);
 static DEVICE_ATTR(mmc_data, 0444, mmc_data_show, NULL);
 #ifdef CONFIG_SEC_FACTORY
 static DEVICE_ATTR(hwrst, 0444, mmc_hwrst_show, NULL);
@@ -634,6 +706,7 @@ static DEVICE_ATTR(sd_data, 0664, sd_data_show, sd_data_store);
 static struct attribute *mmc_attributes[] = {
 	&dev_attr_un.attr,
 	&dev_attr_mmc_summary.attr,
+	&dev_attr_mmc_ecsd.attr,
 	&dev_attr_mmc_data.attr,
 #ifdef CONFIG_SEC_FACTORY
 	&dev_attr_hwrst.attr,

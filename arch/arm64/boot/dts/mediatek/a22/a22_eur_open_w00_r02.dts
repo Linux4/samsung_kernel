@@ -1287,6 +1287,7 @@
 #endif
 #if 0
 				goodix,btp-regulator = "VDD_BTP_3P3";
+				VDD_BTP_3P3-supply = <&${fps_regul_vdd_3p3}>;
 #endif
 				goodix,gpio_reset = <SEC_GPIO_REF(AP,pio,53) 0>;
 				goodix,gpio_irq = <SEC_GPIO_REF(AP,pio,18) 0>;
@@ -1330,7 +1331,7 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	status = "okay";
-	samsung,i2c-max-bus-freq = <400000>;
+	clock-frequency = <400000>;
 	sm5714@49{
 		status = "okay";
 		compatible = "siliconmitus,sm5714mfd";
@@ -1347,7 +1348,7 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	status = "okay";
-	samsung,i2c-max-bus-freq = <400000>;
+	clock-frequency = <400000>;
 
 	usbpd-sm5714@33 {
 		status = "okay";
@@ -1469,7 +1470,11 @@
 &smd {
 	fixed_regulator0: fixed_regulator@0 {
 		compatible = "regulator-fixed";
+#if 0
+		regulator-name = "${fixed_regulator_name}";
+#else
 		regulator-name = "fixed_regulator0";
+#endif
 		gpio = <SEC_GPIO_REF(AP,pio,4) 0>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&ldo_gpio0>;
@@ -1488,7 +1493,10 @@
 						compatible = "samsung,dc_vibrator";
 						status = "okay";
 						dc_vib,motor_type = "COINDC";
-						dc_vib,regulator_name = "vibr";
+#if 1
+						dc_vib,regulator_name = "dc_vib";
+						dc_vib-supply = <&mt_pmic_vibr_ldo_reg>;
+#endif
 					};
 				};
 			};
@@ -1631,6 +1639,7 @@
 	sec,regulator_boot_on;
 	sec,tsp-icid_gpio = <&pio 28 0>;
 	sec,icid_match_value = <0>;
+	stm,lpmode_change_delay = <50>;
 };
 
 /* #include "../input_melfas.dtsi" */                /* From input_melfas.py */
@@ -1848,7 +1857,11 @@
 					&nfc_check
 #endif
 					>;
-		pinctrl-1 = <&ven_nc &firm_nc &clk_req_nc &irq_nc>;
+		pinctrl-1 = <&ven_nc &firm_nc &clk_req_nc &irq_nc
+#if 0
+					&nfc_i2c_off
+#endif
+					>;
 		pinctrl-2 = <&nfc_i2c_off>;
 	};
 };
@@ -2250,6 +2263,7 @@
 
 /* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensors/isg5320a/dts/isg5320a_mtk.a22.dtsi */
 &isg5320a {
+	isg5320a,hallic_cert_detect = <0>;
 	isg5320a,set_reg = /bits/ 8 <
 		0x05 0xFC
 		0x06 0xF1
@@ -2325,12 +2339,12 @@
 		0x99 0x21
 		0x9A 0x3C
 		0x9B 0x01
-		0x9C 0x5E
+		0x9C 0x2C
 		0x9D 0x00
 		0x9E 0x00
 		0x9F 0x00
-		0xA0 0x35
-		0xA1 0xC0
+		0xA0 0x96
+		0xA1 0xD0
 		0xA2 0x22
 		0xA3 0x00
 		0xA4 0x08
@@ -2350,7 +2364,7 @@
 		0xB7 0x30
 		0xB8 0xFD
 		0xB9 0xE0
-		0xBA 0x70
+		0xBA 0xFD
 		0xBB 0x80
 		0xBC 0xFF
 		0xBD 0xFF
@@ -2405,6 +2419,7 @@
 };
 
 &isg5320a_sub {
+	isg5320a_sub,hallic_cert_detect = <0>;
 	isg5320a_sub,set_reg = /bits/ 8 <
 		0x05 0xFC
 		0x06 0xF1
@@ -2479,12 +2494,12 @@
 		0x8D 0x00
 		0x99 0x21
 		0x9A 0x3C
-		0x9B 0x01
-		0x9C 0x18
+		0x9B 0x00
+		0x9C 0xF0
 		0x9D 0x00
 		0x9E 0x00
 		0x9F 0x00
-		0xA0 0x2A
+		0xA0 0x64
 		0xA1 0xD0
 		0xA2 0x22
 		0xA3 0x00
@@ -2505,7 +2520,7 @@
 		0xB7 0x30
 		0xB8 0xFD
 		0xB9 0xE0
-		0xBA 0x80
+		0xBA 0xFD
 		0xBB 0x80
 		0xBC 0x00
 		0xBD 0x00
@@ -2529,7 +2544,7 @@
 		0x3E 0x60
 		0x94 0xE0
 		0x95 0x98
-		0x96 0x04
+		0x96 0x03
 		0x2E 0x18
 		0x0E 0xE0
 		0x0F 0x1C

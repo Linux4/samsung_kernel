@@ -694,6 +694,9 @@ static irqreturn_t mtu3_link_isr(struct mtu3 *mtu)
 	mtu->g.ep0->maxpacket = maxpkt;
 	mtu->ep0_state = MU3D_EP0_STATE_SETUP;
 
+	if (udev_speed >= MTU3_SPEED_SUPER)
+		ssusb_phy_dp_pullup(mtu->ssusb);
+
 	if (udev_speed == USB_SPEED_UNKNOWN) {
 		mtu3_gadget_disconnect(mtu);
 		#if !IS_ENABLED(CONFIG_USB_MTU3_PLAT_PHONE)
@@ -999,12 +1002,13 @@ void mtu3_start(struct mtu3 *mtu)
 		mtu3_dev_on_off(mtu, 1);
 		store_usblog_notify(NOTIFY_USBSTATE,
 			(void *)"USB_STATE=VBUS:EN:SUCCESS", NULL);
-	} else
-		store_usblog_notify(NOTIFY_USBSTATE,
-			(void *)"USB_STATE=VBUS:EN:FAIL", NULL);
+	} else if (!mtu->usb_rdy)
+		ssusb_phy_dp_pullup(mtu->ssusb);
 #else
 	if (mtu->softconnect)
 		mtu3_dev_on_off(mtu, 1);
+	else if (!mtu->usb_rdy)
+		ssusb_phy_dp_pullup(mtu->ssusb);
 #endif
 
 }

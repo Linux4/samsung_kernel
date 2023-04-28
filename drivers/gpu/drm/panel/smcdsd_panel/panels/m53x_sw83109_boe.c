@@ -82,6 +82,7 @@ struct lcd_info {
 	unsigned char			code[LDI_LEN_CHIP_ID];
 	unsigned char			date[LDI_LEN_DATE];
 	unsigned char			manufacture_info[LDI_LEN_CHIP_ID];
+	unsigned char			trim[LDI_LEN_TRIM + 1];
 
 	unsigned int			coordinate[2];
 	unsigned char			coordinates[20];
@@ -201,7 +202,7 @@ static int smcdsd_dsi_tx_img_sd(struct lcd_info *lcd, u8 *cmd, u32 size)
 
 static int smcdsd_dsi_tx_package(struct lcd_info *lcd, struct msg_package *package)
 {
-	struct msg_segment *segment[MAX_TX_CMD_NUM] = {0, };
+	struct msg_segment *segment[MAX_TX_CMD_NUM * 2] = {0, };
 
 	return send_msg_package(&package, 1, &segment);
 }
@@ -655,6 +656,7 @@ static int panel_dpui_notifier_callback(struct notifier_block *self,
 	struct dpui_info *dpui = data;
 	char tbuf[MAX_DPUI_VAL_LEN];
 	int size;
+#if 0
 	unsigned int site, rework, poc, i, invalid = 0;
 	unsigned char *m_info;
 
@@ -662,7 +664,7 @@ static int panel_dpui_notifier_callback(struct notifier_block *self,
 		.buf = tbuf,
 		.size = sizeof(tbuf) - 1,
 	};
-
+#endif
 	if (dpui == NULL) {
 		pr_err("%s: dpui is null\n", __func__);
 		return NOTIFY_DONE;
@@ -943,6 +945,33 @@ static int sw83109_boe_read_chip_id(struct lcd_info *lcd)
 	return ret;
 }
 
+static int sw83109_boe_read_trim(struct lcd_info *lcd)
+{
+	int ret = 0;
+	unsigned char buf[LDI_LEN_TRIM] = {0, };
+
+	smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_SW83109_BOE_00_LEVEL_KEY_6)]);
+
+	ret = smcdsd_dsi_rx_info(lcd, LDI_REG_TRIM, LDI_LEN_TRIM, buf);
+	if (ret < 0) {
+		dev_info(&lcd->ld->dev, "%s: fail\n", __func__);
+
+		lcd->trim[0] = 0;
+	} else {
+		lcd->trim[0] = LDI_REG_TRIM;
+
+		memcpy(&lcd->trim[1], buf, LDI_LEN_TRIM);
+
+		dev_info(&lcd->ld->dev, "%s: %*ph\n", __func__, ARRAY_SIZE(lcd->trim), lcd->trim);
+
+		lcd->trim[LDI_LEN_TRIM] += 4;
+	}
+
+	smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_SW83109_BOE_00_LEVEL_KEY_0)]);
+
+	return ret;
+}
+
 static int sw83109_boe_read_init_info(struct lcd_info *lcd)
 {
 	int ret = 0;
@@ -963,6 +992,7 @@ static int sw83109_boe_read_init_info(struct lcd_info *lcd)
 
 	sw83109_boe_read_date(lcd);
 	sw83109_boe_read_chip_id(lcd);
+	sw83109_boe_read_trim(lcd);
 
 	return ret;
 }
@@ -1002,7 +1032,9 @@ static int sw83109_boe_init(struct lcd_info *lcd)
 	sw83109_boe_change_ffc(lcd, FFC_UPDATE);
 #endif
 
+	smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_SW83109_BOE_00_LEVEL_KEY_1)]);
 	smcdsd_panel_read_bit_info(lcd, LDI_BIT_ENUM_0F, NULL);
+	smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_SW83109_BOE_00_LEVEL_KEY_0)]);
 
 	smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_SW83109_BOE_00_MASK_INIT_START)]);
 	smcdsd_dsi_tx_img_sd(lcd, SW83109_BOE_00_SELF_MASK_DATA, ARRAY_SIZE(SW83109_BOE_00_SELF_MASK_DATA));	/* todo */
@@ -1067,7 +1099,7 @@ static int panel_after_notifier_callback(struct notifier_block *self,
 	int fb_blank;
 
 	switch (event) {
-	case FB_EVENT_BLANK:
+	case SMCDSD_EVENT_BLANK:
 		break;
 	default:
 		return NOTIFY_DONE;
@@ -1234,6 +1266,71 @@ static ssize_t mcd_mode_store(struct device *dev,
 	smcdsd_commit_lock(lcd, true);
 	if (IS_NORMAL_MODE(lcd))
 		smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][index]);
+	smcdsd_commit_lock(lcd, false);
+
+	return size;
+}
+
+static ssize_t error_flag_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	unsigned char rxbuf[RT_MAX_NUM] = {0, };
+	int ret;
+	unsigned int valid = 0;
+
+	dev_info(&lcd->ld->dev, "+ %s\n", __func__);
+
+	smcdsd_commit_lock(lcd, true);
+
+	memset(rxbuf, 0xff, sizeof(rxbuf));
+
+	if (IS_NORMAL_MODE(lcd)) {
+		smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_SW83109_BOE_00_LEVEL_KEY_1)]);
+		ret = smcdsd_panel_read_bit_info(lcd, LDI_BIT_ENUM_9F, rxbuf);
+		smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_SW83109_BOE_00_LEVEL_KEY_0)]);
+	}
+
+	smcdsd_commit_lock(lcd, false);
+
+	if (ret < 0)
+		dev_info(&lcd->ld->dev, "%s: fail\n", __func__);
+
+	if ((rxbuf[0] | rxbuf[1]) == 0)
+		valid = 1;
+
+	dev_info(&lcd->ld->dev, "- %s: %d %*ph\n", __func__, valid, ldi_bit_info_list[LDI_BIT_ENUM_9F].len, rxbuf);
+
+	sprintf(buf, "%d %*ph\n", valid, ldi_bit_info_list[LDI_BIT_ENUM_9F].len, rxbuf);
+
+	return strlen(buf);
+}
+
+static ssize_t error_flag_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct lcd_info *lcd = dev_get_drvdata(dev);
+	unsigned int value;
+	int rc;
+
+	rc = kstrtouint(buf, 0, &value);
+	if (rc < 0)
+		return rc;
+
+	dev_info(&lcd->ld->dev, "%s: (%u) %*ph\n", __func__, value, ARRAY_SIZE(lcd->trim), lcd->trim);
+
+	if (value != 1)
+		return -EINVAL;
+
+	if (lcd->trim[0] == 0)
+		return -EINVAL;
+
+	smcdsd_commit_lock(lcd, true);
+	if (IS_NORMAL_MODE(lcd)) {
+		smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_SW83109_BOE_00_LEVEL_KEY_6)]);
+		send_cmd(lcd->trim, ARRAY_SIZE(lcd->trim));
+		smcdsd_dsi_tx_package(lcd, &PACKAGE_LIST[MSG_IDX_BASE][GET_ENUM_WITH_NAME(MSG_SW83109_BOE_00_LEVEL_KEY_0)]);
+	}
 	smcdsd_commit_lock(lcd, false);
 
 	return size;
@@ -2021,6 +2118,7 @@ static DEVICE_ATTR_RO(manufacture_date);
 static DEVICE_ATTR_RO(manufacture_code);
 static DEVICE_ATTR_RO(cell_id);
 static DEVICE_ATTR_RW(mcd_mode);
+static DEVICE_ATTR_RW(error_flag);
 
 static DEVICE_ATTR(SVC_OCTA, 0444, cell_id_show, NULL);
 static DEVICE_ATTR(SVC_OCTA_DDI_CHIPID, 0444, manufacture_code_show, NULL);
@@ -2060,6 +2158,7 @@ static struct attribute *lcd_sysfs_attributes[] = {
 	&dev_attr_dpci.attr,
 	&dev_attr_dpci_dbg.attr,
 #endif
+	&dev_attr_error_flag.attr,
 	NULL,
 };
 
@@ -2070,7 +2169,8 @@ static umode_t lcd_sysfs_is_visible(struct kobject *kobj,
 	struct lcd_info *lcd = dev_get_drvdata(dev);
 	umode_t mode = attr->mode;
 
-	if (attr == &dev_attr_conn_det.attr) {
+	if (attr == &dev_attr_conn_det.attr ||
+		attr == &dev_attr_error_flag.attr) {
 		if (!lcd->fac_info && !lcd->fac_done)
 			mode = 0;
 	}

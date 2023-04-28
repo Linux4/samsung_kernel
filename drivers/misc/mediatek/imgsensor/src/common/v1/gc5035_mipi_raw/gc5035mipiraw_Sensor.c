@@ -1,37 +1,17 @@
 /*
- * Copyright (C) 2016 MediaTek Inc.
+ * Copyright (C) 2022 MediaTek Inc.
  *
- * This program is free software; you can redistribute it and/or modify
+ * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
  */
 
-/*
- *
- * Filename:
- * ---------
- *	 GC5035mipi_Sensor.c
- *
- * Project:
- * --------
- *	 ALPS
- *
- * Description:
- * ------------
- *	 Source code of Sensor driver
- *
- *
- *-----------------------------------------------------------------------------
- * Upper this line, this part is controlled by CC/CQ. DO NOT MODIFY!!
- *============================================================================
- */
 #include <linux/videodev2.h>
-#include <linux/i2c.h>
 #include <linux/platform_device.h>
 #include <linux/delay.h>
 #include <linux/cdev.h>
@@ -44,20 +24,18 @@
 #include "kd_imgsensor.h"
 #include "kd_imgsensor_define.h"
 #include "kd_imgsensor_errcode.h"
-//#include "imgsensor_common.h"
+//#include "kd_imgsensor_sysfs_adapter.h"
 
 #include "gc5035mipiraw_Sensor.h"
 
 /************************** Modify Following Strings for Debug **************************/
-#define PFX "gc5035_camera_sensor"
+#define PFX "GC5035 D/D"
 #define LOG_1 LOG_INF("GC5035MIPI, 2LANE\n")
 /****************************   Modify end	*******************************************/
-#define GC5035_DEBUG
-#if defined(GC5035_DEBUG)
-#define LOG_INF(format, args...)	pr_debug(PFX "[%s] " format, __func__, ##args)
-#else
-#define LOG_INF(format, args...)
-#endif
+
+#define LOG_DBG(format, args...) pr_debug(PFX "[%s] " format, __func__, ##args)
+#define LOG_INF(format, args...) pr_info(PFX "[%s] " format, __func__, ##args)
+#define LOG_ERR(format, args...) pr_err(PFX "[%s] " format, __func__, ##args)
 
 #ifndef VENDOR_EDIT
 #define VENDOR_EDIT
@@ -66,7 +44,23 @@
 static DEFINE_SPINLOCK(imgsensor_drv_lock);
 
 static kal_uint32 Dgain_ratio = 256;
-extern u32 pinSetIdx;
+
+/*
+ * Image Sensor Scenario
+ * pre : FOV 80 4:3
+ * cap : FOV 80 Check Active Array
+ * normal_video : FOV 80 16:9
+ * hs_video: NOT USED
+ * slim_video: NOT USED
+ * custom1 : FAST AE
+ * custom2 : FOV 68 4:3
+ * custom3 : FOV 68 Check Active Array
+ * custom4 : FOV 68 16:9
+ * custom5 : NOT USED
+ *
+ * setfile: GC5035 MIPI data rate 897M official setfile V1.5.0.xlsx
+ *
+ */
 
 static struct imgsensor_info_struct imgsensor_info = {
 	.sensor_id = GC5035_SENSOR_ID,	/*record sensor id defined in Kd_imgsensor.h*/
@@ -144,38 +138,38 @@ static struct imgsensor_info_struct imgsensor_info = {
 		.mipi_pixel_rate = 89700000,
 		.max_framerate = 600,
 	},
-	.custom2 = { // NOT USED
+	.custom2 = {
 		.pclk = 179400000,
 		.linelength = 2936,
 		.framelength = 2036,
 		.startx = 0,
 		.starty = 0,
-		.grabwindow_width = 2576,
-		.grabwindow_height = 1932,
+		.grabwindow_width = 2288,
+		.grabwindow_height = 1524,
 		.mipi_data_lp2hs_settle_dc = 85,
 		.mipi_pixel_rate = 179400000,
 		.max_framerate = 300,
 	},
-	.custom3 = { // NOT USED
+	.custom3 = {
 		.pclk = 179400000,
 		.linelength = 2936,
 		.framelength = 2036,
 		.startx = 0,
 		.starty = 0,
-		.grabwindow_width = 2576,
-		.grabwindow_height = 1932,
+		.grabwindow_width = 2288,
+		.grabwindow_height = 1524,
 		.mipi_data_lp2hs_settle_dc = 85,
 		.mipi_pixel_rate = 179400000,
 		.max_framerate = 300,
 	},
-	.custom4 = { // NOT USED
+	.custom4 = {
 		.pclk = 179400000,
 		.linelength = 2936,
 		.framelength = 2036,
 		.startx = 0,
 		.starty = 0,
-		.grabwindow_width = 2576,
-		.grabwindow_height = 1932,
+		.grabwindow_width = 2288,
+		.grabwindow_height = 1524,
 		.mipi_data_lp2hs_settle_dc = 85,
 		.mipi_pixel_rate = 179400000,
 		.max_framerate = 300,
@@ -205,9 +199,9 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.ihdr_le_firstline = 0,			/*1 le first ; 0, se first*/
 	.sensor_mode_num = 10,			/*support sensor mode num*/
 	.min_shutter = 4,
-	.min_gain = 73,
+	.min_gain = 64,
 	.max_gain = 1024,
-	.min_gain_iso = 40,
+	.min_gain_iso = 50, 			/* A22e-5G Front Min ISO*/
 	.exp_step = 2,
 	.gain_step = 1,
 	.gain_type = 4,
@@ -223,9 +217,9 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.custom5_delay_frame = 2,		/*enter custom5 delay frame num*/
 	.frame_time_delay_frame = 2,	/*enter custom1 delay frame num*/
 
-	.isp_driving_current = ISP_DRIVING_4MA,					/*mclk driving current*/
+	.isp_driving_current = ISP_DRIVING_4MA,/*mclk driving current*/
 	.sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,	/*sensor_interface_type*/
-	.mipi_sensor_type = MIPI_OPHY_NCSI2,					/*0,MIPI_OPHY_NCSI2;  1,MIPI_OPHY_CSI2*/
+	.mipi_sensor_type = MIPI_OPHY_NCSI2,/*0,MIPI_OPHY_NCSI2;  1,MIPI_OPHY_CSI2*/
 	.mipi_settle_delay_mode = MIPI_SETTLEDELAY_AUTO,
 	/*0,MIPI_SETTLEDELAY_AUTO; 1,MIPI_SETTLEDELAY_MANNUAL*/
 
@@ -235,7 +229,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.mclk = 26,
 	/*mclk value, suggest 24 or 26 for 24Mhz or 26Mhz*/
 	.mipi_lane_num = SENSOR_MIPI_2_LANE,					/*mipi lane num*/
-	.i2c_addr_table = {0x7e, 0xff},
+	.i2c_addr_table = {0x6e, 0x7e, 0xff},
 	.i2c_speed = 400,
 	/*record sensor support all write id addr, only supprt 4must end with 0xff*/
 };
@@ -250,14 +244,16 @@ static struct imgsensor_struct imgsensor = {
 	.gain = 0x40,				  /*current gain*/
 	.dummy_pixel = 0,			  /*current dummypixel*/
 	.dummy_line = 0,			  /*current dummyline*/
-	.current_fps = 300,			  /*full size current fps : 24fps for PIP, 30fps for Normal or ZSD*/
+	/*full size current fps : 24fps for PIP, 30fps for Normal or ZSD*/
+	.current_fps = 300,
 	.autoflicker_en = KAL_FALSE,
-	/*auto flicker enable: KAL_FALSE for disable auto flicker, KAL_TRUE for enable auto flicker*/
+	/*auto flicker enable: KAL_FALSE for disable*/
+	/*auto flicker, KAL_TRUE for enable auto flicker*/
 	.test_pattern = KAL_FALSE,
 	/*test pattern mode or not KAL_FALSE for in test pattern mode, KAL_TRUE for normal output*/
 	.current_scenario_id = MSDK_SCENARIO_ID_CAMERA_PREVIEW, /*current scenario id*/
 	.ihdr_en = 0,				 /*sensor need support LE, SE with HDR feature*/
-	.i2c_write_id = 0x7e,		 /*record current sensor's i2c write id*/
+	.i2c_write_id = 0x6e,		 /*record current sensor's i2c write id*/
 };
 
 /* Sensor output window information */
@@ -273,13 +269,13 @@ static struct SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[] = {
 	{ 2608, 1960,    0,    0, 2608, 1960, 1304,  980,
 	   363,   26,  576,  432,    0,    0,  576,  432 }, /*sl video-NOT USED*/
 	{ 2608, 1960,    0,    0, 2608, 1960, 1304,  980,
-	   331,   2,   640,  480,    0,    0,  640,  480 },  /*custom1*/
+	   331,   2,   640,  480,    0,    0,  640,  480 }, /*custom1*/
 	{ 2608, 1960,    0,    0, 2608, 1960, 2608, 1960,
-	    16,   14, 2576, 1932,    0,    0, 2576, 1932 }, /*custom2 -NOT USED*/
+	   159,  218, 2288, 1524,    0,    0, 2288, 1524 }, /*custom2*/
 	{ 2608, 1960,    0,    0, 2608, 1960, 2608, 1960,
-	    16,   14, 2576, 1932,    0,    0, 2576, 1932 }, /*custom3 -NOT USED*/
+	   159,  218, 2288, 1524,    0,    0, 2288, 1524 }, /*custom3*/
 	{ 2608, 1960,    0,    0, 2608, 1960, 2608, 1960,
-	    16,   14, 2576, 1932,    0,    0, 2576, 1932 }, /*custom4 -NOT USED*/
+	   159,  218, 2288, 1524,    0,    0, 2288, 1524 }, /*custom4*/
 	{ 2608, 1960,    0,    0, 2608, 1960, 2608, 1960,
 	    16,   14, 2576, 1932,    0,    0, 2576, 1932 }, /*custom5 -NOT USED*/
 };
@@ -381,6 +377,10 @@ static kal_uint8 gc5035_init_setting[] = {
 
 	0xfe, 0x01,
 	0x53, 0x00,
+
+	//reduce output time after stream on
+	0x87, 0x51,
+
 	0x89, 0x03,
 	0x60, 0x40,
 
@@ -632,7 +632,7 @@ static kal_uint8 gc5035_capture_setting[] = {
 	0x8c, 0x10,
 };
 
-static kal_uint8 gc5035_normal_video_setting[] = { // NOT USED
+static kal_uint8 gc5035_normal_video_setting[] = {
 	0xfc, 0x01,
 	0xf4, 0x40,
 	0xf5, 0xe9,
@@ -822,8 +822,8 @@ static kal_uint8 gc5035_custom1_setting[] = {
 	0xfe, 0x00,
 	0xfc, 0x8e,
 	0xfe, 0x00,
-	0x41, 0x03,
-	0x42, 0xf8,
+	0x41, 0x07, //for 60fps
+	0x42, 0xf0,
 	0x03, 0x02,
 	0x04, 0x64,
 	0xfe, 0x01,
@@ -877,22 +877,131 @@ static kal_uint8 gc5035_custom1_setting[] = {
 };
 
 static kal_uint8 gc5035_custom2_setting[] = {
-//NOT USED
-};
-
-static kal_uint8 gc5035_custom3_setting[] = {
-//NOT USED
-};
-
-static kal_uint8 gc5035_custom4_setting[] = {
-//NOT USED
+	0xfc, 0x01,
+	0xf4, 0x40,
+	0xf5, 0xe9,
+	0xf6, 0x14,
+	0xf8, 0x45,
+	0xf9, 0x82,
+	0xfa, 0x00,
+	0xfc, 0x81,
+	0xfe, 0x00,
+	0x36, 0x01,
+	0xd3, 0x87,
+	0x36, 0x00,
+	0x33, 0x00,
+	0xfe, 0x03,
+	0x01, 0xe7,
+	0xf7, 0x01,
+	0xfc, 0x8f,
+	0xfc, 0x8f,
+	0xfc, 0x8e,
+	0xfe, 0x00,
+	0xee, 0x30,
+	0x87, 0x18,
+	0xfe, 0x01,
+	0x8c, 0x90,
+	0xfe, 0x00,
+	0x05, 0x02,
+	0x06, 0xde,
+	0x9d, 0x34,
+	0x09, 0x00,
+	0x0a, 0x04,
+	0x0b, 0x00,
+	0x0c, 0x03,
+	0x0d, 0x07,
+	0x0e, 0xa8,
+	0x0f, 0x0a,
+	0x10, 0x30,
+	0x21, 0x48,
+	0x29, 0x58,
+	0x44, 0x20,
+	0x4e, 0x1a,
+	0x8c, 0x1a,
+	0x91, 0x80,
+	0x92, 0x28,
+	0x93, 0x20,
+	0x95, 0xa0,
+	0x96, 0xe0,
+	0xd5, 0xfc,
+	0x97, 0x28,
+	0x1f, 0x11,
+	0x24, 0x00,
+	0xd0, 0xb2,
+	0xfe, 0x00,
+	0xfc, 0x88,
+	0xfe, 0x10,
+	0xfe, 0x00,
+	0xfc, 0x88,
+	0xfe, 0x10,
+	0xfe, 0x00,
+	0xfc, 0x8e,
+	0xfe, 0x00,
+	0xfe, 0x00,
+	0xfe, 0x00,
+	0xfc, 0x88,
+	0xfe, 0x10,
+	0xfe, 0x00,
+	0xfc, 0x8e,
+	0xfe, 0x00,
+	0x41, 0x07,
+	0x42, 0xf4,
+	0x03, 0x07,
+	0x04, 0x2c,
+	0xfe, 0x01,
+	0x42, 0x21,
+	0x49, 0x03,
+	0x4a, 0xff,
+	0x4b, 0xc0,
+	0x55, 0x00,
+	0x41, 0x28,
+	0x4c, 0x00,
+	0x4d, 0x00,
+	0x4e, 0x3c,
+	0x44, 0x08,
+	0x48, 0x02,
+	0x91, 0x00,
+	0x92, 0xda,
+	0x93, 0x00,
+	0x94, 0x9f,
+	0x95, 0x05,
+	0x96, 0xf4,
+	0x97, 0x08,
+	0x98, 0xf0,
+	0x99, 0x00,
+	0xfe, 0x02,
+	0x91, 0x00,
+	0x92, 0x00,
+	0x93, 0x00,
+	0x94, 0x00,
+	0x95, 0x0a,
+	0x96, 0x30,
+	0x97, 0x0a,
+	0x98, 0x32,
+	0x99, 0x07,
+	0x9a, 0xa9,
+	0xfe, 0x03,
+	0x02, 0x57,
+	0x03, 0xb7,
+	0x15, 0x14,
+	0x18, 0x0f,
+	0x21, 0x22,
+	0x22, 0x07,
+	0x23, 0x48,
+	0x24, 0x12,
+	0x25, 0x28,
+	0x26, 0x09,
+	0x29, 0x06,
+	0x2a, 0x58,
+	0x2b, 0x09,
+	0xfe, 0x01,
+	0x8c, 0x10,
 };
 
 static kal_uint8 gc5035_custom5_setting[] = {
 //NOT USED
 };
 
-static struct gc5035_otp gc5035_otp_data = { 0 };
 static kal_uint16 read_cmos_sensor(kal_uint32 addr)
 {
 	kal_uint16 get_byte = 0;
@@ -930,7 +1039,8 @@ static kal_uint16 table_write_cmos_sensor(kal_uint8 *para, kal_uint32 len)
 
 		/* Write when remain buffer size is less than 2 bytes or reach end of data */
 		if ((I2C_BUFFER_LEN - tosend) < 2 || IDX == len || addr != addr_last) {
-			iBurstWriteReg_multi(puSendCmd, tosend, imgsensor.i2c_write_id, 2, imgsensor_info.i2c_speed);
+			iBurstWriteReg_multi(puSendCmd, tosend,
+				imgsensor.i2c_write_id, 2, imgsensor_info.i2c_speed);
 			tosend = 0;
 		}
 	}
@@ -946,373 +1056,54 @@ static kal_uint8 gc5035_otp_read_byte(kal_uint16 addr)
 	return read_cmos_sensor(0x6c);
 }
 
-#if defined(GC5035_OTP_CUSTOMER)
-static void gc5035_otp_read_group(kal_uint16 addr, kal_uint8 *data, kal_uint16 length)
+static void gc5035_otp_dd_autoload(void)
 {
-	kal_uint16 i = 0;
+	kal_uint8 valid_defect_num = 0, invalid_defect_num = 0;
+	kal_uint8 total_defect_num = 0;
 
+	LOG_INF("- E");
+	//1.OTP Read Initial Setting
+	write_cmos_sensor(0xfa, 0x10);
 	write_cmos_sensor(0xfe, 0x02);
-	write_cmos_sensor(0x69, (addr >> 8) & 0x1f);
-	write_cmos_sensor(0x6a, addr & 0xff);
-	write_cmos_sensor(0xf3, 0x20);
-	write_cmos_sensor(0xf3, 0x12);
-
-	for (i = 0; i < length; i++)
-		data[i] = read_cmos_sensor(0x6c);
-
-	write_cmos_sensor(0xf3, 0x00);
-}
-#endif
-
-static void gc5035_otp_read_sensor_info(void)
-{
-	kal_uint8 flag_dd = 0;
-	kal_uint16 temp = 0, i = 0, j = 0;
-
-
-	/* DPC */
-	flag_dd = gc5035_otp_read_byte(DPC_FLAG_OFFSET);
-	LOG_INF("flag_dd = 0x%x\n", flag_dd);
-	switch (flag_dd & 0x03) {
-	case 0x00:
-		LOG_INF("DD is empty !!\n");
-		gc5035_otp_data.dd_flag = 0x00;
-		break;
-	case 0x01:
-		LOG_INF("DD is valid!!\n");
-		gc5035_otp_data.dd_num = gc5035_otp_read_byte(DPC_TOTAL_NUMBER_OFFSET)
-						+ gc5035_otp_read_byte(DPC_ERROR_NUMBER_OFFSET);
-		gc5035_otp_data.dd_flag = 0x01;
-		LOG_INF("total_num = %d\n", gc5035_otp_data.dd_num);
-		break;
-	case 0x02:
-	case 0x03:
-		LOG_INF("DD is invalid !!\n");
-		gc5035_otp_data.dd_flag = 0x02;
-		break;
-	default:
-		break;
-	}
-
-	/*Register Update*/
-	gc5035_otp_data.reg_flag = gc5035_otp_read_byte(REG_INFO_FLAG_OFFSET);
-	LOG_INF("Register value flag = 0x%x\n", gc5035_otp_data.reg_flag);
-	if ((gc5035_otp_data.reg_flag & 0x03) == 0x01)
-		for (i = 0; i < REG_INFO_SIZE; i++) {
-			temp = gc5035_otp_read_byte(REG_INFO_PAGE_OFFSET + REG_INFO_SIZE * 8 * i);
-			for (j = 0; j < 2; j++) {
-				if (((temp >> (4 * j + 3)) & 0x01) == 0x01) {// check
-					gc5035_otp_data.regs[gc5035_otp_data.reg_num][0] =
-						(temp >> (4 * j)) & 0x07;// page
-					gc5035_otp_data.regs[gc5035_otp_data.reg_num][1] =
-						gc5035_otp_read_byte(REG_INFO_ADDR_OFFSET + REG_INFO_SIZE * 8 * i + 0x10 * j);
-					gc5035_otp_data.regs[gc5035_otp_data.reg_num][2] =
-						gc5035_otp_read_byte(REG_INFO_VALUE_OFFSET + REG_INFO_SIZE * 8 * i + 0x10 * j);
-					gc5035_otp_data.reg_num++;
-				}
-			}
-		}
-}
-
-static void gc5035_otp_update_dd(void)
-{
-	kal_uint8 state = 0;
-	kal_uint8 n = 0;
-
-	if (gc5035_otp_data.dd_flag == 0x01) {
-		LOG_INF("DD auto load start!\n");
-		write_cmos_sensor(0xfe, 0x02);
-		write_cmos_sensor(0xbe, 0x00);//allow DD write
-		write_cmos_sensor(0xa9, 0x01);// clear sram
-		write_cmos_sensor(0x09, 0x33);
-		write_cmos_sensor(0x01, (gc5035_otp_data.dd_num >> 8) & 0x07);
-		write_cmos_sensor(0x02, gc5035_otp_data.dd_num & 0xff);
-		write_cmos_sensor(0x03, 0x00);
-		write_cmos_sensor(0x04, 0x80);//otp bad pixel start pos
-		write_cmos_sensor(0x95, 0x0a);
-		write_cmos_sensor(0x96, 0x30);
-		write_cmos_sensor(0x97, 0x0a);
-		write_cmos_sensor(0x98, 0x32);
-		write_cmos_sensor(0x99, 0x07);
-		write_cmos_sensor(0x9a, 0xa9);
-		write_cmos_sensor(0xf3, 0x80);// auto load start pulse
-		while (n < 3) {
-			state = read_cmos_sensor(0x06);
-			if ((state | 0xfe) == 0xff)
-				usleep_range(10000, 10100);
-			else
-				n = 3;
-			n++;
-		}
-		write_cmos_sensor(0xbe, 0x01);
-		write_cmos_sensor(0x09, 0x00);//close auto load
-		write_cmos_sensor(0xfe, 0x01);
-		write_cmos_sensor(0x80, 0x02);/* [1]DD_EN */
-		write_cmos_sensor(0xfe, 0x00);
-	}
-}
-
-static void gc5035_otp_update_reg(void)
-{
-	kal_uint8 i = 0;
-
-	LOG_INF("register update start!");
-
-	/* Register Update */
-
-	if ((gc5035_otp_data.reg_flag & 0x03) == 0x01) {
-		for (i = 0; i < gc5035_otp_data.reg_num; i++) {
-			write_cmos_sensor(0xfe, gc5035_otp_data.regs[i][0]);
-			write_cmos_sensor(gc5035_otp_data.regs[i][1], gc5035_otp_data.regs[i][2]);
-		}
-	}
-	LOG_INF("register update finish!");
-
-}
-
-#if defined(GC5035_OTP_CUSTOMER)
-static void gc5035_otp_read_module_info(void)
-{
-	kal_uint8 index = 0, flag_module = 0;
-	kal_uint8 module_id = 0, lens_id = 0, year = 0, month = 0, day = 0;
-	kal_uint8 info[MODULE_INFO_SIZE] = { 0 };
-	kal_uint16 check = 0, i = 0;
-
-	memset(&info, 0, MODULE_INFO_SIZE * sizeof(kal_uint8));
-	flag_module = gc5035_otp_read_byte(MODULE_INFO_FLAG_OFFSET);
-	LOG_INF("flag_module = 0x%x\n", flag_module);
-
-	for (index = 0; index < 2; index++)
-		switch ((flag_module << (2 * index)) & 0x0c) {
-		case 0x00:
-			LOG_INF("module info group %d is empty!!\n", index + 1);
-			break;
-		case 0x04:
-			LOG_INF("module info group %d is valid!!\n", index + 1);
-			gc5035_otp_read_group(MODULE_INFO_OFFSET + MODULE_INFO_SIZE * 8 * index, &info[0], MODULE_INFO_SIZE);
-			for (i = 0; i < 6; i++)
-				LOG_INF("addr = 0x%x, data = 0x%x\n", MODULE_INFO_OFFSET + MODULE_INFO_SIZE * 8 * index + i * 8, info[i]);
-
-			for (i = 0; i < MODULE_INFO_SIZE - 1; i++)
-				check += info[i];
-
-			if ((check % 255 + 1) == info[MODULE_INFO_SIZE - 1]) {
-				module_id = info[0];
-				lens_id = info[1];
-				year = info[2];
-				month = info[3];
-				day = info[4];
-
-				LOG_INF("module_id = 0x%x\n", module_id);
-				LOG_INF("lens_id = 0x%x\n", lens_id);
-				LOG_INF("data = %d-%d-%d\n", year, month, day);
-			} else
-				LOG_INF("module info Check sum %d error!! check sum = %d, sum = %d\n",
-					index + 1, info[MODULE_INFO_SIZE - 1], (check % 255 + 1));
-			break;
-		case 0x08:
-		case 0x0c:
-			LOG_INF("module info group %d is invalid!!\n", index + 1);
-			break;
-		default:
-			break;
-		}
-}
-
-static void gc5035_otp_read_wb_info(void)
-{
-	kal_uint8  flag_wb = 0;
-	kal_uint8  wb[WB_INFO_SIZE] = { 0 };
-	kal_uint8  golden[WB_GOLDEN_INFO_SIZE] = { 0 };
-	kal_uint16 checkwb = 0, checkgolden = 0;
-	kal_uint8  index = 0, i = 0;
-
-	memset(&wb, 0, WB_INFO_SIZE * sizeof(kal_uint8));
-	memset(&golden, 0, WB_GOLDEN_INFO_SIZE * sizeof(kal_uint8));
-	flag_wb = gc5035_otp_read_byte(WB_INFO_FLAG_OFFSET);
-	LOG_INF("flag_wb = 0x%x\n", flag_wb);
-
-	for (index = 0; index < 2; index++) {
-		switch ((flag_wb << (2 * index)) & 0x0c) {
-		case 0x00:
-			LOG_INF("wb unit group %d is empty!!\n", index + 1);
-			gc5035_otp_data.wb_flag = gc5035_otp_data.wb_flag | 0x00;
-			break;
-		case 0x04:
-			LOG_INF("wb unit group %d is valid!!\n", index + 1);
-			gc5035_otp_read_group(WB_INFO_OFFSET + WB_INFO_SIZE * 8 * index, &wb[0], WB_INFO_SIZE);
-			for (i = 0; i < WB_INFO_SIZE; i++)
-				LOG_INF("addr = 0x%x, data = 0x%x\n", WB_INFO_OFFSET +  WB_INFO_SIZE * 8 * index + i * 8, wb[i]);
-			for (i = 0; i < WB_INFO_SIZE - 1; i++)
-				checkwb += wb[i];
-
-			LOG_INF("cal_checkwb = 0x%x, otp_checkwb = 0x%x\n", checkwb % 255 + 1, wb[3]);
-
-			if ((checkwb % 255 + 1) == wb[WB_INFO_SIZE - 1]) {
-				gc5035_otp_data.rg_gain = (wb[0] | ((wb[1] & 0xf0) << 4)) > 0 ?
-					(wb[0] | ((wb[1] & 0xf0) << 4)) : 0x400;
-				gc5035_otp_data.bg_gain = (((wb[1] & 0x0f) << 8) | wb[2]) > 0 ?
-					(((wb[1] & 0x0f) << 8) | wb[2]) : 0x400;
-				gc5035_otp_data.wb_flag = gc5035_otp_data.wb_flag | 0x01;
-			} else
-				LOG_INF("wb unit check sum %d error!!\n", index + 1);
-			break;
-		case 0x08:
-		case 0x0c:
-			LOG_INF("wb unit group %d is invalid!!\n", index + 1);
-			gc5035_otp_data.wb_flag = gc5035_otp_data.wb_flag | 0x02;
-			break;
-		default:
-			break;
-		}
-
-		switch ((flag_wb << (2 * index)) & 0xc0) {
-		case 0x00:
-			LOG_INF("wb golden group %d is empty!!\n", index + 1);
-			gc5035_otp_data.golden_flag = gc5035_otp_data.golden_flag | 0x00;
-			break;
-		case 0x40:
-			LOG_INF("wb golden group %d is valid!!\n", index + 1);
-			gc5035_otp_read_group(WB_GOLDEN_INFO_OFFSET + WB_GOLDEN_INFO_SIZE * 8 * index, &golden[0], WB_GOLDEN_INFO_SIZE);
-			for (i = 0; i < 4; i++)
-				LOG_INF("addr = 0x%x, data = 0x%x\n", WB_GOLDEN_INFO_OFFSET + WB_GOLDEN_INFO_SIZE * 8 * index + i * 8, golden[i]);
-			for (i = 0; i < WB_GOLDEN_INFO_SIZE - 1; i++)
-				checkgolden += golden[i];
-
-			LOG_INF("cal_checkgolden = 0x%x, otp_checkgolden = 0x%x\n", checkgolden % 255 + 1, golden[3]);
-
-			if ((checkgolden % 255 + 1) == golden[WB_GOLDEN_INFO_SIZE - 1]) {
-				gc5035_otp_data.golden_rg = (golden[0] | ((golden[1] & 0xf0) << 4)) > 0 ?
-					(golden[0] | ((golden[1] & 0xf0) << 4)) : RG_TYPICAL;
-				gc5035_otp_data.golden_bg = (((golden[1] & 0x0f) << 8) | golden[2]) > 0 ?
-					(((golden[1] & 0x0f) << 8) | golden[2]) : BG_TYPICAL;
-				gc5035_otp_data.golden_flag = gc5035_otp_data.golden_flag | 0x01;
-			} else
-				LOG_INF("wb golden check sum %d error!!\n", index + 1);
-			break;
-		case 0x80:
-		case 0xc0:
-			LOG_INF("wb golden group %d is invalid !!\n", index + 1);
-			gc5035_otp_data.golden_flag = gc5035_otp_data.golden_flag | 0x02;
-			break;
-		default:
-			break;
-		}
-	}
-}
-
-static void gc5035_otp_update_wb(void)
-{
-	kal_uint16 r_gain_current = 0, g_gain_current = 0, b_gain_current = 0, base_gain = 0;
-	kal_uint16 r_gain = 1024, g_gain = 1024, b_gain = 1024;
-	kal_uint16 rg_typical = 0, bg_typical = 0;
-
-	if (gc5035_otp_data.golden_flag == 0x02)
-		return;
-
-	if ((gc5035_otp_data.golden_flag & 0x01) == 0x01) {
-		rg_typical = gc5035_otp_data.golden_rg;
-		bg_typical = gc5035_otp_data.golden_bg;
-		LOG_INF("golden_flag = %d, rg_typical = 0x%x, bg_typical = 0x%x\n",
-			gc5035_otp_data.golden_flag, rg_typical, bg_typical);
-	} else {
-		rg_typical = RG_TYPICAL;
-		bg_typical = BG_TYPICAL;
-		LOG_INF("golden_flag = %d, rg_typical = 0x%x, bg_typical = 0x%x\n",
-			gc5035_otp_data.golden_flag, rg_typical, bg_typical);
-	}
-
-	if ((gc5035_otp_data.wb_flag & 0x01) == 0x01) {
-		r_gain_current = 2048 * rg_typical / gc5035_otp_data.rg_gain;
-		b_gain_current = 2048 * bg_typical / gc5035_otp_data.bg_gain;
-		g_gain_current = 2048;
-
-		base_gain = (r_gain_current < b_gain_current) ? r_gain_current : b_gain_current;
-		base_gain = (base_gain < g_gain_current) ? base_gain : g_gain_current;
-
-		r_gain = 0x400 * r_gain_current / base_gain;
-		g_gain = 0x400 * g_gain_current / base_gain;
-		b_gain = 0x400 * b_gain_current / base_gain;
-		LOG_INF("r_gain = 0x%x, g_gain = 0x%x, b_gain = 0x%x\n", r_gain, g_gain, b_gain);
-
-		write_cmos_sensor(0xfe, 0x04);
-		write_cmos_sensor(0x40, g_gain & 0xff);
-		write_cmos_sensor(0x41, r_gain & 0xff);
-		write_cmos_sensor(0x42, b_gain & 0xff);
-		write_cmos_sensor(0x43, g_gain & 0xff);
-		write_cmos_sensor(0x44, g_gain & 0xff);
-		write_cmos_sensor(0x45, r_gain & 0xff);
-		write_cmos_sensor(0x46, b_gain & 0xff);
-		write_cmos_sensor(0x47, g_gain & 0xff);
-		write_cmos_sensor(0x48, (g_gain >> 8) & 0x07);
-		write_cmos_sensor(0x49, (r_gain >> 8) & 0x07);
-		write_cmos_sensor(0x4a, (b_gain >> 8) & 0x07);
-		write_cmos_sensor(0x4b, (g_gain >> 8) & 0x07);
-		write_cmos_sensor(0x4c, (g_gain >> 8) & 0x07);
-		write_cmos_sensor(0x4d, (r_gain >> 8) & 0x07);
-		write_cmos_sensor(0x4e, (b_gain >> 8) & 0x07);
-		write_cmos_sensor(0x4f, (g_gain >> 8) & 0x07);
-		write_cmos_sensor(0xfe, 0x00);
-	}
-}
-#endif
-
-#if defined(GC5035_OTP_DEBUG)
-	//char pu_send_cmd[1] = { (char)(0xc0 + (addr & 0xFF)) };
-
-	//iReadRegI2C(pu_send_cmd, 1, (u8 *)data, length, imgsensor.i2c_write_id);
-static void gc5035_otp_debug(void)
-{
-	kal_uint8 debugdata[OTP_DATA_LENGTH] = {0};
-	kal_uint16 i;
-
-	memset(&debugdata, 0, OTP_DATA_LENGTH * sizeof(kal_uint8));
-	gc5035_otp_read_group(OTP_START_ADDR, &debugdata[0], OTP_DATA_LENGTH);
-	for (i = 0; i < OTP_DATA_LENGTH; i++)
-		LOG_INF("addr = 0x%x, data = 0x%x\n", OTP_START_ADDR + i * 8, debugdata[i]);
-}
-#endif
-static void gc5035_otp_read(void)
-{
-	gc5035_otp_read_sensor_info();
-#if defined(GC5035_OTP_CUSTOMER)
-	gc5035_otp_read_module_info();
-	gc5035_otp_read_wb_info();
-#endif
-#if defined(GC5035_OTP_DEBUG)
-	gc5035_otp_debug();
-#endif
-}
-
-static void gc5035_otp_update(void)
-{
-	gc5035_otp_update_dd();
-#if defined(GC5035_OTP_CUSTOMER)
-	gc5035_otp_update_wb();
-#endif
-	gc5035_otp_update_reg();
-}
-
-static void gc5035_otp_function(void)
-{
-	memset(&gc5035_otp_data, 0, sizeof(gc5035_otp_data));
-	write_cmos_sensor(0xfa, 0x10); //otp_clk_en
-	write_cmos_sensor(0xf5, 0xc1);
-	write_cmos_sensor(0xfe, 0x02);
-	write_cmos_sensor(0x67, 0xc0); //[7]otp_en [6]otpcpclk_en
-	write_cmos_sensor(0x59, 0x3f);//charge pump voltage 7.43V
-	write_cmos_sensor(0x55, 0x80);//[7]high voltage protect
-	write_cmos_sensor(0x65, 0x30);//read time
+	write_cmos_sensor(0x67, 0xc0); //[7]OTP_EN, [6]OTPCPCLK_EN
+	write_cmos_sensor(0x55, 0x80);
+	write_cmos_sensor(0x65, 0x80);
 	write_cmos_sensor(0x66, 0x03);
-	write_cmos_sensor(0xfe, 0x00);
 
-	gc5035_otp_read();
-	gc5035_otp_update();
-
+	//2.DPC Table Auto Load Prepare setting1
 	write_cmos_sensor(0xfe, 0x02);
+	write_cmos_sensor(0xbe, 0x00);
+	write_cmos_sensor(0xa9, 0x01);
+
+	//3.DPC Table Auto Load Prepare setting2
+	valid_defect_num   = gc5035_otp_read_byte(0x0070);
+	invalid_defect_num = gc5035_otp_read_byte(0x0078);
+	total_defect_num = valid_defect_num + invalid_defect_num;
+	LOG_INF("total_defect_num %d(valid defect %d, invalid %d)\n",
+			total_defect_num, valid_defect_num, invalid_defect_num);
+
+	//4.DPC Table Auto Load Prepare setting3
+	write_cmos_sensor(0x01, 0x00);
+	write_cmos_sensor(0x02, total_defect_num);
+	write_cmos_sensor(0x03, 0x00);
+	write_cmos_sensor(0x04, 0x80);
+
+	//5.DPC Table Auto Load
+	write_cmos_sensor(0x09, 0x33);
+	write_cmos_sensor(0xf3, 0x80);
+
+	//6.Wait 4ms
+	usleep_range(4000, 4100);
+
+	//7.Static DPC function Enable
+	write_cmos_sensor(0xfe, 0x02);
+	write_cmos_sensor(0xbe, 0x01);
+	write_cmos_sensor(0x09, 0x00);
 	write_cmos_sensor(0x67, 0x00);
+	write_cmos_sensor(0xfe, 0x01);
+	write_cmos_sensor(0x80, 0x02);
 	write_cmos_sensor(0xfe, 0x00);
-	write_cmos_sensor(0xfa, 0x00);
+	LOG_INF("- X");
 }
 
 static void set_dummy(void)
@@ -1320,13 +1111,17 @@ static void set_dummy(void)
 	kal_uint32 frame_length = imgsensor.frame_length >> 2;
 
 	frame_length = frame_length << 2;
+
+	if (imgsensor.current_scenario_id == MSDK_SCENARIO_ID_CUSTOM1) {
+	    frame_length = frame_length << 1;
+	    LOG_INF("frame_length for binning mode : %d\n", frame_length);
+	}
+
 	write_cmos_sensor(0xfe, 0x00);
 	write_cmos_sensor(0x41, (frame_length >> 8) & 0x3f);
 	write_cmos_sensor(0x42, frame_length & 0xff);
-	LOG_INF("Exit! framelength = %d\n", frame_length);
+	LOG_DBG("Exit! framelength = %d\n", frame_length);
 }
-
-
 
 static kal_uint32 return_sensor_id(void)
 {
@@ -1336,8 +1131,8 @@ static kal_uint32 return_sensor_id(void)
 		0x5075, 0x5085, 0x5095, 0x50a5
 	};
 	rtn_id = (read_cmos_sensor(0xf0) << 8) | read_cmos_sensor(0xf1);
-	LOG_INF("Sensor ID 0xf0 = 0x%x\n", read_cmos_sensor(0xf0));
-	LOG_INF("Sensor ID 0xf1 = 0x%x\n", read_cmos_sensor(0xf1));
+	LOG_DBG("Sensor ID 0xf0 = 0x%x\n", read_cmos_sensor(0xf0));
+	LOG_DBG("Sensor ID 0xf1 = 0x%x\n", read_cmos_sensor(0xf1));
 	LOG_INF("Sensor ID = 0x%x\n", rtn_id);
 	for (i = 0; i < 8; i++) {
 		if (rtn_id == idg[i])
@@ -1360,7 +1155,7 @@ static void set_max_framerate(UINT16 framerate, kal_bool min_framelength_en)
 		imgsensor.frame_length = imgsensor_info.max_frame_length;
 		imgsensor.dummy_line = imgsensor.frame_length - imgsensor.min_frame_length;
 	}
-	LOG_INF("framelength = %d\n", imgsensor.frame_length);
+	LOG_DBG("framelength = %d\n", imgsensor.frame_length);
 	if (min_framelength_en)
 		imgsensor.min_frame_length = imgsensor.frame_length;
 	spin_unlock(&imgsensor_drv_lock);
@@ -1428,8 +1223,8 @@ static void set_shutter(kal_uint16 shutter)
 	write_cmos_sensor(0x03, (cal_shutter >> 8) & 0x3F);
 	write_cmos_sensor(0x04, cal_shutter & 0xFF);
 
-	LOG_INF("Exit! shutter = %d, framelength = %d\n", shutter, imgsensor.frame_length);
-	LOG_INF("Exit! cal_shutter = %d, ", cal_shutter);
+	LOG_DBG("Exit! shutter = %d, framelength = %d\n", shutter, imgsensor.frame_length);
+	LOG_DBG("Exit! cal_shutter = %d, ", cal_shutter);
 }
 
 static void set_shutter_frame_length(kal_uint16 shutter, kal_uint16 frame_length)
@@ -1549,7 +1344,7 @@ static kal_uint16 set_gain(kal_uint16 gain)
 	temp_gain = reg_gain * Dgain_ratio / GC5035_AGC_Param[gain_index][0];
 	write_cmos_sensor(0xb1, (temp_gain >> 8) & 0x0f);
 	write_cmos_sensor(0xb2, temp_gain & 0xfc);
-	LOG_INF("Exit! GC5035_AGC_Param[gain_index][1] = 0x%x, temp_gain = 0x%x, reg_gain = %d\n",
+	LOG_DBG("Exit! GC5035_AGC_Param[gain_index][1] = 0x%x, temp_gain = 0x%x, reg_gain = %d\n",
 		GC5035_AGC_Param[gain_index][1], temp_gain, reg_gain);
 
 	return reg_gain;
@@ -1606,11 +1401,11 @@ static int wait_stream_changes(kal_uint32 addr, kal_uint32 val)
 		mDELAY(wait_delay_ms);
 		read_val = read_cmos_sensor(read_addr);
 
-		LOG_INF("read addr = 0x%.2x, val = 0x%.2x", addr, read_val);
+		LOG_DBG("read addr = 0x%.2x, val = 0x%.2x", addr, read_val);
 		cur_cnt++;
 
 		if (cur_cnt >= max_cnt) {
-			LOG_INF("stream timeout: %d ms\n", (max_cnt * wait_delay_ms));
+			LOG_ERR("stream timeout: %d ms\n", (max_cnt * wait_delay_ms));
 			break;
 		}
 	}
@@ -1636,24 +1431,41 @@ static kal_uint32 streaming_control(kal_bool enable)
 
 static void sensor_init(void)
 {
+	int ret = 0;
+#ifdef IMGSENSOR_HW_PARAM
+	struct cam_hw_param *hw_param = NULL;
+#endif
+
 	LOG_INF("%s:fixel_pixel: %d\n", __func__, imgsensor_info.sensor_output_dataformat);
-	table_write_cmos_sensor(gc5035_init_setting, sizeof(gc5035_init_setting) / sizeof(kal_uint8));
+	ret = table_write_cmos_sensor(gc5035_init_setting,
+		sizeof(gc5035_init_setting) / sizeof(kal_uint8));
+#ifdef IMGSENSOR_HW_PARAM
+	if (ret != 0) {
+		imgsensor_sec_get_hw_param(&hw_param, GC5035_CAL_SENSOR_POSITION);
+		if (hw_param)
+			hw_param->i2c_sensor_err_cnt++;
+	}
+#endif
+
 }
 
 static void preview_setting(void)
 {
-	table_write_cmos_sensor(gc5035_preview_setting, sizeof(gc5035_preview_setting) / sizeof(kal_uint8));
+	table_write_cmos_sensor(gc5035_preview_setting,
+		sizeof(gc5035_preview_setting) / sizeof(kal_uint8));
 }
 
 static void capture_setting(kal_uint16 currefps)
 {
 	LOG_INF("E! currefps: %d\n", currefps);
-	table_write_cmos_sensor(gc5035_capture_setting, sizeof(gc5035_capture_setting) / sizeof(kal_uint8));
+	table_write_cmos_sensor(gc5035_capture_setting,
+		sizeof(gc5035_capture_setting) / sizeof(kal_uint8));
 }
 
 static void normal_video_setting(kal_uint16 currefps)
 {
-	table_write_cmos_sensor(gc5035_normal_video_setting, sizeof(gc5035_normal_video_setting) / sizeof(kal_uint8));
+	table_write_cmos_sensor(gc5035_normal_video_setting,
+		sizeof(gc5035_normal_video_setting) / sizeof(kal_uint8));
 }
 
 static void hs_video_setting(void)
@@ -1912,26 +1724,31 @@ static void slim_video_setting(void)
 
 static void custom1_setting(void)
 {
-	table_write_cmos_sensor(gc5035_custom1_setting, sizeof(gc5035_custom1_setting) / sizeof(kal_uint8));
+	table_write_cmos_sensor(gc5035_custom1_setting,
+		sizeof(gc5035_custom1_setting) / sizeof(kal_uint8));
 }
 static void custom2_setting(void)
 {
-	table_write_cmos_sensor(gc5035_custom2_setting, sizeof(gc5035_custom2_setting) / sizeof(kal_uint8));
+	table_write_cmos_sensor(gc5035_custom2_setting,
+		sizeof(gc5035_custom2_setting) / sizeof(kal_uint8));
 }
 
 static void custom3_setting(void)
 {
-	table_write_cmos_sensor(gc5035_custom3_setting, sizeof(gc5035_custom3_setting) / sizeof(kal_uint8));
+	table_write_cmos_sensor(gc5035_custom2_setting,
+		sizeof(gc5035_custom2_setting) / sizeof(kal_uint8));
 }
 
 static void custom4_setting(void)
 {
-	table_write_cmos_sensor(gc5035_custom4_setting, sizeof(gc5035_custom4_setting) / sizeof(kal_uint8));
+	table_write_cmos_sensor(gc5035_custom2_setting,
+		sizeof(gc5035_custom2_setting) / sizeof(kal_uint8));
 }
 
 static void custom5_setting(void)
 {
-	table_write_cmos_sensor(gc5035_custom5_setting, sizeof(gc5035_custom5_setting) / sizeof(kal_uint8));
+	table_write_cmos_sensor(gc5035_custom5_setting,
+		sizeof(gc5035_custom5_setting) / sizeof(kal_uint8));
 }
 
 static kal_uint32 set_test_pattern_mode(kal_bool enable)
@@ -1979,10 +1796,12 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 		do {
 			*sensor_id = return_sensor_id();
 			if (*sensor_id == imgsensor_info.sensor_id) {
-				LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id, *sensor_id);
+				LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n",
+					imgsensor.i2c_write_id, *sensor_id);
 				return ERROR_NONE;
 			}
-			LOG_INF("Read sensor id fail, write id: 0x%x, id: 0x%x\n", imgsensor.i2c_write_id, *sensor_id);
+			LOG_INF("Read sensor id fail, write id: 0x%x, id: 0x%x\n",
+				imgsensor.i2c_write_id, *sensor_id);
 			retry--;
 		} while (retry > 0);
 		i++;
@@ -2029,10 +1848,12 @@ static kal_uint32 open(void)
 		do {
 			sensor_id = return_sensor_id();
 			if (sensor_id == imgsensor_info.sensor_id) {
-				LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n", imgsensor.i2c_write_id, sensor_id);
+				LOG_INF("i2c write id: 0x%x, sensor id: 0x%x\n",
+					imgsensor.i2c_write_id, sensor_id);
 				break;
 			}
-			LOG_INF("Read sensor id fail, write id: 0x%x, id: 0x%x\n", imgsensor.i2c_write_id, sensor_id);
+			LOG_INF("Read sensor id fail, write id: 0x%x, id: 0x%x\n",
+				imgsensor.i2c_write_id, sensor_id);
 			retry--;
 		} while (retry > 0);
 		i++;
@@ -2046,7 +1867,7 @@ static kal_uint32 open(void)
 	/* initail sequence write in  */
 	sensor_init();
 
-	gc5035_otp_function();
+	gc5035_otp_dd_autoload();
 
 	spin_lock(&imgsensor_drv_lock);
 
@@ -2109,7 +1930,7 @@ static kal_uint32 close(void)
 static kal_uint32 preview(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	MSDK_SENSOR_CONFIG_STRUCT *sensor_config_data)
 {
-	LOG_INF("E\n");
+	LOG_INF("-E");
 
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.sensor_mode = IMGSENSOR_MODE_PREVIEW;
@@ -2123,6 +1944,7 @@ static kal_uint32 preview(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	preview_setting();
 
 	/* set_mirror_flip(sensor_config_data->SensorImageMirror); */
+	LOG_INF("-X");
 	return ERROR_NONE;
 }
 
@@ -2144,7 +1966,7 @@ static kal_uint32 preview(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 static kal_uint32 capture(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	MSDK_SENSOR_CONFIG_STRUCT *sensor_config_data)
 {
-	LOG_INF("E\n");
+	LOG_INF("-E");
 
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.sensor_mode = IMGSENSOR_MODE_CAPTURE;
@@ -2155,13 +1977,14 @@ static kal_uint32 capture(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	imgsensor.autoflicker_en = KAL_FALSE;
 	spin_unlock(&imgsensor_drv_lock);
 	capture_setting(imgsensor.current_fps);
+	LOG_INF("-X");
 	return ERROR_NONE;
 }
 
 static kal_uint32 normal_video(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	MSDK_SENSOR_CONFIG_STRUCT *sensor_config_data)
 {
-	LOG_INF("E\n");
+	LOG_INF("-E");
 
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.sensor_mode = IMGSENSOR_MODE_VIDEO;
@@ -2175,13 +1998,14 @@ static kal_uint32 normal_video(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 
 	normal_video_setting(imgsensor.current_fps);
 	/* set_mirror_flip(sensor_config_data->SensorImageMirror); */
+	LOG_INF("-X");
 	return ERROR_NONE;
 }
 
 static kal_uint32 hs_video(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	MSDK_SENSOR_CONFIG_STRUCT *sensor_config_data)
 {
-	LOG_INF("E\n");
+	LOG_INF("-E");
 
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.sensor_mode = IMGSENSOR_MODE_HIGH_SPEED_VIDEO;
@@ -2195,13 +2019,14 @@ static kal_uint32 hs_video(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	imgsensor.autoflicker_en = KAL_FALSE;
 	spin_unlock(&imgsensor_drv_lock);
 	hs_video_setting();
+	LOG_INF("-X");
 	return ERROR_NONE;
 }
 
 static kal_uint32 slim_video(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	MSDK_SENSOR_CONFIG_STRUCT *sensor_config_data)
 {
-	LOG_INF("E\n");
+	LOG_INF("-E");
 
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.sensor_mode = IMGSENSOR_MODE_SLIM_VIDEO;
@@ -2214,13 +2039,14 @@ static kal_uint32 slim_video(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	imgsensor.autoflicker_en = KAL_FALSE;
 	spin_unlock(&imgsensor_drv_lock);
 	slim_video_setting();
+	LOG_INF("-X");
 	return ERROR_NONE;
 }
 
 static kal_uint32 custom1(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	MSDK_SENSOR_CONFIG_STRUCT *sensor_config_data)
 {
-	LOG_INF("E\n");
+	LOG_INF("-E");
 
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.sensor_mode = IMGSENSOR_MODE_CUSTOM1;
@@ -2230,13 +2056,14 @@ static kal_uint32 custom1(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	imgsensor.min_frame_length = imgsensor_info.custom1.framelength;
 	spin_unlock(&imgsensor_drv_lock);
 	custom1_setting();
+	LOG_INF("-X");
 	return ERROR_NONE;
 }
 
 static kal_uint32 custom2(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	MSDK_SENSOR_CONFIG_STRUCT *sensor_config_data)
 {
-	LOG_INF("E\n");
+	LOG_INF("-E");
 
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.sensor_mode = IMGSENSOR_MODE_CUSTOM2;
@@ -2246,12 +2073,13 @@ static kal_uint32 custom2(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	imgsensor.min_frame_length = imgsensor_info.custom2.framelength;
 	spin_unlock(&imgsensor_drv_lock);
 	custom2_setting();
+	LOG_INF("-X");
 	return ERROR_NONE;
 }
 static kal_uint32 custom3(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	MSDK_SENSOR_CONFIG_STRUCT *sensor_config_data)
 {
-	LOG_INF("E\n");
+	LOG_INF("-E");
 
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.sensor_mode = IMGSENSOR_MODE_CUSTOM3;
@@ -2261,12 +2089,13 @@ static kal_uint32 custom3(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	imgsensor.min_frame_length = imgsensor_info.custom3.framelength;
 	spin_unlock(&imgsensor_drv_lock);
 	custom3_setting();
+	LOG_INF("-X");
 	return ERROR_NONE;
 }
 static kal_uint32 custom4(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	MSDK_SENSOR_CONFIG_STRUCT *sensor_config_data)
 {
-	LOG_INF("E\n");
+	LOG_INF("-E");
 
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.sensor_mode = IMGSENSOR_MODE_CUSTOM4;
@@ -2276,12 +2105,13 @@ static kal_uint32 custom4(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	imgsensor.min_frame_length = imgsensor_info.custom4.framelength;
 	spin_unlock(&imgsensor_drv_lock);
 	custom4_setting();
+	LOG_INF("-X");
 	return ERROR_NONE;
 }
 static kal_uint32 custom5(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	MSDK_SENSOR_CONFIG_STRUCT *sensor_config_data)
 {
-	LOG_INF("E\n");
+	LOG_INF("-E");
 
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.sensor_mode = IMGSENSOR_MODE_CUSTOM5;
@@ -2291,6 +2121,7 @@ static kal_uint32 custom5(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	imgsensor.min_frame_length = imgsensor_info.custom5.framelength;
 	spin_unlock(&imgsensor_drv_lock);
 	custom5_setting();
+	LOG_INF("-X");
 	return ERROR_NONE;
 }
 
@@ -2322,7 +2153,7 @@ static kal_uint32 get_resolution(MSDK_SENSOR_RESOLUTION_INFO_STRUCT *sensor_reso
 	sensor_resolution->SensorCustom4Height = imgsensor_info.custom4.grabwindow_height;
 	sensor_resolution->SensorCustom5Width = imgsensor_info.custom5.grabwindow_width;
 	sensor_resolution->SensorCustom5Height = imgsensor_info.custom5.grabwindow_height;
-
+	LOG_INF("-X");
 	return ERROR_NONE;
 }
 
@@ -2331,14 +2162,18 @@ static kal_uint32 get_info(enum MSDK_SCENARIO_ID_ENUM scenario_id,
 			   MSDK_SENSOR_CONFIG_STRUCT *sensor_config_data)
 {
 	LOG_INF("scenario_id = %d\n", scenario_id);
-
-	/*sensor_info->SensorVideoFrameRate = imgsensor_info.normal_video.max_framerate/10;*/ /*not use*/
-	/*sensor_info->SensorStillCaptureFrameRate= imgsensor_info.cap.max_framerate/10;*/	/*not use*/
-	/*imgsensor_info->SensorWebCamCaptureFrameRate= imgsensor_info.v.max_framerate;*/	 /*not use*/
-
+			/*not use*/
+/*sensor_info->SensorVideoFrameRate =
+ *	imgsensor_info.normal_video.max_framerate/10;
+ *sensor_info->SensorStillCaptureFrameRate=
+ *	imgsensor_info.cap.max_framerate/10;
+ *imgsensor_info->SensorWebCamCaptureFrameRate=
+ *	imgsensor_info.v.max_framerate;
+ */
 	sensor_info->SensorClockPolarity = SENSOR_CLOCK_POLARITY_LOW;
 	sensor_info->SensorClockFallingPolarity = SENSOR_CLOCK_POLARITY_LOW;	/*not use*/
-	sensor_info->SensorHsyncPolarity = SENSOR_CLOCK_POLARITY_LOW;			/*inverse with datasheet*/
+	sensor_info->SensorHsyncPolarity =
+		SENSOR_CLOCK_POLARITY_LOW;			/*inverse with datasheet*/
 	sensor_info->SensorVsyncPolarity = SENSOR_CLOCK_POLARITY_LOW;
 	sensor_info->SensorInterruptDelayLines = 4;		/*not use*/
 	sensor_info->SensorResetActiveHigh = FALSE;		/*not use*/
@@ -2392,12 +2227,14 @@ static kal_uint32 get_info(enum MSDK_SCENARIO_ID_ENUM scenario_id,
 	case MSDK_SCENARIO_ID_CAMERA_PREVIEW:
 		sensor_info->SensorGrabStartX = imgsensor_info.pre.startx;
 		sensor_info->SensorGrabStartY = imgsensor_info.pre.starty;
-		sensor_info->MIPIDataLowPwr2HighSpeedSettleDelayCount = imgsensor_info.pre.mipi_data_lp2hs_settle_dc;
+		sensor_info->MIPIDataLowPwr2HighSpeedSettleDelayCount =
+			imgsensor_info.pre.mipi_data_lp2hs_settle_dc;
 		break;
 	case MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG:
 		sensor_info->SensorGrabStartX = imgsensor_info.cap.startx;
 		sensor_info->SensorGrabStartY = imgsensor_info.cap.starty;
-		sensor_info->MIPIDataLowPwr2HighSpeedSettleDelayCount = imgsensor_info.cap.mipi_data_lp2hs_settle_dc;
+		sensor_info->MIPIDataLowPwr2HighSpeedSettleDelayCount =
+			imgsensor_info.cap.mipi_data_lp2hs_settle_dc;
 		break;
 	case MSDK_SCENARIO_ID_VIDEO_PREVIEW:
 		sensor_info->SensorGrabStartX = imgsensor_info.normal_video.startx;
@@ -2450,17 +2287,20 @@ static kal_uint32 get_info(enum MSDK_SCENARIO_ID_ENUM scenario_id,
 	default:
 		sensor_info->SensorGrabStartX = imgsensor_info.pre.startx;
 		sensor_info->SensorGrabStartY = imgsensor_info.pre.starty;
-		sensor_info->MIPIDataLowPwr2HighSpeedSettleDelayCount = imgsensor_info.pre.mipi_data_lp2hs_settle_dc;
+		sensor_info->MIPIDataLowPwr2HighSpeedSettleDelayCount =
+			imgsensor_info.pre.mipi_data_lp2hs_settle_dc;
 		break;
 	}
 
 	return ERROR_NONE;
 }
 
-static kal_uint32 control(enum MSDK_SCENARIO_ID_ENUM scenario_id, MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
+static kal_uint32 control(enum MSDK_SCENARIO_ID_ENUM scenario_id,
+	MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	MSDK_SENSOR_CONFIG_STRUCT *sensor_config_data)
 {
-	LOG_INF("scenario_id = %d\n", scenario_id);
+	LOG_INF("-E");
+	LOG_INF("scenario_id = %d", scenario_id);
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.current_scenario_id = scenario_id;
 	spin_unlock(&imgsensor_drv_lock);
@@ -2500,6 +2340,7 @@ static kal_uint32 control(enum MSDK_SCENARIO_ID_ENUM scenario_id, MSDK_SENSOR_EX
 		preview(image_window, sensor_config_data);
 		return ERROR_INVALID_SCENARIO_ID;
 	}
+	LOG_INF("-X");
 	return ERROR_NONE;
 }
 
@@ -2526,7 +2367,7 @@ static kal_uint32 set_video_mode(UINT16 framerate)
 
 static kal_uint32 set_auto_flicker_mode(kal_bool enable, UINT16 framerate)
 {
-	LOG_INF("enable = %d, framerate = %d\n", enable, framerate);
+	LOG_DBG("enable = %d, framerate = %d\n", enable, framerate);
 	spin_lock(&imgsensor_drv_lock);
 	if (enable) {/* enable auto flicker */
 		imgsensor.autoflicker_en = KAL_TRUE;
@@ -2537,7 +2378,8 @@ static kal_uint32 set_auto_flicker_mode(kal_bool enable, UINT16 framerate)
 	return ERROR_NONE;
 }
 
-static kal_uint32 set_max_framerate_by_scenario(enum MSDK_SCENARIO_ID_ENUM scenario_id, MUINT32 framerate)
+static kal_uint32 set_max_framerate_by_scenario(
+		enum MSDK_SCENARIO_ID_ENUM scenario_id, MUINT32 framerate)
 {
 	kal_uint32 frame_length;
 
@@ -2545,7 +2387,8 @@ static kal_uint32 set_max_framerate_by_scenario(enum MSDK_SCENARIO_ID_ENUM scena
 
 	switch (scenario_id) {
 	case MSDK_SCENARIO_ID_CAMERA_PREVIEW:
-		frame_length = imgsensor_info.pre.pclk / framerate * 10 / imgsensor_info.pre.linelength;
+		frame_length = imgsensor_info.pre.pclk /
+			framerate * 10 / imgsensor_info.pre.linelength;
 		spin_lock(&imgsensor_drv_lock);
 		imgsensor.dummy_line = (frame_length > imgsensor_info.pre.framelength) ?
 			(frame_length - imgsensor_info.pre.framelength) : 0;
@@ -2559,11 +2402,13 @@ static kal_uint32 set_max_framerate_by_scenario(enum MSDK_SCENARIO_ID_ENUM scena
 		if (framerate == 0)
 			return ERROR_NONE;
 		frame_length =
-			imgsensor_info.normal_video.pclk / framerate * 10 / imgsensor_info.normal_video.linelength;
+			imgsensor_info.normal_video.pclk / framerate * 10 /
+				imgsensor_info.normal_video.linelength;
 		spin_lock(&imgsensor_drv_lock);
 		imgsensor.dummy_line = (frame_length > imgsensor_info.normal_video.framelength) ?
 			(frame_length - imgsensor_info.normal_video.framelength) : 0;
-		imgsensor.frame_length = imgsensor_info.normal_video.framelength + imgsensor.dummy_line;
+		imgsensor.frame_length =
+			imgsensor_info.normal_video.framelength + imgsensor.dummy_line;
 		imgsensor.min_frame_length = imgsensor.frame_length;
 		spin_unlock(&imgsensor_drv_lock);
 		if (imgsensor.frame_length > imgsensor.shutter)
@@ -2571,10 +2416,12 @@ static kal_uint32 set_max_framerate_by_scenario(enum MSDK_SCENARIO_ID_ENUM scena
 		break;
 	case MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG:
 		if (imgsensor.current_fps != imgsensor_info.cap.max_framerate) {
-			LOG_INF("Warning: current_fps %d fps is not support, so use cap's setting: %d fps!\n",
-				framerate, imgsensor_info.cap.max_framerate / 10);
+			LOG_INF("Warning: current_fps %d fps is not support", framerate);
+			LOG_INF("so use cap's setting: %d fps!\n",
+				imgsensor_info.cap.max_framerate / 10);
 		}
-		frame_length = imgsensor_info.cap.pclk / framerate * 10 / imgsensor_info.cap.linelength;
+		frame_length = imgsensor_info.cap.pclk /
+			framerate * 10 / imgsensor_info.cap.linelength;
 		spin_lock(&imgsensor_drv_lock);
 		imgsensor.dummy_line = (frame_length > imgsensor_info.cap.framelength) ?
 			(frame_length - imgsensor_info.cap.framelength) : 0;
@@ -2585,29 +2432,34 @@ static kal_uint32 set_max_framerate_by_scenario(enum MSDK_SCENARIO_ID_ENUM scena
 			set_dummy();
 		break;
 	case MSDK_SCENARIO_ID_HIGH_SPEED_VIDEO:
-		frame_length = imgsensor_info.hs_video.pclk / framerate * 10 / imgsensor_info.hs_video.linelength;
+		frame_length = imgsensor_info.hs_video.pclk /
+			framerate * 10 / imgsensor_info.hs_video.linelength;
 		spin_lock(&imgsensor_drv_lock);
 		imgsensor.dummy_line = (frame_length > imgsensor_info.hs_video.framelength) ?
 			(frame_length - imgsensor_info.hs_video.framelength) : 0;
-		imgsensor.frame_length = imgsensor_info.hs_video.framelength + imgsensor.dummy_line;
+		imgsensor.frame_length =
+			imgsensor_info.hs_video.framelength + imgsensor.dummy_line;
 		imgsensor.min_frame_length = imgsensor.frame_length;
 		spin_unlock(&imgsensor_drv_lock);
 		if (imgsensor.frame_length > imgsensor.shutter)
 			set_dummy();
 		break;
 	case MSDK_SCENARIO_ID_SLIM_VIDEO:
-		frame_length = imgsensor_info.slim_video.pclk / framerate * 10 / imgsensor_info.slim_video.linelength;
+		frame_length = imgsensor_info.slim_video.pclk /
+			framerate * 10 / imgsensor_info.slim_video.linelength;
 		spin_lock(&imgsensor_drv_lock);
 		imgsensor.dummy_line = (frame_length > imgsensor_info.slim_video.framelength) ?
 			(frame_length - imgsensor_info.slim_video.framelength) : 0;
-		imgsensor.frame_length = imgsensor_info.slim_video.framelength + imgsensor.dummy_line;
+		imgsensor.frame_length =
+			imgsensor_info.slim_video.framelength + imgsensor.dummy_line;
 		imgsensor.min_frame_length = imgsensor.frame_length;
 		spin_unlock(&imgsensor_drv_lock);
 		if (imgsensor.frame_length > imgsensor.shutter)
 			set_dummy();
 		break;
 	case MSDK_SCENARIO_ID_CUSTOM1:
-		frame_length = imgsensor_info.custom1.pclk / framerate * 10 / imgsensor_info.custom1.linelength;
+		frame_length = imgsensor_info.custom1.pclk /
+			framerate * 10 / imgsensor_info.custom1.linelength;
 		spin_lock(&imgsensor_drv_lock);
 		imgsensor.dummy_line = (frame_length > imgsensor_info.custom1.framelength) ?
 			(frame_length - imgsensor_info.custom1.framelength) : 0;
@@ -2618,7 +2470,8 @@ static kal_uint32 set_max_framerate_by_scenario(enum MSDK_SCENARIO_ID_ENUM scena
 			set_dummy();
 		break;
 	case MSDK_SCENARIO_ID_CUSTOM2:
-		frame_length = imgsensor_info.custom2.pclk / framerate * 10 / imgsensor_info.custom2.linelength;
+		frame_length = imgsensor_info.custom2.pclk /
+			framerate * 10 / imgsensor_info.custom2.linelength;
 		spin_lock(&imgsensor_drv_lock);
 		imgsensor.dummy_line = (frame_length > imgsensor_info.custom2.framelength) ?
 			(frame_length - imgsensor_info.custom2.framelength) : 0;
@@ -2629,7 +2482,8 @@ static kal_uint32 set_max_framerate_by_scenario(enum MSDK_SCENARIO_ID_ENUM scena
 			set_dummy();
 		break;
 	case MSDK_SCENARIO_ID_CUSTOM3:
-		frame_length = imgsensor_info.custom3.pclk / framerate * 10 / imgsensor_info.custom3.linelength;
+		frame_length = imgsensor_info.custom3.pclk /
+			framerate * 10 / imgsensor_info.custom3.linelength;
 		spin_lock(&imgsensor_drv_lock);
 		imgsensor.dummy_line = (frame_length > imgsensor_info.custom3.framelength) ?
 			(frame_length - imgsensor_info.custom3.framelength) : 0;
@@ -2640,7 +2494,8 @@ static kal_uint32 set_max_framerate_by_scenario(enum MSDK_SCENARIO_ID_ENUM scena
 			set_dummy();
 		break;
 	case MSDK_SCENARIO_ID_CUSTOM4:
-		frame_length = imgsensor_info.custom4.pclk / framerate * 10 / imgsensor_info.custom4.linelength;
+		frame_length = imgsensor_info.custom4.pclk /
+			framerate * 10 / imgsensor_info.custom4.linelength;
 		spin_lock(&imgsensor_drv_lock);
 		imgsensor.dummy_line = (frame_length > imgsensor_info.custom4.framelength) ?
 			(frame_length - imgsensor_info.custom4.framelength) : 0;
@@ -2651,7 +2506,8 @@ static kal_uint32 set_max_framerate_by_scenario(enum MSDK_SCENARIO_ID_ENUM scena
 			set_dummy();
 		break;
 	case MSDK_SCENARIO_ID_CUSTOM5:
-		frame_length = imgsensor_info.custom5.pclk / framerate * 10 / imgsensor_info.custom5.linelength;
+		frame_length = imgsensor_info.custom5.pclk /
+			framerate * 10 / imgsensor_info.custom5.linelength;
 		spin_lock(&imgsensor_drv_lock);
 		imgsensor.dummy_line = (frame_length > imgsensor_info.custom5.framelength) ?
 			(frame_length - imgsensor_info.custom5.framelength) : 0;
@@ -2662,7 +2518,8 @@ static kal_uint32 set_max_framerate_by_scenario(enum MSDK_SCENARIO_ID_ENUM scena
 			set_dummy();
 		break;
 	default:  /*coding with  preview scenario by default*/
-		frame_length = imgsensor_info.pre.pclk / framerate * 10 / imgsensor_info.pre.linelength;
+		frame_length = imgsensor_info.pre.pclk /
+			framerate * 10 / imgsensor_info.pre.linelength;
 		spin_lock(&imgsensor_drv_lock);
 		imgsensor.dummy_line = (frame_length > imgsensor_info.pre.framelength) ?
 			(frame_length - imgsensor_info.pre.framelength) : 0;
@@ -2677,9 +2534,10 @@ static kal_uint32 set_max_framerate_by_scenario(enum MSDK_SCENARIO_ID_ENUM scena
 	return ERROR_NONE;
 }
 
-static kal_uint32 get_default_framerate_by_scenario(enum MSDK_SCENARIO_ID_ENUM scenario_id, MUINT32 *framerate)
+static kal_uint32 get_default_framerate_by_scenario(
+		enum MSDK_SCENARIO_ID_ENUM scenario_id, MUINT32 *framerate)
 {
-	LOG_INF("scenario_id = %d\n", scenario_id);
+	LOG_DBG("scenario_id = %d\n", scenario_id);
 
 	switch (scenario_id) {
 	case MSDK_SCENARIO_ID_CAMERA_PREVIEW:
@@ -2732,7 +2590,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 	struct SENSOR_WINSIZE_INFO_STRUCT *wininfo;
 	MSDK_SENSOR_REG_INFO_STRUCT *sensor_reg_data = (MSDK_SENSOR_REG_INFO_STRUCT *)feature_para;
 
-	LOG_INF("feature_id = %d\n", feature_id);
+	LOG_DBG("feature_id = %d\n", feature_id);
 	switch (feature_id) {
 	case SENSOR_FEATURE_GET_PIXEL_CLOCK_FREQ_BY_SCENARIO:
 		switch (*feature_data) {
@@ -2915,7 +2773,8 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 		break;
 	case SENSOR_FEATURE_GET_REGISTER:
 		sensor_reg_data->RegData = read_cmos_sensor(sensor_reg_data->RegAddr);
-		LOG_INF("adb_i2c_read 0x%x = 0x%x\n", sensor_reg_data->RegAddr, sensor_reg_data->RegData);
+		LOG_INF("adb_i2c_read 0x%x = 0x%x\n",
+			sensor_reg_data->RegAddr, sensor_reg_data->RegData);
 		break;
 	case SENSOR_FEATURE_GET_LENS_DRIVER_ID:
 		/* get the lens driver ID from EEPROM or just return LENS_DRIVER_ID_DO_NOT_CARE */
@@ -2949,22 +2808,22 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 		*feature_para_len = 4;
 		break;
 	case SENSOR_FEATURE_SET_FRAMERATE:
-		LOG_INF("current fps :%d\n", (UINT32)*feature_data);
+		LOG_DBG("SENSOR_FEATURE_SET_FRAMERATE = %d\n", feature_id);
+		LOG_INF("current fps :%d\n", *feature_data_32);
 		spin_lock(&imgsensor_drv_lock);
-		imgsensor.current_fps = *feature_data;
+		imgsensor.current_fps = (UINT16)*feature_data_32;
 		spin_unlock(&imgsensor_drv_lock);
 		break;
 	case SENSOR_FEATURE_SET_HDR:
-		LOG_INF("ihdr enable :%d\n", (BOOL)*feature_data);
+		LOG_DBG("SENSOR_FEATURE_SET_HDR = %d\n", feature_id);
+		LOG_INF("ihdr enable :%d\n", *feature_data_32);
 		spin_lock(&imgsensor_drv_lock);
-		imgsensor.ihdr_en = (BOOL)*feature_data;
+		imgsensor.ihdr_en = (UINT8)*feature_data_32;
 		spin_unlock(&imgsensor_drv_lock);
 		break;
 	case SENSOR_FEATURE_GET_CROP_INFO:
-		LOG_INF("SENSOR_FEATURE_GET_CROP_INFO scenarioId:%d\n",
-			(UINT32)*feature_data);
-		wininfo =
-			(struct SENSOR_WINSIZE_INFO_STRUCT *)(uintptr_t)(*(feature_data+1));
+		LOG_DBG("SENSOR_FEATURE_GET_CROP_INFO scenarioId:%d\n", (UINT32)*feature_data);
+		wininfo = (struct SENSOR_WINSIZE_INFO_STRUCT *)(uintptr_t)(*(feature_data+1));
 		switch (*feature_data_32) {
 		case MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG:
 			memcpy((void *)wininfo, (void *)&imgsensor_winsize_info[1],
@@ -3058,11 +2917,12 @@ int gc5035_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int siz
 	kal_uint32 i = 0;
 	kal_uint8 otp_bank = 0;
 	kal_uint32 read_addr = 0;
+	int ret = -1;
 
-	pr_debug("%s - E\n", __func__);
+	LOG_INF("- E, size %d", size);
 
 	if (data == NULL) {
-		pr_err("%s: fail, data is NULL\n", __func__);
+		LOG_ERR("fail, data is NULL");
 		return -1;
 	}
 
@@ -3070,14 +2930,14 @@ int gc5035_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int siz
 	write_cmos_sensor(0xfa, (0x1 << 4)); // OTP clk enable
 	write_cmos_sensor(0xf5, 0xe9);
 	write_cmos_sensor(0xfe, 0x02); //page select
-	write_cmos_sensor(0x67, 0xc0);
+	write_cmos_sensor(0x67, 0xc0); //[7]OTP_EN, [6]OTPCPCLK_EN
 	write_cmos_sensor(0x59, 0x3f);
 	write_cmos_sensor(0x55, 0x80);
 	write_cmos_sensor(0x65, 0x80);
 	write_cmos_sensor(0x66, 0x03);
 
 	otp_bank = gc5035_otp_read_byte(GC5035_OTP_CHECK_BANK);
-	pr_info("%s, check OTP bank:0x%x\n", __func__, otp_bank);
+	LOG_INF("check OTP bank:0x%x\n", otp_bank);
 
 	switch (otp_bank) {
 	case GC5035_OTP_BANK1_MARK:
@@ -3087,17 +2947,26 @@ int gc5035_read_otp_cal(unsigned int addr, unsigned char *data, unsigned int siz
 		read_addr = GC5035_OTP_BANK2_START_ADDR;
 		break;
 	default:
-		pr_err("%s, check bank: fail\n", __func__);
-		return -1;
+		LOG_ERR("check bank: fail");
+		ret = -1;
+		goto GC5035_READ_OTP_CAL_EXIT;
 	}
 
 	for (i = 0; i < size; i++) {
 		*(data + i) = gc5035_otp_read_byte(read_addr);
-		pr_debug("read data addr:0x%x, value:0x%x\n", read_addr, *(data + i));
+		LOG_DBG("read data addr:0x%x, value:0x%x\n", read_addr, *(data + i));
 		read_addr += 8;
 	}
-	pr_debug("%s - X\n", __func__);
-	return (int)size;
+	ret = (int)size;
+
+GC5035_READ_OTP_CAL_EXIT:
+	LOG_INF("OTP clock is disable");
+	write_cmos_sensor(0xfa, 0x00); // OTP clk disable
+	write_cmos_sensor(0xfe, 0x02);
+	write_cmos_sensor(0x67, 0x00); //[7]OTP_EN, [6]OTPCPCLK_EN is disable
+	write_cmos_sensor(0xfe, 0x00);
+	LOG_INF("- X");
+	return ret;
 }
 
 UINT32 GC5035_MIPI_RAW_SensorInit(struct SENSOR_FUNCTION_STRUCT **pfFunc)

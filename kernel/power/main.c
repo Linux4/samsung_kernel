@@ -829,9 +829,21 @@ static char fota_limit_str[] =
 	"[STOP]\n"
 	"/sys/power/cpufreq_max_limit -1\n"
 	"[END]\n";
+#elif defined(CONFIG_MACH_MT6739)
+	"[START]\n"
+	"/sys/power/cpufreq_max_limit 1495000\n"
+	"[STOP]\n"
+	"/sys/power/cpufreq_max_limit -1\n"
+	"[END]\n";
+#elif defined(CONFIG_MACH_MT6768)
+    "[START]\n"
+    "/sys/power/cpufreq_max_limit 1443000\n"
+    "[STOP]\n"
+    "/sys/power/cpufreq_max_limit -1\n"
+    "[END]\n";
 #else
 	"[NOT_SUPPORT]\n";
-#endif /* CONFIG_MACH_MT6877 */
+#endif
 
 static ssize_t fota_limit_show(struct kobject *kobj,
 					struct kobj_attribute *attr,

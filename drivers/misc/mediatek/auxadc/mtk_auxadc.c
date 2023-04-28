@@ -195,6 +195,70 @@ static u32 cali_ge_a;
 static u32 cali_oe_a;
 static u32 gain;
 
+#define ENABLED_IIO_ADC
+
+#ifdef ENABLED_IIO_ADC
+#include <linux/iio/iio.h>
+static int IMM_auxadc_GetOneChannelValue(int dwChannel, int data[4],
+		int *rawdata);
+static int IMM_auxadc_GetOneChannelValue_Cali(int Channel, int *voltage);
+
+#define MT6739_AUXADC_CHANNEL(idx) {				    \
+		.type = IIO_VOLTAGE,				    \
+		.indexed = 1,					    \
+		.channel = (idx),				    \
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),    \
+}
+
+static const struct iio_chan_spec mt6739_auxadc_iio_channels[] = {
+	MT6739_AUXADC_CHANNEL(0),
+	MT6739_AUXADC_CHANNEL(1),
+	MT6739_AUXADC_CHANNEL(2),
+	MT6739_AUXADC_CHANNEL(3),
+	MT6739_AUXADC_CHANNEL(4),
+	MT6739_AUXADC_CHANNEL(5),
+	MT6739_AUXADC_CHANNEL(6),
+	MT6739_AUXADC_CHANNEL(7),
+	MT6739_AUXADC_CHANNEL(8),
+	MT6739_AUXADC_CHANNEL(9),
+	MT6739_AUXADC_CHANNEL(10),
+	MT6739_AUXADC_CHANNEL(11),
+	MT6739_AUXADC_CHANNEL(12),
+	MT6739_AUXADC_CHANNEL(13),
+	MT6739_AUXADC_CHANNEL(14),
+	MT6739_AUXADC_CHANNEL(15),
+};
+
+static int mt6739_auxadc_read_raw(struct iio_dev *indio_dev,
+				  struct iio_chan_spec const *chan,
+				  int *val,
+				  int *val2,
+				  long info)
+{
+	int data[4] = { 0, 0, 0, 0 };
+	int ret = 0;
+
+	switch (info) {
+	case IIO_CHAN_INFO_RAW:
+		ret = IMM_auxadc_GetOneChannelValue(chan->channel, data, val);
+		if (ret < 0) {
+			dev_notice(indio_dev->dev.parent,
+				"failed to sample data on channel[%d]\n",
+				chan->channel);
+			return ret;
+		}
+		return IIO_VAL_INT;
+
+	default:
+		return -EINVAL;
+	}
+}
+
+static const struct iio_info mt6739_auxadc_info = {
+	.read_raw = &mt6739_auxadc_read_raw,
+};
+#endif
+
 static void mt_auxadc_update_cali(void)
 {
 	cali_oe = 0;
@@ -1738,8 +1802,32 @@ static int mt_auxadc_probe(struct platform_device *dev)
 	int used_channel_counter = 0;
 	int of_value = 0;
 	struct device_node *node;
+#ifdef ENABLED_IIO_ADC
+	struct iio_dev *indio_dev;
+#endif
 
 	pr_info(TAG "******** MT AUXADC driver probe!! ********\n");
+
+#ifdef ENABLED_IIO_ADC
+	indio_dev = devm_iio_device_alloc(&dev->dev, 0);
+	if (!indio_dev)
+		return -ENOMEM;
+
+	indio_dev->dev.parent = &dev->dev;
+	indio_dev->name = dev_name(&dev->dev);
+	indio_dev->info = &mt6739_auxadc_info;
+	indio_dev->modes = INDIO_DIRECT_MODE;
+	indio_dev->channels = mt6739_auxadc_iio_channels;
+	indio_dev->num_channels = ARRAY_SIZE(mt6739_auxadc_iio_channels);
+
+	platform_set_drvdata(dev, indio_dev);
+
+	ret = iio_device_register(indio_dev);
+	if (ret < 0) {
+		dev_notice(&dev->dev, "failed to register iio device\n");
+		return -EINVAL;
+	}
+#endif
 
 	/* Integrate with NVRAM */
 	ret = alloc_chrdev_region(&auxadc_cali_devno, 0, 1,
@@ -1943,6 +2031,12 @@ static int mt_auxadc_probe(struct platform_device *dev)
 
 static int mt_auxadc_remove(struct platform_device *dev)
 {
+#ifdef ENABLED_IIO_ADC
+	struct iio_dev *indio_dev = platform_get_drvdata(dev);
+
+	iio_device_unregister(indio_dev);
+#endif
+
 	pr_debug(TAG "******** MT auxadc driver remove!! ********\n");
 	return 0;
 }

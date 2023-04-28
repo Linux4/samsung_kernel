@@ -1168,6 +1168,28 @@ static int mtk_phy_drv_exit(struct platform_device *pdev,
 	return 0;
 }
 
+static void phy_dpdm_pullup(struct mtk_phy_instance *instance,
+						bool enable)
+{
+	struct mtk_phy_drv *phy_drv = instance->phy_drv;
+
+	phy_printk(K_INFO, "%s+\n", __func__);
+
+	if (enable) {
+		u3phywrite32(U3D_U2PHYACR3, RG_USB20_PUPD_BIST_EN_OFST,
+			RG_USB20_PUPD_BIST_EN, 1);
+		u3phywrite32(U3D_U2PHYACR3, RG_USB20_EN_PU_DP_OFST,
+			RG_USB20_EN_PU_DP, 1);
+	} else {
+		u3phywrite32(U3D_U2PHYACR3, RG_USB20_PUPD_BIST_EN_OFST,
+			RG_USB20_PUPD_BIST_EN, 0);
+		u3phywrite32(U3D_U2PHYACR3, RG_USB20_EN_PU_DP_OFST,
+			RG_USB20_EN_PU_DP, 0);
+	}
+
+	phy_printk(K_INFO, "%s-\n", __func__);
+}
+
 static const struct mtk_phy_interface ssusb_phys[] = {
 {
 	.name		= "port0",
@@ -1181,6 +1203,7 @@ static const struct mtk_phy_interface ssusb_phys[] = {
 	.usb_phy_recover  = phy_recover,
 	.usb_phy_switch_to_bc11 = phy_charger_switch_bc11,
 	.usb_phy_dpdm_pulldown = phy_dpdm_pulldown,
+	.usb_phy_dpdm_pullup = phy_dpdm_pullup,
 	.usb_phy_lpm_enable = phy_lpm_enable,
 	.usb_phy_host_mode = phy_host_mode,
 	.usb_phy_io_read = phy_ioread,

@@ -63,4 +63,5 @@
 	sec,regulator_boot_on;
 	sec,tsp-icid_gpio = <&pio 28 0>;
 	sec,icid_match_value = <0>;
+	stm,lpmode_change_delay = <50>;
 };

@@ -154,7 +154,7 @@ int seninf_clk_set(struct SENINF_CLK *pclk,
 		return -EFAULT;
 	}
 
-	PK_DBG("[CAMERA SENSOR] CCF kdSetSensorMclk on= %d, freq= %d, TG= %d\n",
+	PK_INFO("[CAMERA SENSOR] CCF kdSetSensorMclk on= %d, freq= %d, TG= %d\n",
 	       pmclk->on, pmclk->freq, pmclk->TG);
 
 	seninf_clk_check(pclk);
@@ -219,7 +219,7 @@ void seninf_clk_open(struct SENINF_CLK *pclk)
 {
 	MINT32 i;
 
-	PK_DBG("open\n");
+	PK_INFO("open\n");
 
 	if (atomic_inc_return(&pclk->wakelock_cnt) == 1) {
 #ifdef CONFIG_PM_SLEEP
@@ -241,7 +241,7 @@ void seninf_clk_release(struct SENINF_CLK *pclk)
 {
 	MINT32 i = SENINF_CLK_IDX_MAX_NUM;
 
-	PK_DBG("release\n");
+	PK_INFO("release\n");
 
 	do {
 		i--;
@@ -264,7 +264,7 @@ unsigned int seninf_clk_get_meter(struct SENINF_CLK *pclk, unsigned int clk)
 
 	if (clk == 0xff) {
 		for (i = SENINF_CLK_IDX_SYS_MIN_NUM; i < SENINF_CLK_IDX_SYS_MAX_NUM; ++i) {
-			PK_DBG("[sensor_dump][mclk]index=%u freq=%lu HW enable=%d enable_cnt=%u\n",
+			PK_INFO("[sensor_dump][mclk]index=%u freq=%lu HW enable=%d enable_cnt=%u\n",
 				i,
 				clk_get_rate(pclk->mclk_sel[i]),
 				__clk_is_enabled(pclk->mclk_sel[i]),
@@ -278,10 +278,10 @@ unsigned int seninf_clk_get_meter(struct SENINF_CLK *pclk, unsigned int clk)
 	mt_get_ckgen_freq(1);
 
 	if (clk == 4) {
-		PK_DBG("CAMSYS_SENINF_CGPDN = %lu\n",
+		PK_INFO("CAMSYS_SENINF_CGPDN = %lu\n",
 		clk_get_rate(
 		pclk->mclk_sel[SENINF_CLK_IDX_SYS_CAMSYS_SENINF_CGPDN]));
-		PK_DBG("TOP_MUX_SENINF = %lu\n",
+		PK_INFO("TOP_MUX_SENINF = %lu\n",
 			clk_get_rate(
 			pclk->mclk_sel[SENINF_CLK_IDX_SYS_TOP_MUX_SENINF]));
 	}

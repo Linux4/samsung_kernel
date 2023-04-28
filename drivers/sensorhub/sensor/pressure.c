@@ -28,12 +28,16 @@
 #define CALIBRATION_FILE_PATH "/efs/FactoryApp/baro_delta"
 #define SW_OFFSET_FILE_PATH "/efs/FactoryApp/baro_sw_offset"
 
-typedef struct pressure_chipset_funcs *(get_pressure_function_pointer)(char *);
-get_pressure_function_pointer *get_pressure_funcs_ary[] = {
+get_init_chipset_funcs_ptr get_pressure_funcs_ary[] = {
 	get_pressure_bmp580_function_pointer,
 	get_pressure_lps22hh_function_pointer,
 };
 
+static get_init_chipset_funcs_ptr *get_pressure_init_chipset_funcs(int *len)
+{
+	*len = ARRAY_SIZE(get_pressure_funcs_ary);
+	return get_pressure_funcs_ary;
+}
 
 static unsigned int parse_int(const char *s, unsigned int base, int *p)
 {
@@ -129,35 +133,6 @@ static void parse_dt_pressure(struct device *dev)
 	}
 }
 
-int init_pressure_chipset(void)
-{
-	uint64_t i;
-	struct shub_sensor *sensor = get_sensor(SENSOR_TYPE_PRESSURE);
-	struct pressure_data *data = (struct pressure_data *)(sensor->data);
-	struct pressure_chipset_funcs *funcs;
-
-	shub_infof("");
-
-	for (i = 0; i < ARRAY_SIZE(get_pressure_funcs_ary); i++) {
-		funcs = get_pressure_funcs_ary[i](sensor->spec.name);
-		if (funcs) {
-			data->chipset_funcs = funcs;
-			if (data->chipset_funcs->init)
-				data->chipset_funcs->init();
-			break;
-		}
-	}
-
-	if (!data->chipset_funcs) {
-		shub_errf("cannot find magnetometer sensor chipset");
-		return -EINVAL;
-	}
-
-	parse_dt_pressure(get_shub_device());
-
-	return 0;
-}
-
 int sync_pressure_status(void)
 {
 	shub_infof();
@@ -195,7 +170,6 @@ static int open_pressure_files(void)
 {
 	shub_infof("");
 	open_pressure_calibration_file();
-	open_pressure_sw_offset_file();
 
 	return 0;
 }
@@ -247,9 +221,10 @@ int init_pressure(bool en)
 		sensor->funcs->enable = enable_pressure_sensor;
 		sensor->funcs->disable = disable_pressure_sensor;
 		sensor->funcs->print_debug = print_pressure_debug;
-		sensor->funcs->init_chipset = init_pressure_chipset;
 		sensor->funcs->open_calibration_file = open_pressure_files;
 		sensor->funcs->report_event = report_pressure_event;
+		sensor->funcs->parse_dt = parse_dt_pressure;
+		sensor->funcs->get_init_chipset_funcs = get_pressure_init_chipset_funcs;
 
 	} else {
 		kfree(sensor->funcs);

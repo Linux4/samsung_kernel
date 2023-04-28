@@ -1614,6 +1614,7 @@ void DSI_PHY_TIMCONFIG(enum DISP_MODULE_ENUM module,
 	unsigned int hs_trail;
 	unsigned int hs_trail_m, hs_trail_n;
 	unsigned char timcon_temp;
+
 	DISPFUNC();
 
 #ifdef CONFIG_FPGA_EARLY_PORTING
@@ -2260,13 +2261,13 @@ int mipi_clk_change(int msg, int en)
 			"ea8076g_fhdplus_dis_cmd_drv")) {
 			def_data_rate = 1160;
 			lcm_params->dsi.data_rate
-				= def_data_rate;
+						= def_data_rate;
 			lcm_params->dsi.PLL_CLOCK
-				= def_data_rate / 2;
+						= def_data_rate / 2;
 			if (dsi_params->mode != CMD_MODE) {
 				def_dsi_hbp = 0xD2; /* adaptive HBP value */
 				lcm_params->dsi.horizontal_backporch
-					= def_dsi_hbp;
+						= def_dsi_hbp;
 			}
 		} else {
 			DISPERR("%s,lcm(%s) not support change mipi clock\n",

@@ -21,6 +21,10 @@
 
 #define LIGHT_COEF_SIZE 7
 
+#define LIGHT_CALIBRATION_FILE_PATH "/efs/FactoryApp/light_cal_data"
+
+#define LIGHT_DEBIG_EVENT_SIZE_4BYTE_VERSION	2000
+
 struct light_event {
 	u32 lux;
 	s32 cct;
@@ -29,8 +33,8 @@ struct light_event {
 	u32 g;
 	u32 b;
 	u32 w;
-	u16 a_time;
-	u16 a_gain;
+	u32 a_time;
+	u32 a_gain;
 	u32 brightness;
 } __attribute__((__packed__));
 
@@ -43,22 +47,14 @@ struct light_cct_event {
 	u32 g;
 	u32 b;
 	u32 w;
-	u16 a_time;
-	u16 a_gain;
+	u32 a_time;
+	u32 a_gain;
 } __attribute__((__packed__));
 
-struct light_seamless_event {
+struct light_cal_data {
+	u8 cal;
+	u16 max;
 	u32 lux;
-} __attribute__((__packed__));
-
-struct light_ir_event {
-	u32 ir;
-	u32 r;
-	u32 g;
-	u32 b;
-	u32 w;
-	u16 a_time;
-	u16 a_gain;
 } __attribute__((__packed__));
 
 struct light_data {
@@ -70,8 +66,21 @@ struct light_data {
 	u32 *brightness_array;
 	int raw_data_size;
 	bool ddi_support;
+	bool use_cal_data;
+	struct light_cal_data cal_data;
 };
 
 void set_light_ddi_support(uint32_t ddi_support);
+
+
+/* light sub command */
+#define LIGHT_SUBCMD_TWO_LIGHT_FACTORY_TEST		130
+#define LIGHT_SUBCMD_TRIM_CHECK					131
+// reserved subcmd from sensorhub				132
+// reserved subcmd from sensorhub				133
+#define LIGHT_SUBCMD_BRIGHTNESS_HYSTERESIS		134
+
+
+struct sensor_chipset_init_funcs *get_light_stk33512_function_pointer(char *name);
 
 #endif /* __SHUB_LIGHT_H_ */
