@@ -1,0 +1,36 @@
+hidl_interface {
+    name: "vendor.qti.hardware.pal@1.0",
+    root: "vendor.qti.hardware.pal",
+
+    srcs: [
+        "types.hal",
+        "IPAL.hal",
+        "IPALCallback.hal"
+    ],
+    interfaces: [
+        "android.hidl.base@1.0",
+    ],
+    types: [
+        "PalStreamAttributes",
+        "PalDevice",
+        "ModifierKV",
+        "PalMediaConfig",
+        "PalStreamType",
+        "PalStreamInfo",
+        "PalStreamFlag",
+        "PalStreamDirection",
+        "PalChannelInfo",
+        "PalAudioFmt",
+        "PalDeviceId",
+        "PalMetadataFlags",
+        "TimeSpec",
+        "PalBuffer",
+        "PalAudioEffect",
+        "PalBufferConfig",
+        "PalExternAllocBuffInfo",
+        "PalParamPayload",
+        "PalEventReadWriteDonePayload",
+    ],
+    gen_java: false,
+}
+

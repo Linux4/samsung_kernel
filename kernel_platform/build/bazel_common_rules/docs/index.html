@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+
+<!--
+  ~ Copyright (C) 2021 The Android Open Source Project
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~     http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+
+<html>
+<head>
+    <script src="https://unpkg.com/showdown@1/dist/showdown.min.js"></script>
+    <script>
+        function showMarkdownFile(responseText, file) {
+            const headerLevelStart = 1;
+
+            var converter = new showdown.Converter();
+            converter.setOption("customizedHeaderId", true);
+            converter.setOption("ghCompatibleHeaderId", true);
+            converter.setOption("headerLevelStart", headerLevelStart);
+            converter.setOption("tables", true);
+
+            var divFile = document.getElementById("div-file").cloneNode(true);
+            divFile.getElementsByClassName("div-file-contents")[0].innerHTML = converter.makeHtml(responseText);
+
+            // Show file name
+            divFile.getElementsByClassName("headline-file-name")[0].id = file
+            divFile.getElementsByClassName("headline-file-name")[0].innerText = file;
+
+            // Generate table of contents
+            var toc = document.getElementById("div-toc-contents")
+
+            // Add link to title
+            var titleClone = document.getElementById("div-sample-toc-title").cloneNode(true)
+            var titleLink = titleClone.getElementsByTagName("a")[0]
+            titleLink.href = "#" + file
+            titleLink.innerText = file
+            toc.appendChild(titleClone)
+
+            var h2Elements = divFile.getElementsByClassName("div-file-contents")[0].getElementsByTagName("h" + headerLevelStart)
+            var sampleTocItem = document.getElementById("div-sample-toc-item")
+            for (let i = 0; i < h2Elements.length; i++) {
+                var clone = sampleTocItem.cloneNode(true)
+                var link = clone.getElementsByTagName("a")[0];
+                link.href = "#" + h2Elements[i].id
+                link.innerText = h2Elements[i].innerText
+                toc.appendChild(clone)
+            }
+            toc.appendChild(document.getElementById("div-sample-toc-break").cloneNode(true))
+
+            divFile.hidden = false;
+            document.body.appendChild(divFile)
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            resources = document.getElementsByClassName("embedded_resource");
+            for (var i = 0; i < resources.length; i++) {
+                if (!resources[i].id.endsWith("-res")) {
+                    continue;
+                }
+                if (resources[i].id === "default_file.html.frag-res") {
+                    continue;
+                }
+                file = resources[i].id.substring(0, resources[i].id.length - "-res".length)
+                console.log(file, resources[i])
+                showMarkdownFile(atob(resources[i].innerText), file)
+            }
+
+            // Decode default_file
+            document.getElementById("default_file.html.frag-res").innerHTML = atob(document.getElementById("default_file.html.frag-res").innerText);
+            default_file = document.getElementById("default_file")
+            if (default_file) {
+                document.location.href = default_file.href
+            }
+        });
+    </script>
+    <style>
+        #div-float-right {
+            position: fixed;
+            right: 0;
+            top: 0;
+        }
+    </style>
+</head>
+<body>
+<div id="div-float-right">
+    <h3 id="headline-toc">Table of contents</h3>
+    <div hidden>
+        <div id="div-sample-toc-title"><strong><a></a></strong></div>
+        <div id="div-sample-toc-item"><code><a></a></code></div>
+        <div id="div-sample-toc-break"><br /></div>
+    </div>
+    <div id="div-toc-contents">
+    </div>
+</div>
+<div id="div-file" hidden>
+    <h2 class="headline-file-name"></h2>
+    <div class="div-file-contents">
+    </div>
+</div>
+<!--RESOURCE_EMBED_HINT-->
+</body>
+</html>
