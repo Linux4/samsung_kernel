@@ -1,0 +1,11 @@
+&nfc_mtk {
+		compatible = "mediatek,sec-nfc";
+		reg = <0x27>;
+		status = "okay";
+		sec-nfc,ven-gpio = <&pio 159 0>;     /*gpio_159   NFCPD*/
+		sec-nfc,firm-gpio = <&pio 7 0>;      /*gpio_7     NFC_WAKE_DOLAD*/
+		sec-nfc,irq-gpio = <&pio 4 0>;       /*gpio_4     NFC_INT_N*/
+		sec-nfc,clk_req-gpio = <&pio 89 0>;  /*gpio_89    NFC_CLK_REQ*/
+        //clock-names = "OSC_NFC";
+        //clocks = <&clk26m>;
+};
