@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# STM TOUCH driver configuration
+#
+
+config TOUCHSCREEN_STM_FST2CA78Y_SPI
+    tristate "STM FTS2CA78Y SPI Touchscreen"
+    depends on SPI
+    help
+      Say Y here if you want support for STM SPI touchscreen controllers.
+      If unsure, say N.

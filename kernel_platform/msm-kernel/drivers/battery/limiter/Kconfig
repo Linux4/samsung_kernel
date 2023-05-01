@@ -1,0 +1,8 @@
+config LIMITER_S2ASL01
+	tristate "S2ASL01 limiter support"
+	depends on I2C
+	help
+	  Say Y here to enable support for the S2ASL01 limiter support.
+	  S2ASL01 is a limiter IC.
+	  S2ASL01 is dependent on I2C
+	  so it needs to be defined.
