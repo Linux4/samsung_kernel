@@ -1,0 +1,95 @@
+
+menuconfig INPUT_YAS_SENSORS
+	bool "Sensors Support"
+	help
+	  Say Y to enable Sensors support.  This allows control of supported
+	  Sensors.
+
+if INPUT_YAS_SENSORS
+source "drivers/sensors/geomagnetic/Kconfig"
+endif # INPUT_YAS_SENSORS
+source "drivers/sensors/optical/Kconfig"
+
+menuconfig GRIP_SENSOR
+	bool "Sensors Support"
+	help
+	  Say Y to enable grip Sensors support.  This allows control of supported
+	  Sensors.
+
+if GRIP_SENSOR
+config SENSORS_AD7146
+	tristate "ANALOG DEVICES AD7146 Multi-Proximity Sensor"
+	depends on I2C && SYSFS
+	help
+	  If you say yes here you get support for the AD7146
+	  multi proximity sensor.
+	  This driver can also be built as a module.  If so, the module
+	  will be called ad7146.
+endif
+config SENSORS_CORE
+         bool "sensors_core"
+         depends on I2C
+
+config SENSOR_USE_SYMLINK
+         bool "sensors_symlink"
+         depends on I2C
+config INPUT_BMP180
+        depends on I2C && SYSFS
+        tristate "BMP180 digital pressure sensor"
+        help
+          If you say yes here you get support for the Bosch Sensortec
+          BMP180 digital pressure sensor.
+config INPUT_YAS_ORIENTATION
+	tristate "YAS Orientation Sensor"
+	depends on I2C
+
+#Acclerometer
+
+config SENSORS_K2DH
+	tristate "K2DH acceleration sensor support"
+	depends on I2C
+        default n
+	help
+	  Say Y here if you use K2DH.
+	  This option enables accelerometer sensors using
+	  STM K2DH in K2DH device driver.
+	  Say N here if you do not use K2DH.
+
+
+config SENSOR_K2DH_INPUTDEV
+	bool "K2DH acceleration sensor input dev support"
+	depends on SENSORS_K2DH
+        default n
+	help
+	  Say Y here if you use K2DH.
+	  This option enables accelerometer sensor using
+	  K3DH device driver.
+	  Say N here if you do not use K2DH.
+
+config SENSORS_ALPS
+	tristate "Sensors Alps"
+	default n
+	help
+	  Say Y here to enable debugging messages for power supply class
+	  and drivers.
+
+config SENSORS_ALPS_MAG_HSCDTD008A
+	depends on I2C
+	tristate "hscd alps mag"
+	default n
+	help
+	  This option enables hscd alps mag.
+
+config SENSORS_ALPS_ACC_BMA254
+	depends on I2C
+	tristate "bma254 accel"
+	default n
+	help
+	  This option enables and bma254 accel driver based on alps mag.
+
+config BMA254_SMART_ALERT
+	depends on I2C
+	tristate "bma254 smart alert"
+	default n
+	help
+	  This option enables bma254 smart alert function.

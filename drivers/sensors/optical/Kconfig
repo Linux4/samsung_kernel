@@ -1,0 +1,20 @@
+config OPTICAL_TAOS_TMD3782
+	depends on I2C
+	tristate "TAOS RGBC sensor input device"
+	default n
+config OPTICAL_GP2AP020A00F
+	depends on I2C
+	bool "Sharp GP2AP020A00F driver"
+	default n
+config SENSORS_CM36651
+	depends on I2C
+	tristate "CM36651 driver"
+	default n
+	help
+	  The CM36651 is a RGB sensor.
+	  The CM36651 is fully controlled using I2C.
+	  This option enables proximity sensor and RGB sensor
+	  using cm36651 driver.
+config PROXIMITY_SENSOR
+	tristate "proximity_sensor"
+	default n
