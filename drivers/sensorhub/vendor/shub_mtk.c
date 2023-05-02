@@ -68,6 +68,7 @@ static int notify_scp_state(struct notifier_block *this, unsigned long event, vo
 		spin_lock_irqsave(&scp_state_lock, flags);
 		WRITE_ONCE(scp_system_ready, false);
 		spin_unlock_irqrestore(&scp_state_lock, flags);
+		sensorhub_stop();
 	}
 
 	if (event == SCP_EVENT_READY) { // 0

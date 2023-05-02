@@ -319,14 +319,14 @@ static int sm5714_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *
 	sm5714->suspended = false;
 	init_waitqueue_head(&sm5714->suspend_wait);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 188)
-	wakeup_source_init(sm5714->irq_ws, "irq_wake");   // 4.19 R
+	wakeup_source_init(sm5714->irq_ws, "sm5714_mfd");   // 4.19 R
 	if (!(sm5714->irq_ws)) {
-		sm5714->irq_ws = wakeup_source_create("irq_wake"); // 4.19 Q
+		sm5714->irq_ws = wakeup_source_create("sm5714_mfd"); // 4.19 Q
 		if (sm5714->irq_ws)
 			wakeup_source_add(sm5714->irq_ws);
 	}
 #else
-	sm5714->irq_ws = wakeup_source_register(NULL, "irq_wake"); // 5.4 R
+	sm5714->irq_ws = wakeup_source_register(NULL, "sm5714_mfd"); // 5.4 R
 #endif
 
 	if (pdata) {

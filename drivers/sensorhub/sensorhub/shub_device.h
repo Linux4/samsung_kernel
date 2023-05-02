@@ -105,4 +105,6 @@ struct shub_system_info *get_shub_system_info(void);
 
 int enable_sensor_vdd(void);
 int disable_sensor_vdd(void);
+
+void sensorhub_stop(void);
 #endif /* __SHUB_DEVICE_H_ */

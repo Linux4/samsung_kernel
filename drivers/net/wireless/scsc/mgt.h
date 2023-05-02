@@ -668,6 +668,8 @@ void slsi_create_sysfs_debug_dump(void);
 void slsi_destroy_sysfs_debug_dump(void);
 void slsi_collect_chipset_logs(struct work_struct *work);
 #endif
+void slsi_create_sysfs_pm(void);
+void slsi_destroy_sysfs_pm(void);
 int slsi_find_chan_idx(u16 chan, u8 hw_mode);
 int slsi_set_latency_mode(struct net_device *dev, int latency_mode, int cmd_len);
 void slsi_trigger_service_failure(struct work_struct *work);

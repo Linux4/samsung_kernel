@@ -492,6 +492,11 @@ int get_cnt_timeout(void)
 	return cnt_timeout;
 }
 
+void stop_comm_to_hub(void)
+{
+	clean_pending_list();
+}
+
 int init_comm_to_hub(void)
 {
 	mutex_init(&comm_mutex);
