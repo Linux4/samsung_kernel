@@ -2853,7 +2853,6 @@ static void secdp_ccic_connect_init(struct dp_display_private *dp,
 
 	secdp_clear_branch_info(dp);
 	secdp_clear_link_status_update_cnt(dp->link);
-	secdp_logger_set_max_count(300);
 
 #ifdef CONFIG_SEC_DISPLAYPORT_BIGDATA
 	if (connect) {
@@ -2886,6 +2885,7 @@ static int secdp_ccic_noti_cb(struct notifier_block *nb, unsigned long action,
 		break;
 
 	case CCIC_NOTIFY_ID_DP_CONNECT:
+		secdp_logger_set_max_count(300);
 		DP_INFO("CCIC_NOTIFY_ID_DP_CONNECT, <%d>\n", noti.sub1);
 
 		switch (noti.sub1) {
@@ -2958,6 +2958,8 @@ static int secdp_ccic_noti_cb(struct notifier_block *nb, unsigned long action,
 		break;
 
 	case CCIC_NOTIFY_ID_DP_HPD:
+		if (!(noti.sub1 == CCIC_NOTIFY_HIGH && noti.sub2 == CCIC_NOTIFY_IRQ)) /* if it's not cp irq */
+			secdp_logger_set_max_count(300);
 		DP_INFO("CCIC_NOTIFY_ID_DP_HPD, sub1 <%s>, sub2<%s>\n",
 			(noti.sub1 == CCIC_NOTIFY_HIGH) ? "high" :
 				((noti.sub1 == CCIC_NOTIFY_LOW) ? "low" : "??"),
@@ -2969,7 +2971,6 @@ static int secdp_ccic_noti_cb(struct notifier_block *nb, unsigned long action,
 		}
 
 		if (noti.sub1 == CCIC_NOTIFY_HIGH) {
-			secdp_logger_set_max_count(300);
 			atomic_set(&dp->sec.hpd, 1);
 			dp->hpd->hpd_high = true;
 		} else/* if (noti.sub1 == CCIC_NOTIFY_LOW)*/ {
