@@ -475,6 +475,8 @@ static void run_raw_test_read(void *device_data)
 		sec_cmd_set_cmd_result_all(sec, ilits->print_buf, SEC_CMD_STR_LEN, "RAW");
 	}
 
+	input_raw_info(true, ilits->dev, "%s: %s\n", __func__, ilits->print_buf);
+
 	ilits->current_mpitem = "";
 	sec->cmd_state = SEC_CMD_STATUS_OK;
 	return;
@@ -636,6 +638,8 @@ static void run_cal_dac_test_read(void *device_data)
 
 	ilits->current_mpitem = "";
 	sec->cmd_state = SEC_CMD_STATUS_OK;
+
+	input_raw_info(true, ilits->dev, "%s: %s\n", __func__, ilits->print_buf);
 	return;
 out:
 	sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -703,6 +707,8 @@ static void run_open_test_read(void *device_data)
 	sec_cmd_set_cmd_result(sec, ilits->print_buf, strlen(ilits->print_buf));
 	if (sec->cmd_all_factory_state == SEC_CMD_STATUS_RUNNING)
 		sec_cmd_set_cmd_result_all(sec, ilits->print_buf, SEC_CMD_STR_LEN, "OPEN");
+
+	input_raw_info(true, ilits->dev, "%s: %s\n", __func__, ilits->print_buf);
 
 	ilits->current_mpitem = "";
 	sec->cmd_state = SEC_CMD_STATUS_OK;
@@ -780,6 +786,8 @@ static void run_short_test_read(void *device_data)
 
 	ilits->current_mpitem = "";
 	sec->cmd_state = SEC_CMD_STATUS_OK;
+
+	input_raw_info(true, ilits->dev, "%s: %s\n", __func__, ilits->print_buf);
 	return;
 out:
 	sec->cmd_state = SEC_CMD_STATUS_FAIL;
@@ -855,6 +863,8 @@ static void run_noise_test_read(void *device_data)
 		sec_cmd_set_cmd_result_all(sec, ilits->print_buf, SEC_CMD_STR_LEN, "NOISE");
 
 	ilits->current_mpitem = "";
+
+	input_raw_info(true, ilits->dev, "%s: %s\n", __func__, ilits->print_buf);
 	sec->cmd_state = SEC_CMD_STATUS_OK;
 	return;
 out:
@@ -1332,6 +1342,47 @@ static void factory_cmd_result_all(void *device_data)
 
 	input_info(true, ilits->dev,
 		"%s: %d%s\n", __func__, sec->item_count, sec->cmd_result_all);
+}
+
+void ili_read_info_onboot(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+
+	input_info(true, ilits->dev, "%s: start\n", __func__);
+
+	if (ilits->tp_shutdown || ilits->tp_suspend || ilits->power_status == POWER_OFF_STATUS) {
+		input_raw_info(true, ilits->dev, "%s: power off skipped(%d/%d/%d)\n",
+						__func__, ilits->tp_shutdown, ilits->tp_suspend, ilits->power_status);
+		sec->cmd_all_factory_state = SEC_CMD_STATUS_FAIL;
+		return;
+	}
+
+	sec->item_count = 0;
+
+	memset(sec->cmd_result_all, 0x00, SEC_CMD_RESULT_STR_LEN);
+
+	sec->cmd_all_factory_state = SEC_CMD_STATUS_RUNNING;
+
+	run_sram_test(sec);
+	run_cal_dac_test_read(sec);
+	run_short_test_read(sec);
+	run_noise_test_read(sec);
+	run_raw_test_read(sec);
+	run_open_test_read(sec);
+
+	ilits->actual_tp_mode = P5_X_FW_AP_MODE;
+	if (ilits->fw_upgrade_mode == UPGRADE_IRAM) {
+		if (ili_fw_upgrade_handler(NULL) < 0)
+			input_err(true, ilits->dev, "%s FW upgrade failed during mp test\n", __func__);
+	} else {
+		if (ili_reset_ctrl(ilits->reset) < 0)
+			input_err(true, ilits->dev, "%s TP Reset failed during mp test\n", __func__);
+	}
+
+	atomic_set(&ilits->mp_stat, DISABLE);
+	sec->cmd_all_factory_state = SEC_CMD_STATUS_OK;
+
+	input_info(true, ilits->dev, "%s: %d%s\n", __func__, sec->item_count, sec->cmd_result_all);
 }
 
 static void factory_lcdoff_cmd_result_all(void *device_data)
@@ -2003,12 +2054,24 @@ static ssize_t scrub_pos_show(struct device *dev,
 
 	return snprintf(buf, PAGE_SIZE, "%s", buff);
 }
+
+static ssize_t get_lp_dump_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	if (ilits->lp_dump_enable) {
+		ili_ic_lpwg_dump_buf_read(buf);
+		return strlen(buf);
+	} else {
+		return snprintf(buf, SEC_CMD_BUF_SIZE, "Not support lp dump!");
+	}
+}
+
 static DEVICE_ATTR(scrub_pos, S_IRUGO, scrub_pos_show, NULL);
 static DEVICE_ATTR(sensitivity_mode, S_IRUGO | S_IWUSR | S_IWGRP, sensitivity_mode_show, sensitivity_mode_store);
 static DEVICE_ATTR(support_feature,  S_IRUGO, read_support_feature, NULL);
 static DEVICE_ATTR(prox_power_off, S_IRUGO | S_IWUSR | S_IWGRP, prox_power_off_show, prox_power_off_store);
 static DEVICE_ATTR(virtual_prox, S_IRUGO | S_IWUSR | S_IWGRP, protos_event_show, protos_event_store);
 static DEVICE_ATTR(enabled, S_IRUGO | S_IWUSR | S_IWGRP, enabled_show, enabled_store);
+static DEVICE_ATTR(get_lp_dump, 0444, get_lp_dump_show, NULL);
 
 
 static struct attribute *cmd_attributes[] = {
@@ -2018,6 +2081,7 @@ static struct attribute *cmd_attributes[] = {
 	&dev_attr_prox_power_off.attr,
 	&dev_attr_virtual_prox.attr,
 	&dev_attr_enabled.attr,
+	&dev_attr_get_lp_dump.attr,
 	NULL,
 };
 

@@ -53,6 +53,7 @@ struct batterylog_root_str {
 
 static struct batterylog_root_str batterylog_root;
 
+#if !defined(CONFIG_UML)
 static void logger_get_time_of_the_day_in_hr_min_sec(char *tbuf, int len)
 {
 	struct SEC_TIMESPEC tv;
@@ -70,6 +71,7 @@ static void logger_get_time_of_the_day_in_hr_min_sec(char *tbuf, int len)
 		  tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
 		  tm.tm_hour, tm.tm_min, tm.tm_sec);
 }
+#endif
 
 static int batterylog_proc_show(struct seq_file *m, void *v)
 {
@@ -95,6 +97,9 @@ err:
 	return 0;
 }
 
+#if defined(CONFIG_UML)
+void store_battery_log(const char *fmt, ...) {}
+#else
 void store_battery_log(const char *fmt, ...)
 {
 	unsigned long long tnsec;
@@ -108,13 +113,9 @@ void store_battery_log(const char *fmt, ...)
 	if (!batterylog_root.init)
 		return;
 
-	pr_err("%s\n", __func__);
-
 	mutex_lock(&batterylog_root.battery_log_lock);
 	tnsec = local_clock();
 	rem_nsec = do_div(tnsec, 1000000000);
-
-	pr_info("%s\n", __func__);
 
 	logger_get_time_of_the_day_in_hr_min_sec(temp, BATTERYLOG_MAX_STRING_SIZE);
 	string_len = strlen(temp);
@@ -143,9 +144,6 @@ void store_battery_log(const char *fmt, ...)
 	if (rem_buf < string_len)
 		target_index = 0;
 
-	pr_info("%s string len = %d, before index(%lu) , time = %llu\n",
-			__func__, string_len, target_index, tnsec);
-
 	bat_buf = &batterylog_root.batterylog_buffer->batstr_buffer[target_index];
 	if (bat_buf == NULL) {
 		pr_err("%s target_buffer error\n", __func__);
@@ -160,13 +158,11 @@ void store_battery_log(const char *fmt, ...)
 
 	batterylog_root.batterylog_buffer->log_index = target_index;
 
-	pr_info("%s after index(%lu)\n", __func__, target_index);
-
 err:
 	mutex_unlock(&batterylog_root.battery_log_lock);
-
-	pr_err("%s end\n", __func__);
 }
+#endif
+EXPORT_SYMBOL(store_battery_log);
 
 static int batterylog_proc_open(struct inode *inode, struct file *file)
 {

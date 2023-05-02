@@ -19,6 +19,8 @@
 #if IS_ENABLED(CONFIG_SEC_KUNIT)
 #include <linux/sti/abc_kunit.h>
 #endif
+struct list_head abc_spec_list;
+EXPORT_SYMBOL_KUNIT(abc_spec_list);
 
 #if IS_ENABLED(CONFIG_OF)
 int abc_parse_dt(struct device *dev)
@@ -39,6 +41,7 @@ int abc_parse_dt(struct device *dev)
 	/* spec_type_1 */
 	type1_np = of_find_node_by_name(np, "abc_spec_type1");
 	rc = of_property_count_strings(type1_np, ERROR_KEY);
+	INIT_LIST_HEAD(&abc_spec_list);
 
 	for (idx = 0; idx < rc; idx++) {
 		spec_type1 = devm_kzalloc(dev, sizeof(struct spec_data_type1), GFP_KERNEL);
@@ -50,7 +53,7 @@ int abc_parse_dt(struct device *dev)
 			ABC_PRINT("failed parse dt spec_type1 idx : %d", idx);
 			continue;
 		}
-		list_add_tail(&spec_type1->node, &pdata->abc_spec_list);
+		list_add_tail(&spec_type1->node, &abc_spec_list);
 	}
 	return 0;
 }
@@ -61,28 +64,26 @@ int sec_abc_get_normal_token_value(char *dst, char *src, char *token)
 	int token_len = strlen(token);
 
 	if (strncmp(src, token, token_len) || !*(src + token_len)) {
-		ABC_PRINT("Invalid input : src-%s, token-%s", src, token);
+		ABC_DEBUG("Invalid input : src-%s, token-%s", src, token);
 		return -EINVAL;
 	}
 
 	strlcpy(dst, src + token_len, ABC_EVENT_STR_MAX);
 	return 0;
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_get_normal_token_value);
 
 int sec_abc_get_event_module(char *dst, char *src)
 {
 	return sec_abc_get_normal_token_value(dst, src, "MODULE=");
 }
-
-int sec_abc_get_event_host(char *dst, char *src)
-{
-	return sec_abc_get_normal_token_value(dst, src, "HOST=");
-}
+EXPORT_SYMBOL_KUNIT(sec_abc_get_event_module);
 
 int sec_abc_get_ext_log(char *dst, char *src)
 {
 	return sec_abc_get_normal_token_value(dst, src, "EXT_LOG=");
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_get_ext_log);
 
 int sec_abc_get_event_name(char *dst, char *src)
 {
@@ -93,6 +94,7 @@ int sec_abc_get_event_name(char *dst, char *src)
 
 	return (ret_info & ret_warn) ? -EINVAL : 0;
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_get_event_name);
 
 int sec_abc_get_event_type(char *dst, char *src)
 {
@@ -104,6 +106,7 @@ int sec_abc_get_event_type(char *dst, char *src)
 	strlcpy(dst, src, 5);
 	return 0;
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_get_event_type);
 
 int sec_abc_get_count(int *dst, char *src)
 {
@@ -124,6 +127,19 @@ int sec_abc_get_count(int *dst, char *src)
 
 	return 0;
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_get_count);
+
+unsigned int sec_abc_get_ktime_ms(void)
+{
+	u64 ktime;
+
+	/* Calculate current kernel time */
+	ktime = local_clock();
+	do_div(ktime, NSEC_PER_MSEC);
+
+	return (unsigned int)ktime;
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_get_ktime_ms);
 
 int sec_abc_make_key_data(struct abc_key_data *key_data, char *str)
 {
@@ -132,7 +148,7 @@ int sec_abc_make_key_data(struct abc_key_data *key_data, char *str)
 	char *c, *p;
 	int idx = 0, i;
 
-	ABC_PRINT("start : %s", str);
+	ABC_DEBUG("start : %s", str);
 
 	strlcpy(temp, str, ABC_BUFFER_MAX);
 	p = temp;
@@ -155,29 +171,30 @@ int sec_abc_make_key_data(struct abc_key_data *key_data, char *str)
 		return -EINVAL;
 
 	for (i = 2; i < idx; i++) {
-		if (!strncmp(event_strings[i], "HOST=", 5)) {
-			if (sec_abc_get_event_host(key_data->host_name, event_strings[i]))
-				return -EINVAL;
-		} else if (!strncmp(event_strings[i], "EXT_LOG=", 8)) {
+		if (!strncmp(event_strings[i], "EXT_LOG=", 8)) {
 			if (sec_abc_get_ext_log(key_data->ext_log, event_strings[i]))
 				return -EINVAL;
 		} else
 			return -EINVAL;
 	}
 
-	ABC_PRINT("Module(%s) Level(%s) Event(%s) Host(%s) EXT_LOG(%s)",
+	key_data->cur_time = sec_abc_get_ktime_ms();
+
+	ABC_DEBUG("Module(%s) Level(%s) Event(%s) EXT_LOG(%s) cur_time(%d)",
 			  key_data->event_module,
 			  key_data->event_type,
 			  key_data->event_name,
-			  key_data->host_name,
-			  key_data->ext_log);
+			  key_data->ext_log,
+			  key_data->cur_time);
 	return 0;
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_make_key_data);
 
 struct abc_common_spec_data *sec_abc_get_matched_common_spec(char *module_name, char *error_name)
 {
 	return sec_abc_get_matched_common_spec_type1(module_name, error_name);
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_get_matched_common_spec);
 
 int sec_abc_get_buffer_size_from_threshold_cnt(int threshold_cnt)
 {
@@ -188,47 +205,23 @@ int sec_abc_get_buffer_size_from_threshold_cnt(int threshold_cnt)
 
 	return min_buffer_size > i ? min_buffer_size : i;
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_get_buffer_size_from_threshold_cnt);
 
-void sec_abc_enqueue_event_data(struct abc_key_data *key_data, unsigned int cur_time)
+void sec_abc_enqueue_event_data(struct abc_key_data *key_data)
 {
 	struct abc_common_spec_data *common_spec = NULL;
 
 	common_spec = sec_abc_get_matched_common_spec(key_data->event_module, key_data->event_name);
 
 	if (!common_spec || !strcmp(key_data->event_type, "INFO")) {
-		ABC_PRINT("There is no matched buffer");
-#if IS_ENABLED(CONFIG_SEC_KUNIT)
-		abc_common_test_get_log_str("There is no matched buffer");
-#endif
+		ABC_PRINT_KUNIT("There is no matched buffer");
 	} else {
-		ABC_PRINT("There is a matched buffer. Enqueue data : %s", common_spec->error_name);
-		sec_abc_enqueue_event_data_type1(common_spec, cur_time);
-#if IS_ENABLED(CONFIG_SEC_KUNIT)
-		abc_common_test_get_log_str("There is a matched buffer. Enqueue data");
-#endif
+		ABC_DEBUG_KUNIT("There is a matched buffer. Enqueue data");
+		sec_abc_enqueue_event_data_type1(common_spec, key_data->cur_time);
 	}
 
 }
-
-void sec_abc_dequeue_event_data(struct abc_key_data *key_data)
-{
-	struct abc_common_spec_data *common_spec = NULL;
-
-	common_spec = sec_abc_get_matched_common_spec(key_data->event_module, key_data->event_name);
-
-	if (!common_spec || !strcmp(key_data->event_type, "INFO")) {
-		ABC_PRINT("There is no matched buffer");
-#if IS_ENABLED(CONFIG_SEC_KUNIT)
-		abc_common_test_get_log_str("There is no matched buffer");
-#endif
-	} else {
-		ABC_PRINT("There is a matched buffer. Dequeue data : %s", common_spec->error_name);
-		sec_abc_dequeue_event_data_type1(common_spec);
-#if IS_ENABLED(CONFIG_SEC_KUNIT)
-		abc_common_test_get_log_str("There is a matched buffer. Dequeue data");
-#endif
-	}
-}
+EXPORT_SYMBOL_KUNIT(sec_abc_enqueue_event_data);
 
 void sec_abc_reset_event_buffer(struct abc_key_data *key_data)
 {
@@ -238,21 +231,16 @@ void sec_abc_reset_event_buffer(struct abc_key_data *key_data)
 	common_spec = sec_abc_get_matched_common_spec(key_data->event_module, key_data->event_name);
 
 	if (!common_spec || !strcmp(key_data->event_type, "INFO")) {
-		ABC_PRINT("There is no matched buffer");
-#if IS_ENABLED(CONFIG_SEC_KUNIT)
-		abc_common_test_get_log_str("There is no matched buffer");
-#endif
+		ABC_PRINT_KUNIT("There is no matched buffer");
 	} else {
-		ABC_PRINT("There is a matched buffer. Reset buffer : %s", common_spec->error_name);
-#if IS_ENABLED(CONFIG_SEC_KUNIT)
-		abc_common_test_get_log_str("There is a matched buffer. Reset buffer");
-#endif
+		ABC_PRINT_KUNIT("There is a matched buffer. Reset buffer");
 		spec_type1 = container_of(common_spec, struct spec_data_type1, common_spec);
 		sec_abc_reset_buffer_type1(spec_type1);
 	}
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_reset_event_buffer);
 
-bool sec_abc_reached_spec(struct abc_key_data *key_data, unsigned int cur_time)
+bool sec_abc_reached_spec(struct abc_key_data *key_data)
 {
 	struct abc_common_spec_data *common_spec;
 
@@ -265,8 +253,9 @@ bool sec_abc_reached_spec(struct abc_key_data *key_data, unsigned int cur_time)
 	if (!common_spec)
 		return true;
 
-	return sec_abc_reached_spec_type1(common_spec, cur_time);
+	return sec_abc_reached_spec_type1(common_spec, key_data->cur_time);
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_reached_spec);
 
 int sec_abc_apply_changed_spec(char *str)
 {
@@ -319,8 +308,12 @@ int sec_abc_apply_changed_spec(char *str)
 			return -EINVAL;
 	}
 
-	abc_event_list[idx].enabled = false;
 	common_spec = sec_abc_get_matched_common_spec(module_name, error_name);
+
+	if (!common_spec)
+		return -EINVAL;
+
+	abc_event_list[idx].enabled = false;
 	spec_type1 = container_of(common_spec, struct spec_data_type1, common_spec);
 
 	if (count == ABC_DEFAULT_COUNT)
@@ -343,6 +336,7 @@ int sec_abc_apply_changed_spec(char *str)
 			  abc_event_list[idx].enabled);
 	return 0;
 }
+EXPORT_SYMBOL_KUNIT(sec_abc_apply_changed_spec);
 
 void sec_abc_change_spec(const char *str)
 {
@@ -351,6 +345,13 @@ void sec_abc_change_spec(const char *str)
 	int cnt = 0;
 
 	ABC_PRINT("start : %s", str);
+
+	if (!strncmp(str, "reset", 5)) {
+		sec_abc_reset_all_spec();
+		sec_abc_enable_all_spec();
+		ABC_PRINT("end : %s", str);
+		return;
+	}
 
 	strlcpy(temp, str, ABC_BUFFER_MAX * 5);
 	p = temp;
@@ -361,26 +362,51 @@ void sec_abc_change_spec(const char *str)
 		if (!cmd_string[0])
 			continue;
 		if (sec_abc_apply_changed_spec(cmd_string)) {
-			ABC_PRINT("Invalid change cmd. Check the Input : %s", cmd_string);
-#if IS_ENABLED(CONFIG_SEC_KUNIT)
-			abc_common_test_get_log_str("Invalid change cmd. Check the Input");
-#endif
+			ABC_PRINT_KUNIT("Invalid change cmd. Check the Input");
 			break;
 		}
 	}
-
-	ABC_PRINT("end : %s", str);
 }
+
+void sec_abc_reset_all_buffer(void)
+{
+	struct spec_data_type1 *spec_type1;
+
+	list_for_each_entry(spec_type1, &abc_spec_list, node) {
+		sec_abc_reset_buffer_type1(spec_type1);
+	}
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_reset_all_buffer);
+
+void sec_abc_reset_all_spec(void)
+{
+	struct spec_data_type1 *spec_type1;
+
+	list_for_each_entry(spec_type1, &abc_spec_list, node) {
+		spec_type1->threshold_cnt = spec_type1->default_count;
+		spec_type1->buffer.size = spec_type1->threshold_cnt + 1;
+		sec_abc_reset_buffer_type1(spec_type1);
+	}
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_reset_all_spec);
+
+void sec_abc_enable_all_spec(void)
+{
+	int i;
+
+	for (i = 0; i < REGISTERED_ABC_EVENT_TOTAL; i++)
+		abc_event_list[i].enabled = true;
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_enable_all_spec);
 
 int sec_abc_read_spec(char *buf)
 {
-	struct abc_info *pinfo = dev_get_drvdata(sec_abc);
 	struct spec_data_type1 *spec_type1;
-	int len = 0;
+	int len = 0, idx;
 
 	len += scnprintf(buf + len, PAGE_SIZE - len, "spec type1\n");
 
-	list_for_each_entry(spec_type1, &pinfo->pdata->abc_spec_list, node) {
+	list_for_each_entry(spec_type1, &abc_spec_list, node) {
 
 		len += scnprintf(buf + len, PAGE_SIZE - len, "MODULE=%s ",
 						 spec_type1->common_spec.module_name);
@@ -388,14 +414,29 @@ int sec_abc_read_spec(char *buf)
 						 spec_type1->common_spec.error_name);
 		len += scnprintf(buf + len, PAGE_SIZE - len, "THRESHOLD_CNT=%d ",
 						 spec_type1->threshold_cnt);
-		len += scnprintf(buf + len, PAGE_SIZE - len, "THRESHOLD_TIME=%d",
+		len += scnprintf(buf + len, PAGE_SIZE - len, "THRESHOLD_TIME=%d ",
 						 spec_type1->threshold_time);
+		idx = spec_type1->common_spec.idx;
+		len += scnprintf(buf + len, PAGE_SIZE - len, "ENABLE=%s",
+						 ((abc_event_list[idx].enabled) ? "ON" : "OFF"));
 		len += scnprintf(buf + len, PAGE_SIZE - len, "\n");
 	}
 
 	ABC_PRINT("%d", len);
 	return len;
 }
+
+void sec_abc_free_spec_buffer(void)
+{
+	struct spec_data_type1 *spec_buf;
+
+	list_for_each_entry(spec_buf, &abc_spec_list, node) {
+		kfree(spec_buf->buffer.abc_element);
+		spec_buf->buffer.abc_element = NULL;
+		spec_buf->buffer.buffer_max = 0;
+	}
+}
+EXPORT_SYMBOL_KUNIT(sec_abc_free_spec_buffer);
 
 MODULE_DESCRIPTION("Samsung ABC Driver's spec manager");
 MODULE_AUTHOR("Samsung Electronics");

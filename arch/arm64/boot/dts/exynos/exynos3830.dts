@@ -1024,7 +1024,7 @@
 
 		ion_video_scaler {
 			compatible = "exynos9820-ion";
-			size = <0x2000000>;
+			size = <0x2800000>;
 			alignment = <0x00 0x400000>;
 			ion,heapname = "vscaler_heap";
 			ion,secure;
@@ -1810,8 +1810,8 @@
 		pinctrl-0 = <0x0a>;
 		pinctrl-1 = <0x0b>;
 		max_win = <0x04>;
-		default_win = <0x03>;
-		default_ch = <0x03>;
+		default_win = <0x00>;
+		default_ch = <0x00>;
 		psr_mode = <0x00>;
 		trig_mode = <0x00>;
 		dsi_mode = <0x00>;
@@ -4572,6 +4572,7 @@
 		samsung,pbus_baaw-syscon-phandle = <0x46>;
 		samsung,wlbt_remap-syscon-phandle = <0x47>;
 		samsung,boot_cfg-syscon-phandle = <0x48>;
+		qos_table = <0x664b8 0x186a0 0x62638 0xe4840 0xf78f0 0x82208 0xde2b0 0x196400 0x1fefc8 0xa2d78 0x1a94b0 0x234f10>;
 		phandle = <0x138>;
 	};
 
@@ -5869,6 +5870,7 @@
 		samsung,tmu_default_trip_temp = <0x73>;
 		samsung,tmu_cal_type = <0x00>;
 		samsung,tmu_sensor_type = <0x08>;
+		thermal_status_level = <0x13880 0x14c08 0x15f90>;
 		phandle = <0x72>;
 	};
 

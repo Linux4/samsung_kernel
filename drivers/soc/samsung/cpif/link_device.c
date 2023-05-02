@@ -2254,6 +2254,10 @@ static int shmem_security_request(struct link_device *ld, struct io_device *iod,
 	u32 cp_num = ld->mdm_data->cp_num;
 	struct mem_link_device *mld = ld->mdm_data->mld;
 
+#if defined(CONFIG_SOC_EXYNOS3830)
+       pm_qos_update_request(&ld->pm_qos_mif, 1539000);
+#endif
+
 	err = copy_from_user(&msr, (const void __user *)arg, sizeof(msr));
 	if (err) {
 		mif_err("%s: ERR! copy_from_user fail\n", ld->name);
@@ -2303,6 +2307,10 @@ static int shmem_security_request(struct link_device *ld, struct io_device *iod,
 #endif
 
 exit:
+#if defined(CONFIG_SOC_EXYNOS3830)
+       pm_qos_update_request(&ld->pm_qos_mif, 421000);
+#endif
+
 	return err;
 }
 

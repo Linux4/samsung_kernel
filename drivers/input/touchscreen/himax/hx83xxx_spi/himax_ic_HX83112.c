@@ -181,7 +181,7 @@ static bool hx83112_sense_off(bool check_en)
 			4, tmp_data, false);
 		I("%s: cnt = %d, data[0] = 0x%02X!\n", __func__,
 			cnt, tmp_data[0]);
-	} while (tmp_data[0] != 0x87 && (++cnt < 10) && check_en == true);
+	} while (tmp_data[0] != 0x87 && (++cnt < 10) && check_en == true && !atomic_read(&private_ts->shutdown));
 
 	cnt = 0;
 
@@ -262,7 +262,7 @@ static bool hx83112_sense_off(bool check_en)
 			g_core_fp.fp_system_reset();
 #endif
 		}
-	} while (cnt++ < 5);
+	} while (cnt++ < 5 && !atomic_read(&private_ts->shutdown));
 
 	return false;
 SUCCEED:
@@ -298,7 +298,7 @@ static void himax_hx83112f_reload_to_active(void)
 		retry_cnt++;
 	} while ((data[1] != 0x01
 		|| data[0] != 0xEC)
-		&& retry_cnt < HIMAX_REG_RETRY_TIMES);
+		&& retry_cnt < HIMAX_REG_RETRY_TIMES && !atomic_read(&private_ts->shutdown));
 }
 
 static void himax_hx83112f_resume_ic_action(void)
@@ -344,7 +344,7 @@ static void himax_hx83112f_sense_on(uint8_t FlashMode)
 					tmp_data[0], tmp_data[1]);
 		} while ((tmp_data[1] != 0x01
 			|| tmp_data[0] != 0x00)
-			&& retry++ < 5);
+			&& retry++ < 5 && !atomic_read(&private_ts->shutdown));
 
 		if (retry >= 5) {
 			E("%s: Fail:\n", __func__);
@@ -426,7 +426,7 @@ static void himax_hx83112f_system_reset(void)
 			DATA_LEN_4, tmp_data, false);
 		I("%s:Read status from IC = %X,%X\n", __func__,
 				tmp_data[0], tmp_data[1]);
-	} while ((tmp_data[1] != 0x02 || tmp_data[0] != 0x00) && retry++ < 5);
+	} while ((tmp_data[1] != 0x02 || tmp_data[0] != 0x00) && retry++ < 5 && !atomic_read(&private_ts->shutdown));
 
 	I("%s: End!\n", __func__);
 }
@@ -503,7 +503,7 @@ static void hx83112f_proximity_sleep_in(void)
 	I("%s: Entering\n", __func__);
 
 	memset(read_db0h, 0x78, sizeof(read_db0h));
-	while (read_db0h[0] != off_db0h[0] && retry > 0) {
+	while (read_db0h[0] != off_db0h[0] && retry > 0 && !atomic_read(&private_ts->shutdown)) {
 		g_core_fp._dd_en_read(1);
 		usleep_range(1000, 1001);
 		g_core_fp.fp_register_write(addr_db0h, DATA_LEN_4, off_db0h, false);
@@ -516,7 +516,7 @@ static void hx83112f_proximity_sleep_in(void)
 
 	memset(read_db0h, 0x78, sizeof(read_db0h));
 	retry = 30;
-	while (read_db0h[1] != off_bist[1] && retry > 0) {
+	while (read_db0h[1] != off_bist[1] && retry > 0 && !atomic_read(&private_ts->shutdown)) {
 		g_core_fp._dd_en_read(1);
 		usleep_range(1000, 1001);
 		g_core_fp.fp_register_write(addr_bist, DATA_LEN_4, off_bist, false);
@@ -612,6 +612,9 @@ static void hx83112f_reg_re_init(void)
 	kp_himax_in_parse_assign_cmd(hx83112f_addr_ic_ver_name,
 		(*kp_pfw_op)->addr_ver_ic_name,
 		sizeof((*kp_pfw_op)->addr_ver_ic_name));
+	kp_himax_in_parse_assign_cmd(hx83112f_fw_addr_gesture_history,
+		(*kp_pfw_op)->addr_gesture_history,
+		sizeof((*kp_pfw_op)->addr_gesture_history));
 }
 
 static bool hx83112_chip_detect(void)

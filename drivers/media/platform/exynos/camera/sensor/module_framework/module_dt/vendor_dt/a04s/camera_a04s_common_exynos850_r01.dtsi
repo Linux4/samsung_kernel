@@ -11,8 +11,10 @@
 #include <dt-bindings/camera/exynos_is_dt.h>
 #include "../../module_jn1.dtsi"
 #include "../../module_gc02m1.dtsi"
+#include "../../module_gc02m2.dtsi"
 #include "../../module_hi556.dtsi"
 #include "../../module_sc201.dtsi"
+#include "../../module_sc501.dtsi"
 
 / {
 	fragment@camera {
@@ -34,8 +36,8 @@
 				status = "okay";
 
 				af {
-					product_name = <24>; /* ACTUATOR_NAME_DW9808 */
-					//i2c_ch = <0>; /* SENSOR_CONTROL_I2C0 */
+					product_name = <33>; /* ACTUATOR_NAME_GT9778 */
+					i2c_ch = <0>; /* SENSOR_CONTROL_I2C0 */
 				};
 
 				flash {
@@ -276,7 +278,7 @@
 			}; /* is_sensor_sc201 */
 
 			/* MACRO CAMERA */
-			is_sensor_gc02m1_macro: is_sensor_gc02m1_macro@A4 {
+			is_sensor_gc02m2_macro: is_sensor_gc02m2_macro@6E {
 				pinctrl-names = "pin0", "pin1", "pin2", "release";
 				pinctrl-0 = <>;
 				pinctrl-1 = <&sensor_mclk2_out>;
@@ -304,11 +306,11 @@
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name";			pin = <act value dealy voltage>;	gpio = <gpx# # 0x1>;	*/
-						10 { pname = SEN_RST_LOW;			pin = <PIN_OUTPUT 0 500>;	gpio = GC02M1_MACRO_RST;	};
-						20 { pname = "gc02m1_macro_dvdd";	pin = <PIN_OUTPUT 1 0>; 	gpio = GC02M1_MACRO_DVDD;	share = <SRT_ACQUIRE SHARED_PIN3 1>;};
-						30 { pname = "gc02m1_macro_avdd";	pin = <PIN_OUTPUT 1 0>;		gpio = GC02M1_MACRO_AVDD;	share = <SRT_ACQUIRE SHARED_PIN4 1>;};
-						40 { pname = "gc02m1_macro_iovdd";	pin = <PIN_OUTPUT 1 0>;		gpio = GC02M1_MACRO_IOVDD;	share = <SRT_ACQUIRE SHARED_PIN1 1>;};
-						50 { pname = SEN_RST_HIGH;			pin = <PIN_OUTPUT 1 1000>;	gpio = GC02M1_MACRO_RST;	};
+						10 { pname = SEN_RST_LOW;			pin = <PIN_OUTPUT 0 500>;	gpio = GC02M2_MACRO_RST;	};
+						20 { pname = "gc02m2_macro_dvdd";	pin = <PIN_OUTPUT 1 0>; 	gpio = GC02M2_MACRO_DVDD;	share = <SRT_ACQUIRE SHARED_PIN3 1>;};
+						30 { pname = "gc02m2_macro_avdd";	pin = <PIN_OUTPUT 1 0>;		gpio = GC02M2_MACRO_AVDD;	share = <SRT_ACQUIRE SHARED_PIN4 1>;};
+						40 { pname = "gc02m2_macro_iovdd";	pin = <PIN_OUTPUT 1 0>;		gpio = GC02M2_MACRO_IOVDD;	share = <SRT_ACQUIRE SHARED_PIN1 1>;};
+						50 { pname = SEN_RST_HIGH;			pin = <PIN_OUTPUT 1 1000>;	gpio = GC02M2_MACRO_RST;	};
 						60 { pname = I2C_ON;				pin = <PIN_I2C 1 0>;									};
 						70 { pname = MCLK_FUNC;				pin = <PIN_FUNCTION 2 500>;								};
 						80 { pname = MCLK_GPIO;				pin = <PIN_MCLK 1 0>;									share = <SRT_ACQUIRE SHARED_PIN2 1>;};
@@ -326,10 +328,10 @@
 						30 { pname = MCLK_GPIO;				pin = <PIN_MCLK 0 500>;									share = <SRT_RELEASE SHARED_PIN2 0>;};
 						40 { pname = MCLK_FUNC;				pin = <PIN_FUNCTION 1 500>;							};
 						50 { pname = MCLK_FUNC;				pin = <PIN_FUNCTION 0 0>;							};
-						60 { pname = SEN_RST_LOW;			pin = <PIN_OUTPUT 0 1000>;	gpio = GC02M1_MACRO_RST;};
-						70 { pname = "gc02m1_macro_iovdd";	pin = <PIN_OUTPUT 0 0>;		gpio = GC02M1_MACRO_IOVDD;	share = <SRT_RELEASE SHARED_PIN1 0>;};
-						80 { pname = "gc02m1_macro_avdd";	pin = <PIN_OUTPUT 0 0>;		gpio = GC02M1_MACRO_AVDD;	share = <SRT_RELEASE SHARED_PIN4 0>;};
-						90 { pname = "gc02m1_macro_dvdd";	pin = <PIN_OUTPUT 0 0>; 	gpio = GC02M1_MACRO_DVDD;	share = <SRT_RELEASE SHARED_PIN3 0>;};
+						60 { pname = SEN_RST_LOW;			pin = <PIN_OUTPUT 0 1000>;	gpio = GC02M2_MACRO_RST;};
+						70 { pname = "gc02m2_macro_iovdd";	pin = <PIN_OUTPUT 0 0>;		gpio = GC02M2_MACRO_IOVDD;	share = <SRT_RELEASE SHARED_PIN1 0>;};
+						80 { pname = "gc02m2_macro_avdd";	pin = <PIN_OUTPUT 0 0>;		gpio = GC02M2_MACRO_AVDD;	share = <SRT_RELEASE SHARED_PIN4 0>;};
+						90 { pname = "gc02m2_macro_dvdd";	pin = <PIN_OUTPUT 0 0>; 	gpio = GC02M2_MACRO_DVDD;	share = <SRT_RELEASE SHARED_PIN3 0>;};
 					};
 
 					scenario_read_rom_on {
@@ -338,11 +340,11 @@
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name";			pin = <act value dealy voltage>;	gpio = <gpx# # 0x1>;	*/
-						10 { pname = SEN_RST_LOW;			pin = <PIN_OUTPUT 0 500>;	gpio = GC02M1_MACRO_RST;	};
-						20 { pname = "gc02m1_macro_dvdd";	pin = <PIN_OUTPUT 1 0>; 	gpio = GC02M1_MACRO_DVDD;	share = <SRT_ACQUIRE SHARED_PIN3 1>;};
-						30 { pname = "gc02m1_macro_avdd";	pin = <PIN_OUTPUT 1 0>;		gpio = GC02M1_MACRO_AVDD;	share = <SRT_ACQUIRE SHARED_PIN4 1>;};
-						40 { pname = "gc02m1_macro_iovdd";	pin = <PIN_OUTPUT 1 5000>;	gpio = GC02M1_MACRO_IOVDD;	share = <SRT_ACQUIRE SHARED_PIN1 1>;};
-						50 { pname = SEN_RST_HIGH;			pin = <PIN_OUTPUT 1 1000>;	gpio = GC02M1_MACRO_RST;	};
+						10 { pname = SEN_RST_LOW;			pin = <PIN_OUTPUT 0 500>;	gpio = GC02M2_MACRO_RST;	};
+						20 { pname = "gc02m2_macro_dvdd";	pin = <PIN_OUTPUT 1 0>; 	gpio = GC02M2_MACRO_DVDD;	share = <SRT_ACQUIRE SHARED_PIN3 1>;};
+						30 { pname = "gc02m2_macro_avdd";	pin = <PIN_OUTPUT 1 0>;		gpio = GC02M2_MACRO_AVDD;	share = <SRT_ACQUIRE SHARED_PIN4 1>;};
+						40 { pname = "gc02m2_macro_iovdd";	pin = <PIN_OUTPUT 1 5000>;	gpio = GC02M2_MACRO_IOVDD;	share = <SRT_ACQUIRE SHARED_PIN1 1>;};
+						50 { pname = SEN_RST_HIGH;			pin = <PIN_OUTPUT 1 1000>;	gpio = GC02M2_MACRO_RST;	};
 						60 { pname = I2C_ON;				pin = <PIN_I2C 1 0>;									};
 						70 { pname = MCLK_FUNC;				pin = <PIN_FUNCTION 2 500>;								};
 						80 { pname = MCLK_GPIO;				pin = <PIN_MCLK 1 0>;									share = <SRT_ACQUIRE SHARED_PIN2 1>;};
@@ -358,15 +360,108 @@
 						30 { pname = MCLK_GPIO;				pin = <PIN_MCLK 0 500>;									share = <SRT_RELEASE SHARED_PIN2 0>;};
 						40 { pname = MCLK_FUNC;				pin = <PIN_FUNCTION 1 500>;							};
 						50 { pname = MCLK_FUNC;				pin = <PIN_FUNCTION 0 0>;							};
-						60 { pname = SEN_RST_LOW;			pin = <PIN_OUTPUT 0 1000>;	gpio = GC02M1_MACRO_RST;};
-						70 { pname = "gc02m1_macro_iovdd";	pin = <PIN_OUTPUT 0 0>;		gpio = GC02M1_MACRO_IOVDD;	share = <SRT_RELEASE SHARED_PIN1 0>;};
-						80 { pname = "gc02m1_macro_avdd";	pin = <PIN_OUTPUT 0 0>;		gpio = GC02M1_MACRO_AVDD;	share = <SRT_RELEASE SHARED_PIN4 0>;};
-						90 { pname = "gc02m1_macro_dvdd";	pin = <PIN_OUTPUT 0 0>; 	gpio = GC02M1_MACRO_DVDD;	share = <SRT_RELEASE SHARED_PIN3 0>;};
+						60 { pname = SEN_RST_LOW;			pin = <PIN_OUTPUT 0 1000>;	gpio = GC02M2_MACRO_RST;};
+						70 { pname = "gc02m2_macro_iovdd";	pin = <PIN_OUTPUT 0 0>;		gpio = GC02M2_MACRO_IOVDD;	share = <SRT_RELEASE SHARED_PIN1 0>;};
+						80 { pname = "gc02m2_macro_avdd";	pin = <PIN_OUTPUT 0 0>;		gpio = GC02M2_MACRO_AVDD;	share = <SRT_RELEASE SHARED_PIN4 0>;};
+						90 { pname = "gc02m2_macro_dvdd";	pin = <PIN_OUTPUT 0 0>; 	gpio = GC02M2_MACRO_DVDD;	share = <SRT_RELEASE SHARED_PIN3 0>;};
 						/* 40 ms low time for IO before EEPROM/OTPROM read */
 						100 { pname = DELAY;			pin = <PIN_NONE 0 40000>;							};
 					};
 				}; /* power_seq */
-			}; /* is_sensor_gc02m1_macro */
+			}; /* is_sensor_gc02m2_macro */
+
+			/* DUALIZED MACRO CAMERA */
+			is_sensor_sc201_macro: is_sensor_sc201_macro@60 {
+				pinctrl-names = "pin0", "pin1", "pin2", "release";
+				pinctrl-0 = <>;
+				pinctrl-1 = <&sensor_mclk2_out>;
+				pinctrl-2 = <&sensor_mclk2_fn>;
+				pinctrl-3 = <>;
+
+				id = <4>;/* id of is_sensor*/
+				mclk_ch = <2>;
+				sensor_i2c_ch = <3>;/* SENSOR_CONTROL_I2C3 */
+				position = <6>; /* Rear:0. Front:1 Rear_sub(Rear2):2, Rear_UW(Rear3): 4, Rear4: 6*/
+
+				status = "okay";
+
+				flash {
+					product_name = <19>;		/* FLADRV_NAME_AW36158 */
+				};
+
+				power_seq {
+					use = <1>;
+					gpio_mclk = <&gpc0 2 0x1>;
+
+					scenario_normal_on {
+						sensor_scenario = <SENSOR_SCENARIO_NORMAL>;
+						gpio_scenario = <GPIO_SCENARIO_ON>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name";			pin = <act value dealy voltage>;	gpio = <gpx# # 0x1>;	*/
+						10 { pname = SEN_RST_LOW;			pin = <PIN_OUTPUT 0 500>;	gpio = SC201_MACRO_RST;	};
+						20 { pname = "sc201_macro_dvdd";	pin = <PIN_OUTPUT 1 0>; 	gpio = SC201_MACRO_DVDD;	share = <SRT_ACQUIRE SHARED_PIN3 1>;};
+						30 { pname = "sc201_macro_avdd";	pin = <PIN_OUTPUT 1 0>;		gpio = SC201_MACRO_AVDD;	share = <SRT_ACQUIRE SHARED_PIN4 1>;};
+						40 { pname = "sc201_macro_iovdd";	pin = <PIN_OUTPUT 1 0>;		gpio = SC201_MACRO_IOVDD;	share = <SRT_ACQUIRE SHARED_PIN1 1>;};
+						50 { pname = SEN_RST_HIGH;			pin = <PIN_OUTPUT 1 1000>;	gpio = SC201_MACRO_RST;	};
+						60 { pname = I2C_ON;				pin = <PIN_I2C 1 0>;									};
+						70 { pname = MCLK_FUNC;				pin = <PIN_FUNCTION 2 500>;								};
+						80 { pname = MCLK_GPIO;				pin = <PIN_MCLK 1 0>;									share = <SRT_ACQUIRE SHARED_PIN2 1>;};
+						90 { pname = DELAY;				pin = <PIN_NONE 0 2000>;								};
+					};
+
+					scenario_normal_off {
+						sensor_scenario = <SENSOR_SCENARIO_NORMAL>;
+						gpio_scenario = <GPIO_SCENARIO_OFF>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name";			pin = <act value dealy voltage>;	gpio = <gpx# # 0x1>;	*/
+						10 { pname = DELAY;					pin = <PIN_NONE 0 500>;								};
+						20 { pname = I2C_OFF;				pin = <PIN_I2C 0 0>;								};
+						30 { pname = MCLK_GPIO;				pin = <PIN_MCLK 0 500>;									share = <SRT_RELEASE SHARED_PIN2 0>;};
+						40 { pname = MCLK_FUNC;				pin = <PIN_FUNCTION 1 500>;							};
+						50 { pname = MCLK_FUNC;				pin = <PIN_FUNCTION 0 0>;							};
+						60 { pname = SEN_RST_LOW;			pin = <PIN_OUTPUT 0 1000>;	gpio = SC201_MACRO_RST;};
+						70 { pname = "sc201_macro_iovdd";	pin = <PIN_OUTPUT 0 0>;		gpio = SC201_MACRO_IOVDD;	share = <SRT_RELEASE SHARED_PIN1 0>;};
+						80 { pname = "sc201_macro_avdd";	pin = <PIN_OUTPUT 0 0>;		gpio = SC201_MACRO_AVDD;	share = <SRT_RELEASE SHARED_PIN4 0>;};
+						90 { pname = "sc201_macro_dvdd";	pin = <PIN_OUTPUT 0 0>; 	gpio = SC201_MACRO_DVDD;	share = <SRT_RELEASE SHARED_PIN3 0>;};
+					};
+
+					scenario_read_rom_on {
+						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
+						gpio_scenario = <GPIO_SCENARIO_ON>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name";			pin = <act value dealy voltage>;	gpio = <gpx# # 0x1>;	*/
+						10 { pname = SEN_RST_LOW;			pin = <PIN_OUTPUT 0 500>;	gpio = SC201_MACRO_RST;	};
+						20 { pname = "sc201_macro_dvdd";	pin = <PIN_OUTPUT 1 0>; 	gpio = SC201_MACRO_DVDD;	share = <SRT_ACQUIRE SHARED_PIN3 1>;};
+						30 { pname = "sc201_macro_avdd";	pin = <PIN_OUTPUT 1 0>;		gpio = SC201_MACRO_AVDD;	share = <SRT_ACQUIRE SHARED_PIN4 1>;};
+						40 { pname = "sc201_macro_iovdd";	pin = <PIN_OUTPUT 1 5000>;	gpio = SC201_MACRO_IOVDD;	share = <SRT_ACQUIRE SHARED_PIN1 1>;};
+						50 { pname = SEN_RST_HIGH;			pin = <PIN_OUTPUT 1 1000>;	gpio = SC201_MACRO_RST;	};
+						60 { pname = I2C_ON;				pin = <PIN_I2C 1 0>;									};
+						70 { pname = MCLK_FUNC;				pin = <PIN_FUNCTION 2 500>;								};
+						80 { pname = MCLK_GPIO;				pin = <PIN_MCLK 1 0>;									share = <SRT_ACQUIRE SHARED_PIN2 1>;};
+						90 { pname = DELAY;				pin = <PIN_NONE 0 2000>;								};
+					};
+					scenario_read_rom_off {
+						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
+						gpio_scenario = <GPIO_SCENARIO_OFF>;
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name";			pin = <act value dealy voltage>;	gpio = <gpx# # 0x1>;	*/
+						10 { pname = DELAY;					pin = <PIN_NONE 0 500>;								};
+						20 { pname = I2C_OFF;				pin = <PIN_I2C 0 0>;								};
+						30 { pname = MCLK_GPIO;				pin = <PIN_MCLK 0 500>;									share = <SRT_RELEASE SHARED_PIN2 0>;};
+						40 { pname = MCLK_FUNC;				pin = <PIN_FUNCTION 1 500>;							};
+						50 { pname = MCLK_FUNC;				pin = <PIN_FUNCTION 0 0>;							};
+						60 { pname = SEN_RST_LOW;			pin = <PIN_OUTPUT 0 1000>;	gpio = SC201_MACRO_RST;};
+						70 { pname = "sc201_macro_iovdd";	pin = <PIN_OUTPUT 0 0>;		gpio = SC201_MACRO_IOVDD;	share = <SRT_RELEASE SHARED_PIN1 0>;};
+						80 { pname = "sc201_macro_avdd";	pin = <PIN_OUTPUT 0 0>;		gpio = SC201_MACRO_AVDD;	share = <SRT_RELEASE SHARED_PIN4 0>;};
+						90 { pname = "sc201_macro_dvdd";	pin = <PIN_OUTPUT 0 0>; 	gpio = SC201_MACRO_DVDD;	share = <SRT_RELEASE SHARED_PIN3 0>;};
+						/* 40 ms low time for IO before EEPROM/OTPROM read */
+						100 { pname = DELAY;			pin = <PIN_NONE 0 40000>;							};
+					};
+				}; /* power_seq */
+			}; /* is_sensor_sc201_macro */
 
 			/* FRONT CAMERA */
 			is_sensor_hi556: is_sensor_hi556@50 {
@@ -458,6 +553,94 @@
 					};
 				}; /* power_seq */
 			}; /* is_sensor_hi556 */
+
+			/* FRONT DUALIZED CAMERA */
+			is_sensor_sc501: is_sensor_sc501@20 {
+				pinctrl-names = "pin0", "pin1", "pin2", "release";
+				pinctrl-0 = <>;
+				pinctrl-1 = <&sensor_mclk1_out>;
+				pinctrl-2 = <&sensor_mclk1_fn>;
+				pinctrl-3 = <>;
+
+				position = <1>; /* Rear:0. Front:1 Rear_sub(Rear2):2, Rear_UW(Rear3): 4, Rear4: 6*/
+				id = <1>; /* sensor node id */
+				mclk_ch = <1>;
+				sensor_i2c_ch = <1>;
+				rom_type = <3>; /* ROM_TYPE_OTPROM */
+				rom_id = <1>;
+				rom_cal_index = <0>;
+				status = "okay";
+
+				power_seq {
+					use = <1>;
+					gpio_mclk = <&gpc0 1 0x1>;
+					scenario_normal_on {
+						sensor_scenario = <SENSOR_SCENARIO_NORMAL>;
+						gpio_scenario = <GPIO_SCENARIO_ON>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name";				pin = <act value delay voltage>;	gpio = <gpx# # 0x1>;	*/
+						10 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 500>;			gpio = SC501_RST;	};
+						20 { pname = "sc501_iovdd";	pin = <PIN_OUTPUT 1 1000>;			gpio = SC501_IOVDD;	share = <SRT_ACQUIRE SHARED_PIN1 1>;}; /* VDD_CAM_IO_1P8 */
+						30 { pname = "sc501_dvdd";		pin = <PIN_REGULATOR 1 500>;	}; /* FCAM_DVDD_1P2 */
+						40 { pname = "sc501_avdd";		pin = <PIN_REGULATOR 1 500>;	}; /* FCAM_AVDD_2P8 */
+						50 { pname = SEN_RST_HIGH;		pin = <PIN_OUTPUT 1 1000>;			gpio = SC501_RST;	};
+						60 { pname = I2C_ON;			pin = <PIN_I2C 1 0>; };
+						70 { pname = MCLK_FUNC;			pin = <PIN_FUNCTION 2 1000>; };
+						80 { pname = MCLK_GPIO;			pin = <PIN_MCLK 1 0>; };
+					};
+
+					scenario_normal_off {
+						sensor_scenario = <SENSOR_SCENARIO_NORMAL>;
+						gpio_scenario = <GPIO_SCENARIO_OFF>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name";				pin = <act value delay voltage>;	gpio = <gpx# # 0x1>;	*/
+						10 { pname = DELAY;				pin = <PIN_NONE 0 500>;	};
+						20 { pname = MCLK_GPIO;			pin = <PIN_MCLK 0 500>;	};
+						30 { pname = MCLK_FUNC;			pin = <PIN_FUNCTION 1 500>;	};
+						40 { pname = MCLK_FUNC;			pin = <PIN_FUNCTION 0 0>; };
+						50 { pname = I2C_OFF;			pin = <PIN_I2C 0 0>; };
+						60 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 1000>;			gpio = SC501_RST;	};
+						70 { pname = "sc501_avdd";		pin = <PIN_REGULATOR 0 1000>;	}; /* FCAM_AVDD_2P8 */
+						80 { pname = "sc501_dvdd";		pin = <PIN_REGULATOR 0 1000>;	}; /* FCAM_DVDD_1P2 */
+						90 { pname = "sc501_iovdd";	pin = <PIN_OUTPUT 0 1000>;			gpio = SC501_IOVDD;	share = <SRT_RELEASE SHARED_PIN1 0>;}; /* VDD_CAM_IO_1P8 */
+					};
+
+					scenario_read_rom_on {
+						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
+						gpio_scenario = <GPIO_SCENARIO_ON>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name";				pin = <act value delay voltage>;	gpio = <gpx# # 0x1>;	*/
+						10 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 500>;			gpio = SC501_RST;		};
+						20 { pname = "sc501_iovdd";	pin = <PIN_OUTPUT 1 1000>;			gpio = SC501_IOVDD;	share = <SRT_ACQUIRE SHARED_PIN1 1>;}; /* VDD_CAM_IO_1P8 */
+						30 { pname = "sc501_dvdd";		pin = <PIN_REGULATOR 1 500>;	}; /* FCAM_DVDD_1P2 */
+						40 { pname = "sc501_avdd";		pin = <PIN_REGULATOR 1 500>;	}; /* FCAM_AVDD_2P8 */
+						50 { pname = SEN_RST_HIGH;		pin = <PIN_OUTPUT 1 1000>;			gpio = SC501_RST;	};
+						60 { pname = I2C_ON;			pin = <PIN_I2C 1 0>; };
+						70 { pname = MCLK_FUNC;			pin = <PIN_FUNCTION 2 1000>; };
+						80 { pname = MCLK_GPIO;			pin = <PIN_MCLK 1 0>; };
+					};
+
+					scenario_read_rom_off {
+						sensor_scenario = <SENSOR_SCENARIO_READ_ROM>;
+						gpio_scenario = <GPIO_SCENARIO_OFF>;
+
+						/* A start node number should be over the 10 for reserved number 0~9. */
+						/* pname = "name";				pin = <act value delay voltage>;	gpio = <gpx# # 0x1>;	*/
+						10 { pname = DELAY;				pin = <PIN_NONE 0 500>;	};
+						20 { pname = MCLK_GPIO;			pin = <PIN_MCLK 0 500>;	};
+						30 { pname = MCLK_FUNC;			pin = <PIN_FUNCTION 1 500>;	};
+						40 { pname = MCLK_FUNC;			pin = <PIN_FUNCTION 0 0>; };
+						50 { pname = I2C_OFF;			pin = <PIN_I2C 0 0>; };
+						60 { pname = SEN_RST_LOW;		pin = <PIN_OUTPUT 0 1000>;			gpio = SC501_RST;	};
+						70 { pname = "sc501_avdd";		pin = <PIN_REGULATOR 0 1000>;	}; /* FCAM_AVDD_2P8 */
+						80 { pname = "sc501_dvdd";		pin = <PIN_REGULATOR 0 1000>;	}; /* FCAM_DVDD_1P2 */
+						90 { pname = "sc501_iovdd";	pin = <PIN_OUTPUT 0 1000>;			gpio = SC501_IOVDD;	share = <SRT_RELEASE SHARED_PIN1 0>;}; /* VDD_CAM_IO_1P8 */
+					};
+				}; /* power_seq */
+			}; /* is_sensor_sc501 */
 
 			fimc_is_flash_gpio: fimc-is-flash-gpio@0 {
 				compatible = "samsung,sensor-flash-aw36518";

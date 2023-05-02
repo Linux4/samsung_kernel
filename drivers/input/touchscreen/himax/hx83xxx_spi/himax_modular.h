@@ -32,6 +32,10 @@ extern bool _hx83108_init(void);
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83112)
 extern bool _hx83112_init(void);
 #endif
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83122)
+extern bool _hx83122_init(void);
+#endif
+
 
 #ifndef HX_USE_KSYM
 #define setup_symbol(sym)	({kp_##sym = &(sym); kp_##sym; })
@@ -147,6 +151,9 @@ static int (*kp_himax_gpio_power_config)(struct himax_i2c_platform_data *pdata);
 extern struct fw_operation *pfw_op;
 extern struct ic_operation *pic_op;
 extern struct driver_operation *pdriver_op;
+extern struct flash_operation *pflash_op;
+extern struct sram_operation *psram_op;
+
 #endif
 extern struct himax_chip_detect *g_core_chip_dt;
 

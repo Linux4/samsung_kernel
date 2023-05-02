@@ -326,7 +326,7 @@ static ssize_t enabled_show(struct device *dev, struct device_attribute *attr,
 
 	FTS_INFO("power_status : %d", ts_data->power_status);
 
-	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d", !ts_data->power_status);
+	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d", ts_data->power_status);
 }
 
 static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
@@ -351,6 +351,9 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 	if (buff[0] == DISPLAY_STATE_ON || buff[0] == DISPLAY_STATE_DOZE || buff[0] == DISPLAY_STATE_DOZE_SUSPEND) {
 		if (buff[1] == DISPLAY_EVENT_EARLY) {
 			if (ts_data->gesture_mode) {
+				if (ts_data->lp_dump_enabled) {
+					fts_get_lp_dump_data(ts_data);
+				}
 				fts_ctrl_lcd_reset_regulator(ts_data, false);
 			}
 		} else if (buff[1] == DISPLAY_EVENT_LATE) {
@@ -363,9 +366,32 @@ static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
 		} else if (buff[1] == DISPLAY_EVENT_LATE) {
 			/* do nothing */
 		}
+	} else if (buff[0] == DISPLAY_STATE_SERVICE_SHUTDOWN || buff[0] == DISPLAY_STATE_LPM_OFF) {
+		cancel_work_sync(&ts_data->resume_work);
+		ts_data->power_status = POWER_OFF_STATUS;
+		ts_data->power_disabled = true;
+		mutex_lock(&ts_data->device_lock);
+		fts_irq_disable();
+#if FTS_PINCTRL_EN
+		fts_pinctrl_select_release(ts_data);
+#endif
+		mutex_unlock(&ts_data->device_lock);
 	}
 
 	return count;
+}
+
+static ssize_t get_lp_dump(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct sec_cmd_data *sec = dev_get_drvdata(dev);
+	struct fts_ts_data *ts_data = container_of(sec, struct fts_ts_data, sec);
+
+	if (ts_data->lp_dump_enabled) {
+		fts_lpwg_dump_buf_read(ts_data, buf);
+		return strlen(buf);
+	} else {
+		return snprintf(buf, SEC_CMD_BUF_SIZE, "Not support lp dump!\n");
+	}
 }
 
 static DEVICE_ATTR(sensitivity_mode, 0644, sensitivity_mode_show, sensitivity_mode_store);
@@ -373,6 +399,7 @@ static DEVICE_ATTR(prox_power_off, 0644, prox_power_off_show, prox_power_off_sto
 static DEVICE_ATTR(virtual_prox, 0664, protos_event_show, protos_event_store);
 static DEVICE_ATTR(support_feature, 0444, read_support_feature, NULL);
 static DEVICE_ATTR(enabled, 0664, enabled_show, enabled_store);
+static DEVICE_ATTR(get_lp_dump, 0444, get_lp_dump, NULL);
 
 
 static struct attribute *cmd_attributes[] = {
@@ -381,6 +408,7 @@ static struct attribute *cmd_attributes[] = {
 	&dev_attr_virtual_prox.attr,
 	&dev_attr_support_feature.attr,
 	&dev_attr_enabled.attr,
+	&dev_attr_get_lp_dump.attr,
 	NULL,
 };
 
@@ -426,10 +454,6 @@ static void fw_update(void *device_data)
 	} else {
 		fts_wait_tp_to_valid();
 		fts_ex_mode_recovery(ts_data);
-
-		if (ts_data->gesture_mode) {
-			fts_gesture_resume(ts_data);
-		}
 
 		snprintf(buff, sizeof(buff), "OK");
 		sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
@@ -2398,7 +2422,7 @@ static void prox_lp_scan_mode(void *device_data)
 	struct fts_ts_data *ts_data = container_of(sec, struct fts_ts_data, sec);
 	char buff[SEC_CMD_STR_LEN] = { 0 };
 	int ret;
-	u8 mode;
+	u8 mode = FTS_REG_POWER_MODE_SCAN_OFF;
 	int retry = 10;
 
 	sec_cmd_set_default_result(sec);
@@ -2559,6 +2583,37 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("run_prox_intensity_read_all", run_prox_intensity_read_all),},
 	{SEC_CMD("not_support_cmd", not_support_cmd),},
 };
+
+void fts_run_rawdata_all(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct fts_ts_data *ts_data = container_of(sec, struct fts_ts_data, sec);
+
+	mutex_lock(&ts_data->device_lock);
+	FTS_RAW_INFO("%s\n", __func__);
+
+	memset(sec->cmd_result_all, 0x00, SEC_CMD_RESULT_STR_LEN);
+	sec->cmd_all_factory_state = SEC_CMD_STATUS_RUNNING;
+
+	fts_enter_test_environment(1);
+	enter_factory_mode();
+
+	get_short(sec);
+	get_open(sec);
+	get_cb(sec);
+	get_noise(sec);
+	get_rawdata(sec);
+	get_gap_data(sec);
+
+	enter_work_mode();
+	get_nonflash_ram_test(sec);
+	fts_enter_test_environment(0);
+
+	sec->cmd_all_factory_state = SEC_CMD_STATUS_OK;
+	FTS_RAW_INFO("%s: %s", __func__, sec->cmd_result_all);
+
+	mutex_unlock(&ts_data->device_lock);
+}
 
 static int fts_sec_facory_test_init(struct fts_ts_data *ts_data)
 {

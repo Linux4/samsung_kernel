@@ -62,13 +62,24 @@ static ssize_t show_attrs(struct device *dev,
 	{
 		char temp_buf[1024] = {0,};
 		int size = 1024;
+		union power_supply_propval dc_state = {0, };
 
-		snprintf(temp_buf+strlen(temp_buf), size,
-			"%d,%d,%d,%d,%d,%d,%s,%s,%s,%s,%d,%s,%d,%d,%lu,%d,",
+		dc_state.strval = "NO_CHARGING";
+#if IS_ENABLED(CONFIG_DIRECT_CHARGING)
+		psy_do_property(battery->pdata->charger_name, get,
+			POWER_SUPPLY_EXT_PROP_DIRECT_CHARGER_CHG_STATUS, dc_state);
+#endif
+
+		snprintf(temp_buf + strlen(temp_buf), size,
+			"%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%s,%s,%s,%s,%s,%d,%s,%d,%d,%lu,0x%x,0x%x,0x%x,",
 			battery->voltage_now, battery->current_now,
 			battery->current_max, battery->charging_current,
-			battery->capacity, battery->temperature,
+			battery->capacity,
+			battery->temperature, battery->usb_temp,
+			battery->chg_temp, battery->wpc_temp,
+			battery->blkt_temp, battery->lrp,
 			sb_get_bst_str(battery->status),
+			dc_state.strval,
 			sb_get_cm_str(battery->charging_mode),
 			sb_get_hl_str(battery->health),
 			sb_get_ct_str(battery->cable_type),
@@ -77,16 +88,51 @@ static ssize_t show_attrs(struct device *dev,
 			is_slate_mode(battery),
 			battery->store_mode,
 			(battery->expired_time / 1000),
-			sec_bat_get_lpmode());
+			battery->current_event,
+			battery->misc_event,
+			battery->tx_event);
 		size = sizeof(temp_buf) - strlen(temp_buf);
+
+	{
+		unsigned short vid = 0, pid = 0;
+		unsigned int xid = 0;
+
+		sec_pd_get_vid_pid(&vid, &pid, &xid);
+		snprintf(temp_buf+strlen(temp_buf), size,
+			"%04x,%04x,%08x,", vid, pid, xid);
+		size = sizeof(temp_buf) - strlen(temp_buf);
+	}
+
+#if IS_ENABLED(CONFIG_DUAL_BATTERY)
+		snprintf(temp_buf+strlen(temp_buf), size,
+			"%d,%d,%d,%d,",
+			battery->voltage_pack_main, battery->voltage_pack_sub,
+			battery->current_now_main, battery->current_now_sub);
+		size = sizeof(temp_buf) - strlen(temp_buf);
+#endif
 
 #if defined(CONFIG_BATTERY_AGE_FORECAST)
 		snprintf(temp_buf+strlen(temp_buf), size, "%d,", battery->batt_cycle);
 		size = sizeof(temp_buf) - strlen(temp_buf);
 #endif
-		psy_do_property(battery->pdata->fuelgauge_name, get,
-				POWER_SUPPLY_EXT_PROP_BATT_DUMP, value);
+
+#if IS_ENABLED(CONFIG_WIRELESS_CHARGING)
+		if (battery->wc_tx_enable)
+			value.intval = SB_WRL_TX_MODE;
+		else if (is_wireless_fake_type(battery->cable_type))
+			value.intval = SB_WRL_RX_MODE;
+		else
+			goto skip_wc;
+		psy_do_property(battery->pdata->wireless_charger_name, get,
+			POWER_SUPPLY_EXT_PROP_BATT_DUMP, value);
+
 		snprintf(temp_buf+strlen(temp_buf), size, "%s", value.strval);
+		size = sizeof(temp_buf) - strlen(temp_buf);
+skip_wc:
+#endif
+		psy_do_property(battery->pdata->fuelgauge_name, get,
+			POWER_SUPPLY_EXT_PROP_BATT_DUMP, value);
+		snprintf(temp_buf+strlen(temp_buf), size, "%s,", value.strval);
 		size = sizeof(temp_buf) - strlen(temp_buf);
 
 		count += scnprintf(buf + count, PAGE_SIZE - count, "%s\n", temp_buf);

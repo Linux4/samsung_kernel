@@ -67,6 +67,17 @@ static u32  front4_sensor_id;
 static u32  rear_tof_sensor_id;
 static u32  front_tof_sensor_id;
 
+static u32  rear_dualized_sensor_id;
+static u32  front_dualized_sensor_id;
+static u32  rear2_dualized_sensor_id;
+static u32  front2_dualized_sensor_id;
+static u32  rear3_dualized_sensor_id;
+static u32  front3_dualized_sensor_id;
+static u32  rear4_dualized_sensor_id;
+static u32  front4_dualized_sensor_id;
+static u32  rear_dualized_tof_sensor_id;
+static u32  front_dualized_tof_sensor_id;
+
 #ifdef CONFIG_SECURE_CAMERA_USE
 static u32  secure_sensor_id;
 #endif
@@ -712,6 +723,56 @@ int is_vender_dt(struct device_node *np)
 		probe_warn("front_tof_sensor_id read is fail(%d)", ret);
 	}
 
+	ret = of_property_read_u32(np, "rear_dualized_sensor_id", &rear_dualized_sensor_id);
+	if (ret) {
+		probe_warn("rear_dualized_sensor_id read is fail(%d)", ret);
+	}
+
+	ret = of_property_read_u32(np, "front_dualized_sensor_id", &front_dualized_sensor_id);
+	if (ret) {
+		probe_warn("front_dualized_sensor_id read is fail(%d)", ret);
+	}
+
+	ret = of_property_read_u32(np, "rear2_dualized_sensor_id", &rear2_dualized_sensor_id);
+	if (ret) {
+		probe_warn("rear2_dualized_sensor_id read is fail(%d)", ret);
+	}
+
+	ret = of_property_read_u32(np, "front2_dualized_sensor_id", &front2_dualized_sensor_id);
+	if (ret) {
+		probe_warn("front2_dualized_sensor_id read is fail(%d)", ret);
+	}
+
+	ret = of_property_read_u32(np, "rear3_dualized_sensor_id", &rear3_dualized_sensor_id);
+	if (ret) {
+		probe_warn("rear3_dualized_sensor_id read is fail(%d)", ret);
+	}
+
+	ret = of_property_read_u32(np, "front3_dualized_sensor_id", &front3_dualized_sensor_id);
+	if (ret) {
+		probe_warn("front3_dualized_sensor_id read is fail(%d)", ret);
+	}
+
+	ret = of_property_read_u32(np, "rear4_dualized_sensor_id", &rear4_dualized_sensor_id);
+	if (ret) {
+		probe_warn("rear4_dualized_sensor_id read is fail(%d)", ret);
+	}
+
+	ret = of_property_read_u32(np, "front4_dualized_sensor_id", &front4_dualized_sensor_id);
+	if (ret) {
+		probe_warn("front4_dualized_sensor_id read is fail(%d)", ret);
+	}
+
+	ret = of_property_read_u32(np, "rear_dualized_tof_sensor_id", &rear_dualized_tof_sensor_id);
+	if (ret) {
+		probe_warn("rear_dualized_tof_sensor_id read is fail(%d)", ret);
+	}
+
+	ret = of_property_read_u32(np, "front_dualized_tof_sensor_id", &front_dualized_tof_sensor_id);
+	if (ret) {
+		probe_warn("front_dualized_tof_sensor_id read is fail(%d)", ret);
+	}
+
 #ifdef CONFIG_SECURE_CAMERA_USE
 	ret = of_property_read_u32(np, "secure_sensor_id", &secure_sensor_id);
 	if (ret) {
@@ -880,7 +941,11 @@ int is_vender_hw_init(struct is_vender *vender)
 	}
 
 	for (sensor_position = SENSOR_POSITION_REAR; sensor_position < SENSOR_POSITION_MAX; sensor_position++) {
-		if (specific->rom_data[sensor_position].rom_valid == true || specific->rom_share[sensor_position].check_rom_share == true) {
+		if (specific->rom_data[sensor_position].rom_valid == true || specific->rom_share[sensor_position].check_rom_share == true
+#ifdef BOKEH_NO_ROM_SUPPORT
+			|| (specific->sensor_id[sensor_position] != SENSOR_NAME_NOTHING && specific->rom_data[sensor_position].rom_type == ROM_TYPE_NONE)
+#endif
+		) {
 			ret = is_sec_run_fw_sel(dev, sensor_position);
 
 			if (ret) {
@@ -1647,6 +1712,53 @@ int is_vender_remove_dump_fw_file(void)
 	remove_dump_fw_file();
 
 	return 0;
+}
+
+int is_vender_get_dualized_sensorid(int position)
+{
+	int ret = SENSOR_NAME_NOTHING;
+
+	if(position >= SENSOR_POSITION_REAR && position < SENSOR_POSITION_MAX) {
+		switch (position) {
+		case SENSOR_POSITION_REAR:
+			ret = rear_dualized_sensor_id;
+			break;
+		case SENSOR_POSITION_FRONT:
+			ret = front_dualized_sensor_id;
+			break;
+		case SENSOR_POSITION_REAR2:
+			ret = rear2_dualized_sensor_id;
+			break;
+		case SENSOR_POSITION_FRONT2:
+			ret = front2_dualized_sensor_id;
+			break;
+		case SENSOR_POSITION_REAR3:
+			ret = rear3_dualized_sensor_id;
+			break;
+		case SENSOR_POSITION_FRONT3:
+			ret = front3_dualized_sensor_id;
+			break;
+		case SENSOR_POSITION_REAR4:
+			ret = rear4_dualized_sensor_id;
+			break;
+		case SENSOR_POSITION_FRONT4:
+			ret = front4_dualized_sensor_id;
+			break;
+		case SENSOR_POSITION_REAR_TOF:
+			ret = rear_dualized_tof_sensor_id;
+			break;
+		case SENSOR_POSITION_FRONT_TOF:
+			ret = front_dualized_tof_sensor_id;
+			break;
+		default:
+			ret = SENSOR_NAME_NOTHING;
+		}
+	}
+	else {
+		err("%s invalid module position(%d)", __func__ , position);
+		ret = -EINVAL;
+	}
+	return ret;
 }
 
 #ifdef USE_TOF_AF

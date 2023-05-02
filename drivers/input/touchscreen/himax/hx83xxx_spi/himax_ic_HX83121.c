@@ -151,7 +151,7 @@ static bool hx83121_sense_off(bool check_en)
 		tmp_addr[3] = 0x90; tmp_addr[2] = 0x00; tmp_addr[1] = 0x00; tmp_addr[0] = 0x5C;
 		hx83121_register_read(tmp_addr, DATA_LEN_4, tmp_data);
 		KI("%s: cnt = %d, data[0] = 0x%02X!\n", __func__, cnt, tmp_data[0]);
-	} while (tmp_data[0] != 0x87 && (++cnt < 50) && check_en == true);
+	} while (tmp_data[0] != 0x87 && (++cnt < 50) && check_en == true && !atomic_read(&private_ts->shutdown));
 
 	cnt = 0;
 
@@ -224,7 +224,7 @@ static bool hx83121_sense_off(bool check_en)
 		hx83121_pin_reset();
 #endif
 
-	} while (cnt++ < 15);
+	} while (cnt++ < 15 && !atomic_read(&private_ts->shutdown));
 
 	return false;
 }
@@ -278,7 +278,7 @@ static bool hx83121a_sense_off(bool check_en)
 
 		g_core_fp.fp_register_read(pfw_op->addr_ctrl_fw_isr, 4, tmp_data, false);
 		KI("%s: cnt = %d, data[0] = 0x%02X!\n", __func__, cnt, tmp_data[0]);
-	} while (tmp_data[0] != 0x87 && (++cnt < 10) && check_en == true);
+	} while (tmp_data[0] != 0x87 && (++cnt < 10) && check_en == true && !atomic_read(&private_ts->shutdown));
 
 	cnt = 0;
 
@@ -333,7 +333,7 @@ static bool hx83121a_sense_off(bool check_en)
 		msleep(50);
 #endif
 
-	} while (cnt++ < 5);
+	} while (cnt++ < 5 && !atomic_read(&private_ts->shutdown));
 
 	return false;
 }

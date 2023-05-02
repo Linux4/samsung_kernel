@@ -16,7 +16,7 @@
 #include <linux/regmap.h>
 
 /* VERSION INFORMATION */
-#define FSM_CODE_VERSION "v3.0.8"
+#define FSM_CODE_VERSION "v3.0.10"
 
 #define FS1818_STATUS         0xF000
 #define FS1818_BOVDS          0x0000

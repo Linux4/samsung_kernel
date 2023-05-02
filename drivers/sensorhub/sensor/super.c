@@ -77,6 +77,8 @@ int init_hub_debugger(bool en)
 
 	if (en) {
 		strcpy(sensor->name, "hub_debugger");
+		sensor->hal_sensor = false;
+
 		sensor->receive_event_size = 0;
 		sensor->report_event_size = 0;
 

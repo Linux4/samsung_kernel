@@ -55,20 +55,14 @@ struct calibraion_data {
 };
 
 struct gyroscope_data {
-	struct gyroscope_chipset_funcs *chipset_funcs;
-
 	struct calibraion_data cal_data;
 	int position;
 };
 
-struct gyroscope_chipset_funcs {
-	void (*parse_dt)(struct device *dev);
-};
-
-struct gyroscope_chipset_funcs *get_gyroscope_lsm6dsl_function_pointer(char *name);
-struct gyroscope_chipset_funcs *get_gyroscope_icm42605m_function_pointer(char *name);
-struct gyroscope_chipset_funcs *get_gyroscope_lsm6dsotr_function_pointer(char *name);
-struct gyroscope_chipset_funcs *get_gyroscope_icm42632m_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_gyroscope_lsm6dsl_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_gyroscope_icm42605m_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_gyroscope_lsm6dsotr_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_gyroscope_icm42632m_function_pointer(char *name);
 
 int save_gyro_calibration_file(s16 *cal_data);
 

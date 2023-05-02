@@ -12,7 +12,7 @@
 
 /* keys are grouped by size */
 static char key32[][MAX_ITEM_KEY_LEN] = {
-	"ID", "KTIME", "BIN", "FTYPE", "RR",
+	"ID", "KTIME", "BIN", "RR",
 	"DPM", "SMP", "MER", "PCB", "SMD",
 	"CHI", "LPI", "CDI", "LEV", "DCN",
 	"WAK", "ASB", "PSITE", "DDRID", "RST",
@@ -39,7 +39,7 @@ static char key1024[][MAX_ITEM_KEY_LEN] = {
 
 /* keys are grouped by sysfs node */
 static char akeys[][MAX_ITEM_KEY_LEN] = {
-	"ID", "KTIME", "BIN", "FTYPE", "FAULT",
+	"ID", "KTIME", "BIN", "FAULT",
 	"BUG", "PC", "LR", "STACK", "RR",
 	"RSTCNT", "PINFO", "SMU", "BUS", "DPM",
 	"ETC", "ESR", "MER", "PCB", "SMD",

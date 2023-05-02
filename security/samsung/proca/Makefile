@@ -1,14 +1,6 @@
 SHELL := /bin/bash
 
-ifeq ($(CONFIG_MACH_MT6853),y)
-    KERNEL := 4_14
-else ifeq ($(CONFIG_MACH_MT6833),y)
-    KERNEL := 4_14
-else ifeq ($(CONFIG_MACH_MT6768),y)
-    KERNEL := 4_14
-else ifeq ($(CONFIG_MACH_MT6877),y)
-    KERNEL := 4_14
-endif
+KERNEL := $(VERSION)_$(PATCHLEVEL)
 
 # For kernel version 4.14 or lower
 ifeq ($(KERNEL),4_14)
@@ -53,3 +45,9 @@ clean-files += proca_certificate.asn1.c proca_certificate.asn1.h
 endif
 
 subdir-ccflags-y += -Wformat
+
+# kunit tests options:
+ifeq ($(CONFIG_SEC_KUNIT)$(CONFIG_UML), yy)
+  GCOV_PROFILE := y
+  ccflags-$(CONFIG_PROCA) += -DPROCA_KUNIT_ENABLED
+endif

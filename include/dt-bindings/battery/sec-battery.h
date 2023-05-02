@@ -214,6 +214,7 @@
 #define SEC_BATTERY_RECHARGE_CONDITION_LIMITER          8
 
 #define SIOP_DEFAULT	0xFFFF
+#define SIOP_SKIP		0xFFFE
 
 /* inbat ocv type */
 #define SEC_BATTERY_OCV_NONE			0
@@ -296,6 +297,7 @@
 #define WIRELESS_VOUT_5_5V_STEP		14
 #define WIRELESS_VOUT_9V_STEP		15
 #define WIRELESS_VOUT_10V_STEP		16
+#define WIRELESS_VOUT_OTG			17
 
 /* enum mfc_send_command */
 #define MFC_END_SIG_STRENGTH		0
@@ -337,6 +339,7 @@
 #define MFC_VOUT_11V	8
 #define MFC_VOUT_12V	9
 #define MFC_VOUT_12_5V	10
+#define MFC_VOUT_OTG	11
 
 /* fod macro */
 #define FOD_FLAG_NONE			0
@@ -346,5 +349,6 @@
 #define SET_FOD_CC(_flag)		(FOD_FLAG_ ##_flag)
 #define SET_FOD_CV(_flag)		(FOD_FLAG_ ##_flag << 4)
 #define SET_FOD_FULL(_flag)		(FOD_FLAG_ ##_flag << 8)
+#define SET_FOD_HV(_flag)		(FOD_FLAG_ ##_flag << 12)
 
 #endif /* _DT_BINDINGS_BATTERY_SEC_BATTERY_H */

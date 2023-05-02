@@ -39,10 +39,18 @@ config SENSORS_CORE_AP
 	  Say Y here if you using sensors_core.c included under drivers/sensors etc.
 
 config SENSORS_COMMON_VDD_SUB
-	depends on SENSORS_SX9380_SUB
-	tristate "SX9380 common VDD"
+	bool "SX9380 common VDD"
 	default n
 	help
 	  Say Y here if main and sub sx9380 use common VDD.
 	  This option enables function to control irq gpio of sub grip sensor
 	  in main grip sensor driver.
+
+
+config SENSORS_DUMP_DATA
+	tristate "Grip sensor dump log"
+	default n
+	help
+	  Enable grip dump log data
+	  This option activates log output of grip error data using sensordump_notifier.
+

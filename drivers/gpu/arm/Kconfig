@@ -24,7 +24,8 @@ menuconfig MALI_DDK_VERSION
 choice
 	prompt "version Configuration"
 	depends on MALI_DDK_VERSION
-	default MALI_BIFROST_R32P1  if SOC_EXYNOS3830_ANDROID_VERSION_S
+	default MALI_BIFROST_R32P1 if $(PLATFORM_VERSION) <= 12
+	default MALI_BIFROST_R38P1 if $(PLATFORM_VERSION) >= 13
 	help
 	  Select the gpu support version.
 
@@ -44,6 +45,10 @@ config MALI_BIFROST_R32P1
 	depends on MALI_DDK_VERSION
 	bool "Bifrost r32p1 driver"
 
+config MALI_BIFROST_R38P1
+	depends on MALI_DDK_VERSION
+	bool "Bifrost r38p1 driver"
+
 endchoice
 
 if MALI_BIFROST_R19P0
@@ -60,6 +65,10 @@ endif
 
 if MALI_BIFROST_R32P1
 source "drivers/gpu/arm/bv_r32p1/Kconfig"
+endif
+
+if MALI_BIFROST_R38P1
+source "drivers/gpu/arm/bv_r38p1/Kconfig"
 endif
 
 endmenu

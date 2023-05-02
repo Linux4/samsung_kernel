@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2017, Samsung Electronics Co., Ltd.
+ * Copyright (C) 2019 Samsung Electronics Co., Ltd All Rights Reserved
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -21,7 +21,6 @@
 #include <linux/idr.h>
 #include <linux/kernel.h>
 #include <linux/kfifo.h>
-#include <linux/migrate.h>
 #include <linux/of.h>
 #include <linux/types.h>
 #include <linux/version.h>
@@ -84,38 +83,6 @@ static inline gid_t __kgid_val(kgid_t gid)
 #define __flush_dcache_area(s, e)	__cpuc_flush_dcache_area(s, e)
 #endif
 
-#if defined(CONFIG_TZDEV_PAGE_MIGRATION)
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
-static inline struct page *tzdev_migrate_alloc(struct page *page, unsigned long private)
-{
-	return alloc_page(GFP_KERNEL);
-}
-#else
-static inline struct page *tzdev_migrate_alloc(struct page *page, unsigned long private, int **x)
-{
-	return alloc_page(GFP_KERNEL);
-}
-#endif
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
-#define sysdep_migrate_pages(list, alloc, free)		migrate_pages((list), (alloc), (free), 0, MIGRATE_SYNC, MR_MEMORY_FAILURE)
-#define sysdep_putback_isolated_pages(list)		putback_movable_pages(list)
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-#define sysdep_migrate_pages(list, alloc, free)		({(void)free; migrate_pages((list), (alloc), 0, MIGRATE_SYNC, MR_MEMORY_FAILURE);})
-#define sysdep_putback_isolated_pages(list)		putback_lru_pages(list)
-#else
-#define sysdep_migrate_pages(list, alloc, free)		({(void)free; migrate_pages((list), (alloc), 0, false, MIGRATE_SYNC);})
-#define sysdep_putback_isolated_pages(list)		putback_lru_pages(list)
-#endif
-#endif
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0)
-#define sysdep_kfifo_put(fifo, val) kfifo_put(fifo, val)
-#else
-#define sysdep_kfifo_put(fifo, val) kfifo_put(fifo, &val)
-#endif
-
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(3, 13, 0)
 #define U8_MAX		((u8)~0U)
 #define S8_MAX		((s8)(U8_MAX>>1))
@@ -153,18 +120,6 @@ static inline unsigned int irq_of_parse_and_map(struct device_node *dev, int ind
 	return 0;
 }
 #endif /*!defined(CONFIG_OF) */
-#endif
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)
-#define sysdep_kernel_read(file, buf, size, off)	kernel_read(file, buf, size, &off)
-#else
-#define sysdep_kernel_read(file, buf, size, off)	\
-({							\
-	int ret;					\
-	ret = kernel_read(file, off, buf, size);	\
-	off += ret;					\
-	ret;						\
-})
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
@@ -251,6 +206,18 @@ static inline void reinit_completion(struct completion *x)
 int sysdep_idr_alloc(struct idr *idr, void *mem);
 int sysdep_idr_alloc_in_range(struct idr *idr, void *mem,
 		unsigned long start, unsigned long end);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#define sysdep_mm_down_read(mm)			down_read(&mm->mmap_lock)
+#define sysdep_mm_up_read(mm)			up_read(&mm->mmap_lock)
+#define sysdep_mm_down_write(mm)		down_write(&mm->mmap_lock)
+#define sysdep_mm_up_write(mm)			up_write(&mm->mmap_lock)
+#else
+#define sysdep_mm_down_read(mm)			down_read(&mm->mmap_sem)
+#define sysdep_mm_up_read(mm)			up_read(&mm->mmap_sem)
+#define sysdep_mm_down_write(mm)		down_write(&mm->mmap_sem)
+#define sysdep_mm_up_write(mm)			up_write(&mm->mmap_sem)
+#endif
 
 long sysdep_get_user_pages(struct task_struct *task,
 		struct mm_struct *mm, unsigned long start, unsigned long nr_pages,

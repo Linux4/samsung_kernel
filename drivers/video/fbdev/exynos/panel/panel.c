@@ -1031,7 +1031,7 @@ static int panel_do_tx_packet(struct panel_device *panel, struct pktinfo *info, 
 		return -EINVAL;
 	}
 
-	if (panel->panel_data.ddi_props.delay_duration) {
+	 if (panel->panel_data.ddi_props.delay_cmd && (panel->panel_data.ddi_props.delay_cmd == info->data[0])) {
 #ifdef DEBUG_PANEL
 		panel_dbg("delay_cmd %x %x\n",
 			panel->panel_data.ddi_props.delay_cmd,

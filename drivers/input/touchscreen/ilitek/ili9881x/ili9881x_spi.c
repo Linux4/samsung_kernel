@@ -73,7 +73,6 @@ int ili_spi_write_then_read_split(struct spi_device *spi,
 		goto out;
 	}
 
-	spi_message_init(&message);
 	memset(ilits->spi_tx, 0x0, SPI_TX_BUF_SIZE);
 	memset(ilits->spi_rx, 0x0, SPI_RX_BUF_SIZE);
 
@@ -92,7 +91,12 @@ int ili_spi_write_then_read_split(struct spi_device *spi,
 		xferlen = n_tx;
 		memcpy(ilits->spi_tx, (u8 *)txbuf, xferlen);
 
+		if (ilits->cs_gpio > 0)
+			gpio_direction_output(ilits->cs_gpio, 0);
+
 		for (xfercnt = 0; xfercnt < xferloop; xfercnt++) {
+			spi_message_init(&message);
+
 			if (xferlen > DMA_TRANSFER_MAX_LEN)
 				xferlen = DMA_TRANSFER_MAX_LEN;
 
@@ -100,14 +104,13 @@ int ili_spi_write_then_read_split(struct spi_device *spi,
 			xfer[xfercnt].tx_buf = ilits->spi_tx + xfercnt * DMA_TRANSFER_MAX_LEN;
 			spi_message_add_tail(&xfer[xfercnt], &message);
 			xferlen = n_tx - (xfercnt+1) * DMA_TRANSFER_MAX_LEN;
-		}
-		if (ilits->cs_gpio > 0) {
-			gpio_direction_output(ilits->cs_gpio, 0);
+
 			status = spi_sync(spi, &message);
+		}
+
+		if (ilits->cs_gpio > 0)
 			gpio_direction_output(ilits->cs_gpio, 1);
-		} else {
-			status = spi_sync(spi, &message);
-		}
+
 		break;
 	case SPI_READ:
 		if (n_tx > DMA_TRANSFER_MAX_LEN) {
@@ -129,7 +132,13 @@ int ili_spi_write_then_read_split(struct spi_device *spi,
 			xferloop = duplex_len / DMA_TRANSFER_MAX_LEN;
 
 		xferlen = duplex_len;
+
+		if (ilits->cs_gpio > 0)
+			gpio_direction_output(ilits->cs_gpio, 0);
+
 		for (xfercnt = 0; xfercnt < xferloop; xfercnt++) {
+			spi_message_init(&message);
+
 			if (xferlen > DMA_TRANSFER_MAX_LEN)
 				xferlen = DMA_TRANSFER_MAX_LEN;
 
@@ -138,15 +147,13 @@ int ili_spi_write_then_read_split(struct spi_device *spi,
 			xfer[xfercnt].rx_buf = ilits->spi_rx + xfercnt * DMA_TRANSFER_MAX_LEN;
 			spi_message_add_tail(&xfer[xfercnt], &message);
 			xferlen = duplex_len - (xfercnt + 1) * DMA_TRANSFER_MAX_LEN;
+
+			status = spi_sync(spi, &message);
 		}
 
-		if (ilits->cs_gpio > 0) {
-			gpio_direction_output(ilits->cs_gpio, 0);
-			status = spi_sync(spi, &message);
+		if (ilits->cs_gpio > 0)
 			gpio_direction_output(ilits->cs_gpio, 1);
-		} else {
-			status = spi_sync(spi, &message);
-		}
+
 		if (status == 0) {
 			if (ilits->spi_rx[1] != SPI_ACK && !atomic_read(&ilits->ice_stat)) {
 				status = DO_SPI_RECOVER;
@@ -328,12 +335,12 @@ static int ili_spi_pll_clk_wakeup(void)
 	}
 
 	wdata[0] = SPI_WRITE;
-	wdata[1] = wlen >> 8;
+	wdata[1] = (wlen >> 8) & 0xFF;
 	wdata[2] = wlen & 0xff;
 	index = 3;
 	wlen += index;
 
-	ipio_memcpy(&wdata[index], wakeup, wlen, wlen);
+	ipio_memcpy(&wdata[index], wakeup, sizeof(wakeup), wlen);
 
 	input_info(true, ilits->dev, "%s Write dummy to wake up spi pll clk\n", __func__);
 	if (ilits->spi_write_then_read(ilits->spi, wdata, wlen, NULL, 0) < 0) {
@@ -623,7 +630,6 @@ static int ilitek_spi_probe(struct spi_device *spi)
 	ilits->gesture_demo_ctrl = DISABLE;
 	ilits->wtd_ctrl = OFF;
 	ilits->report = ENABLE;
-	ilits->netlink = DISABLE;
 	ilits->dnp = DISABLE;
 	ilits->irq_tirgger_type = IRQF_TRIGGER_FALLING;
 	ilits->info_from_hex = ENABLE;

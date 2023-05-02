@@ -1061,6 +1061,11 @@ static void run_tx_rx_delta_test(int index)
 
 static char *get_date_time_str(void)
 {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+	static char time_data_buf[128] = "19000101-000000";
+
+	return time_data_buf;
+#else
 	struct timespec now_time;
 	struct rtc_time rtc_now_time;
 	static char time_data_buf[128] = { 0 };
@@ -1073,6 +1078,7 @@ static char *get_date_time_str(void)
 		rtc_now_time.tm_sec);
 
 	return time_data_buf;
+#endif
 }
 
 static void mp_print_csv_header(char *csv, int *csv_len, int *csv_line, int file_size)

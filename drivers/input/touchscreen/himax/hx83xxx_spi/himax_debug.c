@@ -78,7 +78,9 @@ uint8_t sel_type = 0x0D;
 char buf_tmp[BUF_SIZE] = {0};
 uint8_t *reg_read_data;
 
-struct timespec timeStart, timeEnd, timeDelta;
+unsigned long long timeStart, timeEnd, timeDelta;
+unsigned long nano_timeStart, nano_timeEnd, nano_timeDelta;
+
 int g_switch_mode;
 /*
  *	Segment : Himax PROC Debug Function
@@ -185,11 +187,7 @@ static ssize_t himax_vendor_read(struct file *file, char *buf,
 	return ret;
 }
 
-static const struct file_operations himax_proc_vendor_ops = {
-	.owner = THIS_MODULE,
-	.read = himax_vendor_read,
-};
-
+static sec_himax_input_proc_ops(THIS_MODULE, himax_proc_vendor_ops, himax_vendor_read, NULL, NULL, NULL);
 static ssize_t himax_attn_read(char *buf, size_t len)
 {
 	ssize_t ret = 0;
@@ -777,19 +775,20 @@ void himax_log_touch_event(struct himax_ts_data *ts, int start)
 void himax_log_touch_int_devation(int touched)
 {
 	if (touched == HX_FINGER_ON) {
-		getnstimeofday(&timeStart);
+		timeStart = local_clock();
+		nano_timeStart = do_div(timeStart, 1000000000);
 		/* I(" Irq start time = %ld.%06ld s\n",
 		 * timeStart.tv_sec, timeStart.tv_nsec/1000);
 		 */
 	} else if (touched == HX_FINGER_LEAVE) {
-		getnstimeofday(&timeEnd);
-		timeDelta.tv_nsec =
-		  (timeEnd.tv_sec * 1000000000 + timeEnd.tv_nsec) -
-		  (timeStart.tv_sec * 1000000000 + timeStart.tv_nsec);
+		timeEnd = local_clock();
+		nano_timeEnd = do_div(timeEnd, 1000000000);
+		timeDelta  = timeStart - timeEnd;
+		nano_timeDelta = (nano_timeStart - nano_timeEnd) / 1000;
 		/*  I("Irq finish time = %ld.%06ld s\n",
 		 *	timeEnd.tv_sec, timeEnd.tv_nsec/1000);
 		 */
-		I("Touch latency = %ld us\n", timeDelta.tv_nsec / 1000);
+		I("Touch latency = %ld us\n", nano_timeDelta);
 		I("bus_speed = %d kHz\n", private_ts->bus_speed);
 		if (g_target_report_data->finger_on == 0  && g_target_report_data->finger_num == 0)
 			I("All Finger leave\n");
@@ -880,7 +879,7 @@ static int himax_change_mode(uint8_t str_pw, uint8_t end_pw)
 
 		I("Now retry %d times!\n", count++);
 		msleep(50);
-	} while (count < 50);
+	} while (count < 50 && !atomic_read(&private_ts->shutdown));
 
 	return ERR_WORK_OUT;
 }
@@ -1368,13 +1367,7 @@ static int himax_diag_stack_open(struct inode *inode, struct file *file)
 	return seq_open(file, &himax_diag_stack_ops);
 };
 
-static const struct file_operations himax_proc_stack_ops = {
-	.owner = THIS_MODULE,
-	.open = himax_diag_stack_open,
-	.read = seq_read,
-	.release = seq_release,
-};
-
+static sec_himax_input_proc_ops(THIS_MODULE, himax_proc_stack_ops, seq_read, NULL, himax_diag_stack_open, seq_release);
 static int himax_sram_read(struct seq_file *s, void *v, uint8_t rs)
 {
 	struct himax_ts_data *ts = private_ts;
@@ -1423,13 +1416,7 @@ static int himax_diag_iir_open(struct inode *inode, struct file *file)
 	return seq_open(file, &himax_diag_iir_ops);
 };
 
-static const struct file_operations himax_proc_iir_ops = {
-	.owner = THIS_MODULE,
-	.open = himax_diag_iir_open,
-	.read = seq_read,
-	.release = seq_release,
-};
-
+static sec_himax_input_proc_ops(THIS_MODULE, himax_proc_iir_ops, seq_read, NULL, himax_diag_iir_open, seq_release);
 static int himax_diag_dc_read(struct seq_file *s, void *v)
 {
 	return himax_sram_read(s, v, 0x0A);
@@ -1446,13 +1433,7 @@ static int himax_diag_dc_open(struct inode *inode, struct file *file)
 	return seq_open(file, &himax_diag_dc_ops);
 };
 
-static const struct file_operations himax_proc_dc_ops = {
-	.owner = THIS_MODULE,
-	.open = himax_diag_dc_open,
-	.read = seq_read,
-	.release = seq_release,
-};
-
+static sec_himax_input_proc_ops(THIS_MODULE, himax_proc_dc_ops, seq_read, NULL, himax_diag_dc_open, seq_release);
 static int himax_diag_bank_read(struct seq_file *s, void *v)
 {
 	return himax_sram_read(s, v, 0x0B);
@@ -1469,13 +1450,7 @@ static int himax_diag_bank_open(struct inode *inode, struct file *file)
 	return seq_open(file, &himax_diag_bank_ops);
 };
 
-static const struct file_operations himax_proc_bank_ops = {
-	.owner = THIS_MODULE,
-	.open = himax_diag_bank_open,
-	.read = seq_read,
-	.release = seq_release,
-};
-
+static sec_himax_input_proc_ops(THIS_MODULE, himax_proc_bank_ops, seq_read, NULL, himax_diag_bank_open, seq_release);
 static ssize_t himax_reset_write(char *buf, size_t len)
 {
 	if (len >= 12) {
@@ -1744,13 +1719,7 @@ static int himax_flash_dump_proc_open(struct inode *inode, struct file *file)
 	return seq_open(file, &himax_flash_dump_seq_ops);
 };
 
-static const struct file_operations himax_proc_flash_ops = {
-	.owner = THIS_MODULE,
-	.open = himax_flash_dump_proc_open,
-	.read = seq_read,
-	.write = himax_proc_flash_write,
-};
-
+static sec_himax_input_proc_ops(THIS_MODULE, himax_proc_flash_ops, seq_read, himax_proc_flash_write, himax_flash_dump_proc_open, NULL);
 void himax_ts_flash_func(void)
 {
 	uint8_t flash_command = g_flash_cmd;
@@ -2493,12 +2462,7 @@ ENDFUCTION:
 	return len;
 }
 
-static const struct file_operations himax_proc_debug_ops = {
-	.owner = THIS_MODULE,
-	.read = himax_debug_read,
-	.write = himax_debug_write,
-};
-
+static sec_himax_input_proc_ops(THIS_MODULE, himax_proc_debug_ops, himax_debug_read, himax_debug_write, NULL, NULL);
 static void himax_himax_data_init(void)
 {
 	debug_data->fp_ts_dbg_func = himax_ts_dbg_func;

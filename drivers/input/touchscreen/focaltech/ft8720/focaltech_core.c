@@ -273,6 +273,21 @@ int fts_check_cid(struct fts_ts_data *ts_data, u8 id_h)
 	return -ENODATA;
 }
 
+void fts_set_lp_dump_status(struct fts_ts_data *ts_data)
+{
+	int ret = 0;
+	u8 lp_dump_status;
+
+	ret = fts_read_reg(FTS_REG_LP_DUMP_EN, &lp_dump_status);
+	if (ret < 0) {
+		FTS_ERROR("read lp dump status failed!");
+		return;
+	}
+	
+	ts_data->lp_dump_enabled = (lp_dump_status == 1) ? true : false;
+	FTS_INFO("LP DUMP %s ", ts_data->lp_dump_enabled ? "Enabled" : "Disabled");
+}
+
 /*****************************************************************************
  *  Name: fts_wait_tp_to_valid
  *  Brief: Read chip id until TP FW become valid(Timeout: TIMEOUT_READ_REG),
@@ -1592,7 +1607,7 @@ static int fts_pinctrl_select_suspend(struct fts_ts_data *ts)
 	return ret;
 }
 
-static int fts_pinctrl_select_release(struct fts_ts_data *ts)
+int fts_pinctrl_select_release(struct fts_ts_data *ts)
 {
 	int ret = 0;
 
@@ -1831,6 +1846,139 @@ err_irq_gpio_dir:
 err_irq_gpio_req:
 	FTS_FUNC_EXIT();
 	return ret;
+}
+
+#define	LPWG_DUMP_TOTAL_SIZE	500
+#define LPWG_DUMP_PACKET_SIZE	5
+#define LPWG_DUMP_EVENT_MAX_NUM	100
+
+void fts_lpwg_dump_buf_init(struct fts_ts_data *ts_data)
+{
+	FTS_FUNC_ENTER();
+
+	ts_data->lpwg_dump_buf = devm_kzalloc(ts_data->dev, LPWG_DUMP_TOTAL_SIZE, GFP_KERNEL);
+	if (ts_data->lpwg_dump_buf == NULL) {
+		FTS_ERROR("kzalloc for lpwg_dump_buf failed!");
+		return;
+	}
+	ts_data->lpwg_dump_buf_idx = 0;
+
+	FTS_FUNC_EXIT();
+}
+
+int fts_lpwg_dump_buf_write(struct fts_ts_data *ts_data, u8 *buf)
+{
+	int i = 0;
+
+	if (ts_data->lpwg_dump_buf == NULL) {
+		FTS_ERROR("kzalloc for lpwg_dump_buf failed!");
+		return -1;
+	}
+
+	for (i = 0 ; i < LPWG_DUMP_PACKET_SIZE ; i++) {
+		ts_data->lpwg_dump_buf[ts_data->lpwg_dump_buf_idx++] = buf[i];
+	}
+
+	if (ts_data->lpwg_dump_buf_idx >= LPWG_DUMP_TOTAL_SIZE) {
+		FTS_INFO("write end of data buf(%d)!", ts_data->lpwg_dump_buf_idx);
+		ts_data->lpwg_dump_buf_idx = 0;
+	}
+
+	return 0;
+}
+
+int fts_lpwg_dump_buf_read(struct fts_ts_data *ts_data, u8 *buf)
+{
+	u8 read_buf[30] = { 0 };
+	int read_packet_cnt;
+	int start_idx;
+	int i;
+
+	if (ts_data->lpwg_dump_buf == NULL) {
+		FTS_ERROR("kzalloc for lpwg_dump_buf failed!");
+		return 0;
+	}
+
+	if (ts_data->lpwg_dump_buf[ts_data->lpwg_dump_buf_idx] == 0
+		&& ts_data->lpwg_dump_buf[ts_data->lpwg_dump_buf_idx + 1] == 0
+		&& ts_data->lpwg_dump_buf[ts_data->lpwg_dump_buf_idx + 2] == 0) {
+		start_idx = 0;
+		read_packet_cnt = ts_data->lpwg_dump_buf_idx / LPWG_DUMP_PACKET_SIZE;
+	} else {
+		start_idx = ts_data->lpwg_dump_buf_idx;
+		read_packet_cnt = LPWG_DUMP_TOTAL_SIZE / LPWG_DUMP_PACKET_SIZE;
+	}
+
+	FTS_INFO("lpwg_dump_buf_idx(%d), start_idx (%d), read_packet_cnt(%d)",
+				ts_data->lpwg_dump_buf_idx, start_idx, read_packet_cnt);
+
+	for (i = 0 ; i < read_packet_cnt ; i++) {
+		memset(read_buf, 0x00, 30);
+		snprintf(read_buf, 30, "%03d : %02X%02X%02X%02X%02X\n",
+					i, ts_data->lpwg_dump_buf[start_idx + 0], ts_data->lpwg_dump_buf[start_idx + 1],
+					ts_data->lpwg_dump_buf[start_idx + 2], ts_data->lpwg_dump_buf[start_idx + 3],
+					ts_data->lpwg_dump_buf[start_idx + 4]);
+
+		strlcat(buf, read_buf, PAGE_SIZE);
+
+		if (start_idx + LPWG_DUMP_PACKET_SIZE >=  LPWG_DUMP_TOTAL_SIZE) {
+			start_idx = 0;
+		} else {
+			start_idx += 5;
+		}
+	}
+
+	return 0;
+}
+
+int fts_get_lp_dump_data(struct fts_ts_data *ts_data)
+{
+	int ret = 0;
+	int event_num = 0;
+	int start_index = 0;
+	int i;
+	u8 buf[LPWG_DUMP_TOTAL_SIZE + 2];	
+	u8 cmd;
+
+	FTS_FUNC_ENTER();
+
+	if (ts_data->lp_dump_enabled == false) {
+		FTS_ERROR("Not support LP dump!");
+		return -1;
+	}
+
+	if (ts_data->lpwg_dump_buf == NULL) {
+		FTS_ERROR("kzalloc for lpwg_dump_buf failed");
+		return -1;
+	}
+
+	cmd = FTS_REG_LP_DUMP_BUF;
+	ret = fts_read(&cmd, 1, buf, LPWG_DUMP_TOTAL_SIZE + 2);
+	if (ret < 0) {
+		FTS_ERROR("Failed to read lp dump");
+		return ret;
+	}
+	event_num = buf[0];
+	start_index = buf[1];
+	FTS_INFO("event_num = %d, start_index = %d", event_num, start_index);
+
+	if (start_index > 100) {
+		FTS_ERROR("No Event");
+		return 0;
+	}
+
+	if (event_num > 100) {
+		FTS_ERROR("Over Event = %d", event_num);
+		return 0;
+	}
+
+	for (i = 0; i < event_num; i++) {
+		fts_lpwg_dump_buf_write(ts_data, &buf[i * LPWG_DUMP_PACKET_SIZE + 2]);
+	}
+
+	FTS_FUNC_EXIT();
+
+	return 0;
 }
 
 static int fts_get_dt_coords(struct device *dev, char *name,
@@ -2120,6 +2268,18 @@ static void fts_print_info(struct fts_ts_data *ts)
 		ts->print_info_cnt_open, ts->print_info_cnt_release);
 }
 
+static void fts_read_info_work(struct work_struct *work)
+{
+	struct fts_ts_data *ts = container_of(work, struct fts_ts_data,
+			read_info_work.work);
+
+#if !IS_ENABLED(CONFIG_SEC_FACTORY)
+	fts_run_rawdata_all(&ts->sec);
+#endif
+
+	schedule_work(&ts->print_info_work.work);
+}
+
 static void fts_print_info_work(struct work_struct *work)
 {
 	struct fts_ts_data *ts = container_of(work, struct fts_ts_data,
@@ -2145,17 +2305,17 @@ int fts_charger_attached(struct fts_ts_data *ts_data, bool status)
 	if (status == 1) {
 		FTS_INFO("enter charger mode");
 		ret = fts_write_reg(FTS_REG_CHARGER_MODE_EN, ENABLE);
-		if (ret >= 0) {
+		if (ret >= 0)
 			ts_data->charger_mode = ENABLE;
-			FTS_ERROR("entering charger mode failed");
-		}
+		else
+			FTS_ERROR("enter charger mode failed");
 	} else if (status == 0) {
 		FTS_INFO("exit charger mode");
 		ret = fts_write_reg(FTS_REG_CHARGER_MODE_EN, DISABLE);
-		if (ret >= 0) {
+		if (ret >= 0)
 			ts_data->charger_mode = DISABLE;
+		else
 			FTS_ERROR("exit charger mode failed");
-		}
 	} else
 		FTS_ERROR("[ERROR] Unknown value[%d]", status);
 
@@ -2337,6 +2497,9 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
 		goto err_cmd_init;
 	}
 
+	if (ts_data->lp_dump_enabled)
+		fts_lpwg_dump_buf_init(ts_data);
+
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 	if (ts_data->pdata->enable_vbus_notifier)
 		vbus_notifier_register(&ts_data->vbus_nb, fts_vbus_notification,
@@ -2355,7 +2518,8 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
 #endif
 
 	INIT_DELAYED_WORK(&ts_data->print_info_work, fts_print_info_work);
-	schedule_delayed_work(&ts_data->print_info_work, msecs_to_jiffies(15000));
+	INIT_DELAYED_WORK(&ts_data->read_info_work, fts_read_info_work);
+	schedule_work(&ts_data->read_info_work.work);
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 	mutex_init(&fts_data->secure_lock);
@@ -2410,6 +2574,7 @@ static int fts_ts_remove_entry(struct fts_ts_data *ts_data)
 
 	disable_irq(ts_data->irq);
 	cancel_delayed_work_sync(&ts_data->print_info_work);
+	cancel_delayed_work_sync(&ts_data->read_info_work);
 
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 	if (ts_data->pdata->enable_vbus_notifier)
@@ -2481,6 +2646,7 @@ int fts_ts_suspend(struct device *dev)
 	struct fts_ts_data *ts_data = fts_data;
 //	int enter_force_ed_mode = 0;
 	int ret = 0;
+	u8 lpwg_dump[5] = {0x3, 0x0, 0x0, 0x0, 0x0};
 
 	mutex_lock(&ts_data->device_lock);
 	FTS_INFO("Enter. gesture_mode=0x%x, prox_power_off=%d", ts_data->gesture_mode, ts_data->prox_power_off);
@@ -2546,6 +2712,9 @@ int fts_ts_suspend(struct device *dev)
 	cancel_delayed_work(&ts_data->print_info_work);
 	fts_print_info(ts_data);
 
+	if (ts_data->lp_dump_enabled && ts_data->power_status == LP_MODE_STATUS)
+		fts_lpwg_dump_buf_write(ts_data, lpwg_dump);
+
 	FTS_FUNC_EXIT();
 	mutex_unlock(&ts_data->device_lock);
 	return 0;
@@ -2556,6 +2725,7 @@ static int fts_ts_resume(struct device *dev)
 	struct fts_ts_data *ts_data = fts_data;
 	ktime_t start_time = ktime_get();
 	s64 time_diff_ms;
+	u8 lpwg_dump[5] = {0x7, 0x0, 0x0, 0x0, 0x0};
 
 	mutex_lock(&ts_data->device_lock);
 	FTS_FUNC_ENTER();
@@ -2604,6 +2774,10 @@ static int fts_ts_resume(struct device *dev)
 
 	if (ts_data->gesture_mode) {
 		fts_gesture_resume(ts_data);
+
+		if (ts_data->lp_dump_enabled) {
+			fts_lpwg_dump_buf_write(ts_data, lpwg_dump);
+		}		
 	}
 
 //	if (ts_data->aot_enable)

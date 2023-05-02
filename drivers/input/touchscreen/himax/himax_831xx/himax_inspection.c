@@ -5071,7 +5071,6 @@ void psensor_enable(struct himax_ts_data *data, unsigned int mode)
 	switch (mode) {
 	case 0:
 		data->ear_detect_mode = 0;
-		data->ear_detect_val = -1;
 		tmp_addr[3] = 0x10;
 		tmp_addr[2] = 0x00;
 		tmp_addr[1] = 0x7f;
@@ -5081,6 +5080,7 @@ void psensor_enable(struct himax_ts_data *data, unsigned int mode)
 		tmp_data[1] = 0x00;
 		tmp_data[0] = 0x00;
 		g_core_fp.fp_register_write(tmp_addr, 4, tmp_data, 0);
+		data->ear_detect_val = -1;
 		break;
 	case 1:
 		input_info(true, data->dev, "%s,call mode %d\n", __func__, mode);

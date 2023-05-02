@@ -75,6 +75,8 @@ struct shub_data_t {
 	struct shub_system_info system_info;
 
 	struct regulator *sensor_vdd_regulator;
+
+	int sensor_ldo_en;
 };
 
 struct device *get_shub_device(void); // ssp_sensor sysfs 위한 device pdev랑 다름
@@ -103,4 +105,6 @@ struct shub_system_info *get_shub_system_info(void);
 
 int enable_sensor_vdd(void);
 int disable_sensor_vdd(void);
+
+void sensorhub_stop(void);
 #endif /* __SHUB_DEVICE_H_ */

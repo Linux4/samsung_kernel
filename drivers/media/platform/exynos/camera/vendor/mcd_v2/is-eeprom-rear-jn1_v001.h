@@ -5,7 +5,7 @@
  * 20210621_A13 5G_CAM1(Wide_50M_JN1)_EEPROM_Rear_Cal map V008.001_QC_LSI_MTK_Map.xlsx
  */
 
-#define IS_REAR_MAX_CAL_SIZE                 (0x5320 - 0x0000 + 0x1)
+#define IS_REAR_MAX_CAL_SIZE                 (0x5329 - 0x0000 + 0x1)  /* It should be bigger than output of GetCalSize() from ap2ap library */
 
 #define REAR_HEADER_CHECKSUM_LEN             (0x00FB - 0x0000 + 0x1)
 #define REAR_AWB_CHECKSUM_LEN                (0x36FB - 0x36E0 + 0x1)
@@ -16,14 +16,27 @@
 #define REAR_SHADING_SEC2LSI_CHECKSUM_LEN    (0x50DB - 0x36F0 + 0x1)
 /* Crosstalk cal data for SW remosaic */
 #define REAR_XTALK_CAL_DATA_SIZE     (8364)
-#define REAR_REMOSAIC_TETRA_XTC_START_ADDR	0x14AC
-#define REAR_REMOSAIC_TETRA_XTC_SIZE		2612
-#define REAR_REMOSAIC_SENSOR_XTC_START_ADDR	0x1EE0
-#define REAR_REMOSAIC_SENSOR_XTC_SIZE		768
-#define REAR_REMOSAIC_PDXTC_START_ADDR		0x0140
-#define REAR_REMOSAIC_PDXTC_SIZE		4000
-#define REAR_REMOSAIC_SW_GGC_START_ADDR		0x10E0
-#define REAR_REMOSAIC_SW_GGC_SIZE		626
+#define REAR_REMOSAIC_TETRA_XTC_START_ADDR   0x14AC
+#define REAR_REMOSAIC_TETRA_XTC_SIZE         2612
+#define REAR_REMOSAIC_SENSOR_XTC_START_ADDR  0x1EE0
+#define REAR_REMOSAIC_SENSOR_XTC_SIZE        768
+#define REAR_REMOSAIC_PDXTC_START_ADDR       0x0140
+#define REAR_REMOSAIC_PDXTC_SIZE             4000
+#define REAR_REMOSAIC_SW_GGC_START_ADDR      0x10E0
+#define REAR_REMOSAIC_SW_GGC_SIZE            626
+
+struct rom_ap2ap_standard_cal_data rear_jn1_ap2ap_standard_cal_info = {
+	.rom_orig_start_addr                                       = 0x0,
+	.rom_orig_end_addr                                         = 0x3D39,
+	.rom_lsi_start_addr                                        = 0x0,
+	.rom_lsi_end_addr                                          = 0x5319,
+};
+
+struct rom_extend_cal_addr rear_jn1_ap2ap_extend_cal_addr = {
+	.name = EXTEND_AP2AP_STANDARD_CAL,
+	.data = &rear_jn1_ap2ap_standard_cal_info,
+	.next = NULL,
+};
 
 struct rom_standard_cal_data rear_jn1_standard_cal_info = {
 	.rom_standard_cal_start_addr                               = -1,
@@ -53,7 +66,7 @@ struct rom_standard_cal_data rear_jn1_standard_cal_info = {
 const struct rom_extend_cal_addr rear_jn1_extend_cal_addr = {
 	.name = EXTEND_STANDARD_CAL,
 	.data = &rear_jn1_standard_cal_info,
-	.next = NULL,
+	.next = &rear_jn1_ap2ap_extend_cal_addr,
 };
 
 const struct is_vender_rom_addr rear_jn1_cal_addr = {

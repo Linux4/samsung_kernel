@@ -622,7 +622,7 @@ int dsim_read_data(struct dsim_device *dsim, u32 id, u32 addr, u32 cnt, u8 *buf)
 			if (decon && decon_reg_get_run_status(decon->id))
 				dpu_hw_recovery_process(decon);
 			else {
-				if (ktime_to_ms(decon->vsync.timestamp) != 0)
+				if (decon && ktime_to_ms(decon->vsync.timestamp) != 0)
 					dsim_reg_recovery_process(dsim);
 				else
 					pr_warn("skip recovery, timestamp is 0\n");

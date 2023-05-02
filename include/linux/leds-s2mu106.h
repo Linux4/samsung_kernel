@@ -84,8 +84,6 @@
 #define S2MU106_FLED_GPIO_EN2		0x02
 #define S2MU106_FLED_GPIO_EN3		0x03
 #define S2MU106_FLED_GPIO_EN4		0x04
-#define S2MU106_FLED_GPIO_MAX		S2MU106_FLED_GPIO_EN4
-#define S2MU106_FLED_GPIO_NONE		0x00
 
 /* Mask for Mode control register */
 #define S2MU106_FLED_MODE	MASK(2,6)
@@ -124,12 +122,6 @@ enum s2mu106_fled_mode {
 	S2MU106_FLED_MODE_MAX,
 };
 
-enum s2mu106_fled_channel {
-	S2MU106_FLED_CH1 = 1,
-	S2MU106_FLED_CH2,
-	S2MU106_FLED_CH3,
-};
-
 struct s2mu106_fled_chan {
 	int id;
 	u32 curr;
@@ -140,13 +132,7 @@ struct s2mu106_fled_chan {
 struct s2mu106_fled_platform_data {
 	struct s2mu106_fled_chan *channel;
 	int chan_num;
-	int camera_fled_channel;
-	int flashlight_channel;
-	int camera_torch_en_fgpio;
-	int camera_flash_en_fgpio;
-	int flashlight_en_fgpio;
 	int flash_gpio;
-	int flash_set_gpio;
 	int torch_gpio;
 	u32 default_current;
 	u32 max_current;
@@ -156,8 +142,7 @@ struct s2mu106_fled_platform_data {
 	unsigned int torch_current;
 	unsigned int preflash_current;
 	unsigned int movie_current;
-	unsigned int factory_torch_current;
-	unsigned int factory_flash_current;
+	unsigned int factory_current;
 	unsigned int flashlight_current[S2MU106_FLASH_LIGHT_MAX];
 };
 
@@ -169,13 +154,7 @@ struct s2mu106_fled_data {
 	struct device *flash_dev;
 
 	int set_on_factory;
-	int camera_fled_channel;
-	int flashlight_channel;
-	int camera_torch_en_fgpio;
-	int camera_flash_en_fgpio;
-	int flashlight_en_fgpio;
 	int flash_gpio;
-	int flash_set_gpio;
 	int torch_gpio;
 	int sysfs_input_data;
 	int control_mode; /* 0 : I2C, 1 : GPIO */
@@ -191,8 +170,7 @@ struct s2mu106_fled_data {
 	unsigned int torch_current;
 	unsigned int preflash_current;
 	unsigned int movie_current;
-	unsigned int factory_torch_current;
-	unsigned int factory_flash_current;
+	unsigned int factory_current;
 	unsigned int flashlight_current[S2MU106_FLASH_LIGHT_MAX];
 };
 

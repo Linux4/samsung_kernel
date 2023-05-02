@@ -268,7 +268,7 @@ static int ilitek_tddi_fw_iram_program(u32 start, u8 *w_buf, u32 w_len, u32 spli
 
 	if (split_len != 0) {
 		for (addr = start, i = 0; addr < end; addr += split_len, i += split_len) {
-			if ((addr + split_len) > end) {
+			if (((addr + split_len) > end) && (end >= addr)) {
 				split_len = end - addr;
 				if (split_len % 4 != 0)
 					fix_4_alignment = true;
@@ -452,7 +452,7 @@ static int ilitek_tddi_fw_update_block_info(u8 *pfw)
 {
 	u32 ges_area_section = 0, ges_info_addr = 0, ges_fw_start = 0, ges_fw_end = 0;
 	u32 ap_end = 0, ap_len = 0;
-	u32 fw_info_addr = 0, fw_mp_ver_addr = 0, fw_customer_info_addr = 0;
+	u32 fw_info_addr = 0, fw_mp_ver_addr = 0, fw_customer_info_addr = 0, fw_lpdump_info_addr = 0;
 
 	if (tfd.hex_tag != BLOCK_TAG_AF) {
 		input_err(true, ilits->dev, "%s HEX TAG is invalid (0x%X)\n", __func__, tfd.hex_tag);
@@ -470,7 +470,11 @@ static int ilitek_tddi_fw_update_block_info(u8 *pfw)
 	fbi[DDI].mem_start = (fbi[DDI].fix_mem_start != INT_MAX) ? fbi[DDI].fix_mem_start : 0;
 
 	/* Parsing gesture info form AP code */
-	ges_info_addr = (fbi[AP].end + 1 - 60);
+	if (fbi[AP].end >= 60)
+		ges_info_addr = (fbi[AP].end + 1 - 60);
+	else
+		input_err(true, ilits->dev, "%s invalid addr (0x%X)\n", __func__, fbi[AP].end);
+
 	ges_area_section = (pfw[ges_info_addr + 3] << 24) + (pfw[ges_info_addr + 2] << 16) +
 		(pfw[ges_info_addr + 1] << 8) + pfw[ges_info_addr];
 	fbi[GESTURE].mem_start = (pfw[ges_info_addr + 7] << 24) + (pfw[ges_info_addr + 6] << 16) +
@@ -517,17 +521,20 @@ static int ilitek_tddi_fw_update_block_info(u8 *pfw)
 		tfd.is80k = true;
 
 	/* Copy fw info  */
-	fw_info_addr = fbi[AP].end - INFO_HEX_ST_ADDR;
-	input_info(true, ilits->dev, "%s Parsing hex info start addr = 0x%x\n", __func__, fw_info_addr);
+	if (fbi[AP].end >= INFO_HEX_ST_ADDR)
+		fw_info_addr = fbi[AP].end - INFO_HEX_ST_ADDR;
+	input_info(true, ilits->dev, "%s Parsing hex info start addr = 0x%x, end = 0x%x\n", __func__, fw_info_addr, fbi[AP].end);
 	ipio_memcpy(ilits->fw_info, (pfw + fw_info_addr), sizeof(ilits->fw_info), sizeof(ilits->fw_info));
 
 	/* copy fw mp ver */
-	fw_mp_ver_addr = fbi[MP].end - INFO_MP_HEX_ADDR;
+	if (fbi[MP].end >= INFO_MP_HEX_ADDR)
+		fw_mp_ver_addr = fbi[MP].end - INFO_MP_HEX_ADDR;
 	input_info(true, ilits->dev, "%s Parsing hex mp ver addr = 0x%x\n", __func__, fw_mp_ver_addr);
 	ipio_memcpy(ilits->fw_mp_ver, pfw + fw_mp_ver_addr, sizeof(ilits->fw_mp_ver), sizeof(ilits->fw_mp_ver));
 
 	/* copy customer info ver */
-	fw_customer_info_addr = fbi[AP].end - INFO_CUSTOMER_INFO_HEX_ADDR;
+	if (fbi[AP].end > INFO_CUSTOMER_INFO_HEX_ADDR)
+		fw_customer_info_addr = fbi[AP].end - INFO_CUSTOMER_INFO_HEX_ADDR;
 	input_info(true, ilits->dev, "%s Parsing hex customer info addr = 0x%x\n", __func__, fw_customer_info_addr);
 	ipio_memcpy(ilits->fw_cur_info, pfw + fw_customer_info_addr, sizeof(ilits->fw_cur_info),
 		sizeof(ilits->fw_cur_info));
@@ -546,6 +553,11 @@ static int ilitek_tddi_fw_update_block_info(u8 *pfw)
 	tfd.new_fw_cb = (ilits->fw_info[48] << 24) | (ilits->fw_info[49] << 16) |
 			(ilits->fw_info[50] << 8) | ilits->fw_info[51];
 
+	/* copy LG dump enable info*/
+	if (fbi[AP].end >= INFO_HEX_LPDUMP_ADDR)
+		fw_lpdump_info_addr = fbi[AP].end - INFO_HEX_LPDUMP_ADDR;
+	ilits->lp_dump_enable = ((pfw[fw_lpdump_info_addr] & BIT(0)) == 0) ? true : false;
+
 	/* Get hex report info block*/
 	ipio_memcpy(&ilits->rib, ilits->fw_info, sizeof(ilits->rib), sizeof(ilits->rib));
 	input_info(true, ilits->dev,
@@ -557,7 +569,8 @@ static int ilitek_tddi_fw_update_block_info(u8 *pfw)
 		ilits->rib.nReserved02, ilits->rib.nReserved03);
 
 	/* Calculate update address */
-	input_info(true, ilits->dev, "%s New FW ver = 0x%x\n", __func__, tfd.new_fw_cb);
+	input_info(true, ilits->dev, "%s New FW ver = 0x%x, lp_dump_enable = %d\n",
+		__func__, tfd.new_fw_cb, ilits->lp_dump_enable);
 	input_info(true, ilits->dev, "%s star_addr = 0x%06X, end_addr = 0x%06X, Block Num = %d\n",
 		__func__, tfd.start_addr, tfd.end_addr, tfd.block_number);
 

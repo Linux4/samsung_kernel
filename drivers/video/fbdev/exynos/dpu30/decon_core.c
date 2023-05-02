@@ -4616,7 +4616,7 @@ static int decon_probe(struct platform_device *pdev)
 	decon_create_timeline(decon, device_name);
 
 	/* systrace */
-	decon_systrace_enable = 0;
+	decon_systrace_enable = 1;
 	decon->systrace.pid = 0;
 
 	/* debug trivial */

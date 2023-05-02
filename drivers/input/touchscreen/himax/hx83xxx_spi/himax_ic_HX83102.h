@@ -48,6 +48,14 @@
 #define hx83102e_data_df_rx		48
 #define hx83102e_data_df_tx		30
 
+#define hx83102j_fw_addr_raw_out_sel			0x100072EC
+#define hx83102j_ic_adr_tcon_rst	0x80020004
+#define hx83102j_data_df_rx		48
+#define hx83102j_data_df_tx		32
+#define HX83102J_FLASH_SZIE 261120
+#define hx83102j_addr_ic_ver_name	0x10007050
+
+#define hx83102j_fw_addr_gesture_history 0x10008000
 #if defined(HX_AUTO_UPDATE_FW) || defined(HX_ZERO_FLASH)
 #ifdef HX_EN_DYNAMIC_NAME
 #define hx83102_ic_b9_en        0x300B9000

@@ -25,6 +25,7 @@
 	fragment@camera {
 		target-path = "/";
 		__overlay__ {
+#ifndef SC201_BOKEH_NOT_USED
 			is_sensor_sc201: is_sensor_sc201@64 {
 				compatible = "samsung,sensor-module";
 
@@ -47,7 +48,7 @@
 				sc201_iovdd-supply = SC201_IOVDD;
 				sc201_avdd-supply = SC201_AVDD;
 				sc201_dvdd-supply = SC201_DVDD;
-				
+
 				status = "okay";
 
 				/* sensor modes */
@@ -127,9 +128,8 @@
 #endif
 				};
 			};
-
-#if 0
-			is_sensor_sc201_macro: is_sensor_sc201_macro@A4 {
+#endif
+			is_sensor_sc201_macro: is_sensor_sc201_macro@60 {
 				compatible = "samsung,sensor-module";
 
 				/* common */
@@ -143,14 +143,13 @@
 				max_framerate = <60>;
 				bitwidth = <10>;
 				use_retention_mode = <SENSOR_RETENTION_INACTIVE>;
-				sensor_maker = "GALAXYCORE";
+				sensor_maker = "SMARTSENS";
 				sensor_name = "SC201";
 				setfile_name = "setfile_sc201_macro.bin";
 
 				sc201_macro_iovdd-supply = SC201_MACRO_IOVDD;
 				sc201_macro_avdd-supply = SC201_MACRO_AVDD;
 				sc201_macro_dvdd-supply = SC201_MACRO_DVDD;
-
 				status = "okay";
 
 				/* sensor modes */
@@ -229,7 +228,7 @@
 					};
 				};
 			};
-#endif
+
 		}; /* end of __overlay__ */
 	}; /* end of fragment */
 }; /* end of root */

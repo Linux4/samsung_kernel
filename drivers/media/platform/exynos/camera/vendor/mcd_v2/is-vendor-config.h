@@ -27,6 +27,8 @@
 #include "is-vendor-config_mmv_v13.h"
 #elif defined(CONFIG_CAMERA_AAV_V04S)
 #include "is-vendor-config_aav_v04s.h"
+#elif defined(CONFIG_CAMERA_AAV_V14)
+#include "is-vendor-config_aav_v14.h"
 #else
 #include "is-vendor-config_default.h"
 #endif

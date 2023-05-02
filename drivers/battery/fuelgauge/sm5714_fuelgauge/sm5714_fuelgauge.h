@@ -250,6 +250,8 @@ struct battery_data_t {
 #define POWER_OFF_VOLTAGE_HIGH_MARGIN	3500
 #define POWER_OFF_VOLTAGE_LOW_MARGIN	3400
 
+#define FG_BATT_DUMP_SIZE 128
+
 struct cv_slope {
 	int fg_current;
 	int soc;
@@ -325,6 +327,11 @@ struct sm5714_fuelgauge_data {
 
 	unsigned int capacity_old;	/* only for atomic calculation */
 	unsigned int capacity_max;	/* only for dynamic calculation */
+#if defined(CONFIG_UI_SOC_PROLONGING)
+	unsigned int g_capacity_max;	/* only for dynamic calculation */
+	bool capacity_max_conv;
+	int prev_raw_soc;
+#endif
 	unsigned int standard_capacity;
 
 	bool initial_update_of_soc;
@@ -357,5 +364,6 @@ struct sm5714_fuelgauge_data {
 
 	u32 fg_resistor;
 	bool isjigmoderealvbat;
+	char d_buf[FG_BATT_DUMP_SIZE];
 };
 #endif /* __SM5714_FUELGAUGE_H */

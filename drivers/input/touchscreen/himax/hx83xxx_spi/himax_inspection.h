@@ -137,29 +137,8 @@ extern int *g_test_item_flag;
 extern char *g_himax_inspection_mode[];
 
 /*Inspection register*/
-#define addr_normal_noise_thx 0x1000708C
-#define addr_lpwug_noise_thx 0x10007090
-#define addr_noise_scale 0x10007094
-#define addr_recal_thx 0x10007090
-#define addr_palm_num 0x100070A8
-#define addr_weight_sup 0x100072C8
-#define addr_normal_weight_a 0x1000709C
-#define addr_lpwug_weight_a 0x100070A0
-#define addr_weight_b 0x10007094
-#define addr_max_dc 0x10007FC8
-#define addr_skip_frame 0x100070F4
-#define addr_neg_noise_sup 0x10007FD8
-#define data_neg_noise 0x7F0C0000
-#define addr_ctrl_mpap_ovl 0x100073EC
 
 /*Compensation Zone register*/
-#define addr_rotative_mode 0x10007F3C
-#define data_portrait 0xA55AA55A
-#define data_landscape 0xA11AA11A
-#define addr_grip_zone 0x10007268
-#define addr_reject_zone 0x1000726C
-#define addr_reject_zone_boud 0x10007270
-#define addr_except_zone 0x10007274
 
 typedef enum {
 	TEST_RESULT_PASS = 0x00,

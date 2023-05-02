@@ -48,15 +48,14 @@
 				0x4B 0x44 0x40 0x3E 0x3C 0x3B 0x38 0x37
 				0x35 0x34 0x34 0x33 0x33 0x33 0x33 0x32
 				>;
-			/*spare factor chg_factor dischg_factor manvalue*/
-			battery0,rs_value = <0x00 0x266 0x599 0x599 0x29>;
+			battery0,rs_value = <0x48 0x48 0x3800 0x10A 0x599 0x599 0x50>;
 			battery0,v_alarm = <3100 0>;
 			battery0,topoff = <400>;
 			battery0,i_cal = <1 0 0 0 1 0 0 0 >;
 			battery0,v_cal = <1 0 0 1 0 0 0>;
 			battery0,temp_std = <25>;
 			battery0,tem_poff = <3400 50 3250 50>;
-			battery0,aux_ctrl = <0x303>;
+			battery0,aux_ctrl = <0x322 0x5800>;
 			battery0,data_ver = <4>;
 			battery0,v_max_table = <0x2260 0x2220 0x21FD 0x21DB 0x2185>;
 			battery0,q_max_table = <0x1D44 0x1CC4 0x1C44 0x1BC4 0x1A85>;
@@ -71,7 +70,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/fuelgauge/sm5714/sm5714_fuelgauge.m13.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/fuelgauge/sm5714/sm5714_fuelgauge.m13.dtsi */
 /*
  * M13 battery device tree common
  *
@@ -135,7 +134,7 @@
 		battery1,q_max_table = <0x252D 0x246E 0x23B0 0x22F1 0x2175>;
 
 		/* 11 : SDI battery data */
-		battery3,battery_type = <4420 0x23BA>; /* batt_v_max, cap */  
+		battery3,battery_type = <4420 0x249E>; /* batt_v_max, cap */
 		battery3,battery_table0 = <
 			0x1400 0x1B54 0x1C1A 0x1CD6 0x1D56 0x1D79 0x1D97 0x1DBE
 			0x1DF6 0x1E08 0x1E50 0x1E6E 0x1E92 0x1EDA 0x1F1A 0x1F46
@@ -155,13 +154,13 @@
 		battery3,rs_value = <0x48 0x48 0x3800 0x10A 0x599 0x599 0x50>;  
 		battery3,v_alarm = <3100 200>;  
 		battery3,topoff = <750>;  
-		battery3,i_cal = <1 0x0 0x0800 0x0800 0 0x0 0x07FD 0x0800>;  
+		battery3,i_cal = <1 0x0 0x0800 0x0800 0 0x0 0x07EA 0x07EA>;
 		battery3,v_cal = <1 0 0 1 0 0 0>;  
 		battery3,temp_std = <25>;  
 		battery3,tem_poff = <3400 50 3250 50>;  
 		battery3,aux_ctrl = <0x322 0x5800>;  
-		battery3,data_ver = <1>;  
+		battery3,data_ver = <2>;
 		battery3,v_max_table = <0x2300 0x22D9 0x22B1 0x228A 0x2227>;  
-		battery3,q_max_table = <0x23BA 0x2303 0x224C 0x2195 0x2027>; 
+		battery3,q_max_table = <0x249E 0x23E3 0x2327 0x226B 0x20F4>;
 	};
 };

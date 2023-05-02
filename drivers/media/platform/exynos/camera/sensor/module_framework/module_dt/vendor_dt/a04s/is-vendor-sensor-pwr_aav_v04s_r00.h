@@ -19,6 +19,12 @@
 #define SC201_DVDD		<&gpg2 5 0x1>		/* RCAM2_DVDD_1P2 - RCAM2_LDO_EN */
 #define SC201_RST		<&gpa2 7 0x1>
 
+/***** DUALIZED FRONT - SC501 *****/
+#define SC501_IOVDD	<&gpa1 6 0x1>	/* VDD_CAM_IO_1P8 - */
+#define SC501_AVDD		<&l25_reg>	/* VDD_FCAM_SENSOR_A2P8 - FCAM_SENSOR_LDO_EN */
+#define SC501_DVDD		<&l36_reg>	/* VDD_FCAM_CORE_1P2 - FCAM_CORE_LDO_EN */
+#define SC501_RST		<&gpa2 4 0x1>	/* FCAM_RST_N */
+
 /***** DUALIZED REAR2 SUB - GC02M1 *****/
 #define GC02M1_IOVDD	<&gpa1 6 0x1>		/* CAM_VDDIO_1P8 */
 #define GC02M1_LDO_EN	<&gpg2 6 0x1>		/* RCAM2_LDO_EN */
@@ -33,11 +39,21 @@
 #define HI556_RST		<&gpa2 4 0x1>	/* FCAM_RST_N */
 
 /***** REAR4 MACRO - GC02M1 *****/
-#define GC02M1_MACRO_IOVDD	<&gpa1 6 0x1>			/* CAM_VDDIO_1P8 - RCAM_VDDIO_LDO_EN */
-#define GC02M1_MACRO_LDO_EN	<&gpg2 6 0x1>			/* RCAM3_4_LDO_EN */
-#define GC02M1_MACRO_AVDD	GC02M1_MACRO_LDO_EN		/* RCAM3_4_AVDD_2P8 - RCAM3_4_LDO_EN */
-#define GC02M1_MACRO_DVDD	<&gpg2 5 0x1>		/* RCAM3_4_DVDD_1P8 - RCAM3_4_LDO_EN */
-#define GC02M1_MACRO_RST	<&gpa3 1 0x1>
+#define GC02M1_MACRO_NOT_USED
+
+/***** REAR4 MACRO - GC02M2 *****/
+#define GC02M2_MACRO_IOVDD	<&gpa1 6 0x1>			/* CAM_VDDIO_1P8 - RCAM_VDDIO_LDO_EN */
+#define GC02M2_MACRO_LDO_EN	<&gpg2 6 0x1>			/* RCAM3_4_LDO_EN */
+#define GC02M2_MACRO_AVDD	GC02M2_MACRO_LDO_EN		/* RCAM3_4_AVDD_2P8 - RCAM3_4_LDO_EN */
+#define GC02M2_MACRO_DVDD	<&gpg2 5 0x1>			/* RCAM3_4_DVDD_1P8 - RCAM3_4_LDO_EN */
+#define GC02M2_MACRO_RST	<&gpa3 1 0x1>
+
+/***** DUALIZED REAR4 MACRO - SC201 *****/
+#define SC201_MACRO_IOVDD	<&gpa1 6 0x1>			/* CAM_VDDIO_1P8 - RCAM_VDDIO_LDO_EN */
+#define SC201_MACRO_LDO_EN	<&gpg2 6 0x1>			/* RCAM3_4_LDO_EN */
+#define SC201_MACRO_AVDD	SC201_MACRO_LDO_EN		/* RCAM3_4_AVDD_2P8 - RCAM3_4_LDO_EN */
+#define SC201_MACRO_DVDD	<&gpg2 5 0x1>			/* RCAM3_4_DVDD_1P8 - RCAM3_4_LDO_EN */
+#define SC201_MACRO_RST		<&gpa3 1 0x1>
 
 /***** ETC Define related to sensor power *****/
 #define MIPI_SEL		<&gpg2 7 0x1>		/* MIPI Select  : RCAM2 & RCAM4 */

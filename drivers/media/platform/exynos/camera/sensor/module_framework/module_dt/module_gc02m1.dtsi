@@ -47,7 +47,7 @@
 				gc02m1_iovdd-supply = GC02M1_IOVDD;
 				gc02m1_avdd-supply = GC02M1_AVDD;
 				gc02m1_dvdd-supply = GC02M1_DVDD;
-				
+
 				status = "okay";
 
 				/* sensor modes */

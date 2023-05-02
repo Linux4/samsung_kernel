@@ -18,7 +18,6 @@
 #include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/init.h>
-#include <linux/ion.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/module.h>
@@ -26,6 +25,13 @@
 
 #if defined(CONFIG_ARCH_MSM)
 #include <linux/msm_ion.h>
+#endif
+
+#if defined(CONFIG_MACH_MT6853)
+#include "../../../staging/android/ion/ion.h"
+#include <linux/dma-buf.h>
+#else
+#include <linux/ion.h>
 #endif
 
 #include "tzdev_internal.h"
@@ -51,7 +57,8 @@ struct ionfd2phys32 {
 extern struct ion_device *ion_exynos;
 #elif defined(CONFIG_ARCH_WHALE)
 extern struct ion_device *idev;
-#elif defined(CONFIG_ARCH_MT6755) || defined(CONFIG_ARCH_MT6735) || defined(CONFIG_MACH_MT6757)
+#elif defined(CONFIG_ARCH_MT6755) || defined(CONFIG_ARCH_MT6735) || defined(CONFIG_MACH_MT6757) \
+ || defined(CONFIG_MACH_MT6853)
 extern struct ion_device *g_ion_device;
 #endif
 
@@ -65,7 +72,12 @@ static long __ionfd2phys_ioctl(int fd, size_t nr_pfns, sk_pfn_t *pfns)
 	int pfn;
 	size_t size = 0;
 
+#if defined(CONFIG_MACH_MT6853)
+	handle = ion_import_dma_buf_fd(client, fd);
+#else
 	handle = ion_import_dma_buf(client, fd);
+#endif
+
 	if (IS_ERR_OR_NULL(handle)) {
 		pr_err("Failed to import an ION FD\n");
 		ret = handle ? PTR_ERR(handle) : -EINVAL;
@@ -210,7 +222,7 @@ static struct tz_cdev ionfd2phys_cdev = {
 static ssize_t system_heap_id_show(struct device *dev, struct device_attribute *attr,
 			char *buf)
 {
-#if defined(CONFIG_ARCH_EXYNOS)
+#if defined(CONFIG_ARCH_EXYNOS) || defined(CONFIG_MACH_MT6853)
 	return sprintf(buf, "%d\n", ION_HEAP_TYPE_SYSTEM);
 #elif defined(CONFIG_ARCH_WHALE)
 	/* This is dirty hack for Whale platform. This platform uses
@@ -267,13 +279,14 @@ static int __init ionfd2phys_init(void)
 	struct ion_device *ion_dev = ion_exynos;
 #elif defined(CONFIG_ARCH_WHALE)
 	struct ion_device *ion_dev = idev;
-#elif defined(CONFIG_ARCH_MT6755) || defined(CONFIG_ARCH_MT6735) || defined(CONFIG_MACH_MT6757)
+#elif defined(CONFIG_ARCH_MT6755) || defined(CONFIG_ARCH_MT6735) || defined(CONFIG_MACH_MT6757) \
+ || defined(CONFIG_MACH_MT6853)
 	struct ion_device *ion_dev = g_ion_device;
 #endif
 	pr_devel("module init\n");
 
 #if defined(CONFIG_ARCH_EXYNOS) || defined(CONFIG_ARCH_WHALE) || defined(CONFIG_ARCH_MT6755) \
- || defined(CONFIG_ARCH_MT6735) || defined(CONFIG_MACH_MT6757)
+ || defined(CONFIG_ARCH_MT6735) || defined(CONFIG_MACH_MT6757) || defined(CONFIG_MACH_MT6853)
 	if (!ion_dev) {
 		pr_err("Failed to get ion device\n");
 		return 0;

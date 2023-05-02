@@ -273,6 +273,7 @@ struct fts_ts_data {
 	bool aot_enable;
 	bool spay_enable;
 	bool prc_mode;
+	bool lp_dump_enabled;
 	u8 hover_event;
 	int prox_power_off;
 	struct pen_event pevent;
@@ -299,6 +300,7 @@ struct fts_ts_data {
 	struct delayed_work print_info_work;
 	u32 print_info_cnt_open;
 	u32 print_info_cnt_release;
+	struct delayed_work read_info_work;
 
 	int tx_num;
 	int rx_num;
@@ -309,6 +311,11 @@ struct fts_ts_data {
 	bool ta_stsatus;
 #endif
 	bool set_test_fw;
+
+	u8 *lpwg_dump_buf;
+	u16 lpwg_dump_buf_idx;
+	u16 lpwg_dump_buf_size;
+
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
 	atomic_t secure_enabled;
 	atomic_t secure_pending_irqs;
@@ -423,4 +430,13 @@ int fts_download_ramtest_bin(void);
 
 void fts_irq_disable(void);
 void fts_irq_enable(void);
+
+
+void fts_run_rawdata_all(void *device_data);
+int fts_pinctrl_select_release(struct fts_ts_data *ts);
+
+int fts_lpwg_dump_buf_read(struct fts_ts_data *ts_data, u8 *buf);
+int fts_get_lp_dump_data(struct fts_ts_data *ts_data);
+void fts_set_lp_dump_status(struct fts_ts_data *ts_data);
+
 #endif /* __LINUX_FOCALTECH_CORE_H__ */

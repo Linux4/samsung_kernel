@@ -52,6 +52,12 @@ config TOUCHSCREEN_HIMAX_IC_HX83112
 		help
 		This enables support for HIMAX CHIPSET of HX83112.
 
+config TOUCHSCREEN_HIMAX_IC_HX83122
+        tristate "HIMAX chipset HX83122 function"
+		depends on TOUCHSCREEN_HIMAX_HX83XXX_SPI
+		help
+		This enables support for HIMAX CHIPSET of HX83122.
+
 # ***************** In-cell End *******************
 config TOUCHSCREEN_HIMAX_DEBUG
         tristate "HIMAX debug function"

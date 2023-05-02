@@ -68,6 +68,7 @@ struct sm5714_charger_oper_info {
 	/* for Factory mode control */
 	unsigned char factory_RID;
 	int chg_float_voltage;
+	bool set_factory_619k;
 };
 static struct sm5714_charger_oper_info *oper_info;
 
@@ -299,6 +300,10 @@ int sm5714_charger_oper_table_init(struct sm5714_dev *sm5714)
 			oper_info->chg_float_voltage = 4350;
 		}
 		pr_info("%s: battery,chg_float_voltage is %d\n", __func__, oper_info->chg_float_voltage);
+
+		oper_info->set_factory_619k = of_property_read_bool(np, "battery,set_factory_619k");
+		pr_info("%s: battery,set_factory_619k %d\n", __func__,
+			oper_info->set_factory_619k);
 	}
 
 	pr_info("%s: current table[%d] (STATUS: 0x%x, MODE: %d, BST_OUT: 0x%x, OTG_CURRENT: 0x%x)\n",
@@ -330,7 +335,6 @@ EXPORT_SYMBOL_GPL(sm5714_charger_oper_get_current_op_mode);
 
 int sm5714_charger_oper_en_factory_mode(int dev_type, int rid, bool enable)
 {
-
 	u8 reg = 0x0;
 	union power_supply_propval val = {0, };
 
@@ -340,6 +344,10 @@ int sm5714_charger_oper_en_factory_mode(int dev_type, int rid, bool enable)
 	if (enable) {
 		switch (rid) {
 		case RID_523K:
+			if (oper_info->set_factory_619k) {
+				sm5714_update_reg(oper_info->i2c, SM5714_CHG_REG_CNTL2,
+					0x00, 0x0F);	/* SUSPEND MODE */
+			}
 			sm5714_charger_oper_set_batreg(4200);
 			sm5714_update_reg(oper_info->i2c, SM5714_CHG_REG_CNTL1,
 				(0x0 << 6), (0x1 << 6));	/* AICLEN_VBUS = 0 (Disable) */
@@ -349,6 +357,10 @@ int sm5714_charger_oper_en_factory_mode(int dev_type, int rid, bool enable)
 				(0x7F << 0), (0x7F << 0));	/* VBUS_LIMIT = MAX(3275mA) */
 			break;
 		case RID_301K:
+			if (oper_info->set_factory_619k) {
+				sm5714_update_reg(oper_info->i2c, SM5714_CHG_REG_CNTL2,
+					0x05, 0x0F);	/* CHG_ON MODE */
+			}
 			sm5714_update_reg(oper_info->i2c, SM5714_CHG_REG_CNTL1,
 				(0x0 << 6), (0x1 << 6));	/* AICLEN_VBUS = 0 (Disable) */
 			sm5714_update_reg(oper_info->i2c, SM5714_CHG_REG_FACTORY1,
@@ -362,14 +374,30 @@ int sm5714_charger_oper_en_factory_mode(int dev_type, int rid, bool enable)
 #endif
 			break;
 		case RID_619K:
-			sm5714_update_reg(oper_info->i2c, SM5714_CHG_REG_CNTL1,
-				(0x0 << 6), (0x1 << 6));	/* AICLEN_VBUS = 0 (Disable) */
-			sm5714_update_reg(oper_info->i2c, SM5714_CHG_REG_FACTORY1,
-				(0x0 << 0), (0x1 << 0));	/* NOZX = 0 (Enable) */
-			sm5714_update_reg(oper_info->i2c, SM5714_CHG_REG_VBUSCNTL,
-				(0x44 << 0), (0x7F << 0));	/* VBUS_LIMIT = 1800mA */
+			if (oper_info->set_factory_619k) {
+				sm5714_update_reg(oper_info->i2c, SM5714_CHG_REG_CNTL2,
+					0x05, 0x0F);	/* CHG_ON MODE */
+				sm5714_charger_oper_set_batreg(4200);
+				sm5714_update_reg(oper_info->i2c, SM5714_CHG_REG_CNTL1,
+					(0x0 << 6), (0x1 << 6));	/* AICLEN_VBUS = 0 (Disable) */
+				sm5714_update_reg(oper_info->i2c, SM5714_CHG_REG_FACTORY1,
+					(0x1 << 0), (0x1 << 0));	/* NOZX = 1 (Disable) */
+				sm5714_update_reg(oper_info->i2c, SM5714_CHG_REG_VBUSCNTL,
+					(0x7F << 0), (0x7F << 0));	/* VBUS_LIMIT = MAX(3275mA) */
+			} else {
+				sm5714_update_reg(oper_info->i2c, SM5714_CHG_REG_CNTL1,
+					(0x0 << 6), (0x1 << 6));	/* AICLEN_VBUS = 0 (Disable) */
+				sm5714_update_reg(oper_info->i2c, SM5714_CHG_REG_FACTORY1,
+					(0x0 << 0), (0x1 << 0));	/* NOZX = 0 (Enable) */
+				sm5714_update_reg(oper_info->i2c, SM5714_CHG_REG_VBUSCNTL,
+					(0x44 << 0), (0x7F << 0));	/* VBUS_LIMIT = 1800mA */
+			}
 			break;
 		case RID_255K:
+			if (oper_info->set_factory_619k) {
+				sm5714_update_reg(oper_info->i2c, SM5714_CHG_REG_CNTL2,
+					0x00, 0x0F);	/* SUSPEND MODE */
+			}
 			sm5714_update_reg(oper_info->i2c, SM5714_CHG_REG_CNTL1,
 				(0x0 << 6), (0x1 << 6));	/* AICLEN_VBUS = 0 (Disable) */
 			sm5714_update_reg(oper_info->i2c, SM5714_CHG_REG_FACTORY1,
@@ -387,6 +415,10 @@ int sm5714_charger_oper_en_factory_mode(int dev_type, int rid, bool enable)
 		sm5714_read_reg(oper_info->i2c, SM5714_CHG_REG_VBUSCNTL, &reg);
 		pr_info("%s: enable factory mode configuration(RID=%d, vbuslimit=0x%02X)\n", __func__, rid, reg);
 	} else {
+		if (oper_info->set_factory_619k) {
+			sm5714_update_reg(oper_info->i2c, SM5714_CHG_REG_CNTL2,
+				0x05, 0x0F);	/* CHG_ON MODE */
+		}
 		sm5714_charger_oper_set_batreg(oper_info->chg_float_voltage);
 
 		sm5714_update_reg(oper_info->i2c, SM5714_CHG_REG_CHGCNTL11,

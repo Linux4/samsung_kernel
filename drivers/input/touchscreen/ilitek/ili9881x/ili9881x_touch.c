@@ -408,7 +408,7 @@ int ili_proximity_far(int mode)
 			break;
 		}
 
-		ret = ili_switch_tp_mode(P5_X_FW_GESTURE_MODE);
+		ret = ili_set_tp_data_len(ilits->gesture_mode, true, NULL);
 		if (ret < 0)
 			input_err(true, ilits->dev, "%s Switch to gesture mode failed during proximity far\n",
 					__func__);
@@ -490,7 +490,7 @@ void ili_set_gesture_symbol(void)
 
 int ili_move_gesture_code_iram(int mode)
 {
-	int i, ret = 0, timeout = 10;
+	int i, ret = 0, timeout = 100;
 	u8 cmd[2] = {0};
 	u8 cmd_write[3] = {0x01, 0x0A, 0x05};
 
@@ -547,6 +547,7 @@ int ili_move_gesture_code_iram(int mode)
 			input_info(true, ilits->dev, "%s Ready to load gesture code\n", __func__);
 			break;
 		}
+		usleep_range(2 * 1000, 2 * 1000);
 	}
 	ili_irq_disable();
 
@@ -555,6 +556,8 @@ int ili_move_gesture_code_iram(int mode)
 				__func__, cmd[0]);
 		return ili_gesture_recovery();
 	}
+
+	input_info(true, ilits->dev, "%s : Gesture is ready for fw update (%d)\n", __func__, timeout);
 
 	ret = ili_fw_upgrade_handler(NULL);
 	if (ret < 0) {
@@ -681,6 +684,10 @@ int ili_touch_esd_gesture_iram(void)
 	int ges_pwd = ESD_GESTURE_CORE146_PWD;
 	int ges_run = SPI_ESD_GESTURE_CORE146_RUN;
 	int pwd_len = 2;
+
+	if (!ilits->gesture_load_code) {
+		ges_run = I2C_ESD_GESTURE_CORE146_RUN;
+	}
 
 	if (ilits->chip->core_ver < CORE_VER_1460) {
 		if (ilits->chip->core_ver >= CORE_VER_1420)
@@ -859,20 +866,11 @@ void ili_demo_debug_info_mode(u8 *buf, size_t len)
 	ilits->demo_debug_info[info_id](&info_ptr[1], info_len);
 }
 
-static void ilitek_tddi_touch_send_debug_data(u8 *buf, int len)
+void ilitek_tddi_touch_send_debug_data(u8 *buf, int len)
 {
 	int index;
 
 	mutex_lock(&ilits->debug_mutex);
-
-	if (!ilits->netlink && !ilits->dnp)
-		goto out;
-
-	/* Send data to netlink */
-	if (ilits->netlink) {
-		ili_netlink_reply_msg(buf, len);
-		goto out;
-	}
 
 	/* Sending data to apk via the node of debug_message node */
 	if (ilits->dnp) {
@@ -1209,7 +1207,6 @@ void ili_report_ap_mode(u8 *buf, int len)
 			ilits->last_touch = 0;
 		}
 	}
-	ilitek_tddi_touch_send_debug_data(buf, len);
 }
 
 void ili_debug_mode_report_point(u8 *buf, int len)

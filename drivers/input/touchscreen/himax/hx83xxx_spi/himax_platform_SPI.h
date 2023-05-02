@@ -23,6 +23,7 @@
 #include <linux/spi/spi.h>
 #include <linux/interrupt.h>
 #include <linux/reboot.h>
+#include <linux/version.h>
 #if defined(CONFIG_HMX_DB)
 	#include <linux/regulator/consumer.h>
 #endif
@@ -58,6 +59,28 @@ do { \
 #define DIF(x...)
 #define RI(x...)
 #endif
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,6,0))
+#define sec_himax_input_proc_ops(ops_owner, ops_name, read_fn, write_fn, open_fn, release_fn)	\
+const struct proc_ops ops_name = {					\
+	.proc_read = read_fn,						\
+	.proc_write = write_fn,						\
+	.proc_lseek = generic_file_llseek,				\
+	.proc_open = open_fn,						\
+	.proc_release = release_fn,					\
+}
+#else
+#define sec_himax_input_proc_ops(ops_owner, ops_name, read_fn, write_fn, open_fn, release_fn)	\
+const struct file_operations ops_name = {				\
+	.owner = ops_owner,						\
+	.read = read_fn,						\
+	.write = write_fn,						\
+	.llseek = generic_file_llseek,					\
+	.open = open_fn,						\
+	.release = release_fn,						\
+}
+#endif
+
 
 #if defined(CONFIG_HMX_DB)
 	/* Analog voltage @2.7 V */

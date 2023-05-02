@@ -29,6 +29,9 @@
 #include <linux/irq.h>
 #include <linux/interrupt.h>
 #include <linux/netdevice.h>
+#if defined(CONFIG_SOC_EXYNOS3830)
+#include <linux/pm_qos.h>
+#endif
 #include <linux/pm_runtime.h>
 #include <linux/version.h>
 #include <soc/samsung/exynos-itmon.h>
@@ -508,6 +511,10 @@ struct link_device {
 
 	/* Save Source IP addresses for each PDN setup request */
 	struct pdn_table pdn_table;
+
+#if defined(CONFIG_SOC_EXYNOS3830)
+	struct pm_qos_request pm_qos_mif;
+#endif
 
 	int (*init_comm)(struct link_device *ld, struct io_device *iod);
 	void (*terminate_comm)(struct link_device *ld, struct io_device *iod);

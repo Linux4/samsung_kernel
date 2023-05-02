@@ -80,7 +80,6 @@
 #define HX_TP_PROC_GUEST_INFO
 #define HX_TOUCH_PROXIMITY
 #define HX_NEW_EVENT_STACK_FORMAT
-//#define HX_AUTO_UPDATE_FW
 #define HX_SMART_WAKEUP
 /*#define HX_GESTURE_TRACK*/
 /*#define HX_HIGH_SENSE*/
@@ -92,13 +91,17 @@
 #define HX_PROTOCOL_B_3PA
 #if IS_ENABLED(CONFIG_TOUCHSCREEN_HIMAX_ZERO_FLASH)
 #define HX_ZERO_FLASH
+#else
+#define HX_AUTO_UPDATE_FW
 #endif
 #define HX_RESUME_SET_FW
 /*#define HX_EN_DYNAMIC_NAME*/	/* Support dynamic load fw name ,default is close */
 /*#define HX_PON_PIN_SUPPORT*/
 /*#define HX_CONTAINER_SPEED_UP*/	/*Independent threads run the notification chain notification function resume */
 #define SEC_FACTORY_MODE
-/*#define SEC_PALM_FUNC*/
+#if IS_ENABLED(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83102) || IS_ENABLED(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83122)
+#define SEC_PALM_FUNC
+#endif
 #define SEC_FIX_MAX_PT 10
 #define SEC_FIX_INT_EDGE true
 #define SEC_LPWG_DUMP 1
@@ -155,6 +158,7 @@ extern struct zf_opt_crc g_zf_opt_crc;
 #define HX_83102B_SERIES_PWON		"HX83102B"
 #define HX_83102D_SERIES_PWON		"HX83102D"
 #define HX_83102E_SERIES_PWON		"HX83102E"
+#define HX_83102J_SERIES_PWON		"HX83102J"
 #define HX_83103A_SERIES_PWON		"HX83103A"
 #define HX_83106A_SERIES_PWON		"HX83106A"
 #define HX_83108A_SERIES_PWON		"HX83108A"
@@ -169,6 +173,7 @@ extern struct zf_opt_crc g_zf_opt_crc;
 #define HX_83112E_SERIES_PWON		"HX83112E"
 #define HX_83191A_SERIES_PWON		"HX83191A"
 #define HX_83121A_SERIES_PWON		"HX83121A"
+#define HX_83122A_SERIES_PWON		"HX83122A"
 
 #define HX_TP_BIN_CHECKSUM_SW		1
 #define HX_TP_BIN_CHECKSUM_HW		2
@@ -244,6 +249,11 @@ enum HX_TS_STATUS {
 enum cell_type {
 	CHIP_IS_ON_CELL,
 	CHIP_IS_IN_CELL
+};
+
+enum gesture_bit {
+	HX_GESTURE_SPAY = 1,
+	HX_GESTURE_AOT = 8,
 };
 
 #if 0//def SEC_FACTORY_MODE
@@ -390,7 +400,7 @@ struct himax_report_data {
 struct himax_ts_data {
 	bool initialized;
 	bool suspended;
-	bool shutdown;
+	atomic_t shutdown;
 	bool late_suspended;
 	atomic_t suspend_mode;
 	uint8_t x_channel;
@@ -444,6 +454,7 @@ struct himax_ts_data {
 	uint8_t glove_enabled;
 	bool aot_enabled;
 	bool spay_enabled;
+	int gesture_state;
 	int prox_power_off;
 	bool cover_closed;
 
@@ -491,6 +502,8 @@ struct himax_ts_data {
 
 #if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
 	struct notifier_block himax_input_nb;
+	struct delayed_work himax_input_notify_work;
+	int input_notify;
 #endif
 
 	struct workqueue_struct *flash_wq;
@@ -598,7 +611,8 @@ enum AP_MODE {
 	GAME_MODE,
 	NOTE_MODE,
 	SIP_MODE,
-	HIGH_SENSITIVITY_MODE
+	HIGH_SENSITIVITY_MODE,
+	SPEN_MODE
 };
 
 #ifdef HX_HIGH_SENSE
@@ -665,6 +679,7 @@ int himax_regulator_init(struct himax_ts_data *ts);
 void himax_run_rawdata_all(struct himax_ts_data *data);
 
 int himax_set_ap_change_mode(int mode, int enable);
+int himax_set_gesture(int gesture_state);
 
 #if defined(HX_USB_DETECT_GLOBAL)
 void himax_cable_detect_func(bool force_renew);

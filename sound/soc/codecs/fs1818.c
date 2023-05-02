@@ -899,7 +899,7 @@ static int fs1818_dev_init(struct fsm_dev *fsm_dev)
 	ret |= fsm_snd_soc_write(fsm_dev, REG(FS1818_DACCTRL), 0x0310);
 	ret |= fsm_snd_soc_write(fsm_dev, REG(FS1818_TSCTRL), 0x6623);
 	ret |= fsm_snd_soc_write(fsm_dev, REG(FS1818_MODCTRL), 0x800A);
-	ret |= fsm_snd_soc_write(fsm_dev, REG(FS1818_BSTCTRL), 0x19AE);
+	ret |= fsm_snd_soc_write(fsm_dev, REG(FS1818_BSTCTRL), 0x19EE);
 	ret |= fsm_snd_soc_write(fsm_dev, REG(FS1818_OTPACC), 0xCA91);
 	ret |= fsm_snd_soc_write(fsm_dev, REG(FS1818_CLDCTRL), 0x0000);
 	ret |= fsm_snd_soc_write(fsm_dev, REG(FS1818_AUXCFG), 0x1020);
@@ -1149,17 +1149,19 @@ static int fsm_amp_switch_put(struct snd_kcontrol *kcontrol,
 		return -EINVAL;
 	}
 	enable = (int)ucontrol->value.integer.value[0];
-	fsm_mutex_lock();
 	if (enable && !fsm_dev->amp_on) {
+		fsm_mutex_lock();
 		ret = fs1818_start_up(fsm_dev, 1);
 		fsm_dev->amp_on = true;
+		fsm_mutex_unlock();
 		fsm_set_monitor(fsm_dev, true);
 	} else if (!enable && fsm_dev->amp_on) {
-		fsm_dev->amp_on = false;
 		fsm_set_monitor(fsm_dev, false);
+		fsm_mutex_lock();
+		fsm_dev->amp_on = false;
 		ret = fs1818_shut_down(fsm_dev, 1);
+		fsm_mutex_unlock();
 	}
-	fsm_mutex_unlock();
 
 	return ret;
 }
@@ -1755,12 +1757,21 @@ static int fsm_mute_stream(struct snd_soc_dai *dai, int mute, int stream)
 		return 0;
 	}
 
-	log_info(fsm_dev->dev, "playback %s", (mute) ? "mute" : "unmute");
-	fsm_mutex_lock();
-	fsm_dev->amp_on = !mute;
-	fsm_set_monitor(fsm_dev, (fsm_dev->amp_on) ? true : false);
-	ret = fs1818_set_mute(fsm_dev, mute);
-	fsm_mutex_unlock();
+	if (mute) {
+		fsm_set_monitor(fsm_dev, false);
+		fsm_mutex_lock();
+		fsm_dev->amp_on = !mute;
+		ret = fs1818_set_mute(fsm_dev, mute);
+		fsm_mutex_unlock();
+		log_info(fsm_dev->dev, "playback mute");
+	} else {
+		fsm_mutex_lock();
+		fsm_dev->amp_on = !mute;
+		ret = fs1818_set_mute(fsm_dev, mute);
+		fsm_mutex_unlock();
+		log_info(fsm_dev->dev, "playback unmute");
+		fsm_set_monitor(fsm_dev, true);
+	}
 
 	return ret;
 }
@@ -1817,15 +1828,17 @@ static ssize_t fsm_montr_en_store(struct class *class,
 	if (ret)
 		return -EINVAL;
 
-	fsm_mutex_lock();
 	if (enable && !fsm_dev->montr_en) {
+		fsm_mutex_lock();
 		fsm_dev->montr_en = true;
+		fsm_mutex_unlock();
 		fsm_set_monitor(fsm_dev, true);
 	} else if (!enable && fsm_dev->montr_en) {
 		fsm_set_monitor(fsm_dev, false);
+		fsm_mutex_lock();
 		fsm_dev->montr_en = false;
+		fsm_mutex_unlock();
 	}
-	fsm_mutex_unlock();
 	log_info(fsm_dev->dev, "enable:%d, montr_en:%d",
 		enable, fsm_dev->montr_en);
 

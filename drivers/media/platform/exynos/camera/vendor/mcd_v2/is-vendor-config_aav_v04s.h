@@ -11,6 +11,9 @@
 
 //#define USE_AE_CAL                                          /* USE Ae cal data in rear camera, Only VENDER_CAL_STRUCT_VER2 */
 
+#define SUPPORT_SENSOR_DUALIZATION                            /* Support dualization */
+#define BOKEH_NO_ROM_SUPPORT                                  /* Support dualization for no rom bokeh sensor */
+#define APPLY_MIRROR_VERTICAL_FLIP                            /* Need To Apply Mirror and Vertical Flip */
 
 /***** SUPPORT CAMERA DEFINE *****/
 #define IS_VENDOR_SENSOR_COUNT 4                              /* REAR_0, FRONT_0, REAR_2, REAR_3 */
@@ -25,8 +28,9 @@
 #define CAMERA_REAR3               (REAR_MACRO_CAMERA)          /* For Rear3 of SYSFS */
 //#define CAMERA_FRONT2            (FRONT_SUB_CAMERA)         /* For Front2 of SYSFS */
 
-#define SENSOR_OTP_GC5035
+#define SENSOR_OTP_HI556
 #define SENSOR_OTP_GC02M1
+#define SENSOR_OTP_SC501
 
 #define USES_STANDARD_CAL_RELOAD
 
@@ -34,7 +38,7 @@
 #define DUAL_CAL_DATA_PATH "/vendor/etc/SetMultiCalInfo.bin"
 #define DUAL_CAL_DATA_SIZE_DEFAULT (0x080C)
 
-//#define USE_CAMERA_MIPI_CLOCK_VARIATION
+#define USE_CAMERA_MIPI_CLOCK_VARIATION
 /***** SUPPORT FUCNTION DEFINE *****/
 #define SAMSUNG_LIVE_OUTFOCUS                                 /* Allocate memory For Dual Camera */
 #define ENABLE_REMOSAIC_CAPTURE                               /* Base Remosaic */
@@ -79,5 +83,7 @@
 //#define USE_SPECIFIC_MIPISPEED
 
 #define JN1_MODIFY_REMOSAIC_CAL_ORDER
+#define USE_AP2AP_CAL_CONVERSION
+#define PUT_30MS_BETWEEN_EACH_CAL_LOADING
 
 #endif /* IS_VENDOR_CONFIG_AAV_V04S_H */

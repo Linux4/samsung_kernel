@@ -201,29 +201,28 @@ int himax_parse_dt(struct himax_ts_data *ts,
 		}
 	} else {
 		lcd_id1_gpio = of_get_named_gpio(dt, "himax,lcdid1-gpio", 0);
-		if (gpio_is_valid(lcd_id1_gpio))
+		if (gpio_is_valid(lcd_id1_gpio)) {
 			input_info(true, ts->dev, "%s: lcd id1_gpio %d(%d)\n", __func__, lcd_id1_gpio, gpio_get_value(lcd_id1_gpio));
-		else {
+			fw_sel_idx += gpio_get_value(lcd_id1_gpio);
+		} else {
 			input_err(true, ts->dev, "%s: Failed to get himax,lcdid1-gpio\n", __func__);
 			return -EINVAL;
 		}
+
 		lcd_id2_gpio = of_get_named_gpio(dt, "himax,lcdid2-gpio", 0);
-		if (gpio_is_valid(lcd_id2_gpio))
+		if (gpio_is_valid(lcd_id2_gpio)) {
 			input_info(true, ts->dev, "%s: lcd id2_gpio %d(%d)\n", __func__, lcd_id2_gpio, gpio_get_value(lcd_id2_gpio));
-		else {
+			fw_sel_idx += (gpio_get_value(lcd_id2_gpio) << 1);
+		} else {
 			input_err(true, ts->dev, "%s: Failed to get himax,lcdid2-gpio\n", __func__);
-			return -EINVAL;
 		}
 
-		/* support lcd id3 */
 		lcd_id3_gpio = of_get_named_gpio(dt, "himax,lcdid3-gpio", 0);
 		if (gpio_is_valid(lcd_id3_gpio)) {
 			input_info(true, ts->dev, "%s: lcd id3_gpio %d(%d)\n", __func__, lcd_id3_gpio, gpio_get_value(lcd_id3_gpio));
-			fw_sel_idx = (gpio_get_value(lcd_id3_gpio) << 2) | (gpio_get_value(lcd_id2_gpio) << 1) | gpio_get_value(lcd_id1_gpio);
-			//fw_sel_idx = (1 << 2) | (gpio_get_value(lcd_id2_gpio) << 1) | gpio_get_value(lcd_id1_gpio);
+			fw_sel_idx += (gpio_get_value(lcd_id3_gpio) << 2);
 		} else {
-			input_err(true, ts->dev, "%s: Failed to get himax,lcdid3-gpio and use #1 &#2 id\n", __func__);
-			fw_sel_idx = (gpio_get_value(lcd_id2_gpio) << 1) | gpio_get_value(lcd_id1_gpio);
+			input_err(true, ts->dev, "%s: Failed to get himax,lcdid3-gpio\n", __func__);
 		}
 
 		lcdtype_cnt = of_property_count_u32_elems(dt, "himax,lcdtype");
@@ -393,6 +392,11 @@ static ssize_t himax_spi_sync(struct himax_ts_data *ts, struct spi_message *mess
 {
 	int status;
 
+	if (atomic_read(&ts->shutdown)) {
+		E("%s: now IC status is shutdown\n", __func__);
+		return -EIO;
+	}
+
 	if (atomic_read(&ts->suspend_mode) == HIMAX_STATE_POWER_OFF) {
 		E("%s: now IC status is OFF\n", __func__);
 		return -EIO;
@@ -422,6 +426,11 @@ static int himax_spi_read(uint8_t *command, uint8_t command_len, uint8_t *data, 
 	uint8_t *rbuff, *cbuff;
 	int retry;
 	int error;
+
+	if (atomic_read(&ts->shutdown)) {
+		E("%s: now IC status is shutdown\n", __func__);
+		return -EIO;
+	}
 
 	if (atomic_read(&ts->suspend_mode) == HIMAX_STATE_POWER_OFF) {
 		E("%s: now IC status is OFF\n", __func__);
@@ -494,6 +503,11 @@ static int himax_spi_write(uint8_t *buf, uint32_t length)
 
 	spi_message_init(&m);
 	spi_message_add_tail(&t, &m);
+
+	if (atomic_read(&ts->shutdown)) {
+		E("%s: now IC status is shutdown\n", __func__);
+		return -EIO;
+	}
 
 	if (atomic_read(&ts->suspend_mode) == HIMAX_STATE_POWER_OFF) {
 		E("%s: now IC status is OFF\n", __func__);
@@ -1249,6 +1263,49 @@ static int himax_vbus_notification(struct notifier_block *nb,
 #endif
 #endif
 
+#if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
+static void himax_input_notify_work(struct work_struct *work)
+{
+	struct himax_ts_data *ts = container_of(work, struct himax_ts_data, himax_input_notify_work.work);
+
+	switch (ts->input_notify) {
+	case NOTIFIER_WACOM_PEN_HOVER_IN:
+		himax_set_ap_change_mode(SPEN_MODE, 1);
+		break;
+	case NOTIFIER_WACOM_PEN_HOVER_OUT:
+		himax_set_ap_change_mode(SPEN_MODE, 0);
+		break;
+	default:
+		break;
+	}
+}
+
+static int himax_input_notify_call(struct notifier_block *n, unsigned long data, void *v)
+{
+	struct himax_ts_data *ts = container_of(n, struct himax_ts_data, himax_input_nb);
+
+	if (!ts)
+		return -ENODEV;
+
+	switch (data) {
+	case NOTIFIER_WACOM_PEN_HOVER_IN:
+		cancel_delayed_work(&ts->himax_input_notify_work);
+		ts->input_notify = NOTIFIER_WACOM_PEN_HOVER_IN;
+		schedule_work(&ts->himax_input_notify_work.work);
+		break;
+	case NOTIFIER_WACOM_PEN_HOVER_OUT:
+		cancel_delayed_work(&ts->himax_input_notify_work);
+		ts->input_notify = NOTIFIER_WACOM_PEN_HOVER_OUT;
+		schedule_work(&ts->himax_input_notify_work.work);
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+#endif
+
 int himax_chip_common_probe(struct spi_device *spi)
 {
 	struct himax_ts_data *ts;
@@ -1311,6 +1368,10 @@ int himax_chip_common_probe(struct spi_device *spi)
 			VBUS_NOTIFY_DEV_CHARGER);
 #endif
 #endif
+#if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
+	sec_input_register_notify(&ts->himax_input_nb, himax_input_notify_call, 1);
+	INIT_DELAYED_WORK(&ts->himax_input_notify_work, himax_input_notify_work);
+#endif
 
 #if SEC_LPWG_DUMP
 	himax_lpwg_dump_buf_init();
@@ -1328,6 +1389,10 @@ int himax_chip_common_remove(struct spi_device *spi)
 {
 	struct himax_ts_data *ts = spi_get_drvdata(spi);
 
+#if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
+	sec_input_unregister_notify(&ts->himax_input_nb);
+	cancel_delayed_work_sync(&ts->himax_input_notify_work);
+#endif
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
 #if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	manager_notifier_unregister(&ts->ccic_nb);

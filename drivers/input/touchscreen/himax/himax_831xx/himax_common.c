@@ -3248,7 +3248,7 @@ int himax_chip_common_init(void)
 #if defined(HX_TOUCH_PROXIMITY)
 	ts->prox_power_off = 0;
 	ts->proxy_1b_en = 0;
-	ts->ear_detect_mode = -1;
+	ts->ear_detect_mode = 0;
 	ts->ear_detect_val = -1;
 	ts->prox_lp_scan_mode_enabled = false;
 #endif
@@ -4137,8 +4137,7 @@ int himax_chip_common_late_resume(struct himax_ts_data *ts)
 	ts->prox_power_off = 0;
 	ts->prox_lp_scan_mode_enabled = false;
 #ifdef HX_TOUCH_PROXIMITY
-	if (ts->ear_detect_mode)
-		psensor_enable(ts, ts->ear_detect_mode);
+	psensor_enable(ts, ts->ear_detect_mode);
 #endif
 
 #if defined(HX_SMART_WAKEUP) || defined(HX_HIGH_SENSE) || defined(HX_USB_DETECT_GLOBAL)

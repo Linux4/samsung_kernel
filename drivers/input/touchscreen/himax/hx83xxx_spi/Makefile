@@ -18,6 +18,8 @@ else ifneq ($(filter y m, $(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83103)),)
   $(TARGET)-objs += himax_ic_HX83103.o
 else ifneq ($(filter y m, $(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83121)),)
   $(TARGET)-objs += himax_ic_HX83121.o
+else ifneq ($(filter y m, $(CONFIG_TOUCHSCREEN_HIMAX_IC_HX83122)),)
+  $(TARGET)-objs += himax_ic_HX83122.o
 endif
 
 obj-$(CONFIG_TOUCHSCREEN_HIMAX_HX83XXX_SPI) += $(TARGET).o

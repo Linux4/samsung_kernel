@@ -188,6 +188,7 @@ enum {
 #ifndef CONFIG_SEC_NFC_LOGGER
 #define NFC_LOG_ERR(fmt, ...)		pr_err("sec_nfc: "fmt, ##__VA_ARGS__)
 #define NFC_LOG_INFO(fmt, ...)		pr_info("sec_nfc: "fmt, ##__VA_ARGS__)
+#define NFC_LOG_INFO_WITH_DATE(fmt, ...) pr_info("sec_nfc: "fmt, ##__VA_ARGS__)
 #define NFC_LOG_DBG(fmt, ...)		pr_debug("sec_nfc: "fmt, ##__VA_ARGS__)
 #define NFC_LOG_REC(fmt, ...)		do { } while (0)
 
@@ -267,6 +268,7 @@ struct pn547_dev {
 	struct mutex read_mutex;
 	struct i2c_client *client;
 	struct miscdevice pn547_device;
+	struct mutex dev_ref_mutex;
 	int ven_gpio;
 	int firm_gpio;
 	int irq_gpio;

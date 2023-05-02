@@ -23,6 +23,8 @@
 #include "is-vender-rom-config_htv_v00.h"
 #elif defined(CONFIG_CAMERA_AAV_V04S)
 #include "is-vender-rom-config_aav_v04s.h"
+#elif defined(CONFIG_CAMERA_AAV_V14)
+#include "is-vender-rom-config_aav_v14.h"
 #else
 
 const struct is_vender_rom_addr *vender_rom_addr[SENSOR_POSITION_MAX] = {

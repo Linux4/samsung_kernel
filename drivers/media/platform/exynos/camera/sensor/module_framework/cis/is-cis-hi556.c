@@ -43,8 +43,10 @@
 #include "is-cis-hi556-setB.h"
 
 #include "is-helper-i2c.h"
+#include "is-vender-specific.h"
 #ifdef CONFIG_VENDER_MCD_V2
 #include "is-sec-define.h"
+extern const struct is_vender_rom_addr *vender_rom_addr[SENSOR_POSITION_MAX];
 #endif
 
 #include "interface/is-interface-library.h"
@@ -61,6 +63,59 @@ static const u32 *sensor_hi556_setfile_sizes;
 static u32 sensor_hi556_max_setfile_num;
 static const struct sensor_pll_info_compact **sensor_hi556_pllinfos;
 static struct setfile_info *sensor_hi556_setfile_fsync_info;
+
+#ifdef USE_CAMERA_MIPI_CLOCK_VARIATION
+static const struct cam_mipi_sensor_mode *sensor_hi556_mipi_sensor_mode;
+static u32 sensor_hi556_mipi_sensor_mode_size;
+static const int *sensor_hi556_verify_sensor_mode;
+static int sensor_hi556_verify_sensor_mode_size;
+
+static int sensor_hi556_cis_set_mipi_clock(struct v4l2_subdev *subdev)
+{
+	int ret = 0;
+	struct is_cis *cis = NULL;
+	const struct cam_mipi_sensor_mode *cur_mipi_sensor_mode;
+	int mode = 0;
+
+	FIMC_BUG(!subdev);
+
+	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
+
+	FIMC_BUG(!cis);
+	FIMC_BUG(!cis->cis_data);
+
+	mode = cis->cis_data->sens_config_index_cur;
+
+	dbg_sensor(1, "%s : mipi_clock_index_cur(%d), new(%d)\n", __func__,
+		cis->mipi_clock_index_cur, cis->mipi_clock_index_new);
+
+	if (mode >= sensor_hi556_mipi_sensor_mode_size) {
+		err("sensor mode is out of bound");
+		return -EINVAL;
+	}
+
+	if (cis->mipi_clock_index_cur != cis->mipi_clock_index_new
+		&& cis->mipi_clock_index_new >= 0) {
+		cur_mipi_sensor_mode = &sensor_hi556_mipi_sensor_mode[mode];
+
+		if (cur_mipi_sensor_mode->sensor_setting == NULL) {
+			dbg_sensor(1, "no mipi setting for current sensor mode\n");
+		} else if (cis->mipi_clock_index_new < cur_mipi_sensor_mode->sensor_setting_size) {
+			info("%s: change mipi clock [%d %d]\n", __func__, mode, cis->mipi_clock_index_new);
+			sensor_cis_set_registers(subdev,
+				cur_mipi_sensor_mode->sensor_setting[cis->mipi_clock_index_new].setting,
+				cur_mipi_sensor_mode->sensor_setting[cis->mipi_clock_index_new].setting_size);
+
+			cis->mipi_clock_index_cur = cis->mipi_clock_index_new;
+		} else {
+			err("sensor setting index is out of bound %d %d",
+				cis->mipi_clock_index_new, cur_mipi_sensor_mode->sensor_setting_size);
+		}
+	}
+
+	return ret;
+}
+#endif
 
 int sensor_hi556_cis_check_rev(struct v4l2_subdev *subdev)
 {
@@ -87,10 +142,9 @@ int sensor_hi556_cis_check_rev(struct v4l2_subdev *subdev)
 		ret = -EAGAIN;
 		goto p_err;
 	}
-	dbg_sensor(1, "Model ID: %#x\n", data16);
 
-	//not used
-	//cis->cis_data->cis_rev = rev;
+	cis->cis_data->cis_rev = data16;
+	pr_info("%s : [%d] Sensor module id : 0x%X\n", __func__, cis->device, data16);
 
 p_err:
 	return ret;
@@ -106,7 +160,7 @@ static void sensor_hi556_cis_data_calculation(const struct sensor_pll_info_compa
 
 	/* 1. get pclk value from pll info */
 	pixel_rate = pll_info->pclk * TOTAL_NUM_OF_MIPI_LANES;
-	total_line_length_pck = pll_info->line_length_pck * TOTAL_NUM_OF_MIPI_LANES;
+	total_line_length_pck = (pll_info->line_length_pck / 2 ) * TOTAL_NUM_OF_MIPI_LANES;
 
 	/* 2. FPS calculation */
 	frame_rate = pixel_rate / (pll_info->frame_length_lines * total_line_length_pck);
@@ -115,9 +169,9 @@ static void sensor_hi556_cis_data_calculation(const struct sensor_pll_info_compa
 	cis_data->min_frame_us_time = (1 * 1000 * 1000) / frame_rate;
 	cis_data->cur_frame_us_time = cis_data->min_frame_us_time;
 
-	dbg_sensor(1, "frame_duration(%d) - frame_rate (%d) = pixel_rate(%d) / "
-	KERN_CONT "(pll_info->frame_length_lines(%d) * total_line_length_pck(%d))\n",
-	cis_data->min_frame_us_time, frame_rate, pixel_rate, pll_info->frame_length_lines, total_line_length_pck);
+	dbg_sensor(1, "frame_duration(%d) - frame_rate (%d) = pixel_rate(%lld) / "
+			KERN_CONT "(pll_info->frame_length_lines(%d) * total_line_length_pck(%d))\n",
+			cis_data->min_frame_us_time, frame_rate, pixel_rate, pll_info->frame_length_lines, total_line_length_pck);
 
 	/* calculate max fps */
 	max_fps = (pixel_rate * 10) / (pll_info->frame_length_lines * total_line_length_pck);
@@ -126,8 +180,8 @@ static void sensor_hi556_cis_data_calculation(const struct sensor_pll_info_compa
 	cis_data->pclk = pixel_rate;
 	cis_data->max_fps = max_fps;
 	cis_data->frame_length_lines = pll_info->frame_length_lines;
-	cis_data->line_length_pck = total_line_length_pck;
-	cis_data->line_readOut_time = sensor_cis_do_div64((u64)cis_data->line_length_pck * (u64)(1000 * 1000 * 1000), cis_data->pclk);
+	cis_data->line_length_pck = total_line_length_pck * 2;
+	cis_data->line_readOut_time = sensor_cis_do_div64((u64)total_line_length_pck * (u64)(1000 * 1000 * 1000), cis_data->pclk);
 	cis_data->rolling_shutter_skew = (cis_data->cur_height - 1) * cis_data->line_readOut_time;
 	cis_data->stream_on = false;
 
@@ -142,7 +196,7 @@ static void sensor_hi556_cis_data_calculation(const struct sensor_pll_info_compa
 
 	dbg_sensor(1, "Fps: %d, max fps(%d)\n", frame_rate, cis_data->max_fps);
 	dbg_sensor(1, "min_frame_time(%d us)\n", cis_data->min_frame_us_time);
-	dbg_sensor(1, "Pixel rate(Mbps): %d\n", cis_data->pclk / 1000000);
+	dbg_sensor(1, "Pixel rate(Kbps): %d\n", cis_data->pclk / 1000);
 
 	/* Frame period calculation */
 	cis_data->frame_time = (cis_data->line_readOut_time * cis_data->cur_height / 1000);
@@ -182,24 +236,24 @@ u32 sensor_hi556_cis_calc_again_permile(u32 code)
 /*************************************************
  *  [HI556 Digital gain formular]
  *
- *  Digital Gain = bit[12:9] + bit[8:0]/512 (Gr, Gb, R, B)
+ *  Digital Gain = bit[11:8] + bit[7:0]/256 (Gr, Gb, R, B)
  *
- *  Digital Gain Range = x1.0 to x15.99
+ *  Digital Gain Range = x1.0 to x7.99
  *
  *************************************************/
 
 u32 sensor_hi556_cis_calc_dgain_code(u32 permile)
 {
 	u32 buf[2] = {0, 0};
-	buf[0] = ((permile / 1000) & 0x0F) << 9;
-	buf[1] = ((((permile % 1000) * 512) / 1000) & 0x1FF);
+	buf[0] = ((permile / 1000) & 0x0F) << 8;
+	buf[1] = ((((permile % 1000) * 256) / 1000) & 0xFF);
 
 	return (buf[0] | buf[1]);
 }
 
 u32 sensor_hi556_cis_calc_dgain_permile(u32 code)
 {
-	return (((code & 0x1E00) >> 9) * 1000) + ((code & 0x01FF) * 1000 / 512);
+	return (((code & 0xF00) >> 8) * 1000) + ((code & 0x0FF) * 1000 / 256);
 }
 
 /* CIS OPS */
@@ -224,9 +278,6 @@ int sensor_hi556_cis_init(struct v4l2_subdev *subdev)
 	FIMC_BUG(!cis->cis_data);
 	memset(cis->cis_data, 0, sizeof(cis_shared_data));
 
-	probe_info("%s hi556 init\n", __func__);
-	cis->rev_flag = false;
-
 	msleep(5);
 	cis->cis_data->product_name = cis->id;
 	cis->cis_data->cur_width = SENSOR_HI556_MAX_WIDTH;
@@ -234,6 +285,10 @@ int sensor_hi556_cis_init(struct v4l2_subdev *subdev)
 	cis->cis_data->low_expo_start = 33000;
 	cis->need_mode_change = false;
 	cis->long_term_mode.sen_strm_off_on_step = 0;
+#ifdef USE_CAMERA_MIPI_CLOCK_VARIATION
+	cis->mipi_clock_index_cur = CAM_MIPI_NOT_INITIALIZED;
+	cis->mipi_clock_index_new = CAM_MIPI_NOT_INITIALIZED;
+#endif
 
 	sensor_hi556_cis_data_calculation(sensor_hi556_pllinfos[setfile_index], cis->cis_data);
 
@@ -289,7 +344,7 @@ int sensor_hi556_cis_log_status(struct v4l2_subdev *subdev)
 	}
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
-	pr_err("[SEN:DUMP] *******************************\n");
+	pr_info("[%s] *******************************\n", __func__);
 	ret = is_sensor_read16(client, SENSOR_HI556_MODEL_ID_ADDR, &data16);
 	if (ret < 0) {
 		err("i2c transfer fail addr(%x) ret = %d\n",
@@ -297,7 +352,7 @@ int sensor_hi556_cis_log_status(struct v4l2_subdev *subdev)
 		goto p_i2c_err;
 	}
 
-	pr_err("[SEN:DUMP] model_id(%x)\n", data16);
+	pr_info("model_id(%x)\n", data16);
 	ret = is_sensor_read16(client, SENSOR_HI556_STREAM_ONOFF_ADDR, &data16);
 	if (ret < 0) {
 		err("i2c transfer fail addr(%x) ret = %d\n",
@@ -305,7 +360,7 @@ int sensor_hi556_cis_log_status(struct v4l2_subdev *subdev)
 		goto p_i2c_err;
 	}
 
-	pr_err("[SEN:DUMP] mode_select(streaming: %x)\n", data16);
+	pr_info("mode_select(streaming: %x)\n", data16);
 
 	sensor_cis_dump_registers(subdev, sensor_hi556_setfiles[0],
 			sensor_hi556_setfile_sizes[0]);
@@ -315,7 +370,7 @@ p_i2c_err:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	pr_err("[SEN:DUMP] *******************************\n");
+	pr_err("[%s] *******************************\n", __func__);
 
 	return ret;
 }
@@ -378,17 +433,16 @@ p_err:
 #endif
 }
 
-/* Input
- *	hold : true - hold, flase - no hold
- * Output
- *		return: 0 - no effect(already hold or no hold)
- *		positive - setted by request
- *		negative - ERROR value
+/*
+  hold control register for updating multiple-parameters within the same frame. 
+  true : hold, flase : no hold/release
  */
+#if USE_GROUP_PARAM_HOLD
 int sensor_hi556_cis_group_param_hold(struct v4l2_subdev *subdev, bool hold)
 {
 	int ret = 0;
 	struct is_cis *cis = NULL;
+	u32 mode;
 
 	FIMC_BUG(!subdev);
 
@@ -397,15 +451,32 @@ int sensor_hi556_cis_group_param_hold(struct v4l2_subdev *subdev, bool hold)
 	FIMC_BUG(!cis);
 	FIMC_BUG(!cis->cis_data);
 
+	if (cis->cis_data->stream_on == false && hold == true) {
+		ret = 0;
+		dbg_sensor(1, "%s : sensor stream off skip group_param_hold", __func__);
+		goto p_err;
+	}
+
+	mode = cis->cis_data->sens_config_index_cur;
+
+	if (mode == SENSOR_HI556_640x480_112FPS) {
+		ret = 0;
+		dbg_sensor(1, "%s : fast ae skip group_param_hold", __func__);
+		goto p_err;
+	}
+
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = sensor_hi556_cis_group_param_hold_func(subdev, hold);
 	if (ret < 0)
-		goto p_err;
+		goto p_err_unlock;
+	
+p_err_unlock:
+	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 	return ret;
 }
+#endif
 
 int sensor_hi556_cis_set_global_setting(struct v4l2_subdev *subdev)
 {
@@ -419,7 +490,6 @@ int sensor_hi556_cis_set_global_setting(struct v4l2_subdev *subdev)
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
-	/* setfile global setting is at camera entrance */
 	info("[%s] global setting start\n", __func__);
 	ret = sensor_cis_set_registers(subdev, sensor_hi556_global, sensor_hi556_global_size);
 	if (ret < 0) {
@@ -427,7 +497,7 @@ int sensor_hi556_cis_set_global_setting(struct v4l2_subdev *subdev)
 		goto p_err;
 	}
 
-	dbg_sensor(1, "[%s] global setting done\n", __func__);
+	info("[%s] global setting done\n", __func__);
 
 p_err:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
@@ -452,9 +522,13 @@ int sensor_hi556_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 		goto p_err;
 	}
 
+#ifdef USE_CAMERA_MIPI_CLOCK_VARIATION
+	cis->mipi_clock_index_cur = CAM_MIPI_NOT_INITIALIZED;
+#endif
+
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
-	info("[%s] mode=%d, mode change setting start\n", __func__, mode);
+	info("[%s] sensor mode(%d)\n", __func__, mode);
 	ret = sensor_cis_set_registers(subdev, sensor_hi556_setfiles[mode], sensor_hi556_setfile_sizes[mode]);
 	if (ret < 0) {
 		err("[%s] sensor_hi556_set_registers fail!!", __func__);
@@ -462,7 +536,7 @@ int sensor_hi556_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 	}
 
 	// Can change position later
-	info("[%s]fsync normal mode\n", __func__);
+	info("[%s] fsync normal mode\n", __func__);
 	ret = sensor_cis_set_registers(subdev, sensor_hi556_setfile_fsync_info[HI556_FSYNC_NORMAL].file,
 			sensor_hi556_setfile_fsync_info[HI556_FSYNC_NORMAL].file_size);
 	if (ret < 0) {
@@ -470,7 +544,7 @@ int sensor_hi556_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 		goto p_i2c_err;
 	}
 
-	dbg_sensor(1, "[%s] mode changed(%d)\n", __func__, mode);
+	info("[%s] mode changed(%d)\n", __func__, mode);
 
 p_i2c_err:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
@@ -596,29 +670,19 @@ int sensor_hi556_cis_stream_on(struct v4l2_subdev *subdev)
 
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
 
-	ret = sensor_hi556_cis_group_param_hold(subdev, true);
-	if (ret < 0) {
-		err("sensor_hi556_cis_group_param_hold fail ret = %d\n", ret);
-		goto p_err;
-	}
+#ifdef USE_CAMERA_MIPI_CLOCK_VARIATION
+	sensor_hi556_cis_set_mipi_clock(subdev);
+#endif
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 
-	info("[%s] stream start\n", __func__);
-
 	/* Sensor stream on */
-	ret = is_sensor_write16(client, SENSOR_HI556_STREAM_ONOFF_ADDR,
-			0x0100);
+	info("%s\n", __func__);
+	ret = is_sensor_write16(client, SENSOR_HI556_STREAM_ONOFF_ADDR, 0x0100);
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 	if (ret < 0) {
 		err("i2c transfer fail addr(%x) ret = %d\n",
 				SENSOR_HI556_STREAM_ONOFF_ADDR, ret);
-		goto p_err;
-	}
-
-	ret = sensor_hi556_cis_group_param_hold(subdev, false);
-	if (ret < 0) {
-		err("sensor_hi556_cis_group_param_hold fail ret = %d\n", ret);
 		goto p_err;
 	}
 
@@ -664,13 +728,16 @@ int sensor_hi556_cis_stream_off(struct v4l2_subdev *subdev)
 
 	dbg_sensor(1, "[MOD:D:%d] %s\n", cis->id, __func__);
 
-	ret = sensor_hi556_cis_group_param_hold(subdev, false);
+	cis_data->stream_on = false; /* for not working group_param_hold after stream off */
+
+	ret = sensor_hi556_cis_group_param_hold_func(subdev, false);
 	if (ret < 0) {
-		err("sensor_hi556_cis_group_param_hold fail ret = %d\n", ret);
+		err("sensor_hi556_cis_group_param_hold_func fail ret = %d\n", ret);
 		goto p_err;
 	}
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
+	info("%s\n", __func__);
 	ret = is_sensor_write16(client, SENSOR_HI556_STREAM_ONOFF_ADDR, 0x0000);
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 	if (ret < 0) {
@@ -678,8 +745,6 @@ int sensor_hi556_cis_stream_off(struct v4l2_subdev *subdev)
 				SENSOR_HI556_STREAM_ONOFF_ADDR, ret);
 		goto p_err;
 	}
-
-	cis_data->stream_on = false;
 
 #ifdef DEBUG_SENSOR_TIME
 	do_gettimeofday(&end);
@@ -816,6 +881,7 @@ int sensor_hi556_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 {
 	int ret = 0;
 	struct is_cis *cis = NULL;
+	struct i2c_client *client = NULL;
 	cis_shared_data *cis_data = NULL;
 
 	u64 pix_rate_freq_khz = 0;
@@ -838,14 +904,36 @@ int sensor_hi556_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 	FIMC_BUG(!cis);
 	FIMC_BUG(!cis->cis_data);
 
+	client = cis->client;
+	if (unlikely(!client)) {
+		err("client is NULL");
+		ret = -EINVAL;
+		goto p_err;
+	}
+
 	cis_data = cis->cis_data;
 
 	pix_rate_freq_khz = cis_data->pclk / 1000;
 	line_length_pck = cis_data->line_length_pck;
-	coarse_integ_time = (u32)(((pix_rate_freq_khz * input_exposure_time) / line_length_pck) / 1000);
-	frame_length_lines = coarse_integ_time + cis_data->max_margin_coarse_integration_time;
 
-	frame_duration =(u32)((u64)((frame_length_lines * line_length_pck) / pix_rate_freq_khz) * 1000);
+	if (input_exposure_time == 0) {
+		input_exposure_time  = cis_data->min_frame_us_time;
+		info("[%s] Not proper exposure time(0), so apply min frame duration to exposure time forcely!!!(%d)\n",
+			__func__, cis_data->min_frame_us_time);
+	}
+
+	/* exposure time can not be lower than min frame duration */
+	if (input_exposure_time < cis_data->min_frame_us_time)
+		input_exposure_time = cis_data->min_frame_us_time;
+
+	coarse_integ_time = (u32)((pix_rate_freq_khz * input_exposure_time) / ((line_length_pck * 1000) / 2));
+
+	if(coarse_integ_time <= cis_data->frame_length_lines - 2)
+		frame_length_lines = cis_data->frame_length_lines;
+	else 
+		frame_length_lines = coarse_integ_time + cis_data->max_margin_coarse_integration_time;
+
+	frame_duration =(u32)((u64)((frame_length_lines * (line_length_pck / 2)) / pix_rate_freq_khz) * 1000);
 	max_frame_us_time = 1000000/cis->min_fps;
 
 	dbg_sensor(1, "[%s](vsync cnt = %d) input exp(%d), adj duration, frame duraion(%d), min_frame_us(%d)\n",
@@ -862,18 +950,27 @@ int sensor_hi556_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 
 	dbg_sensor(1, "[%s] calcurated frame_duration(%d), adjusted frame_duration(%d)\n", __func__, frame_duration, *target_duration);
 
+	I2C_MUTEX_LOCK(cis->i2c_lock);
+	ret = is_sensor_write16(client, SENSOR_HI556_FRAME_LENGTH_LINE_ADDR, frame_length_lines);
+	if (ret < 0) {
+		goto p_i2c_err;
+	}
+
 #ifdef DEBUG_SENSOR_TIME
 	do_gettimeofday(&end);
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
+p_i2c_err:
+	I2C_MUTEX_UNLOCK(cis->i2c_lock);
+
+p_err:
 	return ret;
 }
 
 int sensor_hi556_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_duration)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis = NULL;
 	struct i2c_client *client = NULL;
 	cis_shared_data *cis_data = NULL;
@@ -911,27 +1008,14 @@ int sensor_hi556_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_du
 	pix_rate_freq_khz = cis_data->pclk / 1000;
 	line_length_pck = cis_data->line_length_pck;
 
-	frame_length_lines = (u16)((pix_rate_freq_khz * frame_duration) / (line_length_pck * 1000));
+	frame_length_lines = (u16)((pix_rate_freq_khz * frame_duration) / ((line_length_pck * 1000) / 2));
 
 	dbg_sensor(1, "[MOD:D:%d] %s, pix_rate_freq_khz(%#x) frame_duration = %d us,"
 			KERN_CONT "(line_length_pck%#x), frame_length_lines(%#x)\n",
 			cis->id, __func__, pix_rate_freq_khz, frame_duration,
 			line_length_pck, frame_length_lines);
 
-	hold = sensor_hi556_cis_group_param_hold(subdev, true);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
-	I2C_MUTEX_LOCK(cis->i2c_lock);
-	ret = is_sensor_write16(client, SENSOR_HI556_FRAME_LENGTH_LINE_ADDR, frame_length_lines);
-	if (ret < 0) {
-		goto p_i2c_err;
-	}
-
 	cis_data->cur_frame_us_time = frame_duration;
-	cis_data->frame_length_lines = frame_length_lines;
 	cis_data->max_coarse_integration_time = cis_data->frame_length_lines - cis_data->max_margin_coarse_integration_time;
 
 #ifdef DEBUG_SENSOR_TIME
@@ -939,15 +1023,7 @@ int sensor_hi556_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_du
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
-p_i2c_err:
-	I2C_MUTEX_UNLOCK(cis->i2c_lock);
-
 p_err:
-	if (hold > 0) {
-		hold = sensor_hi556_cis_group_param_hold(subdev, false);
-		if (hold < 0)
-			ret = hold;
-	}
 
 	return ret;
 }
@@ -1013,7 +1089,6 @@ int sensor_hi556_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_par
 {
 	int ret = 0;
 #if 1
-	int hold = 0;
 	struct is_cis *cis = NULL;
 	struct i2c_client *client = NULL;
 	cis_shared_data *cis_data = NULL;
@@ -1059,13 +1134,7 @@ int sensor_hi556_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_par
 	line_length_pck = cis_data->line_length_pck;
 	min_fine_int = cis_data->min_fine_integration_time;
 
-	coarse_int = (u16)(((target_exposure->val * pix_rate_freq_khz) - min_fine_int) / (line_length_pck * 1000));
-
-	if (coarse_int > cis_data->max_coarse_integration_time) {
-		dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), coarse(%d) max(%d)\n", cis->id, __func__,
-			cis_data->sen_vsync_count, coarse_int, cis_data->max_coarse_integration_time);
-		coarse_int = cis_data->max_coarse_integration_time;
-	}
+	coarse_int = (u16)(((target_exposure->val * pix_rate_freq_khz) - min_fine_int) / ((line_length_pck * 1000)/2));
 
 	if (coarse_int < cis_data->min_coarse_integration_time) {
 		dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), coarse(%d) min(%d)\n", cis->id, __func__,
@@ -1076,12 +1145,6 @@ int sensor_hi556_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_par
 	cis_data->cur_exposure_coarse = coarse_int;
 	cis_data->cur_long_exposure_coarse = coarse_int;
 	cis_data->cur_short_exposure_coarse = coarse_int;
-
-	hold = sensor_hi556_cis_group_param_hold(subdev, true);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
 
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = is_sensor_write16(client, SENSOR_HI556_COARSE_INTEG_TIME_ADDR, coarse_int);
@@ -1103,11 +1166,6 @@ p_i2c_err:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_hi556_cis_group_param_hold(subdev, false);
-		if (hold < 0)
-			ret = hold;
-	}
 #endif
 	return ret;
 }
@@ -1139,11 +1197,17 @@ int sensor_hi556_cis_get_min_exposure_time(struct v4l2_subdev *subdev, u32 *min_
 	cis_data = cis->cis_data;
 
 	pix_rate_freq_khz = cis_data->pclk / 1000;
+	if (pix_rate_freq_khz == 0) {
+		pr_err("[MOD:D:%d] %s, Invalid pix_rate_freq_khz(%d)\n", cis->id, __func__, pix_rate_freq_khz);
+		goto p_err;
+	}
+
+	pix_rate_freq_khz = cis_data->pclk / 1000;
 	line_length_pck = cis_data->line_length_pck;
 	min_coarse = cis_data->min_coarse_integration_time;
 	min_fine = cis_data->min_fine_integration_time;
 
-	min_integration_time = (u32)(((line_length_pck * min_coarse) + min_fine) * 1000 / pix_rate_freq_khz);
+	min_integration_time = (u32)((((line_length_pck/2) * min_coarse) + min_fine) * 1000 / pix_rate_freq_khz);
 	*min_expo = min_integration_time;
 
 	dbg_sensor(1, "[%s] min integration time %d\n", __func__, min_integration_time);
@@ -1153,6 +1217,7 @@ int sensor_hi556_cis_get_min_exposure_time(struct v4l2_subdev *subdev, u32 *min_
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
+p_err:
 	return ret;
 }
 
@@ -1185,13 +1250,19 @@ int sensor_hi556_cis_get_max_exposure_time(struct v4l2_subdev *subdev, u32 *max_
 	cis_data = cis->cis_data;
 
 	pix_rate_freq_khz = cis_data->pclk / 1000;
+	if (pix_rate_freq_khz == 0) {
+		pr_err("[MOD:D:%d] %s, Invalid pix_rate_freq_khz(%d)\n", cis->id, __func__, pix_rate_freq_khz);
+		goto p_err;
+	}
+
+	pix_rate_freq_khz = cis_data->pclk / 1000;
 	line_length_pck = cis_data->line_length_pck;
 	frame_length_lines = cis_data->frame_length_lines;
 	max_coarse_margin = cis_data->max_margin_coarse_integration_time;
 	max_coarse = frame_length_lines - max_coarse_margin;
 	max_fine = cis_data->max_fine_integration_time;
 
-	max_integration_time = (u32)(((line_length_pck * max_coarse) + max_fine) * 1000 / pix_rate_freq_khz);
+	max_integration_time = (u32)((((line_length_pck/2) * max_coarse) + max_fine) * 1000 / pix_rate_freq_khz);
 
 	*max_expo = max_integration_time;
 
@@ -1206,6 +1277,7 @@ int sensor_hi556_cis_get_max_exposure_time(struct v4l2_subdev *subdev, u32 *max_
 	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
 #endif
 
+p_err:
 	return ret;
 }
 
@@ -1255,10 +1327,9 @@ int sensor_hi556_cis_adjust_analog_gain(struct v4l2_subdev *subdev, u32 input_ag
 	return ret;
 }
 
-int sensor_hi556_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_param *again, struct ae_param *dgain)
+int sensor_hi556_cis_set_analog_digital_gain(struct v4l2_subdev *subdev, struct ae_param *again, struct ae_param *dgain)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis = NULL;
 	struct i2c_client *client = NULL;
 
@@ -1296,39 +1367,37 @@ int sensor_hi556_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_param
 	analog_gain = (u8)sensor_hi556_cis_calc_again_code(again->val);
 
 	if (analog_gain < cis->cis_data->min_analog_gain[0]) {
+		info("[%s] not proper analog_gain value, reset to min_analog_gain\n", __func__);
 		analog_gain = cis->cis_data->min_analog_gain[0];
 	}
 
 	if (analog_gain > cis->cis_data->max_analog_gain[0]) {
+		info("[%s] not proper analog_gain value, reset to max_analog_gain\n", __func__);
 		analog_gain = cis->cis_data->max_analog_gain[0];
 	}
 
 	dbg_sensor(1, "[MOD:D:%d] %s(vsync cnt = %d), input_again = %d us, analog_gain(%#x)\n",
 		cis->id, __func__, cis->cis_data->sen_vsync_count, again->val, analog_gain);
 
-	hold = sensor_hi556_cis_group_param_hold(subdev, true);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	analog_gain &= 0xFF;
 
-	// Analog gain
 	I2C_MUTEX_LOCK(cis->i2c_lock);
+	/* Set Analog gain */
 	ret = is_sensor_write8(client, SENSOR_HI556_ANALOG_GAIN_ADDR, analog_gain);
 	if (ret < 0)
 		goto p_i2c_err;
 
+	/* Set Digital gains */
 	if(analog_gain == cis->cis_data->max_analog_gain[0]) {
 		dgain_code = (u16)sensor_hi556_cis_calc_dgain_code(dgain->val);
 		if (dgain_code < cis->cis_data->min_digital_gain[0]) {
+			info("[%s] not proper dgain_code value, reset to min_digital_gain\n", __func__);
 			dgain_code = cis->cis_data->min_digital_gain[0];
 		}
 		if (dgain_code > cis->cis_data->max_digital_gain[0]) {
+			info("[%s] not proper dgain_code value, reset to max_digital_gain\n", __func__);
 			dgain_code = cis->cis_data->max_digital_gain[0];
 		}
-		/* Set Digital gains */
 		dbg_sensor(1, "[%s] input_dgain = %d, dgain_code = %d(%#x)\n", __func__, dgain->val, dgain_code, dgain_code);
 		dgains[0] = dgains[1] = dgains[2] = dgains[3] = dgain_code;
 		ret = is_sensor_write16_array(client, SENSOR_HI556_DIG_GAIN_ADDR, dgains, 4);
@@ -1346,13 +1415,11 @@ int sensor_hi556_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_param
 		if (ret < 0) {
 			goto p_i2c_err;
 		}
-
 	} else {
-		/* Set Digital gains */
 		dbg_sensor(1, "[%s] Compensation Dgain..!!\n",__func__);
 		cal_analog_val1 = ((again->val - 1000) * 16 / 1000);
-		cal_analog_val2 = (cal_analog_val1*1000)/16 + 1000;
-		cal_digital = (again->val *1000) /cal_analog_val2; 
+		cal_analog_val2 = (cal_analog_val1 * 1000) / 16 + 1000;
+		cal_digital = (again->val * 1000) / cal_analog_val2; 
 		dgain_code = (u16)sensor_hi556_cis_calc_dgain_code(cal_digital);
 		if(cal_digital < 0) {
 			err("[%s] Caculate Digital Gain is fail\n", __func__);
@@ -1371,7 +1438,7 @@ int sensor_hi556_cis_set_analog_gain(struct v4l2_subdev *subdev, struct ae_param
 			goto p_i2c_err;
 		}
 		
-		enable_dgain = read_val | (0x1 << 4); // [4]: D gain enable
+		enable_dgain = read_val | (0x1 << 4); /* [4]: D gain enable */
 		ret = is_sensor_write16(client, SENSOR_HI556_ISP_ENABLE_ADDR, enable_dgain);
 		if (ret < 0) {
 			goto p_i2c_err;
@@ -1387,11 +1454,6 @@ p_i2c_err:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_hi556_cis_group_param_hold(subdev, false);
-		if (hold < 0)
-			ret = hold;
-	}
 
 	return ret;
 }
@@ -1399,7 +1461,6 @@ p_err:
 int sensor_hi556_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis = NULL;
 	struct i2c_client *client = NULL;
 
@@ -1424,12 +1485,6 @@ int sensor_hi556_cis_get_analog_gain(struct v4l2_subdev *subdev, u32 *again)
 		goto p_err;
 	}
 
-	hold = sensor_hi556_cis_group_param_hold(subdev, true);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = is_sensor_read8(client, SENSOR_HI556_ANALOG_GAIN_ADDR, &analog_gain);
 	if (ret < 0)
@@ -1449,11 +1504,6 @@ p_i2c_err:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_hi556_cis_group_param_hold(subdev, false);
-		if (hold < 0)
-			ret = hold;
-	}
 
 	return ret;
 }
@@ -1532,100 +1582,9 @@ int sensor_hi556_cis_get_max_analog_gain(struct v4l2_subdev *subdev, u32 *max_ag
 	return ret;
 }
 
-int sensor_hi556_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_param *dgain)
-{
-	int ret = 0;
-	int hold = 0;
-	struct is_cis *cis = NULL;
-	struct i2c_client *client = NULL;
-	cis_shared_data *cis_data = NULL;
-
-	u16 dgain_code = 0;
-	u16 dgains[4] = {0};
-	u16 read_val = 0;
-	u16 enable_dgain = 0;
-
-#ifdef DEBUG_SENSOR_TIME
-	struct timeval st, end;
-	do_gettimeofday(&st);
-#endif
-
-	FIMC_BUG(!subdev);
-	FIMC_BUG(!dgain);
-
-	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
-
-	FIMC_BUG(!cis);
-	FIMC_BUG(!cis->cis_data);
-
-	client = cis->client;
-	if (unlikely(!client)) {
-		err("client is NULL");
-		ret = -EINVAL;
-		goto p_err;
-	}
-
-	cis_data = cis->cis_data;
-
-	dgain_code = (u16)sensor_hi556_cis_calc_dgain_code(dgain->val);
-
-	if (dgain_code < cis->cis_data->min_digital_gain[0]) {
-		dgain_code = cis->cis_data->min_digital_gain[0];
-	}
-	if (dgain_code > cis->cis_data->max_digital_gain[0]) {
-		dgain_code = cis->cis_data->max_digital_gain[0];
-	}
-
-	dbg_sensor(1, "[MOD:D:%d] %s(vsync cnt = %d), input_dgain = %d, dgain_code(%#x)\n",
-			cis->id, __func__, cis->cis_data->sen_vsync_count, dgain->val, dgain_code);
-
-	hold = sensor_hi556_cis_group_param_hold(subdev, true);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-	
-	I2C_MUTEX_LOCK(cis->i2c_lock);
-
-	dgains[0] = dgains[1] = dgains[2] = dgains[3] = dgain_code;
-	ret = is_sensor_write16_array(client, SENSOR_HI556_DIG_GAIN_ADDR, dgains, 4);
-	if (ret < 0) {
-		goto p_i2c_err;
-	}
-
-	ret = is_sensor_read16(client, SENSOR_HI556_ISP_ENABLE_ADDR, &read_val);
-	if (ret < 0) {
-		goto p_i2c_err;
-	}
-
-	enable_dgain = read_val | (0x1 << 4); // [4]: D gain enable
-	ret = is_sensor_write16(client, SENSOR_HI556_ISP_ENABLE_ADDR, enable_dgain);
-	if (ret < 0) {
-		goto p_i2c_err;
-	}
-
-#ifdef DEBUG_SENSOR_TIME
-	do_gettimeofday(&end);
-	dbg_sensor(1, "[%s] time %lu us\n", __func__, (end.tv_sec - st.tv_sec)*1000000 + (end.tv_usec - st.tv_usec));
-#endif
-
-p_i2c_err:
-	I2C_MUTEX_UNLOCK(cis->i2c_lock);
-
-p_err:
-	if (hold > 0) {
-		hold = sensor_hi556_cis_group_param_hold(subdev, false);
-		if (hold < 0)
-			ret = hold;
-	}
-
-	return ret;
-}
-
 int sensor_hi556_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 {
 	int ret = 0;
-	int hold = 0;
 	struct is_cis *cis = NULL;
 	struct i2c_client *client = NULL;
 
@@ -1650,12 +1609,6 @@ int sensor_hi556_cis_get_digital_gain(struct v4l2_subdev *subdev, u32 *dgain)
 		goto p_err;
 	}
 
-	hold = sensor_hi556_cis_group_param_hold(subdev, true);
-	if (hold < 0) {
-		ret = hold;
-		goto p_err;
-	}
-
 	I2C_MUTEX_LOCK(cis->i2c_lock);
 	ret = is_sensor_read16(client, SENSOR_HI556_DIG_GAIN_ADDR, &digital_gain);
 	if (ret < 0)
@@ -1675,11 +1628,6 @@ p_i2c_err:
 	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
 p_err:
-	if (hold > 0) {
-		hold = sensor_hi556_cis_group_param_hold(subdev, false);
-		if (hold < 0)
-			ret = hold;
-	}
 
 	return ret;
 }
@@ -1793,9 +1741,9 @@ int sensor_hi556_cis_set_totalgain(struct v4l2_subdev *subdev, struct ae_param *
 	}
 
 	/* Set Analog & Digital gains */
-	ret = sensor_hi556_cis_set_analog_gain(subdev, again, dgain);
+	ret = sensor_hi556_cis_set_analog_digital_gain(subdev, again, dgain);
 	if (ret < 0) {
-		err("[%s] sensor_hi556_cis_set_analog_gain fail\n", __func__);
+		err("[%s] sensor_hi556_cis_set_analog_digital_gain fail\n", __func__);
 		goto p_err;
 	}
 	
@@ -1803,10 +1751,111 @@ p_err:
 	return ret;
 }
 
+#ifdef USE_CAMERA_MIPI_CLOCK_VARIATION
+static int sensor_hi556_cis_update_mipi_info(struct v4l2_subdev *subdev)
+{
+	struct is_cis *cis = NULL;
+	struct is_device_sensor *device;
+	const struct cam_mipi_sensor_mode *cur_mipi_sensor_mode;
+	int found = -1;
+
+	device = (struct is_device_sensor *)v4l2_get_subdev_hostdata(subdev);
+	if (device == NULL) {
+		err("device is NULL");
+		return -EINVAL;
+	}
+
+	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
+	if (cis == NULL) {
+		err("cis is NULL");
+		return -EINVAL;
+	}
+
+	if (device->cfg->mode >= sensor_hi556_mipi_sensor_mode_size) {
+		err("sensor mode is out of bound");
+		return -EINVAL;
+	}
+
+	cur_mipi_sensor_mode = &sensor_hi556_mipi_sensor_mode[device->cfg->mode];
+
+	if (cur_mipi_sensor_mode->mipi_channel_size == 0 ||
+		cur_mipi_sensor_mode->mipi_channel == NULL) {
+		dbg_sensor(1, "skip select mipi channel\n");
+		return -EINVAL;
+	}
+
+	found = is_vendor_select_mipi_by_rf_channel(cur_mipi_sensor_mode->mipi_channel,
+				cur_mipi_sensor_mode->mipi_channel_size);
+	if (found != -1) {
+		if (found < cur_mipi_sensor_mode->sensor_setting_size) {
+			device->cfg->mipi_speed = cur_mipi_sensor_mode->sensor_setting[found].mipi_rate;
+			cis->mipi_clock_index_new = found;
+			info("%s - update mipi rate : %d\n", __func__, device->cfg->mipi_speed);
+		} else {
+			err("sensor setting size is out of bound");
+		}
+	}
+
+	return 0;
+}
+
+static int sensor_hi556_cis_get_mipi_clock_string(struct v4l2_subdev *subdev, char *cur_mipi_str)
+{
+	struct is_cis *cis = NULL;
+	struct is_device_sensor *device;
+	const struct cam_mipi_sensor_mode *cur_mipi_sensor_mode;
+	int mode = 0;
+
+	cur_mipi_str[0] = '\0';
+
+	device = (struct is_device_sensor *)v4l2_get_subdev_hostdata(subdev);
+	if (device == NULL) {
+		err("device is NULL");
+		return -EINVAL;
+	}
+
+	cis = (struct is_cis *)v4l2_get_subdevdata(subdev);
+	if (cis == NULL) {
+		err("cis is NULL");
+		return -EINVAL;
+	}
+
+	if (cis->cis_data->stream_on) {
+		mode = cis->cis_data->sens_config_index_cur;
+
+		if (mode >= sensor_hi556_mipi_sensor_mode_size) {
+			err("sensor mode is out of bound");
+			return -EINVAL;
+		}
+
+		cur_mipi_sensor_mode = &sensor_hi556_mipi_sensor_mode[mode];
+
+		if (cur_mipi_sensor_mode->sensor_setting_size == 0 ||
+			cur_mipi_sensor_mode->sensor_setting == NULL) {
+			err("sensor_setting is not available");
+			return -EINVAL;
+		}
+
+		if (cis->mipi_clock_index_new < 0 ||
+			cur_mipi_sensor_mode->sensor_setting[cis->mipi_clock_index_new].str_mipi_clk == NULL) {
+			err("mipi_clock_index_new is not available");
+			return -EINVAL;
+		}
+
+		sprintf(cur_mipi_str, "%s",
+			cur_mipi_sensor_mode->sensor_setting[cis->mipi_clock_index_new].str_mipi_clk);
+	}
+
+	return 0;
+}
+#endif
+
 static struct is_cis_ops cis_ops_hi556 = {
 	.cis_init = sensor_hi556_cis_init,
 	.cis_log_status = sensor_hi556_cis_log_status,
+#if USE_GROUP_PARAM_HOLD
 	.cis_group_param_hold = sensor_hi556_cis_group_param_hold,
+#endif
 	.cis_set_global_setting = sensor_hi556_cis_set_global_setting,
 	.cis_set_size = sensor_hi556_cis_set_size,
 	.cis_mode_change = sensor_hi556_cis_mode_change,
@@ -1832,6 +1881,10 @@ static struct is_cis_ops cis_ops_hi556 = {
 	.cis_compensate_gain_for_extremely_br = sensor_cis_compensate_gain_for_extremely_br,
 	.cis_data_calculation = sensor_hi556_cis_data_calc,
 	.cis_set_totalgain = sensor_hi556_cis_set_totalgain,
+#ifdef USE_CAMERA_MIPI_CLOCK_VARIATION
+	.cis_update_mipi_info = sensor_hi556_cis_update_mipi_info,
+	.cis_get_mipi_clock_string = sensor_hi556_cis_get_mipi_clock_string,
+#endif
 	.cis_check_rev_on_init = sensor_hi556_cis_check_rev,
 };
 
@@ -1852,6 +1905,15 @@ int cis_hi556_probe(struct i2c_client *client,
 	struct device *dev;
 	struct device_node *dnode;
 	int i;
+#ifdef USE_CAMERA_MIPI_CLOCK_VARIATION
+	int j;
+	int index;
+#endif
+
+#if defined(CONFIG_VENDER_MCD_V2) || defined(CONFIG_CAMERA_OTPROM_SUPPORT_FRONT) || defined(CONFIG_CAMERA_OTPROM_SUPPORT_REAR)
+	struct is_vender_specific *specific = NULL;
+	u32 rom_position = 0;
+#endif
 
 	FIMC_BUG(!client);
 	FIMC_BUG(!is_dev);
@@ -1913,6 +1975,10 @@ int cis_hi556_probe(struct i2c_client *client,
 		sensor_peri->module->client = cis->client;
 		cis->i2c_lock = NULL;
 		cis->ctrl_delay = N_PLUS_TWO_FRAME;
+#ifdef USE_CAMERA_MIPI_CLOCK_VARIATION
+		cis->mipi_clock_index_cur = CAM_MIPI_NOT_INITIALIZED;
+		cis->mipi_clock_index_new = CAM_MIPI_NOT_INITIALIZED;
+#endif
 
 		cis->cis_data = kzalloc(sizeof(cis_shared_data), GFP_KERNEL);
 		if (!cis->cis_data) {
@@ -1922,6 +1988,35 @@ int cis_hi556_probe(struct i2c_client *client,
 		}
 
 		cis->cis_ops = &cis_ops_hi556;
+
+#if defined(CONFIG_VENDER_MCD_V2)
+	if (of_property_read_bool(dnode, "use_sensor_otp")) {
+		ret = of_property_read_u32(dnode, "rom_position", &rom_position);
+		if (ret) {
+			err("rom_position read is fail(%d)", ret);
+		} else {
+			specific = core->vender.private_data;
+			specific->rom_data[rom_position].rom_type = ROM_TYPE_OTPROM;
+			specific->rom_data[rom_position].rom_valid = true;
+			specific->rom_client[rom_position] = cis->client;
+
+			if (cis->id == specific->sensor_id[rom_position]) {
+				specific->rom_client[rom_position] = cis->client;
+
+				if (vender_rom_addr[rom_position]) {
+					specific->rom_cal_map_addr[rom_position] = vender_rom_addr[rom_position];
+					probe_info("%s: rom_id=%d, OTP Registered\n", __func__, rom_position);
+				} else {
+					probe_info("%s: HI556 OTP address not defined!\n", __func__);
+				}
+			} 
+			else {
+				err("%s: sensor id does not match", __func__);
+				goto p_err;
+			}
+		}
+	}
+#endif
 
 		/* belows are depend on sensor cis. MUST check sensor spec */
 		cis->bayer_order = OTF_INPUT_ORDER_BAYER_GB_RG;
@@ -1965,6 +2060,12 @@ int cis_hi556_probe(struct i2c_client *client,
 		sensor_hi556_pllinfos = sensor_hi556_pllinfos_A;
 		sensor_hi556_max_setfile_num = ARRAY_SIZE(sensor_hi556_setfiles_A);
 		sensor_hi556_setfile_fsync_info = sensor_hi556_setfile_A_fsync_info;
+#ifdef USE_CAMERA_MIPI_CLOCK_VARIATION
+		sensor_hi556_mipi_sensor_mode = sensor_hi556_setfile_A_mipi_sensor_mode;
+		sensor_hi556_mipi_sensor_mode_size = ARRAY_SIZE(sensor_hi556_setfile_A_mipi_sensor_mode);
+		sensor_hi556_verify_sensor_mode = sensor_hi556_setfile_A_verify_sensor_mode;
+		sensor_hi556_verify_sensor_mode_size = ARRAY_SIZE(sensor_hi556_setfile_A_verify_sensor_mode);
+#endif
 	} else if (strcmp(setfile, "setB") == 0) {
 		probe_info("%s setfile_B\n", __func__);
 		sensor_hi556_global = sensor_hi556_setfile_B_Global;
@@ -1983,7 +2084,24 @@ int cis_hi556_probe(struct i2c_client *client,
 		sensor_hi556_pllinfos = sensor_hi556_pllinfos_A;
 		sensor_hi556_max_setfile_num = ARRAY_SIZE(sensor_hi556_setfiles_A);
 		sensor_hi556_setfile_fsync_info = sensor_hi556_setfile_A_fsync_info;
+#ifdef USE_CAMERA_MIPI_CLOCK_VARIATION
+		sensor_hi556_mipi_sensor_mode = sensor_hi556_setfile_A_mipi_sensor_mode;
+		sensor_hi556_mipi_sensor_mode_size = ARRAY_SIZE(sensor_hi556_setfile_A_mipi_sensor_mode);
+		sensor_hi556_verify_sensor_mode = sensor_hi556_setfile_A_verify_sensor_mode;
+		sensor_hi556_verify_sensor_mode_size = ARRAY_SIZE(sensor_hi556_setfile_A_verify_sensor_mode);
+#endif
 	}
+
+#ifdef USE_CAMERA_MIPI_CLOCK_VARIATION
+	for (j = 0; j < sensor_hi556_verify_sensor_mode_size; j++) {
+		index = sensor_hi556_verify_sensor_mode[j];
+		if (is_vendor_verify_mipi_channel(sensor_hi556_mipi_sensor_mode[index].mipi_channel,
+					sensor_hi556_mipi_sensor_mode[index].mipi_channel_size)) {
+			panic("wrong mipi channel");
+			break;
+		}
+	}
+#endif
 
 	probe_info("%s done\n", __func__);
 

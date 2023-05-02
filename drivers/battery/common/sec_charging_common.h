@@ -79,6 +79,12 @@ enum battery_thermal_zone {
 	BAT_THERMAL_OVERHEATLIMIT,
 };
 
+enum sb_wireless_mode {
+	SB_WRL_NONE = 0,
+	SB_WRL_RX_MODE = 1,
+	SB_WRL_TX_MODE = 2,
+};
+
 enum rx_device_type {
 	NO_DEV = 0,
 	OTHER_DEV,
@@ -115,6 +121,7 @@ enum sec_battery_voltage_type {
 enum sec_battery_dual_mode {
 	SEC_DUAL_BATTERY_MAIN = 0,
 	SEC_DUAL_BATTERY_SUB,
+	SEC_DUAL_BATTERY_TOTAL,
 };
 #endif
 
@@ -137,6 +144,8 @@ enum sec_battery_capacity_mode {
 	SEC_BATTERY_CAPACITY_QH,
 	/* vfsoc */
 	SEC_BATTERY_CAPACITY_VFSOC,
+	/* rcomp0 */
+	SEC_BATTERY_CAPACITY_RC0,
 };
 
 enum sec_wireless_info_mode {
@@ -441,6 +450,8 @@ enum sec_battery_check {
 #define SEC_FUELGAUGE_CAPACITY_TYPE_CAPACITY_POINT	0x20
 
 #define SEC_FUELGAUGE_CAPACITY_TYPE_LOST_SOC	0x40
+
+#define SEC_FUELGAUGE_CAPACITY_TYPE_REPCAP	0x80
 
 /* charger function settings (can be used overlapped) */
 #define sec_charger_functions_t unsigned int

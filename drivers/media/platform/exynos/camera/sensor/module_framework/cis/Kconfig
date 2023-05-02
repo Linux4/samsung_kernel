@@ -432,6 +432,13 @@ config CAMERA_CIS_GC02M1_OBJ
 	help
 	  Use to build GC02M1 camera sensor.
 
+config CAMERA_CIS_GC02M2_OBJ
+	bool "Use GC02M2 camera cis"
+	depends on CAMERA_CIS_SELECT
+	default n
+	help
+	  Use to build GC02M2 camera sensor.
+
 config CAMERA_CIS_SC201_OBJ
 	bool "Use SC201 camera cis"
 	depends on CAMERA_CIS_SELECT
@@ -445,6 +452,13 @@ config CAMERA_CIS_JN1_OBJ
 	default n
 	help
 	  Use to build JN1 camera sensor.
+
+config CAMERA_CIS_SC501_OBJ
+	bool "Use SC501 camera cis"
+	depends on CAMERA_CIS_SELECT
+	default n
+	help
+	  Use to build SC501 camera sensor.
 
 config CAMERA_CIS_GC08A3_OBJ
 	bool "Use GC08A3 camera cis"

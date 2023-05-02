@@ -144,8 +144,11 @@
 #define IS_HI556_SETF			"setfile_hi556.bin"
 #define IS_GC02M1_SETF			"setfile_gc02m1.bin"
 #define IS_GC02M1_MACRO_SETF		"setfile_gc02m1_macro.bin"
+#define IS_GC02M2_MACRO_SETF		"setfile_gc02m2_macro.bin"
 #define IS_SC201_SETF			"setfile_sc201.bin"
+#define IS_SC201_MACRO_SETF		"setfile_sc201_macro.bin"
 #define IS_GC08A3_SETF			"setfile_gc08a3.bin"
+#define IS_SC501_SETF			"setfile_sc501.bin"
 
 #define IS_CAL_SDCARD_FRONT		"/data/cal_data_front.bin"
 #define IS_FW_FROM_SDCARD			"/data/media/0/CamFW_Main.bin"
@@ -251,7 +254,6 @@ struct is_rom_info {
 	char		load_rta_fw_name[50]; 	/* RTA */
 #endif
 	char		load_setfile_name[50];
-
 };
 
 bool is_sec_get_force_caldata_dump(void);
@@ -292,7 +294,9 @@ bool is_sec_check_awb_lsc_crc32_post_sec2lsi(char* buf, int position, int awb_le
 bool is_sec_readcal_dump_post_sec2lsi(struct is_core *core, char *buf, int position);
 #ifdef USES_STANDARD_CAL_RELOAD
 bool is_sec_sec2lsi_check_cal_reload(void);
+bool is_sec_reload_cal(struct is_core *core, int position);
 #endif
+int is_sec_readcal_otprom_buffer(char * buf, int position);
 
 int is_sec_ldo_enable(struct device *dev, char *name, bool on);
 int is_sec_rom_power_on(struct is_core *core, int position);

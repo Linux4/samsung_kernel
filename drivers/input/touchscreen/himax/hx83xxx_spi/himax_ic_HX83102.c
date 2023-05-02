@@ -60,6 +60,29 @@ static void hx83102e_chip_init(void)
 	CFG_VER_MIN_FLASH_LENG	= 1;
 }
 
+static void hx83102j_chip_init(void)
+{
+	private_ts->chip_cell_type = CHIP_IS_IN_CELL;
+	KI("%s:IC cell type = %d\n", __func__, private_ts->chip_cell_type);
+	IC_CHECKSUM	=	HX_TP_BIN_CHECKSUM_CRC;
+	/*Himax: Set FW and CFG Flash Address*/
+	CID_VER_MAJ_FLASH_ADDR = 59394;  /*0x00E802*/
+	CID_VER_MAJ_FLASH_LENG	= 1;
+	CID_VER_MIN_FLASH_ADDR	= 59395;  /*0x00E803*/
+	CID_VER_MIN_FLASH_LENG	= 1;
+	PANEL_VERSION_ADDR		= 0x029404;
+	PANEL_VERSION_LENG		= 1;
+	FW_VER_MAJ_FLASH_ADDR		= 59397;  /*0x00E805*/
+	FW_VER_MAJ_FLASH_LENG		= 1;
+	FW_VER_MIN_FLASH_ADDR		= 59398;  /*0x00E806*/
+	FW_VER_MIN_FLASH_LENG		= 1;
+	CFG_VER_MAJ_FLASH_ADDR	= 59648;  /*0x00E900*/
+	CFG_VER_MAJ_FLASH_LENG	= 1;
+	CFG_VER_MIN_FLASH_ADDR	= 59649;  /*0x00E901*/
+	CFG_VER_MIN_FLASH_LENG	= 1;
+	ADDR_VER_IC_NAME	= 0x29450;
+}
+
 void hx83102_burst_enable(uint8_t auto_add_4_byte)
 {
 	uint8_t tmp_data[4];
@@ -173,7 +196,7 @@ static bool hx83102_sense_off(bool check_en)
 		tmp_addr[3] = 0x90; tmp_addr[2] = 0x00; tmp_addr[1] = 0x00; tmp_addr[0] = 0x5C;
 		hx83102_register_read(tmp_addr, DATA_LEN_4, tmp_data);
 		KI("%s: cnt = %d, data[0] = 0x%02X!\n", __func__, cnt, tmp_data[0]);
-	} while (tmp_data[0] != 0x87 && (++cnt < 50) && check_en == true);
+	} while ((tmp_data[0] != 0x87 && (++cnt < 50) && check_en == true) && !atomic_read(&private_ts->shutdown));
 
 	cnt = 0;
 
@@ -245,7 +268,7 @@ static bool hx83102_sense_off(bool check_en)
 		hx83102_pin_reset();
 #endif
 
-	} while (cnt++ < 15);
+	} while ((cnt++ < 15) && !atomic_read(&private_ts->shutdown));
 
 	return false;
 }
@@ -327,7 +350,7 @@ static bool hx83102ab_sense_off(bool check_en)
 		msleep(50);
 #endif
 
-	} while (cnt++ < 5);
+	} while (cnt++ < 5 && !atomic_read(&private_ts->shutdown));
 
 	return false;
 }
@@ -354,7 +377,7 @@ static void hx83102ab_set_SMWP_enable(uint8_t SMWP_enable, bool suspended)
 		g_core_fp.fp_register_read(pfw_op->addr_smwp_enable, DATA_LEN_4, tmp_data, false);
 		/*KI("%s: tmp_data[0]=%d, SMWP_enable=%d, retry_cnt=%d\n", __func__, tmp_data[0],SMWP_enable,retry_cnt);*/
 		retry_cnt++;
-	} while ((tmp_data[3] != back_data[3] || tmp_data[2] != back_data[2] || tmp_data[1] != back_data[1]  || tmp_data[0] != back_data[0]) && retry_cnt < HIMAX_REG_RETRY_TIMES);
+	} while ((tmp_data[3] != back_data[3] || tmp_data[2] != back_data[2] || tmp_data[1] != back_data[1]  || tmp_data[0] != back_data[0]) && retry_cnt < HIMAX_REG_RETRY_TIMES && !atomic_read(&private_ts->shutdown));
 
 	g_core_fp.fp_sense_on(0x00);
 }
@@ -563,7 +586,7 @@ static bool hx83102d_sense_off(bool check_en)
 
 		g_core_fp.fp_register_read(pfw_op->addr_ctrl_fw_isr, 4, tmp_data, false);
 		KI("%s: cnt = %d, data[0] = 0x%02X!\n", __func__, cnt, tmp_data[0]);
-	} while (tmp_data[0] != 0x87 && (++cnt < 10) && check_en == true);
+	} while ((tmp_data[0] != 0x87 && (++cnt < 10) && check_en == true) && !atomic_read(&private_ts->shutdown));
 
 	cnt = 0;
 
@@ -636,7 +659,7 @@ static bool hx83102d_sense_off(bool check_en)
 		msleep(50);
 #endif
 
-	} while (cnt++ < 5);
+	} while (cnt++ < 5 && !atomic_read(&private_ts->shutdown));
 
 	return false;
 }
@@ -690,7 +713,7 @@ static bool hx83102e_sense_off(bool check_en)
 
 		g_core_fp.fp_register_read(pfw_op->addr_ctrl_fw_isr, 4, tmp_data, false);
 		KI("%s: cnt = %d, data[0] = 0x%02X!\n", __func__, cnt, tmp_data[0]);
-	} while (tmp_data[0] != 0x87 && (++cnt < 10) && check_en == true);
+	} while ((tmp_data[0] != 0x87 && (++cnt < 10) && check_en == true) && !atomic_read(&private_ts->shutdown));
 
 	cnt = 0;
 
@@ -743,6 +766,100 @@ static bool hx83102e_sense_off(bool check_en)
 		msleep(50);
 #endif
 
+	} while (cnt++ < 5 && !atomic_read(&private_ts->shutdown));
+
+	return false;
+}
+
+static void hx83102j_sense_on(uint8_t FlashMode)
+{
+	uint8_t tmp_data[DATA_LEN_4] = {0};
+
+	KI("Enter %s\n", __func__);
+	g_core_fp.fp_interface_on();
+	g_core_fp.fp_register_write(pfw_op->addr_ctrl_fw_isr,
+		sizeof(pfw_op->data_clear), pfw_op->data_clear, 0);
+	/*msleep(20);*/
+	usleep_range(10000, 11000);
+	if (!FlashMode) {
+#ifdef HX_RST_PIN_FUNC
+		g_core_fp.fp_ic_reset(false, false);
+#else
+		g_core_fp.fp_system_reset();
+#endif
+	} else {
+		if (himax_bus_write(pic_op->adr_i2c_psw_lb[0], tmp_data, 1, HIMAX_I2C_RETRY_TIMES) < 0)
+			KI("[ERR]%s: bus access fail!\n", __func__);
+
+		if (himax_bus_write(pic_op->adr_i2c_psw_ub[0], tmp_data, 1, HIMAX_I2C_RETRY_TIMES) < 0)
+			KI("[ERR]%s: bus access fail!\n", __func__);
+	}
+}
+
+static bool hx83102j_sense_off(bool check_en)
+{
+	uint8_t cnt = 0;
+	uint8_t tmp_addr[DATA_LEN_4];
+	uint8_t tmp_data[DATA_LEN_4];
+
+	do {
+		if (cnt == 0 || (tmp_data[0] != 0xA5 && tmp_data[0] != 0x00 && tmp_data[0] != 0x87))
+			g_core_fp.fp_register_write(pfw_op->addr_ctrl_fw_isr, DATA_LEN_4, pfw_op->data_fw_stop, 0);
+		usleep_range(10000, 10001);
+
+		/* check fw status */
+		g_core_fp.fp_register_read(pic_op->addr_cs_central_state, ADDR_LEN_4, tmp_data, 0);
+
+		if (tmp_data[0] != 0x05) {
+			KI("%s: Do not need wait FW, Status = 0x%02X!\n", __func__, tmp_data[0]);
+			break;
+		}
+
+		g_core_fp.fp_register_read(pfw_op->addr_ctrl_fw_isr, 4, tmp_data, false);
+		KI("%s: cnt = %d, data[0] = 0x%02X!\n", __func__, cnt, tmp_data[0]);
+	} while (tmp_data[0] != 0x87 && (++cnt < 10) && check_en == true);
+
+	cnt = 0;
+
+	do {
+		/*===========================================
+		 *I2C_password[7:0] set Enter safe mode : 0x31 ==> 0x27
+		 *===========================================
+		 */
+		tmp_data[0] = 0x27;
+		if (himax_bus_write(0x31, tmp_data, 1, HIMAX_I2C_RETRY_TIMES) < 0) {
+			KI("[ERR]%s: i2c access fail!\n", __func__);
+			return false;
+		}
+
+		/*===========================================
+		 *I2C_password[15:8] set Enter safe mode :0x32 ==> 0x95
+		 *===========================================
+		 */
+		tmp_data[0] = 0x95;
+		if (himax_bus_write(0x32, tmp_data, 1, HIMAX_I2C_RETRY_TIMES) < 0) {
+			KI("[ERR]%s: i2c access fail!\n", __func__);
+			return false;
+		}
+
+		/* ======================
+		 *Check enter_save_mode
+		 *======================
+		 */
+		tmp_addr[3] = 0x90; tmp_addr[2] = 0x00; tmp_addr[1] = 0x00; tmp_addr[0] = 0xA8;
+		hx83102_register_read(tmp_addr, ADDR_LEN_4, tmp_data);
+		KI("%s: Check enter_save_mode data[0]=%X\n", __func__, tmp_data[0]);
+
+		if (tmp_data[0] == 0x0C)
+			return true;
+
+		usleep_range(5000, 5001);
+#ifdef HX_RST_PIN_FUNC
+		himax_rst_gpio_set(private_ts->rst_gpio, 0);
+		msleep(20);
+		himax_rst_gpio_set(private_ts->rst_gpio, 1);
+		msleep(50);
+#endif
 	} while (cnt++ < 5);
 
 	return false;
@@ -815,7 +932,7 @@ static void himax_hx83102d_reload_to_active(void)
 		g_core_fp.fp_register_read(addr, DATA_LEN_4, data, 0);
 		KI("%s: data[1]=%d, data[0]=%d, retry_cnt=%d\n", __func__, data[1], data[0], retry_cnt);
 		retry_cnt++;
-	} while ((data[1] != 0x01 || data[0] != 0xEC) && retry_cnt < HIMAX_REG_RETRY_TIMES);
+	} while ((data[1] != 0x01 || data[0] != 0xEC) && retry_cnt < HIMAX_REG_RETRY_TIMES && !atomic_read(&private_ts->shutdown));
 }
 
 static void himax_hx83102d_resume_ic_action(void)
@@ -859,7 +976,7 @@ static void himax_hx83102d_sense_on(uint8_t FlashMode)
 
 			g_core_fp.fp_register_read(pfw_op->addr_flag_reset_event, DATA_LEN_4, tmp_data, 0);
 			KI("%s:Read status from IC = %X,%X\n", __func__, tmp_data[0], tmp_data[1]);
-		} while ((tmp_data[1] != 0x01 || tmp_data[0] != 0x00) && retry++ < 5);
+		} while ((tmp_data[1] != 0x01 || tmp_data[0] != 0x00) && retry++ < 5 && !atomic_read(&private_ts->shutdown));
 
 		if (retry >= 5) {
 			E("%s: Fail:\n", __func__);
@@ -1132,7 +1249,7 @@ static int hx83102d_0f_overlay(int ovl_type, int mode)
 	count = 0;
 	do {
 		g_core_fp.fp_register_read(handshaking_addr, DATA_LEN_4, recv_data, 0);
-	} while (recv_data[0] != request && count++ < 10);
+	} while ((recv_data[0] != request && count++ < 10) && !atomic_read(&private_ts->shutdown));
 
 	if (count < 10) {
 		/*g_core_fp.fp_write_sram_0f(fwp, sram_addr, offset, size);*/
@@ -1149,7 +1266,7 @@ static int hx83102d_0f_overlay(int ovl_type, int mode)
 			g_core_fp.fp_register_write(handshaking_addr, DATA_LEN_4, send_data, 0);
 			usleep_range(1000, 1100);
 			g_core_fp.fp_register_read(handshaking_addr, DATA_LEN_4, recv_data, 0);
-		} while (recv_data[0] != reply && count2++ < 10);
+		} while ((recv_data[0] != reply && count2++ < 10) && !atomic_read(&private_ts->shutdown));
 
 		if (ovl_type == 3) {
 #ifdef HX_RST_PIN_FUNC
@@ -1314,21 +1431,27 @@ static void hx83102_dynamic_fw_name(uint8_t ic_name)
 
 static bool hx83102e_read_event_stack(uint8_t *buf, uint8_t length)
 {
-	struct timespec t_start, t_end, t_delta;
+	unsigned long long t_start, t_end, t_delta;
+	unsigned long nano_start, nano_end, nano_delta;
 	int len = length;
 	int i2c_speed = 0;
 
-	if (private_ts->debug_log_level & BIT(2))
-		getnstimeofday(&t_start);
+	if (private_ts->debug_log_level & BIT(2)) {
+		t_start = local_clock();
+		nano_start = do_div(t_start, 1000000000);
+	}
 
 	himax_bus_read(pfw_op->addr_event_addr[0], buf, length, HIMAX_I2C_RETRY_TIMES);
 
 	if (private_ts->debug_log_level & BIT(2)) {
-		getnstimeofday(&t_end);
-		t_delta.tv_nsec = (t_end.tv_sec * 1000000000 + t_end.tv_nsec) - (t_start.tv_sec * 1000000000 + t_start.tv_nsec); /*ns*/
-		i2c_speed =	(len * 9 * 1000000 / (int)t_delta.tv_nsec) * 13 / 10;
+		t_end = local_clock();
+		nano_end = do_div(t_end, 1000000000);
+		t_delta  = t_start - t_end;
+		nano_delta = (nano_start - nano_end) / 1000;
+		i2c_speed = (len * 9 * 1000000 / (int)nano_delta) * 13 / 10;
 		private_ts->bus_speed = (int)i2c_speed;
-		}
+	}
+
 	return 1;
 }
 
@@ -1430,6 +1553,52 @@ static void himax_hx83102e_func_re_init(void)
 	g_core_fp.fp_read_event_stack = hx83102e_read_event_stack;
 }
 
+static bool hx83102j_read_event_stack(uint8_t *buf, uint8_t length)
+{
+	unsigned long long t_start, t_end, t_delta;
+	unsigned long nano_start, nano_end, nano_delta;
+	int len = length;
+	int i2c_speed = 0;
+
+	if (private_ts->debug_log_level & BIT(2)) {
+		t_start = local_clock();
+		nano_start = do_div(t_start, 1000000000);
+	}
+
+	himax_bus_read(pfw_op->addr_event_addr[0], buf, length, HIMAX_I2C_RETRY_TIMES);
+
+	if (private_ts->debug_log_level & BIT(2)) {
+		t_end = local_clock();
+		nano_end = do_div(t_end, 1000000000);
+		t_delta  = t_start - t_end;
+		nano_delta = (nano_start - nano_end) / 1000;
+		i2c_speed = (len * 9 * 1000000 / (int)nano_delta) * 13 / 10;
+		private_ts->bus_speed = (int)i2c_speed;
+	}
+
+	return 1;
+}
+
+static void himax_hx83102j_reg_re_init(void)
+{
+	I("%s:Entering!\n", __func__);
+	himax_in_parse_assign_cmd(hx83102j_fw_addr_raw_out_sel,  pfw_op->addr_raw_out_sel, sizeof(pfw_op->addr_raw_out_sel));
+	himax_in_parse_assign_cmd(hx83102j_data_df_rx, pdriver_op->data_df_rx, sizeof(pdriver_op->data_df_rx));
+	himax_in_parse_assign_cmd(hx83102j_data_df_tx, pdriver_op->data_df_tx, sizeof(pdriver_op->data_df_tx));
+	himax_in_parse_assign_cmd(hx83102j_ic_adr_tcon_rst, pic_op->addr_tcon_on_rst, sizeof(pic_op->addr_tcon_on_rst));
+	himax_in_parse_assign_cmd(hx83102j_addr_ic_ver_name, pfw_op->addr_ver_ic_name, sizeof(pfw_op->addr_ver_ic_name));
+	himax_in_parse_assign_cmd(hx83102j_fw_addr_gesture_history, pfw_op->addr_gesture_history, sizeof(pfw_op->addr_gesture_history));
+}
+
+static void himax_hx83102j_func_re_init(void)
+{
+	I("%s:Entering!\n", __func__);
+
+	g_core_fp.fp_chip_init = hx83102j_chip_init;
+	g_core_fp.fp_sense_on = hx83102j_sense_on;
+	g_core_fp.fp_sense_off = hx83102j_sense_off;
+	g_core_fp.fp_read_event_stack = hx83102j_read_event_stack;
+}
 
 static bool hx83102_chip_detect(void)
 {
@@ -1470,7 +1639,7 @@ static bool hx83102_chip_detect(void)
 		}
 		KI("%s:Read driver IC ID = %X,%X,%X\n", __func__, tmp_data[3], tmp_data[2], tmp_data[1]); /*83,10,2X*/
 
-		if ((tmp_data[3] == 0x83) && (tmp_data[2] == 0x10) && ((tmp_data[1] == 0x2a) || (tmp_data[1] == 0x2b) || (tmp_data[1] == 0x2d) || (tmp_data[1] == 0x2e))) {
+		if ((tmp_data[3] == 0x83) && (tmp_data[2] == 0x10) && ((tmp_data[1] == 0x2a) || (tmp_data[1] == 0x2b) || (tmp_data[1] == 0x2d) || (tmp_data[1] == 0x2e) || (tmp_data[1] == 0x29))) {
 			if (tmp_data[1] == 0x2a) {
 				strlcpy(private_ts->chip_name, HX_83102A_SERIES_PWON, 30);
 				KI("%s:detect IC HX83102A successfully\n", __func__);
@@ -1480,6 +1649,9 @@ static bool hx83102_chip_detect(void)
 			} else if (tmp_data[1] == 0x2d) {
 				strlcpy(private_ts->chip_name, HX_83102D_SERIES_PWON, 30);
 				KI("%s:detect IC HX83102D successfully\n", __func__);
+			} else if (tmp_data[1] == 0x29) {
+				strlcpy(private_ts->chip_name, HX_83102J_SERIES_PWON, 30);
+				KI("%s:detect IC HX83102J successfully\n", __func__);
 			} else {
 				strlcpy(private_ts->chip_name, HX_83102E_SERIES_PWON, 30);
 				KI("%s:detect IC HX83102E successfully\n", __func__);
@@ -1499,6 +1671,10 @@ static bool hx83102_chip_detect(void)
 			} else  if (tmp_data[1] == 0x2d) {
 				himax_hx83102d_reg_re_init();
 				himax_hx83102d_func_re_init();
+			} else  if (tmp_data[1] == 0x29) {
+				ic_data->flash_size = HX83102J_FLASH_SZIE;
+				himax_hx83102j_reg_re_init();
+				himax_hx83102j_func_re_init();
 			} else {/* 0x2e */
 				himax_hx83102e_reg_re_init();
 				himax_hx83102e_func_re_init();

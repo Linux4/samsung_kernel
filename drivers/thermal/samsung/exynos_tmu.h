@@ -149,6 +149,9 @@ struct exynos_tmu_data {
 	unsigned int buf_slope;
 	unsigned int avg_mode;
 
+	ktime_t last_thermal_status_updated;
+	ktime_t thermal_status[3];
+
 	int (*tmu_initialize)(struct platform_device *pdev);
 	void (*tmu_control)(struct platform_device *pdev, bool on);
 	int (*tmu_read)(struct exynos_tmu_data *data);

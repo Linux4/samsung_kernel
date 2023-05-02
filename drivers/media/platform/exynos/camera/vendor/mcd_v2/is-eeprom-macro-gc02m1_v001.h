@@ -5,7 +5,7 @@
  * 20200831_A12_M12s_CAM3((Macro_2M_GC02M1)_EEPROM_Rear_Cal map V008.001.xlsx
  */
 
-#define IS_REAR4_MAX_CAL_SIZE          (0x1B9F - 0x0000 + 0x1)//Including space for standard cal 
+#define IS_REAR4_MAX_CAL_SIZE              (0x1DCF - 0x0000 + 0x1) /* It should be bigger than output of GetCalSize() from ap2ap library */
 
 #define MACRO_HEADER_CHECKSUM_LEN          (0x00FB - 0x0000 + 0x1)
 #define MACRO_OEM_CHECKSUM_LEN             (0x019B - 0x0100 + 0x1)
@@ -13,6 +13,19 @@
 #define MACRO_SHADING_CHECKSUM_LEN         (0x05AB - 0x01B0 + 0x1)
 #define MACRO_AWB_SEC2LSI_CHECKSUM_LEN     (0x01AB - 0x01A0 + 0x1)
 #define MACRO_SHADING_SEC2LSI_CHECKSUM_LEN (0x1B9B - 0x01B0 + 0x1)
+
+struct rom_ap2ap_standard_cal_data macro_gc02m1_ap2ap_standard_cal_info = {
+	.rom_orig_start_addr                                       = 0x0,
+	.rom_orig_end_addr                                         = 0x7CF,
+	.rom_lsi_start_addr                                        = 0x0,
+	.rom_lsi_end_addr                                          = 0x1DBF,
+};
+
+struct rom_extend_cal_addr macro_gc02m1_ap2ap_extend_cal_addr = {
+	.name = EXTEND_AP2AP_STANDARD_CAL,
+	.data = &macro_gc02m1_ap2ap_standard_cal_info,
+	.next = NULL,
+};
 
 struct rom_standard_cal_data macro_gc02m1_standard_cal_info = {
 	.rom_standard_cal_start_addr                               = -1,
@@ -42,7 +55,7 @@ struct rom_standard_cal_data macro_gc02m1_standard_cal_info = {
 const struct rom_extend_cal_addr macro_gc02m1_extend_cal_addr = {
 	.name = EXTEND_STANDARD_CAL,
 	.data = &macro_gc02m1_standard_cal_info,
-	.next = NULL,
+	.next = &macro_gc02m1_ap2ap_extend_cal_addr,
 };
 
 const struct is_vender_rom_addr macro_gc02m1_cal_addr = {

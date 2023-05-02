@@ -252,7 +252,7 @@ static void aw36518_disable_led(void)
 	}
 }
 
-/* set torch bright cur , unit mA range 0 - 386*/
+/* set torch bright cur , unit mA range 0 - 386 */
 static void aw36518_set_torch_cur(int cur)
 {
 	unsigned char val;

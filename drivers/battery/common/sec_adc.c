@@ -10,6 +10,7 @@
  * published by the Free Software Foundation.
  */
 
+#include <linux/version.h>
 #include "sec_adc.h"
 
 #define DEBUG
@@ -72,8 +73,13 @@ int adc_read_type(struct device *dev, int channel)
 
 	if (batt_adc_list[channel].is_used) {
 		do {
+#if defined(CONFIG_ARCH_MTK_PROJECT) && (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
+			ret = (batt_adc_list[channel].is_used) ?
+				iio_read_channel_raw(batt_adc_list[channel].channel, &adc) : 0;
+#else
 			ret = (batt_adc_list[channel].is_used) ?
 				iio_read_channel_processed(batt_adc_list[channel].channel, &adc) : 0;
+#endif
 			retry_cnt--;
 		} while ((retry_cnt > 0) && (adc < 0));
 	}
