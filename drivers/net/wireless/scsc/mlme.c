@@ -45,6 +45,7 @@ static struct sk_buff *slsi_mlme_wait_for_cfm(struct slsi_dev *sdev, struct slsi
 {
 	struct sk_buff *cfm = NULL;
 	int            tm;
+	int            r;
 
 	tm = wait_for_completion_timeout(&sig_wait->completion, msecs_to_jiffies(*sdev->sig_wait_cfm_timeout));
 	spin_lock_bh(&sig_wait->send_signal_lock);
@@ -61,7 +62,14 @@ static struct sk_buff *slsi_mlme_wait_for_cfm(struct slsi_dev *sdev, struct slsi
 					 sig_wait->cfm_id, sig_wait->req_id);
 
 				spin_unlock_bh(&sig_wait->send_signal_lock);
-				slsi_sm_service_failed(sdev, reason);
+				/* Stop sending signals down*/
+				sdev->mlme_blocked = true;
+				queue_work(sdev->device_wq, &sdev->trigger_wlan_fail_work);
+				r = wait_for_completion_timeout(&sdev->service_fail_started_indication,
+							msecs_to_jiffies(SLSI_WLAN_FAIL_WORK_TIMEOUT));
+				if (r == 0)
+					SLSI_INFO(sdev, "service_fail_started_indication timeout\n");
+
 				spin_lock_bh(&sig_wait->send_signal_lock);
 			}
 		} else {
@@ -95,6 +103,7 @@ static struct sk_buff *slsi_mlme_wait_for_ind(struct slsi_dev *sdev, struct net_
 	struct netdev_vif *ndev_vif = netdev_priv(dev);
 	struct sk_buff    *ind = NULL;
 	int               tm = 0;
+	int               r = 0;
 
 	/* The indication and confirm may have been received in the same HIP read.
 	 * The HIP receive buffer processes all received signals in one thread whilst the
@@ -124,7 +133,13 @@ static struct sk_buff *slsi_mlme_wait_for_ind(struct slsi_dev *sdev, struct net_
 					 sig_wait->ind_id, sig_wait->req_id);
 
 				spin_unlock_bh(&sig_wait->send_signal_lock);
-				slsi_sm_service_failed(sdev, reason);
+				/* Stop sending signals down*/
+				sdev->mlme_blocked = true;
+				queue_work(sdev->device_wq, &sdev->trigger_wlan_fail_work);
+				r = wait_for_completion_timeout(&sdev->service_fail_started_indication,
+								msecs_to_jiffies(SLSI_WLAN_FAIL_WORK_TIMEOUT));
+				if (r == 0)
+					SLSI_INFO(sdev, "service_fail_started_indication timeout\n");
 				spin_lock_bh(&sig_wait->send_signal_lock);
 			}
 		} else {

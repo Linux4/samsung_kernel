@@ -29,6 +29,9 @@ enum slsi_ac_index_wmm_pe {
 #define SLSI_WLAN_OUI_TYPE_WFA_HS20_IND 0x10
 #define SLSI_WLAN_OUI_TYPE_WFA_OSEN 0x12
 #define SLSI_WLAN_OUI_TYPE_WFA_MBO 0x16
+
+#define SLSI_WLAN_FAIL_WORK_TIMEOUT  1500 /* 1.5s timeout */
+
 /*Extended capabilities bytes*/
 #define SLSI_WLAN_EXT_CAPA2_BSS_TRANSISITION_ENABLED  (1 << 3)
 #define SLSI_WLAN_EXT_CAPA3_INTERWORKING_ENABLED        (1 << 7)

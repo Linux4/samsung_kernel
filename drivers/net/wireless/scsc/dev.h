@@ -1128,7 +1128,7 @@ struct slsi_dev {
 
 	/* BoT */
 	atomic_t                   in_pause_state;
-
+	struct work_struct trigger_wlan_fail_work;   /* Work on mlme cfm or ind timeout*/
 	/* Locking used to control Starting and stopping the chip */
 #ifdef CONFIG_SCSC_WLAN_MUTEX_DEBUG
 	struct slsi_mutex          start_stop_mutex;
@@ -1219,6 +1219,7 @@ struct slsi_dev {
 	struct completion          recovery_remove_completion;
 	struct completion          recovery_stop_completion;
 	struct completion          recovery_completed;
+	struct completion          service_fail_started_indication;
 	int                        recovery_status;
 	struct slsi_ssid_map       ssid_map[SLSI_SCAN_SSID_MAP_MAX];
 	bool                       band_5g_supported;
