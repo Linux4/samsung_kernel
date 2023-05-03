@@ -152,33 +152,26 @@ out:
 int sec_input_handler_start(struct device *dev)
 {
 	struct sec_ts_plat_data *pdata = dev->platform_data;
-	int ret = 0;
+	unsigned int irq = gpio_to_irq(pdata->irq_gpio);
+	struct irq_desc *desc = irq_to_desc(irq);
 
-	if (gpio_get_value(pdata->irq_gpio) == 1)
-		return SEC_ERROR;
+	if (desc && desc->action) {
+		if ((desc->action->flags & IRQF_TRIGGER_LOW) && (gpio_get_value(pdata->irq_gpio) == 1))
+			return SEC_ERROR;
+	}
 
 	if (pdata->power_state == SEC_INPUT_STATE_LPM) {
 		__pm_wakeup_event(pdata->sec_ws, SEC_TS_WAKE_LOCK_TIME);
 
-		if (pdata->irq_workqueue) {
-			if (!pdata->resume_done.done) {
-				input_info(true, dev, "%s: disable_irq and run waiting thread\n", __func__);
+		if (!pdata->resume_done.done) {
+			if (!IS_ERR_OR_NULL(pdata->irq_workqueue)) {
+				input_info(true, dev, "%s: disable irq and queue waiting work\n", __func__);
 				disable_irq_nosync(gpio_to_irq(pdata->irq_gpio));
 				queue_work(pdata->irq_workqueue, &pdata->irq_work);
-				return SEC_ERROR;
+			} else {
+				input_err(true, dev, "%s: irq_workqueue not exist\n", __func__);
 			}
-		} else {
-			ret = wait_for_completion_interruptible_timeout(&pdata->resume_done, msecs_to_jiffies(500));
-			if (ret == 0) {
-				input_err(true, dev, "%s: LPM: pm resume is not handled\n", __func__);
-				return SEC_ERROR;
-			}
-			if (ret < 0) {
-				input_err(true, dev, "%s: LPM: -ERESTARTSYS if interrupted, %d\n", __func__, ret);
-				return ret;
-			}
-
-			input_info(true, dev, "%s: run LPM interrupt handler, %d\n", __func__, ret);
+			return SEC_ERROR;
 		}
 	}
 
@@ -1306,16 +1299,14 @@ void sec_input_unregister_vbus_notifier(struct device *dev)
 #if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	manager_notifier_unregister(&pdata->ccic_nb);
 #endif
+	vbus_notifier_unregister(&pdata->vbus_nb);
 	cancel_work_sync(&pdata->vbus_notifier_work);
 	flush_workqueue(pdata->vbus_notifier_workqueue);
 	destroy_workqueue(pdata->vbus_notifier_workqueue);
-
-	vbus_notifier_unregister(&pdata->vbus_nb);
 #endif
 }
 EXPORT_SYMBOL(sec_input_unregister_vbus_notifier);
 
-#define FW_NAME_DM "tsp_stm/fts2ba61y_dm"
 int sec_input_parse_dt(struct device *dev)
 {
 	struct sec_ts_plat_data *pdata = dev->platform_data;
@@ -1325,7 +1316,7 @@ int sec_input_parse_dt(struct device *dev)
 	int count = 0, i;
 	u32 ic_match_value;
 	u32 px_zone[3] = { 0 };
-	int lcd_type = 0, lcd_type_unload = 0;
+	int lcd_type = 0;
 	u32 bitmask[2] = { 0 };
 
 	pdata->dev = dev;
@@ -1349,13 +1340,6 @@ int sec_input_parse_dt(struct device *dev)
 		if ((lcd_type != 0) && ((lcd_type >> bitmask[0]) == bitmask[1])) {
 			input_err(true, dev, "%s: do not load lcdtype:0x%08X bitmask:0x%08X\n", __func__,
 						lcd_type >> bitmask[0], bitmask[1]);
-			return -ENODEV;
-		}
-	}
-
-	if (!of_property_read_u32(np, "sec,lcd_type_unload", &lcd_type_unload)) {
-		if ((lcd_type != 0) && (lcd_type == lcd_type_unload)) {
-			input_err(true, dev, "%s: do not load lcdtype 0x%08X\n", __func__, lcd_type);
 			return -ENODEV;
 		}
 	}
@@ -1574,9 +1558,13 @@ int sec_input_parse_dt(struct device *dev)
 			pdata->chip_on_board, pdata->disable_vsync_scan, pdata->unuse_dvdd_power,
 			pdata->not_support_temp_noti, pdata->support_vbus_notifier);
 
-	if (pdata->firmware_name && (strncmp(FW_NAME_DM, pdata->firmware_name, 20) == 0)) {
-		pdata->irq_workqueue = create_singlethread_workqueue("sec_input_delayed_irq");
+	pdata->irq_workqueue = create_singlethread_workqueue("sec_input_irq_wq");
+	if (!IS_ERR_OR_NULL(pdata->irq_workqueue)) {
 		INIT_WORK(&pdata->irq_work, sec_input_handler_wait_resume_work);
+		input_info(true, dev, "%s: set sec_input_handler_wait_resume_work\n", __func__);
+	} else {
+		input_err(true, dev, "%s: failed to create irq_workqueue, err: %ld\n",
+				__func__, PTR_ERR(pdata->irq_workqueue));
 	}
 
 	return ret;

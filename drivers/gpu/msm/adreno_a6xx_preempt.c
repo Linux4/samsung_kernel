@@ -732,6 +732,7 @@ int a6xx_preemption_init(struct adreno_device *adreno_dev)
 	if (ret)
 		return ret;
 		
+
 	/*
 	 * First 8 dwords of the preemption scratch buffer is used to store the address for CP
 	 * to save/restore VPC data. Reserve 11 dwords in the preemption scratch buffer from
