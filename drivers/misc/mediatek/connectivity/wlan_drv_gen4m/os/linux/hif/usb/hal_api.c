@@ -1275,6 +1275,11 @@ void halDevInit(IN struct ADAPTER *prAdapter)
 	glUdmaTxRxEnable(prGlueInfo, TRUE);
 }
 
+u_int8_t halTxIsCmdBufEnough(IN struct ADAPTER *prAdapter)
+{
+	return TRUE;
+}
+
 u_int8_t halTxIsDataBufEnough(IN struct ADAPTER *prAdapter, IN struct MSDU_INFO *prMsduInfo)
 {
 	struct GLUE_INFO *prGlueInfo = prAdapter->prGlueInfo;

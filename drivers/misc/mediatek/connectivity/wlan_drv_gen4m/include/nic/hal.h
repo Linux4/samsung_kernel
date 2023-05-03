@@ -1160,6 +1160,7 @@ void halWakeUpWiFi(IN struct ADAPTER *prAdapter);
 void halTxCancelSendingCmd(IN struct ADAPTER *prAdapter,
 	IN struct CMD_INFO *prCmdInfo);
 void halTxCancelAllSending(IN struct ADAPTER *prAdapter);
+u_int8_t halTxIsCmdBufEnough(IN struct ADAPTER *prAdapter);
 u_int8_t halTxIsDataBufEnough(IN struct ADAPTER *prAdapter,
 	IN struct MSDU_INFO *prMsduInfo);
 void halProcessTxInterrupt(IN struct ADAPTER *prAdapter);

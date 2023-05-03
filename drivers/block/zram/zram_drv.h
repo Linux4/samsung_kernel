@@ -18,6 +18,7 @@
 #include <linux/rwsem.h>
 #include <linux/zsmalloc.h>
 #include <linux/crypto.h>
+#include <linux/mm.h>
 
 #include "zcomp.h"
 
@@ -40,7 +41,12 @@
  * The lower ZRAM_FLAG_SHIFT bits is for object size (excluding header),
  * the higher bits is for zram_pageflags.
  */
+#ifdef CONFIG_ARM
+/* 32-bit ARM compatibility of ZRAM_PPR and ZRAM_UNDER_PPR flags */
+#define ZRAM_FLAG_SHIFT 16
+#else
 #define ZRAM_FLAG_SHIFT 24
+#endif
 
 /* Flags for zram pages (table[page_no].flags) */
 enum zram_pageflags {
@@ -53,6 +59,8 @@ enum zram_pageflags {
 	ZRAM_IDLE,	/* not accessed page since last idle marking */
 	ZRAM_EXPIRE,
 	ZRAM_READ_BDEV,
+	ZRAM_PPR,
+	ZRAM_UNDER_PPR,
 
 	__NR_ZRAM_PAGEFLAGS,
 };
@@ -97,10 +105,26 @@ struct zram_stats {
 #ifdef CONFIG_ZRAM_LRU_WRITEBACK
 	atomic64_t bd_expire;
 	atomic64_t bd_objcnt;
+	atomic64_t bd_size;
+	atomic64_t bd_max_count;
+	atomic64_t bd_max_size;
+	atomic64_t bd_ppr_count;
+	atomic64_t bd_ppr_reads;
+	atomic64_t bd_ppr_writes;
+	atomic64_t bd_ppr_objcnt;
+	atomic64_t bd_ppr_size;
+	atomic64_t bd_ppr_max_count;
+	atomic64_t bd_ppr_max_size;
+	atomic64_t bd_objreads;
+	atomic64_t bd_objwrites;
 #endif
 };
 
 #ifdef CONFIG_ZRAM_LRU_WRITEBACK
+#define ZRAM_WB_THRESHOLD 32
+#define NR_ZWBS 16
+#define NR_FALLOC_PAGES 512
+#define FALLOC_ALIGN_MASK (~(NR_FALLOC_PAGES - 1))
 struct zram_wb_header {
 	u32 index;
 	u32 size;
@@ -120,6 +144,20 @@ struct zram_wb_entry {
 	unsigned int offset;
 	unsigned int size;
 };
+
+struct zwbs {
+	struct zram_wb_entry entry[ZRAM_WB_THRESHOLD];
+	struct page *page;
+	u32 cnt;
+	u32 off;
+};
+
+void free_zwbs(struct zwbs **);
+int alloc_zwbs(struct zwbs **);
+bool zram_is_app_launch(void);
+int is_writeback_entry(swp_entry_t);
+void swap_add_to_list(struct list_head *, swp_entry_t);
+void swap_writeback_list(struct zwbs **, struct list_head *);
 #endif
 
 struct zram {
@@ -162,11 +200,15 @@ struct zram {
 	struct task_struct *wbd;
 	wait_queue_head_t wbd_wait;
 	u8 *wb_table;
+	unsigned long *chunk_bitmap;
 	bool wbd_running;
 	bool io_complete;
 	struct list_head list;
 	spinlock_t list_lock;
 	spinlock_t wb_table_lock;
+	spinlock_t bitmap_lock;
+	unsigned long *blk_bitmap;
+	struct mutex blk_bitmap_lock;
 #endif
 };
 

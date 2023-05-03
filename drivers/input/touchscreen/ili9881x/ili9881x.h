@@ -151,12 +151,17 @@
 /* Path */
 #define CHIP_ID_9882			"9882"
 #define CHIP_ID_7806S			"7806s"
+#define CHIP_ID_9882Q			"9882q"
+#define CHIP_TYPE_9882N			0x17
+#define CHIP_TYPE_9882Q			0x1A
 #define INI_PATH_SIZE			64
 #define DEBUG_DATA_FILE_SIZE		(10*K)
 #define DEBUG_DATA_FILE_PATH		"/sdcard/ILITEK_log.csv"
 #define CSV_LCM_ON_PATH			"/sdcard/ilitek_mp_lcm_on_log"
 #define CSV_LCM_OFF_PATH		"/sdcard/ilitek_mp_lcm_off_log"
 #define INI_PATH			"/vendor/firmware/"
+
+/* 9882n & 7806S */
 #define RAWDATANOBK_LCMON_PATH		"Command_Rawdatanobk_LCMON.ini"
 #define DOZERAW_PATH			"Command_Dozeraw.ini"
 #define DAC_PATH			"Command_DAC.ini"
@@ -168,6 +173,9 @@
 #define P2P_TD_PATH			"Command_P2P_TD.ini"
 #define RAWDATATD_PATH			"Command_RawdataTD.ini"
 #define RAWDATANOBK_LCMOFF_PATH		"Command_Rawdatanobk_LCMOFF.ini"
+/* only for 9882q */
+#define RAWDATAHAVEBK_LCMON_PATH	"Command_Rawdatahavebk_LCMON.ini"
+#define RAWDATAHAVEBK_LCMOFF_PATH	"Command_Rawdatahavebk_LCMOFF.ini"
 
 #define POWER_STATUS_PATH		"/sys/class/power_supply/battery/status"
 #define DUMP_FLASH_PATH			"/sdcard/flash_dump"
@@ -431,6 +439,9 @@ enum MP_INI_PATH {
 	P2P_TD_PATH_NUM,
 	RAWDATATD_PATH_NUM,
 	RAWDATANOBK_LCMOFF_PATH_NUM,
+	/* only for 9882q */
+	RAWDATAHAVEBK_LCMON_PATH_NUM,
+	RAWDATAHAVEBK_LCMOFF_PATH_NUM,
 	MP_INI_PATH_MAX
 };
 

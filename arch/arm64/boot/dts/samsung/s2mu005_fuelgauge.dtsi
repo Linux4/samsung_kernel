@@ -252,7 +252,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/fuelgauge/s2mu005_fuelgauge/s2mu005_fuelgauge.a02.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/fuelgauge/s2mu005_fuelgauge/s2mu005_fuelgauge.a02.dtsi */
 
 &pio {
 	fg_alert_default: fg_alert_default {

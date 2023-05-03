@@ -280,6 +280,34 @@
 				smcdsd_board = <&smcdsd_board_ili7806s>;
 			};
 
+			ili9882q_boe: ili9882q_boe {
+				/* id_match: MASK(HEX) EXPECT(HEX) */
+				id_match = <
+					0xFFFFFF 0x7A6250	/* A02 */
+				>;
+				lcm_params-types = <2>; /* 0: LCM_TYPE_DBI, 1: LCM_TYPE_DPI, 2: LCM_TYPE_DSI */
+				lcm_params-dsi-mode = <3>; /* 0: CMD, 1: SYNC_PULSE_VDO, 2: SYNC_EVENT_VDO, 3: BURST_VDO */
+				lcm_params-dsi-lane_num = <3>;
+				lcm_params-dsi-packet_size = <256>;
+				lcm_params-dsi-ps = <2>; /* 2: LCM_PACKED_PS_24BIT_RGB888 */
+
+				lcm_params-resolution = <720 1600>;
+				lcm_params-physical_width = <68>;		/* 67.93 x 150.96 */
+				lcm_params-physical_height = <151>;
+
+				lcm_params-dsi-vertical_sync_active = <2>;
+				lcm_params-dsi-vertical_backporch = <18>;
+				lcm_params-dsi-vertical_frontporch = <250>;
+				lcm_params-dsi-horizontal_sync_active = <34>;
+				lcm_params-dsi-horizontal_backporch = <60>;
+				lcm_params-dsi-horizontal_frontporch = <60>;
+
+				lcm_params-dsi-data_rate = <830>;
+				lcm_params-dsi-ssc_disable = <1>;
+				lcm_params-dsi-cont_clock = <1>;
+
+				smcdsd_board = <&smcdsd_board_ili7806s>;
+			};
 		};
 	};
 };

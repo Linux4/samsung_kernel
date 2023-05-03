@@ -2086,47 +2086,36 @@ void nicTxFreeDescTemplate(IN struct ADAPTER *prAdapter,
 	uint8_t ucTid;
 	uint8_t ucTxDescSize;
 	void *prTxDesc;
+	void *prFirstTxDesc;
 
 	DBGLOG(QM, TRACE, "Free TXD template for STA[%u] QoS[%u]\n",
 	       prStaRec->ucIndex, prStaRec->fgIsQoS);
 
 	prTxDescOps = prAdapter->chip_info->prTxDescOps;
-	if (prStaRec->fgIsQoS) {
-		for (ucTid = 0; ucTid < TX_DESC_TID_NUM; ucTid++) {
-			prTxDesc = prStaRec->aprTxDescTemplate[ucTid];
 
-			if (prTxDesc) {
-				if (prTxDescOps->nic_txd_long_format_op(
-					prTxDesc, FALSE))
-					ucTxDescSize =
-						NIC_TX_DESC_LONG_FORMAT_LENGTH;
-				else
-					ucTxDescSize =
-						NIC_TX_DESC_SHORT_FORMAT_LENGTH;
+	prFirstTxDesc = prStaRec->aprTxDescTemplate[0];
+	for (ucTid = 0; ucTid < TX_DESC_TID_NUM; ucTid++) {
+		prTxDesc = prStaRec->aprTxDescTemplate[ucTid];
 
-				kalMemFree(prTxDesc, VIR_MEM_TYPE,
-					ucTxDescSize);
-
-				prTxDesc =
-					prStaRec->aprTxDescTemplate[ucTid] =
-					NULL;
-			}
-		}
-	} else {
-		prTxDesc = prStaRec->aprTxDescTemplate[0];
 		if (prTxDesc) {
+			if (ucTid > 0 && prTxDesc == prFirstTxDesc)
+				break;
 			if (prTxDescOps->nic_txd_long_format_op(
 				prTxDesc, FALSE))
-				ucTxDescSize = NIC_TX_DESC_LONG_FORMAT_LENGTH;
+				ucTxDescSize =
+					NIC_TX_DESC_LONG_FORMAT_LENGTH;
 			else
-				ucTxDescSize = NIC_TX_DESC_SHORT_FORMAT_LENGTH;
+				ucTxDescSize =
+					NIC_TX_DESC_SHORT_FORMAT_LENGTH;
 
-			kalMemFree(prTxDesc, VIR_MEM_TYPE, ucTxDescSize);
-			prTxDesc = NULL;
+			kalMemFree(prTxDesc, VIR_MEM_TYPE,
+				ucTxDescSize);
 		}
-		for (ucTid = 0; ucTid < TX_DESC_TID_NUM; ucTid++)
-			prStaRec->aprTxDescTemplate[ucTid] = NULL;
 	}
+
+	for (ucTid = 0; ucTid < TX_DESC_TID_NUM; ucTid++)
+		prStaRec->aprTxDescTemplate[ucTid] = NULL;
+
 }
 
 /*----------------------------------------------------------------------------*/
@@ -2385,6 +2374,9 @@ uint32_t nicTxCmd(IN struct ADAPTER *prAdapter,
 #if (CFG_SUPPORT_TRACE_TC4 == 1)
 	wlanTraceTxCmd(prCmdInfo);
 #endif
+
+	if (!halTxIsCmdBufEnough(prAdapter))
+		return WLAN_STATUS_RESOURCES;
 
 	if (prCmdInfo->eCmdType == COMMAND_TYPE_SECURITY_FRAME ||
 		prCmdInfo->eCmdType == COMMAND_TYPE_DATA_FRAME) {

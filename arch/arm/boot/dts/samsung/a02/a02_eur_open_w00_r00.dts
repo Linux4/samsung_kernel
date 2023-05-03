@@ -690,7 +690,7 @@
 #include <dt-bindings/clock/mt6739-clk.h>
 
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6739/ap_mtk_mt6739.a02.00.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/ap/mtk/mt6739/ap_mtk_mt6739.a02.00.dtsi */
 
 #include "../../k39tv1_bsp_titan_hamster.dts"
 #include "../../k39tv1_bsp_titan_hamster/gpio00.dtsi"
@@ -1177,7 +1177,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/hwmon/sec_thermistor/sec_thermistor_mtk.a02.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/hwmon/sec_thermistor/sec_thermistor_mtk.a02.dtsi */
 / {
 	fragment@smd {
 		target-path = "/";
@@ -1499,7 +1499,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/fuelgauge/s2mu005_fuelgauge/s2mu005_fuelgauge.a02.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/fuelgauge/s2mu005_fuelgauge/s2mu005_fuelgauge.a02.dtsi */
 
 &pio {
 	fg_alert_default: fg_alert_default {
@@ -2052,7 +2052,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/common/dts/battery_common.a02.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/common/dts/battery_common.a02.dtsi */
 &sec_battery {
 	pinctrl-names = "default";
 
