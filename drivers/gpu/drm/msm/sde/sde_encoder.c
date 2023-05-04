@@ -2034,8 +2034,7 @@ static int _sde_encoder_update_rsc_client(
 			rsc_state = enable ? SDE_RSC_VID_STATE :
 					SDE_RSC_IDLE_STATE;
 	} else {
-		if (sde_encoder_in_clone_mode(drm_enc) || (!disp_info->is_primary &&
-			(sde_encoder_check_curr_mode(drm_enc, MSM_DISPLAY_CMD_MODE))))
+		if (sde_encoder_in_clone_mode(drm_enc))
 			rsc_state = enable ? SDE_RSC_CLK_STATE :
 					SDE_RSC_IDLE_STATE;
 		else
