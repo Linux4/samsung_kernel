@@ -40,6 +40,15 @@ int stm_ts_set_custom_library(struct stm_ts_data *ts)
 	if (ret < 0)
 		input_err(true, &ts->client->dev, "%s: Failed to write sponge\n", __func__);
 
+#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
+	/* inf dump enable */
+	data[0] = STM_TS_CMD_SPONGE_OFFSET_MODE_01;
+	data[2] = ts->plat_data->sponge_mode |= SEC_TS_MODE_SPONGE_INF_DUMP;
+
+	ret = ts->stm_ts_write_sponge(ts, data, 3);
+	if (ret < 0)
+		input_err(true, &ts->client->dev, "%s: Failed to write sponge\n", __func__);
+#endif
 		/* read dump info */
 	data[0] = STM_TS_CMD_SPONGE_LP_DUMP;
 
@@ -90,6 +99,15 @@ void stm_ts_get_custom_library(struct stm_ts_data *ts)
 	}
 
 	sec_input_set_fod_info(&ts->client->dev, data[0], data[1], data[2], data[3]);
+
+	data[0] = STM_TS_CMD_SPONGE_OFFSET_MODE_01;
+	ret = ts->stm_ts_read_sponge(ts, data, 2);
+	if (ret < 0) {
+		input_err(true, &ts->client->dev, "%s: Failed to read mode 01 info\n", __func__);
+		return;
+	}
+	ts->plat_data->sponge_mode = data[0];
+	input_info(true, &ts->client->dev, "%s: sponge_mode %x\n", __func__, ts->plat_data->sponge_mode);
 }
 
 void stm_ts_set_fod_finger_merge(struct stm_ts_data *ts)
@@ -319,39 +337,37 @@ int stm_ts_systemreset(struct stm_ts_data *ts, unsigned int msec)
 int stm_ts_fix_active_mode(struct stm_ts_data *ts, int mode)
 {
 	u8 address[3] = {0xA0, 0x00, 0x00};
-	int ret;
+	int ret = -EINVAL;
 
-	if (mode == STM_TS_ACTIVE_TRUE) {
-		address[1] = 0x03;
-		address[2] = 0x00;
-	} else if (mode == STM_TS_ACTIVE_FALSE) {
+	switch (mode) {
+	case STM_TS_ACTIVE_FALSE:
 		address[1] = 0x00;
 		address[2] = 0x01;
-
 		ts->stm_ts_command(ts, STM_TS_CMD_SENSE_OFF, false);
 		sec_delay(10);
-	} else if (mode == STM_TS_ACTIVE_FALSE_SNR) {
+		break;
+	case STM_TS_ACTIVE_TRUE:
+		address[1] = 0x03;
+		address[2] = 0x00;
+		break;
+	case STM_TS_ACTIVE_FALSE_SNR:
 		address[1] = 0x00;
 		address[2] = 0x01;
-	} else {
-		input_info(true, &ts->client->dev, "%s: err data mode: %d\n", __func__, mode);
+		break;
+	default:
+		input_err(true, &ts->client->dev, "%s: err data mode: %d\n", __func__, mode);
+		return ret;
 	}
-	
+
 	ret = ts->stm_ts_write(ts, &address[0], 3, NULL, 0);
-	if (ret < 0) {
-		input_info(true, &ts->client->dev, "%s: err: %d\n", __func__, ret);
-	} else {
-		if (mode == STM_TS_ACTIVE_TRUE) {
-			input_info(true, &ts->client->dev, "%s: STM_TS_ACTIVE_TRUE% d\n", __func__, mode);
-		} else if (mode == STM_TS_ACTIVE_FALSE) {
-			input_info(true, &ts->client->dev, "%s: STM_TS_ACTIVE_FALSE% d\n", __func__, mode);
-		} else if (mode == STM_TS_ACTIVE_FALSE_SNR) {
-			input_info(true, &ts->client->dev, "%s: STM_TS_ACTIVE_FALSE_SNR% d\n", __func__, mode);
-		}
-	}
+	if (ret < 0)
+		input_err(true, &ts->client->dev, "%s: err: %d, mode: %d\n", __func__, ret, mode);
+	else
+		input_info(true, &ts->client->dev, "%s: %d STM_TS_ACTIVE_%s\n", __func__, mode,
+					(mode == STM_TS_ACTIVE_TRUE) ? "TRUE" :
+					(mode == STM_TS_ACTIVE_FALSE) ? "FALSE" : "FALSE_SNR");
 
 	sec_delay(10);
-
 	return ret;
 }
 
@@ -678,6 +694,24 @@ out:
 	return rc;
 }
 
+int stm_ts_set_vvc_mode(struct stm_ts_data *ts, bool enable)
+{
+	int ret = 0;
+	u8 data[3];
+
+	/* register */
+	data[0] = 0xC1;
+	data[1] = 0x17;
+	if (enable)
+		data[2] = ts->vvc_mode;
+	else
+		data[2] = 0x00;
+
+	ret = ts->stm_ts_write(ts, data, 3, NULL, 0);
+	input_info(true, &ts->client->dev, "%s: vvc mode write: %02X, ret: %d\n", __func__, data[2], ret);
+	return ret;
+}
+
 int stm_ts_set_opmode(struct stm_ts_data *ts, u8 mode)
 {
 	int ret;
@@ -766,7 +800,7 @@ retry_pmode:
 		goto error;
 	}
 
-	sec_delay(5);
+	sec_delay(ts->lpmode_change_delay);
 
 	address = STM_TS_CMD_SET_GET_OPMODE;
 	ret = ts->stm_ts_read(ts, &address, 1, &para, 1);
@@ -835,74 +869,90 @@ void stm_ts_reset(struct stm_ts_data *ts, unsigned int ms)
 	sec_delay(TOUCH_POWER_ON_DWORK_TIME);
 }
 
-void stm_ts_reset_work(struct work_struct *work)
+int stm_ts_reset_work_from_preparation_to_completion(struct stm_ts_data *ts, bool prepare, bool need_to_reset)
 {
-	struct stm_ts_data *ts = container_of(work, struct stm_ts_data,
-			reset_work.work);
-	int ret;
-	char result[32];
-	char test[32];
-
+	if (prepare) {
 #if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
-	if (atomic_read(&ts->secure_enabled) == SECURE_TOUCH_ENABLE) {
-		input_err(true, &ts->client->dev, "%s: secure touch enabled\n", __func__);
-		return;
-	}
+		if (atomic_read(&ts->secure_enabled) == SECURE_TOUCH_ENABLE) {
+			input_err(true, &ts->client->dev, "%s: secure touch enabled\n", __func__);
+			return -1;
+		}
 #endif
-	if (ts->reset_is_on_going) {
-		input_err(true, &ts->client->dev, "%s: reset is ongoing\n", __func__);
-		return;
-	}
+		if (ts->reset_is_on_going) {
+			input_err(true, &ts->client->dev, "%s: reset is ongoing\n", __func__);
+			return -1;
+		}
 
-	mutex_lock(&ts->modechange);
-	__pm_stay_awake(ts->plat_data->sec_ws);
+		mutex_lock(&ts->modechange);
+		__pm_stay_awake(ts->plat_data->sec_ws);
 
-	ts->reset_is_on_going = true;
-	input_info(true, &ts->client->dev, "%s\n", __func__);
+		ts->reset_is_on_going = true;
+	} else {
+		char result[32];
 
-	ts->plat_data->stop_device(ts);
-
-	sec_delay(TOUCH_POWER_ON_DWORK_TIME);
-
-	ret = ts->plat_data->start_device(ts);
-	if (ret < 0) {
-		/* for ACT i2c recovery fail test */
-		snprintf(test, sizeof(test), "TEST=RECOVERY");
-		snprintf(result, sizeof(result), "RESULT=FAIL");
-		if (ts->probe_done)
-			sec_cmd_send_event_to_user(&ts->sec, test, result);
-
-		input_err(true, &ts->client->dev, "%s: failed to reset, ret:%d\n", __func__, ret);
 		ts->reset_is_on_going = false;
-		cancel_delayed_work(&ts->reset_work);
-		if (!ts->plat_data->shutdown_called)
-			schedule_delayed_work(&ts->reset_work, msecs_to_jiffies(TOUCH_RESET_DWORK_TIME));
-		mutex_unlock(&ts->modechange);
+
+		if (need_to_reset) {
+			cancel_delayed_work(&ts->reset_work);
+			if (!ts->plat_data->shutdown_called)
+				schedule_delayed_work(&ts->reset_work, msecs_to_jiffies(TOUCH_RESET_DWORK_TIME));
+		}
 
 		snprintf(result, sizeof(result), "RESULT=RESET");
 		if (ts->probe_done)
 			sec_cmd_send_event_to_user(&ts->sec, NULL, result);
 
+		mutex_unlock(&ts->modechange);
 		__pm_relax(ts->plat_data->sec_ws);
+	}
 
+	return 0;
+}
+
+void stm_ts_reset_work(struct work_struct *work)
+{
+	struct stm_ts_data *ts = container_of(work, struct stm_ts_data, reset_work.work);
+	int ret;
+	bool prepare = true;
+	bool need_to_reset = false;
+
+	ret = stm_ts_reset_work_from_preparation_to_completion(ts, prepare, need_to_reset);
+	if (ret < 0)
 		return;
+
+	prepare = false;
+	input_info(true, &ts->client->dev, "%s\n", __func__);
+
+	ts->plat_data->stop_device(ts);
+	sec_delay(TOUCH_POWER_ON_DWORK_TIME);
+
+	ret = ts->plat_data->start_device(ts);
+	if (ret < 0) {
+		/* for ACT recovery fail test */
+		char result[32];
+		char test[32];
+		snprintf(test, sizeof(test), "TEST=RECOVERY");
+		snprintf(result, sizeof(result), "RESULT=FAIL");
+		if (ts->probe_done)
+			sec_cmd_send_event_to_user(&ts->sec, test, result);
+
+		input_err(true, &ts->client->dev, "%s: Reset failure, ret:%d\n", __func__, ret);
+		need_to_reset = true;
+		goto reset_work_completion;
 	}
 
 	if (!ts->plat_data->enabled) {
 		input_err(true, &ts->client->dev, "%s: call input_close\n", __func__);
 
-		if (ts->plat_data->lowpower_mode || ts->plat_data->ed_enable || ts->plat_data->pocket_mode || ts->plat_data->fod_lp_mode) {
+		if (ts->plat_data->lowpower_mode || ts->plat_data->ed_enable ||
+			ts->plat_data->pocket_mode || ts->plat_data->fod_lp_mode) {
 			ret = ts->plat_data->lpmode(ts, TO_LOWPOWER_MODE);
 			if (ret < 0) {
-				input_err(true, &ts->client->dev, "%s: failed to reset, ret:%d\n", __func__, ret);
-				ts->reset_is_on_going = false;
-				cancel_delayed_work(&ts->reset_work);
-				if (!ts->plat_data->shutdown_called)
-					schedule_delayed_work(&ts->reset_work, msecs_to_jiffies(TOUCH_RESET_DWORK_TIME));
-				mutex_unlock(&ts->modechange);
-				__pm_relax(ts->plat_data->sec_ws);
-				return;
+				input_err(true, &ts->client->dev, "%s: Reset failure, ret:%d\n", __func__, ret);
+				need_to_reset = true;
+				goto reset_work_completion;
 			}
+
 			if (ts->plat_data->lowpower_mode & SEC_TS_MODE_SPONGE_AOD)
 				stm_ts_set_aod_rect(ts);
 		} else {
@@ -910,18 +960,11 @@ void stm_ts_reset_work(struct work_struct *work)
 		}
 	}
 
-	ts->reset_is_on_going = false;
-	mutex_unlock(&ts->modechange);
+	if ((ts->plat_data->power_state == SEC_INPUT_STATE_POWER_ON) && (ts->fix_active_mode))
+		stm_ts_fix_active_mode(ts, STM_TS_ACTIVE_TRUE);
 
-	if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_ON)
-		if (ts->fix_active_mode)
-			stm_ts_fix_active_mode(ts, STM_TS_ACTIVE_TRUE);
-
-	snprintf(result, sizeof(result), "RESULT=RESET");
-	if (ts->probe_done)
-		sec_cmd_send_event_to_user(&ts->sec, NULL, result);
-
-	__pm_relax(ts->plat_data->sec_ws);
+reset_work_completion:
+	stm_ts_reset_work_from_preparation_to_completion(ts, prepare, need_to_reset);
 }
 
 void stm_ts_print_info_work(struct work_struct *work)
@@ -939,6 +982,56 @@ void stm_ts_print_info_work(struct work_struct *work)
 	if (!ts->plat_data->shutdown_called)
 		schedule_delayed_work(&ts->work_print_info, msecs_to_jiffies(TOUCH_PRINT_INFO_DWORK_TIME));
 }
+
+#ifdef ENABLE_RAWDATA_SERVICE
+void stm_ts_read_rawdata_address(struct stm_ts_data *ts)
+{
+	u8 reg[8];
+	u8 header[16];
+	int ret;
+	int retry = 0;
+
+	input_info(true, &ts->client->dev, "%s\n", __func__);
+
+	disable_irq(ts->irq);
+
+	reg[0] = 0xA4;
+	reg[1] = 0x06;
+	reg[2] = 0x01;
+
+	ret = ts->stm_ts_write(ts, reg, 3, NULL, 0);
+	sec_delay(50);
+	do {
+		memset(header, 0x00, 16);
+		reg[0] = 0xA7;
+		reg[1] = 0x00;
+		reg[2] = 0x00;
+		ret = ts->stm_ts_read(ts, reg, 3, header, 16);
+		if (header[0] == 0xA5 && header[1] == 0x1)
+			break;
+		sec_delay(30);
+	} while (retry--);
+
+	reg[0] = 0xA7;
+	reg[1] = 0x00;
+	if (ts->raw_mode == 2)//RAW
+		reg[2] = 0x88;
+	else if (ts->raw_mode == 1)//STRENGTH
+		reg[2] = 0x8C;
+	memset(header, 0x00, 16);
+	ret = ts->stm_ts_read(ts, reg, 3, header, 2);
+
+	ts->raw_addr_h = header[1];
+	ts->raw_addr_l = header[0];
+
+	reg[0] = 0xA7;
+	reg[1] = ts->raw_addr_h;
+	reg[2] = ts->raw_addr_l;
+
+	ret = ts->stm_ts_read(ts, reg, 3, ts->raw_u8, ts->tx_count * ts->rx_count * 2);
+	enable_irq(ts->irq);
+}
+#endif
 
 void stm_ts_read_info_work(struct work_struct *work)
 {
@@ -975,8 +1068,13 @@ void stm_ts_read_info_work(struct work_struct *work)
 	if (ts->plat_data->shutdown_called) {
 		input_err(true, &ts->client->dev, "%s done, do not run work\n", __func__);
 		return;
-	} else {
-		schedule_work(&ts->work_print_info.work);
+	}
+
+	schedule_work(&ts->work_print_info.work);
+
+	if (ts->change_flip_status) {
+		input_info(true, &ts->client->dev, "%s: re-try switching after reading info\n", __func__);
+		schedule_work(&ts->switching_work.work);
 	}
 }
 
@@ -1623,5 +1721,196 @@ int _stm_tclm_data_write(struct stm_ts_data *ts, int address)
 
 	}
 }
+
+void stm_chk_tsp_ic_status(struct stm_ts_data *ts, int call_pos)
+{
+	u8 data[3] = { 0 };
+
+	if (!ts->probe_done) {
+		input_info(true, &ts->client->dev, "%s not finished probe_done\n", __func__);
+		return;
+	}
+
+	mutex_lock(&ts->status_mutex);
+
+	input_info(true, &ts->client->dev,
+			"%s: START: pos[%d] power_state[0x%X] lowpower_flag[0x%X] %sfolding\n",
+			__func__, call_pos, ts->plat_data->power_state, ts->plat_data->lowpower_mode,
+			ts->flip_status_current ? "" : "un");
+
+	if (ts->plat_data->support_dual_foldable == MAIN_TOUCH) {
+		if (call_pos == STM_TS_STATE_CHK_POS_OPEN) {
+			input_dbg(true, &ts->client->dev, "%s(main): OPEN : Nothing\n", __func__);
+		} else if (call_pos == STM_TS_STATE_CHK_POS_CLOSE) {
+			input_dbg(true, &ts->client->dev, "%s(main): CLOSE: Nothing\n", __func__);
+		} else if (call_pos == STM_TS_STATE_CHK_POS_HALL) {
+			if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM && ts->flip_status_current == STM_TS_STATUS_FOLDING) {
+				input_info(true, &ts->client->dev, "%s(main): HALL : TSP IC LP => IC OFF\n", __func__);
+				ts->plat_data->stop_device(ts);
+
+			} else {
+				input_info(true, &ts->client->dev, "%s(main): HALL : Nothing\n", __func__);
+			}
+		} else if (call_pos == STM_TS_STATE_CHK_POS_SYSFS) {
+			if (ts->flip_status_current == STM_TS_STATUS_UNFOLDING) {
+				if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF && ts->plat_data->lowpower_mode) {
+					input_info(true, &ts->client->dev, "%s(main): SYSFS: TSP IC OFF => LP mode[0x%X]\n",
+									__func__, ts->plat_data->lowpower_mode);
+					ts->plat_data->start_device(ts);
+					ts->plat_data->lpmode(ts, TO_LOWPOWER_MODE);
+
+				} else if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM && ts->plat_data->lowpower_mode == 0) {
+					input_info(true, &ts->client->dev, "%s(main): SYSFS: LP mode [0x0] => TSP IC OFF\n",
+									__func__);
+					ts->plat_data->stop_device(ts);
+				} else {
+					input_info(true, &ts->client->dev, "%s(main): SYSFS: set lowpower_flag again[0x%X]\n",
+									__func__, ts->plat_data->lowpower_mode);
+
+					data[2] = ts->plat_data->lowpower_mode;
+					ts->stm_ts_write_sponge(ts, data, 3);
+				}
+			} else {
+				input_info(true, &ts->client->dev, "%s(main): SYSFS: folding nothing[0x%X]\n", __func__, ts->plat_data->lowpower_mode);
+			}
+		} else {
+			input_info(true, &ts->client->dev, "%s(main): ETC  : nothing!\n", __func__);
+		}
+	} else if (ts->plat_data->support_dual_foldable == SUB_TOUCH) {
+		if (call_pos == STM_TS_STATE_CHK_POS_OPEN) {
+			input_dbg(true, &ts->client->dev, "%s(sub): OPEN  : Notthing\n", __func__);
+
+		} else if (call_pos == STM_TS_STATE_CHK_POS_CLOSE) {
+			if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM && ts->flip_status_current == STM_TS_STATUS_UNFOLDING) {
+				input_info(true, &ts->client->dev, "%s(sub): HALL  : TSP IC LP => IC OFF\n", __func__);
+				ts->plat_data->stop_device(ts);
+			}
+		} else if (call_pos == STM_TS_STATE_CHK_POS_HALL) {
+			if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM && ts->flip_status_current == STM_TS_STATUS_UNFOLDING) {
+				input_info(true, &ts->client->dev, "%s(sub): HALL  : TSP IC LP => IC OFF\n", __func__);
+				ts->plat_data->stop_device(ts);
+			} else if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF && ts->flip_status_current == STM_TS_STATUS_FOLDING && ts->plat_data->lowpower_mode != 0) {
+				input_info(true, &ts->client->dev, "%s(sub): HALL  : TSP IC OFF => LP[0x%X]\n", __func__, ts->plat_data->lowpower_mode);
+				ts->plat_data->start_device(ts);
+				ts->plat_data->lpmode(ts, TO_LOWPOWER_MODE);
+			} else {
+				input_info(true, &ts->client->dev, "%s(sub): HALL  : nothing!\n", __func__);
+			}
+
+		} else if (call_pos == STM_TS_STATE_CHK_POS_SYSFS) {
+			if (ts->flip_status_current == STM_TS_STATUS_FOLDING) {
+				if (ts->plat_data->power_state == SEC_INPUT_STATE_POWER_OFF && ts->plat_data->lowpower_mode) {
+					input_info(true, &ts->client->dev, "%s(sub): SYSFS : TSP IC OFF => LP mode[0x%X]\n", __func__, ts->plat_data->lowpower_mode);
+					ts->plat_data->start_device(ts);
+					ts->plat_data->lpmode(ts, TO_LOWPOWER_MODE);
+
+				} else if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM && ts->plat_data->lowpower_mode == 0) {
+					input_info(true, &ts->client->dev, "%s(sub): SYSFS : LP mode [0x0] => IC OFF\n", __func__);
+					ts->plat_data->stop_device(ts);
+
+				} else if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM && ts->plat_data->lowpower_mode != 0) {
+					input_info(true, &ts->client->dev, "%s(sub): SYSFS : call LP mode again\n", __func__);
+					ts->plat_data->lpmode(ts, TO_LOWPOWER_MODE);
+
+				} else {
+					input_info(true, &ts->client->dev, "%s(sub): SYSFS : nothing!\n", __func__);
+				}
+			} else {
+				if (ts->plat_data->power_state == SEC_INPUT_STATE_LPM) {
+					input_info(true, &ts->client->dev, "%s(sub): SYSFS : rear selfie off => IC OFF\n", __func__);
+					ts->plat_data->stop_device(ts);
+				} else {
+					input_info(true, &ts->client->dev, "%s(sub): SYSFS : unfolding nothing[0x%X]\n", __func__, ts->plat_data->lowpower_mode);
+				}
+			}
+
+		} else {
+			input_info(true, &ts->client->dev, "%s(sub): Abnormal case\n", __func__);
+		}
+	}
+
+	input_info(true, &ts->client->dev, "%s: END  : pos[%d] power_state[0x%X] lowpower_flag[0x%X]\n",
+					__func__, call_pos, ts->plat_data->power_state, ts->plat_data->lowpower_mode);
+
+	mutex_unlock(&ts->status_mutex);
+}
+
+void stm_switching_work(struct work_struct *work)
+{
+	struct stm_ts_data *ts = container_of(work, struct stm_ts_data,
+				switching_work.work);
+
+	if (ts == NULL) {
+		input_err(true, NULL, "%s: tsp ts is null\n", __func__);
+		return;
+	}
+
+	if (ts->flip_status != ts->flip_status_current) {
+		if (!ts->info_work_done) {
+			input_err(true, &ts->client->dev, "%s: info_work is not done yet\n", __func__);
+			ts->change_flip_status = 1;
+			return;
+		}
+		ts->change_flip_status = 0;
+
+		mutex_lock(&ts->switching_mutex);
+		ts->flip_status = ts->flip_status_current;
+
+		if (ts->flip_status == 0) {
+			/* open : main_tsp on */
+		} else {
+			/* close : main_tsp off */
+#if IS_ENABLED(CONFIG_INPUT_SEC_SECURE_TOUCH)
+//			secure_touch_stop(ts, 1);
+#endif
+		}
+
+		stm_chk_tsp_ic_status(ts, STM_TS_STATE_CHK_POS_HALL);
+		mutex_unlock(&ts->switching_mutex);
+	} else if (ts->plat_data->support_flex_mode && (ts->plat_data->support_dual_foldable == MAIN_TOUCH)) {
+		input_info(true, &ts->client->dev, "%s support_flex_mode\n", __func__);
+
+		mutex_lock(&ts->switching_mutex);
+		stm_chk_tsp_ic_status(ts, STM_TS_STATE_CHK_POS_SYSFS);
+#if IS_ENABLED(CONFIG_INPUT_SEC_NOTIFIER)
+		sec_input_notify(&ts->stm_input_nb, NOTIFIER_MAIN_TOUCH_ON, NULL);
+#endif
+		mutex_unlock(&ts->switching_mutex);
+	}
+}
+
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+int stm_hall_ic_notify(struct notifier_block *nb,
+			unsigned long flip_cover, void *v)
+{
+	struct stm_ts_data *ts = container_of(nb, struct stm_ts_data,
+				hall_ic_nb);
+	struct hall_notifier_context *hall_notifier;
+
+	if (ts == NULL) {
+		input_err(true, NULL, "%s: tsp info is null\n", __func__);
+		return 0;
+	}
+
+	hall_notifier = v;
+
+	if (strncmp(hall_notifier->name, "flip", 4)) {
+		input_info(true, &ts->client->dev, "%s: %s\n", __func__, hall_notifier->name);
+
+		return 0;
+	}
+
+	input_info(true, &ts->client->dev, "%s: %s\n", __func__,
+			 flip_cover ? "close" : "open");
+
+	cancel_delayed_work(&ts->switching_work);
+
+	ts->flip_status_current = flip_cover;
+
+	schedule_work(&ts->switching_work.work);
+
+	return 0;
+}
+#endif
 
 MODULE_LICENSE("GPL");

@@ -294,7 +294,7 @@ static ssize_t mode_show(struct device *dev,
 
 	tune = vdd->mdnie.mdnie_tune_state_dsi;
 
-	buffer_pos += snprintf(buf + buffer_pos, 256, "Current Mode: %s\n",
+	buffer_pos += scnprintf(buf + buffer_pos, 256, "Current Mode: %s\n",
 			mdnie_mode_name[tune->mdnie_mode]);
 
 	DPRINT(vdd, "[mDNIe] %s\n", buf);
@@ -352,9 +352,9 @@ static ssize_t scenario_show(struct device *dev,
 
 	tune = vdd->mdnie.mdnie_tune_state_dsi;
 
-	buffer_pos += snprintf(buf, 256, "Current APP : ");
+	buffer_pos += scnprintf(buf, 256, "Current APP : ");
 
-	buffer_pos += snprintf(buf + buffer_pos, 256, "Current APP: %s\n",
+	buffer_pos += scnprintf(buf + buffer_pos, 256, "Current APP: %s\n",
 			mdnie_app_name[tune->mdnie_app]);
 
 	DPRINT(vdd, "[mDNIe] %s \n", buf);
@@ -434,7 +434,7 @@ static ssize_t outdoor_show(struct device *dev,
 
 	tune = vdd->mdnie.mdnie_tune_state_dsi;
 
-	buffer_pos += snprintf(buf + buffer_pos, 256, "Current outdoor Mode: %s\n",
+	buffer_pos += scnprintf(buf + buffer_pos, 256, "Current outdoor Mode: %s\n",
 			outdoor_name[tune->outdoor]);
 
 	DPRINT(vdd, "[mDNIe] %s\n", buf);
@@ -488,7 +488,7 @@ static ssize_t bypass_show(struct device *dev,
 
 	tune = vdd->mdnie.mdnie_tune_state_dsi;
 
-	buffer_pos += snprintf(buf + buffer_pos, 256, "Current MDNIE bypass:  %s\n",
+	buffer_pos += scnprintf(buf + buffer_pos, 256, "Current MDNIE bypass:  %s\n",
 			tune->mdnie_bypass ? "ENABLE" : "DISABLE");
 	DPRINT(vdd, "[mDNIe] %s\n", buf);
 
@@ -542,7 +542,7 @@ static ssize_t accessibility_show(struct device *dev,
 
 	tune = vdd->mdnie.mdnie_tune_state_dsi;
 
-	buffer_pos += snprintf(buf + buffer_pos, 256, "Current accessibility: %s\n",
+	buffer_pos += scnprintf(buf + buffer_pos, 256, "Current accessibility: %s\n",
 		tune->mdnie_accessibility ?
 		tune->mdnie_accessibility == 1 ? "NEGATIVE" :
 		tune->mdnie_accessibility == 2 ? "COLOR_BLIND" :
@@ -648,7 +648,7 @@ static ssize_t sensorRGB_show(struct device *dev,
 
 	tune = vdd->mdnie.mdnie_tune_state_dsi;
 
-	buffer_pos += snprintf(buf, 256, "%d %d %d",
+	buffer_pos += scnprintf(buf, 256, "%d %d %d",
 			tune->scr_white_red,
 			tune->scr_white_green,
 			tune->scr_white_blue);
@@ -733,7 +733,7 @@ static ssize_t whiteRGB_show(struct device *dev,
 	g = mdnie_data->dsi_white_balanced_g;
 	b = mdnie_data->dsi_white_balanced_b;
 
-	buffer_pos += snprintf(buf + buffer_pos, 256, "Current whiteRGB SETTING: %d %d %d\n", r, g, b);
+	buffer_pos += scnprintf(buf + buffer_pos, 256, "Current whiteRGB SETTING: %d %d %d\n", r, g, b);
 
 	DPRINT(vdd, "[mDNIe] %s\n", buf);
 
@@ -806,7 +806,7 @@ static ssize_t mdnie_ldu_show(struct device *dev,
 
 	tune = vdd->mdnie.mdnie_tune_state_dsi;
 
-	buffer_pos += snprintf(buf, 256, "%d %d %d",
+	buffer_pos += scnprintf(buf, 256, "%d %d %d",
 			tune->scr_white_red,
 			tune->scr_white_green,
 			tune->scr_white_blue);
@@ -883,7 +883,7 @@ static ssize_t night_mode_show(struct device *dev,
 
 	tune = vdd->mdnie.mdnie_tune_state_dsi;
 
-	buffer_pos += snprintf(buf, 256, "%d %d",
+	buffer_pos += scnprintf(buf, 256, "%d %d",
 			tune->night_mode_enable,
 			tune->night_mode_index);
 
@@ -946,7 +946,7 @@ static ssize_t color_lens_show(struct device *dev,
 
 	tune = vdd->mdnie.mdnie_tune_state_dsi;
 
-	buffer_pos += snprintf(buf, 256, "%d %d %d",
+	buffer_pos += scnprintf(buf, 256, "%d %d %d",
 			tune->color_lens_enable,
 			tune->color_lens_color,
 			tune->color_lens_level);
@@ -1009,7 +1009,7 @@ static ssize_t hdr_show(struct device *dev,
 
 	tune = vdd->mdnie.mdnie_tune_state_dsi;
 
-	buffer_pos += snprintf(buf + buffer_pos, 256, "Current HDR SETTING: %s\n",
+	buffer_pos += scnprintf(buf + buffer_pos, 256, "Current HDR SETTING: %s\n",
 			mdnie_hdr_name[tune->hdr]);
 
 	DPRINT(vdd, "[mDNIe] %s\n", buf);
@@ -1063,7 +1063,7 @@ static ssize_t light_notification_show(struct device *dev,
 
 	tune = vdd->mdnie.mdnie_tune_state_dsi;
 
-	pos = snprintf(buf, 256, "Current LIGHT NOTIFICATION SETTING: %s\n",
+	pos = scnprintf(buf, 256, "Current LIGHT NOTIFICATION SETTING: %s\n",
 			mdnie_light_notification_name[tune->light_notification]);
 
 	DPRINT(vdd, "[mDNIe] %s\n", buf);
@@ -1117,7 +1117,7 @@ static ssize_t afc_show(struct device *dev,
 
 	tune = vdd->mdnie.mdnie_tune_state_dsi;
 
-	buffer_pos += snprintf(buf, 256, "%d %d %d %d %d %d %d %d %d %d %d %d %d",
+	buffer_pos += scnprintf(buf, 256, "%d %d %d %d %d %d %d %d %d %d %d %d %d",
 			tune->afc_enable, tune->afc_roi[0], tune->afc_roi[1], tune->afc_roi[2], tune->afc_roi[3],
 			tune->afc_roi[4], tune->afc_roi[5], tune->afc_roi[6], tune->afc_roi[7], tune->afc_roi[8],
 			tune->afc_roi[9], tune->afc_roi[10], tune->afc_roi[11]);
@@ -1193,7 +1193,7 @@ static ssize_t cabc_show(struct device *dev,
 
 	tune = vdd->mdnie.mdnie_tune_state_dsi;
 
-	buffer_pos += snprintf(buf + buffer_pos, 256, "Current CABC bypass: %s\n",
+	buffer_pos += scnprintf(buf + buffer_pos, 256, "Current CABC bypass: %s\n",
 			tune->cabc_bypass ? "ENABLE" : "DISABLE");
 
 	DPRINT(vdd, "[mDNIe] %s\n", buf);
@@ -1394,28 +1394,28 @@ static int dpui_notifier_callback(struct notifier_block *self,
 		return 0;
 	}
 
-	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d",
+	size = scnprintf(tbuf, MAX_DPUI_VAL_LEN, "%d",
 			mdnie_data->dsi_white_balanced_r);
 	set_dpui_field(DPUI_KEY_WOFS_R, tbuf, size);
-	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d",
+	size = scnprintf(tbuf, MAX_DPUI_VAL_LEN, "%d",
 			mdnie_data->dsi_white_balanced_g);
 	set_dpui_field(DPUI_KEY_WOFS_G, tbuf, size);
-	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d",
+	size = scnprintf(tbuf, MAX_DPUI_VAL_LEN, "%d",
 			mdnie_data->dsi_white_balanced_b);
 	set_dpui_field(DPUI_KEY_WOFS_B, tbuf, size);
 
 	mdnie_get_efs(MDNIE_WOFS_ORG_PATH, def_wrgb_ofs_org);
 
-	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", def_wrgb_ofs_org[0]);
+	size = scnprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", def_wrgb_ofs_org[0]);
 	set_dpui_field(DPUI_KEY_WOFS_R_ORG, tbuf, size);
-	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", def_wrgb_ofs_org[1]);
+	size = scnprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", def_wrgb_ofs_org[1]);
 	set_dpui_field(DPUI_KEY_WOFS_G_ORG, tbuf, size);
-	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", def_wrgb_ofs_org[2]);
+	size = scnprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", def_wrgb_ofs_org[2]);
 	set_dpui_field(DPUI_KEY_WOFS_B_ORG, tbuf, size);
 
-	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", vdd->mdnie.mdnie_x);
+	size = scnprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", vdd->mdnie.mdnie_x);
 	set_dpui_field(DPUI_KEY_WCRD_X, tbuf, size);
-	size = snprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", vdd->mdnie.mdnie_y);
+	size = scnprintf(tbuf, MAX_DPUI_VAL_LEN, "%d", vdd->mdnie.mdnie_y);
 	set_dpui_field(DPUI_KEY_WCRD_Y, tbuf, size);
 
 	return 0;

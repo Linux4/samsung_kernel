@@ -161,6 +161,7 @@ class SpeakerFeedback : public Speaker
     void updateVIcustomPayload();
     static std::shared_ptr<Device> getInstance(struct pal_device *device,
                                                std::shared_ptr<ResourceManager> Rm);
+    static std::shared_ptr<Device> getObject();                                               
 };
 
 #endif

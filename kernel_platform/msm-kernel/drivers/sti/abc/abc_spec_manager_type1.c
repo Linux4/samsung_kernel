@@ -40,7 +40,7 @@ int abc_alloc_memory_to_buffer_type1(struct spec_data_type1 *spec_type1, int siz
 					sizeof(spec_type1->buffer.abc_element[0]) * buffer_max, GFP_KERNEL);
 	}
 
-	if (!temp_abc_elements) {
+	if (unlikely(ZERO_OR_NULL_PTR(temp_abc_elements))) {
 		ABC_PRINT("Failed to allocate memory to buffer");
 		spec_type1->buffer.abc_element = NULL;
 		spec_type1->buffer.buffer_max = 0;
@@ -63,12 +63,12 @@ int abc_parse_dt_type1(struct device *dev,
 {
 	int registered_idx;
 
-	if (of_property_read_string_index(np, MODULE_KEY, idx, &spec_type1->common_spec.module_name)) {
+	if (of_property_read_string_index(np, MODULE_KEY, idx, (const char **)&spec_type1->common_spec.module_name)) {
 		dev_err(dev, "Failed to get module name : node not exist");
 		return -EINVAL;
 	}
 
-	if (of_property_read_string_index(np, ERROR_KEY, idx, &spec_type1->common_spec.error_name)) {
+	if (of_property_read_string_index(np, ERROR_KEY, idx, (const char **)&spec_type1->common_spec.error_name)) {
 		dev_err(dev, "Failed to get error name : node not exist");
 		return -EINVAL;
 	}
@@ -117,10 +117,9 @@ int abc_parse_dt_type1(struct device *dev,
 
 struct abc_common_spec_data *sec_abc_get_matched_common_spec_type1(char *module_name, char *error_name)
 {
-	struct abc_info *pinfo = dev_get_drvdata(sec_abc);
 	struct spec_data_type1 *spec_type1;
 
-	list_for_each_entry(spec_type1, &pinfo->pdata->abc_spec_list, node) {
+	list_for_each_entry(spec_type1, &abc_spec_list, node) {
 		if (!strcmp(spec_type1->common_spec.module_name, module_name)
 			&& !strcmp(spec_type1->common_spec.error_name, error_name))
 			return &(spec_type1->common_spec);
@@ -182,10 +181,7 @@ EXPORT_SYMBOL_KUNIT(sec_abc_is_empty_type1);
 void sec_abc_enqueue_type1(struct abc_event_buffer *buffer, struct abc_fault_info in)
 {
 	if (sec_abc_is_full_type1(buffer)) {
-		ABC_PRINT("queue is full");
-#if IS_ENABLED(CONFIG_SEC_KUNIT)
-		abc_common_test_get_log_str("queue is full");
-#endif
+		ABC_PRINT_KUNIT("queue is full");
 	} else {
 		buffer->rear = (buffer->rear + 1) % buffer->size;
 		buffer->abc_element[buffer->rear] = in;
@@ -198,10 +194,7 @@ struct abc_fault_info sec_abc_dequeue_type1(struct abc_event_buffer *buffer)
 	struct abc_fault_info out;
 
 	if (sec_abc_is_empty_type1(buffer)) {
-		ABC_PRINT("queue is empty");
-#if IS_ENABLED(CONFIG_SEC_KUNIT)
-		abc_common_test_get_log_str("queue is empty");
-#endif
+		ABC_PRINT_KUNIT("queue is empty");
 		out.cur_time = out.cur_cnt = 0;
 	} else {
 		buffer->front = (buffer->front + 1) % buffer->size;

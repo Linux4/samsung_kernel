@@ -98,7 +98,8 @@ enum ttu_flags {
 					 * do a final flush if necessary */
 	TTU_RMAP_LOCKED		= 0x80,	/* do not grab rmap lock:
 					 * caller holds it */
-	TTU_SPLIT_FREEZE	= 0x100,		/* freeze pte under splitting thp */
+	TTU_RMAP_TRY_LOCK	= 0x100,	/* try to grab rmap lock */
+	TTU_SPLIT_FREEZE	= 0x200,	/* freeze pte under splitting thp */
 };
 
 #ifdef CONFIG_MMU
@@ -285,6 +286,7 @@ struct rmap_walk_control {
 };
 
 void rmap_walk(struct page *page, struct rmap_walk_control *rwc);
+void rmap_walk_trylock(struct page *page, struct rmap_walk_control *rwc);
 void rmap_walk_locked(struct page *page, struct rmap_walk_control *rwc);
 
 #else	/* !CONFIG_MMU */

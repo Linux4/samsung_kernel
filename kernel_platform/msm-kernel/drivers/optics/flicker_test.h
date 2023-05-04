@@ -53,6 +53,7 @@
 #define MAX_TEST_RESULT			256
 #define EOL_COUNT				5
 #define EOL_SKIP_COUNT			5
+#define EOL_FLICKER_SKIP_COUNT	2
 
 static int gpio_torch;
 static int led_curr;
@@ -75,8 +76,10 @@ struct test_data {
 	u32 eol_clear;
 	u32 eol_wideband;
 	u32 eol_flicker;
-	u8 eol_flicker_count;
+	u32 eol_flicker_sum;
+	u32 eol_flicker_count;
 	u32 eol_pulse_count;
+	u32 eol_uv;
 };
 
 struct result_data {
@@ -86,6 +89,7 @@ struct result_data {
 	u32 clear[EOL_STATE_DONE];
 	u32 wideband[EOL_STATE_DONE];
 	u32 ratio[EOL_STATE_DONE];
+	u32 uv[EOL_STATE_DONE];
 };
 
 enum GPIO_TYPE {
@@ -96,7 +100,7 @@ enum GPIO_TYPE {
 void als_eol_set_env(bool torch, int intensity);
 struct result_data* als_eol_mode(void);
 
-void als_eol_update_als(int awb, int clear, int wideband);
+void als_eol_update_als(int awb, int clear, int wideband, int uv);
 void als_eol_update_flicker(int Hz);
 void als_eol_set_err_handler(void (*handler)(void));
 #endif /* EOL_TEST_H */

@@ -123,29 +123,6 @@ static int ufs_qcom_mod_min_cpufreq(unsigned int cpu, s32 new_val);
 static void ufs_qcom_hook_clock_scaling(void *used, struct ufs_hba *hba, bool *force_out,
 		bool *force_saling, bool *scale_up);
 
-static inline void cancel_dwork_unvote_cpufreq(struct ufs_hba *hba)
-{
-	struct ufs_qcom_host *host = ufshcd_get_variant(hba);
-	int err;
-
-	if (host->cpufreq_dis)
-		return;
-
-	cancel_delayed_work_sync(&host->fwork);
-	if (!host->cur_freq_vote)
-		return;
-	atomic_set(&host->num_reqs_threshold, 0);
-
-	err = ufs_qcom_mod_min_cpufreq(host->config_cpu,
-				       host->min_cpu_scale_freq);
-	if (err < 0)
-		dev_err(hba->dev, "fail set cpufreq-fmin_def %d:\n",
-				err);
-	else
-		host->cur_freq_vote = false;
-	dev_dbg(hba->dev, "%s,err=%d\n", __func__, err);
-}
-
 static int ufs_qcom_get_pwr_dev_param(struct ufs_qcom_dev_params *qcom_param,
 				      struct ufs_pa_layer_attr *dev_max,
 				      struct ufs_pa_layer_attr *agreed_pwr)
@@ -1134,12 +1111,6 @@ static void ufs_qcom_apply_turbo_setting(struct ufs_hba *hba)
 			ATTR_HW_CGC_EN_TURBO, PA_VS_CLK_CFG_REG);
 	if (err)
 		dev_err(hba->dev, "%s apply of turbo setting failed\n", __func__);
-	/*
-	 * clear bit 1 of ICE_CONTROL Register to support ice
-	 * core clock frequency greater than 300 MHz
-	 */
-	if (host->turbo_additional_conf_req)
-		ufshcd_ice_rmwl(host, ICE_CONTROL, 0, REG_UFS_ICE_CONTROL);
 
 	host->turbo_unipro_attr_applied = true;
 }
@@ -1161,12 +1132,6 @@ static void ufs_qcom_remove_turbo_setting(struct ufs_hba *hba)
 			ATTR_HW_CGC_EN_NON_TURBO, PA_VS_CLK_CFG_REG);
 	if (err)
 		dev_err(hba->dev, "%s remove of turbo setting failed\n", __func__);
-	/*
-	 * Set bit 1 of ICE_CONTROL Register to support ice
-	 * core clock frequency lesser or equal than 300 MHz
-	 */
-	if (host->turbo_additional_conf_req)
-		ufshcd_ice_rmwl(host, ICE_CONTROL, 1, REG_UFS_ICE_CONTROL);
 
 	host->turbo_unipro_attr_applied = false;
 }
@@ -1390,8 +1355,34 @@ static void ufs_qcom_cpufreq_dwork(struct work_struct *work)
 	dev_dbg(host->hba->dev, "cur_freq_vote=%d,freq_val=%u,cth=%u\n",
 		host->cur_freq_vote, freq_val, cur_thres);
 out:
+	/*
+	 * See ufs_qcom_suspend(), ufs_qcom_resume(), ufs_qcom_clk_scale_notify()
+	 *
+	 * Work rearms itself as per below table:
+	 * cur_freq_vote | scaled_up | host_active |	Result
+	 *  0			0	0		Exit work
+	 *  0			0	1		Exit work
+	 *  0			1	0		Exit work
+	 *  0			1	1		Requeue work
+	 *  1			0	0		Requeue work
+	 *  1			0	1		Requeue work
+	 *  1			1	0		Requeue work
+	 *  1			1	1		Requeue work
+	 */
+	mutex_lock(&host->cpufreq_lock);
+	if ((!host->cur_freq_vote && !(!!atomic_read(&host->scale_up)) &&
+	    !host->active) ||
+	    (!host->cur_freq_vote && !(!!atomic_read(&host->scale_up)) &&
+	     host->active) ||
+	     (!host->cur_freq_vote && !!atomic_read(&host->scale_up) &&
+	      !host->active)) {
+		mutex_unlock(&host->cpufreq_lock);
+		return;
+	}
+
 	queue_delayed_work(host->ufs_qos->workq, &host->fwork,
 			   msecs_to_jiffies(UFS_QCOM_LOAD_MON_DLY_MS));
+	mutex_unlock(&host->cpufreq_lock);
 }
 
 static int add_group_qos(struct qos_cpu_group *qcg, enum constraint type)
@@ -1473,7 +1464,10 @@ static int ufs_qcom_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 			hba->curr_dev_pwr_mode, err);
 	ufs_qcom_ice_disable(host);
 
-	cancel_dwork_unvote_cpufreq(hba);
+	/* Refer ufs_qcom_cpufreq_dwork() */
+	mutex_lock(&host->cpufreq_lock);
+	host->active = false;
+	mutex_unlock(&host->cpufreq_lock);
 	return err;
 }
 
@@ -1511,6 +1505,15 @@ static int ufs_qcom_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 	ufs_qcom_log_str(host, "$,%d,%d,%d,%d,%d,%d\n",
 			pm_op, hba->rpm_lvl, hba->spm_lvl, hba->uic_link_state,
 			hba->curr_dev_pwr_mode, err);
+
+	/* Refer ufs_qcom_cpufreq_dwork() */
+	mutex_lock(&host->cpufreq_lock);
+	host->active = true;
+	/* Reschedule the work if it exited when the clocks were scaled up */
+	if (!!atomic_read(&host->scale_up))
+		queue_delayed_work(host->fworkq, &host->fwork, 0);
+	mutex_unlock(&host->cpufreq_lock);
+
 	return 0;
 }
 
@@ -2670,37 +2673,6 @@ ufs_qcom_query_ioctl(struct ufs_hba *hba, u8 lun, void __user *buffer)
 					ioctl_data->idn, index, 0, &att);
 		break;
 
-	case UPIU_QUERY_OPCODE_WRITE_ATTR:
-		err = copy_from_user(&att,
-				     buffer +
-				     sizeof(struct ufs_ioctl_query_data),
-				     sizeof(u32));
-		if (err) {
-			dev_err(hba->dev,
-				"%s: Failed copying buffer from user, err %d\n",
-				__func__, err);
-			goto out_release_mem;
-		}
-
-		switch (ioctl_data->idn) {
-		case QUERY_ATTR_IDN_BOOT_LU_EN:
-			index = 0;
-			if (!att) {
-				dev_err(hba->dev,
-					"%s: Illegal ufs query ioctl data, opcode 0x%x, idn 0x%x, att 0x%x\n",
-					__func__, ioctl_data->opcode,
-					(unsigned int)ioctl_data->idn, att);
-				err = -EINVAL;
-				goto out_release_mem;
-			}
-			break;
-		default:
-			goto out_einval;
-		}
-		err = ufshcd_query_attr(hba, ioctl_data->opcode,
-					ioctl_data->idn, index, 0, &att);
-		break;
-
 	case UPIU_QUERY_OPCODE_READ_FLAG:
 		switch (ioctl_data->idn) {
 		case QUERY_FLAG_IDN_FDEVICEINIT:
@@ -2746,8 +2718,6 @@ ufs_qcom_query_ioctl(struct ufs_hba *hba, u8 lun, void __user *buffer)
 		ioctl_data->buf_size = 1;
 		data_ptr = &flag;
 		break;
-	case UPIU_QUERY_OPCODE_WRITE_ATTR:
-		goto out_release_mem;
 	default:
 		goto out_einval;
 	}
@@ -2972,7 +2942,14 @@ static int ufs_qcom_setup_qos(struct ufs_hba *hba)
 				err);
 			host->cpufreq_dis = true;
 		} else {
-			INIT_DELAYED_WORK(&host->fwork, ufs_qcom_cpufreq_dwork);
+			/* Prone to deadlocks, hence create its own workqueue */
+			host->fworkq =
+				create_singlethread_workqueue("ufs_cpufreq_wq");
+			if (host->fworkq) {
+				INIT_DELAYED_WORK(&host->fwork,
+						  ufs_qcom_cpufreq_dwork);
+				mutex_init(&host->cpufreq_lock);
+			}
 		}
 	}
 	qr->workq = create_singlethread_workqueue("qc_ufs_qos_swq");
@@ -3847,14 +3824,16 @@ static int ufs_qcom_clk_scale_notify(struct ufs_hba *hba,
 			err = ufs_qcom_clk_scale_up_pre_change(hba);
 			if (!host->cpufreq_dis && !atomic_read(&host->scale_up)) {
 				atomic_set(&host->num_reqs_threshold, 0);
-				queue_delayed_work(host->ufs_qos->workq,
-						  &host->fwork,
-					msecs_to_jiffies(
-						UFS_QCOM_LOAD_MON_DLY_MS));
+				/* ensure that work is queued */
+				mutex_lock(&host->cpufreq_lock);
+				queue_delayed_work(host->fworkq, &host->fwork,
+						   msecs_to_jiffies(
+						   UFS_QCOM_LOAD_MON_DLY_MS));
+				atomic_set(&host->scale_up, scale_up);
+				mutex_unlock(&host->cpufreq_lock);
 			}
 		} else {
 			err = ufs_qcom_clk_scale_down_pre_change(hba);
-			cancel_dwork_unvote_cpufreq(hba);
 		}
 		if (err)
 			ufshcd_uic_hibern8_exit(hba);
@@ -4726,6 +4705,38 @@ out:
 }
 static DEVICE_ATTR_RW(turbo_support);
 
+static ssize_t hibern8_count_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	u32 hw_h8_enter;
+	u32 sw_h8_enter;
+	u32 sw_hw_h8_enter;
+	u32 hw_h8_exit;
+	u32	sw_h8_exit;
+	struct ufs_hba *hba = dev_get_drvdata(dev);
+
+	pm_runtime_get_sync(hba->dev);
+	ufshcd_hold(hba, false);
+	hw_h8_enter = ufshcd_readl(hba, REG_UFS_HW_H8_ENTER_CNT);
+	sw_h8_enter = ufshcd_readl(hba, REG_UFS_SW_H8_ENTER_CNT);
+	sw_hw_h8_enter = ufshcd_readl(hba, REG_UFS_SW_AFTER_HW_H8_ENTER_CNT);
+	hw_h8_exit = ufshcd_readl(hba, REG_UFS_HW_H8_EXIT_CNT);
+	sw_h8_exit = ufshcd_readl(hba, REG_UFS_SW_H8_EXIT_CNT);
+	ufshcd_release(hba);
+	pm_runtime_put_sync(hba->dev);
+
+	return sysfs_emit(buf,
+			 "%s: %d\n%s: %d\n%s: %d\n%s: %d\n%s: %d\n",
+			 "hw_h8_enter", hw_h8_enter,
+			 "sw_h8_enter", sw_h8_enter,
+			 "sw_after_hw_h8_enter", sw_hw_h8_enter,
+			 "hw_h8_exit", hw_h8_exit,
+			 "sw_h8_exit", sw_h8_exit);
+
+}
+
+static DEVICE_ATTR_RO(hibern8_count);
+
 static struct attribute *ufs_qcom_sysfs_attrs[] = {
 	&dev_attr_err_state.attr,
 	&dev_attr_power_mode.attr,
@@ -4736,6 +4747,7 @@ static struct attribute *ufs_qcom_sysfs_attrs[] = {
 	&dev_attr_crash_on_err.attr,
 	&dev_attr_clk_mode.attr,
 	&dev_attr_turbo_support.attr,
+	&dev_attr_hibern8_count.attr,
 	NULL
 };
 
@@ -4972,8 +4984,7 @@ static void ufs_qcom_shutdown(struct platform_device *pdev)
 	ufs_sec_print_err_info(hba);
 #endif
 
-	/*
-	 * UFS_RESET TLMM register cannot reset to POR value '1' after warm
+	/* UFS_RESET TLMM register cannot reset to POR value '1' after warm
 	 * reset, so deassert ufs device reset line after UFS device shutdown
 	 * to ensure the UFS_RESET TLMM register value is POR value
 	 */

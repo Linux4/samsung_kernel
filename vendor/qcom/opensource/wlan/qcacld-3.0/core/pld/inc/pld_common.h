@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -51,6 +51,30 @@
 #include <net/cnss_prealloc.h>
 #endif
 #endif
+
+#define PLD_LIMIT_LOG_FOR_SEC 6
+/**
+ * __PLD_TRACE_RATE_LIMITED() - rate limited version of PLD_TRACE
+ * @params: parameters to pass through to PLD_TRACE
+ *
+ * This API prevents logging a message more than once in PLD_LIMIT_LOG_FOR_SEC
+ * seconds. This means any subsequent calls to this API from the same location
+ * within PLD_LIMIT_LOG_FOR_SEC seconds will be dropped.
+ *
+ * Return: None
+ */
+#define __PLD_TRACE_RATE_LIMITED(params...)\
+	do {\
+		static ulong __last_ticks;\
+		ulong __ticks = jiffies;\
+		if (time_after(__ticks,\
+			       __last_ticks + (HZ * PLD_LIMIT_LOG_FOR_SEC))) {\
+			pr_err(params);\
+			__last_ticks = __ticks;\
+		} \
+	} while (0)
+
+#define pld_err_rl(params...) __PLD_TRACE_RATE_LIMITED(params)
 
 /**
  * enum pld_bus_type - bus type
@@ -167,6 +191,16 @@ enum pld_uevent {
 	PLD_BUS_EVENT,
 	PLD_SMMU_FAULT,
 };
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
+/**
+ * enum pld_device_config - Get PLD device config
+ * @PLD_IPA_DISABLD: IPA is disabled
+ */
+enum pld_device_config {
+	PLD_IPA_DISABLED,
+};
+#endif
 
 /**
  * enum pld_bus_event - PLD bus event types
@@ -326,6 +360,16 @@ enum pld_driver_mode {
 };
 
 /**
+ * enum pld_suspend_mode - WLAN suspend mode
+ * @PLD_SUSPEND: suspend
+ * @PLD_FULL_POWER_DOWN: full power down while suspend
+ */
+enum pld_suspend_mode {
+	PLD_SUSPEND,
+	PLD_FULL_POWER_DOWN,
+};
+
+/**
  * struct pld_device_version - WLAN device version info
  * @family_number: family number of WLAN SOC HW
  * @device_number: device number of WLAN SOC HW
@@ -406,6 +450,30 @@ enum pld_wlan_time_sync_trigger_type {
 	PLD_TRIGGER_NEGATIVE_EDGE
 };
 #endif /* FEATURE_WLAN_TIME_SYNC_FTM */
+
+/* MAX channel avoid ranges supported in PLD */
+#define PLD_CH_AVOID_MAX_RANGE   4
+
+/**
+ * struct pld_ch_avoid_freq_type
+ * @start_freq: start freq (MHz)
+ * @end_freq: end freq (Mhz)
+ */
+struct pld_ch_avoid_freq_type {
+	uint32_t start_freq;
+	uint32_t end_freq;
+};
+
+/**
+ * struct pld_ch_avoid_ind_type
+ * @ch_avoid_range_cnt: count
+ * @avoid_freq_range: avoid freq range array
+ */
+struct pld_ch_avoid_ind_type {
+	uint32_t ch_avoid_range_cnt;
+	struct pld_ch_avoid_freq_type
+		avoid_freq_range[PLD_CH_AVOID_MAX_RANGE];
+};
 
 /**
  * struct pld_driver_ops - driver callback functions
@@ -494,6 +562,33 @@ void pld_deinit(void);
  */
 int pld_set_mode(u8 mode);
 
+#ifdef FEATURE_WLAN_FULL_POWER_DOWN_SUPPORT
+/**
+ * pld_set_suspend_mode() - set suspend mode in PLD module
+ * @mode: pld suspend mode
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
+int pld_set_suspend_mode(enum pld_suspend_mode mode);
+/**
+ * pld_is_full_power_down_enable() - check full power down is enabled or not
+ *
+ * Return: true if full power down is enabled else false
+ */
+bool pld_is_full_power_down_enable(void);
+#else
+static inline int pld_set_suspend_mode(enum pld_suspend_mode mode)
+{
+	return 0;
+}
+
+static inline bool pld_is_full_power_down_enable(void)
+{
+	return false;
+}
+#endif
+
 int pld_register_driver(struct pld_driver_ops *ops);
 void pld_unregister_driver(void);
 
@@ -531,7 +626,29 @@ int pld_get_audio_wlan_timestamp(struct device *dev,
 				 uint64_t *ts);
 #endif /* FEATURE_WLAN_TIME_SYNC_FTM */
 
-#if IS_ENABLED(CONFIG_CNSS_UTILS)
+#ifdef CNSS_UTILS
+#ifdef CNSS_UTILS_VENDOR_UNSAFE_CHAN_API_SUPPORT
+/**
+ * pld_get_wlan_unsafe_channel_sap() - Get vendor unsafe ch freq ranges
+ * @dev: device
+ * @ch_avoid_ranges: unsafe freq channel ranges
+ *
+ * Get vendor specific unsafe channel frequency ranges
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
+int pld_get_wlan_unsafe_channel_sap(
+	struct device *dev, struct pld_ch_avoid_ind_type *ch_avoid_ranges);
+#else
+static inline
+int pld_get_wlan_unsafe_channel_sap(
+	struct device *dev, struct pld_ch_avoid_ind_type *ch_avoid_ranges)
+{
+	return 0;
+}
+#endif
+
 /**
  * pld_set_wlan_unsafe_channel() - Set unsafe channel
  * @dev: device
@@ -657,6 +774,12 @@ static inline int pld_get_driver_load_cnt(struct device *dev)
 	return cnss_utils_get_driver_load_cnt(dev);
 }
 #else
+static inline int pld_get_wlan_unsafe_channel_sap(
+	struct device *dev, struct pld_ch_avoid_ind_type *ch_avoid_ranges)
+{
+	return 0;
+}
+
 static inline int pld_set_wlan_unsafe_channel(struct device *dev,
 					      u16 *unsafe_ch_list,
 					      u16 ch_count)
@@ -762,6 +885,7 @@ void pld_lock_pm_sem(struct device *dev);
 void pld_release_pm_sem(struct device *dev);
 void pld_lock_reg_window(struct device *dev, unsigned long *flags);
 void pld_unlock_reg_window(struct device *dev, unsigned long *flags);
+int pld_get_pci_slot(struct device *dev);
 int pld_power_on(struct device *dev);
 int pld_power_off(struct device *dev);
 int pld_athdiag_read(struct device *dev, uint32_t offset, uint32_t memtype,
@@ -853,6 +977,25 @@ int pld_idle_shutdown(struct device *dev,
  */
 int pld_idle_restart(struct device *dev,
 		     int (*restart_cb)(struct device *dev));
+
+/**
+ * pld_srng_devm_request_irq() - Register IRQ for SRNG
+ * @dev: device
+ * @irq: IRQ number
+ * @handler: IRQ callback function
+ * @irqflags: IRQ flags
+ * @name: IRQ name
+ * @ctx: IRQ context
+ *
+ * Return: 0 for success
+ *         Non zero failure code for errors
+ */
+int pld_srng_devm_request_irq(struct device *dev, int irq,
+			      irq_handler_t handler,
+			      unsigned long irqflags,
+			      const char *name,
+			      void *ctx);
+
 /**
  * pld_srng_request_irq() - Register IRQ for SRNG
  * @dev: device
@@ -869,6 +1012,7 @@ int pld_srng_request_irq(struct device *dev, int irq, irq_handler_t handler,
 			 unsigned long irqflags,
 			 const char *name,
 			 void *ctx);
+
 /**
  * pld_srng_free_irq() - Free IRQ for SRNG
  * @dev: device
@@ -990,6 +1134,21 @@ const char *pld_bus_width_type_to_str(enum pld_bus_width_type level);
 int pld_get_thermal_state(struct device *dev, unsigned long *thermal_state,
 			  int mon_id);
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
+/**
+ * pld_is_ipa_offload_disabled() - Check if IPA offload is enabled or not
+ * @dev: The device structure
+ *
+ * Return: Non-zero code for IPA offload disable; zero for IPA offload enable
+ */
+int pld_is_ipa_offload_disabled(struct device *dev);
+#else
+int pld_is_ipa_offload_disabled(struct device *dev);
+{
+	return 0;
+}
+#endif
+
 #if defined(CNSS_MEM_PRE_ALLOC) && defined(FEATURE_SKB_PRE_ALLOC)
 
 /**
@@ -1035,6 +1194,14 @@ static inline int pld_nbuf_pre_alloc_free(struct sk_buff *skb)
  * Return: PLD bus type
  */
 enum pld_bus_type pld_get_bus_type(struct device *dev);
+
+static inline int pfrm_devm_request_irq(struct device *dev, unsigned int ce_id,
+					irqreturn_t (*handler)(int, void *),
+					unsigned long flags, const char *name,
+					void *ctx)
+{
+	return pld_srng_devm_request_irq(dev, ce_id, handler, flags, name, ctx);
+}
 
 static inline int pfrm_request_irq(struct device *dev, unsigned int ce_id,
 				   irqreturn_t (*handler)(int, void *),

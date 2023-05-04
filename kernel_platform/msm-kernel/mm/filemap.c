@@ -2696,6 +2696,8 @@ static struct file *do_sync_mmap_readahead(struct vm_fault *vmf)
 	 */
 	fpin = maybe_unlock_mmap_for_io(vmf, fpin);
 	ra_pages = min_t(unsigned int, ra->ra_pages, mmap_readaround_limit);
+	if (need_memory_boosting())
+		ra_pages = min_t(unsigned int, ra_pages, 8);
 	ra->start = max_t(long, 0, vmf->pgoff - ra_pages / 2);
 	ra->size = ra_pages;
 	ra->async_size = ra_pages / 4;

@@ -10,6 +10,15 @@ config SAMSUNG_NFC
 	  To compile this support as a module, choose M here: the module will
 	  be called nfc.
 
+config NFC_NXP_COMBINED
+	bool "NXP COMBINED driver Feature"
+	default n
+	help
+	  NXP Near Field Communication controller support.
+	  If this feature is enabled, sn2xx driver can support various ICs
+	  such as PN557, sn1xx and sn2xx.
+	  For one binary, this driver should be used.
+
 config NFC_SN2XX
 	bool "NXP SN2XX Feature"
 	default n

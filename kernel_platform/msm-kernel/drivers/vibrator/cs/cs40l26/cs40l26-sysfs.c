@@ -162,6 +162,12 @@ static ssize_t power_on_seq_show(struct device *dev,
 
 	mutex_lock(&cs40l26->lock);
 
+	if (list_empty(&cs40l26->pseq_op_head)) {
+		dev_err(cs40l26->dev, "Power on sequence is empty\n");
+		mutex_unlock(&cs40l26->lock);
+		return -EINVAL;
+	}
+
 	list_for_each_entry_reverse(pseq_op, op_head, list) {
 		dev_info(cs40l26->dev, "%d: Address: 0x%08X, Size: %d words\n",
 			count + 1, base + pseq_op->offset, pseq_op->size);

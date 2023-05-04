@@ -11,6 +11,8 @@
 #include <linux/of.h>
 #include <linux/scatterlist.h>
 
+#include <trace/hooks/mm.h>
+
 #include "kgsl_debugfs.h"
 #include "kgsl_device.h"
 #include "kgsl_pool.h"
@@ -669,6 +671,44 @@ static int kgsl_of_parse_mempool(struct kgsl_page_pool *pool,
 	return 0;
 }
 
+static long try_get_kgsl_pool_size_kb(void)
+{
+	int i;
+	long total = 0;
+
+	for (i = 0; i < kgsl_num_pools; i++) {
+		struct kgsl_page_pool *kgsl_pool = &kgsl_pools[i];
+
+		if (!spin_trylock(&kgsl_pool->list_lock))
+			return -1;
+
+		total += kgsl_pool->page_count * (1 << kgsl_pool->pool_order);
+		spin_unlock(&kgsl_pool->list_lock);
+	}
+
+	return total * 4;
+}
+
+static void kgsl_pool_show_mem(void *data, unsigned int filter, nodemask_t *nodemask)
+{
+	long size_kb = try_get_kgsl_pool_size_kb();
+
+	if (size_kb < 0)
+		return;
+
+	pr_info("%s: %ld kB\n", "kgsl_pool", size_kb);
+}
+
+static void kgsl_pool_meminfo(void *data, struct seq_file *m)
+{
+	long size_kb = try_get_kgsl_pool_size_kb();
+
+	if (size_kb < 0)
+		return;
+
+	show_val_meminfo(m, "kgsl_pool", size_kb);
+}
+
 void kgsl_probe_page_pools(void)
 {
 	struct device_node *node, *child;
@@ -699,11 +739,17 @@ void kgsl_probe_page_pools(void)
 
 	/* Initialize shrinker */
 	register_shrinker(&kgsl_pool_shrinker);
+
+	register_trace_android_vh_show_mem(kgsl_pool_show_mem, NULL);
+	register_trace_android_vh_meminfo_proc_show(kgsl_pool_meminfo, NULL);
 }
 
 void kgsl_exit_page_pools(void)
 {
 	int i;
+
+	unregister_trace_android_vh_show_mem(kgsl_pool_show_mem, NULL);
+	unregister_trace_android_vh_meminfo_proc_show(kgsl_pool_meminfo, NULL);
 
 	/* Release all pages in pools, if any.*/
 	kgsl_pool_reduce(INT_MAX, true);

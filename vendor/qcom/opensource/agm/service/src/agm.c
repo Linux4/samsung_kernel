@@ -108,6 +108,10 @@ static void *ats_init_thread(void *obj __unused)
 
 int agm_init()
 {
+#ifdef SEC_AUDIO_BOOT_ON_ERR
+    AGM_LOGD("Enter. agm_initialized %d ", agm_initialized);
+#endif
+
     int ret = 0;
 
     if (agm_initialized)
@@ -136,9 +140,9 @@ int agm_init()
         AGM_LOGE("Session_obj_init failed with %d", ret);
 
         // { SEC_AUDIO_BOOT_ON_ERR
-        if (ret == -EAGAIN) {
+        if (ret == -EAGAIN || ret == -EIO) {
             property_set("vendor.audio.use.primary.default", "true");
-            AGM_LOGE(LOG_TAG, "agm_init: sound card err, vendor.audio.use.primary.default as true");
+            AGM_LOGE("sound card err, vendor.audio.use.primary.default as true");
             ret = 0;
         }
         // } SEC_AUDIO_BOOT_ON_ERR
@@ -148,6 +152,9 @@ int agm_init()
     agm_initialized = 1;
 
 exit:
+#ifdef SEC_AUDIO_BOOT_ON_ERR
+    AGM_LOGD("Exit. agm_initialized %d ", agm_initialized);
+#endif
     return ret;
 }
 

@@ -171,6 +171,15 @@ static irqreturn_t q6v5_fatal_interrupt(int irq, void *data)
 	if (q6v5->rproc->recovery_disabled) {
 		schedule_work(&q6v5->crash_handler);
 	} else {
+		int silent_ssr_in_progress;
+		spin_lock(&q6v5->silent_ssr_lock);
+		silent_ssr_in_progress = atomic_read(&q6v5->ssr_in_prog);
+		spin_unlock(&q6v5->silent_ssr_lock);
+
+		if (silent_ssr_in_progress) {
+			pr_err("[%s] silent ssr is ongoing. Return\n");
+			return IRQ_HANDLED;
+		}
 		if (q6v5->ssr_subdev)
 			qcom_notify_early_ssr_clients(q6v5->ssr_subdev);
 
@@ -380,6 +389,7 @@ int qcom_q6v5_init(struct qcom_q6v5 *q6v5, struct platform_device *pdev,
 
 	INIT_WORK(&q6v5->crash_handler, qcom_q6v5_crash_handler_work);
 
+	spin_lock_init(&q6v5->silent_ssr_lock);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(qcom_q6v5_init);

@@ -339,6 +339,12 @@ wlan_reg_get_6g_ap_master_chan_list(struct wlan_objmgr_pdev *pdev,
 {
 	return QDF_STATUS_E_FAILURE;
 }
+
+static inline
+const char *wlan_reg_get_power_string(enum reg_6g_ap_type power_type)
+{
+	return "INVALID";
+}
 #endif /* CONFIG_BAND_6GHZ */
 
 /**
@@ -550,6 +556,18 @@ bool wlan_reg_is_world(uint8_t *country);
  */
 QDF_STATUS wlan_reg_get_dfs_region(struct wlan_objmgr_pdev *pdev,
 			     enum dfs_reg *dfs_reg);
+
+/**
+ * wlan_reg_is_chan_disabled_and_not_nol() - In the regulatory channel list, a
+ * channel may be disabled by the regulatory/device or by radar. Radar is
+ * temporary and a radar disabled channel does not mean that the channel is
+ * permanently disabled. The API checks if the channel is disabled, but not due
+ * to radar.
+ * @chan - Regulatory channel object
+ *
+ * Return - True,  the channel is disabled, but not due to radar, else false.
+ */
+bool wlan_reg_is_chan_disabled_and_not_nol(struct regulatory_channel *chan);
 
 /**
  * wlan_reg_get_current_chan_list() - provide the pdev current channel list
@@ -921,6 +939,14 @@ bool wlan_reg_is_etsi(uint8_t *country);
 
 
 /**
+ * wlan_reg_ctry_support_vlp() - Country supports VLP or not
+ * @country: The country information
+ *
+ * Return: true or false
+ */
+bool wlan_reg_ctry_support_vlp(uint8_t *country);
+
+/**
  * wlan_reg_set_country() - Set the current regulatory country
  * @pdev: The physical dev to set current country for
  * @country: The country information to configure
@@ -1258,6 +1284,31 @@ void wlan_reg_fill_channel_list(struct wlan_objmgr_pdev *pdev,
 				enum phy_ch_width ch_width,
 				qdf_freq_t band_center_320,
 				struct reg_channel_list *chan_list);
+
+/**
+ * wlan_reg_is_punc_bitmap_valid() - is puncture bitmap valid or not
+ * @bw: Input channel width.
+ * @puncture_bitmap Input puncture bitmap.
+ *
+ * Return: true if given puncture bitmap is valid
+ */
+bool wlan_reg_is_punc_bitmap_valid(enum phy_ch_width bw,
+				   uint16_t puncture_bitmap);
+
+/**
+ * wlan_reg_set_create_punc_bitmap() - set is_create_punc_bitmap of ch_params
+ * @ch_params: ch_params to set
+ * @is_create_punc_bitmap: is create punc bitmap
+ *
+ * Return: NULL
+ */
+void wlan_reg_set_create_punc_bitmap(struct ch_params *ch_params,
+				     bool is_create_punc_bitmap);
+#else
+static inline void wlan_reg_set_create_punc_bitmap(struct ch_params *ch_params,
+						   bool is_create_punc_bitmap)
+{
+}
 #endif
 
 /**
@@ -1346,6 +1397,18 @@ bool wlan_reg_is_disable_for_freq(struct wlan_objmgr_pdev *pdev,
  * Return: true or false
  */
 bool wlan_reg_is_disable_in_secondary_list_for_freq(
+						struct wlan_objmgr_pdev *pdev,
+						qdf_freq_t freq);
+
+/**
+ * wlan_reg_is_enable_in_secondary_list_for_freq() - Checks in the secondary
+ * channel list to see if chan state is enabled
+ * @pdev: pdev ptr
+ * @freq: Channel center frequency
+ *
+ * Return: true or false
+ */
+bool wlan_reg_is_enable_in_secondary_list_for_freq(
 						struct wlan_objmgr_pdev *pdev,
 						qdf_freq_t freq);
 
@@ -1718,8 +1781,8 @@ QDF_STATUS wlan_reg_get_6g_chan_ap_power(struct wlan_objmgr_pdev *pdev,
  *
  * This function is meant to be called to find the channel frequency power
  * information for a client when the device is operating as a client. It will
- * fill in the parameter is_psd, tx_power, and eirp_psd_power. eirp_psd_power
- * will only be filled if the channel is PSD.
+ * fill in the parameters tx_power and eirp_psd_power. eirp_psd_power will
+ * only be filled if the channel is PSD.
  *
  * Return: QDF_STATUS
  */
@@ -1727,7 +1790,7 @@ QDF_STATUS
 wlan_reg_get_client_power_for_connecting_ap(struct wlan_objmgr_pdev *pdev,
 					    enum reg_6g_ap_type ap_type,
 					    qdf_freq_t chan_freq,
-					    bool *is_psd, uint16_t *tx_power,
+					    bool is_psd, uint16_t *tx_power,
 					    uint16_t *eirp_psd_power);
 
 /**
@@ -1834,10 +1897,9 @@ static inline QDF_STATUS
 wlan_reg_get_client_power_for_connecting_ap(struct wlan_objmgr_pdev *pdev,
 					    enum reg_6g_ap_type ap_type,
 					    qdf_freq_t chan_freq,
-					    bool *is_psd, uint16_t *tx_power,
+					    bool is_psd, uint16_t *tx_power,
 					    uint16_t *eirp_psd_power)
 {
-	*is_psd = false;
 	*tx_power = 0;
 	*eirp_psd_power = 0;
 	return QDF_STATUS_E_NOSUPPORT;

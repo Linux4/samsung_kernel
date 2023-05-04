@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -144,53 +145,6 @@ dp_send_ack_frame_to_stack(struct dp_soc *soc,
 	return QDF_STATUS_SUCCESS;
 }
 #endif
-
-/**
-* dp_rx_process_peer_based_pktlog() - Process Rx pktlog if peer based
-* filtering enabled
-* @soc: core txrx main context
-* @ppdu_info: Structure for rx ppdu info
-* @status_nbuf: Qdf nbuf abstraction for linux skb
-* @pdev_id: mac_id/pdev_id correspondinggly for MCL and WIN
-*
-* Return: none
-*/
-static inline void
-dp_rx_process_peer_based_pktlog(struct dp_soc *soc,
-				struct hal_rx_ppdu_info *ppdu_info,
-				qdf_nbuf_t status_nbuf, uint32_t pdev_id)
-{
-	struct dp_peer *peer;
-	struct mon_rx_user_status *rx_user_status;
-	uint32_t num_users = ppdu_info->com_info.num_users;
-	uint16_t sw_peer_id;
-
-	/* Sanity check for num_users */
-	if (!num_users)
-		return;
-
-	qdf_assert_always(num_users <= CDP_MU_MAX_USERS);
-	rx_user_status = &ppdu_info->rx_user_status[num_users - 1];
-
-	sw_peer_id = rx_user_status->sw_peer_id;
-
-	peer = dp_peer_get_ref_by_id(soc, sw_peer_id,
-				     DP_MOD_ID_RX_PPDU_STATS);
-
-	if (!peer)
-		return;
-
-	if ((peer->peer_id != HTT_INVALID_PEER) &&
-	    (peer->peer_based_pktlog_filter)) {
-		dp_wdi_event_handler(
-			WDI_EVENT_RX_DESC, soc,
-			status_nbuf,
-			peer->peer_id,
-			WDI_NO_VAL, pdev_id);
-	}
-	dp_peer_unref_delete(peer,
-			     DP_MOD_ID_RX_PPDU_STATS);
-}
 
 #if defined(HTT_UL_OFDMA_USER_INFO_V0_W0_VALID_M)
 static inline void
@@ -414,7 +368,8 @@ dp_rx_mon_status_process_tlv(struct dp_soc *soc, struct dp_intr *int_ctx,
 							      ppdu_info,
 							      tlv_status);
 
-				rx_tlv = hal_rx_status_get_next_tlv(rx_tlv);
+				rx_tlv = hal_rx_status_get_next_tlv(rx_tlv,
+						mon_pdev->is_tlv_hdr_64_bit);
 
 				if ((rx_tlv - rx_tlv_start) >=
 					RX_MON_STATUS_BUF_SIZE)
@@ -1202,7 +1157,8 @@ uint32_t dp_mon_drop_packets_for_mac(struct dp_pdev *pdev, uint32_t mac_id,
 	uint32_t work_done;
 
 	work_done = dp_mon_status_srng_drop_for_mac(pdev, mac_id, quota);
-	dp_mon_dest_srng_drop_for_mac(pdev, mac_id);
+	if (!dp_is_rxdma_dst_ring_common(pdev))
+		dp_mon_dest_srng_drop_for_mac(pdev, mac_id);
 
 	return work_done;
 }

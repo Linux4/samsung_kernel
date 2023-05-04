@@ -2068,5 +2068,10 @@ static void print_graph_alias(const struct agm_meta_data_gsl *meta_data_kv)
         AGM_LOGD("gsl_get_graph_alias failed: ret = %d\n", ret);
         return;
     }
+
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG
+    AGM_LOGI("GKV Alias %s\n", acdb_string);
+#else
     AGM_LOGD("GKV Alias %s\n", acdb_string);
+#endif
 }

@@ -54,6 +54,8 @@
 #include <net/rtnetlink.h>
 #include <net/net_namespace.h>
 
+#define CONFIG_DEBUG_RTNL_LATENCY
+
 #define RTNL_MAX_TYPE		50
 #define RTNL_SLAVE_MAX_TYPE	36
 
@@ -65,11 +67,33 @@ struct rtnl_link {
 	struct rcu_head		rcu;
 };
 
-static DEFINE_MUTEX(rtnl_mutex);
+DEFINE_MUTEX(rtnl_mutex);
+
+#ifdef CONFIG_DEBUG_RTNL_LATENCY
+static unsigned long time_latency;
+static char owner_comm[32];
+#endif
 
 void rtnl_lock(void)
 {
+#ifdef CONFIG_DEBUG_RTNL_LATENCY
+	unsigned long local_time_latency = jiffies;
+	unsigned long timeDiff;
 	mutex_lock(&rtnl_mutex);
+	
+	timeDiff = (jiffies - local_time_latency) * 1000 / HZ;
+	
+	if (timeDiff > 500) {
+		pr_err("rtnl_lock: %s: %s took %ld msec to grab local rtnl_lock!\n",
+			__func__, current->comm, timeDiff);
+		dump_stack();
+	}
+
+	strncpy(owner_comm, current->comm, 31);
+	time_latency = jiffies;
+#else
+	mutex_lock(&rtnl_mutex);
+#endif
 }
 EXPORT_SYMBOL(rtnl_lock);
 
@@ -92,8 +116,20 @@ EXPORT_SYMBOL(rtnl_kfree_skbs);
 void __rtnl_unlock(void)
 {
 	struct sk_buff *head = defer_kfree_skb_list;
+	unsigned long timeDiff;
 
 	defer_kfree_skb_list = NULL;
+
+#ifdef CONFIG_DEBUG_RTNL_LATENCY
+	timeDiff = (jiffies - time_latency) * 1000 / HZ;
+	if (timeDiff > 500) {
+		pr_err("rtnl_lock: %s: %s took %ld msec to unlock!\n",
+			__func__, current->comm, timeDiff);
+		dump_stack();
+	}
+
+	time_latency = jiffies;
+#endif
 
 	mutex_unlock(&rtnl_mutex);
 
@@ -115,7 +151,30 @@ EXPORT_SYMBOL(rtnl_unlock);
 
 int rtnl_trylock(void)
 {
+#ifdef CONFIG_DEBUG_RTNL_LATENCY
+	int ret;
+	unsigned long local_time_latency = jiffies;
+	unsigned long timeDiff;
+	
+	ret = mutex_trylock(&rtnl_mutex);
+
+	timeDiff = (jiffies - local_time_latency) * 1000 / HZ;
+	if (timeDiff > 500) {
+		pr_err("rtnl_lock: %s: %s took %ld msec to grab local rtnl_lock!\n",
+			__func__, current->comm, timeDiff);
+		dump_stack();
+	}
+	
+	if (ret) {
+		/* successed to grab lock */
+		strncpy(owner_comm, current->comm, 31);
+		time_latency = jiffies;
+	}
+
+	return ret;
+#else
 	return mutex_trylock(&rtnl_mutex);
+#endif
 }
 EXPORT_SYMBOL(rtnl_trylock);
 

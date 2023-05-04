@@ -18,7 +18,7 @@
 #include <linux/vmalloc.h>
 #include <linux/kernel.h>
 #include <linux/sched/mm.h>
-#include <linux/mz.h>
+#include "mz_internal.h"
 #include "mz_log.h"
 #include "mz_page.h"
 
@@ -227,9 +227,9 @@ MzResult mz_migrate_and_pin(struct page *target_page, unsigned long va, uint8_t 
 	cur_page->mz_page = new_page;
 	INIT_LIST_HEAD(&(cur_page->list));
 
-	mutex_lock(&(mz_pt_list[tgid].page_list_lock));
+	mutex_lock(&page_list_lock);
 	list_add_tail(&(cur_page->list), &(mz_pt_list[tgid].mz_list_head_page));
-	mutex_unlock(&(mz_pt_list[tgid].page_list_lock));
+	mutex_unlock(&page_list_lock);
 
 	return mz_ret;
 
@@ -287,3 +287,4 @@ out:
 
 	return pfn;
 }
+

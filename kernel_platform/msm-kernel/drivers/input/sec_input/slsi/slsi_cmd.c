@@ -533,7 +533,7 @@ static ssize_t slsi_ts_fod_position_show(struct device *dev,
 
 	if (!ts->plat_data->support_fod) {
 		input_err(true, &ts->client->dev, "%s: fod is not supported\n", __func__);
-		return snprintf(buf, SEC_CMD_BUF_SIZE, "NG");
+		return snprintf(buf, SEC_CMD_BUF_SIZE, "NA");
 	}
 
 	if (!ts->plat_data->fod_data.vi_size) {

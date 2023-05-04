@@ -1,7 +1,8 @@
 #!/bin/bash
 
+
 #1. target config
-BUILD_TARGET=b0q_chn_hkx
+BUILD_TARGET=b0q_chn_openx
 export MODEL=$(echo $BUILD_TARGET | cut -d'_' -f1)
 export PROJECT_NAME=${MODEL}
 export REGION=$(echo $BUILD_TARGET | cut -d'_' -f2)
@@ -11,6 +12,7 @@ export TARGET_BUILD_VARIANT=user
 		
 #2. sm8450 common config
 CHIPSET_NAME=waipio
+
 export ANDROID_BUILD_TOP=$(pwd)
 export TARGET_PRODUCT=gki
 export TARGET_BOARD_PLATFORM=gki

@@ -13,13 +13,13 @@
 
 extern struct defex_file_cache_list file_cache;
 
-static void defex_file_cache_update_test(struct test *test)
+static void defex_file_cache_update_test(struct kunit *test)
 {
-	/* EXPECT_EQ(test, 1, defex_file_cache_update()); */
+	/* KUNIT_EXPECT_EQ(test, 1, defex_file_cache_update()); */
 }
 
 
-static void defex_file_cache_init_test(struct test *test)
+static void defex_file_cache_init_test(struct kunit *test)
 {
 	struct defex_file_cache_list copy_file_cache;
 
@@ -27,64 +27,64 @@ static void defex_file_cache_init_test(struct test *test)
 	memcpy(&copy_file_cache, &file_cache, sizeof(copy_file_cache));
 
 	defex_file_cache_init();
-	ASSERT_NOT_ERR_OR_NULL(test, &file_cache);
-	EXPECT_EQ(test, file_cache.first_entry, 0);
-	EXPECT_EQ(test, file_cache.last_entry, FILE_CACHE_SIZE - 1);
+	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, &file_cache);
+	KUNIT_EXPECT_EQ(test, file_cache.first_entry, 0);
+	KUNIT_EXPECT_EQ(test, file_cache.last_entry, FILE_CACHE_SIZE - 1);
 
 	/* restore saved attribute status */
 	memcpy(&file_cache, &copy_file_cache, sizeof(copy_file_cache));
 }
 
 
-static void defex_file_cache_find_test(struct test *test)
+static void defex_file_cache_find_test(struct kunit *test)
 {
-	/* EXPECT_EQ(test, 1, defex_file_cache_find()); */
+	/* KUNIT_EXPECT_EQ(test, 1, defex_file_cache_find()); */
 }
 
 
-static void defex_file_cache_delete_test(struct test *test)
+static void defex_file_cache_delete_test(struct kunit *test)
 {
-	/* EXPECT_EQ(test, 1, defex_file_cache_delete()); */
+	/* KUNIT_EXPECT_EQ(test, 1, defex_file_cache_delete()); */
 }
 
 
-static void defex_file_cache_add_test(struct test *test)
+static void defex_file_cache_add_test(struct kunit *test)
 {
-	/* EXPECT_EQ(test, 1, defex_file_cache_add()); */
+	/* KUNIT_EXPECT_EQ(test, 1, defex_file_cache_add()); */
 }
 
 
-static void defex_caches_lock_test(struct test *test)
+static void defex_caches_lock_test(struct kunit *test)
 {
-	/* EXPECT_EQ(test, 1, defex_caches_lock()); */
+	/* KUNIT_EXPECT_EQ(test, 1, defex_caches_lock()); */
 }
 
 
-static int defex_caches_test_init(struct test *test)
+static int defex_caches_test_init(struct kunit *test)
 {
 	return 0;
 }
 
-static void defex_caches_test_exit(struct test *test)
+static void defex_caches_test_exit(struct kunit *test)
 {
 }
 
-static struct test_case defex_caches_test_cases[] = {
+static struct kunit_case defex_caches_test_cases[] = {
 	/* TEST FUNC DEFINES */
-	TEST_CASE(defex_file_cache_update_test),
-	TEST_CASE(defex_file_cache_init_test),
-	TEST_CASE(defex_file_cache_find_test),
-	TEST_CASE(defex_file_cache_delete_test),
-	TEST_CASE(defex_file_cache_add_test),
-	TEST_CASE(defex_caches_lock_test),
+	KUNIT_CASE(defex_file_cache_update_test),
+	KUNIT_CASE(defex_file_cache_init_test),
+	KUNIT_CASE(defex_file_cache_find_test),
+	KUNIT_CASE(defex_file_cache_delete_test),
+	KUNIT_CASE(defex_file_cache_add_test),
+	KUNIT_CASE(defex_caches_lock_test),
 	{},
 };
 
-static struct test_module defex_caches_test_module = {
+static struct kunit_suite defex_caches_test_module = {
 	.name = "defex_caches_test",
 	.init = defex_caches_test_init,
 	.exit = defex_caches_test_exit,
 	.test_cases = defex_caches_test_cases,
 };
-module_test(defex_caches_test_module);
+kunit_test_suites(&defex_caches_test_module);
 

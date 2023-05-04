@@ -1469,6 +1469,7 @@ struct cs40l26_private {
 	unsigned int irq_gpio;
 	struct sec_vib_inputff_drvdata sec_vib_ddata;
 	u8 busy_state;
+	bool use_sep_index;
 #endif
 };
 

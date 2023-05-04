@@ -50,8 +50,11 @@
 
 #define SNDCARD_PATH "/sys/kernel/snd_card/card_state"
 #define PCM_DEVICE_FILE "/proc/asound/pcm"
-#define MAX_RETRY 100 /*Device will try these many times before return an error*/
+
+// { SEC_AUDIO_BOOT_ON_ERR // 100s -> 60s
+#define MAX_RETRY 60 /*Device will try these many times before return an error*/
 #define RETRY_INTERVAL 1 /*Retry interval in seconds*/
+// } SEC_AUDIO_BOOT_ON_ERR
 
 #ifdef DYNAMIC_LOG_ENABLED
 #include <log_xml_parser.h>
@@ -1031,7 +1034,7 @@ static int wait_for_snd_card_to_online()
     /* maximum wait period = (MAX_RETRY * RETRY_INTERVAL_US) micro-seconds */
     do {
         if ((fd = open(SNDCARD_PATH, O_RDWR)) < 0) {
-            AGM_LOGE(LOG_TAG, "Failed to open snd sysfs node, will retry for %d times ...", (retries - 1));
+            AGM_LOGE("Failed to open snd sysfs node, will retry for %d times ...", (retries - 1));
         } else {
             memset(buf , 0 ,sizeof(buf));
             lseek(fd,0L,SEEK_SET);
@@ -1044,16 +1047,17 @@ static int wait_for_snd_card_to_online()
             sscanf(buf , "%d", &card_status);
 
             if (card_status == SND_CARD_STATUS_ONLINE) {
-                AGM_LOGV(LOG_TAG, "snd sysfs node open successful");
+                AGM_LOGI("snd sysfs node open successful");
                 break;
             }
         }
         retries--;
         sleep(RETRY_INTERVAL);
+        AGM_LOGI("wait SND_CARD_STATUS_ONLINE, will retry for %d times ...", retries);
     } while ( retries > 0);
 
     if (0 == retries) {
-        AGM_LOGE(LOG_TAG, "Failed to open snd sysfs node, exiting ... ");
+        AGM_LOGE("Failed to open snd sysfs node, exiting ... ");
         ret = -EIO;
     }
 

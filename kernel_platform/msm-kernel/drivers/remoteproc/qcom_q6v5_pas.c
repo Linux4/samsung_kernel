@@ -63,6 +63,7 @@ struct adsp_data {
 	bool uses_elf64;
 	bool has_aggre2_clk;
 	bool auto_boot;
+	bool dma_phys_below_32b;
 
 	char **active_pd_names;
 	char **proxy_pd_names;
@@ -100,6 +101,7 @@ struct qcom_adsp {
 	struct icc_path *bus_client;
 	int crash_reason_smem;
 	bool has_aggre2_clk;
+	bool dma_phys_below_32b;
 	const char *info_name;
 
 	struct completion start_done;
@@ -220,7 +222,9 @@ static void adsp_ssr_handler_work(struct work_struct *work)
 		goto proc_unlock;
 	}
 
+	spin_lock_irq(&q6v5->silent_ssr_lock);
 	atomic_set(&q6v5->ssr_in_prog, 1);
+	spin_unlock_irq(&q6v5->silent_ssr_lock);
 
 	/* Stop any subdevices for the remote processor */
 	list_for_each_entry_reverse(subdev, &rproc->subdevs, node) {
@@ -302,7 +306,9 @@ unroll_preparation:
 out:
 	release_firmware(firmware_p);
 proc_unlock:
+	spin_lock_irq(&q6v5->silent_ssr_lock);
 	atomic_set(&q6v5->ssr_in_prog, 0);
+	spin_unlock_irq(&q6v5->silent_ssr_lock);
 	mutex_unlock(&rproc->lock);
 exit:
 	pm_relax(rproc->dev.parent);
@@ -459,7 +465,7 @@ static int adsp_load(struct rproc *rproc, const struct firmware *fw)
 	scm_pas_enable_bw();
 	ret = qcom_mdt_load_no_free(adsp->dev, fw, rproc->firmware, adsp->pas_id,
 			    adsp->mem_region, adsp->mem_phys, adsp->mem_size,
-			    &adsp->mem_reloc, adsp->mdata);
+			    &adsp->mem_reloc, adsp->dma_phys_below_32b, adsp->mdata);
 	scm_pas_disable_bw();
 	if (ret)
 		goto exit;
@@ -656,7 +662,8 @@ unscale_bus:
 disable_irqs:
 	qcom_q6v5_unprepare(&adsp->q6v5);
 free_metadata:
-	qcom_mdt_free_metadata(adsp->pas_id, adsp->mdata, ret);
+	qcom_mdt_free_metadata(adsp->dev, adsp->pas_id, adsp->mdata,
+				adsp->dma_phys_below_32b, ret);
 
 	trace_rproc_qcom_event(dev_name(adsp->dev), "adsp_start", "exit");
 	return ret;
@@ -1013,6 +1020,7 @@ static int adsp_probe(struct platform_device *pdev)
 	adsp->has_aggre2_clk = desc->has_aggre2_clk;
 	adsp->info_name = desc->sysmon_name;
 	adsp->qmp_name = desc->qmp_name;
+	adsp->dma_phys_below_32b = desc->dma_phys_below_32b;
 
 	if (desc->free_after_auth_reset) {
 		adsp->mdata = devm_kzalloc(adsp->dev, sizeof(struct qcom_mdt_metadata), GFP_KERNEL);
@@ -1026,22 +1034,22 @@ static int adsp_probe(struct platform_device *pdev)
 
 	ret = adsp_alloc_memory_region(adsp);
 	if (ret)
-		goto free_rproc;
+		goto deinit_wakeup_source;
 
 	ret = adsp_init_clock(adsp);
 	if (ret)
-		goto free_rproc;
+		goto deinit_wakeup_source;
 
 	ret = adsp_init_regulator(adsp);
 	if (ret)
-		goto free_rproc;
+		goto deinit_wakeup_source;
 
 	adsp_init_bus_scaling(adsp);
 
 	ret = adsp_pds_attach(&pdev->dev, adsp->active_pds,
 			      desc->active_pd_names);
 	if (ret < 0)
-		goto free_rproc;
+		goto deinit_wakeup_source;
 	adsp->active_pd_count = ret;
 
 	ret = adsp_pds_attach(&pdev->dev, adsp->proxy_pds,
@@ -1100,6 +1108,8 @@ detach_proxy_pds:
 	adsp_pds_detach(adsp, adsp->proxy_pds, adsp->proxy_pd_count);
 detach_active_pds:
 	adsp_pds_detach(adsp, adsp->active_pds, adsp->active_pd_count);
+deinit_wakeup_source:
+	device_init_wakeup(adsp->dev, false);
 free_rproc:
 	rproc_free(rproc);
 
@@ -1120,6 +1130,7 @@ static int adsp_remove(struct platform_device *pdev)
 	qcom_remove_sysmon_subdev(adsp->sysmon);
 	qcom_remove_smd_subdev(adsp->rproc, &adsp->smd_subdev);
 	qcom_remove_ssr_subdev(adsp->rproc, &adsp->ssr_subdev);
+	device_init_wakeup(adsp->dev, false);
 	rproc_free(adsp->rproc);
 
 	return 0;
@@ -1413,6 +1424,7 @@ static const struct adsp_data waipio_mpss_resource = {
 	.sysmon_name = "modem",
 	.qmp_name = "modem",
 	.ssctl_id = 0x12,
+	.dma_phys_below_32b = true,
 };
 
 static const struct adsp_data diwali_mpss_resource = {
@@ -1428,6 +1440,7 @@ static const struct adsp_data diwali_mpss_resource = {
 	.sysmon_name = "modem",
 	.qmp_name = "modem",
 	.ssctl_id = 0x12,
+	.dma_phys_below_32b = true,
 };
 
 static const struct adsp_data cape_mpss_resource = {
@@ -1443,6 +1456,7 @@ static const struct adsp_data cape_mpss_resource = {
 	.sysmon_name = "modem",
 	.qmp_name = "modem",
 	.ssctl_id = 0x12,
+	.dma_phys_below_32b = true,
 };
 
 static const struct adsp_data parrot_mpss_resource = {
@@ -1458,6 +1472,7 @@ static const struct adsp_data parrot_mpss_resource = {
 	.sysmon_name = "modem",
 	.qmp_name = "modem",
 	.ssctl_id = 0x12,
+	.dma_phys_below_32b = true,
 };
 
 static const struct adsp_data slpi_resource_init = {
@@ -1572,6 +1587,18 @@ static const struct adsp_data parrot_wpss_resource = {
 	.ssctl_id = 0x19,
 };
 
+static const struct adsp_data neo_wpss_resource = {
+	.crash_reason_smem = 626,
+	.firmware_name = "wpss.mdt",
+	.pas_id = 6,
+	.minidump_id = 4,
+	.uses_elf64 = true,
+	.ssr_name = "wpss",
+	.sysmon_name = "wpss",
+	.qmp_name = "wpss",
+	.ssctl_id = 0x19,
+};
+
 static const struct of_device_id adsp_of_match[] = {
 	{ .compatible = "qcom,msm8974-adsp-pil", .data = &adsp_resource_init},
 	{ .compatible = "qcom,msm8996-adsp-pil", .data = &adsp_resource_init},
@@ -1608,6 +1635,7 @@ static const struct of_device_id adsp_of_match[] = {
 	{ .compatible = "qcom,parrot-wpss-pas", .data = &parrot_wpss_resource},
 	{ .compatible = "qcom,neo-adsp-pas", .data = &neo_adsp_resource},
 	{ .compatible = "qcom,neo-cdsp-pas", .data = &neo_cdsp_resource},
+	{ .compatible = "qcom,neo-wpss-pas", .data = &neo_wpss_resource},
 	{ },
 };
 MODULE_DEVICE_TABLE(of, adsp_of_match);

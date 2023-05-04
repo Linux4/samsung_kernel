@@ -24,6 +24,8 @@
 
 	memory { device_type = "memory"; reg = <0 0 0 0>; };
 
+	ddr-regions { };
+
 	reserved_memory: reserved-memory { };
 
 	aliases: aliases {
@@ -592,7 +594,7 @@
 		interrupt-controller;
 		#interrupt-cells = <2>;
 		wakeup-parent = <&pdc>;
-		qcom,gpios-reserved = <28 29 30 31 36 37 38 39>;
+		qcom,gpios-reserved = <36 37 38 39>;
 	};
 
 	arch_timer: timer {
@@ -871,9 +873,8 @@
 				qcom,cpulist = <&CPU0 &CPU1 &CPU2 &CPU3>;
 				qcom,cpufreq-memfreq-tbl =
 					<  556800  300000 >,
-					< 1440000  466500 >,
-					< 1670400  600000 >,
-					< 1804800  806000 >;
+					< 1440000  466000 >,
+					< 1804800  600000 >;
 				qcom,sampling-enabled;
 			};
 
@@ -882,7 +883,7 @@
 				qcom,cpulist = <&CPU4 &CPU5 &CPU6 &CPU7>;
 				qcom,cpufreq-memfreq-tbl =
 					<  633600  300000 >,
-					< 1113600  466500 >,
+					< 1113600  466000 >,
 					< 1324800  600000 >,
 					< 1881600  806000 >,
 					< 2572800  933000 >,
@@ -922,7 +923,8 @@
 					< 1324800 1267200 >,
 					< 1440000 1478400 >,
 					< 1555200 1593600 >,
-					< 1670400 1708800 >;
+					< 1670400 1708800 >,
+					< 1920000 1804000 >;
 				qcom,sampling-enabled;
 			};
 
@@ -937,7 +939,8 @@
 					< 1651200 1267200 >,
 					< 1996800 1478400 >,
 					< 2457600 1593600 >,
-					< 2572800 1708800 >;
+					< 2572800 1708800 >,
+					< 2649600 1804000 >;
 				qcom,sampling-enabled;
 			};
 
@@ -952,7 +955,8 @@
 					< 1651200 1267200 >,
 					< 1996800 1478400 >,
 					< 2476800 1593600 >,
-					< 2822400 1708800 >;
+					< 2822400 1708800 >,
+					< 2918400 1804000 >;
 				qcom,sampling-enabled;
 			};
 
@@ -1022,8 +1026,16 @@
 		shared-buffer = <&trust_ui_vm_qrtr>;
 	};
 
-	trust_ui_vm: qcom,trust_ui_vm@e55fc000 {
-		reg = <0xe55fc000 0x104000>;
+	dmesg-dump {
+		compatible = "qcom,dmesg-dump";
+		qcom,primary-vm;
+		gunyah-label = <4>;
+		peer-name = <2>;
+		shared-buffer = <&trust_ui_vm_dump>;
+	};
+
+	trust_ui_vm: qcom,trust_ui_vm@e50fc000 {
+		reg = <0xe50fc000 0x104000>;
 		vm_name = "trustedvm";
 		shared-buffers = <&trust_ui_vm_vblk0_ring &trust_ui_vm_swiotlb>;
 	};
@@ -1404,11 +1416,14 @@
 		ss-name = "modem", "adsp", "adsp_island",
 			  "cdsp", "slpi", "slpi_island",
 			  "apss";
+		mboxes = <&qmp_aop 0>;
+		ddr-freq-update;
 	};
 
 	subsystem-sleep-stats@c3f0000 {
 		compatible = "qcom,subsystem-sleep-stats";
 		reg = <0xc3f0000 0x400>;
+		ddr-freq-update;
 	};
 
 	sys-pm-vx@c320000 {
@@ -1605,7 +1620,19 @@
 				qcom,glink-channels = "fastrpcglink-apps-dsp";
 				qcom,intents = <0x64 64>;
 			};
+			qcom,msm_cdsprm_rpmsg {
+				compatible = "qcom,msm-cdsprm-rpmsg";
+				qcom,glink-channels = "cdsprmglink-apps-dsp";
+				qcom,intents = <0x20 12>;
+
+				msm_cdsp_rm: qcom,msm_cdsp_rm {
+					compatible = "qcom,msm-cdsp-rm";
+					qcom,qos-cores = <0 1 2 3>;
+					qcom,qos-latency-us = <70>;
+					qcom,qos-maxhold-ms = <20>;
+				};
 		};
+	};
 	};
 
 	modem_pas: remoteproc-mss@04080000 {
@@ -1772,6 +1799,22 @@
 		qcom,client-id = <0x00000001>;
 	};
 
+	sdhc2_opp_table: sdhc2-opp-table {
+		compatible = "operating-points-v2";
+
+		opp-100000000 {
+			opp-hz = /bits/ 64 <100000000>;
+			opp-peak-kBps = <160000 100000>;
+			opp-avg-kBps = <50000 0>;
+		};
+
+		opp-202000000 {
+			opp-hz = /bits/ 64 <202000000>;
+			opp-peak-kBps = <200000 120000>;
+			opp-avg-kBps = <104000 0>;
+		};
+	};
+
 	sdhc_2: sdhci@8804000 {
 		status = "disabled";
 
@@ -1799,6 +1842,11 @@
 		iommus = <&apps_smmu 0x4A0 0x0>;
 		dma-coherent;
 		qcom,iommu-dma = "fastmap";
+
+		interconnects = <&aggre2_noc MASTER_SDCC_2 &mc_virt SLAVE_EBI1>,
+			<&gem_noc MASTER_APPSS_PROC &config_noc SLAVE_SDCC_2>;
+		interconnect-names = "sdhc-ddr","cpu-sdhc";
+		operating-points-v2 = <&sdhc2_opp_table>;
 
 		qos0 {
 			mask = <0xf0>;
@@ -1886,11 +1934,11 @@
 			<&clock_gcc GCC_UFS_PHY_RX_SYMBOL_0_CLK>,
 			<&clock_gcc GCC_UFS_PHY_RX_SYMBOL_1_CLK>;
 		freq-table-hz =
-			<75000000 300000000>,
+			<75000000 850000000>,
 			<0 0>,
 			<0 0>,
-			<75000000 300000000>,
-			<75000000 300000000>,
+			<75000000 850000000>,
+			<75000000 850000000>,
 			<0 0>,
 			<0 0>,
 			<0 0>,
@@ -1947,7 +1995,7 @@
 		 */
 		<1492582 0>, <204800 409600>, /* HS G3 RB L2 KBPs */
 		<2915200 0>, <409600 409600>, /* HS G4 RB L2 */
-		<7643136 0>, <307200 0>; /* Max. bandwidth */
+		<7643136 12000000>, <409600 409600>; /* Max. bandwidth */
 
 		qcom,bus-vector-names = "MIN",
 		"PWM_G1_L1", "PWM_G2_L1", "PWM_G3_L1", "PWM_G4_L1",
@@ -1965,6 +2013,15 @@
 		iommus = <&apps_smmu 0xE0 0x0>;
 		qcom,iommu-dma = "fastmap";
 		dma-coherent;
+
+		/* Multilevel clock scaling support for higher ufs clock freq */
+		multi-level-clk-scaling-support;
+		axi-turbo-clk-freq = <850000000>;
+		axi-turbo-l1-clk-freq = <850000000>;
+		ice-turbo-clk-freq = <850000000>;
+		ice-turbo-l1-clk-freq = <850000000>;
+		unipro-turbo-clk-freq = <850000000>;
+		unipro-turbo-l1-clk-freq = <850000000>;
 
 		/* CGC bit needs to disable fot target supporting higher ufs clock freq */
 		disable-cgc;
@@ -2187,6 +2244,10 @@
 		compatible = "qcom,dload-mode";
 	};
 
+	microdump_modem {
+		compatible = "qcom,microdump_modem";
+	};
+
 	tcsr: syscon@1fc0000 {
 		compatible = "syscon";
 		reg = <0x1fc0000 0x30000>;
@@ -2391,6 +2452,10 @@
 		};
 	};
 
+	qcom,glink {
+		compatible = "qcom,glink";
+	};
+
 	aoss_qmp: power-controller@c300000 {
 		compatible = "qcom,waipio-aoss-qmp";
 		reg = <0xc300000 0x400>;
@@ -2497,6 +2562,7 @@
 				qcom,intents = <0x800  5
 						0x2000 3
 						0x4400 2>;
+						qcom,no-wake-svc = <0x190>;
 			};
 
 			qcom,msm_fastrpc_rpmsg {
@@ -2693,7 +2759,7 @@
 		qcom,vmid = <45>;
 		qcom,firmware-name = "trustedvm";
 		qcom,reserved-cpus = <0x5>, <0x6>;
-		qcom,unisolate-timeout-ms = <12000>;
+		qcom,unisolate-timeout-ms = <50000>;
 		memory-region = <&trust_ui_vm_mem>;
 	};
 
@@ -3134,6 +3200,17 @@
 			qcom,iommu-pagetable = "coherent";
 			qcom,iommu-faults = "stall-disable", "HUPCF", "no-CFRE",
 					    "non-fatal";
+		};
+	};
+};
+
+/* FIXME: to prevent changes in the middle of this file,
+ * I remove 'vendor' node at here.
+ */
+&firmware {
+	android {
+		fstab {
+			/delete-node/ vendor;
 		};
 	};
 };

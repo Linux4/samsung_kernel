@@ -146,7 +146,7 @@
 		status = "disabled";
 	};
 
-	gcc_pcie_2_gdsc: qcom,gdsc@19d004 {
+	gcc_pcie_2_gdsc: qcom,pcie2-gdsc@19d004 {
 		compatible = "qcom,gdsc";
 		reg = <0x19d004 0x4>;
 		regulator-name = "gcc_pcie_2_gdsc";

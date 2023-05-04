@@ -270,6 +270,24 @@ u32 dsi_phy_hw_v4_0_show_str(struct dsi_phy_hw *phy)
 	return hstx_str;
 }
 
+void dsi_phy_hw_v4_0_store_vreg(struct dsi_phy_hw *phy, u32 *val)
+{
+	DSI_PHY_INFO(phy, "base : 0x%X, val : 0x%X\n", phy->base, *val);
+	DSI_W32(phy, DSIPHY_CMN_VREG_CTRL_0, *val);
+
+	DSI_PHY_INFO(phy, "applied vreg_ctrl_0 : 0x%02X, \n", *val);
+}
+
+u32 dsi_phy_hw_v4_0_show_vreg(struct dsi_phy_hw *phy)
+{
+	u32 val = 0;
+
+	val = DSI_R32(phy, DSIPHY_CMN_VREG_CTRL_0);
+	DSI_PHY_INFO(phy, "cur base : 0x%X, vreg_ctrl_0 : 0x%02X \n", phy->base, val);
+
+	return val;
+}
+
 /* To store de-emphasis adjusted for Motto tool  */
 void dsi_phy_hw_v4_0_store_emphasis(struct dsi_phy_hw *phy, u32 *val)
 {
@@ -522,16 +540,14 @@ static void dsi_phy_hw_dphy_enable(struct dsi_phy_hw *phy,
 	bool split_link_enabled;
 	u32 lanes_per_sublink;
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	struct samsung_display_driver_data *vdd;
+	struct samsung_display_driver_data *vdd = ss_get_vdd(phy->display_index);
+	if (!vdd) {
+		LCD_ERR(vdd, "inavlid vdd idx %d\n", phy->display_index);
+		return ;
+	}		
 
-	if (phy->display_index == PRIMARY_DISPLAY_NDX) {
-		vdd = ss_get_vdd(PRIMARY_DISPLAY_NDX);
-	} else {
-		vdd = ss_get_vdd(SECONDARY_DISPLAY_NDX);
-	}
-
-
-	DSI_PHY_DBG(phy, "index:%d, ver:%d(5:4.3)\n", phy->index, phy->version);
+	LCD_INFO_ONCE(vdd, "PHY_%d (%X), display_index:%d ver : %d, bit_clk : %d\n", 
+		phy->index, phy->base, phy->display_index , phy->version, cfg->bit_clk_rate_hz);
 #endif
 
 	/* Alter PHY configurations if data rate less than 1.5GHZ*/
@@ -574,7 +590,7 @@ static void dsi_phy_hw_dphy_enable(struct dsi_phy_hw *phy,
 		 * to select strength override value from DSIPHY_CMN_GLBL_HSTX_STR_CTRL_0.
 		 */
 		glbl_str_swi_cal_sel_ctrl |= 0x01;
-		DSI_PHY_INFO(phy, "motto_swing:0x%x, cal_sel:%x\n",
+		LCD_INFO_ONCE(vdd, "motto_swing : 0x%X, cal_sel : %X\n",
 			vdd->motto_info.motto_swing, glbl_str_swi_cal_sel_ctrl);
 	}
 
@@ -583,7 +599,7 @@ static void dsi_phy_hw_dphy_enable(struct dsi_phy_hw *phy,
 		 * to change between low (bit0) and high (bit1) EQ.
 		 */
 		glbl_str_swi_cal_sel_ctrl |= BIT(2);
-		DSI_PHY_INFO(phy, "motto_emphasis cmn_ctrl2:0x%x cal_sel:%x\n",
+		LCD_INFO_ONCE(vdd, "motto_emphasis cmn_ctrl2 : 0x%X cal_sel : %X\n",
 			vdd->motto_info.cmn_ctrl2_curr, glbl_str_swi_cal_sel_ctrl);
 	}
 #endif
@@ -613,6 +629,13 @@ static void dsi_phy_hw_dphy_enable(struct dsi_phy_hw *phy,
 
 	/* Configure PHY lane swap */
 	dsi_phy_hw_v4_0_lane_swap_config(phy, &cfg->lane_map);
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)	
+	if (vdd->motto_info.vreg_ctrl_0) {
+		LCD_INFO_ONCE(vdd, "vreg_ctrl_0 : 0x%02X -> 0x%02X\n", vreg_ctrl_0, vdd->motto_info.vreg_ctrl_0);
+		vreg_ctrl_0 = vdd->motto_info.vreg_ctrl_0;
+	}
+#endif
 
 	/* Enable LDO */
 	DSI_W32(phy, DSIPHY_CMN_VREG_CTRL_0, vreg_ctrl_0);

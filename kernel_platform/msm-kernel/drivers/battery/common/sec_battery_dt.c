@@ -816,6 +816,76 @@ int sec_bat_parse_dt(struct device *dev,
 		if (ret)
 			pr_info("%s : wpc_high_temp_recovery is Empty\n", __func__);
 
+		ret = of_property_read_u32(np, "battery,wpc_high_temp_12w",
+			&pdata->wpc_high_temp_12w);
+		if (ret) {
+			pr_info("%s : wpc_high_temp_12w is Empty\n", __func__);
+			pdata->wpc_high_temp_12w = pdata->wpc_high_temp;
+		}
+
+		ret = of_property_read_u32(np, "battery,wpc_high_temp_recovery_12w",
+			&pdata->wpc_high_temp_recovery_12w);
+		if (ret) {
+			pr_info("%s : wpc_high_temp_recovery_12w is Empty\n", __func__);
+			pdata->wpc_high_temp_recovery_12w = pdata->wpc_high_temp_recovery;
+		}
+
+		ret = of_property_read_u32(np, "battery,wpc_high_temp_15w",
+			&pdata->wpc_high_temp_15w);
+		if (ret) {
+			pr_info("%s : wpc_high_temp_15w is Empty\n", __func__);
+			pdata->wpc_high_temp_15w = pdata->wpc_high_temp;
+		}
+
+		ret = of_property_read_u32(np, "battery,wpc_high_temp_recovery_15w",
+			&pdata->wpc_high_temp_recovery_15w);
+		if (ret) {
+			pr_info("%s : wpc_high_temp_recovery_15w is Empty\n", __func__);
+			pdata->wpc_high_temp_recovery_15w = pdata->wpc_high_temp_recovery;
+		}
+
+		ret = of_property_read_u32(np, "battery,wpc_lcd_on_high_temp",
+				&pdata->wpc_lcd_on_high_temp);
+		if (ret) {
+			pr_info("%s : wpc_lcd_on_high_temp is Empty\n", __func__);
+			pdata->wpc_lcd_on_high_temp = pdata->wpc_high_temp;
+		}
+
+		ret = of_property_read_u32(np, "battery,wpc_lcd_on_high_temp_rec",
+				&pdata->wpc_lcd_on_high_temp_rec);
+		if (ret) {
+			pr_info("%s : wpc_lcd_on_high_temp_rec is Empty\n", __func__);
+			pdata->wpc_lcd_on_high_temp_rec = pdata->wpc_high_temp_recovery;
+		}
+
+		ret = of_property_read_u32(np, "battery,wpc_lcd_on_high_temp_12w",
+				&pdata->wpc_lcd_on_high_temp_12w);
+		if (ret) {
+			pr_info("%s : wpc_lcd_on_high_temp_12w is Empty\n", __func__);
+			pdata->wpc_lcd_on_high_temp_12w = pdata->wpc_high_temp_12w;
+		}
+
+		ret = of_property_read_u32(np, "battery,wpc_lcd_on_high_temp_rec_12w",
+				&pdata->wpc_lcd_on_high_temp_rec_12w);
+		if (ret) {
+			pr_info("%s : wpc_lcd_on_high_temp_rec_12w is Empty\n", __func__);
+			pdata->wpc_lcd_on_high_temp_rec_12w = pdata->wpc_high_temp_recovery_12w;
+		}
+
+		ret = of_property_read_u32(np, "battery,wpc_lcd_on_high_temp_15w",
+				&pdata->wpc_lcd_on_high_temp_15w);
+		if (ret) {
+			pr_info("%s : wpc_lcd_on_high_temp_15w is Empty\n", __func__);
+			pdata->wpc_lcd_on_high_temp_15w = pdata->wpc_high_temp_15w;
+		}
+
+		ret = of_property_read_u32(np, "battery,wpc_lcd_on_high_temp_rec_15w",
+				&pdata->wpc_lcd_on_high_temp_rec_15w);
+		if (ret) {
+			pr_info("%s : wpc_lcd_on_high_temp_rec_15w is Empty\n", __func__);
+			pdata->wpc_lcd_on_high_temp_rec_15w = pdata->wpc_high_temp_recovery_15w;
+		}
+
 		ret = of_property_read_u32(np, "battery,wpc_input_limit_current",
 				&pdata->wpc_input_limit_current);
 		if (ret)
@@ -825,16 +895,6 @@ int sec_bat_parse_dt(struct device *dev,
 				&pdata->wpc_charging_limit_current);
 		if (ret)
 			pr_info("%s : wpc_charging_limit_current is Empty\n", __func__);
-
-		ret = of_property_read_u32(np, "battery,wpc_lcd_on_high_temp",
-				&pdata->wpc_lcd_on_high_temp);
-		if (ret)
-			pr_info("%s : wpc_lcd_on_high_temp is Empty\n", __func__);
-
-		ret = of_property_read_u32(np, "battery,wpc_lcd_on_high_temp_rec",
-				&pdata->wpc_lcd_on_high_temp_rec);
-		if (ret)
-			pr_info("%s : wpc_lcd_on_high_temp_rec is Empty\n", __func__);
 
 		ret = of_property_read_u32(np, "battery,wpc_lcd_on_input_limit_current",
 				&pdata->wpc_lcd_on_input_limit_current);
@@ -1476,19 +1536,6 @@ int sec_bat_parse_dt(struct device *dev,
 		}
 	}
 
-	ret = of_property_read_u32(np, "battery,non_wc20_wpc_high_temp",
-		&pdata->non_wc20_wpc_high_temp);
-	if (ret) {
-		pr_info("%s : non_wc20_wpc_high_temp is Empty\n", __func__);
-		pdata->non_wc20_wpc_high_temp = pdata->wpc_high_temp;
-	}
-	ret = of_property_read_u32(np, "battery,non_wc20_wpc_high_temp_recovery",
-		&pdata->non_wc20_wpc_high_temp_recovery);
-	if (ret) {
-		pr_info("%s : non_wc20_wpc_high_temp_recovery is Empty\n", __func__);
-		pdata->non_wc20_wpc_high_temp_recovery = pdata->wpc_high_temp_recovery;
-	}
-
 	ret = of_property_read_u32(np, "battery,full_check_type",
 		&pdata->full_check_type);
 	if (ret)
@@ -2093,13 +2140,19 @@ void sec_bat_parse_mode_dt(struct sec_battery_info *battery)
 		if (pdata->wpc_thm_info.check_type) {
 			ret = of_property_read_u32(np, "battery,wpc_store_high_temp",
 			   &temp);
-			if (!ret)
+			if (!ret) {
 				pdata->wpc_high_temp = temp;
+				pdata->wpc_high_temp_12w = temp;
+				pdata->wpc_high_temp_15w = temp;
+			}
 
 			ret = of_property_read_u32(np, "battery,wpc_store_high_temp_recovery",
 			   &temp);
-			if (!ret)
+			if (!ret) {
 				pdata->wpc_high_temp_recovery = temp;
+				pdata->wpc_high_temp_recovery_12w = temp;
+				pdata->wpc_high_temp_recovery_15w = temp;
+			}
 
 			ret = of_property_read_u32(np, "battery,wpc_store_charging_limit_current",
 			   &temp);
@@ -2108,25 +2161,32 @@ void sec_bat_parse_mode_dt(struct sec_battery_info *battery)
 
 			ret = of_property_read_u32(np, "battery,wpc_store_lcd_on_high_temp",
 			   &temp);
-			if (!ret)
+			if (!ret) {
 				pdata->wpc_lcd_on_high_temp = (int)temp;
+				pdata->wpc_lcd_on_high_temp_12w = (int)temp;
+				pdata->wpc_lcd_on_high_temp_15w = (int)temp;
+			}
 
 			ret = of_property_read_u32(np, "battery,wpc_store_lcd_on_high_temp_rec",
 			   &temp);
-			if (!ret)
+			if (!ret) {
 				pdata->wpc_lcd_on_high_temp_rec = (int)temp;
+				pdata->wpc_lcd_on_high_temp_rec_12w = (int)temp;
+				pdata->wpc_lcd_on_high_temp_rec_15w = (int)temp;
+			}
 
 			ret = of_property_read_u32(np, "battery,wpc_store_lcd_on_charging_limit_current",
 				&temp);
 			if (!ret)
 				pdata->wpc_lcd_on_input_limit_current = (int)temp;
 
-			pr_info("%s: update store_mode - wpc high_temp(t:%d, r:%d), lcd_on_high_temp(t:%d, r:%d), curr(%d, %d)\n",
-				__func__,
-				pdata->wpc_high_temp, pdata->wpc_high_temp_recovery,
-				pdata->wpc_lcd_on_high_temp, pdata->wpc_lcd_on_high_temp_rec,
-				pdata->wpc_input_limit_current,
-				pdata->wpc_lcd_on_input_limit_current);
+			pr_info("%s: update store_mode - wpc high_temp(t:%d/%d/%d, r:%d/%d/%d), "
+					"lcd_on_high_temp(t:%d/%d%d, r:%d/%d/%d), curr(%d, %d)\n", __func__,
+				pdata->wpc_high_temp, pdata->wpc_high_temp_12w, pdata->wpc_high_temp_15w,
+				pdata->wpc_high_temp_recovery, pdata->wpc_high_temp_recovery_12w, pdata->wpc_high_temp_recovery_15w,
+				pdata->wpc_lcd_on_high_temp, pdata->wpc_lcd_on_high_temp_12w, pdata->wpc_lcd_on_high_temp_12w,
+				pdata->wpc_lcd_on_high_temp_rec, pdata->wpc_lcd_on_high_temp_rec_12w, pdata->wpc_lcd_on_high_temp_rec_12w,
+				pdata->wpc_input_limit_current, pdata->wpc_lcd_on_input_limit_current);
 		}
 
 		ret = of_property_read_u32(np, "battery,siop_store_hv_wpc_icl",

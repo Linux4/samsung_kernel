@@ -298,6 +298,11 @@ interconnects:
 	Definition: L1.2 LTR threshold value to be multipled with scale to
 		define L1.2 latency tolerance reporting (LTR)
 
+- qcom,device-vendor-id:
+	Usage: optional
+	Value type: <u32>
+	Definition: Support Device-Vendor Id
+
 - qcom,slv-addr-space-size:
 	Usage: required
 	Value type: <u32>

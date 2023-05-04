@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -22,6 +23,7 @@
 #include "target_type.h"
 #include "qdf_module.h"
 #include "wcss_version.h"
+#include <qdf_tracepoint.h>
 
 #ifdef QCA_WIFI_QCA8074
 void hal_qca6290_attach(struct hal_soc *hal);
@@ -54,8 +56,8 @@ void hal_qca6750_attach(struct hal_soc *hal);
 #ifdef QCA_WIFI_QCA5018
 void hal_qca5018_attach(struct hal_soc *hal);
 #endif
-#ifdef QCA_WIFI_WCN7850
-void hal_wcn7850_attach(struct hal_soc *hal);
+#ifdef QCA_WIFI_KIWI
+void hal_kiwi_attach(struct hal_soc *hal);
 #endif
 
 #ifdef ENABLE_VERBOSE_DEBUG
@@ -421,11 +423,10 @@ static void hal_target_based_configure(struct hal_soc *hal)
 			hal_qca6750_attach(hal);
 		break;
 #endif
-#ifdef QCA_WIFI_WCN7850
-	case TARGET_TYPE_WCN7850:
+#ifdef QCA_WIFI_KIWI
+	case TARGET_TYPE_KIWI:
 		hal->use_register_windowing = true;
-		hal_wcn7850_attach(hal);
-		hal->init_phase = false;
+		hal_kiwi_attach(hal);
 		break;
 #endif
 #if defined(QCA_WIFI_QCA8074) && defined(WIFI_TARGET_TYPE_3_0)
@@ -777,6 +778,11 @@ static void hal_reg_write_work(void *arg)
 		hal_verbose_debug("read_idx %u srng 0x%x, addr 0x%pK dequeue_val %u sched delay %llu us",
 				  hal->read_idx, ring_id, addr, write_val, delta_us);
 
+		qdf_trace_dp_del_reg_write(ring_id, q_elem->enqueue_val,
+					   q_elem->dequeue_val,
+					   q_elem->enqueue_time,
+					   q_elem->dequeue_time);
+
 		num_processed++;
 		hal->read_idx = (hal->read_idx + 1) &
 					(HAL_REG_WRITE_QUEUE_LEN - 1);
@@ -799,8 +805,8 @@ static void hal_reg_write_work(void *arg)
 
 static void __hal_flush_reg_write_work(struct hal_soc *hal)
 {
-	qdf_cancel_work(&hal->reg_write_work);
-
+	qdf_flush_work(&hal->reg_write_work);
+	qdf_disable_work(&hal->reg_write_work);
 }
 
 void hal_flush_reg_write_work(hal_soc_handle_t hal_handle)
@@ -992,8 +998,8 @@ void hal_delayed_reg_write(struct hal_soc *hal_soc,
 			   void __iomem *addr,
 			   uint32_t value)
 {
-	if (pld_is_device_awake(hal_soc->qdf_dev->dev) ||
-	    hal_is_reg_write_tput_level_high(hal_soc)) {
+	if (hal_is_reg_write_tput_level_high(hal_soc) ||
+	    pld_is_device_awake(hal_soc->qdf_dev->dev)) {
 		qdf_atomic_inc(&hal_soc->stats.wstats.direct);
 		srng->wstats.direct++;
 		hal_write_address_32_mb(hal_soc, addr, value, false);
@@ -1275,6 +1281,8 @@ void hal_reo_read_write_ctrl_ix(hal_soc_handle_t hal_soc_hdl, bool read,
 	}
 }
 
+qdf_export_symbol(hal_reo_read_write_ctrl_ix);
+
 /**
  * hal_srng_dst_set_hp_paddr_confirm() - Set physical address to dest ring head
  *  pointer and confirm that write went through by reading back the value
@@ -1288,6 +1296,8 @@ void hal_srng_dst_set_hp_paddr_confirm(struct hal_srng *srng, uint64_t paddr)
 	SRNG_DST_REG_WRITE_CONFIRM(srng, HP_ADDR_LSB, paddr & 0xffffffff);
 	SRNG_DST_REG_WRITE_CONFIRM(srng, HP_ADDR_MSB, paddr >> 32);
 }
+
+qdf_export_symbol(hal_srng_dst_set_hp_paddr_confirm);
 
 /**
  * hal_srng_dst_init_hp() - Initialize destination ring head
@@ -1320,6 +1330,8 @@ void hal_srng_dst_init_hp(struct hal_soc_handle *hal_soc,
 			  *srng->u.dst_ring.hp_addr);
 	}
 }
+
+qdf_export_symbol(hal_srng_dst_init_hp);
 
 /**
  * hal_srng_hw_init - Private function to initialize SRNG HW
@@ -1503,6 +1515,7 @@ void *hal_srng_setup(void *hal_soc, int ring_type, int ring_num,
 	srng->num_entries = ring_params->num_entries;
 	srng->ring_size = srng->num_entries * srng->entry_size;
 	srng->ring_size_mask = srng->ring_size - 1;
+	srng->ring_vaddr_end = srng->ring_base_vaddr + srng->ring_size;
 	srng->msi_addr = ring_params->msi_addr;
 	srng->msi_data = ring_params->msi_data;
 	srng->intr_timer_thres_us = ring_params->intr_timer_thres_us;
@@ -1741,7 +1754,6 @@ void hal_set_low_threshold(hal_ring_handle_t hal_ring_hdl,
 	srng->u.src_ring.low_threshold = low_threshold * srng->entry_size;
 }
 qdf_export_symbol(hal_set_low_threshold);
-
 
 #ifdef FORCE_WAKE
 void hal_set_init_phase(hal_soc_handle_t soc, bool init_phase)

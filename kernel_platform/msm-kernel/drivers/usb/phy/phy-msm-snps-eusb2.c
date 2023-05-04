@@ -24,6 +24,9 @@
 #include <linux/usb/dwc3-msm.h>
 #include <linux/usb/phy.h>
 #include <linux/usb/repeater.h>
+#if IS_ENABLED(CONFIG_USB_CONFIGFS_F_SS_MON_GADGET)
+#include <linux/usb/f_ss_mon_gadget.h>
+#endif
 
 #define USB_PHY_UTMI_CTRL0		(0x3c)
 #define OPMODE_MASK			(0x3 << 3)
@@ -683,6 +686,8 @@ static int msm_eusb2_repeater_reset_and_init(struct msm_eusb2_phy *phy)
 		phy->ur->is_host = true;
 	else
 		phy->ur->is_host = false;
+	/* device start up time. TI 3ms, NXP 1ms */
+	usleep_range(3000, 3500);
 #endif
 	ret = usb_repeater_init(phy->ur);
 	if (ret)
@@ -704,6 +709,7 @@ static int msm_eusb2_phy_init(struct usb_phy *uphy)
 			phy->re_enable_eud = true;
 		} else {
 			msm_eusb2_phy_power(phy, true);
+			msm_eusb2_phy_clocks(phy, true);
 			return msm_eusb2_repeater_reset_and_init(phy);
 		}
 	}
@@ -810,7 +816,8 @@ static int msm_eusb2_phy_set_suspend(struct usb_phy *uphy, int suspend)
 			 * suspend case. As this vote is suppressible, this will allow XO
 			 * shutdown.
 			 */
-			if (phy->ref_clk && !phy->ref_clk_enable) {
+			if (phy->ref_clk && !phy->ref_clk_enable &&
+					!(phy->ur->flags & UR_AUTO_RESUME_SUPPORTED)) {
 				phy->ref_clk_enable = true;
 				clk_prepare_enable(phy->ref_clk);
 			}
@@ -829,7 +836,8 @@ static int msm_eusb2_phy_set_suspend(struct usb_phy *uphy, int suspend)
 		if (phy->phy.flags & EUD_SPOOF_DISCONNECT)
 			goto suspend_exit;
 
-		if (phy->ref_clk && phy->ref_clk_enable) {
+		if (phy->ref_clk && phy->ref_clk_enable &&
+					!(phy->ur->flags & UR_AUTO_RESUME_SUPPORTED)) {
 			clk_disable_unprepare(phy->ref_clk);
 			phy->ref_clk_enable = false;
 		}
@@ -856,6 +864,27 @@ static int msm_eusb2_phy_notify_connect(struct usb_phy *uphy,
 	struct msm_eusb2_phy *phy = container_of(uphy, struct msm_eusb2_phy, phy);
 
 	phy->cable_connected = true;
+	/*
+	 * SW WA for CV9 RESET DEVICE TEST(TD 9.23) compliance test failure.
+	 * During HS to SS transitions UTMI_TX Valid signal remains high causing
+	 * the next HS connect to fail. The below sequence sends an extra TX_READY
+	 * signal when the link transitions from HS to SS mode to lower down the
+	 * TX_VALID signal.
+	 */
+	if (!(phy->phy.flags & PHY_HOST_MODE) && (speed >= USB_SPEED_SUPER)) {
+		msm_eusb2_write_readback(phy->base, USB_PHY_APB_ACCESS_CMD, 0xff, 0x0);
+		msm_eusb2_write_readback(phy->base, USB_PHY_APB_ADDRESS, 0xff, 0x5);
+		msm_eusb2_write_readback(phy->base, USB_PHY_APB_WRDATA_LSB, 0xff, 0x80);
+		msm_eusb2_write_readback(phy->base, USB_PHY_APB_WRDATA_LSB, 0xff, 0xc0);
+		msm_eusb2_write_readback(phy->base, USB_PHY_APB_ACCESS_CMD, 0xff, 0x3);
+		udelay(2);
+		msm_eusb2_write_readback(phy->base, USB_PHY_APB_ACCESS_CMD, 0xff, 0x0);
+		msm_eusb2_write_readback(phy->base, USB_PHY_APB_WRDATA_LSB, 0xff, 0x0);
+		msm_eusb2_write_readback(phy->base, USB_PHY_APB_ACCESS_CMD, 0xff, 0x3);
+		udelay(2);
+		msm_eusb2_write_readback(phy->base, USB_PHY_APB_ACCESS_CMD, 0xff, 0x0);
+	}
+
 	return 0;
 }
 
@@ -882,7 +911,13 @@ static void msm_eusb2_phy_vbus_draw_work(struct work_struct *w)
 			return;
 		}
 	}
-
+#if IS_ENABLED(CONFIG_USB_CONFIGFS_F_SS_MON_GADGET)
+	/* USB SUSPEND CURRENT SETTINGS */
+	if (phy->vbus_draw == 2) {
+		pr_err("[USB] make suspend currrent event\n");
+		make_suspend_current_event();
+	}
+#endif
 	dev_info(phy->phy.dev, "Avail curr from USB = %u\n", phy->vbus_draw);
 	/* Set max current limit in uA */
 	val.intval = 1000 * phy->vbus_draw;

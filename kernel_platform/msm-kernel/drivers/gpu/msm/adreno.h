@@ -207,6 +207,7 @@ enum adreno_gpurev {
 	ADRENO_REV_GEN7_0_0 = 0x070000,
 	ADRENO_REV_GEN7_0_1 = 0x070001,
 	ADRENO_REV_GEN7_4_0 = 0x070400,
+	ADRENO_REV_GEN7_3_0 = 0x070300,
 };
 
 #define ADRENO_SOFT_FAULT BIT(0)
@@ -571,8 +572,6 @@ struct adreno_device {
 	bool sptp_pc_enabled;
 	/** @bcl_enabled: True if BCL is enabled */
 	bool bcl_enabled;
-	/** @lsr_enabled: True if LSR is enabled */
-	bool lsr_enabled;
 	struct kgsl_memdesc *profile_buffer;
 	unsigned int profile_index;
 	struct kgsl_memdesc *pwrup_reglist;
@@ -600,6 +599,10 @@ struct adreno_device {
 	bool gpu_llc_slice_enable;
 	void *gpuhtw_llc_slice;
 	bool gpuhtw_llc_slice_enable;
+	/** @gpumv_llc_slice: GPU MV buffer system cache slice descriptor*/
+	void *gpumv_llc_slice;
+	/** @gpumv_llc_slice_enable: To enable GPUMV buffer system cache slice or not */
+	bool gpumv_llc_slice_enable;
 	unsigned int zap_loaded;
 	/**
 	 * @critpkts: Memory descriptor for 5xx critical packets if applicable
@@ -636,6 +639,8 @@ struct adreno_device {
 	 * controls perfcounter ioctl read
 	 */
 	bool perfcounter;
+	/** @gmu_hub_clk_freq: Gmu hub interface clock frequency */
+	u64 gmu_hub_clk_freq;
 };
 
 /**
@@ -1137,6 +1142,7 @@ static inline int adreno_is_gen7(struct adreno_device *adreno_dev)
 ADRENO_TARGET(gen7_0_0, ADRENO_REV_GEN7_0_0)
 ADRENO_TARGET(gen7_0_1, ADRENO_REV_GEN7_0_1)
 ADRENO_TARGET(gen7_4_0, ADRENO_REV_GEN7_4_0)
+ADRENO_TARGET(gen7_3_0, ADRENO_REV_GEN7_3_0)
 
 /*
  * adreno_checkreg_off() - Checks the validity of a register enum

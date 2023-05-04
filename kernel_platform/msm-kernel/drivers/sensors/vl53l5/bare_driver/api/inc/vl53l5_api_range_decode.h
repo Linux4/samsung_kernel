@@ -81,6 +81,11 @@ struct vl53l5_cal_data_t {
 	int size;
 	int cmd;
 };
+
+struct vl53l5_file_list_t {
+    int file_list;
+};
+
 #endif
 
 int32_t vl53l5_decode_range_data(

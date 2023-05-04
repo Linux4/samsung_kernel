@@ -119,6 +119,11 @@ gfp_t readahead_gfp_mask(struct address_space *x)
 {
 	gfp_t mask = mapping_gfp_mask(x) | __GFP_NORETRY | __GFP_NOWARN;
 
+	if (mask & __GFP_MOVABLE) {
+		mask |= __GFP_CMA;
+		mask &= ~__GFP_HIGHMEM;
+	}
+
 	trace_android_rvh_set_readahead_gfp_mask(&mask);
 	return mask;
 }

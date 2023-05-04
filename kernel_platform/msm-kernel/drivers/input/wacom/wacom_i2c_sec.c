@@ -1192,103 +1192,6 @@ int set_wacom_ble_charge_mode(bool mode)
 }
 EXPORT_SYMBOL(set_wacom_ble_charge_mode);
 
-#if 0
-static ssize_t epen_ble_charging_mode_show(struct device *dev,
-		struct device_attribute *attr,
-		char *buf)
-{
-	struct sec_cmd_data *sec = dev_get_drvdata(dev);
-	struct wacom_i2c *wac_i2c = container_of(sec, struct wacom_i2c, sec);
-	struct i2c_client *client = wac_i2c->client;
-	u8 buff[COM_COORD_NUM + 1] = { 0, };
-	char data;
-	int retry = RETRY_COUNT;
-	int ret;
-
-	if (wac_i2c->is_open_test) {
-		input_err(true, &client->dev, "%s: other cmd is working\n",
-				__func__);
-
-		ret = snprintf(buf, PAGE_SIZE, "NG\n");
-		return ret;
-	}
-
-	wacom_enable_irq(wac_i2c, false);
-
-	do {
-		input_info(true, &client->dev,
-				"read status, retry %d\n", retry);
-
-		data = COM_BLE_C_MODE_RETURN;
-		ret = wacom_i2c_send(wac_i2c, &data, 1);
-		if (ret != 1) {
-			input_err(true, &client->dev, "%s: failed to send data(%02x %d)\n",
-					__func__, data, ret);
-			usleep_range(4500, 5500);
-
-			continue;
-		}
-
-		ret = wacom_i2c_recv(wac_i2c, buff, COM_COORD_NUM);
-		if (ret != COM_COORD_NUM) {
-			input_err(true, &client->dev,
-					"%s: failed to recv data(%d)\n", __func__, ret);
-			usleep_range(4500, 5500);
-
-			continue;
-		}
-
-		input_info(true, &client->dev,
-				"%x %x %x %x %x %x %x %x %x %x %x %x %x %x %x %x\n",
-				buff[0], buff[1], buff[2], buff[3], buff[4], buff[5],
-				buff[6], buff[7], buff[8], buff[9], buff[10], buff[11],
-				buff[12], buff[13], buff[14], buff[15]);
-
-		if ((((buff[0] & 0x0F) == NOTI_PACKET) && (buff[1] == OOK_PACKET)) ||
-				(((buff[0] & 0x0F) == REPLY_PACKET) && (buff[1] == GARAGE_CHARGE_PACKET))) {
-			if (!(buff[4] & 80)) {
-				break;
-			} else {
-				input_err(true, &client->dev, "OOK fail %02x\n", buff[4]);
-			}
-		}
-
-		usleep_range(4500, 5500);
-	} while (--retry);
-
-	if (!retry) {
-		ret = snprintf(buf, PAGE_SIZE, "NG\n");
-		goto out;
-	}
-
-	switch (buff[2] & 0x0F) {
-	case BLE_C_AFTER_START:
-	case BLE_C_AFTER_RESET:
-	case BLE_C_ON_KEEP_1:
-	case BLE_C_ON_KEEP_2:
-	case BLE_C_FULL:
-		ret = snprintf(buf, PAGE_SIZE, "CHARGE\n");
-		break;
-	case BLE_C_OFF:
-	case BLE_C_OFF_KEEP_1:
-	case BLE_C_OFF_KEEP_2:
-		ret = snprintf(buf, PAGE_SIZE, "DISCHARGE\n");
-		break;
-	default:
-		input_info(true, &wac_i2c->client->dev, "unknow status: %x\n",
-				buff[2] & 0x0F);
-		ret = snprintf(buf, PAGE_SIZE, "NG\n");
-		break;
-	}
-
-out:
-	wacom_enable_irq(wac_i2c, true);
-
-	input_info(true, &wac_i2c->client->dev, "%s: %s", __func__, buf);
-
-	return ret;
-}
-#else
 static ssize_t epen_ble_charging_mode_show(struct device *dev,
 		struct device_attribute *attr,
 		char *buf)
@@ -1301,8 +1204,6 @@ static ssize_t epen_ble_charging_mode_show(struct device *dev,
 
 	return snprintf(buf, PAGE_SIZE, "CHARGE\n");
 }
-
-#endif
 
 static ssize_t epen_ble_charging_mode_store(struct device *dev,
 		struct device_attribute *attr,
@@ -1706,50 +1607,53 @@ static ssize_t enabled_show(struct device *dev, struct device_attribute *attr, c
 {
 	struct sec_cmd_data *sec = dev_get_drvdata(dev);
 	struct wacom_i2c *wac_i2c = container_of(sec, struct wacom_i2c, sec);
-	struct i2c_client *client = wac_i2c->client;
 
-	input_info(true, &client->dev, "%s: power_status %d\n", __func__, wac_i2c->pdata->enabled);
+	if (!wac_i2c->pdata->enable_sysinput_enabled)
+		return -EINVAL;
 
-	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d", wac_i2c->pdata->enabled);
+	input_info(true, &wac_i2c->client->dev, "%s: %d\n", __func__, wac_i2c->pdata->enabled);
+	return scnprintf(buf, PAGE_SIZE, "%d\n", wac_i2c->pdata->enabled);
 }
 
-static ssize_t enabled_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+static ssize_t enabled_store(struct device *dev, struct device_attribute *attr,
+				const char *buf, size_t count)
 {
 	struct sec_cmd_data *sec = dev_get_drvdata(dev);
 	struct wacom_i2c *wac_i2c = container_of(sec, struct wacom_i2c, sec);
-	struct i2c_client *client = wac_i2c->client;
-	struct input_dev *input_dev = wac_i2c->input_dev;//to_input_dev(dev);
-	int buff[2];
 	int ret;
+	int buff[2];
+
+	if (!wac_i2c->pdata->enable_sysinput_enabled)
+		return -EINVAL;
 
 	ret = sscanf(buf, "%d,%d", &buff[0], &buff[1]);
 	if (ret != 2) {
-		input_err(true, &client->dev,
+		input_err(true, &wac_i2c->client->dev,
 				"%s: failed read params [%d]\n", __func__, ret);
 		return -EINVAL;
 	}
 
-	input_info(true, &client->dev, "%s: %d %d\n", __func__, buff[0], buff[1]);
-
-	/* only handel force on/off for AOD */
-	if (buff[0] == DISPLAY_STATE_FORCE_ON) {
+	if (buff[0] == DISPLAY_STATE_ON && buff[1] == DISPLAY_EVENT_LATE) {
 		if (wac_i2c->pdata->enabled) {
-			input_err(true, &client->dev,
-					"%s: device already enabled\n", __func__);
+			input_info(true, &wac_i2c->client->dev, "%s: [%s] device already enabled\n", __func__, current->comm);
 			goto out;
 		}
-		ret = wacom_input_enable_device(input_dev);
-		input_info(true, &client->dev, "DISPLAY_STATE_FORCE_ON(%d)\n", ret);
-	} else if (buff[0] == DISPLAY_STATE_FORCE_OFF) {
+		input_info(true, &wac_i2c->client->dev, "%s: [%s] enable\n", __func__, current->comm);
+		wacom_input_enable_device(wac_i2c->input_dev);
+	} else if (buff[0] == DISPLAY_STATE_OFF && buff[1] == DISPLAY_EVENT_EARLY) {
 		if (!wac_i2c->pdata->enabled) {
-			input_err(true, &client->dev,
-					"%s: device already disabled\n", __func__);
+			input_info(true, &wac_i2c->client->dev, "%s: [%s] device already disabled\n", __func__, current->comm);
 			goto out;
 		}
-		ret = wacom_input_disable_device(input_dev);
-		input_info(true, &client->dev, "DISPLAY_STATE_FORCE_OFF(%d)\n", ret);
+		input_info(true, &wac_i2c->client->dev, "%s: [%s] disable\n", __func__, current->comm);
+		wacom_input_disable_device(wac_i2c->input_dev);
+	} else if (buff[0] == DISPLAY_STATE_FORCE_ON) {
+		input_info(true, &wac_i2c->client->dev, "%s: [%s] DISPLAY_STATE_FORCE_ON\n", __func__, current->comm);
+		wacom_input_enable_device(wac_i2c->input_dev);
+	} else if (buff[0] == DISPLAY_STATE_FORCE_OFF) {
+		input_info(true, &wac_i2c->client->dev, "%s: [%s] DISPLAY_STATE_FORCE_OFF\n", __func__, current->comm);
+		wacom_input_disable_device(wac_i2c->input_dev);
 	}
-
 out:
 	return count;
 }
@@ -3717,6 +3621,50 @@ static void get_ble_charge_fp(void *device_data)
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
 	sec->cmd_state = SEC_CMD_STATUS_OK;
 }
+
+static void set_ble_charging_mode(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct wacom_i2c *wac_i2c = container_of(sec, struct wacom_i2c, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	int mode;
+
+	sec_cmd_set_default_result(sec);
+
+	if (!wac_i2c->power_enable) {
+		input_err(true, &wac_i2c->client->dev,
+				"%s: power off return\n", __func__);
+		goto err_out;
+	}
+
+	mode = sec->cmd_param[0];
+#if !WACOM_SEC_FACTORY
+	if (mode == EPEN_BLE_C_DISABLE) {
+		input_info(true, &wac_i2c->client->dev, "%s: use keep off instead of disable\n", __func__);
+		mode = EPEN_BLE_C_KEEP_OFF;
+	}
+#endif
+
+	mutex_lock(&wac_i2c->ble_charge_mode_lock);
+	wacom_ble_charge_mode(wac_i2c, mode);
+	mutex_unlock(&wac_i2c->ble_charge_mode_lock);
+
+	snprintf(buff, sizeof(buff), "OK\n");
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+
+	input_info(true, &wac_i2c->client->dev, "%s: Done\n", __func__);
+	return;
+
+err_out:
+	snprintf(buff, sizeof(buff), "NG");
+	sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+
+	input_info(true, &wac_i2c->client->dev, "%s: Fail\n", __func__);
+}
 #endif
 
 static void set_cover_type(void *device_data)
@@ -3952,6 +3900,7 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("debug", debug),},
 #if 1 // WACOM_PDCT_ENABLE
 	{SEC_CMD("get_ble_charge_fp", get_ble_charge_fp),},
+	{SEC_CMD("epen_ble_charging_mode", set_ble_charging_mode),},
 #endif
 	{SEC_CMD("set_cover_type", set_cover_type),},
 	{SEC_CMD("refresh_rate_mode", set_display_mode),},
