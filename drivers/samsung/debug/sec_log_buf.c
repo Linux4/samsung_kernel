@@ -294,7 +294,7 @@ static int sec_log_store(struct notifier_block *nb,
 	struct rtc_time tm;
 	struct rtc_device *rtc = rtc_class_open(CONFIG_RTC_HCTOSYS_DEVICE);
 	struct timespec64 now;
-	time64_t local_time, rtc_offset;
+	time64_t local_time, rtc_offset = 0;
 	struct rtc_time local_tm;
 
 	if (!rtc) {

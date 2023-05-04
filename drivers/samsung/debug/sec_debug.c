@@ -540,6 +540,9 @@ void sec_peripheral_secure_check_fail(void)
 {
 	if (!sec_debug_is_enabled()) {
 		sec_debug_set_qc_dload_magic(0);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0)                                           
+		sec_debug_update_restart_reason("peripheral_hw_reset", 0, RESTART_NORMAL);
+#endif                                                                                    
 		sec_debug_pm_restart("peripheral_hw_reset");
 		/* never reach here */
 	}

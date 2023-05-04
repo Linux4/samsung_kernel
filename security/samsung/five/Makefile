@@ -31,8 +31,6 @@ endif
 # kunit tests options:
 ifeq ($(CONFIG_SEC_KUNIT)$(CONFIG_UML), yy)
   GCOV_PROFILE := y
-  subdir-$(CONFIG_FIVE) += kunit_test
-  obj-$(CONFIG_FIVE) += kunit_test/
   five-$(CONFIG_FIVE) += five_dsms.o
   EXTRA_CFLAGS += -DFIVE_KUNIT_ENABLED
 endif
