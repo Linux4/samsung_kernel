@@ -34,6 +34,7 @@
 #include <linux/of_gpio.h>
 #endif /* CONFIG_OF */
 
+#define I2C_RETRY_CNT 3
 #define I2C_ADDR_PMIC	(0x92 >> 1)
 
 static struct mfd_cell sm5705_devs[] = {
@@ -57,7 +58,7 @@ extern int p9220_otp_update;
 int sm5705_read_reg(struct i2c_client *i2c, u8 reg, u8 *dest)
 {
 	struct sm5705_dev *sm5705 = i2c_get_clientdata(i2c);
-	int ret;
+	int ret, i;
 
 #if defined(CONFIG_WIRELESS_FIRMWARE_UPDATE)
 	if(p9220_otp_update) {
@@ -66,7 +67,13 @@ int sm5705_read_reg(struct i2c_client *i2c, u8 reg, u8 *dest)
 	}
 #endif
 	mutex_lock(&sm5705->i2c_lock);
-	ret = i2c_smbus_read_byte_data(i2c, reg);
+	for (i = 0; i < I2C_RETRY_CNT; ++i) {
+		ret = i2c_smbus_read_byte_data(i2c, reg);
+		if (ret >= 0)
+			break;
+		pr_info("%s:%s reg(0x%x), ret(%d), i2c_retry_cnt(%d/%d)\n",
+			MFD_DEV_NAME, __func__, reg, ret, i + 1, I2C_RETRY_CNT);
+	}
 	mutex_unlock(&sm5705->i2c_lock);
 	if (ret < 0) {
 		pr_info("%s:%s reg(0x%x), ret(%d)\n", MFD_DEV_NAME, __func__, reg, ret);
@@ -82,7 +89,7 @@ EXPORT_SYMBOL_GPL(sm5705_read_reg);
 int sm5705_bulk_read(struct i2c_client *i2c, u8 reg, int count, u8 *buf)
 {
 	struct sm5705_dev *sm5705 = i2c_get_clientdata(i2c);
-	int ret;
+	int ret, i;
 
 #if defined(CONFIG_WIRELESS_FIRMWARE_UPDATE)
 	if(p9220_otp_update) {
@@ -91,7 +98,13 @@ int sm5705_bulk_read(struct i2c_client *i2c, u8 reg, int count, u8 *buf)
 	}
 #endif
 	mutex_lock(&sm5705->i2c_lock);
-	ret = i2c_smbus_read_i2c_block_data(i2c, reg, count, buf);
+	for (i = 0; i < I2C_RETRY_CNT; ++i) {
+		ret = i2c_smbus_read_i2c_block_data(i2c, reg, count, buf);
+		if (ret >= 0)
+			break;
+		pr_info("%s:%s reg(0x%x), ret(%d), i2c_retry_cnt(%d/%d)\n",
+			MFD_DEV_NAME, __func__, reg, ret, i + 1, I2C_RETRY_CNT);
+	}
 	mutex_unlock(&sm5705->i2c_lock);
 	if (ret < 0)
 		return ret;
@@ -103,7 +116,7 @@ EXPORT_SYMBOL_GPL(sm5705_bulk_read);
 int sm5705_read_word(struct i2c_client *i2c, u8 reg)
 {
 	struct sm5705_dev *sm5705 = i2c_get_clientdata(i2c);
-	int ret;
+	int ret, i;
 
 #if defined(CONFIG_WIRELESS_FIRMWARE_UPDATE)
 	if(p9220_otp_update) {
@@ -112,7 +125,13 @@ int sm5705_read_word(struct i2c_client *i2c, u8 reg)
 	}
 #endif
 	mutex_lock(&sm5705->i2c_lock);
-	ret = i2c_smbus_read_word_data(i2c, reg);
+	for (i = 0; i < I2C_RETRY_CNT; ++i) {
+		ret = i2c_smbus_read_word_data(i2c, reg);
+		if (ret >= 0)
+			break;
+		pr_info("%s:%s reg(0x%x), ret(%d), i2c_retry_cnt(%d/%d)\n",
+			MFD_DEV_NAME, __func__, reg, ret, i + 1, I2C_RETRY_CNT);
+	}
 	mutex_unlock(&sm5705->i2c_lock);
 	if (ret < 0)
 		return ret;
@@ -124,7 +143,7 @@ EXPORT_SYMBOL_GPL(sm5705_read_word);
 int sm5705_write_reg(struct i2c_client *i2c, u8 reg, u8 value)
 {
 	struct sm5705_dev *sm5705 = i2c_get_clientdata(i2c);
-	int ret;
+	int ret, i;
 
 #if defined(CONFIG_WIRELESS_FIRMWARE_UPDATE)
 	if(p9220_otp_update) {
@@ -133,7 +152,13 @@ int sm5705_write_reg(struct i2c_client *i2c, u8 reg, u8 value)
 	}
 #endif
 	mutex_lock(&sm5705->i2c_lock);
-	ret = i2c_smbus_write_byte_data(i2c, reg, value);
+	for (i = 0; i < I2C_RETRY_CNT; ++i) {
+		ret = i2c_smbus_write_byte_data(i2c, reg, value);
+		if (ret >= 0)
+			break;
+		pr_info("%s:%s reg(0x%02x), ret(%d), i2c_retry_cnt(%d/%d)\n",
+			MFD_DEV_NAME, __func__, reg, ret, i + 1, I2C_RETRY_CNT);
+	}
 	mutex_unlock(&sm5705->i2c_lock);
 	if (ret < 0)
 		pr_info("%s:%s reg(0x%x), ret(%d)\n",
@@ -146,7 +171,7 @@ EXPORT_SYMBOL_GPL(sm5705_write_reg);
 int sm5705_bulk_write(struct i2c_client *i2c, u8 reg, int count, u8 *buf)
 {
 	struct sm5705_dev *sm5705 = i2c_get_clientdata(i2c);
-	int ret;
+	int ret, i;
 
 #if defined(CONFIG_WIRELESS_FIRMWARE_UPDATE)
 	if(p9220_otp_update) {
@@ -155,7 +180,13 @@ int sm5705_bulk_write(struct i2c_client *i2c, u8 reg, int count, u8 *buf)
 	}
 #endif
 	mutex_lock(&sm5705->i2c_lock);
-	ret = i2c_smbus_write_i2c_block_data(i2c, reg, count, buf);
+	for (i = 0; i < I2C_RETRY_CNT; ++i) {
+		ret = i2c_smbus_write_i2c_block_data(i2c, reg, count, buf);
+		if (ret >= 0)
+			break;
+		pr_info("%s:%s reg(0x%x), ret(%d), i2c_retry_cnt(%d/%d)\n",
+			MFD_DEV_NAME, __func__, reg, ret, i + 1, I2C_RETRY_CNT);
+	}
 	mutex_unlock(&sm5705->i2c_lock);
 	if (ret < 0)
 		return ret;
@@ -167,7 +198,7 @@ EXPORT_SYMBOL_GPL(sm5705_bulk_write);
 int sm5705_write_word(struct i2c_client *i2c, u8 reg, u16 value)
 {
 	struct sm5705_dev *sm5705 = i2c_get_clientdata(i2c);
-	int ret;
+	int ret, i;
 
 #if defined(CONFIG_WIRELESS_FIRMWARE_UPDATE)
 	if(p9220_otp_update) {
@@ -176,7 +207,13 @@ int sm5705_write_word(struct i2c_client *i2c, u8 reg, u16 value)
 	}
 #endif
 	mutex_lock(&sm5705->i2c_lock);
-	ret = i2c_smbus_write_word_data(i2c, reg, value);
+	for (i = 0; i < I2C_RETRY_CNT; ++i) {
+		ret = i2c_smbus_write_word_data(i2c, reg, value);
+		if (ret >= 0)
+			break;
+		pr_info("%s:%s reg(0x%x), ret(%d), i2c_retry_cnt(%d/%d)\n",
+			MFD_DEV_NAME, __func__, reg, ret, i + 1, I2C_RETRY_CNT);
+	}
 	mutex_unlock(&sm5705->i2c_lock);
 	if (ret < 0)
 		return ret;
@@ -187,7 +224,7 @@ EXPORT_SYMBOL_GPL(sm5705_write_word);
 int sm5705_update_reg(struct i2c_client *i2c, u8 reg, u8 val, u8 mask)
 {
 	struct sm5705_dev *sm5705 = i2c_get_clientdata(i2c);
-	int ret;
+	int ret, i;
 
 #if defined(CONFIG_WIRELESS_FIRMWARE_UPDATE)
 	if(p9220_otp_update) {
@@ -196,11 +233,24 @@ int sm5705_update_reg(struct i2c_client *i2c, u8 reg, u8 val, u8 mask)
 	}
 #endif
 	mutex_lock(&sm5705->i2c_lock);
-	ret = i2c_smbus_read_byte_data(i2c, reg);
+	for (i = 0; i < I2C_RETRY_CNT; ++i) {
+		ret = i2c_smbus_read_byte_data(i2c, reg);
+		if (ret >= 0)
+			break;
+		pr_info("%s:%s read reg(0x%x), ret(%d), i2c_retry_cnt(%d/%d)\n",
+			MFD_DEV_NAME, __func__, reg, ret, i + 1, I2C_RETRY_CNT);
+	}
 	if (ret >= 0) {
 		u8 old_val = ret & 0xff;
 		u8 new_val = (val & mask) | (old_val & (~mask));
-		ret = i2c_smbus_write_byte_data(i2c, reg, new_val);
+
+		for (i = 0; i < I2C_RETRY_CNT; ++i) {
+			ret = i2c_smbus_write_byte_data(i2c, reg, new_val);
+			if (ret >= 0)
+				break;
+			pr_info("%s:%s write reg(0x%x), ret(%d), i2c_retry_cnt(%d/%d)\n",
+				MFD_DEV_NAME, __func__, reg, ret, i + 1, I2C_RETRY_CNT);
+		}
 	}
 	mutex_unlock(&sm5705->i2c_lock);
 	return ret;

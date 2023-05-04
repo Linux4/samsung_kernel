@@ -7394,10 +7394,14 @@ brr_done:
 		LCD_INFO("delay 1frame(min_rr: %d, %dus)\n", min_rr, interval_us);
 		usleep_range(interval_us, interval_us);
 
-		ret = ss_set_normal_sde_core_clk(ddev);
-		if (ret) {
-			LCD_ERR("fail to set normal sde core clock..(%d)\n", ret);
-			SS_XLOG(ret, 0xbad2);
+		if (!vrr->running_vrr_mdp) {
+			ret = ss_set_normal_sde_core_clk(ddev);
+			if (ret) {
+				LCD_ERR("fail to set normal sde core clock..(%d)\n", ret);
+				SS_XLOG(ret, 0xbad2);
+			}
+		} else {
+			LCD_ERR("Do not set normal clk, vrr is ongoing!! (%d)\n", vrr->running_vrr_mdp);
 		}
 	} else {
 		LCD_INFO("consecutive VRR req, keep max sde clk (cur: %d%s, adj: %d%s)\n",
