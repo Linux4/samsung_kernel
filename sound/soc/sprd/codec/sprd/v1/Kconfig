@@ -1,0 +1,2 @@
+config SND_SOC_SPRD_CODEC_V1
+	tristate # "Sprd-codec-v1"

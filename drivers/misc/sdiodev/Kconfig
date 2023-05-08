@@ -1,0 +1,23 @@
+
+menu "SDIODEV modules"
+
+config SDIODEV
+	tristate "SPRD SDIO DEV SUPPORT"	
+	---help---
+	  PLEASE INSMOD THIS MODULE BEFORE OTHER SDIO DEV MODULES
+
+config SDIODEV_TEST
+	bool "SDIO DEV TEST"
+	default n
+	depends on SDIODEV
+	help
+	  FOR RUN SDIODEV TEST CASE,DO NOT OPEN IT IN NORMAL MODE
+
+config WCN_EXTENSION
+        bool "WCN EXTENSION"
+        default n
+        depends on SDIODEV
+        help
+          FOR SUPPORTING MARLIN SS BRANCH
+
+endmenu

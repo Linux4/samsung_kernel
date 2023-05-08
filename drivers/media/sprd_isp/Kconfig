@@ -1,0 +1,10 @@
+menu "SoC Video for the SPREADTRUM SC88XX"
+
+config SND_SC88XX_SOC_SPRDPHONE
+	tristate "sprdphone -- SoC Audio for the SPREADTRUM SC88XX chips with intergrated VBC codec"
+#   depends on ARCH_SC8800S
+    select SND_PCM
+    help
+      Say Y if you want to built in to kernel, Say M for ko module.
+
+endmenu
