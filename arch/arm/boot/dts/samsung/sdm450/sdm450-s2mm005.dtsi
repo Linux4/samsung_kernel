@@ -1,0 +1,57 @@
+/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/ {
+	aliases {
+		i2c8 = &i2c_8;
+	};
+};
+
+&soc {
+	i2c_8: i2c@7af8000 { /* BLSP2 QUP4 */
+		compatible = "qcom,i2c-msm-v2";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "qup_phys_addr";
+		reg = <0x7af8000 0x600>;
+		interrupt-names = "qup_irq";
+		interrupts = <0 302 0>;
+		qcom,clk-freq-out = <400000>;
+		qcom,clk-freq-in  = <19200000>;
+		clock-names = "iface_clk", "core_clk";
+		clocks = <&clock_gcc clk_gcc_blsp2_ahb_clk>,
+			 <&clock_gcc clk_gcc_blsp2_qup4_i2c_apps_clk>;
+
+		pinctrl-names = "i2c_active", "i2c_sleep", "hard_reset", "default";
+		pinctrl-0 = <&i2c_8_active &s2mm005_irq_active>;
+		pinctrl-1 = <&i2c_8_sleep &s2mm005_irq_suspend>;
+		pinctrl-2 = <&s2mm005_hard_reset>;
+		pinctrl-3 = <&i2c_8_active &s2mm005_irq_active>;
+		qcom,noise-rjct-scl = <0>;
+		qcom,noise-rjct-sda = <0>;
+		qcom,master-id = <84>;
+		dmas = <&dma_blsp2 10 64 0x20000020 0x20>,
+			<&dma_blsp2 11 32 0x20000020 0x20>;
+		dma-names = "tx", "rx";
+
+		usbpd-s2mm005@33 {
+			compatible = "sec-s2mm005,i2c";
+			reg = <0x33>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <0 141 0>;
+			usbpd,usbpd_int = <&tlmm 141 0>;
+			usbpd,s2mm005_sda = <&tlmm 98 0>;
+			usbpd,s2mm005_scl = <&tlmm 99 0>;
+			usbpd,s2mm005_fw_product_id = <0x0F>;
+		};
+	};
+};

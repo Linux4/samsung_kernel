@@ -1,0 +1,176 @@
+/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+#include <dt-bindings/input/input.h>
+/ {
+	aliases {
+		i2c1 = &i2c_1;
+	};
+
+	sec-debug {
+		 tsp_dump {
+			keys = <KEY_VOLUMEUP KEY_VOLUMEDOWN KEY_VOLUMEDOWN>;
+		};
+	};
+
+	tsp_avdd {
+		compatible = "regulator-fixed";
+		regulator-name = "tsp_avdd";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&tlmm 139 0>;
+		enable-active-high;
+		regulator-boot-on;
+	};
+
+	tsp_dvdd {
+		compatible = "regulator-fixed";
+		regulator-name = "tsp_dvdd";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		gpio = <&tlmm 140 0>;
+		enable-active-high;
+		regulator-boot-on;
+	};
+};
+
+&soc {
+	gpio_keys {
+		compatible = "gpio-keys";
+		input-name = "gpio-keys";
+		pinctrl-names = "tlmm_gpio_key_active","tlmm_gpio_key_suspend";
+		pinctrl-0 = <&gpio_key_active>;
+		pinctrl-1 = <&gpio_key_suspend>;
+
+		vol_up {
+			label = "volume_up";
+			gpios = <&tlmm 85 0x1>;
+			linux,input-type = <1>;
+			linux,code = <KEY_VOLUMEUP>;
+			debounce-interval = <15>;
+		};
+	};
+
+	i2c_1: i2c@78b5000 {
+		compatible = "qcom,i2c-msm-v2";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "qup_phys_addr";
+		reg = <0x78B5000 0x600>;
+		interrupt-names = "qup_irq";
+		interrupts = <0 95 0>;
+
+		qcom,master-id = <86>;
+		qcom,clk-freq-out = <400000>;
+		qcom,clk-freq-in  = <19200000>;
+		clock-names = "iface_clk", "core_clk";
+		clocks = <&clock_gcc clk_gcc_blsp1_ahb_clk>,
+			<&clock_gcc clk_gcc_blsp1_qup1_i2c_apps_clk>;
+
+		pinctrl-names = "i2c_active", "i2c_sleep";
+		pinctrl-0 = <&i2c_1_active>;
+		pinctrl-1 = <&i2c_1_sleep>;
+
+		qcom,noise-rjct-scl = <0>;
+		qcom,noise-rjct-sda = <0>;
+		dmas = <&dma_blsp1 4 64 0x20000020 0x20>,
+			<&dma_blsp1 5 32 0x20000020 0x20>;
+		dma-names = "tx", "rx";
+		status = "okay";
+
+		touchscreen@49 {
+			status = "okay";
+			compatible = "stm,fts_touch";
+			reg = <0x49>;
+			interrupt-parent = <&tlmm>;
+			interrupts = <59 0x0>;
+			pinctrl-names = "on_state", "off_state";
+			pinctrl-0 = <&tsp_int_active &tsp_id_active &tsp_vdd_config>;
+			pinctrl-1 = <&tsp_int_suspend>;
+			stm,irq_gpio = <&tlmm 59 0x0>;
+			stm,irq_type = <8200>;
+			stm,tsp-id_gpio = <&tlmm 46 0x0>;
+			//stm,tsp_id1 = <&tlmm 46 0x0>;
+			//stm,tsp_id2 = <&tlmm 47 0x0>;
+			stm,project_name = "GTA2XL", "T595";
+			stm,regulator_dvdd = "tsp_dvdd";
+			stm,regulator_avdd = "tsp_avdd";
+			stm,max_coords = <1199 1919>;
+			stm,firmware_name = "tsp_stm/fts1ba90a_gta2xl.fw";
+			stm,tclm_level = <2>;
+			stm,afe_base = <0x0132>;
+			stm,support_aot;
+			stm,factory_item_version = <4>;
+			stm,chip_on_board;
+		};
+	};
+
+	tlmm: pinctrl@1000000 {
+		tsp_int {
+			pins = "gpio59";
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <0>;
+			label = "tsp_int";
+			tsp_int_active: tsp_int_active {
+				mux {
+					pins = "gpio59";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio59";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+			tsp_int_suspend: tsp_int_suspend {
+				mux {
+					pins = "gpio59";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio59";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+		};
+
+		tsp_id {
+			tsp_id_active: tsp_id_active {
+				mux {
+					pins = "gpio46";
+					function = "gpio";
+				};
+				config {
+					pins = "gpio46";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+		};
+
+		tsp_vdd {
+			tsp_vdd_config: tsp_vdd_config {
+				mux {
+					pins = "gpio139", "gpio140";
+					function = "gpio";
+				};
+
+				config {
+					pins = "gpio139", "gpio140";
+					drive-strength = <2>;
+					bias-disable;
+					output-high;
+				};
+			};
+		};
+	};
+};

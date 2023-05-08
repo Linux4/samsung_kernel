@@ -1,0 +1,63 @@
+#define GPIOF_DIR_OUT   (0 << 0)
+#define GPIOF_INIT_HIGH (1 << 1)
+#define GPIOF_OUT_INIT_HIGH     (GPIOF_DIR_OUT | GPIOF_INIT_HIGH)
+
+#define REGTYPE_PANEL_RESET	0 /* control display reset */
+#define REGTYPE_BL_CONFIG	1 /* BLIC initial configuration via I2c */
+#define REGTYPE_GPIO_REGULATOR	2 /* GPIO regulator */
+
+#include "../../samsung/msm8917/msm8917-mdss-panels.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/S6D7AT0B01_PM6003XB1/dsi_panel_S6D7AT0B01_PM6003XB1_hdp_video.dtsi"
+#include "../../../../../../drivers/video/msm/mdss/samsung/PBA_BOOTING_HD/dsi_panel_PBA_BOOTING_hd_video.dtsi"
+
+&cont_splash_mem { 
+	reg = <0x0 0xA8000000 0x0 0x300000>;
+};
+
+&mdss_mdp {
+	qcom,mdss-pref-prim-intf = "dsi";
+};
+
+&mdss_dsi {
+	hw-config = "single_dsi";
+};
+
+/* Unnecessary values for fixed reuglator,
+ * but required by mdss_dsi_get_dt_vreg_data().
+ */
+#define DEFAULT_FIXED_VAL	0
+
+&soc {
+	i2c_22: i2c@22 { /* SW I2C */
+		status = "okay";		
+		cell-index = <22>;
+		compatible = "i2c-gpio";
+		gpios = <&tlmm 20 0 /* LCD_BL_I2C_SDA */
+			&tlmm 21 0 /* LCD_BL_I2C_SCL */
+			>;
+		i2c-gpio,delay-us = <2>;
+
+		lm3632a_panel_power@11 {
+			compatible = "lm3632a,panel_power-control";
+			reg = <0x11>;
+
+			lm3632a_en_gpio = <&tlmm 94 0x00>;
+			lm3632a_enn_gpio = <&tlmm 90 0x00>;
+			lm3632a_enp_gpio = <&tlmm 89 0x00>;
+		};
+	};
+};
+
+&ss_dsi_panel_S6D7AT0B01_PM6003XB1_HDP {
+	samsung,panel-extra-power-gpio1 =<&tlmm 91 0>; /*VDD_LCD_1P8*/
+};
+
+&mdss_dsi0 {
+	qcom,dsi-pref-prim-pan = <&ss_dsi_panel_S6D7AT0B01_PM6003XB1_HDP>;
+
+	pinctrl-names = "mdss_default", "mdss_sleep";
+	pinctrl-0 = <&mdss_lcd_reset_active &mdss_blic_i2c_active &mdss_blic_active>;
+	pinctrl-1 = <&mdss_lcd_reset_suspend &mdss_blic_i2c_suspend &mdss_blic_suspend>;
+
+	qcom,platform-reset-gpio = <&tlmm 60 GPIOF_OUT_INIT_HIGH>;
+};
