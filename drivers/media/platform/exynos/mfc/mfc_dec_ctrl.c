@@ -870,6 +870,7 @@ static int mfc_dec_restore_buf_ctrls(struct mfc_ctx *ctx, struct list_head *head
 
 		buf_ctrl->has_new = 1;
 		buf_ctrl->updated = 0;
+
 		mfc_debug(6, "[CTRLS] Restore buffer control id: 0x%08x, val: %d\n",
 				buf_ctrl->id, buf_ctrl->val);
 	}
