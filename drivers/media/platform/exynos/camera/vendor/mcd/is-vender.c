@@ -2262,12 +2262,22 @@ int is_vender_sensor_gpio_on(struct is_vender *vender, u32 scenario, u32 gpio_sc
 		, void *module_data)
 {
 	int ret = 0;
+	struct is_module_enum *module = NULL;
+#ifdef CAMERA_3RD_OIS
+	struct is_core *core;
+#endif
+	module = module_data;
 #ifdef USE_FAKE_RETENTION
-	struct is_module_enum *module = module_data;
-
 	if (test_bit(IS_MODULE_STANDBY_ON, &module->state)) {
 		clear_bit(IS_MODULE_STANDBY_ON, &module->state);
 		info("%s: set rollback retention mode \n", __func__);
+	}
+#endif
+#ifdef CAMERA_3RD_OIS
+	core = container_of(vender, struct is_core, vender);
+	if (module->position == SENSOR_POSITION_REAR4) {
+		core->mcu->is_tele2_on = true;
+		info("[%s] tele2 power on completed.", __func__);
 	}
 #endif
 	return ret;
@@ -2330,6 +2340,9 @@ int is_vender_sensor_gpio_off(struct is_vender *vender, u32 scenario, u32 gpio_s
 	struct sensor_open_extended *ext_info;
 	struct is_cis *cis;
 	struct is_device_sensor_peri *sensor_peri;
+#ifdef CAMERA_3RD_OIS
+	struct is_core *core;
+#endif
 
 	sensor_peri = (struct is_device_sensor_peri *)module->private_data;
 	FIMC_BUG(!sensor_peri);
@@ -2348,6 +2361,11 @@ int is_vender_sensor_gpio_off(struct is_vender *vender, u32 scenario, u32 gpio_s
 		if (ret)
 			warn("cis_set_fake_retention (true) is fail(%d)", ret);
 	}
+#endif
+#ifdef CAMERA_3RD_OIS
+	core = container_of(vender, struct is_core, vender);
+	if (module->position == SENSOR_POSITION_REAR4)
+		core->mcu->is_tele2_on = false;
 #endif
 	return ret;
 }

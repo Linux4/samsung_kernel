@@ -1218,6 +1218,7 @@ static u8 UNBOUND3_A3_S0_LPM_ELVSS_ON[] = { 0xC2, 0x2F };
 static u8 UNBOUND3_A3_S0_LPM_ELVSS_OFF[] = { 0xC2, 0x16 };
 static u8 UNBOUND3_A3_S0_LPM_LFD_OFF[] = { 0xBD, 0x40 };
 static u8 UNBOUND3_A3_S0_LPM_SWIRE_NO_PULSE[] = { 0xB1, 0x00 };
+static u8 UNBOUND3_A3_S0_LPM_AOR_OFF[] = { 0xC7, 0x00 };
 
 static u8 UNBOUND3_A3_S0_MCD_ON_01[] = { 0xF6, 0x88 };
 static u8 UNBOUND3_A3_S0_MCD_ON_02[] = { 0xF6, 0x00 };
@@ -1605,12 +1606,12 @@ static DEFINE_STATIC_PACKET(unbound3_a3_s0_lpm_elvss_on, DSI_PKT_TYPE_WR, UNBOUN
 static DEFINE_STATIC_PACKET(unbound3_a3_s0_lpm_elvss_off, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_LPM_ELVSS_OFF, 0x11);
 static DEFINE_STATIC_PACKET(unbound3_a3_s0_lpm_swire_no_pulse, DSI_PKT_TYPE_WR,
 	UNBOUND3_A3_S0_LPM_SWIRE_NO_PULSE, 0x14);
+static DEFINE_STATIC_PACKET(unbound3_a3_s0_lpm_aor_off, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_LPM_AOR_OFF, 0x53);
 
 /* lpm always 30Hz */
 static DEFINE_STATIC_PACKET(unbound3_a3_s0_lpm_fps, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_LPM_FPS, 0x04);
 static DEFINE_STATIC_PACKET(unbound3_a3_s0_lpm_lfd, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_LPM_LFD, 0x17);
 static DEFINE_STATIC_PACKET(unbound3_a3_s0_lpm_lfd_off, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_LPM_LFD_OFF, 0x17);
-
 
 #ifdef CONFIG_SUPPORT_GRAM_CHECKSUM
 static DEFINE_STATIC_PACKET(unbound3_a3_s0_sw_reset, DSI_PKT_TYPE_WR, UNBOUND3_A3_S0_SW_RESET, 0);
@@ -1718,6 +1719,7 @@ static DEFINE_PANEL_UDELAY(unbound3_a3_s0_wait_100usec, 100);
 static DEFINE_PANEL_MDELAY(unbound3_a3_s0_wait_1msec, 1);
 static DEFINE_PANEL_MDELAY(unbound3_a3_s0_wait_10msec, 10);
 static DEFINE_PANEL_MDELAY(unbound3_a3_s0_wait_20msec, 20);
+static DEFINE_PANEL_MDELAY(unbound3_a3_s0_wait_34msec, 34);
 static DEFINE_PANEL_MDELAY(unbound3_a3_s0_wait_40msec, 40);
 static DEFINE_PANEL_MDELAY(unbound3_a3_s0_wait_50msec, 50);
 static DEFINE_PANEL_MDELAY(unbound3_a3_s0_wait_100msec, 100);
@@ -2580,6 +2582,15 @@ static void *unbound3_a3_s0_alpm_exit_cmdtbl[] = {
 	&CONDINFO_FI(unbound3_a3_s0_cond_is_id_gte_e2),
 	&PKTINFO(unbound3_a3_s0_smooth_dimming_init),
 	&PKTINFO(unbound3_a3_s0_wrdisbv),
+	&CONDINFO_IF(unbound3_a3_s0_cond_is_id_gte_e5),
+		&PKTINFO(unbound3_a3_s0_sync_control),
+		&PKTINFO(unbound3_a3_s0_hbm_transition),
+	&CONDINFO_EL(unbound3_a3_s0_cond_is_id_gte_e5),
+		&PKTINFO(unbound3_a3_s0_glut),
+		&PKTINFO(unbound3_a3_s0_hbm_transition_lt_e5),
+	&CONDINFO_FI(unbound3_a3_s0_cond_is_id_gte_e5),
+	&DLYINFO(unbound3_a3_s0_wait_34msec),
+	&PKTINFO(unbound3_a3_s0_lpm_aor_off),
 	&KEYINFO(unbound3_a3_s0_level2_key_disable),
 	&KEYINFO(unbound3_a3_s0_level1_key_disable),
 };

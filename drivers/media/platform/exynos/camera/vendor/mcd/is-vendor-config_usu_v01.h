@@ -108,4 +108,6 @@
 #define CAMERA_CSI_B_PHY_CFG (0x8024) /* U Wide */
 #define CAMERA_CSI_C_PHY_CFG (0x8022) /* Wide */
 
+#define PDP_FAST_VVALID_THRESHOLD_TIME 1000000 /* 1s */
+
 #endif /* IS_VENDOR_CONFIG_USU_V01_H */

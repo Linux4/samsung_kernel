@@ -27,7 +27,7 @@
 #include <video/mipi_display.h>
 
 #if IS_ENABLED(CONFIG_MCD_PANEL)
-#include "../panel/panel_drv.h"
+#include "panel_drv.h"
 #endif
 
 #if IS_ENABLED(CONFIG_MCD_PANEL)
