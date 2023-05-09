@@ -130,8 +130,10 @@ void ufs_sec_get_health_desc(struct ufs_hba *hba)
 
 	/* getting Life Time at Device Health DESC*/
 	vdi->lt = desc_buf[HEALTH_DESC_PARAM_LIFE_TIME_EST_A];
-
 	dev_info(hba->dev, "LT: 0x%02x\n", (desc_buf[3] << 4) | desc_buf[4]);
+
+	vdi->flt = desc_buf[HEALTH_DESC_PARAM_VENDOR_LIFE_TIME_EST];
+	dev_info(hba->dev, "FLT: 0x%02x\n", vdi->flt);
 out:
 	if (desc_buf)
 		kfree(desc_buf);

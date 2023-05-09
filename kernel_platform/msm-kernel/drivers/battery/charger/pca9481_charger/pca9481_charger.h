@@ -1,7 +1,7 @@
 /*
  * Platform data for the NXP PCA9481 battery charger driver.
  *
- * Copyright (C) 2021-2022 NXP Semiconductor.
+ * Copyright (C) 2021-2023 NXP Semiconductor.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -21,11 +21,17 @@ struct pca9481_platform_data {
 	unsigned int ichg_cfg;	/* Charging Current - uA unit */
 	unsigned int vfloat;	/* Float Voltage - uV unit */
 	unsigned int iin_topoff;	/* Input Topoff current - uV unit */
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+	unsigned int fpdo_dc_iin_topoff;	/* FPDO DC Input Topoff current - uA unit */
+	unsigned int fpdo_dc_vnow_topoff;	/* FPDO DC Vnow Topoff condition - uV unit */
+	unsigned int fpdo_dc_iin_lowest_limit;	/* FPDO DC IIN lowest limit condition - uA unit */
+#endif
 	unsigned int snsres;		/* External sense resistor value for IBAT measurement, 0 - 1mOhm, 1 - 2mOhm, 2 - 5mOhm */
 	unsigned int snsres_cfg;	/* External sense resistor loacation, 0 - bottom side, 1 - top side */
 	unsigned int fsw_cfg; 	/* Switching frequency, 200kHz ~ 1.75MHz in 50kHz step - kHz unit */
 	unsigned int fsw_cfg_byp;/* Switching frequency for bypass mode, 200kHz ~ 1.75MHz in 50kHz step - kHz unit */
 	unsigned int fsw_cfg_low;/* Switching frequency for low current, 200kHz ~ 1.75MHz in 50kHz step - kHz unit */
+	unsigned int fsw_cfg_fpdo;	/* Switching frequency for fixed pdo, 200kHz ~ 1.75MHz in 50kHz step - kHz unit */
 	unsigned int ntc0_th;	/* NTC0 voltage threshold - cool or cold: 0 ~ 1.5V, 15mV step - uV unit */
 	unsigned int ntc1_th;	/* NTC1 voltage threshold - warm or hot: 0 ~ 1.5V, 15mV step - uV unit */
 	unsigned int ntc_en;	/* Enable or Disable NTC protection, 0 - Disable, 1 - Enable */
@@ -314,6 +320,7 @@ struct pca9481_platform_data {
 
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 #define PCA9481_SEC_DENOM_U_M		1000 // 1000, denominator
+#define PCA9481_SEC_FPDO_DC_IV		9	// 9V
 #define PCA9481_BATT_WDT_CONTROL_T		30000	// 30s
 #endif
 
@@ -423,6 +430,7 @@ enum {
 #define CCMODE_CHECK_T	2000	// CC mode polling timer - 2000ms
 #define CVMODE_CHECK_T	2000	// CV mode polling timer - 2000ms
 #define CVMODE_CHECK2_T	1000	// CV mode polling timer2 - 1000ms
+#define CVMODE_CHECK3_T	5000	// CV mode polling timer3 for fixed PDO - 5000ms
 #define BYPMODE_CHECK_T	10000	// Bypass mode polling timer - 10000ms
 #define PDMSG_WAIT_T	200		// PD message waiting time - 200ms
 #define ENABLE_DELAY_T	150		// DC Enable waiting time - 150ms
@@ -433,6 +441,7 @@ enum {
 #define DISABLE_DELAY_T	100		// DC Disable waiting time for sw_freq change - 100ms
 #define REVERSE_WAIT_T	10		// Reverse mode waiting time - 10ms
 #define REVERSE_CHECK_T	5000	// Reverse mode polling timer - 5000ms
+#define IIN_CFG_WAIT_T	150		// Input regulation settle time for soft start - 150ms
 
 /* Battery minimum voltage Threshold for direct charging */
 #define DC_VBAT_MIN				3100000	// 3100000uV
@@ -450,6 +459,7 @@ enum {
 #define PCA9481_IIN_REG_OFFSET2_TH	3000000	// 3000mA
 #define PCA9481_IIN_REG_OFFSET3_TH	4000000	// 4000mA
 #define PCA9481_IIN_REG_OFFSET4_TH	4500000	// 4500mA
+#define PCA9481_IIN_REG_OFFSET_FPDO	200000	// 200mA - for FPDO
 /* Charging Current default value - Charge Current Regulation */
 #define PCA9481_IBAT_REG_DFT	6000000	// 6000000uA
 #define PCA9481_IBAT_REG_OFFSET	100000	// 100mA - Software offset for DC algorithm
@@ -561,6 +571,9 @@ enum {
 /* RCP_DONE Error */
 #define ERROR_DCRCP		99	/* RCP Error - 99 */
 
+/* FPDO Charging Done counter */
+#define FPDO_DONE_CNT	3
+
 enum {
 	WDT_DISABLE,
 	WDT_ENABLE,
@@ -610,6 +623,7 @@ enum {
 	DC_STATE_BYPASS_MODE,	/* Check Bypass mode status */
 	DC_STATE_DCMODE_CHANGE,	/* DC mode change from Normal to 1:1 or 2:1 bypass */
 	DC_STATE_REVERSE_MODE,	/* Reverse 1:2 switching or reverse 1:1 bypass */
+	DC_STATE_FPDO_CV_MODE,	/* Check FPDO CV mode status */
 	DC_STATE_MAX,
 };
 
@@ -642,6 +656,7 @@ enum {
 	TIMER_START_REVERSE,
 	TIMER_CHECK_REVERSE_ACTIVE,
 	TIMER_CHECK_REVERSE_MODE,
+	TIMER_CHECK_FPDOCVMODE,
 };
 
 /* PD Message Type */
@@ -663,6 +678,7 @@ enum {
 	TA_TYPE_UNKNOWN,
 	TA_TYPE_USBPD,
 	TA_TYPE_WIRELESS,
+	TA_TYPE_USBPD_20,	/* USBPD 2.0 - fixed PDO */
 };
 
 /* TA Control method for the direct charging */
@@ -737,6 +753,7 @@ enum {
  * @rev_mode: reverse mode, 1:2 switching, reverse 1:1, or stop reverse mode.
  * @iin_rev: vin_ocp current for 1:2 switching or reverse 1:1 mode
  * @prev_vbat: Previous VBAT_ADC in start cv and cv state, uV
+ * @done_cnt: Charging done counter.
  * @pdata: pointer to platform data
  * @debug_root: debug entry
  * @debug_address: debug register address
@@ -769,6 +786,10 @@ struct pca9481_charger {
 	unsigned int		max_vfloat;
 	unsigned int		ichg_cfg;
 	unsigned int		iin_topoff;
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
+	unsigned int		fpdo_dc_iin_topoff;
+	unsigned int		fpdo_dc_vnow_topoff;
+#endif
 	unsigned int		dc_mode;
 
 	unsigned int		ta_cur;
@@ -809,6 +830,7 @@ struct pca9481_charger {
 	int					iin_rev;
 
 	int					prev_vbat;
+	int					done_cnt;
 
 	struct pca9481_platform_data *pdata;
 

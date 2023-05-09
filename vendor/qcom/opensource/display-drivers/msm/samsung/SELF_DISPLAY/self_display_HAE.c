@@ -242,40 +242,29 @@ void make_mass_self_display_img_cmds_HAE(struct samsung_display_driver_data *vdd
 
 static int self_display_debug(struct samsung_display_driver_data *vdd)
 {
-	char buf[64];
+	int rx_len;
+	char buf[4];
 
-	if (ss_get_cmds(vdd, RX_SELF_DISP_DEBUG)->count) {
-		ss_panel_data_read(vdd, RX_SELF_DISP_DEBUG, buf, LEVEL1_KEY);
-
-		vdd->self_disp.debug.SI_X_O = ((buf[27] & 0x07) << 8);
-		vdd->self_disp.debug.SI_X_O |= (buf[28] & 0xFF);
-
-		vdd->self_disp.debug.SI_Y_O = ((buf[29] & 0x0F) << 8);
-		vdd->self_disp.debug.SI_Y_O |= (buf[30] & 0xFF);
-
-		vdd->self_disp.debug.SM_SUM_O = ((buf[11] & 0xFF) << 24);
-		vdd->self_disp.debug.SM_SUM_O |= ((buf[12] & 0xFF) << 16);
-		vdd->self_disp.debug.SM_SUM_O |= ((buf[13] & 0xFF) << 8);
-		vdd->self_disp.debug.SM_SUM_O |= (buf[14] & 0xFF);
-
-		vdd->self_disp.debug.MEM_SUM_O = ((buf[7] & 0xFF) << 24);
-		vdd->self_disp.debug.MEM_SUM_O |= ((buf[8] & 0xFF) << 16);
-		vdd->self_disp.debug.MEM_SUM_O |= ((buf[9] & 0xFF) << 8);
-		vdd->self_disp.debug.MEM_SUM_O |= (buf[10] & 0xFF);
-
-		LCD_INFO(vdd, "SI_X_O(%u) SI_Y_O(%u) MEM_SUM_O(0x%X) SM_SUM_O(0x%X)\n",
-			vdd->self_disp.debug.SI_X_O,
-			vdd->self_disp.debug.SI_Y_O,
-			vdd->self_disp.debug.MEM_SUM_O,
-			vdd->self_disp.debug.SM_SUM_O);
-
-		SS_XLOG(vdd->self_disp.debug.SM_SUM_O);
-
-		if (vdd->self_disp.operation[FLAG_SELF_MASK].img_checksum !=
-					vdd->self_disp.debug.SM_SUM_O) {
-			LCD_ERR(vdd, "self mask img checksum fail!!\n");
-			return -1;
+	if (is_ss_style_cmd(vdd, RX_SELF_DISP_DEBUG)) {
+		rx_len = ss_send_cmd_get_rx(vdd, RX_SELF_DISP_DEBUG, buf);
+		if (rx_len < 0) {
+			LCD_ERR(vdd, "invalid rx_len(%d)\n", rx_len);
+			return false;
 		}
+	} else {
+		ss_panel_data_read(vdd, RX_SELF_DISP_DEBUG, buf, LEVEL1_KEY);
+	}
+
+	vdd->self_disp.debug.SM_SUM_O = ((buf[0] & 0xFF) << 24);
+	vdd->self_disp.debug.SM_SUM_O |= ((buf[1] & 0xFF) << 16);
+	vdd->self_disp.debug.SM_SUM_O |= ((buf[2] & 0xFF) << 8);
+	vdd->self_disp.debug.SM_SUM_O |= (buf[3] & 0xFF);
+
+	if (vdd->self_disp.operation[FLAG_SELF_MASK].img_checksum != vdd->self_disp.debug.SM_SUM_O) {
+		LCD_ERR(vdd, "self mask img checksum fail!! %X %X\n",
+			vdd->self_disp.operation[FLAG_SELF_MASK].img_checksum, vdd->self_disp.debug.SM_SUM_O);
+		SS_XLOG(vdd->self_disp.debug.SM_SUM_O);
+		return -1;
 	}
 
 	return 0;
@@ -544,7 +533,11 @@ static int self_display_aod_exit(struct samsung_display_driver_data *vdd)
 
 	/* self display off */
 	ss_send_cmd(vdd, TX_SELF_DISP_OFF);
-	self_mask_on(vdd, true);
+
+	self_mask_img_write(vdd);
+	ret = self_display_debug(vdd);
+	if (!ret)
+		self_mask_on(vdd, true);
 
 	if (vdd->self_disp.reset_status)
 		vdd->self_disp.reset_status(vdd);
@@ -738,6 +731,8 @@ int self_display_init_HAE(struct samsung_display_driver_data *vdd)
 	vdd->self_disp.self_mask_check = self_mask_check;
 	vdd->self_disp.self_partial_hlpm_scan_set = self_partial_hlpm_scan_set;
 	vdd->self_disp.self_display_debug = self_display_debug;
+
+	vdd->self_disp.debug.SM_SUM_O = 0xFF; /* initial value */
 
 	ret = ss_wrapper_misc_register(vdd, &vdd->self_disp.dev);
 	if (ret) {

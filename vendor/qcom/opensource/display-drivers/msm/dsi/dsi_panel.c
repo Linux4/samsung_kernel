@@ -5128,10 +5128,6 @@ int dsi_panel_set_lp1(struct dsi_panel *panel)
 		return -EINVAL;
 	}
 
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	ss_set_exclusive_tx_lock_from_qct(panel->panel_private, true);
-#endif
-
 	mutex_lock(&panel->panel_lock);
 	if (!panel->panel_initialized)
 		goto exit;
@@ -5156,9 +5152,6 @@ int dsi_panel_set_lp1(struct dsi_panel *panel)
 #endif
 exit:
 	mutex_unlock(&panel->panel_lock);
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	ss_set_exclusive_tx_lock_from_qct(panel->panel_private, false);
-#endif
 	return rc;
 }
 
@@ -5171,9 +5164,6 @@ int dsi_panel_set_lp2(struct dsi_panel *panel)
 		return -EINVAL;
 	}
 
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	ss_set_exclusive_tx_lock_from_qct(panel->panel_private, true);
-#endif
 	mutex_lock(&panel->panel_lock);
 	if (!panel->panel_initialized)
 		goto exit;
@@ -5187,9 +5177,6 @@ int dsi_panel_set_lp2(struct dsi_panel *panel)
 #endif
 exit:
 	mutex_unlock(&panel->panel_lock);
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	ss_set_exclusive_tx_lock_from_qct(panel->panel_private, false);
-#endif
 	return rc;
 }
 
@@ -5201,10 +5188,6 @@ int dsi_panel_set_nolp(struct dsi_panel *panel)
 		DSI_ERR("invalid params\n");
 		return -EINVAL;
 	}
-
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	ss_set_exclusive_tx_lock_from_qct(panel->panel_private, true);
-#endif
 
 	mutex_lock(&panel->panel_lock);
 	if (!panel->panel_initialized)
@@ -5227,9 +5210,6 @@ int dsi_panel_set_nolp(struct dsi_panel *panel)
 #endif
 exit:
 	mutex_unlock(&panel->panel_lock);
-#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	ss_set_exclusive_tx_lock_from_qct(panel->panel_private, false);
-#endif
 	return rc;
 }
 
@@ -5518,7 +5498,8 @@ int dsi_panel_send_qsync_on_dcs(struct dsi_panel *panel,
 		if (!SS_IS_CMDS_NULL(ss_get_cmds(vdd, TX_EARLY_TE))) {
 			vdd->early_te = true;
 			vdd->check_early_te = CHECK_EARLY_TE_COUNT;
-			ss_send_cmd(vdd, TX_EARLY_TE);
+			if (vdd->panel_state != PANEL_PWR_LPM)
+				ss_send_cmd(vdd, TX_EARLY_TE);
 		}
 	}
 #else
@@ -5561,7 +5542,8 @@ int dsi_panel_send_qsync_off_dcs(struct dsi_panel *panel,
 	if (vdd) {
 		if (!SS_IS_CMDS_NULL(ss_get_cmds(vdd, TX_EARLY_TE))) {
 			vdd->early_te = false;
-			ss_send_cmd(vdd, TX_EARLY_TE);
+			if (vdd->panel_state != PANEL_PWR_LPM)
+				ss_send_cmd(vdd, TX_EARLY_TE);
 		}
 	}
 #else

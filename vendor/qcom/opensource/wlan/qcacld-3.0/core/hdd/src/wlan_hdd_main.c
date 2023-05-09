@@ -14332,6 +14332,7 @@ static int hdd_features_init(struct hdd_context *hdd_ctx)
 	bool b_cts2self, is_imps_enabled;
 	bool rf_test_mode;
 	bool conn_policy;
+	bool std_6ghz_conn_policy;
 	uint32_t fw_data_stall_evt;
 
 	hdd_enter();
@@ -14446,6 +14447,16 @@ static int hdd_features_init(struct hdd_context *hdd_ctx)
 	}
 	if (conn_policy)
 		wlan_cm_set_relaxed_6ghz_conn_policy(hdd_ctx->psoc, true);
+
+	status = ucfg_mlme_is_standard_6ghz_conn_policy_enabled(hdd_ctx->psoc,
+							&std_6ghz_conn_policy);
+
+	if (!QDF_IS_STATUS_SUCCESS(status)) {
+		hdd_err("Get 6ghz standard connection policy failed");
+		return QDF_STATUS_E_FAILURE;
+	}
+	if (std_6ghz_conn_policy)
+		wlan_cm_set_standard_6ghz_conn_policy(hdd_ctx->psoc, true);
 
 	hdd_thermal_stats_cmd_init(hdd_ctx);
 	sme_set_cal_failure_event_cb(hdd_ctx->mac_handle,

@@ -3497,11 +3497,12 @@ static int dsi_host_detach(struct mipi_dsi_host *host,
 
 int dsi_host_transfer_sub(struct mipi_dsi_host *host, struct dsi_cmd_desc *cmd)
 {
-	struct dsi_display *display;
-	int rc = 0;
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	struct samsung_display_driver_data *vdd;
 #endif
+	struct dsi_display *display;
+	struct dsi_ctrl *ctrl;
+	int i, rc = 0;
 
 	if (!host || !cmd) {
 		DSI_ERR("Invalid params\n");
@@ -3513,6 +3514,14 @@ int dsi_host_transfer_sub(struct mipi_dsi_host *host, struct dsi_cmd_desc *cmd)
 	/* Avoid sending DCS commands when ESD recovery is pending */
 	if (atomic_read(&display->panel->esd_recovery_pending)) {
 		DSI_DEBUG("ESD recovery pending\n");
+		display_for_each_ctrl(i, display) {
+			ctrl = display->ctrl[i].ctrl;
+			if ((ctrl->pending_cmd_flags & DSI_CTRL_CMD_FETCH_MEMORY) &&
+				ctrl->cmd_len!=0) {
+				dsi_ctrl_cmd_transfer_cleanup(ctrl);
+				ctrl->cmd_len = 0;
+			}
+		}
 		return 0;
 	}
 
@@ -8333,17 +8342,19 @@ static void dsi_display_handle_lp_rx_timeout(struct work_struct *work)
 			return;
 		}
 
-		DSI_INFO("recovery display for cmd panel\n");
+		vdd->panel_recovery_cnt++;
+		SS_XLOG(vdd->panel_recovery_cnt);
+		inc_dpui_u32_field(DPUI_KEY_QCT_RCV_CNT, 1);
+
+		if (display->enabled == false) { // dsi_bridge_enable, dsi_bridge_disable
+			LCD_INFO(vdd, "Skip Panel Recovery, Trial Count = %d\n", vdd->panel_recovery_cnt);
+			return;
+		}
+		LCD_INFO(vdd, "Panel Recovery for cmd panel, Trial Count = %d\n", vdd->panel_recovery_cnt);
 
 		vdd->esd_recovery.esd_irq_enable(false, true, (void *)vdd, ESD_MASK_DEFAULT);
 		vdd->panel_lpm.esd_recovery = true;
 		schedule_work(&conn->status_work.work);
-		vdd->panel_recovery_cnt++;
-
-		LCD_INFO(vdd, "Panel Recovery, Trial Count = %d\n", vdd->panel_recovery_cnt);
-		SS_XLOG(vdd->panel_recovery_cnt);
-		inc_dpui_u32_field(DPUI_KEY_QCT_RCV_CNT, 1);
-
 		return;
 	}
 #endif

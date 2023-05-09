@@ -28,10 +28,13 @@
 
 #define UFS_WB_ISSUED_SIZE_CNT_MAX 4
 
+#define HEALTH_DESC_PARAM_VENDOR_LIFE_TIME_EST 0x22
+
 struct ufs_vendor_dev_info {
 	struct ufs_hba *hba;
 	char unique_number[UFS_UN_MAX_DIGITS];
 	u8 lt;
+	u8 flt;
 	unsigned int lc;
 	bool device_stuck;
 };

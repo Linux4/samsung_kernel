@@ -1549,8 +1549,10 @@ static void __cam_isp_ctx_handle_buf_done_fail_log(
 
 	/* Trigger SOF freeze debug dump on 3 or greater instances of congestion */
 	if ((ctx_isp->congestion_cnt >= CAM_ISP_CONTEXT_CONGESTION_CNT_MAX) &&
-		(!ctx_isp->sof_dbg_irq_en))
+		(!ctx_isp->sof_dbg_irq_en)) {
+		CAM_INFO(CAM_ISP, "[FREEZE_DBG] congestion reached max");
 		__cam_isp_ctx_handle_sof_freeze_evt(ctx);
+	}
 }
 
 static void __cam_isp_context_reset_internal_recovery_params(

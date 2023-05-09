@@ -5037,7 +5037,7 @@ static void cam_ife_csid_ver2_send_secure_info(
 #if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
 void cam_ife_csid_ver2_debug_mup_vc_dt(struct cam_ife_csid_ver2_hw* csid_hw)
 {
-#define MAX_RES_CHK (4)
+#define MAX_RES_CHK (5)
 #define BIT_MASK_VC0(x) ((x & 0x7C00000) >> 22)
 #define BIT_MASK_DT0(x) ((x & 0x3F0000) >> 16)
 #define BIT_MASK_VC1(x) ((x & 0x7C) >> 2)
@@ -5045,14 +5045,16 @@ void cam_ife_csid_ver2_debug_mup_vc_dt(struct cam_ife_csid_ver2_hw* csid_hw)
 	struct sdebug_res_info {
 		uint32_t id;
 		const char* name;
+		bool sfe_en;
 	};
 	uint32_t vc0 = 0, vc1 = 0, dt0 = 0, dt1 = 0;
 	uint32_t val, i;
 	struct sdebug_res_info check_path_res_info[MAX_RES_CHK] = {
-		{CAM_IFE_PIX_PATH_RES_IPP, "IPP"},
-		{CAM_IFE_PIX_PATH_RES_PPP, "PPP"},
-		{CAM_IFE_PIX_PATH_RES_RDI_0, "RDI_0"},
-		{CAM_IFE_PIX_PATH_RES_RDI_1, "RDI_1"},
+		{CAM_IFE_PIX_PATH_RES_IPP, "IPP", false},
+		{CAM_IFE_PIX_PATH_RES_PPP, "PPP", false},
+		{CAM_IFE_PIX_PATH_RES_RDI_0, "RDI_0", true},
+		{CAM_IFE_PIX_PATH_RES_RDI_1, "RDI_1", true},
+		{CAM_IFE_PIX_PATH_RES_RDI_3, "RDI_3", true},
 	};
 	struct cam_hw_soc_info* soc_info;
 	const struct cam_ife_csid_ver2_reg_info* csid_reg;
@@ -5067,6 +5069,9 @@ void cam_ife_csid_ver2_debug_mup_vc_dt(struct cam_ife_csid_ver2_hw* csid_hw)
 
 	for (i = 0; i < MAX_RES_CHK; i++) {
 		if (!csid_reg->path_reg[check_path_res_info[i].id]) continue;
+		if ((csid_hw->flags.sfe_en && !check_path_res_info[i].sfe_en) ||
+			(!csid_hw->flags.sfe_en && check_path_res_info[i].sfe_en))
+			continue;
 
 		val = cam_io_r_mb(mem_base + csid_reg->path_reg[check_path_res_info[i].id]->cfg0_addr);
 		vc0 = BIT_MASK_VC0(val);

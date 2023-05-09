@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1359,6 +1359,7 @@ struct wlan_user_mcc_quota {
  * @tx_retry_multiplier: TX xretry extension parameter
  * @mgmt_hw_tx_retry_count: MGMT HW tx retry count for frames
  * @relaxed_6ghz_conn_policy: 6GHz relaxed connection policy
+ * @std_6ghz_conn_policy: 6GHz standard connection policy
  * @enable_emlsr_mode: 11BE eMLSR mode support
  * @safe_mode_enable: safe mode to bypass some strict 6 GHz checks for
  * connection, bypass strict power levels
@@ -1412,6 +1413,7 @@ struct wlan_mlme_generic {
 	uint8_t mgmt_hw_tx_retry_count[CFG_FRAME_TYPE_MAX];
 #ifdef CONFIG_BAND_6GHZ
 	bool relaxed_6ghz_conn_policy;
+	bool std_6ghz_conn_policy;
 #endif
 #ifdef WLAN_FEATURE_11BE_MLO
 	bool enable_emlsr_mode;

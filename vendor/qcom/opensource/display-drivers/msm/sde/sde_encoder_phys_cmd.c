@@ -734,13 +734,13 @@ static int _sde_encoder_phys_cmd_handle_framedone_timeout(
 		phys_enc->hw_ctl->idx - CTL_0,
 		pending_kickoff_cnt);
 
-	/* check if panel is still sending TE signal or not */
-	if (sde_connector_esd_status(phys_enc->connector))
-		goto exit;
-
 	SDE_EVT32(DRMID(phys_enc->parent), SDE_EVTLOG_FATAL);
 	SDE_DBG_DUMP(SDE_DBG_BUILT_IN_ALL, "panic");
 #endif
+
+	/* check if panel is still sending TE signal or not */
+	if (sde_connector_esd_status(phys_enc->connector))
+		goto exit;
 
 	/* to avoid flooding, only log first time, and "dead" time */
 	if (cmd_enc->frame_tx_timeout_report_cnt == 1) {

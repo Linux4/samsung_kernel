@@ -341,6 +341,7 @@ struct cam_sensor_res_info {
 	__u32 valid_param_mask;
 #if defined(CONFIG_CAMERA_HYPERLAPSE_300X)
 	__u32 shooting_mode;
+	char  shooting_mode_name[40];
 #endif
 	__u16 params[3];
 } __attribute__((packed));

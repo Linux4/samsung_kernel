@@ -200,6 +200,8 @@ const char *sb_get_ct_str(int ct)
 		return "POGO";
 	case SEC_BATTERY_CABLE_POGO_9V:
 		return "POGO_9V";
+	case SEC_BATTERY_CABLE_FPDO_DC:
+		return "FPDO_DC";
 	default:
 		return "UNDEFINED";
 	}
@@ -1083,6 +1085,15 @@ __visible_for_testing void sec_bat_get_input_current_in_power_list(struct sec_ba
 		battery->sink_status.power_list[pdo_num].max_current;
 	battery->pdata->charging_current[SEC_BATTERY_CABLE_PDIC_APDO].input_current_limit =
 		battery->sink_status.power_list[pdo_num].max_current;
+
+	if (battery->is_fpdo_dc && !(battery->current_event & SEC_BAT_CURRENT_EVENT_HV_DISABLE)) {
+		max_input_current =
+			battery->pdata->charging_current[SEC_BATTERY_CABLE_FPDO_DC].input_current_limit =
+			mA_by_mWmV(battery->pdata->pd_charging_charge_power,
+					battery->sink_status.power_list[pdo_num].max_voltage);
+		battery->pdata->charging_current[SEC_BATTERY_CABLE_FPDO_DC].fast_charging_current =
+			battery->sink_status.power_list[pdo_num].max_current * 2;
+	}
 
 	pr_info("%s:max_input_current : %dmA\n", __func__, max_input_current);
 	sec_vote(battery->input_vote, VOTER_CABLE, true, max_input_current);
@@ -4772,6 +4783,7 @@ static void cw_nocharge_type(struct sec_battery_info *battery)
 	battery->ta_alert_mode = OCP_NONE;
 	battery->prev_tx_phm_mode = false;
 	battery->wpc_temp_v2_offset = 0;
+	battery->is_fpdo_dc = false;
 
 	sec_bat_cancel_input_check_work(battery);
 	sec_bat_change_default_current(battery, SEC_BATTERY_CABLE_USB,
@@ -6239,6 +6251,18 @@ static int sec_bat_get_property(struct power_supply *psy,
 			val->intval = 0;
 #endif
 			break;
+		case POWER_SUPPLY_EXT_PROP_FPDO_DC_THERMAL_CHECK:
+			pr_info("%s:  FPDO_DC_THERMAL_CHECK Tbat(%d), chg_limit(%d), lrp_limit(%d), siop(%d), tz(%d)\n",
+				__func__, battery->temperature, battery->chg_limit, battery->lrp_limit,
+				battery->siop_level, battery->thermal_zone);
+			if (battery->chg_limit || battery->lrp_limit || battery->siop_level < 80 ||
+					battery->thermal_zone != BAT_THERMAL_NORMAL ||
+					battery->temperature <= battery->pdata->wire_cool1_normal_thresh ||
+					battery->temperature >= battery->pdata->wire_normal_warm_thresh)
+				val->intval = 1;
+			else
+				val->intval = 0;
+			break;
 		default:
 			return -EINVAL;
 		}
@@ -6270,6 +6294,7 @@ static int sec_usb_get_property(struct power_supply *psy,
 		val->intval = 1;
 		break;
 	case SEC_BATTERY_CABLE_PDIC:
+	case SEC_BATTERY_CABLE_FPDO_DC:
 		val->intval = (battery->pd_usb_attached) ? 1:0;
 		break;
 	default:
@@ -6322,6 +6347,7 @@ static int sec_ac_get_property(struct power_supply *psy,
 			val->intval = 1;
 			break;
 		case SEC_BATTERY_CABLE_PDIC:
+		case SEC_BATTERY_CABLE_FPDO_DC:
 			val->intval = (battery->pd_usb_attached) ? 0:1;
 			break;
 		default:
@@ -7321,6 +7347,20 @@ static int usb_typec_handle_id_power_status(struct sec_battery_info *battery,
 			isAccept = battery->sink_status.power_list[i].accept;
 		}
 
+		if (!(battery->current_event & SEC_BAT_CURRENT_EVENT_HV_DISABLE) &&
+				!battery->sink_status.has_apdo &&
+				pdo_type == FPDO_TYPE &&
+				battery->pdata->support_fpdo_dc &&
+				max_volt == 9000 &&
+				(max_curr >= 3000 || battery->is_fpdo_dc)) {
+			dev_info(battery->dev, "%s: cable_type update to FPDO_DC\n", __func__);
+			if (!battery->is_fpdo_dc)
+				battery->cisd.cable_data[CISD_CABLE_FPDO_DC]++;
+			battery->is_fpdo_dc = true;
+			*cable_type = SEC_BATTERY_CABLE_FPDO_DC;
+			pdata_fpdo_max_power = battery->pdata->fpdo_dc_charge_power;
+		}
+
 		if (bPrintPDlog)
 			pr_info("%s:%spower_list[%d,%s,%s], maxVol:%d, minVol:%d, maxCur:%d, power:%d\n",
 				__func__, i == current_pdo ? "**" : "  ",
@@ -7932,7 +7972,7 @@ static int vbus_handle_notification(struct notifier_block *nb,
 	pr_debug("battery: %s: action=%d, vbus_status=%s\n",
 		__func__, (int)action, vbus_status == STATUS_VBUS_HIGH ? "HIGH" : "LOW");
 
-	if (battery->cable_type == SEC_BATTERY_CABLE_PDIC) {
+	if (battery->cable_type == SEC_BATTERY_CABLE_PDIC || battery->cable_type == SEC_BATTERY_CABLE_FPDO_DC) {
 		sec_vote_refresh(battery->input_vote);
 		sec_vote_refresh(battery->fcc_vote);
 		sec_vote_refresh(battery->chgen_vote);
@@ -8433,6 +8473,8 @@ static int sec_battery_probe(struct platform_device *pdev)
 	battery->pogo_status = 0;
 	battery->pogo_9v = false;
 
+	battery->is_fpdo_dc = false;
+
 	battery->ta_alert_mode = OCP_NONE;
 	battery->present = true;
 	battery->is_jig_on = false;
@@ -8545,6 +8587,8 @@ static int sec_battery_probe(struct platform_device *pdev)
 	battery->wc20_info_idx = 0;
 #endif
 	battery->thermal_zone = BAT_THERMAL_NORMAL;
+	battery->abnormal_wpc = -1;
+	battery->error_wthm = false;
 	sec_bat_set_threshold(battery, battery->cable_type);
 #if defined(CONFIG_BATTERY_CISD)
 	battery->usb_overheat_check = false;

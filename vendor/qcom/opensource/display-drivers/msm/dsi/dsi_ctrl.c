@@ -3593,6 +3593,38 @@ int dsi_ctrl_cmd_transfer(struct dsi_ctrl *dsi_ctrl, struct dsi_cmd_desc *cmd)
 	return rc;
 }
 
+void dsi_ctrl_cmd_transfer_cleanup(struct dsi_ctrl *dsi_ctrl)
+{
+	int rc = 0;
+	struct dsi_clk_ctrl_info clk_info;
+	u32 mask = BIT(DSI_FIFO_OVERFLOW);
+
+	mutex_lock(&dsi_ctrl->ctrl_lock);
+
+	SDE_EVT32(SDE_EVTLOG_FUNC_ENTRY, dsi_ctrl->cell_index, dsi_ctrl->pending_cmd_flags);
+
+	/* Command engine disable, unmask overflow, remove vote on clocks and gdsc */
+	rc = dsi_ctrl_set_cmd_engine_state(dsi_ctrl, DSI_CTRL_ENGINE_OFF, false);
+	if (rc)
+		DSI_CTRL_ERR(dsi_ctrl, "failed to disable command engine\n");
+
+	if (!(dsi_ctrl->pending_cmd_flags & DSI_CTRL_CMD_READ))
+		dsi_ctrl_mask_error_status_interrupts(dsi_ctrl, mask, false);
+
+	mutex_unlock(&dsi_ctrl->ctrl_lock);
+
+	clk_info.client = DSI_CLK_REQ_DSI_CLIENT;
+	clk_info.clk_type = DSI_ALL_CLKS;
+	clk_info.clk_state = DSI_CLK_OFF;
+
+	rc = dsi_ctrl->clk_cb.dsi_clk_cb(dsi_ctrl->clk_cb.priv, clk_info);
+	if (rc)
+		DSI_CTRL_ERR(dsi_ctrl, "failed to disable clocks\n");
+
+	(void)pm_runtime_put_sync(dsi_ctrl->drm_dev->dev);
+
+}
+
 /**
  * dsi_ctrl_transfer_unprepare() - Clean up post a command transfer
  * @dsi_ctrl:                 DSI controller handle.
@@ -3609,12 +3641,12 @@ void dsi_ctrl_transfer_unprepare(struct dsi_ctrl *dsi_ctrl, u32 flags)
 	if (!dsi_ctrl)
 		return;
 
+	dsi_ctrl->pending_cmd_flags = flags;
+
 	if (!(flags & DSI_CTRL_CMD_LAST_COMMAND))
 		return;
 
 	SDE_EVT32(SDE_EVTLOG_FUNC_ENTRY, dsi_ctrl->cell_index, flags);
-
-	dsi_ctrl->pending_cmd_flags = flags;
 
 	if (flags & DSI_CTRL_CMD_ASYNC_WAIT) {
 		dsi_ctrl->post_tx_queued = true;

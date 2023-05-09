@@ -153,6 +153,9 @@ void sec_bat_calc_time_to_full(struct sec_battery_info * battery)
 					battery->pdata->charging_current[battery->cable_type].fast_charging_current : (battery->max_charge_power / 5);
 		}
 
+		if (battery->cable_type == SEC_BATTERY_CABLE_FPDO_DC)
+			charge = battery->ttf_d->ttf_fpdo_dc_charge_current;
+
 		if (wc_budg_pwr >= RX_POWER_12W) {
 			pr_info("%s : charge updated (%d->%d)\n", __func__,
 				charge, battery->ttf_d->ttf_predict_wc20_charge_current);
@@ -258,6 +261,14 @@ int sec_ttf_parse_dt(struct sec_battery_info *battery)
 		pdata->ttf_dc45_charge_current = pdata->ttf_dc25_charge_current;
 		pr_info("%s: ttf_dc45_charge_current is Empty, Default value %d \n",
 			__func__, pdata->ttf_dc45_charge_current);
+	}
+
+	ret = of_property_read_u32(np, "battery,ttf_fpdo_dc_charge_current",
+					&pdata->ttf_fpdo_dc_charge_current);
+	if (ret) {
+		pdata->ttf_fpdo_dc_charge_current = pdata->ttf_hv_charge_current;
+		pr_info("%s: ttf_fpdo_dc_charge_current is Empty, Default value %d\n",
+			__func__, pdata->ttf_fpdo_dc_charge_current);
 	}
 
 	ret = of_property_read_u32(np, "battery,ttf_capacity",

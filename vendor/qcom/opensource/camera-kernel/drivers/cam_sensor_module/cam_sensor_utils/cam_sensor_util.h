@@ -20,6 +20,7 @@
 #include "cam_debug_util.h"
 #include "cam_sensor_io.h"
 #include "cam_csiphy_core.h"
+#include "cam_sensor_dev.h"
 
 #define INVALID_VREG 100
 #define RES_MGR_GPIO_NEED_HOLD   1
@@ -63,6 +64,20 @@ enum sensor_retention_mode {
 	RETENTION_READY_TO_ON,
 	RETENTION_ON,
 };
+#endif
+
+#if defined(CONFIG_SAMSUNG_DEBUG_SENSOR_I2C)
+extern int to_do_print_vc__sen_id;
+extern int to_dump_when_sof_freeze__sen_id;
+
+typedef enum {
+	e_seq_sensor_idn_s5khp2,
+	e_seq_sensor_idn_s5kgn3,
+	e_seq_sensor_idn_s5k3lu,
+	e_seq_sensor_idn_imx564,
+	e_seq_sensor_idn_imx754,
+	e_seq_sensor_idn_max,
+} e_seq_sensor_idnum;
 #endif
 
 int cam_sensor_count_elems_i3c_device_id(struct device_node *dev,
