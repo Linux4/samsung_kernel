@@ -86,7 +86,7 @@ void sm5714_select_pdo(int num)
 		return;
 	}
 
-	if (psubpd->policy.last_state != PE_SNK_Ready) {
+	if (psubpd->policy.state != PE_SNK_Ready) {
 		pr_info(" %s : PDO(%d) is ignored because of not SNK ready..\n",
 				__func__, num);
 		return;
