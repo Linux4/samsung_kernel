@@ -420,7 +420,7 @@ static int find_first_idle_if_others_are_busy(const cpumask_t *src_mask)
 }
 
 static int walt_lb_find_busiest_similar_cap_cpu(int dst_cpu, const cpumask_t *src_mask,
-		int *has_misfit)
+		int *has_misfit, bool is_newidle)
 {
 	int i;
 	int busiest_cpu = -1;
@@ -431,7 +431,8 @@ static int walt_lb_find_busiest_similar_cap_cpu(int dst_cpu, const cpumask_t *sr
 		wrq = (struct walt_rq *) cpu_rq(i)->android_vendor_data1;
 		trace_walt_lb_cpu_util(i, wrq);
 
-		if (cpu_rq(i)->nr_running < 2 || !cpu_rq(i)->cfs.h_nr_running)
+		if ((dst_cpu == i) || (cpu_rq(i)->nr_running < 2)
+			|| !cpu_rq(i)->cfs.h_nr_running)
 			continue;
 
 		util = walt_lb_cpu_util(i);
@@ -446,7 +447,7 @@ static int walt_lb_find_busiest_similar_cap_cpu(int dst_cpu, const cpumask_t *sr
 }
 
 static int walt_lb_find_busiest_from_higher_cap_cpu(int dst_cpu, const cpumask_t *src_mask,
-		int *has_misfit)
+		int *has_misfit, bool is_newidle)
 {
 	int i;
 	int busiest_cpu = -1;
@@ -506,7 +507,7 @@ static int walt_lb_find_busiest_from_higher_cap_cpu(int dst_cpu, const cpumask_t
 }
 
 static int walt_lb_find_busiest_from_lower_cap_cpu(int dst_cpu, const cpumask_t *src_mask,
-		int *has_misfit)
+		int *has_misfit, bool is_newidle)
 {
 	int i;
 	int busiest_cpu = -1;
@@ -515,6 +516,7 @@ static int walt_lb_find_busiest_from_lower_cap_cpu(int dst_cpu, const cpumask_t 
 	int total_cpus = 0;
 	int busy_nr_big_tasks = 0;
 	struct walt_rq *wrq;
+	bool treat_dst_idle = is_newidle || available_idle_cpu(dst_cpu);
 
 	/*
 	 * A higher capacity CPU is looking at a lower capacity
@@ -546,7 +548,7 @@ static int walt_lb_find_busiest_from_lower_cap_cpu(int dst_cpu, const cpumask_t 
 
 		/* active migration is allowed only to idle cpu */
 		if (cpu_rq(i)->cfs.h_nr_running < 2 &&
-			(!wrq->walt_stats.nr_big_tasks || !available_idle_cpu(dst_cpu)))
+			(!wrq->walt_stats.nr_big_tasks || !treat_dst_idle))
 			continue;
 
 		if (!walt_rotation_enabled && !cpu_overutilized(i) &&
@@ -573,20 +575,21 @@ static int walt_lb_find_busiest_from_lower_cap_cpu(int dst_cpu, const cpumask_t 
 	return busiest_cpu;
 }
 
-static int walt_lb_find_busiest_cpu(int dst_cpu, const cpumask_t *src_mask, int *has_misfit)
+static int walt_lb_find_busiest_cpu(int dst_cpu, const cpumask_t *src_mask, int *has_misfit,
+				    bool is_newidle)
 {
 	int fsrc_cpu = cpumask_first(src_mask);
 	int busiest_cpu;
 
 	if (capacity_orig_of(dst_cpu) == capacity_orig_of(fsrc_cpu))
 		busiest_cpu = walt_lb_find_busiest_similar_cap_cpu(dst_cpu,
-								src_mask, has_misfit);
+							src_mask, has_misfit, is_newidle);
 	else if (capacity_orig_of(dst_cpu) > capacity_orig_of(fsrc_cpu))
 		busiest_cpu = walt_lb_find_busiest_from_lower_cap_cpu(dst_cpu,
-								      src_mask, has_misfit);
+							src_mask, has_misfit, is_newidle);
 	else
 		busiest_cpu = walt_lb_find_busiest_from_higher_cap_cpu(dst_cpu,
-								       src_mask, has_misfit);
+							src_mask, has_misfit, is_newidle);
 
 	return busiest_cpu;
 }
@@ -770,7 +773,7 @@ static void walt_newidle_balance(void *unused, struct rq *this_rq,
 	int order_index;
 	int busy_cpu = -1;
 	bool enough_idle = (this_rq->avg_idle > NEWIDLE_BALANCE_THRESHOLD);
-	bool help_min_cap = false;
+	bool help_min_cap = false, find_next_cluster = false;
 	int first_idle;
 	int has_misfit = 0;
 
@@ -804,9 +807,13 @@ static void walt_newidle_balance(void *unused, struct rq *this_rq,
 	 * check if any tasks are queued on this and bail out
 	 * early.
 	 */
+
+	//TODO: if we are  in newidle we can skip all these ?
 	if (walt_balance_rt(this_rq) || this_rq->nr_running)
 		goto rt_pulled;
 
+
+	//TODO: ! here we are checking not overload and exiting ?
 	if (!READ_ONCE(this_rq->rd->overload))
 		goto repin;
 
@@ -822,22 +829,42 @@ static void walt_newidle_balance(void *unused, struct rq *this_rq,
 	 * can be queued remotely, so keep a check on nr_running
 	 * and bail out.
 	 */
+	if (num_sched_clusters <= 2) {
+		busy_cpu = walt_lb_find_busiest_cpu(this_cpu, &cpu_array[order_index][0],
+				&has_misfit, true);
+		if (busy_cpu != -1)
+			goto found_busy_cpu;
+
+		if (num_sched_clusters == 2) {
+			has_misfit = false;
+			find_next_cluster = (order_index == 0) ? enough_idle : 1;
+			if (find_next_cluster) {
+				busy_cpu = walt_lb_find_busiest_cpu(this_cpu,
+					&cpu_array[order_index][1], &has_misfit, true);
+				if (busy_cpu != -1 && (enough_idle || has_misfit))
+					goto found_busy_cpu;
+			}
+		}
+
+		goto unlock;
+	}
+
 	if (order_index == 0) {
 		busy_cpu = walt_lb_find_busiest_cpu(this_cpu, &cpu_array[order_index][0],
-				&has_misfit);
+				&has_misfit, true);
 		if (busy_cpu != -1)
 			goto found_busy_cpu;
 
 		if (enough_idle) {
 			busy_cpu = walt_lb_find_busiest_cpu(this_cpu, &cpu_array[order_index][1],
-					&has_misfit);
+					&has_misfit, true);
 			if (busy_cpu != -1)
 				goto found_busy_cpu;
 		}
 
 		/* help the farthest cluster indirectly if it needs help */
 		busy_cpu = walt_lb_find_busiest_cpu(this_cpu, &cpu_array[order_index][2],
-				&has_misfit);
+				&has_misfit, true);
 		if (busy_cpu != -1) {
 			first_idle =
 				find_first_idle_if_others_are_busy(&cpu_array[order_index][1]);
@@ -845,20 +872,20 @@ static void walt_newidle_balance(void *unused, struct rq *this_rq,
 		}
 	} else if (order_index == 2) {
 		busy_cpu = walt_lb_find_busiest_cpu(this_cpu, &cpu_array[order_index][0],
-				&has_misfit);
+				&has_misfit, true);
 		if (busy_cpu != -1)
 			goto found_busy_cpu;
 
 		/* help gold only if prime has had enough idle or gold has a misfit */
 		has_misfit = false;
 		busy_cpu = walt_lb_find_busiest_cpu(this_cpu, &cpu_array[order_index][1],
-				&has_misfit);
+				&has_misfit, true);
 		if (busy_cpu != -1 && (enough_idle || has_misfit))
 			goto found_busy_cpu;
 
 		/* help the farthest cluster indirectly if it needs help */
 		busy_cpu = walt_lb_find_busiest_cpu(this_cpu, &cpu_array[order_index][2],
-				&has_misfit);
+				&has_misfit, true);
 		if (busy_cpu != -1) {
 			first_idle =
 				find_first_idle_if_others_are_busy(&cpu_array[order_index][1]);
@@ -866,20 +893,21 @@ static void walt_newidle_balance(void *unused, struct rq *this_rq,
 		}
 	} else {
 		busy_cpu =
-			walt_lb_find_busiest_cpu(this_cpu, &cpu_array[order_index][0], &has_misfit);
+			walt_lb_find_busiest_cpu(this_cpu, &cpu_array[order_index][0],
+				&has_misfit, true);
 		if (busy_cpu != -1)
 			goto found_busy_cpu;
 
 		if (enough_idle) {
 			busy_cpu = walt_lb_find_busiest_cpu(this_cpu, &cpu_array[order_index][1],
-					&has_misfit);
+					&has_misfit, true);
 			if (busy_cpu != -1)
 				goto found_busy_cpu;
 		}
 
 		has_misfit = false;
 		busy_cpu = walt_lb_find_busiest_cpu(this_cpu, &cpu_array[order_index][2],
-				&has_misfit);
+				&has_misfit, true);
 		if (busy_cpu != -1 && (enough_idle || has_misfit))
 			goto found_busy_cpu;
 	}
@@ -948,7 +976,7 @@ static void walt_find_busiest_queue(void *unused, int dst_cpu,
 	 * remain same.
 	 */
 	cpumask_and(&src_mask, sched_group_span(group), env_cpus);
-	busiest_cpu = walt_lb_find_busiest_cpu(dst_cpu, &src_mask, &has_misfit);
+	busiest_cpu = walt_lb_find_busiest_cpu(dst_cpu, &src_mask, &has_misfit, false);
 done:
 	if (busiest_cpu != -1)
 		*busiest = cpu_rq(busiest_cpu);

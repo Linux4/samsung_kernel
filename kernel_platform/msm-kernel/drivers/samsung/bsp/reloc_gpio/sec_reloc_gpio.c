@@ -166,10 +166,12 @@ static bool __reloc_gpio_is_valid_gpio_num(struct reloc_gpio_chip *chip,
 static bool __reloc_gpio_is_matched(struct gpio_chip *gc,
 		struct reloc_gpio_chip *chip, int gpio_num)
 {
-	/* memcmp is preferred rather than strncmp to include a NULL
-	 * termination.
-	 */
-	if (memcmp(gc->label, chip->label, chip->label_len + 1))
+	size_t len = strnlen(gc->label, chip->label_len + 1);
+
+	if (len != chip->label_len)
+		return false;
+
+	if (strncmp(gc->label, chip->label, chip->label_len))
 		return false;
 
 	return __reloc_gpio_is_valid_gpio_num(chip, gc->ngpio, gpio_num);

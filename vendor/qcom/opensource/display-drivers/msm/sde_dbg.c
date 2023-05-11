@@ -1234,6 +1234,14 @@ void sde_dbg_dump(enum sde_dbg_dump_context dump_mode, const char *name, u64 dum
 	if ((dump_mode == SDE_DBG_DUMP_IRQ_CTX) && work_pending(&sde_dbg_base.dump_work))
 		return;
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG) && IS_ENABLED(CONFIG_SEC_DEBUG)
+        if (!sec_debug_is_enabled())
+		return;
+#else
+	return;
+#endif
+
+
 	sde_dbg_base.dump_mode = dump_mode;
 
 	va_start(args, dump_blk_mask);

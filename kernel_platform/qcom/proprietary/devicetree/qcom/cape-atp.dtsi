@@ -112,9 +112,13 @@
 		reset-gpio = <&pm8350c_gpios 7 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&eusb2_reset_ctrl_default>;
-		interrupt-parent = <&spmi_bus>;
-		interrupts = <0x2 0x8e 0x0 IRQ_TYPE_EDGE_RISING>;
-		interrupt-names = "eusb2_rptr_reset_gpio_irq";
+		qcom,param-override-seq =
+				/* Rx squelch detection threshold to 117mV; default is 104mV */
+				<0x2 0x73
+				/* Tx Pre-emphasis to 2.1dB; default is 0.5dB for both */
+				0x3b 0x71
+				/* Output Voltage Swing to 490mV; default is 400mV */
+				0x7c 0x70>;
 	};
 };
 

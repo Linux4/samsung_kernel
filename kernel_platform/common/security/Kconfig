@@ -248,6 +248,7 @@ source "security/samsung/five/Kconfig"
 source "security/samsung/dsms/Kconfig"
 source "security/samsung/proca/Kconfig"
 source "security/samsung/proca/gaf/Kconfig"
+source "security/samsung/mz/Kconfig"
 
 choice
 	prompt "First legacy 'major LSM' to be initialized"

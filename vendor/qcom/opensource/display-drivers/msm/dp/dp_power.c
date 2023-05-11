@@ -58,7 +58,7 @@ struct dp_power_private {
 };
 
 #if defined(CONFIG_SECDP)
-struct dp_power_private *g_secdp_power;
+static struct dp_power_private *g_secdp_power;
 
 #define DP_ENUM_STR(x)	#x
 
@@ -119,26 +119,29 @@ static void dp_power_regulator_deinit(struct dp_power_private *power)
 }
 
 #if defined(CONFIG_SECDP)
-extern struct regulator *aux_pullup_vreg;
-
 /* factory use only
  * ref: qusb_phy_enable_power()
  */
-static int secdp_aux_pullup_vreg_enable(bool on)
+static int secdp_aux_pullup_vreg_enable(struct dp_power_private *power, bool on)
 {
+	struct regulator *aux_pu_vreg;
 	int rc = 0;
-	struct dp_power_private *power = g_secdp_power;
-	struct regulator *aux_pu_vreg = aux_pullup_vreg;
 
-	DP_ENTER("on:%d\n", on);
-
-	if (!aux_pu_vreg) {
-		DP_ERR("vdda33 is null!\n");
+	if (!power || !power->parser) {
+		DP_ERR("error! power is null\n");
 		goto exit;
 	}
 
+	aux_pu_vreg = power->parser->aux_pullup_vreg;
+	if (!aux_pu_vreg) {
+		DP_ERR("error! vdda33 is null\n");
+		goto exit;
+	}
+
+	DP_ENTER("on:%d\n", on);
+
 #define QUSB2PHY_3P3_VOL_MIN		3072000 /* uV */
-#define QUSB2PHY_3P3_VOL_MAX		3072000 /* uV */
+#define QUSB2PHY_3P3_VOL_MAX		3075000 /* uV */
 #define QUSB2PHY_3P3_HPM_LOAD		30000	/* uA */
 
 	if (on) {
@@ -183,7 +186,7 @@ unset_vdd33:
 put_vdda33_lpm:
 		rc = regulator_set_load(aux_pu_vreg, 0);
 		if (!rc)
-			DP_INFO("[AUX_UP] off success\n");
+			DP_INFO("[AUX_PU] off success\n");
 		else
 			DP_ERR("Unable to set 0 HPM of vdda33:%d\n", rc);
 
@@ -233,7 +236,7 @@ static int dp_power_regulator_ctrl(struct dp_power_private *power, bool enable)
 	}
 
 #if defined(CONFIG_SECDP)
-	secdp_aux_pullup_vreg_enable(enable);
+	secdp_aux_pullup_vreg_enable(power, enable);
 #endif
 
 error:
@@ -930,9 +933,9 @@ end:
  * |        1        |     CC2     | true  |    1    |
  * ===================================================
  */
-static void secdp_power_set_gpio(bool flip)
+void secdp_power_set_gpio(bool flip)
 {
-	int i, aux_en = -1, aux_sel = -1;
+	int i;
 	/*int dir = (flip == false) ? 0 : 1;*/
 	struct dp_power_private *power = g_secdp_power;
 	struct dss_module_power *mp = &power->parser->mp[DP_CORE_PM];
@@ -942,8 +945,8 @@ static void secdp_power_set_gpio(bool flip)
 
 	parser = power->parser;
 
-	DP_DEBUG("flip:%d aux_sel_inv:%d redrv:%d\n",
-		flip, parser->aux_sel_inv, parser->use_redrv);
+//	DP_DEBUG("flip:%d, aux_inv:%d, redrv:%d\n",
+//		flip, parser->aux_sel_inv, parser->use_redrv);
 
 	if (parser->aux_sel_inv)
 		sel_val = true;
@@ -952,14 +955,25 @@ static void secdp_power_set_gpio(bool flip)
 	for (i = 0; i < mp->num_gpio; i++) {
 		if (gpio_is_valid(config->gpio)) {
 			if (dp_power_find_gpio(config->gpio_name, "aux-sel")) {
-				if (parser->use_redrv == SECDP_REDRV_PTN36502)
+				if (parser->use_redrv == SECDP_REDRV_PTN36502) {
 					gpio_direction_output(config->gpio, 0);
-				else /* SECDP_REDRV_PS5169 or SECDP_REDRV_NONE */
+				} else {
+					/* SECDP_REDRV_PS5169 or SECDP_REDRV_NONE */
+					bool val = (bool)gpio_get_value(config->gpio);
+
+					if ((!flip && (val == sel_val)) ||
+							(flip && (val == !sel_val))) {
+						//DP_DEBUG("%s: already %d %d, skip\n",
+						//	config->gpio_name, flip, val);
+						break;
+					}
 					gpio_direction_output(config->gpio,
 						(!flip ? sel_val : !sel_val));
-
+				}
 				usleep_range(100, 120);
-				aux_sel = gpio_get_value(config->gpio);
+				DP_INFO("[aux-sel] set %d (f:%d,i:%d,r:%d)\n",
+					gpio_get_value(config->gpio),
+					flip, parser->aux_sel_inv, parser->use_redrv);
 				break;
 			}
 		}
@@ -971,22 +985,27 @@ static void secdp_power_set_gpio(bool flip)
 	for (i = 0; i < mp->num_gpio; i++) {
 		if (gpio_is_valid(config->gpio)) {
 			if (dp_power_find_gpio(config->gpio_name, "aux-en")) {
+				if (!gpio_get_value(config->gpio)) {
+					//DP_DEBUG("%s: already enabled, skip\n",
+					//	config->gpio_name);
+					break;
+				}
 				gpio_direction_output(config->gpio, 0);
 				usleep_range(100, 120);
-				aux_en = gpio_get_value(config->gpio);
+				DP_INFO("[aux-en] set %d (f:%d,i:%d,r:%d)\n",
+					gpio_get_value(config->gpio),
+					flip, parser->aux_sel_inv, parser->use_redrv);
 				break;
 			}
 		}
 		config++;
 	}
-
-	DP_INFO("aux_en:%d aux_sel:%d\n", aux_en, aux_sel);
 }
 
 /* turn off EDP_AUX switch */
-static void secdp_power_unset_gpio(void)
+void secdp_power_unset_gpio(void)
 {
-	int i, aux_en = -1, aux_sel = -1;
+	int i;
 	struct dp_power_private *power = g_secdp_power;
 	struct dss_module_power *mp = &power->parser->mp[DP_CORE_PM];
 	struct dss_gpio *config;
@@ -997,9 +1016,15 @@ static void secdp_power_unset_gpio(void)
 	for (i = 0; i < mp->num_gpio; i++) {
 		if (gpio_is_valid(config->gpio)) {
 			if (dp_power_find_gpio(config->gpio_name, "aux-en")) {
+				if (gpio_get_value(config->gpio)) {
+					//DP_DEBUG("%s: already disabled, skip\n",
+					//	config->gpio_name);
+					break;
+				}
 				gpio_direction_output(config->gpio, 1);
 				usleep_range(100, 120);
-				aux_en = gpio_get_value(config->gpio);
+				DP_INFO("[aux-en] set %d\n",
+					gpio_get_value(config->gpio));
 				break;
 			}
 		}
@@ -1010,16 +1035,20 @@ static void secdp_power_unset_gpio(void)
 	for (i = 0; i < mp->num_gpio; i++) {
 		if (gpio_is_valid(config->gpio)) {
 			if (dp_power_find_gpio(config->gpio_name, "aux-sel")) {
+				if (!gpio_get_value(config->gpio)) {
+					//DP_DEBUG("%s: already 0, skip\n",
+					//	config->gpio_name);
+					break;
+				}
 				gpio_direction_output(config->gpio, 0);
 				usleep_range(100, 120);
-				aux_sel = gpio_get_value(config->gpio);
+				DP_INFO("[aux-sel] set %d\n",
+					gpio_get_value(config->gpio));
 				break;
 			}
 		}
 		config++;
 	}
-
-	DP_INFO("aux_en:%d aux_sel:%d\n", aux_en, aux_sel);
 }
 
 /*
@@ -1035,7 +1064,7 @@ void secdp_config_gpios_factory(int aux_sel, bool on)
 	parser = power->parser;
 
 	if (on) {
-		secdp_aux_pullup_vreg_enable(true);
+		secdp_aux_pullup_vreg_enable(power, true);
 		secdp_power_set_gpio(aux_sel);
 
 		if (aux_sel == 1)
@@ -1047,7 +1076,7 @@ void secdp_config_gpios_factory(int aux_sel, bool on)
 	} else {
 		secdp_redriver_aux_ctrl(REDRIVER_SWITCH_RESET);
 		secdp_power_unset_gpio();
-		secdp_aux_pullup_vreg_enable(false);
+		secdp_aux_pullup_vreg_enable(power, false);
 	}
 }
 

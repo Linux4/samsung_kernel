@@ -204,7 +204,6 @@ struct sec_bat_pdic_info {
 };
 
 struct sec_bat_pdic_list {
-	struct sec_bat_pdic_info pd_info[MAX_PDO_NUM + 1]; /* 5V ~ 12V */
 	unsigned int max_pd_count;
 	bool now_isApdo;
 	unsigned int num_fpdo;
@@ -530,6 +529,10 @@ typedef struct sec_battery_platform_data {
 	unsigned int wpc_temp_lcd_on_control_source;
 	int wpc_high_temp;
 	int wpc_high_temp_recovery;
+	int wpc_high_temp_12w;
+	int wpc_high_temp_recovery_12w;
+	int wpc_high_temp_15w;
+	int wpc_high_temp_recovery_15w;
 	unsigned int wpc_input_limit_current;
 	unsigned int wpc_charging_limit_current;
 
@@ -541,6 +544,10 @@ typedef struct sec_battery_platform_data {
 
 	int wpc_lcd_on_high_temp;
 	int wpc_lcd_on_high_temp_rec;
+	int wpc_lcd_on_high_temp_12w;
+	int wpc_lcd_on_high_temp_rec_12w;
+	int wpc_lcd_on_high_temp_15w;
+	int wpc_lcd_on_high_temp_rec_15w;
 	unsigned int wpc_lcd_on_input_limit_current;
 	unsigned int wpc_flicker_wa_input_limit_current;
 	unsigned int sleep_mode_limit_current;
@@ -556,8 +563,6 @@ typedef struct sec_battery_platform_data {
 	unsigned int fcc_by_tx_gear;
 	unsigned int wpc_input_limit_by_tx_check; /* check limited wpc input current with tx device */
 	unsigned int wpc_input_limit_current_by_tx;
-	int non_wc20_wpc_high_temp;
-	int non_wc20_wpc_high_temp_recovery;
 
 	/* If these is NOT full check type or NONE full check type,
 	 * it is skipped
@@ -844,6 +849,7 @@ struct sec_battery_info {
 	unsigned int charge_power;		/* charge power (mW) */
 	unsigned int max_charge_power;		/* max charge power (mW) */
 	unsigned int pd_max_charge_power;		/* max charge power for pd (mW) */
+	unsigned int pd_rated_power;		/* rated power for pd (W) */
 
 	struct adc_sample_info	adc_sample[ADC_CH_COUNT];
 
@@ -1077,13 +1083,16 @@ struct sec_battery_info {
 	bool tx_clear_cisd;
 	struct delayed_work wpc_txpower_calc_work;
 
+	bool wc_ept_timeout;
 	unsigned int wc20_vout;
 	unsigned int wc20_power_class;
 	unsigned int wc20_rx_power;
 	unsigned int wc20_info_len;
 	unsigned int wc20_info_idx;
 	struct delayed_work wc20_current_work;
+	struct delayed_work wc_ept_timeout_work;
 	struct wakeup_source *wc20_current_ws;
+	struct wakeup_source *wc_ept_timeout_ws;
 #endif
 	struct delayed_work slowcharging_work;
 #if defined(CONFIG_BATTERY_AGE_FORECAST)

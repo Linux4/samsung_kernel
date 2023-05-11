@@ -72,16 +72,6 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
            <instance>panoStitching</instance>
        </interface>
    </hal>
-   	<hal format="hidl">
-        <name>vendor.samsung.hardware.security.widevine.keyprov</name>
-        <transport>hwbinder</transport>
-        <version>1.0</version>
-        <interface>
-           <name>ISehWidevineKeyProvisioning</name>
-           <instance>default</instance>
-        </interface>
-        <fqname>@1.0::ISehWidevineKeyProvisioning/default</fqname>
-    </hal>
    <hal format="hidl" optional="true">
        <name>vendor.qti.hardware.scve.objecttracker</name>
        <version>1.0</version>
@@ -498,6 +488,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         </interface>
     </hal>
     -->
+    <!-- remove QC soter
     <hal format="hidl" optional="true">
         <name>vendor.qti.hardware.soter</name>
         <version>1.0</version>
@@ -505,7 +496,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
             <name>ISoter</name>
             <instance>default</instance>
         </interface>
-    </hal>
+    </hal> -->
     <hal format="hidl" optional="true">
         <name>vendor.qti.hardware.eid</name>
         <version>1.0</version>

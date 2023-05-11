@@ -85,3 +85,9 @@ config SUPPORT_MCC_THRESHOLD_CHANGE
 	  This option enables when it is necessary to adjust the threshold
 	  according to the mcc value.
 	  Say N here if you do not need to check mcc.
+	  
+config SENSORS_SKIP_CABLE_RESET
+	tristate "skip grip reset when usb/ta/data cable attached"
+	default n
+	help
+	  new ANFR concept to skip grip reset  

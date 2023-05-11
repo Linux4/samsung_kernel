@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -699,11 +700,14 @@ lim_reject_association(struct mac_context *mac_ctx, tSirMacAddr peer_addr,
 		}
 	}
 
+	sta_ds = dph_get_hash_entry(mac_ctx, sta_id,
+				    &session_entry->dph.dphHashTable);
+
 	if (delete_sta == false) {
 		lim_send_assoc_rsp_mgmt_frame(
 				mac_ctx,
 				STATUS_AP_UNABLE_TO_HANDLE_NEW_STA,
-				1, peer_addr, sub_type, 0, session_entry,
+				1, peer_addr, sub_type, sta_ds, session_entry,
 				false);
 		pe_warn("received Re/Assoc req when max associated STAs reached from");
 		lim_print_mac_addr(mac_ctx, peer_addr, LOGW);
@@ -711,9 +715,6 @@ lim_reject_association(struct mac_context *mac_ctx, tSirMacAddr peer_addr,
 					session_entry->smeSessionId);
 		return;
 	}
-
-	sta_ds = dph_get_hash_entry(mac_ctx, sta_id,
-		   &session_entry->dph.dphHashTable);
 
 	if (!sta_ds) {
 		pe_err("No STA context, yet rejecting Association");
@@ -734,7 +735,7 @@ lim_reject_association(struct mac_context *mac_ctx, tSirMacAddr peer_addr,
 	 * status code to requesting STA.
 	 */
 	lim_send_assoc_rsp_mgmt_frame(mac_ctx, result_code, 0, peer_addr,
-				      sub_type, 0, session_entry, false);
+				      sub_type, sta_ds, session_entry, false);
 
 	if (session_entry->parsedAssocReq[sta_ds->assocId]) {
 		lim_free_assoc_req_frm_buf(
@@ -2348,7 +2349,7 @@ lim_add_sta(struct mac_context *mac_ctx,
 
 	lim_update_sta_eht_capable(mac_ctx, add_sta_params, sta_ds,
 				   session_entry);
-	lim_update_sta_mlo_info(add_sta_params, sta_ds);
+	lim_update_sta_mlo_info(session_entry, add_sta_params, sta_ds);
 
 	add_sta_params->maxAmpduDensity = sta_ds->htAMpduDensity;
 	add_sta_params->maxAmpduSize = sta_ds->htMaxRxAMpduFactor;
@@ -2598,9 +2599,11 @@ lim_add_sta(struct mac_context *mac_ctx,
 			assoc_req =
 			(tpSirAssocReq) session_entry->parsedAssocReq[aid];
 
-			add_sta_params->wpa_rsn = assoc_req->rsnPresent;
-			add_sta_params->wpa_rsn |=
-				(assoc_req->wpaPresent << 1);
+			if (assoc_req) {
+				add_sta_params->wpa_rsn = assoc_req->rsnPresent;
+				add_sta_params->wpa_rsn |=
+					(assoc_req->wpaPresent << 1);
+			}
 		}
 	}
 
@@ -3471,30 +3474,30 @@ void lim_update_vhtcaps_assoc_resp(struct mac_context *mac_ctx,
  * lim_update_vht_oper_assoc_resp : Update VHT Operations in assoc response.
  * @mac_ctx Pointer to Global MAC structure
  * @pAddBssParams: parameters required for add bss params.
+ * @vht_caps: VHT CAP IE to update.
  * @vht_oper: VHT Operations to update.
+ * @ht_info: HT Info IE to update.
  * @pe_session : session entry.
  *
  * Return : void
  */
 static void lim_update_vht_oper_assoc_resp(struct mac_context *mac_ctx,
 		struct bss_params *pAddBssParams,
-		tDot11fIEVHTOperation *vht_oper, struct pe_session *pe_session)
+		tDot11fIEVHTCaps *vht_caps, tDot11fIEVHTOperation *vht_oper,
+		tDot11fIEHTInfo *ht_info, struct pe_session *pe_session)
 {
-	int16_t ccfs0 = vht_oper->chan_center_freq_seg0;
-	int16_t ccfs1 = vht_oper->chan_center_freq_seg1;
-	int16_t offset = abs((ccfs0 -  ccfs1));
 	uint8_t ch_width;
 
 	ch_width = pAddBssParams->ch_width;
-	if (vht_oper->chanWidth && pe_session->ch_width) {
-		ch_width = CH_WIDTH_80MHZ;
-		if (ccfs1 && offset == 8)
-			ch_width = CH_WIDTH_160MHZ;
-		else if (ccfs1 && offset > 16)
-			ch_width = CH_WIDTH_80P80MHZ;
-	}
+
+	if (vht_oper->chanWidth == WNI_CFG_VHT_CHANNEL_WIDTH_80MHZ &&
+	    pe_session->ch_width)
+		ch_width =
+			lim_get_vht_ch_width(vht_caps, vht_oper, ht_info) + 1;
+
 	if (ch_width > pe_session->ch_width)
 		ch_width = pe_session->ch_width;
+
 	pAddBssParams->ch_width = ch_width;
 	pAddBssParams->staContext.ch_width = ch_width;
 }
@@ -3590,11 +3593,34 @@ QDF_STATUS lim_sta_send_add_bss(struct mac_context *mac, tpSirAssocRsp pAssocRsp
 			lim_get_ht_capability(mac,
 					      eHT_SUPPORTED_CHANNEL_WIDTH_SET,
 					      pe_session);
+
 		lim_sta_add_bss_update_ht_parameter(bssDescription->chan_freq,
 						    &pAssocRsp->HTCaps,
 						    &pAssocRsp->HTInfo,
 						    chan_width_support,
 						    pAddBssParams);
+		/**
+		 * in limExtractApCapability function intersection of FW
+		 * advertised channel width and AP advertised channel
+		 * width has been taken into account for calculating
+		 * pe_session->ch_width
+		 */
+
+		if (chan_width_support &&
+		    ((pAssocRsp->HTCaps.present &&
+		      pAssocRsp->HTCaps.supportedChannelWidthSet) ||
+		    (pBeaconStruct->HTCaps.present &&
+		     pBeaconStruct->HTCaps.supportedChannelWidthSet))) {
+			pAddBssParams->ch_width =
+						pe_session->ch_width;
+			pAddBssParams->staContext.ch_width =
+						pe_session->ch_width;
+		} else {
+			pAddBssParams->ch_width = CH_WIDTH_20MHZ;
+			pAddBssParams->staContext.ch_width = CH_WIDTH_20MHZ;
+			if (!vht_cap_info->enable_txbf_20mhz)
+				pAddBssParams->staContext.vhtTxBFCapable = 0;
+		}
 	}
 
 	if (pe_session->vhtCapability && (pAssocRsp->VHTCaps.present)) {
@@ -3614,7 +3640,9 @@ QDF_STATUS lim_sta_send_add_bss(struct mac_context *mac, tpSirAssocRsp pAssocRsp
 	if (pAddBssParams->vhtCapable) {
 		if (vht_oper)
 			lim_update_vht_oper_assoc_resp(mac, pAddBssParams,
-					vht_oper, pe_session);
+						       vht_caps, vht_oper,
+						       &pAssocRsp->HTInfo,
+						       pe_session);
 		if (vht_caps)
 			lim_update_vhtcaps_assoc_resp(mac, pAddBssParams,
 					vht_caps, pe_session);
@@ -3748,26 +3776,6 @@ QDF_STATUS lim_sta_send_add_bss(struct mac_context *mac, tpSirAssocRsp pAssocRsp
 						  pAddBssParams,
 						  pBeaconStruct,
 						  pAssocRsp);
-		}
-
-		/*
-		 * in limExtractApCapability function intersection of FW
-		 * advertised channel width and AP advertised channel
-		 * width has been taken into account for calculating
-		 * pe_session->ch_width
-		 */
-		if (chan_width_support &&
-		    ((pAssocRsp->HTCaps.supportedChannelWidthSet) ||
-		    (pBeaconStruct->HTCaps.supportedChannelWidthSet))) {
-			pAddBssParams->ch_width =
-					pe_session->ch_width;
-			pAddBssParams->staContext.ch_width =
-					pe_session->ch_width;
-		} else {
-			pAddBssParams->ch_width = CH_WIDTH_20MHZ;
-			sta_context->ch_width =	CH_WIDTH_20MHZ;
-			if (!vht_cap_info->enable_txbf_20mhz)
-				sta_context->vhtTxBFCapable = 0;
 		}
 
 		pAddBssParams->staContext.mimoPS =
@@ -4335,7 +4343,6 @@ lim_prepare_and_send_del_sta_cnf(struct mac_context *mac, tpDphHashNode sta,
 	struct qdf_mac_addr sta_dsaddr;
 	struct lim_sta_context mlmStaContext;
 	bool mlo_conn = false;
-	bool mlo_recv_assoc_frm = false;
 
 	if (!sta) {
 		pe_err("sta is NULL");
@@ -4347,10 +4354,9 @@ lim_prepare_and_send_del_sta_cnf(struct mac_context *mac, tpDphHashNode sta,
 		     sta->staAddr, QDF_MAC_ADDR_SIZE);
 
 	mlmStaContext = sta->mlmStaContext;
-	mlo_conn = lim_is_mlo_conn(pe_session, sta);
-	mlo_recv_assoc_frm = lim_is_mlo_recv_assoc(sta);
 
 	if (LIM_IS_AP_ROLE(pe_session)) {
+		mlo_conn = lim_is_mlo_conn(pe_session, sta);
 		if (mlo_conn)
 			lim_release_mlo_conn_idx(mac, sta->assocId,
 						 pe_session, false);
@@ -4367,8 +4373,6 @@ lim_prepare_and_send_del_sta_cnf(struct mac_context *mac, tpDphHashNode sta,
 				 pe_session->peSessionId,
 				 pe_session->limMlmState));
 	}
-	if (mlo_conn && !mlo_recv_assoc_frm && LIM_IS_AP_ROLE(pe_session))
-		return;
 
 	lim_send_del_sta_cnf(mac, sta_dsaddr, staDsAssocId, mlmStaContext,
 			     status_code, pe_session);

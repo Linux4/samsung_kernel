@@ -931,9 +931,7 @@ int stm_ts_spi_probe(struct spi_device *client)
 	ts->plat_data->stui_tsp_type = stm_stui_tsp_type;
 #endif
 	ret = stm_ts_probe(ts);
-#if !IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP)
-	stm_ts_tool_proc_init(ts);
-#endif
+
 	return ret;
 
 error_allocate_tdata:

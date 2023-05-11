@@ -816,12 +816,6 @@ static int dsi_display_read_status(struct dsi_display_ctrl *ctrl,
 
 	panel = display->panel;
 
-	if (!display->hw_ownership) {
-		DSI_DEBUG("[%s] op not supported due to HW unavailability\n",
-				display->name);
-		rc = -EOPNOTSUPP;
-		return rc;
-	}
 	/*
 	 * When DSI controller is not in initialized state, we do not want to
 	 * report a false ESD failure and hence we defer until next read
@@ -1122,12 +1116,6 @@ static int dsi_display_cmd_rx(struct dsi_display *display,
 	if (!m_ctrl || !m_ctrl->ctrl)
 		return -EINVAL;
 
-	if (!display->hw_ownership) {
-		DSI_DEBUG("[%s] op not supported due to HW unavailability\n",
-				display->name);
-		rc = -EOPNOTSUPP;
-		return rc;
-	}
 	/* acquire panel_lock to make sure no commands are in progress */
 	dsi_panel_acquire_panel_lock(display->panel);
 	if (!display->panel->panel_initialized) {
@@ -2903,11 +2891,64 @@ static int dsi_display_set_clk_src(struct dsi_display *display, bool set_xo)
 	return 0;
 }
 
-int dsi_display_phy_pll_toggle(void *priv, bool prepare)
+static int dsi_display_phy_pll_enable(struct dsi_display *display)
 {
 	int rc = 0;
-	struct dsi_display *display = priv;
 	struct dsi_display_ctrl *m_ctrl;
+
+	m_ctrl = &display->ctrl[display->clk_master_idx];
+	if (!m_ctrl->phy) {
+		DSI_ERR("[%s] PHY not found\n", display->name);
+		return -EINVAL;
+	}
+
+	/*
+	 * It is recommended to turn on the PLL before switching parent
+	 * of RCG to PLL because when RCG is on, both the old and new
+	 * sources should be on while switching the RCG parent.
+	 *
+	 * Note: Branch clocks and in turn RCG might not get turned off
+	 * during clock disable sequence if there is a vote from dispcc
+	 * or any of its other consumers.
+	 */
+
+	rc = dsi_phy_pll_toggle(m_ctrl->phy, true);
+	if (rc)
+		return rc;
+
+	return dsi_display_set_clk_src(display, false);
+
+	return rc;
+}
+
+static int dsi_display_phy_pll_disable(struct dsi_display *display)
+{
+	int rc = 0;
+	struct dsi_display_ctrl *m_ctrl;
+
+	/*
+	 * It is recommended to turn off the PLL after switching parent
+	 * of RCG to PLL because when RCG is on, both the old and new
+	 * sources should be on while switching the RCG parent.
+	 */
+
+	rc = dsi_display_set_clk_src(display, true);
+	if (rc)
+		return rc;
+
+	m_ctrl = &display->ctrl[display->clk_master_idx];
+	if (!m_ctrl->phy) {
+		DSI_ERR("[%s] PHY not found\n", display->name);
+		return -EINVAL;
+	}
+
+	return dsi_phy_pll_toggle(m_ctrl->phy, false);
+
+}
+
+int dsi_display_phy_pll_toggle(void *priv, bool prepare)
+{
+	struct dsi_display *display = priv;
 
 	if (!display) {
 		DSI_ERR("invalid arguments\n");
@@ -2917,17 +2958,10 @@ int dsi_display_phy_pll_toggle(void *priv, bool prepare)
 	if (is_skip_op_required(display))
 		return 0;
 
-	rc = dsi_display_set_clk_src(display, !prepare);
-
-	m_ctrl = &display->ctrl[display->clk_master_idx];
-	if (!m_ctrl->phy) {
-		DSI_ERR("[%s] PHY not found\n", display->name);
-		return -EINVAL;
-	}
-
-	rc = dsi_phy_pll_toggle(m_ctrl->phy, prepare);
-
-	return rc;
+	if (prepare)
+		return dsi_display_phy_pll_enable(display);
+	else
+		return dsi_display_phy_pll_disable(display);
 }
 
 int dsi_display_phy_configure(void *priv, bool commit)
@@ -3512,12 +3546,6 @@ int dsi_host_transfer_sub(struct mipi_dsi_host *host, struct dsi_cmd_desc *cmd)
 
 	display = to_dsi_display(host);
 
-	if (!display->hw_ownership) {
-		DSI_DEBUG("[%s] op not supported due to HW unavailability\n",
-				display->name);
-		rc = -EOPNOTSUPP;
-		goto error;
-	}
 	/* Avoid sending DCS commands when ESD recovery is pending */
 	if (atomic_read(&display->panel->esd_recovery_pending)) {
 		DSI_DEBUG("ESD recovery pending\n");
@@ -5486,6 +5514,11 @@ int dsi_display_cont_splash_res_disable(void *dsi_display)
 	return rc;
 }
 
+#if defined(CONFIG_DISPLAY_SAMSUNG)
+extern bool pba_regulator_control_ss;
+extern bool pba_regulator_control_ss_sub;
+#endif
+
 /**
  * dsi_display_cont_splash_config() - Initialize resources for continuous splash
  * @dsi_display:    Pointer to dsi display
@@ -5498,6 +5531,8 @@ int dsi_display_cont_splash_config(void *dsi_display)
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	struct samsung_display_driver_data *vdd;
 	struct drm_encoder *drm_enc;
+	struct dsi_display_ctrl *ctrl;
+	int i;
 #endif
 
 	/* Vote for gdsc required to read register address space */
@@ -5526,7 +5561,6 @@ int dsi_display_cont_splash_config(void *dsi_display)
 	}
 #endif
 
-
 	/* Update splash status for clock manager */
 	dsi_display_clk_mngr_update_splash_status(display->clk_mngr,
 				display->is_cont_splash_enabled);
@@ -5552,6 +5586,26 @@ int dsi_display_cont_splash_config(void *dsi_display)
 	dsi_panel_bl_handoff(display->panel);
 
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	/* Splash boot && pba_reuglator_control && PBA panel => PBA regulators off 
+	 * Caution!, both panels should have PBA regulators if with DSI1
+	 */
+	if ((!strcmp(display->panel->name, "ss_dsi_panel_PBA_BOOTING_FHD") && pba_regulator_control_ss) ||
+		(!strcmp(display->panel->name, "ss_dsi_panel_PBA_BOOTING_FHD_DSI1") && pba_regulator_control_ss_sub)) {
+		LCD_INFO(vdd, "splash && pba_regulator && PBA panel => regulator OFF\n");		
+
+		/* Reset off : useful? */
+		if (gpio_is_valid(display->panel->reset_config.reset_gpio))
+			gpio_set_value(display->panel->reset_config.reset_gpio, 0);
+		else
+			LCD_ERR(vdd, "reset_gpio is invalid\n");
+
+		/* Regulators off : including reset regulator off */
+		rc = dsi_pwr_enable_regulator(&display->panel->power_info, false);
+		if (rc)
+			DSI_ERR("[%s] failed to disable vregs, rc=%d\n",
+				display->panel->name, rc);
+	}
+
 	if (vdd->br_info.support_early_gamma_flash || vdd->support_early_id_read) {
 		drm_enc = display->bridge->base.encoder;
 
@@ -5565,6 +5619,21 @@ int dsi_display_cont_splash_config(void *dsi_display)
 		mutex_lock(&display->display_lock);
 		dsi_config_host_engine_state_for_cont_splash(display, true);
 		dsi_display_ctrl_init(display);
+
+		display_for_each_ctrl(i, display) {
+			ctrl = &display->ctrl[i];
+			if (!ctrl || !ctrl->ctrl)
+				continue;
+
+			/* Copy dma_cmd_trigger of panel (parsed from dtsi) of dma_cmd_trigger of dsi_ctrl
+			 * dma_cmd_trigger of dsi_ctrl will be copied at set_mode.
+			 * to read opertaion before that, we have to copy the value by force.
+			 */
+
+			LCD_INFO(vdd,  "assign ctrl : dma_cmd_trigger %d <- panel dma_cmd_trigger : %d\n",
+				ctrl->ctrl->host_config.common_config.dma_cmd_trigger, display->panel->host_config.dma_cmd_trigger);
+			ctrl->ctrl->host_config.common_config.dma_cmd_trigger = display->panel->host_config.dma_cmd_trigger;
+		}
 
 		ss_early_display_init(display->panel->panel_private);
 
@@ -5895,6 +5964,23 @@ static int dsi_display_bind(struct device *dev,
 			goto error_ctrl_deinit;
 		}
 		display_ctrl->ctrl->horiz_index = i;
+
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+		DSI_ERR("display_ctrl idx [%d] / display_ctrl->phy idx [%d]\n",
+			display_ctrl->dsi_ctrl_idx, display_ctrl->phy->index);
+
+		if (display_ctrl->dsi_ctrl_idx == 0 && display_ctrl->phy->index == 0)
+			display_ctrl->phy->hw.display_index = PRIMARY_DISPLAY_NDX;
+		else if (display_ctrl->dsi_ctrl_idx == 0 && display_ctrl->phy->index == 1)
+			display_ctrl->phy->hw.display_index = SECONDARY_DISPLAY_NDX;
+		else if (display_ctrl->dsi_ctrl_idx == 1 && display_ctrl->phy->index == 1)
+			display_ctrl->phy->hw.display_index = PRIMARY_DISPLAY_NDX;
+		else
+			display_ctrl->phy->hw.display_index = PRIMARY_DISPLAY_NDX;
+
+		DSI_ERR("display_ctrl->phy->hw.display_index [%d]\n",
+			display_ctrl->phy->hw.display_index);
+#endif
 
 		rc = dsi_phy_drv_init(display_ctrl->phy);
 		if (rc) {
@@ -7224,6 +7310,22 @@ int dsi_display_restore_bit_clk(struct dsi_display *display, struct dsi_display_
 		return -EINVAL;
 	}
 
+#if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
+	{
+		struct samsung_display_driver_data *vdd = display->panel->panel_private;
+
+		if (vdd->dyn_mipi_clk.is_support) {
+			clk_rate_hz = display->cached_clk_rate;
+
+			mode->timing.clk_rate_hz = clk_rate_hz;
+			mode->priv_info->clk_rate_hz = clk_rate_hz;
+
+			LCD_DEBUG(vdd, "restore byte clock [%d] \n", display->cached_clk_rate);
+			return 0;
+		}
+	}
+#endif
+
 	/* avoid updating bit_clk for dyn clk feature disbaled usecase */
 	if (!display->panel->dyn_clk_caps.dyn_clk_support)
 		return 0;
@@ -7995,7 +8097,7 @@ static int dsi_display_pre_switch(struct dsi_display *display)
 
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	struct samsung_display_driver_data *vdd = display->panel->panel_private;
-	LCD_INFO(vdd, "DMS : update dsi ctrl for new mode\n");
+	LCD_DEBUG(vdd, "DMS : update dsi ctrl for new mode\n");
 #endif
 
 	rc = dsi_display_clk_ctrl(display->dsi_clk_handle,
@@ -8381,7 +8483,8 @@ int dsi_display_prepare(struct dsi_display *display)
 
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	vdd = display->panel->panel_private;
-	LCD_INFO(vdd, "++\n");
+	if (!(display->panel->cur_mode->dsi_mode_flags & DSI_MODE_FLAG_DMS))
+		LCD_INFO(vdd, "++\n");
 #endif
 
 	SDE_EVT32(SDE_EVTLOG_FUNC_ENTRY);
@@ -8537,7 +8640,8 @@ error:
 	mutex_unlock(&display->display_lock);
 	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT);
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	LCD_INFO(vdd, "%s --\n", display->display_type);
+	if (!(display->panel->cur_mode->dsi_mode_flags & DSI_MODE_FLAG_DMS))
+		LCD_INFO(vdd, "%s --\n", display->display_type);
 #endif
 	return rc;
 }
@@ -8921,7 +9025,8 @@ int dsi_display_enable(struct dsi_display *display)
 	}
 
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	LCD_INFO(vdd, "++\n");
+	if (!(display->panel->cur_mode->dsi_mode_flags & DSI_MODE_FLAG_DMS))
+		LCD_INFO(vdd, "++\n");
 #endif
 
 	mutex_lock(&display->display_lock);
@@ -9001,7 +9106,8 @@ error:
 	mutex_unlock(&display->display_lock);
 	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT);
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	LCD_INFO(vdd, "--\n");
+	if (!(display->panel->cur_mode->dsi_mode_flags & DSI_MODE_FLAG_DMS))
+		LCD_INFO(vdd, "--\n");
 #endif
 	return rc;
 }
@@ -9011,8 +9117,8 @@ int dsi_display_post_enable(struct dsi_display *display)
 	int rc = 0;
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	struct samsung_display_driver_data *vdd = display->panel->panel_private;
-
-	LCD_INFO(vdd, "++\n");
+	if (!(display->panel->cur_mode->dsi_mode_flags & DSI_MODE_FLAG_DMS))
+		LCD_INFO(vdd, "++\n");
 #endif
 
 	if (!display) {
@@ -9054,7 +9160,8 @@ int dsi_display_post_enable(struct dsi_display *display)
 	mutex_unlock(&display->display_lock);
 
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
-	LCD_INFO(vdd, "-- \n");
+	if (!(display->panel->cur_mode->dsi_mode_flags & DSI_MODE_FLAG_DMS))
+		LCD_INFO(vdd, "-- \n");
 #endif
 	return rc;
 }

@@ -497,7 +497,8 @@ static void reduce_input_current(struct max77705_charger_data *charger)
 		max_value = 3200;
 
 	input_current -= REDUCE_CURRENT_STEP;
-	input_current = input_current > max_value ? max_value : input_current;
+	input_current = (input_current > max_value) ? max_value :
+			((input_current < MINIMUM_INPUT_CURRENT) ? MINIMUM_INPUT_CURRENT : input_current);
 
 	sec_votef("ICL", VOTER_AICL, true, input_current);
 	charger->input_current = max77705_get_input_current(charger);
@@ -1390,6 +1391,7 @@ static void max77705_chg_set_mode_state(struct max77705_charger_data *charger,
 					unsigned int state)
 {
 	u8 reg;
+	union power_supply_propval value = {0,};
 
 	if (state == SEC_BAT_CHG_MODE_CHARGING)
 		charger->is_charging = true;
@@ -1552,6 +1554,11 @@ static void max77705_chg_set_mode_state(struct max77705_charger_data *charger,
 		pr_info("%s : enable WCIN_SEL after change mode to 0xF\n", __func__);
 		max77705_update_reg(charger->i2c, MAX77705_CHG_REG_CNFG_12,
 			MAX77705_CHG_WCINSEL, CHG_CNFG_12_WCINSEL_MASK);
+		if (is_wireless_type(charger->cable_type)) {
+			value.intval = WIRELESS_VOUT_5V;
+			psy_do_property(charger->pdata->wireless_charger_name, set,
+				POWER_SUPPLY_EXT_PROP_INPUT_VOLTAGE_REGULATION, value);
+		}
 	}
 
 	max77705_read_reg(charger->i2c, MAX77705_CHG_REG_CNFG_00, &reg);

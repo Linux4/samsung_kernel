@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -434,7 +434,6 @@ typedef enum eSirResultCodes {
 	eSIR_SME_DEAUTH_STATUS,
 	eSIR_PNO_SCAN_SUCCESS,
 	eSIR_SME_INVALID_SESSION,
-	eSIR_SME_PEER_CREATE_FAILED,
 	eSIR_DONOT_USE_RESULT_CODE = SIR_MAX_ENUM_SIZE
 } tSirResultCodes;
 
@@ -535,6 +534,7 @@ struct roam_pmkid_req_event;
 /**
  * typedef pe_roam_synch_fn_t - PE roam synch callback routine pointer
  * @mac_ctx: Global MAC context
+ * @vdev_id: vdev id
  * @roam_sync_ind_ptr: Structure with roam synch parameters
  * @ie_len: ie length
  * @reason: Reason for calling the callback
@@ -547,6 +547,7 @@ struct roam_pmkid_req_event;
  */
 typedef QDF_STATUS
 (*pe_roam_synch_fn_t)(struct mac_context *mac_ctx,
+		      uint8_t vdev_id,
 		      struct roam_offload_synch_ind *roam_sync_ind_ptr,
 		      uint16_t ie_len,
 		      enum sir_roam_op_code reason);
@@ -2367,6 +2368,7 @@ typedef struct sSirDfsCsaIeRequest {
 	uint8_t  ch_switch_beacon_cnt;
 	uint8_t  ch_switch_mode;
 	uint8_t  dfs_ch_switch_disable;
+	uint32_t new_chan_cac_ms;
 } tSirDfsCsaIeRequest, *tpSirDfsCsaIeRequest;
 
 /* Indication from lower layer indicating the completion of first beacon send
@@ -3863,6 +3865,7 @@ struct sir_nss_update_request {
  * @REASON_COLOR_CHANGE: Color change
  * @REASON_CHANNEL_SWITCH: channel switch
  * @REASON_MLO_IE_UPDATE: mlo ie update
+ * @REASON_RNR_UPDATE: SAP is changed, notify co-located SAP
  */
 enum sir_bcn_update_reason {
 	REASON_DEFAULT = 0,
@@ -3872,6 +3875,7 @@ enum sir_bcn_update_reason {
 	REASON_COLOR_CHANGE = 4,
 	REASON_CHANNEL_SWITCH = 5,
 	REASON_MLO_IE_UPDATE = 6,
+	REASON_RNR_UPDATE = 7,
 };
 
 /**
@@ -3981,29 +3985,6 @@ struct adaptive_dwelltime_params {
 	uint8_t   lpf_weight;
 	uint8_t   passive_mon_intval;
 	uint8_t   wifi_act_threshold;
-};
-
-/**
- * struct csa_offload_params - CSA offload request parameters
- * @channel: channel
- * @switch_mode: switch mode
- * @sec_chan_offset: second channel offset
- * @new_ch_width: new channel width
- * @new_ch_freq_seg1: channel center freq 1
- * @new_ch_freq_seg2: channel center freq 2
- * @ies_present_flag: IE present flag
- */
-struct csa_offload_params {
-	uint8_t channel;
-	uint32_t csa_chan_freq;
-	uint8_t switch_mode;
-	uint8_t sec_chan_offset;
-	uint8_t new_ch_width;
-	uint8_t new_op_class;
-	uint8_t new_ch_freq_seg1;
-	uint8_t new_ch_freq_seg2;
-	uint32_t ies_present_flag;
-	tSirMacAddr bssId;
 };
 
 /**
@@ -4957,14 +4938,14 @@ struct he_capability {
 
 #ifdef WLAN_FEATURE_11BE
 #define EHT_MAX_PHY_CAP_SIZE 3
-#define EHT_CAP_OUI_TYPE "\xfd"
-#define EHT_CAP_OUI_SIZE 1
-
-#define EHT_OP_OUI_TYPE "\xfe"
+#define EHT_OP_OUI_TYPE "\x6a"
 #define EHT_OP_OUI_SIZE 1
 
-#define MLO_IE_OUI_TYPE "\x5e"
+#define MLO_IE_OUI_TYPE "\x6b"
 #define MLO_IE_OUI_SIZE 1
+
+#define EHT_CAP_OUI_TYPE "\x6c"
+#define EHT_CAP_OUI_SIZE 1
 
 /**
  * struct eht_capability - to store 11be EHT capabilities
@@ -5216,6 +5197,12 @@ struct sir_sae_info {
  * @vdev_id: vdev id
  * @sae_status: SAE status, 0: Success, Non-zero: Failure.
  * @peer_mac_addr: peer MAC address
+ * @result_code: This carries the reason of the SAE auth failure.
+ *               Currently, SAE authentication failure may happen due to
+ *               1. Authentication failure detected as part of SAE auth frame
+ *                  exchanges and validation.
+ *               2. Deauth received from AP while SAE authentication is in
+ *                  progress.
  */
 struct sir_sae_msg {
 	uint16_t message_type;
@@ -5223,6 +5210,7 @@ struct sir_sae_msg {
 	uint16_t vdev_id;
 	uint8_t sae_status;
 	tSirMacAddr peer_mac_addr;
+	tSirResultCodes result_code;
 };
 
 #ifdef WLAN_FEATURE_MOTION_DETECTION

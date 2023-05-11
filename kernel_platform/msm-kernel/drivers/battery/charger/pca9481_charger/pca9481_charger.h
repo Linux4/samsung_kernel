@@ -1,6 +1,8 @@
 /*
  * Platform data for the NXP PCA9481 battery charger driver.
  *
+ * Copyright (C) 2021-2022 NXP Semiconductor.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
@@ -649,7 +651,6 @@ enum {
  * @timer_period: timer period for timer_work
  * @pps_work: pps work for PPS periodic time
  * @pd: phandle for qualcomm PMI usbpd-phy
- * @tcpm_psy: power supply instance for TYPEC PD IC
  * @mains_online: is AC/DC input connected
  * @charging_state: direct charging state
  * @ret_state: return direct charging state after DC_STATE_ADJUST_TAVOL is done

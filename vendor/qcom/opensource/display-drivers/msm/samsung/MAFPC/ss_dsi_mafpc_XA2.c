@@ -214,7 +214,7 @@ int ss_mafpc_update_enable_cmds_XA2(struct samsung_display_driver_data *vdd)
 	memcpy(cmd_pload, cmd_buf, cmd_size);
 	loop = pos = 0;
 	for (loop = 0; (loop < cmd_size) && (pos < (BUF_LEN - 5)); loop++) {
-		pos += snprintf(show_buf + pos, sizeof(show_buf) - pos, "%02x ", cmd_pload[loop]);
+		pos += scnprintf(show_buf + pos, sizeof(show_buf) - pos, "%02x ", cmd_pload[loop]);
 	}
 
 	mutex_unlock(&vdd->mafpc.vdd_mafpc_lock);
@@ -241,7 +241,7 @@ struct dsi_panel_cmd_set *ss_mafpc_brightness_scale_XA2(struct samsung_display_d
 	}
 
 	if (!vdd->mafpc.en) {
-		LCD_ERR(vdd, "mAFPC is not enabled\n");
+		LCD_DEBUG(vdd, "mAFPC is not enabled\n");
 		return NULL;
 	}
 
@@ -265,7 +265,7 @@ struct dsi_panel_cmd_set *ss_mafpc_brightness_scale_XA2(struct samsung_display_d
 	scale_cmds->cmds[cmd_idx].ss_txbuf[2] = brightness_scale_table[idx][1];
 	scale_cmds->cmds[cmd_idx].ss_txbuf[3] = brightness_scale_table[idx][2];
 
-	LCD_INFO(vdd, "Brightness idx(%d), candela(%d), cmd(0x%x 0x%x 0x%x)\n",
+	LCD_DEBUG(vdd, "Brightness idx(%d), candela(%d), cmd(0x%x 0x%x 0x%x)\n",
 			idx, vdd->br_info.common_br.cd_level,
 			scale_cmds->cmds[cmd_idx].ss_txbuf[1],
 			scale_cmds->cmds[cmd_idx].ss_txbuf[2],

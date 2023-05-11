@@ -4287,6 +4287,7 @@
   usb_hcd_start_port_resume
   usb_hcd_unlink_urb_from_ep
   usb_hcds_loaded
+  usb_hid_driver
   usb_hub_clear_tt_buffer
   usb_hub_find_child
   usb_ifnum_to_if

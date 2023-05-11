@@ -34,7 +34,7 @@ CONFIG_SEC_R0Q_PROJECT := y
 CONFIG_SENSOR_RETENTION := y
 CONFIG_SAMSUNG_ACTUATOR_READ_HALL_VALUE := y
 
-ifeq ($(PROJECT_REGION), $(filter $(PROJECT_REGION),jpn))
+ifneq ($(filter jpn%, $(PROJECT_REGION)),)
 CONFIG_FLASH_CURRENT_JAPAN := y
 endif
 endif
@@ -44,7 +44,7 @@ CONFIG_SEC_G0Q_PROJECT := y
 CONFIG_SENSOR_RETENTION := y
 CONFIG_SAMSUNG_ACTUATOR_READ_HALL_VALUE := y
 
-ifeq ($(PROJECT_REGION), $(filter $(PROJECT_REGION),jpn))
+ifneq ($(filter jpn%, $(PROJECT_REGION)),)
 CONFIG_FLASH_CURRENT_JAPAN := y
 endif
 endif
@@ -58,7 +58,7 @@ CONFIG_SAMSUNG_WACOM_NOTIFIER := y
 CONFIG_CAMERA_AEB_OFF_CONTROL := y
 CONFIG_SAMSUNG_ACTUATOR_READ_HALL_VALUE := y
 
-ifeq ($(PROJECT_REGION), $(filter $(PROJECT_REGION),jpn))
+ifneq ($(filter jpn%, $(PROJECT_REGION)),)
 CONFIG_FLASH_CURRENT_JAPAN := y
 endif
 endif
@@ -117,7 +117,7 @@ ccflags-y += -DCONFIG_SEC_R0Q_PROJECT=1
 ccflags-y += -DCONFIG_SENSOR_RETENTION=1
 ccflags-y += -DCONFIG_SAMSUNG_ACTUATOR_READ_HALL_VALUE=1
 
-ifeq ($(PROJECT_REGION), $(filter $(PROJECT_REGION),jpn))
+ifneq ($(filter jpn%, $(PROJECT_REGION)),)
 ccflags-y += -DCONFIG_FLASH_CURRENT_JAPAN=1
 endif
 endif
@@ -127,7 +127,7 @@ ccflags-y += -DCONFIG_SEC_G0Q_PROJECT=1
 ccflags-y += -DCONFIG_SENSOR_RETENTION=1
 ccflags-y += -DCONFIG_SAMSUNG_ACTUATOR_READ_HALL_VALUE=1
 
-ifeq ($(PROJECT_REGION), $(filter $(PROJECT_REGION),jpn))
+ifneq ($(filter jpn%, $(PROJECT_REGION)),)
 ccflags-y += -DCONFIG_FLASH_CURRENT_JAPAN=1
 endif
 endif
@@ -141,7 +141,7 @@ ccflags-y += -DCONFIG_SAMSUNG_WACOM_NOTIFIER=1
 ccflags-y += -DCONFIG_CAMERA_AEB_OFF_CONTROL=1
 ccflags-y += -DCONFIG_SAMSUNG_ACTUATOR_READ_HALL_VALUE=1
 
-ifeq ($(PROJECT_REGION), $(filter $(PROJECT_REGION),jpn))
+ifneq ($(filter jpn%, $(PROJECT_REGION)),)
 ccflags-y += -DCONFIG_FLASH_CURRENT_JAPAN=1
 endif
 endif

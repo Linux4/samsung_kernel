@@ -735,7 +735,7 @@ skip_notify:
 		gpio_set_value(pp_data->ic_data->vbus_dischar_gpio, 1);
 		val2 = gpio_get_value(pp_data->ic_data->vbus_dischar_gpio);
 		schedule_delayed_work
-			(&pp_data->dischar_work, msecs_to_jiffies(120));
+			(&pp_data->dischar_work, msecs_to_jiffies(160));
 		pr_info("%s vbus_discharging %d->%d\n", __func__, val1, val2);
 	}
 err:

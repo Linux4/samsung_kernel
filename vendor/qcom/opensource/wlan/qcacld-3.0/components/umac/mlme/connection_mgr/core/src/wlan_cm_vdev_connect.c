@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2015, 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -34,6 +35,7 @@
 #include "cfg_ucfg_api.h"
 #include "wlan_roam_debug.h"
 #include "wlan_mlo_mgr_sta.h"
+#include "wlan_mlo_mgr_roam.h"
 
 #ifdef WLAN_FEATURE_FILS_SK
 void cm_update_hlp_info(struct wlan_objmgr_vdev *vdev,
@@ -433,7 +435,7 @@ static const uint8_t *cm_diag_get_akm_str(enum mgmt_auth_type auth_type,
 		return "NONE";
 }
 
-#ifdef WLAN_FEATURE_11BE
+#if defined(WLAN_FEATURE_11BE)
 static enum mgmt_dot11_mode
 cm_diag_eht_dot11_mode_from_phy_mode(enum wlan_phymode phymode)
 {
@@ -1016,10 +1018,17 @@ QDF_STATUS cm_connect_start_ind(struct wlan_objmgr_vdev *vdev,
 		return QDF_STATUS_E_NOSUPPORT;
 
 	rso_cfg = wlan_cm_get_rso_config(vdev);
-	if (rso_cfg)
-		rso_cfg->rsn_cap = req->crypto.rsn_caps;
+	if (rso_cfg) {
+		rso_cfg->orig_sec_info.rsn_caps = req->crypto.rsn_caps;
+		rso_cfg->orig_sec_info.authmodeset = req->crypto.auth_type;
+		rso_cfg->orig_sec_info.ucastcipherset =
+					req->crypto.ciphers_pairwise;
+		rso_cfg->orig_sec_info.mcastcipherset =
+					req->crypto.group_cipher;
+		rso_cfg->orig_sec_info.key_mgmt = req->crypto.akm_suites;
+	}
 
-	if (wlan_get_ext_ie_ptr_from_ext_id(HS20_OUI_TYPE,
+	if (wlan_get_vendor_ie_ptr_from_oui(HS20_OUI_TYPE,
 					    HS20_OUI_TYPE_SIZE,
 					    req->assoc_ie.ptr,
 					    req->assoc_ie.len)) {
@@ -1376,7 +1385,8 @@ static void cm_process_connect_complete(struct wlan_objmgr_psoc *psoc,
 	    QDF_HAS_PARAM(ucast_cipher, WLAN_CRYPTO_CIPHER_WEP_104) ||
 	    QDF_HAS_PARAM(ucast_cipher, WLAN_CRYPTO_CIPHER_WEP))) {
 		cm_csr_set_ss_none(vdev_id);
-		cm_roam_start_init_on_connect(pdev, vdev_id);
+		if (!wlan_vdev_mlme_is_mlo_vdev(vdev))
+			cm_roam_start_init_on_connect(pdev, vdev_id);
 	} else {
 		if (rsp->is_wps_connection)
 			key_interval =
@@ -1397,6 +1407,7 @@ cm_connect_complete_ind(struct wlan_objmgr_vdev *vdev,
 	struct wlan_objmgr_pdev *pdev;
 	struct wlan_objmgr_psoc *psoc;
 	enum QDF_OPMODE op_mode;
+	QDF_STATUS status;
 
 	if (!vdev || !rsp) {
 		mlme_err("vdev or rsp is NULL");
@@ -1432,11 +1443,17 @@ cm_connect_complete_ind(struct wlan_objmgr_vdev *vdev,
 					     mlme_get_tdls_prohibited(vdev),
 					     vdev);
 		wlan_p2p_status_connect(vdev);
+
 	}
 
-	if (op_mode == QDF_STA_MODE)
+	if (op_mode == QDF_STA_MODE &&
+	    !wlan_vdev_mlme_is_mlo_vdev(vdev))
 		wlan_cm_roam_state_change(pdev, vdev_id, WLAN_ROAM_INIT,
 					  REASON_CONNECT);
+
+	status = mlo_enable_rso(pdev, vdev);
+	if (QDF_IS_STATUS_ERROR(status))
+		return status;
 
 	return QDF_STATUS_SUCCESS;
 }

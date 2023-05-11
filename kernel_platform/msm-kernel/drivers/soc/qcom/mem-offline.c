@@ -223,6 +223,7 @@ static int aop_send_msg(unsigned long addr, bool online)
 	struct qmp_pkt pkt;
 	char mbox_msg[MAX_LEN];
 	unsigned long addr_low, addr_high;
+	int ret;
 
 	addr_low = addr & AOP_MSG_ADDR_MASK;
 	addr_high = (addr >> AOP_MSG_ADDR_HIGH_SHIFT) & AOP_MSG_ADDR_MASK;
@@ -233,7 +234,8 @@ static int aop_send_msg(unsigned long addr, bool online)
 
 	pkt.size = MAX_LEN;
 	pkt.data = mbox_msg;
-	return (mbox_send_message(mailbox.mbox, &pkt) < 0);
+	ret = mbox_send_message(mailbox.mbox, &pkt);
+	return ret;
 }
 
 static long get_memblk_bits(unsigned int seg_idx, unsigned long memblk_addr)
@@ -285,11 +287,11 @@ static int send_msg(struct memory_notify *mn, bool online, int count)
 		else
 			ret = aop_send_msg(__pfn_to_phys(start), online);
 
-		if (ret) {
-			pr_err("PASR: %s %s request addr:0x%llx failed\n",
+		if (ret < 0) {
+			pr_err("PASR: %s %s request addr:0x%llx failed and return value from AOP is %d\n",
 			       is_rpm_controller ? "RPM" : "AOP",
 			       online ? "online" : "offline",
-			       __pfn_to_phys(start));
+			       __pfn_to_phys(start), ret);
 			goto undo;
 		}
 
@@ -314,8 +316,9 @@ undo:
 		else
 			ret = aop_send_msg(__pfn_to_phys(start), !online);
 
-		if (ret)
-			panic("Failed to completely online/offline a hotpluggable segment. A quasi state of memblock can cause randomn system failures.");
+		if (ret < 0)
+			panic("Failed to completely online/offline a hotpluggable segment. A quasi state of memblock can cause randomn system failures. Return value from AOP is %d",
+				ret);
 		segment_size = segment_infos[seg_idx].seg_size;
 		addr += segment_size;
 		seg_idx = get_segment_addr_to_idx(addr);
@@ -557,7 +560,7 @@ static int mem_event_callback(struct notifier_block *self,
 
 		break;
 	case MEM_ONLINE:
-		delay = ktime_ms_delta(ktime_get(), cur);
+		delay = ktime_us_delta(ktime_get(), cur);
 		record_stat(sec_nr, delay, MEMORY_ONLINE);
 		cur = 0;
 		set_memblk_bitmap_online(start_addr);
@@ -586,7 +589,7 @@ static int mem_event_callback(struct notifier_block *self,
 		 * help since this is the last stage of memory hotplug.
 		 */
 
-		delay = ktime_ms_delta(ktime_get(), cur);
+		delay = ktime_us_delta(ktime_get(), cur);
 		record_stat(sec_nr, delay, MEMORY_OFFLINE);
 		cur = 0;
 		has_pend_offline_req = false;
@@ -837,7 +840,7 @@ static unsigned int print_blk_residency_times(char *buf, size_t sz,
 		delta = ktime_add(delta,
 			mem_info[i + mode * idx].resident_time);
 		c += scnprintf(buf + c, sz - c, "%lus\t\t",
-				ktime_to_ms(delta) / MSEC_PER_SEC);
+				ktime_to_us(delta) / USEC_PER_SEC);
 		total_time[i + mode * idx] = delta;
 	}
 	return c;
@@ -873,26 +876,26 @@ static ssize_t show_mem_stats(struct kobject *kobj,
 		c += scnprintf(buf + c, sz - c,
 							"\tLast recd time:\t");
 		for (i = 0; i <= tot_blks; i++)
-			c += scnprintf(buf + c, sz - c, "%lums\t\t",
+			c += scnprintf(buf + c, sz - c, "%luus\t\t",
 				mem_info[i + j * idx].last_recorded_time);
 		c += scnprintf(buf + c, sz - c, "\n");
 		c += scnprintf(buf + c, sz - c,
 							"\tAvg time:\t");
 		for (i = 0; i <= tot_blks; i++)
 			c += scnprintf(buf + c, sz - c,
-				"%lums\t\t", mem_info[i + j * idx].avg_time);
+				"%luus\t\t", mem_info[i + j * idx].avg_time);
 		c += scnprintf(buf + c, sz - c, "\n");
 		c += scnprintf(buf + c, sz - c,
 							"\tBest time:\t");
 		for (i = 0; i <= tot_blks; i++)
 			c += scnprintf(buf + c, sz - c,
-				"%lums\t\t", mem_info[i + j * idx].best_time);
+				"%luus\t\t", mem_info[i + j * idx].best_time);
 		c += scnprintf(buf + c, sz - c, "\n");
 		c += scnprintf(buf + c, sz - c,
 							"\tWorst time:\t");
 		for (i = 0; i <= tot_blks; i++)
 			c += scnprintf(buf + c, sz - c,
-				"%lums\t\t", mem_info[i + j * idx].worst_time);
+				"%luus\t\t", mem_info[i + j * idx].worst_time);
 		c += scnprintf(buf + c, sz - c, "\n");
 		c += scnprintf(buf + c, sz - c,
 							"\tSuccess count:\t");

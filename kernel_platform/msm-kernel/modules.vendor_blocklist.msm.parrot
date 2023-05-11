@@ -63,3 +63,14 @@ blocklist torture
 blocklist locktorture
 blocklist rcutorture
 blocklist mmrm_test_module
+blocklist abc_common_test.ko
+blocklist abc_hub_test.ko
+blocklist abc_spec_type1_test.ko
+blocklist max77705_fuelgauge_test.ko
+blocklist kunit_manager.ko
+blocklist kunit_notifier.ko
+blocklist sb_mfc_test.ko
+blocklist sec_common_fn_test.ko
+blocklist slsi_cmd_test.ko
+blocklist usb_typec_manager_notifier_test.ko
+blocklist kunit_test.ko

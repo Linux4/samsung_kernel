@@ -1445,6 +1445,21 @@ u32 dsi_phy_show_str(struct msm_dsi_phy *phy)
 
 	return ret;
 }
+void dsi_phy_store_vreg(struct msm_dsi_phy *phy, u32 *val)
+{
+	if (phy->hw.ops.store_vreg)
+		phy->hw.ops.store_vreg(&phy->hw, val);
+}
+u32 dsi_phy_show_vreg(struct msm_dsi_phy *phy)
+{
+	u32 ret = 0;
+
+	if (phy->hw.ops.show_vreg)
+		ret = phy->hw.ops.show_vreg(&phy->hw);
+
+	return ret;
+}
+
 void dsi_phy_store_emphasis(struct msm_dsi_phy *phy, u32 *val)
 {
 	if (phy->hw.ops.store_emphasis)

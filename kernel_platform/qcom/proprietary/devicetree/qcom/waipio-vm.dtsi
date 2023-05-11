@@ -92,7 +92,7 @@
 		vendor = "Qualcomm";
 		image-name = "qcom,trustedvm";
 		qcom,pasid = <0x0 0x1c>;
-		qcom,qtee-config-info = "p=7C,8F,97,159,7F1;";
+		qcom,qtee-config-info = "p=7C,8F,97,159,199,7F1;";
 		qcom,secdomain-ids = <45>;
 		qcom,primary-vm-index = <0>;
 		vm-uri = "qualcomm.com/vmuid/trusted-ui";
@@ -294,7 +294,7 @@
 		interrupt-controller;
 		#interrupt-cells = <2>;
 		/* Valid pins */
-		gpios = /bits/ 16 <64 65 66 67 0 4 86 87 34 16 17 18 19 20 21>;
+		gpios = /bits/ 16 <64 65 66 67 0 4 86 87 34 16 17 18 19 20 21 25 46>;
 	};
 
 	psci {

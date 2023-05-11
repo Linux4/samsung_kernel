@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -42,34 +43,6 @@
 
 #include <hal_be_rx.h>
 
-#define UNIFIED_RXPCU_PPDU_END_INFO_8_RX_PPDU_DURATION_OFFSET \
-	RXPCU_PPDU_END_INFO_RX_PPDU_DURATION_OFFSET
-#define UNIFIED_RXPCU_PPDU_END_INFO_8_RX_PPDU_DURATION_MASK \
-	RXPCU_PPDU_END_INFO_RX_PPDU_DURATION_MASK
-#define UNIFIED_RXPCU_PPDU_END_INFO_8_RX_PPDU_DURATION_LSB \
-	RXPCU_PPDU_END_INFO_RX_PPDU_DURATION_LSB
-#define UNIFIED_PHYRX_HT_SIG_0_HT_SIG_INFO_PHYRX_HT_SIG_INFO_DETAILS_OFFSET \
-	PHYRX_HT_SIG_PHYRX_HT_SIG_INFO_DETAILS_MCS_OFFSET
-#define UNIFIED_PHYRX_L_SIG_B_0_L_SIG_B_INFO_PHYRX_L_SIG_B_INFO_DETAILS_OFFSET \
-	PHYRX_L_SIG_B_PHYRX_L_SIG_B_INFO_DETAILS_RATE_OFFSET
-#define UNIFIED_PHYRX_L_SIG_A_0_L_SIG_A_INFO_PHYRX_L_SIG_A_INFO_DETAILS_OFFSET \
-	PHYRX_L_SIG_A_PHYRX_L_SIG_A_INFO_DETAILS_RATE_OFFSET
-#define UNIFIED_PHYRX_VHT_SIG_A_0_VHT_SIG_A_INFO_PHYRX_VHT_SIG_A_INFO_DETAILS_OFFSET \
-	PHYRX_VHT_SIG_A_PHYRX_VHT_SIG_A_INFO_DETAILS_BANDWIDTH_OFFSET
-#define UNIFIED_PHYRX_HE_SIG_A_SU_0_HE_SIG_A_SU_INFO_PHYRX_HE_SIG_A_SU_INFO_DETAILS_OFFSET \
-	PHYRX_HE_SIG_A_SU_PHYRX_HE_SIG_A_SU_INFO_DETAILS_FORMAT_INDICATION_OFFSET
-#define UNIFIED_PHYRX_HE_SIG_A_MU_DL_0_HE_SIG_A_MU_DL_INFO_PHYRX_HE_SIG_A_MU_DL_INFO_DETAILS_OFFSET \
-	PHYRX_HE_SIG_A_MU_DL_PHYRX_HE_SIG_A_MU_DL_INFO_DETAILS_DL_UL_FLAG_OFFSET
-#define UNIFIED_PHYRX_HE_SIG_B1_MU_0_HE_SIG_B1_MU_INFO_PHYRX_HE_SIG_B1_MU_INFO_DETAILS_OFFSET \
-	PHYRX_HE_SIG_B1_MU_PHYRX_HE_SIG_B1_MU_INFO_DETAILS_RU_ALLOCATION_OFFSET
-#define UNIFIED_PHYRX_HE_SIG_B2_MU_0_HE_SIG_B2_MU_INFO_PHYRX_HE_SIG_B2_MU_INFO_DETAILS_OFFSET \
-	PHYRX_HE_SIG_B2_MU_PHYRX_HE_SIG_B2_MU_INFO_DETAILS_STA_ID_OFFSET
-#define UNIFIED_PHYRX_HE_SIG_B2_OFDMA_0_HE_SIG_B2_OFDMA_INFO_PHYRX_HE_SIG_B2_OFDMA_INFO_DETAILS_OFFSET \
-	PHYRX_HE_SIG_B2_OFDMA_PHYRX_HE_SIG_B2_OFDMA_INFO_DETAILS_STA_ID_OFFSET
-#define UNIFIED_PHYRX_RSSI_LEGACY_3_RECEIVE_RSSI_INFO_PRE_RSSI_INFO_DETAILS_OFFSET \
-	PHYRX_RSSI_LEGACY_PRE_RSSI_INFO_DETAILS_RSSI_PRI20_CHAIN0_OFFSET
-#define UNIFIED_PHYRX_RSSI_LEGACY_19_RECEIVE_RSSI_INFO_PREAMBLE_RSSI_INFO_DETAILS_OFFSET \
-	PHYRX_RSSI_LEGACY_PREAMBLE_RSSI_INFO_DETAILS_RSSI_PRI20_CHAIN0_OFFSET
 #define UNIFIED_RX_MPDU_START_0_RX_MPDU_INFO_RX_MPDU_INFO_DETAILS_OFFSET \
 	RX_MPDU_START_RX_MPDU_INFO_DETAILS_RXPCU_MPDU_FILTER_IN_CATEGORY_OFFSET
 #define UNIFIED_RX_MSDU_LINK_8_RX_MSDU_DETAILS_MSDU_0_OFFSET \
@@ -120,6 +93,8 @@
 	WBM_RELEASE_RING_TX_TX_RATE_STATS_PPDU_TRANSMISSION_TSF_OFFSET
 #define UNIFIED_WBM_RELEASE_RING_6_TX_RATE_STATS_INFO_TX_RATE_STATS_LSB \
 	WBM_RELEASE_RING_TX_TX_RATE_STATS_PPDU_TRANSMISSION_TSF_LSB
+
+#include "hal_be_api_mon.h"
 
 #ifdef CONFIG_WIFI_EMULATION_WIFI_3_0
 #define CMEM_REG_BASE 0x0010e000
@@ -795,9 +770,7 @@ void hal_rx_get_rtt_info_9224(void *rx_tlv, void *ppdu_info_hdl)
 		   RTT_CHE_BUFFER_POINTER_HIGH8);
 
 	ppdu_info->cfr_info.chan_capture_status =
-	HAL_RX_GET(rx_tlv,
-		   RX_LOCATION_INFO,
-		   RESERVED_3);
+	HAL_GET_RX_LOCATION_INFO_CHAN_CAPTURE_STATUS(rx_tlv);
 
 	ppdu_info->cfr_info.rx_start_ts =
 	HAL_RX_GET(rx_tlv,
@@ -811,23 +784,27 @@ void hal_rx_get_rtt_info_9224(void *rx_tlv, void *ppdu_info_hdl)
 
 	ppdu_info->cfr_info.agc_gain_info0 =
 	HAL_RX_GET(rx_tlv,
-		   PHYRX_PKT_END_INFO,
-		   PHY_TIMESTAMP_1_LOWER_32);
+		   PHYRX_LOCATION_RX_LOCATION_INFO_DETAILS,
+		   GAIN_CHAIN0);
+
+	ppdu_info->cfr_info.agc_gain_info0 |=
+	(((uint32_t)HAL_RX_GET(rx_tlv,
+		    PHYRX_LOCATION_RX_LOCATION_INFO_DETAILS,
+		    GAIN_CHAIN1)) << 16);
 
 	ppdu_info->cfr_info.agc_gain_info1 =
 	HAL_RX_GET(rx_tlv,
-		   PHYRX_PKT_END_INFO,
-		   PHY_TIMESTAMP_1_UPPER_32);
+		   PHYRX_LOCATION_RX_LOCATION_INFO_DETAILS,
+		   GAIN_CHAIN2);
 
-	ppdu_info->cfr_info.agc_gain_info2 =
-	HAL_RX_GET(rx_tlv,
-		   PHYRX_PKT_END_INFO,
-		   PHY_TIMESTAMP_2_LOWER_32);
+	ppdu_info->cfr_info.agc_gain_info1 |=
+	(((uint32_t)HAL_RX_GET(rx_tlv,
+		    PHYRX_LOCATION_RX_LOCATION_INFO_DETAILS,
+		    GAIN_CHAIN3)) << 16);
 
-	ppdu_info->cfr_info.agc_gain_info3 =
-	HAL_RX_GET(rx_tlv,
-		   PHYRX_PKT_END_INFO,
-		   PHY_TIMESTAMP_2_UPPER_32);
+	ppdu_info->cfr_info.agc_gain_info2 = 0;
+
+	ppdu_info->cfr_info.agc_gain_info3 = 0;
 }
 #endif
 
@@ -1469,7 +1446,7 @@ static inline void hal_rx_dump_pkt_hdr_tlv_9224(struct rx_pkt_tlvs *pkt_tlvs,
 }
 
 /**
- * hal_rx_dump_pkt_tlvs_9224(): API to print RX Pkt TLVS for 7850
+ * hal_rx_dump_pkt_tlvs_9224(): API to print RX Pkt TLVS QCN9224
  * @hal_soc_hdl: hal_soc handle
  * @buf: pointer the pkt buffer
  * @dbg_level: log level
@@ -1532,6 +1509,92 @@ static void hal_cmem_write_9224(hal_soc_handle_t hal_soc_hdl,
 static uint8_t hal_tx_get_num_tcl_banks_9224(void)
 {
 	return HAL_NUM_TCL_BANKS_9224;
+}
+
+static void hal_reo_setup_9224(struct hal_soc *soc, void *reoparams)
+{
+	uint32_t reg_val;
+	struct hal_reo_params *reo_params = (struct hal_reo_params *)reoparams;
+
+	reg_val = HAL_REG_READ(soc, HWIO_REO_R0_GENERAL_ENABLE_ADDR(
+		REO_REG_REG_BASE));
+
+	hal_reo_config_9224(soc, reg_val, reo_params);
+	/* Other ring enable bits and REO_ENABLE will be set by FW */
+
+	/* TODO: Setup destination ring mapping if enabled */
+
+	/* TODO: Error destination ring setting is left to default.
+	 * Default setting is to send all errors to release ring.
+	 */
+
+	/* Set the reo descriptor swap bits in case of BIG endian platform */
+	hal_setup_reo_swap(soc);
+
+	HAL_REG_WRITE(soc,
+		      HWIO_REO_R0_AGING_THRESHOLD_IX_0_ADDR(REO_REG_REG_BASE),
+		      HAL_DEFAULT_BE_BK_VI_REO_TIMEOUT_MS * 1000);
+
+	HAL_REG_WRITE(soc,
+		      HWIO_REO_R0_AGING_THRESHOLD_IX_1_ADDR(REO_REG_REG_BASE),
+		      (HAL_DEFAULT_BE_BK_VI_REO_TIMEOUT_MS * 1000));
+
+	HAL_REG_WRITE(soc,
+		      HWIO_REO_R0_AGING_THRESHOLD_IX_2_ADDR(REO_REG_REG_BASE),
+		      (HAL_DEFAULT_BE_BK_VI_REO_TIMEOUT_MS * 1000));
+
+	HAL_REG_WRITE(soc,
+		      HWIO_REO_R0_AGING_THRESHOLD_IX_3_ADDR(REO_REG_REG_BASE),
+		      (HAL_DEFAULT_VO_REO_TIMEOUT_MS * 1000));
+
+	/*
+	 * When hash based routing is enabled, routing of the rx packet
+	 * is done based on the following value: 1 _ _ _ _ The last 4
+	 * bits are based on hash[3:0]. This means the possible values
+	 * are 0x10 to 0x1f. This value is used to look-up the
+	 * ring ID configured in Destination_Ring_Ctrl_IX_* register.
+	 * The Destination_Ring_Ctrl_IX_2 and Destination_Ring_Ctrl_IX_3
+	 * registers need to be configured to set-up the 16 entries to
+	 * map the hash values to a ring number. There are 3 bits per
+	 * hash entry  which are mapped as follows:
+	 * 0: TCL, 1:SW1, 2:SW2, * 3:SW3, 4:SW4, 5:Release, 6:FW(WIFI),
+	 * 7: NOT_USED.
+	 */
+	if (reo_params->rx_hash_enabled) {
+		HAL_REG_WRITE(soc,
+			      HWIO_REO_R0_DESTINATION_RING_CTRL_IX_1_ADDR
+			      (REO_REG_REG_BASE), reo_params->remap0);
+
+		hal_debug("HWIO_REO_R0_DESTINATION_RING_CTRL_IX_2_ADDR 0x%x",
+			  HAL_REG_READ(soc,
+				       HWIO_REO_R0_DESTINATION_RING_CTRL_IX_1_ADDR(
+				       REO_REG_REG_BASE)));
+
+		HAL_REG_WRITE(soc,
+			      HWIO_REO_R0_DESTINATION_RING_CTRL_IX_2_ADDR
+			      (REO_REG_REG_BASE), reo_params->remap1);
+
+		hal_debug("HWIO_REO_R0_DESTINATION_RING_CTRL_IX_2_ADDR 0x%x",
+			  HAL_REG_READ(soc,
+				       HWIO_REO_R0_DESTINATION_RING_CTRL_IX_2_ADDR(
+				       REO_REG_REG_BASE)));
+
+		HAL_REG_WRITE(soc,
+			      HWIO_REO_R0_DESTINATION_RING_CTRL_IX_3_ADDR
+			      (REO_REG_REG_BASE), reo_params->remap2);
+
+		hal_debug("HWIO_REO_R0_DESTINATION_RING_CTRL_IX_3_ADDR 0x%x",
+			  HAL_REG_READ(soc,
+				       HWIO_REO_R0_DESTINATION_RING_CTRL_IX_3_ADDR(
+				       REO_REG_REG_BASE)));
+	}
+
+	/* TODO: Check if the following registers shoould be setup by host:
+	 * AGING_CONTROL
+	 * HIGH_MEMORY_THRESHOLD
+	 * GLOBAL_LINK_DESC_COUNT_THRESH_IX_0[1,2]
+	 * GLOBAL_LINK_DESC_COUNT_CTRL
+	 */
 }
 
 static void hal_hw_txrx_ops_attach_qcn9224(struct hal_soc *hal_soc)
@@ -1609,6 +1672,8 @@ static void hal_hw_txrx_ops_attach_qcn9224(struct hal_soc *hal_soc)
 					hal_rx_get_mpdu_mac_ad4_valid_be;
 	hal_soc->ops->hal_rx_mpdu_start_sw_peer_id_get =
 		hal_rx_mpdu_start_sw_peer_id_get_be;
+	hal_soc->ops->hal_rx_mpdu_peer_meta_data_get =
+		hal_rx_mpdu_peer_meta_data_get_be;
 	hal_soc->ops->hal_rx_mpdu_get_to_ds = hal_rx_mpdu_get_to_ds_be;
 	hal_soc->ops->hal_rx_mpdu_get_fr_ds = hal_rx_mpdu_get_fr_ds_be;
 	hal_soc->ops->hal_rx_get_mpdu_frame_control_valid =
@@ -1648,6 +1713,8 @@ static void hal_hw_txrx_ops_attach_qcn9224(struct hal_soc *hal_soc)
 					hal_rx_msdu_flow_idx_timeout_be;
 	hal_soc->ops->hal_rx_msdu_fse_metadata_get =
 					hal_rx_msdu_fse_metadata_get_be;
+	hal_soc->ops->hal_rx_msdu_cce_match_get =
+					hal_rx_msdu_cce_match_get_be;
 	hal_soc->ops->hal_rx_msdu_cce_metadata_get =
 					hal_rx_msdu_cce_metadata_get_be;
 	hal_soc->ops->hal_rx_msdu_get_flow_params =
@@ -1726,6 +1793,8 @@ static void hal_hw_txrx_ops_attach_qcn9224(struct hal_soc *hal_soc)
 	hal_soc->ops->hal_rx_priv_info_get_from_tlv =
 			hal_rx_priv_info_get_from_tlv_be;
 	hal_soc->ops->hal_rx_pkt_hdr_get = hal_rx_pkt_hdr_get_be;
+	hal_soc->ops->hal_reo_setup = hal_reo_setup_9224;
+	hal_soc->ops->hal_compute_reo_remap_ix0 = NULL;
 };
 
 struct hal_hw_srng_config hw_srng_table_9224[] = {
@@ -2247,7 +2316,7 @@ struct hal_hw_srng_config hw_srng_table_9224[] = {
 
 /**
  * hal_srng_hw_reg_offset_init_qcn9224() - Initialize the HW srng reg offset
- *				applicable only for WCN7850
+ *				applicable only for QCN9224
  * @hal_soc: HAL Soc handle
  *
  * Return: None

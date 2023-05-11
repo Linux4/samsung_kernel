@@ -577,6 +577,44 @@
                 <graph_kv key="0xB5000000" value="0xB5000001"/>
             </keys_and_values>
         </device>
+        <!-- BT BLE OUT Device -->
+        <device id="PAL_DEVICE_OUT_BLUETOOTH_BLE">
+            <keys_and_values CodecFormat="CODEC_TYPE_LC3" AbrEnabled="TRUE,FALSE" Hostless="TRUE">
+                <!-- DEVICERX - BT_RX -->
+                <graph_kv key="0xA2000000" value="0xA2000003"/>
+                <!-- BT_PROFILE - BLE -->
+                <graph_kv key="0xB4000000" value="0xB4000003"/>
+                <!-- BT_FORMAT - LC3 -->
+                <graph_kv key="0xB5000000" value="0xB5000005"/>
+            </keys_and_values>
+            <keys_and_values CodecFormat="CODEC_TYPE_LC3" AbrEnabled="TRUE,FALSE" Hostless="FALSE">
+                <!-- DEVICERX - BT_RX -->
+                <graph_kv key="0xA2000000" value="0xA2000003"/>
+                <!-- BT_PROFILE - BLE -->
+                <graph_kv key="0xB4000000" value="0xB4000003"/>
+                <!-- BT_FORMAT - LC3 -->
+                <graph_kv key="0xB5000000" value="0xB5000005"/>
+            </keys_and_values>
+        </device>
+        <!-- BT BLE BROADCAST OUT Device -->
+        <device id="PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST">
+            <keys_and_values CodecFormat="CODEC_TYPE_LC3" AbrEnabled="TRUE,FALSE" Hostless="FALSE">
+                <!-- DEVICERX - BT_RX -->
+                <graph_kv key="0xA2000000" value="0xA2000003"/>
+                <!-- BT_PROFILE - BLE -->
+                <graph_kv key="0xB4000000" value="0xB4000003"/>
+                <!-- BT_FORMAT - LC3 -->
+                <graph_kv key="0xB5000000" value="0xB5000005"/>
+            </keys_and_values>
+            <keys_and_values CodecFormat="CODEC_TYPE_APTX_AD_QLEA" AbrEnabled="TRUE,FALSE" Hostless="FALSE">
+                <!-- DEVICERX - BT_RX -->
+                <graph_kv key="0xA2000000" value="0xA2000003"/>
+                <!-- BT_PROFILE - BLE -->
+                <graph_kv key="0xB4000000" value="0xB4000003"/>
+                <!-- BT_FORMAT - APTX_AD_QLEA -->
+                <graph_kv key="0xB5000000" value="0xB5000007"/>
+            </keys_and_values>
+        </device>
         <!-- BT A2DP IN Device -->
         <device id="PAL_DEVICE_IN_BLUETOOTH_A2DP">
             <keys_and_values CodecFormat="CODEC_TYPE_LDAC,CODEC_TYPE_APTX_AD,CODEC_TYPE_AAC,CODEC_TYPE_SSC,CODEC_TYPE_SBC" Hostless="TRUE,FALSE">
@@ -596,6 +634,25 @@
                 <graph_kv key="0xA3000000" value="0xA3000002"/>
                 <!-- BT_PROFILE - A2DP -->
                 <graph_kv key="0xB4000000" value="0xB4000002"/>
+                <!-- BT_FORMAT - LC3 -->
+                <graph_kv key="0xB5000000" value="0xB5000005"/>
+            </keys_and_values>
+        </device>
+        <!-- BT BLE IN Device -->
+        <device id="PAL_DEVICE_IN_BLUETOOTH_BLE">
+            <keys_and_values CodecFormat="CODEC_TYPE_LC3" Hostless="TRUE">
+                <!-- DEVICETX - BT_TX -->
+                <graph_kv key="0xA3000000" value="0xA3000002"/>
+                <!-- BT_PROFILE - BLE -->
+                <graph_kv key="0xB4000000" value="0xB4000003"/>
+                <!-- BT_FORMAT - LC3 -->
+                <graph_kv key="0xB5000000" value="0xB5000005"/>
+            </keys_and_values>
+            <keys_and_values CodecFormat="CODEC_TYPE_LC3" Hostless="FALSE">
+                <!-- DEVICETX - BT_TX -->
+                <graph_kv key="0xA3000000" value="0xA3000002"/>
+                <!-- BT_PROFILE - BLE -->
+                <graph_kv key="0xB4000000" value="0xB4000003"/>
                 <!-- BT_FORMAT - LC3 -->
                 <graph_kv key="0xB5000000" value="0xB5000005"/>
             </keys_and_values>
@@ -762,8 +819,8 @@
             <keys_and_values StreamType="PAL_STREAM_VOICE_CALL" CustomConfig="call_tty">
                 <!-- DEVICERX - HANDSET -->
                 <graph_kv key="0xA2000000" value="0xA2000004"/>
-                <!-- DEVICEPP_RX -  DEVICEPP_RX_VOICE_DIAMONDVOICE_TTY -->
-                <graph_kv key="0xAC000000" value="0x0AC00003"/>
+                <!-- DEVICEPP_RX - DEVICEPP_RX_VOICE_DIAMONDVOICE -->
+                <graph_kv key="0xAC000000" value="0x0AC00001"/>
             </keys_and_values>
             <keys_and_values StreamType="PAL_STREAM_VOICE_CALL" CustomConfig="loopback">
                 <!-- DEVICERX - HANDSET -->
@@ -836,6 +893,32 @@
 	    <keys_and_values StreamType="PAL_STREAM_LOOPBACK" CustomConfig="aas" SubType="PAL_STREAM_LOOPBACK_KARAOKE">
                 <!-- DEVICEPP_TX - DEVICEPP_TX_AAS -->
                 <graph_kv key="0xAD000000" value="0x0AD000C4"/>
+            </keys_and_values>
+        </devicepp>
+        <!-- OUT Bluetooth BLE DevicePPs -->
+        <devicepp id="PAL_DEVICE_OUT_BLUETOOTH_BLE">
+            <keys_and_values StreamType="PAL_STREAM_COMPRESSED,PAL_STREAM_DEEP_BUFFER,PAL_STREAM_LOW_LATENCY,PAL_STREAM_PCM_OFFLOAD,PAL_STREAM_GENERIC">
+                <!-- DEVICEPP_RX - DEVICEPP_RX_AUDIO_MBDRC -->
+                <graph_kv key="0xAC000000" value="0xAC000002"/>
+            </keys_and_values>
+            <keys_and_values StreamType="PAL_STREAM_VOIP_RX" >
+                <!-- DEVICEPP_RX - DEVICEPP_RX_VOIP_DIAMONDVOICE -->
+                <graph_kv key="0xAC000000" value="0x0AC00021"/>
+            </keys_and_values>
+            <keys_and_values StreamType="PAL_STREAM_VOIP_RX" CustomConfig="wifi_call">
+                <!-- DEVICEPP_RX - DEVICEPP_RX_VOWIFI_DIAMONDVOICE -->
+                <graph_kv key="0xAC000000" value="0x0AC00011"/>
+            </keys_and_values>
+            <keys_and_values StreamType="PAL_STREAM_VOICE_CALL">
+                <!-- DEVICEPP_RX - DEVICEPP_RX_VOICE_DIAMONDVOICE -->
+                <graph_kv key="0xAC000000" value="0x0AC00001"/>
+            </keys_and_values>
+        </devicepp>
+        <!-- OUT Bluetooth BLE BROADCAST DevicePPs -->
+        <devicepp id="PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST">
+            <keys_and_values StreamType="PAL_STREAM_COMPRESSED,PAL_STREAM_DEEP_BUFFER,PAL_STREAM_LOW_LATENCY,PAL_STREAM_PCM_OFFLOAD,PAL_STREAM_GENERIC">
+                <!-- DEVICEPP_RX - DEVICEPP_RX_AUDIO_MBDRC -->
+                <graph_kv key="0xAC000000" value="0xAC000002"/>
             </keys_and_values>
         </devicepp>
         <!-- OUT BT SCO DevicePPs -->
@@ -1019,8 +1102,8 @@
             <keys_and_values StreamType="PAL_STREAM_VOICE_CALL" CustomConfig="call_tty_vco">
                 <!-- DEVICETX - HANDSETMIC -->
                 <graph_kv key="0xA3000000" value="0xA3000004"/>
-                <!-- DEVICEPP_TX - DEVICEPP_TX_VOICE_ECNS_TTY -->
-                <graph_kv key="0xAD000000" value="0x0AD00004"/>
+                <!-- DEVICEPP_TX - DEVICEPP_TX_VOICE_ECNS -->
+                <graph_kv key="0xAD000000" value="0x0AD00001"/>
             </keys_and_values>
             <keys_and_values StreamType="PAL_STREAM_VOICE_CALL" CustomConfig="headphone_mic,usb_headphone_mic">
                 <!-- DEVICETX - HANDSETMIC -->
@@ -1490,6 +1573,27 @@
             <keys_and_values StreamType="PAL_STREAM_VOIP_TX" >
                 <!-- DEVICEPP_TX - DEVICEPP_TX_VOIP_FLUENCE_SMECNS -->
                 <graph_kv key="0xAD000000" value="0xAD000007"/>
+            </keys_and_values>
+        </devicepp>
+        <!-- IN BT BLE DevicePPs -->
+        <devicepp id="PAL_DEVICE_IN_BLUETOOTH_BLE">
+            <keys_and_values StreamType="PAL_STREAM_VOICE_CALL">
+                <!-- DEVICETX - BT_TX -->
+                <graph_kv key="0xA3000000" value="0xA3000002"/>
+                <!-- DEVICEPP_TX - DEVICEPP_TX_VOICE_ECNS -->
+                <graph_kv key="0xAD000000" value="0x0AD00001"/>
+            </keys_and_values>
+            <keys_and_values StreamType="PAL_STREAM_VOIP_TX">
+                <!-- DEVICETX - BT_TX -->
+                <graph_kv key="0xA3000000" value="0xA3000002"/>
+                <!-- DEVICEPP_TX - DEVICEPP_TX_VOIP_ECNS -->
+                <graph_kv key="0xAD000000" value="0x0AD00041"/>
+            </keys_and_values>
+            <keys_and_values StreamType="PAL_STREAM_VOIP_TX" CustomConfig="wifi_call">
+                <!-- DEVICETX - BT_TX -->
+                <graph_kv key="0xA3000000" value="0xA3000002"/>
+                <!-- DEVICEPP_TX - DEVICEPP_TX_VOWIFI_ECNS -->
+                <graph_kv key="0xAD000000" value="0x0AD00021"/>
             </keys_and_values>
         </devicepp>
        <!-- IN Ultrasound DevicePPs -->

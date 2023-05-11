@@ -380,6 +380,8 @@ struct dsi_phy_hw_ops {
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	void (*store_str)(struct dsi_phy_hw *phy, u32 *val);
 	u32 (*show_str)(struct dsi_phy_hw *phy);
+	void (*store_vreg)(struct dsi_phy_hw *phy, u32 *val);
+	u32 (*show_vreg)(struct dsi_phy_hw *phy);
 	void (*store_emphasis)(struct dsi_phy_hw *phy, u32 *val);
 #endif
 };
