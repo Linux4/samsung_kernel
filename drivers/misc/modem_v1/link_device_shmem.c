@@ -1991,8 +1991,16 @@ static int shmem_security_request(struct link_device *ld, struct io_device *iod,
 		goto exit;
 	}
 
-	param2 = shm_get_security_param2(msr.mode, msr.size_boot);
-	param3 = shm_get_security_param3(msr.mode, msr.size_main);
+	err = shm_get_security_param2(msr.mode, msr.size_boot, &param2);
+	if (err) {
+		mif_err("%s: ERR! parameter2 is invalid\n", ld->name);
+		goto exit;
+	}
+	err = shm_get_security_param3(msr.mode, msr.size_main, &param3);
+	if (err) {
+		mif_err("%s: ERR! parameter3 is invalid\n", ld->name);
+		goto exit;
+	}
 	mif_info("mode=%u, size=%lu, addr=%lu\n", msr.mode, param2, param3);
 	exynos_smc(SMC_ID_CLK, SSS_CLK_ENABLE, 0, 0);
 	err = exynos_smc(SMC_ID, msr.mode, param2, param3);

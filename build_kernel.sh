@@ -1,0 +1,9 @@
+#!/bin/bash
+
+export ARCH=arm64
+export PLATFORM_VERSION=8.1
+export ANDROID_MAJOR_VERSION=O
+
+
+make ARCH=arm64 CONFIG_SECTION_MISMATCH_WARN_ONLY=y exynos7870-a2corelte_defconfig
+make ARCH=arm64 CONFIG_SECTION_MISMATCH_WARN_ONLY=y -j16
