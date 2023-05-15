@@ -1935,6 +1935,12 @@ static int setup_nodes(struct perf_session *session)
 		if (!set)
 			return -ENOMEM;
 
+		nodes[node] = set;
+
+		/* empty node, skip */
+		if (cpu_map__empty(map))
+			continue;
+
 		for (cpu = 0; cpu < map->nr; cpu++) {
 			set_bit(map->map[cpu], set);
 
@@ -1943,8 +1949,6 @@ static int setup_nodes(struct perf_session *session)
 
 			cpu2node[map->map[cpu]] = node;
 		}
-
-		nodes[node] = set;
 	}
 
 	setup_nodes_header();
@@ -2228,6 +2232,9 @@ static int perf_c2c__browse_cacheline(struct hist_entry *he)
 	" n             Togle Node details info \n"
 	" s             Togle full lenght of symbol and source line columns \n"
 	" q             Return back to cacheline list \n";
+
+	if (!he)
+		return 0;
 
 	/* Display compact version first. */
 	c2c.symbol_full = false;

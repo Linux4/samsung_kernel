@@ -2236,6 +2236,12 @@ static void rt5665_jack_detect_open_gender_handler(struct work_struct *work)
 
 		val = !gpio_get_value(rt5665->pdata.ext_ant_det_gpio);
 		if (val) {
+			if ((rt5665->jack_type & SND_JACK_HEADSET) == SND_JACK_HEADSET) {
+				mutex_unlock(&rt5665->open_gender_mutex);
+				wake_lock_timeout(&rt5665->jack_detect_wake_lock, HZ);
+				return;
+			}
+
 			dev_dbg(codec->dev, "(open gender) jack in\n");
 			rt5665->jack_type = rt5665_headset_detect_open_gender(
 						rt5665->codec, 1);
@@ -2518,6 +2524,14 @@ static int rt5665_disable_ng2_put(struct snd_kcontrol *kcontrol,
 	struct rt5665_priv *rt5665 = snd_soc_codec_get_drvdata(codec);
 
 	rt5665->disable_ng2 = !!ucontrol->value.integer.value[0];
+
+	if (rt5665->disable_ng2) {
+		snd_soc_update_bits(codec, RT5665_STO_NG2_CTRL_1,
+			RT5665_NG2_EN_MASK, RT5665_NG2_DIS);
+		snd_soc_update_bits(codec, RT5665_MONO_NG2_CTRL_1,
+			RT5665_NG2_EN_MASK, RT5665_NG2_DIS);
+		rt5665_noise_gate(codec, false);
+	}
 
 	return 0;
 }

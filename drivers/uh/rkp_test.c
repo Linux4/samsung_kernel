@@ -432,7 +432,11 @@ static int test_case_kernel_range_rwx(void)
 	u64 ro = 0, rw = 0;
 	u64 xn = 0, x = 0;
 	int len = 0, i;
+#ifdef CONFIG_UNMAP_KERNEL_AT_EL0
 	u64 fixmap_va = __fix_to_virt(FIX_ENTRY_TRAMP_TEXT);
+#else
+	u64 fixmap_va = MEM_END;
+#endif
 
 	struct mem_range_struct test_ranges[20];
 	struct mem_range_struct test_ranges_cdh_loaded[] = {
@@ -452,8 +456,10 @@ static int test_case_kernel_range_rwx(void)
 		{RTA_START_VA,			RTA_CODE_SIZE,				"     RTA CODE   ", true, false},
 		{RTA_START_VA+RTA_CODE_SIZE,	RTA_DATA_SIZE,				"     RTA DATA   ", false, true},
 		{((u64)FIMC_LIB_END_VA),	fixmap_va - ((u64)FIMC_LIB_END_VA),	"FIMC_END- FIXMAP", false, true},
+#ifdef CONFIG_UNMAP_KERNEL_AT_EL0
 		{((u64)fixmap_va),		((u64) PAGE_SIZE),			"     FIXMAP     ", true, false},
 		{((u64)fixmap_va+PAGE_SIZE),	((u64) MEM_END-(fixmap_va+PAGE_SIZE)),	"FIXMAP - MEM_END", false, true},
+#endif
 	};
 	struct mem_range_struct test_ranges_cdh_not_loaded[] = {
 		{(u64)VMALLOC_START,		((u64)_text) - ((u64)VMALLOC_START),	"VMALLOC -  STEXT", false, true},
@@ -471,8 +477,10 @@ static int test_case_kernel_range_rwx(void)
 		{RTA_START_VA,			RTA_CODE_SIZE,				"     RTA CODE   ", true, false},
 		{RTA_START_VA+RTA_CODE_SIZE,	RTA_DATA_SIZE,				"     RTA DATA   ", false, true},
 		{((u64)FIMC_LIB_END_VA),	fixmap_va - ((u64)FIMC_LIB_END_VA),	"FIMC_END- FIXMAP", false, true},
+#ifdef CONFIG_UNMAP_KERNEL_AT_EL0
 		{((u64)fixmap_va),		((u64) PAGE_SIZE),			"     FIXMAP     ", true, false},
 		{((u64)fixmap_va+PAGE_SIZE),	((u64) MEM_END-(fixmap_va+PAGE_SIZE)),	"FIXMAP - MEM_END", false, true},
+#endif
 	};
 
 	if(bcm_dbg_data && bcm_dbg_data->bcm_load_bin){

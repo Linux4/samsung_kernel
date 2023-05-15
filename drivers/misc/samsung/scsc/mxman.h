@@ -9,12 +9,19 @@
 #include <linux/workqueue.h>
 #include "fwhdr.h"
 #include "mxmgmt_transport.h"
+#include <linux/version.h>
 #include "mxproc.h"
+#if IS_ENABLED(CONFIG_EXYNOS_SYSTEM_EVENT)
+#include "mxman_sysevent.h"
+#endif
 #include <scsc/scsc_mx.h>
 #ifdef CONFIG_ANDROID
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+#include <scsc/scsc_wakelock.h>
+#else
 #include <linux/wakelock.h>
 #endif
-
+#endif
 struct mxman;
 
 void mxman_init(struct mxman *mxman, struct scsc_mx *mx);
@@ -72,20 +79,29 @@ struct mxman {
 	atomic_t		suspend_count;
 	atomic_t                recovery_count;
 	atomic_t                boot_count;
+	atomic_t		cancel_resume;
 	bool			check_crc;
 	char                    fw_build_id[FW_BUILD_ID_SZ]; /* Defined in SC-505846-SW */
 	struct completion       recovery_completion;
 #ifdef CONFIG_ANDROID
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+	struct scsc_wake_lock	failure_recovery_wake_lock; /* For recovery from chip restart */
+	struct scsc_wake_lock	syserr_recovery_wake_lock; /* For recovery from syserr sub-system restart */
+#else
 	struct wake_lock	failure_recovery_wake_lock; /* For recovery from chip restart */
 	struct wake_lock	syserr_recovery_wake_lock; /* For recovery from syserr sub-system restart */
+#endif
 #endif
 	u32			rf_hw_ver;
 	u16			scsc_panic_code;
 	u64			last_panic_time;
-	u32			last_panic_rec_r[PANIC_RECORD_SIZE]; /* Must be at least SCSC_R4_V2_MINOR_53 */
+	u32			last_panic_rec_r[PANIC_RECORD_SIZE]; /* Must be at least SCSC_R4_V2_MINOR_54 */
 	u16			last_panic_rec_sz;
+	u32			last_panic_stack_rec_r[PANIC_STACK_RECORD_SIZE]; /* Must be at least SCSC_R4_V2_MINOR_54 */
+	u16			last_panic_stack_rec_sz;
 	struct mx_syserr_decode	last_syserr;
 	unsigned long		last_syserr_recovery_time; /* In jiffies */
+	unsigned long		last_syserr_level7_recovery_time; /* In jiffies */
 	bool			notify;
 	bool			syserr_recovery_in_progress;
 #ifdef CONFIG_SCSC_FM
@@ -96,6 +112,14 @@ struct mxman {
 	int			fm_params_pending;	/* FM freq info waiting to be delivered to FW */
 
 	char                    fw_ttid[FW_TTID_SZ]; /* Defined in SC-505846-SW */
+
+#if IS_ENABLED(CONFIG_EXYNOS_SYSTEM_EVENT)
+	/* System Event */
+	struct sysevent_desc sysevent_desc;
+	struct sysevent_device *sysevent_dev;
+	struct notifier_block sysevent_nb;
+#endif
+
 };
 
 void mxman_register_gdb_channel(struct scsc_mx *mx, mxmgmt_channel_handler handler, void *data);

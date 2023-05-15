@@ -22,10 +22,16 @@
 #include <linux/proc_fs.h>
 #include <asm/io.h>
 #include <asm/termios.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+#include <scsc/scsc_wakelock.h>
+#else
 #include <linux/wakelock.h>
+#endif
 #include <linux/delay.h>
+#include <linux/seq_file.h>
+#include <linux/ctype.h>
 
-#ifdef CONFIG_ARCH_EXYNOS
+#if defined(CONFIG_ARCH_EXYNOS) || defined(CONFIG_ARCH_EXYNOS9)
 #include <linux/soc/samsung/exynos-soc.h>
 #endif
 
@@ -48,8 +54,24 @@
 #define SLSI_BT_SERVICE_CLOSE_RETRY 60
 #define SLSI_BT_SERVICE_STOP_RECOVERY_TIMEOUT 20000
 #define SLSI_BT_SERVICE_STOP_RECOVERY_DISABLED_TIMEOUT 2000
+#define SLSI_BT_SERVICE_RELEASE_RECOVERY_TIMEOUT (2*HZ)
+
+/* btlog string
+ *
+ * The string must be null-terminated, and may also include a single
+ * newline before its terminating null. The string shall be given
+ * as a hexadecimal number, but the first character may also be a
+ * plus sign. The maximum number of Hexadecimal characters is 32
+ * (128bits)
+ */
+#define SCSC_BTLOG_MAX_STRING_LEN       (37)
+#define SCSC_BTLOG_BUF_LEN              (19)
+#define SCSC_BTLOG_BUF_MAX_CHAR_TO_COPY (16)
+#define SCSC_BTLOG_BUF_PREFIX_LEN        (2)
 
 #define SCSC_ANT_MAX_TIMEOUT (20*HZ)
+
+static u16 bt_module_irq_mask;
 
 #ifdef CONFIG_SCSC_ANT
 static DECLARE_WAIT_QUEUE_HEAD(ant_recovery_complete_queue);
@@ -59,11 +81,6 @@ static DEFINE_MUTEX(bt_start_mutex);
 static DEFINE_MUTEX(bt_audio_mutex);
 #ifdef CONFIG_SCSC_ANT
 static DEFINE_MUTEX(ant_start_mutex);
-#endif
-
-static u8 bt_recovery_level;
-#ifdef CONFIG_SCSC_ANT
-static u8 ant_recovery_level;
 #endif
 
 static int recovery_timeout = SLSI_BT_SERVICE_STOP_RECOVERY_TIMEOUT;
@@ -80,26 +97,34 @@ static int ant_service_start_count;
 #endif
 
 static u64 bluetooth_address;
-#ifdef CONFIG_ARCH_EXYNOS
+#if defined(CONFIG_ARCH_EXYNOS) || defined(CONFIG_ARCH_EXYNOS9)
 static char bluetooth_address_fallback[] = "00:00:00:00:00:00";
 #endif
 static u32 bt_info_trigger;
 static u32 bt_info_interrupt;
 static u32 firmware_control;
 static bool firmware_control_reset = true;
-static u32 firmware_mxlog_filter;
+static u32 firmware_btlog_enables0_low;
+static u32 firmware_btlog_enables0_high;
+static u32 firmware_btlog_enables1_low;
+static u32 firmware_btlog_enables1_high;
 static bool disable_service;
 
 /* Audio */
+#ifndef CONFIG_SOC_EXYNOS7885
 static struct device *audio_device;
 static bool audio_device_probed;
+#else
+static struct scsc_bt_audio_driver *audio_driver;
+static bool audio_driver_probed;
+#endif
 static struct scsc_bt_audio bt_audio;
 
 module_param(bluetooth_address, ullong, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(bluetooth_address,
 		 "Bluetooth address");
 
-#ifdef CONFIG_ARCH_EXYNOS
+#if defined(CONFIG_ARCH_EXYNOS) || defined(CONFIG_ARCH_EXYNOS9)
 module_param_string(bluetooth_address_fallback, bluetooth_address_fallback,
 		    sizeof(bluetooth_address_fallback), 0444);
 MODULE_PARM_DESC(bluetooth_address_fallback,
@@ -144,7 +169,7 @@ static bool bt_stop_on_failure(struct scsc_service_client *client, struct mx_sys
 	SCSC_TAG_ERR(BT_COMMON, "Error level %d\n", err->level);
 
 	reinit_completion(&bt_service.recovery_probe_complete);
-	bt_recovery_level = err->level;
+	bt_service.recovery_level = err->level;
 
 	atomic_inc(&bt_service.error_count);
 
@@ -175,6 +200,21 @@ static void bt_failure_reset(struct scsc_service_client *client, u8 level, u16 s
 	wake_up(&bt_service.read_wait);
 }
 
+static int bt_ap_resumed(struct scsc_service_client *client)
+{
+	UNUSED(client);
+	if (bt_service.interrupt_count != bt_service.last_suspend_interrupt_count)
+		SCSC_TAG_INFO(BT_COMMON, "Possible Bluetooth firmware wake up detected\n");
+	return 0;
+}
+
+static int bt_ap_suspended(struct scsc_service_client *client)
+{
+	UNUSED(client);
+	bt_service.last_suspend_interrupt_count = bt_service.interrupt_count;
+	return 0;
+}
+
 #ifdef CONFIG_SCSC_ANT
 static u8 ant_failure_notification(struct scsc_service_client *client, struct mx_syserr_decode *err)
 {
@@ -191,7 +231,7 @@ static bool ant_stop_on_failure(struct scsc_service_client *client, struct mx_sy
 	SCSC_TAG_ERR(BT_COMMON, "\n");
 
 	reinit_completion(&ant_service.recovery_probe_complete);
-	ant_recovery_level = err->level;
+	ant_service.recovery_level = err->level;
 
 	atomic_inc(&ant_service.error_count);
 
@@ -227,6 +267,8 @@ static struct scsc_service_client mx_bt_client = {
 	.failure_notification =    bt_failure_notification,
 	.stop_on_failure_v2 =      bt_stop_on_failure,
 	.failure_reset_v2 =        bt_failure_reset,
+	.suspend =                 bt_ap_suspended,
+	.resume =                  bt_ap_resumed,
 };
 
 #ifdef CONFIG_SCSC_ANT
@@ -239,15 +281,41 @@ static struct scsc_service_client mx_ant_client = {
 
 static void slsi_sm_bt_service_cleanup_interrupts(void)
 {
-	u16 int_src = bt_service.bsmhcp_protocol->header.info_bg_to_ap_int_src;
+	u16 irq_num = 0;
 
 	SCSC_TAG_DEBUG(BT_COMMON,
 		       "unregister firmware information interrupts\n");
 
-	scsc_service_mifintrbit_unregister_tohost(bt_service.service, int_src);
-	scsc_service_mifintrbit_free_fromhost(bt_service.service,
-		bt_service.bsmhcp_protocol->header.info_ap_to_bg_int_src,
-		SCSC_MIFINTR_TARGET_R4);
+	if (bt_module_irq_mask & 1 << irq_num++)
+		scsc_service_mifintrbit_unregister_tohost(bt_service.service,
+            bt_service.bsmhcp_protocol->header.info_bg_to_ap_int_src);
+	if (bt_module_irq_mask & 1 << irq_num++)
+		scsc_service_mifintrbit_free_fromhost(bt_service.service,
+		    bt_service.bsmhcp_protocol->header.info_ap_to_bg_int_src,
+		    SCSC_MIFINTR_TARGET_R4);
+}
+
+static int slsi_sm_bt_service_init_interrupts(void) {
+	int irq_ret;
+	u16 irq_num = 0;
+
+	irq_ret = scsc_service_mifintrbit_register_tohost(bt_service.service,
+	    scsc_bt_shm_irq_handler, NULL);
+	if (irq_ret < 0)
+		return irq_ret;
+
+	bt_service.bsmhcp_protocol->header.info_bg_to_ap_int_src = irq_ret;
+	bt_module_irq_mask |= 1 << irq_num++;
+
+	irq_ret = scsc_service_mifintrbit_alloc_fromhost(bt_service.service,
+	    SCSC_MIFINTR_TARGET_R4);
+	if (irq_ret < 0)
+		return irq_ret;
+
+	bt_service.bsmhcp_protocol->header.info_ap_to_bg_int_src = irq_ret;
+	bt_module_irq_mask |= 1 << irq_num++;
+
+	return 0;
 }
 
 static int slsi_sm_bt_service_cleanup_stop_service(void)
@@ -275,6 +343,7 @@ static int slsi_sm_bt_service_cleanup_stop_service(void)
 	return 0;
 }
 
+#ifndef CONFIG_SOC_EXYNOS7885
 static int slsi_bt_audio_probe(void)
 {
 	phys_addr_t paddr;
@@ -293,7 +362,9 @@ static int slsi_bt_audio_probe(void)
 
 	return bt_audio.dev_iommu_map(audio_device, paddr, size);
 }
+#endif
 
+#ifndef CONFIG_SOC_EXYNOS7885
 /* Note A-Box memory should only be unmapped when A-Box driver is finished with it */
 static void slsi_bt_audio_remove(void)
 {
@@ -305,6 +376,7 @@ static void slsi_bt_audio_remove(void)
 	size = PAGE_ALIGN(sizeof(*bt_audio.abox_physical));
 	bt_audio.dev_iommu_unmap(audio_device, size);
 }
+#endif
 
 #ifdef CONFIG_SCSC_LOG_COLLECTION
 static int bt_hcf_collect(struct scsc_log_collector_client *collect_client, size_t size)
@@ -331,7 +403,16 @@ struct scsc_log_collector_client bt_collect_hcf_client = {
 };
 #endif
 
-static int slsi_sm_bt_service_cleanup(bool force_cleanup)
+static bool scsc_recovery_in_progress()
+{
+#ifdef CONFIG_SCSC_ANT
+	return bt_service.recovery_level != 0 || ant_service.recovery_level != 0;
+#else
+	return bt_service.recovery_level != 0;
+#endif
+}
+
+static int slsi_sm_bt_service_cleanup()
 {
 	int ret = 0;
 
@@ -346,7 +427,7 @@ static int slsi_sm_bt_service_cleanup(bool force_cleanup)
 			ret = slsi_sm_bt_service_cleanup_stop_service();
 			bt_service.service_started = false;
 
-			if (ret < 0 && !force_cleanup) {
+			if (ret < 0) {
 				SCSC_TAG_DEBUG(BT_COMMON, "service stop failed. Recovery has been triggered\n");
 				goto done_error;
 			}
@@ -357,8 +438,10 @@ static int slsi_sm_bt_service_cleanup(bool force_cleanup)
 		wake_up_interruptible(&bt_service.read_wait);
 
 		/* Unregister firmware information interrupts */
-		if (bt_service.bsmhcp_protocol)
+		if (bt_service.bsmhcp_protocol) {
 			slsi_sm_bt_service_cleanup_interrupts();
+			bt_module_irq_mask = 0;
+		}
 
 		/* Shut down the shared memory interface */
 		SCSC_TAG_DEBUG(BT_COMMON,
@@ -371,11 +454,23 @@ static int slsi_sm_bt_service_cleanup(bool force_cleanup)
 		scsc_avdtp_detect_exit();
 
 		mutex_lock(&bt_audio_mutex);
+#ifndef CONFIG_SOC_EXYNOS7885
 		if (audio_device) {
 			bt_audio.dev			= NULL;
 			bt_audio.abox_virtual		= NULL;
 			bt_audio.abox_physical		= NULL;
 		}
+#else
+		if (audio_driver) {
+			if (audio_driver_probed)
+				audio_driver->remove(&bt_audio);
+
+			bt_audio.dev           = NULL;
+			bt_audio.abox_virtual  = NULL;
+			bt_audio.abox_physical = NULL;
+			audio_driver_probed    = false;
+		}
+#endif
 		mutex_unlock(&bt_audio_mutex);
 
 #ifdef CONFIG_SCSC_LOG_COLLECTION
@@ -491,7 +586,7 @@ static int slsi_sm_ant_service_cleanup_stop_service(void)
 #endif
 
 #ifdef CONFIG_SCSC_ANT
-static int slsi_sm_ant_service_cleanup(bool force_cleanup)
+static int slsi_sm_ant_service_cleanup()
 {
 	int ret = 0;
 
@@ -503,14 +598,15 @@ static int slsi_sm_ant_service_cleanup(bool force_cleanup)
 		/* If slsi_sm_ant_service_cleanup_stop_service fails, then let
 		 * recovery do the rest of the deinit later.
 		 **/
-		if (ant_service.service_started)
+		if (ant_service.service_started) {
 			ret = slsi_sm_ant_service_cleanup_stop_service();
 			ant_service.service_started = false;
 
-			if (ret < 0 && !force_cleanup) {
+			if (ret < 0) {
 				SCSC_TAG_DEBUG(BT_COMMON, "service stop failed. Recovery has been triggered\n");
 				goto done_error;
 			}
+		}
 
 		/* Service is stopped - ensure polling function is existed */
 		SCSC_TAG_DEBUG(BT_COMMON, "wake reader/poller thread\n");
@@ -667,7 +763,7 @@ static int setup_bhcs(struct scsc_service *service,
 		firm = NULL;
 	}
 
-#ifdef CONFIG_ARCH_EXYNOS
+#if defined(CONFIG_ARCH_EXYNOS) || defined(CONFIG_ARCH_EXYNOS9)
 	bhcs->bluetooth_address_nap =
 		(exynos_soc_info.unique_id & 0x000000FFFF00) >> 8;
 	bhcs->bluetooth_address_uap =
@@ -768,8 +864,8 @@ int slsi_sm_bt_service_start(void)
 		return -EBUSY;
 	}
 
-	/* Has probe been called */
-	if (bt_recovery_level != 0) {
+	/* is BT/ANT recovery in progress? */
+	if (scsc_recovery_in_progress()) {
 		SCSC_TAG_WARNING(BT_COMMON, "recovery in progress\n");
 		mutex_unlock(&bt_start_mutex);
 		return -EFAULT;
@@ -851,7 +947,11 @@ int slsi_sm_bt_service_start(void)
 	/* The A-Box driver must have registered before reaching this point
 	 * otherwise there is no audio routing
 	 */
+#ifndef CONFIG_SOC_EXYNOS7885
 	if (audio_device != NULL) {
+#else
+	if (audio_driver != NULL) {
+#endif
 		/* Get shared memory region for the A-Box structure from the MIF.
 		 * The allocated memory is aligned to 4kB, but this is going to work
 		 * only if the physical start address of the 4MB region is aligned
@@ -950,13 +1050,14 @@ int slsi_sm_bt_service_start(void)
 		goto exit;
 	}
 
-	bt_service.bsmhcp_protocol->header.info_ap_to_bg_int_src =
-		scsc_service_mifintrbit_alloc_fromhost(bt_service.service,
-						SCSC_MIFINTR_TARGET_R4);
-	bt_service.bsmhcp_protocol->header.info_bg_to_ap_int_src =
-		scsc_service_mifintrbit_register_tohost(bt_service.service,
-						scsc_bt_shm_irq_handler, NULL);
-	bt_service.bsmhcp_protocol->header.mxlog_filter = firmware_mxlog_filter;
+	err = slsi_sm_bt_service_init_interrupts();
+	if (err < 0)
+		goto exit;
+
+	bt_service.bsmhcp_protocol->header.btlog_enables0_low = firmware_btlog_enables0_low;
+	bt_service.bsmhcp_protocol->header.btlog_enables0_high = firmware_btlog_enables0_high;
+	bt_service.bsmhcp_protocol->header.btlog_enables1_low = firmware_btlog_enables1_low;
+	bt_service.bsmhcp_protocol->header.btlog_enables1_high = firmware_btlog_enables1_high;
 	bt_service.bsmhcp_protocol->header.firmware_control = firmware_control;
 	bt_service.bsmhcp_protocol->header.abox_offset = bt_service.abox_ref;
 	bt_service.bsmhcp_protocol->header.abox_length = sizeof(struct scsc_bt_audio_abox);
@@ -982,21 +1083,25 @@ int slsi_sm_bt_service_start(void)
 			slsi_kic_system_events_bt_on, 0);
 
 		mutex_lock(&bt_audio_mutex);
+#ifndef CONFIG_SOC_EXYNOS7885
 		if (audio_device && !audio_device_probed) {
 			err = slsi_bt_audio_probe();
 
 			audio_device_probed = true;
 		}
+#else
+		if (audio_driver && !audio_driver_probed) {
+			audio_driver->probe(audio_driver, &bt_audio);
+
+			audio_driver_probed = true;
+		}
+#endif
 		mutex_unlock(&bt_audio_mutex);
 	}
 
-	if (bt_service.bsmhcp_protocol->header.firmware_features &
-	    BSMHCP_FEATURE_M4_INTERRUPTS)
-		SCSC_TAG_DEBUG(BT_COMMON, "features enabled: M4_INTERRUPTS\n");
-
 exit:
 	if (err < 0) {
-		if (slsi_sm_bt_service_cleanup(true) == 0)
+		if (slsi_sm_bt_service_cleanup() == 0)
 			atomic_dec(&bt_service.service_users);
 	}
 
@@ -1139,7 +1244,10 @@ int slsi_sm_ant_service_start(void)
 		goto exit;
 	}
 
-	ant_service.asmhcp_protocol->header.mxlog_filter = firmware_mxlog_filter;
+	ant_service.asmhcp_protocol->header.btlog_enables0_low = firmware_btlog_enables0_low;
+	ant_service.asmhcp_protocol->header.btlog_enables0_high = firmware_btlog_enables0_high;
+	ant_service.asmhcp_protocol->header.btlog_enables1_low = firmware_btlog_enables1_low;
+	ant_service.asmhcp_protocol->header.btlog_enables1_high = firmware_btlog_enables1_high;
 	ant_service.asmhcp_protocol->header.firmware_control = firmware_control;
 
 	SCSC_TAG_DEBUG(BT_COMMON,
@@ -1165,7 +1273,7 @@ int slsi_sm_ant_service_start(void)
 
 exit:
 	if (err < 0) {
-		if (slsi_sm_ant_service_cleanup(true) == 0)
+		if (slsi_sm_ant_service_cleanup() == 0)
 			atomic_dec(&ant_service.service_users);
 	}
 
@@ -1176,14 +1284,14 @@ exit:
 #endif
 
 /* Stop the BT service */
-static int slsi_sm_bt_service_stop(bool force_cleanup)
+static int slsi_sm_bt_service_stop()
 {
 	SCSC_TAG_INFO(BT_COMMON, "bt service users %u\n", atomic_read(&bt_service.service_users));
 
 	if (1 < atomic_read(&bt_service.service_users)) {
 		atomic_dec(&bt_service.service_users);
 	} else if (1 == atomic_read(&bt_service.service_users)) {
-		if (slsi_sm_bt_service_cleanup(force_cleanup) == 0)
+		if (slsi_sm_bt_service_cleanup() == 0)
 			atomic_dec(&bt_service.service_users);
 		else
 			return -EIO;
@@ -1194,14 +1302,14 @@ static int slsi_sm_bt_service_stop(bool force_cleanup)
 
 #ifdef CONFIG_SCSC_ANT
 /* Stop the ANT service */
-static int slsi_sm_ant_service_stop(bool force_cleanup)
+static int slsi_sm_ant_service_stop()
 {
 	SCSC_TAG_INFO(BT_COMMON, "ant service users %u\n", atomic_read(&ant_service.service_users));
 
 	if (atomic_read(&ant_service.service_users) > 1) {
 		atomic_dec(&ant_service.service_users);
 	} else if (atomic_read(&ant_service.service_users) == 1) {
-		if (slsi_sm_ant_service_cleanup(force_cleanup) == 0)
+		if (slsi_sm_ant_service_cleanup() == 0)
 			atomic_dec(&ant_service.service_users);
 		else
 			return -EIO;
@@ -1234,8 +1342,11 @@ static int scsc_bt_h4_release(struct inode *inode, struct file *file)
 
 	mutex_lock(&bt_start_mutex);
 	wake_lock(&bt_service.service_wake_lock);
-	if (bt_recovery_level != MX_SYSERR_LEVEL_7) {
-		if (slsi_sm_bt_service_stop(false) == -EIO)
+	/* service_started will only be false in case we timed out during
+	 * recovery waiting for the release from the user.
+	 */
+	if (bt_service.recovery_level < MX_SYSERR_LEVEL_7 && bt_service.service_started) {
+		if (slsi_sm_bt_service_stop() == -EIO)
 			goto recovery;
 
 		/* Clear all control structures */
@@ -1250,10 +1361,52 @@ static int scsc_bt_h4_release(struct inode *inode, struct file *file)
 		 * will be called after the mutex is released. Jump to the
 		 * normal recovery path.
 		 */
-		if (bt_recovery_level == MX_SYSERR_LEVEL_7)
+		if (bt_service.recovery_level >= MX_SYSERR_LEVEL_7)
 			goto recovery;
-		else
-			bt_recovery_level = 0;
+#ifdef CONFIG_SCSC_ANT
+		else if (bt_service.recovery_level >= MX_SYSERR_LEVEL_5) {
+			/* Try to lock ant_start mutex and synchronize release with ANT.
+			 * If this does not succeed, it means that ANT is either opening
+			 * or closing and in any case not waiting for BT to synchronize shutdown.
+			 */
+			if (mutex_trylock(&ant_start_mutex)) {
+				if (ant_service.recovery_level >= MX_SYSERR_LEVEL_5 &&
+				    ant_service.recovery_level < MX_SYSERR_LEVEL_7) {
+					int timeout_res;
+
+					mutex_unlock(&bt_start_mutex);
+					mutex_unlock(&ant_start_mutex);
+
+					timeout_res = wait_for_completion_timeout(
+					    &ant_service.release_complete,
+					    msecs_to_jiffies(SLSI_BT_SERVICE_RELEASE_RECOVERY_TIMEOUT));
+					mutex_lock(&bt_start_mutex);
+
+					if (timeout_res == 0)
+						SCSC_TAG_INFO(BT_COMMON, "timeout waiting for ant release\n");
+
+					/* Ant service will reset recovery_level if not syncing with BT service */
+					if (timeout_res > 0) {
+						mutex_lock(&ant_start_mutex);
+						ant_service.recovery_level = 0;
+						mutex_unlock(&ant_start_mutex);
+					}
+
+					/* ant_start_mutex not needed here, since this variable is
+					 * guarded with bt_start_mutex in ant release path.
+					 */
+					reinit_completion(&ant_service.release_complete);
+
+					bt_service.recovery_level = 0;
+					wake_up_interruptible(&ant_recovery_complete_queue);
+				} else {
+					mutex_unlock(&ant_start_mutex);
+				}
+			}
+		}
+#endif
+
+		bt_service.recovery_level = 0;
 
 		wake_unlock(&bt_service.service_wake_lock);
 		bt_service.h4_users = false;
@@ -1261,7 +1414,12 @@ static int scsc_bt_h4_release(struct inode *inode, struct file *file)
 	} else {
 		int ret;
 recovery:
-		complete_all(&bt_service.recovery_release_complete);
+		/* recovery_release_complete will already have been re-inited if
+		 * the BT service was closed before the release call, so don't complete
+		 * it in that case.
+		 */
+		if (bt_service.service_started)
+			complete_all(&bt_service.recovery_release_complete);
 		wake_unlock(&bt_service.service_wake_lock);
 		mutex_unlock(&bt_start_mutex);
 
@@ -1283,8 +1441,12 @@ static int scsc_ant_release(struct inode *inode, struct file *file)
 
 	mutex_lock(&ant_start_mutex);
 	wake_lock(&ant_service.service_wake_lock);
-	if (ant_recovery_level != MX_SYSERR_LEVEL_7) {
-		if (slsi_sm_ant_service_stop(false) == -EIO)
+	/* service_started will only be false in case we timed out during
+	 * recovery waiting for the release from the user.
+	 */
+	if (ant_service.recovery_level < MX_SYSERR_LEVEL_7 && ant_service.service_started) {
+		bool reset_recovery_level = true;
+		if (slsi_sm_ant_service_stop() == -EIO)
 			goto recovery;
 
 		/* Clear all control structures */
@@ -1293,26 +1455,46 @@ static int scsc_ant_release(struct inode *inode, struct file *file)
 		ant_service.read_index = 0;
 		ant_service.ant_write_offset = 0;
 
-		ant_service.ant_users = false;
-
 		/* The recovery flag can be set in case of crossing release and
 		 * recovery signaling. It's safe to check the flag here since
 		 * the bt_start_mutex guarantees that the remove/probe callbacks
 		 * will be called after the mutex is released. Jump to the
 		 * normal recovery path.
 		 */
-		if (ant_recovery_level == MX_SYSERR_LEVEL_7)
+		if (ant_service.recovery_level >= MX_SYSERR_LEVEL_7)
 			goto recovery;
-		else
-			ant_recovery_level = 0;
+		else if (ant_service.recovery_level >= MX_SYSERR_LEVEL_5) {
+			/* Try to lock bt_start mutex and synchronize release with BT.
+			 * If this does not succeed, it means that BT is either opening
+			 * or closing and in any case not waiting for ANT to synchronize shutdown.
+			 */
+			if (mutex_trylock(&bt_start_mutex)) {
+				if (bt_service.h4_users &&
+				    bt_service.recovery_level >= MX_SYSERR_LEVEL_5 &&
+				    bt_service.recovery_level < MX_SYSERR_LEVEL_7) {
+					complete_all(&ant_service.release_complete);
+					/* BT will handle resetting in case we need to sync */
+					reset_recovery_level = false;
+				}
+				mutex_unlock(&bt_start_mutex);
+			}
+		}
+
+		if (reset_recovery_level)
+			ant_service.recovery_level = 0;
+		ant_service.ant_users = false;
 
 		wake_unlock(&ant_service.service_wake_lock);
-		ant_service.ant_users = false;
 		mutex_unlock(&ant_start_mutex);
 	} else {
 		int ret;
 recovery:
-		complete_all(&ant_service.recovery_release_complete);
+		/* recovery_release_complete will already have been re-inited if
+		 * the ANT service was closed before the release call, so don't complete
+		 * it in that case.
+		 */
+		if (ant_service.service_started)
+			complete_all(&ant_service.recovery_release_complete);
 		wake_unlock(&ant_service.service_wake_lock);
 		mutex_unlock(&ant_start_mutex);
 
@@ -1335,12 +1517,14 @@ static int scsc_ant_open(struct inode *inode, struct file *file)
 
 	SCSC_TAG_INFO(BT_COMMON, "(ant_users=%u)\n", ant_service.ant_users ? 1 : 0);
 
-	if (ant_recovery_level != 0) {
+	/* is BT/ANT recovery in progress? */
+	if (scsc_recovery_in_progress()) {
 		SCSC_TAG_WARNING(BT_COMMON, "recovery in progress\n");
 		wait_event_interruptible_timeout(ant_recovery_complete_queue,
-						 ant_recovery_level == 0,
+						 !scsc_recovery_in_progress(),
 						 SCSC_ANT_MAX_TIMEOUT);
-		if (ant_recovery_level != 0) {
+
+		if (scsc_recovery_in_progress()) {
 			SCSC_TAG_WARNING(BT_COMMON, "recovery timeout, aborting\n");
 			return -EFAULT;
 		}
@@ -1505,7 +1689,8 @@ void slsi_bt_service_probe(struct scsc_mx_module_client *module_client,
 		      "BT service probe (%s %p)\n", module_client->name, mx);
 
 	mutex_lock(&bt_start_mutex);
-	if (reason == SCSC_MODULE_CLIENT_REASON_RECOVERY && bt_recovery_level == 0) {
+	if (reason == SCSC_MODULE_CLIENT_REASON_RECOVERY &&
+	    bt_service.recovery_level == 0) {
 		SCSC_TAG_INFO(BT_COMMON,
 			      "BT service probe recovery, but no recovery in progress\n");
 		goto done;
@@ -1516,9 +1701,10 @@ void slsi_bt_service_probe(struct scsc_mx_module_client *module_client,
 
 	get_device(bt_service.dev);
 
-	if (reason == SCSC_MODULE_CLIENT_REASON_RECOVERY && bt_recovery_level != 0) {
+	if (reason == SCSC_MODULE_CLIENT_REASON_RECOVERY &&
+	    bt_service.recovery_level != 0) {
 		complete_all(&bt_service.recovery_probe_complete);
-		bt_recovery_level = 0;
+		bt_service.recovery_level = 0;
 	}
 
 	slsi_bt_notify_probe(bt_service.dev,
@@ -1539,30 +1725,33 @@ static void slsi_bt_service_remove(struct scsc_mx_module_client *module_client,
 		      "BT service remove (%s %p)\n", module_client->name, mx);
 
 	mutex_lock(&bt_start_mutex);
-	if (reason == SCSC_MODULE_CLIENT_REASON_RECOVERY && bt_recovery_level == 0) {
+	if (reason == SCSC_MODULE_CLIENT_REASON_RECOVERY &&
+	    bt_service.recovery_level == 0) {
 		SCSC_TAG_INFO(BT_COMMON,
 			      "BT service remove recovery, but no recovery in progress\n");
 		goto done;
 	}
 
-	if (reason == SCSC_MODULE_CLIENT_REASON_RECOVERY && bt_recovery_level != 0) {
-		bool h4_users = bt_service.h4_users;
+	if (reason == SCSC_MODULE_CLIENT_REASON_RECOVERY &&
+	    bt_service.recovery_level != 0) {
+		bool service_active = bt_service.service_started;
 
 		mutex_unlock(&bt_start_mutex);
 
-		/* Wait forever for recovery_release_complete, as it will
-		 * arrive even if autorecovery is disabled.
-		 */
-		SCSC_TAG_INFO(BT_COMMON, "wait for recovery_release_complete\n");
-
-		/* only wait for recovery_release_complete if service has a user */
-		if (h4_users)
-			wait_for_completion(&bt_service.recovery_release_complete);
-
-		reinit_completion(&bt_service.recovery_release_complete);
+		/* Don't wait for the recovery_release_complete if service is not active */
+		if (service_active) {
+			int ret = wait_for_completion_timeout(&bt_service.recovery_release_complete,
+			       msecs_to_jiffies(SLSI_BT_SERVICE_STOP_RECOVERY_TIMEOUT));
+			if (ret == 0)
+				SCSC_TAG_INFO(BT_COMMON, "recovery_release_complete timeout\n");
+		}
 
 		mutex_lock(&bt_start_mutex);
-		if (slsi_sm_bt_service_stop(true) == -EIO)
+
+		if (service_active)
+			reinit_completion(&bt_service.recovery_release_complete);
+
+		if (slsi_sm_bt_service_stop() == -EIO)
 			SCSC_TAG_INFO(BT_COMMON, "Service stop or close failed during recovery.\n");
 
 		/* Clear all control structures */
@@ -1578,9 +1767,6 @@ static void slsi_bt_service_remove(struct scsc_mx_module_client *module_client,
 
 done:
 	mutex_unlock(&bt_start_mutex);
-
-	SCSC_TAG_INFO(BT_COMMON,
-	      "BT service remove complete (%s %p)\n", module_client->name, mx);
 }
 
 /* BT service driver registration interface */
@@ -1601,7 +1787,7 @@ void slsi_ant_service_probe(struct scsc_mx_module_client *module_client,
 		      "ANT service probe (%s %p)\n", module_client->name, mx);
 
 	mutex_lock(&ant_start_mutex);
-	if (reason == SCSC_MODULE_CLIENT_REASON_RECOVERY && ant_recovery_level == 0) {
+	if (reason == SCSC_MODULE_CLIENT_REASON_RECOVERY && ant_service.recovery_level == 0) {
 		SCSC_TAG_INFO(BT_COMMON,
 			      "ANT service probe recovery, but no recovery in progress\n");
 		goto done;
@@ -1612,9 +1798,9 @@ void slsi_ant_service_probe(struct scsc_mx_module_client *module_client,
 
 	get_device(ant_service.dev);
 
-	if (reason == SCSC_MODULE_CLIENT_REASON_RECOVERY && ant_recovery_level != 0) {
+	if (reason == SCSC_MODULE_CLIENT_REASON_RECOVERY && ant_service.recovery_level != 0) {
 		complete_all(&ant_service.recovery_probe_complete);
-		ant_recovery_level = 0;
+		ant_service.recovery_level = 0;
 	}
 
 done:
@@ -1633,30 +1819,32 @@ static void slsi_ant_service_remove(struct scsc_mx_module_client *module_client,
 		      "ANT service remove (%s %p)\n", module_client->name, mx);
 
 	mutex_lock(&ant_start_mutex);
-	if (reason == SCSC_MODULE_CLIENT_REASON_RECOVERY && ant_recovery_level == 0) {
+	if (reason == SCSC_MODULE_CLIENT_REASON_RECOVERY && ant_service.recovery_level == 0) {
 		SCSC_TAG_INFO(BT_COMMON,
 			      "ANT service remove recovery, but no recovery in progress\n");
 		goto done;
 	}
 
-	if (reason == SCSC_MODULE_CLIENT_REASON_RECOVERY && ant_recovery_level != 0) {
+	if (reason == SCSC_MODULE_CLIENT_REASON_RECOVERY && ant_service.recovery_level != 0) {
 		int ret;
-		bool ant_users = ant_service.ant_users;
+		bool service_active = ant_service.service_started;
 
 		mutex_unlock(&ant_start_mutex);
 
-		/* Wait full duration for recovery_release_complete, as it will
-		 * arrive even if autorecovery is disabled.
-		 */
-		if (ant_users)
+		/* Don't wait for recovery_release_complete if service is not active */
+		if (service_active) {
 			ret = wait_for_completion_timeout(&ant_service.recovery_release_complete,
 			       msecs_to_jiffies(SLSI_BT_SERVICE_STOP_RECOVERY_TIMEOUT));
-		reinit_completion(&ant_service.recovery_release_complete);
-		if (ret == 0)
-			SCSC_TAG_INFO(BT_COMMON, "recovery_release_complete timeout\n");
+			if (ret == 0)
+				SCSC_TAG_INFO(BT_COMMON, "recovery_release_complete timeout\n");
+		}
 
 		mutex_lock(&ant_start_mutex);
-		if (slsi_sm_ant_service_stop(true) == -EIO)
+
+		if (service_active)
+			reinit_completion(&ant_service.recovery_release_complete);
+
+		if (slsi_sm_ant_service_stop() == -EIO)
 			SCSC_TAG_INFO(BT_COMMON, "Service stop or close failed during recovery.\n");
 
 		ant_service.ant_users = false;
@@ -1673,9 +1861,6 @@ static void slsi_ant_service_remove(struct scsc_mx_module_client *module_client,
 
 done:
 	mutex_unlock(&ant_start_mutex);
-
-	SCSC_TAG_INFO(BT_COMMON,
-		      "ANT service remove complete (%s %p)\n", module_client->name, mx);
 }
 #endif
 
@@ -1843,6 +2028,39 @@ static const struct file_operations scsc_bt_procfs_fops = {
 	.release = single_release,
 };
 
+static void scsc_update_btlog_params(void)
+{
+	mutex_lock(&bt_start_mutex);
+	if (bt_service.service) {
+		bt_service.bsmhcp_protocol->header.btlog_enables0_low = firmware_btlog_enables0_low;
+		bt_service.bsmhcp_protocol->header.btlog_enables0_high = firmware_btlog_enables0_high;
+		bt_service.bsmhcp_protocol->header.btlog_enables1_low = firmware_btlog_enables1_low;
+		bt_service.bsmhcp_protocol->header.btlog_enables1_high = firmware_btlog_enables1_high;
+
+		/* Trigger the interrupt in the mailbox */
+		scsc_service_mifintrbit_bit_set(bt_service.service,
+				bt_service.bsmhcp_protocol->header.ap_to_bg_int_src,
+				SCSC_MIFINTR_TARGET_R4);
+	}
+	mutex_unlock(&bt_start_mutex);
+
+#ifdef CONFIG_SCSC_ANT
+	mutex_lock(&ant_start_mutex);
+	if (ant_service.service) {
+		ant_service.asmhcp_protocol->header.btlog_enables0_low = firmware_btlog_enables0_low;
+		ant_service.asmhcp_protocol->header.btlog_enables0_high = firmware_btlog_enables0_high;
+		ant_service.asmhcp_protocol->header.btlog_enables1_low = firmware_btlog_enables1_low;
+		ant_service.asmhcp_protocol->header.btlog_enables1_high = firmware_btlog_enables1_high;
+
+		/* Trigger the interrupt in the mailbox */
+		scsc_service_mifintrbit_bit_set(ant_service.service,
+				ant_service.asmhcp_protocol->header.ap_to_bg_int_src,
+				SCSC_MIFINTR_TARGET_R4);
+	}
+	mutex_unlock(&ant_start_mutex);
+#endif
+}
+
 static int scsc_mxlog_filter_set_param_cb(const char *buffer,
 					  const struct kernel_param *kp)
 {
@@ -1851,19 +2069,113 @@ static int scsc_mxlog_filter_set_param_cb(const char *buffer,
 
 	ret = kstrtou32(buffer, 0, &value);
 	if (!ret) {
-		firmware_mxlog_filter = value;
+		firmware_btlog_enables0_low = value;
+		scsc_update_btlog_params();
+	}
 
-		mutex_lock(&bt_start_mutex);
-		if (bt_service.service) {
-			bt_service.bsmhcp_protocol->header.mxlog_filter =
-				firmware_mxlog_filter;
+	return ret;
+}
 
-			/* Trigger the interrupt in the mailbox */
-			scsc_service_mifintrbit_bit_set(bt_service.service,
-			    bt_service.bsmhcp_protocol->header.ap_to_bg_int_src,
-			    SCSC_MIFINTR_TARGET_R4);
+/* Validate, by conventional semantics, that the base of the
+ * string is 16. I.e if the string begins with 0x the number
+ * can be parsed as a hexadecimal (case insensitive)
+ *
+ * Returns true if the string can be parsed as hexadecimal
+ */
+static bool scsc_string_is_hexadecimal(const char *s)
+{
+	if (s[0] == '0' && tolower(s[1]) == 'x' && isxdigit(s[2]))
+		return true;
+
+	return false;
+}
+
+/* Updates btlog level by converting the string to four u32 integers.
+ *
+ * Note the string given to kstrtou64 must be null-terminated, and may also
+ * include a single newline before its terminating null. The first character
+ * may also be a plus sign, but not a minus sign.
+ *
+ * If the string cannot be parsed as a hexadecimal number it is considered
+ * as a parsing error
+ *
+ * Returns 0 on success, -ERANGE on overflow and -EINVAL on parsing error.
+ */
+static int scsc_btlog_enables_set_param_cb(const char *buffer,
+				           const struct kernel_param *kp)
+{
+	int ret;
+	size_t buffer_len;
+	u16 newline_len = 0;
+	u64 btlog_enables_low = 0;
+	u64 btlog_enables_high = 0;
+
+	if (buffer == NULL)
+		return -EINVAL;
+
+	buffer_len = strnlen(buffer, SCSC_BTLOG_MAX_STRING_LEN);
+
+	if (buffer_len >= SCSC_BTLOG_MAX_STRING_LEN)
+		return -ERANGE;
+
+	if (buffer_len <= SCSC_BTLOG_BUF_PREFIX_LEN)
+		return -EINVAL;
+
+	/* If the first character is a plus sign sign, ignore it */
+	if (buffer[0] == '+')
+	{
+		buffer++;
+		buffer_len--;
+
+		if (buffer_len <= SCSC_BTLOG_BUF_PREFIX_LEN)
+			return -EINVAL;
+	}
+
+	/* Only accept the string if it can be parsed as a hexadecimal number */
+	if (!scsc_string_is_hexadecimal(buffer))
+		return -EINVAL;
+
+	/* Is a newline included before the terminating null */
+	if (buffer[buffer_len - 1] == '\n')
+		newline_len = 1;
+
+	if (buffer_len < SCSC_BTLOG_BUF_LEN + newline_len)
+		ret = kstrtou64(buffer, 0, &btlog_enables_low);
+	else {
+		/* Need to split the string into two parts.
+		 *
+		 * First, the least significant integer(u64) is found by
+		 * copying the prefix ('0' 'x') plus the last 17
+		 * (18 if a newline is included) character including
+		 * the null terminator, to a temporary buffer.
+		 *
+		 * Second, the most significant integer(u64) is found
+		 * by copying the remaining part of the string plus a null
+		 * terminator, to a temporary buffer.
+		 */
+		char btlog_enables_buf[SCSC_BTLOG_BUF_LEN + 1];
+
+		u32 start_index = buffer_len - SCSC_BTLOG_BUF_MAX_CHAR_TO_COPY - newline_len;
+
+		memcpy(btlog_enables_buf, buffer, SCSC_BTLOG_BUF_PREFIX_LEN);
+		strcpy(&btlog_enables_buf[SCSC_BTLOG_BUF_PREFIX_LEN], &buffer[start_index]);
+		ret = kstrtou64(btlog_enables_buf, 0, &btlog_enables_low);
+
+		if (!ret) {
+			u32 char_to_copy = start_index;
+
+			memcpy(btlog_enables_buf, buffer, char_to_copy);
+			btlog_enables_buf[char_to_copy] = '\0';
+			ret = kstrtou64(btlog_enables_buf, 0, &btlog_enables_high);
 		}
-		mutex_unlock(&bt_start_mutex);
+	}
+
+	if (!ret) {
+		firmware_btlog_enables0_low  = (u32)(btlog_enables_low & 0x00000000FFFFFFFF);
+		firmware_btlog_enables0_high = (u32)((btlog_enables_low & 0xFFFFFFFF00000000) >> 32);
+		firmware_btlog_enables1_low  = (u32)(btlog_enables_high & 0x00000000FFFFFFFF);
+		firmware_btlog_enables1_high = (u32)((btlog_enables_high & 0xFFFFFFFF00000000) >> 32);
+		scsc_update_btlog_params();
 	}
 
 	return ret;
@@ -1872,7 +2184,15 @@ static int scsc_mxlog_filter_set_param_cb(const char *buffer,
 static int scsc_mxlog_filter_get_param_cb(char *buffer,
 					  const struct kernel_param *kp)
 {
-	return sprintf(buffer, "filter=0x%08x\n", firmware_mxlog_filter);
+	return sprintf(buffer, "mxlog_filter=0x%08x\n", firmware_btlog_enables0_low);
+}
+
+static int scsc_btlog_enables_get_param_cb(char *buffer,
+					    const struct kernel_param *kp)
+{
+	return sprintf(buffer, "btlog_enables = 0x%08x%08x%08x%08x\n",
+			firmware_btlog_enables1_high ,firmware_btlog_enables1_low,
+			firmware_btlog_enables0_high, firmware_btlog_enables0_low);
 }
 
 static struct kernel_param_ops scsc_mxlog_filter_ops = {
@@ -1880,9 +2200,18 @@ static struct kernel_param_ops scsc_mxlog_filter_ops = {
 	.get = scsc_mxlog_filter_get_param_cb,
 };
 
+static struct kernel_param_ops scsc_btlog_enables_ops = {
+	.set = scsc_btlog_enables_set_param_cb,
+	.get = scsc_btlog_enables_get_param_cb,
+};
+
 module_param_cb(mxlog_filter, &scsc_mxlog_filter_ops, NULL, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(mxlog_filter,
-		 "Set the filter for MX log in the Bluetooth firmware");
+		 	 	 "Set the enables for btlog sources in Bluetooth firmware (31..0)");
+
+module_param_cb(btlog_enables, &scsc_btlog_enables_ops, NULL, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(btlog_enables,
+				"Set the enables for btlog sources in Bluetooth firmware (127..0)");
 
 static int scsc_force_crash_set_param_cb(const char *buffer,
 					 const struct kernel_param *kp)
@@ -1913,6 +2242,7 @@ MODULE_PARM_DESC(force_crash,
 		 "Forces a crash of the Bluetooth driver");
 
 
+#ifndef CONFIG_SOC_EXYNOS7885
 phys_addr_t scsc_bt_audio_get_paddr_buf(bool tx)
 {
 	if (bt_audio.abox_physical) {
@@ -1930,7 +2260,9 @@ phys_addr_t scsc_bt_audio_get_paddr_buf(bool tx)
 		return 0;
 }
 EXPORT_SYMBOL(scsc_bt_audio_get_paddr_buf);
+#endif
 
+#ifndef CONFIG_SOC_EXYNOS7885
 unsigned int scsc_bt_audio_get_rate(int id)
 {
 	if (!bt_audio.abox_virtual)
@@ -1946,15 +2278,21 @@ unsigned int scsc_bt_audio_get_rate(int id)
 	}
 }
 EXPORT_SYMBOL(scsc_bt_audio_get_rate);
+#endif
 
+#ifndef CONFIG_SOC_EXYNOS7885
 int scsc_bt_audio_register(struct device *dev,
 		int (*dev_iommu_map)(struct device *, phys_addr_t, size_t),
 		void (*dev_iommu_unmap)(struct device *, size_t))
+#else
+int scsc_bt_audio_register(struct scsc_bt_audio_driver *driver)
+#endif
 {
 	int ret = 0;
 
 	mutex_lock(&bt_audio_mutex);
 
+#ifndef CONFIG_SOC_EXYNOS7885
 	if (audio_device != NULL || dev == NULL ||
 	    dev_iommu_map == NULL || dev_iommu_unmap == NULL) {
 		SCSC_TAG_ERR(BT_COMMON,
@@ -1966,6 +2304,21 @@ int scsc_bt_audio_register(struct device *dev,
 		bt_audio.dev_iommu_map = dev_iommu_map;
 		bt_audio.dev_iommu_unmap = dev_iommu_unmap;
 	}
+#else
+	if (NULL == driver || NULL == driver->name ||
+	    NULL == driver->probe || NULL == driver->remove)
+		ret = -EINVAL;
+	else {
+		audio_driver = driver;
+
+		if (bt_service.h4_users && bt_audio.dev != NULL) {
+			audio_driver->probe(audio_driver, &bt_audio);
+
+			audio_driver_probed = true;
+		}
+
+	}
+#endif
 
 	mutex_unlock(&bt_audio_mutex);
 
@@ -1973,12 +2326,17 @@ int scsc_bt_audio_register(struct device *dev,
 }
 EXPORT_SYMBOL(scsc_bt_audio_register);
 
+#ifndef CONFIG_SOC_EXYNOS7885
 int scsc_bt_audio_unregister(struct device *dev)
+#else
+int scsc_bt_audio_unregister(struct scsc_bt_audio_driver *driver)
+#endif
 {
 	int ret = 0;
 
 	mutex_lock(&bt_audio_mutex);
 
+#ifndef CONFIG_SOC_EXYNOS7885
 	if (audio_device != NULL && dev == audio_device) {
 
 		/* Unmap ringbuffer IOMMU now that A-Box is finished with it,
@@ -2000,6 +2358,19 @@ int scsc_bt_audio_unregister(struct device *dev)
 		audio_device_probed		= false;
 	} else
 		ret = -EINVAL;
+#else
+	if (audio_driver != NULL && driver == audio_driver) {
+		if (audio_driver_probed)
+			audio_driver->remove(&bt_audio);
+
+		bt_audio.dev           = NULL;
+		bt_audio.abox_virtual  = NULL;
+		bt_audio.abox_physical = NULL;
+		audio_driver           = NULL;
+		audio_driver_probed    = false;
+	} else
+		ret = -EINVAL;
+#endif
 
 	mutex_unlock(&bt_audio_mutex);
 
@@ -2015,9 +2386,10 @@ static int __init scsc_bt_module_init(void)
 
 	SCSC_TAG_INFO(BT_COMMON, "%s %s (C) %s\n",
 		      SCSC_MODDESC, SCSC_MODVERSION, SCSC_MODAUTH);
-	bt_recovery_level = 0;
+	bt_module_irq_mask = 0;
+	bt_service.recovery_level = 0;
 #ifdef CONFIG_SCSC_ANT
-	ant_recovery_level = 0;
+	ant_service.recovery_level = 0;
 #endif
 
 	memset(&bt_service, 0, sizeof(bt_service));
@@ -2028,6 +2400,7 @@ static int __init scsc_bt_module_init(void)
 	init_waitqueue_head(&bt_service.read_wait);
 	init_waitqueue_head(&bt_service.info_wait);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	wake_lock_init(&bt_service.read_wake_lock,
 		       WAKE_LOCK_SUSPEND,
 		       "bt_read_wake_lock");
@@ -2051,7 +2424,25 @@ static int __init scsc_bt_module_init(void)
 		       WAKE_LOCK_SUSPEND,
 		       "ant_service_wake_lock");
 #endif
+#else
+        wake_lock_init(NULL, &bt_service.read_wake_lock.ws,
+                       "bt_read_wake_lock");
+        wake_lock_init(NULL, &bt_service.write_wake_lock.ws,
+                       "bt_write_wake_lock");
+        wake_lock_init(NULL, &bt_service.service_wake_lock.ws,
+                       "bt_service_wake_lock");
 
+#ifdef CONFIG_SCSC_ANT
+        init_waitqueue_head(&ant_service.read_wait);
+
+        wake_lock_init(NULL, &ant_service.read_wake_lock.ws,
+                       "ant_read_wake_lock");
+        wake_lock_init(NULL, &ant_service.write_wake_lock.ws,
+                       "ant_write_wake_lock");
+        wake_lock_init(NULL, &ant_service.service_wake_lock.ws,
+                       "ant_service_wake_lock");
+#endif
+#endif
 	procfs_dir = proc_mkdir("driver/scsc_bt", NULL);
 	if (NULL != procfs_dir) {
 		proc_create_data("stats", S_IRUSR | S_IRGRP,
@@ -2128,6 +2519,7 @@ static int __init scsc_bt_module_init(void)
 
 	init_completion(&ant_service.recovery_probe_complete);
 	init_completion(&ant_service.recovery_release_complete);
+	init_completion(&ant_service.release_complete);
 #endif
 
 	/* Register KIC interface */
@@ -2152,7 +2544,7 @@ static int __init scsc_bt_module_init(void)
 	spin_lock_init(&bt_service.avdtp_detect.lock);
 	spin_lock_init(&bt_service.avdtp_detect.fw_write_lock);
 
-#ifdef CONFIG_ARCH_EXYNOS
+#if defined(CONFIG_ARCH_EXYNOS) || defined(CONFIG_ARCH_EXYNOS9)
 	sprintf(bluetooth_address_fallback, "%02X:%02X:%02X:%02X:%02X:%02X",
 	       (exynos_soc_info.unique_id & 0x000000FF0000) >> 16,
 	       (exynos_soc_info.unique_id & 0x00000000FF00) >> 8,
@@ -2198,6 +2590,7 @@ static void __exit scsc_bt_module_exit(void)
 	wake_lock_destroy(&ant_service.service_wake_lock);
 	complete_all(&ant_service.recovery_probe_complete);
 	complete_all(&ant_service.recovery_release_complete);
+	complete_all(&ant_service.release_complete);
 #endif
 
 	slsi_kic_bt_ops_unregister(&scsc_bt_kic_ops);

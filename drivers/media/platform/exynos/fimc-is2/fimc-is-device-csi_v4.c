@@ -51,29 +51,44 @@ static enum hrtimer_restart csis_early_buf_done(struct hrtimer *timer)
 
 inline void csi_frame_start_inline(struct fimc_is_device_csi *csi)
 {
+	u32 inc = 1;
+	u32 fcount, hw_fcount;
+	struct fimc_is_device_sensor *sensor;
+	u32 hashkey;
+
 	/* frame start interrupt */
 	csi->sw_checker = EXPECT_FRAME_END;
-	atomic_inc(&csi->fcount);
-	dbg_isr("<%d %d ", csi, csi->instance,
-			atomic_read(&csi->fcount));
-	atomic_inc(&csi->vvalid);
-	{
-		u32 vsync_cnt = atomic_read(&csi->fcount);
-		struct fimc_is_device_sensor *sensor;
-		u32 hashkey;
 
-		sensor = v4l2_get_subdev_hostdata(*csi->subdev);
-		if (!sensor) {
-			err("sensor is NULL");
-			BUG();
+	hw_fcount = csi_hw_g_fcount(csi->base_reg, CSI_VIRTUAL_CH_0);
+	inc = hw_fcount - csi->hw_fcount;
+	csi->hw_fcount = hw_fcount;
+
+	if (unlikely(inc != 1)) {
+		if (inc > 1) {
+			mwarn("[CSI] interrupt lost(%d)", csi, inc);
+		} else if (inc == 0) {
+			mwarn("[CSI] hw_fcount(%d) is not incresed",
+					csi, hw_fcount);
+			inc = 1;
 		}
-
-		hashkey = vsync_cnt % FIMC_IS_TIMESTAMP_HASH_KEY;
-		sensor->timestamp[hashkey] = fimc_is_get_timestamp();
-		sensor->timestampboot[hashkey] = fimc_is_get_timestamp_boot();
-
-		v4l2_subdev_notify(*csi->subdev, CSI_NOTIFY_VSYNC, &vsync_cnt);
 	}
+
+	fcount = atomic_add_return(inc, &csi->fcount);
+
+	dbg_isr("[F%d] S\n", csi, fcount);
+	atomic_set(&csi->vvalid, 1);
+	sensor = v4l2_get_subdev_hostdata(*csi->subdev);
+	if (!sensor) {
+		err("sensor is NULL");
+		BUG();	
+	}
+	
+	sensor->fcount = fcount;
+	hashkey = fcount % FIMC_IS_TIMESTAMP_HASH_KEY;
+	sensor->timestamp[hashkey] = fimc_is_get_timestamp();
+	sensor->timestampboot[hashkey] = fimc_is_get_timestamp_boot();
+
+	v4l2_subdev_notify(*csi->subdev, CSI_NOTIFY_VSYNC, &fcount);
 
 	wake_up(&csi->wait_queue);
 
@@ -90,17 +105,14 @@ static inline void csi_frame_line_inline(struct fimc_is_device_csi *csi)
 
 static inline void csi_frame_end_inline(struct fimc_is_device_csi *csi)
 {
-	dbg_isr("%d %d>", csi, csi->instance,
-			atomic_read(&csi->fcount));
+	u32 fcount = atomic_read(&csi->fcount);
+
+	dbg_isr("[F%d] E\n", csi, fcount);
 	/* frame end interrupt */
 	csi->sw_checker = EXPECT_FRAME_START;
-	atomic_dec(&csi->vvalid);
-	{
-		u32 vsync_cnt = atomic_read(&csi->fcount);
-
-		atomic_set(&csi->vblank_count, vsync_cnt);
-		v4l2_subdev_notify(*csi->subdev, CSI_NOTIFY_VBLANK, &vsync_cnt);
-	}
+	atomic_set(&csi->vvalid, 0);
+	atomic_set(&csi->vblank_count, fcount);
+	v4l2_subdev_notify(*csi->subdev, CSI_NOTIFY_VBLANK, &fcount);
 
 	tasklet_schedule(&csi->tasklet_csis_end);
 }
@@ -1556,6 +1568,8 @@ static int csi_stream_on(struct v4l2_subdev *subdev,
 		merr("[CSI] csi_hw_s_phy_set is fail", csi);
 		goto err_set_phy;
 	}
+
+	csi->hw_fcount = csi_hw_g_fcount(csi->base_reg, CSI_VIRTUAL_CH_0);
 
 	csi_hw_s_lane(base_reg, &csi->image, sensor_cfg->lanes, sensor_cfg->mipi_speed);
 	csi_hw_s_control(base_reg, CSIS_CTRL_INTERLEAVE_MODE, sensor_cfg->interleave_mode);

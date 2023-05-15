@@ -612,6 +612,13 @@ int sec_bat_parse_dt(struct device *dev,
 		pdata->pre_afc_work_delay = 2000;
 	}
 
+	ret = of_property_read_u32(np, "battery,select_pd_input_current",
+		&pdata->select_pd_input_current);
+	if (ret) {
+		pr_info("%s : select_pd_input_current is Empty\n", __func__);
+		pdata->select_pd_input_current = 1000;
+	}
+
 	ret = of_property_read_u32(np, "battery,pre_wc_afc_input_current",
 		&pdata->pre_wc_afc_input_current);
 	if (ret) {
@@ -1155,6 +1162,29 @@ int sec_bat_parse_dt(struct device *dev,
 		pr_err("%s there is not age_data\n", __func__);
 	}
 #endif
+
+	p = of_get_property(np, "battery,health_condition", &len);
+	if (p || (len / sizeof(battery_health_condition)) == BATTERY_HEALTH_MAX) {
+		battery->pdata->health_condition = kzalloc(len, GFP_KERNEL);
+		ret = of_property_read_u32_array(np, "battery,health_condition",
+				 (u32 *)battery->pdata->health_condition, len/sizeof(u32));
+		if (ret) {
+			pr_err("%s failed to read battery->pdata->health_condition: %d\n",
+					__func__, ret);
+			kfree(battery->pdata->health_condition);
+			battery->pdata->health_condition = NULL;
+		} else {
+			for (i = 0; i < BATTERY_HEALTH_MAX; i++) {
+				pr_err("%s: [BATTERY_HEALTH] %d: Cycle(~ %d), ASoC(~ %d)\n",
+					__func__, i,
+					battery->pdata->health_condition[i].cycle,
+					battery->pdata->health_condition[i].asoc);
+			}
+		}
+	} else {
+		battery->pdata->health_condition = NULL;
+		pr_err("%s there is not health_condition, len(%d)\n", __func__, len);
+	}
 
 	ret = of_property_read_u32(np, "battery,siop_event_check_type",
 			&pdata->siop_event_check_type);

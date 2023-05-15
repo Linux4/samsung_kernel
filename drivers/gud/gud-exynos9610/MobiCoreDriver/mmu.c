@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) 2013-2018 TRUSTONIC LIMITED
  * All Rights Reserved.
@@ -23,6 +24,13 @@
 #include <linux/device.h>
 #include <linux/version.h>
 #include <linux/dma-buf.h>
+#ifdef CONFIG_DMA_SHARED_BUFFER
+#if KERNEL_VERSION(4, 11, 12) < LINUX_VERSION_CODE
+#include "../../drivers/staging/android/ion/ion.h"
+#elif KERNEL_VERSION(3, 14, 0) < LINUX_VERSION_CODE
+#include "../../drivers/staging/android/ion/ion_priv.h"
+#endif
+#endif
 
 #ifdef CONFIG_XEN
 /* To get the MFN */
@@ -36,6 +44,7 @@
 
 #include "main.h"
 #include "mcp.h"	/* mcp_buffer_map */
+#include "protocol.h"	/* protocol_fe_uses_pages_and_vas */
 #include "mmu.h"
 
 #define PHYS_48BIT_MASK (BIT(48) - 1)
@@ -54,20 +63,29 @@
 #define MMU_EXT_AF		BIT(10)		/* Access Flag */
 #define MMU_EXT_XN		(((u64)1) << 54) /* XN */
 
-/* Non-LPAE */
-#define MMU_TYPE_EXT		(3 << 0)	/* v5 */
-#define MMU_TYPE_SMALL		(2 << 0)
-#define MMU_EXT_AP0		BIT(4)
-#define MMU_EXT_AP1		(2 << 4)
-#define MMU_EXT_AP2		BIT(9)
-#define MMU_EXT_TEX(x)		((x) << 6)	/* v5 */
-#define MMU_EXT_SHARED_32	BIT(10)		/* ARMv6 and higher */
-
 /* ION */
 /* Trustonic Specific flag to detect ION mem */
 #define MMU_ION_BUF		BIT(24)
 
-#if KERNEL_VERSION(4, 6, 0) > LINUX_VERSION_CODE
+/*
+ * Specific case for kernel 4.4.168 that does not have the same
+ * get_user_pages() implementation
+ */
+#if KERNEL_VERSION(4, 4, 167) < LINUX_VERSION_CODE && \
+	KERNEL_VERSION(4, 5, 0) > LINUX_VERSION_CODE
+static inline long gup_local(struct mm_struct *mm, uintptr_t start,
+			     unsigned long nr_pages, int write,
+			     struct page **pages)
+{
+	unsigned int gup_flags = 0;
+
+	if (write)
+		gup_flags |= FOLL_WRITE;
+
+	return get_user_pages(NULL, mm, start, nr_pages, gup_flags, pages,
+					NULL);
+}
+#elif KERNEL_VERSION(4, 6, 0) > LINUX_VERSION_CODE
 static inline long gup_local(struct mm_struct *mm, uintptr_t start,
 			     unsigned long nr_pages, int write,
 			     struct page **pages)
@@ -79,50 +97,68 @@ static inline long gup_local(struct mm_struct *mm, uintptr_t start,
 			     unsigned long nr_pages, int write,
 			     struct page **pages)
 {
-	unsigned int flags = 0;
+	unsigned int gup_flags = 0;
 
 	if (write)
-		flags |= FOLL_WRITE;
+		gup_flags |= FOLL_WRITE;
+	/* gup_flags |= FOLL_CMA; */
 
 	/* ExySp */
 	flags |= FOLL_CMA;
 
-	return get_user_pages_remote(NULL, mm, start, nr_pages, write, 0, pages,
-				     NULL);
+	return get_user_pages_remote(NULL, mm, start, nr_pages, gup_flags,
+				    0, pages, NULL);
 }
 #elif KERNEL_VERSION(4, 10, 0) > LINUX_VERSION_CODE
 static inline long gup_local(struct mm_struct *mm, uintptr_t start,
 			     unsigned long nr_pages, int write,
 			     struct page **pages)
 {
-	unsigned int flags = 0;
+	unsigned int gup_flags = 0;
 
 	if (write)
-		flags |= FOLL_WRITE;
+		gup_flags |= FOLL_WRITE;
 
 	/* ExySp */
 	flags |= FOLL_CMA;
 
-	return get_user_pages_remote(NULL, mm, start, nr_pages, flags, pages,
-				     NULL);
+	return get_user_pages_remote(NULL, mm, start, nr_pages, gup_flags,
+				    pages, NULL);
 }
 #else
 static inline long gup_local(struct mm_struct *mm, uintptr_t start,
 			     unsigned long nr_pages, int write,
 			     struct page **pages)
 {
-	unsigned int flags = 0;
+	unsigned int gup_flags = 0;
 
 	if (write)
-		flags |= FOLL_WRITE;
+		gup_flags |= FOLL_WRITE;
 
 	/* ExySp */
 	/* flags |= FOLL_CMA; */
 
-	return get_user_pages_remote(NULL, mm, start, nr_pages, flags, pages,
-				     NULL, NULL);
+	return get_user_pages_remote(NULL, mm, start, nr_pages, gup_flags,
+				    pages, NULL, NULL);
 }
 #endif
+
+static inline long gup_local_repeat(struct mm_struct *mm, uintptr_t start,
+				    unsigned long nr_pages, int write,
+				    struct page **pages)
+{
+	int retries = 10;
+	long ret = 0;
+
+	while (retries--) {
+		ret = gup_local(mm, start, nr_pages, write, pages);
+
+		if (-EBUSY != ret)
+			break;
+	}
+
+	return ret;
+}
 
 /*
  * A table that could be either a pmd or pte
@@ -278,7 +314,7 @@ static struct tee_mmu *tee_mmu_create_common(const struct mcp_buffer_map *b_map)
 	kref_init(&mmu->kref);
 
 	/* The Xen front-end does not use PTEs */
-	if (is_xen_domu())
+	if (protocol_fe_uses_pages_and_vas())
 		mmu->use_pages_and_vas = true;
 
 	/* Buffer info */
@@ -453,16 +489,17 @@ struct tee_mmu *tee_mmu_create(struct mm_struct *mm,
 			 * Linux creates (page faults) the underlying pages if
 			 * missing.
 			 */
-			gup_ret = gup_local(mm, (uintptr_t)reader,
-					    nr_pages, 1, pages);
+			gup_ret = gup_local_repeat(mm, (uintptr_t)reader,
+						   nr_pages, 1, pages);
 			if ((gup_ret == -EFAULT) && !writeable) {
 				/*
 				 * If mapping read/write fails, and the buffer
 				 * is to be shared as input only, try to map
 				 * again read-only.
 				 */
-				gup_ret = gup_local(mm, (uintptr_t)reader,
-						    nr_pages, 0, pages);
+				gup_ret = gup_local_repeat(mm,
+							   (uintptr_t)reader,
+							   nr_pages, 0, pages);
 			}
 			up_read(&mm->mmap_sem);
 			if (gup_ret < 0) {
@@ -644,8 +681,22 @@ void tee_mmu_buffer(struct tee_mmu *mmu, struct mcp_buffer_map *map)
 	map->nr_pages = mmu->nr_pages;
 	map->flags = mmu->flags;
 	map->type = WSM_L1;
-	if (mmu->dma_buf)
+#ifdef CONFIG_DMA_SHARED_BUFFER
+	if (mmu->dma_buf) {
+		/* ION */
+#if KERNEL_VERSION(3, 14, 0) < LINUX_VERSION_CODE
+		if (!(((struct ion_buffer *)mmu->dma_buf->priv)->flags
+		   & ION_FLAG_CACHED)) {
+			map->type |= WSM_UNCACHED;
+			mc_dev_devel("ION buffer Non cacheable");
+		} else {
+			mc_dev_devel("ION buffer cacheable");
+		}
+#else
 		map->type |= WSM_UNCACHED;
+#endif
+	}
+#endif
 	map->mmu = mmu;
 }
 

@@ -1,5 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2013-2017 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2019 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -11,12 +12,22 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  */
+
 #ifndef MCLOADFORMAT_H_
 #define MCLOADFORMAT_H_
 
-/** Trustlet Blob length info */
-#define MC_TLBLOBLEN_MAGIC	0x7672746C	/* Magic for SWd: vrtl */
+#include <linux/uaccess.h>	/* u32 and friends */
+#include "public/mc_user.h"	/* struct mc_uuid_t */
+
 #define MAX_SO_CONT_SIZE	512		/* Max size for a container */
+
+/** MCLF magic */
+/**< "MCLF" in big endian integer representation */
+#define MC_SERVICE_HEADER_MAGIC_BE \
+	((uint32_t)('M' | ('C' << 8) | ('L' << 16) | ('F' << 24)))
+/**< "MCLF" in little endian integer representation */
+#define MC_SERVICE_HEADER_MAGIC_LE \
+	((uint32_t)(('M' << 24) | ('C' << 16) | ('L' << 8) | 'F'))
 
 /** MCLF flags */
 /**< Loaded service cannot be unloaded from MobiCore. */
@@ -34,7 +45,7 @@
 enum service_type {
 	SERVICE_TYPE_ILLEGAL		= 0,
 	SERVICE_TYPE_DRIVER		= 1,
-	SERVICE_TYPE_SP_TRUSTLET	= 2,
+	SERVICE_TYPE_FLAG_DEPRECATED	= 2,
 	SERVICE_TYPE_SYSTEM_TRUSTLET	= 3,
 	SERVICE_TYPE_MIDDLEWARE		= 4,
 	SERVICE_TYPE_LAST_ENTRY		= 5,
@@ -94,7 +105,6 @@ struct mclf_header_v2 {
 	u32	driver_id;
 	/**<
 	 * Number of threads (N) in a service:
-	 *   SERVICE_TYPE_SP_TRUSTLET: N = 1
 	 *   SERVICE_TYPE_SYSTEM_TRUSTLET: N = 1
 	 *   SERVICE_TYPE_DRIVER: N >= 1
 	 */

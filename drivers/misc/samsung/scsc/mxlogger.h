@@ -24,6 +24,7 @@
 #include <linux/jiffies.h>
 
 #include "mxmgmt_transport_format.h"
+#include <scsc/scsc_log_collector.h>
 
 /**
  * ___________________________________________________________________
@@ -32,8 +33,6 @@
  * <-- uint8_t --><-- uint8_t --><-----  uint8_t[] buffer ----------->
  *
  */
-
-#define MXL_POOL_SZ			(6 * 1024 * 1024)
 
 #define	MXLOGGER_RINGS_TMO_US		200000
 
@@ -65,12 +64,23 @@
 
 #define MM_MXLOGGER_PAYLOAD_SZ          (MXMGR_MESSAGE_PAYLOAD_SIZE - 2)
 
-#define MXLOGGER_SYNC_SIZE		(10 * 1024)
-#define MXLOGGER_IMP_SIZE		(102 * 1024)
+/* Exynos3830's reserved memory changed */
+#if defined(CONFIG_SOC_EXYNOS3830) || defined(CONFIG_SOC_EXYNOS7885)
+#define MXL_INTERNAL_RSV		(24 * 1024)
+#define MXL_POOL_SZ			((4 * 1024 * 1024) - MXL_INTERNAL_RSV)
+#define MXLOGGER_RSV_COMMON_SZ		(2 * 1024)
+#define MXLOGGER_RSV_WLAN_SZ		(4 * 1024)
+#define MXLOGGER_RSV_RADIO_SZ		(2 * 1024)
+#else
+#define MXL_POOL_SZ			(6 * 1024 * 1024)
 #define MXLOGGER_RSV_COMMON_SZ		(4 * 1024)
-#define MXLOGGER_RSV_BT_SZ		(4 * 1024)
 #define MXLOGGER_RSV_WLAN_SZ		(2 * 1024 * 1024)
 #define MXLOGGER_RSV_RADIO_SZ		(4 * 1024)
+#endif
+
+#define MXLOGGER_SYNC_SIZE		(10 * 1024)
+#define MXLOGGER_IMP_SIZE		(102 * 1024)
+#define MXLOGGER_RSV_BT_SZ		(4 * 1024)
 
 #define MXLOGGER_TOTAL_FIX_BUF		(MXLOGGER_SYNC_SIZE + MXLOGGER_IMP_SIZE + \
 					MXLOGGER_RSV_COMMON_SZ + MXLOGGER_RSV_BT_SZ + \
@@ -209,6 +219,10 @@ int mxlogger_unregister_observer(struct mxlogger *mxlogger, char *name);
 int mxlogger_register_global_observer(char *name);
 int mxlogger_unregister_global_observer(char *name);
 bool mxlogger_set_enabled_status(bool enable);
+#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 12
+size_t mxlogger_dump_fw_buf(struct mxlogger *mxlogger, enum scsc_log_chunk_type fw_buffer, void *buf, size_t size);
+size_t mxlogger_get_fw_buf_size(struct mxlogger *mxlogger, enum scsc_log_chunk_type fw_buffer);
+#endif
 
 #define MEM_LAYOUT_CHECK()	\
 ({				\

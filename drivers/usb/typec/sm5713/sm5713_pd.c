@@ -30,6 +30,7 @@
 #ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
 #include <linux/battery/battery_notifier.h>
 extern struct pdic_notifier_struct pd_noti;
+void sm5713_usbpd_inform_pdo_list(void);
 
 void sm5713_select_pdo(int num)
 {
@@ -56,9 +57,10 @@ void sm5713_select_pdo(int num)
 		return;
 	}
 
-	if (pd_noti.sink_status.selected_pdo_num == num)
+	if (pd_noti.sink_status.selected_pdo_num == num) {
+		sm5713_usbpd_inform_pdo_list();	
 		return;
-	else if (num > pd_noti.sink_status.available_pdo_num)
+	} else if (num > pd_noti.sink_status.available_pdo_num)
 		pd_noti.sink_status.selected_pdo_num =
 			pd_noti.sink_status.available_pdo_num;
 	else if (num < 1)
@@ -72,6 +74,21 @@ void sm5713_select_pdo(int num)
 		__func__, pd_noti.sink_status.selected_pdo_num);
 
 	sm5713_usbpd_inform_event(psubpd, MANAGER_NEW_POWER_SRC);
+}
+
+void sm5713_usbpd_inform_pdo_list(void)
+{
+	CC_NOTI_ATTACH_TYPEDEF pd_notifier;
+
+	pd_noti.event = PDIC_NOTIFY_EVENT_PD_SINK;;
+	pd_notifier.src = CCIC_NOTIFY_DEV_CCIC;
+	pd_notifier.dest = CCIC_NOTIFY_DEV_BATTERY;
+	pd_notifier.id = CCIC_NOTIFY_ID_POWER_STATUS;
+	pd_notifier.attach = 1;
+#if defined(CONFIG_CCIC_NOTIFIER)
+	ccic_notifier_notify((CC_NOTI_TYPEDEF *)&pd_notifier,
+			&pd_noti, 1/* pdic_attach */);
+#endif
 }
 
 void sm5713_usbpd_change_available_pdo(struct device *dev)
@@ -801,10 +818,18 @@ void sm5713_usbpd_power_ready(struct device *dev,
 	struct sm5713_policy_data *policy = &pd_data->policy;
 	struct sm5713_phydrv_data *pdic_data = pd_data->phy_driver_data;
 	CC_NOTI_ATTACH_TYPEDEF pd_notifier;
+	bool short_cable = false;
 #if defined(CONFIG_TYPEC)
 	enum typec_pwr_opmode mode = TYPEC_PWR_MODE_USB;
 #endif
 	if (!pdic_data->pd_support) {
+		pd_data->phy_ops.get_short_state(pd_data, &short_cable);
+		if (short_cable) {
+			pd_noti.sink_status.available_pdo_num = 1;
+			pd_noti.sink_status.power_list[1].max_current =
+				pd_noti.sink_status.power_list[1].max_current > 1800 ?
+				1800 : pd_noti.sink_status.power_list[1].max_current;
+		}
 		pdic_data->pd_support = 1;
 		pr_info("%s : pd_support : %d\n", __func__, pdic_data->pd_support);
 #if defined(CONFIG_TYPEC)
@@ -938,6 +963,11 @@ void sm5713_usbpd_turn_on_source(struct sm5713_usbpd_data *pd_data)
 	pr_info("%s\n", __func__);
 
 	sm5713_vbus_turn_on_ctrl(pdic_data, 1);
+
+	sm5713_ccic_event_work(pdic_data,
+		CCIC_NOTIFY_DEV_MUIC, CCIC_NOTIFY_ID_ATTACH,
+		CCIC_NOTIFY_ATTACH/*attach*/,
+		USB_STATUS_NOTIFY_ATTACH_DFP/*rprd*/, 0);
 }
 
 void sm5713_usbpd_turn_off_power_supply(struct sm5713_usbpd_data *pd_data)
@@ -1003,12 +1033,38 @@ int sm5713_usbpd_get_svids(struct sm5713_usbpd_data *pd_data)
 {
 	struct sm5713_policy_data *policy = &pd_data->policy;
 	struct sm5713_usbpd_manager_data *manager = &pd_data->manager;
+	struct sm5713_phydrv_data *pdic_data = pd_data->phy_driver_data;
 
 	manager->SVID_0 = policy->rx_data_obj[1].vdm_svid.svid_0;
 	manager->SVID_1 = policy->rx_data_obj[1].vdm_svid.svid_1;
 
 	pr_info("%s, SVID_0 : 0x%x, SVID_1 : 0x%x\n", __func__,
 		manager->SVID_0, manager->SVID_1);
+
+	if (manager->SVID_0 == PD_SID_1 || manager->SVID_1 == PD_SID_1) {
+		manager->dp_is_connect = 1;
+		/* If you want to support USB SuperSpeed when you connect
+		 * Display port dongle, You should change dp_hs_connect depend
+		 * on Pin assignment.If DP use 4lane(Pin Assignment C,E,A),
+		 * dp_hs_connect is 1. USB can support HS.If DP use
+		 * 2lane(Pin Assignment B,D,F), dp_hs_connect is 0. USB
+		 * can support SS
+		 */
+		manager->dp_hs_connect = 1;
+		/* notify to dp event */
+		sm5713_ccic_event_work(pdic_data,
+				CCIC_NOTIFY_DEV_DP,
+				CCIC_NOTIFY_ID_DP_CONNECT,
+				CCIC_NOTIFY_ATTACH,
+				manager->Vendor_ID,
+				manager->Product_ID);
+		/* recheck this notifier */
+		sm5713_ccic_event_work(pdic_data,
+			CCIC_NOTIFY_DEV_USB_DP,
+			CCIC_NOTIFY_ID_USB_DP,
+			manager->dp_is_connect /*attach*/,
+			manager->dp_hs_connect, 0);
+	}
 
 	return 0;
 }
@@ -1126,6 +1182,11 @@ int sm5713_usbpd_evaluate_capability(struct sm5713_usbpd_data *pd_data)
 	}
 
 #ifdef CONFIG_USB_TYPEC_MANAGER_NOTIFIER
+	if ((pdic_sink_status->available_pdo_num > 0) &&
+			(pdic_sink_status->available_pdo_num != available_pdo_num)) {
+		policy->send_sink_cap = 1;
+		pdic_sink_status->selected_pdo_num = 1;
+	}
 	pdic_sink_status->available_pdo_num = available_pdo_num;
 	manager->origin_available_pdo_num = available_pdo_num;
 	return available_pdo_num;
@@ -1599,6 +1660,7 @@ static int sm5713_usbpd_manager_init(struct sm5713_usbpd_data *pd_data)
 	manager->origin_available_pdo_num = 0;
 	manager->uvdm_out_ok = 1;
 	manager->uvdm_in_ok = 1;
+	manager->dr_swap_cnt = 0;
 
 	init_waitqueue_head(&manager->uvdm_out_wq);
 	init_waitqueue_head(&manager->uvdm_in_wq);

@@ -149,7 +149,9 @@ static void sensor_imx576_cis_data_calculation(const struct sensor_pll_info_comp
 	cis_data->min_frame_us_time = ((pll_info->frame_length_lines * pll_info->line_length_pck)
 								/ (vt_pix_clk_hz / (1000 * 1000)));
 	cis_data->cur_frame_us_time = cis_data->min_frame_us_time;
-
+#ifdef REAR_SUB_CAMERA
+	cis_data->min_sync_frame_us_time = cis_data->min_frame_us_time;
+#endif
 	/* 3. FPS calculation */
 	frame_rate = vt_pix_clk_hz / (pll_info->frame_length_lines * pll_info->line_length_pck);
 	dbg_sensor(1, "frame_rate (%d) = vt_pix_clk_hz(%d) / "
@@ -167,6 +169,8 @@ static void sensor_imx576_cis_data_calculation(const struct sensor_pll_info_comp
 	cis_data->line_readOut_time = sensor_cis_do_div64((u64)cis_data->line_length_pck * (u64)(1000 * 1000 * 1000), cis_data->pclk);
 	cis_data->rolling_shutter_skew = (cis_data->cur_height - 1) * cis_data->line_readOut_time;
 	cis_data->stream_on = false;
+	cis_data->max_coarse_integration_time =
+		SENSOR_IMX576_MAX_COARSE_INTEG_WITH_FRM_LENGTH_CTRL - SENSOR_IMX576_COARSE_INTEGRATION_TIME_MAX_MARGIN;
 
 	/* Frame valid time calcuration */
 	frame_valid_us = sensor_cis_do_div64((u64)cis_data->cur_height * (u64)cis_data->line_length_pck * (u64)(1000 * 1000), cis_data->pclk);
@@ -780,6 +784,7 @@ int sensor_imx576_cis_init(struct v4l2_subdev *subdev)
 	cis->cis_data->low_expo_start = 33000;
 	cis->need_mode_change = false;
 	cis->long_term_mode.sen_strm_off_on_step = 0;
+	cis->long_term_mode.sen_strm_off_on_enable = false;
 
 	sensor_imx576_cis_data_calculation(sensor_imx576_pllinfos[setfile_index], cis->cis_data);
 	sensor_imx576_set_integration_max_margin(setfile_index, cis->cis_data);
@@ -1380,6 +1385,7 @@ int sensor_imx576_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 	struct fimc_is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
+	struct fimc_is_long_term_expo_mode *lte_mode;
 
 	u32 vt_pic_clk_freq_mhz = 0;
 	u16 long_coarse_int = 0;
@@ -1387,6 +1393,12 @@ int sensor_imx576_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 	u32 line_length_pck = 0;
 	u32 min_fine_int = 0;
 	u8 arrayBuf[4];
+	u32 target_exp = 0;
+	u32 target_frame_duration = 0;
+	u16 frame_length_lines = 0;
+
+	unsigned char cit_lshift_val = 0;
+	int cit_lshift_count = 0;
 
 #ifdef DEBUG_SENSOR_TIME
 	struct timeval st, end;
@@ -1416,16 +1428,54 @@ int sensor_imx576_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 	}
 
 	cis_data = cis->cis_data;
+	lte_mode = &cis->long_term_mode;
 
 	dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), target long(%d), short(%d)\n", cis->id, __func__,
 			cis_data->sen_vsync_count, target_exposure->long_val, target_exposure->short_val);
 
+	target_exp = target_exposure->val;
 	vt_pic_clk_freq_mhz = cis_data->pclk / (1000 * 1000);
 	line_length_pck = cis_data->line_length_pck;
 	min_fine_int = cis_data->min_fine_integration_time;
 
-	long_coarse_int = ((target_exposure->long_val * vt_pic_clk_freq_mhz) - min_fine_int) / line_length_pck;
-	short_coarse_int = ((target_exposure->short_val * vt_pic_clk_freq_mhz) - min_fine_int) / line_length_pck;
+	/*
+	 * For Long Exposure Mode without stream on_off. (ex. Night Hyper Laps: min exp. is 1.5sec)
+	 * If frame duration over than 1sec, then sequence is same as below
+	 * 1. set CIT_LSHFIT
+	 * 2. set COARSE_INTEGRATION_TIME
+	 * 3. set FRM_LENGTH_LINES
+	 */
+	if (lte_mode->sen_strm_off_on_enable == false && cis_data ->min_frame_us_time > 1000000) {
+		target_frame_duration = cis_data->cur_frame_us_time;
+		dbg_sensor(1, "[MOD:D:%d] %s, input frame duration(%d) for CIT SHIFT \n",
+			cis->id, __func__, target_frame_duration);
+
+		if (target_frame_duration > 100000) {
+			cit_lshift_val = (unsigned char)(target_frame_duration / 100000);
+			while(cit_lshift_val > 1) {
+				cit_lshift_val /= 2;
+				target_frame_duration /= 2;
+				target_exp /= 2;
+				cit_lshift_count ++;
+			}
+
+			if (cit_lshift_count > SENSOR_IMX576_MAX_CIT_LSHIFT_VALUE)
+				cit_lshift_count = SENSOR_IMX576_MAX_CIT_LSHIFT_VALUE;
+		}
+
+		frame_length_lines = (u16)((vt_pic_clk_freq_mhz * target_frame_duration) / line_length_pck);
+
+		cis_data->frame_length_lines = frame_length_lines;
+		cis_data->frame_length_lines_shifter = cit_lshift_count;
+		cis_data->max_coarse_integration_time =
+			frame_length_lines - cis_data->max_margin_coarse_integration_time;
+
+		dbg_sensor(1, "[MOD:D:%d] %s, target_frame_duration(%d), frame_length_line(%d), cit_lshift_count(%d)\n",
+			cis->id, __func__, target_frame_duration, frame_length_lines, cit_lshift_count);
+	}
+
+	long_coarse_int = ((target_exp * vt_pic_clk_freq_mhz) - min_fine_int) / line_length_pck;
+	short_coarse_int = ((target_exp * vt_pic_clk_freq_mhz) - min_fine_int) / line_length_pck;
 
 	if (long_coarse_int > cis_data->max_coarse_integration_time) {
 		dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), long coarse(%d) max(%d)\n", cis->id, __func__,
@@ -1461,12 +1511,26 @@ int sensor_imx576_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_pa
 		goto p_err;
 	}
 
+	if (lte_mode->sen_strm_off_on_enable == false && cis_data ->min_frame_us_time > 1000000) {
+		if (cit_lshift_count > 0) {
+			ret = fimc_is_sensor_write8(client, SENSOR_IMX576_CIT_LSHIFT_ADDR, cit_lshift_count);
+			if (ret < 0)
+				goto p_err;
+		}
+	}
+
 	//Long exposure
 	arrayBuf[0] = (cis_data->cur_long_exposure_coarse & 0xFF00) >> 8;
 	arrayBuf[1] = cis_data->cur_long_exposure_coarse & 0xFF;
 	ret = fimc_is_sensor_write8_array(client, SENSOR_IMX576_COARSE_INTEG_TIME_ADDR, arrayBuf, 2);
 		if (ret < 0)
 			goto p_err;
+
+	if (lte_mode->sen_strm_off_on_enable == false && cis_data ->min_frame_us_time > 1000000) {
+		ret = fimc_is_sensor_write16(client, SENSOR_IMX576_FRAME_LENGTH_LINE_ADDR, frame_length_lines);
+		if (ret < 0)
+			goto p_err;
+	}
 
 	dbg_sensor(1, "[MOD:D:%d] %s, vsync_cnt(%d), vt_pic_clk_freq_mhz (%d),"
 		KERN_CONT "line_length_pck(%d), min_fine_int (%d)\n", cis->id, __func__,
@@ -1646,7 +1710,7 @@ int sensor_imx576_cis_adjust_frame_duration(struct v4l2_subdev *subdev,
 
 	dbg_sensor(1, "[%s] min_fps(%d), max_fps(%d)\n", __func__, cis->min_fps, cis->max_fps);
 	*target_duration = MAX(frame_duration, cis_data->min_frame_us_time);
-	if(cis->min_fps == cis->max_fps) {
+	if((cis_data->min_frame_us_time <= 100000) && (cis->min_fps == cis->max_fps)) {
 		*target_duration = MIN(frame_duration, max_frame_us_time);
 	}
 
@@ -1665,6 +1729,7 @@ int sensor_imx576_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 	struct fimc_is_cis *cis;
 	struct i2c_client *client;
 	cis_shared_data *cis_data;
+	struct fimc_is_long_term_expo_mode *lte_mode;
 
 	u32 vt_pic_clk_freq_mhz = 0;
 	u32 line_length_pck = 0;
@@ -1690,10 +1755,23 @@ int sensor_imx576_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 	}
 
 	cis_data = cis->cis_data;
+	lte_mode = &cis->long_term_mode;
 
 	if (frame_duration < cis_data->min_frame_us_time) {
 		dbg_sensor(1, "frame duration is less than min(%d)\n", frame_duration);
 		frame_duration = cis_data->min_frame_us_time;
+	}
+
+	/*
+	 * For Long Exposure Mode without stream on_off. (ex. Night HyperLapse)
+	 * If frame duration over than 1sec, then it has to be applied CIT shift.
+	 * In this case, frame_duration is setted in set_exposure_time with CIT shift.
+	 */
+	if (lte_mode->sen_strm_off_on_enable == false && cis_data ->min_frame_us_time > 1000000) {
+		cis_data->cur_frame_us_time = frame_duration;
+		dbg_sensor(1, "[MOD:D:%d][%s] Skip set frame duration(%d) for CIT SHIFT.\n",
+			cis->id, __func__, frame_duration);
+		return ret;
 	}
 
 	vt_pic_clk_freq_mhz = cis_data->pclk / (1000 * 1000);
@@ -1713,13 +1791,18 @@ int sensor_imx576_cis_set_frame_duration(struct v4l2_subdev *subdev, u32 frame_d
 		goto p_err;
 	}
 
-	ret = fimc_is_sensor_write16(client, 0x0340, frame_length_lines);
+	if (lte_mode->sen_strm_off_on_enable == false && cis_data->frame_length_lines_shifter > 0) {
+		cis_data->frame_length_lines_shifter = 0;
+		ret = fimc_is_sensor_write8(client, SENSOR_IMX576_CIT_LSHIFT_ADDR, 0);
+	}
+
+	ret = fimc_is_sensor_write16(client, SENSOR_IMX576_FRAME_LENGTH_LINE_ADDR, frame_length_lines);
 	if (ret < 0)
 		goto p_err;
 
 	cis_data->cur_frame_us_time = frame_duration;
 	cis_data->frame_length_lines = frame_length_lines;
-	cis_data->max_coarse_integration_time = cis_data->frame_length_lines - cis_data->max_margin_coarse_integration_time;
+	cis_data->max_coarse_integration_time = SENSOR_IMX576_MAX_COARSE_INTEG_WITH_FRM_LENGTH_CTRL - cis_data->max_margin_coarse_integration_time;
 
 #ifdef DEBUG_SENSOR_TIME
 	do_gettimeofday(&end);
@@ -2296,31 +2379,60 @@ int sensor_imx576_cis_long_term_exposure(struct v4l2_subdev *subdev)
 	struct fimc_is_cis *cis;
 	struct fimc_is_long_term_expo_mode *lte_mode;
 	unsigned char cit_lshift_val = 0;
+	int cit_lshift_count = 0;
+	u32 target_exp = 0;
+	int hold = 0;
 
 	FIMC_BUG(!subdev);
 
 	cis = (struct fimc_is_cis *)v4l2_get_subdevdata(subdev);
 	lte_mode = &cis->long_term_mode;
 
+	hold = sensor_imx576_cis_group_param_hold(subdev, 0x01);
+	if (hold < 0) {
+		ret = hold;
+		goto p_err;
+	}
+
+	I2C_MUTEX_LOCK(cis->i2c_lock);
 	/* LTE mode or normal mode set */
 	if (lte_mode->sen_strm_off_on_enable) {
-		if (lte_mode->expo[0] > 500000) {
-			cit_lshift_val = (unsigned char)(lte_mode->expo[0] / 500000);
-			cit_lshift_val = cit_lshift_val / 2;
-			lte_mode->expo[0] = 500000;
-			ret |= fimc_is_sensor_write8(cis->client, 0x3100, cit_lshift_val);
+		target_exp = lte_mode->expo[0];
+		if (target_exp >= 125000 ) {
+			cit_lshift_val = (unsigned char)(target_exp / 125000);
+			while(cit_lshift_val > 1)
+			{
+				cit_lshift_val /= 2;
+				target_exp /= 2;
+				cit_lshift_count ++;
+			}
+
+			lte_mode->expo[0] = target_exp;
+
+			if (cit_lshift_count > SENSOR_IMX576_MAX_CIT_LSHIFT_VALUE)
+				cit_lshift_count = SENSOR_IMX576_MAX_CIT_LSHIFT_VALUE;
+
+			ret = fimc_is_sensor_write8(cis->client, SENSOR_IMX576_CIT_LSHIFT_ADDR, cit_lshift_count);
 		}
 	} else {
-		cit_lshift_val = 0;
-		ret |= fimc_is_sensor_write8(cis->client, 0x3100, cit_lshift_val);
+		cit_lshift_count = 0;
+		ret = fimc_is_sensor_write8(cis->client, SENSOR_IMX576_CIT_LSHIFT_ADDR, cit_lshift_count);
 	}
 
-	info("%s enable(%d) %d %d", __func__, lte_mode->sen_strm_off_on_enable, cit_lshift_val, lte_mode->expo[0]);
+	I2C_MUTEX_UNLOCK(cis->i2c_lock);
 
-	if (ret < 0) {
+p_err:
+	if (hold > 0) {
+		hold = sensor_imx576_cis_group_param_hold(subdev, 0x00);
+		if (hold < 0)
+			ret = hold;
+	}
+
+	info("[%s] sen_strm_enable(%d), cit_lshift_count (%d), target_exp(%d)", __func__,
+		lte_mode->sen_strm_off_on_enable, cit_lshift_count, lte_mode->expo[0]);
+
+	if (ret < 0)
 		pr_err("ERR[%s]: LTE register setting fail\n", __func__);
-		return ret;
-	}
 
 	return ret;
 }

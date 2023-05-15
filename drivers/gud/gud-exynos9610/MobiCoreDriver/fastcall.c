@@ -1,5 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2013-2018 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2019 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -101,22 +102,6 @@ union fc_trace {
 	} out;
 };
 
-union fc_switch_core {
-	union fc_common common;
-
-	struct {
-		u32 cmd;
-		u32 core_id;
-	} in;
-
-	struct {
-		u32 resp;
-		u32 ret;
-		u32 state;
-		u32 ext_info;
-	} out;
-};
-
 union fc_nsiq {
 	union fc_common common;
 
@@ -130,6 +115,7 @@ union fc_nsiq {
 	struct {
 		u32 resp;
 		u32 ret;
+		u32 code;
 	} out;
 };
 
@@ -139,18 +125,21 @@ union fc_yield {
 	struct {
 		u32 cmd;
 		u32 debug_ret;
-		u32 debug_timeslice;
+		u32 debug_session_id;
+		u32 debug_payload;
 	} in;
 
 	struct {
 		u32 resp;
 		u32 ret;
+		u32 code;
 	} out;
 };
 
 /* Structure to log SMC calls */
 struct smc_log_entry {
 	u64 cpu_clk;
+	int cpu_id;
 	union fc_common fc;
 };
 
@@ -186,6 +175,7 @@ static inline int __smc(union fc_common *fc, const char *func)
 
 	/* Log SMC call */
 	smc_log[smc_log_index].cpu_clk = local_clock();
+	smc_log[smc_log_index].cpu_id  = raw_smp_processor_id();
 	smc_log[smc_log_index].fc = *fc;
 	if (++smc_log_index >= SMC_LOG_SIZE)
 		smc_log_index = 0;
@@ -275,7 +265,7 @@ int fc_init(uintptr_t addr, ptrdiff_t off, size_t q_len, size_t buf_len)
 	fc.in.nq_info = (u32)(((addr_high & 0xFFFF) << 16) | (q_len & 0xFFFF));
 	/* mcp buffer start/length [16:16] [start, length] */
 	fc.in.mcp_info = (u32)((off << 16) | (buf_len & 0xFFFF));
-	mc_dev_devel("cmd=%d, base=0x%08x,nq_info=0x%08x, mcp_info=0x%08x",
+	mc_dev_devel("cmd=0x%08x, base=0x%08x, nq_info=0x%08x, mcp_info=0x%08x",
 		     fc.in.cmd, fc.in.base, fc.in.nq_info,
 		     fc.in.mcp_info);
 	return smc(&fc);
@@ -331,41 +321,60 @@ int fc_trace_deinit(void)
 /* sid, payload only used for debug purpose */
 int fc_nsiq(u32 session_id, u32 payload)
 {
+	int ret;
 	union fc_nsiq fc;
 
 	memset(&fc, 0, sizeof(fc));
 	fc.in.cmd = MC_SMC_N_SIQ;
 	fc.in.debug_session_id = session_id;
 	fc.in.debug_payload = payload;
-	return smc(&fc);
+
+	/* Notice smc macro always returns zero if !MC_SMC_FASTCALL */
+	ret = smc(&fc);
+	if (ret)
+		return ret;
+
+	/* SWd return status must always be zero */
+	if (fc.out.ret)
+		return -EIO;
+
+	return 0;
 }
 
-/* timeslice only used for debug purpose */
-int fc_yield(u32 timeslice)
+/* sid, payload only used for debug purpose */
+int fc_yield(u32 session_id, u32 payload, struct fc_s_yield *resp)
 {
+	int ret;
 	union fc_yield fc;
 
 	memset(&fc, 0, sizeof(fc));
 	fc.in.cmd = MC_SMC_N_YIELD;
-	fc.in.debug_timeslice = timeslice;
-	return smc(&fc);
-}
+	fc.in.debug_session_id = session_id;
+	fc.in.debug_payload = payload;
 
-int fc_switch_core(int core_id)
-{
-	union fc_switch_core fc;
+	/* Notice smc macro always returns zero if !MC_SMC_FASTCALL */
+	ret = smc(&fc);
+	if (ret)
+		return ret;
 
-	memset(&fc, 0, sizeof(fc));
-	fc.in.cmd = MC_FC_SWAP_CPU;
-	fc.in.core_id = core_id;
-	return smc(&fc);
+	/* SWd return status must always be zero */
+	if (fc.out.ret)
+		return -EIO;
+
+	if (resp) {
+		resp->resp = fc.out.resp;
+		resp->ret  = fc.out.ret;
+		resp->code = fc.out.code;
+	}
+
+	return 0;
 }
 
 static int show_smc_log_entry(struct kasnprintf_buf *buf,
 			      struct smc_log_entry *entry)
 {
-	return kasnprintf(buf, "%20llu %10d 0x%08x 0x%08x 0x%08x\n",
-			  entry->cpu_clk, (s32)entry->fc.in.cmd,
+	return kasnprintf(buf, "%10d %20llu 0x%08x 0x%08x 0x%08x 0x%08x\n",
+			  entry->cpu_id, entry->cpu_clk, entry->fc.in.cmd,
 			  entry->fc.in.param[0], entry->fc.in.param[1],
 			  entry->fc.in.param[2]);
 }
@@ -378,7 +387,7 @@ int mc_fastcall_debug_smclog(struct kasnprintf_buf *buf)
 {
 	int i, ret = 0;
 
-	ret = kasnprintf(buf, "%20s %10s %-10s %-10s %-10s\n",
+	ret = kasnprintf(buf, "%10s %20s %10s %-10s %-10s %-10s\n", "CPU id",
 			 "CPU clock", "command", "param1", "param2", "param3");
 	if (ret < 0)
 		return ret;

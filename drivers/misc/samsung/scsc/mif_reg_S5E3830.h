@@ -138,6 +138,13 @@
 #define TCXO_BUF_CTRL		0x3B78
 #define TCXO_BUF_BIAS_EN_WLBT	BIT(0)
 
+#ifdef CONFIG_SCSC_MX152_EXT_DUAL_FEM
+/* Exynos 3830 UM - TODO */
+#define UART_IO_SHARE_CTRL	0x0760
+#define SEL_TXD_GPIO_1_20	BIT(20)
+#define SEL_TXD_GPIO_1_21	BIT(21)
+#endif
+
 /* New WLBT SFRs for MEM config */
 
 /* end address is exclusive so the ENDx register should be set to the first
@@ -147,7 +154,7 @@
  * 16MB region, so other BAAWs can be used for other purposes
  */
 #define WLBT_DBUS_BAAW_0_START          0x80000000 // Start of DRAM for WLBT R7
-#define WLBT_DBUS_BAAW_0_END            0x81000000 // 16 MB
+#define WLBT_DBUS_BAAW_0_END            0x80C00000 // 12 MB
 #define WLBT_DBUS_BAAW_1_START          0xC0000000
 #define WLBT_DBUS_BAAW_1_END            0xDFFFFFFF
 
@@ -207,17 +214,16 @@
 #define WLBT_PBUS_USI_CMG01_BASE        0x11D20000
 #define WLBT_PBUS_CHUB_BASE             0x10E00000 /* TODO: confirm correct address */
 
-/* EMA settings overloaded onto CHIP_VERSION_ID SFR
- * (remap block)
+/* CHIP_VERSION_ID SFR (remap block) 0x14c50410
  */
-#define CHIP_VERSION_ID_VER_MASK	0xffc00000	/* [22:32] Version ID */
-#define CHIP_VERSION_ID_EMA_MASK	0x003fffff	/*  [0:21] EMA params */
-#define CHIP_VERSION_ID_EMA_VALUE       (BIT(20) | \
-					 BIT(18) | \
-					 BIT(13) | \
-					 BIT(11) | \
-					 BIT(5)  | \
-					 BIT(2) )
+#define CHIP_VERSION_ID_OFFSET          0x410
+#define CHIP_VERSION_ID_VER_MASK        0xFFFFFFFF      /* [00:31] Version ID */
+#define CHIP_VERSION_ID_IP_PMU          0x0000F000      /* [12:15] PMU ROM Rev */
+#define CHIP_VERSION_ID_IP_MINOR        0x000F0000      /* [16:19] Minor Rev */
+#define CHIP_VERSION_ID_IP_MAJOR        0x00F00000      /* [20:23] Major Rev */
+#define CHIP_VERSION_ID_IP_PMU_SHIFT    12
+#define CHIP_VERSION_ID_IP_MINOR_SHIFT  16
+#define CHIP_VERSION_ID_IP_MAJOR_SHIFT  20
 
 /* TZASC (TrustZone Address Space Controller) configuration for Katmai onwards */
 #define EXYNOS_SET_CONN_TZPC    0

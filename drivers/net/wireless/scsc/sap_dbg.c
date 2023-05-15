@@ -79,7 +79,7 @@ static void slsi_rx_debug(struct slsi_dev *sdev, struct net_device *dev, struct 
 		SLSI_DBG1(sdev, SLSI_MLME, "Unhandled Debug Ind: 0x%.4x\n", id);
 		break;
 	}
-	slsi_kfree_skb(skb);
+	kfree_skb(skb);
 }
 
 static int slsi_rx_dbg_sap(struct slsi_dev *sdev, struct sk_buff *skb)
@@ -100,7 +100,7 @@ static int slsi_rx_dbg_sap(struct slsi_dev *sdev, struct sk_buff *skb)
 			dev = slsi_get_netdev_rcu(sdev, vif);
 			if (!dev) {
 				rcu_read_unlock();
-				slsi_kfree_skb(skb);
+				kfree_skb(skb);
 				break;
 			}
 			slsi_rx_sink_report(sdev, dev, skb);
@@ -113,7 +113,7 @@ static int slsi_rx_dbg_sap(struct slsi_dev *sdev, struct sk_buff *skb)
 			dev = slsi_get_netdev_rcu(sdev, vif);
 			if (!dev) {
 				rcu_read_unlock();
-				slsi_kfree_skb(skb);
+				kfree_skb(skb);
 				break;
 			}
 			slsi_rx_gen_report(sdev, dev, skb);
@@ -121,7 +121,7 @@ static int slsi_rx_dbg_sap(struct slsi_dev *sdev, struct sk_buff *skb)
 			break;
 		}
 	default:
-		slsi_kfree_skb(skb);
+		kfree_skb(skb);
 		SLSI_ERR(sdev, "Unhandled Ind: 0x%.4x\n", id);
 		break;
 	}
@@ -135,13 +135,13 @@ void slsi_rx_dbg_sap_work(struct work_struct *work)
 	struct slsi_dev *sdev = w->sdev;
 	struct sk_buff *skb = slsi_skb_work_dequeue(w);
 
-	slsi_wakelock(&sdev->wlan_wl);
+	slsi_wake_lock(&sdev->wlan_wl);
 	while (skb) {
 		slsi_debug_frame(sdev, NULL, skb, "RX");
 		slsi_rx_dbg_sap(sdev, skb);
 		skb = slsi_skb_work_dequeue(w);
 	}
-	slsi_wakeunlock(&sdev->wlan_wl);
+	slsi_wake_unlock(&sdev->wlan_wl);
 }
 
 static int sap_dbg_rx_handler(struct slsi_dev *sdev, struct sk_buff *skb)

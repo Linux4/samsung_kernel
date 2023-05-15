@@ -291,6 +291,8 @@ check_gnext:
 
 	otcrop = (struct fimc_is_crop *)gframe->group_cfg[group->slot].capture[junction->cid].output.cropRegion;
 	subdev = &gnext->leader;
+
+#ifndef DISABLE_CHECK_PERFRAME_FMT_SIZE
 	if ((otcrop->w * otcrop->h) > (subdev->input.width * subdev->input.height)) {
 		mrwarn("the output size bigger than input size of next group(GP%d(%dx%d) > GP%d(%dx%d))",
 			group, gframe,
@@ -301,6 +303,7 @@ check_gnext:
 		frame->shot_ext->node_group.capture[junction->cid].output.cropRegion[2] = otcrop->w;
 		frame->shot_ext->node_group.capture[junction->cid].output.cropRegion[3] = otcrop->h;
 	}
+#endif
 
 	/* set canvas size of next group as output size of currnet group */
 	gframe->canv = *otcrop;

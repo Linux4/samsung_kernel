@@ -10,6 +10,7 @@
 #include <linux/types.h>
 #include <linux/notifier.h>
 #include "scsc_mifram.h"
+#include "scsc_log_collector.h"
 
 #define SCSC_PANIC_CODE_FW 0
 #define SCSC_PANIC_CODE_HOST 1
@@ -25,7 +26,9 @@
 #define MIFRAMMAN_MEM_POOL_LOGGING 2
 
 #ifdef ANDROID_VERSION
+#ifndef SCSC_SEP_VERSION
 #define SCSC_SEP_VERSION ANDROID_VERSION
+#endif
 #endif
 
 struct device;
@@ -114,6 +117,11 @@ enum scsc_qos_config {
  * Firmware halt and full restart required
  */
 #define MX_SYSERR_LEVEL_7		(7)
+
+/* System Error level 7
+ * Firmware halt and full restart (not just drivers) required
+ */
+#define MX_SYSERR_LEVEL_8		(8)
 
 /* Null error code */
 #define MX_NULL_SYSERR			(0xFFFF)
@@ -204,8 +212,14 @@ struct wlbt_fm_params {
 	u32 freq;		/* Frequency (Hz) in use by FM radio */
 };
 
+/* Shared Data BT-ABOX */
+struct scsc_btabox_data {
+       unsigned long btaboxmem_start;
+       size_t        btaboxmem_size;
+};
 
 #define PANIC_RECORD_SIZE			64
+#define PANIC_STACK_RECORD_SIZE			256
 #define PANIC_RECORD_DUMP_BUFFER_SZ		4096
 
 /* WARNING: THIS IS INTERRUPT CONTEXT!
@@ -348,6 +362,15 @@ u16 scsc_service_get_alignment(struct scsc_service *service);
 int scsc_service_pm_qos_add_request(struct scsc_service *service, enum scsc_qos_config config);
 int scsc_service_pm_qos_update_request(struct scsc_service *service, enum scsc_qos_config config);
 int scsc_service_pm_qos_remove_request(struct scsc_service *service);
+int scsc_service_set_affinity_cpu(struct scsc_service *service, u8 cpu);
+#endif
+
+/* Return the panic record */
+int scsc_service_get_panic_record(struct scsc_service *service, u8 *dst, u16 max_size);
+
+#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 12
+size_t scsc_service_mxlogger_buff_size(struct scsc_service *service, enum scsc_log_chunk_type fw_buffer);
+size_t scsc_service_collect_buffer(struct scsc_service *service, enum scsc_log_chunk_type fw_buffer, void *buffer, size_t size);
 #endif
 
 /* MXLOGGER API */
@@ -513,23 +536,5 @@ int mxman_unregister_firmware_notifier(struct notifier_block *nb);
  *  false - enabled, true disabled
  */
 bool mxman_recovery_disabled(void);
-
-/* function to provide string representation of uint8 trigger code */
-static inline const char *scsc_get_trigger_str(int code)
-{
-	switch (code) {
-	case 1:	return "scsc_log_fw_panic";
-	case 2:	return "scsc_log_user";
-	case 3:	return "scsc_log_fw";
-	case 4:	return "scsc_log_dumpstate";
-	case 5:	return "scsc_log_host_wlan";
-	case 6:	return "scsc_log_host_bt";
-	case 7:	return "scsc_log_host_common";
-	case 8:	return "scsc_log_sys_error";
-	case 0:
-	default:
-		return "unknown";
-	}
-};
 
 #endif

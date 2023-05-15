@@ -96,4 +96,5 @@ struct mbulk *hip4_smapper_send(struct slsi_hip4 *hip, struct sk_buff *skb, int 
 int hip4_smapper_consume_entry(struct slsi_dev *sdev, struct slsi_hip4 *hip, struct sk_buff *skb_fapi);
 void *hip4_smapper_get_skb_data(struct slsi_dev *sdev, struct slsi_hip4 *hip, struct sk_buff *skb_fapi);
 struct sk_buff *hip4_smapper_get_skb(struct slsi_dev *sdev, struct slsi_hip4 *hip, struct sk_buff *skb_fapi);
+void hip4_smapper_free_mapped_skb(struct sk_buff *skb);
 #endif

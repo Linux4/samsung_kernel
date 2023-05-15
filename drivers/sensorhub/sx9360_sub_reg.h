@@ -20,6 +20,22 @@
 #ifndef _SX9360_I2C_SUB_REG_H_
 #define _SX9360_I2C_SUB_REG_H_
 
+#if IS_ENABLED(CONFIG_HALL_NEW_NODE)
+#if defined(CONFIG_FOLDER_HALL)
+#define HALLIC_PATH		"/sys/class/sec/hall_ic/flip_status"
+#else
+#define HALLIC_PATH		"/sys/class/sec/hall_ic/hall_detect"
+#endif
+#define HALLIC_CERT_PATH	"/sys/class/sec/hall_ic/certify_hall_detect"
+#else
+#if defined(CONFIG_FOLDER_HALL)
+#define HALLIC_PATH		"/sys/class/sec/sec_flip/flipStatus"
+#else
+#define HALLIC_PATH		"/sys/class/sec/sec_key/hall_detect"
+#endif
+#define HALLIC_CERT_PATH	"/sys/class/sec/sec_key/certify_hall_detect"
+#endif
+
 /*
  *  I2C Registers
  */

@@ -134,8 +134,8 @@ __setup("hardlockup_all_cpu_backtrace=", hardlockup_all_cpu_backtrace_setup);
  */
 
 #ifdef CONFIG_HARDLOCKUP_DETECTOR_OTHER_CPU
-static int watchdog_nmi_enable(unsigned int cpu);
-static void watchdog_nmi_disable(unsigned int cpu);
+int watchdog_nmi_enable(unsigned int cpu);
+void watchdog_nmi_disable(unsigned int cpu);
 #ifdef CONFIG_SEC_DEBUG
 static void check_hardlockup_type(unsigned int cpu);
 #endif
@@ -315,7 +315,7 @@ static void __touch_watchdog(void)
  * entering idle state.  This should only be used for scheduler events.
  * Use touch_softlockup_watchdog() for everything else.
  */
-void touch_softlockup_watchdog_sched(void)
+notrace void touch_softlockup_watchdog_sched(void)
 {
 	/*
 	 * Preemption can be enabled.  It doesn't matter which CPU's timestamp
@@ -324,7 +324,7 @@ void touch_softlockup_watchdog_sched(void)
 	raw_cpu_write(watchdog_touch_ts, 0);
 }
 
-void touch_softlockup_watchdog(void)
+notrace void touch_softlockup_watchdog(void)
 {
 	touch_softlockup_watchdog_sched();
 	wq_watchdog_touch(raw_smp_processor_id());
@@ -1014,7 +1014,7 @@ void touch_nmi_watchdog(void)
 }
 EXPORT_SYMBOL(touch_nmi_watchdog);
 
-static int watchdog_nmi_enable(unsigned int cpu)
+int watchdog_nmi_enable(unsigned int cpu)
 {
 	/*
 	 * The new cpu will be marked online before the first hrtimer interrupt
@@ -1030,7 +1030,7 @@ static int watchdog_nmi_enable(unsigned int cpu)
 	return 0;
 }
 
-static void watchdog_nmi_disable(unsigned int cpu)
+void watchdog_nmi_disable(unsigned int cpu)
 {
 	unsigned int next_cpu = watchdog_next_cpu(cpu);
 

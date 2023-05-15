@@ -27,9 +27,7 @@ static int fimc_is_hw_tpu_open(struct fimc_is_hw_ip *hw_ip, u32 instance,
 		return 0;
 
 	frame_manager_probe(hw_ip->framemgr, FRAMEMGR_ID_HW | (1 << hw_ip->id), "HWTPU");
-	frame_manager_probe(hw_ip->framemgr_late, FRAMEMGR_ID_HW | (1 << hw_ip->id) | 0xF000, "HWTPU LATE");
 	frame_manager_open(hw_ip->framemgr, FIMC_IS_MAX_HW_FRAME);
-	frame_manager_open(hw_ip->framemgr_late, FIMC_IS_MAX_HW_FRAME_LATE);
 
 	hw_ip->priv_info = vzalloc(sizeof(struct fimc_is_hw_tpu));
 	if(!hw_ip->priv_info) {
@@ -78,7 +76,6 @@ err_lib_func:
 	vfree(hw_ip->priv_info);
 err_alloc:
 	frame_manager_close(hw_ip->framemgr);
-	frame_manager_close(hw_ip->framemgr_late);
 	return ret;
 }
 
@@ -145,7 +142,6 @@ static int fimc_is_hw_tpu_close(struct fimc_is_hw_ip *hw_ip, u32 instance)
 	fimc_is_lib_isp_chain_destroy(hw_ip, &hw_tpu->lib[instance], instance);
 	vfree(hw_ip->priv_info);
 	frame_manager_close(hw_ip->framemgr);
-	frame_manager_close(hw_ip->framemgr_late);
 
 	clear_bit(HW_OPEN, &hw_ip->state);
 

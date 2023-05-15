@@ -1309,7 +1309,7 @@ int get_sensor_frame_timing(struct fimc_is_sensor_interface *itf,
 	*frame_length_lines = sensor_peri->cis.cis_data->frame_length_lines;
 	*max_margin_cit = sensor_peri->cis.cis_data->cur_coarse_integration_time_step;
 
-	dbg_sensor(2, "[%s](%d:%d) pclk(%d), line_length_pck(%d), frame_length_lines(%d), max_margin_cit(%d)\n",
+	dbg_sensor(2, "[%s](%d:%d) pclk(%u), line_length_pck(%d), frame_length_lines(%d), max_margin_cit(%d)\n",
 		__func__, get_vsync_count(itf), get_frame_count(itf),
 		*pclk, *line_length_pck, *frame_length_lines, *max_margin_cit);
 
@@ -3101,6 +3101,7 @@ int set_long_term_expo_mode(struct fimc_is_sensor_interface *itf,
 	int ret = 0;
 	int i = 0;
 	struct fimc_is_device_sensor_peri *sensor_peri = NULL;
+	struct fimc_is_device_sensor *sensor;
 	WARN_ON(!itf);
 	WARN_ON(itf->magic != SENSOR_INTERFACE_MAGIC);
 	WARN_ON(!long_term_expo_mode);
@@ -3108,28 +3109,56 @@ int set_long_term_expo_mode(struct fimc_is_sensor_interface *itf,
 	sensor_peri = container_of(itf, struct fimc_is_device_sensor_peri, sensor_interface);
 	FIMC_BUG(!sensor_peri);
 
-	sensor_peri->cis.long_term_mode.sen_strm_off_on_enable = long_term_expo_mode->sen_strm_off_on_enable;
-	sensor_peri->cis.long_term_mode.frm_num_strm_off_on_interval = long_term_expo_mode->frm_num_strm_off_on_interval;
-
-	if (sensor_peri->cis.long_term_mode.sen_strm_off_on_enable) {
-		for (i = 0; i < 2; i++) {
-			sensor_peri->cis.long_term_mode.expo[i] = long_term_expo_mode->expo[i];
-			sensor_peri->cis.long_term_mode.tgain[i] = long_term_expo_mode->tgain[i];
-			sensor_peri->cis.long_term_mode.again[i] = long_term_expo_mode->again[i];
-			sensor_peri->cis.long_term_mode.dgain[i] = long_term_expo_mode->dgain[i];
-			sensor_peri->cis.long_term_mode.frm_num_strm_off_on[i] = long_term_expo_mode->frm_num_strm_off_on[i];
-		}
-
-		sensor_peri->cis.long_term_mode.frame_interval = long_term_expo_mode->frm_num_strm_off_on_interval;
-		sensor_peri->cis.long_term_mode.lemode_set.lemode = sensor_peri->cis.long_term_mode.sen_strm_off_on_enable;
+	sensor = get_device_sensor(itf);
+	if (!sensor) {
+		err("%s, failed to get sensor device", __func__);
+		return -1;
 	}
 
-	dbg_sensor(1, "[%s]: expo[0](%d), expo[1](%d), again[0](%d), again[1](%d), "
-		KERN_CONT "dgain[0](%d), again[1](%d), interval(%d)\n", __func__,
+	sensor_peri->cis.long_term_mode.sen_strm_off_on_enable = true;
+	sensor_peri->cis.long_term_mode.frm_num_strm_off_on_interval = long_term_expo_mode->frm_num_strm_off_on_interval;
+
+	sensor_peri->cis.long_term_mode.sen_strm_off_on_step = 0;
+
+	for (i = 0; i < 2; i++) {
+		sensor_peri->cis.long_term_mode.expo[i] = long_term_expo_mode->expo[i];
+		sensor_peri->cis.long_term_mode.tgain[i] = long_term_expo_mode->tgain[i];
+		sensor_peri->cis.long_term_mode.again[i] = long_term_expo_mode->again[i];
+		sensor_peri->cis.long_term_mode.dgain[i] = long_term_expo_mode->dgain[i];
+		sensor_peri->cis.long_term_mode.frm_num_strm_off_on[i] = long_term_expo_mode->frm_num_strm_off_on[i];
+	}
+
+	sensor_peri->cis.long_term_mode.frame_interval = long_term_expo_mode->frm_num_strm_off_on_interval;
+	sensor_peri->cis.long_term_mode.lemode_set.lemode = sensor_peri->cis.long_term_mode.sen_strm_off_on_enable;
+
+	/*
+	 * If this function called during streaming, lte_work should be enabled.
+	 * If not(during not streaming), set lte exp/gain before stream on
+	 */
+	if (test_bit(FIMC_IS_SENSOR_FRONT_START, &sensor->state)) {
+		sensor_peri->cis.lte_work_enable = true;
+	} else {
+		sensor_peri->cis.mode_chg.exposure = long_term_expo_mode->expo[0];
+		sensor_peri->cis.mode_chg.analog_gain = long_term_expo_mode->again[0];
+		sensor_peri->cis.mode_chg.digital_gain = long_term_expo_mode->dgain[0];
+
+		sensor_peri->cis.lte_work_enable = false;
+	}
+
+	dbg_sensor(1, "[%s]: expo[0](%d), expo[1](%d), "
+		KERN_CONT "again[0](%d), again[1](%d), "
+		KERN_CONT "dgain[0](%d), dgain[1](%d)\n", __func__,
 		long_term_expo_mode->expo[0], long_term_expo_mode->expo[1],
 		long_term_expo_mode->again[0], long_term_expo_mode->again[1],
-		long_term_expo_mode->dgain[0], long_term_expo_mode->dgain[1],
-		long_term_expo_mode->frm_num_strm_off_on_interval);
+		long_term_expo_mode->dgain[0], long_term_expo_mode->dgain[1]);
+
+	dbg_sensor(1, "[%s]: strm_off_on[0](%d), strm_off_on[1](%d)\n", __func__,
+		long_term_expo_mode->frm_num_strm_off_on[0],
+		long_term_expo_mode->frm_num_strm_off_on[1]);
+
+	dbg_sensor(1, "[%s]: interval(%d), lte_work_enable(%d)\n", __func__,
+		long_term_expo_mode->frm_num_strm_off_on_interval,
+		sensor_peri->cis.lte_work_enable);
 
 	return ret;
 }

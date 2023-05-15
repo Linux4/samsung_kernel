@@ -32,7 +32,7 @@ u16 get_proximity_gp2ap110s_raw_data(struct ssp_data *data)
         data->is_proxraw_enabled = true;
 		set_delay_legacy_sensor(data, SENSOR_TYPE_PROXIMITY_RAW, 20, 0);
 		enable_legacy_sensor(data, SENSOR_TYPE_PROXIMITY_RAW);
-				
+
 		msleep(200);
 		uRowdata = data->buf[SENSOR_TYPE_PROXIMITY_RAW].prox_raw[0];
                 data->is_proxraw_enabled = false;
@@ -168,7 +168,7 @@ ssize_t get_proximity_gp2ap110s_trim_value(struct ssp_data *data, char *buf)
 	}
 
 
-	if (data->sensor_probe_state == 0 || data->is_reset_started == true) {
+	if (data->sensor_probe_state == 0 || !is_sensorhub_working(data)) {
 		return FAIL;
 	}
 

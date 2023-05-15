@@ -1,5 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
- * Copyright (c) 2013-2017 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2019 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -70,24 +71,8 @@ enum mc_result {
 	MC_DRV_ERR_NQ_FAILED			= 22,
 	/* Wrong daemon version. */
 	MC_DRV_ERR_DAEMON_VERSION		= 23,
-	/* Wrong container version. */
-	MC_DRV_ERR_CONTAINER_VERSION		= 24,
 	/* System Trustlet public key is wrong. */
 	MC_DRV_ERR_WRONG_PUBLIC_KEY		= 25,
-	/* Wrong container type(s). */
-	MC_DRV_ERR_CONTAINER_TYPE_MISMATCH	= 26,
-	/* Container is locked (or not activated). */
-	MC_DRV_ERR_CONTAINER_LOCKED		= 27,
-	/* SPID is not registered with root container. */
-	MC_DRV_ERR_SP_NO_CHILD			= 28,
-	/* UUID is not registered with sp container. */
-	MC_DRV_ERR_TL_NO_CHILD			= 29,
-	/* Unwrapping of root container failed. */
-	MC_DRV_ERR_UNWRAP_ROOT_FAILED		= 30,
-	/* Unwrapping of service provider container failed. */
-	MC_DRV_ERR_UNWRAP_SP_FAILED		= 31,
-	/* Unwrapping of Trustlet container failed. */
-	MC_DRV_ERR_UNWRAP_TRUSTLET_FAILED	= 32,
 	/* No device associated with connection. */
 	MC_DRV_ERR_DAEMON_DEVICE_NOT_OPEN	= 33,
 	/* TA blob attestation is incorrect. */
@@ -216,7 +201,6 @@ __MC_CLIENT_LIB_API enum mc_result mc_open_session(
 /**
  * mc_open_trustlet() - Open a new session to the provided Trustlet.
  * @session:		On success, the session data will be returned
- * @spid:		Service Provider ID (for SP trustlets otherwise ignored)
  * @trustlet		Memory buffer containing the Trusted Application binary
  * @trustlet_len	Trusted Application length
  * @tci:		TCI buffer for communicating with the Trustlet
@@ -240,7 +224,6 @@ __MC_CLIENT_LIB_API enum mc_result mc_open_session(
  */
 __MC_CLIENT_LIB_API enum mc_result mc_open_trustlet(
 	struct mc_session_handle	*session,
-	u32				spid,
 	u8				*trustlet,
 	u32				trustlet_len,
 	u8				*tci,

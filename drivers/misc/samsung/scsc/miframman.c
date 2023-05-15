@@ -51,54 +51,75 @@ void miframabox_init(struct mifabox *mifabox, void *start_aboxram)
 void *__miframman_alloc(struct miframman *ram, size_t nbytes, int tag)
 {
 	unsigned int index = 0;
+	unsigned int mem_itr_index = 0;
 	unsigned int available;
 	unsigned int i;
-	size_t       num_blocks;
+	unsigned int min_available_blocks = MIFRAMMAN_NUM_BLOCKS;
+	size_t       num_blocks = 0;
 	void         *free_mem = NULL;
+	bool 		 has_available_blocks = false;
 
-	if (!nbytes || nbytes > ram->free_mem)
+	if (!nbytes || nbytes > ram->free_mem) {
+		SCSC_TAG_INFO(MIF, "nbytes > ram->free_mem");
 		goto end;
+	}
 
 	/* Number of blocks required (rounding up) */
 	num_blocks = nbytes / MIFRAMMAN_BLOCK_SIZE +
 		     ((nbytes % MIFRAMMAN_BLOCK_SIZE) > 0 ? 1 : 0);
 
-	if (num_blocks > ram->num_blocks)
+	if (num_blocks > ram->num_blocks) {
+		SCSC_TAG_INFO(MIF, "num_blocks > ram->num_blocks\n");
 		goto end;
+	}
 
-	while (index <= (ram->num_blocks - num_blocks)) {
+	/* Iterate through whole memory and find shortest contiguous memory region
+	 * from where allocation can be made
+	 */
+	while (mem_itr_index <= (ram->num_blocks - num_blocks)) {
 		available = 0;
 
-		/* Search consecutive blocks */
-		for (i = 0; i < num_blocks; i++) {
-			if (ram->bitmap[i + index] != BLOCK_FREE)
+		/* Search for next consecutive block */
+		for (i = 0; i < (ram->num_blocks - mem_itr_index); i++) {
+			if (ram->bitmap[i + mem_itr_index] != BLOCK_FREE)
 				break;
 			available++;
 		}
-		if (available == num_blocks) {
-			free_mem = ram->start_dram +
-				   MIFRAMMAN_BLOCK_SIZE * index;
 
-			/* Mark the block boundary as used */
-			ram->bitmap[index] = BLOCK_BOUND;
+		if (available >= num_blocks) {
+			has_available_blocks = true;
+
+			if (available < min_available_blocks) {
+				min_available_blocks = available;
+				index = mem_itr_index;
+			}
+		}
+		mem_itr_index = mem_itr_index + available + 1;
+	}
+
+	/* If we have found the memory we need */
+	if (has_available_blocks) {
+		free_mem = ram->start_dram +
+			MIFRAMMAN_BLOCK_SIZE * index;
+
+		/* Mark the block boundary as used */
+		ram->bitmap[index] = BLOCK_BOUND;
+		ram->bitmap[index] |= (u8)(tag <<  MIFRAMMAN_BLOCK_OWNER_SHIFT); /* Add owner tack for tracking */
+		index++;
+
+		/* Additional blocks in this allocation */
+		for (i = 1; i < num_blocks; i++) {
+			ram->bitmap[index] = BLOCK_INUSE;
 			ram->bitmap[index] |= (u8)(tag <<  MIFRAMMAN_BLOCK_OWNER_SHIFT); /* Add owner tack for tracking */
 			index++;
+		}
 
-			/* Additional blocks in this allocation */
-			for (i = 1; i < num_blocks; i++) {
-				ram->bitmap[index] = BLOCK_INUSE;
-				ram->bitmap[index] |= (u8)(tag <<  MIFRAMMAN_BLOCK_OWNER_SHIFT); /* Add owner tack for tracking */
-				index++;
-			}
-
-			ram->free_mem -= num_blocks * MIFRAMMAN_BLOCK_SIZE;
-			goto exit;
-		} else
-			index = index + available + 1;
+		ram->free_mem -= num_blocks * MIFRAMMAN_BLOCK_SIZE;
+		goto exit;
 	}
 end:
-	SCSC_TAG_INFO(MIF, "Not enough shared memory (nbytes %zd, free_mem %u)\n",
-		      nbytes, ram->free_mem);
+	SCSC_TAG_INFO(MIF, "Not enough shared memory (nbytes %zd, free_mem %u, num_blocks %zd, ram_num_blocks %u)\n",
+		nbytes, ram->free_mem, num_blocks, ram->num_blocks);
 	return NULL;
 exit:
 	return free_mem;

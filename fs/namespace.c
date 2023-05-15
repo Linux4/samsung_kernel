@@ -46,6 +46,7 @@
 /* Maximum number of mounts in a mount namespace */
 unsigned int sysctl_mount_max __read_mostly = 100000;
 
+/* @fs.sec -- c4d165e8cb5ea1cc14cdedb9eab23efd642d4d5f -- */
 static unsigned int sys_umount_trace_status;
 
 static unsigned int m_hash_mask __read_mostly;
@@ -108,6 +109,10 @@ static DECLARE_RWSEM(namespace_sem);
 /* /sys/fs */
 struct kobject *fs_kobj;
 EXPORT_SYMBOL_GPL(fs_kobj);
+
+/* /sys/fs/iostat */
+struct kobject *fs_iostat_kobj;
+EXPORT_SYMBOL(fs_iostat_kobj);
 
 /*
  * vfsmount lock may be taken for read to prevent changes to the
@@ -2069,6 +2074,10 @@ static inline bool may_mandlock(void)
  * unixes. Our API is identical to OSF/1 to avoid making a mess of AMD
  */
 
+#ifdef CONFIG_PAGE_BOOST_RECORDING
+#include <linux/io_record.h>
+#endif
+
 SYSCALL_DEFINE2(umount, char __user *, name, int, flags)
 {
 	struct path path;
@@ -2082,6 +2091,9 @@ SYSCALL_DEFINE2(umount, char __user *, name, int, flags)
 	if (!may_mount())
 		return -EPERM;
 
+#ifdef CONFIG_PAGE_BOOST_RECORDING
+	forced_init_record();
+#endif
 	if (!(flags & UMOUNT_NOFOLLOW))
 		lookup_flags |= LOOKUP_FOLLOW;
 
@@ -3871,6 +3883,14 @@ void __init mnt_init(void)
 	fs_kobj = kobject_create_and_add("fs", NULL);
 	if (!fs_kobj)
 		printk(KERN_WARNING "%s: kobj create error\n", __func__);
+
+	if(fs_kobj) {
+		fs_iostat_kobj = kobject_create_and_add("fsio", fs_kobj);
+		if(!fs_iostat_kobj)
+			printk(KERN_WARNING "%s: iostat kobj create error\n",
+					__func__);
+	}
+
 	init_rootfs();
 	init_mount_tree();
 }

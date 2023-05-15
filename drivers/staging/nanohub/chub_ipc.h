@@ -459,7 +459,7 @@ void ipc_hw_clear_int_pend_reg(enum ipc_owner owner, int irq);
 void ipc_hw_clear_all_int_pend_reg(enum ipc_owner owner);
 void ipc_hw_gen_interrupt(enum ipc_owner owner, int irq);
 void ipc_hw_set_mcuctrl(enum ipc_owner owner, unsigned int val);
-void ipc_hw_mask_all(enum ipc_owner owner);
+void ipc_hw_mask_all(enum ipc_owner owner, bool mask);
 void ipc_dump_mailbox_sfr(struct mailbox_sfr *mailbox);
 void ipc_hw_mask_irq(enum ipc_owner owner, int irq);
 void ipc_hw_unmask_irq(enum ipc_owner owner, int irq);

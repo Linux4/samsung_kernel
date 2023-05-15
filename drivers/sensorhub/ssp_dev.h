@@ -18,12 +18,11 @@
 
 #include "ssp.h"
 
-struct ssp_data* ssp_probe(struct device *);
+struct ssp_data *ssp_probe(struct device *);
 void ssp_remove(struct ssp_data *);
 
 int ssp_suspend(struct ssp_data *);
 void ssp_resume(struct ssp_data *);
 int queue_refresh_task(struct ssp_data *data, int delay);
-int queue_power_on_task(struct ssp_data *data, int delay);
 
 #endif

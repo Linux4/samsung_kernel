@@ -1,5 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2013-2018 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2019 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -20,7 +21,6 @@
 #include <linux/fs.h>		/* struct inode and struct file */
 #include <linux/mutex.h>
 #include <linux/version.h>
-#include <xen/xen.h>
 
 #define MC_VERSION(major, minor) \
 		((((major) & 0x0000ffff) << 16) | ((minor) & 0x0000ffff))
@@ -92,31 +92,5 @@ static inline unsigned int kref_read(struct kref *kref)
 	return atomic_read(&kref->refcount);
 }
 #endif
-
-/* Xen support */
-
-#ifdef CONFIG_XEN
-#if KERNEL_VERSION(4, 4, 0) <= LINUX_VERSION_CODE
-#define TRUSTONIC_XEN_DOMU
-#endif
-#endif
-
-static inline bool is_xen_dom0(void)
-{
-#if KERNEL_VERSION(3, 18, 0) <= LINUX_VERSION_CODE
-	return xen_domain() && xen_initial_domain();
-#else
-	return false;
-#endif
-}
-
-static inline bool is_xen_domu(void)
-{
-#ifdef TRUSTONIC_XEN_DOMU
-	return xen_domain() && !xen_initial_domain();
-#else
-	return false;
-#endif
-}
 
 #endif /* _MC_MAIN_H_ */

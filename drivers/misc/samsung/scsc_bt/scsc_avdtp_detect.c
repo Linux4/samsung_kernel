@@ -28,8 +28,12 @@
 #include <linux/wait.h>
 #include <linux/kthread.h>
 #include <asm/io.h>
+#include <linux/version.h>
+#if(LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+#include <scsc/scsc_wakelock.h>
+#else
 #include <linux/wakelock.h>
-
+#endif
 #include <scsc/scsc_mx.h>
 #include <scsc/scsc_mifram.h>
 #include <scsc/api/bsmhcp.h>
@@ -525,8 +529,8 @@ static uint8_t scsc_avdtp_detect_signaling_rxtx(uint16_t hci_connection_handle,
 			return AVDTP_DETECT_SIGNALING_ACTIVE;
 		else if (signal_id == AVDTP_SIGNAL_ID_OPEN)
 			return AVDTP_DETECT_SIGNALING_OPEN;
-		else if (signal_id == AVDTP_SIGNAL_ID_CLOSE || signal_id == AVDTP_SIGNAL_ID_SUSPEND ||
-				signal_id == AVDTP_SIGNAL_ID_ABORT)
+		else if (is_tx && (signal_id == AVDTP_SIGNAL_ID_CLOSE || signal_id == AVDTP_SIGNAL_ID_SUSPEND ||
+				signal_id == AVDTP_SIGNAL_ID_ABORT))
 			return AVDTP_DETECT_SIGNALING_INACTIVE;
 		else if (signal_id == AVDTP_SIGNAL_ID_DISCOVER) {
 			/* Check the discover signal for potential SNK candidate SEIDs */
@@ -546,7 +550,9 @@ static uint8_t scsc_avdtp_detect_signaling_rxtx(uint16_t hci_connection_handle,
 						   avdtp_hci->tsep_detect.local_snk_seid_candidate,
 						   avdtp_hci->tsep_detect.remote_snk_seid_candidate,
 						   avdtp_hci->hci_connection_handle);
-		}
+		} else if (is_tx && (signal_id == AVDTP_SIGNAL_ID_CLOSE || signal_id == AVDTP_SIGNAL_ID_SUSPEND ||
+				     signal_id == AVDTP_SIGNAL_ID_ABORT))
+			return AVDTP_DETECT_SIGNALING_INACTIVE;
 	} else if (message_type == AVDTP_MESSAGE_TYPE_GENERAL_REJECT || message_type == AVDTP_MESSAGE_TYPE_RSP_REJECT) {
 		if (signal_id == AVDTP_SIGNAL_ID_SET_CONF) {
 			if (is_tx) {
@@ -650,7 +656,7 @@ void scsc_avdtp_detect_rxtx(u16 hci_connection_handle, const unsigned char *data
 				hci_connection_handle,
 				cid_to_fw,
 				bt_service.bsmhcp_protocol->header.avdtp_detect_stream_id);
-			mmiowb();
+			wmb();
 			scsc_service_mifintrbit_bit_set(bt_service.service,
 										bt_service.bsmhcp_protocol->header.ap_to_bg_int_src,
 										SCSC_MIFINTR_TARGET_R4);

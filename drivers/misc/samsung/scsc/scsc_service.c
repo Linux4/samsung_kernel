@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (c) 2014 - 2018 Samsung Electronics Co., Ltd. All rights reserved
+ *ei Copyright (c) 2014 - 2018 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -9,10 +9,15 @@
 #include <linux/version.h>
 #include <linux/firmware.h>
 #ifdef CONFIG_ANDROID
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+#include <scsc/scsc_wakelock.h>
+#else
 #include <linux/wakelock.h>
+#endif
 #endif
 #include <scsc/scsc_mx.h>
 #include <scsc/scsc_logring.h>
+#include <scsc/scsc_log_collector.h>
 
 #include "mxman.h"
 #include "scsc_mx_impl.h"
@@ -30,7 +35,7 @@
 #include "servman_messages.h"
 #include "mxmgmt_transport.h"
 
-static ulong sm_completion_timeout_ms = 1000;
+static ulong sm_completion_timeout_ms = 3000;
 module_param(sm_completion_timeout_ms, ulong, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(sm_completion_timeout_ms, "Timeout Service Manager start/stop (ms) - default 1000. 0 = infinite");
 
@@ -62,10 +67,15 @@ void srvman_init(struct srvman *srvman, struct scsc_mx *mx)
 	INIT_LIST_HEAD(&srvman->service_list);
 	mutex_init(&srvman->service_list_mutex);
 	mutex_init(&srvman->api_access_mutex);
-
+	mutex_init(&srvman->error_state_mutex);
 #ifdef CONFIG_ANDROID
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
 	wake_lock_init(&srvman->sm_wake_lock, WAKE_LOCK_SUSPEND, "srvman_wakelock");
+#else
+	wake_lock_init(NULL, &srvman->sm_wake_lock.ws, "srvman_wakelock");
 #endif
+#endif
+	srvman_set_error(srvman, ALLOWED_START_STOP);
 }
 
 void srvman_deinit(struct srvman *srvman)
@@ -73,24 +83,92 @@ void srvman_deinit(struct srvman *srvman)
 	struct scsc_service *service, *next;
 
 	SCSC_TAG_INFO(MXMAN, "\n");
+	srvman_set_error(srvman, NOT_ALLOWED_START_STOP);
 	list_for_each_entry_safe(service, next, &srvman->service_list, list) {
 		list_del(&service->list);
 		kfree(service);
 	}
 	mutex_destroy(&srvman->api_access_mutex);
 	mutex_destroy(&srvman->service_list_mutex);
-
+	mutex_destroy(&srvman->error_state_mutex);
 #ifdef CONFIG_ANDROID
 	wake_lock_destroy(&srvman->sm_wake_lock);
 #endif
 }
 
-void srvman_set_error(struct srvman *srvman)
+bool srvman_start_stop_not_allowed(struct srvman *srvman)
+{
+	bool is_not_allowed;
+
+	mutex_lock(&srvman->error_state_mutex);
+	if (srvman->error == NOT_ALLOWED_START_STOP)
+		is_not_allowed = true;
+	else
+		is_not_allowed = false;
+	mutex_unlock(&srvman->error_state_mutex);
+
+	return is_not_allowed;
+}
+
+bool srvman_start_not_allowed(struct srvman *srvman)
+{
+	bool is_not_allowed;
+
+	mutex_lock(&srvman->error_state_mutex);
+	if (srvman->error == NOT_ALLOWED_START_STOP || srvman->error == NOT_ALLOWED_START)
+		is_not_allowed = true;
+	else
+		is_not_allowed = false;
+	mutex_unlock(&srvman->error_state_mutex);
+
+	return is_not_allowed;
+}
+
+bool srvman_in_error_safe(struct srvman *srvman)
+{
+	if (srvman->error == ALLOWED_START_STOP)
+		return false;
+	return true;
+}
+
+bool srvman_in_error(struct srvman *srvman)
+{
+	bool is_error;
+
+	mutex_lock(&srvman->error_state_mutex);
+	is_error = srvman_in_error_safe(srvman);
+	mutex_unlock(&srvman->error_state_mutex);
+	return is_error;
+}
+
+bool srvman_allow_close(struct srvman *srvman)
+{
+	bool is_error;
+
+	mutex_lock(&srvman->error_state_mutex);
+	if (srvman->error == NOT_ALLOWED_START_STOP)
+		is_error = false;
+	else
+		is_error = true;
+	mutex_unlock(&srvman->error_state_mutex);
+	return is_error;
+}
+
+void srvman_set_error(struct srvman *srvman, enum error_status s)
+{
+	mutex_lock(&srvman->error_state_mutex);
+	srvman->error = s;
+	mutex_unlock(&srvman->error_state_mutex);
+	SCSC_TAG_INFO(MXMAN, "error:%d\n", s);
+}
+
+void srvman_set_error_complete(struct srvman *srvman, enum error_status s)
 {
 	struct scsc_service *service;
 
 	SCSC_TAG_INFO(MXMAN, "\n");
-	srvman->error = true;
+
+	srvman_set_error(srvman, s);
 	mutex_lock(&srvman->service_list_mutex);
 	list_for_each_entry(service, &srvman->service_list, list) {
 		complete(&service->sm_msg_start_completion);
@@ -101,8 +179,10 @@ void srvman_set_error(struct srvman *srvman)
 
 void srvman_clear_error(struct srvman *srvman)
 {
-	SCSC_TAG_INFO(MXMAN, "\n");
-	srvman->error = false;
+	mutex_lock(&srvman->error_state_mutex);
+	srvman->error = ALLOWED_START_STOP;
+	mutex_unlock(&srvman->error_state_mutex);
+	SCSC_TAG_INFO(MXMAN, "error:%d\n", ALLOWED_START_STOP);
 }
 
 static int wait_for_sm_msg_start_cfm(struct scsc_service *service)
@@ -266,7 +346,7 @@ int scsc_mx_service_start(struct scsc_service *service, scsc_mifram_ref ref)
 #ifdef CONFIG_ANDROID
 	wake_lock(&srvman->sm_wake_lock);
 #endif
-	if (srvman->error) {
+	if (srvman_start_not_allowed(srvman)) {
 		tval = ns_to_timeval(mxman->last_panic_time);
 		SCSC_TAG_ERR(MXMAN, "error: refused due to previous f/w failure scsc_panic_code=0x%x happened at [%6lu.%06ld]\n",
 				mxman->scsc_panic_code, tval.tv_sec, tval.tv_usec);
@@ -360,7 +440,7 @@ int scsc_mx_service_stop(struct scsc_service *service)
 #ifdef CONFIG_ANDROID
 	wake_lock(&srvman->sm_wake_lock);
 #endif
-	if (srvman->error) {
+	if (srvman_start_stop_not_allowed(srvman)) {
 		tval = ns_to_timeval(mxman->last_panic_time);
 		SCSC_TAG_ERR(MXMAN, "error: refused due to previous f/w failure scsc_panic_code=0x%x happened at [%6lu.%06ld]\n",
 				mxman->scsc_panic_code, tval.tv_sec, tval.tv_usec);
@@ -459,19 +539,16 @@ void srvman_freeze_services(struct srvman *srvman, struct mx_syserr_decode *syse
 	mxman->notify = false;
 	mutex_lock(&srvman->service_list_mutex);
 	list_for_each_entry(service, &srvman->service_list, list) {
-		if (service->client->stop_on_failure) {
-			service->client->stop_on_failure(service->client);
-			mxman->notify = true;
-		} else if ((service->client->stop_on_failure_v2) &&
-			   (service->client->stop_on_failure_v2(service->client, syserr)))
-			mxman->notify = true;
+	if (service->client->stop_on_failure) {
+		service->client->stop_on_failure(service->client);
+		mxman->notify = true;
+	}
+	else if ((service->client->stop_on_failure_v2) &&
+		(service->client->stop_on_failure_v2(service->client, syserr)))
+		mxman->notify = true;
 	}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0)
 	reinit_completion(&mxman->recovery_completion);
-#else
-	INIT_COMPLETION(mxman->recovery_completion);
-#endif
 	mutex_unlock(&srvman->service_list_mutex);
 	SCSC_TAG_INFO(MXMAN, "OK\n");
 }
@@ -493,7 +570,7 @@ void srvman_freeze_sub_system(struct srvman *srvman, struct mx_syserr_decode *sy
 	SCSC_TAG_INFO(MXMAN, "OK\n");
 }
 
-void srvman_unfreeze_services(struct srvman *srvman, u16 scsc_panic_code)
+void srvman_unfreeze_services(struct srvman *srvman, struct mx_syserr_decode *syserr)
 {
 	struct scsc_service *service;
 	struct mxman        *mxman = scsc_mx_get_mxman(srvman->mx);
@@ -502,10 +579,10 @@ void srvman_unfreeze_services(struct srvman *srvman, u16 scsc_panic_code)
 	mutex_lock(&srvman->service_list_mutex);
 	list_for_each_entry(service, &srvman->service_list, list) {
 		if (service->client->failure_reset)
-			service->client->failure_reset(service->client, scsc_panic_code);
+			service->client->failure_reset(service->client, syserr->subcode);
 		else if (service->client->failure_reset_v2)
-			service->client->failure_reset_v2(service->client, MX_SYSERR_LEVEL_7,
-							  mxman->notify ? scsc_panic_code : MX_NULL_SYSERR);
+			service->client->failure_reset_v2(service->client, syserr->level,
+							  mxman->notify ? syserr->subcode : MX_NULL_SYSERR);
 	}
 	mutex_unlock(&srvman->service_list_mutex);
 	SCSC_TAG_INFO(MXMAN, "OK\n");
@@ -525,6 +602,29 @@ void srvman_unfreeze_sub_system(struct srvman *srvman, struct mx_syserr_decode *
 	}
 	mutex_unlock(&srvman->service_list_mutex);
 	SCSC_TAG_INFO(MXMAN, "OK\n");
+}
+
+u8 srvman_notify_services(struct srvman *srvman, struct mx_syserr_decode *syserr)
+{
+	struct scsc_service *service;
+	u8 final_level = syserr->level;
+
+	SCSC_TAG_INFO(MXMAN, "\n");
+	mutex_lock(&srvman->service_list_mutex);
+	list_for_each_entry(service, &srvman->service_list, list) {
+		u8 level = service->client->failure_notification(service->client, syserr);
+
+		if (level > final_level)
+			final_level = level;
+	}
+	mutex_unlock(&srvman->service_list_mutex);
+
+	if (final_level != syserr->level)
+		SCSC_TAG_INFO(MXMAN, "System error level %d raised to level %d", syserr->level, final_level);
+
+	SCSC_TAG_INFO(MXMAN, "OK\n");
+
+	return final_level;
 }
 
 u8 srvman_notify_sub_system(struct srvman *srvman, struct mx_syserr_decode *syserr)
@@ -553,8 +653,8 @@ u8 srvman_notify_sub_system(struct srvman *srvman, struct mx_syserr_decode *syse
 	}
 	mutex_unlock(&srvman->service_list_mutex);
 
-	if (final_level == MX_SYSERR_LEVEL_7)
-		SCSC_TAG_INFO(MXMAN, "System error level %d raised to full reset", initial_level);
+	if (final_level >= MX_SYSERR_LEVEL_7)
+		SCSC_TAG_INFO(MXMAN, "System error level %d raised to full reset level %d", initial_level, final_level);
 	else if ((!(wlan_active && bt_active)) && (final_level >= MX_SYSERR_LEVEL_5)) {
 		final_level = MX_SYSERR_LEVEL_6; /* Still a sub-system reset even though we will do a full restart */
 		SCSC_TAG_INFO(MXMAN, "System error %d now level %d with 1 service active", initial_level, final_level);
@@ -573,7 +673,6 @@ u8 srvman_notify_sub_system(struct srvman *srvman, struct mx_syserr_decode *syse
 	return final_level;
 }
 
-
 /** Signal a failure detected by the Client. This will trigger the systemwide
  * failure handling procedure: _All_ Clients will be called back via
  * their stop_on_failure() handler as a side-effect.
@@ -586,7 +685,7 @@ void scsc_mx_service_service_failed(struct scsc_service *service, const char *re
 
 	host_panic_code = (SCSC_PANIC_CODE_HOST << 15) | (service->id << SCSC_SYSERR_HOST_SERVICE_SHIFT);
 
-	srvman_set_error(srvman);
+	srvman_set_error(srvman, NOT_ALLOWED_START_STOP);
 	switch (service->id) {
 	case SCSC_SERVICE_ID_WLAN:
 		SCSC_TAG_INFO(MXMAN, "WLAN: %s\n", ((reason != NULL) ? reason : ""));
@@ -622,10 +721,7 @@ int scsc_mx_service_close(struct scsc_service *service)
 	wake_lock(&srvman->sm_wake_lock);
 #endif
 
-	/* TODO - Race conditions here unless we protect better
-	 * code assumes srvman->error and mxman->state can't change, but they can
-	 */
-	if (srvman->error) {
+	if (srvman_start_stop_not_allowed(srvman)) {
 		tval = ns_to_timeval(mxman->last_panic_time);
 		SCSC_TAG_ERR(MXMAN, "error: refused due to previous f/w failure scsc_panic_code=0x%x happened at [%6lu.%06ld]\n",
 				mxman->scsc_panic_code, tval.tv_sec, tval.tv_usec);
@@ -707,11 +803,7 @@ struct scsc_service *scsc_mx_service_open(struct scsc_mx *mx, enum scsc_service_
 #ifdef CONFIG_ANDROID
 	wake_lock(&srvman->sm_wake_lock);
 #endif
-	/* TODO - need to close potential race conditions - see close */
-	/* Have to check for disabled here as there is a small window where error is asserted
-	 * even if we are going to allow recovery later on - in these cases we will want to block
-	 */
-	if ((srvman->error) && (mxman_recovery_disabled())) {
+	if (srvman_start_not_allowed(srvman)) {
 		tval = ns_to_timeval(mxman->last_panic_time);
 		SCSC_TAG_ERR(MXMAN, "error: refused due to previous f/w failure scsc_panic_code=0x%x happened at [%6lu.%06ld]\n",
 				mxman->scsc_panic_code, tval.tv_sec, tval.tv_usec);
@@ -728,6 +820,7 @@ struct scsc_service *scsc_mx_service_open(struct scsc_mx *mx, enum scsc_service_
 	if (mxman->mxman_state == MXMAN_STATE_FAILED) {
 		int r;
 
+		SCSC_TAG_INFO(MXMAN, "state = %d\n", mxman->mxman_state);
 		mutex_unlock(&srvman->api_access_mutex);
 		r = wait_for_completion_timeout(&mxman->recovery_completion,
 						msecs_to_jiffies(SCSC_MX_SERVICE_RECOVERY_TIMEOUT));
@@ -792,6 +885,7 @@ struct scsc_bt_audio_abox *scsc_mx_service_get_bt_audio_abox(struct scsc_service
 
 	return ptr->aboxram;
 }
+EXPORT_SYMBOL(scsc_mx_service_get_bt_audio_abox);
 
 struct mifabox *scsc_mx_service_get_aboxram(struct scsc_service *service)
 {
@@ -1102,6 +1196,7 @@ u16 scsc_service_get_alignment(struct scsc_service *service)
 
 	return mifsmapper_get_alignment(scsc_mx_get_smapper(mx));
 }
+EXPORT_SYMBOL(scsc_service_get_alignment);
 
 int scsc_service_mifsmapper_alloc_bank(struct scsc_service *service, bool large_bank, u32 entry_size, u16 *entries)
 {
@@ -1161,6 +1256,17 @@ EXPORT_SYMBOL(scsc_service_mifsmapper_get_bank_base_address);
 #endif
 
 #ifdef CONFIG_SCSC_QOS
+int scsc_service_set_affinity_cpu(struct scsc_service *service, u8 cpu)
+{
+	struct scsc_mx      *mx = service->mx;
+	int ret = 0;
+
+	ret = mifqos_set_affinity_cpu(scsc_mx_get_qos(mx), cpu);
+
+	return ret;
+}
+EXPORT_SYMBOL(scsc_service_set_affinity_cpu);
+
 int scsc_service_pm_qos_add_request(struct scsc_service *service, enum scsc_qos_config config)
 {
 	struct scsc_mx      *mx = service->mx;
@@ -1194,7 +1300,7 @@ int scsc_service_pm_qos_remove_request(struct scsc_service *service)
 }
 EXPORT_SYMBOL(scsc_service_pm_qos_remove_request);
 #endif
-#ifdef CONFIG_SCSC_MXLOGGER
+#if IS_ENABLED(CONFIG_SCSC_MXLOGGER)
 /* If there is no service/mxman associated, register the observer as global (will affect all the mx instanes)*/
 /* Users of these functions should ensure that the registers/unregister functions are balanced (i.e. if observer is registed as global,
  * it _has_ to unregister as global) */
@@ -1231,3 +1337,84 @@ int scsc_service_unregister_observer(struct scsc_service *service, char *name)
 }
 EXPORT_SYMBOL(scsc_service_unregister_observer);
 #endif
+
+int scsc_service_get_panic_record(struct scsc_service *service, u8 *dst, u16 max_size)
+{
+	struct mxman   *mxman;
+
+	if (!service) {
+		SCSC_TAG_DEBUG(MXMAN, "Service is NULL");
+		return 0;
+	}
+
+	mxman = scsc_mx_get_mxman(service->mx);
+
+	if (!mxman) {
+		SCSC_TAG_DEBUG(MXMAN, "Mxman is NULL");
+		return 0;
+	}
+
+	/* last_panic_rec_sz is "integer" size, so requires multiplication by 4 to convert into bytes */
+	if ((4 * mxman->last_panic_rec_sz) > max_size) {
+		SCSC_TAG_DEBUG(MXMAN, "Record size %d larger than max size %d\n", mxman->last_panic_rec_sz * 4, max_size);
+		return 0;
+	}
+
+	memcpy(dst, (u8 *)mxman->last_panic_rec_r, mxman->last_panic_rec_sz * 4);
+
+	return mxman->last_panic_rec_sz;
+}
+EXPORT_SYMBOL(scsc_service_get_panic_record);
+
+#if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 12
+size_t scsc_service_mxlogger_buff_size(struct scsc_service *service, enum scsc_log_chunk_type fw_buffer)
+{
+	struct scsc_mx *mx;
+
+	if (!service) {
+		SCSC_TAG_DEBUG(MXMAN, "Service is NULL\n");
+		return 0;
+	}
+
+	mx = service->mx;
+	if (!mx) {
+		SCSC_TAG_DEBUG(MXMAN, "mx is NULL\n");
+		return 0;
+	}
+
+	return mxlogger_get_fw_buf_size(scsc_mx_get_mxlogger(mx), fw_buffer);
+}
+EXPORT_SYMBOL(scsc_service_mxlogger_buff_size);
+
+size_t scsc_service_collect_buffer(struct scsc_service *service, enum scsc_log_chunk_type fw_buffer, void *buffer, size_t size)
+{
+	struct scsc_mx *mx;
+	size_t bytes = 0;
+
+	if (!service) {
+		SCSC_TAG_DEBUG(MXMAN, "Service is NULL\n");
+		goto exit;
+	}
+
+	mx = service->mx;
+
+	if (!mx) {
+		SCSC_TAG_DEBUG(MXMAN, "mx is NULL\n");
+		goto exit;
+	}
+
+	bytes = mxlogger_dump_fw_buf(scsc_mx_get_mxlogger(mx), fw_buffer, buffer, size);
+
+	if (bytes) {
+		SCSC_TAG_DEBUG(MXMAN, "Data of size %d bytes stored in buffer\n", bytes);
+		return bytes;
+	}
+
+	SCSC_TAG_DEBUG(MXMAN, "Unable to dump buffer\n");
+
+exit:
+	return 0;
+}
+EXPORT_SYMBOL(scsc_service_collect_buffer);
+#endif
+

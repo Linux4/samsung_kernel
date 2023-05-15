@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (c) 2013-2017 TRUSTONIC LIMITED
  * All Rights Reserved.
@@ -92,7 +93,8 @@ int iwp_open_session(
 	const struct iwp_buffer_map *maps,
 	struct interworld_session *iws,
 	struct tee_mmu **mmus,
-	struct gp_return *gp_ret);
+	struct gp_return *gp_ret,
+	const char vm_id[16]);
 int iwp_close_session(
 	struct iwp_session *iwp_session);
 int iwp_invoke_command_prepare(

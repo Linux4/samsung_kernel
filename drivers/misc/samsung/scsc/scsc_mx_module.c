@@ -102,11 +102,12 @@ static struct scsc_mif_abs_driver mx_module_mif_if = {
 
 static int __init scsc_mx_module_init(void)
 {
-	SCSC_TAG_INFO(MXMAN, SCSC_MX_CORE_MODDESC " scsc_release %d.%d.%d.%d\n",
+	SCSC_TAG_INFO(MXMAN, SCSC_MX_CORE_MODDESC " scsc_release %d.%d.%d.%d.%d\n",
 		SCSC_RELEASE_PRODUCT,
 		SCSC_RELEASE_ITERATION,
 		SCSC_RELEASE_CANDIDATE,
-		SCSC_RELEASE_POINT);
+		SCSC_RELEASE_POINT,
+		SCSC_RELEASE_CUSTOMER);
 
 	scsc_mif_abs_register(&mx_module_mif_if);
 	return 0;

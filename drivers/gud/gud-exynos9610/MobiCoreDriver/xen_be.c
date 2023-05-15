@@ -1,5 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2017-2018 TRUSTONIC LIMITED
+ * Copyright (c) 2017-2019 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -37,6 +38,7 @@
 #define vaddr(page) ((unsigned long)pfn_to_kaddr(page_to_pfn(page)))
 
 static struct {
+	char			vm_id[16];
 	struct list_head	xfes;
 	struct mutex		xfes_mutex;	/* Protect the above */
 } l_ctx;
@@ -324,6 +326,7 @@ static inline int xen_be_mc_open_session(struct tee_xfe *xfe)
 
 out:
 	if (info.tci_mmu)
+		/* Release our reference, now handled by the session */
 		tee_mmu_put(info.tci_mmu);
 
 	mc_dev_devel("session %x, exit with %d",
@@ -337,24 +340,34 @@ static inline int xen_be_mc_open_trustlet(struct tee_xfe *xfe)
 	struct tee_xen_buffer *tci_buffer = &xfe->buffers[0];
 	struct mcp_open_info info = {
 		.type = TEE_MC_TA,
+		.uuid = &xfe->ring->domu.uuid,
 	};
-	struct xen_be_map *ta_map;
-	void *addr = NULL;
 	int ret = -ENOMEM;
 
-	ta_map = xen_be_map_create(ta_buffer, xfe->pte_entries_max,
-				   xfe->xdev->otherend_id);
-	if (IS_ERR(ta_map))
-		return PTR_ERR(ta_map);
+	{
+		struct xen_be_map *map;
+		struct mcp_buffer_map b_map = {
+			.offset = ta_buffer->info->offset,
+			.length = ta_buffer->info->length,
+			.flags = ta_buffer->info->flags,
+		};
 
-	info.spid = xfe->ring->domu.spid;
-	addr = vmap(ta_map->pages, ta_map->nr_pages,
-		    VM_MAP | VM_IOREMAP | VM_USERMAP, PAGE_KERNEL);
-	if (!addr)
-		goto out;
+		map = xen_be_map_create(ta_buffer, xfe->pte_entries_max,
+					xfe->xdev->otherend_id);
+		if (IS_ERR(map)) {
+			ret = PTR_ERR(map);
+			goto err_ta_map;
+		}
 
-	info.va = (uintptr_t)addr + ta_buffer->info->offset;
-	info.len = ta_buffer->info->length;
+		/* Shall NOT be freed by session */
+		b_map.nr_pages = map->nr_pages;
+		info.ta_mmu = tee_mmu_wrap(&map->deleter, map->pages, &b_map);
+		if (IS_ERR(info.ta_mmu)) {
+			xen_be_map_delete(map);
+			ret = PTR_ERR(info.ta_mmu);
+			goto err_ta_map;
+		}
+	}
 
 	if (tci_buffer->info->flags) {
 		struct xen_be_map *map;
@@ -375,6 +388,7 @@ static inline int xen_be_mc_open_trustlet(struct tee_xfe *xfe)
 		b_map.nr_pages = map->nr_pages;
 		info.tci_mmu = tee_mmu_wrap(&map->deleter, map->pages, &b_map);
 		if (IS_ERR(info.tci_mmu)) {
+			xen_be_map_delete(map);
 			ret = PTR_ERR(info.tci_mmu);
 			info.tci_mmu = NULL;
 			goto out;
@@ -386,14 +400,12 @@ static inline int xen_be_mc_open_trustlet(struct tee_xfe *xfe)
 				    &xfe->ring->domu.session_id);
 
 out:
+	tee_mmu_put(info.ta_mmu);
 	if (info.tci_mmu)
+		/* Release our reference, now handled by the session */
 		tee_mmu_put(info.tci_mmu);
 
-	if (addr)
-		vunmap(addr);
-
-	xen_be_map_delete(ta_map);
-
+err_ta_map:
 	mc_dev_devel("session %x, exit with %d",
 		     xfe->ring->domu.session_id, ret);
 	return ret;
@@ -427,7 +439,7 @@ static void xen_be_mc_wait_worker(struct work_struct *work)
 
 	ret = client_waitnotif_session(wait_work->xfe->client,
 				       wait_work->session_id,
-				       wait_work->timeout, false);
+				       wait_work->timeout);
 
 	/* Send return code */
 	mc_dev_devel("MC wait session done %x, ret %d",
@@ -917,17 +929,33 @@ static const struct xenbus_device_id xen_be_ids[] = {
 	{ "" }
 };
 
+static inline char *vm_id(int domain_id)
+{
+	char dir[32];
+
+	snprintf(dir, sizeof(dir), "/local/domain/%d", domain_id);
+	return xenbus_read(XBT_NIL, dir, "name", NULL);
+}
+
 /* Called when a front-end is created */
 static int xen_be_probe(struct xenbus_device *xdev,
 			const struct xenbus_device_id *id)
 {
 	struct tee_xfe *xfe;
+	char *name = NULL;
 	int ret = 0;
 
 	ret = xenbus_switch_state(xdev, XenbusStateInitWait);
 	if (ret) {
 		xenbus_dev_fatal(xdev, ret,
 				 "failed to change state to initwait");
+		return ret;
+	}
+
+	name = vm_id(xdev->otherend_id);
+	if (IS_ERR(name)) {
+		ret = PTR_ERR(name);
+		xenbus_dev_fatal(xdev, ret, "failed to get front-end name");
 		return ret;
 	}
 
@@ -938,7 +966,7 @@ static int xen_be_probe(struct xenbus_device *xdev,
 		goto err_xfe_create;
 	}
 
-	xfe->client = client_create(true);
+	xfe->client = client_create(true, name);
 	if (!xfe->client) {
 		ret = -ENOMEM;
 		xenbus_dev_fatal(xdev, ret, "failed to create FE client");
@@ -967,6 +995,7 @@ err_switch_state:
 err_client_create:
 	tee_xfe_put(xfe);
 err_xfe_create:
+	kfree(name);
 	return ret;
 }
 
@@ -1136,16 +1165,47 @@ static struct xenbus_driver xen_be_driver = {
 	.otherend_changed = xen_be_frontend_changed,
 };
 
-int xen_be_init(void)
+static int xen_be_early_init(int (*probe)(void), int (*start)(void))
 {
+	char *be_vm_id;
+
+	/* Determine VM ID */
+	be_vm_id = vm_id(0);
+	if (IS_ERR(be_vm_id))
+		return PTR_ERR(be_vm_id);
+
+	strlcpy(l_ctx.vm_id, be_vm_id, sizeof(l_ctx.vm_id));
+	kfree(be_vm_id);
+	return 0;
+};
+
+static int xen_be_start(void)
+{
+	/* Initialise */
 	INIT_LIST_HEAD(&l_ctx.xfes);
 	mutex_init(&l_ctx.xfes_mutex);
 	return xenbus_register_backend(&xen_be_driver);
 }
 
-void xen_be_exit(void)
+static void xen_be_stop(void)
 {
 	xenbus_unregister_driver(&xen_be_driver);
+}
+
+static struct tee_protocol_ops protocol_ops = {
+	.name = "XEN BE",
+	.early_init = xen_be_early_init,
+	.start = xen_be_start,
+	.stop = xen_be_stop,
+	.vm_id = l_ctx.vm_id,
+};
+
+struct tee_protocol_ops *xen_be_check(void)
+{
+	if (!xen_domain() || !xen_initial_domain())
+		return NULL;
+
+	return &protocol_ops;
 }
 
 #endif

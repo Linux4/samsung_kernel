@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (c) 2014-2015 TRUSTONIC LIMITED
  * All Rights Reserved.
@@ -104,30 +105,6 @@ uint32_t hal_tui_deactivate(void);
  * Return: must return 0 on success, non-zero otherwise.
  */
 uint32_t hal_tui_activate(void);
-uint32_t hal_tui_process_cmd(struct tui_hal_cmd_t *cmd,
-			     struct tui_hal_rsp_t *rsp);
-uint32_t hal_tui_notif(void);
-
-/**
- * hal_tui_process_cmd() - integrator specific exit code for kernel module
- *
- * This function is called when kernel module receives a command from the
- * secure driver HAL, ie when drTuiCoreDciSendAndWait() is called.
- */
-uint32_t hal_tui_process_cmd(struct tui_hal_cmd_t *cmd,
-			     struct tui_hal_rsp_t *rsp);
-
-/**
- * hal_tui_notif() - integrator specific exit code for kernel module
- *
- * This function is called when kernel module receives an answer from the
- * secure driver HAL (the hal_rsp field of the world shared memory struct is
- * not null).
- * This should be the way to get an answer from the secure driver after a
- * command has been sent to it (the hal_cmd field of the world shared memory
- * struct has been set and a notification has been raised).
- */
-uint32_t hal_tui_notif(void);
 
 /**
  * hal_tui_process_cmd() - integrator specific exit code for kernel module

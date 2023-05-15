@@ -19,51 +19,51 @@
 #include "ssp_factory.h"
 
 /*************************************************************************/
-/* factory Sysfs                                                         */
+/* factory Sysfs							 */
 /*************************************************************************/
 static ssize_t light_name_show(struct device *dev,
-                               struct device_attribute *attr, char *buf)
+			       struct device_attribute *attr, char *buf)
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
-	if(data->light_ops == NULL || data->light_ops->get_light_name == NULL)
+	if (data->light_ops == NULL || data->light_ops->get_light_name == NULL)
 		return -EINVAL;
 	return data->light_ops->get_light_name(buf);
 }
 
 static ssize_t light_vendor_show(struct device *dev,
-                                 struct device_attribute *attr, char *buf)
+				 struct device_attribute *attr, char *buf)
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
-	if(data->light_ops == NULL || data->light_ops->get_light_vendor == NULL)
+	if (data->light_ops == NULL || data->light_ops->get_light_vendor == NULL)
 		return -EINVAL;
 	return data->light_ops->get_light_vendor(buf);
 }
 
 static ssize_t light_lux_show(struct device *dev,
-                              struct device_attribute *attr, char *buf)
+			      struct device_attribute *attr, char *buf)
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
-	if(data->light_ops == NULL || data->light_ops->get_lux == NULL)
+	if (data->light_ops == NULL || data->light_ops->get_lux == NULL)
 		return -EINVAL;
 	return data->light_ops->get_lux(data, buf);
 }
 
 static ssize_t light_data_show(struct device *dev,
-                               struct device_attribute *attr, char *buf)
+			       struct device_attribute *attr, char *buf)
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
-	if(data->light_ops == NULL || data->light_ops->get_light_data == NULL)
+	if (data->light_ops == NULL || data->light_ops->get_light_data == NULL)
 		return -EINVAL;
 	return data->light_ops->get_light_data(data, buf);
 }
 
 static ssize_t light_coef_show(struct device *dev,
-                               struct device_attribute *attr, char *buf)
+			       struct device_attribute *attr, char *buf)
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
 	int ret = 0;
 
-	if(data->light_ops == NULL || data->light_ops->get_light_coefficient == NULL)
+	if (data->light_ops == NULL || data->light_ops->get_light_coefficient == NULL)
 		return -EINVAL;
 	ret = data->light_ops->get_light_coefficient(data, buf);
 
@@ -71,12 +71,12 @@ static ssize_t light_coef_show(struct device *dev,
 }
 
 static ssize_t light_circle_show(struct device *dev,
-                               struct device_attribute *attr, char *buf)
+				 struct device_attribute *attr, char *buf)
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
 	int ret = 0;
 
-	if(data->light_ops == NULL || data->light_ops->get_light_circle == NULL)
+	if (data->light_ops == NULL || data->light_ops->get_light_circle == NULL)
 		return -EINVAL;
 	ret = data->light_ops->get_light_circle(data, buf);
 
@@ -100,18 +100,17 @@ static struct device_attribute *light_attrs[] = {
 	NULL,
 };
 
-void select_light_ops(struct ssp_data *data)
+void select_light_ops(struct ssp_data *data, char *name)
 {
 	struct light_sensor_operations **light_ops_ary;
 	int count = 0, i;
-	char name[SENSORNAME_MAX_LEN] = {0,};
 	char temp_buffer[SENSORNAME_MAX_LEN] = {0,};
 
 	ssp_infof("");
 
 #if defined(CONFIG_SENSORS_SSP_LIGHT_TMD3700)
 	count++;
-#endif	
+#endif
 #if defined(CONFIG_SENSORS_SSP_LIGHT_TMD3725)
 	count++;
 #endif
@@ -122,13 +121,12 @@ void select_light_ops(struct ssp_data *data)
 	count++;
 #endif
 
-	if(count == 0)
-	{
+	if (count == 0) {
 		ssp_infof("count is 0");
 		return;
 	}
 
-	light_ops_ary = (struct light_sensor_operations **)kzalloc(count * sizeof(struct light_sensor_operations*), GFP_KERNEL);
+	light_ops_ary = (struct light_sensor_operations **)kzalloc(count * sizeof(struct light_sensor_operations *), GFP_KERNEL);
 
 	i = 0;
 #if defined(CONFIG_SENSORS_SSP_LIGHT_TMD3700)
@@ -144,47 +142,30 @@ void select_light_ops(struct ssp_data *data)
 	light_ops_ary[i++] = get_light_veml3328_function_pointer(data);
 #endif
 
-	if(count > 1) {
-		if(get_sensorname(data, SENSOR_TYPE_LIGHT, name, sizeof(name)) != SUCCESS){
-			i = 0;
-		} else {
-			for(i = 0; i < count ; i++)
-			{
-				int size = light_ops_ary[i]->get_light_name(temp_buffer);
-				temp_buffer[size-1] = '\0';
-				ssp_infof("%d light name : %s",i, temp_buffer);
+	if (count > 1) {
+		for (i = 0; i < count ; i++) {
+			int size = light_ops_ary[i]->get_light_name(temp_buffer);
 
-				if(strcmp(temp_buffer, name) == 0)
-				{
-					break;
-				}
-			}
+			temp_buffer[size - 1] = '\0';
+			ssp_infof("%d light name : %s", i, temp_buffer);
+
+			if (strcmp(temp_buffer, name) == 0)
+				break;
 		}
 
-		if(i == count)
+		if (i == count)
 			i = 0;
-	} else {
+	} else
 		i = 0;
-	}
-	
+
 	data->light_ops = light_ops_ary[i];
 	kfree(light_ops_ary);
 }
 
 void initialize_light_factorytest(struct ssp_data *data)
 {
-#if defined(CONFIG_SENSORS_SSP_LIGHT_TMD3700)
-	data->light_ops = get_light_tmd3700_function_pointer(data);
-#elif defined(CONFIG_SENSORS_SSP_LIGHT_TMD3725)
-	data->light_ops = get_light_tmd3725_function_pointer(data);
-#elif defined(CONFIG_SENSORS_SSP_LIGHT_TCS3701)
-	data->light_ops = get_light_tcs3701_function_pointer(data);
-#elif defined(CONFIG_SENSORS_SSP_LIGHT_VEML3328)
-	data->light_ops = get_light_veml3328_function_pointer(data);
-#endif
-
 	sensors_register(data->devices[SENSOR_TYPE_LIGHT], data, light_attrs,
-	                 "light_sensor");
+			 "light_sensor");
 }
 
 void remove_light_factorytest(struct ssp_data *data)

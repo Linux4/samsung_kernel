@@ -77,6 +77,8 @@
 #define INIT_CHECK_MASK         0x0010
 #define DISABLE_RE_INIT         0x0010
 #define JIG_CONNECTED	0x0001
+#define I2C_ERROR_REMAIN		0x0004
+#define I2C_ERROR_CHECK	0x0008
 #define DATA_VERSION	0x00F0
 
 enum max77854_vempty_mode {
@@ -344,6 +346,7 @@ struct sm5713_fuelgauge_data {
 	int raw_capacity;
 	int current_now;
 	int current_avg;
+	unsigned int ttf_capacity;
 	struct cv_slope *cv_data;
 	int cv_data_lenth;
 

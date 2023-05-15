@@ -445,7 +445,7 @@ static void mms_input_close(struct input_dev *dev)
 	}
 #endif
 
-	if (info->lowpower_mode) {
+	if (info->lowpower_mode || info->fod_lp_mode) {
 		mms_lowpower_mode(info, TO_LOWPOWER_MODE);
 		if (info->prox_power_off) {
 			input_report_key(info->input_dev, KEY_INT_CANCEL, 1);
@@ -956,7 +956,13 @@ int mms_fw_update_from_storage(struct mms_ts_info *info, bool force)
 	if (fw_size > 0) {
 		unsigned char *fw_data;
 
-		fw_data = kzalloc(fw_size, GFP_KERNEL);
+		fw_data = vzalloc(fw_size);
+		if (!fw_data) {
+			filp_close(fp, current->files);
+			ret = -ENOMEM;
+			goto ERROR;
+		}
+
 		nread = vfs_read(fp, (char __user *)fw_data, fw_size, &fp->f_pos);
 		input_info(true, &info->client->dev, "%s - path [%s] size [%zu]\n",
 			__func__, EXTERNAL_FW_PATH, fw_size);
@@ -970,7 +976,7 @@ int mms_fw_update_from_storage(struct mms_ts_info *info, bool force)
 			ret = mip4_ts_flash_fw(info, fw_data, fw_size, force, true, false);
 		}
 
-		kfree(fw_data);
+		vfree(fw_data);
 	} else {
 		input_err(true, &info->client->dev, "%s [ERROR] fw_size [%zu]\n", __func__, fw_size);
 		ret = FW_ERR_FILE_READ;
@@ -1671,8 +1677,7 @@ static int mms_suspend(struct device *dev)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 
-	if (info->lowpower_mode)
-		reinit_completion(&info->resume_done);
+	reinit_completion(&info->resume_done);
 
 	return 0;
 }
@@ -1681,8 +1686,7 @@ static int mms_resume(struct device *dev)
 {
 	struct mms_ts_info *info = dev_get_drvdata(dev);
 
-	if (info->lowpower_mode)
-		complete_all(&info->resume_done);
+	complete_all(&info->resume_done);
 
 	return 0;
 }

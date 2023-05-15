@@ -11,8 +11,10 @@
 #define NORMAL_TEMPERATURE	25	/* 25 degrees Celsius */
 
 #define ACL_CMD_CNT				((u16)ARRAY_SIZE(SEQ_ACL_OFF))
+#define ACL_DIM_CMD_CNT				((u16)ARRAY_SIZE(SEQ_ACL_DIM_OFF))
 #define HBM_CMD_CNT				((u16)ARRAY_SIZE(SEQ_HBM_OFF))
 #define ELVSS_CMD_CNT				((u16)ARRAY_SIZE(SEQ_ELVSS_SET))
+#define ACL_DIM_FRAME_OFFSET			3
 
 #define LDI_REG_BRIGHTNESS			0x51
 #define LDI_REG_ID				0x04
@@ -22,6 +24,7 @@
 #define LDI_REG_MANUFACTURE_INFO_CELL_ID	0xEF
 #define LDI_REG_CHIP_ID				0xD1
 #define LDI_REG_ELVSS				0xB7
+#define LDI_REG_MCA_CHECK			0xC4
 
 /* len is read length */
 #define LDI_LEN_ID				3
@@ -31,6 +34,7 @@
 #define LDI_LEN_MANUFACTURE_INFO_CELL_ID	16
 #define LDI_LEN_CHIP_ID				6
 #define LDI_LEN_ELVSS				(ELVSS_CMD_CNT - 1)
+#define LDI_LEN_MCA_CHECK			33
 
 /* offset is position including addr, not only para */
 #define LDI_OFFSET_ACL		1
@@ -201,6 +205,21 @@ static unsigned char SEQ_HBM_ON_DIMMING_OFF[] = {
 static unsigned char SEQ_HBM_OFF_DIMMING_OFF[] = {
 	0x53,
 	0x20,
+};
+
+static unsigned char SEQ_ACL_DIM_OFFSET[] = {
+	0xB0,
+	0xDB,
+};
+
+static unsigned char SEQ_ACL_DIM_OFF[] = {
+	0xB9,
+	0x41, 0xFE, 0x00	/* 0 frame */
+};
+
+static unsigned char SEQ_ACL_DIM_ON[] = {
+	0xB9,
+	0x41, 0xFE, 0x20	/* 32 frame */
 };
 
 static unsigned char SEQ_ACL_SETTING_1[] = {
@@ -446,12 +465,19 @@ enum {
 	TRANS_DIMMING_MAX
 };
 
+enum {
+	ACL_DIMMING_OFF,
+	ACL_DIMMING_ON,
+	ACL_DIMMING_MAX
+};
+
 static unsigned char *HBM_TABLE[TRANS_DIMMING_MAX][HBM_STATUS_MAX] = {
 	{SEQ_HBM_OFF_DIMMING_OFF, SEQ_HBM_ON_DIMMING_OFF},
 	{SEQ_HBM_OFF, SEQ_HBM_ON}
 };
 
 static unsigned char *ACL_TABLE[ACL_STATUS_MAX] = {SEQ_ACL_OFF, SEQ_ACL_08P, SEQ_ACL_15P};
+static unsigned char *ACL_DIM_TABLE[ACL_DIMMING_MAX] = {SEQ_ACL_DIM_OFF, SEQ_ACL_DIM_ON};
 
 /* platform brightness <-> acl opr and percent */
 static unsigned int brightness_opr_table[ACL_STATUS_MAX][EXTEND_BRIGHTNESS + 1] = {

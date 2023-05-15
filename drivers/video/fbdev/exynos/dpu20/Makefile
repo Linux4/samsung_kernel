@@ -5,6 +5,8 @@
 # Licensed under GPLv2
 #
 
+subdir-ccflags-$(CONFIG_SEC_GPIO_DVS)	+= -DCONFIG_SMCDSD_LCD_DEBUG
+
 obj-$(CONFIG_EXYNOS_DPP) += dpp.o
 dpp-y := dpp_drv.o
 obj-$(CONFIG_EXYNOS_MIPI_DSIM) += dsim.o

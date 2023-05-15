@@ -167,6 +167,9 @@ void chub_dbg_dump_hw(struct contexthub_ipc_info *ipc, enum chub_err_type reason
 #ifdef CONFIG_CHRE_SENSORHUB_HAL
 	nanohub_add_dump_request(ipc->data);
 #endif
+#ifdef CONFIG_SENSORS_SSP
+	ssp_dump_write_file(ipc->ssp_data, &p_dbg_dump->sram[p_dbg_dump->sram_start], ipc_get_chub_mem_size(), reason);
+#endif
 
 #ifdef SUPPORT_DUMP_ON_DRIVER
 	/* dosen't support on android-p */
@@ -179,10 +182,6 @@ void chub_dbg_dump_hw(struct contexthub_ipc_info *ipc, enum chub_err_type reason
 			&p_dbg_dump->sram[p_dbg_dump->sram_start],
 			p_dbg_dump->sram_start, ipc_get_chub_mem_size());
 
-#ifdef CONFIG_SENSORS_SSP
-		ssp_dump_write_file(ipc->ssp_data, p_dbg_dump->time / NSEC_PER_SEC, reason,
-					&p_dbg_dump->sram[p_dbg_dump->sram_start], ipc_get_chub_mem_size());
-#endif
 		chub_dbg_write_file(ipc->dev, "dram",
 			p_dbg_dump, sizeof(struct dbg_dump));
 

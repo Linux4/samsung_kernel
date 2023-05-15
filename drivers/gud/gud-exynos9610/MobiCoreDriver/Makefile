@@ -31,6 +31,7 @@ mcDrvModule-y := \
 	mcp.o \
 	mmu.o \
 	nq.o \
+	protocol.o \
 	session.o \
 	teeclientapi.o \
 	user.o \

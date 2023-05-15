@@ -743,6 +743,7 @@ struct sm5713_usbpd_manager_data {
 	struct sm5713_usbpd_data *pd_data;
 	struct delayed_work	acc_detach_handler;
 	struct delayed_work	new_power_handler;
+	uint32_t dr_swap_cnt;
 #if defined(CONFIG_SEC_FACTORY)
 	int vbus_adc;
 #endif

@@ -95,13 +95,14 @@ int five_appraise_measurement(struct task_struct *task, int func,
 
 int five_read_xattr(struct dentry *dentry, char **xattr_value);
 int five_check_params(struct task_struct *task, struct file *file);
-const char *five_d_path(const struct path *path, char **pathbuf);
+const char *five_d_path(const struct path *path, char **pathbuf,
+			char *namebuf);
 
 int five_digsig_verify(struct five_cert *cert,
 			    const char *digest, int digestlen);
 int five_reboot_notifier(struct notifier_block *nb,
 			       unsigned long action, void *unused);
-void __init five_load_built_x509(void);
+int __init five_load_built_x509(void);
 int __init five_keyring_init(void);
 
 const char *five_get_string_fn(enum five_hooks fn);

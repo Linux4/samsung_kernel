@@ -1050,7 +1050,8 @@ void slsi_debug_frame(struct slsi_dev *sdev, struct net_device *dev, struct sk_b
 		frametype = fapi_get_u16(skb, u.ma_unitdata_req.data_unit_descriptor);
 		break;
 	case MA_UNITDATA_IND:
-		frametype = fapi_get_u16(skb, u.ma_unitdata_ind.data_unit_descriptor);
+		if (fapi_get_u16(skb, u.ma_unitdata_ind.bulk_data_descriptor) == FAPI_BULKDATADESCRIPTOR_INLINE)
+			frametype = fapi_get_u16(skb, u.ma_unitdata_ind.data_unit_descriptor);
 		break;
 	case MLME_SEND_FRAME_REQ:
 		frametype = fapi_get_u16(skb, u.mlme_send_frame_req.data_unit_descriptor);
@@ -1107,13 +1108,8 @@ void slsi_debug_frame(struct slsi_dev *sdev, struct net_device *dev, struct sk_b
 		return;
 	}
 	if (print) {
-#ifdef CONFIG_SCSC_WLAN_SKB_TRACKING
-		SLSI_DBG4(sdev, SLSI_SUMMARY_FRAMES, "%-5s: 0x%p %s(vif:%u rssi:%-3d, s:%pM d:%pM)->%s\n",
-			 dev ? netdev_name(dev) : "", skb, prefix, vif, rssi, src, dst, frame_info);
-#else
 		SLSI_DBG4(sdev, SLSI_SUMMARY_FRAMES, "%-5s: %s(vif:%u rssi:%-3d, s:%pM d:%pM)->%s\n",
 			 dev ? netdev_name(dev) : "", prefix, vif, rssi, src, dst, frame_info);
-#endif
 	}
 }
 

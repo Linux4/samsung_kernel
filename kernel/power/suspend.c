@@ -36,6 +36,7 @@
 #include <linux/sec_debug.h>
 
 #include "power.h"
+#include <linux/cpumask.h>
 
 const char * const pm_labels[] = {
 	[PM_SUSPEND_TO_IDLE] = "freeze",
@@ -64,6 +65,19 @@ static DECLARE_WAIT_QUEUE_HEAD(s2idle_wait_head);
 
 enum s2idle_states __read_mostly s2idle_state;
 static DEFINE_RAW_SPINLOCK(s2idle_lock);
+
+static struct cpumask fast_cpu_mask;
+static struct cpumask backup_cpu_mask;
+
+static void init_pm_cpumask(void)
+{
+	int i;
+
+	cpumask_clear(&fast_cpu_mask);
+
+	for (i = 4; i < nr_cpu_ids; i++)
+		cpumask_set_cpu(i, &fast_cpu_mask);
+}
 
 void s2idle_set_ops(const struct platform_s2idle_ops *ops)
 {
@@ -192,6 +206,7 @@ void __init pm_states_init(void)
 	 * initialize mem_sleep_states[] accordingly here.
 	 */
 	mem_sleep_states[PM_SUSPEND_TO_IDLE] = mem_sleep_labels[PM_SUSPEND_TO_IDLE];
+	init_pm_cpumask();
 }
 
 static int __init mem_sleep_default_setup(char *str)
@@ -514,6 +529,8 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 
  Enable_cpus:
 	enable_nonboot_cpus();
+	cpumask_copy(&backup_cpu_mask, &current->cpus_allowed);
+	set_cpus_allowed_ptr(current, &fast_cpu_mask);
 
  Platform_wake:
 	platform_resume_noirq(state);
@@ -578,6 +595,12 @@ int suspend_devices_and_enter(suspend_state_t state)
  Close:
 	platform_resume_end(state);
 	pm_suspend_target_state = PM_SUSPEND_ON;
+
+	if (!cpumask_empty(&backup_cpu_mask)) {
+		cpumask_copy(&current->cpus_allowed, &backup_cpu_mask);
+		cpumask_clear(&backup_cpu_mask);
+	}
+
 	return error;
 
  Recover_platform:

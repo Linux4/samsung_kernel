@@ -16,6 +16,7 @@
 
 #define MXLOG_TRANSPORT_BUF_LENGTH (16 * 1024)
 #define MXLOG_TRANSPORT_PACKET_SIZE (4)
+#define MXLOG_TRANSPORT_MAX_BAD_SYNC_HEADER_CNT (250)
 
 /* Flag that an error has occurred so the I/O thread processing should stop */
 void mxlog_transport_set_error(struct mxlog_transport *mxlog_transport)
@@ -99,6 +100,11 @@ static int mxlog_thread_function(void *arg)
 	u32                        header;
 	char			   *buf = NULL;
 	size_t			   buf_sz = 4096;
+	/*
+	 * Do not die on first invalid packet header check atleast for MXLOG_TRANSPORT_MAX_BAD_SYNC_HEADER_CNT
+	 * consecutive invalid packet head
+	 */
+	u32			   invld_hdr_cnt = 0;
 
 	buf = kmalloc(buf_sz, GFP_KERNEL);
 	if (!buf) {
@@ -161,13 +167,22 @@ static int mxlog_thread_function(void *arg)
 							       &level, &num_bytes)) {
 				SCSC_TAG_ERR(MXLOG_TRANS,
 					     "Bad sync in header: header=0x%08x\n", header);
+
+				if (++invld_hdr_cnt > MXLOG_TRANSPORT_MAX_BAD_SYNC_HEADER_CNT) {
+					SCSC_TAG_ERR(MXLOG_TRANS, "Received %d continuous bad sync headers. Terminating ...\n", MXLOG_TRANSPORT_MAX_BAD_SYNC_HEADER_CNT);
+					mutex_unlock(&mxlog_transport->lock);
+					/* not recoverable, terminate straight away */
+					goto mxlog_thread_exit;
+				}
 				mutex_unlock(&mxlog_transport->lock);
-				/* not recoverable, terminate straight away */
-				goto mxlog_thread_exit;
+				continue;
 			}
 			if (num_bytes > 0 &&
 			    num_bytes < (MXLOG_TRANSPORT_BUF_LENGTH - sizeof(uint32_t))) {
 				u32	ret_bytes = 0;
+
+				/* We have received valid packets reset invalid header count */
+				invld_hdr_cnt = 0;
 
 				/* 2nd read - payload (msg) */
 				ret_bytes = mif_stream_read(&mxlog_transport->mif_stream,

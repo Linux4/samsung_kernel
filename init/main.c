@@ -556,7 +556,6 @@ static void __init mm_init(void)
 rkp_init_t rkp_init_data __rkp_ro = {
 	.magic = RKP_INIT_MAGIC,
 	.vmalloc_start = VMALLOC_START,
-	.no_fimc_verify = 1, // Temporarily disabling FIMC signature verification - Must be 0
 	.fimc_phys_addr = 0,
 	._text = (u64)_text,
 	._etext = (u64)_etext,
@@ -574,11 +573,15 @@ static void __init rkp_init(void)
 	rkp_init_data.vmalloc_end = (u64)high_memory;
 	rkp_init_data.init_mm_pgd = (u64)__pa(swapper_pg_dir);
 	rkp_init_data.id_map_pgd = (u64)__pa(idmap_pg_dir);
+#ifdef CONFIG_UNMAP_KERNEL_AT_EL0
 	rkp_init_data.tramp_pgd = (u64)__pa(tramp_pg_dir);
-#ifdef CONFIG_UH_RKP_FIMC_CHECK
+#endif
+#ifndef CONFIG_UH_RKP_FIMC_CHECK
 	rkp_init_data.no_fimc_verify = 1;
 #endif
+#ifdef CONFIG_UNMAP_KERNEL_AT_EL0
 	rkp_init_data.tramp_valias = (u64)TRAMP_VALIAS;
+#endif
 	rkp_init_data.zero_pg_addr = (u64)__pa(empty_zero_page);
 	rkp_s_bitmap_ro = (sparse_bitmap_for_kernel_t *)
 		uh_call(UH_APP_RKP, RKP_GET_RO_BITMAP, 0, 0, 0, 0);
@@ -685,8 +688,8 @@ asmlinkage __visible void __init start_kernel(void)
 	setup_command_line(command_line);
 	setup_nr_cpu_ids();
 	setup_per_cpu_areas();
-	boot_cpu_state_init();
 	smp_prepare_boot_cpu();	/* arch-specific boot-cpu hooks */
+	boot_cpu_hotplug_init();
 
 	build_all_zonelists(NULL);
 	page_alloc_init();
@@ -812,7 +815,6 @@ asmlinkage __visible void __init start_kernel(void)
 		initrd_start = 0;
 	}
 #endif
-	page_ext_init();
 	kmemleak_init();
 	debug_objects_mem_init();
 	setup_per_cpu_pageset();
@@ -829,7 +831,7 @@ asmlinkage __visible void __init start_kernel(void)
 #endif
 	thread_stack_cache_init();
 #ifdef CONFIG_RKP_KDP
-	if (rkp_cred_enable) 
+	if (rkp_cred_enable)
 		kdp_init();
 #endif /*CONFIG_RKP_KDP*/
 	cred_init();
@@ -1283,6 +1285,8 @@ static noinline void __init kernel_init_freeable(void)
 	sched_init_smp();
 
 	page_alloc_init_late();
+	/* Initialize page ext after all struct pages are initialized. */
+	page_ext_init();
 
 	do_basic_setup();
 

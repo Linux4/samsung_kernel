@@ -86,6 +86,7 @@ static void sm5713_muic_handle_RPLEVEL(struct sm5713_muic_data *muic_data)
 {
 	switch (muic_data->attached_dev) {
 	case ATTACHED_DEV_AFC_CHARGER_PREPARE_MUIC:
+	case ATTACHED_DEV_AFC_CHARGER_DISABLED_MUIC:
 	case ATTACHED_DEV_AFC_CHARGER_5V_MUIC:
 	case ATTACHED_DEV_AFC_CHARGER_9V_MUIC:
 	case ATTACHED_DEV_AFC_CHARGER_12V_MUIC:
@@ -138,6 +139,13 @@ static int sm5713_muic_handle_ccic_ATTACH(struct sm5713_muic_data *muic_data,
 			muic_data->ccic_info_data.ccic_evt_dcdcnt = 1;
 			need_to_run_work = true;
 		}
+
+#if defined(CONFIG_MUIC_BCD_RESCAN)
+		if (muic_data->bc12_retry_skip && pnoti->cable_type) {
+			muic_data->bc12_retry_skip = 0;
+			need_to_run_work = true;
+		}
+#endif
 
 		muic_data->is_water_detect = false;
 	} else {

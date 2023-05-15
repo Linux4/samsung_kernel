@@ -29,9 +29,6 @@ static int fimc_is_hw_dcp_open(struct fimc_is_hw_ip *hw_ip, u32 instance,
 	frame_manager_probe(hw_ip->framemgr, FRAMEMGR_ID_HW | hw_ip->id, "HWDCP");
 	frame_manager_open(hw_ip->framemgr, FIMC_IS_MAX_HW_FRAME);
 
-	frame_manager_probe(hw_ip->framemgr_late, FRAMEMGR_ID_HW | hw_ip->id | 0xF0, "HWDCP LATE");
-	frame_manager_open(hw_ip->framemgr_late, FIMC_IS_MAX_HW_FRAME_LATE);
-
 	hw_ip->priv_info = vzalloc(sizeof(struct fimc_is_hw_dcp));
 	if(!hw_ip->priv_info) {
 		mserr_hw("hw_ip->priv_info(null)", instance, hw_ip);
@@ -78,7 +75,6 @@ err_lib_func:
 	hw_ip->priv_info = NULL;
 err_alloc:
 	frame_manager_close(hw_ip->framemgr);
-	frame_manager_close(hw_ip->framemgr_late);
 	return ret;
 }
 
@@ -146,7 +142,6 @@ static int fimc_is_hw_dcp_close(struct fimc_is_hw_ip *hw_ip, u32 instance)
 	vfree(hw_ip->priv_info);
 	hw_ip->priv_info = NULL;
 	frame_manager_close(hw_ip->framemgr);
-	frame_manager_close(hw_ip->framemgr_late);
 
 	clear_bit(HW_OPEN, &hw_ip->state);
 

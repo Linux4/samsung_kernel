@@ -17,6 +17,10 @@
 
 #define DSIM_VERSION					(0x0)
 
+#define M4S4_TOP_ISO_BYPASS				(0x1 << 0)
+#define M4S4_MODULE_ISO_BYPASS				(0x1 << 0)
+#define MIPI_PHY_M4S4_CON				0x1186070C
+
 #define DSIM_SWRST					(0x4)
 #define DSIM_DPHY_RST					(1 << 16)
 #define DSIM_SWRST_FUNCRST				(1 << 8)

@@ -310,10 +310,13 @@ static int update_freq(struct exynos_cpufreq_domain *domain,
 	if (!policy)
 		return -EINVAL;
 
+	down_read(&policy->rwsem);
 	if (static_governor(policy)) {
+		up_read(&policy->rwsem);
 		cpufreq_cpu_put(policy);
 		return 0;
 	}
+	up_read(&policy->rwsem);
 
 	ret = cpufreq_driver_target(policy, freq, CPUFREQ_RELATION_H);
 	cpufreq_cpu_put(policy);

@@ -52,6 +52,7 @@ enum
 #define RESET_REASON_KERNEL_RESET            0x01
 #define RESET_REASON_MCU_CRASHED             0x02
 #define RESET_REASON_SYSFS_REQUEST           0x03
+#define RESET_REASON_HUB_REQUEST             0x04
 
 static int ssp_preenable(struct iio_dev *indio_dev)
 {
@@ -146,7 +147,7 @@ static void report_prox_cal_data(struct ssp_data *data, int type,
 
 void report_sensor_data(struct ssp_data *data, int type,
                         struct sensor_value *event)
-{
+{	
 	if (type == SENSOR_TYPE_PROXIMITY) {
 		ssp_info("Proximity Sensor Detect : %u, raw : %u",
 		         event->prox, event->prox_ex);
@@ -172,9 +173,8 @@ void report_sensor_data(struct ssp_data *data, int type,
 		}
 	} else if (type == SENSOR_TYPE_LIGHT_CCT) {
 		if (data->light_cct_log_cnt < 3) {
-			ssp_info("Light cct Sensor : lux=%u brightness=%u r=%d g=%d b=%d c=%d atime=%d again=%d",
+			ssp_info("Light cct Sensor : lux=%u r=%d g=%d b=%d c=%d atime=%d again=%d",
 				     data->buf[SENSOR_TYPE_LIGHT_CCT].lux,
-				     data->buf[SENSOR_TYPE_LIGHT_CCT].brightness,
 			         data->buf[SENSOR_TYPE_LIGHT_CCT].r, data->buf[SENSOR_TYPE_LIGHT_CCT].g,
 			         data->buf[SENSOR_TYPE_LIGHT_CCT].b,
 			         data->buf[SENSOR_TYPE_LIGHT_CCT].w, data->buf[SENSOR_TYPE_LIGHT_CCT].a_time,
@@ -192,11 +192,11 @@ void report_sensor_data(struct ssp_data *data, int type,
 				ssp_infof("Light AB Sensor : report first lux form light sensor");
 				report_camera_lux_data(data, data->buf[type].ab_lux);
 			}
-	
+
 			ssp_infof("Light AB Sensor : report cam enable");
 			data->camera_lux_en = true;
 			data->buf[type].ab_lux = CAMERA_LUX_ENABLE;
-		}
+		}	
 		else if(data->camera_lux_en &&
 			((data->buf[type].ab_lux >= data->camera_lux_hysteresis[1]) || 
 			(data->buf[type].ab_brightness <= data->camera_br_hysteresis[1])))
@@ -233,7 +233,6 @@ void report_sensor_data(struct ssp_data *data, int type,
 
 	ssp_iio_push_buffers(data->indio_devs[type], event->timestamp,
 	                     (char *)&data->buf[type], data->info[type].report_data_len);
-
 
 	/* wake-up sensor */
 	if (type == SENSOR_TYPE_PROXIMITY || type == SENSOR_TYPE_SIGNIFICANT_MOTION
@@ -321,14 +320,16 @@ void report_scontext_notice_data(struct ssp_data *data, char notice)
 	notice_buf[2] = notice;
 	if (notice == SCONTEXT_AP_STATUS_RESET) {
 		len = 4;
-		if (data->is_reset_from_sysfs == true) {
+		if (data->reset_type == RESET_TYPE_KERNEL_SYSFS) {
 			notice_buf[3] = RESET_REASON_SYSFS_REQUEST;
-			data->is_reset_from_sysfs = false;
-		} else if (data->is_reset_from_kernel == true) {
+		} else if(data->reset_type == RESET_TYPE_KERNEL_NO_EVENT) {
 			notice_buf[3] = RESET_REASON_KERNEL_RESET;
-			data->is_reset_from_kernel = false;
-		} else {
+		} else if(data->reset_type == RESET_TYPE_KERNEL_COM_FAIL) {
+			notice_buf[3] = RESET_REASON_KERNEL_RESET;
+		} else if(data->reset_type == RESET_TYPE_HUB_CRASHED) {
 			notice_buf[3] = RESET_REASON_MCU_CRASHED;
+		} else if(data->reset_type == RESET_TYPE_HUB_NO_EVENT) {
+			notice_buf[3] = RESET_REASON_HUB_REQUEST;
 		}
 	}
 
@@ -343,6 +344,13 @@ void report_scontext_notice_data(struct ssp_data *data, char notice)
 	} else {
 		ssp_errf("invalid notice(0x%x)", notice);
 	}
+}
+
+void report_sensorhub_data(struct ssp_data *data, char* buf)
+{
+	ssp_infof();
+	ssp_iio_push_buffers(data->indio_devs[SENSOR_TYPE_SENSORHUB], get_current_timestamp(),
+							buf, data->info[SENSOR_TYPE_SENSORHUB].report_data_len);
 }
 
 static void *init_indio_device(struct device *dev, struct ssp_data *data,

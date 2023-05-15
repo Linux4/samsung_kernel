@@ -27,6 +27,12 @@ struct mxfwconfig {
 
 struct mxmibref;
 
+/* Zero terminated table of L7 system errors to handle at L7 rather than
+ * auto-promote to L8
+ */
+#define MXFWCONFIG_MAX_NO_PROMOTE 32
+extern u32 mxfwconfig_syserr_no_promote[MXFWCONFIG_MAX_NO_PROMOTE];
+
 int mxfwconfig_init(struct scsc_mx *mx);
 void mxfwconfig_deinit(struct scsc_mx *mx);
 int mxfwconfig_load(struct scsc_mx *mx, struct mxmibref *cfg_ref);

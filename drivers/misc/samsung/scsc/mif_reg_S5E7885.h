@@ -84,12 +84,12 @@
 					* auto-clear by DIRECTWR at UP */
 
 #define WIFI_STAT               0x0148
-#define WIFI_PWRDN_DONE 	BIT(0) /* Check WIFI power-down status.*/
-#define WIFI_ACCESS_MIF 	BIT(4) /* Check whether WIFI accesses MIF doman */
+#define WIFI_PWRDN_DONE		BIT(0) /* Check WIFI power-down status.*/
+#define WIFI_ACCESS_MIF		BIT(4) /* Check whether WIFI accesses MIF doman */
 
 #define WIFI_DEBUG              0x014c /* MIF sleep, wakeup debugging control */
 #define EN_MIF_REQ		BIT(0) /* Control MIF_REQ through GPIO_ALIVE. */
-#define EN_WIFI_ACTIVE 		BIT(2) /* Control WIFI_ACTIVE through GPIO_ALIVE. */
+#define EN_WIFI_ACTIVE		BIT(2) /* Control WIFI_ACTIVE through GPIO_ALIVE. */
 #define EN_MIF_RESET_REQ	BIT(3) /* Control WIFI_RESET_REQ through GPIO_ALIVE. */
 #define MASK_CLKREQ_WIFI	BIT(8) /* When this field is set to HIGH, ALIVE ignores
 					* CLKREQ from WIFI.*/
@@ -99,12 +99,12 @@
 #define PMU_ALIVE_REG(r)        (PMU_ALIVE_BASE + (r))
 #define WIFI2AP_MEM_CONFIG0     0x7300 /* MEM_SIZE SECTION_0 */
 #define WIFI2AP_MEM_CONFIG1     0x7304 /* BASE ADDRESS SECTION 0*/
-#define WIFI2AP_MEM_CONFIG2     0x7300 /* MEM_SIZE SECTION_0 */
-#define WIFI2AP_MEM_CONFIG3     0x7304 /* BASE ADDRESS SECTION 1*/
-#define WIFI2AP_MEM_CONFIG4     0x7300 /* MEM_SIZE SECTION_1 */
-#define WIFI2AP_MEM_CONFIG5     0x7304 /* BASE ADDRESS SECTION 0*/
-#define WIFI2AP_MIF_ACCESS_WIN0 0x7318 /* ACCESS_CONTROL SFR*/
-#define WIFI2AP_MIF_ACCESS_WIN1 0x731c /* ACCESS_CONTROL SFR*/
+#define WIFI2AP_MEM_CONFIG2     0x7308 /* MEM_SIZE SECTION_0 */
+#define WIFI2AP_MEM_CONFIG3     0x730C /* BASE ADDRESS SECTION 1*/
+#define WIFI2AP_MEM_CONFIG4     0x7310 /* MEM_SIZE SECTION_1 */
+#define WIFI2AP_MEM_CONFIG5     0x7314 /* BASE ADDRESS SECTION 0*/
+#define WIFI2AP_MIF_ACCESS_WIN0 0x7318 /* ACCESS_CONTROL SFR */
+#define WIFI2AP_MIF_ACCESS_WIN1 0x731c /* ACCESS_CONTROL SFR */
 #define WIFI2AP_PERI0_ACCESS_WIN0 0x7320 /* ACCESS WINDOW PERI */
 #define WIFI2AP_PERI0_ACCESS_WIN1 0x7324 /* ACCESS WINDOW PERI */
 #define WIFI2AP_PERI0_ACCESS_WIN2 0x7328 /* ACCESS WINDOW PERI */
@@ -114,7 +114,7 @@
 					/* WLBT2AP_PERI_PROT2 */
 
 /* Power down registers */
-#define RESET_AHEAD_WIFI_PWR_REG 0x1360 	/* Control power state in LOWPWR mode 1 - on, 0 - down*/
+#define RESET_AHEAD_WIFI_PWR_REG 0x1360		/* Control power state in LOWPWR mode 1 - on, 0 - down*/
 #define CLEANY_BUS_WIFI_SYS_PWR_REG 0x1364	/* Control power state in LOWPWR mode 1 - on, 0 - down*/
 #define LOGIC_RESET_WIFI_SYS_PWR_REG 0x1368	/* Control power state in LOWPWR mode 1 - on, 0 - down*/
 #define TCXO_GATE_WIFI_SYS_PWR_REG 0x136c	/* Control power state in LOWPWR mode 1 - on, 0 */

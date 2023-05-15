@@ -531,18 +531,15 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 		{
 			int check_val = 0;
 
-			if (is_hv_wire_12v_type(battery->cable_type)) {
+			if (is_hv_wire_12v_type(battery->cable_type) ||
+				battery->max_charge_power >= HV_CHARGER_STATUS_STANDARD2) {
 				check_val = 2;
 			} else if (is_hv_wire_type(battery->cable_type) ||
-				battery->wire_status == SEC_BATTERY_CABLE_PREPARE_TA) {
-				check_val = 1;
-			} else if (is_pd_wire_type(battery->cable_type)) {
-				if (battery->pd_max_charge_power >= HV_CHARGER_STATUS_STANDARD1 &&
-					battery->pdic_info.sink_status.available_pdo_num > 1)
-					check_val = 1;
-			} else if (battery->max_charge_power >= HV_CHARGER_STATUS_STANDARD2) {
-				check_val = 2;
-			} else if (battery->max_charge_power >= HV_CHARGER_STATUS_STANDARD1) {
+				(is_pd_wire_type(battery->cable_type) &&
+				battery->pd_max_charge_power >= HV_CHARGER_STATUS_STANDARD1 &&
+				battery->pdic_info.sink_status.available_pdo_num > 1) ||
+				battery->wire_status == SEC_BATTERY_CABLE_PREPARE_TA ||
+				battery->max_charge_power >= HV_CHARGER_STATUS_STANDARD1) {
 				check_val = 1;
 			}
 
@@ -654,7 +651,7 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 			psy_do_property(battery->pdata->fgsrc_switch_name, set,
 					POWER_SUPPLY_EXT_PROP_INBAT_VOLTAGE_FGSRC_SWITCHING, value);
 			for (j = 0; j < 10; j++) {
-				mdelay(175);
+				msleep(175);
 				psy_do_property(battery->pdata->fuelgauge_name, get,
 					POWER_SUPPLY_PROP_VOLTAGE_NOW, value);
 				ocv_data[j] = value.intval;
@@ -1508,7 +1505,11 @@ ssize_t sec_bat_store_attrs(
 			} else {
 				battery->siop_level = 100;
 			}
-
+#if defined(CONFIG_SUPPORT_HV_CTRL)
+			/* clear skip heating control for sec_bat_change_vbus_pd */
+			if (battery->cable_type == SEC_BATTERY_CABLE_PDIC)
+				sec_bat_set_current_event(battery, 0, SEC_BAT_CURRENT_EVENT_SKIP_HEATING_CONTROL);
+#endif
 			wake_lock(&battery->siop_level_wake_lock);
 			queue_delayed_work(battery->monitor_wqueue, &battery->siop_level_work, 0);
 
@@ -1547,6 +1548,13 @@ ssize_t sec_bat_store_attrs(
 	case FG_CAPACITY:
 		break;
 	case FG_ASOC:
+		if (sscanf(buf, "%d\n", &x) == 1) {
+			if (x >= 0 && x <= 100) {
+				battery->batt_asoc = x;
+				sec_bat_check_battery_health(battery);
+			}
+			ret = count;
+		}
 		break;
 	case AUTH:
 		break;
@@ -2003,6 +2011,7 @@ ssize_t sec_bat_store_attrs(
 						"%s: [Long life] Do sec_bat_aging_check()\n", __func__);
 					sec_bat_aging_check(battery);
 				}
+				sec_bat_check_battery_health(battery);
 			}
 			ret = count;
 		}

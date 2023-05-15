@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright (c) 2012 - 2019 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2020 Samsung Electronics Co., Ltd. All rights reserved
  *
  *****************************************************************************/
 
@@ -15,16 +15,19 @@
 #include <net/cfg80211.h>
 
 #include "netif.h"
-#include "wakelock.h"
-#ifdef CONFIG_SCSC_SMAPPER
+#include "fapi.h"
+
 struct slsi_skb_cb {
 	u32 sig_length;
 	u32 data_length;
 	u32 frame_format;
-	u32 colour;
+#ifdef CONFIG_SCSC_SMAPPER
 	bool free_ma_unitdat;
 	struct sk_buff *skb_addr;
+#endif
+	bool wakeup;
 };
+struct netdev_vif;
 
 static inline struct slsi_skb_cb *slsi_skb_cb_get(struct sk_buff *skb)
 {
@@ -38,7 +41,96 @@ static inline struct slsi_skb_cb *slsi_skb_cb_init(struct sk_buff *skb)
 	memset(skb->cb, 0, sizeof(struct slsi_skb_cb));
 	return slsi_skb_cb_get(skb);
 }
-#endif
+
+#define fapi_alloc(mp_name, mp_id, mp_vif, mp_datalen) fapi_alloc_f(fapi_sig_size(mp_name), mp_datalen, mp_id, mp_vif, __FILE__, __LINE__)
+#define fapi_get_buff(mp_skb, mp_name) (((struct fapi_signal *)(mp_skb)->data)->mp_name)
+#define fapi_get_u16(mp_skb, mp_name) le16_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name)
+#define fapi_get_u32(mp_skb, mp_name) le32_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name)
+#define fapi_get_u64(mp_skb, mp_name) le64_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name)
+#define fapi_set_u16(mp_skb, mp_name, mp_value) (((struct fapi_signal *)(mp_skb)->data)->mp_name = cpu_to_le16(mp_value))
+#define fapi_set_u32(mp_skb, mp_name, mp_value) (((struct fapi_signal *)(mp_skb)->data)->mp_name = cpu_to_le32(mp_value))
+#define fapi_get_s16(mp_skb, mp_name) ((s16)le16_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name))
+#define fapi_get_s32(mp_skb, mp_name) ((s32)le32_to_cpu(((struct fapi_signal *)(mp_skb)->data)->mp_name))
+#define fapi_set_s16(mp_skb, mp_name, mp_value) (((struct fapi_signal *)(mp_skb)->data)->mp_name = cpu_to_le16((u16)mp_value))
+#define fapi_set_s32(mp_skb, mp_name, mp_value) (((struct fapi_signal *)(mp_skb)->data)->mp_name = cpu_to_le32((u32)mp_value))
+#define fapi_set_memcpy(mp_skb, mp_name, mp_value) memcpy(((struct fapi_signal *)(mp_skb)->data)->mp_name, mp_value, sizeof(((struct fapi_signal *)(mp_skb)->data)->mp_name))
+#define fapi_set_memset(mp_skb, mp_name, mp_value) memset(((struct fapi_signal *)(mp_skb)->data)->mp_name, mp_value, sizeof(((struct fapi_signal *)(mp_skb)->data)->mp_name))
+
+/* Helper to get and set high/low 16 bits from u32 signals */
+#define fapi_get_high16_u32(mp_skb, mp_name) ((fapi_get_u32((mp_skb), mp_name) & 0xffff0000) >> 16)
+#define fapi_set_high16_u32(mp_skb, mp_name, mp_value) fapi_set_u32((mp_skb), mp_name, (fapi_get_u32((mp_skb), mp_name) & 0xffff) | ((mp_value) << 16))
+#define fapi_get_low16_u32(mp_skb, mp_name) (fapi_get_u32((mp_skb), mp_name) & 0xffff)
+#define fapi_set_low16_u32(mp_skb, mp_name, mp_value) fapi_set_u32((mp_skb), mp_name, (fapi_get_u32((mp_skb), mp_name) & 0xffff0000) | (mp_value))
+
+#define fapi_get_siglen(mp_skb) (slsi_skb_cb_get(mp_skb)->sig_length)
+#define fapi_get_datalen(mp_skb) (slsi_skb_cb_get(mp_skb)->data_length - slsi_skb_cb_get(mp_skb)->sig_length)
+#define fapi_get_data(mp_skb) (mp_skb->data + fapi_get_siglen(mp_skb))
+#define fapi_get_vif(mp_skb) le16_to_cpu(((struct fapi_vif_signal_header *)(mp_skb)->data)->vif)
+
+/* Helper to get the struct ieee80211_mgmt from the data */
+#define fapi_get_mgmt(mp_skb) ((struct ieee80211_mgmt *)fapi_get_data(mp_skb))
+#define fapi_get_mgmtlen(mp_skb) fapi_get_datalen(mp_skb)
+
+static inline struct sk_buff *fapi_alloc_f(size_t sig_size, size_t data_size, u16 id, u16 vif, const char *file, int line)
+{
+	struct sk_buff                *skb = NULL;
+	struct fapi_vif_signal_header *header;
+
+	if (WARN_ON(in_interrupt()))
+		return NULL;
+	skb = alloc_skb(sig_size + data_size, GFP_KERNEL);
+	WARN_ON(sig_size < sizeof(struct fapi_signal_header));
+	if (WARN_ON(!skb))
+		return NULL;
+
+	slsi_skb_cb_init(skb)->sig_length = sig_size;
+	slsi_skb_cb_get(skb)->data_length = sig_size;
+
+	header = (struct fapi_vif_signal_header *)skb_put(skb, sig_size);
+	header->id = cpu_to_le16(id);
+	header->receiver_pid = 0;
+	header->sender_pid = 0;
+	header->fw_reference = 0;
+	header->vif = vif;
+	return skb;
+}
+
+static inline u8 *fapi_append_data(struct sk_buff *skb, const u8 *data, size_t data_len)
+{
+	u8 *p;
+
+	if (WARN_ON(skb_tailroom(skb) < data_len))
+		return NULL;
+
+	p = skb_put(skb, data_len);
+	slsi_skb_cb_get(skb)->data_length += data_len;
+	if (data)
+		memcpy(p, data, data_len);
+	return p;
+}
+
+static inline u8 *fapi_append_data_u32(struct sk_buff *skb, const u32 data)
+{
+	__le32 val = cpu_to_le32(data);
+
+	return fapi_append_data(skb, (u8 *)&val, sizeof(val));
+}
+
+static inline u8 *fapi_append_data_u16(struct sk_buff *skb, const u16 data)
+{
+	__le16 val = cpu_to_le16(data);
+
+	return fapi_append_data(skb, (u8 *)&val, sizeof(val));
+}
+
+static inline u8 *fapi_append_data_u8(struct sk_buff *skb, const u8 data)
+{
+	u8 val = data;
+
+	return fapi_append_data(skb, (u8 *)&val, sizeof(val));
+}
+
+#define fapi_append_data_bool(skb, data) fapi_append_data_u16(skb, data)
 
 static inline u32  slsi_convert_tlv_data_to_value(u8 *data, u16 length)
 {
@@ -53,32 +145,26 @@ static inline u32  slsi_convert_tlv_data_to_value(u8 *data, u16 length)
 	return value;
 }
 
-static inline int slsi_get_two_compliment(u32 value)
+static inline void  slsi_convert_tlv_to_64bit_value(u8 *data, u16 length, u32 *lower, u32 *higher)
 {
-	int no_bits = 0;
-	u32 roam_rssi = value;
-	int ret = 0;
+	int i;
 
-	while (roam_rssi) {
-		no_bits++;
-		roam_rssi >>= 1;
-	}
-	ret = ((1 << no_bits) - 1) ^ value;
-	ret = -(ret + 1);
-	return ret;
+	*lower = 0;
+	*higher = 0;
+	if (length > 8)
+		return;
+	for (i = 0; i < 4 && i < length; i++)
+		*lower |= ((u32)data[i]) << i * 8;
+	for (i = 4; i < 8 && i < length; i++)
+		*higher |= ((u32)data[i]) << (i - 4) * 8;
 }
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0))
 #define SLSI_ETHER_COPY(dst, src)	ether_addr_copy((dst), (src))
 #define SLSI_ETHER_EQUAL(mac1, mac2)	ether_addr_equal((mac1), (mac2))
-#else
-#define SLSI_ETHER_COPY(dst, src)	memcpy((dst), (src), ETH_ALEN)
-#define SLSI_ETHER_EQUAL(mac1, mac2)	(memcmp((mac1), (mac2), ETH_ALEN) == 0)
-#endif
 
 extern uint slsi_sg_host_align_mask;
 #define SLSI_HIP_FH_SIG_PREAMBLE_LEN 4
@@ -154,263 +240,21 @@ extern uint slsi_sg_host_align_mask;
 		(output) += 4; \
 	} while (0)
 
-#ifdef CONFIG_SCSC_WLAN_SKB_TRACKING
-void slsi_dbg_track_skb_init(void);
-void slsi_dbg_track_skb_reset(void);
-void slsi_dbg_track_skb_f(struct sk_buff *skb, gfp_t flags, const char *file, int line);
-bool slsi_dbg_untrack_skb_f(struct sk_buff *skb, const char *file, int line);
-bool slsi_dbg_track_skb_marker_f(struct sk_buff *skb, const char *file, int line);
-#define slsi_dbg_track_skb(skb_, flags_) slsi_dbg_track_skb_f(skb_, flags_, __FILE__, __LINE__)
-#define slsi_dbg_untrack_skb(skb_) slsi_dbg_untrack_skb_f(skb_, __FILE__, __LINE__)
-#define slsi_dbg_track_skb_marker(skb_) slsi_dbg_track_skb_marker_f(skb_, __FILE__, __LINE__)
-void slsi_dbg_track_skb_report(void);
-
-static inline struct sk_buff *slsi_dev_alloc_skb_f(unsigned int length, const char *file, int line)
-{
-	struct sk_buff *skb = dev_alloc_skb(SLSI_NETIF_SKB_HEADROOM + SLSI_NETIF_SKB_TAILROOM + length);
-
-	if (skb) {
-#ifdef CONFIG_SCSC_SMAPPER
-		slsi_skb_cb_init(skb);
-#endif
-		skb_reserve(skb, SLSI_NETIF_SKB_HEADROOM - SLSI_SKB_GET_ALIGNMENT_OFFSET(skb));
-		slsi_dbg_track_skb_f(skb, GFP_ATOMIC, file, line);
-	}
-	return skb;
-}
-
-static inline struct sk_buff *slsi_alloc_skb_f(unsigned int size, gfp_t priority, const char *file, int line)
-{
-	struct sk_buff *skb = alloc_skb(size, priority);
-
-	if (skb) {
-#ifdef CONFIG_SCSC_SMAPPER
-		slsi_skb_cb_init(skb);
-#endif
-		slsi_dbg_track_skb_f(skb, priority, file, line);
-	}
-
-	return skb;
-}
-
-static inline struct sk_buff *slsi_alloc_skb_headroom_f(unsigned int size, gfp_t priority, const char *file, int line)
-{
-	struct sk_buff *skb = alloc_skb(SLSI_NETIF_SKB_HEADROOM + SLSI_NETIF_SKB_TAILROOM + size, priority);
-
-	if (skb) {
-#ifdef CONFIG_SCSC_SMAPPER
-		slsi_skb_cb_init(skb);
-#endif
-		skb_reserve(skb, SLSI_NETIF_SKB_HEADROOM - SLSI_SKB_GET_ALIGNMENT_OFFSET(skb));
-		slsi_dbg_track_skb_f(skb, priority, file, line);
-	}
-	return skb;
-}
-
-static inline void slsi_skb_unlink_f(struct sk_buff *skb, struct sk_buff_head *list, const char *file, int line)
-{
-	skb_unlink(skb, list);
-	slsi_dbg_track_skb_marker_f(skb, file, line);
-}
-
-static inline void slsi_skb_queue_tail_f(struct sk_buff_head *list, struct sk_buff *skb, const char *file, int line)
-{
-	skb_queue_tail(list, skb);
-	slsi_dbg_track_skb_marker_f(skb, file, line);
-}
-
-static inline void slsi_skb_queue_head_f(struct sk_buff_head *list, struct sk_buff *skb, const char *file, int line)
-{
-	skb_queue_head(list, skb);
-	slsi_dbg_track_skb_marker_f(skb, file, line);
-}
-
-static inline struct sk_buff *slsi_skb_dequeue_f(struct sk_buff_head *list, const char *file, int line)
-{
-	struct sk_buff *skb = skb_dequeue(list);
-
-	if (skb)
-		slsi_dbg_track_skb_marker_f(skb, file, line);
-	return skb;
-}
-
-static inline struct sk_buff *slsi_skb_realloc_headroom_f(struct sk_buff *skb, unsigned int headroom, const char *file, int line)
-{
-	skb = skb_realloc_headroom(skb, headroom);
-	if (skb) {
-#ifdef CONFIG_SCSC_SMAPPER
-		slsi_skb_cb_init(skb);
-#endif
-		slsi_dbg_track_skb_f(skb, GFP_ATOMIC, file, line);
-	}
-	return skb;
-}
-
-static inline struct sk_buff *slsi_skb_copy_f(struct sk_buff *skb, gfp_t priority, const char *file, int line)
-{
-	skb = skb_copy(skb, priority);
-
-	if (skb)
-		slsi_dbg_track_skb_f(skb, priority, file, line);
-	return skb;
-}
-
-static inline struct sk_buff *skb_copy_expand_f(struct sk_buff *skb, int newheadroom, int newtailroom, gfp_t priority, const char *file, int line)
-{
-	skb = skb_copy_expand(skb, newheadroom, newtailroom, priority);
-
-	if (skb)
-		slsi_dbg_track_skb_f(skb, priority, file, line);
-	return skb;
-}
-
-static inline struct sk_buff *slsi_skb_clone_f(struct sk_buff *skb, gfp_t priority, const char *file, int line)
-{
-	skb = skb_clone(skb, priority);
-
-	if (skb)
-		slsi_dbg_track_skb_f(skb, priority, file, line);
-	return skb;
-}
-
-static inline void slsi_kfree_skb_f(struct sk_buff *skb, const char *file, int line)
-{
-	/* If untrack fails we do not free the SKB
-	 * This helps tracking bad pointers and double frees
-	 */
-#ifdef CONFIG_SCSC_SMAPPER
-	struct slsi_skb_cb *cb;
-
-	if (!skb)
-		return;
-
-	cb = (struct slsi_skb_cb *)skb->cb;
-
-	if (cb && !cb->free_ma_unitdat && cb->skb_addr && slsi_dbg_untrack_skb_f(cb->skb_addr, file, line)) {
-		kfree_skb(cb->skb_addr);
-		cb->skb_addr = NULL;
-	}
-#endif
-	if (slsi_dbg_untrack_skb_f(skb, file, line))
-		kfree_skb(skb);
-}
-
-#define slsi_dev_alloc_skb(length_)      slsi_dev_alloc_skb_f(length_, __FILE__, __LINE__)
-#define slsi_alloc_skb(size_, priority_) slsi_alloc_skb_f(size_, priority_, __FILE__, __LINE__)
-#define slsi_alloc_skb_headroom(size_, priority_) slsi_alloc_skb_headroom_f(size_, priority_, __FILE__, __LINE__)
-#define slsi_skb_realloc_headroom(skb_, headroom_)  slsi_skb_realloc_headroom_f(skb_, headroom_, __FILE__, __LINE__)
-#define slsi_skb_copy(skb_, priority_)   slsi_skb_copy_f(skb_, priority_, __FILE__, __LINE__)
-#define slsi_skb_copy_expand(skb_, newheadroom_, newtailroom_, priority_) skb_copy_expand_f(skb_, newheadroom_, newtailroom_, priority_, __FILE__, __LINE__)
-#define slsi_skb_clone(skb_, priority_)  slsi_skb_clone_f(skb_, priority_, __FILE__, __LINE__)
-#define slsi_kfree_skb(skb_)             slsi_kfree_skb_f(skb_, __FILE__, __LINE__)
-#define slsi_skb_unlink(skb_, list_)     slsi_skb_unlink_f(skb_, list_, __FILE__, __LINE__)
-#define slsi_skb_queue_tail(list_, skb_) slsi_skb_queue_tail_f(list_, skb_, __FILE__, __LINE__)
-#define slsi_skb_queue_head(list_, skb_) slsi_skb_queue_head_f(list_, skb_, __FILE__, __LINE__)
-#define slsi_skb_dequeue(list_)          slsi_skb_dequeue_f(list_, __FILE__, __LINE__)
-
-static inline void slsi_skb_queue_purge(struct sk_buff_head *list)
-{
-	struct sk_buff *skb;
-
-	while ((skb = skb_dequeue(list)) != NULL)
-		slsi_kfree_skb(skb);
-}
-
+/* Android wakelock abstraction */
+#ifdef CONFIG_SCSC_WLAN_ANDROID
+#define slsi_wake_lock_init(lock, type, name)	wake_lock_init(lock, type, name)
+#define slsi_wake_lock(lock)					wake_lock(lock)
+#define slsi_wake_unlock(lock)					wake_unlock(lock)
+#define slsi_wake_lock_timeout(lock, timeout)	wake_lock_timeout(lock, timeout)
+#define slsi_wake_lock_active(lock)				wake_lock_active(lock)
+#define slsi_wake_lock_destroy(lock)			wake_lock_destroy(lock)
 #else
-#define slsi_dbg_track_skb_init()
-#define slsi_dbg_track_skb_reset()
-#define slsi_dbg_track_skb(skb_, flags_)
-#define slsi_dbg_untrack_skb(skb_)
-#define slsi_dbg_track_skb_marker(skb_)
-#define slsi_dbg_track_skb_report()
-
-static inline struct sk_buff *slsi_dev_alloc_skb_f(unsigned int length, const char *file, int line)
-{
-	struct sk_buff *skb = dev_alloc_skb(SLSI_NETIF_SKB_HEADROOM + SLSI_NETIF_SKB_TAILROOM + length);
-
-	SLSI_UNUSED_PARAMETER(file);
-	SLSI_UNUSED_PARAMETER(line);
-	if (skb) {
-#ifdef CONFIG_SCSC_SMAPPER
-		slsi_skb_cb_init(skb);
-#endif
-		skb_reserve(skb, SLSI_NETIF_SKB_HEADROOM - SLSI_SKB_GET_ALIGNMENT_OFFSET(skb));
-	}
-	return skb;
-}
-
-static inline struct sk_buff *slsi_alloc_skb_f(unsigned int size, gfp_t priority, const char *file, int line)
-{
-	struct sk_buff *skb = alloc_skb(size, priority);
-
-	SLSI_UNUSED_PARAMETER(file);
-	SLSI_UNUSED_PARAMETER(line);
-#ifdef CONFIG_SCSC_SMAPPER
-	if (skb)
-		slsi_skb_cb_init(skb);
-#endif
-	return skb;
-}
-
-static inline struct sk_buff *slsi_alloc_skb_headroom_f(unsigned int size, gfp_t priority, const char *file, int line)
-{
-	struct sk_buff *skb = alloc_skb(SLSI_NETIF_SKB_HEADROOM + SLSI_NETIF_SKB_TAILROOM + size, priority);
-
-	SLSI_UNUSED_PARAMETER(file);
-	SLSI_UNUSED_PARAMETER(line);
-
-	if (skb) {
-#ifdef CONFIG_SCSC_SMAPPER
-		slsi_skb_cb_init(skb);
-#endif
-		skb_reserve(skb, SLSI_NETIF_SKB_HEADROOM - SLSI_SKB_GET_ALIGNMENT_OFFSET(skb));
-	}
-	return skb;
-}
-
-static inline void slsi_kfree_skb_f(struct sk_buff *skb)
-{
-	/* If untrack fails we do not free the SKB
-	 * This helps tracking bad pointers and double frees
-	 */
-#ifdef CONFIG_SCSC_SMAPPER
-	struct slsi_skb_cb *cb;
-
-	if (!skb)
-		return;
-
-	cb = (struct slsi_skb_cb *)skb->cb;
-
-	if (cb && !cb->free_ma_unitdat && cb->skb_addr) {
-		kfree_skb(cb->skb_addr);
-		cb->skb_addr = NULL;
-	}
-#endif
-	kfree_skb(skb);
-}
-
-#define slsi_dev_alloc_skb(length_)       slsi_dev_alloc_skb_f(length_, __FILE__, __LINE__)
-#define slsi_alloc_skb(size_, priority_)  slsi_alloc_skb_f(size_, priority_, __FILE__, __LINE__)
-#define slsi_alloc_skb_headroom(size_, priority_)  slsi_alloc_skb_headroom_f(size_, priority_, __FILE__, __LINE__)
-#define slsi_skb_realloc_headroom(skb_, headroom_)       skb_realloc_headroom(skb_, headroom_)
-#define slsi_skb_copy(skb_, priority_)    skb_copy(skb_, priority_)
-#define slsi_skb_copy_expand(skb_, newheadroom_, newtailroom_, priority_) skb_copy_expand(skb_, newheadroom_, newtailroom_, priority_)
-#define slsi_skb_clone(skb_, priority_)   skb_clone(skb_, priority_)
-#define slsi_kfree_skb(skb_)              slsi_kfree_skb_f(skb_)
-#define slsi_skb_unlink(skb_, list_)      skb_unlink(skb_, list_)
-#define slsi_skb_queue_tail(list_, skb_)  skb_queue_tail(list_, skb_)
-#define slsi_skb_queue_head(list_, skb_)  skb_queue_head(list_, skb_)
-#define slsi_skb_dequeue(list_)           skb_dequeue(list_)
-#define slsi_skb_queue_purge(list_)       slsi_skb_queue_purge(list_)
-
-static inline void slsi_skb_queue_purge(struct sk_buff_head *list)
-{
-	struct sk_buff *skb;
-
-	while ((skb = skb_dequeue(list)) != NULL)
-		slsi_kfree_skb(skb);
-}
-
+#define slsi_wake_lock_init(lock, type, name)
+#define slsi_wake_lock(lock)
+#define slsi_wake_unlock(lock)
+#define slsi_wake_lock_timeout(lock, timeout)
+#define slsi_wake_lock_active(lock)				(false)
+#define slsi_wake_lock_destroy(lock)
 #endif
 
 struct slsi_spinlock {
@@ -445,7 +289,8 @@ struct slsi_skb_work {
 	void __rcu              *sync_ptr;
 };
 
-static inline int slsi_skb_work_init(struct slsi_dev *sdev, struct net_device *dev, struct slsi_skb_work *work, const char *name, void (*func)(struct work_struct *work))
+static inline int slsi_skb_work_init(struct slsi_dev *sdev, struct net_device *dev, struct slsi_skb_work *work,
+				     const char *name, void (*func)(struct work_struct *work))
 {
 	rcu_assign_pointer(work->sync_ptr, (void *)sdev);
 	work->sdev = sdev;
@@ -473,7 +318,7 @@ static inline void slsi_skb_work_enqueue_l(struct slsi_skb_work *work, struct sk
 	sync_ptr = rcu_dereference(work->sync_ptr);
 
 	if (WARN_ON(!sync_ptr)) {
-		slsi_kfree_skb(skb);
+		kfree_skb(skb);
 		rcu_read_unlock();
 		return;
 	}
@@ -504,41 +349,16 @@ static inline void slsi_skb_work_deinit(struct slsi_skb_work *work)
 	flush_workqueue(work->workqueue);
 	destroy_workqueue(work->workqueue);
 	work->workqueue = NULL;
-	slsi_skb_queue_purge(&work->queue);
+	skb_queue_purge(&work->queue);
 }
 
 static inline void slsi_cfg80211_put_bss(struct wiphy *wiphy, struct cfg80211_bss *bss)
 {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0))
 	cfg80211_put_bss(wiphy, bss);
-#else
-	cfg80211_put_bss(bss);
-#endif  /* (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)) */
 }
 
-#ifdef CONFIG_SCSC_WLAN_SKB_TRACKING
-static inline void slsi_skb_work_enqueue_f(struct slsi_skb_work *work, struct sk_buff *skb, const char *file, int line)
-{
-	slsi_dbg_track_skb_marker_f(skb, file, line);
-	slsi_skb_work_enqueue_l(work, skb);
-}
-
-static inline struct sk_buff *slsi_skb_work_dequeue_f(struct slsi_skb_work *work, const char *file, int line)
-{
-	struct sk_buff *skb;
-
-	skb = slsi_skb_work_dequeue_l(work);
-	if (skb)
-		slsi_dbg_track_skb_marker_f(skb, file, line);
-	return skb;
-}
-
-#define slsi_skb_work_enqueue(work_, skb_) slsi_skb_work_enqueue_f(work_, skb_, __FILE__, __LINE__)
-#define slsi_skb_work_dequeue(work_) slsi_skb_work_dequeue_f(work_, __FILE__, __LINE__)
-#else
 #define slsi_skb_work_enqueue(work_, skb_) slsi_skb_work_enqueue_l(work_, skb_)
 #define slsi_skb_work_dequeue(work_) slsi_skb_work_dequeue_l(work_)
-#endif
 
 static inline void slsi_eth_zero_addr(u8 *addr)
 {
@@ -602,6 +422,18 @@ static inline int slsi_str_to_int(char *str, int *result)
 			return 0;
 	}
 	return i;
+}
+
+static inline int slsi_str_cmp(const char *s1, const char *s2)
+{
+	if (!s1 && !s2)
+		return 0;
+	if (s1 && !s2)
+		return -1;
+	if (!s1 && s2)
+		return 1;
+
+	return strcmp(s1, s2);
 }
 
 #define P80211_OUI_LEN		3
@@ -688,11 +520,9 @@ static inline u32 slsi_get_center_freq1(struct slsi_dev *sdev, u16 chann_info, u
 	case 40:
 		center_freq1 = center_freq - 20 * ((chann_info & 0xFF00) >> 8) + 10;
 		break;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 9))
 	case 80:
 		center_freq1 = center_freq - 20 * ((chann_info & 0xFF00) >> 8) + 30;
 		break;
-#endif
 	default:
 		break;
 	}
@@ -718,6 +548,9 @@ static inline int strtoint(const char *s, int *res)
 static inline u8 *slsi_mem_dup(u8 *src, size_t len)
 {
 	u8 *dest;
+
+	if (!src || !len)
+		return NULL;
 
 	dest = kmalloc(len, GFP_KERNEL);
 	if (!dest)
@@ -861,11 +694,30 @@ static inline int slsi_util_nla_get_le64(const struct nlattr *attr, __le64 *val)
 
 static inline int slsi_util_nla_get_data(const struct nlattr *attr, size_t size, void *val)
 {
-	if(nla_len(attr) >= size) {
+	if (nla_len(attr) >= size) {
 		memcpy(val, nla_data(attr), size);
 		return 0;
 	}
 	return -EINVAL;
+}
+
+static inline struct net_device *slsi_ndev_vif_2_net_device(struct netdev_vif *ndev_vif)
+{
+	unsigned long int address = (unsigned long int)ndev_vif;
+	unsigned int offset = ALIGN(sizeof(struct net_device), NETDEV_ALIGN);
+
+	if (address < offset)
+		return NULL;
+	return (struct net_device *)((char*)ndev_vif - offset);
+}
+
+static inline void get_kernel_timestamp(int *time)
+{
+	struct timespec64 tv;
+
+	ktime_get_ts64(&tv);
+	time[0] = tv.tv_sec;
+	time[1] = tv.tv_nsec;
 }
 
 #ifdef __cplusplus

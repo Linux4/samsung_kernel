@@ -1,5 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
- * Copyright (c) 2013-2018 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2019 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -15,8 +16,8 @@
 #ifndef _MC_USER_H_
 #define _MC_USER_H_
 
-#define MCDRVMODULEAPI_VERSION_MAJOR 7
-#define MCDRVMODULEAPI_VERSION_MINOR 0
+#define MCDRVMODULEAPI_VERSION_MAJOR 8
+#define MCDRVMODULEAPI_VERSION_MINOR 3
 
 #include <linux/types.h>
 
@@ -35,6 +36,9 @@
 /* Max length for buffers */
 #define MC_MAX_TCI_LEN			0x100000
 #define BUFFER_LENGTH_MAX		0x40000000
+
+/* Max length for objects */
+#define OBJECT_LENGTH_MAX		0x8000000
 
 /* Flags for buffers to map (aligned on GP) */
 #define MC_IO_MAP_INPUT			BIT(0)
@@ -92,7 +96,6 @@ struct mc_ioctl_open_session {
  */
 struct mc_ioctl_open_trustlet {
 	__u32		sid;		/* session id (out) */
-	__u32		spid;		/* trustlet spid */
 	__u64		buffer;		/* trustlet binary pointer */
 	__u32		tlen;		/* binary length  */
 	__u64		tci;		/* tci buffer pointer */
@@ -105,7 +108,6 @@ struct mc_ioctl_open_trustlet {
 struct mc_ioctl_wait {
 	__u32		sid;		/* session id (in) */
 	__s32		timeout;	/* notification timeout */
-	__u32		partial;	/* for proxy server to retry silently */
 };
 
 /*

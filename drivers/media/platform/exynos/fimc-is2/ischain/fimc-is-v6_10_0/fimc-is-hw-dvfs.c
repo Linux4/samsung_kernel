@@ -28,6 +28,9 @@ DECLARE_DVFS_DT(FIMC_IS_SN_END,
 		{"front_vt1_"                      , FIMC_IS_SN_FRONT_VT1},
 		{"front_vt2_"                      , FIMC_IS_SN_FRONT_VT2},
 		{"front_vt4_"                      , FIMC_IS_SN_FRONT_VT4},
+#ifdef SUPPORT_FRONT_SM_DVFS
+		{"front_video_high_speed_120fps_"  , FIMC_IS_SN_FRONT_VIDEO_HIGH_SPEED_120FPS},
+#endif
 		{"rear2_preview_fhd_"              , FIMC_IS_SN_REAR2_PREVIEW_FHD},
 		{"rear2_capture_"                  , FIMC_IS_SN_REAR2_CAPTURE},
 		{"rear2_video_fhd_"                , FIMC_IS_SN_REAR2_CAMCORDING_FHD},
@@ -88,6 +91,9 @@ DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_FRONT_WIDE_SELFIE);
 DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_FRONT_VT1);
 DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_FRONT_VT2);
 DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_FRONT_VT4);
+#ifdef SUPPORT_FRONT_SM_DVFS
+DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_FRONT_VIDEO_HIGH_SPEED_120FPS);
+#endif
 
 DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_REAR2_PREVIEW_FHD);
 DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_REAR2_CAPTURE);
@@ -273,7 +279,15 @@ struct fimc_is_dvfs_scenario static_scenarios[] = {
 		.scenario_id		= FIMC_IS_SN_FRONT_PREVIEW_REMOSAIC,
 		.scenario_nm		= DVFS_SN_STR(FIMC_IS_SN_FRONT_PREVIEW_REMOSAIC),
 		.check_func		= GET_DVFS_CHK_FUNC(FIMC_IS_SN_FRONT_PREVIEW_REMOSAIC),
-	}, {
+	}, 
+#ifdef SUPPORT_FRONT_SM_DVFS
+	{
+		.scenario_id		= FIMC_IS_SN_FRONT_VIDEO_HIGH_SPEED_120FPS,
+		.scenario_nm		= DVFS_SN_STR(FIMC_IS_SN_FRONT_VIDEO_HIGH_SPEED_120FPS),
+		.check_func		= GET_DVFS_CHK_FUNC(FIMC_IS_SN_FRONT_VIDEO_HIGH_SPEED_120FPS),
+	},
+#endif
+	{
 		.scenario_id		= FIMC_IS_SN_FRONT_PREVIEW,
 		.scenario_nm		= DVFS_SN_STR(FIMC_IS_SN_FRONT_PREVIEW),
 		.check_func		= GET_DVFS_CHK_FUNC(FIMC_IS_SN_FRONT_PREVIEW),
@@ -499,6 +513,23 @@ DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_VIDEO_HIGH_SPEED_120FPS)
 	else
 		return 0;
 }
+
+#ifdef SUPPORT_FRONT_SM_DVFS
+DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_FRONT_VIDEO_HIGH_SPEED_120FPS)
+{
+	u32 mask = (device->setfile & FIMC_IS_SETFILE_MASK);
+	/* It uses same setfile scenario index for every high speed recording mode. */
+	bool setfile_flag = (mask == ISS_SUB_SCENARIO_VIDEO_HIGH_SPEED);
+
+	if (position == SENSOR_POSITION_FRONT &&
+			(fps > 60) &&
+			(fps <= 120) &&
+			setfile_flag)
+		return 1;
+	else
+		return 0;
+}
+#endif
 
 /* 240fps recording */
 DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_VIDEO_HIGH_SPEED_240FPS)

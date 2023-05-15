@@ -524,7 +524,7 @@ retry:
 		CSP_PRINTF_ERROR("%s:%s: failed by ipc index corrupt\n", NAME_PREFIX, __func__);
 		return -EINVAL;
 	}
-	
+
 	DISABLE_IRQ();
 	if (!__raw_readl(&ipc_evt->ctrl.full)) {
 		cur_evt = &ipc_evt->data[ipc_evt->ctrl.eq];
@@ -598,18 +598,20 @@ void ipc_print_evt(enum ipc_evt_list evtq)
 	struct ipc_evt *ipc_evt = &ipc_map->evt[evtq];
 	int i;
 
-	CSP_PRINTF_INFO("%s: evt(%p)-%s: eq:%d dq:%d full:%d irq:%d\n",
+	if (ipc_evt) {
+		CSP_PRINTF_INFO("%s: evt(%p)-%s: eq:%d dq:%d full:%d irq:%d\n",
 			NAME_PREFIX, ipc_evt, IPC_GET_EVT_NAME(evtq), ipc_evt->ctrl.eq,
 			ipc_evt->ctrl.dq, ipc_evt->ctrl.full,
 			ipc_evt->ctrl.irq);
 
-	for (i = 0; i < IPC_EVT_NUM; i++) {
-		CSP_PRINTF_INFO("%s: evt%d(evt:%d,irq:%d,f:%d)\n",
+		for (i = 0; i < IPC_EVT_NUM; i++) {
+			CSP_PRINTF_INFO("%s: evt%d(evt:%d,irq:%d,f:%d)\n",
 				NAME_PREFIX, i, ipc_evt->data[i].evt,
 				ipc_evt->data[i].irq, ipc_evt->data[i].status);
-	}
+		}
+	} else
+		CSP_PRINTF_INFO("%s:%s: invalid evtq\n", NAME_PREFIX, __func__);
 
-	(void)ipc_evt;
 }
 
 void ipc_dump(void)
@@ -744,11 +746,16 @@ void ipc_hw_set_mcuctrl(enum ipc_owner owner, unsigned int val)
 	__raw_writel(val, (char *)ipc_own[owner].base + REG_MAILBOX_MCUCTL);
 }
 
-void ipc_hw_mask_all(enum ipc_owner owner)
+void ipc_hw_mask_all(enum ipc_owner owner, bool mask)
 {
-    ipc_hw_clear_all_int_pend_reg(owner);
-    __raw_writel(0xffff0000, (char *)ipc_own[owner].base + REG_MAILBOX_INTMR0);
-    __raw_writel(0xffff, (char *)ipc_own[owner].base + REG_MAILBOX_INTMR1);
+	if (mask) {
+		ipc_hw_clear_all_int_pend_reg(owner);
+		__raw_writel(0xffff0000, (char *)ipc_own[owner].base + REG_MAILBOX_INTMR0);
+		__raw_writel(0xffff, (char *)ipc_own[owner].base + REG_MAILBOX_INTMR1);
+	} else {
+		__raw_writel(0x0, (char *)ipc_own[owner].base + REG_MAILBOX_INTMR0);
+		__raw_writel(0x0, (char *)ipc_own[owner].base + REG_MAILBOX_INTMR1);
+	}
 }
 
 void ipc_dump_mailbox_sfr(struct mailbox_sfr *mailbox)
@@ -764,11 +771,11 @@ void ipc_dump_mailbox_sfr(struct mailbox_sfr *mailbox)
 	mailbox->INTMR1  = __raw_readl(ipc_own[AP].base + REG_MAILBOX_INTMR1);
 	mailbox->INTSR1	 = __raw_readl(ipc_own[AP].base + REG_MAILBOX_INTSR1);
 	mailbox->INTMSR1 = __raw_readl(ipc_own[AP].base + REG_MAILBOX_INTMSR1);
-        pr_info("%s: 0x%x/0x%x 0x%x 0x%x 0x%x 0x%x/0x%x 0x%x 0x%x 0x%x 0x%x\n",
-		        __func__, mailbox->MCUCTL, mailbox->INTGR0, mailbox->INTCR0,
-			mailbox->INTMR0, mailbox->INTSR0, mailbox->INTMSR0,
-			mailbox->INTGR1, mailbox->INTCR1, mailbox->INTMR1,
-			mailbox->INTSR1, mailbox->INTMSR1);
+
+	pr_info("%s: 0x%x/ c2a: 0x%x 0x%x 0x%x 0x%x 0x%x/ a2c: 0x%x 0x%x 0x%x 0x%x 0x%x\n",
+		__func__, mailbox->MCUCTL,
+		mailbox->INTGR0, mailbox->INTCR0, mailbox->INTMR0, mailbox->INTSR0, mailbox->INTMSR0,
+		mailbox->INTGR1, mailbox->INTCR1, mailbox->INTMR1, mailbox->INTSR1, mailbox->INTMSR1);
 }
 
 void ipc_hw_mask_irq(enum ipc_owner owner, int irq)

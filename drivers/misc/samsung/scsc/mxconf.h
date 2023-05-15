@@ -49,6 +49,10 @@
  */
 #define MXCONF_VERSION_MAJOR 0
 #define MXCONF_VERSION_MINOR 5 /* For fleximac moredump */
+#ifdef CONFIG_SOC_EXYNOS7885
+#define MXCONF_VERSION_MINOR_1 1
+#define MXCONF_VERSION_MINOR_2 2
+#endif
 
 /* Types */
 

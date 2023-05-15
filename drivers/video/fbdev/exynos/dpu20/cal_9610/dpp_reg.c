@@ -42,6 +42,11 @@ static void idma_reg_set_irq_enable(u32 id)
 	dma_write_mask(id, IDMA_IRQ, ~0, IDMA_IRQ_ENABLE);
 }
 
+static void idma_reg_set_irq_disable(u32 id)
+{
+	dma_write_mask(id, IDMA_IRQ, 0, IDMA_IRQ_ENABLE);
+}
+
 static void idma_reg_set_clock_gate_en_all(u32 id, u32 en)
 {
 	u32 val = en ? ~0 : 0;
@@ -178,6 +183,11 @@ static void odma_reg_set_irq_enable(u32 id)
 {
 	dma_write_mask(id, ODMA_IRQ, ~0, ODMA_IRQ_ENABLE);
 }
+
+static void odma_reg_set_irq_disable(u32 id)
+{
+	dma_write_mask(id, ODMA_IRQ, 0, ODMA_IRQ_ENABLE);
+}
 #if 0
 static void odma_reg_set_clock_gate_en_all(u32 id, u32 en)
 {
@@ -264,6 +274,11 @@ static void dpp_reg_set_irq_mask_all(u32 id, u32 en)
 static void dpp_reg_set_irq_enable(u32 id)
 {
 	dpp_write_mask(id, DPP_IRQ, ~0, DPP_IRQ_ENABLE);
+}
+
+static void dpp_reg_set_irq_disable(u32 id)
+{
+	dpp_write_mask(id, DPP_IRQ, 0, DPP_IRQ_ENABLE);
 }
 
 static void dpp_reg_set_clock_gate_en_all(u32 id, u32 en)
@@ -923,8 +938,8 @@ void dpp_constraints_params(struct dpp_size_constraints *vc,
 void dpp_reg_init(u32 id, const unsigned long attr)
 {
 	if (test_bit(DPP_ATTR_IDMA, &attr)) {
-		idma_reg_set_irq_mask_all(id, 0);
-		idma_reg_set_irq_enable(id);
+		idma_reg_set_irq_mask_all(id, 1);
+		idma_reg_set_irq_disable(id);
 		idma_reg_set_clock_gate_en_all(id, 0);
 		idma_reg_set_in_qos_lut(id, 0, 0x44444444);
 		idma_reg_set_in_qos_lut(id, 1, 0x44444444);
@@ -935,8 +950,8 @@ void dpp_reg_init(u32 id, const unsigned long attr)
 	}
 
 	if (test_bit(DPP_ATTR_DPP, &attr)) {
-		dpp_reg_set_irq_mask_all(id, 0);
-		dpp_reg_set_irq_enable(id);
+		dpp_reg_set_irq_mask_all(id, 1);
+		dpp_reg_set_irq_disable(id);
 		dpp_reg_set_clock_gate_en_all(id, 0);
 		dpp_reg_set_dynamic_gating_en_all(id, 0);
 		dpp_reg_set_linecnt(id, 1);
@@ -945,8 +960,8 @@ void dpp_reg_init(u32 id, const unsigned long attr)
 	}
 
 	if (test_bit(DPP_ATTR_ODMA, &attr)) {
-		odma_reg_set_irq_mask_all(id, 0);
-		odma_reg_set_irq_enable(id);
+		odma_reg_set_irq_mask_all(id, 1);
+		odma_reg_set_irq_disable(id);
 		//odma_reg_set_clock_gate_en_all(id, 0);
 		odma_reg_set_in_qos_lut(id, 0, 0x44444444);
 		odma_reg_set_in_qos_lut(id, 1, 0x44444444);
@@ -957,6 +972,24 @@ void dpp_reg_init(u32 id, const unsigned long attr)
 		wb_mux_reg_set_out_frame_alpha(id, 0xFF);
 		/* to prevent irq storm that may occur in the OFF STATE */
 		odma_reg_clear_irq(id, ODMA_ALL_IRQ_CLEAR);
+	}
+}
+
+void dpp_reg_irq_enable(u32 id, const unsigned long attr)
+{
+	if (test_bit(DPP_ATTR_IDMA, &attr)) {
+		idma_reg_set_irq_mask_all(id, 0);
+		idma_reg_set_irq_enable(id);
+	}
+
+	if (test_bit(DPP_ATTR_DPP, &attr)) {
+		dpp_reg_set_irq_mask_all(id, 0);
+		dpp_reg_set_irq_enable(id);
+	}
+
+	if (test_bit(DPP_ATTR_ODMA, &attr)) {
+		odma_reg_set_irq_mask_all(id, 0);
+		odma_reg_set_irq_enable(id);
 	}
 }
 

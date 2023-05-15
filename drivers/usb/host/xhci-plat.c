@@ -515,6 +515,7 @@ static int xhci_plat_remove(struct platform_device *dev)
 	struct usb_hcd	*hcd = platform_get_drvdata(dev);
 	struct xhci_hcd	*xhci = hcd_to_xhci(hcd);
 	struct clk *clk = xhci->clk;
+	struct usb_hcd *shared_hcd = xhci->shared_hcd;
 
 	dev_info(&dev->dev, "XHCI PLAT REMOVE\n");
 
@@ -541,6 +542,7 @@ static int xhci_plat_remove(struct platform_device *dev)
 	wake_lock_destroy(xhci->wakelock);
 
 	usb_remove_hcd(xhci->shared_hcd);
+	xhci->shared_hcd = NULL;
 	usb_phy_shutdown(hcd->usb_phy);
 
 	/*
@@ -553,7 +555,7 @@ static int xhci_plat_remove(struct platform_device *dev)
 		hcd->phy = NULL;
 
 	usb_remove_hcd(hcd);
-	usb_put_hcd(xhci->shared_hcd);
+	usb_put_hcd(shared_hcd);
 
 	if (!IS_ERR(clk))
 		clk_disable_unprepare(clk);

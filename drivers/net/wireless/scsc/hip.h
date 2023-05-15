@@ -60,6 +60,12 @@ int slsi_hip_consume_smapper_entry(struct slsi_dev *sdev, struct sk_buff *skb);
 void *slsi_hip_get_skb_data_from_smapper(struct slsi_dev *sdev, struct sk_buff *skb);
 struct sk_buff *slsi_hip_get_skb_from_smapper(struct slsi_dev *sdev, struct sk_buff *skb);
 int slsi_hip_stop(struct slsi_dev *sdev);
+#ifdef CONFIG_SCSC_WLAN_RX_NAPI
+void slsi_hip_set_napi_cpu(struct slsi_dev *sdev, u8 napi_cpu, bool perf_mode);
+void slsi_hip_reprocess_skipped_ctrl_bh(struct slsi_dev *sdev);
+#else
+void slsi_hip_reprocess_skipped_data_bh(struct slsi_dev *sdev);
+#endif
 
 /* Forward declaration */
 struct sap_api;
@@ -74,6 +80,6 @@ int slsi_hip_rx(struct slsi_dev *sdev, struct sk_buff *skb);
 /* SAP setup once we receive SAP versions */
 int slsi_hip_sap_setup(struct slsi_dev *sdev);
 /* Allow the SAP to act on a buffer in the free list. */
-int slsi_hip_tx_done(struct slsi_dev *sdev, u16 colour);
+int slsi_hip_tx_done(struct slsi_dev *sdev, u8 vif, u8 peer_index, u8 ac);
 
 #endif

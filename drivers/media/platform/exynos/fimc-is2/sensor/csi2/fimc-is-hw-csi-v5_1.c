@@ -37,6 +37,11 @@ void csi_hw_phy_otp_config(u32 __iomem *base_reg, u32 instance)
 #endif
 }
 
+u32 csi_hw_g_fcount(u32 __iomem *base_reg, u32 vc)
+{
+	return fimc_is_hw_get_reg(base_reg, &csi_regs[CSIS_R_FRM_CNT_CH0 + vc]);
+}
+
 int csi_set_ppc_mode(u32 width, u32 height, u32 frame_rate, u32 mipi_speed,
 		u32 lanes, u32 pd_mode, const char *conid, u32 *pixel_mode)
 {

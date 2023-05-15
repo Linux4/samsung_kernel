@@ -177,7 +177,7 @@ int cal_dll_apm_enable(void)
 		return -EINVAL;
 
 	/* DLL_APM_N_DCO settings */
-	__raw_writel(0x632, dll_apm_base + 0x4);
+	__raw_writel(0xC65, dll_apm_base + 0x4);
 
 	/* DLL_APM_CTRL0 settings */
 	__raw_writel(0x111, sysreg_apm_base + 0x0440);
@@ -188,6 +188,7 @@ int cal_dll_apm_enable(void)
 		usleep_range(10, 11);
 		if (timeout > 1000) {
 			pr_err("%s, timed out during dll locking\n", __func__);
+			BUG_ON(1);
 			return -ETIMEDOUT;
 		}
 	}
@@ -198,6 +199,15 @@ int cal_dll_apm_enable(void)
 	ret = cmu_stable_done(cmu_apm_base + 0x0120, PLL_MUX_BUSY_SHIFT, 0, 100);
 	if (ret) {
 		pr_err("MUX_DLL_USER change time out\n");
+		return ret;
+	}
+
+	/* DIV_CLKCMU_SHUB_BUS set to divide-by-2 */
+	reg = __raw_readl(cmu_apm_base + 0x1800) & ~(0x7 << 0);
+	__raw_writel(reg | (0x1 << 0), cmu_apm_base + 0x1800);
+	ret = cmu_stable_done(cmu_apm_base + 0x1800, 16, 0, 100);
+	if (ret) {
+		pr_err("DIV_CLKCMU_SHUB_BUS change time out\n");
 		return ret;
 	}
 
@@ -234,6 +244,7 @@ int cal_dll_set_rate(unsigned int rate)
 		usleep_range(10, 11);
 		if (timeout > 1000) {
 			pr_err("%s, timed out during dll locking\n", __func__);
+			BUG_ON(1);
 			return -ETIMEDOUT;
 		}
 	}
@@ -268,6 +279,15 @@ int cal_dll_apm_disable(void)
 	ret = cmu_stable_done(cmu_apm_base + 0x1000, 16, 0, 100);
 	if (ret) {
 		pr_err("MUX_CLKCMU_SHUB_BUS change time out\n");
+		return ret;
+	}
+
+	/* DIV_CLKCMU_SHUB_BUS set to divide-by-1 */
+	reg = __raw_readl(cmu_apm_base + 0x1800) & ~(0x7 << 0);
+	__raw_writel(reg, cmu_apm_base + 0x1800);
+	ret = cmu_stable_done(cmu_apm_base + 0x1800, 16, 0, 100);
+	if (ret) {
+		pr_err("DIV_CLKCMU_SHUB_BUS change time out\n");
 		return ret;
 	}
 

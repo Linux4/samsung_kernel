@@ -102,6 +102,7 @@
 #define SM5713_ATTACH_SINK				(0x01 << SM5713_ATTACH_SOURCE)
 #define SM5713_ATTACH_AUDIO				0x03
 #define SM5713_ATTACH_AUDIO_CHARGE		(0x01 << 2)
+#define SM5713_ATTACH_DEBUG				0x05
 #define SM5713_ATTACH_TYPE				0x07
 #define SM5713_ADV_CURR					0x18
 #define SM5713_CABLE_FLIP				0x20
@@ -324,6 +325,7 @@ void sm5713_ccic_event_work(void *data, int dest, int id, int attach, int event,
 #if defined(CONFIG_TYPEC)
 extern int sm5713_get_pd_support(struct sm5713_phydrv_data *usbpd_data);
 #endif
+void sm5713_short_state_check(void *_data);
 void sm5713_set_enable_pd_function(void *_data, int enable);
 void sm5713_vbus_turn_on_ctrl(struct sm5713_phydrv_data *usbpd_data, bool enable);
 void sm5713_src_transition_to_default(void *_data);

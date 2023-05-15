@@ -1,5 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2013-2018 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2019 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -50,14 +51,16 @@ struct tee_client {
 	struct mutex		sessions_lock;	/* sessions list + closing */
 	/* Client lock for quick WSMs and operations changes */
 	struct mutex		quick_lock;
+	/* Client lock for CWSMs release functions */
+	struct mutex		cwsm_release_lock;
 	/* List of WSMs for a client */
 	struct list_head	cwsms;
 	/* List of GP operation for a client */
 	struct list_head	operations;
 	/* The list entry to attach to "ctx.clients" list */
 	struct list_head	list;
-	/* task_struct for the client application, if going through a proxy */
-	struct task_struct	*task;
+	/* Virtual Machine ID string of the client */
+	char			vm_id[16];
 };
 
 /* Context */
@@ -129,8 +132,10 @@ static void cbuf_release(struct kref *kref)
 	client_put(client);
 	/* Free */
 	free_pages(cbuf->addr, cbuf->order);
-	mc_dev_devel("freed cbuf %p: client %p addr %lx uaddr %lx len %u",
-		     cbuf, client, cbuf->addr, cbuf->uaddr, cbuf->len);
+	mc_dev_devel(
+	"freed cbuf %p: client %p addr %lx uaddr %lx len %u phys 0x%llx",
+		     cbuf, client, cbuf->addr, cbuf->uaddr, cbuf->len,
+		     (u64)cbuf->phys);
 	kfree(cbuf);
 	/* Decrement debug counter */
 	atomic_dec(&g_ctx.c_cbufs);
@@ -363,20 +368,24 @@ void client_get(struct tee_client *client)
 
 void client_put_cwsm_sva(struct tee_client *client, u32 sva)
 {
-	struct cwsm *cwsm = cwsm_find_by_sva(client, sva);
+	struct cwsm *cwsm;
 
+	mutex_lock(&client->cwsm_release_lock);
+	cwsm = cwsm_find_by_sva(client, sva);
 	if (!cwsm)
-		return;
+		goto end;
 
-	/* Release reference taken by cwsm_find */
+	/* Release reference taken by cwsm_find_by_sva */
 	cwsm_put(cwsm);
 	cwsm_put(cwsm);
+end:
+	mutex_unlock(&client->cwsm_release_lock);
 }
 
 /*
  * Allocate and initialize a client object
  */
-struct tee_client *client_create(bool is_from_kernel)
+struct tee_client *client_create(bool is_from_kernel, const char *vm_id)
 {
 	struct tee_client *client;
 
@@ -398,8 +407,10 @@ struct tee_client *client_create(bool is_from_kernel)
 	mutex_init(&client->sessions_lock);
 	INIT_LIST_HEAD(&client->list);
 	mutex_init(&client->quick_lock);
+	mutex_init(&client->cwsm_release_lock);
 	INIT_LIST_HEAD(&client->cwsms);
 	INIT_LIST_HEAD(&client->operations);
+	strlcpy(client->vm_id, vm_id, sizeof(client->vm_id));
 	/* Add client to list of clients */
 	mutex_lock(&client_ctx.clients_lock);
 	list_add_tail(&client->list, &client_ctx.clients);
@@ -417,9 +428,6 @@ static void client_release(struct kref *kref)
 	/* Client is closed, remove from closing list */
 	list_del(&client->list);
 	mc_dev_devel("freed client %p", client);
-	if (client->task)
-		put_task_struct(client->task);
-
 	kfree(client);
 	/* Decrement debug counter */
 	atomic_dec(&g_ctx.c_clients);
@@ -594,6 +602,16 @@ void client_cleanup(void)
 }
 
 /*
+ * Get the vm id of the client passed in argument
+ * @param client_t client
+ * @return vm id of the client
+ */
+const char *client_vm_id(struct tee_client *client)
+{
+	return client->vm_id;
+}
+
+/*
  * Open TA for given client. TA binary is provided by the daemon.
  * @param
  * @return driver error code
@@ -622,12 +640,11 @@ int client_mc_open_session(struct tee_client *client,
  * @return driver error code
  */
 int client_mc_open_trustlet(struct tee_client *client,
-			    u32 spid, uintptr_t ta_va, size_t ta_len,
+			    uintptr_t ta_va, size_t ta_len,
 			    uintptr_t tci_va, size_t tci_len, u32 *session_id)
 {
 	struct mcp_open_info info = {
 		.type = TEE_MC_TA,
-		.spid = spid,
 		.va = ta_va,
 		.len = ta_len,
 		.tci_va = tci_va,
@@ -771,7 +788,7 @@ int client_notify_session(struct tee_client *client, u32 session_id)
  * @return driver error code
  */
 int client_waitnotif_session(struct tee_client *client, u32 session_id,
-			     s32 timeout, bool silent_expiry)
+			     s32 timeout)
 {
 	struct tee_session *session;
 	int ret;
@@ -781,7 +798,7 @@ int client_waitnotif_session(struct tee_client *client, u32 session_id,
 	if (!session)
 		return -ENXIO;
 
-	ret = session_mc_wait(session, timeout, silent_expiry);
+	ret = session_mc_wait(session, timeout);
 	/* Put session */
 	session_put(session);
 	mc_dev_devel("session %x, exit with %d", session_id, ret);
@@ -863,6 +880,11 @@ int client_gp_register_shared_mem(struct tee_client *client,
 {
 	struct cwsm *cwsm = NULL;
 
+	if (memref->size > BUFFER_LENGTH_MAX) {
+		mc_dev_err(-EINVAL, "buffer size %llu too big", memref->size);
+		return -EINVAL;
+	}
+
 	if (!mmu)
 		/* cwsm_find automatically takes a reference */
 		cwsm = cwsm_find(client, memref);
@@ -883,15 +905,22 @@ int client_gp_register_shared_mem(struct tee_client *client,
 int client_gp_release_shared_mem(struct tee_client *client,
 				 const struct gp_shared_memory *memref)
 {
-	struct cwsm *cwsm = cwsm_find(client, memref);
+	struct cwsm *cwsm;
+	int ret = 0;
 
-	if (!cwsm)
-		return -ENOENT;
+	mutex_lock(&client->cwsm_release_lock);
+	cwsm = cwsm_find(client, memref);
+	if (!cwsm) {
+		ret = -ENOENT;
+		goto end;
+	}
 
 	/* Release reference taken by cwsm_find */
 	cwsm_put(cwsm);
 	cwsm_put(cwsm);
-	return 0;
+end:
+	mutex_unlock(&client->cwsm_release_lock);
+	return ret;
 }
 
 /*
@@ -1117,8 +1146,15 @@ int client_cbuf_create(struct tee_client *client, u32 len, uintptr_t *addr,
 	if (!client)
 		return -EINVAL;
 
-	if (!len || len > BUFFER_LENGTH_MAX)
+	if (!len) {
+		mc_dev_err(-EINVAL, "buffer size 0 not supported");
 		return -EINVAL;
+	}
+
+	if (len > BUFFER_LENGTH_MAX) {
+		mc_dev_err(-EINVAL, "buffer size %u too big", len);
+		return -EINVAL;
+	}
 
 	order = get_order(len);
 	if (order > MAX_ORDER) {
@@ -1180,8 +1216,10 @@ int client_cbuf_create(struct tee_client *client, u32 len, uintptr_t *addr,
 	mutex_lock(&client->cbufs_lock);
 	list_add_tail(&cbuf->list, &client->cbufs);
 	mutex_unlock(&client->cbufs_lock);
-	mc_dev_devel("created cbuf %p: client %p addr %lx uaddr %lx len %u",
-		     cbuf, client, cbuf->addr, cbuf->uaddr, cbuf->len);
+	mc_dev_devel(
+	"created cbuf %p: client %p addr %lx uaddr %lx len %u phys 0x%llx",
+		     cbuf, client, cbuf->addr, cbuf->uaddr, cbuf->len,
+		     (u64)cbuf->phys);
 	return ret;
 }
 
@@ -1222,6 +1260,11 @@ static struct cbuf *cbuf_get_by_addr(struct tee_client *client, uintptr_t addr)
 /*
  * Remove a cbuf object from client, and mark it for freeing.
  * Freeing will happen once all current references are released.
+ *
+ * Note: this function could be subject to the same race condition as
+ * client_gp_release_shared_mem() and client_put_cwsm_sva(), but it is trusted
+ * as it can only be called by kernel drivers. So no lock around
+ * cbuf_get_by_addr() and the two tee_cbuf_put().
  */
 int client_cbuf_free(struct tee_client *client, uintptr_t addr)
 {
@@ -1232,7 +1275,7 @@ int client_cbuf_free(struct tee_client *client, uintptr_t addr)
 		return -EINVAL;
 	}
 
-	/* Two references to put: the caller's and the one we just took */
+	/* Release reference taken by cbuf_get_by_addr */
 	tee_cbuf_put(cbuf);
 	mutex_lock(&client->cbufs_lock);
 	cbuf->api_freed = true;

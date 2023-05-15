@@ -474,6 +474,8 @@ static int dpp_set_config(struct dpp_device *dpp)
 	dpp_dbg("dpp%d configuration\n", dpp->id);
 
 	dpp->state = DPP_STATE_ON;
+	/* to prevent irq storm, irq enable is moved here */
+	dpp_reg_irq_enable(dpp->id, dpp->attr);
 err:
 	mutex_unlock(&dpp->lock);
 	return ret;

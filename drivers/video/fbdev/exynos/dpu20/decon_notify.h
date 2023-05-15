@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (c) Samsung Electronics Co., Ltd.
  *
@@ -35,6 +36,7 @@ __XX(EVENT_DOZE)	\
 __XX(EARLY_EVENT_DOZE)	\
 __XX(EVENT_FRAME)	\
 __XX(EVENT_FRAME_SEND)	\
+__XX(EVENT_FRAME_DONE)	\
 
 #define STATE_LIST	\
 __XX(UNBLANK)	\
@@ -43,13 +45,25 @@ __XX(VSYNC_SUSPEND)	\
 __XX(HSYNC_SUSPEND)	\
 __XX(POWERDOWN)	\
 
+#define STAMP_LIST	\
+__XX(STAMP_NONE)	\
+__XX(STAMP_UNKNOWN)	\
+__XX(STAMP_EARLY)	\
+__XX(STAMP_BLANK)	\
+__XX(STAMP_AFTER)	\
+__XX(STAMP_FRAME)	\
+__XX(STAMP_FRAME_SEND)	\
+__XX(STAMP_FRAME_DONE)	\
+
 #define __XX(a)	DECON_##a,
 enum {	EVENT_LIST	EVENT_MAX	};
 enum {	STATE_LIST	STATE_MAX	};
+enum {	STAMP_LIST	STAMP_MAX	};
 #undef __XX
 
 #define IS_EARLY(event)		(event == FB_EARLY_EVENT_BLANK || event == DECON_EARLY_EVENT_DOZE)
 #define IS_AFTER(event)		(event == FB_EVENT_BLANK || event == DECON_EVENT_DOZE)
+#define IS_FRAME(event)		(event == DECON_EVENT_FRAME || event == DECON_EVENT_FRAME_SEND || event == DECON_EVENT_FRAME_DONE)
 
 extern struct notifier_block decon_nb_priority_max;
 extern struct notifier_block decon_nb_priority_min;

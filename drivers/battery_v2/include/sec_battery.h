@@ -94,6 +94,20 @@
 #define BATT_MISC_EVENT_WIRELESS_AUTH_RECVED    0x00000400
 #define BATT_MISC_EVENT_WIRELESS_AUTH_FAIL      0x00000800
 
+#define BATT_MISC_EVENT_BATTERY_HEALTH			0x000F0000
+
+#define BATTERY_HEALTH_SHIFT                16
+enum misc_battery_health {
+	BATTERY_HEALTH_UNKNOWN = 0,
+	BATTERY_HEALTH_GOOD,
+	BATTERY_HEALTH_NORMAL,
+	BATTERY_HEALTH_AGED,
+	BATTERY_HEALTH_MAX = BATTERY_HEALTH_AGED,
+
+	/* For event */
+	BATTERY_HEALTH_BAD = 0xF,
+};
+
 /* ext_event */
 #define BATT_EXT_EVENT_CAMERA		0x00000001
 #define BATT_EXT_EVENT_DEX		0x00000002
@@ -200,6 +214,8 @@ struct sec_battery_info {
 	struct pdic_notifier_struct pdic_info;
 	struct sec_bat_pdic_list pd_list;
 #endif
+	bool update_pd_list;
+
 #if defined(CONFIG_VBUS_NOTIFIER)
 	struct notifier_block vbus_nb;
 	int muic_vbus_status;
@@ -350,6 +366,8 @@ struct sec_battery_info {
 	int muic_cable_type;
 	int extended_cable_type;
 
+	bool pd_disable_by_afc_option;
+
 	struct wake_lock cable_wake_lock;
 	struct delayed_work cable_work;
 	struct wake_lock vbus_wake_lock;
@@ -369,6 +387,8 @@ struct sec_battery_info {
 	struct wake_lock wc_headroom_wake_lock;
 	struct wake_lock wpc_tx_wake_lock;
 	struct delayed_work wpc_tx_work;
+	struct delayed_work hv_disable_work;
+	struct wake_lock hv_disable_wake_lock;
 #if defined(CONFIG_UPDATE_BATTERY_DATA)
 	struct delayed_work batt_data_work;
 	struct wake_lock batt_data_wake_lock;
@@ -461,6 +481,7 @@ struct sec_battery_info {
 #if defined(CONFIG_BATTERY_AGE_FORECAST)
 	int batt_cycle;
 #endif
+	int batt_asoc;
 #if defined(CONFIG_STEP_CHARGING)
 	unsigned int step_charging_type;
 	unsigned int step_charging_charge_power;
@@ -536,6 +557,8 @@ extern int sec_bat_set_charge(struct sec_battery_info *battery, int chg_mode);
 extern int sec_bat_set_charging_current(struct sec_battery_info *battery);
 extern void sec_bat_aging_check(struct sec_battery_info *battery);
 extern void sec_wireless_set_tx_enable(struct sec_battery_info *battery, bool wc_tx_enable);
+
+extern void sec_bat_check_battery_health(struct sec_battery_info *battery);
 
 #if defined(CONFIG_WIRELESS_FIRMWARE_UPDATE)
 extern void sec_bat_fw_update_work(struct sec_battery_info *battery, int mode);

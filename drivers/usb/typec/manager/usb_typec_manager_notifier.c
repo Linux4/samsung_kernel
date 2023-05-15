@@ -657,9 +657,12 @@ static int manager_handle_ccic_notification(struct notifier_block *nb,
 		typec_manager.ccic_rid_state = p_noti.sub1;
 		break;
 	case CCIC_NOTIFY_ID_USB:	// for USB3
-		if ((typec_manager.cable_type == MANAGER_NOTIFY_MUIC_CHARGER)
-			|| (p_noti.sub2 != USB_STATUS_NOTIFY_DETACH && /*drp */
-			(typec_manager.ccic_rid_state == RID_523K || typec_manager.ccic_rid_state == RID_619K))) {
+		if (typec_manager.cable_type == MANAGER_NOTIFY_MUIC_CHARGER &&
+				p_noti.sub2 == USB_STATUS_NOTIFY_ATTACH_UFP)
+			return 0;
+			
+		if (p_noti.sub2 != USB_STATUS_NOTIFY_DETACH && /*drp */
+			(typec_manager.ccic_rid_state == RID_523K || typec_manager.ccic_rid_state == RID_619K)) {
 			return 0;
 		}
 		if ((typec_manager.cable_type == MANAGER_NOTIFY_MUIC_TIMEOUT_OPEN_DEVICE) 

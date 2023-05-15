@@ -1,6 +1,6 @@
 /*****************************************************************************
  *
- * Copyright (c) 2012 - 2019 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2020 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -12,28 +12,29 @@
 /* net_device queues
  * ---------------------------------------------
  *	1 Queue for Security frames (EAPOL, WAPI etc)
- *	1 Queue for Broadcast/Multicast when in AP mode.
+ *	4 Queues for Broadcast/Multicast when in AP mode.
+ *	1 Queue for ARP
  *	4 Queues per Peer
  *
  *	STA/ADHOC
  *	Queues
- *	-------------------------------------------------------
- *	|    0    |    1    |  2 - 5  |  6  |  7  |  8  |  9  |
- *	-------------------------------------------------------
- *	| Eapol   | Discard |   Not   | AC  | AC  | AC  | AC  |
- *	| Frames  | Queue   |   Used  |  0  |  1  |  2  |  3  |
- *	-------------------------------------------------------
+ *	-------------------------------------------------------------
+ *	|    0    |    1    |  2 - 5  |  6  |  7  |  8  |  9  |  10 |
+ *	-------------------------------------------------------------
+ *	| Eapol   | Discard |   Not   | ARP | AC  | AC  | AC  | AC  |
+ *	| Frames  | Queue   |   Used  |     |  0  |  1  |  2  |  3  |
+ *	-------------------------------------------------------------
  *
  *	AP
  *	Queues
- *	                                                            --------------------------------------------------------
- *	                                                            |   Peer 1 ACs (0 - 4)  |   Peer 2 ACs (0 - 4)  | ......
- *	--------------------------------------------------------------------------------------------------------------------
- *	|    0    |    1    |    2    |    3    |    4    |    5    |  6  |  7  |  8  |  9  |  10 |  11 |  12 |  13 | ......
- *	--------------------------------------------------------------------------------------------------------------------
- *	| Eapol   | Discard |B/M Cast |B/M Cast |B/M Cast |B/M Cast | AC  | AC  | AC  | AC  | AC  | AC  | AC  | AC  | ......
- *	| Frames  |  Queue  |  AC 0   |  AC 1   |  AC 2   |  AC 3   |  0  |  1  |  2  |  3  |  0  |  1  |  2  |  3  | ......
- *	--------------------------------------------------------------------------------------------------------------------
+ *	                                                                        ------------------------------------------------
+ *	                                                                        | Peer1 ACs(0 - 4)  | Peer2 ACs(0 - 4)  | ......
+ *	------------------------------------------------------------------------------------------------------------------------
+ *	|    0   |    1    |    2    |    3    |    4    |    5    |  6  |  7  | 8  | 9  | 10 | 11 | 12 | 13 | 14 | ......
+ *	------------------------------------------------------------------------------------------------------------------------
+ *	| Eapol  | Discard |B/M Cast |B/M Cast |B/M Cast |B/M Cast | ARP | AC  | AC | AC | AC | AC | AC | AC | AC | ......
+ *	| Frames |  Queue  |  AC 0   |  AC 1   |  AC 2   |  AC 3   |     |  0  |  1 |  2 |  3 |  0 |  1 |  2 |  3 | ......
+ *	------------------------------------------------------------------------------------------------------------------------
  */
 
 #ifndef ETH_P_PAE
@@ -46,14 +47,15 @@
 #define SLSI_NETIF_Q_PRIORITY         0
 #define SLSI_NETIF_Q_DISCARD          1
 #define SLSI_NETIF_Q_MULTICAST_START  2
-#define SLSI_NETIF_Q_PEER_START       6
+#define SLSI_NETIF_Q_ARP              6
+#define SLSI_NETIF_Q_PEER_START       7
 
 #define SLSI_NETIF_Q_PER_PEER   4
 
-#define SLSI_NETIF_SKB_HEADROOM (68 + 160) /* sizeof ma_unitdata_req [36] + pad [30] + pad_words [2]  */
+/* sizeof ma_unitdata_req [36] + pad [30] + pad_words [2]  */
+#define SLSI_NETIF_SKB_HEADROOM (68 + 160)
 #define SLSI_NETIF_SKB_TAILROOM 0
-
-#define SLSI_IS_MULTICAST_QUEUE_MAPPING(queue) (queue >= SLSI_NETIF_Q_MULTICAST_START && queue < (SLSI_NETIF_Q_MULTICAST_START + SLSI_NETIF_Q_PER_PEER) ? 1 : 0)
+#define SLSI_SYS_ERROR_RECOVERY_TIMEOUT  1000 /* 1s timeout */
 
 static inline u16 slsi_netif_get_peer_queue(s16 queueset, s16 ac)
 {
@@ -106,5 +108,5 @@ int slsi_netif_register_locked(struct slsi_dev *sdev, struct net_device *dev);
 #ifdef CONFIG_SCSC_WIFI_NAN_ENABLE
 void slsi_net_randomize_nmi_ndi(struct slsi_dev *sdev);
 #endif
-
+int slsi_netif_set_tid_config(struct slsi_dev *sdev, struct net_device *dev, u8 mode, u32 uid, u8 tid);
 #endif /*__SLSI_NETIF_H__*/

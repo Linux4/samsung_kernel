@@ -47,7 +47,7 @@ static int sap_test_rx_handler(struct slsi_dev *sdev, struct sk_buff *skb)
 
 	SLSI_INFO_NODEV("TEST SAP not implemented\n");
 	/* Silently consume the skb */
-	slsi_kfree_skb(skb);
+	kfree_skb(skb);
 	/* return success */
 	return 0;
 }

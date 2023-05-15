@@ -156,6 +156,12 @@ void dbg_snapshot_scratch_reg(unsigned int val)
 		__raw_writel(val, dbg_snapshot_get_base_vaddr() + DSS_OFFSET_SCRATCH);
 }
 
+void dbg_snapshot_scratch_clear(void)
+{
+	dbg_snapshot_scratch_reg(DSS_SIGN_RESET);
+}
+EXPORT_SYMBOL(dbg_snapshot_scratch_clear);
+
 bool dbg_snapshot_is_scratch(void)
 {
 	return __raw_readl(dbg_snapshot_get_base_vaddr() +
@@ -358,10 +364,7 @@ int dbg_snapshot_post_reboot(char *cmd)
 
 	dbg_snapshot_report_reason(DSS_SIGN_NORMAL_REBOOT);
 
-	if (!cmd)
-		dbg_snapshot_scratch_reg(DSS_SIGN_RESET);
-	else if (strcmp((char *)cmd, "bootloader") && strcmp((char *)cmd, "ramdump"))
-		dbg_snapshot_scratch_reg(DSS_SIGN_RESET);
+	dbg_snapshot_scratch_reg(DSS_SIGN_RESET);
 
 	pr_emerg("debug-snapshot: normal reboot done\n");
 

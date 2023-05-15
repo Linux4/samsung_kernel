@@ -1,5 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2017 TRUSTONIC LIMITED
+ * Copyright (c) 2017-2019 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -15,21 +16,15 @@
 #ifndef _MC_XEN_BE_H_
 #define _MC_XEN_BE_H_
 
-#include <linux/version.h>
-
-struct xen_be_map;
+#include "protocol_common.h"
 
 #ifdef CONFIG_XEN
-int xen_be_init(void);
-void xen_be_exit(void);
+struct tee_protocol_ops *xen_be_check(void);
 #else
-static inline int xen_be_init(void)
+static inline
+struct tee_protocol_ops *xen_be_check(void)
 {
-	return 0;
-}
-
-static inline void xen_be_exit(void)
-{
+	return NULL;
 }
 #endif
 

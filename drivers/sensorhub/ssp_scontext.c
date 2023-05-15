@@ -46,7 +46,7 @@ void ssp_scontext_log(const char *func_name,
 	for (i = 0; i < length; i++) {
 		if (length < BIG_DATA_SIZE ||
 		    i < PRINT_TRUNCATE || i >= length - PRINT_TRUNCATE) {
-			snprintf(buf, sizeof(buf), "0x%x", (signed char)data[i]);
+			snprintf(buf, sizeof(buf), "0x%x", (unsigned char)data[i]);
 			strlcat(log_str, buf, log_size);
 
 			if (i < length - 1) {
@@ -68,7 +68,7 @@ static int ssp_scontext_send_cmd(struct ssp_data *data,
 	int ret = 0;
 
 	if (buf[2] < SCONTEXT_AP_STATUS_WAKEUP ||
-	    buf[2] >= SCONTEXT_AP_STATUS_CALL_ACTIVE) {
+	    buf[2] > SCONTEXT_AP_STATUS_CALL_ACTIVE) {
 		ssp_errf("INST_LIB_NOTI err(%d)", buf[2]);
 		return -EINVAL;
 	}
@@ -115,7 +115,7 @@ int convert_scontext_putvalue_subcmd(int subcmd)
 		ret = PEDOMETER_INFOUPDATETIME;
 		break;
 	default:
-		ret = ERROR;
+		ret = subcmd;
 	}
 
 	return ret;
@@ -135,103 +135,52 @@ int convert_scontext_getvalue_subcmd(int subcmd)
 		ret = LIBRARY_VERSIONINFO;
 		break;
 	default:
-		ret = ERROR;
+		ret = subcmd;
 	}
 
 	return ret;
 }
 
-
-#define SS_SENSOR_TYPE_CALL_POSE                  (SS_SENSOR_TYPE_BASE + 2)
-#define SS_SENSOR_TYPE_PEDOMETER                  (SS_SENSOR_TYPE_BASE + 3)
-#define SS_SENSOR_TYPE_MOTION                     (SS_SENSOR_TYPE_BASE + 4)
-#define SS_SENSOR_TYPE_GESTURE_APPROACH           (SS_SENSOR_TYPE_BASE + 5)
-#define SS_SENSOR_TYPE_STEP_COUNT_ALERT           (SS_SENSOR_TYPE_BASE + 6)
-#define SS_SENSOR_TYPE_AUTO_ROTATION              (SS_SENSOR_TYPE_BASE + 7)
-#define SS_SENSOR_TYPE_MOVEMENT                   (SS_SENSOR_TYPE_BASE + 8)
-#define SS_SENSOR_TYPE_MOVEMENT_FOR_POSITIONING   (SS_SENSOR_TYPE_BASE + 9)
-#define SS_SENSOR_TYPE_DIRECT_CALL                (SS_SENSOR_TYPE_BASE + 10)
-#define SS_SENSOR_TYPE_STOP_ALERT                 (SS_SENSOR_TYPE_BASE + 11)
-#define SS_SENSOR_TYPE_ENVIRONMENT_SENSOR         (SS_SENSOR_TYPE_BASE + 12)
-#define SS_SENSOR_TYPE_SHAKE_MOTION               (SS_SENSOR_TYPE_BASE + 13)
-#define SS_SENSOR_TYPE_FLIP_COVER_ACTION          (SS_SENSOR_TYPE_BASE + 14)
-#define SS_SENSOR_TYPE_GYRO_TEMPERATURE           (SS_SENSOR_TYPE_BASE + 15)
-#define SS_SENSOR_TYPE_PUT_DOWN_MOTION            (SS_SENSOR_TYPE_BASE + 16)
-#define SS_SENSOR_TYPE_BOUNCE_SHORT_MOTION        (SS_SENSOR_TYPE_BASE + 18)
-#define SS_SENSOR_TYPE_BOUNCE_LONG_MOTION         (SS_SENSOR_TYPE_BASE + 20)
-#define SS_SENSOR_TYPE_WRIST_UP_MOTION            (SS_SENSOR_TYPE_BASE + 19)
-#define SS_SENSOR_TYPE_FLAT_MOTION                (SS_SENSOR_TYPE_BASE + 21)
-#define SS_SENSOR_TYPE_MOVEMENT_ALERT             (SS_SENSOR_TYPE_BASE + 22)
-#define SS_SENSOR_TYPE_TEST_FLAT_MOTION           (SS_SENSOR_TYPE_BASE + 23)
-#define SS_SENSOR_TYPE_TEMPERATURE_ALERT          (SS_SENSOR_TYPE_BASE + 24)
-#define SS_SENSOR_TYPE_SPECIFIC_POSE_ALERT        (SS_SENSOR_TYPE_BASE + 25)
-#define SS_SENSOR_TYPE_ACTIVITY_TRACKER           (SS_SENSOR_TYPE_BASE + 26)
-#define SS_SENSOR_TYPE_STAYING_ALERT              (SS_SENSOR_TYPE_BASE + 27)
-#define SS_SENSOR_TYPE_APDR                       (SS_SENSOR_TYPE_BASE + 28)
-#define SS_SENSOR_TYPE_LIFE_LOG_COMPONENT         (SS_SENSOR_TYPE_BASE + 29)
-#define SS_SENSOR_TYPE_CARE_GIVER                 (SS_SENSOR_TYPE_BASE + 30)
-#define SS_SENSOR_TYPE_STEP_DETECTOR              (SS_SENSOR_TYPE_BASE + 31) //MR2 sensors are not defined in SContext. But this must be implemented as Library Type. [6-July-2016]
-#define SS_SENSOR_TYPE_SIGNIFICANT_MOTION         (SS_SENSOR_TYPE_BASE + 32)
-#define SS_SENSOR_TYPE_UNCALIBRATED_GYRO          (SS_SENSOR_TYPE_BASE + 33)
-#define SS_SENSOR_TYPE_ROTATION_VECTOR            (SS_SENSOR_TYPE_BASE + 35)
-#define SS_SENSOR_TYPE_STEP_COUNTER               (SS_SENSOR_TYPE_BASE + 36)
-#define SS_SENSOR_TYPE_SLEEP_MONITOR              (SS_SENSOR_TYPE_BASE + 37)
-#define SS_SENSOR_TYPE_ABNORMAL_SHOCK             (SS_SENSOR_TYPE_BASE + 38)
-#define SS_SENSOR_TYPE_CAPTURE_MOTION             (SS_SENSOR_TYPE_BASE + 39)
-#define SS_SENSOR_TYPE_CALL_MOTION                (SS_SENSOR_TYPE_BASE + 41)
-#define SS_SENSOR_TYPE_STEP_LEVEL_MONITOR         (SS_SENSOR_TYPE_BASE + 44)
-#define SS_SENSOR_TYPE_FLAT_MOTION_FOR_TABLE_MODE (SS_SENSOR_TYPE_BASE + 45)
-#define SS_SENSOR_TYPE_EXERCISE                   (SS_SENSOR_TYPE_BASE + 46)
-#define SS_SENSOR_TYPE_PHONE_STATE_MONITOR        (SS_SENSOR_TYPE_BASE + 47)
-#define SS_SENSOR_TYPE_AUTO_BRIGHTNESS            (SS_SENSOR_TYPE_BASE + 48)
-#define SS_SENSOR_TYPE_ABNORMAL_PRESSURE_MONITOR  (SS_SENSOR_TYPE_BASE + 49)
-#define SS_SENSOR_TYPE_HALL_SENSOR                (SS_SENSOR_TYPE_BASE + 50)
-#define SS_SENSOR_TYPE_EAD                        (SS_SENSOR_TYPE_BASE + 52)
-#define SS_SENSOR_TYPE_DUAL_DISPLAY_ANGLE         (SS_SENSOR_TYPE_BASE + 53)
-#define SS_SENSOR_TYPE_WIRELESS_CHARGING_MONITOR  (SS_SENSOR_TYPE_BASE + 54)
-#define SS_SENSOR_TYPE_SLOCATION                  (SS_SENSOR_TYPE_BASE + 55)
-#define SS_SENSOR_TYPE_DPCM                       (SS_SENSOR_TYPE_BASE + 56)
-#define SS_SENSOR_TYPE_MAIN_SCREEN_DETECTION      (SS_SENSOR_TYPE_BASE + 57)
-#define SS_SENSOR_TYPE_ANY_MOTION_DETECTOR        (SS_SENSOR_TYPE_BASE + 58)
-#define SS_SENSOR_TYPE_SENSOR_STATUS_CHECK        (SS_SENSOR_TYPE_BASE + 59)
-#define SS_SENSOR_TYPE_ACTIVITY_CALIBRATION       (SS_SENSOR_TYPE_BASE + 60)
-
-
 void get_ss_sensor_name(struct ssp_data *data, int type, char *buf, int buf_size)
 {
-	memset(buf, 0, buf_size);
-	switch(type) {
-		case SS_SENSOR_TYPE_PEDOMETER :
-			strncpy(buf, "pedoneter", buf_size);
-			break;
-		case SS_SENSOR_TYPE_STEP_COUNT_ALERT :
-			strncpy(buf, "step count alert", buf_size);
-			break;
-		case SS_SENSOR_TYPE_AUTO_ROTATION :
-			strncpy(buf, "auto rotation", buf_size);
-			break;
-		case SS_SENSOR_TYPE_SLOCATION :
-			strncpy(buf, "slocation", buf_size);
-			break;
-		case SS_SENSOR_TYPE_MOVEMENT :
-			strncpy(buf, "smart alert", buf_size);
-			break;
-		case SS_SENSOR_TYPE_ACTIVITY_TRACKER :
-			strncpy(buf, "activity tracker", buf_size);
-			break;
-		case SS_SENSOR_TYPE_DPCM :
-			strncpy(buf, "dpcm", buf_size);
-			break;
-		case SS_SENSOR_TYPE_SENSOR_STATUS_CHECK :
-			strncpy(buf, "sensor status check", buf_size);
-			break;
-		case SS_SENSOR_TYPE_ACTIVITY_CALIBRATION :	
-			strncpy(buf, "activity calibration", buf_size);
-			break;
+        memset(buf, 0, buf_size);
+        switch (type) {
+                case SS_SENSOR_TYPE_PEDOMETER:
+                        strncpy(buf, "pedometer", buf_size);
+                        break;
+                case SS_SENSOR_TYPE_STEP_COUNT_ALERT:
+                        strncpy(buf, "step count alert", buf_size);
+                        break;
+                case SS_SENSOR_TYPE_AUTO_ROTATION:
+                        strncpy(buf, "auto rotation", buf_size);
+                        break;
+                case SS_SENSOR_TYPE_SLOCATION:
+                        strncpy(buf, "slocation", buf_size);
+                        break;
+                case SS_SENSOR_TYPE_MOVEMENT:
+                        strncpy(buf, "smart alert", buf_size);
+                        break;
+                case SS_SENSOR_TYPE_ACTIVITY_TRACKER:
+                        strncpy(buf, "activity tracker", buf_size);
+                        break;
+                case SS_SENSOR_TYPE_DPCM:
+                        strncpy(buf, "dpcm", buf_size);
+                        break;
+                case SS_SENSOR_TYPE_SENSOR_STATUS_CHECK:
+                        strncpy(buf, "sensor status check", buf_size);
+                        break;
+                case SS_SENSOR_TYPE_ACTIVITY_CALIBRATION:
+                        strncpy(buf, "activity calibration", buf_size);
+                        break;
+                case SS_SENSOR_TYPE_DEVICE_POSITION:
+                        strncpy(buf, "device position", buf_size);
+                        break;
+                case SS_SENSOR_TYPE_CHANGE_LOCATION_TRIGGER:
+                        strncpy(buf, "change location trigger", buf_size);
+                        break;
+        }
 
-	}
-
-	return;
+        return;
 }
 
 
@@ -242,20 +191,31 @@ static int ssp_scontext_send_instruction(struct ssp_data *data,
 	char *buffer = (char *)(buf + 2);
 	int length = count - 2;
 	char name[SENSOR_NAME_MAX_LEN] = "";
+
 	if (buf[0] == SCONTEXT_INST_LIBRARY_REMOVE) {
 		command = CMD_REMOVE;
 		type = buf[1] + SS_SENSOR_TYPE_BASE;
-		get_ss_sensor_name(data, type, name, sizeof(name));
-		ssp_infof("REMOVE LIB %s, type %d", name, type);
+		if(type < SS_SENSOR_TYPE_MAX)
+		{
+			get_ss_sensor_name(data, type, name, sizeof(name));
+			ssp_infof("REMOVE LIB %s, type %d", name, type);
 
-		return disable_sensor(data, type, buffer, length);
+			return disable_sensor(data, type, buffer, length);
+		}
+		else
+			return -EINVAL;
 	} else if (buf[0] == SCONTEXT_INST_LIBRARY_ADD) {
 		command = CMD_ADD;
 		type = buf[1] + SS_SENSOR_TYPE_BASE;
-		get_ss_sensor_name(data, type, name, sizeof(name));
-		ssp_infof("ADD LIB, type %d", type);
+		if(type < SS_SENSOR_TYPE_MAX)
+		{
+			get_ss_sensor_name(data, type, name, sizeof(name));
+			ssp_infof("ADD LIB, type %d", type);
 
-		return enable_sensor(data, type, buffer, length);
+			return enable_sensor(data, type, buffer, length);
+		}
+		else
+			return ERROR;
 	} else if (buf[0] == SCONTEXT_INST_LIB_SET_DATA) {
 		command = CMD_SETVALUE;
 		if (buf[1] != SCONTEXT_VALUE_LIBRARY_DATA) {

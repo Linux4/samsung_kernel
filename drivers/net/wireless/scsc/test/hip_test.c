@@ -98,7 +98,7 @@ int slsi_hip_rx(struct slsi_dev *sdev, struct sk_buff *skb)
 	slsi_log_clients_log_signal_fast(sdev, &sdev->log_clients, skb, SLSI_LOG_DIRECTION_TO_HOST);
 	pid = fapi_get_u16(skb, receiver_pid);
 	if (pid >= SLSI_TX_PROCESS_ID_UDI_MIN && pid <= SLSI_TX_PROCESS_ID_UDI_MAX) {
-		slsi_kfree_skb(skb);
+		kfree_skb(skb);
 		return 0;
 	}
 
@@ -146,7 +146,7 @@ int hip4_free_ctrl_slots_count(struct slsi_hip4 *hip)
 	return HIP4_CTL_SLOTS;
 }
 
-int scsc_wifi_transmit_frame(struct slsi_hip4 *hip, bool ctrl_packet, struct sk_buff *skb)
+int scsc_wifi_transmit_frame(struct slsi_hip4 *hip, struct sk_buff *skb, bool ctrl_packet, u8 vif_index, u8 peer_index, u8 priority)
 {
 	struct slsi_dev *sdev = container_of(hip, struct slsi_dev, hip4_inst);
 
@@ -273,4 +273,7 @@ int scsc_wifi_fcq_stat_queueset(struct scsc_wifi_fcq_data_qset *queue_set,
 {
 	return 0;
 }
+void slsi_hip_reprocess_skipped_data_bh(struct slsi_dev *sdev)
+{
 
+}

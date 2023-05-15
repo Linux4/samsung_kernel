@@ -142,6 +142,15 @@ static int g2d_prepare_buffer(struct g2d_device *g2d_dev,
 
 	BUG_ON(!fmt);
 
+	 if (data->num_buffers == 0) {
+		 if ((layer->flags & G2D_LAYERFLAG_COLORFILL) != 0)
+			 return 0;
+
+		 perrfndev(g2d_dev, "Invalid number of buffer %u for %s",
+				 data->num_buffers, fmt->name);
+		 return -EINVAL;
+	}
+
 	if ((data->num_buffers > 1) && (data->num_buffers != fmt->num_planes)) {
 		/* NV12 8+2 in two buffers is valid */
 		if ((fmt->num_planes != 4) || (data->num_buffers != 2)) {
@@ -467,7 +476,7 @@ static int g2d_get_buffer(struct g2d_device *g2d_dev,
 	} else if (layer->buffer_type == G2D_BUFTYPE_USERPTR) {
 		get_func = g2d_get_userptr;
 		put_func = g2d_put_userptr;
-	} else {
+	} else if (layer->buffer_type != G2D_BUFTYPE_EMPTY) {
 		BUG();
 	}
 
@@ -544,14 +553,11 @@ static int g2d_get_source(struct g2d_device *g2d_dev, struct g2d_task *task,
 		if (layer->flags & G2D_LAYERFLAG_COLORFILL) {
 			layer->num_buffers = 0;
 			layer->flags &= ~G2D_LAYERFLAG_ACQUIRE_FENCE;
-			/* g2d_prepare_source() always successes for colofill */
-			g2d_prepare_source(task, layer, index);
-			return 0;
+		} else {
+			perrfndev(g2d_dev, "DMA layer %d has no buffer - flags: %#x",
+					index, layer->flags);
+			return -EINVAL;
 		}
-
-		perrfndev(g2d_dev, "DMA layer %d has no buffer - flags: %#x",
-			  index, layer->flags);
-		return -EINVAL;
 	}
 
 	if (!g2d_validate_source_commands(

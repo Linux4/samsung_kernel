@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *       Copyright (c) 2012 - 2016 Samsung Electronics Co., Ltd
+ *       Copyright (c) 2012 - 2021 Samsung Electronics Co., Ltd
  *
  ****************************************************************************/
 
@@ -439,7 +439,7 @@ bool slsi_test_process_signal(struct slsi_test_dev *uftestdev, struct sk_buff *s
 			else if (fapi_get_u16(skb, u.debug_generic_req.debug_words[1]) == 3)
 				slsi_test_process_signal_clear_route(uftestdev, skb);
 		}
-		slsi_kfree_skb(skb);
+		kfree_skb(skb);
 		return true;
 	}
 
@@ -459,7 +459,7 @@ bool slsi_test_process_signal(struct slsi_test_dev *uftestdev, struct sk_buff *s
 			WARN_ON(!skb_pull(skb, fapi_sig_size(ma_unitdata_req)));
 			ind = (struct fapi_signal *)skb_push(skb, fapi_sig_size(ma_unitdata_ind));
 			if (WARN_ON(!ind)) {
-				slsi_kfree_skb(skb);
+				kfree_skb(skb);
 				spin_unlock(&uftestdev->route_spinlock);
 				return true;
 			}
@@ -478,10 +478,10 @@ bool slsi_test_process_signal(struct slsi_test_dev *uftestdev, struct sk_buff *s
 			if (slsi_test_devices[route->test_device_minor_number] &&
 			    slsi_test_devices[route->test_device_minor_number]->sdev) {
 				if (slsi_hip_rx(slsi_test_devices[route->test_device_minor_number]->sdev, skb) != 0)
-					slsi_kfree_skb(skb);
+					kfree_skb(skb);
 			} else {
 				route->configured = false;
-				slsi_kfree_skb(skb);
+				kfree_skb(skb);
 			}
 			slsi_spinlock_unlock(&slsi_test_devices_lock);
 			spin_unlock(&uftestdev->route_spinlock);
@@ -509,3 +509,22 @@ static void slsi_test_dev_detach_work(struct work_struct *work)
 	SLSI_INFO(uftestdev->sdev, "UnitTest TEST Detach\n");
 	slsi_test_dev_detach(uftestdev);
 }
+
+void scsc_wifi_unpause_arp_q_all_vif(struct slsi_dev *sdev)
+{
+}
+
+void scsc_wifi_pause_arp_q_all_vif(struct slsi_dev *sdev)
+{
+}
+
+int mx140_request_file(struct scsc_mx *mx, char *path, const struct firmware **firmp)
+{
+	return -EINVAL;
+}
+
+int mx140_release_file(struct scsc_mx *mx, const struct firmware *firmp)
+{
+	return -EINVAL;
+}
+

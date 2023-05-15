@@ -41,32 +41,11 @@ bool check_dma_done(struct fimc_is_hw_ip *hw_ip, u32 instance_id, u32 fcount)
 
 	FIMC_BUG(!framemgr);
 
-flush_wait_done_frame:
 	framemgr_e_barrier_common(framemgr, 0, flags);
 	frame = peek_frame(framemgr, FS_HW_WAIT_DONE);
 	framemgr_x_barrier_common(framemgr, 0, flags);
 
-	if (frame) {
-		u32 frame_fcount = frame->fcount;
-
-		if (frame->num_buffers == 1)
-			frame_fcount += frame->cur_buf_index;
-
-		if (unlikely(frame_fcount < fcount)) {
-			/* Flush the old frame which is in HW_WAIT_DONE state & retry. */
-			mswarn_hw("queued_count(%d) [ddk:%d,hw:%d] invalid frame(F:%d,idx:%d)",
-					instance_id, hw_ip,
-					framemgr->queued_count[FS_HW_WAIT_DONE],
-					fcount, hw_fcount,
-					frame_fcount, frame->cur_buf_index);
-			fimc_is_hardware_frame_ndone(hw_ip, frame, frame->instance, IS_SHOT_INVALID_FRAMENUMBER);
-			goto flush_wait_done_frame;
-		} else if (unlikely(frame_fcount > fcount)) {
-			mswarn_hw("%s:[F%d] Too early frame. Skip it.", instance_id, hw_ip,
-					__func__, frame_fcount);
-			return true;
-		}
-	} else {
+	if (!frame) {
 		/* Flush the old frame which is in HW_CONFIGURE state & skip dma_done. */
 flush_config_frame:
 		framemgr_e_barrier_common(framemgr, 0, flags);
@@ -75,12 +54,14 @@ flush_config_frame:
 			if (unlikely(frame->fcount + frame->cur_buf_index < hw_fcount)) {
 				trans_frame(framemgr, frame, FS_HW_WAIT_DONE);
 				framemgr_x_barrier_common(framemgr, 0, flags);
+				mserr_hw("[F:%d,FF:%d,HWF:%d] late config frame",
+					instance_id, hw_ip, fcount, frame->fcount, hw_fcount);
 				fimc_is_hardware_frame_ndone(hw_ip, frame, frame->instance, IS_SHOT_INVALID_FRAMENUMBER);
 				goto flush_config_frame;
 			} else if (unlikely(frame->fcount + frame->cur_buf_index == hw_fcount)) {
-				trans_frame(framemgr, frame, FS_HW_WAIT_DONE);
 				framemgr_x_barrier_common(framemgr, 0, flags);
-				fimc_is_hardware_frame_ndone(hw_ip, frame, frame->instance, IS_SHOT_INVALID_FRAMENUMBER);
+				msinfo_hw("[F:%d,FF:%d,HWF:%d] right config frame",
+					instance_id, hw_ip, fcount, frame->fcount, hw_fcount);
 				return true;
 			}
 		}
@@ -436,8 +417,8 @@ static void fimc_is_lib_camera_callback(void *this, enum lib_cb_event_type event
 			msinfo_hw("[F:%d]F.S\n", instance_id, hw_ip,
 				hw_fcount);
 
-		fimc_is_hardware_frame_start(hw_ip, instance_id);
 		atomic_add(hw_ip->num_buffers, &hw_ip->count.fs);
+		fimc_is_hardware_frame_start(hw_ip, instance_id);
 		break;
 	case LIB_EVENT_FRAME_END:
 		index = hw_ip->debug_index[1];

@@ -326,6 +326,7 @@ struct mms_ts_info {
 	u8 fod_tx;
 	u8 fod_rx;
 	u8 fod_vi_size;
+	u8 fod_lp_mode;
 
 	u8 grip_landscape_mode;
 	u16 grip_landscape_top_deadzone;

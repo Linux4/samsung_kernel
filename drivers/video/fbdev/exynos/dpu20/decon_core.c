@@ -333,7 +333,7 @@ static void decon_set_black_window(struct decon_device *decon)
 	decon_reg_all_win_shadow_update_req(decon->id);
 }
 
-int decon_tui_protection(bool tui_en)
+int decon_tui_protection_no_lock(bool tui_en)
 {
 	int ret = 0;
 	int win_idx;
@@ -344,7 +344,6 @@ int decon_tui_protection(bool tui_en)
 	decon_info("%s:state %d: out_type %d:+\n", __func__,
 				tui_en, decon->dt.out_type);
 	if (tui_en) {
-		mutex_lock(&decon->lock);
 		decon_hiber_block_exit(decon);
 
 		kthread_flush_worker(&decon->up.worker);
@@ -378,9 +377,7 @@ int decon_tui_protection(bool tui_en)
 				decon->bts.prev_total_bw,
 				decon->bts.total_bw);
 #endif
-		mutex_unlock(&decon->lock);
 	} else {
-		mutex_lock(&decon->lock);
 		aclk_khz = v4l2_subdev_call(decon->out_sd[0], core, ioctl,
 				EXYNOS_DPU_GET_ACLK, NULL) / 1000U;
 		decon_info("%s:DPU_ACLK(%ld khz)\n", __func__, aclk_khz);
@@ -394,10 +391,21 @@ int decon_tui_protection(bool tui_en)
 #endif
 		decon->state = DECON_STATE_ON;
 		decon_hiber_unblock(decon);
-		mutex_unlock(&decon->lock);
 	}
 	decon_info("%s:state %d: out_type %d:-\n", __func__,
 				tui_en, decon->dt.out_type);
+	return ret;
+}
+
+int decon_tui_protection(bool tui_en)
+{
+	int ret;
+	struct decon_device *decon = decon_drvdata[0];
+
+	mutex_lock(&decon->lock);
+	ret = decon_tui_protection_no_lock(tui_en);
+	mutex_unlock(&decon->lock);
+
 	return ret;
 }
 
@@ -692,7 +700,7 @@ static int _decon_disable(struct decon_device *decon, enum decon_state state)
 #ifdef CONFIG_SAMSUNG_TUI
 		stui_cancel_session();
 #endif
-		decon_tui_protection(false);
+		decon_tui_protection_no_lock(false);
 	}
 
 	if (IS_DECON_OFF_STATE(decon)) {
@@ -719,6 +727,12 @@ static int _decon_disable(struct decon_device *decon, enum decon_state state)
 		disable_irq(decon->res.irq);
 		decon->eint_status = 0;
 	}
+
+	if (decon->dt.out_type == DECON_OUT_DSI && decon->dt.psr_mode == DECON_VIDEO_MODE) { 
+		struct dsim_device *dsim; 
+		dsim = v4l2_get_subdevdata(decon->out_sd[0]); 
+		call_panel_ops(dsim, suspend, dsim); 
+	} 
 
 	ret = decon_reg_stop(decon->id, decon->dt.out_idx[0], &psr, true,
 			decon->lcd_info->fps);
@@ -1744,13 +1758,22 @@ static int decon_set_mask_layer(struct decon_device *decon, struct decon_reg_dat
 		return 0;
 	}
 
+	decon_systrace(decon, 'C', "decon_mask_layer", 1);
 	decon_abd_save_str(&decon->abd, "mask_te_0");
 	decon_wait_for_vsync(decon, VSYNC_TIMEOUT_MSEC);
 	decon_info("%s: MASK_LAYER TE 1\n", __func__);
 	decon_abd_save_str(&decon->abd, "mask_te_1");
-
+	decon_systrace(decon, 'C', "decon_mask_layer", 0);
 	decon->mask_regs = regs;
 	ret = call_panel_ops(dsim, mask_brightness, dsim);
+
+	/* clear wait_mask_layer_trigger */
+	if (decon->wait_mask_layer_trigger) {
+		decon->wait_mask_layer_trigger = 0;
+		decon_info("wait_mask_layer_trigger [clear] wait:%d\n",
+			decon->wait_mask_layer_trigger);
+		wake_up_interruptible_all(&decon->wait_mask_layer_trigger_queue);
+	}
 
 	return 1; /* return 1 for checking trigger done */
 }
@@ -1839,7 +1862,7 @@ static int __decon_update_regs(struct decon_device *decon, struct decon_reg_data
 		goto trigger_done;
 #endif
 
-	if (decon_reg_start(decon->id, &psr) < 0) {
+	if (decon_reg_start(decon->id, &psr) < 0 && !decon->ignore_vsync) {
 		decon_up_list_saved();
 		decon_dump(decon);
 #ifdef CONFIG_LOGGING_BIGDATA_BUG
@@ -1987,6 +2010,10 @@ static int decon_set_hdr_info(struct decon_device *decon,
 #else
 	video_meta = (struct exynos_video_meta *)dma_buf_vmap(
 			regs->dma_buf_data[win_num][meta_plane].dma_buf);
+	if (IS_ERR_OR_NULL(video_meta)) {
+		decon_err("Failed to get virtual address (err %pK)\n", video_meta);
+		return -ENOMEM;
+	}
 #endif
 
 	hdr_cmp = memcmp(&decon->prev_hdr_info,
@@ -2190,7 +2217,7 @@ static void decon_update_regs(struct decon_device *decon,
 
 	decon_to_psr_info(decon, &psr);
 	if (regs->num_of_window) {
-		if (__decon_update_regs(decon, regs) < 0) {
+		if (__decon_update_regs(decon, regs) < 0 && !decon->ignore_vsync) {
 #if defined(CONFIG_EXYNOS_AFBC_DEBUG)
 			decon_dump_afbc_handle(decon, old_dma_bufs);
 #endif
@@ -2230,7 +2257,7 @@ static void decon_update_regs(struct decon_device *decon,
 			decon_set_cursor_unmask(decon, false);
 
 		decon_wait_for_vstatus(decon, 50);
-		if (decon_reg_wait_update_done_timeout(decon->id, SHADOW_UPDATE_TIMEOUT) < 0) {
+		if (decon_reg_wait_update_done_timeout(decon->id, SHADOW_UPDATE_TIMEOUT) < 0 && !decon->ignore_vsync) {
 #if defined(CONFIG_EXYNOS_READ_ESD_SOLUTION)
 			if (decon_is_bypass(decon))
 				goto end;
@@ -2400,10 +2427,13 @@ static void decon_update_regs_handler(struct kthread_work *work)
 	mutex_unlock(&decon->up.lock);
 
 	list_for_each_entry_safe(data, next, &saved_list, list) {
+		decon_systrace(decon, 'C', "update_regs_list_cnt", decon->update_regs_list_cnt);
 		decon_systrace(decon, 'C', "update_regs_list", 1);
 
 		decon_set_cursor_reset(decon, data);
 		decon_update_regs(decon, data);
+		decon->update_regs_list_cnt--;
+		decon_systrace(decon, 'C', "update_regs_list_cnt", decon->update_regs_list_cnt);
 #if defined(CONFIG_EXYNOS_READ_ESD_SOLUTION)
 		memcpy(&decon->last_regs, data, sizeof(struct decon_reg_data));
 #endif
@@ -2413,6 +2443,7 @@ static void decon_update_regs_handler(struct kthread_work *work)
 			decon_systrace(decon, 'C',
 					"update_regs_list", 0);
 			kfree(data);
+			atomic_dec(&decon->up.remaining_frame);
 		}
 	}
 }
@@ -2567,6 +2598,14 @@ static bool decon_get_mask_layer(struct decon_device *decon,
 		}
 	}
 
+	/* normal -> mask set wait_mask_layer_trigger */
+	/* mask -> normal set wait_mask_layer_trigger */
+	if (mask != decon->current_mask_layer) {
+		decon->wait_mask_layer_trigger = 1;
+		decon_info("wait_mask_layer_trigger [set] wait:%d\n",
+			decon->wait_mask_layer_trigger);
+	}
+
 	return mask;
 }
 #endif
@@ -2648,7 +2687,6 @@ static int decon_set_win_config(struct decon_device *decon,
 			sizeof(struct decon_rect));
 
 	if (num_of_window) {
-		fd_install(win_data->retire_fence, sync_file->file);
 		decon_create_release_fences(decon, win_data, sync_file);
 #if !defined(CONFIG_SUPPORT_LEGACY_FENCE)
 		regs->retire_fence = dma_fence_get(sync_file->fence);
@@ -2659,10 +2697,44 @@ static int decon_set_win_config(struct decon_device *decon,
 
 	mutex_lock(&decon->up.lock);
 	list_add_tail(&regs->list, &decon->up.list);
+	atomic_inc(&decon->up.remaining_frame);
+	decon->update_regs_list_cnt++;
+	win_data->extra.remained_frames =
+		atomic_read(&decon->up.remaining_frame);
 	mutex_unlock(&decon->up.lock);
 	kthread_queue_work(&decon->up.worker, &decon->up.work);
 
+	/*
+	 * The code is moved here because the DPU driver may get a wrong fd
+	 * through the released file pointer,
+	 * if the user(HWC) closes the fd and releases the file pointer.
+	 *
+	 * Since the user land can use fd from this point/time,
+	 * it can be guaranteed to use an unreleased file pointer
+	 * when creating a rel_fence in decon_create_release_fences(...)
+	 */
+	if (num_of_window)
+		fd_install(win_data->retire_fence, sync_file->file);
+
 	mutex_unlock(&decon->lock);
+#if defined(CONFIG_SUPPORT_MASK_LAYER)
+	if (decon->wait_mask_layer_trigger) {
+		int timeout = 0;
+		timeout = wait_event_interruptible_timeout(decon->wait_mask_layer_trigger_queue,
+				!decon->wait_mask_layer_trigger,
+				msecs_to_jiffies(100));
+		if (timeout > 0) {
+			decon_info("wait_mask_layer_trigger [wq] wait:%d cnt:%d\n",
+				decon->wait_mask_layer_trigger,
+				decon->update_regs_list_cnt);
+		} else {
+			decon->wait_mask_layer_trigger = 0; /* force clear */
+			decon_info("wait_mask_layer_trigger [wq] wait:%d cnt:%d [TIMEOUT!!]\n",
+				decon->wait_mask_layer_trigger,
+				decon->update_regs_list_cnt);
+		}
+	}
+#endif
 	decon_systrace(decon, 'C', "decon_win_config", 0);
 
 	decon_dbg("%s -\n", __func__);
@@ -2683,6 +2755,7 @@ err_prepare:
 		put_unused_fd(win_data->retire_fence);
 	}
 	win_data->retire_fence = -1;
+	win_data->extra.remained_frames = -1;
 
 	for (i = 0; i < decon->dt.max_win; i++)
 		for (j = 0; j < regs->plane_cnt[i]; ++j)
@@ -2798,14 +2871,12 @@ static int decon_ioctl(struct fb_info *info, unsigned int cmd,
 
 		ret = decon_set_vsync_int(info, active);
 		break;
-
+	case S3CFB_WIN_CONFIG_OLD:
 	case S3CFB_WIN_CONFIG:
 		argp = (struct decon_win_config_data __user *)arg;
 		DPU_EVENT_LOG(DPU_EVT_WIN_CONFIG, &decon->sd, ktime_set(0, 0));
 		decon_systrace(decon, 'C', "decon_win_config", 1);
-		if (copy_from_user(&win_data,
-				   (struct decon_win_config_data __user *)arg,
-				   sizeof(struct decon_win_config_data))) {
+		if (copy_from_user(&win_data, (void __user *)arg, _IOC_SIZE(cmd))) {
 			ret = -EFAULT;
 			break;
 		}
@@ -3327,6 +3398,10 @@ static int decon_fb_alloc_memory(struct decon_device *decon, struct decon_win *w
 	}
 
 	vaddr = dma_buf_vmap(buf);
+	if (IS_ERR_OR_NULL(vaddr)) {
+		dev_err(decon->dev, "dma_buf_vmap() failed\n");
+		goto err_map;
+	}
 #endif
 
 	memset(vaddr, 0x00, size);
@@ -3741,6 +3816,7 @@ static int decon_create_update_thread(struct decon_device *decon, char *name)
 	INIT_LIST_HEAD(&decon->up.list);
 	INIT_LIST_HEAD(&decon->up.saved_list);
 	decon->up_list_saved = false;
+	atomic_set(&decon->up.remaining_frame, 0);
 	kthread_init_worker(&decon->up.worker);
 	decon->up.thread = kthread_run(kthread_worker_fn,
 			&decon->up.worker, name);
@@ -3942,6 +4018,9 @@ static int decon_probe(struct platform_device *pdev)
 	spin_lock_init(&decon->slock);
 	init_waitqueue_head(&decon->vsync.wait);
 	init_waitqueue_head(&decon->wait_vstatus);
+#if defined(CONFIG_SUPPORT_MASK_LAYER)
+	init_waitqueue_head(&decon->wait_mask_layer_trigger_queue);
+#endif
 	mutex_init(&decon->vsync.lock);
 	mutex_init(&decon->lock);
 	mutex_init(&decon->pm_lock);

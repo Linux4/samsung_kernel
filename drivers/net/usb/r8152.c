@@ -1254,6 +1254,9 @@ static void read_bulk_callback(struct urb *urb)
 		netif_device_detach(tp->netdev);
 		return;
 	case -ENOENT:
+	case -EPROTO:
+		netif_info(tp, intr, tp->netdev,
+				"Stop submitting intr, status %d\n", status);
 		return;	/* the urb is in unlink state */
 	case -ETIME:
 		if (net_ratelimit())
@@ -6258,8 +6261,8 @@ static int rtl8152_set_wol(struct net_device *dev, struct ethtool_wolinfo *wol)
 	if (!rtl_can_wakeup(tp))
 		return -EOPNOTSUPP;
 
-	if (unlikely(tp->rtk_enable_diag))
-		return -EBUSY;
+	if (wol->wolopts & ~WAKE_ANY)
+		return -EINVAL;
 
 	ret = usb_autopm_get_interface(tp->intf);
 	if (ret < 0)

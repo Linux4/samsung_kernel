@@ -498,8 +498,10 @@ exit:
 	if (state == STATE_CRASH_RESET
 	    || state == STATE_CRASH_EXIT
 	    || state == STATE_NV_REBUILDING
-	    || state == STATE_CRASH_WATCHDOG)
-		wake_up(&iod->wq);
+	    || state == STATE_CRASH_WATCHDOG) {
+		if (atomic_read(&iod->opened) > 0)
+			wake_up(&iod->wq);
+	}
 }
 
 static void io_dev_sim_state_changed(struct io_device *iod, bool sim_online)
@@ -811,7 +813,7 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			if (copy_from_user(buff, user_buff, CP_CRASH_INFO_SIZE))
 				return -EFAULT;
 		}
-		panic(iod->msd->cp_crash_info);
+		panic("%s", iod->msd->cp_crash_info);
 		return 0;
 	}
 
@@ -1285,12 +1287,19 @@ static int vnet_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 	ret = ld->send(ld, iod, skb_new);
 	if (unlikely(ret < 0)) {
+		static DEFINE_RATELIMIT_STATE(_rs, HZ, 100);
+
 		if (ret != -EBUSY) {
 			mif_err_limited("%s->%s: ERR! %s->send fail:%d "
 					"(tx_bytes:%d len:%d)\n",
 					iod->name, mc->name, ld->name, ret,
 					tx_bytes, count);
+			goto drop;
 		}
+
+		/* do 100-retry for every 1sec */
+		if (__ratelimit(&_rs))
+			goto retry;
 		goto drop;
 	}
 

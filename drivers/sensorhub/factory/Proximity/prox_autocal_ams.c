@@ -15,12 +15,12 @@
 u16 get_proximity_ams_auto_cal_raw_data(struct ssp_data *data)
 {
 	u16 uRowdata = 0;
-	
+
 	if (data->is_proxraw_enabled == false) {
         data->is_proxraw_enabled = true;
 		set_delay_legacy_sensor(data, SENSOR_TYPE_PROXIMITY_RAW, 20, 0);
 		enable_legacy_sensor(data, SENSOR_TYPE_PROXIMITY_RAW);
-				
+
 		msleep(200);
 		uRowdata = data->buf[SENSOR_TYPE_PROXIMITY_RAW].prox_raw[0];
                 data->is_proxraw_enabled = false;
@@ -239,7 +239,7 @@ ssize_t get_proximity_ams_trim_value(struct ssp_data *data, char *buf)
 	}
 
 
-	if (data->sensor_probe_state == 0 || data->is_reset_started == true) {
+	if (data->sensor_probe_state == 0 || !is_sensorhub_working(data)) {
 		return FAIL;
 	}
 
@@ -324,14 +324,14 @@ ssize_t set_proximity_ams_avg_raw_data(struct ssp_data *data,
 
 	if (dEnable) {
 		if(!data->is_proxraw_enabled) {
-			data->is_proxraw_enabled = true;			
+			data->is_proxraw_enabled = true;
 
 		set_delay_legacy_sensor(data, SENSOR_TYPE_PROXIMITY_RAW, 20, 0);
 			enable_legacy_sensor(data, SENSOR_TYPE_PROXIMITY_RAW);
 		}
 	} else {
 		if(data->is_proxraw_enabled) {
-			data->is_proxraw_enabled = false;			
+			data->is_proxraw_enabled = false;
 			disable_legacy_sensor(data, SENSOR_TYPE_PROXIMITY_RAW);
 		}
 	}

@@ -93,6 +93,8 @@ struct dpp_restriction;
 
 /* DPP CAL APIs exposed to DPP driver */
 void dpp_reg_init(u32 id, const unsigned long attr);
+void dpp_reg_irq_enable(u32 id, const unsigned long attr);
+
 int dpp_reg_deinit(u32 id, bool reset, const unsigned long attr);
 void dpp_reg_configure_params(u32 id, struct dpp_params_info *p,
 		const unsigned long attr);

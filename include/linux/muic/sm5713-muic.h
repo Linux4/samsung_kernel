@@ -332,6 +332,11 @@ struct sm5713_muic_data {
 	bool is_hiccup_mode;
 #endif
 
+#if defined(CONFIG_MUIC_BCD_RESCAN)
+	struct delayed_work bc12_retry_work;
+	int bc12_retry_count;
+	int bc12_retry_skip;
+#endif
 };
 
 extern struct device *switch_device;

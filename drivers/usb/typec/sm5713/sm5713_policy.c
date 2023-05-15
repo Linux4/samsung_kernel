@@ -274,13 +274,19 @@ static policy_state sm5713_usbpd_policy_src_ready(
 		struct sm5713_policy_data *policy)
 {
 	struct sm5713_usbpd_data *pd_data = policy_to_usbpd(policy);
+#if defined(CONFIG_USB_HOST_NOTIFY)
+	struct otg_notify *o_notify = get_otg_notify();
+	bool must_block_host = is_blocked(o_notify, NOTIFY_BLOCK_TYPE_HOST);
+#endif
 	int i = 0, data_role = 0;
 	unsigned int ret;
 
 	dev_info(pd_data->dev, "%s\n", __func__);
 
-	if (!sm5713_check_vbus_state(pd_data))
+#if defined(CONFIG_USB_HOST_NOTIFY)
+	if (must_block_host && !sm5713_check_vbus_state(pd_data))
 		return PE_SRC_Hard_Reset;
+#endif
 
 	sm5713_usbpd_power_ready(pd_data->dev, TYPE_C_ATTACH_SRC);
 
@@ -659,12 +665,16 @@ static policy_state sm5713_usbpd_policy_snk_transition_sink(
 		struct sm5713_policy_data *policy)
 {
 	struct sm5713_usbpd_data *pd_data = policy_to_usbpd(policy);
+	struct sm5713_phydrv_data *pdic_data = pd_data->phy_driver_data;
 	struct sm5713_usbpd_manager_data *manager = &pd_data->manager;
 
 	dev_info(pd_data->dev, "%s\n", __func__);
 	/* ST_PE_SNK_TRANSITION */
 	if (policy->last_state != policy->state) {
 		unsigned int msg;
+
+		if (!pdic_data->pd_support)
+			sm5713_short_state_check(pdic_data);
 
 		msg = sm5713_usbpd_wait_msg(pd_data,
 				MSG_PSRDY | MSG_GET_SNK_CAP, tPSTransition);
@@ -2365,8 +2375,6 @@ static policy_state sm5713_usbpd_policy_dfp_vdm_svids_request(
 		struct sm5713_policy_data *policy)
 {
 	struct sm5713_usbpd_data *pd_data = policy_to_usbpd(policy);
-	struct sm5713_phydrv_data *pdic_data = pd_data->phy_driver_data;
-	struct sm5713_usbpd_manager_data *manager = &pd_data->manager;
 	int power_role = 0;
 
 	dev_info(pd_data->dev, "%s\n", __func__);
@@ -2393,31 +2401,6 @@ static policy_state sm5713_usbpd_policy_dfp_vdm_svids_request(
 		if (pd_data->protocol_tx.status == MESSAGE_SENT) {
 			if (sm5713_usbpd_wait_msg(pd_data, VDM_DISCOVER_SVID, tVDMSenderResponse)) {
 				if (policy->rx_data_obj[0].structured_vdm.command_type == Responder_ACK) {
-					if (manager->SVID_0 == PD_SID_1) {
-						manager->dp_is_connect = 1;
-						/* If you want to support USB SuperSpeed when you connect
-						 * Display port dongle, You should change dp_hs_connect depend
-						 * on Pin assignment.If DP use 4lane(Pin Assignment C,E,A),
-						 * dp_hs_connect is 1. USB can support HS.If DP use
-						 * 2lane(Pin Assigment B,D,F), dp_hs_connect is 0. USB
-						 * can support SS
-						 */
-						manager->dp_hs_connect = 1;
-						/* notify to dp event */
-						sm5713_ccic_event_work(pdic_data,
-								CCIC_NOTIFY_DEV_DP,
-								CCIC_NOTIFY_ID_DP_CONNECT,
-								CCIC_NOTIFY_ATTACH,
-								manager->Vendor_ID,
-								manager->Product_ID);
-						/* recheck this notifier */
-						sm5713_ccic_event_work(pdic_data,
-							CCIC_NOTIFY_DEV_USB_DP,
-							CCIC_NOTIFY_ID_USB_DP,
-							manager->dp_is_connect /*attach*/,
-							manager->dp_hs_connect, 0);
-
-					}
 					return PE_DFP_VDM_SVIDs_ACKed;
 				}
 			} else {
@@ -2505,10 +2488,11 @@ static policy_state sm5713_usbpd_policy_dfp_vdm_modes_request(
 							manager->pin_assignment = DE_SELECT_PIN;
 							dev_info(pd_data->dev, "do not support Port_Capability DFP_D_Capable\n");
 							return PE_DFP_VDM_Modes_NAKed;
+						} else {
+							manager->pin_assignment = DE_SELECT_PIN;
+							dev_info(pd_data->dev, "there is not valid object information\n");
+							return PE_DFP_VDM_Modes_NAKed;
 						}
-						manager->pin_assignment = DE_SELECT_PIN;
-						dev_info(pd_data->dev, "there is not valid object information\n");
-						return PE_DFP_VDM_Modes_NAKed;
 					}
 					return PE_DFP_VDM_Modes_ACKed;
 				}

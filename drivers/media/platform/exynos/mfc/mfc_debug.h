@@ -19,6 +19,7 @@
 
 extern unsigned int debug_level;
 extern unsigned int debug_ts;
+extern unsigned int debug_mode_en;
 extern unsigned int dbg_enable;
 extern unsigned int nal_q_dump;
 extern unsigned int nal_q_disable;

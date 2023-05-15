@@ -56,7 +56,7 @@ static struct kernel_param_ops param_ops_log = {
 };
 
 #define ADD_DEBUG_MODULE_PARAM(name, default_level, filter) \
-	int slsi_dbg_lvl_ ## name = default_level; \
+	static int slsi_dbg_lvl_ ## name = default_level; \
 	module_param_cb(slsi_dbg_lvl_ ## name, &param_ops_log, (void *)&filter, S_IRUGO | S_IWUSR); \
 	MODULE_PARM_DESC(slsi_dbg_lvl_ ## name, " Debug levels (0~4) for the " # name " module (0 = off) default=" # default_level)
 
@@ -95,7 +95,7 @@ ADD_DEBUG_MODULE_PARAM(mbulk,               0, SLSI_MBULK);
 ADD_DEBUG_MODULE_PARAM(flowc,               0, SLSI_FLOWC);
 ADD_DEBUG_MODULE_PARAM(smapper,             0, SLSI_SMAPPER);
 
-int       slsi_dbg_lvl_all; /* Override all debug modules */
+static int       slsi_dbg_lvl_all; /* Override all debug modules */
 
 int       *slsi_dbg_filters[] = {
 	&slsi_dbg_lvl_init_deinit,
@@ -132,7 +132,7 @@ int       *slsi_dbg_filters[] = {
 	&slsi_dbg_lvl_smapper,
 };
 #else
-int slsi_dbg_lvl_compat_all;
+static int slsi_dbg_lvl_compat_all;
 module_param(slsi_dbg_lvl_compat_all, int, S_IRUGO | S_IWUSR);
 
 int       *slsi_dbg_filters[] = {
@@ -213,7 +213,7 @@ int       *slsi_dbg_filters[] = {
 	&slsi_dbg_lvl_compat_all,
 };
 
-int       slsi_dbg_lvl_all; /* Override all debug modules */
+static int       slsi_dbg_lvl_all; /* Override all debug modules */
 #endif
 
 const int SLSI_DF_MAX = (sizeof(slsi_dbg_filters) / sizeof(slsi_dbg_filters[0]));
@@ -301,137 +301,3 @@ static int slsi_dbg_get_param_cb(char *buffer, const struct kernel_param *kp)
 module_param_cb(slsi_dbg_lvl_all, &param_ops_log, (void *)&SLSI_OVERRIDE_ALL_FILTER, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(slsi_dbg_lvl_all, "Override debug level (0~4) for all the log modules (-1 = do not override) default=0");
 
-#ifdef CONFIG_SCSC_WLAN_SKB_TRACKING
-struct slsi_skb_tracker {
-	spinlock_t           lock;
-	struct list_head     tracked;
-	u32                  tracked_count;
-	u32                  tracked_count_max;
-};
-
-struct slsi_tracked_skb {
-	struct list_head entry;
-	const char       *file;
-	int              line;
-	struct sk_buff   *skb;
-};
-
-static struct slsi_skb_tracker skb_tracker;
-
-void slsi_dbg_track_skb_init(void)
-{
-	SLSI_DBG4_NODEV(SLSI_TEST, "\n");
-	memset(&skb_tracker, 0x00, sizeof(skb_tracker));
-	spin_lock_init(&skb_tracker.lock);
-	INIT_LIST_HEAD(&skb_tracker.tracked);
-}
-
-void slsi_dbg_track_skb_reset(void)
-{
-	SLSI_DBG4_NODEV(SLSI_TEST, "\n");
-	skb_tracker.tracked_count = 0;
-	skb_tracker.tracked_count_max = 0;
-}
-
-bool slsi_dbg_track_skb_marker_f(struct sk_buff *skb, const char *file, int line)
-{
-	struct slsi_tracked_skb *t;
-	struct list_head        *pos, *q;
-	bool                    r = true;
-	unsigned long flags;
-
-	if (!skb)
-		return r;
-
-	spin_lock_irqsave(&skb_tracker.lock, flags);
-	list_for_each_safe(pos, q, &skb_tracker.tracked) {
-		t = list_entry(pos, struct slsi_tracked_skb, entry);
-		if (t->skb == skb) {
-			SLSI_DBG4_NODEV(SLSI_TEST, "Marker 0x%p: %s:%d\n", skb, file, line);
-			t->file = file;
-			t->line = line;
-			goto exit;
-		}
-	}
-	WARN_ON(1);
-	SLSI_ERR_NODEV("SKB Not Tracked: %p: %s:%d\n", skb, file, line);
-	r = false;
-exit:
-	spin_unlock_irqrestore(&skb_tracker.lock, flags);
-	return r;
-}
-
-void slsi_dbg_track_skb_f(struct sk_buff *skb, gfp_t flags, const char *file, int line)
-{
-	struct slsi_tracked_skb *t = kmalloc(sizeof(*t), flags);
-	unsigned long flags_irq;
-
-	if (!t)
-		return;
-
-	t->file = file;
-	t->line = line;
-	t->skb = skb_get(skb); /* Add a reference to the skb */
-	SLSI_DBG4_NODEV(SLSI_TEST, "track SKB: 0x%p: %s:%d\n", skb, file, line);
-	spin_lock_irqsave(&skb_tracker.lock, flags_irq);
-	list_add(&t->entry, &skb_tracker.tracked);
-	skb_tracker.tracked_count++;
-	if (skb_tracker.tracked_count > skb_tracker.tracked_count_max)
-		skb_tracker.tracked_count_max = skb_tracker.tracked_count;
-	spin_unlock_irqrestore(&skb_tracker.lock, flags_irq);
-}
-
-bool slsi_dbg_untrack_skb_f(struct sk_buff *skb, const char *file, int line)
-{
-	struct slsi_tracked_skb *t;
-	struct list_head        *pos, *q;
-	bool                    r = true;
-	unsigned long flags;
-
-	if (!skb)
-		return r;
-
-	spin_lock_irqsave(&skb_tracker.lock, flags);
-	list_for_each_safe(pos, q, &skb_tracker.tracked) {
-		t = list_entry(pos, struct slsi_tracked_skb, entry);
-		if (t->skb == skb) {
-			SLSI_DBG4_NODEV(SLSI_TEST, "un-track SKB: 0x%p: %s:%d\n", skb, file, line);
-			list_del(pos);
-			kfree_skb(t->skb); /* Free the reference we took */
-			kfree(t);
-			skb_tracker.tracked_count--;
-			goto exit;
-		}
-	}
-	WARN_ON(1);
-	SLSI_ERR_NODEV("SKB Not Tracked: %p: %s:%d", skb, file, line);
-	r = false;
-exit:
-	spin_unlock_irqrestore(&skb_tracker.lock, flags);
-	return r;
-}
-
-void slsi_dbg_track_skb_report(void)
-{
-	struct slsi_tracked_skb *t;
-	struct list_head        *pos, *q;
-	unsigned long flags;
-
-	spin_lock_irqsave(&skb_tracker.lock, flags);
-	SLSI_INFO_NODEV("Tracked Count Current: %d\n", skb_tracker.tracked_count);
-	SLSI_INFO_NODEV("Tracked Count Max    : %d\n", skb_tracker.tracked_count_max);
-	list_for_each_safe(pos, q, &skb_tracker.tracked) {
-		t = list_entry(pos, struct slsi_tracked_skb, entry);
-		if (skb_shared(t->skb))
-			SLSI_ERR_NODEV("SKB Leak: 0x%p: %s:%d\n", t->skb, t->file, t->line);
-		else
-			SLSI_ERR_NODEV("SKB Not Untracked: 0x%p: %s:%d\n", t->skb, t->file, t->line);
-		list_del(pos);
-		kfree_skb(t->skb); /* Free the reference we took */
-		kfree(t);
-		skb_tracker.tracked_count--;
-	}
-	INIT_LIST_HEAD(&skb_tracker.tracked);
-	spin_unlock_irqrestore(&skb_tracker.lock, flags);
-}
-#endif

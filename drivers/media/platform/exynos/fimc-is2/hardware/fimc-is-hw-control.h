@@ -291,7 +291,6 @@ struct fimc_is_hw_ip {
 	u32					lindex[FIMC_IS_STREAM_COUNT];
 	u32					internal_fcount[FIMC_IS_STREAM_COUNT];
 	struct fimc_is_framemgr			*framemgr;
-	struct fimc_is_framemgr			*framemgr_late;
 	struct fimc_is_hardware			*hardware;
 	/* callback interface */
 	struct fimc_is_interface		*itf;
@@ -373,7 +372,6 @@ struct fimc_is_hw_ip_ops {
 struct fimc_is_hardware {
 	struct fimc_is_hw_ip		hw_ip[HW_SLOT_MAX];
 	struct fimc_is_framemgr		framemgr[GROUP_ID_MAX];
-	struct fimc_is_framemgr		framemgr_late[GROUP_ID_MAX];
 	atomic_t			rsccount;
 
 	/* keep last configuration */

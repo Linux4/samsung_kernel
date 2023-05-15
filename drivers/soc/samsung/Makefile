@@ -10,7 +10,6 @@ obj-$(CONFIG_CAL_IF)		+= cal-if/
 obj-$(CONFIG_ECT)		+= ect_parser.o
 
 obj-$(CONFIG_EXYNOS_PMU)	+= exynos-pmu.o
-obj-$(CONFIG_EPX)		+= epx.o
 
 #FSYS0 TCXO
 obj-$(CONFIG_ARCH_EXYNOS)	+= exynos-fsys0-tcxo.o

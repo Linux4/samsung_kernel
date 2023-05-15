@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (c) 2012 - 2016 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2020 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -21,10 +21,17 @@ struct slsi_dev;
 #define SLSI_VENDOR_OUI_AND_TYPE_LEN            4
 #define PMKID_LEN                               16
 #define RSN_SELECTOR_LEN                        4
+#ifdef CONFIG_SCSC_WLAN_MAC_ACL_PER_MAC
+#define SLSI_ACL_MAX_BSSID_COUNT                255
+#endif
 
 struct slsi_dev *slsi_cfg80211_new(struct device *dev);
 int slsi_cfg80211_register(struct slsi_dev *sdev);
 void slsi_cfg80211_unregister(struct slsi_dev *sdev);
 void slsi_cfg80211_free(struct slsi_dev *sdev);
 void slsi_cfg80211_update_wiphy(struct slsi_dev *sdev);
+int slsi_wlan_mgmt_tx(struct slsi_dev *sdev, struct net_device *dev,
+		      struct ieee80211_channel *chan, unsigned int wait,
+		      const u8 *buf, size_t len, bool dont_wait_for_ack, u64 *cookie);
+
 #endif /*__SLSI_CFG80211_OPS_H__*/

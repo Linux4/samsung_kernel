@@ -280,10 +280,8 @@ static void set_modem_state(struct mem_link_device *mld, enum modem_state state)
 	struct io_device *iod;
 
 	spin_lock_irqsave(&mc->lock, flags);
-	list_for_each_entry(iod, &mc->modem_state_notify_list, list) {
-		if (iod && atomic_read(&iod->opened) > 0)
-			iod->modem_state_changed(iod, state);
-	}
+	list_for_each_entry(iod, &mc->modem_state_notify_list, list)
+		iod->modem_state_changed(iod, state);
 	spin_unlock_irqrestore(&mc->lock, flags);
 }
 
@@ -2261,8 +2259,16 @@ static int shmem_security_request(struct link_device *ld, struct io_device *iod,
 		goto exit;
 	}
 
-	param2 = shm_get_security_param2(msr.mode, msr.param2);
-	param3 = shm_get_security_param3(msr.mode, msr.param3);
+	err = shm_get_security_param2(msr.mode, msr.param2, &param2);
+	if (err) {
+		mif_err("%s: ERR! parameter2 is invalid\n", ld->name);
+		goto exit;
+	}
+	err = shm_get_security_param3(msr.mode, msr.param3, &param3);
+	if (err) {
+		mif_err("%s: ERR! parameter3 is invalid\n", ld->name);
+		goto exit;
+	}
 
 #if !defined(CONFIG_CP_SECURE_BOOT)
 	if (msr.mode == 0)

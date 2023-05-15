@@ -13,11 +13,20 @@ ifneq ($(CONFIG_SCSC_CORE),n)
 ccflags-y +=  -Iinclude/scsc
 ccflags-y += $(CONFIG_SAMSUNG_MAXWELL_EXTRA)
 
+obj-$(CONFIG_SCSC_LOG_COLLECTION) += scsc_log_collection.o
+scsc_log_collection-$(CONFIG_SCSC_LOG_COLLECTION) += scsc_log_collector.o scsc_log_collector_proc.o scsc_log_collector_mmap.o
+
 obj-$(CONFIG_SCSC_LOGRING) += scsc_logring.o
 scsc_logring-$(CONFIG_SCSC_LOGRING) += scsc_logring_main.o scsc_logring_ring.o scsc_logring_debugfs.o
 
-obj-$(CONFIG_SCSC_LOG_COLLECTION) += scsc_log_collection.o
-scsc_log_collection-y += scsc_log_collector.o scsc_log_collector_proc.o scsc_log_collector_mmap.o
+
+ifeq ($(CONFIG_SCSC_MXLOGGER), m)
+ccflags-y += -DCONFIG_SCSC_MXLOGGER
+endif
+
+ifeq ($(CONFIG_SCSC_LOG_COLLECTION), m)
+ccflags-y += -DCONFIG_SCSC_LOG_COLLECTION
+endif
 ##
 ## The following cumbersome ifeq/else is the only way to make
 ## this CONFIG_SCSC_PRINTK propagate correctly in any scenario (y,m,n)
@@ -27,27 +36,23 @@ scsc_log_collection-y += scsc_log_collector.o scsc_log_collector_proc.o scsc_log
 ## - kernel nodebug modules : builtins without scsc_logring support
 ## - kernel debug|nodebug nomodules : no builtin / no scsclogring
 ##
-ifeq ($(CONFIG_SCSC_DEBUG), m)
 ccflags-y += -DCONFIG_SCSC_PRINTK
-else
-ccflags-$(CONFIG_SCSC_LOGRING) += -DCONFIG_SCSC_PRINTK
-endif
 
 ifneq ($(CONFIG_SCSC_DEBUG),n)
 ccflags-$(CONFIG_SCSC_STATIC_RING)	+= -DCONFIG_SCSC_STATIC_RING_SIZE=$(CONFIG_SCSC_STATIC_RING_SIZE)
 endif
 
-obj-$(CONFIG_SCSC_WIFILOGGER) +=  scsc_wifilogger.o
-scsc_wifilogger-y += scsc_wifilogger_api.o \
-		     scsc_wifilogger_internal.o \
-		     scsc_wifilogger_core.o \
-		     scsc_wifilogger_module.o \
-		     scsc_wifilogger_ring_connectivity.o \
-		     scsc_wifilogger_ring_wakelock.o \
-		     scsc_wifilogger_ring_pktfate.o
+#obj-$(CONFIG_SCSC_WIFILOGGER) +=  scsc_wifilogger.o
+#scsc_wifilogger-y += scsc_wifilogger_api.o \
+#		     scsc_wifilogger_internal.o \
+#		     scsc_wifilogger_core.o \
+#		     scsc_wifilogger_module.o \
+#		     scsc_wifilogger_ring_connectivity.o \
+#		     scsc_wifilogger_ring_wakelock.o \
+#		     scsc_wifilogger_ring_pktfate.o
 
-scsc_wifilogger-$(CONFIG_SCSC_WIFILOGGER_DEBUGFS) += scsc_wifilogger_debugfs.o
-scsc_wifilogger-$(CONFIG_SCSC_WIFILOGGER_TEST) += scsc_wifilogger_ring_test.o
+#scsc_wifilogger-$(CONFIG_SCSC_WIFILOGGER_DEBUGFS) += scsc_wifilogger_debugfs.o
+#scsc_wifilogger-$(CONFIG_SCSC_WIFILOGGER_TEST) += scsc_wifilogger_ring_test.o
 
 # GDB channels for MoreDump
 ccflags-$(CONFIG_SCSC_MX450_GDB_SUPPORT) += -DCONFIG_SCSC_MX450_GDB_SUPPORT
@@ -77,9 +82,11 @@ ifeq ($(CONFIG_SOC_EXYNOS7872),y)
 	scsc_platform_mif-$(CONFIG_SCSC_PLATFORM) += platform_mif.o
 endif
 ifeq ($(CONFIG_SOC_EXYNOS7885),y)
-	scsc_platform_mif-$(CONFIG_SCSC_PLATFORM) += platform_mif.o
+	scsc_platform_mif-$(CONFIG_SCSC_PLATFORM) += platform_mif_7885.o
 endif
-
+ifeq ($(CONFIG_SOC_S5E9815),y)
+	scsc_platform_mif-$(CONFIG_SCSC_PLATFORM) += platform_mif_9815.o
+endif
 #core_module for static functions and registration client module (all the service driver modules -wlan, bt,...-)
 #core for instance
 obj-$(CONFIG_SCSC_CORE_CM) += scsc_mx.o
@@ -117,6 +124,10 @@ scsc_mx-$(CONFIG_SCSC_WLBTD) += scsc_wlbtd.o
 
 scsc_mx-$(CONFIG_SCSC_QOS) += mifqos.o
 
+scsc_mx-$(CONFIG_SCSC_LAST_PANIC_IN_DRAM) += scsc_log_in_dram.o
+
+scsc_mx-$(CONFIG_EXYNOS_SYSTEM_EVENT) += mxman_sysevent.o
+
 ifneq ($(CONFIG_SCSC_CM_MX_CLIENT_TEST),n)
 obj-$(CONFIG_SCSC_CM_MX_CLIENT_TEST) += mx_client_test.o
 mx_client_test-y += client_test.o
@@ -147,6 +158,20 @@ obj-$(CONFIG_SCSC_DBG_SAMPLER) += scsc_dbg_sampler.o
 scsc_dbg_sampler-y += mx_dbg_sampler.o
 
 endif
+
+# Android Platform version
+ifneq ($(ANDROID_VERSION),)
+ANDROID_PLATFORM_VERSION=$(shell expr $(ANDROID_VERSION) / 10000)
+ccflags-y += -DSCSC_SEP_VERSION=$(ANDROID_PLATFORM_VERSION)
+$(info ANDROID_VERSION is $(ANDROID_VERSION))
+else
+ifneq ($(PLATFORM_VERSION),)
+ANDROID_PLATFORM_VERSION := $(basename $(PLATFORM_VERSION))
+ccflags-y += -DSCSC_SEP_VERSION=$(ANDROID_PLATFORM_VERSION)
+$(info PLATFORM_VERSION is $(PLATFORM_VERSION))
+endif
+endif
+$(info ANDROID_PLATFORM_VERSION is $(ANDROID_PLATFORM_VERSION))
 
 # The below section is only for DTE purpose. It is controlled by the flag SCSC_DTE_BUILD which is set only by the
 # DTE top level Makefile. Hence, no risk.

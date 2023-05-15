@@ -546,6 +546,13 @@ void fimc_is_sensor_setting_mode_change(struct fimc_is_device_sensor_peri *senso
 				again.long_val, again.middle_val, again.short_val,
 				dgain.long_val, dgain.middle_val, dgain.middle_val);
 
+	if (sensor_peri->cis.long_term_mode.sen_strm_off_on_enable) {
+		CALL_CISOPS(&sensor_peri->cis, cis_set_long_term_exposure, sensor_peri->subdev_cis);
+	} else {
+		if (sensor_peri->cis.cis_data->frame_length_lines_shifter > 0
+			&& sensor_peri->cis.cis_data->min_frame_us_time >= 1000000)
+			CALL_CISOPS(&sensor_peri->cis, cis_data_calculation, sensor_peri->subdev_cis, device->cfg->mode);
+	}
 	CALL_CISOPS(&sensor_peri->cis, cis_adjust_frame_duration, sensor_peri->subdev_cis,
 			expo.long_val, &frame_duration);
 	fimc_is_sensor_peri_s_frame_duration(device, frame_duration);
@@ -1094,7 +1101,7 @@ int fimc_is_sensor_peri_notify_vsync(struct v4l2_subdev *subdev, void *arg)
 	}
 
 	/* Sensor Long Term Exposure mode(LTE mode) set */
-	if (cis->long_term_mode.sen_strm_off_on_enable) {
+	if (cis->long_term_mode.sen_strm_off_on_enable && cis->lte_work_enable) {
 		if ((cis->long_term_mode.frame_interval == cis->long_term_mode.frm_num_strm_off_on_interval) ||
 				(cis->long_term_mode.frame_interval <= 0)) {
 			schedule_work(&sensor_peri->cis.long_term_mode_work);
@@ -1804,6 +1811,23 @@ int fimc_is_sensor_peri_s_stream(struct fimc_is_device_sensor *device,
 		ret = CALL_CISOPS(cis, cis_stream_off, subdev_cis);
 		if (ret == 0)
 			ret = CALL_CISOPS(cis, cis_wait_streamoff, subdev_cis);
+
+		if (cis->long_term_mode.sen_strm_off_on_enable) {
+			cis->long_term_mode.sen_strm_off_on_enable = 0;
+			ret = CALL_CISOPS(cis, cis_set_long_term_exposure, subdev_cis);
+			info("[%s] stopped long_exp_capture mode\n", __func__);
+
+			for (i = 0; i < 2; i++) {
+				cis->long_term_mode.expo[i] = 0;
+				cis->long_term_mode.tgain[i] = 0;
+				cis->long_term_mode.again[i] = 0;
+				cis->long_term_mode.dgain[i] = 0;
+			}
+			cis->long_term_mode.sen_strm_off_on_step = 0;
+			cis->long_term_mode.frm_num_strm_off_on_interval = 0;
+			cis->long_term_mode.lemode_set.lemode = 0;
+		}
+
 		mutex_unlock(&cis->control_lock);
 
 #ifdef USE_OIS_SLEEP_MODE

@@ -53,6 +53,10 @@ config EXYNOS_DECON_MDNIE
 	tristate "Support MDNIE"
 	default n
 
+config SUPPORT_POC_FLASH
+	tristate "Support display poc flash"
+	default n
+
 config LCD_HMT
 	bool "Suppot video emul & aid reverse to VR"
 	default n

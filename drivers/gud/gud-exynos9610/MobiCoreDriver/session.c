@@ -1,5 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2013-2018 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2019 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -68,6 +69,7 @@ static inline bool gid_lt(kgid_t left, kgid_t right)
 }
 #endif
 #include "main.h"
+#include "admin.h"		/* tee_object* for 'blob' */
 #include "mmu.h"		/* tee_mmu_buffer, tee_mmu_debug_structs */
 #include "iwp.h"
 #include "mcp.h"
@@ -82,6 +84,11 @@ static int wsm_create(struct tee_session *session, struct tee_wsm *wsm,
 {
 	if (wsm->in_use) {
 		mc_dev_err(-EINVAL, "wsm already in use");
+		return -EINVAL;
+	}
+
+	if (buf->len > BUFFER_LENGTH_MAX) {
+		mc_dev_err(-EINVAL, "buffer size %u too big", buf->len);
 		return -EINVAL;
 	}
 
@@ -147,7 +154,7 @@ static void wsm_free(struct tee_session *session, struct tee_wsm *wsm)
 static int hash_path_and_data(struct task_struct *task, u8 *hash,
 			      const void *data, unsigned int data_len)
 {
-	struct mm_struct *mm = task->mm;
+	struct file *exe_file;
 	struct crypto_shash *tfm;
 	struct shash_desc *desc;
 	size_t desc_size;
@@ -160,13 +167,13 @@ static int hash_path_and_data(struct task_struct *task, u8 *hash,
 	if (!buf)
 		return -ENOMEM;
 
-	down_read(&mm->mmap_sem);
-	if (!mm->exe_file) {
+	exe_file = get_task_exe_file(task);
+	if (!exe_file) {
 		ret = -ENOENT;
 		goto end;
 	}
 
-	path = d_path(&mm->exe_file->f_path, buf, PAGE_SIZE);
+	path = d_path(&exe_file->f_path, buf, PAGE_SIZE);
 	if (IS_ERR(path)) {
 		ret = PTR_ERR(path);
 		goto end;
@@ -212,7 +219,6 @@ static int hash_path_and_data(struct task_struct *task, u8 *hash,
 err_desc:
 	crypto_free_shash(tfm);
 end:
-	up_read(&mm->mmap_sem);
 	free_page((unsigned long)buf);
 
 	return ret;
@@ -326,8 +332,10 @@ static int check_prepare_identity(const struct mc_identity *identity,
 	struct mc_identity *mcp_id = (struct mc_identity *)mcp_identity;
 	u8 hash[SHA1_HASH_SIZE] = { 0 };
 	bool application = false;
+	bool supplied_ca_identity = false;
 	const void *data;
 	unsigned int data_len;
+	static const u8 zero_buffer[sizeof(identity->login_data)] = { 0 };
 
 	/* Copy login type */
 	mcp_identity->login_type = identity->login_type;
@@ -365,16 +373,21 @@ static int check_prepare_identity(const struct mc_identity *identity,
 
 	switch (identity->login_type) {
 	case LOGIN_PUBLIC:
-	case LOGIN_USER:
 	case LOGIN_GROUP:
+		break;
+	case LOGIN_USER:
+		data = NULL;
+		data_len = 0;
 		break;
 	case LOGIN_APPLICATION:
 		application = true;
+		supplied_ca_identity = true;
 		data = NULL;
 		data_len = 0;
 		break;
 	case LOGIN_USER_APPLICATION:
 		application = true;
+		supplied_ca_identity = true;
 		data = &mcp_id->uid;
 		data_len = sizeof(mcp_id->uid);
 		break;
@@ -390,7 +403,17 @@ static int check_prepare_identity(const struct mc_identity *identity,
 		return -EINVAL;
 	}
 
-	if (application) {
+	/* let the supplied login_data pass through if it is LOGIN_APPLICATION
+	 * or LOGIN_USER_APPLICATION and not a zero-filled buffer
+	 * That buffer is expected to contain a NWd computed hash containing the
+	 * CA identity
+	 */
+	if (supplied_ca_identity &&
+	    memcmp(identity->login_data, zero_buffer,
+		   sizeof(identity->login_data)) != 0) {
+		memcpy(&mcp_id->login_data, identity->login_data,
+		       sizeof(mcp_id->login_data));
+	} else if (application) {
 		int ret = hash_path_and_data(task, hash, data, data_len);
 
 		if (ret) {
@@ -421,6 +444,8 @@ struct tee_session *session_create(struct tee_client *client,
 		ret = check_prepare_identity(identity, &mcp_identity, current);
 		if (ret)
 			return ERR_PTR(ret);
+	} else {
+		memset(&mcp_identity, 0, sizeof(mcp_identity));
 	}
 
 	/* Allocate session object */
@@ -530,6 +555,7 @@ int session_mc_open_session(struct tee_session *session,
 			    struct mcp_open_info *info)
 {
 	struct tee_wsm *wsm = &session->tci;
+	struct tee_object *obj;
 	bool tci_in_use = false;
 	int ret;
 
@@ -572,7 +598,73 @@ int session_mc_open_session(struct tee_session *session,
 			wsm->mmu, wsm->cbuf, wsm->va, wsm->len, wsm->flags);
 	}
 
-	ret = mcp_open_session(&session->mcp_session, info, &tci_in_use);
+	/* Create or recover 'blob' */
+	if (info->ta_mmu) {
+		/* Nothing to do */
+		obj = NULL;
+	} else if (info->type == TEE_MC_UUID) {
+		/* Get TA from registry */
+		obj = tee_object_get(info->uuid, false);
+		/* Tell SWd to load TA from SFS as not in registry */
+		if (IS_ERR(obj)) {
+			int ret = PTR_ERR(obj);
+
+			if ((ret == -ENOENT) || (ret == -ENOPROTOOPT))
+				obj = tee_object_select(info->uuid);
+		}
+	} else if (info->type == TEE_MC_DRIVER_UUID) {
+		/* Load driver using only uuid */
+		obj = tee_object_select(info->uuid);
+		tci_in_use = false;
+	} else if (info->user) {
+		/* Create secure object from user-space trustlet binary */
+		obj = tee_object_read(info->va, info->len);
+	} else {
+		/* Create secure object from kernel-space trustlet binary */
+		obj = tee_object_copy(info->va, info->len);
+	}
+
+	if (IS_ERR(obj)) {
+		ret = PTR_ERR(obj);
+		goto err_blob;
+	}
+
+	if (obj) {
+		/* TA/driver header */
+		const union mclf_header *header;
+		struct mc_ioctl_buffer buf = {
+			.va = (uintptr_t)obj->data,
+			.len = obj->length,
+			.flags = MC_IO_MAP_INPUT,
+		};
+
+		header = (const union mclf_header *)(&obj->data);
+		if (info->type == TEE_MC_DRIVER &&
+		    (header->mclf_header_v2.flags &
+				MC_SERVICE_HEADER_FLAGS_NO_CONTROL_INTERFACE))
+			tci_in_use = false;
+
+		/* Life-time of info is the same as obj */
+		info->uuid = &header->mclf_header_v2.uuid;
+
+		/* Create mapping for blob (allocated by driver: task = NULL) */
+		info->ta_mmu = tee_mmu_create(NULL, &buf);
+		if (IS_ERR(info->ta_mmu)) {
+			ret = PTR_ERR(info->ta_mmu);
+			goto err_mmu;
+		}
+	}
+
+	ret = mcp_open_session(&session->mcp_session, info, tci_in_use);
+
+	if (obj)
+		/* MMU for UUID/TA blob not needed: copied by the SWd */
+		tee_mmu_put(info->ta_mmu);
+
+err_mmu:
+	if (obj)
+		tee_object_free(obj);
+err_blob:
 	if (info->tci_va && (ret || !tci_in_use))
 		wsm_free(session, &session->tci);
 
@@ -627,10 +719,9 @@ int session_mc_notify(struct tee_session *session)
 /*
  * Sleep until next notification from SWd.
  */
-int session_mc_wait(struct tee_session *session, s32 timeout,
-		    bool silent_expiry)
+int session_mc_wait(struct tee_session *session, s32 timeout)
 {
-	return mcp_wait(&session->mcp_session, timeout, silent_expiry);
+	return mcp_wait(&session->mcp_session, timeout);
 }
 
 /*
@@ -831,7 +922,9 @@ int session_gp_open_session(struct tee_session *session,
 
 	/* Open/call TA */
 	ret = iwp_open_session(&session->iwp_session, uuid, operation, maps,
-			       NULL, NULL, gp_ret);
+			       NULL, NULL, gp_ret,
+			       client_vm_id(session->client));
+
 	/* Cleanup */
 	client_gp_operation_remove(session->client, &client_operation);
 	unmap_gp_bufs(session, maps);
@@ -864,7 +957,8 @@ int session_gp_open_session_domu(struct tee_session *session,
 
 	/* Open/call TA */
 	ret = iwp_open_session(&session->iwp_session, uuid, NULL, NULL, iws,
-			       mmus, gp_ret);
+			       mmus, gp_ret, client_vm_id(session->client));
+
 	/* Cleanup */
 	client_gp_operation_remove(session->client, &client_operation);
 	return ret;

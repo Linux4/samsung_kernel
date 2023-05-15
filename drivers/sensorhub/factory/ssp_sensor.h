@@ -18,6 +18,7 @@
 
 #include <linux/kernel.h>
 
+unsigned int get_module_rev(struct ssp_data *data);
 ssize_t mcu_revision_show(struct device *, struct device_attribute *, char *);
 ssize_t mcu_model_name_show(struct device *, struct device_attribute *, char *);
 

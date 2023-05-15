@@ -35,6 +35,7 @@
 //#define SUPPORT_SENSOR_3DHDR                                /* whether capable of 3DHDR or not */
 #undef OVERFLOW_PANIC_ENABLE_CSIS                             /* Not Support Kernel Panic when CSIS OVERFLOW */
 
+#define SUPPORT_FRONT_SM_DVFS                                 /* Support Front SlowMotion at L0 DVFS */
 
 /***** DDK - DRIVER INTERFACE *****/
 #define USE_AI_CAMERA_INTERFACE     (1)                       /* This feature since A7 2018 */

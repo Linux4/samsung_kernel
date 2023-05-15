@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) Samsung Electronics Co., Ltd.
  *
@@ -203,8 +204,11 @@
 
 #include "dsim_panel.h"
 
-#define DECON_BOARD_DTS_NAME	"decon_board"
-#define LCD_INFO_DTS_NAME	"lcd_info"
+#define BOARD_DTS_NAME	"decon_board"
+#define PANEL_DTS_NAME	"lcd_info"
+
+#define dbg_info(fmt, ...)		pr_info(pr_fmt("dsim: "fmt), ##__VA_ARGS__)
+#define dbg_none(fmt, ...)		pr_debug(pr_fmt("dsim: "fmt), ##__VA_ARGS__)
 
 unsigned int lcdtype;
 EXPORT_SYMBOL(lcdtype);
@@ -213,7 +217,7 @@ static int __init get_lcd_type(char *arg)
 {
 	get_option(&arg, &lcdtype);
 
-	dsim_info("%s: lcdtype: %6X\n", __func__, lcdtype);
+	dbg_info("%s: lcdtype: %6X\n", __func__, lcdtype);
 
 	return 0;
 }
@@ -229,42 +233,36 @@ static int __lcd_driver_update_by_lcd_info_name(struct dsim_lcd_driver *drv)
 
 	node = of_find_node_with_property(NULL, dts_name);
 	if (!node) {
-		dsim_info("%s: of_find_node_with_property fail\n", __func__);
+		dbg_info("%s: of_find_node_with_property fail\n", __func__);
 		ret = -EINVAL;
 		goto exit;
 	}
 
 	count = of_count_phandle_with_args(node, dts_name, NULL);
 	if (count < 0) {
-		dsim_info("%s: of_count_phandle_with_args fail: %d\n", __func__, count);
+		dbg_info("%s: of_count_phandle_with_args fail: %d\n", __func__, count);
 		ret = -EINVAL;
 		goto exit;
 	}
 
 	node = of_parse_phandle(node, dts_name, 0);
 	if (!node) {
-		dsim_info("%s: of_parse_phandle fail\n", __func__);
+		dbg_info("%s: of_parse_phandle fail\n", __func__);
 		ret = -EINVAL;
 		goto exit;
 	}
-#if 0
-	if (count != 1) {
-		dsim_info("%s: we need only one phandle in lcd_info\n", __func__);
-		ret = -EINVAL;
-		goto exit;
-	}
-#endif
+
 	if (IS_ERR_OR_NULL(drv) || IS_ERR_OR_NULL(drv->name)) {
-		dsim_info("%s: we need lcd_driver name to compare with dts node name(%s)\n", __func__, node->name);
+		dbg_info("%s: we need lcd_driver name to compare with dts node name(%s)\n", __func__, node->name);
 		ret = -EINVAL;
 		goto exit;
 	}
 
 	if (!strcmp(node->name, drv->name) && mipi_lcd_driver != drv) {
 		mipi_lcd_driver = drv;
-		dsim_info("%s: driver(%s) is updated\n", __func__, mipi_lcd_driver->name);
+		dbg_info("%s: driver(%s) is updated\n", __func__, mipi_lcd_driver->name);
 	} else
-		dsim_dbg("%s: driver(%s) is diffferent with %s node(%s)\n", __func__, dts_name, node->name, drv->name);
+		dbg_none("%s: driver(%s) is diffferent with %s node(%s)\n", __func__, dts_name, node->name, drv->name);
 
 exit:
 	return ret;
@@ -277,34 +275,34 @@ static void __init __lcd_driver_dts_update(void)
 	unsigned int id_index, mask, expect;
 	u32 id_match_info[10] = {0, };
 
-	nplcd = of_find_node_with_property(NULL, LCD_INFO_DTS_NAME);
+	nplcd = of_find_node_with_property(NULL, PANEL_DTS_NAME);
 	if (!nplcd) {
-		dsim_info("%s: %s property does not exist\n", __func__, LCD_INFO_DTS_NAME);
+		dbg_info("%s: %s property does not exist\n", __func__, PANEL_DTS_NAME);
 		return;
 	}
 
-	count = of_count_phandle_with_args(nplcd, LCD_INFO_DTS_NAME, NULL);
+	count = of_count_phandle_with_args(nplcd, PANEL_DTS_NAME, NULL);
 	if (count < 2) {
-		/* dsim_info("%s: %s property phandle count is %d. so no need to update check\n", __func__, LCD_INFO_DTS_NAME, count); */
+		/* dbg_info("%s: %s property phandle count is %d. so no need to update check\n", __func__, PANEL_DTS_NAME, count); */
 		return;
 	}
 
 	for (i = 0; i < count; i++) {
-		np = of_parse_phandle(nplcd, LCD_INFO_DTS_NAME, i);
-		dsim_info("%s: %dth dts is %s\n", __func__, i, np->name);
+		np = of_parse_phandle(nplcd, PANEL_DTS_NAME, i);
+		dbg_info("%s: %dth dts is %s\n", __func__, i, (np && np->name) ? np->name : "null");
 		if (!np || !of_get_property(np, "id_match", NULL))
 			continue;
 
 		count = of_property_count_u32_elems(np, "id_match");
 		if (count < 0 || count > ARRAY_SIZE(id_match_info) || count % 2) {
-			dsim_info("%s: %dth dts(%s) has invalid id_match count(%d)\n", __func__, i, np->name, count);
+			dbg_info("%s: %dth dts(%s) has invalid id_match count(%d)\n", __func__, i, np->name, count);
 			continue;
 		}
 
 		memset(id_match_info, 0, sizeof(id_match_info));
 		ret = of_property_read_u32_array(np, "id_match", id_match_info, count);
 		if (ret < 0) {
-			dsim_info("%s: of_property_read_u32_array fail. ret(%d)\n", __func__, ret);
+			dbg_info("%s: of_property_read_u32_array fail. ret(%d)\n", __func__, ret);
 			continue;
 		}
 
@@ -313,10 +311,10 @@ static void __init __lcd_driver_dts_update(void)
 			expect = id_match_info[id_index + 1];
 
 			if ((lcdtype & mask) == expect) {
-				dsim_info("%s: %dth dts(%s) id_match. lcdtype(%06X), mask(%06X), expect(%06X)\n",
+				dbg_info("%s: %dth dts(%s) id_match. lcdtype(%06X), mask(%06X), expect(%06X)\n",
 					__func__, i, np->name, lcdtype, mask, expect);
 				if (i > 0)
-					ret = of_update_phandle_property(NULL, LCD_INFO_DTS_NAME, np->name);
+					ret = of_update_phandle_property(NULL, PANEL_DTS_NAME, np->name);
 				return;
 			}
 		}
@@ -338,7 +336,7 @@ static void __init __lcd_driver_update_by_id_match(void)
 		if (lcd_driver && lcd_driver->name) {
 			np = of_find_node_by_name(NULL, lcd_driver->name);
 			if (np && of_get_property(np, "id_match", NULL)) {
-				dsim_info("%s: %dth lcd_driver(%s) has dts id_match property\n", __func__, i, lcd_driver->name);
+				dbg_info("%s: %dth lcd_driver(%s) has dts id_match property\n", __func__, i, lcd_driver->name);
 				do_match++;
 			}
 		}
@@ -348,32 +346,32 @@ static void __init __lcd_driver_update_by_id_match(void)
 		return;
 
 	if (i != do_match)
-		of_update_phandle_property(NULL, LCD_INFO_DTS_NAME, __start___lcd_driver->name);
+		of_update_phandle_property(NULL, PANEL_DTS_NAME, __start___lcd_driver->name);
 
 	for (i = 0, p_lcd_driver = &__start___lcd_driver; p_lcd_driver < &__stop___lcd_driver; p_lcd_driver++, i++) {
 		lcd_driver = *p_lcd_driver;
 
-		if (!lcd_driver && !lcd_driver->name) {
-			dsim_info("%dth lcd_driver is invalid\n", i);
+		if (!lcd_driver || !lcd_driver->name) {
+			dbg_info("%dth lcd_driver is invalid\n", i);
 			continue;
 		}
 
 		np = of_find_node_by_name(NULL, lcd_driver->name);
 		if (!np || !of_get_property(np, "id_match", NULL)) {
-			/* dsim_dbg("%dth lcd_driver(%s) has no id_match property\n", lcd_driver->name); */
+			/* dbg_info("%dth lcd_driver(%s) has no id_match property\n", lcd_driver->name); */
 			continue;
 		}
 
 		count = of_property_count_u32_elems(np, "id_match");
 		if (count < 0 || count > ARRAY_SIZE(id_match_info) || count % 2) {
-			dsim_info("%s: %dth lcd_driver(%s) has invalid id_match count(%d)\n", __func__, i, lcd_driver->name, count);
+			dbg_info("%s: %dth lcd_driver(%s) has invalid id_match count(%d)\n", __func__, i, lcd_driver->name, count);
 			continue;
 		}
 
 		memset(id_match_info, 0, sizeof(id_match_info));
 		ret = of_property_read_u32_array(np, "id_match", id_match_info, count);
 		if (ret < 0) {
-			dsim_info("%s: of_property_read_u32_array fail. ret(%d)\n", __func__, ret);
+			dbg_info("%s: of_property_read_u32_array fail. ret(%d)\n", __func__, ret);
 			continue;
 		}
 
@@ -382,11 +380,11 @@ static void __init __lcd_driver_update_by_id_match(void)
 			expect = id_match_info[id_index + 1];
 
 			if ((lcdtype & mask) == expect) {
-				dsim_info("%s: %dth lcd_driver(%s) id_match. lcdtype(%06X), mask(%06X), expect(%06X)\n",
+				dbg_info("%s: %dth lcd_driver(%s) id_match. lcdtype(%06X), mask(%06X), expect(%06X)\n",
 					__func__, i, lcd_driver->name, lcdtype, mask, expect);
 				if (mipi_lcd_driver != lcd_driver) {
 					mipi_lcd_driver = lcd_driver;
-					ret = of_update_phandle_property(NULL, LCD_INFO_DTS_NAME, lcd_driver->name);
+					of_update_phandle_property(NULL, PANEL_DTS_NAME, lcd_driver->name);
 				}
 				return;
 			}
@@ -404,7 +402,7 @@ static void __init __lcd_driver_update_by_function(void)
 		lcd_driver = *p_lcd_driver;
 
 		if (lcd_driver && lcd_driver->match) {
-			dsim_info("%s: %dth lcd_driver %s and has driver match function\n", __func__, i, lcd_driver->name);
+			dbg_info("%s: %dth lcd_driver %s and has driver match function\n", __func__, i, lcd_driver->name);
 			do_match++;
 		}
 	}
@@ -413,7 +411,7 @@ static void __init __lcd_driver_update_by_function(void)
 		return;
 
 	if (i != do_match)
-		of_update_phandle_property(NULL, LCD_INFO_DTS_NAME, __start___lcd_driver->name);
+		of_update_phandle_property(NULL, PANEL_DTS_NAME, __start___lcd_driver->name);
 
 	for (i = 0, p_lcd_driver = &__start___lcd_driver; p_lcd_driver < &__stop___lcd_driver; p_lcd_driver++, i++) {
 		lcd_driver = *p_lcd_driver;
@@ -423,16 +421,16 @@ static void __init __lcd_driver_update_by_function(void)
 
 		ret = lcd_driver->match(NULL);
 		if (ret & NOTIFY_OK) {
-			dsim_info("%s: %dth lcd_driver(%s) notify ok to register\n", __func__, i, lcd_driver->name);
+			dbg_info("%s: %dth lcd_driver(%s) notify ok to register\n", __func__, i, lcd_driver->name);
 			if (mipi_lcd_driver != lcd_driver) {
 				mipi_lcd_driver = lcd_driver;
-				ret = of_update_phandle_property(NULL, LCD_INFO_DTS_NAME, lcd_driver->name);
+				ret = of_update_phandle_property(NULL, PANEL_DTS_NAME, lcd_driver->name);
 			}
 			return;
 		}
 
 		if (ret & NOTIFY_STOP_MASK) {
-			dsim_info("%s: %dth lcd_driver(%s) notify stop\n", __func__, i, lcd_driver->name);
+			dbg_info("%s: %dth lcd_driver(%s) notify stop\n", __func__, i, lcd_driver->name);
 			return;
 		}
 	}
@@ -444,12 +442,17 @@ static int __init lcd_driver_init(void)
 	struct dsim_lcd_driver *lcd_driver = NULL;
 	int i = 0, ret = -EINVAL;
 
-	mipi_lcd_driver = mipi_lcd_driver ? mipi_lcd_driver : __start___lcd_driver;
-
 	__lcd_driver_dts_update();
 
+	if (mipi_lcd_driver && mipi_lcd_driver->name) {
+		dbg_info("%s: %s driver is registered\n", __func__, mipi_lcd_driver->name);
+		return 0;
+	}
+
+	mipi_lcd_driver = __start___lcd_driver;
+
 	if (++p_lcd_driver == &__stop___lcd_driver) {
-		/* dsim_dbg("%s: lcd_driver is only one\n", __func__); */
+		/* dbg_info("%s: lcd_driver is only one\n", __func__); */
 		return 0;
 	}
 
@@ -462,14 +465,14 @@ static int __init lcd_driver_init(void)
 		if (!lcd_driver)
 			continue;
 
-		dsim_info("%s: %dth lcd_driver is %s\n", __func__, i, lcd_driver->name);
+		dbg_info("%s: %dth lcd_driver is %s\n", __func__, i, lcd_driver->name);
 		ret = __lcd_driver_update_by_lcd_info_name(lcd_driver);
 	}
 
 	WARN_ON(!mipi_lcd_driver);
 	mipi_lcd_driver = mipi_lcd_driver ? mipi_lcd_driver : __start___lcd_driver;
 
-	dsim_info("%s: %s driver is registered\n", __func__, mipi_lcd_driver->name ? mipi_lcd_driver->name : "null");
+	dbg_info("%s: %s driver is registered\n", __func__, mipi_lcd_driver->name ? mipi_lcd_driver->name : "null");
 
 	return 0;
 }

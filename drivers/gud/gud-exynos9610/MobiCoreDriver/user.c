@@ -1,5 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (c) 2013-2018 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2019 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -25,6 +26,7 @@
 #include "user.h"
 #include "client.h"
 #include "mcp.h"	/* mcp_get_version */
+#include "protocol.h"
 
 /*
  * Get client object from file pointer
@@ -48,7 +50,7 @@ static int user_open(struct inode *inode, struct file *file)
 
 	/* Create client */
 	mc_dev_devel("from %s (%d)", current->comm, current->pid);
-	client = client_create(false);
+	client = client_create(false, protocol_vm_id());
 	if (!client)
 		return -ENOMEM;
 
@@ -89,9 +91,17 @@ static inline int ioctl_check_pointer(unsigned int cmd, int __user *uarg)
 	int err = 0;
 
 	if (_IOC_DIR(cmd) & _IOC_READ)
+#if KERNEL_VERSION(5, 0, 0) > LINUX_VERSION_CODE
 		err = !access_ok(VERIFY_WRITE, uarg, _IOC_SIZE(cmd));
+#else
+		err = !access_ok(uarg, _IOC_SIZE(cmd));
+#endif
 	else if (_IOC_DIR(cmd) & _IOC_WRITE)
+#if KERNEL_VERSION(5, 0, 0) > LINUX_VERSION_CODE
 		err = !access_ok(VERIFY_READ, uarg, _IOC_SIZE(cmd));
+#else
+		err = !access_ok(uarg, _IOC_SIZE(cmd));
+#endif
 
 	if (err)
 		return -EFAULT;
@@ -160,7 +170,7 @@ static long user_ioctl(struct file *file, unsigned int id, unsigned long arg)
 			break;
 		}
 
-		ret = client_mc_open_trustlet(client, trustlet.spid,
+		ret = client_mc_open_trustlet(client,
 					      trustlet.buffer, trustlet.tlen,
 					      trustlet.tci, trustlet.tcilen,
 					      &trustlet.sid);
@@ -193,8 +203,7 @@ static long user_ioctl(struct file *file, unsigned int id, unsigned long arg)
 			ret = -EFAULT;
 			break;
 		}
-		ret = client_waitnotif_session(client, wait.sid, wait.timeout,
-					       wait.partial);
+		ret = client_waitnotif_session(client, wait.sid, wait.timeout);
 		break;
 	}
 	case MC_IO_MAP: {
@@ -384,8 +393,11 @@ static int user_mmap(struct file *file, struct vm_area_struct *vmarea)
 {
 	struct tee_client *client = get_client(file);
 
-	if ((vmarea->vm_end - vmarea->vm_start) > BUFFER_LENGTH_MAX)
+	if ((vmarea->vm_end - vmarea->vm_start) > BUFFER_LENGTH_MAX) {
+		mc_dev_err(-EINVAL, "buffer size %lu too big",
+			   vmarea->vm_end - vmarea->vm_start);
 		return -EINVAL;
+	}
 
 	/* Alloc contiguous buffer for this client */
 	return client_cbuf_create(client,
