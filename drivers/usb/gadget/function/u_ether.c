@@ -684,7 +684,6 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 					struct net_device *net)
 {
 	struct eth_dev		*dev = netdev_priv(net);
-	int			length = 0;
 	int			retval;
 	struct usb_request	*req = NULL;
 	unsigned long		flags;
@@ -793,7 +792,6 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 		memcpy(req->buf + req->length, skb->data, skb->len);
 		/* Increment req length by skb data length */
 		req->length = req->length + skb->len;
-		length = req->length;
 		dev_kfree_skb_any(skb);
 		req->context = NULL;
 
@@ -813,7 +811,7 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 
 		spin_unlock_irqrestore(&dev->tx_req_lock, flags);
 	} else {
-		length = skb->len;
+		req->length = skb->len;
 		req->buf = skb->data;
 		req->context = skb;
 	}
@@ -833,6 +831,7 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 		if (!dev->port_usb->multi_pkt_xfer)
 			dev_kfree_skb_any(skb);
 drop:
+		req->length = 0;
 		dev->net->stats.tx_dropped++;
 multiframe:
 		spin_lock_irqsave(&dev->tx_req_lock, flags);
@@ -1185,6 +1184,7 @@ int gether_register_netdev(struct net_device *net)
 		return status;
 	} else {
 		DBG(dev, "HOST MAC %pM\n", dev->host_mac);
+		DBG(dev, "MAC %pM\n", dev->dev_mac);
 
 		/* two kinds of host-initiated state changes:
 		 *  - iff DATA transfer is active, carrier is "on"

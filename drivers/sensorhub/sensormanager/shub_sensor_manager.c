@@ -37,6 +37,8 @@
 #define INIT_SENSOR_STATE   0x3FEFF
 #define EXECUTE_FUNC(sensor, f) if ((sensor) && (sensor)->funcs && f != NULL) f()
 
+#define BIGDATA_KEY_MAX 30
+
 struct sensor_manager_t *sensor_manager;
 
 struct init_func_t {
@@ -79,7 +81,60 @@ struct init_func_t init_sensor_funcs[] = {
 	{SENSOR_TYPE_DEVICE_ORIENTATION_WU, init_device_orientation_wu},
 	{SENSOR_TYPE_SAR_BACKOFF_MOTION, init_sar_backoff_motion},
 	{SENSOR_TYPE_POGO_REQUEST_HANDLER, init_pogo_request_handler},
+	{SENSOR_TYPE_AOIS, init_aois},
+	{SENSOR_TYPE_LIGHT_SEAMLESS, init_light_seamless},
+	{SENSOR_TYPE_ROTATION_VECTOR, init_rotation_vector},
+	{SENSOR_TYPE_GAME_ROTATION_VECTOR, init_game_rotation_vector},
+	{SENSOR_TYPE_LED_COVER_EVENT, init_led_cover_event},
 };
+
+struct sensor_key_type {
+	uint16_t uid;
+	char key[BIGDATA_KEY_MAX];
+};
+
+struct sensor_key_type sensor_key_table[] = {
+	{SENSOR_TYPE_PROXIMITY, "PROX"},
+	{SENSOR_TYPE_TILT_DETECTOR, "TILT"},
+	{SENSOR_TYPE_SIGNIFICANT_MOTION, "SMD"},
+	{SENSOR_TYPE_PICK_UP_GESTURE, "PICKUP"},
+	{SENSOR_TYPE_CALL_GESTURE, "CALLGESTURE"},
+	{SENSOR_TYPE_WAKE_UP_MOTION, "WU_MOTION"},
+	{SENSOR_TYPE_FLIP_COVER_DETECTOR, "FCD"},
+	{SENSOR_TYPE_DEVICE_ORIENTATION_WU, "ROTATION_W"},
+	{SENSOR_TYPE_INTERRUPT_GYRO, "INTGYRO"},
+	{SENSOR_TYPE_SAR_BACKOFF_MOTION, "SBM"},
+	{SENSOR_TYPE_POCKET_MODE_LITE, "POCKET_LITE"},
+	{SENSOR_TYPE_ROTATION_VECTOR, "RV"},
+	{SENSOR_TYPE_GAME_ROTATION_VECTOR, "GRV"},
+	{SENSOR_TYPE_SS_MOVEMENT, "SMARTALERT"},
+	{SENSOR_TYPE_SS_STEP_COUNTER, "STEPCOUNT"},
+	{SENSOR_TYPE_SS_STEP_COUNT_ALERT, "STEPCOUNT_ALERT"},
+	{SENSOR_TYPE_SS_STEP_DETECTOR, "STEPDETECT"},
+	{SENSOR_TYPE_SS_STEP_LEVEL_MONITOR, "SLM"},
+	{SENSOR_TYPE_SS_PEDOMETER, "PEDOMETER"},
+	{SENSOR_TYPE_SS_AUTO_ROTATION, "SEM_ROTATE"},
+	{SENSOR_TYPE_SS_WIRELESS_CHARGING_MONITOR, "WCD"},
+	{SENSOR_TYPE_SS_PUT_DOWN_MOTION, "PUTDOWN"},
+	{SENSOR_TYPE_SS_SLOCATION, "SLOCATION"},
+	{SENSOR_TYPE_SS_ANY_MOTION_DETECTOR, "AMD"},
+	{SENSOR_TYPE_SS_DPCM, "AOD"},
+	{SENSOR_TYPE_SS_FLAT_MOTION, "FLATMOTION"},
+	{SENSOR_TYPE_SS_SENSOR_STATUS_CHECK, "SENSORCHECK"},
+	{SENSOR_TYPE_SS_ACTIVITY_CALIBRATION, "ACTIVITYCALB"},
+	{SENSOR_TYPE_SS_DEVICE_POSITION, "D_POSITION"},
+	{SENSOR_TYPE_SS_CHANGE_LOCATION_TRIGGER, "LTG"},
+	{SENSOR_TYPE_SS_FREE_FALL_DETECTION, "FREEFALL"},
+	{SENSOR_TYPE_SS_ACTIVITY_TRACKER, "AT"},
+};
+
+struct sensor_wakeup_count_type {
+	uint16_t uid;
+	uint16_t wakeup_count;
+};
+
+struct sensor_wakeup_count_type sensor_wakeup_list[SENSOR_TYPE_MAX];
+static int sensor_wakeup_list_size;
 
 static int make_sensor_instance(void)
 {
@@ -354,6 +409,7 @@ int inject_sensor_additional_data(int type, char *buf, int buf_len)
 void print_sensor_debug(int type)
 {
 	struct shub_sensor *sensor = get_sensor(type);
+
 	if (!sensor)
 		return;
 
@@ -531,6 +587,96 @@ int parsing_meta_data(char *dataframe, int *index, int frame_len)
 	return ret;
 }
 
+int parsing_big_data(char *dataframe, int *index, int frame_len)
+{
+	int ret = 0;
+	int type = 0;
+	int i = 0;
+	int count = 0;
+
+	type = dataframe[(*index)++];
+
+	switch (type) {
+	case 0: // wakeup event type
+		count = dataframe[(*index)++];
+		for (i = 0; i < count; i++) {
+			uint16_t uid = 0;
+			uint16_t wakeup_count = 0;
+			int j = 0;
+			int size = sensor_wakeup_list_size;
+			struct shub_sensor *sensor;
+
+			memcpy(&uid, dataframe + *index, sizeof(uid));
+			memcpy(&wakeup_count, dataframe + *index + sizeof(uid), sizeof(wakeup_count));
+			*index += sizeof(uid) + sizeof(wakeup_count);
+
+			sensor = get_sensor(uid);
+			if (sensor) {
+				for (j = 0; j < size; j++) {
+					if (sensor_wakeup_list[j].uid == uid) {
+						sensor_wakeup_list[j].wakeup_count += wakeup_count;
+						shub_info("%s: %s(%d) increase by %d",
+							__func__, sensor->name, uid, wakeup_count);
+						break;
+					}
+				}
+
+				if (j == size) {
+					sensor_wakeup_list[j].uid = uid;
+					sensor_wakeup_list[j].wakeup_count += wakeup_count;
+					sensor_wakeup_list_size++;
+					shub_info("%s: %s(%d) initialize to %d",
+						__func__, sensor->name, uid, wakeup_count);
+				}
+
+				if (wakeup_count > 0)
+					shub_info("%s: %s wakeup_cnt %d",
+						__func__, sensor->name, sensor_wakeup_list[j].wakeup_count);
+			} else {
+				shub_err("%s: invalid uid (%d)", __func__, uid);
+			}
+		}
+		break;
+	default:
+		shub_errf("invalid bigdata event type(%d)", type);
+	}
+	return ret;
+}
+
+unsigned int get_bigdata_wakeup_reason(char *buf)
+{
+	unsigned int i;
+	char f[1024] = { 0, };
+	unsigned int length = 0;
+	unsigned int index = 0;
+	int size = sensor_wakeup_list_size;
+
+	for (i = 0 ; i < size ; i++) {
+		int j = 0;
+		int n = sizeof(sensor_key_table) / sizeof(struct sensor_key_type);
+		struct sensor_wakeup_count_type *s = &sensor_wakeup_list[i];
+
+		for (j = 0; j < n; j++) {
+			if (s->uid == sensor_key_table[j].uid) {
+				struct sensor_key_type *k = &sensor_key_table[j];
+
+				length += sprintf(f + length, ",\"SW_%s\":\"%d\"", k->key, s->wakeup_count);
+				break;
+			}
+		}
+	}
+
+	for (i = 0 ; i < size ; i++)
+		sensor_wakeup_list[i].wakeup_count = 0;
+
+	if (length > 0)
+		index = 1;
+
+	memcpy(buf, f + index, length - index);
+	shub_err("%s: %s(%d)", __func__, f + index, length - index);
+	return length - index;
+}
+
 uint64_t get_sensors_legacy_probe_state(void)
 {
 	return sensor_manager->sensor_probe_state[0];
@@ -611,6 +757,8 @@ int init_sensor_manager(struct device *dev)
 		return -ENOMEM;
 
 	memset(sensor_manager, 0x00, sizeof(struct sensor_manager_t));
+
+	sensor_wakeup_list_size = 0;
 	return 0;
 }
 
@@ -774,10 +922,11 @@ static void init_sensors(void)
 			shub_errf("%d has error", type);
 			kfree(sensor);
 			sensor_manager->sensor_list[type] = NULL;
-		} else if (sensor->funcs && sensor->funcs->init_chipset) {
-			ret = sensor->funcs->init_chipset();
+		} else {
+			ret = init_shub_sensor(sensor);
 			if (ret < 0) {
-				shub_errf("%d init_chipset error", type);
+				shub_errf("%d init error", type);
+				init_sensor_funcs[i].func(false);
 				kfree(sensor);
 				sensor_manager->sensor_list[i] = NULL;
 			}

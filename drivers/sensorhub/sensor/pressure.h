@@ -25,20 +25,15 @@ struct pressure_event {
 	s32 pressure_sealevel;
 } __attribute__((__packed__));
 
-struct pressure_chipset_funcs {
-	void (*init)(void);
-};
 
 struct pressure_data {
-	struct pressure_chipset_funcs *chipset_funcs;
-
 	int sw_offset_default;
 	int sw_offset;
 	int convert_coef;
 };
 
-struct pressure_chipset_funcs *get_pressure_bmp580_function_pointer(char *name);
-struct pressure_chipset_funcs *get_pressure_lps22hh_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_pressure_bmp580_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_pressure_lps22hh_function_pointer(char *name);
 
 int save_pressure_sw_offset_file(int offset);
 

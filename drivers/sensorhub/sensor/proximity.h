@@ -70,7 +70,6 @@ struct prox_led_test {
 };
 
 struct proximity_data {
-	struct proximity_chipset_funcs *chipset_funcs;
 	void *threshold_data;
 
 	u16 prox_threshold[PROX_THRESH_SIZE];
@@ -82,9 +81,6 @@ struct proximity_data {
 };
 
 struct proximity_chipset_funcs {
-	int (*init)(struct proximity_data *data);
-	void (*init_proximity_variable)(struct proximity_data *data);
-	void (*parse_dt)(struct device *dev);
 	u8 (*get_proximity_threshold_mode)(void);
 	void (*set_proximity_threshold_mode)(u8 mode);
 	void (*sync_proximity_state)(struct proximity_data *data);
@@ -118,10 +114,10 @@ int open_default_proximity_setting_mode(void);
 int save_proximity_setting_mode(void);
 int set_proximity_setting_mode(void);
 
-struct proximity_chipset_funcs *get_proximity_stk3x6x_function_pointer(char *name);
-struct proximity_chipset_funcs *get_proximity_gp2ap110s_function_pointer(char *name);
-struct proximity_chipset_funcs *get_proximity_stk3328_function_pointer(char *name);
-struct proximity_chipset_funcs *get_proximity_stk33910_function_pointer(char *name);
-struct proximity_chipset_funcs *get_proximity_stk33512_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_proximity_stk3x6x_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_proximity_gp2ap110s_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_proximity_stk3328_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_proximity_stk3391x_function_pointer(char *name);
+struct sensor_chipset_init_funcs *get_proximity_stk33512_function_pointer(char *name);
 
 u16 get_prox_raw_data(void);

@@ -69,3 +69,17 @@ config SENSORS_ISG5320A_XCOVER5_KOR
 	default n
 	help
 	  If you say yes here if you use ISG5320A for XCOVER5 KOR.
+
+config SENSORS_A96T3X6_M12_ALL
+	depends on I2C
+	tristate "A96T3X6 grip frimware for ALL"
+	default n
+	help
+	  If you say yes here if you use A96T3X6 for M12 ALL.
+
+config SENSORS_A96T3X6_M12_KOR
+	depends on I2C
+	tristate "A96T3X6 grip frimware for ALL"
+	default n
+	help
+	  If you say yes here if you use A96T3X6 for M12 KOR.

@@ -1161,7 +1161,6 @@ static void s2mu106_pm_water_init(struct s2mu106_pmeter_data *pmeter)
 	INIT_DELAYED_WORK(&pmeter->water_work, s2mu106_pm_water_work);
 	mutex_init(&pmeter->water_mutex);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
-	wakeup_source_init(pmeter->water_work_ws, "water_work");   // 4.19 R
 	if (!(pmeter->water_work_ws)) {
 		pmeter->water_work_ws = wakeup_source_create("water_work"); // 4.19 Q
 		if (pmeter->water_work_ws)
@@ -1173,7 +1172,6 @@ static void s2mu106_pm_water_init(struct s2mu106_pmeter_data *pmeter)
 
 #if defined(CONFIG_ARCH_QCOM)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
-	wakeup_source_init(pmeter->gpadc_ws, "gpadc_wake");   // 4.19 R
 	if (!(pmeter->gpadc_ws)) {
 		pmeter->gpadc_ws = wakeup_source_create("gpadc_wake"); // 4.19 Q
 		if (pmeter->gpadc_ws)

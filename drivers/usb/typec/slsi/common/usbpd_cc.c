@@ -101,7 +101,7 @@ void pdic_event_work(void *data, int dest, int id, int attach, int event, int su
 	struct usbpd_data *pd_data = data;
 	struct pdic_state_work *event_work;
 #if IS_ENABLED(CONFIG_TYPEC)
-	struct typec_partner_desc desc;
+	struct typec_partner_desc desc = {0};
 	enum typec_pwr_opmode mode;
 #endif
 
@@ -154,9 +154,6 @@ void pdic_event_work(void *data, int dest, int id, int attach, int event, int su
 			desc.usb_pd = mode == TYPEC_PWR_MODE_PD;
 			desc.accessory = TYPEC_ACCESSORY_NONE; /* XXX: handle accessories */
 			desc.identity = NULL;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
-			desc.pd_revision = 0;
-#endif
 			pd_data->typec_data_role = TYPEC_DEVICE;
 			typec_set_data_role(pd_data->port, TYPEC_DEVICE);
 			pd_data->partner = typec_register_partner(pd_data->port, &desc);
@@ -166,9 +163,6 @@ void pdic_event_work(void *data, int dest, int id, int attach, int event, int su
 			desc.usb_pd = mode == TYPEC_PWR_MODE_PD;
 			desc.accessory = TYPEC_ACCESSORY_NONE; /* XXX: handle accessories */
 			desc.identity = NULL;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
-			desc.pd_revision = 0;
-#endif
 			pd_data->typec_data_role = TYPEC_HOST;
 			typec_set_data_role(pd_data->port, TYPEC_HOST);
 			pd_data->partner = typec_register_partner(pd_data->port, &desc);

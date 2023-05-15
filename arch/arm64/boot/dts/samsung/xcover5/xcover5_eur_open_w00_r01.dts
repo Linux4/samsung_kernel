@@ -551,7 +551,7 @@
 					battery,recharging_total_time = <0x1518>;
 					battery,charging_reset_time = <0x00>;
 					battery,chg_float_voltage = <0x10fe>;
-					battery,pre_afc_work_delay = <0x7d0>;
+					battery,pre_afc_work_delay = <0x9c4>;
 					battery,pre_wc_afc_work_delay = <0xfa0>;
 					battery,pre_afc_input_current = <0x1f4>;
 					battery,pre_wc_afc_input_current = <0x1f4>;
@@ -784,6 +784,7 @@
 			#address-cells = <0x01>;
 			#size-cells = <0x00>;
 			status = "okay";
+			clock-frequency = <0x61a80>;
 			samsung,i2c-max-bus-freq = <0x61a80>;
 
 			s2mu106@3D {
@@ -819,6 +820,7 @@
 			#address-cells = <0x01>;
 			#size-cells = <0x00>;
 			status = "okay";
+			clock-frequency = <0x61a80>;
 			samsung,i2c-max-bus-freq = <0x61a80>;
 
 			usbpd-s2mu106@3C {

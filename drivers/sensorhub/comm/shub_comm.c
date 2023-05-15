@@ -31,7 +31,6 @@
 #define SHUB2AP_BYPASS_DATA	0x37
 #define SHUB2AP_LIBRARY_DATA	0x01
 #define SHUB2AP_DEBUG_DATA	0x03
-#define SHUB2AP_BIG_DATA	0x04
 #define SHUB2AP_META_DATA	0x05
 #define SHUB2AP_TIME_SYNC	0x06
 #define SHUB2AP_NOTI_RESET	0x07
@@ -44,6 +43,7 @@
 #define SHUB2AP_LOG_DUMP	0x12
 #define SHUB2AP_SYSTEM_INFO	0x31
 #define SHUB2AP_SENSOR_SPEC	0x41
+#define SHUB2AP_BIG_DATA	0x51
 
 struct shub_msg {
 	u8 cmd;
@@ -304,10 +304,15 @@ static int parse_dataframe(char *dataframe, int frame_len)
 			if (index + 2 <= frame_len) {
 				reset_type = dataframe[index++];
 				no_event_type = dataframe[index++];
-				// if (reset_type == HUB_RESET_REQ_NO_EVENT) {
-				shub_infof("Hub request reset[0x%x] No Event type %d", reset_type, no_event_type);
-				reset_mcu(RESET_TYPE_HUB_NO_EVENT);
-				//}
+				if (reset_type == HUB_RESET_REQ_NO_EVENT) {
+					shub_infof("Hub request reset[0x%x] No Event type %d", reset_type, no_event_type);
+					reset_mcu(RESET_TYPE_HUB_NO_EVENT);
+				} else if (reset_type == HUB_RESET_REQ_TASK_FAILURE) {
+					shub_infof("Hub request reset[0x%x] request task failure", reset_type);
+					reset_mcu(RESET_TYPE_HUB_REQ_TASK_FAILURE);
+				} else {
+					shub_infof("Hub request rest[0x%x] invalid request", reset_type);
+				}
 			} else {
 				shub_errf("parsing error");
 				ret = -EINVAL;
@@ -320,6 +325,9 @@ static int parse_dataframe(char *dataframe, int frame_len)
 			break;
 		case SHUB2AP_LOG_DUMP:
 			ret = save_log_dump(dataframe, &index, frame_len);
+			break;
+		case SHUB2AP_BIG_DATA:
+			ret = parsing_big_data(dataframe, &index, frame_len);
 			break;
 		default:
 			shub_errf("0x%x cmd doesn't support, index = %d", cmd, index);
@@ -490,6 +498,11 @@ int get_cnt_comm_fail(void)
 int get_cnt_timeout(void)
 {
 	return cnt_timeout;
+}
+
+void stop_comm_to_hub(void)
+{
+	clean_pending_list();
 }
 
 int init_comm_to_hub(void)
