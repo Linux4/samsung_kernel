@@ -827,6 +827,7 @@ static void kbase_region_tracker_erase_rbtree(struct rb_root *rbtree)
 
 void kbase_region_tracker_term(struct kbase_context *kctx)
 {
+
 	kbase_gpu_vm_lock(kctx);
 	kbase_region_tracker_erase_rbtree(&kctx->reg_rbtree_same);
 	kbase_region_tracker_erase_rbtree(&kctx->reg_rbtree_custom);

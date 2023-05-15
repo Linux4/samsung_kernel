@@ -893,8 +893,6 @@ enum aa_capture_intent {
     AA_CAPTURE_INTENT_STILL_CAPTURE_ASTRO_SHOT                              = 166,
 
     AA_CAPTURE_INTENT_VIDEO_RECORD_CHANGE_FPS                               = 500,
-    AA_CAPTURE_INTENT_VIDEO_RECORD_START                                    = 501,
-    AA_CAPTURE_INTENT_VIDEO_RECORD_STOP                                     = 502,
     AA_CAPTURE_INTENT_NOT_USED                                              = 90000,
     AA_CAPTURE_INTENT_STILL_CAPTURE_SPORT_MOTIONLEVEL0                      = 90001,
     AA_CAPTURE_INTENT_STILL_CAPTURE_SPORT_MOTIONLEVEL1                      = 90002,

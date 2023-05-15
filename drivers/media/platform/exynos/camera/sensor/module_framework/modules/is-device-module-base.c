@@ -1518,7 +1518,6 @@ int __init sensor_module_base_probe(struct platform_device *pdev,
 	v4l2_set_subdevdata(subdev_module, module);
 	v4l2_set_subdev_hostdata(subdev_module, device);
 	snprintf(subdev_module->name, V4L2_SUBDEV_NAME_SIZE, "sensor-subdev.%s", module->sensor_name);
-	probe_info("module->cfg=%p module->cfgs=%d\n", module->cfg, module->cfgs);
 
 	if (device->pdata->i2c_dummy_enable) {
 		probe_info("%s: try to use match seq", __func__);

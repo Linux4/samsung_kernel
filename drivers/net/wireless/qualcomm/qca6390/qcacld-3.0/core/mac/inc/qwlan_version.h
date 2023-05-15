@@ -42,7 +42,7 @@
 #define QWLAN_VERSION_BUILD            3
 
 #if defined(QCA_WIFI_QCA6390) //Hastings
-#define QWLAN_VERSIONSTR               "5.2.022.3V-HS210302A"
+#define QWLAN_VERSIONSTR               "5.2.022.3V-HS221230A"
 #elif defined(QCA_WIFI_QCA6490) // Hastings Prime
 #define QWLAN_VERSIONSTR               "5.2.022.3V-HP210302A"
 #else
