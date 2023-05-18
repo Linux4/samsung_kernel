@@ -1,0 +1,237 @@
+// SPDX-License-Identifier: (GPL-2.0 OR MIT)
+/*
+ * Copyright (C) 2022 MediaTek Inc.
+ */
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/pinctrl/mt6789-pinfunc.h>
+//#include "mediatek/cust_mt6789_camera.dtsi"
+/ {
+	fragment@model {
+	target-path = "/";
+		__overlay__ {
+			dtbo-hw_rev = <0>;
+			dtbo-hw_rev_end = <255>;
+		};
+	};
+};
+
+&chosen {
+
+};
+
+&accdet {
+	headset-use-ap-eint = <0>;
+	headset-eint-num = <0>;
+	no-use-comparator = <1>;
+	headset-key-mode = <1>;
+	/*min_3pole--max_3pole--min_4pole--max_4pole--vol_bias*/
+	headset-vol-threshold = <0 590 591 2000 2600>;
+	/*0--MD_MAX--UP_MAX--DW_MAX*/
+	headset-three-key-threshold = <0 163 278 501>;
+	/*0--MD_MAX--VOICE_MAX--UP_MAX--DW_MAX*/
+	headset-four-key-threshold = <0 163 196 278 501>;
+
+	/* moisture SW mode config start, use external resister or not. */
+	moisture_use_ext_res = <1>;
+	/* moisture of water resister ohm, SW mode by auxadc*/
+	moisture-water-r = <50000>;
+	moisture-vm = <100>;
+	/* moisture SW mode config end */
+};
+
+&mtk_leds {
+	compatible = "mediatek,i2c-leds";
+
+	backlight {
+		led_mode = <6>;
+		gate_enable = <1>;
+		pwm_config = <0 1 0 0 0>;
+	};
+};
+
+&pio {
+	mtkfb_pins_lcm_led_en1: lcm_led_en1_gpio {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO12__FUNC_GPIO12>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	mtkfb_pins_lcm_led_en0: lcm_led_en0_gpio {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO12__FUNC_GPIO12>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+
+	mtkfb_pins_lcm_rst_out1_gpio: lcm_rst_out1_gpio {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO85__FUNC_GPIO85>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	mtkfb_pins_lcm_rst_out0_gpio: lcm_rst_out0_gpio {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO85__FUNC_GPIO85>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	mtkfb_pins_lcm_dsi_te: lcm_dsi_te {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO83__FUNC_DSI_TE>;
+		};
+	};
+};
+
+&mtkfb {
+	pinctrl-names = "lcm_led_en1_gpio", "lcm_led_en0_gpio",
+		"lcm_rst_out1_gpio", "lcm_rst_out0_gpio",
+		"mode_te_te";
+	pinctrl-0 = <&mtkfb_pins_lcm_led_en1>;
+	pinctrl-1 = <&mtkfb_pins_lcm_led_en0>;
+	pinctrl-2 = <&mtkfb_pins_lcm_rst_out1_gpio>;
+	pinctrl-3 = <&mtkfb_pins_lcm_rst_out0_gpio>;
+	pinctrl-4 = <&mtkfb_pins_lcm_dsi_te>;
+	status = "okay";
+};
+
+&dispsys_config {
+	pinctrl-names =
+		"lcm_rst_out1_gpio", "lcm_rst_out0_gpio",
+		"mode_te_te";
+	pinctrl-0 = <&mtkfb_pins_lcm_rst_out1_gpio>;
+	pinctrl-1 = <&mtkfb_pins_lcm_rst_out0_gpio>;
+	pinctrl-2 = <&mtkfb_pins_lcm_dsi_te>;
+	status = "okay";
+};
+
+&dsi0 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	panel@0 {
+		compatible = "nt36672c,s2dps01,vdo";
+		reg = <0>;
+		reset-gpios = <&pio 85 0>;
+		bias-gpios = <&pio 153 0>,
+			<&pio 154 0>;
+		pinctrl-names = "default";
+		port {
+			panel_in: endpoint {
+				remote-endpoint = <&dsi_out>;
+			};
+		};
+	};
+	ports {
+		port {
+			dsi_out: endpoint {
+				remote-endpoint = <&panel_in>;
+			};
+		};
+	};
+};
+
+/* GPS GPIO standardization start */
+&pio {
+	gps_pins_default: gps_default {
+	};
+	gps_l1_lna_pins_ol: gps_l1_lna@0 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO25__FUNC_GPIO25>;
+			output-low;
+		};
+	};
+	gps_l1_lna_pins_dsp_ctrl: gps_l1_lna@1 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO25__FUNC_GPS_L1_ELNA_EN>;
+		};
+	};
+	gps_l1_lna_pins_oh: gps_l1_lna@2 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO25__FUNC_GPIO25>;
+			output-high;
+		};
+	};
+};
+&gps {
+	pinctrl-names = "default",
+		"gps_l1_lna_disable",
+		"gps_l1_lna_dsp_ctrl",
+		"gps_l1_lna_enable";
+	pinctrl-0 = <&gps_pins_default>;
+	pinctrl-1 = <&gps_l1_lna_pins_ol>;
+	pinctrl-2 = <&gps_l1_lna_pins_dsp_ctrl>;
+	pinctrl-3 = <&gps_l1_lna_pins_oh>;
+	status = "okay";
+};
+/* GPS GPIO standardization end */
+
+//#include "mediatek/cust_mt6789_camera_v4l2.dtsi"
+
+&snd_scp_audio {
+	/* feature : $enable $dl_mem $ul_mem $ref_mem $size */
+	scp_spk_process_enable = <0 0x4 0xf 0x13>;
+	status = "okay";
+};
+
+&sound {
+	mediatek,spk-i2s = <3 0>;
+	mediatek,speaker-codec {
+	};
+};
+
+&scp_audio_mbox {
+	status = "okay";
+};
+
+&pdc {
+	pd_vbus_upper_bound = <12000000>;
+};
+
+&tboard_thermistor1 {
+	fixed_thermal;
+};
+
+&mmc0 {
+	status = "disabled";
+};
+
+&mmc1 {
+	sec-sd-slot-type = <3>; /* Hybrid Tray SD slot */
+};
+
+&mtk_gauge {
+	DISABLE_MTKBATTERY = <(1)>;
+};
+
+&lk_charger {
+	disable_charger;
+};
+
+/*svp start*/
+&mtee_svp {
+	mtee: MTEE {
+		compatible = "mediatek,mtk_svp_on_mtee_support";
+	};
+
+	svp: SecureVideoPath {
+		compatible = "mediatek,mtk_sec_video_path_support";
+	};
+};
+/*svp end*/
+
+/* SDcard gpio active level */
+&mmc1 {
+	vmmc-supply = <&mt6358_vmch_eint_low>;
+};
+
+//#include "mediatek/k6789v1_64_titan_sumatran_tiger/gpio00.dtsi"
+//#include "mediatek/k6789v1_64_titan_sumatran_tiger/s2mu106_battery.a23_lte.dtsi"
+/*End of this file, DO NOT ADD ANYTHING HERE*/

@@ -1,0 +1,227 @@
+#define SX9380 1
+#define SX9380_BUILT_IN 1
+#define SX9380_SUB 1
+#define SX9380_SUB_BUILT_IN 1
+#define SX9380_SUB2 1
+#define SX9380_SUB2_BUILT_IN 1
+
+#if SX9380
+&sw_i2c1 {
+	gpios = <SEC_GPIO_REF(AP,pio,103) 0 /* sda */
+			SEC_GPIO_REF(AP,pio,104) 0>; /* scl */
+	pinctrl-0 = <&grip_i2c_sda
+				 &grip_i2c_scl
+				>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <400000>;
+	pinctrl-names = "default";
+
+	sx938x: sx938x-i2c@28 {
+		compatible = "sx938x";
+		reg = <0x28>;
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_int
+#if 1
+					 &grip_ldo_en
+#endif
+					>;
+
+		interrupt-parent = <SEC_GPIO_TYPE(AP,pio,12)>;
+		interrupts = <SEC_GPIO_NUM(AP,pio,12) 0 0>;
+
+#if 1
+		sx938x,ldo_en = <SEC_GPIO_REF(AP,pio,84) 0>;
+#else
+		sx938x,dvdd_vreg_name = "VDD_GRIP_3P3";
+#endif
+		sx938x,nirq-gpio = <SEC_GPIO_REF(AP,pio,12) 0>;
+#if 1
+		sx938x,unknown_sel = <1>;
+#endif
+	};
+};
+&pio {
+	grip_i2c_sda: grip-i2c-sda {
+		GPIO_CONFIG_PUD_DRV(AP,pio,103, FUNC_INPUT, PULL_NONE, DRV_LV1);
+	};
+	grip_i2c_scl: grip-i2c-scl {
+		GPIO_CONFIG_PUD_DRV(AP,pio,104, FUNC_INPUT, PULL_NONE, DRV_LV1);
+	};
+};
+
+&pio {
+	grip_int: grip-int {
+		GPIO_CONFIG_PUD_DRV(AP,pio,12, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+
+#if 1
+&pio {
+	grip_ldo_en: grip-ldo-en {
+		GPIO_CONFIG_PUD(AP,pio,84, FUNC_OUTPUT_LOW, PULL_NONE);
+	};
+};
+#endif
+
+#endif
+#if GRIP_NONE
+&${i2c_grip_sub} {
+	gpios = <SEC_GPIO_REF(${gpio_grip_sub_i2c_sda}) 0 /* sda */
+			SEC_GPIO_REF(${gpio_grip_sub_i2c_scl}) 0>; /* scl */
+	pinctrl-0 = <&grip_sub_i2c_sda
+				 &grip_sub_i2c_scl
+				>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <400000>;
+	pinctrl-names = "default";
+	sx938x_sub: sx938x_sub-i2c@28 {
+		compatible = "sx938x_sub";
+		reg = <0x28>;
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_sub_int
+#if 0
+					 &grip_sub_ldo_en
+#endif
+		>;
+		interrupt-parent = <SEC_GPIO_TYPE(${gpio_grip_sub_irq})>;
+		interrupts = <SEC_GPIO_NUM(${gpio_grip_sub_irq}) 0 0>;
+#if 0
+		sx938x_sub,ldo_en = <SEC_GPIO_REF(${gpio_grip_sub_en}) 0>;
+#elif 0
+		sx938x_sub,dvdd_vreg_name = "VDD_GRIP_SUB_3P3";
+#endif
+
+		sx938x_sub,nirq-gpio = <SEC_GPIO_REF(${gpio_grip_sub_irq}) 0>;
+#if 1
+		sx938x_sub,unknown_sel = <0>;
+#endif
+	};
+};
+
+&${gpio_grip_sub_i2c_parent} {
+	grip_sub_i2c_sda: grip-sub-i2c-sda {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_sub_i2c_sda}, FUNC_INPUT, PULL_NONE, DRV_LV1);
+	};
+	grip_sub_i2c_scl: grip-sub-i2c-scl {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_sub_i2c_scl}, FUNC_INPUT, PULL_NONE, DRV_LV1);
+	};
+};
+
+&${gpio_grip_sub_irq_parent} {
+	grip_sub_int: grip-sub-int {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_sub_irq}, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+
+#if 0
+&${gpio_grip_sub_en_parent} {
+	grip_sub_ldo_en: grip-sub-ldo-en {
+		GPIO_CONFIG_PUD(${gpio_grip_sub_en}, FUNC_OUTPUT_LOW, PULL_NONE);
+	};
+};
+#endif
+
+#endif
+#if GRIP_NONE
+&${i2c_grip_sub2} {
+	gpios = <SEC_GPIO_REF(${gpio_grip_sub2_i2c_sda}) 0 /* sda */
+			SEC_GPIO_REF(${gpio_grip_sub2_i2c_scl}) 0>; /* scl */
+	pinctrl-0 = <&grip_sub2_i2c_sda
+				 &grip_sub2_i2c_scl
+				>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	clock-frequency = <400000>;
+	pinctrl-names = "default";
+	sx938x_sub2: sx938x_sub2-i2c@28 {
+		compatible = "sx938x_sub2";
+		reg = <0x28>;
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&grip_sub2_int
+#if 0
+					 &grip_sub2_ldo_en
+#endif
+					>;
+		interrupt-parent = <SEC_GPIO_TYPE(${gpio_grip_sub2_irq})>;
+		interrupts = <SEC_GPIO_NUM(${gpio_grip_sub2_irq}) 0 0>;
+
+#if 0
+		sx938x_sub2,ldo_en = <SEC_GPIO_REF(${gpio_grip_sub2_en}) 0>;
+#elif 0
+		sx938x_sub2,dvdd_vreg_name = "VDD_GRIP_SUB2_3P3";
+#endif
+		sx938x_sub2,nirq-gpio = <SEC_GPIO_REF(${gpio_grip_sub2_irq}) 0>;
+#if 1
+		sx938x_sub2,unknown_sel = <0>;
+#endif
+	};
+};
+
+&${gpio_grip_sub2_i2c_parent} {
+	grip_sub2_i2c_sda: grip-sub2-i2c-sda {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_sub2_i2c_sda}, FUNC_INPUT, PULL_NONE, DRV_LV1);
+	};
+	grip_sub2_i2c_scl: grip-sub2-i2c-scl {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_sub2_i2c_scl}, FUNC_INPUT, PULL_NONE, DRV_LV1);
+	};
+};
+
+&${gpio_grip_sub2_irq_parent} {
+	grip_sub2_int: grip-sub2-int {
+		GPIO_CONFIG_PUD_DRV(${gpio_grip_sub2_irq}, FUNC_INPUT_WAKEUP, PULL_NONE, DRV_LV1);
+	};
+};
+
+#if 0
+&${gpio_grip_sub2_en_parent} {
+	grip_sub2_ldo_en: grip-sub2-ldo-en {
+		GPIO_CONFIG_PUD(${gpio_grip_sub2_en}, FUNC_OUTPUT_LOW, PULL_NONE);
+	};
+};
+#endif
+#endif
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sensors/sx938x/dts/sx938x.a24.dtsi */
+&sx938x {
+		Semtech,reg-num = <24>; /* total registers number to initialize*/
+
+		sx938x,ldo_en = <&pio 84 0>;
+
+		sx938x,irq_enable_reg = <0x0E>; //0x02
+		sx938x,irqcfg_reg = <0x00>;
+
+		sx938x,gnrl_ctrl0_reg = <0x03>;//0x10
+		sx938x,gnrl_ctrl1_reg = <0x00>;
+		sx938x,gnrl_ctrl2_reg = <0x19>;
+
+		sx938x,afe_ctrl1_reg = <0x00>; //0x21
+		sx938x,afe_param0_phr_reg = <0x0C>;
+		sx938x,afe_param1_phr_reg = <0x46>;
+		sx938x,afe_param0_phm_reg = <0x0F>; //resolutuin : 1024
+		sx938x,afe_param1_phm_reg = <0x46>;
+
+		sx938x,proxctrl0_phr_reg = <0x09>; //0x40
+		sx938x,proxctrl0_phm_reg = <0x1A>;
+		sx938x,proxctrl1_reg = <0x20>;
+		sx938x,proxctrl2_reg = <0x60>;
+		sx938x,proxctrl3_reg = <0x0E>;
+		sx938x,proxctrl4_reg = <0x15>;
+		sx938x,proxctrl5_reg = <0x1F>;
+
+		sx938x,refcorr0_reg = <0x00>;//0x60
+		sx938x,refcorr1_reg = <0x00>;
+
+		sx938x,usefilter0_reg = <0x00>; //0x70
+		sx938x,usefilter1_reg = <0x00>;
+		sx938x,usefilter2_reg = <0x00>;
+		sx938x,usefilter3_reg = <0x00>;
+		sx938x,usefilter4_reg = <0x00>;
+};

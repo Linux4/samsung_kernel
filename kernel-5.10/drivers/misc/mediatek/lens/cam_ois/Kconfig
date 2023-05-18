@@ -1,0 +1,6 @@
+config CAMERA_OIS
+	tristate "CAMERA_OIS"
+	help
+	  This is OIS driver for camera
+	  Set as y if the driver is used in this project
+	  use CONFIG_CAMERA_OIS
