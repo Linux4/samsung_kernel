@@ -4604,7 +4604,7 @@ KERNEL_VERSION(4, 5, 0) > LINUX_VERSION_CODE
 			write ? FOLL_WRITE : 0,
 			pages, NULL, NULL);
 #else
-	pinned_pages = get_user_pages_remote(mm,
+	pinned_pages = pin_user_pages_remote(mm,
 			address,
 			alloc->imported.user_buf.nr_pages,
 			write ? FOLL_WRITE : 0,

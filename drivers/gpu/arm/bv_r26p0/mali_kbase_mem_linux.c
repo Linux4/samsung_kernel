@@ -1738,6 +1738,9 @@ u64 kbase_mem_alias(struct kbase_context *kctx, u64 *flags, u64 stride,
 	if (!nents)
 		goto bad_nents;
 
+	if (stride > U64_MAX / nents)
+		goto bad_size;
+
 	if ((nents * stride) > (U64_MAX / PAGE_SIZE))
 		/* 64-bit address range is the max */
 		goto bad_size;
@@ -2193,6 +2196,9 @@ int kbase_mem_commit(struct kbase_context *kctx, u64 gpu_addr, u64 new_pages)
 		goto out_unlock;
 	/* can't grow regions which are ephemeral */
 	if (reg->flags & KBASE_REG_DONT_NEED)
+		goto out_unlock;
+
+	 if (reg->flags & KBASE_REG_NO_USER_FREE)
 		goto out_unlock;
 
 #ifdef CONFIG_MALI_MEMORY_FULLY_BACKED
