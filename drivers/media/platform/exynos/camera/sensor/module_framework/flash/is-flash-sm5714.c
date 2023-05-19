@@ -27,6 +27,12 @@
 #include <linux/sm5714.h>
 extern int32_t sm5714_fled_mode_ctrl(int state, uint32_t brightness);
 extern int sm5714_create_sysfs(struct class*);
+static struct task_struct *sm5714_fled_ctrl_thread = NULL;
+static int sm5714_fled_mode_torch_flash(void *data)
+{
+	sm5714_fled_mode_ctrl(SM5714_FLED_MODE_TORCH_FLASH, 0);
+	return 0;
+}
 #endif
 
 static int flash_sm5714_init(struct v4l2_subdev *subdev, u32 val)
@@ -85,9 +91,11 @@ static int sensor_sm5714_flash_control(struct v4l2_subdev *subdev, enum flash_mo
 		if (ret)
 			err("%s capture flash on fail", __func__);
 	} else if (mode == CAM2_FLASH_MODE_TORCH) {
-		ret = sm5714_fled_mode_ctrl(SM5714_FLED_MODE_TORCH_FLASH, 0);
-		if (ret)
-			err("%s torch flash on fail", __func__);
+		sm5714_fled_ctrl_thread = kthread_run(sm5714_fled_mode_torch_flash, NULL, "sm5714_fled_ctrl_thread");
+		if (IS_ERR(sm5714_fled_ctrl_thread)) {
+			WARN_ON(1);
+			return 0;
+		}
 	} else {
 		err("Invalid flash mode");
 		ret = control_flash_gpio(flash->flash_gpio, 0);

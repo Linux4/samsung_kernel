@@ -931,7 +931,7 @@
 			#dma-cells = <0x01>;
 			qcom,ee = <0x00>;
 			qcom,controlled-remotely;
-			num-channels = <0x12>;
+			num-channels = <0x18>;
 			qcom,num-ees = <0x04>;
 			phandle = <0x2c>;
 		};
@@ -1138,7 +1138,7 @@
 			#dma-cells = <0x01>;
 			qcom,ee = <0x00>;
 			qcom,controlled-remotely;
-			num-channels = <0x12>;
+			num-channels = <0x18>;
 			qcom,num-ees = <0x04>;
 			phandle = <0x36>;
 		};

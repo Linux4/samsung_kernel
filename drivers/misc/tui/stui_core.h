@@ -29,7 +29,7 @@
 
 #define STUI_DEV_NAME "tuihw"
 
-#define TUIHW_LOG_TAG "tuill_hw"
+#define TUIHW_LOG_TAG "tuill_hw "
 
 int stui_open_touch(void);
 int stui_open_display(struct tui_hw_buffer *buffer);

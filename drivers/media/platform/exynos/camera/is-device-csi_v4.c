@@ -128,15 +128,30 @@ static int csi_dma_attach(struct is_device_csi *csi)
 	}
 
 	if (csi->sensor_cfg && csi->sensor_cfg->ex_mode == EX_PDSTAT_OFF) {
-		wdma = is_camif_wdma_get(INIT_WDMA_CH_HINT);
-		if (wdma) {
-			csi->stat_wdma = wdma;
-			csi->stat_wdma_ch = wdma->index;
-			csi->stat_wdma_mod = is_camif_wdma_module_get(wdma->index);
+		struct is_vci_config *s_cfg_output;
+		int cvc, stat_flag = false;
 
-			for (vc = DMA_VIRTUAL_CH_0; vc < DMA_VIRTUAL_CH_MAX; vc++) {
-				csi_hw_dma_reset(wdma->regs_vc[WDMA_VC(csi, vc)]);
-				csi_hw_s_fro_count(wdma->regs_ctl, 1, vc);
+		for (cvc = CSI_VIRTUAL_CH_1; cvc <= csi->sensor_cfg->max_vc; cvc++) {
+			s_cfg_output = &csi->sensor_cfg->output[cvc];
+
+			if (!s_cfg_output->width)
+				continue;
+
+			stat_flag = true;
+			break;
+		}
+
+		if (stat_flag) {
+			wdma = is_camif_wdma_get(INIT_WDMA_CH_HINT);
+			if (wdma) {
+				csi->stat_wdma = wdma;
+				csi->stat_wdma_ch = wdma->index;
+				csi->stat_wdma_mod = is_camif_wdma_module_get(wdma->index);
+
+				for (vc = DMA_VIRTUAL_CH_0; vc < DMA_VIRTUAL_CH_MAX; vc++) {
+					csi_hw_dma_reset(wdma->regs_vc[WDMA_VC(csi, vc)]);
+					csi_hw_s_fro_count(wdma->regs_ctl, 1, vc);
+				}
 			}
 		}
 	}

@@ -147,17 +147,17 @@
 
 						/* A start node number should be over the 10 for reserved number 0~9. */
 						/* pname = "name"; pin = <act value delay voltage>; gpio = <gpx# # 0x1>; */
-						10 { pname = "sen_rst low"; pin = <PIN_OUTPUT 0 0>; gpio = <&gpg1 1 0x1>; };
-						20 { pname = "VDDIO_1.8V_CAM"; pin = <PIN_REGULATOR 1 0>; };
-						30 { pname = "VDDA_2.2V_CAM"; pin = <PIN_REGULATOR 1 0 2200000>; };
-						40 { pname = "RCAM1_AVDD_1P8"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpm12 0 0x1>; };
-						50 { pname = "pin"; pin = <PIN_FUNCTION 2 0>; };
-						60 { pname = "MCLK"; pin = <PIN_MCLK 1 0>; gpio = <&gpg0 2 0x1>; };
-						70 { pname = "delay"; pin = <PIN_NONE 0 10000>; };
-						80 { pname = "on_i2c"; pin = <PIN_I2C 1 0>; };
-						85 { pname = "VDD_VM_2.8V_OIS"; pin = <PIN_REGULATOR 1 70>; };
-						90 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 50>; gpio = <&gpg1 1 0x1>; };
-						100 { pname = "delay"; pin = <PIN_NONE 0 100>; };
+						10 { pname = "sen_rst low";     pin = <PIN_OUTPUT 0 1000>; gpio = <&gpg1 1 0x1>; };
+						20 { pname = "VDDIO_1.8V_CAM";  pin = <PIN_REGULATOR 1 1000>; };
+						30 { pname = "VDDA_2.2V_CAM";   pin = <PIN_REGULATOR 1 500 2200000>; };
+						40 { pname = "RCAM1_AVDD_1P8";  pin = <PIN_OUTPUT 1 1000>; gpio = <&gpm12 0 0x1>; };  /* AFVDD, DVDD */
+						50 { pname = "pin";             pin = <PIN_FUNCTION 2 0>; };
+						60 { pname = "MCLK";            pin = <PIN_MCLK 1 0>; gpio = <&gpg0 2 0x1>; };
+						70 { pname = "delay";           pin = <PIN_NONE 0 1000>; };
+						80 { pname = "on_i2c";          pin = <PIN_I2C 1 0>; };
+						85 { pname = "VDD_VM_2.8V_OIS"; pin = <PIN_REGULATOR 1 500>; };
+						90 { pname = "sen_rst high";    pin = <PIN_OUTPUT 1 50>; gpio = <&gpg1 1 0x1>; };
+						100 { pname = "delay";          pin = <PIN_NONE 0 11000>; };
 					};
 
 					scenario_normal_off {
@@ -191,11 +191,11 @@
 						40 { pname = "RCAM1_AVDD_1P8"; pin = <PIN_OUTPUT 1 0>; gpio = <&gpm12 0 0x1>; };
 						50 { pname = "pin"; pin = <PIN_FUNCTION 2 0>; };
 						60 { pname = "MCLK"; pin = <PIN_MCLK 1 0>; gpio = <&gpg0 2 0x1>; };
-						70 { pname = "delay"; pin = <PIN_NONE 0 10000>; };
+						70 { pname = "delay"; pin = <PIN_NONE 0 100>; };
 						80 { pname = "on_i2c"; pin = <PIN_I2C 1 0>; };
 						85 { pname = "VDD_VM_2.8V_OIS"; pin = <PIN_REGULATOR 1 70>; };
 						90 { pname = "sen_rst high"; pin = <PIN_OUTPUT 1 50>; gpio = <&gpg1 1 0x1>; };
-						100 { pname = "delay"; pin = <PIN_NONE 0 100>; };
+						100 { pname = "delay"; pin = <PIN_NONE 0 10000>; };
 					};
 
 					scenario_vision_off {

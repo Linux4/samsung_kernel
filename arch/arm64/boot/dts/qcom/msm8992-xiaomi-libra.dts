@@ -191,8 +191,8 @@
 			phandle = <0x45>;
 		};
 
-		memory@3800000 {
-			reg = <0x00 0x3800000 0x00 0x2400000>;
+		memory@3401000 {
+			reg = <0x00 0x3401000 0x00 0x2200000>;
 			no-map;
 			phandle = <0x46>;
 		};
@@ -341,7 +341,7 @@
 					vdd_l17_29-supply = <0x10>;
 					vdd_l20_21-supply = <0x10>;
 					vdd_l25-supply = <0x0f>;
-					vdd_lvs1_2 = <0x11>;
+					vdd_lvs1_2-supply = <0x11>;
 
 					s3 {
 						regulator-min-microvolt = <0x13d620>;
@@ -788,7 +788,7 @@
 			#dma-cells = <0x01>;
 			qcom,ee = <0x00>;
 			qcom,controlled-remotely;
-			num-channels = <0x12>;
+			num-channels = <0x18>;
 			qcom,num-ees = <0x04>;
 			phandle = <0x29>;
 		};
@@ -923,7 +923,7 @@
 			#dma-cells = <0x01>;
 			qcom,ee = <0x00>;
 			qcom,controlled-remotely;
-			num-channels = <0x12>;
+			num-channels = <0x18>;
 			qcom,num-ees = <0x04>;
 			phandle = <0x32>;
 		};
@@ -1579,7 +1579,7 @@
 		CPU5 = "/cpus/cpu@101";
 		tcsr_mutex = "/hwlock";
 		dfps_data_mem = "/reserved-memory/dfps_data_mem@3400000";
-		cont_splash_mem = "/reserved-memory/memory@3800000";
+		cont_splash_mem = "/reserved-memory/memory@3401000";
 		smem_mem = "/reserved-memory/smem_region@6a00000";
 		mpss_mem = "/reserved-memory/memory@7000000";
 		peripheral_region = "/reserved-memory/memory@ca00000";

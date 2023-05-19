@@ -1213,6 +1213,9 @@ static void ufc_free_all(void)
 	for (i = 0; i < ufc.num_of_domain; i++) {
 		struct ufc_domain *dom = ufc.domain_list[i];
 
+		if (!dom)
+			continue;
+
 		freq_qos_tracer_remove_request(&dom->min_qos_req);
 		freq_qos_tracer_remove_request(&dom->max_qos_req);
 		freq_qos_tracer_remove_request(&dom->min_qos_wo_boost_req);
@@ -1423,12 +1426,16 @@ static int init_ufc_domain(struct device_node *dn)
 	int ret, i = 0;
 
 	dn = of_get_child_by_name(dn, "domains");
-	if (!dn)
+	if (!dn) {
+		pr_err("%s: failed to get child node domains.\n", __func__);
 		return -EINVAL;
+	}
 
 	ufc.num_of_domain = of_get_child_count(dn);
-	if (!ufc.num_of_domain)
+	if (!ufc.num_of_domain) {
+		pr_err("%s: failed to alloc for domain list.\n", __func__);
 		return -EINVAL;
+	}
 
 	ufc.domain_list = kcalloc(ufc.num_of_domain, sizeof(struct ufc_domain *), GFP_KERNEL);
 	if (!ufc.domain_list)
@@ -1439,19 +1446,27 @@ static int init_ufc_domain(struct device_node *dn)
 		struct ufc_domain *dom;
 
 		dom = kzalloc(sizeof(struct ufc_domain), GFP_KERNEL);
-		if (!dom)
+		if (!dom) {
+			pr_err("%s: failed to alloc for dom\n", __func__);
 			return -ENOMEM;
+		}
 
-		if (parse_ufc_domain(child, dom))
+		if (parse_ufc_domain(child, dom)) {
+			pr_err("%s: failed to parse ufc_domain\n", __func__);
 			return -EINVAL;
+		}
 
 		policy = cpufreq_cpu_get(cpumask_first(&dom->cpus));
-		if (!policy)
+		if (!policy) {
+			pr_err("%s: failed to get cpufreq policy\n", __func__);
 			return -EINVAL;
+		}
 
 		ret = parse_cpufreq_info(dom, policy);
-		if (ret)
+		if (ret) {
+			pr_err("%s: failed to parse cpufreq_info\n", __func__);
 			return ret;
+		}
 
 		register_freq_qos(dom, policy);
 		cpufreq_cpu_put(policy);

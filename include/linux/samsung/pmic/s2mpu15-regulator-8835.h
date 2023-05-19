@@ -559,6 +559,9 @@ enum s2mpu15_regulators {
 
 #define S2MPU15_REGULATOR_MAX (S2MPU15_REG_MAX)
 
+#define S2MPU15_INST_ACOK_EN	(1 << 2)
+#define S2MPU15_JIG_REBOOT_EN	(1 << 7)
+
 /* POWER-KEY MASK */
 #define S2MPU15_STATUS1_PWRON		(1 << 0)
 #define S2MPU15_PWRKEY_PRESS		(1 << 1)
@@ -676,6 +679,8 @@ struct s2mpu15_dev {
 	struct apm_ops *ops;
 
 	bool wakeup;
+	int jig_reboot_en;
+	int inst_acok_en;
 	int type;
 	int device_type;
 

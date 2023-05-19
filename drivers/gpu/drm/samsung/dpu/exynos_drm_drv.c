@@ -52,6 +52,22 @@
 #define DRIVER_MAJOR	1
 #define DRIVER_MINOR	0
 
+static int dpu_log_level = 6;
+module_param(dpu_log_level, int, 0600);
+MODULE_PARM_DESC(dpu_log_level, "log level for dpu [default : 6]");
+
+#define dpu_info(drm, fmt, ...)	\
+dpu_pr_info(drv_name((drm)), 0, dpu_log_level, fmt, ##__VA_ARGS__)
+
+#define dpu_warn(drm, fmt, ...)	\
+dpu_pr_warn(drv_name((drm)), 0, dpu_log_level, fmt, ##__VA_ARGS__)
+
+#define dpu_err(drm, fmt, ...)	\
+dpu_pr_err(drv_name((drm)), 0, dpu_log_level, fmt, ##__VA_ARGS__)
+
+#define dpu_debug(drm, fmt, ...)	\
+dpu_pr_debug(drv_name((drm)), 0, dpu_log_level, fmt, ##__VA_ARGS__)
+
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
 int no_display;
 EXPORT_SYMBOL(no_display);
@@ -422,7 +438,6 @@ static const struct drm_private_state_funcs exynos_priv_state_funcs = {
 };
 
 /* See also: drm_atomic_helper_wait_for_fences() */
-#define FENCE_TIMEOUT_MSEC	(3200)			/* 3200msec */
 #define NUM_VBLANK		(5)			/* vblank wait count */
 #define DFT_FPS			(60)			/* default fps */
 static int exynos_drm_atomic_helper_wait_for_fences(struct drm_device *dev,
@@ -438,6 +453,7 @@ static int exynos_drm_atomic_helper_wait_for_fences(struct drm_device *dev,
 	ktime_t fence_wait_start;
 	s64 fence_wait_ms, debug_timeout_ms;
 	int i, ret, fps;
+	bool timeout;
 
 	for_each_new_plane_in_state(state, plane, new_plane_state, i) {
 		if (!new_plane_state->fence)
@@ -460,6 +476,7 @@ static int exynos_drm_atomic_helper_wait_for_fences(struct drm_device *dev,
 		fps = drm_mode_vrefresh(&new_crtc_state->adjusted_mode) ? : DFT_FPS;
 		debug_timeout_ms = NUM_VBLANK * MSEC_PER_SEC / fps;
 
+		timeout = false;
 		fence_wait_start = ktime_get();
 		ret = dma_fence_wait_timeout(fence, pre_swap,
 				msecs_to_jiffies(debug_timeout_ms));
@@ -468,23 +485,24 @@ static int exynos_drm_atomic_helper_wait_for_fences(struct drm_device *dev,
 					EVENT_FLAG_FENCE, "in_fence_wait: %lldmsec",
 					debug_timeout_ms);
 			ops = fence->ops;
-			pr_info("[%s] plane-%lu fence waiting timeout(%lldmsec)\n",
-					__func__, plane->index,	debug_timeout_ms);
-			pr_info("[%s] driver=%s, timeline =%s\n", __func__,
+			dpu_err(dev, "plane-%lu fence waiting timeout(%lldmsec)\n",
+					plane->index,	debug_timeout_ms);
+			dpu_err(dev, "driver=%s, timeline =%s\n",
 					ops->get_driver_name(fence),
 					ops->get_timeline_name(fence));
+			timeout = true;
 		}
 
 		ret = dma_fence_wait(fence, pre_swap);
-		fence_wait_ms = ktime_ms_delta(ktime_get(), fence_wait_start);
-		if (ret)
-			return ret;
-
-		if (fence_wait_ms > FENCE_TIMEOUT_MSEC) {
+		if (timeout) {
+			fence_wait_ms = ktime_ms_delta(ktime_get(), fence_wait_start);
 			DPU_EVENT_LOG("ELAPSED_PLANE_IN_FENCE", exynos_crtc,
 					EVENT_FLAG_FENCE, "in_fence_wait: %lldmsec",
 					fence_wait_ms);
+			dpu_err(dev, "fence elapsed %lldmsec\n", fence_wait_ms);
 		}
+		if (ret)
+			return ret;
 
 		dma_fence_put(new_plane_state->fence);
 		new_plane_state->fence = NULL;

@@ -15,6 +15,7 @@
 #include "stui_ioctl.h"
 #include "tuill_defs.h"
 
+#include <linux/atomic.h>
 #include <linux/completion.h>
 #include <linux/delay.h>
 #include <linux/kthread.h>
@@ -35,11 +36,12 @@ struct iwd_functions {
 
 extern void register_iwd_functions(struct iwd_functions *f);
 extern void unregister_iwd_functions(void);
+extern unsigned int tzdev_is_up(void);
 
-static bool reboot_flag = false;
+static atomic_t reboot_flag = ATOMIC_INIT(0);
+static atomic_t thread_flag = ATOMIC_INIT(0);
 static struct sock_desc *sd = NULL;
 static struct task_struct *iwd_kthread = NULL;
-static bool thread_flag = false;
 static struct completion finished;
 static int reboot_notif_registered = 0;
 static int tzdev_notif_registered = 0;
@@ -68,7 +70,7 @@ static int notifier_callback(struct notifier_block *self, unsigned long event, v
 {
 	(void) data;
 	pr_debug(TUIHW_LOG_TAG " %s >> event=%lu\n", __func__, event);
-	if (reboot_flag) {
+	if (atomic_cmpxchg(&reboot_flag, 1, 1)) {
 		pr_info(TUIHW_LOG_TAG " reboot_flag is true\n");
 		return NOTIFY_OK;
 	}
@@ -149,7 +151,7 @@ static int open_driver(OpenPeripheral_cmd_t *cmd, OpenPeripheral_rsp_t *rsp)
 		pr_debug(TUIHW_LOG_TAG " cmd->peripheral_id[i]=%d\n", cmd->peripheral_id[i]);
 
 	for (i = 0; i < cmd->num; i++) {
-		switch(cmd->peripheral_id[i]) {
+		switch (cmd->peripheral_id[i]) {
 		case TUILL_TOUCH_DRV:
 			pr_debug(TUIHW_LOG_TAG " opening TUILL_TOUCH_DRV\n");
 			ret = stui_open_touch();
@@ -191,7 +193,7 @@ static int open_driver(OpenPeripheral_cmd_t *cmd, OpenPeripheral_rsp_t *rsp)
 	return 0;
 lbl_rollback:
 	for (j = 0; j < i; j++) {
-		switch(cmd->peripheral_id[j]) {
+		switch (cmd->peripheral_id[j]) {
 		case TUILL_TOUCH_DRV:
 			pr_debug(TUIHW_LOG_TAG " closing TUILL_TOUCH_DRV\n");
 			stui_close_touch();
@@ -211,7 +213,7 @@ static int close_driver(ClosePeripheral_cmd_t *cmd)
 	int i = 0;
 	pr_debug(TUIHW_LOG_TAG " %s >>\n", __func__);
 	for (i = 0; i < cmd->num; i++) {
-		switch(cmd->peripheral_id[i]) {
+		switch (cmd->peripheral_id[i]) {
 		case TUILL_TOUCH_DRV:
 			pr_debug(TUIHW_LOG_TAG " closing TUILL_TOUCH_DRV\n");
 			stui_close_touch();
@@ -229,26 +231,24 @@ static int close_driver(ClosePeripheral_cmd_t *cmd)
 
 static void reboot_phone()
 {
-	/**
-	 *	kernel_restart - reboot the system
-	 *	@cmd: pointer to buffer containing command to execute for restart or %NULL
-	 */
 	pr_debug(TUIHW_LOG_TAG " %s >>\n", __func__);
-	reboot_flag = true;
-	kernel_restart(NULL); // -> To restart the system
-	reboot_flag = false;
+	atomic_set(&reboot_flag, 1);
+	panic("tuihw: Trusted User Interface was not unlocked.");
+	atomic_set(&reboot_flag, 0);
 	pr_debug(TUIHW_LOG_TAG " %s <<\n", __func__);
 }
 
 static int connecting_thread(void *data)
 {
+	unsigned int tzd_up;
 	int ret = 0;
 	tuill_internal_command_t cmd;
 	tuill_internal_command_t rsp;
 	char serv_name[100];
 	sprintf(serv_name, TUILL_SERVER_TEMPLATE, OS_IWD_SOCKET_NAME);
 	pr_debug(TUIHW_LOG_TAG " %s >>\n", __func__);
-	while (thread_flag) {
+	while (atomic_cmpxchg(&thread_flag, 1, 1) == 1
+		&& atomic_cmpxchg(&reboot_flag, 0, 0) == 0) {
 		/**
 		 *	EPOLLHUP signal propagation to peripheral drivers when OS service panicked
 		 *	takes 20-50 ms. Also we need to wait some time until peripheral drivers clear HAL.
@@ -256,6 +256,12 @@ static int connecting_thread(void *data)
 		 *	NWd peripheral released.
 		 */
 		usleep_range(500000, 500001);//0.5 s
+
+		tzd_up = tzdev_is_up();
+		if (!tzd_up) {
+			pr_info(TUIHW_LOG_TAG " %s tzdev is not ready\n", __func__);
+			continue;
+		}
 
 		sd = tz_iwsock_socket(1, TZ_NON_INTERRUPTIBLE);
 
@@ -282,7 +288,8 @@ static int connecting_thread(void *data)
 		ret = tz_iwsock_write(sd, &cmd, sizeof(cmd), 0);
 
 		while (ret >= 0) {
-			if (!thread_flag) {
+			if (atomic_cmpxchg(&thread_flag, 0, 0) == 0
+				|| atomic_cmpxchg(&reboot_flag, 1, 1) == 1) {
 				pr_debug(TUIHW_LOG_TAG " thread was stopped\n");
 				break;
 			}
@@ -292,6 +299,8 @@ static int connecting_thread(void *data)
 				continue;
 			} else if (ret == 0) {
 				pr_err(TUIHW_LOG_TAG " connection was reset by peer\n");
+				tz_iwsock_release(sd);
+				sd = NULL;
 				break;
 			} else if (ret < 0) {
 				pr_err(TUIHW_LOG_TAG " tz_iwsock_read returned %d\n", ret);
@@ -326,8 +335,10 @@ static int connecting_thread(void *data)
 				break;
 			case TUILL_ICMD_REBOOT_PHONE:
 				pr_debug(TUIHW_LOG_TAG " received TUILL_ICMD_REBOOT_PHONE\n");
+				tz_iwsock_release(sd);
+				sd = NULL;
 				reboot_phone();
-				break;
+				goto exit;
 			}
 			ret = tz_iwsock_write(sd, &rsp, sizeof(rsp), 0);
 		}
@@ -336,6 +347,7 @@ static int connecting_thread(void *data)
 			sd = NULL;
 		}
 	}
+exit:
 	pr_debug(TUIHW_LOG_TAG " %s << ret=%d\n", __func__, ret);
 	complete(&finished);
 	return 0;
@@ -393,12 +405,12 @@ int __init __init_iwd_agent(void)
 	}
 
 	tzdev_notif_registered = 1;
-	thread_flag = true;
+	atomic_set(&thread_flag, 1);
 	reinit_completion(&finished);
 	iwd_kthread = kthread_run(connecting_thread, NULL, "connecting_thread");
 	if (IS_ERR(iwd_kthread)) {
 		pr_err(TUIHW_LOG_TAG " kthread_run failedn");
-		thread_flag = false;
+		atomic_set(&thread_flag, 0);
 		return -EFAULT;
 	}
 
@@ -409,17 +421,11 @@ int __init __init_iwd_agent(void)
 void __uninit_iwd_agent(void)
 {
 	pr_debug(TUIHW_LOG_TAG " %s >>\n", __func__);
-	thread_flag = false;
+	atomic_set(&thread_flag, 0);
 	if (sd) {
 		tz_iwsock_release(sd);//to breake reading
 		sd = NULL;
 	}
 	wait_for_completion(&finished);
 }
-
-bool get_tui_reboot_flag(void)
-{
-	return reboot_flag;
-}
-EXPORT_SYMBOL(get_tui_reboot_flag);
 

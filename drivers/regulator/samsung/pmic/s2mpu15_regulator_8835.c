@@ -1017,6 +1017,32 @@ int main_pmic_init_debug_sysfs(struct device *sec_pm_dev)
 EXPORT_SYMBOL_GPL(main_pmic_init_debug_sysfs);
 #endif /* CONFIG_SEC_PM_DEBUG */
 
+static int s2mpu15_power_off_wa(void)
+{
+	struct s2mpu15_info *s2mpu15 = s2mpu15_static_info;
+	int ret = 0;
+
+	if (!s2mpu15)
+		return -ENODEV;
+
+	if (s2mpu15->iodev->inst_acok_en == 1) {
+		ret = s2mpu15_update_reg(s2mpu15->i2c, S2MPU15_PM1_CFG_PM, S2MPU15_INST_ACOK_EN, S2MPU15_INST_ACOK_EN);
+		if (ret) {
+			pr_err("%s: INST_ACOK_EN set fail\n", __func__);
+			return -EINVAL;
+		}
+	}
+
+	if (s2mpu15->iodev->jig_reboot_en == 1) {
+		ret = s2mpu15_update_reg(s2mpu15->i2c, S2MPU15_PM1_TIME_CTRL, S2MPU15_JIG_REBOOT_EN, S2MPU15_JIG_REBOOT_EN);
+		if (ret) {
+			pr_err("%s: JIG_REBOOT_EN set fail\n", __func__);
+			return -EINVAL;
+		}
+	}
+	return ret;
+}
+
 static int s2mpu15_pmic_probe(struct platform_device *pdev)
 {
 	struct s2mpu15_dev *iodev = dev_get_drvdata(pdev->dev.parent);
@@ -1048,6 +1074,8 @@ static int s2mpu15_pmic_probe(struct platform_device *pdev)
 
 	s2mpu15->iodev = iodev;
 	s2mpu15->i2c = iodev->pmic1;
+
+	dev_info(&pdev->dev, "[PMIC] %s: inst_acok_en: %d, jig_reboot_en: %d\n", __func__, iodev->inst_acok_en, iodev->jig_reboot_en);
 
 	mutex_init(&s2mpu15->lock);
 
@@ -1090,7 +1118,7 @@ static int s2mpu15_pmic_probe(struct platform_device *pdev)
 		goto err_s2mpu15_data;
 	}
 #endif
-	exynos_reboot_register_pmic_ops(NULL, NULL, s2mpu15_power_off_seq_wa, s2mpu15_read_pwron_status);
+	exynos_reboot_register_pmic_ops(s2mpu15_power_off_wa, NULL, s2mpu15_power_off_seq_wa, s2mpu15_read_pwron_status);
 
 #if IS_ENABLED(CONFIG_SEC_PM_DEBUG)
 	ret = s2mpu15_bulk_read(s2mpu15->i2c, S2MPU15_PM1_PWRONSRC1, 2,

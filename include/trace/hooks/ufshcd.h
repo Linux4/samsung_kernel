@@ -16,10 +16,20 @@
 /* struct scsi_device */
 #include <scsi/scsi_device.h>
 
+struct ufs_hba;
+struct ufshcd_lrb;
+struct uic_command;
+struct request;
+struct scsi_device;
+
 DECLARE_HOOK(android_vh_ufs_fill_prdt,
 	TP_PROTO(struct ufs_hba *hba, struct ufshcd_lrb *lrbp,
 		 unsigned int segments, int *err),
 	TP_ARGS(hba, lrbp, segments, err));
+
+DECLARE_RESTRICTED_HOOK(android_rvh_ufs_complete_init,
+			TP_PROTO(struct ufs_hba *hba),
+			TP_ARGS(hba), 1);
 
 DECLARE_RESTRICTED_HOOK(android_rvh_ufs_reprogram_all_keys,
 			TP_PROTO(struct ufs_hba *hba, int *err),
@@ -122,6 +132,10 @@ DECLARE_HOOK(android_vh_ufs_mcq_clear_cmd,
 DECLARE_HOOK(android_vh_ufs_mcq_clear_pending,
 	TP_PROTO(struct ufs_hba *hba, int *ret),
 	TP_ARGS(hba, ret));
+
+DECLARE_HOOK(android_vh_ufs_mcq_retry_complete,
+	TP_PROTO(struct ufs_hba *hba),
+	TP_ARGS(hba));
 
 #endif /* _TRACE_HOOK_UFSHCD_H */
 /* This part must be outside protection */

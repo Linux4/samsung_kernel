@@ -301,7 +301,7 @@
 
 		icpu_fw_rmem {
 			compatible = "shared-dma-pool";
-			size = <0x1c00000>;
+			size = <0x2800000>;
 			alignment = <0x00 0x10000>;
 			reusable;
 			phandle = <0x12f>;

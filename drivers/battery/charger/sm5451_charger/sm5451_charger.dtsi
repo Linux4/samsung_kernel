@@ -7,7 +7,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/sm5451/sm5451_charger.a54x.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel/kmodule/battery/suwon/charger/sm5451/sm5451_charger.a54x.dtsi */
 &sm5451_charger {
 	sm5451,freq_byp = <0x1>; /* 375kHz */
 	sm5451,freq = <2>; /* 500kHz */
