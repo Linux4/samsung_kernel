@@ -10,15 +10,12 @@
 
 
 #include "mcd_decon.h"
-//#include "decon.h"
-//#include "dpp.h"
-#include "../panel/panel_drv.h"
+#include "panel_drv.h"
 #include "./cal_2100/decon_cal.h"
 
 #ifdef CONFIG_MCDHDR
 #include "./mcdhdr/mcdhdr.h"
 #endif
-
 
 #ifdef CONFIG_DYNAMIC_MIPI
 #define DM_UPDATE_MAGIC_CODE 1

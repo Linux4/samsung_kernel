@@ -316,12 +316,14 @@ int decon_get_out_sd(struct decon_device *decon)
 	v4l2_subdev_call(decon->out_sd[0], core, ioctl,
 			DSIM_IOC_SET_ERROR_CB, &decon_error_cb_info);
 
+#ifdef CONFIG_DYNAMIC_MIPI
 	mcd_decon->dm_info = mcd_dm_get_info(decon->panel_sd);
 	if (mcd_decon->dm_info != NULL) {
 		decon_info("MCD:%s success get dm info\n", __func__);
 		decon_info("MCD:%s default hs: %d\n", __func__,
 			mcd_decon->dm_info->dm_dt.dm_hs_list[mcd_decon->dm_info->dm_dt.dm_default].hs_clk);
 	}
+#endif
 #endif
 
 	return 0;

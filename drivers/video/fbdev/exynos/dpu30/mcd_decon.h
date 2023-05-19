@@ -17,8 +17,9 @@
 #include "decon.h"
 #include "dpp.h"
 #include "mcd_helper.h"
-#include "../panel/dynamic_mipi/band_info.h"
-
+#ifdef CONFIG_DYNAMIC_MIPI
+#include "dynamic_mipi/band_info.h"
+#endif
 
 #ifdef CONFIG_DYNAMIC_MIPI
 void mcd_set_freq_hop(struct decon_device *decon, struct decon_reg_data *regs, bool en);

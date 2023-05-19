@@ -19,9 +19,9 @@
 #include "../decon.h"
 #include "../dsim.h"
 #include "../mcd_decon.h"
-#include "../../panel/panel.h"
-#include "../../panel/panel_drv.h"
-#include "../../panel/panel_debug.h"
+#include "panel.h"
+#include "panel_drv.h"
+#include "panel_debug.h"
 #include "exynos_panel_drv.h"
 #include "exynos_panel.h"
 

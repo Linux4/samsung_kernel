@@ -24,8 +24,7 @@
 
 #if IS_ENABLED(CONFIG_MCD_PANEL)
 #include "../disp_err.h"
-#include "../../panel/panel_drv.h"
-#include "../../panel/kunit_test.h"
+#include "panel_drv.h"
 #endif
 
 extern int dpu_panel_log_level;
