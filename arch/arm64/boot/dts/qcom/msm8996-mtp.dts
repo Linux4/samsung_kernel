@@ -2737,8 +2737,6 @@
 			iommus = <0x64 0x00>;
 			nvmem-cells = <0x65>;
 			nvmem-cell-names = "speed_bin";
-			qcom,gpu-quirk-two-pass-use-wfi;
-			qcom,gpu-quirk-fault-detect-mask;
 			operating-points-v2 = <0x66>;
 
 			opp-table {

@@ -1109,6 +1109,7 @@ struct dwc3_scratchpad_array {
  * @disconnect: signals that Disconnection interrupt happend
  * @suspend_clk_freq: frequency of suspend clock
  * @connected: true when we're connected to a host, false otherwise
+ * @softconnect: true when gadget connect is called, false when disconnect runs
  * @delayed_status: true when gadget driver asks for delayed status
  * @ep0_bounced: true when we used bounce buffer
  * @ep0_expect_in: true when we expect a DATA IN transfer
@@ -1328,7 +1329,6 @@ struct dwc3 {
 	const char		*hsphy_interface;
 
 	bool			vbus_session;
-	bool			softconnect;
 
 	struct completion	disconnect;
 
@@ -1341,6 +1341,7 @@ struct dwc3 {
 	u32			suspend_clk_freq;
 
 	unsigned		connected:1;
+	unsigned		softconnect:1;
 	unsigned		delayed_status:1;
 	unsigned		ep0_bounced:1;
 	unsigned		ep0_expect_in:1;

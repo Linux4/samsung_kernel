@@ -15,8 +15,10 @@
 
 #include "mcd_dsim.h"
 #include "dsim.h"
-#include "../panel/panel_drv.h"
-#include "../panel/dynamic_mipi/dynamic_mipi.h"
+#include "panel_drv.h"
+#ifdef CONFIG_DYNAMIC_MIPI
+#include "dynamic_mipi/dynamic_mipi.h"
+#endif
 
 #ifdef CONFIG_DYNAMIC_MIPI
 void mcd_dsim_md_set_default_freq(struct mcd_dsim_device *mcd_dsim, int context)

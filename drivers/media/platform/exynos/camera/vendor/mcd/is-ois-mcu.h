@@ -99,6 +99,8 @@ struct ois_mcu_dev {
 	bool			dev_ctrl_state;
 	bool			need_reset_mcu;
 	bool			is_mcu_active;
+	bool			recover_tele2;
+	bool			is_tele2_on;
 };
 
 enum is_efs_state {

@@ -42,12 +42,12 @@ struct mcd_decon_reg_data {
 };
 
 struct mcd_decon_device {
+#ifdef CONFIG_DYNAMIC_MIPI
 	struct dynamic_mipi_info *dm_info;
+#endif
 #ifdef CONFIG_MCDHDR
 	struct saved_hdr_info saved_hdr[MAX_MCDHDR_CNT];
 #endif
-
-
 };
 
 /* struct for dpp */

@@ -497,11 +497,21 @@ void mfc_qos_update_framerate(struct mfc_ctx *ctx)
 
 		/* 7) check non-real-time */
 		if (ctx->rt == MFC_NON_RT) {
-			if (ctx->src_q_ts.ts_is_full)
-				mfc_debug(2, "[QoS] src q fps %ld\n", ctx->src_q_framerate);
-			if (framerate < DEC_DEFAULT_FPS) {
-				mfc_debug(2, "[QoS] max operating fps %ld\n", DEC_DEFAULT_FPS);
-				framerate = DEC_DEFAULT_FPS;
+ 			if (framerate < DEC_DEFAULT_FPS) {
+ 				framerate = DEC_DEFAULT_FPS;
+				if (framerate != ctx->framerate)
+					mfc_debug(2, "[QoS][PRIO] NRT max operating fps %ld\n",
+							framerate);
+			}
+		}
+
+		/* 8) check default non-real-time */
+		if (ctx->rt == MFC_RT_UNDEFINED) {
+			if (framerate < ctx->dst_q_framerate) {
+				framerate = ctx->dst_q_framerate;
+				if (framerate != ctx->framerate)
+					mfc_debug(2, "[QoS][PRIO] default NRT dst_q fps %ld\n",
+							framerate);
 			}
 		}
 
