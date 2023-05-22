@@ -676,6 +676,7 @@ int __init slsi_dev_load(void)
 	slsi_create_sysfs_debug_dump();
 	scsc_wlan_mmap_create();
 #endif
+	slsi_create_sysfs_pm();
 	SLSI_INFO_NODEV("--- Maxwell Wi-Fi driver loaded successfully---\n");
 	return 0;
 }
@@ -691,6 +692,7 @@ void __exit slsi_dev_unload(void)
 	scsc_wlan_mmap_destroy();
 	slsi_destroy_sysfs_debug_dump();
 #endif
+	slsi_destroy_sysfs_pm();
 	/* Unregister SAPs */
 	sap_mlme_deinit();
 	sap_ma_deinit();

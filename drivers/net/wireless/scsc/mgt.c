@@ -96,6 +96,10 @@ static char mac_addr_override[] = "ff:ff:ff:ff:ff:ff";
 module_param_string(mac_addr, mac_addr_override, sizeof(mac_addr_override), S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(mac_addr_override, "WLAN MAC address override");
 
+static bool EnableRfTestMode;
+module_param(EnableRfTestMode, bool, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(EnableRfTestMode, "Enable RF test mode driver.");
+
 static int slsi_mib_open_file(struct slsi_dev *sdev, struct slsi_dev_mib_info *mib_info, const struct firmware **fw);
 static int slsi_mib_close_file(struct slsi_dev *sdev, const struct firmware *e);
 static int slsi_mib_download_file(struct slsi_dev *sdev, struct slsi_dev_mib_info *mib_info);
@@ -120,9 +124,14 @@ static ssize_t sysfs_store_debugdump(struct kobject *kobj, struct kobj_attribute
 				   const char *buf, size_t count);
 #endif
 
+static ssize_t sysfs_show_pm(struct kobject *kobj, struct kobj_attribute *attr, char *buf);
+static ssize_t sysfs_store_pm(struct kobject *kobj, struct kobj_attribute *attr,
+			      const char *buf, size_t count);
+
 static struct kobject *wifi_kobj_ref;
 static char sysfs_mac_override[] = "ff:ff:ff:ff:ff:ff";
 static struct kobj_attribute mac_attr = __ATTR(mac_addr, 0660, sysfs_show_macaddr, sysfs_store_macaddr);
+static struct kobj_attribute pm_attr = __ATTR(pm, 0660, sysfs_show_pm, sysfs_store_pm);
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 12
 static int dump_in_progress = 0;
 static struct kobj_attribute dump_attr = __ATTR(dump_in_progress, 0660, sysfs_show_debugdump, sysfs_store_debugdump);
@@ -8070,4 +8079,72 @@ int slsi_add_probe_ies_request(struct slsi_dev *sdev, struct net_device *dev)
 		kfree(add_info_ies);
 	}
 	return r;
+}
+
+/* Is production rf test mode enabled? */
+bool slsi_is_rf_test_mode_enabled(void)
+{
+	return EnableRfTestMode;
+}
+
+/* Retrieve EnableRfTestMode in sysfs global */
+static ssize_t sysfs_show_pm(struct kobject *kobj,
+			     struct kobj_attribute *attr,
+			     char *buf)
+{
+	return sprintf(buf, "%d\n", !EnableRfTestMode);
+}
+
+/* Update pm in sysfs global */
+static ssize_t sysfs_store_pm(struct kobject *kobj,
+			      struct kobj_attribute *attr,
+			      const char *buf,
+			      size_t count)
+{
+	int r;
+	int sysfs_pm;
+
+	r = kstrtoint(buf, 10, &sysfs_pm);
+	if (r == 0 && (sysfs_pm == 0 || sysfs_pm == 1))
+		EnableRfTestMode = (!(bool)sysfs_pm);
+	else
+		pr_err("Invalid pm value. Must be 0 or 1\n");
+
+	SLSI_INFO_NODEV("pm: %d\n", !EnableRfTestMode);
+
+	return (r == 0) ? count : 0;
+}
+
+/* Register sysfs pm */
+void slsi_create_sysfs_pm(void)
+{
+	int r;
+
+	wifi_kobj_ref = mxman_wifi_kobject_ref_get();
+	pr_info("wifi_kobj_ref: 0x%p\n", wifi_kobj_ref);
+
+	if (wifi_kobj_ref) {
+		/* Create sysfs file /sys/wifi/pm */
+		r = sysfs_create_file(wifi_kobj_ref, &pm_attr.attr);
+		if (r) {
+			/* Failed, so clean up dir */
+			pr_err("Can't create /sys/wifi/pm\n");
+			return;
+		}
+	} else {
+		pr_err("failed to create /sys/wifi/pm\n");
+	}
+}
+
+/* Unregister sysfs pm */
+void slsi_destroy_sysfs_pm(void)
+{
+	if (!wifi_kobj_ref)
+		return;
+
+	/* Destroy /sys/wifi/pm file */
+	sysfs_remove_file(wifi_kobj_ref, &pm_attr.attr);
+
+	/* Destroy /sys/wifi virtual dir */
+	mxman_wifi_kobject_ref_put();
 }

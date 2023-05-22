@@ -6581,6 +6581,7 @@ static void selinux_bpf_prog_free(struct bpf_prog_aux *aux)
 }
 #endif
 
+
 #ifdef CONFIG_PERF_EVENTS
 static int selinux_perf_event_open(struct perf_event_attr *attr, int type)
 {
@@ -6638,7 +6639,7 @@ static int selinux_perf_event_write(struct perf_event *event)
 	u32 sid = current_sid();
 
 	return avc_has_perm(sid, perfsec->sid,
-			SECCLASS_PERF_EVENT, PERF_EVENT__WRITE, NULL);
+			    SECCLASS_PERF_EVENT, PERF_EVENT__WRITE, NULL);
 }
 #endif
 
