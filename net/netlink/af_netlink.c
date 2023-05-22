@@ -1,14 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * NETLINK      Kernel-user communication protocol.
  *
  * 		Authors:	Alan Cox <alan@lxorguk.ukuu.org.uk>
  * 				Alexey Kuznetsov <kuznet@ms2.inr.ac.ru>
  * 				Patrick McHardy <kaber@trash.net>
- *
- *		This program is free software; you can redistribute it and/or
- *		modify it under the terms of the GNU General Public License
- *		as published by the Free Software Foundation; either version
- *		2 of the License, or (at your option) any later version.
  *
  * Tue Jun 26 14:36:48 MEST 2001 Herbert "herp" Rosmanith
  *                               added netlink_proto_exit
@@ -152,6 +148,8 @@ static const struct rhashtable_params netlink_rhashtable_params;
 
 static inline u32 netlink_group_mask(u32 group)
 {
+	if (group > 32)
+		return 0;
 	return group ? 1 << (group - 1) : 0;
 }
 
@@ -245,13 +243,8 @@ static __net_init int netlink_tap_init_net(struct net *net)
 	return 0;
 }
 
-static void __net_exit netlink_tap_exit_net(struct net *net)
-{
-}
-
 static struct pernet_operations netlink_tap_net_ops = {
 	.init = netlink_tap_init_net,
-	.exit = netlink_tap_exit_net,
 	.id   = &netlink_tap_net_id,
 	.size = sizeof(struct netlink_tap_net),
 };
@@ -461,11 +454,13 @@ void netlink_table_ungrab(void)
 static inline void
 netlink_lock_table(void)
 {
+	unsigned long flags;
+
 	/* read_lock() synchronizes us to netlink_table_grab */
 
-	read_lock(&nl_table_lock);
+	read_lock_irqsave(&nl_table_lock, flags);
 	atomic_inc(&nl_table_users);
-	read_unlock(&nl_table_lock);
+	read_unlock_irqrestore(&nl_table_lock, flags);
 }
 
 static inline void
@@ -574,11 +569,6 @@ static int netlink_insert(struct sock *sk, u32 portid)
 	if (nlk_sk(sk)->bound)
 		goto err;
 
-	err = -ENOMEM;
-	if (BITS_PER_LONG > 32 &&
-	    unlikely(atomic_read(&table->hash.nelems) >= UINT_MAX))
-		goto err;
-
 	nlk_sk(sk)->portid = portid;
 	sock_hold(sk);
 
@@ -597,7 +587,10 @@ static int netlink_insert(struct sock *sk, u32 portid)
 
 	/* We need to ensure that the socket is hashed and visible. */
 	smp_wmb();
-	nlk_sk(sk)->bound = portid;
+	/* Paired with lockless reads from netlink_bind(),
+	 * netlink_connect() and netlink_sendmsg().
+	 */
+	WRITE_ONCE(nlk_sk(sk)->bound, portid);
 
 err:
 	release_sock(sk);
@@ -993,7 +986,7 @@ static int netlink_bind(struct socket *sock, struct sockaddr *addr,
 	struct netlink_sock *nlk = nlk_sk(sk);
 	struct sockaddr_nl *nladdr = (struct sockaddr_nl *)addr;
 	int err = 0;
-	long unsigned int groups = nladdr->nl_groups;
+	unsigned long groups;
 	bool bound;
 
 	if (addr_len < sizeof(struct sockaddr_nl))
@@ -1001,6 +994,7 @@ static int netlink_bind(struct socket *sock, struct sockaddr *addr,
 
 	if (nladdr->nl_family != AF_NETLINK)
 		return -EINVAL;
+	groups = nladdr->nl_groups;
 
 	/* Only superuser is allowed to listen multicasts */
 	if (groups) {
@@ -1011,12 +1005,11 @@ static int netlink_bind(struct socket *sock, struct sockaddr *addr,
 			return err;
 	}
 
-	if (nlk->ngroups == 0)
-		groups = 0;
-	else if (nlk->ngroups < 8*sizeof(groups))
+	if (nlk->ngroups < BITS_PER_LONG)
 		groups &= (1UL << nlk->ngroups) - 1;
 
-	bound = nlk->bound;
+	/* Paired with WRITE_ONCE() in netlink_insert() */
+	bound = READ_ONCE(nlk->bound);
 	if (bound) {
 		/* Ensure nlk->portid is up-to-date. */
 		smp_rmb();
@@ -1102,8 +1095,9 @@ static int netlink_connect(struct socket *sock, struct sockaddr *addr,
 
 	/* No need for barriers here as we return to user-space without
 	 * using any of the bound attributes.
+	 * Paired with WRITE_ONCE() in netlink_insert().
 	 */
-	if (!nlk->bound)
+	if (!READ_ONCE(nlk->bound))
 		err = netlink_autobind(sock);
 
 	if (err == 0) {
@@ -1378,6 +1372,14 @@ int netlink_has_listeners(struct sock *sk, unsigned int group)
 	return res;
 }
 EXPORT_SYMBOL_GPL(netlink_has_listeners);
+
+bool netlink_strict_get_check(struct sk_buff *skb)
+{
+	const struct netlink_sock *nlk = nlk_sk(NETLINK_CB(skb).sk);
+
+	return nlk->flags & NETLINK_F_STRICT_CHK;
+}
+EXPORT_SYMBOL_GPL(netlink_strict_get_check);
 
 static int netlink_broadcast_deliver(struct sock *sk, struct sk_buff *skb)
 {
@@ -1714,6 +1716,13 @@ static int netlink_setsockopt(struct socket *sock, int level, int optname,
 			nlk->flags &= ~NETLINK_F_EXT_ACK;
 		err = 0;
 		break;
+	case NETLINK_GET_STRICT_CHK:
+		if (val)
+			nlk->flags |= NETLINK_F_STRICT_CHK;
+		else
+			nlk->flags &= ~NETLINK_F_STRICT_CHK;
+		err = 0;
+		break;
 	default:
 		err = -ENOPROTOOPT;
 	}
@@ -1807,6 +1816,15 @@ static int netlink_getsockopt(struct socket *sock, int level, int optname,
 			return -EFAULT;
 		err = 0;
 		break;
+	case NETLINK_GET_STRICT_CHK:
+		if (len < sizeof(int))
+			return -EINVAL;
+		len = sizeof(int);
+		val = nlk->flags & NETLINK_F_STRICT_CHK ? 1 : 0;
+		if (put_user(len, optlen) || put_user(val, optval))
+			return -EFAULT;
+		err = 0;
+		break;
 	default:
 		err = -ENOPROTOOPT;
 	}
@@ -1846,6 +1864,11 @@ static int netlink_sendmsg(struct socket *sock, struct msghdr *msg, size_t len)
 	if (msg->msg_flags&MSG_OOB)
 		return -EOPNOTSUPP;
 
+	if (len == 0) {
+		pr_warn_once("Zero length message leads to an empty skb\n");
+		return -ENODATA;
+	}
+
 	err = scm_send(sock, msg, &scm, true);
 	if (err < 0)
 		return err;
@@ -1868,7 +1891,8 @@ static int netlink_sendmsg(struct socket *sock, struct msghdr *msg, size_t len)
 		dst_group = nlk->dst_group;
 	}
 
-	if (!nlk->bound) {
+	/* Paired with WRITE_ONCE() in netlink_insert() */
+	if (!READ_ONCE(nlk->bound)) {
 		err = netlink_autobind(sock);
 		if (err)
 			goto out;
@@ -1963,7 +1987,6 @@ static int netlink_recvmsg(struct socket *sock, struct msghdr *msg, size_t len,
 		copied = len;
 	}
 
-	skb_reset_transport_header(data_skb);
 	err = skb_copy_datagram_msg(data_skb, 0, msg, copied);
 
 	if (msg->msg_name) {
@@ -2179,6 +2202,7 @@ EXPORT_SYMBOL(__nlmsg_put);
 static int netlink_dump(struct sock *sk)
 {
 	struct netlink_sock *nlk = nlk_sk(sk);
+	struct netlink_ext_ack extack = {};
 	struct netlink_callback *cb;
 	struct sk_buff *skb = NULL;
 	struct nlmsghdr *nlh;
@@ -2228,10 +2252,20 @@ static int netlink_dump(struct sock *sk)
 	 * single netdev. The outcome is MSG_TRUNC error.
 	 */
 	skb_reserve(skb, skb_tailroom(skb) - alloc_size);
+
+	/* Make sure malicious BPF programs can not read unitialized memory
+	 * from skb->head -> skb->data
+	 */
+	skb_reset_network_header(skb);
+	skb_reset_mac_header(skb);
+
 	netlink_skb_set_owner_r(skb, sk);
 
-	if (nlk->dump_done_errno > 0)
+	if (nlk->dump_done_errno > 0) {
+		cb->extack = &extack;
 		nlk->dump_done_errno = cb->dump(skb, cb);
+		cb->extack = NULL;
+	}
 
 	if (nlk->dump_done_errno > 0 ||
 	    skb_tailroom(skb) < nlmsg_total_size(sizeof(nlk->dump_done_errno))) {
@@ -2245,7 +2279,8 @@ static int netlink_dump(struct sock *sk)
 	}
 
 	nlh = nlmsg_put_answer(skb, cb, NLMSG_DONE,
-			       sizeof(nlk->dump_done_errno), NLM_F_MULTI);
+			       sizeof(nlk->dump_done_errno),
+			       NLM_F_MULTI | cb->answer_flags);
 	if (WARN_ON(!nlh))
 		goto errout_skb;
 
@@ -2253,6 +2288,12 @@ static int netlink_dump(struct sock *sk)
 
 	memcpy(nlmsg_data(nlh), &nlk->dump_done_errno,
 	       sizeof(nlk->dump_done_errno));
+
+	if (extack._msg && nlk->flags & NETLINK_F_EXT_ACK) {
+		nlh->nlmsg_flags |= NLM_F_ACK_TLVS;
+		if (!nla_put_string(skb, NLMSGERR_ATTR_MSG, extack._msg))
+			nlmsg_end(skb, nlh);
+	}
 
 	if (sk_filter(sk, skb))
 		kfree_skb(skb);
@@ -2280,9 +2321,9 @@ int __netlink_dump_start(struct sock *ssk, struct sk_buff *skb,
 			 const struct nlmsghdr *nlh,
 			 struct netlink_dump_control *control)
 {
+	struct netlink_sock *nlk, *nlk2;
 	struct netlink_callback *cb;
 	struct sock *sk;
-	struct netlink_sock *nlk;
 	int ret;
 
 	refcount_inc(&skb->users);
@@ -2315,6 +2356,9 @@ int __netlink_dump_start(struct sock *ssk, struct sk_buff *skb,
 	cb->module = control->module;
 	cb->min_dump_alloc = control->min_dump_alloc;
 	cb->skb = skb;
+
+	nlk2 = nlk_sk(NETLINK_CB(skb).sk);
+	cb->strict_check = !!(nlk2->flags & NETLINK_F_STRICT_CHK);
 
 	if (control->start) {
 		ret = control->start(cb);
@@ -2496,13 +2540,15 @@ int nlmsg_notify(struct sock *sk, struct sk_buff *skb, u32 portid,
 		/* errors reported via destination sk->sk_err, but propagate
 		 * delivery errors if NETLINK_BROADCAST_ERROR flag is set */
 		err = nlmsg_multicast(sk, skb, exclude_portid, group, flags);
+		if (err == -ESRCH)
+			err = 0;
 	}
 
 	if (report) {
 		int err2;
 
 		err2 = nlmsg_unicast(sk, skb, portid);
-		if (!err || err == -ESRCH)
+		if (!err)
 			err = err2;
 	}
 
@@ -2517,20 +2563,10 @@ struct nl_seq_iter {
 	int link;
 };
 
-static int netlink_walk_start(struct nl_seq_iter *iter)
+static void netlink_walk_start(struct nl_seq_iter *iter)
 {
-	int err;
-
-	err = rhashtable_walk_init(&nl_table[iter->link].hash, &iter->hti,
-				   GFP_KERNEL);
-	if (err) {
-		iter->link = MAX_LINKS;
-		return err;
-	}
-
+	rhashtable_walk_enter(&nl_table[iter->link].hash, &iter->hti);
 	rhashtable_walk_start(&iter->hti);
-
-	return 0;
 }
 
 static void netlink_walk_stop(struct nl_seq_iter *iter)
@@ -2546,8 +2582,6 @@ static void *__netlink_seq_next(struct seq_file *seq)
 
 	do {
 		for (;;) {
-			int err;
-
 			nlk = rhashtable_walk_next(&iter->hti);
 
 			if (IS_ERR(nlk)) {
@@ -2564,9 +2598,7 @@ static void *__netlink_seq_next(struct seq_file *seq)
 			if (++iter->link >= MAX_LINKS)
 				return NULL;
 
-			err = netlink_walk_start(iter);
-			if (err)
-				return ERR_PTR(err);
+			netlink_walk_start(iter);
 		}
 	} while (sock_net(&nlk->sk) != seq_file_net(seq));
 
@@ -2578,13 +2610,10 @@ static void *netlink_seq_start(struct seq_file *seq, loff_t *posp)
 	struct nl_seq_iter *iter = seq->private;
 	void *obj = SEQ_START_TOKEN;
 	loff_t pos;
-	int err;
 
 	iter->link = 0;
 
-	err = netlink_walk_start(iter);
-	if (err)
-		return ERR_PTR(err);
+	netlink_walk_start(iter);
 
 	for (pos = *posp; pos && obj && !IS_ERR(obj); pos--)
 		obj = __netlink_seq_next(seq);
@@ -2619,7 +2648,7 @@ static int netlink_seq_show(struct seq_file *seq, void *v)
 		struct sock *s = v;
 		struct netlink_sock *nlk = nlk_sk(s);
 
-		seq_printf(seq, "%pK %-3d %-10u %08x %-8d %-8d %-5d %-8d %-8d %-8lu\n",
+		seq_printf(seq, "%pK %-3d %-10u %08x %-8d %-8d %-5d %-8d %-8u %-8lu\n",
 			   s,
 			   s->sk_protocol,
 			   nlk->portid,

@@ -61,7 +61,11 @@ struct as3935_state {
 	unsigned long noise_tripped;
 	u32 tune_cap;
 	u32 nflwdth_reg;
-	u8 buffer[16]; /* 8-bit data + 56-bit padding + 64-bit timestamp */
+	/* Ensure timestamp is naturally aligned */
+	struct {
+		u8 chan;
+		s64 timestamp __aligned(8);
+	} scan;
 	u8 buf[2] ____cacheline_aligned;
 };
 
@@ -227,8 +231,8 @@ static irqreturn_t as3935_trigger_handler(int irq, void *private)
 	if (ret)
 		goto err_read;
 
-	st->buffer[0] = val & AS3935_DATA_MASK;
-	iio_push_to_buffers_with_timestamp(indio_dev, &st->buffer,
+	st->scan.chan = val & AS3935_DATA_MASK;
+	iio_push_to_buffers_with_timestamp(indio_dev, &st->scan,
 					   iio_get_time_ns(indio_dev));
 err_read:
 	iio_trigger_notify_done(indio_dev->trig);
@@ -345,6 +349,14 @@ static SIMPLE_DEV_PM_OPS(as3935_pm_ops, as3935_suspend, as3935_resume);
 #define AS3935_PM_OPS NULL
 #endif
 
+static void as3935_stop_work(void *data)
+{
+	struct iio_dev *indio_dev = data;
+	struct as3935_state *st = iio_priv(indio_dev);
+
+	cancel_delayed_work_sync(&st->work);
+}
+
 static int as3935_probe(struct spi_device *spi)
 {
 	struct iio_dev *indio_dev;
@@ -368,7 +380,6 @@ static int as3935_probe(struct spi_device *spi)
 
 	spi_set_drvdata(spi, indio_dev);
 	mutex_init(&st->lock);
-	INIT_DELAYED_WORK(&st->work, as3935_event_work);
 
 	ret = of_property_read_u32(np,
 			"ams,tuning-capacitor-pf", &st->tune_cap);
@@ -414,21 +425,27 @@ static int as3935_probe(struct spi_device *spi)
 	iio_trigger_set_drvdata(trig, indio_dev);
 	trig->ops = &iio_interrupt_trigger_ops;
 
-	ret = iio_trigger_register(trig);
+	ret = devm_iio_trigger_register(&spi->dev, trig);
 	if (ret) {
 		dev_err(&spi->dev, "failed to register trigger\n");
 		return ret;
 	}
 
-	ret = iio_triggered_buffer_setup(indio_dev, iio_pollfunc_store_time,
-		&as3935_trigger_handler, NULL);
+	ret = devm_iio_triggered_buffer_setup(&spi->dev, indio_dev,
+					      iio_pollfunc_store_time,
+					      as3935_trigger_handler, NULL);
 
 	if (ret) {
 		dev_err(&spi->dev, "cannot setup iio trigger\n");
-		goto unregister_trigger;
+		return ret;
 	}
 
 	calibrate_as3935(st);
+
+	INIT_DELAYED_WORK(&st->work, as3935_event_work);
+	ret = devm_add_action(&spi->dev, as3935_stop_work, indio_dev);
+	if (ret)
+		return ret;
 
 	ret = devm_request_irq(&spi->dev, spi->irq,
 				&as3935_interrupt_handler,
@@ -438,34 +455,14 @@ static int as3935_probe(struct spi_device *spi)
 
 	if (ret) {
 		dev_err(&spi->dev, "unable to request irq\n");
-		goto unregister_buffer;
+		return ret;
 	}
 
-	ret = iio_device_register(indio_dev);
+	ret = devm_iio_device_register(&spi->dev, indio_dev);
 	if (ret < 0) {
 		dev_err(&spi->dev, "unable to register device\n");
-		goto unregister_buffer;
+		return ret;
 	}
-	return 0;
-
-unregister_buffer:
-	iio_triggered_buffer_cleanup(indio_dev);
-
-unregister_trigger:
-	iio_trigger_unregister(st->trig);
-
-	return ret;
-}
-
-static int as3935_remove(struct spi_device *spi)
-{
-	struct iio_dev *indio_dev = spi_get_drvdata(spi);
-	struct as3935_state *st = iio_priv(indio_dev);
-
-	iio_device_unregister(indio_dev);
-	iio_triggered_buffer_cleanup(indio_dev);
-	iio_trigger_unregister(st->trig);
-
 	return 0;
 }
 
@@ -488,7 +485,6 @@ static struct spi_driver as3935_driver = {
 		.pm	= AS3935_PM_OPS,
 	},
 	.probe		= as3935_probe,
-	.remove		= as3935_remove,
 	.id_table	= as3935_id,
 };
 module_spi_driver(as3935_driver);

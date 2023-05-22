@@ -151,23 +151,17 @@ struct inode *nilfs_alloc_inode(struct super_block *sb)
 	ii->i_bh = NULL;
 	ii->i_state = 0;
 	ii->i_cno = 0;
-	nilfs_mapping_init(&ii->i_btnode_cache, &ii->vfs_inode);
+	ii->i_assoc_inode = NULL;
+	ii->i_bmap = &ii->i_bmap_data;
 	return &ii->vfs_inode;
 }
 
-static void nilfs_i_callback(struct rcu_head *head)
+static void nilfs_free_inode(struct inode *inode)
 {
-	struct inode *inode = container_of(head, struct inode, i_rcu);
-
 	if (nilfs_is_metadata_file_inode(inode))
 		nilfs_mdt_destroy(inode);
 
 	kmem_cache_free(nilfs_inode_cachep, NILFS_I(inode));
-}
-
-void nilfs_destroy_inode(struct inode *inode)
-{
-	call_rcu(&inode->i_rcu, nilfs_i_callback);
 }
 
 static int nilfs_sync_super(struct super_block *sb, int flag)
@@ -686,7 +680,7 @@ static int nilfs_show_options(struct seq_file *seq, struct dentry *dentry)
 
 static const struct super_operations nilfs_sops = {
 	.alloc_inode    = nilfs_alloc_inode,
-	.destroy_inode  = nilfs_destroy_inode,
+	.free_inode     = nilfs_free_inode,
 	.dirty_inode    = nilfs_dirty_inode,
 	.evict_inode    = nilfs_evict_inode,
 	.put_super      = nilfs_put_super,
@@ -1382,8 +1376,6 @@ static void nilfs_inode_init_once(void *obj)
 #ifdef CONFIG_NILFS_XATTR
 	init_rwsem(&ii->xattr_sem);
 #endif
-	address_space_init_once(&ii->i_btnode_cache);
-	ii->i_bmap = &ii->i_bmap_data;
 	inode_init_once(&ii->vfs_inode);
 }
 

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-only
 
 config ARM64_PTDUMP_CORE
 	def_bool n
@@ -92,5 +93,12 @@ config DEBUG_EFI
 config ARM64_RELOC_TEST
 	depends on m
 	tristate "Relocation testing module"
+
+comment "PowerManagement Feature"
+menuconfig SEC_PM
+	bool "Samsung PowerManagement Feature"
+	default n
+	help
+	  Samsung PowerManagement Feature.
 
 source "drivers/hwtracing/coresight/Kconfig"

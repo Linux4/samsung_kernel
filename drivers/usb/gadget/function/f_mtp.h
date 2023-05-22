@@ -32,7 +32,7 @@
 
 /*PIMA15740-2000 spec*/
 #define USB_PTPREQUEST_CANCELIO   0x64    /* Cancel request */
-#define USB_PTPREQUEST_GETEVENT   0x65    /* Get extened event data */
+#define USB_PTPREQUEST_GETEVENT   0x65    /* Get extended event data */
 #define USB_PTPREQUEST_RESET      0x66    /* Reset Device */
 #define USB_PTPREQUEST_GETSTATUS  0x67    /* Get Device Status */
 #define USB_PTPREQUEST_CANCELIO_SIZE 6

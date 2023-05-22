@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Elan I2C/SMBus Touchpad driver
  *
@@ -10,10 +11,6 @@
  * Based on cyapa driver:
  * copyright (c) 2011-2012 Cypress Semiconductor, Inc.
  * copyright (c) 2011-2012 Google, Inc.
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License version 2 as published
- * by the Free Software Foundation.
  *
  * Trademarks are the property of their respective owners.
  */
@@ -37,6 +34,7 @@
 #include <linux/completion.h>
 #include <linux/of.h>
 #include <linux/property.h>
+#include <linux/input/elan-i2c-ids.h>
 #include <linux/regulator/consumer.h>
 #include <asm/unaligned.h>
 
@@ -99,6 +97,7 @@ struct elan_tp_data {
 	u8			max_baseline;
 	bool			baseline_ready;
 	u8			clickpad;
+	bool			middle_button;
 };
 
 static int elan_get_fwinfo(u16 ic_type, u16 *validpage_count,
@@ -140,55 +139,21 @@ static int elan_get_fwinfo(u16 ic_type, u16 *validpage_count,
 	return 0;
 }
 
-static int elan_enable_power(struct elan_tp_data *data)
+static int elan_set_power(struct elan_tp_data *data, bool on)
 {
 	int repeat = ETP_RETRY_COUNT;
 	int error;
 
-	error = regulator_enable(data->vcc);
-	if (error) {
-		dev_err(&data->client->dev,
-			"failed to enable regulator: %d\n", error);
-		return error;
-	}
-
 	do {
-		error = data->ops->power_control(data->client, true);
+		error = data->ops->power_control(data->client, on);
 		if (error >= 0)
 			return 0;
 
 		msleep(30);
 	} while (--repeat > 0);
 
-	dev_err(&data->client->dev, "failed to enable power: %d\n", error);
-	return error;
-}
-
-static int elan_disable_power(struct elan_tp_data *data)
-{
-	int repeat = ETP_RETRY_COUNT;
-	int error;
-
-	do {
-		error = data->ops->power_control(data->client, false);
-		if (!error) {
-			error = regulator_disable(data->vcc);
-			if (error) {
-				dev_err(&data->client->dev,
-					"failed to disable regulator: %d\n",
-					error);
-				/* Attempt to power the chip back up */
-				data->ops->power_control(data->client, true);
-				break;
-			}
-
-			return 0;
-		}
-
-		msleep(30);
-	} while (--repeat > 0);
-
-	dev_err(&data->client->dev, "failed to disable power: %d\n", error);
+	dev_err(&data->client->dev, "failed to set power %s: %d\n",
+		on ? "on" : "off", error);
 	return error;
 }
 
@@ -366,27 +331,62 @@ static unsigned int elan_convert_resolution(u8 val)
 
 static int elan_query_device_parameters(struct elan_tp_data *data)
 {
+	struct i2c_client *client = data->client;
 	unsigned int x_traces, y_traces;
+	u32 x_mm, y_mm;
 	u8 hw_x_res, hw_y_res;
 	int error;
 
-	error = data->ops->get_max(data->client, &data->max_x, &data->max_y);
-	if (error)
-		return error;
+	if (device_property_read_u32(&client->dev,
+				     "touchscreen-size-x", &data->max_x) ||
+	    device_property_read_u32(&client->dev,
+				     "touchscreen-size-y", &data->max_y)) {
+		error = data->ops->get_max(data->client,
+					   &data->max_x,
+					   &data->max_y);
+		if (error)
+			return error;
+	} else {
+		/* size is the maximum + 1 */
+		--data->max_x;
+		--data->max_y;
+	}
 
-	error = data->ops->get_num_traces(data->client, &x_traces, &y_traces);
-	if (error)
-		return error;
-
+	if (device_property_read_u32(&client->dev,
+				     "elan,x_traces",
+				     &x_traces) ||
+	    device_property_read_u32(&client->dev,
+				     "elan,y_traces",
+				     &y_traces)) {
+		error = data->ops->get_num_traces(data->client,
+						  &x_traces, &y_traces);
+		if (error)
+			return error;
+	}
 	data->width_x = data->max_x / x_traces;
 	data->width_y = data->max_y / y_traces;
 
-	error = data->ops->get_resolution(data->client, &hw_x_res, &hw_y_res);
-	if (error)
-		return error;
+	if (device_property_read_u32(&client->dev,
+				     "touchscreen-x-mm", &x_mm) ||
+	    device_property_read_u32(&client->dev,
+				     "touchscreen-y-mm", &y_mm)) {
+		error = data->ops->get_resolution(data->client,
+						  &hw_x_res, &hw_y_res);
+		if (error)
+			return error;
 
-	data->x_res = elan_convert_resolution(hw_x_res);
-	data->y_res = elan_convert_resolution(hw_y_res);
+		data->x_res = elan_convert_resolution(hw_x_res);
+		data->y_res = elan_convert_resolution(hw_y_res);
+	} else {
+		data->x_res = (data->max_x + 1) / x_mm;
+		data->y_res = (data->max_y + 1) / y_mm;
+	}
+
+	if (device_property_read_bool(&client->dev, "elan,clickpad"))
+		data->clickpad = 1;
+
+	if (device_property_read_bool(&client->dev, "elan,middle-button"))
+		data->middle_button = true;
 
 	return 0;
 }
@@ -917,6 +917,8 @@ static void elan_report_absolute(struct elan_tp_data *data, u8 *packet)
 	u8 hover_info = packet[ETP_HOVER_INFO_OFFSET];
 	bool contact_valid, hover_event;
 
+	pm_wakeup_event(&data->client->dev, 0);
+
 	hover_event = hover_info & 0x40;
 	for (i = 0; i < ETP_MAX_FINGERS; i++) {
 		contact_valid = tp_info & (1U << (3 + i));
@@ -926,8 +928,9 @@ static void elan_report_absolute(struct elan_tp_data *data, u8 *packet)
 			finger_data += ETP_FINGER_DATA_LEN;
 	}
 
-	input_report_key(input, BTN_LEFT, tp_info & 0x01);
-	input_report_key(input, BTN_RIGHT, tp_info & 0x02);
+	input_report_key(input, BTN_LEFT,   tp_info & BIT(0));
+	input_report_key(input, BTN_MIDDLE, tp_info & BIT(2));
+	input_report_key(input, BTN_RIGHT,  tp_info & BIT(1));
 	input_report_abs(input, ABS_DISTANCE, hover_event != 0);
 	input_mt_report_pointer_emulation(input, true);
 	input_sync(input);
@@ -938,6 +941,8 @@ static void elan_report_trackpoint(struct elan_tp_data *data, u8 *report)
 	struct input_dev *input = data->tp_input;
 	u8 *packet = &report[ETP_REPORT_ID_OFFSET + 1];
 	int x, y;
+
+	pm_wakeup_event(&data->client->dev, 0);
 
 	if (!data->tp_input) {
 		dev_warn_once(&data->client->dev,
@@ -963,7 +968,6 @@ static void elan_report_trackpoint(struct elan_tp_data *data, u8 *report)
 static irqreturn_t elan_isr(int irq, void *dev_id)
 {
 	struct elan_tp_data *data = dev_id;
-	struct device *dev = &data->client->dev;
 	int error;
 	u8 report[ETP_MAX_REPORT_LEN];
 
@@ -989,7 +993,7 @@ static irqreturn_t elan_isr(int irq, void *dev_id)
 		elan_report_trackpoint(data, report);
 		break;
 	default:
-		dev_err(dev, "invalid report id data (%x)\n",
+		dev_err(&data->client->dev, "invalid report id data (%x)\n",
 			report[ETP_REPORT_ID_OFFSET]);
 	}
 
@@ -1059,10 +1063,13 @@ static int elan_setup_input_device(struct elan_tp_data *data)
 
 	__set_bit(EV_ABS, input->evbit);
 	__set_bit(INPUT_PROP_POINTER, input->propbit);
-	if (data->clickpad)
+	if (data->clickpad) {
 		__set_bit(INPUT_PROP_BUTTONPAD, input->propbit);
-	else
+	} else {
 		__set_bit(BTN_RIGHT, input->keybit);
+		if (data->middle_button)
+			__set_bit(BTN_MIDDLE, input->keybit);
+	}
 	__set_bit(BTN_LEFT, input->keybit);
 
 	/* Set up ST parameters */
@@ -1096,13 +1103,6 @@ static void elan_disable_regulator(void *_data)
 	struct elan_tp_data *data = _data;
 
 	regulator_disable(data->vcc);
-}
-
-static void elan_remove_sysfs_groups(void *_data)
-{
-	struct elan_tp_data *data = _data;
-
-	sysfs_remove_groups(&data->client->dev.kobj, elan_sysfs_groups);
 }
 
 static int elan_probe(struct i2c_client *client,
@@ -1154,9 +1154,8 @@ static int elan_probe(struct i2c_client *client,
 		return error;
 	}
 
-	error = devm_add_action(dev, elan_disable_regulator, data);
+	error = devm_add_action_or_reset(dev, elan_disable_regulator, data);
 	if (error) {
-		regulator_disable(data->vcc);
 		dev_err(dev, "Failed to add disable regulator action: %d\n",
 			error);
 		return error;
@@ -1229,17 +1228,9 @@ static int elan_probe(struct i2c_client *client,
 		return error;
 	}
 
-	error = sysfs_create_groups(&dev->kobj, elan_sysfs_groups);
+	error = devm_device_add_groups(dev, elan_sysfs_groups);
 	if (error) {
 		dev_err(dev, "failed to create sysfs attributes: %d\n", error);
-		return error;
-	}
-
-	error = devm_add_action(dev, elan_remove_sysfs_groups, data);
-	if (error) {
-		elan_remove_sysfs_groups(data);
-		dev_err(dev, "Failed to add sysfs cleanup action: %d\n",
-			error);
 		return error;
 	}
 
@@ -1291,9 +1282,19 @@ static int __maybe_unused elan_suspend(struct device *dev)
 		/* Enable wake from IRQ */
 		data->irq_wake = (enable_irq_wake(client->irq) == 0);
 	} else {
-		ret = elan_disable_power(data);
+		ret = elan_set_power(data, false);
+		if (ret)
+			goto err;
+
+		ret = regulator_disable(data->vcc);
+		if (ret) {
+			dev_err(dev, "error %d disabling regulator\n", ret);
+			/* Attempt to power the chip back up */
+			elan_set_power(data, true);
+		}
 	}
 
+err:
 	mutex_unlock(&data->sysfs_mutex);
 	return ret;
 }
@@ -1304,12 +1305,18 @@ static int __maybe_unused elan_resume(struct device *dev)
 	struct elan_tp_data *data = i2c_get_clientdata(client);
 	int error;
 
-	if (device_may_wakeup(dev) && data->irq_wake) {
+	if (!device_may_wakeup(dev)) {
+		error = regulator_enable(data->vcc);
+		if (error) {
+			dev_err(dev, "error %d enabling regulator\n", error);
+			goto err;
+		}
+	} else if (data->irq_wake) {
 		disable_irq_wake(client->irq);
 		data->irq_wake = false;
 	}
 
-	error = elan_enable_power(data);
+	error = elan_set_power(data, true);
 	if (error) {
 		dev_err(dev, "power up when resuming failed: %d\n", error);
 		goto err;
@@ -1333,55 +1340,6 @@ static const struct i2c_device_id elan_id[] = {
 MODULE_DEVICE_TABLE(i2c, elan_id);
 
 #ifdef CONFIG_ACPI
-static const struct acpi_device_id elan_acpi_id[] = {
-	{ "ELAN0000", 0 },
-	{ "ELAN0100", 0 },
-	{ "ELAN0600", 0 },
-	{ "ELAN0601", 0 },
-	{ "ELAN0602", 0 },
-	{ "ELAN0603", 0 },
-	{ "ELAN0604", 0 },
-	{ "ELAN0605", 0 },
-	{ "ELAN0606", 0 },
-	{ "ELAN0607", 0 },
-	{ "ELAN0608", 0 },
-	{ "ELAN0609", 0 },
-	{ "ELAN060B", 0 },
-	{ "ELAN060C", 0 },
-	{ "ELAN060F", 0 },
-	{ "ELAN0610", 0 },
-	{ "ELAN0611", 0 },
-	{ "ELAN0612", 0 },
-	{ "ELAN0615", 0 },
-	{ "ELAN0616", 0 },
-	{ "ELAN0617", 0 },
-	{ "ELAN0618", 0 },
-	{ "ELAN0619", 0 },
-	{ "ELAN061A", 0 },
-/*	{ "ELAN061B", 0 }, not working on the Lenovo Legion Y7000 */
-	{ "ELAN061C", 0 },
-	{ "ELAN061D", 0 },
-	{ "ELAN061E", 0 },
-	{ "ELAN061F", 0 },
-	{ "ELAN0620", 0 },
-	{ "ELAN0621", 0 },
-	{ "ELAN0622", 0 },
-	{ "ELAN0623", 0 },
-	{ "ELAN0624", 0 },
-	{ "ELAN0625", 0 },
-	{ "ELAN0626", 0 },
-	{ "ELAN0627", 0 },
-	{ "ELAN0628", 0 },
-	{ "ELAN0629", 0 },
-	{ "ELAN062A", 0 },
-	{ "ELAN062B", 0 },
-	{ "ELAN062C", 0 },
-	{ "ELAN062D", 0 },
-	{ "ELAN0631", 0 },
-	{ "ELAN0632", 0 },
-	{ "ELAN1000", 0 },
-	{ }
-};
 MODULE_DEVICE_TABLE(acpi, elan_acpi_id);
 #endif
 

@@ -2,23 +2,16 @@
 /*
  * Copyright (c) 2014 Christoph Hellwig.
  */
-#include <linux/iomap.h>
 #include "xfs.h"
+#include "xfs_shared.h"
 #include "xfs_format.h"
 #include "xfs_log_format.h"
 #include "xfs_trans_resv.h"
-#include "xfs_sb.h"
 #include "xfs_mount.h"
 #include "xfs_inode.h"
 #include "xfs_trans.h"
-#include "xfs_log.h"
 #include "xfs_bmap.h"
-#include "xfs_bmap_util.h"
-#include "xfs_error.h"
 #include "xfs_iomap.h"
-#include "xfs_shared.h"
-#include "xfs_bit.h"
-#include "xfs_pnfs.h"
 
 /*
  * Ensure that we do not have any outstanding pNFS layouts that can be used by
@@ -39,7 +32,7 @@ xfs_break_leased_layouts(
 	struct xfs_inode	*ip = XFS_I(inode);
 	int			error;
 
-	while ((error = break_layout(inode, false) == -EWOULDBLOCK)) {
+	while ((error = break_layout(inode, false)) == -EWOULDBLOCK) {
 		xfs_iunlock(ip, *iolock);
 		*did_unlock = true;
 		error = break_layout(inode, true);
@@ -141,7 +134,7 @@ xfs_fs_map_blocks(
 		goto out_unlock;
 	error = invalidate_inode_pages2(inode->i_mapping);
 	if (WARN_ON_ONCE(error))
-		return error;
+		goto out_unlock;
 
 	end_fsb = XFS_B_TO_FSB(mp, (xfs_ufsize_t)offset + length);
 	offset_fsb = XFS_B_TO_FSBT(mp, offset);
@@ -185,7 +178,7 @@ xfs_fs_map_blocks(
 	}
 	xfs_iunlock(ip, XFS_IOLOCK_EXCL);
 
-	xfs_bmbt_to_iomap(ip, iomap, &imap);
+	error = xfs_bmbt_to_iomap(ip, iomap, &imap, false);
 	*device_generation = mp->m_generation;
 	return error;
 out_unlock:

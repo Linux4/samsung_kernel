@@ -30,6 +30,7 @@
 
 enum cisd_data {
 	CISD_DATA_RESET_ALG = 0,
+
 	CISD_DATA_ALG_INDEX,
 	CISD_DATA_FULL_COUNT,
 	CISD_DATA_CAP_MAX,
@@ -171,6 +172,11 @@ enum {
 	EVENT_TA_OCP_ON,
 	EVENT_OVP_POWER,
 	EVENT_OVP_SIGNAL,
+#if IS_ENABLED(CONFIG_DUAL_BATTERY)
+	EVENT_MAIN_BAT_ERR,
+	EVENT_SUB_BAT_ERR,
+	EVENT_BAT_WA_ERR,
+#endif
 	EVENT_DATA_MAX,
 };
 
@@ -181,7 +187,6 @@ extern const char *cisd_tx_data_str[];
 extern const char *cisd_event_data_str[];
 
 #define PAD_INDEX_STRING	"INDEX"
-#define PAD_INDEX_VALUE		1
 #define PAD_JSON_STRING		"PAD_0x"
 #define MAX_PAD_ID			0xFF
 #define MAX_CHARGER_POWER	100
@@ -201,20 +206,20 @@ struct pad_data {
 	struct pad_data* next;
 };
 
+struct power_data {
+	unsigned int power;
+	unsigned int count;
+
+	struct power_data* prev;
+	struct power_data* next;
+};
+
 struct pd_data {
 	unsigned short pid;
 	unsigned int count;
 
 	struct pd_data *prev;
 	struct pd_data *next;
-};
-
-struct power_data {
-	unsigned int power;
-	unsigned int count;
-
-	struct power_data *prev;
-	struct power_data *next;
 };
 
 struct cisd {
@@ -239,8 +244,8 @@ struct cisd {
 	struct mutex padlock;
 	struct mutex powerlock;
 	struct mutex pdlock;
-	struct pad_data *pad_array;
-	struct power_data *power_array;
+	struct pad_data* pad_array;
+	struct power_data* power_array;
 	struct pd_data *pd_array;
 	unsigned int pad_count;
 	unsigned int power_count;
@@ -269,10 +274,9 @@ static inline void increase_cisd_count(int type)
 void init_cisd_pad_data(struct cisd *cisd);
 void count_cisd_pad_data(struct cisd *cisd, unsigned int pad_id);
 
-void init_cisd_power_data(struct cisd *cisd);
-void count_cisd_power_data(struct cisd *cisd, int power);
+void init_cisd_power_data(struct cisd* cisd);
+void count_cisd_power_data(struct cisd* cisd, int power);
 
 void init_cisd_pd_data(struct cisd *cisd);
 void count_cisd_pd_data(unsigned short vid, unsigned short pid);
-
 #endif /* __SEC_CISD_H */

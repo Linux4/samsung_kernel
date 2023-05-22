@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-only
 config WIRELESS_EXT
 	bool
 
@@ -165,25 +166,7 @@ config CFG80211_DEFAULT_PS
 
 	  If this causes your applications to misbehave you should fix your
 	  applications instead -- they need to register their network
-	  latency requirement, see Documentation/power/pm_qos_interface.txt.
-
-config CFG80211_SLSI_HE
-        bool "Enable HE Capability in Kernel"
-        depends on CFG80211
-        default y
-        help
-          This option enables HE Capability in kernel.
-
-          This Option enables 11ax support in CFG.
-          This option needs to be enabled if the kernel version by default doesnt
-          support 11ax.
-
-config CFG80211_SLSI_WLAN
-        bool "WLAN Changes performed by SLSI"
-        depends on CFG80211
-        default y
-        help
-          This option enables WLAN Changes performed by SLSI.
+	  latency requirement, see Documentation/power/pm_qos_interface.rst.
 
 config CFG80211_DEBUGFS
 	bool "cfg80211 DebugFS entries"
@@ -219,15 +202,6 @@ config CFG80211_WEXT_EXPORT
 
 endif # CFG80211
 
-config CFG80211_REG_NOT_UPDATED
-	bool "Do not update Regulatory configuration"
-	depends on CFG80211
-	default n
-	help
-	  Regulation should not updated even if device found other country
-	  Access Point Beacon once since device should find around other
-	  Access Points.
-
 config LIB80211
 	tristate
 	default n
@@ -239,12 +213,17 @@ config LIB80211
 
 config LIB80211_CRYPT_WEP
 	tristate
+	select CRYPTO_LIB_ARC4
 
 config LIB80211_CRYPT_CCMP
 	tristate
+	select CRYPTO
+	select CRYPTO_AES
+	select CRYPTO_CCM
 
 config LIB80211_CRYPT_TKIP
 	tristate
+	select CRYPTO_LIB_ARC4
 
 config LIB80211_DEBUG
 	bool "lib80211 debugging messages"

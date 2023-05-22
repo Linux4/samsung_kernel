@@ -24,9 +24,29 @@
 static struct sec_bat_misc_dev *c_dev;
 
 #define SEC_BATT_MISC_DBG 1
-#define MAX_BUF 255
+#define MAX_BUF 4095
 #define NODE_OF_MISC "batt_misc"
 #define BATT_IOCTL_SWAM _IOWR('B', 0, struct swam_data)
+
+#if SEC_BATT_MISC_DBG
+static void print_message(u8* buf, int size)
+{
+	int start_idx = 0;
+
+	do {
+		char temp_buf[1024] = {0, };
+		int size_temp = 0, str_len = 1024;
+		int old_idx = start_idx;
+
+		size_temp = ((start_idx + 0x7F) > size) ? size : (start_idx + 0x7F);
+		for (; start_idx < size_temp; start_idx++) {
+			snprintf(temp_buf + strlen(temp_buf), str_len, "0x%02x ", buf[start_idx]);
+			str_len = 1024 - strlen(temp_buf);
+		}
+		pr_info("%s: (%04d ~ %04d) %s\n", __func__, old_idx, start_idx - 1, temp_buf);
+	} while (start_idx < size);
+}
+#endif
 
 static inline int _lock(atomic_t *excl)
 {
@@ -108,10 +128,6 @@ sec_bat_misc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
 	void *buf = NULL;
-#if SEC_BATT_MISC_DBG
-	uint8_t *p_buf;
-	int i;
-#endif
 
 	if (_lock(&c_dev->ioctl_excl)) {
 		pr_err("%s %s - error : ioctl busy - cmd : %d\n", WC_AUTH_MSG, __func__, cmd);
@@ -144,10 +160,7 @@ sec_bat_misc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			}
 #if SEC_BATT_MISC_DBG
 			pr_info("%s %s = send_swam_message - size : %d\n", WC_AUTH_MSG, __func__, c_dev->u_data.size);
-			p_buf = buf;
-			for (i = 0 ; i < c_dev->u_data.size ; i++)
-				pr_info("%x ", (uint32_t)p_buf[i]);
-			pr_info("\n");
+			print_message(buf, c_dev->u_data.size);
 #endif
 			ret = send_swam_message(buf, c_dev->u_data.size);
 			if (ret < 0) {
@@ -166,11 +179,8 @@ sec_bat_misc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				goto err;
 			}
 #if SEC_BATT_MISC_DBG
-			p_buf = buf;
 			pr_info("%s %s = received_swam_message - ret : %d\n", WC_AUTH_MSG, __func__, ret);
-			for (i = 0; i < ret ; i++)
-				pr_info("%x ", (uint32_t)p_buf[i]);
-			pr_info("\n");
+			print_message(buf, ret);
 #endif
 			if (copy_to_user((void __user *)c_dev->u_data.pData,
 					 buf, ret)) {
@@ -229,7 +239,7 @@ sec_bat_misc_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg
 {
 	int ret = 0;
 	pr_info("%s %s - cmd : %d\n", WC_AUTH_MSG, __func__, cmd);
-	ret = sec_bat_misc_ioctl(file, cmd, (unsigned long)compat_ptr(arg));
+	ret = sec_bat_misc_ioctl(file, cmd, arg);
 
 	return ret;
 }
@@ -256,10 +266,10 @@ int sec_bat_swam_out_request_message(void *data, int size)
 		POWER_SUPPLY_EXT_PROP_WIRELESS_AUTH_ADT_STATUS, value);
 
 	p_data = (u8 *)data;
-	//for(i=0; i< size; i++)
+	//for (i = 0; i< size; i++)
 	//	pr_info("%s: auth read data = %x", __func__, p_data[i]);
 
-	if(size > 1 ) {
+	if (size > 1 ) {
 		/* set data size first */
 		value.intval = size;
 		psy_do_property("mfc-charger", set,
@@ -279,7 +289,7 @@ int sec_bat_swam_out_request_message(void *data, int size)
 			pr_info("%s %s : auth has been failed \n", WC_AUTH_MSG, __func__);
 			value.intval = WIRELESS_AUTH_FAIL;
 			psy_do_property("mfc-charger", set,
-				POWER_SUPPLY_EXT_PROP_WIRELESS_AUTH_ADT_STATUS, value);			
+				POWER_SUPPLY_EXT_PROP_WIRELESS_AUTH_ADT_STATUS, value);
 		} else
 			pr_info("%s %s : invalid arg %d \n", WC_AUTH_MSG, __func__, p_data[0]);
 	}
@@ -290,10 +300,12 @@ void sec_bat_swam_copy_data(u8 *src, u8 *dest, int size)
 {
 	int i = 0;
 
-	for(i=0; i < size; i++) {
+	for (i = 0; i < size; i++)
 		dest[i] = src[i];
-		pr_info("%s %s : auth read data (for debug) = %x", WC_AUTH_MSG, __func__, dest[i]);		
-	}
+
+#if SEC_BATT_MISC_DBG
+	print_message(dest, size);
+#endif
 }
 
 int sec_bat_swam_in_request_message(void *data)
@@ -319,7 +331,7 @@ int sec_bat_swam_in_request_message(void *data)
 	psy_do_property("mfc-charger", get,
 		POWER_SUPPLY_EXT_PROP_WIRELESS_AUTH_ADT_DATA, value);
 
-	if(value.intval == 0) {
+	if (value.intval == 0) {
 		pr_info("%s: data hasn't been received yet!\n", __func__);
 		return -EINVAL;
 	}
@@ -327,7 +339,7 @@ int sec_bat_swam_in_request_message(void *data)
 	//in_data = (u8 *)value.strval;
 	sec_bat_swam_copy_data((u8 *)value.strval, data, size);
 
-	//for(i=0; i< size; i++)
+	//for (i = 0; i < size; i++)
 	//	pr_info("%s: auth read data (for debug) = %x", __func__, in_data[i]);
 
 	return size;

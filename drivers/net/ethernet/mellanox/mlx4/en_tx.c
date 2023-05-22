@@ -43,6 +43,7 @@
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 #include <linux/moduleparam.h>
+#include <linux/indirect_call_wrapper.h>
 
 #include "mlx4_en.h"
 
@@ -57,11 +58,8 @@ int mlx4_en_create_tx_ring(struct mlx4_en_priv *priv,
 
 	ring = kzalloc_node(sizeof(*ring), GFP_KERNEL, node);
 	if (!ring) {
-		ring = kzalloc(sizeof(*ring), GFP_KERNEL);
-		if (!ring) {
-			en_err(priv, "Failed allocating TX ring\n");
-			return -ENOMEM;
-		}
+		en_err(priv, "Failed allocating TX ring\n");
+		return -ENOMEM;
 	}
 
 	ring->size = size;
@@ -264,6 +262,10 @@ static void mlx4_en_stamp_wqe(struct mlx4_en_priv *priv,
 	}
 }
 
+INDIRECT_CALLABLE_DECLARE(u32 mlx4_en_free_tx_desc(struct mlx4_en_priv *priv,
+						   struct mlx4_en_tx_ring *ring,
+						   int index, u64 timestamp,
+						   int napi_mode));
 
 u32 mlx4_en_free_tx_desc(struct mlx4_en_priv *priv,
 			 struct mlx4_en_tx_ring *ring,
@@ -332,6 +334,11 @@ u32 mlx4_en_free_tx_desc(struct mlx4_en_priv *priv,
 	return tx_info->nr_txbb;
 }
 
+INDIRECT_CALLABLE_DECLARE(u32 mlx4_en_recycle_tx_desc(struct mlx4_en_priv *priv,
+						      struct mlx4_en_tx_ring *ring,
+						      int index, u64 timestamp,
+						      int napi_mode));
+
 u32 mlx4_en_recycle_tx_desc(struct mlx4_en_priv *priv,
 			    struct mlx4_en_tx_ring *ring,
 			    int index, u64 timestamp,
@@ -343,7 +350,7 @@ u32 mlx4_en_recycle_tx_desc(struct mlx4_en_priv *priv,
 		.dma = tx_info->map0_dma,
 	};
 
-	if (!mlx4_en_rx_recycle(ring->recycle_ring, &frame)) {
+	if (!napi_mode || !mlx4_en_rx_recycle(ring->recycle_ring, &frame)) {
 		dma_unmap_page(priv->ddev, tx_info->map0_dma,
 			       PAGE_SIZE, priv->dma_dir);
 		put_page(tx_info->page);
@@ -383,6 +390,35 @@ int mlx4_en_free_tx_buf(struct net_device *dev, struct mlx4_en_tx_ring *ring)
 		en_dbg(DRV, priv, "Freed %d uncompleted tx descriptors\n", cnt);
 
 	return cnt;
+}
+
+static void mlx4_en_handle_err_cqe(struct mlx4_en_priv *priv, struct mlx4_err_cqe *err_cqe,
+				   u16 cqe_index, struct mlx4_en_tx_ring *ring)
+{
+	struct mlx4_en_dev *mdev = priv->mdev;
+	struct mlx4_en_tx_info *tx_info;
+	struct mlx4_en_tx_desc *tx_desc;
+	u16 wqe_index;
+	int desc_size;
+
+	en_err(priv, "CQE error - cqn 0x%x, ci 0x%x, vendor syndrome: 0x%x syndrome: 0x%x\n",
+	       ring->sp_cqn, cqe_index, err_cqe->vendor_err_syndrome, err_cqe->syndrome);
+	print_hex_dump(KERN_WARNING, "", DUMP_PREFIX_OFFSET, 16, 1, err_cqe, sizeof(*err_cqe),
+		       false);
+
+	wqe_index = be16_to_cpu(err_cqe->wqe_index) & ring->size_mask;
+	tx_info = &ring->tx_info[wqe_index];
+	desc_size = tx_info->nr_txbb << LOG_TXBB_SIZE;
+	en_err(priv, "Related WQE - qpn 0x%x, wqe index 0x%x, wqe size 0x%x\n", ring->qpn,
+	       wqe_index, desc_size);
+	tx_desc = ring->buf + (wqe_index << LOG_TXBB_SIZE);
+	print_hex_dump(KERN_WARNING, "", DUMP_PREFIX_OFFSET, 16, 1, tx_desc, desc_size, false);
+
+	if (test_and_set_bit(MLX4_EN_STATE_FLAG_RESTARTING, &priv->state))
+		return;
+
+	en_err(priv, "Scheduling port restart\n");
+	queue_work(mdev->workqueue, &priv->restart_task);
 }
 
 bool mlx4_en_process_tx_cq(struct net_device *dev,
@@ -431,13 +467,10 @@ bool mlx4_en_process_tx_cq(struct net_device *dev,
 		dma_rmb();
 
 		if (unlikely((cqe->owner_sr_opcode & MLX4_CQE_OPCODE_MASK) ==
-			     MLX4_CQE_OPCODE_ERROR)) {
-			struct mlx4_err_cqe *cqe_err = (struct mlx4_err_cqe *)cqe;
-
-			en_err(priv, "CQE error - vendor syndrome: 0x%x syndrome: 0x%x\n",
-			       cqe_err->vendor_err_syndrome,
-			       cqe_err->syndrome);
-		}
+			     MLX4_CQE_OPCODE_ERROR))
+			if (!test_and_set_bit(MLX4_EN_TX_RING_STATE_RECOVERING, &ring->state))
+				mlx4_en_handle_err_cqe(priv, (struct mlx4_err_cqe *)cqe, index,
+						       ring);
 
 		/* Skip over last polled CQE */
 		new_index = be16_to_cpu(cqe->wqe_index) & size_mask;
@@ -452,7 +485,9 @@ bool mlx4_en_process_tx_cq(struct net_device *dev,
 				timestamp = mlx4_en_get_cqe_ts(cqe);
 
 			/* free next descriptor */
-			last_nr_txbb = ring->free_tx_desc(
+			last_nr_txbb = INDIRECT_CALL_2(ring->free_tx_desc,
+						       mlx4_en_free_tx_desc,
+						       mlx4_en_recycle_tx_desc,
 					priv, ring, ring_index,
 					timestamp, napi_budget);
 
@@ -688,16 +723,15 @@ static void build_inline_wqe(struct mlx4_en_tx_desc *tx_desc,
 }
 
 u16 mlx4_en_select_queue(struct net_device *dev, struct sk_buff *skb,
-			 struct net_device *sb_dev,
-			 select_queue_fallback_t fallback)
+			 struct net_device *sb_dev)
 {
 	struct mlx4_en_priv *priv = netdev_priv(dev);
 	u16 rings_p_up = priv->num_tx_rings_p_up;
 
 	if (netdev_get_num_tc(dev))
-		return fallback(dev, skb, NULL);
+		return netdev_pick_tx(dev, skb, NULL);
 
-	return fallback(dev, skb, NULL) % rings_p_up;
+	return netdev_pick_tx(dev, skb, NULL) % rings_p_up;
 }
 
 static void mlx4_bf_copy(void __iomem *dst, const void *src,
@@ -776,9 +810,7 @@ static bool mlx4_en_build_dma_wqe(struct mlx4_en_priv *priv,
 
 	/* Map fragments if any */
 	for (i_frag = shinfo->nr_frags - 1; i_frag >= 0; i_frag--) {
-		const struct skb_frag_struct *frag;
-
-		frag = &shinfo->frags[i_frag];
+		const skb_frag_t *frag = &shinfo->frags[i_frag];
 		byte_count = skb_frag_size(frag);
 		dma = skb_frag_dma_map(ddev, frag,
 				       0, byte_count,
@@ -836,6 +868,7 @@ netdev_tx_t mlx4_en_xmit(struct sk_buff *skb, struct net_device *dev)
 	struct mlx4_en_tx_desc *tx_desc;
 	struct mlx4_wqe_data_seg *data;
 	struct mlx4_en_tx_info *tx_info;
+	u32 __maybe_unused ring_cons;
 	int tx_ind;
 	int nr_txbb;
 	int desc_size;
@@ -849,7 +882,6 @@ netdev_tx_t mlx4_en_xmit(struct sk_buff *skb, struct net_device *dev)
 	bool stop_queue;
 	bool inline_ok;
 	u8 data_offset;
-	u32 ring_cons;
 	bool bf_ok;
 
 	tx_ind = skb_get_queue_mapping(skb);
@@ -1006,7 +1038,6 @@ netdev_tx_t mlx4_en_xmit(struct sk_buff *skb, struct net_device *dev)
 		ring->packets++;
 	}
 	ring->bytes += tx_info->nr_bytes;
-	netdev_tx_sent_queue(ring->tx_queue, tx_info->nr_bytes);
 	AVG_PERF_COUNTER(priv->pstats.tx_pktsz_avg, skb->len);
 
 	if (tx_info->inl)
@@ -1044,7 +1075,10 @@ netdev_tx_t mlx4_en_xmit(struct sk_buff *skb, struct net_device *dev)
 		netif_tx_stop_queue(ring->tx_queue);
 		ring->queue_stopped++;
 	}
-	send_doorbell = !skb->xmit_more || netif_xmit_stopped(ring->tx_queue);
+
+	send_doorbell = __netdev_tx_sent_queue(ring->tx_queue,
+					       tx_info->nr_bytes,
+					       netdev_xmit_more());
 
 	real_size = (real_size / 16) & 0x3f;
 

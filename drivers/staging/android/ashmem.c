@@ -95,6 +95,15 @@ static DEFINE_MUTEX(ashmem_mutex);
 static struct kmem_cache *ashmem_area_cachep __read_mostly;
 static struct kmem_cache *ashmem_range_cachep __read_mostly;
 
+/*
+ * A separate lockdep class for the backing shmem inodes to resolve the lockdep
+ * warning about the race between kswapd taking fs_reclaim before inode_lock
+ * and write syscall taking inode_lock and then fs_reclaim.
+ * Note that such race is impossible because ashmem does not support write
+ * syscalls operating on the backing shmem.
+ */
+static struct lock_class_key backing_shmem_inode_class;
+
 static inline unsigned long range_size(struct ashmem_range *range)
 {
 	return range->pgend - range->pgstart + 1;
@@ -129,7 +138,8 @@ static inline bool page_range_in_range(struct ashmem_range *range,
 		page_range_subsumes_range(range, start, end);
 }
 
-static inline bool range_before_page(struct ashmem_range *range, size_t page)
+static inline bool range_before_page(struct ashmem_range *range,
+				     size_t page)
 {
 	return range->pgend < page;
 }
@@ -192,7 +202,7 @@ static void range_alloc(struct ashmem_area *asma,
 }
 
 /**
- * range_del() - Deletes and dealloctes an ashmem_range structure
+ * range_del() - Deletes and deallocates an ashmem_range structure
  * @range:	 The associated ashmem_range that has previously been allocated
  */
 static void range_del(struct ashmem_range *range)
@@ -395,6 +405,7 @@ static int ashmem_mmap(struct file *file, struct vm_area_struct *vma)
 	if (!asma->file) {
 		char *name = ASHMEM_NAME_DEF;
 		struct file *vmfile;
+		struct inode *inode;
 
 		if (asma->name[ASHMEM_NAME_PREFIX_LEN] != '\0')
 			name = asma->name;
@@ -406,6 +417,8 @@ static int ashmem_mmap(struct file *file, struct vm_area_struct *vma)
 			goto out;
 		}
 		vmfile->f_mode |= FMODE_LSEEK;
+		inode = file_inode(vmfile);
+		lockdep_set_class(&inode->i_rwsem, &backing_shmem_inode_class);
 		asma->file = vmfile;
 		/*
 		 * override mmap operation of the vmfile so that it can't be
@@ -557,7 +570,7 @@ static int set_name(struct ashmem_area *asma, void __user *name)
 	 * an data abort which would try to access mmap_sem. If another
 	 * thread has invoked ashmem_mmap then it will be holding the
 	 * semaphore and will be waiting for ashmem_mutex, there by leading to
-	 * deadlock. We'll release the mutex  and take the name to a local
+	 * deadlock. We'll release the mutex and take the name to a local
 	 * variable that does not need protection and later copy the local
 	 * variable to the structure member with lock held.
 	 */

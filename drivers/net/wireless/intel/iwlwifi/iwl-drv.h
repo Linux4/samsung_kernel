@@ -17,11 +17,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110,
- * USA
- *
  * The full GNU General Public License is included in this distribution
  * in the file called COPYING.
  *
@@ -149,5 +144,8 @@ void iwl_drv_stop(struct iwl_drv *drv);
 #else
 #define IWL_EXPORT_SYMBOL(sym)
 #endif
+
+/* max retry for init flow */
+#define IWL_MAX_INIT_RETRY 2
 
 #endif /* __iwl_drv_h__ */

@@ -1,12 +1,8 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Platform data for Cirrus Logic Madera codecs
  *
  * Copyright (C) 2015-2018 Cirrus Logic
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by the
- * Free Software Foundation; version 2.
  */
 
 #ifndef MADERA_PDATA_H
@@ -17,7 +13,6 @@
 #include <linux/regulator/arizona-micsupp.h>
 #include <linux/regulator/machine.h>
 #include <sound/madera-pdata.h>
-#include <linux/extcon/extcon-madera-pdata.h>
 
 #define MADERA_MAX_MICBIAS		4
 #define MADERA_MAX_CHILD_MICBIAS	4
@@ -59,9 +54,6 @@ struct madera_pdata {
 	u32 gpsw[MADERA_MAX_GPSW];
 
 	struct madera_codec_pdata codec;
-
-	/** Accessory detection configurations */
-	struct madera_accdet_pdata accdet[MADERA_MAX_ACCESSORY];
 };
 
 #endif

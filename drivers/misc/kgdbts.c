@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * kgdbts is a test suite for kgdb for the sole purpose of validating
  * that key pieces of the kgdb internals are working properly such as
@@ -6,19 +7,6 @@
  * Created by: Jason Wessel <jason.wessel@windriver.com>
  *
  * Copyright (c) 2008 Wind River Systems, Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See the GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 /* Information about the kgdb test suite.
  * -------------------------------------
@@ -107,19 +95,20 @@
 
 #include <asm/sections.h>
 
-#define v1printk(a...) do { \
-	if (verbose) \
-		printk(KERN_INFO a); \
-	} while (0)
-#define v2printk(a...) do { \
-	if (verbose > 1) \
-		printk(KERN_INFO a); \
-		touch_nmi_watchdog();	\
-	} while (0)
-#define eprintk(a...) do { \
-		printk(KERN_ERR a); \
-		WARN_ON(1); \
-	} while (0)
+#define v1printk(a...) do {		\
+	if (verbose)			\
+		printk(KERN_INFO a);	\
+} while (0)
+#define v2printk(a...) do {		\
+	if (verbose > 1) {		\
+		printk(KERN_INFO a);	\
+	}				\
+	touch_nmi_watchdog();		\
+} while (0)
+#define eprintk(a...) do {		\
+	printk(KERN_ERR a);		\
+	WARN_ON(1);			\
+} while (0)
 #define MAX_CONFIG_LEN		40
 
 static struct kgdb_io kgdbts_io_ops;
@@ -1071,10 +1060,10 @@ static int kgdbts_option_setup(char *opt)
 {
 	if (strlen(opt) >= MAX_CONFIG_LEN) {
 		printk(KERN_ERR "kgdbts: config string too long\n");
-		return -ENOSPC;
+		return 1;
 	}
 	strcpy(config, opt);
-	return 0;
+	return 1;
 }
 
 __setup("kgdbts=", kgdbts_option_setup);

@@ -12,15 +12,8 @@
 #include <linux/debug_locks.h>
 #include <linux/delay.h>
 #include <linux/export.h>
-
-#ifdef CONFIG_SEC_DEBUG_SPINBUG_PANIC
-static int skip_panic;
-
-void spin_debug_skip_panic(void)
-{
-	skip_panic = 1;
-}
-#endif
+#include <linux/bug.h>
+#include <soc/qcom/watchdog.h>
 
 void __raw_spin_lock_init(raw_spinlock_t *lock, const char *name,
 			  struct lock_class_key *key)
@@ -64,20 +57,22 @@ static void spin_dump(raw_spinlock_t *lock, const char *msg)
 
 	if (owner == SPINLOCK_OWNER_INIT)
 		owner = NULL;
-	pr_auto(ASL8, "BUG: spinlock %s on CPU#%d, %s/%d\n",
+	printk(KERN_EMERG "BUG: spinlock %s on CPU#%d, %s/%d\n",
 		msg, raw_smp_processor_id(),
 		current->comm, task_pid_nr(current));
-	pr_auto(ASL8, " lock: %pS, .magic: %08x, .owner: %s/%d, "
+	printk(KERN_EMERG " lock: %pS, .magic: %08x, .owner: %s/%d, "
 			".owner_cpu: %d\n",
 		lock, READ_ONCE(lock->magic),
 		owner ? owner->comm : "<none>",
 		owner ? task_pid_nr(owner) : -1,
 		READ_ONCE(lock->owner_cpu));
-	dump_stack();
-#ifdef CONFIG_SEC_DEBUG_SPINBUG_PANIC
-	if (!skip_panic)
-		BUG();
+
+#ifdef CONFIG_DEBUG_SPINLOCK_BITE_ON_BUG
+	qcom_wdt_trigger_bite();
+#elif defined(CONFIG_DEBUG_SPINLOCK_PANIC_ON_BUG)
+	BUG();
 #endif
+	dump_stack();
 }
 
 static void spin_bug(raw_spinlock_t *lock, const char *msg)
@@ -124,6 +119,7 @@ void do_raw_spin_lock(raw_spinlock_t *lock)
 {
 	debug_spin_lock_before(lock);
 	arch_spin_lock(&lock->raw_lock);
+	mmiowb_spin_lock();
 	debug_spin_lock_after(lock);
 }
 
@@ -131,8 +127,10 @@ int do_raw_spin_trylock(raw_spinlock_t *lock)
 {
 	int ret = arch_spin_trylock(&lock->raw_lock);
 
-	if (ret)
+	if (ret) {
+		mmiowb_spin_lock();
 		debug_spin_lock_after(lock);
+	}
 #ifndef CONFIG_SMP
 	/*
 	 * Must not happen on UP:
@@ -144,6 +142,7 @@ int do_raw_spin_trylock(raw_spinlock_t *lock)
 
 void do_raw_spin_unlock(raw_spinlock_t *lock)
 {
+	mmiowb_spin_unlock();
 	debug_spin_unlock(lock);
 	arch_spin_unlock(&lock->raw_lock);
 }
@@ -157,10 +156,6 @@ static void rwlock_bug(rwlock_t *lock, const char *msg)
 		msg, raw_smp_processor_id(), current->comm,
 		task_pid_nr(current), lock);
 	dump_stack();
-#ifdef CONFIG_SEC_DEBUG_SPINBUG_PANIC
-	if (!skip_panic)
-		BUG();
-#endif
 }
 
 #define RWLOCK_BUG_ON(cond, lock, msg) if (unlikely(cond)) rwlock_bug(lock, msg)

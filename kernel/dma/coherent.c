@@ -8,13 +8,16 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/dma-mapping.h>
+#ifdef CONFIG_CP_DYNAMIC_MEM_RESERVE
+#include <linux/memblock.h>
+#endif
+
 
 struct dma_coherent_mem {
 	void		*virt_base;
 	dma_addr_t	device_base;
 	unsigned long	pfn_base;
 	int		size;
-	int		flags;
 	unsigned long	*bitmap;
 	spinlock_t	spinlock;
 	bool		use_dev_dma_pfn_offset;
@@ -38,12 +41,12 @@ static inline dma_addr_t dma_get_device_base(struct device *dev,
 		return mem->device_base;
 }
 
-static int dma_init_coherent_memory(
-	phys_addr_t phys_addr, dma_addr_t device_addr, size_t size, int flags,
-	struct dma_coherent_mem **mem)
+static int dma_init_coherent_memory(phys_addr_t phys_addr,
+		dma_addr_t device_addr, size_t size,
+		struct dma_coherent_mem **mem)
 {
 	struct dma_coherent_mem *dma_mem = NULL;
-	void __iomem *mem_base = NULL;
+	void *mem_base = NULL;
 	int pages = size >> PAGE_SHIFT;
 	int bitmap_size = BITS_TO_LONGS(pages) * sizeof(long);
 	int ret;
@@ -73,7 +76,6 @@ static int dma_init_coherent_memory(
 	dma_mem->device_base = device_addr;
 	dma_mem->pfn_base = PFN_DOWN(phys_addr);
 	dma_mem->size = pages;
-	dma_mem->flags = flags;
 	spin_lock_init(&dma_mem->spinlock);
 
 	*mem = dma_mem;
@@ -110,12 +112,12 @@ static int dma_assign_coherent_memory(struct device *dev,
 }
 
 int dma_declare_coherent_memory(struct device *dev, phys_addr_t phys_addr,
-				dma_addr_t device_addr, size_t size, int flags)
+				dma_addr_t device_addr, size_t size)
 {
 	struct dma_coherent_mem *mem;
 	int ret;
 
-	ret = dma_init_coherent_memory(phys_addr, device_addr, size, flags, &mem);
+	ret = dma_init_coherent_memory(phys_addr, device_addr, size, &mem);
 	if (ret)
 		return ret;
 
@@ -124,44 +126,34 @@ int dma_declare_coherent_memory(struct device *dev, phys_addr_t phys_addr,
 		dma_release_coherent_memory(mem);
 	return ret;
 }
-EXPORT_SYMBOL(dma_declare_coherent_memory);
 
-void dma_release_declared_memory(struct device *dev)
+static void dma_coherent_show_areas_locked(struct dma_coherent_mem *mem,
+					ssize_t size, int order)
 {
-	struct dma_coherent_mem *mem = dev->dma_mem;
+	unsigned long next_zero_bit, next_set_bit;
+	unsigned long start = 0;
+	unsigned int nr_zero, nr_total = 0;
+	static DEFINE_RATELIMIT_STATE(dma_alloc_coherent_rs, DEFAULT_RATELIMIT_INTERVAL, 1);
 
-	if (!mem)
+	if (__ratelimit(&dma_alloc_coherent_rs) == 0)
 		return;
-	dma_release_coherent_memory(mem);
-	dev->dma_mem = NULL;
+	pr_info("number of available pages: ");
+	for (;;) {
+		next_zero_bit = find_next_zero_bit(mem->bitmap, mem->size, start);
+		if (next_zero_bit >= mem->size)
+			break;
+		next_set_bit = find_next_bit(mem->bitmap, mem->size, next_zero_bit);
+		nr_zero = next_set_bit - next_zero_bit;
+		pr_cont("%s%u@%lu", nr_total ? "+" : "", nr_zero, next_zero_bit);
+		nr_total += nr_zero;
+		start = next_zero_bit + nr_zero;
+	}
+	pr_cont("=> %u free of %d total pages\n", nr_total, mem->size);
 }
-EXPORT_SYMBOL(dma_release_declared_memory);
 
-void *dma_mark_declared_memory_occupied(struct device *dev,
-					dma_addr_t device_addr, size_t size)
-{
-	struct dma_coherent_mem *mem = dev->dma_mem;
-	unsigned long flags;
-	int pos, err;
-
-	size += device_addr & ~PAGE_MASK;
-
-	if (!mem)
-		return ERR_PTR(-EINVAL);
-
-	spin_lock_irqsave(&mem->spinlock, flags);
-	pos = PFN_DOWN(device_addr - dma_get_device_base(dev, mem));
-	err = bitmap_allocate_region(mem->bitmap, pos, get_order(size));
-	spin_unlock_irqrestore(&mem->spinlock, flags);
-
-	if (err != 0)
-		return ERR_PTR(err);
-	return mem->virt_base + (pos << PAGE_SHIFT);
-}
-EXPORT_SYMBOL(dma_mark_declared_memory_occupied);
-
-static void *__dma_alloc_from_coherent(struct dma_coherent_mem *mem,
-		ssize_t size, dma_addr_t *dma_handle)
+static void *__dma_alloc_from_coherent(struct device *dev,
+				       struct dma_coherent_mem *mem,
+				       ssize_t size, dma_addr_t *dma_handle)
 {
 	int order = get_order(size);
 	unsigned long flags;
@@ -170,18 +162,23 @@ static void *__dma_alloc_from_coherent(struct dma_coherent_mem *mem,
 
 	spin_lock_irqsave(&mem->spinlock, flags);
 
-	if (unlikely(size > (mem->size << PAGE_SHIFT)))
+	if (unlikely(size > ((dma_addr_t)mem->size << PAGE_SHIFT)))
 		goto err;
 
 	pageno = bitmap_find_free_region(mem->bitmap, mem->size, order);
-	if (unlikely(pageno < 0))
+	if (unlikely(pageno < 0)) {
+		pr_err("%s: alloc failed, req-size: %zd bytes, req-order %d\n",
+		       __func__, size, order);
+		dma_coherent_show_areas_locked(mem, size, order);
 		goto err;
+	}
 
 	/*
 	 * Memory was found in the coherent area.
 	 */
-	*dma_handle = mem->device_base + (pageno << PAGE_SHIFT);
-	ret = mem->virt_base + (pageno << PAGE_SHIFT);
+	*dma_handle = dma_get_device_base(dev, mem) +
+			((dma_addr_t)pageno << PAGE_SHIFT);
+	ret = mem->virt_base + ((dma_addr_t)pageno << PAGE_SHIFT);
 	spin_unlock_irqrestore(&mem->spinlock, flags);
 	memset(ret, 0, size);
 	return ret;
@@ -212,33 +209,25 @@ int dma_alloc_from_dev_coherent(struct device *dev, ssize_t size,
 	if (!mem)
 		return 0;
 
-	*ret = __dma_alloc_from_coherent(mem, size, dma_handle);
-	if (*ret)
-		return 1;
-
-	/*
-	 * In the case where the allocation can not be satisfied from the
-	 * per-device area, try to fall back to generic memory if the
-	 * constraints allow it.
-	 */
-	return mem->flags & DMA_MEMORY_EXCLUSIVE;
+	*ret = __dma_alloc_from_coherent(dev, mem, size, dma_handle);
+	return 1;
 }
-EXPORT_SYMBOL(dma_alloc_from_dev_coherent);
 
-void *dma_alloc_from_global_coherent(ssize_t size, dma_addr_t *dma_handle)
+void *dma_alloc_from_global_coherent(struct device *dev, ssize_t size,
+				     dma_addr_t *dma_handle)
 {
 	if (!dma_coherent_default_memory)
 		return NULL;
 
-	return __dma_alloc_from_coherent(dma_coherent_default_memory, size,
-			dma_handle);
+	return __dma_alloc_from_coherent(dev, dma_coherent_default_memory, size,
+					 dma_handle);
 }
 
 static int __dma_release_from_coherent(struct dma_coherent_mem *mem,
 				       int order, void *vaddr)
 {
 	if (mem && vaddr >= mem->virt_base && vaddr <
-		   (mem->virt_base + (mem->size << PAGE_SHIFT))) {
+		   (mem->virt_base + ((dma_addr_t)mem->size << PAGE_SHIFT))) {
 		int page = (vaddr - mem->virt_base) >> PAGE_SHIFT;
 		unsigned long flags;
 
@@ -268,7 +257,6 @@ int dma_release_from_dev_coherent(struct device *dev, int order, void *vaddr)
 
 	return __dma_release_from_coherent(mem, order, vaddr);
 }
-EXPORT_SYMBOL(dma_release_from_dev_coherent);
 
 int dma_release_from_global_coherent(int order, void *vaddr)
 {
@@ -283,10 +271,10 @@ static int __dma_mmap_from_coherent(struct dma_coherent_mem *mem,
 		struct vm_area_struct *vma, void *vaddr, size_t size, int *ret)
 {
 	if (mem && vaddr >= mem->virt_base && vaddr + size <=
-		   (mem->virt_base + (mem->size << PAGE_SHIFT))) {
+		   (mem->virt_base + ((dma_addr_t)mem->size << PAGE_SHIFT))) {
 		unsigned long off = vma->vm_pgoff;
 		int start = (vaddr - mem->virt_base) >> PAGE_SHIFT;
-		int user_count = vma_pages(vma);
+		unsigned long user_count = vma_pages(vma);
 		int count = PAGE_ALIGN(size) >> PAGE_SHIFT;
 
 		*ret = -ENXIO;
@@ -323,7 +311,6 @@ int dma_mmap_from_dev_coherent(struct device *dev, struct vm_area_struct *vma,
 
 	return __dma_mmap_from_coherent(mem, vma, vaddr, size, ret);
 }
-EXPORT_SYMBOL(dma_mmap_from_dev_coherent);
 
 int dma_mmap_from_global_coherent(struct vm_area_struct *vma, void *vaddr,
 				   size_t size, int *ret)
@@ -352,8 +339,7 @@ static int rmem_dma_device_init(struct reserved_mem *rmem, struct device *dev)
 
 	if (!mem) {
 		ret = dma_init_coherent_memory(rmem->base, rmem->base,
-					       rmem->size,
-					       DMA_MEMORY_EXCLUSIVE, &mem);
+					       rmem->size, &mem);
 		if (ret) {
 			pr_err("Reserved memory: failed to init DMA memory pool at %pa, size %ld MiB\n",
 				&rmem->base, (unsigned long)rmem->size / SZ_1M);
@@ -431,4 +417,53 @@ static int __init dma_init_reserved_memory(void)
 core_initcall(dma_init_reserved_memory);
 
 RESERVEDMEM_OF_DECLARE(dma, "shared-dma-pool", rmem_dma_setup);
+
+#ifdef CONFIG_CP_DYNAMIC_MEM_RESERVE
+static unsigned int reserve_mem_region;
+static int __init sec_reserved_mem_setup(char *str)
+{
+	get_option(&str, &reserve_mem_region);
+	return 1;
+}
+early_param("androidboot.reserve_mem_region", sec_reserved_mem_setup);
+
+unsigned int sec_reserved_mem(void)
+{
+	return reserve_mem_region;
+}
+EXPORT_SYMBOL(sec_reserved_mem);
+
+#define RESERVE_MEM_LEVEL1_MASK	(1u << 2)
+#define RESERVE_MEM_LEVEL2_MASK	(1u << 3)
+#define RESERVE_MEM_LEVEL2_SIZE	0x02000000
+#define RESERVE_MEM_FREE_BASE	0x02000000
+#define RESERVE_MEM_FREE_SIZE	0x04000000
+#define RESERVE_MEM_LEVEL1_SIZE	0x06000000
+
+static int __init modem_removed_dma_setup(struct reserved_mem *remem)
+{
+	remem->ops = &rmem_dma_ops;
+
+	if (reserve_mem_region & RESERVE_MEM_LEVEL1_MASK) {
+		pr_info("%s: memory reserved: paddr=%pa, t_size=%ld MiB\n",
+				__func__, &remem->base, (unsigned long)remem->size / SZ_1M);
+	} else if(reserve_mem_region & RESERVE_MEM_LEVEL2_MASK) {
+		memblock_add(remem->base + RESERVE_MEM_FREE_BASE, RESERVE_MEM_FREE_SIZE);
+		remem->size = RESERVE_MEM_LEVEL2_SIZE;
+		pr_info("%s: memory add to memblock: paddr=%pa + 0x%x, t_size=%ld MiB\n",
+				__func__, &remem->base,  RESERVE_MEM_FREE_BASE,
+				(unsigned long)RESERVE_MEM_FREE_SIZE / SZ_1M);
+		pr_info("%s: memory reserved: paddr=%pa, t_size=%ld MiB\n",
+				__func__, &remem->base, (unsigned long)remem->size / SZ_1M);
+	} else {
+		memblock_add(remem->base, remem->size);
+		pr_info("%s: memory add to memblock: paddr=%pa, t_size=%ld MiB\n",
+				__func__, &remem->base, (unsigned long)remem->size / SZ_1M);
+		remem->size = 0;
+	}
+
+	return 0;
+}
+RESERVEDMEM_OF_DECLARE(modem_dma, "modem-removed-dma-pool", modem_removed_dma_setup);
+#endif
 #endif

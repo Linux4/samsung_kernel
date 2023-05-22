@@ -1,13 +1,10 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * devfreq: Generic Dynamic Voltage and Frequency Scaling (DVFS) Framework
  *	    for Non-CPU Devices.
  *
  * Copyright (C) 2011 Samsung Electronics
  *	MyungJoo Ham <myungjoo.ham@samsung.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  */
 
 #ifndef __LINUX_DEVFREQ_H__
@@ -16,8 +13,6 @@
 #include <linux/device.h>
 #include <linux/notifier.h>
 #include <linux/pm_opp.h>
-#include <linux/kthread.h>
-#include <linux/timer.h>
 
 #define DEVFREQ_NAME_LEN 16
 
@@ -55,9 +50,8 @@ struct devfreq_governor;
  */
 struct devfreq_dev_status {
 	/* both since the last measure */
-	unsigned long long total_time;
-	unsigned long long busy_time;
-	unsigned long long delta_time;
+	unsigned long total_time;
+	unsigned long busy_time;
 	unsigned long current_frequency;
 	void *private_data;
 };
@@ -100,7 +94,6 @@ struct devfreq_dev_status {
  */
 struct devfreq_dev_profile {
 	unsigned long initial_freq;
-	unsigned long suspend_freq;
 	unsigned int polling_ms;
 
 	int (*target)(struct device *dev, unsigned long *freq, u32 flags);
@@ -135,6 +128,9 @@ struct devfreq_dev_profile {
  * @scaling_min_freq:	Limit minimum frequency requested by OPP interface
  * @scaling_max_freq:	Limit maximum frequency requested by OPP interface
  * @stop_polling:	 devfreq polling status of a device.
+ * @suspend_freq:	 frequency of a device set during suspend phase.
+ * @resume_freq:	 frequency of a device set in resume phase.
+ * @suspend_count:	 suspend requests counter for a device.
  * @total_trans:	Number of devfreq transitions
  * @trans_table:	Statistics of devfreq transitions
  * @time_in_state:	Statistics of devfreq states
@@ -153,6 +149,9 @@ struct devfreq {
 	struct list_head node;
 
 	struct mutex lock;
+#ifdef CONFIG_QCOM_DEVFREQ_ICC
+	struct mutex event_lock;
+#endif
 	struct device dev;
 	struct devfreq_dev_profile *profile;
 	const struct devfreq_governor *governor;
@@ -169,8 +168,11 @@ struct devfreq {
 	unsigned long max_freq;
 	unsigned long scaling_min_freq;
 	unsigned long scaling_max_freq;
-	unsigned long str_freq;
 	bool stop_polling;
+
+	unsigned long suspend_freq;
+	unsigned long resume_freq;
+	atomic_t suspend_count;
 
 	/* information for device frequency transition */
 	unsigned int total_trans;
@@ -179,14 +181,37 @@ struct devfreq {
 	unsigned long last_stat_updated;
 
 	struct srcu_notifier_head transition_notifier_list;
-
-	bool disabled_pm_qos;
 };
 
 struct devfreq_freqs {
 	unsigned long old;
 	unsigned long new;
 };
+
+static inline void event_mutex_init(struct devfreq *devfreq)
+{
+#ifdef CONFIG_QCOM_DEVFREQ_ICC
+	mutex_init(&devfreq->event_lock);
+#endif
+}
+static inline void event_mutex_destroy(struct devfreq *devfreq)
+{
+#ifdef CONFIG_QCOM_DEVFREQ_ICC
+	mutex_destroy(&devfreq->event_lock);
+#endif
+}
+static inline void event_mutex_lock(struct devfreq *devfreq)
+{
+#ifdef CONFIG_QCOM_DEVFREQ_ICC
+	mutex_lock(&devfreq->event_lock);
+#endif
+}
+static inline void event_mutex_unlock(struct devfreq *devfreq)
+{
+#ifdef CONFIG_QCOM_DEVFREQ_ICC
+	mutex_unlock(&devfreq->event_lock);
+#endif
+}
 
 #if defined(CONFIG_PM_DEVFREQ)
 extern struct devfreq *devfreq_add_device(struct device *dev,
@@ -204,6 +229,17 @@ extern void devm_devfreq_remove_device(struct device *dev,
 /* Supposed to be called by PM callbacks */
 extern int devfreq_suspend_device(struct devfreq *devfreq);
 extern int devfreq_resume_device(struct devfreq *devfreq);
+
+extern void devfreq_suspend(void);
+extern void devfreq_resume(void);
+
+/**
+ * update_devfreq() - Reevaluate the device and configure frequency
+ * @devfreq:	the devfreq device
+ *
+ * Note: devfreq->lock must be held
+ */
+extern int update_devfreq(struct devfreq *devfreq);
 
 /* Helper functions for devfreq user device driver with OPP. */
 extern struct dev_pm_opp *devfreq_recommended_opp(struct device *dev,
@@ -233,14 +269,6 @@ extern void devm_devfreq_unregister_notifier(struct device *dev,
 extern struct devfreq *devfreq_get_devfreq_by_phandle(struct device *dev,
 						int index);
 
-#if IS_ENABLED(CONFIG_DEVFREQ_GOV_SIMPLE_ONDEMAND) || IS_ENABLED(CONFIG_DEVFREQ_GOV_SIMPLE_USAGE)\
-	|| IS_ENABLED(CONFIG_DEVFREQ_GOV_SIMPLE_INTERACTIVE)
-struct devfreq_notifier_block {
-       struct notifier_block nb;
-       struct devfreq *df;
-};
-#endif
-
 #if IS_ENABLED(CONFIG_DEVFREQ_GOV_SIMPLE_ONDEMAND)
 /**
  * struct devfreq_simple_ondemand_data - void *data fed to struct devfreq
@@ -258,116 +286,6 @@ struct devfreq_notifier_block {
 struct devfreq_simple_ondemand_data {
 	unsigned int upthreshold;
 	unsigned int downdifferential;
-	unsigned long cal_qos_max;
-	int pm_qos_class;
-	struct devfreq_notifier_block nb;
-};
-#endif
-
-#if IS_ENABLED(CONFIG_DEVFREQ_GOV_SIMPLE_USAGE)
-struct devfreq_simple_usage_data {
-	unsigned int multiplication_weight;
-	unsigned int proportional;
-	unsigned int upthreshold;
-	unsigned int target_percentage;
-	int pm_qos_class;
-	unsigned long cal_qos_max;
-	bool en_monitoring;
-	struct devfreq_notifier_block nb;
-};
-#endif
-
-#if IS_ENABLED(CONFIG_DEVFREQ_GOV_SIMPLE_EXYNOS)
-struct devfreq_simple_exynos_data {
-	unsigned int urgentthreshold;
-	unsigned int upthreshold;
-	unsigned int downthreshold;
-	unsigned int idlethreshold;
-	unsigned long above_freq;
-	unsigned long below_freq;
-	int pm_qos_class;
-	int pm_qos_class_max;
-	unsigned long cal_qos_max;
-	bool en_monitoring;
-	struct devfreq_notifier_block nb;
-	struct devfreq_notifier_block nb_max;
-};
-#endif
-
-#if IS_ENABLED(CONFIG_DEVFREQ_GOV_SIMPLE_INTERACTIVE)
-#if defined(CONFIG_EXYNOS_ALT_DVFS)
-#define LOAD_BUFFER_MAX			10
-#ifdef CONFIG_EXYNOS_ALT_DVFS_DEBUG
-#define MAX_LOG_TIME 300
-#endif
-struct devfreq_alt_load {
-	unsigned long long	delta;
-	unsigned int		load;
-#ifdef CONFIG_EXYNOS_ALT_DVFS_DEBUG
-	unsigned long long clock;
-	unsigned int alt_freq;
-#endif
-};
-
-#define ALTDVFS_MIN_SAMPLE_TIME 	15
-#define ALTDVFS_HOLD_SAMPLE_TIME	100
-#define ALTDVFS_TARGET_LOAD		75
-#define ALTDVFS_NUM_TARGET_LOAD 	1
-#define ALTDVFS_HISPEED_LOAD		99
-#define ALTDVFS_HISPEED_FREQ		1000000
-#define ALTDVFS_TOLERANCE		1
-
-struct devfreq_alt_dvfs_data {
-	struct devfreq_alt_load	buffer[LOAD_BUFFER_MAX];
-	struct devfreq_alt_load	*front;
-	struct devfreq_alt_load	*rear;
-
-	unsigned long long	busy;
-	unsigned long long	total;
-	unsigned int		min_load;
-	unsigned int		max_load;
-	unsigned long long	max_spent;
-
-	/* ALT-DVFS parameter */
-	unsigned int		*target_load;
-	unsigned int		num_target_load;
-	unsigned int		min_sample_time;
-	unsigned int		hold_sample_time;
-	unsigned int		hispeed_load;
-	unsigned int		hispeed_freq;
-	unsigned int		tolerance;
-
-#ifdef CONFIG_EXYNOS_ALT_DVFS_DEBUG
-	bool				load_track;
-	unsigned int		log_top;
-	struct devfreq_alt_load *log;
-#endif
-};
-#endif /* ALT_DVFS */
-
-#define DEFAULT_DELAY_TIME		10 /* msec */
-#define DEFAULT_NDELAY_TIME		1
-#define DELAY_TIME_RANGE		10
-#define BOUND_CPU_NUM			0
-
-struct devfreq_simple_interactive_data {
-	bool use_delay_time;
-	int *delay_time;
-	int ndelay_time;
-	unsigned long prev_freq;
-	u64 changed_time;
-	struct timer_list freq_timer;
-	struct timer_list freq_slack_timer;
-	struct task_struct *change_freq_task;
-	int pm_qos_class;
-	int pm_qos_class_max;
-	struct devfreq_notifier_block nb;
-	struct devfreq_notifier_block nb_max;
-
-#if defined(CONFIG_EXYNOS_ALT_DVFS)
-	struct devfreq_alt_dvfs_data alt_data;
-	unsigned int governor_freq;
-#endif
 };
 #endif
 
@@ -440,6 +358,9 @@ static inline int devfreq_resume_device(struct devfreq *devfreq)
 {
 	return 0;
 }
+
+static inline void devfreq_suspend(void) {}
+static inline void devfreq_resume(void) {}
 
 static inline struct dev_pm_opp *devfreq_recommended_opp(struct device *dev,
 					   unsigned long *freq, u32 flags)

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) 2015, Sony Mobile Communications AB.
- * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, 2020 The Linux Foundation. All rights reserved.
  */
 
 #include <linux/interrupt.h>
@@ -1274,7 +1274,8 @@ static void qcom_channel_state_worker(struct work_struct *work)
 
 		remote_state = GET_RX_CHANNEL_INFO(channel, state);
 		if (remote_state != SMD_CHANNEL_OPENING &&
-		    remote_state != SMD_CHANNEL_OPENED)
+		    remote_state != SMD_CHANNEL_OPENED &&
+		    remote_state != SMD_CHANNEL_CLOSING)
 			continue;
 
 		if (channel->registered)
@@ -1338,7 +1339,7 @@ static int qcom_smd_parse_edge(struct device *dev,
 	ret = of_property_read_u32(node, key, &edge->edge_id);
 	if (ret) {
 		dev_err(dev, "edge missing %s property\n", key);
-		return -EINVAL;
+		goto put_node;
 	}
 
 	edge->remote_pid = QCOM_SMEM_HOST_ANY;
@@ -1349,32 +1350,37 @@ static int qcom_smd_parse_edge(struct device *dev,
 	edge->mbox_client.knows_txdone = true;
 	edge->mbox_chan = mbox_request_channel(&edge->mbox_client, 0);
 	if (IS_ERR(edge->mbox_chan)) {
-		if (PTR_ERR(edge->mbox_chan) != -ENODEV)
-			return PTR_ERR(edge->mbox_chan);
+		if (PTR_ERR(edge->mbox_chan) != -ENODEV) {
+			ret = PTR_ERR(edge->mbox_chan);
+			goto put_node;
+		}
 
 		edge->mbox_chan = NULL;
 
 		syscon_np = of_parse_phandle(node, "qcom,ipc", 0);
 		if (!syscon_np) {
 			dev_err(dev, "no qcom,ipc node\n");
-			return -ENODEV;
+			ret = -ENODEV;
+			goto put_node;
 		}
 
 		edge->ipc_regmap = syscon_node_to_regmap(syscon_np);
-		if (IS_ERR(edge->ipc_regmap))
-			return PTR_ERR(edge->ipc_regmap);
+		if (IS_ERR(edge->ipc_regmap)) {
+			ret = PTR_ERR(edge->ipc_regmap);
+			goto put_node;
+		}
 
 		key = "qcom,ipc";
 		ret = of_property_read_u32_index(node, key, 1, &edge->ipc_offset);
 		if (ret < 0) {
 			dev_err(dev, "no offset in %s\n", key);
-			return -EINVAL;
+			goto put_node;
 		}
 
 		ret = of_property_read_u32_index(node, key, 2, &edge->ipc_bit);
 		if (ret < 0) {
 			dev_err(dev, "no bit in %s\n", key);
-			return -EINVAL;
+			goto put_node;
 		}
 	}
 
@@ -1383,22 +1389,30 @@ static int qcom_smd_parse_edge(struct device *dev,
 		edge->name = node->name;
 
 	irq = irq_of_parse_and_map(node, 0);
-	if (irq < 0) {
+	if (!irq) {
 		dev_err(dev, "required smd interrupt missing\n");
-		return -EINVAL;
+		ret = -EINVAL;
+		goto put_node;
 	}
 
 	ret = devm_request_irq(dev, irq,
-			       qcom_smd_edge_intr, IRQF_TRIGGER_RISING,
-			       node->name, edge);
+			       qcom_smd_edge_intr, IRQF_TRIGGER_RISING
+				| IRQF_NO_SUSPEND, node->name, edge);
+
 	if (ret) {
 		dev_err(dev, "failed to request smd irq\n");
-		return ret;
+		goto put_node;
 	}
 
 	edge->irq = irq;
 
 	return 0;
+
+put_node:
+	of_node_put(node);
+	edge->of_node = NULL;
+
+	return ret;
 }
 
 /*
@@ -1457,7 +1471,7 @@ struct qcom_smd_edge *qcom_smd_register_edge(struct device *parent,
 	edge->dev.release = qcom_smd_edge_release;
 	edge->dev.of_node = node;
 	edge->dev.groups = qcom_smd_edge_groups;
-	dev_set_name(&edge->dev, "%s:%s", dev_name(parent), node->name);
+	dev_set_name(&edge->dev, "%s:%pOFn", dev_name(parent), node);
 	ret = device_register(&edge->dev);
 	if (ret) {
 		pr_err("failed to register smd edge\n");

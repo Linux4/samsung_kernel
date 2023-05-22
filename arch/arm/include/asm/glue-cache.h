@@ -1,11 +1,8 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  *  arch/arm/include/asm/glue-cache.h
  *
  *  Copyright (C) 1999-2002 Russell King
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  */
 #ifndef ASM_GLUE_CACHE_H
 #define ASM_GLUE_CACHE_H
@@ -159,6 +156,11 @@ static inline void nop_dma_unmap_area(const void *s, size_t l, int f) { }
 #define __cpuc_flush_dcache_area	__glue(_CACHE,_flush_kern_dcache_area)
 
 #define dmac_flush_range		__glue(_CACHE,_dma_flush_range)
+#define dmac_map_area          __glue(_CACHE, _dma_map_area)
+#define dmac_unmap_area            __glue(_CACHE, _dma_unmap_area)
+
+#define __dma_map_area         dmac_map_area
+#define __dma_unmap_area       dmac_unmap_area
 #endif
 
 #endif

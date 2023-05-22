@@ -63,9 +63,30 @@ enum wb_reason {
 	 * so it has a mismatch name.
 	 */
 	WB_REASON_FORKER_THREAD,
+	WB_REASON_FOREIGN_FLUSH,
 
 	WB_REASON_MAX,
 };
+
+struct wb_completion {
+	atomic_t		cnt;
+	wait_queue_head_t	*waitq;
+};
+
+#define __WB_COMPLETION_INIT(_waitq)	\
+	(struct wb_completion){ .cnt = ATOMIC_INIT(1), .waitq = (_waitq) }
+
+/*
+ * If one wants to wait for one or more wb_writeback_works, each work's
+ * ->done should be set to a wb_completion defined using the following
+ * macro.  Once all work items are issued with wb_queue_work(), the caller
+ * can wait for the completion of all using wb_wait_for_completion().  Work
+ * items which are waited upon aren't freed automatically on completion.
+ */
+#define WB_COMPLETION_INIT(bdi)		__WB_COMPLETION_INIT(&(bdi)->wb_waitq)
+
+#define DEFINE_WB_COMPLETION(cmpl, bdi)	\
+	struct wb_completion cmpl = WB_COMPLETION_INIT(bdi)
 
 /*
  * For cgroup writeback, multiple wb's may map to the same blkcg.  Those
@@ -165,6 +186,8 @@ struct bdi_writeback {
 };
 
 struct backing_dev_info {
+	u64 id;
+	struct rb_node rb_node; /* keyed by ->id */
 	struct list_head bdi_list;
 	unsigned long ra_pages;	/* max readahead in PAGE_SIZE units */
 	unsigned long io_pages;	/* max allowed IO size */
@@ -177,11 +200,6 @@ struct backing_dev_info {
 	unsigned int capabilities; /* Device capabilities */
 	unsigned int min_ratio;
 	unsigned int max_ratio, max_prop_frac;
-
-	/* approximate write throttle statistics - updated at each throttling */
-	unsigned long last_thresh;  /* global/bdi thresh at the last throttle */
-	unsigned long last_nr_dirty; /* global/bdi dirty at the last throttle */
-	unsigned long paused_total; /* approximated sum of pauses. in jiffies */
 
 	/*
 	 * Sum of avg_write_bw of wbs with dirty inodes.  > 0 if there are
@@ -202,13 +220,13 @@ struct backing_dev_info {
 	wait_queue_head_t wb_waitq;
 
 	struct device *dev;
+	char dev_name[64];
 	struct device *owner;
 
 	struct timer_list laptop_mode_wb_timer;
 
 #ifdef CONFIG_DEBUG_FS
 	struct dentry *debug_dir;
-	struct dentry *debug_stats;
 #endif
 };
 
@@ -221,7 +239,6 @@ struct bdi_sec_bdp_entry {
 	unsigned long wb_thresh;
 	unsigned long wb_dirty;
 	unsigned long wb_avg_write_bandwidth;
-	unsigned long wb_timelist_dirty;
 	unsigned long wb_timelist_inodes;
 };
 

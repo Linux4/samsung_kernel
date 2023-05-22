@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * A policy database (policydb) specifies the
  * configuration data for the security policy.
@@ -16,15 +17,10 @@
  *
  * Copyright (C) 2004-2005 Trusted Computer Solutions, Inc.
  * Copyright (C) 2003 - 2004 Tresys Technology, LLC
- *	This program is free software; you can redistribute it and/or modify
- *	it under the terms of the GNU General Public License as published by
- *	the Free Software Foundation, version 2.
  */
 
 #ifndef _SS_POLICYDB_H_
 #define _SS_POLICYDB_H_
-
-#include <linux/flex_array.h>
 
 #include "symtab.h"
 #include "avtab.h"
@@ -239,6 +235,7 @@ struct genfs {
 struct policydb {
 	int mls_enabled;
 	int android_netlink_route;
+	int android_netlink_getneigh;
 
 	/* symbol tables */
 	struct symtab symtab[SYM_NUM];
@@ -252,13 +249,13 @@ struct policydb {
 #define p_cats symtab[SYM_CATS]
 
 	/* symbol names indexed by (value - 1) */
-	struct flex_array *sym_val_to_name[SYM_NUM];
+	char		**sym_val_to_name[SYM_NUM];
 
 	/* class, role, and user attributes indexed by (value - 1) */
 	struct class_datum **class_val_to_struct;
 	struct role_datum **role_val_to_struct;
 	struct user_datum **user_val_to_struct;
-	struct flex_array *type_val_to_struct_array;
+	struct type_datum **type_val_to_struct;
 
 	/* type enforcement access vectors and transitions */
 	struct avtab te_avtab;
@@ -295,7 +292,7 @@ struct policydb {
 	struct hashtab *range_tr;
 
 	/* type -> attribute reverse mapping */
-	struct flex_array *type_attr_map_array;
+	struct ebitmap *type_attr_map_array;
 
 	struct ebitmap policycaps;
 
@@ -326,6 +323,7 @@ extern int policydb_write(struct policydb *p, void *fp);
 
 #define POLICYDB_CONFIG_MLS    1
 #define POLICYDB_CONFIG_ANDROID_NETLINK_ROUTE    (1 << 31)
+#define POLICYDB_CONFIG_ANDROID_NETLINK_GETNEIGH (1 << 30)
 
 /* the config flags related to unknown classes/perms are bits 2 and 3 */
 #define REJECT_UNKNOWN	0x00000002
@@ -371,9 +369,7 @@ static inline int put_entry(const void *buf, size_t bytes, int num, struct polic
 
 static inline char *sym_name(struct policydb *p, unsigned int sym_num, unsigned int element_nr)
 {
-	struct flex_array *fa = p->sym_val_to_name[sym_num];
-
-	return flex_array_get_ptr(fa, element_nr);
+	return p->sym_val_to_name[sym_num][element_nr];
 }
 
 extern u16 string_to_security_class(struct policydb *p, const char *name);

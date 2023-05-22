@@ -101,9 +101,9 @@ text, like this:
 
     commit <sha1> upstream.
 
-Additionally, some patches submitted via Option 1 may have additional patch
-prerequisites which can be cherry-picked. This can be specified in the following
-format in the sign-off area:
+Additionally, some patches submitted via :ref:`option_1` may have additional
+patch prerequisites which can be cherry-picked. This can be specified in the
+following format in the sign-off area:
 
 .. code-block:: none
 
@@ -174,7 +174,16 @@ Trees
  - The finalized and tagged releases of all stable kernels can be found
    in separate branches per version at:
 
-	https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git
+	https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git
+
+ - The release candidate of all stable kernel versions can be found at:
+
+        https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable-rc.git/
+
+   .. warning::
+      The -stable-rc tree is a snapshot in time of the stable-queue tree and
+      will change frequently, hence will be rebased often. It should only be
+      used for testing purposes (e.g. to be consumed by CI systems).
 
 
 Review committee

@@ -1,13 +1,9 @@
 /*
  * Synaptics TCM touchscreen driver
  *
- * Copyright (C) 2017-2018 Synaptics Incorporated. All rights reserved.
+ * Copyright (C) 2017-2019 Synaptics Incorporated. All rights reserved.
  *
- * Copyright (C) 2017-2018 Scott Lin <scott.lin@tw.synaptics.com>
- * Copyright (C) 2018-2019 Ian Su <ian.su@tw.synaptics.com>
- * Copyright (C) 2018-2019 Joey Zhou <joey.zhou@synaptics.com>
- * Copyright (C) 2018-2019 Yuehao Qiu <yuehao.qiu@synaptics.com>
- * Copyright (C) 2018-2019 Aaron Chen <aaron.chen@tw.synaptics.com>
+ * Copyright (C) 2017-2019 Scott Lin <scott.lin@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,6 +30,7 @@
  * DOLLARS.
  */
 
+#include <linux/sched/signal.h>
 #include "synaptics_tcm_core.h"
 
 #define SYSFS_DIR_NAME "diagnostics"
@@ -59,13 +56,13 @@ DECLARE_COMPLETION(diag_remove_complete);
 
 static struct diag_hcd *diag_hcd;
 
-STORE_PROTOTYPE(diag, pid)
-SHOW_PROTOTYPE(diag, size)
-STORE_PROTOTYPE(diag, type)
-SHOW_PROTOTYPE(diag, rows)
-SHOW_PROTOTYPE(diag, cols)
-SHOW_PROTOTYPE(diag, hybrid)
-SHOW_PROTOTYPE(diag, buttons)
+STORE_PROTOTYPE(diag, pid);
+SHOW_PROTOTYPE(diag, size);
+STORE_PROTOTYPE(diag, type);
+SHOW_PROTOTYPE(diag, rows);
+SHOW_PROTOTYPE(diag, cols);
+SHOW_PROTOTYPE(diag, hybrid);
+SHOW_PROTOTYPE(diag, buttons);
 
 static struct device_attribute *attrs[] = {
 	ATTRIFY(pid),
@@ -84,7 +81,7 @@ static ssize_t diag_sysfs_data_show(struct file *data_file,
 static struct bin_attribute bin_attr = {
 	.attr = {
 		.name = "data",
-		.mode = S_IRUGO,
+		.mode = 0444,
 	},
 	.size = 0,
 	.read = diag_sysfs_data_show,
@@ -97,7 +94,7 @@ static ssize_t diag_sysfs_pid_store(struct device *dev,
 	unsigned int input;
 	struct syna_tcm_hcd *tcm_hcd = diag_hcd->tcm_hcd;
 
-	if (sscanf(buf, "%u", &input) != 1)
+	if (kstrtouint(buf, 10, &input))
 		return -EINVAL;
 
 	mutex_lock(&tcm_hcd->extif_mutex);
@@ -160,7 +157,7 @@ static ssize_t diag_sysfs_type_store(struct device *dev,
 	unsigned int input;
 	struct syna_tcm_hcd *tcm_hcd = diag_hcd->tcm_hcd;
 
-	if (sscanf(buf, "%u", &input) != 1)
+	if (kstrtouint(buf, 10, &input))
 		return -EINVAL;
 
 	mutex_lock(&tcm_hcd->extif_mutex);
@@ -182,7 +179,7 @@ static ssize_t diag_sysfs_rows_show(struct device *dev,
 
 	mutex_lock(&tcm_hcd->extif_mutex);
 
-	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode) ||
+	if (tcm_hcd->id_info.mode != MODE_APPLICATION ||
 			tcm_hcd->app_status != APP_STATUS_OK) {
 		retval = -ENODEV;
 		goto exit;
@@ -209,7 +206,7 @@ static ssize_t diag_sysfs_cols_show(struct device *dev,
 
 	mutex_lock(&tcm_hcd->extif_mutex);
 
-	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode) ||
+	if (tcm_hcd->id_info.mode != MODE_APPLICATION ||
 			tcm_hcd->app_status != APP_STATUS_OK) {
 		retval = -ENODEV;
 		goto exit;
@@ -236,7 +233,7 @@ static ssize_t diag_sysfs_hybrid_show(struct device *dev,
 
 	mutex_lock(&tcm_hcd->extif_mutex);
 
-	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode) ||
+	if (tcm_hcd->id_info.mode != MODE_APPLICATION ||
 			tcm_hcd->app_status != APP_STATUS_OK) {
 		retval = -ENODEV;
 		goto exit;
@@ -263,7 +260,7 @@ static ssize_t diag_sysfs_buttons_show(struct device *dev,
 
 	mutex_lock(&tcm_hcd->extif_mutex);
 
-	if (IS_NOT_FW_MODE(tcm_hcd->id_info.mode) ||
+	if (tcm_hcd->id_info.mode != MODE_APPLICATION ||
 			tcm_hcd->app_status != APP_STATUS_OK) {
 		retval = -ENODEV;
 		goto exit;
@@ -359,7 +356,7 @@ static void diag_report(void)
 				tcm_hcd->report.buffer.data_length);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to allocate memory for diag_hcd->ping.buf\n");
+				"Failed to allocate memory for ping.buf\n");
 			UNLOCK_BUFFER(diag_hcd->ping);
 			return;
 		}
@@ -390,7 +387,7 @@ static void diag_report(void)
 				tcm_hcd->report.buffer.data_length);
 		if (retval < 0) {
 			LOGE(tcm_hcd->pdev->dev.parent,
-					"Failed to allocate memory for diag_hcd->pong.buf\n");
+				"Failed to allocate memory for pong.buf\n");
 			UNLOCK_BUFFER(diag_hcd->pong);
 			return;
 		}
@@ -414,11 +411,6 @@ static void diag_report(void)
 		diag_hcd->state = state;
 		state = PING;
 	}
-
-	if (diag_hcd->pid)
-		send_sig_info(SIGIO, &diag_hcd->sigio, diag_hcd->task);
-
-	return;
 }
 
 static int diag_init(struct syna_tcm_hcd *tcm_hcd)
@@ -525,7 +517,7 @@ static int diag_syncbox(struct syna_tcm_hcd *tcm_hcd)
 	return 0;
 }
 
-static int diag_reinit(struct syna_tcm_hcd *tcm_hcd)
+static int diag_reset(struct syna_tcm_hcd *tcm_hcd)
 {
 	int retval;
 
@@ -542,10 +534,8 @@ static struct syna_tcm_module_cb diag_module = {
 	.init = diag_init,
 	.remove = diag_remove,
 	.syncbox = diag_syncbox,
-#ifdef REPORT_NOTIFIER
 	.asyncbox = NULL,
-#endif
-	.reinit = diag_reinit,
+	.reset = diag_reset,
 	.suspend = NULL,
 	.resume = NULL,
 	.early_suspend = NULL,
@@ -561,8 +551,6 @@ static void __exit diag_module_exit(void)
 	syna_tcm_add_module(&diag_module, false);
 
 	wait_for_completion(&diag_remove_complete);
-
-	return;
 }
 
 module_init(diag_module_init);

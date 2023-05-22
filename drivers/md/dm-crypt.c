@@ -37,7 +37,6 @@
 #include <keys/user-type.h>
 
 #include <linux/device-mapper.h>
-#include <crypto/diskcipher.h>
 
 #define DM_MSG_PREFIX "crypt"
 
@@ -99,11 +98,6 @@ struct crypt_iv_operations {
 		    struct dm_crypt_request *dmreq);
 };
 
-struct iv_essiv_private {
-	struct crypto_shash *hash_tfm;
-	u8 *salt;
-};
-
 struct iv_benbi_private {
 	int shift;
 };
@@ -131,8 +125,6 @@ enum flags { DM_CRYPT_SUSPENDED, DM_CRYPT_KEY_VALID,
 enum cipher_flags {
 	CRYPT_MODE_INTEGRITY_AEAD,	/* Use authenticated mode for cihper */
 	CRYPT_IV_LARGE_SECTORS,		/* Calculate IV from sector_size, not 512B sectors */
-	CRYPT_MODE_DISKCIPHER,
-	CRYPT_MODE_SKCIPHER,
 };
 
 /*
@@ -151,14 +143,12 @@ struct crypt_config {
 	struct task_struct *write_thread;
 	struct rb_root write_tree;
 
-	char *cipher;
 	char *cipher_string;
 	char *cipher_auth;
 	char *key_string;
 
 	const struct crypt_iv_operations *iv_gen_ops;
 	union {
-		struct iv_essiv_private essiv;
 		struct iv_benbi_private benbi;
 		struct iv_lmk_private lmk;
 		struct iv_tcw_private tcw;
@@ -168,12 +158,9 @@ struct crypt_config {
 	unsigned short int sector_size;
 	unsigned char sector_shift;
 
-	/* ESSIV: struct crypto_cipher *essiv_tfm */
-	void *iv_private;
 	union {
 		struct crypto_skcipher **tfms;
 		struct crypto_aead **tfms_aead;
-		struct crypto_diskcipher **tfms_diskc;
 	} cipher_tfm;
 	unsigned tfms_count;
 	unsigned long cipher_flags;
@@ -295,8 +282,9 @@ static struct crypto_aead *any_tfm_aead(struct crypt_config *cc)
  *       Note that this encryption scheme is vulnerable to watermarking attacks
  *       and should be used for old compatible containers access only.
  *
- * plumb: unimplemented, see:
- * http://article.gmane.org/gmane.linux.kernel.device-mapper.dm-crypt/454
+ * eboiv: Encrypted byte-offset IV (used in Bitlocker in CBC mode)
+ *        The IV is encrypted little-endian byte-offset (with the same key
+ *        and cipher as the volume).
  */
 
 static int crypt_iv_plain_gen(struct crypt_config *cc, u8 *iv,
@@ -327,158 +315,15 @@ static int crypt_iv_plain64be_gen(struct crypt_config *cc, u8 *iv,
 	return 0;
 }
 
-/* Initialise ESSIV - compute salt but no local memory allocations */
-static int crypt_iv_essiv_init(struct crypt_config *cc)
-{
-	struct iv_essiv_private *essiv = &cc->iv_gen_private.essiv;
-	SHASH_DESC_ON_STACK(desc, essiv->hash_tfm);
-	struct crypto_cipher *essiv_tfm;
-	int err;
-
-	desc->tfm = essiv->hash_tfm;
-	desc->flags = 0;
-
-	err = crypto_shash_digest(desc, cc->key, cc->key_size, essiv->salt);
-	shash_desc_zero(desc);
-	if (err)
-		return err;
-
-	essiv_tfm = cc->iv_private;
-
-	err = crypto_cipher_setkey(essiv_tfm, essiv->salt,
-			    crypto_shash_digestsize(essiv->hash_tfm));
-	if (err)
-		return err;
-
-	return 0;
-}
-
-/* Wipe salt and reset key derived from volume key */
-static int crypt_iv_essiv_wipe(struct crypt_config *cc)
-{
-	struct iv_essiv_private *essiv = &cc->iv_gen_private.essiv;
-	unsigned salt_size = crypto_shash_digestsize(essiv->hash_tfm);
-	struct crypto_cipher *essiv_tfm;
-	int r, err = 0;
-
-	memset(essiv->salt, 0, salt_size);
-
-	essiv_tfm = cc->iv_private;
-	r = crypto_cipher_setkey(essiv_tfm, essiv->salt, salt_size);
-	if (r)
-		err = r;
-
-	return err;
-}
-
-/* Allocate the cipher for ESSIV */
-static struct crypto_cipher *alloc_essiv_cipher(struct crypt_config *cc,
-						struct dm_target *ti,
-						const u8 *salt,
-						unsigned int saltsize)
-{
-	struct crypto_cipher *essiv_tfm;
-	int err;
-
-	/* Setup the essiv_tfm with the given salt */
-	essiv_tfm = crypto_alloc_cipher(cc->cipher, 0, CRYPTO_ALG_ASYNC);
-	if (IS_ERR(essiv_tfm)) {
-		ti->error = "Error allocating crypto tfm for ESSIV";
-		return essiv_tfm;
-	}
-
-	if (crypto_cipher_blocksize(essiv_tfm) != cc->iv_size) {
-		ti->error = "Block size of ESSIV cipher does "
-			    "not match IV size of block cipher";
-		crypto_free_cipher(essiv_tfm);
-		return ERR_PTR(-EINVAL);
-	}
-
-	err = crypto_cipher_setkey(essiv_tfm, salt, saltsize);
-	if (err) {
-		ti->error = "Failed to set key for ESSIV cipher";
-		crypto_free_cipher(essiv_tfm);
-		return ERR_PTR(err);
-	}
-
-	return essiv_tfm;
-}
-
-static void crypt_iv_essiv_dtr(struct crypt_config *cc)
-{
-	struct crypto_cipher *essiv_tfm;
-	struct iv_essiv_private *essiv = &cc->iv_gen_private.essiv;
-
-	crypto_free_shash(essiv->hash_tfm);
-	essiv->hash_tfm = NULL;
-
-	kzfree(essiv->salt);
-	essiv->salt = NULL;
-
-	essiv_tfm = cc->iv_private;
-
-	if (essiv_tfm)
-		crypto_free_cipher(essiv_tfm);
-
-	cc->iv_private = NULL;
-}
-
-static int crypt_iv_essiv_ctr(struct crypt_config *cc, struct dm_target *ti,
-			      const char *opts)
-{
-	struct crypto_cipher *essiv_tfm = NULL;
-	struct crypto_shash *hash_tfm = NULL;
-	u8 *salt = NULL;
-	int err;
-
-	if (!opts) {
-		ti->error = "Digest algorithm missing for ESSIV mode";
-		return -EINVAL;
-	}
-
-	/* Allocate hash algorithm */
-	hash_tfm = crypto_alloc_shash(opts, 0, 0);
-	if (IS_ERR(hash_tfm)) {
-		ti->error = "Error initializing ESSIV hash";
-		err = PTR_ERR(hash_tfm);
-		goto bad;
-	}
-
-	salt = kzalloc(crypto_shash_digestsize(hash_tfm), GFP_KERNEL);
-	if (!salt) {
-		ti->error = "Error kmallocing salt storage in ESSIV";
-		err = -ENOMEM;
-		goto bad;
-	}
-
-	cc->iv_gen_private.essiv.salt = salt;
-	cc->iv_gen_private.essiv.hash_tfm = hash_tfm;
-
-	essiv_tfm = alloc_essiv_cipher(cc, ti, salt,
-				       crypto_shash_digestsize(hash_tfm));
-	if (IS_ERR(essiv_tfm)) {
-		crypt_iv_essiv_dtr(cc);
-		return PTR_ERR(essiv_tfm);
-	}
-	cc->iv_private = essiv_tfm;
-
-	return 0;
-
-bad:
-	if (hash_tfm && !IS_ERR(hash_tfm))
-		crypto_free_shash(hash_tfm);
-	kfree(salt);
-	return err;
-}
-
 static int crypt_iv_essiv_gen(struct crypt_config *cc, u8 *iv,
 			      struct dm_crypt_request *dmreq)
 {
-	struct crypto_cipher *essiv_tfm = cc->iv_private;
-
+	/*
+	 * ESSIV encryption of the IV is now handled by the crypto API,
+	 * so just pass the plain sector number here.
+	 */
 	memset(iv, 0, cc->iv_size);
 	*(__le64 *)iv = cpu_to_le64(dmreq->iv_sector);
-	crypto_cipher_encrypt_one(essiv_tfm, iv, iv);
 
 	return 0;
 }
@@ -616,7 +461,6 @@ static int crypt_iv_lmk_one(struct crypt_config *cc, u8 *iv,
 	int i, r;
 
 	desc->tfm = lmk->hash_tfm;
-	desc->flags = 0;
 
 	r = crypto_shash_init(desc);
 	if (r)
@@ -778,7 +622,6 @@ static int crypt_iv_tcw_whitening(struct crypt_config *cc,
 
 	/* calculate crc32 for every 32bit part and xor it */
 	desc->tfm = tcw->crc32_tfm;
-	desc->flags = 0;
 	for (i = 0; i < 4; i++) {
 		r = crypto_shash_init(desc);
 		if (r)
@@ -854,6 +697,49 @@ static int crypt_iv_random_gen(struct crypt_config *cc, u8 *iv,
 	return 0;
 }
 
+static int crypt_iv_eboiv_ctr(struct crypt_config *cc, struct dm_target *ti,
+			    const char *opts)
+{
+	if (test_bit(CRYPT_MODE_INTEGRITY_AEAD, &cc->cipher_flags)) {
+		ti->error = "AEAD transforms not supported for EBOIV";
+		return -EINVAL;
+	}
+
+	if (crypto_skcipher_blocksize(any_tfm(cc)) != cc->iv_size) {
+		ti->error = "Block size of EBOIV cipher does "
+			    "not match IV size of block cipher";
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int crypt_iv_eboiv_gen(struct crypt_config *cc, u8 *iv,
+			    struct dm_crypt_request *dmreq)
+{
+	u8 buf[MAX_CIPHER_BLOCKSIZE] __aligned(__alignof__(__le64));
+	struct skcipher_request *req;
+	struct scatterlist src, dst;
+	DECLARE_CRYPTO_WAIT(wait);
+	int err;
+
+	req = skcipher_request_alloc(any_tfm(cc), GFP_NOIO);
+	if (!req)
+		return -ENOMEM;
+
+	memset(buf, 0, cc->iv_size);
+	*(__le64 *)buf = cpu_to_le64(dmreq->iv_sector * cc->sector_size);
+
+	sg_init_one(&src, page_address(ZERO_PAGE(0)), cc->iv_size);
+	sg_init_one(&dst, iv, cc->iv_size);
+	skcipher_request_set_crypt(req, &src, &dst, cc->iv_size, buf);
+	skcipher_request_set_callback(req, 0, crypto_req_done, &wait);
+	err = crypto_wait_req(crypto_skcipher_encrypt(req), &wait);
+	skcipher_request_free(req);
+
+	return err;
+}
+
 static const struct crypt_iv_operations crypt_iv_plain_ops = {
 	.generator = crypt_iv_plain_gen
 };
@@ -867,10 +753,6 @@ static const struct crypt_iv_operations crypt_iv_plain64be_ops = {
 };
 
 static const struct crypt_iv_operations crypt_iv_essiv_ops = {
-	.ctr       = crypt_iv_essiv_ctr,
-	.dtr       = crypt_iv_essiv_dtr,
-	.init      = crypt_iv_essiv_init,
-	.wipe      = crypt_iv_essiv_wipe,
 	.generator = crypt_iv_essiv_gen
 };
 
@@ -906,6 +788,11 @@ static struct crypt_iv_operations crypt_iv_random_ops = {
 	.generator = crypt_iv_random_gen
 };
 
+static struct crypt_iv_operations crypt_iv_eboiv_ops = {
+	.ctr	   = crypt_iv_eboiv_ctr,
+	.generator = crypt_iv_eboiv_gen
+};
+
 /*
  * Integrity extensions
  */
@@ -918,17 +805,6 @@ static bool crypt_integrity_hmac(struct crypt_config *cc)
 {
 	return crypt_integrity_aead(cc) && cc->key_mac_size;
 }
-
-static bool crypt_mode_diskcipher(struct crypt_config *cc)
-{
-	return test_bit(CRYPT_MODE_DISKCIPHER, &cc->cipher_flags);
-}
-
-static bool crypt_mode_skcipher(struct crypt_config *cc)
-{
-	return test_bit(CRYPT_MODE_SKCIPHER, &cc->cipher_flags);
-}
-
 
 /* Get sg containing data */
 static struct scatterlist *crypt_get_sg_data(struct crypt_config *cc,
@@ -1056,11 +932,11 @@ static u8 *org_iv_of_dmreq(struct crypt_config *cc,
 	return iv_of_dmreq(cc, dmreq) + cc->iv_size;
 }
 
-static uint64_t *org_sector_of_dmreq(struct crypt_config *cc,
+static __le64 *org_sector_of_dmreq(struct crypt_config *cc,
 		       struct dm_crypt_request *dmreq)
 {
 	u8 *ptr = iv_of_dmreq(cc, dmreq) + cc->iv_size + cc->iv_size;
-	return (uint64_t*) ptr;
+	return (__le64 *) ptr;
 }
 
 static unsigned int *org_tag_of_dmreq(struct crypt_config *cc,
@@ -1096,7 +972,7 @@ static int crypt_convert_block_aead(struct crypt_config *cc,
 	struct bio_vec bv_out = bio_iter_iovec(ctx->bio_out, ctx->iter_out);
 	struct dm_crypt_request *dmreq;
 	u8 *iv, *org_iv, *tag_iv, *tag;
-	uint64_t *sector;
+	__le64 *sector;
 	int r = 0;
 
 	BUG_ON(cc->integrity_iv_size && cc->integrity_iv_size != cc->iv_size);
@@ -1168,9 +1044,11 @@ static int crypt_convert_block_aead(struct crypt_config *cc,
 		r = crypto_aead_decrypt(req);
 	}
 
-	if (r == -EBADMSG)
-		DMERR_LIMIT("INTEGRITY AEAD ERROR, sector %llu",
+	if (r == -EBADMSG) {
+		char b[BDEVNAME_SIZE];
+		DMERR_LIMIT("%s: INTEGRITY AEAD ERROR, sector %llu", bio_devname(ctx->bio_in, b),
 			    (unsigned long long)le64_to_cpu(*sector));
+	}
 
 	if (!r && cc->iv_gen_ops && cc->iv_gen_ops->post)
 		r = cc->iv_gen_ops->post(cc, org_iv, dmreq);
@@ -1191,7 +1069,7 @@ static int crypt_convert_block_skcipher(struct crypt_config *cc,
 	struct scatterlist *sg_in, *sg_out;
 	struct dm_crypt_request *dmreq;
 	u8 *iv, *org_iv, *tag_iv;
-	uint64_t *sector;
+	__le64 *sector;
 	int r = 0;
 
 	/* Reject unexpected unaligned bio. */
@@ -1467,10 +1345,10 @@ out:
 
 static void crypt_free_buffer_pages(struct crypt_config *cc, struct bio *clone)
 {
-	unsigned int i;
 	struct bio_vec *bv;
+	struct bvec_iter_all iter_all;
 
-	bio_for_each_segment_all(bv, clone, i) {
+	bio_for_each_segment_all(bv, clone, iter_all) {
 		BUG_ON(!bv->bv_page);
 		mempool_free(bv->bv_page, &cc->page_pool);
 	}
@@ -1546,13 +1424,13 @@ static void crypt_endio(struct bio *clone)
 	/*
 	 * free the processed pages
 	 */
-	if ((rw == WRITE) && !crypt_mode_diskcipher(cc))
+	if (rw == WRITE)
 		crypt_free_buffer_pages(cc, clone);
 
 	error = clone->bi_status;
 	bio_put(clone);
 
-	if (rw == READ && !error && !crypt_mode_diskcipher(cc)) {
+	if (rw == READ && !error) {
 		kcryptd_queue_crypt(io);
 		return;
 	}
@@ -1591,10 +1469,6 @@ static int kcryptd_io_read(struct dm_crypt_io *io, gfp_t gfp)
 	crypt_inc_pending(io);
 
 	clone_init(io, clone);
-
-	if (crypt_mode_diskcipher(cc))
-		crypto_diskcipher_set(clone, cc->cipher_tfm.tfms_diskc[0], 0);
-
 	clone->bi_iter.bi_sector = cc->start + io->sector;
 
 	if (dm_crypt_integrity_io_alloc(io, clone)) {
@@ -1817,7 +1691,8 @@ static void kcryptd_async_done(struct crypto_async_request *async_req,
 		error = cc->iv_gen_ops->post(cc, org_iv_of_dmreq(cc, dmreq), dmreq);
 
 	if (error == -EBADMSG) {
-		DMERR_LIMIT("INTEGRITY AEAD ERROR, sector %llu",
+		char b[BDEVNAME_SIZE];
+		DMERR_LIMIT("%s: INTEGRITY AEAD ERROR, sector %llu", bio_devname(ctx->bio_in, b),
 			    (unsigned long long)le64_to_cpu(*org_sector_of_dmreq(cc, dmreq)));
 		io->error = BLK_STS_PROTECTION;
 	} else if (error < 0)
@@ -1883,28 +1758,10 @@ static void crypt_free_tfms_skcipher(struct crypt_config *cc)
 	cc->cipher_tfm.tfms = NULL;
 }
 
-static void crypt_free_tfms_diskcipher(struct crypt_config *cc)
-{
-	if (!crypt_mode_diskcipher(cc))
-		return;
-
-	if (cc->cipher_tfm.tfms_diskc[0] && !IS_ERR(cc->cipher_tfm.tfms_diskc[0])) {
-		crypto_diskcipher_clearkey(cc->cipher_tfm.tfms_diskc[0]);
-		crypto_free_diskcipher(cc->cipher_tfm.tfms_diskc[0]);
-		cc->cipher_tfm.tfms_diskc[0] = NULL;
-	}
-
-	kfree(cc->cipher_tfm.tfms_diskc);
-	cc->cipher_tfm.tfms_diskc = NULL;
-}
-
-
 static void crypt_free_tfms(struct crypt_config *cc)
 {
 	if (crypt_integrity_aead(cc))
 		crypt_free_tfms_aead(cc);
-	else if (crypt_mode_diskcipher(cc))
-		crypt_free_tfms_diskcipher(cc);
 	else
 		crypt_free_tfms_skcipher(cc);
 }
@@ -1928,14 +1785,13 @@ static int crypt_alloc_tfms_skcipher(struct crypt_config *cc, char *ciphermode)
 			return err;
 		}
 	}
-	set_bit(CRYPT_MODE_SKCIPHER, &cc->cipher_flags);
 
 	/*
 	 * dm-crypt performance can vary greatly depending on which crypto
 	 * algorithm implementation is used.  Help people debug performance
 	 * problems by logging the ->cra_driver_name.
 	 */
-	DMINFO("%s using implementation \"%s\"", ciphermode,
+	DMDEBUG_LIMIT("%s using implementation \"%s\"", ciphermode,
 	       crypto_skcipher_alg(any_tfm(cc))->base.cra_driver_name);
 	return 0;
 }
@@ -1955,28 +1811,8 @@ static int crypt_alloc_tfms_aead(struct crypt_config *cc, char *ciphermode)
 		return err;
 	}
 
-	DMINFO("%s using implementation \"%s\"", ciphermode,
+	DMDEBUG_LIMIT("%s using implementation \"%s\"", ciphermode,
 	       crypto_aead_alg(any_tfm_aead(cc))->base.cra_driver_name);
-	return 0;
-}
-
-static int crypt_alloc_tfms_diskcipher(struct crypt_config *cc, char *ciphermode)
-{
-	int err;
-
-	cc->cipher_tfm.tfms = kmalloc(sizeof(struct crypto_aead *), GFP_KERNEL);
-	if (!cc->cipher_tfm.tfms)
-		return -ENOMEM;
-
-	cc->cipher_tfm.tfms_diskc[0] = crypto_alloc_diskcipher(ciphermode, 0, 0, 1);
-	if (IS_ERR(cc->cipher_tfm.tfms_diskc[0])) {
-		err = PTR_ERR(cc->cipher_tfm.tfms_diskc[0]);
-		crypt_free_tfms(cc);
-		pr_err("%s: no diskcipher with %s\n", __func__, ciphermode);
-		return err;
-	}
-	pr_info("%s is done with %s\n", __func__, ciphermode);
-
 	return 0;
 }
 
@@ -1984,8 +1820,6 @@ static int crypt_alloc_tfms(struct crypt_config *cc, char *ciphermode)
 {
 	if (crypt_integrity_aead(cc))
 		return crypt_alloc_tfms_aead(cc, ciphermode);
-	else if (crypt_mode_diskcipher(cc))
-		return crypt_alloc_tfms_diskcipher(cc, ciphermode);
 	else
 		return crypt_alloc_tfms_skcipher(cc, ciphermode);
 }
@@ -2047,10 +1881,6 @@ static int crypt_setkey(struct crypt_config *cc)
 			r = crypto_aead_setkey(cc->cipher_tfm.tfms_aead[i],
 					       cc->key + (i * subkey_size),
 					       subkey_size);
-		else if (crypt_mode_diskcipher(cc))
-			r = crypto_diskcipher_setkey(cc->cipher_tfm.tfms_diskc[i],
-						   cc->key + (i * subkey_size),
-						   subkey_size, 1, NULL);
 		else
 			r = crypto_skcipher_setkey(cc->cipher_tfm.tfms[i],
 						   cc->key + (i * subkey_size),
@@ -2180,7 +2010,7 @@ static int crypt_set_keyring_key(struct crypt_config *cc, const char *key_string
 
 static int get_key_size(char **key_string)
 {
-	return (*key_string[0] == ':') ? -EINVAL : strlen(*key_string) >> 1;
+	return (*key_string[0] == ':') ? -EINVAL : (int)(strlen(*key_string) >> 1);
 }
 
 #endif
@@ -2228,6 +2058,14 @@ static int crypt_wipe_key(struct crypt_config *cc)
 
 	clear_bit(DM_CRYPT_KEY_VALID, &cc->flags);
 	get_random_bytes(&cc->key, cc->key_size);
+
+	/* Wipe IV private keys */
+	if (cc->iv_gen_ops && cc->iv_gen_ops->wipe) {
+		r = cc->iv_gen_ops->wipe(cc);
+		if (r)
+			return r;
+	}
+
 	kzfree(cc->key_string);
 	cc->key_string = NULL;
 	r = crypt_setkey(cc);
@@ -2238,7 +2076,7 @@ static int crypt_wipe_key(struct crypt_config *cc)
 
 static void crypt_calculate_pages_per_client(void)
 {
-	unsigned long pages = (totalram_pages - totalhigh_pages) * DM_CRYPT_MEMORY_PERCENT / 100;
+	unsigned long pages = (totalram_pages() - totalhigh_pages()) * DM_CRYPT_MEMORY_PERCENT / 100;
 
 	if (!dm_crypt_clients_n)
 		return;
@@ -2254,7 +2092,12 @@ static void *crypt_page_alloc(gfp_t gfp_mask, void *pool_data)
 	struct crypt_config *cc = pool_data;
 	struct page *page;
 
-	if (unlikely(percpu_counter_compare(&cc->n_allocated_pages, dm_crypt_pages_per_client) >= 0) &&
+	/*
+	 * Note, percpu_counter_read_positive() may over (and under) estimate
+	 * the current usage by at most (batch - 1) * num_online_cpus() pages,
+	 * but avoids potential spinlock contention of an exact result.
+	 */
+	if (unlikely(percpu_counter_read_positive(&cc->n_allocated_pages) >= dm_crypt_pages_per_client) &&
 	    likely(gfp_mask & __GFP_NORETRY))
 		return NULL;
 
@@ -2307,7 +2150,6 @@ static void crypt_dtr(struct dm_target *ti)
 	if (cc->dev)
 		dm_put_device(ti, cc->dev);
 
-	kzfree(cc->cipher);
 	kzfree(cc->cipher_string);
 	kzfree(cc->key_string);
 	kzfree(cc->cipher_auth);
@@ -2358,6 +2200,8 @@ static int crypt_ctr_ivmode(struct dm_target *ti, const char *ivmode)
 		cc->iv_gen_ops = &crypt_iv_benbi_ops;
 	else if (strcmp(ivmode, "null") == 0)
 		cc->iv_gen_ops = &crypt_iv_null_ops;
+	else if (strcmp(ivmode, "eboiv") == 0)
+		cc->iv_gen_ops = &crypt_iv_eboiv_ops;
 	else if (strcmp(ivmode, "lmk") == 0) {
 		cc->iv_gen_ops = &crypt_iv_lmk_ops;
 		/*
@@ -2382,52 +2226,6 @@ static int crypt_ctr_ivmode(struct dm_target *ti, const char *ivmode)
 		ti->error = "Invalid IV mode";
 		return -EINVAL;
 	}
-
-	return 0;
-}
-
-/*
- * Workaround to parse cipher algorithm from crypto API spec.
- * The cc->cipher is currently used only in ESSIV.
- * This should be probably done by crypto-api calls (once available...)
- */
-static int crypt_ctr_blkdev_cipher(struct crypt_config *cc)
-{
-	const char *alg_name = NULL;
-	char *start, *end;
-
-	if (crypt_integrity_aead(cc)) {
-		alg_name = crypto_tfm_alg_name(crypto_aead_tfm(any_tfm_aead(cc)));
-		if (!alg_name)
-			return -EINVAL;
-		if (crypt_integrity_hmac(cc)) {
-			alg_name = strchr(alg_name, ',');
-			if (!alg_name)
-				return -EINVAL;
-		}
-		alg_name++;
-	} else {
-		alg_name = crypto_tfm_alg_name(crypto_skcipher_tfm(any_tfm(cc)));
-		if (!alg_name)
-			return -EINVAL;
-	}
-
-	start = strchr(alg_name, '(');
-	end = strchr(alg_name, ')');
-
-	if (!start && !end) {
-		cc->cipher = kstrdup(alg_name, GFP_KERNEL);
-		return cc->cipher ? 0 : -ENOMEM;
-	}
-
-	if (!start || !end || ++start >= end)
-		return -EINVAL;
-
-	cc->cipher = kzalloc(end - start + 1, GFP_KERNEL);
-	if (!cc->cipher)
-		return -ENOMEM;
-
-	strncpy(cc->cipher, start, end - start);
 
 	return 0;
 }
@@ -2475,7 +2273,7 @@ static int crypt_ctr_cipher_new(struct dm_target *ti, char *cipher_in, char *key
 				char **ivmode, char **ivopts)
 {
 	struct crypt_config *cc = ti->private;
-	char *tmp, *cipher_api;
+	char *tmp, *cipher_api, buf[CRYPTO_MAX_ALG_NAME];
 	int ret = -EINVAL;
 
 	cc->tfms_count = 1;
@@ -2501,8 +2299,31 @@ static int crypt_ctr_cipher_new(struct dm_target *ti, char *cipher_in, char *key
 	/* The rest is crypto API spec */
 	cipher_api = tmp;
 
+	/* Alloc AEAD, can be used only in new format. */
+	if (crypt_integrity_aead(cc)) {
+		ret = crypt_ctr_auth_cipher(cc, cipher_api);
+		if (ret < 0) {
+			ti->error = "Invalid AEAD cipher spec";
+			return -ENOMEM;
+		}
+	}
+
 	if (*ivmode && !strcmp(*ivmode, "lmk"))
 		cc->tfms_count = 64;
+
+	if (*ivmode && !strcmp(*ivmode, "essiv")) {
+		if (!*ivopts) {
+			ti->error = "Digest algorithm missing for ESSIV mode";
+			return -EINVAL;
+		}
+		ret = snprintf(buf, CRYPTO_MAX_ALG_NAME, "essiv(%s,%s)",
+			       cipher_api, *ivopts);
+		if (ret < 0 || ret >= CRYPTO_MAX_ALG_NAME) {
+			ti->error = "Cannot allocate cipher string";
+			return -ENOMEM;
+		}
+		cipher_api = buf;
+	}
 
 	cc->key_parts = cc->tfms_count;
 
@@ -2513,22 +2334,10 @@ static int crypt_ctr_cipher_new(struct dm_target *ti, char *cipher_in, char *key
 		return ret;
 	}
 
-	/* Alloc AEAD, can be used only in new format. */
-	if (crypt_integrity_aead(cc)) {
-		ret = crypt_ctr_auth_cipher(cc, cipher_api);
-		if (ret < 0) {
-			ti->error = "Invalid AEAD cipher spec";
-			return -ENOMEM;
-		}
+	if (crypt_integrity_aead(cc))
 		cc->iv_size = crypto_aead_ivsize(any_tfm_aead(cc));
-	} else if (crypt_mode_skcipher(cc))
+	else
 		cc->iv_size = crypto_skcipher_ivsize(any_tfm(cc));
-
-	ret = crypt_ctr_blkdev_cipher(cc);
-	if (ret < 0) {
-		ti->error = "Cannot allocate cipher string";
-		return -ENOMEM;
-	}
 
 	return 0;
 }
@@ -2564,18 +2373,9 @@ static int crypt_ctr_cipher_old(struct dm_target *ti, char *cipher_in, char *key
 	}
 	cc->key_parts = cc->tfms_count;
 
-	cc->cipher = kstrdup(cipher, GFP_KERNEL);
-	if (!cc->cipher)
-		goto bad_mem;
-
 	chainmode = strsep(&tmp, "-");
 	*ivmode = strsep(&tmp, ":");
 	*ivopts = tmp;
-	if (*ivmode && (!strcmp(*ivmode, "disk") || !strcmp(*ivmode, "fmp")))
-		set_bit(CRYPT_MODE_DISKCIPHER, &cc->cipher_flags);
-
-	if (tmp)
-		DMWARN("Ignoring unexpected additional cipher options");
 
 	/*
 	 * For compatibility with the original dm-crypt mapping format, if
@@ -2595,9 +2395,19 @@ static int crypt_ctr_cipher_old(struct dm_target *ti, char *cipher_in, char *key
 	if (!cipher_api)
 		goto bad_mem;
 
-	ret = snprintf(cipher_api, CRYPTO_MAX_ALG_NAME,
-		       "%s(%s)", chainmode, cipher);
-	if (ret < 0) {
+	if (*ivmode && !strcmp(*ivmode, "essiv")) {
+		if (!*ivopts) {
+			ti->error = "Digest algorithm missing for ESSIV mode";
+			kfree(cipher_api);
+			return -EINVAL;
+		}
+		ret = snprintf(cipher_api, CRYPTO_MAX_ALG_NAME,
+			       "essiv(%s(%s),%s)", chainmode, cipher, *ivopts);
+	} else {
+		ret = snprintf(cipher_api, CRYPTO_MAX_ALG_NAME,
+			       "%s(%s)", chainmode, cipher);
+	}
+	if (ret < 0 || ret >= CRYPTO_MAX_ALG_NAME) {
 		kfree(cipher_api);
 		goto bad_mem;
 	}
@@ -2637,11 +2447,9 @@ static int crypt_ctr_cipher(struct dm_target *ti, char *cipher_in, char *key)
 		return ret;
 
 	/* Initialize IV */
-	if (!crypt_mode_diskcipher(cc)) {
-		ret = crypt_ctr_ivmode(ti, ivmode);
-		if (ret < 0)
-			return ret;
-	}
+	ret = crypt_ctr_ivmode(ti, ivmode);
+	if (ret < 0)
+		return ret;
 
 	/* Initialize and set key */
 	ret = crypt_set_key(cc, key);
@@ -2671,11 +2479,6 @@ static int crypt_ctr_cipher(struct dm_target *ti, char *cipher_in, char *key)
 	/* wipe the kernel key payload copy */
 	if (cc->key_string)
 		memset(cc->key, 0, cc->key_size * sizeof(u8));
-
-	pr_info("%s with ivmode:%s, ivopts:%s, aead:%d, diskcipher:%d(%p), skcipher:%d\n",
-			__func__, ivmode, ivopts, crypt_integrity_aead(cc),
-			crypt_mode_diskcipher(cc), cc->cipher_tfm.tfms_diskc[0],
-			crypt_mode_skcipher(cc));
 
 	return ret;
 }
@@ -2762,6 +2565,7 @@ static int crypt_ctr_optional(struct dm_target *ti, unsigned int argc, char **ar
 static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 {
 	struct crypt_config *cc;
+	const char *devname = dm_table_device_name(ti->table);
 	int key_size;
 	unsigned int align_mask;
 	unsigned long long tmpll;
@@ -2780,7 +2584,7 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 		return -EINVAL;
 	}
 
-	cc = kzalloc(sizeof(*cc) + key_size * sizeof(u8), GFP_KERNEL);
+	cc = kzalloc(struct_size(cc, key, key_size), GFP_KERNEL);
 	if (!cc) {
 		ti->error = "Cannot allocate encryption context";
 		return -ENOMEM;
@@ -2810,14 +2614,11 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 	ret = crypt_ctr_cipher(ti, argv[0], argv[1]);
 	if (ret < 0)
 		goto bad;
+
 	if (crypt_integrity_aead(cc)) {
 		cc->dmreq_start = sizeof(struct aead_request);
 		cc->dmreq_start += crypto_aead_reqsize(any_tfm_aead(cc));
 		align_mask = crypto_aead_alignmask(any_tfm_aead(cc));
-	} else if (crypt_mode_diskcipher(cc)) {
-		cc->per_bio_data_size = ti->per_io_data_size =
-			ALIGN(sizeof(struct dm_crypt_io), ARCH_KMALLOC_MINALIGN);
-		goto get_bio;
 	} else {
 		cc->dmreq_start = sizeof(struct skcipher_request);
 		cc->dmreq_start += crypto_skcipher_reqsize(any_tfm(cc));
@@ -2861,7 +2662,6 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 		goto bad;
 	}
 
-get_bio:
 	ret = bioset_init(&cc->bs, MIN_IOS, 0, BIOSET_NEED_BVECS);
 	if (ret) {
 		ti->error = "Cannot allocate crypt bioset";
@@ -2911,24 +2711,19 @@ get_bio:
 	}
 
 	ret = -ENOMEM;
-	cc->io_queue = alloc_workqueue("kcryptd_io", WQ_HIGHPRI | WQ_CPU_INTENSIVE | WQ_MEM_RECLAIM, 1);
+	cc->io_queue = alloc_workqueue("kcryptd_io/%s", WQ_MEM_RECLAIM, 1, devname);
 	if (!cc->io_queue) {
 		ti->error = "Couldn't create kcryptd io queue";
 		goto bad;
 	}
 
-	if (crypt_mode_diskcipher(cc)) {
-		cc->crypt_queue = NULL;
-		cc->write_thread = NULL;
-		goto out;
-	}
-
 	if (test_bit(DM_CRYPT_SAME_CPU, &cc->flags))
-		cc->crypt_queue = alloc_workqueue("kcryptd", WQ_HIGHPRI | WQ_CPU_INTENSIVE | WQ_MEM_RECLAIM, 1);
+		cc->crypt_queue = alloc_workqueue("kcryptd/%s", WQ_CPU_INTENSIVE | WQ_MEM_RECLAIM,
+						  1, devname);
 	else
-		cc->crypt_queue = alloc_workqueue("kcryptd",
-						  WQ_HIGHPRI | WQ_CPU_INTENSIVE | WQ_MEM_RECLAIM | WQ_UNBOUND,
-						  num_online_cpus());
+		cc->crypt_queue = alloc_workqueue("kcryptd/%s",
+						  WQ_CPU_INTENSIVE | WQ_MEM_RECLAIM | WQ_UNBOUND,
+						  num_online_cpus(), devname);
 	if (!cc->crypt_queue) {
 		ti->error = "Couldn't create kcryptd queue";
 		goto bad;
@@ -2937,7 +2732,7 @@ get_bio:
 	spin_lock_init(&cc->write_thread_lock);
 	cc->write_tree = RB_ROOT;
 
-	cc->write_thread = kthread_create(dmcrypt_write, cc, "dmcrypt_write");
+	cc->write_thread = kthread_create(dmcrypt_write, cc, "dmcrypt_write/%s", devname);
 	if (IS_ERR(cc->write_thread)) {
 		ret = PTR_ERR(cc->write_thread);
 		cc->write_thread = NULL;
@@ -2946,8 +2741,8 @@ get_bio:
 	}
 	wake_up_process(cc->write_thread);
 
-out:
 	ti->num_flush_bios = 1;
+	ti->limit_swap_bios = true;
 
 	return 0;
 
@@ -3010,16 +2805,21 @@ static int crypt_map(struct dm_target *ti, struct bio *bio)
 
 	if (crypt_integrity_aead(cc))
 		io->ctx.r.req_aead = (struct aead_request *)(io + 1);
-	else if (crypt_mode_skcipher(cc))
+	else
 		io->ctx.r.req = (struct skcipher_request *)(io + 1);
 
-	if ((bio_data_dir(io->base_bio) == READ) || crypt_mode_diskcipher(cc)) {
+	if (bio_data_dir(io->base_bio) == READ) {
 		if (kcryptd_io_read(io, GFP_NOWAIT))
 			kcryptd_queue_read(io);
 	} else
 		kcryptd_queue_crypt(io);
 
 	return DM_MAPIO_SUBMITTED;
+}
+
+static char hex2asc(unsigned char c)
+{
+	return c + '0' + ((unsigned)(9 - c) >> 4 & 0x27);
 }
 
 static void crypt_status(struct dm_target *ti, status_type_t type,
@@ -3040,9 +2840,12 @@ static void crypt_status(struct dm_target *ti, status_type_t type,
 		if (cc->key_size > 0) {
 			if (cc->key_string)
 				DMEMIT(":%u:%s", cc->key_size, cc->key_string);
-			else
-				for (i = 0; i < cc->key_size; i++)
-					DMEMIT("%02x", cc->key[i]);
+			else {
+				for (i = 0; i < cc->key_size; i++) {
+					DMEMIT("%c%c", hex2asc(cc->key[i] >> 4),
+					       hex2asc(cc->key[i] & 0xf));
+				}
+			}
 		} else
 			DMEMIT("-");
 
@@ -3138,14 +2941,8 @@ static int crypt_message(struct dm_target *ti, unsigned argc, char **argv,
 				memset(cc->key, 0, cc->key_size * sizeof(u8));
 			return ret;
 		}
-		if (argc == 2 && !strcasecmp(argv[1], "wipe")) {
-			if (cc->iv_gen_ops && cc->iv_gen_ops->wipe) {
-				ret = cc->iv_gen_ops->wipe(cc);
-				if (ret)
-					return ret;
-			}
+		if (argc == 2 && !strcasecmp(argv[1], "wipe"))
 			return crypt_wipe_key(cc);
-		}
 	}
 
 error:
@@ -3178,14 +2975,11 @@ static void crypt_io_hints(struct dm_target *ti, struct queue_limits *limits)
 	limits->physical_block_size =
 		max_t(unsigned, limits->physical_block_size, cc->sector_size);
 	limits->io_min = max_t(unsigned, limits->io_min, cc->sector_size);
-
-	if (crypt_mode_diskcipher(cc))
-		limits->logical_block_size = PAGE_SIZE;
 }
 
 static struct target_type crypt_target = {
 	.name   = "crypt",
-	.version = {1, 18, 1},
+	.version = {1, 19, 0},
 	.module = THIS_MODULE,
 	.ctr    = crypt_ctr,
 	.dtr    = crypt_dtr,

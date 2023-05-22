@@ -1,13 +1,10 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * wmfw.h - Wolfson firmware format information
  *
  * Copyright 2012 Wolfson Microelectronics plc
  *
  * Author: Mark Brown <broonie@opensource.wolfsonmicro.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  */
 
 #ifndef __WMFW_H
@@ -30,6 +27,7 @@
 #define WMFW_CTL_TYPE_ACKED       0x1000 /* acked control */
 #define WMFW_CTL_TYPE_HOSTEVENT   0x1001 /* event control */
 #define WMFW_CTL_TYPE_HOST_BUFFER 0x1002 /* host buffer pointer */
+#define WMFW_CTL_TYPE_FWEVENT     0x1004 /* firmware event control */
 
 struct wmfw_header {
 	char magic[4];
@@ -77,6 +75,14 @@ struct wmfw_id_hdr {
 	__be32 ver;
 } __packed;
 
+struct wmfw_v3_id_hdr {
+	__be32 core_id;
+	__be32 block_rev;
+	__be32 vendor_id;
+	__be32 id;
+	__be32 ver;
+} __packed;
+
 struct wmfw_adsp1_id_hdr {
 	struct wmfw_id_hdr fw;
 	__be32 zm;
@@ -92,35 +98,19 @@ struct wmfw_adsp2_id_hdr {
 	__be32 n_algs;
 } __packed;
 
-struct wmfw_vpu_fwid_hdr {
-	__be32 core_id;
-	__be32 block_rev;
-	__be32 vendor_id;
-	__be32 firmware_id;
-	__be32 ver;
-} __packed;
-
-struct wmfw_vpu_id_hdr {
-	struct wmfw_vpu_fwid_hdr fw;
-	__be32 dm_base;
-	__be32 dm_size;
-	__be32 n_algs;
-} __packed;
-
-struct wmfw_halo_fwid_hdr {
-	__be32 core_id;
-	__be32 block_rev;
-	__be32 vendor_id;
-	__be32 id;
-	__be32 ver;
-} __packed;
-
 struct wmfw_halo_id_hdr {
-	struct wmfw_halo_fwid_hdr fw;
+	struct wmfw_v3_id_hdr fw;
 	__be32 xm_base;
 	__be32 xm_size;
 	__be32 ym_base;
 	__be32 ym_size;
+	__be32 n_algs;
+} __packed;
+
+struct wmfw_vpu_id_hdr {
+	struct wmfw_v3_id_hdr fw;
+	__be32 dm_base;
+	__be32 dm_size;
 	__be32 n_algs;
 } __packed;
 
@@ -205,10 +195,11 @@ struct wmfw_coeff_item {
 #define WMFW_ADSP1 1
 #define WMFW_ADSP2 2
 #define WMFW_HALO 4
-#define WMFW_VPU 0x44
+#define WMFW_VPU 0x45
 
 #define WMFW_ABSOLUTE         0xf0
 #define WMFW_ALGORITHM_DATA   0xf2
+#define WMFW_METADATA         0xfc
 #define WMFW_NAME_TEXT        0xfe
 #define WMFW_INFO_TEXT        0xff
 
@@ -225,6 +216,6 @@ struct wmfw_coeff_item {
 #define WMFW_HALO_XM_PACKED 0x11
 #define WMFW_HALO_YM_PACKED 0x12
 
-#define WMFW_VPU_DM 0x20
+#define WMFW_VPU_DM 0x30
 
 #endif

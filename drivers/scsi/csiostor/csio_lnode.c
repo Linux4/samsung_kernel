@@ -619,7 +619,7 @@ csio_ln_vnp_read_cbfn(struct csio_hw *hw, struct csio_mb *mbp)
 	struct fc_els_csp *csp;
 	struct fc_els_cssp *clsp;
 	enum fw_retval retval;
-	__be32 nport_id;
+	__be32 nport_id = 0;
 
 	retval = FW_CMD_RETVAL_G(ntohl(rsp->alloc_to_len16));
 	if (retval != FW_SUCCESS) {
@@ -1848,8 +1848,8 @@ csio_ln_fdmi_init(struct csio_lnode *ln)
 	/* Allocate Dma buffers for FDMI response Payload */
 	dma_buf = &ln->mgmt_req->dma_buf;
 	dma_buf->len = 2048;
-	dma_buf->vaddr = pci_alloc_consistent(hw->pdev, dma_buf->len,
-						&dma_buf->paddr);
+	dma_buf->vaddr = dma_alloc_coherent(&hw->pdev->dev, dma_buf->len,
+						&dma_buf->paddr, GFP_KERNEL);
 	if (!dma_buf->vaddr) {
 		csio_err(hw, "Failed to alloc DMA buffer for FDMI!\n");
 		kfree(ln->mgmt_req);
@@ -1876,7 +1876,7 @@ csio_ln_fdmi_exit(struct csio_lnode *ln)
 
 	dma_buf = &ln->mgmt_req->dma_buf;
 	if (dma_buf->vaddr)
-		pci_free_consistent(hw->pdev, dma_buf->len, dma_buf->vaddr,
+		dma_free_coherent(&hw->pdev->dev, dma_buf->len, dma_buf->vaddr,
 				    dma_buf->paddr);
 
 	kfree(ln->mgmt_req);

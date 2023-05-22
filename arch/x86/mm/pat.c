@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Handle caching attributes in page tables (PAT)
  *
@@ -8,7 +9,7 @@
  */
 
 #include <linux/seq_file.h>
-#include <linux/bootmem.h>
+#include <linux/memblock.h>
 #include <linux/debugfs.h>
 #include <linux/ioport.h>
 #include <linux/kernel.h>
@@ -74,7 +75,7 @@ int pat_debug_enable;
 static int __init pat_debug_setup(char *str)
 {
 	pat_debug_enable = 1;
-	return 0;
+	return 1;
 }
 __setup("debugpat", pat_debug_setup);
 
@@ -1131,12 +1132,14 @@ static void *memtype_seq_start(struct seq_file *seq, loff_t *pos)
 
 static void *memtype_seq_next(struct seq_file *seq, void *v, loff_t *pos)
 {
+	kfree(v);
 	++*pos;
 	return memtype_get_idx(*pos);
 }
 
 static void memtype_seq_stop(struct seq_file *seq, void *v)
 {
+	kfree(v);
 }
 
 static int memtype_seq_show(struct seq_file *seq, void *v)
@@ -1145,7 +1148,6 @@ static int memtype_seq_show(struct seq_file *seq, void *v)
 
 	seq_printf(seq, "%s @ 0x%Lx-0x%Lx\n", cattr_name(print_entry->type),
 			print_entry->start, print_entry->end);
-	kfree(print_entry);
 
 	return 0;
 }

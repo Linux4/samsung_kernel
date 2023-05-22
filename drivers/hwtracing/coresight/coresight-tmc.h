@@ -8,7 +8,21 @@
 #define _CORESIGHT_TMC_H
 
 #include <linux/dma-mapping.h>
+#include <linux/idr.h>
 #include <linux/miscdevice.h>
+#include <linux/mutex.h>
+#include <linux/refcount.h>
+#include <linux/coresight-cti.h>
+#include <linux/delay.h>
+#include <asm/cacheflush.h>
+#include <linux/of_address.h>
+#include <linux/amba/bus.h>
+#include <linux/usb_bam.h>
+#include <linux/msm-sps.h>
+#include <linux/usb/usb_qdss.h>
+#include <linux/ipa_qdss.h>
+
+#include "coresight-byte-cntr.h"
 
 #define TMC_RSZ			0x004
 #define TMC_STS			0x00c
@@ -36,6 +50,7 @@
 #define TMC_ITATBCTR2		0xef0
 #define TMC_ITATBCTR1		0xef4
 #define TMC_ITATBCTR0		0xef8
+#define TMC_AUTHSTATUS		0xfb8
 
 /* register description */
 /* TMC_CTL - 0x020 */
@@ -44,6 +59,7 @@
 #define TMC_STS_TMCREADY_BIT	2
 #define TMC_STS_FULL		BIT(0)
 #define TMC_STS_TRIGGERED	BIT(1)
+#define TMC_STS_MEMERR		BIT(5)
 /*
  * TMC_AXICTL - 0x110
  *
@@ -85,6 +101,12 @@
 #define TMC_DEVID_AXIAW_VALID	BIT(16)
 #define TMC_DEVID_AXIAW_SHIFT	17
 #define TMC_DEVID_AXIAW_MASK	0x7f
+#define TMC_ETR_BAM_PIPE_INDEX	0
+#define TMC_ETR_BAM_NR_PIPES	2
+
+#define TMC_ETR_PCIE_MEM_SIZE	0x400000
+
+#define TMC_AUTH_NSID_MASK	GENMASK(1, 0)
 
 enum tmc_config_type {
 	TMC_CONFIG_TYPE_ETB,
@@ -129,10 +151,57 @@ enum etr_mode {
 	ETR_MODE_CATU,		/* Use SG mechanism in CATU */
 };
 
+enum tmc_etr_pcie_path {
+	TMC_ETR_PCIE_SW_PATH,
+	TMC_ETR_PCIE_HW_PATH,
+};
+
+static const char * const str_tmc_etr_pcie_path[] = {
+	[TMC_ETR_PCIE_SW_PATH]	= "sw",
+	[TMC_ETR_PCIE_HW_PATH]	= "hw",
+};
+
+enum tmc_etr_out_mode {
+	TMC_ETR_OUT_MODE_NONE,
+	TMC_ETR_OUT_MODE_MEM,
+	TMC_ETR_OUT_MODE_USB,
+	TMC_ETR_OUT_MODE_PCIE,
+};
+
+static const char * const str_tmc_etr_out_mode[] = {
+	[TMC_ETR_OUT_MODE_NONE]		= "none",
+	[TMC_ETR_OUT_MODE_MEM]		= "mem",
+	[TMC_ETR_OUT_MODE_USB]		= "usb",
+	[TMC_ETR_OUT_MODE_PCIE]		= "pcie",
+};
+struct tmc_etr_ipa_data {
+	struct ipa_qdss_conn_out_params ipa_qdss_out;
+	struct ipa_qdss_conn_in_params  ipa_qdss_in;
+};
+struct tmc_etr_bam_data {
+	struct sps_bam_props	props;
+	unsigned long		handle;
+	struct sps_pipe		*pipe;
+	struct sps_connect	connect;
+	uint32_t		src_pipe_idx;
+	unsigned long		dest;
+	uint32_t		dest_pipe_idx;
+	struct sps_mem_buffer	desc_fifo;
+	struct sps_mem_buffer	data_fifo;
+	bool			enable;
+};
 struct etr_buf_operations;
+
+struct etr_flat_buf {
+	struct device	*dev;
+	dma_addr_t	daddr;
+	void		*vaddr;
+	size_t		size;
+};
 
 /**
  * struct etr_buf - Details of the buffer used by ETR
+ * refcount	; Number of sources currently using this etr_buf.
  * @mode	: Mode of the ETR buffer, contiguous, Scatter Gather etc.
  * @full	: Trace data overflow
  * @size	: Size of the buffer.
@@ -143,6 +212,7 @@ struct etr_buf_operations;
  * @private	: Backend specific information for the buf
  */
 struct etr_buf {
+	refcount_t			refcount;
 	enum etr_mode			mode;
 	bool				full;
 	ssize_t				size;
@@ -156,10 +226,11 @@ struct etr_buf {
 /**
  * struct tmc_drvdata - specifics associated to an TMC component
  * @base:	memory mapped base address for this component.
- * @dev:	the device entity associated to this component.
  * @csdev:	component vitals needed by the framework.
  * @miscdev:	specifics to handle "/dev/xyz.tmc" entry.
  * @spinlock:	only one at a time pls.
+ * @pid:	Process ID of the process being monitored by the session
+ *		that is using this component.
  * @buf:	Snapshot of the trace data for ETF/ETB.
  * @etr_buf:	details of buffer used in TMC-ETR
  * @len:	size of the available trace for ETF/ETB.
@@ -170,14 +241,17 @@ struct etr_buf {
  * @trigger_cntr: amount of words to store after a trigger.
  * @etr_caps:	Bitmask of capabilities of the TMC ETR, inferred from the
  *		device configuration register (DEVID)
- * @sysfs_data:	SYSFS buffer for ETR.
+ * @idr:	Holds etr_bufs allocated for this ETR.
+ * @idr_mutex:	Access serialisation for idr.
+ * @sysfs_buf:	SYSFS buffer for ETR.
+ * @perf_buf:	PERF buffer for ETR.
  */
 struct tmc_drvdata {
 	void __iomem		*base;
-	struct device		*dev;
 	struct coresight_device	*csdev;
 	struct miscdevice	miscdev;
 	spinlock_t		spinlock;
+	pid_t			pid;
 	bool			reading;
 	union {
 		char		*buf;		/* TMC ETB */
@@ -188,14 +262,27 @@ struct tmc_drvdata {
 	u32			mode;
 	enum tmc_config_type	config_type;
 	enum tmc_mem_intf_width	memwidth;
+	struct mutex		mem_lock;
 	u32			trigger_cntr;
 	u32			etr_caps;
+	struct idr		idr;
+	struct mutex		idr_mutex;
 	struct etr_buf		*sysfs_buf;
-
-	/* samsung coresight sfr */
-	bool			hwacg;
-	void __iomem		*sfr_base;
-	u32			q_offset;
+	struct etr_buf		*perf_buf;
+	struct coresight_csr	*csr;
+	const char		*csr_name;
+	bool			enable;
+	struct byte_cntr	*byte_cntr;
+	struct usb_qdss_ch	*usbch;
+	struct tmc_etr_bam_data	*bamdata;
+	bool			enable_to_bam;
+	struct coresight_cti	*cti_flush;
+	struct coresight_cti	*cti_reset;
+	u32			cti_flush_trig_num;
+	u32			cti_reset_trig_num;
+	enum tmc_etr_out_mode	out_mode;
+	enum tmc_etr_pcie_path	pcie_path;
+	struct tmc_etr_ipa_data	*ipa_data;
 };
 
 struct etr_buf_operations {
@@ -244,6 +331,7 @@ void tmc_wait_for_tmcready(struct tmc_drvdata *drvdata);
 void tmc_flush_and_stop(struct tmc_drvdata *drvdata);
 void tmc_enable_hw(struct tmc_drvdata *drvdata);
 void tmc_disable_hw(struct tmc_drvdata *drvdata);
+u32 tmc_get_memwidth_mask(struct tmc_drvdata *drvdata);
 
 /* ETB/ETF functions */
 int tmc_read_prepare_etb(struct tmc_drvdata *drvdata);
@@ -256,10 +344,26 @@ ssize_t tmc_etb_get_sysfs_trace(struct tmc_drvdata *drvdata,
 /* ETR functions */
 int tmc_read_prepare_etr(struct tmc_drvdata *drvdata);
 int tmc_read_unprepare_etr(struct tmc_drvdata *drvdata);
+void tmc_free_etr_buf(struct etr_buf *etr_buf);
+void __tmc_etr_disable_to_bam(struct tmc_drvdata *drvdata);
+void tmc_etr_bam_disable(struct tmc_drvdata *drvdata);
+void usb_notifier(void *priv, unsigned int event, struct qdss_request *d_req,
+		  struct usb_qdss_ch *ch);
+int tmc_etr_bam_init(struct amba_device *adev,
+		     struct tmc_drvdata *drvdata);
+int tmc_etr_ipa_init(struct amba_device *adev,
+			struct tmc_drvdata *drvdata);
+extern struct byte_cntr *byte_cntr_init(struct amba_device *adev,
+					struct tmc_drvdata *drvdata);
+int tmc_etr_enable_hw(struct tmc_drvdata *drvdata, struct etr_buf *etr_buf);
+void tmc_etr_disable_hw(struct tmc_drvdata *drvdata);
 extern const struct coresight_ops tmc_etr_cs_ops;
 ssize_t tmc_etr_get_sysfs_trace(struct tmc_drvdata *drvdata,
 				loff_t pos, size_t len, char **bufpp);
-
+ssize_t tmc_etr_buf_get_data(struct etr_buf *etr_buf,
+				u64 offset, size_t len, char **bufpp);
+int tmc_etr_switch_mode(struct tmc_drvdata *drvdata, const char *out_mode);
+long tmc_sg_get_rwp_offset(struct tmc_drvdata *drvdata);
 
 #define TMC_REG_PAIR(name, lo_off, hi_off)				\
 static inline u64							\

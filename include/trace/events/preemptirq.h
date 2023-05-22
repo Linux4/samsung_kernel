@@ -3,6 +3,9 @@
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM preemptirq
 
+#undef TRACE_INCLUDE_PATH
+#define TRACE_INCLUDE_PATH trace/events
+
 #if !defined(_TRACE_PREEMPTIRQ_H) || defined(TRACE_HEADER_MULTI_READ)
 #define _TRACE_PREEMPTIRQ_H
 
@@ -27,7 +30,7 @@ DECLARE_EVENT_CLASS(preemptirq_template,
 		__entry->parent_offs = (s32)(parent_ip - (unsigned long)_stext);
 	),
 
-	TP_printk("caller=%pF parent=%pF",
+	TP_printk("caller=%pS parent=%pS",
 		  (void *)((unsigned long)(_stext) + __entry->caller_offs),
 		  (void *)((unsigned long)(_stext) + __entry->parent_offs))
 );

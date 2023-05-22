@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * This implements the various checks for CONFIG_HARDENED_USERCOPY*,
  * which are designed to protect kernel memory from needless exposure
@@ -6,11 +7,6 @@
  *
  * Copyright (C) 2001-2016 PaX Team, Bradley Spengler, Open Source
  * Security Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
  */
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
@@ -168,6 +164,8 @@ static inline void check_page_span(const void *ptr, unsigned long n,
 	const void *end = ptr + n - 1;
 	struct page *endpage;
 	bool is_reserved, is_cma;
+	const void * const stack = task_stack_page(current);
+	const void * const stackend = stack + THREAD_SIZE;
 
 	/*
 	 * Sometimes the kernel data regions are not marked Reserved (see
@@ -190,6 +188,10 @@ static inline void check_page_span(const void *ptr, unsigned long n,
 	/* Allow kernel bss region (if not marked as Reserved). */
 	if (ptr >= (const void *)__bss_start &&
 	    end <= (const void *)__bss_stop)
+		return;
+
+	/* Allow stack region to span multiple pages */
+	if (ptr >= stack && end <= stackend)
 		return;
 
 	/* Is the object wholly within one base page? */
@@ -298,7 +300,10 @@ static bool enable_checks __initdata = true;
 
 static int __init parse_hardened_usercopy(char *str)
 {
-	return strtobool(str, &enable_checks);
+	if (strtobool(str, &enable_checks))
+		pr_warn("Invalid option string for hardened_usercopy: '%s'\n",
+			str);
+	return 1;
 }
 
 __setup("hardened_usercopy=", parse_hardened_usercopy);

@@ -3351,7 +3351,8 @@ found:
 			"Found block at %x: code=%d ref=%d length=%d major=%d minor=%d\n",
 			cptr, code, reference, length, major, minor);
 		if ((!AR_SREV_9485(ah) && length >= 1024) ||
-		    (AR_SREV_9485(ah) && length > EEPROM_DATA_LEN_9485)) {
+		    (AR_SREV_9485(ah) && length > EEPROM_DATA_LEN_9485) ||
+		    (length > cptr)) {
 			ath_dbg(common, EEPROM, "Skipping bad header\n");
 			cptr -= COMP_HDR_LEN;
 			continue;
@@ -3457,9 +3458,9 @@ static u32 ar9003_dump_cal_data(struct ath_hw *ah, char *buf, u32 len, u32 size,
 		if (!((pBase->txrxMask >> i) & 1))
 			continue;
 
-		len += snprintf(buf + len, size - len, "Chain %d\n", i);
+		len += scnprintf(buf + len, size - len, "Chain %d\n", i);
 
-		len += snprintf(buf + len, size - len,
+		len += scnprintf(buf + len, size - len,
 			"Freq\t ref\tvolt\ttemp\tnf_cal\tnf_pow\trx_temp\n");
 
 		for (j = 0; j < cal_pier_nr; j++) {
@@ -3471,10 +3472,10 @@ static u32 ar9003_dump_cal_data(struct ath_hw *ah, char *buf, u32 len, u32 size,
 				freq = 4800 + eep->calFreqPier5G[j] * 5;
 			}
 
-			len += snprintf(buf + len, size - len,
+			len += scnprintf(buf + len, size - len,
 				"%d\t", freq);
 
-			len += snprintf(buf + len, size - len,
+			len += scnprintf(buf + len, size - len,
 				"%d\t%d\t%d\t%d\t%d\t%d\n",
 				cal_pier->refPower,
 				cal_pier->voltMeas,
@@ -3505,12 +3506,12 @@ static u32 ath9k_hw_ar9003_dump_eeprom(struct ath_hw *ah, bool dump_base_hdr,
 		len += scnprintf(buf + len, size - len, "Calibration data\n");
 		len = ar9003_dump_cal_data(ah, buf, len, size, true);
 
-		len +=  snprintf(buf + len, size - len,
+		len += scnprintf(buf + len, size - len,
 				 "%20s :\n", "5GHz modal Header");
 		len = ar9003_dump_modal_eeprom(buf, len, size,
 						&eep->modalHeader5G);
 
-		len += snprintf(buf + len, size - len, "Calibration data\n");
+		len += scnprintf(buf + len, size - len, "Calibration data\n");
 		len = ar9003_dump_cal_data(ah, buf, len, size, false);
 
 		goto out;
@@ -5614,7 +5615,7 @@ unsigned int ar9003_get_paprd_scale_factor(struct ath_hw *ah,
 
 static u8 ar9003_get_eepmisc(struct ath_hw *ah)
 {
-	return ah->eeprom.map4k.baseEepHeader.eepMisc;
+	return ah->eeprom.ar9300_eep.baseEepHeader.opCapFlags.eepMisc;
 }
 
 const struct eeprom_ops eep_ar9300_ops = {

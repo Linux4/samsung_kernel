@@ -19,17 +19,6 @@
 #include <net/neighbour.h>
 #include <asm/processor.h>
 
-#define DST_GC_MIN	(HZ/10)
-#define DST_GC_INC	(HZ/2)
-#define DST_GC_MAX	(120*HZ)
-
-/* Each dst_entry has reference count and sits in some parent list(s).
- * When it is removed from parent list, it is "freed" (dst_free).
- * After this it enters dead state (dst->obsolete > 0) and if its refcnt
- * is zero, it can be destroyed immediately, otherwise it is added
- * to gc list and garbage collector periodically checks the refcnt.
- */
-
 struct sk_buff;
 
 struct dst_entry {
@@ -194,7 +183,7 @@ static inline void dst_metric_set(struct dst_entry *dst, int metric, u32 val)
 }
 
 /* Kernel-internal feature bits that are unallocated in user space. */
-#define DST_FEATURE_ECN_CA	(1 << 31)
+#define DST_FEATURE_ECN_CA	(1U << 31)
 
 #define DST_FEATURE_MASK	(DST_FEATURE_ECN_CA)
 #define DST_FEATURE_ECN_MASK	(DST_FEATURE_ECN_CA | RTAX_FEATURE_ECN)
@@ -412,7 +401,15 @@ static inline struct neighbour *dst_neigh_lookup(const struct dst_entry *dst, co
 static inline struct neighbour *dst_neigh_lookup_skb(const struct dst_entry *dst,
 						     struct sk_buff *skb)
 {
-	struct neighbour *n =  dst->ops->neigh_lookup(dst, skb, NULL);
+	struct neighbour *n = NULL;
+
+	/* The packets from tunnel devices (eg bareudp) may have only
+	 * metadata in the dst pointer of skb. Hence a pointer check of
+	 * neigh_lookup is needed.
+	 */
+	if (dst->ops->neigh_lookup)
+		n = dst->ops->neigh_lookup(dst, skb, NULL);
+
 	return IS_ERR(n) ? NULL : n;
 }
 
@@ -444,9 +441,6 @@ static inline void dst_set_expires(struct dst_entry *dst, int timeout)
 /* Output packet to network from transport.  */
 static inline int dst_output(struct net *net, struct sock *sk, struct sk_buff *skb)
 {
-#ifdef CONFIG_NET_SUPPORT_DROPDUMP
-	skb->dropmask = PACKET_OUT;
-#endif
 	return skb_dst(skb)->output(net, sk, skb);
 }
 

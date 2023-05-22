@@ -1,11 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2012 Red Hat, Inc.
  *
  * Author: Mikulas Patocka <mpatocka@redhat.com>
  *
  * Based on Chromium dm-verity driver (C) 2011 The Chromium OS Authors
- *
- * This file is released under the GPLv2.
  *
  * In the file "/sys/module/dm_verity/parameters/prefetch_cluster" you can set
  * default prefetch value. Data are read in "prefetch_cluster" chunks from the
@@ -16,8 +15,10 @@
 
 #include "dm-verity.h"
 #include "dm-verity-fec.h"
+#include <linux/delay.h>
+#include "dm-verity-verify-sig.h"
 #include "dm-verity-debug.h"
-
+#include <linux/init.h>
 #include <linux/module.h>
 #include <linux/reboot.h>
 
@@ -35,11 +36,24 @@
 #define DM_VERITY_OPT_IGN_ZEROES	"ignore_zero_blocks"
 #define DM_VERITY_OPT_AT_MOST_ONCE	"check_at_most_once"
 
-#define DM_VERITY_OPTS_MAX		(2 + DM_VERITY_OPTS_FEC)
+#define DM_VERITY_OPTS_MAX		(4 + DM_VERITY_OPTS_FEC + \
+					 DM_VERITY_ROOT_HASH_VERIFICATION_OPTS)
 
 static unsigned dm_verity_prefetch_cluster = DM_VERITY_DEFAULT_PREFETCH_SIZE;
 
 module_param_named(prefetch_cluster, dm_verity_prefetch_cluster, uint, S_IRUGO | S_IWUSR);
+
+/*
+ * If rootwait parameter defined, wait for root device to be available
+ * before continuing with verity target
+ */
+static int dm_device_wait;
+static int __init dm_verity_root_wait_setup(char *s)
+{
+	dm_device_wait = 1;
+	return 0;
+}
+early_param("rootwait", dm_verity_root_wait_setup);
 
 struct dm_verity_prefetch_work {
 	struct work_struct work;
@@ -63,6 +77,14 @@ struct dm_verity_prefetch_work {
 struct buffer_aux {
 	int hash_verified;
 };
+/*
+ * While system shutdown, skip verity work for I/O error.
+ */
+static inline bool verity_is_system_shutting_down(void)
+{
+	return system_state == SYSTEM_HALT || system_state == SYSTEM_POWER_OFF
+		|| system_state == SYSTEM_RESTART;
+}
 
 /*
  * Initialize struct buffer_aux for a freshly created buffer.
@@ -314,7 +336,7 @@ static int verity_verify_level(struct dm_verity *v, struct dm_verity_io *io,
 					   hash_block, data, NULL) == 0) {
 #ifdef SEC_HEX_DEBUG
 			add_fec_correct_blks();
-			add_fc_blks_entry(hash_block,v->data_dev->name);
+			add_fc_blks_entry(hash_block, v->data_dev->name);
 #endif
 			aux->hash_verified = 1;
 		}
@@ -544,16 +566,14 @@ static int verity_verify_io(struct dm_verity_io *io)
 			if (v->validated_blocks)
 				set_bit(cur_block, v->validated_blocks);
 			continue;
-		}
-		else if (verity_fec_decode(v, io, DM_VERITY_BLOCK_TYPE_DATA,
+		} else if (verity_fec_decode(v, io, DM_VERITY_BLOCK_TYPE_DATA,
 					   cur_block, NULL, &start) == 0) {
 #ifdef SEC_HEX_DEBUG
 			add_fec_correct_blks();
-			add_fc_blks_entry(cur_block,v->data_dev->name);
+			add_fc_blks_entry(cur_block, v->data_dev->name);
 #endif
 			continue;
-		}
-		else {
+		} else {
 			if (bio->bi_status) {
 				/*
 				 * Error correction failed; Just return error
@@ -603,7 +623,8 @@ static void verity_end_io(struct bio *bio)
 {
 	struct dm_verity_io *io = bio->bi_private;
 
-	if (bio->bi_status && !verity_fec_is_enabled(io->v)) {
+	if (bio->bi_status &&
+	    (!verity_fec_is_enabled(io->v) || verity_is_system_shutting_down())) {
 		verity_finish_io(io, bio->bi_status);
 		return;
 	}
@@ -654,21 +675,7 @@ no_prefetch_cluster:
 
 static void verity_submit_prefetch(struct dm_verity *v, struct dm_verity_io *io)
 {
-	sector_t block = io->block;
-	unsigned int n_blocks = io->n_blocks;
 	struct dm_verity_prefetch_work *pw;
-
-	if (v->validated_blocks) {
-		while (n_blocks && test_bit(block, v->validated_blocks)) {
-			block++;
-			n_blocks--;
-		}
-		while (n_blocks && test_bit(block + n_blocks - 1,
-					v->validated_blocks))
-			n_blocks--;
-		if (!n_blocks)
-			return;
-	}
 
 	pw = kmalloc(sizeof(struct dm_verity_prefetch_work),
 		GFP_NOIO | __GFP_NORETRY | __GFP_NOMEMALLOC | __GFP_NOWARN);
@@ -678,8 +685,8 @@ static void verity_submit_prefetch(struct dm_verity *v, struct dm_verity_io *io)
 
 	INIT_WORK(&pw->work, verity_prefetch_io);
 	pw->v = v;
-	pw->block = block;
-	pw->n_blocks = n_blocks;
+	pw->block = io->block;
+	pw->n_blocks = io->n_blocks;
 	queue_work(v->verify_wq, &pw->work);
 }
 
@@ -780,6 +787,8 @@ static void verity_status(struct dm_target *ti, status_type_t type,
 			args++;
 		if (v->validated_blocks)
 			args++;
+		if (v->signature_key_desc)
+			args += DM_VERITY_ROOT_HASH_VERIFICATION_OPTS;
 		if (!args)
 			return;
 		DMEMIT(" %u", args);
@@ -801,6 +810,9 @@ static void verity_status(struct dm_target *ti, status_type_t type,
 		if (v->validated_blocks)
 			DMEMIT(" " DM_VERITY_OPT_AT_MOST_ONCE);
 		sz = verity_fec_status_table(v, sz, result, maxlen);
+		if (v->signature_key_desc)
+			DMEMIT(" " DM_VERITY_ROOT_HASH_VERIFICATION_OPT_SIG_KEY
+				" %s", v->signature_key_desc);
 		break;
 	}
 }
@@ -866,6 +878,8 @@ static void verity_dtr(struct dm_target *ti)
 
 	verity_fec_dtr(v);
 
+	kfree(v->signature_key_desc);
+
 	kfree(v);
 }
 
@@ -921,7 +935,8 @@ out:
 	return r;
 }
 
-static int verity_parse_opt_args(struct dm_arg_set *as, struct dm_verity *v)
+static int verity_parse_opt_args(struct dm_arg_set *as, struct dm_verity *v,
+				 struct dm_verity_sig_opts *verify_args)
 {
 	int r;
 	unsigned argc;
@@ -970,6 +985,15 @@ static int verity_parse_opt_args(struct dm_arg_set *as, struct dm_verity *v)
 			if (r)
 				return r;
 			continue;
+
+		} else if (verity_verify_is_sig_opt_arg(arg_name)) {
+			r = verity_verify_sig_parse_opt_args(as, v,
+							     verify_args,
+							     &argc, arg_name);
+			if (r)
+				return r;
+			continue;
+
 		}
 
 		ti->error = "Unrecognized verity feature request";
@@ -996,6 +1020,7 @@ static int verity_parse_opt_args(struct dm_arg_set *as, struct dm_verity *v)
 static int verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 {
 	struct dm_verity *v;
+	struct dm_verity_sig_opts verify_args = {0};
 	struct dm_arg_set as;
 	unsigned int num;
 	unsigned long long num_ll;
@@ -1003,6 +1028,7 @@ static int verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 	int i;
 	sector_t hash_position;
 	char dummy;
+	char *root_hash_digest_to_validate;
 
 	v = kzalloc(sizeof(struct dm_verity), GFP_KERNEL);
 	if (!v) {
@@ -1036,14 +1062,25 @@ static int verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 	}
 	v->version = num;
 
+retry_dev1:
+
 	r = dm_get_device(ti, argv[1], FMODE_READ, &v->data_dev);
 	if (r) {
+		if (r == -ENODEV && dm_device_wait) {
+			msleep(100);
+			goto retry_dev1;
+		}
 		ti->error = "Data device lookup failed";
 		goto bad;
 	}
 
+retry_dev2:
 	r = dm_get_device(ti, argv[2], FMODE_READ, &v->hash_dev);
 	if (r) {
+		if (r == -ENODEV && dm_device_wait) {
+			msleep(100);
+			goto retry_dev2;
+		}
 		ti->error = "Hash device lookup failed";
 		goto bad;
 	}
@@ -1136,6 +1173,7 @@ static int verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 		r = -EINVAL;
 		goto bad;
 	}
+	root_hash_digest_to_validate = argv[8];
 
 	if (strcmp(argv[9], "-")) {
 		v->salt_size = strlen(argv[9]) / 2;
@@ -1161,7 +1199,7 @@ static int verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 		as.argc = argc;
 		as.argv = argv;
 
-		r = verity_parse_opt_args(&as, v);
+		r = verity_parse_opt_args(&as, v, &verify_args);
 		if (r < 0)
 			goto bad;
 	}
@@ -1178,6 +1216,15 @@ static int verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 	}
 #endif
 
+	/* Root hash signature is  a optional parameter*/
+	r = verity_verify_root_hash(root_hash_digest_to_validate,
+				    strlen(root_hash_digest_to_validate),
+				    verify_args.sig,
+				    verify_args.sig_size);
+	if (r < 0) {
+		ti->error = "Root hash verification failed";
+		goto bad;
+	}
 	v->hash_per_block_bits =
 		__fls((1 << v->hash_dev_block_bits) / v->digest_size);
 
@@ -1248,6 +1295,8 @@ static int verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 		add_fec_off_cnt(v->data_dev->name);
 #endif
 
+	verity_verify_sig_opts_cleanup(&verify_args);
+
 	return 0;
 
 bad:
@@ -1256,6 +1305,7 @@ bad:
 	add_fec_off_cnt("bad");
 #endif
 
+	verity_verify_sig_opts_cleanup(&verify_args);
 	verity_dtr(ti);
 
 	return r;
@@ -1263,7 +1313,8 @@ bad:
 
 static struct target_type verity_target = {
 	.name		= "verity",
-	.version	= {1, 4, 0},
+	.features	= DM_TARGET_IMMUTABLE,
+	.version	= {1, 5, 0},
 	.module		= THIS_MODULE,
 	.ctr		= verity_ctr,
 	.dtr		= verity_dtr,

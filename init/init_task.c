@@ -10,6 +10,9 @@
 #include <linux/fs.h>
 #include <linux/mm.h>
 #include <linux/audit.h>
+#include <linux/numa.h>
+#include <linux/scs.h>
+#include <linux/task_integrity.h>
 
 #include <asm/pgtable.h>
 #include <linux/uaccess.h>
@@ -29,8 +32,6 @@ static struct signal_struct init_signals = {
 	.posix_timers = LIST_HEAD_INIT(init_signals.posix_timers),
 	.cputimer	= {
 		.cputime_atomic	= INIT_CPUTIME_ATOMIC,
-		.running	= false,
-		.checking_timer = false,
 	},
 #endif
 	INIT_CPU_TIMERS(init_signals)
@@ -44,11 +45,16 @@ static struct signal_struct init_signals = {
 };
 
 static struct sighand_struct init_sighand = {
-	.count		= ATOMIC_INIT(1),
+	.count		= REFCOUNT_INIT(1),
 	.action		= { { { .sa_handler = SIG_DFL, } }, },
 	.siglock	= __SPIN_LOCK_UNLOCKED(init_sighand.siglock),
 	.signalfd_wqh	= __WAIT_QUEUE_HEAD_INITIALIZER(init_sighand.signalfd_wqh),
 };
+
+#ifdef CONFIG_FIVE
+static struct task_integrity init_integrity =
+					INIT_TASK_INTEGRITY(init_integrity);
+#endif
 
 /*
  * Set up the first task table, touch at your own risk!. Base=0,
@@ -61,18 +67,25 @@ struct task_struct init_task
 = {
 #ifdef CONFIG_THREAD_INFO_IN_TASK
 	.thread_info	= INIT_THREAD_INFO(init_task),
-	.stack_refcount	= ATOMIC_INIT(1),
+	.stack_refcount	= REFCOUNT_INIT(1),
 #endif
 	.state		= 0,
 	.stack		= init_stack,
-	.usage		= ATOMIC_INIT(2),
+	.usage		= REFCOUNT_INIT(2),
 	.flags		= PF_KTHREAD,
 	.prio		= MAX_PRIO - 20,
 	.static_prio	= MAX_PRIO - 20,
 	.normal_prio	= MAX_PRIO - 20,
 	.policy		= SCHED_NORMAL,
-	.cpus_allowed	= CPU_MASK_ALL,
+	.cpus_ptr	= &init_task.cpus_mask,
+	.cpus_mask	= CPU_MASK_ALL,
 	.nr_cpus_allowed= NR_CPUS,
+#ifdef CONFIG_SCHED_WALT
+	.wts		= {0, },
+	.wts		= {
+		.cpus_requested	= CPU_MASK_ALL,
+	},
+#endif
 	.mm		= NULL,
 	.active_mm	= &init_mm,
 	.restart_block	= {
@@ -121,7 +134,7 @@ struct task_struct init_task
 	.thread_pid	= &init_struct_pid,
 	.thread_group	= LIST_HEAD_INIT(init_task.thread_group),
 	.thread_node	= LIST_HEAD_INIT(init_signals.thread_head),
-#ifdef CONFIG_AUDITSYSCALL
+#ifdef CONFIG_AUDIT
 	.loginuid	= INVALID_UID,
 	.sessionid	= AUDIT_SID_UNSET,
 #endif
@@ -154,7 +167,7 @@ struct task_struct init_task
 	.vtime.state	= VTIME_SYS,
 #endif
 #ifdef CONFIG_NUMA_BALANCING
-	.numa_preferred_nid = -1,
+	.numa_preferred_nid = NUMA_NO_NODE,
 	.numa_group	= NULL,
 	.numa_faults	= NULL,
 #endif
@@ -165,12 +178,15 @@ struct task_struct init_task
 	.softirqs_enabled = 1,
 #endif
 #ifdef CONFIG_LOCKDEP
+	.lockdep_depth = 0, /* no locks held yet */
+	.curr_chain_key = INITIAL_CHAIN_KEY,
 	.lockdep_recursion = 0,
 #endif
 #ifdef CONFIG_FUNCTION_GRAPH_TRACER
-	.ret_stack	= NULL,
+	.ret_stack		= NULL,
+	.tracing_graph_pause	= ATOMIC_INIT(0),
 #endif
-#if defined(CONFIG_TRACING) && defined(CONFIG_PREEMPT)
+#if defined(CONFIG_TRACING) && defined(CONFIG_PREEMPTION)
 	.trace_recursion = 0,
 #endif
 #ifdef CONFIG_LIVEPATCH
@@ -179,8 +195,16 @@ struct task_struct init_task
 #ifdef CONFIG_SECURITY
 	.security	= NULL,
 #endif
+	INIT_INTEGRITY(init_task)
 };
 EXPORT_SYMBOL(init_task);
+
+#ifdef CONFIG_SHADOW_CALL_STACK
+unsigned long init_shadow_call_stack[SCS_SIZE / sizeof(long)] __init_task_data
+		__aligned(SCS_SIZE) = {
+	[(SCS_SIZE / sizeof(long)) - 1] = SCS_END_MAGIC
+};
+#endif
 
 /*
  * Initial thread structure. Alignment of this is handled by a special

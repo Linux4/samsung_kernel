@@ -155,8 +155,8 @@ int mpc8xx_pic_init(void)
 		ret = -ENOMEM;
 		goto out;
 	}
-	return 0;
 
+	ret = 0;
 out:
 	of_node_put(np);
 	return ret;

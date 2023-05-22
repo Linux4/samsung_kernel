@@ -204,9 +204,7 @@ qed_dcbx_set_params(struct qed_dcbx_results *p_data,
 	else
 		p_data->arr[type].update = DONT_UPDATE_DCB_DSCP;
 
-	/* Do not add vlan tag 0 when DCB is enabled and port in UFP/OV mode */
-	if ((test_bit(QED_MF_8021Q_TAGGING, &p_hwfn->cdev->mf_bits) ||
-	     test_bit(QED_MF_8021AD_TAGGING, &p_hwfn->cdev->mf_bits)))
+	if (test_bit(QED_MF_DONT_ADD_VLAN0_TAG, &p_hwfn->cdev->mf_bits))
 		p_data->arr[type].dont_add_vlan0 = true;
 
 	/* QM reconf data */
@@ -262,8 +260,9 @@ qed_dcbx_get_app_protocol_type(struct qed_hwfn *p_hwfn,
 		*type = DCBX_PROTOCOL_ROCE_V2;
 	} else {
 		*type = DCBX_MAX_PROTOCOL_TYPE;
-		DP_ERR(p_hwfn, "No action required, App TLV entry = 0x%x\n",
-		       app_prio_bitmap);
+		DP_VERBOSE(p_hwfn, QED_MSG_DCB,
+			   "No action required, App TLV entry = 0x%x\n",
+			   app_prio_bitmap);
 		return false;
 	}
 
@@ -1294,9 +1293,11 @@ int qed_dcbx_get_config_params(struct qed_hwfn *p_hwfn,
 		p_hwfn->p_dcbx_info->set.ver_num |= DCBX_CONFIG_VERSION_STATIC;
 
 	p_hwfn->p_dcbx_info->set.enabled = dcbx_info->operational.enabled;
+	BUILD_BUG_ON(sizeof(dcbx_info->operational.params) !=
+		     sizeof(p_hwfn->p_dcbx_info->set.config.params));
 	memcpy(&p_hwfn->p_dcbx_info->set.config.params,
 	       &dcbx_info->operational.params,
-	       sizeof(struct qed_dcbx_admin_params));
+	       sizeof(p_hwfn->p_dcbx_info->set.config.params));
 	p_hwfn->p_dcbx_info->set.config.valid = true;
 
 	memcpy(params, &p_hwfn->p_dcbx_info->set, sizeof(struct qed_dcbx_set));

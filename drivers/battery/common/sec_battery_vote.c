@@ -11,6 +11,7 @@ static struct mutex vote_lock;
 struct sec_voter {
 		int enable;
 		int value;
+		int pri;
 };
 struct sec_vote {
 	const char * name;
@@ -31,7 +32,6 @@ struct sec_vote {
 	int force_set;
 	int force_val;
 	struct dentry * force_set_ent;
-	struct dentry * force_val_ent;
 };
 
 const char * none_str = "None";
@@ -40,12 +40,21 @@ const char * force_str = "Force";
 static int select_min(struct sec_voter *voter, int max, int *id, int *res)
 {
 	int i;
+	int pri = INT_MIN;
 	*res = INT_MAX;
 	*id = -EINVAL;
 	for (i = 0; i < max; i++) {
-		if (voter[i].enable && *res > voter[i].value) {
-			*res = voter[i].value;
-			*id = i;
+		if (voter[i].enable) {
+			if (pri < voter[i].pri) {
+				*res = voter[i].value;
+				pri = voter[i].pri;
+				*id = i;
+			} else if (pri > voter[i].pri) {
+				continue;
+			} else if (*res > voter[i].value) {
+				*res = voter[i].value;
+				*id = i;
+			}
 		}
 	}
 	return 0;
@@ -53,12 +62,21 @@ static int select_min(struct sec_voter *voter, int max, int *id, int *res)
 static int select_max(struct sec_voter *voter, int max, int *id, int *res)
 {
 	int i;
+	int pri = INT_MIN;
 	*res = INT_MIN;
 	*id = -EINVAL;
 	for (i = 0; i < max; i++) {
-		if (voter[i].enable && *res < voter[i].value) {
-			*res = voter[i].value;
-			*id = i;
+		if (voter[i].enable) {
+			if (pri < voter[i].pri) {
+				*res = voter[i].value;
+				pri = voter[i].pri;
+				*id = i;
+			} else if (pri > voter[i].pri) {
+				continue;
+			} else if (*res < voter[i].value) {
+				*res = voter[i].value;
+				*id = i;
+			}
 		}
 	}
 	return 0;
@@ -77,6 +95,33 @@ static int select_enable(struct sec_voter * voter, int max, int * id, int * res)
 	}
 	return 0;
 }
+
+static int select_vote_value(struct sec_vote * vote, int * id, int * res)
+{
+	int ret = 0;
+
+	switch (vote->type) {
+		case SEC_VOTE_MIN:
+			select_min(vote->voter, vote->num, id, res);
+			if (*res == INT_MAX)
+				*res = vote->init_val;
+			break;
+		case SEC_VOTE_MAX:
+			select_max(vote->voter, vote->num, id, res);
+			if (*res == INT_MIN)
+				*res = vote->init_val;
+			break;
+		case SEC_VOTE_EN:
+			select_enable(vote->voter, vote->num, id, res);
+			break;
+		default:
+			pr_err("%s type invalid\n", __func__);
+			ret = -EINVAL;
+	}
+
+	return ret;
+}
+
 int get_sec_vote(struct sec_vote * vote, const char ** name, int * value)
 {
 	mutex_lock(&vote->lock);
@@ -150,11 +195,12 @@ int show_sec_vote_status(char *buf, unsigned int p_size)
 		mutex_lock(&vote->lock);
 		for (i = 0; i < vote->num; i++) {
 			if (vote->voter[i].enable) {
-				j += scnprintf(buf + j, p_size - j, "%s: %s:\t\t\ten=%d v=%d\n",
+				j += scnprintf(buf + j, p_size - j, "%s: %s:\t\t\ten=%d v=%d p=%d\n",
 						vote->name,
 						vote->voter_name[i],
 						vote->voter[i].enable,
-						vote->voter[i].value);
+						vote->voter[i].value,
+						vote->voter[i].pri);
 			}
 		}
 		switch (vote->type) {
@@ -198,11 +244,12 @@ static int show_vote_clients(struct seq_file *m, void *data)
 	mutex_lock(&vote->lock);
 	for (i = 0; i < vote->num; i++) {
 		if (vote->voter[i].enable) {
-			seq_printf(m, "%s: %s:\t\t\ten=%d v=%d\n",
+			seq_printf(m, "%s: %s:\t\t\ten=%d v=%d p=%d\n",
 					vote->name,
 					vote->voter_name[i],
 					vote->voter[i].enable,
-					vote->voter[i].value);
+					vote->voter[i].value,
+					vote->voter[i].pri);
 		}
 	}
 	switch (vote->type) {
@@ -265,11 +312,12 @@ static int show_all_clients(struct seq_file *m, void *data)
 		mutex_lock(&vote->lock);
 		for (i = 0; i < vote->num; i++) {
 			if (vote->voter[i].enable) {
-				seq_printf(m, "%s: %s:\t\t\ten=%d v=%d\n",
+				seq_printf(m, "%s: %s:\t\t\ten=%d v=%d p=%d\n",
 						vote->name,
 						vote->voter_name[i],
 						vote->voter[i].enable,
-						vote->voter[i].value);
+						vote->voter[i].value,
+						vote->voter[i].pri);
 			}
 		}
 		switch (vote->type) {
@@ -429,12 +477,8 @@ struct sec_vote *sec_vote_init(const char *name, int type, int num, int init_val
 			pr_err("Couldn't create status dbg file for %s\n", name);
 		}
 
-		vote->force_val_ent = debugfs_create_u32("force_val",
-				S_IFREG | 0644,
-				vote->root, &(vote->force_val));
-		if (!vote->force_val_ent) {
-			pr_err("Couldn't create force_val dbg file for %s\n", name);
-		}
+		debugfs_create_u32("force_val", S_IFREG | 0644,
+						vote->root, &(vote->force_val));		
 
 		vote->force_set_ent = debugfs_create_file("force_set",
 				S_IFREG | 0444,
@@ -466,9 +510,21 @@ void sec_vote_destroy(struct sec_vote *vote)
 }
 EXPORT_SYMBOL(sec_vote_destroy);
 
+void change_sec_voter_pri(struct sec_vote *vote, int event, int pri)
+{
+	if (event >= vote->num) {
+		pr_info("%s id Error(%d)\n", __func__, event);
+		return;
+	}
+	mutex_lock(&vote->lock);
+	vote->voter[event].pri = pri;
+	mutex_unlock(&vote->lock);
+}
+EXPORT_SYMBOL(change_sec_voter_pri);
+
 void _sec_vote(struct sec_vote *vote, int event, int en, int value, const char *fname, int line)
 {
-	int id, res;
+	int id, res, ret;
 
 	if (event >= vote->num) {
 		pr_info("%s id Error(%d)\n", __func__, event);
@@ -479,24 +535,10 @@ void _sec_vote(struct sec_vote *vote, int event, int en, int value, const char *
 		vote->voter[event].enable, en, vote->voter[event].value, value);
 	vote->voter[event].enable = en;
 	vote->voter[event].value = value;
-	switch (vote->type) {
-		case SEC_VOTE_MIN:
-			select_min(vote->voter, vote->num, &id, &res);
-			if (res == INT_MAX)
-				res = vote->init_val;
-			break;
-		case SEC_VOTE_MAX:
-			select_max(vote->voter, vote->num, &id, &res);
-			if (res == INT_MIN)
-				res = vote->init_val;
-			break;
-		case SEC_VOTE_EN:
-			select_enable(vote->voter, vote->num, &id, &res);
-			break;
-		default:
-			pr_err("%s type invalid\n", __func__);
+
+	ret = select_vote_value(vote, &id, &res);
+	if (ret < 0)
 			goto out;
-	}
 
 	if (res != vote->res) {
 		pr_info("%s(%s:%d): %s (%s, %d) -> (%s, %d)\n", __func__, fname, line, vote->name,
@@ -525,11 +567,17 @@ void sec_vote_refresh(struct sec_vote *vote)
 			pr_info("%s: refresh (%s, %d)\n", vote->name, force_str, vote->force_val);
 			vote->res = vote->cb(vote->data, vote->force_val);
 		} else {
-			pr_info("%s: refresh (%s, %d)\n", vote->name,
-					(vote->id >= 0) ? vote->voter_name[vote->id] : none_str, vote->res);
-			vote->res = vote->cb(vote->data, vote->res);
+			int id, res, ret;
+
+			ret = select_vote_value(vote, &id, &res);
+			pr_info("%s: refresh (%s, %d, %d)\n", vote->name,
+				(id >= 0) ? vote->voter_name[id] : none_str, res, ret);
+			if (ret < 0)
+				goto out;
+			vote->res = vote->cb(vote->data, res);
 		}
 	}
+out:
 	mutex_unlock(&vote->lock);
 }
 EXPORT_SYMBOL(sec_vote_refresh);

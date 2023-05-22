@@ -107,7 +107,7 @@ qca_tty_receive(struct serdev_device *serdev, const unsigned char *data,
 			skb_put(qca->rx_skb, retcode);
 			qca->rx_skb->protocol = eth_type_trans(
 						qca->rx_skb, qca->rx_skb->dev);
-			qca->rx_skb->ip_summed = CHECKSUM_UNNECESSARY;
+			skb_checksum_none_assert(qca->rx_skb);
 			netif_rx_ni(qca->rx_skb);
 			qca->rx_skb = netdev_alloc_skb_ip_align(netdev,
 								netdev->mtu +
@@ -285,8 +285,7 @@ static void qcauart_netdev_uninit(struct net_device *dev)
 {
 	struct qcauart *qca = netdev_priv(dev);
 
-	if (qca->rx_skb)
-		dev_kfree_skb(qca->rx_skb);
+	dev_kfree_skb(qca->rx_skb);
 }
 
 static const struct net_device_ops qcauart_netdev_ops = {
@@ -351,7 +350,7 @@ static int qca_uart_probe(struct serdev_device *serdev)
 
 	mac = of_get_mac_address(serdev->dev.of_node);
 
-	if (mac)
+	if (!IS_ERR(mac))
 		ether_addr_copy(qca->net_dev->dev_addr, mac);
 
 	if (!is_valid_ether_addr(qca->net_dev->dev_addr)) {

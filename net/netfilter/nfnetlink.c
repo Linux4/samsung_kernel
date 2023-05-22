@@ -148,10 +148,15 @@ int nfnetlink_set_err(struct net *net, u32 portid, u32 group, int error)
 }
 EXPORT_SYMBOL_GPL(nfnetlink_set_err);
 
-int nfnetlink_unicast(struct sk_buff *skb, struct net *net, u32 portid,
-		      int flags)
+int nfnetlink_unicast(struct sk_buff *skb, struct net *net, u32 portid)
 {
-	return netlink_unicast(net->nfnl, skb, portid, flags);
+	int err;
+
+	err = nlmsg_unicast(net->nfnl, skb, portid);
+	if (err == -EAGAIN)
+		err = -ENOBUFS;
+
+	return err;
 }
 EXPORT_SYMBOL_GPL(nfnetlink_unicast);
 
@@ -206,8 +211,9 @@ replay:
 			return -ENOMEM;
 		}
 
-		err = nla_parse(cda, ss->cb[cb_id].attr_count, attr, attrlen,
-				ss->cb[cb_id].policy, extack);
+		err = nla_parse_deprecated(cda, ss->cb[cb_id].attr_count,
+					   attr, attrlen,
+					   ss->cb[cb_id].policy, extack);
 		if (err < 0) {
 			rcu_read_unlock();
 			return err;
@@ -309,7 +315,7 @@ static void nfnetlink_rcv_batch(struct sk_buff *skb, struct nlmsghdr *nlh,
 		return netlink_ack(skb, nlh, -EINVAL, NULL);
 replay:
 	status = 0;
-
+replay_abort:
 	skb = netlink_skb_clone(oskb, GFP_KERNEL);
 	if (!skb)
 		return netlink_ack(oskb, nlh, -ENOMEM, NULL);
@@ -421,8 +427,10 @@ replay:
 				goto ack;
 			}
 
-			err = nla_parse(cda, ss->cb[cb_id].attr_count, attr,
-					attrlen, ss->cb[cb_id].policy, NULL);
+			err = nla_parse_deprecated(cda,
+						   ss->cb[cb_id].attr_count,
+						   attr, attrlen,
+						   ss->cb[cb_id].policy, NULL);
 			if (err < 0)
 				goto ack;
 
@@ -473,7 +481,7 @@ ack:
 	}
 done:
 	if (status & NFNL_BATCH_REPLAY) {
-		ss->abort(net, oskb);
+		ss->abort(net, oskb, NFNL_ABORT_AUTOLOAD);
 		nfnl_err_reset(&err_list);
 		kfree_skb(skb);
 		module_put(ss->owner);
@@ -484,11 +492,25 @@ done:
 			status |= NFNL_BATCH_REPLAY;
 			goto done;
 		} else if (err) {
-			ss->abort(net, oskb);
+			ss->abort(net, oskb, NFNL_ABORT_NONE);
 			netlink_ack(oskb, nlmsg_hdr(oskb), err, NULL);
 		}
 	} else {
-		ss->abort(net, oskb);
+		enum nfnl_abort_action abort_action;
+
+		if (status & NFNL_BATCH_FAILURE)
+			abort_action = NFNL_ABORT_NONE;
+		else
+			abort_action = NFNL_ABORT_VALIDATE;
+
+		err = ss->abort(net, oskb, abort_action);
+		if (err == -EAGAIN) {
+			nfnl_err_reset(&err_list);
+			kfree_skb(skb);
+			module_put(ss->owner);
+			status |= NFNL_BATCH_FAILURE;
+			goto replay_abort;
+		}
 	}
 	if (ss->cleanup)
 		ss->cleanup(net);
@@ -520,8 +542,8 @@ static void nfnetlink_rcv_skb_batch(struct sk_buff *skb, struct nlmsghdr *nlh)
 	if (skb->len < NLMSG_HDRLEN + sizeof(struct nfgenmsg))
 		return;
 
-	err = nla_parse(cda, NFNL_BATCH_MAX, attr, attrlen, nfnl_batch_policy,
-			NULL);
+	err = nla_parse_deprecated(cda, NFNL_BATCH_MAX, attr, attrlen,
+				   nfnl_batch_policy, NULL);
 	if (err < 0) {
 		netlink_ack(skb, nlh, err, NULL);
 		return;

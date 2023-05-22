@@ -87,7 +87,7 @@ EXPORT_SYMBOL_GPL(usb_ep_set_maxpacket_limit);
  * configurable, with more generic names like "ep-a".  (remember that for
  * USB, "in" means "towards the USB master".)
  *
- * This routine must be called in process context.
+ * This routine may be called in an atomic (interrupt) context..
  *
  * returns zero, or a negative error code.
  */
@@ -132,7 +132,7 @@ EXPORT_SYMBOL_GPL(usb_ep_enable);
  * gadget drivers must call usb_ep_enable() again before queueing
  * requests to the endpoint.
  *
- * This routine must be called in process context.
+ * This routine may be called in an atomic (interrupt) context.
  *
  * returns zero, or a negative error code.
  */
@@ -292,10 +292,10 @@ EXPORT_SYMBOL_GPL(usb_ep_queue);
  * @ep:the endpoint associated with the request
  * @req:the request being canceled
  *
- * If the request is still active on the endpoint, it is dequeued and its
- * completion routine is called (with status -ECONNRESET); else a negative
- * error code is returned. This is guaranteed to happen before the call to
- * usb_ep_dequeue() returns.
+ * If the request is still active on the endpoint, it is dequeued and
+ * eventually its completion routine is called (with status -ECONNRESET);
+ * else a negative error code is returned.  This routine is asynchronous,
+ * that is, it may return before the completion routine runs.
  *
  * Note that some hardware can't clear out write fifos (to unlink the request
  * at the head of the queue) except as part of disconnecting from usb. Such
@@ -701,6 +701,9 @@ EXPORT_SYMBOL_GPL(usb_gadget_connect);
  * as a disconnect (when a VBUS session is active).  Not all systems
  * support software pullup controls.
  *
+ * Following a successful disconnect, invoke the ->disconnect() callback
+ * for the current gadget driver so that UDC drivers don't need to.
+ *
  * Returns zero on success, else negative errno.
  */
 int usb_gadget_disconnect(struct usb_gadget *gadget)
@@ -722,8 +725,10 @@ int usb_gadget_disconnect(struct usb_gadget *gadget)
 	}
 
 	ret = gadget->ops->pullup(gadget, 0);
-	if (!ret)
+	if (!ret) {
 		gadget->connected = 0;
+		gadget->udc->driver->disconnect(gadget);
+	}
 
 out:
 	trace_usb_gadget_disconnect(gadget, ret);
@@ -801,6 +806,19 @@ out:
 	return ret;
 }
 EXPORT_SYMBOL_GPL(usb_gadget_activate);
+
+#ifdef CONFIG_USB_FUNC_WAKEUP_SUPPORTED
+int usb_gadget_func_wakeup(struct usb_gadget *gadget, int interface_id)
+{
+	if (gadget->speed < USB_SPEED_SUPER)
+		return -EOPNOTSUPP;
+
+	if (!gadget->ops->func_wakeup)
+		return -EOPNOTSUPP;
+
+	return gadget->ops->func_wakeup(gadget, interface_id);
+}
+#endif
 
 /* ------------------------------------------------------------------------- */
 
@@ -1292,12 +1310,12 @@ static void usb_gadget_remove_driver(struct usb_udc *udc)
 	kobject_uevent(&udc->dev.kobj, KOBJ_CHANGE);
 
 	usb_gadget_disconnect(udc->gadget);
-	udc->driver->disconnect(udc->gadget);
+	if (udc->gadget->irq)
+		synchronize_irq(udc->gadget->irq);
 	udc->driver->unbind(udc->gadget);
 	usb_gadget_udc_stop(udc);
 
 	udc->driver = NULL;
-	udc->dev.driver = NULL;
 	udc->gadget->dev.driver = NULL;
 }
 
@@ -1346,7 +1364,6 @@ static int udc_bind_to_driver(struct usb_udc *udc, struct usb_gadget_driver *dri
 			driver->function);
 
 	udc->driver = driver;
-	udc->dev.driver = &driver->driver;
 	udc->gadget->dev.driver = &driver->driver;
 
 	usb_gadget_udc_set_speed(udc, driver->max_speed);
@@ -1368,7 +1385,6 @@ err1:
 		dev_err(&udc->dev, "failed to start %s: %d\n",
 			udc->driver->function, ret);
 	udc->driver = NULL;
-	udc->dev.driver = NULL;
 	udc->gadget->dev.driver = NULL;
 	return ret;
 }
@@ -1471,10 +1487,13 @@ static ssize_t soft_connect_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t n)
 {
 	struct usb_udc		*udc = container_of(dev, struct usb_udc, dev);
+	ssize_t			ret;
 
+	mutex_lock(&udc_lock);
 	if (!udc->driver) {
 		dev_err(dev, "soft-connect without a gadget driver\n");
-		return -EOPNOTSUPP;
+		ret = -EOPNOTSUPP;
+		goto out;
 	}
 
 	if (sysfs_streq(buf, "connect")) {
@@ -1482,14 +1501,17 @@ static ssize_t soft_connect_store(struct device *dev,
 		usb_gadget_connect(udc->gadget);
 	} else if (sysfs_streq(buf, "disconnect")) {
 		usb_gadget_disconnect(udc->gadget);
-		udc->driver->disconnect(udc->gadget);
 		usb_gadget_udc_stop(udc);
 	} else {
 		dev_err(dev, "unsupported command '%s'\n", buf);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto out;
 	}
 
-	return n;
+	ret = n;
+out:
+	mutex_unlock(&udc_lock);
+	return ret;
 }
 static DEVICE_ATTR_WO(soft_connect);
 

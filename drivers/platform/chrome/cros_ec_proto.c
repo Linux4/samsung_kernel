@@ -1,25 +1,17 @@
-/*
- * ChromeOS EC communication protocol helper functions
- *
- * Copyright (C) 2015 Google, Inc
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- */
+// SPDX-License-Identifier: GPL-2.0
+// ChromeOS EC communication protocol helper functions
+//
+// Copyright (C) 2015 Google, Inc
 
-#include <linux/mfd/cros_ec.h>
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/module.h>
+#include <linux/platform_data/cros_ec_commands.h>
+#include <linux/platform_data/cros_ec_proto.h>
 #include <linux/slab.h>
 #include <asm/unaligned.h>
+
+#include "cros_ec_trace.h"
 
 #define EC_COMMAND_RETRIES	50
 
@@ -61,6 +53,8 @@ static int send_command(struct cros_ec_device *ec_dev,
 {
 	int ret;
 	int (*xfer_fxn)(struct cros_ec_device *ec, struct cros_ec_command *msg);
+
+	trace_cros_ec_cmd(msg);
 
 	if (ec_dev->proto_version > 2)
 		xfer_fxn = ec_dev->pkt_xfer;
@@ -219,6 +213,15 @@ static int cros_ec_host_command_proto_query(struct cros_ec_device *ec_dev,
 	msg->insize = sizeof(struct ec_response_get_protocol_info);
 
 	ret = send_command(ec_dev, msg);
+	/*
+	 * Send command once again when timeout occurred.
+	 * Fingerprint MCU (FPMCU) is restarted during system boot which
+	 * introduces small window in which FPMCU won't respond for any
+	 * messages sent by kernel. There is no need to wait before next
+	 * attempt because we waited at least EC_MSG_DEADLINE_MS.
+	 */
+	if (ret == -ETIMEDOUT)
+		ret = send_command(ec_dev, msg);
 
 	if (ret < 0) {
 		dev_dbg(ec_dev->dev,
@@ -436,6 +439,12 @@ int cros_ec_query_all(struct cros_ec_device *ec_dev)
 	else
 		ec_dev->mkbp_event_supported = 1;
 
+	/* Probe if host sleep v1 is supported for S0ix failure detection. */
+	ret = cros_ec_get_host_command_version_mask(ec_dev,
+						    EC_CMD_HOST_SLEEP_EVENT,
+						    &ver_mask);
+	ec_dev->host_sleep_v1 = (ret >= 0 && (ver_mask & EC_VER_MASK(1)));
+
 	/*
 	 * Get host event wake mask, assume all events are wake events
 	 * if unavailable.
@@ -592,7 +601,7 @@ int cros_ec_get_next_event(struct cros_ec_device *ec_dev, bool *wake_event)
 
 	if (!ec_dev->mkbp_event_supported) {
 		ret = get_keyboard_state_event(ec_dev);
-		if (ret < 0)
+		if (ret <= 0)
 			return ret;
 
 		if (wake_event)
@@ -602,7 +611,7 @@ int cros_ec_get_next_event(struct cros_ec_device *ec_dev, bool *wake_event)
 	}
 
 	ret = get_next_event(ec_dev);
-	if (ret < 0)
+	if (ret <= 0)
 		return ret;
 
 	if (wake_event) {

@@ -12,7 +12,6 @@
  * Waiting for completion is a typically sync point, but not an exclusion point.
  */
 #include "sched.h"
-#include <linux/sec_debug_complete_hint.h>
 
 /**
  * complete: - signals a single thread waiting on this completion
@@ -32,12 +31,8 @@ void complete(struct completion *x)
 
 	spin_lock_irqsave(&x->wait.lock, flags);
 
-	if (x->done != UINT_MAX) {
+	if (x->done != UINT_MAX)
 		x->done++;
-#ifdef CONFIG_SEC_DEBUG_COMPLETE_HINT
-		secdbg_hint_save_complete_hint(&x->hint);
-#endif
-	}
 	__wake_up_locked(&x->wait, TASK_NORMAL, 1);
 	spin_unlock_irqrestore(&x->wait.lock, flags);
 }
@@ -65,9 +60,6 @@ void complete_all(struct completion *x)
 
 	spin_lock_irqsave(&x->wait.lock, flags);
 	x->done = UINT_MAX;
-#ifdef CONFIG_SEC_DEBUG_COMPLETE_HINT
-	secdbg_hint_save_complete_hint(&x->hint);
-#endif	
 	__wake_up_locked(&x->wait, TASK_NORMAL, 0);
 	spin_unlock_irqrestore(&x->wait.lock, flags);
 }
@@ -109,13 +101,7 @@ __wait_for_common(struct completion *x,
 	complete_acquire(x);
 
 	spin_lock_irq(&x->wait.lock);
-#ifdef CONFIG_SEC_DEBUG_COMPLETE_HINT
-	secdbg_hint_add_completion_to_task(x);
-#endif
 	timeout = do_wait_for_common(x, action, timeout, state);
-#ifdef CONFIG_SEC_DEBUG_COMPLETE_HINT
-	secdbg_hint_del_completion_to_task(x);
-#endif
 	spin_unlock_irq(&x->wait.lock);
 
 	complete_release(x);

@@ -479,7 +479,7 @@ static int fill_packet(struct rxe_qp *qp, struct rxe_send_wqe *wqe,
 	u32 *p;
 	int err;
 
-	err = rxe_prepare(rxe, pkt, skb, &crc);
+	err = rxe_prepare(pkt, skb, &crc);
 	if (err)
 		return err;
 
@@ -664,7 +664,8 @@ next_wqe:
 	}
 
 	if (unlikely(qp_type(qp) == IB_QPT_RC &&
-		     qp->req.psn > (qp->comp.psn + RXE_MAX_UNACKED_PSNS))) {
+		psn_compare(qp->req.psn, (qp->comp.psn +
+				RXE_MAX_UNACKED_PSNS)) > 0)) {
 		qp->req.wait_psn = 1;
 		goto exit;
 	}
@@ -679,7 +680,7 @@ next_wqe:
 	opcode = next_opcode(qp, wqe, wqe->wr.opcode);
 	if (unlikely(opcode < 0)) {
 		wqe->status = IB_WC_LOC_QP_OP_ERR;
-		goto exit;
+		goto err;
 	}
 
 	mask = rxe_opcode[opcode].mask;
@@ -735,7 +736,7 @@ next_wqe:
 	save_state(wqe, qp, &rollback_wqe, &rollback_psn);
 	update_wqe_state(qp, wqe, &pkt);
 	update_wqe_psn(qp, wqe, &pkt, payload);
-	ret = rxe_xmit_packet(to_rdev(qp->ibqp.device), qp, &pkt, skb);
+	ret = rxe_xmit_packet(qp, &pkt, skb);
 	if (ret) {
 		qp->need_req_skb = 1;
 

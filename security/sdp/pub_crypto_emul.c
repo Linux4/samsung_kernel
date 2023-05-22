@@ -24,7 +24,7 @@
 #include <linux/module.h>
 #include <linux/string.h>
 #include <linux/interrupt.h>
-#include <linux/wakelock.h>
+//#include <linux/wakelock.h>
 #include <linux/sched.h>
 #include <linux/netlink.h>
 #include <linux/net.h>
@@ -113,8 +113,13 @@ static int __do_dek_crypt(pub_crypto_request_t *req, char *ret) {
 		PUB_CRYPTO_LOGE("Failed to allocate new skb: \n");
     	return -1;
 	}
-
+	
 	nlh = nlmsg_put(skb_in, 0, 0, NLMSG_DONE, nl_msg_size, 0);
+	if(nlh == NULL) {
+		kfree_skb(skb_in);
+		PUB_CRYPTO_LOGE("Failed to nlmsg_put \n");
+		return -1;
+	}
 	NETLINK_CB(skb_in).dst_group = 0;
 	memcpy(nlmsg_data(nlh), nl_msg, nl_msg_size);
 
@@ -191,7 +196,7 @@ out:
 	return rc;
 }
 
-
+   
 static int pub_crypto_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
 	void			*data;
@@ -477,7 +482,7 @@ void pub_crypto_control_init(pub_crypto_control_t *con) {
 	PUB_CRYPTO_LOGD("pub_crypto_control_init");
 	spin_lock_init(&con->lock);
 	INIT_LIST_HEAD(&con->pending_list);
-
+	
 	spin_lock(&con->lock);
 	con->reqctr = 0;
 	spin_unlock(&con->lock);
@@ -501,12 +506,12 @@ static int __init pub_crypto_mod_init(void) {
 	PUB_CRYPTO_LOGE("netlink socket is created successfully! \n");
 
     pub_crypto_control_init(&g_pub_crypto_control);
-    pub_crypto_req_cachep = kmem_cache_create("pub_crypto_request",
+    pub_crypto_req_cachep = kmem_cache_create("pub_crypto_requst",
 					    sizeof(pub_crypto_request_t),
 					    0, 0, NULL);
 	if (!pub_crypto_req_cachep) {
     	netlink_kernel_release(crypto_sock);
-		PUB_CRYPTO_LOGE("Failed to create pub_crypto_request cache mem.. Exiting \n");
+		PUB_CRYPTO_LOGE("Failed to create pub_crypto_requst cache mem.. Exiting \n");
 		return -ENOMEM;
 	}
 
@@ -514,7 +519,7 @@ static int __init pub_crypto_mod_init(void) {
 }
 
 static void __exit pub_crypto_mod_exit(void) {
-
+	
 	/*
 	if (crypto_sock && crypto_sock->sk_socket) {
         	sock_release(crypto_sock->sk_socket);

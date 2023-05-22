@@ -995,16 +995,12 @@ struct MOCK(void) {
 	void		*trgt;
 };
 
-#pragma GCC diagnostic push
-//#pragma GCC diagnostic ignored "-Wdiscarded-qualifiers"
-#pragma GCC diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers"
 static inline struct mock *from_void_ptr_to_mock(const void *ptr)
 {
-	struct MOCK(void) *mock_void_ptr = ptr;
+	struct MOCK(void) *mock_void_ptr = (void *)ptr;
 
 	return mock_get_ctrl(mock_void_ptr);
 }
-#pragma GCC diagnostic pop
 
 #define DEFINE_VOID_CLASS_MOCK_HANDLE_INDEX_INTERNAL(name,		       \
 						     handle_index,	       \
@@ -1245,6 +1241,10 @@ struct mock_param_matcher *ulonglong_ge(struct test *test,
 struct mock_param_matcher *ulonglong_gt(struct test *test,
 					unsigned long long expected);
 
+/* matches booleans. */
+struct mock_param_matcher *bool_eq(struct test *test, bool expected);
+struct mock_param_matcher *bool_ne(struct test *test, bool expected);
+
 /* Matches pointers. */
 struct mock_param_matcher *ptr_eq(struct test *test, void *expected);
 struct mock_param_matcher *ptr_ne(struct test *test, void *expected);
@@ -1266,6 +1266,16 @@ struct mock_param_matcher *va_format_cmp(struct test *test,
 					 struct mock_param_matcher *fmt_matcher,
 					 struct mock_param_matcher *va_matcher);
 
+/* Compound matchers */
+struct mock_param_matcher *and(struct test *test,
+			       struct mock_param_matcher *left_matcher,
+			       struct mock_param_matcher *right_matcher);
+struct mock_param_matcher *or(struct test *test,
+			      struct mock_param_matcher *left_matcher,
+			      struct mock_param_matcher *right_matcher);
+struct mock_param_matcher *not(struct test *test,
+			       struct mock_param_matcher *inner_matcher);
+struct mock_action *bool_return(struct test *test, bool ret);
 struct mock_action *u8_return(struct test *test, u8 ret);
 struct mock_action *u16_return(struct test *test, u16 ret);
 struct mock_action *u32_return(struct test *test, u32 ret);

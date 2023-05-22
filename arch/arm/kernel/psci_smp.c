@@ -1,12 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  *
  * Copyright (C) 2012 ARM Limited
  *
@@ -112,6 +105,11 @@ int psci_cpu_kill(unsigned int cpu)
 	return 0;
 }
 
+bool psci_cpu_can_disable(unsigned int cpu)
+{
+	return true;
+}
+
 #endif
 
 bool __init psci_smp_available(void)
@@ -126,5 +124,6 @@ const struct smp_operations psci_smp_ops __initconst = {
 	.cpu_disable		= psci_cpu_disable,
 	.cpu_die		= psci_cpu_die,
 	.cpu_kill		= psci_cpu_kill,
+	.cpu_can_disable	= psci_cpu_can_disable,
 #endif
 };

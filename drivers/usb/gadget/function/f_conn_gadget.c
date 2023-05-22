@@ -643,6 +643,12 @@ static ssize_t conn_gadget_write(struct file *fp, const char __user *buf,
 			break;
 		}
 
+		if (dev->error) {
+			r = -EIO;
+			printk(KERN_ERR "%s: wait_event_interruptible(), dev->error\n", __func__);
+			break;
+		}
+
 		if (req != 0) {
 			if (count > dev->transfer_size)
 				xfer = dev->transfer_size;
@@ -862,15 +868,6 @@ I think, memorized and online vairiable should be atomic variable. talk to choi 
 	return err;
 }
 
-#ifdef CONFIG_COMPAT
-static long conn_gadget_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
-{
-	int ret;
-	ret = conn_gadget_ioctl(file, cmd, (unsigned long)compat_ptr(arg));
-	return ret;
-}
-#endif
-
 /* file operations for conn_gadget device /dev/android_ssusbcon */
 static const struct file_operations conn_gadget_fops = {
 	.owner = THIS_MODULE,
@@ -879,7 +876,7 @@ static const struct file_operations conn_gadget_fops = {
 	.poll = conn_gadget_poll,
 	.unlocked_ioctl = conn_gadget_ioctl,
 #ifdef CONFIG_COMPAT
-	.compat_ioctl = conn_gadget_compat_ioctl,
+	.compat_ioctl = conn_gadget_ioctl,
 #endif
 	.open = conn_gadget_open,
 	.release = conn_gadget_release,
@@ -968,6 +965,7 @@ conn_gadget_function_unbind(struct usb_configuration *c, struct usb_function *f)
 	} else {
 		ep_out_excl_locked = 1;
 	}
+
 	while ((req = conn_gadget_req_get(dev, &dev->rx_idle)))
 		conn_gadget_request_free(req, dev->ep_out);
 
@@ -1098,7 +1096,7 @@ static int conn_gadget_bind_config(struct usb_configuration *c)
 }
 #endif
 
-
+#ifdef CONFIG_F_CONN_GADGET_DEBUGFS
 static ssize_t conn_gadget_usb_buffer_size_show(struct device *dev,
 		struct device_attribute *attr, char *buf) {
 	if (!_conn_gadget_dev) {
@@ -1221,17 +1219,19 @@ static struct device_attribute *conn_gadget_function_attributes[] = {
 	&dev_attr_in_max_packet_size,
 	NULL
 };
-
+#endif
 extern struct device *create_function_device(char *name);
 
 static int conn_gadget_setup(struct conn_gadget_instance *fi_conn_gadget)
 {
 	struct conn_gadget_dev *dev;
 	struct device *android_dev;
+	int ret;
+#ifdef CONFIG_F_CONN_GADGET_DEBUGFS
 	struct device_attribute **attrs;
 	struct device_attribute *attr;
-	int ret;
 	int err = 0;
+#endif
 
 	printk(KERN_INFO "conn_gadget_setup\n");
 
@@ -1281,7 +1281,7 @@ static int conn_gadget_setup(struct conn_gadget_instance *fi_conn_gadget)
 	android_dev = create_function_device("f_conn_gadget");
 	if (IS_ERR(android_dev))
 		return PTR_ERR(android_dev);
-
+#ifdef CONFIG_F_CONN_GADGET_DEBUGFS
 	attrs = conn_gadget_function_attributes;
 
 	if (attrs) {
@@ -1292,7 +1292,7 @@ static int conn_gadget_setup(struct conn_gadget_instance *fi_conn_gadget)
 			goto err_;
 		}
 	}
-
+#endif
 	return 0;
 err_:
 

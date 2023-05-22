@@ -17,9 +17,9 @@
 #include <linux/poll.h>
 #include <linux/dma-buf.h>
 #include <linux/bitops.h>
-#include <linux/dma-fence.h>
+#include <media/media-request.h>
 
-#define VB2_MAX_FRAME	(32)
+#define VB2_MAX_FRAME	(64)
 #define VB2_MAX_PLANES	(8)
 
 /**
@@ -54,7 +54,8 @@ struct vb2_threadio_data;
  *		will then be passed as @buf_priv argument to other ops in this
  *		structure. Additional gfp_flags to use when allocating the
  *		are also passed to this operation. These flags are from the
- *		gfp_flags field of vb2_queue.
+ *		gfp_flags field of vb2_queue. The size argument to this function
+ *		shall be *page aligned*.
  * @put:	inform the allocator that the buffer will no longer be used;
  *		usually will result in the allocator freeing the buffer (if
  *		no other users of this buffer are present); the @buf_priv
@@ -118,27 +119,25 @@ struct vb2_mem_ops {
 	void		*(*alloc)(struct device *dev, unsigned long attrs,
 				  unsigned long size,
 				  enum dma_data_direction dma_dir,
-				  gfp_t gfp_flags, int memflags);
+				  gfp_t gfp_flags);
 	void		(*put)(void *buf_priv);
 	struct dma_buf *(*get_dmabuf)(void *buf_priv, unsigned long flags);
 
 	void		*(*get_userptr)(struct device *dev, unsigned long vaddr,
 					unsigned long size,
-					enum dma_data_direction dma_dir,
-					int memflags);
+					enum dma_data_direction dma_dir);
 	void		(*put_userptr)(void *buf_priv);
 
-	void		(*prepare)(void *buf_priv, size_t size, int memflags);
-	void		(*finish)(void *buf_priv, size_t size, int memflags);
+	void		(*prepare)(void *buf_priv);
+	void		(*finish)(void *buf_priv);
 
 	void		*(*attach_dmabuf)(struct device *dev,
 					  struct dma_buf *dbuf,
 					  unsigned long size,
 					  enum dma_data_direction dma_dir);
 	void		(*detach_dmabuf)(void *buf_priv);
-	int		(*map_dmabuf)(void *buf_priv, size_t size,
-				      int memflags);
-	void		(*unmap_dmabuf)(void *buf_priv, size_t size);
+	int		(*map_dmabuf)(void *buf_priv);
+	void		(*unmap_dmabuf)(void *buf_priv);
 
 	void		*(*vaddr)(void *buf_priv);
 	void		*(*cookie)(void *buf_priv);
@@ -206,10 +205,9 @@ enum vb2_io_modes {
 /**
  * enum vb2_buffer_state - current video buffer state.
  * @VB2_BUF_STATE_DEQUEUED:	buffer under userspace control.
+ * @VB2_BUF_STATE_IN_REQUEST:	buffer is queued in media request.
  * @VB2_BUF_STATE_PREPARING:	buffer is being prepared in videobuf.
- * @VB2_BUF_STATE_PREPARED:	buffer prepared in videobuf and by the driver.
  * @VB2_BUF_STATE_QUEUED:	buffer queued in videobuf, but not in driver.
- * @VB2_BUF_STATE_REQUEUEING:	re-queue a buffer to the driver.
  * @VB2_BUF_STATE_ACTIVE:	buffer queued in driver and possibly used
  *				in a hardware operation.
  * @VB2_BUF_STATE_DONE:		buffer returned from driver to videobuf, but
@@ -220,10 +218,9 @@ enum vb2_io_modes {
  */
 enum vb2_buffer_state {
 	VB2_BUF_STATE_DEQUEUED,
+	VB2_BUF_STATE_IN_REQUEST,
 	VB2_BUF_STATE_PREPARING,
-	VB2_BUF_STATE_PREPARED,
 	VB2_BUF_STATE_QUEUED,
-	VB2_BUF_STATE_REQUEUEING,
 	VB2_BUF_STATE_ACTIVE,
 	VB2_BUF_STATE_DONE,
 	VB2_BUF_STATE_ERROR,
@@ -241,6 +238,9 @@ struct vb2_queue;
  * @num_planes:		number of planes in the buffer
  *			on an internal driver queue.
  * @timestamp:		frame timestamp in ns.
+ * @request:		the request this buffer is associated with.
+ * @req_obj:		used to bind this buffer to a request. This
+ *			request object has a refcount.
  */
 struct vb2_buffer {
 	struct vb2_queue	*vb2_queue;
@@ -249,41 +249,34 @@ struct vb2_buffer {
 	unsigned int		memory;
 	unsigned int		num_planes;
 	u64			timestamp;
+	struct media_request	*request;
+	struct media_request_object	req_obj;
 
 	/* private: internal use only
 	 *
 	 * state:		current buffer state; do not change
+	 * synced:		this buffer has been synced for DMA, i.e. the
+	 *			'prepare' memop was called. It is cleared again
+	 *			after the 'finish' memop is called.
+	 * prepared:		this buffer has been prepared, i.e. the
+	 *			buf_prepare op was called. It is cleared again
+	 *			after the 'buf_finish' op is called.
+	 * copied_timestamp:	the timestamp of this capture buffer was copied
+	 *			from an output buffer.
 	 * queued_entry:	entry on the queued buffers list, which holds
 	 *			all buffers queued from userspace
 	 * done_entry:		entry on the list that stores all buffers ready
 	 *			to be dequeued to userspace
 	 * vb2_plane:		per-plane information; do not change
-	 * in_fence:		fence received from vb2 client to wait on before
-	 *			using the buffer (queueing to the driver)
-	 * fence_cb:		fence callback information
-	 * fence_cb_lock:	protect callback signal/remove
-	 * out_fence_fd:	the out_fence_fd to be shared with userspace.
-	 * out_fence:		the out-fence associated with the buffer once
-	 *			it is queued to the driver.
-	 * sync_file:		the sync file to wrap the out fence
 	 */
 	enum vb2_buffer_state	state;
+	unsigned int		synced:1;
+	unsigned int		prepared:1;
+	unsigned int		copied_timestamp:1;
 
 	struct vb2_plane	planes[VB2_MAX_PLANES];
 	struct list_head	queued_entry;
 	struct list_head	done_entry;
-
-	struct dma_fence	*in_fence;
-	struct dma_fence_cb	fence_cb;
-	struct work_struct	qbuf_work;
-	spinlock_t              fence_cb_lock;
-
-	struct timer_list	fence_timer;
-
-	int			out_fence_fd;
-	struct dma_fence	*out_fence;
-	struct sync_file	*sync_file;
-
 #ifdef CONFIG_VIDEO_ADV_DEBUG
 	/*
 	 * Counters for how often these buffer-related ops are
@@ -305,15 +298,16 @@ struct vb2_buffer {
 	u32		cnt_mem_num_users;
 	u32		cnt_mem_mmap;
 
+	u32		cnt_buf_out_validate;
 	u32		cnt_buf_init;
 	u32		cnt_buf_prepare;
 	u32		cnt_buf_finish;
 	u32		cnt_buf_cleanup;
 	u32		cnt_buf_queue;
+	u32		cnt_buf_request_complete;
 
 	/* This counts the number of calls to vb2_buffer_done() */
 	u32		cnt_buf_done;
-	u32		cnt_mem_flags;
 #endif
 };
 
@@ -351,6 +345,10 @@ struct vb2_buffer {
  * @wait_finish:	reacquire all locks released in the previous callback;
  *			required to continue operation after sleeping while
  *			waiting for a new buffer to arrive.
+ * @buf_out_validate:	called when the output buffer is prepared or queued
+ *			to a request; drivers can use this to validate
+ *			userspace-provided information; this is required only
+ *			for OUTPUT queues.
  * @buf_init:		called once after allocating a buffer (in MMAP case)
  *			or after acquiring a new USERPTR buffer; drivers may
  *			perform additional buffer-related initialization;
@@ -385,10 +383,10 @@ struct vb2_buffer {
  *			driver can return an error if hardware fails, in that
  *			case all buffers that have been already given by
  *			the @buf_queue callback are to be returned by the driver
- *			by calling vb2_buffer_done() with %VB2_BUF_STATE_QUEUED
- *			or %VB2_BUF_STATE_REQUEUEING. If you need a minimum
- *			number of buffers before you can start streaming, then
- *			set &vb2_queue->min_buffers_needed. If that is non-zero
+ *			by calling vb2_buffer_done() with %VB2_BUF_STATE_QUEUED.
+ *			If you need a minimum number of buffers before you can
+ *			start streaming, then set
+ *			&vb2_queue->min_buffers_needed. If that is non-zero
  *			then @start_streaming won't be called until at least
  *			that many buffers have been queued up by userspace.
  * @stop_streaming:	called when 'streaming' state must be disabled; driver
@@ -397,21 +395,18 @@ struct vb2_buffer {
  *			callback by calling vb2_buffer_done() with either
  *			%VB2_BUF_STATE_DONE or %VB2_BUF_STATE_ERROR; may use
  *			vb2_wait_for_all_buffers() function
- * @is_unordered:	tell if the queue is unordered, i.e. buffers can be
- *			dequeued in a different order from how they were queued.
- *			The default is assumed to be ordered and this function
- *			only needs to be implemented for unordered queues.
  * @buf_queue:		passes buffer vb to the driver; driver may start
  *			hardware operation on this buffer; driver should give
  *			the buffer back by calling vb2_buffer_done() function;
- *			it is allways called after calling VIDIOC_STREAMON()
+ *			it is always called after calling VIDIOC_STREAMON()
  *			ioctl; might be called before @start_streaming callback
  *			if user pre-queued buffers before calling
  *			VIDIOC_STREAMON().
- * @mem_flags:		called before events of buffer manipulations including
- *			buffer acquisition and mappin to study extra information
- *			vb2 mem implementations. The return values of
- *			@mem_flags are implementation specific.
+ * @buf_request_complete: a buffer that was never queued to the driver but is
+ *			associated with a queued request was canceled.
+ *			The driver will have to mark associated objects in the
+ *			request as completed; required if requests are
+ *			supported.
  */
 struct vb2_ops {
 	int (*queue_setup)(struct vb2_queue *q,
@@ -421,6 +416,7 @@ struct vb2_ops {
 	void (*wait_prepare)(struct vb2_queue *q);
 	void (*wait_finish)(struct vb2_queue *q);
 
+	int (*buf_out_validate)(struct vb2_buffer *vb);
 	int (*buf_init)(struct vb2_buffer *vb);
 	int (*buf_prepare)(struct vb2_buffer *vb);
 	void (*buf_finish)(struct vb2_buffer *vb);
@@ -428,10 +424,10 @@ struct vb2_ops {
 
 	int (*start_streaming)(struct vb2_queue *q, unsigned int count);
 	void (*stop_streaming)(struct vb2_queue *q);
-	bool (*is_unordered)(struct vb2_queue *q);
 
 	void (*buf_queue)(struct vb2_buffer *vb);
-	int (*mem_flags)(struct vb2_buffer *vb);
+
+	void (*buf_request_complete)(struct vb2_buffer *vb);
 };
 
 /**
@@ -440,6 +436,9 @@ struct vb2_ops {
  * @verify_planes_array: Verify that a given user space structure contains
  *			enough planes for the buffer. This is called
  *			for each dequeued buffer.
+ * @init_buffer:	given a &vb2_buffer initialize the extra data after
+ *			struct vb2_buffer.
+ *			For V4L2 this is a &struct vb2_v4l2_buffer.
  * @fill_user_buffer:	given a &vb2_buffer fill in the userspace structure.
  *			For V4L2 this is a &struct v4l2_buffer.
  * @fill_vb2_buffer:	given a userspace structure, fill in the &vb2_buffer.
@@ -450,9 +449,9 @@ struct vb2_ops {
  */
 struct vb2_buf_ops {
 	int (*verify_planes_array)(struct vb2_buffer *vb, const void *pb);
+	void (*init_buffer)(struct vb2_buffer *vb);
 	void (*fill_user_buffer)(struct vb2_buffer *vb, void *pb);
-	int (*fill_vb2_buffer)(struct vb2_buffer *vb, const void *pb,
-				struct vb2_plane *planes);
+	int (*fill_vb2_buffer)(struct vb2_buffer *vb, struct vb2_plane *planes);
 	void (*copy_timestamp)(struct vb2_buffer *vb, const void *pb);
 };
 
@@ -483,6 +482,15 @@ struct vb2_buf_ops {
  * @quirk_poll_must_check_waiting_for_buffers: Return %EPOLLERR at poll when QBUF
  *              has not been called. This is a vb1 idiom that has been adopted
  *              also by vb2.
+ * @supports_requests: this queue supports the Request API.
+ * @requires_requests: this queue requires the Request API. If this is set to 1,
+ *		then supports_requests must be set to 1 as well.
+ * @uses_qbuf:	qbuf was used directly for this queue. Set to 1 the first
+ *		time this is called. Set to 0 when the queue is canceled.
+ *		If this is 1, then you cannot queue buffers from a request.
+ * @uses_requests: requests are used for this queue. Set to 1 the first time
+ *		a request is queued. Set to 0 when the queue is canceled.
+ *		If this is 1, then you cannot queue buffers directly.
  * @lock:	pointer to a mutex that protects the &struct vb2_queue. The
  *		driver can set this to a mutex to let the v4l2 core serialize
  *		the queuing ioctls. If the driver wants to handle locking
@@ -550,6 +558,10 @@ struct vb2_queue {
 	unsigned			fileio_write_immediately:1;
 	unsigned			allow_zero_bytesused:1;
 	unsigned		   quirk_poll_must_check_waiting_for_buffers:1;
+	unsigned			supports_requests:1;
+	unsigned			requires_requests:1;
+	unsigned			uses_qbuf:1;
+	unsigned			uses_requests:1;
 
 	struct mutex			*lock;
 	void				*owner;
@@ -590,10 +602,6 @@ struct vb2_queue {
 	unsigned int			is_output:1;
 	unsigned int			copy_timestamp:1;
 	unsigned int			last_buffer_dequeued:1;
-	unsigned int			queueing_started:1;
-
-	u64				out_fence_context;
-	spinlock_t			out_fence_lock;
 
 	struct vb2_fileio_data		*fileio;
 	struct vb2_threadio_data	*threadio;
@@ -608,8 +616,6 @@ struct vb2_queue {
 	u32				cnt_wait_finish;
 	u32				cnt_start_streaming;
 	u32				cnt_stop_streaming;
-	u32				cnt_is_unordered;
-	u32				cnt_mem_flags;
 #endif
 };
 
@@ -645,9 +651,7 @@ void *vb2_plane_cookie(struct vb2_buffer *vb, unsigned int plane_no);
  * @state:	state of the buffer, as defined by &enum vb2_buffer_state.
  *		Either %VB2_BUF_STATE_DONE if the operation finished
  *		successfully, %VB2_BUF_STATE_ERROR if the operation finished
- *		with an error or any of %VB2_BUF_STATE_QUEUED or
- *		%VB2_BUF_STATE_REQUEUEING if the driver wants to
- *		requeue buffers (see below).
+ *		with an error or %VB2_BUF_STATE_QUEUED.
  *
  * This function should be called by the driver after a hardware operation on
  * a buffer is finished and the buffer may be returned to userspace. The driver
@@ -658,12 +662,7 @@ void *vb2_plane_cookie(struct vb2_buffer *vb, unsigned int plane_no);
  * While streaming a buffer can only be returned in state DONE or ERROR.
  * The &vb2_ops->start_streaming op can also return them in case the DMA engine
  * cannot be started for some reason. In that case the buffers should be
- * returned with state QUEUED or REQUEUEING to put them back into the queue.
- *
- * %VB2_BUF_STATE_REQUEUEING is like %VB2_BUF_STATE_QUEUED, but it also calls
- * &vb2_ops->buf_queue to queue buffers back to the driver. Note that calling
- * vb2_buffer_done(..., VB2_BUF_STATE_REQUEUEING) from interrupt context will
- * result in &vb2_ops->buf_queue being called in interrupt context as well.
+ * returned with state QUEUED to put them back into the queue.
  */
 void vb2_buffer_done(struct vb2_buffer *vb, enum vb2_buffer_state state);
 
@@ -787,29 +786,23 @@ int vb2_core_create_bufs(struct vb2_queue *q, enum vb2_memory memory,
 int vb2_core_prepare_buf(struct vb2_queue *q, unsigned int index, void *pb);
 
 /**
- * vb2_setup_out_fence() - setup new out-fence
- * @q:		The vb2_queue where to setup it
- * @index:	index of the buffer
- *
- * Setup the file descriptor, the fence and the sync_file for the next
- * buffer to be queued and add everything to the tail of the q->out_fence_list.
- */
-int vb2_setup_out_fence(struct vb2_queue *q, unsigned int index);
-
-/**
  * vb2_core_qbuf() - Queue a buffer from userspace
  *
  * @q:		pointer to &struct vb2_queue with videobuf2 queue.
  * @index:	id number of the buffer
  * @pb:		buffer structure passed from userspace to
  *		v4l2_ioctl_ops->vidioc_qbuf handler in driver
- * @in_fence:	in-fence to wait on before queueing the buffer
+ * @req:	pointer to &struct media_request, may be NULL.
  *
  * Videobuf2 core helper to implement VIDIOC_QBUF() operation. It is called
  * internally by VB2 by an API-specific handler, like ``videobuf2-v4l2.h``.
  *
  * This function:
  *
+ * #) If @req is non-NULL, then the buffer will be bound to this
+ *    media request and it returns. The buffer will be prepared and
+ *    queued to the driver (i.e. the next two steps) when the request
+ *    itself is queued.
  * #) if necessary, calls &vb2_ops->buf_prepare callback in the driver
  *    (if provided), in which driver-specific buffer initialization can
  *    be performed;
@@ -819,7 +812,7 @@ int vb2_setup_out_fence(struct vb2_queue *q, unsigned int index);
  * Return: returns zero on success; an error code otherwise.
  */
 int vb2_core_qbuf(struct vb2_queue *q, unsigned int index, void *pb,
-		  struct dma_fence *in_fence);
+		  struct media_request *req);
 
 /**
  * vb2_core_dqbuf() - Dequeue a buffer to the userspace
@@ -1170,6 +1163,24 @@ static inline void vb2_clear_last_buffer_dequeued(struct vb2_queue *q)
 	q->last_buffer_dequeued = false;
 }
 
+/**
+ * vb2_get_buffer() - get a buffer from a queue
+ * @q:		pointer to &struct vb2_queue with videobuf2 queue.
+ * @index:	buffer index
+ *
+ * This function obtains a buffer from a queue, by its index.
+ * Keep in mind that there is no refcounting involved in this
+ * operation, so the buffer lifetime should be taken into
+ * consideration.
+ */
+static inline struct vb2_buffer *vb2_get_buffer(struct vb2_queue *q,
+						unsigned int index)
+{
+	if (index < q->num_buffers)
+		return q->bufs[index];
+	return NULL;
+}
+
 /*
  * The following functions are not part of the vb2 core API, but are useful
  * functions for videobuf2-*.
@@ -1196,4 +1207,19 @@ bool vb2_buffer_in_use(struct vb2_queue *q, struct vb2_buffer *vb);
  */
 int vb2_verify_memory_type(struct vb2_queue *q,
 		enum vb2_memory memory, unsigned int type);
+
+/**
+ * vb2_request_object_is_buffer() - return true if the object is a buffer
+ *
+ * @obj:	the request object.
+ */
+bool vb2_request_object_is_buffer(struct media_request_object *obj);
+
+/**
+ * vb2_request_buffer_cnt() - return the number of buffers in the request
+ *
+ * @req:	the request.
+ */
+unsigned int vb2_request_buffer_cnt(struct media_request *req);
+
 #endif /* _MEDIA_VIDEOBUF2_CORE_H */

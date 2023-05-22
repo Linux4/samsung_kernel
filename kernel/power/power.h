@@ -75,8 +75,6 @@ static inline void hibernate_reserved_size_init(void) {}
 static inline void hibernate_image_size_init(void) {}
 #endif /* !CONFIG_HIBERNATION */
 
-extern int pfn_is_nosave(unsigned long);
-
 #define power_attr(_name) \
 static struct kobj_attribute _name##_attr = {	\
 	.attr	= {				\
@@ -215,9 +213,6 @@ static inline void suspend_test_finish(const char *label) {}
 extern int __pm_notifier_call_chain(unsigned long val, int nr_to_call,
 				    int *nr_calls);
 extern int pm_notifier_call_chain(unsigned long val);
-#ifdef CONFIG_SEC_PM_DEBUG
-extern void *pm_notifier_call_chain_get_callback(int nr_calls);
-#endif
 #endif
 
 #ifdef CONFIG_HIGHMEM

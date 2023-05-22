@@ -1,9 +1,6 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * include/asm-xtensa/pgtable.h
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  *
  * Copyright (C) 2001 - 2013 Tensilica Inc.
  */
@@ -73,7 +70,7 @@
  */
 #define VMALLOC_START		(XCHAL_KSEG_CACHED_VADDR - 0x10000000)
 #define VMALLOC_END		(VMALLOC_START + 0x07FEFFFF)
-#define TLBTEMP_BASE_1		(VMALLOC_END + 1)
+#define TLBTEMP_BASE_1		(VMALLOC_START + 0x08000000)
 #define TLBTEMP_BASE_2		(TLBTEMP_BASE_1 + DCACHE_WAY_SIZE)
 #if 2 * DCACHE_WAY_SIZE > ICACHE_WAY_SIZE
 #define TLBTEMP_SIZE		(2 * DCACHE_WAY_SIZE)
@@ -241,7 +238,6 @@ extern void paging_init(void);
 # define swapper_pg_dir NULL
 static inline void paging_init(void) { }
 #endif
-static inline void pgtable_cache_init(void) { }
 
 /*
  * The pmd contains the kernel virtual address of the pte page.

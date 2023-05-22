@@ -1,14 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * LED Triggers Core
  *
  * Copyright 2005-2007 Openedhand Ltd.
  *
  * Author: Richard Purdie <rpurdie@openedhand.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
  */
 
 #include <linux/export.h>
@@ -201,8 +197,11 @@ void led_trigger_set_default(struct led_classdev *led_cdev)
 	down_read(&triggers_list_lock);
 	down_write(&led_cdev->trigger_lock);
 	list_for_each_entry(trig, &trigger_list, next_trig) {
-		if (!strcmp(led_cdev->default_trigger, trig->name))
+		if (!strcmp(led_cdev->default_trigger, trig->name)) {
+			led_cdev->flags |= LED_INIT_DEFAULT_TRIGGER;
 			led_trigger_set(led_cdev, trig);
+			break;
+		}
 	}
 	up_write(&led_cdev->trigger_lock);
 	up_read(&triggers_list_lock);
@@ -249,8 +248,10 @@ int led_trigger_register(struct led_trigger *trig)
 	list_for_each_entry(led_cdev, &leds_list, node) {
 		down_write(&led_cdev->trigger_lock);
 		if (!led_cdev->trigger && led_cdev->default_trigger &&
-			    !strcmp(led_cdev->default_trigger, trig->name))
+			    !strcmp(led_cdev->default_trigger, trig->name)) {
+			led_cdev->flags |= LED_INIT_DEFAULT_TRIGGER;
 			led_trigger_set(led_cdev, trig);
+		}
 		up_write(&led_cdev->trigger_lock);
 	}
 	up_read(&leds_list_lock);
@@ -317,14 +318,15 @@ void led_trigger_event(struct led_trigger *trig,
 			enum led_brightness brightness)
 {
 	struct led_classdev *led_cdev;
+	unsigned long flags;
 
 	if (!trig)
 		return;
 
-	read_lock(&trig->leddev_list_lock);
+	read_lock_irqsave(&trig->leddev_list_lock, flags);
 	list_for_each_entry(led_cdev, &trig->led_cdevs, trig_list)
 		led_set_brightness(led_cdev, brightness);
-	read_unlock(&trig->leddev_list_lock);
+	read_unlock_irqrestore(&trig->leddev_list_lock, flags);
 }
 EXPORT_SYMBOL_GPL(led_trigger_event);
 
@@ -335,11 +337,12 @@ static void led_trigger_blink_setup(struct led_trigger *trig,
 			     int invert)
 {
 	struct led_classdev *led_cdev;
+	unsigned long flags;
 
 	if (!trig)
 		return;
 
-	read_lock(&trig->leddev_list_lock);
+	read_lock_irqsave(&trig->leddev_list_lock, flags);
 	list_for_each_entry(led_cdev, &trig->led_cdevs, trig_list) {
 		if (oneshot)
 			led_blink_set_oneshot(led_cdev, delay_on, delay_off,
@@ -347,7 +350,7 @@ static void led_trigger_blink_setup(struct led_trigger *trig,
 		else
 			led_blink_set(led_cdev, delay_on, delay_off);
 	}
-	read_unlock(&trig->leddev_list_lock);
+	read_unlock_irqrestore(&trig->leddev_list_lock, flags);
 }
 
 void led_trigger_blink(struct led_trigger *trig,

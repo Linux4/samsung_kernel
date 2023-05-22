@@ -230,6 +230,69 @@ static int rsi_register_rates_channels(struct rsi_hw *adapter, int band)
 	return 0;
 }
 
+static int rsi_mac80211_hw_scan_start(struct ieee80211_hw *hw,
+				      struct ieee80211_vif *vif,
+				      struct ieee80211_scan_request *hw_req)
+{
+	struct cfg80211_scan_request *scan_req = &hw_req->req;
+	struct rsi_hw *adapter = hw->priv;
+	struct rsi_common *common = adapter->priv;
+	struct ieee80211_bss_conf *bss = &vif->bss_conf;
+
+	rsi_dbg(INFO_ZONE, "***** Hardware scan start *****\n");
+	common->mac_ops_resumed = false;
+
+	if (common->fsm_state != FSM_MAC_INIT_DONE)
+		return -ENODEV;
+
+	if ((common->wow_flags & RSI_WOW_ENABLED) ||
+	    scan_req->n_channels == 0)
+		return -EINVAL;
+
+	/* Scan already in progress. So return */
+	if (common->bgscan_en)
+		return -EBUSY;
+
+	/* If STA is not connected, return with special value 1, in order
+	 * to start sw_scan in mac80211
+	 */
+	if (!bss->assoc)
+		return 1;
+
+	mutex_lock(&common->mutex);
+	common->hwscan = scan_req;
+	if (!rsi_send_bgscan_params(common, RSI_START_BGSCAN)) {
+		if (!rsi_send_bgscan_probe_req(common, vif)) {
+			rsi_dbg(INFO_ZONE, "Background scan started...\n");
+			common->bgscan_en = true;
+		}
+	}
+	mutex_unlock(&common->mutex);
+
+	return 0;
+}
+
+static void rsi_mac80211_cancel_hw_scan(struct ieee80211_hw *hw,
+					struct ieee80211_vif *vif)
+{
+	struct rsi_hw *adapter = hw->priv;
+	struct rsi_common *common = adapter->priv;
+	struct cfg80211_scan_info info;
+
+	rsi_dbg(INFO_ZONE, "***** Hardware scan stop *****\n");
+	mutex_lock(&common->mutex);
+
+	if (common->bgscan_en) {
+		if (!rsi_send_bgscan_params(common, RSI_STOP_BGSCAN))
+			common->bgscan_en = false;
+		info.aborted = false;
+		ieee80211_scan_completed(adapter->hw, &info);
+		rsi_dbg(INFO_ZONE, "Back ground scan cancelled\n");
+	}
+	common->hwscan = NULL;
+	mutex_unlock(&common->mutex);
+}
+
 /**
  * rsi_mac80211_detach() - This function is used to de-initialize the
  *			   Mac80211 stack.
@@ -309,6 +372,10 @@ static void rsi_mac80211_tx(struct ieee80211_hw *hw,
 {
 	struct rsi_hw *adapter = hw->priv;
 	struct rsi_common *common = adapter->priv;
+	struct ieee80211_hdr *wlh = (struct ieee80211_hdr *)skb->data;
+
+	if (ieee80211_is_auth(wlh->frame_control))
+		common->mac_ops_resumed = false;
 
 	rsi_core_xmit(common, skb);
 }
@@ -443,7 +510,6 @@ static int rsi_mac80211_add_interface(struct ieee80211_hw *hw,
 	if ((vif->type == NL80211_IFTYPE_AP) ||
 	    (vif->type == NL80211_IFTYPE_P2P_GO)) {
 		rsi_send_rx_filter_frame(common, DISALLOW_BEACONS);
-		common->min_rate = RSI_RATE_AUTO;
 		for (i = 0; i < common->max_stations; i++)
 			common->stations[i].sta = NULL;
 	}
@@ -616,7 +682,8 @@ static int rsi_mac80211_config(struct ieee80211_hw *hw,
 	}
 
 	/* Power save parameters */
-	if (changed & IEEE80211_CONF_CHANGE_PS) {
+	if ((changed & IEEE80211_CONF_CHANGE_PS) &&
+	    !common->mac_ops_resumed) {
 		struct ieee80211_vif *vif, *sta_vif = NULL;
 		unsigned long flags;
 		int i, set_ps = 1;
@@ -749,15 +816,15 @@ static void rsi_mac80211_bss_info_changed(struct ieee80211_hw *hw,
 		adapter->ps_info.dtim_interval_duration = bss->dtim_period;
 		adapter->ps_info.listen_interval = conf->listen_interval;
 
-	/* If U-APSD is updated, send ps parameters to firmware */
-	if (bss->assoc) {
-		if (common->uapsd_bitmap) {
-			rsi_dbg(INFO_ZONE, "Configuring UAPSD\n");
-			rsi_conf_uapsd(adapter, vif);
+		/* If U-APSD is updated, send ps parameters to firmware */
+		if (bss->assoc) {
+			if (common->uapsd_bitmap) {
+				rsi_dbg(INFO_ZONE, "Configuring UAPSD\n");
+				rsi_conf_uapsd(adapter, vif);
+			}
+		} else {
+			common->uapsd_bitmap = 0;
 		}
-	} else {
-		common->uapsd_bitmap = 0;
-	}
 	}
 
 	if (changed & BSS_CHANGED_CQM) {
@@ -925,7 +992,7 @@ static int rsi_hal_key_config(struct ieee80211_hw *hw,
 	if (status)
 		return status;
 
-	if (vif->type == NL80211_IFTYPE_STATION && key->key &&
+	if (vif->type == NL80211_IFTYPE_STATION &&
 	    (key->cipher == WLAN_CIPHER_SUITE_WEP104 ||
 	     key->cipher == WLAN_CIPHER_SUITE_WEP40)) {
 		if (!rsi_send_block_unblock_frame(adapter->priv, false))
@@ -959,7 +1026,6 @@ static int rsi_mac80211_set_key(struct ieee80211_hw *hw,
 	mutex_lock(&common->mutex);
 	switch (cmd) {
 	case SET_KEY:
-		secinfo->security_enable = true;
 		status = rsi_hal_key_config(hw, vif, key, sta);
 		if (status) {
 			mutex_unlock(&common->mutex);
@@ -978,8 +1044,6 @@ static int rsi_mac80211_set_key(struct ieee80211_hw *hw,
 		break;
 
 	case DISABLE_KEY:
-		if (vif->type == NL80211_IFTYPE_STATION)
-			secinfo->security_enable = false;
 		rsi_dbg(ERR_ZONE, "%s: RSI del key\n", __func__);
 		memset(key, 0, sizeof(struct ieee80211_key_conf));
 		status = rsi_hal_key_config(hw, vif, key, sta);
@@ -1146,20 +1210,32 @@ static int rsi_mac80211_set_rate_mask(struct ieee80211_hw *hw,
 				      struct ieee80211_vif *vif,
 				      const struct cfg80211_bitrate_mask *mask)
 {
+	const unsigned int mcs_offset = ARRAY_SIZE(rsi_rates);
 	struct rsi_hw *adapter = hw->priv;
 	struct rsi_common *common = adapter->priv;
-	enum nl80211_band band = hw->conf.chandef.chan->band;
+	int i;
 
 	mutex_lock(&common->mutex);
-	common->fixedrate_mask[band] = 0;
 
-	if (mask->control[band].legacy == 0xfff) {
-		common->fixedrate_mask[band] =
-			(mask->control[band].ht_mcs[0] << 12);
-	} else {
-		common->fixedrate_mask[band] =
-			mask->control[band].legacy;
+	for (i = 0; i < ARRAY_SIZE(common->rate_config); i++) {
+		struct rsi_rate_config *cfg = &common->rate_config[i];
+		u32 bm;
+
+		bm = mask->control[i].legacy | (mask->control[i].ht_mcs[0] << mcs_offset);
+		if (hweight32(bm) == 1) { /* single rate */
+			int rate_index = ffs(bm) - 1;
+
+			if (rate_index < mcs_offset)
+				cfg->fixed_hw_rate = rsi_rates[rate_index].hw_value;
+			else
+				cfg->fixed_hw_rate = rsi_mcsrates[rate_index - mcs_offset];
+			cfg->fixed_enabled = true;
+		} else {
+			cfg->configured_mask = bm;
+			cfg->fixed_enabled = false;
+		}
 	}
+
 	mutex_unlock(&common->mutex);
 
 	return 0;
@@ -1271,7 +1347,7 @@ static void rsi_fill_rx_status(struct ieee80211_hw *hw,
 }
 
 /**
- * rsi_indicate_pkt_to_os() - This function sends recieved packet to mac80211.
+ * rsi_indicate_pkt_to_os() - This function sends received packet to mac80211.
  * @common: Pointer to the driver private structure.
  * @skb: Pointer to the socket buffer structure.
  *
@@ -1293,46 +1369,6 @@ void rsi_indicate_pkt_to_os(struct rsi_common *common,
 	rsi_fill_rx_status(hw, skb, common, rx_status);
 
 	ieee80211_rx_irqsafe(hw, skb);
-}
-
-static void rsi_set_min_rate(struct ieee80211_hw *hw,
-			     struct ieee80211_sta *sta,
-			     struct rsi_common *common)
-{
-	u8 band = hw->conf.chandef.chan->band;
-	u8 ii;
-	u32 rate_bitmap;
-	bool matched = false;
-
-	common->bitrate_mask[band] = sta->supp_rates[band];
-
-	rate_bitmap = (common->fixedrate_mask[band] & sta->supp_rates[band]);
-
-	if (rate_bitmap & 0xfff) {
-		/* Find out the min rate */
-		for (ii = 0; ii < ARRAY_SIZE(rsi_rates); ii++) {
-			if (rate_bitmap & BIT(ii)) {
-				common->min_rate = rsi_rates[ii].hw_value;
-				matched = true;
-				break;
-			}
-		}
-	}
-
-	common->vif_info[0].is_ht = sta->ht_cap.ht_supported;
-
-	if ((common->vif_info[0].is_ht) && (rate_bitmap >> 12)) {
-		for (ii = 0; ii < ARRAY_SIZE(rsi_mcsrates); ii++) {
-			if ((rate_bitmap >> 12) & BIT(ii)) {
-				common->min_rate = rsi_mcsrates[ii];
-				matched = true;
-				break;
-			}
-		}
-	}
-
-	if (!matched)
-		common->min_rate = 0xffff;
 }
 
 /**
@@ -1433,9 +1469,9 @@ static int rsi_mac80211_sta_add(struct ieee80211_hw *hw,
 
 	if ((vif->type == NL80211_IFTYPE_STATION) ||
 	    (vif->type == NL80211_IFTYPE_P2P_CLIENT)) {
-		rsi_set_min_rate(hw, sta, common);
+		common->bitrate_mask[common->band] = sta->supp_rates[common->band];
+		common->vif_info[0].is_ht = sta->ht_cap.ht_supported;
 		if (sta->ht_cap.ht_supported) {
-			common->vif_info[0].is_ht = true;
 			common->bitrate_mask[NL80211_BAND_2GHZ] =
 					sta->supp_rates[NL80211_BAND_2GHZ];
 			if ((sta->ht_cap.cap & IEEE80211_HT_CAP_SGI_20) ||
@@ -1509,7 +1545,6 @@ static int rsi_mac80211_sta_remove(struct ieee80211_hw *hw,
 		bss->qos = sta->wme;
 		common->bitrate_mask[NL80211_BAND_2GHZ] = 0;
 		common->bitrate_mask[NL80211_BAND_5GHZ] = 0;
-		common->min_rate = 0xffff;
 		common->vif_info[0].is_ht = false;
 		common->vif_info[0].sgi = false;
 		common->vif_info[0].seq_start = 0;
@@ -1750,7 +1785,8 @@ out:
 	return status;
 }
 
-static int rsi_mac80211_cancel_roc(struct ieee80211_hw *hw)
+static int rsi_mac80211_cancel_roc(struct ieee80211_hw *hw,
+				   struct ieee80211_vif *vif)
 {
 	struct rsi_hw *adapter = hw->priv;
 	struct rsi_common *common = adapter->priv;
@@ -1834,6 +1870,10 @@ int rsi_config_wowlan(struct rsi_hw *adapter, struct cfg80211_wowlan *wowlan)
 		return 0;
 	}
 	rsi_dbg(INFO_ZONE, "TRIGGERS %x\n", triggers);
+
+	if (common->coex_mode > 1)
+		rsi_disable_ps(adapter, adapter->vifs[0]);
+
 	rsi_send_wowlan_request(common, triggers, 1);
 
 	/**
@@ -1877,8 +1917,13 @@ static int rsi_mac80211_resume(struct ieee80211_hw *hw)
 
 	rsi_dbg(INFO_ZONE, "%s: mac80211 resume\n", __func__);
 
-	if (common->hibernate_resume)
-		return 0;
+	if (common->hibernate_resume) {
+		common->mac_ops_resumed = true;
+		/* Device need a complete restart of all MAC operations.
+		 * returning 1 will serve this purpose.
+		 */
+		return 1;
+	}
 
 	mutex_lock(&common->mutex);
 	rsi_send_wowlan_request(common, 0, 0);
@@ -1918,6 +1963,8 @@ static const struct ieee80211_ops mac80211_ops = {
 	.suspend = rsi_mac80211_suspend,
 	.resume  = rsi_mac80211_resume,
 #endif
+	.hw_scan = rsi_mac80211_hw_scan_start,
+	.cancel_hw_scan = rsi_mac80211_cancel_hw_scan,
 };
 
 /**
@@ -2005,6 +2052,9 @@ int rsi_mac80211_attach(struct rsi_common *common)
 	common->max_stations = wiphy->max_ap_assoc_sta;
 	rsi_dbg(ERR_ZONE, "Max Stations Allowed = %d\n", common->max_stations);
 	hw->sta_data_size = sizeof(struct rsi_sta);
+
+	wiphy->max_scan_ssids = RSI_MAX_SCAN_SSIDS;
+	wiphy->max_scan_ie_len = RSI_MAX_SCAN_IE_LEN;
 	wiphy->flags = WIPHY_FLAG_REPORTS_OBSS;
 	wiphy->flags |= WIPHY_FLAG_AP_UAPSD;
 	wiphy->features |= NL80211_FEATURE_INACTIVITY_TIMER;

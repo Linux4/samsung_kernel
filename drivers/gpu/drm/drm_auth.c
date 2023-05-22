@@ -28,10 +28,16 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <drm/drmP.h>
+#include <linux/slab.h>
+
+#include <drm/drm_auth.h>
+#include <drm/drm_drv.h>
+#include <drm/drm_file.h>
+#include <drm/drm_lease.h>
+#include <drm/drm_print.h>
+
 #include "drm_internal.h"
 #include "drm_legacy.h"
-#include <drm/drm_lease.h>
 
 /**
  * DOC: master and authentication
@@ -103,14 +109,11 @@ struct drm_master *drm_master_create(struct drm_device *dev)
 		return NULL;
 
 	kref_init(&master->refcount);
-	spin_lock_init(&master->lock.spinlock);
-	init_waitqueue_head(&master->lock.lock_queue);
+	drm_master_legacy_init(master);
 	idr_init(&master->magic_map);
 	master->dev = dev;
 
 	/* initialize the tree of output resource lessees */
-	master->lessor = NULL;
-	master->lessee_id = 0;
 	INIT_LIST_HEAD(&master->lessees);
 	INIT_LIST_HEAD(&master->lessee_list);
 	idr_init(&master->leases);
@@ -265,30 +268,17 @@ int drm_master_open(struct drm_file *file_priv)
 void drm_master_release(struct drm_file *file_priv)
 {
 	struct drm_device *dev = file_priv->minor->dev;
-	struct drm_master *master = file_priv->master;
+	struct drm_master *master;
 
 	mutex_lock(&dev->master_mutex);
+	master = file_priv->master;
 	if (file_priv->magic)
 		idr_remove(&file_priv->master->magic_map, file_priv->magic);
 
 	if (!drm_is_current_master(file_priv))
 		goto out;
 
-	if (drm_core_check_feature(dev, DRIVER_LEGACY)) {
-		/*
-		 * Since the master is disappearing, so is the
-		 * possibility to lock.
-		 */
-		mutex_lock(&dev->struct_mutex);
-		if (master->lock.hw_lock) {
-			if (dev->sigdata.lock == master->lock.hw_lock)
-				dev->sigdata.lock = NULL;
-			master->lock.hw_lock = NULL;
-			master->lock.file_priv = NULL;
-			wake_up_interruptible_all(&master->lock.lock_queue);
-		}
-		mutex_unlock(&dev->struct_mutex);
-	}
+	drm_legacy_lock_master_cleanup(dev, master);
 
 	if (dev->master == file_priv->master)
 		drm_drop_master(dev, file_priv);
@@ -368,3 +358,23 @@ void drm_master_put(struct drm_master **master)
 	*master = NULL;
 }
 EXPORT_SYMBOL(drm_master_put);
+
+/* Used by drm_client and drm_fb_helper */
+bool drm_master_internal_acquire(struct drm_device *dev)
+{
+	mutex_lock(&dev->master_mutex);
+	if (dev->master) {
+		mutex_unlock(&dev->master_mutex);
+		return false;
+	}
+
+	return true;
+}
+EXPORT_SYMBOL(drm_master_internal_acquire);
+
+/* Used by drm_client and drm_fb_helper */
+void drm_master_internal_release(struct drm_device *dev)
+{
+	mutex_unlock(&dev->master_mutex);
+}
+EXPORT_SYMBOL(drm_master_internal_release);

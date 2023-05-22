@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-only
 menuconfig POWER_SUPPLY
 	bool "Power supply class support"
 	help
@@ -13,6 +14,20 @@ config POWER_SUPPLY_DEBUG
 	help
 	  Say Y here to enable debugging messages for power supply class
 	  and drivers.
+
+config POWER_SUPPLY_HWMON
+	bool
+	prompt "Expose power supply sensors as hwmon device"
+	depends on HWMON=y || HWMON=POWER_SUPPLY
+	default y
+	help
+	  This options enables API that allows sensors found on a
+	  power supply device (current, voltage, temperature) to be
+	  exposed as a hwmon device.
+
+	  Say 'Y' here if you want power supplies to
+	  have hwmon sysfs interface too.
+
 
 config PDA_POWER
 	tristate "Generic PDA/phone power driver"
@@ -151,7 +166,7 @@ config BATTERY_PMU
 
 config BATTERY_OLPC
 	tristate "One Laptop Per Child battery"
-	depends on X86_32 && OLPC
+	depends on OLPC_EC
 	help
 	  Say Y to enable support for the battery on the OLPC laptop.
 
@@ -168,6 +183,17 @@ config BATTERY_COLLIE
 	help
 	  Say Y to enable support for the battery on the Sharp Zaurus
 	  SL-5500 (collie) models.
+
+config BATTERY_INGENIC
+	tristate "Ingenic JZ47xx SoCs battery driver"
+	depends on MIPS || COMPILE_TEST
+	depends on INGENIC_ADC
+	help
+	  Choose this option if you want to monitor battery status on
+	  Ingenic JZ47xx SoC based devices.
+
+	  This driver can also be built as a module. If so, the module will be
+	  called ingenic-battery.
 
 config BATTERY_IPAQ_MICRO
 	tristate "iPAQ Atmel Micro ASIC battery driver"
@@ -379,6 +405,19 @@ config BATTERY_TWL4030_MADC
 	  Say Y here to enable this dumb driver for batteries managed
 	  through the TWL4030 MADC.
 
+config QTI_BATTERY_CHARGER
+	tristate "QTI Glink battery charger"
+	depends on QTI_PMIC_GLINK && EXTCON
+	help
+	  Say Y here to enable Qualcomm Technologies, Inc. battery charger
+	  driver which interfaces with the charger firmware running on the
+	  remote subsystem (e.g. DSP) by communicating over PMIC Glink channel
+	  and provides information about the battery, USB and wireless charging
+	  by exposing them as power supply devices.
+
+	  To compile the driver as a module, choose M here: the module will be
+	  called qti_battery_charger.
+
 config CHARGER_88PM860X
 	tristate "Marvell 88PM860x Charger driver"
 	depends on MFD_88PM860X && BATTERY_88PM860X
@@ -390,17 +429,6 @@ config CHARGER_PCF50633
 	depends on MFD_PCF50633
 	help
 	 Say Y to include support for NXP PCF50633 Main Battery Charger.
-
-config BATTERY_JZ4740
-	tristate "Ingenic JZ4740 battery"
-	depends on MACH_JZ4740
-	depends on MFD_JZ4740_ADC
-	help
-	  Say Y to enable support for the battery on Ingenic JZ4740 based
-	  boards.
-
-	  This driver can be build as a module. If so, the module will be
-	  called jz4740-battery.
 
 config BATTERY_RX51
 	tristate "Nokia RX-51 (N900) battery driver"
@@ -465,7 +493,7 @@ config CHARGER_GPIO
 	  called gpio-charger.
 
 config CHARGER_MANAGER
-	bool "Battery charger manager for multiple chargers"
+	tristate "Battery charger manager for multiple chargers"
 	depends on REGULATOR
 	select EXTCON
 	help
@@ -475,12 +503,12 @@ config CHARGER_MANAGER
           runtime and in suspend-to-RAM by waking up the system periodically
           with help of suspend_again support.
 
-config CHARGER_LTC3651
-	tristate "LTC3651 charger"
+config CHARGER_LT3651
+	tristate "Analog Devices LT3651 charger"
 	depends on GPIOLIB
 	help
-	  Say Y to include support for the LTC3651 battery charger which reports
-	  its status via GPIO lines.
+	  Say Y to include support for the Analog Devices (Linear Technology)
+	  LT3651 battery charger which reports its status via GPIO lines.
 
 config CHARGER_MAX14577
 	tristate "Maxim MAX14577/77836 battery charger driver"
@@ -498,6 +526,13 @@ config CHARGER_DETECTOR_MAX14656
 	  The device is compliant with the USB Battery Charging Specification
 	  Revision 1.2 and can be found e.g. in Kindle 4/5th generation
 	  readers and certain LG devices.
+
+config CHARGER_MAX77650
+	tristate "Maxim MAX77650 battery charger driver"
+	depends on MFD_MAX77650
+	help
+	  Say Y to enable support for the battery charger control of MAX77650
+	  PMICs.
 
 config CHARGER_MAX77693
 	tristate "Maxim MAX77693 battery charger driver"
@@ -621,7 +656,8 @@ config BATTERY_GOLDFISH
 
 config BATTERY_RT5033
 	tristate "RT5033 fuel gauge support"
-	depends on MFD_RT5033
+	depends on I2C
+	select REGMAP_I2C
 	help
 	  This adds support for battery fuel gauge in Richtek RT5033 PMIC.
 	  The fuelgauge calculates and determines the battery state of charge
@@ -637,7 +673,7 @@ config CHARGER_RT9455
 
 config CHARGER_CROS_USBPD
 	tristate "ChromeOS EC based USBPD charger"
-	depends on MFD_CROS_EC
+	depends on CROS_EC
 	default n
 	help
 	  Say Y here to enable ChromeOS EC based USBPD charger
@@ -645,105 +681,49 @@ config CHARGER_CROS_USBPD
 	  what is connected to USB PD ports from the EC and converts
 	  that into power_supply properties.
 
-config FUELGAUGE_S2MU004
-	tristate "s2mu004 fuel gauge driver"
-	default n
-	depends on (MFD_S2MU004) && I2C
+config CHARGER_SC2731
+	tristate "Spreadtrum SC2731 charger driver"
+	depends on MFD_SC27XX_PMIC || COMPILE_TEST
 	help
-	  say y to include support for s.lsi s2mu004 fuel gauge driver.
+	 Say Y here to enable support for battery charging with SC2731
+	 PMIC chips.
 
-config CHARGER_S2MU004
-	tristate "S2MU004 charger support"
-	depends on (MFD_S2MU004) && I2C
+config FUEL_GAUGE_SC27XX
+	tristate "Spreadtrum SC27XX fuel gauge driver"
+	depends on MFD_SC27XX_PMIC || COMPILE_TEST
+	depends on IIO
 	help
-	  Say Y here to enable support for the S2MU004 charger
-	  S2MU004 incluse pmic, led driver.
-	  You have to define MFD_S2MU004
+	 Say Y here to enable support for fuel gauge with SC27XX
+	 PMIC chips.
 
-config BATTERY_S2MU00X
-	tristate "S2MU00x battery driver"
+config CHARGER_UCS1002
+	tristate "Microchip UCS1002 USB Port Power Controller"
 	depends on I2C
+	depends on OF
+	depends on REGULATOR
+	select REGMAP_I2C
 	help
-	  Say Y here to enable support for S2MU00x battery driver.
+	  Say Y to enable support for Microchip UCS1002 Programmable
+	  USB Port Power Controller with Charger Emulation.
 
-config FUELGAUGE_S2MU106
-    tristate "S2MU106 fuelgauge driver"
-    default n
-    depends on I2C
-    help
-      say y to include support
-      for s.lsi S2MU106 fuelgauge driver.
-
-config CHARGER_S2MU106
-    tristate "S2MU106 charger support"
-    depends on (MFD_S2MU106) && I2C
-    help
-      Say Y here to enable support for the S2MU106 charger
-      S2MU106 incluse pmic, led driver.
-      You have to define MFD_S2MU106
-
-config CHARGER_S2MU107
-    tristate "S2MU107 charger support"
-    depends on (MFD_S2MU107) && I2C
-    help
-      Say Y here to enable support for the S2MU107 charger
-      S2MU107 incluse pmic, led driver.
-      You have to define MFD_S2MU107
-
-config PM_S2MU106
-	tristate "S2MU106 power meter support"
-	depends on (MFD_S2MU106) && I2C
-	help
-	 Say Y here to enable support for the S2MU106 power meter.
-	 S2MU106 power meter is dependent on MFD_S2MU106
-	 so it needs to be defined.
-
-config PM_S2MU107
-	tristate "S2MU107 power meter support"
-	depends on (MFD_S2MU107) && I2C
-	help
-	 Say Y here to enable support for the S2MU107 power meter.
-	 S2MU107 power meter is dependent on MFD_S2MU107
-	 so it needs to be defined.
-
-config MANAGER_S2M_CHARGER
-	tristate "S2M_CHG_MANAGER battery driver"
-	help
-	  Say Y here to enable support for S2MXXXX charging manager driver.
-	  This charging manager driver supports only the basic functions.
-
-config FUELGAUGE_S2MU107
-	tristate "S2MU107 fuel gauge driver"
+config CHARGER_BD70528
+	tristate "ROHM bd70528 charger driver"
+	depends on MFD_ROHM_BD70528
 	default n
-	depends on I2C
 	help
-	 Say Y to include support
-	 for S.LSI S2MU107 fuel gauge driver.
-	 Ths fuel-gauge supports current tracking and
-	 voltage tracking to model the battery SOC.
+	 Say Y here to enable support for getting battery status
+	 information and altering charger configurations from charger
+	 block of the ROHM BD70528 Power Management IC.
 
-config FUELGAUGE_S2MU107_TEMP_COMPEN
-	tristate "S2MU107 fuel gauge temperature compensation"
-	default n
-	depends on (FUELGAUGE_S2MU107) && I2C
+config CHARGER_WILCO
+	tristate "Wilco EC based charger for ChromeOS"
+	depends on WILCO_EC
 	help
-	 Say Y to enable temperature compensation
-	 for S.LSI S2MU107 fuel gauge driver.
+	  Say Y here to enable control of the charging routines performed
+	  by the Embedded Controller on the Chromebook named Wilco. Further
+	  information can be found in
+	  Documentation/ABI/testing/sysfs-class-power-wilco
 
-config FUELGAUGE_S2MU107_BATCAP_LRN
-	tristate "S2MU107 fuel gauge battery capacity learning"
-	default n
-	depends on (FUELGAUGE_S2MU107) && I2C
-	help
-	 Say Y to enable battery capacity learning
-	 for S.LSI S2MU107 fuel gauge driver.
-
-config FUELGAUGE_S2MU107_USE_10MILLIOHM
-	tristate "S2MU107 fuel gauge with 10mohm resistor"
-	default n
-	depends on (FUELGAUGE_S2MU107) && I2C
-	help
-	 Say Y to use 10mohm current sensing resistor
-	 instead of 5mohm for S.LSI S2MU107 fuel gauge.
+source "drivers/power/supply/qcom/Kconfig"
 
 endif # POWER_SUPPLY

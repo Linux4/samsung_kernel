@@ -252,10 +252,19 @@ alc274-dell-aio
     ALC274 fixups on Dell AIO machines
 alc255-dummy-lineout
     Dell Precision 3930 fixups
-alc255-dell-headset"},
+alc255-dell-headset
     Dell Precision 3630 fixups
 alc295-hp-x360
     HP Spectre X360 fixups
+alc-sense-combo
+    Headset button support for Chrome platform
+huawei-mbx-stereo
+    Enable initialization verbs for Huawei MBX stereo speakers;
+    might be risky, try this at your own risk
+alc298-samsung-headphone
+    Samsung laptops with ALC298
+alc256-samsung-headphone
+    Samsung laptops with ALC256
 
 ALC66x/67x/892
 ==============
@@ -307,6 +316,8 @@ asus-nx50
     ASUS Nx50 fixups
 asus-nx51
     ASUS Nx51 fixups
+asus-g751
+    ASUS G751 fixups
 alc891-headset
     Headset mode support on ALC891
 alc891-headset-multi

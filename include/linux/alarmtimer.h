@@ -5,7 +5,8 @@
 #include <linux/time.h>
 #include <linux/hrtimer.h>
 #include <linux/timerqueue.h>
-#include <linux/rtc.h>
+
+struct rtc_device;
 
 enum alarmtimer_type {
 	ALARM_REALTIME,
@@ -62,4 +63,7 @@ ktime_t alarm_expires_remaining(const struct alarm *alarm);
 /* Provide way to access the rtc device being used by alarmtimers */
 struct rtc_device *alarmtimer_get_rtcdev(void);
 
+#if IS_ENABLED(CONFIG_RTC_AUTO_PWRON)
+int alarm_set_alarm(char *alarm_data);
+#endif
 #endif

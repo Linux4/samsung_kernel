@@ -1,9 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0-only
 #
 # Input device configuration
 #
 
 menu "Input device support"
-	depends on !UML
 
 config INPUT
 	tristate "Generic input layer (needed for keyboard, mouse, ...)" if EXPERT
@@ -183,10 +183,6 @@ config INPUT_APMPOWER
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called apm-power.
-
-config SEC_DEBUG_TSP_LOG
-	tristate "Support for tsp_msg"
-	default n
 
 comment "Input Device Drivers"
 

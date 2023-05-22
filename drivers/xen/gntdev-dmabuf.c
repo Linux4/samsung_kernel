@@ -641,6 +641,14 @@ dmabuf_imp_to_refs(struct gntdev_dmabuf_priv *priv, struct device *dev,
 		goto fail_detach;
 	}
 
+	/* Check that we have zero offset. */
+	if (sgt->sgl->offset) {
+		ret = ERR_PTR(-EINVAL);
+		pr_debug("DMA buffer has %d bytes offset, user-space expects 0\n",
+			 sgt->sgl->offset);
+		goto fail_unmap;
+	}
+
 	/* Check number of pages that imported buffer has. */
 	if (attach->dmabuf->size != gntdev_dmabuf->nr_pages << PAGE_SHIFT) {
 		ret = ERR_PTR(-EINVAL);
@@ -743,6 +751,14 @@ static int dmabuf_imp_release(struct gntdev_dmabuf_priv *priv, u32 fd)
 
 	dmabuf_imp_free_storage(gntdev_dmabuf);
 	return 0;
+}
+
+static void dmabuf_imp_release_all(struct gntdev_dmabuf_priv *priv)
+{
+	struct gntdev_dmabuf *q, *gntdev_dmabuf;
+
+	list_for_each_entry_safe(gntdev_dmabuf, q, &priv->imp_list, next)
+		dmabuf_imp_release(priv, gntdev_dmabuf->fd);
 }
 
 /* DMA buffer IOCTL support. */
@@ -862,5 +878,6 @@ struct gntdev_dmabuf_priv *gntdev_dmabuf_init(struct file *filp)
 
 void gntdev_dmabuf_fini(struct gntdev_dmabuf_priv *priv)
 {
+	dmabuf_imp_release_all(priv);
 	kfree(priv);
 }

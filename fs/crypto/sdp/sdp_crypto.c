@@ -48,7 +48,6 @@ static struct crypto_shash *sha512_tfm = NULL;
 #ifdef CONFIG_CRYPTO_FIPS
 static int sdp_crypto_init_rng(void)
 {
-
 	struct crypto_rng *rng = NULL;
 	struct file *filp = NULL;
 	char *rng_seed = NULL;
@@ -129,7 +128,6 @@ out:
 	return res;
 }
 #endif
-
 
 int sdp_crypto_generate_key(void *raw_key, int nbytes)
 {
@@ -215,7 +213,7 @@ int sdp_crypto_hash_sha512(const u8 *data, u32 data_len, u8 *hashed)
 	{
 		SHASH_DESC_ON_STACK(desc, tfm);
 		desc->tfm = tfm;
-		desc->flags = 0;
+		//desc->flags = 0;
 
 		return crypto_shash_digest(desc, data, data_len, hashed);
 	}

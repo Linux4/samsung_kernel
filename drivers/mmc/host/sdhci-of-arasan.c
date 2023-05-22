@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Arasan Secure Digital Host Controller Interface.
  * Copyright (C) 2011 - 2012 Michal Simek <monstr@monstr.eu>
@@ -12,11 +13,6 @@
  *
  * Authors: Xiaobo Xie <X.Xie@freescale.com>
  *	    Anton Vorontsov <avorontsov@ru.mvista.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or (at
- * your option) any later version.
  */
 
 #include <linux/clk-provider.h>
@@ -107,10 +103,21 @@ struct sdhci_arasan_data {
 #define SDHCI_ARASAN_QUIRK_CLOCK_UNSTABLE BIT(1)
 };
 
+struct sdhci_arasan_of_data {
+	const struct sdhci_arasan_soc_ctl_map *soc_ctl_map;
+	const struct sdhci_pltfm_data *pdata;
+};
+
 static const struct sdhci_arasan_soc_ctl_map rk3399_soc_ctl_map = {
 	.baseclkfreq = { .reg = 0xf000, .width = 8, .shift = 8 },
 	.clockmultiplier = { .reg = 0xf02c, .width = 8, .shift = 0},
 	.hiword_update = true,
+};
+
+static const struct sdhci_arasan_soc_ctl_map intel_lgm_emmc_soc_ctl_map = {
+	.baseclkfreq = { .reg = 0xa0, .width = 8, .shift = 2 },
+	.clockmultiplier = { .reg = 0, .width = -1, .shift = -1 },
+	.hiword_update = false,
 };
 
 /**
@@ -185,7 +192,12 @@ static void sdhci_arasan_set_clock(struct sdhci_host *host, unsigned int clock)
 			 * through low speeds without power cycling.
 			 */
 			sdhci_set_clock(host, host->max_clk);
-			phy_power_on(sdhci_arasan->phy);
+			if (phy_power_on(sdhci_arasan->phy)) {
+				pr_err("%s: Cannot power on phy.\n",
+				       mmc_hostname(host->mmc));
+				return;
+			}
+
 			sdhci_arasan->is_phy_on = true;
 
 			/*
@@ -221,7 +233,12 @@ static void sdhci_arasan_set_clock(struct sdhci_host *host, unsigned int clock)
 		msleep(20);
 
 	if (ctrl_phy) {
-		phy_power_on(sdhci_arasan->phy);
+		if (phy_power_on(sdhci_arasan->phy)) {
+			pr_err("%s: Cannot power on phy.\n",
+			       mmc_hostname(host->mmc));
+			return;
+		}
+
 		sdhci_arasan->is_phy_on = true;
 	}
 }
@@ -307,6 +324,10 @@ static const struct sdhci_pltfm_data sdhci_arasan_pdata = {
 			SDHCI_QUIRK2_STOP_WITH_TC,
 };
 
+static struct sdhci_arasan_of_data sdhci_arasan_data = {
+	.pdata = &sdhci_arasan_pdata,
+};
+
 static u32 sdhci_arasan_cqhci_irq(struct sdhci_host *host, u32 intmask)
 {
 	int cmd_error = 0;
@@ -363,6 +384,16 @@ static const struct sdhci_pltfm_data sdhci_arasan_cqe_pdata = {
 			SDHCI_QUIRK2_CLOCK_DIV_ZERO_BROKEN,
 };
 
+static struct sdhci_arasan_of_data sdhci_arasan_rk3399_data = {
+	.soc_ctl_map = &rk3399_soc_ctl_map,
+	.pdata = &sdhci_arasan_cqe_pdata,
+};
+
+static struct sdhci_arasan_of_data intel_lgm_emmc_data = {
+	.soc_ctl_map = &intel_lgm_emmc_soc_ctl_map,
+	.pdata = &sdhci_arasan_cqe_pdata,
+};
+
 #ifdef CONFIG_PM_SLEEP
 /**
  * sdhci_arasan_suspend - Suspend method for the driver
@@ -395,7 +426,9 @@ static int sdhci_arasan_suspend(struct device *dev)
 		ret = phy_power_off(sdhci_arasan->phy);
 		if (ret) {
 			dev_err(dev, "Cannot power off phy.\n");
-			sdhci_resume_host(host);
+			if (sdhci_resume_host(host))
+				dev_err(dev, "Cannot resume host.\n");
+
 			return ret;
 		}
 		sdhci_arasan->is_phy_on = false;
@@ -462,14 +495,25 @@ static const struct of_device_id sdhci_arasan_of_match[] = {
 	/* SoC-specific compatible strings w/ soc_ctl_map */
 	{
 		.compatible = "rockchip,rk3399-sdhci-5.1",
-		.data = &rk3399_soc_ctl_map,
+		.data = &sdhci_arasan_rk3399_data,
 	},
-
+	{
+		.compatible = "intel,lgm-sdhci-5.1-emmc",
+		.data = &intel_lgm_emmc_data,
+	},
 	/* Generic compatible below here */
-	{ .compatible = "arasan,sdhci-8.9a" },
-	{ .compatible = "arasan,sdhci-5.1" },
-	{ .compatible = "arasan,sdhci-4.9a" },
-
+	{
+		.compatible = "arasan,sdhci-8.9a",
+		.data = &sdhci_arasan_data,
+	},
+	{
+		.compatible = "arasan,sdhci-5.1",
+		.data = &sdhci_arasan_data,
+	},
+	{
+		.compatible = "arasan,sdhci-4.9a",
+		.data = &sdhci_arasan_data,
+	},
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, sdhci_arasan_of_match);
@@ -707,14 +751,11 @@ static int sdhci_arasan_probe(struct platform_device *pdev)
 	struct sdhci_pltfm_host *pltfm_host;
 	struct sdhci_arasan_data *sdhci_arasan;
 	struct device_node *np = pdev->dev.of_node;
-	const struct sdhci_pltfm_data *pdata;
+	const struct sdhci_arasan_of_data *data;
 
-	if (of_device_is_compatible(pdev->dev.of_node, "arasan,sdhci-5.1"))
-		pdata = &sdhci_arasan_cqe_pdata;
-	else
-		pdata = &sdhci_arasan_pdata;
-
-	host = sdhci_pltfm_init(pdev, pdata, sizeof(*sdhci_arasan));
+	match = of_match_node(sdhci_arasan_of_match, pdev->dev.of_node);
+	data = match->data;
+	host = sdhci_pltfm_init(pdev, data->pdata, sizeof(*sdhci_arasan));
 
 	if (IS_ERR(host))
 		return PTR_ERR(host);
@@ -723,8 +764,7 @@ static int sdhci_arasan_probe(struct platform_device *pdev)
 	sdhci_arasan = sdhci_pltfm_priv(pltfm_host);
 	sdhci_arasan->host = host;
 
-	match = of_match_node(sdhci_arasan_of_match, pdev->dev.of_node);
-	sdhci_arasan->soc_ctl_map = match->data;
+	sdhci_arasan->soc_ctl_map = data->soc_ctl_map;
 
 	node = of_parse_phandle(pdev->dev.of_node, "arasan,soc-ctl-syscon", 0);
 	if (node) {

@@ -58,12 +58,13 @@
 #define SE_SBINITIALIZED	0x0100
 #define SE_SBPROC		0x0200
 #define SE_SBGENFS		0x0400
+#define SE_SBGENFS_XATTR	0x0800
 
-#define CONTEXT_STR	"context="
-#define FSCONTEXT_STR	"fscontext="
-#define ROOTCONTEXT_STR	"rootcontext="
-#define DEFCONTEXT_STR	"defcontext="
-#define LABELSUPP_STR "seclabel"
+#define CONTEXT_STR	"context"
+#define FSCONTEXT_STR	"fscontext"
+#define ROOTCONTEXT_STR	"rootcontext"
+#define DEFCONTEXT_STR	"defcontext"
+#define SECLABEL_STR "seclabel"
 
 struct netlbl_lsm_secattr;
 
@@ -81,7 +82,7 @@ enum {
 };
 #define POLICYDB_CAPABILITY_MAX (__POLICYDB_CAPABILITY_MAX - 1)
 
-extern char *selinux_policycap_names[__POLICYDB_CAPABILITY_MAX];
+extern const char *selinux_policycap_names[__POLICYDB_CAPABILITY_MAX];
 
 /*
  * type_datum properties
@@ -105,6 +106,8 @@ struct selinux_state {
 	bool initialized;
 	bool policycap[__POLICYDB_CAPABILITY_MAX];
 	bool android_netlink_route;
+	bool android_netlink_getneigh;
+
 	struct selinux_avc *avc;
 	struct selinux_ss *ss;
 };
@@ -118,7 +121,7 @@ extern struct selinux_state selinux_state;
 extern int selinux_enforcing;
 static inline bool enforcing_enabled(struct selinux_state *state)
 {
-	return selinux_enforcing; // SEC_SELINUX_PORTING_COMMON Change to use RKP 
+	return selinux_enforcing; // SEC_SELINUX_PORTING_COMMON Change to use RKP
 }
 
 static inline void enforcing_set(struct selinux_state *state, bool value)
@@ -183,6 +186,13 @@ static inline bool selinux_android_nlroute_getlink(void)
 	struct selinux_state *state = &selinux_state;
 
 	return state->android_netlink_route;
+}
+
+static inline bool selinux_android_nlroute_getneigh(void)
+{
+	struct selinux_state *state = &selinux_state;
+
+	return state->android_netlink_getneigh;
 }
 
 int security_mls_enabled(struct selinux_state *state);
@@ -268,6 +278,9 @@ int security_sid_to_context(struct selinux_state *state, u32 sid,
 			    char **scontext, u32 *scontext_len);
 
 int security_sid_to_context_force(struct selinux_state *state,
+				  u32 sid, char **scontext, u32 *scontext_len);
+
+int security_sid_to_context_inval(struct selinux_state *state,
 				  u32 sid, char **scontext, u32 *scontext_len);
 
 int security_context_to_sid(struct selinux_state *state,
@@ -406,5 +419,6 @@ extern void avtab_cache_init(void);
 extern void ebitmap_cache_init(void);
 extern void hashtab_cache_init(void);
 extern void selinux_nlmsg_init(void);
+extern int security_sidtab_hash_stats(struct selinux_state *state, char *page);
 
 #endif /* _SELINUX_SECURITY_H_ */

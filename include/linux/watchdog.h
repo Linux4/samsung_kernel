@@ -53,7 +53,6 @@ struct watchdog_ops {
 	unsigned int (*get_timeleft)(struct watchdog_device *);
 	int (*restart)(struct watchdog_device *, unsigned long, void *);
 	long (*ioctl)(struct watchdog_device *, unsigned int, unsigned long);
-	void (*reset_confirm)(struct watchdog_device *);
 };
 
 /** struct watchdog_device - The structure that defines a watchdog device
@@ -91,9 +90,6 @@ struct watchdog_ops {
  *
  * The driver-data field may not be accessed directly. It must be accessed
  * via the watchdog_set_drvdata and watchdog_get_drvdata helpers.
- *
- * The lock field is for watchdog core internal use only and should not be
- * touched.
  */
 struct watchdog_device {
 	int id;

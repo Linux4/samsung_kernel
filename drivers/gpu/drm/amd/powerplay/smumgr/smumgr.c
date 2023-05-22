@@ -29,6 +29,10 @@
 #include <drm/amdgpu_drm.h>
 #include "smumgr.h"
 
+MODULE_FIRMWARE("amdgpu/bonaire_smc.bin");
+MODULE_FIRMWARE("amdgpu/bonaire_k_smc.bin");
+MODULE_FIRMWARE("amdgpu/hawaii_smc.bin");
+MODULE_FIRMWARE("amdgpu/hawaii_k_smc.bin");
 MODULE_FIRMWARE("amdgpu/topaz_smc.bin");
 MODULE_FIRMWARE("amdgpu/topaz_k_smc.bin");
 MODULE_FIRMWARE("amdgpu/tonga_smc.bin");
@@ -212,4 +216,12 @@ int smum_smc_table_manager(struct pp_hwmgr *hwmgr, uint8_t *table, uint16_t tabl
 		return hwmgr->smumgr_funcs->smc_table_manager(hwmgr, table, table_id, rw);
 
 	return -EINVAL;
+}
+
+int smum_stop_smc(struct pp_hwmgr *hwmgr)
+{
+	if (hwmgr->smumgr_funcs->stop_smc)
+		return hwmgr->smumgr_funcs->stop_smc(hwmgr);
+
+	return 0;
 }

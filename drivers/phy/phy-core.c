@@ -1,14 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * phy-core.c  --  Generic Phy framework.
  *
  * Copyright (C) 2013 Texas Instruments Incorporated - http://www.ti.com
  *
  * Author: Kishon Vijay Abraham I <kishon@ti.com>
- *
- * This program is free software; you can redistribute  it and/or modify it
- * under  the terms of  the GNU General  Public License as published by the
- * Free Software Foundation;  either version 2 of the  License, or (at your
- * option) any later version.
  */
 
 #include <linux/kernel.h>
@@ -290,82 +286,7 @@ out:
 	return ret;
 }
 EXPORT_SYMBOL_GPL(phy_exit);
-int phy_vendor_set(struct phy *phy, int is_enable, int is_cancel)
-{
-	int ret;
 
-	if (!phy || !phy->ops->vendor_set)
-		return 0;
-
-	ret = phy->ops->vendor_set(phy, is_enable, is_cancel);
-	if (ret < 0) {
-		dev_err(&phy->dev, "phy vendor setting failed --> %d\n", ret);
-	} else {
-		ret = 0; /* Override possible ret == -ENOTSUPP */
-	}
-	return ret;
-}
-EXPORT_SYMBOL_GPL(phy_vendor_set);
-
-int phy_ilbk(struct phy *phy)
-{
-	int ret;
-
-	if (!phy || !phy->ops->ilbk)
-		return 0;
-
-	ret = phy->ops->ilbk(phy);
-	if (ret < 0)
-		dev_err(&phy->dev, "phy ilbk failed --> %d\n", ret);
-	else
-		ret = 0; /* Override possible ret == -ENOTSUPP */
-
-	return ret;
-}
-EXPORT_SYMBOL_GPL(phy_ilbk);
-
-int phy_tune(struct phy *phy, int phy_state)
-{
-	int ret;
-
-	if (!phy || !phy->ops->tune)
-		return 0;
-
-	ret = phy->ops->tune(phy, phy_state);
-	if (ret < 0) {
-		dev_err(&phy->dev, "phy tune failed --> %d\n", ret);
-	} else {
-		ret = 0; /* Override possible ret == -ENOTSUPP */
-	}
-	return ret;
-}
-EXPORT_SYMBOL_GPL(phy_tune);
-
-void phy_conn(struct phy *phy, int option)
-{
-	if (!phy || !phy->ops->conn)
-		return;
-
-	phy->ops->conn(phy, option);
-
-	return;
-}
-EXPORT_SYMBOL_GPL(phy_conn);
-
-int phy_set(struct phy *phy, int option, void *info)
-{
-	int ret;
-
-	if (!phy || !phy->ops->set)
-		return 0;
-
-	ret = phy->ops->set(phy, option, info);
-	if (ret < 0)
-		dev_err(&phy->dev, "phy set failed --> %d\n", ret);
-
-	return ret;
-}
-EXPORT_SYMBOL_GPL(phy_set);
 int phy_power_on(struct phy *phy)
 {
 	int ret = 0;
@@ -435,7 +356,7 @@ int phy_power_off(struct phy *phy)
 }
 EXPORT_SYMBOL_GPL(phy_power_off);
 
-int phy_set_mode(struct phy *phy, enum phy_mode mode)
+int phy_set_mode_ext(struct phy *phy, enum phy_mode mode, int submode)
 {
 	int ret;
 
@@ -443,14 +364,14 @@ int phy_set_mode(struct phy *phy, enum phy_mode mode)
 		return 0;
 
 	mutex_lock(&phy->mutex);
-	ret = phy->ops->set_mode(phy, mode);
+	ret = phy->ops->set_mode(phy, mode, submode);
 	if (!ret)
 		phy->attrs.mode = mode;
 	mutex_unlock(&phy->mutex);
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(phy_set_mode);
+EXPORT_SYMBOL_GPL(phy_set_mode_ext);
 
 int phy_reset(struct phy *phy)
 {
@@ -459,14 +380,30 @@ int phy_reset(struct phy *phy)
 	if (!phy || !phy->ops->reset)
 		return 0;
 
+	ret = phy_pm_runtime_get_sync(phy);
+	if (ret < 0 && ret != -ENOTSUPP)
+		return ret;
+
 	mutex_lock(&phy->mutex);
 	ret = phy->ops->reset(phy);
 	mutex_unlock(&phy->mutex);
+
+	phy_pm_runtime_put(phy);
 
 	return ret;
 }
 EXPORT_SYMBOL_GPL(phy_reset);
 
+/**
+ * phy_calibrate() - Tunes the phy hw parameters for current configuration
+ * @phy: the phy returned by phy_get()
+ *
+ * Used to calibrate phy hardware, typically by adjusting some parameters in
+ * runtime, which are otherwise lost after host controller reset and cannot
+ * be applied in phy_init() or phy_power_on().
+ *
+ * Returns: 0 if successful, an negative error code otherwise
+ */
 int phy_calibrate(struct phy *phy)
 {
 	int ret;
@@ -481,6 +418,70 @@ int phy_calibrate(struct phy *phy)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(phy_calibrate);
+
+/**
+ * phy_configure() - Changes the phy parameters
+ * @phy: the phy returned by phy_get()
+ * @opts: New configuration to apply
+ *
+ * Used to change the PHY parameters. phy_init() must have been called
+ * on the phy. The configuration will be applied on the current phy
+ * mode, that can be changed using phy_set_mode().
+ *
+ * Returns: 0 if successful, an negative error code otherwise
+ */
+int phy_configure(struct phy *phy, union phy_configure_opts *opts)
+{
+	int ret;
+
+	if (!phy)
+		return -EINVAL;
+
+	if (!phy->ops->configure)
+		return -EOPNOTSUPP;
+
+	mutex_lock(&phy->mutex);
+	ret = phy->ops->configure(phy, opts);
+	mutex_unlock(&phy->mutex);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(phy_configure);
+
+/**
+ * phy_validate() - Checks the phy parameters
+ * @phy: the phy returned by phy_get()
+ * @mode: phy_mode the configuration is applicable to.
+ * @submode: PHY submode the configuration is applicable to.
+ * @opts: Configuration to check
+ *
+ * Used to check that the current set of parameters can be handled by
+ * the phy. Implementations are free to tune the parameters passed as
+ * arguments if needed by some implementation detail or
+ * constraints. It will not change any actual configuration of the
+ * PHY, so calling it as many times as deemed fit will have no side
+ * effect.
+ *
+ * Returns: 0 if successful, an negative error code otherwise
+ */
+int phy_validate(struct phy *phy, enum phy_mode mode, int submode,
+		 union phy_configure_opts *opts)
+{
+	int ret;
+
+	if (!phy)
+		return -EINVAL;
+
+	if (!phy->ops->validate)
+		return -EOPNOTSUPP;
+
+	mutex_lock(&phy->mutex);
+	ret = phy->ops->validate(phy, mode, submode, opts);
+	mutex_unlock(&phy->mutex);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(phy_validate);
 
 /**
  * _of_phy_get() - lookup and obtain a reference to a phy by phandle
@@ -574,6 +575,11 @@ void phy_put(struct phy *phy)
 {
 	if (!phy || IS_ERR(phy))
 		return;
+
+	mutex_lock(&phy->mutex);
+	if (phy->ops->release)
+		phy->ops->release(phy);
+	mutex_unlock(&phy->mutex);
 
 	module_put(phy->ops->owner);
 	put_device(&phy->dev);
@@ -1123,14 +1129,4 @@ static int __init phy_core_init(void)
 
 	return 0;
 }
-module_init(phy_core_init);
-
-static void __exit phy_core_exit(void)
-{
-	class_destroy(phy_class);
-}
-module_exit(phy_core_exit);
-
-MODULE_DESCRIPTION("Generic PHY Framework");
-MODULE_AUTHOR("Kishon Vijay Abraham I <kishon@ti.com>");
-MODULE_LICENSE("GPL v2");
+device_initcall(phy_core_init);

@@ -1396,8 +1396,7 @@ static void enable_time_stamp(struct fman *fman)
 {
 	struct fman_fpm_regs __iomem *fpm_rg = fman->fpm_regs;
 	u16 fm_clk_freq = fman->state->fm_clk_freq;
-	u32 tmp, intgr, ts_freq;
-	u64 frac;
+	u32 tmp, intgr, ts_freq, frac;
 
 	ts_freq = (u32)(1 << fman->state->count1_micro_bit);
 	/* configure timestamp so that bit 8 will count 1 microsecond
@@ -2444,9 +2443,6 @@ MODULE_PARM_DESC(fsl_fm_rx_extra_headroom, "Extra headroom for Rx buffers");
  * buffers when not using jumbo frames.
  * Must be large enough to accommodate the network MTU, but small enough
  * to avoid wasting skb memory.
- *
- * Could be overridden once, at boot-time, via the
- * fm_set_max_frm() callback.
  */
 static int fsl_fm_max_frm = FSL_FM_MAX_FRAME_SIZE;
 module_param(fsl_fm_max_frm, int, 0);

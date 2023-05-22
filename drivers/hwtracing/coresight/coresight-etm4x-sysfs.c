@@ -296,11 +296,8 @@ static ssize_t mode_store(struct device *dev,
 
 	spin_lock(&drvdata->spinlock);
 	config->mode = val & ETMv4_MODE_ALL;
-
-	if (config->mode & ETM_MODE_EXCLUDE)
-		etm4_set_mode_exclude(drvdata, true);
-	else
-		etm4_set_mode_exclude(drvdata, false);
+	etm4_set_mode_exclude(drvdata,
+			      config->mode & ETM_MODE_EXCLUDE ? true : false);
 
 	if (drvdata->instrp0 == true) {
 		/* start by clearing instruction P0 field */
@@ -367,8 +364,12 @@ static ssize_t mode_store(struct device *dev,
 	mode = ETM_MODE_QELEM(config->mode);
 	/* start by clearing QE bits */
 	config->cfg &= ~(BIT(13) | BIT(14));
-	/* if supported, Q elements with instruction counts are enabled */
-	if ((mode & BIT(0)) && (drvdata->q_support & BIT(0)))
+	/*
+	 * if supported, Q elements with instruction counts are enabled.
+	 * Always set the low bit for any requested mode. Valid combos are
+	 * 0b00, 0b01 and 0b11.
+	 */
+	if (mode && drvdata->q_support)
 		config->cfg |= BIT(13);
 	/*
 	 * if supported, Q elements with and without instruction
@@ -386,7 +387,7 @@ static ssize_t mode_store(struct device *dev,
 
 	/* bit[12], Low-power state behavior override bit */
 	if ((config->mode & ETM_MODE_LPOVERRIDE) &&
-	    (drvdata->lpoverride == true))
+	    (drvdata->lpoverride == true) && !drvdata->tupwr_disable)
 		config->eventctrl1 |= BIT(12);
 	else
 		config->eventctrl1 &= ~BIT(12);
@@ -1004,10 +1005,8 @@ static ssize_t addr_range_store(struct device *dev,
 	 * Program include or exclude control bits for vinst or vdata
 	 * whenever we change addr comparators to ETM_ADDR_TYPE_RANGE
 	 */
-	if (config->mode & ETM_MODE_EXCLUDE)
-		etm4_set_mode_exclude(drvdata, true);
-	else
-		etm4_set_mode_exclude(drvdata, false);
+	etm4_set_mode_exclude(drvdata,
+			      config->mode & ETM_MODE_EXCLUDE ? true : false);
 
 	spin_unlock(&drvdata->spinlock);
 	return size;

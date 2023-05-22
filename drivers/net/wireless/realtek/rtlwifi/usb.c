@@ -1,25 +1,5 @@
-/******************************************************************************
- *
- * Copyright(c) 2009-2012  Realtek Corporation. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of version 2 of the GNU General Public License as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
- * more details.
- *
- * The full GNU General Public License is included in this distribution in the
- * file called LICENSE.
- *
- * Contact Information:
- * wlanfae <wlanfae@realtek.com>
- * Realtek Corporation, No. 2, Innovation Road II, Hsinchu Science Park,
- * Hsinchu 300, Taiwan.
- *
- *****************************************************************************/
+// SPDX-License-Identifier: GPL-2.0
+/* Copyright(c) 2009-2012  Realtek Corporation.*/
 
 #include "wifi.h"
 #include "core.h"
@@ -214,7 +194,7 @@ static void _usb_write32_async(struct rtl_priv *rtlpriv, u32 addr, u32 val)
 	_usb_write_async(to_usb_device(dev), addr, val, 4);
 }
 
-static void _usb_writeN_sync(struct rtl_priv *rtlpriv, u32 addr, void *data,
+static void _usb_writen_sync(struct rtl_priv *rtlpriv, u32 addr, void *data,
 			     u16 len)
 {
 	struct device *dev = rtlpriv->io.dev;
@@ -249,7 +229,7 @@ static void _rtl_usb_io_handler_init(struct device *dev,
 	rtlpriv->io.read8_sync		= _usb_read8_sync;
 	rtlpriv->io.read16_sync		= _usb_read16_sync;
 	rtlpriv->io.read32_sync		= _usb_read32_sync;
-	rtlpriv->io.writeN_sync		= _usb_writeN_sync;
+	rtlpriv->io.writen_sync		= _usb_writen_sync;
 }
 
 static void _rtl_usb_io_handler_release(struct ieee80211_hw *hw)
@@ -259,10 +239,7 @@ static void _rtl_usb_io_handler_release(struct ieee80211_hw *hw)
 	mutex_destroy(&rtlpriv->io.bb_mutex);
 }
 
-/**
- *
- *	Default aggregation handler. Do nothing and just return the oldest skb.
- */
+/*	Default aggregation handler. Do nothing and just return the oldest skb.  */
 static struct sk_buff *_none_usb_tx_aggregate_hdl(struct ieee80211_hw *hw,
 						  struct sk_buff_head *list)
 {
@@ -287,6 +264,7 @@ static int _rtl_usb_init_tx(struct ieee80211_hw *hw)
 
 	for (i = 0; i < __RTL_TXQ_NUM; i++) {
 		u32 ep_num = rtlusb->ep_map.ep_mapping[i];
+
 		if (!ep_num) {
 			RT_TRACE(rtlpriv, COMP_INIT, DBG_DMESG,
 				 "Invalid endpoint map setting!\n");
@@ -351,6 +329,7 @@ static int _rtl_usb_init(struct ieee80211_hw *hw)
 	rtlusb->out_ep_nums = rtlusb->in_ep_nums = 0;
 	for (epidx = 0; epidx < epnums; epidx++) {
 		struct usb_endpoint_descriptor *pep_desc;
+
 		pep_desc = &usb_intf->cur_altsetting->endpoint[epidx].desc;
 
 		if (usb_endpoint_dir_in(pep_desc))
@@ -413,7 +392,7 @@ static void rtl_usb_init_sw(struct ieee80211_hw *hw)
 	rtlusb->irq_mask[0] = 0xFFFFFFFF;
 	/* HIMR_EX - turn all on */
 	rtlusb->irq_mask[1] = 0xFFFFFFFF;
-	rtlusb->disableHWSM =  true;
+	rtlusb->disablehwsm =  true;
 }
 
 static void _rtl_rx_completed(struct urb *urb);
@@ -739,8 +718,11 @@ static int _rtl_usb_receive(struct ieee80211_hw *hw)
 
 		usb_anchor_urb(urb, &rtlusb->rx_submitted);
 		err = usb_submit_urb(urb, GFP_KERNEL);
-		if (err)
+		if (err) {
+			usb_unanchor_urb(urb);
+			usb_free_urb(urb);
 			goto err_out;
+		}
 		usb_free_urb(urb);
 	}
 	return 0;
@@ -773,10 +755,6 @@ static int rtl_usb_start(struct ieee80211_hw *hw)
 
 	return err;
 }
-/**
- *
- *
- */
 
 /*=======================  tx =========================================*/
 static void rtl_usb_cleanup(struct ieee80211_hw *hw)
@@ -803,11 +781,7 @@ static void rtl_usb_cleanup(struct ieee80211_hw *hw)
 	usb_kill_anchored_urbs(&rtlusb->tx_submitted);
 }
 
-/**
- *
- * We may add some struct into struct rtl_usb later. Do deinit here.
- *
- */
+/* We may add some struct into struct rtl_usb later. Do deinit here.  */
 static void rtl_usb_deinit(struct ieee80211_hw *hw)
 {
 	rtl_usb_cleanup(hw);
@@ -1039,7 +1013,7 @@ int rtl_usb_probe(struct usb_interface *intf,
 	hw = ieee80211_alloc_hw(sizeof(struct rtl_priv) +
 				sizeof(struct rtl_usb_priv), &rtl_ops);
 	if (!hw) {
-		WARN_ONCE(true, "rtl_usb: ieee80211 alloc failed\n");
+		pr_warn("rtl_usb: ieee80211 alloc failed\n");
 		return -ENOMEM;
 	}
 	rtlpriv = hw->priv;

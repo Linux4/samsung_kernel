@@ -38,6 +38,7 @@
 #include <linux/err.h>
 #include <linux/gpio/driver.h>
 #include <linux/gpio/consumer.h>
+#include <linux/gpio/machine.h>
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/irq.h>
@@ -376,6 +377,16 @@ static int mvebu_gpio_direction_output(struct gpio_chip *chip, unsigned int pin,
 	return 0;
 }
 
+static int mvebu_gpio_get_direction(struct gpio_chip *chip, unsigned int pin)
+{
+	struct mvebu_gpio_chip *mvchip = gpiochip_get_data(chip);
+	u32 u;
+
+	regmap_read(mvchip->regs, GPIO_IO_CONF_OFF + mvchip->offset, &u);
+
+	return !!(u & BIT(pin));
+}
+
 static int mvebu_gpio_to_irq(struct gpio_chip *chip, unsigned int pin)
 {
 	struct mvebu_gpio_chip *mvchip = gpiochip_get_data(chip);
@@ -608,15 +619,11 @@ static int mvebu_pwm_request(struct pwm_chip *chip, struct pwm_device *pwm)
 		ret = -EBUSY;
 	} else {
 		desc = gpiochip_request_own_desc(&mvchip->chip,
-						 pwm->hwpwm, "mvebu-pwm");
+						 pwm->hwpwm, "mvebu-pwm",
+						 GPIO_ACTIVE_HIGH,
+						 GPIOD_OUT_LOW);
 		if (IS_ERR(desc)) {
 			ret = PTR_ERR(desc);
-			goto out;
-		}
-
-		ret = gpiod_direction_output(desc, 0);
-		if (ret) {
-			gpiochip_free_own_desc(desc);
 			goto out;
 		}
 
@@ -650,9 +657,8 @@ static void mvebu_pwm_get_state(struct pwm_chip *chip,
 
 	spin_lock_irqsave(&mvpwm->lock, flags);
 
-	val = (unsigned long long)
-		readl_relaxed(mvebu_pwmreg_blink_on_duration(mvpwm));
-	val *= NSEC_PER_SEC;
+	u = readl_relaxed(mvebu_pwmreg_blink_on_duration(mvpwm));
+	val = (unsigned long long) u * NSEC_PER_SEC;
 	do_div(val, mvpwm->clk_rate);
 	if (val > UINT_MAX)
 		state->duty_cycle = UINT_MAX;
@@ -661,21 +667,17 @@ static void mvebu_pwm_get_state(struct pwm_chip *chip,
 	else
 		state->duty_cycle = 1;
 
-	val = (unsigned long long)
-		readl_relaxed(mvebu_pwmreg_blink_off_duration(mvpwm));
+	val = (unsigned long long) u; /* on duration */
+	/* period = on + off duration */
+	val += readl_relaxed(mvebu_pwmreg_blink_off_duration(mvpwm));
 	val *= NSEC_PER_SEC;
 	do_div(val, mvpwm->clk_rate);
-	if (val < state->duty_cycle) {
+	if (val > UINT_MAX)
+		state->period = UINT_MAX;
+	else if (val)
+		state->period = val;
+	else
 		state->period = 1;
-	} else {
-		val -= state->duty_cycle;
-		if (val > UINT_MAX)
-			state->period = UINT_MAX;
-		else if (val)
-			state->period = val;
-		else
-			state->period = 1;
-	}
 
 	regmap_read(mvchip->regs, GPIO_BLINK_EN_OFF + mvchip->offset, &u);
 	if (u)
@@ -687,13 +689,16 @@ static void mvebu_pwm_get_state(struct pwm_chip *chip,
 }
 
 static int mvebu_pwm_apply(struct pwm_chip *chip, struct pwm_device *pwm,
-			   struct pwm_state *state)
+			   const struct pwm_state *state)
 {
 	struct mvebu_pwm *mvpwm = to_mvebu_pwm(chip);
 	struct mvebu_gpio_chip *mvchip = mvpwm->mvchip;
 	unsigned long long val;
 	unsigned long flags;
 	unsigned int on, off;
+
+	if (state->polarity != PWM_POLARITY_NORMAL)
+		return -EINVAL;
 
 	val = (unsigned long long) mvpwm->clk_rate * state->duty_cycle;
 	do_div(val, NSEC_PER_SEC);
@@ -1028,11 +1033,9 @@ static const struct regmap_config mvebu_gpio_regmap_config = {
 static int mvebu_gpio_probe_raw(struct platform_device *pdev,
 				struct mvebu_gpio_chip *mvchip)
 {
-	struct resource *res;
 	void __iomem *base;
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	base = devm_ioremap_resource(&pdev->dev, res);
+	base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(base))
 		return PTR_ERR(base);
 
@@ -1052,8 +1055,7 @@ static int mvebu_gpio_probe_raw(struct platform_device *pdev,
 	 * per-CPU registers
 	 */
 	if (mvchip->soc_variant == MVEBU_GPIO_SOC_VARIANT_ARMADAXP) {
-		res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
-		base = devm_ioremap_resource(&pdev->dev, res);
+		base = devm_platform_ioremap_resource(pdev, 1);
 		if (IS_ERR(base))
 			return PTR_ERR(base);
 
@@ -1130,6 +1132,7 @@ static int mvebu_gpio_probe(struct platform_device *pdev)
 	mvchip->chip.parent = &pdev->dev;
 	mvchip->chip.request = gpiochip_generic_request;
 	mvchip->chip.free = gpiochip_generic_free;
+	mvchip->chip.get_direction = mvebu_gpio_get_direction;
 	mvchip->chip.direction_input = mvebu_gpio_direction_input;
 	mvchip->chip.get = mvebu_gpio_get;
 	mvchip->chip.direction_output = mvebu_gpio_direction_output;
@@ -1191,6 +1194,13 @@ static int mvebu_gpio_probe(struct platform_device *pdev)
 
 	devm_gpiochip_add_data(&pdev->dev, &mvchip->chip, mvchip);
 
+	/* Some MVEBU SoCs have simple PWM support for GPIO lines */
+	if (IS_ENABLED(CONFIG_PWM)) {
+		err = mvebu_pwm_probe(pdev, mvchip, id);
+		if (err)
+			return err;
+	}
+
 	/* Some gpio controllers do not provide irq support */
 	if (!have_irqs)
 		return 0;
@@ -1200,7 +1210,8 @@ static int mvebu_gpio_probe(struct platform_device *pdev)
 	if (!mvchip->domain) {
 		dev_err(&pdev->dev, "couldn't allocate irq domain %s (DT).\n",
 			mvchip->chip.label);
-		return -ENODEV;
+		err = -ENODEV;
+		goto err_pwm;
 	}
 
 	err = irq_alloc_domain_generic_chips(
@@ -1248,14 +1259,12 @@ static int mvebu_gpio_probe(struct platform_device *pdev)
 						 mvchip);
 	}
 
-	/* Some MVEBU SoCs have simple PWM support for GPIO lines */
-	if (IS_ENABLED(CONFIG_PWM))
-		return mvebu_pwm_probe(pdev, mvchip, id);
-
 	return 0;
 
 err_domain:
 	irq_domain_remove(mvchip->domain);
+err_pwm:
+	pwmchip_remove(&mvchip->mvpwm->chip);
 
 	return err;
 }

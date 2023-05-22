@@ -86,6 +86,7 @@ static int lbs_mesh_config_send(struct lbs_private *priv,
 static int lbs_mesh_config(struct lbs_private *priv, uint16_t action,
 		uint16_t chan)
 {
+	struct wireless_dev *mesh_wdev;
 	struct cmd_ds_mesh_config cmd;
 	struct mrvl_meshie *ie;
 
@@ -105,10 +106,17 @@ static int lbs_mesh_config(struct lbs_private *priv, uint16_t action,
 		ie->val.active_protocol_id = MARVELL_MESH_PROTO_ID_HWMP;
 		ie->val.active_metric_id = MARVELL_MESH_METRIC_ID;
 		ie->val.mesh_capability = MARVELL_MESH_CAPABILITY;
-		ie->val.mesh_id_len = priv->mesh_ssid_len;
-		memcpy(ie->val.mesh_id, priv->mesh_ssid, priv->mesh_ssid_len);
+
+		if (priv->mesh_dev) {
+			mesh_wdev = priv->mesh_dev->ieee80211_ptr;
+			ie->val.mesh_id_len = mesh_wdev->mesh_id_up_len;
+			memcpy(ie->val.mesh_id, mesh_wdev->ssid,
+						mesh_wdev->mesh_id_up_len);
+		}
+
 		ie->len = sizeof(struct mrvl_meshie_val) -
-			IEEE80211_MAX_SSID_LEN + priv->mesh_ssid_len;
+			IEEE80211_MAX_SSID_LEN + ie->val.mesh_id_len;
+
 		cmd.length = cpu_to_le16(sizeof(struct mrvl_meshie_val));
 		break;
 	case CMD_ACT_MESH_CONFIG_STOP:
@@ -117,8 +125,8 @@ static int lbs_mesh_config(struct lbs_private *priv, uint16_t action,
 		return -1;
 	}
 	lbs_deb_cmd("mesh config action %d type %x channel %d SSID %*pE\n",
-		    action, priv->mesh_tlv, chan, priv->mesh_ssid_len,
-		    priv->mesh_ssid);
+		    action, priv->mesh_tlv, chan, ie->val.mesh_id_len,
+		    ie->val.mesh_id);
 
 	return __lbs_mesh_config_send(priv, &cmd, action, priv->mesh_tlv);
 }
@@ -793,19 +801,6 @@ static const struct attribute_group mesh_ie_group = {
 	.attrs = mesh_ie_attrs,
 };
 
-static void lbs_persist_config_init(struct net_device *dev)
-{
-	int ret;
-	ret = sysfs_create_group(&(dev->dev.kobj), &boot_opts_group);
-	ret = sysfs_create_group(&(dev->dev.kobj), &mesh_ie_group);
-}
-
-static void lbs_persist_config_remove(struct net_device *dev)
-{
-	sysfs_remove_group(&(dev->dev.kobj), &boot_opts_group);
-	sysfs_remove_group(&(dev->dev.kobj), &mesh_ie_group);
-}
-
 
 /***************************************************************************
  * Initializing and starting, stopping mesh
@@ -857,12 +852,6 @@ int lbs_init_mesh(struct lbs_private *priv)
 
 	/* Stop meshing until interface is brought up */
 	lbs_mesh_config(priv, CMD_ACT_MESH_CONFIG_STOP, 1);
-
-	if (priv->mesh_tlv) {
-		sprintf(priv->mesh_ssid, "mesh");
-		priv->mesh_ssid_len = 4;
-		ret = 1;
-	}
 
 	return ret;
 }
@@ -992,6 +981,13 @@ static int lbs_add_mesh(struct lbs_private *priv)
 
 	mesh_wdev->iftype = NL80211_IFTYPE_MESH_POINT;
 	mesh_wdev->wiphy = priv->wdev->wiphy;
+
+	if (priv->mesh_tlv) {
+		sprintf(mesh_wdev->ssid, "mesh");
+		mesh_wdev->mesh_id_up_len = 4;
+		ret = 1;
+	}
+
 	mesh_wdev->netdev = mesh_dev;
 
 	mesh_dev->ml_priv = priv;
@@ -1005,6 +1001,10 @@ static int lbs_add_mesh(struct lbs_private *priv)
 	SET_NETDEV_DEV(priv->mesh_dev, priv->dev->dev.parent);
 
 	mesh_dev->flags |= IFF_BROADCAST | IFF_MULTICAST;
+	mesh_dev->sysfs_groups[0] = &lbs_mesh_attr_group;
+	mesh_dev->sysfs_groups[1] = &boot_opts_group;
+	mesh_dev->sysfs_groups[2] = &mesh_ie_group;
+
 	/* Register virtual mesh interface */
 	ret = register_netdev(mesh_dev);
 	if (ret) {
@@ -1012,18 +1012,9 @@ static int lbs_add_mesh(struct lbs_private *priv)
 		goto err_free_netdev;
 	}
 
-	ret = sysfs_create_group(&(mesh_dev->dev.kobj), &lbs_mesh_attr_group);
-	if (ret)
-		goto err_unregister;
-
-	lbs_persist_config_init(mesh_dev);
-
 	/* Everything successful */
 	ret = 0;
 	goto done;
-
-err_unregister:
-	unregister_netdev(mesh_dev);
 
 err_free_netdev:
 	free_netdev(mesh_dev);
@@ -1045,8 +1036,6 @@ void lbs_remove_mesh(struct lbs_private *priv)
 
 	netif_stop_queue(mesh_dev);
 	netif_carrier_off(mesh_dev);
-	sysfs_remove_group(&(mesh_dev->dev.kobj), &lbs_mesh_attr_group);
-	lbs_persist_config_remove(mesh_dev);
 	unregister_netdev(mesh_dev);
 	priv->mesh_dev = NULL;
 	kfree(mesh_dev->ieee80211_ptr);

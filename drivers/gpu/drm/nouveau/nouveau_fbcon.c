@@ -37,10 +37,10 @@
 #include <linux/vga_switcheroo.h>
 #include <linux/console.h>
 
-#include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_fb_helper.h>
+#include <drm/drm_fourcc.h>
 #include <drm/drm_atomic.h>
 
 #include "nouveau_drv.h"
@@ -189,8 +189,10 @@ nouveau_fbcon_open(struct fb_info *info, int user)
 	struct nouveau_fbdev *fbcon = info->par;
 	struct nouveau_drm *drm = nouveau_drm(fbcon->helper.dev);
 	int ret = pm_runtime_get_sync(drm->dev->dev);
-	if (ret < 0 && ret != -EACCES)
+	if (ret < 0 && ret != -EACCES) {
+		pm_runtime_put(drm->dev->dev);
 		return ret;
+	}
 	return 0;
 }
 
@@ -315,7 +317,7 @@ nouveau_fbcon_create(struct drm_fb_helper *helper,
 	struct nouveau_framebuffer *fb;
 	struct nouveau_channel *chan;
 	struct nouveau_bo *nvbo;
-	struct drm_mode_fb_cmd2 mode_cmd;
+	struct drm_mode_fb_cmd2 mode_cmd = {};
 	int ret;
 
 	mode_cmd.width = sizes->surface_width;
@@ -353,7 +355,7 @@ nouveau_fbcon_create(struct drm_fb_helper *helper,
 
 	chan = nouveau_nofbaccel ? NULL : drm->channel;
 	if (chan && device->info.family >= NV_DEVICE_INFO_V0_TESLA) {
-		ret = nouveau_vma_new(nvbo, &drm->client.vmm, &fb->vma);
+		ret = nouveau_vma_new(nvbo, chan->vmm, &fb->vma);
 		if (ret) {
 			NV_ERROR(drm, "failed to map fb into chan: %d\n", ret);
 			chan = NULL;
@@ -365,21 +367,16 @@ nouveau_fbcon_create(struct drm_fb_helper *helper,
 		ret = PTR_ERR(info);
 		goto out_unlock;
 	}
-	info->skip_vt_switch = 1;
-
-	info->par = fbcon;
 
 	/* setup helper */
 	fbcon->helper.fb = &fb->base;
 
-	strcpy(info->fix.id, "nouveaufb");
 	if (!chan)
-		info->flags = FBINFO_DEFAULT | FBINFO_HWACCEL_DISABLED;
+		info->flags = FBINFO_HWACCEL_DISABLED;
 	else
-		info->flags = FBINFO_DEFAULT | FBINFO_HWACCEL_COPYAREA |
+		info->flags = FBINFO_HWACCEL_COPYAREA |
 			      FBINFO_HWACCEL_FILLRECT |
 			      FBINFO_HWACCEL_IMAGEBLIT;
-	info->flags |= FBINFO_CAN_FORCE_OUTPUT;
 	info->fbops = &nouveau_fbcon_sw_ops;
 	info->fix.smem_start = fb->nvbo->bo.mem.bus.base +
 			       fb->nvbo->bo.mem.bus.offset;
@@ -388,9 +385,7 @@ nouveau_fbcon_create(struct drm_fb_helper *helper,
 	info->screen_base = nvbo_kmap_obj_iovirtual(fb->nvbo);
 	info->screen_size = fb->nvbo->bo.mem.num_pages << PAGE_SHIFT;
 
-	drm_fb_helper_fill_fix(info, fb->base.pitches[0],
-			       fb->base.format->depth);
-	drm_fb_helper_fill_var(info, &fbcon->helper, sizes->fb_width, sizes->fb_height);
+	drm_fb_helper_fill_info(info, &fbcon->helper, sizes);
 
 	/* Use default scratch pixmap (info->pixmap.flags = FB_PIXMAP_SYSTEM) */
 
@@ -599,6 +594,7 @@ fini:
 	drm_fb_helper_fini(&fbcon->helper);
 free:
 	kfree(fbcon);
+	drm->fbcon = NULL;
 	return ret;
 }
 

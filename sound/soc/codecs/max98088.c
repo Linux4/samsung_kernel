@@ -1,11 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * max98088.c -- MAX98088 ALSA SoC Audio driver
  *
  * Copyright 2010 Maxim Integrated Products
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  */
 
 #include <linux/module.h>
@@ -16,6 +13,7 @@
 #include <linux/pm.h>
 #include <linux/i2c.h>
 #include <linux/regmap.h>
+#include <linux/clk.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -42,6 +40,8 @@ struct max98088_priv {
 	struct regmap *regmap;
 	enum max98088_type devtype;
 	struct max98088_pdata *pdata;
+	struct clk *mclk;
+	unsigned char mclk_prescaler;
 	unsigned int sysclk;
 	struct max98088_cdata dai[2];
 	int eq_textcnt;
@@ -999,13 +999,16 @@ static int max98088_dai1_hw_params(struct snd_pcm_substream *substream,
        /* Configure NI when operating as master */
        if (snd_soc_component_read32(component, M98088_REG_14_DAI1_FORMAT)
                & M98088_DAI_MAS) {
+               unsigned long pclk;
+
                if (max98088->sysclk == 0) {
                        dev_err(component->dev, "Invalid system clock frequency\n");
                        return -EINVAL;
                }
                ni = 65536ULL * (rate < 50000 ? 96ULL : 48ULL)
                                * (unsigned long long int)rate;
-               do_div(ni, (unsigned long long int)max98088->sysclk);
+               pclk = DIV_ROUND_CLOSEST(max98088->sysclk, max98088->mclk_prescaler);
+               ni = DIV_ROUND_CLOSEST_ULL(ni, pclk);
                snd_soc_component_write(component, M98088_REG_12_DAI1_CLKCFG_HI,
                        (ni >> 8) & 0x7F);
                snd_soc_component_write(component, M98088_REG_13_DAI1_CLKCFG_LO,
@@ -1066,13 +1069,16 @@ static int max98088_dai2_hw_params(struct snd_pcm_substream *substream,
        /* Configure NI when operating as master */
        if (snd_soc_component_read32(component, M98088_REG_1C_DAI2_FORMAT)
                & M98088_DAI_MAS) {
+               unsigned long pclk;
+
                if (max98088->sysclk == 0) {
                        dev_err(component->dev, "Invalid system clock frequency\n");
                        return -EINVAL;
                }
                ni = 65536ULL * (rate < 50000 ? 96ULL : 48ULL)
                                * (unsigned long long int)rate;
-               do_div(ni, (unsigned long long int)max98088->sysclk);
+               pclk = DIV_ROUND_CLOSEST(max98088->sysclk, max98088->mclk_prescaler);
+               ni = DIV_ROUND_CLOSEST_ULL(ni, pclk);
                snd_soc_component_write(component, M98088_REG_1A_DAI2_CLKCFG_HI,
                        (ni >> 8) & 0x7F);
                snd_soc_component_write(component, M98088_REG_1B_DAI2_CLKCFG_LO,
@@ -1103,14 +1109,21 @@ static int max98088_dai_set_sysclk(struct snd_soc_dai *dai,
        if (freq == max98088->sysclk)
                return 0;
 
+	if (!IS_ERR(max98088->mclk)) {
+		freq = clk_round_rate(max98088->mclk, freq);
+		clk_set_rate(max98088->mclk, freq);
+	}
+
        /* Setup clocks for slave mode, and using the PLL
         * PSCLK = 0x01 (when master clk is 10MHz to 20MHz)
         *         0x02 (when master clk is 20MHz to 30MHz)..
         */
        if ((freq >= 10000000) && (freq < 20000000)) {
                snd_soc_component_write(component, M98088_REG_10_SYS_CLK, 0x10);
+               max98088->mclk_prescaler = 1;
        } else if ((freq >= 20000000) && (freq < 30000000)) {
                snd_soc_component_write(component, M98088_REG_10_SYS_CLK, 0x20);
+               max98088->mclk_prescaler = 2;
        } else {
                dev_err(component->dev, "Invalid master clock frequency\n");
                return -EINVAL;
@@ -1310,6 +1323,20 @@ static int max98088_set_bias_level(struct snd_soc_component *component,
 		break;
 
 	case SND_SOC_BIAS_PREPARE:
+		/*
+		 * SND_SOC_BIAS_PREPARE is called while preparing for a
+		 * transition to ON or away from ON. If current bias_level
+		 * is SND_SOC_BIAS_ON, then it is preparing for a transition
+		 * away from ON. Disable the clock in that case, otherwise
+		 * enable it.
+		 */
+		if (!IS_ERR(max98088->mclk)) {
+			if (snd_soc_component_get_bias_level(component) ==
+			    SND_SOC_BIAS_ON)
+				clk_disable_unprepare(max98088->mclk);
+			else
+				clk_prepare_enable(max98088->mclk);
+		}
 		break;
 
 	case SND_SOC_BIAS_STANDBY:
@@ -1725,6 +1752,11 @@ static int max98088_i2c_probe(struct i2c_client *i2c,
        if (IS_ERR(max98088->regmap))
 	       return PTR_ERR(max98088->regmap);
 
+	max98088->mclk = devm_clk_get(&i2c->dev, "mclk");
+	if (IS_ERR(max98088->mclk))
+		if (PTR_ERR(max98088->mclk) == -EPROBE_DEFER)
+			return PTR_ERR(max98088->mclk);
+
        max98088->devtype = id->driver_data;
 
        i2c_set_clientdata(i2c, max98088);
@@ -1742,9 +1774,19 @@ static const struct i2c_device_id max98088_i2c_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, max98088_i2c_id);
 
+#if defined(CONFIG_OF)
+static const struct of_device_id max98088_of_match[] = {
+	{ .compatible = "maxim,max98088" },
+	{ .compatible = "maxim,max98089" },
+	{ }
+};
+MODULE_DEVICE_TABLE(of, max98088_of_match);
+#endif
+
 static struct i2c_driver max98088_i2c_driver = {
 	.driver = {
 		.name = "max98088",
+		.of_match_table = of_match_ptr(max98088_of_match),
 	},
 	.probe  = max98088_i2c_probe,
 	.id_table = max98088_i2c_id,

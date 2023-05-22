@@ -10,8 +10,6 @@
 #define CIO2_PCI_ID					0x9d32
 #define CIO2_PCI_BAR					0
 #define CIO2_DMA_MASK					DMA_BIT_MASK(39)
-#define CIO2_IMAGE_MAX_WIDTH				4224
-#define CIO2_IMAGE_MAX_LENGTH				3136
 
 #define CIO2_IMAGE_MAX_WIDTH				4224
 #define CIO2_IMAGE_MAX_LENGTH				3136
@@ -334,6 +332,7 @@ struct cio2_queue {
 
 	/* Subdev, /dev/v4l-subdevX */
 	struct v4l2_subdev subdev;
+	struct mutex subdev_lock; /* Serialise acces to subdev_fmt field */
 	struct media_pad subdev_pads[CIO2_PADS];
 	struct v4l2_mbus_framefmt subdev_fmt;
 	atomic_t frame_sequence;

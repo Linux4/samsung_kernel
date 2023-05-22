@@ -264,7 +264,7 @@ struct bcache_device {
 #define BCACHE_DEV_UNLINK_DONE		2
 #define BCACHE_DEV_WB_RUNNING		3
 #define BCACHE_DEV_RATE_DW_RUNNING	4
-	unsigned int		nr_stripes;
+	int			nr_stripes;
 	unsigned int		stripe_size;
 	atomic_t		*stripe_sectors_dirty;
 	unsigned long		*full_dirty_stripes;
@@ -585,6 +585,7 @@ struct cache_set {
 	 */
 	wait_queue_head_t	btree_cache_wait;
 	struct task_struct	*btree_cache_alloc_lock;
+	spinlock_t		btree_cannibalize_lock;
 
 	/*
 	 * When we free a btree node, we increment the gen of the bucket the
@@ -630,6 +631,20 @@ struct cache_set {
 	struct bkey		gc_done;
 
 	/*
+	 * For automatical garbage collection after writeback completed, this
+	 * varialbe is used as bit fields,
+	 * - 0000 0001b (BCH_ENABLE_AUTO_GC): enable gc after writeback
+	 * - 0000 0010b (BCH_DO_AUTO_GC):     do gc after writeback
+	 * This is an optimization for following write request after writeback
+	 * finished, but read hit rate dropped due to clean data on cache is
+	 * discarded. Unless user explicitly sets it via sysfs, it won't be
+	 * enabled.
+	 */
+#define BCH_ENABLE_AUTO_GC	1
+#define BCH_DO_AUTO_GC		2
+	uint8_t			gc_after_writeback;
+
+	/*
 	 * The allocation code needs gc_mark in struct bucket to be correct, but
 	 * it's not while a gc is in progress. Protected by bucket_lock.
 	 */
@@ -661,7 +676,11 @@ struct cache_set {
 
 	/*
 	 * A btree node on disk could have too many bsets for an iterator to fit
-	 * on the stack - have to dynamically allocate them
+	 * on the stack - have to dynamically allocate them.
+	 * bch_cache_set_alloc() will make sure the pool can allocate iterators
+	 * equipped with enough room that can host
+	 *     (sb.bucket_size / sb.block_size)
+	 * btree_iter_sets, which is more than static MAX_BSETS.
 	 */
 	mempool_t		fill_iter;
 
@@ -690,8 +709,8 @@ struct cache_set {
 	atomic_long_t		writeback_keys_failed;
 
 	atomic_long_t		reclaim;
+	atomic_long_t		reclaimed_journal_buckets;
 	atomic_long_t		flush_write;
-	atomic_long_t		retry_flush_write;
 
 	enum			{
 		ON_ERROR_UNREGISTER,
@@ -967,6 +986,7 @@ void bch_write_bdev_super(struct cached_dev *dc, struct closure *parent);
 
 extern struct workqueue_struct *bcache_wq;
 extern struct workqueue_struct *bch_journal_wq;
+extern struct workqueue_struct *bch_flush_wq;
 extern struct mutex bch_register_lock;
 extern struct list_head bch_cache_sets;
 
@@ -989,7 +1009,7 @@ int bch_flash_dev_create(struct cache_set *c, uint64_t size);
 int bch_cached_dev_attach(struct cached_dev *dc, struct cache_set *c,
 			  uint8_t *set_uuid);
 void bch_cached_dev_detach(struct cached_dev *dc);
-void bch_cached_dev_run(struct cached_dev *dc);
+int bch_cached_dev_run(struct cached_dev *dc);
 void bcache_device_stop(struct bcache_device *d);
 
 void bch_cache_set_unregister(struct cache_set *c);
@@ -1005,8 +1025,10 @@ void bch_open_buckets_free(struct cache_set *c);
 int bch_cache_allocator_start(struct cache *ca);
 
 void bch_debug_exit(void);
-void bch_debug_init(struct kobject *kobj);
+void bch_debug_init(void);
 void bch_request_exit(void);
 int bch_request_init(void);
+void bch_btree_exit(void);
+int bch_btree_init(void);
 
 #endif /* _BCACHE_H */

@@ -1,15 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2013-2015, Linux Foundation. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
+ * Copyright (c) 2013-2015, 2019-2020, Linux Foundation. All rights reserved.
  */
 
 #include "phy-qcom-ufs-qmp-14nm.h"
@@ -18,12 +9,15 @@
 #define UFS_PHY_VDDA_PHY_UV	(925000)
 
 static
-int ufs_qcom_phy_qmp_14nm_phy_calibrate(struct ufs_qcom_phy *ufs_qcom_phy,
-					bool is_rate_B)
+int ufs_qcom_phy_qmp_14nm_phy_calibrate(struct phy *generic_phy)
 {
+	struct ufs_qcom_phy *ufs_qcom_phy = get_ufs_qcom_phy(generic_phy);
 	int tbl_size_A = ARRAY_SIZE(phy_cal_table_rate_A);
 	int tbl_size_B = ARRAY_SIZE(phy_cal_table_rate_B);
+	bool is_rate_B;
 	int err;
+
+	is_rate_B = (ufs_qcom_phy->mode == PHY_MODE_UFS_HS_B) ? true : false;
 
 	err = ufs_qcom_phy_calibrate(ufs_qcom_phy, phy_cal_table_rate_A,
 		tbl_size_A, phy_cal_table_rate_B, tbl_size_B, is_rate_B);
@@ -42,30 +36,9 @@ void ufs_qcom_phy_qmp_14nm_advertise_quirks(struct ufs_qcom_phy *phy_common)
 		UFS_QCOM_PHY_QUIRK_HIBERN8_EXIT_AFTER_PHY_PWR_COLLAPSE;
 }
 
-static int ufs_qcom_phy_qmp_14nm_init(struct phy *generic_phy)
-{
-	struct ufs_qcom_phy *phy_common = get_ufs_qcom_phy(generic_phy);
-	bool is_rate_B = false;
-	int ret;
-
-	if (phy_common->mode == PHY_MODE_UFS_HS_B)
-		is_rate_B = true;
-
-	ret = ufs_qcom_phy_qmp_14nm_phy_calibrate(phy_common, is_rate_B);
-	if (!ret)
-		/* phy calibrated, but yet to be started */
-		phy_common->is_started = false;
-
-	return ret;
-}
-
-static int ufs_qcom_phy_qmp_14nm_exit(struct phy *generic_phy)
-{
-	return 0;
-}
-
 static
-int ufs_qcom_phy_qmp_14nm_set_mode(struct phy *generic_phy, enum phy_mode mode)
+int ufs_qcom_phy_qmp_14nm_set_mode(struct phy *generic_phy,
+				   enum phy_mode mode, int submode)
 {
 	struct ufs_qcom_phy *phy_common = get_ufs_qcom_phy(generic_phy);
 
@@ -73,6 +46,8 @@ int ufs_qcom_phy_qmp_14nm_set_mode(struct phy *generic_phy, enum phy_mode mode)
 
 	if (mode > 0)
 		phy_common->mode = mode;
+
+	phy_common->submode = submode;
 
 	return 0;
 }
@@ -123,11 +98,10 @@ static int ufs_qcom_phy_qmp_14nm_is_pcs_ready(struct ufs_qcom_phy *phy_common)
 }
 
 static const struct phy_ops ufs_qcom_phy_qmp_14nm_phy_ops = {
-	.init		= ufs_qcom_phy_qmp_14nm_init,
-	.exit		= ufs_qcom_phy_qmp_14nm_exit,
 	.power_on	= ufs_qcom_phy_power_on,
 	.power_off	= ufs_qcom_phy_power_off,
 	.set_mode	= ufs_qcom_phy_qmp_14nm_set_mode,
+	.calibrate	= ufs_qcom_phy_qmp_14nm_phy_calibrate,
 	.owner		= THIS_MODULE,
 };
 

@@ -1,13 +1,9 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 #ifndef _ASM_POWERPC_CODE_PATCHING_H
 #define _ASM_POWERPC_CODE_PATCHING_H
 
 /*
  * Copyright 2008, Michael Ellerman, IBM Corporation.
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version
- * 2 of the License, or (at your option) any later version.
  */
 
 #include <asm/types.h>
@@ -26,6 +22,7 @@
 #define BRANCH_ABSOLUTE	0x2
 
 bool is_offset_in_branch_range(long offset);
+bool is_offset_in_cond_branch_range(long offset);
 unsigned int create_branch(const unsigned int *addr,
 			   unsigned long target, int flags);
 unsigned int create_cond_branch(const unsigned int *addr,
@@ -33,8 +30,32 @@ unsigned int create_cond_branch(const unsigned int *addr,
 int patch_branch(unsigned int *addr, unsigned long target, int flags);
 int patch_instruction(unsigned int *addr, unsigned int instr);
 int raw_patch_instruction(unsigned int *addr, unsigned int instr);
-int patch_instruction_site(s32 *addr, unsigned int instr);
-int patch_branch_site(s32 *site, unsigned long target, int flags);
+
+static inline unsigned long patch_site_addr(s32 *site)
+{
+	return (unsigned long)site + *site;
+}
+
+static inline int patch_instruction_site(s32 *site, unsigned int instr)
+{
+	return patch_instruction((unsigned int *)patch_site_addr(site), instr);
+}
+
+static inline int patch_branch_site(s32 *site, unsigned long target, int flags)
+{
+	return patch_branch((unsigned int *)patch_site_addr(site), target, flags);
+}
+
+static inline int modify_instruction(unsigned int *addr, unsigned int clr,
+				     unsigned int set)
+{
+	return patch_instruction(addr, (*addr & ~clr) | set);
+}
+
+static inline int modify_instruction_site(s32 *site, unsigned int clr, unsigned int set)
+{
+	return modify_instruction((unsigned int *)patch_site_addr(site), clr, set);
+}
 
 int instr_is_relative_branch(unsigned int instr);
 int instr_is_relative_link_branch(unsigned int instr);
@@ -52,7 +73,7 @@ void __patch_exception(int exc, unsigned long addr);
 #endif
 
 #define OP_RT_RA_MASK	0xffff0000UL
-#define LIS_R2		0x3c020000UL
+#define LIS_R2		0x3c400000UL
 #define ADDIS_R2_R12	0x3c4c0000UL
 #define ADDI_R2_R2	0x38420000UL
 

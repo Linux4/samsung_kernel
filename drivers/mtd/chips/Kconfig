@@ -1,8 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0-only
 menu "RAM/ROM/Flash chip drivers"
 	depends on MTD!=n
 
 config MTD_CFI
-	tristate "Detect flash chips by Common Flash Interface (CFI) probe"
+	bool "Detect flash chips by Common Flash Interface (CFI) probe"
 	select MTD_GEN_PROBE
 	select MTD_CFI_UTIL
 	help
@@ -14,7 +15,7 @@ config MTD_CFI
 	  for more information on CFI.
 
 config MTD_JEDECPROBE
-	tristate "Detect non-CFI AMD/JEDEC-compatible flash chips"
+	bool "Detect non-CFI AMD/JEDEC-compatible flash chips"
 	select MTD_GEN_PROBE
 	select MTD_CFI_UTIL
 	help
@@ -26,7 +27,7 @@ config MTD_JEDECPROBE
 	  Intel chips.
 
 config MTD_GEN_PROBE
-	tristate
+	bool
 
 config MTD_CFI_ADV_OPTIONS
 	bool "Flash chip driver advanced configuration options"
@@ -54,12 +55,14 @@ choice
 	  LITTLE_ENDIAN_BYTE, if the bytes are reversed.
 
 config MTD_CFI_NOSWAP
+	depends on !ARCH_IXP4XX || CPU_BIG_ENDIAN
 	bool "NO"
 
 config MTD_CFI_BE_BYTE_SWAP
 	bool "BIG_ENDIAN_BYTE"
 
 config MTD_CFI_LE_BYTE_SWAP
+	depends on !ARCH_IXP4XX
 	bool "LITTLE_ENDIAN_BYTE"
 
 endchoice

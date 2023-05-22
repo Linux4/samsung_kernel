@@ -3,7 +3,6 @@
 #define __NET_PSAMPLE_H
 
 #include <uapi/linux/psample.h>
-#include <linux/module.h>
 #include <linux/list.h>
 
 struct psample_group {
@@ -16,7 +15,10 @@ struct psample_group {
 };
 
 struct psample_group *psample_group_get(struct net *net, u32 group_num);
+void psample_group_take(struct psample_group *group);
 void psample_group_put(struct psample_group *group);
+
+struct sk_buff;
 
 #if IS_ENABLED(CONFIG_PSAMPLE)
 

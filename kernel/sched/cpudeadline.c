@@ -1,14 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  kernel/sched/cpudl.c
  *
  *  Global CPU deadline management
  *
  *  Author: Juri Lelli <j.lelli@sssup.it>
- *
- *  This program is free software; you can redistribute it and/or
- *  modify it under the terms of the GNU General Public License
- *  as published by the Free Software Foundation; version 2
- *  of the License.
  */
 #include "sched.h"
 
@@ -124,14 +120,16 @@ int cpudl_find(struct cpudl *cp, struct task_struct *p,
 	const struct sched_dl_entity *dl_se = &p->dl;
 
 	if (later_mask &&
-	    cpumask_and(later_mask, cp->free_cpus, &p->cpus_allowed)) {
+	    cpumask_and(later_mask, cp->free_cpus, p->cpus_ptr) &&
+	    cpumask_and(later_mask, later_mask, cpu_active_mask)) {
 		return 1;
 	} else {
 		int best_cpu = cpudl_maximum(cp);
 
 		WARN_ON(best_cpu != -1 && !cpu_present(best_cpu));
 
-		if (cpumask_test_cpu(best_cpu, &p->cpus_allowed) &&
+		if (cpumask_test_cpu(best_cpu, p->cpus_ptr) &&
+		    cpumask_test_cpu(best_cpu, cpu_active_mask) &&
 		    dl_time_before(dl_se->deadline, cp->elements[0].dl)) {
 			if (later_mask)
 				cpumask_set_cpu(best_cpu, later_mask);

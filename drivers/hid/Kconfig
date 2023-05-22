@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-only
 #
 # HID driver configuration
 #
@@ -148,7 +149,10 @@ config HID_APPLEIR
 
 config HID_ASUS
 	tristate "Asus"
+	depends on USB_HID
 	depends on LEDS_CLASS
+	depends on ASUS_WMI || ASUS_WMI=n
+	select POWER_SUPPLY
 	---help---
 	Support for Asus notebook built-in keyboard and touchpad via i2c, and
 	the Asus Republic of Gamers laptop keyboard special keys.
@@ -182,6 +186,18 @@ config HID_BETOP_FF
 	Currently the following devices are known to be supported:
 	 - BETOP 2185 PC & BFM MODE
 
+config HID_BIGBEN_FF
+	tristate "BigBen Interactive Kids' gamepad support"
+	depends on USB_HID
+	depends on NEW_LEDS
+	depends on LEDS_CLASS
+	select INPUT_FF_MEMLESS
+	help
+	  Support for the "Kid-friendly Wired Controller" PS3OFMINIPAD
+	  gamepad made by BigBen Interactive, originally sold as a PS3
+	  accessory. This driver fixes input mapping and adds support for
+	  force feedback effects and LEDs on the device.
+
 config HID_CHERRY
 	tristate "Cherry Cymotion keyboard"
 	depends on HID
@@ -191,14 +207,14 @@ config HID_CHERRY
 
 config HID_CHICONY
 	tristate "Chicony devices"
-	depends on HID
+	depends on USB_HID
 	default !EXPERT
 	---help---
 	Support for Chicony Tactical pad and special keys on Chicony keyboards.
 
 config HID_CORSAIR
 	tristate "Corsair devices"
-	depends on HID && USB && LEDS_CLASS
+	depends on USB_HID && LEDS_CLASS
 	---help---
 	Support for Corsair devices that are not fully compliant with the
 	HID standard.
@@ -217,9 +233,19 @@ config HID_COUGAR
 	Supported devices:
 	- Cougar 500k Gaming Keyboard
 
+config HID_MACALLY
+	tristate "Macally devices"
+	depends on HID
+	help
+	Support for Macally devices that are not fully compliant with the
+	HID standard.
+
+	supported devices:
+	- Macally ikey keyboard
+
 config HID_PRODIKEYS
 	tristate "Prodikeys PC-MIDI Keyboard support"
-	depends on HID && SND
+	depends on USB_HID && SND
 	select SND_RAWMIDI
 	---help---
 	Support for Prodikeys PC-MIDI Keyboard device support.
@@ -247,6 +273,15 @@ config HID_CP2112
 	This is a HID device driver which registers as an i2c adapter
 	and gpiochip to expose these functions of the CP2112. The
 	customizable USB descriptor fields are exposed as sysfs attributes.
+
+config HID_CREATIVE_SB0540
+	tristate "Creative SB0540 infrared receiver"
+	depends on USB_HID
+	help
+	Support for Creative infrared SB0540-compatible remote controls, such
+	as the RM-1500 and RM-1800 remotes.
+
+	Say Y here if you want support for Creative SB0540 infrared receiver.
 
 config HID_CYPRESS
 	tristate "Cypress mouse and barcode readers"
@@ -351,7 +386,7 @@ config HOLTEK_FF
 
 config HID_GOOGLE_HAMMER
 	tristate "Google Hammer Keyboard"
-	depends on USB_HID && LEDS_CLASS
+	depends on USB_HID && LEDS_CLASS && CROS_EC
 	---help---
 	Say Y here if you have a Google Hammer device.
 
@@ -398,6 +433,12 @@ config HID_WALTOP
 	depends on HID
 	---help---
 	Support for Waltop tablets.
+
+config HID_VIEWSONIC
+	tristate "ViewSonic/Signotec"
+	depends on HID
+	help
+	  Support for ViewSonic/Signotec PD1011 signature pad.
 
 config HID_GYRATION
 	tristate "Gyration remote control"
@@ -484,13 +525,14 @@ config HID_LENOVO
 
 config HID_LOGITECH
 	tristate "Logitech devices"
-	depends on HID
+	depends on USB_HID
 	default !EXPERT
 	---help---
 	Support for Logitech devices that are not fully compliant with HID standard.
 
 config HID_LOGITECH_DJ
 	tristate "Logitech Unifying receivers full support"
+	depends on USB_HID
 	depends on HIDRAW
 	depends on HID_LOGITECH
 	select HID_LOGITECH_HIDPP
@@ -577,6 +619,13 @@ config HID_MAGICMOUSE
 	Say Y here if you want support for the multi-touch features of the
 	Apple Wireless "Magic" Mouse and the Apple Wireless "Magic" Trackpad.
 
+config HID_MALTRON
+	tristate "Maltron L90 keyboard"
+	depends on HID
+	---help---
+	Adds support for the volume up, volume down, mute, and play/pause buttons
+	of the Maltron L90 keyboard.
+
 config HID_MAYFLASH
 	tristate "Mayflash game controller adapter force feedback"
 	depends on HID
@@ -596,6 +645,7 @@ config HID_MICROSOFT
 	tristate "Microsoft non-fully HID-compliant devices"
 	depends on HID
 	default !EXPERT
+	select INPUT_FF_MEMLESS
 	---help---
 	Support for Microsoft devices that are not fully compliant with HID standard.
 
@@ -797,6 +847,24 @@ config HID_PLANTRONICS
 
 	  Say M here if you may ever plug in a Plantronics USB audio device.
 
+config HID_PLAYSTATION
+	tristate "PlayStation HID Driver"
+	depends on HID
+	select CRC32
+	select POWER_SUPPLY
+	help
+	  Provides support for Sony PS5 controllers including support for
+	  its special functionalities e.g. touchpad, lights and motion
+	  sensors.
+
+config PLAYSTATION_FF
+	bool "PlayStation force feedback support"
+	depends on HID_PLAYSTATION
+	select INPUT_FF_MEMLESS
+	help
+	  Say Y here if you would like to enable force feedback support for
+	  PlayStation game controllers.
+
 config HID_PRIMAX
 	tristate "Primax non-fully HID-compliant devices"
 	depends on HID
@@ -833,7 +901,7 @@ config HID_SAITEK
 
 config HID_SAMSUNG
 	tristate "Samsung InfraRed remote control or keyboards"
-	depends on HID
+	depends on USB_HID
 	---help---
 	Support for Samsung InfraRed remote control or keyboards.
 
@@ -940,6 +1008,20 @@ config SMARTJOYPLUS_FF
 	Say Y here if you have a SmartJoy PLUS PS2/USB adapter and want to
 	enable force feedback support for it.
 
+config HID_AKSYS_QRD
+	tristate "AKSys gamepad USB adapter support"
+	depends on HID
+	---help---
+	Support for AKSys gamepad USB adapter
+
+config AKSYS_QRD_FF
+	bool "AKSys gamepad USB adapter force feedback support"
+	depends on HID_AKSYS_QRD
+	select INPUT_FF_MEMLESS
+	---help---
+	Say Y here if you have a AKSys gamepad USB adapter and want to
+	enable force feedback support for it.
+
 config HID_TIVO
 	tristate "TiVo Slide Bluetooth remote control support"
 	depends on HID
@@ -985,6 +1067,22 @@ config HID_UDRAW_PS3
 	---help---
 	  Say Y here if you want to use the THQ uDraw gaming tablet for
 	  the PS3.
+
+config HID_U2FZERO
+	tristate "U2F Zero LED and RNG support"
+	depends on USB_HID
+	depends on LEDS_CLASS
+	depends on HW_RANDOM
+	help
+	  Support for the LED of the U2F Zero device.
+
+	  U2F Zero supports custom commands for blinking the LED
+	  and getting data from the internal hardware RNG.
+	  The internal hardware can be used to feed the enthropy pool.
+
+	  U2F Zero only supports blinking its LED, so this driver doesn't
+	  allow setting the brightness to anything but 1, which will
+	  trigger a single blink and immediately reset to back 0.
 
 config HID_WACOM
 	tristate "Wacom Intuos/Graphire tablet support (USB)"
@@ -1090,6 +1188,18 @@ config HID_ALPS
 	Say Y here if you have a Alps touchpads over i2c-hid or usbhid
 	and want support for its special functionalities.
 
+config HID_QVR
+	tristate "QVR support"
+	depends on HID
+	help
+	Say 'Y' or 'M' if you want to connect an external device to
+	stream sensor data for QVR support.
+
+	This module handles sensor data from external device and
+	writes it in to shared memory. Sensor data includes
+	temperature, accelerometer, gyroscope, magnetometer data.
+
+	If unsure, say Y.
 endmenu
 
 endif # HID

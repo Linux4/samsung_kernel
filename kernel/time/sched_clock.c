@@ -1,10 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * sched_clock.c: Generic sched_clock() support, to extend low level
- *                hardware time counters to full 64-bit ns values.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * Generic sched_clock() support, to extend low level hardware time
+ * counters to full 64-bit ns values.
  */
 #include <linux/clocksource.h>
 #include <linux/init.h>
@@ -19,6 +16,12 @@
 #include <linux/sched_clock.h>
 #include <linux/seqlock.h>
 #include <linux/bitops.h>
+
+#include "timekeeping.h"
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG_SCHED_LOG)
+#include <linux/sec_debug.h>
+#endif
 
 /**
  * struct clock_read_data - data required to read from sched_clock()
@@ -72,6 +75,12 @@ struct clock_data {
 static struct hrtimer sched_clock_timer;
 static int irqtime = -1;
 
+#ifdef CONFIG_PRINT_SUSPEND_EPOCH_QGKI
+static u64 suspend_ns;
+static u64 suspend_cycles;
+static u64 resume_cycles;
+#endif
+
 core_param(irqtime, irqtime, int, 0400);
 
 static u64 notrace jiffy_sched_clock_read(void)
@@ -97,7 +106,7 @@ static inline u64 notrace cyc_to_ns(u64 cyc, u32 mult, u32 shift)
 unsigned long long notrace sched_clock(void)
 {
 	u64 cyc, res;
-	unsigned long seq;
+	unsigned int seq;
 	struct clock_read_data *rd;
 
 	do {
@@ -109,6 +118,9 @@ unsigned long long notrace sched_clock(void)
 		res = rd->epoch_ns + cyc_to_ns(cyc, rd->mult, rd->shift);
 	} while (read_seqcount_retry(&cd.seq, seq));
 
+#if IS_ENABLED(CONFIG_SEC_DEBUG_SCHED_LOG)
+	sec_debug_save_last_ns(res);
+#endif
 	return res;
 }
 
@@ -208,7 +220,8 @@ sched_clock_register(u64 (*read)(void), int bits, unsigned long rate)
 
 	if (sched_clock_timer.function != NULL) {
 		/* update timeout for clock wrap */
-		hrtimer_start(&sched_clock_timer, cd.wrap_kt, HRTIMER_MODE_REL);
+		hrtimer_start(&sched_clock_timer, cd.wrap_kt,
+			      HRTIMER_MODE_REL_HARD);
 	}
 
 	r = rate;
@@ -234,7 +247,7 @@ sched_clock_register(u64 (*read)(void), int bits, unsigned long rate)
 	if (irqtime > 0 || (irqtime == -1 && rate >= 1000000))
 		enable_sched_clock_irqtime();
 
-	pr_debug("Registered %pF as sched_clock source\n", read);
+	pr_debug("Registered %pS as sched_clock source\n", read);
 }
 
 void __init generic_sched_clock_init(void)
@@ -252,9 +265,9 @@ void __init generic_sched_clock_init(void)
 	 * Start the timer to keep sched_clock() properly updated and
 	 * sets the initial epoch.
 	 */
-	hrtimer_init(&sched_clock_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	hrtimer_init(&sched_clock_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_HARD);
 	sched_clock_timer.function = sched_clock_poll;
-	hrtimer_start(&sched_clock_timer, cd.wrap_kt, HRTIMER_MODE_REL);
+	hrtimer_start(&sched_clock_timer, cd.wrap_kt, HRTIMER_MODE_REL_HARD);
 }
 
 /*
@@ -270,7 +283,7 @@ void __init generic_sched_clock_init(void)
  */
 static u64 notrace suspended_sched_clock_read(void)
 {
-	unsigned long seq = raw_read_seqcount(&cd.seq);
+	unsigned int seq = raw_read_seqcount(&cd.seq);
 
 	return cd.read_data[seq & 1].epoch_cyc;
 }
@@ -280,6 +293,13 @@ int sched_clock_suspend(void)
 	struct clock_read_data *rd = &cd.read_data[0];
 
 	update_sched_clock();
+
+#ifdef CONFIG_PRINT_SUSPEND_EPOCH_QGKI
+	suspend_ns = rd->epoch_ns;
+	suspend_cycles = rd->epoch_cyc;
+	pr_info("suspend ns:%17llu      suspend cycles:%17llu\n",
+				rd->epoch_ns, rd->epoch_cyc);
+#endif
 	hrtimer_cancel(&sched_clock_timer);
 	rd->read_sched_clock = suspended_sched_clock_read;
 
@@ -291,7 +311,11 @@ void sched_clock_resume(void)
 	struct clock_read_data *rd = &cd.read_data[0];
 
 	rd->epoch_cyc = cd.actual_read_sched_clock();
-	hrtimer_start(&sched_clock_timer, cd.wrap_kt, HRTIMER_MODE_REL);
+	hrtimer_start(&sched_clock_timer, cd.wrap_kt, HRTIMER_MODE_REL_HARD);
+#ifdef CONFIG_PRINT_SUSPEND_EPOCH_QGKI
+	resume_cycles = rd->epoch_cyc;
+	pr_info("resume cycles:%17llu\n", rd->epoch_cyc);
+#endif
 	rd->read_sched_clock = cd.actual_read_sched_clock;
 }
 

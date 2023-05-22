@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) ST-Ericsson AB 2012
  *
@@ -8,7 +9,6 @@
  * battery management is not used and the supported code is available in this
  * driver.
  *
- * License Terms: GNU General Public License v2
  * Author:
  *	Johan Palsson <johan.palsson@stericsson.com>
  *	Karl Komierowski <karl.komierowski@stericsson.com>
@@ -2541,8 +2541,10 @@ static int ab8500_fg_sysfs_init(struct ab8500_fg *di)
 	ret = kobject_init_and_add(&di->fg_kobject,
 		&ab8500_fg_ktype,
 		NULL, "battery");
-	if (ret < 0)
+	if (ret < 0) {
+		kobject_put(&di->fg_kobject);
 		dev_err(di->dev, "failed to create sysfs entry\n");
+	}
 
 	return ret;
 }
@@ -2575,11 +2577,12 @@ static ssize_t ab8505_powercut_flagtime_write(struct device *dev,
 				  const char *buf, size_t count)
 {
 	int ret;
-	long unsigned reg_value;
+	int reg_value;
 	struct power_supply *psy = dev_get_drvdata(dev);
 	struct ab8500_fg *di = power_supply_get_drvdata(psy);
 
-	reg_value = simple_strtoul(buf, NULL, 10);
+	if (kstrtoint(buf, 10, &reg_value))
+		goto fail;
 
 	if (reg_value > 0x7F) {
 		dev_err(dev, "Incorrect parameter, echo 0 (1.98s) - 127 (15.625ms) for flagtime\n");
@@ -2629,7 +2632,9 @@ static ssize_t ab8505_powercut_maxtime_write(struct device *dev,
 	struct power_supply *psy = dev_get_drvdata(dev);
 	struct ab8500_fg *di = power_supply_get_drvdata(psy);
 
-	reg_value = simple_strtoul(buf, NULL, 10);
+	if (kstrtoint(buf, 10, &reg_value))
+		goto fail;
+
 	if (reg_value > 0x7F) {
 		dev_err(dev, "Incorrect parameter, echo 0 (0.0s) - 127 (1.98s) for maxtime\n");
 		goto fail;
@@ -2677,7 +2682,9 @@ static ssize_t ab8505_powercut_restart_write(struct device *dev,
 	struct power_supply *psy = dev_get_drvdata(dev);
 	struct ab8500_fg *di = power_supply_get_drvdata(psy);
 
-	reg_value = simple_strtoul(buf, NULL, 10);
+	if (kstrtoint(buf, 10, &reg_value))
+		goto fail;
+
 	if (reg_value > 0xF) {
 		dev_err(dev, "Incorrect parameter, echo 0 - 15 for number of restart\n");
 		goto fail;
@@ -2770,7 +2777,9 @@ static ssize_t ab8505_powercut_write(struct device *dev,
 	struct power_supply *psy = dev_get_drvdata(dev);
 	struct ab8500_fg *di = power_supply_get_drvdata(psy);
 
-	reg_value = simple_strtoul(buf, NULL, 10);
+	if (kstrtoint(buf, 10, &reg_value))
+		goto fail;
+
 	if (reg_value > 0x1) {
 		dev_err(dev, "Incorrect parameter, echo 0/1 to disable/enable Pcut feature\n");
 		goto fail;
@@ -2842,7 +2851,9 @@ static ssize_t ab8505_powercut_debounce_write(struct device *dev,
 	struct power_supply *psy = dev_get_drvdata(dev);
 	struct ab8500_fg *di = power_supply_get_drvdata(psy);
 
-	reg_value = simple_strtoul(buf, NULL, 10);
+	if (kstrtoint(buf, 10, &reg_value))
+		goto fail;
+
 	if (reg_value > 0x7) {
 		dev_err(dev, "Incorrect parameter, echo 0 to 7 for debounce setting\n");
 		goto fail;
@@ -3221,6 +3232,7 @@ static const struct of_device_id ab8500_fg_match[] = {
 	{ .compatible = "stericsson,ab8500-fg", },
 	{ },
 };
+MODULE_DEVICE_TABLE(of, ab8500_fg_match);
 
 static struct platform_driver ab8500_fg_driver = {
 	.probe = ab8500_fg_probe,

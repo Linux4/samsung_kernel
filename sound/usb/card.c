@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *   (Tentative) USB Audio Driver for ALSA
  *
@@ -8,21 +9,6 @@
  *	    Thomas Sailer (sailer@ife.ee.ethz.ch)
  *
  *   Audio Class 3.0 support by Ruslan Bilovol <ruslan.bilovol@gmail.com>
- *
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation; either version 2 of the License, or
- *   (at your option) any later version.
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details.
- *
- *   You should have received a copy of the GNU General Public License
- *   along with this program; if not, write to the Free Software
- *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
- *
  *
  *  NOTES:
  *
@@ -48,10 +34,6 @@
 #include <linux/usb/audio-v3.h>
 #include <linux/module.h>
 
-#ifdef CONFIG_SND_EXYNOS_USB_AUDIO
-#include <linux/usb/exynos_usb_audio.h>
-#endif
-
 #include <sound/control.h>
 #include <sound/core.h>
 #include <sound/info.h>
@@ -72,6 +54,7 @@
 #include "format.h"
 #include "power.h"
 #include "stream.h"
+#include "media.h"
 
 MODULE_AUTHOR("Takashi Iwai <tiwai@suse.de>");
 MODULE_DESCRIPTION("USB Audio");
@@ -122,6 +105,185 @@ MODULE_PARM_DESC(use_vmalloc, "Use vmalloc for PCM intermediate buffers (default
 static DEFINE_MUTEX(register_mutex);
 static struct snd_usb_audio *usb_chip[SNDRV_CARDS];
 static struct usb_driver usb_audio_driver;
+
+static struct snd_usb_audio_vendor_ops *usb_vendor_ops;
+
+int snd_vendor_set_ops(struct snd_usb_audio_vendor_ops *ops)
+{
+	if ((!ops->connect) ||
+	    (!ops->disconnect) ||
+	    (!ops->set_interface) ||
+	    (!ops->set_rate) ||
+	    (!ops->set_pcm_buf) ||
+	    (!ops->set_pcm_intf) ||
+	    (!ops->set_pcm_connection) ||
+	    (!ops->set_pcm_binterval) ||
+	    (!ops->usb_add_ctls))
+		return -EINVAL;
+
+	usb_vendor_ops = ops;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(snd_vendor_set_ops);
+
+struct snd_usb_audio_vendor_ops *snd_vendor_get_ops(void)
+{
+	return usb_vendor_ops;
+}
+
+static int snd_vendor_connect(struct usb_interface *intf)
+{
+	struct snd_usb_audio_vendor_ops *ops = snd_vendor_get_ops();
+
+	if (ops)
+		return ops->connect(intf);
+	return 0;
+}
+
+static void snd_vendor_disconnect(struct usb_interface *intf)
+{
+	struct snd_usb_audio_vendor_ops *ops = snd_vendor_get_ops();
+
+	if (ops)
+		ops->disconnect(intf);
+}
+
+int snd_vendor_set_interface(struct usb_device *udev,
+			     struct usb_host_interface *intf,
+			     int iface, int alt)
+{
+	struct snd_usb_audio_vendor_ops *ops = snd_vendor_get_ops();
+
+	if (ops)
+		return ops->set_interface(udev, intf, iface, alt);
+	return 0;
+}
+
+int snd_vendor_set_rate(struct usb_interface *intf, int iface, int rate,
+			int alt)
+{
+	struct snd_usb_audio_vendor_ops *ops = snd_vendor_get_ops();
+
+	if (ops)
+		return ops->set_rate(intf, iface, rate, alt);
+	return 0;
+}
+
+int snd_vendor_set_pcm_buf(struct usb_device *udev, int iface)
+{
+	struct snd_usb_audio_vendor_ops *ops = snd_vendor_get_ops();
+
+	if (ops)
+		ops->set_pcm_buf(udev, iface);
+	return 0;
+}
+
+int snd_vendor_set_pcm_intf(struct usb_interface *intf, int iface, int alt,
+			    int direction)
+{
+	struct snd_usb_audio_vendor_ops *ops = snd_vendor_get_ops();
+
+	if (ops)
+		return ops->set_pcm_intf(intf, iface, alt, direction);
+	return 0;
+}
+
+int snd_vendor_set_pcm_connection(struct usb_device *udev,
+				  enum snd_vendor_pcm_open_close onoff,
+				  int direction)
+{
+	struct snd_usb_audio_vendor_ops *ops = snd_vendor_get_ops();
+
+	if (ops)
+		return ops->set_pcm_connection(udev, onoff, direction);
+	return 0;
+}
+
+int snd_vendor_set_pcm_binterval(struct audioformat *fp,
+				 struct audioformat *found,
+				 int *cur_attr, int *attr)
+{
+	struct snd_usb_audio_vendor_ops *ops = snd_vendor_get_ops();
+
+	if (ops)
+		return ops->set_pcm_binterval(fp, found, cur_attr, attr);
+	return 0;
+}
+
+static int snd_vendor_usb_add_ctls(struct snd_usb_audio *chip)
+{
+	struct snd_usb_audio_vendor_ops *ops = snd_vendor_get_ops();
+
+	if (ops)
+		return ops->usb_add_ctls(chip);
+	return 0;
+}
+
+struct snd_usb_substream *find_snd_usb_substream(unsigned int card_num,
+	unsigned int pcm_idx, unsigned int direction, struct snd_usb_audio
+	**uchip, void (*disconnect_cb)(struct snd_usb_audio *chip))
+{
+	int idx;
+	struct snd_usb_stream *as;
+	struct snd_usb_substream *subs = NULL;
+	struct snd_usb_audio *chip = NULL;
+
+	mutex_lock(&register_mutex);
+	/*
+	 * legacy audio snd card number assignment is dynamic. Hence
+	 * search using chip->card->number
+	 */
+	for (idx = 0; idx < SNDRV_CARDS; idx++) {
+		if (!usb_chip[idx])
+			continue;
+		if (usb_chip[idx]->card->number == card_num) {
+			chip = usb_chip[idx];
+			break;
+		}
+	}
+
+	if (!chip || atomic_read(&chip->shutdown)) {
+		pr_debug("%s: instance of usb crad # %d does not exist\n",
+			__func__, card_num);
+		goto err;
+	}
+
+	if (pcm_idx >= chip->pcm_devs) {
+		pr_err("%s: invalid pcm dev number %u > %d\n", __func__,
+			pcm_idx, chip->pcm_devs);
+		goto err;
+	}
+
+	if (direction > SNDRV_PCM_STREAM_CAPTURE) {
+		pr_err("%s: invalid direction %u\n", __func__, direction);
+		goto err;
+	}
+
+	list_for_each_entry(as, &chip->pcm_list, list) {
+		if (as->pcm_index == pcm_idx) {
+			subs = &as->substream[direction];
+			if (subs->interface < 0 && !subs->data_endpoint &&
+				!subs->sync_endpoint) {
+				pr_debug("%s: stream disconnected, bail out\n",
+					__func__);
+				subs = NULL;
+				goto err;
+			}
+			goto done;
+		}
+	}
+
+done:
+	chip->card_num = card_num;
+	chip->disconnect_cb = disconnect_cb;
+err:
+	*uchip = chip;
+	if (!subs)
+		pr_debug("%s: substream instance not found\n", __func__);
+	mutex_unlock(&register_mutex);
+	return subs;
+}
+EXPORT_SYMBOL_GPL(find_snd_usb_substream);
 
 /*
  * disconnect streams
@@ -193,9 +355,8 @@ static int snd_usb_create_stream(struct snd_usb_audio *chip, int ctrlif, int int
 				ctrlif, interface);
 			return -EINVAL;
 		}
-		usb_driver_claim_interface(&usb_audio_driver, iface, (void *)-1L);
-
-		return 0;
+		return usb_driver_claim_interface(&usb_audio_driver, iface,
+						  USB_AUDIO_IFACE_UNUSED);
 	}
 
 	if ((altsd->bInterfaceClass != USB_CLASS_AUDIO &&
@@ -215,7 +376,8 @@ static int snd_usb_create_stream(struct snd_usb_audio *chip, int ctrlif, int int
 
 	if (! snd_usb_parse_audio_interface(chip, interface)) {
 		usb_set_interface(dev, interface, 0); /* reset the current interface */
-		usb_driver_claim_interface(&usb_audio_driver, iface, (void *)-1L);
+		return usb_driver_claim_interface(&usb_audio_driver, iface,
+						  USB_AUDIO_IFACE_UNUSED);
 	}
 
 	return 0;
@@ -358,6 +520,7 @@ static void snd_usb_audio_free(struct snd_card *card)
 	list_for_each_entry_safe(ep, n, &chip->ep_list, list)
 		snd_usb_endpoint_free(ep);
 
+	mutex_destroy(&chip->dev_lock);
 	mutex_destroy(&chip->mutex);
 	if (!atomic_read(&chip->shutdown))
 		dev_set_drvdata(&chip->dev->dev, NULL);
@@ -485,6 +648,7 @@ static int snd_usb_audio_create(struct usb_interface *intf,
 
 	chip = card->private_data;
 	mutex_init(&chip->mutex);
+	mutex_init(&chip->dev_lock);
 	init_waitqueue_head(&chip->shutdown_wait);
 	chip->index = idx;
 	chip->dev = dev;
@@ -580,9 +744,6 @@ static int usb_audio_probe(struct usb_interface *intf,
 	struct usb_host_interface *alts;
 	int ifnum;
 	u32 id;
-#ifdef CONFIG_SND_EXYNOS_USB_AUDIO
-	struct usb_interface_descriptor *altsd;
-#endif
 
 	alts = &intf->altsetting[0];
 	ifnum = get_iface_desc(alts)->bInterfaceNumber;
@@ -597,24 +758,9 @@ static int usb_audio_probe(struct usb_interface *intf,
 	if (err < 0)
 		return err;
 
-#ifdef CONFIG_SND_EXYNOS_USB_AUDIO
-	altsd = get_iface_desc(alts);
-	if ((altsd->bInterfaceClass == USB_CLASS_AUDIO ||
-		altsd->bInterfaceClass == USB_CLASS_VENDOR_SPEC) &&
-		altsd->bInterfaceSubClass == USB_SUBCLASS_MIDISTREAMING) {
-			pr_info("USB_AUDIO_IPC : %s - MIDI device detected!\n", __func__);
-	} else {
-		pr_info("USB_AUDIO_IPC : %s - No MIDI device detected!\n", __func__);
-		if (!usb_audio->is_audio) {
-			pr_info("USB_AUDIO_IPC : %s - USB Audio set!\n", __func__);
-			exynos_usb_audio_set_device(dev);
-			exynos_usb_audio_conn(1);
-			exynos_usb_audio_hcd(dev);
-			exynos_usb_audio_desc(dev);
-			exynos_usb_audio_map_buf(dev);
-		}
-	}
-#endif
+	err = snd_vendor_connect(intf);
+	if (err)
+		return err;
 
 	/*
 	 * found a config.  now register to ALSA
@@ -636,6 +782,10 @@ static int usb_audio_probe(struct usb_interface *intf,
 		}
 	}
 	if (! chip) {
+		err = snd_usb_apply_boot_quirk_once(dev, intf, quirk, id);
+		if (err < 0)
+			goto __error;
+
 		/* it's a fresh one.
 		 * now look for an empty slot and create a new card instance
 		 */
@@ -667,6 +817,8 @@ static int usb_audio_probe(struct usb_interface *intf,
 	}
 	dev_set_drvdata(&dev->dev, chip);
 
+	snd_vendor_usb_add_ctls(chip);
+
 	/*
 	 * For devices with more than one control interface, we assume the
 	 * first contains the audio controls. We might need a more specific
@@ -694,22 +846,33 @@ static int usb_audio_probe(struct usb_interface *intf,
 			goto __error;
 	}
 
-	/* we are allowed to call snd_card_register() many times */
-	err = snd_card_register(chip->card);
-	if (err < 0)
-		goto __error;
+	/* we are allowed to call snd_card_register() many times, but first
+	 * check to see if a device needs to skip it or do anything special
+	 */
+	if (!snd_usb_registration_quirk(chip, ifnum)) {
+		err = snd_card_register(chip->card);
+		if (err < 0)
+			goto __error;
+		pr_info("%s : card %d is registered.\n", __func__, chip->card->number);
+	}
+
+	if (quirk && quirk->shares_media_device) {
+		/* don't want to fail when snd_media_device_create() fails */
+		snd_media_device_create(chip, intf);
+	}
 
 	usb_chip[chip->index] = chip;
 	chip->num_interfaces++;
 	usb_set_intfdata(intf, chip);
+	intf->needs_remote_wakeup = 1;
+	usb_enable_autosuspend(chip->dev);
+	device_set_wakeup_enable(&dev->dev,1);
 	atomic_dec(&chip->active);
 	mutex_unlock(&register_mutex);
-
-	pr_info("%s done\n", __func__);
-
 	return 0;
 
  __error:
+	pr_info("%s : card probe fail.\n", __func__);
 	if (chip) {
 		/* chip->active is inside the chip->card object,
 		 * decrement before memory is possibly returned.
@@ -732,14 +895,16 @@ static void usb_audio_disconnect(struct usb_interface *intf)
 	struct snd_card *card;
 	struct list_head *p;
 
-	if (chip == (void *)-1L)
+	pr_info("%s : disconnect!\n", __func__);
+	if (chip == USB_AUDIO_IFACE_UNUSED)
 		return;
 
 	card = chip->card;
 
-#ifdef CONFIG_SND_EXYNOS_USB_AUDIO
-	exynos_usb_audio_conn(0);
-#endif
+	if (chip->disconnect_cb)
+		chip->disconnect_cb(chip);
+
+	snd_vendor_disconnect(intf);
 
 	mutex_lock(&register_mutex);
 	if (atomic_inc_return(&chip->shutdown) == 1) {
@@ -765,6 +930,14 @@ static void usb_audio_disconnect(struct usb_interface *intf)
 		list_for_each(p, &chip->midi_list) {
 			snd_usbmidi_disconnect(p);
 		}
+		/*
+		 * Nice to check quirk && quirk->shares_media_device and
+		 * then call the snd_media_device_delete(). Don't have
+		 * access to the quirk here. snd_media_device_delete()
+		 * accesses mixer_list
+		 */
+		snd_media_device_delete(chip);
+
 		/* release mixer resources */
 		list_for_each_entry(mixer, &chip->mixer_list, list) {
 			snd_usb_mixer_disconnect(mixer);
@@ -814,6 +987,7 @@ void snd_usb_unlock_shutdown(struct snd_usb_audio *chip)
 
 int snd_usb_autoresume(struct snd_usb_audio *chip)
 {
+	pr_info("%s : ++!\n", __func__);
 	if (atomic_read(&chip->shutdown))
 		return -EIO;
 	if (atomic_inc_return(&chip->active) == 1)
@@ -823,6 +997,7 @@ int snd_usb_autoresume(struct snd_usb_audio *chip)
 
 void snd_usb_autosuspend(struct snd_usb_audio *chip)
 {
+	pr_info("%s : --!\n", __func__);
 	if (atomic_read(&chip->shutdown))
 		return;
 	if (atomic_dec_and_test(&chip->active))
@@ -836,12 +1011,12 @@ static int usb_audio_suspend(struct usb_interface *intf, pm_message_t message)
 	struct usb_mixer_interface *mixer;
 	struct list_head *p;
 
-	if (chip == (void *)-1L)
+	if (chip == USB_AUDIO_IFACE_UNUSED)
 		return 0;
 
+	dev_info(&intf->dev, "suspend\n");
 	if (!chip->num_suspended_intf++) {
 		list_for_each_entry(as, &chip->pcm_list, list) {
-			snd_pcm_suspend_all(as->pcm);
 			snd_usb_pcm_suspend(as);
 			as->substream[0].need_setup_ep =
 				as->substream[1].need_setup_ep = true;
@@ -868,7 +1043,7 @@ static int __usb_audio_resume(struct usb_interface *intf, bool reset_resume)
 	struct list_head *p;
 	int err = 0;
 
-	if (chip == (void *)-1L)
+	if (chip == USB_AUDIO_IFACE_UNUSED)
 		return 0;
 
 	atomic_inc(&chip->active); /* avoid autopm */
@@ -909,11 +1084,13 @@ err_out:
 
 static int usb_audio_resume(struct usb_interface *intf)
 {
+	dev_info(&intf->dev, "resume\n");
 	return __usb_audio_resume(intf, false);
 }
 
 static int usb_audio_reset_resume(struct usb_interface *intf)
 {
+	dev_info(&intf->dev, "reset_resume\n");
 	return __usb_audio_resume(intf, true);
 }
 #else

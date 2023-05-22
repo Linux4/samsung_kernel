@@ -1,4 +1,4 @@
-    /*
+/*
  * Copyright (c) 2015 Samsung Electronics Co., Ltd.
  *
  * Sensitive Data Protection
@@ -26,7 +26,7 @@
 #define DLP_DEV_PATH	"/dev/sdp_dlp"
 
 #define __DLPIOC		0x78
-#define MAX_EXT_LENGTH 1000
+#define MAX_EXT_LENGTH 1000 
 
 typedef struct _dlp_lock_set {
 	int user_id;

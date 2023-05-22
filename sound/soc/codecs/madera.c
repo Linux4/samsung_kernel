@@ -1,13 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: GPL-2.0-only
 //
 // Cirrus Logic Madera class codecs common support
 //
 // Copyright (C) 2015-2019 Cirrus Logic, Inc. and
 //                         Cirrus Logic International Semiconductor Ltd.
-//
-// This program is free software; you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by the
-// Free Software Foundation; version 2.
 //
 
 #include <linux/delay.h>
@@ -110,8 +106,6 @@
 #define MADERA_FLL_CONTROL_4_OFFS		0x4
 #define MADERA_FLL_CONTROL_5_OFFS		0x5
 #define MADERA_FLL_CONTROL_6_OFFS		0x6
-#define MADERA_FLL_LOOP_FILTER_TEST_1_OFFS	0x7
-#define MADERA_FLL_NCO_TEST_0_OFFS		0x8
 #define MADERA_FLL_GAIN_OFFS			0x8
 #define MADERA_FLL_CONTROL_7_OFFS		0x9
 #define MADERA_FLL_EFS_2_OFFS			0xA
@@ -169,7 +163,7 @@ static const int madera_dsp_bus_error_irqs[MADERA_MAX_ADSP] = {
 	MADERA_IRQ_DSP7_BUS_ERR,
 };
 
-void madera_spin_sysclk(struct madera_priv *priv)
+static void madera_spin_sysclk(struct madera_priv *priv)
 {
 	struct madera *madera = priv->madera;
 	unsigned int val;
@@ -187,13 +181,11 @@ void madera_spin_sysclk(struct madera_priv *priv)
 		ret = regmap_read(madera->regmap, MADERA_SOFTWARE_RESET, &val);
 		if (ret)
 			dev_err(madera->dev,
-				"%s Failed to read register: %d (%d)\n",
-				__func__, ret, i);
+				"Failed to read sysclk spin %d: %d\n", i, ret);
 	}
 
 	udelay(300);
 }
-EXPORT_SYMBOL_GPL(madera_spin_sysclk);
 
 int madera_sysclk_ev(struct snd_soc_dapm_widget *w,
 		     struct snd_kcontrol *kcontrol, int event)
@@ -247,13 +239,11 @@ int madera_spk_ev(struct snd_soc_dapm_widget *w,
 			return -EBUSY;
 		}
 
-		regmap_update_bits(madera->regmap,
-				   MADERA_OUTPUT_ENABLES_1,
+		regmap_update_bits(madera->regmap, MADERA_OUTPUT_ENABLES_1,
 				   1 << w->shift, 1 << w->shift);
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
-		regmap_update_bits(madera->regmap,
-				   MADERA_OUTPUT_ENABLES_1,
+		regmap_update_bits(madera->regmap, MADERA_OUTPUT_ENABLES_1,
 				   1 << w->shift, 0);
 		break;
 	default:
@@ -271,10 +261,7 @@ static irqreturn_t madera_thermal_warn(int irq, void *data)
 	int ret;
 
 	ret = madera_check_speaker_overheat(madera, &warn, &shutdown);
-	if (ret)
-		shutdown = true; /* for safety attempt to shutdown on error */
-
-	if (shutdown) {
+	if (ret || shutdown) { /* for safety attempt to shutdown on error */
 		dev_crit(madera->dev, "Thermal shutdown\n");
 		ret = regmap_update_bits(madera->regmap,
 					 MADERA_OUTPUT_ENABLES_1,
@@ -285,7 +272,10 @@ static irqreturn_t madera_thermal_warn(int irq, void *data)
 				 "Failed to disable speaker outputs: %d\n",
 				 ret);
 	} else if (warn) {
-		dev_crit(madera->dev, "Thermal warning\n");
+		dev_alert(madera->dev, "Thermal warning\n");
+	} else {
+		dev_info(madera->dev, "Spurious thermal warning\n");
+		return IRQ_NONE;
 	}
 
 	return IRQ_HANDLED;
@@ -294,21 +284,20 @@ static irqreturn_t madera_thermal_warn(int irq, void *data)
 int madera_init_overheat(struct madera_priv *priv)
 {
 	struct madera *madera = priv->madera;
+	struct device *dev = madera->dev;
 	int ret;
 
 	ret = madera_request_irq(madera, MADERA_IRQ_SPK_OVERHEAT_WARN,
 				 "Thermal warning", madera_thermal_warn,
 				 madera);
 	if (ret)
-		dev_warn(madera->dev,
-			"Failed to get thermal warning IRQ: %d\n", ret);
+		dev_err(dev, "Failed to get thermal warning IRQ: %d\n", ret);
 
 	ret = madera_request_irq(madera, MADERA_IRQ_SPK_OVERHEAT,
 				 "Thermal shutdown", madera_thermal_warn,
 				 madera);
 	if (ret)
-		dev_warn(madera->dev,
-			"Failed to get thermal shutdown IRQ: %d\n", ret);
+		dev_err(dev, "Failed to get thermal shutdown IRQ: %d\n", ret);
 
 	return 0;
 }
@@ -325,54 +314,50 @@ int madera_free_overheat(struct madera_priv *priv)
 }
 EXPORT_SYMBOL_GPL(madera_free_overheat);
 
-static int madera_get_variable_u32_array(struct madera_priv *priv,
+static int madera_get_variable_u32_array(struct device *dev,
 					 const char *propname,
-					 u32 *dest,
-					 int n_max,
+					 u32 *dest, int n_max,
 					 int multiple)
 {
-	struct madera *madera = priv->madera;
 	int n, ret;
 
-	n = device_property_read_u32_array(madera->dev, propname, NULL, 0);
-	if (n == -EINVAL) {
-		return 0;	/* missing, ignore */
-	} else if (n < 0) {
-		dev_warn(madera->dev, "%s malformed (%d)\n",
-			 propname, n);
+	n = device_property_count_u32(dev, propname);
+	if (n < 0) {
+		if (n == -EINVAL)
+			return 0;	/* missing, ignore */
+
+		dev_warn(dev, "%s malformed (%d)\n", propname, n);
+
 		return n;
 	} else if ((n % multiple) != 0) {
-		dev_warn(madera->dev, "%s not a multiple of %d entries\n",
+		dev_warn(dev, "%s not a multiple of %d entries\n",
 			 propname, multiple);
+
 		return -EINVAL;
 	}
 
 	if (n > n_max)
 		n = n_max;
 
-	ret = device_property_read_u32_array(madera->dev, propname, dest, n);
-
+	ret = device_property_read_u32_array(dev, propname, dest, n);
 	if (ret < 0)
 		return ret;
-	else
-		return n;
+
+	return n;
 }
 
 static void madera_prop_get_inmode(struct madera_priv *priv)
 {
 	struct madera *madera = priv->madera;
+	struct madera_codec_pdata *pdata = &madera->pdata.codec;
 	u32 tmp[MADERA_MAX_INPUT * MADERA_MAX_MUXED_CHANNELS];
 	int n, i, in_idx, ch_idx;
 
-	BUILD_BUG_ON(ARRAY_SIZE(madera->pdata.codec.inmode) !=
-		     MADERA_MAX_INPUT);
-	BUILD_BUG_ON(ARRAY_SIZE(madera->pdata.codec.inmode[0]) !=
-		     MADERA_MAX_MUXED_CHANNELS);
+	BUILD_BUG_ON(ARRAY_SIZE(pdata->inmode) != MADERA_MAX_INPUT);
+	BUILD_BUG_ON(ARRAY_SIZE(pdata->inmode[0]) != MADERA_MAX_MUXED_CHANNELS);
 
-	n = madera_get_variable_u32_array(priv,
-					  "cirrus,inmode",
-					  tmp,
-					  ARRAY_SIZE(tmp),
+	n = madera_get_variable_u32_array(madera->dev, "cirrus,inmode",
+					  tmp, ARRAY_SIZE(tmp),
 					  MADERA_MAX_MUXED_CHANNELS);
 	if (n < 0)
 		return;
@@ -380,7 +365,7 @@ static void madera_prop_get_inmode(struct madera_priv *priv)
 	in_idx = 0;
 	ch_idx = 0;
 	for (i = 0; i < n; ++i) {
-		madera->pdata.codec.inmode[in_idx][ch_idx] = tmp[i];
+		pdata->inmode[in_idx][ch_idx] = tmp[i];
 
 		if (++ch_idx == MADERA_MAX_MUXED_CHANNELS) {
 			ch_idx = 0;
@@ -394,77 +379,62 @@ static void madera_prop_get_pdata(struct madera_priv *priv)
 	struct madera *madera = priv->madera;
 	struct madera_codec_pdata *pdata = &madera->pdata.codec;
 	u32 out_mono[ARRAY_SIZE(pdata->out_mono)];
-	int i, ret;
-
-	ret = madera_get_variable_u32_array(priv,
-					"cirrus,max-channels-clocked",
-					pdata->max_channels_clocked,
-					ARRAY_SIZE(pdata->max_channels_clocked),
-					1);
-	if (ret < 0)
-		return;
+	int i, n;
 
 	madera_prop_get_inmode(priv);
 
-	memset(&out_mono, 0, sizeof(out_mono));
-	ret = device_property_read_u32_array(madera->dev,
-					     "cirrus,out-mono",
-					     out_mono,
-					     ARRAY_SIZE(out_mono));
-	if (ret == 0)
-		for (i = 0; i < ARRAY_SIZE(out_mono); ++i)
+	n = madera_get_variable_u32_array(madera->dev, "cirrus,out-mono",
+					  out_mono, ARRAY_SIZE(out_mono), 1);
+	if (n > 0)
+		for (i = 0; i < n; ++i)
 			pdata->out_mono[i] = !!out_mono[i];
 
-	madera_get_variable_u32_array(priv,
-				      "cirrus,pdm-fmt",
+	madera_get_variable_u32_array(madera->dev,
+				      "cirrus,max-channels-clocked",
+				      pdata->max_channels_clocked,
+				      ARRAY_SIZE(pdata->max_channels_clocked),
+				      1);
+
+	madera_get_variable_u32_array(madera->dev, "cirrus,pdm-fmt",
 				      pdata->pdm_fmt,
-				      ARRAY_SIZE(pdata->pdm_fmt),
-				      1);
+				      ARRAY_SIZE(pdata->pdm_fmt), 1);
 
-	madera_get_variable_u32_array(priv,
-				      "cirrus,pdm-mute",
+	madera_get_variable_u32_array(madera->dev, "cirrus,pdm-mute",
 				      pdata->pdm_mute,
-				      ARRAY_SIZE(pdata->pdm_mute),
-				      1);
+				      ARRAY_SIZE(pdata->pdm_mute), 1);
 
-	madera_get_variable_u32_array(priv,
-				      "cirrus,dmic-ref",
+	madera_get_variable_u32_array(madera->dev, "cirrus,dmic-ref",
 				      pdata->dmic_ref,
-				      ARRAY_SIZE(pdata->dmic_ref),
-				      1);
-
-	pdata->auxpdm_slave_mode =
-		device_property_present(priv->dev,
-					"cirrus,auxpdm-slave-mode");
-	pdata->auxpdm_falling_edge =
-		device_property_present(priv->dev,
-					"cirrus,auxpdm-falling-edge");
+				      ARRAY_SIZE(pdata->dmic_ref), 1);
 }
 
 int madera_core_init(struct madera_priv *priv)
 {
-	BUILD_BUG_ON(ARRAY_SIZE(madera_mixer_texts) != MADERA_NUM_MIXER_INPUTS);
-	BUILD_BUG_ON(ARRAY_SIZE(madera_mixer_values) != MADERA_NUM_MIXER_INPUTS);
+	int i;
+
 	/* trap undersized array initializers */
-	BUILD_BUG_ON(!madera_sample_rate_text[MADERA_SAMPLE_RATE_ENUM_SIZE - 1]);
-	BUILD_BUG_ON(!madera_sample_rate_val[MADERA_SAMPLE_RATE_ENUM_SIZE - 1]);
+	BUILD_BUG_ON(!madera_mixer_texts[MADERA_NUM_MIXER_INPUTS - 1]);
+	BUILD_BUG_ON(!madera_mixer_values[MADERA_NUM_MIXER_INPUTS - 1]);
 
 	if (!dev_get_platdata(priv->madera->dev))
 		madera_prop_get_pdata(priv);
 
 	mutex_init(&priv->rate_lock);
 
+	for (i = 0; i < MADERA_MAX_HP_OUTPUT; i++)
+		priv->madera->out_clamp[i] = true;
+
 	return 0;
 }
 EXPORT_SYMBOL_GPL(madera_core_init);
 
-int madera_core_destroy(struct madera_priv *priv)
+int madera_core_free(struct madera_priv *priv)
 {
 	mutex_destroy(&priv->rate_lock);
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(madera_core_destroy);
+EXPORT_SYMBOL_GPL(madera_core_free);
 
 static void madera_debug_dump_domain_groups(const struct madera_priv *priv)
 {
@@ -529,47 +499,39 @@ int madera_out1_demux_put(struct snd_kcontrol *kcontrol,
 	struct madera *madera = priv->madera;
 	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
 	unsigned int ep_sel, mux, change;
-	int ret, demux_change_ret;
-	bool out_mono, restore_out = true;
+	bool out_mono;
+	int ret;
 
 	if (ucontrol->value.enumerated.item[0] > e->items - 1)
 		return -EINVAL;
 
 	mux = ucontrol->value.enumerated.item[0];
-	ep_sel = mux << MADERA_EP_SEL_SHIFT;
 
 	snd_soc_dapm_mutex_lock(dapm);
 
+	ep_sel = mux << MADERA_EP_SEL_SHIFT;
+
 	change = snd_soc_component_test_bits(component, MADERA_OUTPUT_ENABLES_1,
-					     MADERA_EP_SEL_MASK, ep_sel);
+					     MADERA_EP_SEL_MASK,
+					     ep_sel);
 	if (!change)
 		goto end;
 
 	/* EP_SEL should not be modified while HP or EP driver is enabled */
-	ret = regmap_update_bits(madera->regmap,
-				 MADERA_OUTPUT_ENABLES_1,
-				 MADERA_OUT1L_ENA |
-				 MADERA_OUT1R_ENA, 0);
+	ret = regmap_update_bits(madera->regmap, MADERA_OUTPUT_ENABLES_1,
+				 MADERA_OUT1L_ENA | MADERA_OUT1R_ENA, 0);
 	if (ret)
 		dev_warn(madera->dev, "Failed to disable outputs: %d\n", ret);
 
 	usleep_range(2000, 3000); /* wait for wseq to complete */
 
-	/*
-	 * if HP detection clamp is applied while switching to HPOUT
-	 * OUT1 should remain disabled and EDRE should be set to manual
-	 */
-	if (!ep_sel &&
-	    (madera->out_clamp[0] || madera->out_shorted[0]))
-		restore_out = false;
-
 	/* change demux setting */
-	demux_change_ret = regmap_update_bits(madera->regmap,
-					      MADERA_OUTPUT_ENABLES_1,
-					      MADERA_EP_SEL_MASK, ep_sel);
-	if (demux_change_ret) {
-		dev_err(madera->dev, "Failed to set OUT1 demux: %d\n",
-			demux_change_ret);
+	if (madera->out_clamp[0])
+		ret = regmap_update_bits(madera->regmap,
+					 MADERA_OUTPUT_ENABLES_1,
+					 MADERA_EP_SEL_MASK, ep_sel);
+	if (ret) {
+		dev_err(madera->dev, "Failed to set OUT1 demux: %d\n", ret);
 	} else {
 		/* apply correct setting for mono mode */
 		if (!ep_sel && !madera->pdata.codec.out_mono[0])
@@ -583,12 +545,15 @@ int madera_out1_demux_put(struct snd_kcontrol *kcontrol,
 				 "Failed to set output mode: %d\n", ret);
 	}
 
-	/* restore output state if allowed */
-	if (restore_out) {
+	/*
+	 * if HPDET has disabled the clamp while switching to HPOUT
+	 * OUT1 should remain disabled
+	 */
+	if (ep_sel ||
+	    (madera->out_clamp[0] && !madera->out_shorted[0])) {
 		ret = regmap_update_bits(madera->regmap,
 					 MADERA_OUTPUT_ENABLES_1,
-					 MADERA_OUT1L_ENA |
-					 MADERA_OUT1R_ENA,
+					 MADERA_OUT1L_ENA | MADERA_OUT1R_ENA,
 					 madera->hp_ena);
 		if (ret)
 			dev_warn(madera->dev,
@@ -603,7 +568,13 @@ int madera_out1_demux_put(struct snd_kcontrol *kcontrol,
 end:
 	snd_soc_dapm_mutex_unlock(dapm);
 
-	return snd_soc_dapm_mux_update_power(dapm, kcontrol, mux, e, NULL);
+	ret = snd_soc_dapm_mux_update_power(dapm, kcontrol, mux, e, NULL);
+	if (ret < 0) {
+		dev_err(madera->dev, "Failed to update demux power state: %d\n", ret);
+		return ret;
+	}
+
+	return change;
 }
 EXPORT_SYMBOL_GPL(madera_out1_demux_put);
 
@@ -636,160 +607,46 @@ static int madera_inmux_put(struct snd_kcontrol *kcontrol,
 		snd_soc_dapm_kcontrol_dapm(kcontrol);
 	struct madera_priv *priv = snd_soc_component_get_drvdata(component);
 	struct madera *madera = priv->madera;
-	struct soc_enum *e = (struct soc_enum *) kcontrol->private_value;
-	unsigned int mux, src_val, src_mask, gang_reg, dmode_reg, dmode_val;
-	unsigned int dmode, inmode_gang, inmode;
-	bool changed = false;
+	struct regmap *regmap = madera->regmap;
+	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
+	unsigned int mux, val, mask;
+	unsigned int inmode;
+	bool changed;
 	int ret;
 
 	mux = ucontrol->value.enumerated.item[0];
 	if (mux > 1)
 		return -EINVAL;
 
-	src_val = mux << e->shift_l;
-	src_mask = e->mask << e->shift_l;
+	val = mux << e->shift_l;
+	mask = (e->mask << e->shift_l) | MADERA_IN1L_SRC_SE_MASK;
 
 	switch (e->reg) {
 	case MADERA_ADC_DIGITAL_VOLUME_1L:
 		inmode = madera->pdata.codec.inmode[0][2 * mux];
-		inmode_gang = madera->pdata.codec.inmode[0][1 + (2 * mux)];
-		dmode_reg = MADERA_IN1L_CONTROL;
-		switch (madera->type) {
-		case CS47L85:
-		case WM1840:
-		case CS47L92:
-		case CS47L93:
-			dmode = madera->pdata.codec.inmode[0][0];
-			gang_reg = 0;
-			break;
-		case CS47L90:
-		case CS47L91:
-			dmode = 0;
-			gang_reg = 0;
-			break;
-		default:
-			dmode = madera->pdata.codec.inmode[0][0];
-			gang_reg = MADERA_ADC_DIGITAL_VOLUME_1R;
-			break;
-		}
 		break;
 	case MADERA_ADC_DIGITAL_VOLUME_1R:
 		inmode = madera->pdata.codec.inmode[0][1 + (2 * mux)];
-		inmode_gang = madera->pdata.codec.inmode[0][2 * mux];
-		dmode_reg = MADERA_IN1L_CONTROL;
-		switch (madera->type) {
-		case CS47L90:
-		case CS47L91:
-			dmode = madera->pdata.codec.inmode[0][1];
-			gang_reg = 0;
-			break;
-		case CS47L92:
-		case CS47L93:
-			dmode = 0;
-			gang_reg = 0;
-			break;
-		default:
-			dmode = madera->pdata.codec.inmode[0][0];
-			gang_reg = MADERA_ADC_DIGITAL_VOLUME_1L;
-			break;
-		}
 		break;
 	case MADERA_ADC_DIGITAL_VOLUME_2L:
 		inmode = madera->pdata.codec.inmode[1][2 * mux];
-		inmode_gang = madera->pdata.codec.inmode[1][1 + (2 * mux)];
-		dmode_reg = MADERA_IN2L_CONTROL;
-		switch (madera->type) {
-		case CS47L90:
-		case CS47L91:
-		case CS47L92:
-		case CS47L93:
-			dmode = madera->pdata.codec.inmode[1][0];
-			gang_reg = 0;
-			break;
-		default:
-			dmode = madera->pdata.codec.inmode[1][0];
-			gang_reg = MADERA_ADC_DIGITAL_VOLUME_2R;
-			break;
-		}
 		break;
 	case MADERA_ADC_DIGITAL_VOLUME_2R:
 		inmode = madera->pdata.codec.inmode[1][1 + (2 * mux)];
-		inmode_gang = madera->pdata.codec.inmode[1][2 * mux];
-		dmode_reg = MADERA_IN2L_CONTROL;
-		switch (madera->type) {
-		case CS47L92:
-		case CS47L93:
-			dmode = 0;
-			gang_reg = 0;
-			break;
-		default:
-			dmode = madera->pdata.codec.inmode[1][0];
-			gang_reg = MADERA_ADC_DIGITAL_VOLUME_2L;
-			break;
-		}
 		break;
 	default:
 		return -EINVAL;
 	}
 
-	/* SE mask and shift is same for all channels */
-	src_mask |= MADERA_IN1L_SRC_SE_MASK;
 	if (inmode & MADERA_INMODE_SE)
-		src_val |= 1 << MADERA_IN1L_SRC_SE_SHIFT;
+		val |= 1 << MADERA_IN1L_SRC_SE_SHIFT;
 
-	dev_dbg(madera->dev,
-		"mux=%u reg=0x%x dmode=0x%x inmode=0x%x mask=0x%x val=0x%x\n",
-		mux, e->reg, dmode, inmode, src_mask, src_val);
+	dev_dbg(madera->dev, "mux=%u reg=0x%x inmode=0x%x mask=0x%x val=0x%x\n",
+		mux, e->reg, inmode, mask, val);
 
-	ret = snd_soc_component_update_bits(component,
-					    e->reg,
-					    src_mask,
-					    src_val);
+	ret = regmap_update_bits_check(regmap, e->reg, mask, val, &changed);
 	if (ret < 0)
 		return ret;
-	else if (ret)
-		changed = true;
-
-	if (dmode == MADERA_INMODE_DMIC) {
-		if (mux)
-			dmode_val = 0; /* B always analogue */
-		else
-			dmode_val = 1 << MADERA_IN1_MODE_SHIFT; /* DMIC */
-
-		dev_dbg(madera->dev, "dmode_val=0x%x\n", dmode_val);
-
-		ret = snd_soc_component_update_bits(component,
-						    dmode_reg,
-						    MADERA_IN1_MODE_MASK,
-						    dmode_val);
-		if (ret < 0)
-			return ret;
-
-		if (gang_reg) {
-			/*
-			 * if there's a dmode change and there's a gang
-			 * register, then switch both channels together.
-			 * ganged channels can have different analogue modes
-			 */
-			if (inmode_gang & MADERA_INMODE_SE)
-				src_val |= 1 << MADERA_IN1L_SRC_SE_SHIFT;
-			else
-				src_val &= ~(1 << MADERA_IN1L_SRC_SE_SHIFT);
-
-			dev_dbg(madera->dev,
-				"gang_reg=0x%x inmode_gang=0x%x gang_val=0x%x\n",
-				gang_reg, inmode_gang, src_val);
-
-			ret = snd_soc_component_update_bits(component,
-							    gang_reg,
-							    src_mask,
-							    src_val);
-			if (ret < 0)
-				return ret;
-			else if (ret)
-				changed = true;
-		}
-	}
 
 	if (changed)
 		return snd_soc_dapm_mux_update_power(dapm, kcontrol,
@@ -834,6 +691,33 @@ const struct snd_kcontrol_new madera_inmux[] = {
 			  snd_soc_dapm_get_enum_double, madera_inmux_put),
 };
 EXPORT_SYMBOL_GPL(madera_inmux);
+
+static const char * const madera_dmode_texts[] = {
+	"Analog",
+	"Digital",
+};
+
+static SOC_ENUM_SINGLE_DECL(madera_in1dmode_enum,
+			    MADERA_IN1L_CONTROL,
+			    MADERA_IN1_MODE_SHIFT,
+			    madera_dmode_texts);
+
+static SOC_ENUM_SINGLE_DECL(madera_in2dmode_enum,
+			    MADERA_IN2L_CONTROL,
+			    MADERA_IN2_MODE_SHIFT,
+			    madera_dmode_texts);
+
+static SOC_ENUM_SINGLE_DECL(madera_in3dmode_enum,
+			    MADERA_IN3L_CONTROL,
+			    MADERA_IN3_MODE_SHIFT,
+			    madera_dmode_texts);
+
+const struct snd_kcontrol_new madera_inmode[] = {
+	SOC_DAPM_ENUM("IN1 Mode", madera_in1dmode_enum),
+	SOC_DAPM_ENUM("IN2 Mode", madera_in2dmode_enum),
+	SOC_DAPM_ENUM("IN3 Mode", madera_in3dmode_enum),
+};
+EXPORT_SYMBOL_GPL(madera_inmode);
 
 static bool madera_can_change_grp_rate(const struct madera_priv *priv,
 				       unsigned int reg)
@@ -939,8 +823,8 @@ static bool madera_can_change_grp_rate(const struct madera_priv *priv,
 		return true;
 }
 
-int madera_adsp_rate_get(struct snd_kcontrol *kcontrol,
-			 struct snd_ctl_elem_value *ucontrol)
+static int madera_adsp_rate_get(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_component *component =
 		snd_soc_kcontrol_component(kcontrol);
@@ -959,10 +843,9 @@ int madera_adsp_rate_get(struct snd_kcontrol *kcontrol,
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(madera_adsp_rate_get);
 
-int madera_adsp_rate_put(struct snd_kcontrol *kcontrol,
-			 struct snd_ctl_elem_value *ucontrol)
+static int madera_adsp_rate_put(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_component *component =
 		snd_soc_kcontrol_component(kcontrol);
@@ -970,7 +853,7 @@ int madera_adsp_rate_put(struct snd_kcontrol *kcontrol,
 	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
 	const int adsp_num = e->shift_l;
 	const unsigned int item = ucontrol->value.enumerated.item[0];
-	int ret;
+	int ret = 0;
 
 	if (item >= e->items)
 		return -EINVAL;
@@ -987,17 +870,16 @@ int madera_adsp_rate_put(struct snd_kcontrol *kcontrol,
 			 "Cannot change '%s' while in use by active audio paths\n",
 			 kcontrol->id.name);
 		ret = -EBUSY;
-	} else {
+	} else if (priv->adsp_rate_cache[adsp_num] != e->values[item]) {
 		/* Volatile register so defer until the codec is powered up */
 		priv->adsp_rate_cache[adsp_num] = e->values[item];
-		ret = 0;
+		ret = 1;
 	}
 
 	mutex_unlock(&priv->rate_lock);
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(madera_adsp_rate_put);
 
 static const struct soc_enum madera_adsp_rate_enum[] = {
 	SOC_VALUE_ENUM_SINGLE(SND_SOC_NOPM, 0, 0xf, MADERA_RATE_ENUM_SIZE,
@@ -1042,14 +924,7 @@ static int madera_write_adsp_clk_setting(struct madera_priv *priv,
 	unsigned int mask = MADERA_DSP_RATE_MASK;
 	int ret;
 
-	/*
-	 * Take snapshot of rate. There will always be a race condition
-	 * between this code and setting the rate control. Wrapping the entire
-	 * function in the lock won't change that so don't bother
-	 */
-	mutex_lock(&priv->rate_lock);
 	val = priv->adsp_rate_cache[dsp->num - 1] << MADERA_DSP_RATE_SHIFT;
-	mutex_unlock(&priv->rate_lock);
 
 	switch (priv->madera->type) {
 	case CS47L35:
@@ -1097,7 +972,10 @@ int madera_set_adsp_clk(struct madera_priv *priv, int dsp_num,
 	/*
 	 * This is called at a higher DAPM priority than the mux widgets so
 	 * the muxes are still off at this point and it's safe to change
-	 * the rate domain control
+	 * the rate domain control.
+	 * Also called at a lower DAPM priority than the domain group widgets
+	 * so locking the reads of adsp_rate_cache is not necessary as we know
+	 * changes are locked out by the domain_group_ref reference count.
 	 */
 
 	ret = regmap_read(dsp->regmap,  dsp->base, &cur);
@@ -1109,9 +987,7 @@ int madera_set_adsp_clk(struct madera_priv *priv, int dsp_num,
 
 	cur &= MADERA_DSP_RATE_MASK;
 
-	mutex_lock(&priv->rate_lock);
 	new = priv->adsp_rate_cache[dsp->num - 1] << MADERA_DSP_RATE_SHIFT;
-	mutex_unlock(&priv->rate_lock);
 
 	if (new == cur) {
 		dev_dbg(madera->dev, "DSP rate not changed\n");
@@ -1181,7 +1057,7 @@ EXPORT_SYMBOL_GPL(madera_rate_put);
 
 static void madera_configure_input_mode(struct madera *madera)
 {
-	unsigned int dig_mode, dig_mask, ana_mode_l, ana_mode_r;
+	unsigned int dig_mode, ana_mode_l, ana_mode_r;
 	int max_analogue_inputs, max_dmic_sup, i;
 
 	switch (madera->type) {
@@ -1230,10 +1106,6 @@ static void madera_configure_input_mode(struct madera *madera)
 		case MADERA_INMODE_SE:
 			ana_mode_l = 1 << MADERA_IN1L_SRC_SE_SHIFT;
 			break;
-		case MADERA_INMODE_DMIC:
-			ana_mode_l = 0;
-			dig_mode |= 1 << MADERA_IN1_MODE_SHIFT;
-			break;
 		default:
 			dev_warn(madera->dev,
 				 "IN%dAL Illegal inmode %u ignored\n",
@@ -1243,7 +1115,6 @@ static void madera_configure_input_mode(struct madera *madera)
 
 		switch (madera->pdata.codec.inmode[i][1]) {
 		case MADERA_INMODE_DIFF:
-		case MADERA_INMODE_DMIC:
 			ana_mode_r = 0;
 			break;
 		case MADERA_INMODE_SE:
@@ -1260,14 +1131,9 @@ static void madera_configure_input_mode(struct madera *madera)
 			"IN%dA DMIC mode=0x%x Analogue mode=0x%x,0x%x\n",
 			i + 1, dig_mode, ana_mode_l, ana_mode_r);
 
-		dig_mask = MADERA_IN1_DMIC_SUP_MASK;
-
-		if (i < max_analogue_inputs)
-			dig_mask |= MADERA_IN1_MODE_MASK;
-
 		regmap_update_bits(madera->regmap,
 				   MADERA_IN1L_CONTROL + (i * 8),
-				   dig_mask, dig_mode);
+				   MADERA_IN1_DMIC_SUP_MASK, dig_mode);
 
 		if (i >= max_analogue_inputs)
 			continue;
@@ -1282,44 +1148,12 @@ static void madera_configure_input_mode(struct madera *madera)
 	}
 }
 
-int madera_init_inputs(struct snd_soc_component *component,
-		       const char * const *dmic_inputs, int n_dmic_inputs,
-		       const char * const *dmic_refs, int n_dmic_refs)
+int madera_init_inputs(struct snd_soc_component *component)
 {
-	struct snd_soc_dapm_context *dapm =
-		snd_soc_component_get_dapm(component);
 	struct madera_priv *priv = snd_soc_component_get_drvdata(component);
 	struct madera *madera = priv->madera;
-	unsigned int ref;
-	int i, ret;
-	struct snd_soc_dapm_route routes[2];
-
-	memset(&routes, 0, sizeof(routes));
 
 	madera_configure_input_mode(madera);
-
-	for (i = 0; i < n_dmic_inputs / 2; ++i) {
-		ref = madera->pdata.codec.dmic_ref[i];
-		if (ref >= n_dmic_refs) {
-			dev_err(madera->dev,
-				"Illegal DMIC ref %u for IN%d\n", ref, i);
-			return -EINVAL;
-		}
-
-		routes[0].source = dmic_refs[ref];
-		routes[1].source = dmic_refs[ref];
-		routes[0].sink = dmic_inputs[i * 2];
-		routes[1].sink = dmic_inputs[(i * 2) + 1];
-
-		ret = snd_soc_dapm_add_routes(dapm, routes, 2);
-		if (ret)
-			dev_warn(madera->dev,
-				 "Failed to add routes for %s->(%s,%s) (%d)\n",
-				 routes[0].source,
-				 routes[0].sink,
-				 routes[1].sink,
-				 ret);
-	}
 
 	return 0;
 }
@@ -1409,7 +1243,7 @@ int madera_init_bus_error_irq(struct madera_priv *priv, int dsp_num,
 }
 EXPORT_SYMBOL_GPL(madera_init_bus_error_irq);
 
-void madera_destroy_bus_error_irq(struct madera_priv *priv, int dsp_num)
+void madera_free_bus_error_irq(struct madera_priv *priv, int dsp_num)
 {
 	struct madera *madera = priv->madera;
 
@@ -1417,7 +1251,7 @@ void madera_destroy_bus_error_irq(struct madera_priv *priv, int dsp_num)
 			madera_dsp_bus_error_irqs[dsp_num],
 			&priv->adsp[dsp_num]);
 }
-EXPORT_SYMBOL_GPL(madera_destroy_bus_error_irq);
+EXPORT_SYMBOL_GPL(madera_free_bus_error_irq);
 
 const char * const madera_mixer_texts[] = {
 	"None",
@@ -1571,7 +1405,7 @@ const char * const madera_mixer_texts[] = {
 };
 EXPORT_SYMBOL_GPL(madera_mixer_texts);
 
-unsigned int madera_mixer_values[] = {
+const unsigned int madera_mixer_values[] = {
 	0x00,	/* None */
 	0x04,	/* Tone Generator 1 */
 	0x05,	/* Tone Generator 2 */
@@ -1741,53 +1575,6 @@ EXPORT_SYMBOL_GPL(madera_ng_tlv);
 const DECLARE_TLV_DB_SCALE(madera_mixer_tlv, -3200, 100, 0);
 EXPORT_SYMBOL_GPL(madera_mixer_tlv);
 
-const char * const madera_sample_rate_text[MADERA_SAMPLE_RATE_ENUM_SIZE] = {
-	"12kHz", "24kHz", "48kHz", "96kHz", "192kHz", "384kHz",
-	"11.025kHz", "22.05kHz", "44.1kHz", "88.2kHz", "176.4kHz", "352.8kHz",
-	"4kHz", "8kHz", "16kHz", "32kHz",
-};
-EXPORT_SYMBOL_GPL(madera_sample_rate_text);
-
-const unsigned int madera_sample_rate_val[MADERA_SAMPLE_RATE_ENUM_SIZE] = {
-	0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
-	0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
-	0x10, 0x11, 0x12, 0x13,
-};
-EXPORT_SYMBOL_GPL(madera_sample_rate_val);
-
-const char *madera_sample_rate_val_to_name(unsigned int rate_val)
-{
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(madera_sample_rate_val); ++i) {
-		if (madera_sample_rate_val[i] == rate_val)
-			return madera_sample_rate_text[i];
-	}
-
-	return "Illegal";
-}
-EXPORT_SYMBOL_GPL(madera_sample_rate_val_to_name);
-
-const struct soc_enum madera_sample_rate[] = {
-	SOC_VALUE_ENUM_SINGLE(MADERA_SAMPLE_RATE_2,
-			      MADERA_SAMPLE_RATE_2_SHIFT, 0x1f,
-			      MADERA_SAMPLE_RATE_ENUM_SIZE,
-			      madera_sample_rate_text,
-			      madera_sample_rate_val),
-	SOC_VALUE_ENUM_SINGLE(MADERA_SAMPLE_RATE_3,
-			      MADERA_SAMPLE_RATE_3_SHIFT, 0x1f,
-			      MADERA_SAMPLE_RATE_ENUM_SIZE,
-			      madera_sample_rate_text,
-			      madera_sample_rate_val),
-	SOC_VALUE_ENUM_SINGLE(MADERA_ASYNC_SAMPLE_RATE_2,
-			      MADERA_ASYNC_SAMPLE_RATE_2_SHIFT, 0x1f,
-			      MADERA_SAMPLE_RATE_ENUM_SIZE,
-			      madera_sample_rate_text,
-			      madera_sample_rate_val),
-
-};
-EXPORT_SYMBOL_GPL(madera_sample_rate);
-
 const char * const madera_rate_text[MADERA_RATE_ENUM_SIZE] = {
 	"SYNCCLK rate 1", "SYNCCLK rate 2", "SYNCCLK rate 3",
 	"ASYNCCLK rate 1", "ASYNCCLK rate 2",
@@ -1799,108 +1586,22 @@ const unsigned int madera_rate_val[MADERA_RATE_ENUM_SIZE] = {
 };
 EXPORT_SYMBOL_GPL(madera_rate_val);
 
-const struct soc_enum madera_output_rate =
-	SOC_VALUE_ENUM_SINGLE(MADERA_OUTPUT_RATE_1,
-			      MADERA_OUT_RATE_SHIFT,
-			      MADERA_OUT_RATE_MASK >> MADERA_OUT_RATE_SHIFT,
-			      MADERA_SYNC_RATE_ENUM_SIZE,
-			      madera_rate_text,
-			      madera_rate_val);
-EXPORT_SYMBOL_GPL(madera_output_rate);
-
-const struct soc_enum madera_output_ext_rate =
-	SOC_VALUE_ENUM_SINGLE(MADERA_OUTPUT_RATE_1,
-			      MADERA_OUT_RATE_SHIFT,
-			      MADERA_OUT_RATE_MASK >> MADERA_OUT_RATE_SHIFT,
-			      MADERA_RATE_ENUM_SIZE,
-			      madera_rate_text,
-			      madera_rate_val);
-EXPORT_SYMBOL_GPL(madera_output_ext_rate);
-
-const struct soc_enum madera_input_rate[] = {
-	SOC_VALUE_ENUM_SINGLE(MADERA_IN1L_RATE_CONTROL,
-			      MADERA_IN1L_RATE_SHIFT,
-			      MADERA_IN1L_RATE_MASK >> MADERA_IN1L_RATE_SHIFT,
-			      MADERA_SYNC_RATE_ENUM_SIZE,
-			      madera_rate_text,
-			      madera_rate_val),
-	SOC_VALUE_ENUM_SINGLE(MADERA_IN1R_RATE_CONTROL,
-			      MADERA_IN1R_RATE_SHIFT,
-			      MADERA_IN1R_RATE_MASK >> MADERA_IN1R_RATE_SHIFT,
-			      MADERA_SYNC_RATE_ENUM_SIZE,
-			      madera_rate_text,
-			      madera_rate_val),
-	SOC_VALUE_ENUM_SINGLE(MADERA_IN2L_RATE_CONTROL,
-			      MADERA_IN2L_RATE_SHIFT,
-			      MADERA_IN2L_RATE_MASK >> MADERA_IN2L_RATE_SHIFT,
-			      MADERA_SYNC_RATE_ENUM_SIZE,
-			      madera_rate_text,
-			      madera_rate_val),
-	SOC_VALUE_ENUM_SINGLE(MADERA_IN2R_RATE_CONTROL,
-			      MADERA_IN2R_RATE_SHIFT,
-			      MADERA_IN2R_RATE_MASK >> MADERA_IN2R_RATE_SHIFT,
-			      MADERA_SYNC_RATE_ENUM_SIZE,
-			      madera_rate_text,
-			      madera_rate_val),
-	SOC_VALUE_ENUM_SINGLE(MADERA_IN3L_RATE_CONTROL,
-			      MADERA_IN3L_RATE_SHIFT,
-			      MADERA_IN3L_RATE_MASK >> MADERA_IN3L_RATE_SHIFT,
-			      MADERA_SYNC_RATE_ENUM_SIZE,
-			      madera_rate_text,
-			      madera_rate_val),
-	SOC_VALUE_ENUM_SINGLE(MADERA_IN3R_RATE_CONTROL,
-			      MADERA_IN3R_RATE_SHIFT,
-			      MADERA_IN3R_RATE_MASK >> MADERA_IN3R_RATE_SHIFT,
-			      MADERA_SYNC_RATE_ENUM_SIZE,
-			      madera_rate_text,
-			      madera_rate_val),
-	SOC_VALUE_ENUM_SINGLE(MADERA_IN4L_RATE_CONTROL,
-			      MADERA_IN4L_RATE_SHIFT,
-			      MADERA_IN4L_RATE_MASK >> MADERA_IN4L_RATE_SHIFT,
-			      MADERA_SYNC_RATE_ENUM_SIZE,
-			      madera_rate_text,
-			      madera_rate_val),
-	SOC_VALUE_ENUM_SINGLE(MADERA_IN4R_RATE_CONTROL,
-			      MADERA_IN4R_RATE_SHIFT,
-			      MADERA_IN4R_RATE_MASK >> MADERA_IN4R_RATE_SHIFT,
-			      MADERA_SYNC_RATE_ENUM_SIZE,
-			      madera_rate_text,
-			      madera_rate_val),
-	SOC_VALUE_ENUM_SINGLE(MADERA_IN5L_RATE_CONTROL,
-			      MADERA_IN5L_RATE_SHIFT,
-			      MADERA_IN5L_RATE_MASK >> MADERA_IN5L_RATE_SHIFT,
-			      MADERA_SYNC_RATE_ENUM_SIZE,
-			      madera_rate_text,
-			      madera_rate_val),
-	SOC_VALUE_ENUM_SINGLE(MADERA_IN5R_RATE_CONTROL,
-			      MADERA_IN5R_RATE_SHIFT,
-			      MADERA_IN5R_RATE_MASK >> MADERA_IN5R_RATE_SHIFT,
-			      MADERA_SYNC_RATE_ENUM_SIZE,
-			      madera_rate_text,
-			      madera_rate_val),
+static const char * const madera_dfc_width_text[MADERA_DFC_WIDTH_ENUM_SIZE] = {
+	"8 bit", "16 bit", "20 bit", "24 bit", "32 bit",
 };
-EXPORT_SYMBOL_GPL(madera_input_rate);
 
-const char * const madera_dfc_width_text[MADERA_DFC_WIDTH_ENUM_SIZE] = {
-	"8bit", "16bit", "20bit", "24bit", "32bit",
-};
-EXPORT_SYMBOL_GPL(madera_dfc_width_text);
-
-const unsigned int madera_dfc_width_val[MADERA_DFC_WIDTH_ENUM_SIZE] = {
+static const unsigned int madera_dfc_width_val[MADERA_DFC_WIDTH_ENUM_SIZE] = {
 	7, 15, 19, 23, 31,
 };
-EXPORT_SYMBOL_GPL(madera_dfc_width_val);
 
-const char * const madera_dfc_type_text[MADERA_DFC_TYPE_ENUM_SIZE] = {
+static const char * const madera_dfc_type_text[MADERA_DFC_TYPE_ENUM_SIZE] = {
 	"Fixed", "Unsigned Fixed", "Single Precision Floating",
 	"Half Precision Floating", "Arm Alternative Floating",
 };
-EXPORT_SYMBOL_GPL(madera_dfc_type_text);
 
-const unsigned int madera_dfc_type_val[MADERA_DFC_TYPE_ENUM_SIZE] = {
+static const unsigned int madera_dfc_type_val[MADERA_DFC_TYPE_ENUM_SIZE] = {
 	0, 1, 2, 4, 5,
 };
-EXPORT_SYMBOL_GPL(madera_dfc_type_val);
 
 const struct soc_enum madera_dfc_width[] = {
 	SOC_VALUE_ENUM_SINGLE(MADERA_DFC1_RX,
@@ -2133,22 +1834,6 @@ const struct soc_enum madera_dfc_type[] = {
 			      madera_dfc_type_val),
 };
 EXPORT_SYMBOL_GPL(madera_dfc_type);
-
-const struct soc_enum madera_fx_rate =
-	SOC_VALUE_ENUM_SINGLE(MADERA_FX_CTRL1,
-			      MADERA_FX_RATE_SHIFT, 0xf,
-			      MADERA_RATE_ENUM_SIZE,
-			      madera_rate_text, madera_rate_val);
-EXPORT_SYMBOL_GPL(madera_fx_rate);
-
-const struct soc_enum madera_spdif_rate =
-	SOC_VALUE_ENUM_SINGLE(MADERA_SPD1_TX_CONTROL,
-			      MADERA_SPD1_RATE_SHIFT,
-			      0x0f,
-			      MADERA_SYNC_RATE_ENUM_SIZE,
-			      madera_rate_text,
-			      madera_rate_val);
-EXPORT_SYMBOL_GPL(madera_spdif_rate);
 
 const struct soc_enum madera_isrc_fsh[] = {
 	SOC_VALUE_ENUM_SINGLE(MADERA_ISRC_1_CTRL_1,
@@ -2430,39 +2115,6 @@ const struct soc_enum madera_output_anc_src[] = {
 };
 EXPORT_SYMBOL_GPL(madera_output_anc_src);
 
-int madera_in_rate_put(struct snd_kcontrol *kcontrol,
-		       struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_component *component =
-		snd_soc_kcontrol_component(kcontrol);
-	struct snd_soc_dapm_context *dapm =
-		snd_soc_component_get_dapm(component);
-	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
-	unsigned int val, mask;
-	int ret = 0;
-
-	snd_soc_dapm_mutex_lock(dapm);
-
-	/* Cannot change rate on an active input */
-	ret = snd_soc_component_read(component, MADERA_INPUT_ENABLES, &val);
-	if (ret)
-		goto exit;
-
-	mask = (e->reg - MADERA_IN1L_CONTROL) / 4;
-	mask ^= 0x1; /* Flip bottom bit for channel order */
-
-	if ((val) & (1 << mask)) {
-		ret = -EBUSY;
-		goto exit;
-	}
-
-	ret = snd_soc_put_enum_double(kcontrol, ucontrol);
-exit:
-	snd_soc_dapm_mutex_unlock(dapm);
-	return ret;
-}
-EXPORT_SYMBOL_GPL(madera_in_rate_put);
-
 int madera_dfc_put(struct snd_kcontrol *kcontrol,
 		   struct snd_ctl_elem_value *ucontrol)
 {
@@ -2518,7 +2170,7 @@ int madera_lp_mode_put(struct snd_kcontrol *kcontrol,
 	mask = (mc->reg - MADERA_ADC_DIGITAL_VOLUME_1L) / 4;
 	mask ^= 0x1; /* Flip bottom bit for channel order */
 
-	if ((val) & (1 << mask)) {
+	if (val & (1 << mask)) {
 		ret = -EBUSY;
 		dev_err(component->dev,
 			"Can't change lp mode on an active input\n");
@@ -2563,8 +2215,8 @@ static void madera_in_set_vu(struct madera_priv *priv, bool enable)
 
 	for (i = 0; i < priv->num_inputs; i++) {
 		ret = regmap_update_bits(priv->madera->regmap,
-				    MADERA_ADC_DIGITAL_VOLUME_1L + (i * 4),
-				    MADERA_IN_VU, val);
+					 MADERA_ADC_DIGITAL_VOLUME_1L + (i * 4),
+					 MADERA_IN_VU, val);
 		if (ret)
 			dev_warn(priv->madera->dev,
 				 "Failed to modify VU bits: %d\n", ret);
@@ -2590,8 +2242,8 @@ int madera_in_ev(struct snd_soc_dapm_widget *w, struct snd_kcontrol *kcontrol,
 		break;
 	case SND_SOC_DAPM_POST_PMU:
 		priv->in_pending--;
-		snd_soc_component_update_bits(component, reg, MADERA_IN1L_MUTE,
-					      0);
+		snd_soc_component_update_bits(component, reg,
+					      MADERA_IN1L_MUTE, 0);
 
 		/* If this is the last input pending then allow VU */
 		if (priv->in_pending == 0) {
@@ -2630,6 +2282,7 @@ int madera_out_ev(struct snd_soc_dapm_widget *w,
 	switch (madera->type) {
 	case CS47L90:
 	case CS47L91:
+	case CS42L92:
 	case CS47L92:
 	case CS47L93:
 		out_up_delay = 6;
@@ -2747,13 +2400,21 @@ int madera_hp_ev(struct snd_soc_dapm_widget *w,
 	madera->hp_ena &= ~mask;
 	madera->hp_ena |= val;
 
-	/* if OUT1 is routed to EPOUT, ignore HP clamp and impedance */
-	regmap_read(madera->regmap, MADERA_OUTPUT_ENABLES_1, &ep_sel);
-	ep_sel &= MADERA_EP_SEL_MASK;
+	switch (madera->type) {
+	case CS42L92:
+	case CS47L92:
+	case CS47L93:
+		break;
+	default:
+		/* if OUT1 is routed to EPOUT, ignore HP clamp and impedance */
+		regmap_read(madera->regmap, MADERA_OUTPUT_ENABLES_1, &ep_sel);
+		ep_sel &= MADERA_EP_SEL_MASK;
+		break;
+	}
 
-	/* Force off if HPDET clamp is active for this output */
+	/* Force off if HPDET has disabled the clamp for this output */
 	if (!ep_sel &&
-	    (madera->out_clamp[out_num] || madera->out_shorted[out_num]))
+	    (!madera->out_clamp[out_num] || madera->out_shorted[out_num]))
 		val = 0;
 
 	regmap_update_bits(madera->regmap, MADERA_OUTPUT_ENABLES_1, mask, val);
@@ -2803,7 +2464,8 @@ static int madera_set_opclk(struct snd_soc_component *component,
 			    unsigned int clk, unsigned int freq)
 {
 	struct madera_priv *priv = snd_soc_component_get_drvdata(component);
-	unsigned int reg;
+	unsigned int mask = MADERA_OPCLK_DIV_MASK | MADERA_OPCLK_SEL_MASK;
+	unsigned int reg, val;
 	const unsigned int *rates;
 	int ref, div, refclk;
 
@@ -2837,10 +2499,11 @@ static int madera_set_opclk(struct snd_soc_component *component,
 			if (rates[ref] / div == freq) {
 				dev_dbg(component->dev, "Configured %dHz OPCLK\n",
 					freq);
+
+				val = (div << MADERA_OPCLK_DIV_SHIFT) | ref;
+
 				snd_soc_component_update_bits(component, reg,
-					MADERA_OPCLK_DIV_MASK |
-					MADERA_OPCLK_SEL_MASK,
-					(div << MADERA_OPCLK_DIV_SHIFT) | ref);
+							      mask, val);
 				return 0;
 			}
 			div += 2;
@@ -2876,7 +2539,8 @@ static int madera_get_sysclk_setting(unsigned int freq)
 	}
 }
 
-int madera_get_legacy_dspclk_setting(struct madera *madera, unsigned int freq)
+static int madera_get_legacy_dspclk_setting(struct madera *madera,
+					    unsigned int freq)
 {
 	switch (freq) {
 	case 0:
@@ -2901,7 +2565,6 @@ int madera_get_legacy_dspclk_setting(struct madera *madera, unsigned int freq)
 		return -EINVAL;
 	}
 }
-EXPORT_SYMBOL_GPL(madera_get_legacy_dspclk_setting);
 
 static int madera_get_dspclk_setting(struct madera *madera,
 				     unsigned int freq,
@@ -3001,9 +2664,6 @@ int madera_set_sysclk(struct snd_soc_component *component, int clk_id,
 		clk = &priv->asyncclk;
 		clk_freq_sel = madera_get_sysclk_setting(freq);
 		break;
-	case MADERA_CLK_OPCLK:
-	case MADERA_CLK_ASYNC_OPCLK:
-		return madera_set_opclk(component, clk_id, freq);
 	case MADERA_CLK_DSPCLK:
 		name = "DSPCLK";
 		reg = MADERA_DSP_CLOCK_1;
@@ -3011,6 +2671,9 @@ int madera_set_sysclk(struct snd_soc_component *component, int clk_id,
 		clk_freq_sel = madera_get_dspclk_setting(madera, freq,
 							 &clock_2_val);
 		break;
+	case MADERA_CLK_OPCLK:
+	case MADERA_CLK_ASYNC_OPCLK:
+		return madera_set_opclk(component, clk_id, freq);
 	case MADERA_CLK_OUTCLK:
 		return madera_set_outclk(component, source, freq);
 	default:
@@ -3074,8 +2737,8 @@ static int madera_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 		mode = MADERA_FMT_DSP_MODE_A;
 		break;
 	case SND_SOC_DAIFMT_DSP_B:
-		if ((fmt & SND_SOC_DAIFMT_MASTER_MASK)
-				!= SND_SOC_DAIFMT_CBM_CFM) {
+		if ((fmt & SND_SOC_DAIFMT_MASTER_MASK) !=
+		    SND_SOC_DAIFMT_CBM_CFM) {
 			madera_aif_err(dai, "DSP_B not valid in slave mode\n");
 			return -EINVAL;
 		}
@@ -3085,8 +2748,8 @@ static int madera_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 		mode = MADERA_FMT_I2S_MODE;
 		break;
 	case SND_SOC_DAIFMT_LEFT_J:
-		if ((fmt & SND_SOC_DAIFMT_MASTER_MASK)
-				!= SND_SOC_DAIFMT_CBM_CFM) {
+		if ((fmt & SND_SOC_DAIFMT_MASTER_MASK) !=
+		    SND_SOC_DAIFMT_CBM_CFM) {
 			madera_aif_err(dai, "LEFT_J not valid in slave mode\n");
 			return -EINVAL;
 		}
@@ -3142,8 +2805,7 @@ static int madera_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 	regmap_update_bits(madera->regmap, base + MADERA_AIF_TX_PIN_CTRL,
 			   MADERA_AIF1TX_LRCLK_INV | MADERA_AIF1TX_LRCLK_MSTR,
 			   lrclk);
-	regmap_update_bits(madera->regmap,
-			   base + MADERA_AIF_RX_PIN_CTRL,
+	regmap_update_bits(madera->regmap, base + MADERA_AIF_RX_PIN_CTRL,
 			   MADERA_AIF1RX_LRCLK_INV | MADERA_AIF1RX_LRCLK_MSTR,
 			   lrclk);
 	regmap_update_bits(madera->regmap, base + MADERA_AIF_FORMAT,
@@ -3264,6 +2926,7 @@ static int madera_startup(struct snd_pcm_substream *substream,
 	}
 
 	switch (madera->type) {
+	case CS42L92:
 	case CS47L92:
 	case CS47L93:
 		if (base_rate == 0)
@@ -3296,10 +2959,9 @@ static int madera_hw_params_rate(struct snd_pcm_substream *substream,
 	struct madera_priv *priv = snd_soc_component_get_drvdata(component);
 	struct madera_dai_priv *dai_priv = &priv->dai[dai->id - 1];
 	int base = dai->driver->base;
-	int ret = 0;
 	int i, sr_val;
-	unsigned int cur, tar;
-	bool change_rate_domain = false;
+	unsigned int reg, cur, tar;
+	int ret;
 
 	for (i = 0; i < ARRAY_SIZE(madera_sr_vals); i++)
 		if (madera_sr_vals[i] == params_rate(params))
@@ -3307,130 +2969,69 @@ static int madera_hw_params_rate(struct snd_pcm_substream *substream,
 
 	if (i == ARRAY_SIZE(madera_sr_vals)) {
 		madera_aif_err(dai, "Unsupported sample rate %dHz\n",
-				params_rate(params));
+			       params_rate(params));
 		return -EINVAL;
 	}
 	sr_val = i;
 
-	if (base) {
-		switch (dai_priv->clk) {
-		case MADERA_CLK_SYSCLK_1:
-			tar = 0 << MADERA_AIF1_RATE_SHIFT;
-			break;
-		case MADERA_CLK_SYSCLK_2:
-			tar = 1 << MADERA_AIF1_RATE_SHIFT;
-			break;
-		case MADERA_CLK_SYSCLK_3:
-			tar = 2 << MADERA_AIF1_RATE_SHIFT;
-			break;
-		case MADERA_CLK_ASYNCCLK_1:
-			tar = 8 << MADERA_AIF1_RATE_SHIFT;
-			break;
-		case MADERA_CLK_ASYNCCLK_2:
-			tar = 9 << MADERA_AIF1_RATE_SHIFT;
-			break;
-		default:
-			madera_aif_err(dai, "Illegal clock id %d\n",
-				       dai_priv->clk);
-			return -EINVAL;
-		}
-
-		ret = regmap_read(priv->madera->regmap,
-				  base + MADERA_AIF_RATE_CTRL, &cur);
-		if (ret != 0) {
-			madera_aif_err(dai, "Failed to check rate: %d\n", ret);
-			return ret;
-		}
-
-		if ((cur & MADERA_AIF1_RATE_MASK) !=
-		    (tar & MADERA_AIF1_RATE_MASK)) {
-			change_rate_domain = true;
-
-			mutex_lock(&priv->rate_lock);
-
-			if (!madera_can_change_grp_rate(priv,
-						base + MADERA_AIF_RATE_CTRL)) {
-				madera_aif_warn(dai,
-						"Cannot change rate while active\n");
-				ret = -EBUSY;
-				goto out;
-			}
-
-			/* Guard the rate change with SYSCLK cycles */
-			madera_spin_sysclk(priv);
-		}
-	}
-
 	switch (dai_priv->clk) {
 	case MADERA_CLK_SYSCLK_1:
-		snd_soc_component_update_bits(component, MADERA_SAMPLE_RATE_1,
-					      MADERA_SAMPLE_RATE_1_MASK, sr_val);
-		if (!base)
-			break;
-
-		snd_soc_component_update_bits(component,
-					      base + MADERA_AIF_RATE_CTRL,
-					      MADERA_AIF1_RATE_MASK,
-					      0 << MADERA_AIF1_RATE_SHIFT);
+		reg = MADERA_SAMPLE_RATE_1;
+		tar = 0 << MADERA_AIF1_RATE_SHIFT;
 		break;
 	case MADERA_CLK_SYSCLK_2:
-		snd_soc_component_update_bits(component, MADERA_SAMPLE_RATE_2,
-					      MADERA_SAMPLE_RATE_2_MASK, sr_val);
-		if (!base)
-			break;
-
-		snd_soc_component_update_bits(component,
-					      base + MADERA_AIF_RATE_CTRL,
-					      MADERA_AIF1_RATE_MASK,
-					      1 << MADERA_AIF1_RATE_SHIFT);
+		reg = MADERA_SAMPLE_RATE_2;
+		tar = 1 << MADERA_AIF1_RATE_SHIFT;
 		break;
 	case MADERA_CLK_SYSCLK_3:
-		snd_soc_component_update_bits(component, MADERA_SAMPLE_RATE_3,
-					      MADERA_SAMPLE_RATE_3_MASK, sr_val);
-		if (!base)
-			break;
-
-		snd_soc_component_update_bits(component,
-					      base + MADERA_AIF_RATE_CTRL,
-					      MADERA_AIF1_RATE_MASK,
-					      2 << MADERA_AIF1_RATE_SHIFT);
+		reg = MADERA_SAMPLE_RATE_3;
+		tar = 2 << MADERA_AIF1_RATE_SHIFT;
 		break;
 	case MADERA_CLK_ASYNCCLK_1:
-		snd_soc_component_update_bits(component,
-					      MADERA_ASYNC_SAMPLE_RATE_1,
-					      MADERA_ASYNC_SAMPLE_RATE_1_MASK,
-					      sr_val);
-		if (!base)
-			break;
-
-		snd_soc_component_update_bits(component,
-					      base + MADERA_AIF_RATE_CTRL,
-					      MADERA_AIF1_RATE_MASK,
-					      8 << MADERA_AIF1_RATE_SHIFT);
+		reg = MADERA_ASYNC_SAMPLE_RATE_1,
+		tar = 8 << MADERA_AIF1_RATE_SHIFT;
 		break;
 	case MADERA_CLK_ASYNCCLK_2:
-		snd_soc_component_update_bits(component,
-					      MADERA_ASYNC_SAMPLE_RATE_2,
-					      MADERA_ASYNC_SAMPLE_RATE_2_MASK,
-					      sr_val);
-		if (!base)
-			break;
-
-		snd_soc_component_update_bits(component,
-					      base + MADERA_AIF_RATE_CTRL,
-					      MADERA_AIF1_RATE_MASK,
-					      9 << MADERA_AIF1_RATE_SHIFT);
+		reg = MADERA_ASYNC_SAMPLE_RATE_2,
+		tar = 9 << MADERA_AIF1_RATE_SHIFT;
 		break;
 	default:
 		madera_aif_err(dai, "Invalid clock %d\n", dai_priv->clk);
-		ret = -EINVAL;
+		return -EINVAL;
 	}
 
-out:
-	if (change_rate_domain) {
-		madera_spin_sysclk(priv);
-		mutex_unlock(&priv->rate_lock);
+	snd_soc_component_update_bits(component, reg, MADERA_SAMPLE_RATE_1_MASK,
+				      sr_val);
+
+	if (!base)
+		return 0;
+
+	ret = regmap_read(priv->madera->regmap,
+			  base + MADERA_AIF_RATE_CTRL, &cur);
+	if (ret != 0) {
+		madera_aif_err(dai, "Failed to check rate: %d\n", ret);
+		return ret;
 	}
+
+	if ((cur & MADERA_AIF1_RATE_MASK) == (tar & MADERA_AIF1_RATE_MASK))
+		return 0;
+
+	mutex_lock(&priv->rate_lock);
+
+	if (!madera_can_change_grp_rate(priv, base + MADERA_AIF_RATE_CTRL)) {
+		madera_aif_warn(dai, "Cannot change rate while active\n");
+		ret = -EBUSY;
+		goto out;
+	}
+
+	/* Guard the rate change with SYSCLK cycles */
+	madera_spin_sysclk(priv);
+	snd_soc_component_update_bits(component, base + MADERA_AIF_RATE_CTRL,
+				      MADERA_AIF1_RATE_MASK, tar);
+	madera_spin_sysclk(priv);
+
+out:
+	mutex_unlock(&priv->rate_lock);
 
 	return ret;
 }
@@ -3449,7 +3050,7 @@ static int madera_aif_cfg_changed(struct snd_soc_component *component,
 		return 1;
 
 	ret = snd_soc_component_read(component, base + MADERA_AIF_RX_BCLK_RATE,
-			&val);
+				     &val);
 	if (ret)
 		return ret;
 	if (lrclk != (val & MADERA_AIF1RX_BCPF_MASK))
@@ -3478,15 +3079,16 @@ static int madera_hw_params(struct snd_pcm_substream *substream,
 	int i, ret;
 	unsigned int val;
 	unsigned int channels = params_channels(params);
+	unsigned int rate = params_rate(params);
 	unsigned int chan_limit =
 			madera->pdata.codec.max_channels_clocked[dai->id - 1];
 	int tdm_width = priv->tdm_width[dai->id - 1];
 	int tdm_slots = priv->tdm_slots[dai->id - 1];
-	int bclk, lrclk, dataw, slotw, frame, bclk_target, num_rates;
+	int bclk, lrclk, wl, frame, bclk_target, num_rates;
 	int reconfig;
 	unsigned int aif_tx_state = 0, aif_rx_state = 0;
 
-	if (params_rate(params) % 4000) {
+	if (rate % 4000) {
 		rates = &madera_44k1_bclk_rates[0];
 		num_rates = ARRAY_SIZE(madera_44k1_bclk_rates);
 	} else {
@@ -3494,17 +3096,17 @@ static int madera_hw_params(struct snd_pcm_substream *substream,
 		num_rates = ARRAY_SIZE(madera_48k_bclk_rates);
 	}
 
-	dataw = snd_pcm_format_width(params_format(params));
-	slotw = snd_pcm_format_physical_width(params_format(params));
+	wl = snd_pcm_format_width(params_format(params));
 
 	if (tdm_slots) {
 		madera_aif_dbg(dai, "Configuring for %d %d bit TDM slots\n",
-				tdm_slots, tdm_width);
-		slotw = tdm_width;
+			       tdm_slots, tdm_width);
+		bclk_target = tdm_slots * tdm_width * rate;
 		channels = tdm_slots;
+	} else {
+		bclk_target = snd_soc_params_to_bclk(params);
+		tdm_width = wl;
 	}
-
-	bclk_target = slotw * channels * params_rate(params);
 
 	if (chan_limit && chan_limit < channels) {
 		madera_aif_dbg(dai, "Limiting to %d channels\n", chan_limit);
@@ -3518,32 +3120,30 @@ static int madera_hw_params(struct snd_pcm_substream *substream,
 		return ret;
 
 	val &= MADERA_AIF1_FMT_MASK;
-	if ((channels & 1) && (val == MADERA_FMT_I2S_MODE)) {
+	if ((channels & 1) && val == MADERA_FMT_I2S_MODE) {
 		madera_aif_dbg(dai, "Forcing stereo mode\n");
 		bclk_target /= channels;
 		bclk_target *= channels + 1;
 	}
 
 	for (i = 0; i < num_rates; i++) {
-		if (rates[i] >= bclk_target &&
-		    rates[i] % params_rate(params) == 0) {
+		if (rates[i] >= bclk_target && rates[i] % rate == 0) {
 			bclk = i;
 			break;
 		}
 	}
 
 	if (i == num_rates) {
-		madera_aif_err(dai, "Unsupported sample rate %dHz\n",
-				params_rate(params));
+		madera_aif_err(dai, "Unsupported sample rate %dHz\n", rate);
 		return -EINVAL;
 	}
 
-	lrclk = rates[bclk] / params_rate(params);
+	lrclk = rates[bclk] / rate;
 
 	madera_aif_dbg(dai, "BCLK %dHz LRCLK %dHz\n",
-			rates[bclk], rates[bclk] / lrclk);
+		       rates[bclk], rates[bclk] / lrclk);
 
-	frame = dataw << MADERA_AIF1TX_WL_SHIFT | slotw;
+	frame = wl << MADERA_AIF1TX_WL_SHIFT | tdm_width;
 
 	reconfig = madera_aif_cfg_changed(component, base, bclk, lrclk, frame);
 	if (reconfig < 0)
@@ -3900,7 +3500,7 @@ static int madera_calc_fratio(struct madera_fll *fll,
 	init_ratio = madera_find_fratio(fll, fref, sync, &cfg->fratio);
 	if (init_ratio < 0) {
 		madera_fll_err(fll, "Unable to find FRATIO for fref=%uHz\n",
-				fref);
+			       fref);
 		return init_ratio;
 	}
 
@@ -4004,7 +3604,7 @@ static int madera_calc_fll(struct madera_fll *fll,
 	int ratio, ret;
 
 	madera_fll_dbg(fll, "fref=%u Fout=%u fvco=%u\n",
-			fref, fll->fout, fll->fout * MADERA_FLL_VCO_MULT);
+		       fref, fll->fout, fll->fout * MADERA_FLL_VCO_MULT);
 
 	/* Find an appropriate FLL_FRATIO and refdiv */
 	ratio = madera_calc_fratio(fll, cfg, fref, sync);
@@ -4079,13 +3679,12 @@ static int madera_calc_fll(struct madera_fll *fll,
 		return ret;
 
 	madera_fll_dbg(fll, "N=%d THETA=%d LAMBDA=%d\n",
-			cfg->n, cfg->theta, cfg->lambda);
+		       cfg->n, cfg->theta, cfg->lambda);
 	madera_fll_dbg(fll, "FRATIO=0x%x(%d) REFCLK_DIV=0x%x(%d)\n",
-			cfg->fratio, ratio, cfg->refdiv, 1 << cfg->refdiv);
+		       cfg->fratio, ratio, cfg->refdiv, 1 << cfg->refdiv);
 	madera_fll_dbg(fll, "GAIN=0x%x(%d)\n", cfg->gain, 1 << cfg->gain);
 
 	return 0;
-
 }
 
 static bool madera_write_fll(struct madera *madera, unsigned int base,
@@ -4201,9 +3800,9 @@ static bool madera_set_fll_phase_integrator(struct madera_fll *fll,
 	unsigned int val;
 	bool reg_change;
 
-	if (!sync && (ref_cfg->theta == 0))
+	if (!sync && ref_cfg->theta == 0)
 		val = (1 << MADERA_FLL1_PHASE_ENA_SHIFT) |
-			(2 << MADERA_FLL1_PHASE_GAIN_SHIFT);
+		      (2 << MADERA_FLL1_PHASE_GAIN_SHIFT);
 	else
 		val = 2 << MADERA_FLL1_PHASE_GAIN_SHIFT;
 
@@ -4211,8 +3810,7 @@ static bool madera_set_fll_phase_integrator(struct madera_fll *fll,
 				 fll->base + MADERA_FLL_EFS_2_OFFS,
 				 MADERA_FLL1_PHASE_ENA_MASK |
 				 MADERA_FLL1_PHASE_GAIN_MASK,
-				 val,
-				 &reg_change);
+				 val, &reg_change);
 
 	return reg_change;
 }
@@ -4220,15 +3818,15 @@ static bool madera_set_fll_phase_integrator(struct madera_fll *fll,
 static void madera_disable_fll(struct madera_fll *fll)
 {
 	struct madera *madera = fll->madera;
-	unsigned int sync_reg_base;
+	unsigned int sync_base;
 	bool change;
 
 	switch (madera->type) {
 	case CS47L35:
-		sync_reg_base = fll->base + CS47L35_FLL_SYNCHRONISER_OFFS;
+		sync_base = fll->base + CS47L35_FLL_SYNCHRONISER_OFFS;
 		break;
 	default:
-		sync_reg_base = fll->base + MADERA_FLL_SYNCHRONISER_OFFS;
+		sync_base = fll->base + MADERA_FLL_SYNCHRONISER_OFFS;
 		break;
 	}
 
@@ -4241,7 +3839,7 @@ static void madera_disable_fll(struct madera_fll *fll)
 				 fll->base + MADERA_FLL_CONTROL_1_OFFS,
 				 MADERA_FLL1_ENA, 0, &change);
 	regmap_update_bits(madera->regmap,
-			   sync_reg_base + MADERA_FLL_SYNCHRONISER_1_OFFS,
+			   sync_base + MADERA_FLL_SYNCHRONISER_1_OFFS,
 			   MADERA_FLL1_SYNC_ENA, 0);
 	regmap_update_bits(madera->regmap,
 			   fll->base + MADERA_FLL_CONTROL_1_OFFS,
@@ -4260,24 +3858,24 @@ static int madera_enable_fll(struct madera_fll *fll)
 	int already_enabled = madera_is_enabled_fll(fll, fll->base);
 	int sync_enabled;
 	struct madera_fll_cfg cfg;
-	unsigned int sync_reg_base;
+	unsigned int sync_base;
 	int gain, ret;
 	bool fll_change = false;
 
 	if (already_enabled < 0)
 		return already_enabled;	/* error getting current state */
 
-	if ((fll->ref_src < 0) || (fll->ref_freq == 0)) {
+	if (fll->ref_src < 0 || fll->ref_freq == 0) {
 		madera_fll_err(fll, "No REFCLK\n");
 		ret = -EINVAL;
 		goto err;
 	}
 
 	madera_fll_dbg(fll, "Enabling FLL, initially %s\n",
-			already_enabled ? "enabled" : "disabled");
+		       already_enabled ? "enabled" : "disabled");
 
-	if ((fll->fout < MADERA_FLL_MIN_FOUT) ||
-	    (fll->fout > MADERA_FLL_MAX_FOUT)) {
+	if (fll->fout < MADERA_FLL_MIN_FOUT ||
+	    fll->fout > MADERA_FLL_MAX_FOUT) {
 		madera_fll_err(fll, "invalid fout %uHz\n", fll->fout);
 		ret = -EINVAL;
 		goto err;
@@ -4285,14 +3883,14 @@ static int madera_enable_fll(struct madera_fll *fll)
 
 	switch (madera->type) {
 	case CS47L35:
-		sync_reg_base = fll->base + CS47L35_FLL_SYNCHRONISER_OFFS;
+		sync_base = fll->base + CS47L35_FLL_SYNCHRONISER_OFFS;
 		break;
 	default:
-		sync_reg_base = fll->base + MADERA_FLL_SYNCHRONISER_OFFS;
+		sync_base = fll->base + MADERA_FLL_SYNCHRONISER_OFFS;
 		break;
 	}
 
-	sync_enabled = madera_is_enabled_fll(fll, sync_reg_base);
+	sync_enabled = madera_is_enabled_fll(fll, sync_base);
 	if (sync_enabled < 0)
 		return sync_enabled;
 
@@ -4314,9 +3912,9 @@ static int madera_enable_fll(struct madera_fll *fll)
 		if (ret < 0)
 			goto err;
 
-		fll_change |= madera_write_fll(madera, sync_reg_base,
-						&cfg, fll->sync_src,
-						true, cfg.gain);
+		fll_change |= madera_write_fll(madera, sync_base,
+					       &cfg, fll->sync_src,
+					       true, cfg.gain);
 		have_sync = true;
 	}
 
@@ -4342,7 +3940,7 @@ static int madera_enable_fll(struct madera_fll *fll)
 			fll_change |=
 				madera_set_fll_phase_integrator(fll, &cfg,
 								have_sync);
-			if (!have_sync && (cfg.theta == 0))
+			if (!have_sync && cfg.theta == 0)
 				gain = cfg.alt_gain;
 			else
 				gain = cfg.gain;
@@ -4356,7 +3954,7 @@ static int madera_enable_fll(struct madera_fll *fll)
 	default:
 		fll_change |= madera_set_fll_phase_integrator(fll, &cfg,
 							      have_sync);
-		if (!have_sync && (cfg.theta == 0))
+		if (!have_sync && cfg.theta == 0)
 			gain = cfg.alt_gain;
 		else
 			gain = cfg.gain;
@@ -4364,8 +3962,8 @@ static int madera_enable_fll(struct madera_fll *fll)
 	}
 
 	fll_change |= madera_write_fll(madera, fll->base,
-				      &cfg, fll->ref_src,
-				      false, gain);
+				       &cfg, fll->ref_src,
+				       false, gain);
 
 	/*
 	 * Increase the bandwidth if we're not using a low frequency
@@ -4373,22 +3971,22 @@ static int madera_enable_fll(struct madera_fll *fll)
 	 */
 	if (have_sync && fll->sync_freq > 100000)
 		regmap_update_bits(madera->regmap,
-				sync_reg_base + MADERA_FLL_SYNCHRONISER_7_OFFS,
-				MADERA_FLL1_SYNC_DFSAT_MASK, 0);
+				   sync_base + MADERA_FLL_SYNCHRONISER_7_OFFS,
+				   MADERA_FLL1_SYNC_DFSAT_MASK, 0);
 	else
 		regmap_update_bits(madera->regmap,
-				sync_reg_base + MADERA_FLL_SYNCHRONISER_7_OFFS,
-				MADERA_FLL1_SYNC_DFSAT_MASK,
-				MADERA_FLL1_SYNC_DFSAT);
+				   sync_base + MADERA_FLL_SYNCHRONISER_7_OFFS,
+				   MADERA_FLL1_SYNC_DFSAT_MASK,
+				   MADERA_FLL1_SYNC_DFSAT);
 
 	if (!already_enabled)
 		pm_runtime_get_sync(madera->dev);
 
 	if (have_sync)
 		regmap_update_bits(madera->regmap,
-				sync_reg_base + MADERA_FLL_SYNCHRONISER_1_OFFS,
-				MADERA_FLL1_SYNC_ENA,
-				MADERA_FLL1_SYNC_ENA);
+				   sync_base + MADERA_FLL_SYNCHRONISER_1_OFFS,
+				   MADERA_FLL1_SYNC_ENA,
+				   MADERA_FLL1_SYNC_ENA);
 	regmap_update_bits(madera->regmap,
 			   fll->base + MADERA_FLL_CONTROL_1_OFFS,
 			   MADERA_FLL1_ENA, MADERA_FLL1_ENA);
@@ -4452,7 +4050,7 @@ int madera_set_fll_refclk(struct madera_fll *fll, int source,
 	 * Changes of fout on an enabled FLL aren't allowed except when
 	 * setting fout==0 to disable the FLL
 	 */
-	if (fout && (fout != fll->fout)) {
+	if (fout && fout != fll->fout) {
 		ret = madera_is_enabled_fll(fll, fll->base);
 		if (ret < 0)
 			return ret;
@@ -4553,7 +4151,7 @@ static int madera_enable_fll_ao(struct madera_fll *fll,
 		pm_runtime_get_sync(madera->dev);
 
 	madera_fll_dbg(fll, "Enabling FLL_AO, initially %s\n",
-			already_enabled ? "enabled" : "disabled");
+		       already_enabled ? "enabled" : "disabled");
 
 	/* FLL_AO_HOLD must be set before configuring any registers */
 	regmap_update_bits(fll->madera->regmap,
@@ -4635,7 +4233,7 @@ int madera_set_fll_ao_refclk(struct madera_fll *fll, int source,
 		return 0;
 
 	madera_fll_dbg(fll, "Change FLL_AO refclk to fin=%u fout=%u source=%d\n",
-			fin, fout, source);
+		       fin, fout, source);
 
 	if (fout && (fll->ref_freq != fin || fll->fout != fout)) {
 		for (i = 0; i < ARRAY_SIZE(madera_fllao_settings); i++) {
@@ -4646,7 +4244,7 @@ int madera_set_fll_ao_refclk(struct madera_fll *fll, int source,
 
 		if (i == ARRAY_SIZE(madera_fllao_settings)) {
 			madera_fll_err(fll,
-					"No matching configuration for FLL_AO\n");
+				       "No matching configuration for FLL_AO\n");
 			return -EINVAL;
 		}
 
@@ -4942,16 +4540,16 @@ int madera_fllhj_set_refclk(struct madera_fll *fll, int source,
 {
 	int ret = 0;
 
-	if (fll->ref_src == source && fll->ref_freq == fin &&
-	    fll->fout == fout)
-		return 0;
-
 	/* To remain consistent with previous FLLs, we expect fout to be
 	 * provided in the form of the required sysclk rate, which is
 	 * 2x the calculated fll out.
 	 */
 	if (fout)
 		fout /= 2;
+
+	if (fll->ref_src == source && fll->ref_freq == fin &&
+	    fll->fout == fout)
+		return 0;
 
 	if (fin && fout && madera_fllhj_validate(fll, fin, fout))
 		return -EINVAL;

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * SCMI Message Protocol driver header
  *
@@ -71,7 +71,7 @@ struct scmi_clk_ops {
 	int (*rate_get)(const struct scmi_handle *handle, u32 clk_id,
 			u64 *rate);
 	int (*rate_set)(const struct scmi_handle *handle, u32 clk_id,
-			u32 config, u64 rate);
+			u64 rate);
 	int (*enable)(const struct scmi_handle *handle, u32 clk_id);
 	int (*disable)(const struct scmi_handle *handle, u32 clk_id);
 };
@@ -144,6 +144,9 @@ struct scmi_power_ops {
 struct scmi_sensor_info {
 	u32 id;
 	u8 type;
+	s8 scale;
+	u8 num_trip_points;
+	bool async;
 	char name[SCMI_MAX_STR_SIZE];
 };
 
@@ -166,9 +169,9 @@ enum scmi_sensor_class {
  *
  * @count_get: get the count of sensors provided by SCMI
  * @info_get: get the information of the specified sensor
- * @configuration_set: control notifications on cross-over events for
+ * @trip_point_notify: control notifications on cross-over events for
  *	the trip-points
- * @trip_point_set: selects and configures a trip-point of interest
+ * @trip_point_config: selects and configures a trip-point of interest
  * @reading_get: gets the current value of the sensor
  */
 struct scmi_sensor_ops {
@@ -176,13 +179,112 @@ struct scmi_sensor_ops {
 
 	const struct scmi_sensor_info *(*info_get)
 		(const struct scmi_handle *handle, u32 sensor_id);
-	int (*configuration_set)(const struct scmi_handle *handle,
-				 u32 sensor_id);
-	int (*trip_point_set)(const struct scmi_handle *handle, u32 sensor_id,
-			      u8 trip_id, u64 trip_value);
+	int (*trip_point_notify)(const struct scmi_handle *handle,
+				 u32 sensor_id, bool enable);
+	int (*trip_point_config)(const struct scmi_handle *handle,
+				 u32 sensor_id, u8 trip_id, u64 trip_value);
 	int (*reading_get)(const struct scmi_handle *handle, u32 sensor_id,
-			   bool async, u64 *value);
+			   u64 *value);
 };
+
+/**
+ * struct scmi_reset_ops - represents the various operations provided
+ *	by SCMI Reset Protocol
+ *
+ * @num_domains_get: get the count of reset domains provided by SCMI
+ * @name_get: gets the name of a reset domain
+ * @latency_get: gets the reset latency for the specified reset domain
+ * @reset: resets the specified reset domain
+ * @assert: explicitly assert reset signal of the specified reset domain
+ * @deassert: explicitly deassert reset signal of the specified reset domain
+ */
+struct scmi_reset_ops {
+	int (*num_domains_get)(const struct scmi_handle *handle);
+	char *(*name_get)(const struct scmi_handle *handle, u32 domain);
+	int (*latency_get)(const struct scmi_handle *handle, u32 domain);
+	int (*reset)(const struct scmi_handle *handle, u32 domain);
+	int (*assert)(const struct scmi_handle *handle, u32 domain);
+	int (*deassert)(const struct scmi_handle *handle, u32 domain);
+};
+
+#ifdef CONFIG_QTI_SCMI_MEMLAT_PROTOCOL
+/**
+ * struct scmi_memlat_vendor_ops - represents the various operations provided
+ *	by SCMI HW Memlat Protocol
+ *
+ * @cpu_grp: set the cpugrp
+ * @set_mon: set the supported monitors
+ * @common_pmu_map: sets the common PMU map supported by gov
+ * @mon_pmu_map: sets the common PMU map supported by gov
+ * @ratio_ceil: sets the ratio_ceil needed for hw memlat governor
+ * @stall_floor: sets the stall_floor needed for hw memlat governor
+ * @l2wb_pct: sets the stall_floor needed for hw memlat governor
+ * @l2wb_filter: sets the l2wb_filter needed for hw memlat governor
+ * @sample_ms: sets the sample_ms at this interval governor will poll
+ * @freq_map: sets the freq_map of the monitor
+ * @min_freq: sets the min_freq of monitor
+ * @max_freq: sets the max_freq of monitor
+ * @start_mon: starts monitor in rimps
+ * @stop_mon: stops monitor in rimps
+ * @log_level: configure the supported log_level in rimps
+ * @get_data: added for debug purpose gets the data structure information
+ */
+struct scmi_memlat_vendor_ops {
+	int (*set_cpu_grp)(const struct scmi_handle *handle,
+				u32 cpus_mpidr, u32 mon_type);
+	int (*set_mon)(const struct scmi_handle *handle,
+				u32 cpus_mpidr, u32 mon_type);
+	int (*common_pmu_map)(const struct scmi_handle *handle,
+				u32 cpus_mpidr, u32 mon_type,
+				u32 nr_rows, void *buf);
+	int (*mon_pmu_map)(const struct scmi_handle *handle,
+				u32 cpus_mpidr, u32 mon_type,
+				u32 nr_rows, void *buf);
+	int (*ratio_ceil)(const struct scmi_handle *handle,
+				u32 cpus_mpidr, u32 mon_type, u32 val);
+	int (*stall_floor)(const struct scmi_handle *handle,
+				u32 cpus_mpidr, u32 mon_type, u32 val);
+	int (*l2wb_pct)(const struct scmi_handle *handle,
+				u32 cpus_mpidr, u32 mon_type, u32 val);
+	int (*l2wb_filter)(const struct scmi_handle *handle,
+				u32 cpus_mpidr, u32 mon_type, u32 val);
+	int (*sample_ms)(const struct scmi_handle *handle,
+				u32 cpus_mpidr, u32 mon_type, u32 val);
+	int (*freq_map)(const struct scmi_handle *handle,
+				u32 cpus_mpidr, u32 mon_type,
+				u32 nr_rows, void *buf);
+	int (*min_freq)(const struct scmi_handle *handle,
+				u32 cpus_mpidr, u32 mon_type, u32 val);
+	int (*max_freq)(const struct scmi_handle *handle,
+				u32 cpus_mpidr, u32 mon_type, u32 val);
+	int (*start_monitor)(const struct scmi_handle *handle,
+				u32 cpus_mpidr, u32 mon_type);
+	int (*stop_monitor)(const struct scmi_handle *handle,
+				u32 cpus_mpidr, u32 mon_type);
+	int (*set_log_level)(const struct scmi_handle *handle, u32 val);
+	int (*get_data)(const struct scmi_handle *handle, u8 *buf);
+};
+#endif
+
+#ifdef CONFIG_QTI_SCMI_PLH_PROTOCOL
+/**
+ * struct scmi_plh_vendor_ops - represents the various operations provided
+ *	by SCMI PLH Protocol
+ *
+ * @init_splh_ipc_freq_tbl: initialize scroll plh ipc freq voting table in rimps
+ * @start_splh: starts scroll plh in rimps
+ * @stop_splh: stops scroll plh in rimps
+ * @set_plh_log_level: configure the supported log_level in plh module of rimps
+ */
+struct scmi_plh_vendor_ops {
+	int (*init_splh_ipc_freq_tbl)(const struct scmi_handle *handle,
+				u16 *p_init_args, u16 init_len);
+	int (*start_splh)(const struct scmi_handle *handle,	u16 fps);
+	int (*stop_splh)(const struct scmi_handle *handle);
+	int (*set_plh_log_level)(const struct scmi_handle *handle,
+				u16 log_level);
+};
+#endif
 
 /**
  * struct scmi_handle - Handle returned to ARM SCMI clients for usage.
@@ -193,6 +295,7 @@ struct scmi_sensor_ops {
  * @perf_ops: pointer to set of performance protocol operations
  * @clk_ops: pointer to set of clock protocol operations
  * @sensor_ops: pointer to set of sensor protocol operations
+ * @reset_ops: pointer to set of reset protocol operations
  * @perf_priv: pointer to private data structure specific to performance
  *	protocol(for internal use only)
  * @clk_priv: pointer to private data structure specific to clock
@@ -200,6 +303,8 @@ struct scmi_sensor_ops {
  * @power_priv: pointer to private data structure specific to power
  *	protocol(for internal use only)
  * @sensor_priv: pointer to private data structure specific to sensors
+ *	protocol(for internal use only)
+ * @reset_priv: pointer to private data structure specific to reset
  *	protocol(for internal use only)
  */
 struct scmi_handle {
@@ -209,11 +314,19 @@ struct scmi_handle {
 	struct scmi_clk_ops *clk_ops;
 	struct scmi_power_ops *power_ops;
 	struct scmi_sensor_ops *sensor_ops;
+	struct scmi_reset_ops *reset_ops;
+#ifdef CONFIG_QTI_SCMI_MEMLAT_PROTOCOL
+	struct scmi_memlat_vendor_ops *memlat_ops;
+#endif
+#ifdef CONFIG_QTI_SCMI_PLH_PROTOCOL
+	struct scmi_plh_vendor_ops *plh_ops;
+#endif
 	/* for protocol internal use */
 	void *perf_priv;
 	void *clk_priv;
 	void *power_priv;
 	void *sensor_priv;
+	void *reset_priv;
 };
 
 enum scmi_std_protocol {
@@ -223,6 +336,13 @@ enum scmi_std_protocol {
 	SCMI_PROTOCOL_PERF = 0x13,
 	SCMI_PROTOCOL_CLOCK = 0x14,
 	SCMI_PROTOCOL_SENSOR = 0x15,
+	SCMI_PROTOCOL_RESET = 0x16,
+#ifdef CONFIG_QTI_SCMI_MEMLAT_PROTOCOL
+	SCMI_PROTOCOL_MEMLAT = 0x80,
+#endif
+#ifdef CONFIG_QTI_SCMI_PLH_PROTOCOL
+	SCMI_PROTOCOL_PLH = 0x81,
+#endif
 };
 
 struct scmi_device {

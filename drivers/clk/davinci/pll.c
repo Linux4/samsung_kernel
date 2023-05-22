@@ -491,7 +491,7 @@ struct clk *davinci_pll_clk_register(struct device *dev,
 		parent_name = postdiv_name;
 	}
 
-	pllen = kzalloc(sizeof(*pllout), GFP_KERNEL);
+	pllen = kzalloc(sizeof(*pllen), GFP_KERNEL);
 	if (!pllen) {
 		ret = -ENOMEM;
 		goto err_unregister_postdiv;
@@ -778,12 +778,15 @@ int of_davinci_pll_init(struct device *dev, struct device_node *node,
 		int i;
 
 		clk_data = kzalloc(sizeof(*clk_data), GFP_KERNEL);
-		if (!clk_data)
+		if (!clk_data) {
+			of_node_put(child);
 			return -ENOMEM;
+		}
 
 		clks = kmalloc_array(n_clks, sizeof(*clks), GFP_KERNEL);
 		if (!clks) {
 			kfree(clk_data);
+			of_node_put(child);
 			return -ENOMEM;
 		}
 

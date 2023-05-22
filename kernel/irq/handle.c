@@ -13,11 +13,14 @@
 #include <linux/sched.h>
 #include <linux/interrupt.h>
 #include <linux/kernel_stat.h>
-#include <linux/debug-snapshot.h>
 
 #include <trace/events/irq.h>
 
 #include "internals.h"
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG_SCHED_LOG)
+#include <linux/sec_debug.h>
+#endif
 
 #ifdef CONFIG_GENERIC_IRQ_MULTI_HANDLER
 void (*handle_arch_irq)(struct pt_regs *) __ro_after_init;
@@ -145,12 +148,25 @@ irqreturn_t __handle_irq_event_percpu(struct irq_desc *desc, unsigned int *flags
 
 	for_each_action_of_desc(desc, action) {
 		irqreturn_t res;
-
+#if defined(CONFIG_SEC_DEBUG_SCHED_LOG)
+#if defined(CONFIG_SEC_DEBUG_SCHED_LOG_IRQ_V2)
+		sec_debug_irq_sched_log(irq, desc, action, IRQ_ENTRY_V2);
+#else
+		sec_debug_irq_sched_log(irq, action->handler, (char *)action->name, IRQ_ENTRY);
+#endif
+#endif
 		trace_irq_handler_entry(irq, action);
 		res = action->handler(irq, action->dev_id);
 		trace_irq_handler_exit(irq, action, res);
+#if defined(CONFIG_SEC_DEBUG_SCHED_LOG)
+#if defined(CONFIG_SEC_DEBUG_SCHED_LOG_IRQ_V2)
+		sec_debug_irq_sched_log(irq, desc, action, IRQ_EXIT_V2);
+#else
+		sec_debug_irq_sched_log(irq, action->handler, (char *)action->name, IRQ_EXIT);
+#endif
+#endif
 
-		if (WARN_ONCE(!irqs_disabled(),"irq %u handler %pF enabled interrupts\n",
+		if (WARN_ONCE(!irqs_disabled(),"irq %u handler %pS enabled interrupts\n",
 			      irq, action->handler))
 			local_irq_disable();
 
@@ -167,7 +183,7 @@ irqreturn_t __handle_irq_event_percpu(struct irq_desc *desc, unsigned int *flags
 
 			__irq_wake_thread(desc, action);
 
-			/* Fall through to add to randomness */
+			/* Fall through - to add to randomness */
 		case IRQ_HANDLED:
 			*flags |= action->flags;
 			break;
@@ -189,7 +205,7 @@ irqreturn_t handle_irq_event_percpu(struct irq_desc *desc)
 
 	retval = __handle_irq_event_percpu(desc, &flags);
 
-	add_interrupt_randomness(desc->irq_data.irq, flags);
+	add_interrupt_randomness(desc->irq_data.irq);
 
 	if (!noirqdebug)
 		note_interrupt(desc, retval);

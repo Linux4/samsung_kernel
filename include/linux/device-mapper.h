@@ -10,12 +10,14 @@
 
 #include <linux/bio.h>
 #include <linux/blkdev.h>
+#include <linux/dm-ioctl.h>
 #include <linux/math64.h>
 #include <linux/ratelimit.h>
 
 struct dm_dev;
 struct dm_target;
 struct dm_table;
+struct dm_report_zones_args;
 struct mapped_device;
 struct bio_vec;
 
@@ -26,9 +28,7 @@ enum dm_queue_mode {
 	DM_TYPE_NONE		 = 0,
 	DM_TYPE_BIO_BASED	 = 1,
 	DM_TYPE_REQUEST_BASED	 = 2,
-	DM_TYPE_MQ_REQUEST_BASED = 3,
-	DM_TYPE_DAX_BIO_BASED	 = 4,
-	DM_TYPE_NVME_BIO_BASED	 = 5,
+	DM_TYPE_DAX_BIO_BASED	 = 3,
 };
 
 typedef enum { STATUSTYPE_INFO, STATUSTYPE_TABLE } status_type_t;
@@ -92,6 +92,10 @@ typedef int (*dm_message_fn) (struct dm_target *ti, unsigned argc, char **argv,
 			      char *result, unsigned maxlen);
 
 typedef int (*dm_prepare_ioctl_fn) (struct dm_target *ti, struct block_device **bdev);
+
+typedef int (*dm_report_zones_fn) (struct dm_target *ti,
+				   struct dm_report_zones_args *args,
+				   unsigned int nr_zones);
 
 /*
  * These iteration functions are typically used to check (and combine)
@@ -181,6 +185,9 @@ struct target_type {
 	dm_status_fn status;
 	dm_message_fn message;
 	dm_prepare_ioctl_fn prepare_ioctl;
+#ifdef CONFIG_BLK_DEV_ZONED
+	dm_report_zones_fn report_zones;
+#endif
 	dm_busy_fn busy;
 	dm_iterate_devices_fn iterate_devices;
 	dm_io_hints_fn io_hints;
@@ -311,10 +318,15 @@ struct dm_target {
 	bool discards_supported:1;
 
 	/*
-	 * Set if the target required discard bios to be split
-	 * on max_io_len boundary.
+	 * Set if we need to limit the number of in-flight bios when swapping.
 	 */
-	bool split_discard_bios:1;
+	bool limit_swap_bios:1;
+
+	/*
+	 * Set if inline crypto capabilities from this target's underlying
+	 * device(s) can be exposed via the device-mapper device.
+	 */
+	bool may_passthrough_inline_crypto:1;
 };
 
 /* Each target can link one of these into the table */
@@ -399,12 +411,6 @@ void dm_set_mdptr(struct mapped_device *md, void *ptr);
 void *dm_get_mdptr(struct mapped_device *md);
 
 /*
- * Export the device via the ioctl interface (uses mdptr).
- */
-int dm_ioctl_export(struct mapped_device *md, const char *name,
-		    const char *uuid);
-
-/*
  * A device can still be used while suspended, but I/O is deferred.
  */
 int dm_suspend(struct mapped_device *md, unsigned suspend_flags);
@@ -425,20 +431,35 @@ const char *dm_device_name(struct mapped_device *md);
 int dm_copy_name_and_uuid(struct mapped_device *md, char *name, char *uuid);
 struct gendisk *dm_disk(struct mapped_device *md);
 int dm_suspended(struct dm_target *ti);
+int dm_post_suspending(struct dm_target *ti);
 int dm_noflush_suspending(struct dm_target *ti);
 void dm_accept_partial_bio(struct bio *bio, unsigned n_sectors);
-void dm_remap_zone_report(struct dm_target *ti, struct bio *bio,
-			  sector_t start);
 union map_info *dm_get_rq_mapinfo(struct request *rq);
 
-struct queue_limits *dm_get_queue_limits(struct mapped_device *md);
+#ifdef CONFIG_BLK_DEV_ZONED
+struct dm_report_zones_args {
+	struct dm_target *tgt;
+	sector_t next_sector;
 
-void dm_lock_md_type(struct mapped_device *md);
-void dm_unlock_md_type(struct mapped_device *md);
-void dm_set_md_type(struct mapped_device *md, unsigned type);
-unsigned dm_get_md_type(struct mapped_device *md);
-int dm_setup_md_queue(struct mapped_device *md, struct dm_table *t);
-unsigned dm_table_get_type(struct dm_table *t);
+	void *orig_data;
+	report_zones_cb orig_cb;
+	unsigned int zone_idx;
+
+	/* must be filled by ->report_zones before calling dm_report_zones_cb */
+	sector_t start;
+};
+int dm_report_zones_cb(struct blk_zone *zone, unsigned int idx, void *data);
+#endif /* CONFIG_BLK_DEV_ZONED */
+
+/*
+ * Device mapper functions to parse and create devices specified by the
+ * parameter "dm-mod.create="
+ */
+int __init dm_early_create(struct dm_ioctl *dmi,
+			   struct dm_target_spec **spec_array,
+			   char **target_params_array);
+
+struct queue_limits *dm_get_queue_limits(struct mapped_device *md);
 
 /*
  * Geometry functions.
@@ -504,6 +525,7 @@ sector_t dm_table_get_size(struct dm_table *t);
 unsigned int dm_table_get_num_targets(struct dm_table *t);
 fmode_t dm_table_get_mode(struct dm_table *t);
 struct mapped_device *dm_table_get_md(struct dm_table *t);
+const char *dm_table_device_name(struct dm_table *t);
 
 /*
  * Trigger an event.
@@ -532,29 +554,20 @@ void *dm_vcalloc(unsigned long nmemb, unsigned long elem_size);
  *---------------------------------------------------------------*/
 #define DM_NAME "device-mapper"
 
-#define DM_RATELIMIT(pr_func, fmt, ...)					\
-do {									\
-	static DEFINE_RATELIMIT_STATE(rs, DEFAULT_RATELIMIT_INTERVAL,	\
-				      DEFAULT_RATELIMIT_BURST);		\
-									\
-	if (__ratelimit(&rs))						\
-		pr_func(DM_FMT(fmt), ##__VA_ARGS__);			\
-} while (0)
-
 #define DM_FMT(fmt) DM_NAME ": " DM_MSG_PREFIX ": " fmt "\n"
 
 #define DMCRIT(fmt, ...) pr_crit(DM_FMT(fmt), ##__VA_ARGS__)
 
 #define DMERR(fmt, ...) pr_err(DM_FMT(fmt), ##__VA_ARGS__)
-#define DMERR_LIMIT(fmt, ...) DM_RATELIMIT(pr_err, fmt, ##__VA_ARGS__)
+#define DMERR_LIMIT(fmt, ...) pr_err_ratelimited(DM_FMT(fmt), ##__VA_ARGS__)
 #define DMWARN(fmt, ...) pr_warn(DM_FMT(fmt), ##__VA_ARGS__)
-#define DMWARN_LIMIT(fmt, ...) DM_RATELIMIT(pr_warn, fmt, ##__VA_ARGS__)
+#define DMWARN_LIMIT(fmt, ...) pr_warn_ratelimited(DM_FMT(fmt), ##__VA_ARGS__)
 #define DMINFO(fmt, ...) pr_info(DM_FMT(fmt), ##__VA_ARGS__)
-#define DMINFO_LIMIT(fmt, ...) DM_RATELIMIT(pr_info, fmt, ##__VA_ARGS__)
+#define DMINFO_LIMIT(fmt, ...) pr_info_ratelimited(DM_FMT(fmt), ##__VA_ARGS__)
 
 #ifdef CONFIG_DM_DEBUG
 #define DMDEBUG(fmt, ...) printk(KERN_DEBUG DM_FMT(fmt), ##__VA_ARGS__)
-#define DMDEBUG_LIMIT(fmt, ...) DM_RATELIMIT(pr_debug, fmt, ##__VA_ARGS__)
+#define DMDEBUG_LIMIT(fmt, ...) pr_debug_ratelimited(DM_FMT(fmt), ##__VA_ARGS__)
 #else
 #define DMDEBUG(fmt, ...) no_printk(fmt, ##__VA_ARGS__)
 #define DMDEBUG_LIMIT(fmt, ...) no_printk(fmt, ##__VA_ARGS__)

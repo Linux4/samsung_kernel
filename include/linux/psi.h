@@ -12,6 +12,7 @@ struct css_set;
 #ifdef CONFIG_PSI
 
 extern struct static_key_false psi_disabled;
+extern struct psi_group psi_system;
 
 void psi_init(void);
 
@@ -30,7 +31,7 @@ void cgroup_move_task(struct task_struct *p, struct css_set *to);
 
 struct psi_trigger *psi_trigger_create(struct psi_group *group,
 			char *buf, size_t nbytes, enum psi_res res);
-void psi_trigger_replace(void **trigger_ptr, struct psi_trigger *t);
+void psi_trigger_destroy(struct psi_trigger *t);
 
 __poll_t psi_trigger_poll(void **trigger_ptr, struct file *file,
 			poll_table *wait);

@@ -1,12 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * rt5670.c  --  RT5670 ALSA SoC audio codec driver
  *
  * Copyright 2014 Realtek Semiconductor Corp.
  * Author: Bard Liao <bardliao@realtek.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  */
 
 #include <linux/module.h>
@@ -34,18 +31,19 @@
 #include "rt5670.h"
 #include "rt5670-dsp.h"
 
-#define RT5670_DEV_GPIO     BIT(0)
-#define RT5670_IN2_DIFF     BIT(1)
-#define RT5670_DMIC_EN      BIT(2)
-#define RT5670_DMIC1_IN2P   BIT(3)
-#define RT5670_DMIC1_GPIO6  BIT(4)
-#define RT5670_DMIC1_GPIO7  BIT(5)
-#define RT5670_DMIC2_INR    BIT(6)
-#define RT5670_DMIC2_GPIO8  BIT(7)
-#define RT5670_DMIC3_GPIO5  BIT(8)
-#define RT5670_JD_MODE1     BIT(9)
-#define RT5670_JD_MODE2     BIT(10)
-#define RT5670_JD_MODE3     BIT(11)
+#define RT5670_DEV_GPIO			BIT(0)
+#define RT5670_IN2_DIFF			BIT(1)
+#define RT5670_DMIC_EN			BIT(2)
+#define RT5670_DMIC1_IN2P		BIT(3)
+#define RT5670_DMIC1_GPIO6		BIT(4)
+#define RT5670_DMIC1_GPIO7		BIT(5)
+#define RT5670_DMIC2_INR		BIT(6)
+#define RT5670_DMIC2_GPIO8		BIT(7)
+#define RT5670_DMIC3_GPIO5		BIT(8)
+#define RT5670_JD_MODE1			BIT(9)
+#define RT5670_JD_MODE2			BIT(10)
+#define RT5670_JD_MODE3			BIT(11)
+#define RT5670_GPIO1_IS_EXT_SPK_EN	BIT(12)
 
 static unsigned long rt5670_quirk;
 static unsigned int quirk_override;
@@ -1057,20 +1055,6 @@ static const struct snd_kcontrol_new rt5670_lout_mix[] = {
 			RT5670_M_OV_R_LM_SFT, 1, 1),
 };
 
-static const struct snd_kcontrol_new rt5670_hpl_mix[] = {
-	SOC_DAPM_SINGLE("DAC L1 Switch", RT5670_HPO_MIXER,
-			RT5670_M_DACL1_HML_SFT, 1, 1),
-	SOC_DAPM_SINGLE("INL1 Switch", RT5670_HPO_MIXER,
-			RT5670_M_INL1_HML_SFT, 1, 1),
-};
-
-static const struct snd_kcontrol_new rt5670_hpr_mix[] = {
-	SOC_DAPM_SINGLE("DAC R1 Switch", RT5670_HPO_MIXER,
-			RT5670_M_DACR1_HMR_SFT, 1, 1),
-	SOC_DAPM_SINGLE("INR1 Switch", RT5670_HPO_MIXER,
-			RT5670_M_INR1_HMR_SFT, 1, 1),
-};
-
 static const struct snd_kcontrol_new lout_l_enable_control =
 	SOC_DAPM_SINGLE_AUTODISABLE("Switch", RT5670_LOUT1,
 		RT5670_L_MUTE_SFT, 1, 1);
@@ -1196,24 +1180,6 @@ static SOC_ENUM_SINGLE_DECL(rt5670_stereo2_adc2_enum, RT5670_STO2_ADC_MIXER,
 static const struct snd_kcontrol_new rt5670_sto2_adc_2_mux =
 	SOC_DAPM_ENUM("Stereo2 ADC 2 Mux", rt5670_stereo2_adc2_enum);
 
-
-/* MX-27 MX26 [10] */
-static const char * const rt5670_stereo_adc_src[] = {
-	"ADC1L ADC2R", "ADC3"
-};
-
-static SOC_ENUM_SINGLE_DECL(rt5670_stereo1_adc_enum, RT5670_STO1_ADC_MIXER,
-	RT5670_ADC_SRC_SFT, rt5670_stereo_adc_src);
-
-static const struct snd_kcontrol_new rt5670_sto_adc_mux =
-	SOC_DAPM_ENUM("Stereo1 ADC source", rt5670_stereo1_adc_enum);
-
-static SOC_ENUM_SINGLE_DECL(rt5670_stereo2_adc_enum, RT5670_STO2_ADC_MIXER,
-	RT5670_ADC_SRC_SFT, rt5670_stereo_adc_src);
-
-static const struct snd_kcontrol_new rt5670_sto2_adc_mux =
-	SOC_DAPM_ENUM("Stereo2 ADC source", rt5670_stereo2_adc_enum);
-
 /* MX-27 MX-26 [9:8] */
 static const char * const rt5670_stereo_dmic_src[] = {
 	"DMIC1", "DMIC2", "DMIC3"
@@ -1230,17 +1196,6 @@ static SOC_ENUM_SINGLE_DECL(rt5670_stereo2_dmic_enum, RT5670_STO2_ADC_MIXER,
 
 static const struct snd_kcontrol_new rt5670_sto2_dmic_mux =
 	SOC_DAPM_ENUM("Stereo2 DMIC source", rt5670_stereo2_dmic_enum);
-
-/* MX-27 [0] */
-static const char * const rt5670_stereo_dmic3_src[] = {
-	"DMIC3", "PDM ADC"
-};
-
-static SOC_ENUM_SINGLE_DECL(rt5670_stereo_dmic3_enum, RT5670_STO1_ADC_MIXER,
-	RT5670_DMIC3_SRC_SFT, rt5670_stereo_dmic3_src);
-
-static const struct snd_kcontrol_new rt5670_sto_dmic3_mux =
-	SOC_DAPM_ENUM("Stereo DMIC3 source", rt5670_stereo_dmic3_enum);
 
 /* Mono ADC source */
 /* MX-28 [12] */
@@ -1333,17 +1288,6 @@ static SOC_ENUM_SINGLE_DECL(rt5670_if2_adc_in_enum, RT5670_DIG_INF1_DATA,
 
 static const struct snd_kcontrol_new rt5670_if2_adc_in_mux =
 	SOC_DAPM_ENUM("IF2 ADC IN source", rt5670_if2_adc_in_enum);
-
-/* MX-30 [5:4] */
-static const char * const rt5670_if4_adc_in_src[] = {
-	"IF_ADC1", "IF_ADC2", "IF_ADC3"
-};
-
-static SOC_ENUM_SINGLE_DECL(rt5670_if4_adc_in_enum, RT5670_DIG_INF2_DATA,
-	RT5670_IF4_ADC_IN_SFT, rt5670_if4_adc_in_src);
-
-static const struct snd_kcontrol_new rt5670_if4_adc_in_mux =
-	SOC_DAPM_ENUM("IF4 ADC IN source", rt5670_if4_adc_in_enum);
 
 /* MX-31 [15] [13] [11] [9] */
 static const char * const rt5670_pdm_src[] = {
@@ -1495,6 +1439,33 @@ static int rt5670_hp_event(struct snd_soc_dapm_widget *w,
 		regmap_write(rt5670->regmap, RT5670_DEPOP_M3, 0x0707);
 		regmap_write(rt5670->regmap, RT5670_PR_BASE +
 				RT5670_MAMP_INT_REG2, 0xfc00);
+		break;
+
+	default:
+		return 0;
+	}
+
+	return 0;
+}
+
+static int rt5670_spk_event(struct snd_soc_dapm_widget *w,
+	struct snd_kcontrol *kcontrol, int event)
+{
+	struct snd_soc_component *component = snd_soc_dapm_to_component(w->dapm);
+	struct rt5670_priv *rt5670 = snd_soc_component_get_drvdata(component);
+
+	if (!rt5670->pdata.gpio1_is_ext_spk_en)
+		return 0;
+
+	switch (event) {
+	case SND_SOC_DAPM_POST_PMU:
+		regmap_update_bits(rt5670->regmap, RT5670_GPIO_CTRL2,
+				   RT5670_GP1_OUT_MASK, RT5670_GP1_OUT_HI);
+		break;
+
+	case SND_SOC_DAPM_PRE_PMD:
+		regmap_update_bits(rt5670->regmap, RT5670_GPIO_CTRL2,
+				   RT5670_GP1_OUT_MASK, RT5670_GP1_OUT_LO);
 		break;
 
 	default:
@@ -1917,7 +1888,9 @@ static const struct snd_soc_dapm_widget rt5670_specific_dapm_widgets[] = {
 };
 
 static const struct snd_soc_dapm_widget rt5672_specific_dapm_widgets[] = {
-	SND_SOC_DAPM_PGA("SPO Amp", SND_SOC_NOPM, 0, 0, NULL, 0),
+	SND_SOC_DAPM_PGA_E("SPO Amp", SND_SOC_NOPM, 0, 0, NULL, 0,
+			   rt5670_spk_event, SND_SOC_DAPM_PRE_PMD |
+			   SND_SOC_DAPM_POST_PMU),
 	SND_SOC_DAPM_OUTPUT("SPOLP"),
 	SND_SOC_DAPM_OUTPUT("SPOLN"),
 	SND_SOC_DAPM_OUTPUT("SPORP"),
@@ -2814,7 +2787,8 @@ static const struct snd_soc_component_driver soc_component_dev_rt5670 = {
 static const struct regmap_config rt5670_regmap = {
 	.reg_bits = 8,
 	.val_bits = 16,
-	.use_single_rw = true,
+	.use_single_read = true,
+	.use_single_write = true,
 	.max_register = RT5670_VENDOR_ID2 + 1 + (ARRAY_SIZE(rt5670_ranges) *
 					       RT5670_PR_SPACING),
 	.volatile_reg = rt5670_volatile_register,
@@ -2877,6 +2851,18 @@ static const struct dmi_system_id dmi_platform_intel_quirks[] = {
 	},
 	{
 		.callback = rt5670_quirk_cb,
+		.ident = "Lenovo Thinkpad Tablet 8",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
+			DMI_MATCH(DMI_PRODUCT_VERSION, "ThinkPad 8"),
+		},
+		.driver_data = (unsigned long *)(RT5670_DMIC_EN |
+						 RT5670_DMIC2_INR |
+						 RT5670_DEV_GPIO |
+						 RT5670_JD_MODE1),
+	},
+	{
+		.callback = rt5670_quirk_cb,
 		.ident = "Lenovo Thinkpad Tablet 10",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
@@ -2901,14 +2887,14 @@ static const struct dmi_system_id dmi_platform_intel_quirks[] = {
 	},
 	{
 		.callback = rt5670_quirk_cb,
-		.ident = "Lenovo Thinkpad Tablet 10",
+		.ident = "Lenovo Miix 2 10",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "LENOVO"),
 			DMI_MATCH(DMI_PRODUCT_VERSION, "Lenovo Miix 2 10"),
 		},
 		.driver_data = (unsigned long *)(RT5670_DMIC_EN |
 						 RT5670_DMIC1_IN2P |
-						 RT5670_DEV_GPIO |
+						 RT5670_GPIO1_IS_EXT_SPK_EN |
 						 RT5670_JD_MODE2),
 	},
 	{
@@ -2917,6 +2903,18 @@ static const struct dmi_system_id dmi_platform_intel_quirks[] = {
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "Dell Inc."),
 			DMI_MATCH(DMI_PRODUCT_NAME, "Venue 8 Pro 5855"),
+		},
+		.driver_data = (unsigned long *)(RT5670_DMIC_EN |
+						 RT5670_DMIC2_INR |
+						 RT5670_DEV_GPIO |
+						 RT5670_JD_MODE3),
+	},
+	{
+		.callback = rt5670_quirk_cb,
+		.ident = "Aegex 10 tablet (RU2)",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "AEGEX"),
+			DMI_MATCH(DMI_PRODUCT_VERSION, "RU2"),
 		},
 		.driver_data = (unsigned long *)(RT5670_DMIC_EN |
 						 RT5670_DMIC2_INR |
@@ -2955,6 +2953,10 @@ static int rt5670_i2c_probe(struct i2c_client *i2c,
 	if (rt5670_quirk & RT5670_DEV_GPIO) {
 		rt5670->pdata.dev_gpio = true;
 		dev_info(&i2c->dev, "quirk dev_gpio\n");
+	}
+	if (rt5670_quirk & RT5670_GPIO1_IS_EXT_SPK_EN) {
+		rt5670->pdata.gpio1_is_ext_spk_en = true;
+		dev_info(&i2c->dev, "quirk GPIO1 is external speaker enable\n");
 	}
 	if (rt5670_quirk & RT5670_IN2_DIFF) {
 		rt5670->pdata.in2_diff = true;
@@ -3051,6 +3053,13 @@ static int rt5670_i2c_probe(struct i2c_client *i2c,
 		/* for irq */
 		regmap_update_bits(rt5670->regmap, RT5670_GPIO_CTRL1,
 				   RT5670_GP1_PIN_MASK, RT5670_GP1_PIN_IRQ);
+		regmap_update_bits(rt5670->regmap, RT5670_GPIO_CTRL2,
+				   RT5670_GP1_PF_MASK, RT5670_GP1_PF_OUT);
+	}
+
+	if (rt5670->pdata.gpio1_is_ext_spk_en) {
+		regmap_update_bits(rt5670->regmap, RT5670_GPIO_CTRL1,
+				   RT5670_GP1_PIN_MASK, RT5670_GP1_PIN_GPIO1);
 		regmap_update_bits(rt5670->regmap, RT5670_GPIO_CTRL2,
 				   RT5670_GP1_PF_MASK, RT5670_GP1_PF_OUT);
 	}

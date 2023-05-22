@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-only
 # ALSA USB drivers
 
 menuconfig SND_USB
@@ -15,6 +16,7 @@ config SND_USB_AUDIO
 	select SND_RAWMIDI
 	select SND_PCM
 	select BITREVERSE
+	select SND_USB_AUDIO_USE_MEDIA_CONTROLLER if MEDIA_CONTROLLER && (MEDIA_SUPPORT=y || MEDIA_SUPPORT=SND_USB_AUDIO)
 	help
 	  Say Y here to include support for USB audio and USB MIDI
 	  devices.
@@ -22,11 +24,8 @@ config SND_USB_AUDIO
 	  To compile this driver as a module, choose M here: the module
 	  will be called snd-usb-audio.
 
-config SND_EXYNOS_USB_AUDIO
-	bool "EXYNOS USB Audio offloading"
-	depends on SND_USB_AUDIO && SND_SOC_SAMSUNG_ABOX
-	help
-	 Say Y here to include support for Exynos USB Audio ABOX offloading.
+config SND_USB_AUDIO_USE_MEDIA_CONTROLLER
+	bool
 
 config SND_USB_UA101
 	tristate "Edirol UA-101/UA-1000 driver"
@@ -167,6 +166,15 @@ config SND_BCD2000
 	  will be called snd-bcd2000.
 
 source "sound/usb/line6/Kconfig"
+
+config SND_USB_AUDIO_QMI
+	tristate "USB Audio QMI Service driver"
+	depends on QCOM_QMI_HELPERS && SND_USB_AUDIO
+	help
+	  Starts USB Audio QMI server to communicate with remote entity
+	  to perform operations like enable or disable particular audio
+	  stream on a connected USB device, subsystem restart and
+	  device disconnect.
 
 endif	# SND_USB
 

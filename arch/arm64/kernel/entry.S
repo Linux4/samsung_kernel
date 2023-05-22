@@ -1,21 +1,10 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Low-level exception handling code
  *
  * Copyright (C) 2012 ARM Ltd.
  * Authors:	Catalin Marinas <catalin.marinas@arm.com>
  *		Will Deacon <will.deacon@arm.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <linux/arm-smccc.h>
@@ -41,9 +30,9 @@
  * Context tracking subsystem.  Used to instrument transitions
  * between user and kernel mode.
  */
-	.macro ct_user_exit
+	.macro ct_user_exit_irqoff
 #ifdef CONFIG_CONTEXT_TRACKING
-	bl	context_tracking_user_exit
+	bl	enter_from_user_mode
 #endif
 	.endm
 
@@ -51,30 +40,13 @@
 #ifdef CONFIG_CONTEXT_TRACKING
 	bl	context_tracking_user_enter
 #endif
-
-#ifdef CONFIG_SOC_EXYNOS9830
-	bl	inv_pnt
-	adr	x23, inv_pnt
-	ic	ivau, x23
-	isb
-#endif
 	.endm
-
-#ifdef CONFIG_SOC_EXYNOS9830
-	.align 8
-inv_pnt:
-	ret
-#endif
 
 	.macro	clear_gp_regs
 	.irp	n,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29
 	mov	x\n, xzr
 	.endr
 	.endm
-
-#ifdef CONFIG_SEC_DEBUG_EXCEPTION_STACK
-#define PRESERVE_STACK_SIZE	256
-#endif
 
 /*
  * Bad Abort numbers
@@ -87,28 +59,23 @@ inv_pnt:
 
 	.macro kernel_ventry, el, label, regsize = 64
 	.align 7
-#ifdef CONFIG_UNMAP_KERNEL_AT_EL0
-alternative_if ARM64_UNMAP_KERNEL_AT_EL0
+.Lventry_start\@:
 	.if	\el == 0
+	/*
+	 * This must be the first instruction of the EL0 vector entries. It is
+	 * skipped by the trampoline vectors, to trigger the cleanup.
+	 */
+	b	.Lskip_tramp_vectors_cleanup\@
 	.if	\regsize == 64
 	mrs	x30, tpidrro_el0
 	msr	tpidrro_el0, xzr
 	.else
 	mov	x30, xzr
 	.endif
+.Lskip_tramp_vectors_cleanup\@:
 	.endif
-alternative_else_nop_endif
-#endif
 
-#ifdef CONFIG_SEC_DEBUG_EXCEPTION_STACK
-	.if	\el == 0
 	sub	sp, sp, #S_FRAME_SIZE
-	.else
-	sub	sp, sp, #(S_FRAME_SIZE+PRESERVE_STACK_SIZE)
-	.endif /* \el == 0 */
-#else
-	sub	sp, sp, #S_FRAME_SIZE
-#endif
 #ifdef CONFIG_VMAP_STACK
 	/*
 	 * Test whether the SP has overflowed, without corrupting a GPR.
@@ -152,11 +119,15 @@ alternative_else_nop_endif
 	mrs	x0, tpidrro_el0
 #endif
 	b	el\()\el\()_\label
+.org .Lventry_start\@ + 128	// Did we overflow the ventry slot?
 	.endm
 
-	.macro tramp_alias, dst, sym
+	.macro tramp_alias, dst, sym, tmp
 	mov_q	\dst, TRAMP_VALIAS
-	add	\dst, \dst, #(\sym - .entry.tramp.text)
+	adr_l	\tmp, \sym
+	add	\dst, \dst, \tmp
+	adr_l	\tmp, .entry.tramp.text
+	sub	\dst, \dst, \tmp
 	.endm
 
 	// This macro corrupts x0-x3. It is the caller's duty
@@ -208,25 +179,19 @@ alternative_cb_end
 
 	apply_ssbd 1, x22, x23
 
+#ifdef CONFIG_SHADOW_CALL_STACK
+	ldr	x18, [tsk, #TSK_TI_SCS]		// Restore shadow call stack
+	str	xzr, [tsk, #TSK_TI_SCS]		// Limit visibility of saved SCS
+#endif
 	.else
-#ifdef CONFIG_SEC_DEBUG_EXCEPTION_STACK
-	add	x21, sp, #(S_FRAME_SIZE+PRESERVE_STACK_SIZE)
-#else
 	add	x21, sp, #S_FRAME_SIZE
-#endif
-#ifdef CONFIG_SEC_DEBUG_BAD_STACK_CAREFULLY
-	.if \el == 1
-#endif
-	get_thread_info tsk
+	get_current_task tsk
 	/* Save the task's original addr_limit and set USER_DS */
 	ldr	x20, [tsk, #TSK_TI_ADDR_LIMIT]
 	str	x20, [sp, #S_ORIG_ADDR_LIMIT]
 	mov	x20, #USER_DS
 	str	x20, [tsk, #TSK_TI_ADDR_LIMIT]
 	/* No need to reset PSTATE.UAO, hardware's already set it to 0 for us */
-#ifdef CONFIG_SEC_DEBUG_BAD_STACK_CAREFULLY
-	.endif /* \el == 1 */
-#endif
 	.endif /* \el == 0 */
 	mrs	x22, elr_el1
 	mrs	x23, spsr_el1
@@ -284,9 +249,16 @@ alternative_else_nop_endif
 	msr	sp_el0, tsk
 	.endif
 
+	/* Save pmr */
+alternative_if ARM64_HAS_IRQ_PRIO_MASKING
+	mrs_s	x20, SYS_ICC_PMR_EL1
+	str	x20, [sp, #S_PMR_SAVE]
+alternative_else_nop_endif
+
 	/*
 	 * Registers that may be useful after this macro is invoked:
 	 *
+	 * x20 - ICC_PMR_EL1
 	 * x21 - aborted SP
 	 * x22 - aborted PC
 	 * x23 - aborted PSTATE
@@ -304,10 +276,24 @@ alternative_else_nop_endif
 	/* No need to restore UAO, it will be restored from SPSR_EL1 */
 	.endif
 
+	/* Restore pmr */
+alternative_if ARM64_HAS_IRQ_PRIO_MASKING
+	ldr	x20, [sp, #S_PMR_SAVE]
+	msr_s	SYS_ICC_PMR_EL1, x20
+	/* Ensure priority change is seen by redistributor */
+	dsb	sy
+alternative_else_nop_endif
+
 	ldp	x21, x22, [sp, #S_PC]		// load ELR, SPSR
 	.if	\el == 0
 	ct_user_enter
 	.endif
+
+#ifdef CONFIG_SHADOW_CALL_STACK
+	.if	\el == 0
+	str	x18, [tsk, #TSK_TI_SCS]		// Save shadow call stack
+	.endif
+#endif
 
 #ifdef CONFIG_ARM64_SW_TTBR0_PAN
 	/*
@@ -357,6 +343,21 @@ alternative_if ARM64_WORKAROUND_845719
 alternative_else_nop_endif
 #endif
 3:
+#ifdef CONFIG_ARM64_ERRATUM_1418040
+alternative_if_not ARM64_WORKAROUND_1418040
+	b	4f
+alternative_else_nop_endif
+	/*
+	 * if (x22.mode32 == cntkctl_el1.el0vcten)
+	 *     cntkctl_el1.el0vcten = ~cntkctl_el1.el0vcten
+	 */
+	mrs	x1, cntkctl_el1
+	eon	x0, x1, x22, lsr #3
+	tbz	x0, #1, 4f
+	eor	x1, x1, #2	// ARCH_TIMER_USR_VCT_ACCESS_EN
+	msr	cntkctl_el1, x1
+4:
+#endif
 	apply_ssbd 0, x0, x1
 	.endif
 
@@ -377,39 +378,35 @@ alternative_else_nop_endif
 	ldp	x24, x25, [sp, #16 * 12]
 	ldp	x26, x27, [sp, #16 * 13]
 	ldp	x28, x29, [sp, #16 * 14]
-	ldr	lr, [sp, #S_LR]
-#ifdef CONFIG_SEC_DEBUG_EXCEPTION_STACK
-	.if	\el == 0
-	add	sp, sp, #S_FRAME_SIZE		// restore sp
-	.else
-	add	sp, sp, #(S_FRAME_SIZE+PRESERVE_STACK_SIZE)
-	.endif /* \el == 0 */
-#else
-	add	sp, sp, #S_FRAME_SIZE		// restore sp
-#endif
-	/*
-	 * ARCH_HAS_MEMBARRIER_SYNC_CORE rely on eret context synchronization
-	 * when returning from IPI handler, and when returning to user-space.
-	 */
 
 	.if	\el == 0
-alternative_insn eret, nop, ARM64_UNMAP_KERNEL_AT_EL0
+alternative_if_not ARM64_UNMAP_KERNEL_AT_EL0
+	ldr	lr, [sp, #S_LR]
+	add	sp, sp, #S_FRAME_SIZE		// restore sp
+	eret
+alternative_else_nop_endif
 #ifdef CONFIG_UNMAP_KERNEL_AT_EL0
-	bne	4f
-	msr	far_el1, x30
-	tramp_alias	x30, tramp_exit_native
+	bne	5f
+	msr	far_el1, x29
+	tramp_alias	x30, tramp_exit_native, x29
 	br	x30
-4:
-	tramp_alias	x30, tramp_exit_compat
+5:
+	tramp_alias	x30, tramp_exit_compat, x29
 	br	x30
 #endif
 	.else
+	ldr	lr, [sp, #S_LR]
+	add	sp, sp, #S_FRAME_SIZE		// restore sp
 	eret
 	.endif
+	sb
 	.endm
 
 	.macro	irq_stack_entry
 	mov	x19, sp			// preserve the original sp
+#ifdef CONFIG_SHADOW_CALL_STACK
+	mov	x20, x18		// preserve the original shadow stack
+#endif
 
 	/*
 	 * Compare sp with the base of the task stack.
@@ -427,28 +424,27 @@ alternative_insn eret, nop, ARM64_UNMAP_KERNEL_AT_EL0
 
 	/* switch to the irq stack */
 	mov	sp, x26
+
+#ifdef CONFIG_SHADOW_CALL_STACK
+	/* also switch to the irq shadow stack */
+	ldr_this_cpu x18, irq_shadow_call_stack_ptr, x26
+#endif
+
 9998:
 	.endm
 
 	/*
-	 * x19 should be preserved between irq_stack_entry and
-	 * irq_stack_exit.
+	 * The callee-saved regs (x19-x29) should be preserved between
+	 * irq_stack_entry and irq_stack_exit.
 	 */
 	.macro	irq_stack_exit
 	mov	sp, x19
+#ifdef CONFIG_SHADOW_CALL_STACK
+	mov	x18, x20
+#endif
 	.endm
 
-/*
- * These are the registers used in the syscall handler, and allow us to
- * have in theory up to 7 arguments to a function - x0 to x6.
- *
- * x7 is reserved for the system call number in 32-bit mode.
- */
-wsc_nr	.req	w25		// number of system calls
-xsc_nr	.req	x25		// number of system calls (zero-extended)
-wscno	.req	w26		// syscall number
-xscno	.req	x26		// syscall number (zero-extended)
-stbl	.req	x27		// syscall table pointer
+/* GPRs used by entry code */
 tsk	.req	x28		// current thread_info
 
 /*
@@ -460,6 +456,38 @@ tsk	.req	x28		// current thread_info
 	irq_stack_entry
 	blr	x1
 	irq_stack_exit
+	.endm
+
+#ifdef CONFIG_ARM64_PSEUDO_NMI
+	/*
+	 * Set res to 0 if irqs were unmasked in interrupted context.
+	 * Otherwise set res to non-0 value.
+	 */
+	.macro	test_irqs_unmasked res:req, pmr:req
+alternative_if ARM64_HAS_IRQ_PRIO_MASKING
+	sub	\res, \pmr, #GIC_PRIO_IRQON
+alternative_else
+	mov	\res, xzr
+alternative_endif
+	.endm
+#endif
+
+	.macro	gic_prio_kentry_setup, tmp:req
+#ifdef CONFIG_ARM64_PSEUDO_NMI
+	alternative_if ARM64_HAS_IRQ_PRIO_MASKING
+	mov	\tmp, #(GIC_PRIO_PSR_I_SET | GIC_PRIO_IRQON)
+	msr_s	SYS_ICC_PMR_EL1, \tmp
+	alternative_else_nop_endif
+#endif
+	.endm
+
+	.macro	gic_prio_irq_setup, pmr:req, tmp:req
+#ifdef CONFIG_ARM64_PSEUDO_NMI
+	alternative_if ARM64_HAS_IRQ_PRIO_MASKING
+	orr	\tmp, \pmr, #GIC_PRIO_PSR_I_SET
+	msr_s	SYS_ICC_PMR_EL1, \tmp
+	alternative_else_nop_endif
+#endif
 	.endm
 
 	.text
@@ -514,17 +542,9 @@ __bad_stack:
 	 * S_FRAME_SIZE) was stashed in tpidr_el0 by kernel_ventry.
 	 */
 	sub	sp, sp, #S_FRAME_SIZE
-#ifdef CONFIG_SEC_DEBUG_BAD_STACK_CAREFULLY
-	kernel_entry fake_el_bad_stack
-#else
 	kernel_entry 1
-#endif
 	mrs	x0, tpidr_el0
-#ifdef CONFIG_SEC_DEBUG_EXCEPTION_STACK
-	add	x0, x0, #(S_FRAME_SIZE+PRESERVE_STACK_SIZE)
-#else
 	add	x0, x0, #S_FRAME_SIZE
-#endif
 	str	x0, [sp, #S_SP]
 
 	/* Stash the regs for handle_bad_stack */
@@ -536,21 +556,10 @@ __bad_stack:
 #endif /* CONFIG_VMAP_STACK */
 
 /*
- * DPM handlers
- */
-	.macro dpm_entry, el
-#ifdef CONFIG_DEBUG_SNAPSHOT
-	mov	x0, sp
-	bl	dbg_snapshot_do_dpm
-#endif
-	.endm
-
-/*
  * Invalid mode handlers
  */
 	.macro	inv_entry, el, reason, regsize = 64
 	kernel_entry \el, \regsize
-	dpm_entry
 	mov	x0, sp
 	mov	x1, #\reason
 	mrs	x2, esr_el1
@@ -602,7 +611,6 @@ ENDPROC(el1_error_invalid)
 	.align	6
 el1_sync:
 	kernel_entry 1
-	dpm_entry
 	mrs	x1, esr_el1			// read the syndrome register
 	lsr	x24, x1, #ESR_ELx_EC_SHIFT	// exception class
 	cmp	x24, #ESR_ELx_EC_DABT_CUR	// data abort in EL1
@@ -611,10 +619,8 @@ el1_sync:
 	b.eq	el1_ia
 	cmp	x24, #ESR_ELx_EC_SYS64		// configurable trap
 	b.eq	el1_undef
-	cmp	x24, #ESR_ELx_EC_SP_ALIGN	// stack alignment exception
-	b.eq	el1_sp_pc
 	cmp	x24, #ESR_ELx_EC_PC_ALIGN	// pc alignment exception
-	b.eq	el1_sp_pc
+	b.eq	el1_pc
 	cmp	x24, #ESR_ELx_EC_UNKNOWN	// unknown exception in EL1
 	b.eq	el1_undef
 	cmp	x24, #ESR_ELx_EC_BREAKPT_CUR	// debug exception in EL1
@@ -631,14 +637,16 @@ el1_da:
 	 */
 	mrs	x3, far_el1
 	inherit_daif	pstate=x23, tmp=x2
-	clear_address_tag x0, x3
+	untagged_addr	x0, x3
 	mov	x2, sp				// struct pt_regs
 	bl	do_mem_abort
 
 	kernel_exit 1
-el1_sp_pc:
+el1_pc:
 	/*
-	 * Stack or PC alignment exception handling
+	 * PC alignment exception handling. We don't handle SP alignment faults,
+	 * since we will have hit a recursive exception when trying to push the
+	 * initial pt_regs.
 	 */
 	mrs	x0, far_el1
 	inherit_daif	pstate=x23, tmp=x2
@@ -660,6 +668,7 @@ el1_dbg:
 	cmp	x24, #ESR_ELx_EC_BRK64		// if BRK64
 	cinc	x24, x24, eq			// set bit '0'
 	tbz	x24, #0, el1_inv		// EL1 only
+	gic_prio_kentry_setup tmp=x3
 	mrs	x0, far_el1
 	mov	x2, sp				// struct pt_regs
 	bl	do_debug_exception
@@ -677,7 +686,16 @@ ENDPROC(el1_sync)
 	.align	6
 el1_irq:
 	kernel_entry 1
+	gic_prio_irq_setup pmr=x20, tmp=x1
 	enable_da_f
+
+#ifdef CONFIG_ARM64_PSEUDO_NMI
+	test_irqs_unmasked	res=x0, pmr=x20
+	cbz	x0, 1f
+	bl	asm_nmi_enter
+1:
+#endif
+
 #ifdef CONFIG_TRACE_IRQFLAGS
 	bl	trace_hardirqs_off
 #endif
@@ -685,27 +703,43 @@ el1_irq:
 	irq_handler
 
 #ifdef CONFIG_PREEMPT
-	ldr	w24, [tsk, #TSK_TI_PREEMPT]	// get preempt count
-	cbnz	w24, 1f				// preempt count != 0
-	ldr	x0, [tsk, #TSK_TI_FLAGS]	// get flags
-	tbz	x0, #TIF_NEED_RESCHED, 1f	// needs rescheduling?
-	bl	el1_preempt
+	ldr	x24, [tsk, #TSK_TI_PREEMPT]	// get preempt count
+alternative_if ARM64_HAS_IRQ_PRIO_MASKING
+	/*
+	 * DA_F were cleared at start of handling. If anything is set in DAIF,
+	 * we come back from an NMI, so skip preemption
+	 */
+	mrs	x0, daif
+	orr	x24, x24, x0
+alternative_else_nop_endif
+	cbnz	x24, 1f				// preempt count != 0 || NMI return path
+	bl	arm64_preempt_schedule_irq	// irq en/disable is done inside
 1:
 #endif
-#ifdef CONFIG_TRACE_IRQFLAGS
-	bl	trace_hardirqs_on
+
+#ifdef CONFIG_ARM64_PSEUDO_NMI
+	/*
+	 * When using IRQ priority masking, we can get spurious interrupts while
+	 * PMR is set to GIC_PRIO_IRQOFF. An NMI might also have occurred in a
+	 * section with interrupts disabled. Skip tracing in those cases.
+	 */
+	test_irqs_unmasked	res=x0, pmr=x20
+	cbz	x0, 1f
+	bl	asm_nmi_exit
+1:
 #endif
+
+#ifdef CONFIG_TRACE_IRQFLAGS
+#ifdef CONFIG_ARM64_PSEUDO_NMI
+	test_irqs_unmasked	res=x0, pmr=x20
+	cbnz	x0, 1f
+#endif
+	bl	trace_hardirqs_on
+1:
+#endif
+
 	kernel_exit 1
 ENDPROC(el1_irq)
-
-#ifdef CONFIG_PREEMPT
-el1_preempt:
-	mov	x24, lr
-1:	bl	preempt_schedule_irq		// irq en/disable is done inside
-	ldr	x0, [tsk, #TSK_TI_FLAGS]	// get new tasks TI_FLAGS
-	tbnz	x0, #TIF_NEED_RESCHED, 1b	// needs rescheduling?
-	ret	x24
-#endif
 
 /*
  * EL0 mode handlers.
@@ -728,11 +762,12 @@ el0_sync:
 	cmp	x24, #ESR_ELx_EC_FP_EXC64	// FP/ASIMD exception
 	b.eq	el0_fpsimd_exc
 	cmp	x24, #ESR_ELx_EC_SYS64		// configurable trap
+	ccmp	x24, #ESR_ELx_EC_WFx, #4, ne
 	b.eq	el0_sys
 	cmp	x24, #ESR_ELx_EC_SP_ALIGN	// stack alignment exception
-	b.eq	el0_sp_pc
+	b.eq	el0_sp
 	cmp	x24, #ESR_ELx_EC_PC_ALIGN	// pc alignment exception
-	b.eq	el0_sp_pc
+	b.eq	el0_pc
 	cmp	x24, #ESR_ELx_EC_UNKNOWN	// unknown exception in EL0
 	b.eq	el0_undef
 	cmp	x24, #ESR_ELx_EC_BREAKPT_LOW	// debug exception in EL0
@@ -756,13 +791,13 @@ el0_sync_compat:
 	cmp	x24, #ESR_ELx_EC_FP_EXC32	// FP/ASIMD exception
 	b.eq	el0_fpsimd_exc
 	cmp	x24, #ESR_ELx_EC_PC_ALIGN	// pc alignment exception
-	b.eq	el0_sp_pc
+	b.eq	el0_pc
 	cmp	x24, #ESR_ELx_EC_UNKNOWN	// unknown exception in EL0
 	b.eq	el0_undef
 	cmp	x24, #ESR_ELx_EC_CP15_32	// CP15 MRC/MCR trap
-	b.eq	el0_undef
+	b.eq	el0_cp15
 	cmp	x24, #ESR_ELx_EC_CP15_64	// CP15 MRRC/MCRR trap
-	b.eq	el0_undef
+	b.eq	el0_cp15
 	cmp	x24, #ESR_ELx_EC_CP14_MR	// CP14 MRC/MCR trap
 	b.eq	el0_undef
 	cmp	x24, #ESR_ELx_EC_CP14_LS	// CP14 LDC/STC trap
@@ -773,6 +808,7 @@ el0_sync_compat:
 	b.ge	el0_dbg
 	b	el0_inv
 el0_svc_compat:
+	gic_prio_kentry_setup tmp=x1
 	mov	x0, sp
 	bl	el0_svc_compat_handler
 	b	ret_to_user
@@ -785,6 +821,17 @@ el0_irq_compat:
 el0_error_compat:
 	kernel_entry 0, 32
 	b	el0_error_naked
+
+el0_cp15:
+	/*
+	 * Trapped CP15 (MRC, MCR, MRRC, MCRR) instructions
+	 */
+	ct_user_exit_irqoff
+	enable_daif
+	mov	x0, x25
+	mov	x1, sp
+	bl	do_cp15instr
+	b	ret_to_user
 #endif
 
 el0_da:
@@ -792,9 +839,9 @@ el0_da:
 	 * Data abort handling
 	 */
 	mrs	x26, far_el1
+	ct_user_exit_irqoff
 	enable_daif
-	ct_user_exit
-	clear_address_tag x0, x26
+	untagged_addr	x0, x26
 	mov	x1, x25
 	mov	x2, sp
 	bl	do_mem_abort
@@ -804,11 +851,12 @@ el0_ia:
 	 * Instruction abort handling
 	 */
 	mrs	x26, far_el1
+	gic_prio_kentry_setup tmp=x0
+	ct_user_exit_irqoff
 	enable_da_f
 #ifdef CONFIG_TRACE_IRQFLAGS
 	bl	trace_hardirqs_off
 #endif
-	ct_user_exit
 	mov	x0, x26
 	mov	x1, x25
 	mov	x2, sp
@@ -818,8 +866,8 @@ el0_fpsimd_acc:
 	/*
 	 * Floating Point or Advanced SIMD access
 	 */
+	ct_user_exit_irqoff
 	enable_daif
-	ct_user_exit
 	mov	x0, x25
 	mov	x1, sp
 	bl	do_fpsimd_acc
@@ -828,8 +876,8 @@ el0_sve_acc:
 	/*
 	 * Scalable Vector Extension access
 	 */
+	ct_user_exit_irqoff
 	enable_daif
-	ct_user_exit
 	mov	x0, x25
 	mov	x1, sp
 	bl	do_sve_acc
@@ -838,22 +886,27 @@ el0_fpsimd_exc:
 	/*
 	 * Floating Point, Advanced SIMD or SVE exception
 	 */
+	ct_user_exit_irqoff
 	enable_daif
-	ct_user_exit
 	mov	x0, x25
 	mov	x1, sp
 	bl	do_fpsimd_exc
 	b	ret_to_user
+el0_sp:
+	ldr	x26, [sp, #S_SP]
+	b	el0_sp_pc
+el0_pc:
+	mrs	x26, far_el1
 el0_sp_pc:
 	/*
 	 * Stack or PC alignment exception handling
 	 */
-	mrs	x26, far_el1
+	gic_prio_kentry_setup tmp=x0
+	ct_user_exit_irqoff
 	enable_da_f
 #ifdef CONFIG_TRACE_IRQFLAGS
 	bl	trace_hardirqs_off
 #endif
-	ct_user_exit
 	mov	x0, x26
 	mov	x1, x25
 	mov	x2, sp
@@ -863,20 +916,17 @@ el0_undef:
 	/*
 	 * Undefined instruction
 	 */
+	ct_user_exit_irqoff
 	enable_daif
-	ct_user_exit
 	mov	x0, sp
-#if defined(CONFIG_SEC_DEBUG_FAULT_MSG_ADV)
-	mrs	x1, esr_el1			// read the syndrome register
-#endif
 	bl	do_undefinstr
 	b	ret_to_user
 el0_sys:
 	/*
 	 * System instructions, for trapped cache maintenance instructions
 	 */
+	ct_user_exit_irqoff
 	enable_daif
-	ct_user_exit
 	mov	x0, x25
 	mov	x1, sp
 	bl	do_sysinstr
@@ -886,16 +936,18 @@ el0_dbg:
 	 * Debug exception handling
 	 */
 	tbnz	x24, #0, el0_inv		// EL0 only
-	mrs	x0, far_el1
+	mrs	x24, far_el1
+	gic_prio_kentry_setup tmp=x3
+	ct_user_exit_irqoff
+	mov	x0, x24
 	mov	x1, x25
 	mov	x2, sp
 	bl	do_debug_exception
 	enable_da_f
-	ct_user_exit
 	b	ret_to_user
 el0_inv:
+	ct_user_exit_irqoff
 	enable_daif
-	ct_user_exit
 	mov	x0, sp
 	mov	x1, #BAD_SYNC
 	mov	x2, x25
@@ -907,12 +959,14 @@ ENDPROC(el0_sync)
 el0_irq:
 	kernel_entry 0
 el0_irq_naked:
+	gic_prio_irq_setup pmr=x20, tmp=x0
+	ct_user_exit_irqoff
 	enable_da_f
+
 #ifdef CONFIG_TRACE_IRQFLAGS
 	bl	trace_hardirqs_off
 #endif
 
-	ct_user_exit
 #ifdef CONFIG_HARDEN_BRANCH_PREDICTOR
 	tbz	x22, #55, 1f
 	bl	do_el0_irq_bp_hardening
@@ -929,6 +983,7 @@ ENDPROC(el0_irq)
 el1_error:
 	kernel_entry 1
 	mrs	x1, esr_el1
+	gic_prio_kentry_setup tmp=x2
 	enable_dbg
 	mov	x0, sp
 	bl	do_serror
@@ -938,12 +993,14 @@ ENDPROC(el1_error)
 el0_error:
 	kernel_entry 0
 el0_error_naked:
-	mrs	x1, esr_el1
+	mrs	x25, esr_el1
+	gic_prio_kentry_setup tmp=x2
+	ct_user_exit_irqoff
 	enable_dbg
 	mov	x0, sp
+	mov	x1, x25
 	bl	do_serror
 	enable_da_f
-	ct_user_exit
 	b	ret_to_user
 ENDPROC(el0_error)
 
@@ -963,6 +1020,7 @@ work_pending:
  */
 ret_to_user:
 	disable_daif
+	gic_prio_kentry_setup tmp=x3
 	ldr	x1, [tsk, #TSK_TI_FLAGS]
 	and	x2, x1, #_TIF_WORK_MASK
 	cbnz	x2, work_pending
@@ -979,6 +1037,7 @@ ENDPROC(ret_to_user)
  */
 	.align	6
 el0_svc:
+	gic_prio_kentry_setup tmp=x1
 	mov	x0, sp
 	bl	el0_svc_handler
 	b	ret_to_user
@@ -986,15 +1045,10 @@ ENDPROC(el0_svc)
 
 	.popsection				// .entry.text
 
-#ifdef CONFIG_UNMAP_KERNEL_AT_EL0
-/*
- * Exception vectors trampoline.
- */
-	.pushsection ".entry.tramp.text", "ax"
-
+	// Move from tramp_pg_dir to swapper_pg_dir
 	.macro tramp_map_kernel, tmp
 	mrs	\tmp, ttbr1_el1
-	add	\tmp, \tmp, #(PAGE_SIZE + RESERVED_TTBR0_SIZE)
+	add	\tmp, \tmp, #(2 * PAGE_SIZE)
 	bic	\tmp, \tmp, #USER_ASID_FLAG
 	msr	ttbr1_el1, \tmp
 #ifdef CONFIG_QCOM_FALKOR_ERRATUM_1003
@@ -1011,22 +1065,12 @@ alternative_else_nop_endif
 #endif /* CONFIG_QCOM_FALKOR_ERRATUM_1003 */
 	.endm
 
+	// Move from swapper_pg_dir to tramp_pg_dir
 	.macro tramp_unmap_kernel, tmp
 	mrs	\tmp, ttbr1_el1
-#ifdef CONFIG_SOC_EXYNOS9830_EVT0
-	/*
-	 * Apply workaround to avoid errata of Lion evt0. (Lion-7071)
-	 * This workaroud will be removed when evt1 comes
-	 */
+	sub	\tmp, \tmp, #(2 * PAGE_SIZE)
 	orr	\tmp, \tmp, #USER_ASID_FLAG
 	msr	ttbr1_el1, \tmp
-	sub	\tmp, \tmp, #(PAGE_SIZE + RESERVED_TTBR0_SIZE)
-#else
-	sub     \tmp, \tmp, #(PAGE_SIZE + RESERVED_TTBR0_SIZE)
-	orr     \tmp, \tmp, #USER_ASID_FLAG
-#endif
-	msr	ttbr1_el1, \tmp
-
 	/*
 	 * We avoid running the post_ttbr_update_workaround here because
 	 * it's only needed by Cavium ThunderX, which requires KPTI to be
@@ -1034,12 +1078,47 @@ alternative_else_nop_endif
 	 */
 	.endm
 
-	.macro tramp_ventry, regsize = 64
+	.macro tramp_data_page	dst
+	adr_l	\dst, .entry.tramp.text
+	sub	\dst, \dst, PAGE_SIZE
+	.endm
+
+	.macro tramp_data_read_var	dst, var
+#ifdef CONFIG_RANDOMIZE_BASE
+	tramp_data_page		\dst
+	add	\dst, \dst, #:lo12:__entry_tramp_data_\var
+	ldr	\dst, [\dst]
+#else
+	ldr	\dst, =\var
+#endif
+	.endm
+
+	#define BHB_MITIGATION_NONE	0
+	#define BHB_MITIGATION_LOOP	1
+	#define BHB_MITIGATION_FW	2
+	#define BHB_MITIGATION_INSN	3
+
+	.macro tramp_ventry, vector_start, regsize, kpti, bhb
 	.align	7
 1:
 	.if	\regsize == 64
 	msr	tpidrro_el0, x30	// Restored in kernel_ventry
 	.endif
+
+		.if	\bhb == BHB_MITIGATION_LOOP
+	/*
+	 * This sequence must appear before the first indirect branch. i.e. the
+	 * ret out of tramp_ventry. It appears here because x30 is free.
+	 */
+	__mitigate_spectre_bhb_loop	x30
+	.endif // \bhb == BHB_MITIGATION_LOOP
+
+	.if	\bhb == BHB_MITIGATION_INSN
+	clearbhb
+	isb
+	.endif // \bhb == BHB_MITIGATION_INSN
+
+	.if	\kpti == 1
 	/*
 	 * Defend against branch aliasing attacks by pushing a dummy
 	 * entry onto the return stack and using a RET instruction to
@@ -1049,43 +1128,79 @@ alternative_else_nop_endif
 	b	.
 2:
 	tramp_map_kernel	x30
-#ifdef CONFIG_RANDOMIZE_BASE
-	adr	x30, tramp_vectors + PAGE_SIZE
 alternative_insn isb, nop, ARM64_WORKAROUND_QCOM_FALKOR_E1003
-	ldr	x30, [x30]
-#else
-	ldr	x30, =vectors
-#endif
-	prfm	plil1strm, [x30, #(1b - tramp_vectors)]
+	tramp_data_read_var	x30, vectors
+alternative_if_not ARM64_WORKAROUND_CAVIUM_TX2_219_PRFM
+	prfm	plil1strm, [x30, #(1b - \vector_start)]
+alternative_else_nop_endif
+
 	msr	vbar_el1, x30
-	add	x30, x30, #(1b - tramp_vectors)
 	isb
+	.else
+	ldr	x30, =vectors
+	.endif // \kpti == 1
+
+	.if	\bhb == BHB_MITIGATION_FW
+	/*
+	 * The firmware sequence must appear before the first indirect branch.
+	 * i.e. the ret out of tramp_ventry. But it also needs the stack to be
+	 * mapped to save/restore the registers the SMC clobbers.
+	 */
+	__mitigate_spectre_bhb_fw
+	.endif // \bhb == BHB_MITIGATION_FW
+
+	add	x30, x30, #(1b - \vector_start + 4)
 	ret
+.org 1b + 128	// Did we overflow the ventry slot?
 	.endm
 
 	.macro tramp_exit, regsize = 64
-	adr	x30, tramp_vectors
+	tramp_data_read_var	x30, this_cpu_vector
+alternative_if_not ARM64_HAS_VIRT_HOST_EXTN
+	mrs	x29, tpidr_el1
+alternative_else
+	mrs	x29, tpidr_el2
+alternative_endif
+	ldr	x30, [x30, x29]
+
 	msr	vbar_el1, x30
-	tramp_unmap_kernel	x30
+	ldr	lr, [sp, #S_LR]
+	tramp_unmap_kernel	x29
 	.if	\regsize == 64
-	mrs	x30, far_el1
+	mrs	x29, far_el1
 	.endif
+	add	sp, sp, #S_FRAME_SIZE		// restore sp
 	eret
+	sb
 	.endm
 
-	.align	11
-ENTRY(tramp_vectors)
+	.macro	generate_tramp_vector,	kpti, bhb
+.Lvector_start\@:
 	.space	0x400
 
-	tramp_ventry
-	tramp_ventry
-	tramp_ventry
-	tramp_ventry
+	.rept	4
+	tramp_ventry	.Lvector_start\@, 64, \kpti, \bhb
+	.endr
+	.rept	4
+	tramp_ventry	.Lvector_start\@, 32, \kpti, \bhb
+	.endr
+	.endm
 
-	tramp_ventry	32
-	tramp_ventry	32
-	tramp_ventry	32
-	tramp_ventry	32
+#ifdef CONFIG_UNMAP_KERNEL_AT_EL0
+/*
+ * Exception vectors trampoline.
+ * The order must match __bp_harden_el1_vectors and the
+ * arm64_bp_harden_el1_vectors enum.
+ */
+	.pushsection ".entry.tramp.text", "ax"
+	.align	11
+ENTRY(tramp_vectors)
+#ifdef CONFIG_MITIGATE_SPECTRE_BRANCH_HISTORY
+	generate_tramp_vector	kpti=1, bhb=BHB_MITIGATION_LOOP
+	generate_tramp_vector	kpti=1, bhb=BHB_MITIGATION_FW
+	generate_tramp_vector	kpti=1, bhb=BHB_MITIGATION_INSN
+#endif /* CONFIG_MITIGATE_SPECTRE_BRANCH_HISTORY */
+	generate_tramp_vector	kpti=1, bhb=BHB_MITIGATION_NONE
 END(tramp_vectors)
 
 ENTRY(tramp_exit_native)
@@ -1103,10 +1218,54 @@ END(tramp_exit_compat)
 	.align PAGE_SHIFT
 	.globl	__entry_tramp_data_start
 __entry_tramp_data_start:
+__entry_tramp_data_vectors:
 	.quad	vectors
+#ifdef CONFIG_ARM_SDE_INTERFACE
+__entry_tramp_data___sdei_asm_trampoline_next_handler:
+	.quad	__sdei_asm_handler
+#endif /* CONFIG_ARM_SDE_INTERFACE */
+__entry_tramp_data_this_cpu_vector:
+	.quad	this_cpu_vector
 	.popsection				// .rodata
 #endif /* CONFIG_RANDOMIZE_BASE */
 #endif /* CONFIG_UNMAP_KERNEL_AT_EL0 */
+
+/*
+ * Exception vectors for spectre mitigations on entry from EL1 when
+ * kpti is not in use.
+ */
+	.macro generate_el1_vector, bhb
+.Lvector_start\@:
+	kernel_ventry	1, sync_invalid			// Synchronous EL1t
+	kernel_ventry	1, irq_invalid			// IRQ EL1t
+	kernel_ventry	1, fiq_invalid			// FIQ EL1t
+	kernel_ventry	1, error_invalid		// Error EL1t
+
+	kernel_ventry	1, sync				// Synchronous EL1h
+	kernel_ventry	1, irq				// IRQ EL1h
+	kernel_ventry	1, fiq_invalid			// FIQ EL1h
+	kernel_ventry	1, error			// Error EL1h
+
+	.rept	4
+	tramp_ventry	.Lvector_start\@, 64, 0, \bhb
+	.endr
+	.rept 4
+	tramp_ventry	.Lvector_start\@, 32, 0, \bhb
+	.endr
+	.endm
+
+/* The order must match tramp_vecs and the arm64_bp_harden_el1_vectors enum. */
+	.pushsection ".entry.text", "ax"
+	.align	11
+SYM_CODE_START(__bp_harden_el1_vectors)
+#ifdef CONFIG_MITIGATE_SPECTRE_BRANCH_HISTORY
+	generate_el1_vector	bhb=BHB_MITIGATION_LOOP
+	generate_el1_vector	bhb=BHB_MITIGATION_FW
+	generate_el1_vector	bhb=BHB_MITIGATION_INSN
+#endif /* CONFIG_MITIGATE_SPECTRE_BRANCH_HISTORY */
+SYM_CODE_END(__bp_harden_el1_vectors)
+	.popsection
+
 
 /*
  * Register switch for AArch64. The callee-saved registers need to be saved
@@ -1137,6 +1296,11 @@ ENTRY(cpu_switch_to)
 	ldr	lr, [x8]
 	mov	sp, x9
 	msr	sp_el0, x1
+#ifdef CONFIG_SHADOW_CALL_STACK
+	str	x18, [x0, #TSK_TI_SCS]
+	ldr	x18, [x1, #TSK_TI_SCS]
+	str	xzr, [x1, #TSK_TI_SCS]		// limit visibility of saved SCS
+#endif
 	ret
 ENDPROC(cpu_switch_to)
 NOKPROBE(cpu_switch_to)
@@ -1149,7 +1313,7 @@ ENTRY(ret_from_fork)
 	cbz	x19, 1f				// not a kernel thread
 	mov	x0, x20
 	blr	x19
-1:	get_thread_info tsk
+1:	get_current_task tsk
 	b	ret_to_user
 ENDPROC(ret_from_fork)
 NOKPROBE(ret_from_fork)
@@ -1194,13 +1358,7 @@ ENTRY(__sdei_asm_entry_trampoline)
 	 */
 1:	str	x4, [x1, #(SDEI_EVENT_INTREGS + S_ORIG_ADDR_LIMIT)]
 
-#ifdef CONFIG_RANDOMIZE_BASE
-	adr	x4, tramp_vectors + PAGE_SIZE
-	add	x4, x4, #:lo12:__sdei_asm_trampoline_next_handler
-	ldr	x4, [x4]
-#else
-	ldr	x4, =__sdei_asm_handler
-#endif
+	tramp_data_read_var     x4, __sdei_asm_trampoline_next_handler
 	br	x4
 ENDPROC(__sdei_asm_entry_trampoline)
 NOKPROBE(__sdei_asm_entry_trampoline)
@@ -1223,12 +1381,6 @@ ENDPROC(__sdei_asm_exit_trampoline)
 NOKPROBE(__sdei_asm_exit_trampoline)
 	.ltorg
 .popsection		// .entry.tramp.text
-#ifdef CONFIG_RANDOMIZE_BASE
-.pushsection ".rodata", "a"
-__sdei_asm_trampoline_next_handler:
-	.quad	__sdei_asm_handler
-.popsection		// .rodata
-#endif /* CONFIG_RANDOMIZE_BASE */
 #endif /* CONFIG_UNMAP_KERNEL_AT_EL0 */
 
 /*
@@ -1324,7 +1476,7 @@ alternative_if_not ARM64_UNMAP_KERNEL_AT_EL0
 alternative_else_nop_endif
 
 #ifdef CONFIG_UNMAP_KERNEL_AT_EL0
-	tramp_alias	dst=x5, sym=__sdei_asm_exit_trampoline
+	tramp_alias	dst=x5, sym=__sdei_asm_exit_trampoline, tmp=x3
 	br	x5
 #endif
 ENDPROC(__sdei_asm_handler)

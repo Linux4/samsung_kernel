@@ -73,10 +73,6 @@
 #define URB_ASYNC_UNLINK 0
 #endif
 
-/* 802.2 LLC/SNAP header used for Ethernet encapsulation over 802.11 */
-static const u8 encaps_hdr[] = {0xaa, 0xaa, 0x03, 0x00, 0x00, 0x00};
-#define ENCAPS_OVERHEAD		(sizeof(encaps_hdr) + 2)
-
 struct header_struct {
 	/* 802.3 */
 	u8 dest[ETH_ALEN];
@@ -912,10 +908,11 @@ static int ezusb_access_ltv(struct ezusb_priv *upriv,
 	case EZUSB_CTX_REQ_SUBMITTED:
 		if (!ctx->in_rid)
 			break;
+		/* fall through */
 	default:
 		err("%s: Unexpected context state %d", __func__,
 		    state);
-		/* fall though */
+		/* fall through */
 	case EZUSB_CTX_REQ_TIMEOUT:
 	case EZUSB_CTX_REQ_FAILED:
 	case EZUSB_CTX_RESP_TIMEOUT:
@@ -1237,19 +1234,19 @@ static netdev_tx_t ezusb_xmit(struct sk_buff *skb, struct net_device *dev)
 	if (skb->len < ETH_HLEN)
 		goto drop;
 
-	ctx = ezusb_alloc_ctx(upriv, EZUSB_RID_TX, 0);
-	if (!ctx)
-		goto busy;
-
-	memset(ctx->buf, 0, BULK_BUF_SIZE);
-	buf = ctx->buf->data;
-
 	tx_control = 0;
 
 	err = orinoco_process_xmit_skb(skb, dev, priv, &tx_control,
 				       &mic[0]);
 	if (err)
 		goto drop;
+
+	ctx = ezusb_alloc_ctx(upriv, EZUSB_RID_TX, 0);
+	if (!ctx)
+		goto drop;
+
+	memset(ctx->buf, 0, BULK_BUF_SIZE);
+	buf = ctx->buf->data;
 
 	{
 		__le16 *tx_cntl = (__le16 *)buf;

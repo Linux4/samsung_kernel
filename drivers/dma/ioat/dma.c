@@ -1,19 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Intel I/OAT DMA Linux driver
  * Copyright(c) 2004 - 2015 Intel Corporation.
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
- * more details.
- *
- * The full GNU General Public License is included in this distribution in
- * the file called "COPYING".
- *
  */
 
 /*
@@ -37,6 +25,18 @@
 #include "hw.h"
 
 #include "../dmaengine.h"
+
+int completion_timeout = 200;
+module_param(completion_timeout, int, 0644);
+MODULE_PARM_DESC(completion_timeout,
+		"set ioat completion timeout [msec] (default 200 [msec])");
+int idle_timeout = 2000;
+module_param(idle_timeout, int, 0644);
+MODULE_PARM_DESC(idle_timeout,
+		"set ioat idel timeout [msec] (default 2000 [msec])");
+
+#define IDLE_TIMEOUT msecs_to_jiffies(idle_timeout)
+#define COMPLETION_TIMEOUT msecs_to_jiffies(completion_timeout)
 
 static char *chanerr_str[] = {
 	"DMA Transfer Source Address Error",
@@ -372,6 +372,7 @@ struct ioat_ring_ent **
 ioat_alloc_ring(struct dma_chan *c, int order, gfp_t flags)
 {
 	struct ioatdma_chan *ioat_chan = to_ioat_chan(c);
+	struct ioatdma_device *ioat_dma = ioat_chan->ioat_dma;
 	struct ioat_ring_ent **ring;
 	int total_descs = 1 << order;
 	int i, chunks;
@@ -437,6 +438,17 @@ ioat_alloc_ring(struct dma_chan *c, int order, gfp_t flags)
 		hw->next = next->txd.phys;
 	}
 	ring[i]->hw->next = ring[0]->txd.phys;
+
+	/* setup descriptor pre-fetching for v3.4 */
+	if (ioat_dma->cap & IOAT_CAP_DPS) {
+		u16 drsctl = IOAT_CHAN_DRSZ_2MB | IOAT_CHAN_DRS_EN;
+
+		if (chunks == 1)
+			drsctl |= IOAT_CHAN_DRS_AUTOWRAP;
+
+		writew(drsctl, ioat_chan->reg_base + IOAT_CHAN_DRSCTL_OFFSET);
+
+	}
 
 	return ring;
 }

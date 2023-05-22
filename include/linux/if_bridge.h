@@ -1,13 +1,9 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  *	Linux ethernet bridge
  *
  *	Authors:
  *	Lennert Buytenhek		<buytenh@gnu.org>
- *
- *	This program is free software; you can redistribute it and/or
- *	modify it under the terms of the GNU General Public License
- *	as published by the Free Software Foundation; either version
- *	2 of the License, or (at your option) any later version.
  */
 #ifndef _LINUX_IF_BRIDGE_H
 #define _LINUX_IF_BRIDGE_H
@@ -54,10 +50,17 @@ struct br_ip_list {
 
 #define BR_DEFAULT_AGEING_TIME	(300 * HZ)
 
+//Handle HYFI_BRIDGING hooks related stuffs, only if HYFI_BRIDGE_HOOKS is defined
+#ifdef CONFIG_HYFI_BRIDGE_HOOKS
+struct net_bridge_port;
+#endif
+
 extern void brioctl_set(int (*ioctl_hook)(struct net *, unsigned int, void __user *));
 
-typedef int br_should_route_hook_t(struct sk_buff *skb);
-extern br_should_route_hook_t __rcu *br_should_route_hook;
+#ifdef CONFIG_ENABLE_SFE
+extern struct net_device *br_port_dev_get(struct net_device *dev,
+						unsigned char *addr);
+#endif
 
 #if IS_ENABLED(CONFIG_BRIDGE) && IS_ENABLED(CONFIG_BRIDGE_IGMP_SNOOPING)
 int br_multicast_list_adjacent(struct net_device *dev,
@@ -95,6 +98,8 @@ static inline bool br_multicast_router(const struct net_device *dev)
 #if IS_ENABLED(CONFIG_BRIDGE) && IS_ENABLED(CONFIG_BRIDGE_VLAN_FILTERING)
 bool br_vlan_enabled(const struct net_device *dev);
 int br_vlan_get_pvid(const struct net_device *dev, u16 *p_pvid);
+int br_vlan_get_pvid_rcu(const struct net_device *dev, u16 *p_pvid);
+int br_vlan_get_proto(const struct net_device *dev, u16 *p_proto);
 int br_vlan_get_info(const struct net_device *dev, u16 vid,
 		     struct bridge_vlan_info *p_vinfo);
 #else
@@ -104,6 +109,16 @@ static inline bool br_vlan_enabled(const struct net_device *dev)
 }
 
 static inline int br_vlan_get_pvid(const struct net_device *dev, u16 *p_pvid)
+{
+	return -EINVAL;
+}
+
+static inline int br_vlan_get_proto(const struct net_device *dev, u16 *p_proto)
+{
+	return -EINVAL;
+}
+
+static inline int br_vlan_get_pvid_rcu(const struct net_device *dev, u16 *p_pvid)
 {
 	return -EINVAL;
 }
@@ -119,6 +134,8 @@ static inline int br_vlan_get_info(const struct net_device *dev, u16 vid,
 struct net_device *br_fdb_find_port(const struct net_device *br_dev,
 				    const unsigned char *addr,
 				    __u16 vid);
+void br_fdb_clear_offload(const struct net_device *dev, u16 vid);
+bool br_port_flag_is_set(const struct net_device *dev, unsigned long flag);
 #else
 static inline struct net_device *
 br_fdb_find_port(const struct net_device *br_dev,
@@ -127,6 +144,23 @@ br_fdb_find_port(const struct net_device *br_dev,
 {
 	return NULL;
 }
+
+static inline void br_fdb_clear_offload(const struct net_device *dev, u16 vid)
+{
+}
+
+static inline bool
+br_port_flag_is_set(const struct net_device *dev, unsigned long flag)
+{
+	return false;
+}
 #endif
 
+#ifdef CONFIG_HYFI_BRIDGE_HOOKS
+typedef void (br_notify_hook_t)(int group, int event, const void *ptr);
+extern br_notify_hook_t __rcu *br_notify_hook;
+typedef int (br_multicast_handle_hook_t)(const struct net_bridge_port *src,
+		struct sk_buff *skb);
+extern br_multicast_handle_hook_t __rcu *br_multicast_handle_hook;
+#endif
 #endif

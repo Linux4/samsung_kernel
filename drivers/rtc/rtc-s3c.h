@@ -1,10 +1,7 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2003 Simtec Electronics <linux@simtec.co.uk>
  *		      http://www.simtec.co.uk/products/SWLINUX/
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  *
  * S3C2410 Internal RTC register definition
 */
@@ -15,20 +12,16 @@
 #define S3C2410_RTCREG(x) (x)
 #define S3C2410_INTP		S3C2410_RTCREG(0x30)
 #define S3C2410_INTP_ALM	(1 << 1)
-#define S3C2410_INTP_TIC_0	(1 << 0)
-#define S3C2410_INTP_TIC_1	(1 << 2)
+#define S3C2410_INTP_TIC	(1 << 0)
 
 #define S3C2410_RTCCON		S3C2410_RTCREG(0x40)
 #define S3C2410_RTCCON_RTCEN	(1 << 0)
 #define S3C2410_RTCCON_CNTSEL	(1 << 2)
 #define S3C2410_RTCCON_CLKRST	(1 << 3)
-#define S3C2443_RTCCON_TICSEL_0	(1 << 4)
-#define S3C64XX_RTCCON_TICEN_0	(1 << 8)
-#define S3C2443_RTCCON_TICSEL_1	(1 << 10)
-#define S3C64XX_RTCCON_TICEN_1	(1 << 14)
+#define S3C2443_RTCCON_TICSEL	(1 << 4)
+#define S3C64XX_RTCCON_TICEN	(1 << 8)
 
-#define S3C2410_TICNT_0		S3C2410_RTCREG(0x44)
-#define S3C2410_TICNT_1		S3C2410_RTCREG(0x48)
+#define S3C2410_TICNT		S3C2410_RTCREG(0x44)
 #define S3C2410_TICNT_ENABLE	(1 << 7)
 
 /* S3C2443: tick count is 15 bit wide

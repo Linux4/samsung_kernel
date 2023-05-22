@@ -62,6 +62,7 @@ struct vc_data {
 	unsigned int	vc_rows;
 	unsigned int	vc_size_row;		/* Bytes per row */
 	unsigned int	vc_scan_lines;		/* # of scan lines */
+	unsigned int	vc_cell_height;		/* CRTC character cell height */
 	unsigned long	vc_origin;		/* [!] Start of real screen */
 	unsigned long	vc_scr_end;		/* [!] End of real screen */
 	unsigned long	vc_visible_origin;	/* [!] Top of visible window */
@@ -119,7 +120,7 @@ struct vc_data {
 	unsigned int	vc_s_blink	: 1;
 	unsigned int	vc_s_reverse	: 1;
 	/* misc */
-	unsigned int	vc_ques		: 1;
+	unsigned int	vc_priv		: 3;
 	unsigned int	vc_need_wrap	: 1;
 	unsigned int	vc_can_do_color	: 1;
 	unsigned int	vc_report_mouse : 2;
@@ -141,7 +142,6 @@ struct vc_data {
 	struct uni_pagedir *vc_uni_pagedir;
 	struct uni_pagedir **vc_uni_pagedir_loc; /* [!] Location of uni_pagedir variable for this console */
 	struct uni_screen *vc_uni_screen;	/* unicode screen content */
-	bool vc_panic_force_write; /* when oops/panic this VC can accept forced output/blanking */
 	/* additional information is in vt_kern.h */
 };
 
@@ -169,9 +169,6 @@ extern void vc_SAK(struct work_struct *work);
 
 #define CUR_DEFAULT CUR_UNDERLINE
 
-static inline bool con_is_visible(const struct vc_data *vc)
-{
-	return *vc->vc_display_fg == vc;
-}
+bool con_is_visible(const struct vc_data *vc);
 
 #endif /* _LINUX_CONSOLE_STRUCT_H */

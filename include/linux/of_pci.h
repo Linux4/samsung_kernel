@@ -10,28 +10,29 @@ struct of_phandle_args;
 struct device_node;
 
 #if IS_ENABLED(CONFIG_OF) && IS_ENABLED(CONFIG_PCI)
+#ifdef CONFIG_PCI_QTI
+struct device_node *of_pci_find_child_device(struct pci_dev *dev);
+#else
 struct device_node *of_pci_find_child_device(struct device_node *parent,
 					     unsigned int devfn);
+#endif
 int of_pci_get_devfn(struct device_node *np);
 void of_pci_check_probe_only(void);
-int of_pci_map_rid(struct device_node *np, u32 rid,
-		   const char *map_name, const char *map_mask_name,
-		   struct device_node **target, u32 *id_out);
+#else
+#ifdef CONFIG_PCI_QTI
+static inline struct device_node *of_pci_find_child_device(struct pci_dev *dev)
+{
+	return NULL;
+}
 #else
 static inline struct device_node *of_pci_find_child_device(struct device_node *parent,
 					     unsigned int devfn)
 {
 	return NULL;
 }
+#endif
 
 static inline int of_pci_get_devfn(struct device_node *np)
-{
-	return -EINVAL;
-}
-
-static inline int of_pci_map_rid(struct device_node *np, u32 rid,
-			const char *map_name, const char *map_mask_name,
-			struct device_node **target, u32 *id_out)
 {
 	return -EINVAL;
 }

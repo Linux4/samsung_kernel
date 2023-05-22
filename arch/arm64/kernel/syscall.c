@@ -30,7 +30,7 @@ static long do_ni_syscall(struct pt_regs *regs, int scno)
 		ret = defex_syscall_enter(scno, regs);
 		if (!ret)
 #endif /* CONFIG_SECURITY_DEFEX */
-		ret = compat_arm_syscall(regs, scno);
+			ret = compat_arm_syscall(regs, scno);
 		if (ret != -ENOSYS)
 			return ret;
 	}
@@ -57,12 +57,12 @@ static void invoke_syscall(struct pt_regs *regs, unsigned int scno,
 		ret = defex_syscall_enter(scno, regs);
 		if (!ret)
 #endif /* CONFIG_SECURITY_DEFEX */
-		ret = __invoke_syscall(regs, syscall_fn);
+			ret = __invoke_syscall(regs, syscall_fn);
 	} else {
 		ret = do_ni_syscall(regs, scno);
 	}
 
-	regs->regs[0] = ret;
+	syscall_set_return_value(current, regs, 0, ret);
 }
 
 static inline bool has_syscall_work(unsigned long flags)
@@ -111,13 +111,13 @@ static void el0_svc_common(struct pt_regs *regs, int scno, int sc_nr,
 	regs->syscallno = scno;
 
 	cortex_a76_erratum_1463225_svc_handler();
+	user_exit_irqoff();
 	local_daif_restore(DAIF_PROCCTX);
-	user_exit();
 
 	if (has_syscall_work(flags)) {
 		/* set default errno for user-issued syscall(-1) */
 		if (scno == NO_SYSCALL)
-			regs->regs[0] = -ENOSYS;
+			syscall_set_return_value(current, regs, -ENOSYS, 0);
 		scno = syscall_trace_enter(regs);
 		if (scno == NO_SYSCALL)
 			goto trace_exit;
@@ -133,7 +133,7 @@ static void el0_svc_common(struct pt_regs *regs, int scno, int sc_nr,
 	if (!has_syscall_work(flags) && !IS_ENABLED(CONFIG_DEBUG_RSEQ)) {
 		local_daif_mask();
 		flags = current_thread_info()->flags;
-		if (!has_syscall_work(flags)) {
+		if (!has_syscall_work(flags) && !(flags & _TIF_SINGLESTEP)) {
 			/*
 			 * We're off to userspace, where interrupts are
 			 * always enabled after we restore the flags from

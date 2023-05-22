@@ -5,11 +5,16 @@
 #define CUTOFF_WRITEBACK	40
 #define CUTOFF_WRITEBACK_SYNC	70
 
+#define CUTOFF_WRITEBACK_MAX		70
+#define CUTOFF_WRITEBACK_SYNC_MAX	90
+
 #define MAX_WRITEBACKS_IN_PASS  5
 #define MAX_WRITESIZE_IN_PASS   5000	/* *512b */
 
 #define WRITEBACK_RATE_UPDATE_SECS_MAX		60
 #define WRITEBACK_RATE_UPDATE_SECS_DEFAULT	5
+
+#define BCH_AUTO_GC_DIRTY_THRESHOLD	50
 
 /*
  * 14 (16384ths) is chosen here as something that each backing device
@@ -28,10 +33,22 @@ static inline uint64_t bcache_dev_sectors_dirty(struct bcache_device *d)
 	return ret;
 }
 
-static inline unsigned int offset_to_stripe(struct bcache_device *d,
+static inline int offset_to_stripe(struct bcache_device *d,
 					uint64_t offset)
 {
 	do_div(offset, d->stripe_size);
+
+	/* d->nr_stripes is in range [1, INT_MAX] */
+	if (unlikely(offset >= d->nr_stripes)) {
+		pr_err("Invalid stripe %llu (>= nr_stripes %d).\n",
+			offset, d->nr_stripes);
+		return -EINVAL;
+	}
+
+	/*
+	 * Here offset is definitly smaller than INT_MAX,
+	 * return it as int will never overflow.
+	 */
 	return offset;
 }
 
@@ -39,7 +56,10 @@ static inline bool bcache_dev_stripe_dirty(struct cached_dev *dc,
 					   uint64_t offset,
 					   unsigned int nr_sectors)
 {
-	unsigned int stripe = offset_to_stripe(&dc->disk, offset);
+	int stripe = offset_to_stripe(&dc->disk, offset);
+
+	if (stripe < 0)
+		return false;
 
 	while (1) {
 		if (atomic_read(dc->disk.stripe_sectors_dirty + stripe))
@@ -53,6 +73,9 @@ static inline bool bcache_dev_stripe_dirty(struct cached_dev *dc,
 	}
 }
 
+extern unsigned int bch_cutoff_writeback;
+extern unsigned int bch_cutoff_writeback_sync;
+
 static inline bool should_writeback(struct cached_dev *dc, struct bio *bio,
 				    unsigned int cache_mode, bool would_skip)
 {
@@ -60,7 +83,7 @@ static inline bool should_writeback(struct cached_dev *dc, struct bio *bio,
 
 	if (cache_mode != CACHE_MODE_WRITEBACK ||
 	    test_bit(BCACHE_DEV_DETACHING, &dc->disk.flags) ||
-	    in_use > CUTOFF_WRITEBACK_SYNC)
+	    in_use > bch_cutoff_writeback_sync)
 		return false;
 
 	if (bio_op(bio) == REQ_OP_DISCARD)
@@ -76,7 +99,7 @@ static inline bool should_writeback(struct cached_dev *dc, struct bio *bio,
 
 	return (op_is_sync(bio->bi_opf) ||
 		bio->bi_opf & (REQ_META|REQ_PRIO) ||
-		in_use <= CUTOFF_WRITEBACK);
+		in_use <= bch_cutoff_writeback);
 }
 
 static inline void bch_writeback_queue(struct cached_dev *dc)

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Cryptographic API.
  *
@@ -9,11 +10,6 @@
  * Added tnepres support:
  *		Ruben Jesus Garcia Hernandez <ruben@ugr.es>, 18.10.2004
  *              Based on code by hvr
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
  */
 
 #include <linux/init.h>
@@ -453,8 +449,9 @@ int serpent_setkey(struct crypto_tfm *tfm, const u8 *key, unsigned int keylen)
 }
 EXPORT_SYMBOL_GPL(serpent_setkey);
 
-void __serpent_encrypt(struct serpent_ctx *ctx, u8 *dst, const u8 *src)
+void __serpent_encrypt(const void *c, u8 *dst, const u8 *src)
 {
+	const struct serpent_ctx *ctx = c;
 	const u32 *k = ctx->expkey;
 	const __le32 *s = (const __le32 *)src;
 	__le32	*d = (__le32 *)dst;
@@ -518,8 +515,9 @@ static void serpent_encrypt(struct crypto_tfm *tfm, u8 *dst, const u8 *src)
 	__serpent_encrypt(ctx, dst, src);
 }
 
-void __serpent_decrypt(struct serpent_ctx *ctx, u8 *dst, const u8 *src)
+void __serpent_decrypt(const void *c, u8 *dst, const u8 *src)
 {
+	const struct serpent_ctx *ctx = c;
 	const u32 *k = ctx->expkey;
 	const __le32 *s = (const __le32 *)src;
 	__le32	*d = (__le32 *)dst;
@@ -647,6 +645,7 @@ static struct crypto_alg srp_algs[2] = { {
 	.cia_decrypt		=	serpent_decrypt } }
 }, {
 	.cra_name		=	"tnepres",
+	.cra_driver_name	=	"tnepres-generic",
 	.cra_flags		=	CRYPTO_ALG_TYPE_CIPHER,
 	.cra_blocksize		=	SERPENT_BLOCK_SIZE,
 	.cra_ctxsize		=	sizeof(struct serpent_ctx),
@@ -670,7 +669,7 @@ static void __exit serpent_mod_fini(void)
 	crypto_unregister_algs(srp_algs, ARRAY_SIZE(srp_algs));
 }
 
-module_init(serpent_mod_init);
+subsys_initcall(serpent_mod_init);
 module_exit(serpent_mod_fini);
 
 MODULE_LICENSE("GPL");

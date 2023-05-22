@@ -72,11 +72,15 @@
 			cooling-maps {
 				cooling_map0: map0 {
 				     /* Corresponds to 800MHz at freq_table */
-				     cooling-device = <&cpu0 7 7>;
+				     cooling-device = <&cpu0 7 7>, <&cpu1 7 7>,
+						      <&cpu2 7 7>, <&cpu3 7 7>;
 				};
 				cooling_map1: map1 {
 				     /* Corresponds to 200MHz at freq_table */
-				     cooling-device = <&cpu0 13 13>;
+				     cooling-device = <&cpu0 13 13>,
+						      <&cpu1 13 13>,
+						      <&cpu2 13 13>,
+						      <&cpu3 13 13>;
 			       };
 		       };
 		};
@@ -225,6 +229,11 @@
 	assigned-clock-rates = <0>, <176000000>;
 };
 
+&gpu {
+	mali-supply = <&buck4_reg>;
+	status = "okay";
+};
+
 &hdmi {
 	hpd-gpios = <&gpx3 7 GPIO_ACTIVE_HIGH>;
 	pinctrl-names = "default";
@@ -265,7 +274,7 @@
 	max77686: pmic@9 {
 		compatible = "maxim,max77686";
 		interrupt-parent = <&gpx3>;
-		interrupts = <2 IRQ_TYPE_NONE>;
+		interrupts = <2 IRQ_TYPE_LEVEL_LOW>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&max77686_irq>;
 		reg = <0x09>;
@@ -385,7 +394,6 @@
 				regulator-name = "LDO20_1.8V";
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <1800000>;
-				regulator-boot-on;
 			};
 
 			ldo21_reg: LDO21 {
@@ -538,8 +546,7 @@
 	pinctrl-names = "default";
 	vmmc-supply = <&ldo21_reg>;
 	vqmmc-supply = <&ldo4_reg>;
-	cd-gpios = <&gpk2 2 GPIO_ACTIVE_HIGH>;
-	cd-inverted;
+	cd-gpios = <&gpk2 2 GPIO_ACTIVE_LOW>;
 	status = "okay";
 };
 

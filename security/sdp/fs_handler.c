@@ -24,7 +24,6 @@
 #include <linux/module.h>
 #include <linux/string.h>
 #include <linux/interrupt.h>
-#include <linux/wakelock.h>
 #include <linux/sched.h>
 #include <linux/netlink.h>
 #include <linux/net.h>
@@ -106,6 +105,11 @@ static int __handle_request(sdp_fs_handler_request_t *req, char *ret) {
     }
 
     nlh = nlmsg_put(skb_in, 0, 0, NLMSG_DONE, nl_msg_size, 0);
+    if(nlh == NULL) {
+        kfree_skb(skb_in);
+        SDP_FS_HANDLER_LOGE("Failed to nlmsg_put \n");
+        return -1;
+    }
     NETLINK_CB(skb_in).dst_group = 0;
     memcpy(nlmsg_data(nlh), nl_msg, nl_msg_size);
 
@@ -130,9 +134,9 @@ int sdp_fs_request(sdp_fs_command_t *cmd, fs_request_cb_t callback){
     	memcpy(&req->command, cmd, sizeof(sdp_fs_command_t));
     	req->command.req_id = req->id;
 
-        req_dump(req, "__handle_request start");
+        req_dump(req, "__handle_reqeust start");
         ret = __handle_request(req, NULL);
-        req_dump(req, "__handle_request end");
+        req_dump(req, "__handle_reqeust end");
 
         if(ret != 0) {
             SDP_FS_HANDLER_LOGE("opcode[%d] failed\n", cmd->opcode);
@@ -330,12 +334,12 @@ static int __init sdp_fs_handler_mod_init(void) {
     SDP_FS_HANDLER_LOGE("netlink socket is created successfully! \n");
 
     control_init(&g_sdp_fs_handler_control);
-    req_cachep = kmem_cache_create("sdp_fs_handler_request",
+    req_cachep = kmem_cache_create("sdp_fs_handler_requst",
             sizeof(sdp_fs_handler_request_t),
             0, 0, NULL);
     if (!req_cachep) {
         netlink_kernel_release(g_sock);
-        SDP_FS_HANDLER_LOGE("Failed to create sdp_fs_handler_request cache mem.. Exiting \n");
+        SDP_FS_HANDLER_LOGE("Failed to create sdp_fs_handler_requst cache mem.. Exiting \n");
         return -ENOMEM;
     }
 

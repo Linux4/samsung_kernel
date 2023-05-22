@@ -23,6 +23,7 @@ struct snd_compr_ops;
  * struct snd_compr_runtime: runtime stream description
  * @state: stream state
  * @ops: pointer to DSP callbacks
+ * @dma_buffer_p: runtime dma buffer pointer
  * @buffer: pointer to kernel buffer, valid only when not in mmap mode or
  *	DSP doesn't implement copy
  * @buffer_size: size of the above buffer
@@ -37,6 +38,7 @@ struct snd_compr_ops;
 struct snd_compr_runtime {
 	snd_pcm_state_t state;
 	struct snd_compr_ops *ops;
+	struct snd_dma_buffer *dma_buffer_p;
 	void *buffer;
 	u64 buffer_size;
 	u32 fragment_size;
@@ -69,6 +71,9 @@ struct snd_compr_stream {
 	bool metadata_set;
 	bool next_track;
 	void *private_data;
+#ifdef CONFIG_AUDIO_QGKI
+	struct snd_soc_pcm_runtime *be;
+#endif
 };
 
 /**
@@ -83,6 +88,8 @@ struct snd_compr_stream {
  * @get_params: retrieve the codec parameters, mandatory
  * @set_metadata: Set the metadata values for a stream
  * @get_metadata: retrieves the requested metadata values from stream
+ * @set_next_track_param: send codec specific data of subsequent track
+ * in gapless
  * @trigger: Trigger operations like start, pause, resume, drain, stop.
  * This callback is mandatory
  * @pointer: Retrieve current h/w pointer information. Mandatory
@@ -105,6 +112,10 @@ struct snd_compr_ops {
 			struct snd_compr_metadata *metadata);
 	int (*get_metadata)(struct snd_compr_stream *stream,
 			struct snd_compr_metadata *metadata);
+#ifdef CONFIG_AUDIO_QGKI
+	int (*set_next_track_param)(struct snd_compr_stream *stream,
+			union snd_codec_options *codec_options);
+#endif
 	int (*trigger)(struct snd_compr_stream *stream, int cmd);
 	int (*pointer)(struct snd_compr_stream *stream,
 			struct snd_compr_tstamp *tstamp);
@@ -117,8 +128,6 @@ struct snd_compr_ops {
 			struct snd_compr_caps *caps);
 	int (*get_codec_caps) (struct snd_compr_stream *stream,
 			struct snd_compr_codec_caps *codec);
-	int (*get_hw_params)(struct snd_compr_stream *stream,
-			 struct snd_pcm_hw_params *params);
 };
 
 /**
@@ -176,6 +185,23 @@ static inline void snd_compr_drain_notify(struct snd_compr_stream *stream)
 	stream->runtime->state = SNDRV_PCM_STATE_SETUP;
 
 	wake_up(&stream->runtime->sleep);
+}
+
+/**
+ * snd_compr_set_runtime_buffer - Set the Compress runtime buffer
+ * @substream: compress substream to set
+ * @bufp: the buffer information, NULL to clear
+ *
+ * Copy the buffer information to runtime buffer when @bufp is non-NULL.
+ * Otherwise it clears the current buffer information.
+ */
+static inline void snd_compr_set_runtime_buffer(
+					struct snd_compr_stream *substream,
+					struct snd_dma_buffer *bufp)
+{
+	struct snd_compr_runtime *runtime = substream->runtime;
+
+	runtime->dma_buffer_p = bufp;
 }
 
 int snd_compr_stop_error(struct snd_compr_stream *stream,

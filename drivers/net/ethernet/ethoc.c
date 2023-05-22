@@ -1,12 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * linux/drivers/net/ethernet/ethoc.c
  *
  * Copyright (C) 2007-2008 Avionic Design Development GmbH
  * Copyright (C) 2008-2009 Avionic Design GmbH
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  *
  * Written by Thierry Reding <thierry.reding@avionic-design.de>
  */
@@ -721,10 +718,7 @@ static int ethoc_mdio_probe(struct net_device *dev)
 		return err;
 	}
 
-	phy->advertising &= ~(ADVERTISED_1000baseT_Full |
-			      ADVERTISED_1000baseT_Half);
-	phy->supported &= ~(SUPPORTED_1000baseT_Full |
-			    SUPPORTED_1000baseT_Half);
+	phy_set_max_speed(phy, SPEED_100);
 
 	return 0;
 }
@@ -1156,7 +1150,7 @@ static int ethoc_probe(struct platform_device *pdev)
 		const void *mac;
 
 		mac = of_get_mac_address(pdev->dev.of_node);
-		if (mac)
+		if (!IS_ERR(mac))
 			ether_addr_copy(netdev->dev_addr, mac);
 		priv->phy_id = -1;
 	}
@@ -1213,7 +1207,7 @@ static int ethoc_probe(struct platform_device *pdev)
 	ret = mdiobus_register(priv->mdio);
 	if (ret) {
 		dev_err(&netdev->dev, "failed to register MDIO bus\n");
-		goto free2;
+		goto free3;
 	}
 
 	ret = ethoc_mdio_probe(netdev);
@@ -1245,6 +1239,7 @@ error2:
 	netif_napi_del(&priv->napi);
 error:
 	mdiobus_unregister(priv->mdio);
+free3:
 	mdiobus_free(priv->mdio);
 free2:
 	clk_disable_unprepare(priv->clk);

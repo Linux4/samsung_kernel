@@ -41,6 +41,7 @@ enum SMU_MEMBER {
 	HandshakeDisables = 0,
 	VoltageChangeTimeout,
 	AverageGraphicsActivity,
+	AverageMemoryActivity,
 	PreVBlankGap,
 	VBlankTimeout,
 	UcodeLoadStatus,
@@ -112,5 +113,7 @@ extern bool smum_is_hw_avfs_present(struct pp_hwmgr *hwmgr);
 extern int smum_update_dpm_settings(struct pp_hwmgr *hwmgr, void *profile_setting);
 
 extern int smum_smc_table_manager(struct pp_hwmgr *hwmgr, uint8_t *table, uint16_t table_id, bool rw);
+
+extern int smum_stop_smc(struct pp_hwmgr *hwmgr);
 
 #endif

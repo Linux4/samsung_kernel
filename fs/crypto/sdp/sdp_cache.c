@@ -229,7 +229,7 @@ static int inode_drop_task(void *arg)
 			DEK_LOGD("%s found ino:%lu sb:%p\n", __func__, entry->ino, entry->sb);
 			ci = inode->i_crypt_info;
 			/*
-			 * Instead of occurring BUG, skip the clearing only
+			 * Instead of occuring BUG, skip the clearing only
 			 * TODO: Must research later whether we can skip the logic in this case
 			BUG_ON(!ci);
 			BUG_ON(!ci->ci_sdp_info);

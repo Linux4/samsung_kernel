@@ -1,9 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) ST-Ericsson AB 2013
  * Authors: Vicram Arv
  *	    Dmitry Tarnyagin <dmitry.tarnyagin@lockless.no>
  *	    Sjur Brendeland
- * License terms: GNU General Public License (GPL) version 2
  */
 #include <linux/module.h>
 #include <linux/if_arp.h>
@@ -623,11 +623,7 @@ static void cfv_netdev_setup(struct net_device *netdev)
 /* Create debugfs counters for the device */
 static inline void debugfs_init(struct cfv_info *cfv)
 {
-	cfv->debugfs =
-		debugfs_create_dir(netdev_name(cfv->ndev), NULL);
-
-	if (IS_ERR(cfv->debugfs))
-		return;
+	cfv->debugfs = debugfs_create_dir(netdev_name(cfv->ndev), NULL);
 
 	debugfs_create_u32("rx-napi-complete", 0400, cfv->debugfs,
 			   &cfv->stats.rx_napi_complete);
@@ -727,12 +723,20 @@ static int cfv_probe(struct virtio_device *vdev)
 	/* Carrier is off until netdevice is opened */
 	netif_carrier_off(netdev);
 
+	/* serialize netdev register + virtio_device_ready() with ndo_open() */
+	rtnl_lock();
+
 	/* register Netdev */
-	err = register_netdev(netdev);
+	err = register_netdevice(netdev);
 	if (err) {
+		rtnl_unlock();
 		dev_err(&vdev->dev, "Unable to register netdev (%d)\n", err);
 		goto err;
 	}
+
+	virtio_device_ready(vdev);
+
+	rtnl_unlock();
 
 	debugfs_init(cfv);
 

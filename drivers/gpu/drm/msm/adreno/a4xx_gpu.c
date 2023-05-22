@@ -1,14 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2014 The Linux Foundation. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
  */
 #include "a4xx_gpu.h"
 #ifdef CONFIG_MSM_OCMEM
@@ -273,6 +264,16 @@ static int a4xx_hw_init(struct msm_gpu *gpu)
 	ret = adreno_hw_init(gpu);
 	if (ret)
 		return ret;
+
+	/*
+	 * Use the default ringbuffer size and block size but disable the RPTR
+	 * shadow
+	 */
+	gpu_write(gpu, REG_A4XX_CP_RB_CNTL,
+		MSM_GPU_RB_CNTL_DEFAULT | AXXX_CP_RB_CNTL_NO_UPDATE);
+
+	/* Set the ringbuffer address */
+	gpu_write(gpu, REG_A4XX_CP_RB_BASE, lower_32_bits(gpu->rb[0]->iova));
 
 	/* Load PM4: */
 	ptr = (uint32_t *)(adreno_gpu->fw[ADRENO_FW_PM4]->data);
@@ -561,7 +562,7 @@ struct msm_gpu *a4xx_gpu_init(struct drm_device *dev)
 	int ret;
 
 	if (!pdev) {
-		dev_err(dev->dev, "no a4xx device\n");
+		DRM_DEV_ERROR(dev->dev, "no a4xx device\n");
 		ret = -ENXIO;
 		goto fail;
 	}
@@ -608,7 +609,7 @@ struct msm_gpu *a4xx_gpu_init(struct drm_device *dev)
 		 * to not be possible to restrict access, then we must
 		 * implement a cmdstream validator.
 		 */
-		dev_err(dev->dev, "No memory protection without IOMMU\n");
+		DRM_DEV_ERROR(dev->dev, "No memory protection without IOMMU\n");
 		ret = -ENXIO;
 		goto fail;
 	}

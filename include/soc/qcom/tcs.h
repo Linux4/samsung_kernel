@@ -1,6 +1,6 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
  */
 
 #ifndef __SOC_QCOM_TCS_H__
@@ -30,7 +30,7 @@ enum rpmh_state {
  *
  * @addr: the address of the resource slv_id:18:16 | offset:0:15
  * @data: the resource state request
- * @wait: wait for this request to be complete before sending the next
+ * @wait: Ensure that this command is complete before returning
  */
 struct tcs_cmd {
 	u32 addr;
@@ -43,6 +43,7 @@ struct tcs_cmd {
  *
  * @state:          state for the request.
  * @wait_for_compl: wait until we get a response from the h/w accelerator
+ *                  (sets the cmd->wait for all commmands in the request)
  * @num_cmds:       the number of @cmds in this request
  * @cmds:           an array of tcs_cmds
  */
@@ -52,5 +53,23 @@ struct tcs_request {
 	u32 num_cmds;
 	struct tcs_cmd *cmds;
 };
+
+#define BCM_TCS_CMD_COMMIT_SHFT		30
+#define BCM_TCS_CMD_COMMIT_MASK		0x40000000
+#define BCM_TCS_CMD_VALID_SHFT		29
+#define BCM_TCS_CMD_VALID_MASK		0x20000000
+#define BCM_TCS_CMD_VOTE_X_SHFT		14
+#define BCM_TCS_CMD_VOTE_MASK		0x3fff
+#define BCM_TCS_CMD_VOTE_Y_SHFT		0
+#define BCM_TCS_CMD_VOTE_Y_MASK		0xfffc000
+
+/* Construct a Bus Clock Manager (BCM) specific TCS command */
+#define BCM_TCS_CMD(commit, valid, vote_x, vote_y)		\
+	(((commit) << BCM_TCS_CMD_COMMIT_SHFT) |		\
+	((valid) << BCM_TCS_CMD_VALID_SHFT) |			\
+	((vote_x &						\
+	BCM_TCS_CMD_VOTE_MASK) << BCM_TCS_CMD_VOTE_X_SHFT) |	\
+	((vote_y &						\
+	BCM_TCS_CMD_VOTE_MASK) << BCM_TCS_CMD_VOTE_Y_SHFT))
 
 #endif /* __SOC_QCOM_TCS_H__ */

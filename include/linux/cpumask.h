@@ -10,6 +10,7 @@
 #include <linux/kernel.h>
 #include <linux/threads.h>
 #include <linux/bitmap.h>
+#include <linux/atomic.h>
 #include <linux/bug.h>
 
 /* Don't assign or return these: may not be this big! */
@@ -54,6 +55,7 @@ extern unsigned int nr_cpu_ids;
  *     cpu_present_mask - has bit 'cpu' set iff cpu is populated
  *     cpu_online_mask  - has bit 'cpu' set iff cpu available to scheduler
  *     cpu_active_mask  - has bit 'cpu' set iff cpu available to migration
+ *     cpu_isolated_mask- has bit 'cpu' set iff cpu isolated
  *
  *  If !CONFIG_HOTPLUG_CPU, present == possible, and active == online.
  *
@@ -95,8 +97,26 @@ extern struct cpumask __cpu_active_mask;
 #define cpu_present_mask  ((const struct cpumask *)&__cpu_present_mask)
 #define cpu_active_mask   ((const struct cpumask *)&__cpu_active_mask)
 
+#ifdef CONFIG_SCHED_WALT
+extern struct cpumask __cpu_isolated_mask;
+#define cpu_isolated_mask ((const struct cpumask *)&__cpu_isolated_mask)
+#endif
+
+extern atomic_t __num_online_cpus;
+
 #if NR_CPUS > 1
-#define num_online_cpus()	cpumask_weight(cpu_online_mask)
+/**
+ * num_online_cpus() - Read the number of online CPUs
+ *
+ * Despite the fact that __num_online_cpus is of type atomic_t, this
+ * interface gives only a momentary snapshot and is not protected against
+ * concurrent CPU hotplug operations unless invoked from a cpuhp_lock held
+ * region.
+ */
+static inline unsigned int num_online_cpus(void)
+{
+	return atomic_read(&__num_online_cpus);
+}
 #define num_possible_cpus()	cpumask_weight(cpu_possible_mask)
 #define num_present_cpus()	cpumask_weight(cpu_present_mask)
 #define num_active_cpus()	cpumask_weight(cpu_active_mask)
@@ -114,6 +134,24 @@ extern struct cpumask __cpu_active_mask;
 #define cpu_present(cpu)	((cpu) == 0)
 #define cpu_active(cpu)		((cpu) == 0)
 #endif
+
+#if defined(CONFIG_SCHED_WALT) && NR_CPUS > 1
+#define num_isolated_cpus()	cpumask_weight(cpu_isolated_mask)
+#define num_online_uniso_cpus()						\
+({									\
+	cpumask_t mask;							\
+									\
+	cpumask_andnot(&mask, cpu_online_mask, cpu_isolated_mask);	\
+	cpumask_weight(&mask);						\
+})
+#define cpu_isolated(cpu)	cpumask_test_cpu((cpu), cpu_isolated_mask)
+#else /* !CONFIG_SCHED_WALT || NR_CPUS == 1 */
+#define num_isolated_cpus()	0U
+#define num_online_uniso_cpus()	num_online_cpus()
+#define cpu_isolated(cpu)	0U
+#endif
+
+extern cpumask_t cpus_booted_once_mask;
 
 static inline void cpu_max_bits_warn(unsigned int cpu, unsigned int bits)
 {
@@ -184,8 +222,8 @@ static inline unsigned int cpumask_local_spread(unsigned int i, int node)
 	for ((cpu) = 0; (cpu) < 1; (cpu)++, (void)mask)
 #define for_each_cpu_wrap(cpu, mask, start)	\
 	for ((cpu) = 0; (cpu) < 1; (cpu)++, (void)mask, (void)(start))
-#define for_each_cpu_and(cpu, mask, and)	\
-	for ((cpu) = 0; (cpu) < 1; (cpu)++, (void)mask, (void)and)
+#define for_each_cpu_and(cpu, mask1, mask2)	\
+	for ((cpu) = 0; (cpu) < 1; (cpu)++, (void)mask1, (void)mask2)
 #else
 /**
  * cpumask_first - get the first cpu in a cpumask
@@ -274,20 +312,20 @@ extern int cpumask_next_wrap(int n, const struct cpumask *mask, int start, bool 
 /**
  * for_each_cpu_and - iterate over every cpu in both masks
  * @cpu: the (optionally unsigned) integer iterator
- * @mask: the first cpumask pointer
- * @and: the second cpumask pointer
+ * @mask1: the first cpumask pointer
+ * @mask2: the second cpumask pointer
  *
  * This saves a temporary CPU mask in many places.  It is equivalent to:
  *	struct cpumask tmp;
- *	cpumask_and(&tmp, &mask, &and);
+ *	cpumask_and(&tmp, &mask1, &mask2);
  *	for_each_cpu(cpu, &tmp)
  *		...
  *
  * After the loop, cpu is >= nr_cpu_ids.
  */
-#define for_each_cpu_and(cpu, mask, and)				\
+#define for_each_cpu_and(cpu, mask1, mask2)				\
 	for ((cpu) = -1;						\
-		(cpu) = cpumask_next_and((cpu), (mask), (and)),		\
+		(cpu) = cpumask_next_and((cpu), (mask1), (mask2)),	\
 		(cpu) < nr_cpu_ids;)
 #endif /* SMP */
 
@@ -474,6 +512,20 @@ static inline bool cpumask_equal(const struct cpumask *src1p,
 }
 
 /**
+ * cpumask_or_equal - *src1p | *src2p == *src3p
+ * @src1p: the first input
+ * @src2p: the second input
+ * @src3p: the third input
+ */
+static inline bool cpumask_or_equal(const struct cpumask *src1p,
+				    const struct cpumask *src2p,
+				    const struct cpumask *src3p)
+{
+	return bitmap_or_equal(cpumask_bits(src1p), cpumask_bits(src2p),
+			       cpumask_bits(src3p), nr_cpumask_bits);
+}
+
+/**
  * cpumask_intersects - (*src1p & *src2p) != 0
  * @src1p: the first input
  * @src2p: the second input
@@ -633,8 +685,7 @@ static inline int cpumask_parselist_user(const char __user *buf, int len,
  */
 static inline int cpumask_parse(const char *buf, struct cpumask *dstp)
 {
-	char *nl = strchr(buf, '\n');
-	unsigned int len = nl ? (unsigned int)(nl - buf) : strlen(buf);
+	unsigned int len = strchrnul(buf, '\n') - buf;
 
 	return bitmap_parse(buf, len, cpumask_bits(dstp), nr_cpumask_bits);
 }
@@ -777,6 +828,9 @@ extern const DECLARE_BITMAP(cpu_all_bits, NR_CPUS);
 #define for_each_possible_cpu(cpu) for_each_cpu((cpu), cpu_possible_mask)
 #define for_each_online_cpu(cpu)   for_each_cpu((cpu), cpu_online_mask)
 #define for_each_present_cpu(cpu)  for_each_cpu((cpu), cpu_present_mask)
+#ifdef CONFIG_SCHED_WALT
+#define for_each_isolated_cpu(cpu) for_each_cpu((cpu), cpu_isolated_mask)
+#endif
 
 /* Wrappers for arch boot code to manipulate normally-constant masks */
 void init_cpu_present(const struct cpumask *src);
@@ -806,14 +860,7 @@ set_cpu_present(unsigned int cpu, bool present)
 		cpumask_clear_cpu(cpu, &__cpu_present_mask);
 }
 
-static inline void
-set_cpu_online(unsigned int cpu, bool online)
-{
-	if (online)
-		cpumask_set_cpu(cpu, &__cpu_online_mask);
-	else
-		cpumask_clear_cpu(cpu, &__cpu_online_mask);
-}
+void set_cpu_online(unsigned int cpu, bool online);
 
 static inline void
 set_cpu_active(unsigned int cpu, bool active)
@@ -823,6 +870,17 @@ set_cpu_active(unsigned int cpu, bool active)
 	else
 		cpumask_clear_cpu(cpu, &__cpu_active_mask);
 }
+
+#ifdef CONFIG_SCHED_WALT
+static inline void
+set_cpu_isolated(unsigned int cpu, bool isolated)
+{
+	if (isolated)
+		cpumask_set_cpu(cpu, &__cpu_isolated_mask);
+	else
+		cpumask_clear_cpu(cpu, &__cpu_isolated_mask);
+}
+#endif
 
 
 /**

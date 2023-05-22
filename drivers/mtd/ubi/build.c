@@ -1,20 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright (c) International Business Machines Corp., 2006
  * Copyright (c) Nokia Corporation, 2007
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See
- * the GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  *
  * Author: Artem Bityutskiy (Битюцкий Артём),
  *         Frank Haverkamp
@@ -108,7 +95,7 @@ static DEFINE_SPINLOCK(ubi_devices_lock);
 static ssize_t version_show(struct class *class, struct class_attribute *attr,
 			    char *buf)
 {
-	return sprintf(buf, "%d\n", UBI_VERSION);
+	return scnprintf(buf, PAGE_SIZE, "%d\n", UBI_VERSION);
 }
 static CLASS_ATTR_RO(version);
 
@@ -127,6 +114,9 @@ struct class ubi_class = {
 
 static ssize_t dev_attribute_show(struct device *dev,
 				  struct device_attribute *attr, char *buf);
+static ssize_t dev_attribute_store(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buf, size_t count);
 
 /* UBI device attributes (correspond to files in '/<sysfs>/class/ubi/ubiX') */
 static struct device_attribute dev_eraseblock_size =
@@ -153,6 +143,13 @@ static struct device_attribute dev_mtd_num =
 	__ATTR(mtd_num, S_IRUGO, dev_attribute_show, NULL);
 static struct device_attribute dev_ro_mode =
 	__ATTR(ro_mode, S_IRUGO, dev_attribute_show, NULL);
+static struct device_attribute dev_mtd_trigger_scrub =
+	__ATTR(scrub_all, 0644,
+		dev_attribute_show, dev_attribute_store);
+static struct device_attribute dev_mtd_max_scrub_sqnum =
+	__ATTR(scrub_max_sqnum, 0444, dev_attribute_show, NULL);
+static struct device_attribute dev_mtd_min_scrub_sqnum =
+	__ATTR(scrub_min_sqnum, 0444, dev_attribute_show, NULL);
 
 /**
  * ubi_volume_notify - send a volume change notification.
@@ -345,6 +342,17 @@ int ubi_major2num(int major)
 	return ubi_num;
 }
 
+static unsigned long long get_max_sqnum(struct ubi_device *ubi)
+{
+	unsigned long long max_sqnum;
+
+	spin_lock(&ubi->ltree_lock);
+	max_sqnum = ubi->global_sqnum - 1;
+	spin_unlock(&ubi->ltree_lock);
+
+	return max_sqnum;
+}
+
 /* "Show" method for files in '/<sysfs>/class/ubi/ubiX/' */
 static ssize_t dev_attribute_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
@@ -363,38 +371,55 @@ static ssize_t dev_attribute_show(struct device *dev,
 	 * we still can use 'ubi->ubi_num'.
 	 */
 	ubi = container_of(dev, struct ubi_device, dev);
-	ubi = ubi_get_device(ubi->ubi_num);
-	if (!ubi)
-		return -ENODEV;
 
 	if (attr == &dev_eraseblock_size)
-		ret = sprintf(buf, "%d\n", ubi->leb_size);
+		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
+				ubi->leb_size);
 	else if (attr == &dev_avail_eraseblocks)
-		ret = sprintf(buf, "%d\n", ubi->avail_pebs);
+		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
+				ubi->avail_pebs);
 	else if (attr == &dev_total_eraseblocks)
-		ret = sprintf(buf, "%d\n", ubi->good_peb_count);
+		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
+				ubi->good_peb_count);
 	else if (attr == &dev_volumes_count)
-		ret = sprintf(buf, "%d\n", ubi->vol_count - UBI_INT_VOL_COUNT);
+		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
+			ubi->vol_count - UBI_INT_VOL_COUNT);
 	else if (attr == &dev_max_ec)
-		ret = sprintf(buf, "%d\n", ubi->max_ec);
+		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
+				ubi->max_ec);
 	else if (attr == &dev_reserved_for_bad)
-		ret = sprintf(buf, "%d\n", ubi->beb_rsvd_pebs);
+		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
+				ubi->beb_rsvd_pebs);
 	else if (attr == &dev_bad_peb_count)
-		ret = sprintf(buf, "%d\n", ubi->bad_peb_count);
+		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
+				ubi->bad_peb_count);
 	else if (attr == &dev_max_vol_count)
-		ret = sprintf(buf, "%d\n", ubi->vtbl_slots);
+		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
+				ubi->vtbl_slots);
 	else if (attr == &dev_min_io_size)
-		ret = sprintf(buf, "%d\n", ubi->min_io_size);
+		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
+				ubi->min_io_size);
 	else if (attr == &dev_bgt_enabled)
-		ret = sprintf(buf, "%d\n", ubi->thread_enabled);
+		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
+				ubi->thread_enabled);
 	else if (attr == &dev_mtd_num)
-		ret = sprintf(buf, "%d\n", ubi->mtd->index);
+		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
+				ubi->mtd->index);
 	else if (attr == &dev_ro_mode)
-		ret = sprintf(buf, "%d\n", ubi->ro_mode);
+		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
+				ubi->ro_mode);
+	else if (attr == &dev_mtd_trigger_scrub)
+		ret = scnprintf(buf, PAGE_SIZE, "%d\n",
+				atomic_read(&ubi->scrub_work_count));
+	else if (attr == &dev_mtd_max_scrub_sqnum)
+		ret = scnprintf(buf, PAGE_SIZE, "%llu\n",
+				get_max_sqnum(ubi));
+	else if (attr == &dev_mtd_min_scrub_sqnum)
+		ret = scnprintf(buf, PAGE_SIZE, "%llu\n",
+				ubi_wl_scrub_get_min_sqnum(ubi));
 	else
 		ret = -EINVAL;
 
-	ubi_put_device(ubi);
 	return ret;
 }
 
@@ -411,9 +436,45 @@ static struct attribute *ubi_dev_attrs[] = {
 	&dev_bgt_enabled.attr,
 	&dev_mtd_num.attr,
 	&dev_ro_mode.attr,
+	&dev_mtd_trigger_scrub.attr,
+	&dev_mtd_max_scrub_sqnum.attr,
+	&dev_mtd_min_scrub_sqnum.attr,
 	NULL
 };
 ATTRIBUTE_GROUPS(ubi_dev);
+
+static ssize_t dev_attribute_store(struct device *dev,
+			   struct device_attribute *attr,
+			   const char *buf, size_t count)
+{
+	int ret = 0;
+	struct ubi_device *ubi;
+	unsigned long long scrub_sqnum;
+
+	ubi = container_of(dev, struct ubi_device, dev);
+	ubi = ubi_get_device(ubi->ubi_num);
+	if (!ubi)
+		return -ENODEV;
+
+	if (attr == &dev_mtd_trigger_scrub) {
+		if (kstrtoull(buf, 10, &scrub_sqnum)) {
+			ret = -EINVAL;
+			goto out;
+		}
+		if (!ubi->lookuptbl) {
+			pr_err("lookuptbl is null\n");
+			ret = -ENOENT;
+			goto out;
+		}
+		ret = ubi_wl_scrub_all(ubi, scrub_sqnum);
+		if (ret == 0)
+			ret = count;
+	}
+
+out:
+	ubi_put_device(ubi);
+	return ret;
+}
 
 static void dev_release(struct device *dev)
 {
@@ -451,7 +512,8 @@ static int uif_init(struct ubi_device *ubi)
 	int i, err;
 	dev_t dev;
 
-	sprintf(ubi->ubi_name, UBI_NAME_STR "%d", ubi->ubi_num);
+	scnprintf(ubi->ubi_name, sizeof(ubi->ubi_name),
+			UBI_NAME_STR "%d", ubi->ubi_num);
 
 	/*
 	 * Major numbers for the UBI character devices are allocated
@@ -969,9 +1031,6 @@ int ubi_attach_mtd_dev(struct mtd_info *mtd, int ubi_num,
 			goto out_detach;
 	}
 
-	/* Make device "available" before it becomes accessible via sysfs */
-	ubi_devices[ubi_num] = ubi;
-
 	err = uif_init(ubi);
 	if (err)
 		goto out_detach;
@@ -1016,6 +1075,7 @@ int ubi_attach_mtd_dev(struct mtd_info *mtd, int ubi_num,
 	wake_up_process(ubi->bgt_thread);
 	spin_unlock(&ubi->wl_lock);
 
+	ubi_devices[ubi_num] = ubi;
 	ubi_notify_all(ubi, UBI_VOLUME_ADDED, NULL);
 	return ubi_num;
 
@@ -1024,7 +1084,6 @@ out_debugfs:
 out_uif:
 	uif_close(ubi);
 out_detach:
-	ubi_devices[ubi_num] = NULL;
 	ubi_wl_close(ubi);
 	ubi_free_internal_volumes(ubi);
 	vfree(ubi->vtbl);
@@ -1334,8 +1393,10 @@ static int bytes_str_to_int(const char *str)
 	switch (*endp) {
 	case 'G':
 		result *= 1024;
+		/* fall through */
 	case 'M':
 		result *= 1024;
+		/* fall through */
 	case 'K':
 		result *= 1024;
 		if (endp[1] == 'i' && endp[2] == 'B')
@@ -1387,7 +1448,7 @@ static int ubi_mtd_param_parse(const char *val, const struct kernel_param *kp)
 		return 0;
 	}
 
-	strcpy(buf, val);
+	strlcpy(buf, val, sizeof(buf));
 
 	/* Get rid of the final newline */
 	if (buf[len - 1] == '\n')
@@ -1402,7 +1463,7 @@ static int ubi_mtd_param_parse(const char *val, const struct kernel_param *kp)
 	}
 
 	p = &mtd_dev_param[mtd_devs];
-	strcpy(&p->name[0], tokens[0]);
+	strlcpy(&p->name[0], tokens[0], MTD_PARAM_LEN_MAX);
 
 	token = tokens[1];
 	if (token) {

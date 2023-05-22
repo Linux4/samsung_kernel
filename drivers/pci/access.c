@@ -33,7 +33,7 @@ DEFINE_RAW_SPINLOCK(pci_lock);
 #endif
 
 #define PCI_OP_READ(size, type, len) \
-int pci_bus_read_config_##size \
+int noinline pci_bus_read_config_##size \
 	(struct pci_bus *bus, unsigned int devfn, int pos, type *value)	\
 {									\
 	int res;							\
@@ -48,7 +48,7 @@ int pci_bus_read_config_##size \
 }
 
 #define PCI_OP_WRITE(size, type, len) \
-int pci_bus_write_config_##size \
+int noinline pci_bus_write_config_##size \
 	(struct pci_bus *bus, unsigned int devfn, int pos, type value)	\
 {									\
 	int res;							\
@@ -204,17 +204,13 @@ EXPORT_SYMBOL(pci_bus_set_ops);
 static DECLARE_WAIT_QUEUE_HEAD(pci_cfg_wait);
 
 static noinline void pci_wait_cfg(struct pci_dev *dev)
+	__must_hold(&pci_lock)
 {
-	DECLARE_WAITQUEUE(wait, current);
-
-	__add_wait_queue(&pci_cfg_wait, &wait);
 	do {
-		set_current_state(TASK_UNINTERRUPTIBLE);
 		raw_spin_unlock_irq(&pci_lock);
-		schedule();
+		wait_event(pci_cfg_wait, !dev->block_cfg_access);
 		raw_spin_lock_irq(&pci_lock);
 	} while (dev->block_cfg_access);
-	__remove_wait_queue(&pci_cfg_wait, &wait);
 }
 
 /* Returns 0 on success, negative values indicate error. */
@@ -334,15 +330,6 @@ EXPORT_SYMBOL_GPL(pci_cfg_access_unlock);
 static inline int pcie_cap_version(const struct pci_dev *dev)
 {
 	return pcie_caps_reg(dev) & PCI_EXP_FLAGS_VERS;
-}
-
-static bool pcie_downstream_port(const struct pci_dev *dev)
-{
-	int type = pci_pcie_type(dev);
-
-	return type == PCI_EXP_TYPE_ROOT_PORT ||
-	       type == PCI_EXP_TYPE_DOWNSTREAM ||
-	       type == PCI_EXP_TYPE_PCIE_BRIDGE;
 }
 
 bool pcie_cap_has_lnkctl(const struct pci_dev *dev)

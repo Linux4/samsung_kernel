@@ -9,27 +9,17 @@
 #include "xfs_format.h"
 #include "xfs_trans_resv.h"
 #include "xfs_mount.h"
-#include "xfs_defer.h"
 #include "xfs_btree.h"
-#include "xfs_bit.h"
 #include "xfs_log_format.h"
-#include "xfs_trans.h"
-#include "xfs_sb.h"
 #include "xfs_inode.h"
-#include "xfs_icache.h"
-#include "xfs_inode_buf.h"
-#include "xfs_inode_fork.h"
 #include "xfs_ialloc.h"
 #include "xfs_da_format.h"
 #include "xfs_reflink.h"
 #include "xfs_rmap.h"
-#include "xfs_bmap.h"
 #include "xfs_bmap_util.h"
-#include "scrub/xfs_scrub.h"
 #include "scrub/scrub.h"
 #include "scrub/common.h"
 #include "scrub/btree.h"
-#include "scrub/trace.h"
 
 /*
  * Grab total control of the inode metadata.  It doesn't matter here if
@@ -131,8 +121,7 @@ xchk_inode_flags(
 		goto bad;
 
 	/* rt flags require rt device */
-	if ((flags & (XFS_DIFLAG_REALTIME | XFS_DIFLAG_RTINHERIT)) &&
-	    !mp->m_rtdev_targp)
+	if ((flags & XFS_DIFLAG_REALTIME) && !mp->m_rtdev_targp)
 		goto bad;
 
 	/* new rt bitmap flag only valid for rbmino */
@@ -509,7 +498,6 @@ xchk_inode_xref(
 	xfs_ino_t		ino,
 	struct xfs_dinode	*dip)
 {
-	struct xfs_owner_info	oinfo;
 	xfs_agnumber_t		agno;
 	xfs_agblock_t		agbno;
 	int			error;
@@ -526,8 +514,7 @@ xchk_inode_xref(
 
 	xchk_xref_is_used_space(sc, agbno, 1);
 	xchk_inode_xref_finobt(sc, ino);
-	xfs_rmap_ag_owner(&oinfo, XFS_RMAP_OWN_INODES);
-	xchk_xref_is_owned_by(sc, agbno, 1, &oinfo);
+	xchk_xref_is_owned_by(sc, agbno, 1, &XFS_RMAP_OINFO_INODES);
 	xchk_xref_is_not_shared(sc, agbno, 1);
 	xchk_inode_xref_bmap(sc, dip);
 

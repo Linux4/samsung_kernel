@@ -24,9 +24,6 @@ static inline void show_state(void)
 struct pt_regs;
 
 extern void show_regs(struct pt_regs *);
-#ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT
-extern void show_regs_auto_comment(struct pt_regs * regs, bool comm);
-#endif
 
 /*
  * TASK is a pointer to the task whose backtrace we want to see (or NULL for current
@@ -36,11 +33,6 @@ extern void show_regs_auto_comment(struct pt_regs * regs, bool comm);
 extern void show_stack(struct task_struct *task, unsigned long *sp);
 
 extern void sched_show_task(struct task_struct *p);
-
-#ifdef CONFIG_SEC_DEBUG_AUTO_COMMENT
-extern void show_stack_auto_comment(struct task_struct *task, unsigned long *sp);
-extern void sched_show_task_auto_comment(struct task_struct *p);
-#endif
 
 #ifdef CONFIG_SCHED_DEBUG
 struct seq_file;

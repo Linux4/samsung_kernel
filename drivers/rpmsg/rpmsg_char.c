@@ -92,7 +92,7 @@ static int rpmsg_eptdev_destroy(struct device *dev, void *data)
 	/* wake up any blocked readers */
 	wake_up_interruptible(&eptdev->readq);
 
-	device_del(&eptdev->dev);
+	cdev_device_del(&eptdev->cdev, &eptdev->dev);
 	put_device(&eptdev->dev);
 
 	return 0;
@@ -167,9 +167,9 @@ static int rpmsg_eptdev_release(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-static ssize_t rpmsg_eptdev_read(struct file *filp, char __user *buf,
-				 size_t len, loff_t *f_pos)
+static ssize_t rpmsg_eptdev_read_iter(struct kiocb *iocb, struct iov_iter *to)
 {
+	struct file *filp = iocb->ki_filp;
 	struct rpmsg_eptdev *eptdev = filp->private_data;
 	unsigned long flags;
 	struct sk_buff *skb;
@@ -205,8 +205,8 @@ static ssize_t rpmsg_eptdev_read(struct file *filp, char __user *buf,
 	if (!skb)
 		return -EFAULT;
 
-	use = min_t(size_t, len, skb->len);
-	if (copy_to_user(buf, skb->data, use))
+	use = min_t(size_t, iov_iter_count(to), skb->len);
+	if (copy_to_iter(skb->data, use, to) != use)
 		use = -EFAULT;
 
 	kfree_skb(skb);
@@ -214,16 +214,23 @@ static ssize_t rpmsg_eptdev_read(struct file *filp, char __user *buf,
 	return use;
 }
 
-static ssize_t rpmsg_eptdev_write(struct file *filp, const char __user *buf,
-				  size_t len, loff_t *f_pos)
+static ssize_t rpmsg_eptdev_write_iter(struct kiocb *iocb,
+				       struct iov_iter *from)
 {
+	struct file *filp = iocb->ki_filp;
 	struct rpmsg_eptdev *eptdev = filp->private_data;
+	size_t len = iov_iter_count(from);
 	void *kbuf;
 	int ret;
 
-	kbuf = memdup_user(buf, len);
-	if (IS_ERR(kbuf))
-		return PTR_ERR(kbuf);
+	kbuf = kzalloc(len, GFP_KERNEL);
+	if (!kbuf)
+		return -ENOMEM;
+
+	if (!copy_from_iter_full(kbuf, len, from)) {
+		ret = -EFAULT;
+		goto free_kbuf;
+	}
 
 	if (mutex_lock_interruptible(&eptdev->ept_lock)) {
 		ret = -ERESTARTSYS;
@@ -281,8 +288,8 @@ static const struct file_operations rpmsg_eptdev_fops = {
 	.owner = THIS_MODULE,
 	.open = rpmsg_eptdev_open,
 	.release = rpmsg_eptdev_release,
-	.read = rpmsg_eptdev_read,
-	.write = rpmsg_eptdev_write,
+	.read_iter = rpmsg_eptdev_read_iter,
+	.write_iter = rpmsg_eptdev_write_iter,
 	.poll = rpmsg_eptdev_poll,
 	.unlocked_ioctl = rpmsg_eptdev_ioctl,
 	.compat_ioctl = rpmsg_eptdev_ioctl,
@@ -329,7 +336,6 @@ static void rpmsg_eptdev_release_device(struct device *dev)
 
 	ida_simple_remove(&rpmsg_ept_ida, dev->id);
 	ida_simple_remove(&rpmsg_minor_ida, MINOR(eptdev->dev.devt));
-	cdev_del(&eptdev->cdev);
 	kfree(eptdev);
 }
 
@@ -374,18 +380,12 @@ static int rpmsg_eptdev_create(struct rpmsg_ctrldev *ctrldev,
 	dev->id = ret;
 	dev_set_name(dev, "rpmsg%d", ret);
 
-	ret = cdev_add(&eptdev->cdev, dev->devt, 1);
+	ret = cdev_device_add(&eptdev->cdev, &eptdev->dev);
 	if (ret)
 		goto free_ept_ida;
 
 	/* We can now rely on the release function for cleanup */
 	dev->release = rpmsg_eptdev_release_device;
-
-	ret = device_add(dev);
-	if (ret) {
-		dev_err(dev, "device_add failed: %d\n", ret);
-		put_device(dev);
-	}
 
 	return ret;
 
@@ -455,7 +455,6 @@ static void rpmsg_ctrldev_release_device(struct device *dev)
 
 	ida_simple_remove(&rpmsg_ctrl_ida, dev->id);
 	ida_simple_remove(&rpmsg_minor_ida, MINOR(dev->devt));
-	cdev_del(&ctrldev->cdev);
 	kfree(ctrldev);
 }
 
@@ -490,18 +489,12 @@ static int rpmsg_chrdev_probe(struct rpmsg_device *rpdev)
 	dev->id = ret;
 	dev_set_name(&ctrldev->dev, "rpmsg_ctrl%d", ret);
 
-	ret = cdev_add(&ctrldev->cdev, dev->devt, 1);
+	ret = cdev_device_add(&ctrldev->cdev, &ctrldev->dev);
 	if (ret)
 		goto free_ctrl_ida;
 
 	/* We can now rely on the release function for cleanup */
 	dev->release = rpmsg_ctrldev_release_device;
-
-	ret = device_add(dev);
-	if (ret) {
-		dev_err(&rpdev->dev, "device_add failed: %d\n", ret);
-		put_device(dev);
-	}
 
 	dev_set_drvdata(&rpdev->dev, ctrldev);
 
@@ -528,7 +521,7 @@ static void rpmsg_chrdev_remove(struct rpmsg_device *rpdev)
 	if (ret)
 		dev_warn(&rpdev->dev, "failed to nuke endpoints: %d\n", ret);
 
-	device_del(&ctrldev->dev);
+	cdev_device_del(&ctrldev->cdev, &ctrldev->dev);
 	put_device(&ctrldev->dev);
 }
 

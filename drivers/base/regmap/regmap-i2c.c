@@ -1,60 +1,16 @@
-/*
- * Register map access API - I2C support
- *
- * Copyright 2011 Wolfson Microelectronics plc
- *
- * Author: Mark Brown <broonie@opensource.wolfsonmicro.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- */
+// SPDX-License-Identifier: GPL-2.0
+//
+// Register map access API - I2C support
+//
+// Copyright 2011 Wolfson Microelectronics plc
+//
+// Author: Mark Brown <broonie@opensource.wolfsonmicro.com>
 
 #include <linux/regmap.h>
 #include <linux/i2c.h>
 #include <linux/module.h>
-#include <soc/samsung/acpm_mfd.h>
 
 #include "internal.h"
-
-#ifdef CONFIG_EXYNOS_ACPM
-static int regmap_apm_byte_reg_read(void *context, unsigned int reg,
-		unsigned int *val)
-{
-	struct device *dev = context;
-	struct i2c_client *i2c = to_i2c_client(dev);
-	int ret;
-	u8 reg_val;
-
-	if (reg > 0xff)
-		return -EINVAL;
-
-	ret = exynos_acpm_read_reg(0, i2c->addr, reg, &reg_val);
-	*val = reg_val;
-
-	if (ret < 0)
-		return ret;
-
-	return 0;
-}
-
-static int regmap_apm_byte_reg_write(void *context, unsigned int reg,
-		unsigned int val)
-{
-	struct device *dev = context;
-	struct i2c_client *i2c = to_i2c_client(dev);
-
-	if (val > 0xff || reg > 0xff)
-		return -EINVAL;
-
-	return exynos_acpm_write_reg(0, i2c->addr, reg, val);
-}
-
-static struct regmap_bus regmap_apm_byte = {
-	.reg_write = regmap_apm_byte_reg_write,
-	.reg_read = regmap_apm_byte_reg_read,
-};
-#endif
 
 static int regmap_smbus_byte_reg_read(void *context, unsigned int reg,
 				      unsigned int *val)
@@ -293,14 +249,6 @@ static struct regmap_bus regmap_i2c_smbus_i2c_block = {
 static const struct regmap_bus *regmap_get_i2c_bus(struct i2c_client *i2c,
 					const struct regmap_config *config)
 {
-	if (config->name)
-	{
-#ifdef CONFIG_EXYNOS_ACPM
-		if (strncmp(config->name, "i3c", sizeof("i3c")))
-			return &regmap_apm_byte;
-#endif
-	}
-
 	if (i2c_check_functionality(i2c->adapter, I2C_FUNC_I2C))
 		return &regmap_i2c;
 	else if (config->val_bits == 8 && config->reg_bits == 8 &&

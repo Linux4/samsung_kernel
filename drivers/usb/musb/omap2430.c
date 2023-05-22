@@ -433,6 +433,7 @@ static int omap2430_probe(struct platform_device *pdev)
 	control_node = of_parse_phandle(np, "ctrl-module", 0);
 	if (control_node) {
 		control_pdev = of_find_device_by_node(control_node);
+		of_node_put(control_node);
 		if (!control_pdev) {
 			dev_err(&pdev->dev, "Failed to get control device\n");
 			ret = -EINVAL;
@@ -529,6 +530,9 @@ static int omap2430_runtime_suspend(struct device *dev)
 
 	omap2430_low_level_exit(musb);
 
+	phy_power_off(musb->phy);
+	phy_exit(musb->phy);
+
 	return 0;
 }
 
@@ -539,6 +543,9 @@ static int omap2430_runtime_resume(struct device *dev)
 
 	if (!musb)
 		return 0;
+
+	phy_init(musb->phy);
+	phy_power_on(musb->phy);
 
 	omap2430_low_level_init(musb);
 	musb_writel(musb->mregs, OTG_INTERFSEL,

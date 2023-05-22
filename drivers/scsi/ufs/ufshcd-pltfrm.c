@@ -39,6 +39,7 @@
 
 #include "ufshcd.h"
 #include "ufshcd-pltfrm.h"
+#include "unipro.h"
 
 #define UFSHCD_DEFAULT_LANES_PER_DIRECTION		2
 
@@ -124,14 +125,26 @@ out:
 	return ret;
 }
 
+static bool phandle_exists(const struct device_node *np,
+			   const char *phandle_name, int index)
+{
+	struct device_node *parse_np = of_parse_phandle(np, phandle_name, index);
+
+	if (parse_np)
+		of_node_put(parse_np);
+
+	return parse_np != NULL;
+}
+
 #define MAX_PROP_SIZE 32
 static int ufshcd_populate_vreg(struct device *dev, const char *name,
-		struct ufs_vreg **out_vreg)
+				struct ufs_vreg **out_vreg)
 {
-	int ret = 0;
+	int len, ret = 0;
 	char prop_name[MAX_PROP_SIZE];
 	struct ufs_vreg *vreg = NULL;
 	struct device_node *np = dev->of_node;
+	const __be32 *prop;
 
 	if (!np) {
 		dev_err(dev, "%s: non DT initialization\n", __func__);
@@ -139,7 +152,7 @@ static int ufshcd_populate_vreg(struct device *dev, const char *name,
 	}
 
 	snprintf(prop_name, MAX_PROP_SIZE, "%s-supply", name);
-	if (!of_parse_phandle(np, prop_name, 0)) {
+	if (!phandle_exists(np, prop_name, 0)) {
 		dev_info(dev, "%s: Unable to find %s regulator, assuming enabled\n",
 				__func__, prop_name);
 		goto out;
@@ -150,35 +163,57 @@ static int ufshcd_populate_vreg(struct device *dev, const char *name,
 		return -ENOMEM;
 
 	vreg->name = kstrdup(name, GFP_KERNEL);
-
-	/* if fixed regulator no need further initialization */
-	snprintf(prop_name, MAX_PROP_SIZE, "%s-fixed-regulator", name);
-	if (of_property_read_bool(np, prop_name))
-		goto out;
-
 	snprintf(prop_name, MAX_PROP_SIZE, "%s-max-microamp", name);
-	ret = of_property_read_u32(np, prop_name, &vreg->max_uA);
-	if (ret) {
-		dev_err(dev, "%s: unable to find %s err %d\n",
-				__func__, prop_name, ret);
-		goto out;
+	if (of_property_read_u32(np, prop_name, &vreg->max_uA)) {
+		dev_info(dev, "%s: unable to find %s\n", __func__, prop_name);
+		vreg->max_uA = 0;
 	}
 
-	vreg->min_uA = 0;
+#if defined(CONFIG_SCSI_UFSHCD_QTI)
+	snprintf(prop_name, MAX_PROP_SIZE, "%s-min-microamp", name);
+	if (of_property_read_u32(np, prop_name, &vreg->min_uA))
+		vreg->min_uA = UFS_VREG_LPM_LOAD_UA;
+#endif
+
 	if (!strcmp(name, "vcc")) {
 		if (of_property_read_bool(np, "vcc-supply-1p8")) {
 			vreg->min_uV = UFS_VREG_VCC_1P8_MIN_UV;
 			vreg->max_uV = UFS_VREG_VCC_1P8_MAX_UV;
 		} else {
-			vreg->min_uV = UFS_VREG_VCC_MIN_UV;
-			vreg->max_uV = UFS_VREG_VCC_MAX_UV;
+			prop = of_get_property(np, "vcc-voltage-level", &len);
+			if (!prop || (len != (2 * sizeof(__be32)))) {
+				dev_warn(dev, "%s vcc-voltage-level property.\n",
+					prop ? "invalid format" : "no");
+				vreg->min_uV = UFS_VREG_VCC_MIN_UV;
+				vreg->max_uV = UFS_VREG_VCC_MAX_UV;
+			} else {
+				vreg->min_uV = be32_to_cpup(&prop[0]);
+				vreg->max_uV = be32_to_cpup(&prop[1]);
+			}
+ #if defined(CONFIG_SCSI_UFSHCD_QTI)
+			if (of_property_read_bool(np, "vcc-low-voltage-sup"))
+				vreg->low_voltage_sup = true;
+ #endif
 		}
 	} else if (!strcmp(name, "vccq")) {
 		vreg->min_uV = UFS_VREG_VCCQ_MIN_UV;
 		vreg->max_uV = UFS_VREG_VCCQ_MAX_UV;
 	} else if (!strcmp(name, "vccq2")) {
+#if defined(CONFIG_SCSI_UFSHCD_QTI)
+		prop = of_get_property(np, "vccq2-voltage-level", &len);
+		if (!prop || (len != (2 * sizeof(__be32)))) {
+			dev_warn(dev, "%s vccq2-voltage-level property.\n",
+				prop ? "invalid format" : "no");
+			vreg->min_uV = UFS_VREG_VCCQ2_MIN_UV;
+			vreg->max_uV = UFS_VREG_VCCQ2_MAX_UV;
+		} else {
+			vreg->min_uV = be32_to_cpup(&prop[0]);
+			vreg->max_uV = be32_to_cpup(&prop[1]);
+		}
+#else
 		vreg->min_uV = UFS_VREG_VCCQ2_MIN_UV;
 		vreg->max_uV = UFS_VREG_VCCQ2_MAX_UV;
+#endif
 	}
 
 	goto out;
@@ -219,54 +254,6 @@ static int ufshcd_parse_regulator_info(struct ufs_hba *hba)
 	err = ufshcd_populate_vreg(dev, "vccq2", &info->vccq2);
 out:
 	return err;
-}
-
-static int ufshcd_parse_pm_lvl_policy(struct ufs_hba *hba)
-{
-	struct device *dev = hba->dev;
-	struct device_node *np = dev->of_node;
-	u32 lvl_def[] = {UFS_PM_LVL_2, UFS_PM_LVL_5};
-	u32 lvl[2] = {0,}, i;
-
-	for (i = 0; i < ARRAY_SIZE(lvl); i++) {
-		if (of_property_read_u32_index(np, "pm_lvl_states", i, lvl +i)) {
-			dev_info(hba->dev,
-				"UFS power management: set default level%d index %d\n",
-				lvl_def[i], i);
-			lvl[i] = lvl_def[i];
-		}
-
-		if (lvl[i] < UFS_PM_LVL_0 || lvl[i] >= UFS_PM_LVL_MAX) {
-			dev_warn(hba->dev,
-				"UFS power management: out of range level%d index %d\n",
-				lvl[i], i);
-			lvl[i] =  lvl_def[i];
-		}
-	}
-
-	hba->rpm_lvl = lvl[0];
-	hba->spm_lvl = lvl[1];
-
-	return 0;
-}
-
-static int ufshcd_parse_caps_info(struct ufs_hba *hba)
-{
-	struct device *dev = hba->dev;
-	struct device_node *np = dev->of_node;
-
-	if (of_find_property(np, "ufs-cap-clk-gating", NULL))
-		hba->caps |= UFSHCD_CAP_CLK_GATING;
-	if (of_find_property(np, "ufs-cap-hibern8-with-clk-gating", NULL))
-		hba->caps |= UFSHCD_CAP_HIBERN8_WITH_CLK_GATING;
-	if (of_find_property(np, "ufs-cap-clk-scaling", NULL))
-		hba->caps |= UFSHCD_CAP_CLK_SCALING;
-	if (of_find_property(np, "ufs-cap-auto-bkops-suspend", NULL))
-		hba->caps |= UFSHCD_CAP_AUTO_BKOPS_SUSPEND;
-	if (of_find_property(np, "ufs-cap-fake-clk-gating", NULL))
-		hba->caps |= UFSHCD_CAP_FAKE_CLK_GATING;
-
-	return 0;
 }
 
 #ifdef CONFIG_PM
@@ -338,6 +325,103 @@ static void ufshcd_init_lanes_per_dir(struct ufs_hba *hba)
 }
 
 /**
+ * ufshcd_get_pwr_dev_param - get finally agreed attributes for
+ *                            power mode change
+ * @pltfrm_param: pointer to platform parameters
+ * @dev_max: pointer to device attributes
+ * @agreed_pwr: returned agreed attributes
+ *
+ * Returns 0 on success, non-zero value on failure
+ */
+int ufshcd_get_pwr_dev_param(struct ufs_dev_params *pltfrm_param,
+			     struct ufs_pa_layer_attr *dev_max,
+			     struct ufs_pa_layer_attr *agreed_pwr)
+{
+	int min_pltfrm_gear;
+	int min_dev_gear;
+	bool is_dev_sup_hs = false;
+	bool is_pltfrm_max_hs = false;
+
+	if (dev_max->pwr_rx == FAST_MODE)
+		is_dev_sup_hs = true;
+
+	if (pltfrm_param->desired_working_mode == UFS_HS_MODE) {
+		is_pltfrm_max_hs = true;
+		min_pltfrm_gear = min_t(u32, pltfrm_param->hs_rx_gear,
+					pltfrm_param->hs_tx_gear);
+	} else {
+		min_pltfrm_gear = min_t(u32, pltfrm_param->pwm_rx_gear,
+					pltfrm_param->pwm_tx_gear);
+	}
+
+	/*
+	 * device doesn't support HS but
+	 * pltfrm_param->desired_working_mode is HS,
+	 * thus device and pltfrm_param don't agree
+	 */
+	if (!is_dev_sup_hs && is_pltfrm_max_hs) {
+		pr_info("%s: device doesn't support HS\n",
+			__func__);
+		return -ENOTSUPP;
+	} else if (is_dev_sup_hs && is_pltfrm_max_hs) {
+		/*
+		 * since device supports HS, it supports FAST_MODE.
+		 * since pltfrm_param->desired_working_mode is also HS
+		 * then final decision (FAST/FASTAUTO) is done according
+		 * to pltfrm_params as it is the restricting factor
+		 */
+		agreed_pwr->pwr_rx = pltfrm_param->rx_pwr_hs;
+		agreed_pwr->pwr_tx = agreed_pwr->pwr_rx;
+	} else {
+		/*
+		 * here pltfrm_param->desired_working_mode is PWM.
+		 * it doesn't matter whether device supports HS or PWM,
+		 * in both cases pltfrm_param->desired_working_mode will
+		 * determine the mode
+		 */
+		agreed_pwr->pwr_rx = pltfrm_param->rx_pwr_pwm;
+		agreed_pwr->pwr_tx = agreed_pwr->pwr_rx;
+	}
+
+	/*
+	 * we would like tx to work in the minimum number of lanes
+	 * between device capability and vendor preferences.
+	 * the same decision will be made for rx
+	 */
+	agreed_pwr->lane_tx = min_t(u32, dev_max->lane_tx,
+				    pltfrm_param->tx_lanes);
+	agreed_pwr->lane_rx = min_t(u32, dev_max->lane_rx,
+				    pltfrm_param->rx_lanes);
+
+	/* device maximum gear is the minimum between device rx and tx gears */
+	min_dev_gear = min_t(u32, dev_max->gear_rx, dev_max->gear_tx);
+
+	/*
+	 * if both device capabilities and vendor pre-defined preferences are
+	 * both HS or both PWM then set the minimum gear to be the chosen
+	 * working gear.
+	 * if one is PWM and one is HS then the one that is PWM get to decide
+	 * what is the gear, as it is the one that also decided previously what
+	 * pwr the device will be configured to.
+	 */
+	if ((is_dev_sup_hs && is_pltfrm_max_hs) ||
+	    (!is_dev_sup_hs && !is_pltfrm_max_hs)) {
+		agreed_pwr->gear_rx =
+			min_t(u32, min_dev_gear, min_pltfrm_gear);
+	} else if (!is_dev_sup_hs) {
+		agreed_pwr->gear_rx = min_dev_gear;
+	} else {
+		agreed_pwr->gear_rx = min_pltfrm_gear;
+	}
+	agreed_pwr->gear_tx = agreed_pwr->gear_rx;
+
+	agreed_pwr->hs_rate = pltfrm_param->hs_rate;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(ufshcd_get_pwr_dev_param);
+
+/**
  * ufshcd_pltfrm_init - probe routine of the driver
  * @pdev: pointer to Platform device handle
  * @vops: pointer to variant ops
@@ -345,16 +429,14 @@ static void ufshcd_init_lanes_per_dir(struct ufs_hba *hba)
  * Returns 0 on success, non-zero value on failure
  */
 int ufshcd_pltfrm_init(struct platform_device *pdev,
-		       struct ufs_hba_variant_ops *vops)
+		       const struct ufs_hba_variant_ops *vops)
 {
 	struct ufs_hba *hba;
 	void __iomem *mmio_base;
-	struct resource *mem_res;
 	int irq, err;
 	struct device *dev = &pdev->dev;
 
-	mem_res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	mmio_base = devm_ioremap_resource(dev, mem_res);
+	mmio_base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(mmio_base)) {
 		err = PTR_ERR(mmio_base);
 		goto out;
@@ -388,11 +470,6 @@ int ufshcd_pltfrm_init(struct platform_device *pdev,
 		goto dealloc_host;
 	}
 
-	ufshcd_parse_pm_lvl_policy(hba);
-	ufshcd_parse_caps_info(hba);
-	pm_runtime_set_active(&pdev->dev);
-	pm_runtime_enable(&pdev->dev);
-
 	ufshcd_init_lanes_per_dir(hba);
 
 	err = ufshcd_init(hba, mmio_base, irq);
@@ -400,8 +477,6 @@ int ufshcd_pltfrm_init(struct platform_device *pdev,
 		dev_err(dev, "Initialization failed\n");
 		goto dealloc_host;
 	}
-
-	platform_set_drvdata(pdev, hba);
 
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
@@ -414,20 +489,6 @@ out:
 	return err;
 }
 EXPORT_SYMBOL_GPL(ufshcd_pltfrm_init);
-
-/**
- * ufshcd_pltfrm_exit - exit common routine for platform driver
- * @pdev: pointer to platform device handle
- */
-void ufshcd_pltfrm_exit(struct platform_device *pdev)
-{
-	struct ufs_hba *hba =  platform_get_drvdata(pdev);
-
-	disable_irq(hba->irq);
-
-	ufshcd_remove(hba);
-}
-EXPORT_SYMBOL_GPL(ufshcd_pltfrm_exit);
 
 MODULE_AUTHOR("Santosh Yaragnavi <santosh.sy@samsung.com>");
 MODULE_AUTHOR("Vinayak Holikatti <h.vinayak@samsung.com>");

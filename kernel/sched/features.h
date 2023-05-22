@@ -39,7 +39,6 @@ SCHED_FEAT(WAKEUP_PREEMPTION, true)
 
 SCHED_FEAT(HRTICK, false)
 SCHED_FEAT(DOUBLE_TICK, false)
-SCHED_FEAT(LB_BIAS, true)
 
 /*
  * Decrement CPU capacity based on time not spent running tasks
@@ -50,7 +49,7 @@ SCHED_FEAT(NONTASK_CAPACITY, true)
  * Queue remote wakeups on the target CPU and process them
  * using the scheduler IPI. Reduces rq->lock contention/bounces.
  */
-SCHED_FEAT(TTWU_QUEUE, true)
+SCHED_FEAT(TTWU_QUEUE, false)
 
 /*
  * When doing wakeups, attempt to limit superfluous scans of the LLC domain.
@@ -92,42 +91,7 @@ SCHED_FEAT(WA_BIAS, true)
 SCHED_FEAT(UTIL_EST, true)
 
 /*
- * Fast pre-selection of CPU candidates for EAS.
- */
-SCHED_FEAT(FIND_BEST_TARGET, false)
-
-/*
- * Energy aware scheduling algorithm choices:
- * EAS_PREFER_IDLE
- *   Direct tasks in a schedtune.prefer_idle=1 group through
- *   the EAS path for wakeup task placement. Otherwise, put
- *   those tasks through the mainline slow path.
- */
-SCHED_FEAT(EAS_PREFER_IDLE, true)
-
-/*
  * Request max frequency from schedutil whenever a RT task is running.
  */
 SCHED_FEAT(SUGOV_RT_MAX_FREQ, false)
-
-/*
- * Exynos Mobile Scheduler
- */
-SCHED_FEAT(EMS, true)
-
-#ifdef CONFIG_SCHED_USE_FLUID_RT
-SCHED_FEAT(EXYNOS_FRT, true)
-#else
-SCHED_FEAT(EXYNOS_FRT, false)
-#endif
-
-/*
- * Apply schedtune boost hold to tasks of all sched classes.
- * If enabled, schedtune will hold the boost applied to a CPU
- * for 50ms regardless of task activation - if the task is
- * still running 50ms later, the boost hold expires and schedtune
- * boost will expire immediately the task stops.
- * If disabled, this behaviour will only apply to tasks of the
- * RT class.
- */
-SCHED_FEAT(SCHEDTUNE_BOOST_HOLD_ALL, false)
+SCHED_FEAT(UTIL_EST_FASTUP, true)

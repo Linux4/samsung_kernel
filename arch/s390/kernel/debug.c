@@ -327,24 +327,6 @@ static debug_info_t *debug_info_create(const char *name, int pages_per_area,
 		goto out;
 
 	rc->mode = mode & ~S_IFMT;
-
-	/* create root directory */
-	rc->debugfs_root_entry = debugfs_create_dir(rc->name,
-						    debug_debugfs_root_entry);
-
-	/* append new element to linked list */
-	if (!debug_area_first) {
-		/* first element in list */
-		debug_area_first = rc;
-		rc->prev = NULL;
-	} else {
-		/* append element to end of list */
-		debug_area_last->next = rc;
-		rc->prev = debug_area_last;
-	}
-	debug_area_last = rc;
-	rc->next = NULL;
-
 	refcount_set(&rc->ref_count, 1);
 out:
 	return rc;
@@ -404,27 +386,10 @@ static void debug_info_get(debug_info_t *db_info)
  */
 static void debug_info_put(debug_info_t *db_info)
 {
-	int i;
-
 	if (!db_info)
 		return;
-	if (refcount_dec_and_test(&db_info->ref_count)) {
-		for (i = 0; i < DEBUG_MAX_VIEWS; i++) {
-			if (!db_info->views[i])
-				continue;
-			debugfs_remove(db_info->debugfs_entries[i]);
-		}
-		debugfs_remove(db_info->debugfs_root_entry);
-		if (db_info == debug_area_first)
-			debug_area_first = db_info->next;
-		if (db_info == debug_area_last)
-			debug_area_last = db_info->prev;
-		if (db_info->prev)
-			db_info->prev->next = db_info->next;
-		if (db_info->next)
-			db_info->next->prev = db_info->prev;
+	if (refcount_dec_and_test(&db_info->ref_count))
 		debug_info_free(db_info);
-	}
 }
 
 /*
@@ -648,11 +613,48 @@ static int debug_close(struct inode *inode, struct file *file)
 	return 0; /* success */
 }
 
-/*
- * debug_register_mode:
- * - Creates and initializes debug area for the caller
- *   The mode parameter allows to specify access rights for the s390dbf files
- * - Returns handle for debug area
+/* Create debugfs entries and add to internal list. */
+static void _debug_register(debug_info_t *id)
+{
+	/* create root directory */
+	id->debugfs_root_entry = debugfs_create_dir(id->name,
+						    debug_debugfs_root_entry);
+
+	/* append new element to linked list */
+	if (!debug_area_first) {
+		/* first element in list */
+		debug_area_first = id;
+		id->prev = NULL;
+	} else {
+		/* append element to end of list */
+		debug_area_last->next = id;
+		id->prev = debug_area_last;
+	}
+	debug_area_last = id;
+	id->next = NULL;
+
+	debug_register_view(id, &debug_level_view);
+	debug_register_view(id, &debug_flush_view);
+	debug_register_view(id, &debug_pages_view);
+}
+
+/**
+ * debug_register_mode() - creates and initializes debug area.
+ *
+ * @name:	Name of debug log (e.g. used for debugfs entry)
+ * @pages_per_area:	Number of pages, which will be allocated per area
+ * @nr_areas:	Number of debug areas
+ * @buf_size:	Size of data area in each debug entry
+ * @mode:	File mode for debugfs files. E.g. S_IRWXUGO
+ * @uid:	User ID for debugfs files. Currently only 0 is supported.
+ * @gid:	Group ID for debugfs files. Currently only 0 is supported.
+ *
+ * Return:
+ * - Handle for generated debug area
+ * - %NULL if register failed
+ *
+ * Allocates memory for a debug log.
+ * Must not be called within an interrupt handler.
  */
 debug_info_t *debug_register_mode(const char *name, int pages_per_area,
 				  int nr_areas, int buf_size, umode_t mode,
@@ -665,27 +667,35 @@ debug_info_t *debug_register_mode(const char *name, int pages_per_area,
 	if ((uid != 0) || (gid != 0))
 		pr_warn("Root becomes the owner of all s390dbf files in sysfs\n");
 	BUG_ON(!initialized);
-	mutex_lock(&debug_mutex);
 
 	/* create new debug_info */
 	rc = debug_info_create(name, pages_per_area, nr_areas, buf_size, mode);
-	if (!rc)
-		goto out;
-	debug_register_view(rc, &debug_level_view);
-	debug_register_view(rc, &debug_flush_view);
-	debug_register_view(rc, &debug_pages_view);
-out:
-	if (!rc)
+	if (rc) {
+		mutex_lock(&debug_mutex);
+		_debug_register(rc);
+		mutex_unlock(&debug_mutex);
+	} else {
 		pr_err("Registering debug feature %s failed\n", name);
-	mutex_unlock(&debug_mutex);
+	}
 	return rc;
 }
 EXPORT_SYMBOL(debug_register_mode);
 
-/*
- * debug_register:
- * - creates and initializes debug area for the caller
- * - returns handle for debug area
+/**
+ * debug_register() - creates and initializes debug area with default file mode.
+ *
+ * @name:	Name of debug log (e.g. used for debugfs entry)
+ * @pages_per_area:	Number of pages, which will be allocated per area
+ * @nr_areas:	Number of debug areas
+ * @buf_size:	Size of data area in each debug entry
+ *
+ * Return:
+ * - Handle for generated debug area
+ * - %NULL if register failed
+ *
+ * Allocates memory for a debug log.
+ * The debugfs file mode access permissions are read and write for user.
+ * Must not be called within an interrupt handler.
  */
 debug_info_t *debug_register(const char *name, int pages_per_area,
 			     int nr_areas, int buf_size)
@@ -695,17 +705,44 @@ debug_info_t *debug_register(const char *name, int pages_per_area,
 }
 EXPORT_SYMBOL(debug_register);
 
-/*
- * debug_unregister:
- * - give back debug area
+/* Remove debugfs entries and remove from internal list. */
+static void _debug_unregister(debug_info_t *id)
+{
+	int i;
+
+	for (i = 0; i < DEBUG_MAX_VIEWS; i++) {
+		if (!id->views[i])
+			continue;
+		debugfs_remove(id->debugfs_entries[i]);
+	}
+	debugfs_remove(id->debugfs_root_entry);
+	if (id == debug_area_first)
+		debug_area_first = id->next;
+	if (id == debug_area_last)
+		debug_area_last = id->prev;
+	if (id->prev)
+		id->prev->next = id->next;
+	if (id->next)
+		id->next->prev = id->prev;
+}
+
+/**
+ * debug_unregister() - give back debug area.
+ *
+ * @id:		handle for debug log
+ *
+ * Return:
+ *    none
  */
 void debug_unregister(debug_info_t *id)
 {
 	if (!id)
 		return;
 	mutex_lock(&debug_mutex);
-	debug_info_put(id);
+	_debug_unregister(id);
 	mutex_unlock(&debug_mutex);
+
+	debug_info_put(id);
 }
 EXPORT_SYMBOL(debug_unregister);
 
@@ -746,9 +783,14 @@ out:
 	return rc;
 }
 
-/*
- * debug_set_level:
- * - set actual debug level
+/**
+ * debug_set_level() - Sets new actual debug level if new_level is valid.
+ *
+ * @id:		handle for debug log
+ * @new_level:	new debug level
+ *
+ * Return:
+ *    none
  */
 void debug_set_level(debug_info_t *id, int new_level)
 {
@@ -874,6 +916,14 @@ static struct ctl_table s390dbf_dir_table[] = {
 
 static struct ctl_table_header *s390dbf_sysctl_header;
 
+/**
+ * debug_stop_all() - stops the debug feature if stopping is allowed.
+ *
+ * Return:
+ * -   none
+ *
+ * Currently used in case of a kernel oops.
+ */
 void debug_stop_all(void)
 {
 	if (debug_stoppable)
@@ -881,6 +931,17 @@ void debug_stop_all(void)
 }
 EXPORT_SYMBOL(debug_stop_all);
 
+/**
+ * debug_set_critical() - event/exception functions try lock instead of spin.
+ *
+ * Return:
+ * -   none
+ *
+ * Currently used in case of stopping all CPUs but the current one.
+ * Once in this state, functions to write a debug entry for an
+ * event or exception no longer spin on the debug area lock,
+ * but only try to get it and fail if they do not get the lock.
+ */
 void debug_set_critical(void)
 {
 	debug_critical = 1;
@@ -1037,8 +1098,16 @@ debug_entry_t *__debug_sprintf_exception(debug_info_t *id, int level, char *stri
 }
 EXPORT_SYMBOL(__debug_sprintf_exception);
 
-/*
- * debug_register_view:
+/**
+ * debug_register_view() - registers new debug view and creates debugfs
+ *			   dir entry
+ *
+ * @id:		handle for debug log
+ * @view:	pointer to debug view struct
+ *
+ * Return:
+ * -   0  : ok
+ * -   < 0: Error
  */
 int debug_register_view(debug_info_t *id, struct debug_view *view)
 {
@@ -1057,12 +1126,6 @@ int debug_register_view(debug_info_t *id, struct debug_view *view)
 		mode &= ~(S_IWUSR | S_IWGRP | S_IWOTH);
 	pde = debugfs_create_file(view->name, mode, id->debugfs_root_entry,
 				  id, &debug_file_ops);
-	if (!pde) {
-		pr_err("Registering view %s/%s failed due to out of "
-		       "memory\n", id->name, view->name);
-		rc = -1;
-		goto out;
-	}
 	spin_lock_irqsave(&id->lock, flags);
 	for (i = 0; i < DEBUG_MAX_VIEWS; i++) {
 		if (!id->views[i])
@@ -1084,8 +1147,16 @@ out:
 }
 EXPORT_SYMBOL(debug_register_view);
 
-/*
- * debug_unregister_view:
+/**
+ * debug_unregister_view() - unregisters debug view and removes debugfs
+ *			     dir entry
+ *
+ * @id:		handle for debug log
+ * @view:	pointer to debug view struct
+ *
+ * Return:
+ * -   0  : ok
+ * -   < 0: Error
  */
 int debug_unregister_view(debug_info_t *id, struct debug_view *view)
 {

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-only
 #
 # 802.1d Ethernet Bridging
 #
@@ -17,7 +18,7 @@ config BRIDGE
 	  other third party bridge products.
 
 	  In order to use the Ethernet bridge, you'll need the bridge
-	  configuration tools; see <file:Documentation/networking/bridge.txt>
+	  configuration tools; see <file:Documentation/networking/bridge.rst>
 	  for location. Please read the Bridge mini-HOWTO for more
 	  information.
 
@@ -58,5 +59,17 @@ config BRIDGE_VLAN_FILTERING
 	  any VLAN information configured on the bridge port or bridge device.
 
 	  Say N to exclude this support and reduce the binary size.
+
+	  If unsure, say Y.
+
+config HYFI_BRIDGE_HOOKS
+	bool "Port Hy-Fi Bridging Hooks"
+	depends on BRIDGE
+	depends on QGKI
+	default y
+	help
+	  If you say Y here, then the Port Hy-Fi Bridging Hooks will be enabled.
+
+	  Say N to exclude this support.
 
 	  If unsure, say Y.

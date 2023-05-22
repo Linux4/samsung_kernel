@@ -66,20 +66,6 @@
  *   - MS-Windows drivers sometimes emit undocumented requests.
  */
 
-#ifdef CONFIG_USB_RNDIS_MULTIPACKET
-static unsigned int rndis_dl_max_pkt_per_xfer = 10;
-#else
-static unsigned int rndis_dl_max_pkt_per_xfer = 3;
-#endif
-module_param(rndis_dl_max_pkt_per_xfer, uint, S_IRUGO | S_IWUSR);
-MODULE_PARM_DESC(rndis_dl_max_pkt_per_xfer,
-	"Maximum packets per transfer for DL aggregation");
-
-static unsigned int rndis_ul_max_pkt_per_xfer = 3;
-module_param(rndis_ul_max_pkt_per_xfer, uint, S_IRUGO | S_IWUSR);
-MODULE_PARM_DESC(rndis_ul_max_pkt_per_xfer,
-       "Maximum packets per transfer for UL aggregation");
-
 struct f_rndis {
 	struct gether			port;
 	u8				ctrl_id, data_id;
@@ -101,9 +87,11 @@ static inline struct f_rndis *func_to_rndis(struct usb_function *f)
 /* peak (theoretical) bulk transfer rate in bits-per-second */
 static unsigned int bitrate(struct usb_gadget *g)
 {
-	if (gadget_is_superspeed(g) && g->speed >= USB_SPEED_SUPER)
-		return 13 * 1024 * 8 * 1000 * 8;
-	else if (gadget_is_dualspeed(g) && g->speed >= USB_SPEED_HIGH)
+	if (gadget_is_superspeed(g) && g->speed >= USB_SPEED_SUPER_PLUS)
+		return 4250000000U;
+	if (gadget_is_superspeed(g) && g->speed == USB_SPEED_SUPER)
+		return 3750000000U;
+	else if (gadget_is_dualspeed(g) && g->speed == USB_SPEED_HIGH)
 		return 13 * 512 * 8 * 1000 * 8;
 	else
 		return 19 * 64 * 1 * 1000 * 8;
@@ -127,9 +115,9 @@ static struct usb_interface_descriptor rndis_control_intf = {
 	/* .bInterfaceNumber = DYNAMIC */
 	/* status endpoint is optional; this could be patched later */
 	.bNumEndpoints =	1,
-	.bInterfaceClass =	USB_CLASS_WIRELESS_CONTROLLER,
-	.bInterfaceSubClass =	0x01,
-	.bInterfaceProtocol =	0x03,
+	.bInterfaceClass =	USB_CLASS_COMM,
+	.bInterfaceSubClass =   USB_CDC_SUBCLASS_ACM,
+	.bInterfaceProtocol =   USB_CDC_ACM_PROTO_VENDOR,
 	/* .iInterface = DYNAMIC */
 };
 
@@ -188,9 +176,9 @@ rndis_iad_descriptor = {
 
 	.bFirstInterface =	0, /* XXX, hardcoded */
 	.bInterfaceCount = 	2,	// control + data
-	.bFunctionClass =		USB_CLASS_WIRELESS_CONTROLLER,
-	.bFunctionSubClass =	0x01,
-	.bFunctionProtocol =	0x03,
+	.bFunctionClass =	USB_CLASS_COMM,
+	.bFunctionSubClass =	USB_CDC_SUBCLASS_ETHERNET,
+	.bFunctionProtocol =	USB_CDC_PROTO_NONE,
 	/* .iFunction = DYNAMIC */
 };
 
@@ -384,33 +372,14 @@ static struct sk_buff *rndis_add_header(struct gether *port,
 {
 	struct sk_buff *skb2;
 
-	struct rndis_packet_msg_type *header = NULL;
-	struct f_rndis *rndis = func_to_rndis(&port->func);
+	if (!skb)
+		return NULL;
 
-	if (rndis->port.multi_pkt_xfer) {
-		if (port->header) {
-			header = port->header;
-			memset(header, 0, sizeof(*header));
-			header->MessageType = cpu_to_le32(RNDIS_MSG_PACKET);
-			header->MessageLength = cpu_to_le32(skb->len +
-							sizeof(*header));
-			header->DataOffset = cpu_to_le32(36);
-			header->DataLength = cpu_to_le32(skb->len);
-			pr_debug("MessageLength:%d DataLength:%d\n",
-						header->MessageLength,
-						header->DataLength);
-			return skb;
-		} else {
-			pr_err("RNDIS header is NULL.\n");
-			return NULL;
-		}
-	} else {
-		skb2 = skb_realloc_headroom(skb, sizeof(struct rndis_packet_msg_type));
-		rndis_add_hdr(skb2);
+	skb2 = skb_realloc_headroom(skb, sizeof(struct rndis_packet_msg_type));
+	rndis_add_hdr(skb2);
 
-		dev_kfree_skb(skb);
-		return skb2;
-	}
+	dev_kfree_skb(skb);
+	return skb2;
 }
 
 static void rndis_response_available(void *_rndis)
@@ -482,7 +451,6 @@ static void rndis_command_complete(struct usb_ep *ep, struct usb_request *req)
 {
 	struct f_rndis			*rndis = req->context;
 	int				status;
-	rndis_init_msg_type		*buf;
 
 	/* received RNDIS command from USB_CDC_SEND_ENCAPSULATED_COMMAND */
 //	spin_lock(&dev->lock);
@@ -490,21 +458,6 @@ static void rndis_command_complete(struct usb_ep *ep, struct usb_request *req)
 	if (status < 0)
 		pr_err("RNDIS command error %d, %d/%d\n",
 			status, req->actual, req->length);
-
-	buf = (rndis_init_msg_type *)req->buf;
-
-	if (buf->MessageType == RNDIS_MSG_INIT) {
-		if (buf->MaxTransferSize > 2048)
-			rndis->port.multi_pkt_xfer = 1;
-		else
-			rndis->port.multi_pkt_xfer = 0;
-		printk("%s: MaxTransferSize: %d : Multi_pkt_txr: %s\n",
-				__func__, buf->MaxTransferSize,
-				rndis->port.multi_pkt_xfer ? "enabled" :
-							    "disabled");
-		if (rndis_dl_max_pkt_per_xfer <= 1)
-			rndis->port.multi_pkt_xfer = 0;
-	}
 //	spin_unlock(&dev->lock);
 }
 
@@ -801,13 +754,6 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 		goto fail;
 	rndis->port.out_ep = ep;
 
-	/* request rndis queue */
-	status = gether_alloc_request(&rndis->port);
-	printk(KERN_INFO "usb:%s :  rndis queue reqsest ret = %d \n",
-							__func__, status);
-	if (status < 0)
-		goto fail;
-
 	/* NOTE:  a status/notification endpoint is, strictly speaking,
 	 * optional.  We don't treat it that way though!  It's simpler,
 	 * and some newer profiles don't treat it as optional.
@@ -852,7 +798,6 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 
 	rndis_set_param_medium(rndis->params, RNDIS_MEDIUM_802_3, 0);
 	rndis_set_host_mac(rndis->params, rndis->ethaddr);
-	rndis_set_max_pkt_xfer(rndis->params, rndis_ul_max_pkt_per_xfer);
 
 	if (rndis->manufacturer && rndis->vendorID &&
 			rndis_set_param_vendor(rndis->params, rndis->vendorID,
@@ -902,22 +847,6 @@ void rndis_borrow_net(struct usb_function_instance *f, struct net_device *net)
 	opts->net = net;
 }
 EXPORT_SYMBOL_GPL(rndis_borrow_net);
-
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-static int set_rndis_mac_addr(struct usb_function_instance *fi,
-		    u8 *ethaddr)
-{
-	struct f_rndis_opts *opts;
-	u8 mac_addr[ETH_ALEN*2+6] = {0,};
-
-	opts = container_of(fi, struct f_rndis_opts, func_inst);
-	snprintf(mac_addr, sizeof(mac_addr), "%pM", ethaddr);
-
-	gether_set_host_addr(opts->net, mac_addr);
-
-	return 0;
-}
-#endif
 
 static inline struct f_rndis_opts *to_f_rndis_opts(struct config_item *item)
 {
@@ -996,10 +925,7 @@ static struct usb_function_instance *rndis_alloc_inst(void)
 
 	mutex_init(&opts->lock);
 	opts->func_inst.free_func_inst = rndis_free_inst;
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	opts->func_inst.set_inst_eth_addr = set_rndis_mac_addr;
-#endif
-	opts->net = gether_setup_name_default("rndis");
+	opts->net = gether_setup_default();
 	if (IS_ERR(opts->net)) {
 		struct net_device *net = opts->net;
 		kfree(opts);
@@ -1044,10 +970,6 @@ static void rndis_free(struct usb_function *f)
 static void rndis_unbind(struct usb_configuration *c, struct usb_function *f)
 {
 	struct f_rndis		*rndis = func_to_rndis(f);
-#ifdef CONFIG_USB_CONFIGFS_UEVENT
-	struct f_rndis_opts	*opts;
-	struct usb_composite_dev *cdev = f->config->cdev;
-#endif
 
 	kfree(f->os_desc_table);
 	f->os_desc_n = 0;
@@ -1055,32 +977,6 @@ static void rndis_unbind(struct usb_configuration *c, struct usb_function *f)
 
 	kfree(rndis->notify_req->buf);
 	usb_ep_free_request(rndis->notify, rndis->notify_req);
-
-	gether_free_request(&rndis->port);
-
-#ifdef CONFIG_USB_CONFIGFS_UEVENT
-	opts = container_of(f->fi, struct f_rndis_opts, func_inst);
-	if (!opts->borrowed_net) {
-		if (opts->bound)
-			gether_cleanup(netdev_priv(opts->net));
-		else
-			free_netdev(opts->net);
-	}
-
-	opts->net = gether_setup_name_default("rndis");
-	if (IS_ERR(opts->net)) {
-		ERROR(cdev, "%s: failed to setup ethernet\n", f->name);
-		return;
-	}
-#ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
-	gether_set_host_addr(opts->net, rndis->ethaddr);
-#else
-	gether_get_host_addr_u8(opts->net, rndis->ethaddr);
-#endif
-	rndis->port.ioport = netdev_priv(opts->net);
-
-	opts->bound = false;
-#endif
 }
 
 static struct usb_function *rndis_alloc(struct usb_function_instance *fi)
@@ -1111,9 +1007,6 @@ static struct usb_function *rndis_alloc(struct usb_function_instance *fi)
 	rndis->port.header_len = sizeof(struct rndis_packet_msg_type);
 	rndis->port.wrap = rndis_add_header;
 	rndis->port.unwrap = rndis_rm_hdr;
-	rndis->port.ul_max_pkts_per_xfer = rndis_ul_max_pkt_per_xfer;
-	rndis->port.dl_max_pkts_per_xfer = rndis_dl_max_pkt_per_xfer;
-	rndis->port.is_fixed = false;
 
 	rndis->port.func.name = "rndis";
 	/* descriptors are per-instance copies */

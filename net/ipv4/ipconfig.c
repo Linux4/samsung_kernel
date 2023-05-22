@@ -85,7 +85,6 @@
 
 /* Define the friendly delay before and after opening net devices */
 #define CONF_POST_OPEN		10	/* After opening: 10 msecs */
-#define CONF_CARRIER_TIMEOUT	120000	/* Wait for carrier timeout */
 
 /* Define the timeout for waiting for a DHCP/BOOTP/RARP reply */
 #define CONF_OPEN_RETRIES 	2	/* (Re)open devices twice */
@@ -100,6 +99,9 @@
 
 #define NONE cpu_to_be32(INADDR_NONE)
 #define ANY cpu_to_be32(INADDR_ANY)
+
+/* Wait for carrier timeout default in seconds */
+static unsigned int carrier_timeout = 120;
 
 /*
  * Public IP configuration
@@ -220,7 +222,7 @@ static int __init ic_open_devs(void)
 	for_each_netdev(&init_net, dev) {
 		if (!(dev->flags & IFF_LOOPBACK) && !netdev_uses_dsa(dev))
 			continue;
-		if (dev_change_flags(dev, dev->flags | IFF_UP) < 0)
+		if (dev_change_flags(dev, dev->flags | IFF_UP, NULL) < 0)
 			pr_err("IP-Config: Failed to open %s\n", dev->name);
 	}
 
@@ -238,7 +240,7 @@ static int __init ic_open_devs(void)
 			if (ic_proto_enabled && !able)
 				continue;
 			oflags = dev->flags;
-			if (dev_change_flags(dev, oflags | IFF_UP) < 0) {
+			if (dev_change_flags(dev, oflags | IFF_UP, NULL) < 0) {
 				pr_err("IP-Config: Failed to open %s\n",
 				       dev->name);
 				continue;
@@ -268,9 +270,9 @@ static int __init ic_open_devs(void)
 
 	/* wait for a carrier on at least one device */
 	start = jiffies;
-	next_msg = start + msecs_to_jiffies(CONF_CARRIER_TIMEOUT/12);
+	next_msg = start + msecs_to_jiffies(20000);
 	while (time_before(jiffies, start +
-			   msecs_to_jiffies(CONF_CARRIER_TIMEOUT))) {
+			   msecs_to_jiffies(carrier_timeout * 1000))) {
 		int wait, elapsed;
 
 		for_each_netdev(&init_net, dev)
@@ -283,9 +285,9 @@ static int __init ic_open_devs(void)
 			continue;
 
 		elapsed = jiffies_to_msecs(jiffies - start);
-		wait = (CONF_CARRIER_TIMEOUT - elapsed + 500)/1000;
+		wait = (carrier_timeout * 1000 - elapsed + 500) / 1000;
 		pr_info("Waiting up to %d more seconds for network.\n", wait);
-		next_msg = jiffies + msecs_to_jiffies(CONF_CARRIER_TIMEOUT/12);
+		next_msg = jiffies + msecs_to_jiffies(20000);
 	}
 have_carrier:
 	rtnl_unlock();
@@ -315,7 +317,7 @@ static void __init ic_close_devs(void)
 		dev = d->dev;
 		if (d != ic_dev && !netdev_uses_dsa(dev)) {
 			pr_debug("IP-Config: Downing %s\n", dev->name);
-			dev_change_flags(dev, d->flags);
+			dev_change_flags(dev, d->flags, NULL);
 		}
 		kfree(d);
 	}
@@ -429,6 +431,8 @@ static int __init ic_defaults(void)
 			ic_netmask = htonl(IN_CLASSB_NET);
 		else if (IN_CLASSC(ntohl(ic_myaddr)))
 			ic_netmask = htonl(IN_CLASSC_NET);
+		else if (IN_CLASSE(ntohl(ic_myaddr)))
+			ic_netmask = htonl(IN_CLASSE_NET);
 		else {
 			pr_err("IP-Config: Unable to guess netmask for address %pI4\n",
 			       &ic_myaddr);
@@ -866,7 +870,7 @@ static void __init ic_bootp_send_if(struct ic_device *d, unsigned long jiffies_d
 
 
 /*
- *  Copy BOOTP-supplied string if not already set.
+ *  Copy BOOTP-supplied string
  */
 static int __init ic_bootp_string(char *dest, char *src, int len, int max)
 {
@@ -915,12 +919,15 @@ static void __init ic_do_bootp_ext(u8 *ext)
 		}
 		break;
 	case 12:	/* Host name */
-		ic_bootp_string(utsname()->nodename, ext+1, *ext,
-				__NEW_UTS_LEN);
-		ic_host_name_set = 1;
+		if (!ic_host_name_set) {
+			ic_bootp_string(utsname()->nodename, ext+1, *ext,
+					__NEW_UTS_LEN);
+			ic_host_name_set = 1;
+		}
 		break;
 	case 15:	/* Domain name (DNS) */
-		ic_bootp_string(ic_domain, ext+1, *ext, sizeof(ic_domain));
+		if (!ic_domain[0])
+			ic_bootp_string(ic_domain, ext+1, *ext, sizeof(ic_domain));
 		break;
 	case 17:	/* Root path */
 		if (!root_server_path[0])
@@ -1361,18 +1368,7 @@ static int ntp_servers_seq_show(struct seq_file *seq, void *v)
 	}
 	return 0;
 }
-
-static int ntp_servers_seq_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, ntp_servers_seq_show, NULL);
-}
-
-static const struct file_operations ntp_servers_seq_fops = {
-	.open		= ntp_servers_seq_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= single_release,
-};
+DEFINE_SHOW_ATTRIBUTE(ntp_servers_seq);
 #endif /* CONFIG_PROC_FS */
 
 /*
@@ -1789,3 +1785,18 @@ static int __init vendor_class_identifier_setup(char *addrs)
 	return 1;
 }
 __setup("dhcpclass=", vendor_class_identifier_setup);
+
+static int __init set_carrier_timeout(char *str)
+{
+	ssize_t ret;
+
+	if (!str)
+		return 0;
+
+	ret = kstrtouint(str, 0, &carrier_timeout);
+	if (ret)
+		return 0;
+
+	return 1;
+}
+__setup("carrier_timeout=", set_carrier_timeout);

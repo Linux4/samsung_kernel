@@ -24,7 +24,7 @@
 			label = "blue:heartbeat";
 			pwms = <&pwm 2 2000000 0>;
 			pwm-names = "pwm2";
-			max_brightness = <255>;
+			max-brightness = <255>;
 			linux,default-trigger = "heartbeat";
 		};
 	};
@@ -32,6 +32,8 @@
 	sound: sound {
 		compatible = "samsung,odroid-xu3-audio";
 		model = "Odroid-XU4";
+
+		samsung,audio-routing = "I2S Playback", "Mixer DAI TX";
 
 		assigned-clocks = <&clock CLK_MOUT_EPLL>,
 				<&clock CLK_MOUT_MAU_EPLL>,
@@ -58,7 +60,7 @@
 				<196608000>;
 
 		cpu {
-			sound-dai = <&i2s0 0>;
+			sound-dai = <&i2s0 0>, <&i2s0 1>;
 		};
 
 		codec {

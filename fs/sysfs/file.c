@@ -15,9 +15,11 @@
 #include <linux/list.h>
 #include <linux/mutex.h>
 #include <linux/seq_file.h>
+#ifndef __GENKSYMS__
+#include <linux/mm.h>
+#endif
 
 #include "sysfs.h"
-#include "../kernfs/kernfs-internal.h"
 
 /*
  * Determine ktype->sysfs_ops for the given kernfs_node.  This function
@@ -325,7 +327,8 @@ int sysfs_create_file_ns(struct kobject *kobj, const struct attribute *attr,
 	kuid_t uid;
 	kgid_t gid;
 
-	BUG_ON(!kobj || !kobj->sd || !attr);
+	if (WARN_ON(!kobj || !kobj->sd || !attr))
+		return -EINVAL;
 
 	kobject_get_ownership(kobj, &uid, &gid);
 	return sysfs_add_file_mode_ns(kobj->sd, attr, false, attr->mode,
@@ -334,7 +337,7 @@ int sysfs_create_file_ns(struct kobject *kobj, const struct attribute *attr,
 }
 EXPORT_SYMBOL_GPL(sysfs_create_file_ns);
 
-int sysfs_create_files(struct kobject *kobj, const struct attribute **ptr)
+int sysfs_create_files(struct kobject *kobj, const struct attribute * const *ptr)
 {
 	int err = 0;
 	int i;
@@ -493,9 +496,10 @@ bool sysfs_remove_file_self(struct kobject *kobj, const struct attribute *attr)
 	return ret;
 }
 
-void sysfs_remove_files(struct kobject *kobj, const struct attribute **ptr)
+void sysfs_remove_files(struct kobject *kobj, const struct attribute * const *ptr)
 {
 	int i;
+
 	for (i = 0; ptr[i]; i++)
 		sysfs_remove_file(kobj, ptr[i]);
 }
@@ -537,7 +541,8 @@ int sysfs_create_bin_file(struct kobject *kobj,
 	kuid_t uid;
 	kgid_t gid;
 
-	BUG_ON(!kobj || !kobj->sd || !attr);
+	if (WARN_ON(!kobj || !kobj->sd || !attr))
+		return -EINVAL;
 
 	kobject_get_ownership(kobj, &uid, &gid);
 	return sysfs_add_file_mode_ns(kobj->sd, &attr->attr, true,
@@ -556,3 +561,57 @@ void sysfs_remove_bin_file(struct kobject *kobj,
 	kernfs_remove_by_name(kobj->sd, attr->attr.name);
 }
 EXPORT_SYMBOL_GPL(sysfs_remove_bin_file);
+
+/**
+ *	sysfs_emit - scnprintf equivalent, aware of PAGE_SIZE buffer.
+ *	@buf:	start of PAGE_SIZE buffer.
+ *	@fmt:	format
+ *	@...:	optional arguments to @format
+ *
+ *
+ * Returns number of characters written to @buf.
+ */
+int sysfs_emit(char *buf, const char *fmt, ...)
+{
+	va_list args;
+	int len;
+
+	if (WARN(!buf || offset_in_page(buf),
+		 "invalid sysfs_emit: buf:%p\n", buf))
+		return 0;
+
+	va_start(args, fmt);
+	len = vscnprintf(buf, PAGE_SIZE, fmt, args);
+	va_end(args);
+
+	return len;
+}
+EXPORT_SYMBOL_GPL(sysfs_emit);
+
+/**
+ *	sysfs_emit_at - scnprintf equivalent, aware of PAGE_SIZE buffer.
+ *	@buf:	start of PAGE_SIZE buffer.
+ *	@at:	offset in @buf to start write in bytes
+ *		@at must be >= 0 && < PAGE_SIZE
+ *	@fmt:	format
+ *	@...:	optional arguments to @fmt
+ *
+ *
+ * Returns number of characters written starting at &@buf[@at].
+ */
+int sysfs_emit_at(char *buf, int at, const char *fmt, ...)
+{
+	va_list args;
+	int len;
+
+	if (WARN(!buf || offset_in_page(buf) || at < 0 || at >= PAGE_SIZE,
+		 "invalid sysfs_emit_at: buf:%p at:%d\n", buf, at))
+		return 0;
+
+	va_start(args, fmt);
+	len = vscnprintf(buf + at, PAGE_SIZE - at, fmt, args);
+	va_end(args);
+
+	return len;
+}
+EXPORT_SYMBOL_GPL(sysfs_emit_at);

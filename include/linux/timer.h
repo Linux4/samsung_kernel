@@ -7,6 +7,7 @@
 #include <linux/stddef.h>
 #include <linux/debugobjects.h>
 #include <linux/stringify.h>
+#include <linux/android_kabi.h>
 
 struct timer_list {
 	/*
@@ -21,6 +22,9 @@ struct timer_list {
 #ifdef CONFIG_LOCKDEP
 	struct lockdep_map	lockdep_map;
 #endif
+
+	ANDROID_KABI_RESERVE(1);
+	ANDROID_KABI_RESERVE(2);
 };
 
 #ifdef CONFIG_LOCKDEP
@@ -36,19 +40,30 @@ struct timer_list {
 #define __TIMER_LOCKDEP_MAP_INITIALIZER(_kn)
 #endif
 
-/*
- * A deferrable timer will work normally when the system is busy, but
- * will not cause a CPU to come out of idle just to service it; instead,
- * the timer will be serviced when the CPU eventually wakes up with a
- * subsequent non-deferrable timer.
+/**
+ * @TIMER_DEFERRABLE: A deferrable timer will work normally when the
+ * system is busy, but will not cause a CPU to come out of idle just
+ * to service it; instead, the timer will be serviced when the CPU
+ * eventually wakes up with a subsequent non-deferrable timer.
  *
- * An irqsafe timer is executed with IRQ disabled and it's safe to wait for
- * the completion of the running instance from IRQ handlers, for example,
- * by calling del_timer_sync().
+ * @TIMER_IRQSAFE: An irqsafe timer is executed with IRQ disabled and
+ * it's safe to wait for the completion of the running instance from
+ * IRQ handlers, for example, by calling del_timer_sync().
  *
  * Note: The irq disabled callback execution is a special case for
  * workqueue locking issues. It's not meant for executing random crap
  * with interrupts disabled. Abuse is monitored!
+ *
+ * @TIMER_PINNED: A pinned timer will not be affected by any timer
+ * placement heuristics (like, NOHZ) and will always expire on the CPU
+ * on which the timer was enqueued.
+ *
+ * Note: Because enqueuing of timers can migrate the timer from one
+ * CPU to another, pinned timers are not guaranteed to stay on the
+ * initialy selected CPU.  They move to the CPU on which the enqueue
+ * function is invoked via mod_timer() or add_timer().  If the timer
+ * should be placed on a particular CPU, then add_timer_on() has to be
+ * used.
  */
 #define TIMER_CPUMASK		0x0003FFFF
 #define TIMER_MIGRATING		0x00040000
@@ -161,6 +176,9 @@ extern int del_timer(struct timer_list * timer);
 extern int mod_timer(struct timer_list *timer, unsigned long expires);
 extern int mod_timer_pending(struct timer_list *timer, unsigned long expires);
 extern int timer_reduce(struct timer_list *timer, unsigned long expires);
+#ifdef CONFIG_SMP
+extern bool check_pending_deferrable_timers(int cpu);
+#endif
 
 /*
  * The jiffies value which is added to now, when there is no timer
@@ -168,11 +186,16 @@ extern int timer_reduce(struct timer_list *timer, unsigned long expires);
  */
 #define NEXT_TIMER_MAX_DELTA	((1UL << 30) - 1)
 
+/* To be used from cpusets, only */
+extern void timer_quiesce_cpu(void *cpup);
+
 extern void add_timer(struct timer_list *timer);
 
 extern int try_to_del_timer_sync(struct timer_list *timer);
 
-#ifdef CONFIG_SMP
+extern struct timer_base timer_base_deferrable;
+
+#if defined(CONFIG_SMP) || defined(CONFIG_PREEMPT_RT)
   extern int del_timer_sync(struct timer_list *timer);
 #else
 # define del_timer_sync(t)		del_timer(t)
@@ -210,6 +233,10 @@ int timers_dead_cpu(unsigned int cpu);
 #else
 #define timers_prepare_cpu	NULL
 #define timers_dead_cpu		NULL
+#endif
+
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
+extern int get_cpu_where_timer_on(struct timer_list *timer);
 #endif
 
 #endif

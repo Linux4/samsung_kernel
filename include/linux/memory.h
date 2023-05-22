@@ -25,7 +25,6 @@
 
 struct memory_block {
 	unsigned long start_section_nr;
-	unsigned long end_section_nr;
 	unsigned long state;		/* serialized by the dev->lock */
 	int section_count;		/* serialized by mem_sysfs_mutex */
 	int online_type;		/* for passing data to online routine */
@@ -39,6 +38,10 @@ struct memory_block {
 int arch_get_memory_phys_device(unsigned long start_pfn);
 unsigned long memory_block_size_bytes(void);
 int set_memory_block_size_order(unsigned int order);
+
+#ifdef CONFIG_QCOM_MEM_OFFLINE
+unsigned long get_totalram_pages_count_inc_offlined(void);
+#endif
 
 /* These states are exposed to userspace as text strings in sysfs */
 #define	MEM_ONLINE		(1<<0) /* exposed to userspace */
@@ -80,9 +83,9 @@ struct mem_section;
 #define IPC_CALLBACK_PRI        10
 
 #ifndef CONFIG_MEMORY_HOTPLUG_SPARSE
-static inline int memory_dev_init(void)
+static inline void memory_dev_init(void)
 {
-	return 0;
+	return;
 }
 static inline int register_memory_notifier(struct notifier_block *nb)
 {
@@ -113,13 +116,13 @@ extern int register_memory_isolate_notifier(struct notifier_block *nb);
 extern void unregister_memory_isolate_notifier(struct notifier_block *nb);
 int create_memory_block_devices(unsigned long start, unsigned long size);
 void remove_memory_block_devices(unsigned long start, unsigned long size);
-extern int memory_dev_init(void);
+extern void memory_dev_init(void);
 extern int memory_notify(unsigned long val, void *v);
 extern int memory_isolate_notify(unsigned long val, void *v);
-extern struct memory_block *find_memory_block_hinted(struct mem_section *,
-							struct memory_block *);
 extern struct memory_block *find_memory_block(struct mem_section *);
 typedef int (*walk_memory_blocks_func_t)(struct memory_block *, void *);
+extern int walk_memory_blocks(unsigned long start, unsigned long size,
+			      void *arg, walk_memory_blocks_func_t func);
 extern int for_each_memory_block(void *arg, walk_memory_blocks_func_t func);
 #define CONFIG_MEM_BLOCK_SIZE	(PAGES_PER_SECTION<<PAGE_SHIFT)
 #endif /* CONFIG_MEMORY_HOTPLUG_SPARSE */
@@ -132,11 +135,13 @@ extern int for_each_memory_block(void *arg, walk_memory_blocks_func_t func);
 })
 #define register_hotmemory_notifier(nb)		register_memory_notifier(nb)
 #define unregister_hotmemory_notifier(nb) 	unregister_memory_notifier(nb)
+extern unsigned long get_offlined_pages_count(void);
 #else
 #define hotplug_memory_notifier(fn, pri)	({ 0; })
 /* These aren't inline functions due to a GCC bug. */
 #define register_hotmemory_notifier(nb)    ({ (void)(nb); 0; })
 #define unregister_hotmemory_notifier(nb)  ({ (void)(nb); })
+static inline unsigned long get_offlined_pages_count(void) { return 0; }
 #endif
 
 /*

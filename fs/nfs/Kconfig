@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-only
 config NFS_FS
 	tristate "NFS client support"
 	depends on INET && FILE_LOCKING && MULTIUSER
@@ -40,7 +41,7 @@ config NFS_V2
 	  If unsure, say Y.
 
 config NFS_V3
-	tristate "NFS client support for NFS version 3"
+	bool "NFS client support for NFS version 3"
 	depends on NFS_FS
 	default y
 	help
@@ -72,7 +73,7 @@ config NFS_V3_ACL
 	  If unsure, say N.
 
 config NFS_V4
-	tristate "NFS client support for NFS version 4"
+	bool "NFS client support for NFS version 4"
 	depends on NFS_FS
 	select SUNRPC_GSS
 	select KEYS
@@ -119,15 +120,14 @@ config PNFS_FILE_LAYOUT
 	default NFS_V4
 
 config PNFS_BLOCK
-	tristate
+	bool
 	depends on NFS_V4_1 && BLK_DEV_DM
-	depends on 64BIT || LBDAF
 	default NFS_V4
 
 config PNFS_FLEXFILE_LAYOUT
-	tristate
+	bool
 	depends on NFS_V4_1 && NFS_V3
-	default m
+	default NFS_V4
 
 config NFS_V4_1_IMPLEMENTATION_ID_DOMAIN
 	string "NFSv4.1 Implementation ID Domain"

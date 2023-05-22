@@ -86,12 +86,11 @@ static void __fw_load_abort(struct fw_priv *fw_priv)
 {
 	/*
 	 * There is a small window in which user can write to 'loading'
-	 * between loading done and disappearance of 'loading'
+	 * between loading done/aborted and disappearance of 'loading'
 	 */
-	if (fw_sysfs_done(fw_priv))
+	if (fw_state_is_aborted(fw_priv) || fw_sysfs_done(fw_priv))
 		return;
 
-	list_del_init(&fw_priv->pending_list);
 	fw_state_aborted(fw_priv);
 }
 
@@ -216,21 +215,7 @@ static ssize_t firmware_loading_show(struct device *dev,
 		loading = fw_sysfs_loading(fw_sysfs->fw_priv);
 	mutex_unlock(&fw_lock);
 
-	return sprintf(buf, "%d\n", loading);
-}
-
-/* one pages buffer should be mapped/unmapped only once */
-static int map_fw_priv_pages(struct fw_priv *fw_priv)
-{
-	if (!fw_priv->is_paged_buf)
-		return 0;
-
-	vunmap(fw_priv->data);
-	fw_priv->data = vmap(fw_priv->pages, fw_priv->nr_pages, 0,
-			     PAGE_KERNEL_RO);
-	if (!fw_priv->data)
-		return -ENOMEM;
-	return 0;
+	return sysfs_emit(buf, "%d\n", loading);
 }
 
 /**
@@ -254,7 +239,6 @@ static ssize_t firmware_loading_store(struct device *dev,
 	struct fw_priv *fw_priv;
 	ssize_t written = count;
 	int loading = simple_strtol(buf, NULL, 10);
-	int i;
 
 	mutex_lock(&fw_lock);
 	fw_priv = fw_sysfs->fw_priv;
@@ -265,12 +249,7 @@ static ssize_t firmware_loading_store(struct device *dev,
 	case 1:
 		/* discarding any previous partial load */
 		if (!fw_sysfs_done(fw_priv)) {
-			for (i = 0; i < fw_priv->nr_pages; i++)
-				__free_page(fw_priv->pages[i]);
-			vfree(fw_priv->pages);
-			fw_priv->pages = NULL;
-			fw_priv->page_array_size = 0;
-			fw_priv->nr_pages = 0;
+			fw_free_paged_buf(fw_priv);
 			fw_state_start(fw_priv);
 		}
 		break;
@@ -284,7 +263,7 @@ static ssize_t firmware_loading_store(struct device *dev,
 			 * see the mapped 'buf->data' once the loading
 			 * is completed.
 			 * */
-			rc = map_fw_priv_pages(fw_priv);
+			rc = fw_map_paged_buf(fw_priv);
 			if (rc)
 				dev_err(dev, "%s: map pages failed\n",
 					__func__);
@@ -297,7 +276,6 @@ static ssize_t firmware_loading_store(struct device *dev,
 			 * Same logic as fw_load_abort, only the DONE bit
 			 * is ignored and we set ABORT only on failure.
 			 */
-			list_del_init(&fw_priv->pending_list);
 			if (rc) {
 				fw_state_aborted(fw_priv);
 				written = rc;
@@ -389,40 +367,13 @@ out:
 
 static int fw_realloc_pages(struct fw_sysfs *fw_sysfs, int min_size)
 {
-	struct fw_priv *fw_priv= fw_sysfs->fw_priv;
-	int pages_needed = PAGE_ALIGN(min_size) >> PAGE_SHIFT;
+	int err;
 
-	/* If the array of pages is too small, grow it... */
-	if (fw_priv->page_array_size < pages_needed) {
-		int new_array_size = max(pages_needed,
-					 fw_priv->page_array_size * 2);
-		struct page **new_pages;
-
-		new_pages = vmalloc(array_size(new_array_size, sizeof(void *)));
-		if (!new_pages) {
-			fw_load_abort(fw_sysfs);
-			return -ENOMEM;
-		}
-		memcpy(new_pages, fw_priv->pages,
-		       fw_priv->page_array_size * sizeof(void *));
-		memset(&new_pages[fw_priv->page_array_size], 0, sizeof(void *) *
-		       (new_array_size - fw_priv->page_array_size));
-		vfree(fw_priv->pages);
-		fw_priv->pages = new_pages;
-		fw_priv->page_array_size = new_array_size;
-	}
-
-	while (fw_priv->nr_pages < pages_needed) {
-		fw_priv->pages[fw_priv->nr_pages] =
-			alloc_page(GFP_KERNEL | __GFP_HIGHMEM);
-
-		if (!fw_priv->pages[fw_priv->nr_pages]) {
-			fw_load_abort(fw_sysfs);
-			return -ENOMEM;
-		}
-		fw_priv->nr_pages++;
-	}
-	return 0;
+	err = fw_grow_paged_buf(fw_sysfs->fw_priv,
+				PAGE_ALIGN(min_size) >> PAGE_SHIFT);
+	if (err)
+		fw_load_abort(fw_sysfs);
+	return err;
 }
 
 /**
@@ -559,6 +510,11 @@ static int fw_load_sysfs_fallback(struct fw_sysfs *fw_sysfs,
 	}
 
 	mutex_lock(&fw_lock);
+	if (fw_state_is_aborted(fw_priv)) {
+		mutex_unlock(&fw_lock);
+		retval = -EINTR;
+		goto out;
+	}
 	list_add(&fw_priv->pending_list, &pending_fw_head);
 	mutex_unlock(&fw_lock);
 
@@ -581,11 +537,10 @@ static int fw_load_sysfs_fallback(struct fw_sysfs *fw_sysfs,
 	if (fw_state_is_aborted(fw_priv)) {
 		if (retval == -ERESTARTSYS)
 			retval = -EINTR;
-		else
-			retval = -EAGAIN;
 	} else if (fw_priv->is_paged_buf && !fw_priv->data)
 		retval = -ENOMEM;
 
+out:
 	device_del(f_dev);
 err_put_dev:
 	put_device(f_dev);
@@ -674,8 +629,8 @@ static bool fw_run_sysfs_fallback(enum fw_opt opt_flags)
  *
  * This function is called if direct lookup for the firmware failed, it enables
  * a fallback mechanism through userspace by exposing a sysfs loading
- * interface. Userspace is in charge of loading the firmware through the syfs
- * loading interface. This syfs fallback mechanism may be disabled completely
+ * interface. Userspace is in charge of loading the firmware through the sysfs
+ * loading interface. This sysfs fallback mechanism may be disabled completely
  * on a system by setting the proc sysctl value ignore_sysfs_fallback to true.
  * If this false we check if the internal API caller set the @FW_OPT_NOFALLBACK
  * flag, if so it would also disable the fallback mechanism. A system may want
@@ -693,7 +648,7 @@ int firmware_fallback_sysfs(struct firmware *fw, const char *name,
 		return ret;
 
 	if (!(opt_flags & FW_OPT_NO_WARN))
-		dev_warn(device, "Falling back to syfs fallback for: %s\n",
+		dev_warn(device, "Falling back to sysfs fallback for: %s\n",
 				 name);
 	else
 		dev_dbg(device, "Falling back to sysfs fallback for: %s\n",

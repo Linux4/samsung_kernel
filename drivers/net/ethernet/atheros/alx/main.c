@@ -49,7 +49,7 @@
 #include "hw.h"
 #include "reg.h"
 
-const char alx_drv_name[] = "alx";
+static const char alx_drv_name[] = "alx";
 
 static void alx_free_txbuf(struct alx_tx_queue *txq, int entry)
 {
@@ -660,10 +660,9 @@ static int alx_alloc_rings(struct alx_priv *alx)
 			    alx->num_txq +
 			    sizeof(struct alx_rrd) * alx->rx_ringsz +
 			    sizeof(struct alx_rfd) * alx->rx_ringsz;
-	alx->descmem.virt = dma_zalloc_coherent(&alx->hw.pdev->dev,
-						alx->descmem.size,
-						&alx->descmem.dma,
-						GFP_KERNEL);
+	alx->descmem.virt = dma_alloc_coherent(&alx->hw.pdev->dev,
+					       alx->descmem.size,
+					       &alx->descmem.dma, GFP_KERNEL);
 	if (!alx->descmem.virt)
 		return -ENOMEM;
 
@@ -1470,9 +1469,7 @@ static int alx_map_tx_skb(struct alx_tx_queue *txq, struct sk_buff *skb)
 	tpd->len = cpu_to_le16(maplen);
 
 	for (f = 0; f < skb_shinfo(skb)->nr_frags; f++) {
-		struct skb_frag_struct *frag;
-
-		frag = &skb_shinfo(skb)->frags[f];
+		skb_frag_t *frag = &skb_shinfo(skb)->frags[f];
 
 		if (++txq->write_idx == txq->count)
 			txq->write_idx = 0;
@@ -1855,6 +1852,7 @@ out_free_netdev:
 	free_netdev(netdev);
 out_pci_release:
 	pci_release_mem_regions(pdev);
+	pci_disable_pcie_error_reporting(pdev);
 out_pci_disable:
 	pci_disable_device(pdev);
 	return err;
@@ -1881,8 +1879,7 @@ static void alx_remove(struct pci_dev *pdev)
 #ifdef CONFIG_PM_SLEEP
 static int alx_suspend(struct device *dev)
 {
-	struct pci_dev *pdev = to_pci_dev(dev);
-	struct alx_priv *alx = pci_get_drvdata(pdev);
+	struct alx_priv *alx = dev_get_drvdata(dev);
 
 	if (!netif_running(alx->dev))
 		return 0;
@@ -1893,8 +1890,7 @@ static int alx_suspend(struct device *dev)
 
 static int alx_resume(struct device *dev)
 {
-	struct pci_dev *pdev = to_pci_dev(dev);
-	struct alx_priv *alx = pci_get_drvdata(pdev);
+	struct alx_priv *alx = dev_get_drvdata(dev);
 	struct alx_hw *hw = &alx->hw;
 	int err;
 
@@ -1902,13 +1898,16 @@ static int alx_resume(struct device *dev)
 
 	if (!netif_running(alx->dev))
 		return 0;
-	netif_device_attach(alx->dev);
 
 	rtnl_lock();
 	err = __alx_open(alx, true);
 	rtnl_unlock();
+	if (err)
+		return err;
 
-	return err;
+	netif_device_attach(alx->dev);
+
+	return 0;
 }
 
 static SIMPLE_DEV_PM_OPS(alx_pm_ops, alx_suspend, alx_resume);
@@ -1965,8 +1964,6 @@ static pci_ers_result_t alx_pci_error_slot_reset(struct pci_dev *pdev)
 	if (!alx_reset_mac(hw))
 		rc = PCI_ERS_RESULT_RECOVERED;
 out:
-	pci_cleanup_aer_uncorrect_error_status(pdev);
-
 	rtnl_unlock();
 
 	return rc;

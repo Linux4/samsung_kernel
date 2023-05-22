@@ -62,6 +62,7 @@ static int linear_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 	ti->num_secure_erase_bios = 1;
 	ti->num_write_same_bios = 1;
 	ti->num_write_zeroes_bios = 1;
+	ti->may_passthrough_inline_crypto = true;
 	ti->private = lc;
 	return 0;
 
@@ -102,19 +103,6 @@ static int linear_map(struct dm_target *ti, struct bio *bio)
 	return DM_MAPIO_REMAPPED;
 }
 
-#ifdef CONFIG_BLK_DEV_ZONED
-static int linear_end_io(struct dm_target *ti, struct bio *bio,
-			 blk_status_t *error)
-{
-	struct linear_c *lc = ti->private;
-
-	if (!*error && bio_op(bio) == REQ_OP_ZONE_REPORT)
-		dm_remap_zone_report(ti, bio, lc->start);
-
-	return DM_ENDIO_DONE;
-}
-#endif
-
 static void linear_status(struct dm_target *ti, status_type_t type,
 			  unsigned status_flags, char *result, unsigned maxlen)
 {
@@ -147,6 +135,19 @@ static int linear_prepare_ioctl(struct dm_target *ti, struct block_device **bdev
 		return 1;
 	return 0;
 }
+
+#ifdef CONFIG_BLK_DEV_ZONED
+static int linear_report_zones(struct dm_target *ti,
+		struct dm_report_zones_args *args, unsigned int nr_zones)
+{
+	struct linear_c *lc = ti->private;
+	sector_t sector = linear_map_sector(ti, args->next_sector);
+
+	args->start = lc->start;
+	return blkdev_report_zones(lc->dev->bdev, sector, nr_zones,
+				   dm_report_zones_cb, args);
+}
+#endif
 
 static int linear_iterate_devices(struct dm_target *ti,
 				  iterate_devices_callout_fn fn, void *data)
@@ -211,8 +212,8 @@ static struct target_type linear_target = {
 	.name   = "linear",
 	.version = {1, 4, 0},
 #ifdef CONFIG_BLK_DEV_ZONED
-	.end_io = linear_end_io,
 	.features = DM_TARGET_PASSES_INTEGRITY | DM_TARGET_ZONED_HM,
+	.report_zones = linear_report_zones,
 #else
 	.features = DM_TARGET_PASSES_INTEGRITY,
 #endif

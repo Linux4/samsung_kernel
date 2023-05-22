@@ -21,10 +21,18 @@
  */
 
 #include <linux/export.h>
-#include <drm/drmP.h>
+#include <linux/uaccess.h>
+
+#include <drm/drm_crtc.h>
+#include <drm/drm_drv.h>
+#include <drm/drm_file.h>
+#include <drm/drm_framebuffer.h>
 #include <drm/drm_property.h>
 
 #include "drm_crtc_internal.h"
+
+#define MAX_BLOB_PROP_SIZE	(PAGE_SIZE * 30)
+#define MAX_BLOB_PROP_COUNT	250
 
 /**
  * DOC: overview
@@ -464,7 +472,7 @@ int drm_mode_getproperty_ioctl(struct drm_device *dev,
 	uint64_t __user *values_ptr;
 
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
-		return -EINVAL;
+		return -EOPNOTSUPP;
 
 	property = drm_property_find(dev, file_priv, out_resp->prop_id);
 	if (!property)
@@ -757,7 +765,7 @@ int drm_mode_getblob_ioctl(struct drm_device *dev,
 	int ret = 0;
 
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
-		return -EINVAL;
+		return -EOPNOTSUPP;
 
 	blob = drm_property_lookup_blob(dev, out_resp->blob_id);
 	if (!blob)
@@ -782,11 +790,20 @@ int drm_mode_createblob_ioctl(struct drm_device *dev,
 			      void *data, struct drm_file *file_priv)
 {
 	struct drm_mode_create_blob *out_resp = data;
-	struct drm_property_blob *blob;
+	struct drm_property_blob *blob, *bt;
 	int ret = 0;
+	u32 count = 0;
 
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
-		return -EINVAL;
+		return -EOPNOTSUPP;
+
+	mutex_lock(&dev->mode_config.blob_lock);
+	list_for_each_entry(bt, &file_priv->blobs, head_file)
+		count++;
+	mutex_unlock(&dev->mode_config.blob_lock);
+
+	if (count >= MAX_BLOB_PROP_COUNT)
+		return -EOPNOTSUPP;
 
 	blob = drm_property_create_blob(dev, out_resp->length, NULL);
 	if (IS_ERR(blob))
@@ -823,7 +840,7 @@ int drm_mode_destroyblob_ioctl(struct drm_device *dev,
 	int ret = 0;
 
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
-		return -EINVAL;
+		return -EOPNOTSUPP;
 
 	blob = drm_property_lookup_blob(dev, out_resp->blob_id);
 	if (!blob)
@@ -866,7 +883,7 @@ err:
  * value doesn't become invalid part way through the property update due to
  * race).  The value returned by reference via 'obj' should be passed back
  * to drm_property_change_valid_put() after the property is set (and the
- * object to which the property is attached has a chance to take it's own
+ * object to which the property is attached has a chance to take its own
  * reference).
  */
 bool drm_property_change_valid_get(struct drm_property *property,

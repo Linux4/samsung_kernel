@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * ACPI helpers for DMA request / controller
  *
@@ -6,13 +7,10 @@
  * Copyright (C) 2013, Intel Corporation
  * Authors: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
  *	    Mika Westerberg <mika.westerberg@linux.intel.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  */
 
 #include <linux/device.h>
+#include <linux/dma-mapping.h>
 #include <linux/err.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -72,10 +70,14 @@ static int acpi_dma_parse_resource_group(const struct acpi_csrt_group *grp,
 
 	si = (const struct acpi_csrt_shared_info *)&grp[1];
 
-	/* Match device by MMIO and IRQ */
+	/* Match device by MMIO */
 	if (si->mmio_base_low != lower_32_bits(mem) ||
-	    si->mmio_base_high != upper_32_bits(mem) ||
-	    si->gsi_interrupt != irq)
+	    si->mmio_base_high != upper_32_bits(mem))
+		return 0;
+
+	/* Match device by Linux vIRQ */
+	ret = acpi_register_gsi(NULL, si->gsi_interrupt, si->interrupt_mode, si->interrupt_polarity);
+	if (ret != irq)
 		return 0;
 
 	dev_dbg(&adev->dev, "matches with %.4s%04X (rev %u)\n",
@@ -83,6 +85,12 @@ static int acpi_dma_parse_resource_group(const struct acpi_csrt_group *grp,
 
 	/* Check if the request line range is available */
 	if (si->base_request_line == 0 && si->num_handshake_signals == 0)
+		return 0;
+
+	/* Set up DMA mask based on value from CSRT */
+	ret = dma_coerce_mask_and_coherent(&adev->dev,
+					   DMA_BIT_MASK(si->dma_address_width));
+	if (ret)
 		return 0;
 
 	adma->base_request_line = si->base_request_line;
@@ -131,11 +139,13 @@ static void acpi_dma_parse_csrt(struct acpi_device *adev, struct acpi_dma *adma)
 		if (ret < 0) {
 			dev_warn(&adev->dev,
 				 "error in parsing resource group\n");
-			return;
+			break;
 		}
 
 		grp = (struct acpi_csrt_group *)((void *)grp + grp->length);
 	}
+
+	acpi_put_table((struct acpi_table_header *)csrt);
 }
 
 /**
@@ -143,7 +153,7 @@ static void acpi_dma_parse_csrt(struct acpi_device *adev, struct acpi_dma *adma)
  * @dev:		struct device of DMA controller
  * @acpi_dma_xlate:	translation function which converts a dma specifier
  *			into a dma_chan structure
- * @data		pointer to controller specific data to be used by
+ * @data:		pointer to controller specific data to be used by
  *			translation function
  *
  * Allocated memory should be freed with appropriate acpi_dma_controller_free()
@@ -227,7 +237,7 @@ static void devm_acpi_dma_release(struct device *dev, void *res)
  * devm_acpi_dma_controller_register - resource managed acpi_dma_controller_register()
  * @dev:		device that is registering this DMA controller
  * @acpi_dma_xlate:	translation function
- * @data		pointer to controller specific data
+ * @data:		pointer to controller specific data
  *
  * Managed acpi_dma_controller_register(). DMA controller registered by this
  * function are automatically freed on driver detach. See
@@ -260,6 +270,7 @@ EXPORT_SYMBOL_GPL(devm_acpi_dma_controller_register);
 
 /**
  * devm_acpi_dma_controller_free - resource managed acpi_dma_controller_free()
+ * @dev:	device that is unregistering as DMA controller
  *
  * Unregister a DMA controller registered with
  * devm_acpi_dma_controller_register(). Normally this function will not need to

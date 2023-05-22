@@ -1,19 +1,9 @@
 # SPDX-License-Identifier: GPL-2.0
 #
 # For a description of the syntax of this configuration file,
-# see Documentation/kbuild/kconfig-language.txt.
+# see Documentation/kbuild/kconfig-language.rst.
 #
 mainmenu "Linux/$(ARCH) $(KERNELVERSION) Kernel Configuration"
-
-comment "Compiler: $(CC_VERSION_TEXT)"
-
-config ANDROID_VERSION
-	string
-	option env="ANDROID_VERSION"
-
-config ANDROID_MAJOR_VERSION
-	string
-	option env="ANDROID_MAJOR_VERSION"
 
 source "scripts/Kconfig.include"
 
@@ -38,3 +28,14 @@ source "crypto/Kconfig"
 source "lib/Kconfig"
 
 source "lib/Kconfig.debug"
+
+source "Documentation/Kconfig"
+
+source "techpack/display/msm/dp/Kconfig"
+
+source "techpack/camera/drivers/Kconfig"
+
+source "test/Kconfig"
+
+source "techpack/display/msm/samsung/S6E3FC3_AMS646YD01_LO/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
+source "techpack/display/msm/samsung/Kconfig" # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT

@@ -356,7 +356,7 @@ static size_t fslog_print_pid(const struct fslog_metadata *msg, char *buf)
 
 	if (msg->pid == msg->tgid)
 		return sprintf(buf, "[%15s, %5d] ", msg->comm, msg->pid);
-	
+
 	return sprintf(buf, "[%s(%d)|%s(%d)] ",
 			msg->comm, msg->pid, msg->tgid_comm, msg->tgid);
 }
@@ -503,7 +503,7 @@ static int do_fslog(int type, struct fslog_data *fl_data, char __user *buf, int 
 		error = 0;
 		if (!len)
 			goto out;
-		if (!access_ok(VERIFY_WRITE, buf, len)) {
+		if (!access_ok(buf, len)) {
 			error = -EFAULT;
 			goto out;
 		}

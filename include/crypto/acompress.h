@@ -1,15 +1,10 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * Asynchronous Compression operations
  *
  * Copyright (c) 2016, Intel Corporation
  * Authors: Weigang Li <weigang.li@intel.com>
  *          Giovanni Cabiddu <giovanni.cabiddu@intel.com>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 2 of the License, or (at your option)
- * any later version.
- *
  */
 #ifndef _CRYPTO_ACOMP_H
 #define _CRYPTO_ACOMP_H
@@ -152,6 +147,8 @@ static inline struct crypto_acomp *crypto_acomp_reqtfm(struct acomp_req *req)
  * crypto_free_acomp() -- free ACOMPRESS tfm handle
  *
  * @tfm:	ACOMPRESS tfm handle allocated with crypto_alloc_acomp()
+ *
+ * If @tfm is a NULL or error pointer, this function does nothing.
  */
 static inline void crypto_free_acomp(struct crypto_acomp *tfm)
 {
@@ -246,8 +243,14 @@ static inline void acomp_request_set_params(struct acomp_req *req,
 static inline int crypto_acomp_compress(struct acomp_req *req)
 {
 	struct crypto_acomp *tfm = crypto_acomp_reqtfm(req);
+	struct crypto_alg *alg = tfm->base.__crt_alg;
+	unsigned int slen = req->slen;
+	int ret;
 
-	return tfm->compress(req);
+	crypto_stats_get(alg);
+	ret = tfm->compress(req);
+	crypto_stats_compress(slen, ret, alg);
+	return ret;
 }
 
 /**
@@ -262,8 +265,14 @@ static inline int crypto_acomp_compress(struct acomp_req *req)
 static inline int crypto_acomp_decompress(struct acomp_req *req)
 {
 	struct crypto_acomp *tfm = crypto_acomp_reqtfm(req);
+	struct crypto_alg *alg = tfm->base.__crt_alg;
+	unsigned int slen = req->slen;
+	int ret;
 
-	return tfm->decompress(req);
+	crypto_stats_get(alg);
+	ret = tfm->decompress(req);
+	crypto_stats_decompress(slen, ret, alg);
+	return ret;
 }
 
 #endif

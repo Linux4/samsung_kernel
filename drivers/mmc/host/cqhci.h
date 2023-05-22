@@ -1,13 +1,5 @@
-/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+/* SPDX-License-Identifier: GPL-2.0-only */
+/* Copyright (c) 2020, The Linux Foundation. All rights reserved.
  */
 #ifndef LINUX_MMC_CQHCI_H
 #define LINUX_MMC_CQHCI_H
@@ -20,6 +12,7 @@
 #include <linux/wait.h>
 #include <linux/irqreturn.h>
 #include <asm/io.h>
+#include <linux/keyslot-manager.h>
 
 /* registers */
 /* version */
@@ -30,11 +23,16 @@
 
 /* capabilities */
 #define CQHCI_CAP			0x04
+#define CQHCI_CAP_CS			(1 << 28)
+#define CQHCI_CCAP			0x100
+#define CQHCI_CRYPTOCAP			0x104
+
 /* configuration */
 #define CQHCI_CFG			0x08
 #define CQHCI_DCMD			0x00001000
 #define CQHCI_TASK_DESC_SZ		0x00000100
 #define CQHCI_ENABLE			0x00000001
+#define CQHCI_ICE_ENABLE		0x00000002
 
 /* control */
 #define CQHCI_CTL			0x0C
@@ -47,8 +45,11 @@
 #define CQHCI_IS_TCC			BIT(1)
 #define CQHCI_IS_RED			BIT(2)
 #define CQHCI_IS_TCL			BIT(3)
+#define CQHCI_IS_GCE			BIT(4)
+#define CQHCI_IS_ICCE			BIT(5)
 
-#define CQHCI_IS_MASK (CQHCI_IS_TCC | CQHCI_IS_RED)
+#define CQHCI_IS_MASK (CQHCI_IS_TCC | CQHCI_IS_RED | \
+			CQHCI_IS_GCE | CQHCI_IS_ICCE)
 
 /* interrupt status enable */
 #define CQHCI_ISTE			0x14
@@ -88,8 +89,7 @@
 
 /* send status config 1 */
 #define CQHCI_SSC1			0x40
-#define SEND_QSR_INTERVAL 0x70000
-#define CQHCI_SSC1_CIT_EN   (1 << 20)
+#define CQHCI_SSC1_CBC_MASK		GENMASK(19, 16)
 
 /* send status config 2 */
 #define CQHCI_SSC2			0x44
@@ -99,10 +99,6 @@
 
 /* response mode error mask */
 #define CQHCI_RMEM			0x50
-
-/* write protection violation */
-#define WP_ERASE_SKIP	(1 << 15)
-#define WP_VIOLATION	(1 << 26)
 
 /* task error info */
 #define CQHCI_TERRI			0x54
@@ -120,40 +116,13 @@
 /* command response argument */
 #define CQHCI_CRA			0x5C
 
-/* CQCMD */
-#define CQHCI_CMD44			0x100
-#define CQHCI_CMD45		0x104
-#define CQHCI_CMD46		0x108
-#define CQHCI_CMD47		0x10C
-#define CQHCI_CMD13		0x110
-
-/* Debug */
-#define CQHCI_DEBUG0       0x118
-#define CQHCI_DEBUG1       0x11c
-#define CQHCI_DEBUG1_ALL_SET 0xFFFFFFFF
-
-/* Int mask */
-#define CQHCI_DATAINTMASK1	0x124
-#define CQHCI_CMDINTMASK2	0x128
-
-/* CMD Interrupt MASK 1 */
-#define RESP_ERR		(1 << 0)
-#define CMD_DONE		(1 << 1)
-#define RESP_CRC_ERR		(1 << 2)
-#define RESP_TIMEOUT		(1 << 3)
-#define HW_LOCK_ERR		(1 << 4)
-
-/* Data Interrupt MASK */
-#define DATA_DONE		(1 << 0)
-#define DATA_CRC_ERR		(1 << 1)
-#define DATA_RTIMEOUT		(1 << 2)
-#define HOST_TIMEOUT		(1 << 3)
-#define FIFO_UNDERRUN		(1 << 4)
-#define START_BIT_ERR		(1 << 5)
-#define END_BIT_ERR		(1 << 6)
-
-/* Device Reseponse */
-#define RESP_DEVICE_STATE	0xFDF9A080
+/*
+ * Add new macro for updated CQ vendor specific
+ * register address for SDHC v5.0 onwards.
+ */
+#define CQE_V5_VENDOR_CFG		0x900
+#define CQHCI_VENDOR_CFG   0x100
+#define CMDQ_SEND_STATUS_TRIGGER (1 << 31)
 
 #define CQHCI_INT_ALL			0xF
 #define CQHCI_IC_DEFAULT_ICCTH		31
@@ -185,31 +154,108 @@
 #define CQHCI_DAT_LENGTH(x)		(((x) & 0xFFFF) << 16)
 #define CQHCI_DAT_ADDR_LO(x)		(((x) & 0xFFFFFFFF) << 32)
 #define CQHCI_DAT_ADDR_HI(x)		(((x) & 0xFFFFFFFF) << 0)
+#define DATA_UNIT_NUM(x)		(((u64)(x) & 0xFFFFFFFF) << 0)
+#define CRYPTO_CONFIG_INDEX(x)		(((u64)(x) & 0xFF) << 32)
+#define CRYPTO_ENABLE(x)		(((u64)(x) & 0x1) << 47)
+
+/* ICE context is present in the upper 64bits of task descriptor */
+#define CQHCI_TASK_DESC_ICE_PARAM_OFFSET	8
+/* ICE descriptor size */
+#define CQHCI_TASK_DESC_ICE_PARAMS_SIZE		8
 
 struct cqhci_host_ops;
 struct mmc_host;
+struct mmc_request;
 struct cqhci_slot;
+struct cqhci_host;
 
-enum dw_mci_cq_log_cmd {
-	CQ_LOG_CMD_READ = 1,
-	CQ_LOG_CMD_WRITE,
-	CQ_LOG_CMD_DISCARD,
-	CQ_LOG_CMD_FLUSH,
+/* CCAP - Crypto Capability 100h */
+union cqhci_crypto_capabilities {
+	__le32 reg_val;
+	struct {
+		u8 num_crypto_cap;
+		u8 config_count;
+		u8 reserved;
+		u8 config_array_ptr;
+	};
 };
 
-struct cmdq_log_ctx {
-	u32	idx;
+enum cqhci_crypto_key_size {
+	CQHCI_CRYPTO_KEY_SIZE_INVALID	= 0x0,
+	CQHCI_CRYPTO_KEY_SIZE_128	= 0x1,
+	CQHCI_CRYPTO_KEY_SIZE_192	= 0x2,
+	CQHCI_CRYPTO_KEY_SIZE_256	= 0x3,
+	CQHCI_CRYPTO_KEY_SIZE_512	= 0x4,
+};
 
-	u32	x0;	/* data0: tag, data1: tag */
-	u32	x1;	/* data0: dbr, data1: dbr */
-	u32	x2;	/* data0: cmd, data1:  */
-	u32	x3;	/* data0: lba, data1:  */
-	u32	x4;	/* data0: sct, data1:  */
+enum cqhci_crypto_alg {
+	CQHCI_CRYPTO_ALG_AES_XTS		= 0x0,
+	CQHCI_CRYPTO_ALG_BITLOCKER_AES_CBC	= 0x1,
+	CQHCI_CRYPTO_ALG_AES_ECB		= 0x2,
+	CQHCI_CRYPTO_ALG_ESSIV_AES_CBC		= 0x3,
+};
+
+/* x-CRYPTOCAP - Crypto Capability X */
+union cqhci_crypto_cap_entry {
+	__le32 reg_val;
+	struct {
+		u8 algorithm_id;
+		u8 sdus_mask; /* Supported data unit size mask */
+		u8 key_size;
+		u8 reserved;
+	};
+};
+
+#define CQHCI_CRYPTO_CONFIGURATION_ENABLE (1 << 7)
+#define CQHCI_CRYPTO_KEY_MAX_SIZE 64
+/* x-CRYPTOCFG - Crypto Configuration X */
+union cqhci_crypto_cfg_entry {
+	__le32 reg_val[32];
+	struct {
+		u8 crypto_key[CQHCI_CRYPTO_KEY_MAX_SIZE];
+		u8 data_unit_size;
+		u8 crypto_cap_idx;
+		u8 reserved_1;
+		u8 config_enable;
+		u8 reserved_multi_host;
+		u8 reserved_2;
+		u8 vsb[2];
+		u8 reserved_3[56];
+	};
+};
+
+struct cqhci_host_crypto_variant_ops {
+	void (*setup_rq_keyslot_manager)(struct cqhci_host *host,
+					 struct request_queue *q);
+	void (*destroy_rq_keyslot_manager)(struct cqhci_host *host,
+					   struct request_queue *q);
+#ifdef CONFIG_BLK_INLINE_ENCRYPTION
+	int (*host_init_crypto)(struct cqhci_host *host,
+				const struct keyslot_mgmt_ll_ops *ksm_ops);
+#endif
+	void (*enable)(struct cqhci_host *host);
+	void (*disable)(struct cqhci_host *host);
+	int (*suspend)(struct cqhci_host *host);
+	int (*resume)(struct cqhci_host *host);
+	int (*debug)(struct cqhci_host *host);
+	int (*prepare_crypto_desc)(struct cqhci_host *host,
+				   struct mmc_request *mrq,
+				   u64 *ice_ctx);
+	int (*complete_crypto_desc)(struct cqhci_host *host,
+				    struct mmc_request *mrq,
+				    u64 *ice_ctx);
+	int (*reset)(struct cqhci_host *host);
+	int (*recovery_finish)(struct cqhci_host *host);
+	int (*program_key)(struct cqhci_host *host,
+			   const union cqhci_crypto_cfg_entry *cfg,
+			   int slot);
+	void *priv;
 };
 
 struct cqhci_host {
 	const struct cqhci_host_ops *ops;
 	void __iomem *mmio;
+	void __iomem *icemmio;
 	struct mmc_host *mmc;
 
 	spinlock_t lock;
@@ -225,6 +271,7 @@ struct cqhci_host {
 	u32 dcmd_slot;
 	u32 caps;
 #define CQHCI_TASK_DESC_SZ_128		0x1
+#define CQHCI_CAP_CRYPTO_SUPPORT	0x2
 
 	u32 quirks;
 #define CQHCI_QUIRK_SHORT_TXFR_DESC_SZ	0x1
@@ -235,6 +282,7 @@ struct cqhci_host {
 	bool activated;
 	bool waiting_for_idle;
 	bool recovery_halt;
+	bool offset_changed;
 
 	size_t desc_size;
 	size_t data_size;
@@ -260,7 +308,15 @@ struct cqhci_host {
 	struct completion halt_comp;
 	wait_queue_head_t wait_queue;
 	struct cqhci_slot *slot;
-	u32 cmd_log_idx[32];
+	const struct cqhci_host_crypto_variant_ops *crypto_vops;
+
+	union cqhci_crypto_capabilities crypto_capabilities;
+	union cqhci_crypto_cap_entry *crypto_cap_array;
+	u32 crypto_cfg_register;
+#ifdef CONFIG_BLK_INLINE_ENCRYPTION
+	struct keyslot_manager *ksm;
+#endif /* CONFIG_BLK_INLINE_ENCRYPTION */
+	struct platform_device *pdev;
 };
 
 struct cqhci_host_ops {
@@ -269,15 +325,8 @@ struct cqhci_host_ops {
 	u32 (*read_l)(struct cqhci_host *host, int reg);
 	void (*enable)(struct mmc_host *mmc);
 	void (*disable)(struct mmc_host *mmc, bool recovery);
-	int (*crypto_engine_cfg)(struct mmc_host *mmc, void *desc,
-					struct mmc_data *data, struct page *page,
-					int page_index, int sector_offset, bool cmdq_enabled);
-	int (*crypto_engine_clear)(struct mmc_host *mmc, void *desc,
-					struct mmc_data *data, bool cmdq_enabled);
-	void (*cmdq_pre_setting)(struct mmc_host *mmc, bool set);
-	void (*cmdq_log)(struct mmc_host *mmc, bool new_cmd,
-					struct cmdq_log_ctx *log_ctx);
-	int (*reset)(struct mmc_host *mmc, bool cqe_reset);
+	void (*update_dcmd_desc)(struct mmc_host *mmc, struct mmc_request *mrq,
+				 u64 *data);
 };
 
 static inline void cqhci_writel(struct cqhci_host *host, u32 val, int reg)
@@ -302,7 +351,11 @@ irqreturn_t cqhci_irq(struct mmc_host *mmc, u32 intmask, int cmd_error,
 		      int data_error);
 int cqhci_init(struct cqhci_host *cq_host, struct mmc_host *mmc, bool dma64);
 struct cqhci_host *cqhci_pltfm_init(struct platform_device *pdev);
-int cqhci_suspend(struct mmc_host *mmc);
+int cqhci_deactivate(struct mmc_host *mmc);
+static inline int cqhci_suspend(struct mmc_host *mmc)
+{
+	return cqhci_deactivate(mmc);
+}
 int cqhci_resume(struct mmc_host *mmc);
 
 #endif

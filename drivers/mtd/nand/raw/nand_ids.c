@@ -1,13 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  Copyright (C) 2002 Thomas Gleixner (tglx@linutronix.de)
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
  */
-#include <linux/mtd/rawnand.h>
+
 #include <linux/sizes.h>
+
+#include "internals.h"
 
 #define LP_OPTIONS 0
 #define LP_OPTIONS16 (LP_OPTIONS | NAND_BUSWIDTH_16)
@@ -54,6 +52,27 @@ struct nand_flash_dev nand_flash_ids[] = {
 		{ .id = {0xad, 0xde, 0x94, 0xda, 0x74, 0xc4} },
 		  SZ_8K, SZ_8K, SZ_2M, NAND_NEED_SCRAMBLING, 6, 640,
 		  NAND_ECC_INFO(40, SZ_1K), 4 },
+	{"NM1484KSLAXAJ-3B 4G 1.8V 8-bit",
+		{ .id = {0x98, 0xac, 0x90, 0x26, 0x76, 0x00, 0x00, 0x00} },
+		SZ_4K, SZ_512, SZ_256K, 0, 5, 256, NAND_ECC_INFO(8, SZ_512) },
+	{"MT29F8G08ABBCAH4 8G 3.3V 8-bit",
+		{ .id = {0x2c, 0xa3, 0x90, 0x26, 0x00, 0x00, 0x00, 0x00} },
+		SZ_4K, SZ_1K, SZ_256K, 0, 4, 224, NAND_ECC_INFO(8, SZ_512)},
+	{"TC58NYG2S0HBAI4 4G 1.8V 8-bit",
+		{ .id = {0x98, 0xac, 0x90, 0x26, 0x76, 0x00, 0x00, 0x00} },
+		SZ_4K, SZ_512, SZ_256K, 0, 5, 256, NAND_ECC_INFO(8, SZ_512) },
+	{"MT29F4G08ABBFA3W 4G 1.8V 8-bit",
+		{ .id = {0x2c, 0xac, 0x80, 0x26, 0x00, 0x00, 0x00, 0x00} },
+		SZ_4K, SZ_512, SZ_256K, 0, 4, 256, NAND_ECC_INFO(8, SZ_512) },
+	{"MT29F4G08ABBFAH4 4G 1.8V 8-bit",
+		{ .id = {0x2c, 0xac, 0x80, 0x26, 0x62, 0x00, 0x00, 0x00} },
+		SZ_4K, SZ_512, SZ_256K, 0, 5, 256, NAND_ECC_INFO(8, SZ_512)},
+	{"MT29F8G08ADBFA 8G 1.8V 8-bit",
+		{ .id = {0x2c, 0xa3, 0xd0, 0x26, 0x66, 0x00, 0x00, 0x00} },
+		SZ_4K, SZ_1K, SZ_256K, 0, 5, 256, NAND_ECC_INFO(8, SZ_512)},
+	{"XT61M2G8D2TA-B8B 2G 1.8V 8-bit",
+		{ .id = {0x98, 0xaa, 0x90, 0x15, 0x76, 0x00, 0x00, 0x00} },
+		SZ_2K, SZ_256, SZ_128K, 0, 5, 128, NAND_ECC_INFO(8, SZ_512)},
 
 	LEGACY_ID_NAND("NAND 4MiB 5V 8-bit",   0x6B, 4, SZ_8K, SP_OPTIONS),
 	LEGACY_ID_NAND("NAND 4MiB 3,3V 8-bit", 0xE3, 4, SZ_8K, SP_OPTIONS),
@@ -169,21 +188,21 @@ struct nand_flash_dev nand_flash_ids[] = {
 
 /* Manufacturer IDs */
 static const struct nand_manufacturer nand_manufacturers[] = {
-	{NAND_MFR_TOSHIBA, "Toshiba", &toshiba_nand_manuf_ops},
-	{NAND_MFR_ESMT, "ESMT"},
-	{NAND_MFR_SAMSUNG, "Samsung", &samsung_nand_manuf_ops},
+	{NAND_MFR_AMD, "AMD/Spansion", &amd_nand_manuf_ops},
+	{NAND_MFR_ATO, "ATO"},
+	{NAND_MFR_EON, "Eon"},
+	{NAND_MFR_ESMT, "ESMT", &esmt_nand_manuf_ops},
 	{NAND_MFR_FUJITSU, "Fujitsu"},
+	{NAND_MFR_HYNIX, "Hynix", &hynix_nand_manuf_ops},
+	{NAND_MFR_INTEL, "Intel"},
+	{NAND_MFR_MACRONIX, "Macronix", &macronix_nand_manuf_ops},
+	{NAND_MFR_MICRON, "Micron", &micron_nand_manuf_ops},
 	{NAND_MFR_NATIONAL, "National"},
 	{NAND_MFR_RENESAS, "Renesas"},
-	{NAND_MFR_STMICRO, "ST Micro"},
-	{NAND_MFR_HYNIX, "Hynix", &hynix_nand_manuf_ops},
-	{NAND_MFR_MICRON, "Micron", &micron_nand_manuf_ops},
-	{NAND_MFR_AMD, "AMD/Spansion", &amd_nand_manuf_ops},
-	{NAND_MFR_MACRONIX, "Macronix", &macronix_nand_manuf_ops},
-	{NAND_MFR_EON, "Eon"},
+	{NAND_MFR_SAMSUNG, "Samsung", &samsung_nand_manuf_ops},
 	{NAND_MFR_SANDISK, "SanDisk"},
-	{NAND_MFR_INTEL, "Intel"},
-	{NAND_MFR_ATO, "ATO"},
+	{NAND_MFR_STMICRO, "ST Micro"},
+	{NAND_MFR_TOSHIBA, "Toshiba", &toshiba_nand_manuf_ops},
 	{NAND_MFR_WINBOND, "Winbond"},
 };
 

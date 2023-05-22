@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /* SCTP kernel implementation
  * (C) Copyright IBM Corp. 2001, 2004
  * Copyright (c) 1999 Cisco, Inc.
@@ -8,22 +9,6 @@
  * These functions work with the state functions in sctp_sm_statefuns.c
  * to implement that state operations.  These functions implement the
  * steps which require modifying existing data structures.
- *
- * This SCTP implementation is free software;
- * you can redistribute it and/or modify it under the terms of
- * the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
- *
- * This SCTP implementation is distributed in the hope that it
- * will be useful, but WITHOUT ANY WARRANTY; without even the implied
- *                 ************************
- * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See the GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with GNU CC; see the file COPYING.  If not, see
- * <http://www.gnu.org/licenses/>.
  *
  * Please send any bug reports or fixes you make to the
  * email address(es):
@@ -52,7 +37,7 @@
 #include <net/sctp/sm.h>
 #include <net/sctp/stream_sched.h>
 
-static int sctp_cmd_interpreter(enum sctp_event event_type,
+static int sctp_cmd_interpreter(enum sctp_event_type event_type,
 				union sctp_subtype subtype,
 				enum sctp_state state,
 				struct sctp_endpoint *ep,
@@ -61,7 +46,7 @@ static int sctp_cmd_interpreter(enum sctp_event event_type,
 				enum sctp_disposition status,
 				struct sctp_cmd_seq *commands,
 				gfp_t gfp);
-static int sctp_side_effects(enum sctp_event event_type,
+static int sctp_side_effects(enum sctp_event_type event_type,
 			     union sctp_subtype subtype,
 			     enum sctp_state state,
 			     struct sctp_endpoint *ep,
@@ -434,7 +419,7 @@ void sctp_generate_proto_unreach_event(struct timer_list *t)
 		/* Try again later.  */
 		if (!mod_timer(&transport->proto_unreach_timer,
 				jiffies + (HZ/20)))
-			sctp_association_hold(asoc);
+			sctp_transport_hold(transport);
 		goto out_unlock;
 	}
 
@@ -450,7 +435,7 @@ void sctp_generate_proto_unreach_event(struct timer_list *t)
 
 out_unlock:
 	bh_unlock_sock(sk);
-	sctp_association_put(asoc);
+	sctp_transport_put(transport);
 }
 
  /* Handle the timeout of the RE-CONFIG timer. */
@@ -472,6 +457,10 @@ void sctp_generate_reconf_event(struct timer_list *t)
 			sctp_transport_hold(transport);
 		goto out_unlock;
 	}
+
+	/* This happens when the response arrives after the timer is triggered. */
+	if (!asoc->strreset_chunk)
+		goto out_unlock;
 
 	error = sctp_do_sm(net, SCTP_EVENT_T_TIMEOUT,
 			   SCTP_ST_TIMEOUT(SCTP_EVENT_TIMEOUT_RECONF),
@@ -623,7 +612,7 @@ static void sctp_cmd_init_failed(struct sctp_cmd_seq *commands,
 /* Worker routine to handle SCTP_CMD_ASSOC_FAILED.  */
 static void sctp_cmd_assoc_failed(struct sctp_cmd_seq *commands,
 				  struct sctp_association *asoc,
-				  enum sctp_event event_type,
+				  enum sctp_event_type event_type,
 				  union sctp_subtype subtype,
 				  struct sctp_chunk *chunk,
 				  unsigned int error)
@@ -1141,7 +1130,7 @@ static void sctp_cmd_send_msg(struct sctp_association *asoc,
  * If you want to understand all of lksctp, this is a
  * good place to start.
  */
-int sctp_do_sm(struct net *net, enum sctp_event event_type,
+int sctp_do_sm(struct net *net, enum sctp_event_type event_type,
 	       union sctp_subtype subtype, enum sctp_state state,
 	       struct sctp_endpoint *ep, struct sctp_association *asoc,
 	       void *event_arg, gfp_t gfp)
@@ -1178,7 +1167,7 @@ int sctp_do_sm(struct net *net, enum sctp_event event_type,
 /*****************************************************************
  * This the master state function side effect processing function.
  *****************************************************************/
-static int sctp_side_effects(enum sctp_event event_type,
+static int sctp_side_effects(enum sctp_event_type event_type,
 			     union sctp_subtype subtype,
 			     enum sctp_state state,
 			     struct sctp_endpoint *ep,
@@ -1264,7 +1253,7 @@ bail:
  ********************************************************************/
 
 /* This is the side-effect interpreter.  */
-static int sctp_cmd_interpreter(enum sctp_event event_type,
+static int sctp_cmd_interpreter(enum sctp_event_type event_type,
 				union sctp_subtype subtype,
 				enum sctp_state state,
 				struct sctp_endpoint *ep,
@@ -1615,12 +1604,12 @@ static int sctp_cmd_interpreter(enum sctp_event event_type,
 			break;
 
 		case SCTP_CMD_INIT_FAILED:
-			sctp_cmd_init_failed(commands, asoc, cmd->obj.u32);
+			sctp_cmd_init_failed(commands, asoc, cmd->obj.u16);
 			break;
 
 		case SCTP_CMD_ASSOC_FAILED:
 			sctp_cmd_assoc_failed(commands, asoc, event_type,
-					      subtype, chunk, cmd->obj.u32);
+					      subtype, chunk, cmd->obj.u16);
 			break;
 
 		case SCTP_CMD_INIT_COUNTER_INC:
