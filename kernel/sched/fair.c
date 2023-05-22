@@ -9976,7 +9976,7 @@ static int hmp_selective_migration(int prev_cpu, struct sched_entity *se)
 {
 	int new_cpu = NR_CPUS;
 	int is_boosted_task;
-	int min_load, min_cpu;
+	int min_load = 1, min_cpu;
 	struct task_struct *p;
 
 	p = container_of(se, struct task_struct, se);
@@ -9997,7 +9997,9 @@ static int hmp_selective_migration(int prev_cpu, struct sched_entity *se)
 		if (p->prio <= 110 && cpuset_task_is_pinned(p)) {
 			min_load = hmp_domain_min_load(&firstboost,&min_cpu, tsk_cpus_allowed(p));
 		} else {
-			min_load = hmp_domain_min_load(&firstboost,&min_cpu, tsk_cpus_allowed(p));
+			if (p->prio <= 120)
+				min_load = hmp_domain_min_load(&firstboost,&min_cpu, tsk_cpus_allowed(p));
+
 			if (min_load) {
 				min_load = hmp_domain_min_load(&secondboost,&min_cpu, tsk_cpus_allowed(p));
 				if (min_load)

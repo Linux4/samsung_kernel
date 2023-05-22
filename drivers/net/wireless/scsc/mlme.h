@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright (c) 2012 - 2019 Samsung Electronics Co., Ltd. All rights reserved
+ * Copyright (c) 2012 - 2021 Samsung Electronics Co., Ltd. All rights reserved
  *
  ****************************************************************************/
 
@@ -29,6 +29,9 @@ enum slsi_ac_index_wmm_pe {
 #define SLSI_WLAN_OUI_TYPE_WFA_HS20_IND 0x10
 #define SLSI_WLAN_OUI_TYPE_WFA_OSEN 0x12
 #define SLSI_WLAN_OUI_TYPE_WFA_MBO 0x16
+
+#define SLSI_WLAN_FAIL_WORK_TIMEOUT  1500 /* 1.5s timeout */
+
 /*Extended capabilities bytes*/
 #define SLSI_WLAN_EXT_CAPA2_BSS_TRANSISITION_ENABLED  (1 << 3)
 #define SLSI_WLAN_EXT_CAPA3_INTERWORKING_ENABLED        (1 << 7)
@@ -271,6 +274,8 @@ int slsi_mlme_set_host_state(struct slsi_dev *sdev, struct net_device *dev, u8 h
 int slsi_mlme_read_apf_request(struct slsi_dev *sdev, struct net_device *dev, u8 **host_dst, int *datalen);
 int slsi_mlme_install_apf_request(struct slsi_dev *sdev, struct net_device *dev,
 				  u8 *program, u32 program_len);
+int slsi_mlme_set_multicast_ip(struct slsi_dev *sdev, struct net_device *dev,  __be32 multicast_ip_list[], int count);
+
 #ifdef CONFIG_SCSC_WLAN_STA_ENHANCED_ARP_DETECT
 int slsi_mlme_arp_detect_request(struct slsi_dev *sdev, struct net_device *dev, u16 action, u8 *ipaddr);
 #endif

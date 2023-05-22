@@ -1252,6 +1252,7 @@ int slsi_netif_add_locked(struct slsi_dev *sdev, const char *name, int ifnum)
 	/* For HS2 interface */
 	if (SLSI_IS_VIF_INDEX_WLAN(ndev_vif)) {
 		sdev->wlan_unsync_vif_state = WLAN_UNSYNC_NO_VIF;
+		SLSI_NET_INFO(dev, "Initializing Hs2 Del Vif Work\n");
 		INIT_DELAYED_WORK(&ndev_vif->unsync.hs2_del_vif_work, slsi_hs2_unsync_vif_delete_work);
 	} else if (SLSI_IS_VIF_INDEX_P2P(ndev_vif)) {
 		/* For p2p0 interface */

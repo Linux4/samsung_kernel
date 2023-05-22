@@ -134,6 +134,9 @@ static int fimc_is_hw_mcsc_handle_interrupt(u32 id, void *context)
 	if (status & (1 << INTR_MC_SCALER_WDMA_FINISH))
 		mserr_hw("Disabeld interrupt occurred! WDAM FINISH!! (0x%x)", instance, hw_ip, status);
 
+	if ((status & (1 << INTR_MC_SCALER_FRAME_START)) && (status & (1 << INTR_MC_SCALER_FRAME_END)))
+		mswarn_hw("start/end overlapped!! (0x%x)", instance, hw_ip, status);
+
 	if (status & (1 << INTR_MC_SCALER_FRAME_START)) {
 		atomic_inc(&hw_ip->count.fs);
 		hw_ip->cur_s_int++;
@@ -146,12 +149,7 @@ static int fimc_is_hw_mcsc_handle_interrupt(u32 id, void *context)
 			if (!atomic_read(&hardware->streaming[hardware->sensor_position[instance]]))
 				msinfo_hw("[F:%d]F.S\n", instance, hw_ip, hw_fcount);
 
-			if (param->input.dma_cmd == DMA_INPUT_COMMAND_ENABLE) {
-				fimc_is_hardware_frame_start(hw_ip, instance);
-			} else {
-				clear_bit(HW_CONFIG, &hw_ip->state);
-				atomic_set(&hw_ip->status.Vvalid, V_VALID);
-			}
+			fimc_is_hardware_frame_start(hw_ip, instance);
 		}
 
 		/* for set shadow register write start */
