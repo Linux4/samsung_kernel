@@ -550,7 +550,7 @@ unsigned int a6xx_preemption_pre_ibsubmit(
 		cmds += cp_gpuaddr(adreno_dev, cmds, dest);
 		*cmds++ = lower_32_bits(gpuaddr);
 		*cmds++ = upper_32_bits(gpuaddr);
-		
+
 		/* Add a KMD post amble to clear the perf counters during preemption */
 		if (!adreno_dev->perfcounter) {
 			u64 kmd_postamble_addr =

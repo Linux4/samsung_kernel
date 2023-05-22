@@ -818,7 +818,9 @@ out:
 	if (a->struct_type == RESERVED_BLOCKS) {
 		spin_lock(&sbi->stat_lock);
 		if (t > (unsigned long)(sbi->user_block_count -
-				F2FS_OPTION(sbi).root_reserved_blocks)) {
+				F2FS_OPTION(sbi).root_reserved_blocks -
+				sbi->blocks_per_seg *
+				SM_I(sbi)->additional_reserved_segments)) {
 			spin_unlock(&sbi->stat_lock);
 			return -EINVAL;
 		}
@@ -955,6 +957,9 @@ enum feat_id {
 	FEAT_RO,
 	FEAT_TEST_DUMMY_ENCRYPTION_V2,
 	FEAT_ENCRYPTED_CASEFOLD,
+#ifdef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
+	FEAT_SEC_DNODE_RELOCATION,
+#endif
 };
 
 static ssize_t f2fs_feature_show(struct f2fs_attr *a,
@@ -978,6 +983,9 @@ static ssize_t f2fs_feature_show(struct f2fs_attr *a,
 	case FEAT_RO:
 	case FEAT_TEST_DUMMY_ENCRYPTION_V2:
 	case FEAT_ENCRYPTED_CASEFOLD:
+#ifdef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
+	case FEAT_SEC_DNODE_RELOCATION:
+#endif
 		return sprintf(buf, "supported\n");
 	}
 	return 0;
@@ -1127,6 +1135,9 @@ F2FS_FEATURE_RO_ATTR(readonly, FEAT_RO);
 #ifdef CONFIG_F2FS_FS_COMPRESSION
 F2FS_FEATURE_RO_ATTR(compression, FEAT_COMPRESSION);
 #endif
+#ifdef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
+F2FS_FEATURE_RO_ATTR(sec_dnode_relocation, FEAT_SEC_DNODE_RELOCATION);
+#endif
 
 #define ATTR_LIST(name) (&f2fs_attr_##name.attr)
 static struct attribute *f2fs_attrs[] = {
@@ -1237,6 +1248,9 @@ static struct attribute *f2fs_feat_attrs[] = {
 	ATTR_LIST(readonly),
 #ifdef CONFIG_F2FS_FS_COMPRESSION
 	ATTR_LIST(compression),
+#endif
+#ifdef CONFIG_F2FS_SEC_SUPPORT_DNODE_RELOCATION
+	ATTR_LIST(sec_dnode_relocation),
 #endif
 	NULL,
 };

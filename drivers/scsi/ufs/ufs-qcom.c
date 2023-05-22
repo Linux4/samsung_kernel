@@ -391,7 +391,7 @@ static bool ufs_sec_parse_wb_info(struct ufs_qcom_host *host)
 		wb_info->down_threshold_rqs = 25;
 
 	if (of_property_read_u32(node, "sec,wb-disable-threshold-lt", &wb_info->wb_disable_threshold_lt))
-		wb_info->wb_disable_threshold_lt = 7;
+		wb_info->wb_disable_threshold_lt = 9;
 
 	if (of_property_read_u32(node, "sec,wb-on-delay-ms", &temp_delay_ms_value))
 		wb_info->on_delay = msecs_to_jiffies(92);
@@ -2210,8 +2210,11 @@ static void ufs_qcom_dev_ref_clk_ctrl(struct ufs_qcom_host *host, bool enable)
 
 		writel_relaxed(temp, host->dev_ref_clk_ctrl_mmio);
 
-		/* ensure that ref_clk is enabled/disabled before we return */
-		wmb();
+		/*
+		 * Make sure the write to ref_clk reaches the destination and
+		 * not stored in a Write Buffer (WB).
+		 */
+		readl(host->dev_ref_clk_ctrl_mmio);
 
 		/*
 		 * If we call hibern8 exit after this, we need to make sure that

@@ -121,6 +121,10 @@ static int cam_ois_get_dev_handle(struct cam_ois_ctrl_t *o_ctrl,
 
 	ois_acq_dev.device_handle =
 		cam_create_device_hdl(&bridge_params);
+	if (ois_acq_dev.device_handle <= 0) {
+		CAM_ERR(CAM_OIS, "Can not create device handle");
+		return -EFAULT;
+	}
 #if defined(CONFIG_SAMSUNG_OIS_MCU_STM32)
 	o_ctrl->bridge_intf[idx].device_hdl = ois_acq_dev.device_handle;
 	o_ctrl->bridge_intf[idx].session_hdl = ois_acq_dev.session_handle;

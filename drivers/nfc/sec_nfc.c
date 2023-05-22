@@ -1017,7 +1017,7 @@ static int sec_nfc_suspend(struct device *dev)
 	struct sec_nfc_info *info = SEC_NFC_GET_INFO(dev);
 	int ret = 0;
 
-	NFC_LOG_INFO("suspend!\n");
+	NFC_LOG_INFO_WITH_DATE("suspend!\n");
 	mutex_lock(&info->mutex);
 
 	if (info->mode == SEC_NFC_MODE_BOOTLOADER)
@@ -1030,7 +1030,7 @@ static int sec_nfc_suspend(struct device *dev)
 
 static int sec_nfc_resume(struct device *dev)
 {
-	NFC_LOG_INFO("resume!\n");
+	NFC_LOG_INFO_WITH_DATE("resume!\n");
 
 	return 0;
 }
