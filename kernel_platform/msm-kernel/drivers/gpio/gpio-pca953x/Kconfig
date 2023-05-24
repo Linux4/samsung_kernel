@@ -1,0 +1,13 @@
+#
+# PCA953X device
+#
+
+comment "PCA953X configs"
+
+config GPIO_PCA953X_RESET
+	bool "Using GPIO-PCA953X Reset"
+	default n
+	help
+	  If you say yes here you will get support for
+	  the GPIO-PCA953X reset.
+
