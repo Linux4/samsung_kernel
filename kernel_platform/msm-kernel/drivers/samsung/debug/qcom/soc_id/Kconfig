@@ -1,0 +1,4 @@
+config SEC_QC_SOC_ID
+	tristate "SEC SoC ID for Qualcomm SoC based models"
+	help
+	  TODO: help is not ready.
