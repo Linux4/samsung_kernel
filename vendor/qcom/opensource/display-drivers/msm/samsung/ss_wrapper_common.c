@@ -106,6 +106,9 @@ int __mockable ss_sde_vm_owns_hw(struct samsung_display_driver_data *vdd)
 	if (!sde_kms)
 		return -ENODEV;
 
+	if (!display->hw_ownership)
+		return 0;
+
 	return sde_vm_owns_hw(sde_kms);
 }
 
@@ -164,10 +167,12 @@ int __mockable ss_wrapper_dsi_panel_tx_cmd_set(struct dsi_panel *panel, int type
 	struct samsung_display_driver_data *vdd = display->panel->panel_private;
 	struct drm_encoder *drm_enc = GET_DRM_ENCODER(vdd);
 
-	if (drm_enc)
-		sde_encoder_early_wakeup(drm_enc);
-	else
-		LCD_ERR(vdd, "drm_enc is NULL\n");
+	if (!vdd->not_support_single_tx) {
+		if (drm_enc)
+			sde_encoder_early_wakeup(drm_enc);
+		else
+			LCD_ERR(vdd, "drm_enc is NULL\n");
+	}
 
 	rc = dsi_display_clk_ctrl(display->dsi_clk_handle,
 				DSI_ALL_CLKS, DSI_CLK_ON);

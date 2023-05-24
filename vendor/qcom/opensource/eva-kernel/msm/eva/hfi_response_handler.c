@@ -40,8 +40,6 @@ static enum cvp_status hfi_map_err_status(u32 hfi_err)
 		cvp_err = CVP_ERR_BAD_PARAM;
 		break;
 	case HFI_ERR_SYS_INSUFFICIENT_RESOURCES:
-	case HFI_ERR_SYS_UNSUPPORTED_DOMAIN:
-	case HFI_ERR_SYS_UNSUPPORTED_CODEC:
 	case HFI_ERR_SESSION_UNSUPPORTED_PROPERTY:
 	case HFI_ERR_SESSION_UNSUPPORTED_SETTING:
 	case HFI_ERR_SESSION_INSUFFICIENT_RESOURCES:
@@ -81,6 +79,7 @@ static int hfi_process_sys_error(u32 device_id,
 
 	info->response_type = HAL_SYS_ERROR;
 	info->response.cmd = cmd_done;
+	dprintk(CVP_ERR, "Received FW sys error %#x\n", pkt->event_data1);
 
 	return 0;
 }

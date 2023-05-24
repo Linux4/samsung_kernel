@@ -38,11 +38,16 @@ static __always_inline struct enh_boot_time_entry *__enh_boot_time_find_entry_lo
 		const char *message)
 {
 	struct enh_boot_time_entry *h;
-	size_t len = strlen(message) + 1;
+	size_t msg_len = strlen(message);
 	u32 key = __ehb_boot_time_hash(message);
 
 	hash_for_each_possible(enh_boot_time->boot_time_htbl, h, hlist, key) {
-		if (!memcmp(h->buf, message, len))
+		size_t len = strnlen(h->buf, msg_len + 1);
+
+		if (len != msg_len)
+			continue;
+
+		if (!strncmp(h->buf, message, msg_len))
 			return h;
 	}
 

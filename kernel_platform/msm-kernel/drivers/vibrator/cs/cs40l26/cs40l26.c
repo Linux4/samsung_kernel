@@ -13,6 +13,9 @@
 
 #ifdef CONFIG_CS40L26_SAMSUNG_FEATURE
 #include <linux/vibrator/cs40l26.h>
+#if IS_ENABLED(CONFIG_SEC_ABC)
+#include <linux/sti/abc_common.h>
+#endif
 #else
 #include <linux/mfd/cs40l26.h>
 #endif
@@ -348,7 +351,11 @@ static void cs40l26_pm_runtime_teardown(struct cs40l26_private *cs40l26)
 	struct device *dev = cs40l26->dev;
 
 #ifdef CONFIG_CS40L26_SAMSUNG_FEATURE
-	dev_info(dev, "%s+\n", __func__);
+	dev_info(dev, "%s+ power.disable_depth=%d\n",
+		__func__, dev->power.disable_depth);
+
+	if (dev->power.disable_depth > 0)
+		return;
 #endif
 	pm_runtime_set_suspended(dev);
 	pm_runtime_disable(dev);
@@ -844,6 +851,7 @@ static int cs40l26_handle_mbox_buffer(struct cs40l26_private *cs40l26)
 int cs40l26_asp_start(struct cs40l26_private *cs40l26)
 {
 	struct device *dev = cs40l26->dev;
+	int read_attempts = 0;
 	bool ack = false;
 	unsigned int val;
 	int ret;
@@ -870,7 +878,7 @@ int cs40l26_asp_start(struct cs40l26_private *cs40l26)
 		return ret;
 	}
 
-	while (!ack) {
+	while (!ack && read_attempts < CS40L26_DSP_TIMEOUT_COUNT) {
 		usleep_range(CS40L26_DSP_TIMEOUT_US_MIN,
 				CS40L26_DSP_TIMEOUT_US_MAX);
 
@@ -883,12 +891,20 @@ int cs40l26_asp_start(struct cs40l26_private *cs40l26)
 
 		if (val == CS40L26_DSP_MBOX_RESET)
 			ack = true;
+		
+		read_attempts++;
+	}
+
+	if (read_attempts >= CS40L26_DSP_TIMEOUT_COUNT) {
+		dev_err(cs40l26->dev, "Timed out attempting to start I2S\n");
+		ret = -ETIMEDOUT;
 	}
 
 #ifdef CONFIG_CS40L26_SAMSUNG_FEATURE
 	dev_info(cs40l26->dev, "%s -\n", __func__);
 #endif
-	return 0;
+
+	return ret;
 }
 EXPORT_SYMBOL(cs40l26_asp_start);
 
@@ -1477,6 +1493,10 @@ static irqreturn_t cs40l26_irq(int irq, void *data)
 
 	if (sts != CS40L26_IRQ_STATUS_ASSERT) {
 		dev_err(dev, "IRQ1 asserted with no pending interrupts\n");
+#if IS_ENABLED(CONFIG_CS40L26_SAMSUNG_FEATURE) && IS_ENABLED(CONFIG_SEC_ABC)
+		/* If it occurs 25 times in 5 seconds, it is recognized as a problem */
+		sec_abc_send_event("MODULE=vib@WARN=int_gnd_short");
+#endif
 		return IRQ_NONE;
 	}
 
@@ -2427,6 +2447,17 @@ err_mutex:
 		return f0_measured;
 }
 
+static int samsung_get_f0_offset(struct input_dev *dev)
+{
+	struct cs40l26_private *cs40l26 = input_get_drvdata(dev);
+
+	if (cs40l26->pdata.f0_offset) {
+		dev_info(cs40l26->dev, "%s: f0_offset : 0x%08X", __func__, cs40l26->pdata.f0_offset);
+		return cs40l26->pdata.f0_offset;
+	}
+	return 0;
+}
+
 static u32 samsung_set_f0_stored(struct input_dev *dev, u32 val)
 {
 	struct cs40l26_private *cs40l26 = input_get_drvdata(dev);
@@ -2462,6 +2493,23 @@ err_mutex:
 	if (ret < 0)
 		dev_err(cs40l26->dev, "%s is return error : %d\n", __func__, ret);
 	return ret;
+}
+
+static int samsung_set_use_sep_index(struct input_dev *dev, bool use_sep_index)
+{
+	struct cs40l26_private *cs40l26 = input_get_drvdata(dev);
+
+	dev_info(cs40l26->dev, "%s +\n", __func__);
+
+	mutex_lock(&cs40l26->lock);
+
+	cs40l26->use_sep_index = use_sep_index;
+
+	mutex_unlock(&cs40l26->lock);
+
+	dev_info(cs40l26->dev, "%s -\n", __func__);
+
+	return 0;
 }
 
 static int samsung_hw_reset(struct cs40l26_private *cs40l26)
@@ -2961,11 +3009,6 @@ static int cs40l26_owt_upload(struct cs40l26_private *cs40l26, u8 *data,
 err_pm:
 	pm_runtime_mark_last_busy(dev);
 	pm_runtime_put_autosuspend(dev);
-#ifdef CONFIG_CS40L26_SAMSUNG_FEATURE
-	if (err)
-		samsung_recovery(cs40l26);
-#endif
-
 	return ret;
 }
 
@@ -3315,6 +3358,27 @@ static int cs40l26_sine_upload(struct cs40l26_private *cs40l26,
 	return ret;
 }
 
+#ifdef CONFIG_CS40L26_SAMSUNG_FEATURE
+static int cs40l26_index_mapping(int sep_index)
+{
+	int cirrus_index = 0;
+
+	switch (sep_index) {
+	case 0:
+	case 100:
+		break;
+	case 119 ... 124:
+		cirrus_index = sep_index + 16;
+		break;
+	default:
+		cirrus_index = sep_index + 9;
+		break;
+	}
+
+	return cirrus_index;
+}
+#endif
+
 static void cs40l26_upload_worker(struct work_struct *work)
 {
 	struct cs40l26_private *cs40l26 = container_of(work,
@@ -3396,6 +3460,10 @@ static void cs40l26_upload_worker(struct work_struct *work)
 			index = ((u16) cs40l26->raw_custom_data[1]) &
 					CS40L26_MAX_INDEX_MASK;
 #ifdef CONFIG_CS40L26_SAMSUNG_FEATURE
+			if (cs40l26->use_sep_index) {
+				dev_info(cs40l26->dev, "%s SEP index(%d)\n", __func__, index);
+				index = cs40l26_index_mapping(index);
+			}
 			dev_info(cs40l26->dev, "%s Index(%d) effect\n", __func__, index);
 #endif
 		}
@@ -3585,6 +3653,7 @@ static int cs40l26_upload_effect(struct input_dev *dev,
 out_free:
 	memset(&cs40l26->upload_effect, 0, sizeof(struct ff_effect));
 	kfree(cs40l26->raw_custom_data);
+	cs40l26->raw_custom_data = NULL;
 
 	return ret;
 }
@@ -3808,15 +3877,22 @@ static const struct sec_vib_inputff_ops cs40l26_vib_ops = {
 	.fw_load = samsung_fw_load,
 	.set_trigger_cal = samsung_set_trigger_cal,
 	.get_f0_measured = samsung_get_f0_measured,
+	.get_f0_offset = samsung_get_f0_offset,
 	.set_f0_stored = samsung_set_f0_stored,
+	.set_use_sep_index = samsung_set_use_sep_index,
+};
+
+static struct attribute_group *cs40l26_dev_attr_groups[] = {
+	&cs40l26_dev_attr_group,
+	&cs40l26_dev_attr_cal_group,
+	NULL
 };
 
 static void samsung_input_data_init(struct cs40l26_private *cs40l26)
 {
 	cs40l26->sec_vib_ddata.dev = cs40l26->dev;
 	cs40l26->sec_vib_ddata.vib_ops = &cs40l26_vib_ops;
-	cs40l26->sec_vib_ddata.dev_attr_group = &cs40l26_dev_attr_group;
-	cs40l26->sec_vib_ddata.dev_attr_cal_group = &cs40l26_dev_attr_cal_group;
+	cs40l26->sec_vib_ddata.vendor_dev_attr_groups = cs40l26_dev_attr_groups;
 	cs40l26->sec_vib_ddata.private_data = (void *)cs40l26;
 	cs40l26->sec_vib_ddata.devid = cs40l26->devid;
 	cs40l26->sec_vib_ddata.revid = cs40l26->revid;
@@ -3824,6 +3900,7 @@ static void samsung_input_data_init(struct cs40l26_private *cs40l26)
 	cs40l26->sec_vib_ddata.support_fw = 1;
 	cs40l26->sec_vib_ddata.ach_percent = cs40l26->pdata.asp_scale_pct;
 	cs40l26->sec_vib_ddata.f0_stored = 0;
+	cs40l26->sec_vib_ddata.is_f0_tracking = cs40l26->pdata.is_f0_tracking;
 	sec_vib_inputff_setbit(&cs40l26->sec_vib_ddata, FF_PERIODIC);
 	sec_vib_inputff_setbit(&cs40l26->sec_vib_ddata, FF_CUSTOM);
 	sec_vib_inputff_setbit(&cs40l26->sec_vib_ddata, FF_SINE);
@@ -3976,25 +4053,42 @@ static int cs40l26_cl_dsp_init(struct cs40l26_private *cs40l26, u32 id)
 			cs40l26->fw.coeff_files[i] = devm_kzalloc(cs40l26->dev,
 				CS40L26_TUNING_FILE_NAME_MAX_LEN, GFP_KERNEL);
 #ifdef CONFIG_CS40L26_SAMSUNG_FEATURE
-		if (cs40l26->pdata.is_f0_tracking)
+		if (cs40l26->pdata.is_f0_tracking) {
 			strncpy(cs40l26->fw.coeff_files[0], CS40L26_WT_FILE_F0_NAME,
 					CS40L26_WT_FILE_F0_NAME_LEN);
-		else
+			strncpy(cs40l26->fw.coeff_files[1],
+					CS40L26_A2H_TUNING_FILE_NAME,
+					CS40L26_A2H_TUNING_FILE_NAME_LEN);
+			strncpy(cs40l26->fw.coeff_files[2],
+					CS40L26_SVC_TUNING_FILE_F0_NAME,
+					CS40L26_SVC_TUNING_FILE_F0_NAME_LEN);
+			ret = cl_dsp_wavetable_create(cs40l26->dsp,
+					CS40L26_VIBEGEN_ALGO_ID, CS40L26_WT_NAME_XM,
+					CS40L26_WT_NAME_YM, CS40L26_WT_FILE_F0_NAME);
+		} else {
 			strncpy(cs40l26->fw.coeff_files[0], CS40L26_WT_FILE_NAME,
 					CS40L26_WT_FILE_NAME_LEN);
-		dev_info(cs40l26->dev, "Using %s, is_f0_tracking : %d\n",
-			cs40l26->fw.coeff_files[0], cs40l26->pdata.is_f0_tracking);
+			strncpy(cs40l26->fw.coeff_files[1],
+					CS40L26_A2H_TUNING_FILE_NAME,
+					CS40L26_A2H_TUNING_FILE_NAME_LEN);
+			strncpy(cs40l26->fw.coeff_files[2],
+					CS40L26_SVC_TUNING_FILE_NAME,
+					CS40L26_SVC_TUNING_FILE_NAME_LEN);
+			ret = cl_dsp_wavetable_create(cs40l26->dsp,
+					CS40L26_VIBEGEN_ALGO_ID, CS40L26_WT_NAME_XM,
+					CS40L26_WT_NAME_YM, CS40L26_WT_FILE_NAME);
+		}
+		dev_info(cs40l26->dev, "Using %s and %s, is_f0_tracking : %d, ret : %d\n",
+			cs40l26->fw.coeff_files[0], cs40l26->fw.coeff_files[2], cs40l26->pdata.is_f0_tracking, ret);
 #else
 		strncpy(cs40l26->fw.coeff_files[0], CS40L26_WT_FILE_NAME,
 				CS40L26_WT_FILE_NAME_LEN);
-#endif
 		strncpy(cs40l26->fw.coeff_files[1],
 				CS40L26_A2H_TUNING_FILE_NAME,
 				CS40L26_A2H_TUNING_FILE_NAME_LEN);
 		strncpy(cs40l26->fw.coeff_files[2],
 				CS40L26_SVC_TUNING_FILE_NAME,
 				CS40L26_SVC_TUNING_FILE_NAME_LEN);
-#ifndef CONFIG_CS40L26_SAMSUNG_FEATURE
 		/*
 		 * If you need to use cs40l26-dvl.bin, remove this feature.
 		 * to avoid that Firmeware loading takes long time.
@@ -4002,26 +4096,11 @@ static int cs40l26_cl_dsp_init(struct cs40l26_private *cs40l26, u32 id)
 		strncpy(cs40l26->fw.coeff_files[3],
 				CS40L26_DVL_FILE_NAME,
 				CS40L26_DVL_FILE_NAME_LEN);
-#endif
-#ifdef CONFIG_CS40L26_SAMSUNG_FEATURE
-		if (cs40l26->pdata.is_f0_tracking)
-			ret = cl_dsp_wavetable_create(cs40l26->dsp,
-					CS40L26_VIBEGEN_ALGO_ID, CS40L26_WT_NAME_XM,
-					CS40L26_WT_NAME_YM, CS40L26_WT_FILE_F0_NAME);
-		else
-			ret = cl_dsp_wavetable_create(cs40l26->dsp,
-					CS40L26_VIBEGEN_ALGO_ID, CS40L26_WT_NAME_XM,
-					CS40L26_WT_NAME_YM, CS40L26_WT_FILE_NAME);
-#else
 		ret = cl_dsp_wavetable_create(cs40l26->dsp,
 				CS40L26_VIBEGEN_ALGO_ID, CS40L26_WT_NAME_XM,
 				CS40L26_WT_NAME_YM, CS40L26_WT_FILE_NAME);
 #endif
 	}
-
-#ifdef CONFIG_CS40L26_SAMSUNG_FEATURE
-	dev_info(cs40l26->dev, "%s done ret %d\n", __func__, ret);
-#endif
 	return ret;
 }
 
@@ -4751,17 +4830,24 @@ static int cs40l26_tuning_select_from_svc_le(struct cs40l26_private *cs40l26)
 		for (j = 0; j < cs40l26->num_svc_le_vals; j++) {
 			if (le >= cs40l26->svc_le_vals[j]->min &&
 					le <= cs40l26->svc_le_vals[j]->max) {
+#ifdef CONFIG_CS40L26_SAMSUNG_FEATURE
+				if (cs40l26->pdata.is_f0_tracking) {
+					strncpy(svc_bin_file,
+						CS40L26_SVC_TUNING_FILE_F0_PREFIX,
+						CS40L26_SVC_TUNING_FILE_F0_PREFIX_LEN);
+					strncpy(wt_bin_file, CS40L26_WT_FILE_F0_PREFIX,
+						CS40L26_WT_FILE_F0_PREFIX_LEN);
+				} else {
+					strncpy(svc_bin_file,
+						CS40L26_SVC_TUNING_FILE_PREFIX,
+						CS40L26_SVC_TUNING_FILE_PREFIX_LEN);
+					strncpy(wt_bin_file, CS40L26_WT_FILE_PREFIX,
+						CS40L26_WT_FILE_PREFIX_LEN);
+				}
+#else
 				strncpy(svc_bin_file,
 					CS40L26_SVC_TUNING_FILE_PREFIX,
 					CS40L26_SVC_TUNING_FILE_PREFIX_LEN);
-#ifdef CONFIG_CS40L26_SAMSUNG_FEATURE
-				if (cs40l26->pdata.is_f0_tracking)
-					strncpy(wt_bin_file, CS40L26_WT_FILE_F0_PREFIX,
-						CS40L26_WT_FILE_F0_PREFIX_LEN);
-				else
-					strncpy(wt_bin_file, CS40L26_WT_FILE_PREFIX,
-						CS40L26_WT_FILE_PREFIX_LEN);
-#else
 				strncpy(wt_bin_file, CS40L26_WT_FILE_PREFIX,
 					CS40L26_WT_FILE_PREFIX_LEN);
 #endif
@@ -4786,20 +4872,25 @@ static int cs40l26_tuning_select_from_svc_le(struct cs40l26_private *cs40l26)
 		strncat(wt_bin_file, CS40L26_TUNING_FILE_SUFFIX,
 				CS40L26_TUNING_FILE_SUFFIX_LEN);
 #ifdef CONFIG_CS40L26_SAMSUNG_FEATURE
-		if (cs40l26->pdata.is_f0_tracking)
+		if (cs40l26->pdata.is_f0_tracking) {
 			strncpy(cs40l26->fw.coeff_files[0], wt_bin_file,
 					CS40L26_WT_FILE_F0_CONCAT_NAME_LEN);
-		else
+			strncpy(cs40l26->fw.coeff_files[2], svc_bin_file,
+					CS40L26_SVC_TUNING_FILE_F0_NAME_LEN);
+		} else {
 			strncpy(cs40l26->fw.coeff_files[0], wt_bin_file,
 					CS40L26_WT_FILE_CONCAT_NAME_LEN);
-		dev_info(cs40l26->dev, "Using %s, is_f0_tracking : %d\n",
-			cs40l26->fw.coeff_files[0], cs40l26->pdata.is_f0_tracking);
+			strncpy(cs40l26->fw.coeff_files[2], svc_bin_file,
+					CS40L26_SVC_TUNING_FILE_NAME_LEN);
+		}
+		dev_info(cs40l26->dev, "Using %s and %s, is_f0_tracking : %d\n",
+			cs40l26->fw.coeff_files[0], cs40l26->fw.coeff_files[2], cs40l26->pdata.is_f0_tracking);
 #else
 		strncpy(cs40l26->fw.coeff_files[0], wt_bin_file,
 				CS40L26_WT_FILE_CONCAT_NAME_LEN);
-#endif
 		strncpy(cs40l26->fw.coeff_files[2], svc_bin_file,
 				CS40L26_SVC_TUNING_FILE_NAME_LEN);
+#endif
 	}
 
 pm_err:
@@ -5205,7 +5296,18 @@ static int cs40l26_handle_platform_data(struct cs40l26_private *cs40l26)
 	else
 		cs40l26->pdata.high_temp_percent = CS40L26_SAMSUNG_DEFAULT_HIGH_TEMP_PERCENT;
 
-	cs40l26->pdata.is_f0_tracking = of_property_read_bool(np, "samsung,f0-tracking");
+	if (of_property_read_bool(np, "samsung,f0-tracking"))
+		cs40l26->pdata.is_f0_tracking = true;
+	else
+		cs40l26->pdata.is_f0_tracking = false;
+
+	if (!of_property_read_s32(np, "samsung,f0-tracking-offset", &val))
+		cs40l26->pdata.f0_offset = val * CS40L26_SAMSUNG_F0_OFFSET;
+	else
+		cs40l26->pdata.f0_offset = 0;
+
+	dev_info(dev, "%s - f0 tracking is %s, f0 offset is 0x%x\n", __func__,
+			cs40l26->pdata.is_f0_tracking ? "set" : "unset", cs40l26->pdata.f0_offset);
 #endif
 	return 0;
 }

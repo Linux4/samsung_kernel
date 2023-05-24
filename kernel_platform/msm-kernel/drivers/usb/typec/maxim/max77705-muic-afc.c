@@ -34,7 +34,7 @@
 #include <linux/usb/typec/maxim/max77705_usbc.h>
 
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
-#include <linux/muic/muic_notifier.h>
+#include <linux/muic/common/muic_notifier.h>
 #endif /* CONFIG_MUIC_NOTIFIER */
 
 #if defined(CONFIG_USB_HW_PARAM)

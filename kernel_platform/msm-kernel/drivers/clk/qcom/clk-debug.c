@@ -23,7 +23,9 @@
 
 static struct clk_hw *measure;
 static bool debug_suspend;
+static bool debug_suspend_atomic;
 static struct dentry *clk_debugfs_suspend;
+static struct dentry *clk_debugfs_suspend_atomic;
 
 struct hw_debug_clk {
 	struct list_head	list;
@@ -35,6 +37,8 @@ static DEFINE_SPINLOCK(clk_reg_lock);
 static DEFINE_MUTEX(clk_debug_lock);
 static LIST_HEAD(clk_hw_debug_list);
 static LIST_HEAD(clk_hw_debug_mux_list);
+
+#define INVALID_MUX_SEL		0xDEADBEEF
 
 #define TCXO_DIV_4_HZ		4800000
 #define SAMPLE_TICKS_1_MS	0x1000
@@ -54,6 +58,9 @@ static int _clk_runtime_get_debug_mux(struct clk_debug_mux *mux, bool get)
 	int i, ret = 0;
 
 	for (i = 0; i < clk_hw_get_num_parents(&mux->hw); i++) {
+		if (i < mux->num_mux_sels && mux->mux_sels[i] == INVALID_MUX_SEL)
+			continue;
+
 		parent = clk_hw_get_parent_by_index(&mux->hw, i);
 		if (clk_is_regmap_clk(parent)) {
 			rclk = to_clk_regmap(parent);
@@ -206,6 +213,8 @@ static bool clk_is_debug_mux(struct clk_hw *hw)
 
 static int clk_find_and_set_parent(struct clk_hw *mux, struct clk_hw *clk)
 {
+	struct clk_debug_mux *dmux;
+	struct clk_hw *parent;
 	int i;
 
 	if (!clk || !clk_is_debug_mux(mux))
@@ -214,8 +223,13 @@ static int clk_find_and_set_parent(struct clk_hw *mux, struct clk_hw *clk)
 	if (mux == clk || !clk_set_parent(mux->clk, clk->clk))
 		return 0;
 
+	dmux = to_clk_measure(mux);
+
 	for (i = 0; i < clk_hw_get_num_parents(mux); i++) {
-		struct clk_hw *parent = clk_hw_get_parent_by_index(mux, i);
+		if (i < dmux->num_mux_sels && dmux->mux_sels[i] == INVALID_MUX_SEL)
+			continue;
+
+		parent = clk_hw_get_parent_by_index(mux, i);
 
 		if (!clk_find_and_set_parent(parent, clk))
 			return clk_set_parent(mux->clk, parent->clk);
@@ -282,10 +296,32 @@ err:
 	return ret;
 }
 
+static int clk_debug_mux_init(struct clk_hw *hw)
+{
+	struct clk_debug_mux *mux;
+	struct clk_hw *parent;
+	unsigned int i;
+
+	mux = to_clk_measure(hw);
+
+	for (i = 0; i < clk_hw_get_num_parents(hw); i++) {
+		parent = clk_hw_get_parent_by_index(hw, i);
+
+		if (!parent && i < mux->num_mux_sels) {
+			mux->mux_sels[i] = INVALID_MUX_SEL;
+			pr_debug("%s: invalidating %s mux_sel %d\n", __func__,
+				 clk_hw_get_name(hw), i);
+		}
+	}
+
+	return 0;
+}
+
 const struct clk_ops clk_debug_mux_ops = {
 	.get_parent = clk_debug_mux_get_parent,
 	.set_parent = clk_debug_mux_set_parent,
 	.debug_init = clk_debug_measure_add,
+	.init = clk_debug_mux_init,
 };
 EXPORT_SYMBOL(clk_debug_mux_ops);
 
@@ -737,7 +773,8 @@ static int clock_debug_print_clock(struct hw_debug_clk *dclk, struct seq_file *s
 	struct clk_hw *clk_hw;
 	unsigned long clk_rate;
 	bool clk_prepared, clk_enabled;
-	int vdd_level;
+	int vdd_level = 0;
+	bool atomic;
 
 	if (!dclk || !dclk->clk_hw) {
 		pr_err("clk param error\n");
@@ -751,13 +788,23 @@ static int clock_debug_print_clock(struct hw_debug_clk *dclk, struct seq_file *s
 
 	clk = dclk->clk_hw->clk;
 
+	/*
+	 * In order to prevent running into "scheduling while atomic"
+	 * due to grabbing contested mutexes, avoid making any calls
+	 * that grab a mutex in the debug_suspend path when the
+	 * variable atomic is true.
+	 */
+	atomic = debug_suspend_atomic && !s;
+
 	do {
 		clk_hw = __clk_get_hw(clk);
 		if (!clk_hw)
 			break;
 
 		clk_rate = clk_hw_get_rate(clk_hw);
-		vdd_level = clk_list_rate_vdd_level(clk_hw, clk_rate);
+
+		if (!atomic)
+			vdd_level = clk_list_rate_vdd_level(clk_hw, clk_rate);
 
 		if (s) {
 			/*
@@ -797,6 +844,9 @@ static int clock_debug_print_clock(struct hw_debug_clk *dclk, struct seq_file *s
 		}
 
 		if (clk_hw_get_num_parents(clk_hw) == 0)
+			break;
+
+		if (atomic)
 			break;
 
 		start = " -> ";
@@ -932,6 +982,24 @@ static int clk_debug_suspend_enable_set(void *data, u64 val)
 DEFINE_DEBUGFS_ATTRIBUTE(clk_debug_suspend_enable_fops,
 	clk_debug_suspend_enable_get, clk_debug_suspend_enable_set, "%llu\n");
 
+
+static int clk_debug_suspend_atomic_enable_get(void *data, u64 *val)
+{
+	*val = debug_suspend_atomic;
+
+	return 0;
+}
+
+static int clk_debug_suspend_atomic_enable_set(void *data, u64 val)
+{
+	debug_suspend_atomic = !!val;
+
+	return 0;
+}
+
+DEFINE_DEBUGFS_ATTRIBUTE(clk_debug_suspend_atomic_enable_fops,
+	clk_debug_suspend_atomic_enable_get, clk_debug_suspend_atomic_enable_set, "%llu\n");
+
 static void clk_hw_debug_remove(struct hw_debug_clk *dclk)
 {
 	if (dclk) {
@@ -995,8 +1063,10 @@ int clk_debug_init(void)
 			__func__, ret);
 		return ret;
 	}
-	else
+	else {
 		debug_suspend = true;
+		debug_suspend_atomic = true;
+	}
 #endif
 
 	rootdir = debugfs_lookup("clk", NULL);
@@ -1016,10 +1086,21 @@ int clk_debug_init(void)
 	clk_debugfs_suspend = debugfs_create_file_unsafe("debug_suspend",
 						0644, rootdir, NULL,
 						&clk_debug_suspend_enable_fops);
+
+	clk_debugfs_suspend_atomic = debugfs_create_file_unsafe("debug_suspend_atomic",
+						0644, rootdir, NULL,
+						&clk_debug_suspend_atomic_enable_fops);
+
 	dput(rootdir);
 	if (IS_ERR(clk_debugfs_suspend)) {
 		ret = PTR_ERR(clk_debugfs_suspend);
 		pr_err("%s: unable to create clock debug_suspend debugfs directory, ret=%d\n",
+			__func__, ret);
+	}
+
+	if (IS_ERR(clk_debugfs_suspend_atomic)) {
+		ret = PTR_ERR(clk_debugfs_suspend_atomic);
+		pr_err("%s: unable to create clock debug_suspend_atomic debugfs directory, ret=%d\n",
 			__func__, ret);
 	}
 
@@ -1029,9 +1110,11 @@ int clk_debug_init(void)
 void clk_debug_exit(void)
 {
 	debugfs_remove(clk_debugfs_suspend);
+	debugfs_remove(clk_debugfs_suspend_atomic);
 	if (debug_suspend)
 		unregister_trace_suspend_resume(
 				clk_debug_suspend_trace_probe, NULL);
+
 	clk_debug_unregister();
 }
 

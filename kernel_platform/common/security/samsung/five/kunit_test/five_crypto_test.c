@@ -29,7 +29,7 @@ static uint8_t cert_hash_sha1[] = {
 			0xd4, 0x56, 0x42, 0xe5};
 static uint8_t filename[] = "/testfile";
 
-static void five_calc_file_hash_sha1_test(struct test *test)
+static void five_calc_file_hash_sha1_test(struct kunit *test)
 {
 	struct file *file;
 	uint8_t hash[SHA1_DIGEST_SIZE];
@@ -37,19 +37,19 @@ static void five_calc_file_hash_sha1_test(struct test *test)
 	int rc = -1;
 
 	file = test_open_file(filename);
-	ASSERT_NOT_ERR_OR_NULL(test, file);
+	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, file);
 	vfs_write(file, test_str, sizeof(test_str), 0);
 
 	rc = five_calc_file_hash(file, HASH_ALGO_SHA1, hash, &hash_len);
 
-	EXPECT_EQ(test, rc, 0);
-	EXPECT_EQ(test, hash_len, SHA1_DIGEST_SIZE);
+	KUNIT_EXPECT_EQ(test, rc, 0);
+	KUNIT_EXPECT_EQ(test, hash_len, (size_t)SHA1_DIGEST_SIZE);
 	rc = memcmp(hash, file_hash_sha1, SHA1_DIGEST_SIZE);
 	test_close_file(file);
-	EXPECT_EQ(test, rc, 0);
+	KUNIT_EXPECT_EQ(test, rc, 0);
 }
 
-static void five_calc_file_hash_sha256_test(struct test *test)
+static void five_calc_file_hash_sha256_test(struct kunit *test)
 {
 	struct file *file;
 	uint8_t hash[SHA256_DIGEST_SIZE];
@@ -57,19 +57,19 @@ static void five_calc_file_hash_sha256_test(struct test *test)
 	int rc = -1;
 
 	file = test_open_file(filename);
-	ASSERT_NOT_ERR_OR_NULL(test, file);
+	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, file);
 	vfs_write(file, test_str, sizeof(test_str), 0);
 
 	rc = five_calc_file_hash(file, HASH_ALGO_SHA256, hash, &hash_len);
 
-	EXPECT_EQ(test, rc, 0);
-	EXPECT_EQ(test, hash_len, SHA256_DIGEST_SIZE);
+	KUNIT_EXPECT_EQ(test, rc, 0);
+	KUNIT_EXPECT_EQ(test, hash_len, (size_t)SHA256_DIGEST_SIZE);
 	rc = memcmp(hash, file_hash_sha256, SHA256_DIGEST_SIZE);
 	test_close_file(file);
-	EXPECT_EQ(test, rc, 0);
+	KUNIT_EXPECT_EQ(test, rc, 0);
 }
 
-static void five_calc_file_hash_sha512_test(struct test *test)
+static void five_calc_file_hash_sha512_test(struct kunit *test)
 {
 	struct file *file;
 	uint8_t hash[SHA512_DIGEST_SIZE];
@@ -77,19 +77,19 @@ static void five_calc_file_hash_sha512_test(struct test *test)
 	int rc = -1;
 
 	file = test_open_file(filename);
-	ASSERT_NOT_ERR_OR_NULL(test, file);
+	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, file);
 	vfs_write(file, test_str, sizeof(test_str), 0);
 
 	rc = five_calc_file_hash(file, HASH_ALGO_SHA512, hash, &hash_len);
 
-	EXPECT_EQ(test, rc, 0);
-	EXPECT_EQ(test, hash_len, SHA512_DIGEST_SIZE);
+	KUNIT_EXPECT_EQ(test, rc, 0);
+	KUNIT_EXPECT_EQ(test, hash_len, (size_t)SHA512_DIGEST_SIZE);
 	rc = memcmp(hash, file_hash_sha512, SHA512_DIGEST_SIZE);
 	test_close_file(file);
-	EXPECT_EQ(test, rc, 0);
+	KUNIT_EXPECT_EQ(test, rc, 0);
 }
 
-static void five_calc_data_hash_test(struct test *test)
+static void five_calc_data_hash_test(struct kunit *test)
 {
 	uint8_t hash[SHA1_DIGEST_SIZE];
 	size_t hash_len = -1;
@@ -98,34 +98,37 @@ static void five_calc_data_hash_test(struct test *test)
 	rc = five_calc_data_hash(test_str, sizeof(test_str), HASH_ALGO_SHA1,
 				 hash, &hash_len);
 
-	EXPECT_EQ(test, rc, 0);
-	EXPECT_EQ(test, hash_len, SHA1_DIGEST_SIZE);
+	KUNIT_EXPECT_EQ(test, rc, 0);
+	KUNIT_EXPECT_EQ(test, hash_len, (size_t)SHA1_DIGEST_SIZE);
 	rc = memcmp(hash, cert_hash_sha1, SHA1_DIGEST_SIZE);
-	EXPECT_EQ(test, rc, 0);
+	KUNIT_EXPECT_EQ(test, rc, 0);
 }
 
-static int security_five_test_init(struct test *test)
+static int security_five_test_init(struct kunit *test)
 {
 	return 0;
 }
 
-static void security_five_test_exit(struct test *test)
+static void security_five_test_exit(struct kunit *test)
 {
 	return;
 }
 
-static struct test_case security_five_test_cases[] = {
-	TEST_CASE(five_calc_file_hash_sha1_test),
-	TEST_CASE(five_calc_file_hash_sha256_test),
-	TEST_CASE(five_calc_file_hash_sha512_test),
-	TEST_CASE(five_calc_data_hash_test),
+static struct kunit_case security_five_test_cases[] = {
+	KUNIT_CASE(five_calc_file_hash_sha1_test),
+	KUNIT_CASE(five_calc_file_hash_sha256_test),
+	KUNIT_CASE(five_calc_file_hash_sha512_test),
+	KUNIT_CASE(five_calc_data_hash_test),
 	{},
 };
 
-static struct test_module security_five_test_module = {
+static struct kunit_suite security_five_test_module = {
 	.name = "five-crypto-test",
 	.init = security_five_test_init,
 	.exit = security_five_test_exit,
 	.test_cases = security_five_test_cases,
 };
-module_test(security_five_test_module);
+
+kunit_test_suites(&security_five_test_module);
+
+MODULE_LICENSE("GPL v2");

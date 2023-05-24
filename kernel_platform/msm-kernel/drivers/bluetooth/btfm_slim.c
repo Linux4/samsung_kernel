@@ -179,9 +179,14 @@ int btfm_slim_enable_ch(struct btfmslim *btfmslim, struct btfmslim_ch *ch,
 
 	if (ret == 0)
 		btfm_num_ports_open++;
-error:
+
 	BTFMSLIM_INFO("btfm_num_ports_open: %d", btfm_num_ports_open);
+	return ret;
+error:
+	BTFMSLIM_INFO("error %d while opening port, btfm_num_ports_open: %d",
+			ret, btfm_num_ports_open);
 	kfree(chan->dai.sconfig.chs);
+	chan->dai.sconfig.chs = NULL;
 	return ret;
 }
 
@@ -189,6 +194,8 @@ int btfm_slim_disable_ch(struct btfmslim *btfmslim, struct btfmslim_ch *ch,
 			uint8_t rxport, uint8_t nchan)
 {
 	int ret, i;
+	int chipset_ver = 0;
+
 	if (!btfmslim || !ch)
 		return -EINVAL;
 
@@ -200,6 +207,7 @@ int btfm_slim_disable_ch(struct btfmslim *btfmslim, struct btfmslim_ch *ch,
 
 	btfm_is_port_opening_delayed = false;
  
+
 	if (rxport && (btfmslim->sample_rate == 44100 ||
 		btfmslim->sample_rate == 88200)) {
 		BTFMSLIM_INFO("disconnecting the ports, removing the channel");
@@ -239,11 +247,26 @@ int btfm_slim_disable_ch(struct btfmslim *btfmslim, struct btfmslim_ch *ch,
 		}
 	}
 	ch->dai.sconfig.port_mask = 0;
-	kfree(ch->dai.sconfig.chs);
+	if (ch->dai.sconfig.chs != NULL)
+		kfree(ch->dai.sconfig.chs);
 
 	if (btfm_num_ports_open > 0)
 		btfm_num_ports_open--;
+
+	ch->dai.sruntime = NULL;
+
 	BTFMSLIM_INFO("btfm_num_ports_open: %d", btfm_num_ports_open);
+
+	chipset_ver = btpower_get_chipset_version();
+
+	if (btfm_num_ports_open == 0 && (chipset_ver == QCA_HSP_SOC_ID_0200 ||
+		chipset_ver == QCA_HSP_SOC_ID_0210 ||
+		chipset_ver == QCA_HSP_SOC_ID_1201 ||
+		chipset_ver == QCA_HSP_SOC_ID_1211)) {
+		BTFMSLIM_INFO("SB reset needed after all ports disabled, sleeping");
+		msleep(DELAY_FOR_PORT_OPEN_MS);
+	}
+
 	return ret;
 }
 
@@ -412,7 +435,7 @@ int btfm_slim_hw_init(struct btfmslim *btfmslim)
 		chipset_ver == QCA_HSP_SOC_ID_1201 ||
 		chipset_ver == QCA_HSP_SOC_ID_1211)) {
 		BTFMSLIM_INFO("SB reset needed before getting LA, sleeping");
-		msleep(DELAY_FOR_PORT_OPEN_MS);
+		//msleep(DELAY_FOR_PORT_OPEN_MS);
 	}
 
 

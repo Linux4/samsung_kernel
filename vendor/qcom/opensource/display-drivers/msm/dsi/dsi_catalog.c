@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/errno.h>
@@ -230,6 +231,9 @@ static void dsi_catalog_phy_4_0_init(struct dsi_phy_hw *phy)
 
 #if IS_ENABLED(CONFIG_DISPLAY_SAMSUNG)
 	phy->ops.store_str = dsi_phy_hw_v4_0_store_str;
+	phy->ops.show_str = dsi_phy_hw_v4_0_show_str;	
+	phy->ops.store_vreg = dsi_phy_hw_v4_0_store_vreg;
+	phy->ops.show_vreg = dsi_phy_hw_v4_0_show_vreg;
 	phy->ops.store_emphasis = dsi_phy_hw_v4_0_store_emphasis;
 #endif
 }
@@ -270,6 +274,7 @@ int dsi_catalog_phy_setup(struct dsi_phy_hw *phy,
 	case DSI_PHY_VERSION_4_1:
 	case DSI_PHY_VERSION_4_2:
 	case DSI_PHY_VERSION_4_3:
+	case DSI_PHY_VERSION_4_3_2:
 		dsi_catalog_phy_4_0_init(phy);
 		break;
 	default:

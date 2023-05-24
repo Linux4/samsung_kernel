@@ -60,6 +60,10 @@
 
 #include "internal.h"
 
+#ifdef CONFIG_PROC_FSLOG
+#include <linux/fslog.h>
+#endif
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/vmscan.h>
 
@@ -108,9 +112,12 @@ struct scan_control {
 	unsigned int may_swap:1;
 
 	/*
-	 * Cgroups are not reclaimed below their configured memory.low,
-	 * unless we threaten to OOM. If any cgroups are skipped due to
-	 * memory.low and nothing was reclaimed, go back for memory.low.
+	 * Cgroup memory below memory.low is protected as long as we
+	 * don't threaten to OOM. If any cgroup is reclaimed at
+	 * reduced force or passed over entirely due to its memory.low
+	 * setting (memcg_low_skipped), and nothing is reclaimed as a
+	 * result, then go back for one more cycle that reclaims the protected
+	 * memory (memcg_low_reclaim) to avert OOM.
 	 */
 	unsigned int memcg_low_reclaim:1;
 	unsigned int memcg_low_skipped:1;
@@ -447,8 +454,6 @@ static unsigned long do_shrink_slab(struct shrink_control *shrinkctl,
 	long batch_size = shrinker->batch ? shrinker->batch
 					  : SHRINK_BATCH;
 	long scanned = 0, next_deferred;
-
-	trace_android_vh_do_shrink_slab(shrinker, shrinkctl, priority);
 
 	if (!(shrinker->flags & SHRINKER_NUMA_AWARE))
 		nid = 0;
@@ -1258,8 +1263,12 @@ static unsigned int shrink_page_list(struct list_head *page_list,
 			}
 		}
 
-		if (!ignore_references)
+		if (!ignore_references) {
+			if (need_memory_boosting() && PageAnon(page))
+				goto skip_page_referenced;
 			references = page_check_references(page, sc);
+		}
+skip_page_referenced:
 
 		switch (references) {
 		case PAGEREF_ACTIVATE:
@@ -1345,6 +1354,8 @@ static unsigned int shrink_page_list(struct list_head *page_list,
 			enum ttu_flags flags = TTU_BATCH_FLUSH;
 			bool was_swapbacked = PageSwapBacked(page);
 
+			if (need_memory_boosting())
+				flags |= TTU_RMAP_TRY_LOCK;
 			if (unlikely(PageTransHuge(page)))
 				flags |= TTU_SPLIT_HUGE_PMD;
 
@@ -1352,6 +1363,8 @@ static unsigned int shrink_page_list(struct list_head *page_list,
 				stat->nr_unmap_fail += nr_pages;
 				if (!was_swapbacked && PageSwapBacked(page))
 					stat->nr_lazyfree_fail += nr_pages;
+				if (need_memory_boosting())
+					goto keep_locked;
 				goto activate_locked;
 			}
 		}
@@ -2100,6 +2113,7 @@ static void shrink_active_list(unsigned long nr_to_scan,
 	unsigned nr_rotated = 0;
 	int file = is_file_lru(lru);
 	struct pglist_data *pgdat = lruvec_pgdat(lruvec);
+	bool bypass = false;
 
 	lru_add_drain();
 
@@ -2134,6 +2148,13 @@ static void shrink_active_list(unsigned long nr_to_scan,
 			}
 		}
 
+		trace_android_vh_page_referenced_check_bypass(page, nr_to_scan, lru, &bypass);
+		if (bypass)
+			goto skip_page_referenced;
+
+		if (need_memory_boosting() && PageAnon(page))
+			goto skip_page_referenced;
+
 		if (page_referenced(page, 0, sc->target_mem_cgroup,
 				    &vm_flags)) {
 			/*
@@ -2151,7 +2172,7 @@ static void shrink_active_list(unsigned long nr_to_scan,
 				continue;
 			}
 		}
-
+skip_page_referenced:
 		ClearPageActive(page);	/* we are de-activating */
 		SetPageWorkingset(page);
 		list_add(&page->lru, &l_inactive);
@@ -2310,9 +2331,18 @@ enum mem_boost {
 	BOOST_HIGH = 2,
 	BOOST_KILL = 3,
 };
+
+enum kswapd_mode {
+	KSWAPD_DEFAULT,
+	KSWAPD_SUPPRESSED,
+	KSWAPD_AGGRESSIVE,
+	KSWAPD_MODE_END
+};
+
 static int mem_boost_mode = NO_BOOST;
 static unsigned long last_mode_change;
 bool am_app_launch;
+static int mem_boost_mode_kswapd = KSWAPD_DEFAULT;
 
 #define MEM_BOOST_MAX_TIME (5 * HZ) /* 5 sec */
 
@@ -2400,6 +2430,19 @@ static ssize_t mem_boost_mode_store(struct kobject *kobj,
 	return count;
 }
 
+static ssize_t mem_boost_mode_system_show(struct kobject *kobj,
+				    struct kobj_attribute *attr, char *buf)
+{
+	return mem_boost_mode_show(kobj, attr, buf);
+}
+
+static ssize_t mem_boost_mode_system_store(struct kobject *kobj,
+				     struct kobj_attribute *attr,
+				     const char *buf, size_t count)
+{
+	return mem_boost_mode_store(kobj, attr, buf, count);
+}
+
 ATOMIC_NOTIFIER_HEAD(am_app_launch_notifier);
 
 int am_app_launch_notifier_register(struct notifier_block *nb)
@@ -2469,15 +2512,53 @@ static ssize_t am_app_launch_store(struct kobject *kobj,
 	return count;
 }
 
+static ssize_t mem_boost_mode_kswapd_show(struct kobject *kobj,
+				  struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", mem_boost_mode_kswapd);
+}
+
+static ssize_t mem_boost_mode_kswapd_store(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   const char *buf, size_t count)
+{
+	int mode;
+	int err;
+
+	err = kstrtoint(buf, 10, &mode);
+	if (err || mode < KSWAPD_DEFAULT || mode >= KSWAPD_MODE_END)
+		return -EINVAL;
+
+	RECLAIMER_LOG("UMR: switch kswapd_mode: %d -> %d", mem_boost_mode_kswapd, mode);
+	mem_boost_mode_kswapd = mode;
+
+	return count;
+}
+
+bool is_kswapd_suppressed(void)
+{
+	return mem_boost_mode_kswapd == KSWAPD_SUPPRESSED;
+}
+EXPORT_SYMBOL(is_kswapd_suppressed);
+
+bool is_kswapd_aggressive(void)
+{
+	return mem_boost_mode_kswapd == KSWAPD_AGGRESSIVE;
+}
+
 #define VMSCAN_ATTR(_name) \
 	static struct kobj_attribute _name##_attr = \
 		__ATTR(_name, 0644, _name##_show, _name##_store)
 VMSCAN_ATTR(mem_boost_mode);
+VMSCAN_ATTR(mem_boost_mode_system);
 VMSCAN_ATTR(am_app_launch);
+VMSCAN_ATTR(mem_boost_mode_kswapd);
 
 static struct attribute *vmscan_attrs[] = {
 	&mem_boost_mode_attr.attr,
+	&mem_boost_mode_system_attr.attr,
 	&am_app_launch_attr.attr,
+	&mem_boost_mode_kswapd_attr.attr,
 	NULL,
 };
 
@@ -2496,6 +2577,7 @@ static struct attribute_group vmscan_attr_group = {
  * nr[0] = anon inactive pages to scan; nr[1] = anon active pages to scan
  * nr[2] = file inactive pages to scan; nr[3] = file active pages to scan
  */
+#define DYNAMIC_SWAPPINESS_DELTA 30
 static void get_scan_count(struct lruvec *lruvec, struct scan_control *sc,
 			   unsigned long *nr)
 {
@@ -2552,6 +2634,14 @@ static void get_scan_count(struct lruvec *lruvec, struct scan_control *sc,
 		goto out;
 	}
 
+	if (current_is_kswapd() && is_kswapd_suppressed()) {
+		swappiness -= DYNAMIC_SWAPPINESS_DELTA;
+	}
+
+	if (current_is_kswapd() && is_kswapd_aggressive()) {
+		swappiness += DYNAMIC_SWAPPINESS_DELTA;
+	}
+
 	trace_android_rvh_set_balance_anon_file_reclaim(&balance_anon_file_reclaim);
 
 	/*
@@ -2601,15 +2691,14 @@ out:
 	for_each_evictable_lru(lru) {
 		int file = is_file_lru(lru);
 		unsigned long lruvec_size;
+		unsigned long low, min;
 		unsigned long scan;
-		unsigned long protection;
 
 		lruvec_size = lruvec_lru_size(lruvec, lru, sc->reclaim_idx);
-		protection = mem_cgroup_protection(sc->target_mem_cgroup,
-						   memcg,
-						   sc->memcg_low_reclaim);
+		mem_cgroup_protection(sc->target_mem_cgroup, memcg,
+				      &min, &low);
 
-		if (protection) {
+		if (min || low) {
 			/*
 			 * Scale a cgroup's reclaim pressure by proportioning
 			 * its current usage to its memory.low or memory.min
@@ -2640,12 +2729,21 @@ out:
 			 * hard protection.
 			 */
 			unsigned long cgroup_size = mem_cgroup_size(memcg);
+			unsigned long protection;
+
+			/* memory.low scaling, make sure we retry before OOM */
+			if (!sc->memcg_low_reclaim && low > min) {
+				protection = low;
+				sc->memcg_low_skipped = 1;
+			} else {
+				protection = min;
+			}
 
 			/* Avoid TOCTOU with earlier protection check */
 			cgroup_size = max(cgroup_size, protection);
 
 			scan = lruvec_size - lruvec_size * protection /
-				cgroup_size;
+				(cgroup_size + 1);
 
 			/*
 			 * Minimally target SWAP_CLUSTER_MAX pages to keep
@@ -2805,6 +2903,10 @@ static void shrink_lruvec(struct lruvec *lruvec, struct scan_control *sc)
 
 	if (need_memory_boosting())
 		return;
+
+	if (is_kswapd_suppressed()) {
+		return;
+	}
 
 	/*
 	 * Even if we did not try to evict anon pages at all, we want to
@@ -3547,9 +3649,11 @@ unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
 
 	set_task_reclaim_state(current, &sc.reclaim_state);
 	trace_mm_vmscan_direct_reclaim_begin(order, sc.gfp_mask);
+	RECLAIMER_LOG("UMR: B|d.reclaim");
 
 	nr_reclaimed = do_try_to_free_pages(zonelist, &sc);
 
+	RECLAIMER_LOG("UMR: E|d.reclaim %lu KB", nr_reclaimed << (PAGE_SHIFT - 10));
 	trace_mm_vmscan_direct_reclaim_end(nr_reclaimed);
 	set_task_reclaim_state(current, NULL);
 
@@ -3839,6 +3943,7 @@ static int balance_pgdat(pg_data_t *pgdat, int order, int highest_zoneidx)
 		.may_unmap = 1,
 	};
 
+	RECLAIMER_LOG("UMR: B|kswapd");
 	set_task_reclaim_state(current, &sc.reclaim_state);
 	psi_memstall_enter(&pflags);
 	__fs_reclaim_acquire();
@@ -3995,6 +4100,8 @@ restart:
 		pgdat->kswapd_failures++;
 
 out:
+	RECLAIMER_LOG("UMR: E|kswapd %lu KB", sc.nr_reclaimed << (PAGE_SHIFT - 10));
+
 	/* If reclaim was boosted, account for the reclaim done in this pass */
 	if (boosted) {
 		unsigned long flags;

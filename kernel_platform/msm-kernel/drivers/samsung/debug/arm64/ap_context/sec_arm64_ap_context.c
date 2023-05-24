@@ -18,7 +18,6 @@
 #include <trace/hooks/debug.h>
 
 #include <linux/samsung/builder_pattern.h>
-#include <linux/samsung/of_early_populate.h>
 #include <linux/samsung/debug/sec_arm64_ap_context.h>
 #include <linux/samsung/debug/sec_debug_region.h>
 
@@ -223,7 +222,9 @@ static int __ap_context_alloc_client(struct builder *bd)
 		return -EBUSY;
 
 	client = sec_dbg_region_alloc(drvdata->unique_id, size);
-	if (!client)
+	if (PTR_ERR(client) == -EBUSY)
+		return -EPROBE_DEFER;
+	else if (IS_ERR_OR_NULL(client))
 		return -ENOMEM;
 
 	client->name = drvdata->name;
@@ -525,23 +526,9 @@ static struct platform_driver sec_ap_context_driver = {
 
 static int __init sec_ap_context_init(void)
 {
-	int err;
-
-	err = platform_driver_register(&sec_ap_context_driver);
-	if (err)
-		return err;
-
-	err = __of_platform_early_populate_init(sec_ap_context_match_table);
-	if (err)
-		return err;
-
-	return 0;
+	return platform_driver_register(&sec_ap_context_driver);
 }
-#if IS_BUILTIN(CONFIG_SEC_ARM64_AP_CONTEXT)
-arch_initcall_sync(sec_ap_context_init);
-#else
-module_init(sec_ap_context_init);
-#endif
+arch_initcall(sec_ap_context_init);
 
 static void __exit sec_ap_context_exit(void)
 {

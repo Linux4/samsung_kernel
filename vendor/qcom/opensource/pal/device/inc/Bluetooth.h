@@ -58,25 +58,67 @@ enum A2DP_ROLE {
     SINK,
 };
 
+typedef enum {
+    SESSION_UNKNOWN,
+    /** A2DP legacy that AVDTP media is encoded by Bluetooth Stack */
+    A2DP_SOFTWARE_ENCODING_DATAPATH,
+    /** The encoding of AVDTP media is done by HW and there is control only */
+    A2DP_HARDWARE_OFFLOAD_DATAPATH,
+    /** Used when encoded by Bluetooth Stack and streaming to Hearing Aid */
+    HEARING_AID_SOFTWARE_ENCODING_DATAPATH,
+    /** Used when encoded by Bluetooth Stack and streaming to LE Audio device */
+    LE_AUDIO_SOFTWARE_ENCODING_DATAPATH,
+    /** Used when decoded by Bluetooth Stack and streaming to audio framework */
+    LE_AUDIO_SOFTWARE_DECODED_DATAPATH,
+    /** Encoding is done by HW an there is control only */
+    LE_AUDIO_HARDWARE_OFFLOAD_ENCODING_DATAPATH,
+    /** Decoding is done by HW an there is control only */
+    LE_AUDIO_HARDWARE_OFFLOAD_DECODING_DATAPATH,
+    /** SW Encoding for LE Audio Broadcast */
+    LE_AUDIO_BROADCAST_SOFTWARE_ENCODING_DATAPATH,
+    /** HW Encoding for LE Audio Broadcast */
+    LE_AUDIO_BROADCAST_HARDWARE_OFFLOAD_ENCODING_DATAPATH,
+}tSESSION_TYPE;
+
 typedef void (*bt_audio_pre_init_t)(void);
+typedef int (*audio_source_open_api_t)(tSESSION_TYPE session_type);
+typedef int (*audio_source_close_api_t)(tSESSION_TYPE session_type);
+typedef int (*audio_source_start_api_t)(tSESSION_TYPE session_type);
+typedef int (*audio_source_stop_api_t)(tSESSION_TYPE session_type);
+typedef int (*audio_source_suspend_api_t)(tSESSION_TYPE session_type);
+typedef void (*audio_source_handoff_triggered_t)(void);
+typedef void (*clear_source_a2dpsuspend_flag_t)(void);
+typedef void * (*audio_get_enc_config_api_t)(tSESSION_TYPE session_type, uint8_t *multicast_status,
+                                        uint8_t *num_dev, audio_format_t *codec_format);
+typedef int (*audio_source_check_a2dp_ready_api_t)(tSESSION_TYPE session_type);
+typedef bool (*audio_is_tws_mono_mode_enable_t)(void);
+typedef int (*audio_sink_start_api_t)(tSESSION_TYPE session_type);
+typedef int (*audio_sink_stop_api_t)(tSESSION_TYPE session_type);
+typedef void * (*audio_get_dec_config_t)(audio_format_t *codec_format);
+typedef void * (*audio_sink_session_setup_complete_t)(uint64_t system_latency);
+typedef int (*audio_sink_check_a2dp_ready_t)(void);
+typedef uint16_t (*audio_sink_get_a2dp_latency_api_t)(tSESSION_TYPE session_type);
+typedef bool (*audio_is_scrambling_enabled_t)(void);
+typedef int (*audio_sink_suspend_api_t)(tSESSION_TYPE session_type);
+typedef void (*btoffload_update_metadata_api_t)(tSESSION_TYPE session_type, void* metadata);
+typedef int (*audio_sink_open_api_t)(tSESSION_TYPE session_type);
+typedef int (*audio_sink_close_api_t)(tSESSION_TYPE session_type);
+
 typedef int (*audio_source_open_t)(void);
 typedef int (*audio_source_close_t)(void);
 typedef int (*audio_source_start_t)(void);
 typedef int (*audio_source_stop_t)(void);
 typedef int (*audio_source_suspend_t)(void);
-typedef void (*audio_source_handoff_triggered_t)(void);
-typedef void (*clear_source_a2dpsuspend_flag_t)(void);
-typedef void * (*audio_get_enc_config_t)(uint8_t *multicast_status,
-                                        uint8_t *num_dev, audio_format_t *codec_format);
+typedef void* (*audio_get_enc_config_t)(uint8_t* multicast_status,
+    uint8_t* num_dev, audio_format_t* codec_format);
 typedef int (*audio_source_check_a2dp_ready_t)(void);
-typedef bool (*audio_is_tws_mono_mode_enable_t)(void);
 typedef int (*audio_sink_start_t)(void);
 typedef int (*audio_sink_stop_t)(void);
-typedef void * (*audio_get_dec_config_t)(audio_format_t *codec_format);
-typedef void * (*audio_sink_session_setup_complete_t)(uint64_t system_latency);
-typedef int (*audio_sink_check_a2dp_ready_t)(void);
-typedef uint16_t (*audio_sink_get_a2dp_latency_t)(void);
-typedef bool (*audio_is_scrambling_enabled_t)(void);
+typedef uint16_t(*audio_sink_get_a2dp_latency_t)(void);
+typedef int (*audio_sink_suspend_t)(void);
+typedef int (*audio_sink_open_t)(void);
+typedef int (*audio_sink_close_t)(void);
+
 #ifdef SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD
 typedef void (tbit_rate_cback)(uint32_t bitrate);
 typedef void (*audio_get_dynamic_bitrate_t)(tbit_rate_cback* p_cback);
@@ -102,6 +144,7 @@ protected:
     bool                       isTwsMonoModeOn;
     bool                       isScramblingEnabled;
     bool                       isDummySink;
+    bool                       isEncDecConfigured;
     struct pcm                 *fbPcm;
     std::vector<int>           fbpcmDevIds;
     std::shared_ptr<Bluetooth> fbDev;
@@ -122,6 +165,7 @@ protected:
     bool isPlaceholderEncoder();
     void startAbr();
     void stopAbr();
+    int32_t configureSlimbusClockSrc(void);
 
 public:
     int getCodecConfig(struct pal_media_config *config) override;
@@ -133,6 +177,9 @@ class BtA2dp : public Bluetooth
 protected:
     static std::shared_ptr<Device> objRx;
     static std::shared_ptr<Device> objTx;
+    static std::shared_ptr<Device> objBleRx;
+    static std::shared_ptr<Device> objBleTx;
+    static std::shared_ptr<Device> objBleBroadcastRx;
     BtA2dp(struct pal_device *device, std::shared_ptr<ResourceManager> Rm);
     pal_param_bta2dp_t param_bt_a2dp;
 
@@ -140,28 +187,75 @@ private:
     /* BT IPC related members */
     static void                                 *bt_lib_source_handle;
     static bt_audio_pre_init_t                  bt_audio_pre_init;
+    static audio_source_open_api_t              audio_source_open_api;
+    static audio_source_close_api_t             audio_source_close_api;
+    static audio_source_start_api_t             audio_source_start_api;
+    static audio_source_stop_api_t              audio_source_stop_api;
+    static audio_source_suspend_api_t           audio_source_suspend_api;
+    static audio_source_handoff_triggered_t     audio_source_handoff_triggered;
+    static clear_source_a2dpsuspend_flag_t      clear_source_a2dpsuspend_flag;
+    static audio_get_enc_config_api_t           audio_get_enc_config_api;
+    static audio_source_check_a2dp_ready_api_t  audio_source_check_a2dp_ready_api;
+    static audio_is_tws_mono_mode_enable_t      audio_is_tws_mono_mode_enable;
+    static audio_sink_get_a2dp_latency_api_t    audio_sink_get_a2dp_latency_api;
+
+    static void                                 *bt_lib_sink_handle;
+    static audio_sink_start_api_t               audio_sink_start_api;
+    static audio_sink_stop_api_t                audio_sink_stop_api;
+    static audio_get_dec_config_t               audio_get_dec_config;
+    static audio_sink_session_setup_complete_t  audio_sink_session_setup_complete;
+    static audio_sink_check_a2dp_ready_t        audio_sink_check_a2dp_ready;
+    static audio_is_scrambling_enabled_t        audio_is_scrambling_enabled;
+    static audio_sink_suspend_api_t             audio_sink_suspend_api;
+    static btoffload_update_metadata_api_t      btoffload_update_metadata_api;
+    static audio_sink_open_api_t                audio_sink_open_api;
+    static audio_sink_close_api_t               audio_sink_close_api;
+
     static audio_source_open_t                  audio_source_open;
     static audio_source_close_t                 audio_source_close;
     static audio_source_start_t                 audio_source_start;
     static audio_source_stop_t                  audio_source_stop;
     static audio_source_suspend_t               audio_source_suspend;
-    static audio_source_handoff_triggered_t     audio_source_handoff_triggered;
-    static clear_source_a2dpsuspend_flag_t      clear_source_a2dpsuspend_flag;
     static audio_get_enc_config_t               audio_get_enc_config;
     static audio_source_check_a2dp_ready_t      audio_source_check_a2dp_ready;
-    static audio_is_tws_mono_mode_enable_t      audio_is_tws_mono_mode_enable;
     static audio_sink_get_a2dp_latency_t        audio_sink_get_a2dp_latency;
-#ifdef SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD
-    static audio_get_dynamic_bitrate_t          audio_get_dynamic_bitrate;
-    static audio_get_peer_mtu_t                 audio_get_peer_mtu;
-#endif
-    static void                                 *bt_lib_sink_handle;
+
     static audio_sink_start_t                   audio_sink_start;
     static audio_sink_stop_t                    audio_sink_stop;
-    static audio_get_dec_config_t               audio_get_dec_config;
-    static audio_sink_session_setup_complete_t  audio_sink_session_setup_complete;
-    static audio_sink_check_a2dp_ready_t        audio_sink_check_a2dp_ready;
-    static audio_is_scrambling_enabled_t        audio_is_scrambling_enabled;
+    static audio_sink_suspend_t                 audio_sink_suspend;
+    static audio_sink_open_t                    audio_sink_open;
+    static audio_sink_close_t                   audio_sink_close;
+
+#ifdef SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD
+    static void                                 *ss_bt_lib_source_handle;
+    static bt_audio_pre_init_t                  ss_bt_audio_pre_init;
+    static audio_source_open_api_t              ss_audio_source_open_api;
+    static audio_source_close_api_t             ss_audio_source_close_api;
+    static audio_source_start_api_t             ss_audio_source_start_api;
+    static audio_source_stop_api_t              ss_audio_source_stop_api;
+    static audio_source_suspend_api_t           ss_audio_source_suspend_api;
+    static audio_source_handoff_triggered_t     ss_audio_source_handoff_triggered;
+    static clear_source_a2dpsuspend_flag_t      ss_clear_source_a2dpsuspend_flag;
+    static audio_get_enc_config_api_t           ss_audio_get_enc_config_api;
+    static audio_source_check_a2dp_ready_api_t  ss_audio_source_check_a2dp_ready_api;
+    static audio_is_tws_mono_mode_enable_t      ss_audio_is_tws_mono_mode_enable;
+    static audio_sink_get_a2dp_latency_api_t    ss_audio_sink_get_a2dp_latency_api;
+
+    static audio_is_scrambling_enabled_t        ss_audio_is_scrambling_enabled;
+    static btoffload_update_metadata_api_t      ss_btoffload_update_metadata_api;
+
+    static audio_source_open_t                  ss_audio_source_open;
+    static audio_source_close_t                 ss_audio_source_close;
+    static audio_source_start_t                 ss_audio_source_start;
+    static audio_source_stop_t                  ss_audio_source_stop;
+    static audio_source_suspend_t               ss_audio_source_suspend;
+    static audio_get_enc_config_t               ss_audio_get_enc_config;
+    static audio_source_check_a2dp_ready_t      ss_audio_source_check_a2dp_ready;
+    static audio_sink_get_a2dp_latency_t        ss_audio_sink_get_a2dp_latency;
+
+    static audio_get_dynamic_bitrate_t          ss_audio_get_dynamic_bitrate;
+    static audio_get_peer_mtu_t                 ss_audio_get_peer_mtu;
+#endif
 
     /* member variables */
     uint8_t         a2dpRole;  // source or sink
@@ -183,8 +277,11 @@ private:
     void init_a2dp_source();
     void open_a2dp_source();
     int close_audio_source();
+    tSESSION_TYPE get_session_type();
 
     void init_a2dp_sink();
+    void open_a2dp_sink();
+    int close_audio_sink();
     bool a2dp_send_sink_setup_complete(void);
     using Bluetooth::init;
     void init();
@@ -201,6 +298,7 @@ public:
                                                std::shared_ptr<ResourceManager> Rm);
 
 #ifdef SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD
+    bool is_a2dp_offload();
     enum A2DP_STATE getA2dpState();
     codec_format_t getCodecFormat();
 #ifdef QCA_OFFLOAD

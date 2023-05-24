@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
 #ifndef _DP_PARSER_H_
@@ -234,6 +234,8 @@ enum secdp_PS5169_voltage_type {
  * @dsc_continuous_pps: PPS sent every frame by HW
  * @has_widebus: widebus (2PPC) feature eanble status
  * @mst_fixed_port: mst port_num reserved for fixed topology
+ * @qos_cpu_mask: CPU mask for QOS
+ * @qos_cpu_latency: CPU Latency setting for QOS
  * @parse: function to be called by client to parse device tree.
  * @get_io: function to be called by client to get io data.
  * @get_io_buf: function to be called by client to get io buffers.
@@ -263,13 +265,17 @@ struct dp_parser {
 	bool gpio_aux_switch;
 	bool lphw_hpd;
 	u32 mst_fixed_port[MAX_DP_MST_STREAMS];
+	u32 qos_cpu_mask;
+	unsigned long qos_cpu_latency;
 
 #if defined(CONFIG_SECDP)
+	struct regulator *aux_pullup_vreg;
 	bool cc_dir_inv;  /* CC_DIR is inversed, e.g, T865 */
 	bool aux_sel_inv; /* inverse control of AUX_SEL e.g, D2Xq hwid 01,02 */
 	int  use_redrv;   /* ptn36502 needs NOT AUX switch SEL control */
 	int  dex_dft_res; /* DeX default resolution, e.g, HG950 */
 	bool prefer_support;  /* true if prefer resolution has high priority */
+	bool mrr_fps_nolimit; /* true if mirroring refresh rate has no limit */
 
 	u8 vm_pre_emphasis[MAX_VOLTAGE_LEVELS][MAX_PRE_EMP_LEVELS];
 	u8 vm_voltage_swing[MAX_VOLTAGE_LEVELS][MAX_PRE_EMP_LEVELS];

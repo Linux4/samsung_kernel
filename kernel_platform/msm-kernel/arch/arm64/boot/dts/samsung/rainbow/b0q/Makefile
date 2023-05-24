@@ -19,29 +19,35 @@ b0q_kor_singlex_w00_r02.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../ve
 dtbo-y += b0q_kor_singlex_w00_r01.dtbo # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 b0q_kor_singlex_w00_r01.dtbo-base := ../../../vendor/qcom/waipio.dtb ../../../vendor/qcom/waipio-v2.dtb ../../../vendor/qcom/waipiop.dtb ../../../vendor/qcom/waipiop-v2.dtb # ADDED BY LEGO AUTOMATICALLY: DO NOT SUBMIT
 # SPDX-License-Identifier: GPL-2.0
+# SPU
+#SEC_SYSTEM_UPDATE_DTBO := ../../waipio-sec-system-update-overlay.dtbo
 
-#define __sec_dtbo_build
-#dtbo-$(2) += $(1)
-#$(1)-base := $(3)
-#endef
-#
-#define sec_dtbo_build
-#$(foreach dtbo, $(1), $(eval $(call __sec_dtbo_build, $(dtbo),$(2),$(3))))
-#endef
-#
+ifeq ($(CONFIG_BUILD_ARM64_DT_OVERLAY),y)
+
+define __sec_dtbo_build
+dtbo-$(2) += $(1)
+$(1)-base := $(3)
+endef
+
+define sec_dtbo_build
+$(foreach dtbo, $(1), $(eval $(call __sec_dtbo_build, $(dtbo),$(2),$(3))))
+endef
+
 # WAIPIO BASE DTB
-#QCOM_DTB := ../../../vendor/qcom
-#SEC_WAIPIO_BASE_DTB := $(QCOM_DTB)/waipio.dtb $(QCOM_DTB)/waipiop.dtb
-#
-#ifeq ($(CONFIG_BUILD_ARM64_DT_OVERLAY),y)
-#
+QCOM_DTB := ../../../vendor/qcom
+SEC_WAIPIO_BASE_DTB := $(QCOM_DTB)/waipio.dtb $(QCOM_DTB)/waipiop.dtb
+
+
 # B0Q
 #SEC_B0Q_DTBO := \
 #    waipio-sec.b0q.overlay.00.dtbo
 #
-#$(eval $(call sec_dtbo_build, \
-#    $(SEC_B0Q_DTBO),$(CONFIG_ARCH_WAIPIO),$(SEC_WAIPIO_BASE_DTB)))
-#endif
+$(eval $(call sec_dtbo_build, \
+		$(SEC_SYSTEM_UPDATE_DTBO),$(CONFIG_ARCH_WAIPIO),$(SEC_WAIPIO_BASE_DTB)))
+
+
+always          := $(dtb-y)
+subdir-y        := $(dts-dirs)
+endif
 
 clean-files := *.dtb *.reverse.dts *.dtbo
-

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -110,7 +111,10 @@ static void sde_dimming_bl_notify(struct sde_connector *conn, struct dsi_backlig
 
 	if (!conn || !config)
 		return;
-	if (!conn->dimming_bl_notify_enabled)
+
+	SDE_DEBUG("bl_config.dimming_status 0x%x user_disable_notify %d\n",
+		  config->dimming_status, config->user_disable_notification);
+	if (!conn->dimming_bl_notify_enabled || config->user_disable_notification)
 		return;
 
 	bl_info.brightness_max = config->brightness_max_level;
@@ -119,10 +123,15 @@ static void sde_dimming_bl_notify(struct sde_connector *conn, struct dsi_backlig
 	bl_info.bl_level = config->bl_level;
 	bl_info.bl_scale = config->bl_scale;
 	bl_info.bl_scale_sv = config->bl_scale_sv;
+	bl_info.status = config->dimming_status;
+	bl_info.min_bl = config->dimming_min_bl;
+	bl_info.bl_scale_max = MAX_BL_SCALE_LEVEL;
+	bl_info.bl_scale_sv_max = SV_BL_SCALE_CAP;
 	event.type = DRM_EVENT_DIMMING_BL;
 	event.length = sizeof(bl_info);
-	SDE_DEBUG("dimming BL event bl_level %d bl_scale %d, bl_scale_sv = %d\n",
-		  bl_info.bl_level, bl_info.bl_scale, bl_info.bl_scale_sv);
+	SDE_DEBUG("dimming BL event bl_level %d bl_scale %d, bl_scale_sv = %d "
+		  "min_bl %d status 0x%x\n", bl_info.bl_level, bl_info.bl_scale,
+		  bl_info.bl_scale_sv, bl_info.min_bl, bl_info.status);
 	msm_mode_object_event_notify(&conn->base.base, conn->base.dev, &event, (u8 *)&bl_info);
 }
 
@@ -191,7 +200,8 @@ static int sde_backlight_device_update_status(struct backlight_device *bd)
 		}
 		rc = c_conn->ops.set_backlight(&c_conn->base,
 				c_conn->display, bl_lvl);
-		sde_dimming_bl_notify(c_conn, &display->panel->bl_config);
+		if (!rc)
+			sde_dimming_bl_notify(c_conn, &display->panel->bl_config);
 		c_conn->unset_bl_level = 0;
 	}
 
@@ -723,6 +733,7 @@ static int _sde_connector_update_dimming_bl_lut(struct sde_connector *c_conn,
 	size_t sz = 0;
 	struct dsi_display *dsi_display;
 	struct dsi_backlight_config *bl_config;
+	int rc = 0;
 
 	if (!c_conn || !c_state) {
 		SDE_ERROR("invalid arguments\n");
@@ -746,6 +757,81 @@ static int _sde_connector_update_dimming_bl_lut(struct sde_connector *c_conn,
 	bl_config = &dsi_display->panel->bl_config;
 	bl_config->dimming_bl_lut = msm_property_get_blob(&c_conn->property_info,
 			&c_state->property_state, &sz, CONNECTOR_PROP_DIMMING_BL_LUT);
+	rc = c_conn->ops.set_backlight(&c_conn->base,
+			dsi_display, bl_config->bl_level);
+	if (!rc)
+		c_conn->unset_bl_level = 0;
+
+	return 0;
+}
+
+static int _sde_connector_update_dimming_ctrl(struct sde_connector *c_conn,
+		struct sde_connector_state *c_state, uint64_t val)
+{
+	struct dsi_display *dsi_display;
+	struct dsi_backlight_config *bl_config;
+	bool prev, curr = (bool)val;
+
+	if (!c_conn || !c_state) {
+		SDE_ERROR("invalid arguments\n");
+		return -EINVAL;
+	}
+
+	dsi_display = c_conn->display;
+	if (!dsi_display || !dsi_display->panel) {
+		SDE_ERROR("Invalid params(s) dsi_display %pK, panel %pK\n",
+			dsi_display,
+			((dsi_display) ? dsi_display->panel : NULL));
+		return -EINVAL;
+	}
+
+	bl_config = &dsi_display->panel->bl_config;
+	prev = (bool)(bl_config->dimming_status & DIMMING_ENABLE);
+	if (curr == prev)
+		return 0;
+
+	if(val) {
+		bl_config->dimming_status |= DIMMING_ENABLE;
+	} else {
+		bl_config->dimming_status &= ~DIMMING_ENABLE;
+	}
+	bl_config->user_disable_notification = false;
+	sde_dimming_bl_notify(c_conn, bl_config);
+	if (!val)
+		bl_config->user_disable_notification = true;
+
+	return 0;
+}
+
+static int _sde_connector_update_dimming_min_bl(struct sde_connector *c_conn,
+		struct sde_connector_state *c_state, uint64_t val)
+{
+	struct dsi_display *dsi_display;
+	struct dsi_backlight_config *bl_config;
+	uint32_t tmp = 0;
+
+	if (!c_conn || !c_state) {
+		SDE_ERROR("invalid arguments\n");
+		return -EINVAL;
+	}
+
+	dsi_display = c_conn->display;
+	if (!dsi_display || !dsi_display->panel) {
+		SDE_ERROR("Invalid params(s) dsi_display %pK, panel %pK\n",
+			dsi_display,
+			((dsi_display) ? dsi_display->panel : NULL));
+		return -EINVAL;
+	}
+
+	bl_config = &dsi_display->panel->bl_config;
+	tmp = (uint32_t)val;
+	if (tmp == bl_config->dimming_min_bl)
+		return 0;
+	bl_config->dimming_min_bl = tmp;
+	bl_config->dimming_status |= DIMMING_MIN_BL_VALID;
+	sde_dimming_bl_notify(c_conn, bl_config);
+	bl_config->dimming_status &= ~DIMMING_MIN_BL_VALID;
+
 	return 0;
 }
 
@@ -770,6 +856,10 @@ static int _sde_connector_update_bl_scale(struct sde_connector *c_conn)
 	}
 
 	bl_config = &dsi_display->panel->bl_config;
+	bl_config->bl_scale = c_conn->bl_scale > MAX_BL_SCALE_LEVEL ?
+			MAX_BL_SCALE_LEVEL : c_conn->bl_scale;
+	bl_config->bl_scale_sv = c_conn->bl_scale_sv > SV_BL_SCALE_CAP ?
+			SV_BL_SCALE_CAP : c_conn->bl_scale_sv;
 
 	if (!c_conn->allow_bl_update) {
 		c_conn->unset_bl_level = bl_config->bl_level;
@@ -778,10 +868,6 @@ static int _sde_connector_update_bl_scale(struct sde_connector *c_conn)
 
 	if (c_conn->unset_bl_level)
 		bl_config->bl_level = c_conn->unset_bl_level;
-
-	bl_config->bl_scale = c_conn->bl_scale > MAX_BL_SCALE_LEVEL ?
-			MAX_BL_SCALE_LEVEL : c_conn->bl_scale;
-	bl_config->bl_scale_sv = c_conn->bl_scale_sv;
 
 	SDE_DEBUG("bl_scale = %u, bl_scale_sv = %u, bl_level = %u\n",
 		bl_config->bl_scale, bl_config->bl_scale_sv,
@@ -1747,6 +1833,12 @@ static int sde_connector_atomic_set_property(struct drm_connector *connector,
 	case CONNECTOR_PROP_DIMMING_BL_LUT:
 		rc = _sde_connector_update_dimming_bl_lut(c_conn, c_state);
 		break;
+	case CONNECTOR_PROP_DIMMING_CTRL:
+		rc = _sde_connector_update_dimming_ctrl(c_conn, c_state, val);
+		break;
+	case CONNECTOR_PROP_DIMMING_MIN_BL:
+		rc = _sde_connector_update_dimming_min_bl(c_conn, c_state, val);
+		break;
 	case CONNECTOR_PROP_HDR_METADATA:
 		rc = _sde_connector_set_ext_hdr_info(c_conn,
 			c_state, (void *)(uintptr_t)val);
@@ -2070,7 +2162,8 @@ static int _sde_connector_lm_preference(struct sde_connector *sde_conn,
 		return -EINVAL;
 	}
 
-	sde_hw_mixer_set_preference(sde_kms->catalog, num_lm, disp_type);
+	sde_conn->lm_mask = sde_hw_mixer_set_preference(sde_kms->catalog,
+							num_lm, disp_type);
 
 	return ret;
 }
@@ -2766,7 +2859,7 @@ static void sde_connector_check_status_work(struct work_struct *work)
 	dev = conn->base.dev->dev;
 
 	if (!conn->ops.check_status || dev->power.is_suspended ||
-			(conn->dpms_mode != DRM_MODE_DPMS_ON)) {
+			(conn->lp_mode == SDE_MODE_DPMS_OFF)) {
 		SDE_DEBUG("dpms mode: %d\n", conn->dpms_mode);
 		mutex_unlock(&conn->lock);
 		return;
@@ -3002,10 +3095,16 @@ static int _sde_connector_install_properties(struct drm_device *dev,
 
 	if (connector_type == DRM_MODE_CONNECTOR_DSI) {
 		dsi_display = (struct dsi_display *)(display);
-		if (dsi_display && dsi_display->panel)
+		if (dsi_display && dsi_display->panel) {
 			msm_property_install_blob(&c_conn->property_info,
 				"dimming_bl_lut", DRM_MODE_PROP_BLOB,
 				CONNECTOR_PROP_DIMMING_BL_LUT);
+			msm_property_install_range(&c_conn->property_info, "dimming_dyn_ctrl",
+					0x0, 0, ~0, 0, CONNECTOR_PROP_DIMMING_CTRL);
+			msm_property_install_range(&c_conn->property_info, "dimming_min_bl",
+					0x0, 0, dsi_display->panel->bl_config.brightness_max_level, 0,
+					CONNECTOR_PROP_DIMMING_MIN_BL);
+		}
 
 		if (dsi_display && dsi_display->panel &&
 			dsi_display->panel->hdr_props.hdr_enabled == true) {

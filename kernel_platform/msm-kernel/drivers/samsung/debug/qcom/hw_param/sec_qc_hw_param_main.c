@@ -88,8 +88,10 @@ static int __hw_param_test_ap_health(struct builder *bd)
 			container_of(bd, struct qc_hw_param_drvdata, bd);
 	ap_health_t *health = sec_qc_ap_health_data_read();
 
-	if (IS_ERR_OR_NULL(health))
+	if (PTR_ERR(health) == -EBUSY)
 		return -EPROBE_DEFER;
+	else if (IS_ERR_OR_NULL(health))
+		return -ENODEV;
 
 	drvdata->ap_health = health;
 

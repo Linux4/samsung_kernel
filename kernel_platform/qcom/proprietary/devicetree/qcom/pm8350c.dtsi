@@ -244,13 +244,13 @@
 			pm8350c_trip1: trip1 {
 				temperature = <115000>;
 				hysteresis = <0>;
-				type = "critical";
+				type = "passive";
 			};
 
 			pm8350c_trip2: trip2 {
 				temperature = <145000>;
 				hysteresis = <0>;
-				type = "critical";
+				type = "passive";
 			};
 		};
 	};

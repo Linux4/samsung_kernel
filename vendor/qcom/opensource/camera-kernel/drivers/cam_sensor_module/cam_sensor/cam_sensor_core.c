@@ -1643,6 +1643,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 #if defined(CONFIG_SAMSUNG_FRONT_TOP)
 #if defined(CONFIG_SAMSUNG_FRONT_DUAL)
 				case CAMERA_11:
+				case CAMERA_13:
 					if (!msm_is_sec_get_front3_hw_param(&hw_param)) {
 						if (hw_param != NULL) {
 							CAM_ERR(CAM_UTIL, "[HWB][F3][I2C] Err\n");
@@ -1653,6 +1654,7 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 					break;
 #else
 				case CAMERA_11:
+				case CAMERA_13:
 					if (!msm_is_sec_get_front2_hw_param(&hw_param)) {
 						if (hw_param != NULL) {
 							CAM_ERR(CAM_UTIL, "[HWB][F2][I2C] Err\n");
@@ -1688,6 +1690,17 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 					break;
 #endif
 
+#if defined(CONFIG_SAMSUNG_REAR_QUADRA)
+				case CAMERA_6:
+					if (!msm_is_sec_get_rear4_hw_param(&hw_param)) {
+						if (hw_param != NULL) {
+							CAM_ERR(CAM_UTIL, "[HWB][R4][I2C] Err\n");
+							hw_param->i2c_sensor_err_cnt++;
+							hw_param->need_update_to_file = TRUE;
+						}
+					}
+					break;
+#endif
 				default:
 					CAM_DBG(CAM_UTIL, "[NON][I2C][%d] Unsupport\n", s_ctrl->id);
 					break;
@@ -2431,6 +2444,20 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 				break;
 #endif
 
+#if defined(CONFIG_SAMSUNG_REAR_QUADRA)
+			case CAMERA_4:
+				if (!msm_is_sec_get_rear4_hw_param(&hw_param)) {
+					if (hw_param != NULL) {
+						CAM_DBG(CAM_UTIL, "[R4][INIT] Init\n");
+						hw_param->i2c_chk = FALSE;
+						hw_param->mipi_chk = FALSE;
+						hw_param->need_update_to_file = FALSE;
+						hw_param->comp_chk = FALSE;
+					}
+				}
+				break;
+#endif
+
 			default:
 				CAM_DBG(CAM_UTIL, "[NON][INIT][%d] Unsupport\n", s_ctrl->id);
 				break;
@@ -2608,6 +2635,23 @@ int cam_sensor_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 				break;
 #endif
 
+#if defined(CONFIG_SAMSUNG_REAR_QUADRA)
+			case CAMERA_4:
+				if (!msm_is_sec_get_rear4_hw_param(&hw_param)) {
+					if (hw_param != NULL) {
+						hw_param->i2c_chk = FALSE;
+						hw_param->mipi_chk = FALSE;
+						hw_param->comp_chk = FALSE;
+
+						if (hw_param->need_update_to_file) {
+							CAM_DBG(CAM_UTIL, "[R4][DEINIT] Update\n");
+							msm_is_sec_copy_err_cnt_to_file();
+						}
+						hw_param->need_update_to_file = FALSE;
+					}
+				}
+				break;
+#endif
 			default:
 				CAM_DBG(CAM_UTIL, "[NON][DEINIT][%d] Unsupport\n", s_ctrl->id);
 				break;
@@ -3088,9 +3132,9 @@ int msm_is_sec_file_exist(char *filename, hw_params_check_type chktype)
 	return ret;
 }
 
-int msm_is_sec_get_sensor_position(uint32_t **cam_position)
+int msm_is_sec_get_sensor_position(uint32_t *cam_position)
 {
-	*cam_position = &sec_sensor_position;
+	*cam_position = sec_sensor_position;
 	return 0;
 }
 
@@ -3140,6 +3184,59 @@ int msm_is_sec_get_rear3_hw_param(struct cam_hw_param **hw_param)
 {
 	*hw_param = &cam_hwparam_collector.rear3_hwparam;
 	return 0;
+}
+
+int msm_is_sec_get_rear4_hw_param(struct cam_hw_param **hw_param)
+{
+	*hw_param = &cam_hwparam_collector.rear4_hwparam;
+	return 0;
+}
+
+int msm_is_sec_get_hw_param(uint32_t camera_id, struct cam_hw_param **hw_param)
+{
+	int ret = 0;
+	switch(camera_id){
+		case CAMERA_0:
+			msm_is_sec_get_rear_hw_param(hw_param);
+			break;
+		case CAMERA_1:
+		case CAMERA_12:
+			msm_is_sec_get_front_hw_param(hw_param);
+			break;
+#if defined(CONFIG_SAMSUNG_FRONT_TOP)
+#if defined(CONFIG_SAMSUNG_FRONT_DUAL)
+		case CAMERA_11:
+		case CAMERA_13:
+			msm_is_sec_get_front3_hw_param(hw_param);
+			break;
+#else
+		case CAMERA_11:
+		case CAMERA_13:
+			msm_is_sec_get_front2_hw_param(hw_param);
+			break;
+#endif
+#endif
+#if defined(CONFIG_SAMSUNG_REAR_DUAL) || defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+		case CAMERA_2:
+			msm_is_sec_get_rear2_hw_param(hw_param);
+			break;
+#endif
+#if defined(CONFIG_SAMSUNG_REAR_TRIPLE)
+		case CAMERA_3:
+			msm_is_sec_get_rear3_hw_param(hw_param);
+			break;
+#endif
+#if defined(CONFIG_SAMSUNG_REAR_QUADRA)
+		case CAMERA_6:
+			msm_is_sec_get_rear4_hw_param(hw_param);
+			break;
+#endif
+		default:
+			CAM_ERR(CAM_UTIL, "[HWB][MIPI][%d] Unsupport\n", camera_id);
+			ret = -1;
+			break;
+	}
+	return ret;
 }
 #endif
 

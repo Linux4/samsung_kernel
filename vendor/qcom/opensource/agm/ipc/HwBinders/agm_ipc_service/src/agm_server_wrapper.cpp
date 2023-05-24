@@ -25,21 +25,62 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted (subject to the limitations in the
+ * disclaimer below) provided that the following conditions are met:
+ *
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *
+ *     * Redistributions in binary form must reproduce the above
+ *       copyright notice, this list of conditions and the following
+ *       disclaimer in the documentation and/or other materials provided
+ *       with the distribution.
+ *
+ *     * Neither the name of Qualcomm Innovation Center, Inc. nor the names of its
+ *       contributors may be used to endorse or promote products derived
+ *       from this software without specific prior written permission.
+ *
+ * NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
+ * GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
+ * HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+ * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+ * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+ * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #define LOG_TAG "agm_server_wrapper"
 #include "inc/agm_server_wrapper.h"
 #include <log/log.h>
 #include <cutils/list.h>
+#include <cutils/android_filesystem_config.h>
 #include <pthread.h>
+#include <signal.h>
 #include "gsl_intf.h"
 #include <hwbinder/IPCThreadState.h>
 
 #define MAX_CACHE_SIZE 64
 #define NUM_GKV(x)                     (*((uint32_t *) x))
 
+#ifndef __SIGRTMIN
+#define __SIGRTMIN 32
+#endif
+static const constexpr int DEBUGGER_SIGNAL = (__SIGRTMIN + 3);
+
 using AgmCallbackData = ::vendor::qti::hardware::AGMIPC::V1_0::implementation::clbk_data;
 using AgmServerCallback = ::vendor::qti::hardware::AGMIPC::V1_0::implementation::SrvrClbk;
+using ::vendor::qti::hardware::AGMIPC::V1_0::AgmDumpInfo;
 
 static list_declare(client_list);
 static pthread_mutex_t client_list_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -63,10 +104,20 @@ typedef struct {
     struct listnode agm_client_hndl_list;
 } client_info;
 
+void dumpAgmStackTrace(uid_t uid, int signal) {
+    if (uid == AID_AUDIOSERVER && signal > 0) {
+        if (raise(DEBUGGER_SIGNAL)) {
+            ALOGW("%s: Sending signal %u failed with error %d",
+                    __func__, signal, errno);
+        }
+    }
+}
+
 void client_death_notifier::serviceDied(uint64_t cookie,
                    const android::wp<::android::hidl::base::V1_0::IBase>& who __unused)
 {
     ALOGI("Client died (pid): %llu",(unsigned long long) cookie);
+
     struct listnode *node = NULL;
     struct listnode *tempnode = NULL;
     agm_client_session_handle *session_handle = NULL;
@@ -1476,6 +1527,17 @@ exit:
     if (buf.addr != nullptr)
         free(buf.addr);
     return ret;
+}
+
+Return<int32_t> AGM::ipc_agm_dump(const hidl_vec<AgmDumpInfo>& dump_info) {
+    struct agm_dump_info *d_info =
+            (struct agm_dump_info *)dump_info.data();
+    if (d_info->signal) {
+        ALOGD("%s: client with pid %d received signal %d",
+                  __func__, d_info->pid, d_info->signal);
+        dumpAgmStackTrace(d_info->uid, d_info->signal);
+    }
+    return agm_dump(d_info);
 }
 
 }  // namespace implementation

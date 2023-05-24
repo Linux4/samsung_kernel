@@ -1902,6 +1902,14 @@ static int __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
 		if (defer_buf_done) {
 			uint32_t deferred_indx = req_isp->num_deferred_acks;
 
+			if (deferred_indx >= CAM_ISP_CTX_RES_MAX) {
+				CAM_WARN(CAM_ISP, "ctx: %u req: %llu number of Deferred buf done %u is more than %u",
+				ctx->ctx_id, req->request_id,
+				deferred_indx, CAM_ISP_CTX_RES_MAX);
+				continue;
+			}
+
+
 			/*
 			 * If we are handling this BUF_DONE event for a request
 			 * that is still in wait_list, do not signal now,

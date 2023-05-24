@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -138,6 +139,8 @@ struct sae_auth_retry {
  * @last_assoc_received_time: last assoc received time
  * @last_disassoc_deauth_received_time: last disassoc/deauth received time
  * @twt_ctx: TWT context
+ * @allow_kickout: True if the peer can be kicked out. Peer can't be kicked
+ *                 out if it is being steered
  */
 struct peer_mlme_priv_obj {
 	uint8_t last_pn_valid;
@@ -148,6 +151,9 @@ struct peer_mlme_priv_obj {
 	qdf_time_t last_disassoc_deauth_received_time;
 #ifdef WLAN_SUPPORT_TWT
 	struct twt_context twt_ctx;
+#endif
+#ifdef WLAN_FEATURE_SON
+	bool allow_kickout;
 #endif
 };
 
@@ -335,6 +341,7 @@ struct ft_context {
  * @cckm_ie: cck IE
  * @cckm_ie_len: cckm_ie len
  * @ese_tspec_info: ese tspec info
+ * @ext_cap_ie: Ext CAP IE
  */
 struct mlme_connect_info {
 	uint8_t timing_meas_cap;
@@ -358,6 +365,7 @@ struct mlme_connect_info {
 	tESETspecInfo ese_tspec_info;
 #endif
 #endif
+	uint8_t ext_cap_ie[DOT11F_IE_EXTCAP_MAX_LEN + 2];
 };
 
 /** struct wait_for_key_timer - wait for key timer object
@@ -367,6 +375,18 @@ struct mlme_connect_info {
 struct wait_for_key_timer {
 	struct wlan_objmgr_vdev *vdev;
 	qdf_mc_timer_t timer;
+};
+
+/**
+ * struct mlme_ap_config - VDEV MLME legacy private SAP
+ * related configurations
+ * @update_required_scc_sta_power: Change the 6 GHz power type of the
+ * concurrent STA
+ */
+struct mlme_ap_config {
+#ifdef CONFIG_BAND_6GHZ
+	bool update_required_scc_sta_power;
+#endif
 };
 
 /**
@@ -407,6 +427,8 @@ struct wait_for_key_timer {
  *			  requests from some IOT APs
  * @ba_2k_jump_iot_ap: This is set to true if connected to the ba 2k jump IOT AP
  * @is_usr_ps_enabled: Is Power save enabled
+ * @notify_co_located_ap_upt_rnr: Notify co located AP to update RNR or not
+ * @mlme_ap: SAP related vdev private configurations
  */
 struct mlme_legacy_priv {
 	bool chan_switch_in_progress;
@@ -447,6 +469,8 @@ struct mlme_legacy_priv {
 	qdf_time_t last_delba_sent_time;
 	bool ba_2k_jump_iot_ap;
 	bool is_usr_ps_enabled;
+	bool notify_co_located_ap_upt_rnr;
+	struct mlme_ap_config mlme_ap;
 };
 
 /**
@@ -988,6 +1012,42 @@ mlme_clear_operations_bitmap(struct wlan_objmgr_psoc *psoc, uint8_t vdev_id);
 QDF_STATUS mlme_get_cfg_wlm_level(struct wlan_objmgr_psoc *psoc,
 				  uint8_t *level);
 
+#ifdef MULTI_CLIENT_LL_SUPPORT
+/**
+ * wlan_mlme_get_wlm_multi_client_ll_caps() - Get the wlm multi client latency
+ * level capability flag
+ * @psoc: pointer to psoc object
+ *
+ * Return: True is multi client ll cap present
+ */
+bool wlan_mlme_get_wlm_multi_client_ll_caps(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * mlme_get_cfg_multi_client_ll_ini_support() - Get the ini value of wlm multi
+ * client latency level feature
+ * @psoc: pointer to psoc object
+ * @multi_client_ll_support: parameter that needs to be filled.
+ *
+ * Return: QDF Status
+ */
+QDF_STATUS
+mlme_get_cfg_multi_client_ll_ini_support(struct wlan_objmgr_psoc *psoc,
+					 bool *multi_client_ll_support);
+#else
+static inline bool
+wlan_mlme_get_wlm_multi_client_ll_caps(struct wlan_objmgr_psoc *psoc)
+{
+	return false;
+}
+
+static inline QDF_STATUS
+mlme_get_cfg_multi_client_ll_ini_support(struct wlan_objmgr_psoc *psoc,
+					 bool *multi_client_ll_support)
+{
+	return QDF_STATUS_E_FAILURE;
+}
+#endif
+
 /**
  * mlme_get_cfg_wlm_reset() - Get the WLM reset flag
  * @psoc: pointer to psoc object
@@ -1026,6 +1086,13 @@ QDF_STATUS mlme_get_cfg_wlm_reset(struct wlan_objmgr_psoc *psoc,
 #define MLME_IS_ROAM_SYNCH_IN_PROGRESS(psoc, vdev_id) (false)
 #endif
 
+#if defined (WLAN_FEATURE_11BE_MLO) && defined(WLAN_FEATURE_ROAM_OFFLOAD)
+#define MLME_IS_MLO_ROAM_SYNCH_IN_PROGRESS(psoc, vdev_id) \
+		(mlme_get_roam_state(psoc, vdev_id) == WLAN_MLO_ROAM_SYNCH_IN_PROG)
+#else
+#define MLME_IS_MLO_ROAM_SYNCH_IN_PROGRESS(psoc, vdev_id) (false)
+#endif
+
 /**
  * mlme_reinit_control_config_lfr_params() - Reinitialize roam control config
  * @psoc: PSOC pointer
@@ -1038,6 +1105,28 @@ QDF_STATUS mlme_get_cfg_wlm_reset(struct wlan_objmgr_psoc *psoc,
  */
 void mlme_reinit_control_config_lfr_params(struct wlan_objmgr_psoc *psoc,
 					   struct wlan_mlme_lfr_cfg *lfr);
+
+/**
+ * wlan_mlme_mlo_sta_mlo_concurency_set_link() - Set links for MLO STA
+ *
+ * @vdev: vdev object
+ * @reason: Reason for which link is forced
+ * @mode: Force reason
+ * @num_mlo_vdev: number of mlo vdev
+ * @mlo_vdev_lst: MLO STA vdev list
+
+ * Interface manager Set links for MLO STA
+ *
+ * Return: void
+ */
+#ifdef WLAN_FEATURE_11BE_MLO
+void
+wlan_mlo_sta_mlo_concurency_set_link(struct wlan_objmgr_vdev *vdev,
+				     enum mlo_link_force_reason reason,
+				     enum mlo_link_force_mode mode,
+				     uint8_t num_mlo_vdev,
+				     uint8_t *mlo_vdev_lst);
+#endif
 
 /**
  * wlan_mlme_get_mac_vdev_id() - get vdev self mac address using vdev id
@@ -1054,4 +1143,40 @@ void mlme_reinit_control_config_lfr_params(struct wlan_objmgr_psoc *psoc,
 QDF_STATUS wlan_mlme_get_mac_vdev_id(struct wlan_objmgr_pdev *pdev,
 				     uint8_t vdev_id,
 				     struct qdf_mac_addr *self_mac);
+#endif
+#ifdef CONFIG_BAND_6GHZ
+/**
+ * wlan_get_tpc_update_required_for_sta() - Get the tpc update required config
+ * to identify whether the tpc power has changed for concurrent STA interface
+ *
+ * @vdev: pointer to SAP vdev
+ *
+ * Return: Change scc power config
+ */
+bool
+wlan_get_tpc_update_required_for_sta(struct wlan_objmgr_vdev *vdev);
+
+/**
+ * wlan_set_tpc_update_required_for_sta() - Set the tpc update required config
+ * for the concurrent STA interface
+ *
+ * @vdev:   pointer to SAP vdev
+ * @value:  change scc power config
+ *
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+wlan_set_tpc_update_required_for_sta(struct wlan_objmgr_vdev *vdev, bool value);
+#else
+static inline bool
+wlan_get_tpc_update_required_for_sta(struct wlan_objmgr_vdev *vdev)
+{
+	return false;
+}
+
+static inline QDF_STATUS
+wlan_set_tpc_update_required_for_sta(struct wlan_objmgr_vdev *vdev, bool value)
+{
+	return QDF_STATUS_SUCCESS;
+}
 #endif

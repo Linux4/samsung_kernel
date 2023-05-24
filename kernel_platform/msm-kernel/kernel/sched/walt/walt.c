@@ -387,8 +387,9 @@ update_window_start(struct rq *rq, u64 wallclock, int event)
 
 	delta = wallclock - wrq->window_start;
 	if (delta < 0) {
-		printk_deferred("WALT-BUG CPU%d; wallclock=%llu is lesser than window_start=%llu",
-				rq->cpu, wallclock, wrq->window_start);
+		printk_deferred("WALT-BUG CPU%d; wallclock=%llu(0x%llx) is lesser than window_start=%llu(0x%llx)",
+				rq->cpu, wallclock, wallclock,
+				wrq->window_start, wrq->window_start);
 		WALT_PANIC(1);
 	}
 	if (delta < sched_ravg_window)
@@ -504,7 +505,7 @@ unsigned int walt_big_tasks(int cpu)
 	return wrq->walt_stats.nr_big_tasks;
 }
 
-void clear_walt_request(int cpu)
+static void clear_walt_request(int cpu)
 {
 	struct rq *rq = cpu_rq(cpu);
 	unsigned long flags;
@@ -2127,9 +2128,9 @@ update_task_rq_cpu_cycles(struct task_struct *p, struct rq *rq, int event,
 			time_delta = wallclock - wts->mark_start;
 
 		if ((s64)time_delta < 0) {
-			printk_deferred("WALT-BUG pid=%u CPU%d wallclock=%llu < mark_start=%llu event=%d irqtime=%llu",
-					 p->pid, rq->cpu, wallclock,
-					 wts->mark_start, event, irqtime);
+			printk_deferred("WALT-BUG pid=%u CPU%d wallclock=%llu(0x%llx) < mark_start=%llu(0x%llx) event=%d irqtime=%llu",
+					 p->pid, rq->cpu, wallclock, wallclock,
+					 wts->mark_start, wts->mark_start, event, irqtime);
 			WALT_PANIC((s64)time_delta < 0);
 		}
 
@@ -2199,7 +2200,7 @@ done:
 	run_walt_irq_work(old_window_start, rq);
 }
 
-static void __sched_fork_init(struct task_struct *p)
+static inline void __sched_fork_init(struct task_struct *p)
 {
 	struct walt_task_struct *wts = (struct walt_task_struct *) p->android_vendor_data1;
 
@@ -3672,6 +3673,7 @@ static void walt_sched_init_rq(struct rq *rq)
 	}
 	wrq->notif_pending = false;
 
+	wrq->num_mvp_tasks = 0;
 	INIT_LIST_HEAD(&wrq->mvp_tasks);
 }
 
@@ -3755,31 +3757,37 @@ static void walt_cpu_frequency_limits(void *unused, struct cpufreq_policy *polic
  */
 static void android_rvh_update_cpu_capacity(void *unused, int cpu, unsigned long *capacity)
 {
-	unsigned long max_capacity = arch_scale_cpu_capacity(cpu);
+	unsigned long fmax_capacity = arch_scale_cpu_capacity(cpu);
 	unsigned long thermal_pressure = arch_scale_thermal_pressure(cpu);
-	unsigned long thermal_cap;
+	unsigned long thermal_cap, old;
+	unsigned long rt_pressure = fmax_capacity - *capacity;
 	struct walt_sched_cluster *cluster;
-	unsigned long rt_pressure = max_capacity - *capacity;
+	struct rq *rq = cpu_rq(cpu);
 
 	if (unlikely(walt_disabled))
 		return;
 
 	/*
-	 * thermal_pressure = max_capacity - curr_cap_as_per_thermal.
+	 * thermal_pressure = cpu_scale - curr_cap_as_per_thermal.
 	 * so,
-	 * curr_cap_as_per_thermal = max_capacity - thermal_pressure.
+	 * curr_cap_as_per_thermal = cpu_scale - thermal_pressure.
 	 */
 
-	thermal_cap = max_capacity - thermal_pressure;
+	thermal_cap = fmax_capacity - thermal_pressure;
 
 	cluster = cpu_cluster(cpu);
-	/* reduce the max_capacity under cpufreq constraints */
+	/* reduce the fmax_capacity under cpufreq constraints */
 	if (cluster->max_freq != cluster->max_possible_freq)
-		max_capacity = mult_frac(max_capacity, cluster->max_freq,
+		fmax_capacity = mult_frac(fmax_capacity, cluster->max_freq,
 					 cluster->max_possible_freq);
 
-	cpu_rq(cpu)->cpu_capacity_orig = min(max_capacity, thermal_cap);
-	*capacity = cpu_rq(cpu)->cpu_capacity_orig - rt_pressure;
+	old = rq->cpu_capacity_orig;
+	rq->cpu_capacity_orig = min(fmax_capacity, thermal_cap);
+
+	if (old != rq->cpu_capacity_orig)
+		trace_update_cpu_capacity(cpu, rt_pressure, *capacity);
+
+	*capacity = max(rq->cpu_capacity_orig - rt_pressure, 1UL);
 }
 
 static void android_rvh_sched_cpu_starting(void *unused, int cpu)

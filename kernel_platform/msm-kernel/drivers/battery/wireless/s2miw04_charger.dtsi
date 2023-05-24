@@ -75,7 +75,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/suwon_2111/wireless/s2miw04/s2miw04_charger.b0q.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/suwon_2111/wireless/s2miw04/s2miw04_charger.b0q.dtsi */
 #include <dt-bindings/battery/sec-battery.h>
 
 &sw_i2c2 {

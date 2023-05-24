@@ -7,4 +7,4 @@ Name: agmtest
 Description: agm test tool
 Version: @VERSION@
 Libs: -L${libdir}
-Cflags: -I${includedir}
+Cflags: -I${includedir}/agmtest

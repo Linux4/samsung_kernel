@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <!-- Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.       -->
+<!-- Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.  -->
 <!--                                                                           -->
 <!-- Redistribution and use in source and binary forms, with or without        -->
 <!-- modification, are permitted provided that the following conditions are    -->
@@ -59,6 +60,7 @@
     <config_voice>
         <vsid>0xB3000000</vsid>
         <loopbackDelay>1000</loopbackDelay>
+        <maxVolIndex>5</maxVolIndex>
         <mode_map>
             <modepair key="0x11C05000" value="0xB3000001"/>
             <modepair key="0x11DC5000" value="0xB3000001"/>
@@ -319,6 +321,8 @@
             <max_channels>2</max_channels>
             <channels>2</channels>
             <snd_device_name>play-fm</snd_device_name>
+            <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
             <usecase>
                 <name>PAL_STREAM_LOOPBACK</name>
             </usecase>
@@ -447,7 +451,6 @@
           <usecase>
               <name>PAL_STREAM_VOICE_CALL</name>
               <priority>2</priority>
-              <snd_device_name>voice-handset</snd_device_name>
           </usecase>
           <usecase>
               <name>PAL_STREAM_VOIP_RX</name>
@@ -575,8 +578,6 @@
             <max_channels>2</max_channels>
             <channels>2</channels>
             <snd_device_name>usb-headphones</snd_device_name>
-            <samplerate>44100</samplerate>
-            <bit_width>16</bit_width>
             <fractional_sr>1</fractional_sr>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
@@ -588,8 +589,6 @@
             <back_end_name>USB_AUDIO-RX</back_end_name>
             <max_channels>2</max_channels>
             <channels>2</channels>
-            <samplerate>44100</samplerate>
-            <bit_width>16</bit_width>
             <snd_device_name>usb-headphones</snd_device_name>
             <fractional_sr>1</fractional_sr>
             <usecase>

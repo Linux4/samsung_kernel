@@ -85,6 +85,7 @@ static int qcom_dma_heap_probe(struct platform_device *pdev)
 			break;
 		}
 	}
+
 	qcom_add_bitstream_contig_heap("system-secure");
 
 	free_pdata(heaps);

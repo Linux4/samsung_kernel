@@ -896,6 +896,12 @@ static int cam_smmu_iommu_fault_handler(struct iommu_domain *domain,
 
 	cam_smmu_page_fault_work(&iommu_cb_set.smmu_work);
 
+#ifdef CONFIG_CAMERA_SKIP_SECURE_PAGE_FAULT
+	if (cam_csiphy_get_secure_irq_err()) {
+		CAM_ERR(CAM_SMMU, "Skip Secure SMMU Page Fault");
+		return 0;
+	}
+#endif
 	return -ENOSYS;
 }
 

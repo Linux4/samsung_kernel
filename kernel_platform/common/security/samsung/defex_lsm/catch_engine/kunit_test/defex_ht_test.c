@@ -61,27 +61,27 @@ extern void mem_cache_alloc(void);
 
 struct task_struct *main_task, *fork_task;
 
-static void set_task_creds_tcnt_test(struct test *test)
+static void set_task_creds_tcnt_test(struct kunit *test)
 {
 #ifdef DEFEX_PED_ENABLE
 	int i;
 	unsigned int uid = TEST_UID, fsuid = TEST_FSUID, egid = TEST_EGID;
 	unsigned short cred_flags = TEST_FLAGS;
 
-	ASSERT_TRUE(test, hash_empty(creds_hash));
+	KUNIT_ASSERT_TRUE(test, hash_empty(creds_hash));
 
 	/* First, we need to allocate DEFEX_MEM_CACHE_SIZE so we can fill up the cache later on.
 	 * We will also need a pair of tasks which will be freed when the cache is full.
 	 */
-	ASSERT_SUCCESS(test, set_task_creds(main_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS));
-	ASSERT_SUCCESS(test, set_task_creds(fork_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS));
+	KUNIT_ASSERT_SUCCESS(test, set_task_creds(main_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS));
+	KUNIT_ASSERT_SUCCESS(test, set_task_creds(fork_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS));
 	for(i = 0; i < (DEFEX_MEM_CACHE_SIZE / 2); i++) {
 		main_task->pid += 1;
 		main_task->tgid += 1;
 		fork_task->pid += 1;
 		fork_task->tgid += 1;
-		ASSERT_SUCCESS(test, set_task_creds(main_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS));
-		ASSERT_SUCCESS(test, set_task_creds(fork_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS));
+		KUNIT_ASSERT_SUCCESS(test, set_task_creds(main_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS));
+		KUNIT_ASSERT_SUCCESS(test, set_task_creds(fork_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS));
 	}
 
 	/* Now we set the thread count to zero -> memory will be put in cache until it's full. */
@@ -95,8 +95,8 @@ static void set_task_creds_tcnt_test(struct test *test)
 	}
 
 	/* CACHE_CRED_DATA and CACHE_HTABLE_ITEM caches should be full now. */
-	ASSERT_EQ(test, atomic_read(&mem_cache[CACHE_CRED_DATA].count), DEFEX_MEM_CACHE_SIZE);
-	ASSERT_EQ(test, atomic_read(&mem_cache[CACHE_HTABLE_ITEM].count), DEFEX_MEM_CACHE_SIZE);
+	KUNIT_ASSERT_EQ(test, atomic_read(&mem_cache[CACHE_CRED_DATA].count), DEFEX_MEM_CACHE_SIZE);
+	KUNIT_ASSERT_EQ(test, atomic_read(&mem_cache[CACHE_HTABLE_ITEM].count), DEFEX_MEM_CACHE_SIZE);
 
 	/* Let's reclaim that last pair so it triggers kfree */
 	set_task_creds_tcnt(fork_task, -1);
@@ -104,10 +104,10 @@ static void set_task_creds_tcnt_test(struct test *test)
 
 	/* Let's verify there is no cred data in cache */
 	get_task_creds(main_task, &uid, &fsuid, &egid, &cred_flags);
-	EXPECT_EQ(test, uid, 0);
-	EXPECT_EQ(test, fsuid, 0);
-	EXPECT_EQ(test, egid, 0);
-	EXPECT_EQ(test, cred_flags, CRED_FLAGS_PROOT);
+	KUNIT_EXPECT_EQ(test, uid, (unsigned int)0);
+	KUNIT_EXPECT_EQ(test, fsuid, (unsigned int)0);
+	KUNIT_EXPECT_EQ(test, egid, (unsigned int)0);
+	KUNIT_EXPECT_EQ(test, cred_flags, (unsigned short)CRED_FLAGS_PROOT);
 
 	uid = TEST_UID;
 	fsuid = TEST_FSUID;
@@ -115,94 +115,94 @@ static void set_task_creds_tcnt_test(struct test *test)
 	cred_flags = TEST_FLAGS;
 
 	get_task_creds(fork_task, &uid, &fsuid, &egid, &cred_flags);
-	EXPECT_EQ(test, uid, 0);
-	EXPECT_EQ(test, fsuid, 0);
-	EXPECT_EQ(test, egid, 0);
-	EXPECT_EQ(test, cred_flags, CRED_FLAGS_PROOT);
+	KUNIT_EXPECT_EQ(test, uid, (unsigned int)0);
+	KUNIT_EXPECT_EQ(test, fsuid, (unsigned int)0);
+	KUNIT_EXPECT_EQ(test, egid, (unsigned int)0);
+	KUNIT_EXPECT_EQ(test, cred_flags, (unsigned short)CRED_FLAGS_PROOT);
 
-	EXPECT_TRUE(test, hash_empty(creds_hash));
+	KUNIT_EXPECT_TRUE(test, hash_empty(creds_hash));
 
 #else
 	set_task_creds_tcnt(NULL, 0);
 #endif /* DEFEX_PED_ENABLE */
-	SUCCEED(test);
+	KUNIT_SUCCEED(test);
 }
 
 
-static void set_task_creds_test(struct test *test)
+static void set_task_creds_test(struct kunit *test)
 {
 #ifdef DEFEX_PED_ENABLE
 	struct proc_cred_data *query;
 	unsigned long flags;
 
-	ASSERT_TRUE(test, hash_empty(creds_hash));
+	KUNIT_ASSERT_TRUE(test, hash_empty(creds_hash));
 
 	/* T1: Main process initial data */
-	EXPECT_EQ(test, set_task_creds(main_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS), 0);
+	KUNIT_EXPECT_EQ(test, set_task_creds(main_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS), 0);
 	spin_lock_irqsave(&creds_hash_update_lock, flags);
 	query = get_cred_data(TEST_PID_MAIN);
 	spin_unlock_irqrestore(&creds_hash_update_lock, flags);
-	ASSERT_NOT_NULL(test, query);
-	EXPECT_EQ(test, query->cred_flags, 0);
-	EXPECT_EQ(test, query->default_ids.uid, TEST_UID);
-	EXPECT_EQ(test, query->default_ids.fsuid, TEST_FSUID);
-	EXPECT_EQ(test, query->default_ids.egid, TEST_EGID);
-	EXPECT_EQ(test, query->tcnt, 1);
+	KUNIT_ASSERT_NOT_NULL(test, query);
+	KUNIT_EXPECT_EQ(test, query->cred_flags, (unsigned short)0);
+	KUNIT_EXPECT_EQ(test, query->default_ids.uid, (unsigned int)TEST_UID);
+	KUNIT_EXPECT_EQ(test, query->default_ids.fsuid, (unsigned int)TEST_FSUID);
+	KUNIT_EXPECT_EQ(test, query->default_ids.egid, (unsigned int)TEST_EGID);
+	KUNIT_EXPECT_EQ(test, query->tcnt, (unsigned short)1);
 
 	/* T2: Fork task data */
 	set_task_creds_tcnt(main_task, 1);
-	EXPECT_EQ(test, set_task_creds(fork_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS), 0);
+	KUNIT_EXPECT_EQ(test, set_task_creds(fork_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS), 0);
 
 	spin_lock_irqsave(&creds_hash_update_lock, flags);
 	query = get_cred_data(TEST_PID_MAIN);
 	spin_unlock_irqrestore(&creds_hash_update_lock, flags);
-	ASSERT_NOT_NULL(test, query);
-	EXPECT_EQ(test, query->cred_flags, CRED_FLAGS_SUB_UPDATED);
+	KUNIT_ASSERT_NOT_NULL(test, query);
+	KUNIT_EXPECT_EQ(test, query->cred_flags, (unsigned short)CRED_FLAGS_SUB_UPDATED);
 
 	spin_lock_irqsave(&creds_hash_update_lock, flags);
 	query = get_cred_data(TEST_PID_FORK);
 	spin_unlock_irqrestore(&creds_hash_update_lock, flags);
-	ASSERT_NOT_NULL(test, query);
-	EXPECT_EQ(test, query->cred_flags, 0);
-	EXPECT_EQ(test, query->tcnt, 0);
-	EXPECT_EQ(test, query->default_ids.uid, TEST_UID);
-	EXPECT_EQ(test, query->default_ids.fsuid, TEST_FSUID);
-	EXPECT_EQ(test, query->default_ids.egid, TEST_EGID);
+	KUNIT_ASSERT_NOT_NULL(test, query);
+	KUNIT_EXPECT_EQ(test, query->cred_flags, (unsigned short)0);
+	KUNIT_EXPECT_EQ(test, query->tcnt, (unsigned short)0);
+	KUNIT_EXPECT_EQ(test, query->default_ids.uid, (unsigned int)TEST_UID);
+	KUNIT_EXPECT_EQ(test, query->default_ids.fsuid, (unsigned int)TEST_FSUID);
+	KUNIT_EXPECT_EQ(test, query->default_ids.egid, (unsigned int)TEST_EGID);
 
 	/* T3: Update Main process cred */
-	EXPECT_EQ(test, set_task_creds(main_task, TEST_UID + 1, TEST_FSUID + 1, TEST_EGID + 1, TEST_FLAGS), 0);
+	KUNIT_EXPECT_EQ(test, set_task_creds(main_task, TEST_UID + 1, TEST_FSUID + 1, TEST_EGID + 1, TEST_FLAGS), 0);
 
 	spin_lock_irqsave(&creds_hash_update_lock, flags);
 	query = get_cred_data(TEST_PID_MAIN);
 	spin_unlock_irqrestore(&creds_hash_update_lock, flags);
-	ASSERT_NOT_NULL(test, query);
-	EXPECT_EQ(test, query->cred_flags, CRED_FLAGS_SUB_UPDATED | CRED_FLAGS_MAIN_UPDATED);
-	EXPECT_EQ(test, query->tcnt, 2);
-	EXPECT_EQ(test, query->default_ids.uid, TEST_UID);
-	EXPECT_EQ(test, query->default_ids.fsuid, TEST_FSUID);
-	EXPECT_EQ(test, query->default_ids.egid, TEST_EGID);
-	EXPECT_EQ(test, query->main_ids[0].uid, TEST_UID + 1);
-	EXPECT_EQ(test, query->main_ids[0].fsuid, TEST_FSUID + 1);
-	EXPECT_EQ(test, query->main_ids[0].egid, TEST_EGID + 1);
+	KUNIT_ASSERT_NOT_NULL(test, query);
+	KUNIT_EXPECT_EQ(test, query->cred_flags, (unsigned short)(CRED_FLAGS_SUB_UPDATED | CRED_FLAGS_MAIN_UPDATED));
+	KUNIT_EXPECT_EQ(test, query->tcnt, (unsigned short)2);
+	KUNIT_EXPECT_EQ(test, query->default_ids.uid, (unsigned int)TEST_UID);
+	KUNIT_EXPECT_EQ(test, query->default_ids.fsuid, (unsigned int)TEST_FSUID);
+	KUNIT_EXPECT_EQ(test, query->default_ids.egid, (unsigned int)TEST_EGID);
+	KUNIT_EXPECT_EQ(test, query->main_ids[0].uid, (unsigned int)TEST_UID + 1);
+	KUNIT_EXPECT_EQ(test, query->main_ids[0].fsuid, (unsigned int)(TEST_FSUID + 1));
+	KUNIT_EXPECT_EQ(test, query->main_ids[0].egid, (unsigned int)(TEST_EGID + 1));
 
 	/* Cleanup */
 	set_task_creds_tcnt(fork_task, -1);
 	set_task_creds_tcnt(main_task, -1);
-	ASSERT_TRUE(test, hash_empty(creds_hash));
+	KUNIT_ASSERT_TRUE(test, hash_empty(creds_hash));
 
 #endif /* DEFEX_PED_ENABLE */
-	SUCCEED(test);
+	KUNIT_SUCCEED(test);
 }
 
 
-static void set_cred_data_test(struct test *test)
+static void set_cred_data_test(struct kunit *test)
 {
 #ifdef DEFEX_PED_ENABLED
 	struct proc_cred_data *cred_data, *new_creds, **cred_data_ptr;
 	unsigned int task_uid, task_fsuid, task_egid;
 	unsigned long flags;
 
-	ASSERT_TRUE(test, hash_empty(creds_hash));
+	KUNIT_ASSERT_TRUE(test, hash_empty(creds_hash));
 
 	/* T1: negative ID */
 	set_cred_data(-TEST_PID_MAIN, NULL, NULL);
@@ -218,7 +218,7 @@ static void set_cred_data_test(struct test *test)
 	cred_data = mem_cache_get(CACHE_CRED_DATA);
 	if (!cred_data) {
 		spin_unlock_irqrestore(&creds_hash_update_lock, flags);
-		FAIL(test, "Test failed in getting cred_data");
+		KUNIT_FAIL(test, "Test failed in getting cred_data");
 	}
 	cred_data->cred_flags = 0;
 	cred_data->tcnt = 1;
@@ -233,15 +233,15 @@ static void set_cred_data_test(struct test *test)
 
 	/* Verify inserted data */
 	get_task_creds(main_task, &task_uid, &task_fsuid, &task_egid, &task_cred_flags);
-	EXPECT_EQ(test, task_uid, TEST_UID);
-	EXPECT_EQ(test, task_fsuid, TEST_FSUID);
-	EXPECT_EQ(test, task_egid, TEST_EGID);
-	EXPECT_EQ(test, task_cred_flags, 0);
+	KUNIT_EXPECT_EQ(test, task_uid, TEST_UID);
+	KUNIT_EXPECT_EQ(test, task_fsuid, TEST_FSUID);
+	KUNIT_EXPECT_EQ(test, task_egid, TEST_EGID);
+	KUNIT_EXPECT_EQ(test, task_cred_flags, 0);
 
 	/* Allocate new data to change main_task data */
 	new_creds = kmem_cache_alloc(mem_cache[CACHE_CRED_DATA].allocator, 
 				in_atomic() ? GFP_ATOMIC:GFP_KERNEL);
-	ASSERT_NOT_NULL(test, new_creds);
+	KUNIT_ASSERT_NOT_NULL(test, new_creds);
 	new_creds->cred_flags = CRED_FLAGS_PROOT;
 	new_creds->tcnt = 1;
 	new_creds->default_ids.uid = TEST_UID + 1;
@@ -252,7 +252,7 @@ static void set_cred_data_test(struct test *test)
 	spin_lock_irqsave(&creds_hash_update_lock, flags);
 	cred_data_ptr = get_cred_ptr(TEST_PID_MAIN);
 	spin_unlock_irqrestore(&creds_hash_update_lock, flags);
-	ASSERT_NOT_NULL(test, cred_data_ptr);
+	KUNIT_ASSERT_NOT_NULL(test, cred_data_ptr);
 
 	spin_lock_irqsave(&creds_hash_update_lock, flags);
 	set_cred_data(TEST_PID_MAIN, cred_data_ptr, new_creds);
@@ -262,33 +262,33 @@ static void set_cred_data_test(struct test *test)
 	spin_lock_irqsave(&creds_hash_update_lock, flags);
 	get_task_creds(main_task, &task_uid, &task_fsuid, &task_egid, &task_cred_flags);
 	spin_unlock_irqrestore(&creds_hash_update_lock, flags);
-	EXPECT_EQ(test, task_uid, TEST_UID + 1);
-	EXPECT_EQ(test, task_fsuid, TEST_FSUID + 1);
-	EXPECT_EQ(test, task_egid, TEST_EGID + 1);
-	EXPECT_EQ(test, task_cred_flags, CRED_FLAGS_PROOT);
+	KUNIT_EXPECT_EQ(test, task_uid, TEST_UID + 1);
+	KUNIT_EXPECT_EQ(test, task_fsuid, TEST_FSUID + 1);
+	KUNIT_EXPECT_EQ(test, task_egid, TEST_EGID + 1);
+	KUNIT_EXPECT_EQ(test, task_cred_flags, CRED_FLAGS_PROOT);
 
 	/* Cleanup */
 	set_task_creds_tcnt(main_task, -1);
-	ASSERT_TRUE(test, hash_empty(creds_hash));
+	KUNIT_ASSERT_TRUE(test, hash_empty(creds_hash));
 	kmem_cache_free(mem_cache[CACHE_CRED_DATA].allocator, cred_data);
 
 #endif /* DEFEX_PED_ENABLE */
-	SUCCEED(test);
+	KUNIT_SUCCEED(test);
 }
 
 
-static void mem_cache_reclaim_test(struct test *test)
+static void mem_cache_reclaim_test(struct kunit *test)
 {
 #ifdef DEFEX_PED_ENABLED
 	void *cache;
 	int count_backup;
 
-	ASSERT_TRUE(test, hash_empty(creds_hash));
+	KUNIT_ASSERT_TRUE(test, hash_empty(creds_hash));
 
 	spin_lock_irqsave(&creds_hash_update_lock, flags);
 	cache = mem_cache_get(CACHE_CRED_DATA);
 	spin_unlock_irqrestore(&creds_hash_update_lock, flags);
-	ASSERT_NOT_NULL(test, cache);
+	KUNIT_ASSERT_NOT_NULL(test, cache);
 	count_backup = atomic_read(&mem_cache[CACHE_CRED_DATA].count);
 
 	/* T1: count >= DEFEX_MEM_CACHE_SIZE -> cache not reclaimed. */
@@ -296,78 +296,78 @@ static void mem_cache_reclaim_test(struct test *test)
 	spin_lock_irqsave(&creds_hash_update_lock, flags);
 	cache = mem_cache_reclaim(CACHE_CRED_DATA, cache);
 	spin_unlock_irqrestore(&creds_hash_update_lock, flags);
-	EXPECT_NOT_NULL(test, cache);
-	EXPECT_EQ(test, atomic_read(&mem_cache[CACHE_CRED_DATA].count), DEFEX_MEM_CACHE_SIZE);
+	KUNIT_EXPECT_NOT_NULL(test, cache);
+	KUNIT_EXPECT_EQ(test, atomic_read(&mem_cache[CACHE_CRED_DATA].count), DEFEX_MEM_CACHE_SIZE);
 
 	/* T2: count < DEFEX_MEM_CACHE_SIZE -> cache reclaimed. */
 	atomic_write(&mem_cache[CACHE_CRED_DATA].count, count_backup);
 	spin_lock_irqsave(&creds_hash_update_lock, flags);
 	cache = mem_cache_reclaim(CACHE_CRED_DATA, cache);
 	spin_unlock_irqrestore(&creds_hash_update_lock, flags);
-	EXPECT_NULL(test, cache);
-	EXPECT_EQ(test, atomic_read(&mem_cache[CACHE_CRED_DATA].count), count_backup + 1);
+	KUNIT_EXPECT_NULL(test, cache);
+	KUNIT_EXPECT_EQ(test, atomic_read(&mem_cache[CACHE_CRED_DATA].count), count_backup + 1);
 
 #endif /* DEFEX_PED_ENABLE */
-	SUCCEED(test);
+	KUNIT_SUCCEED(test);
 }
 
 
-static void mem_cache_get_test(struct test *test)
+static void mem_cache_get_test(struct kunit *test)
 {
 #ifdef DEFEX_PED_ENABLED
 	void *cache[DEFEX_MEM_CACHE_SIZE], *cache_mem;
 	int index;
 
-	ASSERT_TRUE(test, hash_empty(creds_hash));
+	KUNIT_ASSERT_TRUE(test, hash_empty(creds_hash));
 
 	/* At initialization, only half cache is initialized */
 	for(index = 0; index < (DEFEX_MEM_CACHE_SIZE / 2); index++) {
 		spin_lock_irqsave(&creds_hash_update_lock, flags);
 		cache[index] = mem_cache_get(CACHE_CRED_DATA);
 		spin_unlock_irqrestore(&creds_hash_update_lock, flags);
-		EXPECT_NOT_NULL(test, cache[index]);
+		KUNIT_EXPECT_NOT_NULL(test, cache[index]);
 	}
 
-	EXPECT_EQ(test, atomic_read(&mem_cache[CACHE_CRED_DATA].count), 0);
+	KUNIT_EXPECT_EQ(test, atomic_read(&mem_cache[CACHE_CRED_DATA].count), 0);
 	spin_lock_irqsave(&creds_hash_update_lock, flags);
 	cache_mem = mem_cache_get(CACHE_CRED_DATA);
 	spin_unlock_irqrestore(&creds_hash_update_lock, flags);
-	EXPECT_NULL(test, cache[index]);
+	KUNIT_EXPECT_NULL(test, cache[index]);
 
 	/* Clean up */
 	for(index = 0; index < (DEFEX_MEM_CACHE_SIZE / 2); index++) {
 		spin_lock_irqsave(&creds_hash_update_lock, flags);
 		cache_mem = mem_cache_reclaim(0, cache[index]);
 		spin_unlock_irqrestore(&creds_hash_update_lock, flags);
-		ASSERT_NULL(test, cache_mem);
+		KUNIT_ASSERT_NULL(test, cache_mem);
 	}
 #endif /* DEFEX_PED_ENABLE */
-	SUCCEED(test);
+	KUNIT_SUCCEED(test);
 }
 
 
-static void mem_cache_alloc_test(struct test *test)
+static void mem_cache_alloc_test(struct kunit *test)
 {
 #ifdef DEFEX_PED_ENABLED
 	int count_backup_cache[DEFEX_MEM_CACHE_COUNT], count_allocations = 0;
 	void *cache_allocated_memory[DEFEX_MEM_CACHE_COUNT];
 	int count_backup;
 
-	ASSERT_TRUE(test, hash_empty(creds_hash));
+	KUNIT_ASSERT_TRUE(test, hash_empty(creds_hash));
 
 	/* At initial state, the cache already has DEFEX_MEM_CACHE_SIZE /2 positions
 	 * allocated, so no new allocations are made.
 	 */
 	count_backup = atomic_read(&mem_cache[CACHE_CRED_DATA].count);
 	mem_cache_alloc();
-	EXPECT_EQ(test, count_backup, atomic_read(&mem_cache[CACHE_CRED_DATA].count));
+	KUNIT_EXPECT_EQ(test, count_backup, atomic_read(&mem_cache[CACHE_CRED_DATA].count));
 
 	/* Now we get some pointers to force memory allocation. */
 	for (i = 0; i < DEFEX_MEM_CACHE_COUNT; i++) {
 		spin_lock_irqsave(&creds_hash_update_lock, flags);
 		cache_allocated_memory[i] = mem_cache_get(i);
 		spin_unlock_irqrestore(&creds_hash_update_lock, flags);
-		ASSERT_NOT_NULL(test, cache_allocated_memory[i]);
+		KUNIT_ASSERT_NOT_NULL(test, cache_allocated_memory[i]);
 	}
 	mem_cache_alloc();
 
@@ -376,28 +376,28 @@ static void mem_cache_alloc_test(struct test *test)
 		spin_lock_irqsave(&creds_hash_update_lock, flags);
 		cache_allocated_memory[i] = mem_cache_reclaim(i, cache_allocated_memory[i]);
 		spin_unlock_irqrestore(&creds_hash_update_lock, flags);
-		ASSERT_NULL(test, cache_allocated_memory[i]);
+		KUNIT_ASSERT_NULL(test, cache_allocated_memory[i]);
 	}
 
 #endif /* DEFEX_PED_ENABLED */
-	SUCCEED(test);
+	KUNIT_SUCCEED(test);
 }
 
 
-static void is_task_creds_ready_test(struct test *test)
+static void is_task_creds_ready_test(struct kunit *test)
 {
-	EXPECT_EQ(test, 1, is_task_creds_ready());
+	KUNIT_EXPECT_EQ(test, 1, is_task_creds_ready());
 }
 
 
-static void get_task_creds_test(struct test *test)
+static void get_task_creds_test(struct kunit *test)
 {
 #ifdef DEFEX_PED_ENABLE
 
 	unsigned int task_uid, task_fsuid, task_egid;
 	unsigned short task_cred_flags;
 
-	ASSERT_TRUE(test, hash_empty(creds_hash));
+	KUNIT_ASSERT_TRUE(test, hash_empty(creds_hash));
 
 	/* T1: inexistent data */
 	task_uid = TEST_UID;
@@ -405,55 +405,55 @@ static void get_task_creds_test(struct test *test)
 	task_egid = TEST_EGID;
 
 	get_task_creds(main_task, &task_uid, &task_fsuid, &task_egid, &task_cred_flags);
-	EXPECT_EQ(test, task_uid, 0);
-	EXPECT_EQ(test, task_fsuid, 0);
-	EXPECT_EQ(test, task_egid, 0);
-	EXPECT_EQ(test, task_cred_flags, CRED_FLAGS_PROOT);
+	KUNIT_EXPECT_EQ(test, task_uid, (unsigned int)0);
+	KUNIT_EXPECT_EQ(test, task_fsuid, (unsigned int)0);
+	KUNIT_EXPECT_EQ(test, task_egid, (unsigned int)0);
+	KUNIT_EXPECT_EQ(test, task_cred_flags, (unsigned short)CRED_FLAGS_PROOT);
 
 	/* T2: existent main task data */
-	ASSERT_SUCCESS(test, set_task_creds(main_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS));
+	KUNIT_ASSERT_SUCCESS(test, set_task_creds(main_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS));
 	get_task_creds(main_task, &task_uid, &task_fsuid, &task_egid, &task_cred_flags);
-	EXPECT_EQ(test, task_uid, TEST_UID);
-	EXPECT_EQ(test, task_fsuid, TEST_FSUID);
-	EXPECT_EQ(test, task_egid, TEST_EGID);
-	EXPECT_EQ(test, task_cred_flags, 0);
+	KUNIT_EXPECT_EQ(test, task_uid, (unsigned int)TEST_UID);
+	KUNIT_EXPECT_EQ(test, task_fsuid, (unsigned int)TEST_FSUID);
+	KUNIT_EXPECT_EQ(test, task_egid, (unsigned int)TEST_EGID);
+	KUNIT_EXPECT_EQ(test, task_cred_flags, (unsigned short)0);
 
 	/* T3: Fork task data */
 	set_task_creds_tcnt(main_task, 1);
-	ASSERT_SUCCESS(test, set_task_creds(fork_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS));
+	KUNIT_ASSERT_SUCCESS(test, set_task_creds(fork_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS));
 	get_task_creds(main_task, &task_uid, &task_fsuid, &task_egid, &task_cred_flags);
-	EXPECT_EQ(test, task_cred_flags, CRED_FLAGS_SUB_UPDATED);
+	KUNIT_EXPECT_EQ(test, task_cred_flags, (unsigned short)CRED_FLAGS_SUB_UPDATED);
 	get_task_creds(fork_task, &task_uid, &task_fsuid, &task_egid, &task_cred_flags);
-	EXPECT_EQ(test, task_uid, TEST_UID);
-	EXPECT_EQ(test, task_fsuid, TEST_FSUID);
-	EXPECT_EQ(test, task_egid, TEST_EGID);
-	EXPECT_EQ(test, task_cred_flags, 0);
+	KUNIT_EXPECT_EQ(test, task_uid, (unsigned int)TEST_UID);
+	KUNIT_EXPECT_EQ(test, task_fsuid, (unsigned int)TEST_FSUID);
+	KUNIT_EXPECT_EQ(test, task_egid, (unsigned int)TEST_EGID);
+	KUNIT_EXPECT_EQ(test, task_cred_flags, (unsigned short)0);
 
 	/* T4: Update main task data */
-	ASSERT_SUCCESS(test, set_task_creds(main_task, TEST_UID + 1, TEST_FSUID + 1, TEST_EGID + 1, TEST_FLAGS));
+	KUNIT_ASSERT_SUCCESS(test, set_task_creds(main_task, TEST_UID + 1, TEST_FSUID + 1, TEST_EGID + 1, TEST_FLAGS));
 	get_task_creds(main_task, &task_uid, &task_fsuid, &task_egid, &task_cred_flags);
-	EXPECT_EQ(test, task_uid, TEST_UID + 1);
-	EXPECT_EQ(test, task_fsuid, TEST_FSUID + 1);
-	EXPECT_EQ(test, task_egid, TEST_EGID + 1);
-	EXPECT_EQ(test, task_cred_flags, CRED_FLAGS_MAIN_UPDATED | CRED_FLAGS_SUB_UPDATED);
+	KUNIT_EXPECT_EQ(test, task_uid, (unsigned int)TEST_UID + 1);
+	KUNIT_EXPECT_EQ(test, task_fsuid, (unsigned int)TEST_FSUID + 1);
+	KUNIT_EXPECT_EQ(test, task_egid, (unsigned int)TEST_EGID + 1);
+	KUNIT_EXPECT_EQ(test, task_cred_flags, (unsigned short)(CRED_FLAGS_MAIN_UPDATED | CRED_FLAGS_SUB_UPDATED));
 
 	/* Cleanup */
 	set_task_creds_tcnt(fork_task, -1);
 	set_task_creds_tcnt(main_task, -1);
-	ASSERT_TRUE(test, hash_empty(creds_hash));
+	KUNIT_ASSERT_TRUE(test, hash_empty(creds_hash));
 
 #endif /* DEFEX_PED_ENABLE */
-	SUCCEED(test);
+	KUNIT_SUCCEED(test);
 }
 
 
-static void get_cred_ptr_test(struct test *test)
+static void get_cred_ptr_test(struct kunit *test)
 {
 #ifdef DEFEX_PED_ENABLE
 	struct proc_cred_data **cred_ptr;
 	unsigned long flags;
 
-	ASSERT_TRUE(test, hash_empty(creds_hash));
+	KUNIT_ASSERT_TRUE(test, hash_empty(creds_hash));
 
 	/* T1: negative ID */
 	get_cred_ptr(NEGATIVE_ID);
@@ -461,57 +461,57 @@ static void get_cred_ptr_test(struct test *test)
 	/* Add cred data with ID < MAX_PID_32 */
 	fork_task->pid = MAX_PID_32 - 1;
 	fork_task->tgid = MAX_PID_32 - 1;
-	ASSERT_SUCCESS(test, set_task_creds(fork_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS));
+	KUNIT_ASSERT_SUCCESS(test, set_task_creds(fork_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS));
 
 	/* T2: ID < MAX_PID_32 */
 	spin_lock_irqsave(&creds_hash_update_lock, flags);
 	cred_ptr = get_cred_ptr(MAX_PID_32 - 1);
 	spin_unlock_irqrestore(&creds_hash_update_lock, flags);
-	EXPECT_NOT_NULL(test, cred_ptr);
-	EXPECT_EQ(test, (*cred_ptr)->cred_flags, TEST_FLAGS);
-	EXPECT_EQ(test, (*cred_ptr)->tcnt, 1);
-	EXPECT_EQ(test, (*cred_ptr)->default_ids.uid, TEST_UID);
-	EXPECT_EQ(test, (*cred_ptr)->default_ids.fsuid, TEST_FSUID);
-	EXPECT_EQ(test, (*cred_ptr)->default_ids.egid, TEST_EGID);
+	KUNIT_EXPECT_NOT_NULL(test, cred_ptr);
+	KUNIT_EXPECT_EQ(test, (*cred_ptr)->cred_flags, (unsigned short)TEST_FLAGS);
+	KUNIT_EXPECT_EQ(test, (*cred_ptr)->tcnt, (unsigned short)1);
+	KUNIT_EXPECT_EQ(test, (*cred_ptr)->default_ids.uid, (unsigned int)TEST_UID);
+	KUNIT_EXPECT_EQ(test, (*cred_ptr)->default_ids.fsuid, (unsigned int)TEST_FSUID);
+	KUNIT_EXPECT_EQ(test, (*cred_ptr)->default_ids.egid, (unsigned int)TEST_EGID);
 
 	/* T3a: id > MAX_PID_32, inexistent data */
 	spin_lock_irqsave(&creds_hash_update_lock, flags);
 	cred_ptr = get_cred_ptr(main_task->pid);
 	spin_unlock_irqrestore(&creds_hash_update_lock, flags);
-	EXPECT_NULL(test, cred_ptr);
+	KUNIT_EXPECT_NULL(test, cred_ptr);
 
 	/* Add cred data with ID > MAX_PID_32 */
-	ASSERT_SUCCESS(test, set_task_creds(main_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS));
+	KUNIT_ASSERT_SUCCESS(test, set_task_creds(main_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS));
 
 	/* T3b: ID > MAX_PID_32 */
 	spin_lock_irqsave(&creds_hash_update_lock, flags);
 	cred_ptr = get_cred_ptr(main_task->pid);
 	spin_unlock_irqrestore(&creds_hash_update_lock, flags);
-	EXPECT_NOT_NULL(test, cred_ptr);
-	EXPECT_EQ(test, (*cred_ptr)->cred_flags, TEST_FLAGS);
-	EXPECT_EQ(test, (*cred_ptr)->tcnt, 1);
-	EXPECT_EQ(test, (*cred_ptr)->default_ids.uid, TEST_UID);
-	EXPECT_EQ(test, (*cred_ptr)->default_ids.fsuid, TEST_FSUID);
-	EXPECT_EQ(test, (*cred_ptr)->default_ids.egid, TEST_EGID);
+	KUNIT_EXPECT_NOT_NULL(test, cred_ptr);
+	KUNIT_EXPECT_EQ(test, (*cred_ptr)->cred_flags, (unsigned short)TEST_FLAGS);
+	KUNIT_EXPECT_EQ(test, (*cred_ptr)->tcnt, (unsigned short)1);
+	KUNIT_EXPECT_EQ(test, (*cred_ptr)->default_ids.uid, (unsigned int)TEST_UID);
+	KUNIT_EXPECT_EQ(test, (*cred_ptr)->default_ids.fsuid, (unsigned int)TEST_FSUID);
+	KUNIT_EXPECT_EQ(test, (*cred_ptr)->default_ids.egid, (unsigned int)TEST_EGID);
 
 	/* Cleanup */
 	set_task_creds_tcnt(fork_task, -1);
 	set_task_creds_tcnt(main_task, -1);
-	ASSERT_TRUE(test, hash_empty(creds_hash));
+	KUNIT_ASSERT_TRUE(test, hash_empty(creds_hash));
 	fork_task->pid = TEST_PID_FORK;
 	fork_task->tgid = TEST_PID_MAIN;
 #endif /* DEFEX_PED_ENABLE */
-	SUCCEED(test);
+	KUNIT_SUCCEED(test);
 }
 
 
-static void get_cred_data_test(struct test *test)
+static void get_cred_data_test(struct kunit *test)
 {
 #ifdef DEFEX_PED_ENABLE
 	struct proc_cred_data *cred_data, **cred_ptr;
 	unsigned long flags;
 
-	ASSERT_TRUE(test, hash_empty(creds_hash));
+	KUNIT_ASSERT_TRUE(test, hash_empty(creds_hash));
 
 	/* T1: negative ID */
 	get_cred_data(NEGATIVE_ID);
@@ -519,59 +519,59 @@ static void get_cred_data_test(struct test *test)
 	/* Add cred data with ID < MAX_PID_32 */
 	fork_task->pid = MAX_PID_32 - 1;
 	fork_task->tgid = MAX_PID_32 - 1;
-	ASSERT_SUCCESS(test, set_task_creds(fork_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS));
+	KUNIT_ASSERT_SUCCESS(test, set_task_creds(fork_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS));
 
 	/* T2: id < MAX_PID_32, get from vector */
 	spin_lock_irqsave(&creds_hash_update_lock, flags);
 	cred_data = get_cred_data(MAX_PID_32 - 1);
 	spin_unlock_irqrestore(&creds_hash_update_lock, flags);
-	EXPECT_NOT_NULL(test, cred_data);
-	EXPECT_EQ(test, cred_data->cred_flags, TEST_FLAGS);
-	EXPECT_EQ(test, cred_data->tcnt, 1);
-	EXPECT_EQ(test, cred_data->default_ids.uid, TEST_UID);
-	EXPECT_EQ(test, cred_data->default_ids.fsuid, TEST_FSUID);
-	EXPECT_EQ(test, cred_data->default_ids.egid, TEST_EGID);
+	KUNIT_EXPECT_NOT_NULL(test, cred_data);
+	KUNIT_EXPECT_EQ(test, cred_data->cred_flags, (unsigned short)TEST_FLAGS);
+	KUNIT_EXPECT_EQ(test, cred_data->tcnt, (unsigned short)1);
+	KUNIT_EXPECT_EQ(test, cred_data->default_ids.uid, (unsigned int)TEST_UID);
+	KUNIT_EXPECT_EQ(test, cred_data->default_ids.fsuid, (unsigned int)TEST_FSUID);
+	KUNIT_EXPECT_EQ(test, cred_data->default_ids.egid, (unsigned int)TEST_EGID);
 
 	/* T3a: id > MAX_PID_32, inexistent data */
 	spin_lock_irqsave(&creds_hash_update_lock, flags);
 	cred_ptr = get_cred_ptr(main_task->pid);
 	spin_unlock_irqrestore(&creds_hash_update_lock, flags);
-	EXPECT_NULL(test, cred_ptr);
+	KUNIT_EXPECT_NULL(test, cred_ptr);
 
 	/* Add cred data with ID > MAX_PID_32 */
-	ASSERT_SUCCESS(test, set_task_creds(main_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS));
+	KUNIT_ASSERT_SUCCESS(test, set_task_creds(main_task, TEST_UID, TEST_FSUID, TEST_EGID, TEST_FLAGS));
 
 	/* T3b: id > MAX_PID_32, get from vector */
 	spin_lock_irqsave(&creds_hash_update_lock, flags);
 	cred_data = get_cred_data(main_task->pid);
 	spin_unlock_irqrestore(&creds_hash_update_lock, flags);
-	EXPECT_NOT_NULL(test, cred_data);
-	EXPECT_EQ(test, cred_data->cred_flags, TEST_FLAGS);
-	EXPECT_EQ(test, cred_data->tcnt, 1);
-	EXPECT_EQ(test, cred_data->default_ids.uid, TEST_UID);
-	EXPECT_EQ(test, cred_data->default_ids.fsuid, TEST_FSUID);
-	EXPECT_EQ(test, cred_data->default_ids.egid, TEST_EGID);
+	KUNIT_EXPECT_NOT_NULL(test, cred_data);
+	KUNIT_EXPECT_EQ(test, cred_data->cred_flags, (unsigned short)TEST_FLAGS);
+	KUNIT_EXPECT_EQ(test, cred_data->tcnt, (unsigned short)1);
+	KUNIT_EXPECT_EQ(test, cred_data->default_ids.uid, (unsigned int)TEST_UID);
+	KUNIT_EXPECT_EQ(test, cred_data->default_ids.fsuid, (unsigned int)TEST_FSUID);
+	KUNIT_EXPECT_EQ(test, cred_data->default_ids.egid, (unsigned int)TEST_EGID);
 
 	/* Cleanup */
 	set_task_creds_tcnt(fork_task, -1);
 	set_task_creds_tcnt(main_task, -1);
-	ASSERT_TRUE(test, hash_empty(creds_hash));
+	KUNIT_ASSERT_TRUE(test, hash_empty(creds_hash));
 	fork_task->pid = TEST_PID_FORK;
 	fork_task->tgid = TEST_PID_MAIN;
 
 #endif /* DEFEX_PED_ENABLE */
-	SUCCEED(test);
+	KUNIT_SUCCEED(test);
 }
 
 
-static void creds_fast_hash_init_test(struct test *test)
+static void creds_fast_hash_init_test(struct kunit *test)
 {
 	/* __init function */
-	SUCCEED(test);
+	KUNIT_SUCCEED(test);
 }
 
 
-static int defex_ht_test_init(struct test *test)
+static int defex_ht_test_init(struct kunit *test)
 {
 	main_task = kzalloc(sizeof(*main_task), GFP_KERNEL);
 	if(!main_task) {
@@ -589,7 +589,7 @@ static int defex_ht_test_init(struct test *test)
 	return 0;
 }
 
-static void defex_ht_test_exit(struct test *test)
+static void defex_ht_test_exit(struct kunit *test)
 {
 	if(main_task)
 		kfree(main_task);
@@ -597,27 +597,27 @@ static void defex_ht_test_exit(struct test *test)
 		kfree(fork_task);
 }
 
-static struct test_case defex_ht_test_cases[] = {
+static struct kunit_case defex_ht_test_cases[] = {
 	/* TEST FUNC DEFINES */
-	TEST_CASE(set_task_creds_tcnt_test),
-	TEST_CASE(set_task_creds_test),
-	TEST_CASE(set_cred_data_test),
-	TEST_CASE(mem_cache_reclaim_test),
-	TEST_CASE(mem_cache_get_test),
-	TEST_CASE(mem_cache_alloc_test),
-	TEST_CASE(is_task_creds_ready_test),
-	TEST_CASE(get_task_creds_test),
-	TEST_CASE(get_cred_ptr_test),
-	TEST_CASE(get_cred_data_test),
-	TEST_CASE(creds_fast_hash_init_test),
+	KUNIT_CASE(set_task_creds_tcnt_test),
+	KUNIT_CASE(set_task_creds_test),
+	KUNIT_CASE(set_cred_data_test),
+	KUNIT_CASE(mem_cache_reclaim_test),
+	KUNIT_CASE(mem_cache_get_test),
+	KUNIT_CASE(mem_cache_alloc_test),
+	KUNIT_CASE(is_task_creds_ready_test),
+	KUNIT_CASE(get_task_creds_test),
+	KUNIT_CASE(get_cred_ptr_test),
+	KUNIT_CASE(get_cred_data_test),
+	KUNIT_CASE(creds_fast_hash_init_test),
 	{},
 };
 
-static struct test_module defex_ht_test_module = {
+static struct kunit_suite defex_ht_test_module = {
 	.name = "defex_ht_test",
 	.init = defex_ht_test_init,
 	.exit = defex_ht_test_exit,
 	.test_cases = defex_ht_test_cases,
 };
-module_test(defex_ht_test_module);
+kunit_test_suites(&defex_ht_test_module);
 

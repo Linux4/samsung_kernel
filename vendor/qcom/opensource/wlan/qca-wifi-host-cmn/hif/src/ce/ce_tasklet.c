@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2015-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -391,11 +392,11 @@ static void ce_tasklet(unsigned long data)
 	struct hif_softc *scn = HIF_GET_SOFTC(hif_ce_state);
 	struct CE_state *CE_state = scn->ce_id_to_state[tasklet_entry->ce_id];
 
-	if (scn->ce_latency_stats)
-		hif_record_tasklet_exec_entry_ts(scn, tasklet_entry->ce_id);
-
 	hif_record_ce_desc_event(scn, tasklet_entry->ce_id,
 				 HIF_CE_TASKLET_ENTRY, NULL, NULL, -1, 0);
+
+	if (scn->ce_latency_stats)
+		hif_record_tasklet_exec_entry_ts(scn, tasklet_entry->ce_id);
 
 	hif_latency_detect_tasklet_exec(scn, tasklet_entry);
 
@@ -413,9 +414,6 @@ static void ce_tasklet(unsigned long data)
 		 * Enable the interrupt only when there is no pending frames in
 		 * any of the Copy Engine pipes.
 		 */
-		hif_record_ce_desc_event(scn, tasklet_entry->ce_id,
-				HIF_CE_TASKLET_RESCHEDULE, NULL, NULL, -1, 0);
-
 		if (test_bit(TASKLET_STATE_SCHED,
 			     &tasklet_entry->intr_tq.state)) {
 			hif_info("ce_id%d tasklet was scheduled, return",
@@ -423,6 +421,10 @@ static void ce_tasklet(unsigned long data)
 			qdf_atomic_dec(&scn->active_tasklet_cnt);
 			return;
 		}
+
+		hif_record_ce_desc_event(scn, tasklet_entry->ce_id,
+					 HIF_CE_TASKLET_RESCHEDULE,
+					 NULL, NULL, -1, 0);
 
 		ce_tasklet_schedule(tasklet_entry);
 		hif_latency_detect_tasklet_sched(scn, tasklet_entry);
@@ -647,6 +649,29 @@ void hif_clear_ce_stats(struct HIF_CE_state *hif_ce_state)
 	qdf_mem_zero(&hif_ce_state->stats, sizeof(struct ce_stats));
 }
 
+#ifdef WLAN_TRACEPOINTS
+/**
+ * hif_set_ce_tasklet_sched_time() - Set tasklet schedule time for
+ *  CE with matching ce_id
+ * @scn: hif context
+ * @ce_id: CE id
+ *
+ * Return: None
+ */
+static inline
+void hif_set_ce_tasklet_sched_time(struct hif_softc *scn, uint8_t ce_id)
+{
+	struct CE_state *ce_state = scn->ce_id_to_state[ce_id];
+
+	ce_state->ce_tasklet_sched_time = qdf_time_sched_clock();
+}
+#else
+static inline
+void hif_set_ce_tasklet_sched_time(struct hif_softc *scn, uint8_t ce_id)
+{
+}
+#endif
+
 /**
  * hif_tasklet_schedule() - schedule tasklet
  * @hif_ctx: hif context
@@ -664,6 +689,8 @@ static inline bool hif_tasklet_schedule(struct hif_opaque_softc *hif_ctx,
 		qdf_atomic_dec(&scn->active_tasklet_cnt);
 		return false;
 	}
+
+	hif_set_ce_tasklet_sched_time(scn, tasklet_entry->ce_id);
 	/* keep it before tasklet_schedule, this is to happy whunt.
 	 * in whunt, tasklet may run before finished hif_tasklet_schedule.
 	 */

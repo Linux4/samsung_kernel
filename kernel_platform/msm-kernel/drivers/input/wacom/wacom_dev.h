@@ -292,23 +292,6 @@ typedef enum {
 	WACOM_DISABLE = 1,
 } wacom_disable_mode_t;
 
-enum {
-	LCD_EARLY_EVENT = 0,
-	LCD_LATE_EVENT
-};
-
-enum {
-	SERVICE_SHUTDOWN = -1,
-	LCD_NONE = 0,
-	LCD_OFF,
-	LCD_ON,
-	LCD_DOZE1,
-	LCD_DOZE2,
-	LPM_OFF = 20,
-	FORCE_OFF,
-	FORCE_ON,
-};
-
 enum epen_fw_ver_info{
 	WACOM_FIRMWARE_VERSION_UNIT = 3,
 	WACOM_FIRMWARE_VERSION_SET = 4,
@@ -360,9 +343,9 @@ enum {
 };
 
 enum epen_elec_spec_mode {
-	EPEN_ELEC_DATA_MAIN	= 0,
-	EPEN_ELEC_DATA_UNIT	= 1,	// pretest
-//	EPEN_ELEC_DATA_ASSY	= 2,	// reserved
+	EPEN_ELEC_DATA_MAIN		= 0,	// main
+	EPEN_ELEC_DATA_ASSY		= 1,	// sub - assy
+	EPEN_ELEC_DATA_UNIT		= 2,	// sub - unit
 };
 
 struct wacom_elec_data {

@@ -67,4 +67,7 @@ config QRTR_GUNYAH
 	  Router communication between two virtual machines. The transport
 	  uses dynamically shared memory and gunyah doorbells.
 
+config QRTR_WS_DEBUG
+	tristate "Wake Source debugging tool"
+
 endif # QRTR

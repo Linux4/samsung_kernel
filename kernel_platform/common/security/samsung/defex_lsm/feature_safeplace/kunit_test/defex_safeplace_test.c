@@ -11,41 +11,41 @@
 #include "include/defex_internal.h"
 #include "include/defex_test.h"
 
-static void safeplace_status_store_test(struct test *test)
+static void safeplace_status_store_test(struct kunit *test)
 {
 	char *invalid_prefix = "test";
 	char *over_range_prefix = "5";
 	char *valid_prefix = "2";
 
 	/* buffer null */
-	EXPECT_EQ(test, safeplace_status_store(NULL), -EINVAL);
+	KUNIT_EXPECT_EQ(test, safeplace_status_store(NULL), -EINVAL);
 	/* invalid prefix */
-	EXPECT_EQ(test, safeplace_status_store(invalid_prefix), -EINVAL);
+	KUNIT_EXPECT_EQ(test, safeplace_status_store(invalid_prefix), -EINVAL);
 	/* over range prefix */
-	EXPECT_EQ(test, safeplace_status_store(over_range_prefix), -EINVAL);
+	KUNIT_EXPECT_EQ(test, safeplace_status_store(over_range_prefix), -EINVAL);
 	/* valid prefix */
-	EXPECT_EQ(test, safeplace_status_store(valid_prefix), 0);
+	KUNIT_EXPECT_EQ(test, safeplace_status_store(valid_prefix), 0);
 }
 
-static int defex_safeplace_test_init(struct test *test)
+static int defex_safeplace_test_init(struct kunit *test)
 {
 	return 0;
 }
 
-static void defex_safeplace_test_exit(struct test *test)
+static void defex_safeplace_test_exit(struct kunit *test)
 {
 }
 
-static struct test_case defex_safeplace_test_cases[] = {
+static struct kunit_case defex_safeplace_test_cases[] = {
 	/* TEST FUNC DEFINES */
-	TEST_CASE(safeplace_status_store_test),
+	KUNIT_CASE(safeplace_status_store_test),
 	{},
 };
 
-static struct test_module defex_safeplace_test_module = {
+static struct kunit_suite defex_safeplace_test_module = {
 	.name = "defex_safeplace_test",
 	.init = defex_safeplace_test_init,
 	.exit = defex_safeplace_test_exit,
 	.test_cases = defex_safeplace_test_cases,
 };
-module_test(defex_safeplace_test_module);
+kunit_test_suites(&defex_safeplace_test_module);

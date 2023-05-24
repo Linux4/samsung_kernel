@@ -79,6 +79,12 @@ enum battery_thermal_zone {
 	BAT_THERMAL_OVERHEATLIMIT,
 };
 
+enum sb_wireless_mode {
+	SB_WRL_NONE = 0,
+	SB_WRL_RX_MODE = 1,
+	SB_WRL_TX_MODE = 2,
+};
+
 enum rx_device_type {
 	NO_DEV = 0,
 	OTHER_DEV,
@@ -233,7 +239,6 @@ enum sec_battery_charge_mode {
 	SEC_BAT_CHG_MODE_CHARGING_OFF,
 	SEC_BAT_CHG_MODE_PASS_THROUGH,
 	SEC_BAT_CHG_MODE_CHARGING, /* buck, chg on */
-//	SEC_BAT_CHG_MODE_BUCK_ON,
 	SEC_BAT_CHG_MODE_OTG_ON,
 	SEC_BAT_CHG_MODE_OTG_OFF,
 	SEC_BAT_CHG_MODE_UNO_ON,
@@ -278,6 +283,10 @@ enum sec_battery_direct_charging_source_ctrl {
 	SEC_SEND_UVDM = 0x2,
 	SEC_STORE_MODE = 0x4,
 };
+
+extern const char *sb_rx_type_str(int type);
+extern const char *sb_vout_ctr_mode_str(int vout_mode);
+extern const char *sb_rx_vout_str(int vout);
 
 /* tx_event */
 #define BATT_TX_EVENT_WIRELESS_TX_STATUS		0x00000001

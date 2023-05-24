@@ -175,6 +175,7 @@ struct lpass_cdc_va_macro_priv {
 	int dapm_tx_clk_status;
 	u16 current_clk_id;
 	bool dev_up;
+	bool pre_dev_up;
 	bool swr_dmic_enable;
 };
 
@@ -279,7 +280,8 @@ static int lpass_cdc_va_macro_mclk_enable(
 					va_priv->default_clk_id,
 					va_priv->clk_id,
 					false);
-		lpass_cdc_va_macro_core_vote(va_priv, false);
+		if (!ret)
+			lpass_cdc_va_macro_core_vote(va_priv, false);
 	}
 exit:
 	mutex_unlock(&va_priv->mclk_lock);
@@ -320,6 +322,7 @@ static int lpass_cdc_va_macro_event_handler(struct snd_soc_component *component,
 				__func__);
 		break;
 	case LPASS_CDC_MACRO_EVT_PRE_SSR_UP:
+		va_priv->pre_dev_up = true;
 		/* enable&disable VA_CORE_CLK to reset GFMUX reg */
 		ret = lpass_cdc_va_macro_core_vote(va_priv, true);
 		if (ret < 0) {
@@ -355,6 +358,7 @@ static int lpass_cdc_va_macro_event_handler(struct snd_soc_component *component,
 		lpass_cdc_rsc_clk_reset(va_dev, VA_CORE_CLK);
 		break;
 	case LPASS_CDC_MACRO_EVT_SSR_DOWN:
+		va_priv->pre_dev_up = false;
 		va_priv->dev_up = false;
 		if (va_priv->swr_ctrl_data) {
 			swrm_wcd_notify(
@@ -412,6 +416,7 @@ static int lpass_cdc_va_macro_swr_pwr_event(struct snd_soc_dapm_widget *w,
 	int ret = 0;
 	struct device *va_dev = NULL;
 	struct lpass_cdc_va_macro_priv *va_priv = NULL;
+	bool vote_err = false;
 
 	if (!lpass_cdc_va_macro_get_data(component, &va_dev,
 					 &va_priv, __func__))
@@ -488,12 +493,14 @@ static int lpass_cdc_va_macro_swr_pwr_event(struct snd_soc_dapm_widget *w,
 					__func__);
 				if (va_priv->dev_up)
 					break;
+				vote_err = true;
 			}
 			ret = lpass_cdc_clk_rsc_request_clock(va_priv->dev,
 					va_priv->default_clk_id,
 					VA_CORE_CLK,
 					false);
-			lpass_cdc_va_macro_core_vote(va_priv, false);
+			if (!vote_err)
+				lpass_cdc_va_macro_core_vote(va_priv, false);
 			if (ret) {
 				dev_err(component->dev,
 					"%s: request clock VA_CLK disable failed\n",
@@ -725,6 +732,11 @@ static int lpass_cdc_va_macro_core_vote(void *handle, bool enable)
 		pr_err("%s: va priv data is NULL\n", __func__);
 		return -EINVAL;
 	}
+	if (!va_priv->pre_dev_up && enable) {
+		pr_err("%s: adsp is not up\n", __func__);
+		return -EINVAL;
+	}
+
 	trace_printk("%s, enter: enable %d\n", __func__, enable);
 	if (enable) {
 		pm_runtime_get_sync(va_priv->dev);
@@ -1149,26 +1161,13 @@ static int lpass_cdc_va_macro_tx_mixer_put(struct snd_kcontrol *kcontrol,
 }
 
 static int lpass_cdc_va_macro_enable_dmic(struct snd_soc_dapm_widget *w,
-		struct snd_kcontrol *kcontrol, int event)
+		struct snd_kcontrol *kcontrol, int event, u16 adc_mux0_cfg)
 {
 	struct snd_soc_component *component =
 				snd_soc_dapm_to_component(w->dapm);
 	unsigned int dmic = 0;
-	int ret = 0;
-	char *wname;
 
-	wname = strpbrk(w->name, "01234567");
-	if (!wname) {
-		dev_err(component->dev, "%s: widget not found\n", __func__);
-		return -EINVAL;
-	}
-
-	ret = kstrtouint(wname, 10, &dmic);
-	if (ret < 0) {
-		dev_err(component->dev, "%s: Invalid DMIC line on the codec\n",
-			__func__);
-		return -EINVAL;
-	}
+	dmic = (snd_soc_component_read(component, adc_mux0_cfg) >> 4) - 1;
 
 	dev_dbg(component->dev, "%s: event %d DMIC%d\n",
 		__func__, event,  dmic);
@@ -1195,6 +1194,7 @@ static int lpass_cdc_va_macro_enable_dec(struct snd_soc_dapm_widget *w,
 	u16 tx_gain_ctl_reg;
 	u8 hpf_cut_off_freq;
 	u16 adc_mux_reg = 0;
+	u16 adc_mux0_reg = 0;
 	u16 tx_fs_reg = 0;
 	struct device *va_dev = NULL;
 	struct lpass_cdc_va_macro_priv *va_priv = NULL;
@@ -1220,10 +1220,15 @@ static int lpass_cdc_va_macro_enable_dec(struct snd_soc_dapm_widget *w,
 				LPASS_CDC_VA_MACRO_TX_PATH_OFFSET * decimator;
 	adc_mux_reg = LPASS_CDC_VA_INP_MUX_ADC_MUX0_CFG1 +
 			LPASS_CDC_VA_MACRO_ADC_MUX_CFG_OFFSET * decimator;
+	adc_mux0_reg = LPASS_CDC_VA_INP_MUX_ADC_MUX0_CFG0 +
+			LPASS_CDC_VA_MACRO_ADC_MUX_CFG_OFFSET * decimator;
 	tx_fs_reg = LPASS_CDC_VA_TX0_TX_PATH_CTL +
 				LPASS_CDC_VA_MACRO_TX_PATH_OFFSET * decimator;
 	va_priv->pcm_rate[decimator] = (snd_soc_component_read(component,
 				tx_fs_reg) & 0x0F);
+
+	if(!is_amic_enabled(component, decimator))
+		lpass_cdc_va_macro_enable_dmic(w, kcontrol, event, adc_mux0_reg);
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
@@ -1328,6 +1333,10 @@ static int lpass_cdc_va_macro_enable_dec(struct snd_soc_dapm_widget *w,
 		/* Disable TX CLK */
 		snd_soc_component_update_bits(component, tx_vol_ctl_reg,
 					0x20, 0x00);
+		snd_soc_component_update_bits(component, tx_vol_ctl_reg,
+					0x40, 0x40);
+		snd_soc_component_update_bits(component, tx_vol_ctl_reg,
+					0x40, 0x00);
 		snd_soc_component_update_bits(component, tx_vol_ctl_reg,
 					0x10, 0x00);
 		break;
@@ -1823,37 +1832,21 @@ static const struct snd_soc_dapm_widget lpass_cdc_va_macro_dapm_widgets[] = {
 		lpass_cdc_va_macro_enable_micbias,
 		SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
 
-	SND_SOC_DAPM_ADC_E("VA DMIC0", NULL, SND_SOC_NOPM, 0, 0,
-		lpass_cdc_va_macro_enable_dmic, SND_SOC_DAPM_PRE_PMU |
-		SND_SOC_DAPM_POST_PMD),
+	SND_SOC_DAPM_ADC("VA DMIC0", NULL, SND_SOC_NOPM, 0, 0),
 
-	SND_SOC_DAPM_ADC_E("VA DMIC1", NULL, SND_SOC_NOPM, 0, 0,
-		lpass_cdc_va_macro_enable_dmic, SND_SOC_DAPM_PRE_PMU |
-		SND_SOC_DAPM_POST_PMD),
+	SND_SOC_DAPM_ADC("VA DMIC1", NULL, SND_SOC_NOPM, 0, 0),
 
-	SND_SOC_DAPM_ADC_E("VA DMIC2", NULL, SND_SOC_NOPM, 0, 0,
-		lpass_cdc_va_macro_enable_dmic, SND_SOC_DAPM_PRE_PMU |
-		SND_SOC_DAPM_POST_PMD),
+	SND_SOC_DAPM_ADC("VA DMIC2", NULL, SND_SOC_NOPM, 0, 0),
 
-	SND_SOC_DAPM_ADC_E("VA DMIC3", NULL, SND_SOC_NOPM, 0, 0,
-		lpass_cdc_va_macro_enable_dmic, SND_SOC_DAPM_PRE_PMU |
-		SND_SOC_DAPM_POST_PMD),
+	SND_SOC_DAPM_ADC("VA DMIC3", NULL, SND_SOC_NOPM, 0, 0),
 
-	SND_SOC_DAPM_ADC_E("VA DMIC4", NULL, SND_SOC_NOPM, 0, 0,
-		lpass_cdc_va_macro_enable_dmic, SND_SOC_DAPM_PRE_PMU |
-		SND_SOC_DAPM_POST_PMD),
+	SND_SOC_DAPM_ADC("VA DMIC4", NULL, SND_SOC_NOPM, 0, 0),
 
-	SND_SOC_DAPM_ADC_E("VA DMIC5", NULL, SND_SOC_NOPM, 0, 0,
-		lpass_cdc_va_macro_enable_dmic, SND_SOC_DAPM_PRE_PMU |
-		SND_SOC_DAPM_POST_PMD),
+	SND_SOC_DAPM_ADC("VA DMIC5", NULL, SND_SOC_NOPM, 0, 0),
 
-	SND_SOC_DAPM_ADC_E("VA DMIC6", NULL, SND_SOC_NOPM, 0, 0,
-		lpass_cdc_va_macro_enable_dmic, SND_SOC_DAPM_PRE_PMU |
-		SND_SOC_DAPM_POST_PMD),
+	SND_SOC_DAPM_ADC("VA DMIC6", NULL, SND_SOC_NOPM, 0, 0),
 
-	SND_SOC_DAPM_ADC_E("VA DMIC7", NULL, SND_SOC_NOPM, 0, 0,
-		lpass_cdc_va_macro_enable_dmic, SND_SOC_DAPM_PRE_PMU |
-		SND_SOC_DAPM_POST_PMD),
+	SND_SOC_DAPM_ADC("VA DMIC7", NULL, SND_SOC_NOPM, 0, 0),
 
 	SND_SOC_DAPM_MUX_E("VA DEC0 MUX", SND_SOC_NOPM, LPASS_CDC_VA_MACRO_DEC0, 0,
 			   &va_dec0_mux, lpass_cdc_va_macro_enable_dec,
@@ -2522,6 +2515,7 @@ static int lpass_cdc_va_macro_probe(struct platform_device *pdev)
 		mutex_init(&va_priv->swr_clk_lock);
 	}
 	va_priv->is_used_va_swr_gpio = is_used_va_swr_gpio;
+	va_priv->pre_dev_up = true;
 
 	mutex_init(&va_priv->mclk_lock);
 	dev_set_drvdata(&pdev->dev, va_priv);

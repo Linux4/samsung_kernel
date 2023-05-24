@@ -152,6 +152,13 @@ typedef enum {
     TAG_DEVICEPP_SEL,
 } usecase_xml_tag;
 
+typedef struct {
+    uint32_t moduleId;
+    uint32_t paramId;
+    uint16_t length;
+    uint16_t reserved;
+} __attribute__((packed)) legacyGefParamHeader;
+
 struct user_xml_data{
     char data_buf[1024];
     size_t offs;
@@ -251,7 +258,7 @@ public:
     int populateStreamCkv(Stream *s, std::vector <std::pair<int,int>> &keyVector, int tag, struct pal_volume_data **);
     int populateCalKeyVector(Stream *s, std::vector <std::pair<int,int>> &ckv, int tag);
     int populateTagKeyVector(Stream *s, std::vector <std::pair<int,int>> &tkv, int tag, uint32_t* gsltag);
-    void payloadTimestamp(uint8_t **payload, size_t *size, uint32_t moduleId);
+    void payloadTimestamp(std::shared_ptr<std::vector<uint8_t>>& module_payload, size_t *size, uint32_t moduleId);
     static int init();
     static void endTag(void *userdata, const XML_Char *tag_name);
     static void startTag(void *userdata, const XML_Char *tag_name, const XML_Char **attr);
@@ -279,7 +286,6 @@ public:
     static int getBtDeviceKV(int dev_id, std::vector<std::pair<int, int>> &deviceKV,
         uint32_t codecFormat, bool isAbrEnabled, bool isHostless);
     static int getDeviceKV(int dev_id, std::vector<std::pair<int, int>> &deviceKV);
-    static bool isBtDevice(int32_t beDevId);
     static bool compareNumSelectors(struct kvInfo info_1, struct kvInfo info_2);
     static int payloadDualMono(uint8_t **payloadInfo);
     PayloadBuilder();

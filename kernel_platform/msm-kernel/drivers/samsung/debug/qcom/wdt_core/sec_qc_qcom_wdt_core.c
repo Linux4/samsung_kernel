@@ -132,7 +132,7 @@ static void __qc_wdt_core_unregister_panic_handler(struct builder *bd)
 			&drvdata->nb_panic);
 }
 
-static int sec_qc_wdt_core_bark_notifier_call(struct notifier_block *this,
+static int __qc_wdt_core_bark_notifier_call(struct notifier_block *this,
 		unsigned long l, void *d)
 {
 	struct qc_wdt_core_drvdata *drvdata = container_of(this,
@@ -146,10 +146,20 @@ static int sec_qc_wdt_core_bark_notifier_call(struct notifier_block *this,
 	sched_show_task(wdog_dd->watchdog_task);
 	if (IS_BUILTIN(CONFIG_SEC_QC_QCOM_WDT_CORE))
 		smp_send_stop();
-	else
-		panic("watchdog_bark");
 
 	return NOTIFY_OK;
+}
+
+static int sec_qc_wdt_core_bark_notifier_call(struct notifier_block *this,
+		unsigned long l, void *d)
+{
+	static atomic_t cnt = ATOMIC_INIT(1);
+
+	/* NOTE: to ensure one-shot */
+	if (atomic_dec_if_positive(&cnt) < 0)
+		return NOTIFY_DONE;
+
+	return __qc_wdt_core_bark_notifier_call(this, l, d);
 }
 
 static int __qc_wdt_core_register_bark_handler(struct builder *bd)

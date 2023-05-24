@@ -2146,6 +2146,10 @@ struct bcm_cfg80211 {
 	uint32 roam_allowed_band;	/* roam allow band in order to purne roam candidate */
 	uint32 ap_bw_limit;
 	uint32 ap_bw_chspec;
+#if defined(AP_LESS_BCAST)
+	uint32 ap_less_bcast; /* enabled/disabled less broadcast */
+	char ap_less_bcast_name[IFNAMSIZ + 1];
+#endif /* AP_LESS_BCAST */
 };
 
 /* Max auth timeout allowed in case of EAP is 70sec, additional 5 sec for

@@ -29,7 +29,7 @@ static __always_inline bool __summary_is_probed(void)
 struct sec_qc_summary_data_modem *sec_qc_summary_get_modem(void)
 {
 	if (!__summary_is_probed())
-		return ERR_PTR(-ENODEV);
+		return ERR_PTR(-EBUSY);
 
 	return secdbg_modem(qc_summary);
 }
@@ -271,15 +271,33 @@ static void __summary_unregister_panic_notifier(struct builder *bd)
 			&drvdata->nb_panic);
 }
 
+static int __summary_set_drvdata(struct builder *bd)
+{
+	struct qc_summary_drvdata *drvdata =
+			container_of(bd, struct qc_summary_drvdata, bd);
+	struct device *dev = bd->dev;
+
+	dev_set_drvdata(dev, drvdata);
+
+	return 0;
+}
+
+static void __summary_iounmap_debug_kinfo(struct qc_summary_drvdata *drvdata)
+{
+	if (!IS_ENABLED(CONFIG_DEBUG_KINFO) || IS_BUILTIN(CONFIG_SEC_QC_SUMMARY))
+		return;
+
+	if (!sec_debug_is_enabled())
+		iounmap(drvdata->debug_kinfo_rmem->priv);
+}
+
 static int __summary_probe_epilog(struct builder *bd)
 {
 	struct qc_summary_drvdata *drvdata =
 			container_of(bd, struct qc_summary_drvdata, bd);
 	struct sec_qc_summary *dbg_summary = drvdata->summary;
-	struct device *dev = bd->dev;
 
-	if (!sec_debug_is_enabled())
-		iounmap(drvdata->debug_kinfo_rmem->priv);
+	__summary_iounmap_debug_kinfo(drvdata);
 
 	/* fill magic nubmer last to ensure data integrity when the magic
 	 * numbers are written
@@ -289,11 +307,14 @@ static int __summary_probe_epilog(struct builder *bd)
 	dbg_summary->magic[2] = SEC_DEBUG_SUMMARY_MAGIC2;
 	dbg_summary->magic[3] = SEC_DEBUG_SUMMARY_MAGIC3;
 
-	dev_set_drvdata(dev, drvdata);
-
 	qc_summary = drvdata;
 
 	return 0;
+}
+
+static void __summary_remove_prolog(struct builder *bd)
+{
+	qc_summary = NULL;
 }
 
 static const struct dev_builder __summary_dev_builder[] = {
@@ -306,6 +327,14 @@ static const struct dev_builder __summary_dev_builder[] = {
 	/* concrete builders which can return -EPROBE_DEFER should be
 	 * placed before here.
 	 */
+	DEVICE_BUILDER(__summary_register_die_notifier,
+		       __summary_unregister_die_notifier),
+	DEVICE_BUILDER(__summary_register_panic_notifier,
+		       __summary_unregister_panic_notifier),
+	DEVICE_BUILDER(__summary_set_drvdata, NULL),
+};
+
+static const struct dev_builder __summary_dev_builder_threaded[] = {
 	DEVICE_BUILDER(__qc_summary_kallsyms_init, NULL),
 	DEVICE_BUILDER(__qc_summary_info_mon_init, NULL),
 	DEVICE_BUILDER(__qc_summary_var_mon_init_last_pet,
@@ -319,11 +348,7 @@ static const struct dev_builder __summary_dev_builder[] = {
 	DEVICE_BUILDER(__qc_summary_coreinfo_init,
 		       __qc_summary_coreinfo_exit),
 	DEVICE_BUILDER(__qc_summary_dump_sink_init, NULL),
-	DEVICE_BUILDER(__summary_register_die_notifier,
-		       __summary_unregister_die_notifier),
-	DEVICE_BUILDER(__summary_register_panic_notifier,
-		       __summary_unregister_panic_notifier),
-	DEVICE_BUILDER(__summary_probe_epilog, NULL),
+	DEVICE_BUILDER(__summary_probe_epilog, __summary_remove_prolog),
 };
 
 static int __summary_probe(struct platform_device *pdev,
@@ -341,6 +366,15 @@ static int __summary_probe(struct platform_device *pdev,
 	return sec_director_probe_dev(&drvdata->bd, builder, n);
 }
 
+static int __summary_probe_threaded(struct platform_device *pdev,
+		const struct dev_builder *builder, ssize_t n)
+{
+	struct qc_summary_drvdata *drvdata = platform_get_drvdata(pdev);
+
+	return sec_director_probe_dev_threaded(&drvdata->bd, builder, n,
+			"qc_summary");
+}
+
 static int __summary_remove(struct platform_device *pdev,
 		const struct dev_builder *builder, ssize_t n)
 {
@@ -351,16 +385,39 @@ static int __summary_remove(struct platform_device *pdev,
 	return 0;
 }
 
+static int __summary_remove_threaded(struct platform_device *pdev,
+		const struct dev_builder *builder, ssize_t n)
+{
+	struct qc_summary_drvdata *drvdata = platform_get_drvdata(pdev);
+	struct director_threaded *drct = drvdata->bd.drct;
+
+	sec_director_destruct_dev_threaded(drct);
+
+	return 0;
+}
+
 static int sec_qc_summary_probe(struct platform_device *pdev)
 {
-	return __summary_probe(pdev, __summary_dev_builder,
+	int err;
+
+	err = __summary_probe(pdev, __summary_dev_builder,
 			ARRAY_SIZE(__summary_dev_builder));
+	if (err)
+		return err;
+
+	return __summary_probe_threaded(pdev, __summary_dev_builder_threaded,
+			ARRAY_SIZE(__summary_dev_builder_threaded));
 }
 
 static int sec_qc_summary_remove(struct platform_device *pdev)
 {
-	return __summary_remove(pdev, __summary_dev_builder,
+	__summary_remove_threaded(pdev, __summary_dev_builder_threaded,
+			ARRAY_SIZE(__summary_dev_builder_threaded));
+
+	__summary_remove(pdev, __summary_dev_builder,
 			ARRAY_SIZE(__summary_dev_builder));
+
+	return 0;
 }
 
 static const struct of_device_id sec_qc_summary_match_table[] = {

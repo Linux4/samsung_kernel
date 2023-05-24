@@ -935,7 +935,11 @@ static struct snd_soc_dai_driver cs40l26_dai[] = {
 			.formats = CS40L26_FORMATS,
 		},
 		.ops = &cs40l26_dai_ops,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 4)
 		.symmetric_rates = 1,
+#else
+		.symmetric_rate = 1,
+#endif
 	},
 };
 

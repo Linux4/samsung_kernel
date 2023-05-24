@@ -45,6 +45,8 @@ class KBootLog(RamParser):
         logbuf_addr = self.ramdump.read_word(self.ramdump.address_of(
                                      'boot_log_buf'))
         logbuf_size = self.ramdump.read_u32("boot_log_buf_size")
+        if logbuf_size is None:
+            logbuf_size = 524288
         if logbuf_addr:
             data = self.ramdump.read_cstring(logbuf_addr, logbuf_size)
             self.outfile.write(data)

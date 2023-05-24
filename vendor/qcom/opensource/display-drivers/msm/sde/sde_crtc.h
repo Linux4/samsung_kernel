@@ -81,7 +81,6 @@ enum sde_crtc_idle_pc_state {
  * CACHE_STATE_DISABLED: sys cache has been disabled
  * CACHE_STATE_ENABLED: sys cache has been enabled
  * CACHE_STATE_NORMAL: sys cache is normal state
- * CACHE_STATE_PRE_CACHE: frame cache is being prepared
  * CACHE_STATE_FRAME_WRITE: sys cache is being written to
  * CACHE_STATE_FRAME_READ: sys cache is being read
  */
@@ -89,7 +88,6 @@ enum sde_crtc_cache_state {
 	CACHE_STATE_DISABLED,
 	CACHE_STATE_ENABLED,
 	CACHE_STATE_NORMAL,
-	CACHE_STATE_PRE_CACHE,
 	CACHE_STATE_FRAME_WRITE,
 	CACHE_STATE_FRAME_READ
 };
@@ -305,7 +303,6 @@ struct sde_frame_data {
  * @misr_reconfigure : boolean entry indicates misr reconfigure status
  * @misr_frame_count  : misr frame count provided by client
  * @misr_data     : store misr data before turning off the clocks.
- * @idle_notify_work: delayed worker to notify idle timeout to user space
  * @power_event   : registered power event handle
  * @cur_perf      : current performance committed to clock/bandwidth driver
  * @plane_mask_old: keeps track of the planes used in the previous commit
@@ -320,6 +317,7 @@ struct sde_frame_data {
  * @ltm_buffer_lock : muttx to protect ltm_buffers allcation and free
  * @ltm_lock        : Spinlock to protect ltm buffer_cnt, hist_en and ltm lists
  * @needs_hw_reset  : Initiate a hw ctl reset
+ * @reinit_crtc_mixers : Reinitialize mixers in crtc
  * @hist_irq_idx    : hist interrupt irq idx
  * @disable_pending_cp : flag tracks pending color processing features force disable
  * @src_bpp         : source bpp used to calculate compression ratio
@@ -395,7 +393,6 @@ struct sde_crtc {
 	bool misr_enable_debugfs;
 	bool misr_reconfigure;
 	u32 misr_frame_count;
-	struct kthread_delayed_work idle_notify_work;
 
 	struct sde_power_event *power_event;
 
@@ -420,6 +417,7 @@ struct sde_crtc {
 	struct mutex ltm_buffer_lock;
 	spinlock_t ltm_lock;
 	bool needs_hw_reset;
+	bool reinit_crtc_mixers;
 	int hist_irq_idx;
 	bool disable_pending_cp;
 
@@ -1063,5 +1061,10 @@ void sde_crtc_cancel_delayed_work(struct drm_crtc *crtc);
  * @cstate:      Pointer to DRM crtc object
  */
 struct drm_encoder *sde_crtc_get_src_encoder_of_clone(struct drm_crtc *crtc);
+
+/*
+ * _sde_crtc_vm_release_notify- send event to usermode on vm release
+ */
+void _sde_crtc_vm_release_notify(struct drm_crtc *crtc);
 
 #endif /* _SDE_CRTC_H_ */

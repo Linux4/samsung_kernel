@@ -86,6 +86,55 @@ struct ufs_sec_cmd_log_info {
 	int pos;
 };
 
+/*
+ * candidates of magic word
+ * 0x1F5E3A7069245CBE
+ * 0x4977C72608FCE51F
+ * 0x524E74A9005F0D1B
+ * 0x05D3D11A26CF3142
+ */
+#define UFS_SEC_MAGIC_WORD 0x1F5E3A7069245CBE
+#define UFS_SEC_DATA_BUF_SIZE 8
+#define UFS_SEC_CMDQ_DEPTH_MAX 32
+#define UFS_SEC_DATA_LOGGING_MAX 1024
+#define UFS_SEC_DATA_LOGGING_ERR_MAX 5
+
+#define UFS_SEC_DATA_STATE_SENT 0xA
+#define UFS_SEC_DATA_STATE_CMPL 0xF
+
+struct ufs_sec_data_log_entry {
+	ktime_t start_time;
+	ktime_t end_time;
+	sector_t sector;
+	int segments_cnt;
+	int state;
+	u64 *virt_addr;
+};
+
+struct ufs_sec_data_log_info {
+	/* it has entry index value for each tag */
+	int queuing_req[UFS_SEC_CMDQ_DEPTH_MAX];
+	/*
+	 * a entry for read request information
+	 * used as an array : entries[UFS_SEC_DATA_LOGGING_MAX]
+	 */
+	struct ufs_sec_data_log_entry *entries;
+	/*
+	 * a entry that remains the magicword
+	 * uased as an array : issued_entries[UFS_SEC_DATA_LOGGING_ERR_MAX]
+	 */
+	struct ufs_sec_data_log_entry *issued_entries;
+	/* index for entries */
+	int pos;
+	/* index for issued_entries */
+	int issued_pos;
+	/*
+	 * sg_segment count that remains the magicword in each issued_enty
+	 * index is same as issued_entries's
+	 */
+	int magicword_match_cnt[UFS_SEC_DATA_LOGGING_ERR_MAX];
+};
+
 enum ufs_sec_wb_state {
 	WB_OFF = 0,
 	WB_ON_READY,

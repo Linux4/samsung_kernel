@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -788,15 +789,7 @@ Stream* SoundTriggerEngineGsl::GetDetectedStream(uint32_t model_id) {
      */
     if (!IS_MODULE_TYPE_PDK(module_type_)) {
         if (eng_streams_.size() == 1) {
-            st = dynamic_cast<StreamSoundTrigger *>(eng_streams_[0]);
-            if (st->GetCurrentStateId() == ST_STATE_ACTIVE ||
-                st->GetCurrentStateId() == ST_STATE_DETECTED ||
-                st->GetCurrentStateId() == ST_STATE_BUFFERING) {
-                return eng_streams_[0];
-            } else {
-                PAL_ERR(LOG_TAG, "Detected stream is not in active state");
-                return nullptr;
-            }
+            return eng_streams_[0];
         }
 
         if (detection_event_info_.num_confidence_levels <
@@ -822,21 +815,14 @@ Stream* SoundTriggerEngineGsl::GetDetectedStream(uint32_t model_id) {
                 for (uint32_t k = 0; k < st->GetSoundModelInfo()->GetNumKeyPhrases(); k++) {
                     if (!strcmp(eng_sm_info_->GetKeyPhrases()[i],
                                 st->GetSoundModelInfo()->GetKeyPhrases()[k])) {
-                        if (st->GetCurrentStateId() == ST_STATE_ACTIVE ||
-                                st->GetCurrentStateId() == ST_STATE_DETECTED ||
-                                st->GetCurrentStateId() == ST_STATE_BUFFERING) {
-                            return eng_streams_[j];
-                        } else {
-                            PAL_ERR(LOG_TAG, "detected stream is not active");
-                            return nullptr;
-                        }
+                        return eng_streams_[j];
                     }
                 }
             }
         }
     } else {
         st = dynamic_cast<StreamSoundTrigger *>(mid_stream_map_[model_id]);
-        if (!st){
+        if (!st) {
             PAL_ERR(LOG_TAG, "Invalid model id = %x", model_id);
         }
         return st;
@@ -885,6 +871,7 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     std::memset(&pdk_wakeup_config_, 0, sizeof(pdk_wakeup_config_));
     std::memset(&buffer_config_, 0, sizeof(buffer_config_));
     std::memset(&mmap_buffer_, 0, sizeof(mmap_buffer_));
+    mmap_buffer_.fd = -1;
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -966,6 +953,10 @@ SoundTriggerEngineGsl::~SoundTriggerEngineGsl() {
         buffer_thread_handler_.join();
         lck.lock();
         PAL_INFO(LOG_TAG, "Thread joined");
+    }
+
+    if (mmap_buffer_.fd != -1) {
+        close(mmap_buffer_.fd);
     }
 
     if (buffer_) {
@@ -1533,6 +1524,7 @@ int32_t SoundTriggerEngineGsl::UpdateMergeConfLevelsWithActiveStreams() {
 void SoundTriggerEngineGsl::UpdateState(eng_state_t state) {
 
     state_mutex_.lock();
+    PAL_INFO(LOG_TAG, "Engine state transitioned from %d to %d", eng_state_, state);
     eng_state_ = state;
     state_mutex_.unlock();
 
@@ -1568,7 +1560,11 @@ int32_t SoundTriggerEngineGsl::HandleMultiStreamLoad(Stream *s, uint8_t *data,
         status = session_->close(eng_streams_[0]);
         if (status)
             PAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
-        mmap_buffer_.buffer = nullptr;
+        if (mmap_buffer_.buffer) {
+            close(mmap_buffer_.fd);
+            mmap_buffer_.fd = -1;
+            mmap_buffer_.buffer = nullptr;
+        }
         UpdateState(ENG_IDLE);
 
         /* Update the engine with merged sound model */
@@ -1689,7 +1685,11 @@ int32_t SoundTriggerEngineGsl::HandleMultiStreamUnload(Stream *s) {
         status = session_->close(eng_streams_[0]);
         if (status)
             PAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
-        mmap_buffer_.buffer = nullptr;
+        if (mmap_buffer_.buffer) {
+            close(mmap_buffer_.fd);
+            mmap_buffer_.fd = -1;
+            mmap_buffer_.buffer = nullptr;
+        }
         UpdateState(ENG_IDLE);
         /* Update the engine with modified sound model after deletion */
         status = UpdateEngineModel(s, nullptr, 0, false);
@@ -1991,14 +1991,11 @@ int32_t SoundTriggerEngineGsl::ProcessStartRecognition(Stream *s) {
 
     // Update mmap write position after start
     if (mmap_buffer_size_) {
-        status = session_->GetMmapPosition(s, &mmap_pos);
-        if (!status) {
-            mmap_write_position_ = mmap_pos.position_frames;
-            PAL_DBG(LOG_TAG, "MMAP write position %u after start",
-                mmap_write_position_);
-        } else {
-            PAL_ERR(LOG_TAG, "Failed to get write position");
-        }
+        mmap_write_position_ = 0;
+        // reset wall clk in agm pcm plugin
+        status = session_->ResetMmapBuffer(s);
+        if (status)
+            PAL_ERR(LOG_TAG, "Failed to reset mmap buffer, status %d", status);
     }
     exit_buffering_ = false;
     UpdateState(ENG_ACTIVE);
@@ -2084,14 +2081,11 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
 
     // Update mmap write position after restart
     if (mmap_buffer_size_) {
-        status = session_->GetMmapPosition(s, &mmap_pos);
-        if (!status) {
-            mmap_write_position_ = mmap_pos.position_frames;
-            PAL_DBG(LOG_TAG, "MMAP write position %u after restart",
-                mmap_write_position_);
-        } else {
-            PAL_ERR(LOG_TAG, "Failed to get write position");
-        }
+        mmap_write_position_ = 0;
+        // reset wall clk in agm pcm plugin
+        status = session_->ResetMmapBuffer(s);
+        if (status)
+            PAL_ERR(LOG_TAG, "Failed to reset mmap buffer, status %d", status);
     }
 
     if (status == -ENETRESET) {
@@ -2123,7 +2117,11 @@ int32_t SoundTriggerEngineGsl::ReconfigureDetectionGraph(Stream *s) {
             PAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
 
         UpdateState(ENG_IDLE);
-        mmap_buffer_.buffer = nullptr;
+        if (mmap_buffer_.buffer) {
+            close(mmap_buffer_.fd);
+            mmap_buffer_.fd = -1;
+            mmap_buffer_.buffer = nullptr;
+        }
         use_lpi_ = st->GetLPIEnabled();
     }
 
@@ -2260,6 +2258,13 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
 
     exit_buffering_ = true;
     std::lock_guard<std::mutex> lck(mutex_);
+
+    if (!config) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "Invalid config, status %d", status);
+        goto exit;
+    }
+
     if (!is_qcva_uuid_ && !is_qcmd_uuid_) {
         custom_data_size = config->data_size;
         custom_data = (uint8_t *)calloc(1, custom_data_size);
@@ -2273,9 +2278,9 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
         goto exit;
     }
 
-    if (!config || !conf_levels) {
+    if (num_conf_levels != 0 && !conf_levels) {
         status = -EINVAL;
-        PAL_ERR(LOG_TAG, "Invalid config or conf levels, status %d", status);
+        PAL_ERR(LOG_TAG, "Invalid conf_levels, status %d", status);
         goto exit;
     }
 
@@ -2504,7 +2509,6 @@ void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
                                                void *data, uint32_t size) {
     int32_t status = 0;
 
-    std::unique_lock<std::mutex> lck(mutex_);
     /*
      * reset ring buffer before parsing detection payload as
      * keyword index will be updated in parsing.
@@ -2564,7 +2568,7 @@ void SoundTriggerEngineGsl::HandleSessionCallBack(uint64_t hdl, uint32_t event_i
         return;
 
     engine = (SoundTriggerEngineGsl *)hdl;
-
+    std::unique_lock<std::mutex> lck(engine->mutex_);
     /*
      * In multi sound model/merged sound model case, SPF might still give detections
      * for one model when the engine is in buffering state due to detection
@@ -2576,9 +2580,12 @@ void SoundTriggerEngineGsl::HandleSessionCallBack(uint64_t hdl, uint32_t event_i
         engine->state_mutex_.unlock();
         engine->detection_time_ = std::chrono::steady_clock::now();
         engine->HandleSessionEvent(event_id, data, event_size);
+    } else if (engine->eng_state_ == ENG_LOADED) {
+        engine->state_mutex_.unlock();
+        PAL_DBG(LOG_TAG, "Detection comes during engine stop, ignore and reset");
+        engine->UpdateSessionPayload(ENGINE_RESET);
     } else {
         engine->state_mutex_.unlock();
-        PAL_INFO(LOG_TAG, "Engine not active or buffering might be going on, ignore");
     }
 
     PAL_DBG(LOG_TAG, "Exit");

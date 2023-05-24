@@ -570,6 +570,7 @@ static ssize_t akm_selftest_show(struct device *dev,
 			input_err(true, &info->client->dev, "%s: failed to write reg: %02X ret: %d\n", __func__, reg, ret);
 			return ret;
 		}
+		input_info(true, &info->client->dev, "%s: set thd: reg:%02X: %02X %02X %02X %02X\n", __func__, reg, data[0], data[1], data[2], data[3]);
 	}
 	input_info(true, &info->client->dev, "%s: set threshold\n", __func__);
 
@@ -579,7 +580,7 @@ static ssize_t akm_selftest_show(struct device *dev,
 static DEVICE_ATTR(digital_hall_status, 0444, akm_status_show, NULL);
 static DEVICE_ATTR(digital_hall_info, 0444, akm_info_show, NULL);
 static DEVICE_ATTR(digital_hall_dbg, 0644, akm_dbg_show, NULL);
-static DEVICE_ATTR(digital_hall_thd, 0644, akm_thd_show, akm_thd_store);
+static DEVICE_ATTR(digital_hall_thd, 0664, akm_thd_show, akm_thd_store);
 static DEVICE_ATTR(digital_hall_dwork, 0644, akm_dwork_show, akm_dwork_store);
 static DEVICE_ATTR(selftest, 0444, akm_selftest_show, NULL);
 
@@ -596,7 +597,6 @@ static struct attribute *akm_attrs[] = {
 static struct attribute_group akm_attrs_group = {
 	.attrs = akm_attrs,
 };
-
 
 static int akm_setup_device_control(struct akm_info *info)
 {
@@ -704,14 +704,6 @@ static int akm_setup_device_control(struct akm_info *info)
 	ret = akm_read(info, &reg, 4, data);
 	input_info(true, &info->client->dev, "%s; ret: %d, (2) V: %02X %02X %02X %02X\n", __func__, ret, data[0], data[1], data[2], data[3]);
 
-	info->cal_value[0] = info->pdata->bop_x;
-	info->cal_value[1] = info->pdata->brp_x;
-
-	info->cal_value[2] = info->pdata->bop_y;
-	info->cal_value[3] = info->pdata->brp_y;
-
-	info->cal_value[4] = info->pdata->bop_z;
-	info->cal_value[5] = info->pdata->brp_z;
 	return 0;
 
 }
@@ -764,10 +756,18 @@ static void akm_power_control(struct akm_info *info, bool on)
 				input_err(true, &info->client->dev, "%s: failed to enable pullup: %d\n", __func__, ret);
 		}
 	} else {
-		regulator_disable(info->pdata->dvdd);
-		regulator_disable(info->pdata->pullup);
+		if (!IS_ERR_OR_NULL(info->pdata->dvdd)) {
+			ret = regulator_disable(info->pdata->dvdd);
+			if (ret)
+				input_err(true, &info->client->dev, "%s: failed to disable dvdd: %d\n", __func__, ret);
+		}
+		if (!IS_ERR_OR_NULL(info->pdata->pullup)) {
+			ret = regulator_disable(info->pdata->pullup);
+			if (ret)
+				input_err(true, &info->client->dev, "%s: failed to disable pullup: %d\n", __func__, ret);
+		}
 	}
-	if (IS_ERR_OR_NULL(info->pdata->dvdd))
+	if (!IS_ERR_OR_NULL(info->pdata->dvdd))
 		input_info(true, &info->client->dev, "%s: %s: dvdd:%s\n", __func__, on ? "on" : "off",
 				regulator_is_enabled(info->pdata->dvdd) ? "on" : "off");
 	if (!IS_ERR_OR_NULL(info->pdata->pullup))
@@ -880,6 +880,36 @@ static int akm_parse_dt(struct i2c_client *client)
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+static int akm_hall_ic_notify(struct notifier_block *nb,
+			unsigned long flip_cover, void *v)
+{
+	struct akm_info *info = container_of(nb, struct akm_info, hall_ic_nb);
+	struct hall_notifier_context *hall_notifier = (struct hall_notifier_context *)v;
+	int ret;
+
+	if (strncmp(hall_notifier->name, "flip", 4) != 0) {
+		input_info(true, &info->client->dev, "%s: %s\n", __func__, hall_notifier->name);
+		return 0;
+	}
+
+	if (!info->resume_done.done) {
+		ret = wait_for_completion_interruptible_timeout(&info->resume_done, msecs_to_jiffies(500));
+		if (ret <= 0) {
+			input_info(true, &info->client->dev, "%s: pm resume is not handled:%d\n", __func__, ret);
+			return -EIO;
+		}
+	}
+
+	ret = akm_read_status(info);
+	if (ret < 0) {
+		input_err(true, &info->client->dev, "%s: failed to read status: %d\n", __func__, ret);
+	}
+
+	return 0;
+}
+#endif
+
 static int akm_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	struct akm_info *info;
@@ -932,11 +962,23 @@ static int akm_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 	mutex_init(&info->i2c_lock);
 
+	init_completion(&info->resume_done);
+	complete_all(&info->resume_done);
+
 	akm_pinctrl_configure(info, true);
 
 	akm_power_control(info, true);
 
 	akm_setup_input_device(info);
+
+	info->cal_value[0] = info->pdata->bop_x;
+	info->cal_value[1] = info->pdata->brp_x;
+
+	info->cal_value[2] = info->pdata->bop_y;
+	info->cal_value[3] = info->pdata->brp_y;
+
+	info->cal_value[4] = info->pdata->bop_z;
+	info->cal_value[5] = info->pdata->brp_z;
 
 	akm_setup_device_control(info);
 
@@ -962,6 +1004,13 @@ static int akm_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	INIT_DELAYED_WORK(&info->dwork, akm_schedule_work);
 //	schedule_delayed_work(&info->dwork, msecs_to_jiffies(40));
 
+#if IS_ENABLED(CONFIG_HALL_NOTIFIER)
+	info->hall_ic_nb.priority = 1;
+	info->hall_ic_nb.notifier_call = akm_hall_ic_notify;
+	hall_notifier_register(&info->hall_ic_nb);
+	input_info(true, &info->client->dev, "%s: hall ic register\n", __func__);
+#endif
+
 	input_info(true, &info->client->dev, "%s: done\n", __func__);
 
 	return 0;
@@ -978,10 +1027,20 @@ static void akm_shutdown(struct i2c_client *client)
 }
 
 #ifdef CONFIG_PM
+static int akm_pm_suspend(struct device *dev)
+{
+	struct akm_info *info = dev_get_drvdata(dev);
+
+	reinit_completion(&info->resume_done);
+
+	return 0;
+}
+
 static int akm_pm_resume(struct device *dev)
 {
 	struct akm_info *info = dev_get_drvdata(dev);
 
+	complete_all(&info->resume_done);
 	akm_read_status(info);
 	akm_check_and_restore_thd(info);
 
@@ -989,6 +1048,7 @@ static int akm_pm_resume(struct device *dev)
 }
 
 static const struct dev_pm_ops akm_dev_pm_ops = {
+	.suspend = akm_pm_suspend,
 	.resume = akm_pm_resume,
 };
 #endif

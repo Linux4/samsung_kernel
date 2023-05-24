@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -169,6 +170,8 @@ static bool feature_handoff_mask[SDE_CP_CRTC_MAX_FEATURES] = {
 	[SDE_CP_CRTC_DSPP_SIXZONE] = 1,
 	[SDE_CP_CRTC_DSPP_GAMUT] = 1,
 	[SDE_CP_CRTC_DSPP_DITHER] = 1,
+	[SDE_CP_CRTC_DSPP_SPR_INIT] = 1,
+	[SDE_CP_CRTC_DSPP_DEMURA_INIT] = 1,
 };
 
 typedef void (*dspp_cap_update_func_t)(struct sde_crtc *crtc,
@@ -879,10 +882,10 @@ static int _set_spr_init_feature(struct sde_hw_dspp *hw_dspp,
 {
 	int ret = 0;
 
-	if (!sde_crtc || !hw_dspp || !hw_dspp->ops.setup_spr_init_config) {
+	if (!sde_crtc || !hw_dspp) {
 		DRM_ERROR("invalid arguments\n");
 		ret = -EINVAL;
-	} else {
+	} else if (hw_dspp->ops.setup_spr_init_config) {
 		hw_dspp->ops.setup_spr_init_config(hw_dspp, hw_cfg);
 		_update_pu_feature_enable(sde_crtc, SDE_CP_CRTC_DSPP_SPR_PU,
 				hw_cfg->payload != NULL);
@@ -897,15 +900,28 @@ static int _set_demura_feature(struct sde_hw_dspp *hw_dspp,
 {
 	int ret = 0;
 
-	if (!hw_dspp || !hw_dspp->ops.setup_demura_cfg) {
+	if (!sde_crtc || !hw_dspp) {
+		DRM_ERROR("invalid arguments\n");
 		ret = -EINVAL;
-	} else {
+	} else if (hw_dspp->ops.setup_demura_cfg) {
 		hw_dspp->ops.setup_demura_cfg(hw_dspp, hw_cfg);
 		_update_pu_feature_enable(sde_crtc, SDE_CP_CRTC_DSPP_DEMURA_PU,
 				hw_cfg->payload != NULL);
 	}
 
 	return ret;
+}
+
+static int _feature_unsupported(struct sde_hw_dspp *hw_dspp,
+				   struct sde_hw_cp_cfg *hw_cfg,
+				   struct sde_crtc *sde_crtc)
+{
+	if (!hw_dspp || !hw_cfg || !sde_crtc) {
+		DRM_ERROR("invalid argumets\n");
+		return -EINVAL;
+	}
+
+	return 0;
 }
 
 feature_wrapper check_crtc_feature_wrappers[SDE_CP_CRTC_MAX_FEATURES];
@@ -1635,6 +1651,7 @@ static void _sde_cp_crtc_commit_feature(struct sde_cp_node *prop_node,
 	int i = 0, ret = 0;
 	bool feature_enabled = false;
 	struct sde_mdss_cfg *catalog = NULL;
+	struct sde_crtc_state *sde_crtc_state;
 
 	memset(&hw_cfg, 0, sizeof(hw_cfg));
 	_sde_cp_get_cached_payload(prop_node, &hw_cfg, &feature_enabled);
@@ -1646,6 +1663,13 @@ static void _sde_cp_crtc_commit_feature(struct sde_cp_node *prop_node,
 	hw_cfg.skip_blend_plane = sde_crtc->skip_blend_plane;
 	hw_cfg.skip_blend_plane_h = sde_crtc->skip_blend_plane_h;
 	hw_cfg.skip_blend_plane_w = sde_crtc->skip_blend_plane_w;
+
+	sde_crtc_state = to_sde_crtc_state(sde_crtc->base.state);
+	if (!sde_crtc_state) {
+		DRM_ERROR("invalid sde_crtc_state %pK\n", sde_crtc_state);
+		return;
+	}
+	hw_cfg.num_ds_enabled = sde_crtc_state->num_ds_enabled;
 
 	SDE_EVT32(hw_cfg.panel_width, hw_cfg.panel_height);
 
@@ -2192,6 +2216,45 @@ exit:
 		sde_cp_disable_features(crtc);
 }
 
+void sde_cp_reset_unsupported_feature_wrappers(struct sde_mdss_cfg *catalog)
+{
+	if (!catalog) {
+		DRM_ERROR("invalid catalog\n");
+		return;
+	}
+
+	if (!catalog->rc_count) {
+		check_crtc_feature_wrappers[SDE_CP_CRTC_DSPP_RC_MASK] =
+			_feature_unsupported;
+		check_crtc_pu_feature_wrappers[SDE_CP_CRTC_DSPP_RC_PU] =
+			_feature_unsupported;
+		set_crtc_feature_wrappers[SDE_CP_CRTC_DSPP_RC_MASK] =
+			_feature_unsupported;
+		set_crtc_pu_feature_wrappers[SDE_CP_CRTC_DSPP_RC_PU] =
+			_feature_unsupported;
+	}
+
+	if (!catalog->demura_count) {
+		check_crtc_pu_feature_wrappers[SDE_CP_CRTC_DSPP_DEMURA_PU] =
+			_feature_unsupported;
+		set_crtc_feature_wrappers[SDE_CP_CRTC_DSPP_DEMURA_INIT] =
+			_feature_unsupported;
+		set_crtc_pu_feature_wrappers[SDE_CP_CRTC_DSPP_DEMURA_PU] =
+			_feature_unsupported;
+	}
+
+	if (!catalog->spr_count) {
+		check_crtc_pu_feature_wrappers[SDE_CP_CRTC_DSPP_SPR_PU] =
+			_feature_unsupported;
+		set_crtc_feature_wrappers[SDE_CP_CRTC_DSPP_SPR_INIT] =
+			_feature_unsupported;
+		set_crtc_pu_feature_wrappers[SDE_CP_CRTC_DSPP_SPR_PU] =
+			_feature_unsupported;
+	}
+
+	return;
+}
+
 void sde_cp_crtc_install_properties(struct drm_crtc *crtc)
 {
 	struct sde_kms *kms = NULL;
@@ -2249,6 +2312,7 @@ void sde_cp_crtc_install_properties(struct drm_crtc *crtc)
 		setup_check_crtc_pu_feature_wrappers(
 				check_crtc_pu_feature_wrappers);
 		setup_dspp_caps_funcs(dspp_cap_update_func);
+		sde_cp_reset_unsupported_feature_wrappers(catalog);
 	}
 	if (!priv->cp_property)
 		goto exit;
@@ -2612,12 +2676,11 @@ void sde_cp_crtc_destroy_properties(struct drm_crtc *crtc)
 	INIT_LIST_HEAD(&sde_crtc->ltm_buf_busy);
 }
 
-void sde_cp_crtc_suspend(struct drm_crtc *crtc)
+void sde_cp_crtc_mark_features_dirty(struct drm_crtc *crtc)
 {
 	struct sde_crtc *sde_crtc = NULL;
 	struct sde_cp_node *prop_node = NULL, *n = NULL;
 	bool ad_suspend = false;
-	unsigned long irq_flags;
 
 	if (!crtc) {
 		DRM_ERROR("crtc %pK\n", crtc);
@@ -2644,12 +2707,30 @@ void sde_cp_crtc_suspend(struct drm_crtc *crtc)
 	}
 	mutex_unlock(&sde_crtc->crtc_cp_lock);
 
+	if (ad_suspend)
+		_sde_cp_ad_set_prop(sde_crtc, AD_SUSPEND);
+}
+
+void sde_cp_crtc_suspend(struct drm_crtc *crtc)
+{
+	struct sde_crtc *sde_crtc = NULL;
+	unsigned long irq_flags;
+
+	if (!crtc) {
+		DRM_ERROR("crtc %pK\n", crtc);
+		return;
+	}
+	sde_crtc = to_sde_crtc(crtc);
+	if (!sde_crtc) {
+		DRM_ERROR("sde_crtc %pK\n", sde_crtc);
+		return;
+	}
+
+	sde_cp_crtc_mark_features_dirty(crtc);
+
 	spin_lock_irqsave(&sde_crtc->ltm_lock, irq_flags);
 	sde_crtc->ltm_hist_en = false;
 	spin_unlock_irqrestore(&sde_crtc->ltm_lock, irq_flags);
-
-	if (ad_suspend)
-		_sde_cp_ad_set_prop(sde_crtc, AD_SUSPEND);
 }
 
 void sde_cp_crtc_resume(struct drm_crtc *crtc)

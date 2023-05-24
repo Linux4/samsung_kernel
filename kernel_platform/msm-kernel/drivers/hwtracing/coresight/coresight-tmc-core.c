@@ -32,7 +32,7 @@ DEFINE_CORESIGHT_DEVLIST(etb_devs, "tmc_etb");
 DEFINE_CORESIGHT_DEVLIST(etf_devs, "tmc_etf");
 DEFINE_CORESIGHT_DEVLIST(etr_devs, "tmc_etr");
 
-void tmc_wait_for_tmcready(struct tmc_drvdata *drvdata)
+int tmc_wait_for_tmcready(struct tmc_drvdata *drvdata)
 {
 	struct coresight_device *csdev = drvdata->csdev;
 	struct csdev_access *csa = &csdev->access;
@@ -41,7 +41,10 @@ void tmc_wait_for_tmcready(struct tmc_drvdata *drvdata)
 	if (coresight_timeout(csa, TMC_STS, TMC_STS_TMCREADY_BIT, 1)) {
 		dev_err(&csdev->dev,
 			"timeout while waiting for TMC to be Ready\n");
+		return -EBUSY;
 	}
+
+	return 0;
 }
 
 void tmc_flush_and_stop(struct tmc_drvdata *drvdata)
@@ -422,7 +425,7 @@ static ssize_t out_mode_store(struct device *dev,
 }
 static DEVICE_ATTR_RW(out_mode);
 
-static struct attribute *coresight_tmc_attrs[] = {
+static struct attribute *coresight_tmc_etr_attrs[] = {
 	&dev_attr_trigger_cntr.attr,
 	&dev_attr_buffer_size.attr,
 	&dev_attr_block_size.attr,
@@ -430,17 +433,33 @@ static struct attribute *coresight_tmc_attrs[] = {
 	NULL,
 };
 
-static const struct attribute_group coresight_tmc_group = {
-	.attrs = coresight_tmc_attrs,
+static struct attribute *coresight_tmc_etf_attrs[] = {
+	&dev_attr_trigger_cntr.attr,
+	NULL,
 };
+
+static const struct attribute_group coresight_tmc_etr_group = {
+	.attrs = coresight_tmc_etr_attrs,
+};
+
+static const struct attribute_group coresight_tmc_etf_group = {
+	.attrs = coresight_tmc_etf_attrs,
+};
+
 
 static const struct attribute_group coresight_tmc_mgmt_group = {
 	.attrs = coresight_tmc_mgmt_attrs,
 	.name = "mgmt",
 };
 
-static const struct attribute_group *coresight_tmc_groups[] = {
-	&coresight_tmc_group,
+static const struct attribute_group *coresight_tmc_etr_groups[] = {
+	&coresight_tmc_etr_group,
+	&coresight_tmc_mgmt_group,
+	NULL,
+};
+
+static const struct attribute_group *coresight_tmc_etf_groups[] = {
+	&coresight_tmc_etf_group,
 	&coresight_tmc_mgmt_group,
 	NULL,
 };
@@ -565,19 +584,20 @@ static int tmc_probe(struct amba_device *adev, const struct amba_id *id)
 	}
 
 	desc.dev = dev;
-	desc.groups = coresight_tmc_groups;
 
 	switch (drvdata->config_type) {
 	case TMC_CONFIG_TYPE_ETB:
 		desc.type = CORESIGHT_DEV_TYPE_SINK;
 		desc.subtype.sink_subtype = CORESIGHT_DEV_SUBTYPE_SINK_BUFFER;
 		desc.ops = &tmc_etb_cs_ops;
+		desc.groups = coresight_tmc_etf_groups;
 		dev_list = &etb_devs;
 		break;
 	case TMC_CONFIG_TYPE_ETR:
 		desc.type = CORESIGHT_DEV_TYPE_SINK;
 		desc.subtype.sink_subtype = CORESIGHT_DEV_SUBTYPE_SINK_SYSMEM;
 		desc.ops = &tmc_etr_cs_ops;
+		desc.groups = coresight_tmc_etr_groups;
 		ret = tmc_etr_setup_caps(dev, devid,
 					 coresight_get_uci_data(id));
 		if (ret)
@@ -603,6 +623,7 @@ static int tmc_probe(struct amba_device *adev, const struct amba_id *id)
 		desc.subtype.sink_subtype = CORESIGHT_DEV_SUBTYPE_SINK_BUFFER;
 		desc.subtype.link_subtype = CORESIGHT_DEV_SUBTYPE_LINK_FIFO;
 		desc.ops = &tmc_etf_cs_ops;
+		desc.groups = coresight_tmc_etf_groups;
 		dev_list = &etf_devs;
 		break;
 	default:

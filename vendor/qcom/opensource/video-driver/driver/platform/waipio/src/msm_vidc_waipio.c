@@ -18,6 +18,8 @@
 #define MAX_BASE_LAYER_PRIORITY_ID 63
 #define MAX_BITRATE             220000000
 #define DEFAULT_BITRATE         20000000
+#define MINIMUM_FPS             1
+#define MAXIMUM_FPS             960
 #define MIN_QP_10BIT            -12
 #define MIN_QP_8BIT             0
 #define MAX_QP                  51
@@ -100,6 +102,7 @@ static struct msm_platform_core_capability core_data_waipio[] = {
 	{AV_SYNC_WINDOW_SIZE, 40},
 	{NON_FATAL_FAULTS, 1},
 	{ENC_AUTO_FRAMERATE, 1},
+	{MMRM, 1},
 };
 
 static struct msm_platform_inst_capability instance_data_waipio[] = {
@@ -387,8 +390,8 @@ static struct msm_platform_inst_capability instance_data_waipio[] = {
 		{0},
 		{LTR_COUNT, IR_RANDOM, TIME_DELTA_BASED_RC, I_FRAME_QP,
 			P_FRAME_QP, B_FRAME_QP, ENH_LAYER_COUNT, BIT_RATE,
-			CONTENT_ADAPTIVE_CODING, BITRATE_BOOST, MIN_QUALITY,
-			VBV_DELAY, PEAK_BITRATE,SLICE_MODE, META_ROI_INFO,
+			META_ROI_INFO, MIN_QUALITY, BITRATE_BOOST, VBV_DELAY,
+			PEAK_BITRATE, SLICE_MODE, CONTENT_ADAPTIVE_CODING,
 			BLUR_TYPES, LOWLATENCY_MODE},
 		msm_vidc_adjust_bitrate_mode, msm_vidc_set_u32_enum},
 
@@ -405,10 +408,9 @@ static struct msm_platform_inst_capability instance_data_waipio[] = {
 		{0},
 		{LTR_COUNT, IR_RANDOM, TIME_DELTA_BASED_RC, I_FRAME_QP,
 			P_FRAME_QP, B_FRAME_QP, CONSTANT_QUALITY, ENH_LAYER_COUNT,
-			CONTENT_ADAPTIVE_CODING, BIT_RATE,
-			BITRATE_BOOST, MIN_QUALITY, VBV_DELAY,
-			PEAK_BITRATE, SLICE_MODE, META_ROI_INFO, BLUR_TYPES,
-			LOWLATENCY_MODE},
+			BIT_RATE, META_ROI_INFO, MIN_QUALITY, BITRATE_BOOST, VBV_DELAY,
+			PEAK_BITRATE, SLICE_MODE, CONTENT_ADAPTIVE_CODING,
+			BLUR_TYPES, LOWLATENCY_MODE},
 		msm_vidc_adjust_bitrate_mode, msm_vidc_set_u32_enum},
 
 	{LOSSLESS, ENC, HEVC,
@@ -526,7 +528,7 @@ static struct msm_platform_inst_capability instance_data_waipio[] = {
 		1, V4L2_MPEG_MSM_VIDC_DISABLE,
 		V4L2_CID_MPEG_VIDC_LOWLATENCY_REQUEST,
 		HFI_PROP_SEQ_CHANGE_AT_SYNC_FRAME,
-		CAP_FLAG_INPUT_PORT | CAP_FLAG_DYNAMIC_ALLOWED},
+		CAP_FLAG_INPUT_PORT},
 
 	{LTR_COUNT, ENC, H264|HEVC,
 		0, 2, 1, 0,

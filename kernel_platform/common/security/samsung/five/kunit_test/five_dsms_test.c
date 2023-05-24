@@ -7,7 +7,7 @@
  */
 #include <kunit/test.h>
 #include <kunit/mock.h>
-
+#include "test_helpers.h"
 #include "five.h"
 
 void five_dsms_sign_err(const char *app, int result);
@@ -41,12 +41,12 @@ static char comm[TASK_COMM_LEN];
 static int result;
 static char dsms_msg[MESSAGE_BUFFER_SIZE];
 
-static struct mock_expectation *setup_expect_call(struct test *test,
+static struct mock_expectation *setup_expect_call(struct kunit *test,
 	char *comm, int result, int event_count, int n_calls)
 {
 	snprintf(dsms_msg, MESSAGE_BUFFER_SIZE, "%s res = %d count = %d",
 		comm, result, event_count);  // generate appropriate gold msg
-	return Times(n_calls, Returns(EXPECT_CALL(five_dsms_msg(
+	return Times(n_calls, KunitReturns(KUNIT_EXPECT_CALL(five_dsms_msg(
 	    streq(test, "FIV3"), streq(test, dsms_msg))), int_return(test, 0)));
 }
 
@@ -59,14 +59,14 @@ static void init_param(int comm_offs, int res, char *comm, int *p_result)
 	comm[TASK_COMM_LEN-1] = '\0';
 }
 
-static void five_dsms_sign_err_first0_test(struct test *test)
+static void five_dsms_sign_err_first0_test(struct kunit *test)
 {
 	init_param(PARAM_COMM_RAND, PARAM_RESULT_RAND, comm, &result);
 	setup_expect_call(test, comm, result, FIV3_FIRST, 1);
 	five_dsms_sign_err(comm, result);
 }
 
-static void five_dsms_sign_err_first1_test(struct test *test)
+static void five_dsms_sign_err_first1_test(struct kunit *test)
 {
 	int i;
 
@@ -75,13 +75,13 @@ static void five_dsms_sign_err_first1_test(struct test *test)
 		five_dsms_sign_err(comm, result);
 }
 
-static void five_dsms_sign_err_few0_test(struct test *test)
+static void five_dsms_sign_err_few0_test(struct kunit *test)
 {
 	setup_expect_call(test, comm, result, FIV3_FEW, 1);
 	five_dsms_sign_err(comm, result);
 }
 
-static void five_dsms_sign_err_few1_test(struct test *test)
+static void five_dsms_sign_err_few1_test(struct kunit *test)
 {
 	int i;
 
@@ -90,13 +90,13 @@ static void five_dsms_sign_err_few1_test(struct test *test)
 		five_dsms_sign_err(comm, result);
 }
 
-static void five_dsms_sign_err_lot0_test(struct test *test)
+static void five_dsms_sign_err_lot0_test(struct kunit *test)
 {
 	setup_expect_call(test, comm, result, FIV3_LOT, 1);
 	five_dsms_sign_err(comm, result);
 }
 
-static void five_dsms_sign_err_lot1_test(struct test *test)
+static void five_dsms_sign_err_lot1_test(struct kunit *test)
 {
 	int i;
 
@@ -105,11 +105,11 @@ static void five_dsms_sign_err_lot1_test(struct test *test)
 		five_dsms_sign_err(comm, result);
 }
 
-static void five_dsms_sign_err_all_events_test(struct test *test)
+static void five_dsms_sign_err_all_events_test(struct kunit *test)
 {
 	int i;
 
-	Times(MAX_FIV1_NUM-1, Returns(EXPECT_CALL(five_dsms_msg(
+	Times(MAX_FIV1_NUM-1, KunitReturns(KUNIT_EXPECT_CALL(five_dsms_msg(
 		streq(test, "FIV3"), any(test))), int_return(test, 0)));
 	init_param(PARAM_COMM_RAND, PARAM_RESULT_RAND + 1, comm, &result);
 	five_dsms_sign_err(comm, result);
@@ -122,18 +122,18 @@ static void five_dsms_sign_err_all_events_test(struct test *test)
 	}
 }
 
-static void five_dsms_sign_err_send_overflow_test(struct test *test)
+static void five_dsms_sign_err_send_overflow_test(struct kunit *test)
 {
-	Returns(EXPECT_CALL(five_dsms_msg(streq(test, "FIV3"),
+	KunitReturns(KUNIT_EXPECT_CALL(five_dsms_msg(streq(test, "FIV3"),
 		streq(test, "data buffer overflow"))), int_return(test, 0));
 	init_param(PARAM_COMM_RAND, PARAM_RESULT_RAND + MAX_FIV1_NUM, comm,
 		&result);
 	five_dsms_sign_err(comm, result);
 }
 
-static void five_dsms_sign_err_dont_send_overflow_test(struct test *test)
+static void five_dsms_sign_err_dont_send_overflow_test(struct kunit *test)
 {
-	Times(0, Returns(EXPECT_CALL(five_dsms_msg(
+	Times(0, KunitReturns(KUNIT_EXPECT_CALL(five_dsms_msg(
 		streq(test, "FIV3"), any(test))), int_return(test, 0)));
 	init_param(PARAM_COMM_RAND, PARAM_RESULT_RAND + MAX_FIV1_NUM, comm,
 		&result);
@@ -143,66 +143,66 @@ static void five_dsms_sign_err_dont_send_overflow_test(struct test *test)
 	five_dsms_sign_err(comm, result);
 }
 
-static void five_dsms_reset_integrity_send_msg0_test(struct test *test)
+static void five_dsms_reset_integrity_send_msg0_test(struct kunit *test)
 {
 	char *file_name = FILE_NAME_0;
 
 	init_param(PARAM_COMM_RAND, PARAM_RESULT_RAND, comm, &result);
 	snprintf(dsms_msg, MESSAGE_BUFFER_SIZE, "%s|%d|%s", comm, result,
 		 file_name ? kbasename(file_name) : "");
-	Returns(EXPECT_CALL(five_dsms_msg(
-	     streq(test, "FIV2"), streq(test, dsms_msg))), int_return(test, 0));
-	Returns(EXPECT_CALL(call_crc16(int_eq(test, 0), streq(test, dsms_msg),
-				       int_lt(test, MESSAGE_BUFFER_SIZE))),
+	KunitReturns(KUNIT_EXPECT_CALL(five_dsms_msg(streq(test, "FIV2"),
+		streq(test, dsms_msg))), int_return(test, 0));
+	KunitReturns(KUNIT_EXPECT_CALL(call_crc16(int_eq(test, 0),
+		streq(test, dsms_msg), int_lt(test, MESSAGE_BUFFER_SIZE))),
 		u32_return(test, CRC_VALUE_NO_MATTER));
 	five_dsms_reset_integrity(comm, result, file_name);
 }
 
-static void five_dsms_reset_integrity_send_msg1_test(struct test *test)
+static void five_dsms_reset_integrity_send_msg1_test(struct kunit *test)
 {
 	char *file_name = FILE_NAME_0;
 
 	init_param(PARAM_COMM_RAND + 1, PARAM_RESULT_RAND, comm, &result);
 	snprintf(dsms_msg, MESSAGE_BUFFER_SIZE, "%s|%d|%s", comm, result,
 		file_name ? kbasename(file_name) : "");
-	Returns(EXPECT_CALL(five_dsms_msg(
+	KunitReturns(KUNIT_EXPECT_CALL(five_dsms_msg(
 	     streq(test, "FIV2"), streq(test, dsms_msg))), int_return(test, 0));
-	Returns(EXPECT_CALL(call_crc16(int_eq(test, 0), streq(test, dsms_msg),
-				       int_lt(test, MESSAGE_BUFFER_SIZE))),
+	KunitReturns(KUNIT_EXPECT_CALL(call_crc16(int_eq(test, 0),
+		streq(test, dsms_msg), int_lt(test, MESSAGE_BUFFER_SIZE))),
 		u32_return(test, CRC_VALUE_NO_MATTER + 1));
 	five_dsms_reset_integrity(comm, result, file_name);
 }
 
-static void five_dsms_reset_integrity_send_msg2_test(struct test *test)
+static void five_dsms_reset_integrity_send_msg2_test(struct kunit *test)
 {
 	char *file_name = FILE_NAME_0;
 
 	init_param(PARAM_COMM_RAND, PARAM_RESULT_RAND + 1, comm, &result);
 	snprintf(dsms_msg, MESSAGE_BUFFER_SIZE, "%s|%d|%s", comm, result,
 		file_name ? kbasename(file_name) : "");
-	Returns(EXPECT_CALL(five_dsms_msg(
+	KunitReturns(KUNIT_EXPECT_CALL(five_dsms_msg(
 	     streq(test, "FIV2"), streq(test, dsms_msg))), int_return(test, 0));
-	Returns(EXPECT_CALL(call_crc16(int_eq(test, 0), streq(test, dsms_msg),
-				       int_lt(test, MESSAGE_BUFFER_SIZE))),
+	KunitReturns(KUNIT_EXPECT_CALL(call_crc16(int_eq(test, 0),
+		streq(test, dsms_msg), int_lt(test, MESSAGE_BUFFER_SIZE))),
 		u32_return(test, CRC_VALUE_NO_MATTER + 2));
 	five_dsms_reset_integrity(comm, result, file_name);
 }
 
-static void five_dsms_reset_integrity_two_same_msg_test(struct test *test)
+static void five_dsms_reset_integrity_two_same_msg_test(struct kunit *test)
 {
 	char *file_name = FILE_NAME_1;
 
 	init_param(PARAM_COMM_RAND, PARAM_RESULT_RAND, comm, &result);
-	Returns(EXPECT_CALL(five_dsms_msg(
+	KunitReturns(KUNIT_EXPECT_CALL(five_dsms_msg(
 		streq(test, "FIV2"), any(test))), int_return(test, 0));
-	Times(2, Returns(EXPECT_CALL(call_crc16(
+	Times(2, KunitReturns(KUNIT_EXPECT_CALL(call_crc16(
 		int_eq(test, 0), any(test), int_lt(test, MESSAGE_BUFFER_SIZE))),
 		u32_return(test, CRC_VALUE_NO_MATTER + 3)));
 	five_dsms_reset_integrity(comm, result, file_name);
 	five_dsms_reset_integrity(comm, result, file_name);
 }
 
-static void five_dsms_reset_integrity_large_filename_test(struct test *test)
+static void five_dsms_reset_integrity_large_filename_test(struct kunit *test)
 {
 	int i;
 	char large_file_name[LARGE_FILE_NAME_SIZE];
@@ -216,16 +216,16 @@ static void five_dsms_reset_integrity_large_filename_test(struct test *test)
 	snprintf(dsms_msg, MESSAGE_BUFFER_SIZE, "%s|%d|%s", comm, result,
 		kbasename(large_file_name));
 
-	Returns(EXPECT_CALL(five_dsms_msg(
+	KunitReturns(KUNIT_EXPECT_CALL(five_dsms_msg(
 	     streq(test, "FIV2"), streq(test, dsms_msg))), int_return(test, 0));
-	Returns(EXPECT_CALL(call_crc16(int_eq(test, 0), streq(test, dsms_msg),
-				       int_lt(test, MESSAGE_BUFFER_SIZE))),
+	KunitReturns(KUNIT_EXPECT_CALL(call_crc16(int_eq(test, 0),
+		streq(test, dsms_msg), int_lt(test, MESSAGE_BUFFER_SIZE))),
 		u32_return(test, CRC_VALUE_NO_MATTER + 4));
 
 	five_dsms_reset_integrity(comm, result, large_file_name);
 }
 
-static void five_dsms_reset_integrity_large_comm_test(struct test *test)
+static void five_dsms_reset_integrity_large_comm_test(struct kunit *test)
 {
 	int i;
 	char file_name[] = FILE_NAME_2;  // correct filename
@@ -239,47 +239,50 @@ static void five_dsms_reset_integrity_large_comm_test(struct test *test)
 	snprintf(dsms_msg, MESSAGE_BUFFER_SIZE, "%s|%d|%s", large_comm, result,
 		kbasename(file_name));
 
-	Returns(EXPECT_CALL(five_dsms_msg(
+	KunitReturns(KUNIT_EXPECT_CALL(five_dsms_msg(
 	     streq(test, "FIV2"), streq(test, dsms_msg))), int_return(test, 0));
-	Returns(EXPECT_CALL(call_crc16(int_eq(test, 0), streq(test, dsms_msg),
-				       int_lt(test, MESSAGE_BUFFER_SIZE))),
+	KunitReturns(KUNIT_EXPECT_CALL(call_crc16(int_eq(test, 0),
+		streq(test, dsms_msg), int_lt(test, MESSAGE_BUFFER_SIZE))),
 		u32_return(test, CRC_VALUE_NO_MATTER + 5));
 
 	five_dsms_reset_integrity(large_comm, result, file_name);
 }
 
-static int five_dsms_test_init(struct test *test)
+static int five_dsms_test_init(struct kunit *test)
 {
 	return 0;
 }
 
-static void five_dsms_test_exit(struct test *test)
+static void five_dsms_test_exit(struct kunit *test)
 {
 }
 
-static struct test_case five_dsms_test_cases[] = {
-	TEST_CASE(five_dsms_sign_err_first0_test),
-	TEST_CASE(five_dsms_sign_err_first1_test),
-	TEST_CASE(five_dsms_sign_err_few0_test),
-	TEST_CASE(five_dsms_sign_err_few1_test),
-	TEST_CASE(five_dsms_sign_err_lot0_test),
-	TEST_CASE(five_dsms_sign_err_lot1_test),
-	TEST_CASE(five_dsms_sign_err_all_events_test),
-	TEST_CASE(five_dsms_sign_err_send_overflow_test),
-	TEST_CASE(five_dsms_sign_err_dont_send_overflow_test),
-	TEST_CASE(five_dsms_reset_integrity_send_msg0_test),
-	TEST_CASE(five_dsms_reset_integrity_send_msg1_test),
-	TEST_CASE(five_dsms_reset_integrity_send_msg2_test),
-	TEST_CASE(five_dsms_reset_integrity_two_same_msg_test),
-	TEST_CASE(five_dsms_reset_integrity_large_filename_test),
-	TEST_CASE(five_dsms_reset_integrity_large_comm_test),
+static struct kunit_case five_dsms_test_cases[] = {
+	KUNIT_CASE(five_dsms_sign_err_first0_test),
+	KUNIT_CASE(five_dsms_sign_err_first1_test),
+	KUNIT_CASE(five_dsms_sign_err_few0_test),
+	KUNIT_CASE(five_dsms_sign_err_few1_test),
+	KUNIT_CASE(five_dsms_sign_err_lot0_test),
+	KUNIT_CASE(five_dsms_sign_err_lot1_test),
+	KUNIT_CASE(five_dsms_sign_err_all_events_test),
+	KUNIT_CASE(five_dsms_sign_err_send_overflow_test),
+	KUNIT_CASE(five_dsms_sign_err_dont_send_overflow_test),
+	KUNIT_CASE(five_dsms_reset_integrity_send_msg0_test),
+	KUNIT_CASE(five_dsms_reset_integrity_send_msg1_test),
+	KUNIT_CASE(five_dsms_reset_integrity_send_msg2_test),
+	KUNIT_CASE(five_dsms_reset_integrity_two_same_msg_test),
+	KUNIT_CASE(five_dsms_reset_integrity_large_filename_test),
+	KUNIT_CASE(five_dsms_reset_integrity_large_comm_test),
 	{},
 };
 
-static struct test_module five_dsms_test_module = {
+static struct kunit_suite five_dsms_test_module = {
 	.name = "five_dsms_test",
 	.init = five_dsms_test_init,
 	.exit = five_dsms_test_exit,
 	.test_cases = five_dsms_test_cases,
 };
-module_test(five_dsms_test_module);
+
+kunit_test_suites(&five_dsms_test_module);
+
+MODULE_LICENSE("GPL v2");

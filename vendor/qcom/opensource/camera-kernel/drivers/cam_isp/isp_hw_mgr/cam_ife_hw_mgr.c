@@ -3250,6 +3250,7 @@ static int cam_ife_hw_mgr_acquire_res_ife_csid_pxl(
 		csid_acquire.cb_priv = ife_ctx;
 		csid_acquire.crop_enable = crop_enable;
 		csid_acquire.drop_enable = false;
+		csid_acquire.secure_mode = csid_res->is_secure;
 
 		if (csid_res->is_dual_isp)
 			csid_acquire.sync_mode = i == CAM_ISP_HW_SPLIT_LEFT ?

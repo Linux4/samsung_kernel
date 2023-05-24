@@ -28,6 +28,9 @@
  */
 
 
+#ifdef LINUX_ENABLED
+#include <algorithm>
+#endif
 #include "PalRingBuffer.h"
 #include "PalCommon.h"
 #define LOG_TAG "PAL: PalRingBuffer"

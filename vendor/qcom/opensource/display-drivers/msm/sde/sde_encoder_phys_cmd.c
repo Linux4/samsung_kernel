@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -308,8 +309,8 @@ static void sde_encoder_phys_cmd_te_rd_ptr_irq(void *arg, int irq_idx)
 	if (vdd && info[0].wr_ptr_line_count > (phys_enc->cached_mode.vdisplay/3) &&
 			info[0].wr_ptr_line_count < ctrl->ctrl->roi.h) {
 		SS_XLOG(info[0].wr_ptr_line_count, ++vdd->cnt_mdp_clk_underflow);
-		SDE_ERROR("mdp clock underrun: wr: %d, cnt: %d, roi.h=%d\n",
-				info[0].wr_ptr_line_count, vdd->cnt_mdp_clk_underflow, ctrl->ctrl->roi.h);
+		SDE_INFO("mdp wr_ptr_line_count check : cnt [%d] [%d / %d]\n",
+				vdd->cnt_mdp_clk_underflow, info[0].wr_ptr_line_count, ctrl->ctrl->roi.h);
 	}
 
 	if (vdd && vdd->vrr.support_te_mod && vdd->vrr.te_mod_on && vdd->vrr.te_mod_divider > 0) {
@@ -469,7 +470,7 @@ static void sde_encoder_phys_cmd_cont_splash_mode_set(
 static void sde_encoder_phys_cmd_mode_set(
 		struct sde_encoder_phys *phys_enc,
 		struct drm_display_mode *mode,
-		struct drm_display_mode *adj_mode)
+		struct drm_display_mode *adj_mode, bool *reinit_mixers)
 {
 	struct sde_encoder_phys_cmd *cmd_enc =
 		to_sde_encoder_phys_cmd(phys_enc);
@@ -490,8 +491,14 @@ static void sde_encoder_phys_cmd_mode_set(
 	/* Retrieve previously allocated HW Resources. Shouldn't fail */
 	sde_rm_init_hw_iter(&iter, phys_enc->parent->base.id, SDE_HW_BLK_CTL);
 	for (i = 0; i <= instance; i++) {
-		if (sde_rm_get_hw(rm, &iter))
+		if (sde_rm_get_hw(rm, &iter)) {
+			if (phys_enc->hw_ctl && phys_enc->hw_ctl != iter.hw) {
+				*reinit_mixers =  true;
+				SDE_EVT32(phys_enc->hw_ctl->idx,
+					((struct sde_hw_ctl *)iter.hw)->idx);
+			}
 			phys_enc->hw_ctl = (struct sde_hw_ctl *)iter.hw;
+		}
 	}
 
 	if (IS_ERR_OR_NULL(phys_enc->hw_ctl)) {
@@ -587,14 +594,13 @@ static int _sde_encoder_phys_cmd_handle_ppdone_timeout(
 		phys_enc->hw_ctl->idx - CTL_0,
 		pending_kickoff_cnt);
 
-	SDE_EVT32(DRMID(phys_enc->parent), SDE_EVTLOG_FATAL);
-	SDE_DBG_DUMP(SDE_DBG_BUILT_IN_ALL, "panic");
-#endif
-
 	/* check if panel is still sending TE signal or not */
 	if (sde_connector_esd_status(phys_enc->connector))
 		goto exit;
 
+	SDE_EVT32(DRMID(phys_enc->parent), SDE_EVTLOG_FATAL);
+	SDE_DBG_DUMP(SDE_DBG_BUILT_IN_ALL, "panic");
+#endif
 	/* to avoid flooding, only log first time, and "dead" time */
 	if (cmd_enc->pp_timeout_report_cnt == 1) {
 		SDE_ERROR_CMDENC(cmd_enc,
@@ -1237,6 +1243,24 @@ skip_flush:
 	return;
 }
 
+static void sde_encoder_phys_cmd_reset_tear_init_line_val(struct sde_encoder_phys *phys_enc)
+{
+	u32 tear_init_val;
+	struct sde_hw_intf *hw_intf;
+
+	if (!phys_enc->hw_intf || !phys_enc->cached_mode.vdisplay)
+		return;
+
+	hw_intf = phys_enc->hw_intf;
+	tear_init_val = phys_enc->cached_mode.vdisplay + DEFAULT_TEARCHECK_SYNC_THRESH_START + 1;
+
+	SDE_EVT32(DRMID(phys_enc->parent), tear_init_val);
+
+	/* this reset will be needed to avoid any spurious rd_ptr_irq from tearcheck block*/
+	if (hw_intf->ops.reset_tear_init_line_val)
+		hw_intf->ops.reset_tear_init_line_val(hw_intf, tear_init_val);
+}
+
 static void sde_encoder_phys_cmd_enable(struct sde_encoder_phys *phys_enc)
 {
 	struct sde_encoder_phys_cmd *cmd_enc =
@@ -1257,6 +1281,7 @@ static void sde_encoder_phys_cmd_enable(struct sde_encoder_phys *phys_enc)
 
 	sde_encoder_phys_cmd_enable_helper(phys_enc);
 	phys_enc->enable_state = SDE_ENC_ENABLED;
+	sde_encoder_phys_cmd_reset_tear_init_line_val(phys_enc);
 }
 
 static bool sde_encoder_phys_cmd_is_autorefresh_enabled(
@@ -2049,6 +2074,7 @@ static void sde_encoder_phys_cmd_init_ops(struct sde_encoder_phys_ops *ops)
 	ops->setup_misr = sde_encoder_helper_setup_misr;
 	ops->collect_misr = sde_encoder_helper_collect_misr;
 	ops->add_to_minidump = sde_encoder_phys_cmd_add_enc_to_minidump;
+	ops->reset_tearcheck_rd_ptr = sde_encoder_phys_cmd_reset_tear_init_line_val;
 }
 
 static inline bool sde_encoder_phys_cmd_intf_te_supported(

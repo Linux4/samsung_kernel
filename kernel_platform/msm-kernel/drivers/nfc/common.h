@@ -1,6 +1,6 @@
 /******************************************************************************
  * Copyright (C) 2015, The Linux Foundation. All rights reserved.
- * Copyright (C) 2019-2021 NXP
+ * Copyright (C) 2019-2022 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -76,19 +76,17 @@
 #define NCI_CMD_RSP_TIMEOUT_MS		(2000)
 /* Time to wait for NFCC to be ready again after any change in the GPIO */
 #define NFC_GPIO_SET_WAIT_TIME_US	(15000)
-/* Time to wait for IRQ low during write 5*3ms */
-#define NFC_WRITE_IRQ_WAIT_TIME_US	(3000)
-/* Time to wait before retrying i2c/I3C writes */
-#define WRITE_RETRY_WAIT_TIME_US	(1000)
+/* Time to wait before retrying writes */
+#define WRITE_RETRY_WAIT_TIME_US	(3000)
 /* Time to wait before retrying read for some specific usecases */
 #define READ_RETRY_WAIT_TIME_US		(3500)
 #define NFC_MAGIC			(0xE9)
 
 /* Ioctls */
 /* The type should be aligned with MW HAL definitions */
-#define NFC_SET_PWR			_IOW(NFC_MAGIC, 0x01, long)
-#define ESE_SET_PWR			_IOW(NFC_MAGIC, 0x02, long)
-#define ESE_GET_PWR			_IOR(NFC_MAGIC, 0x03, long)
+#define NFC_SET_PWR			_IOW(NFC_MAGIC, 0x01, uint64_t)
+#define ESE_SET_PWR			_IOW(NFC_MAGIC, 0x02, uint64_t)
+#define ESE_GET_PWR			_IOR(NFC_MAGIC, 0x03, uint64_t)
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 #define CONFIG_SAMSUNG_NFC_DEBUG
@@ -112,9 +110,9 @@ enum lpm_status {
 	LPM_TRUE
 };
 #else
-#define DTS_IRQ_GPIO_STR		"nxp,pn544-irq"
-#define DTS_VEN_GPIO_STR		"nxp,pn544-ven"
-#define DTS_FWDN_GPIO_STR		"nxp,pn544-fw-dwnld"
+#define DTS_IRQ_GPIO_STR		"nxp,sn-irq"
+#define DTS_VEN_GPIO_STR		"nxp,sn-ven-rstn"
+#define DTS_FWDN_GPIO_STR		"nxp,sn-dwl-req"
 #endif
 
 #ifndef CONFIG_SEC_NFC_LOGGER
@@ -267,6 +265,8 @@ struct nfc_dev {
 int nfc_dev_open(struct inode *inode, struct file *filp);
 int nfc_dev_flush(struct file *pfile, fl_owner_t id);
 int nfc_dev_close(struct inode *inode, struct file *filp);
+long nfc_dev_compat_ioctl(struct file *pfile, unsigned int cmd,
+		      unsigned long arg);
 long nfc_dev_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg);
 int nfc_parse_dt(struct device *dev, struct platform_configs *nfc_configs,
 		 uint8_t interface);
@@ -279,7 +279,7 @@ void gpio_set_ven(struct nfc_dev *nfc_dev, int value);
 void gpio_free_all(struct nfc_dev *nfc_dev);
 int validate_nfc_state_nci(struct nfc_dev *nfc_dev);
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
-int nfc_regulator_onoff(struct platform_configs *nfc_configs, int onoff);
+int nfc_regulator_onoff(struct nfc_dev *nfc_dev, int onoff);
 void nfc_power_control(struct nfc_dev *nfc_dev);
 void nfc_print_status(void);
 void nfc_probe_done(struct nfc_dev *nfc_dev);

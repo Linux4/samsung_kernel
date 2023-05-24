@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2008-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __ADRENO_H
 #define __ADRENO_H
@@ -110,6 +111,9 @@
 #define ADRENO_BCL BIT(12)
 /* L3 voting is supported with L3 constraints */
 #define ADRENO_L3_VOTE BIT(13)
+/* Late Stage Reprojection (LSR) enablment for GMU */
+#define ADRENO_LSR BIT(15)
+
 
 /*
  * Adreno GPU quirks - control bits for various workarounds
@@ -186,6 +190,7 @@ enum adreno_gpurev {
 	ADRENO_REV_A618 = 618,
 	ADRENO_REV_A619 = 619,
 	ADRENO_REV_A620 = 620,
+	ADRENO_REV_A621 = 621,
 	ADRENO_REV_A630 = 630,
 	ADRENO_REV_A635 = 635,
 	ADRENO_REV_A640 = 640,
@@ -201,6 +206,8 @@ enum adreno_gpurev {
 	 */
 	ADRENO_REV_GEN7_0_0 = 0x070000,
 	ADRENO_REV_GEN7_0_1 = 0x070001,
+	ADRENO_REV_GEN7_4_0 = 0x070400,
+	ADRENO_REV_GEN7_3_0 = 0x070300,
 };
 
 #define ADRENO_SOFT_FAULT BIT(0)
@@ -592,6 +599,10 @@ struct adreno_device {
 	bool gpu_llc_slice_enable;
 	void *gpuhtw_llc_slice;
 	bool gpuhtw_llc_slice_enable;
+	/** @gpumv_llc_slice: GPU MV buffer system cache slice descriptor*/
+	void *gpumv_llc_slice;
+	/** @gpumv_llc_slice_enable: To enable GPUMV buffer system cache slice or not */
+	bool gpumv_llc_slice_enable;
 	unsigned int zap_loaded;
 	/**
 	 * @critpkts: Memory descriptor for 5xx critical packets if applicable
@@ -628,6 +639,8 @@ struct adreno_device {
 	 * controls perfcounter ioctl read
 	 */
 	bool perfcounter;
+	/** @gmu_hub_clk_freq: Gmu hub interface clock frequency */
+	u64 gmu_hub_clk_freq;
 };
 
 /**
@@ -833,6 +846,15 @@ struct adreno_gpudev {
 	int (*setproperty)(struct kgsl_device_private *priv, u32 type,
 		void __user *value, u32 sizebytes);
 	int (*add_to_va_minidump)(struct adreno_device *adreno_dev);
+	/**
+	 * @gx_is_on - Return true if both gfx clock and gxgdsc are enabled.
+	 */
+	bool (*gx_is_on)(struct adreno_device *adreno_dev);
+	/**
+	 * @send_recurring_cmdobj - Target specific function to send recurring IBs to GMU
+	 */
+	int (*send_recurring_cmdobj)(struct adreno_device *adreno_dev,
+		struct kgsl_drawobj_cmd *cmdobj);
 };
 
 /**
@@ -944,6 +966,7 @@ void adreno_cx_misc_regrmw(struct adreno_device *adreno_dev,
 		unsigned int mask, unsigned int bits);
 void adreno_isense_regread(struct adreno_device *adreno_dev,
 		unsigned int offsetwords, unsigned int *value);
+bool adreno_gx_is_on(struct adreno_device *adreno_dev);
 
 /**
  * adreno_active_count_get - Wrapper for target specific active count get
@@ -1035,7 +1058,7 @@ ADRENO_TARGET(a610, ADRENO_REV_A610)
 ADRENO_TARGET(a612, ADRENO_REV_A612)
 ADRENO_TARGET(a618, ADRENO_REV_A618)
 ADRENO_TARGET(a619, ADRENO_REV_A619)
-ADRENO_TARGET(a620, ADRENO_REV_A620)
+ADRENO_TARGET(a621, ADRENO_REV_A621)
 ADRENO_TARGET(a630, ADRENO_REV_A630)
 ADRENO_TARGET(a635, ADRENO_REV_A635)
 ADRENO_TARGET(a662, ADRENO_REV_A662)
@@ -1078,7 +1101,7 @@ static inline int adreno_is_a640_family(struct adreno_device *adreno_dev)
 /*
  * Derived GPUs from A650 needs to be added to this list.
  * A650 is derived from A640 but register specs has been
- * changed hence do not belongs to A640 family. A620,
+ * changed hence do not belongs to A640 family. A620, A621,
  * A660, A690 follows the register specs of A650.
  *
  */
@@ -1088,7 +1111,7 @@ static inline int adreno_is_a650_family(struct adreno_device *adreno_dev)
 
 	return (rev == ADRENO_REV_A650 || rev == ADRENO_REV_A620 ||
 		rev == ADRENO_REV_A660 || rev == ADRENO_REV_A635 ||
-		rev == ADRENO_REV_A662);
+		rev == ADRENO_REV_A662 ||  rev == ADRENO_REV_A621);
 }
 
 static inline int adreno_is_a619_holi(struct adreno_device *adreno_dev)
@@ -1097,10 +1120,11 @@ static inline int adreno_is_a619_holi(struct adreno_device *adreno_dev)
 		"qcom,adreno-gpu-a619-holi");
 }
 
-static inline int adreno_is_a620v1(struct adreno_device *adreno_dev)
+static inline int adreno_is_a620(struct adreno_device *adreno_dev)
 {
-	return (ADRENO_GPUREV(adreno_dev) == ADRENO_REV_A620) &&
-		(ADRENO_CHIPID_PATCH(adreno_dev->chipid) == 0);
+	unsigned int rev = ADRENO_GPUREV(adreno_dev);
+
+	return (rev == ADRENO_REV_A620 || rev == ADRENO_REV_A621);
 }
 
 static inline int adreno_is_a640v2(struct adreno_device *adreno_dev)
@@ -1117,6 +1141,8 @@ static inline int adreno_is_gen7(struct adreno_device *adreno_dev)
 
 ADRENO_TARGET(gen7_0_0, ADRENO_REV_GEN7_0_0)
 ADRENO_TARGET(gen7_0_1, ADRENO_REV_GEN7_0_1)
+ADRENO_TARGET(gen7_4_0, ADRENO_REV_GEN7_4_0)
+ADRENO_TARGET(gen7_3_0, ADRENO_REV_GEN7_3_0)
 
 /*
  * adreno_checkreg_off() - Checks the validity of a register enum
@@ -1755,19 +1781,6 @@ static inline int adreno_allocate_global(struct kgsl_device *device,
 	return PTR_ERR_OR_ZERO(*memdesc);
 }
 
-/**
- * adreno_regulator_disable_poll - Disable the regulator and wait for it to
- * complete
- * @device: A GPU device handle
- * @reg: Pointer to the regulator to disable
- * @offset: Offset of the register to poll for success
- * @timeout: Timeout (in milliseconds)
- *
- * Return: true if the regulator got disabled or false on timeout
- */
-bool adreno_regulator_disable_poll(struct kgsl_device *device,
-		struct regulator *reg, u32 offset, u32 timeout);
-
 static inline void adreno_set_dispatch_ops(struct adreno_device *adreno_dev,
 		const struct adreno_dispatch_ops *ops)
 {
@@ -1803,4 +1816,8 @@ void adreno_drawobj_set_constraint(struct kgsl_device *device,
  * Return: GPU model name string
  */
 const char *adreno_get_gpu_model(struct kgsl_device *device);
+
+int adreno_verify_cmdobj(struct kgsl_device_private *dev_priv,
+		struct kgsl_context *context, struct kgsl_drawobj *drawobj[],
+		uint32_t count);
 #endif /*__ADRENO_H */

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -25,32 +26,24 @@
 #include "wlan_hdd_mlo.h"
 #include "osif_vdev_sync.h"
 
+#if defined(CFG80211_11BE_BASIC)
 void hdd_update_mld_mac_addr(struct hdd_context *hdd_ctx,
 			     struct qdf_mac_addr hw_macaddr)
 {
 	uint8_t i;
-	uint8_t mldaddr_b2, tmp_br2;
 	struct hdd_mld_mac_info *mac_info;
+	struct qdf_mac_addr temp_addr;
+
+	qdf_mem_copy(temp_addr.bytes, hw_macaddr.bytes,
+		     sizeof(struct qdf_mac_addr));
 
 	mac_info = &hdd_ctx->mld_mac_info;
 	for (i = 0; i < WLAN_MAX_MLD; i++) {
+		eth_random_addr(temp_addr.bytes);
 		qdf_mem_copy(mac_info->mld_mac_list[i].mld_addr.bytes,
-			     hw_macaddr.bytes, QDF_MAC_ADDR_SIZE);
-		mldaddr_b2 = mac_info->mld_mac_list[i].mld_addr.bytes[2];
-		tmp_br2 = ((mldaddr_b2 >> 4 & INTF_MACADDR_MASK) + i) &
-			  INTF_MACADDR_MASK;
-		mldaddr_b2 += tmp_br2;
+			     temp_addr.bytes, QDF_MAC_ADDR_SIZE);
 
-		/* XOR-ing bit-24 of the mac address. This will give enough
-		 * mac address range before collision
-		 */
-		mldaddr_b2 ^= (1 << 7);
-
-		/* Set locally administered bit */
-		mac_info->mld_mac_list[i].mld_addr.bytes[0] |= 0x02;
-		mac_info->mld_mac_list[i].mld_addr.bytes[2] = mldaddr_b2;
-		hdd_debug("mld addr[%d]: "
-			QDF_MAC_ADDR_FMT, i,
+		hdd_debug("mld addr[%d]: " QDF_MAC_ADDR_FMT, i,
 		    QDF_MAC_ADDR_REF(mac_info->mld_mac_list[i].mld_addr.bytes));
 
 		mac_info->mld_mac_list[i].device_mode = QDF_MAX_NO_OF_MODE;
@@ -95,8 +88,10 @@ void hdd_register_wdev(struct hdd_adapter *sta_adapter,
 	/* Set the relation between adapters*/
 	link_adapter->wdev.iftype = NL80211_IFTYPE_MLO_LINK;
 
+	mutex_lock(&sta_adapter->wdev.mtx);
 	ret = cfg80211_register_mlo_link(&sta_adapter->wdev,
 					 &link_adapter->wdev);
+	mutex_unlock(&sta_adapter->wdev.mtx);
 	if (ret) {
 		hdd_err("Failed to register ml link wdev %d", ret);
 		return;
@@ -135,7 +130,8 @@ void hdd_mlo_close_adapter(struct hdd_adapter *link_adapter, bool rtnl_held)
 	hdd_check_for_net_dev_ref_leak(link_adapter);
 	wlan_hdd_release_intf_addr(link_adapter->hdd_ctx,
 				   link_adapter->mac_addr.bytes);
-
+	policy_mgr_clear_concurrency_mode(link_adapter->hdd_ctx->psoc,
+					  link_adapter->device_mode);
 	link_adapter->wdev.netdev = NULL;
 
 	if (rtnl_held)
@@ -269,6 +265,11 @@ hdd_populate_mld_vdev_params(struct hdd_adapter *adapter,
 	QDF_STATUS qdf_status;
 	uint8_t device_mode = adapter->device_mode;
 
+	if (device_mode != QDF_SAP_MODE &&
+	    !adapter->mlo_adapter_info.is_ml_adapter &&
+	    !adapter->mlo_adapter_info.is_link_adapter)
+		return;
+
 	mld_addr = wlan_hdd_get_mld_addr(adapter->hdd_ctx,
 					 adapter->device_mode);
 	if (mld_addr) {
@@ -319,3 +320,33 @@ struct hdd_adapter *hdd_get_ml_adater(struct hdd_context *hdd_ctx)
 
 	return NULL;
 }
+
+#ifdef WLAN_FEATURE_DYNAMIC_MAC_ADDR_UPDATE
+int hdd_update_vdev_mac_address(struct hdd_context *hdd_ctx,
+				struct hdd_adapter *adapter,
+				struct qdf_mac_addr mac_addr)
+{
+	int i, ret = 0;
+	struct hdd_mlo_adapter_info *mlo_adapter_info;
+	struct hdd_adapter *link_adapter;
+
+	if (hdd_adapter_is_ml_adapter(adapter)) {
+		mlo_adapter_info = &adapter->mlo_adapter_info;
+
+		for (i = 0; i < WLAN_MAX_MLD; i++) {
+			link_adapter = mlo_adapter_info->link_adapter[i];
+			if (!link_adapter)
+				continue;
+			ret = hdd_dynamic_mac_address_set(hdd_ctx, link_adapter,
+							  mac_addr);
+			if (ret)
+				return ret;
+		}
+	} else {
+		ret = hdd_dynamic_mac_address_set(hdd_ctx, adapter, mac_addr);
+	}
+
+	return ret;
+}
+#endif
+#endif

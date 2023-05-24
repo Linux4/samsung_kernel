@@ -63,6 +63,7 @@ extern struct class *sec_class;
 #define ABC_CMD_STR_MAX				16
 #define ABC_TYPE_STR_MAX			8
 #define ABC_EVENT_STR_MAX			60
+#define ABC_SPEC_CMD_STR_MAX		3
 #define ABC_WORK_MAX				5
 #define ABC_WAIT_ENABLE_TIMEOUT		10000
 #define ERROR_REPORT_MODE_BIT		(1<<0)
@@ -72,6 +73,9 @@ extern struct class *sec_class;
 #define ABC_PREOCCURRED_EVENT_MAX	30
 #define TIME_STAMP_STR_MAX			25
 #define ABC_CLEAR_EVENT_TIMEOUT		300000
+#define ABC_EVENT_BUFFER_MAX		30
+#define ABC_DEFAULT_COUNT			0
+#define ABC_TEST_STR_MAX		128
 
 enum abc_enable_cmd {
 	ERROR_REPORT_MODE_ENABLE = 0,
@@ -107,12 +111,12 @@ struct abc_key_data {
 	char event_name[ABC_EVENT_STR_MAX];
 	char host_name[ABC_EVENT_STR_MAX];
 	char ext_log[ABC_EVENT_STR_MAX];
+	unsigned int cur_time;
 	int idx;
 };
 
 struct abc_pre_event {
 	struct list_head node;
-	unsigned int cur_time;
 	int error_cnt;
 	int all_cnt;
 	int idx;
@@ -134,17 +138,16 @@ struct abc_event_buffer {
 };
 
 struct abc_common_spec_data {
-	const char *module_name;
-	const char *error_name;
-	int enabled;
-	int spec_cnt;
-	int current_spec;
+	char *module_name;
+	char *error_name;
+	int idx;
 	//int spec_type;		In case a new spec type is added
 };
 
 struct spec_data_type1 {
-	int *th_cnt;
-	int *th_time;
+	int threshold_cnt;
+	int threshold_time;
+	int default_count;
 	struct list_head node;
 	struct abc_common_spec_data common_spec;
 	struct abc_event_buffer buffer;
@@ -160,7 +163,6 @@ struct abc_platform_data {
 
 struct abc_event_work {
 	char abc_str[ABC_BUFFER_MAX];
-	int cur_time;
 	struct work_struct work;
 };
 
@@ -181,17 +183,27 @@ struct abc_info {
 	struct mutex enable_mutex;
 };
 void abc_common_test_get_log_str(char *log_str);
-bool sec_abc_is_valid_abc_string(char *str);
-int sec_abc_get_idx_of_registered_event(struct abc_key_data *key_data);
+int sec_abc_get_idx_of_registered_event(char *module_name, char *error_name);
 extern void sec_abc_change_spec(const char *str);
 extern int sec_abc_read_spec(char *str);
 extern void sec_abc_send_event(char *str);
 extern int sec_abc_get_enabled(void);
 extern int sec_abc_wait_enabled(void);
-int sec_abc_save_pre_events(struct abc_key_data *key_data, unsigned int cur_time, char *uevent_type);
+int sec_abc_save_pre_events(struct abc_key_data *key_data, char *uevent_type);
 extern struct registered_abc_event_struct abc_event_list[];
 extern int REGISTERED_ABC_EVENT_TOTAL;
 
 #define ABC_PRINT(format, ...) pr_info("[sec_abc] %s : " format, __func__, ##__VA_ARGS__)
+
+#ifdef CONFIG_SEC_KUNIT
+#define ABC_PRINT_KUNIT(format, ...) do { \
+	char temp[ABC_TEST_STR_MAX]; \
+	ABC_PRINT(format, ##__VA_ARGS__); \
+	snprintf(temp, ABC_TEST_STR_MAX, format, ##__VA_ARGS__); \
+	abc_common_test_get_log_str(temp); \
+} while (0)
+#else
+#define ABC_PRINT_KUNIT(format, ...) ABC_PRINT(format, ##__VA_ARGS__)
+#endif
 
 #endif

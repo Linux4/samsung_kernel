@@ -523,9 +523,11 @@ void wacom_select_survey_mode(struct wacom_i2c *wac_i2c, bool enable)
 
 			wacom_i2c_set_survey_mode(wac_i2c, EPEN_SURVEY_MODE_NONE);
 
-			wac_i2c->reset_flag = true;
-			msleep(200);
-			input_info(true, &client->dev, "%s: reset_flag %d\n", __func__, wac_i2c->reset_flag);
+			if (wac_i2c->pdata->img_version_of_ic[0] == MPU_W9020) {
+				wac_i2c->reset_flag = true;
+				msleep(200);
+				input_info(true, &client->dev, "%s: reset_flag %d\n", __func__, wac_i2c->reset_flag);
+			}
 		} else {
 			input_info(true, &client->dev, "%s: power on\n", __func__);
 
@@ -1008,14 +1010,16 @@ reset:
 		wacom_reset_hw(wac_i2c);
 
 #if 1 // WACOM_PDCT_ENABLE
-		wac_i2c->pen_pdct = gpio_get_value(wac_i2c->pdata->pdct_gpio);
-		input_info(true, &client->dev, "%s : IC reset end, pdct(%d)\n", __func__, wac_i2c->pen_pdct);
+		if (wac_i2c->pdata->img_version_of_ic[0] == MPU_W9020) {
+			wac_i2c->pen_pdct = gpio_get_value(wac_i2c->pdata->pdct_gpio);
+			input_info(true, &client->dev, "%s : IC reset end, pdct(%d)\n", __func__, wac_i2c->pen_pdct);
 
-		if (wac_i2c->pdata->use_garage) {
-			if (wac_i2c->pen_pdct)
-				wac_i2c->function_result &= ~EPEN_EVENT_PEN_OUT;
-			else
-				wac_i2c->function_result |= EPEN_EVENT_PEN_OUT;
+			if (wac_i2c->pdata->use_garage) {
+				if (wac_i2c->pen_pdct)
+					wac_i2c->function_result &= ~EPEN_EVENT_PEN_OUT;
+				else
+					wac_i2c->function_result |= EPEN_EVENT_PEN_OUT;
+			}
 		}
 #else
 		input_info(true, &client->dev, "%s : IC reset end\n", __func__);
@@ -2398,9 +2402,10 @@ int wacom_fw_update_on_probe(struct wacom_i2c *wac_i2c)
 
 	if (bforced) {
 		for (i = 0; i < 4; i++) {
-			if (wac_i2c->pdata->img_version_of_ic[i] != wac_i2c->pdata->img_version_of_bin[i])
+			if (wac_i2c->pdata->img_version_of_ic[i] != wac_i2c->pdata->img_version_of_bin[i]) {
 				input_info(true, &client->dev, "force update : not equal, update fw\n");
 				goto fw_update;
+			}
 		}
 		input_info(true, &client->dev, "force update : equal, skip update fw\n");
 		goto out_update_fw;
@@ -3197,6 +3202,20 @@ static int wacom_get_camera_type_notify(struct notifier_block *nb, unsigned long
 						__func__, tele_cam, wide_cam);
 			return 0;
 		}
+	} else if(wac_i2c->pdata->img_version_of_ic[1] == WEZ02_DM3) {
+		if (tele_cam == 8 && wide_cam == 1)
+			result = FW_INDEX_0;
+		else if (tele_cam == 1 && wide_cam == 1)
+			result = FW_INDEX_1;
+		else if (tele_cam == 8 && wide_cam == 5)
+			result = FW_INDEX_2;
+		else if (tele_cam == 1 && wide_cam == 5)
+			result = FW_INDEX_3;
+		else {
+			input_info(true, &wac_i2c->client->dev, "%s : not matched(tele :%d,wide : %d)\n",
+						__func__, tele_cam, wide_cam);
+			return 0;
+		}
 	} else
 		input_info(true, &wac_i2c->client->dev, "%s : not matched model\n",
 						__func__);
@@ -3385,6 +3404,15 @@ static int wacom_i2c_probe(struct i2c_client *client,
 
 	input->name = "sec_e-pen";
 
+	/*Initializing for semaphor */
+	mutex_init(&wac_i2c->i2c_mutex);
+	mutex_init(&wac_i2c->lock);
+	mutex_init(&wac_i2c->update_lock);
+	mutex_init(&wac_i2c->irq_lock);
+	mutex_init(&wac_i2c->mode_lock);
+	mutex_init(&wac_i2c->ble_lock);
+	mutex_init(&wac_i2c->ble_charge_mode_lock);
+
 	wacom_i2c_query(wac_i2c);
 
 	if (wac_i2c->pdata->fw_separate_by_camera) {
@@ -3423,15 +3451,6 @@ static int wacom_i2c_probe(struct i2c_client *client,
 					wac_i2c->pdata->img_version_of_ic[3], wac_i2c->fw_bin_idx);
 		}
 	}
-
-	/*Initializing for semaphor */
-	mutex_init(&wac_i2c->i2c_mutex);
-	mutex_init(&wac_i2c->lock);
-	mutex_init(&wac_i2c->update_lock);
-	mutex_init(&wac_i2c->irq_lock);
-	mutex_init(&wac_i2c->mode_lock);
-	mutex_init(&wac_i2c->ble_lock);
-	mutex_init(&wac_i2c->ble_charge_mode_lock);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
 	// 4.19 R
@@ -3562,7 +3581,11 @@ err_register_input_dev:
 
 	i2c_unregister_device(wac_i2c->client_boot);
 
-	regulator_put(pdata->avdd);
+	wacom_power(wac_i2c, false);
+	regulator_put(wac_i2c->pdata->avdd);
+
+	if (wac_i2c->input_dev)
+		input_free_device(wac_i2c->input_dev);
 
 	input_err(true, &client->dev, "failed to probe\n");
 	input_log_fix();

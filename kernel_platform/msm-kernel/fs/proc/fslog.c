@@ -19,6 +19,8 @@
 #include <linux/vmalloc.h>
 #include <linux/mm.h>
 #include <linux/sched/clock.h>
+#include <linux/sched/cputime.h>
+#include <linux/sched/types.h>
 
 /* For compatibility */
 #include <linux/fslog.h>
@@ -37,12 +39,16 @@
 
 #ifdef CONFIG_PROC_FSLOG_LOWMEM
 #define FSLOG_BUFLEN_STLOG		(32 * 1024)
+#define FSLOG_BUFLEN_RECLAIMER_LOG	(1024 * 1024)
+#define FSLOG_BUFLEN_PSI_LOG		(1024 * 1024)
 #define FSLOG_BUFLEN_DLOG_EFS		(16 * 1024)
 #define FSLOG_BUFLEN_DLOG_RMDIR		(16 * 1024)
 #define FSLOG_BUFLEN_DLOG_ETC		(64 * 1024)
 #define FSLOG_BUFLEN_DLOG_MM		(128 * 1024)
 #else /* device has DRAM of high capacity */
 #define FSLOG_BUFLEN_STLOG		(32 * 1024)
+#define FSLOG_BUFLEN_RECLAIMER_LOG	(4 * 1024 * 1024)
+#define FSLOG_BUFLEN_PSI_LOG		(4 * 1024 * 1024)
 #define FSLOG_BUFLEN_DLOG_EFS		(16 * 1024)
 #define FSLOG_BUFLEN_DLOG_RMDIR		(16 * 1024)
 #define FSLOG_BUFLEN_DLOG_ETC		(192 * 1024)
@@ -54,6 +60,10 @@
 	(S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH)
 #define FSLOG_FILE_MODE_STLOG \
 	(S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH)
+#define FSLOG_FILE_MODE_RECLAIMER_LOG \
+	(S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)
+#define FSLOG_FILE_MODE_PSI_LOG \
+	(S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)
 #define FSLOG_FILE_MODE_DLOG		(S_IRUSR | S_IRGRP)
 
 struct fslog_sequence {
@@ -85,6 +95,7 @@ struct fslog_data {
 	wait_queue_head_t fslog_wait_queue;
 	u32 fslog_buf_len;
 	char *fslog_cbuf;
+	bool need_detail;
 };
 
 static struct proc_dir_entry *fslog_dir;
@@ -122,6 +133,42 @@ static struct fslog_data fslog_data_##_name = { \
 	.fslog_buf_len = size, \
 	.fslog_cbuf = fslog_cbuf_##_name, \
 }
+
+#define DEFINE_FSLOG_VARIABLE_DYNAMIC(_name, size) \
+static char *fslog_cbuf_##_name; \
+\
+static struct fslog_data fslog_data_##_name = { \
+	.fslog_seq = { \
+		.fslog_seq = 0, \
+		.fslog_idx = 0, \
+		.fslog_first_seq = 0, \
+		.fslog_first_idx = 0, \
+		.fslog_next_seq = 0, \
+		.fslog_next_idx = 0, \
+		.fslog_clear_seq = 0, \
+		.fslog_clear_idx = 0, \
+		.fslog_end_seq = -1 \
+	}, \
+	.fslog_meta = { \
+		.ts_nsec = 0, \
+		.len = 0, \
+		.text_len = 0, \
+		.pid = 0, \
+		.tgid = 0, \
+		.comm = {0, }, \
+		.tgid_comm = {0, } \
+	}, \
+	.fslog_spinlock = __SPIN_LOCK_INITIALIZER(fslog_data_##_name.fslog_spinlock), \
+	.fslog_wait_queue = __WAIT_QUEUE_HEAD_INITIALIZER(fslog_data_##_name.fslog_wait_queue), \
+	.fslog_buf_len = size, \
+}
+
+#define ALLOC_FSLOG_VARIABLE_DYNAMIC(_name, size) \
+fslog_cbuf_##_name = vmalloc(size); \
+fslog_data_##_name.fslog_cbuf = fslog_cbuf_##_name
+
+#define SET_FSLOG_VARIABLE_NEED_DETAILED(_name) \
+fslog_data_##_name.need_detail = true
 
 static int fslog_release(struct inode *inode, struct file *file)
 {
@@ -210,6 +257,39 @@ DEFINE_FSLOG_CREATE(dlog_etc, dlog_etc, FSLOG_FILE_MODE_DLOG);
 DEFINE_FSLOG_CREATE(dlog_rmdir, dlog_rmdir, FSLOG_FILE_MODE_DLOG);
 DEFINE_FSLOG_CREATE(stlog, stlog, FSLOG_FILE_MODE_STLOG);
 
+#ifdef CONFIG_PROC_RECLAIMER_LOG
+DEFINE_FSLOG_VARIABLE_DYNAMIC(reclaimer_log, FSLOG_BUFLEN_RECLAIMER_LOG);
+DEFINE_FSLOG_OPERATION(reclaimer_log);
+DEFINE_FSLOG_CREATE(reclaimer_log, reclaimer_log, FSLOG_FILE_MODE_RECLAIMER_LOG);
+static void __init reclaimer_log_init(void)
+{
+	ALLOC_FSLOG_VARIABLE_DYNAMIC(reclaimer_log, FSLOG_BUFLEN_RECLAIMER_LOG);
+	SET_FSLOG_VARIABLE_NEED_DETAILED(reclaimer_log);
+	fslog_create_reclaimer_log(fslog_dir);
+	proc_symlink("reclaimer_log", NULL, "/proc/fslog/reclaimer_log");
+}
+#else
+static void __init reclaimer_log_init(void)
+{
+}
+#endif
+
+#ifdef CONFIG_PROC_PSI_LOG
+DEFINE_FSLOG_VARIABLE_DYNAMIC(psi_log, FSLOG_BUFLEN_PSI_LOG);
+DEFINE_FSLOG_OPERATION(psi_log);
+DEFINE_FSLOG_CREATE(psi_log, psi_log, FSLOG_FILE_MODE_PSI_LOG);
+static void __init psi_log_init(void)
+{
+	ALLOC_FSLOG_VARIABLE_DYNAMIC(psi_log, FSLOG_BUFLEN_PSI_LOG);
+	fslog_create_psi_log(fslog_dir);
+	proc_symlink("psi_log", NULL, "/proc/fslog/psi_log");
+}
+#else
+static void __init psi_log_init(void)
+{
+}
+#endif
+
 static int __init fslog_init(void)
 {
 	fslog_dir = proc_mkdir_mode("fslog", FSLOG_FILE_MODE_DIR, NULL);
@@ -225,6 +305,9 @@ static int __init fslog_init(void)
 	/* To ensure sub-compatibility in versions below O OS */
 	proc_symlink("stlog", NULL, "/proc/fslog/stlog");
 	proc_symlink("stlog_version", NULL, "/proc/fslog/version");
+
+	reclaimer_log_init();
+	psi_log_init();
 
 	return 0;
 }
@@ -581,17 +664,37 @@ static int vfslog(struct fslog_data *fl_data, const char *fmt, va_list args)
 {
 	static char textbuf[FSLOG_BUF_LINE_MAX];
 	char *text = textbuf;
-	size_t text_len;
+	size_t text_len = 0;
 	unsigned long flags;
 	int printed_len = 0;
 	bool stored = false;
 	spinlock_t *fslog_spinlock = &(fl_data->fslog_spinlock);
+	unsigned long long exec_runtime;
+
+	if (unlikely(!fl_data->fslog_cbuf))
+		return 0;
 
 	local_irq_save(flags);
 
 	spin_lock(fslog_spinlock);
 
-	text_len = vscnprintf(text, sizeof(textbuf), fmt, args);
+	if (fl_data->need_detail) {
+		exec_runtime = task_sched_runtime(current);
+		text_len = sprintf(text, "[%llu"
+#ifdef CONFIG_TASK_HAS_ALLOC_FREE_STAT
+				" %llu"
+				" %llu"
+#endif
+				"] "
+				,exec_runtime / 1000
+#ifdef CONFIG_TASK_HAS_ALLOC_FREE_STAT
+				,current->alloc_sum
+				,current->free_sum
+#endif
+				);
+	}
+
+	text_len += vscnprintf(&text[text_len], sizeof(textbuf) - text_len, fmt, args);
 
 	/* mark and strip a trailing newline */
 	if (text_len && text[text_len-1] == '\n')
@@ -631,3 +734,9 @@ DEFINE_FSLOG_FUNC(dlog_efs);
 DEFINE_FSLOG_FUNC(dlog_etc);
 DEFINE_FSLOG_FUNC(dlog_rmdir);
 DEFINE_FSLOG_FUNC(stlog);
+#ifdef CONFIG_PROC_RECLAIMER_LOG
+DEFINE_FSLOG_FUNC(reclaimer_log);
+#endif
+#ifdef CONFIG_PROC_PSI_LOG
+DEFINE_FSLOG_FUNC(psi_log);
+#endif

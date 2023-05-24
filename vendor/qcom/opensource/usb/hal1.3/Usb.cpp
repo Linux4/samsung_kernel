@@ -58,6 +58,24 @@ const char GOOGLE_USB_VENDOR_ID_STR[] = "18d1";
 const char GOOGLE_USBC_35_ADAPTER_UNPLUGGED_ID_STR[] = "5029";
 //@VOLD Apply QC Patch]
 
+// Set by the signal handler to destroy the thread
+volatile bool destroyThread;
+
+constexpr char kEnabledPath[] = "/sys/class/power_supply/usb/moisture_detection_enabled";
+constexpr char kDetectedPath[] = "/sys/class/power_supply/usb/moisture_detected";
+constexpr char kConsole[] = "init.svc.console";
+constexpr char kDisableContatminantDetection[] = "vendor.usb.contaminantdisable";
+
+void queryVersionHelper(implementation::Usb *usb, hidl_vec<PortStatus> *currentPortStatus_1_2);
+
+//[@VOLD Apply QC Patch
+static void checkUsbWakeupSupport(struct Usb *usb);
+static void checkUsbInHostMode(struct Usb *usb);
+static void checkUsbDeviceAutoSuspend(const std::string& devicePath);
+static bool checkUsbInterfaceAutoSuspend(const std::string& devicePath,
+                                         const std::string &intf);
+//@VOLD Apply QC Patch]
+
 Return<bool> Usb::enableUsbDataSignal(bool enable) {
     bool result = true;
 
@@ -97,26 +115,10 @@ Return<bool> Usb::enableUsbDataSignal(bool enable) {
 //        }
 //]
     }
+    hidl_vec<PortStatus> currentPortStatus_1_2;
+    queryVersionHelper(this, &currentPortStatus_1_2);
     return result;
 }
-
-// Set by the signal handler to destroy the thread
-volatile bool destroyThread;
-
-constexpr char kEnabledPath[] = "/sys/class/power_supply/usb/moisture_detection_enabled";
-constexpr char kDetectedPath[] = "/sys/class/power_supply/usb/moisture_detected";
-constexpr char kConsole[] = "init.svc.console";
-constexpr char kDisableContatminantDetection[] = "vendor.usb.contaminantdisable";
-
-void queryVersionHelper(implementation::Usb *usb, hidl_vec<PortStatus> *currentPortStatus_1_2);
-
-//[@VOLD Apply QC Patch
-static void checkUsbWakeupSupport(struct Usb *usb);
-static void checkUsbInHostMode(struct Usb *usb);
-static void checkUsbDeviceAutoSuspend(const std::string& devicePath);
-static bool checkUsbInterfaceAutoSuspend(const std::string& devicePath,
-                                         const std::string &intf);
-//@VOLD Apply QC Patch]
 
 int32_t readFile(const std::string &filename, std::string *contents) {
     FILE *fp;

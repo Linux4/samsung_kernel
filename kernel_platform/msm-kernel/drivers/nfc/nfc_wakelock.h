@@ -28,7 +28,9 @@ struct nfc_wake_lock {
 
 static inline void nfc_wake_lock_init(struct nfc_wake_lock *lock, const char *name)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
+#if CONFIG_SEC_NFC_WAKELOCK_METHOD == 2
+	lock->ws = wakeup_source_register(NULL, name);
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)) || CONFIG_SEC_NFC_WAKELOCK_METHOD == 1
 	wakeup_source_init(lock->ws, name); /* 4.19 R */
 	if (!(lock->ws)) {
 		lock->ws = wakeup_source_create(name); /* 4.19 Q */

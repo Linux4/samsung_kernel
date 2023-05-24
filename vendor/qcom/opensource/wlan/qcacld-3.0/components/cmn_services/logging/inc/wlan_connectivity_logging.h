@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -146,7 +146,7 @@ struct wlan_roam_candidate_info {
 struct wlan_roam_scan_info {
 	uint8_t cand_ap_count;
 	uint16_t num_scanned_freq;
-	qdf_freq_t scan_freq[WLAN_MAX_LOGGING_FREQ];
+	qdf_freq_t scan_freq[NUM_CHANNELS];
 };
 
 /**
@@ -307,6 +307,7 @@ struct wlan_connect_info {
  * buffer
  * @timestamp_us: Timestamp(time of the day) in microseconds
  * @fw_timestamp_us: timestamp at which roam scan was triggered
+ * @ktime_us: kernel timestamp (time of the day) in microseconds
  * @vdev_id: VDEV id
  * @log_subtype: Tag of the log
  * @bssid: AP bssid
@@ -323,6 +324,7 @@ struct wlan_connect_info {
 struct wlan_log_record {
 	uint64_t timestamp_us;
 	uint64_t fw_timestamp_us;
+	uint64_t ktime_us;
 	uint8_t vdev_id;
 	uint32_t log_subtype;
 	struct qdf_mac_addr bssid;
@@ -354,6 +356,7 @@ struct wlan_cl_osif_cbks {
 /**
  * struct wlan_connectivity_log_buf_data  - Master structure to hold the
  * pointers to the ring buffers.
+ * @psoc: Global psoc pointer
  * @osif_cbks: OSIF callbacks
  * @osif_cb_context: Pointer to the context to be passed to OSIF
  * callback
@@ -370,6 +373,7 @@ struct wlan_cl_osif_cbks {
  * @is_active: If the global buffer is initialized or not
  */
 struct wlan_connectivity_log_buf_data {
+	struct wlan_objmgr_psoc *psoc;
 	struct wlan_cl_osif_cbks osif_cbks;
 	void *osif_cb_context;
 	uint64_t first_record_timestamp_in_last_sec;
@@ -400,12 +404,14 @@ struct wlan_connectivity_log_buf_data {
 /**
  * wlan_connectivity_logging_start()  - Initialize the connectivity/roaming
  * logging buffer
+ * @psoc: Global psoc pointer
  * @osif_cbks: OSIF callbacks
  * @osif_cbk_context: OSIF callback context argument
  *
  * Return: None
  */
-void wlan_connectivity_logging_start(struct wlan_cl_osif_cbks *osif_cbks,
+void wlan_connectivity_logging_start(struct wlan_objmgr_psoc *psoc,
+				     struct wlan_cl_osif_cbks *osif_cbks,
 				     void *osif_cb_context);
 
 /**
@@ -461,7 +467,8 @@ wlan_connectivity_mgmt_event(struct wlan_frame_hdr *mac_hdr,
 			     enum wlan_main_tag tag);
 #else
 static inline
-void wlan_connectivity_logging_start(struct wlan_cl_osif_cbks *osif_cbks,
+void wlan_connectivity_logging_start(struct wlan_objmgr_psoc *psoc,
+				     struct wlan_cl_osif_cbks *osif_cbks,
 				     void *osif_cb_context)
 {}
 

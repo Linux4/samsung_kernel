@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 /*
@@ -188,22 +189,21 @@ static void syncobj_timer(struct timer_list *t)
 		case KGSL_CMD_SYNCPOINT_TYPE_TIMELINE: {
 			int j;
 			struct event_timeline_info *info = event->priv;
-			struct dma_fence* fence = event->fence;
+			struct dma_fence *fence = event->fence;
 			bool retired = false;
 			bool signaled = test_bit(DMA_FENCE_FLAG_SIGNALED_BIT,
-				&fence->flags);
-			const char* str = NULL;
-			
+					&fence->flags);
+			const char *str = NULL;
+
 			if (fence->ops->signaled && fence->ops->signaled(fence))
 				retired = true;
-			
+
 			if (!retired)
 				str = "not retired";
 			else if (retired && signaled)
 				str = "signaled";
 			else if (retired && !signaled)
 				str = "retired but not signaled";
-
 			dev_err(device->dev, "       [%u] FENCE %s\n",
 				i, str);
 			for (j = 0; info && info[j].timeline; j++)
@@ -1127,10 +1127,13 @@ struct kgsl_drawobj_cmd *kgsl_drawobj_cmd_create(struct kgsl_device *device,
 		| KGSL_DRAWOBJ_PWR_CONSTRAINT
 		| KGSL_DRAWOBJ_MEMLIST
 		| KGSL_DRAWOBJ_PROFILING
-		| KGSL_DRAWOBJ_PROFILING_KTIME);
+		| KGSL_DRAWOBJ_PROFILING_KTIME
+		| KGSL_DRAWOBJ_START_RECURRING
+		| KGSL_DRAWOBJ_STOP_RECURRING);
 
 	INIT_LIST_HEAD(&cmdobj->cmdlist);
 	INIT_LIST_HEAD(&cmdobj->memlist);
+	cmdobj->requeue_cnt = 0;
 
 	if (type & CMDOBJ_TYPE)
 		atomic_inc(&context->proc_priv->cmd_count);
