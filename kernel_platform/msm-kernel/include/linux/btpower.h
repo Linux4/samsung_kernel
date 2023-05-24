@@ -6,6 +6,7 @@
 #ifndef __LINUX_BLUETOOTH_POWER_H
 #define __LINUX_BLUETOOTH_POWER_H
 
+#include <linux/cdev.h>
 #include <linux/types.h>
 #include <linux/mailbox_client.h>
 #include <linux/mailbox/qmp.h>
@@ -57,6 +58,11 @@ struct btpower_platform_data {
 	int wl_gpio_sys_rst;                   /* Wlan reset gpio */
 	int bt_gpio_sw_ctrl;                   /* Bluetooth sw_ctrl gpio */
 	int bt_gpio_debug;                     /* Bluetooth debug gpio */
+#ifdef CONFIG_MSM_BT_OOBS
+	int bt_gpio_dev_wake;                  /* Bluetooth bt_wake */
+	int bt_gpio_host_wake;                 /* Bluetooth bt_host_wake */
+	int irq;                               /* Bluetooth host_wake IRQ */
+#endif
 	int xo_gpio_clk;                       /* XO clock gpio*/
 	struct device *slim_dev;
 	struct bt_power_vreg_data *vreg_info;  /* VDDIO voltage regulator */
@@ -67,6 +73,10 @@ struct btpower_platform_data {
 	struct mbox_client mbox_client_data;
 	struct mbox_chan *mbox_chan;
 	const char *vreg_ipa;
+#ifdef CONFIG_MSM_BT_OOBS
+	struct file *reffilp_obs;
+	struct task_struct *reftask_obs;
+#endif
 };
 
 int btpower_register_slimdev(struct device *dev);
@@ -81,7 +91,23 @@ int btpower_aop_mbox_init(struct btpower_platform_data *pdata);
 #define BT_CMD_GETVAL_POWER_SRCS	0xbfb1
 #define BT_CMD_SET_IPA_TCS_INFO  0xbfc0
 
-/* total number of power src */
-#define BT_POWER_SRC_SIZE           28
+#ifdef CONFIG_MSM_BT_OOBS
+#define BT_CMD_OBS_SIGNAL_TASK		0xbfd0
+#define BT_CMD_OBS_VOTE_CLOCK		0xbfd1
+
+/**
+ * enum btpower_obs_param: OOBS low power param
+ * @BTPOWER_OBS_CLK_OFF: Transport bus is no longer acquired
+ * @BTPOWER_OBS_CLK_ON: Acquire transport bus for either transmitting or receiving
+ * @BTPOWER_OBS_DEV_OFF: Bluetooth is released because of no more transmission
+ * @BTPOWER_OBS_DEV_ON: Wake up the Bluetooth controller for transmission
+ */
+enum btpower_obs_param {
+	BTPOWER_OBS_CLK_OFF = 0,
+	BTPOWER_OBS_CLK_ON,
+	BTPOWER_OBS_DEV_OFF,
+	BTPOWER_OBS_DEV_ON,
+};
+#endif
 
 #endif /* __LINUX_BLUETOOTH_POWER_H */

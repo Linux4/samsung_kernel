@@ -196,6 +196,16 @@ interconnects:
 		- 0x2	GEN 2
 		- 0x3	GEN 3
 
+- qcom,link-speed-cap-offset:
+	Usage: optional
+	Value type: <u32>
+	Definition: Set PCIE max link speed in capability register.
+		SW need to program the SNPS controller register to advertise
+		max speed supported by PHY. Options:
+		- 0x1   GEN 1
+		- 0x2   GEN 2
+		- 0x3   GEN 3
+
 - qcom,link-check-max-count
 	Usage: optional
 	Value type: <u32>
@@ -287,6 +297,11 @@ interconnects:
 	Value type: <u32>
 	Definition: L1.2 LTR threshold value to be multipled with scale to
 		define L1.2 latency tolerance reporting (LTR)
+
+- qcom,device-vendor-id:
+	Usage: optional
+	Value type: <u32>
+	Definition: Support Device-Vendor Id
 
 - qcom,slv-addr-space-size:
 	Usage: required
@@ -381,6 +396,21 @@ interconnects:
 	Value type : <bool>
 	Definition: Enable to notify the client driver for recovery when
 		config space is not accessible
+
+- qcom,parf-debug-reg:
+	Usage: optional
+	value type: <u32>
+	Definition: Offset from PCIe parf base to dump pcie parf status registers
+
+- qcom,dbi-debug-reg:
+        Usage: optional
+        value type: <u32>
+        Definition: Offset from PCIe DBI base to dump pcie DBI status registers
+
+- qcom,phy-debug-reg:
+        Usage: optional
+        value type: <u32>
+        Definition: Offset from PCIe PHY base to dump pcie phy status registers
 
 ==============
 Root port node

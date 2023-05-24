@@ -16,11 +16,16 @@
 #define ICNSS_API_WITH_DEV
 #endif
 
+#define DEVICE_NAME_MAX		10
 enum icnss_uevent {
 	ICNSS_UEVENT_FW_CRASHED,
 	ICNSS_UEVENT_FW_DOWN,
 	ICNSS_UEVENT_HANG_DATA,
 	ICNSS_UEVENT_SMMU_FAULT,
+};
+
+enum icnss_device_config {
+	ICNSS_IPA_DISABLED,
 };
 
 struct icnss_uevent_hang_data {
@@ -37,8 +42,15 @@ struct icnss_uevent_data {
 	void *data;
 };
 
+/* Device information like supported device ids, etc*/
+struct device_info {
+	char name[DEVICE_NAME_MAX];
+	uint16_t device_id;
+};
+
 struct icnss_driver_ops {
 	char *name;
+	struct device_info *dev_info;
 	unsigned long drv_state;
 	struct device_driver driver;
 	int (*probe)(struct device *dev);
@@ -196,4 +208,5 @@ extern int icnss_prevent_l1(struct device *dev);
 extern void icnss_allow_l1(struct device *dev);
 extern int icnss_get_mhi_state(struct device *dev);
 extern int icnss_is_pci_ep_awake(struct device *dev);
+extern unsigned long icnss_get_device_config(void);
 #endif /* _ICNSS_WLAN_H_ */

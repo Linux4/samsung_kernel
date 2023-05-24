@@ -66,7 +66,7 @@ static int __auto_comment_prepare_buf(
 		goto err_nomem;
 	}
 
-	if (!sec_qc_dbg_part_read(size, buf)) {
+	if (!sec_qc_dbg_part_read(debug_index_auto_comment, buf)) {
 		ret = -ENXIO;
 		goto failed_to_read;
 	}
@@ -97,8 +97,8 @@ static int sec_qc_auto_comment_proc_open(struct inode *inode,
 
 	mutex_lock(&auto_comment->lock);
 
-	if (auto_comment->ref) {
-		auto_comment->ref++;
+	if (auto_comment->ref_cnt) {
+		auto_comment->ref_cnt++;
 		goto already_cached;
 	}
 
@@ -114,7 +114,7 @@ static int sec_qc_auto_comment_proc_open(struct inode *inode,
 		goto err_buf;
 	}
 
-	auto_comment->ref++;
+	auto_comment->ref_cnt++;
 
 	mutex_unlock(&auto_comment->lock);
 
@@ -158,8 +158,8 @@ static int sec_qc_auto_comment_proc_release(struct inode *inode,
 
 	mutex_lock(&auto_comment->lock);
 
-	auto_comment->ref--;
-	if (auto_comment->ref)
+	auto_comment->ref_cnt--;
+	if (auto_comment->ref_cnt)
 		goto still_used;
 
 	auto_comment->len = 0;

@@ -195,11 +195,6 @@ static inline bool is_rgba_colorformat(enum msm_vidc_colorformat_type colorforma
 		colorformat == MSM_VIDC_FMT_RGBA8888C;
 }
 
-static inline bool is_secondary_output_mode(struct msm_vidc_inst *inst)
-{
-	return false; // TODO: inst->stream_output_mode == HAL_VIDEO_DECODER_SECONDARY;
-}
-
 static inline bool is_thumbnail_session(struct msm_vidc_inst *inst)
 {
 	return !!(inst->capabilities->cap[THUMBNAIL_MODE].value);
@@ -288,6 +283,8 @@ const char *allow_name(enum msm_vidc_allow allow);
 const char *state_name(enum msm_vidc_inst_state state);
 int msm_vidc_change_inst_state(struct msm_vidc_inst *inst,
 	enum msm_vidc_inst_state request_state, const char *func);
+int msm_vidc_create_internal_buffer(struct msm_vidc_inst *inst,
+	enum msm_vidc_buffer_type buffer_type, u32 index);
 int msm_vidc_get_internal_buffers(struct msm_vidc_inst *inst,
 	enum msm_vidc_buffer_type buffer_type);
 int msm_vidc_create_internal_buffers(struct msm_vidc_inst *inst,
@@ -326,7 +323,10 @@ int msm_vidc_smmu_fault_handler(struct iommu_domain *domain,
 int msm_vidc_trigger_ssr(struct msm_vidc_core *core,
 		u64 trigger_ssr_val);
 void msm_vidc_ssr_handler(struct work_struct *work);
-void msm_vidc_pm_work_handler(struct work_struct *work);
+int msm_vidc_trigger_stability(struct msm_vidc_core *core,
+		u64 trigger_stability_val);
+void msm_vidc_stability_handler(struct work_struct *work);
+int cancel_stability_work_sync(struct msm_vidc_inst *inst);
 void msm_vidc_fw_unload_handler(struct work_struct *work);
 int msm_vidc_suspend(struct msm_vidc_core *core);
 void msm_vidc_batch_handler(struct work_struct *work);

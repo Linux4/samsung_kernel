@@ -138,9 +138,15 @@ typedef struct _manager_data_t
 	struct workqueue_struct *manager_muic_noti_wq;
 	struct manager_dwork usb_enum_check;
 	struct manager_dwork usb_event_by_vbus;
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+	struct manager_dwork usb_event_by_pogo;
+#endif
 
 	struct mutex mo_lock;
 	int vbus_state;
+#if IS_ENABLED(CONFIG_MUIC_SM5504_POGO)
+	int is_muic_pogo;
+#endif
 	int classified_cable_type;
 
 	int pdic_attach_state;
@@ -173,6 +179,19 @@ struct typec_manager_gadget_ops {
 	int		(*get_cmply_link_state)(void *dev);
 };
 
+typedef union {
+	struct {
+		uint64_t src:4;
+		uint64_t dest:4;
+		uint64_t id:8;
+		uint64_t sub1:16;
+		uint64_t sub2:16;
+		uint64_t sub3:16;
+	};
+	uint64_t noti_event;
+
+} MANAGER_NOTI_TYPEDEF_REF;
+
 #define PDIC_BATTERY	(1<<0)
 #define PDIC_USB	(1<<1)
 #define PDIC_DP		(1<<2)
@@ -189,7 +208,7 @@ struct typec_manager_gadget_ops {
 #endif
 
 /* Timeout for USB off when Vbus is in LOW state */
-#define VBUS_USB_OFF_TIMEOUT 2000
+#define VBUS_USB_OFF_TIMEOUT 1000
 
 /* Time to check whether it is VBUS by OTG to prevent moisture popup error */
 #define OTG_VBUS_CHECK_TIME 300

@@ -376,7 +376,7 @@ static int __init sec_qc_reboot_reason_init(void)
 {
 	return platform_driver_register(&sec_qc_reboot_reason_driver);
 }
-subsys_initcall_sync(sec_qc_reboot_reason_init);
+arch_initcall(sec_qc_reboot_reason_init);
 
 static void __exit sec_qc_reboot_reason_exit(void)
 {

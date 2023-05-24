@@ -2302,7 +2302,7 @@ static int __qseecom_process_reentrancy_blocked_on_listener(
 	/* find app_id & img_name from list */
 	if (!ptr_app) {
 		if (data->client.from_smcinvoke || data->client.from_loadapp) {
-			pr_err("This request is from %s\n",
+			pr_debug("This request is from %s\n",
 				(data->client.from_smcinvoke ? "smcinvoke" : "load_app"));
 			ptr_app = &dummy_app_entry;
 			ptr_app->app_id = data->client.app_id;
@@ -2382,12 +2382,9 @@ static int __qseecom_process_reentrancy_blocked_on_listener(
 					&ireq, sizeof(ireq),
 					&continue_resp, sizeof(continue_resp));
 
-		if (ret) {
-			pr_err("never expected falling to legacy method\n");
-		}
-
 		if (ret && qseecom.smcinvoke_support) {
 			/* retry with legacy cmd */
+			pr_warn("falling back to legacy method\n");
 			qseecom.smcinvoke_support = false;
 			ireq.app_or_session_id = data->client.app_id;
 			ret = qseecom_scm_call(SCM_SVC_TZSCHEDULER, 1,
@@ -3107,6 +3104,10 @@ static int qseecom_unload_app(struct qseecom_dev_handle *data,
 
 	pr_debug("unload app %d(%s), app_crash flag %d\n", data->client.app_id,
 			data->client.app_name, app_crash);
+    if (!memcmp(data->client.app_name, "dsms", strlen("dsms"))) {
+           pr_debug("Do not unload dsms app from tz\n");
+           goto unload_exit;
+    }
 
 	if (!memcmp(data->client.app_name, "keymaste", strlen("keymaste"))) {
 		pr_debug("Do not unload keymaster app from tz\n");

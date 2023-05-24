@@ -14,8 +14,40 @@
 #include <linux/sti/abc_common.h>
 #endif
 
+#if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
+#include "cam_sensor_cmn_header.h"
+#endif
+
 #define CSIPHY_DEBUGFS_NAME_MAX_SIZE 10
 static struct dentry *root_dentry;
+
+#if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
+static void hw_bigdata_update_hw_param(uint32_t camera_id, struct cam_hw_param *hw_param)
+{
+	if (hw_param->comp_chk) {
+		CAM_ERR(CAM_UTIL, "[HWB][Camera%d][MIPI_C] Err\n", camera_id);
+		hw_param->mipi_comp_err_cnt++;
+	}
+	else {
+		CAM_ERR(CAM_UTIL, "[HWB][Camera%d][MIPI_S] Err\n", camera_id);
+		hw_param->mipi_sensor_err_cnt++;
+	}
+	hw_param->mipi_chk = TRUE;
+	hw_param->need_update_to_file = TRUE;
+}
+
+static void hw_bigdata_count_mipi_error()
+{
+	uint32_t camera_id;
+	struct cam_hw_param *hw_param = NULL;
+	msm_is_sec_get_sensor_position(&camera_id);
+	if (msm_is_sec_get_hw_param(camera_id, &hw_param)) 
+		return;
+
+	if (hw_param !=NULL && hw_param->mipi_chk == FALSE)
+		hw_bigdata_update_hw_param(camera_id, hw_param);
+}
+#endif
 
 static void cam_csiphy_subdev_handle_message(
 		struct v4l2_subdev *sd,
@@ -29,11 +61,10 @@ static void cam_csiphy_subdev_handle_message(
 	case CAM_SUBDEV_MESSAGE_IRQ_ERR:
 		if (msg->hw_idx == csiphy_dev->soc_info.index) {
 #if IS_ENABLED(CONFIG_SEC_ABC)
-#if IS_ENABLED(CONFIG_SEC_FACTORY)
-			sec_abc_send_event("MODULE=camera@INFO=mipi_overflow");
-#else
 			sec_abc_send_event("MODULE=camera@WARN=mipi_overflow");
 #endif
+#if defined(CONFIG_USE_CAMERA_HW_BIG_DATA)
+			hw_bigdata_count_mipi_error();
 #endif
 			if (msg->priv_data)
 				is_aux_setting_required = *(bool *)(msg->priv_data);
@@ -55,6 +86,11 @@ static void cam_csiphy_subdev_handle_message(
 					"Status Reg Dump on failure");
 				cam_csiphy_dump_status_reg(csiphy_dev);
 			}
+#ifdef CONFIG_CAMERA_SKIP_SECURE_PAGE_FAULT
+			if (cam_csiphy_is_secure_mode(csiphy_dev)) {
+				cam_csiphy_set_secure_irq_err(true);
+			}
+#endif
 		}
 		break;
 	default:

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -32,6 +33,7 @@
 #include "wlan_vdev_mgr_utils_api.h"
 #include "wni_api.h"
 #include "wlan_mlme_vdev_mgr_interface.h"
+#include "wlan_cm_api.h"
 
 static void if_mgr_enable_roaming_on_vdev(struct wlan_objmgr_pdev *pdev,
 					  void *object, void *arg)
@@ -84,18 +86,19 @@ static void if_mgr_disable_roaming_on_vdev(struct wlan_objmgr_pdev *pdev,
 	vdev_id = wlan_vdev_get_id(vdev);
 	curr_vdev_id = roam_arg->curr_vdev_id;
 
-	if (curr_vdev_id != vdev_id &&
-	    wlan_vdev_mlme_get_opmode(vdev) == QDF_STA_MODE &&
-	    vdev->vdev_mlme.mlme_state == WLAN_VDEV_S_UP) {
-		/* IFMGR Verification: Temporary call to sme_stop_roaming api,
-		 * will be replaced by converged roaming api
-		 * once roaming testing is complete.
-		 */
-		ifmgr_debug("Roaming disabled on vdev_id %d", vdev_id);
-		wlan_cm_disable_rso(pdev, vdev_id,
-				    roam_arg->requestor,
-				    REASON_DRIVER_DISABLED);
-	}
+	if (curr_vdev_id == vdev_id ||
+	    wlan_vdev_mlme_get_opmode(vdev) != QDF_STA_MODE ||
+	    wlan_cm_is_vdev_roam_sync_inprogress(vdev) ||
+	    vdev->vdev_mlme.mlme_state != WLAN_VDEV_S_UP)
+		return;
+
+	/*
+	 * Disable roaming only for the STA vdev which is not is roam sync state
+	 * and VDEV is in UP state.
+	 */
+	ifmgr_debug("Roaming disabled on vdev_id %d", vdev_id);
+	wlan_cm_disable_rso(pdev, vdev_id, roam_arg->requestor,
+			    REASON_DRIVER_DISABLED);
 }
 
 QDF_STATUS if_mgr_disable_roaming(struct wlan_objmgr_pdev *pdev,
@@ -130,10 +133,10 @@ if_mgr_enable_roaming_on_connected_sta(struct wlan_objmgr_pdev *pdev,
 	if (!psoc)
 		return QDF_STATUS_E_FAILURE;
 
-	vdev_id = wlan_vdev_get_id(vdev);
-
 	if (policy_mgr_is_sta_active_connection_exists(psoc) &&
-	    wlan_vdev_mlme_get_opmode(vdev) == QDF_STA_MODE) {
+	    wlan_vdev_mlme_get_opmode(vdev) == QDF_STA_MODE &&
+	    !wlan_vdev_mlme_is_mlo_link_vdev(vdev)) {
+		vdev_id = wlan_vdev_get_id(vdev);
 		ifmgr_debug("Enable roaming on connected sta for vdev_id %d", vdev_id);
 		wlan_cm_enable_roaming_on_connected_sta(pdev, vdev_id);
 		policy_mgr_set_pcl_for_connected_vdev(psoc, vdev_id, true);
@@ -717,6 +720,29 @@ static void if_mgr_get_vdev_id_from_bssid(struct wlan_objmgr_pdev *pdev,
 	wlan_objmgr_peer_release_ref(peer, WLAN_IF_MGR_ID);
 }
 
+#ifdef WLAN_FEATURE_11BE_MLO
+/**
+ * if_mgr_get_conc_ext_flags() - get extended flags for concurrency check
+ * @vdev: pointer to vdev on which new connection is coming up
+ * @candidate_info: interface manager validate candidate data
+ *
+ * Return: extended flags for concurrency check
+ */
+static inline uint32_t
+if_mgr_get_conc_ext_flags(struct wlan_objmgr_vdev *vdev,
+			  struct validate_bss_data *candidate_info)
+{
+	return policy_mgr_get_conc_ext_flags(vdev, candidate_info->is_mlo);
+}
+#else
+static inline uint32_t
+if_mgr_get_conc_ext_flags(struct wlan_objmgr_vdev *vdev,
+			  struct validate_bss_data *candidate_info)
+{
+	return 0;
+}
+#endif
+
 QDF_STATUS if_mgr_validate_candidate(struct wlan_objmgr_vdev *vdev,
 				     struct if_mgr_event_data *event_data)
 {
@@ -728,7 +754,7 @@ QDF_STATUS if_mgr_validate_candidate(struct wlan_objmgr_vdev *vdev,
 	struct validate_bss_data *candidate_info =
 		&event_data->validate_bss_info;
 	uint32_t chan_freq = candidate_info->chan_freq;
-	uint32_t conc_freq = 0;
+	uint32_t conc_freq = 0, conc_ext_flags;
 
 	op_mode = wlan_vdev_mlme_get_opmode(vdev);
 
@@ -764,9 +790,12 @@ QDF_STATUS if_mgr_validate_candidate(struct wlan_objmgr_vdev *vdev,
 	 * Valid multichannel concurrent sessions exempted
 	 */
 	mode = policy_mgr_convert_device_mode_to_qdf_type(op_mode);
+
 	/* If concurrency is not allowed select next bss */
+	conc_ext_flags = if_mgr_get_conc_ext_flags(vdev, candidate_info);
 	if (!policy_mgr_is_concurrency_allowed(psoc, mode, chan_freq,
-					       HW_MODE_20_MHZ)) {
+					       HW_MODE_20_MHZ,
+					       conc_ext_flags)) {
 		ifmgr_info("Concurrency not allowed for this channel freq %d bssid "QDF_MAC_ADDR_FMT", selecting next",
 			   chan_freq,
 			   QDF_MAC_ADDR_REF(bssid_arg.peer_addr.bytes));

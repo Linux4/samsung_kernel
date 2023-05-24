@@ -64,12 +64,10 @@ void nfc_parse_dt_for_platform_device(struct device *dev)
 			configure_gpio(nfc_gpio->ven, GPIO_OUTPUT);
 
 		nfc_configs->nfc_pvdd = regulator_get(dev, "nfc_pvdd");
-		if (IS_ERR(nfc_configs->nfc_pvdd)) {
+		if (IS_ERR(nfc_configs->nfc_pvdd))
 			NFC_LOG_ERR("get nfc_pvdd error\n");
-			nfc_configs->nfc_pvdd = NULL;
-		} else {
+		else
 			NFC_LOG_INFO("LDO nfc_pvdd: %pK\n", nfc_configs->nfc_pvdd);
-		}
 	}
 }
 #endif
@@ -121,9 +119,8 @@ int nfc_parse_dt(struct device *dev, struct platform_configs *nfc_configs,
 		nfc_configs->late_pvdd_en = false;
 
 	nfc_gpio->clk_req = of_get_named_gpio(np, "pn547,clk_req-gpio", 0);
-	if ((!gpio_is_valid(nfc_gpio->clk_req))) {
+	if ((!gpio_is_valid(nfc_gpio->clk_req)))
 		NFC_LOG_ERR("nfc clk_req gpio invalid %d\n", nfc_gpio->clk_req);
-	}
 
 	nfc_configs->clk_req_wake = of_property_read_bool(np, "pn547,clk_req_wake");
 
@@ -147,16 +144,23 @@ int nfc_parse_dt(struct device *dev, struct platform_configs *nfc_configs,
 		NFC_LOG_INFO("AP vendor is not set\n");
 	}
 #ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
-	if (nfc_configs->late_pvdd_en)
-		nfc_configs->nfc_pvdd = g_nfc_dev_for_chrdev.configs.nfc_pvdd;
-	else
+	if (nfc_configs->late_pvdd_en) {
+		if (!IS_ERR_OR_NULL(g_nfc_dev_for_chrdev.configs.nfc_pvdd)) {
+			nfc_configs->nfc_pvdd = g_nfc_dev_for_chrdev.configs.nfc_pvdd;
+		} else {
+			nfc_configs->nfc_pvdd = regulator_get(dev, "nfc_pvdd");
+			if (!IS_ERR(nfc_configs->nfc_pvdd))
+				g_nfc_dev_for_chrdev.configs.nfc_pvdd = nfc_configs->nfc_pvdd;
+			NFC_LOG_INFO("retry to get platform pvdd\n");
+		}
+	} else {
 		nfc_configs->nfc_pvdd = regulator_get(dev, "nfc_pvdd");
+	}
 #else
 	nfc_configs->nfc_pvdd = regulator_get(dev, "nfc_pvdd");
 #endif
 	if (IS_ERR(nfc_configs->nfc_pvdd)) {
 		NFC_LOG_ERR("get nfc_pvdd error\n");
-		nfc_configs->nfc_pvdd = NULL;
 		if (--retry_count > 0)
 			return -EPROBE_DEFER;
 		else
@@ -182,18 +186,26 @@ int nfc_parse_dt(struct device *dev, struct platform_configs *nfc_configs,
 }
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
-int nfc_regulator_onoff(struct platform_configs *nfc_configs, int onoff)
+int nfc_regulator_onoff(struct nfc_dev *nfc_dev, int onoff)
 {
 	int rc = 0;
+	struct platform_configs *nfc_configs = &nfc_dev->configs;
 	struct regulator *regulator_nfc_pvdd;
 
 	/* if nfc probe is called before nfc platform device, nfc_configs->nfc_pvdd is NULL */
 	if (!nfc_configs->nfc_pvdd)
 		nfc_configs->nfc_pvdd = g_nfc_dev_for_chrdev.configs.nfc_pvdd;
 
+	/* if regulator is not ready, try to get that again */
+	if (IS_ERR_OR_NULL(nfc_configs->nfc_pvdd) && nfc_dev->i2c_dev.client) {
+		NFC_LOG_INFO("%s retry to get regulator\n", __func__);
+		nfc_configs->nfc_pvdd = regulator_get(&nfc_dev->i2c_dev.client->dev, "nfc_pvdd");
+	}
+
 	regulator_nfc_pvdd = nfc_configs->nfc_pvdd;
-	if (!regulator_nfc_pvdd) {
-		NFC_LOG_ERR("error: null regulator!\n");
+
+	if (IS_ERR_OR_NULL(regulator_nfc_pvdd)) {
+		NFC_LOG_ERR("error at regulator!\n");
 		rc = -ENODEV;
 		goto done;
 	}
@@ -343,10 +355,9 @@ void gpio_free_all(struct nfc_dev *nfc_dev)
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 void nfc_power_control(struct nfc_dev *nfc_dev)
 {
-	struct platform_configs *nfc_configs = &nfc_dev->configs;
 	int ret;
 
-	ret = nfc_regulator_onoff(nfc_configs, 1);
+	ret = nfc_regulator_onoff(nfc_dev, 1);
 	if (ret < 0)
 		NFC_LOG_ERR("%s pn547 regulator_on fail err = %d\n", __func__, ret);
 
@@ -375,11 +386,11 @@ static ssize_t pvdd_store(struct class *class,
 #ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
 	if (!g_nfc_dev) {
 		nfc_dev = &g_nfc_dev_for_chrdev;
-		NFC_LOG_INFO("%s called before nfc probe", __func__);
+		NFC_LOG_INFO("%s called before nfc probe\n", __func__);
 	}
 #endif
 	if (!nfc_dev) {
-		NFC_LOG_ERR("%s nfc_dev is NULL!", __func__);
+		NFC_LOG_ERR("%s nfc_dev is NULL!\n", __func__);
 		return size;
 	}
 
@@ -629,6 +640,32 @@ static int nfc_ioctl_power_states(struct nfc_dev *nfc_dev, unsigned long arg)
 	return ret;
 }
 
+#ifdef CONFIG_COMPAT
+/**
+ * nfc_dev_compat_ioctl - used to set or get data from upper layer.
+ * @pfile   file node for opened device.
+ * @cmd     ioctl type from upper layer.
+ * @arg     ioctl arg from upper layer.
+ *
+ * NFC and ESE Device power control, based on the argument value
+ *
+ * Return: -ENOIOCTLCMD if arg is not supported
+ * 0 if Success(or no issue)
+ * 0 or 1 in case of arg is ESE_GET_PWR/ESE_POWER_STATE
+ * and error ret code otherwise
+ */
+long nfc_dev_compat_ioctl(struct file *pfile, unsigned int cmd,
+		      unsigned long arg)
+{
+	int ret = 0;
+
+	arg = (compat_u64)arg;
+	NFC_LOG_DBG("%s: cmd = %x arg = %zx\n", __func__, cmd, arg);
+	ret = nfc_dev_ioctl(pfile, cmd, arg);
+	return ret;
+}
+#endif
+
 /**
  * nfc_dev_ioctl - used to set or get data from upper layer.
  * @pfile   file node for opened device.
@@ -803,7 +840,7 @@ void nfc_print_status(void)
 	en = get_valid_gpio(nfc_gpio->ven);
 	firm = get_valid_gpio(nfc_gpio->dwl_req);
 	irq = get_valid_gpio(nfc_gpio->irq);
-	if (nfc_configs->nfc_pvdd)
+	if (!IS_ERR_OR_NULL(nfc_configs->nfc_pvdd))
 		pvdd = regulator_is_enabled(nfc_configs->nfc_pvdd);
 	else
 		NFC_LOG_ERR("nfc_pvdd is null\n");

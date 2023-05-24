@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -26,6 +27,10 @@
 #include "wlan_mlme_api.h"
 #include "wlan_crypto_global_api.h"
 #include "wlan_mlme_main.h"
+#include "wlan_cm_roam_api.h"
+#include <target_if_vdev_mgr_rx_ops.h>
+#include <target_if_vdev_mgr_tx_ops.h>
+#include "target_if_cm_roam_event.h"
 
 static struct wmi_unified
 *target_if_cm_roam_get_wmi_handle_from_vdev(struct wlan_objmgr_vdev *vdev)
@@ -113,17 +118,79 @@ target_if_cm_roam_send_roam_sync_complete(struct wlan_objmgr_vdev *vdev)
 						   wlan_vdev_get_id(vdev));
 }
 
+/**
+ * target_if_roam_set_param() - set roam params in fw
+ * @wmi_handle: wmi handle
+ * @vdev_id: vdev id
+ * @param_id: parameter id
+ * @param_value: parameter value
+ *
+ * Return: QDF_STATUS_SUCCESS for success or error code
+ */
+static QDF_STATUS
+target_if_roam_set_param(wmi_unified_t wmi_handle, uint8_t vdev_id,
+			 uint32_t param_id, uint32_t param_value)
+{
+	struct vdev_set_params roam_param = {0};
+
+	roam_param.vdev_id = vdev_id;
+	roam_param.param_id = param_id;
+	roam_param.param_value = param_value;
+
+	return wmi_unified_roam_set_param_send(wmi_handle, &roam_param);
+}
+
+/**
+ * target_if_cm_roam_rt_stats_config() - Send enable/disable roam event stats
+ * commands to wmi
+ * @vdev: vdev object
+ * @vdev_id: vdev id
+ * @rstats_config: roam event stats config parameters
+ *
+ * Return: QDF_STATUS
+ */
+static QDF_STATUS
+target_if_cm_roam_rt_stats_config(struct wlan_objmgr_vdev *vdev,
+				  uint8_t vdev_id, uint8_t rstats_config)
+{
+	QDF_STATUS status = QDF_STATUS_E_FAILURE;
+	wmi_unified_t wmi_handle;
+
+	wmi_handle = target_if_cm_roam_get_wmi_handle_from_vdev(vdev);
+	if (!wmi_handle)
+		return status;
+
+	status = target_if_roam_set_param(wmi_handle,
+					  vdev_id,
+					  WMI_ROAM_PARAM_ROAM_EVENTS_CONFIG,
+					  rstats_config);
+
+	if (QDF_IS_STATUS_ERROR(status))
+		target_if_err("Failed to set "
+			      "WMI_ROAM_PARAM_ROAM_EVENTS_CONFIG");
+
+	return status;
+}
+
 static void
 target_if_cm_roam_register_lfr3_ops(struct wlan_cm_roam_tx_ops *tx_ops)
 {
 	tx_ops->send_vdev_set_pcl_cmd = target_if_cm_roam_send_vdev_set_pcl_cmd;
 	tx_ops->send_roam_invoke_cmd = target_if_cm_roam_send_roam_invoke_cmd;
 	tx_ops->send_roam_sync_complete_cmd = target_if_cm_roam_send_roam_sync_complete;
+	tx_ops->send_roam_rt_stats_config = target_if_cm_roam_rt_stats_config;
 }
 #else
 static inline void
 target_if_cm_roam_register_lfr3_ops(struct wlan_cm_roam_tx_ops *tx_ops)
 {}
+
+static QDF_STATUS
+target_if_cm_roam_rt_stats_config(struct wlan_objmgr_vdev *vdev,
+				  uint8_t vdev_id, uint8_t rstats_config)
+{
+	return QDF_STATUS_E_NOSUPPORT;
+}
 #endif
 
 /**
@@ -672,8 +739,10 @@ target_if_cm_roam_scan_filter(wmi_unified_t wmi_handle, uint8_t command,
 			}
 			break;
 		default:
-			target_if_debug("Roam Filter need not be sent");
-			return QDF_STATUS_SUCCESS;
+			if (command != ROAM_SCAN_OFFLOAD_START) {
+				target_if_debug("Roam Filter need not be sent");
+				return QDF_STATUS_SUCCESS;
+			}
 		}
 	}
 
@@ -894,6 +963,7 @@ target_if_cm_roam_send_start(struct wlan_objmgr_vdev *vdev,
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
 	wmi_unified_t wmi_handle;
 	struct wlan_objmgr_psoc *psoc;
+	uint8_t vdev_id;
 	bool bss_load_enabled;
 
 	wmi_handle = target_if_cm_roam_get_wmi_handle_from_vdev(vdev);
@@ -1016,9 +1086,149 @@ target_if_cm_roam_send_start(struct wlan_objmgr_vdev *vdev,
 
 	target_if_cm_roam_idle_params(wmi_handle, ROAM_SCAN_OFFLOAD_START,
 				      &req->idle_params);
+
+	vdev_id = wlan_vdev_get_id(vdev);
+	if (req->wlan_roam_rt_stats_config)
+		target_if_cm_roam_rt_stats_config(vdev, vdev_id,
+						req->wlan_roam_rt_stats_config);
 	/* add other wmi commands */
 end:
 	return status;
+}
+
+#ifdef WLAN_FEATURE_11BE_MLO
+static QDF_STATUS
+target_if_start_rso_stop_timer(struct wlan_objmgr_vdev *vdev)
+{
+	struct wlan_objmgr_psoc *psoc;
+	uint8_t vdev_id;
+	struct wlan_lmac_if_mlme_rx_ops *rx_ops;
+	struct vdev_response_timer *vdev_rsp;
+
+	psoc = wlan_vdev_get_psoc(vdev);
+	if (!psoc) {
+		target_if_err("psoc handle is NULL");
+		return QDF_STATUS_E_INVAL;
+	}
+
+	vdev_id = wlan_vdev_get_id(vdev);
+	rx_ops = target_if_vdev_mgr_get_rx_ops(psoc);
+	if (!rx_ops || !rx_ops->psoc_get_vdev_response_timer_info) {
+		mlme_err("VEV_%d: PSOC_%d No Rx Ops", vdev_id,
+			 wlan_psoc_get_id(psoc));
+		return QDF_STATUS_E_INVAL;
+	}
+
+	vdev_rsp = rx_ops->psoc_get_vdev_response_timer_info(psoc, vdev_id);
+	if (!vdev_rsp) {
+		mlme_err("VDEV_%d: PSOC_%d No vdev rsp timer", vdev_id,
+			 wlan_psoc_get_id(psoc));
+		return QDF_STATUS_E_INVAL;
+	}
+
+	vdev_rsp->expire_time = RSO_STOP_RESPONSE_TIMER;
+
+	return target_if_vdev_mgr_rsp_timer_start(psoc, vdev_rsp,
+						  RSO_STOP_RESPONSE_BIT);
+}
+
+QDF_STATUS
+target_if_stop_rso_stop_timer(struct roam_offload_roam_event *roam_event)
+{
+	QDF_STATUS status = QDF_STATUS_SUCCESS;
+	struct vdev_response_timer *vdev_rsp;
+	struct wlan_lmac_if_mlme_rx_ops *rx_ops;
+
+	roam_event->rso_timer_stopped = false;
+	rx_ops = target_if_vdev_mgr_get_rx_ops(roam_event->psoc);
+	if (!rx_ops || !rx_ops->vdev_mgr_start_response) {
+		mlme_err("No Rx Ops");
+		return QDF_STATUS_E_INVAL;
+	}
+	vdev_rsp = rx_ops->psoc_get_vdev_response_timer_info(roam_event->psoc,
+							roam_event->vdev_id);
+	if (!vdev_rsp) {
+		mlme_err("vdev response timer is null VDEV_%d PSOC_%d",
+			 roam_event->vdev_id,
+			 wlan_psoc_get_id(roam_event->psoc));
+		return QDF_STATUS_E_INVAL;
+	}
+
+	if ((roam_event->reason == ROAM_REASON_RSO_STATUS &&
+	     (roam_event->notif == CM_ROAM_NOTIF_SCAN_MODE_SUCCESS ||
+	      roam_event->notif == CM_ROAM_NOTIF_SCAN_MODE_FAIL)) ||
+	    roam_event->reason == ROAM_REASON_HO_FAILED) {
+		status = target_if_vdev_mgr_rsp_timer_stop(roam_event->psoc,
+					vdev_rsp, RSO_STOP_RESPONSE_BIT);
+		if (QDF_IS_STATUS_SUCCESS(status))
+			roam_event->rso_timer_stopped = true;
+		else
+			mlme_err("PSOC_%d VDEV_%d: VDE MGR RSP Timer stop failed",
+				 roam_event->psoc->soc_objmgr.psoc_id,
+				 roam_event->vdev_id);
+	} else if (roam_event->reason == ROAM_REASON_RSO_STATUS &&
+		   roam_event->notif == CM_ROAM_NOTIF_HO_FAIL) {
+		mlme_debug("HO_FAIL happened, wait for HO_FAIL event vdev_id: %u",
+			   roam_event->vdev_id);
+	}
+
+	return status;
+}
+
+#else
+static inline QDF_STATUS
+target_if_start_rso_stop_timer(struct wlan_objmgr_vdev *vdev)
+{
+	return QDF_STATUS_E_NOSUPPORT;
+}
+#endif
+
+#ifdef WLAN_FEATURE_ROAM_OFFLOAD
+QDF_STATUS
+target_if_cm_send_rso_stop_failure_rsp(struct wlan_objmgr_psoc *psoc,
+				       uint8_t vdev_id)
+{
+	struct wlan_cm_roam_rx_ops *roam_rx_ops;
+	struct roam_offload_roam_event roam_event = {0};
+
+	roam_event.vdev_id = vdev_id;
+	roam_event.psoc = psoc;
+	roam_event.reason = ROAM_REASON_RSO_STATUS;
+	roam_event.notif = CM_ROAM_NOTIF_SCAN_MODE_FAIL;
+	roam_event.rso_timer_stopped = true;
+
+	roam_rx_ops = target_if_cm_get_roam_rx_ops(psoc);
+	if (!roam_rx_ops || !roam_rx_ops->roam_event_rx) {
+		target_if_err("No valid roam rx ops");
+		return QDF_STATUS_E_INVAL;
+	}
+	roam_rx_ops->roam_event_rx(&roam_event);
+
+	return QDF_STATUS_SUCCESS;
+}
+#endif
+
+static QDF_STATUS
+target_if_cm_roam_abort_rso_stop_timer(struct wlan_objmgr_psoc *psoc,
+				       uint8_t vdev_id)
+{
+	struct vdev_response_timer *vdev_rsp;
+	struct wlan_lmac_if_mlme_rx_ops *rx_ops;
+
+	rx_ops = target_if_vdev_mgr_get_rx_ops(psoc);
+	if (!rx_ops || !rx_ops->vdev_mgr_start_response) {
+		mlme_err("No Rx Ops");
+		return QDF_STATUS_E_INVAL;
+	}
+	vdev_rsp = rx_ops->psoc_get_vdev_response_timer_info(psoc, vdev_id);
+	if (!vdev_rsp) {
+		mlme_err("vdev response timer is null VDEV_%d PSOC_%d",
+			 vdev_id, wlan_psoc_get_id(psoc));
+		return QDF_STATUS_E_INVAL;
+	}
+
+	return target_if_vdev_mgr_rsp_timer_stop(psoc, vdev_rsp,
+						 RSO_STOP_RESPONSE_BIT);
 }
 
 /**
@@ -1036,6 +1246,8 @@ target_if_cm_roam_send_stop(struct wlan_objmgr_vdev *vdev,
 			    struct wlan_roam_stop_config *req)
 {
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
+	QDF_STATUS timer_start_status = QDF_STATUS_E_NOSUPPORT;
+	QDF_STATUS rso_stop_status = QDF_STATUS_E_INVAL;
 	wmi_unified_t wmi_handle;
 	struct wlan_objmgr_psoc *psoc;
 	uint8_t vdev_id;
@@ -1043,6 +1255,12 @@ target_if_cm_roam_send_stop(struct wlan_objmgr_vdev *vdev,
 	wmi_handle = target_if_cm_roam_get_wmi_handle_from_vdev(vdev);
 	if (!wmi_handle)
 		return QDF_STATUS_E_FAILURE;
+
+	psoc = wlan_vdev_get_psoc(vdev);
+	if (!psoc) {
+		target_if_err("psoc handle is NULL");
+		return QDF_STATUS_E_INVAL;
+	}
 
 	/* Send 11k offload disable command to FW as part of RSO Stop */
 	status = target_if_cm_roam_offload_11k_params(wmi_handle,
@@ -1061,15 +1279,12 @@ target_if_cm_roam_send_stop(struct wlan_objmgr_vdev *vdev,
 		goto end;
 	}
 
-	psoc = wlan_vdev_get_psoc(vdev);
-	if (!psoc) {
-		target_if_err("psoc handle is NULL");
-		return QDF_STATUS_E_INVAL;
-	}
+	if (req->start_rso_stop_timer)
+		timer_start_status = target_if_start_rso_stop_timer(vdev);
 
-	status = target_if_cm_roam_scan_offload_mode(wmi_handle,
-						     &req->rso_config);
-	if (QDF_IS_STATUS_ERROR(status)) {
+	rso_stop_status = target_if_cm_roam_scan_offload_mode(wmi_handle,
+							      &req->rso_config);
+	if (QDF_IS_STATUS_ERROR(rso_stop_status)) {
 		target_if_err("vdev:%d Send RSO mode cmd failed",
 			      req->rso_config.vdev_id);
 		goto end;
@@ -1109,13 +1324,32 @@ target_if_cm_roam_send_stop(struct wlan_objmgr_vdev *vdev,
 	 * disconnect
 	 */
 	vdev_id = wlan_vdev_get_id(vdev);
-	if (req->rso_config.rso_mode_info.roam_scan_mode == WMI_ROAM_SCAN_MODE_NONE) {
+	if (req->rso_config.rso_mode_info.roam_scan_mode ==
+	    WMI_ROAM_SCAN_MODE_NONE) {
 		req->roam_triggers.vdev_id = vdev_id;
 		req->roam_triggers.trigger_bitmap = 0;
 		req->roam_triggers.roam_scan_scheme_bitmap = 0;
 		target_if_cm_roam_triggers(vdev, &req->roam_triggers);
 	}
 end:
+	if (QDF_IS_STATUS_SUCCESS(timer_start_status)) {
+		if (QDF_IS_STATUS_SUCCESS(rso_stop_status)) {
+			/*
+			 * Started the timer and send RSO stop to firmware
+			 * successfully. Wait for RSO STOP response from fw.
+			 */
+			req->send_rso_stop_resp = false;
+		} else {
+			/*
+			 * Started the timer and but failed to send RSO stop to
+			 * firmware. Stop the timer and let the response be
+			 * poseted from CM.
+			 */
+			target_if_cm_roam_abort_rso_stop_timer(psoc,
+						wlan_vdev_get_id(vdev));
+		}
+	}
+
 	return status;
 }
 
@@ -1217,6 +1451,11 @@ target_if_cm_roam_send_update_config(struct wlan_objmgr_vdev *vdev,
 				wmi_handle, ROAM_SCAN_OFFLOAD_UPDATE_CFG,
 				&req->idle_params);
 		target_if_cm_roam_triggers(vdev, &req->roam_triggers);
+
+		if (req->wlan_roam_rt_stats_config)
+			target_if_cm_roam_rt_stats_config(
+						vdev, vdev_id,
+						req->wlan_roam_rt_stats_config);
 	}
 end:
 	return status;

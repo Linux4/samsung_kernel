@@ -7,6 +7,7 @@
 
 #include <linux/blkdev.h>
 #include <linux/debugfs.h>
+#include <linux/fs.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/module.h>
@@ -132,7 +133,7 @@ static bool __qc_dbg_part_is_valid_index(size_t index)
 ssize_t sec_qc_dbg_part_get_size(size_t index)
 {
 	if (!__qc_dbg_part_is_probed())
-		return -ENODEV;
+		return -EBUSY;
 
 	if (!__qc_dbg_part_is_valid_index(index))
 		return -EINVAL;
@@ -141,7 +142,7 @@ ssize_t sec_qc_dbg_part_get_size(size_t index)
 }
 EXPORT_SYMBOL(sec_qc_dbg_part_get_size);
 
-/* NOTE: see fs/pstore/plk.c */
+/* NOTE: see fs/pstore/blk.c */
 static ssize_t __qc_dbg_part_blk_read(struct qc_dbg_part_drvdata *drvdata,
 		void *buf, size_t bytes, loff_t pos)
 {
@@ -204,7 +205,7 @@ bool sec_qc_dbg_part_read(size_t index, void *value)
 }
 EXPORT_SYMBOL(sec_qc_dbg_part_read);
 
-/* NOTE: see fs/pstore/plk.c */
+/* NOTE: see fs/pstore/blk.c */
 static ssize_t __qc_dbg_part_blk_write(struct qc_dbg_part_drvdata *drvdata,
 		const void *buf, size_t bytes, loff_t pos )
 {
@@ -481,6 +482,22 @@ static int __qc_dbg_part_remove(struct platform_device *pdev,
 }
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
+static void __qc_dbg_part_dbgfs_show_bdev(struct seq_file *m)
+{
+	struct qc_dbg_part_drvdata *drvdata = m->private;
+	struct block_device *bdev = drvdata->bdev;
+	struct hd_struct *bd_part = bdev->bd_part;
+	char buf[BDEVNAME_SIZE];
+
+	bdevname(bdev, buf);
+
+	seq_puts(m, "* Block Device :\n");
+	seq_printf(m, "  - bdevname : %s\n", buf);
+	seq_printf(m, "  - uuid     : %s\n", bd_part->info->uuid);
+	seq_printf(m, "  - volname  : %s\n", bd_part->info->volname);
+	seq_puts(m, "\n");
+}
+
 static void __qc_dbg_part_dbgfs_show_each(struct seq_file *m, size_t index)
 {
 	struct qc_dbg_part_info *info = &qc_dbg_part_info[index];
@@ -511,6 +528,8 @@ static int sec_qc_dbg_part_dbgfs_show_all(struct seq_file *m, void *unsed)
 {
 	size_t i;
 
+	__qc_dbg_part_dbgfs_show_bdev(m);
+
 	for (i = 0; i < ARRAY_SIZE(qc_dbg_part_info); i++)
 		__qc_dbg_part_dbgfs_show_each(m, i);
 
@@ -536,7 +555,7 @@ static int __qc_dbg_part_debugfs_create(struct builder *bd)
 			container_of(bd, struct qc_dbg_part_drvdata, bd);
 
 	drvdata->dbgfs = debugfs_create_file("sec_qc_dbg_part", 0440,
-			NULL, NULL, &sec_qc_dbg_part_dgbfs_fops);
+			NULL, drvdata, &sec_qc_dbg_part_dgbfs_fops);
 
 	return 0;
 }

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -180,7 +181,11 @@ int32_t pal_stream_open(struct pal_stream_attributes *attributes,
     stream = reinterpret_cast<uint64_t *>(s);
     *stream_handle = stream;
 exit:
+#ifdef SEC_AUDIO_ADD_FOR_DEBUG   
+    PAL_INFO(LOG_TAG, "Exit. Value of stream_handle %pK, status %d stream type:%d", stream, status, attributes->type);
+#else
     PAL_INFO(LOG_TAG, "Exit. Value of stream_handle %pK, status %d", stream, status);
+#endif
     return status;
 }
 
@@ -201,6 +206,7 @@ int32_t pal_stream_close(pal_stream_handle_t *stream_handle)
         PAL_ERR(LOG_TAG, "stream closed failed. status %d", status);
         goto exit;
     }
+
 exit:
     delete s;
     PAL_INFO(LOG_TAG, "Exit. status %d", status);
@@ -220,7 +226,7 @@ int32_t pal_stream_start(pal_stream_handle_t *stream_handle)
     }
     PAL_INFO(LOG_TAG, "Enter. Stream handle %pK", stream_handle);
 
-    s =  reinterpret_cast<Stream *>(stream_handle);
+    s = reinterpret_cast<Stream *>(stream_handle);
 
     status = s->start();
     if (0 != status) {
@@ -248,7 +254,8 @@ int32_t pal_stream_stop(pal_stream_handle_t *stream_handle)
         return status;
     }
     PAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
-    s =  reinterpret_cast<Stream *>(stream_handle);
+
+    s = reinterpret_cast<Stream *>(stream_handle);
     s->getStreamType(&type);
     s->getStreamDirection(&dir);
 
@@ -316,14 +323,14 @@ int32_t pal_stream_get_param(pal_stream_handle_t *stream_handle,
         PAL_ERR(LOG_TAG,  "Invalid input parameters status %d", status);
         return status;
     }
-    PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    PAL_VERBOSE(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->getParameters(param_id, (void **)param_payload);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "get parameters failed status %d param_id %u", status, param_id);
         return status;
     }
-    PAL_DBG(LOG_TAG, "Exit. status %d", status);
+    PAL_VERBOSE(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -332,6 +339,8 @@ int32_t pal_stream_set_param(pal_stream_handle_t *stream_handle, uint32_t param_
 {
     Stream *s = NULL;
     int status;
+    std::shared_ptr<ResourceManager> rm = NULL;
+
     if (!stream_handle) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG,  "Invalid stream handle, status %d", status);
@@ -344,6 +353,16 @@ int32_t pal_stream_set_param(pal_stream_handle_t *stream_handle, uint32_t param_
     if (0 != status) {
         PAL_ERR(LOG_TAG, "set parameters failed status %d param_id %u", status, param_id);
         return status;
+    }
+    rm = ResourceManager::getInstance();
+    if (!rm) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "Invalid resource manager");
+        return status;
+    }
+    if (param_id == PAL_PARAM_ID_STOP_BUFFERING) {
+        PAL_DBG(LOG_TAG, "Buffering stopped, handle deferred LPI<->NLPI switch");
+        rm->handleDeferredSwitch();
     }
     PAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
@@ -361,7 +380,9 @@ int32_t pal_stream_set_volume(pal_stream_handle_t *stream_handle,
     }
     PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
+    s->lockStreamMutex();
     status = s->setVolume(volume);
+    s->unlockStreamMutex();
 #ifdef SEC_AUDIO_CALL_VOIP
     struct pal_stream_attributes sattr;
     s->getStreamAttributes(&sattr);
@@ -616,6 +637,7 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
     struct pal_device_info devinfo = {};
     struct pal_device *pDevices = NULL;
     std::vector <std::shared_ptr<Device>> aDevices;
+    std::vector <struct pal_device> palDevices;
 
     if (!stream_handle) {
         status = -EINVAL;
@@ -656,21 +678,19 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
         goto exit;
     }
 
-    s->getAssociatedDevices(aDevices);
-    if (!aDevices.empty()) {
+    s->getAssociatedPalDevices(palDevices);
+    if (!palDevices.empty()) {
         std::set<pal_device_id_t> activeDevices;
         std::set<pal_device_id_t> newDevices;
-        struct pal_device curDevAttr;
         bool force_switch = s->isA2dpMuted();
 
-        for (auto &dev : aDevices) {
-            activeDevices.insert((pal_device_id_t)dev->getSndDeviceId());
-            // check if custom key matches for same pal device
+        for (auto palDev: palDevices) {
+            activeDevices.insert(palDev.id);
+            // check if custom key matches for stream associated pal device
             for (int i = 0; i < no_of_devices; i++) {
-                if (dev->getSndDeviceId() == devices[i].id) {
-                    dev->getDeviceAttributes(&curDevAttr);
+                if (palDev.id == devices[i].id) {
                     if (strcmp(devices[i].custom_config.custom_key,
-                            curDevAttr.custom_config.custom_key) != 0) {
+                        palDev.custom_config.custom_key) != 0) {
                         PAL_DBG(LOG_TAG, "diff custom key found, force device switch");
                         force_switch = true;
                     }
@@ -680,12 +700,13 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
             if (force_switch)
                 break;
         }
-
         if (!force_switch) {
             for (int i = 0; i < no_of_devices; i++) {
                 newDevices.insert(devices[i].id);
-                if (devices[i].id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
-                    PAL_DBG(LOG_TAG, "always switch device for a2dp");
+                if ((devices[i].id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) ||
+                    (devices[i].id == PAL_DEVICE_OUT_BLUETOOTH_SCO) ||
+                    (devices[i].id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET)) {
+                    PAL_DBG(LOG_TAG, "always switch device for bt device");
                     force_switch = true;
                     break;
                 }
@@ -791,7 +812,7 @@ int32_t pal_get_param(uint32_t param_id, void **param_payload,
 
     rm = ResourceManager::getInstance();
 
-    PAL_DBG(LOG_TAG, "Enter:");
+    PAL_VERBOSE(LOG_TAG, "Enter:");
 
     if (rm) {
         status = rm->getParameter(param_id, param_payload, payload_size, query);
@@ -803,7 +824,7 @@ int32_t pal_get_param(uint32_t param_id, void **param_payload,
         PAL_ERR(LOG_TAG, "Pal has not been initialized yet");
         status = -EINVAL;
     }
-    PAL_DBG(LOG_TAG, "Exit, status %d", status);
+    PAL_VERBOSE(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
@@ -817,14 +838,14 @@ int32_t pal_stream_get_mmap_position(pal_stream_handle_t *stream_handle,
         PAL_ERR(LOG_TAG, "Invalid input parameters status %d", status);
         return status;
     }
-    PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    PAL_VERBOSE(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->GetMmapPosition(position);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "pal_stream_get_mmap_position failed with status %d", status);
         return status;
     }
-    PAL_DBG(LOG_TAG, "Exit. status %d", status);
+    PAL_VERBOSE(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -874,7 +895,7 @@ int32_t pal_gef_rw_param(uint32_t param_id, void *param_payload,
 
     rm = ResourceManager::getInstance();
 
-    PAL_DBG(LOG_TAG, "Enter.");
+    PAL_VERBOSE(LOG_TAG, "Enter.");
 
     if (rm) {
         if (GEF_PARAM_WRITE == dir) {
@@ -896,7 +917,7 @@ int32_t pal_gef_rw_param(uint32_t param_id, void *param_payload,
         PAL_ERR(LOG_TAG, "Pal has not been initialized yet");
         status = -EINVAL;
     }
-    PAL_DBG(LOG_TAG, "Exit:");
+    PAL_VERBOSE(LOG_TAG, "Exit:");
 
     return status;
 }
@@ -927,3 +948,17 @@ int32_t pal_gef_rw_param_acdb(uint32_t param_id __unused, void *param_payload,
 
     return status;
 }
+
+#ifdef SEC_AUDIO_COMMON
+void pal_dump(int fd)
+{
+    std::shared_ptr<ResourceManager> rm = NULL;
+    rm = ResourceManager::getInstance();
+
+    dprintf(fd, " \n");
+    dprintf(fd, "pal : \n");
+    if (rm) {
+        rm->dump(fd);
+    }
+}
+#endif

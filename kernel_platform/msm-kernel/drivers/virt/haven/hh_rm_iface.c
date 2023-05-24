@@ -227,6 +227,8 @@ hh_rm_vm_get_hyp_res(hh_vmid_t vmid, u32 *n_entries)
 
 	/* The response payload should contain all the resource entries */
 	if (resp_payload_size < sizeof(*n_entries) ||
+		(sizeof(*n_entries) > (U32_MAX -
+		(resp_payload->n_resource_entries * sizeof(*resp_entries)))) ||
 		resp_payload_size != sizeof(*n_entries) +
 		(resp_payload->n_resource_entries * sizeof(*resp_entries))) {
 		pr_err("%s: Invalid size received for GET_HYP_RESOURCES: %u\n",
@@ -727,7 +729,7 @@ int hh_rm_console_write(hh_vmid_t vmid, const char *buf, size_t size)
 	int reply_err_code = 0;
 	size_t req_payload_size = sizeof(*req_payload) + size;
 
-	if (size < 1 || size > U32_MAX)
+	if (size < 1 || size > (U32_MAX - sizeof(*req_payload)))
 		return -EINVAL;
 
 	req_payload = kzalloc(req_payload_size, GFP_KERNEL);

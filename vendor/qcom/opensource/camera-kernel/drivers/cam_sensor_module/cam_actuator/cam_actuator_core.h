@@ -74,4 +74,7 @@ int16_t cam_actuator_move_for_ois_read_hall_cal_test(struct cam_actuator_ctrl_t 
 #if defined(CONFIG_SAMSUNG_ACTUATOR_PREVENT_SHAKING)
 int32_t cam_actuator_default_init_setting(struct cam_actuator_ctrl_t *a_ctrl);
 #endif
+#if defined(CONFIG_SAMSUNG_ACTUATOR_READ_HALL_VALUE)
+int32_t cam_actuator_read_hall_value(struct cam_actuator_ctrl_t *a_ctrl, uint16_t* af_hall_value);
+#endif
 #endif /* _CAM_ACTUATOR_CORE_H_ */

@@ -220,6 +220,7 @@ struct cam_csid_hw_reserve_resource_args {
 	uint32_t                                  phy_sel;
 	bool                                      can_use_lite;
 	void                                     *cb_priv;
+	bool                                      secure_mode;
 };
 
 /**

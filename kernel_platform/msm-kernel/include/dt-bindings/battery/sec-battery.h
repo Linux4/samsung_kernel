@@ -292,6 +292,7 @@
 #define WIRELESS_VOUT_5_5V_STEP		14
 #define WIRELESS_VOUT_9V_STEP		15
 #define WIRELESS_VOUT_10V_STEP		16
+#define WIRELESS_VOUT_OTG			17
 
 /* enum mfc_send_command */
 #define MFC_END_SIG_STRENGTH		0
@@ -321,6 +322,19 @@
 #define MFC_LED_CONTROL_DIMMING		24
 #define MFC_SET_OP_FREQ			25
 #define MFC_TX_UNO_OFF			26
+
+#define MFC_VOUT_4_5V	0
+#define MFC_VOUT_5V	1
+#define MFC_VOUT_5_5V	2
+#define MFC_VOUT_6V	3
+#define MFC_VOUT_7V	4
+#define MFC_VOUT_8V	5
+#define MFC_VOUT_9V	6
+#define MFC_VOUT_10V	7
+#define MFC_VOUT_11V	8
+#define MFC_VOUT_12V	9
+#define MFC_VOUT_12_5V	10
+#define MFC_VOUT_OTG	11
 
 /* fod macro */
 #define FOD_FLAG_NONE			0

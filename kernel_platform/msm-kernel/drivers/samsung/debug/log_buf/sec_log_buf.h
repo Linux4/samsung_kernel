@@ -2,8 +2,11 @@
 #define __INTERNAL__SEC_QC_LOG_BUF_H__
 
 #include <linux/console.h>
+#include <linux/debugfs.h>
+#include <linux/crypto.h>
 #include <linux/kmsg_dump.h>
 #include <linux/kprobes.h>
+#include <linux/proc_fs.h>
 
 #include <linux/samsung/builder_pattern.h>
 #include <linux/samsung/debug/sec_log_buf.h>
@@ -11,6 +14,13 @@
 struct last_kmsg_data {
 	char *buf;
 	size_t size;
+	bool use_compression;
+	const char *compressor;
+	struct mutex lock;
+	unsigned int ref_cnt;
+	struct crypto_comp *tfm;
+	char *buf_comp;
+	size_t size_comp;
 	struct proc_dir_entry *proc;
 };
 
@@ -19,6 +29,14 @@ struct log_buf_drvdata;
 struct log_buf_logger {
 	int (*probe)(struct log_buf_drvdata *);
 	void (*remove)(struct log_buf_drvdata *);
+};
+
+struct ap_klog_proc {
+	char *buf;
+	size_t size;
+	struct mutex lock;
+	unsigned int ref_cnt;
+	struct proc_dir_entry *proc;
 };
 
 struct log_buf_drvdata {
@@ -34,6 +52,10 @@ struct log_buf_drvdata {
 	};
 	const struct log_buf_logger *logger;
 	struct last_kmsg_data last_kmsg;
+	struct ap_klog_proc ap_klog;
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+	struct dentry *dbgfs;
+#endif
 };
 
 extern struct log_buf_drvdata *sec_log_buf;
@@ -46,6 +68,24 @@ static __always_inline bool __log_buf_is_probed(void)
 /* sec_log_buf_main.c */
 extern void __log_buf_write(const char *s, size_t count);
 extern void __log_buf_store_from_kmsg_dumper(void);
+extern const struct sec_log_buf_head *__log_buf_get_header(void);
+extern ssize_t ___log_buf_get_buf_size(void);
+extern size_t __log_buf_copy_to_buffer(void *buf);
+
+/* sec_log_buf_last_kmsg.c */
+extern int __last_kmsg_alloc_buffer(struct builder *bd);
+extern void __last_kmsg_free_buffer(struct builder *bd);
+extern int __last_kmsg_pull_last_log(struct builder *bd);
+extern int __last_kmsg_procfs_create(struct builder *bd);
+extern void __last_kmsg_procfs_remove(struct builder *bd);
+extern int __last_kmsg_init_compression(struct builder *bd);
+extern void __last_kmsg_exit_compression(struct builder *bd);
+
+/* sec_log_buf_debugfs.c */
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+extern int __log_buf_debugfs_create(struct builder *bd);
+extern void __log_buf_debugfs_remove(struct builder *bd);
+#endif
 
 /* sec_log_buf_logger.c */
 extern int __log_buf_logger_init(struct builder *bd);
@@ -66,5 +106,9 @@ extern const struct log_buf_logger *__log_buf_logger_console_creator(void);
 
 /* sec_log_buf_vh_log_buf.c */
 extern const struct log_buf_logger *__log_buf_logger_vh_logbuf_creator(void);
+
+/* sec_log_buf_ap_klog.c */
+extern int __ap_klog_proc_init(struct builder *bd);
+extern void __ap_klog_proc_exit(struct builder *bd);
 
 #endif /* __INTERNAL__SEC_QC_LOG_BUF_H__ */

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -24,6 +25,39 @@
  * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted (subject to the limitations in the
+ * disclaimer below) provided that the following conditions are met:
+ *
+ *   * Redistributions of source code must retain the above copyright
+ *     notice, this list of conditions and the following disclaimer.
+ *
+ *   * Redistributions in binary form must reproduce the above
+ *     copyright notice, this list of conditions and the following
+ *     disclaimer in the documentation and/or other materials provided
+ *     with the distribution.
+ *
+ *   * Neither the name of Qualcomm Innovation Center, Inc. nor the names of its
+ *     contributors may be used to endorse or promote products derived
+ *     from this software without specific prior written permission.
+ *
+ * NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
+ * GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
+ * HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+ * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+ * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+ * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
@@ -95,7 +129,8 @@ Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *d
     if (sAttr->type == PAL_STREAM_NON_TUNNEL || sAttr->type == PAL_STREAM_CONTEXT_PROXY)
         goto stream_create;
 
-    palDevsAttr = new pal_device [noOfDevices];
+    palDevsAttr = (pal_device *)calloc(noOfDevices, sizeof(struct pal_device));
+
     if (!palDevsAttr) {
         PAL_ERR(LOG_TAG, "palDevsAttr not created");
         goto exit;
@@ -122,7 +157,8 @@ Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *d
         if (palDevsAttr[count].id == PAL_DEVICE_OUT_USB_DEVICE ||
             palDevsAttr[count].id == PAL_DEVICE_OUT_USB_HEADSET ||
             palDevsAttr[count].id == PAL_DEVICE_IN_USB_DEVICE ||
-            palDevsAttr[count].id == PAL_DEVICE_IN_USB_HEADSET) {
+            palDevsAttr[count].id == PAL_DEVICE_IN_USB_HEADSET ||
+            rm->isBtDevice(palDevsAttr[count].id)) {
             palDevsAttr[count].address = dAttr[i].address;
         }
 
@@ -134,19 +170,23 @@ Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *d
             strlcpy(palDevsAttr[count].custom_config.custom_key, "", PAL_MAX_CUSTOM_KEY_SIZE);
             PAL_DBG(LOG_TAG, "no custom key found");
         }
-        status = rm->getDeviceConfig((struct pal_device *)&palDevsAttr[count], sAttr);
-        if (status) {
-           PAL_ERR(LOG_TAG, "Not able to get Device config %d", status);
-           goto exit;
+
+        if (palDevsAttr[count].address.card_id != DUMMY_SND_CARD) {
+            status = rm->getDeviceConfig((struct pal_device *)&palDevsAttr[count], sAttr);
+            if (status) {
+               PAL_ERR(LOG_TAG, "Not able to get Device config %d", status);
+               goto exit;
+            }
+            // check if it's grouped device and group config needs to update
+            rm->lockActiveStream();
+            status = rm->checkAndUpdateGroupDevConfig((struct pal_device *)&palDevsAttr[count], sAttr,
+                                                    streamsToSwitch, &streamDevAttr, true);
+            rm->unlockActiveStream();
+            if (status) {
+                PAL_ERR(LOG_TAG, "no valid group device config found");
+            }
         }
-        // check if it's grouped device and group config needs to update
-        rm->lockActiveStream();
-        status = rm->checkAndUpdateGroupDevConfig((struct pal_device *)&palDevsAttr[count], sAttr,
-                                                streamsToSwitch, &streamDevAttr, true);
-        rm->unlockActiveStream();
-        if (status) {
-            PAL_ERR(LOG_TAG, "no valid group device config found");
-        }
+
         count++;
     }
 
@@ -166,6 +206,7 @@ stream_create:
             case PAL_STREAM_PROXY:
             case PAL_STREAM_HAPTICS:
             case PAL_STREAM_RAW:
+            case PAL_STREAM_VOICE_RECOGNITION:
                 //TODO:for now keeping PAL_STREAM_PLAYBACK_GENERIC for ULLA need to check
                 stream = new StreamPCM(sAttr,
                                        palDevsAttr,
@@ -249,7 +290,7 @@ stream_create:
     }
 exit:
     if (palDevsAttr) {
-        delete [] palDevsAttr;
+        free(palDevsAttr);
     }
 
     if (!stream) {
@@ -313,12 +354,19 @@ int32_t Stream::getEffectParameters(void *effect_query)
         return -EINVAL;
     }
 
+    mStreamMutex.lock();
+    if (currentState == STREAM_IDLE) {
+        PAL_ERR(LOG_TAG, "Invalid stream state: IDLE");
+        mStreamMutex.unlock();
+        return -EINVAL;
+    }
     pal_param_payload *pal_param = (pal_param_payload *)effect_query;
     effect_pal_payload_t *effectPayload = (effect_pal_payload_t *)pal_param->payload;
     status = session->getEffectParameters(this, effectPayload);
     if (status) {
        PAL_ERR(LOG_TAG, "getEffectParameters failed with %d", status);
     }
+    mStreamMutex.unlock();
 
     return status;
 }
@@ -326,7 +374,18 @@ int32_t Stream::getEffectParameters(void *effect_query)
 int32_t Stream::rwACDBParameters(void *payload, uint32_t sampleRate,
                                     bool isParamWrite)
 {
-    return session->rwACDBParameters(payload, sampleRate, isParamWrite);
+    int32_t status = 0;
+
+    mStreamMutex.lock();
+    if (currentState == STREAM_IDLE) {
+        PAL_ERR(LOG_TAG, "Invalid stream state: IDLE");
+        mStreamMutex.unlock();
+        return -EINVAL;
+    }
+    status = session->rwACDBParameters(payload, sampleRate, isParamWrite);
+    mStreamMutex.unlock();
+
+    return status;
 }
 
 int32_t Stream::getStreamType (pal_stream_type_t* streamType)
@@ -372,11 +431,9 @@ uint32_t Stream::getRenderLatency()
     case PAL_STREAM_DEEP_BUFFER:
         delayMs = PAL_DEEP_BUFFER_PLATFORM_DELAY / 1000;
         break;
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
     case PAL_STREAM_GENERIC:
         delayMs = PAL_GENERIC_PLATFORM_DELAY / 1000;
         break;
-#endif
     case PAL_STREAM_LOW_LATENCY:
         delayMs = PAL_LOW_LATENCY_PLATFORM_DELAY / 1000;
         break;
@@ -404,12 +461,10 @@ uint32_t Stream::getLatency()
     }
 
     switch (mStreamAttr->type) {
-#ifdef SEC_AUDIO_EARLYDROP_PATCH
     case PAL_STREAM_GENERIC:
         latencyMs = PAL_GENERIC_OUTPUT_PERIOD_DURATION *
             PAL_GENERIC_PLAYBACK_PERIOD_COUNT;
         break;
-#endif
     case PAL_STREAM_DEEP_BUFFER:
         latencyMs = PAL_DEEP_BUFFER_OUTPUT_PERIOD_DURATION *
             PAL_DEEP_BUFFER_PLAYBACK_PERIOD_COUNT;
@@ -443,21 +498,34 @@ int32_t Stream::getAssociatedDevices(std::vector <std::shared_ptr<Device>> &aDev
     return status;
 }
 
-int32_t Stream::UpdatePalDevice(struct pal_device *dattr,  pal_device_id_t Dev_id)
+void Stream::clearOutPalDevices()
+{
+    std::vector <struct pal_device>::iterator dIter;
+
+    for (dIter = mPalDevice.begin(); dIter != mPalDevice.end();) {
+        if (!rm->isInputDevId((*dIter).id)) {
+            mPalDevice.erase(dIter);
+        } else {
+            dIter++;
+        }
+    }
+}
+
+int32_t Stream::updatePalDevice(struct pal_device *dattr, pal_device_id_t dev_id)
 {
     int32_t status = 0;
 
-    PAL_DBG(LOG_TAG, "Updatepaldevice from %d to %d", Dev_id, dattr->id);
+    PAL_DBG(LOG_TAG, "updatePalDevice from %d to %d", dev_id, dattr->id);
     for (int i = 0; i < mPalDevice.size(); i++) {
-        if (Dev_id == mPalDevice[i].id) {
+        if (dev_id == mPalDevice[i].id) {
             mPalDevice.erase(mPalDevice.begin() + i);
             break;
         }
     }
+
     mPalDevice.push_back(*dattr);
     return status;
 }
-
 
 int32_t Stream::getAssociatedPalDevices(std::vector <struct pal_device> &palDevices)
 {
@@ -469,6 +537,17 @@ int32_t Stream::getAssociatedPalDevices(std::vector <struct pal_device> &palDevi
     }
 
     return status;
+}
+
+int32_t Stream::getSoundCardId()
+{
+    if (mPalDevice.size()) {
+        PAL_DBG(LOG_TAG, "sound card id = 0x%x",
+                    mPalDevice[0].address.card_id);
+        return mPalDevice[0].address.card_id;
+    }
+
+    return -EINVAL;
 }
 
 int32_t Stream::getAssociatedSession(Session **s)
@@ -723,8 +802,13 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
 {
     int32_t status = 0;
     struct pal_device dattr = {};
+    struct pal_device spkrDattr = {};
+    struct pal_device handsetDattr = {};
     std::shared_ptr<Device> dev = nullptr;
+    std::shared_ptr<Device> spkrDev = nullptr;
+    std::shared_ptr<Device> handsetDev = nullptr;
     pal_param_bta2dp_t *param_bt_a2dp = nullptr;
+    std::vector <Stream *> activeStreams;
 
     a2dpSuspend = false;
 
@@ -766,25 +850,64 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
         }
     }
 
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    /* A2DP/BLE device is not ready */
+    if (rm->isDeviceAvailable(mDevices, PAL_DEVICE_OUT_BLUETOOTH_A2DP) ||
+        rm->isDeviceAvailable(mDevices, PAL_DEVICE_OUT_BLUETOOTH_BLE) ||
+        rm->isDeviceAvailable(mDevices, PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST)) {
+        if (rm->isDeviceAvailable(mDevices, PAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
+            dattr.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
+        } else if (rm->isDeviceAvailable(mDevices, PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST)){
+            dattr.id = PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST;
+        } else {
+            dattr.id = PAL_DEVICE_OUT_BLUETOOTH_BLE;
+        }
+#else
     /* A2DP device is not ready */
     if (rm->isDeviceAvailable(mDevices, PAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
         dattr.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
+#endif
         dev = Device::getInstance(&dattr, rm);
         if (!dev) {
             status = -ENODEV;
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            PAL_ERR(LOG_TAG, "failed to get a2dp/ble device object");
+#else
             PAL_ERR(LOG_TAG, "failed to get a2dp device object");
+#endif
             goto exit;
         }
         dev->getDeviceParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED,
                         (void **)&param_bt_a2dp);
+
+#ifdef SEC_AUDIO_BLE_OFFLOAD // SEC
+        bool is_a2dp_suspend_for_ble = false;
+        // check a2dp suspend for ble state only for a2dp device case
+        if (rm->isDeviceAvailable(mDevices, PAL_DEVICE_OUT_BLUETOOTH_A2DP)
+                && param_bt_a2dp->a2dp_suspended_for_ble == true){
+            PAL_INFO(LOG_TAG, "BT A2DP suspended for BLE");
+            is_a2dp_suspend_for_ble = true;
+        }
+
+        if ((param_bt_a2dp->a2dp_suspended == false)
+            && (is_a2dp_suspend_for_ble == false)){
+            PAL_DBG(LOG_TAG, "BT A2DP/BLE output device is good to go");
+            goto exit;
+        }
+#else
         if (param_bt_a2dp->a2dp_suspended == false) {
             PAL_DBG(LOG_TAG, "BT A2DP output device is good to go");
             goto exit;
         }
+#endif
 
         if (rm->isDeviceAvailable(mDevices, PAL_DEVICE_OUT_SPEAKER)) {
             // If it's a2dp + speaker combo device, route to speaker.
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            PAL_INFO(LOG_TAG, "BT A2DP/BLE output device is not ready, route to speaker");
+#else
             PAL_INFO(LOG_TAG, "BT A2DP output device is not ready, route to speaker");
+#endif
             for (auto iter = mDevices.begin(); iter != mDevices.end();) {
                 if ((*iter)->getSndDeviceId() == PAL_DEVICE_OUT_SPEAKER) {
                     iter++;
@@ -809,13 +932,21 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
                 iter = mDevices.erase(iter);
             }
         } else {
-            // For non-combo device, mute the stream and route to speaker
-            PAL_INFO(LOG_TAG, "BT A2DP output device is not ready, mute stream and route to speaker");
+            // For non-combo device, mute the stream and route to speaker or handset
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            PAL_INFO(LOG_TAG, "BT A2DP/BLE output device is not ready");
+#else
+            PAL_INFO(LOG_TAG, "BT A2DP output device is not ready");
+#endif
 
-            //Mark the suspendedDevIds state early - As a2dpResume may happen during this time.
+            // Mark the suspendedDevIds state early - As a2dpResume may happen during this time.
             a2dpSuspend = true;
             suspendedDevIds.clear();
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            suspendedDevIds.push_back(dattr.id);
+#else
             suspendedDevIds.push_back(PAL_DEVICE_OUT_BLUETOOTH_A2DP);
+#endif
 
             for (int i = 0; i < mDevices.size(); i++) {
                 rm->lockGraph();
@@ -835,14 +966,48 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
             }
             mDevices.clear();
 
-            // NOTE: lockGraph is not intended for speaker device
-            dattr.id = PAL_DEVICE_OUT_SPEAKER;
-            dev = Device::getInstance(&dattr , rm);
-            if (!dev) {
+            /* Check whether there's active stream associated with handset or speaker
+             * - Device selected to switch by default is speaker.
+             * - Check handset as well if no stream on speaker.
+             */
+            // NOTE: lockGraph is not intended for speaker or handset device
+            spkrDattr.id = PAL_DEVICE_OUT_SPEAKER;
+            spkrDev = Device::getInstance(&spkrDattr , rm);
+            handsetDattr.id = PAL_DEVICE_OUT_HANDSET;
+            handsetDev = Device::getInstance(&handsetDattr , rm);
+            if (!spkrDev || !handsetDev) {
                 status = -ENODEV;
-                PAL_ERR(LOG_TAG, "Failed to get speaker instance");
+                PAL_ERR(LOG_TAG, "Failed to get speaker or handset instance");
                 goto exit;
             }
+
+            dattr.id = spkrDattr.id;
+            dev = spkrDev;
+
+            rm->getActiveStream_l(activeStreams, spkrDev);
+            if (activeStreams.empty()) {
+                rm->getActiveStream_l(activeStreams, handsetDev);
+                if (!activeStreams.empty()) {
+                    // active streams found on handset
+                    dattr.id = PAL_DEVICE_OUT_HANDSET;
+                    dev = handsetDev;
+                } else {
+                    // no active stream found on both speaker and handset, get the deafult
+                    pal_device_info devInfo;
+                    memset(&devInfo, 0, sizeof(pal_device_info));
+                    devInfo.priority = MIN_USECASE_PRIORITY;
+                    status = rm->getDeviceConfig(&dattr, NULL);
+                    if (!status) {
+                        // get the default device info and update snd name
+                        rm->getDeviceInfo(dattr.id, (pal_stream_type_t)0,
+                                dattr.custom_config.custom_key, &devInfo);
+                        rm->updateSndName(dattr.id, devInfo.sndDevName);
+                    }
+                }
+            }
+
+            PAL_INFO(LOG_TAG, "mute stream and route to device %d", dattr.id);
+
             status = dev->open();
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "device open failed with status %d", status);
@@ -863,6 +1028,8 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
                 goto exit;
             }
             mDevices.push_back(dev);
+            dev->getDeviceAttributes(&dattr);
+            updatePalDevice(&dattr, dattr.id);
         }
     }
 
@@ -897,7 +1064,6 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, pal_device_id_t d
         if (dev_id == mDevices[i]->getSndDeviceId()) {
             PAL_DBG(LOG_TAG, "device %d name %s, going to stop",
                 mDevices[i]->getSndDeviceId(), mDevices[i]->getPALDeviceName().c_str());
-
             if (currentState != STREAM_STOPPED)
                 rm->deregisterDevice(mDevices[i], this);
             rm->lockGraph();
@@ -960,10 +1126,6 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
         goto exit;
     }
 
-    /* Check if we need to check here or above if bt_Sco is on for sco usecase
-     * Device::getInstance will not set device attributes if the device instance
-     * created previously so set device config explictly.
-     */
     dev->setDeviceAttributes(*dattr);
 
     if (currentState == STREAM_IDLE) {
@@ -972,10 +1134,14 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
         goto exit;
     }
 
-    /* For A2DP UCs streams may play on combo devices like Speaker and A2DP
-     * However, if the a2dp suspend is called - all streams on a2dp will temporarily
-     * move to speakers.  If the stream is already connected to speaker. then we will
-     * entrying the speaker device information twice. Below snippet will handle that case
+    /* Avoid stream connecting to devices sharing the same backend.
+     * - For A2DP streams may play on combo devices like Speaker and A2DP.
+     *   However, if a2dp suspend is called, all streams on a2dp will temporarily
+     *   move to speaker. If the stream is already connected to speaker, speaker
+     *   will be connected twice.
+     * - For multi-recording stream connecting to bt-sco-mic and handset-mic,
+     *   if a2dp suspend arrives, stream will switch from bt-sco-mic to speaker-mic.
+     *   Hence, both speaker-mic and handset-mic will be enabled.
      */
     rm->getBackendName(dev->getSndDeviceId(), newBackEndName);
     for (auto iter = mDevices.begin(); iter != mDevices.end(); iter++) {
@@ -1000,16 +1166,7 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
     }
 
     mDevices.push_back(dev);
-    /*check if pal devices exsists if it does not, push
-      catch all if connect is being called outside of a deviceSwitch or open */
-    for(int i = 0; i < mPalDevice.size(); i++) {
-        if (dattr->id == mPalDevice[i].id) {
-            foundPalDev = true;
-        }
-    }
-    if (!foundPalDev) {
-        mPalDevice.push_back(*dattr);
-    }
+
     status = session->setupSessionDevice(streamHandle, mStreamAttr->type, dev);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "setupSessionDevice for %d failed with status %d",
@@ -1040,16 +1197,22 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
 
 dev_stop:
     dev->stop();
+
 dev_close:
-    mDevices.pop_back();
-    mPalDevice.pop_back();
+    /* Do not pop the current device from stream, if session connect failed due to SSR down
+     * event so that when SSR is up that device will be associated to stream.
+     */
+    if (status != -ENETRESET) {
+        mDevices.pop_back();
+        mPalDevice.pop_back();
+    }
     dev->close();
+
 exit:
-    /*check if USB is not available restore to default device */
+    /* check if USB is not available restore to default device */
     if (dev && status && (dev->getSndDeviceId() == PAL_DEVICE_OUT_USB_HEADSET ||
-                   dev->getSndDeviceId() == PAL_DEVICE_IN_USB_HEADSET))
-    {
-       if(USB::isUsbConnected(dattr->address)){
+                   dev->getSndDeviceId() == PAL_DEVICE_IN_USB_HEADSET)) {
+       if (USB::isUsbConnected(dattr->address)) {
            PAL_ERR(LOG_TAG, "USB still connected, connect failed");
        } else {
            status = -ENOSYS;
@@ -1123,6 +1286,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     bool isCurrentDeviceProxyOut = false;
     bool isCurrentDeviceDpOut = false;
     bool matchFound = false;
+    bool voice_call_switch = false;
     uint32_t curDeviceSlots[PAL_DEVICE_IN_MAX], newDeviceSlots[PAL_DEVICE_IN_MAX];
     std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnect, sharedBEStreamDev;
     std::vector <std::tuple<Stream *, struct pal_device *>> StreamDevConnect;
@@ -1136,11 +1300,18 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     struct pal_device streamDevAttr;
     std::vector <Stream*>::iterator sIter;
     bool foundPalDev = false;
+    bool VoiceorVoip_call_active = false;
+    bool has_out_device = false, has_in_device = false;
+    std::vector <struct pal_device>::iterator dIter;
+
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+    pal_device_id_t curBtDevId;
+#endif
 
     rm->lockActiveStream();
     mStreamMutex.lock();
 
-    if ((numDev == 0) || (!newDevices) || (!streamHandle)) {
+    if ((numDev == 0) || (numDev > PAL_DEVICE_IN_MAX) || (!newDevices) || (!streamHandle)) {
         PAL_ERR(LOG_TAG, "invalid param for device switch");
         mStreamMutex.unlock();
         rm->unlockActiveStream();
@@ -1161,8 +1332,18 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
         uint32_t tmp = numDev;
 
         mDevices[i]->getDeviceAttributes(&dAttr);
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+        if (curDevId == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
+            curDevId == PAL_DEVICE_OUT_BLUETOOTH_BLE ||
+            curDevId == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST) {
+#else
         if (curDevId == PAL_DEVICE_OUT_BLUETOOTH_A2DP)
+#endif
             isCurDeviceA2dp = true;
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            curBtDevId = curDevId;
+        }
+#endif
 
         if (curDevId == PAL_DEVICE_OUT_PROXY)
             isCurrentDeviceProxyOut = true;
@@ -1190,6 +1371,23 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
         }
     }
 
+    /* remove members of mPalDevices which has same dir with new devices*/
+    for (int i = 0; i < numDev; i++) {
+        if (rm->isOutputDevId(newDevices[i].id))
+            has_out_device = true;
+        if (rm->isInputDevId(newDevices[i].id))
+            has_in_device = true;
+    }
+    for (dIter = mPalDevice.begin(); dIter != mPalDevice.end(); ) {
+        if (rm->isOutputDevId((*dIter).id) && has_out_device) {
+            dIter = mPalDevice.erase(dIter);
+        } else if (rm->isInputDevId((*dIter).id) && has_in_device) {
+            dIter = mPalDevice.erase(dIter);
+        } else {
+            dIter++;
+        }
+    }
+
     for (int i = 0; i < numDev; i++) {
         struct pal_device_info devinfo = {};
         /*
@@ -1201,7 +1399,11 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
          */
         // This assumes that PAL_DEVICE_NONE comes as single device
         if ((newDevices[i].id == PAL_DEVICE_NONE) &&
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            (((isCurDeviceA2dp == true) && (!rm->isDeviceReady(curBtDevId))) ||
+#else
             (((isCurDeviceA2dp == true) && !rm->isDeviceReady(PAL_DEVICE_OUT_BLUETOOTH_A2DP)) ||
+#endif
              (isCurrentDeviceProxyOut) || (isCurrentDeviceDpOut))) {
 #ifdef SEC_AUDIO_FACTORY_TEST_MODE
             if ((newDevices[i].id == PAL_DEVICE_NONE) && isCurrentDeviceDpOut) {
@@ -1226,33 +1428,41 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
 
         if (!rm->isDeviceReady(newDevices[i].id)) {
             PAL_ERR(LOG_TAG, "Device %d is not ready", newDevices[i].id);
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            if (((newDevices[i].id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) ||
+                (newDevices[i].id == PAL_DEVICE_OUT_BLUETOOTH_BLE) ||
+                (newDevices[i].id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST)) &&
+#else
             if ((newDevices[i].id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) &&
+#endif
                 !(rm->isDeviceAvailable(newDevices, numDev, PAL_DEVICE_OUT_SPEAKER))) {
                 /* update suspended device to a2dp and don't route as BT returned error
                  * However it is still possible a2dp routing called as part of a2dp restore
                  */
                 PAL_ERR(LOG_TAG, "A2DP profile is not ready, ignoring routing request");
                 suspendedDevIds.clear();
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+                suspendedDevIds.push_back(newDevices[i].id);
+#else
                 suspendedDevIds.push_back(PAL_DEVICE_OUT_BLUETOOTH_A2DP);
+#endif
             }
         } else {
             newDeviceSlots[connectCount] = i;
             connectCount++;
 
+#ifdef SEC_AUDIO_BLE_OFFLOAD
+            if (newDevices[i].id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
+                newDevices[i].id == PAL_DEVICE_OUT_BLUETOOTH_BLE ||
+                newDevices[i].id == PAL_DEVICE_OUT_BLUETOOTH_BLE_BROADCAST)
+#else
             if (newDevices[i].id == PAL_DEVICE_OUT_BLUETOOTH_A2DP)
+#endif
                 isNewDeviceA2dp = true;
         }
 
-        /* store/update palDev before newDevices can be changed*/
-        for(int j = 0; j < mPalDevice.size(); j++) {
-            if (newDevices[i].id == mPalDevice[j].id) {
-                foundPalDev = true;
-                UpdatePalDevice(&(newDevices[i]), newDevices[i].id);
-            }
-        }
-        if (!foundPalDev) {
-            mPalDevice.push_back(newDevices[i]);
-        }
+        /* store or update palDev before newDevices can be changed */
+        updatePalDevice(&(newDevices[i]), newDevices[i].id);
     }
 
     /*  No new device is ready */
@@ -1268,6 +1478,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     /* created stream device connect and disconnect list */
     streamDevDisconnect.clear();
     StreamDevConnect.clear();
+    suspendedDevIds.clear();
 
     for (int i = 0; i < connectCount; i++) {
         std::vector <Stream *> activeStreams;
@@ -1299,17 +1510,30 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
          * is removed above.
          */
         if (sharedBEStreamDev.size() > 0) {
+            for (const auto &elem : sharedBEStreamDev) {
+                struct pal_stream_attributes strAttr;
+                std::get<0>(elem)->getStreamAttributes(&strAttr);
+                if (strAttr.type == PAL_STREAM_VOIP ||
+                    strAttr.type == PAL_STREAM_VOIP_RX ||
+                    strAttr.type == PAL_STREAM_VOIP_TX ||
+                    strAttr.type == PAL_STREAM_VOICE_CALL) {
+                    VoiceorVoip_call_active = true;
+                    break;
+                }
+            }
             rm->getSndDeviceName(newDeviceId, CurrentSndDeviceName);
             // update device attr based on prio
             rm->updatePriorityAttr(newDeviceId,
                                    sharedBEStreamDev,
                                    &(newDevices[newDeviceSlots[i]]),
                                    &strAttr);
+
             for (const auto &elem : sharedBEStreamDev) {
                 struct pal_stream_attributes sAttr;
                 Stream *sharedStream = std::get<0>(elem);
                 struct pal_device curDevAttr;
                 std::shared_ptr<Device> curDev = nullptr;
+                bool custom_switch = false;
 
                 curDevAttr.id = (pal_device_id_t)std::get<1>(elem);
                 curDev = Device::getInstance(&curDevAttr, rm);
@@ -1319,13 +1543,46 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                 }
                 curDev->getDeviceAttributes(&curDevAttr);
 
+                /* avoid device for voice/voip being switched by low priority switch*/
+                if (VoiceorVoip_call_active &&
+                    strAttr.type != PAL_STREAM_VOICE_CALL &&
+                    strAttr.type != PAL_STREAM_VOIP_RX &&
+                    strAttr.type != PAL_STREAM_VOIP_TX &&
+                    strAttr.type != PAL_STREAM_VOIP &&
+                    curDevAttr.id != newDevices[newDeviceSlots[i]].id) {
+                    PAL_ERR(LOG_TAG, "VoiceorVoip_call_active strAttr.type :%d curDevAttr.id :%d newDevices[newDeviceSlots[i]].id :%d",
+                                        strAttr.type, curDevAttr.id,newDevices[newDeviceSlots[i]].id);
+                    newDevices[newDeviceSlots[i]].id = curDevAttr.id;
+                    rm->getSndDeviceName(newDevices[newDeviceSlots[i]].id, CurrentSndDeviceName);
+                    rm->updatePriorityAttr(newDevices[newDeviceSlots[i]].id,
+                                       sharedBEStreamDev,
+                                       &(newDevices[newDeviceSlots[i]]),
+                                       &strAttr);
+                }
+
+                /*
+                 * for current stream, if custom key updated, even reset of the attr
+                 * like sample rate/channels/bit width/... are the same, still need
+                 * to switch device to update custom config like devicePP
+                 */
+                if (sharedStream == streamHandle) {
+                    if (strcmp(newDevices[newDeviceSlots[i]].custom_config.custom_key,
+                               curDevAttr.custom_config.custom_key) != 0) {
+                        PAL_DBG(LOG_TAG, "found diff custom key is %s, running dev has %s, device switch needed",
+                        newDevices[newDeviceSlots[i]].custom_config.custom_key,
+                        curDevAttr.custom_config.custom_key);
+                        custom_switch = true;
+                    }
+                }
+
                 /* If prioirty based attr diffs with running dev switch all devices */
                 if (rm->doDevAttrDiffer(&(newDevices[newDeviceSlots[i]]),
                                           CurrentSndDeviceName,
-                                          &curDevAttr)) {
+                                          &curDevAttr) || custom_switch) {
                     streamDevDisconnect.push_back(elem);
                     StreamDevConnect.push_back({std::get<0>(elem), &newDevices[newDeviceSlots[i]]});
                     matchFound = true;
+                    custom_switch = false;
                 } else {
                     matchFound = false;
                 }
@@ -1352,18 +1609,35 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                 }
             }
             streamsToSwitch.clear();
+
+            // check if headset config needs to update when haptics is active
+            rm->checkHapticsConcurrency(&newDevices[newDeviceSlots[i]], NULL, streamsToSwitch/* not used */, NULL);
         }
-        /* switch all streams that are running on the current device if voice
-         * call is switching to avoid dangling ec refs
+        /*
+         * switch all streams that are running on the current device if:
+         * 1. switching device for Voice Call
+         * 2. switching device for Rx stream currently using same rx device as voice call
          */
-        if (type == PAL_STREAM_VOICE_CALL) {
-            sharedBEStreamDev.clear();
-            for (int j = 0; j < mDevices.size(); j++) {
-                uint32_t mDeviceId = mDevices[j]->getSndDeviceId();
-                if (rm->matchDevDir(newDeviceId, mDeviceId) &&
-                    newDeviceId != mDeviceId)
-                {
-                    rm->getSharedBEActiveStreamDevs(sharedBEStreamDev, mDevices[j]->getSndDeviceId());
+        sharedBEStreamDev.clear();
+        for (int j = 0; j < mDevices.size(); j++) {
+            uint32_t mDeviceId = mDevices[j]->getSndDeviceId();
+            if (rm->matchDevDir(newDeviceId, mDeviceId) && newDeviceId != mDeviceId) {
+                if (mDeviceId == PAL_DEVICE_OUT_PROXY || newDeviceId == PAL_DEVICE_OUT_PROXY)
+                    continue;
+                rm->getSharedBEActiveStreamDevs(sharedBEStreamDev, mDevices[j]->getSndDeviceId());
+                if (type == PAL_STREAM_VOICE_CALL &&
+                    newDeviceId != PAL_DEVICE_OUT_HEARING_AID) {
+                    voice_call_switch = true;
+                } else if (rm->isOutputDevId(mDevices[j]->getSndDeviceId())) {
+                    for (const auto &elem : sharedBEStreamDev) {
+                        std::get<0>(elem)->getStreamAttributes(&strAttr);
+                        if (strAttr.type == PAL_STREAM_VOICE_CALL) {
+                            voice_call_switch = true;
+                            break;
+                        }
+                    }
+                }
+                if (voice_call_switch) {
                     for (const auto &elem : sharedBEStreamDev) {
                         streamDevDisconnect.push_back(elem);
                         StreamDevConnect.push_back({std::get<0>(elem), &newDevices[newDeviceSlots[i]]});
@@ -1371,7 +1645,6 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                 }
             }
         }
-
 
         /* Add device associated with current stream to streamDevDisconnect/StreamDevConnect list */
         for (int j = 0; j < disconnectCount; j++) {
@@ -1402,7 +1675,8 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                 }
             }
         }
-        if (matchFound || (disconnectCount == 0))  {
+
+        if (matchFound || (disconnectCount == 0)) {
             dev = Device::getInstance(&newDevices[newDeviceSlots[i]],rm);
             StreamDevConnect.push_back({streamHandle, &newDevices[newDeviceSlots[i]]});
         }
@@ -1432,7 +1706,6 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
         rm->unlockActiveStream();
         goto done;
     }
-
     mStreamMutex.unlock();
     rm->unlockActiveStream();
 
@@ -1448,6 +1721,19 @@ done:
         a2dpMuted = false;
         suspendedDevIds.clear();
     }
+#ifdef SEC_PRODUCT_FEATURE_BLUETOOTH_SUPPORT_A2DP_OFFLOAD
+    else if (a2dpMuted && isNewDeviceA2dp
+        && rm->isDeviceReady(PAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
+        /* prevent bt playback mute, do unmute & clear suspended streams
+         * on a2dp <-> primary hal switch case,
+         * a2dpResume() canbe failed by a2dp not ready (bt offload off)
+         */
+        PAL_INFO(LOG_TAG, "A2DP ready, unmuting stream");
+        mute_l(false);
+        a2dpMuted = false;
+        suspendedDevIds.clear();
+    }
+#endif
     mStreamMutex.unlock();
     return status;
 }
@@ -1482,7 +1768,7 @@ bool Stream::checkStreamMatch(pal_device_id_t pal_device_id,
            // as long as one device matches, it is enough.
            break;
        } else
-            match = false;
+           match = false;
     }
 
     return match;
@@ -1507,6 +1793,12 @@ bool Stream::checkStreamEffectMatch(pal_device_id_t pal_device_id,
         match = true;
     else
         return false;
+
+    if (param_id == PARAM_ID_PP_AUDIO_INTERVIEW_PARAMS &&
+            (mStreamAttr->direction != PAL_AUDIO_INPUT ||
+                mStreamAttr->type != PAL_STREAM_DEEP_BUFFER)) {
+        return false;
+    }
 
     if (pal_stream_type == PAL_STREAM_GENERIC &&
             (mStreamAttr->direction != PAL_AUDIO_OUTPUT ||
@@ -1562,3 +1854,4 @@ void Stream::handleStreamException(struct pal_stream_attributes *attributes,
 
     }
 }
+

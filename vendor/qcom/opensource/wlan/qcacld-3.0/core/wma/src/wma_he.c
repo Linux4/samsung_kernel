@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -713,6 +714,14 @@ void wma_print_he_ppet(void *he_ppet)
 	for (ru_count = 0; ru_bit_mask; ru_bit_mask >>= 1)
 		if (ru_bit_mask & 0x1)
 			ru_count++;
+	if (numss > WMI_HOST_MAX_NUM_SS) {
+		wma_err("invalid numss_m1 %d", ppet->numss_m1);
+		return;
+	}
+	if (ru_count > HE_PEPT_RU_IDX_LEN) {
+		wma_err("invalid ru_count 0x%08x", ppet->ru_bit_mask);
+		return;
+	}
 
 	if (ru_count > 0) {
 		wma_debug("PPET has following RU INDEX,");
@@ -1109,10 +1118,11 @@ void wma_populate_peer_he_cap(struct peer_assoc_params *peer,
 	uint32_t mac_cap[PSOC_HOST_MAX_MAC_SIZE] = {0}, he_ops = 0;
 	uint8_t temp, i, chan_width;
 
-	if (params->he_capable)
-		peer->he_flag = 1;
-	else
+	if (!params->he_capable)
 		return;
+
+	peer->he_flag = 1;
+	peer->qos_flag = 1;
 
 	/* HE MAC capabilities */
 	WMI_HECAP_MAC_HECTRL_SET(mac_cap[0], he_cap->htc_he);

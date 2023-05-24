@@ -1394,13 +1394,15 @@ static void max77705_fg_adjust_capacity_max(
 static unsigned int max77705_fg_get_scaled_capacity(
 	struct max77705_fuelgauge_data *fuelgauge, unsigned int soc)
 {
+	int raw_soc = soc;
+
 	soc = (soc < fuelgauge->pdata->capacity_min) ?
 	    0 : ((soc - fuelgauge->pdata->capacity_min) * 1000 /
 		 (fuelgauge->capacity_max - fuelgauge->pdata->capacity_min));
 
 	pr_info("%s : capacity_max (%d) scaled capacity(%d.%d), raw_soc(%d.%d)\n",
 		__func__, fuelgauge->capacity_max, soc / 10, soc % 10,
-		soc / 10, soc % 10);
+		raw_soc / 10, raw_soc % 10);
 
 	return soc;
 }
@@ -1471,7 +1473,7 @@ static void max77705_fg_calculate_dynamic_scale(
 		__func__, fuelgauge->capacity_max, capacity);
 	if ((capacity == 100) && !fuelgauge->capacity_max_conv && scale_by_full) {
 		fuelgauge->capacity_max_conv = true;
-		fuelgauge->g_capacity_max = raw_soc_val.intval;
+		fuelgauge->g_capacity_max = min(990, raw_soc_val.intval);
 		pr_info("%s: Goal capacity max %d\n", __func__, fuelgauge->g_capacity_max);
 	}
 }
@@ -1485,6 +1487,7 @@ __visible_for_testing void max77705_lost_soc_reset(struct max77705_fuelgauge_dat
 	fuelgauge->lost_soc.lost_cap = 0;
 	fuelgauge->lost_soc.weight = 0;
 }
+EXPORT_SYMBOL_KUNIT(max77705_lost_soc_reset);
 
 __visible_for_testing void max77705_lost_soc_check_trigger_cond(
 	struct max77705_fuelgauge_data *fuelgauge, int raw_soc, int d_raw_soc, int d_remcap, int d_qh)
@@ -1512,6 +1515,7 @@ __visible_for_testing void max77705_lost_soc_check_trigger_cond(
 			d_qh, fuelgauge->lost_soc.weight / 10, fuelgauge->lost_soc.weight % 10);
 	}
 }
+EXPORT_SYMBOL_KUNIT(max77705_lost_soc_check_trigger_cond);
 
 __visible_for_testing int max77705_lost_soc_calc_soc(
 	struct max77705_fuelgauge_data *fuelgauge, int request_soc, int d_qh, int d_remcap)
@@ -1561,6 +1565,7 @@ __visible_for_testing int max77705_lost_soc_calc_soc(
 
 	return lost_soc;
 }
+EXPORT_SYMBOL_KUNIT(max77705_lost_soc_calc_soc);
 
 static int max77705_lost_soc_get(struct max77705_fuelgauge_data *fuelgauge, int request_soc)
 {
@@ -1890,6 +1895,17 @@ ssize_t max77705_fg_store_attrs(struct device *dev,
 	return ret;
 }
 
+static void max77705_fg_bd_log(struct max77705_fuelgauge_data *fuelgauge)
+{
+	memset(fuelgauge->d_buf, 0x0, sizeof(fuelgauge->d_buf));
+
+	snprintf(fuelgauge->d_buf + strlen(fuelgauge->d_buf), sizeof(fuelgauge->d_buf),
+		"%d,%d,%d",
+		max77705_fg_read_vfocv(fuelgauge),
+		max77705_get_fuelgauge_value(fuelgauge, FG_RAW_SOC),
+		fuelgauge->capacity_max);
+}
+
 static int max77705_fg_get_property(struct power_supply *psy,
 				    enum power_supply_property psp,
 				    union power_supply_propval *val)
@@ -2080,6 +2096,10 @@ static int max77705_fg_get_property(struct power_supply *psy,
 				pr_info("%s: sub_bat_id_gpio = %d \n", __func__, val->intval);
 			}
 #endif
+			break;
+		case POWER_SUPPLY_EXT_PROP_BATT_DUMP:
+			max77705_fg_bd_log(fuelgauge);
+			val->strval = fuelgauge->d_buf;
 			break;
 		default:
 			return -EINVAL;
@@ -2329,6 +2349,7 @@ __visible_for_testing int max77705_get_bat_id(int bat_id[], int bat_gpio_cnt)
 
 	return battery_id;
 }
+EXPORT_SYMBOL_KUNIT(max77705_get_bat_id);
 
 static void max77705_reset_bat_id(struct max77705_fuelgauge_data *fuelgauge)
 {

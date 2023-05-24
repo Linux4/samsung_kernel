@@ -1,7 +1,7 @@
 /*
  * Driver for the NXP PCA9481 battery charger.
  *
- * Copyright (C) 2021 NXP Semiconductor.
+ * Copyright (C) 2021-2022 NXP Semiconductor.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -55,7 +55,6 @@ static int pca9481_usbpd_setup(struct pca9481_charger *pca9481);
 
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 static int pca9481_send_pd_message(struct pca9481_charger *pca9481, unsigned int msg_type);
-static int get_system_current(struct pca9481_charger *pca9481);
 
 /*******************************/
 /* Switching charger control function */
@@ -170,6 +169,39 @@ static void pca9481_init_adc_val(struct pca9481_charger *pca9481, int val)
 
 	for (i = 0; i < ADC_READ_MAX; ++i)
 		pca9481->adc_val[i] = val;
+}
+
+static void pca9481_test_read(struct pca9481_charger *pca9481)
+{
+	int address = 0;
+	unsigned int val;
+	char str[1024] = { 0, };
+
+	for (address = PCA9481_REG_DEVICE_0_STS; address <= PCA9481_REG_ADC_READ_I_VBAT_CURRENT_1; address++) {
+		pca9481_read_reg(pca9481, address, &val);
+		sprintf(str + strlen(str), "[0x%02x]0x%02x, ", address, val);
+	}
+	pr_info("%s : %s\n", __func__, str);
+}
+
+static void pca9481_monitor_work(struct pca9481_charger *pca9481)
+{
+	int ta_vol = pca9481->ta_vol / PCA9481_SEC_DENOM_U_M;
+	int ta_cur = pca9481->ta_cur / PCA9481_SEC_DENOM_U_M;
+
+	if (pca9481->charging_state == DC_STATE_NO_CHARGING)
+		return;
+	/* update adc value */
+	pca9481_read_adc(pca9481, ADCCH_VIN);
+	pca9481_read_adc(pca9481, ADCCH_VIN_CURRENT);
+	pca9481_read_adc(pca9481, ADCCH_BATP_BATN);
+	pca9481_read_adc(pca9481, ADCCH_DIE_TEMP);
+	pr_info("%s: state(%s), iin_cc(%dmA), v_float(%dmV), vbat(%dmV), vin(%dmV), iin(%dmA), die_temp(%d), pps_requested(%d/%dmV/%dmA)", __func__,
+		charging_state_str[pca9481->charging_state],
+		pca9481->iin_cc / PCA9481_SEC_DENOM_U_M, pca9481->pdata->vfloat / PCA9481_SEC_DENOM_U_M,
+		pca9481->adc_val[ADCCH_BATP_BATN], pca9481->adc_val[ADCCH_VIN],
+		pca9481->adc_val[ADCCH_VIN_CURRENT], pca9481->adc_val[ADCCH_DIE_TEMP],
+		pca9481->ta_objpos, ta_vol, ta_cur);
 }
 
 /**************************************/
@@ -1173,7 +1205,7 @@ static int pca9481_check_error(struct pca9481_charger *pca9481)
 			/* Normal charging battery level */
 			/* Check temperature regulation loop */
 			/* Read DEVICE_2_STS register */
-			ret = pca9481_read_reg(pca9481, PCA9481_REG_DEVICE_3_STS, &reg_val);
+			ret = pca9481_read_reg(pca9481, PCA9481_REG_DEVICE_2_STS, &reg_val);
 			if (reg_val & PCA9481_BIT_THEM_REG) {
 				/* Thermal regulation happened */
 				pr_err("%s: Device is in temperature regulation\n", __func__);
@@ -1444,7 +1476,7 @@ static int pca9481_stop_charging(struct pca9481_charger *pca9481)
 		pca9481->new_vfloat = pca9481->pdata->vfloat;
 		pca9481->new_iin = pca9481->pdata->iin_cfg;
 
-		/* Cleare new DC mode and DC mode */
+		/* Clear new DC mode and DC mode */
 		pca9481->new_dc_mode = PTM_NONE;
 		pca9481->dc_mode = PTM_NONE;
 		mutex_lock(&pca9481->lock);
@@ -3625,7 +3657,7 @@ static int pca9481_charge_cvmode(struct pca9481_charger *pca9481)
 					/* Step1 charging - polling time is cv_polling */
 					pca9481->timer_period = pca9481->pdata->cv_polling;
 				} else {
-					/* Step2 or 3 charging - polling time is CVMODE_CHECK_T(10s) */
+					/* Step2 or 3 charging - polling time is CVMODE_CHECK_T */
 					pca9481->timer_period = CVMODE_CHECK_T;
 				}
 				mutex_unlock(&pca9481->lock);
@@ -3717,7 +3749,14 @@ static int pca9481_charge_cvmode(struct pca9481_charger *pca9481)
 			/* Set timer */
 			mutex_lock(&pca9481->lock);
 			pca9481->timer_id = TIMER_CHECK_CVMODE;
-			pca9481->timer_period = CVMODE_CHECK_T;
+			/* Add to check charging step and set the polling time */
+			if (pca9481->vfloat < pca9481->pdata->step1_vth) {
+				/* Step1 charging - polling time is cv_polling */
+				pca9481->timer_period = pca9481->pdata->cv_polling;
+			} else {
+				/* Step2 or 3 charging - polling time is CVMODE_CHECK_T */
+				pca9481->timer_period = CVMODE_CHECK_T;
+			}
 			mutex_unlock(&pca9481->lock);
 			queue_delayed_work(pca9481->dc_wq,
 								&pca9481->timer_work,
@@ -4164,6 +4203,8 @@ static int pca9481_check_active_state(struct pca9481_charger *pca9481)
 		ret = pca9481_softreset(pca9481);
 		if (ret < 0)
 			goto error;
+		/* Notify invalid error */
+		ret = -EINVAL;
 		/* Stop charging in timer_work */
 	}
 
@@ -4365,11 +4406,22 @@ static void pca9481_timer_work(struct work_struct *work)
 	unsigned int val;
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
 	union power_supply_propval value = {0,};
+	int wire_status = 0, ta_alert_mode = 0;
 
 	psy_do_property("battery", get,
 			POWER_SUPPLY_EXT_PROP_CHARGE_COUNTER_SHADOW, value);
-	if ((value.intval == SEC_BATTERY_CABLE_NONE) && pca9481->mains_online)
-		return;
+	wire_status = value.intval;
+
+	psy_do_property("battery", get,
+			POWER_SUPPLY_EXT_PROP_DIRECT_TA_ALERT, value);
+	ta_alert_mode = value.intval;
+
+	if ((wire_status == SEC_BATTERY_CABLE_NONE) && pca9481->mains_online) {
+		if (ta_alert_mode > OCP_NONE)
+			goto error;
+		else
+			return;
+	}
 #endif
 
 #ifdef CONFIG_RTC_HCTOSYS
@@ -4927,56 +4979,6 @@ static int get_charging_enabled(struct pca9481_charger *pca9481)
 
 	return intval;
 }
-
-#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG)
-/*
- * Returns the system current in uV.
- */
-static int get_system_current(struct pca9481_charger *pca9481)
-{
-	/* get the system current */
-	/* get the battery power supply to get charging current */
-	union power_supply_propval val;
-	struct power_supply *psy;
-	int ret;
-	int iin, ibat, isys;
-
-	psy = power_supply_get_by_name("battery");
-	if (!psy) {
-		dev_err(pca9481->dev, "Cannot find battery power supply\n");
-		goto error;
-	}
-
-	/* get the charging current */
-	ret = power_supply_get_property(psy, POWER_SUPPLY_PROP_CURRENT_NOW, &val);
-	power_supply_put(psy);
-	if (ret < 0) {
-		dev_err(pca9481->dev, "Cannot get battery current from FG\n");
-		goto error;
-	}
-	ibat = val.intval;
-
-	/* calculate the system current */
-	/* get input current */
-	iin = pca9481_read_adc(pca9481, ADCCH_VIN_CURRENT);
-	if (iin < 0) {
-		dev_err(pca9481->dev, "Invalid IIN ADC\n");
-		goto error;
-	}
-
-	/* calculate the system current */
-	/* Isys = (Iin - Ifsw_cfg)*2 - Ibat */
-	iin = (iin - iin_fsw_cfg[pca9481->pdata->fsw_cfg])*2;
-	iin /= PCA9481_SEC_DENOM_U_M;
-	isys = iin - ibat;
-	pr_info("%s: isys=%dmA\n", __func__, isys);
-
-	return isys;
-
-error:
-	return -EINVAL;
-}
-#endif
 
 static int pca9481_chg_set_adc_force_mode(struct pca9481_charger *pca9481, u8 enable)
 {
@@ -5568,8 +5570,8 @@ static int pca9481_chg_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_EXT_PROP_MIN ... POWER_SUPPLY_EXT_PROP_MAX:
 		switch (ext_psp) {
 		case POWER_SUPPLY_EXT_PROP_MONITOR_WORK:
-			//pca9481_monitor_work(pca9481);
-			//pca9481_test_read(pca9481);
+			pca9481_monitor_work(pca9481);
+			pca9481_test_read(pca9481);
 			break;
 		case POWER_SUPPLY_EXT_PROP_MEASURE_INPUT:
 			switch (val->intval) {
@@ -5595,19 +5597,9 @@ static int pca9481_chg_get_property(struct power_supply *psy,
 			}
 			break;
 		case POWER_SUPPLY_EXT_PROP_MEASURE_SYS:
-			/* return system current - uA unit */
-			/* check charging status */
-			if (pca9481->charging_state == DC_STATE_NO_CHARGING) {
-				/* return invalid */
-				val->intval = 0;
-				return -EINVAL;
-			}
-			/* calculate Isys */
-			ret = get_system_current(pca9481);
-			if (ret < 0)
-				return 0;
-
-			val->intval = ret;
+			/* get_system_current function isn't supported. Cannot get accurate value of Isys */
+			val->intval = 0;
+			pr_info("%s: get_system_current function isn't supported. Cannot get accurate value of Isys\n", __func__);
 			break;
 		case POWER_SUPPLY_EXT_PROP_DIRECT_CHARGER_CHG_STATUS:
 			val->strval = charging_state_str[pca9481->charging_state];
@@ -6216,4 +6208,4 @@ module_i2c_driver(pca9481_driver);
 
 MODULE_DESCRIPTION("PCA9481 charger driver");
 MODULE_LICENSE("GPL");
-MODULE_VERSION("1.0.9S");
+MODULE_VERSION("1.0.10S");

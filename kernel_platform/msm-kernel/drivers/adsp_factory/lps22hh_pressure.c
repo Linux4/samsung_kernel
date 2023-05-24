@@ -123,7 +123,7 @@ static ssize_t selftest_show(struct device *dev,
 
 	while (!(data->ready_flag[MSG_TYPE_ST_SHOW_DATA] &
 		1 << MSG_PRESSURE) && cnt++ < TIMEOUT_CNT)
-		msleep(20);
+		msleep(26);
 
 	data->ready_flag[MSG_TYPE_ST_SHOW_DATA] &= ~(1 << MSG_PRESSURE);
 
@@ -282,8 +282,6 @@ void pressure_cal_work_func(struct work_struct *work)
 		struct adsp_data, pressure_cal_work);
 	int cnt = 0;
 	int temp = 0;
-	int check_efs_sw_offset_msg = 0x7FFFFFFF;
-	int sw_offset = 0;
 	
 	adsp_unicast(&temp, sizeof(temp), MSG_PRESSURE, 0, MSG_TYPE_SET_CAL_DATA);
 
@@ -300,25 +298,6 @@ void pressure_cal_work_func(struct work_struct *work)
 
 	pressure_cal = data->msg_buf[MSG_PRESSURE][0];
 	pr_info("[FACTORY] %s: pressure_cal = %d (lsb)\n", __func__, data->msg_buf[MSG_PRESSURE][0]);
-
-	/* check efs sw offset and update */
-	adsp_unicast(&check_efs_sw_offset_msg, sizeof(int),
-		MSG_PRESSURE, 0, MSG_TYPE_SET_THRESHOLD);
-
-	while (!(data->ready_flag[MSG_TYPE_SET_THRESHOLD] & 1 << MSG_PRESSURE) &&
-		cnt++ < TIMEOUT_CNT)
-		usleep_range(500, 550);
-
-	data->ready_flag[MSG_TYPE_SET_THRESHOLD] &= ~(1 << MSG_PRESSURE);
-
-	if (cnt >= TIMEOUT_CNT) {
-		pr_err("[FACTORY] %s: Timeout!!!\n", __func__);
-	} else {
-		sw_offset = data->msg_buf[MSG_PRESSURE][0];
-	}
-
-	pr_info("[FACTORY] %s: sw_offset %d\n", __func__, sw_offset);
-
 }
 EXPORT_SYMBOL(pressure_cal_work_func);
 void pressure_factory_init_work(struct adsp_data *data)

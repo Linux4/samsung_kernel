@@ -2,6 +2,8 @@
 # Common configuration for building kernel for Virtual Machines
 DEFCONFIG="generic_vm_defconfig"
 OPENSSL_DIR=${KERNEL_DIR}/../build/build-tools/path/linux-x86/openssl
+# Kernel platform missing aosp/1843323
+DISABLE_HERMETIC_SYSROOT=1
 
 append_cmd POST_DEFCONFIG_CMDS 'update_signing_keys_config'
 
@@ -23,6 +25,13 @@ function update_signing_keys_config() {
 		make ${CC_LD_ARG} O=${OUT_DIR} ${MAKE_ARGS} olddefconfig)
 	fi
 }
+
+FILES+="""
+usr/gen_initramfs.sh
+usr/gen_init_cpio
+usr/initramfs_data.cpio
+usr/initramfs_inc_data
+"""
 
 append_cmd POST_KERNEL_BUILD_CMDS 'move_signing_keys'
 

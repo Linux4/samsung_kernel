@@ -80,10 +80,19 @@ static size_t __reset_history_copy(char *dst, char *src,
 	for (i = 0; i < nr_history; i++) {
 		size_t idx = (history_count - 1 - i) %
 				SEC_DEBUG_RESET_HISTORY_MAX_CNT;
+		size_t len = max_size > written ? max_size - written : 0;
+
+		if (!len)
+			break;
 
 		__reset_history_trim_context(&history[idx]);
-		written += scnprintf(&dst[written], max_size - written, "%s\n\n\n",
-				history[idx].context);
+		written += strlcpy(&dst[written], history[idx].context, len);
+
+		len = max_size > written ? max_size - written : 0;
+		if (!len)
+			break;
+
+		written += strlcat(&dst[written], "\n\n\n", len);
 	}
 
 	return written > max_size ? max_size : written;
@@ -97,6 +106,7 @@ static int __reset_history_prepare_buf(struct qc_user_reset_proc *reset_history)
 	char *buf;
 	int ret = 0;
 	ssize_t size;
+	const ssize_t sz_null_termination = 1;	/* to guarantee null teminated string */
 
 	size = sec_qc_dbg_part_get_size(debug_index_reset_history);
 	if (size <= 0) {
@@ -104,6 +114,7 @@ static int __reset_history_prepare_buf(struct qc_user_reset_proc *reset_history)
 		goto err_get_size;
 	}
 
+	size = PAGE_ALIGN(size + sz_null_termination);
 	buf_raw = kvmalloc(size, GFP_KERNEL);
 	buf = kvmalloc(size, GFP_KERNEL);
 	if (!buf_raw || !buf) {
@@ -111,6 +122,7 @@ static int __reset_history_prepare_buf(struct qc_user_reset_proc *reset_history)
 		goto err_nomem;
 	}
 
+	memset(buf_raw, 0x0, size);
 	if (!sec_qc_dbg_part_read(debug_index_reset_history, buf_raw)) {
 		ret = -ENXIO;
 		goto failed_to_read;
@@ -147,8 +159,8 @@ static int sec_qc_reset_history_proc_open(struct inode *inode,
 
 	mutex_lock(&reset_history->lock);
 
-	if (reset_history->ref) {
-		reset_history->ref++;
+	if (reset_history->ref_cnt) {
+		reset_history->ref_cnt++;
 		goto already_cached;
 	}
 
@@ -164,7 +176,7 @@ static int sec_qc_reset_history_proc_open(struct inode *inode,
 		goto err_buf;
 	}
 
-	reset_history->ref++;
+	reset_history->ref_cnt++;
 
 	mutex_unlock(&reset_history->lock);
 
@@ -208,8 +220,8 @@ static int sec_qc_reset_history_proc_release(struct inode *inode,
 
 	mutex_lock(&reset_history->lock);
 
-	reset_history->ref--;
-	if (reset_history->ref)
+	reset_history->ref_cnt--;
+	if (reset_history->ref_cnt)
 		goto still_used;
 
 	reset_history->len = 0;

@@ -191,6 +191,7 @@ void sec_bat_predict_wc20_time_to_full_current(struct sec_battery_info *battery,
 
 	pr_info("%s: %dmA \n", __func__, battery->ttf_d->ttf_predict_wc20_charge_current);
 }
+EXPORT_SYMBOL_KUNIT(sec_bat_predict_wc20_time_to_full_current);
 #endif
 
 int sec_ttf_parse_dt(struct sec_battery_info *battery)
@@ -354,6 +355,7 @@ int ttf_display(unsigned int capacity, int bat_sts, int thermal_zone, int time)
 
 	return 0;
 }
+EXPORT_SYMBOL_KUNIT(ttf_display);
 
 void ttf_init(struct sec_battery_info *battery)
 {
@@ -367,3 +369,4 @@ void ttf_init(struct sec_battery_info *battery)
 
 	INIT_DELAYED_WORK(&battery->ttf_d->timetofull_work, sec_bat_time_to_full_work);
 }
+EXPORT_SYMBOL_KUNIT(ttf_init);

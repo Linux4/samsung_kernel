@@ -39,6 +39,7 @@ extern void dwc3_max_speed_setting(int speed);
 //extern void set_ncm_ready(bool ready);
 extern int dwc_msm_id_event(bool enable);
 extern int gadget_speed(void);
+extern int is_dwc3_msm_probe_done(void);
 
 struct usb_notifier_platform_data {
 #if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
@@ -457,6 +458,7 @@ static int is_skip_list(int index)
 	case USB_HOST_CLASS_WIRELESS_COUNT:
 	case USB_HOST_CLASS_MISC_COUNT:
 	case USB_HOST_CLASS_APP_COUNT:
+	case USB_HALL_FOLDING_COUNT:
 	case USB_HOST_CLASS_VENDOR_COUNT:
 	case USB_CCIC_FWUP_ERROR_COUNT:
 	case USB_CCIC_VERSION:
@@ -526,6 +528,7 @@ static int usb_notifier_probe(struct platform_device *pdev)
 		sec_otg_notify.unsupport_host = 1;	
 	set_otg_notify(&sec_otg_notify);
 	set_notify_data(&sec_otg_notify, pdata);
+	sec_otg_notify.booting_delay_sync_usb = is_dwc3_msm_probe_done() ? 0 : 1;
 #if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 	pdata->is_host = 0;
 #if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)

@@ -3,8 +3,9 @@
 #include <linux/fs.h>
 #include <linux/task_integrity.h>
 #include "five_audit.h"
+#include "test_helpers.h"
 
-#define FILE_ADDR 0xABCD
+#define FILE_ADDR 0xABCE
 
 static const uint8_t cause[] = "cause", op[] = "op";
 
@@ -18,7 +19,7 @@ DEFINE_FUNCTION_MOCK_VOID_RETURN(call_five_dsms_reset_integrity,
 DEFINE_FUNCTION_MOCK_VOID_RETURN(call_five_dsms_sign_err,
 		PARAMS(const char *, int))
 
-static void five_audit_info_test(struct test *test)
+static void five_audit_info_test(struct kunit *test)
 {
 	struct file *file;
 	int result = 0xab;
@@ -26,7 +27,7 @@ static void five_audit_info_test(struct test *test)
 
 	file = (struct file *)FILE_ADDR;
 
-	Returns(EXPECT_CALL(five_audit_msg(ptr_eq(test, task),
+	KunitReturns(KUNIT_EXPECT_CALL(five_audit_msg(ptr_eq(test, task),
 	ptr_eq(test, file), streq(test, op), int_eq(test, INTEGRITY_NONE),
 	int_eq(test, INTEGRITY_NONE), streq(test, cause),
 	int_eq(test, result))), int_return(test, 0));
@@ -35,27 +36,28 @@ static void five_audit_info_test(struct test *test)
 		op, INTEGRITY_NONE, INTEGRITY_NONE, cause, result);
 }
 
-static void five_audit_err_test_1(struct test *test)
+static void five_audit_err_test_1(struct kunit *test)
 {
 	struct file *file;
 	struct task_struct *task = current;
 	int result = 1;
 
 	file = (struct file *)FILE_ADDR;
-	Times(1, Returns(EXPECT_CALL(five_audit_msg(ptr_eq(test, task),
+	Times(1, KunitReturns(KUNIT_EXPECT_CALL(five_audit_msg(
+		ptr_eq(test, task),
 		ptr_eq(test, file), streq(test, op),
 		int_eq(test, INTEGRITY_NONE), int_eq(test, INTEGRITY_NONE),
 		streq(test, cause), int_eq(test, result))),
 		int_return(test, 0)));
 
-	Times(0, Returns(EXPECT_CALL(call_five_dsms_reset_integrity(any(test),
-		any(test), any(test))), int_return(test, 0)));
+	Times(0, KunitReturns(KUNIT_EXPECT_CALL(call_five_dsms_reset_integrity(
+		any(test), any(test), any(test))), int_return(test, 0)));
 
 	five_audit_err(task, file,
 		op, INTEGRITY_NONE, INTEGRITY_NONE, cause, result);
 }
 
-static void five_audit_err_test_2(struct test *test)
+static void five_audit_err_test_2(struct kunit *test)
 {
 	struct file *file;
 	struct task_struct *task = current;
@@ -63,21 +65,22 @@ static void five_audit_err_test_2(struct test *test)
 	int result = 0;
 
 	file = (struct file *)FILE_ADDR;
-	Returns(EXPECT_CALL(five_audit_msg(ptr_eq(test, task),
+	KunitReturns(KUNIT_EXPECT_CALL(five_audit_msg(ptr_eq(test, task),
 		ptr_eq(test, file), streq(test, op),
 		int_eq(test, INTEGRITY_NONE), int_eq(test, INTEGRITY_NONE),
 		streq(test, cause), int_eq(test, result))),
 		int_return(test, 0));
 
 	get_task_comm(comm, current);
-	Returns(EXPECT_CALL(call_five_dsms_reset_integrity(streq(test, comm),
-		int_eq(test, 0), streq(test, op))), int_return(test, 0));
+	KunitReturns(KUNIT_EXPECT_CALL(call_five_dsms_reset_integrity(
+		streq(test, comm), int_eq(test, 0), streq(test, op))),
+		int_return(test, 0));
 
 	five_audit_err(task, file,
 		op, INTEGRITY_NONE, INTEGRITY_NONE, cause, result);
 }
 
-static void five_audit_sign_err_test(struct test *test)
+static void five_audit_sign_err_test(struct kunit *test)
 {
 	struct file *file;
 	struct task_struct *task = current;
@@ -87,35 +90,39 @@ static void five_audit_sign_err_test(struct test *test)
 	file = (struct file *)FILE_ADDR;
 
 	get_task_comm(comm, current);
-	Returns(EXPECT_CALL(call_five_dsms_sign_err(streq(test, comm),
+	KunitReturns(KUNIT_EXPECT_CALL(
+		call_five_dsms_sign_err(streq(test, comm),
 		int_eq(test, result))), int_return(test, 0));
 
 	five_audit_sign_err(task, file,
 		op, INTEGRITY_NONE, INTEGRITY_NONE, cause, result);
 }
 
-static int security_five_test_init(struct test *test)
+static int security_five_test_init(struct kunit *test)
 {
 	return 0;
 }
 
-static void security_five_test_exit(struct test *test)
+static void security_five_test_exit(struct kunit *test)
 {
 	return;
 }
 
-static struct test_case security_five_test_cases[] = {
-	TEST_CASE(five_audit_info_test),
-	TEST_CASE(five_audit_err_test_1),
-	TEST_CASE(five_audit_err_test_2),
-	TEST_CASE(five_audit_sign_err_test),
+static struct kunit_case security_five_test_cases[] = {
+	KUNIT_CASE(five_audit_info_test),
+	KUNIT_CASE(five_audit_err_test_1),
+	KUNIT_CASE(five_audit_err_test_2),
+	KUNIT_CASE(five_audit_sign_err_test),
 	{},
 };
 
-static struct test_module security_five_test_module = {
+static struct kunit_suite security_five_test_module = {
 	.name = "five-audit-test",
 	.init = security_five_test_init,
 	.exit = security_five_test_exit,
 	.test_cases = security_five_test_cases,
 };
-module_test(security_five_test_module);
+
+kunit_test_suites(&security_five_test_module);
+
+MODULE_LICENSE("GPL v2");

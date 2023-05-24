@@ -299,13 +299,17 @@ int get_device_media_config(char* filename, char *intf_name, struct device_confi
 int get_group_device_info(char* filename, char *intf_name, struct group_config *config)
 {
     char *be_name = strdup(intf_name);
+    if (be_name == NULL) {
+        printf("%s(): Insufficient memory to create be_name \n", __func__);
+        return -ENOMEM;
+    }
     int be_len = strlen(intf_name) - 7;
 
     be_name[be_len] = '\0';
     return get_backend_info(filename, be_name, (void *)config, GROUP);
 }
 
-int set_agm_group_device_config(struct mixer *mixer, unsigned int device, struct group_config *config, char *intf_name)
+int set_agm_group_device_config(struct mixer *mixer, char *intf_name, struct group_config *config)
 {
     char *stream = "PCM";
     char *grp_ctl = "grp config";
@@ -313,10 +317,14 @@ int set_agm_group_device_config(struct mixer *mixer, unsigned int device, struct
     char *mixer_str = NULL;
     struct mixer_ctl *ctl;
     long grp_config[5];
-    int ctl_len = 0, be_len, val_len;
+    int ctl_len = 0, be_len;
     int ret = 0;
-    struct agm_tag_config* tag_config = NULL;
     char *be_name = strdup(intf_name);
+    if (be_name == NULL) {
+        printf("%s(): Insufficient memory to create be_name \n", __func__);
+        ret = -ENOMEM;
+        goto done;
+    }
 
     be_len = strlen(intf_name) - 7;
     be_name[be_len] = '\0';
@@ -344,18 +352,35 @@ int set_agm_group_device_config(struct mixer *mixer, unsigned int device, struct
 
     ret = mixer_ctl_set_array(ctl, &grp_config, sizeof(grp_config)/sizeof(grp_config[0]));
     if (ret) {
-        printf("Failed to set grp config mixer ctl\n");
+        printf("Failed to set grp media config mixer ctl\n");
         goto done;
     }
 
-    /* Configure MUX MODULE TKV */
+done:
+    if (be_name)
+        free(be_name);
+
+    if (mixer_str)
+        free(mixer_str);
+    return ret;
+}
+
+int set_agm_group_mux_config(struct mixer *mixer, unsigned int device, struct group_config *config, char *intf_name)
+{
+    char *stream = "PCM";
+    char *control = "setParamTag";
+    char *mixer_str = NULL;
+    struct mixer_ctl *ctl;
+    int ctl_len = 0, val_len;
+    int ret = 0;
+    struct agm_tag_config* tag_config = NULL;
+
     ret = set_agm_stream_metadata_type(mixer, device, intf_name, STREAM_PCM);
-    if (ret) {
-        ret = 0;
-        goto done;
-    }
+    if (ret)
+        return 0;
+
     ctl_len = strlen(stream) + 4 + strlen(control) + 1;
-    mixer_str = realloc(mixer_str, ctl_len);
+    mixer_str = calloc(1, ctl_len);
     if (!mixer_str) {
         printf("mixer_str realloc failed\n");
         goto done;
@@ -380,9 +405,6 @@ int set_agm_group_device_config(struct mixer *mixer, unsigned int device, struct
 
     mixer_ctl_set_array(ctl, tag_config, val_len);
 done:
-    if (be_name)
-        free(be_name);
-
     if (mixer_str)
         free(mixer_str);
     return ret;
@@ -684,6 +706,36 @@ void populateChannelMap(uint16_t *pcmChannel, uint8_t numChannel)
         pcmChannel[1] = PCM_CHANNEL_R;
         pcmChannel[2] = PCM_CHANNEL_LB;
         pcmChannel[3] = PCM_CHANNEL_RB;
+    }  else if (numChannel == 5) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+        pcmChannel[3] = PCM_CHANNEL_LB;
+        pcmChannel[4] = PCM_CHANNEL_RB;
+    }  else if (numChannel == 6) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+        pcmChannel[3] = PCM_CHANNEL_LFE;
+        pcmChannel[4] = PCM_CHANNEL_LB;
+        pcmChannel[5] = PCM_CHANNEL_RB;
+    }  else if (numChannel == 7) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+        pcmChannel[3] = PCM_CHANNEL_LFE;
+        pcmChannel[4] = PCM_CHANNEL_LB;
+        pcmChannel[5] = PCM_CHANNEL_RB;
+        pcmChannel[6] = PCM_CHANNEL_CS;
+    }  else if (numChannel == 8) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+        pcmChannel[3] = PCM_CHANNEL_LFE;
+        pcmChannel[4] = PCM_CHANNEL_LB;
+        pcmChannel[5] = PCM_CHANNEL_RB;
+        pcmChannel[6] = PCM_CHANNEL_LS;
+        pcmChannel[7] = PCM_CHANNEL_RS;
     }
 }
 
@@ -782,7 +834,7 @@ int set_agm_capture_stream_metadata(struct mixer *mixer, int device, uint32_t va
 
     index = 0;
     ckv[index].key = VOLUME;
-    ckv[index].value = LEVEL_2;
+    ckv[index].value = LEVEL_0;
 
     prop->prop_id = 0;  //Update prop_id here
     prop->num_values = num_props;
@@ -928,7 +980,7 @@ int set_agm_stream_metadata(struct mixer *mixer, int device, uint32_t val, enum 
 
     index = 0;
     ckv[index].key = VOLUME;
-    ckv[index].value = LEVEL_2;
+    ckv[index].value = LEVEL_0;
 
     prop->prop_id = 0;  //Update prop_id here
     prop->num_values = num_props;

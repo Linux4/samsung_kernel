@@ -1286,6 +1286,9 @@ uint32_t LocationApiPbMsgConv::getPBMaskForLocationFlagsMask(const uint32_t &loc
     if (locFlagsMask & LOCATION_HAS_BEARING_ACCURACY_BIT) {
         pbLocFlagsMask |= PB_LOCATION_HAS_BEARING_ACCURACY_BIT;
     }
+    if (locFlagsMask & LOCATION_HAS_ELAPSED_REAL_TIME_BIT) {
+        pbLocFlagsMask |= PB_LOCATION_HAS_ELAPSED_REAL_TIME_BIT;
+    }
     LocApiPb_LOGv("LocApiPB: locFlagsMask:%x, pbLocFlagsMask:%x", locFlagsMask, pbLocFlagsMask);
     return pbLocFlagsMask;
 }
@@ -2351,6 +2354,9 @@ uint32_t LocationApiPbMsgConv::getLocationFlagsMaskFromPB(const uint32_t &pbLocF
     if (pbLocFlagsMask & PB_LOCATION_HAS_BEARING_ACCURACY_BIT) {
         locFlagsMask |= LOCATION_HAS_BEARING_ACCURACY_BIT;
     }
+    if (pbLocFlagsMask & PB_LOCATION_HAS_ELAPSED_REAL_TIME_BIT) {
+        locFlagsMask |= LOCATION_HAS_ELAPSED_REAL_TIME_BIT;
+    }
     LocApiPb_LOGv("LocApiPB: pbLocFlagsMask:%x, locFlagsMask:%x", pbLocFlagsMask, locFlagsMask);
     return locFlagsMask;
 }
@@ -3276,7 +3282,13 @@ int LocationApiPbMsgConv::convertLocationToPB(const Location &location,
     // uint32 techMask = 12; - PBLocationTechnologyMask
     pbLocation->set_techmask(getPBMaskForLocationTechnologyMask(location.techMask));
 
-    LOC_LOGd("LocApiPB: location - Timestamp: %" PRIu64" Lat:%lf, Lon:%lf, Alt:%lf, TechMask:%x",
+    // uint64 elapsedRealTime = 13;
+    pbLocation->set_elapsedrealtime(location.elapsedRealTime);
+
+    // uint64 elapsedRealTimeUnc = 14;
+    pbLocation->set_elapsedrealtimeunc(location.elapsedRealTimeUnc);
+
+    LOC_LOGv("LocApiPB: location - Timestamp: %" PRIu64" Lat:%lf, Lon:%lf, Alt:%lf, TechMask:%x",
             location.timestamp, location.latitude, location.longitude, location.altitude,
             location.techMask);
     LocApiPb_LOGd("LocApiPB: location - speed:%f, bear:%f, HorzAcc:%f, VertAcc:%f, SpeedAcc:%f, "
@@ -4486,7 +4498,13 @@ int LocationApiPbMsgConv::pbConvertToLocation(const PBLocation &pbLoc, Location 
     // uint32 techMask = 12; - bitwise OR of PBLocationTechnologyMask
     loc.techMask = getLocationTechnologyMaskFromPB(pbLoc.techmask());
 
-    LOC_LOGd("LocApiPB: pbLoc - Timestamp: %" PRIu64" Lat:%lf, Lon:%lf, Alt:%lf, TechMask:%x",
+    // uint64 elapsedRealTime = 13;
+    loc.elapsedRealTime = pbLoc.elapsedrealtime();
+
+    // uint64 elapsedRealTimeUnc = 14;
+    loc.elapsedRealTimeUnc = pbLoc.elapsedrealtimeunc();
+
+    LOC_LOGv("LocApiPB: pbLoc - Timestamp: %" PRIu64" Lat:%lf, Lon:%lf, Alt:%lf, TechMask:%x",
             loc.timestamp, loc.latitude, loc.longitude, loc.altitude, loc.techMask);
     LocApiPb_LOGd("LocApiPB: pbLoc - speed:%f, bearing:%f, HorzAcc:%f, VertAcc:%f, SpeedAcc:%f, "\
             "BearAcc:%f", loc.speed, loc.bearing, loc.accuracy, loc.verticalAccuracy,

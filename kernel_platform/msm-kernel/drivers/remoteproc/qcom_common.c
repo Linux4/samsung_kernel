@@ -91,6 +91,7 @@ struct minidump_global_toc {
 struct qcom_ssr_subsystem {
 	const char *name;
 	struct srcu_notifier_head notifier_list;
+	struct srcu_notifier_head early_notifier_list;
 	struct list_head list;
 };
 
@@ -220,6 +221,15 @@ clean_minidump:
 }
 EXPORT_SYMBOL_GPL(qcom_minidump);
 
+static int glink_early_ssr_notifier_event(struct notifier_block *this,
+					   unsigned long code, void *data)
+{
+	struct qcom_rproc_glink *glink = container_of(this, struct qcom_rproc_glink, nb);
+
+	qcom_glink_early_ssr_notify(glink->edge);
+	return NOTIFY_DONE;
+}
+
 static int glink_subdev_prepare(struct rproc_subdev *subdev)
 {
 	struct qcom_rproc_glink *glink = to_glink_subdev(subdev);
@@ -240,16 +250,32 @@ static int glink_subdev_start(struct rproc_subdev *subdev)
 
 	trace_rproc_qcom_event(dev_name(glink->dev->parent), GLINK_SUBDEV_NAME, "start");
 
+	glink->nb.notifier_call = glink_early_ssr_notifier_event;
+
+	glink->notifier_handle = qcom_register_early_ssr_notifier(glink->ssr_name, &glink->nb);
+	if (IS_ERR(glink->notifier_handle)) {
+		dev_err(glink->dev, "Failed to register for SSR notifier\n");
+		glink->notifier_handle = NULL;
+	}
+
 	return qcom_glink_smem_start(glink->edge);
 }
 
 static void glink_subdev_stop(struct rproc_subdev *subdev, bool crashed)
 {
 	struct qcom_rproc_glink *glink = to_glink_subdev(subdev);
+	int ret;
 	void *backup_edge = (void *)glink->edge;
 
+	if (!glink->edge)
+		return;
 	trace_rproc_qcom_event(dev_name(glink->dev->parent), GLINK_SUBDEV_NAME,
 			       crashed ? "crash stop" : "stop");
+
+	ret = qcom_unregister_early_ssr_notifier(glink->notifier_handle, &glink->nb);
+	if (ret)
+		dev_err(glink->dev, "Error in unregistering notifier\n");
+	glink->notifier_handle = NULL;
 
 	qcom_glink_smem_unregister(glink->edge);
 	glink->edge = NULL;
@@ -369,6 +395,8 @@ static void smd_subdev_stop(struct rproc_subdev *subdev, bool crashed)
 {
 	struct qcom_rproc_subdev *smd = to_smd_subdev(subdev);
 
+	if (!smd->edge)
+		return;
 	trace_rproc_qcom_event(dev_name(smd->dev->parent), SMD_SUBDEV_NAME,
 			       crashed ? "crash stop" : "stop");
 
@@ -416,6 +444,9 @@ static struct qcom_ssr_subsystem *qcom_ssr_get_subsys(const char *name)
 {
 	struct qcom_ssr_subsystem *info;
 
+	if (!name)
+		return ERR_PTR(-EINVAL);
+
 	mutex_lock(&qcom_ssr_subsys_lock);
 	/* Match in the global qcom_ssr_subsystem_list with name */
 	list_for_each_entry(info, &qcom_ssr_subsystem_list, list)
@@ -429,6 +460,7 @@ static struct qcom_ssr_subsystem *qcom_ssr_get_subsys(const char *name)
 	}
 	info->name = kstrdup_const(name, GFP_KERNEL);
 	srcu_init_notifier_head(&info->notifier_list);
+	srcu_init_notifier_head(&info->early_notifier_list);
 
 	/* Add to global notification list */
 	list_add_tail(&info->list, &qcom_ssr_subsystem_list);
@@ -437,6 +469,36 @@ out:
 	mutex_unlock(&qcom_ssr_subsys_lock);
 	return info;
 }
+
+void *qcom_register_early_ssr_notifier(const char *name, struct notifier_block *nb)
+{
+	struct qcom_ssr_subsystem *info;
+
+	info = qcom_ssr_get_subsys(name);
+	if (IS_ERR(info))
+		return info;
+
+	srcu_notifier_chain_register(&info->early_notifier_list, nb);
+
+	return &info->early_notifier_list;
+}
+EXPORT_SYMBOL(qcom_register_early_ssr_notifier);
+
+int qcom_unregister_early_ssr_notifier(void *notify, struct notifier_block *nb)
+{
+	return srcu_notifier_chain_unregister(notify, nb);
+}
+EXPORT_SYMBOL(qcom_unregister_early_ssr_notifier);
+
+void qcom_notify_early_ssr_clients(struct rproc_subdev *subdev)
+{
+	struct qcom_rproc_ssr *ssr = to_ssr_subdev(subdev);
+
+	trace_rproc_qcom_event(ssr->info->name, SSR_SUBDEV_NAME, "early notification");
+
+	srcu_notifier_call_chain(&ssr->info->early_notifier_list, QCOM_SSR_BEFORE_SHUTDOWN, NULL);
+}
+EXPORT_SYMBOL(qcom_notify_early_ssr_clients);
 
 /**
  * qcom_register_ssr_notifier() - register SSR notification handler
@@ -612,7 +674,10 @@ static void qcom_check_ssr_status(void *data, struct rproc *rproc)
 {
 	if (!atomic_read(&rproc->power) ||
 	    rproc->state == RPROC_RUNNING ||
-	    qcom_device_shutdown_in_progress)
+	    qcom_device_shutdown_in_progress ||
+	    system_state == SYSTEM_RESTART ||
+	    system_state == SYSTEM_POWER_OFF ||
+	    system_state == SYSTEM_HALT)
 		return;
 
 	panic("Panicking, remoteproc %s failed to recover!\n", rproc->name);

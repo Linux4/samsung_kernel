@@ -1,5 +1,21 @@
-BCM4389 DHD 101.24.17 for Android S OS - Rainbow Project
+BCM4389 DHD 101.24.18 for Android S OS - Rainbow Project
 (Notes: 101.24.x is twigged off from 101.10.583)
+
+DHD 101.24.18 - 2022.05.06
+Kernel Panic
+ - CS00012237206(By Kim Taeyong) Fixed kernel panic caused by wrong remained length
+
+Others
+ - CS00012201832(By Min Hyun-Kee) Supported controlling Broadcast packet transmit interval on SoftAP mode
+ - CS00012234834(By Min Hyun-Kee) Added more options for SET_FCC_CHANNEL command
+ - CS00012235573(By Yoon YeJi) Fixed typo for Advanced logging
+ - CS00012238953(By Choi Hyeonu) Changed the printing log for customer unwanted error log
+
+
+DHD 101.24.17.1 - 2022.04.14
+Others
+ - CS00012239762(By Yun YeJi) Added PNO scan results to DHD internal cache to generate rcc list during connection
+
 
 DHD 101.24.17 - 2022.03.18
 Kernel Panic

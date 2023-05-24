@@ -4,6 +4,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/nvmem-consumer.h>
 
 #include <dt-bindings/msm-camera.h>
 
@@ -47,22 +48,62 @@ struct g_csiphy_data {
 	bool enable_aon_support;
 	bool is_aux_sett_reqrd;
 	struct cam_csiphy_aon_sel_params_t *aon_sel_param;
+	struct nvmem_cell *cell;
 };
 
 static struct g_csiphy_data g_phy_data[MAX_CSIPHY] = {{0, 0}};
 static int active_csiphy_hw_cnt;
 
+#ifdef CONFIG_CAMERA_SKIP_SECURE_PAGE_FAULT
+static bool is_csiphy_secure_irq_err;
+bool cam_csiphy_is_secure_mode (struct csiphy_device *csiphy_dev) {
+	int i = 0;
+
+	for (i = 0; i < csiphy_dev->acquire_count; i++) {
+		if (csiphy_dev->csiphy_info[i].secure_mode == 1) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool cam_csiphy_get_secure_irq_err (void) {
+	return is_csiphy_secure_irq_err;
+}
+
+void cam_csiphy_set_secure_irq_err (bool is_secure) {
+	is_csiphy_secure_irq_err = is_secure;
+}
+#endif
+
 void cam_csiphy_apply_aux_settings(struct csiphy_device *csiphy_dev)
 {
+	int rc = 0;
+
 	if (!csiphy_dev) {
 		CAM_ERR(CAM_CSIPHY, "Invalid param.");
 		return;
 	}
 
-	if (g_phy_data[csiphy_dev->soc_info.index].is_3phase) {
+	if (!g_phy_data[csiphy_dev->soc_info.index].is_3phase) {
+		CAM_INFO_RATE_LIMIT(CAM_CSIPHY, "2PH Sensor is connected to the PHY");
+		return;
+	}
+
 		g_phy_data[csiphy_dev->soc_info.index].is_aux_sett_reqrd = true;
 		g_phy_data[csiphy_dev->soc_info.index].need_aux_settings |=
 			(1 << csiphy_dev->curr_data_rate_idx);
+
+	if (g_phy_data[csiphy_dev->soc_info.index].cell) {
+		 uint32_t nv_aux_mask =
+			g_phy_data[csiphy_dev->soc_info.index].need_aux_settings;
+
+		rc = nvmem_cell_write(g_phy_data[csiphy_dev->soc_info.index].cell,
+			&nv_aux_mask, sizeof(nv_aux_mask));
+		if (rc < 0)
+			CAM_ERR(CAM_CSIPHY, "CSIPHY[%u] failed to update aux mask in nvm rc: %d",
+				csiphy_dev->soc_info.index, rc);
 	}
 
 	CAM_DBG(CAM_CSIPHY,
@@ -991,8 +1032,12 @@ static int cam_csiphy_cphy_data_rate_config(
 					 */
 					if ((g_phy_data[phy_idx].is_aux_sett_reqrd) &&
 						(g_phy_data[phy_idx].need_aux_settings &
-						(1 << data_rate_idx)))
+						(1 << data_rate_idx))) {
 						cam_io_w_mb(reg_data, csiphybase + reg_addr);
+						CAM_INFO(CAM_CSIPHY,
+							"CSIPHY[%d] applying aux for data rate idx: %u",
+							phy_idx, data_rate_idx);
+					}
 				}
 				break;
 				default:
@@ -1976,6 +2021,10 @@ int32_t cam_csiphy_core_cfg(void *phy_dev,
 			csiphy_dev->csiphy_info[offset].csiphy_cpas_cp_reg_mask
 				= 0;
 
+#ifdef CONFIG_CAMERA_SKIP_SECURE_PAGE_FAULT
+			cam_csiphy_set_secure_irq_err(false);
+#endif
+
 			cam_csiphy_update_lane(csiphy_dev, offset, false);
 			goto release_mutex;
 		}
@@ -2352,7 +2401,9 @@ release_mutex:
 
 int cam_csiphy_register_baseaddress(struct csiphy_device *csiphy_dev)
 {
-	int phy_idx;
+	int phy_idx, len = 0, rc = 0;
+	uint32_t val;
+	char phy_nvmem[24];
 
 	if (!csiphy_dev) {
 		CAM_ERR(CAM_CSIPHY, "Data is NULL");
@@ -2375,6 +2426,28 @@ int cam_csiphy_register_baseaddress(struct csiphy_device *csiphy_dev)
 	g_phy_data[phy_idx].enable_aon_support = false;
 	g_phy_data[phy_idx].is_aux_sett_reqrd = false;
 	g_phy_data[phy_idx].need_aux_settings = 0x0;
+
+	/* check if nvmem cell is available */
+	scnprintf(phy_nvmem + len, (24 - len), "cam_phy%d_nvmem", phy_idx);
+	g_phy_data[phy_idx].cell = nvmem_cell_get(csiphy_dev->soc_info.dev, phy_nvmem);
+	if (IS_ERR(g_phy_data[phy_idx].cell)) {
+		CAM_DBG(CAM_CSIPHY,
+			"CSIPHY[%d] failed to get nvmem cell rc: %d",
+			phy_idx, PTR_ERR(g_phy_data[phy_idx].cell));
+		g_phy_data[phy_idx].cell = NULL;
+	}
+
+		/*
+		 * Update if the read is successful and for a non-zero aux mask
+		 * Currently we are supporting only 4 bytes of nvm per phy
+		 */
+	 if (g_phy_data[phy_idx].cell) {
+		rc = nvmem_cell_read_u32(csiphy_dev->soc_info.dev, phy_nvmem, &val);
+		if (!rc && val) {
+			 g_phy_data[phy_idx].need_aux_settings = val;
+			 g_phy_data[phy_idx].is_aux_sett_reqrd = true;
+		}
+	}
 
 	return 0;
 }

@@ -1,5 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2016-2021, The Linux Foundation. All rights reserved. */
+/*
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ */
 
 #ifndef _NET_CNSS2_H
 #define _NET_CNSS2_H
@@ -9,6 +12,7 @@
 #define CNSS_MAX_FILE_NAME		20
 #define CNSS_MAX_TIMESTAMP_LEN		32
 #define CNSS_MAX_DEV_MEM_NUM		4
+#define CNSS_CHIP_VER_ANY		0
 
 /*
  * Temporary change for compilation, will be removed
@@ -23,6 +27,8 @@ enum cnss_bus_width_type {
 	CNSS_BUS_WIDTH_MEDIUM,
 	CNSS_BUS_WIDTH_HIGH,
 	CNSS_BUS_WIDTH_VERY_HIGH,
+	CNSS_BUS_WIDTH_ULTRA_HIGH,
+	CNSS_BUS_WIDTH_MAX,
 	CNSS_BUS_WIDTH_LOW_LATENCY
 };
 
@@ -127,6 +133,7 @@ struct cnss_wlan_driver {
 			     struct cnss_uevent_data *uevent);
 	struct cnss_wlan_runtime_ops *runtime_ops;
 	const struct pci_device_id *id_table;
+	u32 chip_version;
 };
 
 struct cnss_ce_tgt_pipe_cfg {
@@ -275,7 +282,10 @@ extern int cnss_get_mem_seg_count(enum cnss_remote_mem_type type, u32 *seg);
 extern int cnss_get_mem_segment_info(enum cnss_remote_mem_type type,
 				     struct cnss_mem_segment segment[],
 				     u32 segment_count);
-
+extern int cnss_get_pci_slot(struct device *dev);
+extern int cnss_pci_get_reg_dump(struct device *dev, uint8_t *buffer,
+				 uint32_t len);
 extern int cnss_sysfs_get_pm_info(void);
 extern void cnss_sysfs_update_driver_status(int32_t new_status, void *version, void *softap);
+extern void cnss_disable_ssr(void);
 #endif /* _NET_CNSS2_H */

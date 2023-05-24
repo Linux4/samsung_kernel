@@ -288,7 +288,7 @@ static const unsigned int a6xx_registers[] = {
 	0xA600, 0xA601, 0xA603, 0xA603, 0xA60A, 0xA60A, 0xA610, 0xA617,
 	0xA630, 0xA630,
 	/* HLSQ */
-	0xD002, 0xD004,
+	0xD002, 0xD003,
 };
 
 static const unsigned int a660_registers[] = {
@@ -1761,7 +1761,7 @@ void a6xx_snapshot(struct adreno_device *adreno_dev,
 
 	sptprac_on = a6xx_gmu_sptprac_is_on(adreno_dev);
 
-	if (!gmu_core_dev_gx_is_on(device))
+	if (!adreno_gx_is_on(adreno_dev))
 		return;
 
 	kgsl_regread(device, A6XX_CP_IB1_BASE, &lo);

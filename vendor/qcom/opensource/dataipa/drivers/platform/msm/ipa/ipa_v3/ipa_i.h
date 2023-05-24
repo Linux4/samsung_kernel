@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ *
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _IPA3_I_H_
@@ -106,6 +108,8 @@ enum {
 
 #define QMAP_HDR_LEN 8
 
+#define IPA_HOLB_TMR_DIS 0x0
+#define IPA_HOLB_TMR_EN 0x1
 /*
  * The transport descriptor size was changed to GSI_CHAN_RE_SIZE_16B, but
  * IPA users still use sps_iovec size as FIFO element size.
@@ -127,6 +131,10 @@ enum {
 #define IPA_PAGE_POLL_DEFAULT_THRESHOLD 15
 #define IPA_PAGE_POLL_THRESHOLD_MAX 30
 
+#define NTN3_CLIENTS_NUM 2
+
+#define IPA_MAX_NAPI_SORT_PAGE_THRSHLD 3
+#define IPA_MAX_PAGE_WQ_RESCHED_TIME 2
 
 #define IPA_WDI2_OVER_GSI() (ipa3_ctx->ipa_wdi2_over_gsi \
 		&& (ipa_get_wdi_version() == IPA_WDI_2))
@@ -290,19 +298,30 @@ enum {
 	NUM_SMEM_SUBSYSTEMS,
 };
 
-#define IPA_WDI_RX_RING_RES			0
-#define IPA_WDI_RX_RING_RP_RES		1
-#define IPA_WDI_RX_COMP_RING_RES	2
-#define IPA_WDI_RX_COMP_RING_WP_RES	3
-#define IPA_WDI_TX_RING_RES			4
-#define IPA_WDI_CE_RING_RES			5
-#define IPA_WDI_CE_DB_RES			6
-#define IPA_WDI_TX_DB_RES			7
-#define IPA_WDI_TX1_RING_RES		8
-#define IPA_WDI_CE1_RING_RES		9
-#define IPA_WDI_CE1_DB_RES			10
-#define IPA_WDI_TX1_DB_RES			11
-#define IPA_WDI_MAX_RES				12
+#define IPA_WDI_RX_RING_RES            0
+#define IPA_WDI_RX_RING_RP_RES         1
+#define IPA_WDI_RX_COMP_RING_RES       2
+#define IPA_WDI_RX_COMP_RING_WP_RES    3
+#define IPA_WDI_RX2_RING_RES           4
+#define IPA_WDI_RX2_RING_RP_RES        5
+#define IPA_WDI_RX2_COMP_RING_RES      6
+#define IPA_WDI_RX2_COMP_RING_WP_RES   7
+#define IPA_WDI_TX_RING_RES            8
+#define IPA_WDI_CE_RING_RES            9
+#define IPA_WDI_CE_DB_RES              10
+#define IPA_WDI_TX_DB_RES              11
+#define IPA_WDI_TX1_RING_RES           12
+#define IPA_WDI_CE1_RING_RES           13
+#define IPA_WDI_CE1_DB_RES             14
+#define IPA_WDI_TX1_DB_RES             15
+#define IPA_WDI_TX2_RING_RES           16
+#define IPA_WDI_CE2_RING_RES           17
+#define IPA_WDI_CE2_DB_RES             18
+#define IPA_WDI_TX2_DB_RES             19
+#define IPA_WDI_MAX_RES                20
+
+#define IPA_WDI3_TX2_DIR 4
+#define IPA_WDI3_RX2_DIR 5
 
 /* use QMAP header reserved bit to identify tethered traffic */
 #define IPA_QMAP_TETH_BIT (1 << 30)
@@ -341,6 +360,8 @@ enum {
 #define IPA_TRANSPORT_PROD_TIMEOUT_MSEC 100
 
 #define IPA3_ACTIVE_CLIENTS_TABLE_BUF_SIZE 4096
+
+#define IPA_UC_ACT_TBL_SIZE 1000
 
 #define IPA3_ACTIVE_CLIENT_LOG_TYPE_EP 0
 #define IPA3_ACTIVE_CLIENT_LOG_TYPE_SIMPLE 1
@@ -562,18 +583,24 @@ enum ipa_icc_type {
 
 #define IPA_ICC_MAX (IPA_ICC_PATH_MAX*IPA_ICC_TYPE_MAX)
 
+
+#define IPA_MHI_CTRL_NOT_SETUP (0)
+#define IPA_MHI_CTRL_UL_SETUP (1 << 1)
+#define IPA_MHI_CTRL_DL_SETUP (1 << 2)
+#define IPA_MHI_CTRL_SETUP_ALL (IPA_MHI_CTRL_UL_SETUP | IPA_MHI_CTRL_DL_SETUP)
+
 /**
  * struct  ipa_rx_page_data - information needed
  * to send to wlan driver on receiving data from ipa hw
  * @page: skb page
  * @dma_addr: DMA address of this Rx packet
  * @is_tmp_alloc: skb page from tmp_alloc or recycle_list
- * @page_order: page order associated with the page. 
+ * @page_order: page order associated with the page.
  */
 struct ipa_rx_page_data {
 	struct page *page;
 	dma_addr_t dma_addr;
-	bool is_tmp_alloc;	
+	bool is_tmp_alloc;
 	u32 page_order;
 };
 
@@ -608,6 +635,7 @@ struct ipa_smmu_cb_ctx {
 	u32 va_end;
 	bool shared;
 	bool is_cache_coherent;
+	bool done;
 };
 
 /**
@@ -770,10 +798,6 @@ struct ipa3_rt_tbl {
  * @name: name of header table entry
  * @type: l2 header type
  * @is_partial: flag indicating if header table entry is partial
- * @is_hdr_proc_ctx: false - hdr entry resides in hdr table,
- * true - hdr entry resides in DDR and pointed to by proc ctx
- * @phys_base: physical address of entry in DDR when is_hdr_proc_ctx is true,
- * else 0
  * @proc_ctx: processing context header
  * @offset_entry: entry's offset
  * @cookie: cookie used for validity check
@@ -793,8 +817,6 @@ struct ipa3_hdr_entry {
 	char name[IPA_RESOURCE_NAME_MAX];
 	enum ipa_hdr_l2_type type;
 	u8 is_partial;
-	bool is_hdr_proc_ctx;
-	dma_addr_t phys_base;
 	struct ipa3_hdr_proc_ctx_entry *proc_ctx;
 	struct ipa_hdr_offset_entry *offset_entry;
 	u32 ref_cnt;
@@ -1192,6 +1214,10 @@ struct ipa3_sys_context {
 	bool ext_ioctl_v2;
 	bool common_buff_pool;
 	struct ipa3_sys_context *common_sys;
+	struct tasklet_struct tasklet_find_freepage;
+	atomic_t page_avilable;
+	struct delayed_work freepage_work;
+	u32 napi_sort_page_thrshld_cnt;
 
 	/* ordering is important - mutable fields go above */
 	struct ipa3_ep_context *ep;
@@ -1205,6 +1231,9 @@ struct ipa3_sys_context {
 	struct workqueue_struct *repl_wq;
 	struct ipa3_status_stats *status_stat;
 	u32 pm_hdl;
+	struct workqueue_struct *freepage_wq;
+	unsigned int napi_sch_cnt;
+	unsigned int napi_comp_cnt;
 	/* ordering is important - other immutable fields go below */
 };
 
@@ -1547,10 +1576,17 @@ struct ipa3_stats {
 	u32 flow_disable;
 	u32 tx_non_linear;
 	u32 rx_page_drop_cnt;
-	u32 pipe_setup_fail_cnt;
 	u64 lower_order;
+	u32 pipe_setup_fail_cnt;
 	struct ipa3_page_recycle_stats page_recycle_stats[3];
 	u64 page_recycle_cnt[3][IPA_PAGE_POLL_THRESHOLD_MAX];
+	atomic_t num_buff_above_thresh_for_def_pipe_notified;
+	atomic_t num_buff_above_thresh_for_coal_pipe_notified;
+	atomic_t num_buff_below_thresh_for_def_pipe_notified;
+	atomic_t num_buff_below_thresh_for_coal_pipe_notified;
+	u64 num_sort_tasklet_sched[3];
+	u64 num_of_times_wq_reschd;
+	u64 page_recycle_cnt_in_tasklet;
 };
 
 /* offset for each stats */
@@ -1990,6 +2026,112 @@ struct ipa3_eth_error_stats {
 	u32 err;
 };
 
+struct ipa_ntn3_stats_rx {
+	int rp;
+	int wp;
+	bool pending_db_after_rollback;
+	u32 msi_db_idx;
+	u32 chain_cnt;
+	u32 err_cnt;
+	u32 tres_handled;
+	u32 rollbacks_cnt;
+	u32 msi_db_cnt;
+};
+
+struct ipa_ntn3_stats_tx {
+	int rp;
+	int wp;
+	bool pending_db_after_rollback;
+	u32 msi_db_idx;
+	u32 derr_cnt;
+	u32 oob_cnt;
+	u32 tres_handled;
+	u32 rollbacks_cnt;
+	u32 msi_db_cnt;
+};
+
+struct ipa_ntn3_client_stats {
+	struct ipa_ntn3_stats_rx rx_stats;
+	struct ipa_ntn3_stats_tx tx_stats;
+};
+
+/* Peripheral stats for Q6, should be in the same order, defined by Q6 */
+enum ipa_per_stats_type_e {
+	IPA_PER_STATS_TYPE_NUM_PERS,
+	IPA_PER_STATS_TYPE_NUM_PERS_WWAN,
+	IPA_PER_STATS_TYPE_ACT_PER_TYPE,
+	IPA_PER_STATS_TYPE_PCIE_GEN,
+	IPA_PER_STATS_TYPE_PCIE_WIDTH,
+	IPA_PER_STATS_TYPE_PCIE_MAX_SPEED,
+	IPA_PER_STATS_TYPE_PCIE_NUM_LPM,
+	IPA_PER_STATS_TYPE_USB_TYPE,
+	IPA_PER_STATS_TYPE_USB_PROT,
+	IPA_PER_STATS_TYPE_USB_MAX_SPEED,
+	IPA_PER_STATS_TYPE_USB_PIPO,
+	IPA_PER_STATS_TYPE_WIFI_ENUM_TYPE,
+	IPA_PER_STATS_TYPE_WIFI_MAX_SPEED,
+	IPA_PER_STATS_TYPE_WIFI_DUAL_BAND_EN,
+	IPA_PER_STATS_TYPE_ETH_CLIENT,
+	IPA_PER_STATS_TYPE_ETH_MAX_SPEED,
+	IPA_PER_STATS_TYPE_IPA_DMA_BYTES,
+	IPA_PER_STATS_TYPE_WIFI_HOLB_UC,
+	IPA_PER_STATS_TYPE_ETH_HOLB_UC,
+	IPA_PER_STATS_TYPE_USB_HOLB_UC,
+	IPA_PER_STATS_TYPE_MAX
+};
+
+enum ipa_per_type_bitmask_e {
+	IPA_PER_TYPE_BITMASK_NONE 		= 0,
+	IPA_PER_TYPE_BITMASK_PCIE_EP 	= 1,
+	IPA_PER_TYPE_BITMASK_USB 		= 2,
+	IPA_PER_TYPE_BITMASK_WIFI 		= 4,
+	IPA_PER_TYPE_BITMASK_ETH 		= 8
+};
+
+enum ipa_per_pcie_speed_type_e {
+	PCIE_LINK_SPEED_DEF  = 0, 	/** < -- Core's default speed */
+	PCIE_LINK_SPEED_GEN1 = 1,	/** < -- Gen1 Speed - 2.5GT/s */
+	PCIE_LINK_SPEED_GEN2 = 2,	/** < -- Gen2 Speed - 5.0GT/s */
+	PCIE_LINK_SPEED_GEN3 = 3,	/** < -- Gen3 Speed - 8.0GT/s */
+	PCIE_LINK_SPEED_GEN4 = 4	/** < -- Gen4 Speed - 16.0GT/s*/
+};
+
+enum ipa_per_pcie_width_type_e {
+	PCIE_LINK_WIDTH_DEF = 0,		/** < -- Link Width Default */
+	PCIE_LINK_WIDTH_X1  = 1,		/** < -- Link Width x1 */
+	PCIE_LINK_WIDTH_X2  = 2,		/** < -- Link Width x2 */
+	PCIE_LINK_WIDTH_X4  = 4,		/** < -- Link Width x4 */
+	PCIE_LINK_WIDTH_X8  = 8,		/** < -- Link Width x8 */
+	PCIE_LINK_WIDTH_X16 = 16,		/** < -- Link Width x16 */
+	PCIE_LINK_WIDTH_MAX = 32		/** < -- Link Width Max */
+};
+
+enum ipa_per_usb_prot_type_e {
+	IPA_PER_USB_PROT_TYPE_INVALID,
+	IPA_PER_USB_PROT_TYPE_RMNET,
+	IPA_PER_USB_PROT_TYPE_RNDIS,
+	IPA_PER_USB_PROT_TYPE_ECM,
+	IPA_PER_USB_PROT_TYPE_MAX
+};
+
+enum ipa_per_wifi_enum_type_e {
+	IPA_PER_WIFI_ENUM_TYPE_INVALID,
+	IPA_PER_WIFI_ENUM_TYPE_802_11_ABG,
+	IPA_PER_WIFI_ENUM_TYPE_802_11_AC,
+	IPA_PER_WIFI_ENUM_TYPE_802_11_AD,
+	IPA_PER_WIFI_ENUM_TYPE_802_11_AX,
+	IPA_PER_WIFI_ENUM_TYPE_MAX
+};
+
+enum ipa_per_usb_enum_type_e {
+	IPA_PER_USB_ENUM_TYPE_INVALID,
+	IPA_PER_USB_ENUM_TYPE_FS,
+	IPA_PER_USB_ENUM_TYPE_2_0_HS,
+	IPA_PER_USB_ENUM_TYPE_SS_GEN_1,
+	IPA_PER_USB_ENUM_TYPE_SS_GEN_2,
+	IPA_PER_USB_ENUM_TYPE_SS_GEN_2x2,
+	IPA_PER_USB_ENUM_TYPE_MAX
+};
 
 /**
  * struct ipa3_context - IPA context
@@ -2108,14 +2250,10 @@ struct ipa3_eth_error_stats {
  * @uc_fw_file_name: uC IPA fw file name
  * @eth_info: ethernet client mapping
  * @max_num_smmu_cb: number of smmu s1 cb supported
- * @u64 gsi_msi_addr: MSI SPI set address APSS_GICA_SETSPI_NSR
- * @u64 gsi_msi_clear_addr: MSI SPI clear address APSS_GICA_CLRSPI_NSR
- * @u64 gsi_msi_ioremapped_addr: iore mapped address for debugging purpose
- * @u32 gsi_rmnet_ctl_evt_ring_irq: IRQ number for rmnet_ctl pipe
- * @u32 gsi_rmnet_ll_evt_ring_irq; IRQ number for rmnet_ll pipe
- * @u32 gsi_rmnet_ctl_evt_ring_intvec: HW IRQ number for rmnet_ctl pipe
- * @u32 gsi_rmnet_ll_evt_ring_intvec; HW IRQ number for rmnet_ll pipe
  * @non_hash_flt_lcl_sys_switch: number of times non-hash flt table moved
+ * mhi_ctrl_state: state of mhi ctrl pipes
+ * @per_stats_smem_pa: Peripheral stats physical address to be passed to Q6
+ * @per_stats_smem_va: Peripheral stats virtual address to update stats from Apps
  */
 struct ipa3_context {
 	struct ipa3_char_device_context cdev;
@@ -2308,6 +2446,8 @@ struct ipa3_context {
 	struct ipahal_imm_cmd_pyld *coal_cmd_pyld[2];
 	struct ipa_mem_buffer ulso_wa_cmd;
 	u32 tx_wrapper_cache_max_size;
+	u32 ipa_gen_rx_cmn_page_pool_sz_factor;
+        u32 ipa_gen_rx_cmn_temp_pool_sz_factor;
 	struct ipa3_app_clock_vote app_clock_vote;
 	bool clients_registered;
 	bool ipa_gpi_event_rp_ddr;
@@ -2336,19 +2476,31 @@ struct ipa3_context {
 	bool use_pm_wrapper;
 	u8 page_poll_threshold;
 	bool wan_common_page_pool;
-	u64 gsi_msi_addr;
-	u64 gsi_msi_clear_addr;
-	u64 gsi_msi_addr_io_mapped;
-	u64 gsi_msi_clear_addr_io_mapped;
-	u32 gsi_rmnet_ctl_evt_ring_intvec;
-	u32 gsi_rmnet_ctl_evt_ring_irq;
-	u32 gsi_rmnet_ll_evt_ring_intvec;
-	u32 gsi_rmnet_ll_evt_ring_irq;
 	bool use_tput_est_ep;
 	struct ipa_ioc_eogre_info eogre_cache;
 	bool eogre_enabled;
 	bool is_device_crashed;
 	bool ulso_wa;
+	u64 gsi_msi_addr;
+	spinlock_t notifier_lock;
+	struct raw_notifier_head *ipa_rmnet_notifier_list_internal;
+	struct notifier_block ipa_rmnet_notifier;
+	bool ipa_rmnet_notifier_enabled;
+	bool buff_above_thresh_for_def_pipe_notified;
+	bool buff_above_thresh_for_coal_pipe_notified;
+	bool buff_below_thresh_for_def_pipe_notified;
+	bool buff_below_thresh_for_coal_pipe_notified;
+	u8 mhi_ctrl_state;
+	struct ipa_mem_buffer uc_act_tbl;
+	bool uc_act_tbl_valid;
+	struct mutex act_tbl_lock;
+	int uc_act_tbl_total;
+	int uc_act_tbl_next_index;
+	int ipa_pil_load;
+	phys_addr_t per_stats_smem_pa;
+	void *per_stats_smem_va;
+	u32 ipa_max_napi_sort_page_thrshld;
+	u32 page_wq_reschd_time;
 };
 
 struct ipa3_plat_drv_res {
@@ -2417,6 +2569,8 @@ struct ipa3_plat_drv_res {
 	const char *gsi_fw_file_name;
 	const char *uc_fw_file_name;
 	u32 tx_wrapper_cache_max_size;
+	u32 ipa_gen_rx_cmn_page_pool_sz_factor;
+        u32 ipa_gen_rx_cmn_temp_pool_sz_factor;
 	u32 ipa_wan_aggr_pkt_cnt;
 	bool ipa_mhi_proxy;
 	u32 max_num_smmu_cb;
@@ -2427,12 +2581,6 @@ struct ipa3_plat_drv_res {
 	u16 ulso_ip_id_min;
 	u16 ulso_ip_id_max;
 	bool use_pm_wrapper;
-	u64 gsi_msi_addr;
-	u64 gsi_msi_clear_addr;
-	u32 gsi_rmnet_ctl_evt_ring_intvec;
-	u32 gsi_rmnet_ctl_evt_ring_irq;
-	u32 gsi_rmnet_ll_evt_ring_intvec;
-	u32 gsi_rmnet_ll_evt_ring_irq;
 	bool use_tput_est_ep;
 	bool ulso_wa;
 };
@@ -2764,6 +2912,12 @@ int ipa3_cfg_ep_holb_by_client(enum ipa_client_type client,
 int ipa3_cfg_ep_ctrl(u32 clnt_hdl, const struct ipa_ep_cfg_ctrl *ep_ctrl);
 
 int ipa3_cfg_ep_ulso(u32 clnt_hdl, const struct ipa_ep_cfg_ulso *ep_ulso);
+
+int ipa3_setup_uc_act_tbl(void);
+
+int ipa3_add_socksv5_conn(struct ipa_socksv5_info *info);
+
+int ipa3_del_socksv5_conn(uint32_t handle);
 
 /*
  * Header removal / addition
@@ -3248,6 +3402,7 @@ int ipa3_uc_disable_holb_monitor(void);
 int ipa3_uc_bw_monitor(struct ipa_wdi_bw_info *info);
 int ipa3_uc_setup_event_ring(void);
 void ipa3_tag_destroy_imm(void *user1, int user2);
+void ipa3_tag_destroy_reg_read_imm(void *user1, int user2);
 const struct ipa_gsi_ep_config *ipa3_get_gsi_ep_info
 	(enum ipa_client_type client);
 void ipa3_uc_rg10_write_reg(enum ipahal_reg_name reg, u32 n, u32 val);
@@ -3381,6 +3536,8 @@ int ipa3_register_rmnet_ll_cb(
 	void *user_data3);
 int ipa3_unregister_rmnet_ll_cb(void);
 int ipa3_rmnet_ll_xmit(struct sk_buff *skb);
+int ipa3_register_notifier(void *fn_ptr);
+int ipa3_unregister_notifier(void *fn_ptr);
 int ipa3_setup_apps_low_lat_data_prod_pipe(
 	struct rmnet_egress_param *egress_param,
 	struct net_device *dev);
@@ -3420,7 +3577,6 @@ irq_handler_t ipa3_get_isr(void);
 void ipa_pc_qmp_enable(void);
 u32 ipa3_get_r_rev_version(void);
 void ipa3_notify_clients_registered(void);
-void ipa_gsi_map_unmap_gsi_msi_addr(bool map);
 #if defined(CONFIG_IPA3_REGDUMP)
 int ipa_reg_save_init(u32 value);
 void ipa_save_registers(void);
@@ -3449,6 +3605,7 @@ int ipa3_eth_disconnect(
 int ipa3_eth_client_conn_evt(struct ipa_ecm_msg *msg);
 int ipa3_eth_client_disconn_evt(struct ipa_ecm_msg *msg);
 #endif
+void ipa_eth_ntn3_get_status(struct ipa_ntn3_client_stats *s, unsigned inst_id);
 void ipa3_eth_get_status(u32 client, int scratch_id,
 	struct ipa3_eth_error_stats *stats);
 int ipa3_get_gsi_chan_info(struct gsi_chan_info *gsi_chan_info,
@@ -3571,5 +3728,26 @@ int ipa3_add_dscp_vlan_pcp_map(
 int ipa3_send_eogre_info(
 	enum ipa_eogre_event etype,
 	struct ipa_ioc_eogre_info *info );
+
+/* update mhi ctrl pipe state */
+void ipa3_update_mhi_ctrl_state(u8 state, bool set);
+/* Send MHI endpoint info to modem using QMI indication message */
+int ipa_send_mhi_endp_ind_to_modem(void);
+
+/*
+ * To pass macsec mapping to the IPACM
+ */
+int ipa3_send_macsec_info(enum ipa_macsec_event event_type, struct ipa_macsec_map *map);
+
+/* Peripheral stats APIs */
+/* Non periodic/Event based stats update */
+int ipa3_update_usb_per_stats(enum ipa_per_stats_type_e stats_type, uint32_t data);
+int ipa3_update_pcie_per_stats(enum ipa_per_stats_type_e stats_type, uint32_t data);
+int ipa3_update_wifi_per_stats(enum ipa_per_stats_type_e stats_type, uint32_t data);
+int ipa3_update_eth_per_stats(enum ipa_per_stats_type_e stats_type, uint32_t data);
+int ipa3_update_apps_per_stats(enum ipa_per_stats_type_e stats_type, uint32_t data);
+/* Periodic stats update */
+int ipa3_update_client_holb_per_stats(enum ipa_per_stats_type_e stats_type, uint32_t data);
+int ipa3_update_dma_per_stats(enum ipa_per_stats_type_e stats_type, uint32_t data);
 
 #endif /* _IPA3_I_H_ */

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -30,6 +31,8 @@
 #include <cds_api.h>
 #include <linux/skbuff.h>
 #include "cdp_txrx_flow_ctrl_legacy.h"
+#include <qdf_tracepoint.h>
+#include <qdf_pkt_add_timestamp.h>
 
 struct hdd_netif_queue_history;
 struct hdd_context;
@@ -82,7 +85,7 @@ struct hdd_context;
 #define SME_QOS_UAPSD_CFG_VI_CHANGED_MASK     0xF4
 #define SME_QOS_UAPSD_CFG_VO_CHANGED_MASK     0xF8
 
-#ifdef WLAN_FEATURE_11BE_MLO
+#ifdef CFG80211_CTRL_FRAME_SRC_ADDR_TA_ADDR
 #define SEND_EAPOL_OVER_NL true
 #else
 #define SEND_EAPOL_OVER_NL  false
@@ -224,12 +227,13 @@ QDF_STATUS hdd_rx_pkt_thread_enqueue_cbk(void *adapter_context,
 int hdd_rx_ol_init(struct hdd_context *hdd_ctx);
 
 /**
- * hdd_disable_rx_ol_in_concurrency() - Disable Rx offload due to concurrency
- * @disable: true/false to disable/enable the Rx offload
+ * hdd_rx_handle_concurrency() - Handle concurrency related operations
+ *  for rx
+ * @is_concurrency: true if there are concurrenct connections else false
  *
  * Return: none
  */
-void hdd_disable_rx_ol_in_concurrency(bool disable);
+void hdd_rx_handle_concurrency(bool is_concurrency);
 
 /**
  * hdd_disable_rx_ol_for_low_tput() - Disable Rx offload in low TPUT scenario
@@ -586,4 +590,41 @@ bool wlan_hdd_rx_rpm_mark_last_busy(struct hdd_context *hdd_ctx,
  * Return: None
  */
 void hdd_sta_notify_tx_comp_cb(qdf_nbuf_t skb, void *ctx, uint16_t flag);
+
+/**
+ * hdd_rx_pkt_tracepoints_enabled() - Get the state of rx pkt tracepoint
+ *
+ * Return: True if any rx pkt tracepoint is enabled else false
+ */
+static inline bool hdd_rx_pkt_tracepoints_enabled(void)
+{
+	return (qdf_trace_dp_rx_tcp_pkt_enabled() ||
+		qdf_trace_dp_rx_udp_pkt_enabled() ||
+		qdf_trace_dp_rx_pkt_enabled());
+}
+
+#ifdef CONFIG_DP_PKT_ADD_TIMESTAMP
+
+/**
+ * hdd_pkt_add_timestamp() - add timestamp in data payload
+ *
+ * @adapter - adapter context
+ * @index - timestamp index which decides offset in payload
+ * @time - time to update in payload
+ * @skb - socket buffer
+ *
+ * Return: none
+ */
+void hdd_pkt_add_timestamp(struct hdd_adapter *adapter,
+			   enum qdf_pkt_timestamp_index index, uint64_t time,
+			   struct sk_buff *skb);
+#else
+static inline
+void hdd_pkt_add_timestamp(struct hdd_adapter *adapter,
+			   enum qdf_pkt_timestamp_index index, uint64_t time,
+			   struct sk_buff *skb)
+{
+}
+#endif
+
 #endif /* end #if !defined(WLAN_HDD_TX_RX_H) */

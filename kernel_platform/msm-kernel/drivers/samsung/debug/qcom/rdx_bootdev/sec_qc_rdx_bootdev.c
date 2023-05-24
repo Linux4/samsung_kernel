@@ -104,6 +104,7 @@ static inline void ____rdx_bootdev_free(
 		struct rdx_bootdev_drvdata *drvdata,
 		phys_addr_t paddr, phys_addr_t size)
 {
+	struct device *dev = drvdata->bd.dev;
 	uint8_t *vaddr = (uint8_t *)phys_to_virt(paddr);
 	int err;
 
@@ -111,7 +112,7 @@ static inline void ____rdx_bootdev_free(
 
 	err = memblock_free(paddr, size);
 	if (err) {
-		pr_warn("memblock_free failed (%d)\n", err);
+		dev_warn(dev, "memblock_free failed (%d)\n", err);
 		return;
 	}
 
@@ -126,33 +127,42 @@ static inline void ____rdx_bootdev_free(
 static void __rdx_bootdev_free(struct rdx_bootdev_drvdata *drvdata,
 		phys_addr_t paddr, phys_addr_t size)
 {
+	struct device *dev = drvdata->bd.dev;
+
 	if (!drvdata->paddr) {
-		pr_warn("reserved address is NULL\n");
+		dev_warn(dev, "reserved address is NULL\n");
 		return;
 	}
 
 	if (!drvdata->size) {
-		pr_warn("reserved size is zero\n");
+		dev_warn(dev, "reserved size is zero\n");
 		return;
 	}
 
 	if (paddr < drvdata->paddr) {
-		pr_warn("paddr is not a valid reserved address\n");
+		dev_warn(dev, "paddr is not a valid reserved address\n");
 		return;
 	}
 
 	if ((paddr + size) > (drvdata->paddr + drvdata->size)) {
-		pr_warn("invalid reserved memory size\n");
+		dev_warn(dev, "invalid reserved memory size\n");
 		return;
 	}
 
 	____rdx_bootdev_free(drvdata, paddr, size);
 }
 
-static ssize_t __rdx_bootdev_drvdata_write(
-		struct rdx_bootdev_drvdata *drvdata,
-		const char __user *buf, size_t count, loff_t *ppos)
+static ssize_t __rdx_bootdev_free_entire(struct rdx_bootdev_drvdata *drvdata)
 {
+	__rdx_bootdev_free(drvdata, drvdata->paddr, drvdata->size);
+
+	return -ENODEV;
+}
+
+static ssize_t __rdx_bootdev_free_partial(struct rdx_bootdev_drvdata *drvdata,
+		const char __user *buf, size_t count)
+{
+	struct device *dev = drvdata->bd.dev;
 	struct {
 		uint8_t sha256[SHA256_DIGEST_LENGTH];
 		struct fiemap fiemap;
@@ -162,13 +172,8 @@ static ssize_t __rdx_bootdev_drvdata_write(
 	phys_addr_t sz_to_be_freed;
 	phys_addr_t max_mapped_extents;
 
-	if (count > drvdata->size) {
-		pr_warn("count is a wrong value : %zu\n", count);
-		return -EINVAL;
-	}
-
 	if (copy_from_user(shared, buf, count)) {
-		pr_warn("copy_from_user failed\n");
+		dev_warn(dev, "copy_from_user failed\n");
 		return -EFAULT;
 	}
 
@@ -177,7 +182,7 @@ static ssize_t __rdx_bootdev_drvdata_write(
 	max_mapped_extents = (drvdata->size - sizeof(*shared))
 			/ sizeof(struct fiemap_extent);
 	if (pfiemap->fm_mapped_extents > max_mapped_extents) {
-		pr_warn("out of bound\n");
+		dev_warn(dev, "out of bound\n");
 		return -ERANGE;
 	}
 
@@ -193,33 +198,40 @@ static ssize_t __rdx_bootdev_drvdata_write(
 	return count;
 }
 
+static ssize_t __rdx_bootdev_drvdata_write(
+		struct rdx_bootdev_drvdata *drvdata,
+		const char __user *buf, size_t count)
+{
+	/* NOTE: according to the RDX protocol, free the etire reserved memroy */
+	if (!buf && !count)
+		return __rdx_bootdev_free_entire(drvdata);
+	else
+		return __rdx_bootdev_free_partial(drvdata, buf, count);
+}
+
 static ssize_t sec_rdx_bootdev_proc_write(struct file *file,
 		const char __user *buf, size_t count, loff_t *ppos)
 {
 	struct rdx_bootdev_drvdata *drvdata = PDE_DATA(file_inode(file));
+	struct device *dev = drvdata->bd.dev;
 	ssize_t ret = -ERANGE;
 
 	mutex_lock(&drvdata->lock);
 
-	if (!buf) {
-		ret = -ENODEV;
-		goto nothing_to_do;
-	}
-
 	if (!drvdata->paddr) {
-		pr_warn("paddr is NULL\n");
+		dev_warn(dev, "paddr is NULL\n");
 		ret = -EFAULT;
 		goto nothing_to_do;
 	}
 
 	if (count > drvdata->size) {
-		pr_warn("size is wrong (%zu > %llu)\n", count,
+		dev_warn(dev, "size is wrong (%zu > %llu)\n", count,
 				(unsigned long long)drvdata->size);
 		ret = -EINVAL;
 		goto nothing_to_do;
 	}
 
-	ret = __rdx_bootdev_drvdata_write(drvdata, buf, count, ppos);
+	ret = __rdx_bootdev_drvdata_write(drvdata, buf, count);
 
 nothing_to_do:
 	mutex_unlock(&drvdata->lock);
@@ -234,13 +246,11 @@ static int __rdx_bootdev_test_sec_debug(struct builder *bd)
 {
 	struct rdx_bootdev_drvdata *drvdata =
 			container_of(bd, struct rdx_bootdev_drvdata, bd);
+	struct device *dev = bd->dev;
 
 	if (!sec_debug_is_enabled()) {
-		pr_info("sec_debug is not enabled\n");
-		__rdx_bootdev_free(drvdata,
-				drvdata->paddr, drvdata->size);
-		drvdata->paddr = 0;
-		drvdata->size = 0;
+		dev_info(dev, "sec_debug is not enabled\n");
+		__rdx_bootdev_free_entire(drvdata);
 		/* NOTE: keepgoing. create dummy proc nodes */
 	}
 
@@ -251,12 +261,13 @@ static int __rdx_bootdev_proc_init(struct builder *bd)
 {
 	struct rdx_bootdev_drvdata *drvdata =
 			container_of(bd, struct rdx_bootdev_drvdata, bd);
+	struct device *dev = bd->dev;
 	const char *node_name = "rdx_bootdev";
 
 	drvdata->proc = proc_create_data(node_name, 0220, NULL,
 			&rdx_bootdev_pops, drvdata);
 	if (!drvdata->proc) {
-		pr_err("failed create procfs node (%s)\n",
+		dev_err(dev, "failed create procfs node (%s)\n",
 				node_name);
 		return -ENODEV;
 	}

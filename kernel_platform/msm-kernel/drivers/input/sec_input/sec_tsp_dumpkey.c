@@ -44,7 +44,9 @@ static unsigned int __tsp_dump_keys[] = {
 	KEY_VOLUMEDOWN,
 	KEY_HOMEPAGE,
 	KEY_HOT,
-	KEY_EMERGENCY
+	KEY_EMERGENCY,
+	KEY_BACK,
+	KEY_RECENT
 };
 
 struct dump_key {
@@ -70,6 +72,8 @@ struct tsp_dump_key_state tsp_dump_key_states[] = {
 	{KEY_HOMEPAGE, KEY_STATE_UP},
 	{KEY_HOT, KEY_STATE_UP},
 	{KEY_EMERGENCY, KEY_STATE_UP},
+	{KEY_BACK, KEY_STATE_UP},
+	{KEY_RECENT, KEY_STATE_UP},
 };
 
 static unsigned int hold_key = KEY_VOLUMEUP;

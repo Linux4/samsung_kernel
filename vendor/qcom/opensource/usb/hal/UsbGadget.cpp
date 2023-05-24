@@ -24,6 +24,8 @@
 #include <functional>
 #include <map>
 #include <tuple>
+#include <fstream>
+#include <sstream>
 #include <dirent.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -68,11 +70,39 @@ using ::android::hardware::usb::gadget::resetGadget;
 using ::android::hardware::usb::gadget::setVidPid;
 using ::android::hardware::usb::gadget::unlinkFunctions;
 
+static std::map<std::string, std::tuple<std::string, std::string, std::string> >
+supported_compositions;
+
+static void createCompositionsMap(std:: string fileName) {
+  std::ifstream compositions(fileName);
+  std::string line;
+
+  while (std::getline(compositions, line)) {
+    std::string prop;
+    std::tuple<std::string, std::string, std::string> vpa;
+    // Ignore comments in the file
+    auto pos = line.find('#');
+    if (pos != std::string::npos)
+      line.erase(pos);
+
+    std::stringstream words(line);
+
+    words >> prop >> std::get<0>(vpa) >> std::get<1>(vpa) >> std::get<2>(vpa);
+    // If we get vpa[1], we have the three minimum values needed. Or else we skip
+    if (!std::get<1>(vpa).empty())
+      supported_compositions.insert_or_assign(prop, vpa);
+  }
+}
+
 UsbGadget::UsbGadget(const char* const gadget)
     : mCurrentUsbFunctionsApplied(false),
       mMonitorFfs(gadget) {
   if (access(CONFIG_PATH, R_OK) != 0)
     ALOGE("configfs setup not done yet");
+
+  createCompositionsMap("/vendor/etc/usb_compositions.conf");
+  createCompositionsMap("/odm/etc/usb_compositions.conf");
+  createCompositionsMap("/product/etc/usb_compositions.conf");
 }
 
 Return<void> UsbGadget::getCurrentUsbFunctions(
@@ -110,87 +140,6 @@ V1_0::Status UsbGadget::tearDownGadget() {
 
   return Status::SUCCESS;
 }
-
-static std::map<std::string, std::tuple<const char *, const char *, const char *> >
-supported_compositions {
-  { "mass_storage", { "0x05C6", "0xF000", {} } },
-  { "mass_storage,adb", { "0x05C6", "0x9015", "adb,mass_storage" } },
-  { "diag,adb", { "0x05C6", "0x901D", {} } },
-  { "diag,adb,serial_cdev", { "0x05C6", "0x901F", {} } },
-  { "diag", { "0x05C6", "0x900E", {} } },
-  { "diag,serial_cdev,rmnet,adb", { "0x05C6", "0x9091", {} } },
-  { "diag,serial_cdev,rmnet", { "0x05C6", "0x9092", {} } },
-  { "rndis", { "0x05C6", "0xF00E", {} } },
-  { "rndis,adb", { "0x05C6", "0x9024", {} } },
-  { "rndis,diag", { "0x05C6", "0x902C", {} } },
-  { "rndis,diag,adb", { "0x05C6", "0x902D", {} } },
-  { "rndis,serial_cdev", { "0x05C6", "0x90B3", {} } },
-  { "rndis,serial_cdev,adb", { "0x05C6", "0x90B4", {} } },
-  { "rndis,serial_cdev,diag,", { "0x05C6", "0x90B5", {} } },
-  { "rndis,serial_cdev,diag,adb", { "0x05C6", "0x90B6", {} } },
-  { "mtp,diag", { "0x05C6", "0x901B", {} } },
-  { "mtp,diag,adb", { "0x05C6", "0x903A", {} } },
-  { "diag,qdss", { "0x05C6", "0x904A", "diag,qdss_debug" } },
-  { "diag,qdss,adb", { "0x05C6", "0x9060", "diag,qdss_debug,adb" } },
-  { "rndis,diag,qdss", { "0x05C6", "0x9081", "rndis,diag,qdss_debug" } },
-  { "rndis,diag,qdss,adb", { "0x05C6", "0x9082", "rndis,diag,qdss_debug,adb" } },
-  { "diag,qdss,rmnet", { "0x05C6", "0x9083", "diag,qdss_debug,rmnet" } },
-  { "diag,qdss,rmnet,adb", { "0x05C6", "0x9084", "diag,qdss_debug,adb,rmnet" } },
-  { "ncm", { "0x05C6", "0xA4A1", {} } },
-  { "ncm,adb", { "0x05C6", "0x908C", {} } },
-  { "diag,serial_cdev", { "0x05C6", "0x9004", {} } },
-  { "diag,serial_cdev,rmnet,dpl", { "0x05C6", "0x90B7", {} } },
-  { "diag,serial_cdev,rmnet,dpl,adb", { "0x05C6", "0x90B8", {} } },
-  { "rndis,diag,dpl", { "0x05C6", "0x90BF", {} } },
-  { "rndis,diag,dpl,adb", { "0x05C6", "0x90C0", {} } },
-  { "ccid", { "0x05C6", "0x90CE", {} } },
-  { "ccid,adb", { "0x05C6", "0x90CF", {} } },
-  { "ccid,diag", { "0x05C6", "0x90D0", {} } },
-  { "ccid,diag,adb", { "0x05C6", "0x90D1", {} } },
-  { "diag,serial_cdev,rmnet,ccid", { "0x05C6", "0x90D2", {} } },
-  { "diag,serial_cdev,rmnet,ccid,adb", { "0x05C6", "0x90D3", {} } },
-  { "diag,diag_mdm,qdss,qdss_mdm,serial_cdev,serial_cdev_mdm,rmnet",
-      { "0x05C6", "0x90D7", {} } },
-  { "diag,diag_mdm,qdss,qdss_mdm,serial_cdev,serial_cdev_mdm,rmnet,adb",
-      { "0x05C6", "0x90D8", {} } },
-  { "diag,diag_mdm,qdss,qdss_mdm,serial_cdev,serial_cdev_mdm,dpl,rmnet",
-      { "0x05C6", "0x90DD", {} } },
-  { "diag,diag_mdm,qdss,qdss_mdm,serial_cdev,serial_cdev_mdm,dpl,rmnet,adb",
-      { "0x05C6", "0x90DE", {} } },
-  { "diag,serial_cdev,rmnet,dpl,qdss", { "0x05C6", "0x90DC", {} } },
-  { "diag,serial_cdev,rmnet,dpl,qdss,adb", { "0x05C6", "0x90DB", {} } },
-  { "diag,uac2,adb", { "0x05C6", "0x90CA", "diag,adb,uac2" } },
-  { "diag,uac2", { "0x05C6", "0x901C", {} } },
-  { "diag,uvc,adb", { "0x05C6", "0x90CB", "diag,adb,uvc" } },
-  { "diag,uvc", { "0x05C6", "0x90DF", {} } },
-  { "diag,uac2,uvc,adb", { "0x05C6", "0x90CC", "diag,adb,uac2,uvc" } },
-  { "diag,uac2,uvc", { "0x05C6", "0x90E0", {} } },
-  { "diag,diag_mdm,qdss,qdss_mdm,serial_cdev,dpl,rmnet",
-      { "0x05C6", "0x90E4", {} } },
-  { "diag,diag_mdm,qdss,qdss_mdm,serial_cdev,dpl,rmnet,adb",
-      { "0x05C6", "0x90E5", {} } },
-  { "rndis,diag,diag_mdm,qdss,qdss_mdm,serial_cdev,dpl",
-      { "0x05C6", "0x90E6", {} } },
-  { "rndis,diag,diag_mdm,qdss,qdss_mdm,serial_cdev,dpl,adb",
-      { "0x05C6", "0x90E7", {} } },
-  { "rndis,diag,qdss,serial_cdev,dpl", { "0x05C6", "0x90E8", {} } },
-  { "rndis,diag,qdss,serial_cdev,dpl,adb", { "0x05C6", "0x90E9", {} } },
-  { "diag,diag_mdm,adb", { "0x05C6", "0x90D9", {} } },
-  { "diag,diag_mdm,diag_mdm2,qdss,qdss_mdm,serial_cdev,dpl,rmnet",
-      { "0x05C6", "0x90F6", {} } },
-  { "diag,diag_mdm,diag_mdm2,qdss,qdss_mdm,serial_cdev,dpl,rmnet,adb",
-      { "0x05C6", "0x90F7", {} } },
-  { "rndis,diag,diag_mdm,diag_mdm2,qdss,qdss_mdm,serial_cdev,dpl",
-      { "0x05C6", "0x90F8", {} } },
-  { "rndis,diag,diag_mdm,diag_mdm2,qdss,qdss_mdm,serial_cdev,dpl,adb",
-      { "0x05C6", "0x90F9", {} } },
-  { "diag,diag_mdm,adb,ccid", { "0x05C6", "0x9044", "diag,diag_mdm,adb,ccid" } },
-  { "diag,diag_mdm,qdss_mdm,dpl,adb", { "0x05C6", "0x90FF", {} } },
-  { "diag,qdss,dpl,adb", { "0x05C6", "0x9104", {} } },
-  { "diag,dpl", { "0x05C6", "0x9105", {} } },
-  { "diag,diag_cnss,serial_cdev,rmnet,dpl,qdss,adb", { "0x05C6", "0x9110", {} } },
-  { "diag,diag_cnss,serial_cdev,rmnet,dpl,qdss", { "0x05C6", "0x9111", {} } },
-};
 
 static std::string rndisFuncname() {
   std::string rndisFunc = GetProperty(RNDIS_FUNC_NAME_PROP, "");
@@ -241,10 +190,11 @@ int UsbGadget::addFunctionsFromPropString(std::string prop, bool &ffsEnabled, in
   }
 
   auto [vid, pid, actual_order] = supported_compositions[prop];
+  ALOGE("vid %s pid %s", vid.c_str(), pid.c_str());
 
   // some compositions differ from the order given in the property string
   // e.g. ADB may appear somewhere in the middle instead of being last
-  if (actual_order != nullptr)
+  if (!actual_order.empty())
     prop = actual_order;
 
   WriteStringToFile(prop, CONFIG_STRING);
@@ -275,13 +225,13 @@ int UsbGadget::addFunctionsFromPropString(std::string prop, bool &ffsEnabled, in
       return -1;
 
     // Set Diag PID for QC DLOAD mode
-    if (i == 0 && !strcasecmp(vid, "0x05c6") && funcname == "diag")
+    if (i == 0 && !strcasecmp(vid.c_str(), "0x05c6") && funcname == "diag")
       WriteStringToFile(pid, FUNCTIONS_PATH "diag.diag/pid");
 
     ++i;
   }
 
-  if (setVidPid(vid, pid) != Status::SUCCESS)
+  if (setVidPid(vid.c_str(), pid.c_str()) != Status::SUCCESS)
     return -1;
 
   return 0;

@@ -284,8 +284,7 @@ static irqreturn_t max77705_irq_thread(int irq, void *data)
 		pr_debug("[%s] fuelgauge interrupt\n", __func__);
 		pr_debug("[%s]IRQ_BASE(%d), NESTED_IRQ(%d)\n",
 			__func__, max77705->irq_base, max77705->irq_base + MAX77705_FG_IRQ_ALERT);
-		handle_nested_irq(max77705->irq_base + MAX77705_FG_IRQ_ALERT);
-		goto done;
+		irq_reg[FUEL_INT] = 1 << 1;
 	}
 
 	if (irq_src & MAX77705_IRQSRC_TOP) {
@@ -393,7 +392,6 @@ static irqreturn_t max77705_irq_thread(int irq, void *data)
 			handle_nested_irq(max77705->irq_base + i);
 	}
 
-done:
 #if defined(CONFIG_QCOM_IFPMIC_SUSPEND)
 	max77705->doing_irq = 0;
 	if (max77705->check_usbc_opcode_queue)
