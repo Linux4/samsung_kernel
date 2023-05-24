@@ -385,6 +385,7 @@ struct s2mu106_charger_platform_data {
 	bool reduce_async_debounce_time;
 	bool lx_freq_recover;
 	bool change_3_level_osc;
+	bool boosting_voltage_aicl;
 };
 
 
@@ -441,7 +442,6 @@ struct s2mu106_charger_data {
 	int irq_bat;
 	int irq_ivr;
 
-	int irq_ivr_enabled;
 	int ivr_on;
 	bool slow_charging;
 	int wc_current;

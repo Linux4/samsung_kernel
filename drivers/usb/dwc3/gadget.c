@@ -32,6 +32,10 @@
 #include <linux/usb_notify.h>
 #include <linux/workqueue.h>
 
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+#include <linux/combo_redriver/ps5169.h>
+#endif
+
 #include "debug.h"
 #include "core.h"
 #include "gadget.h"
@@ -2628,6 +2632,12 @@ static int dwc3_gadget_pullup(struct usb_gadget *g, int is_on)
 		return 0;
 	}
 	spin_unlock_irqrestore(&dwc->lock, flags);
+#if IS_ENABLED(CONFIG_COMBO_REDRIVER_PS5169)
+	if (is_on)
+		ps5169_config(USB_ONLY_MODE, 0);
+	else
+		ps5169_config(CLEAR_STATE, 0);
+#endif
 
 	pm_runtime_get_sync(dwc->dev);
 	dbg_event(0xFF, "Pullup gsync",

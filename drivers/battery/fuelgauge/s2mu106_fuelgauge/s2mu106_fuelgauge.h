@@ -185,6 +185,11 @@ struct s2mu106_fuelgauge_data {
 
 	unsigned int capacity_old;      /* only for atomic calculation */
 	unsigned int capacity_max;      /* only for dynamic calculation */
+#if defined(CONFIG_UI_SOC_PROLONGING)
+	unsigned int g_capacity_max;	/* only for dynamic calculation */
+	bool capacity_max_conv;
+	int prev_raw_soc;
+#endif
 	unsigned int standard_capacity;
 	int raw_capacity;
 	int current_avg;

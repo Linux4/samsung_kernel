@@ -9,4 +9,4 @@ config MACH_A73XQ_EUR_OPEN
 	bool "Samsung A73XQ EUR OPEN"
 	help
 	  Support for Samsung A73XQ EUR OPEN device.
-	  
+

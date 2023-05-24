@@ -37,7 +37,7 @@
 #if IS_ENABLED(CONFIG_MUIC_NOTIFIER)
 #include <linux/muic/common/muic_notifier.h>
 #endif /* CONFIG_MUIC_NOTIFIER */
-#if !defined(CONFIG_BATTERY_GKI)
+#if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && !defined(CONFIG_BATTERY_GKI)
 #include <linux/sec_batt.h>
 #endif
 #if IS_ENABLED(CONFIG_BATTERY_SAMSUNG) && IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
