@@ -10,7 +10,7 @@
 };
 
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/dm/charger/max77705/max77705_charger.dm2q.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/dm/charger/max77705/max77705_charger.dm2q.dtsi */
 &max77705_charger {
 	charger,enable_sysovlo_irq;
 	charger,fac_vsys = <4400>;

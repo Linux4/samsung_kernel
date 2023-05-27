@@ -1474,6 +1474,11 @@ int sec_bat_parse_dt(struct device *dev,
 		pdata->wireless_cool3_current = 500;
 	}
 
+	pdata->update_mfc_power_info =
+		of_property_read_bool(np, "battery,update_mfc_power_info");
+	pdata->abnormal_wpc_check =
+		of_property_read_bool(np, "battery,abnormal_wpc_check");
+
 #if IS_ENABLED(CONFIG_DUAL_BATTERY)
 	ret = of_property_read_u32(np, "battery,limiter_main_warm_current",
 					&pdata->limiter_main_warm_current);

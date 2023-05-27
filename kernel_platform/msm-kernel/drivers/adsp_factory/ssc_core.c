@@ -653,6 +653,12 @@ static ssize_t fac_fstate_store(struct device *dev,
 }
 #endif
 
+static ssize_t wakeup_reason_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+    return snprintf(buf, PAGE_SIZE, "unsupport\n");
+}
+
 #if IS_ENABLED(CONFIG_SUPPORT_DEVICE_MODE) && IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
 static ssize_t update_ssc_flip_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
@@ -1097,6 +1103,35 @@ static ssize_t ar_mode_store(struct device *dev,
 	return size;
 }
 
+static int sbm_init;
+static ssize_t sbm_init_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	pr_info("[FACTORY] %s : %d\n", __func__, sbm_init);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", sbm_init);
+}
+
+static ssize_t sbm_init_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	int32_t msg_buf[2] = {OPTION_TYPE_SSC_SBM_INIT, 0};
+
+	if (kstrtoint(buf, 10, &sbm_init)) {
+		pr_err("[FACTORY] %s: kstrtoint fail\n", __func__);
+		return -EINVAL;
+	}
+
+	if (sbm_init) {
+		msg_buf[1] = sbm_init;
+		pr_info("[FACTORY] %s : %d\n", __func__, sbm_init);
+		adsp_unicast(msg_buf, sizeof(msg_buf),
+			MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
+	}
+
+	return size;
+}
+
 static DEVICE_ATTR(dumpstate, 0440, dumpstate_show, NULL);
 static DEVICE_ATTR(operation_mode, 0664,
 	operation_mode_show, operation_mode_store);
@@ -1110,6 +1145,7 @@ static DEVICE_ATTR(support_algo, 0220, NULL, support_algo_store);
 #if IS_ENABLED(CONFIG_SUPPORT_VIRTUAL_OPTIC)
 static DEVICE_ATTR(fac_fstate, 0220, NULL, fac_fstate_store);
 #endif
+static DEVICE_ATTR(wakeup_reason, 0440, wakeup_reason_show, NULL);
 #if IS_ENABLED(CONFIG_SUPPORT_DEVICE_MODE) && IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
 static DEVICE_ATTR(update_ssc_flip, 0220, NULL, update_ssc_flip_store);
 #endif
@@ -1128,6 +1164,7 @@ static DEVICE_ATTR(light_seamless, 0660,
 	light_seamless_show, light_seamless_store);
 #endif
 static DEVICE_ATTR(ar_mode, 0220, NULL, ar_mode_store);
+static DEVICE_ATTR(sbm_init, 0660, sbm_init_show, sbm_init_store);
 
 static struct device_attribute *core_attrs[] = {
 	&dev_attr_dumpstate,
@@ -1142,6 +1179,7 @@ static struct device_attribute *core_attrs[] = {
 #if IS_ENABLED(CONFIG_SUPPORT_VIRTUAL_OPTIC)
 	&dev_attr_fac_fstate,
 #endif
+    &dev_attr_wakeup_reason,
 #if IS_ENABLED(CONFIG_SUPPORT_DEVICE_MODE) && IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
 	&dev_attr_update_ssc_flip,
 #endif
@@ -1158,6 +1196,7 @@ static struct device_attribute *core_attrs[] = {
 	&dev_attr_light_seamless,
 #endif
 	&dev_attr_ar_mode,
+	&dev_attr_sbm_init,
 	NULL,
 };
 

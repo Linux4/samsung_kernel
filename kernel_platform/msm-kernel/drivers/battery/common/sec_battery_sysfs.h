@@ -313,6 +313,7 @@ enum sec_bat_attrs {
 	MST_EN,
 	SPSN_TEST,
 	CHG_SOC_LIM,
+	ERR_WTHM,
 };
 
 enum sec_pogo_attrs {

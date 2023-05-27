@@ -75,7 +75,7 @@
 	};
 };
 
-/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/dm/wireless/s2miw04/s2miw04_charger.dm2q.dtsi */
+/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/dm/wireless/s2miw04/s2miw04_charger.dm2q.dtsi */
 #include <dt-bindings/battery/sec-battery.h>
 
 &pm8550ve_f_gpios {

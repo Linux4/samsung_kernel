@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -553,6 +553,8 @@ static QDF_STATUS p2p_object_init_params(
 			cfg_get(psoc, CFG_P2P_DEVICE_ADDRESS_ADMINISTRATED);
 	p2p_soc_obj->param.is_random_seq_num_enabled =
 			cfg_get(psoc, CFG_ACTION_FRAME_RANDOM_SEQ_NUM_ENABLED);
+	p2p_soc_obj->param.indoor_channel_support =
+				cfg_get(psoc, CFG_P2P_GO_ON_INDOOR_CHANNEL);
 	return QDF_STATUS_SUCCESS;
 }
 

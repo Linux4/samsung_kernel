@@ -809,6 +809,8 @@ typedef struct sec_battery_platform_data {
 	unsigned int fpdo_dc_charge_power;
 
 	bool sc_LRP_25W;
+	bool update_mfc_power_info;
+	bool abnormal_wpc_check;
 	/* ADC type for each channel */
 	unsigned int adc_type[];
 } sec_battery_platform_data_t;
@@ -1249,6 +1251,8 @@ struct sec_battery_info {
 	bool usb_bootcomplete;
 	unsigned int flash_state;
 	unsigned int mst_en;
+	int abnormal_wpc;
+	bool error_wthm;
 #if defined(CONFIG_MTK_CHARGER)
 	unsigned int mtk_fg_init;
 #endif

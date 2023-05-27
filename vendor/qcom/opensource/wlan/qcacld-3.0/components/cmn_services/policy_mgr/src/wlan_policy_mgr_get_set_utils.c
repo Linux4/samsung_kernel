@@ -43,6 +43,8 @@
 #include "wlan_mlo_mgr_sta.h"
 #include "wlan_cm_ucfg_api.h"
 #include "wlan_cm_roam_api.h"
+#include "wlan_mlme_ucfg_api.h"
+#include "wlan_p2p_ucfg_api.h"
 
 /* invalid channel id. */
 #define INVALID_CHANNEL_ID 0
@@ -3867,6 +3869,8 @@ void policy_mgr_incr_active_session(struct wlan_objmgr_psoc *psoc,
 
 	policy_mgr_dump_current_concurrency(psoc);
 
+	policy_mgr_update_indoor_concurrency(psoc, session_id, 0, CONNECT);
+
 	qdf_mutex_release(&pm_ctx->qdf_conc_list_lock);
 	policy_mgr_handle_ml_sta_links_on_vdev_up_csa(psoc, mode, session_id);
 }
@@ -3934,7 +3938,7 @@ QDF_STATUS policy_mgr_decr_active_session(struct wlan_objmgr_psoc *psoc,
 	struct policy_mgr_psoc_priv_obj *pm_ctx;
 	QDF_STATUS qdf_status;
 	bool mcc_mode;
-	uint32_t session_count;
+	uint32_t session_count, cur_freq;
 
 	pm_ctx = policy_mgr_get_context(psoc);
 	if (!pm_ctx) {
@@ -3958,7 +3962,6 @@ QDF_STATUS policy_mgr_decr_active_session(struct wlan_objmgr_psoc *psoc,
 		policy_mgr_dump_current_concurrency(psoc);
 		return qdf_status;
 	}
-
 	policy_mgr_update_sta_scc_info_for_later_check(pm_ctx,
 						       mode,
 						       session_id);
@@ -3976,6 +3979,9 @@ QDF_STATUS policy_mgr_decr_active_session(struct wlan_objmgr_psoc *psoc,
 	default:
 		break;
 	}
+
+	policy_mgr_get_chan_by_session_id(psoc, session_id, &cur_freq);
+
 	policy_mgr_decr_connection_count(psoc, session_id);
 	session_count = pm_ctx->no_of_active_sessions[mode];
 	qdf_mutex_release(&pm_ctx->qdf_conc_list_lock);
@@ -4039,6 +4045,10 @@ QDF_STATUS policy_mgr_decr_active_session(struct wlan_objmgr_psoc *psoc,
 	if (mode == QDF_SAP_MODE || mode == QDF_P2P_GO_MODE ||
 	    mode == QDF_STA_MODE || mode == QDF_P2P_CLIENT_MODE)
 		policy_mgr_update_dfs_master_dynamic_enabled(psoc, session_id);
+
+	if (!pm_ctx->last_disconn_sta_freq)
+		policy_mgr_update_indoor_concurrency(psoc, session_id, cur_freq,
+						     DISCONNECT_WITHOUT_CONCURRENCY);
 
 	return qdf_status;
 }
@@ -7267,6 +7277,32 @@ send_status:
 	return status;
 }
 
+enum phy_ch_width
+policy_mgr_get_bw_by_session_id(struct wlan_objmgr_psoc *psoc,
+				uint8_t session_id)
+{
+	uint32_t i;
+	struct policy_mgr_psoc_priv_obj *pm_ctx;
+	enum hw_mode_bandwidth bw = HW_MODE_BW_NONE;
+
+	pm_ctx = policy_mgr_get_context(psoc);
+	if (!pm_ctx) {
+		policy_mgr_err("Invalid Context");
+		return CH_WIDTH_INVALID;
+	}
+
+	qdf_mutex_acquire(&pm_ctx->qdf_conc_list_lock);
+	for (i = 0; i < MAX_NUMBER_OF_CONC_CONNECTIONS; i++) {
+		if (pm_conc_connection_list[i].vdev_id == session_id &&
+		    pm_conc_connection_list[i].in_use) {
+			bw = pm_conc_connection_list[i].bw;
+			break;
+		}
+	}
+	qdf_mutex_release(&pm_ctx->qdf_conc_list_lock);
+	return policy_mgr_get_ch_width(bw);
+}
+
 QDF_STATUS policy_mgr_get_chan_by_session_id(struct wlan_objmgr_psoc *psoc,
 					     uint8_t session_id,
 					     uint32_t *ch_freq)
@@ -7787,6 +7823,57 @@ bool policy_mgr_is_sap_allowed_on_dfs_freq(struct wlan_objmgr_pdev *pdev,
 	}
 
 	return true;
+}
+
+bool policy_mgr_is_sap_allowed_on_indoor(struct wlan_objmgr_pdev *pdev,
+					 uint8_t vdev_id, qdf_freq_t ch_freq)
+{
+	struct wlan_objmgr_psoc *psoc;
+	bool is_scc = false, indoor_support = false;
+	enum QDF_OPMODE mode;
+
+	psoc = wlan_pdev_get_psoc(pdev);
+	if (!psoc)
+		return true;
+
+	if (!wlan_reg_is_freq_indoor(pdev, ch_freq))
+		return true;
+
+	is_scc = policy_mgr_is_sta_sap_scc(psoc, ch_freq);
+	mode = wlan_get_opmode_from_vdev_id(pdev, vdev_id);
+	ucfg_mlme_get_indoor_channel_support(psoc, &indoor_support);
+
+	/*
+	 * Rules for indoor operation:
+	 * If gindoor_channel_support is enabled - Allow SAP/GO
+	 * If gindoor_channel_support is disabled
+	 *      a) Restrict 6 GHz SAP
+	 *      b) Restrict standalone 5 GHz SAP
+	 *
+	 * If p2p_go_on_indoor_chan is enabled - Allow GO
+	 * with or without concurrency
+	 *
+	 * If sta_sap_scc_on_indoor_chan is enabled - Allow
+	 * SAP/GO with concurrent STA in indoor SCC
+	 *
+	 * Restrict all other operations on indoor
+	 */
+	if (indoor_support) {
+		return true;
+	} else if (WLAN_REG_IS_6GHZ_CHAN_FREQ(ch_freq) ||
+		   (!is_scc && mode == PM_SAP_MODE)) {
+		policy_mgr_rl_debug("SAP operation is not allowed on indoor channel");
+		return false;
+	} else if (mode == PM_P2P_GO_MODE &&
+		   ucfg_p2p_get_indoor_ch_support(psoc)) {
+		return true;
+	} else if (is_scc &&
+		  policy_mgr_get_sta_sap_scc_allowed_on_indoor_chnl(psoc)) {
+		return true;
+	}
+
+	policy_mgr_rl_debug("SAP operation is not allowed on indoor channel");
+	return false;
 }
 
 bool policy_mgr_is_sta_sap_scc_allowed_on_dfs_chan(
@@ -8550,10 +8637,9 @@ bool policy_mgr_is_restart_sap_required(struct wlan_objmgr_psoc *psoc,
 		if (connection[i].freq != freq &&
 		    WLAN_REG_IS_24GHZ_CH_FREQ(connection[i].freq) &&
 		    WLAN_REG_IS_5GHZ_CH_FREQ(freq) &&
-		    wlan_reg_is_freq_indoor(pm_ctx->pdev, freq) &&
-		    !policy_mgr_sap_allowed_on_indoor_freq(pm_ctx->psoc,
-							   pm_ctx->pdev,
-							   freq)) {
+		    !policy_mgr_is_sap_allowed_on_indoor(pm_ctx->pdev,
+							 vdev_id,
+							 freq)) {
 			policy_mgr_debug("SAP in indoor freq: sta:%d sap:%d",
 					 connection[i].freq, freq);
 			restart_required = true;
@@ -8817,4 +8903,143 @@ QDF_STATUS policy_mgr_get_sbs_cfg(struct wlan_objmgr_psoc *psoc, bool *sbs)
 	*sbs = pm_ctx->cfg.sbs_enable;
 
 	return QDF_STATUS_SUCCESS;
+}
+
+void
+policy_mgr_update_indoor_concurrency(struct wlan_objmgr_psoc *psoc,
+				     uint8_t vdev_id,
+				     uint32_t discon_freq,
+				     enum indoor_conc_update_type type)
+{
+	uint32_t ch_freq;
+	enum QDF_OPMODE mode;
+	struct policy_mgr_psoc_priv_obj *pm_ctx;
+	enum phy_ch_width ch_width = CH_WIDTH_INVALID;
+	bool indoor_support = false;
+
+	pm_ctx = policy_mgr_get_context(psoc);
+	if (!pm_ctx) {
+		policy_mgr_err("Invalid pm context");
+		return;
+	}
+
+	ucfg_mlme_get_indoor_channel_support(psoc, &indoor_support);
+	if (indoor_support ||
+	    !policy_mgr_get_sta_sap_scc_allowed_on_indoor_chnl(psoc))
+		return;
+
+	mode = wlan_get_opmode_from_vdev_id(pm_ctx->pdev, vdev_id);
+
+	/**
+	 * DISCONNECT_WITH_CONCURRENCY update comes after SAP/GO CSA.
+	 * Whereas, all other updates come from STA/GC operation.
+	 */
+	if (type != DISCONNECT_WITH_CONCURRENCY &&
+	    (mode != QDF_STA_MODE && mode != QDF_P2P_CLIENT_MODE)) {
+		return;
+	} else if (type == DISCONNECT_WITH_CONCURRENCY &&
+		 (mode != QDF_SAP_MODE && mode != QDF_P2P_GO_MODE)) {
+		return;
+	}
+
+	switch (type) {
+	case CONNECT:
+	case SWITCH_WITHOUT_CONCURRENCY:
+	case SWITCH_WITH_CONCURRENCY:
+		policy_mgr_get_chan_by_session_id(psoc, vdev_id, &ch_freq);
+		ch_width = policy_mgr_get_bw_by_session_id(psoc, vdev_id);
+		break;
+	case DISCONNECT_WITHOUT_CONCURRENCY:
+	case DISCONNECT_WITH_CONCURRENCY:
+		ch_freq = discon_freq;
+		break;
+	default:
+		return;
+	}
+
+	if (type != SWITCH_WITHOUT_CONCURRENCY &&
+	    !(WLAN_REG_IS_5GHZ_CH_FREQ(ch_freq) &&
+	    wlan_reg_is_freq_indoor(pm_ctx->pdev, ch_freq))) {
+		return;
+	} else if (type == SWITCH_WITHOUT_CONCURRENCY) {
+		/* Either the previous frequency or the current
+		 * frequency can be indoor. Or both can be indoor.
+		 * Therefore, atleast one of the frequency must be
+		 * indoor in order to proceed for the update.
+		 */
+		if (!((WLAN_REG_IS_5GHZ_CH_FREQ(ch_freq) &&
+		       wlan_reg_is_freq_indoor(pm_ctx->pdev, ch_freq)) ||
+		      (WLAN_REG_IS_5GHZ_CH_FREQ(discon_freq) &&
+		       wlan_reg_is_freq_indoor(pm_ctx->pdev, discon_freq))))
+			return;
+	}
+
+	switch (type) {
+	case CONNECT:
+		wlan_reg_modify_indoor_concurrency(pm_ctx->pdev, vdev_id,
+						   ch_freq, ch_width, true);
+		break;
+	case DISCONNECT_WITHOUT_CONCURRENCY:
+		wlan_reg_modify_indoor_concurrency(pm_ctx->pdev, vdev_id,
+						   0, CH_WIDTH_INVALID, false);
+		break;
+	case SWITCH_WITHOUT_CONCURRENCY:
+		wlan_reg_modify_indoor_concurrency(pm_ctx->pdev, vdev_id, 0,
+						   CH_WIDTH_INVALID, false);
+		if (wlan_reg_is_freq_indoor(pm_ctx->pdev, ch_freq))
+			wlan_reg_modify_indoor_concurrency(pm_ctx->pdev,
+							   vdev_id, ch_freq,
+							   ch_width, true);
+		break;
+	case DISCONNECT_WITH_CONCURRENCY:
+		/*If there are other sessions, do not change current chan list*/
+		if (policy_mgr_get_connection_count_with_ch_freq(ch_freq) > 1)
+			return;
+		wlan_reg_modify_indoor_concurrency(pm_ctx->pdev,
+						   INVALID_VDEV_ID, ch_freq,
+						   CH_WIDTH_INVALID, false);
+		break;
+	case SWITCH_WITH_CONCURRENCY:
+		wlan_reg_modify_indoor_concurrency(pm_ctx->pdev, vdev_id,
+						   ch_freq, ch_width, true);
+		/*
+		 * The previous frequency removal and current channel list
+		 * recomputation will happen after SAP CSA
+		 */
+		return;
+	}
+	wlan_reg_recompute_current_chan_list(psoc, pm_ctx->pdev);
+}
+
+bool policy_mgr_is_conc_sap_present_on_sta_freq(struct wlan_objmgr_psoc *psoc,
+						enum policy_mgr_con_mode mode,
+						uint32_t ch_freq)
+{
+	struct policy_mgr_psoc_priv_obj *pm_ctx;
+	uint8_t i;
+	bool sap_go_exists = false;
+	enum policy_mgr_con_mode cmode;
+
+	pm_ctx = policy_mgr_get_context(psoc);
+	if (!pm_ctx) {
+		policy_mgr_err("Invalid pm context");
+		return false;
+	}
+
+	if (mode != PM_STA_MODE && mode != PM_P2P_CLIENT_MODE)
+		return false;
+
+	qdf_mutex_acquire(&pm_ctx->qdf_conc_list_lock);
+	for (i = 0; i < MAX_NUMBER_OF_CONC_CONNECTIONS; i++) {
+		cmode = pm_conc_connection_list[i].mode;
+		if (pm_conc_connection_list[i].in_use &&
+		    ch_freq == pm_conc_connection_list[i].freq &&
+		    (cmode == PM_SAP_MODE || cmode == PM_P2P_GO_MODE)) {
+			sap_go_exists = true;
+			break;
+		}
+	}
+	qdf_mutex_release(&pm_ctx->qdf_conc_list_lock);
+
+	return sap_go_exists;
 }

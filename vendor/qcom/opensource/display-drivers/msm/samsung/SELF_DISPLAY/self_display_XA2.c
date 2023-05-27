@@ -1297,7 +1297,10 @@ static int self_display_aod_exit(struct samsung_display_driver_data *vdd)
 	/* self display off */
 	ss_send_cmd(vdd, TX_SELF_DISP_OFF);
 
-	self_mask_on(vdd, true);
+	self_mask_img_write(vdd);
+	ret = self_display_debug(vdd);
+	if (!ret)
+		self_mask_on(vdd, true);
 
 	LCD_INFO(vdd, "write self_mask_udc %s cmd \n",
 		vdd->self_disp.udc_mask_enable ? "enable" : "disable");

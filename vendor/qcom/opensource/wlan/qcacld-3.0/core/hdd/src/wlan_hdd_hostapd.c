@@ -3270,6 +3270,14 @@ int hdd_softap_set_channel_change(struct net_device *dev, int target_chan_freq,
 		return status;
 	}
 
+	if (!policy_mgr_is_sap_allowed_on_indoor(hdd_ctx->pdev,
+						 adapter->vdev_id,
+						 target_chan_freq)) {
+		hdd_debug("Channel switch is not allowed to indoor frequency %d",
+			  target_chan_freq);
+		return -EINVAL;
+	}
+
 	if (!sta_cnt && !policy_mgr_is_hw_dbs_capable(hdd_ctx->psoc) &&
 	    (sta_sap_scc_on_dfs_chnl ==
 	     PM_STA_SAP_ON_DFS_MASTER_MODE_DISABLED) &&
@@ -7514,6 +7522,16 @@ static int __wlan_hdd_cfg80211_start_ap(struct wiphy *wiphy,
 						chandef->chan->center_freq);
 	if (!status)
 		return -EINVAL;
+
+	status = policy_mgr_is_sap_allowed_on_indoor(
+						hdd_ctx->pdev,
+						adapter->vdev_id,
+						chandef->chan->center_freq);
+	if (!status) {
+		hdd_debug("SAP start not allowed on indoor channel %d",
+			  chandef->chan->center_freq);
+		return -EINVAL;
+	}
 
 	intf_pm_mode = policy_mgr_convert_device_mode_to_qdf_type(
 							adapter->device_mode);

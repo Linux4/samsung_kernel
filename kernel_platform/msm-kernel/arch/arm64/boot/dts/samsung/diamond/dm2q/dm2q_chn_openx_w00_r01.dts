@@ -773,6 +773,7 @@
 					charger,dchg_min_current = <0x7d0>;
 					charger,ta_alert_wa;
 					charger,end_soc = <0x64>;
+					charger,fpdo_dc_max_vbat = <0x1004>;
 				};
 
 				pass-through {
@@ -9104,7 +9105,6 @@
 					qcom,mdss-dsi-panel-peak-brightness = <0x44aa20>;
 					qcom,mdss-dsi-panel-average-brightness = <0x124f80>;
 					qcom,mdss-dsi-panel-blackness-level = <0x05>;
-					qcom,qsync-enable;
 					qcom,mdss-dsi-panel-vsync-delay;
 					qcom,ulps-enabled;
 					qcom,esd-check-enabled;

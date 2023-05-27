@@ -7354,6 +7354,8 @@ static int usb_typec_handle_id_power_status(struct sec_battery_info *battery,
 				max_volt == 9000 &&
 				(max_curr >= 3000 || battery->is_fpdo_dc)) {
 			dev_info(battery->dev, "%s: cable_type update to FPDO_DC\n", __func__);
+			if (!battery->is_fpdo_dc)
+				battery->cisd.cable_data[CISD_CABLE_FPDO_DC]++;
 			battery->is_fpdo_dc = true;
 			*cable_type = SEC_BATTERY_CABLE_FPDO_DC;
 			pdata_fpdo_max_power = battery->pdata->fpdo_dc_charge_power;
@@ -8585,6 +8587,8 @@ static int sec_battery_probe(struct platform_device *pdev)
 	battery->wc20_info_idx = 0;
 #endif
 	battery->thermal_zone = BAT_THERMAL_NORMAL;
+	battery->abnormal_wpc = -1;
+	battery->error_wthm = false;
 	sec_bat_set_threshold(battery, battery->cable_type);
 #if defined(CONFIG_BATTERY_CISD)
 	battery->usb_overheat_check = false;
