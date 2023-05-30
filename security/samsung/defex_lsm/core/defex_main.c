@@ -30,6 +30,7 @@
 #include <linux/unistd.h>
 #include <linux/version.h>
 #include <linux/vmalloc.h>
+#include <linux/binfmts.h>
 #include "include/defex_caches.h"
 #include "include/defex_catch_list.h"
 #include "include/defex_config.h"
@@ -431,6 +432,29 @@ out:
 
 #ifdef DEFEX_TRUSTED_MAP_ENABLE
 /* Trusted map feature decision function */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
+__visible_for_testing int task_defex_trusted_map(struct defex_context *dc, va_list ap)
+{
+	int ret = DEFEX_ALLOW, argc;
+	struct linux_binprm *bprm;
+
+	if (!CHECK_ROOT_CREDS(&dc->cred))
+		goto out;
+
+	bprm = va_arg(ap, struct linux_binprm *);
+	argc = bprm->argc;
+#ifdef DEFEX_DEBUG_ENABLE
+	if (argc <= 0)
+		pr_crit("[DEFEX][DTM] Invalid trusted map arguments - check integration on fs/exec.c (argc %d)", argc);
+#endif
+
+	ret = defex_trusted_map_lookup(dc, argc, bprm);
+	if (defex_tm_mode_enabled(DEFEX_TM_PERMISSIVE_MODE))
+		ret = DEFEX_ALLOW;
+out:
+	return ret;
+}
+#else
 __visible_for_testing int task_defex_trusted_map(struct defex_context *dc, va_list ap)
 {
 	int ret = DEFEX_ALLOW, argc;
@@ -452,6 +476,7 @@ __visible_for_testing int task_defex_trusted_map(struct defex_context *dc, va_li
 out:
 	return ret;
 }
+#endif
 #endif /* DEFEX_TRUSTED_MAP_ENABLE */
 
 #ifdef DEFEX_IMMUTABLE_ENABLE
@@ -624,11 +649,12 @@ do_allow:
 	release_defex_context(&dc);
 	put_task_struct(p);
 	return DEFEX_ALLOW;
-
+#if defined(DEFEX_IMMUTABLE_ENABLE) || defined(DEFEX_TRUSTED_MAP_ENABLE)
 do_deny:
 	release_defex_context(&dc);
 	put_task_struct(p);
 	return -DEFEX_DENY;
+#endif /* DEFEX_IMMUTABLE_ENABLE || DEFEX_TRUSTED_MAP_ENABLE */
 }
 
 int task_defex_zero_creds(struct task_struct *tsk)
