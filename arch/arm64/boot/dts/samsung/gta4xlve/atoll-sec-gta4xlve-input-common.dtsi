@@ -1,0 +1,230 @@
+/* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/msm/msm-bus-ids.h>
+
+&pm6150l_l7 {
+	regulator-name = "wacom_avdd";
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
+};
+
+&tlmm {
+	tsp_int_active: tsp_int_active {
+		mux {
+			pins = "gpio9";
+			function = "gpio";
+		};
+		
+		config {
+			pins = "gpio9";
+			input-enable;
+			bias-disable;
+		};
+	};
+
+	tsp_int_sleep: tsp_int_sleep {
+		mux {
+			pins = "gpio9";
+			function = "gpio";
+		};
+		
+		config {
+			pins = "gpio9";
+			input-enable;
+			bias-disable;
+		};
+	};
+
+	qupv3_se6_spi_pins_tsp: qupv3_se6_spi_pins_tsp {
+		qupv3_se6_spi_active_tsp: qupv3_se6_spi_active_tsp {
+			mux {
+				pins = "gpio59", "gpio60",
+						"gpio61", "gpio62";
+				function = "qup10";
+			};
+
+			config {
+				pins = "gpio59", "gpio60",
+						"gpio61", "gpio62";
+				drive-strength = <6>;
+				bias-disable;
+			};
+		};
+
+		qupv3_se6_spi_sleep_tsp: qupv3_se6_spi_sleep_tsp {
+			mux {
+				pins = "gpio59", "gpio60",
+						"gpio61", "gpio62";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio59", "gpio60",
+						"gpio61", "gpio62";
+				drive-strength = <6>;
+				bias-disable;
+			};
+		};
+	};
+
+	epen_int_active: epen-int-active {
+		mux {
+			pins = "gpio66";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio66";
+			input-enable;
+			bias-disable; /* No PULL */
+		};
+	};
+};
+
+&qupv3_se7_i2c {
+	status = "ok";
+	wacom: wacom@56 {
+		compatible = "wacom,w90xx";
+		reg = <0x56>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&epen_int_active>;
+		wacom,regulator_avdd = "wacom_avdd";
+//		wacom,regulator_boot_on;
+		/* gpios */
+		wacom,irq-gpio = <&tlmm 66 0>;
+		wacom,fwe-gpio = <&tlmm 67 0>;
+		/* features */
+		wacom,boot_addr = <0x09>;
+		wacom,origin = <0 0>; /* x y */
+		wacom,invert = <0 1 1>; /* x y switch */
+		wacom,max_height = <255>;
+		wacom,max_tilt = <63 63>;
+		wacom,max_pressure = <4095>;
+		wacom,fw_path = "epen/w9021_gts6lite.bin";
+		wacom,support_aop_mode = "1"; /* S-note want to check to use aop */
+		wacom,module_ver = <0x2>; /* this value use to distinguish open/short test (0x1 : only open test, 0x2: open/short test) */
+		wacom,table_swap = <0x2>; /* bit set: 0 ~ 1(kbd) 1(dex station)*/
+		wacom,support_cover_noti;
+	};
+};
+
+&qupv3_se6_spi {
+	status = "ok";
+	num-cs = <1>;
+	cs-gpios = <&tlmm 62 0>;
+	pinctrl-0 = <&qupv3_se6_spi_active_tsp>;
+	pinctrl-1 = <&qupv3_se6_spi_sleep_tsp>;
+
+	tsp_himax: himax_ts_spi@0 {
+		spi-max-frequency = <7000000>;
+		compatible = "himax,hxcommon";
+		reg = <0>;
+		status = "okay";
+		pinctrl-names = "on_state", "off_state";
+		pinctrl-0 = <&tsp_int_active>;
+		pinctrl-1 = <&tsp_int_sleep>;
+		himax,irq-gpio = <&tlmm 9 0x2008>;
+		himax,rst-gpio = <&tlmm 32 0>;
+//		himax,cs-gpio = <&tlmm 62 0>;
+		himax,panel_buck_en = "panel_buck_en";
+		himax,panel_buck_en2 = "panel_buck_en2";
+		himax,panel_ldo_en = "panel_ldo_en";
+		himax,panel_reset ="panel_reset";
+		himax,area-size = <80 81 60>;
+		himax,panel-coords = <1200 2000>;
+		himax,display-coords = <1200 2000>;
+		himax,fw-path = "tsp_himax/hx83102e_gts6litereresh.bin";
+		report_type = <1>;
+		enable_sysinput_enabled;
+//		support_dex;
+	};
+};
+
+/delete-node/&key_vol_up_default;
+&pm6150l_gpios {
+	key_vol_up {
+		key_vol_up_default: key_vol_up_default {
+			pins = "gpio8";
+			function = "normal";
+			input-enable;
+			bias-pull-up;
+			power-source = <0>;
+		};
+	};
+};
+
+/delete-node/&gpio_key;
+&gpio_key {
+	status = "okay";
+	compatible = "gpio-keys";
+	input-name = "gpio-keys";
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&key_vol_up_default>;
+
+	vol_up {
+		label = "volume_up";
+		gpios = <&pm6150l_gpios 8 0x1>;
+		linux,input-type = <1>;
+		linux,code = <KEY_VOLUMEUP>;
+		debounce-interval = <15>;
+	};
+};
+
+&tlmm {
+	hall_default: hall_default {
+		mux {
+			pins = "gpio93";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio93";
+			drive-strength = <2>;
+			input-enable;
+			bias-disable;
+		};
+	};
+};
+
+&pm6150_gpios {
+	hall_wacom_default: hall_wacom_default {
+		pins = "gpio10";
+		function = "normal";
+		output-disable;
+		input-enable;
+		bias-disable;
+		power-source = <0>;
+	};
+};
+
+&soc {
+	hall_ic {
+		status = "okay";
+		compatible = "hall_ic";
+		pinctrl-names = "default";
+		pinctrl-0 = <&hall_default &hall_wacom_default>;
+		hall_ic,debounce-interval = <15>;
+
+		hall: hall {
+			name = "hall";
+			event = <0x15>;
+			gpios = <&tlmm 93 0x1>;
+		};
+
+		hall_wacom: hall_wacom {
+			name = "hall_wacom";
+			event = <0x1e>;
+			gpios = <&pm6150_gpios 10 0x1>;
+		};
+	};
+};

@@ -1,0 +1,114 @@
+/* Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+#include "../drivers/atoll-sec-gta4xlve-audio-pinctrl-common.dtsi"
+
+#include "atoll-sec-gta4xlve-camera-sensor-pinctrl-common.dtsi"
+
+&tlmm {
+    grip_i2c {
+		grip_i2c_active: grip_i2c_active {
+			grip_i2c_active {
+				pins = "gpio51", "gpio52";
+				bias-disable;
+			};
+		};
+		grip_i2c_suspend: grip_i2c_suspend {
+			grip_i2c_suspend {
+				pins = "gpio51", "gpio52";
+				bias-disable;
+			};
+		};
+	};
+
+    grip_int {
+		grip_int_active: grip_int_active {
+			grip_int_active {
+				pins = "gpio0";
+				function = "gpio";
+				bias-disable;
+			};
+		};
+		grip_int_suspend: grip_int_suspend {
+			grip_int_suspend {
+				pins = "gpio0";
+				function = "gpio";
+				bias-disable;
+			};
+		};
+	};
+
+    wifi_grip_i2c {
+		wifi_grip_i2c_active: wifi_grip_i2c_active {
+			wifi_grip_i2c_active {
+				pins = "gpio88", "gpio89";
+				bias-disable;
+			};
+		};
+		wifi_grip_i2c_suspend: wifi_grip_i2c_suspend {
+			wifi_grip_i2c_suspend {
+				pins = "gpio88", "gpio89";
+				bias-disable;
+			};
+		};
+	};
+
+    wifi_grip_int {
+		wifi_grip_int_active: wifi_grip_int_active {
+			wifi_grip_int_active {
+				pins = "gpio3";
+				bias-disable;
+			};
+		};
+		wifi_grip_int_suspend: wifi_grip_int_suspend {
+			wifi_grip_int_suspend {
+				pins = "gpio3";
+				bias-disable;
+			};
+		};
+	};
+
+	if_pmic_i2c_pins: if_pmic_i2c_pins {
+		if_pmic_i2c_sleep: if_pmic_i2c_sleep {
+			mux {
+				pins = "gpio115", "gpio116";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio115", "gpio116";
+				drive-strength = <2>;
+				input-enable;
+				bias-disable;
+			};
+		};
+	};
+
+	usbpd_i2c_pins: usbpd_i2c_pins {
+		usbpd_i2c_sleep: usbpd_i2c_sleep {
+			mux {
+				pins = "gpio53", "gpio54";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio53", "gpio54";
+				drive-strength = <2>;
+				input-enable;
+				bias-disable;
+			};
+		};
+	};
+};
+
+&pm6150l_gpios {
+
+};
