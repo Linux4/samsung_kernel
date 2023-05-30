@@ -72,6 +72,20 @@ static int handle_to_index(int handle)
 	case ID_SAR:
 		index = sar;
 		break;
+/*hs14 code for SR-AL6528A-01-779 by xiongxiaoliang at 2022/11/23 start*/
+#ifdef CONFIG_MTK_WAKE_UP_MOTION
+	case ID_WAKE_UP_MOTION:
+		index = wake_up_motion;
+		break;
+#endif
+/*hs14 code for SR-AL6528A-01-779 by xiongxiaoliang at 2022/11/23 end*/
+/*hs14 code for SR-AL6528A-01-778 by xiongxiaoliang at 2022/11/26 start*/
+#ifdef CONFIG_MTK_SMARTALERT_HUB
+	case ID_SMART_ALERT:
+		index = smart_alert;
+		break;
+#endif
+/*hs14 code for SR-AL6528A-01-778 by xiongxiaoliang at 2022/11/26 end*/
 	default:
 		index = -1;
 		pr_err("%s invalid handle:%d,index:%d\n", __func__,
@@ -352,7 +366,9 @@ static ssize_t situbatch_store(struct device *dev,
 	err = situation_enable_and_batch(index);
 #endif
 	pr_debug("%s done\n", __func__);
+#ifdef CONFIG_NANOHUB
 err_out:
+#endif
 	mutex_unlock(&situation_context_obj->situation_op_mutex);
 	if (err)
 		return err;

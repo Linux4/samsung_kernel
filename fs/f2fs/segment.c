@@ -2450,7 +2450,8 @@ find_other_zone:
 		if (dir == ALLOC_RIGHT) {
 			secno = find_next_zero_bit(free_i->free_secmap,
 							MAIN_SECS(sbi), 0);
-			f2fs_bug_on(sbi, secno >= MAIN_SECS(sbi));
+			if (unlikely(secno >= MAIN_SECS(sbi)))
+				goto unlock_bug_on;
 		} else {
 			go_left = 1;
 			left_start = hint - 1;
@@ -2466,7 +2467,9 @@ find_other_zone:
 		}
 		left_start = find_next_zero_bit(free_i->free_secmap,
 							MAIN_SECS(sbi), 0);
-		f2fs_bug_on(sbi, left_start >= MAIN_SECS(sbi));
+		if (unlikely(left_start >= MAIN_SECS(sbi)))
+			goto unlock_bug_on;
+
 		break;
 	}
 	secno = left_start;
@@ -2504,10 +2507,17 @@ skip_left:
 	}
 got_it:
 	/* set it as dirty segment in free segmap */
-	f2fs_bug_on(sbi, test_bit(segno, free_i->free_segmap));
+	if (unlikely(test_bit(segno, free_i->free_segmap)))
+		goto unlock_bug_on;
+
 	__set_inuse(sbi, segno);
 	*newseg = segno;
 	spin_unlock(&free_i->segmap_lock);
+	return;
+
+unlock_bug_on:
+	spin_unlock(&free_i->segmap_lock);
+	f2fs_bug_on(sbi, true);
 }
 
 static void reset_curseg(struct f2fs_sb_info *sbi, int type, int modified)
@@ -3360,8 +3370,8 @@ int f2fs_inplace_write_data(struct f2fs_io_info *fio)
 		return -EFSCORRUPTED;
 	}
 
-	invalidate_mapping_pages(META_MAPPING(sbi),
-				fio->new_blkaddr, fio->new_blkaddr);
+	invalidate_mapping_pages(META_MAPPING(fio->sbi),
+				fio->old_blkaddr, fio->old_blkaddr);
 
 	stat_inc_inplace_blocks(fio->sbi);
 	atomic64_inc(&(sbi->sec_stat.inplace_count));
@@ -4438,6 +4448,10 @@ static int sanity_check_curseg(struct f2fs_sb_info *sbi)
 		struct curseg_info *curseg = CURSEG_I(sbi, i);
 		struct seg_entry *se = get_seg_entry(sbi, curseg->segno);
 		unsigned int blkofs = curseg->next_blkoff;
+
+		if (f2fs_sb_has_readonly(sbi) &&
+			i != CURSEG_HOT_DATA && i != CURSEG_HOT_NODE)
+			continue;
 
 		if (f2fs_test_bit(blkofs, se->cur_valid_map))
 			goto out;

@@ -603,12 +603,12 @@ int ili_fw_upgrade_handler(void *data)
 		ili_input_register();
 		ili_wq_ctrl(WQ_ESD, ENABLE);
 		ili_wq_ctrl(WQ_BAT, ENABLE);
-		#ifndef HQ_PROJECT_OT8
+#ifdef CONFIG_HQ_PROJECT_HS03S
 			ret = sysfs_create_link(&ilits->sec_info->sec.fac_dev->kobj, &tpd->dev->dev.kobj, "input");
 			if (ret < 0) {
 				ILI_ERR("%s: Failed to sysfs_create_link,ret is %d", __func__, ret);
 			}
-		#endif
+#endif
 	}
 
 	atomic_set(&ilits->fw_stat, END);
@@ -854,7 +854,7 @@ int ili_report_handler(void)
 
 
 
-#ifndef HQ_PROJECT_OT8
+#ifdef CONFIG_HQ_PROJECT_HS03S
 /*hs03s  code for DEVAL5625-1101 by wangdeyan at 20210609 start*/
 	if (ilits->tr_buf[0] == P5_X_GESTURE_PACKET_ID) {
 			if (ilits->rib.nReportResolutionMode == POSITION_LOW_RESOLUTION) {
@@ -890,15 +890,16 @@ int ili_report_handler(void)
 	switch (pid) {
 	case P5_X_DEMO_PACKET_ID:
 	
-		#ifdef HQ_PROJECT_OT8
+#ifdef CONFIG_HQ_PROJECT_OT8
     		/* modify code for OT8 */
 			ili_report_ap_mode(trdata, rlen);
-		#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS03S
     		/* modify code for O6 */
 			if (tpd->tp_is_enabled){
 			ili_report_ap_mode(trdata, rlen);
 		}
-		#endif
+#endif
 		break;
 	case P5_X_DEBUG_PACKET_ID:
 		ili_report_debug_mode(trdata, rlen);
@@ -1015,9 +1016,10 @@ int ili_reset_ctrl(int mode)
 
 static int ilitek_get_tp_module(void)
 {
-	#ifdef HQ_PROJECT_OT8
+#ifdef CONFIG_HQ_PROJECT_OT8
 		return MODEL_LS_INX;
-	#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS03S
 	const char *panel_name = saved_command_line;
 	int fw_num = 0;
 
@@ -1034,7 +1036,7 @@ static int ilitek_get_tp_module(void)
 	 * if there are various tp modules been used in projects.
 	 */
 	return fw_num;
-	#endif
+#endif
 }
 
 static void ili_update_tp_module_info(void)

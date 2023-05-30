@@ -22,6 +22,7 @@ enum IMGSENSOR_RETURN
 	imgsensor_hw_mclk_open
 };
 
+/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 start*/
 struct IMGSENSOR_HW_CFG imgsensor_custom_config[] = {
 #ifdef CONFIG_HQ_PROJECT_HS03S
 	{
@@ -90,7 +91,78 @@ struct IMGSENSOR_HW_CFG imgsensor_custom_config[] = {
 	},
 
 	{IMGSENSOR_SENSOR_IDX_NONE}
-#else
+#endif
+
+#ifdef CONFIG_HQ_PROJECT_HS04
+	{
+		IMGSENSOR_SENSOR_IDX_MAIN,
+		IMGSENSOR_I2C_DEV_0,
+		{
+			{IMGSENSOR_HW_ID_MCLK, IMGSENSOR_HW_PIN_MCLK},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_AVDD},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DOVDD},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DVDD},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_PDN},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_RST},
+			{IMGSENSOR_HW_ID_NONE, IMGSENSOR_HW_PIN_NONE},
+		},
+	},
+	{
+		IMGSENSOR_SENSOR_IDX_SUB,
+		IMGSENSOR_I2C_DEV_1,
+		{
+			{IMGSENSOR_HW_ID_MCLK, IMGSENSOR_HW_PIN_MCLK},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_AVDD},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DOVDD},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_DVDD},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_PDN},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_RST},
+			{IMGSENSOR_HW_ID_NONE, IMGSENSOR_HW_PIN_NONE},
+		},
+	},
+	{
+		IMGSENSOR_SENSOR_IDX_MAIN2,
+		IMGSENSOR_I2C_DEV_1,
+		{
+			{IMGSENSOR_HW_ID_MCLK, IMGSENSOR_HW_PIN_MCLK},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_AVDD},
+		//	{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DOVDD},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DVDD},
+		//	{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_PDN},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_RST},
+			{IMGSENSOR_HW_ID_NONE, IMGSENSOR_HW_PIN_NONE},
+		},
+	},
+	{
+		IMGSENSOR_SENSOR_IDX_SUB2,
+		IMGSENSOR_I2C_DEV_1,
+		{
+			{IMGSENSOR_HW_ID_MCLK, IMGSENSOR_HW_PIN_MCLK},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_AVDD},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DOVDD},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DVDD},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_PDN},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_RST},
+			{IMGSENSOR_HW_ID_NONE, IMGSENSOR_HW_PIN_NONE},
+		},
+	},
+	{
+		IMGSENSOR_SENSOR_IDX_MAIN3,
+		IMGSENSOR_I2C_DEV_0,
+		{
+			{IMGSENSOR_HW_ID_MCLK, IMGSENSOR_HW_PIN_MCLK},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_AVDD},
+			{IMGSENSOR_HW_ID_REGULATOR, IMGSENSOR_HW_PIN_DOVDD},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_PDN},
+			{IMGSENSOR_HW_ID_GPIO, IMGSENSOR_HW_PIN_RST},
+			{IMGSENSOR_HW_ID_NONE, IMGSENSOR_HW_PIN_NONE},
+		},
+	},
+
+	{IMGSENSOR_SENSOR_IDX_NONE}
+#endif
+
+#ifdef CONFIG_HQ_PROJECT_OT8
 	{
 		IMGSENSOR_SENSOR_IDX_MAIN,
 		IMGSENSOR_I2C_DEV_0,
@@ -160,6 +232,7 @@ struct IMGSENSOR_HW_CFG imgsensor_custom_config[] = {
 	{IMGSENSOR_SENSOR_IDX_NONE}
 #endif
 };
+/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
 
 struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[] = {
 #ifdef MIPI_SWITCH
@@ -211,6 +284,8 @@ struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[] = {
 /* Legacy design */
 struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 /************gaozhenyu add for camera start *****************/
+/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 start*/
+#ifdef CONFIG_HQ_PROJECT_OT8
 #if defined(HI846_SJC_MIPI_RAW)
 	{
 		SENSOR_DRVNAME_HI846_SJC_MIPI_RAW,
@@ -362,6 +437,9 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 #endif
 /*TabA7 Lite code for SR-AX3565-01-320 by wangqi at 20210225 end*/
 /************gaozhenyu add for camera end *****************/
+#endif
+/*HS04 code for DEVAL6398A-9 Universal macro adaptation by chenjun at 2022/7/2 end*/
+
 #ifdef CONFIG_HQ_PROJECT_HS03S
 /* A03s code for SR-AL5625-01-324 by wuwenjie at 2021/05/11 start */	
 #if defined(HI1336_TXD_MIPI_RAW)
@@ -704,6 +782,161 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 /* A03s code for SR-AL5625-01-324 by gaozhenyu at 2021/04/24 end */
 /*hs03s_NM code for SL6215DEV-4183 by liluling at 2022/4/15 end*/
 #endif
+
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 start*/
+#ifdef CONFIG_HQ_PROJECT_HS04
+	#if defined(O2101_SC1300CSLY_BACK_MIPI_RAW)
+		{
+			SENSOR_DRVNAME_O2101_SC1300CSLY_BACK_MIPI_RAW,
+			{
+				{RST, Vol_Low, 1},
+				{DOVDD, Vol_1800, 1},
+				{DVDD, Vol_1200, 1},
+				{AVDD, Vol_2800, 1},
+				{AFVDD, Vol_2800, 0},
+				{RST, Vol_High, 1},
+				{PDN, Vol_High, 5},
+				{SensorMCLK, Vol_High, 5},
+			},
+		},
+    #endif
+	#if defined(O2102_HI1336TXD_BACK_MIPI_RAW)
+        {
+            SENSOR_DRVNAME_O2102_HI1336TXD_BACK_MIPI_RAW,
+            {
+                {RST, Vol_Low, 1},
+                {DOVDD, Vol_1800, 1},
+                {AVDD, Vol_2800, 1},
+                {DVDD, Vol_1100, 1},
+                {AFVDD, Vol_2800, 5},
+                {SensorMCLK, Vol_High, 1},
+                {RST, Vol_High, 10},
+            },
+        },
+    #endif
+	#if defined(O2103_OV13B10HLT_BACK_MIPI_RAW)
+        {
+	        SENSOR_DRVNAME_O2103_OV13B10HLT_BACK_MIPI_RAW,
+	        {
+		        {RST, Vol_Low, 1},
+		        {DOVDD, Vol_1800, 1},
+		        {AVDD, Vol_2800, 3},
+		        {DVDD, Vol_1200, 4},
+		        {AFVDD, Vol_2800, 5},
+		        {RST, Vol_High, 5},
+		        {SensorMCLK, Vol_High, 4},
+	        },
+        },
+    #endif
+	#if defined(O2104_HI1336SJC_BACK_MIPI_RAW)
+        {
+            SENSOR_DRVNAME_O2104_HI1336SJC_BACK_MIPI_RAW,
+            {
+                {RST, Vol_Low, 1},
+                {DOVDD, Vol_1800, 1},
+                {AVDD, Vol_2800, 1},
+                {DVDD, Vol_1100, 1},
+                {AFVDD, Vol_2800, 5},
+                {SensorMCLK, Vol_High, 1},
+                {RST, Vol_High, 10},
+            },
+        },
+    #endif
+	#if defined(O2101_HI556TXD_FRONT_MIPI_RAW)
+		{
+			SENSOR_DRVNAME_O2101_HI556TXD_FRONT_MIPI_RAW,
+			{
+				{RST, Vol_Low, 1},
+				{DOVDD, Vol_1800, 1},
+				{AVDD, Vol_2800, 1},
+				{PDN, Vol_High, 1},
+				{SensorMCLK, Vol_High, 10},
+				{RST, Vol_High, 5},
+			},
+		},
+	#endif
+	#if defined(O2102_OV05A10HLT_FRONT_MIPI_RAW)
+        {
+	        SENSOR_DRVNAME_O2102_OV05A10HLT_FRONT_MIPI_RAW,
+	        {
+		        {RST, Vol_Low, 1},
+		        {DOVDD, Vol_1800, 1},
+		        {AVDD, Vol_2800, 1},
+		        {DVDD, Vol_1200, 1},
+		        {PDN, Vol_High, 9},
+		        {RST, Vol_High, 4},
+		        {SensorMCLK, Vol_High, 10},
+	        },
+        },
+	#endif
+	#if defined(O2103_SC520SYX_FRONT_MIPI_RAW)
+        {
+	        SENSOR_DRVNAME_O2103_SC520SYX_FRONT_MIPI_RAW,
+	      	{
+				{RST, Vol_Low, 1},
+				{DOVDD, Vol_1800, 1},
+				{PDN, Vol_High, 1},
+				{DVDD, Vol_1200, 1},
+				{AVDD, Vol_2800, 1},
+				{RST, Vol_High, 1},
+				{SensorMCLK, Vol_High, 5},
+		    },
+        },
+	#endif
+	#if defined(O2104_HI556WTXD_FRONT_MIPI_RAW)
+		{
+			SENSOR_DRVNAME_O2104_HI556WTXD_FRONT_MIPI_RAW,
+			{
+				{RST, Vol_Low, 1},
+				{DOVDD, Vol_1800, 1},
+				{AVDD, Vol_2800, 1},
+				{PDN, Vol_High, 1},
+				{SensorMCLK, Vol_High, 10},
+				{RST, Vol_High, 5},
+			},
+		},
+	#endif
+	#if defined(O2101_SC201CSCXT_DEPTH_MIPI_RAW)
+		{
+			SENSOR_DRVNAME_O2101_SC201CSCXT_DEPTH_MIPI_RAW,
+			{
+				{RST, Vol_Low, 1},
+				{DOVDD, Vol_1800, 1},
+				{DVDD, Vol_1200, 1},
+				{AVDD, Vol_2800, 1},
+				{RST, Vol_High, 1},
+				{SensorMCLK, Vol_High, 5},
+			},
+		},
+	#endif
+	#if defined(O2102_GC2375HHLT_DEPTH_MIPI_RAW)
+        {
+			SENSOR_DRVNAME_O2102_GC2375HHLT_DEPTH_MIPI_RAW,
+			{
+				{RST, Vol_High, 1},
+				{DOVDD, Vol_1800, 10},
+				{AVDD, Vol_2800, 10},
+				{SensorMCLK, Vol_High, 5},
+				{RST, Vol_Low, 5, Vol_High, 1},
+			},
+		},
+    #endif
+	#if defined(O2103_SP2507HCXT_DEPTH_MIPI_RAW)
+        {
+			SENSOR_DRVNAME_O2103_SP2507HCXT_DEPTH_MIPI_RAW,
+			{
+				{RST, Vol_Low, 1},
+				{DOVDD, Vol_1800, 20},
+				{AVDD, Vol_2800, 6},
+				{PDN, Vol_High, 1},
+				{SensorMCLK, Vol_High, 10},
+				{RST, Vol_High, 11},
+			},
+		},
+    #endif
+#endif
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/14 start*/
+
 #if defined(IMX398_MIPI_RAW)
 	{
 		SENSOR_DRVNAME_IMX398_MIPI_RAW,

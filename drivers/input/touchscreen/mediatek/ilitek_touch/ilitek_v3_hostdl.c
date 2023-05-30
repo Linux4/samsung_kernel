@@ -702,7 +702,7 @@ static int ilitek_tddi_fw_hex_convert(u8 *phex, int size, u8 *pfw)
 
 static int ilitek_tdd_fw_hex_open(u8 op, u8 *pfw)
 {
-	#ifndef HQ_PROJECT_OT8
+#ifdef CONFIG_HQ_PROJECT_HS03S
 	int ret =0, fsize = 0, retry_count = 0;
 	const struct firmware *fw = NULL;
 	struct file *f = NULL;
@@ -799,7 +799,8 @@ static int ilitek_tdd_fw_hex_open(u8 op, u8 *pfw)
 		ILI_ERR("Unknown open file method, %d\n", op);
 		break;
 	}
-	#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_OT8
 	int ret =0, fsize = 0;
 	const struct firmware *fw = NULL;
 	struct file *f = NULL;
@@ -892,7 +893,7 @@ static int ilitek_tdd_fw_hex_open(u8 op, u8 *pfw)
 		ILI_ERR("Unknown open file method, %d\n", op);
 		break;
 	}
-	#endif
+#endif
 	if (ERR_ALLOC_MEM(ilits->tp_fw.data) || ilits->tp_fw.size <= 0) {
 		ILI_ERR("fw data/size is invaild\n");
 		ret = -1;

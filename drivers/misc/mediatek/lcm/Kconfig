@@ -36,3 +36,16 @@ config HQ_EXT_LCD_BIAS
 	default n
 	help
 	  HQ EXT LCD BIAS driver
+# hs14 code for SR-AL6528A-01-505 by duanyaoming at 20220908 start
+config HQ_SET_LCD_BIAS
+	bool CONFIG_HQ_SET_LCD_BIAS
+	default n
+	help
+	  HQ SET LCD BIAS driver
+
+config HQ_EXT_LCD_BIAS
+	bool CONFIG_HQ_EXT_LCD_BIAS
+	default n
+	help
+	  HQ EXT LCD BIAS driver
+# hs14 code for SR-AL6528A-01-505 by duanyaoming at 20220908 end

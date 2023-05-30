@@ -147,6 +147,9 @@ struct mmc_host_ops {
 	/* Prepare HS400 target operating frequency depending host driver */
 	int	(*prepare_hs400_tuning)(struct mmc_host *host, struct mmc_ios *ios);
 
+	/* Execute HS400 tuning depending host driver */
+	int (*execute_hs400_tuning)(struct mmc_host *host, struct mmc_card *card);
+
 	/* Prepare for switching from HS400 to HS200 */
 	void	(*hs400_downgrade)(struct mmc_host *host);
 
@@ -347,7 +350,8 @@ union swcqhci_crypto_cfg_entry {
 struct mmc_host {
 	struct device		*parent;
 	struct device		class_dev;
-	int			index;
+	int index;
+	int host_function;	/* define host function */
 	const struct mmc_host_ops *ops;
 	struct mmc_pwrseq	*pwrseq;
 	unsigned int		f_min;
@@ -381,6 +385,12 @@ struct mmc_host {
 #define MMC_VDD_33_34		0x00200000	/* VDD voltage 3.3 ~ 3.4 */
 #define MMC_VDD_34_35		0x00400000	/* VDD voltage 3.4 ~ 3.5 */
 #define MMC_VDD_35_36		0x00800000	/* VDD voltage 3.5 ~ 3.6 */
+
+#define MMC_VDD_EMMC		(MMC_VDD_165_195 |MMC_VDD_20_21| \
+	MMC_VDD_21_22|MMC_VDD_22_23|MMC_VDD_23_24|MMC_VDD_24_25| \
+	MMC_VDD_25_26|MMC_VDD_26_27|MMC_VDD_27_28| \
+	MMC_VDD_28_29 | MMC_VDD_29_30)
+#define MMC_VDD_SD		(MMC_VDD_28_29 | MMC_VDD_29_30)
 
 	u32			caps;		/* Host capabilities */
 
@@ -722,5 +732,6 @@ static inline enum dma_data_direction mmc_get_dma_dir(struct mmc_data *data)
 
 int mmc_send_tuning(struct mmc_host *host, u32 opcode, int *cmd_error);
 int mmc_abort_tuning(struct mmc_host *host, u32 opcode);
+int mmc_get_ext_csd(struct mmc_card *card, u8 **new_ext_csd);
 
 #endif /* LINUX_MMC_HOST_H */

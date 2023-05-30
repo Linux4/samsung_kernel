@@ -15,9 +15,13 @@
 
 #define IMGSENSOR_STATUS_INFO_LENGTH 128
 #define camera_info_size 4096
-/* A03s code for SR-AL5625-01-324 by xuxianwei at 2021/04/22 start */
-#define CAM_MODULE_INFO_CONFIG 1
-/* A03s code for SR-AL5625-01-324 by xuxianwei at 2021/04/22 end */
+/*hs14 code for SR-AL5628-01-161 Universal macro adaptation by xutengtao at 2022/9/24 start*/
+#ifdef CONFIG_HQ_PROJECT_O22
+    #define CAM_MODULE_INFO_CONFIG 0
+#else
+    #define CAM_MODULE_INFO_CONFIG 1
+#endif
+/*hs14 code for SR-AL5628-01-161 Universal macro adaptation by xutengtao at 2022/9/24 end*/
 extern char mtk_ccm_name[camera_info_size];
 extern struct IMGSENSOR *pgimgsensor;
 

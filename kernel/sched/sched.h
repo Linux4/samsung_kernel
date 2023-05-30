@@ -1942,10 +1942,25 @@ static inline int sched_tick_offload_init(void) { return 0; }
 static inline void sched_update_tick_dependency(struct rq *rq) { }
 #endif
 
+#ifdef CONFIG_MTK_CORE_CTL
+extern void sched_update_nr_prod(int cpu, unsigned long nr_running, int inc);
+extern void sched_max_util_task(int *cpu, int *pid, int *util, int *boost);
+extern void sched_max_util_task_tracking(void);
+#endif
+
+#ifdef CONFIG_MTK_CORE_CTL
+extern int
+inc_nr_heavy_running(int invoker, struct task_struct *p, int inc, bool ack_cap);
+#endif
+
 static inline void add_nr_running(struct rq *rq, unsigned count)
 {
 	unsigned prev_nr = rq->nr_running;
 
+
+#ifdef CONFIG_MTK_CORE_CTL
+	sched_update_nr_prod(cpu_of(rq), rq->nr_running, count);
+#endif
 	rq->nr_running = prev_nr + count;
 
 	if (prev_nr < 2 && rq->nr_running >= 2) {
@@ -1960,6 +1975,9 @@ static inline void add_nr_running(struct rq *rq, unsigned count)
 
 static inline void sub_nr_running(struct rq *rq, unsigned count)
 {
+#ifdef CONFIG_MTK_CORE_CTL
+	sched_update_nr_prod(cpu_of(rq), rq->nr_running, -count);
+#endif
 	rq->nr_running -= count;
 	/* Check if we still need preemption */
 	sched_update_tick_dependency(rq);
@@ -2382,7 +2400,7 @@ unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util,
 
 static inline unsigned int uclamp_bucket_id(unsigned int clamp_value)
 {
-	return clamp_value / UCLAMP_BUCKET_DELTA;
+	return min_t(unsigned int, clamp_value / UCLAMP_BUCKET_DELTA, UCLAMP_BUCKETS - 1);
 }
 
 static inline unsigned int uclamp_bucket_base_value(unsigned int clamp_value)
@@ -2394,6 +2412,10 @@ static inline unsigned int uclamp_none(enum uclamp_id clamp_id)
 	if (clamp_id == UCLAMP_MIN)
 		return 0;
 	return SCHED_CAPACITY_SCALE;
+}
+static inline unsigned int uclamp_value(unsigned int cpu, int clamp_id)
+{
+	return cpu_rq(cpu)->uclamp[clamp_id].value;
 }
 #else /* CONFIG_UCLAMP_TASK */
 static inline

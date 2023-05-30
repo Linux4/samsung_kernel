@@ -39,6 +39,9 @@
 
 #include <usb20.h>
 
+#define PHY_MODE_DPPULLUP_SET 5
+#define PHY_MODE_DPPULLUP_CLR 6
+
 int musb_fake_CDP;
 
 /*
@@ -1244,6 +1247,23 @@ b_host:
 	return handled;
 }
 
+static void musb_dp_pullup_work(struct work_struct *w)
+{
+	//struct musb *musb = container_of(w, struct musb, dp_work);
+
+	phy_set_mode_ext(glue->phy, PHY_MODE_USB_DEVICE,
+		PHY_MODE_DPPULLUP_SET);
+	mdelay(50);
+	phy_set_mode_ext(glue->phy, PHY_MODE_USB_DEVICE,
+		PHY_MODE_DPPULLUP_CLR);
+}
+
+void musb_phy_dp_pullup(struct musb *musb)
+{
+	DBG(0, "%s\n", __func__);
+	queue_work(system_power_efficient_wq, &musb->dp_work);
+}
+
 /*-------------------------------------------------------------------------*/
 
 /*
@@ -1316,6 +1336,9 @@ void musb_start(struct musb *musb)
 		if (musb->softconnect) {
 			DBG(0, "add softconn\n");
 			val |= MUSB_POWER_SOFTCONN;
+		} else if (!musb->is_ready) {
+			DBG(0, "pullup dp\n");
+			musb_phy_dp_pullup(musb);
 		}
 		musb_writeb(regs, MUSB_POWER, val);
 	}
@@ -2597,6 +2620,8 @@ static int musb_init_controller
 	if (status)
 		goto fail5;
 #endif
+
+	INIT_WORK(&musb->dp_work, musb_dp_pullup_work);
 
 	pm_runtime_put(musb->controller);
 

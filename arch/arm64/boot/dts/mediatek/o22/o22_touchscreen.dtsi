@@ -1,0 +1,117 @@
+&spi2 {
+    status = "okay";
+    #address-cells = <1>;
+    #size-cells = <0>;
+    /*hs14 code for SR-AL6528A-01-491 by hehaoran5 at 20220914 start*/
+    /delete-property/mediatek,pad-select;
+    mediatek,pad-select = <0>,<0>,<0>,<0>;
+    cs-gpios = <0>,<0>,<0>,<0>;
+    /*hs14 code for SR-AL6528A-01-491 by hehaoran5 at 20220914 end*/
+
+    /*hs14 code for SR-AL6528A-01-454 by zhangxiongyi at 20220909 start*/
+    himax_ts@0 {
+        compatible = "himax,hxcommon";
+        reg = <0>;
+        spi-max-frequency = <10000000>;
+        spi-cpha;
+        interrupt-parent = <&pio>;
+        // vdd-supply = <&pm8994_l14>;
+        // avdd-supply = <&pm8994_l22>;
+        himax,panel-coords = <0 1080 0 2408>;
+        himax,display-coords = <0 1080 0 2408>;
+        himax,irq-gpio = <&pio 1 0x00>;
+        himax,rst-gpio = <&pio 98 0x00>;
+        report_type = <1>;
+    };
+    /*hs14 code for SR-AL6528A-01-454 by zhangxiongyi at 20220909 end*/
+
+    omnivision_tcm@1 {
+        compatible = "omnivision,tcm-spi";
+        reg = <1>;
+        status = "okay";
+        spi-max-frequency = <10000000>;
+        interrupt-parent = <&pio>;
+        interrupts = <1 0x00>;
+        // pinctrl-names = "pmx_ts_active", "pmx_ts_suspend";
+        // pinctrl-0 = <&ts_active>;
+        // pinctrl-1 = <&ts_suspend>;
+        omnivision,bus-reg-name = "vdd";
+        omnivision,pwr-reg-name = "avdd";
+        omnivision,irq-gpio = <&pio 1 0x00>; /* IRQF_ONESHOT | IRQF_TRIGGER_LOW */
+        omnivision,irq-on-state = <0>;
+        omnivision,reset-gpio = <&pio 98 0x00>;
+        omnivision,reset-on-state = <0>;
+        omnivision,reset-active-ms = <20>;
+        omnivision,reset-delay-ms = <200>;
+        omnivision,power-delay-ms = <200>;
+        omnivision,spi-mode = <3>;
+        omnivision,byte-delay-us = <0>;
+        omnivision,block-delay-us = <0>;
+        omnivision,ubl-max-freq = <3000000>;
+        omnivision,ubl-byte-delay-us = <20>;
+        // omnivision,display-reset-gpio = <&pio 45 0>;
+    };
+
+    /*hs14 code for SR-AL6528A-01-479 by liudi at 20220906 start*/
+    jadard@2 {
+        compatible = "jadard,jdcommon";
+        reg = <2>;
+        spi-max-frequency = <10000000>; //10M
+        interrupt-parent = <&pio>;
+        interrupts = <1 0x00>;
+        jadard,panel-sense-nums = <18 36>;
+        jadard,panel-coords = <0 1080 0 2408>;
+        jadard,panel-max-points = <10>;
+        jadard,int-is-edge = <1>;
+        jadard,irq-gpio = <&pio 1 0x00>;
+        jadard,rst-gpio = <&pio 98 0x00>;
+    };
+    /*hs14 code for SR-AL6528A-01-479 by liudi at 20220906 end*/
+    /*hs14 code for SR-AL6528A-01-526 by hehaoran5 at 20220919 start*/
+    chipone_tddi@3 {
+        compatible = "chipone-tddi";
+        reg = <3>;
+        spi-max-frequency = <10000000>;
+        interrupt-parent = <&pio>;
+        interrupts = <1 0x2008>;
+        chipone,rst-gpio = <&pio 98 0x00>;
+        chipone,irq-gpio = <&pio 1 0x00>;
+        //chipone,cs-gpio = <&msm_gpio 8 0>;
+        chipone,x-res = <1080>;
+        chipone,y-res = <2408>;
+
+        /* Charger detect */
+        chipone,touch-charger-detect-enable;
+        chipone,touch-charger-detect-type = "notify"; /* notify, poll */
+        chipone,touch-charger-detect-psy-name = "charger";
+        chipone,touch-charger-detect-psp = "POWER_SUPPLY_PROP_ONLINE";
+        chipone,touch-charger-detect-psp-poll-interval = <1000>;
+
+        /* Earjack detect */
+        chipone,touch-earjack-detect-enable;
+        /* MTK:  /sys/bus/platform/drivers/Accdet_Driver/state,
+           Sprd: /sys/kernel/headset/state
+           QCOM: None, and disable it */
+        chipone,touch-earjack-state-filepath = "/sys/bus/platform/drivers/Accdet_Driver/state";
+        chipone,touch-earjack-poll-interval = <1000>;
+
+        /* For tp selftest */
+        chipone,test-reset-pin;
+        /* chipone,test-int-pin; */
+        chipone,test-rawdata;
+        chipone,test-rawdata-frames      = <1>;
+        chipone,rawdata-min              = <780>;    //base2000, ±40%
+        chipone,rawdata-max              = <1620>;
+        chipone,test-noise;
+        chipone,test-noise-frames        = <50>;
+        chipone,noise-max                = <75>;
+        chipone,test-open;
+        chipone,open-min                 = <1600>;
+        chipone,test-short;
+        chipone,short-min                = <260>;
+        chipone,test-compensate-cap;
+        chipone,compensate-cap-min       = <1>;
+        chipone,compensate-cap-max       = <126>;
+    };
+    /*hs14 code for SR-AL6528A-01-526 by hehaoran5 at 20220919 end*/
+};

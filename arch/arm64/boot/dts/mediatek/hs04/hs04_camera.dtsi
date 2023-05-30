@@ -1,0 +1,227 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Copyright (c) 2019 MediaTek Inc.
+ *
+ */
+/*hs04 code for SR-AL6398A-01-12 customlize camera dtsi by chenjun at 2022/7/7 start*/
+/* CAMERA GPIO standardization */
+&pio {
+	camera_pins_cam0_mclk_on: camera_pins_cam0_mclk_on {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO99__FUNC_CMMCLK0>;
+		};
+	};
+	camera_pins_cam0_mclk_off: camera_pins_cam0_mclk_off {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO99__FUNC_GPIO99>;
+		};
+	};
+/* A03s code for SR-AL5625-01-324 by xuxianwei at 2021/04/22 start */
+	camera_pins_cam1_mclk_on: camera_pins_cam1_mclk_on {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO100__FUNC_CMMCLK1>;
+		};
+	};
+
+	camera_pins_cam1_mclk_off: camera_pins_cam1_mclk_off {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO100__FUNC_GPIO100>;
+		};
+	};
+	camera_pins_cam0_rst0: cam0@0 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO101__FUNC_GPIO101>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam0_rst1: cam0@1 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO101__FUNC_GPIO101>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	camera_pins_cam1_rst0: cam1@0 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO102__FUNC_GPIO102>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+
+
+	camera_pins_cam1_rst1: cam1@1 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO102__FUNC_GPIO102>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	camera_pins_cam1_pnd0: cam1@2 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO176__FUNC_GPIO176>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+
+	camera_pins_cam1_pnd1: cam1@3 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO176__FUNC_GPIO176>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	camera_pins_cam2_rst0: cam2@0 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO109__FUNC_GPIO109>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam2_rst1: cam2@1 {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO109__FUNC_GPIO109>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	camera_pins_cam2_mclk_on: camera_pins_cam2_mclk_on {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO108__FUNC_CMMCLK2>;
+		};
+	};
+	camera_pins_cam2_mclk_off: camera_pins_cam2_mclk_off {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO108__FUNC_GPIO108>;
+		};
+	};
+
+	camera_pins_default: camdefault {
+	};
+
+};
+
+&kd_camera_hw1 {
+	pinctrl-names = "default",
+			"cam0_rst0",
+			"cam0_rst1",
+			"cam1_rst0",
+			"cam1_rst1",
+			"cam0_mclk_on",
+			"cam0_mclk_off",
+			"cam1_mclk_on",
+			"cam1_mclk_off",
+			"cam1_pnd0",
+			"cam1_pnd1",
+			"cam2_rst0",
+			"cam2_rst1",
+			"cam2_mclk_on",
+			"cam2_mclk_off";
+	pinctrl-0 = <&camera_pins_default>;
+	pinctrl-1 = <&camera_pins_cam0_rst0>;
+	pinctrl-2 = <&camera_pins_cam0_rst1>;
+	pinctrl-3 = <&camera_pins_cam1_rst0>;
+	pinctrl-4 = <&camera_pins_cam1_rst1>;
+	pinctrl-5 = <&camera_pins_cam0_mclk_on>;
+	pinctrl-6 = <&camera_pins_cam0_mclk_off>;
+	pinctrl-7 = <&camera_pins_cam1_mclk_on>;
+	pinctrl-8 = <&camera_pins_cam1_mclk_off>;
+	pinctrl-9 = <&camera_pins_cam1_pnd0>;
+	pinctrl-10 = <&camera_pins_cam1_pnd1>;
+	pinctrl-11 = <&camera_pins_cam2_rst0>;
+	pinctrl-12 = <&camera_pins_cam2_rst1>;
+	pinctrl-13 = <&camera_pins_cam2_mclk_on>;
+	pinctrl-14 = <&camera_pins_cam2_mclk_off>;
+
+	cam0_vcama-supply = <&mt_pmic_vcama_ldo_reg>;
+	cam1_vcama-supply = <&mt_pmic_vcama_ldo_reg>;
+	cam0_vcamd-supply = <&mt_pmic_vcamd_ldo_reg>;
+	cam0_vcamio-supply = <&mt_pmic_vcamio_ldo_reg>;
+	cam1_vcamio-supply = <&mt_pmic_vcamio_ldo_reg>;
+	cam2_vcamio-supply = <&mt_pmic_vcamio_ldo_reg>;
+	cam2_vcama-supply = <&mt_pmic_vcama_ldo_reg>;
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/17 start*/
+	cam0_vcamaf-supply = <&mt_pmic_vldo28_ldo_reg>;
+	cam0_enable_sensor = "o2101_sc1300csly_back_mipi_raw o2102_hi1336txd_back_mipi_raw o2103_ov13b10hlt_back_mipi_raw o2104_hi1336sjc_back_mipi_raw";
+	cam1_enable_sensor = "o2101_hi556txd_front_mipi_raw o2102_ov05a10hlt_front_mipi_raw o2103_sc520syx_front_mipi_raw o2104_hi556wtxd_front_mipi_raw";
+	cam2_enable_sensor = "o2101_sc201cscxt_depth_mipi_raw o2102_gc2375hhlt_depth_mipi_raw o2103_sp2507hcxt_depth_mipi_raw";
+/*hs04 code for DEVAL6398A-46 by renxinglin at  2022/10/17 end*/
+	status = "okay";
+
+};
+
+&camera_af_hw_node {
+	camaf_m1_pmic-supply = <&mt_pmic_vldo28_ldo_reg>;
+	status = "okay";
+};
+/* CAMERA GPIO end */
+
+
+&flashlights_sgm3785_gpio {
+	pinctrl-names = "flashlight_default", "flashlight_enm_gpio_low", "flashlight_enm_gpio_high", "flashlight_enm_pwm_low", "flashlight_enm_pwm_high",
+	"flashlight_enf_gpio_low","flashlight_enf_gpio_high";
+	pinctrl-0 = <&flashlight_pins_default>;
+	pinctrl-1 = <&flashlight_pins_enm_gpio_low>;
+	pinctrl-2 = <&flashlight_pins_enm_gpio_high>;
+	pinctrl-3 = <&flashlight_pins_enm_pwm_low>;
+	pinctrl-4 = <&flashlight_pins_enm_pwm_high>;
+	pinctrl-5 = <&flashlight_pins_enf_gpio_low>;
+	pinctrl-6 = <&flashlight_pins_enf_gpio_high>;
+	status = "okay";
+};
+
+&pio {
+	flashlight_pins_default: flashlight_default {
+	};
+	/*torch_en*/
+	flashlight_pins_enm_gpio_low: enm_gpio@0 {
+	    pins_cmd_dat {
+			pinmux = <PINMUX_GPIO23__FUNC_GPIO23>;/*GPIO_FL_ENM_PIN*/
+			slew-rate = <1>; /*direction 0:in, 1:out*/
+			output-low;/*direction out used only. output_low or high*/
+		};
+	};
+
+	flashlight_pins_enm_gpio_high: enm_gpio@1 {
+	    pins_cmd_dat {
+			pinmux = <PINMUX_GPIO23__FUNC_GPIO23>;/*GPIO_DISP_ENN_PIN*/
+			slew-rate = <1>; /*direction 0:in, 1:out*/
+			output-high;/*direction out used only. output_low or high*/
+		};
+	};
+	flashlight_pins_enm_pwm_low: enm_pwm@0 {
+	    pins_cmd_dat {
+			pinmux = <PINMUX_GPIO23__FUNC_PWM0>;/*GPIO_DISP_ENP_PIN*/
+			slew-rate = <1>;
+			bias-disable;
+		};
+	};
+	flashlight_pins_enm_pwm_high: enm_pwm@1 {
+	    pins_cmd_dat {
+			pinmux = <PINMUX_GPIO23__FUNC_PWM0>;/*GPIO_DISP_ENP_PIN*/
+			slew-rate = <1>;
+			bias-disable;
+		};
+	};
+
+	/*flash*/
+	flashlight_pins_enf_gpio_low: enf_gpio@0 {
+	    pins_cmd_dat {
+			pinmux = <PINMUX_GPIO24__FUNC_GPIO24>;/*GPIO_DISP_ENP_PIN*/
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	flashlight_pins_enf_gpio_high: enf_gpio@1 {
+	    pins_cmd_dat {
+			pinmux = <PINMUX_GPIO24__FUNC_GPIO24>;/*GPIO_DISP_ENP_PIN*/
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+};
+/*hs04 code for SR-AL6398A-01-12 customlize camera dtsi by chenjun at 2022/07/07 end*/

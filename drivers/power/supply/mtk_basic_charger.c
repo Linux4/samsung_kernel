@@ -455,14 +455,20 @@ static bool select_charging_current_limit(struct mtk_charger *info,
 		info->enable_hv_charging = true;
 
 	/*HS03s for SR-AL5625-01-249 by wenyaqi at 20210425 start*/
+	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 start */
 	#ifdef CONFIG_AFC_CHARGER
-	if (support_fast_charging(info) && info->afc_sts < AFC_9V)
+	if (support_fast_charging(info) && info->afc_sts < AFC_9V) {
 	#else
-	if (support_fast_charging(info))
+	if (support_fast_charging(info)) {
 	#endif
 	/*HS03s for SR-AL5625-01-249 by wenyaqi at 20210425 end*/
+#ifdef CONFIG_HQ_PROJECT_HS04
+		is_basic = true;
+#else
 		is_basic = false;
-	else {
+#endif
+	} else {
+	/* HS04_T for DEAL6398A-1879 by shixuanxuan at 20221012 end */
 		is_basic = true;
 		/* AICL */
 		charger_dev_run_aicl(info->chg1_dev,
@@ -516,7 +522,7 @@ static bool select_charging_current_limit(struct mtk_charger *info,
 					pdata->input_current_limit_by_aicl;
 	}
 done:
-#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
     /* modify code for O6 */
 	/*HS03s for SR-AL5625-01-249 by wenyaqi at 20210425 start*/
 	#ifdef CONFIG_AFC_CHARGER
@@ -570,7 +576,63 @@ done:
 		chr_err("store_mode running, set ichg to %dmA\n", _uA_to_mA(pdata->charging_current_limit));
 	}
 	#endif
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+    /* modify code for O6 */
+	/*HS03s for SR-AL5625-01-249 by wenyaqi at 20210425 start*/
+	#ifdef CONFIG_AFC_CHARGER
+	ret = charger_dev_get_min_charging_current(info->chg1_dev, &ichg1_min);
+	if (ret != -ENOTSUPP && pdata->charging_current_limit < ichg1_min) {
+		if(info->afc.is_connect == true) {
+			chr_err("ignore min_charging_current compare when detect afc\n");
+		} else {
+			pdata->charging_current_limit = 0;
+			chr_err("min_charging_current is too low %d %d\n",
+				pdata->charging_current_limit, ichg1_min);
+			is_basic = true;
+			info->enable_hv_charging = false;
+		}
+	}
+
+	ret = charger_dev_get_min_input_current(info->chg1_dev, &aicr1_min);
+	if (ret != -ENOTSUPP && pdata->input_current_limit < aicr1_min) {
+		if(info->afc.is_connect == true) {
+			chr_err("ignore min_input_current compare when detect afc\n");
+		} else {
+			pdata->input_current_limit = 0;
+			chr_err("min_input_current is too low %d %d\n",
+				pdata->input_current_limit, aicr1_min);
+			is_basic = true;
+			info->enable_hv_charging = false;
+		}
+	}
+	#else
+	ret = charger_dev_get_min_charging_current(info->chg1_dev, &ichg1_min);
+	if (ret != -ENOTSUPP && pdata->charging_current_limit < ichg1_min) {
+		pdata->charging_current_limit = 0;
+		chr_err("min_charging_current is too low %d %d\n",
+			pdata->charging_current_limit, ichg1_min);
+		is_basic = true;
+	}
+
+	ret = charger_dev_get_min_input_current(info->chg1_dev, &aicr1_min);
+	if (ret != -ENOTSUPP && pdata->input_current_limit < aicr1_min) {
+		pdata->input_current_limit = 0;
+		chr_err("min_input_current is too low %d %d\n",
+			pdata->input_current_limit, aicr1_min);
+		is_basic = true;
+	}
+	#endif
+/*HS03s for SR-AL5625-01-277 by wenyaqi at 20210427 start*/
+	#ifndef HQ_FACTORY_BUILD	//ss version
+	if (info->batt_store_mode) {
+		pdata->charging_current_limit = min(pdata->input_current_limit,
+			info->data.usb_charger_current);
+		chr_err("store_mode running, set ichg to %dmA\n", _uA_to_mA(pdata->charging_current_limit));
+	}
+	#endif
+#endif
+#ifdef CONFIG_HQ_PROJECT_OT8
 	/* modify code for O8 */
 	/*TabA7 Lite code for OT8-106 add afc charger driver by wenyaqi at 20201210 start*/
 	#ifdef CONFIG_AFC_CHARGER
@@ -647,7 +709,7 @@ done:
 
 	return is_basic;
 }
-#ifdef HQ_PROJECT_HS03S
+#if 0
     /* modify code for O6 */
 static int do_algorithm(struct mtk_charger *info)
 {
@@ -663,7 +725,7 @@ static int do_algorithm(struct mtk_charger *info)
 	pdata = &info->chg_data[CHG1_SETTING];
 	/*HS03s for SR-AL5625-01-249 by wenyaqi at 20210425 start*/
 	charger_dev_is_charging_done(info->chg1_dev, &chg_done);
-#ifndef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_OT8
 	/* modify code for O8 */
 	/*TabA7 Lite code for OT8-106 add afc charger driver by wenyaqi at 20201210 start*/
 	#ifdef CONFIG_AFC_CHARGER
@@ -771,7 +833,7 @@ static int do_algorithm(struct mtk_charger *info)
 	info->is_chg_done = chg_done;
 
 	if (is_basic == true) {
-#ifndef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_OT8
 /* modify code for O8 */
 	/*TabA7 Lite  code for SR-AX3565-01-107 by gaoxugang at 20201124 start*/
 		#if !defined(HQ_FACTORY_BUILD)
@@ -802,7 +864,7 @@ static int do_algorithm(struct mtk_charger *info)
 
 	return 0;
 }
-#else
+#endif
     /* modify code for OT8 */
 static int do_algorithm(struct mtk_charger *info)
 {
@@ -962,7 +1024,7 @@ static int do_algorithm(struct mtk_charger *info)
 
 	return 0;
 }
-#endif
+
 static int enable_charging(struct mtk_charger *info,
 						bool en)
 {

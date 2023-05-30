@@ -182,7 +182,7 @@ struct mt6357_codec_priv {
 
 
 /* hs03s code for SR-AL5625-01-247 by zhangbing at 2022/03/15 start */
-#ifdef CONFIG_HS03S_SUPPORT
+#ifdef CONFIG_HQ_PROJECT_HS03S
 #define ANALOG_PA_SUPPORT
 struct mt6357_priv {
 	struct device *dev;
@@ -192,7 +192,34 @@ struct mt6357_priv {
 	int mtkaif_protocol;
 	int ctrl_mod;
 };
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_O22
+#define ANALOG_PA_SUPPORT
+struct mt6357_priv {
+	struct device *dev;
+	struct regmap *regmap;
+	struct iio_channel *codec_auxadc, *accdet_auxadc;
+	struct nvmem_device *hp_efuse;
+	int mtkaif_protocol;
+	int ctrl_mod;
+};
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+#define ANALOG_PA_SUPPORT
+/*hs04 code for SR-AL6398A-01-121 by hujincan at 2022/07/05 start*/
+/* Compatible time sequence with Foursemi PA and AW PA */
+#define COMPATIBLE_PA_SUPPORT
+/*hs04 code for SR-AL6398A-01-121 by hujincan at 2022/07/05 end*/
+struct mt6357_priv {
+	struct device *dev;
+	struct regmap *regmap;
+	struct iio_channel *codec_auxadc, *accdet_auxadc;
+	struct nvmem_device *hp_efuse;
+	int mtkaif_protocol;
+	int ctrl_mod;
+};
+#endif
+#ifdef CONFIG_HQ_PROJECT_OT8
 struct mt6357_priv {
 	struct device *dev;
 	struct regmap *regmap;

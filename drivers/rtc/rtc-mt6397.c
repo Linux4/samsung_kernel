@@ -1113,14 +1113,14 @@ static int rtc_ops_set_bootalarm(struct device *dev, struct rtc_wkalrm *alm)
 
 	tm->tm_year -= RTC_MIN_YEAR_OFFSET;
 	tm->tm_mon++;
-
+	
 	dev_notice(rtc->dev,
 		"set pwron time = %04d/%02d/%02d %02d:%02d:%02d (%d)\n",
 		tm->tm_year + RTC_MIN_YEAR, tm->tm_mon, tm->tm_mday,
 		tm->tm_hour, tm->tm_min, tm->tm_sec, alm->enabled);
-
+		
 	mutex_lock(&rtc->lock);
-
+	
 	if (alm->enabled == 1) {	/* enable power-on alarm */
 		mtk_rtc_save_pwron_time(rtc, true, tm, true);
 	} else if (alm->enabled == 0) {	/* disable power-on alarm */
@@ -1138,11 +1138,11 @@ static int rtc_ops_set_bootalarm(struct device *dev, struct rtc_wkalrm *alm)
 	if (ret < 0)
 		goto exit;
 	mtk_rtc_write_trigger(rtc);
-
+	
 	ret = regmap_read(rtc->regmap, rtc->addr_base + RTC_IRQ_STA, &irqsta);
 	if (ret < 0)
 		goto exit;
-
+	
 	if (alm->enabled) {
 		ret = mtk_rtc_restore_alarm(rtc, tm);
 		if (ret < 0)
@@ -1154,7 +1154,7 @@ static int rtc_ops_set_bootalarm(struct device *dev, struct rtc_wkalrm *alm)
 		if (ret < 0)
 			goto exit;
 	}
-
+	
 	/* All alarm time register write to hardware after calling
 	 * mtk_rtc_write_trigger. This can avoid race condition if alarm
 	 * occur happen during writing alarm time register.
@@ -1176,9 +1176,9 @@ static int rtc_ops_get_bootalarm(struct device *dev, struct rtc_wkalrm *alm)
 	
 	pwron_alarm = mtk_rtc_is_pwron_alarm(rtc, &nowtm, &alm->time);
 	
-
+	
 	printk(" [bootalarm] :  %d\n", alm->enabled);
-
+	
 	if (bootmode == KERNEL_POWER_OFF_CHARGING_BOOT ||
 		bootmode == LOW_POWER_OFF_CHARGING_BOOT) lpcharge = 1;
 				
@@ -1196,7 +1196,7 @@ static int rtc_ops_get_bootalarm(struct device *dev, struct rtc_wkalrm *alm)
 		}
 	}
 	else alm->enabled=0;
-
+	
 	if ( !ret ) {
 		printk("[bootalarm] : [PWR on ALRM] %d-%d-%d %d:%d:%d \n",
 			alm->time.tm_year, alm->time.tm_mon, alm->time.tm_mday,
@@ -1216,7 +1216,7 @@ static int mtk_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alm)
 	int ret;
 	u32 irqsta;
 	ktime_t target;
-	
+
 #ifdef CONFIG_RTC_AUTO_PWRON
 	struct rtc_time nowtm,pwrontm;
 	unsigned long now_time, pwron_time, time;
@@ -1241,7 +1241,7 @@ static int mtk_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alm)
 
 	tm->tm_year -= RTC_MIN_YEAR_OFFSET;
 	tm->tm_mon++;
-	
+
 #ifdef CONFIG_RTC_AUTO_PWRON
 		mutex_lock(&rtc->lock);
 		pwron_alm = mtk_rtc_is_pwron_alarm(rtc, &nowtm, &pwrontm);
@@ -1256,11 +1256,11 @@ static int mtk_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alm)
 				}
 			}
 			time=mktime(tm->tm_year, tm->tm_mon, tm->tm_mday, tm->tm_hour, tm->tm_min,tm->tm_sec);
-
+			
 			if(now_time < pwron_time && pwron_time < time )
 			{
 				memcpy(tm, &pwrontm, sizeof(struct rtc_time));
-
+				
 			  	dev_notice(rtc->dev,"override by pwron alarm = %04d/%02d/%02d %02d:%02d:%02d (%d)\n",
 			  	tm->tm_year + RTC_MIN_YEAR, tm->tm_mon, tm->tm_mday,
 			  	tm->tm_hour, tm->tm_min, tm->tm_sec, alm->enabled);

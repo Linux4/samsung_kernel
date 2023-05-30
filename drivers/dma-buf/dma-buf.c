@@ -42,8 +42,6 @@
 #include <uapi/linux/dma-buf.h>
 #include <uapi/linux/magic.h>
 
-static inline int is_dma_buf_file(struct file *);
-
 struct dma_buf_list {
 	struct list_head head;
 	struct mutex lock;
@@ -452,10 +450,11 @@ static const struct file_operations dma_buf_fops = {
 /*
  * is_dma_buf_file - Check if struct file* is associated with dma_buf
  */
-static inline int is_dma_buf_file(struct file *file)
+int is_dma_buf_file(struct file *file)
 {
 	return file->f_op == &dma_buf_fops;
 }
+EXPORT_SYMBOL_GPL(is_dma_buf_file);
 
 static struct file *dma_buf_getfile(struct dma_buf *dmabuf, int flags)
 {
@@ -564,6 +563,7 @@ struct dma_buf *dma_buf_export(const struct dma_buf_export_info *exp_info)
 		goto err_module;
 	}
 
+	atomic_set(&dmabuf->ref_dbg, 0);
 	dmabuf->priv = exp_info->priv;
 	dmabuf->ops = exp_info->ops;
 	dmabuf->size = exp_info->size;
@@ -641,6 +641,7 @@ EXPORT_SYMBOL_GPL(dma_buf_fd);
 struct dma_buf *dma_buf_get(int fd)
 {
 	struct file *file;
+	struct dma_buf *dmabuf;
 
 	file = fget(fd);
 
@@ -652,7 +653,10 @@ struct dma_buf *dma_buf_get(int fd)
 		return ERR_PTR(-EINVAL);
 	}
 
-	return file->private_data;
+	dmabuf = file->private_data;
+	atomic_inc(&dmabuf->ref_dbg);
+
+	return dmabuf;
 }
 EXPORT_SYMBOL_GPL(dma_buf_get);
 
@@ -671,6 +675,10 @@ void dma_buf_put(struct dma_buf *dmabuf)
 	if (WARN_ON(!dmabuf || !dmabuf->file))
 		return;
 
+	if (atomic_dec_return(&dmabuf->ref_dbg) < 0) {
+		pr_info("[Warn] %s, ref underflow!\n", __func__);
+		atomic_set(&dmabuf->ref_dbg, 0);
+	}
 	fput(dmabuf->file);
 }
 EXPORT_SYMBOL_GPL(dma_buf_put);

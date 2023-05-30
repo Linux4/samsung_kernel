@@ -155,7 +155,9 @@ typedef struct abov_platform_data *pabov_platform_data_t;
 #define MAX_NUM_STATUS_BITS (2)
 
 /*TabA7 Lite code for OT8-467 by Hujincan at 20210105 start*/
-#define SAR_USB_CALIBRATION
+/*Tab A7 lite_T code for SR-AX3565A-01-166 by duxinqi at 2022/10/18 start*/
+//#define SAR_USB_CALIBRATION
+/*Tab A7 lite_T code for SR-AX3565A-01-166 by duxinqi at 2022/10/18 end*/
 /*TabA7 Lite code for OT8-467 by Hujincan at 20210105 end*/
 
 typedef struct abovXX abovXX_t, *pabovXX_t;

@@ -21,18 +21,6 @@ static struct platform_device *md_adc_pdev;
 static int adc_num;
 static int adc_val;
 
-#ifdef CCCI_KMODULE_ENABLE
-/*
- * for debug log:
- * 0 to disable; 1 for print to ram; 2 for print to uart
- * other value to desiable all log
- */
-#ifndef CCCI_LOG_LEVEL /* for platform override */
-#define CCCI_LOG_LEVEL CCCI_LOG_CRITICAL_UART
-#endif
-unsigned int ccci_debug_enable = CCCI_LOG_LEVEL;
-#endif
-
 static int ccci_get_adc_info(struct device *dev)
 {
 	int ret, val;
@@ -77,36 +65,6 @@ int ccci_get_adc_val(void)
 	return adc_val;
 }
 EXPORT_SYMBOL(ccci_get_adc_val);
-
-signed int battery_get_bat_voltage(void)
-{
-	struct iio_channel *channel;
-	int ret, val, number;
-
-	if (!md_adc_pdev)
-		return -1;
-	channel = iio_channel_get(&md_adc_pdev->dev, "md-battery");
-
-	ret = IS_ERR(channel);
-	if (ret) {
-		CCCI_ERROR_LOG(-1, TAG, "fail to get iio channel 1 (%d)", ret);
-		goto BAT_Fail;
-	}
-	number = channel->channel->channel;
-	ret = iio_read_channel_processed(channel, &val);
-	iio_channel_release(channel);
-	if (ret < 0) {
-		CCCI_ERROR_LOG(-1, TAG, "iio_read_channel_processed fail");
-		goto BAT_Fail;
-	}
-	CCCI_NORMAL_LOG(0, TAG, "md_battery = %d, val = %d", number, val);
-
-	return val;
-BAT_Fail:
-	return -1;
-
-}
-EXPORT_SYMBOL(battery_get_bat_voltage);
 
 int get_auxadc_probe(struct platform_device *pdev)
 {

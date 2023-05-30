@@ -8,6 +8,9 @@ struct mtk_extcon_info {
 	struct extcon_dev *edev;
 	struct usb_role_switch *role_sw;
 	unsigned int c_role; /* current data role */
+#if defined(CONFIG_USB_NOTIFIER)
+	unsigned int last_dr_event; /* Last data role event */
+#endif
 	struct workqueue_struct *extcon_wq;
 	struct regulator *vbus;
 	struct gpio_desc *id_gpiod;
@@ -49,3 +52,12 @@ enum {
 	DUAL_PROP_DR_DEVICE,
 	DUAL_PROP_DR_NONE,
 };
+
+#if defined(CONFIG_USB_NOTIFIER)
+int mtk_usb_notify_set_mode(int role);
+#endif
+
+#if defined ADAPT_PSY_V1
+extern void mt_usb_connect_v1(void);
+extern void mt_usb_disconnect_v1(void);
+#endif //ADAPT_PSY_V1

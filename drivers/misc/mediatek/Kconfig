@@ -1,5 +1,6 @@
 source "drivers/misc/mediatek/Kconfig.default"
 source "drivers/misc/mediatek/usb20/Kconfig"
+source "drivers/misc/mediatek/cqdma/Kconfig"
 
 config MTK_TC10_FEATURE
 	bool "MTK_TC10_FEATURE"
@@ -55,6 +56,17 @@ config MTK_BASE_POWER
 	  CPU suspend, CPU DVFS, GPU DVFS,
 	  Select if you want to enable MediaTek power
 	  management feature.
+
+config NONLINEAR_FREQ_CTL
+	bool "Non-linear frequency control"
+	depends on MTK_CPU_FREQ
+	depends on MTK_UNIFY_POWER
+	help
+	  Choose this option to enable non-linear frequency control.
+	  This will change per-opp capacity from linear scaled by
+	  freuqency to evaluated by performance. This makes capacity
+	  more accurate and will let scheduler/schedutil use more
+	  suitable frequency.
 
 config MTK_CLK_BUFFER
 	tristate "MediaTek Clock Buffer Support"
@@ -202,8 +214,11 @@ config MTK_UNIFY_POWER
 
 source "drivers/misc/mediatek/lpm/Kconfig"
 source "drivers/misc/mediatek/ppm_v3/Kconfig"
+source "drivers/misc/mediatek/apusys/Kconfig"
 source "drivers/misc/mediatek/base/power/Kconfig"
 source "drivers/misc/mediatek/pmic/Kconfig"
+source "drivers/misc/mediatek/pmic_wrap/Kconfig"
+
 endmenu # Power
 
 menu "MultiMedia, Display, Camera"
@@ -231,6 +246,17 @@ config MTK_SEC_VIDEO_PATH_SUPPORT
 	  relative options including: MTK_TEE_SUPPORT, MTK_GP_SUPPORT,
 	  MTK_DRM_L1_SUPPORT, MTK_PERSIST_PARTITION_SUPPORT,
 	  MTK_DRM_KEY_MNG_SUPPORT.
+
+config MTK_SVP_ON_MTEE_SUPPORT
+        bool "Enable MTK SVP on MTEE"
+        help
+          This enable MTK TEE function of Widevine Level1,
+          relative modules include: DRM, vdec, venc, cmdq, m4u, display,
+          tplay/DXCC,ssvp, secmem, TEE frameworks, keyinstall, DAPC, MPU,
+          ION, gralloc,RPMB, DXCC, mediacodec, WFD, MDP.etc
+          relative options including: MTK_TEE_SUPPORT, MTK_GP_SUPPORT,
+          MTK_DRM_L1_SUPPORT, MTK_PERSIST_PARTITION_SUPPORT,
+          MTK_DRM_KEY_MNG_SUPPORT
 
 config MTK_DRM_KEY_MNG_SUPPORT
 	bool "Enable MTK DRM Key Manager Support"
@@ -261,13 +287,23 @@ config CUSTOM_KERNEL_IMGSENSOR
 	  CUSTOM_KERNEL_MAIN_BACKUP_IMGSENSOR, CUSTOM_KERNEL_SUB_IMGSENSOR,
 	  and CUSTOM_KERNEL_SUB_BACKUP_IMGSENSOR
 
+config MTK_MT6382_BDG
+	bool "Support Bridge IC 6382"
+	help
+	  This config decide if device with BridgeIC 6382
+	  BridgeIC 6382 can support VESA-1.2 DSC, compressing display framedata
+	  Normal project will disable it first
+	  If you are not sure about this, do not set it to y
+
 source "drivers/misc/mediatek/videocodec/Kconfig"
 source "drivers/misc/mediatek/mmp/Kconfig"
 source "drivers/misc/mediatek/lcm/Kconfig"
 source "drivers/misc/mediatek/sync/Kconfig"
 source "drivers/misc/mediatek/video/Kconfig"
+source "drivers/misc/mediatek/vdec_fmt/Kconfig"
 source "drivers/misc/mediatek/iommu/Kconfig"
 source "drivers/misc/mediatek/m4u/Kconfig"
+source "drivers/misc/mediatek/pseudo_m4u/Kconfig"
 source "drivers/misc/mediatek/flashlight/Kconfig"
 source "drivers/misc/mediatek/flashlight/richtek/Kconfig"
 source "drivers/misc/mediatek/imgsensor/Kconfig"
@@ -280,6 +316,7 @@ source "drivers/misc/mediatek/smi/Kconfig"
 source "drivers/misc/mediatek/jpeg/Kconfig"
 source "drivers/misc/mediatek/ccu/src/Kconfig"
 source "drivers/misc/mediatek/camera_security/Kconfig"
+source "drivers/misc/mediatek/tui/Kconfig"
 endmenu # MultiMedia
 
 menu "Sensors"
@@ -312,6 +349,7 @@ source "drivers/misc/mediatek/btif/Kconfig"
 source "drivers/misc/mediatek/connectivity/Kconfig"
 source "drivers/misc/mediatek/conn_md/Kconfig"
 source "drivers/misc/mediatek/nfc/Kconfig"
+source "drivers/misc/mediatek/mddp/Kconfig"
 endmenu # CONN
 
 menu "Security"
@@ -341,12 +379,17 @@ endmenu # Security
 menu "Other Peripherals"
 source "drivers/misc/mediatek/extcon/Kconfig"
 source "drivers/misc/mediatek/typec/Kconfig"
+source "drivers/misc/mediatek/usb_offload/Kconfig"
 source "drivers/misc/mediatek/leds/Kconfig"
+source "drivers/misc/mediatek/gate_ic/Kconfig"
 source "drivers/misc/mediatek/irtx/Kconfig"
 source "drivers/misc/mediatek/pwm/Kconfig"
 source "drivers/misc/mediatek/audio_ipi/Kconfig"
 source "drivers/misc/mediatek/adsp/Kconfig"
-
+source "drivers/misc/mediatek/uart/Kconfig"
+source "drivers/misc/mediatek/accdet/Kconfig"
+source "drivers/misc/mediatek/auxadc/Kconfig"
+source "drivers/misc/mediatek/rtc/Kconfig"
 endmenu # Other Peripheral
 
 menu "Memory"
@@ -428,6 +471,7 @@ config MTK_PERFORMANCE_MODULE
 
 source "drivers/misc/mediatek/perf_common/Kconfig"
 source "drivers/misc/mediatek/performance/Kconfig"
+source "drivers/misc/mediatek/task_turbo/Kconfig"
 endmenu # PPT
 
 menu "TinySys"
@@ -493,26 +537,42 @@ config MTK_HIGH_FRAME_RATE
 	bool "high frame rate,for 90hz or 120hz display"
 	default n
 
+config MTK_MT6382_BDG
+	bool "Support Bridge IC 6382"
+	help
+	  This config decide if device with BridgeIC 6382
+	  BridgeIC 6382 can support VESA-1.2 DSC, compressing display framedata
+	  Normal project will disable it first
+	  If you are not sure about this, do not set it to y
+
 source "drivers/misc/mediatek/met_drv/Kconfig"
 source "drivers/misc/mediatek/mtprof/Kconfig"
 source "drivers/misc/mediatek/aee/Kconfig"
+source "drivers/misc/mediatek/slbc/Kconfig"
 source "drivers/misc/mediatek/cm_mgr/Kconfig"
 source "drivers/misc/mediatek/dramc/Kconfig"
 source "drivers/misc/mediatek/emi/Kconfig"
+source "drivers/misc/mediatek/vibrator/Kconfig"
+source "drivers/misc/mediatek/emi_bwl/Kconfig"
+source "drivers/misc/mediatek/emi_mpu/Kconfig"
 source "drivers/misc/mediatek/systracker/Kconfig"
 source "drivers/misc/mediatek/monitor_hang/Kconfig"
 source "drivers/misc/mediatek/thermal/Kconfig"
 source "drivers/misc/mediatek/debug_latch/Kconfig"
+source "drivers/misc/mediatek/debug_tracer/Kconfig"
 source "drivers/misc/mediatek/cache/Kconfig"
 source "drivers/misc/mediatek/mtprintk/Kconfig"
 source "drivers/misc/mediatek/subpmic/Kconfig"
 source "drivers/misc/mediatek/cameraisp/Kconfig"
+source "drivers/misc/mediatek/mcupm/Kconfig"
 source "drivers/misc/mediatek/rt-regmap/Kconfig"
 source "drivers/misc/mediatek/selinux_warning/Kconfig"
 source "drivers/misc/mediatek/log_store/Kconfig"
 source "drivers/misc/mediatek/dfd/Kconfig"
 source "drivers/misc/mediatek/dbgtop/Kconfig"
-
+source "drivers/misc/mediatek/vow/Kconfig"
+source "drivers/misc/mediatek/sda/Kconfig"
+source "drivers/misc/mediatek/freqhopping/Kconfig"
 endmenu # Debug
 
 menu "Misc"

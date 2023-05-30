@@ -152,9 +152,10 @@ extern char *mtp_chip_name;
 extern int mtp_fw_ver;
 extern int mtk_touch_get_usb_status(void);
 
-#ifdef HQ_PROJECT_OT8
+#if 0
 extern int smart_wakeup_open_flag;
 #endif
+
 
 extern int tpd_driver_add(struct tpd_driver_t *tpd_drv);
 extern int tpd_driver_remove(struct tpd_driver_t *tpd_drv);

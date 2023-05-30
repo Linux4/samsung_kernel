@@ -1,0 +1,1 @@
+obj-$(CONFIG_FUELGAUGE_SM5714)	+= sm5714/

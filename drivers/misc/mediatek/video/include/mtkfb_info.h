@@ -92,3 +92,8 @@ enum MTK_FB_FORMAT {
 }
 #endif
 #endif				/* __DISP_DRV_H__ */
+/*hs14 code for AL6528A-213 by hehaoran5 at 20221002 start*/
+extern int register_esd_tp_recovery_notifier(struct notifier_block *nb);
+extern int unregister_esd_tp_recovery_notifier(struct notifier_block *nb);
+extern int esd_tp_recovery_notifier_call_chain(unsigned long val,void *v);
+/*hs14 code for AL6528A-213 by hehaoran5 at 20221002 end*/

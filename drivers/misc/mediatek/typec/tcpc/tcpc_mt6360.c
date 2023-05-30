@@ -36,6 +36,8 @@
 
 #if defined(CONFIG_WATER_DETECTION) || defined(CONFIG_CABLE_TYPE_DETECTION)
 #include <charger_class.h>
+#include <linux/timekeeping.h>
+#include <mt-plat/mtk_boot_common.h>
 #endif /* CONFIG_WATER_DETECTION || CONFIG_CABLE_TYPE_DETECTION */
 
 /* #define DEBUG_GPIO	66 */
@@ -81,6 +83,7 @@ struct mt6360_chip {
 #ifdef CONFIG_WATER_DETECTION
 	atomic_t wd_protect_rty;
 	struct wakeup_source *wd_wakeup_src;
+	bool is_in_water_detecting;
 #endif /* CONFIG_WATER_DETECTION */
 
 #ifdef CONFIG_WD_SBU_POLLING
@@ -102,14 +105,12 @@ struct mt6360_chip {
 #endif /* CONFIG_WATER_DETECTION || CONFIG_CABLE_TYPE_DETECTION */
 };
 
-#ifdef CONFIG_WATER_DETECTION
 struct tag_bootmode {
 	u32 size;
 	u32 tag;
 	u32 bootmode;
 	u32 boottype;
 };
-#endif
 
 static const u8 mt6360_vend_alert_clearall[MT6360_VEND_INT_MAX] = {
 	0x3F, 0xDF, 0xFF, 0xFF, 0xFF,
@@ -847,23 +848,24 @@ static void mt6360_wd_work(struct work_struct *work)
 						wd_work);
 
 	tcpci_lock_typec(chip->tcpc);
-
 	ret = mt6360_get_cc(chip->tcpc, &cc1, &cc2);
+	tcpci_unlock_typec(chip->tcpc);
 	if (ret < 0)
-		goto out;
+		return;
 
 	/* Only handle usbid event during toggling */
 	if (cc1 != TYPEC_CC_DRP_TOGGLING || cc2 != TYPEC_CC_DRP_TOGGLING)
-		goto out;
+		return;
 
+	mutex_lock(&chip->tcpc->wd_lock);
 	ret = tcpci_is_water_detected(chip->tcpc);
 	if (ret <= 0) {
 		mt6360_enable_usbid_polling(chip, true);
-		goto out;
+		mutex_unlock(&chip->tcpc->wd_lock);
+		return;
 	}
 	tcpc_typec_handle_wd(chip->tcpc, true);
-out:
-	tcpci_unlock_typec(chip->tcpc);
+	mutex_unlock(&chip->tcpc->wd_lock);
 }
 
 static irqreturn_t mt6360_pmu_usbid_evt_handler(int irq, void *data)
@@ -871,13 +873,17 @@ static irqreturn_t mt6360_pmu_usbid_evt_handler(int irq, void *data)
 	u32 work_flag;
 	struct mt6360_chip *chip = data;
 
+#ifdef CONFIG_PD_DBG_INFO
 	MT6360_INFO("%s\n", __func__);
+#else
+	pr_info("%s\n", __func__);
+#endif
 
 	work_flag = work_busy(&chip->wd_work);
 	if (work_flag & WORK_BUSY_PENDING || work_flag & WORK_BUSY_RUNNING)
 		return IRQ_HANDLED;
 
-	cancel_work_sync(&chip->wd_work);
+	INIT_WORK(&chip->wd_work, mt6360_wd_work);
 	schedule_work(&chip->wd_work);
 
 	return IRQ_HANDLED;
@@ -1291,7 +1297,11 @@ static int mt6360_set_cc(struct tcpc_device *tcpc, int pull)
 	struct mt6360_chip *chip = tcpc_get_dev_data(tcpc);
 #endif /* CONFIG_WD_SBU_POLLING */
 
+#ifdef CONFIG_PD_DBG_INFO
 	MT6360_INFO("%s %d\n", __func__, pull);
+#else
+	pr_info("%s %d\n", __func__, pull);
+#endif
 	pull = TYPEC_CC_PULL_GET_RES(pull);
 	if (pull == TYPEC_CC_DRP) {
 		data = TCPC_V10_REG_ROLE_CTRL_RES_SET(1, rp_lvl, TYPEC_CC_RD,
@@ -1428,6 +1438,8 @@ static int mt6360_set_low_power_mode(struct tcpc_device *tcpc, bool en,
 	int ret = 0;
 	u8 data = 0;
 
+	MT6360_INFO("%s: en[%d]\n", __func__, en);
+
 	ret = (en ? mt6360_i2c_clr_bit : mt6360_i2c_set_bit)
 		(tcpc, MT6360_REG_MODE_CTRL2, MT6360_AUTOIDLE_EN);
 	if (ret < 0)
@@ -1505,39 +1517,61 @@ static int mt6360_vsafe0v_irq_handler(struct tcpc_device *tcpc)
 #endif /* CONFIG_TCPC_VSAFE0V_DETECT_IC */
 
 #ifdef CONFIG_WATER_DETECTION
+static void mt6360_wd_irq_work(struct work_struct *work)
+{
+	int ret;
+	struct mt6360_chip *chip = container_of(work, struct mt6360_chip,
+						wd_work);
+
+	mutex_lock(&chip->tcpc->wd_lock);
+	ret = tcpci_is_water_detected(chip->tcpc);
+	if (ret < 0)
+		goto out;
+	if (ret)
+		goto retry;
+	if (atomic_dec_and_test(&chip->wd_protect_rty)) {
+		tcpc_typec_handle_wd(chip->tcpc, false);
+		atomic_set(&chip->wd_protect_rty,
+			   CONFIG_WD_PROTECT_RETRY_COUNT);
+		goto out;
+	}
+#ifdef CONFIG_PD_DBG_INFO
+	MT6360_INFO("%s rty %d\n",
+		    __func__, atomic_read(&chip->wd_protect_rty));
+#else
+	pr_info("%s rty %d\n",
+			__func__, atomic_read(&chip->wd_protect_rty));
+#endif
+retry:
+	/* retry */
+	tcpci_set_water_protection(chip->tcpc, false);
+	tcpci_set_water_protection(chip->tcpc, true);
+out:
+	mutex_unlock(&chip->tcpc->wd_lock);
+}
+
 static int mt6360_wd_irq_handler(struct tcpc_device *tcpc)
 {
 	int ret;
 	u8 status;
+	u32 work_flag;
 	struct mt6360_chip *chip = tcpc_get_dev_data(tcpc);
 
-	MT6360_INFO("%s\n", __func__);
+	pr_info("%s\n", __func__);
 
 	ret = mt6360_i2c_read8(tcpc, MT6360_REG_WD_DET_CTRL1, &status);
 	if (ret < 0)
 		return ret;
 
 	if (status & MT6360_WD_ALL_RUST_STS) {
-		MT6360_INFO("%s not to handle detecting water\n", __func__);
-		return 0;
+		pr_info("%s not to handle detecting water\n", __func__);
+	} else {
+		work_flag = work_busy(&chip->wd_work);
+		if (work_flag & WORK_BUSY_PENDING || work_flag & WORK_BUSY_RUNNING)
+			return 0;
+		INIT_WORK(&chip->wd_work, mt6360_wd_irq_work);
+		schedule_work(&chip->wd_work);
 	}
-	ret = tcpci_is_water_detected(tcpc);
-	if (ret < 0)
-		return ret;
-	if (ret)
-		goto retry;
-	if (atomic_dec_and_test(&chip->wd_protect_rty)) {
-		tcpc_typec_handle_wd(tcpc, false);
-		atomic_set(&chip->wd_protect_rty,
-			   CONFIG_WD_PROTECT_RETRY_COUNT);
-		return 0;
-	}
-	MT6360_INFO("%s rty %d\n",
-		    __func__, atomic_read(&chip->wd_protect_rty));
-retry:
-	/* retry */
-	tcpci_set_water_protection(tcpc, false);
-	tcpci_set_water_protection(tcpc, true);
 	return 0;
 }
 
@@ -1698,8 +1732,13 @@ static int mt6360_alert_vendor_defined_handler(struct tcpc_device *tcpc)
 	for (i = 0; i < MT6360_VEND_INT_MAX; i++) {
 		if (!alert[i])
 			continue;
+#ifdef CONFIG_PD_DBG_INFO
 		MT6360_INFO("Vend INT%d:0x%02X\n", i + 1, alert[i]);
 		MT6360_INFO("Mask INT%d:0x%02X\n", i + 1, mask[i]);
+#else
+		pr_info("Vend INT%d:0x%02X\n", i + 1, alert[i]);
+		pr_info("Mask INT%d:0x%02X\n", i + 1, mask[i]);
+#endif
 		alert[i] &= mask[i];
 	}
 
@@ -1793,6 +1832,13 @@ not_auddev:
 	return false;
 }
 
+static bool mt6360_is_in_water_detecting(struct tcpc_device *tcpc)
+{
+	struct mt6360_chip *chip = tcpc_get_dev_data(tcpc);
+
+	return chip->is_in_water_detecting;
+}
+
 static int mt6360_is_water_detected(struct tcpc_device *tcpc)
 {
 	int ret, usbid;
@@ -1803,6 +1849,7 @@ static int mt6360_is_water_detected(struct tcpc_device *tcpc)
 	enum tcpc_cable_type cable_type;
 #endif /* CONFIG_CABLE_TYPE_DETECTION */
 
+	chip->is_in_water_detecting = true;
 	__pm_stay_awake(chip->wd_wakeup_src);
 
 #ifdef CONFIG_WD_SBU_POLLING
@@ -1826,7 +1873,11 @@ static int mt6360_is_water_detected(struct tcpc_device *tcpc)
 	ret = charger_dev_enable_usbid_floating(chip->chgdev, true);
 	if (ret < 0)
 		dev_info(chip->dev, "%s enable usbid float fail\n", __func__);
+#ifdef CONFIG_PD_DBG_INFO
 	MT6360_INFO("%s pl usbid %dmV\n", __func__, usbid);
+#else
+	pr_info("%s pl usbid %dmV\n", __func__, usbid);
+#endif
 
 	/* Water detected, check again */
 	if (usbid > CONFIG_WD_SBU_PL_BOUND) {
@@ -1844,13 +1895,18 @@ static int mt6360_is_water_detected(struct tcpc_device *tcpc)
 		if (ret < 0)
 			dev_info(chip->dev, "%s enable usbid float fail\n",
 				 __func__);
+#ifdef CONFIG_PD_DBG_INFO
 		MT6360_INFO("%s recheck pl usbid %dmV\n", __func__, usbid);
+#else
+		pr_info("%s recheck pl usbid %dmV\n", __func__, usbid);
+#endif
 		if (usbid > CONFIG_WD_SBU_PL_BOUND) {
 			ret = 1;
 			goto out;
 		}
 	}
 
+	msleep(1000);
 	/* Pull high usb idpin */
 	ret = charger_dev_set_usbid_src_ton(chip->chgdev, 0);
 	if (ret < 0) {
@@ -1876,9 +1932,23 @@ static int mt6360_is_water_detected(struct tcpc_device *tcpc)
 		goto err;
 	}
 	ub = tcpc->usbid_calib * 110 / 100;
-	lb = CONFIG_WD_SBU_PH_LBOUND;
+	if (tcpc->bootmode == KERNEL_POWER_OFF_CHARGING_BOOT ||
+	    tcpc->bootmode == LOW_POWER_OFF_CHARGING_BOOT)
+		lb = CONFIG_WD_SBU_PH_LBOUND_ATTACH;
+#ifdef CONFIG_WD_INIT_POWER_OFF_CHARGE
+	else if (ktime_get_boot_ns() < 20000000000ULL)
+		lb = CONFIG_WD_SBU_PH_LBOUND_ATTACH;
+#endif /* CONFIG_WD_INIT_POWER_OFF_CHARGE */
+	else
+		lb = CONFIG_WD_SBU_PH_LBOUND;
+
+#ifdef CONFIG_PD_DBG_INFO
 	MT6360_INFO("%s lb %d, ub %d, ph usbid %dmV\n", __func__, lb, ub,
 		    usbid);
+#else
+	pr_info("%s lb %d, ub %d, ph usbid %dmV\n", __func__, lb, ub,
+			usbid);
+#endif
 
 	if (usbid >= lb && usbid <= ub) {
 		ret = 0;
@@ -1889,7 +1959,11 @@ static int mt6360_is_water_detected(struct tcpc_device *tcpc)
 	msleep(100); /* to avoid the same behavior of the other device */
 	ret = mt6360_get_usbid_adc(tcpc, &usbid);
 	if (ret >= 0) {
+#ifdef CONFIG_PD_DBG_INFO
 		MT6360_INFO("%s recheck usbid %dmV\n", __func__, usbid);
+#else
+		pr_info("%s recheck usbid %dmV\n", __func__, usbid);
+#endif
 		if (usbid >= lb && usbid <= ub) {
 			ret = 0;
 			goto out;
@@ -1904,11 +1978,29 @@ static int mt6360_is_water_detected(struct tcpc_device *tcpc)
 		if (ret >= 0 && (ctd_evt & MT6360_M_CTD))
 			ret = mt6360_get_cable_type(tcpc, &cable_type);
 	}
+
+	if (cable_type != TCPC_CABLE_TYPE_NONE) {
+		if (usbid >= CONFIG_WD_SBU_PH_LBOUND1_SS &&
+		    usbid <= CONFIG_WD_SBU_PH_UBOUND1_SS) {
+#ifdef CONFIG_PD_DBG_INFO
+			MT6360_INFO("%s ignore for SS accessory\n", __func__);
+#else
+			pr_info("%s ignore for SS accessory\n", __func__);
+#endif
+			ret = 0;
+			goto out;
+		}
+	}
+
 	if (cable_type == TCPC_CABLE_TYPE_C2C) {
 		if (((usbid >= CONFIG_WD_SBU_PH_LBOUND1_C2C) &&
 		    (usbid <= CONFIG_WD_SBU_PH_UBOUND1_C2C)) ||
 		    (usbid > CONFIG_WD_SBU_PH_UBOUND2_C2C)) {
+#ifdef CONFIG_PD_DBG_INFO
 			MT6360_INFO("%s ignore for C2C\n", __func__);
+#else
+			pr_info("%s ignore for C2C\n", __func__);
+#endif
 			ret = 0;
 			goto out;
 		}
@@ -1917,22 +2009,38 @@ static int mt6360_is_water_detected(struct tcpc_device *tcpc)
 
 	if (mt6360_is_audio_device(tcpc, usbid)) {
 		ret = 0;
+#ifdef CONFIG_PD_DBG_INFO
 		MT6360_INFO("%s audio dev but not water\n", __func__);
+#else
+		pr_info("%s audio dev but not water\n", __func__);
+#endif
 		goto out;
 	}
 	ret = 1;
 out:
+#ifdef CONFIG_PD_DBG_INFO
 	MT6360_INFO("%s %s water\n", __func__, ret ? "with" : "without");
+#else
+	pr_info("%s %s water\n", __func__, ret ? "with" : "without");
+#endif
+	tcpc->water_state = !!ret;
 err:
 	charger_dev_enable_usbid_floating(chip->chgdev, true);
 	charger_dev_enable_usbid(chip->chgdev, false);
 	__pm_relax(chip->wd_wakeup_src);
+	chip->is_in_water_detecting = false;
 	return ret;
 }
 
 static int mt6360_set_water_protection(struct tcpc_device *tcpc, bool en)
 {
 	int ret;
+
+#ifdef CONFIG_PD_DBG_INFO
+		MT6360_INFO("%s: en %d", __func__, en);
+#else
+		pr_info("%s: en %d", __func__, en);
+#endif
 
 	if (en)
 		mt6360_enable_auto_rpconnect(tcpc, false);
@@ -2139,7 +2247,7 @@ static int mt6360_transmit(struct tcpc_device *tcpc,
 			   const u32 *data)
 {
 	int ret, data_cnt, packet_cnt;
-	u8 temp[MT6360_TRANSMIT_MAX_SIZE];
+	u8 temp[MT6360_TRANSMIT_MAX_SIZE + 1];
 
 	if (type < TCPC_TX_HARD_RESET) {
 		data_cnt = sizeof(u32) * PD_HEADER_CNT(header);
@@ -2212,6 +2320,7 @@ static struct tcpc_ops mt6360_tcpc_ops = {
 #endif	/* CONFIG_USB_PD_RETRY_CRC_DISCARD */
 
 #ifdef CONFIG_WATER_DETECTION
+	.is_in_water_detecting = mt6360_is_in_water_detecting,
 	.is_water_detected = mt6360_is_water_detected,
 	.set_water_protection = mt6360_set_water_protection,
 	.set_usbid_polling = mt6360_set_usbid_polling,
@@ -2249,11 +2358,18 @@ static int mt6360_init_ctd(struct mt6360_chip *chip)
 static int mt6360_parse_dt(struct mt6360_chip *chip, struct device *dev,
 			   struct mt6360_tcpc_platform_data *pdata)
 {
-	struct device_node *np = dev->of_node;
+	struct device_node *np;
 	struct resource *res;
 	int res_cnt, ret;
 
 	pr_info("%s\n", __func__);
+
+	np = of_find_node_by_name(NULL, "type_c_port0");
+	if (np) {
+		dev->of_node = np;
+		dev_info(dev, "%s v1 version\n", __func__);
+	} else
+		np = dev->of_node;
 
 #if (!defined(CONFIG_MTK_GPIO) || defined(CONFIG_MTK_GPIOLIB_STAND))
 	ret = of_get_named_gpio(np, "mt6360pd,intr_gpio", 0);
@@ -2371,10 +2487,9 @@ static int mt6360_tcpcdev_init(struct mt6360_chip *chip, struct device *dev)
 {
 	struct tcpc_desc *desc;
 	struct device_node *np = dev->of_node;
-#ifdef CONFIG_WATER_DETECTION
 	struct device_node *boot_node = NULL;
 	struct tag_bootmode *tag = NULL;
-#endif
+
 	u32 val = -EINVAL, len;
 	const char *name = "default";
 
@@ -2466,7 +2581,6 @@ static int mt6360_tcpcdev_init(struct mt6360_chip *chip, struct device *dev)
 #endif /* CONFIG_MTK_TYPEC_WATER_DETECT_BY_PCB */
 	chip->tcpc->tcpc_flags |= TCPC_FLAGS_CABLE_TYPE_DETECTION;
 
-#ifdef CONFIG_WATER_DETECTION
 	boot_node = of_parse_phandle(np, "bootmode", 0);
 	if (!boot_node) {
 		dev_notice(chip->dev,
@@ -2483,7 +2597,6 @@ static int mt6360_tcpcdev_init(struct mt6360_chip *chip, struct device *dev)
 			chip->tcpc->bootmode = tag->bootmode;
 		}
 	}
-#endif
 
 	return 0;
 }
@@ -2570,6 +2683,9 @@ static int mt6360_i2c_probe(struct i2c_client *client,
 	chip->chip_id = chip_id;
 	chip->dev = &client->dev;
 	chip->client = client;
+#ifdef CONFIG_WATER_DETECTION
+	chip->is_in_water_detecting = false;
+#endif
 	sema_init(&chip->io_lock, 1);
 	sema_init(&chip->suspend_lock, 1);
 	i2c_set_clientdata(client, chip);
@@ -2590,7 +2706,6 @@ static int mt6360_i2c_probe(struct i2c_client *client,
 #ifdef CONFIG_WD_SBU_POLLING
 	mutex_init(&chip->usbid_irq_lock);
 	chip->usbid_irqen = true;
-	INIT_WORK(&chip->wd_work, mt6360_wd_work);
 #endif /* CONFIG_WD_SBU_POLLING */
 
 	dev_info(chip->dev, "%s chipID = 0x%0X\n", __func__, chip->chip_id);

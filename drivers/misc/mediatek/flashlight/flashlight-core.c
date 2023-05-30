@@ -26,10 +26,17 @@
 
 #include "flashlight-core.h"
 
+#if (defined(CONFIG_MACH_MT6877) \
+|| defined(CONFIG_MACH_MT6833) \
+|| defined(CONFIG_MACH_MT6781) \
+|| defined(CONFIG_MACH_MT6739))
+#include "mach/upmu_sw.h" /* PT */
+#else
 #ifdef CONFIG_MTK_FLASHLIGHT_PT
 #include "mtk_battery_oc_throttling.h"
 #include "mtk_low_battery_throttling.h"
 #include "mtk_battery_percentage_throttling.h"
+#endif
 #endif
 
 #ifdef CONFIG_MTK_FLASHLIGHT_DLPT
@@ -969,7 +976,8 @@ static int flashlight_release(struct inode *inode, struct file *file)
 
 		pr_debug("Release(%d,%d,%d)\n", fdev->dev_id.type,
 				fdev->dev_id.ct, fdev->dev_id.part);
-		fl_enable(fdev, 0);
+		if (fdev->enable != 0)
+			fl_enable(fdev, 0);
 		fdev->ops->flashlight_release();
 	}
 	mutex_unlock(&fl_mutex);
@@ -1733,7 +1741,8 @@ static int fl_uninit(void)
 		if (fdev->ops) {
 			fdev->ops->flashlight_open();
 			fdev->ops->flashlight_set_driver(1);
-			fl_enable(fdev, 0);
+			if (fdev->enable != 0)
+				fl_enable(fdev, 0);
 			fdev->ops->flashlight_set_driver(0);
 			fdev->ops->flashlight_release();
 		}

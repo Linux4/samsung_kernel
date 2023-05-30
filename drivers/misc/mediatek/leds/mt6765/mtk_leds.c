@@ -575,10 +575,12 @@ int mt_brightness_set_pmic_duty_store(u32 level, u32 div)
 int mt_mt65xx_led_set_cust(struct cust_mt65xx_led *cust, int level)
 {
 	struct nled_setting led_tmp_setting = { 0, 0, 0 };
-#ifdef CONFIG_HQ_PROJECT_OT8
-    /* modify code for OT8 */
-	//int tmp_level = level;
-#else
+
+#ifdef CONFIG_HQ_PROJECT_HS03S
+    /* modify code for O6 */
+	int tmp_level = level;
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
     /* modify code for O6 */
 	int tmp_level = level;
 #endif
@@ -603,7 +605,12 @@ int mt_mt65xx_led_set_cust(struct cust_mt65xx_led *cust, int level)
 #ifdef CONFIG_HQ_PROJECT_OT8
     				/* modify code for OT8 */
 					level = brightness_mapping(level);
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS03S
+    				/* modify code for O6 */
+					level = brightness_mapping(tmp_level);
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
     				/* modify code for O6 */
 					level = brightness_mapping(tmp_level);
 #endif
@@ -611,7 +618,12 @@ int mt_mt65xx_led_set_cust(struct cust_mt65xx_led *cust, int level)
 #ifdef CONFIG_HQ_PROJECT_OT8
     				/* modify code for OT8 */
 					level = brightness_mapto64(level);
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS03S
+    				/* modify code for O6 */
+					level = brightness_mapto64(tmp_level);
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
     				/* modify code for O6 */
 					level = brightness_mapto64(tmp_level);
 #endif

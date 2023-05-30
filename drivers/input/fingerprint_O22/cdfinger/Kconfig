@@ -1,0 +1,8 @@
+#
+# fp_sensor driver configuration
+#
+config CDFINGER_FP
+    tristate "cdfinger fingerPrint sensor"
+    default n
+    help
+        add for support cdfinger FP Sensor.

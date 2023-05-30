@@ -671,6 +671,7 @@
 #define PD_WAIT_RETRY_COUNT		1
 #define PD_DISCOVER_ID_COUNT	3	/* max : 20 */
 #define PD_DISCOVER_ID30_COUNT	2	/* max : 20 */
+#define PD_ERROR_RECOVERY_COUNT	2
 
 enum {
 	PD_WAIT_VBUS_DISABLE = 0,

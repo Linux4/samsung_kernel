@@ -138,6 +138,9 @@ static int mmc_decode_csd(struct mmc_card *card)
 			csd->erase_size = UNSTUFF_BITS(resp, 39, 7) + 1;
 			csd->erase_size <<= csd->write_blkbits - 9;
 		}
+
+		if (UNSTUFF_BITS(resp, 13, 1))
+			mmc_card_set_readonly(card);
 		break;
 	case 1:
 		/*
@@ -172,6 +175,9 @@ static int mmc_decode_csd(struct mmc_card *card)
 		csd->write_blkbits = 9;
 		csd->write_partial = 0;
 		csd->erase_size = 1;
+
+		if (UNSTUFF_BITS(resp, 13, 1))
+			mmc_card_set_readonly(card);
 		break;
 	default:
 		pr_err("%s: unrecognised CSD structure version %d\n",
@@ -785,8 +791,7 @@ try_again:
 			retries--;
 			goto try_again;
 		} else if (err) {
-			retries = 0;
-			goto try_again;
+			return err;
 		}
 	}
 
@@ -1163,8 +1168,12 @@ static int mmc_sd_suspend(struct mmc_host *host)
 
 	err = _mmc_sd_suspend(host);
 	if (!err) {
-		pm_runtime_disable(&host->card->dev);
-		pm_runtime_set_suspended(&host->card->dev);
+		/* hs14 code for AL6528A-453 by gaochao at 20221108 start */
+		if (host->card) {
+			pm_runtime_disable(&host->card->dev);
+			pm_runtime_set_suspended(&host->card->dev);
+		}
+		/* hs14 code for AL6528A-453 by gaochao at 20221108 end */
 	}
 
 	return err;

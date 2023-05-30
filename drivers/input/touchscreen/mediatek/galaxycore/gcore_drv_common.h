@@ -49,9 +49,9 @@
 /* platform  MTK:1  SPRD:2   QCOM:3                         */
 /* ic type  7371:1  7271:2  7202:3  7302:4  7372:5  7202H:6 */
 /*----------------------------------------------------------*/
-/*hs03s_NM code for SR-AL5625-01-640 by yuli at 20220428 start*/
-#define TOUCH_DRIVER_RELEASE_VERISON   ("1.3.3")
-/*hs03s_NM code for SR-AL5625-01-640 by yuli at 20220428 end*/
+/*hs03s_NM code for DEVAL5626-1008 by yuli at 20220815 start*/
+#define TOUCH_DRIVER_RELEASE_VERISON   ("1.3.5")
+/*hs03s_NM code for DEVAL5626-1008 by yuli at 20220815 end*/
 
 /*----------------------------------------------------------*/
 /* COMPILE OPTION DEFINITION                                */
@@ -375,6 +375,9 @@ struct gcore_dev {
 #endif
 
     u8 fw_ver[4];
+    /*hs03s_NM code for DEVAL5626-1008 by yuli at 20220815 start*/
+    u8 *fw_mem;
+    /*hs03s_NM code for DEVAL5626-1008 by yuli at 20220815 end*/
 
 };
 

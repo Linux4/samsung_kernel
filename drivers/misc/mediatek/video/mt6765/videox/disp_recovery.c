@@ -83,7 +83,7 @@ static unsigned int esd_check_enable;
 unsigned int esd_checking;
 static int te_irq;
 
-#ifdef HQ_PROJECT_OT8
+#if 0
 extern int tpd_driver_esd_suspend(void);
 extern int tpd_driver_esd_resume(void);
 #else
@@ -94,6 +94,22 @@ int tpd_driver_esd_resume(void);
 #endif
 
 #ifdef CONFIG_HQ_PROJECT_HS03S
+/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 start */
+extern enum tp_module_used tp_is_used;
+/* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 start */
+int gcore_tp_esd_fail = false;
+/* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 end */
+/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 end */
+#endif
+#ifdef CONFIG_HQ_PROJECT_O22
+/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 start */
+extern enum tp_module_used tp_is_used;
+/* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 start */
+int gcore_tp_esd_fail = false;
+/* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 end */
+/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 end */
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
 /* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 start */
 extern enum tp_module_used tp_is_used;
 /* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 start */
@@ -1021,6 +1037,12 @@ static int primary_display_check_recovery_worker_kthread(void *data)
 #ifdef CONFIG_HQ_PROJECT_HS03S
 	char *lcm_cmdline = saved_command_line;
 #endif
+#ifdef CONFIG_HQ_PROJECT_O22
+	char *lcm_cmdline = saved_command_line;
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+	char *lcm_cmdline = saved_command_line;
+#endif
 /* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 end */
 
 	DISPFUNC();
@@ -1031,8 +1053,6 @@ static int primary_display_check_recovery_worker_kthread(void *data)
 	/*TabA7 Lite code for SR-AX3565-01-72 by gaozhengwei at 20201217 start*/
 	msleep(6000);   /* wait lcm init finish, then do esd check */
 	/*TabA7 Lite code for SR-AX3565-01-72 by gaozhengwei at 20201217 end*/
-#else
-    /* modify code for O6 */
 #endif
 	while (1) {
 		msleep(2000); /* 2s */
@@ -1077,6 +1097,30 @@ static int primary_display_check_recovery_worker_kthread(void *data)
 			}
 			/* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 end */
 #endif
+#ifdef CONFIG_HQ_PROJECT_O22
+			/* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 start */
+			if (NULL != strstr(lcm_cmdline, "lcd_gc7202_ls_hsd_mipi_hdp_video")) {
+				DISPWARN("Esd check from Tp, gcore_tp_esd_fail = %d\n", gcore_tp_esd_fail);
+				if (gcore_tp_esd_fail == true) {
+					ret = 1;
+				} else {
+					ret = 0;
+				}
+			}
+			/* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 end */
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+			/* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 start */
+			if (NULL != strstr(lcm_cmdline, "lcd_gc7202_ls_hsd_mipi_hdp_video")) {
+				DISPWARN("Esd check from Tp, gcore_tp_esd_fail = %d\n", gcore_tp_esd_fail);
+				if (gcore_tp_esd_fail == true) {
+					ret = 1;
+				} else {
+					ret = 0;
+				}
+			}
+			/* hs03s_NM code added for DEVAL5626-839 by fengzhigang at 20220523 end */
+#endif
 			if (!ret) /* success */
 				break;
 #ifdef CONFIG_HQ_PROJECT_HS03S
@@ -1097,7 +1141,46 @@ static int primary_display_check_recovery_worker_kthread(void *data)
 				recovery_done = 1;
 			}
 			/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 end */
-#else
+#endif
+#ifdef CONFIG_HQ_PROJECT_O22
+			/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 start */
+			if (tp_is_used == JADARD_JD9365T) {
+				if (((i%2) == 0) && (i > 0)) {
+					DISPERR(
+						"[ESD]esd check fail, will do esd recovery. try=%d\n",
+						i);
+					primary_display_esd_recovery();
+					recovery_done = 1;
+				}
+			} else {
+				DISPERR(
+					"[ESD]esd check fail, will do esd recovery. try=%d\n",
+					i);
+				primary_display_esd_recovery();
+				recovery_done = 1;
+			}
+			/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 end */
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+			/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 start */
+			if (tp_is_used == JADARD_JD9365T) {
+				if (((i%2) == 0) && (i > 0)) {
+					DISPERR(
+						"[ESD]esd check fail, will do esd recovery. try=%d\n",
+						i);
+					primary_display_esd_recovery();
+					recovery_done = 1;
+				}
+			} else {
+				DISPERR(
+					"[ESD]esd check fail, will do esd recovery. try=%d\n",
+					i);
+				primary_display_esd_recovery();
+				recovery_done = 1;
+			}
+			/* HS03S code added for SR-AL5625-01-428 by gaozhengwei at 20210601 end */
+#endif
+#ifdef CONFIG_HQ_PROJECT_OT8
 				DISPERR(
 					"[ESD]esd check fail, will do esd recovery. try=%d\n",
 					i);
@@ -1189,14 +1272,22 @@ int primary_display_esd_recovery(void)
 	tpd_driver_esd_suspend();
 	/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 end */
 #endif
+#ifdef CONFIG_HQ_PROJECT_O22
+	/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 start */
+	tpd_driver_esd_suspend();
+	/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 end */
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
+	/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 start */
+	tpd_driver_esd_suspend();
+	/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 end */
+#endif
 	DISPDBG("[POWER]lcm suspend[begin]\n");
 	/*after dsi_stop, we should enable the dsi basic irq.*/
 	dsi_basic_irq_enable(DISP_MODULE_DSI0, NULL);
 #ifdef CONFIG_HQ_PROJECT_OT8
     /* modify code for OT8 */
 	tpd_driver_esd_suspend();
-#else
-    /* modify code for O6 */
 #endif
 	disp_lcm_suspend(primary_get_lcm());
 #ifdef CONFIG_HQ_PROJECT_OT8
@@ -1206,8 +1297,6 @@ int primary_display_esd_recovery(void)
 		if (pgc->plcm->drv->suspend_power)
 			pgc->plcm->drv->suspend_power();
 	/*TabA7 Lite code for OT8-2745 by gaozhengwei at 20210209 end*/
-#else
-    /* modify code for O6 */
 #endif
 	DISPCHECK("[POWER]lcm suspend[end]\n");
 
@@ -1216,9 +1305,27 @@ int primary_display_esd_recovery(void)
 	DISPDBG("[ESD]dsi power reset[begine]\n");
 	dpmgr_path_dsi_power_off(primary_get_dpmgr_handle(), NULL);
 	
-#ifdef CONFIG_HQ_PROJECT_OT8
-    /* modify code for OT8 */
-#else
+#ifdef CONFIG_HQ_PROJECT_HS03S
+    /* modify code for O6 */
+	/* A03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/21 start */
+	if (pgc->plcm->drv)
+		if (pgc->plcm->drv->suspend_power)
+			pgc->plcm->drv->suspend_power();
+
+	msleep(20); /* esd revovery : (AVDD power on - AVDD power off) > 20ms */
+	/* A03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/21 end */
+#endif
+#ifdef CONFIG_HQ_PROJECT_O22
+    /* modify code for O22 */
+	/* A03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/21 start */
+	if (pgc->plcm->drv)
+		if (pgc->plcm->drv->suspend_power)
+			pgc->plcm->drv->suspend_power();
+
+	msleep(20); /* esd revovery : (AVDD power on - AVDD power off) > 20ms */
+	/* A03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/21 end */
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
     /* modify code for O6 */
 	/* A03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/21 start */
 	if (pgc->plcm->drv)
@@ -1239,8 +1346,6 @@ int primary_display_esd_recovery(void)
 	/*TabA7 Lite code for SR-AX3565-01-45 by gaozhengwei at 20210104 start*/
 	msleep(20); /* esd revovery : (AVDD power on - AVDD power off) > 20ms */
 	/*TabA7 Lite code for SR-AX3565-01-45 by gaozhengwei at 20210104 end*/
-#else
-    /* modify code for O6 */
 #endif
 
 
@@ -1250,6 +1355,16 @@ int primary_display_esd_recovery(void)
 	DISPCHECK("[ESD]lcm recover[end]\n");
 
 #ifdef CONFIG_HQ_PROJECT_HS03S
+	/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 start */
+	tpd_driver_esd_resume();
+	/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 end */
+#endif
+#ifdef CONFIG_HQ_PROJECT_O22
+	/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 start */
+	tpd_driver_esd_resume();
+	/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 end */
+#endif
+#ifdef CONFIG_HQ_PROJECT_HS04
 	/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 start */
 	tpd_driver_esd_resume();
 	/* hs03s code for SR-AL5625-01-198 by gaozhengwei at 2021/04/25 end */

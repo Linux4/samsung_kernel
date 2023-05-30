@@ -2083,8 +2083,8 @@ unknown:
 					break;
 				interface = w_value & 0xFF;
 				if (interface >= MAX_CONFIG_INTERFACES ||
-				    !os_desc_cfg->interface[interface])
-					break;
+					!os_desc_cfg->interface[interface])
+						break;
 				buf[6] = w_index;
 				count = count_ext_prop(os_desc_cfg,
 					interface);
@@ -2501,11 +2501,17 @@ void composite_suspend(struct usb_gadget *gadget)
 {
 	struct usb_composite_dev	*cdev = get_gadget_data(gadget);
 	struct usb_function		*f;
+	/* hs14 code for P221231-00979 by gaozhengwei at 2023/01/04 start */
+	unsigned long			flags;
+	/* hs14 code for P221231-00979 by gaozhengwei at 2023/01/04 end */
 
 	/* REVISIT:  should we have config level
 	 * suspend/resume callbacks?
 	 */
 	DBG(cdev, "suspend\n");
+	/* hs14 code for P221231-00979 by gaozhengwei at 2023/01/04 start */
+	spin_lock_irqsave(&cdev->lock, flags);
+	/* hs14 code for P221231-00979 by gaozhengwei at 2023/01/04 end */
 	if (cdev->config) {
 		list_for_each_entry(f, &cdev->config->functions, list) {
 			if (f->suspend)
@@ -2516,6 +2522,9 @@ void composite_suspend(struct usb_gadget *gadget)
 		cdev->driver->suspend(cdev);
 
 	cdev->suspended = 1;
+	/* hs14 code for P221231-00979 by gaozhengwei at 2023/01/04 start */
+	spin_unlock_irqrestore(&cdev->lock, flags);
+	/* hs14 code for P221231-00979 by gaozhengwei at 2023/01/04 end */
 
 	usb_gadget_set_selfpowered(gadget);
 	usb_gadget_vbus_draw(gadget, 2);

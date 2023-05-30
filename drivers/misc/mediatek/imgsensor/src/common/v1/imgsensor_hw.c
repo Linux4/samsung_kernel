@@ -8,6 +8,7 @@
 #include <linux/atomic.h>
 #include <linux/delay.h>
 #include <linux/string.h>
+#include <linux/pinctrl/pinctrl.h>
 
 #include "kd_camera_typedef.h"
 #include "kd_camera_feature.h"
@@ -83,6 +84,7 @@ enum IMGSENSOR_RETURN imgsensor_hw_init(struct IMGSENSOR_HW *phw)
 	return IMGSENSOR_RETURN_SUCCESS;
 }
 
+/*hs14 code for AL6528A-277 add poweroff log by chenjun at 2022-10-15 start*/
 static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 	struct IMGSENSOR_HW             *phw,
 	enum   IMGSENSOR_SENSOR_IDX      sensor_idx,
@@ -141,7 +143,8 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 				    ppwr_info->pin,
 				    ppwr_info->pin_state_on);
 
-			mdelay(ppwr_info->pin_on_delay);
+			usleep_range(ppwr_info->pin_on_delay * 1000,
+			(ppwr_info->pin_on_delay + 2) * 1000);
 		}
 
 		ppwr_info++;
@@ -156,7 +159,14 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 			if (ppwr_info->pin != IMGSENSOR_HW_PIN_UNDEF) {
 				pdev =
 				    phw->pdev[psensor_pwr->id[ppwr_info->pin]];
-				mdelay(ppwr_info->pin_on_delay);
+				usleep_range(ppwr_info->pin_on_delay * 1000,
+				(ppwr_info->pin_on_delay + 2) * 1000);
+
+				pr_info("pr_info sensor_idx = %d, pin=%d, pin_state_off=%d, hw_id =%d\n",
+					sensor_idx,
+					ppwr_info->pin,
+					ppwr_info->pin_state_off,
+					psensor_pwr->id[ppwr_info->pin]);
 
 				if (pdev->set != NULL)
 					pdev->set(
@@ -170,9 +180,10 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 
 	/* wait for power stable */
 	if (pwr_status == IMGSENSOR_HW_POWER_STATUS_ON)
-		mdelay(5);
+		usleep_range(5000, 7000);
 	return IMGSENSOR_RETURN_SUCCESS;
 }
+/*hs14 code for AL6528A-277 add poweroff log by chenjun at 2022-10-15 end*/
 
 enum IMGSENSOR_RETURN imgsensor_hw_power(
 	struct IMGSENSOR_HW     *phw,
@@ -197,6 +208,21 @@ enum IMGSENSOR_RETURN imgsensor_hw_power(
 	!strstr(phw->enable_sensor_by_index[(uint32_t)sensor_idx], curr_sensor_name))
 		return IMGSENSOR_RETURN_ERROR;
 
+	mutex_lock(&psensor->inst.i2c_cfg.pinst->lock);
+	if (pwr_status && psensor->inst.i2c_cfg.pinst->pi2c_state_on) {
+		psensor->inst.i2c_cfg.pinst->refcnt++;
+		if (psensor->inst.i2c_cfg.pinst->refcnt == 1)
+			pinctrl_select_state(
+				psensor->inst.i2c_cfg.pinst->pi2c_pinctrl,
+				psensor->inst.i2c_cfg.pinst->pi2c_state_on);
+	} else if (!pwr_status && psensor->inst.i2c_cfg.pinst->pi2c_state_off) {
+		psensor->inst.i2c_cfg.pinst->refcnt--;
+		if (psensor->inst.i2c_cfg.pinst->refcnt == 0)
+			pinctrl_select_state(
+				psensor->inst.i2c_cfg.pinst->pi2c_pinctrl,
+				psensor->inst.i2c_cfg.pinst->pi2c_state_off);
+	}
+	mutex_unlock(&psensor->inst.i2c_cfg.pinst->lock);
 
 	ret = snprintf(str_index, sizeof(str_index), "%d", sensor_idx);
 	if (ret == 0) {

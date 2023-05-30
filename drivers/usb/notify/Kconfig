@@ -118,7 +118,7 @@ config USB_CCIC_NOTIFIER_USING_QC
 config USB_AUDIO_ENHANCED_DETECT_TIME
 	bool "USB audio enhanced detect time"
 	depends on USB_NOTIFY_LAYER
-	depends on !SEC_FACTORY
+	default y
 	help
 	 Added uevent for usb audio device(bundle)
 	 uevent includes path, card number, vid, pid

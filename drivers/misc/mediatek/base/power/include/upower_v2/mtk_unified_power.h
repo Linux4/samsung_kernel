@@ -1,11 +1,13 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2016 MediaTek Inc.
- */
+ * Copyright (c) 2019 MediaTek Inc.
+*/
+
 
 #ifndef MTK_UNIFIED_POWER_H
 #define MTK_UNIFIED_POWER_H
 
+#include <linux/sched/topology.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -23,8 +25,16 @@ extern "C" {
 #include "mtk_unified_power_mt6765.h"
 #endif
 
+#if defined(CONFIG_MACH_MT6739)
+#include "mtk_unified_power_mt6739.h"
+#endif
+
 #if defined(CONFIG_MACH_MT6761)
 #include "mtk_unified_power_mt6761.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6771)
+#include "mtk_unified_power_mt6771.h"
 #endif
 
 #if defined(CONFIG_MACH_MT3967)
@@ -34,6 +44,52 @@ extern "C" {
 #if defined(CONFIG_MACH_MT6779)
 #include "mtk_unified_power_mt6779.h"
 #endif
+
+#if defined(CONFIG_MACH_MT6781)
+#include "mtk_unified_power_mt6781.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6739)
+#include "mtk_unified_power_mt6739.h"
+#endif
+#if defined(CONFIG_MACH_MT6768)
+#include "mtk_unified_power_mt6768.h"
+#endif
+#if defined(CONFIG_MACH_MT6781)
+#include "mtk_unified_power_mt6781.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6785)
+#include "mtk_unified_power_mt6785.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6893)
+#include "mtk_unified_power_mt6893.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6873)
+#include "mtk_unified_power_mt6873.h"
+#endif
+#if defined(CONFIG_MACH_MT6853)
+#include "mtk_unified_power_mt6853.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6885)
+#if defined(CONFIG_MTK_SCHED_MULTI_GEARS)
+#include "mtk_unified_power_mt6893.h"
+#else
+#include "mtk_unified_power_mt6885.h"
+#endif
+#endif
+
+#if defined(CONFIG_MACH_MT6833)
+#include "mtk_unified_power_mt6833.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6877)
+#include "mtk_unified_power_mt6877.h"
+#endif
+
 
 #define UPOWER_TAG "[UPOWER]"
 

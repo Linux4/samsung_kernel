@@ -86,7 +86,11 @@ pabovXX_t abov_sar_ptr;
 /*TabA7 Lite code for SR-AX3565-01-14 by Hujincan at 20210111 start*/
 extern char *sar_name;
 /*TabA7 Lite code for SR-AX3565-01-14 by Hujincan at 20210111 end*/
-
+/*Tab A7 lite_T code for SR-AX3565A-01-166 by duxinqi at 2022/10/18 start*/
+static int g_anfr_flag = 1, g_irq_count = 1;
+static u16 ch0_diff = 0, ch1_diff = 0;
+u16 ch0_Previous_diff = 0, ch1_Previous_diff = 0;
+/*Tab A7 lite_T code for SR-AX3565A-01-166 by duxinqi at 2022/10/18 end*/
 /**
  * struct abov
  * Specialized struct containing input event data, platform data, and
@@ -401,7 +405,28 @@ static int initialize(pabovXX_t this)
     }
     return -ENOMEM;
 }
-
+/*Tab A7 lite_T code for SR-AX3565A-01-166 by duxinqi at 2022/10/18 start*/
+void logical_recovery(pabovXX_t this)
+{
+    u8 ch0_diff1, ch1_diff1, ch0_diff2, ch1_diff2;
+    if (g_anfr_flag == 1 ) {
+        read_register(this, 0x20, &ch0_diff1);
+        read_register(this, 0x21, &ch0_diff2);
+        read_register(this, 0x22, &ch1_diff1);
+        read_register(this, 0x23, &ch1_diff2);
+        ch0_diff = (ch0_diff1 << 8) + ch0_diff2;
+        ch1_diff = (ch1_diff1 << 8) + ch1_diff2;
+        if (g_irq_count == 1) {
+            ch0_Previous_diff = (ch0_diff1 << 8) + ch0_diff2;
+            ch1_Previous_diff = (ch1_diff1 << 8) + ch1_diff2;
+        }
+        LOG_ERR("abov_a ch0_diff = %x, ch1_diff = %x \n", ch0_diff, ch1_diff);
+        LOG_ERR("abov_a ch0_Previous_diff = %x, ch1_Previous_diff = %x \n", ch0_Previous_diff, ch1_Previous_diff);
+        if ((ch0_diff != ch0_Previous_diff) || (ch1_diff != ch1_Previous_diff) || (g_irq_count >= 12)) {
+            g_anfr_flag = 0;
+        }
+    }
+}
 /**
  * brief Handle what to do when a touch occurs
  * param this Pointer to main parent struct
@@ -422,6 +447,8 @@ static void touchProcess(pabovXX_t this)
     board = this->board;
     if (this && pDevice) {
         LOG_INFO("Inside touchProcess()\n");
+        logical_recovery(this);
+        LOG_ERR("abov_a g_irq_count = %d g_anfr_flag = %d \n", g_irq_count, g_anfr_flag);
         read_register(this, ABOV_IRQSTAT_LEVEL_REG, &i);
 
         buttons = pDevice->pbuttonInformation->buttons;
@@ -442,157 +469,164 @@ static void touchProcess(pabovXX_t this)
         }
 #endif
 
-        for (counter = 0; counter < numberOfButtons; counter++) {
-            pCurrentButton = &buttons[counter];
-            if (pCurrentButton == NULL) {
-                LOG_DBG("ERR!current button index: %d NULL!\n",
-                        counter);
-                return; /* ERRORR!!!! */
+        if (g_anfr_flag == 1) {
+            input_report_rel(input_top_sar, REL_MISC, 1);
+            input_report_rel(input_bottom_sar, REL_MISC, 1);
+            input_sync(input_top_sar);
+            input_sync(input_bottom_sar);
+        } else {
+            for (counter = 0; counter < numberOfButtons; counter++) {
+                pCurrentButton = &buttons[counter];
+                if (pCurrentButton == NULL) {
+                    LOG_DBG("ERR!current button index: %d NULL!\n",
+                            counter);
+                    return; /* ERRORR!!!! */
+                }
+                switch (pCurrentButton->state) {
+                case IDLE: /* Button is being in far state! */
+                    if ((i & pCurrentButton->mask) == pCurrentButton->mask) {
+                        LOG_INFO("CH%d State=BODY.\n", counter);
+                        if (board->cap_channel_bottom == counter && this->channel_status & 0x01) {
+                            #ifdef HQ_FACTORY_BUILD
+                            input_report_key(input_bottom_sar, KEY_SAR2_CLOSE, 1);
+                            input_report_key(input_bottom_sar, KEY_SAR2_CLOSE, 0);
+                            #else
+                            input_report_rel(input_bottom_sar, REL_MISC, 1);
+                            #endif
+                            input_sync(input_bottom_sar);
+                        } else if (board->cap_channel_top == counter && this->channel_status & 0x02) {
+                            #ifdef HQ_FACTORY_BUILD
+                            input_report_key(input_top_sar, KEY_SAR_CLOSE, 1);
+                            input_report_key(input_top_sar, KEY_SAR_CLOSE, 0);
+                            #else
+                            input_report_rel(input_top_sar, REL_MISC, 1);
+                            #endif
+                            input_sync(input_top_sar);
+                        }
+                        pCurrentButton->state = S_BODY;
+                    } else if ((i & pCurrentButton->mask) == (pCurrentButton->mask & 0x05)) {
+                        LOG_INFO("CH%d State=PROX.\n", counter);
+                        if (board->cap_channel_bottom == counter && this->channel_status & 0x01) {
+                            #ifdef HQ_FACTORY_BUILD
+                            input_report_key(input_bottom_sar, KEY_SAR2_CLOSE, 1);
+                            input_report_key(input_bottom_sar, KEY_SAR2_CLOSE, 0);
+                            #else
+                            input_report_rel(input_bottom_sar, REL_MISC, 1);
+                            #endif
+                            input_sync(input_bottom_sar);
+                        } else if (board->cap_channel_top == counter && this->channel_status & 0x02) {
+                            #ifdef HQ_FACTORY_BUILD
+                            input_report_key(input_top_sar, KEY_SAR_CLOSE, 1);
+                            input_report_key(input_top_sar, KEY_SAR_CLOSE, 0);
+                            #else
+                            input_report_rel(input_top_sar, REL_MISC, 1);
+                            #endif
+                            input_sync(input_top_sar);
+                        }
+                        pCurrentButton->state = S_PROX;
+                    } else {
+                        LOG_INFO("CH%d still in IDLE State.\n", counter);
+                    }
+                    break;
+                case S_PROX: /* Button is being in proximity! */
+                    if ((i & pCurrentButton->mask) == pCurrentButton->mask) {
+                        LOG_INFO("CH%d State=BODY.\n", counter);
+                        if (board->cap_channel_bottom == counter && this->channel_status & 0x01) {
+                            #ifdef HQ_FACTORY_BUILD
+                            input_report_key(input_bottom_sar, KEY_SAR2_CLOSE, 1);
+                            input_report_key(input_bottom_sar, KEY_SAR2_CLOSE, 0);
+                            #else
+                            input_report_rel(input_bottom_sar, REL_MISC, 1);
+                            #endif
+                            input_sync(input_bottom_sar);
+                        } else if (board->cap_channel_top == counter && this->channel_status & 0x02) {
+                            #ifdef HQ_FACTORY_BUILD
+                            input_report_key(input_top_sar, KEY_SAR_CLOSE, 1);
+                            input_report_key(input_top_sar, KEY_SAR_CLOSE, 0);
+                            #else
+                            input_report_rel(input_top_sar, REL_MISC, 1);
+                            #endif
+                            input_sync(input_top_sar);
+                        }
+                        pCurrentButton->state = S_BODY;
+                    } else if ((i & pCurrentButton->mask) == (pCurrentButton->mask & 0x05)) {
+                        LOG_INFO("CH%d still in PROX State.\n", counter);
+                    } else{
+                        LOG_INFO("CH%d State=IDLE.\n", counter);
+                        if (board->cap_channel_bottom == counter && this->channel_status & 0x01) {
+                            #ifdef HQ_FACTORY_BUILD
+                            input_report_key(input_bottom_sar, KEY_SAR2_FAR, 1);
+                            input_report_key(input_bottom_sar, KEY_SAR2_FAR, 0);
+                            #else
+                            input_report_rel(input_bottom_sar, REL_MISC, 2);
+                            #endif
+                            input_sync(input_bottom_sar);
+                        } else if (board->cap_channel_top == counter && this->channel_status & 0x02) {
+                            #ifdef HQ_FACTORY_BUILD
+                            input_report_key(input_top_sar, KEY_SAR_FAR, 1);
+                            input_report_key(input_top_sar, KEY_SAR_FAR, 0);
+                            #else
+                            input_report_rel(input_top_sar, REL_MISC, 2);
+                            #endif
+                            input_sync(input_top_sar);
+                        }
+                        pCurrentButton->state = IDLE;
+                    }
+                    break;
+                case S_BODY: /* Button is being in 0mm! */
+                    if ((i & pCurrentButton->mask) == pCurrentButton->mask) {
+                        LOG_INFO("CH%d still in BODY State.\n", counter);
+                    } else if ((i & pCurrentButton->mask) == (pCurrentButton->mask & 0x05)) {
+                        LOG_INFO("CH%d State=PROX.\n", counter);
+                        if (board->cap_channel_bottom == counter && this->channel_status & 0x01) {
+                            #ifdef HQ_FACTORY_BUILD
+                            input_report_key(input_bottom_sar, KEY_SAR2_CLOSE, 1);
+                            input_report_key(input_bottom_sar, KEY_SAR2_CLOSE, 0);
+                            #else
+                            input_report_rel(input_bottom_sar, REL_MISC, 1);
+                            #endif
+                            input_sync(input_bottom_sar);
+                        } else if (board->cap_channel_top == counter && this->channel_status & 0x02) {
+                            #ifdef HQ_FACTORY_BUILD
+                            input_report_key(input_top_sar, KEY_SAR_CLOSE, 1);
+                            input_report_key(input_top_sar, KEY_SAR_CLOSE, 0);
+                            #else
+                            input_report_rel(input_top_sar, REL_MISC, 1);
+                            #endif
+                            input_sync(input_top_sar);
+                        }
+                        pCurrentButton->state = S_PROX;
+                    } else{
+                        LOG_INFO("CH%d State=IDLE.\n", counter);
+                        if (board->cap_channel_bottom == counter && this->channel_status & 0x01) {
+                            #ifdef HQ_FACTORY_BUILD
+                            input_report_key(input_bottom_sar, KEY_SAR2_FAR, 1);
+                            input_report_key(input_bottom_sar, KEY_SAR2_FAR, 0);
+                            #else
+                            input_report_rel(input_bottom_sar, REL_MISC, 2);
+                            #endif
+                            input_sync(input_bottom_sar);
+                        } else if (board->cap_channel_top == counter && this->channel_status & 0x02) {
+                            #ifdef HQ_FACTORY_BUILD
+                            input_report_key(input_top_sar, KEY_SAR_FAR, 1);
+                            input_report_key(input_top_sar, KEY_SAR_FAR, 0);
+                            #else
+                            input_report_rel(input_top_sar, REL_MISC, 2);
+                            #endif
+                            input_sync(input_top_sar);
+                        }
+                        pCurrentButton->state = IDLE;
+                    }
+                    break;
+                default: /* Shouldn't be here, device only allowed ACTIVE or IDLE */
+                    break;
+                };
             }
-            switch (pCurrentButton->state) {
-            case IDLE: /* Button is being in far state! */
-                if ((i & pCurrentButton->mask) == pCurrentButton->mask) {
-                    LOG_INFO("CH%d State=BODY.\n", counter);
-                    if (board->cap_channel_bottom == counter) {
-                        #ifdef HQ_FACTORY_BUILD
-                        input_report_key(input_bottom_sar, KEY_SAR2_CLOSE, 1);
-                        input_report_key(input_bottom_sar, KEY_SAR2_CLOSE, 0);
-                        #else
-                        input_report_rel(input_bottom_sar, REL_MISC, 1);
-                        #endif
-                        input_sync(input_bottom_sar);
-                    } else if (board->cap_channel_top == counter) {
-                        #ifdef HQ_FACTORY_BUILD
-                        input_report_key(input_top_sar, KEY_SAR_CLOSE, 1);
-                        input_report_key(input_top_sar, KEY_SAR_CLOSE, 0);
-                        #else
-                        input_report_rel(input_top_sar, REL_MISC, 1);
-                        #endif
-                        input_sync(input_top_sar);
-                    }
-                    pCurrentButton->state = S_BODY;
-                } else if ((i & pCurrentButton->mask) == (pCurrentButton->mask & 0x05)) {
-                    LOG_INFO("CH%d State=PROX.\n", counter);
-                    if (board->cap_channel_bottom == counter) {
-                        #ifdef HQ_FACTORY_BUILD
-                        input_report_key(input_bottom_sar, KEY_SAR2_CLOSE, 1);
-                        input_report_key(input_bottom_sar, KEY_SAR2_CLOSE, 0);
-                        #else
-                        input_report_rel(input_bottom_sar, REL_MISC, 1);
-                        #endif
-                        input_sync(input_bottom_sar);
-                    } else if (board->cap_channel_top == counter) {
-                        #ifdef HQ_FACTORY_BUILD
-                        input_report_key(input_top_sar, KEY_SAR_CLOSE, 1);
-                        input_report_key(input_top_sar, KEY_SAR_CLOSE, 0);
-                        #else
-                        input_report_rel(input_top_sar, REL_MISC, 1);
-                        #endif
-                        input_sync(input_top_sar);
-                    }
-                    pCurrentButton->state = S_PROX;
-                } else {
-                    LOG_INFO("CH%d still in IDLE State.\n", counter);
-                }
-                break;
-            case S_PROX: /* Button is being in proximity! */
-                if ((i & pCurrentButton->mask) == pCurrentButton->mask) {
-                    LOG_INFO("CH%d State=BODY.\n", counter);
-                    if (board->cap_channel_bottom == counter) {
-                        #ifdef HQ_FACTORY_BUILD
-                        input_report_key(input_bottom_sar, KEY_SAR2_CLOSE, 1);
-                        input_report_key(input_bottom_sar, KEY_SAR2_CLOSE, 0);
-                        #else
-                        input_report_rel(input_bottom_sar, REL_MISC, 1);
-                        #endif
-                        input_sync(input_bottom_sar);
-                    } else if (board->cap_channel_top == counter) {
-                        #ifdef HQ_FACTORY_BUILD
-                        input_report_key(input_top_sar, KEY_SAR_CLOSE, 1);
-                        input_report_key(input_top_sar, KEY_SAR_CLOSE, 0);
-                        #else
-                        input_report_rel(input_top_sar, REL_MISC, 1);
-                        #endif
-                        input_sync(input_top_sar);
-                    }
-                    pCurrentButton->state = S_BODY;
-                } else if ((i & pCurrentButton->mask) == (pCurrentButton->mask & 0x05)) {
-                    LOG_INFO("CH%d still in PROX State.\n", counter);
-                } else{
-                    LOG_INFO("CH%d State=IDLE.\n", counter);
-                    if (board->cap_channel_bottom == counter) {
-                        #ifdef HQ_FACTORY_BUILD
-                        input_report_key(input_bottom_sar, KEY_SAR2_FAR, 1);
-                        input_report_key(input_bottom_sar, KEY_SAR2_FAR, 0);
-                        #else
-                        input_report_rel(input_bottom_sar, REL_MISC, 2);
-                        #endif
-                        input_sync(input_bottom_sar);
-                    } else if (board->cap_channel_top == counter) {
-                        #ifdef HQ_FACTORY_BUILD
-                        input_report_key(input_top_sar, KEY_SAR_FAR, 1);
-                        input_report_key(input_top_sar, KEY_SAR_FAR, 0);
-                        #else
-                        input_report_rel(input_top_sar, REL_MISC, 2);
-                        #endif
-                        input_sync(input_top_sar);
-                    }
-                    pCurrentButton->state = IDLE;
-                }
-                break;
-            case S_BODY: /* Button is being in 0mm! */
-                if ((i & pCurrentButton->mask) == pCurrentButton->mask) {
-                    LOG_INFO("CH%d still in BODY State.\n", counter);
-                } else if ((i & pCurrentButton->mask) == (pCurrentButton->mask & 0x05)) {
-                    LOG_INFO("CH%d State=PROX.\n", counter);
-                    if (board->cap_channel_bottom == counter) {
-                        #ifdef HQ_FACTORY_BUILD
-                        input_report_key(input_bottom_sar, KEY_SAR2_CLOSE, 1);
-                        input_report_key(input_bottom_sar, KEY_SAR2_CLOSE, 0);
-                        #else
-                        input_report_rel(input_bottom_sar, REL_MISC, 1);
-                        #endif
-                        input_sync(input_bottom_sar);
-                    } else if (board->cap_channel_top == counter) {
-                        #ifdef HQ_FACTORY_BUILD
-                        input_report_key(input_top_sar, KEY_SAR_CLOSE, 1);
-                        input_report_key(input_top_sar, KEY_SAR_CLOSE, 0);
-                        #else
-                        input_report_rel(input_top_sar, REL_MISC, 1);
-                        #endif
-                        input_sync(input_top_sar);
-                    }
-                    pCurrentButton->state = S_PROX;
-                } else{
-                    LOG_INFO("CH%d State=IDLE.\n", counter);
-                    if (board->cap_channel_bottom == counter) {
-                        #ifdef HQ_FACTORY_BUILD
-                        input_report_key(input_bottom_sar, KEY_SAR2_FAR, 1);
-                        input_report_key(input_bottom_sar, KEY_SAR2_FAR, 0);
-                        #else
-                        input_report_rel(input_bottom_sar, REL_MISC, 2);
-                        #endif
-                        input_sync(input_bottom_sar);
-                    } else if (board->cap_channel_top == counter) {
-                        #ifdef HQ_FACTORY_BUILD
-                        input_report_key(input_top_sar, KEY_SAR_FAR, 1);
-                        input_report_key(input_top_sar, KEY_SAR_FAR, 0);
-                        #else
-                        input_report_rel(input_top_sar, REL_MISC, 2);
-                        #endif
-                        input_sync(input_top_sar);
-                    }
-                    pCurrentButton->state = IDLE;
-                }
-                break;
-            default: /* Shouldn't be here, device only allowed ACTIVE or IDLE */
-                break;
-            };
         }
         LOG_INFO("Leaving touchProcess()\n");
     }
 }
-
+/*Tab A7 lite_T code for SR-AX3565A-01-166 by duxinqi at 2022/10/18 end*/
 static int abov_get_nirq_state(unsigned irq_gpio)
 {
     if (irq_gpio) {
@@ -683,7 +717,7 @@ static ssize_t enable_show(struct class *class,
 {
     return snprintf(buf, 8, "%d\n", mEnabled);
 }
-
+/*Tab A7 lite_T code for SR-AX3565A-01-166 by duxinqi at 2022/10/18 start*/
 static ssize_t enable_store(struct class *class,
         struct class_attribute *attr,
         const char *buf, size_t count)
@@ -704,14 +738,13 @@ static ssize_t enable_store(struct class *class,
         LOG_DBG("enable cap sensor\n");
 /* TabA7 Lite code for OT8S-2 by chenyuqi at 20220218 start */
 #ifdef CONFIG_HQ_PROJECT_HS03S
-        enable_irq_wake(this->irq);
+        enable_irq(this->irq);
         write_register(this, ABOV_CTRL_MODE_REG, 0x00);//activity mode
         this->statusFunc[0](this);
         mEnabled = 1;
     } else if (!strncmp(buf, "0", 1)) {
         LOG_DBG("disable cap sensor\n");
         disable_irq(this->irq);
-        disable_irq_wake(this->irq);//Ensure irq will not wake up AP
 #else
         enable_irq(this->irq);
         write_register(this, ABOV_CTRL_MODE_REG, 0x00);
@@ -741,7 +774,7 @@ static ssize_t enable_store(struct class *class,
 
     return count;
 }
-
+/*Tab A7 lite_T code for SR-AX3565A-01-166 by duxinqi at 2022/10/18 end*/
 static CLASS_ATTR_RW(enable);
 
 static ssize_t reg_show(struct class *class,
@@ -1724,7 +1757,7 @@ static int abov_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
     msleep(100);
 
-    /* detect if abov exist or not */
+ /* detect if abov exist or not */
     ret = abov_detect(client);
     if (ret == 0) {
         ret = -ENODEV;
@@ -1939,7 +1972,9 @@ static int abov_probe(struct i2c_client *client, const struct i2c_device_id *id)
         INIT_WORK(&this->fw_update_work, capsense_update_work);
     }
     schedule_work(&this->fw_update_work);
-
+    /*Tab A7 lite_T code for SR-AX3565A-01-166 by duxinqi at 2022/10/18 start*/
+    g_anfr_flag = 1;
+    /*Tab A7 lite_T code for SR-AX3565A-01-166 by duxinqi at 2022/10/18 end*/
     LOG_INFO("abov_probe end()\n");
     return 0;
 
@@ -1970,7 +2005,7 @@ exit_alloc_dev:
 exit_alloc_mem:
 exit_no_detect_device:
     kfree(pplatData);
-    return ret;
+    return ret;    
 }
 
 /**
@@ -1997,10 +2032,7 @@ static int abov_remove(struct i2c_client *client)
     }
     return abovXX_sar_remove(this);
 }
-/* TabA7 Lite code for OT8S-2 by chenyuqi at 20220218 start */
-#ifdef CONFIG_HQ_PROJECT_HS03S
-/*TabA7 Lite code for OT8-2395 by Hujincan at 20210129 start*/
-/* hs03s code for DEVAL5625-2136 by xiongxiaoliang at 2021/07/29 start */
+
 static int abov_suspend(struct device *dev)
 {
     pabovXX_t this = dev_get_drvdata(dev);
@@ -2015,7 +2047,7 @@ static int abov_suspend(struct device *dev)
     }
     return 0;
 }
-/* hs03s code for DEVAL5625-2136 by xiongxiaoliang at 2021/07/29 end */
+
 static int abov_resume(struct device *dev)
 {
     pabovXX_t this = dev_get_drvdata(dev);
@@ -2027,39 +2059,7 @@ static int abov_resume(struct device *dev)
     }
     return 0;
 }
-/*TabA7 Lite code for OT8-2395 by Hujincan at 20210129 end*/
-#else
-/*TabA7 Lite code for OT8-2395 by Hujincan at 20210129 start*/
-static int abov_suspend(struct device *dev)
-{
-    pabovXX_t this = dev_get_drvdata(dev);
-    if (this){
-        LOG_INFO("ABOV suspend: disable irq!\n");
-        disable_irq(this->irq);
-        if (mEnabled){
-            write_register(this, ABOV_CTRL_MODE_REG, 0x01);//sleep mode 30ms check
-        }
-        else{
-            write_register(this, ABOV_CTRL_MODE_REG, 0x02);//stop mode
-        }
-    }
-    return 0;
-}
-static int abov_resume(struct device *dev)
-{
-    pabovXX_t this = dev_get_drvdata(dev);
-    if (this){
-        LOG_INFO("ABOV resume: enable irq!\n");
-        if (mEnabled){
-            write_register(this, ABOV_CTRL_MODE_REG, 0x00);//activity mode
-        }
-        enable_irq(this->irq);
-    }
-    return 0;
-}
-/*TabA7 Lite code for OT8-2395 by Hujincan at 20210129 end*/
-#endif
-/* TabA7 Lite code for OT8S-2 by chenyuqi at 20220218 endif */
+
 static const struct dev_pm_ops abov_pm_ops = {
     .suspend = abov_suspend,
     .resume = abov_resume,
@@ -2148,6 +2148,7 @@ static void abovXX_worker_func(struct work_struct *work)
         LOG_INFO("abovXX_worker_func, NULL work_struct\n");
     }
 }
+/*Tab A7 lite_T code for SR-AX3565A-01-166 by duxinqi at 2022/10/18 start*/
 static irqreturn_t abovXX_interrupt_thread(int irq, void *data)
 {
     pabovXX_t this = 0;
@@ -2156,12 +2157,18 @@ static irqreturn_t abovXX_interrupt_thread(int irq, void *data)
     mutex_lock(&this->mutex);
     LOG_INFO("abovXX_irq\n");
     if ((!this->get_nirq_low) || this->get_nirq_low(this->board->irq_gpio))
+    {
         abovXX_process_interrupt(this, 1);
+        if (g_anfr_flag == 1) {
+            g_irq_count++;
+        }
+    }
     else
         LOG_DBG("abovXX_irq - nirq read high\n");
     mutex_unlock(&this->mutex);
     return IRQ_HANDLED;
 }
+/*Tab A7 lite_T code for SR-AX3565A-01-166 by duxinqi at 2022/10/18 start*/
 #else
 static void abovXX_schedule_work(pabovXX_t this, unsigned long delay)
 {

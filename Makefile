@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 VERSION = 4
 PATCHLEVEL = 19
-SUBLEVEL = 188
+SUBLEVEL = 191
 EXTRAVERSION =
 NAME = "People's Front"
 
@@ -965,7 +965,7 @@ include scripts/Makefile.ubsan
 # last assignments
 KBUILD_CPPFLAGS += $(ARCH_CPPFLAGS) $(KCPPFLAGS)
 KBUILD_AFLAGS   += $(ARCH_AFLAGS)   $(KAFLAGS)
-KBUILD_CFLAGS   += $(ARCH_CFLAGS)   $(KCFLAGS) -Werror
+KBUILD_CFLAGS   += $(ARCH_CFLAGS)   $(KCFLAGS)
 
 ifeq ($(HQ_D85_BUILD),true)
 KBUILD_CPPFLAGS += -DHQ_D85_BUILD
@@ -981,6 +981,12 @@ ifeq ($(HQ_FACTORY_BUILD),true)
 KBUILD_CPPFLAGS += -DHQ_FACTORY_BUILD
 KBUILD_CFLAGS   += -DHQ_FACTORY_BUILD
 endif
+#hs14 code for SR-AL6528A-01-111 by  TangYuhang at 20221110 start
+ifeq ($(HUAQIN_BUILD),true)
+KBUILD_CPPFLAGS += -DHUAQIN_BUILD
+KBUILD_CFLAGS   += -DHUAQIN_BUILD
+endif
+#hs14 code for SR-AL6528A-01-111 by  TangYuhang at 20221110 end
 # Use --build-id when available.
 LDFLAGS_BUILD_ID := $(call ld-option, --build-id)
 KBUILD_LDFLAGS_MODULE += $(LDFLAGS_BUILD_ID)

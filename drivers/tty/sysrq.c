@@ -51,6 +51,10 @@
 #include <linux/of.h>
 #include <linux/rcupdate.h>
 
+#ifdef CONFIG_MTK_ION
+#include "mtk/ion_drv.h"
+#endif
+
 #include <asm/ptrace.h>
 #include <asm/irq_regs.h>
 
@@ -293,6 +297,9 @@ static void sysrq_handle_showstate_blocked(int key)
 	show_state_filter(TASK_UNINTERRUPTIBLE);
 	show_mem(0, NULL);
 	dump_tasks(NULL, NULL);
+#ifdef CONFIG_MTK_ION
+	ion_mm_heap_memory_detail();
+#endif
 }
 static struct sysrq_key_op sysrq_showstate_blocked_op = {
 	.handler	= sysrq_handle_showstate_blocked,
@@ -322,8 +329,13 @@ static void sysrq_handle_showmem(int key)
 {
 	static DEFINE_RATELIMIT_STATE(showmem_rs, DEFAULT_RATELIMIT_INTERVAL, 1);
 	show_mem(0, NULL);
-	if (__ratelimit(&showmem_rs))
+	if (__ratelimit(&showmem_rs)) {
 		dump_tasks(NULL, NULL);
+#ifdef CONFIG_MTK_ION
+		ion_mm_heap_memory_detail();
+#endif
+
+	}
 }
 static struct sysrq_key_op sysrq_showmem_op = {
 	.handler	= sysrq_handle_showmem,
