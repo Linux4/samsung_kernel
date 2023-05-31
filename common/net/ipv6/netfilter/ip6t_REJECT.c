@@ -181,7 +181,7 @@ send_unreach(struct net *net, struct sk_buff *skb_in, unsigned char code,
 
 	icmpv6_send(skb_in, ICMPV6_DEST_UNREACH, code, 0);
 #ifdef CONFIG_IP6_NF_TARGET_REJECT_SKERR
-	if (skb_in->sk) {
+	if (skb_in->sk && skb_in->sk->sk_state!=TCP_TIME_WAIT) {
 		icmpv6_err_convert(ICMPV6_DEST_UNREACH, code,
 				   &skb_in->sk->sk_err);
 		skb_in->sk->sk_error_report(skb_in->sk);

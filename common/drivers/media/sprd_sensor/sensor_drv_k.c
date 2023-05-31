@@ -25,7 +25,7 @@
 #include <mach/dma.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
-
+#include <linux/wakelock.h>
 #include <linux/delay.h>
 #include <linux/i2c.h>
 #include <linux/gpio.h>
@@ -238,6 +238,7 @@ struct sensor_module {
 	struct regulator                *cammot_regulator;
 	struct i2c_driver               sensor_i2c_driver;
 	struct sensor_mem_tag           sensor_mem;
+	struct wake_lock                wakelock;
 };
 
 LOCAL const SN_MCLK                     c_sensor_mclk_tab[SENSOR_MCLK_SRC_NUM] = {
@@ -1672,6 +1673,7 @@ LOCAL int _sensor_csi2_error(uint32_t err_id, uint32_t err_status, void* u_data)
 int sensor_k_open(struct inode *node, struct file *file)
 {
 	int	ret = 0;
+	wake_lock(&s_p_sensor_mod->wakelock);
 	ret = _sensor_is_clk_mm_i_eb(1);
 	return ret;
 }
@@ -1686,6 +1688,7 @@ int sensor_k_release(struct inode *node, struct file *file)
 	_sensor_k_set_voltage_iovdd(SENSOR_AVDD_CLOSED);
 	_sensor_k_set_mclk(0);
 	ret = _sensor_is_clk_mm_i_eb(0);
+	wake_unlock(&s_p_sensor_mod->wakelock);
 	return ret;
 }
 #else
@@ -1698,6 +1701,7 @@ int sensor_k_release(struct inode *node, struct file *file)
 	_sensor_k_set_voltage_iovdd(SENSOR_VDD_CLOSED);
 	_sensor_k_set_mclk(0);
 	ret = _sensor_is_clk_mm_i_eb(0);
+	wake_unlock(&s_p_sensor_mod->wakelock);
 	return ret;
 }
 #endif
@@ -2453,6 +2457,8 @@ gpio_direction_output(GPIO_SUB_SENSOR_PWN, 0);
 	} else {
 		SENSOR_PRINT_HIGH("+I2C OK \n");
 	}
+	wake_lock_init(&s_p_sensor_mod->wakelock, WAKE_LOCK_SUSPEND,
+                   "pm_message_wakelock_sensor_k");
 
 gpio_err_exit:
 	if (ret) {
@@ -2494,6 +2500,7 @@ LOCAL int sensor_k_remove(struct platform_device *dev)
 #endif 
 
 	misc_deregister(&sensor_dev);
+	wake_lock_destroy(&s_p_sensor_mod->wakelock);
 	printk(KERN_INFO "sensor remove Success !\n");
 	return 0;
 }

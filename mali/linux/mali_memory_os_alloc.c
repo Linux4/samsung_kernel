@@ -234,6 +234,13 @@ mali_mem_allocation *mali_mem_os_alloc(u32 mali_addr, u32 size, struct vm_area_s
 	descriptor->cpu_mapping.addr = (void __user*)vma->vm_start;
 	descriptor->cpu_mapping.ref = 1;
 
+ // Porting the solutions about the CTS security case
+	if (vma->vm_pgoff == KBASE_REG_COOKIE_TB) {
+		/* map read only, noexec */
+		vma->vm_flags &= ~(VM_WRITE | VM_MAYWRITE | VM_EXEC | VM_MAYEXEC);
+		/* the rest of the flags is added by the cpu_mmap handler */
+	}
+	
 	if (VM_SHARED == (VM_SHARED & vma->vm_flags)) {
 		descriptor->mali_mapping.properties = MALI_MMU_FLAGS_DEFAULT;
 	} else {

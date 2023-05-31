@@ -85,7 +85,41 @@ sprd_pm_va_to_iram:
 	dsb
 	isb
 	wfi
-	mov 	r0, #0x1000
+
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+
+	mov 	r0, #0x2000
 	/*wait 60us for clk is safely closed*/
 5:  	sub	r0, r0, #0x1
 	cmp	r0, #0x0
@@ -127,6 +161,25 @@ ENTRY(sc8830_standby_exit_iram)
 	ldr r1, =0x00d3
 	cmp r0, r1
 	msr cpsr_c, r1
+
+        /*check pub state, polling 3 times to 0*/
+        ldr r0,=0x402b00c0
+        ldr r2,=0x0
+check_pub_fsm:
+        ldr r1,[r0]
+        and r1,r1,#0x00f0
+        cmp r1,#0x0
+        bne     check_pub_fsm
+        add r2,r2,#1
+        cmp r2,#3
+        bne     check_pub_fsm
+
+        /*wait 1us for pub*/
+        mov     r0, #0x20
+wait_1us:
+        sub     r0, r0, #0x1
+        cmp     r0, #0x0
+        bne wait_1us
 
 #ifdef CONFIG_DDR_VALIDITY_TEST
 	ldr r0, =REG_UART1_ENABLE_PHY

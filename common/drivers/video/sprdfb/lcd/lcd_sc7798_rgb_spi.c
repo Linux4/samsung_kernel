@@ -48,7 +48,7 @@ static int32_t sc7798_init(struct panel_spec *self)
 	sc7798_SpiWriteData(0x00);
 
 	sc7798_SpiWriteCmd(0xBC);
-	sc7798_SpiWriteData(0x67);
+	sc7798_SpiWriteData(0x64);
 
 	sc7798_SpiWriteCmd(0x3A);
 	sc7798_SpiWriteData(0x70);

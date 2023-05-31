@@ -11,6 +11,9 @@
 #ifndef __MALI_MEMORY_OS_ALLOC_H__
 #define __MALI_MEMORY_OS_ALLOC_H__
 
+// The security case use this marco
+#define KBASE_REG_COOKIE_TB 2
+
 #include "mali_osk.h"
 #include "mali_session.h"
 

@@ -403,6 +403,7 @@ static void rt4502_backlight_earlysuspend(struct early_suspend *desc)
 {
 	struct timespec ts;
 	struct rtc_time tm;
+
 	backlight_mode = BACKLIGHT_SUSPEND;
 	mutex_lock(&rt4502_mutex);
 	gpio_set_value(backlight_pin, 0);
