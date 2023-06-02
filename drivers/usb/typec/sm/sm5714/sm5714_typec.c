@@ -867,10 +867,13 @@ static void sm5714_usbpd_handle_vbus(struct work_struct *work)
 	sm5714_usbpd_read_reg(i2c, SM5714_REG_STATUS1, &status1);
 	sm5714_usbpd_read_reg(i2c, SM5714_REG_STATUS2, &status2);
 
-	if (status1 & SM5714_REG_INT_STATUS1_VBUSPOK)
+	if (status1 & SM5714_REG_INT_STATUS1_VBUSPOK) {
 		vbus_notifier_handle(STATUS_VBUS_HIGH);
-	else if (status2 & SM5714_REG_INT_STATUS2_VBUS_0V)
+		pdic_data->vbus_noti_status = STATUS_VBUS_HIGH;
+	} else if (status2 & SM5714_REG_INT_STATUS2_VBUS_0V) {
 		vbus_notifier_handle(STATUS_VBUS_LOW);
+		pdic_data->vbus_noti_status = STATUS_VBUS_LOW;
+	}
 }
 #endif /* CONFIG_VBUS_NOTIFIER */
 
@@ -1368,7 +1371,7 @@ void sm5714_pdic_event_work(void *data, int dest,
 	struct sm5714_phydrv_data *usbpd_data = data;
 	struct pdic_state_work *event_work;
 #if defined(CONFIG_TYPEC)
-	struct typec_partner_desc desc;
+	struct typec_partner_desc desc = {0};
 	enum typec_pwr_opmode mode = TYPEC_PWR_MODE_USB;
 #endif
 
@@ -3220,6 +3223,8 @@ static void sm5714_usbpd_notify_detach(void *data)
 
 	dev_info(dev, "ccstat : cc_No_Connection\n");
 	sm5714_vbus_turn_on_ctrl(pdic_data, 0);
+	if (manager->dp_is_connect == 1)
+		sm5714_usbpd_dp_detach(dev);
 	pdic_data->is_attached = 0;
 	pdic_data->status_reg = 0;
 	sm5714_usbpd_reinit(dev);
@@ -3342,8 +3347,6 @@ static void sm5714_usbpd_notify_detach(void *data)
 	if (!pdic_data->cc_open_cmd)
 		sm5714_usbpd_write_reg(i2c, SM5714_REG_CC_CNTL3, 0x80);
 	sm5714_usbpd_acc_detach(dev);
-	if (manager->dp_is_connect == 1)
-		sm5714_usbpd_dp_detach(dev);
 	manager->dr_swap_cnt = 0;
 
 	if (pdic_data->soft_reset) {
@@ -3865,6 +3868,7 @@ static int sm5714_usbpd_probe(struct i2c_client *i2c,
 	pdic_data->vconn_source = USBPD_VCONN_OFF;
 	pdic_data->rid = REG_RID_MAX;
 	pdic_data->is_attached = 0;
+	pdic_data->vbus_noti_status = 0;
 #if defined(CONFIG_SM5714_WATER_DETECTION_ENABLE)
 	pdic_data->is_water_detect = false;
 #endif
@@ -3887,14 +3891,14 @@ static int sm5714_usbpd_probe(struct i2c_client *i2c,
 	init_waitqueue_head(&pdic_data->suspend_wait);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 188)
-	wakeup_source_init(pdic_data->irq_ws, "irq_wake");   // 4.19 R
+	wakeup_source_init(pdic_data->irq_ws, "sm5714_typec");   // 4.19 R
 	if (!(pdic_data->irq_ws)) {
-		pdic_data->irq_ws = wakeup_source_create("irq_wake"); // 4.19 Q
+		pdic_data->irq_ws = wakeup_source_create("sm5714_typec"); // 4.19 Q
 		if (pdic_data->irq_ws)
 			wakeup_source_add(pdic_data->irq_ws);
 	}
 #else
-	pdic_data->irq_ws = wakeup_source_register(NULL, "irq_wake"); // 5.4 R
+	pdic_data->irq_ws = wakeup_source_register(NULL, "sm5714_typec"); // 5.4 R
 #endif
 
 	sm5714_usbpd_set_ops(dev, &sm5714_ops);
@@ -4169,7 +4173,10 @@ static void sm5714_usbpd_shutdown(struct i2c_client *i2c)
 
 	if (!_data->i2c)
 		return;
-
+#if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+	if (_data->vbus_noti_status == STATUS_VBUS_HIGH && !_data->is_attached)
+		pr_err("%s : VBUS is valid without CC Attach\n", __func__);
+#endif
 	cancel_delayed_work_sync(&_data->debug_work);
 	sm5714_usbpd_set_vbus_dischg_gpio(_data, 0);
 

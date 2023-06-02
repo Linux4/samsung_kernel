@@ -175,6 +175,12 @@ config SENSORS_A96T3X6_BLOCK_SAR_ONLY
 	help
 	  Prevent entering sar only mode.
 
+config SENSORS_A96T3x6_WIFI_BLOCK_UNKNOWN_1CH
+	tristate "BLOCK 1ch for ANFR concept"
+	default n
+	help
+	  Prevent Unknown mode for unused channel.
+
 config SENSORS_A96T365IF
 	bool "Choose A96T365IF"
 	default n

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -208,6 +209,7 @@ int hdd_rx_ol_init(struct hdd_context *hdd_ctx);
  * Return: none
  */
 void hdd_disable_rx_ol_in_concurrency(bool disable);
+
 
 /**
  * hdd_disable_rx_ol_for_low_tput() - Disable Rx offload in low TPUT scenario

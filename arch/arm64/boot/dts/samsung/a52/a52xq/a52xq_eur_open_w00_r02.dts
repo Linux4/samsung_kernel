@@ -685,8 +685,6 @@
 					charger,main_charger = "sm5714-charger";
 					charger,direct_charger = "pca9468-charger";
 					charger,dchg_min_current = <0x7d0>;
-					charger,dchg_temp_low_threshold = <0xb4>;
-					charger,dchg_temp_high_threshold = <0x1a4>;
 				};
 
 				cable-info {
@@ -5995,7 +5993,7 @@
 			#address-cells = <0x1>;
 			#size-cells = <0x0>;
 			status = "okay";
-			samsung,i2c-max-bus-freq = <0x61a80>;
+			qcom,clk-freq-out = <0x61a80>;
 
 			sm5714@49 {
 				status = "okay";
@@ -6017,7 +6015,7 @@
 			#address-cells = <0x1>;
 			#size-cells = <0x0>;
 			status = "okay";
-			samsung,i2c-max-bus-freq = <0x61a80>;
+			qcom,clk-freq-out = <0x61a80>;
 
 			usbpd-sm5714@33 {
 				status = "okay";

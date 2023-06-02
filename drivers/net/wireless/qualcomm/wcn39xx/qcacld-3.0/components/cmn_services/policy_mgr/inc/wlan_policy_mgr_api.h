@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1413,7 +1414,7 @@ struct policy_mgr_cdp_cbacks {
  * @hdd_v2_flow_pool_unmap: Callback to delete vdev flow pool
  */
 struct policy_mgr_dp_cbacks {
-	void (*hdd_disable_rx_ol_in_concurrency)(bool);
+    void (*hdd_disable_rx_ol_in_concurrency)(bool);
 	void (*hdd_set_rx_mode_rps_cb)(bool);
 	void (*hdd_ipa_set_mcc_mode_cb)(bool);
 	void (*hdd_v2_flow_pool_map)(int);
