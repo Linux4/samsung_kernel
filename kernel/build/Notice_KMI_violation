@@ -1,0 +1,46 @@
+
+KMI VIOLATION DETECTED!!!
+
+========================================================
+[ Steps to treat the KMI violation ]
+
+1. Please make sure if the detected symbols are exported from kernel mainline or not.
+   If you modified the KMI on purpose, please revert it.
+   Also, the symbol should be allowed to be used at loadable kernel module.
+   Otherwise, you need to find or make alternative function.
+   
+2. If kernel mainline code also exports those symbols (by EXPORT_SYMBOL*) for loadable kernel module,
+    then the reference abi_symbollist should be updated as follows:
+
+  2.1 Make eService ticket & ask MTK to update 'abi_symbollist' and 'abi_gki_aarch64.xml'.
+
+  2.2 Before you get official abi update from MTK,
+      the detected symbols can be registered at 'abi_gki_aarch_galaxy_presubmit' on temporary.
+      It should be reverted once the official abi symbllist is applied.
+      Please see the example as below.
+
+      //~/kernel-5.10/android/abi_gki_aarch_galaxy_presubmit
+      [abi_symbol_list]
+      # required by /drivers/xxx/yyy/zzz.ko
+      kernel_read
+      kernel_write  
+
+  2.3 If you modified 'abi_gki_aarch_galaxy_presubmit', then
+      ask SW PL to make 'user' build with 'skip-abi' flag to ignore the ABI violation checking failure.
+
+3. If the above symbol is defined at the built-in driver added by Samsung,
+   then please make sure below check list and follow the guide.
+
+  3-1 The booting should be OK after replacing the boot.img with GKI kernel.
+      If there is any loadable module refering the above symbol, 
+      then it should be loaded at the second-stage of Android init to avoid booting failure.
+  
+  3-2 The above symbol should be added to 'abi_greylist'.
+      This is to bypass the KMI violation checking.
+      
+      //~/kernel-5.10/android/abi_greylist
+      [abi_symbol_list]
+      # required by /drivers/xxx/yyy/zzz.ko
+      kernel_read
+      kernel_write  
+  

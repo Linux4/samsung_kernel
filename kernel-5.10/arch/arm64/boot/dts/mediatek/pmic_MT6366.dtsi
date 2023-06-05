@@ -1,0 +1,314 @@
+#if 0 && 0
+&mt6358_vdram2_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vsim1_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 3000000 && 3000000
+&mt6358_vibr_reg {
+    regulator-min-microvolt = <3000000>;
+    regulator-max-microvolt = <3000000>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vrf12_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vio18_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vusb_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vcamio_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vcamd_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vcn18_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vfe28_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vsram_proc11_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vcn28_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vsram_others_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vsram_core_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vsram_gpu_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vxo22_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vefuse_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vaux18_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vmch_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vbif28_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vsram_proc12_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vcama1_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vemc_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vio28_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_va12_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vrf18_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vcn33_bt_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vcn33_wifi_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vcama2_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vmc_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vldo28_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vaud28_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vsim2_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_vsram_others_sshub_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif
+
+#if 0 && 0
+&mt6358_va09_reg {
+    regulator-min-microvolt = <0>;
+    regulator-max-microvolt = <0>;
+    
+     
+};
+#endif

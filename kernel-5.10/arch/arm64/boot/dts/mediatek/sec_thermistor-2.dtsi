@@ -1,0 +1,50 @@
+/ {
+	fragment@smd {
+		target-path = "/";
+		__overlay__ {
+			samsung_mobile_device {
+				sec_wf_thermistor: sec_thermistor@2 {
+					compatible = "samsung,sec-thermistor";
+					status = "okay";
+					thermistor_name = "sec-wf-thermistor";
+					id = <2>;
+
+					io-channels = SEC_ADC(auxadc,4);
+					io-channel-names = "wf_therm";
+					io-channel-ranges;
+				};
+			};
+		};
+	};
+};
+
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel/kmodule/sec_pm/sec_thermistor/dts/sec_thermistor_mtk.a24.dtsi */
+&sec_ap_thermistor {
+	adc_array = <92 111 129 157 180 214 257 306 389 466
+				549 659 806 978 1147 1393 1641 1906 2225 2562
+				2869 3105 3385>;
+
+	temp_array = <900 850 800 750 700 650 600 550 500 450
+				400 350 300 250 200 150 100 50 0 (-50)
+				(-100) (-150) (-200)>;
+};
+
+&sec_pa_thermistor {
+	adc_array = <96 114 134 160 187 222 265 315 392 478
+				561 674 823 994 1181 1425 1682 1952 2252 2595
+				2884 3151 3404>;
+
+	temp_array = <900 850 800 750 700 650 600 550 500 450
+				400 350 300 250 200 150 100 50 0 (-50)
+				(-100) (-150) (-200)>;
+};
+
+&sec_wf_thermistor {
+	adc_array = <98 116 136 163 190 225 270 320 397 483
+				571 684 833 1004 1191 1435 1692 1962 2267 2610
+				2899 3166 3419>;
+
+	temp_array = <900 850 800 750 700 650 600 550 500 450
+				400 350 300 250 200 150 100 50 0 (-50)
+				(-100) (-150) (-200)>;
+};
