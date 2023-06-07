@@ -1,0 +1,126 @@
+/*
+ * SAMSUNG EXYNOS device tree source for reserved-memory
+ *
+ * Copyright (c) 2015 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/memreserve/ 0x70400000 0x400000;
+
+/ {
+	reserved-memory {
+
+		#address-cells = <2>;
+		#size-cells = <1>;
+		ranges;
+
+		extra_info {
+			reg = <0 0x45FFF000 0x1000>;
+		};
+
+		tima_mem: tima_region@0x52800000 {
+			compatible = "removed-dma-pool";
+			reg = <0x0 0x52800000 0x200000>;
+		};
+
+		modem_if {
+			compatible = "exynos,modem_if";
+			reg = <0 0x68000000 0x7400000>;
+			id = <0>;
+		};
+
+		dram_init {
+			compatible = "exynos,deliver_cp";
+			reg = <0 0x67FFF000 0x1000>;
+			id = <2>;
+		};
+
+		gnss_if {
+			compatible = "exynos,gnss_if";
+			reg = <0 0x70000000 0x400000>;
+			id = <1>;
+		};
+
+		/* NOTE: Gap between gnss_if and gpu_crc is already reserved */
+		/*       through memreserve. Refer exynos7880.dtsi */
+
+		gpu_crc {
+			compatible = "exynos8890-ion,gpu_crc";
+			secure;
+			reg = <0x0 0x70800000 0x800000>;
+			id = <8>;
+		};
+
+		gpu_buffer {
+			compatible = "exynos8890-ion,gpu_buffer";
+			secure;
+			reusable;
+			reg = <0x0 0x71000000 0x2400000>;
+			id = <9>;
+		};
+
+		/* NOTE: This region has secure attibute, */
+		/*       but it wouldn't be protected by secure OS. */
+		/*       It's used for information delivery. */
+		crypto {
+			compatible = "exynos8890-ion,crypto";
+			secure;
+			reusable;
+			reg = <0x0 0x73400000 0x2000000>;
+			id = <1>;
+		};
+
+		video_nfw {
+			compatible = "exynos8890-ion,vnfw";
+			reusable;
+			reg = <0x0 0x75400000 0x400000>;
+			id = <7>;
+			compat-id = <20>;
+		};
+
+		video_fw {
+			compatible = "exynos8890-ion,vfw";
+			secure;
+			reusable;
+			noprot;
+			reg = <0x0 0x75800000 0x400000>;
+			id = <2>;
+			compat-id = <24>;
+		};
+
+		video_stream {
+			compatible = "exynos8890-ion,vstream";
+			secure;
+			reusable;
+			reg = <0x0 0x75C00000 0x1800000>;
+			id = <3>;
+			compat-id = <25 31>;
+		};
+
+		video_frame {
+			compatible = "exynos8890-ion,vframe";
+			secure;
+			reusable;
+			ion,bulk_reclaim;
+			reg = <0x0 0x77400000 0x5400000>;
+			id = <5>;
+			compat-id = <26 29>;
+		};
+
+		/* NOTE: Gap between video_frame and video_scaler is used */
+		/*	 for secure DRAM, 0x7E400000 ~ 0x80000000. */
+
+		video_scaler {
+			compatible = "exynos8890-ion,vscaler";
+			secure;
+			reusable;
+			reg = <0x0 0x80000000 0x3C00000>;
+			id = <6>;
+			compat-id = <28>;
+		};
+	};
+};

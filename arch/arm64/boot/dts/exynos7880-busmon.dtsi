@@ -1,0 +1,518 @@
+/*
+ * SAMSUNG EXYNOS7880 SoC device tree source
+ *
+ * Copyright (c) 2015 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * SAMSUNG EXYNOS7880 SoC device nodes are listed in this file.
+ * EXYNOS7880 based board files can include this file and provide
+ * values for board specfic bindings.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	BUSMON_NRT_GROUP1@10790000 {
+		/* NRT - Group1 */
+		compatible = "samsung,exynos-busmonitor";
+		reg = <0x0 0x10790200 0x100>;
+		interrupts  = <0 313 0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		enabled = <1>;
+
+		/* Group-bit description */
+		seq-bits = <0 8>;
+		sub-bits = <9 12>;
+		target-bits = <13 14>;
+		init-bits = <15 17>;
+
+		/* Group detail bit description */
+		faulten-bits = <0 0>;
+		errvld-bits = <0 0>;
+		errcld-bits = <0 0>;
+		errlog0-lock-bits = <0 0>;
+		errlog0-opc-bits = <1 4>;
+		errlog0-errcode-bits = <8 10>;
+		errlog0-len1-bits = <16 23>;
+		errlog0-format-bits = <31 31>;
+		errlog1-bits = <0 17>;
+		errlog2-bits = <0 0>;
+		errlog3-bits = <0 31>;
+		errlog4-bits = <0 3>;
+		errlog5-bits = <0 14>;
+
+		errlog5-axcache-bits = <0 3>;
+		errlog5-axuser-bits = <4 7>;
+		errlog5-axprot-bits = <8 10>;
+		errlog5-axqos-bits = <11 14>;
+
+		/* init, target, subrage detail description */
+		init-num = <6>;
+		target-num = <4>;
+		sub-num = <16>;
+		sub-array = <1>;
+
+		init-desc =	"FSYS",
+				"G3D",
+				"G3D1",
+				"ISPNRT",
+				"MFCMSCL",
+				"SRV_MIF_D_NRT";
+		target-desc =	"DREX1_0_NRT",
+				"DREX1_1_NRT",
+				"MIF_P",
+				"SRV_MIF_D_NRT";
+
+		sub-index = <368>;
+		sub-addr = <0x10790000>;
+		usersignal-desc =
+				/* INIU_FSYS */
+				"MMC55-64bits-0",	/* 0x00 */
+				"MMC50-64bits-1",	/* 0x01 */
+				"MMC50-64bits-2",	/* 0x02 */
+				"SSS0",			/* 0x03 */
+				"SSS1",			/* 0x04 */
+				"RTIC",			/* 0x05 */
+				"PDMA0",		/* 0x06 */
+				"USB20DRD",		/* 0x07 */
+				"UFS",			/* 0x08 */
+				"UNKNOWN",		/* 0x09 */
+				"UNKNOWN",		/* 0x0A */
+				"UNKNOWN",		/* 0x0B */
+				"UNKNOWN",		/* 0x0C */
+				"UNKNOWN",		/* 0x0D */
+				"PDMA1(Secure)", 	/* 0x0E */
+				"UNKNOWN",		/* 0x0F */
+				"UNKNOWN",		/* 0x10 */
+				"UNKNOWN",		/* 0x11 */
+				"UNKNOWN",		/* 0x12 */
+				"UNKNOWN",		/* 0x13 */
+				"UNKNOWN",		/* 0x14 */
+				"UNKNOWN",		/* 0x15 */
+				"UNKNOWN",		/* 0x16 */
+				"UNKNOWN",		/* 0x17 */
+				"UNKNOWN",		/* 0x18 */
+				"UNKNOWN",		/* 0x19 */
+				"UNKNOWN",		/* 0x1A */
+				"UNKNOWN",		/* 0x1B */
+				"UNKNOWN",		/* 0x1C */
+				"UNKNOWN",		/* 0x1D */
+				"UNKNOWN",		/* 0x1E */
+				"UNKNOWN",		/* 0x1F */
+
+				/* INIU_ISPNRT */
+				"FIMC-ISP",		/* 0x20 */
+				"FIMC-VRA",		/* 0x21 */
+				"FIMC-ISP",		/* 0x22 */
+				"FIMC-VRA",		/* 0x23 */
+				"MC_SCALER",		/* 0x24 */
+				"FIMC-VRA",		/* 0x25 */
+				"MC_SCALER",		/* 0x26 */
+				"FIMC-VRA",		/* 0x27 */
+				"FIMC-ISP", 		/* 0x28 */
+				"FIMC-VRA",		/* 0x29 */
+				"FIMC-ISP",		/* 0x2A */
+				"FIMC-VRA",		/* 0x2B */
+				"UNKNOWN",		/* 0x2C */
+				"FIMC-VRA",		/* 0x2D */
+				"MC_SCALER",		/* 0x2E */
+				"FIMC-VRA",		/* 0x2F */
+				"UNKNOWN",		/* 0x30 */
+				"UNKNOWN",		/* 0x31 */
+				"UNKNOWN",		/* 0x32 */
+				"UNKNOWN",		/* 0x33 */
+				"UNKNOWN",		/* 0x34 */
+				"UNKNOWN",		/* 0x35 */
+				"UNKNOWN",		/* 0x36 */
+				"UNKNOWN",		/* 0x37 */
+				"UNKNOWN",		/* 0x38 */
+				"UNKNOWN",		/* 0x39 */
+				"UNKNOWN",		/* 0x3A */
+				"UNKNOWN",		/* 0x3B */
+				"UNKNOWN",		/* 0x3C */
+				"UNKNOWN",		/* 0x3D */
+				"UNKNOWN",		/* 0x3E */
+				"UNKNOWN",		/* 0x3F */
+
+				/* INIU_MFCMSCL */
+				"JPEG",			/* 0x40 */
+				"MFC(1080p@60fps)",	/* 0x41 */
+				"JPEG",			/* 0x42 */
+				"MFC(1080p@60fps)",	/* 0x43 */
+				"M2M Scaler Poly",	/* 0x44 */
+				"MFC(1080p@60fps)",	/* 0x45 */
+				"M2M Scaler Poly",	/* 0x46 */
+				"MFC(1080p@60fps)",	/* 0x47 */
+				"M2M Scaler BI",	/* 0x48 */
+				"MFC(1080p@60fps)",	/* 0x49 */
+				"M2M Scaler BI",	/* 0x4A */
+				"MFC(1080p@60fps)",	/* 0x4B */
+				"UNKNOWN",		/* 0x4C */
+				"MFC(1080p@60fps)",	/* 0x4D */
+				"UNKNOWN",		/* 0x4E */
+				"MFC(1080p@60fps)";	/* 0x4F */
+
+		timeout {
+			#address-cells = <1>;
+			#size-cells = <1>;
+			timeout_pmu_ccore@0x106a021c {
+				nickname = "timeout-pmu-ccore-path";
+				reg = <0x106a021c 0x100>;
+				enabled = <1>;
+				enable-bit = <0>;
+			};
+			timeout_cmu_ccore@0x106a021c {
+				nickname = "timeout-cmu-ccore-path";
+				reg = <0x106a021c 0x100>;
+				enabled = <1>;
+				enable-bit = <1>;
+			};
+			timeout_sfrif_pmu_alive@0x106a021c {
+				nickname = "timeout-sfrif-pmu-alive-path";
+				reg = <0x106a021c 0x100>;
+				enabled = <1>;
+				enable-bit = <2>;
+			};
+			timeout_noc_d_nrtnd_ccorenp@0x106a021c {
+				nickname = "timeout-noc-d-nrtnd-ccorenp-path";
+				reg = <0x106a021c 0x100>;
+				enabled = <0>;
+				enable-bit = <3>;
+			};
+			timeout_noc_d_nrtnd@0x106a021c {
+				nickname = "timeout-noc-d-nrtnd-path";
+				reg = <0x106a021c 0x100>;
+				enabled = <0>;
+				enable-bit = <4>;
+			};
+			timeout_noc_d_rtnd@0x106a021c {
+				nickname = "timeout-noc-d-rtnd-path";
+				reg = <0x106a021c 0x100>;
+				enabled = <0>;
+				enable-bit = <5>;
+			};
+			timeout_noc_d_cpnd_ccorenp@0x106a021c {
+				nickname = "timeout-noc-d-cpnd-ccorenp-path";
+				reg = <0x106a021c 0x100>;
+				enabled = <0>;
+				enable-bit = <6>;
+			};
+			timeout_noc_d_cpnd@0x106a021c {
+				nickname = "timeout-noc-d-cpnd-path";
+				reg = <0x106a021c 0x100>;
+				enabled = <0>;
+				enable-bit = <7>;
+			};
+			timeout_noc_p_peri@0x106a021c {
+				nickname = "timeout-noc-p-peri-path";
+				reg = <0x106a021c 0x100>;
+				enabled = <1>;
+				enable-bit = <8>;
+			};
+			timeout_noc_p_ccore@0x106a021c {
+				nickname = "timeout-noc-p-ccore-path";
+				reg = <0x106a021c 0x100>;
+				enabled = <1>;
+				enable-bit = <9>;
+			};
+			timeout_noc_p_mfcmscl@0x106a021c {
+				nickname = "timeout-noc-p-mfcmscl-path";
+				reg = <0x106a021c 0x100>;
+				enabled = <1>;
+				enable-bit = <10>;
+			};
+			timeout_noc_p_isp@0x106a021c {
+				nickname = "timeout-noc-p-isp-path";
+				reg = <0x106a021c 0x100>;
+				enabled = <1>;
+				enable-bit = <11>;
+			};
+			timeout_noc_p_imem@0x106a021c {
+				nickname = "timeout-noc-p-imem-path";
+				reg = <0x106a021c 0x100>;
+				enabled = <1>;
+				enable-bit = <12>;
+			};
+			timeout_noc_p_g3d@0x106a021c {
+				nickname = "timeout-noc-p-g3d-path";
+				reg = <0x106a021c 0x100>;
+				enabled = <1>;
+				enable-bit = <13>;
+			};
+			timeout_noc_p_fsys@0x106a021c {
+				nickname = "timeout-noc-p-fsys-path";
+				reg = <0x106a021c 0x100>;
+				enabled = <1>;
+				enable-bit = <14>;
+			};
+			timeout_noc_p_dispaud@0x106a021c {
+				nickname = "timeout-noc-p-dispaud-path";
+				reg = <0x106a021c 0x100>;
+				enabled = <1>;
+				enable-bit = <15>;
+			};
+			timeout_noc_p_cpucl1@0x106a021c {
+				nickname = "timeout-noc-p-cpucl1-path";
+				reg = <0x106a021c 0x100>;
+				enabled = <1>;
+				enable-bit = <16>;
+			};
+			timeout_noc_p_cpucl0@0x106a021c {
+				nickname = "timeout-noc-p-cpucl0-path";
+				reg = <0x106a021c 0x100>;
+				enabled = <1>;
+				enable-bit = <17>;
+			};
+			timeout_noc_p_bus@0x106a021c {
+				nickname = "timeout-noc-p-bus-path";
+				reg = <0x106a021c 0x100>;
+				enabled = <1>;
+				enable-bit = <18>;
+			};
+			timeout_noc_p_mif1@0x106a021c {
+				nickname = "timeout-noc-p-mif1-path";
+				reg = <0x106a021c 0x100>;
+				enabled = <1>;
+				enable-bit = <19>;
+			};
+			timeout_noc_p_mif0@0x106a021c {
+				nickname = "timeout-noc-p-mif0-path";
+				reg = <0x106a021c 0x100>;
+				enabled = <1>;
+				enable-bit = <20>;
+			};
+		};
+	};
+
+	BUSMON_RT_GROUP2@10780000 {
+		/* RT */
+		compatible = "samsung,exynos-busmonitor";
+		reg = <0x0 0x10780200 0x100>;
+		interrupts  = <0 312 0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		enabled = <1>;
+
+		/* Group-bit description */
+		seq-bits = <0 8>;
+		sub-bits = <9 12>;
+		target-bits = <13 14>;
+		init-bits = <15 16>;
+
+		/* Group detail bit rescription */
+		faulten-bits = <0 0>;
+		errvld-bits = <0 0>;
+		errcld-bits = <0 0>;
+		errlog0-lock-bits = <0 0>;
+		errlog0-opc-bits = <1 4>;
+		errlog0-errcode-bits = <8 10>;
+		errlog0-len1-bits = <16 23>;
+		errlog0-format-bits = <31 31>;
+		errlog1-bits = <0 16>;
+		errlog2-bits = <0 0>;
+		errlog3-bits = <0 31>;
+		errlog4-bits = <0 3>;
+		errlog5-bits = <0 14>;
+
+		errlog5-axcache-bits = <0 3>;
+		errlog5-axuser-bits = <4 7>;
+		errlog5-axprot-bits = <8 10>;
+		errlog5-axqos-bits = <11 14>;
+
+		/* init, target, subrage detail description */
+		init-num = <3>;
+		target-num = <3>;
+		sub-num = <16>;
+		sub-array = <1>;
+		init-desc =	"DISPAUD",
+				"ISP",
+				"SRV_MIF_D_RT";
+		target-desc =	"DREX1_0_RT",
+				"DREX1_1_RT",
+				"SRV_MIF_D_RT";
+
+		sub-index = <128>;
+		sub-addr = <0x10780000>;
+
+		usersignal-desc =
+			/* INIU_DISPAUD */
+			"IDMA0",		/* 0x00 */
+			"ADMA",			/* 0x01 */
+			"IDMA0",		/* 0x02 */
+			"ADMA",			/* 0x03 */
+			"IDMA1",		/* 0x04 */
+			"ADMA",			/* 0x05 */
+			"IDMA1",		/* 0x06 */
+			"ADMA",			/* 0x07 */
+			"IDMA2",		/* 0x08 */
+			"ADMA",			/* 0x09 */
+			"IDMA2",		/* 0x0A */
+			"ADMA",			/* 0x0B */
+			"IDMA3",		/* 0x0C */
+			"ADMA",			/* 0x0D */
+			"IDMA3",		/* 0x0E */
+			"ADMA",			/* 0x0F */
+
+			/* INIU_ISP_RT */
+			"CSIS0",		/* 0x10 */
+			"FIMC-ISP",		/* 0x11 */
+			"FIMC-VRA",		/* 0x12 */
+			"UNKNOWN",		/* 0x13 */
+			"CSIS0",		/* 0x14 */
+			"FIMC-ISP",		/* 0x15 */
+			"FIMC-VRA",		/* 0x16 */
+			"UNKNOWN",		/* 0x17 */
+			"CSIS1",		/* 0x18 */
+			"MC_SCALER",		/* 0x19 */
+			"FIMC-VRA",		/* 0x1A */
+			"UNKNOWN",		/* 0x1B */
+			"CSIS1",		/* 0x1C */
+			"MC_SCALER",		/* 0x1D */
+			"FIMC-VRA",		/* 0x1E */
+			"UNKNOWN";		/* 0x1F */
+	};
+
+	BUSMON_CP_GROUP3@107B0000 {
+		/* CP */
+		compatible = "samsung,exynos-busmonitor";
+		reg = <0x0 0x107B0000 0x100>;
+		interrupts  = <0 314 0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		enabled = <1>;
+
+		/* Group-bit description */
+		seq-bits = <0 7>;
+		sub-bits = <8 11>;
+		target-bits = <12 13>;
+		init-bits = <14 15>;
+
+		/* Group detail bit rescription */
+		faulten-bits = <0 0>;
+		errvld-bits = <0 0>;
+		errcld-bits = <0 0>;
+		errlog0-lock-bits = <0 0>;
+		errlog0-opc-bits = <1 4>;
+		errlog0-errcode-bits = <8 10>;
+		errlog0-len1-bits = <16 23>;
+		errlog0-format-bits = <31 31>;
+		errlog1-bits = <0 15>;
+		errlog2-bits = <0 0>;
+		errlog3-bits = <0 31>;
+		errlog4-bits = <0 3>;
+		errlog5-bits = <0 15>;
+
+		errlog5-axcache-bits = <0 3>;
+		errlog5-axuser-bits = <4 8>;
+		errlog5-axprot-bits = <9 11>;
+		errlog5-axqos-bits = <12 15>;
+
+		/* init, target, subrage detail description */
+		init-num = <3>;
+		target-num = <4>;
+		sub-num = <16>;
+		sub-array = <1>;
+		init-desc =	"GNSS",
+				"MODEM",
+				"SRV_MIF_D_CP";
+		target-desc =	"DREX1_0_CP",
+				"DREX1_1_CP",
+				"MIF_D_CP_MIF_P",
+				"SRV_MIF_D_CP";
+
+		sub-index = <176>;
+		sub-addr = <0x107b0000>;
+		usersignal-desc = /* TBD , it's not completed as HDD also not updated */
+			/* INIU_MODEM */
+			"CR7M",			/* 0x00 */
+			"CR7M",			/* 0x01 */
+			"CR7M",			/* 0x02 */
+			"CR7M",			/* 0x03 */
+			"CR7M",			/* 0x04 */
+			"CR7M",			/* 0x05 */
+			"CR7M",			/* 0x06 */
+			"CR7M",			/* 0x07 */
+			"TL3MtoL2",		/* 0x08 */
+			"TL3MtoL2",		/* 0x09 */
+			"TL3MtoL2",		/* 0x0A */
+			"TL3MtoL2",		/* 0x0B */
+			"TL3MtoL2",		/* 0x0C */
+			"TL3MtoL2",		/* 0x0D */
+			"TL3MtoL2",		/* 0x0E */
+			"TL3MtoL2",		/* 0x0F */
+			"DMA",			/* 0x10 */
+			"DMA",			/* 0x11 */
+			"DMA",			/* 0x12 */
+			"DMA",			/* 0x13 */
+			"CSXAP",		/* 0x14 */
+			"DMtoL2",		/* 0x15 */
+			"LMAC",			/* 0x16 */
+			"HMtoL2";		/* 0x17 */
+	};
+
+	BUSMON_PERI_GROUP4@107A0000 {
+		/* PERI */
+		compatible = "samsung,exynos-busmonitor";
+		reg = <0x0 0x107A0000 0x100>;
+		interrupts  = <0 311 0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		enabled = <1>;
+
+		/* Group-bit description */
+		seq-bits = <0 8>;
+		sub-bits = <9 10>;
+		target-bits = <11 14>;
+		init-bits = <15 16>;
+
+		/* Group detail bit rescription */
+		faulten-bits = <0 0>;
+		errvld-bits = <0 0>;
+		errcld-bits = <0 0>;
+		errlog0-lock-bits = <0 0>;
+		errlog0-opc-bits = <1 4>;
+		errlog0-errcode-bits = <8 10>;
+		errlog0-len1-bits = <16 23>;
+		errlog0-format-bits = <31 31>;
+		errlog1-bits = <0 16>;
+		errlog2-bits = <0 0>;
+		errlog3-bits = <0 25>;
+		errlog4-bits = <0 0>;
+		errlog5-bits = <0 10>;
+
+		errlog5-axcache-bits = <0 3>;
+		errlog5-axprot-bits = <5 7>;
+
+		/* init, target, subrage detail description */
+		init-num = <3>;
+		target-num = <14>;
+		sub-num = <4>;
+		sub-array = <19>;
+		init-desc =	"CP",
+				"CPU",
+				"NRT";
+		target-desc =	"CPUCL1",
+				"BUS",
+				"CCORE",
+				"CPUCL0",
+				"DISPAUD",
+				"FSYS",
+				"G3D",
+				"GIC",
+				"ISP",
+				"MFCMSCL",
+				"MIF0",
+				"MIF1",
+				"PERI",
+				"SRV_MIF";
+
+		sub-index = <10 16 17 21 22 23 32 52 66 72 73 77 78 79 88 108 133 134 135>;
+		sub-addr = <0x14000000 0x14800000 0x3000000 0x2000000 0x0 0x4000000
+				0x14400000 0x107a0000 0x14000000 0x14800000 0x3000000
+				0x2000000 0x0 0x4000000 0x14400000 0x107a0000 0x2000000
+				0x0 0x4000000>;
+	};
+};

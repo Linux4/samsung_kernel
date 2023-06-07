@@ -1,0 +1,39 @@
+/*
+ * SAMSUNG UNIVERSAL7880 board device tree source
+ *
+ * Copyright (c) 2016 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+#include "exynos7880-a7y17lte-common-battery.dtsi"
+
+/ {
+	battery_params {
+			battery,battery_table3 = <197 11 70 11 198 10 72 10 204 9
+						84 9 223 8 116 8 21 8 190 7
+						93 7 240 6 180 6 135 6 99 6
+						71 6 42 6 254 5 188 5 124 5
+						244 4 217 1 215 8 107 8 254 7
+						145 7 36 7 184 6 75 6 222 5
+						114 5 5 5 152 4 43 4 191 3
+						82 3 229 2 121 2 12 2 159 1
+						51 1 198 0 89 0 236 15>;
+
+			battery,battery_table4 = <50 50 49 47 47 46 46 46 46 48
+						48 48 48 48 49 49 51 54 58 69
+						105 158>;
+
+			battery,batcap = <0x90 0x33 0xE4 0x0C>; /* [0x0E] [0x0F] [0x10] [0x11] */
+
+			battery,soc_arr_val = <11052 10521 9990 9459 8928 8398 7867 7336 6805 6274 5743 5212 4682 4151 3620 3089 2558 2027 1497 966 435 (-96)>;
+			battery,ocv_arr_val = <44713 44091 43469 42850 42248 41658 41088 40568 40103 39676 39205 38674 38379 38157 37982 37846 37706 37491 37167 36858 36194 32310>;
+	};
+
+	battery {
+		battery,charger_name = "s2mu004-charger";
+		battery,chg_thermal_source = <2>;  /* SEC_CHARGER_THERMAL_SOURCE_FG */
+	};
+};

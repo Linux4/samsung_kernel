@@ -1,0 +1,51 @@
+/*
+ * SAMSUNG Exynos7880 Universal board device tree source (Rev 0.1)
+ *
+ * Copyright (c) 2015 Samsung Electronics Co., Ltd.
+ *		http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+/dts-v1/;
+#include "exynos7880-universal7880-common.dtsi"
+
+/ {
+	model = "Exynos 7880 Universal Board (Rev 0.1)";
+	compatible = "samsung,exynos7880", "samsung,universal7880", "samsung,universal7880-rev01";
+
+	fimc-is_sensor_2p2@5A {
+		gpio_prep_reset = <&gpc2 3 0x1>; /* preprocessor reset */
+	};
+
+	fimc_is_sensor_4e6: fimc-is_sensor_4e6@6A {
+		gpio_prep_reset = <&gpc2 3 0x1>; /* preprocessor reset */
+	};
+
+	dsim_0: dsim@0x14800000 {
+		/* lcd reset, power */
+		gpios = <&gpd3 4 0x1>, <&gpd1 1 0x1>;
+	};
+	tmuctrl_2: tmuctrl_G3D@10130000 {
+		/* flags, driver_data(index), frequency */
+		gpu_cooling_table = < 0 0 962000
+				      0 1 845000
+				      0 2 756000
+				      0 3 548000
+				      0 4 343000
+				      0 5 TABLE_END>;
+	};
+	sound {
+		compatible = "samsung,universal7880-cod3026x";
+		mic-bias-mode = <4 1 2 0>;
+		mic-bias-gpios = <&gpd4 2 0>;
+		mic-bias-ldo-supply = <&ldo29_reg>;
+		/*stand-alone-fm;*/	/*Enable if for FM radio AP Maser Mode*/
+	};
+
+	serial_0: uart@13810000 {
+		status = "okay";
+	};
+};
