@@ -129,8 +129,8 @@ static struct ieee80211_mgmt *slsi_rx_scan_update_ssid(struct slsi_dev *sdev, st
 	return NULL;
 }
 
-struct ieee80211_channel *slsi_rx_scan_pass_to_cfg80211(struct slsi_dev *sdev, struct net_device *dev, struct sk_buff *skb)
-{
+struct ieee80211_channel *slsi_rx_scan_pass_to_cfg80211(struct slsi_dev *sdev, struct net_device *dev,
+							 struct sk_buff *skb, bool release_skb) {
 	u16                      id = fapi_get_u16(skb, id);
 	struct ieee80211_mgmt    *mgmt = fapi_get_mgmt(skb);
 	size_t                   mgmt_len = fapi_get_mgmtlen(skb);
@@ -200,7 +200,8 @@ do_no_calc:
 		SLSI_NET_DBG1(dev, SLSI_MLME, "No Channel info found for freq:%d\n", freq);
 	}
 
-	kfree_skb(skb);
+	if (release_skb)
+		kfree_skb(skb);
 	return channel;
 }
 
@@ -1203,7 +1204,7 @@ void slsi_scan_complete(struct slsi_dev *sdev, struct net_device *dev, u16 scan_
 	while (scan) {
 		scan_results_count++;
 		/* skb freed inside slsi_rx_scan_pass_to_cfg80211 */
-		slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan);
+		slsi_rx_scan_pass_to_cfg80211(sdev, dev, scan, true);
 
 		if ((SLSI_IS_VIF_INDEX_WLAN(ndev_vif)) && (*result_count >= max_count)) {
 			more_than_max_count = 1;
@@ -1872,7 +1873,6 @@ void __slsi_rx_blockack_ind(struct slsi_dev *sdev, struct net_device *dev, struc
 
 		mgmt = (fapi_get_mgmtlen(skb)) ? fapi_get_mgmt(skb) : NULL;
 		if (!mgmt) {
-			WARN(1, "invalid bulkdata for management frame\n");
 			goto invalid;
 		}
 
@@ -2177,8 +2177,11 @@ void slsi_rx_roamed_ind(struct slsi_dev *sdev, struct net_device *dev, struct sk
 
 	if (ndev_vif->sta.mlme_scan_ind_skb) {
 		/* saved skb [mlme_scan_ind] freed inside slsi_rx_scan_pass_to_cfg80211 */
-		cur_channel = slsi_rx_scan_pass_to_cfg80211(sdev, dev, ndev_vif->sta.mlme_scan_ind_skb);
+		cur_channel = slsi_rx_scan_pass_to_cfg80211(sdev, dev, ndev_vif->sta.mlme_scan_ind_skb, true);
 		ndev_vif->sta.mlme_scan_ind_skb = NULL;
+	} else {
+		SLSI_NET_ERR(dev, "mlme_scan_ind_skb is not available, mlme_synchronised_ind not received");
+
 	}
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0))
@@ -2583,6 +2586,7 @@ void slsi_rx_synchronised_ind(struct slsi_dev *sdev, struct net_device *dev, str
 
 	SLSI_NET_DBG1(dev, SLSI_MLME, "Received synchronised_ind, bssid:%pM SAE Auth Request = %d\n", bssid, sae_auth);
 	if (ndev_vif->sta.crypto.wpa_versions == 3 && !sae_auth) {
+		slsi_rx_scan_pass_to_cfg80211(sdev, dev, skb, false);
 		synch_ind_time = jiffies_to_msecs(jiffies);
 		if (synch_ind_time < ndev_vif->sta.connect_cnf_time + SLSI_RX_SYNCH_IND_DELAY)
 			udelay(((ndev_vif->sta.connect_cnf_time + 50) - synch_ind_time) * 1000);
@@ -3190,8 +3194,10 @@ void slsi_rx_connect_ind(struct slsi_dev *sdev, struct net_device *dev, struct s
 #endif
 			SLSI_NET_DBG1(dev, SLSI_MLME, "Sending scan indication to cfg80211, bssid: %pM\n", fapi_get_mgmt(ndev_vif->sta.mlme_scan_ind_skb)->bssid);
 			/* saved skb [mlme_scan_ind] freed inside slsi_rx_scan_pass_to_cfg80211 */
-			cur_channel = slsi_rx_scan_pass_to_cfg80211(sdev, dev, ndev_vif->sta.mlme_scan_ind_skb);
+			cur_channel = slsi_rx_scan_pass_to_cfg80211(sdev, dev, ndev_vif->sta.mlme_scan_ind_skb, true);
 			ndev_vif->sta.mlme_scan_ind_skb = NULL;
+		} else {
+			SLSI_NET_ERR(dev, "mlme_scan_ind_skb is not available, mlme_synchronised_ind not received");
 		}
 
 		if (!ndev_vif->sta.sta_bss) {

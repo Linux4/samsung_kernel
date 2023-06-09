@@ -1548,6 +1548,16 @@ void sec_wireless_set_tx_enable(struct sec_battery_info *battery, bool wc_tx_ena
 	battery->wc_tx_phm_mode = false;
 	battery->prev_tx_phm_mode = false;
 
+	/* FPDO DC concept */
+	if (wr_sts == SEC_BATTERY_CABLE_FPDO_DC && battery->wc_tx_enable) {
+		union power_supply_propval value = {0, };
+
+		value.intval = 0;
+		psy_do_property(battery->pdata->charger_name, set,
+				POWER_SUPPLY_EXT_PROP_REFRESH_CHARGING_SOURCE, value);
+
+	}
+
 	cancel_delayed_work(&battery->wpc_tx_en_work);
 	__pm_stay_awake(battery->wpc_tx_en_ws);
 	queue_delayed_work(battery->monitor_wqueue,

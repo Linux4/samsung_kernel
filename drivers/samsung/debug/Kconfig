@@ -264,7 +264,7 @@ config SEC_DEBUG_SCHED_INFO
 config SEC_DEBUG_WQ_LOCKUP_INFO
 	tristate "Enable workqueue lockup info"
 	default m
-	depends on WQ_WATCHDOG && !SOC_S5E3830
+	depends on WQ_WATCHDOG
 	select SEC_DEBUG_SCHED_INFO
 	help
 	  This option enables enhanced workqueue lockup info. Current information

@@ -105,10 +105,11 @@ void print_flip_cover_detector_debug(void)
 	struct sensor_event *event = &(sensor->event_buffer);
 	struct flip_cover_detector_event *sensor_value = (struct flip_cover_detector_event *)(event->value);
 
-	shub_info("%s(%u) : %d, %d, %d / %d, %d, %d, %d (%lld) (%ums, %dms)", sensor->name,
-		  SENSOR_TYPE_FLIP_COVER_DETECTOR, sensor_value->value, (int)sensor_value->magX,
-		  (int)sensor_value->stable_min_max, (int)sensor_value->uncal_mag_x, (int)sensor_value->uncal_mag_y,
-		  (int)sensor_value->uncal_mag_z, sensor_value->saturation, event->timestamp, sensor->sampling_period,
+	shub_info("%s(%u) : %d, %d, %d, %d, %d, %d, %d, %d, %d / %d, %d, %d, %d (%lld) (%ums, %dms)", sensor->name,
+		  SENSOR_TYPE_FLIP_COVER_DETECTOR, sensor_value->value, sensor_value->nfc, (int)sensor_value->diff, (int)sensor_value->magX,
+		  (int)sensor_value->stable_min, (int)sensor_value->stable_max, (int)sensor_value->detach_mismatch_cnt, 
+		  (int)sensor_value->detach_mismatch_stop_cnt, (int)sensor_value->attach_retry_cnt, (int)sensor_value->uncal_mag_x, 
+		  (int)sensor_value->uncal_mag_y, (int)sensor_value->uncal_mag_z, sensor_value->saturation, event->timestamp, sensor->sampling_period,
 		  sensor->max_report_latency);
 }
 
@@ -129,8 +130,8 @@ int init_flip_cover_detector(bool en)
 
 	if (en) {
 		strcpy(sensor->name, "flip_cover_detector");
-		sensor->receive_event_size = 22;
-		sensor->report_event_size = 9;
+		sensor->receive_event_size = 37;
+		sensor->report_event_size = 24;
 		sensor->event_buffer.value = kzalloc(sizeof(struct flip_cover_detector_event), GFP_KERNEL);
 		if (!sensor->event_buffer.value)
 			goto err_no_mem;

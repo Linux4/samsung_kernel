@@ -176,6 +176,7 @@ config SND_SOC_ALL_CODECS
 	imply SND_SOC_RT5677
 	imply SND_SOC_RT5682_I2C
 	imply SND_SOC_RT5682_SDW
+	imply SND_SOC_RT5691
 	imply SND_SOC_RT700_SDW
 	imply SND_SOC_RT711_SDW
 	imply SND_SOC_RT715_SDW
@@ -1075,6 +1076,7 @@ config SND_SOC_RL6231
 	default y if SND_SOC_RT5670=y
 	default y if SND_SOC_RT5677=y
 	default y if SND_SOC_RT5682=y
+	default y if SND_SOC_RT5691=y
 	default y if SND_SOC_RT1011=y
 	default y if SND_SOC_RT1015=y
 	default y if SND_SOC_RT1015P=y
@@ -1093,6 +1095,7 @@ config SND_SOC_RL6231
 	default m if SND_SOC_RT5670=m
 	default m if SND_SOC_RT5677=m
 	default m if SND_SOC_RT5682=m
+	default m if SND_SOC_RT5691=m
 	default m if SND_SOC_RT1011=m
 	default m if SND_SOC_RT1015=m
 	default m if SND_SOC_RT1015P=m
@@ -1223,6 +1226,10 @@ config SND_SOC_RT5682_SDW
 	depends on SOUNDWIRE
 	select SND_SOC_RT5682
 	select REGMAP_SOUNDWIRE
+
+config SND_SOC_RT5691
+	tristate
+	depends on I2C
 
 config SND_SOC_RT700
 	tristate

@@ -65,6 +65,9 @@
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
 #include <mcd_drm_decon.h>
 #include <mcd_drm_helper.h>
+#if IS_ENABLED(CONFIG_DISPLAY_USE_INFO) || IS_ENABLED(CONFIG_USDM_PANEL_DPUI)
+#include "dpui.h"
+#endif
 #endif
 
 struct decon_device *decon_drvdata[MAX_DECON_CNT];
@@ -144,7 +147,7 @@ void decon_dump_event_log(struct exynos_drm_crtc *exynos_crtc)
 }
 #endif
 
-#ifdef CONFIG_DISPLAY_USE_INFO
+#if IS_ENABLED(CONFIG_DISPLAY_USE_INFO) || IS_ENABLED(CONFIG_USDM_PANEL_DPUI)
 static enum disp_panic_reason mcd_drm_decon_get_disp_panic_reason(struct decon_device *decon)
 {
 	if (decon->recovery.req_mode_id == RECOVERY_MODE_IDX_DSIM)
@@ -206,7 +209,7 @@ static int decon_dpui_notifier_callback(struct notifier_block *self,
 	prev_recovery_cnt = recovery_cnt;
 	return 0;
 }
-#endif /* CONFIG_DISPLAY_USE_INFO */
+#endif /* CONFIG_USDM_PANEL_DPUI */
 
 static bool __is_recovery_supported(struct decon_device *decon)
 {
@@ -864,7 +867,7 @@ static void decon_release_sec_buf(struct decon_device *decon)
 }
 #endif
 
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 static void decon_fingerprint_mask(struct exynos_drm_crtc *crtc,
 			struct drm_crtc_state *old_crtc_state, u32 after)
 {
@@ -1023,7 +1026,7 @@ static void decon_atomic_flush(struct exynos_drm_crtc *exynos_crtc,
 			&& (new_exynos_crtc_state->tui_changed == 0))
 		decon_reg_sec_win_shadow_update_req(decon);
 #endif
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	exynos_crtc->ops->set_fingerprint_mask(exynos_crtc, old_crtc_state, 0);
 #endif
 	decon_reg_all_win_shadow_update_req(decon->id);
@@ -1592,7 +1595,7 @@ static const struct exynos_drm_crtc_ops decon_crtc_ops = {
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
 	.dump_event_log = decon_dump_event_log,
 #endif
-#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER)
+#if IS_ENABLED(CONFIG_SUPPORT_MASK_LAYER) || IS_ENABLED(CONFIG_USDM_PANEL_MASK_LAYER)
 	.set_fingerprint_mask = decon_fingerprint_mask,
 #endif
 	.recovery = decon_trigger_recovery,
@@ -2430,7 +2433,7 @@ static int decon_probe(struct platform_device *pdev)
 	INIT_WORK(&decon->off_work, decon_emergency_off_handler);
 
 #if IS_ENABLED(CONFIG_DRM_MCD_COMMON)
-#ifdef CONFIG_DISPLAY_USE_INFO
+#if IS_ENABLED(CONFIG_DISPLAY_USE_INFO) || IS_ENABLED(CONFIG_USDM_PANEL_DPUI)
 	decon->dpui_notif.notifier_call = decon_dpui_notifier_callback;
 	ret = dpui_logging_register(&decon->dpui_notif, DPUI_TYPE_CTRL);
 	if (ret)

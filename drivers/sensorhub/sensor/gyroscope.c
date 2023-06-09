@@ -142,6 +142,7 @@ get_init_chipset_funcs_ptr get_gyro_funcs_ary[] = {
 	get_gyroscope_icm42605m_function_pointer,
 	get_gyroscope_lsm6dsl_function_pointer,
 	get_gyroscope_lsm6dsotr_function_pointer,
+	get_gyroscope_lsm6dsvtr_function_pointer,
 	get_gyroscope_icm42632m_function_pointer,
 };
 

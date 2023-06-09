@@ -17,6 +17,7 @@ shub-y	+= factory/gyroscope/gyroscope_factory.o
 shub-y	+= factory/gyroscope/gyroscope_icm42605m_factory.o
 shub-y	+= factory/gyroscope/gyroscope_lsm6dsl_factory.o
 shub-y	+= factory/gyroscope/gyroscope_lsm6dsotr_factory.o
+shub-y	+= factory/gyroscope/gyroscope_lsm6dsvtr_factory.o
 shub-y	+= factory/gyroscope/gyroscope_icm42632m_factory.o
 shub-y += factory/light/light_factory.o
 
@@ -52,6 +53,7 @@ shub-y += sensor/light.o
 shub-y += sensor/light_cct.o
 shub-y += sensor/light_autobrightness.o
 shub-y += sensor/light_seamless.o
+shub-y += sensor/led_cover_event.o
 shub-y += sensor/pressure.o
 shub-y += sensor/scontext.o
 shub-y += sensor/step.o
@@ -66,15 +68,19 @@ shub-y += sensor/device_orientation.o
 shub-y += sensor/sar_backoff_motion.o
 shub-y += sensor/pogo_request_handler.o
 shub-y += sensor/aois.o
+shub-y += sensor/rotation_vector.o
+shub-y += sensor/game_rotation_vector.o
 
 shub-y += sensor/physical_sensor/accelerometer/accelerometer_icm42605m.o
 shub-y += sensor/physical_sensor/accelerometer/accelerometer_lsm6dsl.o
 shub-y += sensor/physical_sensor/accelerometer/accelerometer_lis2dlc12.o
 shub-y += sensor/physical_sensor/accelerometer/accelerometer_lsm6dsotr.o
+shub-y += sensor/physical_sensor/accelerometer/accelerometer_lsm6dsvtr.o
 shub-y += sensor/physical_sensor/accelerometer/accelerometer_icm42632m.o
 shub-y += sensor/physical_sensor/gyroscope/gyroscope_icm42605m.o
 shub-y += sensor/physical_sensor/gyroscope/gyroscope_lsm6dsl.o
 shub-y += sensor/physical_sensor/gyroscope/gyroscope_lsm6dsotr.o
+shub-y += sensor/physical_sensor/gyroscope/gyroscope_lsm6dsvtr.o
 shub-y += sensor/physical_sensor/gyroscope/gyroscope_icm42632m.o
 
 shub-y += sensor/physical_sensor/magnetometer/magnetometer_ak09918c.o

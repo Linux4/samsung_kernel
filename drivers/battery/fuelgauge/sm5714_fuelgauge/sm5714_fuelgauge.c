@@ -1942,8 +1942,9 @@ static int sm5714_fg_get_property(struct power_supply *psy,
 			sm5714_get_cycle(fuelgauge);
 			val->intval = fuelgauge->info.batt_soc_cycle;
 			break;
-/*		case SEC_BATTERY_CAPACITY_FULL: */
-/*		break; */
+		case SEC_BATTERY_CAPACITY_FULL:
+			val->intval = fuelgauge->pdata->capacity_full;
+			break;
 		default:
 			val->intval = -1;
 			break;
@@ -2414,6 +2415,10 @@ static int sm5714_fuelgauge_parse_dt(struct sm5714_fuelgauge_data *fuelgauge)
 			pr_err("%s error reading capacity_max_margin %d\n", __func__, ret);
 			fuelgauge->pdata->capacity_max_margin = 300;
 		}
+		ret = of_property_read_u32(np, "fuelgauge,capacity",
+				&fuelgauge->pdata->capacity_full);
+		if (ret < 0)
+			pr_err("%s error reading capacity %d\n", __func__, ret);
 
 		ret = of_property_read_u32(np, "fuelgauge,capacity_min",
 				&fuelgauge->pdata->capacity_min);
@@ -2582,7 +2587,7 @@ static int sm5714_fuelgauge_parse_dt(struct sm5714_fuelgauge_data *fuelgauge)
 
 		pr_info("%s: battery_id (gpio) = %d\n", __func__, fuelgauge->battery_data->battery_id);
 	} else {
-		fuelgauge->battery_data->battery_id = -1;
+		fuelgauge->battery_data->battery_id = 0;
 	}
 
 	/* get battery_params node for reg init */

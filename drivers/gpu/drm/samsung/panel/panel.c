@@ -265,12 +265,12 @@ find_panel_ddi_node(struct panel_device *panel, u32 id)
 		return NULL;
 	}
 
-	if (!lut_info->ddi_node) {
-		panel_err("invalid ddi_node\n");
+	if (!lut_info->ap_vendor_setting_node) {
+		panel_err("invalid ap_vendor_setting_node\n");
 		return NULL;
 	}
 
-	return lut_info->ddi_node;
+	return lut_info->ap_vendor_setting_node;
 }
 
 struct device_node * __mockable

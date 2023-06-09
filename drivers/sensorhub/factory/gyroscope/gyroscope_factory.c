@@ -124,6 +124,7 @@ get_chipset_dev_attrs get_gyro_chipset_dev_attrs[] = {
 	get_gyroscope_icm42605m_dev_attrs,
 	get_gyroscope_lsm6dsl_dev_attrs,
 	get_gyroscope_lsm6dsotr_dev_attrs,
+	get_gyroscope_lsm6dsvtr_dev_attrs,
 	get_gyroscope_icm42632m_dev_attrs,
 };
 

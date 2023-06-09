@@ -24,7 +24,7 @@
 static int inject_light_seamless_additional_data(char *buf, int count)
 {
 	char *token;
-    
+	char *str = NULL;
     int ret = 0;
 	int index = 0;
 	int thd[2] = {200, 1000000};
@@ -33,14 +33,14 @@ static int inject_light_seamless_additional_data(char *buf, int count)
 		shub_errf("length error %d", count);
 		return -EINVAL;
 	}
-    token = strsep(&buf, ",");
-    while (token != NULL && index < 2) {
+
+	str = kstrdup(buf, GFP_KERNEL);
+	while ((token = strsep(&str, ",")) != NULL && index < 2) {
         ret = kstrtoint(token, 10, &thd[index++]);
         if (ret < 0) {
             shub_errf("%s - kstrtoint failed.(%d)\n", __func__, ret);
             return ret;
         }
-        token = strsep(&buf, ",");
     }
 
     shub_info("%s - thd[0] = %d thd[1] = %d", __func__, thd[0], thd[1]);

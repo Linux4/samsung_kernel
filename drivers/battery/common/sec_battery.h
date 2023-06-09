@@ -728,7 +728,7 @@ typedef struct sec_battery_platform_data {
 	sec_charger_functions_t chg_functions_setting;
 
 	bool fake_capacity;
-	bool dis_auto_shipmode_temp_ctrl;
+	bool en_auto_shipmode_temp_ctrl;
 	bool boosting_voltage_aicl;
 	bool tx_5v_disable;
 	unsigned int phm_vout_ctrl_dev;
@@ -824,8 +824,11 @@ typedef struct sec_battery_platform_data {
 
 	unsigned int d2d_check_type;
 	bool support_vpdo;
+	bool support_fpdo_dc;
+	unsigned int fpdo_dc_charge_power;
 
 	bool sc_LRP_25W;
+	int batt_temp_adj_gap_inc;
 	/* ADC type for each channel */
 	unsigned int adc_type[];
 } sec_battery_platform_data_t;
@@ -1251,6 +1254,8 @@ struct sec_battery_info {
 	unsigned long lr_time_span;
 	int lrp_temp;
 	int lr_bat_t_1;
+
+	bool is_fpdo_dc;
 
 #if IS_ENABLED(CONFIG_USB_FACTORY_MODE)
 	bool usb_factory_init;

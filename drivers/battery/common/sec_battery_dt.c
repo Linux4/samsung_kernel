@@ -680,8 +680,8 @@ int sec_bat_parse_dt(struct device *dev,
 		pr_info("%s : power_value is Empty\n", __func__);
 	}
 
-	pdata->dis_auto_shipmode_temp_ctrl = of_property_read_bool(np,
-						     "battery,dis_auto_shipmode_temp_ctrl");
+	pdata->en_auto_shipmode_temp_ctrl = of_property_read_bool(np,
+						     "battery,en_auto_shipmode_temp_ctrl");
 
 	pdata->boosting_voltage_aicl = of_property_read_bool(np,
 						     "battery,boosting_voltage_aicl");
@@ -1345,7 +1345,7 @@ int sec_bat_parse_dt(struct device *dev,
 	pdata->wire_normal_warm_thresh = (int)temp;
 	if (ret) {
 		pr_info("%s : wire_normal_warm_thresh is Empty\n", __func__);
-		pdata->wire_normal_warm_thresh = 410;
+		pdata->wire_normal_warm_thresh = 420;
 	}
 
 	ret = of_property_read_u32(np, "battery,wire_cool1_normal_thresh", &temp);
@@ -1788,6 +1788,16 @@ int sec_bat_parse_dt(struct device *dev,
 		pdata->pd_charging_charge_power = 15000;
 	}
 
+	pdata->support_fpdo_dc = of_property_read_bool(np, "battery,support_fpdo_dc");
+	if (pdata->support_fpdo_dc) {
+		ret = of_property_read_u32(np, "battery,fpdo_dc_charge_power",
+				&pdata->fpdo_dc_charge_power);
+		if (ret) {
+			pr_err("%s: fpdo_dc_charge_power is Empty\n", __func__);
+			pdata->fpdo_dc_charge_power = 15000;
+		}
+	}
+
 	ret = of_property_read_u32(np, "battery,rp_current_rp1",
 			&pdata->rp_current_rp1);
 	if (ret) {
@@ -2003,6 +2013,13 @@ int sec_bat_parse_dt(struct device *dev,
 		pdata->bat_thm_info.check_type, pdata->temp_check_count, pdata->nv_charge_power,
 		pdata->full_condition_type, pdata->recharge_condition_type, pdata->full_check_type
 		);
+
+	ret = of_property_read_u32(np, "battery,batt_temp_adj_gap_inc",
+		&pdata->batt_temp_adj_gap_inc);
+	if (ret) {
+		pr_err("%s: batt_temp_adj_gap_inc is Empty\n", __func__);
+		pdata->batt_temp_adj_gap_inc = 0;
+	}
 
 #if defined(CONFIG_STEP_CHARGING)
 	sec_step_charging_init(battery, dev);
