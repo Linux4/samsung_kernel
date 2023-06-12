@@ -1,0 +1,1 @@
+make MALI_PLATFORM=scx15 BUILD=no KDIR=../kernel $1

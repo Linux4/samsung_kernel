@@ -1,0 +1,98 @@
+#
+# Near Field Communication (NFC) devices
+#
+
+menuconfig NFC_DEVICES
+	bool "Near Field Communication (NFC) devices"
+	default n
+	---help---
+	  You'll have to say Y if your computer contains an NFC device that
+	  you want to use under Linux.
+	  You can say N here if you don't have any Near Field Communication devices connected to your computer.
+
+if NFC_DEVICES
+
+config PN544_NFC
+	tristate "PN544 NFC driver"
+	depends on I2C
+	select CRC_CCITT
+	default n
+	---help---
+	  Say yes if you want PN544 Near Field Communication driver.
+	  This is for i2c connected version. If unsure, say N here.
+	  To compile this driver as a module, choose m here. The module will be called pn544.
+
+config BCM2079X_NFC_I2C
+	tristate "BCM2079X NFC driver for I2C interface"
+	depends on I2C
+	default n
+	---help---
+	  Say yes if you want BCM2079X Near Field Communication driver.
+	  This is for i2c connected version. If unsure, say N here.
+	  To compile this driver as a module, choose m here. The module will be called bcm2079x-i2c.
+
+config BCM2079X_NFC_SPI
+	tristate "BCM2079X NFC driver for SPI interface"
+	depends on SPI
+	default n
+	---help---
+	  Say yes if you want BCM2079X Near Field Communication driver.
+	  This is for spi connected version. If unsure, say N here.
+	  To compile this driver as a module, choose m here. The module will be called bcm2079x-spi.
+
+config SEC_NFC_I2C
+    tristate "SEC NFC driver"
+    default n
+    help
+      SAMSUNG NFC Driver.
+      This driver provides support for SAMSUNG NFC products.
+      You should select your NFC product and interface.
+
+      Say Y here to compile support for SAMSUNG NFC driver into the
+      kernel.
+      
+config SEC_NFC_CLK_REQ
+    tristate "SEC NFC CLK REQ"
+    default n
+    help
+      SAMSUNG NFC CLR REQ feature.
+      This feature provides support for SAMSUNG NFC products.
+      You should select this feature if your NFC product uses AP CLK.
+
+      Say Y here to compile support for SAMSUNG NFC CLK REQ feature into the
+      kernel.
+
+config SEC_NFC_COMMON
+	tristate "Samsung NFC driver"
+	default n
+	help
+	  SAMSUNG NFC Driver.
+	  This driver provides support for SAMSUNG NFC products.
+	  You should select your NFC product and interface.
+
+	  Say Y here to compile support for SAMSUNG NFC driver into the
+	  kernel.
+choice
+	prompt "SEC NFC Products"
+	depends on SEC_NFC_COMMON
+	default SEC_NFC_PRODUCT_N5
+config SEC_NFC_PRODUCT_N3
+	bool "N3"
+config SEC_NFC_PRODUCT_N5
+	bool "N5"
+endchoice
+
+choice
+	prompt "SEC NFC Interface"
+	depends on SEC_NFC_COMMON
+	default SEC_NFC_IF_I2C
+config SEC_NFC_IF_UART
+	bool "UART"
+config SEC_NFC_IF_I2C
+	bool "I2C"
+config SEC_NFC_IF_I2C_GPIO
+	bool "I2C-GPIO (S/W-I2C)"
+	select I2C_ALGOBIT
+endchoice
+
+endif # NFC_DEVICES

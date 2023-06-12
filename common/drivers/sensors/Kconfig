@@ -1,0 +1,43 @@
+
+menuconfig NEW_SENSORS
+	bool "Sensors Support"
+	help
+		Say Y to enable Sensors support. This allows control of supported
+		Sensors.
+
+if NEW_SENSORS
+config SENSORS_CORE
+         bool "sensors_core"
+         depends on I2C
+
+config SENSORS_K3DH
+	tristate "K3DH acceleration sensor support"
+	depends on I2C
+	default n
+	help
+	  Driver for STMicroelectronic K3DH accelerometer.
+
+config SENSOR_K3DH_INPUTDEV
+	tristate "K3DH acceleration sensor input dev support"
+	depends on I2C
+	default n
+	help
+	  Driver for STMicroelectronic K3DH INPUTDEV accelerometer.
+
+config SENSORS_K2HH
+        depends on I2C
+        tristate "SENSORS_K2HH"
+        default n
+        help
+          Say Y here if you use SENSORS_K2HH.
+          This option enables accelerometer sensors using
+          STMicroelectronic K2HH device driver.
+
+config SENSORS_EMUL_I2C
+        tristate "Sensor module different HW version support"
+        depends on I2C
+        default n
+        help
+          Support gpio emulator i2c for sensor module different HW version
+endif # NEW_SENSORS
+
