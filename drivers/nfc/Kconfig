@@ -1,0 +1,41 @@
+#
+# Near Field Communication (NFC) devices
+#
+
+config SAMSUNG_NFC
+	bool "Samsung NFC driver"
+	default n
+	help
+		Say Y here if you want to build support for NFC (Near field
+		communication) devices.
+		To compile this support as a module, choose M here: the module will
+		be called nfc.
+
+config SEC_NFC
+	bool "S.LSI NFC driver"
+	default n
+	help
+	  S.LSI NFC Driver.
+	  This driver provides support for S.LSI NFC products.
+	  You should select your NFC product and interface.
+
+	  Say Y here to compile support for S.LSI NFC driver into the
+	  kernel.
+
+config ESE_P3_LSI
+	bool "Oberthur ese driver"
+	depends on SPI
+	default n
+	help
+	  Oberthur Driver.
+	  This driver provides support for LSI NXP combined ESE products.
+	  You should select your NFC product and interface.
+
+config ESE_FACTORY_ONLY
+	bool "Oberthur ese driver factory"
+	depends on SPI
+	default n
+	help
+	  Oberthur Driver.
+	  This driver provides support for LSI NXP combined ESE products.
+	  You should select your NFC product and interface.

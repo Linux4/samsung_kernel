@@ -1,0 +1,156 @@
+/*
+ * MEDIATEK MT6755 board device tree source
+ *
+ * Copyright (c) 2016 Samsung Electronics Co., Ltd.
+ *             http://www.samsung.com
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+&spi0 {
+	isdbt@0 {
+		compatible = "isdbt_spi_comp";
+		reg = <0>;
+		/* spi-max-frequency = <26000000>; */
+		interrupt-parent = <&eintc>;
+		interrupts = <57 IRQ_TYPE_EDGE_RISING>;	/*gpionum trigger*/
+		status = "okay";
+	};
+};
+
+&soc {
+	isdbt_data {
+		status = "okay";
+		compatible = "isdbt_pdata";
+		interrupt-parent = <&eintc>;
+		interrupts = <57 IRQ_TYPE_EDGE_RISING>;
+		
+		isdbt_spi_clk = <&pio 66 0>;
+		isdbt_spi_cs = <&pio 65 0>;
+		isdbt_spi_miso = <&pio 67 0>;
+		isdbt_spi_mosi = <&pio 68 0>;
+		isdbt_ant_sel = <&pio 140 0>;
+		isdbt_pwr_en = <&pio 8 0>;
+		isdbt_rst = <&pio 77 0>;
+		isdbt_irq = <&pio 57 0>;
+		isdbt_xtal_freq = <26000>;
+
+		pinctrl-names = "isdbt_gpio_active", "isdbt_gpio_suspend", "isdbt_power_en_high", "isdbt_power_en_low", "isdbt_rst_high", "isdbt_rst_low", "isdbt_irq_init", "isdbt_ant_sel_high", "isdbt_ant_sel_low";
+		pinctrl-0 = <&isdbt_gpio_active>;
+		pinctrl-1 = <&isdbt_gpio_suspend>;
+		pinctrl-2 = <&isdbt_power_en_high>;
+		pinctrl-3 = <&isdbt_power_en_low>;
+		pinctrl-4 = <&isdbt_rst_high>;
+		pinctrl-5 = <&isdbt_rst_low>;
+		pinctrl-6 = <&isdbt_irq_init>;
+		pinctrl-7 = <&isdbt_ant_sel_high>;
+		pinctrl-8 = <&isdbt_ant_sel_low>;
+	};
+};
+
+&pio {
+	isdbt_gpio_active: isdbt_active {
+		pins_cmd_dat1 {
+			pins = <PINMUX_GPIO65__FUNC_SPI_CSA>;
+			slew-rate = <1>;
+			bias-disable;
+		};
+		pins_cmd_dat2 {
+			pins = <PINMUX_GPIO66__FUNC_SPI_CKA>;
+			slew-rate = <1>;
+			bias-disable;
+		};
+		pins_cmd_dat3 {
+			pins = <PINMUX_GPIO67__FUNC_SPI_MIA>;
+			slew-rate = <0>;
+			bias-pull-up;
+		};
+		pins_cmd_dat4 {
+			pins = <PINMUX_GPIO68__FUNC_SPI_MOA>;
+			slew-rate = <1>;
+			bias-disable;
+		};
+	};
+	
+	isdbt_gpio_suspend: isdbt_suspend {
+		pins_cmd_dat1 {
+			pins = <PINMUX_GPIO65__FUNC_SPI_CSA>;
+			slew-rate = <1>;
+			bias-disable;
+		};
+		pins_cmd_dat2 {
+			pins = <PINMUX_GPIO66__FUNC_SPI_CKA>;
+			slew-rate = <1>;
+			bias-disable;
+		};
+		pins_cmd_dat3 {
+			pins = <PINMUX_GPIO67__FUNC_SPI_MIA>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+		pins_cmd_dat4 {
+			pins = <PINMUX_GPIO68__FUNC_SPI_MOA>;
+			slew-rate = <1>;
+			bias-disable;
+		};
+	};
+
+	isdbt_power_en_low: isdbt_power_en_low {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO8__FUNC_GPIO8>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+
+	isdbt_power_en_high: isdbt_power_en_high {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO8__FUNC_GPIO8>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	isdbt_rst_low: isdbt_rst_low {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO77__FUNC_GPIO77>;
+			slew-rate = <1>;
+			bias-pull-down = <0>;	/* pull-down */
+			output-low;
+		};
+	};
+
+	isdbt_rst_high: isdbt_rst_high {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO77__FUNC_GPIO77>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	isdbt_irq_init: isdbt_irq_init {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO57__FUNC_GPIO57>;
+			slew-rate = <0>;
+			bias-pull-down = <0>;	/* pull-down */
+		};
+	};
+	
+	isdbt_ant_sel_high: isdbt_ant_sel_high {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO140__FUNC_GPIO140>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	
+	isdbt_ant_sel_low: isdbt_ant_sel_low {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO140__FUNC_GPIO140>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	
+};
