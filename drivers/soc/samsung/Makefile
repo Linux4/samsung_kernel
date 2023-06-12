@@ -1,0 +1,1 @@
+obj-$(CONFIG_DRV_SAMSUNG) += sec_class.o
