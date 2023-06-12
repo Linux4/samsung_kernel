@@ -1,0 +1,51 @@
+#
+# MUIC devices
+#
+
+comment "MUIC configs"
+
+config USE_MUIC
+	bool "Using MUIC device driver"
+	depends on I2C
+	default n
+	help
+	  If you say yes here you will get support for
+	  the MUIC device driver.
+
+config MUIC_NOTIFIER
+	bool "MUIC notifier support"
+	depends on USE_MUIC
+	default n
+	help
+	  If you say yes here you will get support for
+	  the MUIC attached device status change notification.
+
+config MUIC_RUSTPROOF_ON_USER
+	bool "Using MUIC chip Rustproof function ON for User binary"
+	depends on USE_MUIC
+	default n
+	help
+	  This feature is for MUIC chip's Rustproof function.
+
+config MUIC_S2MU005
+	bool "Using S2MU005 MUIC"
+	depends on USE_MUIC && MFD_S2MU005
+	default n
+	help
+	  If you say yes here you will get support for
+	  for the S2MU005 MUIC chip.
+
+config MUIC_SM5504
+	bool "Using SM5504 MUIC"
+	depends on USE_MUIC
+	default n
+	help
+	  If you say yes here you will get support for
+	  for the SM5504 MUIC chip.
+
+config MUIC_S2MU005_ENABLE_AUTOSW
+	bool "Setting auto config mode of S2MU005 MUIC"
+	depends on USE_MUIC && MFD_S2MU005 && MUIC_S2MU005
+	default n
+	help
+	  Setting auto config mode of S2MU005 MUIC

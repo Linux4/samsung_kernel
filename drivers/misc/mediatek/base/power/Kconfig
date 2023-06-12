@@ -1,0 +1,67 @@
+config MTK_CLKMGR
+	bool "Mediatek proprietary clock management"
+	default n
+	---help---
+	  Mediatek proprietary clock management is used to operate
+          the clocks. The clocks are composed of CG, MUX, PLL,
+          non-MTCMOS. The operations of clocks are enabling,
+          disabling, and querying status. If this config is not set,
+          system will use COMMON_CLK instead.
+
+config SODI_ON
+	bool "Enable SODI"
+	depends on (ARCH_MT6735 || ARCH_MT6735M || ARCH_MT6753)
+	default n
+	help
+	  Select if you want to enable Screen ON DeepIdle (SODI).
+
+config MTK_CPU_HOTPLUG_DEBUG_0
+	bool "MediaTek CPU Hotplug DEBUG 0"
+	default y
+	help
+	  This kernel config can be used to enable log message in cpu notify
+	  callback function in register_cpu_notifier. This is useful for CPU
+	  hotplug debug.
+	  If unsure, say Y.
+
+config MTK_CPU_HOTPLUG_DEBUG_1
+	bool "MediaTek CPU Hotplug DEBUG 1"
+	default n
+	help
+	  This kernel config can be used to enable log message in cpu notify
+	  callback function in notifier_call_chain. This is useful for CPU
+	  hotplug debug but the performance will be drop down.
+	  If unsure, say N.
+
+config MTK_CPU_HOTPLUG_DEBUG_2
+	bool "MediaTek CPU Hotplug DEBUG 2"
+	default y
+	help
+	  This kernel config can be used to enable aee to log cpu notify
+	  callback in notifier_call_chain. This is useful for CPU hotplug
+	  debug.
+	  If unsure, say Y.
+
+config SYSTEM_BOOTUP_CPU_BOOST
+	bool "Boost CPU performance to enhance boot speed"
+	default n
+	help
+	  SYSTEM_BOOTUP_CPU_BOOST is to boost CPU performance to enhance boot
+	  speed and save time cost during system booting. This mechanism
+	  will recover DVFS/hotplug after system boot up done.
+
+config CPU_DVFS_SYSTEM_BOOTUP_BOOST
+	bool "cpu dvfs system bootup boost"
+	default n 
+	help
+		CPU_DVFS_SYSTEM_BOOTUP_BOOST is used to enhance system bootup time by fixing
+		CPU at max CPU frequency before bootup procedure finished. Say y here to enable
+		it and say n to disable it.
+
+config DISABLE_SCREEN_OFF_DVFS_ENHANCEMENT
+	bool "Disable DVFS enhancement feature for screen off scenario"
+	default n
+	help
+	  Select this option if you want to disable CPU DVFS enhancemnet
+	  and let it free-run for screen off scenario.
+
