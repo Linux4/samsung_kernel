@@ -1,0 +1,10 @@
+# When adding new entries keep the list in alphabetical order
+
+config DRV_SAMSUNG
+	bool "samsung device dedicated drivers option"
+	default y
+	help
+	  This is driver option for samsung sec_class
+	  Say y here to enable samsung classes for drivers
+	  Provide option of enabling sec class
+	  Supports sec drivers key, touch, sec_debug etc

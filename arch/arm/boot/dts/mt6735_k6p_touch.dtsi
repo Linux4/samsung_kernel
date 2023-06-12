@@ -1,0 +1,51 @@
+/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&i2c1 {
+	lg4894@28 {
+		status = "okay";
+		compatible = "lge,lg4894";
+		reg = <0x28>;
+		interrupt-parent = <&eintc>;
+		interrupts = <10 0x02>;
+		debounce = <10 0>;
+		irqflags = <0x00002002>;
+
+		//pinctrl-names = "pmx_ts_active","pmx_ts_suspend";
+		//pinctrl-0 = <&ts_int_active>;
+		//pinctrl-1 = <&ts_int_suspend>;
+
+		reset-gpio = <&pio 62 0x00>;
+		irq-gpio = <&eintc 10 0x2008>;
+
+		/* Caps */
+		max_x = <720>;
+		max_y = <1280>;
+		max_pressure = <0xff>;
+		max_width = <15>;
+		max_orientation = <1>;
+		max_id = <10>;
+
+		/* role */
+		hw_reset_delay = <210>;
+		sw_reset_delay = <90>;
+		use_lpwg = <1>;
+		use_lpwg_test = <1>;
+
+		/* firmware */
+		use_fw_upgrade = <1>;
+		use_firmware = <0>;
+		fw_image = "sic/lg4894/k6p/L0W53K6P_0_07.img";
+		panel_spec = "sic/lg4894/ph1/ph1_limit.txt";
+		panel_spec_mfts = "sic/lg4894/ph1/ph1_limit_mfts.txt";
+	};
+};
