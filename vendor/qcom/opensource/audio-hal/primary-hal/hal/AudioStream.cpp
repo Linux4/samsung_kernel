@@ -5600,9 +5600,15 @@ uint32_t StreamInPrimary::GetBufferSize() {
      *  3.333 ms = 160 frames = 10*16*1*2 = 320, a whole multiple of 32 (10)
      * Also, make sure the size is multiple of bytes per period sample
      */
-    bytes_per_period_sample = audio_bytes_per_sample(config_.format) *
-                              audio_channel_count_from_in_mask(config_.channel_mask);
-    size = nearest_multiple(size, lcm(32, bytes_per_period_sample));
+#ifdef SEC_AUDIO_SAMSUNGRECORD
+    // skip 32 alignment when recordalive case to avoid mismatched size by AudioPreProcess::GetBufferSize()
+    if (!preprocess_->IsSupportPreprocess(this))
+#endif
+    {
+        bytes_per_period_sample = audio_bytes_per_sample(config_.format) *
+                                audio_channel_count_from_in_mask(config_.channel_mask);
+        size = nearest_multiple(size, lcm(32, bytes_per_period_sample));
+    }
 
     return size;
 }

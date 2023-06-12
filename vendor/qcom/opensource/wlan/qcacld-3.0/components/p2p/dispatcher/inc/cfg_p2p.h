@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -123,10 +123,34 @@
 	1, \
 	"Enable random seq nums for action frames")
 
+/*
+ * <ini>
+ * p2p_go_on_indoor_chan - Allow P2P GO to operate on 5 GHz indoor channels
+ *
+ * @Min: 0
+ * @Max: 1
+ * @Default: 0
+ *
+ * This ini is used to enable/disable P2P-GO operation on 5 GHz
+ * indoor channels.
+ *
+ * Related: sta_sap_scc_on_indoor_channel, gindoor_channel_support
+ *
+ * Supported Feature: P2P GO
+ *
+ * Usage: external
+ *
+ * </ini>
+ */
+#define CFG_P2P_GO_ON_INDOOR_CHANNEL CFG_INI_BOOL("p2p_go_on_indoor_chan", \
+						  "0", \
+				"Allow P2P GO on 5 GHz indoor channels")
+
 #define CFG_P2P_ALL \
 	CFG(CFG_ACTION_FRAME_RANDOM_SEQ_NUM_ENABLED) \
 	CFG(CFG_GO_KEEP_ALIVE_PERIOD) \
 	CFG(CFG_GO_LINK_MONITOR_PERIOD) \
-	CFG(CFG_P2P_DEVICE_ADDRESS_ADMINISTRATED)
+	CFG(CFG_P2P_DEVICE_ADDRESS_ADMINISTRATED) \
+	CFG(CFG_P2P_GO_ON_INDOOR_CHANNEL)
 
 #endif

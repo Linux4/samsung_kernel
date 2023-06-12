@@ -805,6 +805,7 @@
 					charger,dchg_min_current = <0x7d0>;
 					charger,ta_alert_wa;
 					charger,end_soc = <0x64>;
+					charger,fpdo_dc_max_vbat = <0xf3c>;
 				};
 
 				pass-through {
@@ -8330,7 +8331,6 @@
 					qcom,mdss-dsi-panel-peak-brightness = <0x44aa20>;
 					qcom,mdss-dsi-panel-average-brightness = <0x124f80>;
 					qcom,mdss-dsi-panel-blackness-level = <0x05>;
-					qcom,qsync-enable;
 					qcom,mdss-dsi-panel-vsync-delay;
 					qcom,ulps-enabled;
 					qcom,esd-check-enabled;
@@ -10917,7 +10917,7 @@
 				pca9481,chg-mode = <0x01>;
 				pca9481,cv-polling = <0x7d0>;
 				pca9481,step1-cv = <0x401640>;
-				pca9481,fpdo_dc_input-itopoff = <0x1cfde0>;
+				pca9481,fpdo_dc_input-itopoff = <0x19f0a0>;
 				pca9481,fpdo_dc_vnow-topoff = <0x3fb498>;
 				nxp,switching-frequency-low = <0x12c>;
 				phandle = <0x196>;

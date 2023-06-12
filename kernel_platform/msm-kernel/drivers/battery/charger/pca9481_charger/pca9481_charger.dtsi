@@ -20,10 +20,10 @@
 	};
 };
 
-/* /home/dpi/qb5_8815/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/dm/charger/pca9481/pca9481_charger.dm1q.dtsi */
+/* /home/dpi/qb5_8814/workspace/P4_1716/android/kernel_platform/kmodule/battery/stable/dm/charger/pca9481/pca9481_charger.dm1q.dtsi */
 &pca9481_charger {
 	pca9481,input-itopoff = <350000>; /* 350mA */
-	pca9481,fpdo_dc_input-itopoff = <1900000>; /* 1900mA */
+	pca9481,fpdo_dc_input-itopoff = <1700000>; /* 1700mA */
 	pca9481,fpdo_dc_vnow-topoff = <4175000>; /* 4175mV */
 	nxp,switching-frequency-low = <300>;
 };

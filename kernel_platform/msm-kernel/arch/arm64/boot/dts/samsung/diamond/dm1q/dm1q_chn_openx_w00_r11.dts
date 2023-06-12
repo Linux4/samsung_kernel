@@ -250,7 +250,10 @@
 					battery,ttf_dc25_charge_current = <0xf6e>;
 					battery,ttf_wireless_charge_current = <0x35f>;
 					battery,ttf_hv_wireless_charge_current = <0x64a>;
+					battery,abnormal_wpc_check;
 					battery,dchg_dc_in_swelling;
+					battery,support_fpdo_dc;
+					battery,fpdo_dc_charge_power = <0x48f3>;
 					battery,enable_check_wpc_temp_v2;
 					battery,wpc_temp_v2_cond = <0x186>;
 					battery,wpc_high_temp_12w = <0x190>;
@@ -268,7 +271,7 @@
 					battery,dc_step_chg_vol_offset = <0x00 0x00 0x0f 0x05 0x00>;
 					battery,dc_step_chg_cond_iin = <0x6e0 0x578 0x212 0x15e 0x00>;
 					battery,update_mfc_power_info;
-					battery,ttf_fpdo_dc_charge_current = <0xd7a>;
+					battery,ttf_fpdo_dc_charge_current = <0xcbc>;
 					phandle = <0xf9>;
 				};
 
@@ -824,6 +827,7 @@
 					charger,dchg_min_current = <0x7d0>;
 					charger,ta_alert_wa;
 					charger,end_soc = <0x64>;
+					charger,fpdo_dc_max_vbat = <0xf3c>;
 				};
 
 				pass-through {
@@ -8357,7 +8361,6 @@
 					qcom,mdss-dsi-panel-peak-brightness = <0x44aa20>;
 					qcom,mdss-dsi-panel-average-brightness = <0x124f80>;
 					qcom,mdss-dsi-panel-blackness-level = <0x05>;
-					qcom,qsync-enable;
 					qcom,mdss-dsi-panel-vsync-delay;
 					qcom,ulps-enabled;
 					qcom,esd-check-enabled;
@@ -10944,7 +10947,7 @@
 				pca9481,chg-mode = <0x01>;
 				pca9481,cv-polling = <0x7d0>;
 				pca9481,step1-cv = <0x401640>;
-				pca9481,fpdo_dc_input-itopoff = <0x1cfde0>;
+				pca9481,fpdo_dc_input-itopoff = <0x19f0a0>;
 				pca9481,fpdo_dc_vnow-topoff = <0x3fb498>;
 				nxp,switching-frequency-low = <0x12c>;
 				phandle = <0x196>;

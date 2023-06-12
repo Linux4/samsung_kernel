@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -640,4 +640,23 @@ QDF_STATUS ucfg_p2p_status_stop_bss(struct wlan_objmgr_vdev *vdev)
 	}
 
 	return p2p_status_stop_bss(vdev);
+}
+
+bool ucfg_p2p_get_indoor_ch_support(struct wlan_objmgr_psoc *psoc)
+{
+	struct p2p_soc_priv_obj *p2p_soc_obj;
+
+	if (!psoc) {
+		p2p_err("invalid psoc");
+		return false;
+	}
+
+	p2p_soc_obj = wlan_objmgr_psoc_get_comp_private_obj(psoc,
+							    WLAN_UMAC_COMP_P2P);
+	if (!p2p_soc_obj) {
+		p2p_err("p2p soc private object is NULL");
+		return false;
+	}
+
+	return p2p_soc_obj->param.indoor_channel_support;
 }
