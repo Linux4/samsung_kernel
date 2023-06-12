@@ -656,7 +656,7 @@ static ssize_t fac_fstate_store(struct device *dev,
 static ssize_t wakeup_reason_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
-	return snprintf(buf, PAGE_SIZE, "unsupport\n");
+    return snprintf(buf, PAGE_SIZE, "unsupport\n");
 }
 
 #if IS_ENABLED(CONFIG_SUPPORT_DEVICE_MODE) && IS_ENABLED(CONFIG_SUPPORT_DUAL_OPTIC)
