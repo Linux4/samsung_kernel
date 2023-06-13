@@ -333,7 +333,7 @@ int adreno_sysfs_init(struct adreno_device *adreno_dev)
 
 	/* Notify userspace */
 	if (!ret)
-		kobject_uevent(&device->dev->kobj, KOBJ_ADD);	
+		kobject_uevent(&device->dev->kobj, KOBJ_ADD);
 
 	return ret;
 }

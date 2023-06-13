@@ -1207,6 +1207,8 @@ int stm_ts_get_jitter_result(struct stm_ts_data *ts, u8 *reg, u8 count, s16 *res
 		goto ERROR;
 	}
 
+	sec_delay(5);
+
 	memset(data, 0x0, STM_TS_EVENT_BUFF_SIZE);
 
 	address = STM_TS_READ_ONE_EVENT;
@@ -1682,6 +1684,8 @@ static int stm_ts_panel_test_micro_result(struct stm_ts_data *ts, int type)
 		input_err(true, &ts->client->dev, "%s: write failed: %d\n", __func__, ret);
 		goto error;
 	}
+
+	sec_delay(5);
 
 	/* maximum timeout 500 msec ? */
 	while (retry-- >= 0) {
@@ -2204,6 +2208,8 @@ static void run_lcdoff_mutual_jitter(void *device_data)
 		enable_irq(ts->irq);
 		goto ERROR;
 	}
+
+	sec_delay(5);
 
 	memset(data, 0x0, STM_TS_EVENT_BUFF_SIZE);
 
@@ -2931,7 +2937,7 @@ static void run_prox_intensity_read_all(void *device_data)
 		return;
 	}
 
-	snprintf(buff, sizeof(buff), "SUM_X:%d THD_X:%d SUM_Y:%d THD_Y:%d",
+	snprintf(buff, sizeof(buff), "SUM_X:%d SUM_Y:%d THD_X:%d THD_Y:%d",
 			(sum_data[0] << 8) + sum_data[1], (sum_data[2] << 8) + sum_data[3],
 			(thd_data[0] << 8) + thd_data[1], (thd_data[2] << 8) + thd_data[3]);
 	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
@@ -4301,6 +4307,8 @@ static void run_miscalibration(void *device_data)
 		goto error;
 	}
 
+	sec_delay(5);
+
 	/* maximum timeout 2sec ? */
 	while (retry-- >= 0) {
 		memset(data, 0x00, sizeof(data));
@@ -4676,6 +4684,8 @@ static void run_elvss_test(void *device_data)
 		enable_irq(ts->irq);
 		return;
 	}
+
+	sec_delay(5);
 
 	memset(data, 0x00, STM_TS_EVENT_BUFF_SIZE);
 	data[0] = STM_TS_READ_ONE_EVENT;
@@ -6319,6 +6329,43 @@ static void pocket_mode_enable(void *device_data)
 	input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
 }
 
+static void low_sensitivity_mode_enable(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct stm_ts_data *ts = container_of(sec, struct stm_ts_data, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	int ret;
+	u8 reg[2] = { 0 };
+
+	sec_cmd_set_default_result(sec);
+
+	if (sec->cmd_param[0] < 0 || sec->cmd_param[0] > 3) {
+		snprintf(buff, sizeof(buff), "NG");
+		sec->cmd_state = SEC_CMD_STATUS_FAIL;
+	} else {
+		mutex_lock(&ts->modechange);
+		ts->plat_data->low_sensitivity_mode = sec->cmd_param[0];
+		reg[0] = STM_TS_CMD_FUNCTION_SET_LOW_SENSITIVITY_MODE;
+		reg[1] = sec->cmd_param[0];
+		ret = ts->stm_ts_write(ts, reg, 2, NULL, 0);
+		if (ret < 0) {
+			snprintf(buff, sizeof(buff), "NG");
+			sec->cmd_state = SEC_CMD_STATUS_FAIL;
+		} else {
+			input_info(true, &ts->client->dev, "%s: %s\n", __func__, reg[1] ? "enable" : "disable");
+			snprintf(buff, sizeof(buff), "OK");
+			sec->cmd_state = SEC_CMD_STATUS_OK;
+		}
+		mutex_unlock(&ts->modechange);
+	}
+
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec->cmd_state = SEC_CMD_STATUS_WAITING;
+	sec_cmd_set_cmd_exit(sec);
+
+	input_info(true, &ts->client->dev, "%s: %s\n", __func__, buff);
+}
+
 static void set_sip_mode(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -6541,6 +6588,7 @@ struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("touch_aging_mode", touch_aging_mode),},
 	{SEC_CMD_H("ear_detect_enable", ear_detect_enable),},
 	{SEC_CMD_H("pocket_mode_enable", pocket_mode_enable),},
+	{SEC_CMD("low_sensitivity_mode_enable", low_sensitivity_mode_enable),},
 	{SEC_CMD("set_sip_mode", set_sip_mode),},
 	{SEC_CMD("set_game_mode", set_game_mode),},
 	{SEC_CMD("set_note_mode", set_note_mode),},

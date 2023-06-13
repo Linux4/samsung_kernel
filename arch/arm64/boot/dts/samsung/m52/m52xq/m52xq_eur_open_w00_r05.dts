@@ -4303,7 +4303,7 @@
 			#address-cells = <0x1>;
 			#size-cells = <0x0>;
 			status = "okay";
-			samsung,i2c-max-bus-freq = <0x61a80>;
+			qcom,clk-freq-out = <0x61a80>;
 
 			sm5714@49 {
 				status = "okay";
@@ -4325,7 +4325,7 @@
 			#address-cells = <0x1>;
 			#size-cells = <0x0>;
 			status = "okay";
-			samsung,i2c-max-bus-freq = <0x61a80>;
+			qcom,clk-freq-out = <0x61a80>;
 
 			usbpd-sm5714@33 {
 				status = "okay";
@@ -6856,7 +6856,7 @@
 			sec,wb-up-threshold-rqs = <0x1e>;
 			sec,wb-down-threshold-block = <0x600>;
 			sec,wb-down-threshold-rqs = <0x19>;
-			sec,wb-disable-threshold-lt = <0x7>;
+			sec,wb-disable-threshold-lt = <0x9>;
 			sec,wb-on-delay-ms = <0x5c>;
 			sec,wb-off-delay-ms = <0x1194>;
 		};

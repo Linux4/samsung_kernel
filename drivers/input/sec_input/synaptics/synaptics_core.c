@@ -696,8 +696,9 @@ void synaptics_ts_reinit(void *data)
 	ts->plat_data->wet_mode = 0;
 	/* buffer clear asking */
 	synaptics_ts_release_all_finger(ts);
- 
-	synaptics_ts_set_cover_type(ts, ts->plat_data->touch_functions);
+
+	if (ts->cover_closed)
+		synaptics_ts_set_cover_type(ts, ts->cover_closed);
 
 	synaptics_ts_set_custom_library(ts);
 	synaptics_ts_set_press_property(ts);
