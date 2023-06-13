@@ -37,6 +37,7 @@
 #endif
 #if defined(CONFIG_BATTERY_SAMSUNG_USING_QC)
 #include "../../../battery_qc/include/sec_battery_qc.h"
+#include "../../../battery_qc/include/sec_battery_ttf.h"
 #include "step-chg-jeita.h"
 #endif
 #if defined(CONFIG_AFC)
@@ -1974,6 +1975,7 @@ static int smb5_batt_get_prop(struct power_supply *psy,
 	struct smb_charger *chg = power_supply_get_drvdata(psy);
 	int rc = 0;
 #if defined(CONFIG_BATTERY_SAMSUNG_USING_QC)
+	struct sec_battery_info *battery = get_sec_battery();
 	enum power_supply_ext_property ext_psp = (enum power_supply_ext_property)psp;
 	int health = 0;
 	u8 data;
@@ -2145,10 +2147,20 @@ static int smb5_batt_get_prop(struct power_supply *psy,
 		rc = smblib_get_prop_from_bms(chg,
 				POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN, val);
 		break;
+#if defined(CONFIG_BATTERY_SAMSUNG_USING_QC)
+	case POWER_SUPPLY_PROP_TIME_TO_FULL_NOW:
+		if (battery != NULL)
+			val->intval = ttf_display(battery);
+		else
+			val->intval = -1;
+			pr_info("%s: Time to full (%d)\n", __func__, val->intval);
+		break; 
+#else
 	case POWER_SUPPLY_PROP_TIME_TO_FULL_NOW:
 		rc = smblib_get_prop_from_bms(chg,
 				POWER_SUPPLY_PROP_TIME_TO_FULL_NOW, val);
 		break;
+#endif
 	case POWER_SUPPLY_PROP_FCC_STEPPER_ENABLE:
 		val->intval = chg->fcc_stepper_enable;
 		break;

@@ -2589,7 +2589,7 @@ static int cam_ife_mgr_config_hw(void *hw_mgr_priv,
 		if (cfg->init_packet) {
 			rc = wait_for_completion_timeout(
 				&ctx->config_done_complete,
-				msecs_to_jiffies(30));
+				msecs_to_jiffies(60));
 			if (rc <= 0) {
 				CAM_ERR(CAM_ISP,
 					"config done completion timeout for req_id=%llu rc=%d ctx_index %d",
@@ -5084,8 +5084,7 @@ static int cam_ife_hw_mgr_get_err_type(
 
 	core_idx = evt_payload->core_index;
 	evt_payload->evt_id = CAM_ISP_HW_EVENT_ERROR;
-	evt_payload->enable_reg_dump =
-		g_ife_hw_mgr.debug_cfg.enable_reg_dump;
+	evt_payload->enable_reg_dump = true;
 
 	list_for_each_entry(isp_ife_camif_res,
 		&ife_hwr_mgr_ctx->res_list_ife_src, list) {

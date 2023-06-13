@@ -1501,8 +1501,10 @@ static int lo_ioctl(struct block_device *bdev, fmode_t mode,
 	case LOOP_CONFIGURE: {
 		struct loop_config config;
 
-		if (copy_from_user(&config, argp, sizeof(config)))
+		if (copy_from_user(&config, argp, sizeof(config))) {
+			mutex_unlock(&lo->lo_ctl_mutex);
 			return -EFAULT;
+		}
 
 		err = loop_configure(lo, mode, bdev, &config);
 		break;

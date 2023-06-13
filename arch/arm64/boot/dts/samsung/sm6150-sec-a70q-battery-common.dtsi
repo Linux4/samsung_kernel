@@ -117,10 +117,10 @@
 		battery,siop_dc_input_limit_current = <1000>;
 		battery,siop_dc_charging_limit_current = <2000>;
 
-		battery,ttf_hv_charge_current = <2570>;
-		battery,ttf_dc25_charge_current = <2900>;
+		battery,ttf_hv_charge_current = <2480>;
+		battery,ttf_dc25_charge_current = <3020>;
 
-		battery,ttf_capacity = <4000>;
+		battery,ttf_capacity = <3762>;
 		battery,cv_data = <
 					3158	735	2580
 					2962	751	2520

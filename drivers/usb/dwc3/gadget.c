@@ -34,11 +34,19 @@
 #include <linux/usb/ch9.h>
 #include <linux/usb/composite.h>
 #include <linux/usb/gadget.h>
+#if defined(CONFIG_USB_NOTIFY_LAYER_V34)
+#include <linux/usb_notify.h>
+#include <linux/workqueue.h>
+#endif
 
 #include "debug.h"
 #include "core.h"
 #include "gadget.h"
 #include "io.h"
+
+#if defined(CONFIG_USB_NOTIFY_LAYER_V34)
+extern bool acc_dev_status;
+#endif
 
 static void dwc3_gadget_wakeup_interrupt(struct dwc3 *dwc, bool remote_wakeup);
 static int dwc3_gadget_wakeup_int(struct dwc3 *dwc);
@@ -2577,6 +2585,16 @@ static int dwc3_gadget_vbus_session(struct usb_gadget *_gadget, int is_active)
 		dwc3_device_core_soft_reset(dwc);
 	}
 
+#if defined(CONFIG_USB_NOTIFY_LAYER_V34)
+	if (dwc->rst_err_noti) {
+		dwc->event_state = RELEASE;
+		dwc->rst_err_noti = false;
+		schedule_delayed_work(&dwc->usb_event_work, msecs_to_jiffies(0));
+	}
+	dwc->rst_err_cnt = 0;
+	acc_dev_status = 0;
+#endif
+
 	enable_irq(dwc->irq);
 
 	return 0;
@@ -3422,9 +3440,26 @@ static void dwc3_gadget_disconnect_interrupt(struct dwc3 *dwc)
 	wake_up_interruptible(&dwc->wait_linkstate);
 }
 
+#if defined(CONFIG_USB_NOTIFY_LAYER_V34)
+static void dwc3_gadget_usb_event_work(struct work_struct *work)
+{
+	struct dwc3 *dwc = container_of(work, struct dwc3, usb_event_work.work);
+
+	pr_info("%s, event_state: %d\n", __func__, dwc->event_state);
+
+	if (dwc->event_state)
+		send_usb_err_uevent(USB_ERR_ABNORMAL_RESET, NOTIFY);
+	else
+		send_usb_err_uevent(USB_ERR_ABNORMAL_RESET, RELEASE);
+}
+#endif
+
 static void dwc3_gadget_reset_interrupt(struct dwc3 *dwc)
 {
 	u32			reg;
+#if defined(CONFIG_USB_NOTIFY_LAYER_V34)
+	ktime_t current_time;
+#endif
 
 	usb_phy_start_link_training(dwc->usb3_phy);
 
@@ -3512,6 +3547,35 @@ static void dwc3_gadget_reset_interrupt(struct dwc3 *dwc)
 	dwc->gadget.speed = USB_SPEED_UNKNOWN;
 	dwc->link_state = DWC3_LINK_STATE_U0;
 	wake_up_interruptible(&dwc->wait_linkstate);
+
+#if defined(CONFIG_USB_NOTIFY_LAYER_V34)
+	if (acc_dev_status && (dwc->rst_err_noti == false)) {
+		current_time = ktime_to_ms(ktime_get_boottime());
+
+		if ((dwc->rst_err_cnt == 0) && (dwc->gadget.state < USB_STATE_CONFIGURED)) {
+			if ((current_time - dwc->rst_time_before) < 1000) {
+				dwc->rst_err_cnt++;
+				dwc->rst_time_first = dwc->rst_time_before;
+			}
+		} else {
+			if ((current_time - dwc->rst_time_first) < 1000)
+				dwc->rst_err_cnt++;
+			else
+				dwc->rst_err_cnt = 0;
+		}
+
+		if (dwc->rst_err_cnt > ERR_RESET_CNT) {
+			dwc->event_state = NOTIFY;
+			schedule_delayed_work(&dwc->usb_event_work, msecs_to_jiffies(0));
+			dwc->rst_err_noti = true;
+		}
+
+		pr_info("%s rst_err_cnt: %d, time_current: %llu, time_before: %llu\n",
+			__func__, dwc->rst_err_cnt, current_time, dwc->rst_time_before);
+
+		dwc->rst_time_before = current_time;
+	}
+#endif
 }
 
 static void dwc3_gadget_conndone_interrupt(struct dwc3 *dwc)
@@ -4199,6 +4263,9 @@ int dwc3_gadget_init(struct dwc3 *dwc)
 	dwc->irq_gadget = irq;
 
 	INIT_WORK(&dwc->wakeup_work, dwc3_gadget_wakeup_work);
+#if defined(CONFIG_USB_NOTIFY_LAYER_V34)
+	INIT_DELAYED_WORK(&dwc->usb_event_work, dwc3_gadget_usb_event_work);
+#endif
 
 	dwc->ep0_trb = dma_alloc_coherent(dwc->sysdev,
 					  sizeof(*dwc->ep0_trb) * 2,

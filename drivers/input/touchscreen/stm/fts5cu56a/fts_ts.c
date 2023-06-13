@@ -3643,6 +3643,27 @@ void fts_reinit(struct fts_ts_info *info, bool delay)
 	fts_set_grip_type(info, ONLY_EDGE_HANDLER);
 #endif
 
+	if (info->board->support_ear_detect) {
+
+		if (info->ed_enable) {
+			regAdd[0] = FTS_CMD_SET_EAR_DETECT;
+			regAdd[1] = info->ed_enable;
+
+			rc = fts_write_reg(info, regAdd, 2);
+			input_info(true, &info->client->dev, "%s: set ear detect %s, rc = %d\n",
+					__func__, info->ed_enable ? "enable" : "disable", rc);
+		}
+
+		if (info->pocket_mode) {
+			regAdd[0] = FTS_CMD_SET_POCKET_MODE;
+			regAdd[1] = info->pocket_mode;
+
+			rc = fts_write_reg(info, regAdd, 2);
+			input_info(true, &info->client->dev, "%s: set pocket mode %s, rc = %d\n",
+					__func__, info->pocket_mode ? "enable" : "disable", rc);
+		}
+	}
+
 	fts_delay(50);
 
 out:

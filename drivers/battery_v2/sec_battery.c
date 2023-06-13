@@ -476,7 +476,7 @@ static void sec_bat_get_charging_current_by_siop(struct sec_battery_info *batter
 
 static void sec_bat_change_pdo(struct sec_battery_info *battery, int vol)
 {
-	unsigned int target_pd_index = 0;
+	int target_pd_index = 0;
 
 	if (is_pd_wire_type(battery->wire_status)) {
 
@@ -491,6 +491,12 @@ static void sec_bat_change_pdo(struct sec_battery_info *battery, int vol)
 			/* select 5V PDO */
 			target_pd_index = 0;
 		}
+
+		if (target_pd_index < 0 || target_pd_index >= MAX_PDO_NUM) {
+			pr_info("%s: target_pd_index is wrong %d\n", __func__, target_pd_index);
+			return;
+		}
+
 		pr_info("%s: target_pd_index: %d, now_pd_index: %d\n", __func__,
 			target_pd_index, battery->pd_list.now_pd_index);
 
@@ -514,7 +520,8 @@ static void sec_bat_change_pdo(struct sec_battery_info *battery, int vol)
 					POWER_SUPPLY_PROP_CURRENT_MAX, value);
 			}
 			battery->pdic_ps_rdy = false;
-			select_pdo(battery->pd_list.pd_info[target_pd_index].pdo_index);
+			if (target_pd_index >= 0 && target_pd_index < MAX_PDO_NUM)
+				select_pdo(battery->pd_list.pd_info[target_pd_index].pdo_index);
 		}
 	}
 }
@@ -920,7 +927,7 @@ extern void select_pdo(int num);
 static bool sec_bat_change_vbus_pd(struct sec_battery_info *battery, int *input_current)
 {
 #if defined(CONFIG_SUPPORT_HV_CTRL)
-	unsigned int target_pd_index = 0;
+	int target_pd_index = 0;
 
 	if (battery->pdata->chg_temp_check_type == SEC_BATTERY_TEMP_CHECK_NONE)
 		return false;
@@ -942,6 +949,12 @@ static bool sec_bat_change_vbus_pd(struct sec_battery_info *battery, int *input_
 			/* select 5V PDO */
 			target_pd_index = 0;
 		}
+
+	if (target_pd_index < 0 || target_pd_index >= MAX_PDO_NUM) {
+			pr_info("%s: target_pd_index is wrong %d\n", __func__, target_pd_index);
+			return;
+		}
+
 		pr_info("%s: target_pd_index: %d, now_pd_index: %d\n", __func__,
 			target_pd_index, battery->pd_list.now_pd_index);
 
@@ -969,7 +982,9 @@ static bool sec_bat_change_vbus_pd(struct sec_battery_info *battery, int *input_
 			battery->pdic_ps_rdy = false;
 			sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_SELECT_PDO,
 				SEC_BAT_CURRENT_EVENT_SELECT_PDO);
-			select_pdo(battery->pd_list.pd_info[target_pd_index].pdo_index);
+			if (target_pd_index >= 0 && target_pd_index < MAX_PDO_NUM)
+				select_pdo(battery->pd_list.pd_info[target_pd_index].pdo_index);
+
 			return true;
 		}
 	}
@@ -5615,6 +5630,7 @@ static int sec_bat_set_property(struct power_supply *psy,
 	int full_check_type = SEC_BATTERY_FULLCHARGED_NONE;
 	union power_supply_propval value = {0, };
 	enum power_supply_ext_property ext_psp = (enum power_supply_ext_property) psp;
+	int target_pd_index = 0;
 
 	dev_dbg(battery->dev,
 		"%s: (%d,%d)\n", __func__, psp, val->intval);
@@ -5841,14 +5857,20 @@ static int sec_bat_set_property(struct power_supply *psy,
 				sec_bat_set_current_event(battery,
 					0, SEC_BAT_CURRENT_EVENT_HV_DISABLE);
 
+#if defined(CONFIG_PDIC_PD30)
+				target_pd_index = battery->pd_list.num_fpdo - 1;
+#else
+				target_pd_index = battery->pd_list.max_pd_count - 1;
+#endif
+				if (target_pd_index < 0 || target_pd_index >= MAX_PDO_NUM) {
+					pr_info("%s: target_pd_index is wrong %d\n", __func__, target_pd_index);
+					return 0;
+				}
 				if (is_pd_wire_type(battery->cable_type)) {
 					battery->update_pd_list = true;
 					pr_info("%s: update pd list\n", __func__);
-#if defined(CONFIG_PDIC_PD30)
-					select_pdo(battery->pd_list.pd_info[battery->pd_list.num_fpdo - 1].pdo_index);
-#else
-					select_pdo(battery->pd_list.pd_info[battery->pd_list.max_pd_count - 1].pdo_index);
-#endif
+
+					select_pdo(battery->pd_list.pd_info[target_pd_index].pdo_index);
 				}
 			}
 			break;
@@ -7053,7 +7075,7 @@ static int make_pd_list(struct sec_battery_info *battery)
 		{
 			pPower_list = &battery->pdic_info.sink_status.power_list[i];
 
-			if (pPower_list->apdo) {
+			if (pPower_list->apdo && pd_list_index >= 0 && pd_list_index < MAX_PDO_NUM) {
 				battery->pd_list.pd_info[pd_list_index].pdo_index = i;
 				battery->pd_list.pd_info[pd_list_index].apdo = true;
 				battery->pd_list.pd_info[pd_list_index].max_voltage = pPower_list->max_voltage;
@@ -7072,8 +7094,8 @@ static int make_pd_list(struct sec_battery_info *battery)
 
 	num_pd_list = pd_list_index;
 
-	if (num_pd_list <= 0) {
-		pr_info("%s : PDO list is empty!!\n", __func__);
+	if (num_pd_list <= 0 || num_pd_list > MAX_PDO_NUM) {
+		pr_info("%s : PDO list is wrong: %d\n", __func__, num_pd_list);
 		return 0;
 	} else {
 #if defined(CONFIG_PDIC_PD30)
@@ -7099,6 +7121,10 @@ static int make_pd_list(struct sec_battery_info *battery)
 #else
 	pd_list_select = num_pd_list - 1;
 #endif
+	if (pd_list_select < 0 || pd_list_select >= MAX_PDO_NUM) {
+		pr_info("%s : pd_list_select is wrong: %d\n", __func__, pd_list_select);
+		return 0;
+	}
 
 	for (i = 0; i < num_pd_list; i++) {
 #if defined(CONFIG_PDIC_PD30)
@@ -7165,7 +7191,8 @@ static int make_pd_list(struct sec_battery_info *battery)
 		battery->pdic_ps_rdy = false;
 		sec_bat_set_current_event(battery, SEC_BAT_CURRENT_EVENT_SELECT_PDO,
 			SEC_BAT_CURRENT_EVENT_SELECT_PDO);
-		select_pdo(battery->pd_list.pd_info[pd_list_select].pdo_index);
+		if (pd_list_select >= 0 && pd_list_select < MAX_PDO_NUM)
+			select_pdo(battery->pd_list.pd_info[pd_list_select].pdo_index);
 	}
 
 	battery->pd_list.now_pd_index = sec_bat_get_pd_list_index(&battery->pdic_info.sink_status,

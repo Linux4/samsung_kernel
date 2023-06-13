@@ -43,6 +43,7 @@
 
 #define SENSOR_ID_S5KGW1 0x0971
 #define SENSOR_ID_IMX682 0x0682
+#define SENSOR_ID_GC5035 0x3540
 
 int cam_get_dt_power_setting_data(struct device_node *of_node,
 	struct cam_hw_soc_info *soc_info,

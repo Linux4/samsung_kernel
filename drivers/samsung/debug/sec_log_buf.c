@@ -26,6 +26,7 @@
 #include <linux/notifier.h>
 #include <linux/reboot.h>
 #include <linux/rtc.h>
+#include <linux/time.h>
 
 #include "sec_debug_internal.h"
 
@@ -50,7 +51,8 @@ unsigned int get_sec_log_idx(void)
 	return (unsigned int)s_log_buf->idx;
 }
 
-#if IS_ENABLED(CONFIG_SEC_LOG_STORE_LPM_KMSG)
+#if IS_ENABLED(CONFIG_SEC_LOG_STORE_LPM_KMSG) || \
+	IS_ENABLED(CONFIG_SEC_STORE_POWER_ONOFF_HISTORY)
 static unsigned int lpm_mode;
 
 static int check_lpm_mode(char *str)
@@ -228,6 +230,59 @@ static struct notifier_block sec_log_store_lpm_kmsg_notifier = {
 };
 #endif
 
+
+#if IS_ENABLED(CONFIG_SEC_STORE_POWER_ONOFF_HISTORY)
+static void sec_power_onoff_history_store(time64_t local_time, time64_t rtc_offset, struct rtc_time *tm,
+		unsigned long action, const char *cmd)
+{
+	onoff_history_t *onoff_his;
+
+	onoff_his = vmalloc(sizeof(onoff_history_t));
+	if (!onoff_his) {
+		pr_err("fail - vmalloc for onoff_his\n");
+	} else {
+		if (!read_debug_partition(debug_index_onoff_history, onoff_his)) {
+			pr_err("fail - get onoff history data\n");
+		} else {
+			if (onoff_his->magic != SEC_LOG_MAGIC ||
+					onoff_his->size != sizeof(onoff_history_t)) {
+				pr_err("invalid magic & size (0x%08x, %d, %ld)\n",
+						onoff_his->magic, onoff_his->size, sizeof(onoff_history_t));
+			} else {
+				uint32_t index = onoff_his->index % SEC_DEBUG_ONOFF_HISTORY_MAX_CNT;
+				onoff_his->history[index].rtc_offset = rtc_offset;
+				if (lpm_mode) {
+					if (onoff_his->index) {
+						uint32_t p_index = (onoff_his->index - 1) % SEC_DEBUG_ONOFF_HISTORY_MAX_CNT;
+						if ((onoff_his->history[index].rtc_offset >= onoff_his->history[p_index].rtc_offset) &&
+								onoff_his->history[p_index].local_time) {
+							onoff_his->history[index].local_time = onoff_his->history[p_index].local_time +
+								(onoff_his->history[index].rtc_offset - onoff_his->history[p_index].rtc_offset);
+							rtc_time64_to_tm(onoff_his->history[index].local_time, tm);
+						} else {
+							onoff_his->history[index].local_time = 0;
+						}
+					} else {
+						onoff_his->history[index].local_time = 0;
+					}
+				} else {
+					onoff_his->history[index].local_time = local_time;
+				}
+				onoff_his->history[index].boot_cnt = s_log_buf->boot_cnt;
+				snprintf(onoff_his->history[index].reason, SEC_DEBUG_ONOFF_REASON_STR_SIZE, "%s at Kernel%s%s",
+						action == SYS_RESTART ? "Reboot" : "Power Off",
+						lpm_mode ? "(in LPM) " : " ", cmd);
+				onoff_his->index++;
+				write_debug_partition(debug_index_onoff_history, onoff_his);
+			}
+		}
+	}
+
+	if (onoff_his)
+		vfree(onoff_his);
+}
+#endif
+
 #ifdef CONFIG_SEC_LOG_STORE_LAST_KMSG
 static int sec_log_store(struct notifier_block *nb,
 		unsigned long action, void *data)
@@ -235,14 +290,19 @@ static int sec_log_store(struct notifier_block *nb,
 	char cmd[256] = { 0, };
 	struct rtc_time tm;
 	struct rtc_device *rtc = rtc_class_open(CONFIG_RTC_HCTOSYS_DEVICE);
+	struct timespec64 now;
+	time64_t local_time, rtc_offset;
+	struct rtc_time local_tm;
 
 	if (!rtc) {
 		pr_info("unable to open rtc device (%s)\n", CONFIG_RTC_HCTOSYS_DEVICE);
 	} else {
-		if (rtc_read_time(rtc, &tm)) 
+		if (rtc_read_time(rtc, &tm)) {
 			dev_err(rtc->dev.parent, "hctosys: unable to read the hardware clock\n");
-		else
-			pr_info("RTC(%lld)\n", rtc_tm_to_time64(&tm));
+		} else {
+			rtc_offset = rtc_tm_to_time64(&tm);
+			pr_info("BOOT_CNT(%d) RTC(%lld)\n", s_log_buf->boot_cnt, rtc_offset);
+		}
 	}
 
 	if (!sec_log_buf_init_done)
@@ -251,11 +311,20 @@ static int sec_log_store(struct notifier_block *nb,
 	if (data && strlen(data))
 		snprintf(cmd, sizeof(cmd), "%s", (char *)data);
 
+	ktime_get_real_ts64(&now);
+	local_time = now.tv_sec;
+	local_time -= sys_tz.tz_minuteswest * 60;	// adjust time zone
+	rtc_time64_to_tm(local_time, &local_tm);
+
+#if IS_ENABLED(CONFIG_SEC_STORE_POWER_ONOFF_HISTORY)
+	sec_power_onoff_history_store(local_time, rtc_offset, &local_tm, action, cmd);
+#endif
+
 	switch (action) {
 	case SYS_RESTART:
 	case SYS_POWER_OFF:
-		pr_info("%s, %s\n",
-				action == SYS_RESTART ? "reboot" : "power off", cmd);
+		pr_info("%s, %s, %ptR(TZ:%02d)\n",
+				action == SYS_RESTART ? "reboot" : "power off", cmd, &local_tm, -sys_tz.tz_minuteswest / 60);
 		write_debug_partition(debug_index_reset_klog, s_log_buf);
 		break;
 	}

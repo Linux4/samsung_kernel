@@ -87,12 +87,14 @@
 		samsung,panel-vendor = "SDC";
 		samsung,disp-model = "AMS667YM01";
 		samsung,support_gamma_mode2;
+		samsung,skip_read_on_pre;
 		samsung,elvss_interpolation_temperature = <(-16)>;
 		samsung,support_lpm;
 		samsung,support_gpara;
 		samsung,pointing_gpara;
 		samsung,two_byte_gpara;
 		samsung,rsc_4_frame_idle;
+		samsung,support_factory_panel_swap;
 
 		samsung,support-optical-fingerprint;
 
@@ -1484,10 +1486,6 @@
 					29 00 00 00 00 00 04 B0 00 27 F2
 					29 00 00 00 00 00 02 F2 00
 
-					/* HBM setting */
-					29 00 00 00 00 00 04 B0 00 30 6A
-					29 00 00 00 00 00 02 6A 10
-
 					/* Smooth Dimming 4frame*/
 					29 00 00 00 00 00 04 B0 00 92 63
 					29 00 00 00 00 00 02 63 04
@@ -1585,10 +1583,6 @@
 					/* Freq setting */
 					29 00 00 00 00 00 04 B0 00 27 F2
 					29 00 00 00 00 00 02 F2 00
-
-					/* HBM setting */
-					29 00 00 00 00 00 04 B0 00 30 6A
-					29 00 00 00 00 00 02 6A 10
 
 					/* Smooth Dimming 4frame*/
 					29 00 00 00 00 00 04 B0 00 92 63

@@ -30,7 +30,7 @@ static u32 pps_v(u32 vol)
 }
 
 static u32 pps_c(u32 cur)
-{   
+{
 	if ((cur % PPS_C_STEP) >= (PPS_C_STEP / 2))
 		cur += PPS_C_STEP;
 
@@ -144,13 +144,13 @@ static int update_work_state(struct sm_dc_info *sm_dc, u8 state)
 		pr_info("%s %s: changed chg param, request: update_bat\n", sm_dc->name, __func__);
 		request_state_work(sm_dc, SM_DC_UPDAT_BAT, DELAY_NONE);
 		ret = -EINVAL;
-	} else {
-		if (sm_dc->state != state) {
-			mutex_lock(&sm_dc->st_lock);
-			sm_dc->state = state;
-			mutex_unlock(&sm_dc->st_lock);
-			report_dc_state(sm_dc);
-		}
+	}
+
+	if (sm_dc->state != state) {
+		mutex_lock(&sm_dc->st_lock);
+		sm_dc->state = state;
+		mutex_unlock(&sm_dc->st_lock);
+		report_dc_state(sm_dc);
 	}
 
 	return ret;
@@ -165,7 +165,7 @@ static int send_power_source_msg(struct sm_dc_info *sm_dc)
 
 	if (sm_dc->ta.v > sm_dc->ta.v_max || sm_dc->ta.c > sm_dc->ta.c_max) {
 		pr_err("%s %s: ERROR: out of bounce v=%dmV(max=%dmV) c=%dmA(max=%dmA)\n",
-			sm_dc->name, __func__, sm_dc->ta.v, sm_dc->ta.v_max, 
+			sm_dc->name, __func__, sm_dc->ta.v, sm_dc->ta.v_max,
 			sm_dc->ta.c, sm_dc->ta.c_max);
 
 		sm_dc->err = SM_DC_ERR_SEND_PD_MSG;
@@ -243,7 +243,7 @@ static int check_error_state(struct sm_dc_info *sm_dc, u8 retry_state)
 	return 0;
 }
 
-static int get_adc_values(struct sm_dc_info *sm_dc, const char *str, int *vbus, int *ibus, int *vout, 
+static int get_adc_values(struct sm_dc_info *sm_dc, const char *str, int *vbus, int *ibus, int *vout,
 		int *vbat, int *ibat, int *them, int *dietemp)
 {
 	int adc_vbus, adc_ibus, adc_vout, adc_vbat, adc_ibat, adc_them, adc_dietemp;
@@ -311,7 +311,19 @@ static inline u32 _calc_pps_v_init_offset(struct sm_dc_info *sm_dc)
 	offset = (sm_dc->ta.c * (sm_dc->config.pps_lr + sm_dc->config.rpara +
 				(sm_dc->config.rsns * 2) + (sm_dc->config.rpcm * 2))) / 1000000;
 	offset += 200;   /* add to extra initial offset */
-	pr_info("%s %s: pps_c=%dmA, v_init_offset=%d\n", sm_dc->name, __func__, sm_dc->ta.c, offset);
+	pr_info("%s %s: pps_c=%dmA, v_init_offset=%dmV\n", sm_dc->name, __func__, sm_dc->ta.c, offset);
+
+	return offset;
+}
+
+static inline u32 _calc_ibus_voffset(struct sm_dc_info *sm_dc, int adc_ibus)
+{
+	u32 offset;
+
+	offset = ((sm_dc->ta.c - adc_ibus) * (sm_dc->config.pps_lr + sm_dc->config.rpara +
+		(sm_dc->config.rsns * 2) + (sm_dc->config.rpcm * 2))) / 1000000;
+	offset = pps_v((offset > PPS_V_STEP * 10) ? (PPS_V_STEP * 10) : offset);
+	pr_info("%s %s: offset=%dmV\n", sm_dc->name, __func__, offset);
 
 	return offset;
 }
@@ -362,8 +374,8 @@ static inline int _pd_pre_cc_check_limitation(struct sm_dc_info *sm_dc, int adc_
 	}
 
 	if ((adc_ibus > sm_dc->ta.c - PRE_CC_ST_IBUS_OFFSET) &&
-			(adc_vbus < sm_dc->wq.prev_adc_vbus + (PPS_V_STEP/2)) &&
-			(adc_ibus < sm_dc->wq.prev_adc_ibus + (PPS_C_STEP)) &&
+			(adc_vbus < sm_dc->wq.prev_adc_vbus + (PPS_V_STEP * 2)) &&
+			(adc_ibus < sm_dc->wq.prev_adc_ibus + (PPS_C_STEP * 2)) &&
 			(sm_dc->wq.c_down == 0 && sm_dc->wq.pps_cl == 0)) {
 		ret = 1;
 	} else if (sm_dc->wq.ci_gl == sm_dc->config.ta_min_current) {     /* Case: didn't reduce PPS_C than TA_MIN_C */
@@ -385,7 +397,7 @@ static inline int _pd_pre_cc_check_limitation(struct sm_dc_info *sm_dc, int adc_
 	return ret;
 }
 
-static inline int _try_to_adjust_cc(struct sm_dc_info *sm_dc)
+static inline int _try_to_adjust_cc_up(struct sm_dc_info *sm_dc)
 {
 	sm_dc->wq.cc_cnt += 1;
 
@@ -396,15 +408,19 @@ static inline int _try_to_adjust_cc(struct sm_dc_info *sm_dc)
 				sm_dc->ta.v = sm_dc->ta.v_max;
 		} else {
 			sm_dc->ta.c += PPS_C_STEP;
+			if (sm_dc->ta.c > sm_dc->ta.c_max)
+				sm_dc->ta.c = sm_dc->ta.c_max;
 		}
 	} else {
-		if (sm_dc->ta.c + PPS_C_STEP <= sm_dc->target_ibus)
+		if (sm_dc->ta.c + PPS_C_STEP <= sm_dc->target_ibus) {
 			sm_dc->ta.c += PPS_C_STEP;
+			if (sm_dc->ta.c > sm_dc->ta.c_max)
+				sm_dc->ta.c = sm_dc->ta.c_max;
+		}
 	}
-
 	if ((sm_dc->ta.v * sm_dc->ta.c >= sm_dc->ta.p_max) ||
 		(sm_dc->ta.v == sm_dc->ta.v_max) || (sm_dc->ta.c == sm_dc->ta.c_max)) {
-		pr_info("%s %s: PPS-TA has been reached limitation(v=%dmV, c=%dmA)\n", 
+		pr_info("%s %s: PPS-TA has been reached limitation(v=%dmV, c=%dmA)\n",
 			sm_dc->name, __func__, sm_dc->ta.v, sm_dc->ta.c);
 		sm_dc->wq.cc_limit = 1;
 
@@ -414,6 +430,17 @@ static inline int _try_to_adjust_cc(struct sm_dc_info *sm_dc)
 	return 0;
 }
 
+static inline void _try_to_adjust_cc_down(struct sm_dc_info *sm_dc)
+{
+	sm_dc->wq.cc_cnt += 1;
+
+	if (sm_dc->wq.cc_cnt % 2)
+		sm_dc->ta.c -= PPS_C_STEP;
+	else
+		sm_dc->ta.v -= PPS_V_STEP;
+
+	return;
+}
 
 static void pd_check_vbat_work(struct work_struct *work)
 {
@@ -542,6 +569,18 @@ static void pd_pre_cc_work(struct work_struct *work)
 				return;
 		}
 		sm_dc->ta.c -= PPS_C_STEP;
+		if(sm_dc->ta.c < sm_dc->config.ta_min_current) {
+			sm_dc->ta.c = sm_dc->config.ta_min_current;
+			pr_info("%s %s: can't used less then ta_min_current\n",
+				sm_dc->name, __func__);
+			sm_dc->ta.v -= PPS_V_STEP;
+			if(sm_dc->ta.v < sm_dc->config.ta_min_voltage) {
+				pr_err("%s %s: SM_DC_ERR_FAIL_ADJUST\n", sm_dc->name, __func__);
+				sm_dc->err = SM_DC_ERR_FAIL_ADJUST;
+				request_state_work(sm_dc, SM_DC_ERR, DELAY_NONE);
+				return;
+			}
+		}
 		ret = send_power_source_msg(sm_dc);
 		if (ret < 0)
 			return;
@@ -581,7 +620,9 @@ static void pd_pre_cc_work(struct work_struct *work)
 		return;
 	}
 
-	if ((sm_dc->wq.pps_cl) && (sm_dc->ta.v * (sm_dc->ta.c + PPS_C_STEP) >= sm_dc->ta.p_max)) {
+	if ((sm_dc->wq.pps_cl) &&
+		((sm_dc->ta.v * (sm_dc->ta.c + PPS_C_STEP) >= sm_dc->ta.p_max) ||
+		((sm_dc->ta.c + PPS_C_STEP) >= sm_dc->ta.c_max))) {
 		sm_dc->wq.c_offset = 0;
 		sm_dc->wq.cc_limit = 0;
 		sm_dc->wq.cc_cnt = 0;
@@ -590,22 +631,48 @@ static void pd_pre_cc_work(struct work_struct *work)
 		request_state_work(sm_dc, SM_DC_CC, DELAY_ADC_UPDATE);
 		return;
 	}
-
-	if (sm_dc->wq.pps_cl) {
-		if ((adc_ibus < sm_dc->wq.ci_gl - (PPS_C_STEP * 6)) &&
-				(sm_dc->ta.c < ((sm_dc->wq.ci_gl * 90)/100)))
 #if defined(CONFIG_SEC_FACTORY)
+	if (sm_dc->wq.pps_cl) {
+		if ((adc_ibus < sm_dc->wq.ci_gl - (PPS_C_STEP * 12)) &&
+			(sm_dc->ta.c < sm_dc->wq.ci_gl - (PPS_C_STEP * 12)))
+			sm_dc->ta.c += (PPS_C_STEP * 10);
+		else if ((adc_ibus < sm_dc->wq.ci_gl - (PPS_C_STEP * 7)) &&
+			(sm_dc->ta.c < sm_dc->wq.ci_gl - (PPS_C_STEP * 7)))
 			sm_dc->ta.c += (PPS_C_STEP * 5);
-#else
-			sm_dc->ta.c += (PPS_C_STEP * 3);
-#endif
+		else if ((adc_ibus < sm_dc->wq.ci_gl - (PPS_C_STEP * 4)) &&
+			(sm_dc->ta.c < sm_dc->wq.ci_gl - (PPS_C_STEP * 4)))
+			sm_dc->ta.c += (PPS_C_STEP * 2);
 		else
 			sm_dc->ta.c += PPS_C_STEP;
 
 		ret = send_power_source_msg(sm_dc);
 		if (ret < 0)
 			return;
+		sm_dc->wq.c_up = 1;
+		sm_dc->wq.c_down = 0;
+	} else {
+		if (((adc_ibus < sm_dc->ta.c - (PPS_C_STEP * 4)) && (sm_dc->wq.v_up != 1)) ||
+			(adc_ibus < sm_dc->wq.prev_adc_ibus - PPS_C_STEP))
+			sm_dc->ta.v += _calc_ibus_voffset(sm_dc, adc_ibus);
+		else
+			sm_dc->ta.v += PPS_V_STEP * 2;
+		ret = send_power_source_msg(sm_dc);
+		if (ret < 0)
+			return;
+		sm_dc->wq.v_up = 1;
+		sm_dc->wq.v_down = 0;
+	}
+#else
+	if (sm_dc->wq.pps_cl) {
+		if ((adc_ibus < sm_dc->wq.ci_gl - (PPS_C_STEP * 6)) &&
+				(sm_dc->ta.c < ((sm_dc->wq.ci_gl * 90)/100)))
+			sm_dc->ta.c += (PPS_C_STEP * 3);
+		else
+			sm_dc->ta.c += PPS_C_STEP;
 
+		ret = send_power_source_msg(sm_dc);
+		if (ret < 0)
+			return;
 		sm_dc->wq.c_up = 1;
 		sm_dc->wq.c_down = 0;
 	} else {
@@ -613,10 +680,10 @@ static void pd_pre_cc_work(struct work_struct *work)
 		ret = send_power_source_msg(sm_dc);
 		if (ret < 0)
 			return;
-
 		sm_dc->wq.v_up = 1;
 		sm_dc->wq.v_down = 0;
 	}
+#endif
 
 	sm_dc->wq.prev_adc_vbus = adc_vbus;
 	sm_dc->wq.prev_adc_ibus = adc_ibus;
@@ -659,6 +726,18 @@ static void pd_cc_work(struct work_struct *work)
 		break;
 	}
 
+	/* CC_STEP_DOWN */
+	if (sm_dc->wq.ci_gl + CC_ST_IBUS_OFFSET < adc_ibus && (sm_dc->wq.cc_limit == 0)) {
+		_try_to_adjust_cc_down(sm_dc);
+		if (sm_dc->config.support_pd_remain) {
+			ret = send_power_source_msg(sm_dc);
+			if (ret < 0)
+				return;
+		}
+		request_state_work(sm_dc, SM_DC_CC, DELAY_ADC_UPDATE);
+		return;
+	}
+
 	if (adc_ibus >= sm_dc->wq.ci_gl - CC_ST_IBUS_OFFSET || sm_dc->wq.cc_limit) {
 		if (sm_dc->config.support_pd_remain) {
 			ret = send_power_source_msg(sm_dc);
@@ -669,7 +748,8 @@ static void pd_cc_work(struct work_struct *work)
 		return;
 	}
 
-	ret = _try_to_adjust_cc(sm_dc);
+	/* CC_STEP_UP */
+	ret = _try_to_adjust_cc_up(sm_dc);
 	if (ret < 0) {
 		if (sm_dc->config.support_pd_remain) {
 			ret = send_power_source_msg(sm_dc);
@@ -723,6 +803,13 @@ static void pd_cv_work(struct work_struct *work)
 		if (ret < 0)
 			return;
 
+		delay = DELAY_PPS_UPDATE;
+	} else if (loop_status & LOOP_THEMREG) {
+		if (sm_dc->config.support_pd_remain) {
+			ret = send_power_source_msg(sm_dc);
+			if (ret < 0)
+				return;
+		}
 		delay = DELAY_PPS_UPDATE;
 	}
 
@@ -1070,7 +1157,7 @@ static void wpc_pre_cc_work(struct work_struct *work)
 	}
 
 	if ((sm_dc->ta.v + WPC_V_STEP) >= sm_dc->ta.v_max) {
-		pr_info("%s %s: can't increase voltage(v:%d v_max:%d)\n", sm_dc->name, 
+		pr_info("%s %s: can't increase voltage(v:%d v_max:%d)\n", sm_dc->name,
 				__func__, sm_dc->ta.v, sm_dc->ta.v_max);
 		pr_info("%s %s: [request] pre_cc -> cc\n", sm_dc->name, __func__);
 		sm_dc->ops->set_adc_mode(sm_dc->i2c, SM_DC_ADC_MODE_CONTINUOUS);
@@ -1154,7 +1241,8 @@ static void wpc_cc_work(struct work_struct *work)
 	pr_info("%s %s: Changed WPC Msg\n", sm_dc->name, __func__);
 	sm_dc->ta.v = _wpc_calc_voltage(sm_dc, sm_dc->ta.v, dir);
 	if (sm_dc->ta.v >= sm_dc->ta.v_max) {
-		pr_info("%s %s: can't increase wpc_v(v:%d, v_max:%d)\n", sm_dc->name, __func__, sm_dc->ta.v, sm_dc->ta.v_max);
+		pr_info("%s %s: can't increase wpc_v(v:%d, v_max:%d)\n",
+			sm_dc->name, __func__, sm_dc->ta.v, sm_dc->ta.v_max);
 		sm_dc->ta.v = sm_dc->ta.v_max;
 		ret = send_power_source_msg(sm_dc);
 		if (ret < 0)
@@ -1308,7 +1396,7 @@ static void wpc_error_work(struct work_struct *work)
 /**
  * SM Direct-charging module management APIs
  */
-struct sm_dc_info *sm_dc_create_pd_instance(const char* name, struct i2c_client *i2c)
+struct sm_dc_info *sm_dc_create_pd_instance(const char *name, struct i2c_client *i2c)
 {
 	struct sm_dc_info *sm_dc;
 	int ret;
@@ -1350,7 +1438,7 @@ err_kmem:
 }
 EXPORT_SYMBOL(sm_dc_create_pd_instance);
 
-struct sm_dc_info *sm_dc_create_wpc_instance(const char* name, struct i2c_client *i2c)
+struct sm_dc_info *sm_dc_create_wpc_instance(const char *name, struct i2c_client *i2c)
 {
 	struct sm_dc_info *sm_dc;
 	int ret;

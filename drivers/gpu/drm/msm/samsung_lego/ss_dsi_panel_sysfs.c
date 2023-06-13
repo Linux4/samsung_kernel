@@ -5008,6 +5008,48 @@ end:
 	return size;
 }
 
+static ssize_t ss_te_check_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct samsung_display_driver_data *vdd =
+		(struct samsung_display_driver_data *)dev_get_drvdata(dev);
+	unsigned int disp_te_gpio;
+	bool check_success = 0;
+	int te_max = 40000; /*sampling 400ms */
+	int te_count = 0;
+	int rc = 0;
+
+	disp_te_gpio = ss_get_te_gpio(vdd);
+
+	/* 1. Video mode panel
+	 * - will return false from ss_get_te_gpio(vdd),
+	 *  & will return 0 from this function
+	 * 2. Cmd mode panel
+	 * - will return 1 when TE detected.
+	 *  otherwise return 0 when NO TE detected for 400ms
+	 */
+	if (gpio_is_valid(disp_te_gpio)) {
+		for (te_count = 0 ; te_count < te_max ; te_count++) {
+			rc = gpio_get_value(disp_te_gpio);
+			if (rc == 1) {
+				check_success = 1;
+				break;
+			}
+			/* usleep suspends the calling thread whereas udelay is a
+			 * busy wait. Here the value of te_gpio is checked in a loop of
+			 * max count = 250. If this loop has to iterate multiple
+			 * times before the te_gpio is 1, the calling thread will end
+			 * up in suspend/wakeup sequence multiple times if usleep is
+			 * used, which is an overhead. So use udelay instead of usleep.
+			 */
+			udelay(10);
+		}
+	}
+	rc = snprintf((char *)buf, 6, "%d\n", check_success);
+
+	return rc;
+}
+
 static DEVICE_ATTR(lcd_type, S_IRUGO, ss_disp_lcdtype_show, NULL);
 static DEVICE_ATTR(cell_id, S_IRUGO, ss_disp_cell_id_show, NULL);
 static DEVICE_ATTR(octa_id, S_IRUGO, ss_disp_octa_id_show, NULL);
@@ -5093,6 +5135,7 @@ static DEVICE_ATTR(swing, S_IRUGO|S_IWUSR|S_IWGRP, ss_swing_show, ss_swing_store
 static DEVICE_ATTR(emphasis, S_IRUGO|S_IWUSR|S_IWGRP, ss_emphasis_show, ss_emphasis_store);
 static DEVICE_ATTR(ioctl_power_ctrl, S_IRUGO|S_IWUSR|S_IWGRP, ss_ioctl_power_ctrl_show, NULL);
 static DEVICE_ATTR(window_color, S_IRUGO | S_IWUSR | S_IWGRP, ss_window_color_show, ss_window_color_store);
+static DEVICE_ATTR(te_check, S_IRUGO | S_IWUSR | S_IWGRP, ss_te_check_show, NULL);
 
 static struct attribute *panel_sysfs_attributes[] = {
 	&dev_attr_lcd_type.attr,
@@ -5172,6 +5215,7 @@ static struct attribute *panel_sysfs_attributes[] = {
 	&dev_attr_vrr_lfd.attr,
 	&dev_attr_ioctl_power_ctrl.attr,
 	&dev_attr_window_color.attr,
+	&dev_attr_te_check.attr,
 	NULL
 };
 static const struct attribute_group panel_sysfs_group = {

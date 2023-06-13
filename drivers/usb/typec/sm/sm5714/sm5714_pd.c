@@ -258,6 +258,14 @@ int sm5714_usbpd_check_fled_state(bool enable, u8 mode)
 	pr_info("[%s] fled_torch_enable(%d), fled_flash_enable(%d)\n", __func__,
 		manager->fled_torch_enable, manager->fled_flash_enable);
 
+	if (manager->fled_flash_enable) {
+		if (pdic_data->pd_support && pd_noti.sink_status.has_apdo) {
+			pd_noti.sink_status.available_pdo_num = 1;
+			pd_noti.sink_status.has_apdo = false;
+			sm5714_usbpd_change_available_pdo(pd_data->dev);
+		}
+	}
+
 	if ((manager->fled_torch_enable == false) &&
 			(manager->fled_flash_enable == false)) {
 		if ((mode == FLED_MODE_TORCH) && (enable == false)) {

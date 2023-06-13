@@ -68,6 +68,7 @@ config SEC_FACTORY
 	default n
 	select SEC_DEBUG_FORCE_ERROR
 	select SEC_PANIC_PCIE_ERR
+	select SEC_PCIE_KEEP_LINKBW
 	select SEC_GPIO_DVS
 	select EDAC_KRYO_ARM64_PANIC_ON_CE
 	help

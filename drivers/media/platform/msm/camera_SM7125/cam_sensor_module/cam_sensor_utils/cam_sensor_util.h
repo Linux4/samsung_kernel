@@ -42,6 +42,11 @@
 #define SENSOR_ID_IMX682 0x0682
 #define SENSOR_ID_IMX616 0x0616
 #define SENSOR_ID_S5K3L6 0x30c6
+#define SENSOR_ID_S5KGD2 0x0842
+
+#if defined(CONFIG_SEC_A72Q_PROJECT)
+#define HI847_SENSOR_ID  0x00
+#endif
 
 int cam_get_dt_power_setting_data(struct device_node *of_node,
 	struct cam_hw_soc_info *soc_info,

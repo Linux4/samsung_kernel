@@ -12,7 +12,7 @@
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
 #include <linux/power_supply.h>
-#if defined (CONFIG_OF)
+#if defined(CONFIG_OF)
 #include <linux/of_device.h>
 #include <linux/of_gpio.h>
 #include <linux/pinctrl/consumer.h>
@@ -28,6 +28,8 @@ static bool hv_4x_charger;
 static bool wireless_4x_charger = 1;
 static int offset_4x;
 #endif
+
+#define SM5440_DC_VERSION  "UF2"
 
 static int sm5440_read_reg(struct sm5440_charger *sm5440, u8 reg, u8 *dest)
 {
@@ -94,7 +96,7 @@ static int sm5440_write_reg(struct sm5440_charger *sm5440, u8 reg, u8 value)
 	return ret;
 }
 
-static int sm5440_update_reg(struct sm5440_charger *sm5440, u8 reg, 
+static int sm5440_update_reg(struct sm5440_charger *sm5440, u8 reg,
 		u8 val, u8 mask, u8 pos)
 {
 	int ret;
@@ -105,7 +107,9 @@ static int sm5440_update_reg(struct sm5440_charger *sm5440, u8 reg,
 	ret = sm5440_read_reg(sm5440, reg, &old_val);
 
 	if (ret == 0) {
-		u8 new_val = (val & mask) << pos | (old_val & ~(mask << pos));
+		u8 new_val;
+
+		new_val = (val & mask) << pos | (old_val & ~(mask << pos));
 		ret = sm5440_write_reg(sm5440, reg, new_val);
 	}
 
@@ -185,14 +189,16 @@ static struct sm_dc_info *select_sm_dc_info(struct sm5440_charger *sm5440)
 
 static int sm5440_convert_adc(struct sm5440_charger *sm5440, u8 index)
 {
-	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5440);
 	u8 reg1, reg2;
 	int adc;
+#if !defined(CONFIG_SEC_FACTORY)
+	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5440);
 
 	if (sm_dc_get_current_state(sm_dc) < SM_DC_CHECK_VBAT) {
 		/* Didn't worked ADC block during on CHG-OFF status */
-		return 0;
+		return -1;
 	}
+#endif
 
 	switch (index) {
 	case SM5440_ADC_THEM:
@@ -239,7 +245,7 @@ static void sm5440_print_regmap(struct sm5440_charger *sm5440)
 	int i;
 
 	sm5440_bulk_read(sm5440, SM5440_REG_MSK1, 0x1F, regs);
-	sm5440_bulk_read(sm5440, SM5440_REG_MSK1 + 0x1F, 
+	sm5440_bulk_read(sm5440, SM5440_REG_MSK1 + 0x1F,
 			print_reg_num - 0x1F, regs + 0x1F);
 
 	for (i = 0; i < print_reg_num; ++i) {
@@ -304,14 +310,16 @@ static int sm5440_sw_reset(struct sm5440_charger *sm5440)
 	sm5440_write_reg(sm5440, SM5440_REG_CNTL1, 0x1);        /* Do SW RESET */
 
 	for (i = 0; i < 0xff; ++i) {
-		msleep(20);
+		usleep_range(1000, 2000);
 		sm5440_read_reg(sm5440, SM5440_REG_CNTL1, &reg);
 		if (!(reg & 0x1))
 			break;
 	}
 
-	if (i == 0xff)
+	if (i == 0xff) {
+		dev_err(sm5440->dev, "%s: didn't clear reset bit\n", __func__);
 		return -EBUSY;
+	}
 
 	return 0;
 }
@@ -346,7 +354,7 @@ static int sm5440_reverse_boost_enable(struct sm5440_charger *sm5440, bool enabl
 }
 
 static int sm5440_set_ENHIZ(struct sm5440_charger *sm5440, bool vbus, bool chg_en)
-{   
+{
 	u8 enhiz = 0;   /* case : chg_on or chg_off & vbus_uvlo */
 
 	if (vbus && !(chg_en))
@@ -374,6 +382,7 @@ static bool sm5440_check_charging_enable(struct sm5440_charger *sm5440)
 static void set_divide4_mode(struct sm5440_charger *sm5440, int mode)
 {
 	union power_supply_propval value;
+
 	pr_info("%s: %d\n", __func__, mode);
 
 	value.intval = 1;
@@ -459,10 +468,28 @@ static int get_apdo_max_power(struct sm5440_charger *sm5440, struct sm_dc_power_
 	return ret;
 }
 
+static void sm5440_init_reg_param(struct sm5440_charger *sm5440)
+{
+	sm5440_set_wdt_timer(sm5440, WDT_TIMER_S_30);
+	sm5440_set_freq(sm5440, sm5440->pdata->freq);
+
+	sm5440_write_reg(sm5440, SM5440_REG_CNTL2, 0xF2);               /* disable IBUSOCP,IBATOCP,THEM */
+	sm5440_write_reg(sm5440, SM5440_REG_CNTL3, 0xB8);               /* disable CHGTMR */
+	sm5440_write_reg(sm5440, SM5440_REG_CNTL4, 0xFF);               /* used DEB:8ms */
+	sm5440_write_reg(sm5440, SM5440_REG_CNTL6, 0x09);               /* forced PWM mode, disable ENHIZ */
+	sm5440_update_reg(sm5440, SM5440_REG_VBUSCNTL, 0x7, 0x7, 0);    /* VBUS_OVP_TH=11V */
+	sm5440_write_reg(sm5440, SM5440_REG_VOUTCNTL, 0x3F);            /* VOUT=max */
+	sm5440_write_reg(sm5440, SM5440_REG_PRTNCNTL, 0xFE);            /* OCP,OVP setting */
+	sm5440_update_reg(sm5440, SM5440_REG_ADCCNTL1, 1, 0x1, 3);      /* ADC average sample = 32 */
+	sm5440_write_reg(sm5440, SM5440_REG_ADCCNTL2, 0xDF);            /* ADC channel setting */
+	sm5440_write_reg(sm5440, SM5440_REG_THEMCNTL1, 0x0C);           /* Thermal Regulation threshold = 120'C */
+}
+
 static int sm5440_start_charging(struct sm5440_charger *sm5440)
 {
 	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5440);
 	struct sm_dc_power_source_info ta;
+	int state = sm_dc_get_current_state(sm_dc);
 	int ret;
 
 	if (sm5440->cable_online < 1) {
@@ -470,6 +497,17 @@ static int sm5440_start_charging(struct sm5440_charger *sm5440)
 				__func__, sm5440->cable_online);
 		return -ENODEV;
 	}
+
+	if (state < SM_DC_CHECK_VBAT) {
+		dev_info(sm5440->dev, "%s: charging off state (state=%d)\n", __func__, state);
+		ret = sm5440_sw_reset(sm5440);
+		if (ret < 0) {
+			dev_err(sm5440->dev, "%s: fail to sw reset(ret=%d)\n", __func__, ret);
+			return ret;
+		}
+		sm5440_init_reg_param(sm5440);
+	}
+
 #if defined(MULTIPLE_4X)
 	ret = get_wpc_mfd_max_power(sm5440, &ta);
 	if (ret < 0) {
@@ -478,9 +516,9 @@ static int sm5440_start_charging(struct sm5440_charger *sm5440)
 	}
 
 	/* 0 : DA935X_STATE_OFF
-	* 1 : DA935X_STATE_ONLINE_BYPASS
-	* 2 : DA935X_STATE_ONLINE_CONVERT
-	*/
+	 * 1 : DA935X_STATE_ONLINE_BYPASS
+	 * 2 : DA935X_STATE_ONLINE_CONVERT
+	 */
 
 	set_divide4_mode(sm5440, 2);
 	{
@@ -666,7 +704,7 @@ static const char *sm5440_dc_state_str[] = {
 	"NO_CHARGING", "DC_ERR", "CHARGING_DONE", "CHECK_VBAT", "PRESET_DC", 
 	"ADJUST_CC", "UPDATE_BAT", "CC_MODE", "CV_MODE"
 };
-static int psy_chg_get_ext_direct_charger_chg_status(struct sm5440_charger *sm5440, 
+static int psy_chg_get_ext_direct_charger_chg_status(struct sm5440_charger *sm5440,
 		union power_supply_propval *val)
 {
 	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5440);
@@ -683,7 +721,7 @@ static int sm5440_chg_get_property(struct power_supply *psy,
 		union power_supply_propval *val)
 {
 	struct sm5440_charger *sm5440 = power_supply_get_drvdata(psy);
-	enum power_supply_ext_property ext_psp = 
+	enum power_supply_ext_property ext_psp =
 		(enum power_supply_ext_property) psp;
 
 	dev_info(sm5440->dev, "%s: psp=%d\n", __func__, psp);
@@ -724,6 +762,7 @@ static int sm5440_chg_get_property(struct power_supply *psy,
 #if defined(MULTIPLE_4X)
 			{
 				union power_supply_propval value;
+
 				dev_err(sm5440->dev, "%s: %d\n", __func__, ext_psp);
 				psy_do_property("da935x-usb", get,
 						(enum power_supply_property)ext_psp, value);
@@ -758,6 +797,8 @@ static int psy_chg_set_online(struct sm5440_charger *sm5440, int online)
 {
 	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5440);
 	int ret = 0;
+	u8 vbus_pok = 0x0;
+	u8 reg = 0x0;
 
 	dev_info(sm5440->dev, "%s: online=%d\n", __func__, online);
 
@@ -768,7 +809,11 @@ static int psy_chg_set_online(struct sm5440_charger *sm5440, int online)
 	}
 	sm5440->cable_online = online;
 
-	sm5440->vbus_in = sm5440->cable_online > 1 ? true : false;
+	sm5440_read_reg(sm5440, SM5440_REG_STATUS3, &reg);
+	dev_info(sm5440->dev, "%s: STATUS3=0x%x\n", __func__, reg);
+	vbus_pok = (reg >> 5) & 0x1;
+
+	sm5440->vbus_in = vbus_pok;
 	sm5440_set_ENHIZ(sm5440, sm5440->vbus_in, sm5440_check_charging_enable(sm5440));
 
 	if (sm5440->wpc_dc) {
@@ -828,10 +873,13 @@ static int psy_chg_set_input_curr(struct sm5440_charger *sm5440, int ibus)
 
 static int psy_chg_ext_direct_float_max(struct sm5440_charger *sm5440, int max_vbat)
 {
+	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5440);
+	
 	dev_info(sm5440->dev, "%s: max_vbat [%dmA] to [%dmA]\n",
 			__func__, sm5440->max_vbat, max_vbat);
 
 	sm5440->max_vbat = max_vbat;
+	sm_dc->config.chg_float_voltage = max_vbat;
 
 	return 0;
 
@@ -849,20 +897,21 @@ static int psy_chg_ext_wdt_control(struct sm5440_charger *sm5440, int wdt_contro
 	return 0;
 }
 
+static int sm5440_set_adc_mode(struct i2c_client *i2c, u8 mode);
 
 static int sm5440_chg_set_property(struct power_supply *psy,
 		enum power_supply_property psp,
 		const union power_supply_propval *val)
 {
 	struct sm5440_charger *sm5440 = power_supply_get_drvdata(psy);
-	enum power_supply_ext_property ext_psp = 
+	enum power_supply_ext_property ext_psp =
 		(enum power_supply_ext_property) psp;
 
-	int ret;
+	int ret = 0;
 
 	dev_info(sm5440->dev, "%s: psp=%d, val-intval=%d\n", __func__, psp, val->intval);
 
-	switch (psp) {	
+	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
 		psy_chg_set_online(sm5440, val->intval);
 		break;
@@ -899,10 +948,10 @@ static int sm5440_chg_set_property(struct power_supply *psy,
 			ret = psy_chg_ext_direct_float_max(sm5440, val->intval);
 			break;
 		case POWER_SUPPLY_EXT_PROP_DIRECT_ADC_CTRL:
-			/**
-			 *  Need to check operation details.. by SEC.
-			 */
-			dev_err(sm5440->dev, "%s: need to works\n", __func__);
+			if (val->intval)
+				sm5440_set_adc_mode(sm5440->i2c, SM_DC_ADC_MODE_ONESHOT);
+			else
+				sm5440_set_adc_mode(sm5440->i2c, SM_DC_ADC_MODE_OFF);
 			break;
 #if defined(MULTIPLE_4X)
 		case POWER_SUPPLY_EXT_PROP_CHARGE_BOOST:
@@ -947,7 +996,7 @@ static const struct power_supply_desc sm5440_charger_power_supply_desc = {
 	.name		= "sm5440-charger",
 	.type		= POWER_SUPPLY_TYPE_UNKNOWN,
 	.get_property	= sm5440_chg_get_property,
-	.set_property 	= sm5440_chg_set_property,
+	.set_property	= sm5440_chg_set_property,
 	.properties	= sm5440_charger_props,
 	.num_properties	= ARRAY_SIZE(sm5440_charger_props),
 };
@@ -1207,6 +1256,7 @@ static int sm5440_send_wpc_msg(struct i2c_client *i2c, struct sm_dc_power_source
 
 	if (is_hv_wireless_type(sm5440->cable_online)) {
 		union power_supply_propval value;
+
 		value.intval = pps_v;
 		ret = psy_do_property("mfc-charger", set, POWER_SUPPLY_EXT_PROP_WIRELESS_SET_VOUT, value);
 	} else {
@@ -1247,13 +1297,13 @@ static void sm5440_adc_work(struct work_struct *work)
 
 static void sm5440_ocp_check_work(struct work_struct *work)
 {
-	struct sm5440_charger *sm5440 = container_of(work, struct sm5440_charger, 
+	struct sm5440_charger *sm5440 = container_of(work, struct sm5440_charger,
 			ocp_check_work.work);
 	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5440);
 	int i;
 	u8 reg;
 
-	for (i=0; i < 3; ++i) {
+	for (i = 0; i < 3; ++i) {
 		sm5440_read_reg(sm5440, SM5440_REG_STATUS2, &reg);
 		if (reg & (0x1 << 7)) { /* activate IBUSLIM */
 			dev_err(sm5440->dev, "%s: detect IBUSLIM (i=%d)\n", __func__, i);
@@ -1332,7 +1382,7 @@ static irqreturn_t sm5440_irq_thread(int irq, void *data)
 		dev_info(sm5440->dev, "%s: VBUS UVLO detected\n", __func__);
 		psy_do_property("da935x-wireless", get,
 				POWER_SUPPLY_PROP_ONLINE, value);
-		pr_info("%s: DC Error Occured. Check da9352 wireless online : %d\n",
+		pr_info("%s: DC Error Occurred. Check da9352 wireless online : %d\n",
 				__func__, value.intval);
 		if (value.intval == 2)
 			sm5440_irq_vbus_uvlo(sm5440);
@@ -1371,7 +1421,7 @@ static int sm5440_irq_init(struct sm5440_charger *sm5440)
 	sm5440_write_reg(sm5440, SM5440_REG_MSK3, 0x18);
 	sm5440_write_reg(sm5440, SM5440_REG_MSK4, 0xF8);
 
-	ret = request_threaded_irq(sm5440->irq, NULL, sm5440_irq_thread, 
+	ret = request_threaded_irq(sm5440->irq, NULL, sm5440_irq_thread,
 			IRQF_TRIGGER_LOW | IRQF_ONESHOT,
 			"sm5440-irq", sm5440);
 	if (ret) {
@@ -1397,18 +1447,7 @@ static int sm5440_hw_init_config(struct sm5440_charger *sm5440)
 	}
 	sm5440->pdata->rev_id = (reg >> 4) & 0xf;
 
-	sm5440_set_wdt_timer(sm5440, WDT_TIMER_S_30);
-	sm5440_set_freq(sm5440, sm5440->pdata->freq);
-
-	sm5440_write_reg(sm5440, SM5440_REG_CNTL2, 0xF2);               /* disable IBUSOCP,IBATOCP,THEM */
-	sm5440_write_reg(sm5440, SM5440_REG_CNTL3, 0xB8);               /* disable CHGTMR */
-	sm5440_write_reg(sm5440, SM5440_REG_CNTL4, 0xFF);               /* used DEB:8ms */
-	sm5440_write_reg(sm5440, SM5440_REG_CNTL6, 0x09);               /* forced PWM mode, disable ENHIZ */
-	sm5440_update_reg(sm5440, SM5440_REG_VBUSCNTL, 0x7, 0x7, 0);    /* VBUS_OVP_TH=11V */
-	sm5440_write_reg(sm5440, SM5440_REG_VOUTCNTL, 0x3F);            /* VOUT=max */
-	sm5440_write_reg(sm5440, SM5440_REG_PRTNCNTL, 0xFE);            /* OCP,OVP setting */
-	sm5440_update_reg(sm5440, SM5440_REG_ADCCNTL1, 1, 0x1, 3);      /* ADC average sample = 32 */
-	sm5440_write_reg(sm5440, SM5440_REG_ADCCNTL2, 0xDF);            /* ADC channel setting */
+	sm5440_init_reg_param(sm5440);
 
 #if defined(CONFIG_BATTERY_SAMSUNG)
 	psy_chg_set_const_chg_voltage(sm5440, sm5440->pdata->battery.chg_float_voltage);
@@ -1418,7 +1457,7 @@ static int sm5440_hw_init_config(struct sm5440_charger *sm5440)
 }
 
 #if defined(CONFIG_OF)
-static int sm5440_charger_parse_dt(struct device *dev, 
+static int sm5440_charger_parse_dt(struct device *dev,
 		struct sm5440_platform_data *pdata)
 {
 	struct device_node *np_sm5440 = dev->of_node;
@@ -1426,7 +1465,7 @@ static int sm5440_charger_parse_dt(struct device *dev,
 	int ret;
 
 	/* Parse: sm5440 node */
-	if(!np_sm5440) {
+	if (!np_sm5440) {
 		dev_err(dev, "%s: empty of_node for sm5440_dev\n", __func__);
 		return -EINVAL;
 	}
@@ -1441,7 +1480,7 @@ static int sm5440_charger_parse_dt(struct device *dev,
 
 	/* Parse: battery node */
 	np_battery = of_find_node_by_name(NULL, "battery");
-	if(!np_battery) {
+	if (!np_battery) {
 		dev_err(dev, "%s: empty of_node for battery\n", __func__);
 		return -EINVAL;
 	}
@@ -1666,7 +1705,7 @@ static int sm5440_dbg_write_reg(void *data, u64 val)
 
 	return 0;
 }
-DEFINE_SIMPLE_ATTRIBUTE(register_debug_ops, sm5440_dbg_read_reg, 
+DEFINE_SIMPLE_ATTRIBUTE(register_debug_ops, sm5440_dbg_read_reg,
 		sm5440_dbg_write_reg, "0x%02llx\n");
 
 static int sm5440_create_debugfs_entries(struct sm5440_charger *sm5440)
@@ -1858,7 +1897,6 @@ static int sm5440_charger_remove(struct i2c_client *i2c)
 	struct sm5440_charger *sm5440 = i2c_get_clientdata(i2c);
 
 	sm5440_stop_charging(sm5440);
-	sm5440_sw_reset(sm5440);
 
 	power_supply_unregister(sm5440->psy_chg);
 	mutex_destroy(&sm5440->i2c_lock);
@@ -1937,7 +1975,7 @@ static struct i2c_driver sm5440_charger_driver = {
 #endif  /* CONFIG_OF */
 #if defined(CONFIG_PM)
 		.pm = &sm5440_pm_ops,
-#endif  /* CONFIG_PM */  
+#endif  /* CONFIG_PM */
 	},
 	.probe        = sm5440_charger_probe,
 	.remove       = sm5440_charger_remove,

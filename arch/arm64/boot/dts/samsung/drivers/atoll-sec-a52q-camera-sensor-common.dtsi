@@ -378,7 +378,7 @@
 		cam_clk-supply = <&titan_top_gdsc>;
 		regulator-names = "cam_vio", "cam_vana", "cam_vdig", "cam_clk";
 		rgltr-cntrl-support;
-		rgltr-min-voltage = <1800000 2900000 1050000 0>;
+		rgltr-min-voltage = <1800000 2800000 1050000 0>;
 		rgltr-max-voltage = <1800000 2900000 1050000 0>;
 		rgltr-load-current = <200000 200000 200000 0>;
 
@@ -437,7 +437,7 @@
 		cam_clk-supply = <&titan_top_gdsc>;
 		regulator-names = "cam_vio", "cam_vana", "cam_vdig", "cam_clk";
 		rgltr-cntrl-support;
-		rgltr-min-voltage = <1800000 2900000 1050000 0>;
+		rgltr-min-voltage = <1800000 2800000 1050000 0>;
 		rgltr-max-voltage = <1800000 2900000 1050000 0>;
 		rgltr-load-current = <200000 200000 200000 0>;
 

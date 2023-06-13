@@ -638,7 +638,15 @@ int32_t msm_camera_fill_vreg_params(
 					if((soc_info->index == 0) &&
 						(platformSensorId == SENSOR_ID_S5KGW1P))
 					{
-						CAM_ERR(CAM_SENSOR,"Stark Inside Hardcoding Logic");
+						CAM_ERR(CAM_SENSOR," Inside GW1P Hardcoding Logic");
+						soc_info->rgltr_min_volt[j] = 1000000;
+						soc_info->rgltr_max_volt[j] = 1000000;
+						power_setting[i].config_val = 1000000;
+					}
+					if(((soc_info->index == 1) || (soc_info->index == 8)) &&
+						(platformSensorId == SENSOR_ID_S5KGD2))						
+					{
+						CAM_ERR(CAM_SENSOR,"Inside S5KGD2 Hardcoding Logic");
 						soc_info->rgltr_min_volt[j] = 1000000;
 						soc_info->rgltr_max_volt[j] = 1000000;
 						power_setting[i].config_val = 1000000;
@@ -697,11 +705,20 @@ int32_t msm_camera_fill_vreg_params(
 					if((soc_info->index == 0) &&
 						(platformSensorId == SENSOR_ID_S5KGW1P))
 					{
-						CAM_ERR(CAM_SENSOR,"Stark Inside Hardcoding Logic");
+						CAM_ERR(CAM_SENSOR," Inside GW1P Hardcoding Logic");
 						soc_info->rgltr_min_volt[j] = 2800000;
 						soc_info->rgltr_max_volt[j] = 2800000;
 						power_setting[i].config_val = 2800000;
 					}
+					if(((soc_info->index == 1) || (soc_info->index == 8)) &&
+						(platformSensorId == SENSOR_ID_S5KGD2))						
+					{
+						CAM_ERR(CAM_SENSOR,"Inside S5KGD2 Hardcoding Logic");
+						soc_info->rgltr_min_volt[j] = 2800000;
+						soc_info->rgltr_max_volt[j] = 2800000;
+						power_setting[i].config_val = 2800000;
+					}
+
 
 					if (VALIDATE_VOLTAGE(
 						soc_info->rgltr_min_volt[j],
@@ -1691,10 +1708,9 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 			return -EINVAL;
 		}
 
-#if defined(CONFIG_SEC_A52Q_PROJECT) || defined(CONFIG_SEC_A72Q_PROJECT) || defined(CONFIG_SEC_M42Q_PROJECT)
-		if ((power_setting->seq_type == SENSOR_VIO)
-			&& (NULL  != strstr(soc_info->dev_name, "eeprom"))) {
-			msleep(22);
+#if defined(CONFIG_SEC_A52Q_PROJECT) || defined(CONFIG_SEC_A72Q_PROJECT)
+		if (power_setting->seq_type == SENSOR_VIO) {
+			usleep_range(15000, 20000);
 		}
 #endif
 

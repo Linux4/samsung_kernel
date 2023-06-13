@@ -87,12 +87,14 @@
 		samsung,panel-vendor = "SDC";
 		samsung,disp-model = "AMS638YQ01";
 		samsung,support_gamma_mode2;
+		samsung,skip_read_on_pre;
 		samsung,support_lpm;
 		samsung,elvss_interpolation_temperature = <(-16)>;
 		samsung,support_gpara;
 		samsung,pointing_gpara;
 		samsung,two_byte_gpara;
 		samsung,rsc_4_frame_idle;
+		samsung,support_factory_panel_swap;
 
 		samsung,support_vrr_based_bl; /* VRR Variable Refresh Rate */
 

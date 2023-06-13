@@ -14,7 +14,7 @@
 #ifndef __SM5440_CHARGER_H__
 #define __SM5440_CHARGER_H__
 
-#define SM5440_TA_MIN_CURRENT   500
+#define SM5440_TA_MIN_CURRENT   1000
 #define SM5440_CV_OFFSET        0
 #define SM5440_CI_OFFSET        150
 #define SM5440_VBAT_MIN         3300

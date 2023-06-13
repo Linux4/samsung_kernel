@@ -248,6 +248,7 @@ static void init_debug_partition(void)
 
 	/*++ add here need init data ++*/
 	init_ap_health_data();
+	init_lcd_debug_data();
 	/*-- add here need init data --*/
 
 	while (1) {
@@ -393,6 +394,11 @@ bool read_debug_partition(enum debug_partition_index index, void *value)
 						SEC_DEBUG_RESET_ETRM_OFFSET,
 						SEC_DEBUG_RESET_ETRM_SIZE);
 			break;
+		case debug_index_onoff_history:
+			READ_DEBUG_PARTITION(value,
+						SEC_DEBUG_ONOFF_HISTORY_OFFSET,
+						sizeof(onoff_history_t));
+			break;
 		default:
 			return false;
 	}
@@ -451,6 +457,18 @@ bool write_debug_partition(enum debug_partition_index index, void *value)
 			sched_debug_data.value = value;
 			sched_debug_data.offset = SEC_DEBUG_RESET_LPM_KLOG_OFFSET;
 			sched_debug_data.size = SEC_DEBUG_RESET_LPM_KLOG_SIZE;
+			sched_debug_data.direction = PARTITION_WR;
+			schedule_work(&sched_debug_data.debug_partition_work);
+			wait_for_completion(&sched_debug_data.work);
+			mutex_unlock(&debug_partition_mutex);
+			break;
+#endif
+#if IS_ENABLED(CONFIG_SEC_STORE_POWER_ONOFF_HISTORY)
+		case debug_index_onoff_history:
+			mutex_lock(&debug_partition_mutex);
+			sched_debug_data.value = value;
+			sched_debug_data.offset = SEC_DEBUG_ONOFF_HISTORY_OFFSET;
+			sched_debug_data.size = sizeof(onoff_history_t);
 			sched_debug_data.direction = PARTITION_WR;
 			schedule_work(&sched_debug_data.debug_partition_work);
 			wait_for_completion(&sched_debug_data.work);

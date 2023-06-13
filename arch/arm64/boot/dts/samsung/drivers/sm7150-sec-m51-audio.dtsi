@@ -88,9 +88,9 @@
 			 <&det_zones 125 125>,
 			 <&det_zones 225 225>,
 			 <&det_zones 500 500>,
-			 <&det_zones 620 620>,
-			 <&det_zones 620 620>,
-			 <&det_zones 620 620>;
+			 <&det_zones 500 620>,
+			 <&det_zones 500 620>,
+			 <&det_zones 500 620>;
 };
 
 &wsa_spkr_en1 {

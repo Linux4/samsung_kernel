@@ -19,10 +19,6 @@
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
 
-#if defined(CONFIG_LEDS_SM5714)
-#include <linux/mfd/sm/sm5714/sm5714.h>
-#endif
-
 #if defined(CONFIG_GC5035_MACRO_OTP_DD_AUTOLOAD)
 #include "gc5035_macro_otp.h"
 #endif
@@ -57,6 +53,7 @@ extern uint16_t platformSensorId;
 #define STREAM_ON_ADDR_IMX586_S5K4HA    0x0100
 #define STREAM_ON_ADDR_IMX316           0x1001
 #define STREAM_ON_ADDR_GW3              0x0100
+#define STREAM_ON_ADDR_HI847            0x0B00
 
 char tof_freq[10] = "\n";
 
@@ -413,6 +410,48 @@ static int32_t cam_sensor_i2c_modes_util(
 	int32_t rc = 0;
 	uint32_t i, size;
 
+#if defined(CONFIG_SEC_A72Q_PROJECT)
+	if ((i2c_list->i2c_settings.size > 0)
+		&& (i2c_list->i2c_settings.reg_setting[0].reg_addr == STREAM_ON_ADDR_IMX586_S5K4HA 
+		|| i2c_list->i2c_settings.reg_setting[0].reg_addr == STREAM_ON_ADDR_HI847)
+		&& (i2c_list->i2c_settings.reg_setting[0].reg_data == 0x0)) {
+		uint32_t frame_cnt = 0;
+		int retry_cnt = 20;
+		do{
+			if (s_ctrl->sensordata->slave_info.sensor_id == HI847_SENSOR_ID) {
+				rc = camera_io_dev_read(io_master_info, 0x0732, &frame_cnt,
+				CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE);
+			}
+			else
+			{
+				rc = camera_io_dev_read(io_master_info, 0x0005, &frame_cnt,
+				CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE);
+			}
+
+			if (rc < 0) {
+				CAM_ERR(CAM_SENSOR, "[CNT_DBG] Failed to read frame_cnt");
+				break;
+			}
+
+			if (((s_ctrl->sensordata->slave_info.sensor_id == HI847_SENSOR_ID) && ((frame_cnt & 0x01)  == 0x01))
+				|| ((s_ctrl->sensordata->slave_info.sensor_id != HI847_SENSOR_ID) && (frame_cnt != 0xFF)
+				&& (frame_cnt > 0))) {
+	
+				if (s_ctrl->sensordata->slave_info.sensor_id == HI847_SENSOR_ID)
+					usleep_range(4000, 5000);
+				CAM_INFO(CAM_SENSOR, "[CNT_DBG] 0x%x : Last frame_cnt 0x%x",
+				s_ctrl->sensordata->slave_info.sensor_id, frame_cnt);
+				break;
+			}
+			CAM_DBG(CAM_SENSOR, "retry cnt : %d, Stream on, frame_cnt : %x", retry_cnt, frame_cnt);
+			if(frame_cnt == 0xFF)
+				usleep_range(2000, 3000);
+			retry_cnt--;
+		} while( frame_cnt == 0xFF && retry_cnt>0);
+		CAM_INFO(CAM_SENSOR, "Stream ON end retry_cnt = %d frame_cnt %d", retry_cnt, frame_cnt);
+	}
+#endif
+
 	if (i2c_list->op_code == CAM_SENSOR_I2C_WRITE_RANDOM) {
 		rc = camera_io_dev_write(io_master_info,
 			&(i2c_list->i2c_settings));
@@ -423,20 +462,40 @@ static int32_t cam_sensor_i2c_modes_util(
 			return rc;
 		}
 // Use below code to wait for Stream OFF by checking sensor frame count register 
-#if 0 
+#if defined(CONFIG_SEC_A72Q_PROJECT) 
 		if ((i2c_list->i2c_settings.size > 0)
-			&& (i2c_list->i2c_settings.reg_setting[0].reg_addr == STREAM_ON_ADDR_IMX586_S5K4HA || i2c_list->i2c_settings.reg_setting[0].reg_addr == STREAM_ON_ADDR_IMX316)
+			&& (i2c_list->i2c_settings.reg_setting[0].reg_addr == STREAM_ON_ADDR_IMX586_S5K4HA || i2c_list->i2c_settings.reg_setting[0].reg_addr == STREAM_ON_ADDR_IMX316 || i2c_list->i2c_settings.reg_setting[0].reg_addr == STREAM_ON_ADDR_HI847)
 			&& (i2c_list->i2c_settings.reg_setting[0].reg_data == 0x0)) {
 			uint32_t frame_cnt = 0;
 			int retry_cnt = 20;
 			CAM_INFO(CAM_SENSOR, "Stream off start retry_cnt = %d", retry_cnt);
 
 			do {
-				rc = camera_io_dev_read(io_master_info, 0x0005,	&frame_cnt,
+				if (s_ctrl->sensordata->slave_info.sensor_id == HI847_SENSOR_ID)
+				{
+					rc = camera_io_dev_read(io_master_info, 0x0732,	&frame_cnt,
 					CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE);
+				}
+				else {
+					rc = camera_io_dev_read(io_master_info, 0x0005,	&frame_cnt,
+					CAMERA_SENSOR_I2C_TYPE_WORD, CAMERA_SENSOR_I2C_TYPE_BYTE);
+				}
+
+				if (rc < 0) {
+					CAM_ERR(CAM_SENSOR, "[CNT_DBG] Failed to read frame_cnt");
+					break;
+				}
+//Check the HI847 frame count for A72 after Stream OFF
+				if (((s_ctrl->sensordata->slave_info.sensor_id == HI847_SENSOR_ID) && ((frame_cnt & 0x01)  == 0x00))
+					|| ((s_ctrl->sensordata->slave_info.sensor_id != HI847_SENSOR_ID) && (frame_cnt == 0xFF))) {
+
+					if (s_ctrl->sensordata->slave_info.sensor_id == HI847_SENSOR_ID)
+						usleep_range(1000, 1010);
+					break;
+				}
 				CAM_DBG(CAM_SENSOR, "retry cnt : %d, Stream off, frame_cnt : %x", retry_cnt, frame_cnt);
 				if (frame_cnt != 0xFF)
-				usleep_range(2000, 3000);
+				    usleep_range(2000, 3000);
 				retry_cnt--;
 			} while (frame_cnt != 0xFF && retry_cnt > 0);
 			CAM_INFO(CAM_SENSOR, "Stream off end retry_cnt = %d", retry_cnt);
@@ -1207,6 +1266,33 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 				}
 			}
 		}
+		if (((s_ctrl->soc_info.index == 1)||(s_ctrl->soc_info.index == 8)) &&
+			s_ctrl->sensordata->slave_info.sensor_id == SENSOR_ID_S5KGD2) { // check Front GD2
+			sensor_id = s_ctrl->sensordata->slave_info.sensor_id;
+			expected_version_id = s_ctrl->sensordata->slave_info.version_id;
+			rc = camera_io_dev_read(
+				&(s_ctrl->io_master_info),
+				0x0002, &version_id,
+				CAMERA_SENSOR_I2C_TYPE_WORD,
+				CAMERA_SENSOR_I2C_TYPE_WORD);
+			//version_id>>=8;
+			if (rc < 0) {
+				CAM_ERR(CAM_SENSOR, "Read version id fail %d", rc);
+			} else {
+				CAM_INFO(CAM_SENSOR,
+					"Read version id 0x%x,expected_version_id 0x%x", version_id, expected_version_id);
+					if (version_id == expected_version_id && version_id == 0X0)
+						CAM_INFO(CAM_SENSOR, "Found A0 - Non OTP GD2 Sensor");
+					else if (version_id == expected_version_id && version_id == 0XA001)
+						CAM_INFO(CAM_SENSOR, "Found A1 - OTP GD2 Sensor");
+					else {
+						CAM_INFO(CAM_SENSOR, "Not matched");
+						rc = -EINVAL;
+						cam_sensor_power_down(s_ctrl);
+						goto release_mutex;
+				}
+			}
+		}
 #endif
 
 		/* Match sensor ID */
@@ -1471,14 +1557,6 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			goto release_mutex;
 		}
 
-		// Set the PMIC voltage to 5V for Flash operation on Rear Sensor
-#if defined(CONFIG_LEDS_SM5714)
-		if(s_ctrl->soc_info.index == 0 || s_ctrl->soc_info.index == 4)
-		{
-			sm5714_fled_mode_ctrl(SM5714_FLED_MODE_PREPARE_FLASH, 0);
-		}
-#endif
-
 		rc = cam_sensor_power_up(s_ctrl);
 		if (rc < 0) {
 			CAM_ERR(CAM_SENSOR, "Sensor Power up failed");
@@ -1511,14 +1589,6 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 			rc = -EAGAIN;
 			goto release_mutex;
 		}
-
-		// Re-Set the PMIC voltage 5V -> 9V
-#if defined(CONFIG_LEDS_SM5714)
-		if(s_ctrl->soc_info.index == 0 || s_ctrl->soc_info.index == 4)
-		{
-			sm5714_fled_mode_ctrl(SM5714_FLED_MODE_CLOSE_FLASH, 0);
-		}
-#endif
 
 		rc = cam_sensor_power_down(s_ctrl);
 		if (rc < 0) {
@@ -1956,7 +2026,7 @@ int cam_sensor_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 		return rc;
 	}
 #if defined(CONFIG_MCLK_I2C_DELAY)
-    usleep_range(5000, 6000); //Add delay for MCLK - I2C TIMING SPEC OUT issue
+    usleep_range(11000, 12000); //Add delay for MCLK - I2C TIMING SPEC OUT issue
     CAM_INFO(CAM_SENSOR, "MCLK delay added");
 #endif
 	rc = camera_io_init(&(s_ctrl->io_master_info));

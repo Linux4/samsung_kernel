@@ -28,9 +28,9 @@
 		 <&det_zones 138 138>,
 		 <&det_zones 225 225>,
 		 <&det_zones 450 450>,
-		 <&det_zones 620 620>,
-		 <&det_zones 620 620>,
-		 <&det_zones 620 620>;
+		 <&det_zones 450 620>,
+		 <&det_zones 450 620>,
+		 <&det_zones 450 620>;
 	imp-table = <&imp_list 0 5 6>,
 			 <&imp_list 6 23 8>,
 			 <&imp_list 24 38 7>,

@@ -660,8 +660,12 @@ ssize_t sec_bat_show_attrs(struct device *dev,
 			battery->wc_enable);
 		break;
 	case WC_CONTROL:
+		if (battery->pdata->wpc_en)
+			value.intval = battery->wc_enable;
+		else
+			value.intval = -1;
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
-			battery->wc_enable);
+		value.intval);
 		break;
 	case WC_CONTROL_CNT:
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",

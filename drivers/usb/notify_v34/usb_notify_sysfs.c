@@ -76,6 +76,7 @@ usb_hw_param_print[USB_PDIC_HW_PARAM_MAX][MAX_HWPARAM_STRING] = {
 	{"CC_KILLER"},
 	{"CC_FWERR"},
 	{"M_B12RS"},
+	{"C_ARP"},
 	{"CC_VER"},
 };
 #endif

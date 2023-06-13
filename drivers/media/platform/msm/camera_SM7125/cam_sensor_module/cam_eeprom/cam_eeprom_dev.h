@@ -93,7 +93,7 @@
 #elif defined(CONFIG_SEC_A52Q_PROJECT) || defined(CONFIG_SEC_A72Q_PROJECT)
 #define REAR_CAM_MAP_VERSION_ADDR               0x0090
 #define REAR_DLL_VERSION_ADDR                   0x0094
-#define REAR2_CAM_MAP_VERSION_ADDR              0x0020
+#define REAR2_CAM_MAP_VERSION_ADDR              0x001A
 #else
 #define REAR_CAM_MAP_VERSION_ADDR               0x00E0
 #define REAR_DLL_VERSION_ADDR                   0x00E4

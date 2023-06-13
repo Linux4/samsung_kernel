@@ -115,7 +115,59 @@
                 cam,dual_open = <0>;            // 0 : N , 1 : Y
                 cam,valid = <1>;                // 0 : N , 1 : Y
         };
-	
+
+        qcom,cam-sensor@8 {
+                cell-index = <8>;
+                compatible = "qcom,cam-sensor";
+                reg = <0x8>;
+                csiphy-sd-index = <1>;
+                sensor-position-roll = <270>;
+                sensor-position-pitch = <0>;
+                sensor-position-yaw = <0>;
+                eeprom-src = <&eeprom1>;
+                cam_vio-supply = <&s2mpb03_l3>;
+                cam_vdig-supply = <&s2mpb03_l1>;
+                cam_vana-supply = <&s2mpb03_l5>;
+                cam_clk-supply = <&titan_top_gdsc>; 
+                regulator-names = "cam_vio", "cam_vdig", "cam_vana", "cam_clk";
+                rgltr-cntrl-support;
+                rgltr-min-voltage = <1800000 1050000 2800000 0>;
+                rgltr-max-voltage = <1800000 1050000 2800000 0>;
+                rgltr-load-current = <200000 200000 200000 0>;
+                gpio-no-mux = <0>;
+                pinctrl-names = "cam_default", "cam_suspend";
+                pinctrl-0 = <&cam_sensor_mclk_1_active &cam_sensor_front_active &cam_sensor_mipi_sw_active>;
+                pinctrl-1 = <&cam_sensor_mclk_1_suspend &cam_sensor_front_suspend &cam_sensor_mipi_sw_suspend>;
+                gpios = <&tlmm 29 0>,
+                                <&tlmm 45 0>,
+                                <&tlmm 49 0>;
+                gpio-reset = <1>;
+                gpio-custom1 = <2>;
+                gpio-req-tbl-num = <0 1 2>;
+                gpio-req-tbl-flags = <1 0 0>;
+                gpio-req-tbl-label = "CAMIF_MCLK1", "CAM_RESET1", "CAM_CUSTOM1";
+
+                sensor-mode = <0>;
+                cci-master = <1>;
+                status = "ok";
+                clocks = <&clock_camcc CAM_CC_MCLK1_CLK>;
+                clock-names = "cam_clk";
+                clock-cntl-level = "turbo";
+                clock-rates = <24000000>;
+
+                cam,isp = <0>;                  // 0 : INT , 1 : EXT , 2 : SOC
+                cam,cal_memory = <2>;           // 0 : N , 1 : FROM , 2 : EEPROM , 3 : OTP
+                cam,read_version = <0>;         // 0 : SYSFS , 1 : CAMON
+                cam,core_voltage = <0>;         // 0 : N , 1 : Y
+                cam,upgrade = <0>;              // 0 : N , 1 : SYSFS , 2 : CAMON
+                cam,fw_write = <0>;             // 0 : N , 1 : OS , 2 : SD , 3 : ALL
+                cam,fw_dump = <0>;              // 0 : N , 1 : Y
+                cam,companion_chip = <0>;       // 0 : N , 1 : Y
+                cam,ois = <0>;                  // 0 : N , 1 : Y
+                cam,dual_open = <0>;            // 0 : N , 1 : Y
+                cam,valid = <1>;                // 0 : N , 1 : Y
+        };
+			
         qcom,cam-sensor@3 {
                 cell-index = <3>;
                 compatible = "qcom,cam-sensor";

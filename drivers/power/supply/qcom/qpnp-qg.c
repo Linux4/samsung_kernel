@@ -43,6 +43,7 @@
 #include "qg-defs.h"
 #if defined(CONFIG_BATTERY_SAMSUNG_USING_QC)
 #include "../../../battery_qc/include/sec_battery_qc.h"
+#include "../../../battery_qc/include/sec_battery_ttf.h"
 #include "step-chg-jeita.h"
 #endif
 
@@ -2376,6 +2377,13 @@ static int qg_psy_get_property(struct power_supply *psy,
 		case POWER_SUPPLY_EXT_PROP_FULL_CONDITION_SOC:
 			pval->intval = chip->full_condition_soc;
 			break;
+		case POWER_SUPPLY_EXT_PROP_RAW_CAP:
+			if (chip->udata.param[QG_SYS_SOC].valid)
+				pval->intval = chip->udata.param[QG_SYS_SOC].data / 10;
+			else
+				pval->intval = chip->udata.param[QG_SOC].data * 10;
+			break;
+
 		default:
 			rc = -EINVAL;
 		}

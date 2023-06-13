@@ -54,6 +54,11 @@ static int cam_flash_prepare(struct cam_flash_ctrl *flash_ctrl,
 		(struct cam_flash_private_soc *)
 		flash_ctrl->soc_info.soc_private;
 
+	// Set the PMIC voltage to 5V for Flash operation
+#if defined(CONFIG_LEDS_SM5714)
+	sm5714_fled_mode_ctrl(SM5714_FLED_MODE_PREPARE_FLASH, 0);
+#endif
+
 #if !defined(CONFIG_LEDS_S2MU107_FLASH) && !defined(CONFIG_LEDS_S2MU106_FLASH) && !defined(CONFIG_LEDS_SM5714)
 	if (!(flash_ctrl->switch_trigger)) {
 		CAM_ERR(CAM_FLASH, "Invalid argument");
@@ -1946,6 +1951,11 @@ int cam_flash_establish_link(struct cam_req_mgr_core_dev_link_setup *link)
 int cam_flash_release_dev(struct cam_flash_ctrl *fctrl)
 {
 	int rc = 0;
+
+	// Re-Set the PMIC voltage 5V -> 9V
+#if defined(CONFIG_LEDS_SM5714)
+	sm5714_fled_mode_ctrl(SM5714_FLED_MODE_CLOSE_FLASH, 0);
+#endif
 
 	if (fctrl->bridge_intf.device_hdl != 1) {
 		rc = cam_destroy_device_hdl(fctrl->bridge_intf.device_hdl);

@@ -143,6 +143,13 @@ config S5K3L6_SENSOR
 	default n
 	---help---
 	Enables support for SENSOR
+	
+config HI1336_SENSOR
+	tristate "Sensor hi1336 support"
+	depends on SPECTRA_CAMERA
+	default n
+	---help---
+	Enables support for SENSOR
 
 config S5K4HA_SENSOR
 	tristate "Sensor s5k4ha support"

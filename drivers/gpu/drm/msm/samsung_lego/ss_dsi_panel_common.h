@@ -2026,6 +2026,9 @@ struct samsung_display_driver_data {
 	ktime_t sleep_out_time;
 	ktime_t tx_set_on_time;
 
+	/* Some panel read operation should be called after on-command. */
+	bool skip_read_on_pre;
+
 	/* Support Global Para */
 	bool gpara;
 	bool pointing_gpara;

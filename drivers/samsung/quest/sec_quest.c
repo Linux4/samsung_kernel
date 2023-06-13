@@ -122,7 +122,8 @@ char *STR_SUBITEM[SUBITEM_ITEMSCOUNT] = {
 	"QUEFI_GROUP5",	
 	"QUEFI_GROUP6",	
 	"QUEFI_GROUP7",	
-	"QUEFI_GROUP8",		
+	"QUEFI_GROUP8",
+	"QUEFI_GROUP9",		
 #else
 	"QUEFI",
 	"SUEFI_CRYPTO",
@@ -132,6 +133,7 @@ char *STR_SUBITEM[SUBITEM_ITEMSCOUNT] = {
 	"HLOS_DUMMY",
 #elif defined(CONFIG_SEC_QUEST_HLOS_NATURESCENE_SMD)
 	"HLOS_NATURESCENE",
+	"HLOS_AOSSTHERMALDIFF",
 #else
 	"HLOS_CRYPTO",
 	"HLOS_ICACHE",
@@ -1158,15 +1160,19 @@ static void make_additional_stat_string(char *additional_str)
 		"FHST(%d),FHET(%d)," \
 		"FHITH(%d),FHMTH(%d)," \
 		"FNSR(%d)," \
+		"FMATD(%d)," \
 		"SSIR(%llX)," \
 		"DET(%d)," \
 		"QUET(%d)," \
 		"SUET(%d)," \
 		"QUPT(%d)," \
+		"SCT(%d)," \
+		"SCTH(%d)," \
 		"BR(%.2s)," \
 		"HST(%d),HET(%d)," \
 		"HITH(%d),HMTH(%d)," \
 		"NSR(%d)," \
+		"MATD(%d)," \
 		"%s" \
 		"%s" \
 		"BPS(%s)",
@@ -1181,15 +1187,19 @@ static void make_additional_stat_string(char *additional_str)
 		param_quest_data.smd_hlos_start_time_first, param_quest_data.smd_hlos_elapsed_time_first,
 		param_quest_data.smd_hlos_init_thermal_first, param_quest_data.smd_hlos_max_thermal_first,
 		param_quest_data.smd_ns_repeats_first,
+		param_quest_data.smd_max_aoss_thermal_diff_first,
 		param_quest_data.smd_subitem_result,
 		param_quest_data.smd_ddrscan_elapsed_time,
 		param_quest_data.smd_quefi_elapsed_time,
 		param_quest_data.smd_suefi_elapsed_time,
 		param_quest_data.smd_quefi_total_pause_time,
+		param_quest_data.smd_ft_self_cooling_time,
+		param_quest_data.smd_ft_thermal_after_self_cooling,
 		param_quest_data.smd_boot_reason,
 		param_quest_data.smd_hlos_start_time,param_quest_data.smd_hlos_elapsed_time,
 		param_quest_data.smd_hlos_init_thermal, param_quest_data.smd_hlos_max_thermal,
 		param_quest_data.smd_ns_repeats,
+		param_quest_data.smd_max_aoss_thermal_diff,
 		str_mxcpr,
 		str_cxcpr,
 		str_bps);
@@ -1385,6 +1395,7 @@ static ssize_t store_quest_smd_subitem_result(struct device *dev,
 	else if (TEST_DUMMY(test_name)) item = SUBITEM_QUESTHLOSDUMMY;
 #elif defined(CONFIG_SEC_QUEST_HLOS_NATURESCENE_SMD)
 	if (TEST_NATURESCENE(test_name)) item = SUBITEM_QUESTHLOSNATURESCENE;
+	else if (TEST_AOSSTHERMALDIFF(test_name)) item = SUBITEM_QUESTHLOSAOSSTHERMALDIFF;
 #else
 	if (TEST_CRYPTO(test_name)) item = SUBITEM_QUESTHLOSCRYPTO;
 	else if (TEST_ICACHE(test_name)) item = SUBITEM_QUESTHLOSICACHE;
@@ -1468,6 +1479,7 @@ static ssize_t store_quest_erase(struct device *dev,
 		param_quest_data.smd_hlos_init_thermal_first = 0;
 		param_quest_data.smd_hlos_max_thermal_first = 0;
 		param_quest_data.smd_ns_repeats_first = 0;
+		param_quest_data.smd_max_aoss_thermal_diff_first = 0;
 		quest_sync_param_quest_data();
 	}
 
@@ -2145,8 +2157,8 @@ static ssize_t store_quest_smd_info(struct device *dev,
 			      const char *buf, size_t count)
 {
 	int idx = 0;
-	char temp[QUEST_BUFF_SIZE * 3];
-	char quest_cmd[QUEST_CMD_LIST][BUFF_SZ];
+	char temp[QUEST_CMD_LIST * QUEST_CMD_SIZE];
+	char quest_cmd[QUEST_CMD_LIST][QUEST_CMD_SIZE];
 	char *quest_ptr, *string;
 
 	QUEST_SYSFS_ENTER();
@@ -2157,11 +2169,11 @@ static ssize_t store_quest_smd_info(struct device *dev,
 	}
 
 	// parse argument
-	strlcpy(temp, buf, BUFF_SZ * 3);
+	strlcpy(temp, buf, QUEST_CMD_SIZE);
 	string = temp;
 	while (idx < QUEST_CMD_LIST) {
 		quest_ptr = strsep(&string, ",");
-		strlcpy(quest_cmd[idx++], quest_ptr, BUFF_SZ);
+		strlcpy(quest_cmd[idx++], quest_ptr, QUEST_CMD_SIZE);
 	}
 
 	QUEST_PRINT("%s : %s(%s)\n", __func__, quest_cmd[0], quest_cmd[1]);
@@ -2201,6 +2213,12 @@ static ssize_t store_quest_smd_info(struct device *dev,
 		if( param_quest_data.smd_ns_repeats_first==0 )
 			param_quest_data.smd_ns_repeats_first = param_quest_data.smd_ns_repeats;
 	}
+
+	if( strncmp(quest_cmd[0], "smd_max_aoss_thermal_diff", 25)==0 ) {
+		sscanf(quest_cmd[1], "%d", &param_quest_data.smd_max_aoss_thermal_diff);
+		if( param_quest_data.smd_max_aoss_thermal_diff_first==0 )
+			param_quest_data.smd_max_aoss_thermal_diff_first = param_quest_data.smd_max_aoss_thermal_diff;
+	}	
 
 	quest_sync_param_quest_data();
 

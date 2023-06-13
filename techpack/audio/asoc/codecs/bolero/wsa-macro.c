@@ -1649,6 +1649,11 @@ static int wsa_macro_spk_boost_event(struct snd_soc_dapm_widget *w,
 	struct snd_soc_codec *codec = snd_soc_dapm_to_codec(w->dapm);
 	u16 boost_path_ctl, boost_path_cfg1;
 	u16 reg, reg_mix;
+	struct device *wsa_dev = NULL;
+	struct wsa_macro_priv *wsa_priv = NULL;
+
+	if (!wsa_macro_get_data(codec, &wsa_dev, &wsa_priv, __func__))
+		return -EINVAL;
 
 	dev_dbg(codec->dev, "%s %s %d\n", __func__, w->name, event);
 
@@ -1676,7 +1681,8 @@ static int wsa_macro_spk_boost_event(struct snd_soc_dapm_widget *w,
 			snd_soc_update_bits(codec, reg_mix, 0x10, 0x00);
 		break;
 	case SND_SOC_DAPM_POST_PMU:
-		snd_soc_update_bits(codec, reg, 0x10, 0x00);
+		if (!wsa_priv->wsa_digital_mute_status[w->shift])
+			snd_soc_update_bits(codec, reg, 0x10, 0x00);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 		snd_soc_update_bits(codec, boost_path_ctl, 0x10, 0x00);

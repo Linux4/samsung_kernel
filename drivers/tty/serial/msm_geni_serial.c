@@ -133,7 +133,6 @@
 #define IPC_LOG_TX_RX_PAGES	(10)
 #define DATA_BYTES_PER_LINE	(32)
 
-
 #if defined(CONFIG_ARCH_ATOLL)
 #define M_IRQ_BITS		(M_RX_FIFO_WATERMARK_EN | M_RX_FIFO_LAST_EN |\
 				M_CMD_CANCEL_EN | M_CMD_ABORT_EN |\
@@ -235,6 +234,9 @@ struct msm_geni_serial_port {
 	bool s_cmd;
 	struct completion m_cmd_timeout;
 	struct completion s_cmd_timeout;
+#if defined(CONFIG_ARCH_ATOLL)
+	spinlock_t rx_lock;
+#endif
 };
 
 static const struct uart_ops msm_geni_serial_pops;
@@ -262,6 +264,9 @@ static int uart_line_id;
 static int msm_geni_serial_get_ver_info(struct uart_port *uport);
 static void msm_geni_serial_set_manual_flow(bool enable,
 				struct msm_geni_serial_port *port);
+#if defined(CONFIG_ARCH_ATOLL)
+static bool handle_rx_dma_xfer(u32 s_irq_status, struct uart_port *uport);
+#endif
 static void msm_geni_serial_ssr_down(struct device *dev);
 static void msm_geni_serial_ssr_up(struct device *dev);
 
@@ -1594,6 +1599,7 @@ static void stop_rx_sequencer(struct uart_port *uport)
 #if defined(CONFIG_ARCH_ATOLL)
 	bool is_rx_active;
 	unsigned int stale_delay;
+	u32 dma_rx_status, s_irq_status;
 #endif
 
 	IPC_LOG_MSG(port->ipc_log_misc, "%s\n", __func__);
@@ -1636,6 +1642,22 @@ static void stop_rx_sequencer(struct uart_port *uport)
 		stale_delay = (STALE_COUNT * SEC_TO_USEC) / port->cur_baud;
 		stale_delay = (2 * stale_delay) + SYSTEM_DELAY;
 		udelay(stale_delay);
+
+#if defined(CONFIG_ARCH_ATOLL)
+		dma_rx_status = geni_read_reg_nolog(uport->membase,
+						SE_DMA_RX_IRQ_STAT);
+		if (dma_rx_status) {
+			s_irq_status = geni_read_reg_nolog(uport->membase,
+							SE_GENI_S_IRQ_STATUS);
+			geni_write_reg_nolog(s_irq_status, uport->membase,
+							SE_GENI_S_IRQ_CLEAR);
+			geni_se_dump_dbg_regs(&port->serial_rsc,
+				uport->membase, port->ipc_log_misc);
+			IPC_LOG_MSG(port->ipc_log_misc, "%s: Interrupt delay: dma_rx_status:0x%x, s_irq_status:0x%x\n",
+					__func__, dma_rx_status, s_irq_status);
+			handle_rx_dma_xfer(s_irq_status, uport);
+		}
+#endif
 	}
 #else
 	port->s_cmd_done = false;
@@ -2083,6 +2105,78 @@ static int msm_geni_serial_handle_dma_tx(struct uart_port *uport)
 	return 0;
 }
 
+#if defined(CONFIG_ARCH_ATOLL)
+static bool handle_rx_dma_xfer(u32 s_irq_status, struct uart_port *uport)
+{
+	bool ret = false;
+	bool drop_rx = false;
+	struct msm_geni_serial_port *msm_port = GET_DEV_PORT(uport);
+	u32 dma_rx_status;
+
+	spin_lock(&msm_port->rx_lock);
+	dma_rx_status = geni_read_reg_nolog(uport->membase,
+						SE_DMA_RX_IRQ_STAT);
+
+	if (dma_rx_status) {
+		geni_write_reg_nolog(dma_rx_status, uport->membase,
+					SE_DMA_RX_IRQ_CLR);
+
+		if (dma_rx_status & RX_RESET_DONE) {
+			IPC_LOG_MSG(msm_port->ipc_log_misc,
+			"%s.Reset done.  0x%x.\n", __func__, dma_rx_status);
+			goto exit;
+		}
+
+		if (dma_rx_status & UART_DMA_RX_ERRS) {
+			if (dma_rx_status & UART_DMA_RX_PARITY_ERR)
+				uport->icount.parity++;
+			IPC_LOG_MSG(msm_port->ipc_log_misc,
+				"%s.Rx Errors.  0x%x parity:%d\n",
+					__func__, dma_rx_status,
+					uport->icount.parity);
+			drop_rx = true;
+		} else if (dma_rx_status & UART_DMA_RX_BREAK) {
+			uport->icount.brk++;
+			IPC_LOG_MSG(msm_port->ipc_log_misc,
+				"%s.Rx Errors.  0x%x break:%d\n",
+				__func__, dma_rx_status,
+				uport->icount.brk);
+		}
+
+		if (dma_rx_status & RX_EOT ||
+				dma_rx_status & RX_DMA_DONE) {
+			msm_geni_serial_handle_dma_rx(uport,
+						drop_rx);
+			if (!(dma_rx_status & RX_GENI_CANCEL_IRQ(msm_port->ver_info))) {
+				geni_se_rx_dma_start(uport->membase,
+				DMA_RX_BUF_SIZE, &msm_port->rx_dma);
+			} else {
+				IPC_LOG_MSG(msm_port->ipc_log_misc,
+				"%s. not mapping rx dma\n",
+				__func__);
+			}
+		}
+		if (dma_rx_status & RX_SBE) {
+			IPC_LOG_MSG(msm_port->ipc_log_misc,
+				"%s.Rx Errors.  0x%x\n",
+				__func__, dma_rx_status);
+			WARN_ON(1);
+		}
+
+		if (dma_rx_status & (RX_EOT | RX_GENI_CANCEL_IRQ(msm_port->ver_info) | RX_DMA_DONE))
+			ret = true;
+
+	}
+
+	if (s_irq_status & (S_CMD_CANCEL_EN | S_CMD_ABORT_EN))
+		ret = true;
+
+exit:
+	spin_unlock(&msm_port->rx_lock);
+	return ret;
+}
+#endif
+
 static void msm_geni_serial_handle_isr(struct uart_port *uport,
 					unsigned long *flags,
 					bool is_irq_masked)
@@ -2243,6 +2337,9 @@ static void msm_geni_serial_handle_isr(struct uart_port *uport,
 		}
 
 		if (dma_rx_status) {
+#if defined(CONFIG_ARCH_ATOLL)
+			s_cmd_done = handle_rx_dma_xfer(s_irq_status, uport);
+#else
 			geni_write_reg_nolog(dma_rx_status, uport->membase,
 						SE_DMA_RX_IRQ_CLR);
 
@@ -2277,12 +2374,6 @@ static void msm_geni_serial_handle_isr(struct uart_port *uport,
 				RX_GENI_CANCEL_IRQ(msm_port->ver_info))) {
 					geni_se_rx_dma_start(uport->membase,
 					DMA_RX_BUF_SIZE, &msm_port->rx_dma);
-#if defined(CONFIG_ARCH_ATOLL)
-				} else {
-					IPC_LOG_MSG(msm_port->ipc_log_misc,
-						 "%s. not mapping rx dma\n",
-						 __func__);
-#endif
 				}
 			}
 
@@ -2300,6 +2391,7 @@ static void msm_geni_serial_handle_isr(struct uart_port *uport,
 
 			if (s_irq_status & (S_CMD_CANCEL_EN | S_CMD_ABORT_EN))
 				s_cmd_done = true;
+#endif
 		}
 	}
 
@@ -3716,6 +3808,11 @@ static int msm_geni_serial_probe(struct platform_device *pdev)
 		snprintf(boot_marker, sizeof(boot_marker),
 			"M - DRIVER GENI_HS_UART_%d Ready", line);
 	place_marker(boot_marker);
+
+#if defined(CONFIG_ARCH_ATOLL)
+	if (!uart_console(uport))
+		spin_lock_init(&dev_port->rx_lock);
+#endif
 
 	IPC_LOG_MSG(dev_port->ipc_log_misc, "%s: port:%s irq:%d\n", __func__,
 		    uport->name, uport->irq);

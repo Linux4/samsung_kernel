@@ -78,6 +78,7 @@ extern struct pdic_notifier_struct pd_noti;
 #endif
 
 static int sm5714_usbpd_reg_init(struct sm5714_phydrv_data *_data);
+static void sm5714_driver_reset(void *_data);
 static void sm5714_get_short_state(void *_data, bool *val);
 void sm5714_set_enable_pd_function(void *_data, int enable);
 
@@ -446,8 +447,11 @@ void sm5714_short_state_check(void *_data)
 
 static void sm5714_check_cc_state(struct sm5714_phydrv_data *pdic_data)
 {
+	struct sm5714_usbpd_data *pd_data = dev_get_drvdata(pdic_data->dev);
 	struct i2c_client *i2c = pdic_data->i2c;
-	u8 data = 0, status1 = 0;
+	struct device *dev = &i2c->dev;
+	u8 data = 0, status1 = 0, reg_jig = 0, reg_comp = 0, reg_clk = 0;
+	bool abnormal_st = false;
 
 #if defined(CONFIG_DUAL_ROLE_USB_INTF)
 	if (!pdic_data->try_state_change)
@@ -464,7 +468,23 @@ static void sm5714_check_cc_state(struct sm5714_phydrv_data *pdic_data)
 				sm5714_usbpd_write_reg(i2c, SM5714_REG_CC_CNTL3, 0x80);
 		}
 	}
-	pr_info("%s, cc state : 0x%x\n", __func__, data);
+
+	sm5714_usbpd_read_reg(i2c, SM5714_REG_JIGON_CONTROL, &reg_jig);
+	sm5714_usbpd_read_reg(i2c, SM5714_REG_COMP_CNTL, &reg_comp);
+	sm5714_usbpd_read_reg(i2c, SM5714_REG_CLK_CNTL, &reg_clk);
+
+	if ((reg_jig != 0x3 && reg_jig != 0x1) || (reg_comp != 0x98) || (reg_clk != 0x8))
+		abnormal_st = true;
+
+	pr_info("%s, CC_ST : 0x%x, JIGON : 0x%x, COMP : 0x%x, CLK : 0x%x\n",
+			__func__, data, reg_jig, reg_comp, reg_clk);
+
+	if (abnormal_st) {
+		dev_info(dev, "Do soft reset.\n");
+		sm5714_usbpd_write_reg(i2c, SM5714_REG_SYS_CNTL, 0x80);
+		sm5714_driver_reset(pd_data);
+		sm5714_usbpd_reg_init(pdic_data);
+	}
 }
 
 #if defined(CONFIG_BATTERY_SAMSUNG)
@@ -1693,6 +1713,20 @@ void sm5714_cc_state_hold_on_off(void *_data, int onoff)
 	pr_info("%s: CC State Hold [%d], val = %x\n", __func__, onoff, val);
 }
 
+static void sm5714_abnormal_dev_int_on_off(struct sm5714_phydrv_data *pdic_data, int onoff)
+{
+	struct i2c_client *i2c = pdic_data->i2c;
+	u8 val;
+
+	sm5714_usbpd_read_reg(i2c, 0xEE, &val);
+	if (onoff == 1)
+		val |= 0x2;
+	else
+		val &= 0xFD;
+	sm5714_usbpd_write_reg(i2c, 0xEE, val);
+	pr_info("%s: ABNORMAL_DEV INT [%d], val = 0x%x\n", __func__, onoff, val);
+}
+
 bool sm5714_get_rx_buf_st(void *_data)
 {
 	struct sm5714_usbpd_data *pd_data = (struct sm5714_usbpd_data *) _data;
@@ -1794,6 +1828,62 @@ static void sm5714_usbpd_abnormal_reset_check(struct sm5714_phydrv_data *pdic_da
 	}
 }
 
+#if defined(CONFIG_SM5714_WATER_DETECTION_ENABLE)
+static void sm5714_usbpd_check_normal_otg_device(struct sm5714_phydrv_data *pdic_data)
+{
+	struct i2c_client *i2c = pdic_data->i2c;
+	u8 cc1_80ua, cc2_80ua, cc1_fe, cc2_fe, reg_data;
+	bool abnormal_st = false;
+	int reTry = 0;
+
+	if (pdic_data->abnormal_dev_cnt < 2)
+		return;
+	else if (pdic_data->abnormal_dev_cnt > 2) {
+		sm5714_abnormal_dev_int_on_off(pdic_data, 0);
+		/* Timer set 1s */
+		sm5714_usbpd_write_reg(i2c, SM5714_REG_GEN_TMR_L, 0x10);
+		sm5714_usbpd_write_reg(i2c, SM5714_REG_GEN_TMR_U, 0x27);
+		pdic_data->is_timer_expired = true;
+		return;
+	}
+
+	sm5714_usbpd_write_reg(i2c, 0xFE, 0x02);
+
+	sm5714_usbpd_read_reg(i2c, 0x18, &cc1_80ua);
+	sm5714_usbpd_read_reg(i2c, 0x19, &cc2_80ua);
+	sm5714_usbpd_read_reg(i2c, 0x1F, &cc1_fe);
+	sm5714_usbpd_read_reg(i2c, 0x21, &cc2_fe);
+
+	sm5714_usbpd_write_reg(i2c, 0xFE, 0x00);
+
+	sm5714_usbpd_read_reg(i2c, 0xFE, &reg_data);
+	for (reTry = 0; reTry < 5; reTry++) {
+		if (reg_data != 0x00) {
+			usleep_range(1000, 1100);
+			pr_info("%s, 0xFE : 0x%x, retry = %d\n", __func__, reg_data, reTry+1);
+			sm5714_usbpd_write_reg(i2c, 0xFE, 0x00);
+			sm5714_usbpd_read_reg(i2c, 0xFE, &reg_data);
+		} else
+			break;
+	}
+	if (reg_data != 0x00)
+		panic("sm5714 usbpd i2c error!!");
+	if ((cc1_80ua >= 0xC) && (cc1_80ua <= 0x16) && (cc1_fe < 0x4))
+		abnormal_st = true;
+	else if ((cc2_80ua >= 0xC) && (cc2_80ua <= 0x16) && (cc2_fe < 0x4))
+		abnormal_st = true;
+
+	if (abnormal_st) {
+		sm5714_usbpd_write_reg(i2c, 0x93, 0x04);
+		sm5714_usbpd_write_reg(i2c, 0x93, 0x00);
+		pdic_data->abnormal_dev_cnt = 0;
+	}
+
+	pr_info("%s, ABNOR_ST : %d, CC1_80uA[0x%x] CC2_80uA[0x%x] CC1_FE[0x%x] CC2_FE[0x%x]\n",
+			__func__, abnormal_st, cc1_80ua, cc2_80ua, cc1_fe, cc2_fe);
+}
+#endif
+
 static void sm5714_assert_rd(void *_data)
 {
 	struct sm5714_usbpd_data *data = (struct sm5714_usbpd_data *) _data;
@@ -1875,7 +1965,20 @@ static bool sm5714_poll_status(void *_data, int irq)
 		pdic_data->status_reg |= MSG_NONE;
 		goto out;
 	}
-
+#if defined(CONFIG_SM5714_WATER_DETECTION_ENABLE)
+	if (intr[0] & SM5714_REG_INT_STATUS1_TMR_EXP) {
+		if (pdic_data->is_timer_expired) {
+			pdic_data->is_timer_expired = false;
+			if (pdic_data->abnormal_dev_cnt != 0)
+				pdic_data->abnormal_dev_cnt = 0;
+			sm5714_abnormal_dev_int_on_off(pdic_data, 1);
+		}
+	}
+	if (intr[0]	& SM5714_REG_INT_STATUS1_ABNORMAL_DEV) {
+		pdic_data->abnormal_dev_cnt++;
+		sm5714_usbpd_check_normal_otg_device(pdic_data);
+	}
+#endif
 	if ((intr[4] & SM5714_REG_INT_STATUS5_CC_ABNORMAL) &&
 			(status[4] & SM5714_REG_INT_STATUS5_CC_ABNORMAL)) {
 		pdic_data->is_cc_abnormal_state = true;
@@ -2582,6 +2685,7 @@ static int sm5714_usbpd_notify_attach(void *data)
 	if (ret < 0)
 		dev_err(dev, "%s, i2c read CC_STATUS error\n", __func__);
 	pdic_data->is_attached = 1;
+	pdic_data->abnormal_dev_cnt = 0;
 	/* cc_SINK */
 	if ((reg_data & SM5714_ATTACH_TYPE) == SM5714_ATTACH_SOURCE) {
 		dev_info(dev, "ccstat : cc_SINK\n");
@@ -2990,7 +3094,6 @@ out:
 static int sm5714_usbpd_reg_init(struct sm5714_phydrv_data *_data)
 {
 	struct i2c_client *i2c = _data->i2c;
-
 	pr_info("%s", __func__);
 	if (!lpcharge)	/* Release SNK Only */
 		sm5714_usbpd_write_reg(i2c, SM5714_REG_CC_CNTL1, 0x41);
@@ -2998,6 +3101,7 @@ static int sm5714_usbpd_reg_init(struct sm5714_phydrv_data *_data)
 	/* Release SBU Sourcing */
 	sm5714_usbpd_write_reg(i2c, SM5714_REG_CORR_CNTL5, 0x00);
 #if defined(CONFIG_SM5714_WATER_DETECTION_ENABLE)
+	sm5714_abnormal_dev_int_on_off(_data, 1);
 	sm5714_usbpd_write_reg(i2c, SM5714_REG_CORR_CNTL4, 0x03);
 	/* Enable Rp Attach even under Water Status */
 	sm5714_usbpd_write_reg(i2c, SM5714_REG_CORR_OPT4, 0x7B);
@@ -3195,7 +3299,7 @@ static void sm5714_usbpd_debug_reg_log(struct work_struct *work)
 		container_of(work, struct sm5714_phydrv_data,
 				debug_work.work);
 	struct i2c_client *i2c = pdic_data->i2c;
-	u8 data[18] = {0, };
+	u8 data[20] = {0, };
 
 	sm5714_usbpd_read_reg(i2c, SM5714_REG_JIGON_CONTROL, &data[0]);
 	sm5714_usbpd_read_reg(i2c, SM5714_REG_CORR_CNTL1, &data[1]);
@@ -3215,12 +3319,14 @@ static void sm5714_usbpd_debug_reg_log(struct work_struct *work)
 	sm5714_usbpd_read_reg(i2c, SM5714_REG_PD_STATE3, &data[15]);
 	sm5714_usbpd_read_reg(i2c, SM5714_REG_PD_STATE4, &data[16]);
 	sm5714_usbpd_read_reg(i2c, SM5714_REG_PD_STATE5, &data[17]);
+	sm5714_usbpd_read_reg(i2c, SM5714_REG_COMP_CNTL, &data[18]);
+	sm5714_usbpd_read_reg(i2c, SM5714_REG_CLK_CNTL, &data[19]);
 
-	pr_info("%s JIGON:0x%02x CR_CT[1: 0x%02x 4:0x%02x 5:0x%02x] CC_ST:0x%02x CC_CT[1:0x%02x 2:0x%02x 3:0x%02x 7:0x%02x] PD_CT[1:0x%02x 4:0x%02x] RX_BUF_ST:0x%02x PROBE0:0x%02x PD_ST[0:0x%02x 2:0x%02x 3:0x%02x 4:0x%02x 5:0x%02x]\n",
+	pr_info("%s JIGON:0x%02x CR_CT[1: 0x%02x 4:0x%02x 5:0x%02x] CC_ST:0x%02x CC_CT[1:0x%02x 2:0x%02x 3:0x%02x 7:0x%02x] PD_CT[1:0x%02x 4:0x%02x] RX_BUF_ST:0x%02x PROBE0:0x%02x PD_ST[0:0x%02x 2:0x%02x 3:0x%02x 4:0x%02x 5:0x%02x]COMP:0x%02x CLK:0x%02x\n",
 			__func__, data[0], data[1], data[2], data[3], data[4],
 			data[5], data[6], data[7], data[8], data[9], data[10],
 			data[11], data[12], data[13], data[14], data[15],
-			data[16], data[17]);
+			data[16], data[17],data[18], data[19]);
 
 	if (!pdic_data->suspended)
 		schedule_delayed_work(&pdic_data->debug_work,
@@ -3308,7 +3414,9 @@ static int sm5714_usbpd_probe(struct i2c_client *i2c,
 	pdic_data->detach_valid = true;
 	pdic_data->is_otg_vboost = false;
 	pdic_data->is_jig_case_on = false;
+	pdic_data->is_timer_expired = false;
 	pdic_data->reset_done = 0;
+	pdic_data->abnormal_dev_cnt = 0;
 	pdic_data->is_cc_abnormal_state = false;
 #if defined(CONFIG_SM5714_SUPPORT_SBU)
 	pdic_data->is_sbu_abnormal_state = false;
@@ -3483,6 +3591,12 @@ static int sm5714_usbpd_suspend(struct device *dev)
 		enable_irq_wake(pdic_data->i2c->irq);
 
 	disable_irq(pdic_data->i2c->irq);
+	if (pdic_data->is_timer_expired) {
+		pdic_data->abnormal_dev_cnt = 0;
+		sm5714_usbpd_write_reg(pdic_data->i2c, SM5714_REG_GEN_TMR_L, 0x00);
+		sm5714_usbpd_write_reg(pdic_data->i2c, SM5714_REG_GEN_TMR_U, 0x00);
+	}
+
 	cancel_delayed_work_sync(&pdic_data->debug_work);
 
 	return 0;
@@ -3499,6 +3613,10 @@ static int sm5714_usbpd_resume(struct device *dev)
 		disable_irq_wake(pdic_data->i2c->irq);
 
 	enable_irq(pdic_data->i2c->irq);
+	if (pdic_data->is_timer_expired) {
+		sm5714_abnormal_dev_int_on_off(pdic_data, 1);
+		pdic_data->is_timer_expired = false;
+	}
 	schedule_delayed_work(&pdic_data->debug_work, msecs_to_jiffies(1500));
 
 	return 0;
@@ -3550,12 +3668,19 @@ static void sm5714_usbpd_shutdown(struct i2c_client *i2c)
 {
 	struct sm5714_usbpd_data *pd_data = dev_get_drvdata(&i2c->dev);
 	struct sm5714_phydrv_data *_data = pd_data->phy_driver_data;
+	bool is_rid_attached = true;
+
+	if (_data->rid == REG_RID_OPEN || _data->rid == REG_RID_MAX)
+		is_rid_attached = false;
 
 	if (!_data->i2c)
 		return;
 
 	cancel_delayed_work_sync(&_data->debug_work);
 	sm5714_usbpd_set_vbus_dischg_gpio(_data, 0);
+
+	if (!is_rid_attached)
+		sm5714_usbpd_write_reg(i2c, SM5714_REG_SYS_CNTL, 0x80);
 }
 
 static usbpd_phy_ops_type sm5714_ops = {

@@ -210,16 +210,12 @@ EXPORT_SYMBOL(snd_ctl_notify);
 static int snd_ctl_new(struct snd_kcontrol **kctl, unsigned int count,
 		       unsigned int access, struct snd_ctl_file *file)
 {
-	unsigned int size;
 	unsigned int idx;
 	
 	if (count == 0 || count > MAX_CONTROL_COUNT)
 		return -EINVAL;
 
-	size  = sizeof(struct snd_kcontrol);
-	size += sizeof(struct snd_kcontrol_volatile) * count;
-
-	*kctl = kzalloc(size, GFP_KERNEL);
+	*kctl = kzalloc(struct_size(*kctl, vd, count), GFP_KERNEL);
 	if (!*kctl)
 		return -ENOMEM;
 
@@ -228,7 +224,8 @@ static int snd_ctl_new(struct snd_kcontrol **kctl, unsigned int count,
 		(*kctl)->vd[idx].owner = file;
 	}
 	(*kctl)->count = count;
-
+	if (count > 1)
+		pr_err("%s::kctl name %s -- count %d\n", __func__, (*kctl)->id.name, (*kctl)->count);
 	return 0;
 }
 
@@ -257,7 +254,11 @@ struct snd_kcontrol *snd_ctl_new1(const struct snd_kcontrol_new *ncontrol,
 	count = ncontrol->count;
 	if (count == 0)
 		count = 1;
-
+	if (count > 1) {
+		pr_err("%s:: name %s count %d ncontrol->count %d\n",
+			__func__, ncontrol->name, count, ncontrol->count);
+		dump_stack();
+	}
 	access = ncontrol->access;
 	if (access == 0)
 		access = SNDRV_CTL_ELEM_ACCESS_READWRITE;
@@ -833,13 +834,15 @@ static int snd_ctl_elem_info(struct snd_ctl_file *ctl,
 	struct snd_kcontrol_volatile *vd;
 	unsigned int index_offset;
 	int result;
-	
 	down_read(&card->controls_rwsem);
 	kctl = snd_ctl_find_id(card, &info->id);
 	if (kctl == NULL) {
 		up_read(&card->controls_rwsem);
 		return -ENOENT;
 	}
+	if (kctl->count > 1)
+		pr_err("%s:: info->id.name %s -- numid  %d -- index %d -- info->count %d -- kctrl[%s] count %d\n",
+		__func__, info->id.name, info->id.numid, info->id.index, info->count, kctl->id.name, kctl->count);
 #ifdef CONFIG_SND_DEBUG
 	info->access = 0;
 #endif
@@ -847,6 +850,8 @@ static int snd_ctl_elem_info(struct snd_ctl_file *ctl,
 	if (result >= 0) {
 		snd_BUG_ON(info->access);
 		index_offset = snd_ctl_get_ioff(kctl, &info->id);
+		if (index_offset > 0)
+			pr_err("%s:: kctl[%s] index_offset %d\n", __func__, kctl->id.name, index_offset);
 		vd = &kctl->vd[index_offset];
 		snd_ctl_build_ioff(&info->id, kctl, index_offset);
 		info->access = vd->access;
@@ -1290,7 +1295,10 @@ static int snd_ctl_elem_add(struct snd_ctl_file *file,
 	count = info->owner;
 	if (count == 0)
 		count = 1;
-
+	if (count > 1) {
+		pr_err("%s:: id name -> %s info owner %d  count %d\n", __func__, info->id.name, info->owner, count);
+		dump_stack();
+	}
 	/* Arrange access permissions if needed. */
 	access = info->access;
 	if (access == 0)

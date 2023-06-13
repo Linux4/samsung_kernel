@@ -526,7 +526,6 @@ static int cam_cpas_hw_reg_read(struct cam_hw_info *cpas_hw,
 	if (!CAM_CPAS_CLIENT_VALID(client_indx))
 		return -EINVAL;
 
-	mutex_lock(&cpas_core->client_mutex[client_indx]);
 	cpas_client = cpas_core->cpas_client[client_indx];
 
 	if (!CAM_CPAS_CLIENT_STARTED(cpas_core, client_indx)) {
@@ -534,7 +533,7 @@ static int cam_cpas_hw_reg_read(struct cam_hw_info *cpas_hw,
 			client_indx, cpas_client->data.identifier,
 			cpas_client->data.cell_index);
 		rc = -EPERM;
-		goto unlock_client;
+		return rc;
 	}
 
 	if (mb)
@@ -546,8 +545,6 @@ static int cam_cpas_hw_reg_read(struct cam_hw_info *cpas_hw,
 
 	*value = reg_value;
 
-unlock_client:
-	mutex_unlock(&cpas_core->client_mutex[client_indx]);
 	return rc;
 }
 

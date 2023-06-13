@@ -1648,8 +1648,13 @@ static void sec_bat_safety_timer_work(struct work_struct *work)
 		battery->prev_safety_time = ts.tv_sec;
 	}
 
+#if defined(CONFIG_SEC_A60Q_PROJECT)
+	rc = power_supply_get_property(battery->psy_usb,
+		POWER_SUPPLY_PROP_VOLTAGE_MAX_LIMIT, &value);
+#else
 	rc = power_supply_get_property(battery->psy_usb,
 		POWER_SUPPLY_PROP_VOLTAGE_MAX, &value);
+#endif
 	if (rc < 0) {
 		dev_err(battery->dev, "%s: Fail to get input voltage. rc=%d\n", __func__, rc);
 		input_voltage = 5000;    /* in mV */

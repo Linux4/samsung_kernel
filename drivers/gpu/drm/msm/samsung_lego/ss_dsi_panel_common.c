@@ -2669,6 +2669,11 @@ int ss_panel_on_pre(struct samsung_display_driver_data *vdd)
 		vdd->read_panel_status_from_lk = 1;
 	}
 
+	if (vdd->skip_read_on_pre) {
+		LCD_INFO("Skip read operation in on_pre\n");
+		goto skip_read;
+	}
+
 	/* Module info */
 	if (!vdd->module_info_loaded_dsi) {
 		if (IS_ERR_OR_NULL(vdd->panel_func.samsung_module_info_read))
@@ -2852,6 +2857,8 @@ int ss_panel_on_pre(struct samsung_display_driver_data *vdd)
 			vdd->br_info.force_use_table_for_hmd_done = true;
 		}
 	}
+
+skip_read:
 
 	if (!IS_ERR_OR_NULL(vdd->panel_func.samsung_panel_on_pre))
 		vdd->panel_func.samsung_panel_on_pre(vdd);
@@ -4446,6 +4453,9 @@ static void ss_panel_parse_dt(struct samsung_display_driver_data *vdd)
 
 	vdd->panel_lpm.is_support = of_property_read_bool(np, "samsung,support_lpm");
 	LCD_ERR("alpm enable %s\n", vdd->panel_lpm.is_support? "enabled" : "disabled");
+
+	vdd->skip_read_on_pre = of_property_read_bool(np, "samsung,skip_read_on_pre");
+	LCD_ERR("Skip read on pre %s\n", vdd->skip_read_on_pre ? "enabled" : "disabled");
 
 	/* Set HMT flag */
 	vdd->hmt.is_support = of_property_read_bool(np, "samsung,support_hmt");

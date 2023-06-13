@@ -4136,10 +4136,15 @@ int smblib_get_prop_ufp_mode(struct smb_charger *chg)
 		smblib_dbg(chg, PR_MISC, "CC-Vbus short detected \n");
 #endif
 		return POWER_SUPPLY_TYPEC_NON_COMPLIANT;
+/* Removing DAM BITs, as its added by QCom delivery causes slow charging issue on R OS Update.
+ May be issue is with HW.
+*/
+#if 0  
 	case SNK_DAM_500MA_BIT:
 	case SNK_DAM_1500MA_BIT:
 	case SNK_DAM_3000MA_BIT:
 		return POWER_SUPPLY_TYPEC_SINK_DEBUG_ACCESSORY;
+#endif
 	default:
 		break;
 	}

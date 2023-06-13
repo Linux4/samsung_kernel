@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2020, 2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -467,6 +467,7 @@ int afe_send_port_island_mode(u16 port_id);
 int afe_send_cmd_wakeup_register(void *handle, bool enable);
 void afe_register_wakeup_irq_callback(
 	void (*afe_cb_wakeup_irq)(void *handle));
+void afe_set_lsm_afe_port_id(int idx, int lsm_port);
 
 #define AFE_LPASS_CORE_HW_BLOCK_ID_NONE                        0
 #define AFE_LPASS_CORE_HW_BLOCK_ID_AVTIMER                     2

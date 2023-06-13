@@ -75,6 +75,54 @@ static int samsung_panel_on_pre(struct samsung_display_driver_data *vdd)
 
 static int samsung_panel_on_post(struct samsung_display_driver_data *vdd)
 {
+	/* Module info */
+	if (!vdd->module_info_loaded_dsi) {
+		if (IS_ERR_OR_NULL(vdd->panel_func.samsung_module_info_read))
+			LCD_ERR("no samsung_module_info_read function\n");
+		else
+			vdd->module_info_loaded_dsi = vdd->panel_func.samsung_module_info_read(vdd);
+	}
+
+	/* Manufacture date */
+	if (!vdd->manufacture_date_loaded_dsi) {
+		if (IS_ERR_OR_NULL(vdd->panel_func.samsung_manufacture_date_read))
+			LCD_ERR("no samsung_manufacture_date_read function\n");
+		else
+			vdd->manufacture_date_loaded_dsi = vdd->panel_func.samsung_manufacture_date_read(vdd);
+	}
+
+	/* DDI ID */
+	if (!vdd->ddi_id_loaded_dsi) {
+		if (IS_ERR_OR_NULL(vdd->panel_func.samsung_ddi_id_read))
+			LCD_ERR("no samsung_ddi_id_read function\n");
+		else
+			vdd->ddi_id_loaded_dsi = vdd->panel_func.samsung_ddi_id_read(vdd);
+	}
+
+	/* MDNIE X,Y (1.Manufacture Date -> 2.MDNIE X,Y -> 3.Cell ID -> 4.OCTA ID) */
+	if (!vdd->mdnie_loaded_dsi) {
+		if (IS_ERR_OR_NULL(vdd->panel_func.samsung_mdnie_read))
+			LCD_ERR("no samsung_mdnie_read function\n");
+		else
+			vdd->mdnie_loaded_dsi = vdd->panel_func.samsung_mdnie_read(vdd);
+	}
+
+	/* Panel Unique Cell ID (1.Manufacture Date -> 2.MDNIE X,Y -> 3.Cell ID -> 4.OCTA ID) */
+	if (!vdd->cell_id_loaded_dsi) {
+		if (IS_ERR_OR_NULL(vdd->panel_func.samsung_cell_id_read))
+			LCD_ERR("no samsung_cell_id_read function\n");
+		else
+			vdd->cell_id_loaded_dsi = vdd->panel_func.samsung_cell_id_read(vdd);
+	}
+
+	/* Panel Unique OCTA ID (1.Manufacture Date -> 2.MDNIE X,Y -> 3.Cell ID -> 4.OCTA ID) */
+	if (!vdd->octa_id_loaded_dsi) {
+		if (IS_ERR_OR_NULL(vdd->panel_func.samsung_octa_id_read))
+			LCD_ERR("no samsung_octa_id_read function\n");
+		else
+			vdd->octa_id_loaded_dsi = vdd->panel_func.samsung_octa_id_read(vdd);
+	}
+
 	if (!vdd->samsung_splash_enabled) {
 		if (vdd->self_disp.self_mask_img_write)
 			vdd->self_disp.self_mask_img_write(vdd);
@@ -327,7 +375,7 @@ static int ss_elvss_read(struct samsung_display_driver_data *vdd)
 
 static int ss_module_info_read(struct samsung_display_driver_data *vdd)
 {
-	unsigned char buf[11];
+	unsigned char buf[11] = {0,};
 	int year, month, day;
 	int hour, min;
 	int mdnie_tune_index = 0;

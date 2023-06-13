@@ -1393,7 +1393,7 @@ static int cam_vfe_bus_err_bottom_half(void *ctx_priv,
 
 	evt_payload = evt_payload_priv;
 	common_data = evt_payload->ctx;
-	enable_dmi_dump = evt_payload->enable_dump;
+	enable_dmi_dump = 0x3;
 	stats_cfg = common_data->stats_data->stats_cfg_offset;
 	dmi_cfg = common_data->stats_data->dmi_offset_info;
 	val = evt_payload->debug_status_0;

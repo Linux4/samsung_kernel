@@ -140,7 +140,20 @@
  * @QCA_NL80211_VENDOR_SUBCMD_GET_PREFERRED_FREQ_LIST: get preferred channel
 	list
  * @QCA_NL80211_VENDOR_SUBCMD_SET_PROBABLE_OPER_CHANNEL: channel hint
- * @QCA_NL80211_VENDOR_SUBCMD_SETBAND: vendor setband command
+ * @QCA_NL80211_VENDOR_SUBCMD_SETBAND: Command to configure the band
+ *	to the host driver. This command sets the band through either
+ *	the attribute QCA_WLAN_VENDOR_ATTR_SETBAND_VALUE or
+ *	QCA_WLAN_VENDOR_ATTR_SETBAND_MASK. QCA_WLAN_VENDOR_ATTR_SETBAND_VALUE
+ *	refers enum qca_set_band as unsigned integer values and
+ *	QCA_WLAN_VENDOR_ATTR_SETBAND_MASK refers it as 32 bit unsigned BitMask
+ *	values. Also, the acceptable values for
+ *	QCA_WLAN_VENDOR_ATTR_SETBAND_VALUE are only till QCA_SETBAND_2G. Further
+ *	values/bitmask's are valid for QCA_WLAN_VENDOR_ATTR_SETBAND_MASK. The
+ *	attribute QCA_WLAN_VENDOR_ATTR_SETBAND_VALUE is deprecated and the
+ *	recommendation is to use the QCA_WLAN_VENDOR_ATTR_SETBAND_MASK. If the
+ *	implementations configure using both the attributes, the configurations
+ *	through QCA_WLAN_VENDOR_ATTR_SETBAND_MASK shall always take the
+ *	precedence.
  * @QCA_NL80211_VENDOR_SUBCMD_TRIGGER_SCAN: venodr scan command
  * @QCA_NL80211_VENDOR_SUBCMD_SCAN_DONE: vendor scan complete
  * @QCA_NL80211_VENDOR_SUBCMD_ABORT_SCAN: vendor abort scan
@@ -620,6 +633,7 @@ enum qca_nl80211_vendor_subcmds {
 	QCA_NL80211_VENDOR_SUBCMD_GET_SAR_LIMITS_EVENT = 187,
 	QCA_NL80211_VENDOR_SUBCMD_UPDATE_STA_INFO = 188,
 	QCA_NL80211_VENDOR_SUBCMD_DRIVER_DISCONNECT_REASON = 189,
+    QCA_NL80211_VENDOR_SUBCMD_GETBAND = 192,
 };
 
 enum qca_wlan_vendor_tos {
@@ -1068,6 +1082,11 @@ enum qca_wlan_vendor_attr_get_station_info {
  * @QCA_NL80211_VENDOR_SUBCMD_NAN_EXT_INDEX: NAN Extended index
  * @QCA_NL80211_VENDOR_SUBCMD_BEACON_REPORTING_INDEX: Beacon reporting index
  * @QCA_NL80211_VENDOR_SUBCMD_REQUEST_SAR_LIMITS_INDEX: Request SAR limit index
+ *
+ * @QCA_NL80211_VENDOR_SUBCMD_GETBAND: Command to get the configured band from
+ * the host driver. The band configurations obtained are referred through
+ * QCA_WLAN_VENDOR_ATTR_SETBAND_MASK.
+ *
  */
 
 enum qca_nl80211_vendor_subcmds_index {
@@ -1333,7 +1352,13 @@ enum qca_wlan_vendor_attr {
 	QCA_WLAN_VENDOR_ATTR_MAX_CONCURRENT_CHANNELS_2_4_BAND = 10,
 	/* Unsigned 32-bit value */
 	QCA_WLAN_VENDOR_ATTR_MAX_CONCURRENT_CHANNELS_5_0_BAND = 11,
-	/* Unsigned 32-bit value from enum qca_set_band. */
+	/* Unsigned 32-bit value from enum qca_set_band. Also, the acceptable
+	 * value for this attribute are only till QCA_SETBAND_2G. This attribute
+	 * is deprecated. Recommendation is to use
+	 * QCA_WLAN_VENDOR_ATTR_SETBAND_MASK instead. If the band is configured
+	 * using both the attributes, the ones configured through
+	 * QCA_WLAN_VENDOR_ATTR_SETBAND_MASK take the precedence.
+	 */
 	QCA_WLAN_VENDOR_ATTR_SETBAND_VALUE = 12,
 	/* Dummy (NOP) attribute for 64 bit padding */
 	QCA_WLAN_VENDOR_ATTR_PAD = 13,
@@ -1520,9 +1545,18 @@ enum qca_wlan_vendor_attr {
 	 */
 	QCA_WLAN_VENDOR_ATTR_FW_STATE = 42,
 
+	/* Unsigned 32-bitmask value from enum qca_set_band. Substitutes the
+	 * attribute QCA_WLAN_VENDOR_ATTR_SETBAND_VALUE for which only the
+	 * integer values of enum qca_set_band till QCA_SETBAND_2G are valid.
+	 * This attribute shall consider the bitmask combinations to define
+	 * the respective Band combinations and always takes precedence over
+	 * QCA_WLAN_VENDOR_ATTR_SETBAND_VALUE.
+	 */
+	QCA_WLAN_VENDOR_ATTR_SETBAND_MASK = 43,
+
 	/* keep last */
 	QCA_WLAN_VENDOR_ATTR_AFTER_LAST,
-		QCA_WLAN_VENDOR_ATTR_MAX = QCA_WLAN_VENDOR_ATTR_AFTER_LAST - 1
+	QCA_WLAN_VENDOR_ATTR_MAX = QCA_WLAN_VENDOR_ATTR_AFTER_LAST - 1
 };
 
 enum qca_wlan_vendor_attr_extscan_config_params {
@@ -4772,9 +4806,10 @@ enum qca_wlan_vendor_attr_pcl_config {
 };
 
 enum qca_set_band {
-	QCA_SETBAND_AUTO,
-	QCA_SETBAND_5G,
-	QCA_SETBAND_2G,
+	QCA_SETBAND_AUTO = 0,
+	QCA_SETBAND_5G = BIT(0),
+	QCA_SETBAND_2G = BIT(1),
+	QCA_SETBAND_6G = BIT(2),
 };
 
 /**

@@ -33,11 +33,59 @@
 #ifdef CONFIG_GC5035_SENSOR
 #include "gc5035_otp.h"
 #endif
+
 #ifdef CONFIG_S5K3L6_SENSOR
 //#include "s5k3l6_otp.h"
 static int cam_otp_s5k3l6_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
                                struct cam_eeprom_memory_block_t *block);
 #endif
+
+#ifdef CONFIG_HI1336_SENSOR
+#include "hi1336_otp.h"
+static int cam_otp_hi1336_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
+                               struct cam_eeprom_memory_block_t *block);
+
+struct cam_sensor_i2c_reg_setting load_hi1336_otp_setfile = {
+	load_sensor_hi1336_otp_setfile_reg,
+	sizeof(load_sensor_hi1336_otp_setfile_reg)/sizeof(load_sensor_hi1336_otp_setfile_reg[0]),
+	CAMERA_SENSOR_I2C_TYPE_WORD,
+	CAMERA_SENSOR_I2C_TYPE_WORD,
+	50
+};
+
+struct cam_sensor_i2c_reg_setting hi1336_otp_init_setting1 = {
+	hi1336_otp_init_reg1,
+	sizeof(hi1336_otp_init_reg1)/sizeof(hi1336_otp_init_reg1[0]),
+	CAMERA_SENSOR_I2C_TYPE_WORD,
+	CAMERA_SENSOR_I2C_TYPE_BYTE,
+	10
+};
+
+struct cam_sensor_i2c_reg_setting hi1336_otp_init_setting2 = {
+	hi1336_otp_init_reg2,
+	sizeof(hi1336_otp_init_reg2)/sizeof(hi1336_otp_init_reg2[0]),
+	CAMERA_SENSOR_I2C_TYPE_WORD,
+	CAMERA_SENSOR_I2C_TYPE_BYTE,
+	10
+};
+
+struct cam_sensor_i2c_reg_setting hi1336_otp_finish_setting1 = {
+	hi1336_otp_finish_reg1,
+	sizeof(hi1336_otp_finish_reg1)/sizeof(hi1336_otp_finish_reg1[0]),
+	CAMERA_SENSOR_I2C_TYPE_WORD,
+	CAMERA_SENSOR_I2C_TYPE_BYTE,
+	10
+};
+
+struct cam_sensor_i2c_reg_setting hi1336_otp_finish_setting2 = {
+	hi1336_otp_finish_reg2,
+	sizeof(hi1336_otp_finish_reg2)/sizeof(hi1336_otp_finish_reg2[0]),
+	CAMERA_SENSOR_I2C_TYPE_WORD,
+	CAMERA_SENSOR_I2C_TYPE_BYTE,
+	10
+};
+#endif
+
 #ifdef CONFIG_S5K4HA_SENSOR
 static int cam_otp_s5k4ha_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
                                struct cam_eeprom_memory_block_t *block);
@@ -1415,6 +1463,11 @@ static int cam_eeprom_update_module_info(struct cam_eeprom_ctrl_t *e_ctrl)
 					rear2_fw_ver[5], rear2_fw_ver[6], rear2_fw_ver[7], rear2_fw_ver[8], rear2_fw_ver[9],
 					rear2_fw_ver[10]);
 				/* temp phone version */
+#if defined(CONFIG_S5K3L6_SENSOR) && defined(CONFIG_HI1336_SENSOR)
+				if(e_ctrl->io_master_info.cci_client->sid == 0x21)
+					snprintf(rear2_phone_fw_ver, FROM_MODULE_FW_INFO_SIZE+1, "%s%s%s%s", "E12EF", "OAR0", "C", "A");
+				else
+#endif
 				snprintf(rear2_phone_fw_ver, FROM_MODULE_FW_INFO_SIZE+1, "%s%s%s%s", hw_phone_info_ultra_wide, sw_phone_info_ultra_wide, vendor_phone_info_ultra_wide, process_phone_info_ultra_wide);
 				rear2_phone_fw_ver[FROM_MODULE_FW_INFO_SIZE] = '\0';
 				CAM_INFO(CAM_EEPROM,
@@ -2714,10 +2767,14 @@ static int cam_otp_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 		rc = cam_otp_gc5035_read_memory(e_ctrl, block);
 #endif
 	}else{
-#ifdef CONFIG_S5K3L6_SENSOR
+#if defined(CONFIG_S5K3L6_SENSOR) && defined(CONFIG_HI1336_SENSOR)
+		if(e_ctrl->io_master_info.cci_client->sid == 0x21)
+			rc = cam_otp_hi1336_read_memory(e_ctrl, block);
+		else
+			rc = cam_otp_s5k3l6_read_memory(e_ctrl, block);
+#elif defined(CONFIG_S5K3L6_SENSOR)
 		rc = cam_otp_s5k3l6_read_memory(e_ctrl, block);
-#endif
-#ifdef CONFIG_S5K4HA_SENSOR
+#elif defined(CONFIG_S5K4HA_SENSOR)
 		rc = cam_otp_s5k4ha_read_memory(e_ctrl, block);
 #endif
 	}
@@ -2963,6 +3020,370 @@ err:
     return rc;
 }
 #endif //CONFIG_GC5035_SENSOR
+
+#ifdef CONFIG_HI1336_SENSOR
+/**
+ * cam_otp_hi1336_init() - init for hi1336 OTP
+ * @io_master_info:	otp io struct
+ *
+ * This function is used for initilize hi1336 OTP to read/write data from OTP
+ */
+
+static int cam_otp_hi1336_init( struct camera_io_master *io_master_info)
+{
+    int	rc = 0;
+
+    if ( !io_master_info )
+    {
+        CAM_ERR( CAM_EEPROM, "io_master_info is NULL" );
+        return(-EINVAL);
+    }
+
+    /* load otp global setfile */
+    rc = camera_io_dev_write( io_master_info, &load_hi1336_otp_setfile );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "load otp globle setfile failed" );
+        return(rc);
+    }
+
+    /* OTP initial setting1 write */
+    rc = camera_io_dev_write( io_master_info, &hi1336_otp_init_setting1 );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "load otp initial setfile1 failed" );
+        return(rc);
+    }
+
+    msleep(10);
+
+    /* OTP initial setting2 write */
+    rc = camera_io_dev_write( io_master_info, &hi1336_otp_init_setting2 );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "load otp initial setfile2 failed" );
+        return(rc);
+    }
+
+    CAM_INFO( CAM_EEPROM, "load otp init setting done!");
+    return rc;
+}
+
+/**
+ * cam_otp_hi1336_read() - read map data into buffer for hi1336
+ * @io_master_info:	otp io struct
+ * @addr:	memory address to be read
+ * @memptr	memory address to be stored
+ *
+ * This function iterates through blocks stored in block->map, reads each
+ * region and concatenate them into the pre-allocated block->mapdata
+ */
+
+static int cam_otp_hi1336_read( struct camera_io_master *io_master_info, uint32_t addr,
+                                uint8_t *memptr )
+{
+    int					rc = 0;
+    struct cam_sensor_i2c_reg_setting	i2c_reg_settings;
+    struct cam_sensor_i2c_reg_array		i2c_reg_array;
+    enum camera_sensor_i2c_type		addr_type	= CAMERA_SENSOR_I2C_TYPE_WORD;
+    enum camera_sensor_i2c_type		data_type	= CAMERA_SENSOR_I2C_TYPE_BYTE;
+    uint32_t				read_addr		= 0;
+
+    if ( !io_master_info )
+    {
+        CAM_ERR( CAM_EEPROM, "io_master_info is NULL" );
+        return(-EINVAL);
+    }
+
+    i2c_reg_settings.addr_type	= addr_type;
+    i2c_reg_settings.data_type	= data_type;
+    i2c_reg_settings.size		= 1;
+    i2c_reg_settings.delay		= 4;
+    i2c_reg_array.delay		= 4;
+
+    /* high address */
+    i2c_reg_array.reg_addr		= 0x030a;
+    i2c_reg_array.reg_data		= (addr >> 8) & 0xff;
+    i2c_reg_settings.reg_setting	= &i2c_reg_array;
+
+    rc = camera_io_dev_write( io_master_info, &i2c_reg_settings );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "write high address failed" );
+        goto err;
+    }
+
+    /* low address */
+    i2c_reg_array.reg_addr		= 0x030b;
+    i2c_reg_array.reg_data		= addr & 0xff;
+    i2c_reg_settings.reg_setting	= &i2c_reg_array;
+
+    rc = camera_io_dev_write( io_master_info, &i2c_reg_settings );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "write low address failed" );
+        goto err;
+    }
+
+    /* OTP continue read mode */
+    i2c_reg_array.reg_addr		= 0x0302;
+    i2c_reg_array.reg_data		= 0x01;
+    i2c_reg_settings.reg_setting	= &i2c_reg_array;
+
+    rc = camera_io_dev_write( io_master_info, &i2c_reg_settings );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "continuous read failed" );
+        goto err;
+    }
+
+    /* OTP data verify */
+    rc = camera_io_dev_read( io_master_info, 0x030a, &read_addr, addr_type, addr_type );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "read failed rc %d", rc );
+    }
+    if(read_addr != addr)
+    CAM_INFO( CAM_EEPROM, "addr=0x%x read_addr=0x%x", addr, read_addr );
+
+    /* OTP data read */
+    rc = camera_io_dev_read_seq( io_master_info, 0x0308, memptr, addr_type, data_type, 1 );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "read failed rc %d", rc );
+    }
+
+    CAM_DBG( CAM_EEPROM, "addr=0x%x  read_addr=0x%x  *memptr=0x%x", addr, read_addr, *memptr );
+
+err:
+    return(rc);
+}
+
+/**
+ * cam_otp_hi1336_burst_read() - read map data into buffer with burst mode
+ * @io_master_info:	otp io struct
+ * @addr: start memory for reading
+ * @memptr:	block to be read
+ * @read_size: buffer count to be read
+ *
+ * This function iterates through blocks stored in block->map, reads each
+ * region and concatenate them into the pre-allocated block->mapdata
+ */
+
+static int cam_otp_hi1336_burst_read( struct camera_io_master *io_master_info, uint32_t addr,
+                                      uint8_t *memptr, uint32_t read_size )
+{
+    int					rc = 0;
+    struct cam_sensor_i2c_reg_setting	i2c_reg_settings;
+    struct cam_sensor_i2c_reg_array		i2c_reg_array;
+    enum camera_sensor_i2c_type		addr_type	= CAMERA_SENSOR_I2C_TYPE_WORD;
+    enum camera_sensor_i2c_type		data_type	= CAMERA_SENSOR_I2C_TYPE_BYTE;
+    uint32_t				read_addr		= 0;
+
+    if ( !io_master_info )
+    {
+        CAM_ERR( CAM_EEPROM, "io_master_info is NULL" );
+        return(-EINVAL);
+    }
+
+    i2c_reg_settings.addr_type	= addr_type;
+    i2c_reg_settings.data_type	= data_type;
+    i2c_reg_settings.size		= 1;
+    i2c_reg_settings.delay		= 4;
+    i2c_reg_array.delay		= 4;
+
+    /* high address */
+    i2c_reg_array.reg_addr		= 0x030a;
+    i2c_reg_array.reg_data		= (addr >> 8) & 0xff;
+    i2c_reg_settings.reg_setting	= &i2c_reg_array;
+
+    rc = camera_io_dev_write( io_master_info, &i2c_reg_settings );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "write high address failed" );
+        goto err;
+    }
+
+    /* low address */
+    i2c_reg_array.reg_addr		= 0x030b;
+    i2c_reg_array.reg_data		= addr & 0xff;
+    i2c_reg_settings.reg_setting	= &i2c_reg_array;
+
+    rc = camera_io_dev_write( io_master_info, &i2c_reg_settings );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "write low address failed" );
+        goto err;
+    }
+
+    /* OTP read mode */
+    i2c_reg_array.reg_addr		= 0x0302;
+    i2c_reg_array.reg_data		= 0x01;
+    i2c_reg_settings.reg_setting	= &i2c_reg_array;
+
+    rc = camera_io_dev_write( io_master_info, &i2c_reg_settings );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "continuous read failed" );
+        goto err;
+    }
+
+    /* OTP data verify*/
+    rc = camera_io_dev_read( io_master_info, 0x030a, &read_addr, addr_type, addr_type );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "read failed rc %d", rc );
+    }
+
+    if(read_addr != addr)
+    CAM_INFO( CAM_EEPROM, "addr=0x%x read_addr=0x%x", addr, read_addr );
+
+    /* burst read on */
+    i2c_reg_array.reg_addr		= 0x0712;
+    i2c_reg_array.reg_data		= 0x01;
+    i2c_reg_settings.reg_setting	= &i2c_reg_array;
+
+    rc = camera_io_dev_write( io_master_info, &i2c_reg_settings );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "continuous read failed" );
+        goto err;
+    }
+
+    /* OTP data burst read */
+    rc = camera_io_dev_read_seq( io_master_info, 0x0308, memptr, addr_type, data_type, read_size );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "read failed rc %d", rc );
+    }
+
+    /* burst read off */
+    i2c_reg_array.reg_addr		= 0x0712;
+    i2c_reg_array.reg_data		= 0x00;
+    i2c_reg_settings.reg_setting	= &i2c_reg_array;
+
+    rc = camera_io_dev_write( io_master_info, &i2c_reg_settings );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "continuous read failed" );
+        goto err;
+    }
+
+err:
+    return(rc);
+}
+
+/**
+ * cam_otp_hi1336_read_memory() - read map data into buffer
+ * @e_ctrl:	otp control struct
+ * @block:	block to be read
+ *
+ * This function iterates through blocks stored in block->map, reads each
+ * region and concatenate them into the pre-allocated block->mapdata
+ */
+
+static int cam_otp_hi1336_read_memory( struct cam_eeprom_ctrl_t *e_ctrl,
+                                       struct cam_eeprom_memory_block_t *block )
+
+{
+    struct cam_eeprom_memory_map_t	*emap	= block->map;
+    struct cam_eeprom_soc_private	*eb_info;
+    uint32_t	addr		= 0;
+    uint32_t	read_size	= 0;
+    uint32_t	offset = 0;
+    uint8_t		OTP_Bank	= 0;
+    uint8_t				*memptr = block->mapdata;
+    int		read_bytes	= 0;
+    int		rc	= 0;
+    int		j	= 0;
+
+    if ( !e_ctrl )
+    {
+        CAM_ERR( CAM_EEPROM, "e_ctrl is NULL" );
+        return(-EINVAL);
+    }
+
+    eb_info = (struct cam_eeprom_soc_private *) e_ctrl->soc_info.soc_private;
+
+    rc = cam_otp_hi1336_init(&e_ctrl->io_master_info);
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "OTP init failed" );
+        goto err;
+    }
+
+    /* select bank */
+    rc = cam_otp_hi1336_read( &e_ctrl->io_master_info, SENSOR_HI1336_OTP_BANK_SELECT_REGISTER, &OTP_Bank );
+
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "read data failed" );
+        goto err;
+    }
+    CAM_INFO( CAM_EEPROM, "current OTP_Bank: %d", OTP_Bank );
+
+    switch ( OTP_Bank )
+    {
+    /* Refer to OTP document */
+    case 0:
+    case 1:
+        offset = 0x0400;
+        break;
+
+    case 3:
+        offset = 0x0880;
+        break;
+
+    case 7:
+        offset = 0x0D00;
+        break;
+
+    case 0xF:
+        offset = 0x1180;
+        break;
+
+    default:
+        CAM_INFO( CAM_EEPROM, "Bank error : Bank(%d)", OTP_Bank );
+        return EINVAL;
+    }
+    CAM_INFO( CAM_EEPROM, "read OTP offset: 0x%x", offset );
+
+    for ( j = 1; j < block->num_map; j++ )
+    {
+        read_size	= emap[j].mem.valid_size;
+        memptr		= block->mapdata + emap[j].mem.addr;
+        addr		= emap[j].mem.addr + offset;
+
+        CAM_INFO( CAM_EEPROM, "emap[%d / %d].mem.addr=0x%x OTP addr=0x%x read_size=0x%x mapdata=%pK memptr=%pK subdev=%d type=%d",
+                  j, block->num_map, emap[j].mem.addr, addr, read_size, block->mapdata, memptr, e_ctrl->soc_info.index, e_ctrl->eeprom_device_type );
+
+        cam_otp_hi1336_burst_read( &e_ctrl->io_master_info, addr, memptr, read_size );
+        memptr		+= read_size;
+    }
+    CAM_INFO( CAM_EEPROM, "read data done memptr=%pK VR:: End read_bytes=0x%x\n", memptr, read_bytes );
+
+    /* OTP finish setting1 write */
+    rc = camera_io_dev_write( &e_ctrl->io_master_info, &hi1336_otp_finish_setting1 );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "load otp finish setfile1 failed" );
+        return(rc);
+    }
+
+    msleep(10);
+
+    /* OTP finish setting2 write */
+    rc = camera_io_dev_write( &e_ctrl->io_master_info, &hi1336_otp_finish_setting2 );
+    if ( rc < 0 )
+    {
+        CAM_ERR( CAM_EEPROM, "load otp finish setfile2 failed" );
+        return(rc);
+    }
+
+err:
+    return(rc);
+}
+#endif /* CONFIG_HI1336_SENSOR */
 
 #if defined(CONFIG_S5K3L6_SENSOR)
 /**
@@ -4003,17 +4424,29 @@ static int32_t cam_eeprom_parse_memory_map(
 	else if (cmm_hdr->cmd_type == CAMERA_SENSOR_CMD_TYPE_WAIT)
 		validate_size = sizeof(struct cam_cmd_unconditional_wait);
 
-	if (remain_buf_len < validate_size) {
+	if (remain_buf_len < validate_size ||
+		*num_map >= MSM_EEPROM_MAX_MEM_MAP_CNT) {
 		CAM_ERR(CAM_EEPROM, "not enough buffer");
 		return -EINVAL;
 	}
 	switch (cmm_hdr->cmd_type) {
 	case CAMERA_SENSOR_CMD_TYPE_I2C_RNDM_WR:
 		i2c_random_wr = (struct cam_cmd_i2c_random_wr *)cmd_buf;
+
+		if (i2c_random_wr->header.count == 0 ||
+		    i2c_random_wr->header.count >= MSM_EEPROM_MAX_MEM_MAP_CNT ||
+		    (size_t)*num_map > U16_MAX - i2c_random_wr->header.count) {
+			CAM_ERR(CAM_EEPROM, "OOB Error");
+			return -EINVAL;
+		}
 		cmd_length_in_bytes   = sizeof(struct cam_cmd_i2c_random_wr) +
 			((i2c_random_wr->header.count - 1) *
 			sizeof(struct i2c_random_wr_payload));
 
+		if (cmd_length_in_bytes > remain_buf_len) {
+			CAM_ERR(CAM_EEPROM, "Not enough buffer remaining");
+			return -EINVAL;
+		}
 		for (cnt = 0; cnt < (i2c_random_wr->header.count);
 			cnt++) {
 			map[*num_map + cnt].page.addr =
@@ -4036,6 +4469,11 @@ static int32_t cam_eeprom_parse_memory_map(
 		i2c_cont_rd = (struct cam_cmd_i2c_continuous_rd *)cmd_buf;
 		cmd_length_in_bytes = sizeof(struct cam_cmd_i2c_continuous_rd);
 
+		if (i2c_cont_rd->header.count >= U32_MAX - data->num_data) {
+			CAM_ERR(CAM_EEPROM,
+				"int overflow on eeprom memory block");
+			return -EINVAL;
+		}
 		map[*num_map].mem.addr = i2c_cont_rd->reg_addr;
 		map[*num_map].mem.addr_type = i2c_cont_rd->header.addr_type;
 		map[*num_map].mem.data_type = i2c_cont_rd->header.data_type;

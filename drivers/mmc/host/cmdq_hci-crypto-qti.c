@@ -19,7 +19,6 @@
 #include "sdhci-msm.h"
 #include "cmdq_hci-crypto-qti.h"
 #include <linux/crypto-qti-common.h>
-#include <linux/pm_runtime.h>
 #include <linux/atomic.h>
 #if IS_ENABLED(CONFIG_CRYPTO_DEV_QCOM_ICE)
 #include <crypto/ice.h>
@@ -121,11 +120,14 @@ static int cmdq_crypto_qti_keyslot_program(struct keyslot_manager *ksm,
 		return -EINVAL;
 	}
 
+	mmc_host_clk_hold(host->mmc);
+
 	err = crypto_qti_keyslot_program(host->crypto_vops->priv, key,
 					 slot, data_unit_mask, crypto_alg_id);
 	if (err)
 		pr_err("%s: failed with error %d\n", __func__, err);
 
+	mmc_host_clk_release(host->mmc);
 
 	return err;
 }
@@ -138,19 +140,21 @@ static int cmdq_crypto_qti_keyslot_evict(struct keyslot_manager *ksm,
 	int val = 0;
 	struct cmdq_host *host = keyslot_manager_private(ksm);
 
-	pm_runtime_get_sync(&host->mmc->card->dev);
-
 	if (!cmdq_is_crypto_enabled(host) ||
 	    !cmdq_keyslot_valid(host, slot)) {
-		pm_runtime_put_sync(&host->mmc->card->dev);
 		return -EINVAL;
 	}
 
-	err = crypto_qti_keyslot_evict(host->crypto_vops->priv, slot);
-	if (err)
-		pr_err("%s: failed with error %d\n", __func__, err);
+	mmc_host_clk_hold(host->mmc);
 
-	pm_runtime_put_sync(&host->mmc->card->dev);
+	err = crypto_qti_keyslot_evict(host->crypto_vops->priv, slot);
+	if (err) {
+		pr_err("%s: failed with error %d\n", __func__, err);
+		mmc_host_clk_release(host->mmc);
+		return err;
+	}
+	mmc_host_clk_release(host->mmc);
+
 	val = atomic_read(&keycache) & ~(1 << slot);
 	atomic_set(&keycache, val);
 
@@ -422,6 +426,8 @@ int cmdq_crypto_qti_prep_desc(struct cmdq_host *host, struct mmc_request *mrq,
 	if (!(atomic_read(&keycache) & (1 << bc->bc_keyslot)))  {
 		if (bc->is_ext4)
 			cmdq_use_default_du_size = true;
+		else
+			cmdq_use_default_du_size = false;
 
 		ret = cmdq_crypto_qti_keyslot_program(host->ksm, bc->bc_key,
 						      bc->bc_keyslot);

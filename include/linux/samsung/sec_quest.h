@@ -24,12 +24,13 @@
 #define MAX_LEN_STR			1024
 #define QUEST_BUFF_SIZE		10
 #define QUEST_CMD_LIST		3
+#define QUEST_CMD_SIZE		64
 #define QUEST_MAIN_CMD_LIST	2
 #define STEP_MAIN_HLOS_TIMEOUT 	3000
 #define BUFF_SZ 			256
 #define MAX_DDR_ERR_ADDR_CNT 64
 #define CPR_BPS_SZ_BYTE		256
-#define QUEST_CPR_MODE_CNT 8
+#define QUEST_CPR_MODE_CNT 10
 
 
 /*
@@ -91,6 +92,7 @@ So, let's call proper shell script as concept of STEP_SDMDL
 #define TEST_QMESACACHE(x) (!strcmp((x), "QMESACACHETEST"))
 #define TEST_UFS(x) (!strcmp((x), "UFSTEST"))
 #define TEST_NATURESCENE(x) (!strcmp((x), "NATURESCENE"))
+#define TEST_AOSSTHERMALDIFF(x) (!strcmp((x), "AOSSTHERMALDIFF"))
 #define TEST_SENSOR(x) (!strcmp((x), "SENSORTEST"))
 #define TEST_SENSORPROBE(x) (!strcmp((x), "SENSORPROBETEST"))
 #define TEST_DDR_SCAN(x) (!strcmp((x), "DDRSCANTEST"))
@@ -161,7 +163,8 @@ enum quest_enum_smd_subitem {
 	SUBITEM_QUESTQUEFI_GROUP5,
 	SUBITEM_QUESTQUEFI_GROUP6,
 	SUBITEM_QUESTQUEFI_GROUP7,
-	SUBITEM_QUESTQUEFI_GROUP8,	
+	SUBITEM_QUESTQUEFI_GROUP8,
+	SUBITEM_QUESTQUEFI_GROUP9,	
 #else
 	SUBITEM_QUESTQUEFI,
 	SUBITEM_QUESTSUEFILIGHTCRYPTO,
@@ -171,6 +174,7 @@ enum quest_enum_smd_subitem {
 	SUBITEM_QUESTHLOSDUMMY,
 #elif defined(CONFIG_SEC_QUEST_HLOS_NATURESCENE_SMD)
 	SUBITEM_QUESTHLOSNATURESCENE,
+	SUBITEM_QUESTHLOSAOSSTHERMALDIFF,
 #else
 	SUBITEM_QUESTHLOSCRYPTO,
 	SUBITEM_QUESTHLOSICACHE,
@@ -316,11 +320,17 @@ struct param_quest_t {
 	uint32_t smd_quefi_total_pause_time_first;
 	/* smddl information */
 
-	struct param_quest_cpr_t smd_cx_cpr[8];
-	struct param_quest_cpr_t smd_mx_cpr[8];
+	struct param_quest_cpr_t smd_cx_cpr[QUEST_CPR_MODE_CNT];
+	struct param_quest_cpr_t smd_mx_cpr[QUEST_CPR_MODE_CNT];
 
-	struct param_quest_cpr_t curr_cx_cpr[8];
-	struct param_quest_cpr_t curr_mx_cpr[8];
+	struct param_quest_cpr_t curr_cx_cpr[QUEST_CPR_MODE_CNT];
+	struct param_quest_cpr_t curr_mx_cpr[QUEST_CPR_MODE_CNT];
+
+	uint32_t smd_max_aoss_thermal_diff;
+	uint32_t smd_max_aoss_thermal_diff_first;
+
+	uint32_t smd_ft_self_cooling_time;
+	uint32_t smd_ft_thermal_after_self_cooling;		
 
 };
 

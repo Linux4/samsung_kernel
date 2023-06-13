@@ -19,6 +19,10 @@
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
 
+#if defined(CONFIG_GC5035_MACRO_OTP_DD_AUTOLOAD)
+#include "gc5035_macro_otp.h"
+#endif
+
 #if defined(CONFIG_LEDS_S2MU106_FLASH) || defined(CONFIG_LEDS_S2MU107_FLASH)
 extern int muic_afc_set_voltage(int vol);
 extern void pdo_ctrl_by_flash(bool mode);
@@ -752,6 +756,251 @@ int cam_sensor_match_id(struct cam_sensor_ctrl_t *s_ctrl)
 	return rc;
 }
 
+
+#if defined(CONFIG_GC5035_MACRO_OTP_DD_AUTOLOAD)
+int32_t gc5035_otp_dd_autoload_process(struct cam_sensor_ctrl_t *s_ctrl)
+{
+	//Temporary Register Settings Holders for Write Operation
+	struct cam_sensor_i2c_reg_setting reg_setting;
+	struct cam_sensor_i2c_reg_array reg_arr;
+	//Store Result of Function
+	int rc = 0;
+	//Temporary Variable for Reading Different Register Values
+	uint32_t reg_val = 0;
+	//Variable for Storing Information about Number of Bad Pixels
+	uint16_t dd_num = 0;
+
+	uint32_t dd_autoload_step1_size       = sizeof(dd_autoload_step1_reg_arr)/sizeof(struct cam_sensor_i2c_reg_array);
+	uint32_t dd_autoload_step3_size       = sizeof(dd_autoload_step3_reg_arr)/sizeof(struct cam_sensor_i2c_reg_array);
+	uint32_t dd_autoload_defect_qty1_size = sizeof(dd_autoload_defect_qty1_reg_arr)/sizeof(struct cam_sensor_i2c_reg_array);
+	uint32_t dd_autoload_defect_qty2_size = sizeof(dd_autoload_defect_qty2_reg_arr)/sizeof(struct cam_sensor_i2c_reg_array);
+	uint32_t dd_autoload_step4_size       = sizeof(dd_autoload_step4_reg_arr)/sizeof(struct cam_sensor_i2c_reg_array);
+	uint32_t dd_autoload_step5_size       = sizeof(dd_autoload_step5_reg_arr)/sizeof(struct cam_sensor_i2c_reg_array);
+	uint32_t dd_autoload_step7_size       = sizeof(dd_autoload_step7_reg_arr)/sizeof(struct cam_sensor_i2c_reg_array);
+
+	/* Step - 1 - Start */
+
+	memset(&reg_setting, 0, sizeof(reg_setting));
+	reg_setting.size        = dd_autoload_step1_size;
+	reg_setting.addr_type   = CAMERA_SENSOR_I2C_TYPE_BYTE;
+	reg_setting.data_type   = CAMERA_SENSOR_I2C_TYPE_BYTE;
+	reg_setting.reg_setting = dd_autoload_step1_reg_arr;
+
+	rc = camera_io_dev_write(&s_ctrl->io_master_info, &reg_setting);
+
+	if (rc < 0) {
+		CAM_ERR(CAM_SENSOR, "DPC_DBG GC5035 Macro Sensor OTP DD Autoload Step 1 failed");
+		return rc;
+	}
+	else
+	{
+		CAM_DBG(CAM_SENSOR, "DPC_DBG GC5035 Macro Sensor OTP Autoload Step 1 Success");
+	}
+
+	/* Step - 1 - End */
+
+	/* Step - 2 - Start */
+
+	memset(&reg_setting, 0, sizeof(reg_setting));
+	reg_setting.size        = dd_autoload_step3_size;
+	reg_setting.addr_type   = CAMERA_SENSOR_I2C_TYPE_BYTE;
+	reg_setting.data_type   = CAMERA_SENSOR_I2C_TYPE_BYTE;
+	reg_setting.reg_setting = dd_autoload_step3_reg_arr;
+
+	rc = camera_io_dev_write(&s_ctrl->io_master_info, &reg_setting);
+
+	if (rc < 0) {
+		CAM_ERR(CAM_SENSOR, "DPC_DBG GC5035 Macro Sensor OTP DD Autoload Step 2 failed");
+		return rc;
+	}
+	else
+	{
+		CAM_DBG(CAM_SENSOR, "DPC_DBG GC5035 Macro Sensor OTP Autoload Step 2 Success");
+	}
+
+	/* Step - 2 - End */
+
+	/* Step - 3 - Start */
+
+	memset(&reg_setting, 0, sizeof(reg_setting));
+	reg_setting.size        = dd_autoload_defect_qty1_size;
+	reg_setting.addr_type   = CAMERA_SENSOR_I2C_TYPE_BYTE;
+	reg_setting.data_type   = CAMERA_SENSOR_I2C_TYPE_BYTE;
+	reg_setting.reg_setting = dd_autoload_defect_qty1_reg_arr;
+
+	rc = camera_io_dev_write(&s_ctrl->io_master_info, &reg_setting);
+
+	if (rc < 0) {
+		CAM_ERR(CAM_SENSOR, "DPC_DBG GC5035 Macro Sensor OTP DD Autoload Step 3a failed");
+		return rc;
+	}
+	else
+	{
+		CAM_DBG(CAM_SENSOR, "DPC_DBG GC5035 Macro Sensor OTP DD Autoload Step 3a Success");
+	}
+
+	rc = camera_io_dev_read(
+			&(s_ctrl->io_master_info),
+			DD_AUTOLOAD_TOTAL_NUM_BAD_PIXEL, &reg_val,
+			CAMERA_SENSOR_I2C_TYPE_BYTE,
+			CAMERA_SENSOR_I2C_TYPE_BYTE);
+		if (rc < 0)
+		{
+			CAM_ERR(CAM_SENSOR, "DPC_DBG GC5035 Macro Sensor OTP Read register address fail %d", rc);
+			return rc;
+		}
+		else
+		{
+			dd_num += reg_val;
+			CAM_DBG(CAM_SENSOR,"DPC_DBG GC5035 Macro Sensor OTP Read register address 0x%x, register value 0x%x", DD_AUTOLOAD_TOTAL_NUM_BAD_PIXEL, reg_val);
+		}
+
+	memset(&reg_setting, 0, sizeof(reg_setting));
+	reg_setting.size        = dd_autoload_defect_qty2_size;
+	reg_setting.addr_type   = CAMERA_SENSOR_I2C_TYPE_BYTE;
+	reg_setting.data_type   = CAMERA_SENSOR_I2C_TYPE_BYTE;
+	reg_setting.reg_setting = dd_autoload_defect_qty2_reg_arr;
+
+	rc = camera_io_dev_write(&s_ctrl->io_master_info, &reg_setting);
+
+	if (rc < 0) {
+		CAM_ERR(CAM_SENSOR, "DPC_DBG GC5035 Macro Sensor OTP DD Autoload Step 3b failed");
+		return rc;
+	}
+	else
+	{
+		CAM_DBG(CAM_SENSOR, "DPC_DBG GC5035 Macro Sensor OTP DD Autoload Step 3b Success");
+	}
+
+	rc = camera_io_dev_read(
+			&(s_ctrl->io_master_info),
+			DD_AUTOLOAD_TOTAL_NUM_BAD_PIXEL, &reg_val,
+			CAMERA_SENSOR_I2C_TYPE_BYTE,
+			CAMERA_SENSOR_I2C_TYPE_BYTE);
+		if (rc < 0)
+		{
+			CAM_ERR(CAM_SENSOR, "DPC_DBG GC5035 Macro Sensor OTP Read register address fail %d", rc);
+			return rc;
+		}
+		else
+		{
+			dd_num += reg_val;
+			CAM_DBG(CAM_SENSOR,"DPC_DBG GC5035 Macro Sensor OTP Read register address 0x%x, register value 0x%x", DD_AUTOLOAD_TOTAL_NUM_BAD_PIXEL, reg_val);
+		}
+
+	/* Step - 3 - End */
+
+	/* Step - 4 - Start */
+
+	reg_arr.reg_addr = 0x01;
+	reg_arr.reg_data = 0x00;
+	reg_setting.reg_setting = &reg_arr;
+	reg_setting.size = 1;
+	reg_setting.addr_type   = CAMERA_SENSOR_I2C_TYPE_BYTE;
+	reg_setting.data_type   = CAMERA_SENSOR_I2C_TYPE_BYTE;
+
+	rc = camera_io_dev_write(&s_ctrl->io_master_info, &reg_setting);
+
+	if (rc < 0) {
+		CAM_ERR(CAM_SENSOR, "DPC_DBG GC5035 Macro Sensor OTP MACRO DD Autoload Step 4a DD NUM failed");
+		return rc;
+	}
+	else
+	{
+		CAM_DBG(CAM_SENSOR, "DPC_DBG GC5035 Macro Sensor OTP MACRO DD Autoload Step 4a DD NUM Success");
+	}
+
+	reg_arr.reg_addr = 0x02;
+	reg_arr.reg_data = dd_num;
+	reg_setting.reg_setting = &reg_arr;
+	reg_setting.size = 1;
+	reg_setting.addr_type   = CAMERA_SENSOR_I2C_TYPE_BYTE;
+	reg_setting.data_type   = CAMERA_SENSOR_I2C_TYPE_BYTE;
+
+	rc = camera_io_dev_write(&s_ctrl->io_master_info, &reg_setting);
+
+	if (rc < 0) {
+		CAM_ERR(CAM_SENSOR, "DPC_DBG GC5035 Macro Sensor OTP DD Autoload Step 4b DD NUM failed");
+		return rc;
+	}
+	else
+	{
+		CAM_DBG(CAM_SENSOR, "DPC_DBG GC5035 Macro Sensor OTP DD Autoload Step 4b DD NUM Success with dd num 0x%x", dd_num);
+	}
+
+	memset(&reg_setting, 0, sizeof(reg_setting));
+	reg_setting.size        = dd_autoload_step4_size;
+	reg_setting.addr_type   = CAMERA_SENSOR_I2C_TYPE_BYTE;
+	reg_setting.data_type   = CAMERA_SENSOR_I2C_TYPE_BYTE;
+	reg_setting.reg_setting = dd_autoload_step4_reg_arr;
+
+	rc = camera_io_dev_write(&s_ctrl->io_master_info, &reg_setting);
+
+	if (rc < 0) {
+		CAM_ERR(CAM_SENSOR, "DPC_DBG GC5035 Macro Sensor OTP DD Autoload Step 4 failed");
+		return rc;
+	}
+	else
+	{
+		CAM_DBG(CAM_SENSOR, "DPC_DBG GC5035 Macro Sensor OTP DD Autoload Step 4 Success");
+	}
+
+	/* Step - 4 - End */
+
+	/* Step - 5 - Start */
+
+	memset(&reg_setting, 0, sizeof(reg_setting));
+	reg_setting.size        = dd_autoload_step5_size;
+	reg_setting.addr_type   = CAMERA_SENSOR_I2C_TYPE_BYTE;
+	reg_setting.data_type   = CAMERA_SENSOR_I2C_TYPE_BYTE;
+	reg_setting.reg_setting = dd_autoload_step5_reg_arr;
+
+	rc = camera_io_dev_write(&s_ctrl->io_master_info, &reg_setting);
+
+	if (rc < 0) {
+		CAM_ERR(CAM_SENSOR, "DPC_DBG GC5035 Macro Sensor OTP DD Autoload Step 5 failed");
+		return rc;
+	}
+	else
+	{
+		CAM_DBG(CAM_SENSOR, "DPC_DBG GC5035 Macro Sensor OTP DD Autoload Step 5 Success");
+	}
+
+	/* Step - 5 - End */
+
+	/* Step - 6 - Start */
+
+	msleep(4); //Autoload Process takes 4ms to complete
+
+	/* Step - 6 - End */
+
+	/* Step - 7 - Start */
+
+	memset(&reg_setting, 0, sizeof(reg_setting));
+	reg_setting.size        = dd_autoload_step7_size;
+	reg_setting.addr_type   = CAMERA_SENSOR_I2C_TYPE_BYTE;
+	reg_setting.data_type   = CAMERA_SENSOR_I2C_TYPE_BYTE;
+	reg_setting.reg_setting = dd_autoload_step7_reg_arr;
+
+	rc = camera_io_dev_write(&s_ctrl->io_master_info, &reg_setting);
+
+	if (rc < 0) {
+		CAM_ERR(CAM_SENSOR, "DPC_DBG GC5035 Macro Sensor OTP DD Autoload Step 7 failed");
+		return rc;
+	}
+	else
+	{
+		CAM_DBG(CAM_SENSOR, "DPC_DBG GC5035 Macro Sensor OTP DD Autoload Step 7 Success");
+	}
+
+	/* Step - 7 - End */
+
+	CAM_DBG(CAM_SENSOR, "DPC_DBG GC5035 Macro Sensor OTP Proceed to Resolution/Stream On");
+
+	return rc;
+}
+#endif
+
 int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 	void *arg)
 {
@@ -770,6 +1019,9 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 	uint16_t expected_version_id = 0;
 #endif
 
+#if defined(CONFIG_GC5035_MACRO_OTP_DD_AUTOLOAD)
+		uint16_t autoload_retry_count = 2;
+#endif
 
 	if (!s_ctrl || !arg) {
 		CAM_ERR(CAM_SENSOR, "s_ctrl is NULL");
@@ -1277,6 +1529,10 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 		if (s_ctrl->i2c_data.init_settings.is_settings_valid &&
 			(s_ctrl->i2c_data.init_settings.request_id == 0)) {
 
+#if defined(CONFIG_GC5035_MACRO_OTP_DD_AUTOLOAD)
+init:
+#endif			
+
 			rc = cam_sensor_apply_settings(s_ctrl, 0,
 				CAM_SENSOR_PACKET_OPCODE_SENSOR_INITIAL_CONFIG);
 			if (rc < 0) {
@@ -1284,6 +1540,22 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 					"cannot apply init settings");
 				goto release_mutex;
 			}
+#if defined(CONFIG_GC5035_MACRO_OTP_DD_AUTOLOAD)	
+			if(s_ctrl->sensordata->slave_info.sensor_id == SENSOR_ID_GC5035) {
+				if(autoload_retry_count > 0)
+				{
+					rc = gc5035_otp_dd_autoload_process(s_ctrl);
+					if(rc < 0){
+						CAM_ERR(CAM_SENSOR,"GC5035 OTP DD Autoload Failed");
+						autoload_retry_count--;
+						goto init;
+					}
+					else{
+						CAM_DBG(CAM_SENSOR,"GC5035 OTP DD Autoload Success");
+					}
+				}
+			}
+#endif
 			rc = delete_request(&s_ctrl->i2c_data.init_settings);
 			if (rc < 0) {
 				CAM_ERR(CAM_SENSOR,

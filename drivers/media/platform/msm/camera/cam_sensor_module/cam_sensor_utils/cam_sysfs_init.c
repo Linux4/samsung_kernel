@@ -125,7 +125,7 @@ ssize_t flash_power_store(struct device *dev, struct device_attribute *attr, con
 
 	for (i = 0; i < 3; i++)
 	{
-		g_flash_data.led_current_ma[i] = 300;
+		g_flash_data.led_current_ma[i] = 100;
 	}
 
 	pr_info("%s: torch value_u32=%u", __func__, value_u32);
@@ -204,7 +204,7 @@ static ssize_t rear_type_show(struct device *dev,
 
 	return scnprintf(buf, PAGE_SIZE, "%s", cam_type_lsi);
 }
-#elif defined(CONFIG_SEC_A71_PROJECT)
+#elif defined(CONFIG_SEC_A71_PROJECT) || defined(CONFIG_SEC_A70S_PROJECT)
 static ssize_t rear_type_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
