@@ -1,0 +1,362 @@
+version: 2
+aliases:
+  - &ci_server_env
+    http_proxy: http://10.112.1.184:8080
+    https_proxy: http://10.112.1.184:8080
+    CARGO_NET_GIT_FETCH_WITH_CLI: true
+
+  - &env_default
+    CAMELLIA_ROOT_PATH: "/camellia"
+    CAMELLIA_DRV_SRC_PATH: "/camellia/ree-camellia-driver"
+    SCRIPT_DIR: "/camellia/ree-camellia-driver/extra/scripts"
+    MAILBOX_DRV_SRC_PATH: "/camellia/ree-mailbox-driver"
+    GIT_USER_NAME: "camellia-dev"
+    GIT_USER_EMAIL: "camellia@samsung.com"
+    TARGET: "EMU" # or "DEV"
+    OUTPUT_DIR: "/camellia/output"
+    CAMELLIA_DRV_NAME: "camellia_iwc.ko"
+    NDK_PATH: "/camellia/android/android-ndk-r21e"
+    ART_BASE_URI: "https://art.sec.samsung.net/artifactory/camellia_generic"
+    DEFAULT_BRANCH: "master"
+
+  - &env_target_emu
+    ANDROID_DIR: "/camellia/android/aosp-kernel11"
+    KERN_SRC_PATH: "/camellia/android/aosp-kernel11/common"
+    KERN_OBJ_PATH: "/camellia/android/aosp-kernel11/out/android11-5.4/common"
+    ARCH: "x86_64"
+    ABI: "x86_64"
+    CLANG_DIR_NAME: "clang-r416183b"
+    CROSS_COMPILE: "x86_64-linux-android-"
+    CLANG_TRIPLE: "x86_64-linux-gnu-"
+    MAILBOX_DRV_REPO_URL: "git@github.sec.samsung.net:Camellia/ree-qemu-mailbox-driver.git"
+    MAILBOX_DRV_BRANCH: "devel"
+    MAILBOX_DRV_TARGET_SRC_PATH: "/camellia/android/aosp-kernel11/common/drivers/ree-qemu-mailbox-driver"
+    CAMELLIA_BINS_NAME: "camellia_bins"
+    CAMELLIA_BINS_EXT: "tar.bz2"
+    TEST_APP_NAME: "camellia_unit_test"
+    TEST_APP_SCRIPT_NAME: "run_sample_app.sh"
+
+  - &env_target_dev
+    ANDROID_DIR: "/camellia/android/camellia_android"
+    KERN_SRC_PATH: "/camellia/android/camellia_android/kernel"
+    KERN_OBJ_PATH: "/camellia/android/camellia_android/KERNEL_OBJ/eng/kernel"
+    ARCH: "arm64"
+    ABI: "arm64-v8a"
+    CROSS_COMPILE: "aarch64-linux-android-"
+    CLANG_TRIPLE: "aarch64-linux-gnu-"
+    MAILBOX_DRV_REPO_URL: "git@github.sec.samsung.net:Camellia/ree-strong-mailbox-driver.git"
+    MAILBOX_DRV_TARGET_SRC_PATH: "/camellia/android/camellia_android/kernel/drivers/soc/samsung/strong"
+
+  - &container_config_emu
+    docker:
+      - image: art.sec.samsung.net/camellia_docker/camellia_emulator:latest
+        auth:
+          username: camellia
+          password: ${ART_KEY}
+    working_directory: /camellia
+
+  - &container_config_olympus
+    docker:
+      - image: art.sec.samsung.net/camellia_docker/camellia_device_olympus:latest
+        auth:
+          username: camellia
+          password: ${ART_KEY}
+    working_directory: /camellia
+
+  - &container_config_pamir
+    docker:
+      - image: art.sec.samsung.net/camellia_docker/camellia_device_pamir:latest
+        auth:
+          username: camellia
+          password: ${ART_KEY}
+    working_directory: /camellia
+
+  - &container_config_pamir_evt1
+    docker:
+      - image: art.sec.samsung.net/camellia_docker/camellia_device_pamir_evt1:latest
+        auth:
+          username: camellia
+          password: ${ART_KEY}
+    working_directory: /camellia
+
+  - &container_config_pamir_evt1_smdk
+    docker:
+      - image: art.sec.samsung.net/camellia_docker/camellia_device_pamir_evt1_smdk:latest
+        auth:
+          username: camellia
+          password: ${ART_KEY}
+    working_directory: /camellia
+
+  - &set_proxy
+    run:
+      name: Set proxy setting
+      command: |
+        curl -sL https://art.sec.samsung.net/artifactory/tools/CircleCI/scripts/set_proxy_setting.sh | sh
+
+  - &set_git_user
+    run:
+      name: Set git user
+      command: |
+        git config --global user.name ${GIT_USER_NAME}
+        git config --global user.email ${GIT_USER_EMAIL}
+
+  - &add_known_hosts
+    run:
+      name: Add known hosts
+      command: |
+        mkdir -p ~/.ssh
+        ssh-keyscan github.sec.samsung.net >> ~/.ssh/known_hosts
+        (umask 077; touch ~/.ssh/id_rsa)
+        chmod 0600 ~/.ssh/id_rsa
+        (cat $CHECKOUT_KEY > ~/.ssh/id_rsa)
+
+  - &set_ssh_keys
+    add_ssh_keys:
+      fingerprints:
+        - "c8:e5:68:68:5e:58:74:2a:e5:87:ba:83:8d:2a:b9:a4"
+
+  - &checkout_code
+    run:
+      name: Checkout code
+      command: |
+        git clone --depth 1 "${CIRCLE_REPOSITORY_URL}" --branch "${CIRCLE_BRANCH}" "${CAMELLIA_DRV_SRC_PATH}"
+
+  - &checkout_mailbox_code
+    run:
+      name: Checkout code
+      command: |
+        git clone --depth 1 "${MAILBOX_DRV_REPO_URL}" --branch "${MAILBOX_DRV_BRANCH}" "${MAILBOX_DRV_SRC_PATH}"
+
+  - &prepare_prerequisite
+    run:
+      name: Copy qemu mailbox driver into kernel driver source tree and build it as a module
+      command: |
+        mkdir -p ${MAILBOX_DRV_TARGET_SRC_PATH}
+        cp -r ${MAILBOX_DRV_SRC_PATH}/* ${MAILBOX_DRV_TARGET_SRC_PATH}/
+
+        cd ${MAILBOX_DRV_SRC_PATH}
+
+        PATH=${ANDROID_DIR}/prebuilts-master/clang/host/linux-x86/${CLANG_DIR_NAME}/bin:$PATH
+
+        ARCH=${ARCH} \
+        CROSS_COMPILE=${CROSS_COMPILE} \
+        CLANG_TRIPLE=${CLANG_TRIPLE} \
+        MODULE_BUILD_CONFIG="CC=clang NM=llvm-nm LD=ld.lld ${USE_LLVM} EXTRA_CFLAGS=-I${KERN_SRC_PATH}" \
+        make '${MODULE_BUILD_CONFIG}' -C ${KERN_OBJ_PATH} M=`pwd` modules
+
+  - &build_camellia_driver
+    run:
+      name: Build ree camellia driver
+      command: |
+        cd ${CAMELLIA_DRV_SRC_PATH}
+
+        PATH=${ANDROID_DIR}/prebuilts-master/clang/host/linux-x86/${CLANG_DIR_NAME}/bin:$PATH
+
+        ARCH=${ARCH} \
+        CROSS_COMPILE=${CROSS_COMPILE} \
+        CLANG_TRIPLE=${CLANG_TRIPLE} \
+        MODULE_BUILD_CONFIG=" \
+            CC=clang NM=llvm-nm LD=ld.lld ${USE_LLVM} EXTRA_CFLAGS=-I${KERN_SRC_PATH} \
+            CONFIG_CAMELLIA_IWC=m \
+            CONFIG_CAMELLIA_DEBUG=y \
+            KBUILD_EXTRA_SYMBOLS=${MAILBOX_DRV_SRC_PATH}/Module.symvers \
+            " \
+        make '${MODULE_BUILD_CONFIG}' -C ${KERN_OBJ_PATH} M=`pwd` modules
+
+  - &copy_drv_output
+    run:
+      name: Copy output to the designated directory
+      command: |
+        mkdir -p ${OUTPUT_DIR}
+        cd ${CAMELLIA_DRV_SRC_PATH}
+        cp ${CAMELLIA_DRV_NAME} ${OUTPUT_DIR}/
+
+  - &build_make_apps
+    run:
+      name: Build apps
+      command: |
+        ${SCRIPT_DIR}/build_make_apps.sh ${ARCH} ${NDK_PATH} ${OUTPUT_DIR}
+
+  - &build_cmake_apps
+    run:
+      name: Build apps using cmake
+      command: |
+        ${SCRIPT_DIR}/build_cmake_apps.sh ${ABI} ${NDK_PATH} ${OUTPUT_DIR}
+
+  - &store_output
+    store_artifacts:
+      path: /camellia/output
+
+  - &push_output_to_workspace
+    persist_to_workspace:
+      root: /camellia
+      paths:
+        - output
+        - ree-camellia-driver/extra/scripts
+
+  - &pull_output_from_workspace
+    attach_workspace:
+      at: /camellia
+
+  - &download_camellia_bins
+    run:
+      name: Download necessary binaries for running emulator
+      command: |
+        DOWNLOAD_PATH="${CAMELLIA_ROOT_PATH}/${CAMELLIA_BINS_NAME}"
+        mkdir -p ${DOWNLOAD_PATH}
+        ${SCRIPT_DIR}/download_bins.sh "${DOWNLOAD_PATH}" "${ART_KEY}" "${ART_BASE_URI}"
+
+  - &run_emulator_on_docker
+    run:
+      name: Run emulator on docker and run applications
+      command: |
+        CAMELLIA_BINS_PATH="${CAMELLIA_ROOT_PATH}/${CAMELLIA_BINS_NAME}"
+        ${SCRIPT_DIR}/run_emulator_on_docker.sh ${CAMELLIA_BINS_PATH}
+        ${SCRIPT_DIR}/${TEST_APP_SCRIPT_NAME} ${OUTPUT_DIR} ${TEST_APP_NAME}
+        adb pull /data/${TEST_APP_NAME}.xml ${OUTPUT_DIR}/ || true
+
+  - &store_result
+    store_test_results:
+      path: /camellia/output
+
+  - &deploy_camellia_driver
+    run:
+      name: Deploy camellia driver to private JFrog artifactory
+      command: |
+        if [ "${CIRCLE_BRANCH}" != "${DEFAULT_BRANCH}" ]; then
+          echo "Deploy drivers to private JFrog artifactory only on ${DEFAULT_BRANCH} branch."
+          exit 0
+        fi
+
+        ART_PATH="${ART_BASE_URI}/ree-camellia-driver/${TARGET_NAME}"
+        curl -H "X-JFrog-Art-Api:${ART_KEY}" -T ${OUTPUT_DIR}/${CAMELLIA_DRV_NAME} "${ART_PATH}/latest/${CAMELLIA_DRV_NAME}"
+        curl -H "X-JFrog-Art-Api:${ART_KEY}" -T ${OUTPUT_DIR}/${CAMELLIA_DRV_NAME} "${ART_PATH}/${CIRCLE_BUILD_NUM}/${CAMELLIA_DRV_NAME}"
+
+  - &build_components
+    steps:
+      - *set_proxy
+      - *set_git_user
+      - *add_known_hosts
+      - *set_ssh_keys
+      - *checkout_code
+      - *checkout_mailbox_code
+      - *prepare_prerequisite
+      - *build_camellia_driver
+      - *copy_drv_output
+      - *build_make_apps
+      - *build_cmake_apps
+      - *store_output
+      - *deploy_camellia_driver
+      - *push_output_to_workspace
+
+  - &run_apps_steps
+    steps:
+      - *set_proxy
+      - *pull_output_from_workspace
+      - *download_camellia_bins
+      - *run_emulator_on_docker
+      - *store_output
+      - *store_result
+
+jobs:
+  build_for_emulator:
+    <<: *container_config_emu
+    environment:
+      <<: *ci_server_env
+      <<: *env_default
+      <<: *env_target_emu
+      TARGET_NAME: "emulator"
+    <<: *build_components
+
+  build_for_olympus:
+    <<: *container_config_olympus
+    environment:
+      <<: *ci_server_env
+      <<: *env_default
+      <<: *env_target_dev
+      CLANG_DIR_NAME: "clang-r383902"
+      MAILBOX_DRV_BRANCH: "olympus"
+      TARGET_NAME: "olympus"
+    <<: *build_components
+
+  build_for_pamir:
+    <<: *container_config_pamir
+    environment:
+      <<: *ci_server_env
+      <<: *env_default
+      <<: *env_target_dev
+      CLANG_DIR_NAME: "clang-r416183"
+      MAILBOX_DRV_BRANCH: "pamir"
+      TARGET_NAME: "pamir"
+      CROSS_COMPILE: "aarch64-linux-gnu-"
+      USE_LLVM: "LLVM=1 LLVM_IAS=1"
+    <<: *build_components
+
+  build_for_pamir_evt1:
+    <<: *container_config_pamir_evt1
+    environment:
+      <<: *ci_server_env
+      <<: *env_default
+      <<: *env_target_dev
+      CLANG_DIR_NAME: "clang-r416183b"
+      MAILBOX_DRV_BRANCH: "pamir_evt1"
+      TARGET_NAME: "pamir_evt1"
+      CROSS_COMPILE: "aarch64-linux-gnu-"
+      USE_LLVM: "LLVM=1 LLVM_IAS=1"
+    <<: *build_components
+
+  build_for_pamir_evt1_smdk:
+    <<: *container_config_pamir_evt1_smdk
+    environment:
+      <<: *ci_server_env
+      <<: *env_default
+      <<: *env_target_dev
+      CLANG_DIR_NAME: "clang-r416183b"
+      MAILBOX_DRV_BRANCH: "pamir_evt1_smdk"
+      TARGET_NAME: "pamir_evt1_smdk"
+      CROSS_COMPILE: "aarch64-linux-gnu-"
+      USE_LLVM: "LLVM=1 LLVM_IAS=1"
+    <<: *build_components
+
+  run_apps_on_emulator:
+    <<: *container_config_emu
+    environment:
+      <<: *ci_server_env
+      <<: *env_default
+      <<: *env_target_emu
+    <<: *run_apps_steps
+
+  run_pdata_app_on_emulator:
+    <<: *container_config_emu
+    environment:
+      <<: *ci_server_env
+      <<: *env_default
+      <<: *env_target_emu
+      CAMELLIA_BINS_NAME: "camellia_bins_pdata"
+      TEST_APP_SCRIPT_NAME: "run_pdata_app.sh"
+      TEST_APP_NAME: "pdata_test_app"
+    <<: *run_apps_steps
+
+workflows:
+  version: 2
+  commit:
+    jobs:
+      - build_for_emulator
+      - build_for_olympus:
+          filters:
+            branches:
+              only:
+                - olympus_pamir_evt0
+      - build_for_pamir:
+          filters:
+            branches:
+              only:
+                - olympus_pamir_evt0
+      - build_for_pamir_evt1
+      - build_for_pamir_evt1_smdk
+      # - run_apps_on_emulator:
+      #     requires:
+      #       - build_for_emulator
+      # - run_pdata_app_on_emulator:
+      #     requires:
+      #       - build_for_emulator

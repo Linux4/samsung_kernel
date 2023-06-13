@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Input core configuration
+#
+
+config KEYBOARD_SAMSUNG_PMIC
+	depends on I2C
+	tristate "Samsung Electronics PMIC Powerkey/Vol-down Controller"
+
+config KEYBOARD_S2MPS25
+	tristate "Samsung Electronics S2MPS25 Powerkey/Vol-down Controller"
+	depends on I2C
+	depends on MFD_S2MPS25
+
+config KEYBOARD_S2MPS25_9935
+	tristate "Samsung Electronics S2MPS25 Powerkey/Vol-down Controller for s5e9935"
+	depends on I2C
+	depends on MFD_S2MPS25_9935
+
+config KEYBOARD_S2MPU15_8535
+	tristate "Samsung Electronics S2MPU15 Powerkey/Vol-down Controller for s5e8535"
+	depends on I2C
+	depends on MFD_S2MPU15_8535
+
+config KEYBOARD_S2MPU15_8835
+	tristate "Samsung Electronics S2MPU15 Powerkey/Vol-down Controller for s5e8835"
+	depends on I2C
+	depends on MFD_S2MPU15_8835
+	select SEC_PMIC_PWRKEY

@@ -1,0 +1,5 @@
+#
+# USB PDIC common driver
+#
+
+source "drivers/if-pmic/sm/usb/typec/common/sm/Kconfig"

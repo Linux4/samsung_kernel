@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config POWER_RESET_EXYNOS
+	tristate "Samsung Exynos power-off driver"
+	depends on ARCH_EXYNOS
+	help
+	  Reboot support for Samsung Exynos boards.

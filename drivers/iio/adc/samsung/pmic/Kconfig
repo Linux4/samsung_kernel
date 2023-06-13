@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# SAMSUNG PMIC ADC drivers
+#
+# When adding new entries keep the list in alphabetical order
+
+config ADC_SAMSUNG_PMIC
+	tristate "SAMSUNG PMIC  ADC driver support"
+	depends on I2C
+	help
+	  Core support for the ADC block found in the Samsung PMIC series
+	  for drivers such as the touchscreen and hwmon to use to share
+	  this resource.
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called exynos_adc.
+
+config S2MPS25_ADC
+	tristate "S2MPS25 ADC driver support"
+	depends on MFD_S2MPS25
+	help
+	  Core support for the ADC block found in the Samsung PMIC series
+	  for drivers such as the touchscreen and hwmon to use to share
+	  this resource.
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called exynos_adc.
+
+config S2MPS25_ADC_9935
+	tristate "S2MPS25 ADC driver support for 9935"
+	depends on MFD_S2MPS25_9935
+	help
+	  Core support for the ADC block found in the Samsung PMIC series
+	  for drivers such as the touchscreen and hwmon to use to share
+	  this resource.
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called exynos_adc.
+
+config S2MPU15_ADC_8535
+	tristate "S2MPU15 ADC driver support for 8535"
+	depends on MFD_S2MPU15_8535
+	help
+	  Core support for the ADC block found in the Samsung PMIC series
+	  for drivers such as the touchscreen and hwmon to use to share
+	  this resource.
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called exynos_adc.
+
+config S2MPU15_ADC_8835
+	tristate "S2MPU15 ADC driver support for 8835"
+	depends on MFD_S2MPU15_8835
+	help
+	  Core support for the ADC block found in the Samsung PMIC series
+	  for drivers such as the touchscreen and hwmon to use to share
+	  this resource.
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called exynos_adc.
