@@ -1,0 +1,3 @@
+config SCSC_BT
+        tristate "SCSC MX BT support"
+        depends on SCSC_CORE
