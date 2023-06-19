@@ -48,7 +48,7 @@ static const char * const power_supply_type_text[] = {
 	"SMART_OTG", "SMART_NOTG", "POWER_SHARING",
 	"HV_Mains", "HV_Mains_12V", "HV_Prepare_Mains", "HV_ERR", "MHL_USB_100", "MHL_2000",
 	"HV_Unknown", "MDOCK_TA", "HMT_CONNECTED", "HMT_CHARGE", "Wireless_Pack", "Wireless_Pack_TA",
-	"Wireless_Stand", "HV_Wireless_Stand", "PDIC", "HV_Mains_CHG_LIMIT"
+	"Wireless_Stand", "HV_Wireless_Stand", "PDIC", "HV_Mains_CHG_LIMIT", "HV_QC20", "HV_QC30", "POGO"
 };
 
 static const char * const power_supply_status_text[] = {

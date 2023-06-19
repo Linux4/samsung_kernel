@@ -27,9 +27,13 @@
 
 #define TMD4912_NAME "TMD4912"
 
-void init_proximity_tmd4912_variable(struct proximity_data *data)
+int init_proximity_tmd4912(void)
 {
+	struct proximity_data *data = get_sensor(SENSOR_TYPE_PROXIMITY)->data;
+
 	data->cal_data_len = sizeof(int) * 2;
+
+	return 0;
 }
 
 void parse_dt_proximity_tmd4912(struct device *dev)
@@ -44,11 +48,12 @@ void parse_dt_proximity_tmd4912(struct device *dev)
 }
 
 
-struct proximity_chipset_funcs prox_tmd4912_ops = {
+struct sensor_chipset_init_funcs prox_tmd4912_ops = {
+	.init = init_proximity_tmd4912,
 	.parse_dt = parse_dt_proximity_tmd4912,
 };
 
-struct proximity_chipset_funcs *get_proximity_tmd4912_function_pointer(char *name)
+struct sensor_chipset_init_funcs *get_proximity_tmd4912_function_pointer(char *name)
 {
 	if (strcmp(name, TMD4912_NAME) != 0)
 		return NULL;

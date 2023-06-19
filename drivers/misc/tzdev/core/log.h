@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2019, Samsung Electronics Co., Ltd.
+ * Copyright (C) 2019 Samsung Electronics Co., Ltd All Rights Reserved
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -34,6 +34,7 @@ extern unsigned int tzdev_mem_verbosity;
 extern unsigned int tzdev_profiler_verbosity;
 extern unsigned int tzdev_nwfs_verbosity;
 extern unsigned int tzdev_pmf_verbosity;
+extern unsigned int tzdev_cred_verbosity;
 
 enum {
 	TZDEV_LOG_LEVEL_ERROR,

@@ -79,6 +79,8 @@ struct init_func_t init_sensor_funcs[] = {
 	{SENSOR_TYPE_DEVICE_ORIENTATION_WU, init_device_orientation_wu},
 	{SENSOR_TYPE_SAR_BACKOFF_MOTION, init_sar_backoff_motion},
 	{SENSOR_TYPE_POGO_REQUEST_HANDLER, init_pogo_request_handler},
+	{SENSOR_TYPE_AOIS, init_aois},
+	{SENSOR_TYPE_LIGHT_SEAMLESS, init_light_seamless},
 };
 
 static int make_sensor_instance(void)
@@ -354,6 +356,7 @@ int inject_sensor_additional_data(int type, char *buf, int buf_len)
 void print_sensor_debug(int type)
 {
 	struct shub_sensor *sensor = get_sensor(type);
+
 	if (!sensor)
 		return;
 
@@ -774,10 +777,11 @@ static void init_sensors(void)
 			shub_errf("%d has error", type);
 			kfree(sensor);
 			sensor_manager->sensor_list[type] = NULL;
-		} else if (sensor->funcs && sensor->funcs->init_chipset) {
-			ret = sensor->funcs->init_chipset();
+		} else {
+			ret = init_shub_sensor(sensor);
 			if (ret < 0) {
-				shub_errf("%d init_chipset error", type);
+				shub_errf("%d init error", type);
+				init_sensor_funcs[i].func(false);
 				kfree(sensor);
 				sensor_manager->sensor_list[i] = NULL;
 			}
