@@ -1,0 +1,89 @@
+config FB_MSM_MDSS_WRITEBACK
+	bool "MDSS Writeback Panel"
+	---help---
+	The MDSS Writeback Panel provides support for routing the output of
+	MDSS frame buffer driver and MDP processing to memory.
+
+config FB_MSM_MDSS_HDMI_PANEL
+	depends on FB_MSM_MDSS
+	bool "MDSS HDMI Tx Panel"
+	default n
+	---help---
+	The MDSS HDMI Panel provides support for transmitting TMDS signals of
+	MDSS frame buffer data to connected hdmi compliant TVs, monitors etc.
+
+config FB_MSM_MDSS_HDMI_MHL_SII8334
+	depends on FB_MSM_MDSS_HDMI_PANEL
+	bool 'MHL SII8334 support '
+	default n
+	---help---
+	  Support the HDMI to MHL conversion.
+	  MHL (Mobile High-Definition Link) technology
+	  uses USB connector to output HDMI content
+	  
+config MDNIE_VIDEO_ENHANCED
+	bool "MDNIe video enhanced tuning"
+	default n
+
+config MDNIE_LITE_TUNING
+	bool "MDNIe lite panel tuning"
+	default n
+
+config FB_MSM_MDSS_SHARP_HD_PANEL
+	bool "MDSS SHARP HD Panel"
+	default n
+	---help---
+	The MDSS SHARP LCD Panel support
+
+config FB_MSM_MDSS_MAGNA_WVGA_PANEL
+	bool "MDSS MAGNA WVGA Panel"
+	default n
+	---help---
+	The MDSS MAGNA LCD Panel support
+	
+config FB_MSM_MDSS_MAGNA_OCTA_720P_PANEL
+	bool "MDSS MAGNA OCTA 720P Panel"
+	default n
+	---help---
+	The MDSS MAGNA OCTA Panel support
+	
+config FB_MSM_MDSS_S6E8AA0A_HD_PANEL
+	bool "MDSS S6E8AA0A HD Panel"
+	default n
+	---help---
+	The MDSS S6E8AA0A LCD Panel support
+
+config FB_MSM_MDSS_HIMAX_QHD_PANEL
+	bool "MDSS HIMAX QHD Panel"
+	default n
+	---help---
+	The MDSS HIMAX LCD Panel support
+	
+config FB_MSM_MDSS_BOE_WXGA_PANEL
+	bool "MDSS BOE WXGA Panel"
+	default n
+	---help---
+	The MDSS BOE LCD Panel support
+	
+config ESD_ERR_FG_RECOVERY
+	bool "ESD Feature"
+	default n
+
+config FB_MSM_MDSS_SDC_WXGA_PANEL
+	bool "MDSS SDC WXGA Panel"
+	default n
+	---help---
+	The MDSS SDC LCD Panel support
+
+config LCD_CONNECTION_CHECK
+	bool "check if LCD connected or not and detect panel vendor"
+	default n
+
+config SAMSUNG_DEBUG_DISPLAY 
+	bool "Add Samsung Debugging code"
+	default n
+
+config FB_MSM_MDSS_KTD3102_BACKLIGHT
+	bool "MDSS KTD3102 Backlight IC"
+	default n
+	

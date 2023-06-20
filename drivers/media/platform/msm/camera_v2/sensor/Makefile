@@ -1,0 +1,13 @@
+ccflags-y += -Idrivers/media/platform/msm/camera_v2
+ccflags-y += -Idrivers/media/platform/msm/camera_v2/msm_vb2
+ccflags-y += -Idrivers/media/platform/msm/camera_v2/camera
+ccflags-y += -Idrivers/media/platform/msm/camera_v2/sensor/io
+ccflags-y += -Idrivers/media/platform/msm/camera_v2/sensor/cci
+obj-$(CONFIG_MSMB_CAMERA) += cci/ io/ csiphy/ csid/ actuator/ eeprom/
+obj-$(CONFIG_MSM_CAMERA_SENSOR) += msm_sensor_init.o msm_sensor_driver.o msm_sensor.o
+obj-$(CONFIG_S5K4H5YB) += s5k4h5ya_bayer.o
+obj-$(CONFIG_S5K4H5YB) += s5k4h5yb_bayer.o
+obj-$(CONFIG_S5K6A3YX) += s5k6a3yx_bayer.o
+#obj-$(CONFIG_SR352) += sr352_yuv.o
+#obj-$(CONFIG_SR130PC20) += sr130pc20_yuv.o
+obj-$(CONFIG_MSMB_CAMERA) += flash/

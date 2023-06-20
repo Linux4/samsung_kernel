@@ -1,0 +1,23 @@
+
+config SENSORS_CORE
+         bool "sensors_core"
+         depends on I2C
+
+config SENSOR_USE_SYMLINK
+         bool "sensors_symlink"
+         depends on I2C
+
+config SENSORS_HSCDTD008A
+	depends on I2C
+	tristate "hscd alps HSCDTD008A"
+	default n
+	help
+	  This option enables hscd alps HSCDTD008A mag driver
+
+source "drivers/sensors/optical/Kconfig"
+source "drivers/sensors/mpu6500/Kconfig"
+source "drivers/sensors/accelerometer_k2dh/Kconfig"
+source "drivers/sensors/grip_sensor/Kconfig"
+source "drivers/sensors/accelerometer/Kconfig"
+source "drivers/sensors/accelerometer_bma250/Kconfig"
+source "drivers/sensors/geomagnetic/Kconfig"

@@ -1,0 +1,32 @@
+#
+# Copyright (c) 2010 Yamaha Corporation
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
+# USA.
+#
+
+
+
+config BMA250_ACC_DRIVER
+	tristate "YAS Acceleration Sensor- BMA250"
+	depends on I2C
+	help
+	  Say Y here if you want support for the BMA250 sensor
+	  device.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called BMA250.
+
+

@@ -1,0 +1,757 @@
+#include <linux/platform_device.h>
+#include <linux/spi/spi.h>
+#include <linux/spi/spi_gpio.h>
+#include <linux/gpio.h>
+#include <linux/gpio_keys.h>
+#include <linux/gpio_event.h>
+#include <mach/sec-switch_max77693.h>
+/*#include <mach/devs.h>*/
+/*#include <mach/gpio-cfg.h>*/
+#include <linux/i2c.h>
+#include <linux/i2c-gpio.h>
+#include <linux/input.h>
+/*#include <mach/udc-hs.h>*/
+/*#include <linux/mmc/host.h>*/
+#include <linux/i2c/max77693-muic.h>
+#include <linux/regulator/machine.h>
+#include <linux/regulator/max8649.h>
+#include <linux/regulator/fixed.h>
+#include <linux/mfd/wm8994/pdata.h>
+#include <linux/mfd/max77693.h>
+#include <linux/mfd/max77693-private.h>
+#include <linux/mfd/max77686.h>
+#include <linux/usb/ch9.h>
+#include <linux/usb/gadget.h>
+#include <linux/gpio.h>
+
+#include <linux/power_supply.h>
+
+#ifdef CONFIG_SWITCH
+#include <linux/switch.h>
+#endif
+#include <linux/sii9234.h>
+
+#ifdef CONFIG_USB_HOST_NOTIFY
+#include <linux/host_notify.h>
+#endif
+#include <linux/pm_runtime.h>
+#include <linux/usb.h>
+#include <linux/usb/hcd.h>
+#include <linux/export.h>
+#ifdef CONFIG_JACK_MON
+#include <linux/jack.h>
+#endif
+
+#ifdef CONFIG_MACH_SLP_NAPLES
+#include <mach/naples-tsp.h>
+#endif
+#ifdef CONFIG_MACH_MIDAS
+#include <linux/platform_data/mms_ts.h>
+#endif
+
+#ifdef CONFIG_FAST_BOOT
+#include <linux/fake_shut_down.h>
+#endif
+
+#ifdef CONFIG_MACH_TAB3
+#include "board-exynos4212.h"
+#endif
+
+#ifdef CONFIG_SWITCH
+static struct switch_dev switch_dock = {
+	.name = "dock",
+};
+#endif
+
+extern struct class *sec_class;
+
+struct device *switch_dev;
+EXPORT_SYMBOL(switch_dev);
+
+/* charger cable state */
+bool is_cable_attached;
+bool is_jig_attached;
+
+#if 0
+static ssize_t midas_switch_show_vbus(struct device *dev,
+				      struct device_attribute *attr, char *buf)
+{
+	int i;
+	struct regulator *regulator;
+
+	regulator = regulator_get(NULL, "safeout1");
+	if (IS_ERR(regulator)) {
+		pr_warn("%s: fail to get regulator\n", __func__);
+		return sprintf(buf, "UNKNOWN\n");
+	}
+	if (regulator_is_enabled(regulator))
+		i = sprintf(buf, "VBUS is enabled\n");
+	else
+		i = sprintf(buf, "VBUS is disabled\n");
+	regulator_put(regulator);
+
+	return i;
+}
+
+static ssize_t midas_switch_store_vbus(struct device *dev,
+				       struct device_attribute *attr,
+				       const char *buf, size_t count)
+{
+	int disable, ret, usb_mode;
+	struct regulator *regulator;
+	/* struct s3c_udc *udc = platform_get_drvdata(&s3c_device_usbgadget); */
+
+	if (!strncmp(buf, "0", 1))
+		disable = 0;
+	else if (!strncmp(buf, "1", 1))
+		disable = 1;
+	else {
+		pr_warn("%s: Wrong command\n", __func__);
+		return count;
+	}
+
+	pr_info("%s: disable=%d\n", __func__, disable);
+	usb_mode =
+	    disable ? USB_CABLE_DETACHED_WITHOUT_NOTI : USB_CABLE_ATTACHED;
+	/* ret = udc->change_usb_mode(usb_mode); */
+	ret = -1;
+	if (ret < 0)
+		pr_err("%s: fail to change mode!!!\n", __func__);
+
+	regulator = regulator_get(NULL, "safeout1");
+	if (IS_ERR(regulator)) {
+		pr_warn("%s: fail to get regulator\n", __func__);
+		return count;
+	}
+
+	if (disable) {
+		if (regulator_is_enabled(regulator))
+			regulator_force_disable(regulator);
+		if (!regulator_is_enabled(regulator))
+			regulator_enable(regulator);
+	} else {
+		if (!regulator_is_enabled(regulator))
+			regulator_enable(regulator);
+	}
+	regulator_put(regulator);
+
+	return count;
+}
+
+DEVICE_ATTR(disable_vbus, 0664, midas_switch_show_vbus,
+	    midas_switch_store_vbus);
+#endif
+
+#ifdef CONFIG_TARGET_LOCALE_KOR
+#include "../../../drivers/usb/gadget/s3c_udc.h"
+/* usb access control for SEC DM */
+struct device *usb_lock;
+static int is_usb_locked;
+
+static ssize_t midas_switch_show_usb_lock(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	if (is_usb_locked)
+		return snprintf(buf, PAGE_SIZE, "USB_LOCK");
+	else
+		return snprintf(buf, PAGE_SIZE, "USB_UNLOCK");
+}
+
+static ssize_t midas_switch_store_usb_lock(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	int lock;
+	struct s3c_udc *udc = platform_get_drvdata(&s3c_device_usbgadget);
+
+	if (!strncmp(buf, "0", 1))
+		lock = 0;
+	else if (!strncmp(buf, "1", 1))
+		lock = 1;
+	else {
+		pr_warn("%s: Wrong command\n", __func__);
+		return count;
+	}
+
+	if (IS_ERR_OR_NULL(udc))
+		return count;
+
+	pr_info("%s: lock=%d\n", __func__, lock);
+
+	if (lock != is_usb_locked) {
+		is_usb_locked = lock;
+
+		if (lock) {
+			if (udc->udc_enabled)
+				usb_gadget_vbus_disconnect(&udc->gadget);
+		}
+	}
+
+	return count;
+}
+
+static DEVICE_ATTR(enable, 0664,
+		   midas_switch_show_usb_lock, midas_switch_store_usb_lock);
+#endif /* CONFIG_TARGET_LOCALE_KOR */
+
+extern void sec_otg_set_vbus_state(int);
+extern void sec_otg_set_id_state(int);
+extern void msm_otg_set_smartdock_state(int);
+
+/* usb cable call back function */
+void max77693_muic_usb_cb(u8 usb_mode)
+{
+
+#ifdef CONFIG_TARGET_LOCALE_KOR
+	if (is_usb_locked) {
+		pr_info("%s: usb locked by mdm\n", __func__);
+		return;
+	}
+#endif
+ 	pr_info("%s: MUIC attached: %d\n", __func__, usb_mode); 
+
+	if (usb_mode == USB_CABLE_DETACHED
+		|| usb_mode == USB_CABLE_ATTACHED) {
+		pr_info("msm_otg_set_vbus_state(%d)", usb_mode);
+		sec_otg_set_vbus_state(usb_mode);
+#ifdef CONFIG_USB_HOST_NOTIFY
+	} else if (usb_mode == USB_OTGHOST_DETACHED
+		|| usb_mode == USB_OTGHOST_ATTACHED) {
+
+		if (usb_mode == USB_OTGHOST_DETACHED) {
+			sec_otg_notify(HNOTIFY_ID_PULL);
+		} else {
+			sec_otg_notify(HNOTIFY_ID);
+		}
+
+	} else if (usb_mode == USB_POWERED_HOST_DETACHED
+		|| usb_mode == USB_POWERED_HOST_ATTACHED) {
+		if (usb_mode == USB_POWERED_HOST_DETACHED){
+			pr_info("msm_otg_set_smartdock_state(1)");
+			sec_otg_notify(HNOTIFY_SMARTDOCK_OFF);
+		}else{
+			pr_info("msm_otg_set_smartdock_state(0)");
+			sec_otg_notify(HNOTIFY_SMARTDOCK_ON);
+		}
+#endif
+	}
+
+#ifdef CONFIG_JACK_MON
+	if (usb_mode == USB_OTGHOST_ATTACHED
+	|| usb_mode == USB_POWERED_HOST_ATTACHED)
+		jack_event_handler("host", USB_CABLE_ATTACHED);
+	else if (usb_mode == USB_OTGHOST_DETACHED
+	|| usb_mode == USB_POWERED_HOST_DETACHED)
+		jack_event_handler("host", USB_CABLE_DETACHED);
+	else if ((usb_mode == USB_CABLE_ATTACHED)
+		|| (usb_mode == USB_CABLE_DETACHED))
+		jack_event_handler("usb", usb_mode);
+#endif
+}
+EXPORT_SYMBOL(max77693_muic_usb_cb);
+
+#ifdef CONFIG_CHARGER_MAX77693
+int current_cable_type = POWER_SUPPLY_TYPE_BATTERY;
+#endif
+int max77693_muic_charger_cb(enum cable_type_muic cable_type)
+{
+#ifdef CONFIG_CHARGER_MAX77693
+	struct power_supply *psy = power_supply_get_by_name("battery");
+	union power_supply_propval value;
+	static enum cable_type_muic previous_cable_type = CABLE_TYPE_NONE_MUIC;
+#endif
+
+	pr_info("%s: %d\n", __func__, cable_type);
+
+	switch (cable_type) {
+	case CABLE_TYPE_NONE_MUIC:
+	case CABLE_TYPE_OTG_MUIC:
+	case CABLE_TYPE_JIG_UART_OFF_MUIC:
+#if defined(CONFIG_MUIC_MAX77693_SUPPORT_MHL_CABLE_DETECTION)
+        /* CONFIG_MUIC_MAX77693_SUPPORT_MHL_CABLE_DETECTION */
+	case CABLE_TYPE_MHL_MUIC:
+		is_cable_attached = false;
+		break;
+#endif
+	case CABLE_TYPE_USB_MUIC:
+	case CABLE_TYPE_JIG_USB_OFF_MUIC:
+	case CABLE_TYPE_JIG_USB_ON_MUIC:
+		is_cable_attached = true;
+		break;
+#if defined(CONFIG_MUIC_MAX77693_SUPPORT_MHL_CABLE_DETECTION)
+        /* CONFIG_MUIC_MAX77693_SUPPORT_MHL_CABLE_DETECTION */
+	case CABLE_TYPE_MHL_VB_MUIC:
+		is_cable_attached = true;
+		break;
+#endif
+	case CABLE_TYPE_TA_MUIC:
+	case CABLE_TYPE_CARDOCK_MUIC:
+	case CABLE_TYPE_DESKDOCK_MUIC:
+	case CABLE_TYPE_SMARTDOCK_MUIC:
+	case CABLE_TYPE_AUDIODOCK_MUIC:
+#if defined(CONFIG_MUIC_MAX77693_SUPPORT_MHL_CABLE_DETECTION)
+        /* CONFIG_MUIC_MAX77693_SUPPORT_MHL_CABLE_DETECTION */
+	case CABLE_TYPE_JIG_UART_OFF_VB_MUIC:
+		is_cable_attached = true;
+		break;
+#endif
+	default:
+		pr_err("%s: invalid type:%d\n", __func__, cable_type);
+		break;
+	}
+
+#ifdef CONFIG_CHARGER_MAX77693
+	/*  charger setting */
+	if (previous_cable_type == cable_type) {
+		pr_info("%s: SKIP cable setting\n", __func__);
+		goto skip;
+	}
+	previous_cable_type = cable_type;
+
+	/* charger setting */
+	switch (cable_type) {
+	case CABLE_TYPE_NONE_MUIC:
+	case CABLE_TYPE_JIG_UART_OFF_MUIC:
+		current_cable_type = POWER_SUPPLY_TYPE_BATTERY;
+		break;
+	case CABLE_TYPE_MHL_VB_MUIC:
+		if (poweroff_charging)
+			current_cable_type = POWER_SUPPLY_TYPE_USB;
+		else
+			goto skip;
+		break;
+	case CABLE_TYPE_MHL_MUIC:
+		if (poweroff_charging) {
+			current_cable_type = POWER_SUPPLY_TYPE_BATTERY;
+		} else {
+			goto skip;
+		}
+		break;
+	case CABLE_TYPE_OTG_MUIC:
+		goto skip;
+	case CABLE_TYPE_USB_MUIC:
+	case CABLE_TYPE_JIG_USB_OFF_MUIC:
+	case CABLE_TYPE_JIG_USB_ON_MUIC:
+	case CABLE_TYPE_SMARTDOCK_USB_MUIC:
+		current_cable_type = POWER_SUPPLY_TYPE_USB;
+		break;
+	case CABLE_TYPE_JIG_UART_OFF_VB_MUIC:
+		current_cable_type = POWER_SUPPLY_TYPE_UARTOFF;
+		break;
+	case CABLE_TYPE_TA_MUIC:
+		current_cable_type = POWER_SUPPLY_TYPE_MAINS;
+		break;
+	case CABLE_TYPE_CARDOCK_MUIC:
+	case CABLE_TYPE_DESKDOCK_MUIC:
+	case CABLE_TYPE_SMARTDOCK_MUIC:
+	case CABLE_TYPE_AUDIODOCK_MUIC:
+	case CABLE_TYPE_SMARTDOCK_TA_MUIC:
+		current_cable_type = POWER_SUPPLY_TYPE_MISC;
+		break;
+	default:
+		pr_err("%s: invalid type for charger:%d\n",
+				__func__, cable_type);
+		goto skip;
+	}
+
+	if (!psy || !psy->set_property) {
+		pr_err("%s: fail to get battery psy\n", __func__);
+		return 0;
+	} else {
+		value.intval = current_cable_type<<ONLINE_TYPE_MAIN_SHIFT;
+		psy->set_property(psy, POWER_SUPPLY_PROP_ONLINE, &value);
+	}
+
+skip:
+#endif
+
+#if defined(CONFIG_MACH_SLP_NAPLES) \
+	|| defined(CONFIG_MACH_MIDAS) \
+ 	|| defined(CONFIG_MACH_GC1) \
+	|| defined(CONFIG_MACH_T0) \
+	|| defined(CONFIG_MACH_GD2)
+
+#ifndef CONFIG_TOUCHSCREEN_CYPRESS_TMA46X
+#ifndef CONFIG_MACH_KONA
+	tsp_charger_infom(is_cable_attached);
+#endif
+#endif
+#endif
+#ifdef CONFIG_JACK_MON
+	jack_event_handler("charger", is_cable_attached);
+#endif
+
+	return 0;
+}
+
+#if defined(CONFIG_MUIC_MAX77693_SUPPORT_MHL_CABLE_DETECTION)
+/*extern void MHL_On(bool on);*/
+void max77693_muic_mhl_cb(int attached)
+{
+	pr_info("MUIC attached:%d\n", attached);
+	if (attached == MAX77693_MUIC_ATTACHED) {
+		/*MHL_On(1);*/ /* GPIO_LEVEL_HIGH */
+		pr_info("MHL Attached !!\n");
+#ifdef CONFIG_SAMSUNG_MHL
+#ifdef CONFIG_MACH_MIDAS
+		sii9234_wake_lock();
+#endif
+		mhl_onoff_ex(1);
+#endif
+	} else {
+		/*MHL_On(0);*/ /* GPIO_LEVEL_LOW */
+		pr_info("MHL Detached !!\n");
+#ifdef CONFIG_SAMSUNG_MHL
+		mhl_onoff_ex(false);
+#ifdef CONFIG_MACH_MIDAS
+		sii9234_wake_unlock();
+#endif
+#endif
+	}
+}
+
+bool max77693_muic_is_mhl_attached(void)
+{
+	int val;
+#ifdef CONFIG_SAMSUNG_USE_11PIN_CONNECTOR
+	val = max77693_muic_get_status1_adc1k_value();
+	pr_info("%s(1): %d\n", __func__, val);
+	return val;
+#else
+	const int err = -1;
+	int ret;
+
+	ret = gpio_request(GPIO_MHL_SEL, "MHL_SEL");
+	if (ret) {
+			pr_err("fail to request gpio %s\n", "GPIO_MHL_SEL");
+			return err;
+	}
+	val = gpio_get_value(GPIO_MHL_SEL);
+	pr_info("%s(2): %d\n", __func__, val);
+	gpio_free(GPIO_MHL_SEL);
+	return !!val;
+#endif
+}
+#endif /* CONFIG_MUIC_MAX77693_SUPPORT_MHL_CABLE_DETECTION */
+
+void max77693_muic_dock_cb(int type)
+{
+	pr_info("%s:%s= MUIC dock type=%d\n", "sec-switch.c", __func__, type);
+#ifdef CONFIG_JACK_MON
+	jack_event_handler("cradle", type);
+#endif
+#ifdef CONFIG_SWITCH
+	switch_set_state(&switch_dock, type);
+#endif
+}
+
+void max77693_muic_init_cb(void)
+{
+#ifdef CONFIG_SWITCH
+	int ret;
+
+	/* for CarDock, DeskDock */
+	ret = switch_dev_register(&switch_dock);
+
+	pr_info("MUIC ret=%d\n", ret);
+
+	if (ret < 0)
+		pr_err("Failed to register dock switch. %d\n", ret);
+#endif
+}
+
+static enum cable_type_t set_cable_status;
+int msm8930_get_cable_status(void) {return (int)set_cable_status; }
+
+/* support for LPM charging */
+//#ifdef CONFIG_SAMSUNG_LPM_MODE
+bool sec_bat_is_lpm(void)
+{return (bool)poweroff_charging; }
+
+int sec_bat_get_cable_status(void)
+{
+        int rc;
+        struct power_supply *psy;
+        union power_supply_propval value;
+
+        psy = power_supply_get_by_name("battery");
+        switch (set_cable_status) {
+        case CABLE_TYPE_MISC:
+                value.intval = POWER_SUPPLY_TYPE_MISC;
+                break;
+        case CABLE_TYPE_USB:
+                value.intval = POWER_SUPPLY_TYPE_USB;
+                break;
+        case CABLE_TYPE_AC:
+        case CABLE_TYPE_AUDIO_DOCK:
+                value.intval = POWER_SUPPLY_TYPE_MAINS;
+                break;
+        case CABLE_TYPE_UARTOFF:
+                value.intval = POWER_SUPPLY_TYPE_UARTOFF;
+                break;
+        case CABLE_TYPE_CARDOCK:
+                value.intval = POWER_SUPPLY_TYPE_CARDOCK;
+                break;
+        case CABLE_TYPE_CDP:
+                value.intval = POWER_SUPPLY_TYPE_USB_CDP;
+                break;
+        case CABLE_TYPE_INCOMPATIBLE:
+                value.intval = POWER_SUPPLY_TYPE_MAINS;
+                break;
+        case CABLE_TYPE_DESK_DOCK:
+                value.intval = POWER_SUPPLY_TYPE_DESK_DOCK;
+                break;
+        case CABLE_TYPE_NONE:
+                value.intval = POWER_SUPPLY_TYPE_BATTERY;
+        if (set_cable_status == CABLE_TYPE_UARTOFF)
+        value.intval = POWER_SUPPLY_TYPE_UARTOFF;
+                break;
+        default:
+                pr_err("%s: LPM boot with invalid cable :%d\n", __func__,set_cable_status);
+        }
+
+        rc = psy->set_property(psy, POWER_SUPPLY_PROP_ONLINE,&value);
+
+        if (rc) {
+                pr_err("%s: fail to set power_suppy ONLINE property(%d)\n",
+                        __func__, rc);
+        }
+
+        return (int)set_cable_status;
+}
+//#endif
+
+
+int max77693_muic_set_safeout(int path)
+{
+	struct regulator *regulator;
+
+	pr_info("MUIC safeout path=%d\n", path);
+
+	if (path == CP_USB_MODE) {
+		regulator = regulator_get(NULL, "safeout1");
+		if (IS_ERR(regulator))
+			return -ENODEV;
+		if (regulator_is_enabled(regulator))
+			regulator_force_disable(regulator);
+		regulator_put(regulator);
+
+		regulator = regulator_get(NULL, "safeout2");
+		if (IS_ERR(regulator))
+			return -ENODEV;
+		if (!regulator_is_enabled(regulator))
+			regulator_enable(regulator);
+		regulator_put(regulator);
+	} else {
+		/* AP_USB_MODE || AUDIO_MODE */
+		regulator = regulator_get(NULL, "safeout1");
+		if (IS_ERR(regulator))
+			return -ENODEV;
+		if (!regulator_is_enabled(regulator))
+			regulator_enable(regulator);
+		regulator_put(regulator);
+
+		regulator = regulator_get(NULL, "safeout2");
+		if (IS_ERR(regulator))
+			return -ENODEV;
+		if (regulator_is_enabled(regulator))
+			regulator_force_disable(regulator);
+		regulator_put(regulator);
+	}
+
+	return 0;
+}
+
+#if defined(CONFIG_MACH_M0) || defined(CONFIG_MACH_C1)
+int max77693_muic_cfg_uart_gpio(void)
+{
+	int uart_val, path;
+	pr_info("## MUIC func : %s ! please  path: (uart:%d - usb:%d)\n",
+		__func__, gpio_get_value(GPIO_UART_SEL),
+		gpio_get_value(GPIO_USB_SEL));
+	uart_val = gpio_get_value(GPIO_UART_SEL);
+	path = uart_val ? UART_PATH_AP : UART_PATH_CP;
+#ifdef CONFIG_LTE_VIA_SWITCH
+	if (path == UART_PATH_CP && !gpio_get_value(GPIO_LTE_VIA_UART_SEL))
+		path = UART_PATH_LTE;
+#endif
+	pr_info("##MUIC [ %s ]- func : %s! path:%d\n", __FILE__, __func__,
+		path);
+	return path;
+}
+
+void max77693_muic_jig_uart_cb(int path)
+{
+	pr_info("func:%s : (path=%d\n", __func__, path);
+	switch (path) {
+	case UART_PATH_AP:
+		gpio_set_value(GPIO_UART_SEL, GPIO_LEVEL_HIGH);
+		break;
+	case UART_PATH_CP:
+		gpio_set_value(GPIO_UART_SEL, GPIO_LEVEL_LOW);
+#ifdef CONFIG_LTE_VIA_SWITCH
+		gpio_set_value(GPIO_LTE_VIA_UART_SEL, GPIO_LEVEL_HIGH);
+#endif
+		break;
+#ifdef CONFIG_LTE_VIA_SWITCH
+	case UART_PATH_LTE:
+		gpio_set_value(GPIO_UART_SEL, GPIO_LEVEL_LOW);
+		gpio_set_value(GPIO_LTE_VIA_UART_SEL, GPIO_LEVEL_LOW);
+		break;
+#endif
+	default:
+		pr_info("func %s: invalid value!!\n", __func__);
+	}
+
+}
+#endif /* CONFIG_MACH_M0 || CONFIG_MACH_C1 */
+
+#if defined(CONFIG_MUIC_DET_JACK)
+extern void jack_status_change(int attached);
+extern void earkey_status_change(int pressed, int code);
+
+void max77693_muic_earjack_cb(int attached)
+{
+	jack_status_change(attached);
+}
+void max77693_muic_earjackkey_cb(int pressed, unsigned int code)
+{
+	earkey_status_change(pressed, code);
+}
+#endif /* CONFIG_MUIC_DET_JACK */
+
+#ifdef CONFIG_USB_HOST_NOTIFY
+int max77693_muic_host_notify_cb(int enable)
+{
+#if 0
+	struct host_notifier_platform_data *host_noti_pdata =
+	    host_notifier_device.dev.platform_data;
+
+	struct host_notify_dev *ndev = &host_noti_pdata->ndev;
+
+	if (!ndev) {
+		pr_err("%s: ndev is null.\n", __func__);
+		return -1;
+	}
+
+	ndev->booster = enable ? NOTIFY_POWER_ON : NOTIFY_POWER_OFF;
+	pr_info("%s: mode %d, enable %d\n", __func__, ndev->mode, enable);
+	return ndev->mode;
+#endif
+	return 0;
+}
+#endif /* CONFIG_USB_HOST_NOTIFY */
+
+
+int max77693_get_jig_state(void)
+{
+	pr_info("%s: %d\n", __func__, is_jig_attached);
+	return is_jig_attached;
+}
+EXPORT_SYMBOL(max77693_get_jig_state);
+
+void max77693_set_jig_state(int jig_state)
+{
+	pr_info("%s: %d\n", __func__, jig_state);
+	is_jig_attached = jig_state;
+}
+
+struct max77693_muic_data max77693_muic = {
+	.usb_cb = max77693_muic_usb_cb,
+	.charger_cb = max77693_muic_charger_cb,
+	.dock_cb = max77693_muic_dock_cb,
+#if defined(CONFIG_MUIC_MAX77693_SUPPORT_MHL_CABLE_DETECTION)
+	.mhl_cb = max77693_muic_mhl_cb,
+	.is_mhl_attached = max77693_muic_is_mhl_attached,
+#endif /* CONFIG_MUIC_MAX77693_SUPPORT_MHL_CABLE_DETECTION */
+	.init_cb = max77693_muic_init_cb,
+	.set_safeout = max77693_muic_set_safeout,
+#if defined(CONFIG_MACH_M0) || defined(CONFIG_MACH_C1)
+	.cfg_uart_gpio = max77693_muic_cfg_uart_gpio,
+	.jig_uart_cb = max77693_muic_jig_uart_cb,
+	.gpio_usb_sel = GPIO_USB_SEL,
+#else
+	.gpio_usb_sel = -1,
+#endif /* CONFIG_MACH_M0 || CONFIG_MACH_C1 */
+#if defined(CONFIG_MUIC_DET_JACK)
+	.earjack_cb = max77693_muic_earjack_cb,
+	.earjackkey_cb = max77693_muic_earjackkey_cb,
+#endif /* CONFIG_MUIC_DET_JACK */
+#ifdef CONFIG_USB_HOST_NOTIFY
+	.host_notify_cb = max77693_muic_host_notify_cb,
+#endif /* CONFIG_USB_HOST_NOTIFY */
+	.jig_state = max77693_set_jig_state,
+};
+
+#if defined(CONFIG_MACH_SLP_PQ) || defined(CONFIG_MACH_REDWOOD) || \
+defined(CONFIG_MACH_SLP_T0_LTE) 
+static void otg_accessory_power(int enable)
+{
+	u8 on = (u8)!!enable;
+
+	/* max77693 otg power control */
+	otg_control(enable);
+
+#if defined(CONFIG_FAST_BOOT)
+	if (fake_shut_down) {
+		gpio_request(GPIO_OTG_EN, "USB_OTG_EN");
+		gpio_direction_output(GPIO_OTG_EN, 0);
+		gpio_free(GPIO_OTG_EN);
+	} else {
+#endif
+		gpio_request(GPIO_OTG_EN, "USB_OTG_EN");
+		gpio_direction_output(GPIO_OTG_EN, on);
+		gpio_free(GPIO_OTG_EN);
+#if defined(CONFIG_FAST_BOOT)
+	}
+#endif
+	pr_info("%s: otg accessory power = %d\n", __func__, on);
+}
+
+static struct host_notifier_platform_data host_notifier_pdata = {
+	.ndev.name	= "usb_otg",
+	.booster	= otg_accessory_power,
+	.thread_enable	= 0,
+};
+
+struct platform_device host_notifier_device = {
+	.name = "host_notifier",
+	.dev.platform_data = &host_notifier_pdata,
+};
+#endif /* CONFIG_MACH_SLP_PQ || CONFIG_MACH_REDWOOD || \
+	CONFIG_MACH_SLP_T0_LTE */
+
+static int __init midas_sec_switch_init(void)
+{
+	int ret = 0;
+	switch_dev = device_create(sec_class, NULL, 0, NULL, "switch");
+
+	if (IS_ERR(switch_dev)) {
+		pr_err("%s:%s= Failed to create device(switch)!\n",
+				__FILE__, __func__);
+		return -ENODEV;
+	}
+
+#if 0
+	ret = device_create_file(switch_dev, &dev_attr_disable_vbus);
+	if (ret) {
+		pr_err("%s:%s= Failed to create device file(disable_vbus)!\n",
+				__FILE__, __func__);
+		return ret;
+	}
+#endif
+
+#ifdef CONFIG_TARGET_LOCALE_KOR
+	usb_lock = device_create(sec_class, switch_dev,
+				MKDEV(0, 0), NULL, ".usb_lock");
+
+	if (IS_ERR(usb_lock))
+		pr_err("Failed to create device (usb_lock)!\n");
+
+	if (device_create_file(usb_lock, &dev_attr_enable) < 0)
+		pr_err("Failed to create device file(.usblock/enable)!\n");
+#endif /* CONFIG_TARGET_LOCALE_KOR */
+
+	return ret;
+}
+device_initcall(midas_sec_switch_init);

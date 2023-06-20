@@ -1,0 +1,32 @@
+#
+# Sensor  drivers configuration
+#
+config SENSORS_K2DH
+	tristate "K2DH acceleration sensor support"
+	depends on I2C
+        default n
+	help
+	  Say Y here if you use K2DH.
+	  This option enables accelerometer sensors using
+	  STM K2DH in K2DH device driver.
+
+	  Say N here if you do not use K2DH.
+
+config SENSORS_K3DH
+	tristate "K3DH acceleration sensor support"
+	depends on I2C
+        default n
+	help
+	  Driver for STMicroelectronic K3DH accelerometer.
+
+config SENSOR_K3DH_INPUTDEV
+	bool "K3DH acceleration sensor input dev support"
+	depends on SENSORS_K3DH
+        default n
+	help
+	  Say Y here if you use K3DH.
+	  This option enables accelerometer sensor using
+	  K3DH device driver.
+
+	  Say N here if you do not use K3DH.
+
